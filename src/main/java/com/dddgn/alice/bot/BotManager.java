@@ -1,7 +1,6 @@
 package com.dddgn.alice.bot;
 
 import com.dddgn.alice.action.BotMiner;
-import com.dddgn.alice.action.BotWalker;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
 import com.mojang.authlib.GameProfile;
