@@ -97,7 +97,11 @@ public final class InterfaceScanner {
         appendIfPresent(sb, be, mekanism.common.capabilities.Capabilities.SLURRY_HANDLER, "【浆液】有浆液接口(待适配器)");
         appendIfPresent(sb, be, mekanism.common.capabilities.Capabilities.HEAT_HANDLER, "【热量】有热接口(待适配器)");
         appendIfPresent(sb, be, mekanism.common.capabilities.Capabilities.STRICT_ENERGY, "【精确能量】有 Mek 精确能量接口(待适配器)");
-        appendIfPresent(sb, be, mekanism.common.capabilities.Capabilities.CONFIGURABLE, "【面配置】可配置输入/输出面");
+        // 面配置:Mek 机器不走 capability,而是直接实现 ISideConfiguration 接口(getConfig)
+        // v1 只识别存在性,具体哪面输入/输出需按 TransmissionType 读 ConfigInfo(留适配器)
+        if (be instanceof mekanism.common.tile.interfaces.ISideConfiguration) {
+            sb.append("【面配置】可配置输入/输出面\n");
+        }
     }
 
     private static <T> void appendIfPresent(StringBuilder sb, BlockEntity be,
