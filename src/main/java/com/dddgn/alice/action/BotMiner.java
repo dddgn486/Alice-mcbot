@@ -167,18 +167,37 @@ public final class BotMiner {
     }
 
     /**
-     * 目标周围 2 格内的可站立空气格(脚位空+头位空+下方实心支撑)。
-     * 第一轮优先选「从该格到目标视线无遮挡」的站位(R4 决策 A:避免选到被挡的位置后
-     * 还得靠 line_of_sight_blocked 拒挖);无视线可达候选时退回距离最近者。
+     * 选站位:第一轮目标周围 2 格(紧贴),无果则第二轮扩大到挖掘距离 4.5 内(远挖,
+     * 目标被围/悬空时站远处挖)。每轮优先「视线无遮挡」候选(R4 决策 A)。
+     * 全部失败时输出诊断统计后返回 null(no_stand_pos)。
      */
     private BlockPos pickStandPos(ServerLevel level) {
+        BlockPos near = findStandPos(level, 2);
+        if (near != null) {
+            return near;
+        }
+        BlockPos far = findStandPos(level, 4);
+        if (far != null) {
+            BotLog.info("站位: 目标周围无紧贴站位,采用远挖站位 {}", far.toShortString());
+            return far;
+        }
+        logStandDiagnostics(level);
+        return null;
+    }
+
+    /**
+     * 在目标周围 hRadius 水平半径、y±2 内找可站立空气格(脚位空+头位空+下方实心支撑,
+     * 且从该格眼睛位置到目标中心 ≤ 挖掘距离,留 0.3 余量防抖动)。
+     * 优先视线无遮挡候选,退回距离最近者。
+     */
+    private BlockPos findStandPos(ServerLevel level, int hRadius) {
         BlockPos bestClear = null;
         double bestClearDist = Double.MAX_VALUE;
         BlockPos bestAny = null;
         double bestAnyDist = Double.MAX_VALUE;
-        for (int dx = -2; dx <= 2; dx++) {
+        for (int dx = -hRadius; dx <= hRadius; dx++) {
             for (int dy = -2; dy <= 2; dy++) {
-                for (int dz = -2; dz <= 2; dz++) {
+                for (int dz = -hRadius; dz <= hRadius; dz++) {
                     BlockPos p = target.offset(dx, dy, dz);
                     if (p.equals(target) || p.equals(target.above())) {
                         continue; // 不站目标方块本身/其正上方(避免与挖脚下方块冲突)
@@ -189,6 +208,11 @@ public final class BotMiner {
                     if (foot.isAir() && foot.getFluidState().isEmpty()
                             && head.isAir()
                             && !below.isAir() && below.getFluidState().isEmpty()) {
+                        // 挖掘距离过滤(眼睛到目标中心),防远挖站位站过去又 out_of_reach
+                        Vec3 eyeAt = new Vec3(p.getX() + 0.5D, p.getY() + 1.62D, p.getZ() + 0.5D);
+                        if (eyeAt.distanceTo(target.getCenter()) > MAX_REACH - 0.3D) {
+                            continue;
+                        }
                         double dist = bot.getEyePosition().distanceTo(p.getCenter());
                         if (dist < bestAnyDist) {
                             bestAnyDist = dist;
@@ -203,6 +227,58 @@ public final class BotMiner {
             }
         }
         return bestClear != null ? bestClear : bestAny;
+    }
+
+    /** no_stand_pos 诊断:输出目标周围 2 格的候选统计与最近失败格,定位根因。 */
+    private void logStandDiagnostics(ServerLevel level) {
+        int footOk = 0;
+        int headOk = 0;
+        int belowOk = 0;
+        int totalOk = 0;
+        BlockPos nearestFail = null;
+        double nearestFailDist = Double.MAX_VALUE;
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dy = -2; dy <= 2; dy++) {
+                for (int dz = -2; dz <= 2; dz++) {
+                    BlockPos p = target.offset(dx, dy, dz);
+                    if (p.equals(target) || p.equals(target.above())) {
+                        continue;
+                    }
+                    BlockState foot = level.getBlockState(p);
+                    BlockState head = level.getBlockState(p.above());
+                    BlockState below = level.getBlockState(p.below());
+                    boolean f = foot.isAir() && foot.getFluidState().isEmpty();
+                    boolean h = head.isAir();
+                    boolean b = !below.isAir() && below.getFluidState().isEmpty();
+                    if (f) {
+                        footOk++;
+                    }
+                    if (h) {
+                        headOk++;
+                    }
+                    if (b) {
+                        belowOk++;
+                    }
+                    if (f && h && b) {
+                        totalOk++;
+                    } else {
+                        double d = bot.getEyePosition().distanceTo(p.getCenter());
+                        if (d < nearestFailDist) {
+                            nearestFailDist = d;
+                            nearestFail = p;
+                        }
+                    }
+                }
+            }
+        }
+        BlockState ts = level.getBlockState(target);
+        BotLog.warn("站位诊断: 目标={} 方块={} 流体={} 上方={}",
+                target.toShortString(), ts.getBlock(), ts.getFluidState().getType(),
+                level.getBlockState(target.above()).getBlock());
+        BotLog.warn("站位诊断: 周围2格 foot空={} head空={} below实心={} 全满足={} 最近失败格={}(dist={})",
+                footOk, headOk, belowOk, totalOk,
+                nearestFail == null ? "-" : nearestFail.toShortString(),
+                String.format(java.util.Locale.ROOT, "%.1f", nearestFailDist));
     }
 
     /** 从候选站位(眼睛位置)到目标中心视线是否无遮挡。 */

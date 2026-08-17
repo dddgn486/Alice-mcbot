@@ -91,6 +91,14 @@ public final class BotManager {
         BotWorldData.get(bot.getServer()).clearBot();
     }
 
+    /** 把假人主手物品同步给客户端(Inventory.setItem 不会自动发包,玩家侧看不到)。 */
+    public static void syncMainHand(net.minecraft.server.level.ServerPlayer bot) {
+        int slot = bot.getInventory().selected;
+        bot.connection.send(new net.minecraft.network.protocol.game.ClientboundSetCarriedItemPacket(slot));
+        bot.connection.send(new net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket(
+                -2, 0, slot, bot.getInventory().getItem(slot)));
+    }
+
     /** 把假人概要状态写入世界存档(重启恢复用)。 */
     public static void saveToWorld(BotPlayer bot) {
         CompoundTag tag = new CompoundTag();
@@ -142,6 +150,7 @@ public final class BotManager {
         if (tag.contains("MainHand")) {
             bot.getInventory().setItem(bot.getInventory().selected,
                     ItemStack.of(tag.getCompound("MainHand")));
+            syncMainHand(bot);
         }
         saveToWorld(bot); // 刷新存档为精确位置
         BotLog.info("已从世界存档恢复假人: name={} pos=({}, {}, {})",

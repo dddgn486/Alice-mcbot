@@ -21,12 +21,15 @@ import net.minecraftforge.fml.common.Mod;
 
 /**
  * 任务目标透视高亮(客户端测试效果)。
- * <p>在 {@link RenderLevelStageEvent} LAST 阶段画线框盒子:
+ * <p>在 {@link RenderLevelStageEvent} AFTER_PARTICLES 阶段画线框盒子
+ * (注:1.20.1 Forge patch 中 Stage.AFTER_LEVEL 永不触发,最晚可用阶段是
+ * AFTER_PARTICLES——粒子之后、天气之前):
  * <ul>
  *   <li>方块目标:固定 AABB,亮绿色;</li>
  *   <li>实体/掉落物目标:实时取实体 AABB,亮红色。</li>
  * </ul>
- * 画线框前关闭深度测试 → 透过墙体也能看到(透视),测试期方便跟踪 bot 任务目标。</p>
+ * 画线框前关闭深度测试 → 透过墙体也能看到(透视),测试期方便跟踪 bot 任务目标。
+ * poseStack 在该阶段为「相机旋转矩阵(无平移)」,故手动 translate(-camera)。</p>
  */
 @OnlyIn(Dist.CLIENT)
 @Mod.EventBusSubscriber(modid = "alice", value = Dist.CLIENT)
@@ -37,7 +40,7 @@ public final class TargetOutlineRenderer {
 
     @SubscribeEvent
     public static void onRenderLevel(RenderLevelStageEvent event) {
-        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_LEVEL) {
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES) {
             return;
         }
         if (!ClientTargetState.isActive()) {

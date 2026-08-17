@@ -46,8 +46,9 @@ public final class MineTask implements Task {
         this.target = target.immutable();
         this.scope = scope;
         this.miner = new BotMiner(bot, this.target);
-        // 临时设定:行为执行时直接替换主手工具(挖矿 → 钻石镐)
+        // 临时设定:行为执行时直接替换主手工具(挖矿 → 钻石镐),并同步给客户端
         bot.getInventory().setItem(bot.getInventory().selected, new ItemStack(Items.DIAMOND_PICKAXE));
+        com.dddgn.alice.bot.BotManager.syncMainHand(bot);
         BotLog.info("任务创建: MineTask target={}", this.target.toShortString());
     }
 
@@ -88,15 +89,19 @@ public final class MineTask implements Task {
         return collectTick();
     }
 
-    /** 拾取阶段:感知作用域内掉落物 → 走位 → 原版拾取入包。 */
+    /** 拾取阶段:直接扫描目标周围掉落物(不依赖事件捕捉) → 走位 → 原版拾取入包。 */
     private Status collectTick() {
-        List<ItemEntity> items = scope.liveItems();
+        net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) bot.level();
+        // 感知:扫描目标为中心 8 格内的存活掉落物
+        List<ItemEntity> items = level.getEntitiesOfClass(ItemEntity.class,
+                new net.minecraft.world.phys.AABB(target).inflate(8.0D),
+                item -> item.isAlive() && !item.getItem().isEmpty());
         if (items.isEmpty()) {
-            BotLog.info("拾取阶段完成: 作用域内无掉落物(全部入包/消失)");
+            BotLog.info("拾取阶段完成: 目标周围无掉落物(全部入包/消失)");
             return Status.DONE;
         }
 
-        // 感知联动:取最近的掉落物作为拾取目标
+        // 取最近的掉落物作为拾取目标
         ItemEntity nearest = items.get(0);
         double best = Double.MAX_VALUE;
         for (ItemEntity item : items) {
@@ -114,7 +119,6 @@ public final class MineTask implements Task {
 
         // 尚未到位:寻路到掉落物旁
         if (collectExecutor == null) {
-            net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) bot.level();
             BlockPos stand = nearest.blockPosition();
             List<BlockPos> path = AStarPathfinder.computePath(level,
                     bot.blockPosition(), new Goal.GoalNear(stand, 1));
