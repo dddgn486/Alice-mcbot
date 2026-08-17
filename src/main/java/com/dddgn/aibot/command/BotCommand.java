@@ -1,6 +1,8 @@
 package com.dddgn.aibot.command;
 
 import com.dddgn.aibot.bot.BotManager;
+import com.dddgn.aibot.log.BotLog;
+import com.dddgn.aibot.perception.PerceptionSnapshot;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.minecraft.commands.CommandSourceStack;
@@ -10,11 +12,12 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.common.util.FakePlayer;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+
+import java.util.List;
 
 /**
  * M0 测试命令入口(后续 M4 将被 AI 工具调用取代)。
@@ -42,7 +45,9 @@ public final class BotCommand {
                 .then(Commands.literal("mine")
                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                 .executes(ctx -> mine(ctx.getSource(),
-                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos"))))));
+                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
+                .then(Commands.literal("observe")
+                        .executes(ctx -> observe(ctx.getSource()))));
     }
 
     private static int spawn(CommandSourceStack source, String name) {
@@ -66,6 +71,20 @@ public final class BotCommand {
         BotManager.assignMine(bot, target);
         source.sendSuccess(() -> Component.literal(
                 "[aibot] " + bot.getName().getString() + " 开始挖掘 " + target.toShortString()), false);
+        return 1;
+    }
+
+    /** M1 感知层演示:输出命令执行者周围 5 格的非空气方块快照(世界直读)。 */
+    private static int observe(CommandSourceStack source) {
+        BlockPos center = source.getEntity() != null
+                ? source.getEntity().blockPosition()
+                : new BlockPos(source.getLevel().getSharedSpawnPos());
+        List<String> blocks = PerceptionSnapshot.nearbyBlocks(source.getLevel(), center, 5);
+        source.sendSuccess(() -> Component.literal(
+                "[aibot] 周围 5 格非空气方块(" + blocks.size() + " 个),详见日志"), false);
+        for (String line : blocks) {
+            BotLog.info("observe: {}", line);
+        }
         return 1;
     }
 }

@@ -3,9 +3,11 @@ package com.dddgn.aibot.bot;
 import com.dddgn.aibot.action.BotMiner;
 import com.dddgn.aibot.action.BotWalker;
 import com.dddgn.aibot.log.BotLog;
+import com.dddgn.aibot.perception.ScopeBuffer;
 import com.mojang.authlib.GameProfile;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraftforge.common.util.FakePlayer;
@@ -13,6 +15,7 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -79,10 +82,11 @@ public final class BotManager {
         }
     }
 
-    /** 单个假人的会话:持有当前动作。 */
+    /** 单个假人的会话:持有当前动作与感知作用域。 */
     public static final class BotSession {
         private final FakePlayer bot;
         private BotMiner miner;
+        private final ScopeBuffer scope = new ScopeBuffer();
 
         private BotSession(FakePlayer bot) {
             this.bot = bot;
@@ -92,8 +96,14 @@ public final class BotManager {
             return bot;
         }
 
+        public ScopeBuffer scope() {
+            return scope;
+        }
+
         public void assignMine(BlockPos target) {
             this.miner = new BotMiner(bot, target);
+            // M1:任务启动即开启作用域,监听掉落物与方块变化(设计文档 §3.2)
+            this.scope.begin(target, 8);
         }
 
         private void tick() {
@@ -103,14 +113,31 @@ public final class BotManager {
             BotMiner.Status status = miner.tick();
             switch (status) {
                 case DONE -> {
+                    reportItems();
+                    scope.end();
                     miner = null;
                 }
                 case FAILED -> {
+                    reportItems();
+                    scope.end();
                     miner = null;
                 }
                 default -> {
                     // 进行中,保持
                 }
+            }
+        }
+
+        /** M1 验收:任务结束时汇报作用域内仍存活的掉落物(实时坐标可得)。 */
+        private void reportItems() {
+            List<ItemEntity> items = scope.liveItems();
+            if (items.isEmpty()) {
+                BotLog.info("任务结束: 作用域内无存活掉落物");
+                return;
+            }
+            for (ItemEntity item : items) {
+                BotLog.info("任务结束掉落物: {} x{} y{} z{}",
+                        item.getItem().getItem(), item.getBlockX(), item.getBlockY(), item.getBlockZ());
             }
         }
     }
