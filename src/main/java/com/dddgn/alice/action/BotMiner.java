@@ -213,7 +213,9 @@ public final class BotMiner {
     /**
      * 选站位候选列表(按优先级排序, BotMiner 逐个尝试可达性):
      * <ul>
-     *   <li>分组:目标下方(dy&lt;0) / 同平面(dy=0) / 目标上方(dy&gt;0);</li>
+     *   <li>分组:目标下方(dy&lt;0, <b>搜索到下方 4 层</b>——悬空目标的正下方地面
+     *       可能隔 3-4 格, 搜浅了 below 组会为空, 候选全落在目标上方) /
+     *       同平面(dy=0) / 目标上方(dy&gt;0, 到上方 2 层);</li>
      *   <li>目标在 bot 上方 → 下方组优先(站下方抬头挖矿洞顶部矿石),否则同平面优先;</li>
      *   <li>组内排序:视线无遮挡优先 → 距目标中心 3D 距离近优先;</li>
      *   <li>距离过滤:候选格眼睛到目标中心 ≤ 挖掘距离(留 0.3 余量)。</li>
@@ -224,7 +226,7 @@ public final class BotMiner {
         List<BlockPos> same = new ArrayList<>();
         List<BlockPos> above = new ArrayList<>();
         for (int dx = -4; dx <= 4; dx++) {
-            for (int dy = -2; dy <= 2; dy++) {
+            for (int dy = -4; dy <= 2; dy++) { // 下方加深:悬空目标正下方地面可能隔 3-4 格
                 for (int dz = -4; dz <= 4; dz++) {
                     BlockPos p = target.offset(dx, dy, dz);
                     if (p.equals(target) || p.equals(target.above())) {
@@ -233,9 +235,11 @@ public final class BotMiner {
                     BlockState foot = level.getBlockState(p);
                     BlockState head = level.getBlockState(p.above());
                     BlockState belowState = level.getBlockState(p.below());
-                    if (foot.isAir() && foot.getFluidState().isEmpty()
-                            && head.isAir()
-                            && !belowState.isAir() && belowState.getFluidState().isEmpty()) {
+                    // 可站判定: 脚位格无碰撞(空气/草丛/花), 头位格无碰撞, 下方有支撑
+                    if (foot.getCollisionShape(level, p).isEmpty() && foot.getFluidState().isEmpty()
+                            && head.getCollisionShape(level, p.above()).isEmpty()
+                            && !belowState.getCollisionShape(level, p.below()).isEmpty()
+                            && belowState.getFluidState().isEmpty()) {
                         // 挖掘距离过滤(候选格眼睛到目标中心),防站过去又 out_of_reach
                         Vec3 eyeAt = new Vec3(p.getX() + 0.5D, p.getY() + 1.62D, p.getZ() + 0.5D);
                         if (eyeAt.distanceTo(target.getCenter()) > MAX_REACH - 0.3D) {
@@ -258,6 +262,9 @@ public final class BotMiner {
             result.addAll(below);
         }
         result.addAll(above);
+        BotLog.info("站位候选: 下方{} 同平面{} 上方{} → 优先级: {}",
+                below.size(), same.size(), above.size(),
+                target.getY() > bot.blockPosition().getY() + 1 ? "下>同>上" : "同>下>上");
         return result.size() > 8 ? result.subList(0, 8) : result; // 最多试 8 个,防 A* 风暴
     }
 
