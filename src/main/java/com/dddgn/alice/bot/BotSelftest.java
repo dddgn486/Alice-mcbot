@@ -24,12 +24,12 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
  */
 public final class BotSelftest {
 
-    private enum Phase { WAIT_START, SETUP, TEST1_RUN, TEST1_CHECK, TEST2_SETUP, TEST2_RUN, TEST2_CHECK, TEST3_SETUP, TEST3_RUN, TEST3_CHECK, REPORT }
+    private enum Phase { IDLE, WAIT_START, SETUP, TEST1_RUN, TEST1_CHECK, TEST2_SETUP, TEST2_RUN, TEST2_CHECK, TEST3_SETUP, TEST3_RUN, TEST3_CHECK, REPORT }
 
     private static final int START_DELAY_TICKS = 100;
     private static final int PHASE_TIMEOUT_TICKS = 600;
 
-    private static Phase phase = Phase.WAIT_START;
+    private static Phase phase = Phase.IDLE;
     private static int waitTicks;
     private static int phaseTicks;
     private static MinecraftServer server;
@@ -54,14 +54,28 @@ public final class BotSelftest {
     public static void onServerStarted(ServerStartedEvent event) {
         server = event.getServer();
         level = server.overworld();
+        // 默认不自动跑(审查点 R8):改为手动命令 /alice selftest 触发,避免进服自动卡死/自动关服
+        phase = Phase.IDLE;
+        BotLog.info("SELFTEST 待命(手动 /alice selftest 触发)");
+    }
+
+    /** 手动启动自检(命令触发)。 */
+    public static void start() {
+        if (server == null) {
+            return;
+        }
+        test1Pass = false;
+        test2Pass = false;
+        test3Pass = false;
         phase = Phase.WAIT_START;
         waitTicks = START_DELAY_TICKS;
-        BotLog.info("SELFTEST 启动: 服务器就绪,{} tick 后开始", START_DELAY_TICKS);
+        phaseTicks = 0;
+        BotLog.info("SELFTEST 启动(手动): {} tick 后开始", START_DELAY_TICKS);
     }
 
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || server == null || phase == Phase.REPORT) {
+        if (event.phase != TickEvent.Phase.END || server == null || phase == Phase.REPORT || phase == Phase.IDLE) {
             return;
         }
         phaseTicks++;

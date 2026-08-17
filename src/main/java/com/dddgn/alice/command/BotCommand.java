@@ -47,7 +47,16 @@ public final class BotCommand {
                                 .executes(ctx -> mine(ctx.getSource(),
                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
                 .then(Commands.literal("observe")
-                        .executes(ctx -> observe(ctx.getSource()))));
+                        .executes(ctx -> observe(ctx.getSource())))
+                .then(Commands.literal("selftest")
+                        .executes(ctx -> selftest(ctx.getSource()))));
+    }
+
+    /** 手动触发自检(默认不自动跑,审查点 R8)。 */
+    private static int selftest(CommandSourceStack source) {
+        com.dddgn.alice.bot.BotSelftest.start();
+        source.sendSuccess(() -> Component.literal("[alice] 自检已启动,结果见日志"), false);
+        return 1;
     }
 
     private static int spawn(CommandSourceStack source, String name) {
