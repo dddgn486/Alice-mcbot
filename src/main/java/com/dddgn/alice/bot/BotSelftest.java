@@ -6,7 +6,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraftforge.common.util.FakePlayer;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -35,7 +34,7 @@ public final class BotSelftest {
     private static int phaseTicks;
     private static MinecraftServer server;
     private static ServerLevel level;
-    private static FakePlayer bot;
+    private static BotPlayer bot;
     private static BlockPos target1;
     private static BlockPos target2;
     private static BlockPos test2MineStart;

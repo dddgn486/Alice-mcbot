@@ -1,6 +1,7 @@
 package com.dddgn.alice.command;
 
 import com.dddgn.alice.bot.BotManager;
+import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.PerceptionSnapshot;
 import com.mojang.brigadier.CommandDispatcher;
@@ -12,7 +13,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.common.util.FakePlayer;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -55,7 +55,7 @@ public final class BotCommand {
         BlockPos pos = source.getEntity() != null
                 ? source.getEntity().blockPosition()
                 : new BlockPos(level.getSharedSpawnPos());
-        FakePlayer bot = BotManager.spawn(level, pos, name);
+        BotPlayer bot = BotManager.spawn(level, pos, name);
         source.sendSuccess(() -> Component.literal(
                 "[alice] 假人 " + name + " 已生成于 " + pos.toShortString()), false);
         return 1;
@@ -67,7 +67,7 @@ public final class BotCommand {
             source.sendFailure(Component.literal("[alice] 目标位置是空气"));
             return 0;
         }
-        FakePlayer bot = BotManager.firstOrSpawn(level, target);
+        BotPlayer bot = BotManager.firstOrSpawn(level, target);
         BotManager.assignMine(bot, target);
         source.sendSuccess(() -> Component.literal(
                 "[alice] " + bot.getName().getString() + " 开始挖掘 " + target.toShortString()), false);
