@@ -166,10 +166,16 @@ public final class BotMiner {
         return Status.MINING;
     }
 
-    /** 目标周围 2 格内的可站立空气格(脚位空+头位空+下方实心支撑),取距离最近者。 */
+    /**
+     * 目标周围 2 格内的可站立空气格(脚位空+头位空+下方实心支撑)。
+     * 第一轮优先选「从该格到目标视线无遮挡」的站位(R4 决策 A:避免选到被挡的位置后
+     * 还得靠 line_of_sight_blocked 拒挖);无视线可达候选时退回距离最近者。
+     */
     private BlockPos pickStandPos(ServerLevel level) {
-        BlockPos best = null;
-        double bestDist = Double.MAX_VALUE;
+        BlockPos bestClear = null;
+        double bestClearDist = Double.MAX_VALUE;
+        BlockPos bestAny = null;
+        double bestAnyDist = Double.MAX_VALUE;
         for (int dx = -2; dx <= 2; dx++) {
             for (int dy = -2; dy <= 2; dy++) {
                 for (int dz = -2; dz <= 2; dz++) {
@@ -184,15 +190,29 @@ public final class BotMiner {
                             && head.isAir()
                             && !below.isAir() && below.getFluidState().isEmpty()) {
                         double dist = bot.getEyePosition().distanceTo(p.getCenter());
-                        if (dist < bestDist) {
-                            bestDist = dist;
-                            best = p;
+                        if (dist < bestAnyDist) {
+                            bestAnyDist = dist;
+                            bestAny = p;
+                        }
+                        if (lineOfSightClearFrom(level, p) && dist < bestClearDist) {
+                            bestClearDist = dist;
+                            bestClear = p;
                         }
                     }
                 }
             }
         }
-        return best;
+        return bestClear != null ? bestClear : bestAny;
+    }
+
+    /** 从候选站位(眼睛位置)到目标中心视线是否无遮挡。 */
+    private boolean lineOfSightClearFrom(ServerLevel level, BlockPos standPos) {
+        Vec3 eye = new Vec3(standPos.getX() + 0.5D, standPos.getY() + 1.62D, standPos.getZ() + 0.5D);
+        Vec3 center = target.getCenter();
+        ClipContext context = new ClipContext(eye, center,
+                ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, bot);
+        BlockHitResult hit = level.clip(context);
+        return hit.getType() != HitResult.Type.BLOCK || hit.getBlockPos().equals(target);
     }
 
     private boolean atStandPos() {

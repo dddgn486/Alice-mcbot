@@ -24,7 +24,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
  */
 public final class BotSelftest {
 
-    private enum Phase { WAIT_START, SETUP, TEST1_RUN, TEST1_CHECK, TEST2_SETUP, TEST2_RUN, TEST2_CHECK, REPORT }
+    private enum Phase { WAIT_START, SETUP, TEST1_RUN, TEST1_CHECK, TEST2_SETUP, TEST2_RUN, TEST2_CHECK, TEST3_SETUP, TEST3_RUN, TEST3_CHECK, REPORT }
 
     private static final int START_DELAY_TICKS = 100;
     private static final int PHASE_TIMEOUT_TICKS = 600;
@@ -37,11 +37,15 @@ public final class BotSelftest {
     private static BotPlayer bot;
     private static BlockPos target1;
     private static BlockPos target2;
+    private static BlockPos target3;
     private static BlockPos test2MineStart;
+    private static BlockPos test3MineStart;
     private static boolean test1Pass;
     private static boolean test2Pass;
+    private static boolean test3Pass;
     private static String test1Detail = "";
     private static String test2Detail = "";
+    private static String test3Detail = "";
 
     private BotSelftest() {
     }
@@ -84,6 +88,14 @@ public final class BotSelftest {
                 }
             }
             case TEST2_CHECK -> checkTest2();
+            case TEST3_SETUP -> setupTest3();
+            case TEST3_RUN -> {
+                if (!BotManager.isBusy(bot) || phaseTicks > PHASE_TIMEOUT_TICKS) {
+                    phase = Phase.TEST3_CHECK;
+                    phaseTicks = 0;
+                }
+            }
+            case TEST3_CHECK -> checkTest3();
             default -> {
             }
         }
@@ -161,14 +173,53 @@ public final class BotSelftest {
                 + " mineStart=" + (test2MineStart == null ? "null" : test2MineStart.toShortString())
                 + (phaseTicks > PHASE_TIMEOUT_TICKS ? " (超时)" : "");
         BotLog.info("SELFTEST TEST2 {}", test2Pass ? "PASS" : "FAIL: " + test2Detail);
+        phase = Phase.TEST3_SETUP;
+        phaseTicks = 0;
+    }
+
+    /** TEST3:远端挖掘——bot 在平台西端,目标在东端,验证 A* 真实寻路 + 路径跟随 + 挖掘。 */
+    private static void setupTest3() {
+        // 把 bot 传送到平台西端(-2),目标重新放回东端(+2, TEST1 挖掉的位置)
+        BlockPos surface = level.getSharedSpawnPos();
+        while (level.getBlockState(surface).isAir() && surface.getY() > level.getMinBuildHeight()) {
+            surface = surface.below();
+        }
+        surface = surface.above();
+        BlockPos west = surface.offset(-2, 0, 0);
+        bot.teleportTo(west.getX() + 0.5D, west.getY(), west.getZ() + 0.5D);
+        target3 = surface.offset(2, 0, 0);
+        // 铺一条东西向地面(bot 与目标之间,脚位层-1),避免目标/路径悬空
+        int groundY = west.getY() - 1;
+        for (int x = west.getX() - 1; x <= target3.getX() + 1; x++) {
+            level.setBlock(new BlockPos(x, groundY, west.getZ()), Blocks.DIRT.defaultBlockState(), 3);
+            level.setBlock(new BlockPos(x, groundY + 1, west.getZ()), Blocks.AIR.defaultBlockState(), 3);
+        }
+        level.setBlock(target3, Blocks.DIRT.defaultBlockState(), 3);
+        BotLog.info("SELFTEST TEST3: bot在{} 目标在{} 地面y={}", west.toShortString(), target3.toShortString(), groundY);
+        BotManager.assignMine(bot, target3);
+        phase = Phase.TEST3_RUN;
+        phaseTicks = 0;
+    }
+
+    private static void checkTest3() {
+        boolean blockGone = level.getBlockState(target3).isAir();
+        String result = BotManager.lastTaskResult(bot);
+        test3MineStart = BotManager.lastMineStartPos(bot);
+        // PASS = 挖掉 + 任务成功 + 挖掘开始位置不是目标本身(从旁边挖)
+        boolean minedFromTarget = test3MineStart != null && test3MineStart.equals(target3);
+        test3Pass = blockGone && "done".equals(result) && !minedFromTarget;
+        test3Detail = "blockGone=" + blockGone + " result=" + result
+                + " mineStart=" + (test3MineStart == null ? "null" : test3MineStart.toShortString())
+                + (phaseTicks > PHASE_TIMEOUT_TICKS ? " (超时)" : "");
+        BotLog.info("SELFTEST TEST3 {}", test3Pass ? "PASS" : "FAIL: " + test3Detail);
         phase = Phase.REPORT;
         report();
     }
 
     private static void report() {
-        boolean allPass = test1Pass && test2Pass;
-        BotLog.info("SELFTEST 结果: {} (TEST1={} TEST2={})", allPass ? "PASS" : "FAIL",
-                test1Pass, test2Pass);
+        boolean allPass = test1Pass && test2Pass && test3Pass;
+        BotLog.info("SELFTEST 结果: {} (TEST1={} TEST2={} TEST3={})", allPass ? "PASS" : "FAIL",
+                test1Pass, test2Pass, test3Pass);
         // headless 验收:测完自动关服(审查点 R8)
         server.halt(true);
     }

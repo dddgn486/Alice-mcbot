@@ -30,7 +30,8 @@ public class BotPlayer extends ServerPlayer {
         try {
             super.tick();
         } catch (NullPointerException exception) {
-            // 假人无真实网络,兜底吞 NPE 保持 tick(玩家化后理论不再触发,防御保留)
+            // 打印堆栈定位 NPE 来源(玩家化后不应触发;吞掉会静默中断物理)
+            exception.printStackTrace();
         }
     }
 }
