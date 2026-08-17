@@ -1,4 +1,4 @@
-package com.dddgn.aibot.action;
+package com.dddgn.alice.action;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;

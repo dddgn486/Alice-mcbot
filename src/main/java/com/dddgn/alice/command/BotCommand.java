@@ -1,8 +1,8 @@
-package com.dddgn.aibot.command;
+package com.dddgn.alice.command;
 
-import com.dddgn.aibot.bot.BotManager;
-import com.dddgn.aibot.log.BotLog;
-import com.dddgn.aibot.perception.PerceptionSnapshot;
+import com.dddgn.alice.bot.BotManager;
+import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.perception.PerceptionSnapshot;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.minecraft.commands.CommandSourceStack;
@@ -22,11 +22,11 @@ import java.util.List;
 /**
  * M0 测试命令入口(后续 M4 将被 AI 工具调用取代)。
  * <pre>
- *   /aibot spawn [name]     在命令执行者位置生成假人
- *   /aibot mine &lt;x y z&gt;     让假人去挖指定坐标的方块
+ *   /alice spawn [name]     在命令执行者位置生成假人
+ *   /alice mine &lt;x y z&gt;     让假人去挖指定坐标的方块
  * </pre>
  */
-@Mod.EventBusSubscriber(modid = "aibot", bus = Mod.EventBusSubscriber.Bus.FORGE)
+@Mod.EventBusSubscriber(modid = "alice", bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class BotCommand {
 
     private BotCommand() {
@@ -36,7 +36,7 @@ public final class BotCommand {
     public static void onRegisterCommands(RegisterCommandsEvent event) {
         CommandDispatcher<CommandSourceStack> dispatcher = event.getDispatcher();
 
-        dispatcher.register(Commands.literal("aibot")
+        dispatcher.register(Commands.literal("alice")
                 .requires(source -> source.hasPermission(2))
                 .then(Commands.literal("spawn")
                         .then(Commands.argument("name", StringArgumentType.string())
@@ -57,20 +57,20 @@ public final class BotCommand {
                 : new BlockPos(level.getSharedSpawnPos());
         FakePlayer bot = BotManager.spawn(level, pos, name);
         source.sendSuccess(() -> Component.literal(
-                "[aibot] 假人 " + name + " 已生成于 " + pos.toShortString()), false);
+                "[alice] 假人 " + name + " 已生成于 " + pos.toShortString()), false);
         return 1;
     }
 
     private static int mine(CommandSourceStack source, BlockPos target) {
         ServerLevel level = source.getLevel();
         if (level.getBlockState(target).isAir()) {
-            source.sendFailure(Component.literal("[aibot] 目标位置是空气"));
+            source.sendFailure(Component.literal("[alice] 目标位置是空气"));
             return 0;
         }
         FakePlayer bot = BotManager.firstOrSpawn(level, target);
         BotManager.assignMine(bot, target);
         source.sendSuccess(() -> Component.literal(
-                "[aibot] " + bot.getName().getString() + " 开始挖掘 " + target.toShortString()), false);
+                "[alice] " + bot.getName().getString() + " 开始挖掘 " + target.toShortString()), false);
         return 1;
     }
 
@@ -81,7 +81,7 @@ public final class BotCommand {
                 : new BlockPos(source.getLevel().getSharedSpawnPos());
         List<String> blocks = PerceptionSnapshot.nearbyBlocks(source.getLevel(), center, 5);
         source.sendSuccess(() -> Component.literal(
-                "[aibot] 周围 5 格非空气方块(" + blocks.size() + " 个),详见日志"), false);
+                "[alice] 周围 5 格非空气方块(" + blocks.size() + " 个),详见日志"), false);
         for (String line : blocks) {
             BotLog.info("observe: {}", line);
         }

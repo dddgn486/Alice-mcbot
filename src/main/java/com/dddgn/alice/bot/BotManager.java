@@ -1,9 +1,9 @@
-package com.dddgn.aibot.bot;
+package com.dddgn.alice.bot;
 
-import com.dddgn.aibot.action.BotMiner;
-import com.dddgn.aibot.action.BotWalker;
-import com.dddgn.aibot.log.BotLog;
-import com.dddgn.aibot.perception.ScopeBuffer;
+import com.dddgn.alice.action.BotMiner;
+import com.dddgn.alice.action.BotWalker;
+import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.perception.ScopeBuffer;
 import com.mojang.authlib.GameProfile;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -59,7 +59,7 @@ public final class BotManager {
             }
         }
         // 出生在目标上方(而非目标方块内部,避免卡进方块窒息)
-        return spawn(level, pos.above(), "AI-Bot");
+        return spawn(level, pos.above(), "Alice");
     }
 
     /** 给假人分配「挖掘指定方块」动作。 */
@@ -70,6 +70,24 @@ public final class BotManager {
             BotLog.info("分配挖掘任务: bot={} target={}",
                     bot.getName().getString(), target.toShortString());
         }
+    }
+
+    /** 假人当前是否在执行动作(供自动化验收轮询)。 */
+    public static boolean isBusy(FakePlayer bot) {
+        BotSession session = BOTS.get(bot.getUUID());
+        return session != null && session.miner != null;
+    }
+
+    /** 取最近一次任务的结果文本("done" 或 "failed:原因"),供自动化验收断言。 */
+    public static String lastTaskResult(FakePlayer bot) {
+        BotSession session = BOTS.get(bot.getUUID());
+        return session == null ? "" : session.lastTaskResult;
+    }
+
+    /** 取最近一次挖掘任务「开始挖掘时的 bot 位置」(隔空挖断言用;从未开始挖则为 null)。 */
+    public static BlockPos lastMineStartPos(FakePlayer bot) {
+        BotSession session = BOTS.get(bot.getUUID());
+        return session == null ? null : session.lastMineStartPos;
     }
 
     @SubscribeEvent
@@ -87,6 +105,8 @@ public final class BotManager {
         private final FakePlayer bot;
         private BotMiner miner;
         private final ScopeBuffer scope = new ScopeBuffer();
+        private String lastTaskResult = "";
+        private BlockPos lastMineStartPos;
 
         private BotSession(FakePlayer bot) {
             this.bot = bot;
@@ -98,6 +118,16 @@ public final class BotManager {
 
         public ScopeBuffer scope() {
             return scope;
+        }
+
+        /** 最近一次任务结果("done" / "failed:原因")。 */
+        public String lastTaskResult() {
+            return lastTaskResult;
+        }
+
+        /** 当前挖掘动作(供自检读取 mineStartPos 等,无则为 null)。 */
+        public BotMiner currentMiner() {
+            return miner;
         }
 
         public void assignMine(BlockPos target) {
@@ -113,11 +143,15 @@ public final class BotManager {
             BotMiner.Status status = miner.tick();
             switch (status) {
                 case DONE -> {
+                    lastTaskResult = "done";
+                    lastMineStartPos = miner.mineStartPos();
                     reportItems();
                     scope.end();
                     miner = null;
                 }
                 case FAILED -> {
+                    lastTaskResult = "failed:" + miner.failureReason();
+                    lastMineStartPos = miner.mineStartPos();
                     reportItems();
                     scope.end();
                     miner = null;

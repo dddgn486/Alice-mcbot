@@ -1,4 +1,4 @@
-package com.dddgn.aibot.perception;
+package com.dddgn.alice.perception;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;

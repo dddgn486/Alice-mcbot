@@ -1,4 +1,4 @@
-package com.dddgn.aibot.bot;
+package com.dddgn.alice.bot;
 
 import com.mojang.authlib.GameProfile;
 import net.minecraft.server.level.ServerLevel;

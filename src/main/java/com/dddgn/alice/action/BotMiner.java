@@ -1,6 +1,6 @@
-package com.dddgn.aibot.action;
+package com.dddgn.alice.action;
 
-import com.dddgn.aibot.log.BotLog;
+import com.dddgn.alice.log.BotLog;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
@@ -39,6 +39,9 @@ public final class BotMiner {
     private int elapsed;
     private String failureReason = "";
     private Direction face;
+    /** 挖掘开始时的 bot 位置与眼睛距离(供自动化验收断言「是否隔空挖」)。 */
+    private BlockPos mineStartPos;
+    private double mineStartEyeDist;
 
     public BotMiner(ServerPlayer bot, BlockPos target) {
         this.bot = bot;
@@ -47,6 +50,16 @@ public final class BotMiner {
 
     public String failureReason() {
         return failureReason;
+    }
+
+    /** 挖掘开始时的 bot 位置(隔空挖验收断言用;从未开始挖则为 null)。 */
+    public BlockPos mineStartPos() {
+        return mineStartPos;
+    }
+
+    /** 挖掘开始时眼睛到目标中心的距离(隔空挖验收断言用)。 */
+    public double mineStartEyeDist() {
+        return mineStartEyeDist;
     }
 
     public Status tick() {
@@ -109,10 +122,12 @@ public final class BotMiner {
                     face, level.getMaxBuildHeight(), -1);
             state.attack(level, target, bot);
             started = true;
-            BotLog.info("开始挖掘: target={} face={} eye_dist={}",
+            mineStartPos = bot.blockPosition().immutable();
+            mineStartEyeDist = bot.getEyePosition().distanceTo(target.getCenter());
+            BotLog.info("开始挖掘: target={} face={} eye_dist={} bot_pos={}",
                     target.toShortString(), face,
-                    String.format(java.util.Locale.ROOT, "%.1f",
-                            bot.getEyePosition().distanceTo(target.getCenter())));
+                    String.format(java.util.Locale.ROOT, "%.1f", mineStartEyeDist),
+                    mineStartPos.toShortString());
         }
 
         progress += state.getDestroyProgress(bot, level, target);

@@ -1,6 +1,6 @@
-package com.dddgn.aibot.perception;
+package com.dddgn.alice.perception;
 
-import com.dddgn.aibot.log.BotLog;
+import com.dddgn.alice.log.BotLog;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.item.ItemEntity;
