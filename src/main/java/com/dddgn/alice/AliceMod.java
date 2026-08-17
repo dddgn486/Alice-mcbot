@@ -25,5 +25,7 @@ public class AliceMod {
         MinecraftForge.EVENT_BUS.register(ScopeBuffer.class);
         // 自动化验收(headless selftest)
         MinecraftForge.EVENT_BUS.register(BotSelftest.class);
+        // 测试工具:钻石铲右键扫描
+        MinecraftForge.EVENT_BUS.register(com.dddgn.alice.tool.ScanWand.class);
     }
 }

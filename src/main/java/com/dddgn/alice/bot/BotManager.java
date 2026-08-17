@@ -5,6 +5,10 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
 import com.mojang.authlib.GameProfile;
 import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtUtils;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -13,6 +17,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.living.LivingDeathEvent;
+import net.minecraftforge.event.server.ServerStartedEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 import java.util.HashMap;
@@ -29,6 +36,9 @@ import java.util.UUID;
  * 假人生成走「玩家化」流程(mc_aiplayer 同款):{@link BotPlayer} 继承 {@code ServerPlayer},
  * 伪造 {@link Connection} 后经 {@code PlayerList.placeNewPlayer} 注册——
  * 客户端可见、tick 无 NPE、物理/交互全走原版玩家逻辑(审查点 R9)。</p>
+ * <p>
+ * 持久化:spawn 即写入 {@link BotWorldData}(主世界 SavedData),服务器重启后
+ * {@link #restoreFromWorld} 自动恢复;remove/死亡清除时同步清档。</p>
  */
 public final class BotManager {
 
@@ -40,8 +50,13 @@ public final class BotManager {
 
     /** 在指定位置生成假人:玩家化注册(PlayerList) + 传送 + 强制生存。 */
     public static BotPlayer spawn(ServerLevel level, BlockPos pos, String name) {
+        return spawn(level, pos, name, UUID.randomUUID());
+    }
+
+    /** 生成假人(可指定 UUID,用于从存档恢复)。生成即写世界存档。 */
+    public static BotPlayer spawn(ServerLevel level, BlockPos pos, String name, UUID uuid) {
         MinecraftServer server = level.getServer();
-        GameProfile profile = new GameProfile(UUID.randomUUID(), name);
+        GameProfile profile = new GameProfile(uuid, name);
         BotPlayer bot = new BotPlayer(server, level, profile);
 
         // 伪造客户端连接 → PlayerList.placeNewPlayer 注册(填充 connection + 广播给玩家)
@@ -55,15 +70,66 @@ public final class BotManager {
         bot.getInventory().setItem(bot.getInventory().selected, new ItemStack(Items.DIAMOND_PICKAXE));
 
         BOTS.put(bot.getUUID(), new BotSession(bot));
+        saveToWorld(bot);
         BotLog.info("假人已生成(玩家化): name={} pos={}", name, pos.toShortString());
         return bot;
     }
 
+    /** 移除假人(实体 + PlayerList + 世界存档记录)。 */
     public static void remove(BotPlayer bot) {
         BOTS.remove(bot.getUUID());
         if (!bot.isRemoved()) {
             bot.getServer().getPlayerList().remove(bot);
+            bot.discard();
         }
+        BotWorldData.get(bot.getServer()).clearBot();
+    }
+
+    /** 把假人概要状态写入世界存档(重启恢复用)。 */
+    public static void saveToWorld(BotPlayer bot) {
+        CompoundTag tag = new CompoundTag();
+        tag.putUUID("UUID", bot.getUUID());
+        tag.putString("Name", bot.getName().getString());
+        ListTag pos = new ListTag();
+        pos.add(net.minecraft.nbt.DoubleTag.valueOf(bot.getX()));
+        pos.add(net.minecraft.nbt.DoubleTag.valueOf(bot.getY()));
+        pos.add(net.minecraft.nbt.DoubleTag.valueOf(bot.getZ()));
+        ListTag rot = new ListTag();
+        rot.add(net.minecraft.nbt.FloatTag.valueOf(bot.getYRot()));
+        rot.add(net.minecraft.nbt.FloatTag.valueOf(bot.getXRot()));
+        tag.put("Pos", pos);
+        tag.put("Rotation", rot);
+        tag.putString("GameMode", bot.gameMode.getGameModeForPlayer().getName());
+        BotWorldData.get(bot.getServer()).setBot(tag);
+    }
+
+    /** 服务器启动后:有存档假人则恢复(位置/朝向/游戏模式)。 */
+    public static void restoreFromWorld(MinecraftServer server) {
+        CompoundTag tag = BotWorldData.get(server).botTag();
+        if (tag == null) {
+            BotLog.info("无存档假人,跳过恢复");
+            return;
+        }
+        UUID uuid = tag.getUUID("UUID");
+        String name = tag.getString("Name");
+        ListTag pos = tag.getList("Pos", 6); // TAG_DOUBLE
+        ListTag rot = tag.getList("Rotation", 5); // TAG_FLOAT
+        ServerLevel level = server.overworld();
+        BotPlayer bot = spawn(level, new BlockPos(
+                (int) pos.getDouble(0), (int) pos.getDouble(1), (int) pos.getDouble(2)), name, uuid);
+        // 精确定位 + 朝向
+        bot.teleportTo(pos.getDouble(0), pos.getDouble(1), pos.getDouble(2));
+        bot.setYRot(rot.getFloat(0));
+        bot.setXRot(rot.getFloat(1));
+        switch (tag.getString("GameMode")) {
+            case "creative" -> bot.gameMode.changeGameModeForPlayer(GameType.CREATIVE);
+            case "adventure" -> bot.gameMode.changeGameModeForPlayer(GameType.ADVENTURE);
+            case "spectator" -> bot.gameMode.changeGameModeForPlayer(GameType.SPECTATOR);
+            default -> bot.gameMode.changeGameModeForPlayer(GameType.SURVIVAL);
+        }
+        saveToWorld(bot); // 刷新存档为精确位置
+        BotLog.info("已从世界存档恢复假人: name={} pos=({}, {}, {})",
+                name, (int) pos.getDouble(0), (int) pos.getDouble(1), (int) pos.getDouble(2));
     }
 
     /** 取一个假人(无则生成,用于测试命令)。 */
@@ -113,6 +179,38 @@ public final class BotManager {
         for (BotSession session : BOTS.values()) {
             session.tick();
         }
+    }
+
+    /** 服务器启动完成:恢复存档假人(若有)。 */
+    @SubscribeEvent
+    public static void onServerStarted(ServerStartedEvent event) {
+        restoreFromWorld(event.getServer());
+    }
+
+    /** 关服前:冗余写一次档(平时 spawn/remove 已维护,这里兜底防崩溃丢档)。 */
+    @SubscribeEvent
+    public static void onServerStopping(ServerStoppingEvent event) {
+        for (BotSession session : BOTS.values()) {
+            saveToWorld(session.bot());
+        }
+    }
+
+    /** 假人死亡:打印死亡原因(死亡反馈) → 直接清除(暂时策略,后续可改为重生)。 */
+    @SubscribeEvent
+    public static void onLivingDeath(LivingDeathEvent event) {
+        if (event.getEntity().level().isClientSide) {
+            return;
+        }
+        if (!(event.getEntity() instanceof BotPlayer bot)) {
+            return;
+        }
+        String reason = event.getSource().getLocalizedDeathMessage(bot).getString();
+        BotLog.info("假人死亡: {} → 直接清除", reason);
+        Component msg = Component.literal("[alice] 假人 " + bot.getName().getString()
+                + " 死亡: " + reason + " → 已清除");
+        bot.getServer().getPlayerList().broadcastSystemMessage(msg, false);
+        event.setCanceled(true); // 阻止原版死亡流程(掉落物/死亡动画),直接消失
+        remove(bot);
     }
 
     /** 单个假人的会话:持有当前动作与感知作用域。 */
