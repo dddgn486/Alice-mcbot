@@ -50,7 +50,19 @@ public final class BotCommand {
                 .then(Commands.literal("observe")
                         .executes(ctx -> observe(ctx.getSource())))
                 .then(Commands.literal("selftest")
-                        .executes(ctx -> selftest(ctx.getSource()))));
+                        .executes(ctx -> selftest(ctx.getSource())))
+                .then(Commands.literal("scan")
+                        .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                                .executes(ctx -> scan(ctx.getSource(),
+                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos"))))));
+    }
+
+    /** M2 接口扫描:输出指定方块的 capability 接口清单(物品/能量/流体/气体等)。 */
+    private static int scan(CommandSourceStack source, BlockPos target) {
+        String result = com.dddgn.alice.capability.InterfaceScanner.scan(source.getLevel(), target);
+        BotLog.info("接口扫描:\n{}", result);
+        source.sendSuccess(() -> Component.literal("[alice] 接口扫描完成,详见日志"), false);
+        return 1;
     }
 
     /** 手动触发自检(默认不自动跑,审查点 R8)。 */

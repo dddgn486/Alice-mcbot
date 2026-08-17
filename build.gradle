@@ -118,10 +118,10 @@ repositories {
     // Put repositories for dependencies here
     // ForgeGradle automatically adds the Forge maven and Maven Central for you
 
-    // TeamCoFH 官方 Maven:提供 CoFH Core(红石通量 RF 能量系统核心库)
+    // Mekanism 官方 Maven(modmaven.dev)
     maven {
-        name = 'TeamCoFH'
-        url = 'https://maven.covers1624.net/'
+        name = 'ModMaven'
+        url = 'https://modmaven.dev/'
     }
 
     // If you have mod jar dependencies in ./libs, you can declare them as a repository like so.
@@ -139,7 +139,14 @@ dependencies {
     // then special handling is done to allow a setup of a vanilla dependency without the use of an external repository.
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
 
-    // M0: 最小依赖骨架,后续里程碑按需添加
+    // Mekanism(科技模组测试对象):核心提供 API,发电机作为常用机器一起挂上
+    implementation fg.deobf("mekanism:Mekanism:1.20.1-10.4.16.80")
+    runtimeOnly fg.deobf("mekanism:Mekanism:1.20.1-10.4.16.80:generators")
+
+    // JEI(物品配方查看)+ JECh(通用拼音搜索,让 JEI 支持中文/拼音搜索)
+    compileOnly fg.deobf("local:jei:1.20.1-forge-15.49.0.187")
+    runtimeOnly fg.deobf("local:jei:1.20.1-forge-15.49.0.187")
+    runtimeOnly fg.deobf("local:jecharacters:1.20.1-forge-4.6.9")
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
