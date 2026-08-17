@@ -30,6 +30,7 @@ public final class PathExecutor {
     private double lastX, lastY, lastZ;
     private int noProgressTicks;
     private int diagTicks;
+    private boolean obstructed;
 
     public PathExecutor(ServerPlayer bot, List<BlockPos> path) {
         this.bot = bot;
@@ -39,6 +40,11 @@ public final class PathExecutor {
         this.lastZ = bot.getZ();
     }
 
+    /** 是否因路径中方块变化(新方块挡住段目标)而中断——上层应重新寻路而非直接失败。 */
+    public boolean wasObstructed() {
+        return obstructed;
+    }
+
     public Status tick() {
         if (index >= path.size()) {
             return Status.DONE;
@@ -46,6 +52,14 @@ public final class PathExecutor {
         if (segmentGoal == null) {
             segmentGoal = path.get(index);
             BotLog.info("路径段 {}/{}: {}", index + 1, path.size(), segmentGoal.toShortString());
+        }
+
+        // 路径动态变化:段目标格(脚位/头位)被新方块占据 → 中断, 请求重规划
+        if (!MovementHelper.canWalkThrough((net.minecraft.server.level.ServerLevel) bot.level(), segmentGoal)
+                || !MovementHelper.canWalkThrough((net.minecraft.server.level.ServerLevel) bot.level(), segmentGoal.above())) {
+            obstructed = true;
+            BotLog.warn("路径受阻: 段目标 {} 不可走(方块变化), 请求重新规划", segmentGoal.toShortString());
+            return Status.FAILED;
         }
 
         double goalX = segmentGoal.getX() + 0.5D;

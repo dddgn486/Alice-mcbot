@@ -17,10 +17,11 @@ import java.util.List;
 /**
  * 挖矿任务(任务框架第一个实现,对应验收标准 3「产物入包」)。
  * <p>
- * 行为链:MINING({@link BotMiner} 原版挖掘状态机,含站位/视线/距离检查)
- * → COLLECTING(感知层 {@link ScopeBuffer} 定位任务作用域内的掉落物,
- * A* 走到最近掉落物旁,由原版实体拾取逻辑入包) → DONE。
+ * 行为链:MINING(挖掘状态机,含站位/视线/距离检查,<b>失败时清障</b>)
+ * → COLLECTING(感知定位掉落物 → A* 走位 → 主动拾取入包) → DONE。
  * </p>
+ * <p><b>清障挖掘</b>:原目标视线被方块遮挡(在墙里/被围)时,raycast 找出遮挡方块
+ * 作为新的挖掘目标先挖掉,再回头挖原目标(限 3 层)——解决「头顶/墙内方块挖不到」。</p>
  * <p>
  * 临时设定(用户指定):任务开始时直接替换 bot 主手为钻石镐,结束后不换回,
  * 等真正的装备系统(后续里程碑)接管。</p>
@@ -30,23 +31,28 @@ public final class MineTask implements Task {
     private enum Phase { MINING, COLLECTING }
 
     private static final int COLLECT_TIMEOUT_TICKS = 400;
+    private static final int MAX_CLEAR_DEPTH = 3;
 
     private final ServerPlayer bot;
-    private final BlockPos target;
+    private final BlockPos target;           // 原始目标(不变,清障后仍挖它)
     private final ScopeBuffer scope;
 
-    private final BotMiner miner;
+    private BotMiner miner;                  // 当前挖掘器(可能是清障目标)
+    private BlockPos currentMineTarget;      // 当前挖掘目标(原目标或遮挡方块)
+    private int clearDepth;
     private Phase phase = Phase.MINING;
     private PathExecutor collectExecutor;
     private int collectElapsed;
     private int collectWaitTicks;
+    private int collectRetries;
     private String failureReason = "";
 
     public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope) {
         this.bot = bot;
         this.target = target.immutable();
         this.scope = scope;
-        this.miner = new BotMiner(bot, this.target);
+        this.currentMineTarget = this.target;
+        this.miner = new BotMiner(bot, this.currentMineTarget);
         // 临时设定:行为执行时直接替换主手工具(挖矿 → 钻石镐),并同步给客户端
         bot.getInventory().setItem(bot.getInventory().selected, new ItemStack(Items.DIAMOND_PICKAXE));
         com.dddgn.alice.bot.BotManager.syncMainHand(bot);
@@ -74,11 +80,26 @@ public final class MineTask implements Task {
             BotMiner.Status s = miner.tick();
             switch (s) {
                 case DONE -> {
+                    if (!currentMineTarget.equals(target)) {
+                        // 清障完成 → 回头挖原目标
+                        BotLog.info("清障完成: 已挖掉遮挡 {} → 继续挖原目标 {}",
+                                currentMineTarget.toShortString(), target.toShortString());
+                        startMining(target);
+                        return Status.RUNNING;
+                    }
                     BotLog.info("挖掘阶段完成,进入拾取阶段: target={}", target.toShortString());
                     phase = Phase.COLLECTING;
                     return Status.RUNNING;
                 }
                 case FAILED -> {
+                    // 挖掘失败 → 尝试清障: 挖开视线上的遮挡方块(限 3 层)
+                    BlockPos blocker = findLineOfSightBlocker();
+                    if (blocker != null && clearDepth < MAX_CLEAR_DEPTH && !blocker.equals(currentMineTarget)) {
+                        clearDepth++;
+                        BotLog.info("清障(第{}层): 视线被 {} 遮挡, 先挖它", clearDepth, blocker.toShortString());
+                        startMining(blocker);
+                        return Status.RUNNING;
+                    }
                     failureReason = miner.failureReason();
                     return Status.FAILED;
                 }
@@ -88,6 +109,27 @@ public final class MineTask implements Task {
             }
         }
         return collectTick();
+    }
+
+    /** 切换当前挖掘目标(原目标或遮挡方块)。 */
+    private void startMining(BlockPos pos) {
+        this.currentMineTarget = pos.immutable();
+        this.miner = new BotMiner(bot, this.currentMineTarget);
+    }
+
+    /** 从 bot 眼睛到原目标中心的 raycast:返回第一个非目标的遮挡方块(无则 null)。 */
+    private BlockPos findLineOfSightBlocker() {
+        net.minecraft.world.phys.Vec3 eye = bot.getEyePosition();
+        net.minecraft.world.phys.Vec3 center = target.getCenter();
+        net.minecraft.world.level.ClipContext ctx = new net.minecraft.world.level.ClipContext(eye, center,
+                net.minecraft.world.level.ClipContext.Block.COLLIDER,
+                net.minecraft.world.level.ClipContext.Fluid.NONE, bot);
+        net.minecraft.world.phys.BlockHitResult hit = bot.level().clip(ctx);
+        if (hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+                && !hit.getBlockPos().equals(target)) {
+            return hit.getBlockPos().immutable();
+        }
+        return null;
     }
 
     /** 拾取阶段:直接扫描目标周围掉落物(不依赖事件捕捉) → 走位 → 原版拾取入包。 */
@@ -166,6 +208,13 @@ public final class MineTask implements Task {
             List<BlockPos> path = AStarPathfinder.computePath(level,
                     bot.blockPosition(), new Goal.GoalNear(stand, 1));
             if (path.isEmpty()) {
+                // 掉落物未落地(挖高处方块后下落/弹跳中, 目标格可能悬空站不住)
+                // → 等待落地再试, 不立即判失败
+                if (!nearest.onGround()) {
+                    BotLog.info("拾取等待: 掉落物未落地 y={}, 等落地",
+                            String.format(java.util.Locale.ROOT, "%.1f", nearest.getY()));
+                    return Status.RUNNING;
+                }
                 // 目标格不可达:尝试掉落物上方一格(掉落在非平地时兜底)
                 path = AStarPathfinder.computePath(level,
                         bot.blockPosition(), new Goal.GoalNear(stand.above(), 1));
@@ -182,6 +231,12 @@ public final class MineTask implements Task {
 
         PathExecutor.Status pathStatus = collectExecutor.tick();
         if (pathStatus == PathExecutor.Status.FAILED) {
+            if (collectExecutor.wasObstructed() && collectRetries < 2) {
+                collectRetries++;
+                BotLog.warn("拾取路径受阻,重新规划({}/2): target={}", collectRetries, target.toShortString());
+                collectExecutor = null; // 下 tick 重新寻路
+                return Status.RUNNING;
+            }
             failureReason = "collect_path_failed";
             BotLog.warn("拾取失败: target={} reason={}", target.toShortString(), failureReason);
             return Status.FAILED;

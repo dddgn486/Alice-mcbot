@@ -41,6 +41,7 @@ public final class BotMiner {
     private boolean started;
     private float progress;
     private int elapsed;
+    private int pathRetries;
     private String failureReason = "";
     private Direction face;
     /** 挖掘开始时的 bot 位置与眼睛距离(供自动化验收断言「是否隔空挖」)。 */
@@ -111,6 +112,20 @@ public final class BotMiner {
         if (executor != null) {
             PathExecutor.Status pathStatus = executor.tick();
             if (pathStatus == PathExecutor.Status.FAILED) {
+                if (executor.wasObstructed() && pathRetries < 2) {
+                    // 路径中方块动态变化 → 从当前位置重新规划(限 2 次)
+                    pathRetries++;
+                    BotLog.warn("路径受阻,重新规划({}/2): target={}", pathRetries, target.toShortString());
+                    List<BlockPos> path = AStarPathfinder.computePath(level,
+                            bot.blockPosition(), new Goal.GoalBlock(standGoal));
+                    if (path.isEmpty()) {
+                        failureReason = "no_path";
+                        BotLog.warn("mine 失败: target={} reason={}", target.toShortString(), failureReason);
+                        return Status.FAILED;
+                    }
+                    executor = new PathExecutor(bot, path);
+                    return Status.MOVING;
+                }
                 failureReason = "path_failed";
                 BotLog.warn("mine 失败: target={} reason={}", target.toShortString(), failureReason);
                 return Status.FAILED;

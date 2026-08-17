@@ -103,9 +103,10 @@ public final class MovementHelper {
             return false;
         }
         BlockPos mid = new BlockPos(to.getX(), from.getY(), to.getZ());
-        // 从当前格能走到中继格(身体可穿过),目标可站
+        // 从当前格能走到中继格(身体可穿过),目标格本身可穿过 + 可站
         return canWalkThrough(level, mid)
                 && canWalkThrough(level, mid.above())
+                && canWalkThrough(level, to)
                 && canWalkOn(level, to);
     }
 
