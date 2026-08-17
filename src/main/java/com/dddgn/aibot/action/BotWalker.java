@@ -66,6 +66,10 @@ public final class BotWalker {
             jumpRequested = true;
             jumpTicks = 3;
         }
+        if (!wall) {
+            // 障碍消失后重置,下一堵墙才能再跳(否则一次跳跃后永久失效)
+            jumpRequested = false;
+        }
         if (jumpTicks > 0) {
             bot.setJumping(true);
             jumpTicks--;
