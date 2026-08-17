@@ -3,6 +3,7 @@ package com.dddgn.alice.command;
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.perception.PerceptionProfile;
 import com.dddgn.alice.perception.PerceptionSnapshot;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -88,8 +89,7 @@ public final class BotCommand {
         BlockPos center = source.getEntity() != null
                 ? source.getEntity().blockPosition()
                 : new BlockPos(source.getLevel().getSharedSpawnPos());
-        String summary = PerceptionSnapshot.summarize(source.getLevel(), center, 5,
-                PerceptionSnapshot.ORE_TAGS);
+        String summary = PerceptionSnapshot.summarize(source.getLevel(), center, PerceptionProfile.MINING);
         source.sendSuccess(() -> Component.literal("[alice] 感知摘要已生成(挖矿视角),详见日志"), false);
         BotLog.info("感知摘要(挖矿视角):\n{}", summary);
         return 1;
