@@ -92,6 +92,9 @@ minecraft {
         server {
             property 'forge.enabledGameTestNamespaces', mod_id
             args '--nogui'
+            // headless 验收: ./gradlew runServer -Dalice.selftest.auto=true
+            // 转发 JVM 系统属性给 runServer, BotSelftest 读取后自动跑并关服(默认关)
+            property 'alice.selftest.auto', System.getProperty('alice.selftest.auto', 'false')
         }
 
         // This run config launches GameTestServer and runs all registered gametests, then exits.

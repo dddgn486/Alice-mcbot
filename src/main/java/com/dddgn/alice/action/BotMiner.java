@@ -75,25 +75,35 @@ public final class BotMiner {
 
         // 1) 选站位(只选一次) + A* 寻路
         if (standGoal == null) {
-            standGoal = pickStandPos(level);
-            if (standGoal == null) {
-                failureReason = "no_stand_pos";
-                BotLog.warn("mine 失败: target={} reason={}", target.toShortString(), failureReason);
-                return Status.FAILED;
-            }
-            BotLog.info("站位已选: target={} stand={}", target.toShortString(), standGoal.toShortString());
-
-            // 已在站位上(选中的站位就是当前脚位)则无需寻路,直接进入视线检查与挖掘
-            if (!bot.blockPosition().equals(standGoal)) {
-                List<BlockPos> path = AStarPathfinder.computePath(level,
-                        bot.blockPosition(), new Goal.GoalBlock(standGoal));
-                if (path.isEmpty()) {
-                    failureReason = "no_path";
-                    BotLog.warn("mine 失败: target={} reason={}(站位不可达)", target.toShortString(), failureReason);
+            // 0) 当前站位能否直接挖?(距离 + 视线无遮挡)——免去换站位/寻路,
+            //    解决「bot 已在可挖位置却去找站位失败」的场景(如坑里挖坑壁)
+            if (lineOfSightClear()
+                    && bot.getEyePosition().distanceTo(target.getCenter()) <= MAX_REACH) {
+                standGoal = bot.blockPosition().immutable();
+                BotLog.info("当前站位即可挖掘: target={} stand={}",
+                        target.toShortString(), standGoal.toShortString());
+            } else {
+                standGoal = pickStandPos(level);
+                if (standGoal == null) {
+                    failureReason = "no_stand_pos";
+                    BotLog.warn("mine 失败: target={} reason={}", target.toShortString(), failureReason);
                     return Status.FAILED;
                 }
-                executor = new PathExecutor(bot, path);
-                BotLog.info("寻路成功: 路径 {} 段 → {}", path.size(), standGoal.toShortString());
+                BotLog.info("站位已选: target={} stand={}", target.toShortString(), standGoal.toShortString());
+
+                // 已在站位上(选中的站位就是当前脚位)则无需寻路,直接进入视线检查与挖掘
+                if (!bot.blockPosition().equals(standGoal)) {
+                    List<BlockPos> path = AStarPathfinder.computePath(level,
+                            bot.blockPosition(), new Goal.GoalBlock(standGoal));
+                    if (path.isEmpty()) {
+                        failureReason = "no_path";
+                        BotLog.warn("mine 失败: target={} reason={}(站位不可达)",
+                                target.toShortString(), failureReason);
+                        return Status.FAILED;
+                    }
+                    executor = new PathExecutor(bot, path);
+                    BotLog.info("寻路成功: 路径 {} 段 → {}", path.size(), standGoal.toShortString());
+                }
             }
         }
 
@@ -143,6 +153,8 @@ public final class BotMiner {
                     String.format(java.util.Locale.ROOT, "%.1f", mineStartEyeDist),
                     mineStartPos.toShortString());
         }
+
+        faceTarget(); // 挖掘时持续朝向目标(视线行为,同步给客户端)
 
         progress += state.getDestroyProgress(bot, level, target);
         level.destroyBlockProgress(bot.getId(), target, (int) (progress * 10.0F));
@@ -315,6 +327,26 @@ public final class BotMiner {
                 pos.getX() + 0.5 - bot.getEyePosition().x,
                 pos.getY() + 0.5 - bot.getEyePosition().y,
                 pos.getZ() + 0.5 - bot.getEyePosition().z);
+    }
+
+    /** 视线朝向目标:让 bot 转身面向目标方块中心,并同步朝向给客户端。
+     * 挖掘的视线判定基于位置(raycast),这里补上「面向目标」的视觉行为。 */
+    private void faceTarget() {
+        Vec3 eye = bot.getEyePosition();
+        Vec3 center = target.getCenter();
+        double dx = center.x - eye.x;
+        double dy = center.y - eye.y;
+        double dz = center.z - eye.z;
+        float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
+        float pitch = (float) Math.toDegrees(
+                Math.atan2(-dy, Math.sqrt(dx * dx + dz * dz)));
+        bot.setYRot(yaw);
+        bot.setXRot(pitch);
+        byte yawByte = (byte) (yaw * 256.0F / 360.0F);
+        byte pitchByte = (byte) (pitch * 256.0F / 360.0F);
+        bot.connection.send(new net.minecraft.network.protocol.game.ClientboundRotateHeadPacket(bot, yawByte));
+        bot.connection.send(new net.minecraft.network.protocol.game.ClientboundMoveEntityPacket.Rot(
+                bot.getId(), yawByte, pitchByte, bot.onGround()));
     }
 
     private void abortMining(ServerLevel level) {

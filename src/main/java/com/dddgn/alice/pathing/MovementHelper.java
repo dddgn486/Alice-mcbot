@@ -15,11 +15,21 @@ public final class MovementHelper {
 
     /** 该脚位能否站立:下方方块实心可站且非危险。 */
     public static boolean canWalkOn(ServerLevel level, BlockPos footPos) {
-        BlockState below = level.getBlockState(footPos.below());
+        BlockPos belowPos = footPos.below();
+        BlockState below = level.getBlockState(belowPos);
         if (below.isAir() || below.getFluidState().isSource() || avoidWalkingInto(below)) {
             return false;
         }
-        return below.getCollisionShape(level, footPos.below()).isEmpty() == false;
+        // 脚下是无碰撞层(草/花/薄雪等可穿过方块):看再下一层是否有支撑
+        // (真实玩家站在草丛里,脚位高度还是那层空气格)
+        if (below.getCollisionShape(level, belowPos).isEmpty()) {
+            BlockState below2 = level.getBlockState(belowPos.below());
+            return !below2.isAir()
+                    && !below2.getCollisionShape(level, belowPos.below()).isEmpty()
+                    && !below2.getFluidState().isSource()
+                    && !avoidWalkingInto(below2);
+        }
+        return !below.getCollisionShape(level, belowPos).isEmpty();
     }
 
     /** 该格能否穿过(身体格):空气或可穿过方块,且非危险。 */

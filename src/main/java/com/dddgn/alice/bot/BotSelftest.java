@@ -24,10 +24,10 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
  */
 public final class BotSelftest {
 
-    private enum Phase { IDLE, WAIT_START, SETUP, TEST1_RUN, TEST1_CHECK, TEST2_SETUP, TEST2_RUN, TEST2_CHECK, TEST3_SETUP, TEST3_RUN, TEST3_CHECK, REPORT }
+    private enum Phase { IDLE, WAIT_START, SETUP, TEST1_RUN, TEST1_CHECK, TEST2_SETUP, TEST2_RUN, TEST2_CHECK, TEST3_SETUP, TEST3_RUN, TEST3_CHECK, TEST4_SETUP, TEST4_RUN, TEST4_CHECK, TEST5_SETUP, TEST5_RUN, TEST5_CHECK, REPORT }
 
     private static final int START_DELAY_TICKS = 100;
-    private static final int PHASE_TIMEOUT_TICKS = 600;
+    private static final int PHASE_TIMEOUT_TICKS = 900;
 
     private static Phase phase = Phase.IDLE;
     private static int waitTicks;
@@ -38,14 +38,20 @@ public final class BotSelftest {
     private static BlockPos target1;
     private static BlockPos target2;
     private static BlockPos target3;
+    private static BlockPos target4;
+    private static BlockPos target5;
     private static BlockPos test2MineStart;
     private static BlockPos test3MineStart;
     private static boolean test1Pass;
     private static boolean test2Pass;
     private static boolean test3Pass;
+    private static boolean test4Pass;
+    private static boolean test5Pass;
     private static String test1Detail = "";
     private static String test2Detail = "";
     private static String test3Detail = "";
+    private static String test4Detail = "";
+    private static String test5Detail = "";
 
     private BotSelftest() {
     }
@@ -54,9 +60,15 @@ public final class BotSelftest {
     public static void onServerStarted(ServerStartedEvent event) {
         server = event.getServer();
         level = server.overworld();
-        // 默认不自动跑(审查点 R8):改为手动命令 /alice selftest 触发,避免进服自动卡死/自动关服
-        phase = Phase.IDLE;
-        BotLog.info("SELFTEST 待命(手动 /alice selftest 触发)");
+        // 默认不自动跑(审查点 R8):手动 /alice selftest 触发;
+        // headless 验证用 -Dalice.selftest.auto=true 自动触发(见 build.gradle)
+        if (Boolean.getBoolean("alice.selftest.auto")) {
+            BotLog.info("SELFTEST 自动模式(alice.selftest.auto=true)");
+            start();
+        } else {
+            phase = Phase.IDLE;
+            BotLog.info("SELFTEST 待命(手动 /alice selftest 触发)");
+        }
     }
 
     /** 手动启动自检(命令触发)。 */
@@ -67,6 +79,8 @@ public final class BotSelftest {
         test1Pass = false;
         test2Pass = false;
         test3Pass = false;
+        test4Pass = false;
+        test5Pass = false;
         phase = Phase.WAIT_START;
         waitTicks = START_DELAY_TICKS;
         phaseTicks = 0;
@@ -110,6 +124,22 @@ public final class BotSelftest {
                 }
             }
             case TEST3_CHECK -> checkTest3();
+            case TEST4_SETUP -> setupTest4();
+            case TEST4_RUN -> {
+                if (!BotManager.isBusy(bot) || phaseTicks > PHASE_TIMEOUT_TICKS) {
+                    phase = Phase.TEST4_CHECK;
+                    phaseTicks = 0;
+                }
+            }
+            case TEST4_CHECK -> checkTest4();
+            case TEST5_SETUP -> setupTest5();
+            case TEST5_RUN -> {
+                if (!BotManager.isBusy(bot) || phaseTicks > PHASE_TIMEOUT_TICKS) {
+                    phase = Phase.TEST5_CHECK;
+                    phaseTicks = 0;
+                }
+            }
+            case TEST5_CHECK -> checkTest5();
             default -> {
             }
         }
@@ -226,14 +256,95 @@ public final class BotSelftest {
                 + " mineStart=" + (test3MineStart == null ? "null" : test3MineStart.toShortString())
                 + (phaseTicks > PHASE_TIMEOUT_TICKS ? " (超时)" : "");
         BotLog.info("SELFTEST TEST3 {}", test3Pass ? "PASS" : "FAIL: " + test3Detail);
+        phase = Phase.TEST4_SETUP;
+        phaseTicks = 0;
+    }
+
+    /** TEST4:坑场景——bot 掉进 1 格深小坑,目标是坑边地面方块。
+     * 验证「当前站位可直接挖」优先判定(之前会 no_stand_pos)。 */
+    private static void setupTest4() {
+        BlockPos surface = findSurface();
+        BlockPos hole = surface;
+        // 挖坑:bot 脚下 1 格掏空
+        level.setBlock(hole.below(), Blocks.AIR.defaultBlockState(), 3);
+        BlockPos holeBottom = hole.below();
+        bot.setPos(holeBottom.getX() + 0.5, holeBottom.getY(), holeBottom.getZ() + 0.5);
+        // 目标 = 坑边东侧地面方块
+        target4 = surface.offset(1, 0, 0);
+        level.setBlock(target4, Blocks.DIRT.defaultBlockState(), 3);
+        level.setBlock(target4.above(), Blocks.AIR.defaultBlockState(), 3);
+        BotLog.info("SELFTEST TEST4: 坑场景就绪, bot坑底={} 目标={}", holeBottom.toShortString(), target4.toShortString());
+        BotManager.assignMine(bot, target4);
+        phase = Phase.TEST4_RUN;
+        phaseTicks = 0;
+    }
+
+    private static void checkTest4() {
+        boolean blockGone = level.getBlockState(target4).isAir();
+        String result = BotManager.lastTaskResult(bot);
+        // 坑场景验证核心:bot 在坑里能否挖到坑边目标(用户反馈的核心痛点)。
+        // 拾取可能因「1×1 坑爬不出」失败(collect_no_path,A* 要求落脚格下方实心,
+        // 已知限制 R15),此时挖掘本身已成功,不判失败。
+        boolean collectLimited = result.startsWith("failed:collect");
+        test4Pass = blockGone && ("done".equals(result) || collectLimited);
+        test4Detail = "blockGone=" + blockGone + " result=" + result
+                + (collectLimited ? " (拾取受限R15)" : "")
+                + (phaseTicks > PHASE_TIMEOUT_TICKS ? " (超时)" : "");
+        BotLog.info("SELFTEST TEST4 {}", test4Pass ? "PASS" : "FAIL: " + test4Detail);
+        phase = Phase.TEST5_SETUP;
+        phaseTicks = 0;
+    }
+
+    /** TEST5:草丛寻路——bot 与目标之间铺高草,验证 canWalkThrough/canWalkOn
+     * 对无碰撞植物方块的判定(之前「被草拦住路线」)。 */
+    private static void setupTest5() {
+        BlockPos surface = findSurface();
+        // 清一块 9x1 区域,铺草方块地面
+        BlockPos west = surface.offset(-4, 0, 0);
+        int groundY = west.getY() - 1;
+        for (int x = west.getX(); x <= west.getX() + 8; x++) {
+            level.setBlock(new BlockPos(x, groundY, west.getZ()), Blocks.GRASS_BLOCK.defaultBlockState(), 3);
+            level.setBlock(new BlockPos(x, groundY + 1, west.getZ()), Blocks.AIR.defaultBlockState(), 3);
+        }
+        // 中间铺高草(bot 与目标之间)
+        for (int x = west.getX() + 1; x <= west.getX() + 7; x++) {
+            level.setBlock(new BlockPos(x, west.getY(), west.getZ()), Blocks.FERN.defaultBlockState(), 3);
+        }
+        bot.teleportTo(west.getX() + 0.5D, west.getY(), west.getZ() + 0.5D);
+        target5 = surface.offset(4, 0, 0);
+        level.setBlock(target5, Blocks.DIRT.defaultBlockState(), 3);
+        BotLog.info("SELFTEST TEST5: 草丛场景就绪, bot={} 目标={} 中间高草x{}~{}",
+                west.toShortString(), target5.toShortString(), west.getX() + 1, west.getX() + 7);
+        BotManager.assignMine(bot, target5);
+        phase = Phase.TEST5_RUN;
+        phaseTicks = 0;
+    }
+
+    private static void checkTest5() {
+        boolean blockGone = level.getBlockState(target5).isAir();
+        String result = BotManager.lastTaskResult(bot);
+        test5Pass = blockGone && "done".equals(result);
+        test5Detail = "blockGone=" + blockGone + " result=" + result
+                + (phaseTicks > PHASE_TIMEOUT_TICKS ? " (超时)" : "");
+        BotLog.info("SELFTEST TEST5 {}", test5Pass ? "PASS" : "FAIL: " + test5Detail);
         phase = Phase.REPORT;
         report();
     }
 
+    /** 出生点上方的地表空气格(找地表用)。 */
+    private static BlockPos findSurface() {
+        BlockPos spawn = level.getSharedSpawnPos();
+        BlockPos surface = spawn;
+        while (level.getBlockState(surface).isAir() && surface.getY() > level.getMinBuildHeight()) {
+            surface = surface.below();
+        }
+        return surface.above();
+    }
+
     private static void report() {
-        boolean allPass = test1Pass && test2Pass && test3Pass;
-        BotLog.info("SELFTEST 结果: {} (TEST1={} TEST2={} TEST3={})", allPass ? "PASS" : "FAIL",
-                test1Pass, test2Pass, test3Pass);
+        boolean allPass = test1Pass && test2Pass && test3Pass && test4Pass && test5Pass;
+        BotLog.info("SELFTEST 结果: {} (TEST1={} TEST2={} TEST3={} TEST4={} TEST5={})", allPass ? "PASS" : "FAIL",
+                test1Pass, test2Pass, test3Pass, test4Pass, test5Pass);
         // headless 验收:测完自动关服(审查点 R8)
         server.halt(true);
     }

@@ -39,6 +39,7 @@ public final class MineTask implements Task {
     private Phase phase = Phase.MINING;
     private PathExecutor collectExecutor;
     private int collectElapsed;
+    private int collectWaitTicks;
     private String failureReason = "";
 
     public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope) {
@@ -91,6 +92,12 @@ public final class MineTask implements Task {
 
     /** 拾取阶段:直接扫描目标周围掉落物(不依赖事件捕捉) → 走位 → 原版拾取入包。 */
     private Status collectTick() {
+        collectElapsed++;
+        if (collectElapsed > COLLECT_TIMEOUT_TICKS) {
+            failureReason = "collect_timeout";
+            BotLog.warn("拾取失败: target={} reason={}", target.toShortString(), failureReason);
+            return Status.FAILED;
+        }
         net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) bot.level();
         // 感知:扫描目标为中心 8 格内的存活掉落物
         List<ItemEntity> items = level.getEntitiesOfClass(ItemEntity.class,
@@ -114,12 +121,36 @@ public final class MineTask implements Task {
 
         // 已在拾取半径内:等原版 playerTouch 入包(掉落物有 pickupDelay,需等)
         if (best <= 2.25D) { // 1.5 格
+            collectWaitTicks++;
+            // 主动拾取兜底:原版 Player.tick 触碰检测对玩家化假人偶发不触发,
+            // 等待 20 tick 仍没入包则反射清 pickupDelay 后直接 playerTouch
+            if (collectWaitTicks >= 20) {
+                forcePickup(nearest);
+                if (nearest.isRemoved() || nearest.getItem().isEmpty()) {
+                    BotLog.info("拾取成功(主动 playerTouch): 掉落物已入包");
+                    collectWaitTicks = 0;
+                    return Status.RUNNING;
+                }
+            }
+            if (collectWaitTicks % 40 == 0) {
+                int delay = readPickupDelay(nearest);
+                BotLog.info("拾取等待中: 掉落物 {} @{} 距离 {} 格 pickupDelay={} age={}",
+                        nearest.getItem().getItem(), nearest.blockPosition().toShortString(),
+                        String.format(java.util.Locale.ROOT, "%.1f", Math.sqrt(best)),
+                        delay, nearest.tickCount);
+            }
             return Status.RUNNING;
         }
 
         // 尚未到位:寻路到掉落物旁
         if (collectExecutor == null) {
             BlockPos stand = nearest.blockPosition();
+            // 已在目标 1 格水平范围内 → 直接进入等待拾取
+            // (否则 A* 因 start 已在 goal 返回空路径,被误判 collect_no_path)
+            if (new Goal.GoalNear(stand, 1).isInGoal(bot.blockPosition())) {
+                collectWaitTicks++;
+                return Status.RUNNING;
+            }
             List<BlockPos> path = AStarPathfinder.computePath(level,
                     bot.blockPosition(), new Goal.GoalNear(stand, 1));
             if (path.isEmpty()) {
@@ -146,13 +177,29 @@ public final class MineTask implements Task {
         if (pathStatus == PathExecutor.Status.DONE) {
             collectExecutor = null; // 到达,下一 tick 等待拾取
         }
-
-        collectElapsed++;
-        if (collectElapsed > COLLECT_TIMEOUT_TICKS) {
-            failureReason = "collect_timeout";
-            BotLog.warn("拾取失败: target={} reason={}", target.toShortString(), failureReason);
-            return Status.FAILED;
-        }
         return Status.RUNNING;
+    }
+
+    /** 反射读取私有字段 pickupDelay(诊断用)。 */
+    private static int readPickupDelay(ItemEntity item) {
+        try {
+            java.lang.reflect.Field f = ItemEntity.class.getDeclaredField("pickupDelay");
+            f.setAccessible(true);
+            return f.getInt(item);
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
+    /** 主动拾取:反射清 pickupDelay 后直接调 playerTouch(绕过原版触碰检测)。 */
+    private void forcePickup(ItemEntity item) {
+        try {
+            java.lang.reflect.Field f = ItemEntity.class.getDeclaredField("pickupDelay");
+            f.setAccessible(true);
+            f.setInt(item, 0);
+        } catch (Exception e) {
+            BotLog.warn("拾取兜底: 反射清 pickupDelay 失败 {}", e.getMessage());
+        }
+        item.playerTouch(bot);
     }
 }

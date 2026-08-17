@@ -19,7 +19,7 @@ import java.util.Map;
 public final class AStarPathfinder {
 
     private static final int MAX_NODES = 40_000;
-    private static final int MAX_MOVES = 64;
+    private static final int MAX_MOVES = 512;
 
     private AStarPathfinder() {
     }
