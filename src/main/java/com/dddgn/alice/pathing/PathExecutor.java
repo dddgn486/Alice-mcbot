@@ -29,6 +29,7 @@ public final class PathExecutor {
     private BlockPos segmentGoal;
     private double lastX, lastY, lastZ;
     private int noProgressTicks;
+    private int diagTicks;
 
     public PathExecutor(ServerPlayer bot, List<BlockPos> path) {
         this.bot = bot;
@@ -52,6 +53,18 @@ public final class PathExecutor {
         double dx = goalX - bot.getX();
         double dz = goalZ - bot.getZ();
         double horizontal = Math.sqrt(dx * dx + dz * dz);
+
+        // 诊断:每 40 tick 输出当前位置与段距离(定位多段路径卡住问题)
+        diagTicks++;
+        if (diagTicks % 40 == 0) {
+            BotLog.info("路径诊断: bot=({}, {}, {}) 段{}/{} goal={} 水平距离 {:.1f} 无进展 {}",
+                    String.format(java.util.Locale.ROOT, "%.2f", bot.getX()),
+                    String.format(java.util.Locale.ROOT, "%.2f", bot.getY()),
+                    String.format(java.util.Locale.ROOT, "%.2f", bot.getZ()),
+                    index + 1, path.size(),
+                    segmentGoal == null ? "-" : segmentGoal.toShortString(),
+                    horizontal, noProgressTicks);
+        }
 
         // 到达当前段:对齐到段目标脚位(含 Y),手动着地
         if (horizontal <= SEGMENT_ARRIVE) {

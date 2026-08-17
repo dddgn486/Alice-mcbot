@@ -330,7 +330,8 @@ public final class BotMiner {
     }
 
     /** 视线朝向目标:让 bot 转身面向目标方块中心,并同步朝向给客户端。
-     * 挖掘的视线判定基于位置(raycast),这里补上「面向目标」的视觉行为。 */
+     * 注意:MC 玩家模型「身体朝向(yRot)」与「头部朝向(yHeadRot)」相互独立,
+     * 必须同时设置,否则会出现「身子转过来了头却不朝目标」的诡异视角。 */
     private void faceTarget() {
         Vec3 eye = bot.getEyePosition();
         Vec3 center = target.getCenter();
@@ -340,11 +341,13 @@ public final class BotMiner {
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         float pitch = (float) Math.toDegrees(
                 Math.atan2(-dy, Math.sqrt(dx * dx + dz * dz)));
-        bot.setYRot(yaw);
-        bot.setXRot(pitch);
+        bot.setYRot(yaw);       // 身体朝向
+        bot.setXRot(pitch);     // 俯仰
+        bot.setYHeadRot(yaw);   // 头部朝向(关键:与身体独立)
         byte yawByte = (byte) (yaw * 256.0F / 360.0F);
         byte pitchByte = (byte) (pitch * 256.0F / 360.0F);
-        bot.connection.send(new net.minecraft.network.protocol.game.ClientboundRotateHeadPacket(bot, yawByte));
+        bot.connection.send(new net.minecraft.network.protocol.game.ClientboundRotateHeadPacket(
+                bot, (byte) (bot.getYHeadRot() * 256.0F / 360.0F)));
         bot.connection.send(new net.minecraft.network.protocol.game.ClientboundMoveEntityPacket.Rot(
                 bot.getId(), yawByte, pitchByte, bot.onGround()));
     }

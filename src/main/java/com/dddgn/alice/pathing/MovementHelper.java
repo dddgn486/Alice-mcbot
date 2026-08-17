@@ -59,17 +59,42 @@ public final class MovementHelper {
                 && canWalkThrough(level, to.above());
     }
 
-    /** 上一阶台阶(从 from 脚位走到 to=from+1y 脚位)。 */
+    /** 上一阶台阶(从 from 脚位走到 to=from+1y 脚位)。
+     * <p>跳跃语义(真实玩家跳高约 1.25 格):
+     * <ul>
+     *   <li>轨迹下层 mid 允许「1 格高的实心方块」(台阶/围墙可跳越,不再视为墙);</li>
+     *   <li>正上方垂直爬升(mid==from)允许目标格悬空——跳跃弧线过渡,
+     *       PathExecutor 为硬移动(无重力),bot 不会在过渡格掉落。</li>
+     * </ul></p>
+     */
     public static boolean canAscend(ServerLevel level, BlockPos from, BlockPos to) {
         if (to.getY() != from.getY() + 1) {
             return false;
         }
         BlockPos mid = new BlockPos(to.getX(), from.getY(), to.getZ());
-        // 中继格可穿过(脚位与头位),目标可站,目标头位空
-        return canWalkThrough(level, mid)
-                && canWalkThrough(level, mid.above())
-                && canWalkOn(level, to)
-                && canWalkThrough(level, to.above());
+        if (!canJumpThrough(level, mid)) {
+            return false;
+        }
+        if (!canWalkThrough(level, to) || !canWalkThrough(level, to.above())) {
+            return false;
+        }
+        if (mid.equals(from)) {
+            // 正上方垂直爬升:目标格悬空也允许(跳跃过渡;硬移动不掉落)
+            return true;
+        }
+        return canWalkOn(level, to);
+    }
+
+    /** 跳跃轨迹下层判定:空气/可穿过,或 1 格高的实心方块(跳跃高度可越过)。 */
+    private static boolean canJumpThrough(ServerLevel level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        if (state.isAir() || state.getCollisionShape(level, pos).isEmpty()) {
+            return true;
+        }
+        if (avoidWalkingInto(state)) {
+            return false;
+        }
+        return state.getCollisionShape(level, pos).max(net.minecraft.core.Direction.Axis.Y) <= 1.0D;
     }
 
     /** 下一格台阶(从 from 脚位走到 to=from-1y 脚位)。 */

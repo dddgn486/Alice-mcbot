@@ -131,6 +131,15 @@ public final class MineTask implements Task {
                     collectWaitTicks = 0;
                     return Status.RUNNING;
                 }
+                if (collectWaitTicks % 80 == 0) {
+                    int used = 0;
+                    for (var s : bot.getInventory().items) {
+                        if (!s.isEmpty()) {
+                            used++;
+                        }
+                    }
+                    BotLog.warn("拾取未成功持续: 背包已用 {}/36 格(可能背包满导致 Inventory.add 失败)", used);
+                }
             }
             if (collectWaitTicks % 40 == 0) {
                 int delay = readPickupDelay(nearest);
@@ -145,10 +154,13 @@ public final class MineTask implements Task {
         // 尚未到位:寻路到掉落物旁
         if (collectExecutor == null) {
             BlockPos stand = nearest.blockPosition();
-            // 已在目标 1 格水平范围内 → 直接进入等待拾取
+            // 已在目标 1 格水平范围内(同层) → 直接进入等待拾取
             // (否则 A* 因 start 已在 goal 返回空路径,被误判 collect_no_path)
             if (new Goal.GoalNear(stand, 1).isInGoal(bot.blockPosition())) {
                 collectWaitTicks++;
+                if (collectWaitTicks >= 20) {
+                    forcePickup(nearest); // 兜底:等待超过 20 tick 仍未入包则主动拾取
+                }
                 return Status.RUNNING;
             }
             List<BlockPos> path = AStarPathfinder.computePath(level,
