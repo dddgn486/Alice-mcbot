@@ -2,6 +2,7 @@ package com.dddgn.aibot.bot;
 
 import com.dddgn.aibot.action.BotMiner;
 import com.dddgn.aibot.action.BotWalker;
+import com.dddgn.aibot.log.BotLog;
 import com.mojang.authlib.GameProfile;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -39,6 +40,7 @@ public final class BotManager {
         bot.getInventory().setItem(bot.getInventory().selected, new ItemStack(Items.DIAMOND_PICKAXE));
         level.addFreshEntity(bot);
         BOTS.put(bot.getUUID(), new BotSession(bot));
+        BotLog.info("假人已生成: name={} pos={}", name, pos.toShortString());
         return bot;
     }
 
@@ -62,6 +64,8 @@ public final class BotManager {
         BotSession session = BOTS.get(bot.getUUID());
         if (session != null) {
             session.assignMine(target);
+            BotLog.info("分配挖掘任务: bot={} target={}",
+                    bot.getName().getString(), target.toShortString());
         }
     }
 

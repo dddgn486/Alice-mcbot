@@ -1,5 +1,6 @@
 package com.dddgn.aibot.action;
 
+import com.dddgn.aibot.log.BotLog;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
@@ -60,18 +61,23 @@ public final class BotMiner {
             standGoal = pickStandPos(level);
             if (standGoal == null) {
                 failureReason = "no_stand_pos";
+                BotLog.warn("mine 失败: target={} reason={}", target.toShortString(), failureReason);
                 return Status.FAILED;
             }
+            BotLog.info("站位已选: target={} stand={}", target.toShortString(), standGoal.toShortString());
         }
 
         // 2) 走向站位
         if (!atStandPos()) {
             if (walker == null) {
                 walker = new BotWalker(bot, standGoal.getCenter());
+                BotLog.info("开始移动: from={} to={}",
+                        bot.blockPosition().toShortString(), standGoal.toShortString());
             }
             BotWalker.Status walkStatus = walker.tick();
             if (walkStatus == BotWalker.Status.FAILED) {
                 failureReason = "walk_failed";
+                BotLog.warn("mine 失败: target={} reason={}", target.toShortString(), failureReason);
                 return Status.FAILED;
             }
             return Status.MOVING;
@@ -81,6 +87,8 @@ public final class BotMiner {
         // 3) 视线无遮挡检查(M0 验收核心:根治隔空挖)
         if (!lineOfSightClear()) {
             failureReason = "line_of_sight_blocked";
+            BotLog.warn("mine 失败(隔空挖拦截): target={} reason={}",
+                    target.toShortString(), failureReason);
             abortMining(level);
             return Status.FAILED;
         }
@@ -88,6 +96,7 @@ public final class BotMiner {
         // 4) 距离检查(对齐原版 4.5)
         if (bot.getEyePosition().distanceTo(target.getCenter()) > MAX_REACH) {
             failureReason = "out_of_reach";
+            BotLog.warn("mine 失败: target={} reason={}", target.toShortString(), failureReason);
             abortMining(level);
             return Status.FAILED;
         }
@@ -100,6 +109,10 @@ public final class BotMiner {
                     face, level.getMaxBuildHeight(), -1);
             state.attack(level, target, bot);
             started = true;
+            BotLog.info("开始挖掘: target={} face={} eye_dist={}",
+                    target.toShortString(), face,
+                    String.format(java.util.Locale.ROOT, "%.1f",
+                            bot.getEyePosition().distanceTo(target.getCenter())));
         }
 
         progress += state.getDestroyProgress(bot, level, target);
@@ -111,6 +124,7 @@ public final class BotMiner {
             level.destroyBlockProgress(bot.getId(), target, -1);
             started = false;
             progress = 0.0F;
+            BotLog.info("挖掘完成: target={}", target.toShortString());
             return Status.DONE;
         }
 
