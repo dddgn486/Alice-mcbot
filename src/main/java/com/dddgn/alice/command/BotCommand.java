@@ -83,17 +83,15 @@ public final class BotCommand {
         return 1;
     }
 
-    /** M1 感知层演示:输出命令执行者周围 5 格的非空气方块快照(世界直读)。 */
+    /** M1 感知层演示:输出命令执行者周围 5 格的分类聚合摘要(目标/危险/收获/普通)。 */
     private static int observe(CommandSourceStack source) {
         BlockPos center = source.getEntity() != null
                 ? source.getEntity().blockPosition()
                 : new BlockPos(source.getLevel().getSharedSpawnPos());
-        List<String> blocks = PerceptionSnapshot.nearbyBlocks(source.getLevel(), center, 5);
-        source.sendSuccess(() -> Component.literal(
-                "[alice] 周围 5 格非空气方块(" + blocks.size() + " 个),详见日志"), false);
-        for (String line : blocks) {
-            BotLog.info("observe: {}", line);
-        }
+        String summary = PerceptionSnapshot.summarize(source.getLevel(), center, 5,
+                PerceptionSnapshot.ORE_TAGS);
+        source.sendSuccess(() -> Component.literal("[alice] 感知摘要已生成(挖矿视角),详见日志"), false);
+        BotLog.info("感知摘要(挖矿视角):\n{}", summary);
         return 1;
     }
 }
