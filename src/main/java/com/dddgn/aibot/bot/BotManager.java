@@ -48,7 +48,8 @@ public final class BotManager {
                 return session.bot();
             }
         }
-        return spawn(level, pos, "AI-Bot");
+        // 出生在目标上方(而非目标方块内部,避免卡进方块窒息)
+        return spawn(level, pos.above(), "AI-Bot");
     }
 
     /** 给假人分配「挖掘指定方块」动作。 */

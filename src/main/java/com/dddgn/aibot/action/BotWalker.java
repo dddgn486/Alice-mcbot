@@ -46,8 +46,9 @@ public final class BotWalker {
             return Status.DONE;
         }
 
-        // 面向目标(Minecraft yaw:0=+Z,用 atan2(dx, dz))
-        float yaw = (float) Math.toDegrees(Math.atan2(dx, dz));
+        // 面向目标(MC yaw:0=+Z 且顺时针为正,故 yaw = atan2(-dx, dz);
+        // 反例:目标在 +X(东) 时需 yaw=-90°,而 atan2(dx,dz) 会给出 +90°=朝西,方向恰好相反)
+        float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         bot.setYRot(yaw);
         bot.yRotO = yaw;
 
