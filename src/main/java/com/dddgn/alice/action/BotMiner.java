@@ -1,6 +1,9 @@
 package com.dddgn.alice.action;
 
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.pathing.AStarPathfinder;
+import com.dddgn.alice.pathing.Goal;
+import com.dddgn.alice.pathing.PathExecutor;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
@@ -12,6 +15,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+import java.util.List;
 
 /**
  * 挖掘状态机(M0 核心,四条验收标准第 1/4 条的首次落地)。
@@ -32,7 +36,7 @@ public final class BotMiner {
 
     private final ServerPlayer bot;
     private final BlockPos target;
-    private BotWalker walker;
+    private PathExecutor executor;
     private BlockPos standGoal;
     private boolean started;
     private float progress;
@@ -69,7 +73,7 @@ public final class BotMiner {
             return Status.DONE;
         }
 
-        // 1) 选站位(只选一次)
+        // 1) 选站位(只选一次) + A* 寻路
         if (standGoal == null) {
             standGoal = pickStandPos(level);
             if (standGoal == null) {
@@ -78,24 +82,34 @@ public final class BotMiner {
                 return Status.FAILED;
             }
             BotLog.info("站位已选: target={} stand={}", target.toShortString(), standGoal.toShortString());
+
+            // 已在站位上(选中的站位就是当前脚位)则无需寻路,直接进入视线检查与挖掘
+            if (!bot.blockPosition().equals(standGoal)) {
+                List<BlockPos> path = AStarPathfinder.computePath(level,
+                        bot.blockPosition(), new Goal.GoalBlock(standGoal));
+                if (path.isEmpty()) {
+                    failureReason = "no_path";
+                    BotLog.warn("mine 失败: target={} reason={}(站位不可达)", target.toShortString(), failureReason);
+                    return Status.FAILED;
+                }
+                executor = new PathExecutor(bot, path);
+                BotLog.info("寻路成功: 路径 {} 段 → {}", path.size(), standGoal.toShortString());
+            }
         }
 
-        // 2) 走向站位
-        if (!atStandPos()) {
-            if (walker == null) {
-                walker = new BotWalker(bot, standGoal.getCenter());
-                BotLog.info("开始移动: from={} to={}",
-                        bot.blockPosition().toShortString(), standGoal.toShortString());
-            }
-            BotWalker.Status walkStatus = walker.tick();
-            if (walkStatus == BotWalker.Status.FAILED) {
-                failureReason = "walk_failed";
+        // 2) 沿路径走向站位
+        if (executor != null) {
+            PathExecutor.Status pathStatus = executor.tick();
+            if (pathStatus == PathExecutor.Status.FAILED) {
+                failureReason = "path_failed";
                 BotLog.warn("mine 失败: target={} reason={}", target.toShortString(), failureReason);
                 return Status.FAILED;
             }
-            return Status.MOVING;
+            if (pathStatus == PathExecutor.Status.MOVING) {
+                return Status.MOVING;
+            }
+            executor = null;
         }
-        walker = null;
 
         // 3) 视线无遮挡检查(M0 验收核心:根治隔空挖)
         if (!lineOfSightClear()) {
