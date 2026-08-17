@@ -1,26 +1,29 @@
 package com.dddgn.alice.bot;
 
-import com.dddgn.alice.action.BotMiner;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.network.AliceNetwork;
+import com.dddgn.alice.network.TargetPacket;
 import com.dddgn.alice.perception.ScopeBuffer;
+import com.dddgn.alice.task.MineTask;
+import com.dddgn.alice.task.Task;
+import com.dddgn.alice.task.TaskTarget;
 import com.mojang.authlib.GameProfile;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.NbtUtils;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.network.PacketDistributor;
 
 import java.util.HashMap;
 import java.util.List;
@@ -66,8 +69,8 @@ public final class BotManager {
         bot.teleportTo(pos.getX() + 0.5D, pos.getY(), pos.getZ() + 0.5D);
         // 强制生存:创造模式破方块不掉落、冒险模式禁止破坏(让采集/建造失效)
         bot.gameMode.changeGameModeForPlayer(GameType.SURVIVAL);
-        // M0 简化:主手给钻石镐,避免空手挖石超时,顺带验证原版工具速度机制
-        bot.getInventory().setItem(bot.getInventory().selected, new ItemStack(Items.DIAMOND_PICKAXE));
+        // 注意:不再固定发工具——主手由「行为执行时替换」管理(MineTask 临时设定),
+        // 退出重进不再莫名多一把镐(存档按需还原主手,见 saveToWorld)。
 
         BOTS.put(bot.getUUID(), new BotSession(bot));
         saveToWorld(bot);
@@ -77,7 +80,10 @@ public final class BotManager {
 
     /** 移除假人(实体 + PlayerList + 世界存档记录)。 */
     public static void remove(BotPlayer bot) {
-        BOTS.remove(bot.getUUID());
+        BotSession session = BOTS.remove(bot.getUUID());
+        if (session != null) {
+            session.clearTask(); // 任务收尾 + 广播清除高亮
+        }
         if (!bot.isRemoved()) {
             bot.getServer().getPlayerList().remove(bot);
             bot.discard();
@@ -100,6 +106,11 @@ public final class BotManager {
         tag.put("Pos", pos);
         tag.put("Rotation", rot);
         tag.putString("GameMode", bot.gameMode.getGameModeForPlayer().getName());
+        // 主手物品(行为替换的工具也存进去,退出重进手里保持原样)
+        ItemStack mainHand = bot.getInventory().getItem(bot.getInventory().selected);
+        if (!mainHand.isEmpty()) {
+            tag.put("MainHand", mainHand.save(new CompoundTag()));
+        }
         BotWorldData.get(bot.getServer()).setBot(tag);
     }
 
@@ -127,6 +138,11 @@ public final class BotManager {
             case "spectator" -> bot.gameMode.changeGameModeForPlayer(GameType.SPECTATOR);
             default -> bot.gameMode.changeGameModeForPlayer(GameType.SURVIVAL);
         }
+        // 还原主手物品(没有存档则空手)
+        if (tag.contains("MainHand")) {
+            bot.getInventory().setItem(bot.getInventory().selected,
+                    ItemStack.of(tag.getCompound("MainHand")));
+        }
         saveToWorld(bot); // 刷新存档为精确位置
         BotLog.info("已从世界存档恢复假人: name={} pos=({}, {}, {})",
                 name, (int) pos.getDouble(0), (int) pos.getDouble(1), (int) pos.getDouble(2));
@@ -143,20 +159,37 @@ public final class BotManager {
         return spawn(level, pos.above(), "Alice");
     }
 
-    /** 给假人分配「挖掘指定方块」动作。 */
+    /** 给假人分配「挖掘指定方块」任务(命令/selftest 兼容入口)。 */
     public static void assignMine(BotPlayer bot, BlockPos target) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session != null) {
-            session.assignMine(target);
-            BotLog.info("分配挖掘任务: bot={} target={}",
-                    bot.getName().getString(), target.toShortString());
-        }
+        assignTarget(bot, TaskTarget.block(target));
+        BotLog.info("分配挖掘任务: bot={} target={}",
+                bot.getName().getString(), target.toShortString());
     }
 
-    /** 假人当前是否在执行动作(供自动化验收轮询)。 */
+    /** 任务入口(测试工具/决策层共用):按目标类型创建对应 Task 并开始执行。 */
+    public static void assignTarget(BotPlayer bot, TaskTarget target) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null) {
+            BotLog.warn("assignTarget 失败: bot 不存在 uuid={}", bot.getUUID());
+            return;
+        }
+        session.assign(target);
+    }
+
+    /** 广播当前任务目标给所有客户端(透视高亮用;null = 清除高亮)。 */
+    public static void broadcastTarget(TaskTarget target) {
+        TargetPacket packet = target == null
+                ? new TargetPacket(false, 0, null, -1)
+                : new TargetPacket(true,
+                        target.type() == TaskTarget.Type.BLOCK ? 0 : 1,
+                        target.blockPos(), target.entityId());
+        AliceNetwork.CHANNEL.send(PacketDistributor.ALL.noArg(), packet);
+    }
+
+    /** 假人当前是否在执行任务(供自动化验收轮询)。 */
     public static boolean isBusy(BotPlayer bot) {
         BotSession session = BOTS.get(bot.getUUID());
-        return session != null && session.miner != null;
+        return session != null && session.task != null;
     }
 
     /** 取最近一次任务的结果文本("done" 或 "failed:原因"),供自动化验收断言。 */
@@ -213,10 +246,11 @@ public final class BotManager {
         remove(bot);
     }
 
-    /** 单个假人的会话:持有当前动作与感知作用域。 */
+    /** 单个假人的会话:持有当前任务与感知作用域。 */
     public static final class BotSession {
         private final BotPlayer bot;
-        private BotMiner miner;
+        private Task task;
+        private TaskTarget target;
         private final ScopeBuffer scope = new ScopeBuffer();
         private String lastTaskResult = "";
         private BlockPos lastMineStartPos;
@@ -238,40 +272,65 @@ public final class BotManager {
             return lastTaskResult;
         }
 
-        /** 当前挖掘动作(供自检读取 mineStartPos 等,无则为 null)。 */
-        public BotMiner currentMiner() {
-            return miner;
+        /** 当前任务目标(客户端高亮依据;无任务为 null)。 */
+        public TaskTarget currentTarget() {
+            return target;
         }
 
-        public void assignMine(BlockPos target) {
-            this.miner = new BotMiner(bot, target);
-            // M1:任务启动即开启作用域,监听掉落物与方块变化(设计文档 §3.2)
-            this.scope.begin(target, 8);
+        /** 分配任务:按目标类型实例化 Task,开启感知作用域,广播高亮。 */
+        public void assign(TaskTarget newTarget) {
+            clearTask(); // 先收尾上一个任务
+            this.target = newTarget;
+            switch (newTarget.type()) {
+                case BLOCK -> {
+                    // 任务启动即开启作用域:监听掉落物与方块变化(设计文档 §3.2)
+                    scope.begin(newTarget.blockPos(), 8);
+                    this.task = new MineTask(bot, newTarget.blockPos(), scope);
+                }
+                case ENTITY -> {
+                    BotLog.warn("实体目标任务尚未实现: target={}", newTarget.describe());
+                    this.target = null;
+                    return;
+                }
+            }
+            broadcastTarget(this.target);
         }
 
         private void tick() {
-            if (miner == null) {
+            if (task == null) {
                 return;
             }
-            BotMiner.Status status = miner.tick();
+            Task.Status status = task.tick();
             switch (status) {
                 case DONE -> {
                     lastTaskResult = "done";
-                    lastMineStartPos = miner.mineStartPos();
+                    if (task instanceof MineTask mineTask) {
+                        lastMineStartPos = mineTask.mineStartPos();
+                    }
                     reportItems();
-                    scope.end();
-                    miner = null;
+                    clearTask();
                 }
                 case FAILED -> {
-                    lastTaskResult = "failed:" + miner.failureReason();
-                    lastMineStartPos = miner.mineStartPos();
+                    lastTaskResult = "failed:" + task.failureReason();
+                    if (task instanceof MineTask mineTask) {
+                        lastMineStartPos = mineTask.mineStartPos();
+                    }
                     reportItems();
-                    scope.end();
-                    miner = null;
+                    clearTask();
                 }
                 default -> {
                     // 进行中,保持
                 }
+            }
+        }
+
+        /** 任务收尾:清任务、清作用域、广播清除高亮。 */
+        void clearTask() {
+            if (task != null) {
+                scope.end();
+                task = null;
+                target = null;
+                broadcastTarget(null);
             }
         }
 

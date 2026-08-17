@@ -1,0 +1,88 @@
+# 执行层框架 v1（任务框架）
+
+> 对应设计文档 §4「执行层设计」的首次代码落地。
+> 目标：感知层 → 决策层 → 执行层的接线骨架，先跑通「最简单的挖掘物品任务」，
+> 不用大模型，先看本地行为包的实际运行效果。
+
+## 一、分层与职责
+
+```
+┌─ 决策层(未来: LLM / 规则) ─────────────────────────┐
+│  只做一件事: 产出 TaskTarget(决定"干什么")            │
+│  现阶段 = 测试工具直接指派(目标指定器 / /alice mine)  │
+└──────────────────────┬─────────────────────────────┘
+                       ▼ TaskTarget
+┌─ 任务层 task/ ──────────────────────────────────────┐
+│  Task 接口: target() / tick() / failureReason()     │
+│  MineTask: MINING(BotMiner) → COLLECTING(拾取)      │
+│  (编排"先做什么、后做什么")                           │
+└──────────────────────┬─────────────────────────────┘
+                       ▼ 动作调用 + 感知查询
+┌─ 动作层 action/ ──┐   ┌─ 感知层 perception/ ────────┐
+│  BotMiner 挖掘状态机│   │  ScopeBuffer: 掉落物/方块事件 │
+│  PathExecutor 走位 │   │  PerceptionSnapshot: 分类聚合│
+└───────────────────┘   └────────────────────────────┘
+```
+
+- **任务层**只编排，不实现单动作；**动作层**是单动作状态机（已被 M0/M1 验证）；
+- **感知联动**：Task 构造时注入 `ScopeBuffer`（任务作用域），执行中查询
+  掉落物位置（拾取定位）、目标状态（方块是否还在）；
+- **决策接入点**：未来 LLM 决策 = 调用 `BotManager.assignTarget(bot, target)`，
+  与测试工具同一条路径——接口不变，只换"谁产出 target"。
+
+## 二、Task 生命周期
+
+```
+assignTarget(bot, target)
+  → BotSession.assign(target)
+      → 收尾上一个任务(clearTask: 清作用域 + 广播清除高亮)
+      → 开启新作用域 scope.begin(target, 8)
+      → 按目标类型实例化 Task:
+          BLOCK  → MineTask(bot, pos, scope)
+          ENTITY → (未实现, 下一步: AttackTask)
+      → 广播高亮包 TargetPacket(S2C) → 客户端画透视线框
+  → BotSession.tick() 逐 tick 驱动 task.tick()
+      → DONE   : lastTaskResult="done"   + reportItems + clearTask
+      → FAILED : lastTaskResult="failed:原因" + reportItems + clearTask
+```
+
+失败原因一览（MineTask 转自 BotMiner + 拾取阶段新增）：
+`no_stand_pos / no_path / path_failed / line_of_sight_blocked / out_of_reach /
+mine_timeout / collect_no_path / collect_path_failed / collect_timeout`
+
+## 三、客户端测试效果（本阶段）
+
+| 效果 | 实现 |
+|---|---|
+| 任务目标透视高亮 | `TargetPacket`(S2C) → `ClientTargetState` → `TargetOutlineRenderer` 在 `AFTER_LEVEL` 阶段画线框(关深度测试=透视) |
+| 方块目标 | 亮绿色 AABB（固定） |
+| 实体/掉落物目标 | 亮红色 AABB（实时跟实体，+0.1 膨胀） |
+
+## 四、测试工具（本阶段）
+
+| 工具 | 交互 | 行为 |
+|---|---|---|
+| `alice:target_selector`（贴图=钻石斧） | 右键方块 | 指派挖掘任务给 bot（无 bot 自动生成） |
+| 钻石铲（原版） | 右键方块 | 接口扫描 `/alice scan` 的快捷版 |
+
+物品注册走 `AliceItems`（DeferredRegister），**不套原版工具**——只引用贴图。
+
+## 五、临时设定与已知限制
+
+- **主手工具**：spawn 不再发钻石镐；MineTask 开始时直接替换主手为钻石镐，
+  结束后不换回——等装备系统接管（临时设定，用户指定）。
+- **背包**：ServerPlayer 自带完整 Inventory（36 格+盔甲+副手），
+  拾取走原版 `ItemEntity.playerTouch` 入包逻辑，无需额外实现。
+- **实体攻击**：`interactLivingEntity` 只提示未实现，AttackTask 下一步做。
+- **JECh 依赖**：纯客户端模组，dedicated server 启动会崩——本地 headless
+  验证需临时注释（已记 R14，后续处理）。
+- **拾取判定**：掉落物有 pickupDelay，COLLECT 阶段在 1.5 格内等原版入包；
+  超时 400 tick 判失败。
+
+## 六、下一步（建议顺序）
+
+1. 实测：目标指定器右键矿石 → bot 挖 → 捡起 → 背包有矿 + 高亮全程可见
+2. `AttackTask`（实体目标）：近战攻击状态机（走位 → 原版攻击包）
+3. 决策层最小规则：感知摘要 → 自动挑最近 TARGET 方块 → assignTarget
+   （把 `/alice observe` 的输出接到任务层）
+4. 高亮多目标（任务队列/多 bot 时颜色区分）
