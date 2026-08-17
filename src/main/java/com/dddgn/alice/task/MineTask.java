@@ -31,7 +31,7 @@ public final class MineTask implements Task {
     private enum Phase { MINING, COLLECTING }
 
     private static final int COLLECT_TIMEOUT_TICKS = 400;
-    private static final int MAX_CLEAR_DEPTH = 3;
+    private static final int MAX_CLEAR_DEPTH = 8;
 
     private final ServerPlayer bot;
     private final BlockPos target;           // 原始目标(不变,清障后仍挖它)
@@ -136,9 +136,7 @@ public final class MineTask implements Task {
     private Status collectTick() {
         collectElapsed++;
         if (collectElapsed > COLLECT_TIMEOUT_TICKS) {
-            failureReason = "collect_timeout";
-            BotLog.warn("拾取失败: target={} reason={}", target.toShortString(), failureReason);
-            return Status.FAILED;
+            return giveUpCollect(null, "collect_timeout");
         }
         net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) bot.level();
         // 感知:扫描目标为中心 8 格内的存活掉落物
@@ -221,9 +219,7 @@ public final class MineTask implements Task {
             }
             if (path.isEmpty()) {
                 failureReason = "collect_no_path";
-                BotLog.warn("拾取失败: target={} item@{} reason={}",
-                        target.toShortString(), nearest.blockPosition().toShortString(), failureReason);
-                return Status.FAILED;
+                return giveUpCollect(nearest, "collect_no_path");
             }
             collectExecutor = new PathExecutor(bot, path);
             BotLog.info("拾取寻路: 掉落物@{} 路径 {} 段", nearest.blockPosition().toShortString(), path.size());
@@ -238,13 +234,22 @@ public final class MineTask implements Task {
                 return Status.RUNNING;
             }
             failureReason = "collect_path_failed";
-            BotLog.warn("拾取失败: target={} reason={}", target.toShortString(), failureReason);
-            return Status.FAILED;
+            return giveUpCollect(nearest, "collect_path_failed");
         }
         if (pathStatus == PathExecutor.Status.DONE) {
             collectExecutor = null; // 到达,下一 tick 等待拾取
         }
         return Status.RUNNING;
+    }
+
+    /** 拾取放弃(用户指定: 掉落物过远/够不到/被冲走时牺牲损耗, 任务仍算完成)。 */
+    private Status giveUpCollect(ItemEntity item, String reason) {
+        failureReason = reason;
+        BotLog.warn("拾取放弃: target={} {} reason={} (损耗可接受, 任务完成)",
+                target.toShortString(),
+                item == null ? "" : "item@" + item.blockPosition().toShortString(),
+                reason);
+        return Status.DONE;
     }
 
     /** 反射读取私有字段 pickupDelay(诊断用)。 */

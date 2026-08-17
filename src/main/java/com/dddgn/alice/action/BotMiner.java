@@ -15,6 +15,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -38,6 +39,7 @@ public final class BotMiner {
     private final BlockPos target;
     private PathExecutor executor;
     private BlockPos standGoal;
+    private List<BlockPos> standCandidates;
     private boolean started;
     private float progress;
     private int elapsed;
@@ -74,8 +76,8 @@ public final class BotMiner {
             return Status.DONE;
         }
 
-        // 1) 选站位(只选一次) + A* 寻路
-        if (standGoal == null) {
+        // 1) 选站位(候选逐个尝试, A* 不通试下一个) + A* 寻路
+        if (standGoal == null && standCandidates == null) {
             // 0) 当前站位能否直接挖?(距离 + 视线无遮挡)——免去换站位/寻路,
             //    解决「bot 已在可挖位置却去找站位失败」的场景(如坑里挖坑壁)
             if (lineOfSightClear()
@@ -84,27 +86,42 @@ public final class BotMiner {
                 BotLog.info("当前站位即可挖掘: target={} stand={}",
                         target.toShortString(), standGoal.toShortString());
             } else {
-                standGoal = pickStandPos(level);
-                if (standGoal == null) {
+                standCandidates = pickStandCandidates(level);
+                if (standCandidates.isEmpty()) {
+                    logStandDiagnostics(level);
                     failureReason = "no_stand_pos";
                     BotLog.warn("mine 失败: target={} reason={}", target.toShortString(), failureReason);
                     return Status.FAILED;
                 }
-                BotLog.info("站位已选: target={} stand={}", target.toShortString(), standGoal.toShortString());
+                BotLog.info("站位候选 {} 个(优先级: 目标下方>同平面>上方), 逐个尝试",
+                        standCandidates.size());
+            }
+        }
 
-                // 已在站位上(选中的站位就是当前脚位)则无需寻路,直接进入视线检查与挖掘
-                if (!bot.blockPosition().equals(standGoal)) {
-                    List<BlockPos> path = AStarPathfinder.computePath(level,
-                            bot.blockPosition(), new Goal.GoalBlock(standGoal));
-                    if (path.isEmpty()) {
-                        failureReason = "no_path";
-                        BotLog.warn("mine 失败: target={} reason={}(站位不可达)",
-                                target.toShortString(), failureReason);
-                        return Status.FAILED;
-                    }
-                    executor = new PathExecutor(bot, path);
-                    BotLog.info("寻路成功: 路径 {} 段 → {}", path.size(), standGoal.toShortString());
+        // 尝试候选站位:同 tick 内逐个, A* 失败换下一个
+        if (standGoal == null && standCandidates != null) {
+            while (!standCandidates.isEmpty()) {
+                BlockPos cand = standCandidates.remove(0);
+                if (bot.blockPosition().equals(cand)) {
+                    standGoal = cand;
+                    break;
                 }
+                List<BlockPos> path = AStarPathfinder.computePath(level,
+                        bot.blockPosition(), new Goal.GoalBlock(cand));
+                if (!path.isEmpty()) {
+                    standGoal = cand;
+                    executor = new PathExecutor(bot, path);
+                    BotLog.info("站位已选: target={} stand={} 路径 {} 段",
+                            target.toShortString(), cand.toShortString(), path.size());
+                    break;
+                }
+                BotLog.warn("候选站位不可达: {} → 尝试下一个", cand.toShortString());
+            }
+            if (standGoal == null) {
+                failureReason = "no_path";
+                BotLog.warn("mine 失败: target={} reason={}(所有候选站位不可达)",
+                        target.toShortString(), failureReason);
+                return Status.FAILED;
             }
         }
 
@@ -194,66 +211,64 @@ public final class BotMiner {
     }
 
     /**
-     * 选站位:第一轮目标周围 2 格(紧贴),无果则第二轮扩大到挖掘距离 4.5 内(远挖,
-     * 目标被围/悬空时站远处挖)。每轮优先「视线无遮挡」候选(R4 决策 A)。
-     * 全部失败时输出诊断统计后返回 null(no_stand_pos)。
+     * 选站位候选列表(按优先级排序, BotMiner 逐个尝试可达性):
+     * <ul>
+     *   <li>分组:目标下方(dy&lt;0) / 同平面(dy=0) / 目标上方(dy&gt;0);</li>
+     *   <li>目标在 bot 上方 → 下方组优先(站下方抬头挖矿洞顶部矿石),否则同平面优先;</li>
+     *   <li>组内排序:视线无遮挡优先 → 距目标中心 3D 距离近优先;</li>
+     *   <li>距离过滤:候选格眼睛到目标中心 ≤ 挖掘距离(留 0.3 余量)。</li>
+     * </ul>
      */
-    private BlockPos pickStandPos(ServerLevel level) {
-        BlockPos near = findStandPos(level, 2);
-        if (near != null) {
-            return near;
-        }
-        BlockPos far = findStandPos(level, 4);
-        if (far != null) {
-            BotLog.info("站位: 目标周围无紧贴站位,采用远挖站位 {}", far.toShortString());
-            return far;
-        }
-        logStandDiagnostics(level);
-        return null;
-    }
-
-    /**
-     * 在目标周围 hRadius 水平半径、y±2 内找可站立空气格(脚位空+头位空+下方实心支撑,
-     * 且从该格眼睛位置到目标中心 ≤ 挖掘距离,留 0.3 余量防抖动)。
-     * 优先视线无遮挡候选,退回距离最近者。
-     */
-    private BlockPos findStandPos(ServerLevel level, int hRadius) {
-        BlockPos bestClear = null;
-        double bestClearDist = Double.MAX_VALUE;
-        BlockPos bestAny = null;
-        double bestAnyDist = Double.MAX_VALUE;
-        for (int dx = -hRadius; dx <= hRadius; dx++) {
+    private List<BlockPos> pickStandCandidates(ServerLevel level) {
+        List<BlockPos> below = new ArrayList<>();
+        List<BlockPos> same = new ArrayList<>();
+        List<BlockPos> above = new ArrayList<>();
+        for (int dx = -4; dx <= 4; dx++) {
             for (int dy = -2; dy <= 2; dy++) {
-                for (int dz = -hRadius; dz <= hRadius; dz++) {
+                for (int dz = -4; dz <= 4; dz++) {
                     BlockPos p = target.offset(dx, dy, dz);
                     if (p.equals(target) || p.equals(target.above())) {
                         continue; // 不站目标方块本身/其正上方(避免与挖脚下方块冲突)
                     }
                     BlockState foot = level.getBlockState(p);
                     BlockState head = level.getBlockState(p.above());
-                    BlockState below = level.getBlockState(p.below());
+                    BlockState belowState = level.getBlockState(p.below());
                     if (foot.isAir() && foot.getFluidState().isEmpty()
                             && head.isAir()
-                            && !below.isAir() && below.getFluidState().isEmpty()) {
-                        // 挖掘距离过滤(眼睛到目标中心),防远挖站位站过去又 out_of_reach
+                            && !belowState.isAir() && belowState.getFluidState().isEmpty()) {
+                        // 挖掘距离过滤(候选格眼睛到目标中心),防站过去又 out_of_reach
                         Vec3 eyeAt = new Vec3(p.getX() + 0.5D, p.getY() + 1.62D, p.getZ() + 0.5D);
                         if (eyeAt.distanceTo(target.getCenter()) > MAX_REACH - 0.3D) {
                             continue;
                         }
-                        double dist = bot.getEyePosition().distanceTo(p.getCenter());
-                        if (dist < bestAnyDist) {
-                            bestAnyDist = dist;
-                            bestAny = p;
-                        }
-                        if (lineOfSightClearFrom(level, p) && dist < bestClearDist) {
-                            bestClearDist = dist;
-                            bestClear = p;
-                        }
+                        (dy < 0 ? below : dy > 0 ? above : same).add(p);
                     }
                 }
             }
         }
-        return bestClear != null ? bestClear : bestAny;
+        sortCandidates(level, same);
+        sortCandidates(level, below);
+        sortCandidates(level, above);
+        List<BlockPos> result = new ArrayList<>();
+        if (target.getY() > bot.blockPosition().getY() + 1) {
+            result.addAll(below); // 目标在上方: 站下方抬头挖优先
+            result.addAll(same);
+        } else {
+            result.addAll(same);
+            result.addAll(below);
+        }
+        result.addAll(above);
+        return result.size() > 8 ? result.subList(0, 8) : result; // 最多试 8 个,防 A* 风暴
+    }
+
+    /** 组内排序:视线无遮挡优先,其次距目标中心 3D 距离近优先。 */
+    private void sortCandidates(ServerLevel level, List<BlockPos> list) {
+        list.sort(java.util.Comparator
+                .comparing((BlockPos p) -> !lineOfSightClearFrom(level, p))
+                .thenComparingDouble(p -> {
+                    Vec3 eyeAt = new Vec3(p.getX() + 0.5D, p.getY() + 1.62D, p.getZ() + 0.5D);
+                    return eyeAt.distanceToSqr(target.getCenter());
+                }));
     }
 
     /** no_stand_pos 诊断:输出目标周围 2 格的候选统计与最近失败格,定位根因。 */
