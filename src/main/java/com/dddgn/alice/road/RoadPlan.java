@@ -17,6 +17,7 @@ import java.util.Set;
 public final class RoadPlan {
     public enum CellKind { SUPPORT_PLACE, CLEAR, OPEN }
     public record Cell(BlockPos pos, CellKind kind) {}
+    public record Unit(BlockPos support, List<Cell> cells) {}
 
     private static final int MAX_AXIS_DELTA = 128;
     private static final RoadPlan INSTANCE = new RoadPlan();
@@ -25,6 +26,7 @@ public final class RoadPlan {
     private BlockPos second;
     private ServerLevel level;
     private List<Cell> cells = List.of();
+    private List<Unit> units = List.of();
     private boolean selected;
 
     private RoadPlan() {}
@@ -38,6 +40,7 @@ public final class RoadPlan {
         second = null;
         level = null;
         cells = List.of();
+        units = List.of();
         selected = false;
     }
 
@@ -47,6 +50,7 @@ public final class RoadPlan {
             this.first = target.immutable();
             this.second = null;
             this.cells = List.of();
+            this.units = List.of();
             this.selected = true;
             return false;
         }
@@ -57,7 +61,10 @@ public final class RoadPlan {
             reset();
             return false;
         }
-        this.cells = build(level, first, second);
+        this.units = buildUnits(level, first, second);
+        List<Cell> flattened = new ArrayList<>();
+        for (Unit unit : units) flattened.addAll(unit.cells());
+        this.cells = Collections.unmodifiableList(flattened);
         return true;
     }
 
@@ -65,46 +72,35 @@ public final class RoadPlan {
     public synchronized BlockPos first() { return first; }
     public synchronized BlockPos second() { return second; }
     public synchronized List<Cell> cells() { return cells; }
+    public synchronized List<Unit> units() { return units; }
     public synchronized ServerLevel level() { return level; }
 
-    private static List<Cell> build(ServerLevel level, BlockPos a, BlockPos b) {
+    private static List<Unit> buildUnits(ServerLevel level, BlockPos a, BlockPos b) {
         List<BlockPos> centerline = orthogonalLine(a.below(), b.below());
-        Set<BlockPos> path = new LinkedHashSet<>();
-        for (BlockPos support : centerline) {
-            path.add(support);
-            path.add(support.above());
-            path.add(support.above(2));
-        }
-        // 高度变化的低侧额外清出一格，避免两格净空在错位口只剩一格。
-        for (int i = 1; i < centerline.size(); i++) {
-            BlockPos prev = centerline.get(i - 1);
-            BlockPos curr = centerline.get(i);
-            if (prev.getY() != curr.getY()) {
-                BlockPos low = prev.getY() < curr.getY() ? prev : curr;
-                path.add(low.above(2));
-                path.add(low.above(3));
+        List<Unit> result = new ArrayList<>();
+        for (int i = 0; i < centerline.size(); i++) {
+            BlockPos support = centerline.get(i);
+            Set<BlockPos> positions = new LinkedHashSet<>();
+            positions.add(support);
+            positions.add(support.above());
+            positions.add(support.above(2));
+            if (i > 0 && centerline.get(i - 1).getY() != support.getY()) {
+                BlockPos low = centerline.get(i - 1).getY() < support.getY()
+                        ? centerline.get(i - 1) : support;
+                positions.add(low.above(2));
+                positions.add(low.above(3));
             }
-        }
-        List<Cell> result = new ArrayList<>();
-        for (BlockPos pos : path) {
-            BlockState state = level.getBlockState(pos);
-            CellKind kind;
-            if (pos.getY() == supportYFor(pos, centerline)) {
-                kind = state.isAir() ? CellKind.SUPPORT_PLACE : CellKind.CLEAR;
-            } else {
-                kind = state.isAir() ? CellKind.OPEN : CellKind.CLEAR;
+            List<Cell> cells = new ArrayList<>();
+            for (BlockPos pos : positions) {
+                // 支撑格永远属于支撑结构：已有实体方块保留，只有空气才需要搭建。
+                CellKind kind = pos.equals(support)
+                        ? (level.getBlockState(pos).isAir() ? CellKind.SUPPORT_PLACE : CellKind.OPEN)
+                        : (level.getBlockState(pos).isAir() ? CellKind.OPEN : CellKind.CLEAR);
+                cells.add(new Cell(pos.immutable(), kind));
             }
-            result.add(new Cell(pos.immutable(), kind));
+            result.add(new Unit(support.immutable(), Collections.unmodifiableList(cells)));
         }
         return Collections.unmodifiableList(result);
-    }
-
-    private static int supportYFor(BlockPos pos, List<BlockPos> centerline) {
-        for (BlockPos support : centerline) {
-            if (support.getX() == pos.getX() && support.getZ() == pos.getZ()
-                    && support.getY() == pos.getY()) return support.getY();
-        }
-        return Integer.MIN_VALUE;
     }
 
     /**

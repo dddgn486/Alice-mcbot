@@ -207,10 +207,17 @@ public final class BotCommand {
             source.sendFailure(Component.literal("[alice] 尚未生成当前维度的道路蓝图"));
             return 0;
         }
-        int changed = 0;
-        int skipped = 0;
         net.minecraft.server.level.ServerPlayer actor = source.getEntity() instanceof net.minecraft.server.level.ServerPlayer p
                 ? p : null;
+        if (actor == null || !com.dddgn.alice.road.RoadBuilder.get().start(source.getLevel(), actor, plan)) {
+            source.sendFailure(Component.literal("[alice] 道路构建已在进行中，或需要由玩家执行"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("[alice] 道路构建开始: 按水平单元逐格推进，每格等待稳定性检查"), false);
+        return 1;
+        /*
+        int changed = 0;
+        int skipped = 0;
         for (com.dddgn.alice.road.RoadPlan.Cell cell : plan.cells()) {
             BlockPos pos = cell.pos();
             // 两个被选中的目标方块必须保留：道路终点的支撑格在它们下方，不能清理目标本身。
@@ -238,6 +245,7 @@ public final class BotCommand {
         source.sendSuccess(() -> Component.literal("[alice] 道路蓝图已实现: 修改 " + finalChanged
                 + " 个方块, 跳过 " + finalSkipped + " 个受限方块"), false);
         return changed;
+        */
     }
 
     private static int scan(CommandSourceStack source, BlockPos target) {
