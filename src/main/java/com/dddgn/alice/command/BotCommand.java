@@ -213,6 +213,10 @@ public final class BotCommand {
                 ? p : null;
         for (com.dddgn.alice.road.RoadPlan.Cell cell : plan.cells()) {
             BlockPos pos = cell.pos();
+            // 两个被选中的目标方块必须保留：道路终点的支撑格在它们下方，不能清理目标本身。
+            if (pos.equals(plan.first()) || pos.equals(plan.second())) {
+                continue;
+            }
             if (cell.kind() == com.dddgn.alice.road.RoadPlan.CellKind.SUPPORT_PLACE) {
                 if (source.getLevel().getBlockState(pos).isAir()) {
                     source.getLevel().setBlock(pos, net.minecraft.world.level.block.Blocks.COBBLESTONE.defaultBlockState(), 3);
