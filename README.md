@@ -1,0 +1,72 @@
+# Alice (alice)
+
+**游戏内 AI 助手** —— Minecraft Forge 1.20.1 模组。服务端假人玩家（Alice）能像真实玩家一样感知世界、决策、执行任务：挖矿、拾取掉落物、清障挖通道、扫描模组机器接口。
+
+> 设计文档: [`docs/AI_PLAYER_DESIGN.md`](docs/AI_PLAYER_DESIGN.md) · 执行层框架: [`docs/EXECUTION_FRAMEWORK.md`](docs/EXECUTION_FRAMEWORK.md) · Mek GUI 语义表: [`docs/MEK_GUI_SEMANTICS.md`](docs/MEK_GUI_SEMANTICS.md)
+
+## 核心特性（当前里程碑）
+
+| 模块 | 说明 |
+|---|---|
+| **假人玩家化** | `BotPlayer` 继承 `ServerPlayer`，伪造连接经 `PlayerList.placeNewPlayer` 注册——客户端可见、tick 无 NPE、物理交互走原版玩家逻辑 |
+| **感知层** | `PerceptionSnapshot` 世界直读 + 分类聚合摘要（目标/危险/收获/普通）；`ScopeBuffer` 任务作用域事件流（掉落物/方块变化） |
+| **决策层** | `AutoMineDecision` 最小规则：扫描匹配方块标签的目标 → 取最近 → 执行（LLM 决策接入点预留） |
+| **任务层** | `Task` 接口 + `MineTask`：挖掘（含清障挖通道，最多 8 层）→ 感知掉落物 → 走位拾取入包 |
+| **执行层** | `BotMiner` 挖掘状态机（站位候选逐个尝试、视线无遮挡硬检查、faceTarget 朝向）；`PathExecutor` 位置步进（服务端假人无客户端，手动移动+着地） |
+| **寻路** | A* 移植自 Baritone（`pathing/` 包，不依赖 Baritone 库）：跳跃语义（1 格高方块可越过、垂直爬升悬空过渡）、路径动态重规划 |
+| **接口扫描** | `InterfaceScanner`：capability + Mek GUI 页签统一扫描（物品/能量/流体/气体/红石/升级/安全/传输配置） |
+| **客户端测试效果** | 任务目标透视高亮（自定义 RenderType 关深度测试，方块=绿框、实体=红框） |
+
+## 测试工具
+
+| 工具/命令 | 用途 |
+|---|---|
+| `/alice spawn <name>` | 生成假人 |
+| `/alice mine <x y z>` | 指派挖掘任务 |
+| `/alice auto-mine <tag>` | **决策层**：自动挖最近的匹配标签方块（如 `minecraft:coal_ores`） |
+| `/alice observe` | 感知摘要（挖矿视角） |
+| `/alice scan <x y z>` | 接口扫描 |
+| `/alice selftest` | 自动化验收（8 个场景，headless 用 `-Dalice.selftest.auto=true` 自动触发+关服） |
+| `alice:target_selector` | 目标指定器（贴图=钻石斧）：右键方块 → 派挖掘任务 |
+| 钻石铲右键 | 快捷接口扫描 |
+
+## 构建
+
+要求：JDK 17、Gradle 8.8（wrapper 自带）、网络（下载 Minecraft/Forge/Mekanism/JEI 依赖）。
+
+```bash
+./gradlew build        # 编译 + 打包 mod jar (build/libs/)
+./gradlew runClient    # 客户端测试（Windows 上开发常用）
+./gradlew runServer    # 服务端测试（需要临时注释 libs 里的 JECh 依赖,见下）
+```
+
+**本地依赖**：`libs/` 目录需要手动放置 `jecharacters-1.20.1-forge-4.6.9.jar`（中文/拼音搜索，无 maven 发布）。JEI 已从 modmaven 解析，无需本地 jar。
+
+**已知问题**：JECh 是纯客户端模组，dedicated server（`runServer`）加载会崩溃——headless 测试需临时注释 `build.gradle` 里的 JECh 依赖行。
+
+## 验收测试
+
+```bash
+./gradlew runServer -Dalice.selftest.auto=true
+```
+
+自动跑 8 个场景（正常挖掘/隔空挖拦截/远端寻路/坑场景/草丛寻路/头顶挖/洞壁矿石/清障挖通道）并关服，日志见 `run/logs/latest.log`。
+
+## 架构分层
+
+```
+决策层 (LLM 接入点 / AutoMineDecision 规则)
+  → TaskTarget
+任务层 (Task / MineTask: 挖矿 → 拾取, 清障挖通道)
+  → 动作调用 + 感知查询
+动作层 (BotMiner / PathExecutor)    感知层 (PerceptionSnapshot / ScopeBuffer)
+```
+
+## 开发环境
+
+项目在 WSL（`~/projects/alice`）与 Windows（`D:\JAVA_projects\alice`）双仓库同步开发：
+WSL 改代码 → `git push origin master` → Windows 仓库（`receive.denyCurrentBranch=updateInstead`）→ 本地 runClient 实测。
+
+## License
+
+见 [LICENSE](LICENSE)。

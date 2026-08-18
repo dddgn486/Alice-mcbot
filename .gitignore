@@ -16,3 +16,6 @@ bin
 
 # run
 run
+
+# 本地依赖 jar(JEI/JECh),不提交——README 有说明
+libs

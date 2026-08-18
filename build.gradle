@@ -146,9 +146,10 @@ dependencies {
     implementation fg.deobf("mekanism:Mekanism:1.20.1-10.4.16.80")
     runtimeOnly fg.deobf("mekanism:Mekanism:1.20.1-10.4.16.80:generators")
 
-    // JEI(物品配方查看)+ JECh(通用拼音搜索,让 JEI 支持中文/拼音搜索)
-    compileOnly fg.deobf("local:jei:1.20.1-forge-15.49.0.187")
-    runtimeOnly fg.deobf("local:jei:1.20.1-forge-15.49.0.187")
+    // JEI(物品配方查看, 从 modmaven 解析, 无需本地 libs/jei jar)
+    compileOnly fg.deobf("mezz.jei:jei-1.20.1-forge:15.49.0.187")
+    runtimeOnly fg.deobf("mezz.jei:jei-1.20.1-forge:15.49.0.187")
+    // JECh(中文/拼音搜索, 无 maven 发布 → 需本地 libs/, 仅客户端运行需要)
     runtimeOnly fg.deobf("local:jecharacters:1.20.1-forge-4.6.9")
 }
 

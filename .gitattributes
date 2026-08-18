@@ -1,0 +1,13 @@
+# 统一换行符:源码/文本一律 LF,避免 WSL(CRLF↔LF) 与 Windows 间无谓 diff
+* text=auto
+
+*.java text eol=lf
+*.groovy text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.toml text eol=lf
+*.cfg text eol=lf
+*.png binary
+*.jar binary
+gradlew text eol=lf
+gradlew.bat text eol=crlf
