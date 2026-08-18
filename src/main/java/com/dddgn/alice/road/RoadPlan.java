@@ -144,28 +144,34 @@ public final class RoadPlan {
             SearchNode current = open.poll();
             if (current.pos().equals(goal)) return reconstruct(previous, key(current.pos(), current.direction()), start);
             if (current.cost() > best.getOrDefault(key(current.pos(), current.direction()), Double.MAX_VALUE)) continue;
-            int[][] moves = {
-                    {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1},
-                    {1, 0, 1}, {1, 0, -1}, {-1, 0, 1}, {-1, 0, -1}
+            int[][] horizontalMoves = {
+                    {1, 0}, {-1, 0}, {0, 1}, {0, -1},
+                    {1, 1}, {1, -1}, {-1, 1}, {-1, -1}
             };
-            for (int direction = 0; direction < moves.length; direction++) {
-                int dx = moves[direction][0], dy = moves[direction][1], dz = moves[direction][2];
+            int direction = 0;
+            for (int[] horizontalMove : horizontalMoves) {
+                int dx = horizontalMove[0];
+                int dz = horizontalMove[1];
                 boolean diagonal = dx != 0 && dz != 0;
-                BlockPos next = current.pos().offset(dx, dy, dz);
-                boolean sideBlocked = diagonal
-                        && (forbidden(level, current.pos().offset(dx, 0, 0))
-                        || forbidden(level, current.pos().offset(0, 0, dz)));
-                // 高度变化必须绑定水平移动；禁止在同一列连续升降形成终点竖井。
-                if (dy != 0 && dx == 0 && dz == 0) continue;
-                if (forbidden(level, next) || sideBlocked) {
-                    continue;
+                for (int dy = -1; dy <= 1; dy++) {
+                    BlockPos next = current.pos().offset(dx, dy, dz);
+                    boolean sideBlocked = diagonal
+                            && (forbidden(level, current.pos().offset(dx, 0, 0))
+                            || forbidden(level, current.pos().offset(0, 0, dz))
+                            || forbidden(level, next.offset(-dx, 0, 0))
+                            || forbidden(level, next.offset(0, 0, -dz)));
+                    // 高度变化必须绑定水平移动；此邻域永远有水平位移，不会形成竖井。
+                    if (forbidden(level, next) || sideBlocked) continue;
+                    double nextCost = current.cost() + (diagonal ? 1.414D : 1.0D)
+                            + (dy != 0 ? 0.05D : 0D)
+                            + (current.direction() != 4 && current.direction() != direction ? 0.08D : 0D);
+                    String nextKey = key(next, direction);
+                    if (nextCost >= best.getOrDefault(nextKey, Double.MAX_VALUE)) continue;
+                    best.put(nextKey, nextCost);
+                    previous.put(nextKey, key(current.pos(), current.direction()));
+                    open.add(new SearchNode(next, direction, nextCost, nextCost + heuristic(next, goal)));
+                    direction++;
                 }
-                double nextCost = current.cost() + 1.0D + (current.direction() != 4 && current.direction() != direction ? 0.08D : 0D);
-                String nextKey = key(next, direction);
-                if (nextCost >= best.getOrDefault(nextKey, Double.MAX_VALUE)) continue;
-                best.put(nextKey, nextCost);
-                previous.put(nextKey, key(current.pos(), current.direction()));
-                open.add(new SearchNode(next, direction, nextCost, nextCost + heuristic(next, goal)));
             }
         }
         return List.of();
