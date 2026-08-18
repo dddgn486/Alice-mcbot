@@ -5,7 +5,12 @@ import com.dddgn.alice.log.BotLog;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+
+import java.util.UUID;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -24,7 +29,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
  */
 public final class BotSelftest {
 
-    private enum Phase { IDLE, WAIT_START, SETUP, TEST1_RUN, TEST1_CHECK, TEST2_SETUP, TEST2_RUN, TEST2_CHECK, TEST3_SETUP, TEST3_RUN, TEST3_CHECK, TEST4_SETUP, TEST4_RUN, TEST4_CHECK, TEST5_SETUP, TEST5_RUN, TEST5_CHECK, TEST6_SETUP, TEST6_RUN, TEST6_CHECK, TEST7_SETUP, TEST7_RUN, TEST7_CHECK, TEST8_SETUP, TEST8_RUN, TEST8_CHECK, TEST9_SETUP, TEST9_RUN, TEST9_CHECK, REPORT }
+    private enum Phase { IDLE, WAIT_START, SETUP, TEST1_RUN, TEST1_CHECK, TEST2_SETUP, TEST2_RUN, TEST2_CHECK, TEST3_SETUP, TEST3_RUN, TEST3_CHECK, TEST4_SETUP, TEST4_RUN, TEST4_CHECK, TEST5_SETUP, TEST5_RUN, TEST5_CHECK, TEST6_SETUP, TEST6_RUN, TEST6_CHECK, TEST7_SETUP, TEST7_RUN, TEST7_CHECK, TEST8_SETUP, TEST8_RUN, TEST8_CHECK, TEST9_SETUP, TEST9_RUN, TEST9_CHECK, TEST10_SETUP, TEST10_RUN, TEST10_CHECK, TEST11_SETUP, TEST11_RUN, TEST11_CHECK, TEST12_SETUP, TEST12_RUN, TEST12_CHECK, REPORT }
 
     private static final int START_DELAY_TICKS = 100;
     private static final int PHASE_TIMEOUT_TICKS = 900;
@@ -44,6 +49,12 @@ public final class BotSelftest {
     private static BlockPos target7;
     private static BlockPos target8;
     private static BlockPos target9;
+    private static BlockPos protectedWall;
+    private static BlockPos pitDropPos;
+    private static UUID pitDropId;
+    private static boolean pitDropSpawned;
+    private static BlockPos underfootTarget;
+    private static BlockPos underfootMineStart;
     private static BlockPos test2MineStart;
     private static BlockPos test3MineStart;
     private static boolean test1Pass;
@@ -55,6 +66,9 @@ public final class BotSelftest {
     private static boolean test7Pass;
     private static boolean test8Pass;
     private static boolean test9Pass;
+    private static boolean test10Pass;
+    private static boolean test11Pass;
+    private static boolean test12Pass;
     private static String test1Detail = "";
     private static String test2Detail = "";
     private static String test3Detail = "";
@@ -64,6 +78,9 @@ public final class BotSelftest {
     private static String test7Detail = "";
     private static String test8Detail = "";
     private static String test9Detail = "";
+    private static String test10Detail = "";
+    private static String test11Detail = "";
+    private static String test12Detail = "";
 
     private BotSelftest() {
     }
@@ -97,6 +114,9 @@ public final class BotSelftest {
         test7Pass = false;
         test8Pass = false;
         test9Pass = false;
+        test10Pass = false;
+        test11Pass = false;
+        test12Pass = false;
         phase = Phase.WAIT_START;
         waitTicks = START_DELAY_TICKS;
         phaseTicks = 0;
@@ -181,6 +201,40 @@ public final class BotSelftest {
             }
             case TEST8_CHECK -> checkTest8();
             case TEST9_SETUP -> setupTest9();
+            case TEST10_SETUP -> setupTest10();
+            case TEST10_RUN -> {
+                if (!BotManager.isBusy(bot) || phaseTicks > PHASE_TIMEOUT_TICKS) {
+                    phase = Phase.TEST10_CHECK;
+                    phaseTicks = 0;
+                }
+            }
+            case TEST10_CHECK -> checkTest10();
+            case TEST11_SETUP -> setupTest11();
+            case TEST11_RUN -> {
+                // MineTask 构造/作用域开启发生在 assignMine 内；下一 tick 才生成坑底物，确保它是任务产物。
+                if (!pitDropSpawned) {
+                    ItemEntity pitDrop = new ItemEntity(level, pitDropPos.getX() + 0.5D, pitDropPos.getY(),
+                            pitDropPos.getZ() + 0.5D, new ItemStack(Items.COBBLESTONE));
+                    pitDrop.setPickUpDelay(0);
+                    level.addFreshEntity(pitDrop);
+                    pitDropId = pitDrop.getUUID();
+                    pitDropSpawned = true;
+                    BotLog.info("SELFTEST TEST11: 作用域内生成坑底掉落物 {}", pitDropId);
+                }
+                if (!BotManager.isBusy(bot) || phaseTicks > PHASE_TIMEOUT_TICKS) {
+                    phase = Phase.TEST11_CHECK;
+                    phaseTicks = 0;
+                }
+            }
+            case TEST11_CHECK -> checkTest11();
+            case TEST12_SETUP -> setupTest12();
+            case TEST12_RUN -> {
+                if (!BotManager.isBusy(bot) || phaseTicks > PHASE_TIMEOUT_TICKS) {
+                    phase = Phase.TEST12_CHECK;
+                    phaseTicks = 0;
+                }
+            }
+            case TEST12_CHECK -> checkTest12();
             default -> {
             }
         }
@@ -497,11 +551,122 @@ public final class BotSelftest {
         test9Detail = "tag=" + (tagTarget == null ? "null" : tagTarget.toShortString())
                 + " block=" + (blockTarget == null ? "null" : blockTarget.toShortString());
         BotLog.info("SELFTEST TEST9 {}", test9Pass ? "PASS" : "FAIL: " + test9Detail);
+        phase = Phase.TEST10_SETUP;
+        phaseTicks = 0;
+    }
+
+    /** TEST10:安全区清障——保护墙阻挡任务时不得破墙或继续向后挖。 */
+    private static void setupTest10() {
+        BlockPos surface = findSurface();
+        bot.teleportTo(surface.getX() + 0.5D, surface.getY(), surface.getZ() + 0.5D);
+        for (int x = 1; x <= 3; x++) {
+            for (int dy = 0; dy <= 2; dy++) {
+                level.setBlock(surface.offset(x, dy, 0), Blocks.AIR.defaultBlockState(), 3);
+            }
+        }
+        protectedWall = surface.offset(1, 0, 0);
+        BlockPos protectedHead = protectedWall.above();
+        BlockPos target = surface.offset(2, 0, 0);
+        level.setBlock(protectedWall, Blocks.STONE.defaultBlockState(), 3);
+        level.setBlock(protectedHead, Blocks.STONE.defaultBlockState(), 3);
+        level.setBlock(target, Blocks.DIRT.defaultBlockState(), 3);
+        // 保护目标本身，确保即使寻路能绕开墙，最终破坏门卫仍然拒绝。
+        com.dddgn.alice.protection.SafeZoneData.get(server).addArea(level, target, 0);
+        BotLog.info("SELFTEST TEST10: 安全区清障场景, 墙={} 目标={} (目标受保护)",
+                protectedWall.toShortString(), target.toShortString());
+        BotManager.assignMine(bot, target);
+        phase = Phase.TEST10_RUN;
+        phaseTicks = 0;
+    }
+
+    private static void checkTest10() {
+        boolean wallIntact = level.getBlockState(protectedWall).is(Blocks.STONE)
+                && level.getBlockState(protectedWall.above()).is(Blocks.STONE);
+        String result = BotManager.lastTaskResult(bot);
+        test10Pass = wallIntact && "failed:protected_area".equals(result);
+        test10Detail = "wallIntact=" + wallIntact + " result=" + result
+                + (phaseTicks > PHASE_TIMEOUT_TICKS ? " (超时)" : "");
+        BotLog.info("SELFTEST TEST10 {}", test10Pass ? "PASS" : "FAIL: " + test10Detail);
+        phase = Phase.TEST11_SETUP;
+        phaseTicks = 0;
+    }
+
+    /** TEST11:两格深坑掉落物——沿逐格楼梯下到坑底后主动拾取，不能在坑边放弃。
+     * 严禁通过 >1 格自由落下完成，确保现有执行器仍遵守可逆的单格高差。 */
+    private static void setupTest11() {
+        BlockPos surface = findSurface();
+        bot.teleportTo(surface.getX() + 0.5D, surface.getY(), surface.getZ() + 0.5D);
+        // 挖出两格深坑，但提供每次只下降 1 格的楼梯。禁止为了拾取引入 >1 格自由落下，
+        // 因为当前执行器尚无「保证原路返回」与外力位移恢复能力。
+        for (int x = 1; x <= 3; x++) {
+            for (int y = -2; y <= 1; y++) {
+                level.setBlock(surface.offset(x, y, 0), Blocks.AIR.defaultBlockState(), 3);
+            }
+        }
+        // x=1 的脚位在 y-1（下方 y-2 支撑），x=2/3 的脚位在 y-2（下方 y-3 支撑）。
+        level.setBlock(surface.offset(1, -2, 0), Blocks.DIRT.defaultBlockState(), 3);
+        level.setBlock(surface.offset(2, -3, 0), Blocks.DIRT.defaultBlockState(), 3);
+        level.setBlock(surface.offset(3, -3, 0), Blocks.DIRT.defaultBlockState(), 3);
+        pitDropPos = surface.offset(3, -2, 0);
+        // 在 bot 身边挖一个方块，随后把掉落物移到坑底；任务仍按正常 MineTask 进入 COLLECTING。
+        BlockPos mineTarget = surface.offset(0, 0, 1);
+        level.setBlock(mineTarget, Blocks.DIRT.defaultBlockState(), 3);
+        pitDropId = null;
+        pitDropSpawned = false;
+        BotLog.info("SELFTEST TEST11: 两格深坑拾取, bot={} 坑底={} 先挖={}",
+                surface.toShortString(), pitDropPos.toShortString(), mineTarget.toShortString());
+        BotManager.assignMine(bot, mineTarget);
+        phase = Phase.TEST11_RUN;
+        phaseTicks = 0;
+    }
+
+    private static void checkTest11() {
+        ItemEntity pitDrop = pitDropId == null ? null : level.getEntitiesOfClass(ItemEntity.class,
+                new net.minecraft.world.phys.AABB(pitDropPos).inflate(1.0D),
+                item -> item.getUUID().equals(pitDropId)).stream().findFirst().orElse(null);
+        boolean collected = pitDropSpawned && (pitDrop == null || pitDrop.isRemoved() || pitDrop.getItem().isEmpty());
+        String result = BotManager.lastTaskResult(bot);
+        test11Pass = collected && "done".equals(result);
+        test11Detail = "pit=" + pitDropPos.toShortString() + " collected=" + collected + " result=" + result;
+        BotLog.info("SELFTEST TEST11 {}", test11Pass ? "PASS" : "FAIL: " + test11Detail);
+        phase = Phase.TEST12_SETUP;
+        phaseTicks = 0;
+    }
+
+    /** TEST12:禁止原地向下挖脚下方块；明确目标允许换到侧面站位后完成。 */
+    private static void setupTest12() {
+        BlockPos surface = findSurface();
+        underfootTarget = surface.below();
+        level.setBlock(underfootTarget, Blocks.DIRT.defaultBlockState(), 3);
+        level.setBlock(surface, Blocks.AIR.defaultBlockState(), 3);
+        level.setBlock(surface.above(), Blocks.AIR.defaultBlockState(), 3);
+        bot.teleportTo(surface.getX() + 0.5D, surface.getY(), surface.getZ() + 0.5D);
+        underfootMineStart = null;
+        BotLog.info("SELFTEST TEST12: 脚下目标换站位, bot={} target={}",
+                surface.toShortString(), underfootTarget.toShortString());
+        BotManager.assignMine(bot, underfootTarget);
+        phase = Phase.TEST12_RUN;
+        phaseTicks = 0;
+    }
+
+    private static void checkTest12() {
+        underfootMineStart = BotManager.lastMineStartPos(bot);
+        boolean blockGone = level.getBlockState(underfootTarget).isAir();
+        boolean movedAside = underfootMineStart != null
+                && !(underfootMineStart.getX() == underfootTarget.getX()
+                && underfootMineStart.getZ() == underfootTarget.getZ()
+                && underfootMineStart.getY() == underfootTarget.getY() + 1);
+        String result = BotManager.lastTaskResult(bot);
+        test12Pass = blockGone && movedAside && "done".equals(result);
+        test12Detail = "blockGone=" + blockGone + " movedAside=" + movedAside
+                + " mineStart=" + (underfootMineStart == null ? "null" : underfootMineStart.toShortString())
+                + " result=" + result;
+        BotLog.info("SELFTEST TEST12 {}", test12Pass ? "PASS" : "FAIL: " + test12Detail);
         phase = Phase.REPORT;
         report();
     }
 
-    /** 出生点上方的地表空气格(找地表用)。 */
+    /** 出生点上方的地表空气格(找地表用). */
     private static BlockPos findSurface() {
         BlockPos spawn = level.getSharedSpawnPos();
         BlockPos surface = spawn;
@@ -512,10 +677,10 @@ public final class BotSelftest {
     }
 
     private static void report() {
-        boolean allPass = test1Pass && test2Pass && test3Pass && test4Pass && test5Pass && test6Pass && test7Pass && test8Pass && test9Pass;
-        BotLog.info("SELFTEST 结果: {} (TEST1={} TEST2={} TEST3={} TEST4={} TEST5={} TEST6={} TEST7={} TEST8={} TEST9={})",
+        boolean allPass = test1Pass && test2Pass && test3Pass && test4Pass && test5Pass && test6Pass && test7Pass && test8Pass && test9Pass && test10Pass && test11Pass && test12Pass;
+        BotLog.info("SELFTEST 结果: {} (TEST1={} TEST2={} TEST3={} TEST4={} TEST5={} TEST6={} TEST7={} TEST8={} TEST9={} TEST10={} TEST11={} TEST12={})",
                 allPass ? "PASS" : "FAIL",
-                test1Pass, test2Pass, test3Pass, test4Pass, test5Pass, test6Pass, test7Pass, test8Pass, test9Pass);
+                test1Pass, test2Pass, test3Pass, test4Pass, test5Pass, test6Pass, test7Pass, test8Pass, test9Pass, test10Pass, test11Pass, test12Pass);
         // headless 验收:测完自动关服(审查点 R8)
         server.halt(true);
     }

@@ -4,6 +4,7 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.AStarPathfinder;
 import com.dddgn.alice.pathing.Goal;
 import com.dddgn.alice.pathing.PathExecutor;
+import com.dddgn.alice.protection.BlockBreakSafety;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
@@ -75,12 +76,20 @@ public final class BotMiner {
         if (state.isAir()) {
             return Status.DONE;
         }
+        String refusalReason = BlockBreakSafety.explicitTargetRefusal(bot, target);
+        if (refusalReason != null) {
+            failureReason = refusalReason;
+            BotLog.warn("mine 被安全策略拦截: target={} reason={}", target.toShortString(), failureReason);
+            abortMining(level);
+            return Status.FAILED;
+        }
+        boolean mustReposition = BlockBreakSafety.requiresReposition(bot, target);
 
         // 1) 选站位(候选逐个尝试, A* 不通试下一个) + A* 寻路
         if (standGoal == null && standCandidates == null) {
             // 0) 当前站位能否直接挖?(距离 + 视线无遮挡)——免去换站位/寻路,
             //    解决「bot 已在可挖位置却去找站位失败」的场景(如坑里挖坑壁)
-            if (lineOfSightClear()
+            if (!mustReposition && lineOfSightClear()
                     && bot.getEyePosition().distanceTo(target.getCenter()) <= MAX_REACH) {
                 standGoal = bot.blockPosition().immutable();
                 BotLog.info("当前站位即可挖掘: target={} stand={}",
@@ -155,10 +164,19 @@ public final class BotMiner {
 
         // 3) 视线无遮挡检查(M0 验收核心:根治隔空挖)
         if (!lineOfSightClear()) {
-            failureReason = "line_of_sight_blocked";
-            BotLog.warn("mine 失败(隔空挖拦截): target={} reason={}",
-                    target.toShortString(), failureReason);
             abortMining(level);
+            // 当前站位视线受阻时先尝试剩余候选；这是清障避障的第一层，避免立刻挖穿
+            // 安全区/基岩/黑曜石。所有站位均失败后，MineTask 才评估是否允许清障。
+            if (standCandidates != null && !standCandidates.isEmpty()) {
+                BotLog.info("当前站位视线受阻: stand={}，改试其他候选({} 个剩余)",
+                        standGoal.toShortString(), standCandidates.size());
+                standGoal = null;
+                executor = null;
+                return Status.MOVING;
+            }
+            failureReason = "line_of_sight_blocked";
+            BotLog.warn("mine 失败(所有站位视线均受阻): target={} reason={}",
+                    target.toShortString(), failureReason);
             return Status.FAILED;
         }
 

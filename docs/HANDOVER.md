@@ -30,7 +30,9 @@ GUI 背后操作序列化为语义接口（而非视觉点 GUI）。
 | 客户端高亮 | ✅ 任务目标透视高亮（自定义 RenderType 关深度测试） |
 | 世界存档 | ✅ bot 位置/主手物品存 SavedData，重启恢复；死亡反馈+清除 |
 | 测试工具 | ✅ `alice:target_selector`（贴图钻石斧）、钻石铲右键扫描、`/alice` 命令族 |
-| 自动验收 | ✅ `BotSelftest` 9 场景，`-Dalice.selftest.auto=true` headless 全 PASS |
+| 安全区机制 | ✅ `SafeZoneData` 持久化：区域（维度+中心+水平半径）/方块 ID/方块标签三类保护；所有 bot 破坏和清障均硬拦截，自动挖跳过受保护目标 |
+| 破坏安全策略 | ✅ `BlockBreakSafety` 是所有 bot 破坏/清障的统一门卫：明确脚下目标先换侧面站位；清障避开脚下承重、基岩/负硬度、黑曜石类高代价方块及 `SafeZoneData` 区域/方块/标签保护 |
+| 自动验收 | ✅ `BotSelftest` 已扩至 12 场景（安全区、坑底拾取、脚下绝对禁挖）；本会话 headless 实跑 TEST1–TEST12 全 PASS |
 
 ## 三、验收标准（设计文档 §4.2，所有执行器必须满足）
 
@@ -56,13 +58,23 @@ headless 验收：`./gradlew runServer -Dalice.selftest.auto=true`（测完自�
 
 ## 五、待办 / 下一步（按用户兴趣排序）
 
-1. **安全区机制**（用户明确要）：保护方块/区域不被清障挖掘——区域型（中心+半径）+
-   方块型（标签/具体方块），存储复用 SavedData。当前清障 64 格放开，无保护会挖穿建筑
-2. **AttackTask**（实体目标）：目标指定器右键生物已在提示「未实现」；近战攻击状态机
-3. **LLM 决策接入**：`AutoMineDecision` 的「选目标策略」就是替换点，接口已预留
-4. **背包管理**：挖的矿堆在背包，后续「存箱子/回家卸货」
-5. **搭路/垫方块**：3 格高平台爬不上去（跳跃物理上限），需垫方块能力
-6. **测试工具规范化**：钻石铲扫描等可迁移到 alice 注册物品
+1. **AttackTask**（实体目标）：目标指定器右键生物已在提示「未实现」；近战攻击状态机
+2. **LLM 决策接入**：`AutoMineDecision` 的「选目标策略」就是替换点，接口已预留
+3. **背包管理**：挖的矿堆在背包，后续「存箱子/回家卸货」
+4. **搭路/垫方块**：3 格高平台爬不上去（跳跃物理上限），需垫方块能力
+5. **测试工具规范化**：钻石铲扫描等可迁移到 alice 注册物品
+
+### 安全区操作
+
+```
+/alice protect add-area <x y z> <radius>   # 当前维度、覆盖全部高度的圆形区域
+/alice protect remove-area <x y z>         # 移除该中心的区域
+/alice protect add-block <block_id|#tag>   # 保护方块 ID 或方块标签
+/alice protect remove-block <block_id|#tag>
+/alice protect list
+```
+
+规则存在主世界 `SavedData`（`alice_safe_zones`），重启后保留。保护一律适用于 Alice 的显式目标和清障目标；仅移动穿过区域不受影响。
 
 ## 六、关键决策与已知坑（R# 编号，避免重踩）
 
@@ -70,10 +82,15 @@ headless 验收：`./gradlew runServer -Dalice.selftest.auto=true`（测完自�
 - **R14**：JECh 是纯客户端模组，已移入 `clientOnly` 配置只注入 runClient（根治 dedicated server 崩溃）
 - **R15**：1×1 坑爬不出（A* 落脚格需下方实心）——已部分缓解（跳跃过渡），完全解决需跳跃模拟
 - **R16**：原版 Player.tick 触碰拾取对玩家化假人不触发 → `forcePickup` 主动 playerTouch 兜底
-- **坑**：掉落物有 pickupDelay；挖高处方块后掉落物在空中需等 onGround 再拾取
+- **坑**：掉落物有 pickupDelay；挖高处方块后掉落物在空中需等 onGround 再拾取，未落地前不要反复跑昂贵 A*
+- **拾取规则**：任务掉落物按 UUID 持续追踪并每 tick 刷新实体位置/三维距离；仅超过 64 格可放弃，近距离不可达必须失败；拾取目标粘性锁定，终点为实体实际脚位格
+- **移动边界**：不允许为拾取增加超过 1 格的自由下落；能下去不代表能返回，向下接近目标应由未来“阶梯挖掘 vs 搭路”规划处理
+- **破坏策略**：所有 bot 破坏先经 `BlockBreakSafety`；明确目标在脚下时禁止原地向下挖、必须换侧面站位；清障额外回避脚下承重块、基岩/负硬度方块、黑曜石等高代价方块与安全区
 - **坑**：`RenderType.lines()` 自带深度测试 → 透视高亮需自定义 RenderType（NO_DEPTH_TEST）
 - **坑**：`stone` 是方块 ID 不是标签（无同名标签）→ auto-mine 需自动判断标签/方块两种模式
 - **坑**：清障目标必须「bot 直接可见」——递归向 bot 靠近，否则挖到一半 line_of_sight_blocked 中断
+- **坑**：`BotMiner` 的 `protected_*` 失败不能交给 `MineTask` 的通用清障分支，否则会绕开受保护目标先挖墙；现在直接终止任务
+- **测试运行器**：`server.halt(true)` 后 Gradle/Forge 子进程可能不退出并遗留 `run/world/session.lock`；日志看到 SELFTEST 结果后清理该自测进程再复跑
 - **坑**：Java 17 + netty 的 setAccessible 警告无害；`FMLJavaModLoadingContext.get()` 过时警告无害
 
 ## 七、开发工作流（三副本同步）

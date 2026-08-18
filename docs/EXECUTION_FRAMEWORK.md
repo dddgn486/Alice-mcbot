@@ -48,7 +48,8 @@ assignTarget(bot, target)
 
 失败原因一览（MineTask 转自 BotMiner + 拾取阶段新增）：
 `no_stand_pos / no_path / path_failed / line_of_sight_blocked / out_of_reach /
-mine_timeout / collect_no_path / collect_path_failed / collect_timeout`
+mine_timeout / underfoot_block / protected_area / protected_block / protected_tag /
+collect_no_path / collect_path_failed / collect_timeout`
 
 ## 三、客户端测试效果（本阶段）
 
@@ -76,8 +77,9 @@ mine_timeout / collect_no_path / collect_path_failed / collect_timeout`
 - **实体攻击**：`interactLivingEntity` 只提示未实现，AttackTask 下一步做。
 - **JECh 依赖**：纯客户端模组，dedicated server 启动会崩——本地 headless
   验证需临时注释（已记 R14，后续处理）。
-- **拾取判定**：掉落物有 pickupDelay，COLLECT 阶段在 1.5 格内等原版入包；
-  超时 400 tick 判失败。
+- **拾取判定**：按 UUID 追踪任务掉落物，实体位置与三维距离每 tick 刷新；终点为掉落物实际脚位格，
+  进入 1.5 格后主动 `playerTouch`。只有超过 64 格才允许放弃，64 格内无路径/路径失败/超时均判任务失败；
+  多件物品使用粘性目标避免反复切换。禁止为拾取引入超过 1 格的自由下落。
 
 ## 六、下一步（建议顺序）
 

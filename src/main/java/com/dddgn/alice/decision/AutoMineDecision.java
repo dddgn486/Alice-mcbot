@@ -1,13 +1,14 @@
 package com.dddgn.alice.decision;
 
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.protection.SafeZoneData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 
-import java.util.function.Predicate;
+import java.util.function.BiPredicate;
 
 /**
  * 决策层最小规则(设计文档 §6 的首次落地——无 LLM,纯规则)。
@@ -30,22 +31,26 @@ public final class AutoMineDecision {
     private AutoMineDecision() {
     }
 
-    /** 按标签扫描:返回中心周围 radius 格内匹配标签的最近方块。 */
+    /** 按标签扫描:返回中心周围 radius 格内匹配标签且未受保护的最近方块。 */
     public static BlockPos pickNearest(ServerLevel level, BlockPos center,
                                        TagKey<Block> tag, int radius) {
-        return scan(level, center, state -> state.is(tag), radius,
-                "标签 " + tag.location());
+        return scan(level, center, (pos, state) -> state.is(tag) && !isProtected(level, pos),
+                radius, "标签 " + tag.location());
     }
 
-    /** 按方块 ID 扫描:返回中心周围 radius 格内指定方块的最近位置。 */
+    /** 按方块 ID 扫描:返回中心周围 radius 格内指定且未受保护方块的最近位置。 */
     public static BlockPos pickNearestBlock(ServerLevel level, BlockPos center,
-                                            Block block, int radius) {
-        return scan(level, center, state -> state.getBlock() == block, radius,
-                "方块 " + net.minecraftforge.registries.ForgeRegistries.BLOCKS.getKey(block));
+                                             Block block, int radius) {
+        return scan(level, center, (pos, state) -> state.getBlock() == block && !isProtected(level, pos),
+                radius, "方块 " + net.minecraftforge.registries.ForgeRegistries.BLOCKS.getKey(block));
+    }
+
+    private static boolean isProtected(ServerLevel level, BlockPos pos) {
+        return SafeZoneData.get(level.getServer()).protectionReason(level, pos) != null;
     }
 
     private static BlockPos scan(ServerLevel level, BlockPos center,
-                                 Predicate<BlockState> matcher, int radius, String describe) {
+                                 BiPredicate<BlockPos, BlockState> matcher, int radius, String describe) {
         BlockPos best = null;
         double bestDistSqr = Double.MAX_VALUE;
         int found = 0;
@@ -54,7 +59,7 @@ public final class AutoMineDecision {
                 for (int dz = -radius; dz <= radius; dz++) {
                     BlockPos pos = center.offset(dx, dy, dz);
                     BlockState state = level.getBlockState(pos);
-                    if (state.isAir() || !matcher.test(state)) {
+                    if (state.isAir() || !matcher.test(pos, state)) {
                         continue;
                     }
                     found++;
@@ -66,9 +71,8 @@ public final class AutoMineDecision {
                 }
             }
         }
-        BotLog.info("决策层感知: {} 扫描半径 {} 找到 {} 个, 最近={}",
-                describe, radius, found,
-                best == null ? "无" : best.toShortString());
+        BotLog.info("决策层感知: {} 扫描半径 {} 找到 {} 个(跳过安全区), 最近={}",
+                describe, radius, found, best == null ? "无" : best.toShortString());
         return best;
     }
 }

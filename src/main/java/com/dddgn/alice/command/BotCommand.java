@@ -6,7 +6,9 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.PerceptionProfile;
 import com.dddgn.alice.perception.PerceptionSnapshot;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.dddgn.alice.protection.SafeZoneData;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
@@ -58,7 +60,81 @@ public final class BotCommand {
                 .then(Commands.literal("auto-mine")
                         .then(Commands.argument("tag", StringArgumentType.string())
                                 .executes(ctx -> autoMine(ctx.getSource(),
-                                        StringArgumentType.getString(ctx, "tag"))))));
+                                        StringArgumentType.getString(ctx, "tag")))))
+                .then(Commands.literal("protect")
+                        .then(Commands.literal("add-area")
+                                .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                                        .then(Commands.argument("radius", IntegerArgumentType.integer(0, 1024))
+                                                .executes(ctx -> addArea(ctx.getSource(),
+                                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos"),
+                                                        IntegerArgumentType.getInteger(ctx, "radius"))))))
+                        .then(Commands.literal("remove-area")
+                                .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                                        .executes(ctx -> removeArea(ctx.getSource(),
+                                                BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
+                        .then(Commands.literal("add-block")
+                                .then(Commands.argument("id", StringArgumentType.string())
+                                        .executes(ctx -> changeBlockRule(ctx.getSource(),
+                                                StringArgumentType.getString(ctx, "id"), true))))
+                        .then(Commands.literal("remove-block")
+                                .then(Commands.argument("id", StringArgumentType.string())
+                                        .executes(ctx -> changeBlockRule(ctx.getSource(),
+                                                StringArgumentType.getString(ctx, "id"), false))))
+                        .then(Commands.literal("list")
+                                .executes(ctx -> listProtection(ctx.getSource())))));
+    }
+
+    private static int addArea(CommandSourceStack source, BlockPos center, int radius) {
+        SafeZoneData.get(source.getServer()).addArea(source.getLevel(), center, radius);
+        source.sendSuccess(() -> Component.literal("[alice] 已保护区域 " + center.toShortString()
+                + " 半径 " + radius + " (当前维度全高度)"), false);
+        return 1;
+    }
+
+    private static int removeArea(CommandSourceStack source, BlockPos center) {
+        int removed = SafeZoneData.get(source.getServer()).removeAreasAt(source.getLevel(), center);
+        if (removed == 0) {
+            source.sendFailure(Component.literal("[alice] 该坐标没有保护区域"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("[alice] 已移除 " + removed + " 个保护区域: "
+                + center.toShortString()), false);
+        return 1;
+    }
+
+    private static int changeBlockRule(CommandSourceStack source, String rawId, boolean add) {
+        boolean tagRule = rawId.startsWith("#");
+        String idText = tagRule ? rawId.substring(1) : rawId;
+        net.minecraft.resources.ResourceLocation id = net.minecraft.resources.ResourceLocation.tryParse(idText);
+        if (id == null) {
+            source.sendFailure(Component.literal("[alice] 方块/标签 ID 格式错误: " + rawId));
+            return 0;
+        }
+        if (tagRule && !source.getLevel().registryAccess()
+                .registryOrThrow(net.minecraft.core.registries.Registries.BLOCK)
+                .getTag(net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.BLOCK, id)).isPresent()) {
+            source.sendFailure(Component.literal("[alice] 不存在的方块标签: " + rawId));
+            return 0;
+        }
+        if (!tagRule && net.minecraftforge.registries.ForgeRegistries.BLOCKS.getValue(id) == null) {
+            source.sendFailure(Component.literal("[alice] 不存在的方块 ID: " + rawId));
+            return 0;
+        }
+        SafeZoneData data = SafeZoneData.get(source.getServer());
+        boolean changed = tagRule ? (add ? data.addTag(id) : data.removeTag(id))
+                : (add ? data.addBlock(id) : data.removeBlock(id));
+        if (!changed) {
+            source.sendFailure(Component.literal("[alice] 规则未变化: " + rawId));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("[alice] 已" + (add ? "保护 " : "取消保护 ") + rawId), false);
+        return 1;
+    }
+
+    private static int listProtection(CommandSourceStack source) {
+        source.sendSuccess(() -> Component.literal("[alice] 安全区: "
+                + SafeZoneData.get(source.getServer()).summary()), false);
+        return 1;
     }
 
     /** 决策层最小规则:感知扫描最近的 <tag 或 方块ID> → 自动挖(感知→决策→执行闭环)。

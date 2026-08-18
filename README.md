@@ -24,7 +24,8 @@
 |---|---|
 | `/alice spawn <name>` | 生成假人 |
 | `/alice mine <x y z>` | 指派挖掘任务 |
-| `/alice auto-mine <tag>` | **决策层**：自动挖最近的匹配标签方块（如 `minecraft:coal_ores`） |
+| `/alice auto-mine <tag>` | **决策层**：自动挖最近的匹配标签或方块 ID（受保护目标自动跳过） |
+| `/alice protect ...` | 持久化安全区：保护区域、方块 ID 或 `#标签`，并可列出摘要 |
 | `/alice observe` | 感知摘要（挖矿视角） |
 | `/alice scan <x y z>` | 接口扫描 |
 | `/alice selftest` | 自动化验收（8 个场景，headless 用 `-Dalice.selftest.auto=true` 自动触发+关服） |
@@ -51,7 +52,7 @@
 ./gradlew runServer -Dalice.selftest.auto=true
 ```
 
-自动跑 8 个场景（正常挖掘/隔空挖拦截/远端寻路/坑场景/草丛寻路/头顶挖/洞壁矿石/清障挖通道）并关服，日志见 `run/logs/latest.log`。
+自动跑 12 个场景（正常挖掘/隔空挖拦截/远端寻路/坑场景/草丛寻路/头顶挖/洞壁矿石/清障挖通道/决策匹配/安全区拦截/沿单格楼梯拾取两格深坑掉落物/脚下目标换侧面站位）并关服，日志见 `run/logs/latest.log`。
 
 ## 架构分层
 

@@ -5,6 +5,7 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.AStarPathfinder;
 import com.dddgn.alice.pathing.Goal;
 import com.dddgn.alice.pathing.PathExecutor;
+import com.dddgn.alice.protection.BlockBreakSafety;
 import com.dddgn.alice.perception.ScopeBuffer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
@@ -12,7 +13,10 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 /**
  * 挖矿任务(任务框架第一个实现,对应验收标准 3「产物入包」)。
@@ -31,6 +35,9 @@ public final class MineTask implements Task {
     private enum Phase { MINING, COLLECTING }
 
     private static final int COLLECT_TIMEOUT_TICKS = 400;
+    /** 只有掉落物实时离 bot 超过这个 3D 距离，才允许放弃它。 */
+    private static final double MAX_COLLECT_DISTANCE = 64.0D;
+    private static final double PICKUP_DISTANCE_SQR = 2.25D;
     /** 清障(挖通道)最大层数: 64 格长通道。用户会以「安全区」机制保护不想挖的
      * 方块, 此处不再保守限深(原 8 格)。 */
     private static final int MAX_CLEAR_DEPTH = 64;
@@ -47,6 +54,10 @@ public final class MineTask implements Task {
     private int collectElapsed;
     private int collectWaitTicks;
     private int collectRetries;
+    /** 已明确超出 64 格而放弃的掉落物；每 tick 重新测距，避免旧判定影响新位置。 */
+    private final Set<UUID> abandonedItems = new HashSet<>();
+    private UUID collectingItemId;
+    private BlockPos collectingItemPos;
     private String failureReason = "";
 
     public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope) {
@@ -94,9 +105,22 @@ public final class MineTask implements Task {
                     return Status.RUNNING;
                 }
                 case FAILED -> {
-                    // 挖掘失败 → 尝试清障: 挖开视线上的遮挡方块(限 3 层)
+                    // 明确目标的硬拒绝必须立即终止；脚下目标不在此列，BotMiner 会先换侧面站位。
+                    String minerFailure = miner.failureReason();
+                    if (isHardTargetRefusal(minerFailure)) {
+                        failureReason = minerFailure;
+                        return Status.FAILED;
+                    }
+                    // 其他挖掘失败 → 尝试清障: 挖开视线上的遮挡方块(限 3 层)
                     BlockPos blocker = findLineOfSightBlocker();
                     if (blocker != null && clearDepth < MAX_CLEAR_DEPTH && !blocker.equals(currentMineTarget)) {
+                        String refusalReason = BlockBreakSafety.clearingRefusal(bot, blocker);
+                        if (refusalReason != null) {
+                            failureReason = refusalReason;
+                            BotLog.warn("清障被安全策略拦截: blocker={} originalTarget={} reason={}",
+                                    blocker.toShortString(), target.toShortString(), failureReason);
+                            return Status.FAILED;
+                        }
                         clearDepth++;
                         BotLog.info("清障(第{}层): 视线被 {} 遮挡, 先挖它", clearDepth, blocker.toShortString());
                         startMining(blocker);
@@ -111,6 +135,10 @@ public final class MineTask implements Task {
             }
         }
         return collectTick();
+    }
+
+    private static boolean isHardTargetRefusal(String reason) {
+        return "unbreakable_block".equals(reason) || reason.startsWith("protected_");
     }
 
     /** 切换当前挖掘目标(原目标或遮挡方块)。 */
@@ -159,31 +187,69 @@ public final class MineTask implements Task {
     private Status collectTick() {
         collectElapsed++;
         if (collectElapsed > COLLECT_TIMEOUT_TICKS) {
-            return giveUpCollect(null, "collect_timeout");
+            failureReason = "collect_timeout";
+            BotLog.warn("拾取失败: target={} reason={} (仍有近距离掉落物未确认入包)",
+                    target.toShortString(), failureReason);
+            return Status.FAILED;
         }
         net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) bot.level();
-        // 感知:扫描目标为中心 8 格内的存活掉落物
-        List<ItemEntity> items = level.getEntitiesOfClass(ItemEntity.class,
-                new net.minecraft.world.phys.AABB(target).inflate(8.0D),
-                item -> item.isAlive() && !item.getItem().isEmpty());
+        // 只追踪作用域开启后捕获的任务衍生掉落物。它们即使被水/爆炸推远也会持续存在，
+        // 但绝不能把目标附近遗留物或其他玩家掉落物误当成本任务产物。
+        List<ItemEntity> items = scope.liveItems();
         if (items.isEmpty()) {
             BotLog.info("拾取阶段完成: 目标周围无掉落物(全部入包/消失)");
             return Status.DONE;
         }
 
-        // 取最近的掉落物作为拾取目标
-        ItemEntity nearest = items.get(0);
+        // 每 tick 按真实实体位置刷新三维距离：只有超过 64 格的单个掉落物才允许放弃。
+        ItemEntity nearest = null;
         double best = Double.MAX_VALUE;
+        // 当前目标保持粘性，避免多件物品距离接近时 UUID 来回切换、等待计时永远归零。
+        if (collectingItemId != null) {
+            for (ItemEntity item : items) {
+                if (item.getUUID().equals(collectingItemId)) {
+                    double d = bot.distanceToSqr(item);
+                    if (d <= MAX_COLLECT_DISTANCE * MAX_COLLECT_DISTANCE) {
+                        nearest = item;
+                        best = d;
+                    }
+                    break;
+                }
+            }
+        }
+        boolean stickyTarget = nearest != null;
         for (ItemEntity item : items) {
             double d = bot.distanceToSqr(item);
-            if (d < best) {
+            if (d > MAX_COLLECT_DISTANCE * MAX_COLLECT_DISTANCE) {
+                if (abandonedItems.add(item.getUUID())) {
+                    BotLog.warn("拾取放弃: item@{} distance={} 超过 {} 格三维阈值",
+                            item.blockPosition().toShortString(),
+                            String.format(java.util.Locale.ROOT, "%.1f", Math.sqrt(d)), MAX_COLLECT_DISTANCE);
+                }
+                continue;
+            }
+            if (!stickyTarget && d < best) {
                 best = d;
                 nearest = item;
             }
         }
+        if (nearest == null) {
+            BotLog.info("拾取阶段完成: 剩余掉落物均超过 {} 格三维距离", MAX_COLLECT_DISTANCE);
+            return Status.DONE;
+        }
+        BlockPos nearestPos = nearest.blockPosition().immutable();
+        if (!nearest.getUUID().equals(collectingItemId) || !nearestPos.equals(collectingItemPos)) {
+            collectingItemId = nearest.getUUID();
+            collectingItemPos = nearestPos;
+            collectExecutor = null;
+            collectWaitTicks = 0;
+            collectRetries = 0;
+            BotLog.info("拾取目标刷新: item@{} 三维距离 {} 格", nearestPos.toShortString(),
+                    String.format(java.util.Locale.ROOT, "%.1f", Math.sqrt(best)));
+        }
 
         // 已在拾取半径内:等原版 playerTouch 入包(掉落物有 pickupDelay,需等)
-        if (best <= 2.25D) { // 1.5 格
+        if (best <= PICKUP_DISTANCE_SQR) { // 真实实体距离 1.5 格
             collectWaitTicks++;
             // 主动拾取兜底:原版 Player.tick 触碰检测对玩家化假人偶发不触发,
             // 等待 20 tick 仍没入包则反射清 pickupDelay 后直接 playerTouch
@@ -214,35 +280,38 @@ public final class MineTask implements Task {
             return Status.RUNNING;
         }
 
-        // 尚未到位:寻路到掉落物旁
+        // 尚未落地时实体位置还在变化，不做昂贵且注定失效的 A*；等稳定后再规划。
+        if (!nearest.onGround()) {
+            if (collectElapsed % 20 == 0) {
+                BotLog.info("拾取等待: 掉落物未落地 @{} y={}", nearest.blockPosition().toShortString(),
+                        String.format(java.util.Locale.ROOT, "%.1f", nearest.getY()));
+            }
+            return Status.RUNNING;
+        }
+
+        // 尚未到位:寻路到掉落物实际脚位格
         if (collectExecutor == null) {
             BlockPos stand = nearest.blockPosition();
-            // 已在目标 1 格水平范围内(同层) → 直接进入等待拾取
-            // (否则 A* 因 start 已在 goal 返回空路径,被误判 collect_no_path)
-            if (new Goal.GoalNear(stand, 1).isInGoal(bot.blockPosition())) {
+            // 拾取终点必须是掉落物实际脚位格，不能只到相邻格：坑底物品需要下坑。
+            Goal.GoalBlock pickupGoal = new Goal.GoalBlock(stand);
+            if (pickupGoal.isInGoal(bot.blockPosition())) {
                 collectWaitTicks++;
                 if (collectWaitTicks >= 20) {
-                    forcePickup(nearest); // 兜底:等待超过 20 tick 仍未入包则主动拾取
+                    forcePickup(nearest);
                 }
                 return Status.RUNNING;
             }
-            List<BlockPos> path = AStarPathfinder.computePath(level,
-                    bot.blockPosition(), new Goal.GoalNear(stand, 1));
+            List<BlockPos> path = AStarPathfinder.computePath(level, bot.blockPosition(), pickupGoal);
             if (path.isEmpty()) {
-                // 掉落物未落地(挖高处方块后下落/弹跳中, 目标格可能悬空站不住)
-                // → 等待落地再试, 不立即判失败
-                if (!nearest.onGround()) {
-                    BotLog.info("拾取等待: 掉落物未落地 y={}, 等落地",
-                            String.format(java.util.Locale.ROOT, "%.1f", nearest.getY()));
-                    return Status.RUNNING;
-                }
-                // 目标格不可达:尝试掉落物上方一格(掉落在非平地时兜底)
-                path = AStarPathfinder.computePath(level,
-                        bot.blockPosition(), new Goal.GoalNear(stand.above(), 1));
+                // 目标格不可达:只尝试上方的实际脚位格；仍不可达则任务失败，不能把近距离产物当损耗吞掉。
+                path = AStarPathfinder.computePath(level, bot.blockPosition(), new Goal.GoalBlock(stand.above()));
             }
             if (path.isEmpty()) {
                 failureReason = "collect_no_path";
-                return giveUpCollect(nearest, "collect_no_path");
+                BotLog.warn("拾取失败: item@{} 三维距离 {} 格 reason={} (近距离产物未入包)",
+                        nearest.blockPosition().toShortString(),
+                        String.format(java.util.Locale.ROOT, "%.1f", Math.sqrt(best)), failureReason);
+                return Status.FAILED;
             }
             collectExecutor = new PathExecutor(bot, path);
             BotLog.info("拾取寻路: 掉落物@{} 路径 {} 段", nearest.blockPosition().toShortString(), path.size());
@@ -257,22 +326,15 @@ public final class MineTask implements Task {
                 return Status.RUNNING;
             }
             failureReason = "collect_path_failed";
-            return giveUpCollect(nearest, "collect_path_failed");
+            BotLog.warn("拾取失败: item@{} 三维距离 {} 格 reason={} (近距离产物未入包)",
+                    nearest.blockPosition().toShortString(),
+                    String.format(java.util.Locale.ROOT, "%.1f", Math.sqrt(best)), failureReason);
+            return Status.FAILED;
         }
         if (pathStatus == PathExecutor.Status.DONE) {
             collectExecutor = null; // 到达,下一 tick 等待拾取
         }
         return Status.RUNNING;
-    }
-
-    /** 拾取放弃(用户指定: 掉落物过远/够不到/被冲走时牺牲损耗, 任务仍算完成)。 */
-    private Status giveUpCollect(ItemEntity item, String reason) {
-        failureReason = reason;
-        BotLog.warn("拾取放弃: target={} {} reason={} (损耗可接受, 任务完成)",
-                target.toShortString(),
-                item == null ? "" : "item@" + item.blockPosition().toShortString(),
-                reason);
-        return Status.DONE;
     }
 
     /** 反射读取私有字段 pickupDelay(诊断用)。 */
