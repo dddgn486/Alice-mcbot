@@ -1,9 +1,10 @@
 package com.dddgn.alice.client.render;
 
 import com.dddgn.alice.client.ClientTargetState;
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -19,6 +20,7 @@ import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
+
 /**
  * 任务目标透视高亮(客户端测试效果)。
  * <p>在 {@link RenderLevelStageEvent} AFTER_PARTICLES 阶段画线框盒子
@@ -28,12 +30,43 @@ import net.minecraftforge.fml.common.Mod;
  *   <li>方块目标:固定 AABB,亮绿色;</li>
  *   <li>实体/掉落物目标:实时取实体 AABB,亮红色。</li>
  * </ul>
- * 画线框前关闭深度测试 → 透过墙体也能看到(透视),测试期方便跟踪 bot 任务目标。
+ * <b>透视关键</b>:不能直接用 {@code RenderType.lines()}——它的渲染状态自带
+ * 深度测试(LEQUAL),会在 endBatch 绘制时覆盖全局 disableDepthTest,
+ * 导致线框被方块遮挡(不透视)。这里自定义 RenderType 关闭深度测试。
  * poseStack 在该阶段为「相机旋转矩阵(无平移)」,故手动 translate(-camera)。</p>
  */
 @OnlyIn(Dist.CLIENT)
 @Mod.EventBusSubscriber(modid = "alice", value = Dist.CLIENT)
 public final class TargetOutlineRenderer {
+
+    /** 无深度测试的线框 RenderType(透视高亮核心)。
+     * 状态常量在 RenderStateShard 中是 protected,需子类访问。 */
+    private static final RenderType OUTLINE_LINES = OutlineRenderType.create();
+
+    /** 继承 RenderType 以访问 protected 状态常量。 */
+    @OnlyIn(Dist.CLIENT)
+    private static final class OutlineRenderType extends RenderType {
+        private OutlineRenderType(String name, VertexFormat format, VertexFormat.Mode mode,
+                                  int bufferSize, boolean hasCrumbling, boolean needsSorting,
+                                  Runnable setupTask, Runnable clearTask) {
+            super(name, format, mode, bufferSize, hasCrumbling, needsSorting, setupTask, clearTask);
+        }
+
+        static RenderType create() {
+            CompositeState state = CompositeState.builder()
+                    .setShaderState(RENDERTYPE_LINES_SHADER)
+                    .setLineState(new LineStateShard(java.util.OptionalDouble.empty()))
+                    .setLayeringState(NO_LAYERING)
+                    .setTransparencyState(NO_TRANSPARENCY)
+                    .setDepthTestState(NO_DEPTH_TEST) // 透视: 不做深度剔除
+                    .setCullState(NO_CULL)
+                    .setLightmapState(NO_LIGHTMAP)
+                    .setWriteMaskState(COLOR_WRITE)
+                    .createCompositeState(false);
+            return RenderType.create("alice_outline", DefaultVertexFormat.POSITION_COLOR,
+                    VertexFormat.Mode.LINES, 256, false, false, state);
+        }
+    }
 
     private TargetOutlineRenderer() {
     }
@@ -81,14 +114,10 @@ public final class TargetOutlineRenderer {
         Vec3 cam = event.getCamera().getPosition();
         pose.translate(-cam.x, -cam.y, -cam.z);
 
-        RenderSystem.disableDepthTest();
-        RenderSystem.disableCull();
         MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
-        VertexConsumer vc = buffers.getBuffer(RenderType.lines());
+        VertexConsumer vc = buffers.getBuffer(OUTLINE_LINES);
         LevelRenderer.renderLineBox(pose, vc, box, r, g, b, pulse);
-        buffers.endBatch(RenderType.lines());
-        RenderSystem.enableCull();
-        RenderSystem.enableDepthTest();
+        buffers.endBatch(OUTLINE_LINES);
 
         pose.popPose();
     }

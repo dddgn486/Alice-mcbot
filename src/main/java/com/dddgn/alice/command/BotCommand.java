@@ -54,7 +54,46 @@ public final class BotCommand {
                 .then(Commands.literal("scan")
                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                 .executes(ctx -> scan(ctx.getSource(),
-                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos"))))));
+                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
+                .then(Commands.literal("auto-mine")
+                        .then(Commands.argument("tag", StringArgumentType.string())
+                                .executes(ctx -> autoMine(ctx.getSource(),
+                                        StringArgumentType.getString(ctx, "tag"))))));
+    }
+
+    /** 决策层最小规则:感知扫描最近的 <tag> 方块 → 自动挖(感知→决策→执行闭环)。 */
+    private static int autoMine(CommandSourceStack source, String tagStr) {
+        ServerLevel level = source.getLevel();
+        if (tagStr.startsWith("#")) {
+            tagStr = tagStr.substring(1);
+        }
+        net.minecraft.tags.TagKey<net.minecraft.world.level.block.Block> tag;
+        try {
+            tag = net.minecraft.tags.TagKey.create(
+                    net.minecraft.core.registries.Registries.BLOCK,
+                    new net.minecraft.resources.ResourceLocation(tagStr));
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("[alice] 标签格式错误: " + tagStr));
+            return 0;
+        }
+        BlockPos center = source.getEntity() != null
+                ? source.getEntity().blockPosition()
+                : new BlockPos(level.getSharedSpawnPos());
+        // 感知 + 决策
+        BlockPos target = com.dddgn.alice.decision.AutoMineDecision.pickNearest(
+                level, center, tag, com.dddgn.alice.decision.AutoMineDecision.SCAN_RADIUS);
+        if (target == null) {
+            source.sendFailure(Component.literal("[alice] 扫描半径 "
+                    + com.dddgn.alice.decision.AutoMineDecision.SCAN_RADIUS + " 内没找到 " + tag.location()));
+            return 0;
+        }
+        // 执行
+        BotPlayer bot = BotManager.firstOrSpawn(level, target);
+        BotManager.assignTarget(bot, com.dddgn.alice.task.TaskTarget.block(target));
+        source.sendSuccess(() -> Component.literal(
+                "[alice] " + bot.getName().getString() + " 自动挖矿: 最近 " + tag.location()
+                        + " @ " + target.toShortString()), false);
+        return 1;
     }
 
     /** M2 接口扫描:输出指定方块的 capability 接口清单(物品/能量/流体/气体等)。 */

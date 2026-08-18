@@ -24,7 +24,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
  */
 public final class BotSelftest {
 
-    private enum Phase { IDLE, WAIT_START, SETUP, TEST1_RUN, TEST1_CHECK, TEST2_SETUP, TEST2_RUN, TEST2_CHECK, TEST3_SETUP, TEST3_RUN, TEST3_CHECK, TEST4_SETUP, TEST4_RUN, TEST4_CHECK, TEST5_SETUP, TEST5_RUN, TEST5_CHECK, TEST6_SETUP, TEST6_RUN, TEST6_CHECK, TEST7_SETUP, TEST7_RUN, TEST7_CHECK, REPORT }
+    private enum Phase { IDLE, WAIT_START, SETUP, TEST1_RUN, TEST1_CHECK, TEST2_SETUP, TEST2_RUN, TEST2_CHECK, TEST3_SETUP, TEST3_RUN, TEST3_CHECK, TEST4_SETUP, TEST4_RUN, TEST4_CHECK, TEST5_SETUP, TEST5_RUN, TEST5_CHECK, TEST6_SETUP, TEST6_RUN, TEST6_CHECK, TEST7_SETUP, TEST7_RUN, TEST7_CHECK, TEST8_SETUP, TEST8_RUN, TEST8_CHECK, REPORT }
 
     private static final int START_DELAY_TICKS = 100;
     private static final int PHASE_TIMEOUT_TICKS = 900;
@@ -42,6 +42,7 @@ public final class BotSelftest {
     private static BlockPos target5;
     private static BlockPos target6;
     private static BlockPos target7;
+    private static BlockPos target8;
     private static BlockPos test2MineStart;
     private static BlockPos test3MineStart;
     private static boolean test1Pass;
@@ -51,6 +52,7 @@ public final class BotSelftest {
     private static boolean test5Pass;
     private static boolean test6Pass;
     private static boolean test7Pass;
+    private static boolean test8Pass;
     private static String test1Detail = "";
     private static String test2Detail = "";
     private static String test3Detail = "";
@@ -58,6 +60,7 @@ public final class BotSelftest {
     private static String test5Detail = "";
     private static String test6Detail = "";
     private static String test7Detail = "";
+    private static String test8Detail = "";
 
     private BotSelftest() {
     }
@@ -89,6 +92,7 @@ public final class BotSelftest {
         test5Pass = false;
         test6Pass = false;
         test7Pass = false;
+        test8Pass = false;
         phase = Phase.WAIT_START;
         waitTicks = START_DELAY_TICKS;
         phaseTicks = 0;
@@ -164,6 +168,14 @@ public final class BotSelftest {
                 }
             }
             case TEST7_CHECK -> checkTest7();
+            case TEST8_SETUP -> setupTest8();
+            case TEST8_RUN -> {
+                if (!BotManager.isBusy(bot) || phaseTicks > PHASE_TIMEOUT_TICKS) {
+                    phase = Phase.TEST8_CHECK;
+                    phaseTicks = 0;
+                }
+            }
+            case TEST8_CHECK -> checkTest8();
             default -> {
             }
         }
@@ -410,6 +422,41 @@ public final class BotSelftest {
         test7Detail = "blockGone=" + blockGone + " result=" + result
                 + (phaseTicks > PHASE_TIMEOUT_TICKS ? " (超时)" : "");
         BotLog.info("SELFTEST TEST7 {}", test7Pass ? "PASS" : "FAIL: " + test7Detail);
+        phase = Phase.TEST8_SETUP;
+        phaseTicks = 0;
+    }
+
+    /** TEST8:挖通道——目标被 2 格高石墙挡住, bot 需清障挖开两层才能挖到目标。
+     * 验证「自己打通道」链路(清障深度放开后)。 */
+    private static void setupTest8() {
+        BlockPos surface = findSurface();
+        bot.teleportTo(surface.getX() + 0.5D, surface.getY(), surface.getZ() + 0.5D);
+        // 清出前方空间
+        for (int x = 1; x <= 3; x++) {
+            for (int dy = 0; dy <= 3; dy++) {
+                level.setBlock(surface.offset(x, dy, 0), Blocks.AIR.defaultBlockState(), 3);
+            }
+        }
+        // 目标 = 前方 2 格; 目标前 2 格高石墙(1,64,0)+(1,65,0)挡视线
+        target8 = surface.offset(2, 0, 0);
+        level.setBlock(target8, Blocks.DIRT.defaultBlockState(), 3);
+        level.setBlock(surface.offset(1, 0, 0), Blocks.STONE.defaultBlockState(), 3);
+        level.setBlock(surface.offset(1, 1, 0), Blocks.STONE.defaultBlockState(), 3);
+        BotLog.info("SELFTEST TEST8: 通道场景, bot={} 目标={} 石墙={} + {}",
+                surface.toShortString(), target8.toShortString(),
+                surface.offset(1, 0, 0).toShortString(), surface.offset(1, 1, 0).toShortString());
+        BotManager.assignMine(bot, target8);
+        phase = Phase.TEST8_RUN;
+        phaseTicks = 0;
+    }
+
+    private static void checkTest8() {
+        boolean blockGone = level.getBlockState(target8).isAir();
+        String result = BotManager.lastTaskResult(bot);
+        test8Pass = blockGone && "done".equals(result);
+        test8Detail = "blockGone=" + blockGone + " result=" + result
+                + (phaseTicks > PHASE_TIMEOUT_TICKS ? " (超时)" : "");
+        BotLog.info("SELFTEST TEST8 {}", test8Pass ? "PASS" : "FAIL: " + test8Detail);
         phase = Phase.REPORT;
         report();
     }
@@ -425,10 +472,10 @@ public final class BotSelftest {
     }
 
     private static void report() {
-        boolean allPass = test1Pass && test2Pass && test3Pass && test4Pass && test5Pass && test6Pass && test7Pass;
-        BotLog.info("SELFTEST 结果: {} (TEST1={} TEST2={} TEST3={} TEST4={} TEST5={} TEST6={} TEST7={})",
+        boolean allPass = test1Pass && test2Pass && test3Pass && test4Pass && test5Pass && test6Pass && test7Pass && test8Pass;
+        BotLog.info("SELFTEST 结果: {} (TEST1={} TEST2={} TEST3={} TEST4={} TEST5={} TEST6={} TEST7={} TEST8={})",
                 allPass ? "PASS" : "FAIL",
-                test1Pass, test2Pass, test3Pass, test4Pass, test5Pass, test6Pass, test7Pass);
+                test1Pass, test2Pass, test3Pass, test4Pass, test5Pass, test6Pass, test7Pass, test8Pass);
         // headless 验收:测完自动关服(审查点 R8)
         server.halt(true);
     }

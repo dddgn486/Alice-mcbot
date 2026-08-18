@@ -83,6 +83,6 @@ mine_timeout / collect_no_path / collect_path_failed / collect_timeout`
 
 1. 实测：目标指定器右键矿石 → bot 挖 → 捡起 → 背包有矿 + 高亮全程可见
 2. `AttackTask`（实体目标）：近战攻击状态机（走位 → 原版攻击包）
-3. 决策层最小规则：感知摘要 → 自动挑最近 TARGET 方块 → assignTarget
-   （把 `/alice observe` 的输出接到任务层）
+3. ~~决策层最小规则~~ 已落地：`/alice auto-mine <tag>`（AutoMineDecision），
+   下一步: LLM 决策接入 / 多目标队列 / 路径代价排序
 4. 高亮多目标（任务队列/多 bot 时颜色区分）
