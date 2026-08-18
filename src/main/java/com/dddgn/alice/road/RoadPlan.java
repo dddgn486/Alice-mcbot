@@ -107,23 +107,62 @@ public final class RoadPlan {
         return Integer.MIN_VALUE;
     }
 
-    /** 先沿 X，再沿 Z；所有水平拐点都是 4 邻，避免对角线。Y 每步最多变化 1。 */
+    /**
+     * 三维体素中心线：水平投影只用 4 邻折线，并把高度变化分摊到水平步进上。
+     * <p>如果 |dy| 大于原始水平曼哈顿长度，就在侧方增加最小折返：每偏移一格
+     * 可增加两格水平路程，直到满足每个相邻中心线点的高度差最多一格。这样不会
+     * 在终点前生成竖井；竖直变化被拟合成真正的斜向阶梯。</p>
+     */
     private static List<BlockPos> orthogonalLine(BlockPos a, BlockPos b) {
-        List<BlockPos> result = new ArrayList<>();
-        int x = a.getX(), y = a.getY(), z = a.getZ();
-        result.add(new BlockPos(x, y, z));
-        while (x != b.getX()) {
-            x += Integer.compare(b.getX(), x);
-            result.add(new BlockPos(x, y, z));
-        }
-        while (z != b.getZ()) {
-            z += Integer.compare(b.getZ(), z);
-            result.add(new BlockPos(x, y, z));
-        }
-        while (y != b.getY()) {
-            y += Integer.compare(b.getY(), y);
-            result.add(new BlockPos(x, y, z));
+        int horizontal = Math.abs(b.getX() - a.getX()) + Math.abs(b.getZ() - a.getZ());
+        int vertical = Math.abs(b.getY() - a.getY());
+        int detour = Math.max(0, (vertical - horizontal + 1) / 2);
+        List<BlockPos> horizontalLine = horizontalRoute(a, b, detour);
+        int direction = Integer.compare(b.getY(), a.getY());
+        List<BlockPos> result = new ArrayList<>(horizontalLine.size());
+        for (int i = 0; i < horizontalLine.size(); i++) {
+            BlockPos p = horizontalLine.get(i);
+            int yOffset = direction * (vertical * i / Math.max(1, horizontalLine.size() - 1));
+            result.add(new BlockPos(p.getX(), a.getY() + yOffset, p.getZ()));
         }
         return result;
+    }
+
+    /** 生成 4 邻水平折线；detour 是侧向偏移量，增加约 2*detour 格长度。 */
+    private static List<BlockPos> horizontalRoute(BlockPos a, BlockPos b, int detour) {
+        List<BlockPos> result = new ArrayList<>();
+        int x = a.getX();
+        int z = a.getZ();
+        result.add(new BlockPos(x, a.getY(), z));
+        if (detour > 0) {
+            // 选择 z 方向侧移；随后沿 x/z 主方向走，再回到终点 z。
+            int side = z <= b.getZ() ? 1 : -1;
+            z += side * detour;
+            appendHorizontal(result, x, z, a.getY());
+        }
+        while (x != b.getX()) {
+            x += Integer.compare(b.getX(), x);
+            appendHorizontal(result, x, z, a.getY());
+        }
+        while (z != b.getZ() + (detour > 0 ? (z > b.getZ() ? -detour : detour) : 0)) {
+            int targetZ = b.getZ() + (detour > 0 ? (z > b.getZ() ? -detour : detour) : 0);
+            if (z == targetZ) break;
+            z += Integer.compare(targetZ, z);
+            appendHorizontal(result, x, z, a.getY());
+        }
+        if (detour > 0) {
+            z = b.getZ();
+            appendHorizontal(result, b.getX(), z, a.getY());
+        }
+        while (x != b.getX()) {
+            x += Integer.compare(b.getX(), x);
+            appendHorizontal(result, x, z, a.getY());
+        }
+        return result;
+    }
+
+    private static void appendHorizontal(List<BlockPos> result, int x, int z, int y) {
+        BlockPos next = new BlockPos(x, y, z);
+        if (!result.get(result.size() - 1).equals(next)) result.add(next);
     }
 }
