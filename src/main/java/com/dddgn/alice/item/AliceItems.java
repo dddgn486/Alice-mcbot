@@ -21,6 +21,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> TARGET_SELECTOR =
             ITEMS.register("target_selector", () -> new TargetSelector(new Item.Properties()));
 
+    /** 道路数学模型工具：贴图使用原版钻石锄。 */
+    public static final RegistryObject<Item> ROAD_PLANNER =
+            ITEMS.register("road_planner", () -> new RoadPlannerItem(new Item.Properties()));
+
     private AliceItems() {
     }
 }

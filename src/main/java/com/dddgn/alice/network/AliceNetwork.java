@@ -28,5 +28,8 @@ public final class AliceNetwork {
         CHANNEL.registerMessage(nextId++, TargetPacket.class,
                 TargetPacket::encode, TargetPacket::decode,
                 TargetPacket::handle, java.util.Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(nextId++, RoadPlanPacket.class,
+                RoadPlanPacket::encode, RoadPlanPacket::decode,
+                RoadPlanPacket::handle, java.util.Optional.of(NetworkDirection.PLAY_TO_CLIENT));
     }
 }

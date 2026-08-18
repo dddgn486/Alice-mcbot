@@ -49,6 +49,9 @@ public final class BotCommand {
                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                 .executes(ctx -> mine(ctx.getSource(),
                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
+                .then(Commands.literal("road")
+                        .then(Commands.literal("build")
+                                .executes(ctx -> buildRoad(ctx.getSource()))))
                 .then(Commands.literal("observe")
                         .executes(ctx -> observe(ctx.getSource())))
                 .then(Commands.literal("selftest")
@@ -198,6 +201,41 @@ public final class BotCommand {
     }
 
     /** M2 接口扫描:输出指定方块的 capability 接口清单(物品/能量/流体/气体等)。 */
+    private static int buildRoad(CommandSourceStack source) {
+        com.dddgn.alice.road.RoadPlan plan = com.dddgn.alice.road.RoadPlan.get();
+        if (!plan.isComplete() || plan.level() != source.getLevel()) {
+            source.sendFailure(Component.literal("[alice] 尚未生成当前维度的道路蓝图"));
+            return 0;
+        }
+        int changed = 0;
+        int skipped = 0;
+        net.minecraft.server.level.ServerPlayer actor = source.getEntity() instanceof net.minecraft.server.level.ServerPlayer p
+                ? p : null;
+        for (com.dddgn.alice.road.RoadPlan.Cell cell : plan.cells()) {
+            BlockPos pos = cell.pos();
+            if (cell.kind() == com.dddgn.alice.road.RoadPlan.CellKind.SUPPORT_PLACE) {
+                if (source.getLevel().getBlockState(pos).isAir()) {
+                    source.getLevel().setBlock(pos, net.minecraft.world.level.block.Blocks.COBBLESTONE.defaultBlockState(), 3);
+                    changed++;
+                }
+            } else if (cell.kind() == com.dddgn.alice.road.RoadPlan.CellKind.CLEAR) {
+                if (actor == null) {
+                    skipped++;
+                } else if (com.dddgn.alice.protection.BlockBreakSafety.clearingRefusal(actor, pos) == null) {
+                    source.getLevel().destroyBlock(pos, false);
+                    changed++;
+                } else {
+                    skipped++;
+                }
+            }
+        }
+        int finalChanged = changed;
+        int finalSkipped = skipped;
+        source.sendSuccess(() -> Component.literal("[alice] 道路蓝图已实现: 修改 " + finalChanged
+                + " 个方块, 跳过 " + finalSkipped + " 个受限方块"), false);
+        return changed;
+    }
+
     private static int scan(CommandSourceStack source, BlockPos target) {
         String result = com.dddgn.alice.capability.InterfaceScanner.scan(source.getLevel(), target);
         BotLog.info("接口扫描:\n{}", result);
