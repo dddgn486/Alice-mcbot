@@ -24,6 +24,8 @@ public final class RoadBuilder {
     private int waitTicks;
     private boolean active;
     private boolean retrying;
+    private int stabilityRetries;
+    private static final int MAX_STABILITY_RETRIES = 3;
 
     private RoadBuilder() {}
     public static RoadBuilder get() { return INSTANCE; }
@@ -36,6 +38,7 @@ public final class RoadBuilder {
         this.unitIndex = 0;
         this.waitTicks = 0;
         this.retrying = false;
+        this.stabilityRetries = 0;
         this.active = true;
         return true;
     }
@@ -60,6 +63,10 @@ public final class RoadBuilder {
             waitTicks--;
             if (waitTicks == 0) {
                 if (hasFallingMaterial(unit)) {
+                    if (stabilityRetries++ >= MAX_STABILITY_RETRIES) {
+                        finish();
+                        return;
+                    }
                     removeFallingMaterial(unit);
                     retrying = true;
                     buildUnit(unit);
@@ -67,6 +74,7 @@ public final class RoadBuilder {
                 } else {
                     unitIndex++;
                     retrying = false;
+                    stabilityRetries = 0;
                 }
             }
             return;
@@ -91,16 +99,13 @@ public final class RoadBuilder {
     }
 
     private boolean hasFallingMaterial(RoadPlan.Unit unit) {
-        for (RoadPlan.Cell cell : unit.cells()) {
-            if (level.getBlockState(cell.pos()).getBlock() instanceof FallingBlock) return true;
-        }
         BlockPos support = unit.support();
-        // 扫描单元水平柱体上方 8 格：沙/沙砾可能尚未进入三格通道体素，但会在等待期落入。
+        // 只有下方无支撑的沙/沙砾才算即将坠落；有支撑的实体方块是稳定环境，不应让道路假死。
         for (int dy = -1; dy <= 8; dy++) {
             for (int dx = -1; dx <= 1; dx++) {
                 for (int dz = -1; dz <= 1; dz++) {
                     BlockPos scan = support.offset(dx, dy, dz);
-                    if (level.getBlockState(scan).getBlock() instanceof FallingBlock) return true;
+                    if (isUnstableFallingBlock(scan)) return true;
                 }
             }
         }
@@ -108,15 +113,29 @@ public final class RoadBuilder {
         return !level.getEntitiesOfClass(FallingBlockEntity.class, box).isEmpty();
     }
 
+    private boolean isUnstableFallingBlock(BlockPos pos) {
+        if (!(level.getBlockState(pos).getBlock() instanceof FallingBlock)) return false;
+        BlockPos below = pos.below();
+        var belowState = level.getBlockState(below);
+        return belowState.isAir() || belowState.getCollisionShape(level, below).isEmpty()
+                || !belowState.getFluidState().isEmpty();
+    }
+
     private void removeFallingMaterial(RoadPlan.Unit unit) {
-        for (RoadPlan.Cell cell : unit.cells()) {
-            BlockPos pos = cell.pos();
-            if (level.getBlockState(pos).getBlock() instanceof FallingBlock
-                    && BlockBreakSafety.clearingRefusal(actor, pos) == null) {
-                level.destroyBlock(pos, false);
+        BlockPos support = unit.support();
+        // 清理范围与检测范围一致，否则会检测到上方方块却永远清不掉并重复等待。
+        for (int dy = -1; dy <= 8; dy++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    BlockPos pos = support.offset(dx, dy, dz);
+                    if (isUnstableFallingBlock(pos)
+                            && BlockBreakSafety.clearingRefusal(actor, pos) == null) {
+                        level.destroyBlock(pos, false);
+                    }
+                }
             }
         }
-        var box = new net.minecraft.world.phys.AABB(unit.support()).inflate(1.5D, 8.0D, 1.5D);
+        var box = new net.minecraft.world.phys.AABB(support).inflate(1.5D, 8.0D, 1.5D);
         for (FallingBlockEntity entity : level.getEntitiesOfClass(FallingBlockEntity.class, box)) {
             entity.discard();
         }
