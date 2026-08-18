@@ -134,6 +134,11 @@ repositories {
     }
 }
 
+// 纯客户端开发工具依赖(不进 runtimeClasspath/发布): 仅 runClient 注入
+configurations {
+    clientOnly
+}
+
 dependencies {
     // Specify the version of Minecraft to use.
     // Any artifact can be supplied so long as it has a "userdev" classifier artifact and is a compatible patcher artifact.
@@ -146,11 +151,21 @@ dependencies {
     implementation fg.deobf("mekanism:Mekanism:1.20.1-10.4.16.80")
     runtimeOnly fg.deobf("mekanism:Mekanism:1.20.1-10.4.16.80:generators")
 
-    // JEI(物品配方查看, 从 modmaven 解析, 无需本地 libs/jei jar)
+    // ── 开发期可选工具(非硬依赖, mods.toml 未声明, 发布 jar 不含) ──
+    // JEI(物品配方查看): compileOnly 供将来写联动时引用 API;
+    //   runtimeOnly 仅 dev 环境查看界面(JEI 在 dedicated server 安全, 保留)
     compileOnly fg.deobf("mezz.jei:jei-1.20.1-forge:15.49.0.187")
     runtimeOnly fg.deobf("mezz.jei:jei-1.20.1-forge:15.49.0.187")
-    // JECh(中文/拼音搜索, 无 maven 发布 → 需本地 libs/, 仅客户端运行需要)
-    runtimeOnly fg.deobf("local:jecharacters:1.20.1-forge-4.6.9")
+    // JECh(中文/拼音搜索): 纯客户端模组, 放独立 clientOnly 配置,
+    //   仅 runClient 注入——不进 runtimeClasspath, runServer 不加载(R14 根治)
+    clientOnly fg.deobf("local:jecharacters:1.20.1-forge-4.6.9")
+}
+
+// 把 clientOnly 注入 runClient 任务(FG 的 run 任务创建时机晚, 用 whenTaskAdded 钩子)
+tasks.whenTaskAdded { task ->
+    if (task.name == 'runClient' && task instanceof JavaExec) {
+        task.classpath += configurations.clientOnly
+    }
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

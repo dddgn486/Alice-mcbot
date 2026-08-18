@@ -42,7 +42,7 @@
 
 **本地依赖**：`libs/` 目录需要手动放置 `jecharacters-1.20.1-forge-4.6.9.jar`（中文/拼音搜索，无 maven 发布）。JEI 已从 modmaven 解析，无需本地 jar。
 
-**已知问题**：JECh 是纯客户端模组，dedicated server（`runServer`）加载会崩溃——headless 测试需临时注释 `build.gradle` 里的 JECh 依赖行。
+**开发依赖说明**：JEI/JECh 是**可选开发工具**（非硬依赖——mods.toml 未声明、发布 jar 不含、代码零引用）。JEI 仅 dev 环境查看配方界面；JECh（纯客户端）通过独立的 `clientOnly` 配置只注入 `runClient`，`runServer` 不加载。
 
 ## 验收测试
 
