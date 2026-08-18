@@ -119,16 +119,37 @@ public final class MineTask implements Task {
         this.miner = new BotMiner(bot, this.currentMineTarget);
     }
 
-    /** 从 bot 眼睛到原目标中心的 raycast:返回第一个非目标的遮挡方块(无则 null)。 */
+    /**
+     * 找 bot 能<b>直接挖到</b>的挡路方块(清障目标)。
+     * <p>从 bot 眼睛向原目标 raycast 得第一个遮挡 B;若 B 本身还被更近的方块挡住
+     * (bot 原地挖通道时, 挖掉眼前方块后下一个遮挡可能不直接可见),则向 bot 方向
+     * 递归 raycast,直到找到「bot 视线能直接碰到的第一块」——避免 BotMiner 挖它时
+     * 又报 line_of_sight_blocked 而中途放弃(用户实测:挖三四格就停住)。</p>
+     */
     private BlockPos findLineOfSightBlocker() {
         net.minecraft.world.phys.Vec3 eye = bot.getEyePosition();
-        net.minecraft.world.phys.Vec3 center = target.getCenter();
-        net.minecraft.world.level.ClipContext ctx = new net.minecraft.world.level.ClipContext(eye, center,
+        BlockPos blocker = raycastBlock(eye, target.getCenter());
+        if (blocker == null || blocker.equals(target)) {
+            return null; // 目标可见, 无遮挡
+        }
+        // 向 bot 靠近: 最多回溯 3 层, 保证返回的遮挡是 bot 直接可见的
+        for (int i = 0; i < 3; i++) {
+            BlockPos nearer = raycastBlock(eye, blocker.getCenter());
+            if (nearer == null || nearer.equals(blocker)) {
+                return blocker;
+            }
+            blocker = nearer;
+        }
+        return blocker;
+    }
+
+    /** raycast 第一个命中的方块(无命中返回 null)。 */
+    private BlockPos raycastBlock(net.minecraft.world.phys.Vec3 from, net.minecraft.world.phys.Vec3 to) {
+        net.minecraft.world.level.ClipContext ctx = new net.minecraft.world.level.ClipContext(from, to,
                 net.minecraft.world.level.ClipContext.Block.COLLIDER,
                 net.minecraft.world.level.ClipContext.Fluid.NONE, bot);
         net.minecraft.world.phys.BlockHitResult hit = bot.level().clip(ctx);
-        if (hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
-                && !hit.getBlockPos().equals(target)) {
+        if (hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK) {
             return hit.getBlockPos().immutable();
         }
         return null;
