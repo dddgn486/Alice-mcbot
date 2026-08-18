@@ -5,6 +5,7 @@ import com.dddgn.alice.network.AliceNetwork;
 import com.dddgn.alice.network.TargetPacket;
 import com.dddgn.alice.perception.ScopeBuffer;
 import com.dddgn.alice.task.MineTask;
+import com.dddgn.alice.task.PlaceTask;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
 import com.mojang.authlib.GameProfile;
@@ -168,6 +169,13 @@ public final class BotManager {
         return spawn(level, pos.above(), "Alice");
     }
 
+    /** 给假人分配独立「放置指定方块」任务。 */
+    public static void assignPlace(BotPlayer bot, BlockPos target) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null) return;
+        session.assignPlace(target);
+    }
+
     /** 给假人分配「挖掘指定方块」任务(命令/selftest 兼容入口)。 */
     public static void assignMine(BotPlayer bot, BlockPos target) {
         assignTarget(bot, TaskTarget.block(target));
@@ -287,6 +295,13 @@ public final class BotManager {
         }
 
         /** 分配任务:按目标类型实例化 Task,开启感知作用域,广播高亮。 */
+        public void assignPlace(BlockPos targetPos) {
+            clearTask();
+            this.target = TaskTarget.block(targetPos);
+            this.task = new PlaceTask(bot, targetPos);
+            broadcastTarget(this.target);
+        }
+
         public void assign(TaskTarget newTarget) {
             clearTask(); // 先收尾上一个任务
             this.target = newTarget;

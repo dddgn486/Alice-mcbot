@@ -22,8 +22,8 @@ GUI 背后操作序列化为语义接口（而非视觉点 GUI）。
 | 移动 | ✅ 位置步进（无重力，服务端不跑玩家物理）；`PathExecutor` 手动 setPos + setOnGround |
 | 寻路 | ⚠️ 当前 `pathing/` 是临时简化 A*，已加局部边界/节点上限但不具备 break-aware 成本；近距离不可达可能仍 `collect_no_path`。下一阶段按 `docs/BARITONE_PORTING_CHECKLIST.md` 移植 Baritone 1.20.1 movement/cost 核心 |
 | 挖掘 | ✅ `BotMiner`：站位候选逐个尝试（目标上方→下方优先）、视线无遮挡硬检查（防隔空挖）、挖掘时朝向目标（含 yHeadRot） |
-| 清障挖通道 | ⚠️ 旧 `MineTask` 仍是“失败后猜 blocker 再重跑 A*”的过渡逻辑；严格回归出现超时、清障副产物抢拾取目标。暂停继续加特判，等待 break-aware planner 替换 |
-| 拾取 | ⚠️ 已禁止未到物品格心时提前 `playerTouch`，并锁定原始目标方块来源产物；但旧路径仍可能 `collect_no_path`，严格回归已记录失败，下一阶段由 break-aware planner 接管下坑与返回 |
+| 清障挖通道 | 🗄️ 旧方案已归档：`MineTask` 的“失败后猜 blocker 再重跑 A*”仅保留兼容/基线，不再用于道路蓝图；道路改由 `RoadPlan` 数学拟合 + `RoadBuilder` 逐单元执行 |
+| 拾取 | ⚠️ 已禁止未到物品格心时提前 `playerTouch`，并锁定原始目标方块来源产物；旧 `MineTask`/阶梯逻辑归档为旧方案，不再参与道路蓝图执行 |
 | 感知层 | ✅ `PerceptionSnapshot` 分类聚合摘要 + `ScopeBuffer` 任务作用域；`PerceptionProfile`（MINING/GENERAL） |
 | 决策层 | ✅ `AutoMineDecision` 最小规则：扫描匹配目标（标签或方块 ID）→ 取最近 → 执行 |
 | 接口扫描 | ✅ `InterfaceScanner`：Forge/Mek capability + Mek GUI 页签（红石/升级/安全/传输配置）统一扫描 |

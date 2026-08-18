@@ -35,17 +35,24 @@ public class TargetSelector extends Item {
         if (level.isClientSide) {
             return InteractionResult.SUCCESS; // 客户端只播交互动画,逻辑在服务端
         }
-        BlockPos pos = context.getClickedPos();
-        if (level.getBlockState(pos).isAir()) {
-            return InteractionResult.PASS;
-        }
-        ServerLevel serverLevel = (ServerLevel) level;
-        BotPlayer bot = BotManager.firstOrSpawn(serverLevel, pos);
-        BotManager.assignTarget(bot, TaskTarget.block(pos));
+        BlockPos clicked = context.getClickedPos();
         Player player = context.getPlayer();
+        if (player != null && player.isShiftKeyDown()) {
+            BlockPos placeTarget = clicked.relative(context.getClickedFace());
+            ServerLevel serverLevel = (ServerLevel) level;
+            BotPlayer bot = BotManager.firstOrSpawn(serverLevel, placeTarget);
+            BotManager.assignPlace(bot, placeTarget);
+            if (player != null) player.sendSystemMessage(Component.literal(
+                    "[alice] 已指定放置圆石 " + placeTarget.toShortString() + " → " + bot.getName().getString()));
+            return InteractionResult.SUCCESS;
+        }
+        if (level.getBlockState(clicked).isAir()) return InteractionResult.PASS;
+        ServerLevel serverLevel = (ServerLevel) level;
+        BotPlayer bot = BotManager.firstOrSpawn(serverLevel, clicked);
+        BotManager.assignTarget(bot, TaskTarget.block(clicked));
         if (player != null) {
             player.sendSystemMessage(Component.literal(
-                    "[alice] 已指派挖掘目标 " + pos.toShortString() + " → " + bot.getName().getString()));
+                    "[alice] 已指派挖掘目标 " + clicked.toShortString() + " → " + bot.getName().getString()));
         }
         return InteractionResult.SUCCESS;
     }

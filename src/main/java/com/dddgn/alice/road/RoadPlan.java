@@ -3,6 +3,7 @@ package com.dddgn.alice.road;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.FluidState;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -77,6 +78,7 @@ public final class RoadPlan {
 
     private static List<Unit> buildUnits(ServerLevel level, BlockPos a, BlockPos b) {
         List<BlockPos> centerline = orthogonalLine(a.below(), b.below());
+        centerline = rerouteLiquidClearance(level, centerline);
         List<Unit> result = new ArrayList<>();
         for (int i = 0; i < centerline.size(); i++) {
             BlockPos support = centerline.get(i);
@@ -122,6 +124,55 @@ public final class RoadPlan {
             result.add(new BlockPos(p.getX(), a.getY() + yOffset, p.getZ()));
         }
         return result;
+    }
+
+    /**
+     * 液体 clearance 的几何重拟合：在中心线发生液体碰撞时，按水平面做 4 邻侧向偏移，
+     * 使整条通道体素与水/岩浆及其一格膨胀区分离。这里修改的是数学曲线，不是构建期特判。
+     */
+    private static List<BlockPos> rerouteLiquidClearance(ServerLevel level, List<BlockPos> original) {
+        List<BlockPos> route = new ArrayList<>(original);
+        for (int attempt = 0; attempt < 8; attempt++) {
+            BlockPos hit = firstLiquidConflict(level, route);
+            if (hit == null) return route;
+            int side = (attempt % 2 == 0) ? 1 : -1;
+            List<BlockPos> candidate = new ArrayList<>();
+            for (BlockPos p : route) {
+                if (Math.abs(p.getX() - hit.getX()) <= 1 && Math.abs(p.getZ() - hit.getZ()) <= 1) {
+                    candidate.add(p.offset(0, 0, side * (attempt / 2 + 1)));
+                } else {
+                    candidate.add(p);
+                }
+            }
+            if (isContinuous(candidate) && firstLiquidConflict(level, candidate) == null) return candidate;
+            route = candidate;
+        }
+        return route;
+    }
+
+    private static BlockPos firstLiquidConflict(ServerLevel level, List<BlockPos> route) {
+        for (BlockPos support : route) {
+            for (int dy = 0; dy <= 2; dy++) {
+                BlockPos cell = support.above(dy);
+                for (int dx = -1; dx <= 1; dx++) {
+                    for (int dz = -1; dz <= 1; dz++) {
+                        BlockPos around = cell.offset(dx, 0, dz);
+                        FluidState fluid = level.getFluidState(around);
+                        if (!fluid.isEmpty()) return support;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private static boolean isContinuous(List<BlockPos> route) {
+        for (int i = 1; i < route.size(); i++) {
+            BlockPos a = route.get(i - 1), b = route.get(i);
+            int horizontal = Math.abs(a.getX() - b.getX()) + Math.abs(a.getZ() - b.getZ());
+            if (horizontal != 1 || Math.abs(a.getY() - b.getY()) > 1) return false;
+        }
+        return true;
     }
 
     /** 生成 4 邻水平折线；detour 是侧向偏移量，增加约 2*detour 格长度。 */
