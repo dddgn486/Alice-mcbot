@@ -1,6 +1,7 @@
 package com.dddgn.alice.client.render;
 
 import com.dddgn.alice.client.ClientTargetState;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
@@ -55,10 +56,12 @@ public final class TargetOutlineRenderer {
         static RenderType create() {
             CompositeState state = CompositeState.builder()
                     .setShaderState(RENDERTYPE_LINES_SHADER)
-                    .setLineState(new LineStateShard(java.util.OptionalDouble.empty()))
+                    // 默认 1px 线条隔着多层方块几乎不可见；固定 3px 提高透视可读性。
+                    .setLineState(new LineStateShard(java.util.OptionalDouble.of(3.0D)))
                     .setLayeringState(NO_LAYERING)
-                    .setTransparencyState(NO_TRANSPARENCY)
-                    .setDepthTestState(NO_DEPTH_TEST) // 透视: 不做深度剔除
+                    .setTransparencyState(TRANSLUCENT_TRANSPARENCY)
+                    // 透视必须同时禁止深度测试与深度写入；COLOR_WRITE 保证不会污染后续世界渲染。
+                    .setDepthTestState(NO_DEPTH_TEST)
                     .setCullState(NO_CULL)
                     .setLightmapState(NO_LIGHTMAP)
                     .setWriteMaskState(COLOR_WRITE)
@@ -91,7 +94,8 @@ public final class TargetOutlineRenderer {
             if (ClientTargetState.blockPos() == null) {
                 return;
             }
-            box = new AABB(ClientTargetState.blockPos());
+            // 稍微外扩，避免线框与方块表面共面导致远距离闪烁/被吞掉。
+            box = new AABB(ClientTargetState.blockPos()).inflate(0.003D);
             r = 0.2F;
             g = 1.0F;
             b = 0.2F;
@@ -117,7 +121,13 @@ public final class TargetOutlineRenderer {
         MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
         VertexConsumer vc = buffers.getBuffer(OUTLINE_LINES);
         LevelRenderer.renderLineBox(pose, vc, box, r, g, b, pulse);
+        // RenderType 会在 endBatch 内设置状态；显式关闭深度测试作为 Forge 后处理状态的兜底，
+        // 并在结束后恢复，避免影响后续的云层/天气渲染。
+        RenderSystem.disableDepthTest();
+        RenderSystem.depthMask(false);
         buffers.endBatch(OUTLINE_LINES);
+        RenderSystem.depthMask(true);
+        RenderSystem.enableDepthTest();
 
         pose.popPose();
     }
