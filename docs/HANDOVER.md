@@ -22,14 +22,14 @@ GUI 背后操作序列化为语义接口（而非视觉点 GUI）。
 | 移动 | ✅ 位置步进（无重力，服务端不跑玩家物理）；`PathExecutor` 手动 setPos + setOnGround |
 | 寻路 | ⚠️ 当前 `pathing/` 是临时简化 A*，已加局部边界/节点上限但不具备 break-aware 成本；近距离不可达可能仍 `collect_no_path`。下一阶段按 `docs/BARITONE_PORTING_CHECKLIST.md` 移植 Baritone 1.20.1 movement/cost 核心 |
 | 挖掘 | ✅ `BotMiner`：站位候选逐个尝试（目标上方→下方优先）、视线无遮挡硬检查（防隔空挖）、挖掘时朝向目标（含 yHeadRot） |
-| 清障挖通道 | 🗄️ 旧方案已归档：`MineTask` 的“失败后猜 blocker 再重跑 A*”仅保留兼容/基线，不再用于道路蓝图；道路改由 `RoadPlan` 三维受约束最短路拟合 + `RoadBuilder` 逐单元执行。液体及一格 clearance 作为禁区；水平允许带侧格检查的 8 邻，对角拐角额外拓宽净空 |
+| 清障挖通道 | 🗄️ 旧方案已归档：`MineTask` 的“失败后猜 blocker 再重跑 A*”仅保留兼容/基线；道路改由 `RoadPlan` 三维受约束最短路拟合 + `RoadBuilder` 逐单元执行。液体及一格 clearance 是三维禁区；水平允许带侧格检查的 8 邻，对角拐角额外拓宽净空；纯竖直中心线移动禁用，垂直差不足时由水平绕行补坡 |
 | 拾取 | ⚠️ 已禁止未到物品格心时提前 `playerTouch`，并锁定原始目标方块来源产物；旧 `MineTask`/阶梯逻辑归档为旧方案，不再参与道路蓝图执行 |
 | 感知层 | ✅ `PerceptionSnapshot` 分类聚合摘要 + `ScopeBuffer` 任务作用域；`PerceptionProfile`（MINING/GENERAL） |
 | 决策层 | ✅ `AutoMineDecision` 最小规则：扫描匹配目标（标签或方块 ID）→ 取最近 → 执行 |
 | 接口扫描 | ✅ `InterfaceScanner`：Forge/Mek capability + Mek GUI 页签（红石/升级/安全/传输配置）统一扫描 |
 | 客户端高亮 | ✅ 任务目标透视高亮（自定义 RenderType 关深度测试） |
 | 世界存档 | ✅ bot 位置/主手物品存 SavedData，重启恢复；死亡反馈+清除 |
-| 测试工具 | ✅ `alice:target_selector`（贴图钻石斧）、钻石铲右键扫描、`/alice` 命令族 |
+| 测试工具 | ✅ `alice:target_selector`（钻石斧：右键挖掘、Shift+右键独立放置）、`alice:road_planner`（钻石锄：三维道路蓝图）、钻石铲右键扫描、`/alice` 命令族 |
 | 安全区机制 | ✅ `SafeZoneData` 持久化：区域（维度+中心+水平半径）/方块 ID/方块标签三类保护；所有 bot 破坏和清障均硬拦截，自动挖跳过受保护目标 |
 | 破坏安全策略 | ✅ `BlockBreakSafety` 是所有 bot 破坏/清障的统一门卫：明确脚下目标先换侧面站位；清障避开脚下承重、基岩/负硬度、黑曜石类高代价方块及 `SafeZoneData` 区域/方块/标签保护 |
 | 自动验收 | ⚠️ 已扩至 13 场景并加入 10/20/30 秒严格预算；最近实跑整体 FAIL（TEST5 超时、TEST6/7 `collect_no_path`、TEST9 场景污染），这些失败作为重构前基线保留 |

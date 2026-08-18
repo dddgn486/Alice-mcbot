@@ -16,7 +16,9 @@
 | **执行层** | `BotMiner` 挖掘状态机（站位候选逐个尝试、视线无遮挡硬检查、faceTarget 朝向）；`PathExecutor` 位置步进（服务端假人无客户端，手动移动+着地） |
 | **寻路** | A* 移植自 Baritone（`pathing/` 包，不依赖 Baritone 库）：跳跃语义（1 格高方块可越过、垂直爬升悬空过渡）、路径动态重规划 |
 | **接口扫描** | `InterfaceScanner`：capability + Mek GUI 页签统一扫描（物品/能量/流体/气体/红石/升级/安全/传输配置） |
-| **客户端测试效果** | 任务目标透视高亮（自定义 RenderType 关深度测试，方块=绿框、实体=红框） |
+| **客户端测试效果** | 任务目标透视高亮（自定义 RenderType 关深度测试，方块=绿框、实体=红框）；道路蓝图为蓝色外轮廓透视 |
+| **道路数学模型** | `alice:road_planner` 选择两端，三维体素最短路绕开水/岩浆及一格 clearance，支持受侧格检查的对角拐角、单格坡度和虚空支撑 |
+| **独立放置测试** | 目标指定器 Shift+右键选择点击面外侧格，由独立 `PlaceTask` 寻站位、验视线后放圆石，不调用道路构建 |
 
 ## 测试工具
 
@@ -28,8 +30,10 @@
 | `/alice protect ...` | 持久化安全区：保护区域、方块 ID 或 `#标签`，并可列出摘要 |
 | `/alice observe` | 感知摘要（挖矿视角） |
 | `/alice scan <x y z>` | 接口扫描 |
-| `/alice selftest` | 自动化验收（8 个场景，headless 用 `-Dalice.selftest.auto=true` 自动触发+关服） |
-| `alice:target_selector` | 目标指定器（贴图=钻石斧）：右键方块 → 派挖掘任务 |
+| `/alice selftest` | 自动化验收（13 个场景，headless 用 `-Dalice.selftest.auto=true` 自动触发+关服；单项严格 10/20/30 秒预算） |
+| `/alice road build` | 按当前道路数学蓝图逐水平单元搭建/清理，使用圆石并等待坠落稳定 |
+| `alice:road_planner` | 道路蓝图工具（贴图=钻石锄）：右键两端生成蓝色三维道路，Shift+右键重置 |
+| `alice:target_selector` | 目标指定器（贴图=钻石斧）：右键方块派挖掘；Shift+右键点击面外侧格派独立放置任务 |
 | 钻石铲右键 | 快捷接口扫描 |
 
 ## 构建

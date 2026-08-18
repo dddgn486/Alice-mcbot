@@ -155,6 +155,8 @@ public final class RoadPlan {
                 boolean sideBlocked = diagonal
                         && (forbidden(level, current.pos().offset(dx, 0, 0))
                         || forbidden(level, current.pos().offset(0, 0, dz)));
+                // 高度变化必须绑定水平移动；禁止在同一列连续升降形成终点竖井。
+                if (dy != 0 && dx == 0 && dz == 0) continue;
                 if (forbidden(level, next) || sideBlocked) {
                     continue;
                 }
