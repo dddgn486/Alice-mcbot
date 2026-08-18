@@ -14,16 +14,16 @@ GUI 背后操作序列化为语义接口（而非视觉点 GUI）。
 设计文档：`docs/AI_PLAYER_DESIGN.md`（架构总纲）· `docs/EXECUTION_FRAMEWORK.md`（执行层框架）·
 `docs/MEK_GUI_SEMANTICS.md`（Mek GUI→接口语义表）· `docs/AI_PLAYER_NOTES.md`（思考笔记）
 
-## 二、当前进度（2026-08-18，全部实测通过）
+## 二、当前进度（2026-08-18，旧路径基线已暴露问题）
 
 | 模块 | 状态 |
 |---|---|
 | 假人玩家化 | ✅ `BotPlayer` 继承 ServerPlayer + 伪造连接经 `PlayerList.placeNewPlayer` 注册（客户端可见、tick 无 NPE） |
 | 移动 | ✅ 位置步进（无重力，服务端不跑玩家物理）；`PathExecutor` 手动 setPos + setOnGround |
-| 寻路 | ✅ A* 移植自 Baritone（`pathing/` 包，不依赖 Baritone 库）：跳跃语义（1 格高可越过/垂直悬空过渡）、路径动态重规划（方块变化）、步数上限 512 |
+| 寻路 | ⚠️ 当前 `pathing/` 是临时简化 A*，已加局部边界/节点上限但不具备 break-aware 成本；近距离不可达可能仍 `collect_no_path`。下一阶段按 `docs/BARITONE_PORTING_CHECKLIST.md` 移植 Baritone 1.20.1 movement/cost 核心 |
 | 挖掘 | ✅ `BotMiner`：站位候选逐个尝试（目标上方→下方优先）、视线无遮挡硬检查（防隔空挖）、挖掘时朝向目标（含 yHeadRot） |
-| 清障挖通道 | ✅ `MineTask`：目标被挡时挖开视线遮挡（递归向 bot 靠近，深度 64 格）→ 再挖原目标 |
-| 拾取 | ✅ 扫描掉落物（getEntitiesOfClass）→ A* 走位 → 主动 playerTouch 兜底（原版触碰检测对假人失效）；高处掉落物等落地；过远/够不到则放弃（任务仍 done） |
+| 清障挖通道 | ⚠️ 旧 `MineTask` 仍是“失败后猜 blocker 再重跑 A*”的过渡逻辑；严格回归出现超时、清障副产物抢拾取目标。暂停继续加特判，等待 break-aware planner 替换 |
+| 拾取 | ⚠️ 已禁止未到物品格心时提前 `playerTouch`，并锁定原始目标方块来源产物；但旧路径仍可能 `collect_no_path`，严格回归已记录失败，下一阶段由 break-aware planner 接管下坑与返回 |
 | 感知层 | ✅ `PerceptionSnapshot` 分类聚合摘要 + `ScopeBuffer` 任务作用域；`PerceptionProfile`（MINING/GENERAL） |
 | 决策层 | ✅ `AutoMineDecision` 最小规则：扫描匹配目标（标签或方块 ID）→ 取最近 → 执行 |
 | 接口扫描 | ✅ `InterfaceScanner`：Forge/Mek capability + Mek GUI 页签（红石/升级/安全/传输配置）统一扫描 |
@@ -32,7 +32,7 @@ GUI 背后操作序列化为语义接口（而非视觉点 GUI）。
 | 测试工具 | ✅ `alice:target_selector`（贴图钻石斧）、钻石铲右键扫描、`/alice` 命令族 |
 | 安全区机制 | ✅ `SafeZoneData` 持久化：区域（维度+中心+水平半径）/方块 ID/方块标签三类保护；所有 bot 破坏和清障均硬拦截，自动挖跳过受保护目标 |
 | 破坏安全策略 | ✅ `BlockBreakSafety` 是所有 bot 破坏/清障的统一门卫：明确脚下目标先换侧面站位；清障避开脚下承重、基岩/负硬度、黑曜石类高代价方块及 `SafeZoneData` 区域/方块/标签保护 |
-| 自动验收 | ✅ `BotSelftest` 已扩至 13 场景（安全区、预置楼梯坑底拾取、脚下目标换位、挖侧向单格台阶拾取）；本会话 headless 实跑 TEST1–TEST13 全 PASS |
+| 自动验收 | ⚠️ 已扩至 13 场景并加入 10/20/30 秒严格预算；最近实跑整体 FAIL（TEST5 超时、TEST6/7 `collect_no_path`、TEST9 场景污染），这些失败作为重构前基线保留 |
 
 ## 三、验收标准（设计文档 §4.2，所有执行器必须满足）
 
@@ -83,7 +83,7 @@ headless 验收：`./gradlew runServer -Dalice.selftest.auto=true`（测完自�
 - **R15**：1×1 坑爬不出（A* 落脚格需下方实心）——已部分缓解（跳跃过渡），完全解决需跳跃模拟
 - **R16**：原版 Player.tick 触碰拾取对玩家化假人不触发 → `forcePickup` 主动 playerTouch 兜底
 - **坑**：掉落物有 pickupDelay；挖高处方块后掉落物在空中需等 onGround 再拾取，未落地前不要反复跑昂贵 A*
-- **拾取规则**：任务掉落物按 UUID 持续追踪并每 tick 刷新实体位置/三维距离；仅超过 64 格可放弃，近距离不可达必须失败；拾取目标粘性锁定，终点为实体实际脚位格。若下方掉落物无路可走，可最多挖 8 格“侧向斜下方”普通方块形成可逆单格台阶，再重规划；安全区/基岩/黑曜石类与脚下承重块不参与此清障
+- **拾取规则**：任务掉落物按 UUID 持续追踪并每 tick 刷新实体位置/三维距离；仅超过 64 格可放弃，近距离不可达必须失败；必须走到实体实际脚位格格心附近后才能 `playerTouch`，不得在坑边等待吸取。旧版最多挖 8 格侧向阶梯的逻辑仅作过渡基线，已知会 `collect_no_path`，不再继续堆特判
 - **移动边界**：不允许为拾取增加超过 1 格的自由下落；能下去不代表能返回，向下接近目标应由未来“阶梯挖掘 vs 搭路”规划处理
 - **破坏策略**：所有 bot 破坏先经 `BlockBreakSafety`；明确目标在脚下时禁止原地向下挖、必须换侧面站位；清障额外回避脚下承重块、基岩/负硬度方块、黑曜石等高代价方块与安全区
 - **坑**：`RenderType.lines()` 自带深度测试 → 透视高亮需自定义 RenderType（NO_DEPTH_TEST）
