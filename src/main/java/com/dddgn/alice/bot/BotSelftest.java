@@ -24,7 +24,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
  */
 public final class BotSelftest {
 
-    private enum Phase { IDLE, WAIT_START, SETUP, TEST1_RUN, TEST1_CHECK, TEST2_SETUP, TEST2_RUN, TEST2_CHECK, TEST3_SETUP, TEST3_RUN, TEST3_CHECK, TEST4_SETUP, TEST4_RUN, TEST4_CHECK, TEST5_SETUP, TEST5_RUN, TEST5_CHECK, TEST6_SETUP, TEST6_RUN, TEST6_CHECK, TEST7_SETUP, TEST7_RUN, TEST7_CHECK, TEST8_SETUP, TEST8_RUN, TEST8_CHECK, REPORT }
+    private enum Phase { IDLE, WAIT_START, SETUP, TEST1_RUN, TEST1_CHECK, TEST2_SETUP, TEST2_RUN, TEST2_CHECK, TEST3_SETUP, TEST3_RUN, TEST3_CHECK, TEST4_SETUP, TEST4_RUN, TEST4_CHECK, TEST5_SETUP, TEST5_RUN, TEST5_CHECK, TEST6_SETUP, TEST6_RUN, TEST6_CHECK, TEST7_SETUP, TEST7_RUN, TEST7_CHECK, TEST8_SETUP, TEST8_RUN, TEST8_CHECK, TEST9_SETUP, TEST9_RUN, TEST9_CHECK, REPORT }
 
     private static final int START_DELAY_TICKS = 100;
     private static final int PHASE_TIMEOUT_TICKS = 900;
@@ -43,6 +43,7 @@ public final class BotSelftest {
     private static BlockPos target6;
     private static BlockPos target7;
     private static BlockPos target8;
+    private static BlockPos target9;
     private static BlockPos test2MineStart;
     private static BlockPos test3MineStart;
     private static boolean test1Pass;
@@ -53,6 +54,7 @@ public final class BotSelftest {
     private static boolean test6Pass;
     private static boolean test7Pass;
     private static boolean test8Pass;
+    private static boolean test9Pass;
     private static String test1Detail = "";
     private static String test2Detail = "";
     private static String test3Detail = "";
@@ -61,6 +63,7 @@ public final class BotSelftest {
     private static String test6Detail = "";
     private static String test7Detail = "";
     private static String test8Detail = "";
+    private static String test9Detail = "";
 
     private BotSelftest() {
     }
@@ -93,6 +96,7 @@ public final class BotSelftest {
         test6Pass = false;
         test7Pass = false;
         test8Pass = false;
+        test9Pass = false;
         phase = Phase.WAIT_START;
         waitTicks = START_DELAY_TICKS;
         phaseTicks = 0;
@@ -176,6 +180,7 @@ public final class BotSelftest {
                 }
             }
             case TEST8_CHECK -> checkTest8();
+            case TEST9_SETUP -> setupTest9();
             default -> {
             }
         }
@@ -457,6 +462,41 @@ public final class BotSelftest {
         test8Detail = "blockGone=" + blockGone + " result=" + result
                 + (phaseTicks > PHASE_TIMEOUT_TICKS ? " (超时)" : "");
         BotLog.info("SELFTEST TEST8 {}", test8Pass ? "PASS" : "FAIL: " + test8Detail);
+        phase = Phase.TEST9_SETUP;
+        phaseTicks = 0;
+    }
+
+    /** TEST9:决策层目标匹配两种模式——标签(#coal_ores) + 方块 ID(stone)。
+     * 注意: stone 没有同名标签, 必须走方块模式——用户实测踩坑点。 */
+    private static void setupTest9() {
+        BlockPos surface = findSurface();
+        bot.teleportTo(surface.getX() + 0.5D, surface.getY(), surface.getZ() + 0.5D);
+        // 清理周围(前序测试残留会干扰最近目标判定, 如 TEST8 石墙)
+        for (int dx = -3; dx <= 3; dx++) {
+            for (int dz = -3; dz <= 3; dz++) {
+                for (int dy = 0; dy <= 2; dy++) {
+                    level.setBlock(surface.offset(dx, dy, dz), Blocks.AIR.defaultBlockState(), 3);
+                }
+            }
+        }
+        // 放目标: 煤炭矿石(属 #minecraft:coal_ores 标签) 在前方, 石头在旁边
+        level.setBlock(surface.offset(2, 0, 0), Blocks.COAL_ORE.defaultBlockState(), 3);
+        level.setBlock(surface.offset(0, 0, 2), Blocks.STONE.defaultBlockState(), 3);
+        BotLog.info("SELFTEST TEST9: 决策层匹配, bot={} 煤炭={} 石头={}",
+                surface.toShortString(), surface.offset(2, 0, 0).toShortString(),
+                surface.offset(0, 0, 2).toShortString());
+        // 标签模式: 应找到煤炭矿石
+        var tagTarget = com.dddgn.alice.decision.AutoMineDecision.pickNearest(
+                level, surface, net.minecraft.tags.BlockTags.COAL_ORES, 8);
+        // 方块模式: 应找到石头
+        var blockTarget = com.dddgn.alice.decision.AutoMineDecision.pickNearestBlock(
+                level, surface, Blocks.STONE, 8);
+        boolean tagOk = tagTarget != null && tagTarget.equals(surface.offset(2, 0, 0));
+        boolean blockOk = blockTarget != null && blockTarget.equals(surface.offset(0, 0, 2));
+        test9Pass = tagOk && blockOk;
+        test9Detail = "tag=" + (tagTarget == null ? "null" : tagTarget.toShortString())
+                + " block=" + (blockTarget == null ? "null" : blockTarget.toShortString());
+        BotLog.info("SELFTEST TEST9 {}", test9Pass ? "PASS" : "FAIL: " + test9Detail);
         phase = Phase.REPORT;
         report();
     }
@@ -472,10 +512,10 @@ public final class BotSelftest {
     }
 
     private static void report() {
-        boolean allPass = test1Pass && test2Pass && test3Pass && test4Pass && test5Pass && test6Pass && test7Pass && test8Pass;
-        BotLog.info("SELFTEST 结果: {} (TEST1={} TEST2={} TEST3={} TEST4={} TEST5={} TEST6={} TEST7={} TEST8={})",
+        boolean allPass = test1Pass && test2Pass && test3Pass && test4Pass && test5Pass && test6Pass && test7Pass && test8Pass && test9Pass;
+        BotLog.info("SELFTEST 结果: {} (TEST1={} TEST2={} TEST3={} TEST4={} TEST5={} TEST6={} TEST7={} TEST8={} TEST9={})",
                 allPass ? "PASS" : "FAIL",
-                test1Pass, test2Pass, test3Pass, test4Pass, test5Pass, test6Pass, test7Pass, test8Pass);
+                test1Pass, test2Pass, test3Pass, test4Pass, test5Pass, test6Pass, test7Pass, test8Pass, test9Pass);
         // headless 验收:测完自动关服(审查点 R8)
         server.halt(true);
     }

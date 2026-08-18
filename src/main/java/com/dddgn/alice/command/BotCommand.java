@@ -61,38 +61,63 @@ public final class BotCommand {
                                         StringArgumentType.getString(ctx, "tag"))))));
     }
 
-    /** 决策层最小规则:感知扫描最近的 <tag> 方块 → 自动挖(感知→决策→执行闭环)。 */
+    /** 决策层最小规则:感知扫描最近的 <tag 或 方块ID> → 自动挖(感知→决策→执行闭环)。
+     * 输入两种写法都支持:存在同名标签(如 minecraft:coal_ores)按标签匹配一组方块;
+     * 否则按方块 ID 精确匹配(如 minecraft:stone / stone)。 */
     private static int autoMine(CommandSourceStack source, String tagStr) {
         ServerLevel level = source.getLevel();
         if (tagStr.startsWith("#")) {
             tagStr = tagStr.substring(1);
         }
-        net.minecraft.tags.TagKey<net.minecraft.world.level.block.Block> tag;
+        net.minecraft.resources.ResourceLocation id;
         try {
-            tag = net.minecraft.tags.TagKey.create(
-                    net.minecraft.core.registries.Registries.BLOCK,
-                    new net.minecraft.resources.ResourceLocation(tagStr));
+            id = new net.minecraft.resources.ResourceLocation(tagStr);
         } catch (Exception e) {
-            source.sendFailure(Component.literal("[alice] 标签格式错误: " + tagStr));
+            source.sendFailure(Component.literal("[alice] 格式错误: " + tagStr));
             return 0;
         }
         BlockPos center = source.getEntity() != null
                 ? source.getEntity().blockPosition()
                 : new BlockPos(level.getSharedSpawnPos());
-        // 感知 + 决策
-        BlockPos target = com.dddgn.alice.decision.AutoMineDecision.pickNearest(
-                level, center, tag, com.dddgn.alice.decision.AutoMineDecision.SCAN_RADIUS);
+
+        // 先尝试按标签解析(存在同名标签才用标签模式)
+        net.minecraft.tags.TagKey<net.minecraft.world.level.block.Block> tag =
+                net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.BLOCK, id);
+        boolean tagExists = level.registryAccess()
+                .registryOrThrow(net.minecraft.core.registries.Registries.BLOCK)
+                .getTag(tag).isPresent();
+
+        BlockPos target;
+        String mode;
+        if (tagExists) {
+            target = com.dddgn.alice.decision.AutoMineDecision.pickNearest(
+                    level, center, tag, com.dddgn.alice.decision.AutoMineDecision.SCAN_RADIUS);
+            mode = "标签";
+        } else {
+            // 无同名标签 → 按方块 ID 精确匹配
+            net.minecraft.world.level.block.Block block =
+                    net.minecraftforge.registries.ForgeRegistries.BLOCKS.getValue(id);
+            if (block == null || block == net.minecraft.world.level.block.Blocks.AIR) {
+                source.sendFailure(Component.literal(
+                        "[alice] 既不是标签也不是方块 ID: " + tagStr));
+                return 0;
+            }
+            target = com.dddgn.alice.decision.AutoMineDecision.pickNearestBlock(
+                    level, center, block, com.dddgn.alice.decision.AutoMineDecision.SCAN_RADIUS);
+            mode = "方块";
+        }
+
         if (target == null) {
             source.sendFailure(Component.literal("[alice] 扫描半径 "
-                    + com.dddgn.alice.decision.AutoMineDecision.SCAN_RADIUS + " 内没找到 " + tag.location()));
+                    + com.dddgn.alice.decision.AutoMineDecision.SCAN_RADIUS
+                    + " 内没找到 " + tagStr + "(" + mode + ")"));
             return 0;
         }
         // 执行
         BotPlayer bot = BotManager.firstOrSpawn(level, target);
         BotManager.assignTarget(bot, com.dddgn.alice.task.TaskTarget.block(target));
-        source.sendSuccess(() -> Component.literal(
-                "[alice] " + bot.getName().getString() + " 自动挖矿: 最近 " + tag.location()
-                        + " @ " + target.toShortString()), false);
+        String resultMsg = "自动挖矿(" + mode + "): 最近 " + tagStr + " @ " + target.toShortString();
+        source.sendSuccess(() -> Component.literal("[alice] " + bot.getName().getString() + " " + resultMsg), false);
         return 1;
     }
 
