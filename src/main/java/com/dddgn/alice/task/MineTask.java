@@ -37,7 +37,8 @@ public final class MineTask implements Task {
     private static final int COLLECT_TIMEOUT_TICKS = 400;
     /** 只有掉落物实时离 bot 超过这个 3D 距离，才允许放弃它。 */
     private static final double MAX_COLLECT_DISTANCE = 64.0D;
-    private static final double PICKUP_DISTANCE_SQR = 2.25D;
+    /** 必须站到掉落物脚位格中心附近才允许拾取；不再以原版吸取半径代替寻路终点。 */
+    private static final double PICKUP_CENTER_TOLERANCE_SQR = 0.04D;
     /** 为拾取掉落物开凿的侧向单格阶梯上限；禁止竖直下挖与自由落下。 */
     private static final int MAX_COLLECT_STAIR_CLEARS = 8;
     /** 清障(挖通道)最大层数: 64 格长通道。用户会以「安全区」机制保护不想挖的
@@ -60,6 +61,10 @@ public final class MineTask implements Task {
     private final Set<UUID> abandonedItems = new HashSet<>();
     private UUID collectingItemId;
     private BlockPos collectingItemPos;
+    /** 原始目标产物的 UUID 队列；清障副产物不得抢占主目标。 */
+    private final Set<UUID> primaryItemIds = new HashSet<>();
+    private boolean primaryItemsCaptured;
+    private int primaryCaptureWait;
     /** 拾取下行阶梯当前正挖的侧向方块；完成后重新规划到掉落物。 */
     private BotMiner collectStairMiner;
     private int collectStairClears;
@@ -106,6 +111,7 @@ public final class MineTask implements Task {
                         return Status.RUNNING;
                     }
                     BotLog.info("挖掘阶段完成,进入拾取阶段: target={}", target.toShortString());
+                    // 拾取阶段按原始目标方块格锁定主产物，不依赖 ItemEntity 事件先后。
                     phase = Phase.COLLECTING;
                     return Status.RUNNING;
                 }
@@ -200,7 +206,29 @@ public final class MineTask implements Task {
         net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) bot.level();
         // 只追踪作用域开启后捕获的任务衍生掉落物。它们即使被水/爆炸推远也会持续存在，
         // 但绝不能把目标附近遗留物或其他玩家掉落物误当成本任务产物。
-        List<ItemEntity> items = scope.liveItems();
+        List<ItemEntity> allItems = scope.liveItems();
+        if (!primaryItemsCaptured) {
+            primaryCaptureWait++;
+            if (primaryCaptureWait < 3) {
+                return Status.RUNNING;
+            }
+            for (ItemEntity item : scope.liveItemsFromOrigin(target)) {
+                primaryItemIds.add(item.getUUID());
+            }
+            primaryItemsCaptured = true;
+            if (!primaryItemIds.isEmpty()) {
+                BotLog.info("主目标产物锁定: {} 个 origin={}",
+                        primaryItemIds.size(), target.toShortString());
+            }
+        }
+        List<ItemEntity> items = primaryItemIds.isEmpty()
+                ? allItems
+                : allItems.stream().filter(item -> primaryItemIds.contains(item.getUUID())).toList();
+        if (items.isEmpty() && !primaryItemIds.isEmpty()) {
+            // 主产物全部处理完，才允许清障副产物进入第二轮拾取。
+            primaryItemIds.clear();
+            items = allItems;
+        }
         if (items.isEmpty()) {
             BotLog.info("拾取阶段完成: 目标周围无掉落物(全部入包/消失)");
             return Status.DONE;
@@ -255,8 +283,12 @@ public final class MineTask implements Task {
                     String.format(java.util.Locale.ROOT, "%.1f", Math.sqrt(best)));
         }
 
-        // 已在拾取半径内:等原版 playerTouch 入包(掉落物有 pickupDelay,需等)
-        if (best <= PICKUP_DISTANCE_SQR) { // 真实实体距离 1.5 格
+        // 只有实际站到掉落物脚位格的格心附近才允许拾取；不能在坑边依赖 1.5 格吸取半径。
+        double centerDx = bot.getX() - (nearestPos.getX() + 0.5D);
+        double centerDz = bot.getZ() - (nearestPos.getZ() + 0.5D);
+        boolean atItemCellCenter = bot.blockPosition().equals(nearestPos)
+                && centerDx * centerDx + centerDz * centerDz <= PICKUP_CENTER_TOLERANCE_SQR;
+        if (atItemCellCenter) {
             collectWaitTicks++;
             // 主动拾取兜底:原版 Player.tick 触碰检测对玩家化假人偶发不触发,
             // 等待 20 tick 仍没入包则反射清 pickupDelay 后直接 playerTouch
@@ -320,10 +352,11 @@ public final class MineTask implements Task {
             // 拾取终点必须是掉落物实际脚位格，不能只到相邻格：坑底物品需要下坑。
             Goal.GoalBlock pickupGoal = new Goal.GoalBlock(stand);
             if (pickupGoal.isInGoal(bot.blockPosition())) {
-                collectWaitTicks++;
-                if (collectWaitTicks >= 20) {
-                    forcePickup(nearest);
-                }
+                // 已在同一方块格但未居中：执行一个只含终点的短路径，让 PathExecutor 对齐格心。
+                collectExecutor = new PathExecutor(bot, List.of(stand));
+                BotLog.info("拾取居中: item@{} bot=({}, {})", stand.toShortString(),
+                        String.format(java.util.Locale.ROOT, "%.2f", bot.getX()),
+                        String.format(java.util.Locale.ROOT, "%.2f", bot.getZ()));
                 return Status.RUNNING;
             }
             List<BlockPos> path = AStarPathfinder.computePath(level, bot.blockPosition(), pickupGoal);

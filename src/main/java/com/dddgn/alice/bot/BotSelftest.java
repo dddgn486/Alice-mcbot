@@ -32,11 +32,44 @@ public final class BotSelftest {
     private enum Phase { IDLE, WAIT_START, SETUP, TEST1_RUN, TEST1_CHECK, TEST2_SETUP, TEST2_RUN, TEST2_CHECK, TEST3_SETUP, TEST3_RUN, TEST3_CHECK, TEST4_SETUP, TEST4_RUN, TEST4_CHECK, TEST5_SETUP, TEST5_RUN, TEST5_CHECK, TEST6_SETUP, TEST6_RUN, TEST6_CHECK, TEST7_SETUP, TEST7_RUN, TEST7_CHECK, TEST8_SETUP, TEST8_RUN, TEST8_CHECK, TEST9_SETUP, TEST9_RUN, TEST9_CHECK, TEST10_SETUP, TEST10_RUN, TEST10_CHECK, TEST11_SETUP, TEST11_RUN, TEST11_CHECK, TEST12_SETUP, TEST12_RUN, TEST12_CHECK, TEST13_SETUP, TEST13_RUN, TEST13_CHECK, REPORT }
 
     private static final int START_DELAY_TICKS = 100;
-    private static final int PHASE_TIMEOUT_TICKS = 900;
+    private static final int SIMPLE_TIMEOUT_TICKS = 200;   // 10 秒
+    private static final int NORMAL_TIMEOUT_TICKS = 400;   // 20 秒
+    private static final int COMPLEX_TIMEOUT_TICKS = 600;  // 30 秒，任何单项不得超过
 
     private static Phase phase = Phase.IDLE;
+
+    private static int timeoutForPhase() {
+        return switch (phase) {
+            case TEST1_RUN, TEST2_RUN, TEST4_RUN, TEST5_RUN, TEST6_RUN, TEST7_RUN, TEST8_RUN,
+                    TEST9_RUN, TEST10_RUN -> SIMPLE_TIMEOUT_TICKS;
+            case TEST3_RUN, TEST11_RUN, TEST12_RUN, TEST13_RUN -> COMPLEX_TIMEOUT_TICKS;
+            default -> NORMAL_TIMEOUT_TICKS;
+        };
+    }
     private static int waitTicks;
     private static int phaseTicks;
+    private static int scenarioElapsedTicks;
+    private static boolean scenarioTimedOut;
+
+    /** 记录 RUN 阶段耗时；达到预算即结束且该项强制不合格，后续成功不能翻案。 */
+    private static boolean runFinished() {
+        boolean done = !BotManager.isBusy(bot);
+        int budget = timeoutForPhase();
+        if (!done && phaseTicks < budget) {
+            return false;
+        }
+        scenarioElapsedTicks = phaseTicks;
+        scenarioTimedOut = !done;
+        if (scenarioTimedOut) {
+            BotLog.warn("SELFTEST {} 超时: {} tick / {} tick ({} 秒)",
+                    phase, scenarioElapsedTicks, budget, budget / 20);
+        }
+        return true;
+    }
+
+    private static boolean withinBudget(boolean semanticPass) {
+        return semanticPass && !scenarioTimedOut;
+    }
     private static MinecraftServer server;
     private static ServerLevel level;
     private static BotPlayer bot;
@@ -137,6 +170,10 @@ public final class BotSelftest {
             return;
         }
         phaseTicks++;
+        if (phase.name().endsWith("_RUN") && phaseTicks == 1) {
+            scenarioTimedOut = false;
+            scenarioElapsedTicks = 0;
+        }
         switch (phase) {
             case WAIT_START -> {
                 if (--waitTicks <= 0) {
@@ -146,7 +183,7 @@ public final class BotSelftest {
             }
             case SETUP -> setup();
             case TEST1_RUN -> {
-                if (!BotManager.isBusy(bot) || phaseTicks > PHASE_TIMEOUT_TICKS) {
+                if (runFinished()) {
                     phase = Phase.TEST1_CHECK;
                     phaseTicks = 0;
                 }
@@ -154,7 +191,7 @@ public final class BotSelftest {
             case TEST1_CHECK -> checkTest1();
             case TEST2_SETUP -> setupTest2();
             case TEST2_RUN -> {
-                if (!BotManager.isBusy(bot) || phaseTicks > PHASE_TIMEOUT_TICKS) {
+                if (runFinished()) {
                     phase = Phase.TEST2_CHECK;
                     phaseTicks = 0;
                 }
@@ -162,7 +199,7 @@ public final class BotSelftest {
             case TEST2_CHECK -> checkTest2();
             case TEST3_SETUP -> setupTest3();
             case TEST3_RUN -> {
-                if (!BotManager.isBusy(bot) || phaseTicks > PHASE_TIMEOUT_TICKS) {
+                if (runFinished()) {
                     phase = Phase.TEST3_CHECK;
                     phaseTicks = 0;
                 }
@@ -170,7 +207,7 @@ public final class BotSelftest {
             case TEST3_CHECK -> checkTest3();
             case TEST4_SETUP -> setupTest4();
             case TEST4_RUN -> {
-                if (!BotManager.isBusy(bot) || phaseTicks > PHASE_TIMEOUT_TICKS) {
+                if (runFinished()) {
                     phase = Phase.TEST4_CHECK;
                     phaseTicks = 0;
                 }
@@ -178,7 +215,7 @@ public final class BotSelftest {
             case TEST4_CHECK -> checkTest4();
             case TEST5_SETUP -> setupTest5();
             case TEST5_RUN -> {
-                if (!BotManager.isBusy(bot) || phaseTicks > PHASE_TIMEOUT_TICKS) {
+                if (runFinished()) {
                     phase = Phase.TEST5_CHECK;
                     phaseTicks = 0;
                 }
@@ -186,7 +223,7 @@ public final class BotSelftest {
             case TEST5_CHECK -> checkTest5();
             case TEST6_SETUP -> setupTest6();
             case TEST6_RUN -> {
-                if (!BotManager.isBusy(bot) || phaseTicks > PHASE_TIMEOUT_TICKS) {
+                if (runFinished()) {
                     phase = Phase.TEST6_CHECK;
                     phaseTicks = 0;
                 }
@@ -194,7 +231,7 @@ public final class BotSelftest {
             case TEST6_CHECK -> checkTest6();
             case TEST7_SETUP -> setupTest7();
             case TEST7_RUN -> {
-                if (!BotManager.isBusy(bot) || phaseTicks > PHASE_TIMEOUT_TICKS) {
+                if (runFinished()) {
                     phase = Phase.TEST7_CHECK;
                     phaseTicks = 0;
                 }
@@ -202,7 +239,7 @@ public final class BotSelftest {
             case TEST7_CHECK -> checkTest7();
             case TEST8_SETUP -> setupTest8();
             case TEST8_RUN -> {
-                if (!BotManager.isBusy(bot) || phaseTicks > PHASE_TIMEOUT_TICKS) {
+                if (runFinished()) {
                     phase = Phase.TEST8_CHECK;
                     phaseTicks = 0;
                 }
@@ -211,7 +248,7 @@ public final class BotSelftest {
             case TEST9_SETUP -> setupTest9();
             case TEST10_SETUP -> setupTest10();
             case TEST10_RUN -> {
-                if (!BotManager.isBusy(bot) || phaseTicks > PHASE_TIMEOUT_TICKS) {
+                if (runFinished()) {
                     phase = Phase.TEST10_CHECK;
                     phaseTicks = 0;
                 }
@@ -229,7 +266,7 @@ public final class BotSelftest {
                     pitDropSpawned = true;
                     BotLog.info("SELFTEST TEST11: 作用域内生成坑底掉落物 {}", pitDropId);
                 }
-                if (!BotManager.isBusy(bot) || phaseTicks > PHASE_TIMEOUT_TICKS) {
+                if (runFinished()) {
                     phase = Phase.TEST11_CHECK;
                     phaseTicks = 0;
                 }
@@ -237,7 +274,7 @@ public final class BotSelftest {
             case TEST11_CHECK -> checkTest11();
             case TEST12_SETUP -> setupTest12();
             case TEST12_RUN -> {
-                if (!BotManager.isBusy(bot) || phaseTicks > PHASE_TIMEOUT_TICKS) {
+                if (runFinished()) {
                     phase = Phase.TEST12_CHECK;
                     phaseTicks = 0;
                 }
@@ -254,7 +291,7 @@ public final class BotSelftest {
                     stairDropId = item.getUUID();
                     stairDropSpawned = true;
                 }
-                if (!BotManager.isBusy(bot) || phaseTicks > PHASE_TIMEOUT_TICKS) {
+                if (runFinished()) {
                     phase = Phase.TEST13_CHECK;
                     phaseTicks = 0;
                 }
@@ -296,9 +333,9 @@ public final class BotSelftest {
     private static void checkTest1() {
         boolean blockGone = level.getBlockState(target1).isAir();
         String result = BotManager.lastTaskResult(bot);
-        test1Pass = blockGone && "done".equals(result);
+        test1Pass = withinBudget(blockGone && "done".equals(result));
         test1Detail = "blockGone=" + blockGone + " result=" + result
-                + (phaseTicks > PHASE_TIMEOUT_TICKS ? " (超时)" : "");
+                + (scenarioTimedOut ? " (超时 " + scenarioElapsedTicks + " tick)" : " (耗时 " + scenarioElapsedTicks + " tick)");
         BotLog.info("SELFTEST TEST1 {}", test1Pass ? "PASS" : "FAIL: " + test1Detail);
         phase = Phase.TEST2_SETUP;
         phaseTicks = 0;
@@ -329,10 +366,10 @@ public final class BotSelftest {
         test2MineStart = BotManager.lastMineStartPos(bot);
         // PASS = 目标被挖掉(隔空挖由 BotMiner 每次挖掘前的视线检查硬保证拦截,
         // 清障挖开隔层后站高处挖低处也是合法的) 或 拒绝隔空挖(failed, 合法)。
-        test2Pass = blockGone || result.startsWith("failed:");
+        test2Pass = withinBudget(blockGone || result.startsWith("failed:"));
         test2Detail = "blockGone=" + blockGone + " result=" + result
                 + " mineStart=" + (test2MineStart == null ? "null" : test2MineStart.toShortString())
-                + (phaseTicks > PHASE_TIMEOUT_TICKS ? " (超时)" : "");
+                + (scenarioTimedOut ? " (超时 " + scenarioElapsedTicks + " tick)" : " (耗时 " + scenarioElapsedTicks + " tick)");
         BotLog.info("SELFTEST TEST2 {}", test2Pass ? "PASS" : "FAIL: " + test2Detail);
         phase = Phase.TEST3_SETUP;
         phaseTicks = 0;
@@ -368,10 +405,10 @@ public final class BotSelftest {
         test3MineStart = BotManager.lastMineStartPos(bot);
         // PASS = 挖掉 + 任务成功 + 挖掘开始位置不是目标本身(从旁边挖)
         boolean minedFromTarget = test3MineStart != null && test3MineStart.equals(target3);
-        test3Pass = blockGone && "done".equals(result) && !minedFromTarget;
+        test3Pass = withinBudget(blockGone && "done".equals(result) && !minedFromTarget);
         test3Detail = "blockGone=" + blockGone + " result=" + result
                 + " mineStart=" + (test3MineStart == null ? "null" : test3MineStart.toShortString())
-                + (phaseTicks > PHASE_TIMEOUT_TICKS ? " (超时)" : "");
+                + (scenarioTimedOut ? " (超时 " + scenarioElapsedTicks + " tick)" : " (耗时 " + scenarioElapsedTicks + " tick)");
         BotLog.info("SELFTEST TEST3 {}", test3Pass ? "PASS" : "FAIL: " + test3Detail);
         phase = Phase.TEST4_SETUP;
         phaseTicks = 0;
@@ -403,10 +440,10 @@ public final class BotSelftest {
         // 拾取可能因「1×1 坑爬不出」失败(collect_no_path,A* 要求落脚格下方实心,
         // 已知限制 R15),此时挖掘本身已成功,不判失败。
         boolean collectLimited = result.startsWith("failed:collect");
-        test4Pass = blockGone && ("done".equals(result) || collectLimited);
+        test4Pass = withinBudget(blockGone && ("done".equals(result) || collectLimited));
         test4Detail = "blockGone=" + blockGone + " result=" + result
                 + (collectLimited ? " (拾取受限R15)" : "")
-                + (phaseTicks > PHASE_TIMEOUT_TICKS ? " (超时)" : "");
+                + (scenarioTimedOut ? " (超时 " + scenarioElapsedTicks + " tick)" : " (耗时 " + scenarioElapsedTicks + " tick)");
         BotLog.info("SELFTEST TEST4 {}", test4Pass ? "PASS" : "FAIL: " + test4Detail);
         phase = Phase.TEST5_SETUP;
         phaseTicks = 0;
@@ -440,9 +477,9 @@ public final class BotSelftest {
     private static void checkTest5() {
         boolean blockGone = level.getBlockState(target5).isAir();
         String result = BotManager.lastTaskResult(bot);
-        test5Pass = blockGone && "done".equals(result);
+        test5Pass = withinBudget(blockGone && "done".equals(result));
         test5Detail = "blockGone=" + blockGone + " result=" + result
-                + (phaseTicks > PHASE_TIMEOUT_TICKS ? " (超时)" : "");
+                + (scenarioTimedOut ? " (超时 " + scenarioElapsedTicks + " tick)" : " (耗时 " + scenarioElapsedTicks + " tick)");
         BotLog.info("SELFTEST TEST5 {}", test5Pass ? "PASS" : "FAIL: " + test5Detail);
         phase = Phase.TEST6_SETUP;
         phaseTicks = 0;
@@ -469,9 +506,9 @@ public final class BotSelftest {
     private static void checkTest6() {
         boolean blockGone = level.getBlockState(target6).isAir();
         String result = BotManager.lastTaskResult(bot);
-        test6Pass = blockGone && "done".equals(result);
+        test6Pass = withinBudget(blockGone && "done".equals(result));
         test6Detail = "blockGone=" + blockGone + " result=" + result
-                + (phaseTicks > PHASE_TIMEOUT_TICKS ? " (超时)" : "");
+                + (scenarioTimedOut ? " (超时 " + scenarioElapsedTicks + " tick)" : " (耗时 " + scenarioElapsedTicks + " tick)");
         BotLog.info("SELFTEST TEST6 {}", test6Pass ? "PASS" : "FAIL: " + test6Detail);
         phase = Phase.TEST7_SETUP;
         phaseTicks = 0;
@@ -502,9 +539,9 @@ public final class BotSelftest {
     private static void checkTest7() {
         boolean blockGone = level.getBlockState(target7).isAir();
         String result = BotManager.lastTaskResult(bot);
-        test7Pass = blockGone && "done".equals(result);
+        test7Pass = withinBudget(blockGone && "done".equals(result));
         test7Detail = "blockGone=" + blockGone + " result=" + result
-                + (phaseTicks > PHASE_TIMEOUT_TICKS ? " (超时)" : "");
+                + (scenarioTimedOut ? " (超时 " + scenarioElapsedTicks + " tick)" : " (耗时 " + scenarioElapsedTicks + " tick)");
         BotLog.info("SELFTEST TEST7 {}", test7Pass ? "PASS" : "FAIL: " + test7Detail);
         phase = Phase.TEST8_SETUP;
         phaseTicks = 0;
@@ -537,9 +574,9 @@ public final class BotSelftest {
     private static void checkTest8() {
         boolean blockGone = level.getBlockState(target8).isAir();
         String result = BotManager.lastTaskResult(bot);
-        test8Pass = blockGone && "done".equals(result);
+        test8Pass = withinBudget(blockGone && "done".equals(result));
         test8Detail = "blockGone=" + blockGone + " result=" + result
-                + (phaseTicks > PHASE_TIMEOUT_TICKS ? " (超时)" : "");
+                + (scenarioTimedOut ? " (超时 " + scenarioElapsedTicks + " tick)" : " (耗时 " + scenarioElapsedTicks + " tick)");
         BotLog.info("SELFTEST TEST8 {}", test8Pass ? "PASS" : "FAIL: " + test8Detail);
         phase = Phase.TEST9_SETUP;
         phaseTicks = 0;
@@ -608,9 +645,9 @@ public final class BotSelftest {
         boolean wallIntact = level.getBlockState(protectedWall).is(Blocks.STONE)
                 && level.getBlockState(protectedWall.above()).is(Blocks.STONE);
         String result = BotManager.lastTaskResult(bot);
-        test10Pass = wallIntact && "failed:protected_area".equals(result);
+        test10Pass = withinBudget(wallIntact && "failed:protected_area".equals(result));
         test10Detail = "wallIntact=" + wallIntact + " result=" + result
-                + (phaseTicks > PHASE_TIMEOUT_TICKS ? " (超时)" : "");
+                + (scenarioTimedOut ? " (超时 " + scenarioElapsedTicks + " tick)" : " (耗时 " + scenarioElapsedTicks + " tick)");
         BotLog.info("SELFTEST TEST10 {}", test10Pass ? "PASS" : "FAIL: " + test10Detail);
         phase = Phase.TEST11_SETUP;
         phaseTicks = 0;
@@ -651,7 +688,7 @@ public final class BotSelftest {
                 item -> item.getUUID().equals(pitDropId)).stream().findFirst().orElse(null);
         boolean collected = pitDropSpawned && (pitDrop == null || pitDrop.isRemoved() || pitDrop.getItem().isEmpty());
         String result = BotManager.lastTaskResult(bot);
-        test11Pass = collected && "done".equals(result);
+        test11Pass = withinBudget(collected && "done".equals(result));
         test11Detail = "pit=" + pitDropPos.toShortString() + " collected=" + collected + " result=" + result;
         BotLog.info("SELFTEST TEST11 {}", test11Pass ? "PASS" : "FAIL: " + test11Detail);
         phase = Phase.TEST12_SETUP;
@@ -682,7 +719,7 @@ public final class BotSelftest {
                 && underfootMineStart.getZ() == underfootTarget.getZ()
                 && underfootMineStart.getY() == underfootTarget.getY() + 1);
         String result = BotManager.lastTaskResult(bot);
-        test12Pass = blockGone && movedAside && "done".equals(result);
+        test12Pass = withinBudget(blockGone && movedAside && "done".equals(result));
         test12Detail = "blockGone=" + blockGone + " movedAside=" + movedAside
                 + " mineStart=" + (underfootMineStart == null ? "null" : underfootMineStart.toShortString())
                 + " result=" + result;
@@ -740,7 +777,7 @@ public final class BotSelftest {
         boolean stairCleared = level.getBlockState(stairClearBlock).isAir();
         boolean underfootIntact = !level.getBlockState(stairInitialUnderfoot).isAir();
         String result = BotManager.lastTaskResult(bot);
-        test13Pass = collected && stairCleared && underfootIntact && "done".equals(result);
+        test13Pass = withinBudget(collected && stairCleared && underfootIntact && "done".equals(result));
         test13Detail = "collected=" + collected + " stairCleared=" + stairCleared
                 + " underfootIntact=" + underfootIntact + " result=" + result;
         BotLog.info("SELFTEST TEST13 {}", test13Pass ? "PASS" : "FAIL: " + test13Detail);

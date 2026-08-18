@@ -18,8 +18,10 @@ import java.util.Map;
  */
 public final class AStarPathfinder {
 
-    private static final int MAX_NODES = 40_000;
-    private static final int MAX_MOVES = 512;
+    /** 统一搜索硬上限；局部边界优先防止近距离不可达目标扩展整张世界。 */
+    private static final int MAX_NODES = 12_000;
+    private static final int MAX_MOVES = 256;
+    private static final int SEARCH_MARGIN = 12;
 
     private AStarPathfinder() {
     }
@@ -31,6 +33,14 @@ public final class AStarPathfinder {
      */
     public static List<BlockPos> computePath(ServerLevel level, BlockPos start, Goal goal) {
         Map<BlockPos, PathNode> closed = new HashMap<>();
+        BlockPos goalHint = goal instanceof Goal.GoalBlock block ? block.pos()
+                : goal instanceof Goal.GoalNear near ? near.pos() : start;
+        int minX = Math.min(start.getX(), goalHint.getX()) - SEARCH_MARGIN;
+        int maxX = Math.max(start.getX(), goalHint.getX()) + SEARCH_MARGIN;
+        int minY = Math.max(level.getMinBuildHeight(), Math.min(start.getY(), goalHint.getY()) - SEARCH_MARGIN);
+        int maxY = Math.min(level.getMaxBuildHeight() - 1, Math.max(start.getY(), goalHint.getY()) + SEARCH_MARGIN);
+        int minZ = Math.min(start.getZ(), goalHint.getZ()) - SEARCH_MARGIN;
+        int maxZ = Math.max(start.getZ(), goalHint.getZ()) + SEARCH_MARGIN;
         Map<BlockPos, PathNode> openIndex = new HashMap<>();
         OpenSet openSet = new OpenSet();
 
@@ -50,7 +60,8 @@ public final class AStarPathfinder {
             if (current.moves >= MAX_MOVES) {
                 continue;
             }
-            expand(level, current, goal, closed, openIndex, openSet);
+            expand(level, current, goal, closed, openIndex, openSet,
+                    minX, maxX, minY, maxY, minZ, maxZ);
             if (closed.size() > MAX_NODES) {
                 BotLog.warn("寻路中止: 节点超限 {}", closed.size());
                 break;
@@ -61,10 +72,15 @@ public final class AStarPathfinder {
 
     private static void expand(ServerLevel level, PathNode current, Goal goal,
                                Map<BlockPos, PathNode> closed,
-                               Map<BlockPos, PathNode> openIndex, OpenSet openSet) {
+                               Map<BlockPos, PathNode> openIndex, OpenSet openSet,
+                               int minX, int maxX, int minY, int maxY, int minZ, int maxZ) {
         int x = current.pos.getX();
         int y = current.pos.getY();
         int z = current.pos.getZ();
+        // 当前临时 A* 必须局限在起终点附近；成熟 break-aware planner 接管后由毫秒预算替代。
+        if (x <= minX || x >= maxX || y <= minY || y >= maxY || z <= minZ || z >= maxZ) {
+            return;
+        }
 
         for (int dx = -1; dx <= 1; dx++) {
             for (int dz = -1; dz <= 1; dz++) {
@@ -72,33 +88,42 @@ public final class AStarPathfinder {
                     continue;
                 }
                 BlockPos flat = new BlockPos(x + dx, y, z + dz);
-                tryMove(level, current, goal, closed, openIndex, openSet, flat, MovementType.TRAVERSE);
+                tryMove(level, current, goal, closed, openIndex, openSet, flat, MovementType.TRAVERSE,
+                        minX, maxX, minY, maxY, minZ, maxZ);
 
                 BlockPos ascend = new BlockPos(x + dx, y + 1, z + dz);
-                tryMove(level, current, goal, closed, openIndex, openSet, ascend, MovementType.ASCEND);
+                tryMove(level, current, goal, closed, openIndex, openSet, ascend, MovementType.ASCEND,
+                        minX, maxX, minY, maxY, minZ, maxZ);
 
                 BlockPos descend = new BlockPos(x + dx, y - 1, z + dz);
-                tryMove(level, current, goal, closed, openIndex, openSet, descend, MovementType.DESCEND);
+                tryMove(level, current, goal, closed, openIndex, openSet, descend, MovementType.DESCEND,
+                        minX, maxX, minY, maxY, minZ, maxZ);
             }
         }
         // 向下挖一格(自身脚下)
+        // 临时寻路器不允许自行挖脚下；正式 break-aware planner 接管后仍保持 allowDownward=false。
+        // 这里只保留已有支撑的单格 DESCEND，由侧向阶梯/已开洞提供入口。
         BlockPos down = new BlockPos(x, y - 1, z);
-        tryMove(level, current, goal, closed, openIndex, openSet, down, MovementType.DOWNWARD);
+        if (level.getBlockState(down).isAir()) {
+            tryMove(level, current, goal, closed, openIndex, openSet, down, MovementType.DOWNWARD,
+                    minX, maxX, minY, maxY, minZ, maxZ);
+        }
     }
 
     private static void tryMove(ServerLevel level, PathNode current, Goal goal,
                                 Map<BlockPos, PathNode> closed,
                                 Map<BlockPos, PathNode> openIndex, OpenSet openSet,
-                                BlockPos to, MovementType type) {
-        if (closed.containsKey(to)) {
+                                BlockPos to, MovementType type,
+                                int minX, int maxX, int minY, int maxY, int minZ, int maxZ) {
+        if (to.getX() < minX || to.getX() > maxX || to.getY() < minY || to.getY() > maxY
+                || to.getZ() < minZ || to.getZ() > maxZ || closed.containsKey(to)) {
             return;
         }
         boolean valid = switch (type) {
             case TRAVERSE -> MovementHelper.canTraverse(level, current.pos, to);
             case ASCEND -> MovementHelper.canAscend(level, current.pos, to);
             case DESCEND -> MovementHelper.canDescend(level, current.pos, to);
-            case DOWNWARD -> MovementHelper.canDescend(level, current.pos, to)
-                    && !level.getBlockState(current.pos.below()).isAir();
+            case DOWNWARD -> MovementHelper.canDescend(level, current.pos, to);
         };
         if (!valid) {
             return;

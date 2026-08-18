@@ -36,6 +36,7 @@ public final class ScopeBuffer {
     private int radius;
     private boolean active;
     private final List<ItemEntity> spawnedItems = new ArrayList<>();
+    private final java.util.Map<java.util.UUID, BlockPos> itemOrigins = new java.util.HashMap<>();
     private final List<BlockPos> brokenBlocks = new ArrayList<>();
 
     /** 注册监听区间(重复调用先结束旧区间)。 */
@@ -53,6 +54,7 @@ public final class ScopeBuffer {
             ACTIVE.remove(this);
             active = false;
             spawnedItems.clear();
+            itemOrigins.clear();
             brokenBlocks.clear();
         }
     }
@@ -63,8 +65,22 @@ public final class ScopeBuffer {
 
     /** 作用域内仍存活、仍有内容的掉落物(每次调用清理已消失的)。 */
     public List<ItemEntity> liveItems() {
+        return liveItemsFrom(0);
+    }
+
+    /** 返回指定事件序号之后生成的存活掉落物，用于区分主目标产物与清障副产物。 */
+    public List<ItemEntity> liveItemsFrom(int index) {
         spawnedItems.removeIf(item -> !item.isAlive() || item.getItem().isEmpty());
-        return List.copyOf(spawnedItems);
+        int from = Math.max(0, Math.min(index, spawnedItems.size()));
+        return List.copyOf(spawnedItems.subList(from, spawnedItems.size()));
+    }
+
+    /** 首次捕获时来源方块格等于 origin 的存活掉落物。 */
+    public List<ItemEntity> liveItemsFromOrigin(BlockPos origin) {
+        spawnedItems.removeIf(item -> !item.isAlive() || item.getItem().isEmpty());
+        return spawnedItems.stream()
+                .filter(item -> origin.equals(itemOrigins.get(item.getUUID())))
+                .toList();
     }
 
     /** 作用域内被破坏的方块坐标(含 bot 自己挖的,外部扰动感知用)。 */
@@ -84,6 +100,7 @@ public final class ScopeBuffer {
             for (ScopeBuffer scope : ACTIVE) {
                 if (scope.inScope(item.blockPosition())) {
                     scope.spawnedItems.add(item);
+                    scope.itemOrigins.put(item.getUUID(), item.blockPosition().immutable());
                     BotLog.info("作用域捕捉掉落物: {} x{} y{} z{}",
                             item.getItem().getItem(), item.getBlockX(), item.getBlockY(), item.getBlockZ());
                 }
