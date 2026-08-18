@@ -38,6 +38,8 @@ public final class MineTask implements Task {
     /** 只有掉落物实时离 bot 超过这个 3D 距离，才允许放弃它。 */
     private static final double MAX_COLLECT_DISTANCE = 64.0D;
     private static final double PICKUP_DISTANCE_SQR = 2.25D;
+    /** 为拾取掉落物开凿的侧向单格阶梯上限；禁止竖直下挖与自由落下。 */
+    private static final int MAX_COLLECT_STAIR_CLEARS = 8;
     /** 清障(挖通道)最大层数: 64 格长通道。用户会以「安全区」机制保护不想挖的
      * 方块, 此处不再保守限深(原 8 格)。 */
     private static final int MAX_CLEAR_DEPTH = 64;
@@ -58,6 +60,9 @@ public final class MineTask implements Task {
     private final Set<UUID> abandonedItems = new HashSet<>();
     private UUID collectingItemId;
     private BlockPos collectingItemPos;
+    /** 拾取下行阶梯当前正挖的侧向方块；完成后重新规划到掉落物。 */
+    private BotMiner collectStairMiner;
+    private int collectStairClears;
     private String failureReason = "";
 
     public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope) {
@@ -242,6 +247,8 @@ public final class MineTask implements Task {
             collectingItemId = nearest.getUUID();
             collectingItemPos = nearestPos;
             collectExecutor = null;
+            collectStairMiner = null;
+            collectStairClears = 0;
             collectWaitTicks = 0;
             collectRetries = 0;
             BotLog.info("拾取目标刷新: item@{} 三维距离 {} 格", nearestPos.toShortString(),
@@ -280,6 +287,24 @@ public final class MineTask implements Task {
             return Status.RUNNING;
         }
 
+        // 拾取下行阶梯的单动作状态机：只挖侧向斜下方方块，完成后回到普通 A*。
+        if (collectStairMiner != null) {
+            BotMiner.Status stairStatus = collectStairMiner.tick();
+            if (stairStatus == BotMiner.Status.DONE) {
+                collectStairMiner = null;
+                collectExecutor = null;
+                BotLog.info("拾取阶梯清障完成: 重新规划至掉落物 {}", nearest.blockPosition().toShortString());
+                return Status.RUNNING;
+            }
+            if (stairStatus == BotMiner.Status.FAILED) {
+                failureReason = "collect_stair_failed:" + collectStairMiner.failureReason();
+                BotLog.warn("拾取阶梯清障失败: item@{} reason={}",
+                        nearest.blockPosition().toShortString(), failureReason);
+                return Status.FAILED;
+            }
+            return Status.RUNNING;
+        }
+
         // 尚未落地时实体位置还在变化，不做昂贵且注定失效的 A*；等稳定后再规划。
         if (!nearest.onGround()) {
             if (collectElapsed % 20 == 0) {
@@ -307,6 +332,15 @@ public final class MineTask implements Task {
                 path = AStarPathfinder.computePath(level, bot.blockPosition(), new Goal.GoalBlock(stand.above()));
             }
             if (path.isEmpty()) {
+                BlockPos stairBlocker = findCollectStairBlocker(level, stand);
+                if (stairBlocker != null) {
+                    collectStairClears++;
+                    collectStairMiner = new BotMiner(bot, stairBlocker);
+                    BotLog.info("拾取阶梯清障({}/{}): item@{} 先挖侧向方块 {}",
+                            collectStairClears, MAX_COLLECT_STAIR_CLEARS,
+                            nearest.blockPosition().toShortString(), stairBlocker.toShortString());
+                    return Status.RUNNING;
+                }
                 failureReason = "collect_no_path";
                 BotLog.warn("拾取失败: item@{} 三维距离 {} 格 reason={} (近距离产物未入包)",
                         nearest.blockPosition().toShortString(),
@@ -337,7 +371,49 @@ public final class MineTask implements Task {
         return Status.RUNNING;
     }
 
-    /** 反射读取私有字段 pickupDelay(诊断用)。 */
+    /**
+     * 普通路径到较低掉落物失败时，寻找一个可安全开凿的“侧向单格下行”方块。
+     * 只允许挖 bot 侧前方的 y-1 脚位格：挖完后 A* 的 DESCEND 可合法走入；
+     * 当前脚下方块绝不在候选中，因此不会形成竖井或自由落下。
+     */
+    private BlockPos findCollectStairBlocker(net.minecraft.server.level.ServerLevel level, BlockPos itemStand) {
+        if (collectStairClears >= MAX_COLLECT_STAIR_CLEARS || itemStand.getY() >= bot.blockPosition().getY()) {
+            return null;
+        }
+        int dxToItem = Integer.compare(itemStand.getX(), bot.blockPosition().getX());
+        int dzToItem = Integer.compare(itemStand.getZ(), bot.blockPosition().getZ());
+        List<BlockPos> candidates = new java.util.ArrayList<>();
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if (dx == 0 && dz == 0) {
+                    continue; // 铁律：不挖自己脚下
+                }
+                candidates.add(bot.blockPosition().offset(dx, -1, dz));
+            }
+        }
+        candidates.sort(java.util.Comparator.comparingInt(pos ->
+                Math.abs(pos.getX() - bot.blockPosition().getX() - dxToItem)
+                        + Math.abs(pos.getZ() - bot.blockPosition().getZ() - dzToItem)));
+        for (BlockPos candidate : candidates) {
+            // 该格被挖掉后必须能作为脚位；头部已经净空，下面必须有稳定支撑。
+            if (level.getBlockState(candidate).isAir()
+                    || !level.getBlockState(candidate.above()).getCollisionShape(level, candidate.above()).isEmpty()
+                    || level.getBlockState(candidate.below()).getCollisionShape(level, candidate.below()).isEmpty()
+                    || !level.getBlockState(candidate).getFluidState().isEmpty()
+                    || !level.getBlockState(candidate.below()).getFluidState().isEmpty()) {
+                continue;
+            }
+            String refusal = BlockBreakSafety.clearingRefusal(bot, candidate);
+            if (refusal != null) {
+                BotLog.info("拾取阶梯避障: 不挖 {} reason={}", candidate.toShortString(), refusal);
+                continue;
+            }
+            return candidate;
+        }
+        return null;
+    }
+
+    /** 反射读取私有字段 pickupDelay(诊断用). */
     private static int readPickupDelay(ItemEntity item) {
         try {
             java.lang.reflect.Field f = ItemEntity.class.getDeclaredField("pickupDelay");

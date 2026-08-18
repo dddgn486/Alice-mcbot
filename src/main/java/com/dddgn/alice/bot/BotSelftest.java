@@ -29,7 +29,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
  */
 public final class BotSelftest {
 
-    private enum Phase { IDLE, WAIT_START, SETUP, TEST1_RUN, TEST1_CHECK, TEST2_SETUP, TEST2_RUN, TEST2_CHECK, TEST3_SETUP, TEST3_RUN, TEST3_CHECK, TEST4_SETUP, TEST4_RUN, TEST4_CHECK, TEST5_SETUP, TEST5_RUN, TEST5_CHECK, TEST6_SETUP, TEST6_RUN, TEST6_CHECK, TEST7_SETUP, TEST7_RUN, TEST7_CHECK, TEST8_SETUP, TEST8_RUN, TEST8_CHECK, TEST9_SETUP, TEST9_RUN, TEST9_CHECK, TEST10_SETUP, TEST10_RUN, TEST10_CHECK, TEST11_SETUP, TEST11_RUN, TEST11_CHECK, TEST12_SETUP, TEST12_RUN, TEST12_CHECK, REPORT }
+    private enum Phase { IDLE, WAIT_START, SETUP, TEST1_RUN, TEST1_CHECK, TEST2_SETUP, TEST2_RUN, TEST2_CHECK, TEST3_SETUP, TEST3_RUN, TEST3_CHECK, TEST4_SETUP, TEST4_RUN, TEST4_CHECK, TEST5_SETUP, TEST5_RUN, TEST5_CHECK, TEST6_SETUP, TEST6_RUN, TEST6_CHECK, TEST7_SETUP, TEST7_RUN, TEST7_CHECK, TEST8_SETUP, TEST8_RUN, TEST8_CHECK, TEST9_SETUP, TEST9_RUN, TEST9_CHECK, TEST10_SETUP, TEST10_RUN, TEST10_CHECK, TEST11_SETUP, TEST11_RUN, TEST11_CHECK, TEST12_SETUP, TEST12_RUN, TEST12_CHECK, TEST13_SETUP, TEST13_RUN, TEST13_CHECK, REPORT }
 
     private static final int START_DELAY_TICKS = 100;
     private static final int PHASE_TIMEOUT_TICKS = 900;
@@ -55,6 +55,11 @@ public final class BotSelftest {
     private static boolean pitDropSpawned;
     private static BlockPos underfootTarget;
     private static BlockPos underfootMineStart;
+    private static BlockPos stairClearBlock;
+    private static UUID stairDropId;
+    private static BlockPos stairDropPos;
+    private static BlockPos stairInitialUnderfoot;
+    private static boolean stairDropSpawned;
     private static BlockPos test2MineStart;
     private static BlockPos test3MineStart;
     private static boolean test1Pass;
@@ -69,6 +74,7 @@ public final class BotSelftest {
     private static boolean test10Pass;
     private static boolean test11Pass;
     private static boolean test12Pass;
+    private static boolean test13Pass;
     private static String test1Detail = "";
     private static String test2Detail = "";
     private static String test3Detail = "";
@@ -81,6 +87,7 @@ public final class BotSelftest {
     private static String test10Detail = "";
     private static String test11Detail = "";
     private static String test12Detail = "";
+    private static String test13Detail = "";
 
     private BotSelftest() {
     }
@@ -117,6 +124,7 @@ public final class BotSelftest {
         test10Pass = false;
         test11Pass = false;
         test12Pass = false;
+        test13Pass = false;
         phase = Phase.WAIT_START;
         waitTicks = START_DELAY_TICKS;
         phaseTicks = 0;
@@ -235,6 +243,23 @@ public final class BotSelftest {
                 }
             }
             case TEST12_CHECK -> checkTest12();
+            case TEST13_SETUP -> setupTest13();
+            case TEST13_RUN -> {
+                if (!stairDropSpawned) {
+                    ItemEntity item = new ItemEntity(level, stairDropPos.getX() + 0.5D,
+                            stairDropPos.getY(), stairDropPos.getZ() + 0.5D,
+                            new ItemStack(Items.COBBLESTONE));
+                    item.setPickUpDelay(0);
+                    level.addFreshEntity(item);
+                    stairDropId = item.getUUID();
+                    stairDropSpawned = true;
+                }
+                if (!BotManager.isBusy(bot) || phaseTicks > PHASE_TIMEOUT_TICKS) {
+                    phase = Phase.TEST13_CHECK;
+                    phaseTicks = 0;
+                }
+            }
+            case TEST13_CHECK -> checkTest13();
             default -> {
             }
         }
@@ -662,6 +687,63 @@ public final class BotSelftest {
                 + " mineStart=" + (underfootMineStart == null ? "null" : underfootMineStart.toShortString())
                 + " result=" + result;
         BotLog.info("SELFTEST TEST12 {}", test12Pass ? "PASS" : "FAIL: " + test12Detail);
+        phase = Phase.TEST13_SETUP;
+        phaseTicks = 0;
+    }
+
+    /** TEST13:坑底掉落物无现成阶梯时，只挖侧向斜下方一格形成台阶，不挖脚下。 */
+    private static void setupTest13() {
+        BlockPos surface = findSurface();
+        bot.teleportTo(surface.getX() + 0.5D, surface.getY(), surface.getZ() + 0.5D);
+        // 封闭测试室：目标掉落物位于 (2,-2)，唯一入口是先挖 (1,-1) 的侧向台阶，
+        // 防止前序测试遗留洞穴提供绕路而造成假阳性。
+        for (int x = -2; x <= 4; x++) {
+            for (int z = -2; z <= 2; z++) {
+                for (int y = -3; y <= 2; y++) {
+                    level.setBlock(surface.offset(x, y, z), Blocks.STONE.defaultBlockState(), 3);
+                }
+            }
+        }
+        // bot 出生脚位与头部、预定的两步阶梯通道。
+        level.setBlock(surface, Blocks.AIR.defaultBlockState(), 3);
+        level.setBlock(surface.above(), Blocks.AIR.defaultBlockState(), 3);
+        level.setBlock(surface.offset(1, 0, 0), Blocks.AIR.defaultBlockState(), 3);
+        level.setBlock(surface.offset(1, 1, 0), Blocks.AIR.defaultBlockState(), 3);
+        level.setBlock(surface.offset(2, -1, 0), Blocks.AIR.defaultBlockState(), 3);
+        level.setBlock(surface.offset(2, 0, 0), Blocks.AIR.defaultBlockState(), 3);
+        level.setBlock(surface.offset(2, -2, 0), Blocks.AIR.defaultBlockState(), 3);
+        level.setBlock(surface.offset(2, -1, 0), Blocks.AIR.defaultBlockState(), 3);
+        stairInitialUnderfoot = surface.below();
+        stairClearBlock = surface.offset(1, -1, 0);
+        stairDropPos = surface.offset(2, -2, 0);
+        level.setBlock(stairClearBlock, Blocks.DIRT.defaultBlockState(), 3);
+        level.setBlock(surface.offset(1, -2, 0), Blocks.DIRT.defaultBlockState(), 3); // 第一级支撑
+        level.setBlock(stairDropPos.below(), Blocks.DIRT.defaultBlockState(), 3); // 坑底支撑
+        // 用空气目标直接进入 COLLECTING；下一 tick 才生成坑底圆石，避免测试启动方块掉落物抢占拾取目标。
+        BlockPos mineTarget = surface.offset(0, 0, 1);
+        level.setBlock(mineTarget, Blocks.AIR.defaultBlockState(), 3);
+        stairDropId = null;
+        stairDropSpawned = false;
+        BotLog.info("SELFTEST TEST13: 拾取挖阶梯, bot={} 清障={} 坑底={} 先挖={}",
+                surface.toShortString(), stairClearBlock.toShortString(), stairDropPos.toShortString(),
+                mineTarget.toShortString());
+        BotManager.assignMine(bot, mineTarget);
+        phase = Phase.TEST13_RUN;
+        phaseTicks = 0;
+    }
+
+    private static void checkTest13() {
+        ItemEntity drop = stairDropId == null ? null : level.getEntitiesOfClass(ItemEntity.class,
+                new net.minecraft.world.phys.AABB(stairDropPos).inflate(1.0D),
+                item -> item.getUUID().equals(stairDropId)).stream().findFirst().orElse(null);
+        boolean collected = stairDropSpawned && (drop == null || drop.isRemoved() || drop.getItem().isEmpty());
+        boolean stairCleared = level.getBlockState(stairClearBlock).isAir();
+        boolean underfootIntact = !level.getBlockState(stairInitialUnderfoot).isAir();
+        String result = BotManager.lastTaskResult(bot);
+        test13Pass = collected && stairCleared && underfootIntact && "done".equals(result);
+        test13Detail = "collected=" + collected + " stairCleared=" + stairCleared
+                + " underfootIntact=" + underfootIntact + " result=" + result;
+        BotLog.info("SELFTEST TEST13 {}", test13Pass ? "PASS" : "FAIL: " + test13Detail);
         phase = Phase.REPORT;
         report();
     }
@@ -677,10 +759,10 @@ public final class BotSelftest {
     }
 
     private static void report() {
-        boolean allPass = test1Pass && test2Pass && test3Pass && test4Pass && test5Pass && test6Pass && test7Pass && test8Pass && test9Pass && test10Pass && test11Pass && test12Pass;
-        BotLog.info("SELFTEST 结果: {} (TEST1={} TEST2={} TEST3={} TEST4={} TEST5={} TEST6={} TEST7={} TEST8={} TEST9={} TEST10={} TEST11={} TEST12={})",
+        boolean allPass = test1Pass && test2Pass && test3Pass && test4Pass && test5Pass && test6Pass && test7Pass && test8Pass && test9Pass && test10Pass && test11Pass && test12Pass && test13Pass;
+        BotLog.info("SELFTEST 结果: {} (TEST1={} TEST2={} TEST3={} TEST4={} TEST5={} TEST6={} TEST7={} TEST8={} TEST9={} TEST10={} TEST11={} TEST12={} TEST13={})",
                 allPass ? "PASS" : "FAIL",
-                test1Pass, test2Pass, test3Pass, test4Pass, test5Pass, test6Pass, test7Pass, test8Pass, test9Pass, test10Pass, test11Pass, test12Pass);
+                test1Pass, test2Pass, test3Pass, test4Pass, test5Pass, test6Pass, test7Pass, test8Pass, test9Pass, test10Pass, test11Pass, test12Pass, test13Pass);
         // headless 验收:测完自动关服(审查点 R8)
         server.halt(true);
     }
