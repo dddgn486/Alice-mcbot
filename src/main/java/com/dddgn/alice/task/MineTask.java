@@ -31,7 +31,9 @@ public final class MineTask implements Task {
     private enum Phase { MINING, COLLECTING }
 
     private static final int COLLECT_TIMEOUT_TICKS = 400;
-    private static final int MAX_CLEAR_DEPTH = 8;
+    /** 清障(挖通道)最大层数: 64 格长通道。用户会以「安全区」机制保护不想挖的
+     * 方块, 此处不再保守限深(原 8 格)。 */
+    private static final int MAX_CLEAR_DEPTH = 64;
 
     private final ServerPlayer bot;
     private final BlockPos target;           // 原始目标(不变,清障后仍挖它)
