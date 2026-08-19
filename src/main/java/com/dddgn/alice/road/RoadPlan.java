@@ -204,7 +204,8 @@ public final class RoadPlan {
             if (RoadObstaclePolicy.forbidsCorridor(level, buffer, 2)) continue;
             // 令螺旋最后一步落到 buffer 前的相邻格，再由普通水平缓冲走入目标下方支撑。
             BlockPos spiralExit = buffer.offset(exitDir[0], 0, exitDir[1]);
-            int steps = vertical;
+            // 螺旋按完整四步一圈生成；多出的高度由入口普通坡道消化。
+            int steps = Math.max(4, ((vertical + 3) / 4) * 4);
             int[][] cycle = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}};
             for (int phase = 0; phase < 4; phase++) {
                 int sx = spiralExit.getX(), sz = spiralExit.getZ();
@@ -218,6 +219,7 @@ public final class RoadPlan {
                 if (approach.isEmpty()) continue;
                 List<BlockPos> route = new ArrayList<>(approach);
                 Set<BlockPos> spiral = new LinkedHashSet<>();
+                spiral.add(spiralStart);
                 BlockPos current = spiralStart;
                 boolean valid = true;
                 for (int step = 0; step < steps; step++) {
@@ -227,14 +229,32 @@ public final class RoadPlan {
                     route.add(current);
                     spiral.add(current);
                 }
-                if (!valid || !current.equals(spiralExit)) continue;
+                if (!valid || !current.equals(spiralExit) || !validSpiralGeometry(spiral, signY)) continue;
                 if (RoadObstaclePolicy.forbidsCorridor(level, goal, 2)) continue;
                 route.add(buffer);
                 route.add(goal);
-                return new Route(route, Set.copyOf(spiral));
+                return new Route(route, Collections.unmodifiableSet(new LinkedHashSet<>(spiral)));
             }
         }
         return new Route(List.of(), Set.of());
+    }
+
+    private static boolean validSpiralGeometry(Set<BlockPos> supports, int signY) {
+        if (supports.size() < 5) return false;
+        int minX = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE;
+        int minZ = Integer.MAX_VALUE, maxZ = Integer.MIN_VALUE;
+        List<BlockPos> ordered = supports.stream().toList();
+        for (BlockPos p : ordered) {
+            minX = Math.min(minX, p.getX()); maxX = Math.max(maxX, p.getX());
+            minZ = Math.min(minZ, p.getZ()); maxZ = Math.max(maxZ, p.getZ());
+        }
+        if (maxX - minX != 1 || maxZ - minZ != 1) return false;
+        for (int i = 1; i < ordered.size(); i++) {
+            BlockPos a = ordered.get(i - 1), b = ordered.get(i);
+            int horizontal = Math.abs(a.getX() - b.getX()) + Math.abs(a.getZ() - b.getZ());
+            if (horizontal != 1 || b.getY() - a.getY() != signY) return false;
+        }
+        return true;
     }
 
     /** 液体膨胀区外的 3D 体素最短路：4 邻水平、单步高差最多 1、轻微转弯惩罚。 */

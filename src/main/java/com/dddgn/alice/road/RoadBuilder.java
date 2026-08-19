@@ -87,13 +87,15 @@ public final class RoadBuilder {
         for (RoadPlan.Cell cell : unit.cells()) {
             BlockPos pos = cell.pos();
             if (pos.equals(plan.first()) || pos.equals(plan.second())) continue;
-            if (cell.kind() == RoadPlan.CellKind.SUPPORT_PLACE) {
+            // 构建时按当前世界状态判断，不能依赖规划时的 OPEN/CLEAR 快照：
+            // 沙砾可能在等待期落入原本为空的净空格。
+            if (pos.equals(unit.support())) {
                 if (level.getBlockState(pos).isAir()) {
                     level.setBlock(pos, net.minecraft.world.level.block.Blocks.COBBLESTONE.defaultBlockState(), 3);
                 }
-            } else if (cell.kind() == RoadPlan.CellKind.CLEAR
+            } else if (!level.getBlockState(pos).isAir()
                     && BlockBreakSafety.clearingRefusal(actor, pos) == null) {
-                if (!level.getBlockState(pos).isAir()) level.destroyBlock(pos, false);
+                level.destroyBlock(pos, false);
             }
         }
     }
