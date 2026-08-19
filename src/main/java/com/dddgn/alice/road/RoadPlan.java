@@ -156,28 +156,15 @@ public final class RoadPlan {
                 BlockPos sideA = new BlockPos(p.getX(), q.getY(), q.getZ());
                 BlockPos sideB = new BlockPos(q.getX(), q.getY(), p.getZ());
                 if (forbidden(level, sideA) || forbidden(level, sideB)) return false;
-                // 对角桥接只要求两侧净空连续，不要求侧格成为独立支撑节点。
-                // addEdgeClearance 会把两侧桥接净空写入前后单元。
-                if (!hasPassage(unitPositions.get(i - 1), q)
-                        || !hasPassage(unitPositions.get(i), p)) return false;
+                // addEdgeClearance 已经生成两侧桥接净空；这里仅验证几何侧格和液体禁区，
+                // 不再按前/后单元集合归属拒绝合法的短路径。
             }
             if (dy == 1) {
-                BlockPos low = q.getY() < p.getY() ? q : p;
-                int lowIndex = q.getY() < p.getY() ? i - 1 : i;
-                if (!hasCell(unitPositions.get(lowIndex), low.above(2))) return false;
-                if (!hasCell(unitPositions.get(lowIndex), low.above(3))) return false;
+                // 高差上限由中心线搜索和本方法的 dy <= 1 检查保证；低侧补高由
+                // addEdgeClearance 负责生成，不把集合归属当成搜索失败条件。
             }
         }
         return true;
-    }
-
-    private static boolean hasCell(Set<BlockPos> cells, BlockPos pos) {
-        return cells.contains(pos);
-    }
-
-    private static boolean hasPassage(Set<BlockPos> cells, BlockPos support) {
-        return cells.contains(support) || cells.contains(support.above())
-                || cells.contains(support.above(2));
     }
 
     private record SearchNode(BlockPos pos, int direction, double cost, double score) {}
