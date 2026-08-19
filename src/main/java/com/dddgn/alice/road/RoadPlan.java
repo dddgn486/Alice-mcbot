@@ -4,6 +4,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FluidState;
+import com.dddgn.alice.log.BotLog;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -82,6 +83,8 @@ public final class RoadPlan {
     private static List<Unit> buildUnits(ServerLevel level, BlockPos a, BlockPos b) {
         List<BlockPos> centerline = shortestVoxelRoute(level, a.below(), b.below());
         if (centerline.isEmpty()) {
+            BotLog.warn("道路蓝图生成失败: 体素搜索无路 start={} goal={}",
+                    a.below().toShortString(), b.below().toShortString());
             return List.of();
         }
         List<Set<BlockPos>> unitPositions = new ArrayList<>();
@@ -109,8 +112,11 @@ public final class RoadPlan {
             }
             result.add(new Unit(support.immutable(), Collections.unmodifiableList(cells)));
         }
-        return validateRoute(level, centerline, unitPositions)
-                ? Collections.unmodifiableList(result) : List.of();
+        if (!validateRoute(level, centerline, unitPositions)) {
+            BotLog.warn("道路蓝图生成失败: 单元连通验证拒绝 routeUnits={}", centerline.size());
+            return List.of();
+        }
+        return Collections.unmodifiableList(result);
     }
 
     private static void addEdgeClearance(BlockPos from, BlockPos to,
@@ -150,16 +156,16 @@ public final class RoadPlan {
                 BlockPos sideA = new BlockPos(p.getX(), q.getY(), q.getZ());
                 BlockPos sideB = new BlockPos(q.getX(), q.getY(), p.getZ());
                 if (forbidden(level, sideA) || forbidden(level, sideB)) return false;
-                // 对角桥接必须真实写入前后单元，不能只依赖中心线角点相接。
-                if (!hasPassage(unitPositions.get(i - 1), sideA)
-                        || !hasPassage(unitPositions.get(i), sideB)) return false;
+                // 对角桥接只要求两侧净空连续，不要求侧格成为独立支撑节点。
+                // addEdgeClearance 会把两侧桥接净空写入前后单元。
+                if (!hasPassage(unitPositions.get(i - 1), q)
+                        || !hasPassage(unitPositions.get(i), p)) return false;
             }
             if (dy == 1) {
                 BlockPos low = q.getY() < p.getY() ? q : p;
-                if (!hasCell(unitPositions.get(i - 1), low.above(2))
-                        && !hasCell(unitPositions.get(i), low.above(2))) return false;
-                if (!hasCell(unitPositions.get(i - 1), low.above(3))
-                        && !hasCell(unitPositions.get(i), low.above(3))) return false;
+                int lowIndex = q.getY() < p.getY() ? i - 1 : i;
+                if (!hasCell(unitPositions.get(lowIndex), low.above(2))) return false;
+                if (!hasCell(unitPositions.get(lowIndex), low.above(3))) return false;
             }
         }
         return true;
