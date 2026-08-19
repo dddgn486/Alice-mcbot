@@ -204,33 +204,30 @@ public final class MineTask implements Task {
             return Status.FAILED;
         }
         net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) bot.level();
-        // 只追踪作用域开启后捕获的任务衍生掉落物。它们即使被水/爆炸推远也会持续存在，
-        // 但绝不能把目标附近遗留物或其他玩家掉落物误当成本任务产物。
-        List<ItemEntity> allItems = scope.liveItems();
+        // 采集任务只追踪显式目标方块产生的掉落物；清障副产物、遗留物和其他任务掉落物
+        // 都不属于本任务的收集范围。
         if (!primaryItemsCaptured) {
             primaryCaptureWait++;
-            if (primaryCaptureWait < 3) {
-                return Status.RUNNING;
-            }
             for (ItemEntity item : scope.liveItemsFromOrigin(target)) {
                 primaryItemIds.add(item.getUUID());
             }
-            primaryItemsCaptured = true;
             if (!primaryItemIds.isEmpty()) {
+                primaryItemsCaptured = true;
                 BotLog.info("主目标产物锁定: {} 个 origin={}",
                         primaryItemIds.size(), target.toShortString());
+            } else if (primaryCaptureWait < 30) {
+                // 掉落物可能延迟生成（被推远/尚未被作用域捕捉），最多等 30 tick；
+                // 不能立即空捕获而漏掉真正属于目标的产物。
+                return Status.RUNNING;
+            } else {
+                primaryItemsCaptured = true;
+                BotLog.info("主目标 {} 无产物可收集", target.toShortString());
             }
         }
-        List<ItemEntity> items = primaryItemIds.isEmpty()
-                ? allItems
-                : allItems.stream().filter(item -> primaryItemIds.contains(item.getUUID())).toList();
-        if (items.isEmpty() && !primaryItemIds.isEmpty()) {
-            // 主产物全部处理完，才允许清障副产物进入第二轮拾取。
-            primaryItemIds.clear();
-            items = allItems;
-        }
+        List<ItemEntity> items = scope.liveItemsFromOrigin(target).stream()
+                .filter(item -> primaryItemIds.contains(item.getUUID())).toList();
         if (items.isEmpty()) {
-            BotLog.info("拾取阶段完成: 目标周围无掉落物(全部入包/消失)");
+            BotLog.info("拾取阶段完成: 主动目标 {} 的掉落物已全部入包/消失", target.toShortString());
             return Status.DONE;
         }
 
