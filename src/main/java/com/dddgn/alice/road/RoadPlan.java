@@ -84,24 +84,24 @@ public final class RoadPlan {
         if (centerline.isEmpty()) {
             return List.of();
         }
-        List<Unit> result = new ArrayList<>();
-        for (int i = 0; i < centerline.size(); i++) {
-            BlockPos support = centerline.get(i);
+        List<Set<BlockPos>> unitPositions = new ArrayList<>();
+        for (BlockPos support : centerline) {
             Set<BlockPos> positions = new LinkedHashSet<>();
             positions.add(support);
             positions.add(support.above());
             positions.add(support.above(2));
-            if (i > 0 && centerline.get(i - 1).getY() != support.getY()) {
-                BlockPos low = centerline.get(i - 1).getY() < support.getY()
-                        ? centerline.get(i - 1) : support;
-                positions.add(low.above(2));
-                positions.add(low.above(3));
-            }
-            // 对角拐角额外拓宽两侧净空，避免 8 邻数学连接形成玩家实际过不去的尖角。
-            addDiagonalCornerClearance(centerline, i, positions);
+            unitPositions.add(positions);
+        }
+        // 每条中心线边都必须有可走的体素过渡，首段和末段同样处理。
+        for (int i = 1; i < centerline.size(); i++) {
+            addEdgeClearance(centerline.get(i - 1), centerline.get(i),
+                    unitPositions.get(i - 1), unitPositions.get(i));
+        }
+        List<Unit> result = new ArrayList<>();
+        for (int i = 0; i < centerline.size(); i++) {
+            BlockPos support = centerline.get(i);
             List<Cell> cells = new ArrayList<>();
-            for (BlockPos pos : positions) {
-                // 支撑格永远属于支撑结构：已有实体方块保留，只有空气才需要搭建。
+            for (BlockPos pos : unitPositions.get(i)) {
                 CellKind kind = pos.equals(support)
                         ? (level.getBlockState(pos).isAir() ? CellKind.SUPPORT_PLACE : CellKind.OPEN)
                         : (level.getBlockState(pos).isAir() ? CellKind.OPEN : CellKind.CLEAR);
@@ -109,23 +109,47 @@ public final class RoadPlan {
             }
             result.add(new Unit(support.immutable(), Collections.unmodifiableList(cells)));
         }
-        return Collections.unmodifiableList(result);
+        return validateRoute(level, centerline) ? Collections.unmodifiableList(result) : List.of();
     }
 
-    private static void addDiagonalCornerClearance(List<BlockPos> route, int index, Set<BlockPos> positions) {
-        if (index <= 0 || index >= route.size() - 1) return;
-        BlockPos prev = route.get(index - 1), current = route.get(index), next = route.get(index + 1);
-        int inX = Integer.compare(current.getX(), prev.getX());
-        int inZ = Integer.compare(current.getZ(), prev.getZ());
-        int outX = Integer.compare(next.getX(), current.getX());
-        int outZ = Integer.compare(next.getZ(), current.getZ());
-        if (inX != 0 && outZ != 0 || inZ != 0 && outX != 0) {
-            for (int dy = 1; dy <= 2; dy++) {
-                positions.add(current.offset(inX, 0, 0).above(dy));
-                positions.add(current.offset(0, 0, inZ).above(dy));
-                positions.add(current.above(dy));
+    private static void addEdgeClearance(BlockPos from, BlockPos to,
+                                         Set<BlockPos> fromPositions, Set<BlockPos> toPositions) {
+        int dx = Integer.compare(to.getX(), from.getX());
+        int dz = Integer.compare(to.getZ(), from.getZ());
+        int dy = Integer.compare(to.getY(), from.getY());
+        if (dx == 0 && dz == 0) return;
+        if (dx != 0 && dz != 0) {
+            // 对角连接桥：两侧正交单元各补两格净空，避免只在角点相接。
+            for (int h = 1; h <= 2; h++) {
+                fromPositions.add(from.offset(dx, 0, 0).above(h));
+                fromPositions.add(from.offset(0, 0, dz).above(h));
+                toPositions.add(to.offset(-dx, 0, 0).above(h));
+                toPositions.add(to.offset(0, 0, -dz).above(h));
             }
         }
+        if (dy != 0) {
+            BlockPos low = dy > 0 ? from : to;
+            Set<BlockPos> target = dy > 0 ? fromPositions : toPositions;
+            for (int h = 2; h <= 3; h++) target.add(low.above(h));
+        }
+    }
+
+    private static boolean validateRoute(ServerLevel level, List<BlockPos> route) {
+        for (int i = 0; i < route.size(); i++) {
+            BlockPos p = route.get(i);
+            if (forbidden(level, p)) return false;
+            if (i == 0) continue;
+            BlockPos q = route.get(i - 1);
+            int dx = Math.abs(p.getX() - q.getX());
+            int dz = Math.abs(p.getZ() - q.getZ());
+            int dy = Math.abs(p.getY() - q.getY());
+            if (dy > 1 || (dx == 0 && dz == 0) || dx > 1 || dz > 1) return false;
+            if (dx == 1 && dz == 1) {
+                if (forbidden(level, new BlockPos(p.getX(), q.getY(), q.getZ()))
+                        || forbidden(level, new BlockPos(q.getX(), q.getY(), p.getZ()))) return false;
+            }
+        }
+        return true;
     }
 
     private record SearchNode(BlockPos pos, int direction, double cost, double score) {}
