@@ -26,6 +26,10 @@ public final class RoadPlan {
     public record Unit(BlockPos support, UnitKind kind, int headroom, List<Cell> cells) {}
 
     private static final int MAX_AXIS_DELTA = 128;
+    /** 曲面内移动便宜，跨越曲面清障/搭建昂贵；数值可按实测施工耗时标定。 */
+    private static final double SURFACE_COST_PER_BLOCK = 1.0D;
+    private static final double TUNNEL_COST_PER_BLOCK = 7.0D;
+    private static final double HEIGHT_CHANGE_COST = 0.25D;
     /** 螺旋触发的高差裕量：普通弯曲路径优先，只有当普通搜索失败且高差明显超过水平容量时才尝试螺旋。 */
     private static final int SPIRAL_EXTRA = 4;
     private static final RoadPlan INSTANCE = new RoadPlan();
@@ -112,21 +116,29 @@ public final class RoadPlan {
         // 只有当普通搜索无解，且高差明显超过水平容量时才启用螺旋，避免中等高差两头落空。
         Route route;
         List<BlockPos> curved = selectContinuousRoute(level, start, goal);
-        if (!curved.isEmpty()) {
+        List<BlockPos> weighted = shortestVoxelRoute(level, start, goal, 2);
+        if (!curved.isEmpty() && !weighted.isEmpty()) {
+            double curvedCost = routeCost(level, curved, 2);
+            double weightedCost = routeCost(level, weighted, 2);
+            route = new Route(curvedCost <= weightedCost ? curved : weighted, Set.of(), Set.of());
+            BotLog.info("混合寻路比较: curveCost={} voxelCost={} selected={}",
+                    format(curvedCost), format(weightedCost), curvedCost <= weightedCost ? "curve" : "voxel");
+        } else if (!curved.isEmpty()) {
             route = new Route(curved, Set.of(), Set.of());
+        } else if (!weighted.isEmpty()) {
+            route = new Route(weighted, Set.of(), Set.of());
+            BotLog.info("连续道路候选未通过，使用加权体素 A* 后备: routeUnits={} cost={}",
+                    weighted.size(), format(routeCost(level, weighted, 2)));
         } else if (verticalDistance > 0) {
-            // 任意未被连续曲线接管的高差先尝试结构化螺旋，避免回到窄区自由折返。
+            // 普通混合搜索无解时，才尝试结构化螺旋补偿高差。
             route = spiralCompensationRoute(level, start, goal);
         } else {
-            // 曲线候选被世界障碍拒绝时，保留体素 A* 作为局部绕障后备。
-            // 它不负责高差补偿；高差补偿由上面的螺旋原语负责。
-            List<BlockPos> fallback = shortestVoxelRoute(level, start, goal, 2);
-            route = new Route(fallback, Set.of(), Set.of());
-            BotLog.info("连续道路候选未通过，使用体素 A* 后备: routeUnits={}", fallback.size());
+            route = new Route(List.of(), Set.of(), Set.of());
         }
-        BotLog.info("道路路线选择: mode={} horizontal={} vertical={} spiralExtra={} start={} goal={}",
+        BotLog.info("道路路线选择: mode={} horizontal={} vertical={} spiralExtra={} cost={} start={} goal={}",
                 route.spiralSupports().isEmpty() ? "normal" : "spiral",
                 horizontalDistance, verticalDistance, SPIRAL_EXTRA,
+                route.centerline().isEmpty() ? "inf" : format(routeCost(level, route.centerline(), 2)),
                 start.toShortString(), goal.toShortString());
         List<BlockPos> centerline = route.centerline();
         if (centerline.isEmpty()) {
@@ -435,8 +447,10 @@ public final class RoadPlan {
                             || forbidden(level, next.offset(0, 0, -dz)));
                     // 高度变化必须绑定水平移动；此邻域永远有水平位移，不会形成竖井。
                     if (forbidden(level, next) || sideBlocked) continue;
-                    double nextCost = current.cost() + (diagonal ? 1.414D : 1.0D)
-                            + (dy != 0 ? 0.05D : 0D)
+                    double movementCost = diagonal ? 1.414D : 1.0D;
+                    double terrainCost = corridorCost(level, next, headroom);
+                    double nextCost = current.cost() + movementCost * terrainCost
+                            + (dy != 0 ? HEIGHT_CHANGE_COST : 0D)
                             + (current.direction() != 4 && current.direction() != direction ? 0.08D : 0D);
                     String nextKey = key(next, direction);
                     if (nextCost >= best.getOrDefault(nextKey, Double.MAX_VALUE)) continue;
@@ -447,6 +461,37 @@ public final class RoadPlan {
             }
         }
         return List.of();
+    }
+
+    /** 计算一条候选中心线的加权时间成本，供曲线与体素搜索统一比较。 */
+    private static double routeCost(ServerLevel level, List<BlockPos> route, int headroom) {
+        if (route.isEmpty()) return Double.POSITIVE_INFINITY;
+        double cost = 0.0D;
+        for (int i = 0; i < route.size(); i++) {
+            BlockPos current = route.get(i);
+            if (i > 0) {
+                BlockPos previous = route.get(i - 1);
+                int dx = current.getX() - previous.getX();
+                int dz = current.getZ() - previous.getZ();
+                cost += Math.sqrt(dx * dx + dz * dz);
+                if (current.getY() != previous.getY()) cost += HEIGHT_CHANGE_COST;
+            }
+            cost += corridorCost(level, current, headroom);
+        }
+        return cost;
+    }
+
+    /** 曲面要求脚下已有实体支撑且净空可直接通过；否则按通道计费。 */
+    private static double corridorCost(ServerLevel level, BlockPos support, int headroom) {
+        BlockState supportState = level.getBlockState(support);
+        boolean walkableSurface = !supportState.getCollisionShape(level, support).isEmpty();
+        for (int dy = 1; dy <= headroom && walkableSurface; dy++) {
+            BlockPos clearance = support.above(dy);
+            if (!level.getBlockState(clearance).getCollisionShape(level, clearance).isEmpty()) {
+                walkableSurface = false;
+            }
+        }
+        return walkableSurface ? SURFACE_COST_PER_BLOCK : TUNNEL_COST_PER_BLOCK;
     }
 
     private static boolean forbidden(ServerLevel level, BlockPos support) {
