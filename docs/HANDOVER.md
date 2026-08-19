@@ -167,7 +167,7 @@ BUILD_UNIT → WAIT_STABLE → MOVE_TO_NEXT_UNIT →（循环）→ MINE_TARGET 
 
 ### 6.2 当前第一版：SurfacePathfinder 语义
 
-- `AStarPathfinder + PathExecutor + MineTask` 是唯一默认单目标链；它只走真实可通行曲面，成功后直接挖目标；
+- `AStarPathfinder + SurfacePathfinder + PathExecutor + MineTask` 是唯一默认单目标链；它只走真实可通行曲面，成功后直接挖目标；`SurfacePathfinder` 返回 `REACHED` / `UNREACHABLE` / `SEARCH_LIMIT` 及扩展节点数，预算耗尽绝不能被当作无路；
 - 钻石斧目标选择、`/alice mine` 与 `/alice auto-mine` 都进入该链，不再创建 `RoadMineTask` 或调用 `RoadPlan`；
 - `MineTask` 只允许当前站位直接可见且在 4.5 格内的最多两格局部清障；其余深埋目标失败为 `target_requires_tunnel`，绝不反复重选站位挖长通道；
 - 掉落物继续只收 `liveItemsFromOrigin(target)` 锁定 UUID，路径仅允许曲面 A* 与有限侧向下行阶梯恢复，绝不自动启动长通道；
@@ -175,8 +175,8 @@ BUILD_UNIT → WAIT_STABLE → MOVE_TO_NEXT_UNIT →（循环）→ MINE_TARGET 
 
 ### 6.3 后续：独立 TunnelPlanner 与目标簇
 
-- 仅当所有合法挖掘站位都无曲面路径时，才允许独立 `TunnelPlanner` 枚举曲面入口/出口并生成不可变 `TunnelPlan`；
-- 总成本 = 起点曲面移动 + 数学通道几何长度 × 因子 + 出口曲面移动；实际施工格数、支撑和重试不参与规划成本；
+- 仅当所有合法挖掘站位均明确 `UNREACHABLE` 时，才允许独立 `TunnelPlanner` 枚举曲面入口/出口并生成不可变 `TunnelPlan`；任何 `SEARCH_LIMIT` 必须交给决策层重试/换目标/客户端确认；
+- 总成本 = 起点曲面移动 + 数学通道几何长度 × 因子 + 出口曲面移动；实际施工格数、支撑和重试不参与规划成本；候选先经过独立 `TunnelObstaclePolicy` 的保守硬验证（拒绝流体、保护/不可破坏/高代价方块、断裂和纯竖直几何）；
 - `TargetCluster`/`ClusterMineTask` 对同类 6 邻接目标做簇级一次全局规划，通道只能抵达簇外围，禁止侵入簇膨胀一格 AABB；簇内只做局部曲面寻路/有限清障；
 - 完整规范：`docs/PATHING_REFACTOR.md`。
 
@@ -196,7 +196,10 @@ BUILD_UNIT → WAIT_STABLE → MOVE_TO_NEXT_UNIT →（循环）→ MINE_TARGET 
 /alice auto-mine <tag|block> 决策层自动挖最近目标
 /alice observe               感知摘要
 /alice scan <x y z>          接口扫描
-/alice selftest              手动验收（13 场景）
+/alice selftest              基础 headless 冒烟验收（TEST1-3；复杂地形以客户端实测为准）
+/alice selftest full         历史完整 13 项回归，仅排错时显式运行
+/alice diagnose-path <x y z>  只读曲面寻路诊断（状态/路径段数/扩展节点）
+/alice status                 只读 bot 回收状态（busy/上次结果/位置）
 /alice road build            玩家版：按蓝图逐单元构建
 /alice road buildbybot        bot 版：强制施工动画 + 终点挖掘
 /alice protect ...           安全区管理
@@ -224,6 +227,8 @@ headless 验收：`./gradlew runServer -Dalice.selftest.auto=true`（测完自�
 - **R23（新）**：不要复活“支撑格与其他单元净空重叠即失败” —— 它把合法重叠误判为蓝图失败（`routeUnits=29`）。
 - **R24（新）**：`RoadBuildTask` 终点**不能**把 bot 移动到最终支撑格上方（那是未挖的目标方块），应从缓冲单元直接进 MineTask。
 - **R25（新）**：采集只认 `liveItemsFromOrigin(target)` ∩ 锁定 UUID；**不要**加回 `allItems` 回退拾取。
+- **R26（新）**：`SEARCH_LIMIT` 仅表示当前 A* 预算不能证明可达性，不能用作通道授权；默认停止并报告，决策层可换目标/扩大预算，客户端可用 `/alice diagnose-path` 验证。
+- **R27（新）**：通道规划和执行必须以 bot 可回收性优先：执行层独立否决流体、保护区、不可破坏/高代价方块与非法几何；复杂世界无法证明安全时宁可停止，绝不让 LLM 建议绕过硬检查。
 - **坑**：掉落物有 pickupDelay；挖高处方块后掉落物需等 onGround 再拾取，未落地前不要反复跑昂贵 A*。
 - **坑**：`RenderType.lines()` 自带深度测试 → 透视高亮需自定义 RenderType（NO_DEPTH_TEST）。
 - **坑**：`stone` 是方块 ID 不是标签 → auto-mine 需自动判断标签/方块两种模式。
@@ -256,7 +261,7 @@ headless 验收：`./gradlew runServer -Dalice.selftest.auto=true`（测完自�
 1. Windows 实测单目标：钻石斧、`/alice mine`、`/alice auto-mine` 均只走曲面 A*，不得隐式挖/搭通道；
 2. 将现有 A* 封装为 `SurfacePathfinder`，返回结构化可达/无路结果与候选站位路径；
 3. 定义独立 `TunnelPlan`/`TunnelPlanner`，仅在所有曲面站位不可达时接入，不复用 `RoadPlan` 单例；
-4. 拆出 `DropCollectionTask`，保留“无长通道”硬规则；
+4. 拆出 `DropCollectionTask`，保留“无长通道”硬规则；迁移时由父任务保留 ScopeBuffer/高亮生命周期，子任务不得自行结束作用域；
 5. 实现 `TargetCluster`/`ClusterMineTask` 与簇 AABB 通道禁入；
 6. 道路/曲面/通道/掉落物/目标簇专用回归测试；
 7. 曲率/半圆绕行上限、L1/L2 损耗与材料预算过滤。

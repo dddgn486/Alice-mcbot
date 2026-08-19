@@ -158,6 +158,16 @@ public final class BotManager {
                 name, (int) pos.getDouble(0), (int) pos.getDouble(1), (int) pos.getDouble(2));
     }
 
+    /** 只读查询指定维度中的一个假人；无假人时返回 null，不生成实体。 */
+    public static BotPlayer firstInLevel(ServerLevel level) {
+        for (BotSession session : BOTS.values()) {
+            if (session.bot().level() == level) {
+                return session.bot();
+            }
+        }
+        return null;
+    }
+
     /** 取一个假人(无则生成,用于测试命令)。 */
     public static BotPlayer firstOrSpawn(ServerLevel level, BlockPos pos) {
         for (BotSession session : BOTS.values()) {

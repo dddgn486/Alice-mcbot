@@ -49,7 +49,9 @@ assignTarget(bot, target)
 失败原因一览（MineTask 转自 BotMiner + 拾取阶段新增）：
 `no_stand_pos / no_path / path_failed / line_of_sight_blocked / out_of_reach /
 mine_timeout / underfoot_block / protected_area / protected_block / protected_tag /
-collect_no_path / collect_path_failed / collect_timeout`
+collect_no_path / collect_path_failed / collect_timeout / target_requires_tunnel`
+
+寻路诊断另返回 `REACHED` / `UNREACHABLE` / `SEARCH_LIMIT`。`SEARCH_LIMIT` 不是失败后可自动施工的许可，而是执行层的保守中止信号：决策层可选择扩大预算、换目标或请求客户端确认，但不能绕开安全检查。
 
 ## 三、客户端测试效果（本阶段）
 
@@ -65,6 +67,10 @@ collect_no_path / collect_path_failed / collect_timeout`
 |---|---|---|
 | `alice:target_selector`（贴图=钻石斧） | 右键方块 | 指派挖掘任务给 bot（无 bot 自动生成） |
 | 钻石铲（原版） | 右键方块 | 接口扫描 `/alice scan` 的快捷版 |
+| `/alice diagnose-path <pos>` | 只读命令 | 返回曲面路径状态、路径段数与扩展节点；不分配任务、不改世界 |
+| `/alice status` | 只读命令 | 返回当前维度 bot 的 busy、上次结果和位置；无 bot 时失败，不生成 bot |
+| `/alice selftest` | 基础冒烟 | 默认只跑 TEST1-3 的确定性曲面链路 |
+| `/alice selftest full` | 完整回归 | 显式运行历史 13 项，复杂场景失败需结合客户端复核 |
 
 物品注册走 `AliceItems`（DeferredRegister），**不套原版工具**——只引用贴图。
 
@@ -103,6 +109,8 @@ collect_no_path / collect_path_failed / collect_timeout`
 单目标挖掘默认只使用真实可通行曲面的 A*，任何可达合法挖掘站位成功后都直接进入 `MineTask`，不生成道路、不挖隧道。只有全部曲面站位不可达时，未来才允许调用独立 `TunnelPlanner`；它连接两个已确定的曲面点，实际施工不反向修改规划成本。
 
 掉落物收集只走曲面 A* 与有限侧向阶梯恢复，绝不自动启动长通道。连续目标使用 `TargetCluster`/`ClusterMineTask`：簇级最多规划一次进入通道，通道只到簇外围，簇内目标逐个走局部曲面/有限清障；目标簇膨胀一格的 AABB 是全局通道禁入区。完整设计见 `PATHING_REFACTOR.md`。
+
+执行层是决策层的硬兜底：LLM/规则只能建议目标、预算和授权，不能绕过流体、保护区、不可破坏/高代价方块、工具或材料检查。无法证明安全、世界在施工前后变化或搜索预算耗尽时，任务应停止、报告并保留 bot 的可回收位置；不要为了追求成功率隐式扩大破坏范围。
 
 ## 八、下一步（建议顺序）
 

@@ -2,6 +2,7 @@ package com.dddgn.alice.pathing;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.util.List;
 
@@ -13,10 +14,11 @@ public final class TunnelPlanner {
     private TunnelPlanner() {
     }
 
-    public static Result plan(ServerLevel level, BlockPos start, List<BlockPos> miningStands,
-                              List<Candidate> candidates, boolean allSurfaceStandsFailed) {
-        if (!allSurfaceStandsFailed) {
-            return Result.rejected("surface_path_available");
+    public static Result plan(ServerLevel level, ServerPlayer bot, BlockPos start, List<BlockPos> miningStands,
+                              List<Candidate> candidates, SurfaceFailureReport surfaceFailures) {
+        if (!surfaceFailures.confirmedUnreachable()) {
+            return Result.rejected(surfaceFailures.hasReachablePath()
+                    ? "surface_path_available" : "surface_path_inconclusive");
         }
         if (miningStands.isEmpty() || candidates.isEmpty()) {
             return Result.rejected("no_tunnel_plan");
@@ -25,6 +27,10 @@ public final class TunnelPlanner {
         TunnelPlan best = null;
         for (Candidate candidate : candidates) {
             if (candidate.entrance().equals(candidate.exit())) {
+                continue;
+            }
+            TunnelObstaclePolicy.Validation validation = TunnelObstaclePolicy.validate(level, bot, candidate);
+            if (!validation.valid()) {
                 continue;
             }
             SurfacePathfinder.Result toEntrance = SurfacePathfinder.find(level, start, candidate.entrance());
@@ -49,6 +55,25 @@ public final class TunnelPlanner {
             }
         }
         return best == null ? Result.rejected("no_tunnel_plan") : Result.accepted(best);
+    }
+
+    /**
+     * 所有合法挖掘站位的曲面尝试快照。只有每个站位均明确 UNREACHABLE，
+     * 才可授权通道规划；SEARCH_LIMIT 必须交给上层选择扩大预算、换目标或人工确认。
+     */
+    public record SurfaceFailureReport(List<SurfacePathfinder.Result> attempts) {
+        public SurfaceFailureReport {
+            attempts = List.copyOf(attempts);
+        }
+
+        public boolean hasReachablePath() {
+            return attempts.stream().anyMatch(SurfacePathfinder.Result::reachable);
+        }
+
+        public boolean confirmedUnreachable() {
+            return !attempts.isEmpty() && attempts.stream().allMatch(attempt ->
+                    attempt.status() == AStarPathfinder.SearchStatus.UNREACHABLE);
+        }
     }
 
     public record Candidate(BlockPos entrance, List<BlockPos> tunnelCurve, BlockPos exit) {

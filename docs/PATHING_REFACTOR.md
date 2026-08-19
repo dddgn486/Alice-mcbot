@@ -13,6 +13,13 @@
 
 手动道路蓝图 `RoadPlan`/`RoadBuilder` 保持独立，不再作为挖矿任务的输入或全局单例通道计划。
 
+## 决策与兜底原则
+
+- 决策层（规则或 LLM）只选择目标、预算和是否授权通道；执行层必须独立验证世界状态，不能因为决策层建议而越过安全区、流体、不可破坏方块或材料/工具约束。
+- 无法证明安全、A* 搜索预算耗尽、世界状态在执行前后变化时，默认停止并返回可诊断失败；宁可牺牲效率，也不让 bot 隐式开长通道、困在不可恢复位置或消耗未知资源。
+- `SEARCH_LIMIT` 不是 `UNREACHABLE`：前者只说明当前预算不足，必须交由决策层扩大预算、换目标或人工客户端确认，不能授权 `TunnelPlanner`。
+- 通道计划、施工进度和目标簇边界将分别冻结；执行器只能消费已验证计划，不能自行重选路线。当前尚未实现自动通道施工，因此普通挖矿继续失败为 `target_requires_tunnel`。
+
 ## 二、单目标挖掘
 
 默认链路必须是：
@@ -27,11 +34,13 @@ TargetSelector / /alice mine / auto-mine
 
 `SurfacePathfinder` 复用现有 `AStarPathfinder` 与 `PathExecutor`，输入为 bot 当前脚位与一个合法挖掘站位。它的可走条件是：脚下已有实体支撑、脚位与头位无碰撞、无流体，并采用已有的上坡/下坡安全规则。
 
+结果必须保留 `REACHED`、明确 `UNREACHABLE` 和 `SEARCH_LIMIT`（含已扩展节点数）。只有前两者可用于确定性流程；`SEARCH_LIMIT` 是保守中止，不可当作“目标深埋”的证据。
+
 只要任一合法站位存在纯曲面路径，任务就直接由 `MineTask` 执行，**绝不启动通道规划**。`MineTask` 只允许从当前站位直接清理最多两个、位于原版 4.5 格挖掘距离内的视线 blocker；超过该范围或需要重选站位的深埋目标返回 `target_requires_tunnel`。
 
 ## 三、通道规划
 
-仅在所有目标挖掘站位的 `SurfacePathfinder` 均不可达时，才允许调用 `TunnelPlanner`。
+仅在所有目标挖掘站位的 `SurfacePathfinder` 均明确 `UNREACHABLE` 时，才允许调用 `TunnelPlanner`。任一站位 `REACHED` 时必须走曲面；任一站位 `SEARCH_LIMIT` 时必须保守停止或交给决策层重试，不能自动开通道。
 
 `TunnelPlanner` 的输出不是道路单元，而是不可变的 `TunnelPlan`：
 
@@ -53,7 +62,7 @@ Cost = surfaceMoveCost(start, entrance)
 
 - `tunnelGeometryLength` 只取数学模型中直线或贴禁区曲线的长度，经体素映射近似；
 - 实际施工生成的净空格、支撑格和重试次数不参与该成本；
-- 禁区仍由 `RoadObstaclePolicy` 提供；
+- 通道候选先经独立 `TunnelObstaclePolicy` 硬验证：第一版拒绝流体、保护区、不可破坏/高代价清障、不连续或纯竖直体素几何；它不复用 `RoadPlan`，也不负责施工；
 - 施工阶段只消费已选定的 `TunnelPlan`，不得重新选择入口、出口或路线；
 - 无合格计划时返回 `no_tunnel_plan`，不得为普通目标强行开隧道。
 
@@ -96,7 +105,21 @@ Cost = surfaceMoveCost(start, entrance)
 
 簇内目标优先级：当前站位可挖 -> 纯曲面可达 -> 单层直接可见且安全的局部清障 -> 重新扫描暴露面 -> 结束簇。
 
-## 六、实施顺序
+## 六、测试与客户端验证
+
+headless 自检只覆盖可重复的基础不变量：普通曲面直达、隔空挖拦截、曲面失败不隐式施工、origin 掉落物过滤和有限拾取阶梯。不要为复杂洞穴、流体扩散、沙砾链式坠落或模组方块碰撞拼装脆弱场景；这些应在客户端世界中实测并记录日志。
+
+客户端工具：
+
+```text
+/alice diagnose-path <x y z>  只读显示 REACHED/UNREACHABLE/SEARCH_LIMIT、路径段数和扩展节点数
+/alice status                 只读显示 bot 是否忙、上次任务结果和当前位置
+/alice mine <x y z>           分配单目标曲面挖矿，用于观察失败码与回收位置
+```
+
+客户端重点检查：复杂洞穴高差、流体边界、沙砾/沙子坠落、模组方块碰撞、保护区动态变化、长距离搜索预算耗尽、背包或工具不足。任何这些场景中 bot 无法继续时，预期行为是停止、报告原因并保持可回收，而非自行扩张破坏范围。
+
+## 七、实施顺序
 
 1. 恢复单目标 `MineTask` 纯曲面 A* 链，并移除混合道路任务接管；
 2. 将现有 A* 封装为 `SurfacePathfinder` 返回结构化结果；

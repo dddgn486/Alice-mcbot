@@ -31,7 +31,23 @@ public final class AStarPathfinder {
      *
      * @return 路径脚位序列;找不到返回空列表
      */
+    public enum SearchStatus { REACHED, UNREACHABLE, SEARCH_LIMIT }
+
+    public record SearchResult(SearchStatus status, List<BlockPos> path, int expandedNodes) {
+        public SearchResult {
+            path = List.copyOf(path);
+        }
+
+        public boolean reachable() {
+            return status == SearchStatus.REACHED;
+        }
+    }
+
     public static List<BlockPos> computePath(ServerLevel level, BlockPos start, Goal goal) {
+        return computeDetailed(level, start, goal).path();
+    }
+
+    public static SearchResult computeDetailed(ServerLevel level, BlockPos start, Goal goal) {
         Map<BlockPos, PathNode> closed = new HashMap<>();
         BlockPos goalHint = goal instanceof Goal.GoalBlock block ? block.pos()
                 : goal instanceof Goal.GoalNear near ? near.pos() : start;
@@ -43,6 +59,7 @@ public final class AStarPathfinder {
         int maxZ = Math.max(start.getZ(), goalHint.getZ()) + SEARCH_MARGIN;
         Map<BlockPos, PathNode> openIndex = new HashMap<>();
         OpenSet openSet = new OpenSet();
+        boolean moveLimitReached = false;
 
         PathNode startNode = new PathNode(start);
         startNode.cost = 0;
@@ -54,10 +71,11 @@ public final class AStarPathfinder {
             PathNode current = openSet.removeBest();
             openIndex.remove(current.pos);
             if (goal.isInGoal(current.pos)) {
-                return reconstruct(current);
+                return new SearchResult(SearchStatus.REACHED, reconstruct(current), closed.size());
             }
             closed.put(current.pos, current);
             if (current.moves >= MAX_MOVES) {
+                moveLimitReached = true;
                 continue;
             }
             expand(level, current, goal, closed, openIndex, openSet,
@@ -67,7 +85,9 @@ public final class AStarPathfinder {
                 break;
             }
         }
-        return List.of();
+        SearchStatus status = closed.size() > MAX_NODES || moveLimitReached
+                ? SearchStatus.SEARCH_LIMIT : SearchStatus.UNREACHABLE;
+        return new SearchResult(status, List.of(), closed.size());
     }
 
     private static void expand(ServerLevel level, PathNode current, Goal goal,

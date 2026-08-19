@@ -50,6 +50,8 @@ public final class BotSelftest {
     private static int phaseTicks;
     private static int scenarioElapsedTicks;
     private static boolean scenarioTimedOut;
+    /** 默认只跑可重复的曲面链路冒烟；复杂回归仅由显式 full 模式触发。 */
+    private static boolean fullSuite;
 
     /** 记录 RUN 阶段耗时；达到预算即结束且该项强制不合格，后续成功不能翻案。 */
     private static boolean runFinished() {
@@ -142,9 +144,15 @@ public final class BotSelftest {
 
     /** 手动启动自检(命令触发)。 */
     public static void start() {
+        start(false);
+    }
+
+    /** 启动自检；full=true 才运行历史 13 项完整回归。 */
+    public static void start(boolean full) {
         if (server == null) {
             return;
         }
+        fullSuite = full;
         test1Pass = false;
         test2Pass = false;
         test3Pass = false;
@@ -161,7 +169,7 @@ public final class BotSelftest {
         phase = Phase.WAIT_START;
         waitTicks = START_DELAY_TICKS;
         phaseTicks = 0;
-        BotLog.info("SELFTEST 启动(手动): {} tick 后开始", START_DELAY_TICKS);
+        BotLog.info("SELFTEST 启动: mode={} {} tick 后开始", fullSuite ? "full" : "smoke", START_DELAY_TICKS);
     }
 
     @SubscribeEvent
@@ -410,7 +418,7 @@ public final class BotSelftest {
                 + " mineStart=" + (test3MineStart == null ? "null" : test3MineStart.toShortString())
                 + (scenarioTimedOut ? " (超时 " + scenarioElapsedTicks + " tick)" : " (耗时 " + scenarioElapsedTicks + " tick)");
         BotLog.info("SELFTEST TEST3 {}", test3Pass ? "PASS" : "FAIL: " + test3Detail);
-        phase = Phase.TEST4_SETUP;
+        phase = fullSuite ? Phase.TEST4_SETUP : Phase.REPORT;
         phaseTicks = 0;
     }
 

@@ -17,13 +17,14 @@ public final class SurfacePathfinder {
 
     public static Result find(ServerLevel level, BlockPos start, BlockPos goal) {
         if (start.equals(goal)) {
-            return Result.reached(start, List.of());
+            return Result.reached(start, List.of(), 0);
         }
-        List<BlockPos> path = AStarPathfinder.computePath(level, start, new Goal.GoalBlock(goal));
-        if (path.isEmpty()) {
-            return Result.unreachable(start, goal);
+        AStarPathfinder.SearchResult search = AStarPathfinder.computeDetailed(
+                level, start, new Goal.GoalBlock(goal));
+        if (!search.reachable()) {
+            return new Result(search.status(), goal, search.path(), search.expandedNodes());
         }
-        return Result.reached(goal, path);
+        return Result.reached(goal, search.path(), search.expandedNodes());
     }
 
     /** 按给定顺序选择第一个存在曲面路径的合法站位。 */
@@ -34,21 +35,27 @@ public final class SurfacePathfinder {
                 return new CandidateResult(result, goals.indexOf(goal));
             }
         }
-        return new CandidateResult(Result.unreachable(start, goals.isEmpty() ? start : goals.get(0)), -1);
+        return new CandidateResult(new Result(AStarPathfinder.SearchStatus.UNREACHABLE,
+                goals.isEmpty() ? start : goals.get(0), List.of(), 0), -1);
     }
 
-    public record Result(boolean reachable, BlockPos goal, List<BlockPos> path) {
+    public record Result(AStarPathfinder.SearchStatus status, BlockPos goal,
+                         List<BlockPos> path, int expandedNodes) {
         public Result {
             goal = goal.immutable();
             path = List.copyOf(path);
         }
 
-        private static Result reached(BlockPos goal, List<BlockPos> path) {
-            return new Result(true, goal, path);
+        public boolean reachable() {
+            return status == AStarPathfinder.SearchStatus.REACHED;
         }
 
-        private static Result unreachable(BlockPos start, BlockPos goal) {
-            return new Result(false, goal, List.of());
+        public boolean inconclusive() {
+            return status == AStarPathfinder.SearchStatus.SEARCH_LIMIT;
+        }
+
+        private static Result reached(BlockPos goal, List<BlockPos> path, int expandedNodes) {
+            return new Result(AStarPathfinder.SearchStatus.REACHED, goal, path, expandedNodes);
         }
     }
 

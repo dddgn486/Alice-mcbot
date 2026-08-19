@@ -5,6 +5,7 @@ import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.PerceptionProfile;
 import com.dddgn.alice.perception.PerceptionSnapshot;
+import com.dddgn.alice.pathing.SurfacePathfinder;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -57,11 +58,19 @@ public final class BotCommand {
                 .then(Commands.literal("observe")
                         .executes(ctx -> observe(ctx.getSource())))
                 .then(Commands.literal("selftest")
-                        .executes(ctx -> selftest(ctx.getSource())))
+                        .executes(ctx -> selftest(ctx.getSource(), false))
+                        .then(Commands.literal("full")
+                                .executes(ctx -> selftest(ctx.getSource(), true))))
                 .then(Commands.literal("scan")
                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                 .executes(ctx -> scan(ctx.getSource(),
                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
+                .then(Commands.literal("diagnose-path")
+                        .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                                .executes(ctx -> diagnosePath(ctx.getSource(),
+                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
+                .then(Commands.literal("status")
+                        .executes(ctx -> status(ctx.getSource())))
                 .then(Commands.literal("auto-mine")
                         .then(Commands.argument("tag", StringArgumentType.string())
                                 .executes(ctx -> autoMine(ctx.getSource(),
@@ -202,6 +211,36 @@ public final class BotCommand {
         return 1;
     }
 
+    /** 只读曲面寻路诊断，不分配任务、不改变世界。 */
+    private static int diagnosePath(CommandSourceStack source, BlockPos goal) {
+        ServerLevel level = source.getLevel();
+        BlockPos start = source.getEntity() != null ? source.getEntity().blockPosition()
+                : level.getSharedSpawnPos();
+        SurfacePathfinder.Result result = SurfacePathfinder.find(level, start, goal);
+        String detail = "[alice] 曲面诊断 " + result.status() + ": "
+                + start.toShortString() + " -> " + goal.toShortString()
+                + ", path=" + result.path().size() + ", expanded=" + result.expandedNodes();
+        if (result.inconclusive()) {
+            detail += "；搜索预算耗尽，不能据此授权挖通道";
+        }
+        String message = detail;
+        source.sendSuccess(() -> Component.literal(message), false);
+        return result.reachable() ? 1 : 0;
+    }
+
+    /** 输出当前 bot 的任务可回收状态，不改变任务。 */
+    private static int status(CommandSourceStack source) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] 当前维度没有已生成的假人"));
+            return 0;
+        }
+        String text = "[alice] " + bot.getName().getString() + " busy=" + BotManager.isBusy(bot)
+                + ", last=" + BotManager.lastTaskResult(bot) + ", pos=" + bot.blockPosition().toShortString();
+        source.sendSuccess(() -> Component.literal(text), false);
+        return 1;
+    }
+
     /** M2 接口扫描:输出指定方块的 capability 接口清单(物品/能量/流体/气体等)。 */
     private static int buildRoadByBot(CommandSourceStack source) {
         com.dddgn.alice.road.RoadPlan plan = com.dddgn.alice.road.RoadPlan.get();
@@ -275,9 +314,10 @@ public final class BotCommand {
     }
 
     /** 手动触发自检(默认不自动跑,审查点 R8)。 */
-    private static int selftest(CommandSourceStack source) {
-        com.dddgn.alice.bot.BotSelftest.start();
-        source.sendSuccess(() -> Component.literal("[alice] 自检已启动,结果见日志"), false);
+    private static int selftest(CommandSourceStack source, boolean full) {
+        com.dddgn.alice.bot.BotSelftest.start(full);
+        source.sendSuccess(() -> Component.literal("[alice] " + (full ? "完整回归" : "基础冒烟")
+                + "自检已启动,结果见日志"), false);
         return 1;
     }
 
