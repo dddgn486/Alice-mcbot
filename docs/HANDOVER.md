@@ -22,7 +22,7 @@ GUI 背后操作序列化为语义接口（而非视觉点 GUI）。
 | 移动 | ✅ 位置步进（无重力，服务端不跑玩家物理）；`PathExecutor` 手动 setPos + setOnGround |
 | 寻路 | ⚠️ 当前 `pathing/` 是临时简化 A*，已加局部边界/节点上限但不具备 break-aware 成本；近距离不可达可能仍 `collect_no_path`。下一阶段按 `docs/BARITONE_PORTING_CHECKLIST.md` 移植 Baritone 1.20.1 movement/cost 核心 |
 | 挖掘 | ✅ `BotMiner`：站位候选逐个尝试（目标上方→下方优先）、视线无遮挡硬检查（防隔空挖）、挖掘时朝向目标（含 yHeadRot） |
-| 清障挖通道 | 🗄️ 旧方案已归档：`MineTask` 的“失败后猜 blocker 再重跑 A*”仅保留兼容/基线；道路改由 `RoadPlan` 三维受约束最短路拟合 + `RoadBuilder` 逐单元执行。液体及一格 clearance 是三维禁区；水平允许带侧格检查的 8 邻，对角拐角额外拓宽净空；纯竖直中心线移动禁用，垂直差不足时由水平绕行补坡 |
+| 清障挖通道 | 🗄️ 旧方案已归档；道路由 `RoadPlan` + `RoadBuilder` 执行。统一 `RoadObstaclePolicy`：所有 FluidState 本体加三维一格 clearance，安全区/负硬度/黑曜石类/`#alice:road_forbidden` 仅禁本体。短水平大高差可切换 2×2 螺旋，螺旋单元三格净空并在目标前保留一格缓冲 |
 | 拾取 | ⚠️ 已禁止未到物品格心时提前 `playerTouch`，并锁定原始目标方块来源产物；旧 `MineTask`/阶梯逻辑归档为旧方案，不再参与道路蓝图执行 |
 | 感知层 | ✅ `PerceptionSnapshot` 分类聚合摘要 + `ScopeBuffer` 任务作用域；`PerceptionProfile`（MINING/GENERAL） |
 | 决策层 | ✅ `AutoMineDecision` 最小规则：扫描匹配目标（标签或方块 ID）→ 取最近 → 执行 |
