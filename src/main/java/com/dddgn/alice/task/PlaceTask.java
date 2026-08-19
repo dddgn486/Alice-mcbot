@@ -5,7 +5,6 @@ import com.dddgn.alice.pathing.Goal;
 import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.PathExecutor;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.Blocks;
@@ -23,9 +22,8 @@ public final class PlaceTask implements Task {
     private final ServerPlayer bot;
     private final BlockPos target;
     private PathExecutor executor;
-    private List<PlacementCandidate> candidates;
-    private PlacementCandidate selected;
-    private record PlacementCandidate(BlockPos stand, BlockPos support, Direction face) {}
+    private List<BlockPos> candidates;
+    private BlockPos selected;
     private BlockPos stand;
     private String failure = "";
 
@@ -49,18 +47,18 @@ public final class PlaceTask implements Task {
         }
         if (selected == null) {
             while (!candidates.isEmpty()) {
-                PlacementCandidate candidate = candidates.remove(0);
-                if (candidate.stand().equals(bot.blockPosition())) {
+                BlockPos candidate = candidates.remove(0);
+                if (candidate.equals(bot.blockPosition())) {
                     selected = candidate;
-                    stand = candidate.stand();
+                    stand = candidate;
                     break;
                 }
                 List<BlockPos> path = AStarPathfinder.computePath(
                         (net.minecraft.server.level.ServerLevel) bot.level(), bot.blockPosition(),
-                        new Goal.GoalBlock(candidate.stand()));
+                        new Goal.GoalBlock(candidate));
                 if (!path.isEmpty()) {
                     selected = candidate;
-                    stand = candidate.stand();
+                    stand = candidate;
                     executor = new PathExecutor(bot, path);
                     break;
                 }
@@ -87,12 +85,9 @@ public final class PlaceTask implements Task {
         return Status.DONE;
     }
 
-    /**
-     * 生成“站位 + 实际支撑方块 + 放置面”候选。站位规则沿用挖掘侧的两格实体空间、
-     * 支撑方块和 MovementHelper 语义；放置还必须能从站位 raycast 命中支撑方块。
-     */
-    private List<PlacementCandidate> pickCandidates() {
-        List<PlacementCandidate> result = new ArrayList<>();
+    /** 生成可站位候选；放置动作只在最终阶段做目标空气中心视线检查。 */
+    private List<BlockPos> pickCandidates() {
+        List<BlockPos> result = new ArrayList<>();
         for (int dx = -4; dx <= 4; dx++) {
             for (int dy = -4; dy <= 3; dy++) {
                 for (int dz = -4; dz <= 4; dz++) {
@@ -105,21 +100,13 @@ public final class PlaceTask implements Task {
                     }
                     Vec3 eye = new Vec3(standPos.getX() + 0.5D, standPos.getY() + 1.62D,
                             standPos.getZ() + 0.5D);
-                    if (eye.distanceTo(target.getCenter()) > MAX_REACH - 0.3D) continue;
-                    for (Direction face : Direction.values()) {
-                        BlockPos support = target.relative(face.getOpposite());
-                        BlockState supportState = bot.level().getBlockState(support);
-                        if (supportState.isAir() || supportState.getCollisionShape(bot.level(), support).isEmpty()) continue;
-                        BlockHitResult hit = raycastPlacement(eye, support, face);
-                        if (hit != null && hit.getBlockPos().equals(support) && hit.getDirection() == face) {
-                            result.add(new PlacementCandidate(standPos.immutable(), support.immutable(), face));
-                        }
+                    if (eye.distanceTo(target.getCenter()) <= MAX_REACH - 0.3D) {
+                        result.add(standPos.immutable());
                     }
                 }
             }
         }
-        result.sort(java.util.Comparator.comparingDouble(candidate ->
-                candidate.stand().distSqr(target) + candidate.support().distSqr(target) * 0.05D));
+        result.sort(java.util.Comparator.comparingDouble(p -> p.distSqr(target)));
         return result.size() > 16 ? result.subList(0, 16) : result;
     }
 
@@ -127,15 +114,8 @@ public final class PlaceTask implements Task {
         if (selected == null) return false;
         Vec3 eye = bot.getEyePosition();
         if (eye.distanceTo(target.getCenter()) > MAX_REACH) return false;
-        BlockHitResult hit = raycastPlacement(eye, selected.support(), selected.face());
-        return hit != null && hit.getBlockPos().equals(selected.support())
-                && hit.getDirection() == selected.face();
-    }
-
-    private BlockHitResult raycastPlacement(Vec3 eye, BlockPos support, Direction face) {
-        Vec3 hitPoint = support.getCenter().add(
-                face.getStepX() * 0.5D, face.getStepY() * 0.5D, face.getStepZ() * 0.5D);
-        return bot.level().clip(new ClipContext(eye, hitPoint,
+        BlockHitResult hit = bot.level().clip(new ClipContext(eye, target.getCenter(),
                 ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, bot));
+        return hit.getType() == HitResult.Type.MISS;
     }
 }
