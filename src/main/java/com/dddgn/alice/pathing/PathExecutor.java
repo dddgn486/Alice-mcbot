@@ -20,7 +20,7 @@ public final class PathExecutor {
     public enum Status { MOVING, DONE, FAILED }
 
     private static final double SEGMENT_ARRIVE = 0.3D;
-    private static final double STEP_SPEED = 0.25D;   // 格/tick(约 4 tick 一格)
+    private static final double STEP_SPEED = 0.5D;    // 格/tick(约 2 tick 一格)，用于已规划曲面路径
     private static final int NO_PROGRESS_LIMIT = 80;
 
     private final ServerPlayer bot;
