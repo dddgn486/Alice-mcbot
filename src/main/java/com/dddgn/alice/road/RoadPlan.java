@@ -109,7 +109,8 @@ public final class RoadPlan {
             }
             result.add(new Unit(support.immutable(), Collections.unmodifiableList(cells)));
         }
-        return validateRoute(level, centerline) ? Collections.unmodifiableList(result) : List.of();
+        return validateRoute(level, centerline, unitPositions)
+                ? Collections.unmodifiableList(result) : List.of();
     }
 
     private static void addEdgeClearance(BlockPos from, BlockPos to,
@@ -134,7 +135,8 @@ public final class RoadPlan {
         }
     }
 
-    private static boolean validateRoute(ServerLevel level, List<BlockPos> route) {
+    private static boolean validateRoute(ServerLevel level, List<BlockPos> route,
+                                         List<Set<BlockPos>> unitPositions) {
         for (int i = 0; i < route.size(); i++) {
             BlockPos p = route.get(i);
             if (forbidden(level, p)) return false;
@@ -145,11 +147,31 @@ public final class RoadPlan {
             int dy = Math.abs(p.getY() - q.getY());
             if (dy > 1 || (dx == 0 && dz == 0) || dx > 1 || dz > 1) return false;
             if (dx == 1 && dz == 1) {
-                if (forbidden(level, new BlockPos(p.getX(), q.getY(), q.getZ()))
-                        || forbidden(level, new BlockPos(q.getX(), q.getY(), p.getZ()))) return false;
+                BlockPos sideA = new BlockPos(p.getX(), q.getY(), q.getZ());
+                BlockPos sideB = new BlockPos(q.getX(), q.getY(), p.getZ());
+                if (forbidden(level, sideA) || forbidden(level, sideB)) return false;
+                // 对角桥接必须真实写入前后单元，不能只依赖中心线角点相接。
+                if (!hasPassage(unitPositions.get(i - 1), sideA)
+                        || !hasPassage(unitPositions.get(i), sideB)) return false;
+            }
+            if (dy == 1) {
+                BlockPos low = q.getY() < p.getY() ? q : p;
+                if (!hasCell(unitPositions.get(i - 1), low.above(2))
+                        && !hasCell(unitPositions.get(i), low.above(2))) return false;
+                if (!hasCell(unitPositions.get(i - 1), low.above(3))
+                        && !hasCell(unitPositions.get(i), low.above(3))) return false;
             }
         }
         return true;
+    }
+
+    private static boolean hasCell(Set<BlockPos> cells, BlockPos pos) {
+        return cells.contains(pos);
+    }
+
+    private static boolean hasPassage(Set<BlockPos> cells, BlockPos support) {
+        return cells.contains(support) || cells.contains(support.above())
+                || cells.contains(support.above(2));
     }
 
     private record SearchNode(BlockPos pos, int direction, double cost, double score) {}
