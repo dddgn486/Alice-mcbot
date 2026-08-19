@@ -21,8 +21,9 @@ import java.util.Map;
  */
 public final class RoadPlan {
     public enum CellKind { SUPPORT_PLACE, CLEAR, OPEN }
+    public enum UnitKind { NORMAL, SPIRAL }
     public record Cell(BlockPos pos, CellKind kind) {}
-    public record Unit(BlockPos support, List<Cell> cells) {}
+    public record Unit(BlockPos support, UnitKind kind, int headroom, List<Cell> cells) {}
 
     private static final int MAX_AXIS_DELTA = 128;
     private static final RoadPlan INSTANCE = new RoadPlan();
@@ -86,8 +87,17 @@ public final class RoadPlan {
     public synchronized List<Unit> units() { return units; }
     public synchronized ServerLevel level() { return level; }
 
+    private record Route(List<BlockPos> centerline, Set<BlockPos> spiralSupports) {}
+
     private static List<Unit> buildUnits(ServerLevel level, BlockPos a, BlockPos b) {
-        List<BlockPos> centerline = shortestVoxelRoute(level, a.below(), b.below());
+        BlockPos start = a.below();
+        BlockPos goal = b.below();
+        int horizontalDistance = Math.abs(start.getX() - goal.getX()) + Math.abs(start.getZ() - goal.getZ());
+        int verticalDistance = Math.abs(start.getY() - goal.getY());
+        Route route = verticalDistance > horizontalDistance + 2
+                ? spiralCompensationRoute(level, start, goal)
+                : new Route(shortestVoxelRoute(level, start, goal, 2), Set.of());
+        List<BlockPos> centerline = route.centerline();
         if (centerline.isEmpty()) {
             BotLog.warn("道路蓝图生成失败: 体素搜索无路 start={} goal={}",
                     a.below().toShortString(), b.below().toShortString());
@@ -97,8 +107,8 @@ public final class RoadPlan {
         for (BlockPos support : centerline) {
             Set<BlockPos> positions = new LinkedHashSet<>();
             positions.add(support);
-            positions.add(support.above());
-            positions.add(support.above(2));
+            int headroom = route.spiralSupports().contains(support) ? 3 : 2;
+            for (int h = 1; h <= headroom; h++) positions.add(support.above(h));
             unitPositions.add(positions);
         }
         // 每条中心线边都必须有可走的体素过渡，首段和末段同样处理。
@@ -116,9 +126,11 @@ public final class RoadPlan {
                         : (level.getBlockState(pos).isAir() ? CellKind.OPEN : CellKind.CLEAR);
                 cells.add(new Cell(pos.immutable(), kind));
             }
-            result.add(new Unit(support.immutable(), Collections.unmodifiableList(cells)));
+            UnitKind kind = route.spiralSupports().contains(support) ? UnitKind.SPIRAL : UnitKind.NORMAL;
+            int headroom = kind == UnitKind.SPIRAL ? 3 : 2;
+            result.add(new Unit(support.immutable(), kind, headroom, Collections.unmodifiableList(cells)));
         }
-        if (!validateRoute(level, centerline, unitPositions)) {
+        if (!validateRoute(level, centerline, unitPositions, route.spiralSupports())) {
             BotLog.warn("道路蓝图生成失败: 单元连通验证拒绝 routeUnits={}", centerline.size());
             return List.of();
         }
@@ -148,10 +160,11 @@ public final class RoadPlan {
     }
 
     private static boolean validateRoute(ServerLevel level, List<BlockPos> route,
-                                         List<Set<BlockPos>> unitPositions) {
+                                         List<Set<BlockPos>> unitPositions, Set<BlockPos> spiralSupports) {
         for (int i = 0; i < route.size(); i++) {
             BlockPos p = route.get(i);
-            if (forbidden(level, p)) return false;
+            int headroom = spiralSupports.contains(p) ? 3 : 2;
+            if (RoadObstaclePolicy.forbidsCorridor(level, p, headroom)) return false;
             if (i == 0) continue;
             BlockPos q = route.get(i - 1);
             int dx = Math.abs(p.getX() - q.getX());
@@ -175,9 +188,59 @@ public final class RoadPlan {
 
     private record SearchNode(BlockPos pos, int direction, double cost, double score) {}
 
+    /**
+     * 短水平、大高度差时的固定 2×2 螺旋补偿。
+     * 从目标前一格水平缓冲反向定位出口；螺旋每步均有水平位移且高度变化一格，
+     * 其上方使用三格净空验证。
+     */
+    private static Route spiralCompensationRoute(ServerLevel level, BlockPos start, BlockPos goal) {
+        int signY = Integer.compare(goal.getY(), start.getY());
+        int vertical = Math.abs(goal.getY() - start.getY());
+        if (signY == 0) return new Route(shortestVoxelRoute(level, start, goal, 2), Set.of());
+        // 末端预留一格水平缓冲；从四个方向枚举 2×2 螺旋出口，避免侵入目标下方支撑格。
+        int[][] exits = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+        for (int[] exitDir : exits) {
+            BlockPos buffer = goal.offset(exitDir[0], 0, exitDir[1]);
+            if (RoadObstaclePolicy.forbidsCorridor(level, buffer, 2)) continue;
+            // 令螺旋最后一步落到 buffer 前的相邻格，再由普通水平缓冲走入目标下方支撑。
+            BlockPos spiralExit = buffer.offset(exitDir[0], 0, exitDir[1]);
+            int steps = vertical;
+            int[][] cycle = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}};
+            for (int phase = 0; phase < 4; phase++) {
+                int sx = spiralExit.getX(), sz = spiralExit.getZ();
+                for (int i = 0; i < steps; i++) {
+                    int[] reverse = cycle[(phase + steps - 1 - i + 8) % 4];
+                    sx -= reverse[0];
+                    sz -= reverse[1];
+                }
+                BlockPos spiralStart = new BlockPos(sx, goal.getY() - signY * steps, sz);
+                List<BlockPos> approach = shortestVoxelRoute(level, start, spiralStart, 2);
+                if (approach.isEmpty()) continue;
+                List<BlockPos> route = new ArrayList<>(approach);
+                Set<BlockPos> spiral = new LinkedHashSet<>();
+                BlockPos current = spiralStart;
+                boolean valid = true;
+                for (int step = 0; step < steps; step++) {
+                    int[] move = cycle[(phase + step) % 4];
+                    current = current.offset(move[0], signY, move[1]);
+                    if (RoadObstaclePolicy.forbidsCorridor(level, current, 3)) { valid = false; break; }
+                    route.add(current);
+                    spiral.add(current);
+                }
+                if (!valid || !current.equals(spiralExit)) continue;
+                if (RoadObstaclePolicy.forbidsCorridor(level, goal, 2)) continue;
+                route.add(buffer);
+                route.add(goal);
+                return new Route(route, Set.copyOf(spiral));
+            }
+        }
+        return new Route(List.of(), Set.of());
+    }
+
     /** 液体膨胀区外的 3D 体素最短路：4 邻水平、单步高差最多 1、轻微转弯惩罚。 */
-    private static List<BlockPos> shortestVoxelRoute(ServerLevel level, BlockPos start, BlockPos goal) {
-        if (forbidden(level, start) || forbidden(level, goal)) return List.of();
+    private static List<BlockPos> shortestVoxelRoute(ServerLevel level, BlockPos start, BlockPos goal, int headroom) {
+        if (RoadObstaclePolicy.forbidsCorridor(level, start, headroom)
+                || RoadObstaclePolicy.forbidsCorridor(level, goal, headroom)) return List.of();
         PriorityQueue<SearchNode> open = new PriorityQueue<>(java.util.Comparator.comparingDouble(SearchNode::score));
         Map<String, Double> best = new HashMap<>();
         int margin = 24;
@@ -230,15 +293,7 @@ public final class RoadPlan {
     }
 
     private static boolean forbidden(ServerLevel level, BlockPos support) {
-        for (int dy = 0; dy <= 2; dy++) {
-            BlockPos cell = support.above(dy);
-            for (int dx = -1; dx <= 1; dx++) {
-                for (int dz = -1; dz <= 1; dz++) {
-                    if (!level.getFluidState(cell.offset(dx, 0, dz)).isEmpty()) return true;
-                }
-            }
-        }
-        return false;
+        return RoadObstaclePolicy.forbidsCorridor(level, support, 2);
     }
 
     private static double heuristic(BlockPos a, BlockPos b) {

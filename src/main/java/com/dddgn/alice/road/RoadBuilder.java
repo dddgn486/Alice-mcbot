@@ -100,8 +100,9 @@ public final class RoadBuilder {
 
     private boolean hasFallingMaterial(RoadPlan.Unit unit) {
         BlockPos support = unit.support();
-        // 只有下方无支撑的沙/沙砾才算即将坠落；有支撑的实体方块是稳定环境，不应让道路假死。
-        for (int dy = -1; dy <= 8; dy++) {
+        // 螺旋单元有三格净空，检测柱相应提高；稳定实体方块不应让道路假死。
+        int upperScan = unit.headroom() + 6;
+        for (int dy = -1; dy <= upperScan; dy++) {
             for (int dx = -1; dx <= 1; dx++) {
                 for (int dz = -1; dz <= 1; dz++) {
                     BlockPos scan = support.offset(dx, dy, dz);
@@ -109,7 +110,7 @@ public final class RoadBuilder {
                 }
             }
         }
-        var box = new net.minecraft.world.phys.AABB(support).inflate(1.5D, 8.0D, 1.5D);
+        var box = new net.minecraft.world.phys.AABB(support).inflate(1.5D, upperScan, 1.5D);
         return !level.getEntitiesOfClass(FallingBlockEntity.class, box).isEmpty();
     }
 
@@ -124,7 +125,8 @@ public final class RoadBuilder {
     private void removeFallingMaterial(RoadPlan.Unit unit) {
         BlockPos support = unit.support();
         // 清理范围与检测范围一致，否则会检测到上方方块却永远清不掉并重复等待。
-        for (int dy = -1; dy <= 8; dy++) {
+        int upperScan = unit.headroom() + 6;
+        for (int dy = -1; dy <= upperScan; dy++) {
             for (int dx = -1; dx <= 1; dx++) {
                 for (int dz = -1; dz <= 1; dz++) {
                     BlockPos pos = support.offset(dx, dy, dz);
@@ -135,7 +137,7 @@ public final class RoadBuilder {
                 }
             }
         }
-        var box = new net.minecraft.world.phys.AABB(support).inflate(1.5D, 8.0D, 1.5D);
+        var box = new net.minecraft.world.phys.AABB(support).inflate(1.5D, upperScan, 1.5D);
         for (FallingBlockEntity entity : level.getEntitiesOfClass(FallingBlockEntity.class, box)) {
             entity.discard();
         }
