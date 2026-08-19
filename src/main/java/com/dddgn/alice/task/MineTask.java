@@ -2,8 +2,7 @@ package com.dddgn.alice.task;
 
 import com.dddgn.alice.action.BotMiner;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.pathing.AStarPathfinder;
-import com.dddgn.alice.pathing.Goal;
+import com.dddgn.alice.pathing.SurfacePathfinder;
 import com.dddgn.alice.pathing.PathExecutor;
 import com.dddgn.alice.protection.BlockBreakSafety;
 import com.dddgn.alice.perception.ScopeBuffer;
@@ -339,8 +338,7 @@ public final class MineTask implements Task {
         if (collectExecutor == null) {
             BlockPos stand = nearest.blockPosition();
             // 拾取终点必须是掉落物实际脚位格，不能只到相邻格：坑底物品需要下坑。
-            Goal.GoalBlock pickupGoal = new Goal.GoalBlock(stand);
-            if (pickupGoal.isInGoal(bot.blockPosition())) {
+            if (stand.equals(bot.blockPosition())) {
                 // 已在同一方块格但未居中：执行一个只含终点的短路径，让 PathExecutor 对齐格心。
                 collectExecutor = new PathExecutor(bot, List.of(stand));
                 BotLog.info("拾取居中: item@{} bot=({}, {})", stand.toShortString(),
@@ -348,12 +346,14 @@ public final class MineTask implements Task {
                         String.format(java.util.Locale.ROOT, "%.2f", bot.getZ()));
                 return Status.RUNNING;
             }
-            List<BlockPos> path = AStarPathfinder.computePath(level, bot.blockPosition(), pickupGoal);
-            if (path.isEmpty()) {
+            SurfacePathfinder.Result surface = SurfacePathfinder.find(level, bot.blockPosition(), stand);
+            List<BlockPos> path = surface.path();
+            if (!surface.reachable()) {
                 // 目标格不可达:只尝试上方的实际脚位格；仍不可达则任务失败，不能把近距离产物当损耗吞掉。
-                path = AStarPathfinder.computePath(level, bot.blockPosition(), new Goal.GoalBlock(stand.above()));
+                surface = SurfacePathfinder.find(level, bot.blockPosition(), stand.above());
+                path = surface.path();
             }
-            if (path.isEmpty()) {
+            if (!surface.reachable()) {
                 BlockPos stairBlocker = findCollectStairBlocker(level, stand);
                 if (stairBlocker != null) {
                     collectStairClears++;

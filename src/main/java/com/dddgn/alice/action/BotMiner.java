@@ -1,8 +1,7 @@
 package com.dddgn.alice.action;
 
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.pathing.AStarPathfinder;
-import com.dddgn.alice.pathing.Goal;
+import com.dddgn.alice.pathing.SurfacePathfinder;
 import com.dddgn.alice.pathing.PathExecutor;
 import com.dddgn.alice.protection.BlockBreakSafety;
 import net.minecraft.core.BlockPos;
@@ -115,13 +114,13 @@ public final class BotMiner {
                     standGoal = cand;
                     break;
                 }
-                List<BlockPos> path = AStarPathfinder.computePath(level,
-                        bot.blockPosition(), new Goal.GoalBlock(cand));
-                if (!path.isEmpty()) {
+                SurfacePathfinder.Result surface = SurfacePathfinder.find(level,
+                        bot.blockPosition(), cand);
+                if (surface.reachable()) {
                     standGoal = cand;
-                    executor = new PathExecutor(bot, path);
-                    BotLog.info("站位已选: target={} stand={} 路径 {} 段",
-                            target.toShortString(), cand.toShortString(), path.size());
+                    executor = new PathExecutor(bot, surface.path());
+                    BotLog.info("曲面站位已选: target={} stand={} 路径 {} 段",
+                            target.toShortString(), cand.toShortString(), surface.path().size());
                     break;
                 }
                 BotLog.warn("候选站位不可达: {} → 尝试下一个", cand.toShortString());
@@ -142,14 +141,14 @@ public final class BotMiner {
                     // 路径中方块动态变化 → 从当前位置重新规划(限 2 次)
                     pathRetries++;
                     BotLog.warn("路径受阻,重新规划({}/2): target={}", pathRetries, target.toShortString());
-                    List<BlockPos> path = AStarPathfinder.computePath(level,
-                            bot.blockPosition(), new Goal.GoalBlock(standGoal));
-                    if (path.isEmpty()) {
+                    SurfacePathfinder.Result surface = SurfacePathfinder.find(level,
+                            bot.blockPosition(), standGoal);
+                    if (!surface.reachable()) {
                         failureReason = "no_path";
                         BotLog.warn("mine 失败: target={} reason={}", target.toShortString(), failureReason);
                         return Status.FAILED;
                     }
-                    executor = new PathExecutor(bot, path);
+                    executor = new PathExecutor(bot, surface.path());
                     return Status.MOVING;
                 }
                 failureReason = "path_failed";
