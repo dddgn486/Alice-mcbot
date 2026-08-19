@@ -28,13 +28,22 @@ public final class RoadPlannerItem extends Item {
             return InteractionResult.SUCCESS;
         }
         BlockPos selected = context.getClickedPos();
-        boolean complete = RoadPlan.get().select(serverLevel, selected);
+        RoadPlan plan = RoadPlan.get();
+        boolean hadFirst = plan.first() != null;
+        boolean complete = plan.select(serverLevel, selected);
         AliceNetwork.CHANNEL.send(PacketDistributor.ALL.noArg(),
-                new RoadPlanPacket(complete, RoadPlan.get().cells()));
+                new RoadPlanPacket(complete, plan.cells()));
         if (context.getPlayer() != null) {
-            context.getPlayer().sendSystemMessage(Component.literal(complete
-                    ? "[alice] 道路蓝图已生成: " + RoadPlan.get().cells().size() + " 个体素"
-                    : "[alice] 道路起点已选择: " + selected.toShortString()));
+            if (complete) {
+                context.getPlayer().sendSystemMessage(Component.literal(
+                        "[alice] 道路蓝图已生成: " + plan.cells().size() + " 个体素"));
+            } else if (hadFirst) {
+                context.getPlayer().sendSystemMessage(Component.literal(
+                        "[alice] 道路生成失败: " + plan.lastFailureReason()));
+            } else {
+                context.getPlayer().sendSystemMessage(Component.literal(
+                        "[alice] 道路起点已选择: " + selected.toShortString()));
+            }
         }
         return InteractionResult.SUCCESS;
     }

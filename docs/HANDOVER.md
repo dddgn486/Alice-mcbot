@@ -1,7 +1,7 @@
 # Alice 项目交接说明（给新会话的快速上手）
 
 > 用途：另一个对话/会话接手本项目时，先读本文件 + README + 设计文档，即可快速进入工作。
-> 更新：2026-08-18
+> 更新：2026-08-18（道路数学模型/螺旋楼梯已进入实机测试阶段）
 
 ## 一、项目是什么
 
@@ -22,7 +22,7 @@ GUI 背后操作序列化为语义接口（而非视觉点 GUI）。
 | 移动 | ✅ 位置步进（无重力，服务端不跑玩家物理）；`PathExecutor` 手动 setPos + setOnGround |
 | 寻路 | ⚠️ 当前 `pathing/` 是临时简化 A*，已加局部边界/节点上限但不具备 break-aware 成本；近距离不可达可能仍 `collect_no_path`。下一阶段按 `docs/BARITONE_PORTING_CHECKLIST.md` 移植 Baritone 1.20.1 movement/cost 核心 |
 | 挖掘 | ✅ `BotMiner`：站位候选逐个尝试（目标上方→下方优先）、视线无遮挡硬检查（防隔空挖）、挖掘时朝向目标（含 yHeadRot） |
-| 清障挖通道 | 🗄️ 旧方案已归档；道路由 `RoadPlan` + `RoadBuilder` 执行。统一 `RoadObstaclePolicy`：所有 FluidState 本体加三维一格 clearance，安全区/负硬度/黑曜石类/`#alice:road_forbidden` 仅禁本体。短水平大高差可切换 2×2 螺旋，螺旋单元三格净空并在目标前保留一格缓冲 |
+| 清障挖通道 | 🗄️ 旧 `MineTask` 猜 blocker 方案已归档。道路由 `RoadPlan`（数学路线拟合）+ `RoadBuilder`（逐单元稳定构建）执行。统一 `RoadObstaclePolicy` 禁区：所有 FluidState 本体加三维一格 clearance；安全区/负硬度/黑曜石类/`#alice:road_forbidden` 仅禁本体。普通弯曲路径优先（搜索可向外借步长，边界 24 格），失败且高差 `> 水平+4` 时启用 2×2 螺旋；螺旋单元三格净空、入口外一格同样扩宽、出口经一格水平缓冲接入目标正下方支撑格，不侵入 `2×2` 本体 |
 | 拾取 | ⚠️ 已禁止未到物品格心时提前 `playerTouch`，并锁定原始目标方块来源产物；旧 `MineTask`/阶梯逻辑归档为旧方案，不再参与道路蓝图执行 |
 | 感知层 | ✅ `PerceptionSnapshot` 分类聚合摘要 + `ScopeBuffer` 任务作用域；`PerceptionProfile`（MINING/GENERAL） |
 | 决策层 | ✅ `AutoMineDecision` 最小规则：扫描匹配目标（标签或方块 ID）→ 取最近 → 执行 |
@@ -50,7 +50,9 @@ GUI 背后操作序列化为语义接口（而非视觉点 GUI）。
 /alice observe               感知摘要
 /alice scan <x y z>          接口扫描
 /alice selftest              手动验收
-目标指定器(物品)右键方块     派挖掘任务
+/alice road build            按当前道路蓝图逐单元构建(圆石支撑+清通净空+5tick稳定检测)
+目标指定器(钻石斧)右键方块   派挖掘任务; Shift+右键点击面外侧格 → 独立放置任务
+道路蓝图锄(钻石锄)右键两端   生成/刷新蓝色三维道路预览; Shift+右键重置
 钻石铲右键                   快捷接口扫描
 ```
 
@@ -58,11 +60,14 @@ headless 验收：`./gradlew runServer -Dalice.selftest.auto=true`（测完自�
 
 ## 五、待办 / 下一步（按用户兴趣排序）
 
-1. **AttackTask**（实体目标）：目标指定器右键生物已在提示「未实现」；近战攻击状态机
-2. **LLM 决策接入**：`AutoMineDecision` 的「选目标策略」就是替换点，接口已预留
-3. **背包管理**：挖的矿堆在背包，后续「存箱子/回家卸货」
-4. **搭路/垫方块**：3 格高平台爬不上去（跳跃物理上限），需垫方块能力
-5. **测试工具规范化**：钻石铲扫描等可迁移到 alice 注册物品
+1. **道路执行接 bot**：目前 `RoadBuilder` 只改世界，bot 尚未沿道路蓝图移动；接入 PathExecutor 逐单元行进是下一条主线
+2. **目标簇 AABB 保护**：全局路线把目标簇近似为长方体保护体，螺旋/通道不得侵入；簇内局部采集规划分离
+3. **半圆借步长上限**：普通搜索当前靠 24 格边界自由借步长，尚未实现「最多绕半圆」的曲率约束；超限后应明确切螺旋
+4. **道路专用回归**：平面短路/短水平大高差/螺旋正反向/液体禁区/端点保护/沙砾稳定，逐项 30 秒内验收
+5. **AttackTask**（实体目标）：目标指定器右键生物已在提示「未实现」；近战攻击状态机
+6. **LLM 决策接入**：`AutoMineDecision` 的「选目标策略」就是替换点，接口已预留
+7. **背包管理**：挖的矿堆在背包，后续「存箱子/回家卸货」
+8. **测试工具规范化**：钻石铲扫描等可迁移到 alice 注册物品
 
 ### 安全区操作
 
@@ -92,6 +97,11 @@ headless 验收：`./gradlew runServer -Dalice.selftest.auto=true`（测完自�
 - **坑**：`BotMiner` 的 `protected_*` 失败不能交给 `MineTask` 的通用清障分支，否则会绕开受保护目标先挖墙；现在直接终止任务
 - **测试运行器**：`server.halt(true)` 后 Gradle/Forge 子进程可能不退出并遗留 `run/world/session.lock`；日志看到 SELFTEST 结果后清理该自测进程再复跑
 - **坑**：Java 17 + netty 的 setAccessible 警告无害；`FMLJavaModLoadingContext.get()` 过时警告无害
+- **R17**：道路路线选择 = 普通弯曲优先（搜索可向外借步长），`vertical > horizontal + 4` 且普通无解时才切螺旋；不要改成竖直差硬判定，中等高差会两头落空
+- **R18**：螺旋入口外一格必须同样扩到三格净空（普通单元后继是螺旋时 headroom=3），否则进入螺旋时顶头
+- **R19**：螺旋出口→目标必须经过一格水平缓冲，且缓冲/目标支撑格不得落在螺旋 `2×2` 水平投影内（`terminalSegmentClear`）；否则末段会遮挡楼梯或侵入目标
+- **R20**：道路蓝图失败时 `select` 返回 false 并保留 first，工具消息已区分「起点已选 / 生成失败:原因」；若玩家误以为总选到起点，先看 `no_walkable_route` 日志再改路线，不是状态 bug
+- **R21**：`RoadPlan` 是静态单例且绑定 `ServerLevel`；切换维度/重进世界会重置选择（level 引用变化），属预期行为
 
 ## 七、开发工作流（三副本同步）
 

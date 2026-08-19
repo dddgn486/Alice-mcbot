@@ -26,6 +26,8 @@ public final class RoadPlan {
     public record Unit(BlockPos support, UnitKind kind, int headroom, List<Cell> cells) {}
 
     private static final int MAX_AXIS_DELTA = 128;
+    /** 螺旋触发的高差裕量：普通弯曲路径优先，只有当普通搜索失败且高差明显超过水平容量时才尝试螺旋。 */
+    private static final int SPIRAL_EXTRA = 4;
     private static final RoadPlan INSTANCE = new RoadPlan();
 
     private BlockPos first;
@@ -34,6 +36,7 @@ public final class RoadPlan {
     private List<Cell> cells = List.of();
     private List<Unit> units = List.of();
     private boolean selected;
+    private String lastFailureReason = "";
 
     private RoadPlan() {}
 
@@ -48,6 +51,12 @@ public final class RoadPlan {
         cells = List.of();
         units = List.of();
         selected = false;
+        lastFailureReason = "";
+    }
+
+    /** 最近一次 select 的失败原因（起点已选或生成成功时为空串）。 */
+    public synchronized String lastFailureReason() {
+        return lastFailureReason;
     }
 
     public synchronized boolean select(ServerLevel level, BlockPos target) {
@@ -58,6 +67,7 @@ public final class RoadPlan {
             this.cells = List.of();
             this.units = List.of();
             this.selected = true;
+            this.lastFailureReason = "";
             return false;
         }
         this.second = target.immutable();
@@ -65,6 +75,7 @@ public final class RoadPlan {
                 || Math.abs(first.getY() - second.getY()) > MAX_AXIS_DELTA
                 || Math.abs(first.getZ() - second.getZ()) > MAX_AXIS_DELTA) {
             reset();
+            this.lastFailureReason = "distance_exceeds_limit";
             return false;
         }
         this.units = buildUnits(level, first, second);
@@ -72,11 +83,13 @@ public final class RoadPlan {
             BotLog.warn("道路蓝图未发布: 两点之间没有经过验证的可行单元");
             this.cells = List.of();
             this.second = null;
+            this.lastFailureReason = "no_walkable_route";
             return false;
         }
         List<Cell> flattened = new ArrayList<>();
         for (Unit unit : units) flattened.addAll(unit.cells());
         this.cells = Collections.unmodifiableList(flattened);
+        this.lastFailureReason = "";
         return true;
     }
 
@@ -95,12 +108,20 @@ public final class RoadPlan {
         BlockPos goal = b.below();
         int horizontalDistance = Math.abs(start.getX() - goal.getX()) + Math.abs(start.getZ() - goal.getZ());
         int verticalDistance = Math.abs(start.getY() - goal.getY());
-        boolean useSpiral = verticalDistance > horizontalDistance + 2;
-        Route route = useSpiral
-                ? spiralCompensationRoute(level, start, goal)
-                : new Route(shortestVoxelRoute(level, start, goal, 2), Set.of(), Set.of());
-        BotLog.info("道路路线选择: mode={} horizontal={} vertical={} start={} goal={}",
-                useSpiral ? "spiral" : "normal", horizontalDistance, verticalDistance,
+        // 普通弯曲路径优先：水平搜索本身可以向外借步长（有 24 格边界容错）。
+        // 只有当普通搜索无解，且高差明显超过水平容量时才启用螺旋，避免中等高差两头落空。
+        Route route;
+        List<BlockPos> normal = shortestVoxelRoute(level, start, goal, 2);
+        if (!normal.isEmpty()) {
+            route = new Route(normal, Set.of(), Set.of());
+        } else if (verticalDistance > horizontalDistance + SPIRAL_EXTRA) {
+            route = spiralCompensationRoute(level, start, goal);
+        } else {
+            route = new Route(List.of(), Set.of(), Set.of());
+        }
+        BotLog.info("道路路线选择: mode={} horizontal={} vertical={} spiralExtra={} start={} goal={}",
+                route.spiralSupports().isEmpty() ? "normal" : "spiral",
+                horizontalDistance, verticalDistance, SPIRAL_EXTRA,
                 start.toShortString(), goal.toShortString());
         List<BlockPos> centerline = route.centerline();
         if (centerline.isEmpty()) {
@@ -109,10 +130,15 @@ public final class RoadPlan {
             return List.of();
         }
         List<Set<BlockPos>> unitPositions = new ArrayList<>();
-        for (BlockPos support : centerline) {
+        for (int i = 0; i < centerline.size(); i++) {
+            BlockPos support = centerline.get(i);
+            boolean isSpiral = route.spiralSupports().contains(support);
+            boolean nextIsSpiral = i + 1 < centerline.size()
+                    && route.spiralSupports().contains(centerline.get(i + 1));
+            // 螺旋入口外一格向上扩宽一格：普通单元接入三格净空的螺旋时，前驱也要三格净空，避免顶头。
+            int headroom = (isSpiral || nextIsSpiral) ? 3 : 2;
             Set<BlockPos> positions = new LinkedHashSet<>();
             positions.add(support);
-            int headroom = route.spiralSupports().contains(support) ? 3 : 2;
             for (int h = 1; h <= headroom; h++) positions.add(support.above(h));
             unitPositions.add(positions);
         }
@@ -132,7 +158,9 @@ public final class RoadPlan {
                 cells.add(new Cell(pos.immutable(), kind));
             }
             UnitKind kind = route.spiralSupports().contains(support) ? UnitKind.SPIRAL : UnitKind.NORMAL;
-            int headroom = kind == UnitKind.SPIRAL ? 3 : 2;
+            boolean nextIsSpiral = i + 1 < centerline.size()
+                    && route.spiralSupports().contains(centerline.get(i + 1));
+            int headroom = (kind == UnitKind.SPIRAL || nextIsSpiral) ? 3 : 2;
             result.add(new Unit(support.immutable(), kind, headroom, Collections.unmodifiableList(cells)));
         }
         if (!validateRoute(level, centerline, unitPositions, route.spiralSupports(), route.spiralFootprint())) {
@@ -169,7 +197,8 @@ public final class RoadPlan {
                                          Set<BlockPos> spiralFootprint) {
         for (int i = 0; i < route.size(); i++) {
             BlockPos p = route.get(i);
-            int headroom = spiralSupports.contains(p) ? 3 : 2;
+            boolean nextIsSpiral = i + 1 < route.size() && spiralSupports.contains(route.get(i + 1));
+            int headroom = (spiralSupports.contains(p) || nextIsSpiral) ? 3 : 2;
             if (RoadObstaclePolicy.forbidsCorridor(level, p, headroom)) return false;
             if (i == 0) continue;
             BlockPos q = route.get(i - 1);
