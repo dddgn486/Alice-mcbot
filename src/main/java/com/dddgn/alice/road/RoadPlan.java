@@ -67,6 +67,12 @@ public final class RoadPlan {
             return false;
         }
         this.units = buildUnits(level, first, second);
+        if (this.units.isEmpty()) {
+            BotLog.warn("道路蓝图未发布: 两点之间没有经过验证的可行单元");
+            this.cells = List.of();
+            this.second = null;
+            return false;
+        }
         List<Cell> flattened = new ArrayList<>();
         for (Unit unit : units) flattened.addAll(unit.cells());
         this.cells = Collections.unmodifiableList(flattened);
