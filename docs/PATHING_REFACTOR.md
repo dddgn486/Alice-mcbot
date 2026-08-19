@@ -15,7 +15,7 @@
 
 ## 维生系统与挖矿边界
 
-所有任务先经过统一 `SurvivalSystem` 监测。第一版硬中断危险为 `LAVA_CONTACT` 与 `SUFFOCATING`，水、低空气和着火先记录，不在任务内部擅自逃生；后续由独立 `EmergencyEscapeTask` 或软移动模式处理。强制施工也不能绕过维生监测。当前框架也为后续 `MovementMode.HARD_PATH/SOFT_SURFACE/SOFT_FLUID/FORCED_BUILD` 预留边界，但普通挖矿仍使用现有硬移动。
+所有任务先经过统一 `SurvivalSystem` 监测。第一版硬中断危险为 `LAVA_CONTACT` 与 `SUFFOCATING`，水、低空气和着火先记录，不在任务内部擅自逃生；`MineTask`/`DropCollectionTask` 也重复执行同一硬中断检查，保证被单独驱动时不继续工作。后续由独立 `EmergencyEscapeTask` 或软移动模式处理。强制施工也不能绕过维生监测。当前框架也为后续 `MovementMode.HARD_PATH/SOFT_SURFACE/SOFT_FLUID/FORCED_BUILD` 预留边界，但普通挖矿仍使用现有硬移动。
 
 挖掘前 `FluidRiskPolicy` 会保守拒绝目标或相邻六格存在可见岩浆的操作，返回 `fluid_risk_lava`，不自动堵水、挖源头或把普通挖矿扩大成流体工程。复杂流体传播仍必须客户端验证。
 

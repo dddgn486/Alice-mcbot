@@ -6,6 +6,8 @@ import com.dddgn.alice.pathing.PathExecutor;
 import com.dddgn.alice.pathing.SurfacePathfinder;
 import com.dddgn.alice.perception.ScopeBuffer;
 import com.dddgn.alice.protection.BlockBreakSafety;
+import com.dddgn.alice.survival.HazardState;
+import com.dddgn.alice.survival.SurvivalSystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -63,6 +65,11 @@ public final class DropCollectionTask implements Task {
 
     @Override
     public Status tick() {
+        HazardState hazard = SurvivalSystem.tick(bot);
+        if (SurvivalSystem.shouldInterrupt(hazard)) {
+            failure = SurvivalSystem.interruptionReason(hazard);
+            return Status.FAILED;
+        }
         elapsed++;
         if (elapsed > TIMEOUT_TICKS) {
             failure = "collect_timeout";

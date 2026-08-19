@@ -112,7 +112,7 @@ collect_no_path / collect_path_failed / collect_timeout / target_requires_tunnel
 
 执行层是决策层的硬兜底：LLM/规则只能建议目标、预算和授权，不能绕过流体、保护区、不可破坏/高代价方块、工具或材料检查。无法证明安全、世界在施工前后变化或搜索预算耗尽时，任务应停止、报告并保留 bot 的可回收位置；不要为了追求成功率隐式扩大破坏范围。
 
-维生系统（`survival/`）在每个 bot tick 先于任务采样岩浆、水、着火、空气和窒息状态。岩浆接触、窒息会直接中断当前任务并返回 `survival_lava_contact` / `survival_suffocating`；第一版不自动逃生，避免半成品策略把 bot 送入第二个危险区域。水域软移动、上浮、灭火和局部逃生作为后续独立移动/应急任务实现。
+维生系统（`survival/`）在每个 bot tick 先于任务采样岩浆、水、着火、空气和窒息状态。岩浆接触、窒息会直接中断当前任务并返回 `survival_lava_contact` / `survival_suffocating`；`MineTask` 与 `DropCollectionTask` 自身也有同一硬中断兜底，避免脱离 `BotManager` 单测/组合调用时继续执行。第一版不自动逃生，避免半成品策略把 bot 送入第二个危险区域。水域软移动、上浮、灭火和局部逃生作为后续独立移动/应急任务实现。
 
 ## 八、下一步（建议顺序）
 

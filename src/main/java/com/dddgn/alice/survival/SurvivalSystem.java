@@ -1,8 +1,8 @@
 package com.dddgn.alice.survival;
 
-import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.Blocks;
 
 import java.util.HashMap;
@@ -19,9 +19,14 @@ public final class SurvivalSystem {
     private SurvivalSystem() {
     }
 
-    public static HazardState tick(BotPlayer bot) {
+    public static HazardState tick(ServerPlayer bot) {
         Monitor monitor = MONITORS.computeIfAbsent(bot.getUUID(), ignored -> new Monitor());
+        long gameTime = bot.level().getGameTime();
+        if (monitor.lastTick == gameTime && monitor.lastState != null) {
+            return monitor.lastState;
+        }
         HazardState state = monitor.observe(bot);
+        monitor.lastTick = gameTime;
         monitor.lastState = state;
         if (state.type() != HazardType.NONE && monitor.shouldLog(state)) {
             BotLog.warn("维生监测: bot={} hazard={} duration={} air={} health={} pos={}",
@@ -31,7 +36,7 @@ public final class SurvivalSystem {
         return state;
     }
 
-    public static HazardState current(BotPlayer bot) {
+    public static HazardState current(ServerPlayer bot) {
         Monitor monitor = MONITORS.get(bot.getUUID());
         return monitor == null || monitor.lastState == null
                 ? new HazardState(HazardType.NONE, 0, bot.getAirSupply(),
@@ -51,7 +56,7 @@ public final class SurvivalSystem {
         };
     }
 
-    public static void forget(BotPlayer bot) {
+    public static void forget(ServerPlayer bot) {
         MONITORS.remove(bot.getUUID());
     }
 
@@ -61,8 +66,9 @@ public final class SurvivalSystem {
         private float previousHealth;
         private int logCooldown;
         private HazardState lastState;
+        private long lastTick = Long.MIN_VALUE;
 
-        private HazardState observe(BotPlayer bot) {
+        private HazardState observe(ServerPlayer bot) {
             HazardType current = classify(bot);
             if (current == previous) {
                 duration++;
@@ -84,7 +90,7 @@ public final class SurvivalSystem {
             return true;
         }
 
-        private static HazardType classify(BotPlayer bot) {
+        private static HazardType classify(ServerPlayer bot) {
             if (bot.isInLava() || containsFluid(bot, Blocks.LAVA)) {
                 return HazardType.LAVA_CONTACT;
             }
@@ -103,12 +109,12 @@ public final class SurvivalSystem {
             return HazardType.NONE;
         }
 
-        private static boolean containsWater(BotPlayer bot) {
+        private static boolean containsWater(ServerPlayer bot) {
             return bot.level().getFluidState(bot.blockPosition()).is(net.minecraft.tags.FluidTags.WATER)
                     || bot.level().getFluidState(bot.blockPosition().above()).is(net.minecraft.tags.FluidTags.WATER);
         }
 
-        private static boolean containsFluid(BotPlayer bot, net.minecraft.world.level.block.Block block) {
+        private static boolean containsFluid(ServerPlayer bot, net.minecraft.world.level.block.Block block) {
             BlockPos pos = bot.blockPosition();
             return bot.level().getBlockState(pos).is(block)
                     || bot.level().getBlockState(pos.above()).is(block);

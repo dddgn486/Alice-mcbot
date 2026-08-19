@@ -6,6 +6,8 @@ import com.dddgn.alice.pathing.SurfacePathfinder;
 import com.dddgn.alice.pathing.PathExecutor;
 import com.dddgn.alice.protection.BlockBreakSafety;
 import com.dddgn.alice.perception.ScopeBuffer;
+import com.dddgn.alice.survival.HazardState;
+import com.dddgn.alice.survival.SurvivalSystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -99,6 +101,11 @@ public final class MineTask implements Task {
 
     @Override
     public Status tick() {
+        HazardState hazard = SurvivalSystem.tick(bot);
+        if (SurvivalSystem.shouldInterrupt(hazard)) {
+            failureReason = SurvivalSystem.interruptionReason(hazard);
+            return Status.FAILED;
+        }
         if (phase == Phase.MINING) {
             BotMiner.Status s = miner.tick();
             switch (s) {
