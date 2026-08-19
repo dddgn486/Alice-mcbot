@@ -1,122 +1,250 @@
 # Alice 项目交接说明（给新会话的快速上手）
 
 > 用途：另一个对话/会话接手本项目时，先读本文件 + README + 设计文档，即可快速进入工作。
-> 更新：2026-08-18（道路数学模型/螺旋楼梯已进入实机测试阶段）
+> 更新：2026-08-19（连续曲线道路规划 / bot 道路施工动画 / 掉落物收集收紧 / 混合寻路设计）
+> 重要：本会话所有改动已同步到 Windows 端仓库（`origin` = `/mnt/d/JAVA_projects/alice`），
+> 最新提交 `3f4893d`。**每次代码修改完成后必须 `git push origin master`**，用户靠 Windows 端实测。
+
+## 〇、当前 Git 状态（重要）
+
+```
+3f4893d fix: collect only explicit target drops          ← HEAD（掉落物收集收紧）
+e8787d5 refactor: force bot road construction flow       （RoadBuildTask 强制施工动画）
+cad88c8 feat: add bot road building task                 （RoadBuildTask 初版 + /alice road buildbybot）
+604edc9 refactor: simplify placement visibility checks    （PlaceTask 简化为视线检查）
+f790918 fix: align placement station checks              （PlaceTask 站位对齐 Baritone 风格）
+55653d1 fix: use continuous road voxel traversal          （曲线体素化改逐段补齐）
+8bb4d30 feat: add continuous road curve candidates        （ContinuousRoadCurve 框架）
+0781c3e docs: 详细记录道路数学模型与时间成本密度积分方向   ← 本会话接手前的基线
+```
+
+WSL 工作区路径：`~/projects/alice`；Windows：`D:\JAVA_projects\alice`（`origin`）。
+GitHub：`github` 远端 `dddgn486/Alice-mcbot`（本会话未推 GitHub，push 前先 `git fetch github` 查冲突）。
+
+---
 
 ## 一、项目是什么
 
 **Alice** —— Minecraft Forge 1.20.1 模组（mod_id: `alice`，包 `com.dddgn.alice`）。
-目标是做一个「游戏内 AI 助手」：服务端假人玩家能像真实玩家一样感知世界、决策、执行任务，
-长期愿景是理解模组内容、操作机器（如 Mekanism）、完成采集/建造任务。
+目标是做一个「游戏内 AI 助手」：服务端假人玩家能像真实玩家一样感知世界、决策、执行任务。
 **设计核心**：LLM 只做目标级决策，确定性执行器负责可靠完成；服务端权威数据，
 GUI 背后操作序列化为语义接口（而非视觉点 GUI）。
 
 设计文档：`docs/AI_PLAYER_DESIGN.md`（架构总纲）· `docs/EXECUTION_FRAMEWORK.md`（执行层框架）·
-`docs/MEK_GUI_SEMANTICS.md`（Mek GUI→接口语义表）· `docs/AI_PLAYER_NOTES.md`（思考笔记）·
-`docs/ROAD_MATHEMATICAL_MODEL.md`（道路数学模型：连续几何→体素化→时间成本密度积分）
+`docs/MEK_GUI_SEMANTICS.md`（Mek GUI→接口语义表）· `docs/ROAD_MATHEMATICAL_MODEL.md`（道路数学模型）·
+`docs/BARITONE_PORTING_CHECKLIST.md`（Baritone 移植清单）
 
-## 二、当前进度（2026-08-18，旧路径基线已暴露问题）
+---
+
+## 二、当前进度（2026-08-19）
 
 | 模块 | 状态 |
 |---|---|
-| 假人玩家化 | ✅ `BotPlayer` 继承 ServerPlayer + 伪造连接经 `PlayerList.placeNewPlayer` 注册（客户端可见、tick 无 NPE） |
+| 假人玩家化 | ✅ `BotPlayer` 继承 ServerPlayer + 伪造连接经 `PlayerList.placeNewPlayer` 注册 |
 | 移动 | ✅ 位置步进（无重力，服务端不跑玩家物理）；`PathExecutor` 手动 setPos + setOnGround |
-| 寻路 | ⚠️ 当前 `pathing/` 是临时简化 A*，已加局部边界/节点上限但不具备 break-aware 成本；近距离不可达可能仍 `collect_no_path`。下一阶段按 `docs/BARITONE_PORTING_CHECKLIST.md` 移植 Baritone 1.20.1 movement/cost 核心 |
-| 挖掘 | ✅ `BotMiner`：站位候选逐个尝试（目标上方→下方优先）、视线无遮挡硬检查（防隔空挖）、挖掘时朝向目标（含 yHeadRot） |
-| 清障挖通道 | 🗄️ 旧 `MineTask` 猜 blocker 方案已归档。道路由 `RoadPlan`（数学路线拟合）+ `RoadBuilder`（逐单元稳定构建）执行。统一 `RoadObstaclePolicy` 禁区：所有 FluidState 本体加三维一格 clearance；安全区/负硬度/黑曜石类/`#alice:road_forbidden` 仅禁本体。普通弯曲路径优先（搜索可向外借步长，边界 24 格），失败且高差 `> 水平+4` 时启用 2×2 螺旋；螺旋单元三格净空、入口外一格同样扩宽、出口经一格水平缓冲接入目标正下方支撑格，不侵入 `2×2` 本体 |
-| 拾取 | ⚠️ 已禁止未到物品格心时提前 `playerTouch`，并锁定原始目标方块来源产物；旧 `MineTask`/阶梯逻辑归档为旧方案，不再参与道路蓝图执行 |
-| 感知层 | ✅ `PerceptionSnapshot` 分类聚合摘要 + `ScopeBuffer` 任务作用域；`PerceptionProfile`（MINING/GENERAL） |
-| 决策层 | ✅ `AutoMineDecision` 最小规则：扫描匹配目标（标签或方块 ID）→ 取最近 → 执行 |
-| 接口扫描 | ✅ `InterfaceScanner`：Forge/Mek capability + Mek GUI 页签（红石/升级/安全/传输配置）统一扫描 |
-| 客户端高亮 | ✅ 任务目标透视高亮（自定义 RenderType 关深度测试） |
+| 挖掘 | ✅ `BotMiner`：站位候选逐个尝试、视线无遮挡硬检查、挖掘时朝向目标（身体+头部+俯仰） |
+| 放置 | ✅ `PlaceTask`：候选站位用 Baritone 风格判定（可站/可过/距离/A*），最终对目标空气中心 raycast 做视线检查；放置前 `faceTarget` 朝向目标（与 BotMiner 一致） |
+| 道路规划 | ✅ 新框架：`ContinuousRoadCurve`（连续曲线候选生成）+ 体素硬验证；选择链见 §三 |
+| 道路构建（玩家版） | ✅ `/alice road build`：`RoadBuilder` 逐单元施工 + 5 tick 稳定检测，先清净空后铺支撑 |
+| 道路构建（bot 版） | ✅ `/alice road buildbybot`：`RoadBuildTask` 强制施工动画，逐单元构建并平滑前进（见 §四） |
+| 拾取/收集 | ✅ 已收紧：**任何采集任务只收集显式目标方块 origin 的掉落物**（见 §五） |
+| 感知层 | ✅ `PerceptionSnapshot` + `ScopeBuffer`（任务作用域：掉落物 origin 追踪/方块事件） |
+| 决策层 | ✅ `AutoMineDecision` 最小规则（标签/方块 ID → 最近 → 执行；LLM 接入点预留） |
+| 接口扫描 | ✅ `InterfaceScanner`：Forge/Mek capability + Mek GUI 页签统一扫描 |
+| 客户端高亮 | ✅ 目标透视高亮（自定义 RenderType 关深度测试）；道路蓝图蓝色外轮廓 |
 | 世界存档 | ✅ bot 位置/主手物品存 SavedData，重启恢复；死亡反馈+清除 |
-| 测试工具 | ✅ `alice:target_selector`（钻石斧：右键挖掘、Shift+右键独立放置）、`alice:road_planner`（钻石锄：三维道路蓝图）、钻石铲右键扫描、`/alice` 命令族 |
-| 安全区机制 | ✅ `SafeZoneData` 持久化：区域（维度+中心+水平半径）/方块 ID/方块标签三类保护；所有 bot 破坏和清障均硬拦截，自动挖跳过受保护目标 |
-| 破坏安全策略 | ✅ `BlockBreakSafety` 是所有 bot 破坏/清障的统一门卫：明确脚下目标先换侧面站位；清障避开脚下承重、基岩/负硬度、黑曜石类高代价方块及 `SafeZoneData` 区域/方块/标签保护 |
-| 自动验收 | ⚠️ 已扩至 13 场景并加入 10/20/30 秒严格预算；最近实跑整体 FAIL（TEST5 超时、TEST6/7 `collect_no_path`、TEST9 场景污染），这些失败作为重构前基线保留 |
+| 安全区 | ✅ `SafeZoneData` 持久化：区域/方块 ID/方块标签三类保护；破坏/清障硬拦截 |
+| 自动验收 | ⚠️ 13 场景 selftest（10/20/30 秒预算），最近实跑 FAIL 基线保留（TEST5/6/7/9），**道路场景未纳入 selftest** |
 
-## 三、验收标准（设计文档 §4.2，所有执行器必须满足）
+---
 
-1. **无隔空挖**：任何目标先有可达站位，挖掘前做视线无遮挡检查（raycast）
-2. **目标搜索排序**：距离/暴露/可达性排序，暴露方块优先
-3. **任务完成 = 产物入包**：掉落物追踪到账（拾取），非「动作发生过」
-4. **环境前置检查**：多 tick 动作前检查流体/悬空/位移
+## 三、道路规划：连续曲线候选框架（本次会话核心改动）
 
-## 四、命令与测试
+### 3.1 选择链（`RoadPlan.buildUnits`）
+
+```
+1. selectContinuousRoute：ContinuousRoadCurve 生成直线 + 两侧二次 Bezier 候选（法向偏移 0~24 格，步长 2）
+   → 逐条做体素硬验证（净空/禁区/对角侧格/每步 |dy|<=1/禁止重复水平投影）
+   → 首条通过者作为普通路线
+2. 否则：verticalDistance > 0 → spiralCompensationRoute（2×2 螺旋原语，保留旧逻辑）
+3. 否则：shortestVoxelRoute（A*）作为低高差障碍后备
+```
+
+- 日志关键字：`连续道路候选生成` / `连续道路候选 i/n: offset= arc= units= valid=` / `道路路线选择: mode=normal|spiral` / `螺旋路线生成`
+- 诊断定位法：先看 `valid=` 是否全 false（曲线形状问题），再看是否进了螺旋（高差接管），再看最终失败原因。
+
+### 3.2 连续曲线体素化（`ContinuousRoadCurve`）
+
+- 曲线按 `ARC_SAMPLES=2048` 采样 → **水平采样点之间用 `appendGridSegment` 逐格补齐 4/8 邻格**（supercover 风格）→ 再按格线序号分配高度。
+- 每步检查：`dx/dz <= 1`、`|dy| <= 1`、禁止纯竖直、禁止重复 `(x,z)` 投影、起终点必须等于 start/goal。
+- 返回 `Candidate(route, lateralOffset, horizontalArcLength)`，弧长供后续成本/曲率标定。
+- ⚠️ 已知边界：Bezier 单弧无法绕复杂障碍；未做曲率/累计转角约束（用户提出的“半圆绕行上限”尚未实现）；候选全失败时靠螺旋/A* 兜底。
+
+### 3.3 本会话已移除的临时逻辑（勿复活）
+
+- ~~`isAcceptableNormalRoute`（拒绝 A* 路线重复水平投影）~~ —— 曾导致高差场景 `no_walkable_route`，已删除。
+- ~~`hasUnambiguousCellOwnership`（支撑格与其他单元净空重叠即蓝图失败）~~ —— 曾导致 `routeUnits=29` 误拒绝，已删除；末端冲突由 Builder 先清后铺 + 路线连通性处理。
+
+### 3.4 RoadBuilder（玩家版）注意事项
+
+- `buildUnit` 现在是**先清净空、后铺支撑**（同一单元内顺序固定），防止清出的空腔被后续支撑重新堵上。
+- 构建按当前世界状态判断，不依赖规划快照；清障仍走 `BlockBreakSafety.clearingRefusal`。
+- `hasFallingMaterial`/`removeFallingMaterial` 扫描范围一致（support ±1 × headroom+6 柱体），沙砾 3 次不稳定即停止。
+
+---
+
+## 四、RoadBuildTask：bot 道路施工（动画式强制构建）
+
+### 4.1 用户明确要求的行为语义（务必遵守，不要退回“真实交互”模式）
+
+> “通道构建只是个动画过程，bot 强行构建、强行移动。只要工具能挖那个方块，就强制挖掘，不管实际有没有被遮挡、距离够不够；搭方块只要有方块就一定能搭，不判断实际能不能搭。只有特殊条件（没有工具、工具挖不动、没有搭路方块）才停止。要让过程看起来真实、流畅，同时产出的通道让真实玩家也能通过。”
+
+### 4.2 状态机（`task/RoadBuildTask.java`）
+
+```
+BUILD_UNIT → WAIT_STABLE → MOVE_TO_NEXT_UNIT →（循环）→ MINE_TARGET → DONE
+```
+
+- **BUILD_UNIT**：每 tick 只处理一个净空方块（`collectClearance` 取单元 cells 中非 support 的坐标）：
+  - 目标方块 `plan.second()` 保留不拆；
+  - 非空气格用 `forceBreak`：`getDestroyProgress(bot, level, pos) <= 0` 才失败（工具挖不动），否则 `faceTarget` + swing + `level.destroyBlock(pos, true, bot)`；
+  - 净空清完后支撑格为空气则 `setBlock(COBBLESTONE)`（**无限圆石**，不查背包）；
+  - 起点方块不单独挖——它是第一单元净空的一部分，首个单元构建时就清掉了。
+- **WAIT_STABLE**：5 tick 稳定检测（FallingBlock 实体/方块扫描），不稳定最多重试 3 次。
+- **MOVE_TO_NEXT_UNIT**：平滑位置步进（同 PathExecutor：0.25 格/tick，到点 setPos+onGround），**不做 A*/碰撞/视线判定**。
+  - 第一单元建好后：`moveDestinationIndex = 0`，先站进第一格；
+  - 之后每建完一单元：移动到下一单元；
+  - **最后一个单元建完不移动**（最终支撑格上方就是未挖的目标方块，不能站进去），直接从当前缓冲站位创建 `MineTask(bot, plan.second(), scope)` 挖目标。
+- **MINE_TARGET**：复用普通 MineTask（含只收集目标产物逻辑）。
+- 移动中不因“路径受阻”失败（不走 PathExecutor 的 canWalkThrough 检查）。
+
+### 4.3 命令
+
+```
+/alice road buildbybot   要求当前维度已有完整道路蓝图；无 bot 自动生成在 plan.first()；
+                         bot 忙则拒绝；分配 RoadBuildTask
+```
+
+### 4.4 尚未做的事
+
+- bot 主手工具在 RoadBuildTask 里**没有自动换**（MineTask 会换钻石镐，但道路施工的净空清理用的是 bot 当前主手，`getDestroyProgress` 挖不动就会失败——用户说这算“特殊条件”，可接受；后续可加“施工时自动换工具”）。
+- 圆石“无限提供”目前是直接 setBlock，未走背包/物品实体逻辑；后续背包管理上线时需改。
+
+---
+
+## 五、掉落物收集收紧（最新改动 3f4893d）
+
+### 5.1 规则（用户明确要求）
+
+> “任何采集任务，都只收集主动采集目标的掉落物。”
+
+### 5.2 实现（`MineTask.collectTick`）
+
+- 进入 COLLECTING 后，从 `scope.liveItemsFromOrigin(target)`（作用域捕捉时来源格 == 目标方块）收集 UUID 到 `primaryItemIds`。
+- **不再有 `allItems` 回退**：清障副产物、遗留物、其他玩家掉落物一律不收集。
+- 空捕获保护：若 30 tick 内 `primaryItemIds` 仍为空，视为“目标无产物”结束（防延迟生成漏捡）。
+- `items` 恒为 `liveItemsFromOrigin(target)` ∩ `primaryItemIds`；为空即 DONE。
+- 后续的粘性目标/64 格放弃/格心拾取/forcePickup 逻辑不变。
+
+---
+
+## 六、混合寻路（用户提出，尚未实现 —— 下个会话主线）
+
+### 6.1 数学模型（用户原话整理 + ROAD_MATHEMATICAL_MODEL.md §五）
+
+- 目标：**时间成本最低 = 加权最短路**。
+- 空间可分层：
+  - **曲面（可走区域）**：bot 可以用 Baritone/A* 直接“走过去”的区域，视为三维空间中的曲面，**时间成本低**；
+  - **通道（挖过去/搭过去）**：跨越不同曲面之间的连接，需要挖/搭（两者视为**相同成本**），**时间成本高**；
+  - 空间里还有其他曲面与避障区域。
+- 通道的时间成本**只看数学模型里线段/曲线的长度**，忽略实际构建通道的误差，简化计算。
+- 整体：bot 在起点曲面用 Baritone 到达通道入口（动点），通过通道（线段/曲线）到达目标所在曲面的动点，再 Baritone 到目标。
+- 数学上可看作**多层加权图**：曲面内边 = 低权，通道边 = 高权；需要快速求较小时间成本路线（不必全局最优，但要好）。
+
+### 6.2 建议实现方向（供参考，未编码）
+
+1. 先定义两类边的成本常量：`SURFACE_COST_PER_BLOCK`（≈Baritone 移动成本，如 1.0）与 `TUNNEL_COST_PER_BLOCK`（挖+搭，如 5.0~10.0，待实测标定）；
+2. 通道候选 = 现有 `RoadPlan` 的 centerline（长度即成本，不考虑实际施工差异）；
+3. 双层搜索：外层在“曲面可达点集合”与“通道端点”之间做 Dijkstra/A*（节点少），内层 Baritone A* 负责验证曲面路径是否存在（可缓存）；
+4. 曲面点集合怎么离散（采样/体素面/连通分量）是主要设计点；
+5. 参考文档 §5.4：L0 时间成本场、螺旋成本 = 固定几何 + 内部成本，可与普通路径比较；
+6. 半圆绕行上限（曲率约束）仍未实现，可在通道成本里加“累计转角惩罚”近似。
+
+### 6.3 相关待办（旧）
+
+- 目标簇 AABB 保护（全局路线不侵入簇，簇内局部采集分离）；
+- L1/L2：工具损耗线性近似、材料/耐久预算过滤（NP-hard，放决策层）；
+- 道路专用回归测试（平面/高差/螺旋正反/液体/端点/沙砾，每项 ≤30s）——**仍未纳入 selftest**。
+
+---
+
+## 七、命令与测试工具（更新）
 
 ```
 /alice spawn <name>          生成假人
 /alice mine <x y z>          指派挖掘
-/alice auto-mine <tag|block> 决策层自动挖最近目标(标签如 coal_ores, 或方块ID如 stone)
+/alice auto-mine <tag|block> 决策层自动挖最近目标
 /alice observe               感知摘要
 /alice scan <x y z>          接口扫描
-/alice selftest              手动验收
-/alice road build            按当前道路蓝图逐单元构建(圆石支撑+清通净空+5tick稳定检测)
-目标指定器(钻石斧)右键方块   派挖掘任务; Shift+右键点击面外侧格 → 独立放置任务
-道路蓝图锄(钻石锄)右键两端   生成/刷新蓝色三维道路预览; Shift+右键重置
+/alice selftest              手动验收（13 场景）
+/alice road build            玩家版：按蓝图逐单元构建
+/alice road buildbybot        bot 版：强制施工动画 + 终点挖掘
+/alice protect ...           安全区管理
+目标指定器(钻石斧)右键方块   挖掘；Shift+右键 → 独立放置任务（PlaceTask）
+道路蓝图锄(钻石锄)右键两端   生成蓝色道路预览；Shift+右键重置
 钻石铲右键                   快捷接口扫描
 ```
 
-headless 验收：`./gradlew runServer -Dalice.selftest.auto=true`（测完自动关服，看 run/logs/latest.log）
+headless 验收：`./gradlew runServer -Dalice.selftest.auto=true`（测完自动关服，看 run/logs/latest.log）。
 
-## 五、待办 / 下一步（按用户兴趣排序）
+---
 
-1. **道路执行接 bot**：目前 `RoadBuilder` 只改世界，bot 尚未沿道路蓝图移动；接入 PathExecutor 逐单元行进是下一条主线
-2. **目标簇 AABB 保护**：全局路线把目标簇近似为长方体保护体，螺旋/通道不得侵入；簇内局部采集规划分离
-3. **半圆借步长上限**：普通搜索当前靠 24 格边界自由借步长，尚未实现「最多绕半圆」的曲率约束；超限后应明确切螺旋
-4. **道路专用回归**：平面短路/短水平大高差/螺旋正反向/液体禁区/端点保护/沙砾稳定，逐项 30 秒内验收
-5. **AttackTask**（实体目标）：目标指定器右键生物已在提示「未实现」；近战攻击状态机
-6. **LLM 决策接入**：`AutoMineDecision` 的「选目标策略」就是替换点，接口已预留
-7. **背包管理**：挖的矿堆在背包，后续「存箱子/回家卸货」
-8. **测试工具规范化**：钻石铲扫描等可迁移到 alice 注册物品
+## 八、关键决策与已知坑（R# 编号，避免重踩）
 
-### 安全区操作
+- **R8**：selftest 手动触发；auto 模式用系统属性开关。
+- **R14**：JECh 纯客户端模组，只注入 runClient；`libs/` 若被清理需从 WSL 复制回。
+- **R15**：1×1 坑爬不出（A* 落脚格需下方实心）；拾取阶梯已部分缓解。
+- **R16**：原版 Player.tick 触碰拾取对玩家化假人不触发 → `forcePickup` 兜底。
+- **R17**：路线选择 = 普通弯曲优先，`vertical > horizontal + 4` 时才切螺旋 —— **已被本会话改为 `verticalDistance > 0` 就试螺旋**（曲线候选失败后）；不要再改回旧阈值。
+- **R18**：螺旋入口外一格同样扩到三格净空。
+- **R19**：螺旋出口→目标必须经过一格水平缓冲，且不侵入螺旋 2×2 投影。
+- **R20**：蓝图失败时 select 返回 false 并保留 first；看 `no_walkable_route` 日志再改路线。
+- **R21**：`RoadPlan` 静态单例绑定 ServerLevel；切维度/重进世界会重置。
+- **R22（新）**：不要复活“拒绝重复水平投影”的临时逻辑 —— 它会把高差路线直接打成 `no_walkable_route`。
+- **R23（新）**：不要复活“支撑格与其他单元净空重叠即失败” —— 它把合法重叠误判为蓝图失败（`routeUnits=29`）。
+- **R24（新）**：`RoadBuildTask` 终点**不能**把 bot 移动到最终支撑格上方（那是未挖的目标方块），应从缓冲单元直接进 MineTask。
+- **R25（新）**：采集只认 `liveItemsFromOrigin(target)` ∩ 锁定 UUID；**不要**加回 `allItems` 回退拾取。
+- **坑**：掉落物有 pickupDelay；挖高处方块后掉落物需等 onGround 再拾取，未落地前不要反复跑昂贵 A*。
+- **坑**：`RenderType.lines()` 自带深度测试 → 透视高亮需自定义 RenderType（NO_DEPTH_TEST）。
+- **坑**：`stone` 是方块 ID 不是标签 → auto-mine 需自动判断标签/方块两种模式。
+- **坑**：清障目标必须「bot 直接可见」——递归向 bot 靠近，否则 `line_of_sight_blocked` 中断。
+- **坑**：`BotMiner` 的 `protected_*` 失败不能交给 MineTask 通用清障分支（会绕开受保护目标先挖墙），直接终止。
+- **测试运行器**：`server.halt(true)` 后 Gradle/Forge 子进程可能不退出并遗留 `run/world/session.lock`；清理自测进程再复跑。
+- **坑**：Java 17 + netty setAccessible 警告、`FMLJavaModLoadingContext.get()` 过时警告均无害。
 
-```
-/alice protect add-area <x y z> <radius>   # 当前维度、覆盖全部高度的圆形区域
-/alice protect remove-area <x y z>         # 移除该中心的区域
-/alice protect add-block <block_id|#tag>   # 保护方块 ID 或方块标签
-/alice protect remove-block <block_id|#tag>
-/alice protect list
-```
+---
 
-规则存在主世界 `SavedData`（`alice_safe_zones`），重启后保留。保护一律适用于 Alice 的显式目标和清障目标；仅移动穿过区域不受影响。
-
-## 六、关键决策与已知坑（R# 编号，避免重踩）
-
-- **R8**：selftest 手动触发（自动触发曾挂服务器）；auto 模式用系统属性开关
-- **R14**：JECh 是纯客户端模组，已移入 `clientOnly` 配置只注入 runClient（根治 dedicated server 崩溃）
-- **R15**：1×1 坑爬不出（A* 落脚格需下方实心）——已部分缓解（跳跃过渡），完全解决需跳跃模拟
-- **R16**：原版 Player.tick 触碰拾取对玩家化假人不触发 → `forcePickup` 主动 playerTouch 兜底
-- **坑**：掉落物有 pickupDelay；挖高处方块后掉落物在空中需等 onGround 再拾取，未落地前不要反复跑昂贵 A*
-- **拾取规则**：任务掉落物按 UUID 持续追踪并每 tick 刷新实体位置/三维距离；仅超过 64 格可放弃，近距离不可达必须失败；必须走到实体实际脚位格格心附近后才能 `playerTouch`，不得在坑边等待吸取。旧版最多挖 8 格侧向阶梯的逻辑仅作过渡基线，已知会 `collect_no_path`，不再继续堆特判
-- **移动边界**：不允许为拾取增加超过 1 格的自由下落；能下去不代表能返回，向下接近目标应由未来“阶梯挖掘 vs 搭路”规划处理
-- **破坏策略**：所有 bot 破坏先经 `BlockBreakSafety`；明确目标在脚下时禁止原地向下挖、必须换侧面站位；清障额外回避脚下承重块、基岩/负硬度方块、黑曜石等高代价方块与安全区
-- **坑**：`RenderType.lines()` 自带深度测试 → 透视高亮需自定义 RenderType（NO_DEPTH_TEST）
-- **坑**：`stone` 是方块 ID 不是标签（无同名标签）→ auto-mine 需自动判断标签/方块两种模式
-- **坑**：清障目标必须「bot 直接可见」——递归向 bot 靠近，否则挖到一半 line_of_sight_blocked 中断
-- **坑**：`BotMiner` 的 `protected_*` 失败不能交给 `MineTask` 的通用清障分支，否则会绕开受保护目标先挖墙；现在直接终止任务
-- **测试运行器**：`server.halt(true)` 后 Gradle/Forge 子进程可能不退出并遗留 `run/world/session.lock`；日志看到 SELFTEST 结果后清理该自测进程再复跑
-- **坑**：Java 17 + netty 的 setAccessible 警告无害；`FMLJavaModLoadingContext.get()` 过时警告无害
-- **R17**：道路路线选择 = 普通弯曲优先（搜索可向外借步长），`vertical > horizontal + 4` 且普通无解时才切螺旋；不要改成竖直差硬判定，中等高差会两头落空
-- **R18**：螺旋入口外一格必须同样扩到三格净空（普通单元后继是螺旋时 headroom=3），否则进入螺旋时顶头
-- **R19**：螺旋出口→目标必须经过一格水平缓冲，且缓冲/目标支撑格不得落在螺旋 `2×2` 水平投影内（`terminalSegmentClear`）；否则末段会遮挡楼梯或侵入目标
-- **R20**：道路蓝图失败时 `select` 返回 false 并保留 first，工具消息已区分「起点已选 / 生成失败:原因」；若玩家误以为总选到起点，先看 `no_walkable_route` 日志再改路线，不是状态 bug
-- **R21**：`RoadPlan` 是静态单例且绑定 `ServerLevel`；切换维度/重进世界会重置选择（level 引用变化），属预期行为
-
-## 七、开发工作流（三副本同步）
+## 九、开发工作流（三副本同步）
 
 - WSL：`~/projects/alice`（开发/编译/headless 测试）
 - Windows：`D:\JAVA_projects\alice`（runClient 实测；`receive.denyCurrentBranch=updateInstead`）
 - GitHub：`dddgn486/Alice-mcbot`（公开存档 + Actions CI；SSH 推送）
-- 流程：WSL 改代码 → `git push origin master`（Windows）→ 用户实测 → `git push github master`
-- **注意**：GitHub 上用户可能用网页编辑 README → push 前先 `git fetch github` 检查冲突，
-  有则 merge 再 push（遇到过 3 次 non-fast-forward）
-- Windows 端若 libs/ 文件被工作区更新删除，从 WSL 复制回（libs/jecharacters jar）
+- 流程：WSL 改代码 → **编译验证（`./gradlew compileJava`）→ `git push origin master`（Windows）→ 用户实测**
+- **用户要求：每次修改同步到 Windows 端**，方便实测。本会话所有提交均已 push origin。
+- 推 GitHub 前先 `git fetch github` 检查冲突（遇到过 3 次 non-fast-forward）。
 
-## 八、环境
+## 十、环境
 
 - Forge 1.20.1-47.4.10 + Parchment 2023.09.03 + JDK 17 + Gradle 8.8
-- Mekanism 1.20.1-10.4.16.80（modmaven，接口扫描测试对象）；JEI（modmaven）；
-  JECh（本地 libs/，仅 runClient）
+- Mekanism 1.20.1-10.4.16.80（modmaven）；JEI（modmaven）；JECh（本地 libs/，仅 runClient）
 - 依赖：`implementation fg.deobf("mekanism:Mekanism:...")` + generators(runtimeOnly)
+
+---
+
+## 十一、下个会话建议顺序
+
+1. 继续 `RoadBuildTask` 实测反馈（施工动画是否流畅、工具/圆石特殊条件是否合理、终点衔接是否正常）；
+2. 混合寻路：先实现 §6.2 的 1~3 步（成本常量 + 通道候选 + 双层搜索骨架），用日志/命令验证选择合理性；
+3. 曲率/半圆绕行上限（连续曲线框架的曲率硬约束）；
+4. 道路专用回归测试纳入 selftest；
+5. 目标簇 AABB；L0 时间成本场（把成本并入搜索代价）。
