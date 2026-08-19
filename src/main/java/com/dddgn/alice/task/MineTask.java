@@ -21,7 +21,7 @@ import java.util.UUID;
 /**
  * 挖矿任务(任务框架第一个实现,对应验收标准 3「产物入包」)。
  * <p>
- * 行为链:MINING(挖掘状态机,含站位/视线/距离检查,<b>失败时清障</b>)
+ * 行为链:MINING(挖掘状态机,含站位/视线/距离检查,<b>最多两格直接清障</b>)
  * → COLLECTING(感知定位掉落物 → A* 走位 → 主动拾取入包) → DONE。
  * </p>
  * <p><b>清障挖掘</b>:原目标视线被方块遮挡(在墙里/被围)时,raycast 找出遮挡方块
@@ -41,9 +41,9 @@ public final class MineTask implements Task {
     private static final double PICKUP_CENTER_TOLERANCE_SQR = 0.04D;
     /** 为拾取掉落物开凿的侧向单格阶梯上限；禁止竖直下挖与自由落下。 */
     private static final int MAX_COLLECT_STAIR_CLEARS = 8;
-    /** 清障(挖通道)最大层数: 64 格长通道。用户会以「安全区」机制保护不想挖的
-     * 方块, 此处不再保守限深(原 8 格)。 */
-    private static final int MAX_CLEAR_DEPTH = 64;
+    /** 单目标任务只允许处理极短、直接可见的局部遮挡；深埋目标交给未来 TunnelPlanner。 */
+    private static final int MAX_CLEAR_DEPTH = 2;
+    private static final double MAX_CLEAR_REACH = 4.5D;
 
     private final ServerPlayer bot;
     private final BlockPos target;           // 原始目标(不变,清障后仍挖它)
@@ -122,8 +122,9 @@ public final class MineTask implements Task {
                         failureReason = minerFailure;
                         return Status.FAILED;
                     }
-                    // 其他挖掘失败 → 尝试清障: 挖开视线上的遮挡方块(限 3 层)
-                    BlockPos blocker = findLineOfSightBlocker();
+                    // 单目标只处理当前站位直接可见、可达的最多两格局部遮挡；不能把
+                    // MineTask 退化成反复重选站位的长通道施工器。
+                    BlockPos blocker = findDirectBlocker();
                     if (blocker != null && clearDepth < MAX_CLEAR_DEPTH && !blocker.equals(currentMineTarget)) {
                         String refusalReason = BlockBreakSafety.clearingRefusal(bot, blocker);
                         if (refusalReason != null) {
@@ -133,11 +134,14 @@ public final class MineTask implements Task {
                             return Status.FAILED;
                         }
                         clearDepth++;
-                        BotLog.info("清障(第{}层): 视线被 {} 遮挡, 先挖它", clearDepth, blocker.toShortString());
+                        BotLog.info("局部清障({}/{}): 当前站位直接挖 {}", clearDepth,
+                                MAX_CLEAR_DEPTH, blocker.toShortString());
                         startMining(blocker);
                         return Status.RUNNING;
                     }
-                    failureReason = miner.failureReason();
+                    failureReason = "target_requires_tunnel";
+                    BotLog.info("目标需要独立通道规划: target={} minerFailure={} clearDepth={}/{}",
+                            target.toShortString(), minerFailure, clearDepth, MAX_CLEAR_DEPTH);
                     return Status.FAILED;
                 }
                 default -> {
@@ -158,27 +162,15 @@ public final class MineTask implements Task {
         this.miner = new BotMiner(bot, this.currentMineTarget);
     }
 
-    /**
-     * 找 bot 能<b>直接挖到</b>的挡路方块(清障目标)。
-     * <p>从 bot 眼睛向原目标 raycast 得第一个遮挡 B;若 B 本身还被更近的方块挡住
-     * (bot 原地挖通道时, 挖掉眼前方块后下一个遮挡可能不直接可见),则向 bot 方向
-     * 递归 raycast,直到找到「bot 视线能直接碰到的第一块」——避免 BotMiner 挖它时
-     * 又报 line_of_sight_blocked 而中途放弃(用户实测:挖三四格就停住)。</p>
-     */
-    private BlockPos findLineOfSightBlocker() {
+    /** 当前站位到原目标射线上的第一格遮挡；必须在原版挖掘距离内。 */
+    private BlockPos findDirectBlocker() {
         net.minecraft.world.phys.Vec3 eye = bot.getEyePosition();
         BlockPos blocker = raycastBlock(eye, target.getCenter());
-        if (blocker == null || blocker.equals(target)) {
-            return null; // 目标可见, 无遮挡
+        if (blocker == null || blocker.equals(target)
+                || eye.distanceTo(blocker.getCenter()) > MAX_CLEAR_REACH) {
+            return null;
         }
-        // 向 bot 靠近: 最多回溯 3 层, 保证返回的遮挡是 bot 直接可见的
-        for (int i = 0; i < 3; i++) {
-            BlockPos nearer = raycastBlock(eye, blocker.getCenter());
-            if (nearer == null || nearer.equals(blocker)) {
-                return blocker;
-            }
-            blocker = nearer;
-        }
+        // 射线第一命中即是当前可见 blocker；不递归向远处延展为通道。
         return blocker;
     }
 

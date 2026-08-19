@@ -27,7 +27,7 @@ TargetSelector / /alice mine / auto-mine
 
 `SurfacePathfinder` 复用现有 `AStarPathfinder` 与 `PathExecutor`，输入为 bot 当前脚位与一个合法挖掘站位。它的可走条件是：脚下已有实体支撑、脚位与头位无碰撞、无流体，并采用已有的上坡/下坡安全规则。
 
-只要任一合法站位存在纯曲面路径，任务就直接由 `MineTask` 执行，**绝不启动通道规划**。
+只要任一合法站位存在纯曲面路径，任务就直接由 `MineTask` 执行，**绝不启动通道规划**。`MineTask` 只允许从当前站位直接清理最多两个、位于原版 4.5 格挖掘距离内的视线 blocker；超过该范围或需要重选站位的深埋目标返回 `target_requires_tunnel`。
 
 ## 三、通道规划
 
