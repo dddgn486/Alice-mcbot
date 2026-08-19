@@ -87,7 +87,8 @@ public final class RoadPlan {
     public synchronized List<Unit> units() { return units; }
     public synchronized ServerLevel level() { return level; }
 
-    private record Route(List<BlockPos> centerline, Set<BlockPos> spiralSupports) {}
+    private record Route(List<BlockPos> centerline, Set<BlockPos> spiralSupports,
+                         Set<BlockPos> spiralFootprint) {}
 
     private static List<Unit> buildUnits(ServerLevel level, BlockPos a, BlockPos b) {
         BlockPos start = a.below();
@@ -97,7 +98,7 @@ public final class RoadPlan {
         boolean useSpiral = verticalDistance > horizontalDistance + 2;
         Route route = useSpiral
                 ? spiralCompensationRoute(level, start, goal)
-                : new Route(shortestVoxelRoute(level, start, goal, 2), Set.of());
+                : new Route(shortestVoxelRoute(level, start, goal, 2), Set.of(), Set.of());
         BotLog.info("道路路线选择: mode={} horizontal={} vertical={} start={} goal={}",
                 useSpiral ? "spiral" : "normal", horizontalDistance, verticalDistance,
                 start.toShortString(), goal.toShortString());
@@ -134,7 +135,7 @@ public final class RoadPlan {
             int headroom = kind == UnitKind.SPIRAL ? 3 : 2;
             result.add(new Unit(support.immutable(), kind, headroom, Collections.unmodifiableList(cells)));
         }
-        if (!validateRoute(level, centerline, unitPositions, route.spiralSupports())) {
+        if (!validateRoute(level, centerline, unitPositions, route.spiralSupports(), route.spiralFootprint())) {
             BotLog.warn("道路蓝图生成失败: 单元连通验证拒绝 routeUnits={}", centerline.size());
             return List.of();
         }
@@ -164,7 +165,8 @@ public final class RoadPlan {
     }
 
     private static boolean validateRoute(ServerLevel level, List<BlockPos> route,
-                                         List<Set<BlockPos>> unitPositions, Set<BlockPos> spiralSupports) {
+                                         List<Set<BlockPos>> unitPositions, Set<BlockPos> spiralSupports,
+                                         Set<BlockPos> spiralFootprint) {
         for (int i = 0; i < route.size(); i++) {
             BlockPos p = route.get(i);
             int headroom = spiralSupports.contains(p) ? 3 : 2;
@@ -200,7 +202,7 @@ public final class RoadPlan {
     private static Route spiralCompensationRoute(ServerLevel level, BlockPos start, BlockPos goal) {
         int signY = Integer.compare(goal.getY(), start.getY());
         int vertical = Math.abs(goal.getY() - start.getY());
-        if (signY == 0) return new Route(shortestVoxelRoute(level, start, goal, 2), Set.of());
+        if (signY == 0) return new Route(shortestVoxelRoute(level, start, goal, 2), Set.of(), Set.of());
         // 末端预留一格水平缓冲；从四个方向枚举 2×2 螺旋出口，避免侵入目标下方支撑格。
         int[][] exits = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
         for (int[] exitDir : exits) {
@@ -240,10 +242,51 @@ public final class RoadPlan {
                 BotLog.info("螺旋路线生成: entrance={} exit={} buffer={} goalSupport={} steps={} phase={}",
                         spiralStart.toShortString(), spiralExit.toShortString(), buffer.toShortString(),
                         goal.toShortString(), steps, phase);
-                return new Route(route, Collections.unmodifiableSet(new LinkedHashSet<>(spiral)));
+                Set<BlockPos> footprint = spiralFootprint(spiral);
+                if (footprint.isEmpty()
+                        || !terminalSegmentClear(level, footprint, buffer, goal)) continue;
+                return new Route(route, Collections.unmodifiableSet(new LinkedHashSet<>(spiral)),
+                        Collections.unmodifiableSet(footprint));
             }
         }
-        return new Route(List.of(), Set.of());
+        return new Route(List.of(), Set.of(), Set.of());
+    }
+
+    private static Set<BlockPos> spiralFootprint(Set<BlockPos> supports) {
+        int minX = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE;
+        int minZ = Integer.MAX_VALUE, maxZ = Integer.MIN_VALUE;
+        int baseY = Integer.MAX_VALUE;
+        for (BlockPos support : supports) {
+            minX = Math.min(minX, support.getX()); maxX = Math.max(maxX, support.getX());
+            minZ = Math.min(minZ, support.getZ()); maxZ = Math.max(maxZ, support.getZ());
+            baseY = Math.min(baseY, support.getY());
+        }
+        if (maxX - minX != 1 || maxZ - minZ != 1) return Set.of();
+        Set<BlockPos> footprint = new LinkedHashSet<>();
+        for (int x = minX; x <= maxX; x++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                footprint.add(new BlockPos(x, baseY, z));
+            }
+        }
+        return footprint;
+    }
+
+    private static boolean footprintContains(Set<BlockPos> footprint, BlockPos pos) {
+        for (BlockPos fp : footprint) {
+            if (fp.getX() == pos.getX() && fp.getZ() == pos.getZ()) return true;
+        }
+        return false;
+    }
+
+    private static boolean terminalSegmentClear(ServerLevel level, Set<BlockPos> footprint,
+                                                BlockPos buffer, BlockPos goal) {
+        // 末端连接只允许 buffer -> goal 的单格水平段，且不能穿过 2×2 螺旋主体。
+        if (footprintContains(footprint, buffer) || footprintContains(footprint, goal)) return false;
+        int dx = Math.abs(buffer.getX() - goal.getX());
+        int dz = Math.abs(buffer.getZ() - goal.getZ());
+        if (dx + dz != 1 || buffer.getY() != goal.getY()) return false;
+        return !RoadObstaclePolicy.forbidsCorridor(level, buffer, 2)
+                && !RoadObstaclePolicy.forbidsCorridor(level, goal, 2);
     }
 
     private static boolean validSpiralGeometry(Set<BlockPos> supports, int signY) {
