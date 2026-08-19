@@ -1,25 +1,28 @@
 # Alice 项目交接说明（给新会话的快速上手）
 
 > 用途：另一个对话/会话接手本项目时，先读本文件 + README + 设计文档，即可快速进入工作。
-> 更新：2026-08-19（连续曲线道路规划 / bot 道路施工动画 / 掉落物收集收紧 / 加权混合寻路）
+> 更新：2026-08-19（寻路系统重构基线：曲面 A* 优先 / 通道独立设计 / 掉落物与目标簇策略）
 > 重要：本会话所有改动已同步到 Windows 端仓库（`origin` = `/mnt/d/JAVA_projects/alice`），
-> 最新提交 `3f4893d`。**每次代码修改完成后必须 `git push origin master`**，用户靠 Windows 端实测。
+> 最新提交 `daf07d4`。**每次代码修改完成后必须 `git push origin master`**，用户靠 Windows 端实测。
 
 ## 〇、当前 Git 状态（重要）
 
 ```
-3f4893d fix: collect only explicit target drops          ← HEAD（掉落物收集收紧）
-e8787d5 refactor: force bot road construction flow       （RoadBuildTask 强制施工动画）
-cad88c8 feat: add bot road building task                 （RoadBuildTask 初版 + /alice road buildbybot）
-604edc9 refactor: simplify placement visibility checks    （PlaceTask 简化为视线检查）
-f790918 fix: align placement station checks              （PlaceTask 站位对齐 Baritone 风格）
-55653d1 fix: use continuous road voxel traversal          （曲线体素化改逐段补齐）
-8bb4d30 feat: add continuous road curve candidates        （ContinuousRoadCurve 框架）
-0781c3e docs: 详细记录道路数学模型与时间成本密度积分方向   ← 本会话接手前的基线
+daf07d4 fix: bound mine task blocker clearing             ← HEAD（MineTask 最多两格直接清障）
+d5424de refactor: restore surface-first mining paths      （撤回 RoadMineTask，单目标恢复纯曲面 A*）
+7e00c32 fix: separate geometric route cost from tunnel execution
+2b32c6c feat: route mining through weighted road tasks    （已撤回的混合任务实验，不要复活）
+7bf3c52 feat: add weighted hybrid road pathfinding        （已撤回的混合任务实验，不要接入采集）
+9b00130 docs: rewrite handover with road/bot/collection session state
+3f4893d fix: collect only explicit target drops
 ```
 
 WSL 工作区路径：`~/projects/alice`；Windows：`D:\JAVA_projects\alice`（`origin`）。
 GitHub：`github` 远端 `dddgn486/Alice-mcbot`（本会话未推 GitHub，push 前先 `git fetch github` 查冲突）。
+
+## 快速接手（1 分钟）
+
+先读本文件、`docs/PATHING_REFACTOR.md`、`docs/EXECUTION_FRAMEWORK.md`，再运行 `git status`。当前稳定基线是：钻石斧、`/alice mine`、`/alice auto-mine` 全部创建 `MineTask`，仅使用现有 `AStarPathfinder + PathExecutor` 在真实可通行曲面上移动；最多从当前站位直接清理两格、4.5 格内的视线 blocker，其他深埋目标必须失败为 `target_requires_tunnel`，不得乱走或隐式搭/挖通道。`RoadPlan`/`RoadBuilder`/`RoadBuildTask` 仅服务手动道路蓝图，不能重新接入普通挖矿。下一个实现目标是先封装 `SurfacePathfinder`，再定义独立不可变 `TunnelPlan`/`TunnelPlanner`，且只有所有合法挖掘站位的曲面路径都失败才允许通道；掉落物永不启动长通道，目标簇未来以一次簇级通道到簇外围、簇内局部开采实现。修改后必须 `./gradlew compileJava` 并 `git push origin master`。
 
 ---
 
