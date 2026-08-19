@@ -70,7 +70,7 @@ Cost = surfaceMoveCost(start, entrance)
 
 ## 四、掉落物收集
 
-掉落物仍只收集主动目标方块产生的 `origin` 物品。路径策略独立且保守：
+掉落物由独立 `DropCollectionTask` 处理，仍只收集主动目标方块产生的 `origin` 物品；它只消费父任务的 `ScopeBuffer`，不得自行结束作用域或清理高亮。路径策略独立且保守：
 
 ```text
 等待落地稳定 -> SurfacePathfinder 到掉落物脚位 -> 拾取

@@ -142,9 +142,9 @@ BUILD_UNIT → WAIT_STABLE → MOVE_TO_NEXT_UNIT →（循环）→ MINE_TARGET 
 
 > “任何采集任务，都只收集主动采集目标的掉落物。”
 
-### 5.2 实现（`MineTask.collectTick`）
+### 5.2 实现（`DropCollectionTask`，由 `MineTask` 委托）
 
-- 进入 COLLECTING 后，从 `scope.liveItemsFromOrigin(target)`（作用域捕捉时来源格 == 目标方块）收集 UUID 到 `primaryItemIds`。
+- 进入 COLLECTING 后，由 `DropCollectionTask` 从 `scope.liveItemsFromOrigin(target)`（作用域捕捉时来源格 == 目标方块）收集 UUID 到 `primaryItemIds`；父任务仍拥有作用域生命周期。
 - **不再有 `allItems` 回退**：清障副产物、遗留物、其他玩家掉落物一律不收集。
 - 空捕获保护：若 30 tick 内 `primaryItemIds` 仍为空，视为“目标无产物”结束（防延迟生成漏捡）。
 - `items` 恒为 `liveItemsFromOrigin(target)` ∩ `primaryItemIds`；为空即 DONE。

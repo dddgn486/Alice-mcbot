@@ -53,6 +53,7 @@ public final class MineTask implements Task {
     private int clearDepth;
     private Phase phase = Phase.MINING;
     private PathExecutor collectExecutor;
+    private DropCollectionTask collector;
     private int collectElapsed;
     private int collectWaitTicks;
     private int collectRetries;
@@ -112,6 +113,7 @@ public final class MineTask implements Task {
                     BotLog.info("挖掘阶段完成,进入拾取阶段: target={}", target.toShortString());
                     // 拾取阶段按原始目标方块格锁定主产物，不依赖 ItemEntity 事件先后。
                     phase = Phase.COLLECTING;
+                    collector = new DropCollectionTask(bot, target, scope);
                     return Status.RUNNING;
                 }
                 case FAILED -> {
@@ -148,7 +150,11 @@ public final class MineTask implements Task {
                 }
             }
         }
-        return collectTick();
+        Status collectStatus = collector.tick();
+        if (collectStatus == Status.FAILED) {
+            failureReason = collector.failureReason();
+        }
+        return collectStatus;
     }
 
     private static boolean isHardTargetRefusal(String reason) {
