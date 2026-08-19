@@ -172,10 +172,6 @@ public final class RoadPlan {
             BotLog.warn("道路蓝图生成失败: 单元连通验证拒绝 routeUnits={}", centerline.size());
             return List.of();
         }
-        if (!hasUnambiguousCellOwnership(result)) {
-            BotLog.warn("道路蓝图生成失败: 支撑格与其他单元净空重叠 routeUnits={}", centerline.size());
-            return List.of();
-        }
         return Collections.unmodifiableList(result);
     }
 
@@ -227,24 +223,6 @@ public final class RoadPlan {
                 BlockPos sideA = new BlockPos(point.getX(), previous.getY(), previous.getZ());
                 BlockPos sideB = new BlockPos(previous.getX(), previous.getY(), point.getZ());
                 if (forbidden(level, sideA) || forbidden(level, sideB)) return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * 同一格不能既是一个单元的支撑又是另一个单元的净空。
-     * RoadBuilder 会按单元顺序施工，若不在蓝图阶段拒绝这种冲突，后面的支撑会堵住前面的空腔。
-     */
-    private static boolean hasUnambiguousCellOwnership(List<Unit> units) {
-        Map<BlockPos, Boolean> ownership = new HashMap<>();
-        for (Unit unit : units) {
-            for (Cell cell : unit.cells()) {
-                boolean support = cell.pos().equals(unit.support());
-                Boolean prior = ownership.putIfAbsent(cell.pos(), support);
-                if (prior != null && prior != support) {
-                    return false;
-                }
             }
         }
         return true;

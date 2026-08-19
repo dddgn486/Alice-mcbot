@@ -73,18 +73,33 @@ public final class ContinuousRoadCurve {
             return new Voxelized(List.of(), 0.0D);
         }
 
-        List<BlockPos> route = new ArrayList<>();
-        Set<String> projections = new LinkedHashSet<>();
-        int signY = Integer.compare(goal.getY(), start.getY());
+        // 先把连续曲线采样为水平折线，再逐段补齐经过的格子；不直接把采样点 round
+        // 后相连，避免曲线在方块边界附近产生断步或假性的重复投影失败。
+        List<BlockPos> horizontal = new ArrayList<>();
         for (int i = 0; i <= ARC_SAMPLES; i++) {
             double t = (double) i / ARC_SAMPLES;
             int x = (int) Math.round(quadratic(start.getX(), controlX, goal.getX(), t));
             int z = (int) Math.round(quadratic(start.getZ(), controlZ, goal.getZ(), t));
-            int y = (int) Math.round(start.getY() + signY * verticalDistance * lengths[i] / totalLength);
-            BlockPos point = new BlockPos(x, y, z);
-            if (!route.isEmpty() && point.equals(route.get(route.size() - 1))) {
-                continue;
+            BlockPos sample = new BlockPos(x, start.getY(), z);
+            if (horizontal.isEmpty()) {
+                horizontal.add(sample);
+            } else {
+                appendGridSegment(horizontal, sample);
             }
+        }
+        if (horizontal.isEmpty() || !horizontal.get(0).equals(start)
+                || !horizontal.get(horizontal.size() - 1).equals(goal)) {
+            return new Voxelized(List.of(), totalLength);
+        }
+
+        List<BlockPos> route = new ArrayList<>();
+        Set<String> projections = new LinkedHashSet<>();
+        double gridLength = Math.max(1.0D, horizontal.size() - 1.0D);
+        int signY = Integer.compare(goal.getY(), start.getY());
+        for (int i = 0; i < horizontal.size(); i++) {
+            BlockPos flat = horizontal.get(i);
+            int y = (int) Math.round(start.getY() + signY * verticalDistance * i / gridLength);
+            BlockPos point = new BlockPos(flat.getX(), y, flat.getZ());
             if (!route.isEmpty()) {
                 BlockPos previous = route.get(route.size() - 1);
                 int dx = Math.abs(point.getX() - previous.getX());
@@ -94,16 +109,25 @@ public final class ContinuousRoadCurve {
                     return new Voxelized(List.of(), totalLength);
                 }
             }
-            String projection = point.getX() + ":" + point.getZ();
-            if (!projections.add(projection)) {
+            if (!projections.add(point.getX() + ":" + point.getZ())) {
                 return new Voxelized(List.of(), totalLength);
             }
             route.add(point);
         }
-        if (route.isEmpty() || !route.get(0).equals(start) || !route.get(route.size() - 1).equals(goal)) {
-            return new Voxelized(List.of(), totalLength);
-        }
         return new Voxelized(List.copyOf(route), totalLength);
+    }
+
+    /** Append a continuous 4/8-neighbour grid segment without skipping cells. */
+    private static void appendGridSegment(List<BlockPos> route, BlockPos target) {
+        BlockPos current = route.get(route.size() - 1);
+        while (!current.equals(target)) {
+            int dx = Integer.compare(target.getX(), current.getX());
+            int dz = Integer.compare(target.getZ(), current.getZ());
+            current = current.offset(dx, 0, dz);
+            if (!current.equals(route.get(route.size() - 1))) {
+                route.add(current);
+            }
+        }
     }
 
     private static double quadratic(double start, double control, double goal, double t) {
