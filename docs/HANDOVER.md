@@ -12,7 +12,8 @@
 GUI 背后操作序列化为语义接口（而非视觉点 GUI）。
 
 设计文档：`docs/AI_PLAYER_DESIGN.md`（架构总纲）· `docs/EXECUTION_FRAMEWORK.md`（执行层框架）·
-`docs/MEK_GUI_SEMANTICS.md`（Mek GUI→接口语义表）· `docs/AI_PLAYER_NOTES.md`（思考笔记）
+`docs/MEK_GUI_SEMANTICS.md`（Mek GUI→接口语义表）· `docs/AI_PLAYER_NOTES.md`（思考笔记）·
+`docs/ROAD_MATHEMATICAL_MODEL.md`（道路数学模型：连续几何→体素化→时间成本密度积分）
 
 ## 二、当前进度（2026-08-18，旧路径基线已暴露问题）
 
