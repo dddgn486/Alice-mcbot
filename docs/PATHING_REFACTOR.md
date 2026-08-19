@@ -13,6 +13,12 @@
 
 手动道路蓝图 `RoadPlan`/`RoadBuilder` 保持独立，不再作为挖矿任务的输入或全局单例通道计划。
 
+## 维生系统与挖矿边界
+
+所有任务先经过统一 `SurvivalSystem` 监测。第一版硬中断危险为 `LAVA_CONTACT` 与 `SUFFOCATING`，水、低空气和着火先记录，不在任务内部擅自逃生；后续由独立 `EmergencyEscapeTask` 或软移动模式处理。强制施工也不能绕过维生监测。当前框架也为后续 `MovementMode.HARD_PATH/SOFT_SURFACE/SOFT_FLUID/FORCED_BUILD` 预留边界，但普通挖矿仍使用现有硬移动。
+
+挖掘前 `FluidRiskPolicy` 会保守拒绝目标或相邻六格存在可见岩浆的操作，返回 `fluid_risk_lava`，不自动堵水、挖源头或把普通挖矿扩大成流体工程。复杂流体传播仍必须客户端验证。
+
 ## 决策与兜底原则
 
 - 决策层（规则或 LLM）只选择目标、预算和是否授权通道；执行层必须独立验证世界状态，不能因为决策层建议而越过安全区、流体、不可破坏方块或材料/工具约束。

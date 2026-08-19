@@ -4,6 +4,7 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.SurfacePathfinder;
 import com.dddgn.alice.pathing.PathExecutor;
 import com.dddgn.alice.protection.BlockBreakSafety;
+import com.dddgn.alice.survival.FluidRiskPolicy;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
@@ -76,6 +77,9 @@ public final class BotMiner {
             return Status.DONE;
         }
         String refusalReason = BlockBreakSafety.explicitTargetRefusal(bot, target);
+        if (refusalReason == null) {
+            refusalReason = FluidRiskPolicy.miningRefusal(bot, target);
+        }
         if (refusalReason != null) {
             failureReason = refusalReason;
             BotLog.warn("mine 被安全策略拦截: target={} reason={}", target.toShortString(), failureReason);

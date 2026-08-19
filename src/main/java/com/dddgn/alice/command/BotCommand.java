@@ -6,6 +6,8 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.PerceptionProfile;
 import com.dddgn.alice.perception.PerceptionSnapshot;
 import com.dddgn.alice.pathing.SurfacePathfinder;
+import com.dddgn.alice.survival.HazardState;
+import com.dddgn.alice.survival.SurvivalSystem;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -235,8 +237,11 @@ public final class BotCommand {
             source.sendFailure(Component.literal("[alice] 当前维度没有已生成的假人"));
             return 0;
         }
+        HazardState hazard = SurvivalSystem.current(bot);
         String text = "[alice] " + bot.getName().getString() + " busy=" + BotManager.isBusy(bot)
-                + ", last=" + BotManager.lastTaskResult(bot) + ", pos=" + bot.blockPosition().toShortString();
+                + ", last=" + BotManager.lastTaskResult(bot) + ", pos=" + bot.blockPosition().toShortString()
+                + ", hazard=" + hazard.type() + "(" + hazard.durationTicks() + "t)"
+                + ", air=" + hazard.airSupply() + ", health=" + hazard.health();
         source.sendSuccess(() -> Component.literal(text), false);
         return 1;
     }

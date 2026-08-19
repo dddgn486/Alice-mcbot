@@ -158,7 +158,9 @@ public final class MineTask implements Task {
     }
 
     private static boolean isHardTargetRefusal(String reason) {
-        return "unbreakable_block".equals(reason) || reason.startsWith("protected_");
+        return "unbreakable_block".equals(reason)
+                || "fluid_risk_lava".equals(reason)
+                || reason.startsWith("protected_");
     }
 
     /** 切换当前挖掘目标(原目标或遮挡方块)。 */

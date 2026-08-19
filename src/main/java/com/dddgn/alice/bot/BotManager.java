@@ -8,6 +8,8 @@ import com.dddgn.alice.task.MineTask;
 import com.dddgn.alice.task.PlaceTask;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
+import com.dddgn.alice.survival.HazardState;
+import com.dddgn.alice.survival.SurvivalSystem;
 import com.mojang.authlib.GameProfile;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -81,6 +83,7 @@ public final class BotManager {
 
     /** 移除假人(实体 + PlayerList + 世界存档记录)。 */
     public static void remove(BotPlayer bot) {
+        SurvivalSystem.forget(bot);
         BotSession session = BOTS.remove(bot.getUUID());
         if (session != null) {
             session.clearTask(); // 任务收尾 + 广播清除高亮
@@ -247,7 +250,8 @@ public final class BotManager {
             return;
         }
         for (BotSession session : BOTS.values()) {
-            session.tick();
+            HazardState hazard = SurvivalSystem.tick(session.bot());
+            session.tick(hazard);
         }
     }
 
@@ -353,8 +357,15 @@ public final class BotManager {
             broadcastTarget(this.target);
         }
 
-        private void tick() {
+        private void tick(HazardState hazard) {
             if (task == null) {
+                return;
+            }
+            if (SurvivalSystem.shouldInterrupt(hazard)) {
+                lastTaskResult = "failed:" + SurvivalSystem.interruptionReason(hazard);
+                BotLog.warn("任务因维生危险中断: bot={} reason={}", bot.getName().getString(), lastTaskResult);
+                reportItems();
+                clearTask();
                 return;
             }
             Task.Status status = task.tick();
