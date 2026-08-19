@@ -9,7 +9,9 @@ import net.minecraft.world.level.block.FallingBlock;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 按水平道路单元逐格构建：本单元完成后等待 5 tick，确认没有沙/ gravel 下坠，
@@ -84,18 +86,28 @@ public final class RoadBuilder {
     }
 
     private void buildUnit(RoadPlan.Unit unit) {
+        Set<BlockPos> supports = new LinkedHashSet<>();
+        Set<BlockPos> clearance = new LinkedHashSet<>();
         for (RoadPlan.Cell cell : unit.cells()) {
-            BlockPos pos = cell.pos();
+            if (cell.pos().equals(unit.support())) {
+                supports.add(cell.pos());
+            } else {
+                clearance.add(cell.pos());
+            }
+        }
+        // 先清净空、后铺支撑。RoadPlan 会拒绝同格角色冲突；此顺序仍可防止未来原语
+        // 扩展时由单元内迭代顺序把刚清出的空腔重新堵住。
+        for (BlockPos pos : clearance) {
             if (pos.equals(plan.first()) || pos.equals(plan.second())) continue;
-            // 构建时按当前世界状态判断，不能依赖规划时的 OPEN/CLEAR 快照：
-            // 沙砾可能在等待期落入原本为空的净空格。
-            if (pos.equals(unit.support())) {
-                if (level.getBlockState(pos).isAir()) {
-                    level.setBlock(pos, net.minecraft.world.level.block.Blocks.COBBLESTONE.defaultBlockState(), 3);
-                }
-            } else if (!level.getBlockState(pos).isAir()
+            if (!level.getBlockState(pos).isAir()
                     && BlockBreakSafety.clearingRefusal(actor, pos) == null) {
                 level.destroyBlock(pos, false);
+            }
+        }
+        for (BlockPos pos : supports) {
+            if (pos.equals(plan.first()) || pos.equals(plan.second())) continue;
+            if (level.getBlockState(pos).isAir()) {
+                level.setBlock(pos, net.minecraft.world.level.block.Blocks.COBBLESTONE.defaultBlockState(), 3);
             }
         }
     }

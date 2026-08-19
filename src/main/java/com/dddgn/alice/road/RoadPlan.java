@@ -111,13 +111,18 @@ public final class RoadPlan {
         // 普通弯曲路径优先：水平搜索本身可以向外借步长（有 24 格边界容错）。
         // 只有当普通搜索无解，且高差明显超过水平容量时才启用螺旋，避免中等高差两头落空。
         Route route;
-        List<BlockPos> normal = shortestVoxelRoute(level, start, goal, 2);
-        if (!normal.isEmpty()) {
-            route = new Route(normal, Set.of(), Set.of());
-        } else if (verticalDistance > horizontalDistance + SPIRAL_EXTRA) {
+        List<BlockPos> curved = selectContinuousRoute(level, start, goal);
+        if (!curved.isEmpty()) {
+            route = new Route(curved, Set.of(), Set.of());
+        } else if (verticalDistance > 0) {
+            // 任意未被连续曲线接管的高差先尝试结构化螺旋，避免回到窄区自由折返。
             route = spiralCompensationRoute(level, start, goal);
         } else {
-            route = new Route(List.of(), Set.of(), Set.of());
+            // 曲线候选被世界障碍拒绝时，保留体素 A* 作为局部绕障后备。
+            // 它不负责高差补偿；高差补偿由上面的螺旋原语负责。
+            List<BlockPos> fallback = shortestVoxelRoute(level, start, goal, 2);
+            route = new Route(fallback, Set.of(), Set.of());
+            BotLog.info("连续道路候选未通过，使用体素 A* 后备: routeUnits={}", fallback.size());
         }
         BotLog.info("道路路线选择: mode={} horizontal={} vertical={} spiralExtra={} start={} goal={}",
                 route.spiralSupports().isEmpty() ? "normal" : "spiral",
@@ -167,7 +172,82 @@ public final class RoadPlan {
             BotLog.warn("道路蓝图生成失败: 单元连通验证拒绝 routeUnits={}", centerline.size());
             return List.of();
         }
+        if (!hasUnambiguousCellOwnership(result)) {
+            BotLog.warn("道路蓝图生成失败: 支撑格与其他单元净空重叠 routeUnits={}", centerline.size());
+            return List.of();
+        }
         return Collections.unmodifiableList(result);
+    }
+
+    /**
+     * 从连续曲线生成的候选中选取首条通过现有体素硬约束的路线。
+     * 曲线层只确定整体形状；障碍、液体净距、对角侧格和高度连续性仍由此处验证。
+     */
+    private static List<BlockPos> selectContinuousRoute(ServerLevel level, BlockPos start, BlockPos goal) {
+        List<ContinuousRoadCurve.Candidate> candidates = ContinuousRoadCurve.candidates(start, goal);
+        BotLog.info("连续道路候选生成: count={} start={} goal={}", candidates.size(),
+                start.toShortString(), goal.toShortString());
+        int index = 0;
+        for (ContinuousRoadCurve.Candidate candidate : candidates) {
+            index++;
+            List<BlockPos> route = candidate.route();
+            boolean valid = isDiscreteRouteValid(level, route, 2);
+            BotLog.info("连续道路候选 {}/{}: offset={} arc={} units={} valid={}", index,
+                    candidates.size(), format(candidate.lateralOffset()), format(candidate.horizontalArcLength()),
+                    route.size(), valid);
+            if (valid) {
+                BotLog.info("连续道路路线选择: candidate={} units={} start={} goal={}", index,
+                        route.size(), start.toShortString(), goal.toShortString());
+                return route;
+            }
+        }
+        return List.of();
+    }
+
+    private static String format(double value) {
+        return String.format(java.util.Locale.ROOT, "%.2f", value);
+    }
+
+    private static boolean isDiscreteRouteValid(ServerLevel level, List<BlockPos> route, int headroom) {
+        if (route.isEmpty()) return false;
+        Set<String> projections = new java.util.HashSet<>();
+        for (int i = 0; i < route.size(); i++) {
+            BlockPos point = route.get(i);
+            if (!projections.add(point.getX() + ":" + point.getZ())
+                    || RoadObstaclePolicy.forbidsCorridor(level, point, headroom)) {
+                return false;
+            }
+            if (i == 0) continue;
+            BlockPos previous = route.get(i - 1);
+            int dx = Math.abs(point.getX() - previous.getX());
+            int dz = Math.abs(point.getZ() - previous.getZ());
+            int dy = Math.abs(point.getY() - previous.getY());
+            if (dy > 1 || (dx == 0 && dz == 0) || dx > 1 || dz > 1) return false;
+            if (dx == 1 && dz == 1) {
+                BlockPos sideA = new BlockPos(point.getX(), previous.getY(), previous.getZ());
+                BlockPos sideB = new BlockPos(previous.getX(), previous.getY(), point.getZ());
+                if (forbidden(level, sideA) || forbidden(level, sideB)) return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 同一格不能既是一个单元的支撑又是另一个单元的净空。
+     * RoadBuilder 会按单元顺序施工，若不在蓝图阶段拒绝这种冲突，后面的支撑会堵住前面的空腔。
+     */
+    private static boolean hasUnambiguousCellOwnership(List<Unit> units) {
+        Map<BlockPos, Boolean> ownership = new HashMap<>();
+        for (Unit unit : units) {
+            for (Cell cell : unit.cells()) {
+                boolean support = cell.pos().equals(unit.support());
+                Boolean prior = ownership.putIfAbsent(cell.pos(), support);
+                if (prior != null && prior != support) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     private static void addEdgeClearance(BlockPos from, BlockPos to,
