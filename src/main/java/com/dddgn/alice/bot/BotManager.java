@@ -331,7 +331,8 @@ public final class BotManager {
                 case BLOCK -> {
                     // 任务启动即开启作用域:监听掉落物与方块变化(设计文档 §3.2)
                     scope.begin(newTarget.blockPos(), 8);
-                    this.task = new com.dddgn.alice.task.RoadMineTask(bot, newTarget.blockPos(), scope);
+                    // 单目标默认只走真实可通行曲面的 A*；通道规划后续仅在曲面不可达时显式接入。
+                    this.task = new MineTask(bot, newTarget.blockPos(), scope);
                 }
                 case ENTITY -> {
                     BotLog.warn("实体目标任务尚未实现: target={}", newTarget.describe());
@@ -352,8 +353,6 @@ public final class BotManager {
                     lastTaskResult = "done";
                     if (task instanceof MineTask mineTask) {
                         lastMineStartPos = mineTask.mineStartPos();
-                    } else if (task instanceof com.dddgn.alice.task.RoadMineTask roadMineTask) {
-                        lastMineStartPos = roadMineTask.mineStartPos();
                     }
                     reportItems();
                     clearTask();
@@ -362,8 +361,6 @@ public final class BotManager {
                     lastTaskResult = "failed:" + task.failureReason();
                     if (task instanceof MineTask mineTask) {
                         lastMineStartPos = mineTask.mineStartPos();
-                    } else if (task instanceof com.dddgn.alice.task.RoadMineTask roadMineTask) {
-                        lastMineStartPos = roadMineTask.mineStartPos();
                     }
                     reportItems();
                     clearTask();

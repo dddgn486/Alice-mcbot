@@ -48,7 +48,7 @@ GUI 背后操作序列化为语义接口（而非视觉点 GUI）。
 | 道路构建（玩家版） | ✅ `/alice road build`：`RoadBuilder` 逐单元施工 + 5 tick 稳定检测，先清净空后铺支撑 |
 | 道路构建（bot 版） | ✅ `/alice road buildbybot`：`RoadBuildTask` 强制施工动画，逐单元构建并平滑前进（见 §四） |
 | 拾取/收集 | ✅ 已收紧：**任何采集任务只收集显式目标方块 origin 的掉落物**（见 §五） |
-| 目标道路挖掘 | ✅ 斧头目标与 `auto-mine` 进入 `RoadMineTask`：曲面 A* 移动，通道真实破坏进度施工，末端复用 `MineTask`；规划成本与施工格数已解耦 |
+| 单目标挖掘 | ✅ 斧头目标、`/alice mine` 与 `auto-mine` 已恢复为 `MineTask`：只走真实曲面 A*，绝不隐式挖/搭通道 |
 | 感知层 | ✅ `PerceptionSnapshot` + `ScopeBuffer`（任务作用域：掉落物 origin 追踪/方块事件） |
 | 决策层 | ✅ `AutoMineDecision` 最小规则（标签/方块 ID → 最近 → 执行；LLM 接入点预留） |
 | 接口扫描 | ✅ `InterfaceScanner`：Forge/Mek capability + Mek GUI 页签统一扫描 |
@@ -149,7 +149,7 @@ BUILD_UNIT → WAIT_STABLE → MOVE_TO_NEXT_UNIT →（循环）→ MINE_TARGET 
 
 ---
 
-## 六、混合寻路（L0 初版已实现，待 Windows 实测标定）
+## 六、寻路重构（已定稿，混合任务已撤回）
 
 ### 6.1 数学模型（用户原话整理 + ROAD_MATHEMATICAL_MODEL.md §五）
 
@@ -162,23 +162,21 @@ BUILD_UNIT → WAIT_STABLE → MOVE_TO_NEXT_UNIT →（循环）→ MINE_TARGET 
 - 整体：bot 在起点曲面用 Baritone 到达通道入口（动点），通过通道（线段/曲线）到达目标所在曲面的动点，再 Baritone 到目标。
 - 数学上可看作**多层加权图**：曲面内边 = 低权，通道边 = 高权；需要快速求较小时间成本路线（不必全局最优，但要好）。
 
-### 6.2 L0 当前实现（`RoadPlan`）
+### 6.2 当前第一版：SurfacePathfinder 语义
 
-1. 定义 `SURFACE_COST_PER_BLOCK = 1.0`、`TUNNEL_COST_PER_BLOCK = 7.0` 与 `HEIGHT_CHANGE_COST = 0.25`；数值仍待按 Windows 实测施工耗时标定；
-2. `corridorCost`：脚下已有碰撞支撑、两格净空均无碰撞体即低成本曲面；需清净空或补支撑的单元即高成本通道；禁区仍由 `RoadObstaclePolicy` 直接排除；
-3. `shortestVoxelRoute` 与连续曲线候选现在只比较几何长度（日志为 `混合寻路比较(几何线路): curveLength= voxelLength= selected=`）；通道实际施工单元数不再进入规划成本；
-4. 规划结果用于确定数学线路与曲面/通道交界，`RoadMineTask` 在入口前和出口后调用 A*，通道内部按蓝图单元执行；尚未接入真正的 Baritone 曲面节点缓存；
-5. 螺旋只在普通曲线和加权体素搜索都无路时使用；半圆绕行上限与累计转角惩罚仍未实现。
+- `AStarPathfinder + PathExecutor + MineTask` 是唯一默认单目标链；它只走真实可通行曲面，成功后直接挖目标；
+- 钻石斧目标选择、`/alice mine` 与 `/alice auto-mine` 都进入该链，不再创建 `RoadMineTask` 或调用 `RoadPlan`；
+- 掉落物继续只收 `liveItemsFromOrigin(target)` 锁定 UUID，路径仅允许曲面 A* 与有限侧向下行阶梯恢复，绝不自动启动长通道；
+- 手动 `RoadPlan`/`RoadBuilder`/`RoadBuildTask` 保持为独立道路蓝图功能，当前不参与挖矿任务。
 
-### 6.3 目标挖掘执行（`RoadMineTask`）
+### 6.3 后续：独立 TunnelPlanner 与目标簇
 
-- 钻石斧目标选择与 `/alice auto-mine` 共用 `BotManager.assignTarget`，现在进入 `RoadMineTask`；
-- 曲面连续单元合并为一段本地 Baritone 风格 A* 路径，由 `PathExecutor` 执行；当前仓库没有真实 Baritone 依赖，不能称为原版 Baritone API；
-- 通道施工按“清理下一单元净空 → 放置下一单元支撑 → 走到已完成单元”执行，实体方块使用 `getDestroyProgress` 累计真实挖掘时间；
-- 最终支撑格完成后先用 A* 接回目标附近曲面，再交给 `MineTask` 重新选择合法挖掘站位，并继续显式目标掉落物收集；
-- 当前仅使用钻石镐作为临时施工工具，工具切换/背包材料预算尚未接入。
+- 仅当所有合法挖掘站位都无曲面路径时，才允许独立 `TunnelPlanner` 枚举曲面入口/出口并生成不可变 `TunnelPlan`；
+- 总成本 = 起点曲面移动 + 数学通道几何长度 × 因子 + 出口曲面移动；实际施工格数、支撑和重试不参与规划成本；
+- `TargetCluster`/`ClusterMineTask` 对同类 6 邻接目标做簇级一次全局规划，通道只能抵达簇外围，禁止侵入簇膨胀一格 AABB；簇内只做局部曲面寻路/有限清障；
+- 完整规范：`docs/PATHING_REFACTOR.md`。
 
-### 6.4 相关待办（旧）
+### 6.4 相关待办
 
 - 目标簇 AABB 保护（全局路线不侵入簇，簇内局部采集分离）；
 - L1/L2：工具损耗线性近似、材料/耐久预算过滤（NP-hard，放决策层）；
@@ -251,9 +249,10 @@ headless 验收：`./gradlew runServer -Dalice.selftest.auto=true`（测完自�
 
 ## 十一、下个会话建议顺序
 
-1. 继续 `RoadBuildTask` 实测反馈（施工动画是否流畅、工具/圆石特殊条件是否合理、终点衔接是否正常）；
-2. Windows 实测 `/alice road buildbybot`：确认施工动画流畅、终点缓冲衔接与目标掉落物收集；根据日志标定曲面/通道成本；
-3. 混合寻路增强：接入真正曲面可达性/端点采样图，替代当前受限体素图近似；
-4. 曲率/半圆绕行上限（连续曲线框架的曲率硬约束）；
-5. 道路专用回归测试纳入 selftest；
-6. 目标簇 AABB；L1/L2 损耗与材料预算过滤。
+1. Windows 实测单目标：钻石斧、`/alice mine`、`/alice auto-mine` 均只走曲面 A*，不得隐式挖/搭通道；
+2. 将现有 A* 封装为 `SurfacePathfinder`，返回结构化可达/无路结果与候选站位路径；
+3. 定义独立 `TunnelPlan`/`TunnelPlanner`，仅在所有曲面站位不可达时接入，不复用 `RoadPlan` 单例；
+4. 拆出 `DropCollectionTask`，保留“无长通道”硬规则；
+5. 实现 `TargetCluster`/`ClusterMineTask` 与簇 AABB 通道禁入；
+6. 道路/曲面/通道/掉落物/目标簇专用回归测试；
+7. 曲率/半圆绕行上限、L1/L2 损耗与材料预算过滤。

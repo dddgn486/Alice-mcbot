@@ -102,13 +102,6 @@ public final class RoadPlan {
     public synchronized List<Unit> units() { return units; }
     public synchronized ServerLevel level() { return level; }
 
-    /** 为目标挖掘生成一次性道路执行单元：起点是 bot 当前脚位，终点是目标下方支撑格。 */
-    public static List<Unit> planForMining(ServerLevel level, BlockPos botFoot, BlockPos target) {
-        if (level == null || botFoot == null || target == null) return List.of();
-        // botFoot 是 bot 的脚位空气格；buildUnits 取 below() 后正好得到其当前脚下支撑。
-        return buildUnits(level, botFoot, target);
-    }
-
     private record Route(List<BlockPos> centerline, Set<BlockPos> spiralSupports,
                          Set<BlockPos> spiralFootprint) {}
 
