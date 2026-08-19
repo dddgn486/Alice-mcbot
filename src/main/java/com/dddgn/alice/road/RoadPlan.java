@@ -94,9 +94,13 @@ public final class RoadPlan {
         BlockPos goal = b.below();
         int horizontalDistance = Math.abs(start.getX() - goal.getX()) + Math.abs(start.getZ() - goal.getZ());
         int verticalDistance = Math.abs(start.getY() - goal.getY());
-        Route route = verticalDistance > horizontalDistance + 2
+        boolean useSpiral = verticalDistance > horizontalDistance + 2;
+        Route route = useSpiral
                 ? spiralCompensationRoute(level, start, goal)
                 : new Route(shortestVoxelRoute(level, start, goal, 2), Set.of());
+        BotLog.info("道路路线选择: mode={} horizontal={} vertical={} start={} goal={}",
+                useSpiral ? "spiral" : "normal", horizontalDistance, verticalDistance,
+                start.toShortString(), goal.toShortString());
         List<BlockPos> centerline = route.centerline();
         if (centerline.isEmpty()) {
             BotLog.warn("道路蓝图生成失败: 体素搜索无路 start={} goal={}",
@@ -233,6 +237,9 @@ public final class RoadPlan {
                 if (RoadObstaclePolicy.forbidsCorridor(level, goal, 2)) continue;
                 route.add(buffer);
                 route.add(goal);
+                BotLog.info("螺旋路线生成: entrance={} exit={} buffer={} goalSupport={} steps={} phase={}",
+                        spiralStart.toShortString(), spiralExit.toShortString(), buffer.toShortString(),
+                        goal.toShortString(), steps, phase);
                 return new Route(route, Collections.unmodifiableSet(new LinkedHashSet<>(spiral)));
             }
         }
