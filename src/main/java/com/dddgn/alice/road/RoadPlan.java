@@ -174,6 +174,13 @@ public final class RoadPlan {
         if (forbidden(level, start) || forbidden(level, goal)) return List.of();
         PriorityQueue<SearchNode> open = new PriorityQueue<>(java.util.Comparator.comparingDouble(SearchNode::score));
         Map<String, Double> best = new HashMap<>();
+        int margin = 24;
+        int minX = Math.min(start.getX(), goal.getX()) - margin;
+        int maxX = Math.max(start.getX(), goal.getX()) + margin;
+        int minY = Math.min(start.getY(), goal.getY()) - margin;
+        int maxY = Math.max(start.getY(), goal.getY()) + margin;
+        int minZ = Math.min(start.getZ(), goal.getZ()) - margin;
+        int maxZ = Math.max(start.getZ(), goal.getZ()) + margin;
         Map<String, String> previous = new HashMap<>();
         SearchNode first = new SearchNode(start, 4, 0, heuristic(start, goal));
         open.add(first);
@@ -187,13 +194,14 @@ public final class RoadPlan {
                     {1, 0}, {-1, 0}, {0, 1}, {0, -1},
                     {1, 1}, {1, -1}, {-1, 1}, {-1, -1}
             };
-            int direction = 0;
-            for (int[] horizontalMove : horizontalMoves) {
-                int dx = horizontalMove[0];
-                int dz = horizontalMove[1];
+            for (int direction = 0; direction < horizontalMoves.length; direction++) {
+                int dx = horizontalMoves[direction][0];
+                int dz = horizontalMoves[direction][1];
                 boolean diagonal = dx != 0 && dz != 0;
                 for (int dy = -1; dy <= 1; dy++) {
                     BlockPos next = current.pos().offset(dx, dy, dz);
+                    if (next.getX() < minX || next.getX() > maxX || next.getY() < minY
+                            || next.getY() > maxY || next.getZ() < minZ || next.getZ() > maxZ) continue;
                     boolean sideBlocked = diagonal
                             && (forbidden(level, current.pos().offset(dx, 0, 0))
                             || forbidden(level, current.pos().offset(0, 0, dz))
@@ -209,7 +217,6 @@ public final class RoadPlan {
                     best.put(nextKey, nextCost);
                     previous.put(nextKey, key(current.pos(), current.direction()));
                     open.add(new SearchNode(next, direction, nextCost, nextCost + heuristic(next, goal)));
-                    direction++;
                 }
             }
         }
@@ -229,7 +236,11 @@ public final class RoadPlan {
     }
 
     private static double heuristic(BlockPos a, BlockPos b) {
-        return Math.abs(a.getX() - b.getX()) + Math.abs(a.getY() - b.getY()) + Math.abs(a.getZ() - b.getZ());
+        int dx = Math.abs(a.getX() - b.getX());
+        int dz = Math.abs(a.getZ() - b.getZ());
+        int diagonal = Math.min(dx, dz);
+        int straight = Math.max(dx, dz) - diagonal;
+        return diagonal * 1.414D + straight + Math.abs(a.getY() - b.getY()) * 1.05D;
     }
 
     private static String key(BlockPos pos, int direction) {
