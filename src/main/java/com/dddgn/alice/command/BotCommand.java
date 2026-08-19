@@ -51,7 +51,9 @@ public final class BotCommand {
                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
                 .then(Commands.literal("road")
                         .then(Commands.literal("build")
-                                .executes(ctx -> buildRoad(ctx.getSource()))))
+                                .executes(ctx -> buildRoad(ctx.getSource())))
+                                 .then(Commands.literal("buildbybot")
+                                         .executes(ctx -> buildRoadByBot(ctx.getSource()))))
                 .then(Commands.literal("observe")
                         .executes(ctx -> observe(ctx.getSource())))
                 .then(Commands.literal("selftest")
@@ -201,6 +203,23 @@ public final class BotCommand {
     }
 
     /** M2 接口扫描:输出指定方块的 capability 接口清单(物品/能量/流体/气体等)。 */
+    private static int buildRoadByBot(CommandSourceStack source) {
+        com.dddgn.alice.road.RoadPlan plan = com.dddgn.alice.road.RoadPlan.get();
+        if (!plan.isComplete() || plan.level() != source.getLevel()) {
+            source.sendFailure(Component.literal("[alice] 尚未生成当前维度的道路蓝图"));
+            return 0;
+        }
+        BotPlayer bot = BotManager.firstOrSpawn(source.getLevel(), plan.first());
+        if (BotManager.isBusy(bot)) {
+            source.sendFailure(Component.literal("[alice] 假人当前正在执行其他任务"));
+            return 0;
+        }
+        BotManager.assignRoadBuild(bot, plan);
+        source.sendSuccess(() -> Component.literal("[alice] 已让 " + bot.getName().getString()
+                + " 按道路蓝图逐单元施工并前往目标"), false);
+        return 1;
+    }
+
     private static int buildRoad(CommandSourceStack source) {
         com.dddgn.alice.road.RoadPlan plan = com.dddgn.alice.road.RoadPlan.get();
         if (!plan.isComplete() || plan.level() != source.getLevel()) {

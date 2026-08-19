@@ -81,6 +81,7 @@ public final class PlaceTask implements Task {
             failure = "place_line_of_sight";
             return Status.FAILED;
         }
+        faceTarget();
         bot.level().setBlock(target, Blocks.COBBLESTONE.defaultBlockState(), 3);
         return Status.DONE;
     }
@@ -117,5 +118,24 @@ public final class PlaceTask implements Task {
         BlockHitResult hit = bot.level().clip(new ClipContext(eye, target.getCenter(),
                 ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, bot));
         return hit.getType() == HitResult.Type.MISS;
+    }
+
+    /** 与 BotMiner 一致：放置前同步身体、头部和俯仰朝向目标中心。 */
+    private void faceTarget() {
+        Vec3 eye = bot.getEyePosition();
+        Vec3 center = target.getCenter();
+        double dx = center.x - eye.x;
+        double dy = center.y - eye.y;
+        double dz = center.z - eye.z;
+        float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
+        float pitch = (float) Math.toDegrees(Math.atan2(-dy, Math.sqrt(dx * dx + dz * dz)));
+        bot.setYRot(yaw);
+        bot.setXRot(pitch);
+        bot.setYHeadRot(yaw);
+        bot.connection.send(new net.minecraft.network.protocol.game.ClientboundRotateHeadPacket(
+                bot, (byte) (yaw * 256.0F / 360.0F)));
+        bot.connection.send(new net.minecraft.network.protocol.game.ClientboundMoveEntityPacket.Rot(
+                bot.getId(), (byte) (yaw * 256.0F / 360.0F),
+                (byte) (pitch * 256.0F / 360.0F), bot.onGround()));
     }
 }

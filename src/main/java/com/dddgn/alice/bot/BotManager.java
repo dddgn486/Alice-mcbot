@@ -176,6 +176,16 @@ public final class BotManager {
         session.assignPlace(target);
     }
 
+    /** 给假人分配 Bot 专用道路施工任务。 */
+    public static void assignRoadBuild(BotPlayer bot, com.dddgn.alice.road.RoadPlan plan) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null) {
+            BotLog.warn("assignRoadBuild 失败: bot 不存在 uuid={}", bot.getUUID());
+            return;
+        }
+        session.assignRoadBuild(plan);
+    }
+
     /** 给假人分配「挖掘指定方块」任务(命令/selftest 兼容入口)。 */
     public static void assignMine(BotPlayer bot, BlockPos target) {
         assignTarget(bot, TaskTarget.block(target));
@@ -299,6 +309,18 @@ public final class BotManager {
             clearTask();
             this.target = TaskTarget.block(targetPos);
             this.task = new PlaceTask(bot, targetPos);
+            broadcastTarget(this.target);
+        }
+
+        public void assignRoadBuild(com.dddgn.alice.road.RoadPlan plan) {
+            clearTask();
+            if (!plan.isComplete() || plan.level() != bot.level()) {
+                lastTaskResult = "failed:road_plan_invalid";
+                return;
+            }
+            this.target = TaskTarget.block(plan.second());
+            scope.begin(plan.second(), 8);
+            this.task = new com.dddgn.alice.task.RoadBuildTask(bot, plan, scope);
             broadcastTarget(this.target);
         }
 
