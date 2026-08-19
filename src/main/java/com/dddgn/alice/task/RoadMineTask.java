@@ -25,7 +25,7 @@ import java.util.List;
  * 并严格在已完成单元上施工，避免把 bot 放进尚未完成的脚下方块。
  */
 public final class RoadMineTask implements Task {
-    private enum Phase { MOVE_SURFACE, BUILD_TUNNEL, MOVE_ONTO_UNIT, MINE_TARGET, DONE }
+    private enum Phase { MOVE_SURFACE, BUILD_TUNNEL, MOVE_ONTO_UNIT, MOVE_EXIT_SURFACE, MINE_TARGET, DONE }
 
     private static final int MAX_PATH_RETRIES = 2;
     private static final int MINE_TIMEOUT_TICKS = 400;
@@ -42,6 +42,8 @@ public final class RoadMineTask implements Task {
     private PathExecutor executor;
     private MineTask targetTask;
     private int unitIndex;
+    private int tunnelStartIndex = -1;
+    private int tunnelEndIndex = -1;
     private int surfaceDestinationIndex = -1;
     private int clearIndex;
     private int pathRetries;
@@ -56,6 +58,7 @@ public final class RoadMineTask implements Task {
         this.target = target.immutable();
         this.scope = scope;
         this.units = new ArrayList<>(RoadPlan.planForMining(level, bot.blockPosition(), target));
+        findTunnelRange();
         bot.getInventory().setItem(bot.getInventory().selected, new ItemStack(Items.DIAMOND_PICKAXE));
         com.dddgn.alice.bot.BotManager.syncMainHand(bot);
         BotLog.info("道路目标挖掘任务创建: target={} units={}", target.toShortString(), units.size());
@@ -86,28 +89,21 @@ public final class RoadMineTask implements Task {
             case MOVE_SURFACE -> tickMoveSurface();
             case BUILD_TUNNEL -> tickBuildTunnel();
             case MOVE_ONTO_UNIT -> tickMoveOntoUnit();
+            case MOVE_EXIT_SURFACE -> tickMoveExitSurface();
             case MINE_TARGET -> tickMineTarget();
             case DONE -> Status.DONE;
         };
     }
 
     private Status tickMoveSurface() {
-        if (unitIndex >= units.size()) return startTargetMine();
-        if (!isSurface(units.get(unitIndex))) {
-            if (unitIndex == 0) {
-                failure = "road_tunnel_starts_under_bot";
-                return Status.FAILED;
-            }
+        if (tunnelStartIndex < 0) return startTargetMine();
+        if (unitIndex >= tunnelStartIndex) {
             prepareTunnel(units.get(unitIndex));
             phase = Phase.BUILD_TUNNEL;
             return Status.RUNNING;
         }
         if (surfaceDestinationIndex < unitIndex) {
-            surfaceDestinationIndex = unitIndex;
-            while (surfaceDestinationIndex + 1 < units.size()
-                    && isSurface(units.get(surfaceDestinationIndex + 1))) {
-                surfaceDestinationIndex++;
-            }
+            surfaceDestinationIndex = tunnelStartIndex - 1;
         }
         BlockPos destination = units.get(surfaceDestinationIndex).support().above();
         if (executor == null) {
@@ -118,7 +114,13 @@ public final class RoadMineTask implements Task {
             }
             List<BlockPos> path = AStarPathfinder.computePath(level, bot.blockPosition(),
                     new Goal.GoalBlock(destination));
+            // A* 在起点已经满足 Goal 时返回空路径；这不是无路，直接推进到该曲面端点。
             if (path.isEmpty()) {
+                if (bot.blockPosition().equals(destination)) {
+                    unitIndex = tunnelStartIndex;
+                    surfaceDestinationIndex = -1;
+                    return Status.RUNNING;
+                }
                 failure = "road_surface_no_path_" + destination.toShortString();
                 return Status.FAILED;
             }
@@ -138,7 +140,7 @@ public final class RoadMineTask implements Task {
         if (status == PathExecutor.Status.DONE) {
             executor = null;
             pathRetries = 0;
-            unitIndex = surfaceDestinationIndex + 1;
+            unitIndex = tunnelStartIndex;
             surfaceDestinationIndex = -1;
         }
         return Status.RUNNING;
@@ -183,7 +185,10 @@ public final class RoadMineTask implements Task {
         }
         // 最终支撑格上方仍是目标方块，不能把 bot 送进目标；从当前缓冲位置交给
         // MineTask 重新选择真实可挖站位，保持原版距离/视线/挖掘耗时约束。
-        if (unitIndex + 1 >= units.size()) return startTargetMine();
+        if (unitIndex >= tunnelEndIndex) {
+            phase = Phase.MOVE_EXIT_SURFACE;
+            return Status.RUNNING;
+        }
         phase = Phase.MOVE_ONTO_UNIT;
         return Status.RUNNING;
     }
@@ -239,7 +244,36 @@ public final class RoadMineTask implements Task {
         if (status == PathExecutor.Status.DONE) {
             executor = null;
             unitIndex++;
-            phase = Phase.MOVE_SURFACE;
+            if (unitIndex <= tunnelEndIndex) {
+                prepareTunnel(units.get(unitIndex));
+                phase = Phase.BUILD_TUNNEL;
+            } else {
+                phase = Phase.MOVE_SURFACE;
+            }
+        }
+        return Status.RUNNING;
+    }
+
+    private Status tickMoveExitSurface() {
+        if (executor == null) {
+            List<BlockPos> path = AStarPathfinder.computePath(level, bot.blockPosition(),
+                    new Goal.GoalNear(target.below(), 4));
+            if (path.isEmpty()) {
+                if (bot.blockPosition().distManhattan(target.below()) <= 4) return startTargetMine();
+                failure = "road_exit_surface_no_path";
+                return Status.FAILED;
+            }
+            executor = new PathExecutor(bot, path);
+            BotLog.info("道路通道出口接回曲面: target={} path={}", target.toShortString(), path.size());
+        }
+        PathExecutor.Status status = executor.tick();
+        if (status == PathExecutor.Status.FAILED) {
+            failure = "road_exit_surface_path_failed";
+            return Status.FAILED;
+        }
+        if (status == PathExecutor.Status.DONE) {
+            executor = null;
+            return startTargetMine();
         }
         return Status.RUNNING;
     }
@@ -261,6 +295,19 @@ public final class RoadMineTask implements Task {
             return Status.DONE;
         }
         return Status.RUNNING;
+    }
+
+    private void findTunnelRange() {
+        tunnelStartIndex = -1;
+        tunnelEndIndex = -1;
+        for (int i = 0; i < units.size(); i++) {
+            if (!isSurface(units.get(i))) {
+                if (tunnelStartIndex < 0) tunnelStartIndex = i;
+                tunnelEndIndex = i;
+            }
+        }
+        BotLog.info("道路执行边界: tunnelStart={} tunnelEnd={} totalUnits={}",
+                tunnelStartIndex, tunnelEndIndex, units.size());
     }
 
     private boolean isSurface(RoadPlan.Unit unit) {

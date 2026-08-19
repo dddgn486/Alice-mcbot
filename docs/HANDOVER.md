@@ -48,7 +48,7 @@ GUI 背后操作序列化为语义接口（而非视觉点 GUI）。
 | 道路构建（玩家版） | ✅ `/alice road build`：`RoadBuilder` 逐单元施工 + 5 tick 稳定检测，先清净空后铺支撑 |
 | 道路构建（bot 版） | ✅ `/alice road buildbybot`：`RoadBuildTask` 强制施工动画，逐单元构建并平滑前进（见 §四） |
 | 拾取/收集 | ✅ 已收紧：**任何采集任务只收集显式目标方块 origin 的掉落物**（见 §五） |
-| 目标道路挖掘 | ✅ 斧头目标与 `auto-mine` 进入 `RoadMineTask`：曲面 A* 移动，通道真实破坏进度施工，末端复用 `MineTask` |
+| 目标道路挖掘 | ✅ 斧头目标与 `auto-mine` 进入 `RoadMineTask`：曲面 A* 移动，通道真实破坏进度施工，末端复用 `MineTask`；规划成本与施工格数已解耦 |
 | 感知层 | ✅ `PerceptionSnapshot` + `ScopeBuffer`（任务作用域：掉落物 origin 追踪/方块事件） |
 | 决策层 | ✅ `AutoMineDecision` 最小规则（标签/方块 ID → 最近 → 执行；LLM 接入点预留） |
 | 接口扫描 | ✅ `InterfaceScanner`：Forge/Mek capability + Mek GUI 页签统一扫描 |
@@ -166,16 +166,16 @@ BUILD_UNIT → WAIT_STABLE → MOVE_TO_NEXT_UNIT →（循环）→ MINE_TARGET 
 
 1. 定义 `SURFACE_COST_PER_BLOCK = 1.0`、`TUNNEL_COST_PER_BLOCK = 7.0` 与 `HEIGHT_CHANGE_COST = 0.25`；数值仍待按 Windows 实测施工耗时标定；
 2. `corridorCost`：脚下已有碰撞支撑、两格净空均无碰撞体即低成本曲面；需清净空或补支撑的单元即高成本通道；禁区仍由 `RoadObstaclePolicy` 直接排除；
-3. `shortestVoxelRoute` 以移动长度 × 单元成本运行加权 A*，连续曲线候选与其用同一 `routeCost` 比较，日志为 `混合寻路比较: curveCost= voxelCost= selected=`；
-4. 此版在同一个受限体素图上近似“曲面低成本 + 通道高成本”，RoadBuildTask 仍只施工最终选中的路线；尚未接入真正的 Baritone 曲面可达性缓存、独立曲面节点图或端点采样；
+3. `shortestVoxelRoute` 与连续曲线候选现在只比较几何长度（日志为 `混合寻路比较(几何线路): curveLength= voxelLength= selected=`）；通道实际施工单元数不再进入规划成本；
+4. 规划结果用于确定数学线路与曲面/通道交界，`RoadMineTask` 在入口前和出口后调用 A*，通道内部按蓝图单元执行；尚未接入真正的 Baritone 曲面节点缓存；
 5. 螺旋只在普通曲线和加权体素搜索都无路时使用；半圆绕行上限与累计转角惩罚仍未实现。
 
 ### 6.3 目标挖掘执行（`RoadMineTask`）
 
 - 钻石斧目标选择与 `/alice auto-mine` 共用 `BotManager.assignTarget`，现在进入 `RoadMineTask`；
 - 曲面连续单元合并为一段本地 Baritone 风格 A* 路径，由 `PathExecutor` 执行；当前仓库没有真实 Baritone 依赖，不能称为原版 Baritone API；
-- 通道施工按“清理下一单元净空 → 放置下一单元支撑 → A* 走到已完成单元”执行，实体方块使用 `getDestroyProgress` 累计真实挖掘时间；
-- 最终支撑格不强行站入，施工完成后交给 `MineTask` 重新选择合法挖掘站位，并继续显式目标掉落物收集；
+- 通道施工按“清理下一单元净空 → 放置下一单元支撑 → 走到已完成单元”执行，实体方块使用 `getDestroyProgress` 累计真实挖掘时间；
+- 最终支撑格完成后先用 A* 接回目标附近曲面，再交给 `MineTask` 重新选择合法挖掘站位，并继续显式目标掉落物收集；
 - 当前仅使用钻石镐作为临时施工工具，工具切换/背包材料预算尚未接入。
 
 ### 6.4 相关待办（旧）
