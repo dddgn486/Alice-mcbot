@@ -359,18 +359,8 @@ public final class BotCommand {
         BotPlayer bot = BotManager.firstInLevel(level);
         BlockPos origin = bot != null ? bot.blockPosition()
                 : source.getEntity() != null ? source.getEntity().blockPosition() : level.getSharedSpawnPos();
-        if (origin.distManhattan(target) > 8) {
-            source.sendFailure(Component.literal("[alice] 软移动探针只允许 bot 8 格内短距离测试"));
-            return 0;
-        }
-        if (target.getY() != origin.getY()
-                || !com.dddgn.alice.pathing.MovementHelper.canWalkOn(level, origin)
-                || !com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, origin)
-                || !com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, origin.above())
-                || !com.dddgn.alice.pathing.MovementHelper.canWalkOn(level, target)
-                || !com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, target)
-                || !com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, target.above())) {
-            source.sendFailure(Component.literal("[alice] 起点和目标必须是同一高度的安全平地"));
+        if (!com.dddgn.alice.task.SoftMoveProbeTask.isSafeFlatProbe(level, origin, target)) {
+            source.sendFailure(Component.literal("[alice] 软移动探针只允许 bot 8 格内、同高度的安全平地"));
             return 0;
         }
         if (bot == null) {

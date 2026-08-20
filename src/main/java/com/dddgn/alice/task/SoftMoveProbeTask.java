@@ -4,6 +4,7 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.survival.HazardState;
 import com.dddgn.alice.survival.SurvivalSystem;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.MoverType;
 
@@ -27,6 +28,17 @@ public final class SoftMoveProbeTask implements Task {
     private double lastX;
     private double lastZ;
     private String failure = "";
+
+    public static boolean isSafeFlatProbe(ServerLevel level, BlockPos origin, BlockPos target) {
+        return origin.distManhattan(target) <= MAX_DISTANCE
+                && origin.getY() == target.getY()
+                && com.dddgn.alice.pathing.MovementHelper.canWalkOn(level, origin)
+                && com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, origin)
+                && com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, origin.above())
+                && com.dddgn.alice.pathing.MovementHelper.canWalkOn(level, target)
+                && com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, target)
+                && com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, target.above());
+    }
 
     public SoftMoveProbeTask(ServerPlayer bot, BlockPos target) {
         this.bot = bot;

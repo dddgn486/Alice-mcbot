@@ -66,6 +66,7 @@ collect_no_path / collect_path_failed / collect_timeout / target_requires_tunnel
 | 工具 | 交互 | 行为 |
 |---|---|---|
 | `alice:target_selector`（贴图=钻石斧） | 右键方块 | 指派挖掘任务给 bot（无 bot 自动生成） |
+| `alice:soft_move_selector`（贴图=金斧） | 右键安全平地 | 指定 SOFT_SURFACE 探针目的地；需已有空闲 bot，不接入挖矿 |
 | 钻石铲（原版） | 右键方块 | 接口扫描 `/alice scan` 的快捷版 |
 | `/alice diagnose-path <pos>` | 只读命令 | 返回曲面路径状态、路径段数与扩展节点；不分配任务、不改世界 |
 | `/alice status` | 只读命令 | 返回当前维度 bot 的 busy、上次结果和位置；无 bot 时失败，不生成 bot |

@@ -205,6 +205,7 @@ BUILD_UNIT → WAIT_STABLE → MOVE_TO_NEXT_UNIT →（循环）→ MINE_TARGET 
 /alice road buildbybot        bot 版：强制施工动画 + 终点挖掘
 /alice protect ...           安全区管理
 目标指定器(钻石斧)右键方块   挖掘；Shift+右键 → 独立放置任务（PlaceTask）
+软移动选择器(金斧)右键平地   指定 SOFT_SURFACE 探针目的地；需已有空闲 bot，受 8 格/同高度限制
 道路蓝图锄(钻石锄)右键两端   生成蓝色道路预览；Shift+右键重置
 钻石铲右键                   快捷接口扫描
 ```
