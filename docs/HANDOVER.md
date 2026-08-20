@@ -1,35 +1,30 @@
 # Alice 项目交接说明（给新会话的快速上手）
 
 > 用途：另一个对话/会话接手本项目时，先读本文件 + README + 设计文档，即可快速进入工作。
-> 更新：2026-08-20（SOFT_SURFACE 软移动第 3 阶段交接点）
+> 更新：2026-08-20（SOFT_SURFACE 软移动第 3 阶段：朝向/前进原语已验证）
 > 重要：本会话所有改动已同步到 Windows 端仓库（`origin` = `/mnt/d/JAVA_projects/alice`），
-> 最新提交 `ee3195e`。**每次代码修改完成后必须 `git push origin master`**，用户靠 Windows 端实测。
+> 最新提交 `4b65089`。**每次代码修改完成后必须 `git push origin master`**，用户靠 Windows 端实测。
 
 ## 〇、当前 Git 状态（重要）
 
 ```
-ee3195e fix: diagnose soft movement probe targets        ← HEAD（金斧/命令软移动目标坐标契约修复）
+4b65089 feat: add soft movement primitives                 ← HEAD（朝向+前进原语，0.215 格/tick）
+ee3195e fix: diagnose soft movement probe targets         （金斧/命令软移动目标坐标契约修复）
 cdc9351 docs: record mature soft movement references      （成熟方案复用原则 R31）
 92e6376 feat: add soft movement selector tool             （金斧 soft_move_selector + /alice soft-probe）
-e7cf00f feat: add soft surface movement probe             （MoverType.SELF 平地探针 SoftMoveProbeTask）
+e7cf00f feat: add soft surface movement probe             （MoverType.SELF 平地探针 SoftMoveTask）
 7fb859e refactor: keep mining task focused                （删除 MineTask 旧收集状态机，只剩委托链）
 295c652 refactor: enforce survival checks in mining tasks
 ```
 
-⚠️ **工作区有未提交、未编译的软移动改动**（接手第一步处理，见下方"快速接手"）：
-
-```
- M docs/PATHING_REFACTOR.md                                  （SOFT_SURFACE 路线步骤3 已更新）
- M src/main/java/com/dddgn/alice/task/SoftMoveProbeTask.java  （改用 SoftMovementPrimitive，日志加 step/yaw）
-?? src/main/java/com/dddgn/alice/pathing/SoftMovementPrimitive.java  （新增：朝向+前进最小原语，0.215 格/tick）
-```
+当前应为干净工作区；若接手时出现未提交改动，先核对是否为本轮软移动实验，勿覆盖用户改动。
 
 WSL 工作区路径：`~/projects/alice`；Windows：`D:\JAVA_projects\alice`（`origin`）。
 GitHub：`github` 远端 `dddgn486/Alice-mcbot`（本会话未推 GitHub，push 前先 `git fetch github` 查冲突）。
 
 ## 快速接手（1 分钟）
 
-当前主线是 `SOFT_SURFACE` 软移动第 3 阶段（输入驱动适配）。已完成并推送：平地碰撞探针客户端验证通过（`MoverType.SELF`、bot 8 格内同高度安全平地、无进展/维生兜底），坐标契约诊断修复（金斧右键支撑块→`clicked.above()` 作为脚位格、命令直接传脚位格，两入口统一走 `SoftMoveProbeTask.validate` 返回具体失败 reason，规则见 R32）；工作区留有一组**未编译未提交**的改动：新增 `pathing/SoftMovementPrimitive.java`（朝向+前进最小适配原语，`0.215` 格/tick 接近原版步行，仍走 `MoverType.SELF` 碰撞）并让 `SoftMoveProbeTask` 改用它、日志输出 step/yaw，`PATHING_REFACTOR.md` 路线步骤 3 已同步——接手第一步先 `./gradlew compileJava` 验证这组改动，通过后 `git commit` + `git push origin master`，客户端复测软移动速度（应接近真实走路）后再继续下一步：调研 Forge 1.20.1 `ServerPlayer` 的 tick/travel/input 注入边界，参考 Baritone movement primitive + input override 与 Carpet fake player action pack（R31：不从零重写核心算法，先平地走路/转向/单格高差原语，客户端实测后再接入寻路）。硬约束不变：`MineTask`/`DropCollectionTask`/普通挖矿固定 `HARD_PATH`（`PathExecutor.setPos`），软移动不得接入挖矿、不得处理液体/高差/逃生；每次改动后必须 `./gradlew compileJava` 并 `git push origin master`。
+当前主线是 `SOFT_SURFACE` 软移动第 3 阶段（输入驱动适配）。已完成并推送：平地碰撞探针客户端验证通过（`MoverType.SELF`、bot 8 格内同高度安全平地、无进展/维生兜底），坐标契约诊断修复（金斧右键支撑块→`clicked.above()` 作为脚位格、命令直接传脚位格，两入口统一走 `SoftMoveProbeTask.validate` 返回具体失败 reason，规则见 R32），以及 `SoftMovementPrimitive`（每 tick 朝向目标、同步头部朝向，再以 `0.215` 格/tick 前进并交给 `MoverType.SELF` 碰撞；探针日志输出 step/yaw）。`./gradlew compileJava` 已通过并已推送；下一步先让用户用金斧复测速度与朝向。调研结论：当前 `BotPlayer.tick()` 仅调用 `super.tick()`，没有客户端移动包/action-pack 输入链；不能把未验证的 `travel`/`xxa`/`zza` 调用塞进已通过的探针。后续应先独立设计 Forge `BotPlayer` 控制层，再参考 Baritone movement primitive + input override 与 Carpet fake player action pack（R31：不从零重写核心算法），逐步验证平地前进、转向、单格高差，客户端实测后才接入寻路。硬约束不变：`MineTask`/`DropCollectionTask`/普通挖矿固定 `HARD_PATH`（`PathExecutor.setPos`），软移动不得接入挖矿、不得处理液体/高差/逃生；每次改动后必须 `./gradlew compileJava` 并 `git push origin master`。
 
 
 ---
