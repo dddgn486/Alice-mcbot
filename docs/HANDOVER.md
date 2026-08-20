@@ -209,7 +209,7 @@ BUILD_UNIT → WAIT_STABLE → MOVE_TO_NEXT_UNIT →（循环）→ MINE_TARGET 
 /alice road buildbybot        bot 版：强制施工动画 + 终点挖掘
 /alice protect ...           安全区管理
 目标指定器(钻石斧)右键方块   挖掘；Shift+右键 → 独立放置任务（PlaceTask）
-软移动选择器(金斧)右键平地   指定 SOFT_SURFACE 探针目的地；需已有空闲 bot，受 8 格/同高度限制
+软移动选择器(金斧)右键平地   SELF_MOVE；Shift+右键平地 → NATIVE_TRAVEL 对比；需已有空闲 bot，受 8 格/同高度限制
 道路蓝图锄(钻石锄)右键两端   生成蓝色道路预览；Shift+右键重置
 钻石铲右键                   快捷接口扫描
 ```
@@ -240,7 +240,7 @@ headless 验收：`./gradlew runServer -Dalice.selftest.auto=true`（测完自�
 - **R30（新）**：`PathExecutor` 当前固定为 `MovementMode.HARD_PATH`，普通挖矿/拾取不可切换。`SOFT_SURFACE` 仅可通过 `/alice soft-probe` 在同高度安全平地、bot 8 格内测试 `MoverType.SELF` 碰撞移动；它不处理高差、液体或失败后的硬移动回退。
 - **R31（新）**：软移动与软移动寻路优先借鉴成熟实现，不从零重写核心运动/寻路算法。当前参考 Baritone 的 movement primitive + input override、Carpet fake player 的 action pack；Forge 适配前先确认 `ServerPlayer` 的 tick/travel/input 注入边界。`setPos` 不能伪装成软移动，成熟输入驱动方案未验证前不得接入 MineTask。
 - **R32（新）**：软移动的 `BlockPos` 一律表示脚位格。金斧 `soft_move_selector` 右键的是支撑方块，必须转换为 `clicked.above()` 再校验/指派；`/alice soft-probe` 直接传脚位。入口必须使用 `SoftMoveProbeTask.validate`，失败返回具体 reason，禁止回退为笼统“安全平地”提示。完整阶段路线见 `PATHING_REFACTOR.md`。
-- **R33（新）**：`SoftMovementPrimitive` 默认 `SELF_MOVE` 是唯一已通过平地客户端测试的软移动后端；`NATIVE_TRAVEL` 仅由 `/alice soft-probe-travel` 显式启用，用于对比 Forge `travel(Vec3)` 的重力/摩擦/停止语义。`ServerPlayer.tick()` 不会自动消费 fake player 的 `xxa`/`zza`，不要把输入字段设置误认为完整控制器；travel 未完成客户端复测前不得作为金斧默认、不得接入寻路或挖矿。
+- **R33（新）**：`SoftMovementPrimitive` 默认 `SELF_MOVE` 是唯一已通过平地客户端测试的软移动后端；`NATIVE_TRAVEL` 可由 `/alice soft-probe-travel` 或金斧 Shift+右键显式启用，用于对比 Forge `travel(Vec3)` 的重力/摩擦/停止语义。金斧普通右键仍固定 `SELF_MOVE`。`ServerPlayer.tick()` 不会自动消费 fake player 的 `xxa`/`zza`，不要把输入字段设置误认为完整控制器；travel 未完成客户端复测前不得接入寻路或挖矿。
 - **坑**：掉落物有 pickupDelay；挖高处方块后掉落物需等 onGround 再拾取，未落地前不要反复跑昂贵 A*。
 - **坑**：`RenderType.lines()` 自带深度测试 → 透视高亮需自定义 RenderType（NO_DEPTH_TEST）。
 - **坑**：`stone` 是方块 ID 不是标签 → auto-mine 需自动判断标签/方块两种模式。

@@ -43,9 +43,13 @@ public final class SoftMoveSelector extends Item {
             send(player, "[alice] 软移动目的地无效: " + validation.reason());
             return InteractionResult.FAIL;
         }
-        BotManager.assignSoftMoveProbe(bot, target);
-        send(player, "[alice] 已指定 SOFT_SURFACE 目的地 " + target.toShortString()
-                + " -> " + bot.getName().getString());
+        com.dddgn.alice.pathing.SoftMovementPrimitive.Backend backend =
+                player != null && player.isShiftKeyDown()
+                        ? com.dddgn.alice.pathing.SoftMovementPrimitive.Backend.NATIVE_TRAVEL
+                        : com.dddgn.alice.pathing.SoftMovementPrimitive.Backend.SELF_MOVE;
+        BotManager.assignSoftMoveProbe(bot, target, backend);
+        send(player, "[alice] 已指定 " + backend + " SOFT_SURFACE 目的地 "
+                + target.toShortString() + " -> " + bot.getName().getString());
         return InteractionResult.SUCCESS;
     }
 
