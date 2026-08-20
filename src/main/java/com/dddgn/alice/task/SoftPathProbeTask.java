@@ -29,6 +29,12 @@ public final class SoftPathProbeTask implements Task {
     private int settleTicks;
     private String failure = "";
 
+    private enum SegmentAction {
+        HORIZONTAL,
+        ASCEND,
+        DESCEND
+    }
+
     public SoftPathProbeTask(ServerPlayer bot, BlockPos target) {
         this.bot = bot;
         this.target = target.immutable();
@@ -71,21 +77,35 @@ public final class SoftPathProbeTask implements Task {
         }
 
         BlockPos segment = path.get(index);
+        BlockPos from = index == 0 ? bot.blockPosition() : path.get(index - 1);
+        SegmentAction action = segmentAction(level, from, segment);
+        if (action == null) {
+            return Status.FAILED;
+        }
         double goalX = segment.getX() + 0.5D;
         double goalZ = segment.getZ() + 0.5D;
         double dx = goalX - bot.getX();
         double dz = goalZ - bot.getZ();
         double distance = Math.sqrt(dx * dx + dz * dz);
         if (distance > ARRIVE) {
-            SoftMovementPrimitive.applyToward(bot, goalX, goalZ, distance,
+            SoftMovementPrimitive.Step step = action == SegmentAction.ASCEND
+                    ? SoftMovementPrimitive.applyJumpToward(bot, goalX, goalZ, distance)
+                    : SoftMovementPrimitive.applyToward(bot, goalX, goalZ, distance,
                     SoftMovementPrimitive.Backend.NATIVE_TRAVEL);
+            if (elapsed % 10 == 0) {
+                BotLog.info("软路径段动作: {}/{} action={} from={} to={} step={} onGround={}",
+                        index + 1, path.size(), action, from.toShortString(), segment.toShortString(),
+                        String.format(java.util.Locale.ROOT, "%.3f", step.distance()), bot.onGround());
+            }
             return Status.RUNNING;
         }
 
         BlockPos actualFoot = bot.blockPosition();
         boolean supported = MovementHelper.isStandingAtFootPos(level, bot, segment);
         if (supported && bot.onGround()) {
-            BotLog.info("软路径段完成: {}/{} foot={}", index + 1, path.size(), actualFoot.toShortString());
+            BotLog.info("软路径段完成: {}/{} action={} from={} to={} foot={} onGround={}",
+                    index + 1, path.size(), action, from.toShortString(), segment.toShortString(),
+                    actualFoot.toShortString(), bot.onGround());
             index++;
             settleTicks = 0;
             return Status.RUNNING;
@@ -99,6 +119,36 @@ public final class SoftPathProbeTask implements Task {
             return Status.FAILED;
         }
         return Status.RUNNING;
+    }
+
+    /** 仅接受 SurfacePathfinder 允许的相邻段；异常路径绝不由探针自行补救。 */
+    private SegmentAction segmentAction(ServerLevel level, BlockPos from, BlockPos to) {
+        int dy = to.getY() - from.getY();
+        int dx = Math.abs(to.getX() - from.getX());
+        int dz = Math.abs(to.getZ() - from.getZ());
+        if (dx > 1 || dz > 1 || (dx == 0 && dz == 0 && dy != 0)) {
+            failure = invalidSegmentFailure(level, from, to, "non_adjacent");
+            return null;
+        }
+        if (dy == 0 && MovementHelper.canTraverse(level, from, to)) {
+            return SegmentAction.HORIZONTAL;
+        }
+        if (dy == 1 && MovementHelper.canAscend(level, from, to)) {
+            return SegmentAction.ASCEND;
+        }
+        if (dy == -1 && MovementHelper.canDescend(level, from, to)) {
+            return SegmentAction.DESCEND;
+        }
+        failure = invalidSegmentFailure(level, from, to, "geometry_mismatch:dy=" + dy);
+        return null;
+    }
+
+    private String invalidSegmentFailure(ServerLevel level, BlockPos from, BlockPos to, String reason) {
+        BlockPos foot = bot.blockPosition();
+        return "soft_path_invalid_segment: " + reason + " from=" + from.toShortString()
+                + " to=" + to.toShortString() + " foot=" + foot.toShortString()
+                + " onGround=" + bot.onGround()
+                + " support=" + MovementHelper.isStandingOnSupport(level, bot);
     }
 
     @Override

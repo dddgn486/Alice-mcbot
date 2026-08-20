@@ -47,12 +47,31 @@ public final class SoftMovementPrimitive {
         }
         if (backend == Backend.NATIVE_TRAVEL) {
             // travel 的输入使用相对朝向：正 Z 表示向当前朝向前进。
+            bot.setJumping(false);
             bot.xxa = 0.0F;
             bot.zza = 1.0F;
             bot.travel(new Vec3(0.0D, 0.0D, 1.0D));
         } else {
             bot.move(MoverType.SELF, step.delta());
         }
+        return step;
+    }
+
+    /**
+     * 仅供一格上阶探针使用：显式跳跃 + 前进交给原版 travel 处理。
+     * 调用方必须先验证 SurfacePathfinder 的相邻 ASCEND 几何，不能把它作为通用自动跳跃。
+     */
+    public static Step applyJumpToward(ServerPlayer bot, double targetX, double targetZ, double maxStep) {
+        Step step = toward(bot, targetX, targetZ, maxStep);
+        bot.setYRot(step.yaw());
+        bot.setYHeadRot(step.yaw());
+        if (step.distance() <= 0.0D) {
+            return step;
+        }
+        bot.setJumping(true);
+        bot.xxa = 0.0F;
+        bot.zza = 1.0F;
+        bot.travel(new Vec3(0.0D, 0.0D, 1.0D));
         return step;
     }
 

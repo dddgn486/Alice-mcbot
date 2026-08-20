@@ -25,13 +25,15 @@ GitHub：`github` 远端 `dddgn486/Alice-mcbot`（本会话未推 GitHub，push 
 
 本会话已完成的软移动链路：`NATIVE_TRAVEL` 现在是金斧普通右键和 `/alice soft-probe` 的默认实验后端；`SELF_MOVE` 仅保留为 Shift+右键回归对照。客户端已实测 `NATIVE_TRAVEL` 平地前进、跨一格高障碍并正确下落；`SELF_MOVE` 跨障不稳定，仍不适合扩展。软探针不再按水平距离直接成功或伪造 `setOnGround(true)`，而是在到点后以零输入 `travel(Vec3.ZERO)` 结算原版重力/摩擦，并验证支撑与 `onGround`。下半砖/台阶落地改为按目标脚位下方 `VoxelShape` 实际顶面与实体脚底比较，避免整数 `blockPosition()` 误判。
 
+按批准计划 `20260820-soft-path-height-probe-v1`，`SoftPathProbeTask` 现会为 A* 已规划的单格段复核 `MovementHelper` 几何：平地为 `HORIZONTAL`，`dy=+1` 且 `canAscend` 成立才采用显式 jump + `NATIVE_TRAVEL`，`dy=-1` 且 `canDescend` 成立则只用原版前进/重力。任何非相邻或重验失配段返回 `soft_path_invalid_segment`；日志会输出 `action/from/to/step/onGround` 和段完成时的实际 foot/support 证据。该改动只影响 `/alice soft-path-probe`，没有修改 FollowTask、挖矿、拾取、道路、隧道或流体。
+
 已新增两项独立实验/功能入口：`/alice soft-path-probe <脚位>` 复用 `SurfacePathfinder` 的连续脚位段，并用 `NATIVE_TRAVEL` 逐段验收脚位、碰撞顶面支撑和落地；`/alice follow on|off` 是可关闭的同维度短程跟随状态，只跟随命令执行者本人，2 格跟随距离、24 格上限、每 10 tick 重算。跟随与保护区已在 `26819bd` 解耦：保护区停留/巡逻/返航是未来独立任务，不能再作为跟随的启动或运行时前提。
 
-已执行验证：上述提交均已运行 `./gradlew compileJava` 成功（仅既有弃用警告）；NATIVE_TRAVEL 的平地与一格高障碍/下落为用户客户端实测。**未验证**：半格台阶修复、`soft-path-probe` 的完整上/下台阶链路、FollowTask 的持续跟随/重算/边界失败、实体挤压、流体、门/栅栏/梯子、活塞和模组碰撞形状均尚未获得客户端证据，不能写成已支持。
+已执行验证：本轮已运行 `./gradlew compileJava` 成功（仅既有弃用警告）；NATIVE_TRAVEL 的平地与一格高障碍/下落为用户客户端实测。**未验证**：本轮上阶 jump 原语和下降段的实际客户端表现、半格台阶修复、`soft-path-probe` 的完整混合段、FollowTask 的持续跟随/重算/边界失败、实体挤压、流体、门/栅栏/梯子、活塞和模组碰撞形状均尚未获得客户端证据，不能写成已支持。
 
 不能回退的决策：普通挖矿、拾取仍固定 `HARD_PATH`；`MineTask` 不生成道路或隧道，深层目标失败 `target_requires_tunnel`；A* 不破坏方块；本地清障仍仅限直接可见、4.5 格内、最多 2 个方块。`SOFT_SURFACE` 不得接入 `MineTask`、`DropCollectionTask`、道路或隧道，除非逐项客户端验证和单独决策批准。
 
-下一步最小安全验证：在平地保护区外也可运行 `/alice follow on`，测试玩家缓慢移动、停下、改变方向、拉开到超过 24 格和 `/alice follow off`；每项只记录实际 `follow_*` 结果与 bot 最终可回收位置。通过前不要扩展到攻击、巡逻、流体或普通挖矿。
+下一步最小安全验证：在 Windows 客户端仅用 `/alice soft-path-probe <脚位>` 验证五项：单格上阶、单格下阶、平地加一阶混合段、头顶净空受阻、下半砖/台阶支撑。记录每段 `action/from/to/foot/onGround` 日志、失败码和 bot 最终可回收位置；用户须明确给出 `USER_ACCEPTED`、`NEEDS_FIX`、`NEEDS_REPLAN` 或 `NEEDS_DISCUSSION`。FollowTask 保持平地限制，且在该门槛前不得扩展到攻击、巡逻、流体或普通挖矿。
 
 
 ---
