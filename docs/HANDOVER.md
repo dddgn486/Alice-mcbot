@@ -241,9 +241,9 @@ headless 验收：`./gradlew runServer -Dalice.selftest.auto=true`（测完自�
 - **R30（新）**：`PathExecutor` 当前固定为 `MovementMode.HARD_PATH`，普通挖矿/拾取不可切换。`SOFT_SURFACE` 仅可通过 `/alice soft-probe` 在同高度安全平地、bot 8 格内测试 `MoverType.SELF` 碰撞移动；它不处理高差、液体或失败后的硬移动回退。
 - **R31（新）**：软移动与软移动寻路优先借鉴成熟实现，不从零重写核心运动/寻路算法。当前参考 Baritone 的 movement primitive + input override、Carpet fake player 的 action pack；Forge 适配前先确认 `ServerPlayer` 的 tick/travel/input 注入边界。`setPos` 不能伪装成软移动，成熟输入驱动方案未验证前不得接入 MineTask。
 - **R32（新）**：软移动的 `BlockPos` 一律表示脚位格。金斧 `soft_move_selector` 右键的是支撑方块，必须转换为 `clicked.above()` 再校验/指派；`/alice soft-probe` 直接传脚位。入口必须使用 `SoftMoveProbeTask.validate`，失败返回具体 reason，禁止回退为笼统“安全平地”提示。完整阶段路线见 `PATHING_REFACTOR.md`。
-- **R33（新）**：`SoftMovementPrimitive` 默认 `SELF_MOVE` 是唯一已通过平地客户端测试的软移动后端；`NATIVE_TRAVEL` 可由 `/alice soft-probe-travel` 或金斧 Shift+右键显式启用，用于对比 Forge `travel(Vec3)` 的重力/摩擦/停止语义。金斧普通右键仍固定 `SELF_MOVE`。`ServerPlayer.tick()` 不会自动消费 fake player 的 `xxa`/`zza`，不要把输入字段设置误认为完整控制器；客户端已证实 travel 可跨一格，但障碍后紧邻目标会悬空，原因是当前只验证终点支撑、未验证 climb 中间脚位和落地；未补逐段支撑/落地验证前不得接入寻路或挖矿。
+- **R33（新）**：`NATIVE_TRAVEL` 已通过平地与一格障碍跨越/落地客户端测试，现为金斧普通右键与默认软探针后端；`SELF_MOVE` 仅由金斧 Shift+右键作回归对照。`ServerPlayer.tick()` 不会自动消费 fake player 的 `xxa`/`zza`，当前任务逐 tick 显式调用 `travel`；软路径仅用 `/alice soft-path-probe` 独立测试，不得接入挖矿。
 - **R34（新）**：单目标挖掘站位选择必须先比较所有有限候选中的“视线直通 + 曲面可达”站位，并取最短曲面路径；候选分组（下/同/上）只能辅助生成，不能压过直通性。无直通候选时才回退到视线受阻站位，并严格使用 MineTask 最多两格、4.5 格局部清障；A* 不得为了站位自行挖方块或扩大成通道施工。
-- **R35（新）**：软移动抵达不能按水平距离直接 `setOnGround(true)` 成功。必须验证真实 `blockPosition()==target`、支撑存在且 `onGround`；跨障后未落稳时只用零输入 `travel(Vec3.ZERO)` 结算原版重力/摩擦，30 tick 未稳定返回 `soft_probe_unsettled`。平地直线探针不授权自主跨障；上/下台阶必须等 `SurfacePathfinder` 提供连续脚位段后单独实现逐段验证。
+- **R35（新）**：软移动抵达不能按水平距离直接 `setOnGround(true)` 成功。必须验证目标脚位下方碰撞形状的实际支撑顶面、实体脚底和 `onGround`；不能以 `blockPosition()` 的整数 Y 拒绝下半砖/台阶上的正常落地。跨障后未落稳时只用零输入 `travel(Vec3.ZERO)` 结算原版重力/摩擦，30 tick 未稳定返回 `soft_probe_unsettled`。上/下台阶必须由 `SurfacePathfinder` 提供连续脚位段后逐段验证。
 - **坑**：掉落物有 pickupDelay；挖高处方块后掉落物需等 onGround 再拾取，未落地前不要反复跑昂贵 A*。
 - **坑**：`RenderType.lines()` 自带深度测试 → 透视高亮需自定义 RenderType（NO_DEPTH_TEST）。
 - **坑**：`stone` 是方块 ID 不是标签 → auto-mine 需自动判断标签/方块两种模式。

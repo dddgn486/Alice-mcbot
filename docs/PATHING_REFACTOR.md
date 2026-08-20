@@ -32,9 +32,9 @@
 1. **坐标契约与诊断**：工具右键的是支撑方块，任务目标是其上方脚位格；命令直接传脚位格。所有入口必须调用同一个结构化校验，分别报告距离、高度、支撑、脚位碰撞和头部碰撞失败。
 2. **原版碰撞探针**：客户端已验证 `NATIVE_TRAVEL` 可跨一格障碍并正确下落，因此金斧普通右键和 `/alice soft-probe` 默认使用它；`SELF_MOVE` 降为金斧 Shift+右键的平地回归对照。抵达不能只按水平距离成功，必须确认真实脚位等于目标、目标有支撑且原版 `onGround` 已成立。若跨障后仍未落稳，使用零输入 `travel(Vec3.ZERO)` 仅做原版重力/摩擦结算，超时返回 `soft_probe_unsettled`，绝不 `setOnGround(true)` 伪造成功；直线探针仍不处理跳跃、高差、液体或寻路。
 3. **输入驱动适配**：参考 Baritone 的 movement primitive/input override 与 Carpet fake player action pack，在 Forge 1.20.1 中确认 `ServerPlayer` 的 `tick/travel` 边界；当前 `SoftMovementPrimitive` 实现朝向 + 前进的最小适配原语。Forge 映射已确认 `travel(Vec3)`、`xxa`、`zza` 可用，但 `ServerPlayer.tick()` 不会自然消费 fake player 输入；当前由任务逐 tick 显式调用 `travel`。客户端已验证 `NATIVE_TRAVEL` 的跨障和落地，因此新增 `/alice soft-path-probe <脚位>`：它复用 `SurfacePathfinder` 生成连续脚位段，并以 NATIVE_TRAVEL 逐段移动，只有实际脚位、支撑和 `onGround` 均匹配当前段才继续。它只用于客户端测试上/下单格高差，失败返回 `soft_path_unsettled`/`soft_path_no_path`/`soft_path_search_limit`，不接入普通任务寻路。完整 input/travel 控制层仍待验证。
-4. **安全地面原语**：复用现有 `MovementHelper`/A* 的支撑和碰撞语义，只增加成熟方案缺失的适配层；先做直线平地，再由 `SurfacePathfinder` 输出连续脚位段后做转向、单格上台阶和下台阶。单目标直线探针不得自行猜测或跨越障碍；每个路径段在进入和完成后均需验证脚位、支撑和落地，复杂碰撞交给客户端测试。
+4. **安全地面原语**：复用现有 `MovementHelper`/A* 的支撑和碰撞语义，只增加成熟方案缺失的适配层；先做直线平地，再由 `SurfacePathfinder` 输出连续脚位段后做转向、单格上台阶和下台阶。落地验收必须比较实体实际脚底与目标脚位下方 `VoxelShape` 的支撑顶面，不能只比较 `blockPosition()` 的整数 Y；这兼容下半砖、台阶等非整格碰撞形状，同时不把障碍边缘接触误判为到达。单目标直线探针不得自行猜测或跨越障碍；每个路径段在进入和完成后均需验证脚位、支撑和落地，复杂碰撞交给客户端测试。
 5. **流体与应急**：在 `SurvivalSystem` 监测和 `EmergencyEscapeTask` 设计稳定后，单独验证受限水域；不把水中移动、灭火、逃生混进普通曲面执行器。
-6. **寻路接入**：只有输入驱动执行器在客户端验证通过后，才考虑把它作为 `PathExecutor` 的可选后端；`MineTask` 默认仍是 `HARD_PATH`，任何失败必须可回收并明确报告。
+6. **任务接入顺序**：只有连续脚位段输入驱动执行器在客户端验证通过后，才按低风险场景接入：短程跟随玩家、保护区内巡航/返航、近距离追踪攻击目标。它们应使用 `SOFT_SURFACE` 并在路径失效/危险时停止或回到任务层重规划；`MineTask`、`DropCollectionTask` 默认仍是 `HARD_PATH`，任何失败必须可回收并明确报告。挤压/碰撞、重力、摩擦、踏步、坠落伤害等优先交给原版 `travel`/实体物理；饥饿、伤害来源、攻击冷却、目标选择等仍由各自任务和 `SurvivalSystem`/事件层处理，不能假定“启用软移动”就自动拥有完整生物 AI。
 
 ## 决策与兜底原则
 

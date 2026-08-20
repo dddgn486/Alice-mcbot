@@ -83,8 +83,8 @@ public final class SoftPathProbeTask implements Task {
         }
 
         BlockPos actualFoot = bot.blockPosition();
-        boolean supported = MovementHelper.canWalkOn(level, actualFoot);
-        if (actualFoot.equals(segment) && supported && bot.onGround()) {
+        boolean supported = MovementHelper.isStandingAtFootPos(level, bot, segment);
+        if (supported && bot.onGround()) {
             BotLog.info("软路径段完成: {}/{} foot={}", index + 1, path.size(), actualFoot.toShortString());
             index++;
             settleTicks = 0;

@@ -51,6 +51,48 @@ public final class MovementHelper {
                 || state.is(Blocks.MAGMA_BLOCK);
     }
 
+    /**
+     * 实体是否真正站在当前碰撞形状支撑顶面上。支持下半砖、台阶等非整格顶面；
+     * 不用 blockPosition 的整数 Y 假装实体脚底高度。
+     */
+    public static boolean isStandingOnSupport(ServerLevel level, net.minecraft.world.entity.Entity entity) {
+        final double epsilon = 0.08D;
+        double footY = entity.getY();
+        int supportY = net.minecraft.util.Mth.floor(footY - epsilon);
+        BlockPos supportPos = BlockPos.containing(entity.getX(), supportY, entity.getZ());
+        BlockState support = level.getBlockState(supportPos);
+        if (support.getFluidState().isSource() || avoidWalkingInto(support)) {
+            return false;
+        }
+        net.minecraft.world.phys.shapes.VoxelShape shape = support.getCollisionShape(level, supportPos);
+        if (shape.isEmpty()) {
+            return false;
+        }
+        double topY = supportPos.getY() + shape.max(net.minecraft.core.Direction.Axis.Y);
+        return Math.abs(footY - topY) <= epsilon;
+    }
+
+    /** 实体是否稳定落在指定的逻辑脚位段，兼容下半砖和台阶的非整格支撑顶面。 */
+    public static boolean isStandingAtFootPos(ServerLevel level, net.minecraft.world.entity.Entity entity,
+                                              BlockPos footPos) {
+        final double epsilon = 0.08D;
+        if (net.minecraft.util.Mth.floor(entity.getX()) != footPos.getX()
+                || net.minecraft.util.Mth.floor(entity.getZ()) != footPos.getZ()) {
+            return false;
+        }
+        BlockPos supportPos = footPos.below();
+        BlockState support = level.getBlockState(supportPos);
+        if (support.getFluidState().isSource() || avoidWalkingInto(support)) {
+            return false;
+        }
+        net.minecraft.world.phys.shapes.VoxelShape shape = support.getCollisionShape(level, supportPos);
+        if (shape.isEmpty()) {
+            return false;
+        }
+        double topY = supportPos.getY() + shape.max(net.minecraft.core.Direction.Axis.Y);
+        return Math.abs(entity.getY() - topY) <= epsilon;
+    }
+
     /** 平地移动(从 from 脚位水平走到 to 脚位)。 */
     public static boolean canTraverse(ServerLevel level, BlockPos from, BlockPos to) {
         // 目标脚位可站,目标身体格与头格可穿过

@@ -145,8 +145,8 @@ public final class SoftMoveProbeTask implements Task {
     /** 只在真实脚位回到目标且原版报告落地后完成，避免跨台阶后水平到点即成功。 */
     private Status settleAtTarget(ServerLevel level) {
         BlockPos actualFoot = bot.blockPosition();
-        boolean supported = com.dddgn.alice.pathing.MovementHelper.canWalkOn(level, actualFoot);
-        if (actualFoot.equals(target) && supported && bot.onGround()) {
+        boolean supported = com.dddgn.alice.pathing.MovementHelper.isStandingAtFootPos(level, bot, target);
+        if (supported && bot.onGround()) {
             bot.fallDistance = 0.0F;
             return Status.DONE;
         }
