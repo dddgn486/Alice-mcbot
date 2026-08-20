@@ -3,7 +3,6 @@ package com.dddgn.alice.task;
 import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.SoftMovementPrimitive;
 import com.dddgn.alice.pathing.SurfacePathfinder;
-import com.dddgn.alice.protection.SafeZoneData;
 import com.dddgn.alice.survival.HazardState;
 import com.dddgn.alice.survival.SurvivalSystem;
 import net.minecraft.core.BlockPos;
@@ -14,7 +13,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * 保护区内的低风险软移动跟随。只跟随同维度在线玩家，使用短周期曲面路径和 NATIVE_TRAVEL。
+ * 低风险软移动跟随。只跟随同维度在线玩家，使用短周期曲面路径和 NATIVE_TRAVEL。
  */
 public final class FollowTask implements Task {
     private static final double FOLLOW_DISTANCE = 2.0D;
@@ -57,10 +56,6 @@ public final class FollowTask implements Task {
         }
         if (bot.distanceToSqr(target) > MAX_TARGET_DISTANCE * MAX_TARGET_DISTANCE) {
             failure = "follow_distance_limit";
-            return Status.FAILED;
-        }
-        if (!SafeZoneData.get(level.getServer()).sharesArea(level, bot.blockPosition(), target.blockPosition())) {
-            failure = "follow_left_safe_zone";
             return Status.FAILED;
         }
         if (bot.distanceToSqr(target) <= FOLLOW_DISTANCE * FOLLOW_DISTANCE) {

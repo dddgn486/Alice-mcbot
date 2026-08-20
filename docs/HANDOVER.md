@@ -206,7 +206,7 @@ BUILD_UNIT → WAIT_STABLE → MOVE_TO_NEXT_UNIT →（循环）→ MINE_TARGET 
 /alice soft-probe <x y z>    SOFT_SURFACE 默认 NATIVE_TRAVEL 平地短距离实验（bot 8格内，不接入挖矿）
 /alice soft-probe-travel <x y z>  NATIVE_TRAVEL 兼容别名（需已有空闲 bot，仅平地）
 /alice soft-path-probe <x y z>  NATIVE_TRAVEL 连续脚位段实验（复用曲面 A*，仅客户端测试）
-/alice follow on|off          保护区内跟随开关（执行者本人；同维度/同一区域/24格内）
+/alice follow on|off          跟随开关（执行者本人；同维度/24格内；保护区巡逻为独立模块）
 /alice road build            玩家版：按蓝图逐单元构建
 /alice road buildbybot        bot 版：强制施工动画 + 终点挖掘
 /alice protect ...           安全区管理

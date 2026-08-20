@@ -74,7 +74,7 @@ collect_no_path / collect_path_failed / collect_timeout / target_requires_tunnel
 | `/alice selftest full` | 完整回归 | 显式运行历史 13 项，复杂场景失败需结合客户端复核 |
 | `/alice soft-probe <pos>` | 平地软移动 | 默认 NATIVE_TRAVEL；仅 bot 8 格内、同高度安全平地，不接入挖矿 |
 | `/alice soft-path-probe <pos>` | 连续脚位段软路径 | 复用 SurfacePathfinder，以 NATIVE_TRAVEL 逐段验收脚位/支撑/落地；仅客户端测试 |
-| `/alice follow on/off` | 保护区跟随开关 | 由玩家本人开启；仅同维度、同一保护区、24格内、空闲 bot；NATIVE_TRAVEL 短周期重算 |
+| `/alice follow on/off` | 跟随开关 | 由玩家本人开启；仅同维度、24格内、空闲 bot；NATIVE_TRAVEL 短周期重算。保护区停留/巡逻为独立后续模块 |
 
 物品注册走 `AliceItems`（DeferredRegister），**不套原版工具**——只引用贴图。
 

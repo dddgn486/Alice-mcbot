@@ -438,7 +438,7 @@ public final class BotCommand {
         return 1;
     }
 
-    /** 开启保护区内软移动跟随：只跟随命令执行者本人。 */
+    /** 开启软移动跟随：只跟随命令执行者本人。 */
     private static int followOn(CommandSourceStack source) {
         ServerPlayer player;
         try {
@@ -456,14 +456,9 @@ public final class BotCommand {
             source.sendFailure(Component.literal("[alice] bot 当前有任务，未开启跟随"));
             return 0;
         }
-        if (!SafeZoneData.get(source.getServer()).sharesArea(player.serverLevel(),
-                bot.blockPosition(), player.blockPosition())) {
-            source.sendFailure(Component.literal("[alice] bot 与玩家必须位于同一个保护区内"));
-            return 0;
-        }
         BotManager.assignFollow(bot, player);
         source.sendSuccess(() -> Component.literal("[alice] " + bot.getName().getString()
-                + " 开始在保护区内跟随你（/alice follow off 关闭）"), false);
+                + " 开始跟随你（/alice follow off 关闭）"), false);
         return 1;
     }
 
