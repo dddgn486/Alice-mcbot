@@ -5,7 +5,7 @@
 
 ## 1. 当前唯一可信状态
 
-- Git HEAD、Windows `origin/master`、GitHub `master`：`f9d89da7e6540099312fa8438a8299be1c9d3b21`（文档 checkpoint）。
+- 当前 Git HEAD、Windows `origin/master`、GitHub `master`：`276339ff12bb6c122780be0cde2d45ea6b4821db`（四角色 bus 交接文档提交）；本次工作流接管基线为 `f9d89da7e6540099312fa8438a8299be1c9d3b21`（客户端阻塞文档 checkpoint）。
 - 最新业务实现：`8bb2d7b1641c0b6e6063d4c78ae0357896fd0c90`，`interface-readonly-snapshot-v1`。
 - Active plan：`.alice-supervision/active-plan.md`，状态 `NEEDS_USER_DECISION`。
 - 实现包结论：`CONDITIONAL_PASS / HEADLESS_PARTIALLY_VERIFIED`，不是完成、不是客户端通过。
