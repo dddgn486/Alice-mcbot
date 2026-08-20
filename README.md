@@ -3,7 +3,7 @@
 **游戏内 AI 助手** —— Minecraft Forge 1.20.1 模组。服务端假人玩家（Alice）能像真实玩家一样感知世界、决策、执行任务：挖矿、拾取显式目标掉落物、扫描模组机器接口，并提供独立的软移动实验与短程跟随。
 
 目前核心实现代码由ai大模型生成，质量水准不一定高
-> 设计文档: [`docs/AI_PLAYER_DESIGN.md`](docs/AI_PLAYER_DESIGN.md) · 执行层框架: [`docs/EXECUTION_FRAMEWORK.md`](docs/EXECUTION_FRAMEWORK.md) · Mek GUI 语义表: [`docs/MEK_GUI_SEMANTICS.md`](docs/MEK_GUI_SEMANTICS.md) · 道路数学模型: [`docs/ROAD_MATHEMATICAL_MODEL.md`](docs/ROAD_MATHEMATICAL_MODEL.md)
+> 产品架构路线: [`docs/PRODUCT_ARCHITECTURE_ROADMAP.md`](docs/PRODUCT_ARCHITECTURE_ROADMAP.md) · 架构总纲: [`docs/AI_PLAYER_DESIGN.md`](docs/AI_PLAYER_DESIGN.md) · 执行层框架: [`docs/EXECUTION_FRAMEWORK.md`](docs/EXECUTION_FRAMEWORK.md) · Mek GUI 语义表: [`docs/MEK_GUI_SEMANTICS.md`](docs/MEK_GUI_SEMANTICS.md) · 道路数学模型: [`docs/ROAD_MATHEMATICAL_MODEL.md`](docs/ROAD_MATHEMATICAL_MODEL.md)
 
 ## 核心特性（当前里程碑）
 

@@ -118,10 +118,13 @@ collect_no_path / collect_path_failed / collect_timeout / target_requires_tunnel
 
 维生系统（`survival/`）在每个 bot tick 先于任务采样岩浆、水、着火、空气和窒息状态。岩浆接触、窒息会直接中断当前任务并返回 `survival_lava_contact` / `survival_suffocating`；`MineTask` 与 `DropCollectionTask` 自身也有同一硬中断兜底，避免脱离 `BotManager` 单测/组合调用时继续执行。第一版不自动逃生，避免半成品策略把 bot 送入第二个危险区域。水域软移动、上浮、灭火和局部逃生作为后续独立移动/应急任务实现。
 
-## 八、下一步（建议顺序）
+## 八、下一步（产品路线约束）
 
-1. 实测：目标指定器右键矿石 → bot 挖 → 捡起 → 背包有矿 + 高亮全程可见
-2. `AttackTask`（实体目标）：近战攻击状态机（走位 → 原版攻击包）
-3. ~~决策层最小规则~~ 已落地：`/alice auto-mine <tag>`（AutoMineDecision），
-   下一步: LLM 决策接入 / 多目标队列 / 路径代价排序
-4. 高亮多目标（任务队列/多 bot 时颜色区分）
+后续顺序以 `PRODUCT_ARCHITECTURE_ROADMAP.md` 为准，不直接从当前任务骨架跳到 LLM 或多目标队列：
+
+1. 继续稳定共享执行内核：任务结果/回收、移动能力边界、库存事务、权限和失败码；
+2. 建立 `interface-readonly-snapshot-v1`，只形成 C1 服务端事实，不把 capability 槽位猜测当作机器语义；
+3. 将 `AttackTask`、木材/食物、安全区/巡逻等作为独立通用助手工作包，每项复用已验 HARD_PATH 与客户端矩阵；
+4. 设计端点间物品搬运事务和 `PipelineProfile`/`ProcessContract`，再进入玩家定义的“模拟 AE”；
+5. Mekanism、AE2 等复杂能力由固定版本 `ModAdapterPack` 提供；AE 样板与拓扑实施前需专项深度调查；
+6. LLM 只在上述稳定工具之上进行目标规划、候选选择与错误重规划，不能用模型逐步控制来填补执行器缺口。
