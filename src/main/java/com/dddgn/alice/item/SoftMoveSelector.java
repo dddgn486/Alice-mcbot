@@ -35,9 +35,12 @@ public final class SoftMoveSelector extends Item {
             send(player, "[alice] bot 当前有任务，未启动软移动探针");
             return InteractionResult.FAIL;
         }
-        BlockPos target = context.getClickedPos();
-        if (!SoftMoveProbeTask.isSafeFlatProbe(serverLevel, bot.blockPosition(), target)) {
-            send(player, "[alice] 目的地必须位于 bot 8 格内、同高度的安全平地");
+        BlockPos support = context.getClickedPos();
+        BlockPos target = support.above();
+        SoftMoveProbeTask.ProbeValidation validation =
+                SoftMoveProbeTask.validate(serverLevel, bot.blockPosition(), target);
+        if (!validation.valid()) {
+            send(player, "[alice] 软移动目的地无效: " + validation.reason());
             return InteractionResult.FAIL;
         }
         BotManager.assignSoftMoveProbe(bot, target);

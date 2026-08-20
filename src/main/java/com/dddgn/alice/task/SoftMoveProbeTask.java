@@ -29,15 +29,42 @@ public final class SoftMoveProbeTask implements Task {
     private double lastZ;
     private String failure = "";
 
+    public record ProbeValidation(boolean valid, String reason) {
+    }
+
+    /** 目标坐标是 bot 的脚位格；支撑方块坐标应传入其上方一格。 */
+    public static ProbeValidation validate(ServerLevel level, BlockPos origin, BlockPos target) {
+        if (origin.distManhattan(target) > MAX_DISTANCE) {
+            return new ProbeValidation(false, "distance_limit: origin=" + origin.toShortString()
+                    + " target=" + target.toShortString());
+        }
+        if (origin.getY() != target.getY()) {
+            return new ProbeValidation(false, "height_mismatch: originY=" + origin.getY()
+                    + " targetY=" + target.getY());
+        }
+        if (!com.dddgn.alice.pathing.MovementHelper.canWalkOn(level, origin)) {
+            return new ProbeValidation(false, "origin_no_support:" + origin.below().toShortString());
+        }
+        if (!com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, origin)) {
+            return new ProbeValidation(false, "origin_foot_blocked:" + origin.toShortString());
+        }
+        if (!com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, origin.above())) {
+            return new ProbeValidation(false, "origin_head_blocked:" + origin.above().toShortString());
+        }
+        if (!com.dddgn.alice.pathing.MovementHelper.canWalkOn(level, target)) {
+            return new ProbeValidation(false, "target_no_support:" + target.below().toShortString());
+        }
+        if (!com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, target)) {
+            return new ProbeValidation(false, "target_foot_blocked:" + target.toShortString());
+        }
+        if (!com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, target.above())) {
+            return new ProbeValidation(false, "target_head_blocked:" + target.above().toShortString());
+        }
+        return new ProbeValidation(true, "ok");
+    }
+
     public static boolean isSafeFlatProbe(ServerLevel level, BlockPos origin, BlockPos target) {
-        return origin.distManhattan(target) <= MAX_DISTANCE
-                && origin.getY() == target.getY()
-                && com.dddgn.alice.pathing.MovementHelper.canWalkOn(level, origin)
-                && com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, origin)
-                && com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, origin.above())
-                && com.dddgn.alice.pathing.MovementHelper.canWalkOn(level, target)
-                && com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, target)
-                && com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, target.above());
+        return validate(level, origin, target).valid();
     }
 
     public SoftMoveProbeTask(ServerPlayer bot, BlockPos target) {

@@ -359,8 +359,10 @@ public final class BotCommand {
         BotPlayer bot = BotManager.firstInLevel(level);
         BlockPos origin = bot != null ? bot.blockPosition()
                 : source.getEntity() != null ? source.getEntity().blockPosition() : level.getSharedSpawnPos();
-        if (!com.dddgn.alice.task.SoftMoveProbeTask.isSafeFlatProbe(level, origin, target)) {
-            source.sendFailure(Component.literal("[alice] 软移动探针只允许 bot 8 格内、同高度的安全平地"));
+        com.dddgn.alice.task.SoftMoveProbeTask.ProbeValidation validation =
+                com.dddgn.alice.task.SoftMoveProbeTask.validate(level, origin, target);
+        if (!validation.valid()) {
+            source.sendFailure(Component.literal("[alice] 软移动探针无效: " + validation.reason()));
             return 0;
         }
         if (bot == null) {

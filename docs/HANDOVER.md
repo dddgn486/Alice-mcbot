@@ -235,6 +235,7 @@ headless 验收：`./gradlew runServer -Dalice.selftest.auto=true`（测完自�
 - **R29（新）**：维生系统第一版只做监测和硬中断，不主动逃生、上浮、灭火或切换软移动；后续由独立 `EmergencyEscapeTask`/`MovementMode` 实现，不能在 MineTask 内复制应急逻辑。
 - **R30（新）**：`PathExecutor` 当前固定为 `MovementMode.HARD_PATH`，普通挖矿/拾取不可切换。`SOFT_SURFACE` 仅可通过 `/alice soft-probe` 在同高度安全平地、bot 8 格内测试 `MoverType.SELF` 碰撞移动；它不处理高差、液体或失败后的硬移动回退。
 - **R31（新）**：软移动与软移动寻路优先借鉴成熟实现，不从零重写核心运动/寻路算法。当前参考 Baritone 的 movement primitive + input override、Carpet fake player 的 action pack；Forge 适配前先确认 `ServerPlayer` 的 tick/travel/input 注入边界。`setPos` 不能伪装成软移动，成熟输入驱动方案未验证前不得接入 MineTask。
+- **R32（新）**：软移动的 `BlockPos` 一律表示脚位格。金斧 `soft_move_selector` 右键的是支撑方块，必须转换为 `clicked.above()` 再校验/指派；`/alice soft-probe` 直接传脚位。入口必须使用 `SoftMoveProbeTask.validate`，失败返回具体 reason，禁止回退为笼统“安全平地”提示。完整阶段路线见 `PATHING_REFACTOR.md`。
 - **坑**：掉落物有 pickupDelay；挖高处方块后掉落物需等 onGround 再拾取，未落地前不要反复跑昂贵 A*。
 - **坑**：`RenderType.lines()` 自带深度测试 → 透视高亮需自定义 RenderType（NO_DEPTH_TEST）。
 - **坑**：`stone` 是方块 ID 不是标签 → auto-mine 需自动判断标签/方块两种模式。
