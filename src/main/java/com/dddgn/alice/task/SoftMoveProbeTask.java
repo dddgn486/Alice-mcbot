@@ -14,6 +14,7 @@ import net.minecraft.server.level.ServerPlayer;
 public final class SoftMoveProbeTask implements Task {
     private static final double ARRIVE = 0.25D;
     private static final int MAX_TICKS = 120;
+    private static final int MAX_SETTLE_TICKS = 30;
     private static final int MAX_DISTANCE = 8;
 
     private final ServerPlayer bot;
@@ -25,6 +26,7 @@ public final class SoftMoveProbeTask implements Task {
     private final double startZ;
     private int elapsed;
     private int noProgress;
+    private int settleTicks;
     private double lastX;
     private double lastZ;
     private String failure = "";
@@ -90,6 +92,7 @@ public final class SoftMoveProbeTask implements Task {
 
     @Override
     public Status tick() {
+        ServerLevel level = (ServerLevel) bot.level();
         HazardState hazard = SurvivalSystem.tick(bot);
         if (SurvivalSystem.shouldInterrupt(hazard)) {
             failure = SurvivalSystem.interruptionReason(hazard);
@@ -104,9 +107,7 @@ public final class SoftMoveProbeTask implements Task {
         double dz = targetZ - bot.getZ();
         double distance = Math.sqrt(dx * dx + dz * dz);
         if (distance <= ARRIVE) {
-            bot.setOnGround(true);
-            bot.fallDistance = 0.0F;
-            return Status.DONE;
+            return settleAtTarget(level);
         }
         double travelled = Math.sqrt(Math.pow(bot.getX() - startX, 2)
                 + Math.pow(bot.getZ() - startZ, 2));
@@ -137,6 +138,25 @@ public final class SoftMoveProbeTask implements Task {
                     String.format(java.util.Locale.ROOT, "%.2f", bot.getX()),
                     String.format(java.util.Locale.ROOT, "%.2f", bot.getZ()),
                     bot.onGround(), bot.fallDistance);
+        }
+        return Status.RUNNING;
+    }
+
+    /** 只在真实脚位回到目标且原版报告落地后完成，避免跨台阶后水平到点即成功。 */
+    private Status settleAtTarget(ServerLevel level) {
+        BlockPos actualFoot = bot.blockPosition();
+        boolean supported = com.dddgn.alice.pathing.MovementHelper.canWalkOn(level, actualFoot);
+        if (actualFoot.equals(target) && supported && bot.onGround()) {
+            bot.fallDistance = 0.0F;
+            return Status.DONE;
+        }
+        SoftMovementPrimitive.settle(bot);
+        settleTicks++;
+        if (settleTicks > MAX_SETTLE_TICKS) {
+            failure = "soft_probe_unsettled: foot=" + actualFoot.toShortString()
+                    + " target=" + target.toShortString() + " onGround=" + bot.onGround()
+                    + " support=" + supported;
+            return Status.FAILED;
         }
         return Status.RUNNING;
     }

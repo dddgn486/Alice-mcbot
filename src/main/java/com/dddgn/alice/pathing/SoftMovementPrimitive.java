@@ -56,6 +56,16 @@ public final class SoftMovementPrimitive {
         return step;
     }
 
+    /**
+     * 软移动抵达水平终点后的原版物理结算：零输入仍会让 travel 处理重力、摩擦和落地。
+     * 不能用 setOnGround 伪造成功，否则跨台阶后会把悬空实体标记为已到达。
+     */
+    public static void settle(ServerPlayer bot) {
+        bot.xxa = 0.0F;
+        bot.zza = 0.0F;
+        bot.travel(Vec3.ZERO);
+    }
+
     /** 已验证的默认后端：世界坐标小步 + 原版碰撞。 */
     public static Step applyToward(ServerPlayer bot, double targetX, double targetZ, double maxStep) {
         return applyToward(bot, targetX, targetZ, maxStep, Backend.SELF_MOVE);

@@ -30,9 +30,9 @@
 ## SOFT_SURFACE 分阶段路线
 
 1. **坐标契约与诊断**：工具右键的是支撑方块，任务目标是其上方脚位格；命令直接传脚位格。所有入口必须调用同一个结构化校验，分别报告距离、高度、支撑、脚位碰撞和头部碰撞失败。
-2. **原版碰撞探针**：只在同高度安全平地验证 `MoverType.SELF` 的短距离移动、碰撞和无进展检测；不处理跳跃、高差、液体或寻路。
+2. **原版碰撞探针**：只在同高度安全平地验证 `MoverType.SELF` 的短距离移动、碰撞和无进展检测；抵达不能只按水平距离成功，必须确认真实脚位等于目标、目标有支撑且原版 `onGround` 已成立。若跨障后仍未落稳，使用零输入 `travel(Vec3.ZERO)` 仅做原版重力/摩擦结算，超时返回 `soft_probe_unsettled`，绝不 `setOnGround(true)` 伪造成功；不处理跳跃、高差、液体或寻路。
 3. **输入驱动适配**：参考 Baritone 的 movement primitive/input override 与 Carpet fake player action pack，在 Forge 1.20.1 中确认 `ServerPlayer` 的 `tick/travel` 边界；当前 `SoftMovementPrimitive` 实现朝向 + 前进的最小适配原语，默认 `SELF_MOVE` 使用接近原版步行的 `0.215` 格/tick 和 `MoverType.SELF` 碰撞。Forge 映射已确认 `travel(Vec3)`、`xxa`、`zza` 可用，但 `ServerPlayer.tick()` 不会自然消费 fake player 输入；因此 `/alice soft-probe-travel <脚位>` 和金斧 Shift+右键仅作为明确的 `NATIVE_TRAVEL` 对比实验，直接单次调用原版 `travel`。客户端已确认它可跨一格障碍，但障碍后紧邻终点时可能悬空：探针只验证终点支撑，未验证实际 climb 后的中间脚位、落地和停止位置。修复必须先添加逐段支撑/落地验证与上台阶 movement primitive，再重新测试；在此之前不得替换金斧普通右键后端或接入任务寻路。完整 input/travel 控制层仍待验证。
-4. **安全地面原语**：复用现有 `MovementHelper`/A* 的支撑和碰撞语义，只增加成熟方案缺失的适配层；先做直线平地，再做转向和单格高差，复杂碰撞交给客户端测试。
+4. **安全地面原语**：复用现有 `MovementHelper`/A* 的支撑和碰撞语义，只增加成熟方案缺失的适配层；先做直线平地，再由 `SurfacePathfinder` 输出连续脚位段后做转向、单格上台阶和下台阶。单目标直线探针不得自行猜测或跨越障碍；每个路径段在进入和完成后均需验证脚位、支撑和落地，复杂碰撞交给客户端测试。
 5. **流体与应急**：在 `SurvivalSystem` 监测和 `EmergencyEscapeTask` 设计稳定后，单独验证受限水域；不把水中移动、灭火、逃生混进普通曲面执行器。
 6. **寻路接入**：只有输入驱动执行器在客户端验证通过后，才考虑把它作为 `PathExecutor` 的可选后端；`MineTask` 默认仍是 `HARD_PATH`，任何失败必须可回收并明确报告。
 
