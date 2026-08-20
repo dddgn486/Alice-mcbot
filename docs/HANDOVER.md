@@ -35,7 +35,9 @@ GitHub：`github` 远端 `dddgn486/Alice-mcbot`（本会话未推 GitHub，push 
 
 按批准计划 `20260820-soft-path-execution-consistency-v1`，本轮保持现有 Dijkstra/A* 和 `alice:soft_path_probe_selector` 独立入口不变。`MovementHelper` 现对角移动检查两侧格、头部格和连续玩家扫掠空间；一格下降检查同一玩家尺寸 AABB 扫掠，仅忽略起点/终点脚下支撑接触。等成本路径在主成本不变时稳定优先少转弯，再按坐标消除平局；探针重验几何阻塞返回 `soft_path_blocked_segment`，异常关系仍为 `soft_path_invalid_segment`。
 
-已执行验证：本轮 `./gradlew compileJava` 成功（仅既有弃用警告）；headless `./gradlew runServer -Dalice.selftest.auto=true` 日志记录原有四项成本回归和新增三类回归全部 `PASS`：`diagonal_side_blocked`、`descent_sweep_blocked`、`straight_tie`。完整既有 selftest 仍在外部 180 秒时限内未完成并以 `143` 退出，不能报告整套通过；该限制不影响启动阶段路径回归日志。`./gradlew test` 仍为项目无 test source 的 `NO-SOURCE`。客户端物理和入口交互仍未验证，不能用 headless 结果替代 Windows 证据。
+按批准计划 `20260820-soft-path-descent-landing-v1`，本轮未修改 A*、对角逻辑或任何稳定任务链。下降段使用统一 `supportTopY` 读取实际 `VoxelShape` 顶面；到达水平半径后显式进入下降 settle 状态，记录 `actualY/supportTopY/onGround/settleTicks`，仅在目标脚位、顶面和 `onGround` 同时成立时完成，失败保持 `soft_path_unsettled` 并带完整诊断。
+
+已执行验证：本轮 `./gradlew compileJava` 成功（仅既有弃用警告）；headless `./gradlew runServer -Dalice.selftest.auto=true` 日志记录既有路径回归和专项回归全部 `PASS`：`full_block_edge`、`lower_half_slab`（支撑顶面 `59.5`）、`unsupported_landing`，以及此前的对角侧阻塞、下降扫掠阻塞、直线择优。完整既有 selftest 仍在外部 180 秒时限内未完成并以 `143` 退出，不能报告整套通过；专项回归已在初始化阶段完成。客户端下降与落地行为仍未验证，不能用 headless 结果替代 Windows 证据。
 
 不能回退的决策：普通挖矿、拾取仍固定 `HARD_PATH`；`MineTask` 不生成道路或隧道，深层目标失败 `target_requires_tunnel`；A* 不破坏方块；本地清障仍仅限直接可见、4.5 格内、最多 2 个方块。`SOFT_SURFACE` 不得接入 `MineTask`、`DropCollectionTask`、道路或隧道，除非逐项客户端验证和单独决策批准。
 

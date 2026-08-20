@@ -27,6 +27,7 @@ public final class SoftPathProbeTask implements Task {
     private int index;
     private int elapsed;
     private int settleTicks;
+    private SegmentAction settlingAction;
     private String failure = "";
 
     private enum SegmentAction {
@@ -89,6 +90,7 @@ public final class SoftPathProbeTask implements Task {
         double dz = goalZ - bot.getZ();
         double distance = Math.sqrt(dx * dx + dz * dz);
         if (distance > ARRIVE) {
+            settlingAction = null;
             SoftMovementPrimitive.Step step = action == SegmentAction.ASCEND
                     ? SoftMovementPrimitive.applyJumpToward(bot, goalX, goalZ, distance)
                     : SoftMovementPrimitive.applyToward(bot, goalX, goalZ, distance,
@@ -103,7 +105,18 @@ public final class SoftPathProbeTask implements Task {
 
         BlockPos actualFoot = bot.blockPosition();
         boolean supported = MovementHelper.isStandingAtFootPos(level, bot, segment);
+        double supportTopY = MovementHelper.supportTopY(level, segment.below());
+        if (action == SegmentAction.DESCEND && settlingAction == null) {
+            settlingAction = action;
+            settleTicks = 0;
+            BotLog.info("软路径下降结算开始: {}/{} from={} to={} supportTopY={} actualY={} foot={} onGround={}",
+                    index + 1, path.size(), from.toShortString(), segment.toShortString(),
+                    formatY(supportTopY), formatY(bot.getY()), actualFoot.toShortString(), bot.onGround());
+        }
         if (supported && bot.onGround()) {
+            BotLog.info("软路径段完成: {}/{} action={} from={} to={} foot={} actualY={} supportTopY={} onGround={} settleTicks={}",
+                    index + 1, path.size(), action, from.toShortString(), segment.toShortString(),
+                    actualFoot.toShortString(), formatY(bot.getY()), formatY(supportTopY), bot.onGround(), settleTicks);
             BotLog.info("软路径段完成: {}/{} action={} from={} to={} foot={} onGround={}",
                     index + 1, path.size(), action, from.toShortString(), segment.toShortString(),
                     actualFoot.toShortString(), bot.onGround());
@@ -115,11 +128,16 @@ public final class SoftPathProbeTask implements Task {
         settleTicks++;
         if (settleTicks > MAX_SETTLE_TICKS) {
             failure = "soft_path_unsettled: segment=" + segment.toShortString()
-                    + " foot=" + actualFoot.toShortString() + " onGround=" + bot.onGround()
-                    + " support=" + supported;
+                    + " foot=" + actualFoot.toShortString() + " actualY=" + formatY(bot.getY())
+                    + " supportTopY=" + formatY(supportTopY) + " onGround=" + bot.onGround()
+                    + " support=" + supported + " settleTicks=" + settleTicks;
             return Status.FAILED;
         }
         return Status.RUNNING;
+    }
+
+    private static String formatY(double value) {
+        return Double.isNaN(value) ? "NaN" : String.format(java.util.Locale.ROOT, "%.3f", value);
     }
 
     /** 仅接受 SurfacePathfinder 允许的相邻段；异常路径绝不由探针自行补救。 */

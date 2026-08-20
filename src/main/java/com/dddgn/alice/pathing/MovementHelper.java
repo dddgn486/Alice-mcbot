@@ -65,12 +65,8 @@ public final class MovementHelper {
         if (support.getFluidState().isSource() || avoidWalkingInto(support)) {
             return false;
         }
-        net.minecraft.world.phys.shapes.VoxelShape shape = support.getCollisionShape(level, supportPos);
-        if (shape.isEmpty()) {
-            return false;
-        }
-        double topY = supportPos.getY() + shape.max(net.minecraft.core.Direction.Axis.Y);
-        return Math.abs(footY - topY) <= epsilon;
+        double topY = supportTopY(level, supportPos);
+        return !Double.isNaN(topY) && Math.abs(footY - topY) <= epsilon;
     }
 
     /** 实体是否稳定落在指定的逻辑脚位段，兼容下半砖和台阶的非整格支撑顶面。 */
@@ -86,12 +82,18 @@ public final class MovementHelper {
         if (support.getFluidState().isSource() || avoidWalkingInto(support)) {
             return false;
         }
-        net.minecraft.world.phys.shapes.VoxelShape shape = support.getCollisionShape(level, supportPos);
+        double topY = supportTopY(level, supportPos);
+        return !Double.isNaN(topY) && Math.abs(entity.getY() - topY) <= epsilon;
+    }
+
+    /** 支撑碰撞形状的世界坐标顶面；空形状返回 NaN。 */
+    public static double supportTopY(ServerLevel level, BlockPos supportPos) {
+        net.minecraft.world.phys.shapes.VoxelShape shape = level.getBlockState(supportPos)
+                .getCollisionShape(level, supportPos);
         if (shape.isEmpty()) {
-            return false;
+            return Double.NaN;
         }
-        double topY = supportPos.getY() + shape.max(net.minecraft.core.Direction.Axis.Y);
-        return Math.abs(entity.getY() - topY) <= epsilon;
+        return supportPos.getY() + shape.max(net.minecraft.core.Direction.Axis.Y);
     }
 
     /** 平地移动(从 from 脚位水平走到 to 脚位)。 */

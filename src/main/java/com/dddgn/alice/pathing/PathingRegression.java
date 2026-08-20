@@ -71,13 +71,50 @@ public final class PathingRegression {
         BotLog.info("PATHING_REGRESSION {} straight_tie cost={} path={}",
                 straightTie ? "PASS" : "FAIL", tie.totalCost(), tie.path());
 
+        clearAndFloor(level, origin, 4, 24);
+        BlockPos edgeStart = origin.offset(4, 1, 24);
+        BlockPos edgeGoal = edgeStart.offset(1, -1, 0);
+        level.setBlock(edgeStart.below(), Blocks.DIRT.defaultBlockState(), 3);
+        level.setBlock(edgeGoal.below(), Blocks.DIRT.defaultBlockState(), 3);
+        boolean edgeMid = MovementHelper.canWalkThrough(level, new BlockPos(edgeGoal.getX(), edgeStart.getY(), edgeGoal.getZ()))
+                && MovementHelper.canWalkThrough(level, new BlockPos(edgeGoal.getX(), edgeStart.getY() + 1, edgeGoal.getZ()));
+        boolean edgeTarget = MovementHelper.canWalkThrough(level, edgeGoal) && MovementHelper.canWalkOn(level, edgeGoal);
+        boolean edgeSweep = MovementHelper.canSweepPlayer(level, edgeStart, edgeGoal);
+        boolean fullBlockEdge = edgeMid && edgeTarget && edgeSweep
+                && nearly(MovementHelper.supportTopY(level, edgeGoal.below()), edgeGoal.getY());
+        BotLog.info("PATHING_REGRESSION {} full_block_edge from={} to={} mid={} target={} sweep={} supportTopY={}",
+                fullBlockEdge ? "PASS" : "FAIL", edgeStart, edgeGoal, edgeMid, edgeTarget, edgeSweep,
+                MovementHelper.supportTopY(level, edgeGoal.below()));
+
+        clearAndFloor(level, origin, 8, 24);
+        BlockPos slabStart = origin.offset(8, 1, 24);
+        BlockPos slabGoal = slabStart.offset(1, -1, 0);
+        level.setBlock(slabStart.below(), Blocks.DIRT.defaultBlockState(), 3);
+        level.setBlock(slabGoal.below(), Blocks.SMOOTH_STONE_SLAB.defaultBlockState(), 3);
+        double slabTop = MovementHelper.supportTopY(level, slabGoal.below());
+        boolean halfSlab = MovementHelper.canDescend(level, slabStart, slabGoal)
+                && nearly(slabTop, slabGoal.getY() - 0.5D);
+        BotLog.info("PATHING_REGRESSION {} lower_half_slab from={} to={} supportTopY={}",
+                halfSlab ? "PASS" : "FAIL", slabStart, slabGoal, slabTop);
+
+        level.setBlock(slabGoal.below(), Blocks.AIR.defaultBlockState(), 3);
+        boolean unsupportedLanding = !MovementHelper.canDescend(level, slabStart, slabGoal);
+        BotLog.info("PATHING_REGRESSION {} unsupported_landing from={} to={}",
+                unsupportedLanding ? "PASS" : "FAIL", slabStart, slabGoal);
+
         boolean passed = diagonal && ascend && descend && elevatedAlternative
-                && diagonalBlocked && descentSweepBlocked && straightTie;
+                && diagonalBlocked && descentSweepBlocked && straightTie
+                && fullBlockEdge && halfSlab && unsupportedLanding;
         BotLog.info("PATHING_REGRESSION {} diagonal={} ascend={} descend={} elevatedAlternative={}"
-                + " diagonalSideBlocked={} descentSweepBlocked={} straightTie={}",
+                + " diagonalSideBlocked={} descentSweepBlocked={} straightTie={} fullBlockEdge={}"
+                + " lowerHalfSlab={} unsupportedLanding={}",
                 passed ? "PASS" : "FAIL", diagonal, ascend, descend, elevatedAlternative,
-                diagonalBlocked, descentSweepBlocked, straightTie);
+                diagonalBlocked, descentSweepBlocked, straightTie, fullBlockEdge, halfSlab, unsupportedLanding);
         return passed;
+    }
+
+    private static boolean nearly(double actual, double expected) {
+        return !Double.isNaN(actual) && Math.abs(actual - expected) < 0.0001D;
     }
 
     private static boolean assertPath(ServerLevel level, String name, BlockPos start, BlockPos goal,
