@@ -17,6 +17,10 @@ public final class AliceItems {
     public static final DeferredRegister<Item> ITEMS =
             DeferredRegister.create(ForgeRegistries.ITEMS, "alice");
 
+    /** 独立 C1 只读接口扫描器；不继承原版铲子行为。 */
+    public static final RegistryObject<Item> INTERFACE_SCANNER =
+            ITEMS.register("interface_scanner", () -> new Item(new Item.Properties()));
+
     /** 目标指定器:方块目标(挖掘) / 实体目标(攻击,下一步实现)。 */
     public static final RegistryObject<Item> TARGET_SELECTOR =
             ITEMS.register("target_selector", () -> new TargetSelector(new Item.Properties()));

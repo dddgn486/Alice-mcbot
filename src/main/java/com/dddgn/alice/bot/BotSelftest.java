@@ -2,6 +2,9 @@ package com.dddgn.alice.bot;
 
 import com.dddgn.alice.action.BotMiner;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.capability.InterfaceScanner;
+import com.dddgn.alice.capability.InterfaceSnapshot;
+import com.dddgn.alice.capability.ObservationStatus;
 import com.dddgn.alice.pathing.PathingRegression;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
@@ -333,6 +336,7 @@ public final class BotSelftest {
         }
 
         pathingRegressionPass = PathingRegression.run(level, surface.offset(8, 0, 8));
+        runInterfaceSnapshotRegression(surface.offset(8, 0, 0));
         bot = BotManager.spawn(level, surface, "SelftestBot");
         target1 = surface.offset(2, 0, 0);
         level.setBlock(target1, Blocks.DIRT.defaultBlockState(), 3);
@@ -340,6 +344,31 @@ public final class BotSelftest {
         BotManager.assignMine(bot, target1);
         phase = Phase.TEST1_RUN;
         phaseTicks = 0;
+    }
+
+    private static void runInterfaceSnapshotRegression(BlockPos chestPos) {
+        level.setBlock(chestPos, Blocks.CHEST.defaultBlockState(), 3);
+        net.minecraft.world.level.block.entity.BlockEntity chest = level.getBlockEntity(chestPos);
+        if (chest instanceof net.minecraft.world.level.block.entity.ChestBlockEntity chestEntity) {
+            chestEntity.setItem(0, new ItemStack(Items.DIAMOND, 3));
+            chestEntity.setChanged();
+        }
+        InterfaceSnapshot chestSnapshot = InterfaceScanner.capture(level, chestPos);
+        BlockPos dirtPos = chestPos.east();
+        level.setBlock(dirtPos, Blocks.DIRT.defaultBlockState(), 3);
+        InterfaceSnapshot dirtSnapshot = InterfaceScanner.capture(level, dirtPos);
+        boolean chestPass = chestSnapshot.status() == ObservationStatus.OK
+                && chestSnapshot.blockId().equals("minecraft:chest")
+                && chestSnapshot.blockEntityTypeId() != null
+                && chestSnapshot.items().size() == 27
+                && chestSnapshot.items().get(0).itemId().equals("minecraft:diamond")
+                && chestSnapshot.items().get(0).count() == 3;
+        boolean dirtPass = dirtSnapshot.status() == ObservationStatus.NO_BLOCK_ENTITY
+                && dirtSnapshot.items().isEmpty();
+        BotLog.info("INTERFACE_SNAPSHOT_SELFTEST {} chest={} status={} slots={} first={}x{} dirt={} status={}",
+                chestPass && dirtPass ? "PASS" : "FAIL", chestPass, chestSnapshot.status(),
+                chestSnapshot.items().size(), chestSnapshot.items().isEmpty() ? "" : chestSnapshot.items().get(0).itemId(),
+                chestSnapshot.items().isEmpty() ? 0 : chestSnapshot.items().get(0).count(), dirtPass, dirtSnapshot.status());
     }
 
     private static void checkTest1() {

@@ -5,12 +5,15 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.energy.IEnergyStorage;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.registries.ForgeRegistries;
+
+import java.util.List;
 
 /**
  * 服务端接口扫描器(设计文档 §5「只读接口自动生成」v1)。
@@ -31,21 +34,122 @@ public final class InterfaceScanner {
     }
 
     public static String scan(ServerLevel level, BlockPos pos) {
-        String blockName = ForgeRegistries.BLOCKS.getKey(level.getBlockState(pos).getBlock()).toString();
-        StringBuilder sb = new StringBuilder();
-        sb.append("方块: ").append(blockName).append(" @ ").append(pos.toShortString()).append('\n');
+        return format(capture(level, pos));
+    }
 
+    /** Capture all C1 facts synchronously and copy every mutable capability value. */
+    public static InterfaceSnapshot capture(ServerLevel level, BlockPos pos) {
+        String dimension = level.dimension().location().toString();
+        String blockName = ForgeRegistries.BLOCKS.getKey(level.getBlockState(pos).getBlock()).toString();
+        long tick = level.getGameTime();
+        if (!level.hasChunkAt(pos)) {
+            return new InterfaceSnapshot(1, dimension, pos, blockName, null, tick,
+                    ObservationStatus.CHUNK_NOT_LOADED, List.of(), null, List.of(), "");
+        }
         BlockEntity be = level.getBlockEntity(pos);
         if (be == null) {
-            sb.append("(无方块实体 → 无接口)");
-            return sb.toString();
+            return new InterfaceSnapshot(1, dimension, pos, blockName, null, tick,
+                    ObservationStatus.NO_BLOCK_ENTITY, List.of(), null, List.of(), "");
         }
+        try {
+            List<InterfaceSnapshot.ItemFact> items = captureItems(be);
+            InterfaceSnapshot.EnergyFact energy = captureEnergy(be);
+            List<InterfaceSnapshot.FluidFact> fluids = captureFluids(be);
+            StringBuilder legacy = new StringBuilder();
+            scanMek(legacy, be);
+            String type = ForgeRegistries.BLOCK_ENTITY_TYPES.getKey(be.getType()).toString();
+            return new InterfaceSnapshot(1, dimension, pos, blockName, type, tick,
+                    ObservationStatus.OK, items, energy, fluids, legacy.toString());
+        } catch (RuntimeException exception) {
+            BotLog.warn("接口快照捕获失败: pos={} reason={}", pos.toShortString(), exception.toString());
+            return new InterfaceSnapshot(1, dimension, pos, blockName, null, tick,
+                    ObservationStatus.CAPTURE_ERROR, List.of(), null, List.of(), "");
+        }
+    }
 
-        scanItems(sb, be);
-        scanEnergy(sb, be);
-        scanFluid(sb, be);
-        scanMek(sb, be);
+    /** Human-readable projection of an already captured immutable snapshot. */
+    public static String format(InterfaceSnapshot snapshot) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("schema=v").append(snapshot.schemaVersion())
+                .append(" dimension=").append(snapshot.dimensionId())
+                .append(" block=").append(snapshot.blockId())
+                .append(" @ ").append(snapshot.position().toShortString())
+                .append(" tick=").append(snapshot.observedServerTick())
+                .append(" status=").append(snapshot.status()).append('\n');
+        if (snapshot.blockEntityTypeId() != null) {
+            sb.append("block_entity=").append(snapshot.blockEntityTypeId()).append('\n');
+        }
+        if (snapshot.status() == ObservationStatus.NO_BLOCK_ENTITY) {
+            sb.append("(无方块实体 → 无接口)\n");
+        }
+        if (!snapshot.items().isEmpty()) {
+            sb.append("【物品槽事实】共 ").append(snapshot.items().size()).append(" 槽\n");
+            for (InterfaceSnapshot.ItemFact item : snapshot.items()) {
+                sb.append("  槽").append(item.index()).append(": ")
+                        .append(item.itemId()).append('×').append(item.count())
+                        .append(" damage=").append(item.damage()).append('\n');
+            }
+        }
+        if (snapshot.energy() != null) {
+            sb.append("【能量事实】").append(snapshot.energy().stored()).append(" / ")
+                    .append(snapshot.energy().capacity()).append(" FE extract=")
+                    .append(snapshot.energy().canExtract()).append(" receive=")
+                    .append(snapshot.energy().canReceive()).append('\n');
+        }
+        if (!snapshot.fluids().isEmpty()) {
+            sb.append("【流体事实】共 ").append(snapshot.fluids().size()).append(" tank\n");
+            for (InterfaceSnapshot.FluidFact fluid : snapshot.fluids()) {
+                sb.append("  tank").append(fluid.index()).append(": ")
+                        .append(fluid.fluidId()).append('×').append(fluid.amount())
+                        .append("mb capacity=").append(fluid.capacity()).append('\n');
+            }
+        }
+        if (!snapshot.legacyProjection().isBlank()) {
+            sb.append("【legacy Mek projection; 非 C1 通用事实】\n")
+                    .append(snapshot.legacyProjection());
+        }
+        if (snapshot.status() == ObservationStatus.OK && snapshot.items().isEmpty()
+                && snapshot.energy() == null && snapshot.fluids().isEmpty()
+                && snapshot.legacyProjection().isBlank()) {
+            sb.append("(未发现 unsided C1 capability)\n");
+        }
         return sb.toString();
+    }
+
+    private static List<InterfaceSnapshot.ItemFact> captureItems(BlockEntity be) {
+        return be.getCapability(ForgeCapabilities.ITEM_HANDLER, null)
+                .map(handler -> {
+                    List<InterfaceSnapshot.ItemFact> facts = new java.util.ArrayList<>();
+                    for (int i = 0; i < handler.getSlots(); i++) {
+                        ItemStack stack = handler.getStackInSlot(i).copy();
+                        String id = ForgeRegistries.ITEMS.getKey(stack.getItem()).toString();
+                        CompoundTag tag = stack.getTag();
+                        facts.add(new InterfaceSnapshot.ItemFact(i, id, stack.getCount(), stack.getDamageValue(),
+                                tag == null ? "" : tag.copy().toString()));
+                    }
+                    return List.copyOf(facts);
+                }).orElse(List.of());
+    }
+
+    private static InterfaceSnapshot.EnergyFact captureEnergy(BlockEntity be) {
+        return be.getCapability(ForgeCapabilities.ENERGY, null)
+                .map(energy -> new InterfaceSnapshot.EnergyFact(energy.getEnergyStored(),
+                        energy.getMaxEnergyStored(), energy.canExtract(), energy.canReceive()))
+                .orElse(null);
+    }
+
+    private static List<InterfaceSnapshot.FluidFact> captureFluids(BlockEntity be) {
+        return be.getCapability(ForgeCapabilities.FLUID_HANDLER, null)
+                .map(handler -> {
+                    List<InterfaceSnapshot.FluidFact> facts = new java.util.ArrayList<>();
+                    for (int i = 0; i < handler.getTanks(); i++) {
+                        FluidStack stack = handler.getFluidInTank(i).copy();
+                        String id = ForgeRegistries.FLUIDS.getKey(stack.getFluid()).toString();
+                        facts.add(new InterfaceSnapshot.FluidFact(i, id, stack.getAmount(),
+                                handler.getTankCapacity(i), stack.getTag() == null ? "" : stack.getTag().copy().toString()));
+                    }
+                    return List.copyOf(facts);
+                }).orElse(List.of());
     }
 
     private static void scanItems(StringBuilder sb, BlockEntity be) {

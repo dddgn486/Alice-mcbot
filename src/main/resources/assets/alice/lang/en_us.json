@@ -1,4 +1,5 @@
 {
+  "item.alice.interface_scanner": "Interface Scanner",
   "item.alice.target_selector": "Target Selector",
   "item.alice.soft_move_selector": "Soft Move Selector",
   "item.alice.road_planner": "Road Planner"

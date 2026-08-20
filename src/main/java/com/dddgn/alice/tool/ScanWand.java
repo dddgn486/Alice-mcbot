@@ -1,12 +1,13 @@
 package com.dddgn.alice.tool;
 
 import com.dddgn.alice.capability.InterfaceScanner;
+import com.dddgn.alice.capability.InterfaceSnapshot;
+import com.dddgn.alice.item.AliceItems;
 import com.dddgn.alice.log.BotLog;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.LogicalSide;
@@ -30,7 +31,7 @@ public final class ScanWand {
             return;
         }
         ItemStack stack = event.getEntity().getMainHandItem();
-        if (!stack.is(Items.DIAMOND_SHOVEL)) {
+        if (!stack.is(AliceItems.INTERFACE_SCANNER.get())) {
             return;
         }
         if (!(event.getLevel() instanceof ServerLevel level)) {
@@ -39,13 +40,9 @@ public final class ScanWand {
         BlockPos pos = event.getPos();
         event.setCanceled(true); // 阻止默认行为:开 GUI / 铲土径
 
-        if (level.getBlockEntity(pos) == null) {
-            BotLog.info("[alice] 钻石铲扫描: 目标方块无方块实体 @ {}", pos.toShortString());
-            event.getEntity().displayClientMessage(Component.literal("[alice] 无接口(无方块实体)"), false);
-            return;
-        }
-        String result = InterfaceScanner.scan(level, pos);
-        BotLog.info("[alice] 接口扫描(钻石铲):\n{}", result);
+        InterfaceSnapshot snapshot = InterfaceScanner.capture(level, pos);
+        String result = InterfaceScanner.format(snapshot);
+        BotLog.info("[alice] 接口扫描(alice:interface_scanner):\n{}", result);
         String blockKey = ForgeRegistries.BLOCKS.getKey(level.getBlockState(pos).getBlock()).toString();
         event.getEntity().displayClientMessage(
                 Component.literal("[alice] 已扫描 " + blockKey + " → 见日志"), false);
