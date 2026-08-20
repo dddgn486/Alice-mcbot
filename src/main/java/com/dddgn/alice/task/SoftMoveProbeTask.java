@@ -1,18 +1,17 @@
 package com.dddgn.alice.task;
 
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.pathing.SoftMovementPrimitive;
 import com.dddgn.alice.survival.HazardState;
 import com.dddgn.alice.survival.SurvivalSystem;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.MoverType;
 
 /**
  * 软地面移动实验任务。只用于安全平地短距离客户端验证，不接入 MineTask 或 PathExecutor。
  */
 public final class SoftMoveProbeTask implements Task {
-    private static final double SPEED = 0.12D;
     private static final double ARRIVE = 0.25D;
     private static final int MAX_TICKS = 120;
     private static final int MAX_DISTANCE = 8;
@@ -110,9 +109,8 @@ public final class SoftMoveProbeTask implements Task {
             return Status.FAILED;
         }
 
-        double step = Math.min(SPEED, distance);
-        bot.move(MoverType.SELF, new net.minecraft.world.phys.Vec3(
-                dx / distance * step, 0.0D, dz / distance * step));
+        SoftMovementPrimitive.Step movement = SoftMovementPrimitive.applyToward(
+                bot, targetX, targetZ, distance);
         double moved = Math.abs(bot.getX() - lastX) + Math.abs(bot.getZ() - lastZ);
         if (moved < 0.0001D) {
             noProgress++;
@@ -126,8 +124,10 @@ public final class SoftMoveProbeTask implements Task {
         lastX = bot.getX();
         lastZ = bot.getZ();
         if (elapsed % 20 == 0) {
-            BotLog.info("软移动探针: bot={} target={} pos=({}, {}) onGround={} fall={}",
+            BotLog.info("软移动探针: bot={} target={} step={} yaw={} pos=({}, {}) onGround={} fall={}",
                     bot.getName().getString(), target.toShortString(),
+                    String.format(java.util.Locale.ROOT, "%.3f", movement.distance()),
+                    String.format(java.util.Locale.ROOT, "%.1f", movement.yaw()),
                     String.format(java.util.Locale.ROOT, "%.2f", bot.getX()),
                     String.format(java.util.Locale.ROOT, "%.2f", bot.getZ()),
                     bot.onGround(), bot.fallDistance);

@@ -31,7 +31,7 @@
 
 1. **坐标契约与诊断**：工具右键的是支撑方块，任务目标是其上方脚位格；命令直接传脚位格。所有入口必须调用同一个结构化校验，分别报告距离、高度、支撑、脚位碰撞和头部碰撞失败。
 2. **原版碰撞探针**：只在同高度安全平地验证 `MoverType.SELF` 的短距离移动、碰撞和无进展检测；不处理跳跃、高差、液体或寻路。
-3. **输入驱动适配**：参考 Baritone 的 movement primitive/input override 与 Carpet fake player action pack，在 Forge 1.20.1 中确认 `ServerPlayer` 的 `tick/travel` 边界；优先实现前进、朝向、跳跃等小原语，不以 `setPos` 或直接格心步进冒充玩家运动。
+3. **输入驱动适配**：参考 Baritone 的 movement primitive/input override 与 Carpet fake player action pack，在 Forge 1.20.1 中确认 `ServerPlayer` 的 `tick/travel` 边界；当前先由 `SoftMovementPrimitive` 实现朝向 + 前进的最小适配原语，使用接近原版步行的 `0.215` 格/tick 和 `MoverType.SELF` 碰撞，不以 `setPos` 或直接格心步进冒充玩家运动；完整 input/travel 注入仍待验证。
 4. **安全地面原语**：复用现有 `MovementHelper`/A* 的支撑和碰撞语义，只增加成熟方案缺失的适配层；先做直线平地，再做转向和单格高差，复杂碰撞交给客户端测试。
 5. **流体与应急**：在 `SurvivalSystem` 监测和 `EmergencyEscapeTask` 设计稳定后，单独验证受限水域；不把水中移动、灭火、逃生混进普通曲面执行器。
 6. **寻路接入**：只有输入驱动执行器在客户端验证通过后，才考虑把它作为 `PathExecutor` 的可选后端；`MineTask` 默认仍是 `HARD_PATH`，任何失败必须可回收并明确报告。
