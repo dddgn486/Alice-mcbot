@@ -200,6 +200,7 @@ BUILD_UNIT → WAIT_STABLE → MOVE_TO_NEXT_UNIT →（循环）→ MINE_TARGET 
 /alice selftest full         历史完整 13 项回归，仅排错时显式运行
 /alice diagnose-path <x y z>  只读曲面寻路诊断（状态/路径段数/扩展节点）
 /alice status                 只读 bot 回收/维生状态（busy/上次结果/位置/hazard/air/health）
+/alice soft-probe <x y z>    SOFT_SURFACE 平地短距离实验（bot 8格内，不接入挖矿）
 /alice road build            玩家版：按蓝图逐单元构建
 /alice road buildbybot        bot 版：强制施工动画 + 终点挖掘
 /alice protect ...           安全区管理
@@ -231,6 +232,7 @@ headless 验收：`./gradlew runServer -Dalice.selftest.auto=true`（测完自�
 - **R27（新）**：通道规划和执行必须以 bot 可回收性优先：执行层独立否决流体、保护区、不可破坏/高代价方块与非法几何；复杂世界无法证明安全时宁可停止，绝不让 LLM 建议绕过硬检查。
 - **R28（新）**：`SurvivalSystem` 每 tick 先于任务监测危险；第一版 `LAVA_CONTACT`/`SUFFOCATING` 直接中断任务，水/低空气/着火只记录；`FluidRiskPolicy` 对目标及相邻六格可见岩浆返回 `fluid_risk_lava`，不自动挖源头或堵流体。
 - **R29（新）**：维生系统第一版只做监测和硬中断，不主动逃生、上浮、灭火或切换软移动；后续由独立 `EmergencyEscapeTask`/`MovementMode` 实现，不能在 MineTask 内复制应急逻辑。
+- **R30（新）**：`PathExecutor` 当前固定为 `MovementMode.HARD_PATH`，普通挖矿/拾取不可切换。`SOFT_SURFACE` 仅可通过 `/alice soft-probe` 在同高度安全平地、bot 8 格内测试 `MoverType.SELF` 碰撞移动；它不处理高差、液体或失败后的硬移动回退。
 - **坑**：掉落物有 pickupDelay；挖高处方块后掉落物需等 onGround 再拾取，未落地前不要反复跑昂贵 A*。
 - **坑**：`RenderType.lines()` 自带深度测试 → 透视高亮需自定义 RenderType（NO_DEPTH_TEST）。
 - **坑**：`stone` 是方块 ID 不是标签 → auto-mine 需自动判断标签/方块两种模式。

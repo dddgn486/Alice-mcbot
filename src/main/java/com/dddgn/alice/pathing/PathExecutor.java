@@ -17,6 +17,8 @@ import java.util.List;
  */
 public final class PathExecutor {
 
+    public static final MovementMode MODE = MovementMode.HARD_PATH;
+
     public enum Status { MOVING, DONE, FAILED }
 
     private static final double SEGMENT_ARRIVE = 0.3D;

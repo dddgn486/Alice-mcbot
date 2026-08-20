@@ -71,6 +71,7 @@ collect_no_path / collect_path_failed / collect_timeout / target_requires_tunnel
 | `/alice status` | 只读命令 | 返回当前维度 bot 的 busy、上次结果和位置；无 bot 时失败，不生成 bot |
 | `/alice selftest` | 基础冒烟 | 默认只跑 TEST1-3 的确定性曲面链路 |
 | `/alice selftest full` | 完整回归 | 显式运行历史 13 项，复杂场景失败需结合客户端复核 |
+| `/alice soft-probe <pos>` | 软移动实验 | 仅 bot 8 格内、同高度安全平地；使用 `MoverType.SELF`，不接入挖矿 |
 
 物品注册走 `AliceItems`（DeferredRegister），**不套原版工具**——只引用贴图。
 

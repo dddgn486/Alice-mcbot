@@ -52,6 +52,10 @@ public final class BotCommand {
                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                 .executes(ctx -> mine(ctx.getSource(),
                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
+                .then(Commands.literal("soft-probe")
+                        .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                                .executes(ctx -> softProbe(ctx.getSource(),
+                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
                 .then(Commands.literal("road")
                         .then(Commands.literal("build")
                                 .executes(ctx -> buildRoad(ctx.getSource())))
@@ -347,6 +351,38 @@ public final class BotCommand {
         BotManager.assignMine(bot, target);
         source.sendSuccess(() -> Component.literal(
                 "[alice] " + bot.getName().getString() + " 开始挖掘 " + target.toShortString()), false);
+        return 1;
+    }
+
+    private static int softProbe(CommandSourceStack source, BlockPos target) {
+        ServerLevel level = source.getLevel();
+        BotPlayer bot = BotManager.firstInLevel(level);
+        BlockPos origin = bot != null ? bot.blockPosition()
+                : source.getEntity() != null ? source.getEntity().blockPosition() : level.getSharedSpawnPos();
+        if (origin.distManhattan(target) > 8) {
+            source.sendFailure(Component.literal("[alice] 软移动探针只允许 bot 8 格内短距离测试"));
+            return 0;
+        }
+        if (target.getY() != origin.getY()
+                || !com.dddgn.alice.pathing.MovementHelper.canWalkOn(level, origin)
+                || !com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, origin)
+                || !com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, origin.above())
+                || !com.dddgn.alice.pathing.MovementHelper.canWalkOn(level, target)
+                || !com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, target)
+                || !com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, target.above())) {
+            source.sendFailure(Component.literal("[alice] 起点和目标必须是同一高度的安全平地"));
+            return 0;
+        }
+        if (bot == null) {
+            bot = BotManager.spawn(level, origin, "SoftProbe");
+        }
+        if (BotManager.isBusy(bot)) {
+            source.sendFailure(Component.literal("[alice] bot 当前有任务，未启动软移动探针"));
+            return 0;
+        }
+        BotManager.assignSoftMoveProbe(bot, target);
+        source.sendSuccess(() -> Component.literal("[alice] 已启动 SOFT_SURFACE 软移动探针: "
+                + origin.toShortString() + " -> " + target.toShortString()), false);
         return 1;
     }
 

@@ -182,6 +182,13 @@ public final class BotManager {
         return spawn(level, pos.above(), "Alice");
     }
 
+    /** 给假人分配独立软地面移动实验，不接入普通挖矿。 */
+    public static void assignSoftMoveProbe(BotPlayer bot, BlockPos target) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null) return;
+        session.assignSoftMoveProbe(target);
+    }
+
     /** 给假人分配独立「放置指定方块」任务。 */
     public static void assignPlace(BotPlayer bot, BlockPos target) {
         BotSession session = BOTS.get(bot.getUUID());
@@ -319,6 +326,13 @@ public final class BotManager {
         }
 
         /** 分配任务:按目标类型实例化 Task,开启感知作用域,广播高亮。 */
+        public void assignSoftMoveProbe(BlockPos targetPos) {
+            clearTask();
+            this.target = TaskTarget.block(targetPos);
+            this.task = new com.dddgn.alice.task.SoftMoveProbeTask(bot, targetPos);
+            broadcastTarget(this.target);
+        }
+
         public void assignPlace(BlockPos targetPos) {
             clearTask();
             this.target = TaskTarget.block(targetPos);
