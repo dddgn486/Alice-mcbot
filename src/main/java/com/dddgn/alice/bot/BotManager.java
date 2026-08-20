@@ -184,9 +184,16 @@ public final class BotManager {
 
     /** 给假人分配独立软地面移动实验，不接入普通挖矿。 */
     public static void assignSoftMoveProbe(BotPlayer bot, BlockPos target) {
+        assignSoftMoveProbe(bot, target,
+                com.dddgn.alice.pathing.SoftMovementPrimitive.Backend.SELF_MOVE);
+    }
+
+    /** 分配指定后端的软移动实验；NATIVE_TRAVEL 仅用于独立客户端对比。 */
+    public static void assignSoftMoveProbe(BotPlayer bot, BlockPos target,
+                                           com.dddgn.alice.pathing.SoftMovementPrimitive.Backend backend) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null) return;
-        session.assignSoftMoveProbe(target);
+        session.assignSoftMoveProbe(target, backend);
     }
 
     /** 给假人分配独立「放置指定方块」任务。 */
@@ -326,10 +333,11 @@ public final class BotManager {
         }
 
         /** 分配任务:按目标类型实例化 Task,开启感知作用域,广播高亮。 */
-        public void assignSoftMoveProbe(BlockPos targetPos) {
+        public void assignSoftMoveProbe(BlockPos targetPos,
+                                        com.dddgn.alice.pathing.SoftMovementPrimitive.Backend backend) {
             clearTask();
             this.target = TaskTarget.block(targetPos);
-            this.task = new com.dddgn.alice.task.SoftMoveProbeTask(bot, targetPos);
+            this.task = new com.dddgn.alice.task.SoftMoveProbeTask(bot, targetPos, backend);
             broadcastTarget(this.target);
         }
 

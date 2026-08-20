@@ -9,6 +9,11 @@ import net.minecraft.world.phys.Vec3;
  * <p>这是 Forge 假人的适配层，仍由 MoverType.SELF 处理碰撞；完整玩家输入/travel 注入另行验证。</p>
  */
 public final class SoftMovementPrimitive {
+    public enum Backend {
+        SELF_MOVE,
+        NATIVE_TRAVEL
+    }
+
     /** 原版玩家无疾跑平地移动的近似水平速度，单位为格/tick。 */
     public static final double WALK_SPEED = 0.215D;
 
@@ -31,14 +36,28 @@ public final class SoftMovementPrimitive {
         return new Step(step, yaw, new Vec3(dx / distance * step, 0.0D, dz / distance * step));
     }
 
-    /** 执行单 tick 原语：设置朝向，再交给原版碰撞移动。 */
-    public static Step applyToward(ServerPlayer bot, double targetX, double targetZ, double maxStep) {
+    /** 执行单 tick 原语：设置朝向，再交给指定后端处理。 */
+    public static Step applyToward(ServerPlayer bot, double targetX, double targetZ,
+                                   double maxStep, Backend backend) {
         Step step = toward(bot, targetX, targetZ, maxStep);
         bot.setYRot(step.yaw());
         bot.setYHeadRot(step.yaw());
-        if (step.distance() > 0.0D) {
+        if (step.distance() <= 0.0D) {
+            return step;
+        }
+        if (backend == Backend.NATIVE_TRAVEL) {
+            // travel 的输入使用相对朝向：正 Z 表示向当前朝向前进。
+            bot.xxa = 0.0F;
+            bot.zza = 1.0F;
+            bot.travel(new Vec3(0.0D, 0.0D, 1.0D));
+        } else {
             bot.move(MoverType.SELF, step.delta());
         }
         return step;
+    }
+
+    /** 已验证的默认后端：世界坐标小步 + 原版碰撞。 */
+    public static Step applyToward(ServerPlayer bot, double targetX, double targetZ, double maxStep) {
+        return applyToward(bot, targetX, targetZ, maxStep, Backend.SELF_MOVE);
     }
 }

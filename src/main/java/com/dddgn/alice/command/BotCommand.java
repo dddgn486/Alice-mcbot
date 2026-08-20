@@ -56,6 +56,10 @@ public final class BotCommand {
                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                 .executes(ctx -> softProbe(ctx.getSource(),
                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
+                .then(Commands.literal("soft-probe-travel")
+                        .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                                .executes(ctx -> softProbeTravel(ctx.getSource(),
+                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
                 .then(Commands.literal("road")
                         .then(Commands.literal("build")
                                 .executes(ctx -> buildRoad(ctx.getSource())))
@@ -375,6 +379,31 @@ public final class BotCommand {
         BotManager.assignSoftMoveProbe(bot, target);
         source.sendSuccess(() -> Component.literal("[alice] 已启动 SOFT_SURFACE 软移动探针: "
                 + origin.toShortString() + " -> " + target.toShortString()), false);
+        return 1;
+    }
+
+    /** 原版 travel 物理对比探针；仅客户端实验，不替代金斧默认 SELF_MOVE。 */
+    private static int softProbeTravel(CommandSourceStack source, BlockPos target) {
+        ServerLevel level = source.getLevel();
+        BotPlayer bot = BotManager.firstInLevel(level);
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] 请先生成 bot，再运行 travel 对比探针"));
+            return 0;
+        }
+        com.dddgn.alice.task.SoftMoveProbeTask.ProbeValidation validation =
+                com.dddgn.alice.task.SoftMoveProbeTask.validate(level, bot.blockPosition(), target);
+        if (!validation.valid()) {
+            source.sendFailure(Component.literal("[alice] travel 探针无效: " + validation.reason()));
+            return 0;
+        }
+        if (BotManager.isBusy(bot)) {
+            source.sendFailure(Component.literal("[alice] bot 当前有任务，未启动 travel 对比探针"));
+            return 0;
+        }
+        BotManager.assignSoftMoveProbe(bot, target,
+                com.dddgn.alice.pathing.SoftMovementPrimitive.Backend.NATIVE_TRAVEL);
+        source.sendSuccess(() -> Component.literal("[alice] 已启动 NATIVE_TRAVEL 对比探针: "
+                + bot.blockPosition().toShortString() + " -> " + target.toShortString()), false);
         return 1;
     }
 

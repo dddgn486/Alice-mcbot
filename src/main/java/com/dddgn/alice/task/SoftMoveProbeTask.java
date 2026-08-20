@@ -17,6 +17,7 @@ public final class SoftMoveProbeTask implements Task {
     private static final int MAX_DISTANCE = 8;
 
     private final ServerPlayer bot;
+    private final SoftMovementPrimitive.Backend backend;
     private final BlockPos target;
     private final double targetX;
     private final double targetZ;
@@ -67,7 +68,12 @@ public final class SoftMoveProbeTask implements Task {
     }
 
     public SoftMoveProbeTask(ServerPlayer bot, BlockPos target) {
+        this(bot, target, SoftMovementPrimitive.Backend.SELF_MOVE);
+    }
+
+    public SoftMoveProbeTask(ServerPlayer bot, BlockPos target, SoftMovementPrimitive.Backend backend) {
         this.bot = bot;
+        this.backend = backend;
         this.target = target.immutable();
         this.targetX = target.getX() + 0.5D;
         this.targetZ = target.getZ() + 0.5D;
@@ -110,7 +116,7 @@ public final class SoftMoveProbeTask implements Task {
         }
 
         SoftMovementPrimitive.Step movement = SoftMovementPrimitive.applyToward(
-                bot, targetX, targetZ, distance);
+                bot, targetX, targetZ, distance, backend);
         double moved = Math.abs(bot.getX() - lastX) + Math.abs(bot.getZ() - lastZ);
         if (moved < 0.0001D) {
             noProgress++;
@@ -124,8 +130,8 @@ public final class SoftMoveProbeTask implements Task {
         lastX = bot.getX();
         lastZ = bot.getZ();
         if (elapsed % 20 == 0) {
-            BotLog.info("软移动探针: bot={} target={} step={} yaw={} pos=({}, {}) onGround={} fall={}",
-                    bot.getName().getString(), target.toShortString(),
+            BotLog.info("软移动探针: backend={} bot={} target={} step={} yaw={} pos=({}, {}) onGround={} fall={}",
+                    backend, bot.getName().getString(), target.toShortString(),
                     String.format(java.util.Locale.ROOT, "%.3f", movement.distance()),
                     String.format(java.util.Locale.ROOT, "%.1f", movement.yaw()),
                     String.format(java.util.Locale.ROOT, "%.2f", bot.getX()),
