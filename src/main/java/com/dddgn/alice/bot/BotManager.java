@@ -18,6 +18,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.GameType;
@@ -196,6 +197,22 @@ public final class BotManager {
         session.assignSoftMoveProbe(target, backend);
     }
 
+    /** 给假人分配保护区内软移动跟随，不接入普通挖矿。 */
+    public static void assignFollow(BotPlayer bot, ServerPlayer target) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null) return;
+        session.assignFollow(target);
+    }
+
+    /** 取消当前跟随；其他任务不受此入口影响。 */
+    public static boolean stopFollow(BotPlayer bot) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || !(session.task instanceof com.dddgn.alice.task.FollowTask)) return false;
+        session.clearTask();
+        session.lastTaskResult = "follow_stopped";
+        return true;
+    }
+
     /** 给假人分配独立软路径实验，复用曲面 A*，不接入普通挖矿。 */
     public static void assignSoftPathProbe(BotPlayer bot, BlockPos target) {
         BotSession session = BOTS.get(bot.getUUID());
@@ -345,6 +362,13 @@ public final class BotManager {
             clearTask();
             this.target = TaskTarget.block(targetPos);
             this.task = new com.dddgn.alice.task.SoftMoveProbeTask(bot, targetPos, backend);
+            broadcastTarget(this.target);
+        }
+
+        public void assignFollow(ServerPlayer targetPlayer) {
+            clearTask();
+            this.target = TaskTarget.entity(targetPlayer.getId());
+            this.task = new com.dddgn.alice.task.FollowTask(bot, targetPlayer);
             broadcastTarget(this.target);
         }
 

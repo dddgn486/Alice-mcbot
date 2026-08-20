@@ -153,6 +153,17 @@ public final class SafeZoneData extends SavedData {
         return null;
     }
 
+    /** 两个位置是否同时属于同一个当前维度保护区。仅用于保守移动边界，不授权破坏。 */
+    public boolean sharesArea(ServerLevel level, BlockPos first, BlockPos second) {
+        for (Area area : areas) {
+            if (area.dimension.equals(level.dimension().location())
+                    && area.contains(first) && area.contains(second)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public String summary() {
         return "areas=" + areas.size() + " blocks=" + protectedBlocks.size() + " tags=" + protectedTags.size();
     }

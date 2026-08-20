@@ -64,6 +64,9 @@ public final class BotCommand {
                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                 .executes(ctx -> softPathProbe(ctx.getSource(),
                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
+                .then(Commands.literal("follow")
+                        .then(Commands.literal("on").executes(ctx -> followOn(ctx.getSource())))
+                        .then(Commands.literal("off").executes(ctx -> followOff(ctx.getSource()))))
                 .then(Commands.literal("road")
                         .then(Commands.literal("build")
                                 .executes(ctx -> buildRoad(ctx.getSource())))
@@ -432,6 +435,49 @@ public final class BotCommand {
         BotManager.assignSoftPathProbe(bot, target);
         source.sendSuccess(() -> Component.literal("[alice] 已启动 NATIVE_TRAVEL 软路径探针: "
                 + bot.blockPosition().toShortString() + " -> " + target.toShortString()), false);
+        return 1;
+    }
+
+    /** 开启保护区内软移动跟随：只跟随命令执行者本人。 */
+    private static int followOn(CommandSourceStack source) {
+        ServerPlayer player;
+        try {
+            player = source.getPlayerOrException();
+        } catch (com.mojang.brigadier.exceptions.CommandSyntaxException exception) {
+            source.sendFailure(Component.literal("[alice] follow 只能由要被跟随的玩家执行"));
+            return 0;
+        }
+        BotPlayer bot = BotManager.firstInLevel(player.serverLevel());
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] 当前维度没有已生成的 bot"));
+            return 0;
+        }
+        if (BotManager.isBusy(bot)) {
+            source.sendFailure(Component.literal("[alice] bot 当前有任务，未开启跟随"));
+            return 0;
+        }
+        if (!SafeZoneData.get(source.getServer()).sharesArea(player.serverLevel(),
+                bot.blockPosition(), player.blockPosition())) {
+            source.sendFailure(Component.literal("[alice] bot 与玩家必须位于同一个保护区内"));
+            return 0;
+        }
+        BotManager.assignFollow(bot, player);
+        source.sendSuccess(() -> Component.literal("[alice] " + bot.getName().getString()
+                + " 开始在保护区内跟随你（/alice follow off 关闭）"), false);
+        return 1;
+    }
+
+    private static int followOff(CommandSourceStack source) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] 当前维度没有已生成的 bot"));
+            return 0;
+        }
+        if (!BotManager.stopFollow(bot)) {
+            source.sendFailure(Component.literal("[alice] bot 当前没有跟随任务"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("[alice] 已关闭跟随"), false);
         return 1;
     }
 
