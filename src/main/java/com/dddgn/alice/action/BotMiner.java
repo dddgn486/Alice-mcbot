@@ -45,6 +45,7 @@ public final class BotMiner {
     private float progress;
     private int elapsed;
     private int pathRetries;
+    private boolean standSearchLimit;
     private String failureReason = "";
     private Direction face;
     /** 挖掘开始时的 bot 位置与眼睛距离(供自动化验收断言「是否隔空挖」)。 */
@@ -110,31 +111,23 @@ public final class BotMiner {
             }
         }
 
-        // 尝试候选站位:同 tick 内逐个, A* 失败换下一个
+        // 先比较所有“直线可挖”的曲面站位，再退回视线受阻候选。不能因为目标下方
+        // 分组排在同平面前面，就先走远路到一个最终还要清障的站位。
         if (standGoal == null && standCandidates != null) {
-            while (!standCandidates.isEmpty()) {
-                BlockPos cand = standCandidates.remove(0);
-                if (bot.blockPosition().equals(cand)) {
-                    standGoal = cand;
-                    break;
-                }
-                SurfacePathfinder.Result surface = SurfacePathfinder.find(level,
-                        bot.blockPosition(), cand);
-                if (surface.reachable()) {
-                    standGoal = cand;
-                    executor = new PathExecutor(bot, surface.path());
-                    BotLog.info("曲面站位已选: target={} stand={} 路径 {} 段",
-                            target.toShortString(), cand.toShortString(), surface.path().size());
-                    break;
-                }
-                BotLog.warn("候选站位不可达: {} → 尝试下一个", cand.toShortString());
-            }
-            if (standGoal == null) {
-                failureReason = "no_path";
-                BotLog.warn("mine 失败: target={} reason={}(所有候选站位不可达)",
-                        target.toShortString(), failureReason);
+            StandChoice choice = chooseReachableStand(level);
+            if (choice == null) {
+                failureReason = standSearchLimit ? "stand_search_limit" : "no_path";
+                BotLog.warn("mine 失败: target={} reason={}(所有候选站位{} )",
+                        target.toShortString(), failureReason,
+                        standSearchLimit ? "未完成搜索" : "不可达");
                 return Status.FAILED;
             }
+            standGoal = choice.stand();
+            if (!bot.blockPosition().equals(standGoal)) {
+                executor = new PathExecutor(bot, choice.path());
+            }
+            BotLog.info("曲面站位已选: target={} stand={} 路径 {} 段 sight={} (先直通后清障回退)",
+                    target.toShortString(), standGoal.toShortString(), choice.path().size(), choice.lineOfSight());
         }
 
         // 2) 沿路径走向站位
@@ -231,6 +224,38 @@ public final class BotMiner {
         return Status.MINING;
     }
 
+    /** 在所有曲面可达候选中，优先选择视线直通且路径最短的站位。 */
+    private StandChoice chooseReachableStand(ServerLevel level) {
+        StandChoice direct = null;
+        StandChoice blocked = null;
+        for (BlockPos candidate : standCandidates) {
+            SurfacePathfinder.Result surface = SurfacePathfinder.find(level, bot.blockPosition(), candidate);
+            if (!surface.reachable()) {
+                standSearchLimit |= surface.inconclusive();
+                BotLog.warn("候选站位不可达: {} status={} → 忽略", candidate.toShortString(), surface.status());
+                continue;
+            }
+            StandChoice choice = new StandChoice(candidate, surface.path(),
+                    lineOfSightClearFrom(level, candidate));
+            if (choice.lineOfSight()) {
+                if (direct == null || choice.path().size() < direct.path().size()) {
+                    direct = choice;
+                }
+            } else if (blocked == null || choice.path().size() < blocked.path().size()) {
+                blocked = choice;
+            }
+        }
+        StandChoice selected = direct != null ? direct : blocked;
+        if (selected != null) {
+            // 保留其他候选：世界在行走期间变化导致视线失效时，仍可重新挑选。
+            standCandidates.remove(selected.stand());
+        }
+        return selected;
+    }
+
+    private record StandChoice(BlockPos stand, List<BlockPos> path, boolean lineOfSight) {
+    }
+
     /**
      * 选站位候选列表(按优先级排序, BotMiner 逐个尝试可达性):
      * <ul>
@@ -283,9 +308,16 @@ public final class BotMiner {
             result.addAll(below);
         }
         result.addAll(above);
-        BotLog.info("站位候选: 下方{} 同平面{} 上方{} → 优先级: {}",
-                below.size(), same.size(), above.size(),
-                target.getY() > bot.blockPosition().getY() + 1 ? "下>同>上" : "同>下>上");
+        // 截断 A* 候选前，先把所有直通站位提升到最前；否则组优先级可能把同平面
+        // 直通站位截掉，迫使任务走向一个需要清障的下方/上方候选。
+        result.sort(java.util.Comparator
+                .comparing((BlockPos p) -> !lineOfSightClearFrom(level, p))
+                .thenComparingDouble(p -> {
+                    Vec3 eyeAt = new Vec3(p.getX() + 0.5D, p.getY() + 1.62D, p.getZ() + 0.5D);
+                    return eyeAt.distanceToSqr(target.getCenter());
+                }));
+        BotLog.info("站位候选: 下方{} 同平面{} 上方{} → 全局直通优先后最多试8个",
+                below.size(), same.size(), above.size());
         return result.size() > 8 ? result.subList(0, 8) : result; // 最多试 8 个,防 A* 风暴
     }
 

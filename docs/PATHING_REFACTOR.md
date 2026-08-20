@@ -31,7 +31,7 @@
 
 1. **坐标契约与诊断**：工具右键的是支撑方块，任务目标是其上方脚位格；命令直接传脚位格。所有入口必须调用同一个结构化校验，分别报告距离、高度、支撑、脚位碰撞和头部碰撞失败。
 2. **原版碰撞探针**：只在同高度安全平地验证 `MoverType.SELF` 的短距离移动、碰撞和无进展检测；不处理跳跃、高差、液体或寻路。
-3. **输入驱动适配**：参考 Baritone 的 movement primitive/input override 与 Carpet fake player action pack，在 Forge 1.20.1 中确认 `ServerPlayer` 的 `tick/travel` 边界；当前 `SoftMovementPrimitive` 实现朝向 + 前进的最小适配原语，默认 `SELF_MOVE` 使用接近原版步行的 `0.215` 格/tick 和 `MoverType.SELF` 碰撞。Forge 映射已确认 `travel(Vec3)`、`xxa`、`zza` 可用，但 `ServerPlayer.tick()` 不会自然消费 fake player 输入；因此 `/alice soft-probe-travel <脚位>` 仅作为明确的 `NATIVE_TRAVEL` 对比实验，直接单次调用原版 `travel`，必须先在平地客户端验证重力、摩擦、速度和停止行为，不能替换金斧默认后端或接入任务寻路。完整 input/travel 控制层仍待验证。
+3. **输入驱动适配**：参考 Baritone 的 movement primitive/input override 与 Carpet fake player action pack，在 Forge 1.20.1 中确认 `ServerPlayer` 的 `tick/travel` 边界；当前 `SoftMovementPrimitive` 实现朝向 + 前进的最小适配原语，默认 `SELF_MOVE` 使用接近原版步行的 `0.215` 格/tick 和 `MoverType.SELF` 碰撞。Forge 映射已确认 `travel(Vec3)`、`xxa`、`zza` 可用，但 `ServerPlayer.tick()` 不会自然消费 fake player 输入；因此 `/alice soft-probe-travel <脚位>` 和金斧 Shift+右键仅作为明确的 `NATIVE_TRAVEL` 对比实验，直接单次调用原版 `travel`。客户端已确认它可跨一格障碍，但障碍后紧邻终点时可能悬空：探针只验证终点支撑，未验证实际 climb 后的中间脚位、落地和停止位置。修复必须先添加逐段支撑/落地验证与上台阶 movement primitive，再重新测试；在此之前不得替换金斧普通右键后端或接入任务寻路。完整 input/travel 控制层仍待验证。
 4. **安全地面原语**：复用现有 `MovementHelper`/A* 的支撑和碰撞语义，只增加成熟方案缺失的适配层；先做直线平地，再做转向和单格高差，复杂碰撞交给客户端测试。
 5. **流体与应急**：在 `SurvivalSystem` 监测和 `EmergencyEscapeTask` 设计稳定后，单独验证受限水域；不把水中移动、灭火、逃生混进普通曲面执行器。
 6. **寻路接入**：只有输入驱动执行器在客户端验证通过后，才考虑把它作为 `PathExecutor` 的可选后端；`MineTask` 默认仍是 `HARD_PATH`，任何失败必须可回收并明确报告。
@@ -59,7 +59,7 @@ TargetSelector / /alice mine / auto-mine
 
 结果必须保留 `REACHED`、明确 `UNREACHABLE` 和 `SEARCH_LIMIT`（含已扩展节点数）。只有前两者可用于确定性流程；`SEARCH_LIMIT` 是保守中止，不可当作“目标深埋”的证据。
 
-只要任一合法站位存在纯曲面路径，任务就直接由 `MineTask` 执行，**绝不启动通道规划**。`MineTask` 只允许从当前站位直接清理最多两个、位于原版 4.5 格挖掘距离内的视线 blocker；超过该范围或需要重选站位的深埋目标返回 `target_requires_tunnel`。
+只要任一合法站位存在纯曲面路径，任务就直接由 `MineTask` 执行，**绝不启动通道规划**。`BotMiner` 必须在所有有限候选中优先比较“视线直通 + 曲面可达”的站位，并选取最短曲面路径；不能因目标下方/同平面/上方的分组顺序先走向一个视线受阻的站位。只有没有直通曲面站位时，才允许回退到视线受阻候选，并由 `MineTask` 从当前站位直接清理最多两个、位于原版 4.5 格挖掘距离内的 blocker；超过该范围或需要重选站位的深埋目标返回 `target_requires_tunnel`。
 
 ## 三、通道规划
 
