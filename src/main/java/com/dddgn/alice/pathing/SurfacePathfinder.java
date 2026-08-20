@@ -17,14 +17,14 @@ public final class SurfacePathfinder {
 
     public static Result find(ServerLevel level, BlockPos start, BlockPos goal) {
         if (start.equals(goal)) {
-            return Result.reached(start, List.of(), 0);
+            return Result.reached(start, List.of(), 0, 0.0D);
         }
         AStarPathfinder.SearchResult search = AStarPathfinder.computeDetailed(
                 level, start, new Goal.GoalBlock(goal));
         if (!search.reachable()) {
-            return new Result(search.status(), goal, search.path(), search.expandedNodes());
+            return new Result(search.status(), goal, search.path(), search.expandedNodes(), search.totalCost());
         }
-        return Result.reached(goal, search.path(), search.expandedNodes());
+        return Result.reached(goal, search.path(), search.expandedNodes(), search.totalCost());
     }
 
     /** 按给定顺序选择第一个存在曲面路径的合法站位。 */
@@ -36,11 +36,11 @@ public final class SurfacePathfinder {
             }
         }
         return new CandidateResult(new Result(AStarPathfinder.SearchStatus.UNREACHABLE,
-                goals.isEmpty() ? start : goals.get(0), List.of(), 0), -1);
+                goals.isEmpty() ? start : goals.get(0), List.of(), 0, Double.POSITIVE_INFINITY), -1);
     }
 
     public record Result(AStarPathfinder.SearchStatus status, BlockPos goal,
-                         List<BlockPos> path, int expandedNodes) {
+                         List<BlockPos> path, int expandedNodes, double totalCost) {
         public Result {
             goal = goal.immutable();
             path = List.copyOf(path);
@@ -54,8 +54,8 @@ public final class SurfacePathfinder {
             return status == AStarPathfinder.SearchStatus.SEARCH_LIMIT;
         }
 
-        private static Result reached(BlockPos goal, List<BlockPos> path, int expandedNodes) {
-            return new Result(AStarPathfinder.SearchStatus.REACHED, goal, path, expandedNodes);
+        private static Result reached(BlockPos goal, List<BlockPos> path, int expandedNodes, double totalCost) {
+            return new Result(AStarPathfinder.SearchStatus.REACHED, goal, path, expandedNodes, totalCost);
         }
     }
 

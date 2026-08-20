@@ -10,7 +10,7 @@ public interface Goal {
     /** 该脚位是否已达成目标。 */
     boolean isInGoal(BlockPos footPos);
 
-    /** 到达目标的最低代价估算(曼哈顿距离量级,用于 A* 启发式)。 */
+    /** 到达目标的最低代价估算。当前曲面搜索使用零启发式 Dijkstra 保证最优性。 */
     double heuristic(BlockPos footPos);
 
     /** 目标:到达指定脚位(站在目标格上)。 */

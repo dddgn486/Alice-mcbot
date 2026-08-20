@@ -64,8 +64,9 @@ public final class SoftPathProbeTask implements Task {
                 return Status.FAILED;
             }
             path = result.path();
-            BotLog.info("软路径探针: target={} segments={} expanded={}",
-                    target.toShortString(), path.size(), result.expandedNodes());
+            BotLog.info("软路径探针: target={} cost={} segments={} path={} expanded={}",
+                    target.toShortString(), String.format(java.util.Locale.ROOT, "%.2f", result.totalCost()),
+                    path.size(), path, result.expandedNodes());
         }
         if (index >= path.size()) {
             return Status.DONE;

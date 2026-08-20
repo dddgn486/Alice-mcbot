@@ -152,7 +152,10 @@ public final class MovementHelper {
                 && canWalkOn(level, to);
     }
 
-    /** 移动代价(加权:上台阶贵、下台阶略便宜)。 */
+    /**
+     * 当前受限曲面模型的固定代价：水平移动（含对角）=1，上阶=2，侧向下阶=1，原地向下=3。
+     * 对角同价使曼哈顿启发式会高估，因此 AStarPathfinder 使用零启发式 Dijkstra 顺序保证最优。
+     */
     public static double cost(MovementType type) {
         return switch (type) {
             case TRAVERSE -> 1.0D;

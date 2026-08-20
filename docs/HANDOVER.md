@@ -25,15 +25,19 @@ GitHub：`github` 远端 `dddgn486/Alice-mcbot`（本会话未推 GitHub，push 
 
 本会话已完成的软移动链路：`NATIVE_TRAVEL` 现在是金斧普通右键和 `/alice soft-probe` 的默认实验后端；`SELF_MOVE` 仅保留为 Shift+右键回归对照。客户端已实测 `NATIVE_TRAVEL` 平地前进、跨一格高障碍并正确下落；`SELF_MOVE` 跨障不稳定，仍不适合扩展。软探针不再按水平距离直接成功或伪造 `setOnGround(true)`，而是在到点后以零输入 `travel(Vec3.ZERO)` 结算原版重力/摩擦，并验证支撑与 `onGround`。下半砖/台阶落地改为按目标脚位下方 `VoxelShape` 实际顶面与实体脚底比较，避免整数 `blockPosition()` 误判。
 
+按批准计划 `20260820-surface-astar-correctness-v1`，曲面 A* 的当前成本模型已冻结为：水平（含对角）=1、上阶=2、侧向下阶=1、原地向下=3。因对角同价，旧曼哈顿 heuristic 会高估；现改为零 heuristic 的 Dijkstra 出队顺序，并在发现更低成本时重开 closed 节点。`PathingRegression` 在 headless 世界中已断言四项成本/段数：对角 `2.0/2`、上阶 `2.0/1`、下阶 `1.0/1`、高差替代路线 `3.0/2`。这证明指定曲面成本模型的算法选择，不证明客户端假人物理。
+
+新增独立点击诊断物品 `alice:soft_path_probe_selector`（指南针外观）：点击支撑方块只映射 `clicked -> clicked.above()` 脚位、检查可站/可过并派发 `SoftPathProbeTask`；日志记录入口、支撑、脚位、路径成本和段序列。它不改变金斧默认行为，不生成 bot、不改世界，也不调用 FollowTask、矿链、道路、隧道、流体或 HARD_PATH 回退。
+
 按批准计划 `20260820-soft-path-height-probe-v1`，`SoftPathProbeTask` 现会为 A* 已规划的单格段复核 `MovementHelper` 几何：平地为 `HORIZONTAL`，`dy=+1` 且 `canAscend` 成立才采用显式 jump + `NATIVE_TRAVEL`，`dy=-1` 且 `canDescend` 成立则只用原版前进/重力。任何非相邻或重验失配段返回 `soft_path_invalid_segment`；日志会输出 `action/from/to/step/onGround` 和段完成时的实际 foot/support 证据。该改动只影响 `/alice soft-path-probe`，没有修改 FollowTask、挖矿、拾取、道路、隧道或流体。
 
 已新增两项独立实验/功能入口：`/alice soft-path-probe <脚位>` 复用 `SurfacePathfinder` 的连续脚位段，并用 `NATIVE_TRAVEL` 逐段验收脚位、碰撞顶面支撑和落地；`/alice follow on|off` 是可关闭的同维度短程跟随状态，只跟随命令执行者本人，2 格跟随距离、24 格上限、每 10 tick 重算。跟随与保护区已在 `26819bd` 解耦：保护区停留/巡逻/返航是未来独立任务，不能再作为跟随的启动或运行时前提。
 
-已执行验证：本轮已运行 `./gradlew compileJava` 成功（仅既有弃用警告）；NATIVE_TRAVEL 的平地与一格高障碍/下落为用户客户端实测。**未验证**：本轮上阶 jump 原语和下降段的实际客户端表现、半格台阶修复、`soft-path-probe` 的完整混合段、FollowTask 的持续跟随/重算/边界失败、实体挤压、流体、门/栅栏/梯子、活塞和模组碰撞形状均尚未获得客户端证据，不能写成已支持。
+已执行验证：本轮 `./gradlew compileJava` 成功（仅既有弃用警告）；`./gradlew test` 成功但项目没有 test source（`NO-SOURCE`）。`./gradlew runServer -Dalice.selftest.auto=true` 在 180 秒外部时限内未完成完整既有 selftest，因而不能报告整套通过；但日志已记录新增 `PATHING_REGRESSION` 四项 PASS：对角 `2.0`、上阶 `2.0`、下阶 `1.0`、高差替代 `3.0`。NATIVE_TRAVEL 的平地与一格高障碍/下落为用户客户端实测。**未验证**：新的点击入口、最短路径的 Windows 场景、上阶 jump 原语和下降段的实际客户端表现、半格台阶修复、`soft-path-probe` 的完整混合段、FollowTask 的持续跟随/重算/边界失败、实体挤压、流体、门/栅栏/梯子、活塞和模组碰撞形状均尚未获得客户端证据，不能写成已支持。
 
 不能回退的决策：普通挖矿、拾取仍固定 `HARD_PATH`；`MineTask` 不生成道路或隧道，深层目标失败 `target_requires_tunnel`；A* 不破坏方块；本地清障仍仅限直接可见、4.5 格内、最多 2 个方块。`SOFT_SURFACE` 不得接入 `MineTask`、`DropCollectionTask`、道路或隧道，除非逐项客户端验证和单独决策批准。
 
-下一步最小安全验证：在 Windows 客户端仅用 `/alice soft-path-probe <脚位>` 验证五项：单格上阶、单格下阶、平地加一阶混合段、头顶净空受阻、下半砖/台阶支撑。记录每段 `action/from/to/foot/onGround` 日志、失败码和 bot 最终可回收位置；用户须明确给出 `USER_ACCEPTED`、`NEEDS_FIX`、`NEEDS_REPLAN` 或 `NEEDS_DISCUSSION`。FollowTask 保持平地限制，且在该门槛前不得扩展到攻击、巡逻、流体或普通挖矿。
+下一步最小安全验证：Windows 客户端先用 `alice:soft_path_probe_selector` 点击支撑方块，验证最短路线含高差、点击入口的单格上/下阶、头顶净空受阻和 bot 恢复；精确坐标 `/alice soft-path-probe <脚位>` 仅作诊断回退。记录入口 `support/foot`、路径 `cost/path`、每段 `action/from/to/foot/onGround`、失败码和最终可回收位置；用户须明确给出 `USER_ACCEPTED`、`NEEDS_FIX`、`NEEDS_REPLAN` 或 `NEEDS_DISCUSSION`。FollowTask 保持平地限制，且在该门槛前不得扩展到攻击、巡逻、流体或普通挖矿。
 
 
 ---

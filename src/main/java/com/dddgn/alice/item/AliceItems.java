@@ -25,6 +25,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> SOFT_MOVE_SELECTOR =
             ITEMS.register("soft_move_selector", () -> new SoftMoveSelector(new Item.Properties()));
 
+    /** 独立软路径诊断工具：点击支撑方块，只启动 SoftPathProbeTask。 */
+    public static final RegistryObject<Item> SOFT_PATH_PROBE_SELECTOR =
+            ITEMS.register("soft_path_probe_selector", () -> new SoftPathProbeSelector(new Item.Properties()));
+
     /** 道路数学模型工具：贴图使用原版钻石锄。 */
     public static final RegistryObject<Item> ROAD_PLANNER =
             ITEMS.register("road_planner", () -> new RoadPlannerItem(new Item.Properties()));

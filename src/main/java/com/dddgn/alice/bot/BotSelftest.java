@@ -2,6 +2,7 @@ package com.dddgn.alice.bot;
 
 import com.dddgn.alice.action.BotMiner;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.pathing.PathingRegression;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -52,6 +53,7 @@ public final class BotSelftest {
     private static boolean scenarioTimedOut;
     /** 默认只跑可重复的曲面链路冒烟；复杂回归仅由显式 full 模式触发。 */
     private static boolean fullSuite;
+    private static boolean pathingRegressionPass;
 
     /** 记录 RUN 阶段耗时；达到预算即结束且该项强制不合格，后续成功不能翻案。 */
     private static boolean runFinished() {
@@ -153,6 +155,7 @@ public final class BotSelftest {
             return;
         }
         fullSuite = full;
+        pathingRegressionPass = false;
         test1Pass = false;
         test2Pass = false;
         test3Pass = false;
@@ -329,6 +332,7 @@ public final class BotSelftest {
             }
         }
 
+        pathingRegressionPass = PathingRegression.run(level, surface.offset(8, 0, 8));
         bot = BotManager.spawn(level, surface, "SelftestBot");
         target1 = surface.offset(2, 0, 0);
         level.setBlock(target1, Blocks.DIRT.defaultBlockState(), 3);
@@ -804,10 +808,13 @@ public final class BotSelftest {
     }
 
     private static void report() {
-        boolean allPass = test1Pass && test2Pass && test3Pass && test4Pass && test5Pass && test6Pass && test7Pass && test8Pass && test9Pass && test10Pass && test11Pass && test12Pass && test13Pass;
-        BotLog.info("SELFTEST 结果: {} (TEST1={} TEST2={} TEST3={} TEST4={} TEST5={} TEST6={} TEST7={} TEST8={} TEST9={} TEST10={} TEST11={} TEST12={} TEST13={})",
-                allPass ? "PASS" : "FAIL",
-                test1Pass, test2Pass, test3Pass, test4Pass, test5Pass, test6Pass, test7Pass, test8Pass, test9Pass, test10Pass, test11Pass, test12Pass, test13Pass);
+        boolean allPass = pathingRegressionPass && test1Pass && test2Pass && test3Pass && test4Pass
+                && test5Pass && test6Pass && test7Pass && test8Pass && test9Pass && test10Pass
+                && test11Pass && test12Pass && test13Pass;
+        BotLog.info("SELFTEST 结果: {} (PATHING={} TEST1={} TEST2={} TEST3={} TEST4={} TEST5={} TEST6={} TEST7={} TEST8={} TEST9={} TEST10={} TEST11={} TEST12={} TEST13={})",
+                allPass ? "PASS" : "FAIL", pathingRegressionPass,
+                test1Pass, test2Pass, test3Pass, test4Pass, test5Pass, test6Pass, test7Pass,
+                test8Pass, test9Pass, test10Pass, test11Pass, test12Pass, test13Pass);
         // headless 验收:测完自动关服(审查点 R8)
         server.halt(true);
     }

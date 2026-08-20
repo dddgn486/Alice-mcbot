@@ -33,7 +33,7 @@ public final class AStarPathfinder {
      */
     public enum SearchStatus { REACHED, UNREACHABLE, SEARCH_LIMIT }
 
-    public record SearchResult(SearchStatus status, List<BlockPos> path, int expandedNodes) {
+    public record SearchResult(SearchStatus status, List<BlockPos> path, int expandedNodes, double totalCost) {
         public SearchResult {
             path = List.copyOf(path);
         }
@@ -63,7 +63,9 @@ public final class AStarPathfinder {
 
         PathNode startNode = new PathNode(start);
         startNode.cost = 0;
-        startNode.combinedCost = goal.heuristic(start);
+        // 当前成本模型将直走和对角均定为 1，曼哈顿 heuristic 会高估对角路线。
+        // 使用零 heuristic 的 Dijkstra 顺序，优先证明最短成本而非追求搜索速度。
+        startNode.combinedCost = 0;
         openSet.insert(startNode);
         openIndex.put(startNode.pos, startNode);
 
@@ -71,7 +73,7 @@ public final class AStarPathfinder {
             PathNode current = openSet.removeBest();
             openIndex.remove(current.pos);
             if (goal.isInGoal(current.pos)) {
-                return new SearchResult(SearchStatus.REACHED, reconstruct(current), closed.size());
+                return new SearchResult(SearchStatus.REACHED, reconstruct(current), closed.size(), current.cost);
             }
             closed.put(current.pos, current);
             if (current.moves >= MAX_MOVES) {
@@ -87,7 +89,7 @@ public final class AStarPathfinder {
         }
         SearchStatus status = closed.size() > MAX_NODES || moveLimitReached
                 ? SearchStatus.SEARCH_LIMIT : SearchStatus.UNREACHABLE;
-        return new SearchResult(status, List.of(), closed.size());
+        return new SearchResult(status, List.of(), closed.size(), Double.POSITIVE_INFINITY);
     }
 
     private static void expand(ServerLevel level, PathNode current, Goal goal,
@@ -136,7 +138,7 @@ public final class AStarPathfinder {
                                 BlockPos to, MovementType type,
                                 int minX, int maxX, int minY, int maxY, int minZ, int maxZ) {
         if (to.getX() < minX || to.getX() > maxX || to.getY() < minY || to.getY() > maxY
-                || to.getZ() < minZ || to.getZ() > maxZ || closed.containsKey(to)) {
+                || to.getZ() < minZ || to.getZ() > maxZ) {
             return;
         }
         boolean valid = switch (type) {
@@ -151,16 +153,22 @@ public final class AStarPathfinder {
         double newCost = current.cost + MovementHelper.cost(type);
         PathNode existing = openIndex.get(to);
         if (existing == null) {
-            PathNode node = new PathNode(to);
+            PathNode previousBest = closed.get(to);
+            if (previousBest != null && newCost >= previousBest.cost) {
+                return;
+            }
+            // 即使未来更换为一致 heuristic，也保留重开逻辑；成本模型变化不会静默破坏最优性。
+            closed.remove(to);
+            PathNode node = previousBest == null ? new PathNode(to) : previousBest;
             node.cost = newCost;
-            node.combinedCost = newCost + goal.heuristic(to);
+            node.combinedCost = newCost;
             node.previous = current;
             node.moves = current.moves + 1;
             openSet.insert(node);
             openIndex.put(to, node);
         } else if (newCost < existing.cost) {
             existing.cost = newCost;
-            existing.combinedCost = newCost + goal.heuristic(to);
+            existing.combinedCost = newCost;
             existing.previous = current;
             existing.moves = current.moves + 1;
             openSet.update(existing);
