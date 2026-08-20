@@ -45,8 +45,8 @@ public final class SoftMoveSelector extends Item {
         }
         com.dddgn.alice.pathing.SoftMovementPrimitive.Backend backend =
                 player != null && player.isShiftKeyDown()
-                        ? com.dddgn.alice.pathing.SoftMovementPrimitive.Backend.NATIVE_TRAVEL
-                        : com.dddgn.alice.pathing.SoftMovementPrimitive.Backend.SELF_MOVE;
+                        ? com.dddgn.alice.pathing.SoftMovementPrimitive.Backend.SELF_MOVE
+                        : com.dddgn.alice.pathing.SoftMovementPrimitive.Backend.NATIVE_TRAVEL;
         BotManager.assignSoftMoveProbe(bot, target, backend);
         send(player, "[alice] 已指定 " + backend + " SOFT_SURFACE 目的地 "
                 + target.toShortString() + " -> " + bot.getName().getString());

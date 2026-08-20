@@ -60,6 +60,10 @@ public final class BotCommand {
                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                 .executes(ctx -> softProbeTravel(ctx.getSource(),
                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
+                .then(Commands.literal("soft-path-probe")
+                        .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                                .executes(ctx -> softPathProbe(ctx.getSource(),
+                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
                 .then(Commands.literal("road")
                         .then(Commands.literal("build")
                                 .executes(ctx -> buildRoad(ctx.getSource())))
@@ -403,6 +407,30 @@ public final class BotCommand {
         BotManager.assignSoftMoveProbe(bot, target,
                 com.dddgn.alice.pathing.SoftMovementPrimitive.Backend.NATIVE_TRAVEL);
         source.sendSuccess(() -> Component.literal("[alice] 已启动 NATIVE_TRAVEL 对比探针: "
+                + bot.blockPosition().toShortString() + " -> " + target.toShortString()), false);
+        return 1;
+    }
+
+    /** 连续脚位段软路径实验：仅 NATIVE_TRAVEL，不分配挖矿或道路任务。 */
+    private static int softPathProbe(CommandSourceStack source, BlockPos target) {
+        ServerLevel level = source.getLevel();
+        BotPlayer bot = BotManager.firstInLevel(level);
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] 请先生成 bot，再运行软路径探针"));
+            return 0;
+        }
+        if (BotManager.isBusy(bot)) {
+            source.sendFailure(Component.literal("[alice] bot 当前有任务，未启动软路径探针"));
+            return 0;
+        }
+        if (!com.dddgn.alice.pathing.MovementHelper.canWalkOn(level, target)
+                || !com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, target)
+                || !com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, target.above())) {
+            source.sendFailure(Component.literal("[alice] 软路径目标必须是安全脚位格"));
+            return 0;
+        }
+        BotManager.assignSoftPathProbe(bot, target);
+        source.sendSuccess(() -> Component.literal("[alice] 已启动 NATIVE_TRAVEL 软路径探针: "
                 + bot.blockPosition().toShortString() + " -> " + target.toShortString()), false);
         return 1;
     }

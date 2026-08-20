@@ -203,13 +203,14 @@ BUILD_UNIT → WAIT_STABLE → MOVE_TO_NEXT_UNIT →（循环）→ MINE_TARGET 
 /alice selftest full         历史完整 13 项回归，仅排错时显式运行
 /alice diagnose-path <x y z>  只读曲面寻路诊断（状态/路径段数/扩展节点）
 /alice status                 只读 bot 回收/维生状态（busy/上次结果/位置/hazard/air/health）
-/alice soft-probe <x y z>    SOFT_SURFACE 默认 SELF_MOVE 平地短距离实验（bot 8格内，不接入挖矿）
-/alice soft-probe-travel <x y z>  原版 NATIVE_TRAVEL 对比实验（需已有空闲 bot，仅平地）
+/alice soft-probe <x y z>    SOFT_SURFACE 默认 NATIVE_TRAVEL 平地短距离实验（bot 8格内，不接入挖矿）
+/alice soft-probe-travel <x y z>  NATIVE_TRAVEL 兼容别名（需已有空闲 bot，仅平地）
+/alice soft-path-probe <x y z>  NATIVE_TRAVEL 连续脚位段实验（复用曲面 A*，仅客户端测试）
 /alice road build            玩家版：按蓝图逐单元构建
 /alice road buildbybot        bot 版：强制施工动画 + 终点挖掘
 /alice protect ...           安全区管理
 目标指定器(钻石斧)右键方块   挖掘；Shift+右键 → 独立放置任务（PlaceTask）
-软移动选择器(金斧)右键平地   SELF_MOVE；Shift+右键平地 → NATIVE_TRAVEL 对比；需已有空闲 bot，受 8 格/同高度限制
+软移动选择器(金斧)右键平地   NATIVE_TRAVEL；Shift+右键平地 → SELF_MOVE 回归对照；需已有空闲 bot，受 8 格/同高度限制
 道路蓝图锄(钻石锄)右键两端   生成蓝色道路预览；Shift+右键重置
 钻石铲右键                   快捷接口扫描
 ```

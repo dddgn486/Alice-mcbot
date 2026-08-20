@@ -66,13 +66,14 @@ collect_no_path / collect_path_failed / collect_timeout / target_requires_tunnel
 | 工具 | 交互 | 行为 |
 |---|---|---|
 | `alice:target_selector`（贴图=钻石斧） | 右键方块 | 指派挖掘任务给 bot（无 bot 自动生成） |
-| `alice:soft_move_selector`（贴图=金斧） | 右键安全平地 | 指定 SOFT_SURFACE 探针目的地；需已有空闲 bot，不接入挖矿 |
+| `alice:soft_move_selector`（贴图=金斧） | 右键安全平地 | 默认 NATIVE_TRAVEL；Shift+右键为 SELF_MOVE 回归对照；需已有空闲 bot，不接入挖矿 |
 | 钻石铲（原版） | 右键方块 | 接口扫描 `/alice scan` 的快捷版 |
 | `/alice diagnose-path <pos>` | 只读命令 | 返回曲面路径状态、路径段数与扩展节点；不分配任务、不改世界 |
 | `/alice status` | 只读命令 | 返回当前维度 bot 的 busy、上次结果和位置；无 bot 时失败，不生成 bot |
 | `/alice selftest` | 基础冒烟 | 默认只跑 TEST1-3 的确定性曲面链路 |
 | `/alice selftest full` | 完整回归 | 显式运行历史 13 项，复杂场景失败需结合客户端复核 |
-| `/alice soft-probe <pos>` | 软移动实验 | 仅 bot 8 格内、同高度安全平地；使用 `MoverType.SELF`，不接入挖矿 |
+| `/alice soft-probe <pos>` | 平地软移动 | 默认 NATIVE_TRAVEL；仅 bot 8 格内、同高度安全平地，不接入挖矿 |
+| `/alice soft-path-probe <pos>` | 连续脚位段软路径 | 复用 SurfacePathfinder，以 NATIVE_TRAVEL 逐段验收脚位/支撑/落地；仅客户端测试 |
 
 物品注册走 `AliceItems`（DeferredRegister），**不套原版工具**——只引用贴图。
 
