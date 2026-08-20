@@ -1,30 +1,37 @@
 # Alice 项目交接说明（给新会话的快速上手）
 
 > 用途：另一个对话/会话接手本项目时，先读本文件 + README + 设计文档，即可快速进入工作。
-> 更新：2026-08-20（SOFT_SURFACE 软移动第 3 阶段：朝向/前进原语已验证）
-> 重要：本会话所有改动已同步到 Windows 端仓库（`origin` = `/mnt/d/JAVA_projects/alice`），
-> 最新提交 `4b65089`。**每次代码修改完成后必须 `git push origin master`**，用户靠 Windows 端实测。
+> 更新：2026-08-20（本会话记录收口；以当前 HEAD `26819bd` 与工作区 diff 为准）
+> 重要：本会话功能提交已同步到 Windows 端仓库（`origin` = `/mnt/d/JAVA_projects/alice`）。**每次代码修改完成后必须 `git push origin master`**，用户在 Windows 客户端实测。
+> 本次文档提交前工作区另有 `.gitignore`、`docs/SUPERVISION_PROTOCOL.md`、`tools/` 的未提交变更；它们不属于本轮软移动/跟随实现，接手时不得覆盖或混入功能提交。
 
 ## 〇、当前 Git 状态（重要）
 
 ```
-4b65089 feat: add soft movement primitives                 ← HEAD（朝向+前进原语，0.215 格/tick）
-ee3195e fix: diagnose soft movement probe targets         （金斧/命令软移动目标坐标契约修复）
-cdc9351 docs: record mature soft movement references      （成熟方案复用原则 R31）
-92e6376 feat: add soft movement selector tool             （金斧 soft_move_selector + /alice soft-probe）
-e7cf00f feat: add soft surface movement probe             （MoverType.SELF 平地探针 SoftMoveTask）
-7fb859e refactor: keep mining task focused                （删除 MineTask 旧收集状态机，只剩委托链）
-295c652 refactor: enforce survival checks in mining tasks
+26819bd fix: decouple follow from safe zones               ← HEAD（跟随与保护区模块解耦）
+f07533a feat: add safe zone follow task                    （首次 FollowTask；随后已移除保护区前提）
+becd643 fix: support partial block soft landings           （半格/台阶 VoxelShape 支撑顶面落地验收）
+c635bc5 feat: add native travel path probe                （SurfacePathfinder 连续脚位段 NATIVE_TRAVEL 探针）
+c293c10 fix: settle soft movement with native gravity     （移除伪 onGround 成功，零输入 travel 结算）
+9184ae7 fix: prefer direct mining stands                   （直通且可达的挖掘站位优先）
 ```
 
-当前应为干净工作区；若接手时出现未提交改动，先核对是否为本轮软移动实验，勿覆盖用户改动。
+当前工作区不是干净状态：`docs/HANDOVER.md` 为本轮记录更新；`.gitignore`、`docs/SUPERVISION_PROTOCOL.md`、`tools/` 是未归属的既有变更。只提交已核对归属的文件，勿覆盖用户或监督流程变更。
 
 WSL 工作区路径：`~/projects/alice`；Windows：`D:\JAVA_projects\alice`（`origin`）。
 GitHub：`github` 远端 `dddgn486/Alice-mcbot`（本会话未推 GitHub，push 前先 `git fetch github` 查冲突）。
 
 ## 快速接手（1 分钟）
 
-当前主线是 `SOFT_SURFACE` 软移动第 3 阶段（输入驱动适配）。已完成并推送：平地碰撞探针客户端验证通过（`MoverType.SELF`、bot 8 格内同高度安全平地、无进展/维生兜底），坐标契约诊断修复（金斧右键支撑块→`clicked.above()` 作为脚位格、命令直接传脚位格，两入口统一走 `SoftMoveProbeTask.validate` 返回具体失败 reason，规则见 R32），以及 `SoftMovementPrimitive`（每 tick 朝向目标、同步头部朝向，再以 `0.215` 格/tick 前进并交给 `MoverType.SELF` 碰撞；探针日志输出 step/yaw）。`./gradlew compileJava` 已通过并已推送；下一步先让用户用金斧复测速度与朝向。调研结论：当前 `BotPlayer.tick()` 仅调用 `super.tick()`，没有客户端移动包/action-pack 输入链；不能把未验证的 `travel`/`xxa`/`zza` 调用塞进已通过的探针。后续应先独立设计 Forge `BotPlayer` 控制层，再参考 Baritone movement primitive + input override 与 Carpet fake player action pack（R31：不从零重写核心算法），逐步验证平地前进、转向、单格高差，客户端实测后才接入寻路。硬约束不变：`MineTask`/`DropCollectionTask`/普通挖矿固定 `HARD_PATH`（`PathExecutor.setPos`），软移动不得接入挖矿、不得处理液体/高差/逃生；每次改动后必须 `./gradlew compileJava` 并 `git push origin master`。
+本会话已完成的软移动链路：`NATIVE_TRAVEL` 现在是金斧普通右键和 `/alice soft-probe` 的默认实验后端；`SELF_MOVE` 仅保留为 Shift+右键回归对照。客户端已实测 `NATIVE_TRAVEL` 平地前进、跨一格高障碍并正确下落；`SELF_MOVE` 跨障不稳定，仍不适合扩展。软探针不再按水平距离直接成功或伪造 `setOnGround(true)`，而是在到点后以零输入 `travel(Vec3.ZERO)` 结算原版重力/摩擦，并验证支撑与 `onGround`。下半砖/台阶落地改为按目标脚位下方 `VoxelShape` 实际顶面与实体脚底比较，避免整数 `blockPosition()` 误判。
+
+已新增两项独立实验/功能入口：`/alice soft-path-probe <脚位>` 复用 `SurfacePathfinder` 的连续脚位段，并用 `NATIVE_TRAVEL` 逐段验收脚位、碰撞顶面支撑和落地；`/alice follow on|off` 是可关闭的同维度短程跟随状态，只跟随命令执行者本人，2 格跟随距离、24 格上限、每 10 tick 重算。跟随与保护区已在 `26819bd` 解耦：保护区停留/巡逻/返航是未来独立任务，不能再作为跟随的启动或运行时前提。
+
+已执行验证：上述提交均已运行 `./gradlew compileJava` 成功（仅既有弃用警告）；NATIVE_TRAVEL 的平地与一格高障碍/下落为用户客户端实测。**未验证**：半格台阶修复、`soft-path-probe` 的完整上/下台阶链路、FollowTask 的持续跟随/重算/边界失败、实体挤压、流体、门/栅栏/梯子、活塞和模组碰撞形状均尚未获得客户端证据，不能写成已支持。
+
+不能回退的决策：普通挖矿、拾取仍固定 `HARD_PATH`；`MineTask` 不生成道路或隧道，深层目标失败 `target_requires_tunnel`；A* 不破坏方块；本地清障仍仅限直接可见、4.5 格内、最多 2 个方块。`SOFT_SURFACE` 不得接入 `MineTask`、`DropCollectionTask`、道路或隧道，除非逐项客户端验证和单独决策批准。
+
+下一步最小安全验证：在平地保护区外也可运行 `/alice follow on`，测试玩家缓慢移动、停下、改变方向、拉开到超过 24 格和 `/alice follow off`；每项只记录实际 `follow_*` 结果与 bot 最终可回收位置。通过前不要扩展到攻击、巡逻、流体或普通挖矿。
 
 
 ---
@@ -239,12 +246,13 @@ headless 验收：`./gradlew runServer -Dalice.selftest.auto=true`（测完自�
 - **R27（新）**：通道规划和执行必须以 bot 可回收性优先：执行层独立否决流体、保护区、不可破坏/高代价方块与非法几何；复杂世界无法证明安全时宁可停止，绝不让 LLM 建议绕过硬检查。
 - **R28（新）**：`SurvivalSystem` 每 tick 先于任务监测危险；第一版 `LAVA_CONTACT`/`SUFFOCATING` 直接中断任务，水/低空气/着火只记录；`FluidRiskPolicy` 对目标及相邻六格可见岩浆返回 `fluid_risk_lava`，不自动挖源头或堵流体。
 - **R29（新）**：维生系统第一版只做监测和硬中断，不主动逃生、上浮、灭火或切换软移动；后续由独立 `EmergencyEscapeTask`/`MovementMode` 实现，不能在 MineTask 内复制应急逻辑。
-- **R30（新）**：`PathExecutor` 当前固定为 `MovementMode.HARD_PATH`，普通挖矿/拾取不可切换。`SOFT_SURFACE` 仅可通过 `/alice soft-probe` 在同高度安全平地、bot 8 格内测试 `MoverType.SELF` 碰撞移动；它不处理高差、液体或失败后的硬移动回退。
+- **R30（更新）**：`PathExecutor` 当前固定为 `MovementMode.HARD_PATH`，普通挖矿/拾取不可切换。`SOFT_SURFACE` 默认后端为 `NATIVE_TRAVEL`：`/alice soft-probe` 仍限同高度安全平地、bot 8 格内；`/alice soft-path-probe` 与 `FollowTask` 是独立的连续脚位段实验/低风险跟随入口。`SELF_MOVE` 仅作回归对照。软移动不处理液体、失败后的硬移动回退，也不得接入矿链。
 - **R31（新）**：软移动与软移动寻路优先借鉴成熟实现，不从零重写核心运动/寻路算法。当前参考 Baritone 的 movement primitive + input override、Carpet fake player 的 action pack；Forge 适配前先确认 `ServerPlayer` 的 tick/travel/input 注入边界。`setPos` 不能伪装成软移动，成熟输入驱动方案未验证前不得接入 MineTask。
 - **R32（新）**：软移动的 `BlockPos` 一律表示脚位格。金斧 `soft_move_selector` 右键的是支撑方块，必须转换为 `clicked.above()` 再校验/指派；`/alice soft-probe` 直接传脚位。入口必须使用 `SoftMoveProbeTask.validate`，失败返回具体 reason，禁止回退为笼统“安全平地”提示。完整阶段路线见 `PATHING_REFACTOR.md`。
 - **R33（新）**：`NATIVE_TRAVEL` 已通过平地与一格障碍跨越/落地客户端测试，现为金斧普通右键与默认软探针后端；`SELF_MOVE` 仅由金斧 Shift+右键作回归对照。`ServerPlayer.tick()` 不会自动消费 fake player 的 `xxa`/`zza`，当前任务逐 tick 显式调用 `travel`；软路径仅用 `/alice soft-path-probe` 独立测试，不得接入挖矿。
 - **R34（新）**：单目标挖掘站位选择必须先比较所有有限候选中的“视线直通 + 曲面可达”站位，并取最短曲面路径；候选分组（下/同/上）只能辅助生成，不能压过直通性。无直通候选时才回退到视线受阻站位，并严格使用 MineTask 最多两格、4.5 格局部清障；A* 不得为了站位自行挖方块或扩大成通道施工。
-- **R35（新）**：软移动抵达不能按水平距离直接 `setOnGround(true)` 成功。必须验证目标脚位下方碰撞形状的实际支撑顶面、实体脚底和 `onGround`；不能以 `blockPosition()` 的整数 Y 拒绝下半砖/台阶上的正常落地。跨障后未落稳时只用零输入 `travel(Vec3.ZERO)` 结算原版重力/摩擦，30 tick 未稳定返回 `soft_probe_unsettled`。上/下台阶必须由 `SurfacePathfinder` 提供连续脚位段后逐段验证。
+- **R35（更新）**：软移动抵达不能按水平距离直接 `setOnGround(true)` 成功。必须验证目标脚位下方碰撞形状的实际支撑顶面、实体脚底和 `onGround`；不能以 `blockPosition()` 的整数 Y 拒绝下半砖/台阶上的正常落地。跨障后未落稳时只用零输入 `travel(Vec3.ZERO)` 结算原版重力/摩擦，30 tick 未稳定返回 `soft_probe_unsettled`。半格台阶的实现已编译，但尚无本会话客户端验证；上/下台阶必须由 `SurfacePathfinder` 提供连续脚位段后逐段验证，未验证前不得视为稳定能力。
+- **R36（新）**：`FollowTask` 是独立的可开关 SOFT_SURFACE 状态，`/alice follow on|off` 只由被跟随玩家本人开关；运行约束仅为同维度、bot 空闲、24 格上限、安全曲面、连续脚位段和维生中断，保持约 2 格距离并每 10 tick 重算。它与保护区完全解耦；保护区停留/巡逻/返航必须另建任务。跟随尚未获得客户端持续运动、重算和失败边界验证，禁止据此接入攻击或普通矿链。
 - **坑**：掉落物有 pickupDelay；挖高处方块后掉落物需等 onGround 再拾取，未落地前不要反复跑昂贵 A*。
 - **坑**：`RenderType.lines()` 自带深度测试 → 透视高亮需自定义 RenderType（NO_DEPTH_TEST）。
 - **坑**：`stone` 是方块 ID 不是标签 → auto-mine 需自动判断标签/方块两种模式。
@@ -260,8 +268,9 @@ headless 验收：`./gradlew runServer -Dalice.selftest.auto=true`（测完自�
 - WSL：`~/projects/alice`（开发/编译/headless 测试）
 - Windows：`D:\JAVA_projects\alice`（runClient 实测；`receive.denyCurrentBranch=updateInstead`）
 - GitHub：`dddgn486/Alice-mcbot`（公开存档 + Actions CI；SSH 推送）
-- 流程：WSL 改代码 → **编译验证（`./gradlew compileJava`）→ `git push origin master`（Windows）→ 用户实测**
+- 流程：WSL 改代码 → **编译验证（`./gradlew compileJava`）→ 更新本 HANDOVER（实际 HEAD、完成项、验证证据、未验证限制、下一安全步）→ 提交 → `git push origin master`（Windows）→ 用户实测 → `./tools/session-complete.sh` 生成监督审核包**。
 - **用户要求：每次修改同步到 Windows 端**，方便实测。本会话所有提交均已 push origin。
+- **二次审核规则**：每个完成会话都必须将交接记录写入本文件，并生成 `.alice-supervision/pending/<commit>.md` 审核包；审核员先读审核包、本文件、当前 Git HEAD 与相关设计文档，审查架构方向、R# 决策、任务边界和验证充分性。审核员不接管业务实现；发现架构漂移、实验能力提前接入稳定链、或记录与事实不一致时，必须明确阻止后续扩展或要求用户决策。完整协议见 `docs/SUPERVISION_PROTOCOL.md`；每个开发副本首次运行 `./tools/install-supervision-hook.sh` 安装本地 post-commit 自动入队。
 - 推 GitHub 前先 `git fetch github` 检查冲突（遇到过 3 次 non-fast-forward）。
 
 ## 十、环境
