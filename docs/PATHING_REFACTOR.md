@@ -19,6 +19,14 @@
 
 挖掘前 `FluidRiskPolicy` 会保守拒绝目标或相邻六格存在可见岩浆的操作，返回 `fluid_risk_lava`，不自动堵水、挖源头或把普通挖矿扩大成流体工程。复杂流体传播仍必须客户端验证。
 
+## 成熟方案复用原则
+
+涉及路径搜索、玩家移动、流体/碰撞、假人控制或通道几何时，优先调研并借鉴维护中的成熟项目；已有可移植算法、行为原语或原版 API 能覆盖的问题，不从零重写核心算法。当前优先参考 Baritone 的“路径 -> movement primitive -> 输入覆盖”执行模型，以及 Carpet fake player 的 action pack/玩家行为驱动模型；由于 Alice 是 Forge 1.20.1，不能直接引入 Fabric 实现，必须以最小适配层复用其架构思想和原版语义。
+
+`setPos` 的 `HARD_PATH` 只保留为当前稳定兼容模式。`SOFT_SURFACE` 不应继续扩展为逐 tick 直接 `move` 到格心的自制运动系统；探针仅用于验证 Forge 假人上的原版碰撞 API。后续软移动应优先实现受限输入驱动执行器，并先从平地走路、朝向、前进和跳跃原语开始，客户端实测后再接入寻路。
+
+参考：Baritone [输入与移动控制](https://deepwiki.com/cabaletta/baritone/6.4-input-and-movement-control)、[路径执行器](https://git.jerryxiao.com/mc/baritone/src/branch/1.18-squashed/src/main/java/baritone/pathing/path/PathExecutor.java)、Carpet [fake player 实现](https://github.com/gnembon/fabric-carpet/blob/master/src/main/java/carpet/patches/EntityPlayerMPFake.java)。
+
 ## 决策与兜底原则
 
 - 决策层（规则或 LLM）只选择目标、预算和是否授权通道；执行层必须独立验证世界状态，不能因为决策层建议而越过安全区、流体、不可破坏方块或材料/工具约束。
