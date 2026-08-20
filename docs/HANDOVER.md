@@ -16,7 +16,7 @@ d11e851 fix: settle soft path descents                    （下降诊断已实�
 b423af3 fix: prove surface path costs                     （零 heuristic / Dijkstra 成本正确性）
 ```
 
-当前工作区不是干净状态：治理对接文件待独立提交。下一次功能工作开始前，监督员应先创建 `.alice-supervision/active-plan.md` 并标记 `APPROVED_FOR_IMPLEMENTATION`；主工作会话必须运行 `./tools/work-session-start.sh`，没有批准工作包不得扩展功能。只提交已核对归属的文件，勿覆盖用户或监督流程变更。
+当前工作区不是干净状态：治理对接文件待独立提交。治理基线包含 `AGENTS.md`、`docs/SUPERVISION_PROTOCOL.md`、`docs/supervision/`、`tools/` 和 `docs/SUPERVISOR_HANDOFF.md`；四角色 `dsh-agent-bus` 的接管顺序、权限和当前阻塞以 `docs/SUPERVISOR_HANDOFF.md` 为准。下一次功能工作开始前，监督员应先创建或核对 `.alice-supervision/active-plan.md` 并标记 `APPROVED_FOR_IMPLEMENTATION`；主工作会话必须运行 `./tools/work-session-start.sh`，没有批准工作包不得扩展功能。只提交已核对归属的文件，勿覆盖用户或监督流程变更。
 
 WSL 工作区路径：`~/projects/alice`；Windows：`D:\JAVA_projects\alice`（`origin`）。
 GitHub：`github` 远端 `dddgn486/Alice-mcbot`（本会话未推 GitHub，push 前先 `git fetch github` 查冲突）。
