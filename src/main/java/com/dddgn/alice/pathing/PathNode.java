@@ -13,6 +13,9 @@ public final class PathNode {
     PathNode previous;
     int heapIndex = -1;
     int moves;
+    int turns;
+    int directionX;
+    int directionZ;
 
     PathNode(BlockPos pos) {
         this.pos = pos;

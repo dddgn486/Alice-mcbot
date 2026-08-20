@@ -4,6 +4,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 
 /**
  * 移动判定(移植自 Baritone MovementHelper 的核心判定逻辑,服务端直读版)。
@@ -96,9 +97,68 @@ public final class MovementHelper {
     /** 平地移动(从 from 脚位水平走到 to 脚位)。 */
     public static boolean canTraverse(ServerLevel level, BlockPos from, BlockPos to) {
         // 目标脚位可站,目标身体格与头格可穿过
-        return canWalkOn(level, to)
-                && canWalkThrough(level, to)
-                && canWalkThrough(level, to.above());
+        if (!canWalkOn(level, to)
+                || !canWalkThrough(level, to)
+                || !canWalkThrough(level, to.above())) {
+            return false;
+        }
+        int dx = to.getX() - from.getX();
+        int dz = to.getZ() - from.getZ();
+        if (Math.abs(dx) == 1 && Math.abs(dz) == 1) {
+            // 对角线不能擦过任一侧方块；同时检查角落交叉格，避免两方块夹角被当成可走。
+            BlockPos sideX = new BlockPos(from.getX() + dx, from.getY(), from.getZ());
+            BlockPos sideZ = new BlockPos(from.getX(), from.getY(), from.getZ() + dz);
+            if (!canWalkThrough(level, sideX) || !canWalkThrough(level, sideX.above())
+                    || !canWalkThrough(level, sideZ) || !canWalkThrough(level, sideZ.above())) {
+                return false;
+            }
+        }
+        return canSweepPlayer(level, from, to);
+    }
+
+    /**
+     * 按玩家尺寸检查脚位中心从 from 到 to 的连续扫掠空间。
+     * 支撑方块只在脚底边界接触，不会被当作身体碰撞；侧向实体空间则必须完全无碰撞。
+     */
+    public static boolean canSweepPlayer(ServerLevel level, BlockPos from, BlockPos to) {
+        final double halfWidth = 0.3D;
+        final double height = 1.8D;
+        double minX = Math.min(from.getX() + 0.5D, to.getX() + 0.5D) - halfWidth;
+        double maxX = Math.max(from.getX() + 0.5D, to.getX() + 0.5D) + halfWidth;
+        double minY = Math.min(from.getY(), to.getY());
+        double maxY = Math.max(from.getY(), to.getY()) + height;
+        double minZ = Math.min(from.getZ() + 0.5D, to.getZ() + 0.5D) - halfWidth;
+        double maxZ = Math.max(from.getZ() + 0.5D, to.getZ() + 0.5D) + halfWidth;
+        AABB sweep = new AABB(minX, minY, minZ, maxX, maxY, maxZ);
+        int startX = (int) Math.floor(minX);
+        int endX = (int) Math.floor(Math.nextDown(maxX));
+        int startY = (int) Math.floor(minY);
+        int endY = (int) Math.floor(Math.nextDown(maxY));
+        int startZ = (int) Math.floor(minZ);
+        int endZ = (int) Math.floor(Math.nextDown(maxZ));
+        for (int x = startX; x <= endX; x++) {
+            for (int y = startY; y <= endY; y++) {
+                for (int z = startZ; z <= endZ; z++) {
+                    BlockPos pos = new BlockPos(x, y, z);
+                    // 起点/终点脚下支撑属于脚底接触，不是身体扫掠阻塞。
+                    if (pos.equals(from.below()) || pos.equals(to.below())) {
+                        continue;
+                    }
+                    BlockState state = level.getBlockState(pos);
+                    if (avoidWalkingInto(state)) {
+                        return false;
+                    }
+                    net.minecraft.world.phys.shapes.VoxelShape shape = state.getCollisionShape(level, pos);
+                    if (!shape.isEmpty() && shape.bounds().move(x, y, z).intersects(sweep)) {
+                        double top = y + shape.max(net.minecraft.core.Direction.Axis.Y);
+                        if (top > minY + 1.0E-6D) {
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+        return true;
     }
 
     /** 上一阶台阶(从 from 脚位走到 to=from+1y 脚位)。
@@ -145,11 +205,12 @@ public final class MovementHelper {
             return false;
         }
         BlockPos mid = new BlockPos(to.getX(), from.getY(), to.getZ());
-        // 从当前格能走到中继格(身体可穿过),目标格本身可穿过 + 可站
+        // 从当前格能走到中继格(身体可穿过),目标格本身可穿过 + 可站，并检查下降过程的实体扫掠空间。
         return canWalkThrough(level, mid)
                 && canWalkThrough(level, mid.above())
                 && canWalkThrough(level, to)
-                && canWalkOn(level, to);
+                && canWalkOn(level, to)
+                && canSweepPlayer(level, from, to);
     }
 
     /**

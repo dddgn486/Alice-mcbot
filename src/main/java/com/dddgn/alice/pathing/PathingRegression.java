@@ -41,9 +41,42 @@ public final class PathingRegression {
         level.setBlock(start.offset(1, 1, 0).below(), Blocks.DIRT.defaultBlockState(), 3);
         boolean elevatedAlternative = assertPath(level, "elevated_alternative", start, goal, 3.0D, 2);
 
-        boolean passed = diagonal && ascend && descend && elevatedAlternative;
-        BotLog.info("PATHING_REGRESSION {} diagonal={} ascend={} descend={} elevatedAlternative={}",
-                passed ? "PASS" : "FAIL", diagonal, ascend, descend, elevatedAlternative);
+        clearAndFloor(level, origin, 0, 12);
+        BlockPos diagonalStart = origin.offset(0, 0, 12);
+        BlockPos diagonalGoal = diagonalStart.offset(1, 0, 1);
+        level.setBlock(diagonalStart.offset(1, 0, 0), Blocks.STONE.defaultBlockState(), 3);
+        level.setBlock(diagonalStart.offset(1, 1, 0), Blocks.STONE.defaultBlockState(), 3);
+        boolean diagonalBlocked = !MovementHelper.canTraverse(level, diagonalStart, diagonalGoal);
+        BotLog.info("PATHING_REGRESSION {} diagonal_side_blocked={} from={} to={}",
+                diagonalBlocked ? "PASS" : "FAIL", diagonalBlocked,
+                diagonalStart, diagonalGoal);
+
+        clearAndFloor(level, origin, 4, 12);
+        BlockPos sweepStart = origin.offset(4, 1, 12);
+        BlockPos sweepGoal = sweepStart.offset(1, -1, 1);
+        level.setBlock(sweepStart.below(), Blocks.DIRT.defaultBlockState(), 3);
+        level.setBlock(sweepGoal.below(), Blocks.DIRT.defaultBlockState(), 3);
+        level.setBlock(sweepStart.offset(1, 0, 0), Blocks.STONE.defaultBlockState(), 3);
+        boolean descentSweepBlocked = !MovementHelper.canDescend(level, sweepStart, sweepGoal);
+        BotLog.info("PATHING_REGRESSION {} descent_sweep_blocked={} from={} to={}",
+                descentSweepBlocked ? "PASS" : "FAIL", descentSweepBlocked,
+                sweepStart, sweepGoal);
+
+        clearAndFloor(level, origin, 0, 18);
+        BlockPos tieStart = origin.offset(0, 0, 18);
+        BlockPos tieGoal = tieStart.offset(3, 0, 0);
+        SurfacePathfinder.Result tie = SurfacePathfinder.find(level, tieStart, tieGoal);
+        boolean straightTie = tie.reachable() && Math.abs(tie.totalCost() - 3.0D) < 0.0001D
+                && tie.path().stream().allMatch(pos -> pos.getZ() == tieStart.getZ());
+        BotLog.info("PATHING_REGRESSION {} straight_tie cost={} path={}",
+                straightTie ? "PASS" : "FAIL", tie.totalCost(), tie.path());
+
+        boolean passed = diagonal && ascend && descend && elevatedAlternative
+                && diagonalBlocked && descentSweepBlocked && straightTie;
+        BotLog.info("PATHING_REGRESSION {} diagonal={} ascend={} descend={} elevatedAlternative={}"
+                + " diagonalSideBlocked={} descentSweepBlocked={} straightTie={}",
+                passed ? "PASS" : "FAIL", diagonal, ascend, descend, elevatedAlternative,
+                diagonalBlocked, descentSweepBlocked, straightTie);
         return passed;
     }
 

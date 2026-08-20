@@ -151,10 +151,15 @@ public final class AStarPathfinder {
             return;
         }
         double newCost = current.cost + MovementHelper.cost(type);
+        int directionX = Integer.signum(to.getX() - current.pos.getX());
+        int directionZ = Integer.signum(to.getZ() - current.pos.getZ());
+        int newTurns = current.moves == 0 || (current.directionX == directionX && current.directionZ == directionZ)
+                ? current.turns : current.turns + 1;
         PathNode existing = openIndex.get(to);
         if (existing == null) {
             PathNode previousBest = closed.get(to);
-            if (previousBest != null && newCost >= previousBest.cost) {
+            if (previousBest != null && (newCost > previousBest.cost
+                    || (newCost == previousBest.cost && newTurns >= previousBest.turns))) {
                 return;
             }
             // 即使未来更换为一致 heuristic，也保留重开逻辑；成本模型变化不会静默破坏最优性。
@@ -164,13 +169,20 @@ public final class AStarPathfinder {
             node.combinedCost = newCost;
             node.previous = current;
             node.moves = current.moves + 1;
+            node.turns = newTurns;
+            node.directionX = directionX;
+            node.directionZ = directionZ;
             openSet.insert(node);
             openIndex.put(to, node);
-        } else if (newCost < existing.cost) {
+        } else if (newCost < existing.cost
+                || (newCost == existing.cost && newTurns < existing.turns)) {
             existing.cost = newCost;
             existing.combinedCost = newCost;
             existing.previous = current;
             existing.moves = current.moves + 1;
+            existing.turns = newTurns;
+            existing.directionX = directionX;
+            existing.directionZ = directionZ;
             openSet.update(existing);
         }
     }

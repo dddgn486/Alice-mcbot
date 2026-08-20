@@ -140,13 +140,21 @@ public final class SoftPathProbeTask implements Task {
         if (dy == -1 && MovementHelper.canDescend(level, from, to)) {
             return SegmentAction.DESCEND;
         }
-        failure = invalidSegmentFailure(level, from, to, "geometry_mismatch:dy=" + dy);
+        failure = blockedSegmentFailure(level, from, to, "geometry_mismatch:dy=" + dy);
         return null;
     }
 
+    private String blockedSegmentFailure(ServerLevel level, BlockPos from, BlockPos to, String reason) {
+        return segmentFailure("soft_path_blocked_segment", level, from, to, reason);
+    }
+
     private String invalidSegmentFailure(ServerLevel level, BlockPos from, BlockPos to, String reason) {
+        return segmentFailure("soft_path_invalid_segment", level, from, to, reason);
+    }
+
+    private String segmentFailure(String code, ServerLevel level, BlockPos from, BlockPos to, String reason) {
         BlockPos foot = bot.blockPosition();
-        return "soft_path_invalid_segment: " + reason + " from=" + from.toShortString()
+        return code + ": " + reason + " from=" + from.toShortString()
                 + " to=" + to.toShortString() + " foot=" + foot.toShortString()
                 + " onGround=" + bot.onGround()
                 + " support=" + MovementHelper.isStandingOnSupport(level, bot);

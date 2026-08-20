@@ -51,7 +51,7 @@ final class OpenSet {
         while (idx > 0) {
             int parentIdx = (idx - 1) / 2;
             PathNode parent = heap[parentIdx];
-            if (node.combinedCost >= parent.combinedCost) {
+            if (compare(node, parent) >= 0) {
                 break;
             }
             heap[idx] = parent;
@@ -62,16 +62,36 @@ final class OpenSet {
         node.heapIndex = idx;
     }
 
+    private static int compare(PathNode left, PathNode right) {
+        int cost = Double.compare(left.combinedCost, right.combinedCost);
+        if (cost != 0) {
+            return cost;
+        }
+        int turns = Integer.compare(left.turns, right.turns);
+        if (turns != 0) {
+            return turns;
+        }
+        int x = Integer.compare(left.pos.getX(), right.pos.getX());
+        if (x != 0) {
+            return x;
+        }
+        int y = Integer.compare(left.pos.getY(), right.pos.getY());
+        if (y != 0) {
+            return y;
+        }
+        return Integer.compare(left.pos.getZ(), right.pos.getZ());
+    }
+
     private void siftDown(PathNode node) {
         int idx = node.heapIndex;
         int half = size / 2;
         while (idx < half) {
             int leftIdx = idx * 2 + 1;
             int rightIdx = leftIdx + 1;
-            int bestIdx = rightIdx < size && heap[rightIdx].combinedCost < heap[leftIdx].combinedCost
+            int bestIdx = rightIdx < size && compare(heap[rightIdx], heap[leftIdx]) < 0
                     ? rightIdx : leftIdx;
             PathNode bestChild = heap[bestIdx];
-            if (node.combinedCost <= bestChild.combinedCost) {
+            if (compare(node, bestChild) <= 0) {
                 break;
             }
             heap[idx] = bestChild;

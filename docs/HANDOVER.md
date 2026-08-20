@@ -33,7 +33,9 @@ GitHub：`github` 远端 `dddgn486/Alice-mcbot`（本会话未推 GitHub，push 
 
 已新增两项独立实验/功能入口：`/alice soft-path-probe <脚位>` 复用 `SurfacePathfinder` 的连续脚位段，并用 `NATIVE_TRAVEL` 逐段验收脚位、碰撞顶面支撑和落地；`/alice follow on|off` 是可关闭的同维度短程跟随状态，只跟随命令执行者本人，2 格跟随距离、24 格上限、每 10 tick 重算。跟随与保护区已在 `26819bd` 解耦：保护区停留/巡逻/返航是未来独立任务，不能再作为跟随的启动或运行时前提。
 
-已执行验证：本轮 `./gradlew compileJava` 成功（仅既有弃用警告）；`./gradlew test` 成功但项目没有 test source（`NO-SOURCE`）。`./gradlew runServer -Dalice.selftest.auto=true` 在 180 秒外部时限内未完成完整既有 selftest，因而不能报告整套通过；但日志已记录新增 `PATHING_REGRESSION` 四项 PASS：对角 `2.0`、上阶 `2.0`、下阶 `1.0`、高差替代 `3.0`。NATIVE_TRAVEL 的平地与一格高障碍/下落为用户客户端实测。**未验证**：新的点击入口、最短路径的 Windows 场景、上阶 jump 原语和下降段的实际客户端表现、半格台阶修复、`soft-path-probe` 的完整混合段、FollowTask 的持续跟随/重算/边界失败、实体挤压、流体、门/栅栏/梯子、活塞和模组碰撞形状均尚未获得客户端证据，不能写成已支持。
+按批准计划 `20260820-soft-path-execution-consistency-v1`，本轮保持现有 Dijkstra/A* 和 `alice:soft_path_probe_selector` 独立入口不变。`MovementHelper` 现对角移动检查两侧格、头部格和连续玩家扫掠空间；一格下降检查同一玩家尺寸 AABB 扫掠，仅忽略起点/终点脚下支撑接触。等成本路径在主成本不变时稳定优先少转弯，再按坐标消除平局；探针重验几何阻塞返回 `soft_path_blocked_segment`，异常关系仍为 `soft_path_invalid_segment`。
+
+已执行验证：本轮 `./gradlew compileJava` 成功（仅既有弃用警告）；headless `./gradlew runServer -Dalice.selftest.auto=true` 日志记录原有四项成本回归和新增三类回归全部 `PASS`：`diagonal_side_blocked`、`descent_sweep_blocked`、`straight_tie`。完整既有 selftest 仍在外部 180 秒时限内未完成并以 `143` 退出，不能报告整套通过；该限制不影响启动阶段路径回归日志。`./gradlew test` 仍为项目无 test source 的 `NO-SOURCE`。客户端物理和入口交互仍未验证，不能用 headless 结果替代 Windows 证据。
 
 不能回退的决策：普通挖矿、拾取仍固定 `HARD_PATH`；`MineTask` 不生成道路或隧道，深层目标失败 `target_requires_tunnel`；A* 不破坏方块；本地清障仍仅限直接可见、4.5 格内、最多 2 个方块。`SOFT_SURFACE` 不得接入 `MineTask`、`DropCollectionTask`、道路或隧道，除非逐项客户端验证和单独决策批准。
 
