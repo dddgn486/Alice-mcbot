@@ -345,9 +345,19 @@ public final class BotSelftest {
     private static void checkTest1() {
         boolean blockGone = level.getBlockState(target1).isAir();
         String result = BotManager.lastTaskResult(bot);
-        test1Pass = withinBudget(blockGone && "done".equals(result));
-        test1Detail = "blockGone=" + blockGone + " result=" + result
+        TaskExecutionRecord record = BotManager.lastExecutionRecord(bot);
+        boolean observabilityPass = record != null
+                && record.terminalStatus() == TaskExecutionRecord.TerminalStatus.COMPLETED
+                && "done".equals(record.resultCode())
+                && "idle_after_cleanup".equals(record.recoveryState())
+                && record.terminalBotPos().equals(bot.blockPosition());
+        test1Pass = withinBudget(blockGone && "done".equals(result) && observabilityPass);
+        test1Detail = "blockGone=" + blockGone + " result=" + result + " observability=" + observabilityPass
                 + (scenarioTimedOut ? " (超时 " + scenarioElapsedTicks + " tick)" : " (耗时 " + scenarioElapsedTicks + " tick)");
+        BotLog.info("TASK_OBSERVABILITY_SELFTEST {} terminal={} code={} recovery={} pos={}",
+                observabilityPass ? "PASS" : "FAIL", record == null ? "none" : record.terminalStatus(),
+                record == null ? "" : record.resultCode(), record == null ? "" : record.recoveryState(),
+                record == null ? "" : record.terminalBotPos().toShortString());
         BotLog.info("SELFTEST TEST1 {}", test1Pass ? "PASS" : "FAIL: " + test1Detail);
         phase = Phase.TEST2_SETUP;
         phaseTicks = 0;

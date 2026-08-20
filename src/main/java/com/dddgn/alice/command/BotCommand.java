@@ -253,7 +253,16 @@ public final class BotCommand {
             return 0;
         }
         HazardState hazard = SurvivalSystem.current(bot);
+        com.dddgn.alice.bot.TaskExecutionRecord record = BotManager.lastExecutionRecord(bot);
+        String current = BotManager.currentTaskSummary(bot);
+        String terminal = record == null ? "none" : "kind=" + record.taskKind()
+                + " target=" + record.targetDescription() + " terminal=" + record.terminalStatus()
+                + " code=" + record.resultCode() + " duration=" + record.durationTicks() + "t"
+                + " endPos=" + record.terminalBotPos().toShortString()
+                + " recovery=" + record.recoveryState();
         String text = "[alice] " + bot.getName().getString() + " busy=" + BotManager.isBusy(bot)
+                + ", current=" + (current == null ? "none" : current)
+                + ", latest=" + terminal
                 + ", last=" + BotManager.lastTaskResult(bot) + ", pos=" + bot.blockPosition().toShortString()
                 + ", hazard=" + hazard.type() + "(" + hazard.durationTicks() + "t)"
                 + ", air=" + hazard.airSupply() + ", health=" + hazard.health();

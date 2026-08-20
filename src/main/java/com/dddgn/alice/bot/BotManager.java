@@ -208,8 +208,7 @@ public final class BotManager {
     public static boolean stopFollow(BotPlayer bot) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || !(session.task instanceof com.dddgn.alice.task.FollowTask)) return false;
-        session.clearTask();
-        session.lastTaskResult = "follow_stopped";
+        session.complete("follow_stopped", TaskExecutionRecord.TerminalStatus.CANCELLED_FOLLOW);
         return true;
     }
 
@@ -276,6 +275,18 @@ public final class BotManager {
         return session == null ? "" : session.lastTaskResult;
     }
 
+    /** 只读获取最近终端任务记录；无记录时返回 null。 */
+    public static TaskExecutionRecord lastExecutionRecord(BotPlayer bot) {
+        BotSession session = BOTS.get(bot.getUUID());
+        return session == null ? null : session.lastExecutionRecord();
+    }
+
+    /** 当前任务的只读摘要；空闲时返回 null。 */
+    public static String currentTaskSummary(BotPlayer bot) {
+        BotSession session = BOTS.get(bot.getUUID());
+        return session == null ? null : session.currentTaskSummary();
+    }
+
     /** 取最近一次挖掘任务「开始挖掘时的 bot 位置」(隔空挖断言用;从未开始挖则为 null)。 */
     public static BlockPos lastMineStartPos(BotPlayer bot) {
         BotSession session = BOTS.get(bot.getUUID());
@@ -333,6 +344,10 @@ public final class BotManager {
         private final ScopeBuffer scope = new ScopeBuffer();
         private String lastTaskResult = "";
         private BlockPos lastMineStartPos;
+        private String taskKind = "";
+        private String taskTargetDescription = "";
+        private long taskStartTick;
+        private TaskExecutionRecord lastExecutionRecord;
 
         private BotSession(BotPlayer bot) {
             this.bot = bot;
@@ -356,60 +371,95 @@ public final class BotManager {
             return target;
         }
 
+        public TaskExecutionRecord lastExecutionRecord() {
+            return lastExecutionRecord;
+        }
+
+        public String currentTaskSummary() {
+            return task == null ? null : taskKind + " target=" + taskTargetDescription
+                    + " startedTick=" + taskStartTick;
+        }
+
+        private long serverTick() {
+            return bot.getServer().getTickCount();
+        }
+
+        private void beginTask(Task assignedTask, TaskTarget assignedTarget) {
+            task = assignedTask;
+            target = assignedTarget;
+            taskKind = assignedTask.getClass().getSimpleName();
+            taskTargetDescription = assignedTarget.describe();
+            taskStartTick = serverTick();
+        }
+
+        private void replaceTaskIfRunning() {
+            if (task != null) {
+                recordTerminal(taskKind, taskTargetDescription, taskStartTick,
+                        TaskExecutionRecord.TerminalStatus.CANCELLED_REPLACED,
+                        "cancelled:replaced", "idle_after_cleanup");
+            }
+            clearTask();
+        }
+
         /** 分配任务:按目标类型实例化 Task,开启感知作用域,广播高亮。 */
         public void assignSoftMoveProbe(BlockPos targetPos,
                                         com.dddgn.alice.pathing.SoftMovementPrimitive.Backend backend) {
-            clearTask();
-            this.target = TaskTarget.block(targetPos);
-            this.task = new com.dddgn.alice.task.SoftMoveProbeTask(bot, targetPos, backend);
+            replaceTaskIfRunning();
+            TaskTarget assignedTarget = TaskTarget.block(targetPos);
+            beginTask(new com.dddgn.alice.task.SoftMoveProbeTask(bot, targetPos, backend), assignedTarget);
             broadcastTarget(this.target);
         }
 
         public void assignFollow(ServerPlayer targetPlayer) {
-            clearTask();
-            this.target = TaskTarget.entity(targetPlayer.getId());
-            this.task = new com.dddgn.alice.task.FollowTask(bot, targetPlayer);
+            replaceTaskIfRunning();
+            TaskTarget assignedTarget = TaskTarget.entity(targetPlayer.getId());
+            beginTask(new com.dddgn.alice.task.FollowTask(bot, targetPlayer), assignedTarget);
             broadcastTarget(this.target);
         }
 
         public void assignSoftPathProbe(BlockPos targetPos) {
-            clearTask();
-            this.target = TaskTarget.block(targetPos);
-            this.task = new com.dddgn.alice.task.SoftPathProbeTask(bot, targetPos);
+            replaceTaskIfRunning();
+            TaskTarget assignedTarget = TaskTarget.block(targetPos);
+            beginTask(new com.dddgn.alice.task.SoftPathProbeTask(bot, targetPos), assignedTarget);
             broadcastTarget(this.target);
         }
 
         public void assignPlace(BlockPos targetPos) {
-            clearTask();
-            this.target = TaskTarget.block(targetPos);
-            this.task = new PlaceTask(bot, targetPos);
+            replaceTaskIfRunning();
+            TaskTarget assignedTarget = TaskTarget.block(targetPos);
+            beginTask(new PlaceTask(bot, targetPos), assignedTarget);
             broadcastTarget(this.target);
         }
 
         public void assignRoadBuild(com.dddgn.alice.road.RoadPlan plan) {
-            clearTask();
+            replaceTaskIfRunning();
             if (!plan.isComplete() || plan.level() != bot.level()) {
                 lastTaskResult = "failed:road_plan_invalid";
+                recordTerminal("RoadBuildTask", "road_plan", serverTick(),
+                        TaskExecutionRecord.TerminalStatus.REJECTED_BEFORE_START, lastTaskResult, "not_started");
                 return;
             }
-            this.target = TaskTarget.block(plan.second());
+            TaskTarget assignedTarget = TaskTarget.block(plan.second());
             scope.begin(plan.second(), 8);
-            this.task = new com.dddgn.alice.task.RoadBuildTask(bot, plan, scope);
+            beginTask(new com.dddgn.alice.task.RoadBuildTask(bot, plan, scope), assignedTarget);
             broadcastTarget(this.target);
         }
 
         public void assign(TaskTarget newTarget) {
-            clearTask(); // 先收尾上一个任务
-            this.target = newTarget;
+            replaceTaskIfRunning(); // 先收尾上一个任务
             switch (newTarget.type()) {
                 case BLOCK -> {
                     // 任务启动即开启作用域:监听掉落物与方块变化(设计文档 §3.2)
                     scope.begin(newTarget.blockPos(), 8);
                     // 单目标默认只走真实可通行曲面的 A*；通道规划后续仅在曲面不可达时显式接入。
-                    this.task = new MineTask(bot, newTarget.blockPos(), scope);
+                    beginTask(new MineTask(bot, newTarget.blockPos(), scope), newTarget);
                 }
                 case ENTITY -> {
                     BotLog.warn("实体目标任务尚未实现: target={}", newTarget.describe());
+                    lastTaskResult = "failed:entity_task_unimplemented";
+                    recordTerminal("unimplemented", newTarget.describe(), serverTick(),
+                            TaskExecutionRecord.TerminalStatus.REJECTED_BEFORE_START,
+                            lastTaskResult, "not_started");
                     this.target = null;
                     return;
                 }
@@ -424,32 +474,47 @@ public final class BotManager {
             if (SurvivalSystem.shouldInterrupt(hazard)) {
                 lastTaskResult = "failed:" + SurvivalSystem.interruptionReason(hazard);
                 BotLog.warn("任务因维生危险中断: bot={} reason={}", bot.getName().getString(), lastTaskResult);
-                reportItems();
-                clearTask();
+                complete(lastTaskResult, TaskExecutionRecord.TerminalStatus.SURVIVAL_INTERRUPTED);
                 return;
             }
             Task.Status status = task.tick();
             switch (status) {
                 case DONE -> {
                     lastTaskResult = "done";
-                    if (task instanceof MineTask mineTask) {
-                        lastMineStartPos = mineTask.mineStartPos();
-                    }
-                    reportItems();
-                    clearTask();
+                    complete(lastTaskResult, TaskExecutionRecord.TerminalStatus.COMPLETED);
                 }
                 case FAILED -> {
                     lastTaskResult = "failed:" + task.failureReason();
-                    if (task instanceof MineTask mineTask) {
-                        lastMineStartPos = mineTask.mineStartPos();
-                    }
-                    reportItems();
-                    clearTask();
+                    complete(lastTaskResult, TaskExecutionRecord.TerminalStatus.FAILED);
                 }
                 default -> {
                     // 进行中,保持
                 }
             }
+        }
+
+        private void complete(String resultCode, TaskExecutionRecord.TerminalStatus terminalStatus) {
+            if (task instanceof MineTask mineTask) {
+                lastMineStartPos = mineTask.mineStartPos();
+            }
+            recordTerminal(taskKind, taskTargetDescription, taskStartTick, terminalStatus,
+                    resultCode, "idle_after_cleanup");
+            reportItems();
+            clearTask();
+        }
+
+        private void recordTerminal(String kind, String targetDescription, long startTick,
+                                    TaskExecutionRecord.TerminalStatus terminalStatus,
+                                    String resultCode, String recoveryState) {
+            lastExecutionRecord = new TaskExecutionRecord(kind, targetDescription, startTick, serverTick(),
+                    terminalStatus, resultCode, bot.blockPosition(), recoveryState);
+            BotLog.info("task_execution_terminal kind={} target={} startTick={} endTick={} durationTicks={}"
+                            + " terminal={} code={} pos={} recovery={}",
+                    lastExecutionRecord.taskKind(), lastExecutionRecord.targetDescription(),
+                    lastExecutionRecord.startServerTick(), lastExecutionRecord.endServerTick(),
+                    lastExecutionRecord.durationTicks(), lastExecutionRecord.terminalStatus(),
+                    lastExecutionRecord.resultCode(), lastExecutionRecord.terminalBotPos().toShortString(),
+                    lastExecutionRecord.recoveryState());
         }
 
         /** 任务收尾:清任务、清作用域、广播清除高亮。 */
