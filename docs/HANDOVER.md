@@ -1,13 +1,14 @@
 # Alice 项目交接说明（给新会话的快速上手）
 
 > 用途：另一个对话/会话接手本项目时，先读本文件 + README + 设计文档，即可快速进入工作。
-> 更新：2026-08-21（本轮 C1 maintenance F1-F4 业务提交见 §〇；`interface-readonly-snapshot-v1` 的 S1-S4 已获用户验收，F1-F4 维护已收口）
+> 更新：2026-08-21（最新实现提交 `10f4cd7`：C1 maintenance F1-F4 收口；`interface-readonly-snapshot-v1` 的 S1-S4 已获用户验收）
 > 重要：本会话功能提交已同步到 Windows 端仓库（`origin` = `/mnt/d/JAVA_projects/alice`）。**每次代码修改完成后必须 `git push origin master`**，用户在 Windows 客户端实测。
 > 当前工作区的未提交改动均为监督流程：`.gitignore`、`AGENTS.md`、`docs/SUPERVISION_PROTOCOL.md`、`docs/supervision/`、`tools/`；它们不属于 Mod 功能实现，应作为独立治理提交核对，勿覆盖或混入功能提交。
 
 ## 〇、当前 Git 状态（重要）
 
 ```
+10f4cd7 feat: close C1 scanner maintenance F1-F4             ← 最新实现（C1 F1-F4 维护收口）
 ba63d15 docs: correct supervisor handoff revision          （治理：监督交接回填，位于 8bb2d7b 之后）
 276339f docs: define dsh bus supervision handoff           （治理：四角色 bus 交接）
 f9d89da docs: record blocked client checkpoint             （治理：客户端阻塞 checkpoint）

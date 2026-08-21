@@ -5,8 +5,8 @@
 
 ## 1. 当前唯一可信状态
 
-- 当前 Git HEAD、Windows `origin/master`：本次 F1-F4 维护业务提交（SHA 见 `docs/HANDOVER.md` §〇，由治理回填提交记录；GitHub `master` 推送前先 `git fetch github` 查冲突）。
-- 最新业务实现：F1-F4 维护提交（`20260821-interface-c1-maintenance-f1-f4-v1` 收口）；前序业务 `8bb2d7b1641c0b6e6063d4c78ae0357896fd0c90`（`interface-readonly-snapshot-v1`，S1-S4 已 `USER_ACCEPTED`）。
+- 当前 Git HEAD、Windows `origin/master`：`10f4cd7`（F1-F4 维护业务提交，含本文件更新；GitHub `master` 推送前先 `git fetch github` 查冲突）。
+- 最新业务实现：`10f4cd7`（`20260821-interface-c1-maintenance-f1-f4-v1` 收口）；前序业务 `8bb2d7b1641c0b6e6063d4c78ae0357896fd0c90`（`interface-readonly-snapshot-v1`，S1-S4 已 `USER_ACCEPTED`）。
 - Active plan：`.alice-supervision/active-plan.md`，状态 `APPROVED_FOR_IMPLEMENTATION`；F1-F4 已实现，等待监督员审核本轮提交与审核包。
 - 实现包结论：C1 S1-S4 已由用户验收（窄范围：独立扫描器身份、只读箱子扫描、无 block entity 扫描、原版钻石铲隔离）；F1-F4 维护已实现并通过 `compileJava` + focused headless，待监督审核，不是客户端验收。
 - 客户端结果：`USER_ACCEPTED`（仅独立扫描器 S1-S4，见 `.alice-supervision/client-tests/8bb2d7b.md`）。
