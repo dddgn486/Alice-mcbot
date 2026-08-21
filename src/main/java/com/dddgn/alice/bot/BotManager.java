@@ -8,6 +8,10 @@ import com.dddgn.alice.task.MineTask;
 import com.dddgn.alice.task.PlaceTask;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
+import com.dddgn.alice.task.TransferTask;
+import com.dddgn.alice.transfer.TransferCodes;
+import com.dddgn.alice.transfer.TransferLedgerData;
+import com.dddgn.alice.transfer.TransferRequest;
 import com.dddgn.alice.survival.HazardState;
 import com.dddgn.alice.survival.SurvivalSystem;
 import com.mojang.authlib.GameProfile;
@@ -87,6 +91,9 @@ public final class BotManager {
         SurvivalSystem.forget(bot);
         BotSession session = BOTS.remove(bot.getUUID());
         if (session != null) {
+            if (session.task instanceof TransferTask transfer) {
+                transfer.botRemoved();
+            }
             session.clearTask(); // 任务收尾 + 广播清除高亮
         }
         if (!bot.isRemoved()) {
@@ -236,6 +243,26 @@ public final class BotManager {
         session.assignRoadBuild(plan);
     }
 
+    /** Creates the only approved transfer task entry point. */
+    public static String assignTransfer(BotPlayer bot, TransferRequest request) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null) return TransferCodes.BOT_UNAVAILABLE;
+        TransferLedgerData ledger = TransferLedgerData.get(bot.getServer());
+        if (ledger.find(request.requestId()).isPresent()) return TransferCodes.DUPLICATE_REQUEST;
+        if (!ledger.admit(request)) return TransferCodes.DUPLICATE_REQUEST;
+        if (!session.assignTransfer(request, ledger)) {
+            ledger.transition(request.requestId(), TransferLedgerData.State.FAILED_NOT_MOVED,
+                    TransferLedgerData.Location.NOT_MOVED, TransferCodes.BOT_UNAVAILABLE, bot.serverLevel().getGameTime(),
+                    "admission:bot_unavailable", false);
+            return TransferCodes.BOT_UNAVAILABLE;
+        }
+        return "accepted";
+    }
+
+    public static TransferLedgerData.Entry transferStatus(MinecraftServer server, java.util.UUID requestId) {
+        return TransferLedgerData.get(server).find(requestId).orElse(null);
+    }
+
     /** 给假人分配「挖掘指定方块」任务(命令/selftest 兼容入口)。 */
     public static void assignMine(BotPlayer bot, BlockPos target) {
         assignTarget(bot, TaskTarget.block(target));
@@ -307,12 +334,16 @@ public final class BotManager {
     /** 服务器启动完成:恢复存档假人(若有)。 */
     @SubscribeEvent
     public static void onServerStarted(ServerStartedEvent event) {
+        TransferLedgerData.get(event.getServer()).suspendUnfinished(TransferCodes.SERVER_RESTART,
+                event.getServer().getTickCount());
         restoreFromWorld(event.getServer());
     }
 
     /** 关服前:冗余写一次档(平时 spawn/remove 已维护,这里兜底防崩溃丢档)。 */
     @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {
+        TransferLedgerData.get(event.getServer()).suspendUnfinished(TransferCodes.SERVER_RESTART,
+                event.getServer().getTickCount());
         for (BotSession session : BOTS.values()) {
             saveToWorld(session.bot());
         }
@@ -392,19 +423,40 @@ public final class BotManager {
             taskStartTick = serverTick();
         }
 
-        private void replaceTaskIfRunning() {
+        private boolean replaceTaskIfRunning() {
+            if (TransferLedgerData.get(bot.getServer()).blocksBot(bot.getUUID())) {
+                return false;
+            }
+            if (task instanceof TransferTask transfer && transferInTransitOrSuspended(transfer)) {
+                return false;
+            }
             if (task != null) {
                 recordTerminal(taskKind, taskTargetDescription, taskStartTick,
                         TaskExecutionRecord.TerminalStatus.CANCELLED_REPLACED,
                         "cancelled:replaced", "idle_after_cleanup");
             }
             clearTask();
+            return true;
+        }
+
+        private boolean transferInTransitOrSuspended(TransferTask transfer) {
+            TransferLedgerData.Entry entry = TransferLedgerData.get(bot.getServer()).find(transfer.request().requestId()).orElse(null);
+            return entry != null && (entry.state() == TransferLedgerData.State.IN_TRANSIT_BOT
+                    || entry.state() == TransferLedgerData.State.SUSPENDED);
+        }
+
+        public boolean assignTransfer(TransferRequest request, TransferLedgerData ledger) {
+            if (!replaceTaskIfRunning()) return false;
+            TaskTarget assignedTarget = TaskTarget.block(request.source().position());
+            beginTask(new TransferTask(bot, request, ledger), assignedTarget);
+            broadcastTarget(this.target);
+            return true;
         }
 
         /** 分配任务:按目标类型实例化 Task,开启感知作用域,广播高亮。 */
         public void assignSoftMoveProbe(BlockPos targetPos,
                                         com.dddgn.alice.pathing.SoftMovementPrimitive.Backend backend) {
-            replaceTaskIfRunning();
+            if (!replaceTaskIfRunning()) return;
             TaskTarget assignedTarget = TaskTarget.block(targetPos);
             beginTask(new com.dddgn.alice.task.SoftMoveProbeTask(bot, targetPos, backend), assignedTarget);
             broadcastTarget(this.target);
@@ -418,21 +470,21 @@ public final class BotManager {
         }
 
         public void assignSoftPathProbe(BlockPos targetPos) {
-            replaceTaskIfRunning();
+            if (!replaceTaskIfRunning()) return;
             TaskTarget assignedTarget = TaskTarget.block(targetPos);
             beginTask(new com.dddgn.alice.task.SoftPathProbeTask(bot, targetPos), assignedTarget);
             broadcastTarget(this.target);
         }
 
         public void assignPlace(BlockPos targetPos) {
-            replaceTaskIfRunning();
+            if (!replaceTaskIfRunning()) return;
             TaskTarget assignedTarget = TaskTarget.block(targetPos);
             beginTask(new PlaceTask(bot, targetPos), assignedTarget);
             broadcastTarget(this.target);
         }
 
         public void assignRoadBuild(com.dddgn.alice.road.RoadPlan plan) {
-            replaceTaskIfRunning();
+            if (!replaceTaskIfRunning()) return;
             if (!plan.isComplete() || plan.level() != bot.level()) {
                 lastTaskResult = "failed:road_plan_invalid";
                 recordTerminal("RoadBuildTask", "road_plan", serverTick(),
@@ -446,7 +498,7 @@ public final class BotManager {
         }
 
         public void assign(TaskTarget newTarget) {
-            replaceTaskIfRunning(); // 先收尾上一个任务
+            if (!replaceTaskIfRunning()) return; // in-transit transfer refuses unrelated replacement
             switch (newTarget.type()) {
                 case BLOCK -> {
                     // 任务启动即开启作用域:监听掉落物与方块变化(设计文档 §3.2)
@@ -472,6 +524,9 @@ public final class BotManager {
                 return;
             }
             if (SurvivalSystem.shouldInterrupt(hazard)) {
+                if (task instanceof TransferTask transfer) {
+                    transfer.survivalInterrupted(SurvivalSystem.interruptionReason(hazard));
+                }
                 lastTaskResult = "failed:" + SurvivalSystem.interruptionReason(hazard);
                 BotLog.warn("任务因维生危险中断: bot={} reason={}", bot.getName().getString(), lastTaskResult);
                 complete(lastTaskResult, TaskExecutionRecord.TerminalStatus.SURVIVAL_INTERRUPTED);

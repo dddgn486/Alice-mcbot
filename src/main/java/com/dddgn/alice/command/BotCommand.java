@@ -8,6 +8,10 @@ import com.dddgn.alice.perception.PerceptionSnapshot;
 import com.dddgn.alice.pathing.SurfacePathfinder;
 import com.dddgn.alice.survival.HazardState;
 import com.dddgn.alice.survival.SurvivalSystem;
+import com.dddgn.alice.transfer.ChestEndpointRef;
+import com.dddgn.alice.transfer.TransferCodes;
+import com.dddgn.alice.transfer.TransferLedgerData;
+import com.dddgn.alice.transfer.TransferRequest;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -24,6 +28,10 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 import java.util.List;
+import java.util.UUID;
+
+import net.minecraft.resources.ResourceLocation;
+import net.minecraftforge.registries.ForgeRegistries;
 
 /**
  * M0 测试命令入口(后续 M4 将被 AI 工具调用取代)。
@@ -88,6 +96,22 @@ public final class BotCommand {
                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
                 .then(Commands.literal("status")
                         .executes(ctx -> status(ctx.getSource())))
+                .then(Commands.literal("transfer-test")
+                        .then(Commands.argument("source", BlockPosArgument.blockPos())
+                                .then(Commands.argument("destination", BlockPosArgument.blockPos())
+                                        .then(Commands.argument("item", StringArgumentType.word())
+                                                .then(Commands.argument("count", IntegerArgumentType.integer(1))
+                                                        .executes(ctx -> transfer(ctx.getSource(),
+                                                                BlockPosArgument.getLoadedBlockPos(ctx, "source"),
+                                                                BlockPosArgument.getLoadedBlockPos(ctx, "destination"),
+                                                                StringArgumentType.getString(ctx, "item"),
+                                                                IntegerArgumentType.getInteger(ctx, "count"))))))))
+                .then(Commands.literal("transfer-status")
+                        .then(Commands.argument("request", StringArgumentType.word())
+                                .executes(ctx -> transferStatus(ctx.getSource(), StringArgumentType.getString(ctx, "request")))))
+                .then(Commands.literal("transfer-abort")
+                        .then(Commands.argument("request", StringArgumentType.word())
+                                .executes(ctx -> transferAbort(ctx.getSource(), StringArgumentType.getString(ctx, "request")))))
                 .then(Commands.literal("auto-mine")
                         .then(Commands.argument("tag", StringArgumentType.string())
                                 .executes(ctx -> autoMine(ctx.getSource(),
@@ -114,6 +138,57 @@ public final class BotCommand {
                         .then(Commands.literal("list")
                                 .executes(ctx -> listProtection(ctx.getSource())))));
     }
+
+    private static int transfer(CommandSourceStack source, BlockPos sourcePos, BlockPos destinationPos, String rawItem, int count) {
+        if (!(source.getEntity() instanceof ServerPlayer actor)) return failure(source, TransferCodes.UNAUTHORIZED_ACTOR);
+        ResourceLocation itemId = ResourceLocation.tryParse(rawItem);
+        if (itemId == null || ForgeRegistries.ITEMS.getValue(itemId) == null) return failure(source, TransferCodes.INVALID_ITEM_ID);
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) return failure(source, TransferCodes.BOT_UNAVAILABLE);
+        try {
+            TransferRequest request = new TransferRequest(UUID.randomUUID(), actor.getUUID(), bot.getUUID(),
+                    new ChestEndpointRef(source.getLevel().dimension().location(), sourcePos),
+                    new ChestEndpointRef(source.getLevel().dimension().location(), destinationPos), itemId, count,
+                    source.getLevel().getGameTime());
+            String result = BotManager.assignTransfer(bot, request);
+            if (!"accepted".equals(result)) return failure(source, result);
+            source.sendSuccess(() -> Component.literal("[alice] transfer request=" + request.requestId()
+                    + " state=PLANNED code=accepted location=not_moved"), false);
+            return 1;
+        } catch (IllegalArgumentException exception) { return failure(source, exception.getMessage()); }
+    }
+
+    private static int transferStatus(CommandSourceStack source, String rawId) {
+        try {
+            TransferLedgerData.Entry entry = BotManager.transferStatus(source.getServer(), UUID.fromString(rawId));
+            if (entry == null) return failure(source, "unknown_request");
+            source.sendSuccess(() -> Component.literal("[alice] transfer request=" + entry.request().requestId()
+                    + " state=" + entry.state() + " code=" + entry.code() + " location=" + entry.location()
+                    + " sourceDelta/botDelta/destinationDelta=evidence:" + entry.evidenceDigest()), false);
+            return 1;
+        } catch (IllegalArgumentException exception) { return failure(source, "invalid_request_id"); }
+    }
+
+    private static int transferAbort(CommandSourceStack source, String rawId) {
+        try {
+            UUID id = UUID.fromString(rawId);
+            TransferLedgerData ledger = TransferLedgerData.get(source.getServer());
+            TransferLedgerData.Entry entry = ledger.find(id).orElse(null);
+            if (entry == null) return failure(source, "unknown_request");
+            if (entry.state() == TransferLedgerData.State.VERIFIED
+                    || entry.state() == TransferLedgerData.State.FAILED_NOT_MOVED
+                    || entry.state() == TransferLedgerData.State.UNKNOWN_DISCREPANCY
+                    || entry.state() == TransferLedgerData.State.ABORTED) {
+                return failure(source, "terminal_request");
+            }
+            ledger.transition(id, TransferLedgerData.State.ABORTED, entry.location(), "aborted", source.getLevel().getGameTime(),
+                    "abort:no_inventory_mutation", entry.manualTakeoverRequired());
+            source.sendSuccess(() -> Component.literal("[alice] transfer request=" + id + " state=ABORTED code=aborted location=" + entry.location()), false);
+            return 1;
+        } catch (IllegalArgumentException exception) { return failure(source, "invalid_request_id"); }
+    }
+
+    private static int failure(CommandSourceStack source, String code) { source.sendFailure(Component.literal("[alice] transfer code=" + code)); return 0; }
 
     private static int addArea(CommandSourceStack source, BlockPos center, int radius) {
         SafeZoneData.get(source.getServer()).addArea(source.getLevel(), center, radius);
