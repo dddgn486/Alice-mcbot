@@ -37,11 +37,13 @@ Alice 当前实现遵循四条边界：
 | C1 只读接口扫描 | 独立物品 `alice:interface_scanner` 读取原始只读 capability 快照；不继承原版钻石铲行为 |
 | 道路模型 | 独立蓝图工具、普通弯曲路线和受限 2x2 螺旋模型；与挖矿链隔离 |
 | A1.1 容器转移实验 | 权限等级 2 的显式命令执行单种原版无 NBT 物品、正数量、单箱到 Bot 背包再到单箱的审计式转移 |
+| 转移端点选择器 | 独立木棍外观测试物品；Shift+右键选择 source、右键选择 destination，原版箱子 GUI 保持可用；submit 支持显式或受限默认 item/count |
 
 ### 验证状态
 
 - `alice:interface_scanner` 的独立物品身份、原版单箱只读扫描、无 Block Entity 目标和原版钻石铲隔离已完成 Windows 客户端验收；该结论仅覆盖 C1 只读快照。
 - A1.1 容器转移已通过 focused 服务端 fixture 和监督二审，仍处于 `CLIENT_TEST_PENDING`；客户端移动、在途背包可见性、冲突/重启/abort 和原版箱子 GUI 隔离仍需 Windows 实测。
+- `alice:transfer_endpoint_selector` 已通过 focused fixture 和监督二审，仍处于独立 `CLIENT_TEST_PENDING`；E1-E10 验证权限、GUI PASS、默认参数、admission 一致性和重启失效。
 - 编译成功、headless 日志和监督审核均不替代客户端验收。
 
 ## 测试入口
@@ -64,6 +66,8 @@ Alice 当前实现遵循四条边界：
 | `/alice soft-probe <x y z>` | 独立短程 `NATIVE_TRAVEL` 实验 |
 | `/alice soft-path-probe <x y z>` | 独立连续脚位软路径实验 |
 | `/alice follow on|off` | 开关受限的同维度短程跟随 |
+| `alice:transfer_endpoint_selector` | 木棍外观；Shift+右键 source、右键 destination，只记录服务端短期草稿且不拦截箱子 GUI |
+| `/alice transfer-selection status|clear|submit [item] [count]` | 查看/清除草稿，或通过既有 transfer admission 提交；无参时取源箱第一种合格物品及其总数 |
 | `/alice transfer-test <source> <destination> <item> <count>` | A1.1 显式容器转移实验 |
 | `/alice transfer-status <request>` | 只读查看转移 ledger 状态 |
 | `/alice transfer-abort <request>` | 管理员 abort；在途物品保持保护并要求人工接管 |
