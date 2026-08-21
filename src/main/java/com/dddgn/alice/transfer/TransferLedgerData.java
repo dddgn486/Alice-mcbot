@@ -88,6 +88,35 @@ public final class TransferLedgerData extends SavedData {
         setDirty();
     }
 
+    /** Converts overlong suspension into an explicit manual-takeover requirement without inventory writes. */
+    public void expireSuspensions(long tick, long maximumSuspensionTicks) {
+        for (Entry entry : entries.values()) {
+            if (entry.state() != State.SUSPENDED || tick - entry.suspensionStartedTick() <= maximumSuspensionTicks) {
+                continue;
+            }
+            entry.transition(State.SUSPENDED, entry.location(), TransferCodes.MANUAL_TAKEOVER_REQUIRED, tick,
+                    "suspension_expired:" + entry.evidenceDigest(), true);
+        }
+        setDirty();
+    }
+
+    /** Ledger-only abort: bot-held items remain protected for manual takeover. */
+    public State abort(UUID requestId, long tick) {
+        Entry entry = entries.get(requestId);
+        if (entry == null) throw new IllegalArgumentException("unknown_request");
+        if (isTerminal(entry.state())) throw new IllegalStateException("terminal_request");
+        if (entry.location() == Location.BOT_INVENTORY || entry.state() == State.IN_TRANSIT_BOT
+                || entry.state() == State.SUSPENDED) {
+            entry.transition(State.SUSPENDED, Location.BOT_INVENTORY, TransferCodes.MANUAL_TAKEOVER_REQUIRED, tick,
+                    "abort:manual_takeover:" + entry.evidenceDigest(), true);
+        } else {
+            entry.transition(State.ABORTED, entry.location(), "aborted", tick,
+                    "abort:no_inventory_mutation:" + entry.evidenceDigest(), entry.manualTakeoverRequired());
+        }
+        setDirty();
+        return entry.state();
+    }
+
     /** A suspended or in-transit request prevents unrelated task replacement for its bot. */
     public boolean blocksBot(UUID botId) {
         return entries.values().stream().anyMatch(entry -> entry.request().botId().equals(botId)
@@ -112,6 +141,7 @@ public final class TransferLedgerData extends SavedData {
         private String code = "";
         private String evidenceDigest = "";
         private long evidenceTick;
+        private long suspensionStartedTick = -1L;
         private boolean manualTakeoverRequired;
 
         private Entry(TransferRequest request) {
@@ -124,6 +154,7 @@ public final class TransferLedgerData extends SavedData {
         public String code() { return code; }
         public String evidenceDigest() { return evidenceDigest; }
         public long evidenceTick() { return evidenceTick; }
+        public long suspensionStartedTick() { return suspensionStartedTick; }
         public boolean manualTakeoverRequired() { return manualTakeoverRequired; }
         public List<Transition> transitions() { return List.copyOf(transitions); }
 
@@ -140,10 +171,16 @@ public final class TransferLedgerData extends SavedData {
                     && location != Location.BOT_INVENTORY) {
                 throw new IllegalStateException("in_transit_location_required");
             }
+            State previousState = state;
             state = nextState;
             location = nextLocation;
             code = nextCode;
             evidenceTick = tick;
+            if (nextState == State.SUSPENDED && previousState != State.SUSPENDED) {
+                suspensionStartedTick = tick;
+            } else if (nextState != State.SUSPENDED) {
+                suspensionStartedTick = -1L;
+            }
             evidenceDigest = digest;
             manualTakeoverRequired = nextManualTakeoverRequired;
             transitions.add(new Transition(transitions.size() + 1L, nextState, nextLocation, nextCode, tick, digest,
@@ -158,6 +195,7 @@ public final class TransferLedgerData extends SavedData {
             tag.putString("code", code);
             tag.putString("digest", evidenceDigest);
             tag.putLong("tick", evidenceTick);
+            tag.putLong("suspensionStartedTick", suspensionStartedTick);
             tag.putBoolean("manualTakeover", manualTakeoverRequired);
             ListTag transitionTags = new ListTag();
             for (Transition transition : transitions) {
@@ -176,6 +214,8 @@ public final class TransferLedgerData extends SavedData {
                 entry.code = tag.getString("code");
                 entry.evidenceDigest = tag.getString("digest");
                 entry.evidenceTick = tag.getLong("tick");
+                entry.suspensionStartedTick = tag.contains("suspensionStartedTick")
+                        ? tag.getLong("suspensionStartedTick") : (entry.state == State.SUSPENDED ? entry.evidenceTick : -1L);
                 entry.manualTakeoverRequired = tag.getBoolean("manualTakeover");
                 for (Tag value : tag.getList("transitions", Tag.TAG_COMPOUND)) {
                     entry.transitions.add(Transition.load((CompoundTag) value));

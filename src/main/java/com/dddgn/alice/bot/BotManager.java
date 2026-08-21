@@ -52,6 +52,7 @@ import java.util.UUID;
  * {@link #restoreFromWorld} 自动恢复;remove/死亡清除时同步清档。</p>
  */
 public final class BotManager {
+    private static final long TRANSFER_MAX_SUSPENSION_TICKS = 12_000L;
 
     /** 所有在线假人。 */
     private static final Map<UUID, BotSession> BOTS = new HashMap<>();
@@ -263,6 +264,11 @@ public final class BotManager {
         return TransferLedgerData.get(server).find(requestId).orElse(null);
     }
 
+    /** Ledger-only administrator abort used by the command and focused server fixture. */
+    public static TransferLedgerData.State abortTransfer(MinecraftServer server, java.util.UUID requestId) {
+        return TransferLedgerData.get(server).abort(requestId, server.getTickCount());
+    }
+
     /** 给假人分配「挖掘指定方块」任务(命令/selftest 兼容入口)。 */
     public static void assignMine(BotPlayer bot, BlockPos target) {
         assignTarget(bot, TaskTarget.block(target));
@@ -325,6 +331,8 @@ public final class BotManager {
         if (event.phase != TickEvent.Phase.END) {
             return;
         }
+        TransferLedgerData.get(event.getServer()).expireSuspensions(event.getServer().getTickCount(),
+                TRANSFER_MAX_SUSPENSION_TICKS);
         for (BotSession session : BOTS.values()) {
             HazardState hazard = SurvivalSystem.tick(session.bot());
             session.tick(hazard);
@@ -463,7 +471,7 @@ public final class BotManager {
         }
 
         public void assignFollow(ServerPlayer targetPlayer) {
-            replaceTaskIfRunning();
+            if (!replaceTaskIfRunning()) return;
             TaskTarget assignedTarget = TaskTarget.entity(targetPlayer.getId());
             beginTask(new com.dddgn.alice.task.FollowTask(bot, targetPlayer), assignedTarget);
             broadcastTarget(this.target);

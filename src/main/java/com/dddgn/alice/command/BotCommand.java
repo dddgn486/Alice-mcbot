@@ -181,9 +181,11 @@ public final class BotCommand {
                     || entry.state() == TransferLedgerData.State.ABORTED) {
                 return failure(source, "terminal_request");
             }
-            ledger.transition(id, TransferLedgerData.State.ABORTED, entry.location(), "aborted", source.getLevel().getGameTime(),
-                    "abort:no_inventory_mutation", entry.manualTakeoverRequired());
-            source.sendSuccess(() -> Component.literal("[alice] transfer request=" + id + " state=ABORTED code=aborted location=" + entry.location()), false);
+            TransferLedgerData.State state = BotManager.abortTransfer(source.getServer(), id);
+            TransferLedgerData.Entry updated = ledger.find(id).orElseThrow();
+            source.sendSuccess(() -> Component.literal("[alice] transfer request=" + id + " state=" + state
+                    + " code=" + updated.code() + " location=" + updated.location()
+                    + " manualTakeover=" + updated.manualTakeoverRequired()), false);
             return 1;
         } catch (IllegalArgumentException exception) { return failure(source, "invalid_request_id"); }
     }

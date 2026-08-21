@@ -41,6 +41,8 @@ public final class TransferFixture {
         pass &= postMismatches(level, inventory, source, destination, sourceChest, destinationChest);
         pass &= ledgerPolicies(level, source, destination);
         pass &= taskInterruptPolicies(level, bot, source, destination);
+        pass &= hardPathMappings(level, bot, source, destination);
+        pass &= taskBudgetMappings(level, bot, source, destination);
         BotLog.info("TRANSFER_FIXTURE_SUITE {} request/state/code/location/source-bot-destination-delta asserted",
                 pass ? "PASS" : "FAIL");
         return pass;
@@ -177,13 +179,87 @@ public final class TransferFixture {
         TransferLedgerData.Entry restart = ledger.find(request.requestId()).orElse(null);
         boolean restartSuspended = restart != null && restart.state() == TransferLedgerData.State.SUSPENDED
                 && restart.location() == TransferLedgerData.Location.BOT_INVENTORY && restart.manualTakeoverRequired();
-        ledger.transition(request.requestId(), TransferLedgerData.State.ABORTED, TransferLedgerData.Location.BOT_INVENTORY,
-                "aborted", level.getGameTime(), "abort:no_inventory_mutation", true);
-        boolean abortTerminal = ledger.find(request.requestId()).map(entry -> entry.state() == TransferLedgerData.State.ABORTED
-                && entry.location() == TransferLedgerData.Location.BOT_INVENTORY).orElse(false);
-        boolean pass = firstAdmission && duplicateRejected && replacementBlocked && timeoutSuspended && restartSuspended && abortTerminal;
-        return report("duplicate_timeout_restart_abort_replacement", request, pass,
-                pass ? "aborted" : TransferCodes.UNKNOWN_DISCREPANCY, TransferLedgerData.Location.BOT_INVENTORY, 0, 0, 0);
+        long suspensionStart = restart == null ? level.getGameTime() : restart.suspensionStartedTick();
+        ledger.expireSuspensions(suspensionStart + 12_001L, 12_000L);
+        TransferLedgerData.Entry expired = ledger.find(request.requestId()).orElse(null);
+        boolean suspensionExpired = expired != null && expired.state() == TransferLedgerData.State.SUSPENDED
+                && TransferCodes.MANUAL_TAKEOVER_REQUIRED.equals(expired.code())
+                && expired.location() == TransferLedgerData.Location.BOT_INVENTORY
+                && ledger.blocksBot(request.botId());
+        TransferLedgerData.State abortState = ledger.abort(request.requestId(), suspensionStart + 12_002L);
+        TransferLedgerData.Entry aborted = ledger.find(request.requestId()).orElse(null);
+        boolean abortProtected = abortState == TransferLedgerData.State.SUSPENDED && aborted != null
+                && aborted.location() == TransferLedgerData.Location.BOT_INVENTORY && aborted.manualTakeoverRequired()
+                && TransferCodes.MANUAL_TAKEOVER_REQUIRED.equals(aborted.code()) && ledger.blocksBot(request.botId());
+        TransferRequest untouched = request(level, source, destination, 1);
+        ledger.admit(untouched);
+        boolean abortUnmoved = ledger.abort(untouched.requestId(), level.getGameTime()) == TransferLedgerData.State.ABORTED;
+        boolean pass = firstAdmission && duplicateRejected && replacementBlocked && timeoutSuspended
+                && restartSuspended && suspensionExpired && abortProtected && abortUnmoved;
+        return report("duplicate_timeout_restart_abort_replacement_suspension_expiry", request, pass,
+                pass ? TransferCodes.MANUAL_TAKEOVER_REQUIRED : TransferCodes.UNKNOWN_DISCREPANCY,
+                TransferLedgerData.Location.BOT_INVENTORY, 0, 0, 0);
+    }
+
+    private static boolean hardPathMappings(ServerLevel level, BotPlayer bot, BlockPos source, BlockPos destination) {
+        boolean pass = true;
+        for (com.dddgn.alice.task.TransferTask.FixtureMovementOutcome outcome : com.dddgn.alice.task.TransferTask.FixtureMovementOutcome.values()) {
+            TransferLedgerData ledger = new TransferLedgerData();
+            TransferRequest request = requestForBot(level, bot, source, destination, 1);
+            ledger.admit(request);
+            com.dddgn.alice.task.TransferTask.setFixtureMovementOutcome(outcome);
+            com.dddgn.alice.task.TransferTask task = new com.dddgn.alice.task.TransferTask(bot, request, ledger);
+            task.tick();
+            TransferLedgerData.Entry entry = ledger.find(request.requestId()).orElse(null);
+            String code = switch (outcome) {
+                case SEARCH_LIMIT -> TransferCodes.HARD_PATH_SEARCH_LIMIT;
+                case UNREACHABLE -> TransferCodes.HARD_PATH_UNREACHABLE;
+                case FAILED -> TransferCodes.HARD_PATH_FAILED;
+            };
+            boolean mapped = entry != null && entry.state() == TransferLedgerData.State.SUSPENDED
+                    && entry.location() == TransferLedgerData.Location.NOT_MOVED && code.equals(entry.code())
+                    && entry.manualTakeoverRequired();
+            pass &= report("hard_path_" + outcome.name().toLowerCase(), request, mapped, code,
+                    entry == null ? TransferLedgerData.Location.NOT_MOVED : entry.location(), 0, 0, 0);
+        }
+        return pass;
+    }
+
+    private static boolean taskBudgetMappings(ServerLevel level, BotPlayer bot, BlockPos source, BlockPos destination) {
+        TransferLedgerData phaseLedger = new TransferLedgerData();
+        TransferRequest phaseRequest = requestForBot(level, bot, source, destination, 1);
+        phaseLedger.admit(phaseRequest);
+        TransferTask phaseTask = new TransferTask(bot, phaseRequest, phaseLedger);
+        phaseTask.setFixtureElapsedTicks(200L, 201L);
+        phaseTask.tick();
+        TransferLedgerData.Entry phase = phaseLedger.find(phaseRequest.requestId()).orElse(null);
+        boolean phasePass = phase != null && phase.state() == TransferLedgerData.State.SUSPENDED
+                && TransferCodes.TIMEOUT.equals(phase.code()) && phase.location() == TransferLedgerData.Location.NOT_MOVED;
+
+        TransferLedgerData activeLedger = new TransferLedgerData();
+        TransferRequest activeRequest = requestForBot(level, bot, source, destination, 1);
+        activeLedger.admit(activeRequest);
+        TransferTask activeTask = new TransferTask(bot, activeRequest, activeLedger);
+        activeTask.setFixtureElapsedTicks(2401L, 0L);
+        activeTask.tick();
+        TransferLedgerData.Entry active = activeLedger.find(activeRequest.requestId()).orElse(null);
+        boolean activePass = active != null && active.state() == TransferLedgerData.State.SUSPENDED
+                && TransferCodes.TIMEOUT.equals(active.code()) && active.location() == TransferLedgerData.Location.NOT_MOVED;
+
+        TransferLedgerData inTransitLedger = new TransferLedgerData();
+        TransferRequest inTransitRequest = requestForBot(level, bot, source, destination, 1);
+        inTransitLedger.admit(inTransitRequest);
+        TransferTask inTransitTask = new TransferTask(bot, inTransitRequest, inTransitLedger);
+        inTransitLedger.transition(inTransitRequest.requestId(), TransferLedgerData.State.IN_TRANSIT_BOT,
+                TransferLedgerData.Location.BOT_INVENTORY, "fixture", level.getGameTime(), "fixture", false);
+        inTransitTask.setFixtureElapsedTicks(2401L, 0L);
+        inTransitTask.tick();
+        TransferLedgerData.Entry inTransit = inTransitLedger.find(inTransitRequest.requestId()).orElse(null);
+        boolean inTransitPass = inTransit != null && inTransit.state() == TransferLedgerData.State.SUSPENDED
+                && TransferCodes.TIMEOUT.equals(inTransit.code()) && inTransit.location() == TransferLedgerData.Location.BOT_INVENTORY;
+        return report("task_budgets_200_2400_in_transit", inTransitRequest, phasePass && activePass && inTransitPass,
+                TransferCodes.TIMEOUT, inTransitPass ? TransferLedgerData.Location.BOT_INVENTORY : TransferLedgerData.Location.NOT_MOVED,
+                0, 0, 0);
     }
 
     private static boolean taskInterruptPolicies(ServerLevel level, BotPlayer bot, BlockPos source, BlockPos destination) {

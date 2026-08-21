@@ -14,6 +14,7 @@ import net.minecraft.server.level.ServerLevel;
 public final class TransferTask implements Task {
     private static final int PHASE_NO_PROGRESS = 200;
     private static final int ACTIVE_DEADLINE = 2400;
+    private static final int MAX_SUSPENSION = 12000;
     private final BotPlayer bot;
     private final TransferRequest request;
     private final TransferLedgerData ledger;
@@ -24,7 +25,21 @@ public final class TransferTask implements Task {
     private long phaseStarted;
     private String failure = "";
     private boolean completed;
+    /** Test-only fixture seam. Null is the production path. */
+    public enum FixtureMovementOutcome { SEARCH_LIMIT, UNREACHABLE, FAILED }
+    private static FixtureMovementOutcome fixtureMovementOutcome;
     private enum Phase { TO_SOURCE, SOURCE_WRITE, TO_DESTINATION, DESTINATION_WRITE }
+
+    public static void setFixtureMovementOutcome(FixtureMovementOutcome outcome) {
+        fixtureMovementOutcome = outcome;
+    }
+
+    /** Test-only clock control for the isolated fixture; production never calls it. */
+    public void setFixtureElapsedTicks(long activeElapsed, long phaseElapsed) {
+        long now = level.getGameTime();
+        started = now - activeElapsed;
+        phaseStarted = now - phaseElapsed;
+    }
 
     public TransferTask(BotPlayer bot, TransferRequest request, TransferLedgerData ledger) {
         this.bot = bot; this.request = request; this.ledger = ledger; this.level = bot.serverLevel();
@@ -37,8 +52,17 @@ public final class TransferTask implements Task {
         TransferLedgerData.Entry entry = ledger.find(request.requestId()).orElse(null);
         if (entry != null && entry.state() == TransferLedgerData.State.ABORTED) { failure = "aborted"; return Status.FAILED; }
         long now = level.getGameTime();
-        if (now - started > ACTIVE_DEADLINE) return suspend(TransferCodes.TIMEOUT, TransferLedgerData.Location.NOT_MOVED);
-        if (now - phaseStarted > PHASE_NO_PROGRESS) return suspend(TransferCodes.TIMEOUT, phase == Phase.TO_DESTINATION || phase == Phase.DESTINATION_WRITE ? TransferLedgerData.Location.BOT_INVENTORY : TransferLedgerData.Location.NOT_MOVED);
+        if (entry != null && entry.state() == TransferLedgerData.State.SUSPENDED) {
+            if (entry.suspensionStartedTick() >= 0 && now - entry.suspensionStartedTick() > MAX_SUSPENSION) {
+                ledger.expireSuspensions(now, MAX_SUSPENSION);
+            }
+            failure = TransferCodes.MANUAL_TAKEOVER_REQUIRED;
+            return Status.FAILED;
+        }
+        TransferLedgerData.Location provenLocation = entry != null && entry.location() == TransferLedgerData.Location.BOT_INVENTORY
+                ? TransferLedgerData.Location.BOT_INVENTORY : TransferLedgerData.Location.NOT_MOVED;
+        if (now - started > ACTIVE_DEADLINE) return suspend(TransferCodes.TIMEOUT, provenLocation);
+        if (now - phaseStarted > PHASE_NO_PROGRESS) return suspend(TransferCodes.TIMEOUT, provenLocation);
         return switch (phase) {
             case TO_SOURCE -> move(request.source().position().above(), TransferLedgerData.State.MOVE_TO_SOURCE, false);
             case SOURCE_WRITE -> sourceWrite();
@@ -47,6 +71,16 @@ public final class TransferTask implements Task {
         };
     }
     private Status move(BlockPos goal, TransferLedgerData.State state, boolean inTransit) {
+        if (fixtureMovementOutcome != null) {
+            FixtureMovementOutcome outcome = fixtureMovementOutcome;
+            fixtureMovementOutcome = null;
+            String code = switch (outcome) {
+                case SEARCH_LIMIT -> TransferCodes.HARD_PATH_SEARCH_LIMIT;
+                case UNREACHABLE -> TransferCodes.HARD_PATH_UNREACHABLE;
+                case FAILED -> TransferCodes.HARD_PATH_FAILED;
+            };
+            return suspend(code, inTransit ? TransferLedgerData.Location.BOT_INVENTORY : TransferLedgerData.Location.NOT_MOVED);
+        }
         if (movement == null) {
             SurfacePathfinder.Result path = SurfacePathfinder.find(level, bot.blockPosition(), goal);
             if (!path.reachable()) return suspend(path.inconclusive() ? TransferCodes.HARD_PATH_SEARCH_LIMIT : TransferCodes.HARD_PATH_UNREACHABLE,
