@@ -11,6 +11,7 @@ public final class TransferCodes {
     public static final String ENDPOINT_NOT_SINGLE_CHEST = "endpoint_not_single_chest";
     public static final String ENDPOINT_HANDLER_UNAVAILABLE = "endpoint_handler_unavailable";
     public static final String SAME_ENDPOINT_REJECTED = "same_endpoint_rejected";
+    public static final String CROSS_DIMENSION_REJECTED = "cross_dimension_rejected";
     public static final String UNSUPPORTED_ITEM_COMPONENTS = "unsupported_item_components";
     public static final String CAPACITY_REJECTED = "capacity_rejected";
     public static final String SOURCE_INSUFFICIENT = "source_insufficient";
@@ -30,6 +31,7 @@ public final class TransferCodes {
     public static final String MANUAL_TAKEOVER_REQUIRED = "manual_takeover_required";
     public static final String UNKNOWN_DISCREPANCY = "unknown_discrepancy";
     public static final String TRANSFER_VERIFIED = "transfer_verified";
+    public static final String DEFAULT_ITEM_UNAVAILABLE = "default_item_unavailable";
 
     private TransferCodes() {
     }

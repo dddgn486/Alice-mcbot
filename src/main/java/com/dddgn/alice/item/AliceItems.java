@@ -37,6 +37,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> ROAD_PLANNER =
             ITEMS.register("road_planner", () -> new RoadPlannerItem(new Item.Properties()));
 
+    /** A1.1 endpoint draft selector; it returns PASS so vanilla container interaction remains intact. */
+    public static final RegistryObject<Item> TRANSFER_ENDPOINT_SELECTOR =
+            ITEMS.register("transfer_endpoint_selector", () -> new TransferEndpointSelector(new Item.Properties()));
+
     private AliceItems() {
     }
 }

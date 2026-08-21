@@ -12,6 +12,8 @@ import com.dddgn.alice.transfer.ChestEndpointRef;
 import com.dddgn.alice.transfer.TransferCodes;
 import com.dddgn.alice.transfer.TransferLedgerData;
 import com.dddgn.alice.transfer.TransferRequest;
+import com.dddgn.alice.transfer.TransferSelectionData;
+import com.dddgn.alice.transfer.TransferSelectionSubmission;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -109,6 +111,16 @@ public final class BotCommand {
                 .then(Commands.literal("transfer-status")
                         .then(Commands.argument("request", StringArgumentType.word())
                                 .executes(ctx -> transferStatus(ctx.getSource(), StringArgumentType.getString(ctx, "request")))))
+                .then(Commands.literal("transfer-selection")
+                        .then(Commands.literal("status").executes(ctx -> transferSelectionStatus(ctx.getSource())))
+                        .then(Commands.literal("clear").executes(ctx -> transferSelectionClear(ctx.getSource())))
+                        .then(Commands.literal("submit").executes(ctx -> transferSelectionSubmit(ctx.getSource(), null, null))
+                                .then(Commands.argument("item", StringArgumentType.word())
+                                        .executes(ctx -> transferSelectionSubmit(ctx.getSource(), StringArgumentType.getString(ctx, "item"), null))
+                                        .then(Commands.argument("count", IntegerArgumentType.integer(1))
+                                                .executes(ctx -> transferSelectionSubmit(ctx.getSource(),
+                                                        StringArgumentType.getString(ctx, "item"),
+                                                        IntegerArgumentType.getInteger(ctx, "count")))))))
                 .then(Commands.literal("transfer-abort")
                         .then(Commands.argument("request", StringArgumentType.word())
                                 .executes(ctx -> transferAbort(ctx.getSource(), StringArgumentType.getString(ctx, "request")))))
@@ -156,6 +168,43 @@ public final class BotCommand {
                     + " state=PLANNED code=accepted location=not_moved"), false);
             return 1;
         } catch (IllegalArgumentException exception) { return failure(source, exception.getMessage()); }
+    }
+
+    private static int transferSelectionStatus(CommandSourceStack source) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) return failure(source, TransferCodes.UNAUTHORIZED_ACTOR);
+        var draft = TransferSelectionData.status(source.getServer(), player.getUUID(), source.getLevel().getGameTime()).orElse(null);
+        if (draft == null) return failure(source, "selection_missing");
+        source.sendSuccess(() -> Component.literal("[alice] transfer selection source=" + draft.source()
+                + " destination=" + draft.destination() + " selectedTick=" + draft.selectedTick()), false);
+        return 1;
+    }
+
+    private static int transferSelectionClear(CommandSourceStack source) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) return failure(source, TransferCodes.UNAUTHORIZED_ACTOR);
+        TransferSelectionData.clear(source.getServer(), player.getUUID());
+        com.dddgn.alice.log.BotLog.info("transfer_selection: cleared player={}", player.getName().getString());
+        source.sendSuccess(() -> Component.literal("[alice] transfer selection cleared"), false);
+        return 1;
+    }
+
+    private static int transferSelectionSubmit(CommandSourceStack source, String rawItem, Integer explicitCount) {
+        if (!(source.getEntity() instanceof ServerPlayer actor)) return failure(source, TransferCodes.UNAUTHORIZED_ACTOR);
+        var draft = TransferSelectionData.status(source.getServer(), actor.getUUID(), source.getLevel().getGameTime()).orElse(null);
+        if (draft == null || draft.source() == null || draft.destination() == null) return failure(source, "selection_incomplete");
+        ResourceLocation explicitItem = rawItem == null ? null : ResourceLocation.tryParse(rawItem);
+        if (rawItem != null && explicitItem == null) return failure(source, TransferCodes.INVALID_ITEM_ID);
+        TransferSelectionSubmission.Resolution resolved = TransferSelectionSubmission.resolve(source.getLevel(), draft.source(), explicitItem, explicitCount);
+        if (!resolved.accepted()) return failure(source, resolved.code());
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) return failure(source, TransferCodes.BOT_UNAVAILABLE);
+        TransferSelectionSubmission.Submission submitted = TransferSelectionSubmission.submit(actor.getUUID(), bot.getUUID(),
+                draft.source(), draft.destination(), resolved, source.getLevel().getGameTime(),
+                request -> BotManager.assignTransfer(bot, request));
+        if (!submitted.accepted()) return failure(source, submitted.code());
+        TransferSelectionData.clear(source.getServer(), actor.getUUID());
+        source.sendSuccess(() -> Component.literal("[alice] transfer request=" + submitted.request().requestId()
+                + " state=PLANNED code=accepted location=not_moved"), false);
+        return 1;
     }
 
     private static int transferStatus(CommandSourceStack source, String rawId) {
