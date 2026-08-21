@@ -16,17 +16,18 @@ import net.minecraftforge.registries.ForgeRegistries;
 import java.util.List;
 
 /**
- * 服务端接口扫描器(设计文档 §5「只读接口自动生成」v1)。
+ * 服务端 C1 只读接口扫描器(设计文档 §5「只读接口自动生成」v1)。
  * <p>
- * 扫描指定方块的 capability,输出结构化接口清单:
+ * 捕获指定方块位置的 <b>unsided raw readonly facts</b>(不推断输入/输出/能量槽位角色):
  * <ul>
- *   <li>物品槽:每个槽位的内容 + 通用语义(输入/输出/能量,按 Mek 机器惯例);</li>
- *   <li>能量:FE 储量/容量;</li>
- *   <li>流体:各 tank 内容;</li>
- *   <li>Mek GUI 页签:化学能力/红石控制/升级/安全/传输配置(颜色槽↔面→IO)。</li>
+ *   <li>物品槽:按槽位索引输出内容(无输入/输出/能量语义猜测);</li>
+ *   <li>能量:FE 储量/容量/可提取/可接收;</li>
+ *   <li>流体:各 tank 索引与内容;</li>
+ *   <li>Mek GUI 页签投影:仅作为显式 <b>非通用 legacy</b> 投影保留,不属于 C1 通用事实。</li>
  * </ul>
- * ⚠️ 审查点 R12:槽位语义目前是「Mek 机器通用惯例」(槽0输入/槽1输出/末位能量),
- * 不同机器有差异,精确语义需 per-machine 适配器(见 docs/MEK_GUI_SEMANTICS.md)。</p>
+ * C1 语义边界:只读取、不写入;不进行传输/插入/抽取模拟;不推断 per-machine 槽位角色
+ * (精确语义需 per-machine 适配器,见 docs/MEK_GUI_SEMANTICS.md)。
+ * 未加载位置以保守常量 {@code unknown} 作为 blockId,不访问目标世界状态。</p>
  */
 public final class InterfaceScanner {
 
@@ -37,15 +38,20 @@ public final class InterfaceScanner {
         return format(capture(level, pos));
     }
 
+    /** 未加载/未知目标方块的保守 block id:不访问目标世界状态推导。 */
+    private static final String UNKNOWN_BLOCK_ID = "unknown";
+
     /** Capture all C1 facts synchronously and copy every mutable capability value. */
     public static InterfaceSnapshot capture(ServerLevel level, BlockPos pos) {
         String dimension = level.dimension().location().toString();
-        String blockName = ForgeRegistries.BLOCKS.getKey(level.getBlockState(pos).getBlock()).toString();
         long tick = level.getGameTime();
+        // 必须先于任何目标 getBlockState/getBlockEntity:未加载位置不得访问目标世界状态
+        // (可能同步解析/加载 chunk 或返回 fallback state)。
         if (!level.hasChunkAt(pos)) {
-            return new InterfaceSnapshot(1, dimension, pos, blockName, null, tick,
+            return new InterfaceSnapshot(1, dimension, pos, UNKNOWN_BLOCK_ID, null, tick,
                     ObservationStatus.CHUNK_NOT_LOADED, List.of(), null, List.of(), "");
         }
+        String blockName = ForgeRegistries.BLOCKS.getKey(level.getBlockState(pos).getBlock()).toString();
         BlockEntity be = level.getBlockEntity(pos);
         if (be == null) {
             return new InterfaceSnapshot(1, dimension, pos, blockName, null, tick,
@@ -150,47 +156,6 @@ public final class InterfaceScanner {
                     }
                     return List.copyOf(facts);
                 }).orElse(List.of());
-    }
-
-    private static void scanItems(StringBuilder sb, BlockEntity be) {
-        be.getCapability(ForgeCapabilities.ITEM_HANDLER, null).ifPresent(handler -> {
-            int slots = handler.getSlots();
-            sb.append("【物品槽】共 ").append(slots).append(" 槽\n");
-            for (int i = 0; i < slots; i++) {
-                ItemStack stack = handler.getStackInSlot(i);
-                sb.append("  槽").append(i).append('[').append(slotHint(i, slots)).append("]: ");
-                if (stack.isEmpty()) {
-                    sb.append("空\n");
-                } else {
-                    sb.append(ForgeRegistries.ITEMS.getKey(stack.getItem()))
-                            .append('×').append(stack.getCount()).append('\n');
-                }
-            }
-        });
-    }
-
-    private static void scanEnergy(StringBuilder sb, BlockEntity be) {
-        be.getCapability(ForgeCapabilities.ENERGY, null).ifPresent(energy -> {
-            sb.append("【能量】").append(energy.getEnergyStored())
-                    .append(" / ").append(energy.getMaxEnergyStored()).append(" FE\n");
-        });
-    }
-
-    private static void scanFluid(StringBuilder sb, BlockEntity be) {
-        be.getCapability(ForgeCapabilities.FLUID_HANDLER, null).ifPresent(handler -> {
-            int tanks = handler.getTanks();
-            sb.append("【流体】共 ").append(tanks).append(" tank\n");
-            for (int i = 0; i < tanks; i++) {
-                FluidStack fluid = handler.getFluidInTank(i);
-                sb.append("  tank").append(i).append(": ");
-                if (fluid.isEmpty()) {
-                    sb.append("空\n");
-                } else {
-                    sb.append(ForgeRegistries.FLUIDS.getKey(fluid.getFluid()))
-                            .append('×').append(fluid.getAmount()).append("mb\n");
-                }
-            }
-        });
     }
 
     /** Mek GUI 页签 → 语义接口(见 docs/MEK_GUI_SEMANTICS.md v0.2)。
@@ -311,28 +276,5 @@ public final class InterfaceScanner {
         if (be.getCapability(cap, null).isPresent()) {
             sb.append(text).append('\n');
         }
-    }
-
-    /** 槽位语义(Mek 机器通用惯例,精确语义见 docs/MEK_GUI_SEMANTICS.md)。 */
-    private static String slotHint(int slot, int total) {
-        if (total >= 3) {
-            if (slot == 0) {
-                return "输入";
-            }
-            if (slot == 1) {
-                return "输出";
-            }
-            if (slot == total - 1) {
-                return "能量";
-            }
-        } else if (total == 2) {
-            if (slot == 0) {
-                return "输入";
-            }
-            if (slot == 1) {
-                return "输出";
-            }
-        }
-        return "?";
     }
 }

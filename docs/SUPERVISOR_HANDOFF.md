@@ -5,16 +5,16 @@
 
 ## 1. 当前唯一可信状态
 
-- 当前 Git HEAD、Windows `origin/master`、GitHub `master`：`276339ff12bb6c122780be0cde2d45ea6b4821db`（四角色 bus 交接文档提交）；本次工作流接管基线为 `f9d89da7e6540099312fa8438a8299be1c9d3b21`（客户端阻塞文档 checkpoint）。
-- 最新业务实现：`8bb2d7b1641c0b6e6063d4c78ae0357896fd0c90`，`interface-readonly-snapshot-v1`。
-- Active plan：`.alice-supervision/active-plan.md`，状态 `NEEDS_USER_DECISION`。
-- 实现包结论：`CONDITIONAL_PASS / HEADLESS_PARTIALLY_VERIFIED`，不是完成、不是客户端通过。
-- 客户端结果：`NEEDS_FIX`，但扫描器测试场景尚未开始。
-- 用户已要求暂停并待命；未经新的明确恢复指令，不得派发实现或重复加载旧存档。
+- 当前 Git HEAD、Windows `origin/master`：本次 F1-F4 维护业务提交（SHA 见 `docs/HANDOVER.md` §〇，由治理回填提交记录；GitHub `master` 推送前先 `git fetch github` 查冲突）。
+- 最新业务实现：F1-F4 维护提交（`20260821-interface-c1-maintenance-f1-f4-v1` 收口）；前序业务 `8bb2d7b1641c0b6e6063d4c78ae0357896fd0c90`（`interface-readonly-snapshot-v1`，S1-S4 已 `USER_ACCEPTED`）。
+- Active plan：`.alice-supervision/active-plan.md`，状态 `APPROVED_FOR_IMPLEMENTATION`；F1-F4 已实现，等待监督员审核本轮提交与审核包。
+- 实现包结论：C1 S1-S4 已由用户验收（窄范围：独立扫描器身份、只读箱子扫描、无 block entity 扫描、原版钻石铲隔离）；F1-F4 维护已实现并通过 `compileJava` + focused headless，待监督审核，不是客户端验收。
+- 客户端结果：`USER_ACCEPTED`（仅独立扫描器 S1-S4，见 `.alice-supervision/client-tests/8bb2d7b.md`）。
+- 历史旧存档卡死保持**未归因、未修复**；F1-F4 与其隔离，本轮未诊断、未重复加载。
 
-## 2. 当前阻塞事实
+## 2. 历史旧存档卡死观察（未归因、未修复）
 
-Windows 客户端加载旧存档时卡死。用户提供的最后可见 Alice 日志是：
+Windows 客户端加载旧存档时曾卡死。用户提供的最后可见 Alice 日志是：
 
 ```text
 [03:29:07] 假人已生成(玩家化): name=tango pos=17, -59, 18
@@ -43,17 +43,17 @@ Windows 客户端加载旧存档时卡死。用户提供的最后可见 Alice �
 
 在这些事实能缩小责任模块前，不授权业务修复。诊断任务适合先派给调查员；若需要安排多阶段复现和停止条件，再派规划员。开发员保持空闲。
 
-## 4. `8bb2d7b` 仍欠的维护条件
+## 4. `8bb2d7b` 的维护条件已收口（F1-F4）
 
-即使旧存档卡死不是本包造成，下一产品包前仍要单独收口：
+`20260821-interface-c1-maintenance-f1-f4-v1` 已收口评审 `20260821-8bb2d7b.md` 的 F1-F4 全部条件：
 
-1. selftest 补 formatter 不改世界与捕获后不可变断言；
-2. `hasChunkAt` 必须早于 `getBlockState/getBlockEntity`；
-3. HANDOVER 的实现/工具事实已在 `f9d89da` 修正，后续提交继续保持实际 HEAD；
-4. 删除旧 `scanItems/scanEnergy/scanFluid/slotHint` 死代码，更新 C1 注释；
-5. 用户完成 `alice:interface_scanner` 和原版钻石铲隔离矩阵。
+1. ✅ selftest `runInterfaceSnapshotRegression` 补 formatter 纯度、捕获后快照稳定、非空 items 不可变断言，全部并入单一 `INTERFACE_SNAPSHOT_SELFTEST PASS|FAIL`；
+2. ✅ `InterfaceScanner.capture` 的 `hasChunkAt` 先于目标 `getBlockState/getBlockEntity`，未加载以保守常量 `unknown` 为 `blockId`，不读取目标世界状态；
+3. ✅ HANDOVER/SUPERVISOR_HANDOFF 保持实际 HEAD（业务 SHA 与治理提交分开记录）；
+4. ✅ 删除无调用者的 `scanItems/scanEnergy/scanFluid/slotHint` 死代码，类注释改为 C1 raw unsided readonly facts，Mek 投影保留为显式非通用 legacy；
+5. ✅ 用户已完成 `alice:interface_scanner` S1-S4 矩阵（`USER_ACCEPTED`）。
 
-不要把这些维护与旧存档卡死修复混成一个工作包。
+历史旧存档卡死仍为未归因观察，与本维护包隔离；不要把这些维护与旧存档卡死修复混成一个工作包。
 
 ## 5. 四角色 bus 规则
 

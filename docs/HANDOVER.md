@@ -1,19 +1,18 @@
 # Alice 项目交接说明（给新会话的快速上手）
 
 > 用途：另一个对话/会话接手本项目时，先读本文件 + README + 设计文档，即可快速进入工作。
-> 更新：2026-08-21（最新实现提交 `8bb2d7b`；`interface-readonly-snapshot-v1` 未完成，旧存档客户端加载卡死后暂停待命）
+> 更新：2026-08-21（本轮 C1 maintenance F1-F4 业务提交见 §〇；`interface-readonly-snapshot-v1` 的 S1-S4 已获用户验收，F1-F4 维护已收口）
 > 重要：本会话功能提交已同步到 Windows 端仓库（`origin` = `/mnt/d/JAVA_projects/alice`）。**每次代码修改完成后必须 `git push origin master`**，用户在 Windows 客户端实测。
-> 当前工作区的未提交改动均为监督流程：`.gitignore`、`AGENTS.md`、`docs/SUPERVISION_PROTOCOL.md`、`docs/supervision/`、`tools/` 与本文件；它们不属于 Mod 功能实现，应作为独立治理提交核对，勿覆盖或混入功能提交。
+> 当前工作区的未提交改动均为监督流程：`.gitignore`、`AGENTS.md`、`docs/SUPERVISION_PROTOCOL.md`、`docs/supervision/`、`tools/`；它们不属于 Mod 功能实现，应作为独立治理提交核对，勿覆盖或混入功能提交。
 
 ## 〇、当前 Git 状态（重要）
 
 ```
-8bb2d7b feat: add readonly interface snapshots             ← 最新实现（C1 快照与独立扫描器；未完成客户端验收）
+ba63d15 docs: correct supervisor handoff revision          （治理：监督交接回填，位于 8bb2d7b 之后）
+276339f docs: define dsh bus supervision handoff           （治理：四角色 bus 交接）
+f9d89da docs: record blocked client checkpoint             （治理：客户端阻塞 checkpoint）
+8bb2d7b feat: add readonly interface snapshots             （业务：C1 快照与独立扫描器；S1-S4 已 USER_ACCEPTED）
 d1def08 docs: define product architecture roadmap          （三产品主线、C0-C5 与 R37-R40）
-ae32c4a feat: record task execution outcomes               （任务终态审计与只读状态）
-d11e851 fix: settle soft path descents                    （下降诊断已实现；客户端失败后保守禁用）
-511a1e2 fix: align surface paths with collision sweeps     （直线路径与对角碰撞一致性）
-b423af3 fix: prove surface path costs                     （零 heuristic / Dijkstra 成本正确性）
 ```
 
 当前工作区不是干净状态：治理对接文件待独立提交。治理基线包含 `AGENTS.md`、`docs/SUPERVISION_PROTOCOL.md`、`docs/supervision/`、`tools/` 和 `docs/SUPERVISOR_HANDOFF.md`；四角色 `dsh-agent-bus` 的接管顺序、权限和当前阻塞以 `docs/SUPERVISOR_HANDOFF.md` 为准。下一次功能工作开始前，监督员应先创建或核对 `.alice-supervision/active-plan.md` 并标记 `APPROVED_FOR_IMPLEMENTATION`；主工作会话必须运行 `./tools/work-session-start.sh`，没有批准工作包不得扩展功能。只提交已核对归属的文件，勿覆盖用户或监督流程变更。
@@ -39,15 +38,17 @@ GitHub：`github` 远端 `dddgn486/Alice-mcbot`（本会话未推 GitHub，push 
 
 按批准计划 `20260821-task-observability-v1`，`BotSession` 新增只读不可变 `TaskExecutionRecord`，区分当前任务摘要与最近终端记录。记录包含任务类型、语义目标、起止 server tick、终端状态、原有稳定结果码、终端 bot 方块位置与恢复状态；完成、失败、维生中断、follow 取消、替换取消、road-plan/未实现目标的启动前拒绝均记录稳定 `task_execution_terminal` 日志。`/alice status` 只读展示 `current` 和 `latest`，同时保留原有 `last/pos/hazard`。没有改变 Task 生命周期、成功/失败条件、移动、world edit 或任何客户端交互。
 
-已执行验证：本轮 `./gradlew compileJava` 成功（仅既有弃用警告）；headless `./gradlew runServer -Dalice.selftest.auto=true` 的 `INTERFACE_SNAPSHOT_SELFTEST PASS` 验证原版箱子 `OK`、27 个显式槽位、slot 0 `minecraft:diamond×3`，以及泥土 `NO_BLOCK_ENTITY`；完整既有 smoke 仍在外部 180 秒时限内未完成并以 `143` 退出，不能报告整套通过。C1 快照不保留 capability handler、ItemStack、tag、block entity 或 level 引用；能量/流体路径有编译覆盖但没有专用 fixture，未写成运行时 PASS。
+已执行验证：`./gradlew compileJava` 成功（仅既有弃用警告）；headless `./gradlew runServer -Dalice.selftest.auto=true` 的 `INTERFACE_SNAPSHOT_SELFTEST PASS` 验证原版箱子 `OK`、27 个显式槽位、slot 0 `minecraft:diamond×3`、泥土 `NO_BLOCK_ENTITY`，并按 `20260821-interface-c1-maintenance-f1-f4-v1` 新增三项 F1 断言：`formatterPure`（`InterfaceScanner.format` 不改变来源箱子内容与已捕获快照字段）、`postCaptureStable`（源箱子 slot0 改为 iron_ingot×7 后原快照仍为 diamond×3）、`itemsImmutable`（`List.copyOf` items 拒绝 add 并抛 `UnsupportedOperationException`），三项连同基线断言汇总为单一 `INTERFACE_SNAPSHOT_SELFTEST PASS|FAIL` 且日志输出每项可审核布尔值。完整既有 smoke 仍在外部 180 秒时限内未完成并以 `143` 退出，不能报告整套通过。C1 快照不保留 capability handler、ItemStack、tag、block entity 或 level 引用；能量/流体路径有编译覆盖但没有专用 fixture，未写成运行时 PASS（本轮按计划未新增任何 machine/fluid/energy/mock/tick/chunk fixture）。
 
-`alice:interface_scanner` 的独立物品模型/名称、右键扫描行为，以及普通 `minecraft:diamond_shovel` 不再触发 Alice 扫描仍待 Windows 客户端确认；该入口不证明 C2/C3/C4 操作兼容性，也不替代既有 SOFT_SURFACE 客户端物理证据。
+`alice:interface_scanner` 独立物品的模型/名称、右键只读扫描、泥土等无 block entity 目标 `NO_BLOCK_ENTITY`，以及普通 `minecraft:diamond_shovel` 不再触发 Alice 扫描，已由用户在 Windows 客户端 S1-S4 矩阵确认并标为 `USER_ACCEPTED`（见 `.alice-supervision/client-tests/8bb2d7b.md`）；接受范围仅限独立扫描器身份、只读箱子扫描、无 block entity 扫描与原版钻石铲隔离，不证明 C2/C3/C4 操作兼容性，也不替代既有 SOFT_SURFACE 客户端物理证据。
 
-**当前阻塞（用户 Windows 客户端证据，2026-08-21 03:29）**：加载旧存档时客户端卡死，日志最后可见阶段为 `假人已生成(玩家化): name=tango pos=17, -59, 18`、`已从世界存档恢复假人: name=tango pos=(17, -59, 18)`、`SELFTEST 待命(手动 /alice selftest 触发)`。四项扫描器客户端矩阵尚未开始，不能把本包标为完成或 `USER_ACCEPTED`。这些末行只证明卡死发生在恢复假人并进入 selftest 待命之后，尚无异常栈、线程转储或新世界对照，**不能据此归因到 C1 snapshot、独立物品注册或假人恢复中的任一模块**。按用户要求停止实现与重复启动，保留 `8bb2d7b`，状态转为待命；恢复工作时先建立旧/新世界对照并采集客户端/服务端线程证据，再决定窄修复范围。
+按批准计划 `20260821-interface-c1-maintenance-f1-f4-v1` 完成的 C1 维护收口：F2 `InterfaceScanner.capture` 现先调用 `level.hasChunkAt(pos)`，未加载位置以保守常量 `unknown` 作为 `blockId` 且不读取目标 `getBlockState`/`getBlockEntity`；F4 删除无调用者的旧泛化 `scanItems/scanEnergy/scanFluid/slotHint` 死代码与槽位 heuristic 注释，类注释改为 C1 unsided raw readonly facts，Mek 投影保留为显式非通用 legacy；F1 见上段 selftest 断言；F3 本文件与 `docs/SUPERVISOR_HANDOFF.md` 事实已同步（业务 SHA 与治理提交分开记录）。未改动 `ScanWand.java`（其 capture 后提示 block lookup 不在本包范围）。
+
+**历史观察（未归因、未修复，2026-08-21 03:29）**：加载旧存档时客户端曾卡死，日志最后可见阶段为 `假人已生成(玩家化): name=tango pos=17, -59, 18`、`已从世界存档恢复假人: name=tango pos=(17, -59, 18)`、`SELFTEST 待命(手动 /alice selftest 触发)`。这些末行只证明卡死发生在恢复假人并进入 selftest 待命之后，尚无异常栈、线程转储或新世界对照，**不能据此归因到 C1 snapshot、独立物品注册或假人恢复中的任一模块**。用户当日稍后正常进入该旧 superflat 存档完成 S1-S4，仅作为未复现观察，不关闭、不归因、不修复该历史问题；复发时先采集完整 `latest.log`/`debug.log` 与客户端/服务端线程转储，再决定窄修复范围。本轮 F1-F4 与旧存档卡死隔离，未诊断、未重复加载。
 
 不能回退的决策：普通挖矿、拾取仍固定 `HARD_PATH`；`MineTask` 不生成道路或隧道，深层目标失败 `target_requires_tunnel`；A* 不破坏方块；本地清障仍仅限直接可见、4.5 格内、最多 2 个方块。`SOFT_SURFACE` 不得接入 `MineTask`、`DropCollectionTask`、道路或隧道，除非逐项客户端验证和单独决策批准。
 
-下一步状态：**待命**。未经用户恢复指令，不继续实现、不重复加载旧存档、不开展扫描器或软移动客户端矩阵。恢复后第一工作包应先诊断旧存档加载卡死：对比同版本新世界与旧世界、保留完整 `latest.log`/`debug.log`、采集卡死时客户端和内置服务端线程转储，并确认最后推进的生命周期事件；在证据能区分 registry remap、假人 SavedData 恢复、连接注册、客户端同步或其他模组初始化前，不修改业务代码。`interface-readonly-snapshot-v1` 保持未完成，C2+、AttackTask、库存转移、LLM 和所有 SOFT_SURFACE 扩展继续禁止。
+下一步状态：**F1-F4 维护已实现，待监督员审核**。C1 S1-S4 客户端矩阵已完成（`USER_ACCEPTED`，窄范围：独立扫描器身份、只读箱子扫描、无 block entity 扫描、原版钻石铲隔离），扫描器矩阵不再待命。历史旧存档卡死保持未归因、未修复；恢复诊断需先建旧/新世界对照并采集完整日志与客户端/服务端线程转储，在证据能区分 registry remap、假人 SavedData 恢复、连接注册、客户端同步或其他模组初始化前，不修改业务代码。C2+、AttackTask、库存转移、LLM 和所有 SOFT_SURFACE 扩展继续禁止。
 
 
 ---
@@ -237,7 +238,7 @@ BUILD_UNIT → WAIT_STABLE → MOVE_TO_NEXT_UNIT →（循环）→ MINE_TARGET 
 目标指定器(钻石斧)右键方块   挖掘；Shift+右键 → 独立放置任务（PlaceTask）
 软移动选择器(金斧)右键平地   NATIVE_TRAVEL；Shift+右键平地 → SELF_MOVE 回归对照；需已有空闲 bot，受 8 格/同高度限制
 道路蓝图锄(钻石锄)右键两端   生成蓝色道路预览；Shift+右键重置
-接口扫描器(`alice:interface_scanner`)右键  C1 快捷扫描（客户端入口尚未验收；原版钻石铲不得触发）
+接口扫描器(`alice:interface_scanner`)右键  C1 快捷扫描（S1-S4 已用户验收：物品身份/只读箱子/无BE/原版钻石铲隔离；原版钻石铲不得触发）
 ```
 
 headless 验收：`./gradlew runServer -Dalice.selftest.auto=true`（测完自动关服，看 run/logs/latest.log）。

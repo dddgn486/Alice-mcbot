@@ -349,7 +349,9 @@ public final class BotSelftest {
     private static void runInterfaceSnapshotRegression(BlockPos chestPos) {
         level.setBlock(chestPos, Blocks.CHEST.defaultBlockState(), 3);
         net.minecraft.world.level.block.entity.BlockEntity chest = level.getBlockEntity(chestPos);
-        if (chest instanceof net.minecraft.world.level.block.entity.ChestBlockEntity chestEntity) {
+        net.minecraft.world.level.block.entity.ChestBlockEntity chestEntity =
+                chest instanceof net.minecraft.world.level.block.entity.ChestBlockEntity cbe ? cbe : null;
+        if (chestEntity != null) {
             chestEntity.setItem(0, new ItemStack(Items.DIAMOND, 3));
             chestEntity.setChanged();
         }
@@ -365,10 +367,47 @@ public final class BotSelftest {
                 && chestSnapshot.items().get(0).count() == 3;
         boolean dirtPass = dirtSnapshot.status() == ObservationStatus.NO_BLOCK_ENTITY
                 && dirtSnapshot.items().isEmpty();
-        BotLog.info("INTERFACE_SNAPSHOT_SELFTEST {} chest={} status={} slots={} first={}x{} dirt={} status={}",
-                chestPass && dirtPass ? "PASS" : "FAIL", chestPass, chestSnapshot.status(),
+
+        // F1a:formatter 纯度 —— format 不改变来源箱子内容,也不改变已捕获快照字段。
+        InterfaceSnapshot.ItemFact firstBeforeFormat = chestSnapshot.items().isEmpty() ? null : chestSnapshot.items().get(0);
+        ItemStack slot0BeforeFormat = chestEntity == null ? ItemStack.EMPTY : chestEntity.getItem(0).copy();
+        InterfaceScanner.format(chestSnapshot);
+        InterfaceSnapshot.ItemFact firstAfterFormat = chestSnapshot.items().isEmpty() ? null : chestSnapshot.items().get(0);
+        ItemStack slot0AfterFormat = chestEntity == null ? ItemStack.EMPTY : chestEntity.getItem(0).copy();
+        boolean formatterPure = firstBeforeFormat != null && firstBeforeFormat.equals(firstAfterFormat)
+                && slot0BeforeFormat.getItem() == slot0AfterFormat.getItem()
+                && slot0BeforeFormat.getCount() == slot0AfterFormat.getCount()
+                && java.util.Objects.equals(slot0BeforeFormat.getTag(), slot0AfterFormat.getTag());
+
+        // F1b:捕获后修改源箱子 slot0,原快照必须保持捕获时事实(diamond×3)。
+        if (chestEntity != null) {
+            chestEntity.setItem(0, new ItemStack(Items.IRON_INGOT, 7));
+            chestEntity.setChanged();
+        }
+        boolean chestMutated = chestEntity != null
+                && chestEntity.getItem(0).getItem() == Items.IRON_INGOT
+                && chestEntity.getItem(0).getCount() == 7;
+        boolean snapshotStable = chestMutated
+                && !chestSnapshot.items().isEmpty()
+                && chestSnapshot.items().get(0).itemId().equals("minecraft:diamond")
+                && chestSnapshot.items().get(0).count() == 3;
+
+        // F1c:非空 items 事实列表不可修改(List.copyOf 只读)。
+        boolean itemsImmutable = false;
+        if (!chestSnapshot.items().isEmpty()) {
+            try {
+                chestSnapshot.items().add(chestSnapshot.items().get(0));
+            } catch (UnsupportedOperationException expected) {
+                itemsImmutable = true;
+            }
+        }
+
+        boolean snapshotPass = chestPass && dirtPass && formatterPure && snapshotStable && itemsImmutable;
+        BotLog.info("INTERFACE_SNAPSHOT_SELFTEST {} chest={} status={} slots={} first={}x{} dirt={} status={} formatterPure={} postCaptureStable={} itemsImmutable={} chestMutated={}",
+                snapshotPass ? "PASS" : "FAIL", chestPass, chestSnapshot.status(),
                 chestSnapshot.items().size(), chestSnapshot.items().isEmpty() ? "" : chestSnapshot.items().get(0).itemId(),
-                chestSnapshot.items().isEmpty() ? 0 : chestSnapshot.items().get(0).count(), dirtPass, dirtSnapshot.status());
+                chestSnapshot.items().isEmpty() ? 0 : chestSnapshot.items().get(0).count(),
+                dirtPass, dirtSnapshot.status(), formatterPure, snapshotStable, itemsImmutable, chestMutated);
     }
 
     private static void checkTest1() {
