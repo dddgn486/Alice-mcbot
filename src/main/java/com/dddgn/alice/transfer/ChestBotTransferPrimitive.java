@@ -1,7 +1,9 @@
 package com.dddgn.alice.transfer;
 
+import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -37,6 +39,7 @@ public final class ChestBotTransferPrimitive {
         if (extracted != context.request.count()) return post(context, fresh, TransferCodes.SOURCE_DELTA_MISMATCH);
         int inserted = insertBot(context.botInventory, context.item, context.request.count());
         if (inserted != context.request.count()) return post(context, fresh, TransferCodes.SOURCE_DELTA_MISMATCH);
+        syncBotInventorySlots(context.botInventory);
         return prove(context, fresh, -context.request.count(), context.request.count(), 0,
                 TransferCodes.SOURCE_DELTA_MISMATCH);
     }
@@ -221,6 +224,14 @@ public final class ChestBotTransferPrimitive {
     private static boolean matches(ItemStack stack, ResourceLocation id) {
         return !stack.isEmpty() && id.equals(ForgeRegistries.ITEMS.getKey(stack.getItem())) && !stack.hasTag();
     }
+
+    private static void syncBotInventorySlots(Inventory inventory) {
+        if (!(inventory.player instanceof ServerPlayer bot)) return;
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            bot.connection.send(new ClientboundContainerSetSlotPacket(-2, 0, i, inventory.getItem(i)));
+        }
+    }
+
     private static boolean sameFacts(InventoryObservation expected, InventoryObservation actual) {
         return expected.identity().equals(actual.identity()) && expected.slots().equals(actual.slots());
     }
