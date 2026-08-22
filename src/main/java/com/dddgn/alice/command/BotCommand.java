@@ -21,6 +21,7 @@ import com.dddgn.alice.protection.SafeZoneData;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
+import net.minecraft.commands.arguments.ResourceLocationArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -115,11 +116,11 @@ public final class BotCommand {
                         .then(Commands.literal("status").executes(ctx -> transferSelectionStatus(ctx.getSource())))
                         .then(Commands.literal("clear").executes(ctx -> transferSelectionClear(ctx.getSource())))
                         .then(Commands.literal("submit").executes(ctx -> transferSelectionSubmit(ctx.getSource(), null, null))
-                                .then(Commands.argument("item", StringArgumentType.word())
-                                        .executes(ctx -> transferSelectionSubmit(ctx.getSource(), StringArgumentType.getString(ctx, "item"), null))
+                                .then(Commands.argument("item", ResourceLocationArgument.id())
+                                        .executes(ctx -> transferSelectionSubmit(ctx.getSource(), ResourceLocationArgument.getId(ctx, "item").toString(), null))
                                         .then(Commands.argument("count", IntegerArgumentType.integer(1))
                                                 .executes(ctx -> transferSelectionSubmit(ctx.getSource(),
-                                                        StringArgumentType.getString(ctx, "item"),
+                                                        ResourceLocationArgument.getId(ctx, "item").toString(),
                                                         IntegerArgumentType.getInteger(ctx, "count")))))))
                 .then(Commands.literal("transfer-abort")
                         .then(Commands.argument("request", StringArgumentType.word())
