@@ -1,15 +1,19 @@
 package com.dddgn.alice.transfer;
 
+import com.mojang.datafixers.util.Pair;
 import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
+import net.minecraft.network.protocol.game.ClientboundSetEquipmentPacket;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.registries.ForgeRegistries;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -230,6 +234,12 @@ public final class ChestBotTransferPrimitive {
         for (int i = 0; i < inventory.getContainerSize(); i++) {
             bot.connection.send(new ClientboundContainerSetSlotPacket(-2, 0, i, inventory.getItem(i)));
         }
+        // Sync main hand equipment for entity rendering
+        ItemStack mainHandStack = inventory.getItem(inventory.selected);
+        bot.connection.send(new ClientboundSetEquipmentPacket(
+                bot.getId(),
+                List.of(Pair.of(EquipmentSlot.MAINHAND, mainHandStack))
+        ));
     }
 
     private static boolean sameFacts(InventoryObservation expected, InventoryObservation actual) {
