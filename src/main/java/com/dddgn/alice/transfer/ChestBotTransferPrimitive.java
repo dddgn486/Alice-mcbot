@@ -236,10 +236,10 @@ public final class ChestBotTransferPrimitive {
         }
         // Sync main hand equipment for entity rendering
         ItemStack mainHandStack = inventory.getItem(inventory.selected);
-        bot.connection.send(new ClientboundSetEquipmentPacket(
-                bot.getId(),
-                List.of(Pair.of(EquipmentSlot.MAINHAND, mainHandStack))
-        ));
+        com.dddgn.alice.log.BotLog.info("[EQUIPMENT_DEBUG] Syncing equipment: botId={}, selected={}, mainHand={}",
+                bot.getId(), inventory.selected, mainHandStack);
+        // Use setItemSlot() to trigger complete sync instead of sending packet directly
+        bot.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, mainHandStack);
     }
 
     private static boolean sameFacts(InventoryObservation expected, InventoryObservation actual) {
