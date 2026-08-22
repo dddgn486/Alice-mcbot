@@ -8,6 +8,7 @@ import com.dddgn.alice.capability.ObservationStatus;
 import com.dddgn.alice.pathing.PathingRegression;
 import com.dddgn.alice.transfer.TransferFixture;
 import com.dddgn.alice.transfer.TransferSelectionFixture;
+import com.dddgn.alice.item.TransferEndpointSelectorEventsFixture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -342,8 +343,10 @@ public final class BotSelftest {
         bot = BotManager.spawn(level, surface, "SelftestBot");
         boolean transferPass = TransferFixture.run(level, bot, surface.offset(16, 0, 0));
         boolean selectionPass = TransferSelectionFixture.run(level, surface.offset(28, 0, 0));
+        boolean selectorEventPass = TransferEndpointSelectorEventsFixture.run();
         BotLog.info("TRANSFER_FIXTURE_SUITE {} request/state/code/location/source-bot-destination-delta asserted", transferPass ? "PASS" : "FAIL");
         BotLog.info("TRANSFER_SELECTION_FIXTURE_SUITE {} request/state/code/location/source-bot-destination-delta asserted", selectionPass ? "PASS" : "FAIL");
+        BotLog.info("TRANSFER_SELECTOR_EVENT_FIXTURE_SUITE {} role/event-write-count/hand-rejection/non-cancel asserted", selectorEventPass ? "PASS" : "FAIL");
         target1 = surface.offset(2, 0, 0);
         level.setBlock(target1, Blocks.DIRT.defaultBlockState(), 3);
         BotLog.info("SELFTEST TEST1: 铺平台完成,目标={}", target1.toShortString());
