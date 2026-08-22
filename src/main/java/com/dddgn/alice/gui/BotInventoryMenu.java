@@ -214,6 +214,17 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
             return;
         }
         super.clicked(slotId, button, clickType, player);
+        // PICKUP touching a bot slot: force-sync the bot slots to the player's client.
+        // Inventory.setItem/removeItem does not call setChanged(), and the bot's own
+        // FakeConnection.send() is a no-op, so the client's bot-slot snapshot would not
+        // refresh and the picked-up item appears to vanish. Marking every bot slot changed
+        // triggers broadcastChanges() so the player's GUI shows the updated bot inventory.
+        if (clickType == ClickType.PICKUP && botSlot) {
+            for (int i = 0; i < BOT_SLOT_CAP; i++) {
+                this.slots.get(i).setChanged();
+            }
+            BotLog.info("[GUI_DEBUG] clicked PICKUP botSlot -> forced setChanged on {} bot slots", BOT_SLOT_CAP);
+        }
         BotLog.info("[GUI_DEBUG] clicked after: slotId={}, button={}, clickType={}",
                 slotId, button, clickType);
     }
