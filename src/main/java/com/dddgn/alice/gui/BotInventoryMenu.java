@@ -12,24 +12,26 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * Informational container menu over a bot's inventory: 36 ordinary slots (0..35) and
- * 4 armor slots (36..39). The main-hand slot is the robot's {@code selected} ordinary
- * slot (0..8), so it is already represented in the ordinary grid and is not repeated.
- * The player's own inventory is laid out below. While the bot runs a task
- * ({@code taskActive}, via {@link BotManager#isBusy(BotPlayer)}), the bot slots are
- * forced read-only so a user cannot corrupt an in-progress transfer/mine.
+ * Informational container menu over a bot's inventory. The layout mirrors the vanilla
+ * {@code InventoryMenu} (player backpack) so the grid, armor column, offhand and player
+ * slots line up with the {@code inventory.png} background. The bot's 36 ordinary slots,
+ * 4 armor slots (36..39), offhand (40) and the player's own inventory are laid out
+ * without overlap. The main-hand slot is the bot's {@code selected} ordinary slot (0..8)
+ * and is already part of the ordinary grid, so it is not duplicated.
  * <p>
- * The menu is opened over the <em>requesting player's</em> real connection via
+ * While the bot runs a task ({@code taskActive}, via {@link BotManager#isBusy}) the bot
+ * slots are forced read-only so a user cannot corrupt an in-progress transfer/mine. The
+ * menu is opened over the <em>requesting player's</em> real connection via
  * {@code player.openMenu(modelProvider)}; it never uses {@code bot.connection.send}
- * (a FakeConnection no-op). This mirrors the equipment-rendering lesson.
+ * (a FakeConnection no-op).
  */
 public final class BotInventoryMenu extends AbstractContainerMenu {
 
     /** Last bot opened, used only to rebuild a menu on server-side resize. */
     private static BotPlayer OPEN_BOT;
 
-    /** Bot slot count (36 ordinary + 4 armor); indices below this are bot-owned. */
-    private static final int BOT_SLOT_CAP = 40;
+    /** Bot-owned slot count (36 ordinary + 4 armor + 1 offhand); indices below this are bot-owned. */
+    private static final int BOT_SLOT_CAP = 41;
 
     private final BotPlayer bot;
     private final boolean taskActive;
@@ -40,41 +42,59 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
         this.taskActive = bot != null && BotManager.isBusy(bot);
         OPEN_BOT = bot;
 
+        int botSlots = 0;
         if (bot != null) {
-            buildBotSlots(bot);
+            botSlots = buildBotSlots(bot);
         } else {
             BotLog.warn("bot_inventory opened with null bot; showing player slots only");
         }
-        buildPlayerSlots(playerInv);
+        buildPlayerSlots(playerInv, botSlots);
     }
 
-    private void buildBotSlots(BotPlayer bot) {
+    /**
+     * Adds the bot's slots using the vanilla inventory-menu geometry:
+     * armor column (x=8, y=8/26/44/62), offhand (x=77, y=62), 27 main (y=84..), 9 hotbar (y=142).
+     * Returns the number of bot slots added (used as the base index for the player grid).
+     */
+    private int buildBotSlots(BotPlayer bot) {
         Container botContainer = bot.getInventory();
-        // 36 ordinary slots (0..35). The vanilla player inventory is laid out as 9 hotbar +
-        // 27 main; here we show all 36 as a 4x9 grid (rows 0..3), index = row*9+col.
-        for (int row = 0; row < 4; row++) {
-            for (int col = 0; col < 9; col++) {
-                int index = row * 9 + col;
-                addSlot(new Slot(botContainer, index, 8 + col * 18, 26 + row * 18));
-            }
-        }
-        // 4 armor slots (index 36..39): a single column on the left.
+        int base = 0;
+        // Armor column (index 39=head, 38=chest, 37=legs, 36=feet), top to bottom.
         for (int i = 0; i < 4; i++) {
-            addSlot(new Slot(botContainer, 36 + i, 8, 26 + i * 18));
+            addSlot(new Slot(botContainer, 39 - i, 8, 8 + i * 18));
+            base++;
         }
-        // The selected main-hand slot (0..8) is already part of the ordinary grid; it is
-        // intentionally not duplicated here to avoid double-counting the same stack.
-    }
-
-    private void buildPlayerSlots(Inventory playerInv) {
-        // Player main inventory 27 (rows 3) + hotbar 9.
+        // Offhand (index 40).
+        addSlot(new Slot(botContainer, 40, 77, 62));
+        base++;
+        // 27 main inventory (index 9..35).
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(playerInv, 9 + row * 9 + col, 8 + col * 18, 140 + row * 18));
+                addSlot(new Slot(botContainer, 9 + col + row * 9, 8 + col * 18, 84 + row * 18));
+                base++;
+            }
+        }
+        // 9 hotbar (index 0..8).
+        for (int col = 0; col < 9; col++) {
+            addSlot(new Slot(botContainer, col, 8 + col * 18, 142));
+            base++;
+        }
+        return base;
+    }
+
+    /**
+     * Adds the player's own inventory slots below the bot grid, reusing the same geometry
+     * but shifted down so it does not overlap the bot section. The player grid is placed
+     * from y=180 onward.
+     */
+    private void buildPlayerSlots(Inventory playerInv, int botSlots) {
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 9; col++) {
+                addSlot(new Slot(playerInv, 9 + col + row * 9, 8 + col * 18, 180 + row * 18));
             }
         }
         for (int col = 0; col < 9; col++) {
-            addSlot(new Slot(playerInv, col, 8 + col * 18, 198));
+            addSlot(new Slot(playerInv, col, 8 + col * 18, 238));
         }
     }
 
@@ -95,6 +115,16 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
         return taskActive;
     }
 
+    /** Total bot slot count (used by fixture/render to verify layout). */
+    public static int botSlotCount() {
+        return BOT_SLOT_CAP; // 36 ordinary + 4 armor + 1 offhand
+    }
+
+    /** Base index where the player's own inventory slots begin. */
+    public int playerSlotBase() {
+        return BOT_SLOT_CAP;
+    }
+
     @Override
     public ItemStack quickMoveStack(Player player, int index) {
         Slot slot = this.slots.get(index);
@@ -108,9 +138,16 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
             return ItemStack.EMPTY;
         }
         if (index < BOT_SLOT_CAP) {
-            return moveItemStackTo(stack, BOT_SLOT_CAP, this.slots.size(), true) ? stack : ItemStack.EMPTY;
+            // Bot -> player: move into the player grid (starting at BOT_SLOT_CAP).
+            boolean moved = moveItemStackTo(stack, BOT_SLOT_CAP, this.slots.size(), true);
+            if (!moved) {
+                return ItemStack.EMPTY;
+            }
+            return stack;
         }
-        return moveItemStackTo(stack, 0, BOT_SLOT_CAP, false) ? stack : ItemStack.EMPTY;
+        // Player -> bot: move into the bot grid (0..BOT_SLOT_CAP).
+        boolean moved = moveItemStackTo(stack, 0, BOT_SLOT_CAP, false);
+        return moved ? stack : ItemStack.EMPTY;
     }
 
     @Override
