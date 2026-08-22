@@ -130,6 +130,8 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
             return ItemStack.EMPTY;
         }
         ItemStack stack = slot.getItem();
+        BotLog.info("[GUI_DEBUG] quickMove before: index={}, slotItem={}, stackCount={}, taskActive={}",
+                index, slot.getItem(), stack.getCount(), taskActive);
         if (taskActive) {
             // Read-only while the bot is busy: block quick-move entirely (both directions
             // touch bot-owned slots).
@@ -139,32 +141,34 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
         ItemStack original = stack.copy();
         EquipmentSlot equipmentSlot = LivingEntity.getEquipmentSlotForItem(stack);
 
+        boolean moved;
         if (index < BOT_SLOT_CAP) {
             // Bot slot -> player grid: forward-move.
-            if (!moveItemStackTo(stack, BOT_SLOT_CAP, this.slots.size(), false)) {
-                return ItemStack.EMPTY;
-            }
+            moved = moveItemStackTo(stack, BOT_SLOT_CAP, this.slots.size(), false);
         } else if (equipmentSlot.getType() == EquipmentSlot.Type.ARMOR) {
             // Player item is armor -> move to the matching bot armor slot if free.
             int armorSlot = armorSlotIndex(equipmentSlot);
             if (!this.slots.get(armorSlot).hasItem()) {
-                if (!moveItemStackTo(stack, armorSlot, armorSlot + 1, false)) {
-                    return ItemStack.EMPTY;
-                }
+                moved = moveItemStackTo(stack, armorSlot, armorSlot + 1, false);
+            } else {
+                moved = false; // armor slot occupied; do not move (fall through to keep original)
             }
         } else if (equipmentSlot == EquipmentSlot.OFFHAND) {
             // Player item is offhand -> move to bot offhand slot (index 4) if free.
             int offhandSlot = 4;
             if (!this.slots.get(offhandSlot).hasItem()) {
-                if (!moveItemStackTo(stack, offhandSlot, offhandSlot + 1, false)) {
-                    return ItemStack.EMPTY;
-                }
+                moved = moveItemStackTo(stack, offhandSlot, offhandSlot + 1, false);
+            } else {
+                moved = false;
             }
         } else {
             // Player slot -> bot grid: forward-move.
-            if (!moveItemStackTo(stack, 0, BOT_SLOT_CAP, false)) {
-                return ItemStack.EMPTY;
-            }
+            moved = moveItemStackTo(stack, 0, BOT_SLOT_CAP, false);
+        }
+        BotLog.info("[GUI_DEBUG] quickMove after: index={}, moved={}, stackNow={}, slotNow={}",
+                index, moved, stack, slot.getItem());
+        if (!moved) {
+            return ItemStack.EMPTY;
         }
 
         // Sync the source slot back to the container so server/client stay in agreement.
@@ -177,6 +181,8 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
             return ItemStack.EMPTY;
         }
         slot.onTake(player, stack);
+        BotLog.info("[GUI_DEBUG] quickMove returned original: count={}, slotNowAfterSync={}",
+                original.getCount(), slot.getItem());
         return original;
     }
 
@@ -199,11 +205,17 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
 
     @Override
     public void clicked(int slotId, int button, ClickType clickType, Player player) {
-        if (taskActive && slotId >= 0 && slotId < BOT_SLOT_CAP) {
+        boolean botSlot = slotId >= 0 && slotId < BOT_SLOT_CAP;
+        BotLog.info("[GUI_DEBUG] clicked before: slotId={}, button={}, clickType={}, botSlot={}, taskActive={}",
+                slotId, button, clickType, botSlot, taskActive);
+        if (taskActive && botSlot) {
             // Read-only while busy: swallow the click, leaving inventory untouched.
+            BotLog.info("[GUI_DEBUG] clicked swallowed (read-only while busy) slotId={}", slotId);
             return;
         }
         super.clicked(slotId, button, clickType, player);
+        BotLog.info("[GUI_DEBUG] clicked after: slotId={}, button={}, clickType={}",
+                slotId, button, clickType);
     }
 
     @Override
