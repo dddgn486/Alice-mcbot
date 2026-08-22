@@ -234,12 +234,16 @@ public final class ChestBotTransferPrimitive {
         for (int i = 0; i < inventory.getContainerSize(); i++) {
             bot.connection.send(new ClientboundContainerSetSlotPacket(-2, 0, i, inventory.getItem(i)));
         }
-        // Sync main hand equipment for entity rendering
+        // Broadcast main hand equipment to real players tracking the bot.
+        // bot.connection.send() goes to the bot's own FakeConnection (a no-op) and is dropped.
         ItemStack mainHandStack = inventory.getItem(inventory.selected);
-        com.dddgn.alice.log.BotLog.info("[EQUIPMENT_DEBUG] Syncing equipment: botId={}, selected={}, mainHand={}",
-                bot.getId(), inventory.selected, mainHandStack);
-        // Use setItemSlot() to trigger complete sync instead of sending packet directly
-        bot.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, mainHandStack);
+        if (!mainHandStack.isEmpty()) {
+            ClientboundSetEquipmentPacket packet = new ClientboundSetEquipmentPacket(
+                    bot.getId(),
+                    List.of(Pair.of(EquipmentSlot.MAINHAND, mainHandStack))
+            );
+            ((ServerLevel) bot.level()).getChunkSource().broadcast(bot, packet);
+        }
     }
 
     private static boolean sameFacts(InventoryObservation expected, InventoryObservation actual) {
