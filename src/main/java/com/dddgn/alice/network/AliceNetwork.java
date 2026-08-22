@@ -31,5 +31,11 @@ public final class AliceNetwork {
         CHANNEL.registerMessage(nextId++, RoadPlanPacket.class,
                 RoadPlanPacket::encode, RoadPlanPacket::decode,
                 RoadPlanPacket::handle, java.util.Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(nextId++, BotInventoryPacket.class,
+                BotInventoryPacket::encode, BotInventoryPacket::decode,
+                BotInventoryPacket::handle, java.util.Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(nextId++, BotInventoryActionPacket.class,
+                BotInventoryActionPacket::encode, BotInventoryActionPacket::decode,
+                BotInventoryActionPacket::handle, java.util.Optional.of(NetworkDirection.PLAY_TO_SERVER));
     }
 }

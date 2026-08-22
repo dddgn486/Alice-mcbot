@@ -2,7 +2,7 @@ package com.dddgn.alice.command;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
-import com.dddgn.alice.gui.BotInventoryMenu;
+import com.dddgn.alice.gui.BotInventoryService;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.PerceptionProfile;
 import com.dddgn.alice.perception.PerceptionSnapshot;
@@ -176,16 +176,12 @@ public final class BotCommand {
         } catch (IllegalArgumentException exception) { return failure(source, exception.getMessage()); }
     }
 
-    /** /alice bot-inventory <name> — open a read/informational menu over a bot's inventory. */
+    /** /alice bot-inventory <name> — push an authoritative bot inventory snapshot to the viewer. */
     private static int botInventory(CommandSourceStack source, String name) {
         if (!(source.getEntity() instanceof ServerPlayer actor)) return failure(source, TransferCodes.UNAUTHORIZED_ACTOR);
         BotPlayer bot = findBot(source, name);
         if (bot == null) return failure(source, TransferCodes.BOT_UNAVAILABLE);
-        net.minecraft.network.chat.Component title = net.minecraft.network.chat.Component.literal(
-                "Bot Inventory: " + bot.getName().getString()
-                        + (BotManager.isBusy(bot) ? " (read-only: task active)" : ""));
-        actor.openMenu(new net.minecraft.world.SimpleMenuProvider(
-                (containerId, playerInv, p) -> new BotInventoryMenu(containerId, playerInv, bot), title));
+        BotInventoryService.open(actor, bot);
         botInventoryLog(source, bot);
         return 1;
     }
