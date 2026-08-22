@@ -77,8 +77,9 @@ public final class BotInventoryFixture {
 
     /**
      * Places a real stack in a bot slot and runs quickMoveStack on that index to assert the
-     * bot->player move path executes and returns the stack, and that the item lands in the
-     * independent viewer grid. The earlier buggy path returned EMPTY / could not move out.
+     * vanilla ChestMenu semantics: the pre-move stack copy is returned (non-empty), the item
+     * lands in the independent viewer grid, and the source bot slot is cleared/synced. The
+     * earlier buggy path returned the cleared source stack or failed to sync the slot.
      */
     private static boolean quickMoveFromBotSucceeds(BotInventoryMenu menu, BotPlayer bot, Inventory viewerInv) {
         Inventory inv = bot.getInventory();
@@ -100,9 +101,10 @@ public final class BotInventoryFixture {
             inv.setItem(0, ItemStack.EMPTY);
             return false;
         }
-        ItemStack moved = menu.quickMoveStack(bot, botSlotIndex);
-        // Minecraft's moveItemStackTo clears the source stack on success; the item lands in
-        // the viewer grid. So the authoritative assertion is that it landed there.
+        ItemStack returned = menu.quickMoveStack(bot, botSlotIndex);
+        // Semantic 1: the returned stack is the pre-move copy (still 5 iron_ingot), not cleared.
+        boolean returnedCopyPass = returned != null && !returned.isEmpty() && returned.getCount() == 5;
+        // Semantic 2: the item landed in the independent viewer grid.
         boolean landed = false;
         for (int i = 0; i < viewerInv.getContainerSize(); i++) {
             if (viewerInv.getItem(i).is(Items.IRON_INGOT)) {
@@ -110,9 +112,11 @@ public final class BotInventoryFixture {
                 break;
             }
         }
-        boolean pass = landed;
-        BotLog.info("BOT_INVENTORY_FIXTURE quickMoveOut {} botSlotIndex={} moved={} landed={}",
-                pass ? "PASS" : "FAIL", botSlotIndex, moved, landed);
+        // Semantic 3: the source bot slot was cleared/synced (no lingering stack).
+        boolean sourceCleared = inv.getItem(0).isEmpty();
+        boolean pass = returnedCopyPass && landed && sourceCleared;
+        BotLog.info("BOT_INVENTORY_FIXTURE quickMoveOut {} returnedCopy={} landed={} sourceCleared={}",
+                pass ? "PASS" : "FAIL", returnedCopyPass, landed, sourceCleared);
         inv.setItem(0, ItemStack.EMPTY);
         return pass;
     }

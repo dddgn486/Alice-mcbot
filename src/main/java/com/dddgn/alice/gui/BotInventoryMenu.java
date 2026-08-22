@@ -137,17 +137,24 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
             // touch bot-owned slots).
             return ItemStack.EMPTY;
         }
+        // Vanilla ChestMenu semantics: keep a copy of the pre-move stack to return, move the
+        // real stack, then sync the source slot back to the container so server/client agree.
+        ItemStack original = stack.copy();
+        boolean moved;
         if (index < BOT_SLOT_CAP) {
-            // Bot -> player: move into the player grid (starting at BOT_SLOT_CAP).
-            boolean moved = moveItemStackTo(stack, BOT_SLOT_CAP, this.slots.size(), true);
-            if (!moved) {
-                return ItemStack.EMPTY;
-            }
-            return stack;
+            moved = moveItemStackTo(stack, BOT_SLOT_CAP, this.slots.size(), true);
+        } else {
+            moved = moveItemStackTo(stack, 0, BOT_SLOT_CAP, false);
         }
-        // Player -> bot: move into the bot grid (0..BOT_SLOT_CAP).
-        boolean moved = moveItemStackTo(stack, 0, BOT_SLOT_CAP, false);
-        return moved ? stack : ItemStack.EMPTY;
+        if (!moved) {
+            return ItemStack.EMPTY;
+        }
+        if (stack.isEmpty()) {
+            slot.set(ItemStack.EMPTY);
+        } else {
+            slot.setChanged();
+        }
+        return original;
     }
 
     @Override

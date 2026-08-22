@@ -19,11 +19,11 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 @OnlyIn(Dist.CLIENT)
 public class BotInventoryScreen extends AbstractContainerScreen<BotInventoryMenu> {
 
-    // Panel background colors (dark inventory theme).
-    private static final int PANEL_TOP = 0x3F3F3F;
-    private static final int BORDER = 0x545454;
-    private static final int SLOT_BG = 0x8B8B8B;
-    private static final int SLOT_DARK = 0x7A7A7A;
+    // Panel background colors (dark inventory theme). Alpha is explicit (0xFFRRGGBB).
+    private static final int PANEL_TOP = 0xFF3F3F3F;
+    private static final int BORDER = 0xFF545454;
+    private static final int SLOT_BG = 0xFF8B8B8B;
+    private static final int SLOT_DARK = 0xFF7A7A7A;
 
     public BotInventoryScreen(BotInventoryMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
@@ -32,17 +32,11 @@ public class BotInventoryScreen extends AbstractContainerScreen<BotInventoryMenu
     }
 
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
-        this.renderBackground(graphics);
-        super.render(graphics, mouseX, mouseY, delta);
-        this.renderTooltip(graphics, mouseX, mouseY);
-    }
-
-    @Override
     protected void renderBg(GuiGraphics graphics, float delta, int mouseX, int mouseY) {
         int x = (width - imageWidth) / 2;
         int y = (height - imageHeight) / 2;
-        // Panel background and border.
+        // Panel background and border. renderBackground() is NOT overridden; the base class
+        // handles the backdrop and masks, and this method draws the panel above it.
         graphics.fill(x, y, x + imageWidth, y + imageHeight, PANEL_TOP);
         graphics.fill(x, y, x + imageWidth, y + 1, BORDER);
         graphics.fill(x, y + imageHeight - 1, x + imageWidth, y + imageHeight, BORDER);
