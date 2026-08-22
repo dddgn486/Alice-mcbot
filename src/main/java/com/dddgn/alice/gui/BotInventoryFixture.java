@@ -42,16 +42,40 @@ public final class BotInventoryFixture {
         boolean busyFlagPass = (menu.taskActive() == BotManager.isBusy(bot));
         boolean idleLockFree = !menu.taskActive();
         boolean noOverlapPass = slotsDoNotOverlap(menu);
+        boolean customArmorPass = armorOffhandAreCustomSlots(menu);
         boolean quickMoveOutPass = quickMoveFromBotSucceeds(menu, bot, viewerInv);
 
-        boolean pass = countPass && busyFlagPass && idleLockFree && noOverlapPass && quickMoveOutPass;
-        BotLog.info("BOT_INVENTORY_FIXTURE_SUITE {} slotCount={} expected={} busyFlag={} noOverlap={} quickMoveOut={}",
+        boolean pass = countPass && busyFlagPass && idleLockFree && noOverlapPass
+                && customArmorPass && quickMoveOutPass;
+        BotLog.info("BOT_INVENTORY_FIXTURE_SUITE {} slotCount={} expected={} busyFlag={} noOverlap={} customArmor={} quickMoveOut={}",
                 pass ? "PASS" : "FAIL", menu.slots.size(), expectedTotal, menu.taskActive(),
-                noOverlapPass, quickMoveOutPass);
+                noOverlapPass, customArmorPass, quickMoveOutPass);
         if (viewer != null) {
             BotManager.remove(viewer);
         }
         return pass;
+    }
+
+    /** Verifies bot armor/offhand slots use a custom Slot subclass with getMaxStackSize()==1. */
+    private static boolean armorOffhandAreCustomSlots(BotInventoryMenu menu) {
+        // bot armor slot indices: menu slots 0..3; offhand menu index 4. All must be
+        // custom armor/offhand slots (max stack 1).
+        for (int i = 0; i < 5; i++) {
+            var slot = menu.slots.get(i);
+            boolean custom = slot instanceof BotInventoryMenu.BotArmorSlot
+                    || slot instanceof BotInventoryMenu.BotOffhandSlot;
+            if (!custom) {
+                BotLog.info("BOT_INVENTORY_FIXTURE armor/offhand slot {} not custom ({}) maxStack={} contSlot={}",
+                        i, slot.getClass().getSimpleName(), slot.getMaxStackSize(), slot.getContainerSlot());
+                return false;
+            }
+            if (slot.getMaxStackSize() != 1) {
+                BotLog.info("BOT_INVENTORY_FIXTURE armor/offhand slot {} maxStack={}",
+                        i, slot.getMaxStackSize());
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Verifies no two slots share the same (x,y) cell, i.e. the grid is non-overlapping. */
