@@ -2,6 +2,7 @@ package com.dddgn.alice.command;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.gui.BotInventoryMenu;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.PerceptionProfile;
 import com.dddgn.alice.perception.PerceptionSnapshot;
@@ -99,6 +100,10 @@ public final class BotCommand {
                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
                 .then(Commands.literal("status")
                         .executes(ctx -> status(ctx.getSource())))
+                .then(Commands.literal("bot-inventory")
+                        .then(Commands.argument("name", StringArgumentType.string())
+                                .executes(ctx -> botInventory(ctx.getSource(),
+                                        StringArgumentType.getString(ctx, "name")))))
                 .then(Commands.literal("transfer-test")
                         .then(Commands.argument("source", BlockPosArgument.blockPos())
                                 .then(Commands.argument("destination", BlockPosArgument.blockPos())
@@ -169,6 +174,34 @@ public final class BotCommand {
                     + " state=PLANNED code=accepted location=not_moved"), false);
             return 1;
         } catch (IllegalArgumentException exception) { return failure(source, exception.getMessage()); }
+    }
+
+    /** /alice bot-inventory <name> — open a read/informational menu over a bot's inventory. */
+    private static int botInventory(CommandSourceStack source, String name) {
+        if (!(source.getEntity() instanceof ServerPlayer actor)) return failure(source, TransferCodes.UNAUTHORIZED_ACTOR);
+        BotPlayer bot = findBot(source, name);
+        if (bot == null) return failure(source, TransferCodes.BOT_UNAVAILABLE);
+        net.minecraft.network.chat.Component title = net.minecraft.network.chat.Component.literal(
+                "Bot Inventory: " + bot.getName().getString()
+                        + (BotManager.isBusy(bot) ? " (read-only: task active)" : ""));
+        actor.openMenu(new net.minecraft.world.SimpleMenuProvider(
+                (containerId, playerInv, p) -> new BotInventoryMenu(containerId, playerInv, bot), title));
+        botInventoryLog(source, bot);
+        return 1;
+    }
+
+    private static BotPlayer findBot(CommandSourceStack source, String name) {
+        for (net.minecraft.server.level.ServerPlayer p : source.getServer().getPlayerList().getPlayers()) {
+            if (p instanceof BotPlayer bot && bot.getName().getString().equalsIgnoreCase(name)) {
+                return bot;
+            }
+        }
+        return null;
+    }
+
+    private static void botInventoryLog(CommandSourceStack source, BotPlayer bot) {
+        BotLog.info("bot_inventory: open player={} bot={} busy={}",
+                source.getEntity().getName().getString(), bot.getName().getString(), BotManager.isBusy(bot));
     }
 
     private static int transferSelectionStatus(CommandSourceStack source) {

@@ -2,6 +2,7 @@ package com.dddgn.alice;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotSelftest;
+import com.dddgn.alice.gui.ModMenuTypes;
 import com.dddgn.alice.item.AliceItems;
 import com.dddgn.alice.network.AliceNetwork;
 import com.dddgn.alice.perception.ScopeBuffer;
@@ -26,6 +27,8 @@ public class AliceMod {
         IEventBus modEventBus = net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get().getModEventBus();
         // 物品注册(MOD 总线)
         AliceItems.ITEMS.register(modEventBus);
+        // 自定义容器菜单类型注册(MOD 总线)
+        ModMenuTypes.MENUS.register(modEventBus);
         // 网络通道(S2C 任务目标同步)
         AliceNetwork.register();
 
