@@ -127,6 +127,7 @@ public final class BotManager {
         tag.put("Pos", pos);
         tag.put("Rotation", rot);
         tag.putString("GameMode", bot.gameMode.getGameModeForPlayer().getName());
+        tag.putFloat("Health", bot.getHealth());
         // 主手物品(行为替换的工具也存进去,退出重进手里保持原样)
         ItemStack mainHand = bot.getInventory().getItem(bot.getInventory().selected);
         if (!mainHand.isEmpty()) {
@@ -140,6 +141,12 @@ public final class BotManager {
         CompoundTag tag = BotWorldData.get(server).botTag();
         if (tag == null) {
             BotLog.info("无存档假人,跳过恢复");
+            return;
+        }
+        float savedHealth = tag.contains("Health") ? tag.getFloat("Health") : 20.0f;
+        if (savedHealth <= 0.0f) {
+            BotLog.info("存档假人已死亡 (health={}),跳过恢复并清除存档", savedHealth);
+            BotWorldData.get(server).clearBot();
             return;
         }
         UUID uuid = tag.getUUID("UUID");
@@ -353,7 +360,9 @@ public final class BotManager {
         TransferLedgerData.get(event.getServer()).suspendUnfinished(TransferCodes.SERVER_RESTART,
                 event.getServer().getTickCount());
         for (BotSession session : BOTS.values()) {
-            saveToWorld(session.bot());
+            if (session.bot().getHealth() > 0.0f) {
+                saveToWorld(session.bot());
+            }
         }
     }
 
