@@ -63,7 +63,9 @@
       "04829c10-7634-4f07-8378-5c592ef4fc5f",
       "8535d9a6-902e-479e-84a4-482828837ce1",
       "c3eb229f-606f-46e3-9972-4f28faa69d8d",
-      "799fc658-98e4-4c3a-a1c2-84b7c377a68c"
+      "799fc658-98e4-4c3a-a1c2-84b7c377a68c",
+      "74b347ae-2006-4d11-a703-601d54a980ed",
+      "279f0582-c4b6-46aa-8997-bbf8ed21c346"
     ]
   },
   "tables": {
@@ -2071,11 +2073,11 @@
         "workspacePath": "/home/fb486/projects/alice",
         "content": "项目路径：`/home/fb486/projects/alice`，当前 baseline `19af345`。先运行 `./tools/work-session-start.sh`，读取 active plan `20260824-soft-surface-physics-observation-p1-v1`（APPROVED_FOR_IMPLEMENTATION）、P1 实施路线 `.alice-supervision/research/soft-surface-p1-implementation-plan-20260824.md`（§2-§3 改动清单/settle-revalidate-replan 设计/偏离阈值/REPLAN 伪代码）、Alice 现状地图、深度调研报告、`docs/HANDOVER.md` R30/R36。\n\n**Allowed Scope**（P1）：\n1. 观测扩展：在 `SoftPathProbeTask` 和 `FollowTask` 增加字段（lastDeltaMovement/currentDeltaMovement/lastSupportTopY/currentSupportTopY/horizontalCollision/verticalCollisionBelow/水平垂直偏差/实体接触/velocityDisruption 标志/noProgressTicks/revalidateTicks/replanCount），tick 循环赋值，日志关键字（soft_phys_obs/disruption/revalidate/replan）\n2. settle→revalidate→replan 链路：偏离检测（hDev>2.0/vDev>1.5/noProgressTicks>20/velocityDisruption 阈值 0.3/0.5）→ revalidateSegment()（重验段几何 canTraverse/Ascend/Descend、支撑、碰撞）→ replanFromCurrent()（SurfacePathfinder.find 从当前位置、MAX_REPLAN=3、UNREACHABLE/SEARCH_LIMIT 稳定失败码）；永不 setPos 校正；永不自动 HARD_PATH fallback\n3. FollowTask：增加观测 + 碰撞/速度突变立即 replan（保持 10-tick 周期优先）\n4. 新增 `SoftPhysicsObservationTest.java` fixture：断言观测字段非空/非 NaN、settle 不调 setPos、偏离后 revalidate 被调用、replan 后路径变化、速度突变触发 revalidate、MAX_REPLAN 保护\n\n**Forbidden**：不改 PathExecutor/BotMiner/PlaceTask/MineTask/DropCollectionTask/ContinuousRoadCurve/TunnelObstaclePolicy/SoftMoveProbeTask；不做 P2-P5（primitive 扩展/独立 SoftTravelTask/任务链接入）；不改 BotSession 维生中断/SurvivalSystem。\n\n**Verification**：`./gradlew compileJava`、`git diff --check`、既有 suites（PathingRegression/Transfer/Selection/etc）保持 PASS、新 SoftPhysicsObservationTest 通过。提交 + session-complete，暂不 push。更新 HANDOVER（P1 观测/revalidate/replan 已实施、服务端验证 PASS、Windows 客户端矩阵 P1-G1~G13 CLIENT_TEST_PENDING）。\n\n**参考实施顺序**（实施路线 §8）：SoftPathProbeTask 增加观测字段 → revalidateSegment() → replanFromCurrent() → tick 循环增加偏离判定 → FollowTask 同步修改 → SoftPhysicsObservationTest → compile/test → HANDOVER。",
         "title": "P1 物理观测与扰动恢复实施",
-        "status": "working",
+        "status": "completed",
         "mode": "followup",
         "retries": 0,
         "createdAt": "2026-08-23T08:56:59.626Z",
-        "updatedAt": "2026-08-23T08:56:59.669Z",
+        "updatedAt": "2026-08-23T09:19:42.892Z",
         "tokensAtStart": {
           "session-30b693e7-9115-4e57-914b-854bf9ca2510": {
             "uncachedInputTokens": 15067934,
@@ -2092,7 +2094,75 @@
         },
         "acceptanceCriteria": "P1 物理观测与扰动恢复实施完成：SoftPathProbeTask/FollowTask 增加观测字段（deltaMovement/supportTopY/collision/偏差/实体/velocityDisruption），settle→revalidate→replan 链路（偏离检测、MAX_REPLAN=3 保护、稳定失败码），永不 setPos 校正/永不自动 HARD fallback，日志关键字（soft_phys_obs/disruption/revalidate/replan）。新增 SoftPhysicsObservationTest fixture 通过（观测字段非空/settle 不用 setPos/偏离后 revalidate/replan 后路径变化/速度突变触发/MAX_REPLAN 保护）。compileJava、diff-check 通过；既有 suites 保持 PASS。未改 PathExecutor/BotMiner/MineTask/DropCollectionTask/道路/隧道/SoftMoveProbeTask。提交+pending，暂不 push。更新 HANDOVER（P1 已实施、服务端验证 PASS、Windows 矩阵 P1-G1~G13 待测）。",
         "messageId": "8d79eb45-88ab-460b-9ace-472e4058d8f6",
-        "turn": 62
+        "turn": 62,
+        "report": "SOFT_SURFACE P1（物理观测与扰动恢复）实施完成，未 push。work-session-start gate PASS，active plan `20260824-soft-surface-physics-observation-p1-v1` APPROVED，baseline 19af345。HEAD=`2298dd3dfe393eed495461574d812dd29e2b2bff`，pending=`.alice-supervision/pending/2298dd3.md`。\n\n实施（P1 扩展 SoftPathProbeTask + FollowTask）：\n1. **观测字段**：lastDeltaMovement/currentDeltaMovement、lastSupportTopY/currentSupportTopY、horizontalCollision…",
+        "reportRef": "799fc658-98e4-4c3a-a1c2-84b7c377a68c",
+        "outcome": "success",
+        "feedback": "P1 物理观测与扰动恢复实施验收通过。提交 2298dd3 只改 SoftPathProbeTask/FollowTask/SoftPhysicsObservationTest/BotSelftest/HANDOVER，范围正确。SoftPathProbeTask 增加观测字段（lastDeltaMovement/currentDeltaMovement/lastSupportTopY/currentSupportTopY/horizontalCollision/verticalCollisionBelow/noProgressTicks/revalidateTicks/replanCount/velocityDisruption/lastHorizontalPos），settle→revalidate→replan 链路（偏离检测 hDev>2.0/vDev>1.5/noProgressTicks>20/velocityDisruption 阈值 0.3/0.5、revalidateSegment() 重验段几何、replanFromCurrent() 从当前位置 SurfacePathfinder.find、MAX_REPLAN=3 保护、稳定失败码 soft_phys_max_replan/replan_no_path/replan_search_limit），永不 setPos 校正/永不自动 HARD_PATH fallback。FollowTask 同步（观测+碰撞/速度突变立即 replan，保持 10-tick 周期优先）。日志关键字 soft_phys_obs/disruption/revalidate/replan 正确输出（17:15:05 日志含 deltaMove/hDev/vDev/support/onGround/collision/noProgress）。服务端验证 PASS：compileJava、diff-check、SOFT_PHYSICS_OBSERVATION_SUITE PASS（observation/revalidate/replan asserted）+ 既有 suites 均 PASS（17:15:05）。未改 PathExecutor/BotMiner/MineTask/DropCollectionTask/道路/隧道/SoftMoveProbeTask。HANDOVER 已更新。客户端 P1-G1~G13 矩阵 CLIENT_TEST_PENDING。"
+      },
+      "74b347ae-2006-4d11-a703-601d54a980ed": {
+        "id": "74b347ae-2006-4d11-a703-601d54a980ed",
+        "assignedBy": "session-302a9da6-184c-4338-9567-56e853b501ed",
+        "assignedTo": "session-0e50f21c-fd6f-4b0b-ac69-19a3c9f3b1aa",
+        "workspacePath": "/home/fb486/projects/alice",
+        "content": "项目路径：`/home/fb486/projects/alice`，当前 HEAD `2298dd3`（P1 已实施，CLIENT_TEST_PENDING）。先运行 `./tools/work-session-start.sh --allow-no-plan`（规划阶段，只读）。读取 `.alice-supervision/research/soft-path-test-tool-investigation-task.txt`、现有 `src/main/java/com/dddgn/alice/item/SoftPathProbeSelector.java`（右键寻路）、`src/main/java/com/dddgn/alice/item/TransferEndpointSelector.java`（右键/Shift 参考）、`docs/HANDOVER.md` R30/协议冻结边界、P1 active plan。\n\n**任务**：只读浅调研（15-25 分钟），输出软路径测试工具实施路线，供监督员审核后派主开发。\n\n**用户需求**：\n- 游戏内实体测试物品（避免精确坐标参数指令）\n- 右键点击方块：软路径寻路到目标（SoftPathProbeTask，已有）\n- Shift+右键点击方块：软路径寻路 + 挖掘目标（新增）\n- 寻路和寻路+挖掘可以做在一个工具上\n\n**只读分析输出**（`.alice-supervision/research/soft-path-test-tool-plan-20260824.md`）：\n1. **方案对比**：扩展现有 SoftPathProbeSelector（增加 Shift 判定）vs 新增独立工具 vs 统一工具 → 推荐\n2. **交互设计**：点击目标（support 方块 / 直接 foot / 挖掘目标方块）、Shift 行为、失败反馈\n3. **任务链设计**：Shift+右键调用什么？\n   - 先 assignSoftPathProbe → 完成后接 assignMine（需改 BotManager 任务链？）\n   - 新增 assignSoftPathMine（统一任务：软寻路 + 到达后挖掘）\n   - 直接 assignMine（MineTask 判定软/硬？）← **禁止**（违反冻结边界）\n4. **冻结边界守护**：MineTask 当前固定 HARD_PATH（R30/协议），P1 只允许 SoftPathProbeTask/FollowTask 用 SOFT_SURFACE。Shift+右键挖掘**不能让 MineTask 偷接 SOFT_SURFACE**（除非用户批准 P2-P5）。如何实现？\n5. **改动清单**：SoftPathProbeSelector（或新文件）、AliceItems、BotManager（若新增 assign 方法）\n6. **验证矩阵**：服务端（compileJava + 既有 suites）+ 客户端 T1-T3（右键寻路/Shift+右键寻路+挖掘/隔离：普通 `/alice mine` 仍 HARD_PATH）\n7. **停止条件**：Shift+右键需改 MineTask 接 SOFT_SURFACE / 任务链需改 BotManager 核心调度 / 用户不批准\n8. **实施时间估计**（含客户端测试）\n\n**注意**：不改 PathExecutor/BotMiner/MineTask 的 HARD_PATH/DropCollectionTask/道路/隧道；不做 P2-P5。本报告不构成实施授权。",
+        "title": "软路径测试工具规划（右键寻路/Shift+右键挖掘）",
+        "status": "completed",
+        "mode": "followup",
+        "retries": 0,
+        "createdAt": "2026-08-23T11:27:49.958Z",
+        "updatedAt": "2026-08-23T11:32:34.060Z",
+        "tokensAtStart": {
+          "session-0e50f21c-fd6f-4b0b-ac69-19a3c9f3b1aa": {
+            "uncachedInputTokens": 1680802,
+            "outputTokens": 73076,
+            "cacheReadTokens": 10819263,
+            "cacheWriteTokens": 124940
+          },
+          "session-302a9da6-184c-4338-9567-56e853b501ed": {
+            "uncachedInputTokens": 35863462,
+            "outputTokens": 695861,
+            "cacheReadTokens": 213793108,
+            "cacheWriteTokens": 13050342
+          }
+        },
+        "acceptanceCriteria": "只读规划报告落盘于 `.alice-supervision/research/soft-path-test-tool-plan-20260824.md`。方案对比（扩展现有 SoftPathProbeSelector / 新增独立工具 / 统一工具）+ 推荐，交互设计明确（点击目标、Shift 行为），任务链设计（右键/Shift+右键调用什么，守护冻结边界：MineTask 不偷接 SOFT_SURFACE），改动清单（类/方法），验证矩阵（服务端 + 客户端 T1-T3：右键寻路/Shift+右键寻路+挖掘/隔离），停止条件，实施时间估计。基于现有 soft_path_probe_selector/transfer_endpoint_selector 参考、P1 冻结边界、HANDOVER R30/协议冻结边界。未修改业务代码，未运行测试，不构成实施授权。",
+        "messageId": "b3678ffd-6809-440c-ab6a-2099159d557b",
+        "turn": 13,
+        "report": "已完成软路径测试工具只读浅调研并落盘：`/home/fb486/projects/alice/.alice-supervision/research/soft-path-test-tool-plan-20260824.md`。\n\nGit 基线：`2298dd3`（P1 已实施，CLIENT_TEST_PENDING）。规划门禁通过（P1 active plan `APPROVED_FOR_IMPLEMENTATION`，规划阶段只读）；未修改代码/plan/HANDOVER/客户端证据，未运行测试。\n\n关键结论：\n1. **方案推荐**：方案 A（扩展现有 `SoftPathProbeSelector`），在 `useOn` 增加 `player.isShiftKeyDown()` 判定；右键=只寻路（已有 `assignSoftPathProbe`），Shift+右键=寻路+挖掘（新增 …",
+        "reportRef": "74b347ae-2006-4d11-a703-601d54a980ed",
+        "outcome": "success",
+        "feedback": "软路径测试工具规划验收通过。方案 A（推荐）清晰：扩展现有 SoftPathProbeSelector（Shift 判定），新增独立 SoftPathMineTask（Phase.SOFT_NAVIGATE 复用 SoftPathProbeTask P1 逻辑[SurfacePathfinder + NATIVE_TRAVEL + 观测/revalidate/replan]，Phase.MINING 复用 BotMiner 挖掘原语），MineTask 保持 HARD_PATH 完全不动（不改一行）。冻结边界守护完美：独立任务类+专用入口 assignSoftPathMine+无自动切换（失败不回退 MineTask）。交互设计明确：右键=软寻路（已有）、Shift+右键=软寻路+挖掘点击的方块。改动清单清晰：SoftPathProbeSelector 增 Shift 判定、SoftPathMineTask 新类约 300 行、BotManager 新增 assignSoftPathMine、不改 MineTask/PathExecutor/BotMiner/道路/隧道。验证矩阵完整：T1-T4（右键寻路/Shift+右键寻路+挖掘/隔离[普通 mine 仍 HARD 无 soft 日志]/P1 观测回归）。停止条件明确。时间估计 6-9 小时合理（含 2-3 小时客户端测试）。采纳，准备向用户确认方案。"
+      },
+      "279f0582-c4b6-46aa-8997-bbf8ed21c346": {
+        "id": "279f0582-c4b6-46aa-8997-bbf8ed21c346",
+        "assignedBy": "session-302a9da6-184c-4338-9567-56e853b501ed",
+        "assignedTo": "session-30b693e7-9115-4e57-914b-854bf9ca2510",
+        "workspacePath": "/home/fb486/projects/alice",
+        "content": "项目路径：`/home/fb486/projects/alice`，当前 baseline `2298dd3`（P1 已实施）。先运行 `./tools/work-session-start.sh`，读取 active plan `20260824-soft-path-test-tool-v1`（APPROVED_FOR_IMPLEMENTATION）、实施路线 `.alice-supervision/research/soft-path-test-tool-plan-20260824.md`（§2-§5 方案 A/SoftPathMineTask 设计/冻结边界守护/改动清单）、现有 `SoftPathProbeSelector.java`、`TransferEndpointSelector.java`（Shift 参考）、`SoftPathProbeTask.java`（P1 逻辑复用）、`BotMiner.java`（挖掘原语）、`BotManager.java`。\n\n**Allowed Scope**（方案 A）：\n1. `SoftPathProbeSelector.java`：`useOn` 增加 `context.getPlayer().isShiftKeyDown()` 判定；右键=`assignSoftPathProbe`（已有不变）；Shift+右键=`BotManager.assignSoftPathMine(bot, support.above())`（点击 support，寻路到 support.above()，挖掘 support）\n2. `SoftPathMineTask.java`（新增约 300 行）：\n   - Phase.SOFT_NAVIGATE：完整复用 SoftPathProbeTask P1 逻辑（SurfacePathfinder.find + 逐段 NATIVE_TRAVEL + P1 观测字段 deltaMovement/supportTopY/collision/deviation/velocityDisruption + 偏离检测 hDev>2.0/vDev>1.5/noProgressTicks>20/velocityDisruption + revalidateSegment + replanFromCurrent MAX_REPLAN=3 + 稳定失败码 soft_mine_no_path/search_limit）；到达路径终点 → phase=MINING\n   - Phase.MINING：`miner=new BotMiner(bot,target)`、`miner.tick()`，DONE → Status.DONE，FAILED → `soft_mine_dig_failed:...`\n   - 不收集掉落物（测试工具简化）\n3. `BotManager.java`：新增 `public static void assignSoftPathMine(BotPlayer bot, BlockPos target)`、`BotSession.assignSoftPathMine(BlockPos targetPos)`（replaceTaskIfRunning + scope.begin + beginTask(new SoftPathMineTask) + broadcastTarget）\n4. Chat 消息：Shift+右键 `[alice] soft-path-mine-test: support=... foot=... -> bot`、日志 `软路径挖掘点击: player= support= foot= bot=`\n\n**Forbidden**：不改 MineTask.java（保持 HARD_PATH 不动，不改一行）；不改 PathExecutor/BotMiner 核心代码（只调用 BotMiner.tick）；不改 SoftPathProbeTask/FollowTask（只复用逻辑，不修改原类）；不改 DropCollectionTask/道路/隧道；不做自动切换（SoftPathMineTask 失败不回退 MineTask）。\n\n**Verification**：`./gradlew compileJava`、`git diff --check`、既有 suites 保持 PASS。提交 + session-complete，暂不 push。更新 HANDOVER（Shift+右键工具、SoftPathMineTask Phase 设计、冻结边界守护[独立任务类+专用入口+无自动切换+MineTask 不动]、Windows T1-T4 CLIENT_TEST_PENDING）。\n\n**参考实施顺序**（实施路线 §4）：SoftPathMineTask 新类（Phase.SOFT_NAVIGATE 复用 P1 + Phase.MINING 调 BotMiner）→ BotManager.assignSoftPathMine → SoftPathProbeSelector 增加 Shift 判定 → compileJava → HANDOVER。",
+        "title": "软路径测试工具实施（Shift+右键寻路+挖掘）",
+        "status": "working",
+        "mode": "followup",
+        "retries": 0,
+        "createdAt": "2026-08-23T11:37:12.065Z",
+        "updatedAt": "2026-08-23T11:37:12.113Z",
+        "tokensAtStart": {
+          "session-30b693e7-9115-4e57-914b-854bf9ca2510": {
+            "uncachedInputTokens": 15110545,
+            "outputTokens": 332309,
+            "cacheReadTokens": 138925684,
+            "cacheWriteTokens": 2309942
+          },
+          "session-302a9da6-184c-4338-9567-56e853b501ed": {
+            "uncachedInputTokens": 35873001,
+            "outputTokens": 701680,
+            "cacheReadTokens": 214947692,
+            "cacheWriteTokens": 13526532
+          }
+        },
+        "acceptanceCriteria": "软路径测试工具实施完成：SoftPathProbeSelector 增加 Shift 判定（右键=assignSoftPathProbe 已有/Shift+右键=assignSoftPathMine 新增），新增 SoftPathMineTask（Phase.SOFT_NAVIGATE 复用 SoftPathProbeTask P1 逻辑[SurfacePathfinder+NATIVE_TRAVEL+观测/revalidate/replan/MAX_REPLAN=3] + Phase.MINING 调 BotMiner.tick 挖掘原语，不收集掉落物），BotManager 新增 assignSoftPathMine+BotSession.assignSoftPathMine。MineTask 保持 HARD_PATH 完全不动（不改一行），独立任务类+专用入口+无自动切换。compileJava、diff-check 通过；既有 suites 保持 PASS。提交+pending，暂不 push。更新 HANDOVER（Shift+右键工具、SoftPathMineTask、冻结边界守护、Windows T1-T4 CLIENT_TEST_PENDING）。",
+        "messageId": "c4793e09-e12e-45d8-b67e-79b14a0b987b",
+        "turn": 63
       }
     },
     "peers": {

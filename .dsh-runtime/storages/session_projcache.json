@@ -374,29 +374,29 @@
         "rows": {
           "sessionStats": {
             "ver": 1,
-            "seq": 486442,
+            "seq": 492077,
             "val": {
-              "turns": 351,
-              "steps": 1452,
-              "llmMs": 22821470,
-              "toolMs": 1953490,
-              "ttftMs": 14637399,
-              "ttftSteps": 1397,
-              "decodeMs": 8173882,
-              "decodeTokens": 674910,
-              "lastTurn": 352,
+              "turns": 360,
+              "steps": 1489,
+              "llmMs": 23374605,
+              "toolMs": 2025651,
+              "ttftMs": 14864693,
+              "ttftSteps": 1434,
+              "decodeMs": 8499723,
+              "decodeTokens": 692467,
+              "lastTurn": 361,
               "openStep": null,
               "pendingCalls": {}
             }
           },
           "title": {
             "ver": 1,
-            "seq": 486442,
+            "seq": 492077,
             "val": "Alice监督员+"
           },
           "goal": {
             "ver": 4,
-            "seq": 486442,
+            "seq": 492077,
             "val": {
               "goal": {
                 "id": "goal-73cf325b-7a55-4224-ac0d-6abb76d589e5",
@@ -412,48 +412,48 @@
           },
           "tokenUsage": {
             "ver": 1,
-            "seq": 486442,
+            "seq": 492077,
             "val": {
               "totals": {
-                "uncachedInputTokens": 35838215,
-                "outputTokens": 684612,
-                "cacheReadTokens": 211666922,
-                "cacheWriteTokens": 12221870
+                "uncachedInputTokens": 35873063,
+                "outputTokens": 702169,
+                "cacheReadTokens": 215260306,
+                "cacheWriteTokens": 13527875
               },
               "last": {
-                "turn": 352,
-                "step": 1,
+                "turn": 361,
+                "step": 4,
                 "buckets": {
-                  "uncachedInputTokens": 339,
-                  "outputTokens": 98,
-                  "cacheReadTokens": 80,
-                  "cacheWriteTokens": 106289
+                  "uncachedInputTokens": 20,
+                  "outputTokens": 433,
+                  "cacheReadTokens": 156972,
+                  "cacheWriteTokens": 53
                 }
               }
             }
           },
           "contextPressure": {
             "ver": 4,
-            "seq": 486442,
+            "seq": 492077,
             "val": {
-              "surfaceTokens": 53343,
+              "surfaceTokens": 83608,
               "contextWindow": 262144,
-              "pressureTokens": 106708,
-              "sampledSurfaceTokens": 53307
+              "pressureTokens": 157045,
+              "sampledSurfaceTokens": 83452
             }
           },
           "contextBreakdown": {
             "ver": 2,
-            "seq": 486442,
+            "seq": 492077,
             "val": {
               "systemTokens": 3949,
               "toolsTokens": 10617,
-              "messageTokens": 53343
+              "messageTokens": 83608
             }
           },
           "subagentTiming": {
             "ver": 2,
-            "seq": 486442,
+            "seq": 492077,
             "val": {
               "descriptorSeen": false,
               "settledMs": 0
@@ -461,12 +461,12 @@
           },
           "subagent": {
             "ver": 2,
-            "seq": 486442,
+            "seq": 492077,
             "val": {}
           },
           "permissions": {
             "ver": 1,
-            "seq": 486442,
+            "seq": 492077,
             "val": {
               "preset": "danger-full-access",
               "sandbox": "danger-full-access",
@@ -475,25 +475,25 @@
           },
           "sessionListMetadata": {
             "ver": 1,
-            "seq": 486442,
+            "seq": 492077,
             "val": {
               "blank": false,
-              "lastPromptAt": 1787474931979
+              "lastPromptAt": 1787484961125
             }
           },
           "imageLimits": {
             "ver": 1,
-            "seq": 486442,
+            "seq": 492077,
             "val": null
           },
           "todos": {
             "ver": 2,
-            "seq": 486442,
+            "seq": 492077,
             "val": null
           },
           "plan": {
             "ver": 2,
-            "seq": 486442,
+            "seq": 492077,
             "val": {
               "active": false,
               "wanted": null,
@@ -2599,75 +2599,75 @@
         "rows": {
           "sessionStats": {
             "ver": 1,
-            "seq": 65458,
+            "seq": 68572,
             "val": {
-              "turns": 12,
-              "steps": 83,
-              "llmMs": 1514949,
-              "toolMs": 7936,
-              "ttftMs": 653914,
-              "ttftSteps": 79,
-              "decodeMs": 861035,
-              "decodeTokens": 73076,
-              "lastTurn": 12,
+              "turns": 13,
+              "steps": 91,
+              "llmMs": 1763697,
+              "toolMs": 8294,
+              "ttftMs": 695722,
+              "ttftSteps": 87,
+              "decodeMs": 1067975,
+              "decodeTokens": 82973,
+              "lastTurn": 13,
               "openStep": null,
               "pendingCalls": {}
             }
           },
           "title": {
             "ver": 1,
-            "seq": 65458,
+            "seq": 68572,
             "val": "Alice实现规划员+"
           },
           "goal": {
             "ver": 4,
-            "seq": 65458,
+            "seq": 68572,
             "val": null
           },
           "tokenUsage": {
             "ver": 1,
-            "seq": 65458,
+            "seq": 68572,
             "val": {
               "totals": {
-                "uncachedInputTokens": 1680802,
-                "outputTokens": 73076,
-                "cacheReadTokens": 10819263,
-                "cacheWriteTokens": 124940
+                "uncachedInputTokens": 1690240,
+                "outputTokens": 82973,
+                "cacheReadTokens": 11552829,
+                "cacheWriteTokens": 376574
               },
               "last": {
-                "turn": 12,
+                "turn": 13,
                 "step": 8,
                 "buckets": {
-                  "uncachedInputTokens": 33,
-                  "outputTokens": 292,
-                  "cacheReadTokens": 112241,
-                  "cacheWriteTokens": 1002
+                  "uncachedInputTokens": 29,
+                  "outputTokens": 376,
+                  "cacheReadTokens": 131147,
+                  "cacheWriteTokens": 1028
                 }
               }
             }
           },
           "contextPressure": {
             "ver": 4,
-            "seq": 65458,
+            "seq": 68572,
             "val": {
-              "surfaceTokens": 63204,
+              "surfaceTokens": 75252,
               "contextWindow": 262144,
-              "pressureTokens": 113276,
-              "sampledSurfaceTokens": 63082
+              "pressureTokens": 132204,
+              "sampledSurfaceTokens": 75111
             }
           },
           "contextBreakdown": {
             "ver": 2,
-            "seq": 65458,
+            "seq": 68572,
             "val": {
               "systemTokens": 3660,
               "toolsTokens": 10617,
-              "messageTokens": 63204
+              "messageTokens": 75252
             }
           },
           "subagentTiming": {
             "ver": 2,
-            "seq": 65458,
+            "seq": 68572,
             "val": {
               "descriptorSeen": false,
               "settledMs": 0
@@ -2675,12 +2675,12 @@
           },
           "subagent": {
             "ver": 2,
-            "seq": 65458,
+            "seq": 68572,
             "val": {}
           },
           "permissions": {
             "ver": 1,
-            "seq": 65458,
+            "seq": 68572,
             "val": {
               "preset": "danger-full-access",
               "sandbox": "danger-full-access",
@@ -2689,7 +2689,7 @@
           },
           "sessionListMetadata": {
             "ver": 1,
-            "seq": 65458,
+            "seq": 68572,
             "val": {
               "blank": false,
               "lastPromptAt": 1787335974911
@@ -2697,38 +2697,38 @@
           },
           "imageLimits": {
             "ver": 1,
-            "seq": 65458,
+            "seq": 68572,
             "val": null
           },
           "todos": {
             "ver": 2,
-            "seq": 65458,
+            "seq": 68572,
             "val": [
               {
-                "content": "运行规划门禁并读取 active plan/深度调研/现状地图",
+                "content": "运行规划门禁并读取调研任务/现有工具/冻结边界",
                 "status": "completed"
               },
               {
-                "content": "核对 SoftMovementPrimitive/SoftPathProbeTask/FollowTask 现状",
+                "content": "分析方案：扩展 vs 新增 vs 统一工具",
                 "status": "completed"
               },
               {
-                "content": "设计 settle/revalidate/replan 链路",
+                "content": "设计任务链：如何在不让 MineTask 接 SOFT 的前提下实现寻路+挖掘",
                 "status": "completed"
               },
               {
-                "content": "定义观测字段、fixture 与客户端矩阵",
+                "content": "定义交互/改动/验证矩阵",
                 "status": "completed"
               },
               {
-                "content": "识别停止条件并写入实施计划",
+                "content": "识别停止条件并写入报告",
                 "status": "completed"
               }
             ]
           },
           "plan": {
             "ver": 2,
-            "seq": 65458,
+            "seq": 68572,
             "val": {
               "active": false,
               "wanted": null,
@@ -2891,91 +2891,94 @@
         "rows": {
           "sessionStats": {
             "ver": 1,
-            "seq": 250891,
+            "seq": 256988,
             "val": {
-              "turns": 62,
-              "steps": 838,
-              "llmMs": 11596504,
-              "toolMs": 9639311,
-              "ttftMs": 7876645,
-              "ttftSteps": 820,
-              "decodeMs": 3723743,
-              "decodeTokens": 329611,
-              "lastTurn": 62,
-              "openStep": null,
-              "pendingCalls": {
-                "toolu_DOzSZ8PSA5UewKAXfk4rKL": 1787476705703
-              }
+              "turns": 63,
+              "steps": 869,
+              "llmMs": 12024612,
+              "toolMs": 10049361,
+              "ttftMs": 8100198,
+              "ttftSteps": 850,
+              "decodeMs": 3928298,
+              "decodeTokens": 343272,
+              "lastTurn": 63,
+              "openStep": {
+                "turn": 63,
+                "step": 29,
+                "startTime": 1787485813224,
+                "firstTokenTime": null
+              },
+              "pendingCalls": {}
             }
           },
           "title": {
             "ver": 1,
-            "seq": 250891,
+            "seq": 256988,
             "val": "Alice主开发员+"
           },
           "goal": {
             "ver": 4,
-            "seq": 250891,
+            "seq": 256988,
             "val": null
           },
           "tokenUsage": {
             "ver": 1,
-            "seq": 250891,
+            "seq": 256988,
             "val": {
               "totals": {
-                "uncachedInputTokens": 15092082,
-                "outputTokens": 330423,
-                "cacheReadTokens": 138684394,
-                "cacheWriteTokens": 2306190
+                "uncachedInputTokens": 15123824,
+                "outputTokens": 344084,
+                "cacheReadTokens": 142598169,
+                "cacheWriteTokens": 2749431
               },
               "last": {
-                "turn": 62,
-                "step": 37,
+                "turn": 63,
+                "step": 28,
                 "buckets": {
-                  "uncachedInputTokens": 30,
-                  "outputTokens": 148,
-                  "cacheReadTokens": 111249,
-                  "cacheWriteTokens": 1359
+                  "uncachedInputTokens": 1072,
+                  "outputTokens": 2310,
+                  "cacheReadTokens": 154065,
+                  "cacheWriteTokens": 52
                 }
               }
             }
           },
           "contextPressure": {
             "ver": 4,
-            "seq": 250891,
+            "seq": 256988,
             "val": {
-              "surfaceTokens": 75646,
+              "surfaceTokens": 107104,
               "contextWindow": 262144,
-              "pressureTokens": 112638,
-              "sampledSurfaceTokens": 75521
+              "pressureTokens": 155189,
+              "sampledSurfaceTokens": 105918
             }
           },
           "contextBreakdown": {
             "ver": 2,
-            "seq": 250891,
+            "seq": 256988,
             "val": {
               "systemTokens": 3660,
               "toolsTokens": 10617,
-              "messageTokens": 75646
+              "messageTokens": 107104
             }
           },
           "subagentTiming": {
             "ver": 2,
-            "seq": 250891,
+            "seq": 256988,
             "val": {
               "descriptorSeen": false,
               "settledMs": 0,
-              "pendingTurnStart": 1787475419649
+              "pendingTurnStart": 1787485032093
             }
           },
           "subagent": {
             "ver": 2,
-            "seq": 250891,
+            "seq": 256988,
             "val": {}
           },
           "permissions": {
             "ver": 1,
-            "seq": 250891,
+            "seq": 256988,
             "val": {
               "preset": "danger-full-access",
               "sandbox": "danger-full-access",
@@ -2984,7 +2987,7 @@
           },
           "sessionListMetadata": {
             "ver": 1,
-            "seq": 250891,
+            "seq": 256988,
             "val": {
               "blank": false,
               "lastPromptAt": 1787423514297
@@ -2992,50 +2995,17 @@
           },
           "imageLimits": {
             "ver": 1,
-            "seq": 250891,
+            "seq": 256988,
             "val": null
           },
           "todos": {
             "ver": 2,
-            "seq": 250891,
-            "val": [
-              {
-                "content": "SoftPathProbeTask: 增加观测字段（lastDeltaMovement/currentDeltaMovement/lastSupportTopY/currentSupportTopY/horizontalCollision/verticalCollisionBelow/noProgressTicks/revalidateTicks/replanCount/velocityDisruption/lastHorizontalPos）",
-                "status": "completed"
-              },
-              {
-                "content": "SoftPathProbeTask: 新增 revalidateSegment() 私有方法",
-                "status": "completed"
-              },
-              {
-                "content": "SoftPathProbeTask: 新增 replanFromCurrent() 私有方法",
-                "status": "completed"
-              },
-              {
-                "content": "SoftPathProbeTask: tick 循环增加物理观测赋值和偏离判定逻辑",
-                "status": "completed"
-              },
-              {
-                "content": "FollowTask: 增加观测字段和碰撞/速度突变立即 replan",
-                "status": "completed"
-              },
-              {
-                "content": "新增 SoftPhysicsObservationTest.java fixture",
-                "status": "completed"
-              },
-              {
-                "content": "compile + run existing suites",
-                "status": "completed"
-              },
-              {
-                "content": "更新 HANDOVER + commit + session-complete",
-                "status": "in_progress"
-              }
-            ]
+            "seq": 256988,
+            "val": null
           },
           "plan": {
             "ver": 2,
-            "seq": 250891,
+            "seq": 256988,
             "val": {
               "active": false,
               "wanted": null,

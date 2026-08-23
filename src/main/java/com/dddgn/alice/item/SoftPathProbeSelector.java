@@ -44,12 +44,25 @@ public final class SoftPathProbeSelector extends Item {
                     + " foot=" + target.toShortString());
             return InteractionResult.FAIL;
         }
-        BotManager.assignSoftPathProbe(bot, target);
-        send(player, "[alice] soft-path-test: support=" + support.toShortString()
-                + " foot=" + target.toShortString() + " -> " + bot.getName().getString());
-        com.dddgn.alice.log.BotLog.info("软路径点击探针: player={} support={} foot={} bot={}",
-                player == null ? "console" : player.getName().getString(), support.toShortString(),
-                target.toShortString(), bot.getName().getString());
+
+        boolean isShiftClick = player != null && player.isShiftKeyDown();
+        if (isShiftClick) {
+            // Shift+右键: 软寻路 + 挖掘 (测试工具)
+            BotManager.assignSoftPathMine(bot, support);
+            send(player, "[alice] soft-path-mine-test: support=" + support.toShortString()
+                    + " foot=" + target.toShortString() + " -> " + bot.getName().getString());
+            com.dddgn.alice.log.BotLog.info("软路径挖掘点击: player={} support={} foot={} bot={}",
+                    player.getName().getString(), support.toShortString(),
+                    target.toShortString(), bot.getName().getString());
+        } else {
+            // 右键: 只软寻路 (诊断)
+            BotManager.assignSoftPathProbe(bot, target);
+            send(player, "[alice] soft-path-test: support=" + support.toShortString()
+                    + " foot=" + target.toShortString() + " -> " + bot.getName().getString());
+            com.dddgn.alice.log.BotLog.info("软路径点击探针: player={} support={} foot={} bot={}",
+                    player == null ? "console" : player.getName().getString(), support.toShortString(),
+                    target.toShortString(), bot.getName().getString());
+        }
         return InteractionResult.SUCCESS;
     }
 

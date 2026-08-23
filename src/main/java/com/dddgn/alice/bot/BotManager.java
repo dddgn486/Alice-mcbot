@@ -234,6 +234,13 @@ public final class BotManager {
         session.assignSoftPathProbe(target);
     }
 
+    /** 给假人分配独立软路径挖掘测试（测试工具专用，Shift+右键），不接入普通挖矿。 */
+    public static void assignSoftPathMine(BotPlayer bot, BlockPos target) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null) return;
+        session.assignSoftPathMine(target);
+    }
+
     /** 给假人分配独立「放置指定方块」任务。 */
     public static void assignPlace(BotPlayer bot, BlockPos target) {
         BotSession session = BOTS.get(bot.getUUID());
@@ -490,6 +497,13 @@ public final class BotManager {
             if (!replaceTaskIfRunning()) return;
             TaskTarget assignedTarget = TaskTarget.block(targetPos);
             beginTask(new com.dddgn.alice.task.SoftPathProbeTask(bot, targetPos), assignedTarget);
+            broadcastTarget(this.target);
+        }
+
+        public void assignSoftPathMine(BlockPos targetPos) {
+            if (!replaceTaskIfRunning()) return;
+            TaskTarget assignedTarget = TaskTarget.block(targetPos);
+            beginTask(new com.dddgn.alice.task.SoftPathMineTask(bot, targetPos, scope), assignedTarget);
             broadcastTarget(this.target);
         }
 
