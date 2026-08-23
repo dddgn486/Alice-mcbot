@@ -69,6 +69,7 @@ public final class ChestBotTransferPrimitive {
         if (inserted != context.request.count()) return post(context, fresh, TransferCodes.DESTINATION_DELTA_MISMATCH);
         int removed = removeBot(context.botInventory, context.request.itemId(), context.request.count());
         if (removed != context.request.count()) return post(context, fresh, TransferCodes.DESTINATION_DELTA_MISMATCH);
+        syncBotInventorySlots(context.botInventory);
         return prove(context, fresh, 0, -context.request.count(), context.request.count(),
                 TransferCodes.DESTINATION_DELTA_MISMATCH);
     }
