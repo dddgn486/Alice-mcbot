@@ -1,92 +1,117 @@
 # Alice Active Work Plan
 
-- Plan ID: `20260824-soft-path-test-tool-v1`
+- Plan ID: `20260824-p1-client-sync-fix-v1`
 - Status: APPROVED_FOR_IMPLEMENTATION
-- Baseline: `2298dd3`（P1 已实施，CLIENT_TEST_PENDING 暂缓）
-- User approval: explicit approval received (2026-08-24); 方案 A 批准，先做测试工具
-- Implementation plan: `.alice-supervision/research/soft-path-test-tool-plan-20260824.md` (planner report, supervisor accepted)
+- Baseline: `65f4863`（测试工具已实施，T1-T3 通过，T4 发现同步问题）
+- User approval: explicit approval received (2026-08-24); 批准修复 P1 客户端同步问题（选项 1）
+- Investigation report: `.alice-supervision/research/p1-physics-collision-knockback-investigation-20260824.md` (deep research, supervisor accepted)
 
 ## Objective
 
-增加游戏内软路径测试工具（扩展现有 `soft_path_probe_selector`）：右键软寻路（已有）/ Shift+右键软寻路+挖掘（新增），避免精确坐标参数指令，便于 P1 客户端测试。
+修复 P1 客户端同步失效问题：FakeConnection 丢弃所有 S2C 包，导致客户端看到陈旧 bot 位置。实施方案 A（广播 bot 位置/速度包给真实玩家），使客户端正确观察 bot 物理状态（碰撞/击退）。
 
-## Allowed Scope
+## Root Cause
 
-### 方案 A：扩展现有 `SoftPathProbeSelector`
+- **服务端物理完全正常** ✅：bot 与玩家碰撞检测正常、击退正常、P1 观测日志正确
+- **客户端同步失败** ❌：`FakeConnection.send(Packet)` 空实现（alice/bot/FakeConnection.java:35-37）丢弃所有 S2C 包，`ServerEntity` 的位置/速度同步包（`ClientboundMoveEntityPacket` / `ClientboundSetEntityMotionPacket`）被阻断，客户端永不更新 bot 物理状态
 
-1. **SoftPathProbeSelector.java**：增加 `context.getPlayer().isShiftKeyDown()` 判定
-   - 右键：`assignSoftPathProbe`（已有，不变）
-   - Shift+右键：`assignSoftPathMine`（新增）
+## Allowed Scope - Fix Approach A
 
-2. **SoftPathMineTask.java**（新增约 300 行）：
-   - Phase.SOFT_NAVIGATE：完整复用 SoftPathProbeTask P1 逻辑（SurfacePathfinder + NATIVE_TRAVEL + P1 观测/revalidate/replan/MAX_REPLAN=3）
-   - Phase.MINING：到达后调用 BotMiner.tick()（复用挖掘原语，不走 PathExecutor 硬寻路）
-   - 不收集掉落物（测试工具简化）
+### Core Implementation
 
-3. **BotManager.java**：新增 `assignSoftPathMine(bot, target)` + `BotSession.assignSoftPathMine(targetPos)`
+修改 `FakeConnection.java`，识别并广播 bot 位置/速度包给真实玩家：
 
-### 冻结边界守护
+```java
+@Override
+public void send(Packet<?> packet) {
+    // 识别位置/速度包
+    if (packet instanceof ClientboundMoveEntityPacket
+        || packet instanceof ClientboundSetEntityMotionPacket
+        || packet instanceof ClientboundTeleportEntityPacket) {
+        broadcastToRealPlayers(packet);
+    }
+    // 其他包丢弃（bot 自己不需要）
+}
 
-- **MineTask 保持 HARD_PATH 完全不动**（不改一行代码）
-- 独立任务类（SoftPathMineTask 与 MineTask 隔离）
-- 专用入口（assignSoftPathMine，不改 assign）
-- 无自动切换（失败不回退 MineTask，两者永不互转）
+private void broadcastToRealPlayers(Packet<?> packet) {
+    // 获取 bot 实体（需添加字段或反射）
+    // 广播给所有真实玩家（排除 bot 自己）
+    for (ServerPlayer realPlayer : server.getPlayerList().getPlayers()) {
+        if (!(realPlayer instanceof BotPlayer)) {
+            realPlayer.connection.send(packet);
+        }
+    }
+}
+```
 
-### 交互设计
+### Alternative: BotManager Integration
 
-- 点击 support 方块（如石头）：
-  - 右键 → bot 软寻路到 support.above()，不挖掘
-  - Shift+右键 → bot 软寻路到 support.above()，到达后挖掘 support（点击的方块本身）
-- Chat 消息 + 日志反馈（`soft-path-test` / `soft-path-mine-test`）
+如果 FakeConnection 难以获取 server/bot 引用，可在 `BotManager.spawn` 后订阅 `ServerEntity.sendChanges`：
+
+```java
+// BotManager.java spawn 后
+ServerEntity tracker = level.getChunkSource().chunkMap.entityMap.get(bot.getId());
+// 每 tick 手动广播 bot 位置/速度给真实玩家
+```
+
+### Files to Modify
+
+- `src/main/java/com/dddgn/alice/bot/FakeConnection.java`：增加广播逻辑
+- 可能需修改 `src/main/java/com/dddgn/alice/bot/BotManager.java`：添加 server 引用或 tracker 订阅
 
 ## Verification Matrix
 
 ### 服务端
 - `./gradlew compileJava` PASS
 - `git diff --check` PASS
-- 既有 suites 保持 PASS
-- 可选：新增 `SoftPathMineTaskTest.java` fixture（断言阶段切换、挖掘完成）
+- 既有 suites 保持 PASS（特别是 SOFT_PHYSICS_OBSERVATION_SUITE）
 
-### 客户端（Windows，CLIENT_TEST_PENDING）
+### 客户端（Windows，重新测试 T4）
 
-| 场景 | 操作 | 预期 |
+| 场景 | 操作 | 预期（修复后） |
 |---|---|---|
-| T1 右键寻路 | 右键石头 | bot 软寻路到石头旁，石头完整，P1 观测日志 soft_phys_obs |
-| T2 Shift+右键挖掘 | Shift+右键石头 | bot 软寻路（P1 观测）→ 到达后挖掘石头 → 石头消失 |
-| T2a Shift 寻路失败 | 封闭房间，Shift+右键外部方块 | P1 revalidate/replan → FAILED with soft_mine_no_path，石头完整 |
-| T2b Shift 挖掘失败 | 保护区方块 Shift+右键 | 软寻路成功 → Phase.MINING → BotMiner 拒绝 → FAILED with soft_mine_dig_failed |
-| T3 隔离验证 | `/alice mine <矿>` 或 target_selector | 日志只含 MineTask/PathExecutor/HARD_PATH，**无** soft_phys/NATIVE_TRAVEL |
-| T4 P1 观测回归 | Shift+右键，途中碰撞/击退 | P1 观测 soft_phys_obs/disruption/revalidate/replan 正常 |
+| T4a 玩家堵路 | 一格宽通道，玩家堵路，Shift+右键寻路 | bot 被玩家碰撞箱阻挡，客户端可见 bot 停止或绕路，日志含 soft_phys_obs horizontalCollision=true / revalidate |
+| T4b 击退 | 软寻路途中玩家攻击 bot（剑击退） | bot 被击退（客户端可见位移动画），日志含 soft_phys_disruption velocityChange 非零 / revalidate |
+| T4c HARD_PATH 不受影响 | `/alice mine <矿>` | bot 移动正常（既有行为不变） |
 
 ## Explicitly Forbidden
 
-- 不改 MineTask.java（保持 HARD_PATH 不动）
-- 不改 PathExecutor/BotMiner（核心挖掘/硬寻路不动）
-- 不改 SoftPathProbeTask/FollowTask（P1 软任务不动，只复用逻辑）
-- 不改 DropCollectionTask/道路/隧道
-- 不做 P2-P5（primitive 扩展/独立 SoftTravelTask/任务链接入）
-- SoftPathMineTask 不自动回退 MineTask
+- 不改 P1 观测逻辑（SoftPathProbeTask/FollowTask/SoftPathMineTask）
+- 不改 HARD_PATH（PathExecutor/MineTask）
+- 不改服务端物理（BotPlayer 保持不覆盖 travel/aiStep/hurt/push）
+- 广播不能导致重复包或客户端抖动
 
 ## Stop Conditions
 
 Stop and return for replanning if:
-- Shift+右键需改 MineTask 接入 SOFT_SURFACE（违反冻结边界）
-- 任务链需改 BotManager 核心调度（超出测试工具范围）
-- BotMiner 无法在 SOFT 到达后独立使用（需重新设计挖掘原语）
-- 用户不批准方案 A（已批准）
-- 客户端 T1-T4 任一场景无法通过（传送/卡死/MineTask 偷接 SOFT）
+- FakeConnection 无法获取 server/bot 引用（需重新设计架构）
+- 广播导致客户端抖动/重复包/性能问题
+- ServerEntity tracker 订阅影响既有 HARD_PATH 同步
+- 修复后 T4a/T4b 仍失败（需更深层调查）
 
 ## Implementation Time Estimate
 
-- 实施：2-4 小时（SoftPathMineTask 300 行 + Shift 判定 20 行 + BotManager 15 行）
+- 实施：2-4 小时（FakeConnection 广播逻辑 + server 引用传递 + 既有代码影响评估）
 - 编译+既有测试：0.5 小时
-- 可选 fixture：1 小时
 - HANDOVER：0.5 小时
 - commit/push：0.5 小时
-- **客户端测试**：2-3 小时（T1-T4 + evidence-report.md）
-- **总计：6-9 小时**
+- **客户端复测**：0.5-1 小时（T4a/T4b/T4c）
+- **总计：4-6.5 小时**
+
+## Background Research (completed)
+
+- P1 physics investigation: `.alice-supervision/research/p1-physics-collision-knockback-investigation-20260824.md`
+- Root cause: FakeConnection blocks S2C packets, not physics failure
+- Server-side physics fully functional (verified by Forge 1.20.1 source code analysis)
+
+## Previous Work (completed)
+
+- P1 implementation (`2298dd3`): physics observation & disturbance recovery
+- Test tool (`65f4863`): soft path probe selector with Shift+click mining
+- Test tool client test: T1-T3 PASS, T4 discovered sync issue
 
 ## Notes
 
-- 测试工具完成后，可用于 P1 客户端复测（右键/Shift+右键交互，替代手动坐标指令）
-- P1 客户端复测暂缓（等测试工具完成）
+- 修复后，P1 + 测试工具全部完成（T1-T4 全 PASS）
+- 证明软路径"更真实玩家定位"方向技术可行
+- 为未来 P2-P5 打下基础

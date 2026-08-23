@@ -374,29 +374,29 @@
         "rows": {
           "sessionStats": {
             "ver": 1,
-            "seq": 492077,
+            "seq": 498181,
             "val": {
-              "turns": 360,
-              "steps": 1489,
-              "llmMs": 23374605,
-              "toolMs": 2025651,
-              "ttftMs": 14864693,
-              "ttftSteps": 1434,
-              "decodeMs": 8499723,
-              "decodeTokens": 692467,
-              "lastTurn": 361,
+              "turns": 368,
+              "steps": 1522,
+              "llmMs": 23912677,
+              "toolMs": 2168131,
+              "ttftMs": 15070083,
+              "ttftSteps": 1467,
+              "decodeMs": 8832405,
+              "decodeTokens": 712567,
+              "lastTurn": 369,
               "openStep": null,
               "pendingCalls": {}
             }
           },
           "title": {
             "ver": 1,
-            "seq": 492077,
+            "seq": 498181,
             "val": "Alice监督员+"
           },
           "goal": {
             "ver": 4,
-            "seq": 492077,
+            "seq": 498181,
             "val": {
               "goal": {
                 "id": "goal-73cf325b-7a55-4224-ac0d-6abb76d589e5",
@@ -412,48 +412,48 @@
           },
           "tokenUsage": {
             "ver": 1,
-            "seq": 492077,
+            "seq": 498181,
             "val": {
               "totals": {
-                "uncachedInputTokens": 35873063,
-                "outputTokens": 702169,
-                "cacheReadTokens": 215260306,
-                "cacheWriteTokens": 13527875
+                "uncachedInputTokens": 35889416,
+                "outputTokens": 722269,
+                "cacheReadTokens": 218800887,
+                "cacheWriteTokens": 15640727
               },
               "last": {
-                "turn": 361,
-                "step": 4,
+                "turn": 369,
+                "step": 6,
                 "buckets": {
-                  "uncachedInputTokens": 20,
-                  "outputTokens": 433,
-                  "cacheReadTokens": 156972,
-                  "cacheWriteTokens": 53
+                  "uncachedInputTokens": 533,
+                  "outputTokens": 428,
+                  "cacheReadTokens": 81,
+                  "cacheWriteTokens": 95774
                 }
               }
             }
           },
           "contextPressure": {
             "ver": 4,
-            "seq": 492077,
+            "seq": 498181,
             "val": {
-              "surfaceTokens": 83608,
+              "surfaceTokens": 45135,
               "contextWindow": 262144,
-              "pressureTokens": 157045,
-              "sampledSurfaceTokens": 83452
+              "pressureTokens": 96388,
+              "sampledSurfaceTokens": 44976
             }
           },
           "contextBreakdown": {
             "ver": 2,
-            "seq": 492077,
+            "seq": 498181,
             "val": {
               "systemTokens": 3949,
               "toolsTokens": 10617,
-              "messageTokens": 83608
+              "messageTokens": 45135
             }
           },
           "subagentTiming": {
             "ver": 2,
-            "seq": 492077,
+            "seq": 498181,
             "val": {
               "descriptorSeen": false,
               "settledMs": 0
@@ -461,12 +461,12 @@
           },
           "subagent": {
             "ver": 2,
-            "seq": 492077,
+            "seq": 498181,
             "val": {}
           },
           "permissions": {
             "ver": 1,
-            "seq": 492077,
+            "seq": 498181,
             "val": {
               "preset": "danger-full-access",
               "sandbox": "danger-full-access",
@@ -475,25 +475,25 @@
           },
           "sessionListMetadata": {
             "ver": 1,
-            "seq": 492077,
+            "seq": 498181,
             "val": {
               "blank": false,
-              "lastPromptAt": 1787484961125
+              "lastPromptAt": 1787501821207
             }
           },
           "imageLimits": {
             "ver": 1,
-            "seq": 492077,
+            "seq": 498181,
             "val": null
           },
           "todos": {
             "ver": 2,
-            "seq": 492077,
+            "seq": 498181,
             "val": null
           },
           "plan": {
             "ver": 2,
-            "seq": 492077,
+            "seq": 498181,
             "val": {
               "active": false,
               "wanted": null,
@@ -2745,75 +2745,75 @@
         "rows": {
           "sessionStats": {
             "ver": 1,
-            "seq": 112581,
+            "seq": 118253,
             "val": {
-              "turns": 13,
-              "steps": 176,
-              "llmMs": 3038390,
-              "toolMs": 1209750,
-              "ttftMs": 798956,
-              "ttftSteps": 175,
-              "decodeMs": 2239434,
-              "decodeTokens": 177812,
-              "lastTurn": 13,
+              "turns": 15,
+              "steps": 195,
+              "llmMs": 3429737,
+              "toolMs": 1230682,
+              "ttftMs": 944400,
+              "ttftSteps": 193,
+              "decodeMs": 2485337,
+              "decodeTokens": 194018,
+              "lastTurn": 15,
               "openStep": null,
               "pendingCalls": {}
             }
           },
           "title": {
             "ver": 1,
-            "seq": 112581,
+            "seq": 118253,
             "val": "Alice深度调查员+"
           },
           "goal": {
             "ver": 4,
-            "seq": 112581,
+            "seq": 118253,
             "val": null
           },
           "tokenUsage": {
             "ver": 1,
-            "seq": 112581,
+            "seq": 118253,
             "val": {
               "totals": {
-                "uncachedInputTokens": 2499874,
-                "outputTokens": 177812,
-                "cacheReadTokens": 28516285,
-                "cacheWriteTokens": 771475
+                "uncachedInputTokens": 2539518,
+                "outputTokens": 194018,
+                "cacheReadTokens": 31042611,
+                "cacheWriteTokens": 1647205
               },
               "last": {
-                "turn": 13,
-                "step": 17,
+                "turn": 15,
+                "step": 7,
                 "buckets": {
-                  "uncachedInputTokens": 175529,
-                  "outputTokens": 719,
-                  "cacheReadTokens": 4480,
-                  "cacheWriteTokens": 0
+                  "uncachedInputTokens": 533,
+                  "outputTokens": 439,
+                  "cacheReadTokens": 60,
+                  "cacheWriteTokens": 90097
                 }
               }
             }
           },
           "contextPressure": {
             "ver": 4,
-            "seq": 112581,
+            "seq": 118253,
             "val": {
-              "surfaceTokens": 128895,
-              "contextWindow": 256000,
-              "pressureTokens": 180009,
-              "sampledSurfaceTokens": 128556
+              "surfaceTokens": 47449,
+              "contextWindow": 262144,
+              "pressureTokens": 90690,
+              "sampledSurfaceTokens": 47282
             }
           },
           "contextBreakdown": {
             "ver": 2,
-            "seq": 112581,
+            "seq": 118253,
             "val": {
               "systemTokens": 3650,
               "toolsTokens": 10617,
-              "messageTokens": 128895
+              "messageTokens": 47449
             }
           },
           "subagentTiming": {
             "ver": 2,
-            "seq": 112581,
+            "seq": 118253,
             "val": {
               "descriptorSeen": false,
               "settledMs": 0
@@ -2821,12 +2821,12 @@
           },
           "subagent": {
             "ver": 2,
-            "seq": 112581,
+            "seq": 118253,
             "val": {}
           },
           "permissions": {
             "ver": 1,
-            "seq": 112581,
+            "seq": 118253,
             "val": {
               "preset": "danger-full-access",
               "sandbox": "danger-full-access",
@@ -2835,46 +2835,46 @@
           },
           "sessionListMetadata": {
             "ver": 1,
-            "seq": 112581,
+            "seq": 118253,
             "val": {
               "blank": false,
-              "lastPromptAt": 1787323236963
+              "lastPromptAt": 1787501450462
             }
           },
           "imageLimits": {
             "ver": 1,
-            "seq": 112581,
+            "seq": 118253,
             "val": null
           },
           "todos": {
             "ver": 2,
-            "seq": 112581,
+            "seq": 118253,
             "val": [
               {
-                "content": "运行研究启动检查并读取任务与 HANDOVER",
+                "content": "确认基线与 T4 问题现象",
                 "status": "completed"
               },
               {
-                "content": "核对 Alice 硬软路径当前实现边界",
+                "content": "读取 BotPlayer 与 NATIVE_TRAVEL 实现",
                 "status": "completed"
               },
               {
-                "content": "联网固定并读取 Baritone/Mineflayer 寻路源码",
+                "content": "反编译原版 travel/hurt/tick/push 链路",
                 "status": "completed"
               },
               {
-                "content": "反编译原版物理与导航关键机制",
+                "content": "诊断碰撞与击退失效根因",
                 "status": "completed"
               },
               {
-                "content": "写入边界调研报告与客户端矩阵",
+                "content": "编写调查报告与修复建议",
                 "status": "completed"
               }
             ]
           },
           "plan": {
             "ver": 2,
-            "seq": 112581,
+            "seq": 118253,
             "val": {
               "active": false,
               "wanted": null,
@@ -2891,53 +2891,53 @@
         "rows": {
           "sessionStats": {
             "ver": 1,
-            "seq": 256988,
+            "seq": 259674,
             "val": {
-              "turns": 63,
-              "steps": 869,
-              "llmMs": 12024612,
-              "toolMs": 10049361,
-              "ttftMs": 8100198,
-              "ttftSteps": 850,
-              "decodeMs": 3928298,
-              "decodeTokens": 343272,
-              "lastTurn": 63,
+              "turns": 64,
+              "steps": 886,
+              "llmMs": 12209464,
+              "toolMs": 10239068,
+              "ttftMs": 8187008,
+              "ttftSteps": 867,
+              "decodeMs": 4026340,
+              "decodeTokens": 350641,
+              "lastTurn": 64,
               "openStep": {
-                "turn": 63,
-                "step": 29,
-                "startTime": 1787485813224,
-                "firstTokenTime": null
+                "turn": 64,
+                "step": 15,
+                "startTime": 1787502280789,
+                "firstTokenTime": 1787502284834
               },
               "pendingCalls": {}
             }
           },
           "title": {
             "ver": 1,
-            "seq": 256988,
+            "seq": 259674,
             "val": "Alice主开发员+"
           },
           "goal": {
             "ver": 4,
-            "seq": 256988,
+            "seq": 259674,
             "val": null
           },
           "tokenUsage": {
             "ver": 1,
-            "seq": 256988,
+            "seq": 259674,
             "val": {
               "totals": {
-                "uncachedInputTokens": 15123824,
-                "outputTokens": 344084,
-                "cacheReadTokens": 142598169,
-                "cacheWriteTokens": 2749431
+                "uncachedInputTokens": 15129800,
+                "outputTokens": 351453,
+                "cacheReadTokens": 143769426,
+                "cacheWriteTokens": 3379732
               },
               "last": {
-                "turn": 63,
-                "step": 28,
+                "turn": 64,
+                "step": 14,
                 "buckets": {
-                  "uncachedInputTokens": 1072,
-                  "outputTokens": 2310,
-                  "cacheReadTokens": 154065,
+                  "uncachedInputTokens": 1492,
+                  "outputTokens": 2048,
+                  "cacheReadTokens": 79737,
                   "cacheWriteTokens": 52
                 }
               }
@@ -2945,40 +2945,40 @@
           },
           "contextPressure": {
             "ver": 4,
-            "seq": 256988,
+            "seq": 259674,
             "val": {
-              "surfaceTokens": 107104,
+              "surfaceTokens": 51711,
               "contextWindow": 262144,
-              "pressureTokens": 155189,
-              "sampledSurfaceTokens": 105918
+              "pressureTokens": 81281,
+              "sampledSurfaceTokens": 50670
             }
           },
           "contextBreakdown": {
             "ver": 2,
-            "seq": 256988,
+            "seq": 259674,
             "val": {
               "systemTokens": 3660,
               "toolsTokens": 10617,
-              "messageTokens": 107104
+              "messageTokens": 51711
             }
           },
           "subagentTiming": {
             "ver": 2,
-            "seq": 256988,
+            "seq": 259674,
             "val": {
               "descriptorSeen": false,
               "settledMs": 0,
-              "pendingTurnStart": 1787485032093
+              "pendingTurnStart": 1787501909851
             }
           },
           "subagent": {
             "ver": 2,
-            "seq": 256988,
+            "seq": 259674,
             "val": {}
           },
           "permissions": {
             "ver": 1,
-            "seq": 256988,
+            "seq": 259674,
             "val": {
               "preset": "danger-full-access",
               "sandbox": "danger-full-access",
@@ -2987,7 +2987,7 @@
           },
           "sessionListMetadata": {
             "ver": 1,
-            "seq": 256988,
+            "seq": 259674,
             "val": {
               "blank": false,
               "lastPromptAt": 1787423514297
@@ -2995,17 +2995,17 @@
           },
           "imageLimits": {
             "ver": 1,
-            "seq": 256988,
+            "seq": 259674,
             "val": null
           },
           "todos": {
             "ver": 2,
-            "seq": 256988,
+            "seq": 259674,
             "val": null
           },
           "plan": {
             "ver": 2,
-            "seq": 256988,
+            "seq": 259674,
             "val": {
               "active": false,
               "wanted": null,

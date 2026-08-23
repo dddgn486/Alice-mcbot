@@ -72,7 +72,8 @@ public final class BotManager {
         BotPlayer bot = new BotPlayer(server, level, profile);
 
         // 伪造客户端连接 → PlayerList.placeNewPlayer 注册(填充 connection + 广播给玩家)
-        server.getPlayerList().placeNewPlayer(new FakeConnection(PacketFlow.SERVERBOUND), bot);
+        // P1 客户端同步修复：传入 bot 引用以便广播位置/速度包
+        server.getPlayerList().placeNewPlayer(new FakeConnection(PacketFlow.SERVERBOUND, bot), bot);
 
         // 传送到位(placeNewPlayer 默认放在出生点,需再定位)
         bot.teleportTo(pos.getX() + 0.5D, pos.getY(), pos.getZ() + 0.5D);

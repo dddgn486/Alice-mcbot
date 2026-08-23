@@ -1,0 +1,110 @@
+# P1 物理问题深度调查：Fake ServerPlayer 碰撞与击退失效
+
+- 任务类型：深度调查（联网 + 源码分析）
+- 触发：用户 T4 测试发现 bot 穿过玩家 + 击退无位移
+- 日期：2026-08-24
+- 当前 baseline：`65f4863`（测试工具已实施，P1 已实施但物理失效）
+
+## 问题现象（用户实测）
+
+### 问题 1：bot 穿过玩家（无碰撞箱反应）
+- 场景：一格宽通道，玩家堵路
+- 预期：bot 应该被玩家碰撞箱阻挡，`horizontalCollision=true`，触发 P1 revalidate
+- 实际：bot **直接穿过玩家**，无碰撞反应
+
+### 问题 2：击退无位移
+- 场景：软寻路途中玩家攻击 bot（剑击退）
+- 预期：bot 应该被击退（deltaMovement 突变），触发 P1 velocityDisruption
+- 实际：攻击 bot 后**无击退位移**，bot 继续前进
+
+### 影响
+P1 的核心假设"NATIVE_TRAVEL 调用原版 `ServerPlayer.travel`，天然保留碰撞/重力/击退"**可能不成立**。如果无法修复，软路径"更真实玩家定位"方向需要重新设计。
+
+## 必须回答的问题
+
+### 1. Fake ServerPlayer 物理完整性
+- Alice 的 `BotPlayer extends ServerPlayer`（`com.dddgn.alice.bot.BotPlayer`）是否正确调用原版物理？
+- `BotPlayer` 是否覆盖了关键物理方法（`travel` / `aiStep` / `tick` / `hurt` / `push`）？
+- Fake player 的 `noPhysics` / `isSpectator` / `isInvulnerable` 等标志是否正确设置？
+
+### 2. NATIVE_TRAVEL 实现正确性
+- Alice P1 的 `SoftMovementPrimitive.NATIVE_TRAVEL`（`.alice-supervision/research/alice-movement-system-inventory-20260824.md:42-49`）如何调用 `travel`？
+- 调用路径：`NATIVE_TRAVEL.tick(bot)` → `bot.travel(inputVec)` → `LivingEntity.travel` → 碰撞检测？
+- 是否遗漏关键前置步骤（如 `setInput` / `tickMovement`）？
+
+### 3. 实体碰撞机制
+- Minecraft 原版 `LivingEntity.travel` 如何处理实体碰撞？
+  - `Entity.move(MoverType, Vec3)` → `collide` → `Entity.push` / `Entity.doPush`
+  - `Level.getEntities` → `Entity.collidesWithSuffocatingBlock` / `collideWithOtherEntities`
+- Fake player 是否被排除在碰撞检测外？
+  - `Entity.canCollideWith(Entity other)` 对 fake player 返回什么？
+  - `Level.getEntities` 是否过滤掉了 fake player？
+
+### 4. 击退（knockback）机制
+- `LivingEntity.hurt(DamageSource, float)` → `knockback(double, double, double)` → `setDeltaMovement`
+- Fake player 的 `hurt` 是否被正确触发？
+- `isInvulnerable()` / `isInvulnerableTo(DamageSource)` 对 fake player 返回什么？
+- `deltaMovement` 变化后是否被 `travel` 应用？
+
+### 5. Forge 1.20.1 特殊处理
+- Forge 是否有 hook 跳过 fake player 的物理（如 `ForgeMod.enableMilkFluid` 类似的白名单）？
+- `FakePlayer` 是否有特殊标记导致物理被禁用？
+- Forge 的 `Entity.canUpdate()` / `Level.tickNonPassenger` 是否影响 fake player？
+
+### 6. 对比验证
+- 原版玩家（真实连接）vs Alice BotPlayer（fake）在相同场景下的行为差异
+- 其他 mod 的 fake player（如 Carpet mod 的 fake player）是否也有碰撞/击退问题？
+
+## 外部调研要求
+
+必须使用 `web_search`，至少查询：
+1. `Minecraft ServerPlayer travel entity collision source code`
+2. `Forge FakePlayer collision physics knockback not working`
+3. `LivingEntity hurt knockback deltaMovement fake player`
+4. `Entity canCollideWith push doPush fake player`
+5. `Carpet mod fake player collision physics implementation`
+
+优先读 Forge 1.20.1 源码：
+- `net.minecraft.world.entity.LivingEntity.travel`
+- `net.minecraft.world.entity.Entity.move` / `push` / `doPush`
+- `net.minecraft.world.entity.player.Player.hurt` / `knockback`
+- `net.minecraftforge.common.util.FakePlayer`
+
+## Alice 代码核查要求
+
+必须读取（只读，不修改）：
+- `src/main/java/com/dddgn/alice/bot/BotPlayer.java`（是否覆盖物理方法）
+- `src/main/java/com/dddgn/alice/task/primitive/SoftMovementPrimitive.java`（NATIVE_TRAVEL 实现）
+- `src/main/java/com/dddgn/alice/task/SoftPathProbeTask.java`（P1 观测实现，是否遗漏物理启用）
+- P1 实施提交 `2298dd3` 的完整 diff
+
+## 报告路径
+
+`.alice-supervision/research/p1-physics-collision-knockback-investigation-20260824.md`
+
+## 输出要求
+
+1. **根因诊断**：碰撞/击退失效的确切原因（代码行号 + 调用链）
+2. **可修复性判断**：
+   - 可修复：输出修复方案（需改动的类/方法、预估实施时间）
+   - 不可修复：输出技术限制原因（Forge/MC 限制、fake player 固有缺陷）
+3. **对比表**：原版玩家 vs Alice BotPlayer × 碰撞检测/击退/travel/hurt
+4. **P1 适用范围**：如果不可修复，P1 能用于哪些场景（无玩家/实体碰撞？只用于空旷平地？）
+5. **替代方案**（如果不可修复）：
+   - 回退 P0（冻结 SOFT_SURFACE）
+   - 降级 P1 为"无碰撞场景专用"
+   - 自研物理（不依赖 NATIVE_TRAVEL）
+
+## 禁止事项
+
+- 不修改代码、计划、HANDOVER 或客户端证据
+- 不运行 Alice 实现测试
+- 不把调研结论直接转成开发授权
+- 不把"其他 mod 有问题"当作"Alice 不用修"的理由
+
+## 证据标准
+
+- 必须引用 Forge 1.20.1 源码行号
+- 必须读取 Alice BotPlayer 实现
+- 必须对比原版玩家与 fake player 的实际调用链
+- 外部案例（Carpet / Baritone fake player）需验证版本一致性
