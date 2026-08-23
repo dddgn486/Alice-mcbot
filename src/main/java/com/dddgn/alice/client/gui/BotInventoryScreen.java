@@ -2,6 +2,7 @@ package com.dddgn.alice.client.gui;
 
 import com.dddgn.alice.client.ClientBotInventoryState;
 import com.dddgn.alice.gui.BotInventoryService;
+import com.dddgn.alice.gui.BotInventorySnapshot;
 import com.dddgn.alice.network.AliceNetwork;
 import com.dddgn.alice.network.BotInventoryActionPacket;
 import com.dddgn.alice.network.BotInventoryPacket;
@@ -111,7 +112,7 @@ public class BotInventoryScreen extends Screen {
     private int hitTest(double mouseX, double mouseY) {
         int relX = (int) (mouseX - guiLeft);
         int relY = (int) (mouseY - guiTop);
-        for (int i = 0; i < 41; i++) {
+        for (int i = 0; i < BotInventorySnapshot.SLOT_COUNT; i++) {
             int sx = slotX(i) - 1;
             int sy = slotY(i) - 1;
             if (relX >= sx && relX < sx + SLOT_SIZE && relY >= sy && relY < sy + SLOT_SIZE) {
@@ -121,35 +122,33 @@ public class BotInventoryScreen extends Screen {
         return -1;
     }
 
-    /** Vanilla player-backpack slot geometry: armor column, offhand, 27 main, 9 hotbar. */
+    /** Server snapshot index geometry (0-35 ordinary, 36-39 armor, 40 offhand). */
     private int slotX(int index) {
-        if (index < 4) { // armor column
+        if (index < 9) { // hotbar 0..8
+            return 8 + index * 18;
+        }
+        if (index < 36) { // main 9..35
+            return 8 + ((index - 9) % 9) * 18;
+        }
+        if (index < 40) { // armor column 36..39
             return 8;
         }
-        if (index == 4) { // offhand
-            return 77;
-        }
-        if (index < 32) { // 27 main (index 5..31)
-            int col = (index - 5) % 9;
-            return 8 + col * 18;
-        }
-        // 9 hotbar (index 32..40)
-        int col = (index - 32) % 9;
-        return 8 + col * 18;
+        // offhand
+        return 77;
     }
 
     private int slotY(int index) {
-        if (index < 4) { // armor column
-            return 8 + index * 18;
+        if (index < 9) { // hotbar
+            return 142;
         }
-        if (index == 4) { // offhand
-            return 62;
+        if (index < 36) { // main inventory rows 9..35
+            return 84 + ((index - 9) / 9) * 18;
         }
-        if (index < 32) { // 27 main
-            int row = (index - 5) / 9;
-            return 84 + row * 18;
+        if (index < 40) { // armor column 36..39
+            return 8 + (index - 36) * 18;
         }
-        // 9 hotbar
-        return 142;
+        // offhand
+        return 62;
     }
+
 }
