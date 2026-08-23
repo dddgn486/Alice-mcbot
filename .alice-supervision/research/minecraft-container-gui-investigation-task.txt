@@ -1,0 +1,122 @@
+# Minecraft 容器 GUI 正确实现深度调研（联网）
+
+## 调研目标
+
+解决 Alice Bot Inventory GUI 的两个严重缺陷：①GUI 面板背景/边框完全不显示（自绘纯色面板失败）；②拿取物品就消失（quickMoveStack 交互仍失败）。需要联网调研 Minecraft/Forge 容器 GUI 的**正确、成熟**实现方式。
+
+## 问题背景
+
+**当前实现已连续两次失败（f0ef6fc → f4bf79a）**：
+- `f0ef6fc`：用 `generic_54.png` vanilla 纹理 + 自定义 4x9 坐标 → 槽位与背景错位、装备槽未渲染
+- `f4bf79a`：改用 `graphics.fill` 自绘纯色面板（`PANEL_TOP=0x3F3F3F`）+ 槽位格 → **面板完全不显示**、拿取物品消失
+
+**截图证据**（`run/screenshots/2026-08-23_02.54.46.png`）：
+- 标题 "Bot Inventory: tango" 在最顶部
+- 玩家背包槽位格子**悬浮半空、无面板包裹**（右上 27 格 + 左下 hotbar 9 格）
+- "物品栏"标签在左侧（AbstractContainerScreen 自动绘制）
+- 槽位格子是散的，没有一个统一的 GUI 面板背景/边框
+
+**当前 Screen 方案**（`BotInventoryScreen.java`，f4bf79a）：
+```java
+@Override
+protected void renderBg(GuiGraphics graphics, float delta, int mouseX, int mouseY) {
+    int x = (width - imageWidth) / 2;
+    int y = (height - imageHeight) / 2;
+    graphics.fill(x, y, x + imageWidth, y + imageHeight, PANEL_TOP);  // 0x3F3F3F 暗灰
+    graphics.fill(x, y, x + imageWidth, y + 1, BORDER);
+    ...
+    for (int i = 0; i < getMenu().slots.size(); i++) {
+        var slot = getMenu().slots.get(i);
+        int sx = x + slot.x - 1;
+        int sy = y + slot.y - 1;
+        graphics.fill(sx, sy, sx + 18, sy + 18, SLOT_BG);  // 槽位格
+    }
+}
+```
+
+## 关键问题
+
+1. **为什么自绘面板不显示？** `renderBg` 的 `graphics.fill` 是否被 `renderBackground`（半透明遮罩）覆盖？渲染时序/坐标错误？颜色太暗不可见？`AbstractContainerScreen.render()` 的调用链中 `renderBg` 是否正确被调用？
+2. **槽位格子为什么散开无面板？** 槽位坐标（bot armor/offhand/main/hotbar + 玩家槽）是否正确聚合在一个标准面板区域内？
+3. **拿取物品消失的根因？** 是 `quickMoveStack`/`clicked` 逻辑缺陷，还是 GUI 背景缺失导致用户点击错位（点了实际不存在的槽位）？
+4. **正确做法是什么？** 应该用哪个 vanilla 纹理（`inventory.png`/`generic_54.png`）？槽位坐标如何与之严格对齐？
+
+## 调研范围
+
+**Allowed（必须联网）**：
+
+1. **Minecraft/Forge 容器 GUI 标准实现**（联网查阅官方文档 + 反编译源码）：
+   - `AbstractContainerScreen` 的 `render()`/`renderBg()` 完整调用链
+   - `GuiGraphics.fill()` 绘制面板的正确用法
+   - 标准 vanilla 容器纹理布局：`PlayerInventoryScreen`（inventory.png）、`ChestScreen`（generic_54.png）
+   - 槽位坐标如何与纹理边框对齐（Slot.x/y 的语义：相对 GUI 左上角的偏移）
+   - `imageWidth/imageHeight` 如何与纹理尺寸匹配
+
+2. **其他 mod 的自定义容器 GUI 实现**（联网查阅源码）：
+   - 有自定义布局 + 自绘背景的 Forge mod（如 AE2、Storage Drawers、Iron Chests）
+   - 它们如何画背景面板 + 槽位格（用纹理 or fill）
+   - 具体文件路径 + 关键代码
+
+3. **`quickMoveStack` 正确实现**（联网查阅）：
+   - 标准 `AbstractContainerMenu.quickMoveStack` 的 moveItemStackTo 语义（index↔slot 映射、返回值）
+   - 原版 `PlayerInventoryMenu`/`ChestMenu` 的 quickMoveStack 参考实现
+   - 为什么 `moveItemStackTo` 后返回 stack 会导致"物品消失"（是返回语义问题还是联动 clicked 的问题）
+
+**Forbidden**：
+- 不修改任何代码
+- 不运行测试或客户端
+- 不扩展到其他功能
+
+## 交付要求
+
+报告路径：`.alice-supervision/research/minecraft-container-gui-correct-implementation-20260823.md`
+
+报告必须包含：
+
+### 1. `AbstractContainerScreen` 渲染流程
+- `render()` → `renderBg()` → `renderLabels()` → 槽位/Slot 绘制的完整调用链
+- `GuiGraphics.fill()` 的正确用法与局限性
+- `renderBackground`（半透明遮罩）与 `renderBg`（面板）的先后与叠加关系
+
+### 2. 标准 vanilla 纹理布局
+- `inventory.png`（PlayerInventoryScreen）的槽位坐标与纹理边框
+- `generic_54.png`（ChestScreen）的 9x5 网格坐标
+- Slot.x/y 语义：相对 GUI 左上角的偏移，如何与纹理对齐
+
+### 3. 外部 mod 参考实现（GitHub URL + 文件路径 + 关键代码）
+- AE2 / Storage Drawers / Iron Chests 如何自定义 GUI 背景
+- 推荐采用哪种方案（vanilla 纹理 vs 自绘）
+
+### 4. 推荐修复方案（针对 Alice 的 BotInventoryScreen/Menu）
+- **背景**：用哪个纹理，如何对齐槽位坐标（给出精确坐标表）
+- **alt 自绘**：如果坚持自绘，fill 的正确用法（颜色/顺序/坐标）
+- **quickMoveStack**：正确实现（参考原版 ChestMenu，给出伪代码）
+- 面板尺寸 imageWidth/imageHeight 正确值
+
+### 5. 风险评估
+- 是否影响其他模块
+- 客户端渲染兼容性（JEI 等）
+
+## 证据标准
+
+- API 引用注明 Forge 1.20.1-47.4.10
+- 外部 mod 提供 GitHub URL + 文件路径 + 关键代码
+- 修复方案给出精确坐标/伪代码
+- 不得猜测，必须基于源码/官方文档
+
+## 项目上下文
+
+- 项目路径：`/home/fb486/projects/alice`
+- 当前 HEAD：`f4bf79a`（fix: align bot inventory GUI layout, add offhand, fix quick-move）
+- 相关文件：`src/main/java/com/dddgn/alice/client/gui/BotInventoryScreen.java`、`src/main/java/com/dddgn/alice/gui/BotInventoryMenu.java`
+- 已失败 2 次（f0ef6fc、f4bf79a）
+- 截图：`/mnt/d/JAVA_projects/alice/run/screenshots/2026-08-23_02.54.46.png`
+
+## 外部搜索建议
+
+**必须联网搜索**：
+1. `"Forge 1.20.1" + "AbstractContainerScreen" + "renderBg" + "custom background"`
+2. `"Minecraft" + "PlayerInventoryScreen" + "inventory.png" + "slot coordinates"`
+3. `"Minecraft ServerPlayer" + "AbstractContainerMenu" + "quickMoveStack" + "moveItemStackTo"`
+4. `"Forge" + "custom container menu" + "background texture" + "screen"`
+5. `"AE2" OR "Storage Drawers" + "custom GUI" + "renderBg" site:github.com`

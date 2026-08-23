@@ -1,0 +1,92 @@
+# Bot 寻路与挖矿：软路径/硬路径实现边界深度调研（联网）
+
+## 调研目的
+
+用户决定方向：**深度调研 Bot 寻路与挖矿的复杂实现，重点分析 SOFT_SURFACE（软路径）与 HARD_PATH（硬路径）的实现边界**，论证"软路径更符合真实玩家定位"的方向，并为未来加入物理碰撞、重力、击退等真实效果做技术准备。调研报告用于重规划参考，不构成 Alice 实现授权。
+
+## 当前 Alice 背景
+
+- 项目：`/home/fb486/projects/alice`，当前 HEAD `19af345`
+- 移动体系现状（HANDOVER R30/R36 等）：
+  - `PathExecutor` 当前固定 `MovementMode.HARD_PATH`；普通挖矿/拾取不可切换
+  - `SOFT_SURFACE` 默认后端 `NATIVE_TRAVEL`（原版玩家移动）：`/alice soft-probe` 限同高度安全平地、bot 8 格内；`/alice soft-path-probe`（SoftPathProbeTask）复核 A* 单格段几何（HORIZONTAL / canAscend jump / canDescend）；`FollowTask` 是独立可开关 SOFT_SURFACE 状态（`/alice follow on|off`，同维度、bot 空闲、24 格上限、约 2 格距离、每 10 tick 重算）
+  - `SELF_MOVE` 仅作回归对照；软移动不处理液体、失败后的硬移动回退，也不得接入矿链
+  - 硬路径：`BotMiner`（站位候选、视线硬检查、朝向目标）、`PlaceTask`（Baritone 风格候选判定）、`ContinuousRoadCurve`（道路曲线候选）、`TunnelObstaclePolicy`（隧道硬验证）
+  - 用户判断：软路径（NATIVE_TRAVEL）更符合真实玩家行为，未来可能要加物理碰撞/重力/击退
+
+## 必须回答的问题
+
+### 1. 软路径 vs 硬路径的实现边界
+
+- Alice 当前 `HARD_PATH`（确定性执行器、视线硬检查、候选枚举）与 `SOFT_SURFACE`（原版移动模拟、A* 段复核、NATIVE_TRAVEL）的核心差异与各自适用场景
+- 哪些行为"硬"（确定性、可证明、可回放）是必须保留的？哪些可以"软"（模拟真实玩家、物理感知）
+- 软路径接入挖矿/拾取/道路/隧道的边界：当前禁止，未来什么条件下可放开？（用户明确说"软路径更符合真实玩家定位"）
+
+### 2. 成熟寻路实现参考（必须联网+读源码）
+
+- **Baritone**（cabaletta/baritone）：Minecraft 最成熟寻路。重点：
+  - 路径搜索（A*/混合算法）、移动执行（Movement 分解）、cost 模型
+  - 它如何做"玩家可执行性"校验（canWalkOn/canWalkThrough/canAscend/canDescend）
+  - 它对物理/碰撞的处理（jump/step/sneak/parkour 等 Movement 类型）
+  - 挖矿集成（Baritone 的 mine 目标、隧道、路径重算）
+- **Carpet / fabric-carpet**：fake player 移动
+- **Mineflayer**（Node.js，非 Java 但有成熟寻路）：physics 引擎、bot 移动、挖矿
+- 其他：有物理模拟的寻路 mod（如 Villager AI 扩展、Zombie Awareness？）或 Minecraft 原版寻路（MobNavigation/GroundPathNavigation）
+
+### 3. 物理碰撞/重力/击退的可行性与方案
+
+- Minecraft 玩家移动的物理模型：重力（0.08/tick）、跳跃速度、空气阻力、水平加速度、击退（knockback）机制
+- 软路径如果要"更真实"，如何利用原版玩家移动引擎（NATIVE_TRAVEL 天然带物理）vs 自研物理？
+- 击退/碰撞对寻路的影响：路径是否需考虑"可能被击退"的风险？（如怪堆、水流）
+- 是否有 mod 实现了"真实物理寻路"（寻路时考虑重力/碰撞/动量）？
+
+### 4. 对 Alice 的建议（软路径未来方向）
+
+- 基于调研，给出软路径接入的路线图（阶段划分）
+- 软路径的验证矩阵需要什么（客户端实测项）
+- 软路径与硬路径的共存策略（何时硬、何时软）
+
+## 外部调研要求
+
+必须使用 `web_search`，至少查询：
+1. `Baritone pathfinding algorithm movement canWalkOn canAscend source`
+2. `Baritone movement types jump step sneak parkour source github`
+3. `Mineflayer pathfinder physics bot movement source`
+4. `Minecraft player movement physics gravity jump velocity knockback source`
+5. `Minecraft mob navigation ground path navigation source`
+6. `Baritone mine tunnel pathfinding github`
+
+优先读 GitHub 源码（Baritone 的 `Movement` 抽象、`AStarPathFinder`、`ActionCosts`、`MovementHelper`；Mineflayer 的 `pathfinder`；MC 的 `PathNavigation`）。
+
+## 对比输出要求
+
+报告必须有对照表：
+
+| 维度 | Alice HARD_PATH | Alice SOFT_SURFACE | Baritone | Mineflayer | MC 原版寻路 |
+|---|---|---|---|---|---|
+| 路径搜索 | | | | | |
+| 移动执行 | | | | | |
+| 可执行性校验 | | | | | |
+| 物理/碰撞 | | | | | |
+| 挖矿集成 | | | | | |
+| 失败回退 | | | | | |
+
+## 迁移边界
+
+分别判断：
+- 可直接迁移到 Alice 的模式
+- 需适配 Forge 1.20.1 / Alice 任务体系的模式
+- Baritone/Mineflayer 专属耦合（不可迁移）
+- 软路径未来加入物理的可行性结论
+
+## 报告路径
+
+`.alice-supervision/research/bot-pathfinding-soft-hard-boundary-research-20260824.md`
+
+## 禁止事项
+
+- 不修改代码、计划、HANDOVER 或客户端证据
+- 不运行 Alice 实现测试
+- 不把 Baritone/Mineflayer 源码复制进 Alice
+- 不把调研结论直接转成开发授权
+- 不把"软路径接入矿链"当作已经批准（当前仍禁止）

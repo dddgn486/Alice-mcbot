@@ -1,0 +1,152 @@
+# Fake Player Equipment Sync 深度调研任务（联网）
+
+## 调研目标
+
+调查为何 Alice Bot 的手持物品在客户端不可见，查阅 Baritone/Carpet 等成熟 mod 的 fake player equipment sync 实现，找到可行的解决方案。
+
+## 问题描述
+
+**已尝试的方法（都失败）**：
+1. **方法 1**（`a8b84b4`）：直接发送 `ClientboundSetEquipmentPacket`
+   ```java
+   bot.connection.send(new ClientboundSetEquipmentPacket(
+       bot.getId(),
+       List.of(Pair.of(EquipmentSlot.MAINHAND, mainHandStack))
+   ));
+   ```
+   - 结果：客户端不显示
+
+2. **方法 2**（`2d26da8`）：使用 Minecraft 原生 `setItemSlot()`
+   ```java
+   bot.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, mainHandStack);
+   ```
+   - 结果：客户端仍不显示
+
+**诊断日志确认**（2026-08-23 01:28）：
+```
+[EQUIPMENT_DEBUG] Syncing equipment: botId=15, selected=0, mainHand=3 iron_ingot
+```
+- ✅ 方法被正确调用
+- ✅ Bot entity ID 正确（15）
+- ✅ 槽位正确（selected=0，主手）
+- ✅ 物品正确（3 iron_ingot）
+- ❌ 但客户端仍看不到手持物品
+
+**结论**：Minecraft/Forge 对 fake player 的 equipment sync 有特殊限制或需要额外步骤。
+
+## 调研范围
+
+**Allowed（必须联网）**：
+
+1. **内部分析**：
+   - 只读分析 `BotPlayer.java`、`BotManager.java`、`ChestBotTransferPrimitive.java`
+   - 搜索项目中所有与 equipment/held item 相关的代码
+   - 查阅 `BotManager.syncMainHand()` 的实现（行 305-314）
+
+2. **Minecraft/Forge 原版机制**（联网查阅）：
+   - `ServerPlayer.setItemSlot()` 的完整实现流程
+   - `ServerPlayer` 的 equipment sync 触发条件
+   - Forge 1.20.1 是否对 fake player equipment sync 有特殊处理
+   - `PlayerList.placeNewPlayer()` 对 equipment 的初始化
+
+3. **其他 mod 的成熟实现**（联网查阅源码）：
+   - **Baritone**（优先）：其 fake player 如何同步 hand item（GitHub: cabaletta/baritone）
+   - **Carpet mod**：fake player equipment sync 实现（GitHub: gnembon/fabric-carpet，注意 Fabric 架构差异）
+   - **mc_aiplayer**（如果存在）：Alice `BotPlayer` 注释提到"mc_aiplayer 同款方案"
+   - 其他知名 fake player mod
+
+4. **技术决策点**：
+   - 是否需要在 `BotPlayer` 构造函数中初始化 equipment？
+   - 是否需要重写 `BotPlayer` 的某些方法（如 `tick()`、`setItemInHand()`）？
+   - 是否需要广播 equipment packet 给所有玩家（而非只发给 bot.connection）？
+   - 是否需要在 `spawn()` 后立即同步一次 equipment？
+   - 客户端是否需要特殊处理（client-side mod？）
+
+**Forbidden**：
+- 不修改任何代码
+- 不运行测试或客户端
+- 不扩展到其他 Bot 能力
+
+## 交付要求
+
+报告路径：`.alice-supervision/research/fake-player-equipment-sync-20260823.md`
+
+报告必须包含：
+
+### 1. 根因分析（代码路径 + 行号）
+- 为何 `ClientboundSetEquipmentPacket` 不工作？
+- 为何 `setItemSlot()` 不工作？
+- Alice `BotPlayer` 与原版 `ServerPlayer` 的差异是什么？
+- `PlayerList.placeNewPlayer()` 是否正确初始化了 equipment sync？
+
+### 2. Baritone/Carpet 参考实现（GitHub URL + 关键代码）
+- Baritone 的 fake player 如何同步 hand item？
+  - 具体文件路径（如 `FakePlayer.java`）
+  - 关键代码片段（equipment sync 部分）
+  - 是否使用 packet？是否重写方法？
+- Carpet mod 的 fake player equipment sync（注意 Fabric 架构差异）
+- mc_aiplayer（如果找到）的实现
+- 总结外部 mod 的通用模式
+
+### 3. 修复方案（3-4 个备选，含伪代码）
+- **方案 A**（重写 BotPlayer 方法）：
+  - 重写 `BotPlayer.tick()` 或 `setItemInHand()` 强制同步
+  - 伪代码
+  - 优点/缺点/风险
+  
+- **方案 B**（广播 packet）：
+  - 使用 `PlayerList.broadcastAll()` 广播 equipment packet 给所有玩家
+  - 伪代码
+  - 优点/缺点/风险
+  
+- **方案 C**（spawn 后初始化）：
+  - 在 `BotManager.spawn()` 后立即同步 equipment
+  - 伪代码
+  - 优点/缺点/风险
+  
+- **方案 D**（参考外部 mod）：
+  - 采用 Baritone/Carpet 的成熟模式
+  - 具体描述其实现方式
+  - 优点/缺点/风险
+
+### 4. 推荐方案与实施路线
+- 推荐优先级：方案 X（最可行）
+- 实施步骤（最小可行 → 完整功能）
+- 验证矩阵（服务端日志 + 客户端实测）
+- 停止条件
+
+### 5. 风险评估
+- 修复是否影响其他模块（mining/transfer）？
+- 是否需要客户端 mod 支持？
+- 性能影响
+
+## 证据标准
+
+- 代码路径引用格式：`文件名:行号`
+- Minecraft/Forge API 引用需注明版本（Forge 1.20.1-47.4.10）
+- 外部 mod 引用需提供 GitHub URL + 具体文件路径
+- 修复方案需给出伪代码或精确方法调用
+- 不得猜测，所有结论必须基于代码证据、官方文档或外部成熟实现
+
+## 项目上下文
+
+- 项目路径：`/home/fb486/projects/alice`
+- 当前 HEAD：`2d26da8`（debug: use setItemSlot for bot equipment sync with diagnostic log）
+- 相关模块：`src/main/java/com/dddgn/alice/bot/`、`src/main/java/com/dddgn/alice/transfer/ChestBotTransferPrimitive.java`
+- 已尝试方法：`ClientboundSetEquipmentPacket` + `setItemSlot()` 都失败
+- 诊断日志：方法被正确调用，物品正确，但客户端不显示
+- 客户端日志：`/mnt/d/JAVA_projects/alice/run/logs/latest.log`（01:28:04-01:28:41）
+
+## 外部搜索建议
+
+**必须联网搜索**：
+1. `"Baritone" + "fake player" + "equipment" + "hand item" site:github.com`
+2. `"Carpet mod" + "fake player" + "equipment sync" site:github.com`
+3. `"Forge" + "ServerPlayer" + "setItemSlot" + "not working"`
+4. `"Minecraft fake player" + "held item" + "not visible"`
+5. `"mc_aiplayer" + "fake player" + "equipment"`
+
+**推荐查阅的 GitHub 仓库**：
+- Baritone: `cabaletta/baritone`（搜索 `FakePlayer`、`equipment`、`held item`）
+- Carpet: `gnembon/fabric-carpet`（注意 Fabric 架构差异）
+- Forge Forums: 搜索 "fake player equipment sync"

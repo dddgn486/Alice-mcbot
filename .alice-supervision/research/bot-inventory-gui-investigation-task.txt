@@ -1,0 +1,132 @@
+# Bot Inventory GUI 深度调研任务（联网）
+
+## 调研目标
+
+设计 Alice Bot 的独立 Inventory GUI：能查看/交互 Bot 的 36 普通槽 + 4 装备槽 + 1 主手槽，并能扩展为 Bot 设置页面。需要联网调研 Minecraft/Forge GUI 框架与其他 mod 的成熟实现。
+
+## 用户需求（用户申请）
+
+1. **查看**：显示 Bot 的 36 槽位 + 4 装备槽 + **1 主手槽**（明确当前使用物品）
+2. **交互**：能直接拿取/放入 Bot 身上的物品和装备
+3. **入口**：类似玩家背包（右键 Bot 或命令打开）
+4. **长期**：GUI 后期能扩展为 Bot 详细设置页面、其他功能设置的 GUI 子页面
+
+## 关键技术背景
+
+**当前 Alice Bot 架构**：
+- `BotPlayer` 继承 `ServerPlayer`（玩家化假人）
+- 通过 `PlayerList.placeNewPlayer(伪造Connection, this)` 注册
+- 有 36 普通槽 + 4 装备槽 + 主手（`inventory.selected`）
+- Bot 手持物品已通过 broadcast 修复（ef43bd6）客户端可见
+
+**挑战**：
+- Bot 是假人，`FakeConnection.send()` 是空操作
+- 客户端需要能打开一个 GUI **查看/交互** Bot 的 inventory
+- 这与"玩家打开自己背包"不同——是**查看另一个实体**的 inventory
+- 涉及 Minecraft Container/Menu 的 Client-Server 协议
+
+## 调研范围
+
+**Allowed（必须联网）**：
+
+1. **Minecraft/Forge GUI 框架**（联网查阅）：
+   - `Container`/`AbstractContainerMenu` 机制（1.20.1）
+   - `MenuProvider`/`MenuType`/`ServerPlayer.openMenu()`
+   - `ClientboundOpenScreenPacket`/`ClientboundContainerSetSlotPacket`/`ClientboundContainerSetContentPacket`
+   - `MenuType.register()` 注册自定义菜单
+   - 简单 GUI（如物品展示框、锁存器）vs 完整 inventory GUI 的实现差异
+
+2. **其他 mod 的成熟实现**（联网查阅源码）：
+   - **Baritone**：如何查看/控制 fake player inventory（GitHub: cabaletta/baritone）
+   - **Carpet mod**：fake player inventory 查看（gnembon/fabric-carpet，注意 Fabric 差异）
+   - **mc_aiplayer**：是否有 inventory GUI
+   - **Create mod**、**AE2**：大型 inventory GUI 模式
+   - **电脑类 mod**（ComputerCraft）：如何实现实体 inventory 访问
+   - 简单 GUI 例子：`HopperMenu`、`ChestMenu`、`PlayerMenu`（原版参考）
+
+3. **技术决策点**：
+   - 用 `AbstractContainerMenu`（完整物品交互）还是 `Screen`（只读显示）？
+   - 是否需要双重交互（玩家 ↔ Bot inventory，类似玩家背包 splitStack/tradeItem）？
+   - 如何让客户端打开针对 Bot 的菜单（`bot.openMenu()` 或自定义 packet）？
+   - Bot inventory 访问权限（owner-only vs 所有玩家）？
+   - 装备槽是否可交互（主手/副手/头盔/胸甲/裤子/鞋子）？
+   - 是否需要客户端 mod 支持（还是纯服务端 packet）？
+
+**Forbidden**：
+- 不修改任何代码
+- 不运行测试或客户端
+- 不扩展到 Bot 能力（挖矿/转移）
+
+## 交付要求
+
+报告路径：`.alice-supervision/research/bot-inventory-gui-20260823.md`
+
+报告必须包含：
+
+### 1. Minecraft/Forge GUI 框架概览
+- `AbstractContainerMenu` 生命周期（open/sync/close）
+- `MenuType` 注册流程
+- 打开菜单的完整流程（服务端 `openMenu()` → 客户端 `ClientboundOpenScreenPacket` → `Screen`）
+- 物品交互（click/quickmove/tradeItem）的实现要点
+- 参考原版 `PlayerMenu`/`ChestMenu`/`HopperMenu` 的实现
+
+### 2. 外部 mod 参考实现（GitHub URL + 关键代码）
+- 是否有哪些 mod 实现了 fake player inventory GUI？
+- 具体文件路径 + 关键代码片段
+- 总结通用模式（如何打开实体菜单、如何同步、如何交互）
+
+### 3. 设计方案（2-3 个备选，含优点/缺点/风险）
+- **方案 A**：`AbstractContainerMenu`（完整交互）
+  - 打开 Bot inventory，玩家可以拿取/放入
+  - 类似玩家自身 inventory 交互
+  - 优点/缺点/风险
+  
+- **方案 B**：简单 `Screen`（只读显示）
+  - 只显示 Bot 的 36+装备+主手槽，不可交互
+  - 优点/缺点/风险
+  
+- **方案 C**：混合（查看+有限交互）
+  - 可以查看所有槽位 + 只放开部分交互（如拿取不放入）
+  - 优点/缺点/风险
+
+### 4. 推荐方案与实施路线
+- 推荐方案（考虑：用户需求"能直接拿取/放入" → 需要完整交互，倾向方案 A）
+- 实施步骤（最小可行 → 完整功能）
+- 验证矩阵（服务端测试 + 客户端实测）
+- 停止条件
+
+### 5. 风险评估
+- 是否影响其他模块（mining/transfer）？
+- 多人服场景：权限控制（owner-only？）
+- 性能影响（packet 频率）
+- 是否需要客户端 mod？是否能在纯服务端实现？
+
+## 证据标准
+
+- 代码路径/API 引用格式：`类名:方法名` + Forge 1.20.1-47.4.10
+- 外部 mod 引用需提供 GitHub URL + 文件路径
+- 设计需给出伪代码或精确 API 调用
+- 不得猜测，所有结论必须基于代码证据、官方文档或外部成熟实现
+
+## 项目上下文
+
+- 项目路径：`/home/fb486/projects/alice`
+- 当前 HEAD：`a6b9f93`（docs: A1.1 equipment rendering + death filter USER_ACCEPTED）
+- 相关模块：`src/main/java/com/dddgn/alice/`（BotPlayer、BotManager、transfer）
+- Bot 手持物品已广播修复（ef43bd6），客户端可见
+- 用户需求：独立 GUI 查看/交互 Bot inventory + 扩展 Bot 设置页
+
+## 外部搜索建议
+
+**必须联网搜索**：
+1. `"Forge 1.20.1" + "AbstractContainerMenu" + "custom menu" + "openMenu"`
+2. `"Baritone" + "fake player" + "inventory" + "GUI" site:github.com`
+3. `"Minecraft ServerPlayer" + "openMenu" + "MenuProvider" + "example"`
+4. `"Forge menu type" + "register" + "Screen" + "container"`
+5. `"Minecraft fake player" + "inventory" + "view" + "mod"`
+
+**推荐查阅的 GitHub 仓库**：
+- Baritone: `cabaletta/baritone`
+- AE2: `AppliedEnergistics/Applied-Energistics-2`（大型 inventory GUI）
+- Create: `Creators-of-Create/Create`
+- 原版参考：`net.minecraft.world.inventory.PlayerMenu`、`ChestMenu`、`HopperMenu`

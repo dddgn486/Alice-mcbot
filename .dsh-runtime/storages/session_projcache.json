@@ -1,0 +1,4339 @@
+{
+  "unit": {
+    "name": "session_projcache",
+    "version": 3
+  },
+  "global": null,
+  "tables": {
+    "sessions": {
+      "session-db699b36-4f77-45ce-8ef0-b5d5de441875": {
+        "identity": {
+          "createdAt": 1787256237048,
+          "cwd": "/home/fb486/projects"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 45,
+            "val": {
+              "turns": 1,
+              "steps": 1,
+              "llmMs": 5746,
+              "toolMs": 0,
+              "ttftMs": 4885,
+              "ttftSteps": 1,
+              "decodeMs": 861,
+              "decodeTokens": 29,
+              "lastTurn": 1,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 45,
+            "val": "回应中文问候"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 45,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 45,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 5636,
+                "outputTokens": 29,
+                "cacheReadTokens": 10752,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 1,
+                "step": 1,
+                "buckets": {
+                  "uncachedInputTokens": 5636,
+                  "outputTokens": 29,
+                  "cacheReadTokens": 10752,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 45,
+            "val": {
+              "surfaceTokens": 131,
+              "contextWindow": 256000,
+              "pressureTokens": 16388,
+              "sampledSurfaceTokens": 115
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 45,
+            "val": {
+              "systemTokens": 3857,
+              "toolsTokens": 9881,
+              "messageTokens": 131
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 45,
+            "val": {
+              "descriptorSeen": false,
+              "settledMs": 0
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 45,
+            "val": {}
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 45,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 45,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787256239771
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 45,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 45,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 45,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "session-06b86563-374e-4f48-a8c9-478f181517cf": {
+        "identity": {
+          "createdAt": 1787256298455,
+          "cwd": "/home/fb486/projects"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 2,
+            "val": {
+              "turns": 0,
+              "steps": 0,
+              "llmMs": 0,
+              "toolMs": 0,
+              "ttftMs": 0,
+              "ttftSteps": 0,
+              "decodeMs": 0,
+              "decodeTokens": 0,
+              "lastTurn": null,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 2,
+            "val": null
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 2,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 2,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 0,
+                "outputTokens": 0,
+                "cacheReadTokens": 0,
+                "cacheWriteTokens": 0
+              },
+              "last": null
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 2,
+            "val": {
+              "surfaceTokens": 0
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 2,
+            "val": {
+              "systemTokens": 0,
+              "toolsTokens": 0,
+              "messageTokens": 0
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 2,
+            "val": {
+              "descriptorSeen": false,
+              "settledMs": 0
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 2,
+            "val": {}
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 2,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 2,
+            "val": {
+              "blank": true,
+              "lastPromptAt": null
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 2,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 2,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 2,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "session-ff3dba92-5276-4671-bc1f-c6b3bbe1e362": {
+        "identity": {
+          "createdAt": 1787256306259,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 386,
+            "val": {
+              "turns": 2,
+              "steps": 6,
+              "llmMs": 32876,
+              "toolMs": 779,
+              "ttftMs": 21452,
+              "ttftSteps": 4,
+              "decodeMs": 11424,
+              "decodeTokens": 1012,
+              "lastTurn": 2,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 386,
+            "val": "监督员"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 386,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 386,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 55434,
+                "outputTokens": 1012,
+                "cacheReadTokens": 62976,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 1,
+                "step": 4,
+                "buckets": {
+                  "uncachedInputTokens": 21535,
+                  "outputTokens": 213,
+                  "cacheReadTokens": 32256,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 386,
+            "val": {
+              "surfaceTokens": 24252,
+              "contextWindow": 256000,
+              "pressureTokens": 53791,
+              "sampledSurfaceTokens": 24109
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 386,
+            "val": {
+              "systemTokens": 3704,
+              "toolsTokens": 9881,
+              "messageTokens": 24252
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 386,
+            "val": {
+              "descriptorSeen": false,
+              "settledMs": 0
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 386,
+            "val": {}
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 386,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 386,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787256383962
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 386,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 386,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 386,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "session-302a9da6-184c-4338-9567-56e853b501ed": {
+        "identity": {
+          "createdAt": 1787256342671,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 486442,
+            "val": {
+              "turns": 351,
+              "steps": 1452,
+              "llmMs": 22821470,
+              "toolMs": 1953490,
+              "ttftMs": 14637399,
+              "ttftSteps": 1397,
+              "decodeMs": 8173882,
+              "decodeTokens": 674910,
+              "lastTurn": 352,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 486442,
+            "val": "Alice监督员+"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 486442,
+            "val": {
+              "goal": {
+                "id": "goal-73cf325b-7a55-4224-ac0d-6abb76d589e5",
+                "revision": 6,
+                "objective": "基于用户已选真实 bot 背包运输方案，完成 A1 原版箱子 C2 转移的有界深调研、路线规划与监督审核；不在用户再次批准前授权实现。",
+                "phase": "complete",
+                "maxGoalRounds": 4
+              },
+              "roundsStarted": 4,
+              "createdAt": 1787302781205,
+              "updatedAt": 1787320349914
+            }
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 486442,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 35838215,
+                "outputTokens": 684612,
+                "cacheReadTokens": 211666922,
+                "cacheWriteTokens": 12221870
+              },
+              "last": {
+                "turn": 352,
+                "step": 1,
+                "buckets": {
+                  "uncachedInputTokens": 339,
+                  "outputTokens": 98,
+                  "cacheReadTokens": 80,
+                  "cacheWriteTokens": 106289
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 486442,
+            "val": {
+              "surfaceTokens": 53343,
+              "contextWindow": 262144,
+              "pressureTokens": 106708,
+              "sampledSurfaceTokens": 53307
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 486442,
+            "val": {
+              "systemTokens": 3949,
+              "toolsTokens": 10617,
+              "messageTokens": 53343
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 486442,
+            "val": {
+              "descriptorSeen": false,
+              "settledMs": 0
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 486442,
+            "val": {}
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 486442,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 486442,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787474931979
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 486442,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 486442,
+            "val": null
+          },
+          "plan": {
+            "ver": 2,
+            "seq": 486442,
+            "val": {
+              "active": false,
+              "wanted": null,
+              "running": null
+            }
+          }
+        }
+      },
+      "session-448a3a9b-ca3f-4fd4-8568-c4d719374070": {
+        "identity": {
+          "createdAt": 1787256421088,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 44,
+            "val": {
+              "turns": 1,
+              "steps": 1,
+              "llmMs": 7815,
+              "toolMs": 0,
+              "ttftMs": 6915,
+              "ttftSteps": 1,
+              "decodeMs": 900,
+              "decodeTokens": 46,
+              "lastTurn": 1,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 44,
+            "val": "实现规划员"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 44,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 44,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 15282,
+                "outputTokens": 46,
+                "cacheReadTokens": 0,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 1,
+                "step": 1,
+                "buckets": {
+                  "uncachedInputTokens": 15282,
+                  "outputTokens": 46,
+                  "cacheReadTokens": 0,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 44,
+            "val": {
+              "surfaceTokens": 661,
+              "contextWindow": 256000,
+              "pressureTokens": 15282,
+              "sampledSurfaceTokens": 645
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 44,
+            "val": {
+              "systemTokens": 3466,
+              "toolsTokens": 9881,
+              "messageTokens": 661
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 44,
+            "val": {
+              "descriptorSeen": false,
+              "settledMs": 0
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 44,
+            "val": {}
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 44,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 44,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787256438634
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 44,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 44,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 44,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "session-8309a542-9e76-4341-bc2a-2a0561df6f1d": {
+        "identity": {
+          "createdAt": 1787256454314,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 44,
+            "val": {
+              "turns": 1,
+              "steps": 1,
+              "llmMs": 4402,
+              "toolMs": 0,
+              "ttftMs": 3834,
+              "ttftSteps": 1,
+              "decodeMs": 568,
+              "decodeTokens": 50,
+              "lastTurn": 1,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 44,
+            "val": "深度调查员"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 44,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 44,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 4482,
+                "outputTokens": 50,
+                "cacheReadTokens": 10752,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 1,
+                "step": 1,
+                "buckets": {
+                  "uncachedInputTokens": 4482,
+                  "outputTokens": 50,
+                  "cacheReadTokens": 10752,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 44,
+            "val": {
+              "surfaceTokens": 660,
+              "contextWindow": 256000,
+              "pressureTokens": 15234,
+              "sampledSurfaceTokens": 645
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 44,
+            "val": {
+              "systemTokens": 3456,
+              "toolsTokens": 9881,
+              "messageTokens": 660
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 44,
+            "val": {
+              "descriptorSeen": false,
+              "settledMs": 0
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 44,
+            "val": {}
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 44,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 44,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787256465334
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 44,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 44,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 44,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "session-555a5e1e-ee8c-45d4-84fd-173cfe4dc474": {
+        "identity": {
+          "createdAt": 1787256482348,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 51,
+            "val": {
+              "turns": 1,
+              "steps": 1,
+              "llmMs": 4074,
+              "toolMs": 0,
+              "ttftMs": 3368,
+              "ttftSteps": 1,
+              "decodeMs": 706,
+              "decodeTokens": 47,
+              "lastTurn": 1,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 51,
+            "val": "主开发员"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 51,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 51,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 4464,
+                "outputTokens": 47,
+                "cacheReadTokens": 10752,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 1,
+                "step": 1,
+                "buckets": {
+                  "uncachedInputTokens": 4464,
+                  "outputTokens": 47,
+                  "cacheReadTokens": 10752,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 51,
+            "val": {
+              "surfaceTokens": 664,
+              "contextWindow": 256000,
+              "pressureTokens": 15216,
+              "sampledSurfaceTokens": 645
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 51,
+            "val": {
+              "systemTokens": 3466,
+              "toolsTokens": 9881,
+              "messageTokens": 664
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 51,
+            "val": {
+              "descriptorSeen": false,
+              "settledMs": 0
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 51,
+            "val": {}
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 51,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 51,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787256487527
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 51,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 51,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 51,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "session-4c56b32a-34f9-4266-bffc-034d69abd470": {
+        "identity": {
+          "createdAt": 1787286426904,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 25727,
+            "val": {
+              "turns": 13,
+              "steps": 56,
+              "llmMs": 2162732,
+              "toolMs": 2008,
+              "ttftMs": 1700223,
+              "ttftSteps": 55,
+              "decodeMs": 462509,
+              "decodeTokens": 31146,
+              "lastTurn": 13,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 25727,
+            "val": "实现规划员"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 25727,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 25727,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 2099803,
+                "outputTokens": 31412,
+                "cacheReadTokens": 4122981,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 13,
+                "step": 1,
+                "buckets": {
+                  "uncachedInputTokens": 330,
+                  "outputTokens": 64,
+                  "cacheReadTokens": 131968,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 25727,
+            "val": {
+              "surfaceTokens": 84628,
+              "contextWindow": 1000000,
+              "pressureTokens": 132298,
+              "sampledSurfaceTokens": 84594
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 25727,
+            "val": {
+              "systemTokens": 2150,
+              "toolsTokens": 3758,
+              "messageTokens": 84628
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 25727,
+            "val": {
+              "descriptorSeen": false,
+              "settledMs": 0
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 25727,
+            "val": {}
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 25727,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 25727,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787320032290
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 25727,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 25727,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 25727,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "session-7f9b2f65-fed2-41ed-832e-6d22b8fccf31": {
+        "identity": {
+          "createdAt": 1787301388153,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 55865,
+            "val": {
+              "turns": 18,
+              "steps": 158,
+              "llmMs": 2103235,
+              "toolMs": 827186,
+              "ttftMs": 1611784,
+              "ttftSteps": 155,
+              "decodeMs": 491451,
+              "decodeTokens": 63857,
+              "lastTurn": 18,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 55865,
+            "val": "主开发员"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 55865,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 55865,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 2417431,
+                "outputTokens": 63857,
+                "cacheReadTokens": 20596224,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 18,
+                "step": 3,
+                "buckets": {
+                  "uncachedInputTokens": 129,
+                  "outputTokens": 243,
+                  "cacheReadTokens": 200704,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 55865,
+            "val": {
+              "surfaceTokens": 140334,
+              "contextWindow": 1000000,
+              "pressureTokens": 200833,
+              "sampledSurfaceTokens": 140187
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 55865,
+            "val": {
+              "systemTokens": 2150,
+              "toolsTokens": 3758,
+              "messageTokens": 140334
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 55865,
+            "val": {
+              "descriptorSeen": false,
+              "settledMs": 0
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 55865,
+            "val": {}
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 55865,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 55865,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787319972715
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 55865,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 55865,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 55865,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "session-a2f9b543-33c5-4de2-9759-598c2f84569f": {
+        "identity": {
+          "createdAt": 1787301408563,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 8426,
+            "val": {
+              "turns": 5,
+              "steps": 25,
+              "llmMs": 513445,
+              "toolMs": 18208,
+              "ttftMs": 338700,
+              "ttftSteps": 25,
+              "decodeMs": 174745,
+              "decodeTokens": 12707,
+              "lastTurn": 5,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 8426,
+            "val": "深度调查员"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 8426,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 8426,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 342853,
+                "outputTokens": 12707,
+                "cacheReadTokens": 1156608,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 5,
+                "step": 1,
+                "buckets": {
+                  "uncachedInputTokens": 1220,
+                  "outputTokens": 55,
+                  "cacheReadTokens": 89600,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 8426,
+            "val": {
+              "surfaceTokens": 58930,
+              "contextWindow": 256000,
+              "pressureTokens": 90820,
+              "sampledSurfaceTokens": 58901
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 8426,
+            "val": {
+              "systemTokens": 3456,
+              "toolsTokens": 10130,
+              "messageTokens": 58930
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 8426,
+            "val": {
+              "descriptorSeen": false,
+              "settledMs": 0
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 8426,
+            "val": {}
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 8426,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 8426,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787320065296
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 8426,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 8426,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 8426,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "aecdecd0-8813-4bc9-bfd8-14518ccb77c0": {
+        "identity": {
+          "createdAt": 1787317536854,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 3141,
+            "val": {
+              "turns": 1,
+              "steps": 7,
+              "llmMs": 188287,
+              "toolMs": 504,
+              "ttftMs": 125658,
+              "ttftSteps": 7,
+              "decodeMs": 62629,
+              "decodeTokens": 4236,
+              "lastTurn": 1,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 3141,
+            "val": "在 /home/fb486/projects/alice 只读分"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 3141,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 3141,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 231535,
+                "outputTokens": 4236,
+                "cacheReadTokens": 124928,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 1,
+                "step": 7,
+                "buckets": {
+                  "uncachedInputTokens": 33429,
+                  "outputTokens": 2498,
+                  "cacheReadTokens": 44544,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 3141,
+            "val": {
+              "surfaceTokens": 51815,
+              "contextWindow": 256000,
+              "pressureTokens": 77973,
+              "sampledSurfaceTokens": 50030
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 3141,
+            "val": {
+              "systemTokens": 3571,
+              "toolsTokens": 10072,
+              "messageTokens": 51815
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 3141,
+            "val": {
+              "descriptorSeen": true,
+              "settledMs": 188741
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 3141,
+            "val": {
+              "identity": {
+                "mode": "continuable",
+                "label": "分析 A1.1 实现接口",
+                "seq": 0
+              }
+            }
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 3141,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 3141,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787317536915
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 3141,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 3141,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 3141,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "6857fc92-3cc2-4a5c-9692-2f9a490531c0": {
+        "identity": {
+          "createdAt": 1787317820094,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 1507,
+            "val": {
+              "turns": 1,
+              "steps": 6,
+              "llmMs": 83758,
+              "toolMs": 282,
+              "ttftMs": 70422,
+              "ttftSteps": 5,
+              "decodeMs": 13336,
+              "decodeTokens": 1564,
+              "lastTurn": 1,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 1507,
+            "val": "在 /home/fb486/projects/alice 实现批"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 1507,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 1507,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 107660,
+                "outputTokens": 1564,
+                "cacheReadTokens": 47104,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 1,
+                "step": 5,
+                "buckets": {
+                  "uncachedInputTokens": 46834,
+                  "outputTokens": 571,
+                  "cacheReadTokens": 10752,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 1507,
+            "val": {
+              "surfaceTokens": 31503,
+              "contextWindow": 256000,
+              "pressureTokens": 57586,
+              "sampledSurfaceTokens": 31389
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 1507,
+            "val": {
+              "systemTokens": 3571,
+              "toolsTokens": 10072,
+              "messageTokens": 31503
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 1507,
+            "val": {
+              "descriptorSeen": true,
+              "settledMs": 134454
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 1507,
+            "val": {
+              "identity": {
+                "mode": "continuable",
+                "label": "实现 transfer 数据层",
+                "seq": 0
+              }
+            }
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 1507,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 1507,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787317820157
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 1507,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 1507,
+            "val": [
+              {
+                "content": "核验会话计划与允许范围",
+                "status": "in_progress"
+              },
+              {
+                "content": "阅读现有 API 和数据模式",
+                "status": "pending"
+              },
+              {
+                "content": "实现 transfer 数据层值对象",
+                "status": "pending"
+              },
+              {
+                "content": "编译验证并更新交接记录",
+                "status": "pending"
+              },
+              {
+                "content": "提交推送并生成审核包",
+                "status": "pending"
+              }
+            ]
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 1507,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "9e0457e8-8b1a-4538-aab2-37f93e600033": {
+        "identity": {
+          "createdAt": 1787317839555,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 346,
+            "val": {
+              "turns": 1,
+              "steps": 6,
+              "llmMs": 83922,
+              "toolMs": 304,
+              "ttftMs": 76219,
+              "ttftSteps": 5,
+              "decodeMs": 7703,
+              "decodeTokens": 1078,
+              "lastTurn": 1,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 346,
+            "val": "在 /home/fb486/projects/alice 实现批"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 346,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 346,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 95109,
+                "outputTokens": 1078,
+                "cacheReadTokens": 51200,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 1,
+                "step": 5,
+                "buckets": {
+                  "uncachedInputTokens": 38550,
+                  "outputTokens": 160,
+                  "cacheReadTokens": 10752,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 346,
+            "val": {
+              "surfaceTokens": 32092,
+              "contextWindow": 256000,
+              "pressureTokens": 49302,
+              "sampledSurfaceTokens": 23801
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 346,
+            "val": {
+              "systemTokens": 3571,
+              "toolsTokens": 10072,
+              "messageTokens": 32092
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 346,
+            "val": {
+              "descriptorSeen": true,
+              "settledMs": 115012
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 346,
+            "val": {
+              "identity": {
+                "mode": "continuable",
+                "label": "实现 transfer primitives",
+                "seq": 0
+              }
+            }
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 346,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 346,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787317839600
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 346,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 346,
+            "val": [
+              {
+                "content": "确认仓库并运行会话门槛",
+                "status": "in_progress"
+              },
+              {
+                "content": "核对批准计划与现有 transfer/data 层",
+                "status": "pending"
+              },
+              {
+                "content": "实现独立两腿写入 primitive",
+                "status": "pending"
+              },
+              {
+                "content": "编译验证并完成交接提交",
+                "status": "pending"
+              }
+            ]
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 346,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "7f4d035c-af27-4a0b-8b89-9dcd6b12ad9c": {
+        "identity": {
+          "createdAt": 1787318523453,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 10475,
+            "val": {
+              "turns": 5,
+              "steps": 24,
+              "llmMs": 466601,
+              "toolMs": 21463,
+              "ttftMs": 269637,
+              "ttftSteps": 24,
+              "decodeMs": 196964,
+              "decodeTokens": 13620,
+              "lastTurn": 5,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 10475,
+            "val": "在 /home/fb486/projects/alice 实现批"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 10475,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 10475,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 312801,
+                "outputTokens": 13620,
+                "cacheReadTokens": 1039360,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 5,
+                "step": 2,
+                "buckets": {
+                  "uncachedInputTokens": 640,
+                  "outputTokens": 54,
+                  "cacheReadTokens": 67072,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 10475,
+            "val": {
+              "surfaceTokens": 43411,
+              "contextWindow": 256000,
+              "pressureTokens": 67712,
+              "sampledSurfaceTokens": 43375
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 10475,
+            "val": {
+              "systemTokens": 3571,
+              "toolsTokens": 10072,
+              "messageTokens": 43411
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 10475,
+            "val": {
+              "descriptorSeen": true,
+              "settledMs": 488343
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 10475,
+            "val": {
+              "identity": {
+                "mode": "continuable",
+                "label": "实现 transfer 数据层",
+                "seq": 0
+              }
+            }
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 10475,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 10475,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787318523525
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 10475,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 10475,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 10475,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "24b5300f-879a-43a4-909c-8b7f44d42407": {
+        "identity": {
+          "createdAt": 1787318523454,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 3850,
+            "val": {
+              "turns": 2,
+              "steps": 16,
+              "llmMs": 243007,
+              "toolMs": 457,
+              "ttftMs": 167878,
+              "ttftSteps": 16,
+              "decodeMs": 75129,
+              "decodeTokens": 5959,
+              "lastTurn": 2,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 3850,
+            "val": "在 /home/fb486/projects/alice 只读检"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 3850,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 3850,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 238000,
+                "outputTokens": 5959,
+                "cacheReadTokens": 576000,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 2,
+                "step": 2,
+                "buckets": {
+                  "uncachedInputTokens": 2395,
+                  "outputTokens": 971,
+                  "cacheReadTokens": 65024,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 3850,
+            "val": {
+              "surfaceTokens": 43532,
+              "contextWindow": 256000,
+              "pressureTokens": 67419,
+              "sampledSurfaceTokens": 42888
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 3850,
+            "val": {
+              "systemTokens": 3571,
+              "toolsTokens": 10072,
+              "messageTokens": 43532
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 3850,
+            "val": {
+              "descriptorSeen": true,
+              "settledMs": 243641
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 3850,
+            "val": {
+              "identity": {
+                "mode": "continuable",
+                "label": "设计 transfer fixture",
+                "seq": 0
+              }
+            }
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 3850,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 3850,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787318523530
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 3850,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 3850,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 3850,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "a930e259-81ef-4a91-b508-bacd3613df43": {
+        "identity": {
+          "createdAt": 1787318901748,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 4527,
+            "val": {
+              "turns": 1,
+              "steps": 8,
+              "llmMs": 180239,
+              "toolMs": 1888,
+              "ttftMs": 94335,
+              "ttftSteps": 9,
+              "decodeMs": 85904,
+              "decodeTokens": 6068,
+              "lastTurn": 1,
+              "openStep": null,
+              "pendingCalls": {
+                "call_p4ZCTVKl8bWaNXI5d2eWpkmG": 1787319103815
+              }
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 4527,
+            "val": "在 /home/fb486/projects/alice，读取"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 4527,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 4527,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 138358,
+                "outputTokens": 6068,
+                "cacheReadTokens": 229888,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 2,
+                "step": 1,
+                "buckets": {
+                  "uncachedInputTokens": 462,
+                  "outputTokens": 176,
+                  "cacheReadTokens": 58880,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 4527,
+            "val": {
+              "surfaceTokens": 35230,
+              "contextWindow": 256000,
+              "pressureTokens": 59342,
+              "sampledSurfaceTokens": 35157
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 4527,
+            "val": {
+              "systemTokens": 3571,
+              "toolsTokens": 10072,
+              "messageTokens": 35230
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 4527,
+            "val": {
+              "descriptorSeen": true,
+              "settledMs": 173316,
+              "active": {
+                "since": 1787319094917,
+                "through": 1787319103815
+              }
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 4527,
+            "val": {
+              "identity": {
+                "mode": "continuable",
+                "label": "实现两腿 primitive",
+                "seq": 0
+              }
+            }
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 4527,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 4527,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787318901802
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 4527,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 4527,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 4527,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "session-5e8e2360-9c90-426a-8e1f-64fcaf141f92": {
+        "identity": {
+          "createdAt": 1787321193128,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 21269,
+            "val": {
+              "turns": 5,
+              "steps": 101,
+              "llmMs": 1849497,
+              "toolMs": 360296,
+              "ttftMs": 1404078,
+              "ttftSteps": 101,
+              "decodeMs": 445419,
+              "decodeTokens": 35664,
+              "lastTurn": 5,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 21269,
+            "val": "Alice主开发员"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 21269,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 21269,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 2986152,
+                "outputTokens": 35664,
+                "cacheReadTokens": 9505792,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 5,
+                "step": 23,
+                "buckets": {
+                  "uncachedInputTokens": 629,
+                  "outputTokens": 386,
+                  "cacheReadTokens": 161280,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 21269,
+            "val": {
+              "surfaceTokens": 132465,
+              "contextWindow": 256000,
+              "pressureTokens": 161909,
+              "sampledSurfaceTokens": 132213
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 21269,
+            "val": {
+              "systemTokens": 3466,
+              "toolsTokens": 10130,
+              "messageTokens": 132465
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 21269,
+            "val": {
+              "descriptorSeen": false,
+              "settledMs": 0
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 21269,
+            "val": {}
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 21269,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 21269,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787321214539
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 21269,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 21269,
+            "val": [
+              {
+                "content": "运行门槛并读取本次指定材料",
+                "status": "completed"
+              },
+              {
+                "content": "审计当前 A1.1 工作树和阻止项",
+                "status": "completed"
+              },
+              {
+                "content": "修正 abort 与 suspension 语义",
+                "status": "completed"
+              },
+              {
+                "content": "补足 focused fixture 与准确交接记录",
+                "status": "in_progress"
+              },
+              {
+                "content": "运行验证并提交推送审核包",
+                "status": "pending"
+              },
+              {
+                "content": "报告任务交付证据和限制",
+                "status": "pending"
+              }
+            ]
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 21269,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "session-8d471c4e-09c7-4738-8687-67929cd56707": {
+        "identity": {
+          "createdAt": 1787321235702,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 310,
+            "val": {
+              "turns": 1,
+              "steps": 2,
+              "llmMs": 18760,
+              "toolMs": 14,
+              "ttftMs": 12844,
+              "ttftSteps": 2,
+              "decodeMs": 5916,
+              "decodeTokens": 410,
+              "lastTurn": 1,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 310,
+            "val": "Alice实现规划员"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 310,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 310,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 5424,
+                "outputTokens": 410,
+                "cacheReadTokens": 25600,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 1,
+                "step": 2,
+                "buckets": {
+                  "uncachedInputTokens": 686,
+                  "outputTokens": 334,
+                  "cacheReadTokens": 14848,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 310,
+            "val": {
+              "surfaceTokens": 852,
+              "contextWindow": 256000,
+              "pressureTokens": 15534,
+              "sampledSurfaceTokens": 705
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 310,
+            "val": {
+              "systemTokens": 3466,
+              "toolsTokens": 10130,
+              "messageTokens": 852
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 310,
+            "val": {
+              "descriptorSeen": false,
+              "settledMs": 0
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 310,
+            "val": {}
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 310,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 310,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787321240841
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 310,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 310,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 310,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "session-cc4a83af-50f2-4277-a94d-ed3388e7a756": {
+        "identity": {
+          "createdAt": 1787321257546,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 353,
+            "val": {
+              "turns": 1,
+              "steps": 2,
+              "llmMs": 19431,
+              "toolMs": 15,
+              "ttftMs": 13109,
+              "ttftSteps": 2,
+              "decodeMs": 6322,
+              "decodeTokens": 385,
+              "lastTurn": 1,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 353,
+            "val": "Alice深度调查员"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 353,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 353,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 5529,
+                "outputTokens": 385,
+                "cacheReadTokens": 25600,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 1,
+                "step": 2,
+                "buckets": {
+                  "uncachedInputTokens": 839,
+                  "outputTokens": 250,
+                  "cacheReadTokens": 14848,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 353,
+            "val": {
+              "surfaceTokens": 967,
+              "contextWindow": 256000,
+              "pressureTokens": 15687,
+              "sampledSurfaceTokens": 822
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 353,
+            "val": {
+              "systemTokens": 3456,
+              "toolsTokens": 10130,
+              "messageTokens": 967
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 353,
+            "val": {
+              "descriptorSeen": false,
+              "settledMs": 0
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 353,
+            "val": {}
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 353,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 353,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787321264606
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 353,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 353,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 353,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "session-8bfa80e8-8fef-4bc8-9281-82c2758e0692": {
+        "identity": {
+          "createdAt": 1787321505835,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 52,
+            "val": {
+              "turns": 1,
+              "steps": 1,
+              "llmMs": 10254,
+              "toolMs": 0,
+              "ttftMs": 9491,
+              "ttftSteps": 1,
+              "decodeMs": 763,
+              "decodeTokens": 73,
+              "lastTurn": 1,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 52,
+            "val": "8bfa80e8"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 52,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 52,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 4700,
+                "outputTokens": 73,
+                "cacheReadTokens": 10752,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 1,
+                "step": 1,
+                "buckets": {
+                  "uncachedInputTokens": 4700,
+                  "outputTokens": 73,
+                  "cacheReadTokens": 10752,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 52,
+            "val": {
+              "surfaceTokens": 696,
+              "contextWindow": 256000,
+              "pressureTokens": 15452,
+              "sampledSurfaceTokens": 670
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 52,
+            "val": {
+              "systemTokens": 3466,
+              "toolsTokens": 10130,
+              "messageTokens": 696
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 52,
+            "val": {
+              "descriptorSeen": false,
+              "settledMs": 0
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 52,
+            "val": {}
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 52,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 52,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787322650998
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 52,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 52,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 52,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "session-0e50f21c-fd6f-4b0b-ac69-19a3c9f3b1aa": {
+        "identity": {
+          "createdAt": 1787322952371,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 65458,
+            "val": {
+              "turns": 12,
+              "steps": 83,
+              "llmMs": 1514949,
+              "toolMs": 7936,
+              "ttftMs": 653914,
+              "ttftSteps": 79,
+              "decodeMs": 861035,
+              "decodeTokens": 73076,
+              "lastTurn": 12,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 65458,
+            "val": "Alice实现规划员+"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 65458,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 65458,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 1680802,
+                "outputTokens": 73076,
+                "cacheReadTokens": 10819263,
+                "cacheWriteTokens": 124940
+              },
+              "last": {
+                "turn": 12,
+                "step": 8,
+                "buckets": {
+                  "uncachedInputTokens": 33,
+                  "outputTokens": 292,
+                  "cacheReadTokens": 112241,
+                  "cacheWriteTokens": 1002
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 65458,
+            "val": {
+              "surfaceTokens": 63204,
+              "contextWindow": 262144,
+              "pressureTokens": 113276,
+              "sampledSurfaceTokens": 63082
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 65458,
+            "val": {
+              "systemTokens": 3660,
+              "toolsTokens": 10617,
+              "messageTokens": 63204
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 65458,
+            "val": {
+              "descriptorSeen": false,
+              "settledMs": 0
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 65458,
+            "val": {}
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 65458,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 65458,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787335974911
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 65458,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 65458,
+            "val": [
+              {
+                "content": "运行规划门禁并读取 active plan/深度调研/现状地图",
+                "status": "completed"
+              },
+              {
+                "content": "核对 SoftMovementPrimitive/SoftPathProbeTask/FollowTask 现状",
+                "status": "completed"
+              },
+              {
+                "content": "设计 settle/revalidate/replan 链路",
+                "status": "completed"
+              },
+              {
+                "content": "定义观测字段、fixture 与客户端矩阵",
+                "status": "completed"
+              },
+              {
+                "content": "识别停止条件并写入实施计划",
+                "status": "completed"
+              }
+            ]
+          },
+          "plan": {
+            "ver": 2,
+            "seq": 65458,
+            "val": {
+              "active": false,
+              "wanted": null,
+              "running": null
+            }
+          }
+        }
+      },
+      "session-f26bd205-c692-4c4e-849d-576fd8bc7ff6": {
+        "identity": {
+          "createdAt": 1787323227229,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 112581,
+            "val": {
+              "turns": 13,
+              "steps": 176,
+              "llmMs": 3038390,
+              "toolMs": 1209750,
+              "ttftMs": 798956,
+              "ttftSteps": 175,
+              "decodeMs": 2239434,
+              "decodeTokens": 177812,
+              "lastTurn": 13,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 112581,
+            "val": "Alice深度调查员+"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 112581,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 112581,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 2499874,
+                "outputTokens": 177812,
+                "cacheReadTokens": 28516285,
+                "cacheWriteTokens": 771475
+              },
+              "last": {
+                "turn": 13,
+                "step": 17,
+                "buckets": {
+                  "uncachedInputTokens": 175529,
+                  "outputTokens": 719,
+                  "cacheReadTokens": 4480,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 112581,
+            "val": {
+              "surfaceTokens": 128895,
+              "contextWindow": 256000,
+              "pressureTokens": 180009,
+              "sampledSurfaceTokens": 128556
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 112581,
+            "val": {
+              "systemTokens": 3650,
+              "toolsTokens": 10617,
+              "messageTokens": 128895
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 112581,
+            "val": {
+              "descriptorSeen": false,
+              "settledMs": 0
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 112581,
+            "val": {}
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 112581,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 112581,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787323236963
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 112581,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 112581,
+            "val": [
+              {
+                "content": "运行研究启动检查并读取任务与 HANDOVER",
+                "status": "completed"
+              },
+              {
+                "content": "核对 Alice 硬软路径当前实现边界",
+                "status": "completed"
+              },
+              {
+                "content": "联网固定并读取 Baritone/Mineflayer 寻路源码",
+                "status": "completed"
+              },
+              {
+                "content": "反编译原版物理与导航关键机制",
+                "status": "completed"
+              },
+              {
+                "content": "写入边界调研报告与客户端矩阵",
+                "status": "completed"
+              }
+            ]
+          },
+          "plan": {
+            "ver": 2,
+            "seq": 112581,
+            "val": {
+              "active": false,
+              "wanted": null,
+              "running": null
+            }
+          }
+        }
+      },
+      "session-30b693e7-9115-4e57-914b-854bf9ca2510": {
+        "identity": {
+          "createdAt": 1787323588916,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 250891,
+            "val": {
+              "turns": 62,
+              "steps": 838,
+              "llmMs": 11596504,
+              "toolMs": 9639311,
+              "ttftMs": 7876645,
+              "ttftSteps": 820,
+              "decodeMs": 3723743,
+              "decodeTokens": 329611,
+              "lastTurn": 62,
+              "openStep": null,
+              "pendingCalls": {
+                "toolu_DOzSZ8PSA5UewKAXfk4rKL": 1787476705703
+              }
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 250891,
+            "val": "Alice主开发员+"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 250891,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 250891,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 15092082,
+                "outputTokens": 330423,
+                "cacheReadTokens": 138684394,
+                "cacheWriteTokens": 2306190
+              },
+              "last": {
+                "turn": 62,
+                "step": 37,
+                "buckets": {
+                  "uncachedInputTokens": 30,
+                  "outputTokens": 148,
+                  "cacheReadTokens": 111249,
+                  "cacheWriteTokens": 1359
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 250891,
+            "val": {
+              "surfaceTokens": 75646,
+              "contextWindow": 262144,
+              "pressureTokens": 112638,
+              "sampledSurfaceTokens": 75521
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 250891,
+            "val": {
+              "systemTokens": 3660,
+              "toolsTokens": 10617,
+              "messageTokens": 75646
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 250891,
+            "val": {
+              "descriptorSeen": false,
+              "settledMs": 0,
+              "pendingTurnStart": 1787475419649
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 250891,
+            "val": {}
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 250891,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 250891,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787423514297
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 250891,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 250891,
+            "val": [
+              {
+                "content": "SoftPathProbeTask: 增加观测字段（lastDeltaMovement/currentDeltaMovement/lastSupportTopY/currentSupportTopY/horizontalCollision/verticalCollisionBelow/noProgressTicks/revalidateTicks/replanCount/velocityDisruption/lastHorizontalPos）",
+                "status": "completed"
+              },
+              {
+                "content": "SoftPathProbeTask: 新增 revalidateSegment() 私有方法",
+                "status": "completed"
+              },
+              {
+                "content": "SoftPathProbeTask: 新增 replanFromCurrent() 私有方法",
+                "status": "completed"
+              },
+              {
+                "content": "SoftPathProbeTask: tick 循环增加物理观测赋值和偏离判定逻辑",
+                "status": "completed"
+              },
+              {
+                "content": "FollowTask: 增加观测字段和碰撞/速度突变立即 replan",
+                "status": "completed"
+              },
+              {
+                "content": "新增 SoftPhysicsObservationTest.java fixture",
+                "status": "completed"
+              },
+              {
+                "content": "compile + run existing suites",
+                "status": "completed"
+              },
+              {
+                "content": "更新 HANDOVER + commit + session-complete",
+                "status": "in_progress"
+              }
+            ]
+          },
+          "plan": {
+            "ver": 2,
+            "seq": 250891,
+            "val": {
+              "active": false,
+              "wanted": null,
+              "running": null
+            }
+          }
+        }
+      },
+      "bbbd533b-20b4-47f5-8b24-ce16ed57bf6b": {
+        "identity": {
+          "createdAt": 1787341374666,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 642,
+            "val": {
+              "turns": 1,
+              "steps": 1,
+              "llmMs": 18823,
+              "toolMs": 0,
+              "ttftMs": 6782,
+              "ttftSteps": 1,
+              "decodeMs": 12041,
+              "decodeTokens": 1298,
+              "lastTurn": 1,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 642,
+            "val": "Create a concise Chinese Markdown"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 642,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 642,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 2214,
+                "outputTokens": 1298,
+                "cacheReadTokens": 30413,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 1,
+                "step": 1,
+                "buckets": {
+                  "uncachedInputTokens": 2214,
+                  "outputTokens": 1298,
+                  "cacheReadTokens": 30413,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 642,
+            "val": {
+              "surfaceTokens": 1336,
+              "contextWindow": 256000,
+              "pressureTokens": 32627,
+              "sampledSurfaceTokens": 1017
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 642,
+            "val": {
+              "systemTokens": 3756,
+              "toolsTokens": 10130,
+              "messageTokens": 1336
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 642,
+            "val": {
+              "descriptorSeen": true,
+              "settledMs": 19139
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 642,
+            "val": {
+              "identity": {
+                "mode": "one-shot",
+                "seq": 6
+              }
+            }
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 642,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 642,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787341374988
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 642,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 642,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 642,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "32603e8c-f3f4-46ed-98d5-c2335e3a0541": {
+        "identity": {
+          "createdAt": 1787341374683,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 624,
+            "val": {
+              "turns": 1,
+              "steps": 1,
+              "llmMs": 17264,
+              "toolMs": 0,
+              "ttftMs": 5627,
+              "ttftSteps": 1,
+              "decodeMs": 11637,
+              "decodeTokens": 1190,
+              "lastTurn": 1,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 624,
+            "val": "Create a concise Chinese Markdown"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 624,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 624,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 20769,
+                "outputTokens": 1190,
+                "cacheReadTokens": 8064,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 1,
+                "step": 1,
+                "buckets": {
+                  "uncachedInputTokens": 20769,
+                  "outputTokens": 1190,
+                  "cacheReadTokens": 8064,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 624,
+            "val": {
+              "surfaceTokens": 1304,
+              "contextWindow": 256000,
+              "pressureTokens": 28833,
+              "sampledSurfaceTokens": 1003
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 624,
+            "val": {
+              "systemTokens": 3756,
+              "toolsTokens": 10130,
+              "messageTokens": 1304
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 624,
+            "val": {
+              "descriptorSeen": true,
+              "settledMs": 17582
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 624,
+            "val": {
+              "identity": {
+                "mode": "one-shot",
+                "seq": 6
+              }
+            }
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 624,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 624,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787341375002
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 624,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 624,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 624,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "bff29c0e-ee17-4913-a47a-88bdc45979d7": {
+        "identity": {
+          "createdAt": 1787341374692,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 515,
+            "val": {
+              "turns": 1,
+              "steps": 1,
+              "llmMs": 17388,
+              "toolMs": 0,
+              "ttftMs": 8566,
+              "ttftSteps": 1,
+              "decodeMs": 8822,
+              "decodeTokens": 974,
+              "lastTurn": 1,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 515,
+            "val": "Create a concise Chinese Markdown"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 515,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 515,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 20754,
+                "outputTokens": 974,
+                "cacheReadTokens": 8064,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 1,
+                "step": 1,
+                "buckets": {
+                  "uncachedInputTokens": 20754,
+                  "outputTokens": 974,
+                  "cacheReadTokens": 8064,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 515,
+            "val": {
+              "surfaceTokens": 1265,
+              "contextWindow": 256000,
+              "pressureTokens": 28818,
+              "sampledSurfaceTokens": 1005
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 515,
+            "val": {
+              "systemTokens": 3756,
+              "toolsTokens": 10130,
+              "messageTokens": 1265
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 515,
+            "val": {
+              "descriptorSeen": true,
+              "settledMs": 17758
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 515,
+            "val": {
+              "identity": {
+                "mode": "one-shot",
+                "seq": 6
+              }
+            }
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 515,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 515,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787341375064
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 515,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 515,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 515,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "079b0636-5ac6-4ac2-ad06-8cb65c7da3ab": {
+        "identity": {
+          "createdAt": 1787341374720,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 582,
+            "val": {
+              "turns": 1,
+              "steps": 1,
+              "llmMs": 18486,
+              "toolMs": 0,
+              "ttftMs": 7690,
+              "ttftSteps": 1,
+              "decodeMs": 10796,
+              "decodeTokens": 1110,
+              "lastTurn": 1,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 582,
+            "val": "Create a concise Chinese Markdown"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 582,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 582,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 2216,
+                "outputTokens": 1110,
+                "cacheReadTokens": 30413,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 1,
+                "step": 1,
+                "buckets": {
+                  "uncachedInputTokens": 2216,
+                  "outputTokens": 1110,
+                  "cacheReadTokens": 30413,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 582,
+            "val": {
+              "surfaceTokens": 1284,
+              "contextWindow": 256000,
+              "pressureTokens": 32629,
+              "sampledSurfaceTokens": 1018
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 582,
+            "val": {
+              "systemTokens": 3756,
+              "toolsTokens": 10130,
+              "messageTokens": 1284
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 582,
+            "val": {
+              "descriptorSeen": true,
+              "settledMs": 18746
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 582,
+            "val": {
+              "identity": {
+                "mode": "one-shot",
+                "seq": 6
+              }
+            }
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 582,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 582,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787341374981
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 582,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 582,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 582,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "0d9a46c9-97af-415e-aa7b-7b38a4de6c0f": {
+        "identity": {
+          "createdAt": 1787341374712,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 579,
+            "val": {
+              "turns": 1,
+              "steps": 1,
+              "llmMs": 12865,
+              "toolMs": 0,
+              "ttftMs": 3657,
+              "ttftSteps": 1,
+              "decodeMs": 9208,
+              "decodeTokens": 579,
+              "lastTurn": 1,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 579,
+            "val": "Create a concise Chinese Markdown"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 579,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 579,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 5864,
+                "outputTokens": 579,
+                "cacheReadTokens": 10752,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 1,
+                "step": 1,
+                "buckets": {
+                  "uncachedInputTokens": 5864,
+                  "outputTokens": 579,
+                  "cacheReadTokens": 10752,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 579,
+            "val": {
+              "surfaceTokens": 1279,
+              "contextWindow": 256000,
+              "pressureTokens": 16616,
+              "sampledSurfaceTokens": 997
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 579,
+            "val": {
+              "systemTokens": 3756,
+              "toolsTokens": 10130,
+              "messageTokens": 1279
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 579,
+            "val": {
+              "descriptorSeen": true,
+              "settledMs": 13126
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 579,
+            "val": {
+              "identity": {
+                "mode": "one-shot",
+                "seq": 6
+              }
+            }
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 579,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 579,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787341374975
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 579,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 579,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 579,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "d79ec93e-3bd5-49b2-83de-75503531c466": {
+        "identity": {
+          "createdAt": 1787341374703,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 518,
+            "val": {
+              "turns": 1,
+              "steps": 1,
+              "llmMs": 12910,
+              "toolMs": 0,
+              "ttftMs": 4385,
+              "ttftSteps": 1,
+              "decodeMs": 8525,
+              "decodeTokens": 574,
+              "lastTurn": 1,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 518,
+            "val": "Create a concise Chinese Markdown"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 518,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 518,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 5835,
+                "outputTokens": 574,
+                "cacheReadTokens": 10752,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 1,
+                "step": 1,
+                "buckets": {
+                  "uncachedInputTokens": 5835,
+                  "outputTokens": 574,
+                  "cacheReadTokens": 10752,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 518,
+            "val": {
+              "surfaceTokens": 1227,
+              "contextWindow": 256000,
+              "pressureTokens": 16587,
+              "sampledSurfaceTokens": 978
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 518,
+            "val": {
+              "systemTokens": 3756,
+              "toolsTokens": 10130,
+              "messageTokens": 1227
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 518,
+            "val": {
+              "descriptorSeen": true,
+              "settledMs": 13173
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 518,
+            "val": {
+              "identity": {
+                "mode": "one-shot",
+                "seq": 6
+              }
+            }
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 518,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 518,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787341374968
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 518,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 518,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 518,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "376407bf-c5bf-434b-8466-93d49c9a2abd": {
+        "identity": {
+          "createdAt": 1787341374728,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 627,
+            "val": {
+              "turns": 1,
+              "steps": 1,
+              "llmMs": 16338,
+              "toolMs": 0,
+              "ttftMs": 5768,
+              "ttftSteps": 1,
+              "decodeMs": 10570,
+              "decodeTokens": 1206,
+              "lastTurn": 1,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 627,
+            "val": "Create a concise Chinese Markdown"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 627,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 627,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 20804,
+                "outputTokens": 1206,
+                "cacheReadTokens": 8064,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 1,
+                "step": 1,
+                "buckets": {
+                  "uncachedInputTokens": 20804,
+                  "outputTokens": 1206,
+                  "cacheReadTokens": 8064,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 627,
+            "val": {
+              "surfaceTokens": 1296,
+              "contextWindow": 256000,
+              "pressureTokens": 28868,
+              "sampledSurfaceTokens": 1005
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 627,
+            "val": {
+              "systemTokens": 3756,
+              "toolsTokens": 10130,
+              "messageTokens": 1296
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 627,
+            "val": {
+              "descriptorSeen": true,
+              "settledMs": 16664
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 627,
+            "val": {
+              "identity": {
+                "mode": "one-shot",
+                "seq": 6
+              }
+            }
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 627,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 627,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787341375056
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 627,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 627,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 627,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "99d71114-160f-4615-9ff1-57713ee96b96": {
+        "identity": {
+          "createdAt": 1787341374738,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 22,
+            "val": {
+              "turns": 1,
+              "steps": 1,
+              "llmMs": 20645,
+              "toolMs": 0,
+              "ttftMs": 20574,
+              "ttftSteps": 1,
+              "decodeMs": 71,
+              "decodeTokens": 1208,
+              "lastTurn": 1,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 22,
+            "val": "Create a concise Chinese Markdown"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 22,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 22,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 20762,
+                "outputTokens": 1208,
+                "cacheReadTokens": 8064,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 1,
+                "step": 1,
+                "buckets": {
+                  "uncachedInputTokens": 20762,
+                  "outputTokens": 1208,
+                  "cacheReadTokens": 8064,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 22,
+            "val": {
+              "surfaceTokens": 1337,
+              "contextWindow": 256000,
+              "pressureTokens": 28826,
+              "sampledSurfaceTokens": 1013
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 22,
+            "val": {
+              "systemTokens": 3756,
+              "toolsTokens": 10130,
+              "messageTokens": 1337
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 22,
+            "val": {
+              "descriptorSeen": true,
+              "settledMs": 20914
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 22,
+            "val": {
+              "identity": {
+                "mode": "one-shot",
+                "seq": 6
+              }
+            }
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 22,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 22,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787341375010
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 22,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 22,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 22,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "f3b85ab8-bc50-4f09-9f0e-aea17eb6a385": {
+        "identity": {
+          "createdAt": 1787341374747,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 702,
+            "val": {
+              "turns": 1,
+              "steps": 1,
+              "llmMs": 21695,
+              "toolMs": 0,
+              "ttftMs": 8592,
+              "ttftSteps": 1,
+              "decodeMs": 13103,
+              "decodeTokens": 1364,
+              "lastTurn": 1,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 702,
+            "val": "Create a concise Chinese Markdown"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 702,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 702,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 2145,
+                "outputTokens": 1364,
+                "cacheReadTokens": 30413,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 1,
+                "step": 1,
+                "buckets": {
+                  "uncachedInputTokens": 2145,
+                  "outputTokens": 1364,
+                  "cacheReadTokens": 30413,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 702,
+            "val": {
+              "surfaceTokens": 1333,
+              "contextWindow": 256000,
+              "pressureTokens": 32558,
+              "sampledSurfaceTokens": 1007
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 702,
+            "val": {
+              "systemTokens": 3756,
+              "toolsTokens": 10130,
+              "messageTokens": 1333
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 702,
+            "val": {
+              "descriptorSeen": true,
+              "settledMs": 21944
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 702,
+            "val": {
+              "identity": {
+                "mode": "one-shot",
+                "seq": 6
+              }
+            }
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 702,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 702,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787341374998
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 702,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 702,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 702,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      },
+      "44814af3-d838-43b0-a021-d2b8cf8d24e3": {
+        "identity": {
+          "createdAt": 1787341374757,
+          "cwd": "/home/fb486/projects/alice"
+        },
+        "rows": {
+          "sessionStats": {
+            "ver": 1,
+            "seq": 572,
+            "val": {
+              "turns": 1,
+              "steps": 1,
+              "llmMs": 17746,
+              "toolMs": 0,
+              "ttftMs": 7343,
+              "ttftSteps": 1,
+              "decodeMs": 10403,
+              "decodeTokens": 1082,
+              "lastTurn": 1,
+              "openStep": null,
+              "pendingCalls": {}
+            }
+          },
+          "title": {
+            "ver": 1,
+            "seq": 572,
+            "val": "Create a concise Chinese Markdown"
+          },
+          "goal": {
+            "ver": 4,
+            "seq": 572,
+            "val": null
+          },
+          "tokenUsage": {
+            "ver": 1,
+            "seq": 572,
+            "val": {
+              "totals": {
+                "uncachedInputTokens": 2109,
+                "outputTokens": 1082,
+                "cacheReadTokens": 30413,
+                "cacheWriteTokens": 0
+              },
+              "last": {
+                "turn": 1,
+                "step": 1,
+                "buckets": {
+                  "uncachedInputTokens": 2109,
+                  "outputTokens": 1082,
+                  "cacheReadTokens": 30413,
+                  "cacheWriteTokens": 0
+                }
+              }
+            }
+          },
+          "contextPressure": {
+            "ver": 4,
+            "seq": 572,
+            "val": {
+              "surfaceTokens": 1259,
+              "contextWindow": 256000,
+              "pressureTokens": 32522,
+              "sampledSurfaceTokens": 989
+            }
+          },
+          "contextBreakdown": {
+            "ver": 2,
+            "seq": 572,
+            "val": {
+              "systemTokens": 3756,
+              "toolsTokens": 10130,
+              "messageTokens": 1259
+            }
+          },
+          "subagentTiming": {
+            "ver": 2,
+            "seq": 572,
+            "val": {
+              "descriptorSeen": true,
+              "settledMs": 18002
+            }
+          },
+          "subagent": {
+            "ver": 2,
+            "seq": 572,
+            "val": {
+              "identity": {
+                "mode": "one-shot",
+                "seq": 6
+              }
+            }
+          },
+          "permissions": {
+            "ver": 1,
+            "seq": 572,
+            "val": {
+              "preset": "danger-full-access",
+              "sandbox": "danger-full-access",
+              "approval": "never"
+            }
+          },
+          "sessionListMetadata": {
+            "ver": 1,
+            "seq": 572,
+            "val": {
+              "blank": false,
+              "lastPromptAt": 1787341375016
+            }
+          },
+          "imageLimits": {
+            "ver": 1,
+            "seq": 572,
+            "val": null
+          },
+          "todos": {
+            "ver": 2,
+            "seq": 572,
+            "val": null
+          },
+          "plan": {
+            "ver": 1,
+            "seq": 572,
+            "val": {
+              "active": false,
+              "wanted": null
+            }
+          }
+        }
+      }
+    }
+  }
+}

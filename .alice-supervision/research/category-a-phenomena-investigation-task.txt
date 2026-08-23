@@ -1,0 +1,74 @@
+# 类别 A 已知现象调研任务
+
+## 调研目标
+
+调查两个已知现象的根因、修复范围、风险与验证方式：
+
+### 现象 1：Bot 物品客户端同步问题
+- **观察**：Bot 拿到物品后客户端看不到，重启后才能看到
+- **首次报告**：A1.1 客户端测试（2026-08-22 23:16，用户反馈）
+- **上下文**：`BotPlayer` 继承 `ServerPlayer`，通过 `PlayerList.placeNewPlayer` 注册，客户端可见。物品通过 `ChestBotTransferPrimitive` 抽取到 bot inventory
+- **调研重点**：
+  1. `BotPlayer` 的 inventory 修改是否触发客户端同步 packet（`ServerPlayer.inventoryMenu.broadcastChanges()` 或类似）？
+  2. `ChestBotTransferPrimitive` 在写入 bot inventory 后是否调用同步机制？
+  3. Minecraft 原版 `ServerPlayer` inventory 同步的触发条件是什么（tick？打开容器？手动调用？）
+  4. 修复是否只需在 inventory 写入后调用 `player.containerMenu.broadcastChanges()` 或 `player.inventoryMenu.sendAllDataToRemote()`？
+
+### 现象 2：任务异常中断后源箱高亮
+- **观察**：任务异常中断后源箱仍高亮
+- **首次报告**：A1.1 客户端测试（2026-08-22 23:16，用户反馈"不知道符不符合预期"）
+- **上下文**：Transfer selector 有高亮机制（右键箱子记录 source/destination），但 A1.1 transfer-test 命令是否也有高亮？
+- **调研重点**：
+  1. 源箱高亮是 transfer selector 的 `TransferSelectionLifecycle` 产生的，还是 `TransferTask`/ledger 产生的？
+  2. 高亮清理的触发条件是什么（任务完成？abort？failed？）
+  3. `TransferTask` 在 `FAILED`/`SUSPENDED` 终态时是否调用高亮清理？
+  4. 如果高亮只属于 selector，那 transfer-test 命令根本不应该有高亮——需确认用户观察的是哪个命令的高亮
+
+## 调研范围
+
+**Allowed**：
+- 只读分析 `BotPlayer.java`、`ChestBotTransferPrimitive.java`、`TransferTask.java`、`TransferSelectionLifecycle.java`、`BotManager.java`
+- 查阅 Minecraft/Forge 原版 `ServerPlayer` inventory 同步机制（javadoc/源码）
+- 搜索项目中所有 `setGlowingTag`/`glow`/高亮相关代码
+- 对照 A1.1 客户端日志（23:16 的 `latest.log`）确认用户使用的是 transfer-test 还是 selector
+
+**Forbidden**：
+- 不修改任何代码
+- 不运行测试或客户端
+- 不扩展到 A1.2/双箱/其他模块
+
+## 交付要求
+
+报告路径：`.alice-supervision/research/category-a-phenomena-root-cause-20260822.md`
+
+报告必须包含：
+1. **现象 1（Bot 物品同步）**：
+   - 根因分析（代码路径 + 行号）
+   - 修复方案（最小改动点，如在哪里调用哪个同步方法）
+   - 风险评估（是否影响其他 bot 行为/性能）
+   - 验证方式（客户端观察 bot inventory 是否实时可见）
+
+2. **现象 2（源箱高亮）**：
+   - 根因分析（高亮来源：selector 还是 transfer-test？清理时机？）
+   - 修复方案（在哪里调用高亮清理，FAILED/SUSPENDED 是否都需要清理）
+   - 风险评估（是否影响正常任务的高亮）
+   - 验证方式（客户端触发 FAILED/SUSPENDED 后观察高亮是否清除）
+
+3. **实现建议**：
+   - 两个修复是否可以合并为一个 active plan，还是应该分开？
+   - 预估实现时间（分钟级）
+   - 预估验证时间（客户端实测，分钟级）
+
+## 证据标准
+
+- 代码路径引用格式：`文件名:行号`（如 `BotPlayer.java:25`）
+- Minecraft/Forge API 引用需注明版本（Forge 1.20.1-47.4.10）
+- 修复方案需给出伪代码或精确方法调用
+- 不得猜测，所有结论必须基于代码证据或官方文档
+
+## 项目上下文
+
+- 项目路径：`/home/fb486/projects/alice`
+- 当前 HEAD：`0add921`
+- 相关模块：`src/main/java/com/dddgn/alice/bot/`、`src/main/java/com/dddgn/alice/transfer/`、`src/main/java/com/dddgn/alice/task/TransferTask.java`
+- A1.1 客户端日志：`/mnt/d/JAVA_projects/alice/.alice-supervision/client-tests/f655be2-a1-1-client/evidence/latest.log`（23:13-23:16 时间段）

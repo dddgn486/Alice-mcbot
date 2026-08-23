@@ -1,0 +1,112 @@
+# 玩家操作其他实体（含 FakeConnection no-op）Inventory 深度调研
+
+## 调研目标
+
+回答一个决定 Alice Bot Inventory GUI 方向的核心问题：**一个 `FakeConnection.send()` 是 no-op 的实体（Bot），其他玩家能否以容器菜单（AbstractContainerMenu/ServerboundContainerClickPacket）方式查看/操作其 Inventory？** 若不能，正确方案是什么？
+
+## 背景（6 轮修复失败的核心原因）
+
+**Alice 现状**：
+- `BotPlayer extends ServerPlayer`，通过 `PlayerList.placeNewPlayer(new FakeConnection(...), bot)` 注册
+- `FakeConnection.send()` 是 no-op（`FakeConnection.java:34-37`）
+- `BotInventoryMenu extends AbstractContainerMenu`：bot 槽绑定 `BotPlayer.getInventory()`，玩家槽绑定玩家自己的 `Inventory`
+- 玩家用 `/alice bot-inventory` 打开菜单（`player.openMenu`，packet 走玩家真实 connection）
+
+**6 轮修复均失败**（f0ef6fc/f4bf79a/25b1daa/2b995ba/55e3d32/1621ad2）：
+- 拿取消失、物品翻倍、Shift 移动错乱
+- 最新日志（1621ad2，`forced setChanged on 41 bot slots`）：QUICK_MOVE 从玩家槽移 32 个只移了 1 个（stackNow=31）、63 个全移走但落点不明
+
+**核心怀疑**：原版 `InventoryMenu` 是**为"玩家自己"设计的**——`Slot` 绑定玩家自己的 `Inventory`，holder 是玩家（真实 connection）。Alice 把 **Bot 的 `Inventory`** 用玩家的 connection 打开，这个组合**不是 Minecraft 标准路径**。`broadcastChanges()` 依赖 `container.setChanged()`，而 bot Inventory 的 holder 是 bot（FakeConnection no-op）→ 玩家收不到 slot 同步。
+
+## 关键问题
+
+1. **另一个真实玩家**（ServerPlayer，真实 connection）：其他玩家能否 openMenu 查看其 Inventory？R0STUS/OpenInventory（Forge）是否真做到了？具体机制？
+2. **FakeConnection no-op 的实体**（如 Alice Bot）：其他玩家能否 openMenu 查看/操作其 Inventory？`broadcastChanges()`/`setChanged()` 是否因 holder 是 FakeConnection 而不工作？
+3. **ServerboundContainerClickPacket / ServerboundContainerSlotStatePacket** 的 slotId 如何映射到"另一实体的 Inventory"？是否根本不可靠？
+4. 若容器菜单方案不可行，**正确方案**：自定义 S2C inventory 快照 + 客户端 Screen？自定义 C2S packet 处理交互？
+5. 有没有 mod 成功实现"操作 fake player 的 inventory"（Carpet 的 `/player inventory` 是 Fabric，机制如何）？
+
+## 调研范围
+
+**Allowed（必须联网 + 反编译源码）**：
+
+1. **`AbstractContainerMenu` 的 `broadcastChanges`/`setChanged`/`remoteSlots` 机制**：
+   - `broadcastChanges()` 源码：如何检测 slot 变化并广播给玩家
+   - `Slot.setChanged()` → `container.setChanged()` 的链路
+   - 当 container 是"另一个实体"的 Inventory 时，holder 是 FakeConnection，`setChanged` 通知谁？
+   - `remoteSlots`（menu 缓存的上次发送快照）如何比较
+
+2. **`ServerboundContainerClickPacket` / `ServerboundContainerSlotStatePacket` 的处理**：
+   - 客户端点击 → packet → 服务端 `AbstractContainerMenu.clicked()` 的 slotId 语义
+   - slotId 是 menu 物理槽位号（0..slots.size-1）还是容器 index？
+   - 复杂菜单（多容器）中 slotId 映射是否正确
+
+3. **外部 mod 参考**（重点）：
+   - **R0STUS/OpenInventory**（Forge）：真的支持打开**另一个玩家**的 inventory 吗？它用的是"让目标 openMenu 自己"还是"玩家操作目标 inventory"？源码/issue 确认
+   - 关键区分：目标玩家是**真实 connection** 还是 **FakeConnection**？
+   - **Carpet**（Fabric）`/player inventory`：fake player 的 inventory 查看机制（Fabric ScreenHandler vs Forge AbstractContainerMenu）
+   - **mc_aiplayer**（Alice 注释提到"同款方案"）：是否有 inventory GUI
+   - 其他 mod：有没有成功"操作 fake/no-connection 实体 inventory"的先例
+
+4. **推荐方案**：
+   - 方案 1（只读快照 + 自定义 Screen）：若容器菜单不可行，正确做法
+   - 方案 2（自定义 C2S packet 处理交互）
+   - 给出可行性结论 + 精确代码
+
+**Forbidden**：
+- 不修改任何代码
+- 不运行测试或客户端
+- 不扩展到其他功能
+
+## 交付要求
+
+报告路径：`.alice-supervision/research/player-view-other-entity-inventory-20260823.md`
+
+报告必须包含：
+
+### 1. 核心结论（直接回答）
+- FakeConnection no-op 实体能否被其他玩家以容器菜单查看/操作？`是 / 否 / 有条件`
+- 依据（源码/官方文档/外部 mod）
+
+### 2. `broadcastChanges`/`setChanged`/`remoteSlots` 机制
+- 源码剖析
+- 为何 holder 是 FakeConnection 时同步失效（或是否真的失效）
+
+### 3. `ServerboundContainerClickPacket` slotId 映射
+- 是否可靠？复杂菜单（多容器）问题
+
+### 4. 外部 mod 参考实现（GitHub URL + 源码）
+- OpenInventory（真实玩家 vs FakeConnection 的区分）
+- Carpet（Fabric）
+- mc_aiplayer
+- 其他成功先例
+
+### 5. 推荐方案（精确代码）
+- 若容器菜单不可行 → 只读快照 + 自定义 Screen + 自定义 C2S packet
+- 可行性结论
+
+### 6. 风险评估
+
+## 证据标准
+
+- 源码引用注明 Forge 1.20.1-47.4.10 + 类名方法名
+- 反编译用 `javap -c`（jar：`/home/fb486/.gradle/caches/forge_gradle/minecraft_user_repo/net/minecraftforge/forge/1.20.1-47.4.10_mapped_parchment_2023.09.03-1.20.1/forge-1.20.1-47.4.10_mapped_parchment_2023.09.03-1.20.1.jar`）
+- 外部 mod 提供 GitHub URL + 具体文件/issue
+- 修复方案给出精确代码
+- 不得猜测
+
+## 项目上下文
+
+- 项目路径：`/home/fb486/projects/alice`
+- 当前 HEAD：`1621ad2`
+- 相关文件：`src/main/java/com/dddgn/alice/gui/BotInventoryMenu.java`、`client/gui/BotInventoryScreen.java`、`bot/FakeConnection.java`、`bot/BotPlayer.java`
+- 日志证据：`/mnt/d/JAVA_projects/alice/run/logs/latest.log`（03:48，forced setChanged + QUICK_MOVE stackNow=31 错乱）
+- 6 轮修复：f0ef6fc/f4bf79a/25b1daa/2b995ba/55e3d32/1621ad2
+
+## 外部搜索建议
+
+1. `"AbstractContainerMenu" + "broadcastChanges" + "setChanged" + "remoteSlots" source`
+2. `"R0STUS/OpenInventory" + "open" + "other player" + "inventory" + "Forge"`
+3. `"Minecraft" + "view" + "another player" + "inventory" + "menu" + "serverbound" + "slotId"`
+4. `"fake player" + "inventory" + "GUI" + "no connection" + "broadcastChanges" site:github.com`
+5. `"Carpet" + "fake player" + "inventory" + "command" + "ScreenHandler"`

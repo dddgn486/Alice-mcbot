@@ -21,6 +21,8 @@ public final class FollowTask implements Task {
     private static final int REPLAN_INTERVAL = 10;
     private static final int MAX_TARGET_DISTANCE = 24;
     private static final int MAX_SETTLE_TICKS = 30;
+    private static final double VELOCITY_DISRUPTION_HORIZONTAL = 0.3D;
+    private static final double VELOCITY_DISRUPTION_VERTICAL = 0.5D;
 
     private final ServerPlayer bot;
     private final UUID targetUuid;
@@ -29,6 +31,12 @@ public final class FollowTask implements Task {
     private int replanTicks;
     private int settleTicks;
     private String failure = "";
+
+    // P1 physics observation fields
+    private net.minecraft.world.phys.Vec3 lastDeltaMovement = net.minecraft.world.phys.Vec3.ZERO;
+    private net.minecraft.world.phys.Vec3 currentDeltaMovement = net.minecraft.world.phys.Vec3.ZERO;
+    private boolean horizontalCollision;
+    private boolean verticalCollisionBelow;
 
     public FollowTask(ServerPlayer bot, ServerPlayer target) {
         this.bot = bot;
@@ -64,8 +72,21 @@ public final class FollowTask implements Task {
             return Status.RUNNING;
         }
 
+        // P1: Update physics observation
+        lastDeltaMovement = currentDeltaMovement;
+        currentDeltaMovement = bot.getDeltaMovement();
+        horizontalCollision = bot.horizontalCollision;
+        verticalCollisionBelow = bot.verticalCollisionBelow;
+
+        // P1: Check for velocity disruption or collision (immediate replan)
+        double deltaH = currentDeltaMovement.horizontalDistance() - lastDeltaMovement.horizontalDistance();
+        double deltaV = currentDeltaMovement.y - lastDeltaMovement.y;
+        boolean velocityDisruption = Math.abs(deltaH) > VELOCITY_DISRUPTION_HORIZONTAL
+                || Math.abs(deltaV) > VELOCITY_DISRUPTION_VERTICAL;
+        boolean shouldImmediateReplan = (horizontalCollision || velocityDisruption) && !path.isEmpty();
+
         replanTicks++;
-        if (path.isEmpty() || index >= path.size() || replanTicks >= REPLAN_INTERVAL) {
+        if (path.isEmpty() || index >= path.size() || replanTicks >= REPLAN_INTERVAL || shouldImmediateReplan) {
             Status planStatus = replan(level, target);
             if (planStatus != null) {
                 return planStatus;

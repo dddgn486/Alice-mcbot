@@ -1,0 +1,75 @@
+# Bot 手持物品客户端渲染问题调研任务
+
+## 调研目标
+
+调查 Bot 搬运物品途中"模型上手持物品不可见"的根因、修复方案、风险与验证方式。
+
+## 问题描述
+
+**观察**（2026-08-22 23:53-23:56 客户端测试）：
+- Bot 通过 transfer 从源箱拿到物品后，在搬运途中，**Bot 模型上看不到手持物品**
+- 用户预期：Bot 手持物品时，客户端应该能看到 Bot 手上拿着物品（类似玩家手持物品的渲染）
+
+**上下文**：
+- 提交 `bd9f0c3`（fix: sync bot inventory to client after transfer insert）已发送 `ClientboundContainerSetSlotPacket` 同步 36 槽位
+- `BotPlayer` 继承 `ServerPlayer`，通过 `PlayerList.placeNewPlayer` 注册，客户端可见
+- 但 Bot 的**手持物品渲染**可能缺少同步
+
+## 调研范围
+
+**Allowed**：
+- 只读分析 `BotPlayer.java`、`BotManager.java`、`ChestBotTransferPrimitive.java`
+- 查阅 Minecraft/Forge 1.20.1-47.4.10 原版 `ServerPlayer` equipment/hand item 渲染同步机制
+- 搜索项目中所有与 equipment/main hand/held item 相关的代码
+- 查阅 `ClientboundSetEquipmentPacket`、entity data sync、`ServerPlayer.setItemSlot()` 等 API
+- 对照客户端日志（`/mnt/d/JAVA_projects/alice/.alice-supervision/client-tests/36f4014-bot-inventory-sync/evidence/latest.log`，23:53-23:56）确认是否有 equipment packet 记录
+
+**Forbidden**：
+- 不修改任何代码
+- 不运行测试或客户端
+- 不扩展到 Bot inventory GUI（那是另一个计划）
+- 不扩展到装备槽渲染（只关注主手物品）
+
+## 交付要求
+
+报告路径：`.alice-supervision/research/bot-held-item-rendering-20260822.md`
+
+报告必须包含：
+1. **根因分析**（代码路径 + 行号）：
+   - Bot 手持物品不可见的根本原因是什么？
+   - `ChestBotTransferPrimitive.insertBot()` 写入 inventory 后，是否调用了 hand item 渲染同步？
+   - Minecraft/Forge 原版 `ServerPlayer` 手持物品渲染的触发机制是什么？
+   - `ClientboundContainerSetSlotPacket` 是否足够同步手持物品渲染，还是需要额外的 equipment packet？
+
+2. **修复方案**（最小改动点 + 伪代码）：
+   - 方案 A（推荐）：在哪里调用哪个同步方法（如 `ServerPlayer.setItemSlot(EquipmentSlot.MAINHAND, stack)` 或发送 `ClientboundSetEquipmentPacket`）
+   - 方案 B（备选）：其他可行方案
+   - 参考现有代码：`BotManager.syncMainHand()` 是否已实现类似逻辑？
+
+3. **风险评估**：
+   - 修复是否影响其他 bot 行为（mining、placing）？
+   - 是否需要同步所有 equipment 槽位，还是只同步主手？
+   - 性能影响（packet 频率）
+
+4. **验证方式**：
+   - 客户端观察：Bot 拿到物品后手上是否立即显示物品模型
+   - 最少验证场景（如 V1：transfer-test 3 个铁锭 → 观察 Bot 手持铁锭模型）
+
+5. **与 bd9f0c3 的关系**：
+   - 当前的 `syncBotInventorySlots()` 是否已经足够？
+   - 手持物品渲染修复是否依赖 `bd9f0c3`，还是独立问题？
+
+## 证据标准
+
+- 代码路径引用格式：`文件名:行号`
+- Minecraft/Forge API 引用需注明版本（Forge 1.20.1-47.4.10）
+- 修复方案需给出伪代码或精确方法调用
+- 不得猜测，所有结论必须基于代码证据或官方文档
+
+## 项目上下文
+
+- 项目路径：`/home/fb486/projects/alice`
+- 当前 HEAD：`bd9f0c3`（fix: sync bot inventory to client after transfer insert）
+- 相关模块：`src/main/java/com/dddgn/alice/bot/`、`src/main/java/com/dddgn/alice/transfer/ChestBotTransferPrimitive.java`
+- 客户端测试日志：`/mnt/d/JAVA_projects/alice/.alice-supervision/client-tests/36f4014-bot-inventory-sync/evidence/latest.log`（23:53-23:56）
+- 现有同步代码参考：`BotManager.syncMainHand()`（`BotManager.java:305-314`，已在调研报告 `category-a-phenomena-root-cause-20260822.md` 中提及）
