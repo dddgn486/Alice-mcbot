@@ -364,3 +364,13 @@ headless 验收：`./gradlew runServer -Dalice.selftest.auto=true`（测完自�
 5. 实现 `TargetCluster`/`ClusterMineTask` 与簇 AABB 通道禁入；
 6. 道路/曲面/通道/掉落物/目标簇专用回归测试；
 7. 曲率/半圆绕行上限、L1/L2 损耗与材料预算过滤。
+
+---
+
+## P0 skill 方法论升级（2026-08-24，监督员 P0-S6 记录）
+
+- 依据：`.alice-supervision/research/skill-upgrade-p1-git-mcp-line-20260824.md`（P0 部分，已验收）
+- 实施：commit `4312880a328f4bed606f4e1ed951ef358f22bc6f`（主开发员，已验收）
+- 内容：3 个已批准 skill（debugging-root-cause-analysis / test-coverage-matrix / evidence-collection-standard）升级为 Anthropic 官方 Agent Skills 结构——YAML frontmatter（name 与 skills-manifest id 严格一致）、progressive disclosure 分层、eval 自检小节、双端证据模式（DebugBridge/VitaminMCP 仅模式借鉴，不支持 Forge 1.20.1 不接入）。
+- 边界：未改 skills-manifest.yml（3 条目保持 maintainer-approved v1.0.0）、state-machine.yml、业务代码；既有方法模板逐字保留，只升级载体结构。
+- 待办：P1 Git MCP 试点——V-A 已核查（接线点存在），V-B dry-run 待维护员在隔离 profile 执行（`.alice-supervision/research/dsh-mcp-vb-dryrun-task-20260824.txt`）。
