@@ -374,3 +374,20 @@ headless 验收：`./gradlew runServer -Dalice.selftest.auto=true`（测完自�
 - 内容：3 个已批准 skill（debugging-root-cause-analysis / test-coverage-matrix / evidence-collection-standard）升级为 Anthropic 官方 Agent Skills 结构——YAML frontmatter（name 与 skills-manifest id 严格一致）、progressive disclosure 分层、eval 自检小节、双端证据模式（DebugBridge/VitaminMCP 仅模式借鉴，不支持 Forge 1.20.1 不接入）。
 - 边界：未改 skills-manifest.yml（3 条目保持 maintainer-approved v1.0.0）、state-machine.yml、业务代码；既有方法模板逐字保留，只升级载体结构。
 - 待办：P1 Git MCP 试点——V-A 已核查（接线点存在），V-B dry-run 待维护员在隔离 profile 执行（`.alice-supervision/research/dsh-mcp-vb-dryrun-task-20260824.txt`）。
+
+## P1 Git MCP 试点：暂停（2026-08-25，监督员记录，用户决策选项 A）
+
+- 决策：用户批准「选项 A：P1 线路暂停（保守）」。MCP 机制已验证可行，但官方 Git server 不满足只读边界，暂缓 Git MCP 试点，保留已验证知识作为未来资产。
+- 验证链（全部有报告落盘，已验收）：
+  1. P1-S1 挂载核查：`.alice-supervision/research/dsh-mcp-mount-feasibility-20260824.md`（接线点存在，需 dry-run）
+  2. 深调研：`.alice-supervision/research/dsh-mcp-cordis-loading-tech-investigation-20260824.md`（判定 A：insert 语法是唯一创建条目路径；patch 的 name 不参与加载仅一致性校验）
+  3. V-B dry-run：`.alice-supervision/research/dsh-mcp-vb-dryrun-result-20260824.md`（通过 4/4：insert 数组语法成功挂载 echo 型 MCP server，用户 GUI 亲测 `mcp__mcp-test__ping` 返回 pong）
+  4. P1-S2 试点：`.alice-supervision/research/dsh-mcp-p1-s2-git-trial-result-20260824.md`（判定不可行：官方 Git MCP server 2026.8.18 含 13 个写工具、无工具过滤配置——Git server CLI 与 dsh-mcp-client 0.1.1-rc.2 均无 allow/deny 过滤；停止条件正确触发，仓库零 commit 变化）
+- **已验证知识（未来资产）**：
+  - `cordis.patch.yml` 挂载非 bundle 插件须用 `- insert:` 数组包裹语法（`- insert:` + 缩进条目 id/name/config），标准 `- id:/name:` 只能引用 bundles 内插件
+  - `dsh-mcp-client@0.1.1-rc.2`（DSH 内置）是正确版本；registry `0.0.1-rc.1` 缺 peerDependencies 不可用
+  - 工具命名 `mcp__<serverName>__<rawName>`；stdio transport 跨语言稳定（Node.js/Python 均实测）
+  - 隔离 profile 机制安全：alice-mcp-lab(3090)/alice-git-lab(3091) 全程未触碰 3081/3082/3083
+- **P1 重启条件**（供未来评估）：官方 Git server 支持工具过滤 / 用户授权自建最小只读 Git server（4 工具白名单）/ 转向其他成熟 MCP server（filesystem/fetch 等）
+- 边界遵守：未改 DSH checkout、未改 3083 生产 profile（任何生产 MCP 接入均需独立新授权）、零 env 注入、无写工具暴露
+- 遗留物：alice-mcp-lab(3090 运行中)/alice-git-lab(3091 已停) 两个隔离 profile 保留为模板；`~/.local/bin/mcp-server-git` 已安装（可 pip uninstall 清理）；`/tmp/mcp-test-server`、`/tmp/mcp-servers` 为临时文件
