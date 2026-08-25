@@ -418,3 +418,12 @@ headless 验收：`./gradlew runServer -Dalice.selftest.auto=true`（测完自�
 - push 待执行：`git push github master`（fast-forward，无强推）→ push 后 `git status -sb` 应为 ahead 0；push 成功后触发 Windows `updateInstead` 自动同步；最终状态见证据报告 `.alice-supervision/research/physics-fix-c-result-20260825.md` 尾部提交闭环段（commit hash/push 结果/ahead 确认）
 - 下一安全步：Windows 确认同步 → 用户实测 M2/M3/M4（推挤/击退/软路径复跑）与 M5（跳跃异常独立线回归）→ 监督员按证据报告验收客户端矩阵
 
+## F1 hurt false 修复（2026-08-25，方案 A：清除出生保护）
+
+- 根因：`ServerPlayer` 构造函数设置 `spawnInvulnerableTime=60`（出生保护 60 tick）；`ServerPlayer.hurt` 在保护期内拒绝非 bypass 伤害源并返回 false；BotPlayer 继承此机制但 spawn 后未清除保护，导致 F1 断言立即执行时 hurt 返回 false（客户端实测 M3 击退无位移）
+- 方案 A 实施：`BotManager.spawn` :87 行（placeNewPlayer 后、BOTS.put 前）反射清除 `spawnInvulnerableTime` 字段（`Field.setInt(bot, 0)`），使 bot 立即可伤害
+- 服务端验证：F1 generic/Zombie 两源 `hurtOk=true`（health 20.0→19.0→17.5，伤害生效）；F2/F4/F5/C1_CONSUME 保持 PASS；compileJava BUILD SUCCESSFUL
+- 未验证限制：服务端 F1 验收标准（hurtOk=true + health 减少）已满足；M3 击退可见性（位移+动画）需用户 Windows 客户端实测（服务端 PASS ≠ 客户端验收）
+- 边界：不触碰 BotPlayer.hurt()/ServerPlayer.hurt()/FakeConnection/矿链/5 travel 调用点/P0 门禁；不翻案方案 C；F3b/tickChain 仍需独立定位
+- 下一安全步：Windows 确认同步 → 用户实测 M3 击退可见性 → 监督员验收
+
