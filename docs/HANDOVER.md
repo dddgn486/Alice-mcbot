@@ -427,3 +427,13 @@ headless 验收：`./gradlew runServer -Dalice.selftest.auto=true`（测完自�
 - 边界：不触碰 BotPlayer.hurt()/ServerPlayer.hurt()/FakeConnection/矿链/5 travel 调用点/P0 门禁；不翻案方案 C；F3b/tickChain 仍需独立定位
 - 下一安全步：Windows 确认同步 → 用户实测 M3 击退可见性 → 监督员验收
 
+## M3/M5 Packet 诊断观测 D0-D4（2026-08-26，只采证）
+
+- 任务：`20260826-m3-m5-packet-observer-v1`；任务书 `.alice-supervision/research/m3-m5-packet-observer-task-20260826.txt`；证据报告 `.alice-supervision/research/m3-m5-packet-observer-result-20260826.md`
+- 改动范围：仅 `FakeConnection.java` 增加默认关闭的 `-Dalice.packet.observer=true` 旁路日志；不改变 packet 筛选、recipient 集合、发送顺序、packet 对象、callback、tracking 或客户端语义
+- D1 字段：corr/tick/source bot UUID/name/entityId/packet class+entityId/Move flags+relative fields/Motion fields/Teleport fields/recipient UUID/name/entityId/dimension/distance/manual source/duplicate key+count；Move entityId 通过 level 解析，不可得时记录 -1
+- 验证：`./gradlew compileJava` BUILD SUCCESSFUL；`git diff --check` PASS；既有 headless 在 180 秒预算 exit 124，未宣称完整 PASS，但超时前 TRANSFER/INVENTORY/SOFT suites PASS、F1/F2/F4/F5/C1 关键日志保持；observer 35 秒 smoke 未捕获 runtime packet 样本
+- 限制：D2 client receive/render/clientTick、tracking source、Windows build/world identity、D4 玩家 timeline 当前不可得；D1 runtime packet 机制未闭合；既有 F1 `hurtOk=true + health↓ + delta=0` 仍要求独立 server physics 分类；不标记 M3/M5 客户端验收
+- 禁用/回滚：默认 observer=false；若后续发现 entityId/recipient 错误、重复无法解释、时序变化或客户端异常扩大，立即回滚诊断提交
+- 下一安全步：监督员审核证据报告；确认 Windows 同步到诊断 commit 后，按 D0-D4 采集，必要时另行批准客户端接收 hook；本诊断不构成 M3/M5 修复授权
+
