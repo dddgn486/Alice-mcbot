@@ -23,9 +23,11 @@ import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
@@ -351,7 +353,37 @@ public final class BotManager {
         for (BotSession session : BOTS.values()) {
             HazardState hazard = SurvivalSystem.tick(session.bot());
             session.tick(hazard);
+            // C-1 兜底消费段：任务层输入之外的外部 push 残留 delta（空闲时兜底消费，任务层活动跳过防双消费）
+            if (!isTaskLayerInput(session.bot())) {
+                net.minecraft.world.phys.Vec3 residual = session.bot().getDeltaMovement();
+                double hSqr = residual.x * residual.x + residual.z * residual.z;
+                if (hSqr > 1.0E-8) {
+                    net.minecraft.world.phys.Vec3 start = session.bot().position();
+                    session.bot().move(net.minecraft.world.entity.MoverType.SELF,
+                            new net.minecraft.world.phys.Vec3(residual.x, 0.0D, residual.z));
+                    net.minecraft.world.phys.Vec3 end = session.bot().position();
+                    net.minecraft.world.phys.Vec3 displacement = end.subtract(start);
+                    session.bot().setDeltaMovement(new net.minecraft.world.phys.Vec3(0.0D, residual.y, 0.0D));
+                    BotLog.info("BOT_PHYSICS_C1_CONSUME corr={} tick={} residual=({},{},{}) disp=({},{},{}) hColl={} vCollBelow={}",
+                            String.format(java.util.Locale.ROOT, "%08x", session.bot().getUUID().hashCode()),
+                            event.getServer().getTickCount(),
+                            fmt3(residual.x), fmt3(residual.y), fmt3(residual.z),
+                            fmt3(displacement.x), fmt3(displacement.y), fmt3(displacement.z),
+                            session.bot().horizontalCollision, session.bot().verticalCollisionBelow);
+                }
+            }
         }
+    }
+
+    /** C-1 消歧：任务层输入（有当前任务 = NATIVE_TRAVEL 驱动中 = 兜底跳过，防任务层与兜底段双消费）；
+     *  任务层空闲（无任务）时外部 push 残留归兜底段消费。 */
+    private static boolean isTaskLayerInput(BotPlayer bot) {
+        BotSession session = BOTS.get(bot.getUUID());
+        return session != null && session.task != null;
+    }
+
+    private static String fmt3(double value) {
+        return String.format(java.util.Locale.ROOT, "%.3f", value);
     }
 
     /** 服务器启动完成:恢复存档假人(若有)。 */

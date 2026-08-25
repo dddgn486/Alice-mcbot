@@ -400,3 +400,12 @@ headless 验收：`./gradlew runServer -Dalice.selftest.auto=true`（测完自�
 - 证据数值：F1 generic+mob 双源 hurt 均返回 false、health 20->20、delta 恒 0；F3 push 写入 OK(0.5,0,0) 但实体推挤位移 0；F4 travel 摩擦衰减执行 ratioH=0.728（含重力 -0.078）；tickChain 墙体撞击后碰撞 flags 恒 false；F5 同 tick 0.980 vs 延迟 1.890；F2 击退后位移 0.890 vs 基线 0.100
 - 边界：未改任何业务实现（BotPlayer/FakeConnection/SoftMovementPrimitive/5 task 语义零改动）；未改 P0 门禁（SoftPhysicsObservationTest 文件零改动）；未判定根因（区分表归监督员定案）；未实现修复；不写档（未触碰 BotWorldData/saveToWorld）
 - 未验证限制：本包只服务端证据；客户端矩阵 M2-M4（推挤/击退可见性、收包对照）需 Windows 用户实测（阶段 B，仅当监督员按区分表指向时执行）
+
+## 方案 C 实施 C-1 任务层兜底消费段（2026-08-25 正式提交闭环，用户批准）
+- 依据：active plan（APPROVED_FOR_IMPLEMENTATION，用户批准提交）；任务书（physics-fix-c-commit-task-20260825.md）；验收记录（C-1 兜底生效 7 次、边界零违反、服务端断言如实）
+- 提交范围（严格）：本段 + 1 个 src 文件（BotManager.java：import MoverType/Vec3、onServerTick 尾段 C-1 兜底消费段、helper isTaskLayerInput/fmt3）；零改动 fixture/FakeConnection/矿链/5 个 travel 调用点/P0 门禁；不翻案、不混入其他工作区 M 文件
+- 提交机制：HEAD 于 rebase+push 后确定（本段随 commit --amend 并入；rebase github/master 合并远端 2 提交非强推；rebase 后重新 compileJava 确认 C-1 未丢；push 后 git status -sb ahead 0；最终哈希权威见证据报告尾部提交闭环段）
+- 服务端验证（headless 全套）：BOT_PHYSICS_C1_CONSUME 兜底触发 7 次（样例 tick=165 residual=(-0.400,0.400,0.012) disp=(-0.400,0.000,0.012)；tick=248 disp=(-0.379,1.000,0.128)）→ 停止条件兜底未触发不成立、不转 B；F4/F5/F2 保持 PASS（任务层零回归）；R2/R3 全套 PASS；如实：F1 仍 FAIL（第二根因候选单独立包）；F3b/tickChain 同步断言仍 FAIL（时序隔离，转 PASS 判据=C1_CONSUME+客户端 M2/M3，不伪造）
+- 未验证限制：客户端矩阵 M2（推挤可见）M3（击退可见）M4（软路径复跑不被兜底干扰）M5（跳跃异常独立线回归）需用户 Windows 实测（服务端 PASS ≠ 客户端验收）；push 后 GitHub→Windows 自动同步，用户实测前需确认 Windows 已同步
+- 下一安全步：Windows 确认同步 → 用户实测 M2-M5 → 监督员按证据报告验收客户端矩阵；C-2（NATIVE_TRAVEL 分支保留外部 delta）首轮未实施（任务书仅视 C-1 复测决定——C1_CONSUME 已有触发证据，C-2 留监督员/后续计划判定）
+
