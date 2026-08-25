@@ -84,6 +84,15 @@ public final class BotManager {
         // 注意:不再固定发工具——主手由「行为执行时替换」管理(MineTask 临时设定),
         // 退出重进不再莫名多一把镐(存档按需还原主手,见 saveToWorld)。
 
+        // F1 修复：清除 ServerPlayer 出生保护，使 bot 立即可伤害（方案 A）
+        try {
+            java.lang.reflect.Field field = net.minecraft.server.level.ServerPlayer.class.getDeclaredField("spawnInvulnerableTime");
+            field.setAccessible(true);
+            field.setInt(bot, 0);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new RuntimeException("Failed to clear spawn invulnerability for bot", e);
+        }
+
         BOTS.put(bot.getUUID(), new BotSession(bot));
         saveToWorld(bot);
         BotLog.info("假人已生成(玩家化): name={} pos={}", name, pos.toShortString());
