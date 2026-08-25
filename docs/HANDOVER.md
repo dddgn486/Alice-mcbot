@@ -391,3 +391,12 @@ headless 验收：`./gradlew runServer -Dalice.selftest.auto=true`（测完自�
 - **P1 重启条件**（供未来评估）：官方 Git server 支持工具过滤 / 用户授权自建最小只读 Git server（4 工具白名单）/ 转向其他成熟 MCP server（filesystem/fetch 等）
 - 边界遵守：未改 DSH checkout、未改 3083 生产 profile（任何生产 MCP 接入均需独立新授权）、零 env 注入、无写工具暴露
 - 遗留物：alice-mcp-lab(3090 运行中)/alice-git-lab(3091 已停) 两个隔离 profile 保留为模板；`~/.local/bin/mcp-server-git` 已安装（可 pip uninstall 清理）；`/tmp/mcp-test-server`、`/tmp/mcp-servers` 为临时文件
+
+## F1-F6 服务端物理断言（2026-08-25，主开发实施，只收集证据不定案）
+
+- 依据：active plan `20260825-f1f6-bot-physics-assertions-v1`（APPROVED_FOR_IMPLEMENTATION，用户批准 2026-08-25）；任务书 `.alice-supervision/research/f1f6-implementation-task-20260825.txt`
+- 实施提交：`6c2b461`（HEAD；新增 `src/main/java/com/dddgn/alice/task/BotPhysicsAssertionFixture.java` + `BotSelftest.setup()` 一行调用 + 证据报告 `.alice-supervision/research/f1-f6-assertion-result-20260825.md`）
+- 结果：`BOT_PHYSICS_ASSERTION_SUITE FAIL corr=147947fa tick=101 f1=false f3=false f4=true f5=true f2=true tickChain=false`（latest.log:117-141）；既有 suites 全部保持 PASS
+- 证据数值：F1 generic+mob 双源 hurt 均返回 false、health 20->20、delta 恒 0；F3 push 写入 OK(0.5,0,0) 但实体推挤位移 0；F4 travel 摩擦衰减执行 ratioH=0.728（含重力 -0.078）；tickChain 墙体撞击后碰撞 flags 恒 false；F5 同 tick 0.980 vs 延迟 1.890；F2 击退后位移 0.890 vs 基线 0.100
+- 边界：未改任何业务实现（BotPlayer/FakeConnection/SoftMovementPrimitive/5 task 语义零改动）；未改 P0 门禁（SoftPhysicsObservationTest 文件零改动）；未判定根因（区分表归监督员定案）；未实现修复；不写档（未触碰 BotWorldData/saveToWorld）
+- 未验证限制：本包只服务端证据；客户端矩阵 M2-M4（推挤/击退可见性、收包对照）需 Windows 用户实测（阶段 B，仅当监督员按区分表指向时执行）
