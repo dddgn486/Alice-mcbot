@@ -409,3 +409,12 @@ headless 验收：`./gradlew runServer -Dalice.selftest.auto=true`（测完自�
 - 未验证限制：客户端矩阵 M2（推挤可见）M3（击退可见）M4（软路径复跑不被兜底干扰）M5（跳跃异常独立线回归）需用户 Windows 实测（服务端 PASS ≠ 客户端验收）；push 后 GitHub→Windows 自动同步，用户实测前需确认 Windows 已同步
 - 下一安全步：Windows 确认同步 → 用户实测 M2-M5 → 监督员按证据报告验收客户端矩阵；C-2（NATIVE_TRAVEL 分支保留外部 delta）首轮未实施（任务书仅视 C-1 复测决定——C1_CONSUME 已有触发证据，C-2 留监督员/后续计划判定）
 
+## 方案 C 提交闭环（2026-08-25，任务 aa5e6de5）
+
+- rebase 前实况：本地 master ahead 7（含 C-1）、github/master behind 2（P1 client sync 文档线 `b24e099`/`dd5404b`，共同祖先含 `ab510fd` 修复）
+- rebase：`git rebase --autostash github/master` 无冲突完成；C-1 重写为 `14ca264`（feat(phys): C-1 task-layer residual-delta fallback consumption），语义与内容不变（`git show --stat`：BotManager.java +32、HANDOVER.md +9，无其他文件）；监督文件改动（active-plan.md/.dsh-runtime/*）经 autostash 暂存并恢复，未混入提交
+- 复验：`./gradlew compileJava` BUILD SUCCESSFUL（rebase 后 C-1 未丢、src 零新增改动）
+- 本闭环提交：docs(supervision): C-1 commit closure record（含本段），仅 HANDOVER.md 一个文件
+- push 待执行：`git push github master`（fast-forward，无强推）→ push 后 `git status -sb` 应为 ahead 0；push 成功后触发 Windows `updateInstead` 自动同步；最终状态见证据报告 `.alice-supervision/research/physics-fix-c-result-20260825.md` 尾部提交闭环段（commit hash/push 结果/ahead 确认）
+- 下一安全步：Windows 确认同步 → 用户实测 M2/M3/M4（推挤/击退/软路径复跑）与 M5（跳跃异常独立线回归）→ 监督员按证据报告验收客户端矩阵
+
