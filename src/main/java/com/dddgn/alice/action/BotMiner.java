@@ -138,7 +138,7 @@ public final class BotMiner {
                     // 路径中方块动态变化 → 从当前位置重新规划(限 2 次)
                     pathRetries++;
                     BotLog.warn("路径受阻,重新规划({}/2): target={}", pathRetries, target.toShortString());
-                    SurfacePathfinder.Result surface = SurfacePathfinder.find(level,
+                    SurfacePathfinder.Result surface = SurfacePathfinder.find(bot,
                             bot.blockPosition(), standGoal);
                     if (!surface.reachable()) {
                         failureReason = "no_path";
@@ -229,7 +229,7 @@ public final class BotMiner {
         StandChoice direct = null;
         StandChoice blocked = null;
         for (BlockPos candidate : standCandidates) {
-            SurfacePathfinder.Result surface = SurfacePathfinder.find(level, bot.blockPosition(), candidate);
+            SurfacePathfinder.Result surface = SurfacePathfinder.find(bot, bot.blockPosition(), candidate);
             if (!surface.reachable()) {
                 standSearchLimit |= surface.inconclusive();
                 BotLog.warn("候选站位不可达: {} status={} → 忽略", candidate.toShortString(), surface.status());

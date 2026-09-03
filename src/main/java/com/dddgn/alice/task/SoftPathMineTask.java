@@ -99,7 +99,7 @@ public final class SoftPathMineTask implements Task {
         // Phase 1: Soft navigation to mineTarget (复用 SoftPathProbeTask P1 逻辑)
         if (path == null) {
             BlockPos navTarget = mineTarget.above(); // Navigate to foot position above the mine target
-            SurfacePathfinder.Result result = SurfacePathfinder.find(level, bot.blockPosition(), navTarget);
+            SurfacePathfinder.Result result = SurfacePathfinder.find(bot, bot.blockPosition(), navTarget);
             if (!result.reachable()) {
                 failure = result.inconclusive() ? "soft_mine_search_limit" : "soft_mine_no_path";
                 return Status.FAILED;

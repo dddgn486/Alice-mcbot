@@ -15,6 +15,13 @@ import java.util.List;
 /**
  * SOFT_SURFACE 连续脚位段实验：复用 SurfacePathfinder，只以 NATIVE_TRAVEL 逐段执行。
  * 不接入 MineTask；每段必须确认真实脚位、支撑和 onGround 后才推进。
+ * 
+ * <h3>设计用途</h3>
+ * <ul>
+ *   <li>测试 SurfacePathfinder + SoftMovementPrimitive 的组合</li>
+ *   <li>验证多段路径的连续执行</li>
+ *   <li>物理结算和到达判定的完整性验证</li>
+ * </ul>
  */
 public final class SoftPathProbeTask implements Task {
     private static final double ARRIVE = 0.25D;
@@ -79,7 +86,7 @@ public final class SoftPathProbeTask implements Task {
             return Status.FAILED;
         }
         if (path == null) {
-            SurfacePathfinder.Result result = SurfacePathfinder.find(level, bot.blockPosition(), target);
+            SurfacePathfinder.Result result = SurfacePathfinder.find(bot, bot.blockPosition(), target);
             if (!result.reachable()) {
                 failure = result.inconclusive() ? "soft_path_search_limit" : "soft_path_no_path";
                 return Status.FAILED;

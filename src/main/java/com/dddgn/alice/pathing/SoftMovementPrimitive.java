@@ -6,8 +6,16 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * SOFT_SURFACE 的最小移动原语：朝向目标并沿前方推进一 tick。
- * <p>这是 Forge 假人的适配层，仍由 MoverType.SELF 处理碰撞；完整玩家输入/travel 注入另行验证。</p>
+ * 
+ * <p>⚠️ <b>已废弃</b>：请使用 {@link com.dddgn.alice.pathing.movement.BasicMovement}。
+ * 
+ * <p>这个类保留用于兼容现有代码，但推荐使用新的 Movement Primitives 系统。
+ * 
+ * @deprecated 使用 {@link com.dddgn.alice.pathing.movement.BasicMovement} 替代
+ * @see com.dddgn.alice.pathing.movement.BasicMovement
+ * @see com.dddgn.alice.pathing.movement.Movement
  */
+@Deprecated
 public final class SoftMovementPrimitive {
     public enum Backend {
         SELF_MOVE,

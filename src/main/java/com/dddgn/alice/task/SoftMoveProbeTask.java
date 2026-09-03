@@ -9,7 +9,14 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * 软地面移动实验任务。只用于安全平地短距离客户端验证，不接入 MineTask 或 PathExecutor。
+ * 软地面移动实验任务。用于安全平地短距离移动验证。
+ * 
+ * <h3>设计用途</h3>
+ * <ul>
+ *   <li>测试 SoftMovementPrimitive 的两种后端（SELF_MOVE / NATIVE_TRAVEL）</li>
+ *   <li>验证短距离平地移动的物理行为</li>
+ *   <li>不用于复杂寻路（使用 PathExecutor）</li>
+ * </ul>
  */
 public final class SoftMoveProbeTask implements Task {
     private static final double ARRIVE = 0.25D;
