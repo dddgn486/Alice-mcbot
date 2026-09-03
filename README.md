@@ -30,6 +30,8 @@ Alice 当前实现遵循四条边界：
 |---|---|
 | 假人玩家 | `BotPlayer` 继承 `ServerPlayer`，通过服务端玩家列表注册并在客户端可见；支持右键交互打开背包 GUI |
 | Bot 背包 GUI | 完整的交互式背包界面：装备槽（4）+ 主手 + 副手 + 背包（27）+ 快捷栏（9）；服务端权威的槽位操作；实时同步 Bot 装备变化 |
+| Phase 3 寻路架构 | Movement 系统重构（Baritone 启发）：接口化 Movement、MovementProvider 模式、时间预算替代空间边界、统一 PathPlanner 接口（A*、Local、Hybrid） |
+| Bot 遥控器（实验） | `alice:bot_remote_control`：右键进入控制模式，WASD 手动操控 Bot 移动；用于测试和调试 |
 | 感知与任务 | `PerceptionSnapshot`、`ScopeBuffer`、`Task` 状态机和只读任务执行记录 |
 | 挖矿与拾取 | 曲面可达站位、视线校验、显式掉落物追踪；深层目标保守失败为 `target_requires_tunnel` |
 | HARD_PATH | `SurfacePathfinder` + `PathExecutor`，不破坏方块，不把 `SEARCH_LIMIT` 当作可挖隧道 |
@@ -43,6 +45,8 @@ Alice 当前实现遵循四条边界：
 ### 验证状态
 
 - Bot 背包 GUI 已通过客户端测试：右键交互、装备槽操作、物品拖放、实时同步均正常；修复了关键的 FakeConnection 装备包广播导致玩家快捷栏混乱问题。
+- Phase 3 寻路架构重构已完成：Movement 系统、PathPlanner 接口统一、时间预算机制；编译通过，等待客户端集成测试。
+- Bot 遥控器（实验性）：基础控制功能已实现，编译通过，待客户端测试。
 - `alice:interface_scanner` 的独立物品身份、原版单箱只读扫描、无 Block Entity 目标和原版钻石铲隔离已完成 Windows 客户端验收；该结论仅覆盖 C1 只读快照。
 - A1.1 容器转移已通过 focused 服务端 fixture 和监督二审，仍处于 `CLIENT_TEST_PENDING`；客户端移动、在途背包可见性、冲突/重启/abort 和原版箱子 GUI 隔离仍需 Windows 实测。
 - `alice:transfer_endpoint_selector` 已通过 focused fixture 和监督二审，仍处于独立 `CLIENT_TEST_PENDING`；E1-E10 验证权限、GUI PASS、默认参数、admission 一致性和重启失效。
@@ -57,6 +61,7 @@ Alice 当前实现遵循四条边界：
 | `/alice spawn <name>` | 生成服务端假人 |
 | 右键 Bot 实体 | 打开 Bot 背包 GUI（交互式管理 Bot 装备和物品） |
 | `/alice bot-inventory <name>` | 用命令打开指定 Bot 的背包 GUI |
+| `alice:bot_remote_control` | 钟外观；右键进入控制模式，WASD 手动操控 Bot（实验性调试工具） |
 | `/alice mine <x y z>` | 指派一次显式挖掘任务 |
 | `/alice auto-mine <tag-or-id>` | 最小规则决策：选择最近且未受保护的目标 |
 | `/alice observe` | 输出挖矿视角的结构化感知摘要 |
