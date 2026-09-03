@@ -82,7 +82,7 @@ public final class TransferTask implements Task {
             return suspend(code, inTransit ? TransferLedgerData.Location.BOT_INVENTORY : TransferLedgerData.Location.NOT_MOVED);
         }
         if (movement == null) {
-            SurfacePathfinder.Result path = SurfacePathfinder.find(level, bot.blockPosition(), goal);
+            SurfacePathfinder.Result path = SurfacePathfinder.find(bot, bot.blockPosition(), goal);
             if (!path.reachable()) return suspend(path.inconclusive() ? TransferCodes.HARD_PATH_SEARCH_LIMIT : TransferCodes.HARD_PATH_UNREACHABLE,
                     inTransit ? TransferLedgerData.Location.BOT_INVENTORY : TransferLedgerData.Location.NOT_MOVED);
             movement = new PathExecutor(bot, path.path()); transition(state, inTransit ? TransferLedgerData.Location.BOT_INVENTORY : TransferLedgerData.Location.NOT_MOVED, "", false);

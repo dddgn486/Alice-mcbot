@@ -144,9 +144,9 @@ public final class DropCollectionTask implements Task {
             if (pos.equals(bot.blockPosition())) {
                 executor = new PathExecutor(bot, List.of(pos));
             } else {
-                SurfacePathfinder.Result result = SurfacePathfinder.find(level, bot.blockPosition(), pos);
+                SurfacePathfinder.Result result = SurfacePathfinder.find(bot, bot.blockPosition(), pos);
                 if (!result.reachable()) {
-                    result = SurfacePathfinder.find(level, bot.blockPosition(), pos.above());
+                    result = SurfacePathfinder.find(bot, bot.blockPosition(), pos.above());
                 }
                 if (!result.reachable()) {
                     BlockPos blocker = findStairBlocker(level, pos);

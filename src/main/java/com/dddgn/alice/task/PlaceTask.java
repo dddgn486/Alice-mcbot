@@ -54,7 +54,7 @@ public final class PlaceTask implements Task {
                     break;
                 }
                 List<BlockPos> path = AStarPathfinder.computePath(
-                        (net.minecraft.server.level.ServerLevel) bot.level(), bot.blockPosition(),
+                        bot, bot.blockPosition(),
                         new Goal.GoalBlock(candidate));
                 if (!path.isEmpty()) {
                     selected = candidate;

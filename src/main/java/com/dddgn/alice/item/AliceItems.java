@@ -41,6 +41,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> TRANSFER_ENDPOINT_SELECTOR =
             ITEMS.register("transfer_endpoint_selector", () -> new TransferEndpointSelector(new Item.Properties()));
 
+    /** Bot 遥控器：右键进入控制模式，WASD 操控 bot 移动。贴图使用原版钟。 */
+    public static final RegistryObject<Item> BOT_REMOTE_CONTROL =
+            ITEMS.register("bot_remote_control", () -> new BotRemoteControl(new Item.Properties()));
+
     private AliceItems() {
     }
 }
