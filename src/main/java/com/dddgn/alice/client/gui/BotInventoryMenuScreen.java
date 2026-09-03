@@ -46,14 +46,6 @@ public class BotInventoryMenuScreen extends AbstractContainerScreen<BotInventory
         super.init();
         // 标题居中
         this.titleLabelX = (this.imageWidth - this.font.width(this.title)) / 2;
-        
-        // 日志探针：检查客户端 Menu 的槽位数据
-        com.dddgn.alice.log.BotLog.info("[GUI_DEBUG] BotInventoryMenuScreen init: checking first 10 slots from menu.slots");
-        for (int i = 0; i < Math.min(10, this.menu.slots.size()); i++) {
-            net.minecraft.world.item.ItemStack stack = this.menu.slots.get(i).getItem();
-            com.dddgn.alice.log.BotLog.info("[GUI_DEBUG]   client slot[{}] = {}", i, 
-                    stack.isEmpty() ? "EMPTY" : stack.getCount() + "x" + stack.getItem());
-        }
     }
 
     @Override

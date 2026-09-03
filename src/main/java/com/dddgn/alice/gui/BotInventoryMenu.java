@@ -91,8 +91,6 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
         for (int col = 0; col < 9; col++) {
             addSlot(new Slot(botContainer, col, 8 + col * 18, 142));
         }
-        
-        BotLog.info("[GUI_DEBUG] buildBotSlots completed with real bot inventory");
     }
     
     /**
@@ -122,8 +120,6 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
         for (int col = 0; col < 9; col++) {
             addSlot(new Slot(dummyContainer, 32 + col, 8 + col * 18, 142));
         }
-        
-        BotLog.info("[GUI_DEBUG] buildDummyBotSlots completed with dummy container (41 slots)");
     }
 
     /** Adds the player's own inventory slots below the bot grid, reusing vanilla geometry. */
@@ -174,13 +170,9 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
         ItemStack stack = slot.getItem();
         ItemStack original = stack.copy();
         
-        BotLog.info("[GUI_DEBUG] quickMove BEFORE: index={}, slotItem={}, stackCount={}, taskActive={}",
-                index, slot.getItem(), stack.getCount(), taskActive);
-        
         if (taskActive) {
             // Read-only while the bot is busy: block quick-move entirely (both directions
             // touch bot-owned slots).
-            BotLog.info("[GUI_DEBUG] quickMove blocked (taskActive)");
             return ItemStack.EMPTY;
         }
 
@@ -211,9 +203,6 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
             moved = moveItemStackTo(stack, 0, BOT_SLOT_CAP, false);
         }
         
-        BotLog.info("[GUI_DEBUG] quickMove AFTER move: index={}, moved={}, stackNow={}, slotNow={}",
-                index, moved, stack, slot.getItem());
-        
         if (!moved) {
             return ItemStack.EMPTY;
         }
@@ -229,12 +218,8 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
         }
         slot.onTake(player, stack);
         
-        BotLog.info("[GUI_DEBUG] quickMove AFTER sync: count={}, slotNowAfterSync={}",
-                original.getCount(), slot.getItem());
-        
         // Force-sync bot slots after quick move
         forceSyncBotSlots();
-        BotLog.info("[GUI_DEBUG] quickMove completed -> forced sync ALL {} bot slots", BOT_SLOT_CAP);
         
         return original;
     }
@@ -266,42 +251,12 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
         
         boolean botSlot = slotId >= 0 && slotId < BOT_SLOT_CAP;
         
-        // 日志探针：点击前状态
-        if (botSlot && slotId < this.slots.size()) {
-            ItemStack slotBefore = this.slots.get(slotId).getItem().copy();
-            ItemStack carriedBefore = this.getCarried().copy();
-            
-            // 关键探针：直接读取 bot.getInventory()
-            ItemStack botInvBefore = bot != null ? bot.getInventory().getItem(this.slots.get(slotId).getContainerSlot()) : ItemStack.EMPTY;
-            
-            BotLog.info("[GUI_DEBUG] clicked BEFORE: slotId={}, button={}, clickType={}, botSlot={}, taskActive={}, slotItem={}, carried={}, botInv[{}]={}",
-                    slotId, button, clickType, botSlot, taskActive, slotBefore, carriedBefore, 
-                    slotId, botInvBefore.isEmpty() ? "EMPTY" : botInvBefore.getCount() + "x" + botInvBefore.getItem());
-        } else {
-            BotLog.info("[GUI_DEBUG] clicked BEFORE: slotId={}, button={}, clickType={}, botSlot={}, taskActive={}",
-                    slotId, button, clickType, botSlot, taskActive);
-        }
-        
         if (taskActive && botSlot) {
             // Read-only while busy: swallow the click, leaving inventory untouched.
-            BotLog.info("[GUI_DEBUG] clicked swallowed (read-only while busy) slotId={}", slotId);
             return;
         }
         
         super.clicked(slotId, button, clickType, player);
-        
-        // 日志探针：点击后状态
-        if (botSlot && slotId < this.slots.size()) {
-            ItemStack slotAfter = this.slots.get(slotId).getItem().copy();
-            ItemStack carriedAfter = this.getCarried().copy();
-            
-            // 关键探针：直接读取 bot.getInventory() 看是否真的变化了
-            ItemStack botInvAfter = bot != null ? bot.getInventory().getItem(this.slots.get(slotId).getContainerSlot()) : ItemStack.EMPTY;
-            
-            BotLog.info("[GUI_DEBUG] clicked AFTER super: slotId={}, slotItem={}, carried={}, botInv[{}]={}",
-                    slotId, slotAfter, carriedAfter, slotId, 
-                    botInvAfter.isEmpty() ? "EMPTY" : botInvAfter.getCount() + "x" + botInvAfter.getItem());
-        }
         
         // Force-sync bot slots to client after any operation touching bot inventory.
         // Reason: bot's Inventory.setItem/removeItem does not call setChanged(), and bot's
@@ -309,16 +264,6 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
         // via the player's real connection, ensuring the client GUI shows updated bot inventory.
         if (botSlot || clickType == ClickType.QUICK_MOVE) {
             forceSyncBotSlots();
-            BotLog.info("[GUI_DEBUG] clicked {} botSlot={} -> forced sync ALL {} bot slots", clickType, botSlot, BOT_SLOT_CAP);
-        }
-        
-        // 日志探针：强制同步后
-        if (botSlot && slotId < this.slots.size()) {
-            ItemStack slotFinal = this.slots.get(slotId).getItem().copy();
-            ItemStack botInvFinal = bot != null ? bot.getInventory().getItem(this.slots.get(slotId).getContainerSlot()) : ItemStack.EMPTY;
-            BotLog.info("[GUI_DEBUG] clicked FINAL: slotId={}, slotItem={}, botInv[{}]={}",
-                    slotId, slotFinal, slotId, 
-                    botInvFinal.isEmpty() ? "EMPTY" : botInvFinal.getCount() + "x" + botInvFinal.getItem());
         }
     }
 
@@ -332,22 +277,7 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
     
     @Override
     public void broadcastChanges() {
-        // 日志探针：同步前检查 bot 槽位状态
-        if (bot != null) {
-            StringBuilder sb = new StringBuilder("[GUI_DEBUG] broadcastChanges BEFORE: ");
-            for (int i = 0; i < Math.min(5, BOT_SLOT_CAP); i++) {
-                ItemStack slotItem = this.slots.get(i).getItem();
-                sb.append(String.format("slot[%d]=%s, ", i, slotItem.isEmpty() ? "EMPTY" : slotItem.getItem()));
-            }
-            BotLog.info(sb.toString());
-        }
-        
         super.broadcastChanges();
-        
-        // 日志探针：同步后
-        if (bot != null) {
-            BotLog.info("[GUI_DEBUG] broadcastChanges AFTER: called super");
-        }
     }
     
     /** Force-sync all bot slots to the client by marking them changed. */
