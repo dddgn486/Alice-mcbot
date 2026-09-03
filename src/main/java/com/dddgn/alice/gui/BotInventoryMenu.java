@@ -37,6 +37,14 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
 
     /** Bot-owned slot count (36 ordinary + 4 armor + 1 offhand); indices below this are bot-owned. */
     private static final int BOT_SLOT_CAP = 41;
+    
+    /** Slot region boundaries for proper quick-move behavior and mod compatibility */
+    private static final int BOT_EQUIPMENT_START = 0;
+    private static final int BOT_EQUIPMENT_END = 4;    // Armor slots (0-3), exclusive end
+    private static final int BOT_OFFHAND_SLOT = 4;
+    private static final int BOT_MAIN_INVENTORY_START = 5;  // Start of main inventory (27 slots)
+    private static final int BOT_HOTBAR_START = 32;         // Start of hotbar (9 slots)
+    private static final int BOT_HOTBAR_END = 41;           // End of bot slots, exclusive
 
     private static final EquipmentSlot[] ARMOR_SLOT_IDS = {
             EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET
@@ -192,15 +200,15 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
             }
         } else if (equipmentSlot == EquipmentSlot.OFFHAND) {
             // Player item is offhand -> move to bot offhand slot (index 4) if free.
-            int offhandSlot = 4;
-            if (!this.slots.get(offhandSlot).hasItem()) {
-                moved = moveItemStackTo(stack, offhandSlot, offhandSlot + 1, false);
+            if (!this.slots.get(BOT_OFFHAND_SLOT).hasItem()) {
+                moved = moveItemStackTo(stack, BOT_OFFHAND_SLOT, BOT_OFFHAND_SLOT + 1, false);
             } else {
                 moved = false;
             }
         } else {
-            // Player slot -> bot grid: forward-move.
-            moved = moveItemStackTo(stack, 0, BOT_SLOT_CAP, false);
+            // Player slot -> bot main inventory and hotbar (skip equipment and offhand).
+            // This prevents items from being placed in offhand by inventory sorter mods.
+            moved = moveItemStackTo(stack, BOT_MAIN_INVENTORY_START, BOT_HOTBAR_END, false);
         }
         
         if (!moved) {
