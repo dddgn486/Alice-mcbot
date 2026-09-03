@@ -74,16 +74,12 @@ public class BotInventoryMenuScreen extends AbstractContainerScreen<BotInventory
             renderSlotBackground(graphics, sx, sy);
         }
         
-        // 高亮 bot 选中的 hotbar 槽位（主手）
-        if (this.menu.bot() != null) {
-            int selectedSlot = this.menu.bot().getInventory().selected;  // 0-8
-            // Bot 的 hotbar 槽是最后 9 个 bot 槽（menu 索引 32-40）
-            int slotIndex = 32 + selectedSlot;
-            
-            if (slotIndex < this.menu.slots.size()) {
-                var slot = this.menu.slots.get(slotIndex);
-                renderSelectedSlotHighlight(graphics, x + slot.x - 1, y + slot.y - 1);
-            }
+        // 高亮 bot 的主手槽（hotbar 第一格，固定位置）
+        // Bot 的主手槽永远是 inventory index 0，在 GUI 中是 menu 索引 32
+        int mainHandSlotIndex = 32;  // hotbar 第一格
+        if (mainHandSlotIndex < this.menu.slots.size()) {
+            var slot = this.menu.slots.get(mainHandSlotIndex);
+            renderSelectedSlotHighlight(graphics, x + slot.x - 1, y + slot.y - 1);
         }
         
         // TODO: Bot 模型渲染（暂时移除，因为 EntityRenderer 为 null）
