@@ -33,7 +33,7 @@ import net.minecraft.world.item.enchantment.EnchantmentHelper;
 public final class BotInventoryMenu extends AbstractContainerMenu {
 
     /** Last bot opened, used only to rebuild a menu on server-side resize. */
-    private static BotPlayer OPEN_BOT;
+    static BotPlayer OPEN_BOT;
 
     /** Bot-owned slot count (36 ordinary + 4 armor + 1 offhand); indices below this are bot-owned. */
     private static final int BOT_SLOT_CAP = 41;
@@ -52,36 +52,78 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
         OPEN_BOT = bot;
 
         if (bot != null) {
+            // 服务端：使用真实的 bot inventory
             buildBotSlots(bot);
         } else {
-            BotLog.warn("bot_inventory opened with null bot; showing player slots only");
+            // 客户端：bot 为 null 时，创建假容器（槽数必须和服务端一致）
+            BotLog.warn("bot_inventory opened with null bot; using dummy container for client sync");
+            buildDummyBotSlots(playerInv);
         }
         buildPlayerSlots(playerInv);
     }
 
     /**
-     * Adds the bot's slots using the vanilla inventory-menu geometry:
-     * armor column (x=8, y=8/26/44/62), offhand (x=77, y=62), 27 main (y=84..), 9 hotbar (y=142).
-     * Armor/offhand use custom {@code Slot} subclasses mirroring InventoryMenu$1/$2.
+     * Adds the bot's slots with standard layout:
+     * - Armor column (left, x=8)
+     * - Offhand slot (x=77, y=8)
+     * - 27 main inventory (3×9, y=84..)
+     * - 9 hotbar (1×9, y=142)
      */
     private void buildBotSlots(BotPlayer bot) {
         Inventory botContainer = bot.getInventory();
+        
         // Armor column (index 39=head, 38=chest, 37=legs, 36=feet), top to bottom.
         for (int i = 0; i < 4; i++) {
             addSlot(new BotArmorSlot(botContainer, 39 - i, 8, 8 + i * 18, bot, ARMOR_SLOT_IDS[i]));
         }
+        
         // Offhand (index 40).
-        addSlot(new BotOffhandSlot(botContainer, 40, 77, 62, bot));
+        addSlot(new BotOffhandSlot(botContainer, 40, 77, 8, bot));
+        
         // 27 main inventory (index 9..35).
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
                 addSlot(new Slot(botContainer, 9 + col + row * 9, 8 + col * 18, 84 + row * 18));
             }
         }
+        
         // 9 hotbar (index 0..8).
         for (int col = 0; col < 9; col++) {
             addSlot(new Slot(botContainer, col, 8 + col * 18, 142));
         }
+        
+        BotLog.info("[GUI_DEBUG] buildBotSlots completed with real bot inventory");
+    }
+    
+    /**
+     * 客户端使用：创建假容器槽（槽数必须和服务端一致）
+     */
+    private void buildDummyBotSlots(Inventory playerInv) {
+        // 创建临时容器（41 个槽）
+        net.minecraft.world.SimpleContainer dummyContainer = new net.minecraft.world.SimpleContainer(41);
+        
+        // 创建相同数量和位置的槽（但使用假容器）
+        // 4 armor slots
+        for (int i = 0; i < 4; i++) {
+            addSlot(new Slot(dummyContainer, i, 8, 8 + i * 18));
+        }
+        
+        // 1 offhand slot
+        addSlot(new Slot(dummyContainer, 4, 77, 8));
+        
+        // 27 main inventory (index 5..31 in dummy)
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 9; col++) {
+                addSlot(new Slot(dummyContainer, 5 + col + row * 9, 8 + col * 18, 84 + row * 18));
+            }
+        }
+        
+        // 9 hotbar (index 32..40 in dummy)
+        for (int col = 0; col < 9; col++) {
+            addSlot(new Slot(dummyContainer, 32 + col, 8 + col * 18, 142));
+        }
+        
+        BotLog.info("[GUI_DEBUG] buildDummyBotSlots completed with dummy container (41 slots)");
     }
 
     /** Adds the player's own inventory slots below the bot grid, reusing vanilla geometry. */
@@ -130,15 +172,18 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
             return ItemStack.EMPTY;
         }
         ItemStack stack = slot.getItem();
-        BotLog.info("[GUI_DEBUG] quickMove before: index={}, slotItem={}, stackCount={}, taskActive={}",
+        ItemStack original = stack.copy();
+        
+        BotLog.info("[GUI_DEBUG] quickMove BEFORE: index={}, slotItem={}, stackCount={}, taskActive={}",
                 index, slot.getItem(), stack.getCount(), taskActive);
+        
         if (taskActive) {
             // Read-only while the bot is busy: block quick-move entirely (both directions
             // touch bot-owned slots).
+            BotLog.info("[GUI_DEBUG] quickMove blocked (taskActive)");
             return ItemStack.EMPTY;
         }
 
-        ItemStack original = stack.copy();
         EquipmentSlot equipmentSlot = LivingEntity.getEquipmentSlotForItem(stack);
 
         boolean moved;
@@ -165,8 +210,10 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
             // Player slot -> bot grid: forward-move.
             moved = moveItemStackTo(stack, 0, BOT_SLOT_CAP, false);
         }
-        BotLog.info("[GUI_DEBUG] quickMove after: index={}, moved={}, stackNow={}, slotNow={}",
+        
+        BotLog.info("[GUI_DEBUG] quickMove AFTER move: index={}, moved={}, stackNow={}, slotNow={}",
                 index, moved, stack, slot.getItem());
+        
         if (!moved) {
             return ItemStack.EMPTY;
         }
@@ -181,8 +228,14 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
             return ItemStack.EMPTY;
         }
         slot.onTake(player, stack);
-        BotLog.info("[GUI_DEBUG] quickMove returned original: count={}, slotNowAfterSync={}",
+        
+        BotLog.info("[GUI_DEBUG] quickMove AFTER sync: count={}, slotNowAfterSync={}",
                 original.getCount(), slot.getItem());
+        
+        // Force-sync bot slots after quick move
+        forceSyncBotSlots();
+        BotLog.info("[GUI_DEBUG] quickMove completed -> forced sync ALL {} bot slots", BOT_SLOT_CAP);
+        
         return original;
     }
 
@@ -205,28 +258,68 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
 
     @Override
     public void clicked(int slotId, int button, ClickType clickType, Player player) {
+        // ✅ 关键修复：只在服务端执行，客户端只发送 packet
+        if (player.level().isClientSide()) {
+            BotLog.info("[GUI_DEBUG] clicked on CLIENT side, skipping (will send packet to server)");
+            return;
+        }
+        
         boolean botSlot = slotId >= 0 && slotId < BOT_SLOT_CAP;
-        BotLog.info("[GUI_DEBUG] clicked before: slotId={}, button={}, clickType={}, botSlot={}, taskActive={}",
-                slotId, button, clickType, botSlot, taskActive);
+        
+        // 日志探针：点击前状态
+        if (botSlot && slotId < this.slots.size()) {
+            ItemStack slotBefore = this.slots.get(slotId).getItem().copy();
+            ItemStack carriedBefore = this.getCarried().copy();
+            
+            // 关键探针：直接读取 bot.getInventory()
+            ItemStack botInvBefore = bot != null ? bot.getInventory().getItem(this.slots.get(slotId).getContainerSlot()) : ItemStack.EMPTY;
+            
+            BotLog.info("[GUI_DEBUG] clicked BEFORE: slotId={}, button={}, clickType={}, botSlot={}, taskActive={}, slotItem={}, carried={}, botInv[{}]={}",
+                    slotId, button, clickType, botSlot, taskActive, slotBefore, carriedBefore, 
+                    slotId, botInvBefore.isEmpty() ? "EMPTY" : botInvBefore.getCount() + "x" + botInvBefore.getItem());
+        } else {
+            BotLog.info("[GUI_DEBUG] clicked BEFORE: slotId={}, button={}, clickType={}, botSlot={}, taskActive={}",
+                    slotId, button, clickType, botSlot, taskActive);
+        }
+        
         if (taskActive && botSlot) {
             // Read-only while busy: swallow the click, leaving inventory untouched.
             BotLog.info("[GUI_DEBUG] clicked swallowed (read-only while busy) slotId={}", slotId);
             return;
         }
+        
         super.clicked(slotId, button, clickType, player);
-        // PICKUP touching a bot slot: force-sync the bot slots to the player's client.
-        // Inventory.setItem/removeItem does not call setChanged(), and the bot's own
-        // FakeConnection.send() is a no-op, so the client's bot-slot snapshot would not
-        // refresh and the picked-up item appears to vanish. Marking every bot slot changed
-        // triggers broadcastChanges() so the player's GUI shows the updated bot inventory.
-        if (clickType == ClickType.PICKUP && botSlot) {
-            for (int i = 0; i < BOT_SLOT_CAP; i++) {
-                this.slots.get(i).setChanged();
-            }
-            BotLog.info("[GUI_DEBUG] clicked PICKUP botSlot -> forced setChanged on {} bot slots", BOT_SLOT_CAP);
+        
+        // 日志探针：点击后状态
+        if (botSlot && slotId < this.slots.size()) {
+            ItemStack slotAfter = this.slots.get(slotId).getItem().copy();
+            ItemStack carriedAfter = this.getCarried().copy();
+            
+            // 关键探针：直接读取 bot.getInventory() 看是否真的变化了
+            ItemStack botInvAfter = bot != null ? bot.getInventory().getItem(this.slots.get(slotId).getContainerSlot()) : ItemStack.EMPTY;
+            
+            BotLog.info("[GUI_DEBUG] clicked AFTER super: slotId={}, slotItem={}, carried={}, botInv[{}]={}",
+                    slotId, slotAfter, carriedAfter, slotId, 
+                    botInvAfter.isEmpty() ? "EMPTY" : botInvAfter.getCount() + "x" + botInvAfter.getItem());
         }
-        BotLog.info("[GUI_DEBUG] clicked after: slotId={}, button={}, clickType={}",
-                slotId, button, clickType);
+        
+        // Force-sync bot slots to client after any operation touching bot inventory.
+        // Reason: bot's Inventory.setItem/removeItem does not call setChanged(), and bot's
+        // FakeConnection.send() is a no-op. Marking bot slots changed triggers broadcastChanges()
+        // via the player's real connection, ensuring the client GUI shows updated bot inventory.
+        if (botSlot || clickType == ClickType.QUICK_MOVE) {
+            forceSyncBotSlots();
+            BotLog.info("[GUI_DEBUG] clicked {} botSlot={} -> forced sync ALL {} bot slots", clickType, botSlot, BOT_SLOT_CAP);
+        }
+        
+        // 日志探针：强制同步后
+        if (botSlot && slotId < this.slots.size()) {
+            ItemStack slotFinal = this.slots.get(slotId).getItem().copy();
+            ItemStack botInvFinal = bot != null ? bot.getInventory().getItem(this.slots.get(slotId).getContainerSlot()) : ItemStack.EMPTY;
+            BotLog.info("[GUI_DEBUG] clicked FINAL: slotId={}, slotItem={}, botInv[{}]={}",
+                    slotId, slotFinal, slotId, 
+                    botInvFinal.isEmpty() ? "EMPTY" : botInvFinal.getCount() + "x" + botInvFinal.getItem());
+        }
     }
 
     @Override
@@ -234,6 +327,33 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
         super.removed(player);
         if (OPEN_BOT == bot) {
             OPEN_BOT = null;
+        }
+    }
+    
+    @Override
+    public void broadcastChanges() {
+        // 日志探针：同步前检查 bot 槽位状态
+        if (bot != null) {
+            StringBuilder sb = new StringBuilder("[GUI_DEBUG] broadcastChanges BEFORE: ");
+            for (int i = 0; i < Math.min(5, BOT_SLOT_CAP); i++) {
+                ItemStack slotItem = this.slots.get(i).getItem();
+                sb.append(String.format("slot[%d]=%s, ", i, slotItem.isEmpty() ? "EMPTY" : slotItem.getItem()));
+            }
+            BotLog.info(sb.toString());
+        }
+        
+        super.broadcastChanges();
+        
+        // 日志探针：同步后
+        if (bot != null) {
+            BotLog.info("[GUI_DEBUG] broadcastChanges AFTER: called super");
+        }
+    }
+    
+    /** Force-sync all bot slots to the client by marking them changed. */
+    private void forceSyncBotSlots() {
+        for (int i = 0; i < BOT_SLOT_CAP; i++) {
+            this.slots.get(i).setChanged();
         }
     }
 
@@ -281,10 +401,12 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
             this.owner = owner;
         }
 
-        @Override
-        public int getMaxStackSize() {
-            return 1;
-        }
+        // ✅ 修复：副手应该能堆叠到物品的最大堆叠数，而不是只能放 1 个
+        // 原版副手槽不限制堆叠数量
+        // @Override
+        // public int getMaxStackSize() {
+        //     return 1;
+        // }
 
         @Override
         public boolean mayPickup(Player player) {

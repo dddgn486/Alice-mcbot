@@ -49,26 +49,66 @@ public class FakeConnection extends Connection {
 
     @Override
     public void send(Packet<?> packet) {
-        // P1 客户端同步修复：广播位置/速度包给真实玩家
-        if (packet instanceof ClientboundMoveEntityPacket
-            || packet instanceof ClientboundSetEntityMotionPacket
-            || packet instanceof ClientboundTeleportEntityPacket) {
-            broadcastToRealPlayers(packet);
+        // ✅ 修复：只广播头部/身体旋转包，不广播装备包
+        // 原因：装备包会被客户端误认为是玩家自己的，导致快捷栏选择混乱
+        
+        // 需要广播的包类型（只有旋转包）
+        if (packet instanceof net.minecraft.network.protocol.game.ClientboundRotateHeadPacket ||
+            (packet instanceof ClientboundMoveEntityPacket.Rot)) {
+            broadcastToTracking(packet);
+            return;
         }
+        
+        // 调试用：观察包内容
+        if (PACKET_OBSERVER && (packet instanceof ClientboundMoveEntityPacket
+            || packet instanceof ClientboundSetEntityMotionPacket
+            || packet instanceof ClientboundTeleportEntityPacket)) {
+            logPacketObservationNoSend(packet);
+        }
+        
         // 其他包丢弃（bot 自己不需要）
     }
 
     @Override
     public void send(Packet<?> packet, PacketSendListener callback) {
-        // P1 客户端同步修复：广播位置/速度包
-        if (packet instanceof ClientboundMoveEntityPacket
-            || packet instanceof ClientboundSetEntityMotionPacket
-            || packet instanceof ClientboundTeleportEntityPacket) {
-            broadcastToRealPlayers(packet);
+        // ✅ 修复：只广播头部/身体旋转包，不广播装备包
+        if (packet instanceof net.minecraft.network.protocol.game.ClientboundRotateHeadPacket ||
+            (packet instanceof ClientboundMoveEntityPacket.Rot)) {
+            broadcastToTracking(packet);
+            if (callback != null) {
+                callback.onSuccess();
+            }
+            return;
         }
+        
+        // 调试用：观察包内容
+        if (PACKET_OBSERVER && (packet instanceof ClientboundMoveEntityPacket
+            || packet instanceof ClientboundSetEntityMotionPacket
+            || packet instanceof ClientboundTeleportEntityPacket)) {
+            logPacketObservationNoSend(packet);
+        }
+        
         if (callback != null) {
             callback.onSuccess();
         }
+    }
+    
+    /** 广播包给所有追踪 bot 的玩家 */
+    private void broadcastToTracking(Packet<?> packet) {
+        if (bot != null && bot.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+            serverLevel.getChunkSource().broadcast(bot, packet);
+        }
+    }
+    
+    private void logPacketObservationNoSend(Packet<?> packet) {
+        if (bot == null || bot.getServer() == null) {
+            return;
+        }
+        int tick = bot.getServer().getTickCount();
+        int packetEntityId = packetEntityId(packet, bot);
+        String fields = packetFields(packet);
+        BotLog.info("[PACKET_OBSERVER] tick={} botEntityId={} packetClass={} packetEntityId={} fields={} NOTE:NOT_BROADCASTED",
+                tick, bot.getId(), packet.getClass().getSimpleName(), packetEntityId, fields);
     }
 
     private void broadcastToRealPlayers(Packet<?> packet) {

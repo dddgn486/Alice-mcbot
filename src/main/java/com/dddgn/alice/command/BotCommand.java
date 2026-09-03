@@ -86,6 +86,13 @@ public final class BotCommand {
                                          .executes(ctx -> buildRoadByBot(ctx.getSource()))))
                 .then(Commands.literal("observe")
                         .executes(ctx -> observe(ctx.getSource())))
+                .then(Commands.literal("bot-control")
+                        .then(Commands.literal("forward")
+                                .executes(ctx -> botControlForward(ctx.getSource())))
+                        .then(Commands.literal("stop")
+                                .executes(ctx -> botControlStop(ctx.getSource())))
+                        .then(Commands.literal("jump")
+                                .executes(ctx -> botControlJump(ctx.getSource()))))
                 .then(Commands.literal("selftest")
                         .executes(ctx -> selftest(ctx.getSource(), false))
                         .then(Commands.literal("full")
@@ -334,7 +341,7 @@ public final class BotCommand {
         }
         net.minecraft.resources.ResourceLocation id;
         try {
-            id = new net.minecraft.resources.ResourceLocation(tagStr);
+            id = net.minecraft.resources.ResourceLocation.parse(tagStr);
         } catch (Exception e) {
             source.sendFailure(Component.literal("[alice] 格式错误: " + tagStr));
             return 0;
@@ -649,6 +656,42 @@ public final class BotCommand {
         String summary = PerceptionSnapshot.summarize(source.getLevel(), center, PerceptionProfile.MINING);
         source.sendSuccess(() -> Component.literal("[alice] 感知摘要已生成(挖矿视角),详见日志"), false);
         BotLog.info("感知摘要(挖矿视角):\n{}", summary);
+        return 1;
+    }
+    
+    /** BotController 测试：让 Bot 前进 */
+    private static int botControlForward(CommandSourceStack source) {
+        BotPlayer bot = BotManager.first();
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] 没有 Bot"));
+            return 0;
+        }
+        bot.controller().setForward(1.0F);
+        source.sendSuccess(() -> Component.literal("[alice] Bot 前进"), false);
+        return 1;
+    }
+    
+    /** BotController 测试：让 Bot 停止 */
+    private static int botControlStop(CommandSourceStack source) {
+        BotPlayer bot = BotManager.first();
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] 没有 Bot"));
+            return 0;
+        }
+        bot.controller().stopMovement();
+        source.sendSuccess(() -> Component.literal("[alice] Bot 停止"), false);
+        return 1;
+    }
+    
+    /** BotController 测试：让 Bot 跳跃 */
+    private static int botControlJump(CommandSourceStack source) {
+        BotPlayer bot = BotManager.first();
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] 没有 Bot"));
+            return 0;
+        }
+        bot.controller().jumpOnce();
+        source.sendSuccess(() -> Component.literal("[alice] Bot 跳跃"), false);
         return 1;
     }
 }

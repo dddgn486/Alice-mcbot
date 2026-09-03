@@ -2,6 +2,7 @@ package com.dddgn.alice;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotSelftest;
+import com.dddgn.alice.gui.ModMenuTypes;
 import com.dddgn.alice.item.AliceItems;
 import com.dddgn.alice.network.AliceNetwork;
 import com.dddgn.alice.perception.ScopeBuffer;
@@ -9,23 +10,21 @@ import com.dddgn.alice.road.RoadBuilder;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;  // ← 新增
 
-/**
- * AI Bot —— 游戏内 AI 助手(执行层框架阶段)。
- * <p>
- * 现阶段:任务框架(Task/MineTask) + 感知联动(ScopeBuffer 掉落物) +
- * 客户端测试效果(目标透视高亮) + 测试工具(目标指定器)。
- * SELFTEST:手动触发验收(headless,审查点 R8)。
- */
 @Mod(AliceMod.MOD_ID)
 public class AliceMod {
 
     public static final String MOD_ID = "alice";
 
-    public AliceMod() {
-        IEventBus modEventBus = net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get().getModEventBus();
+    // ✅ 改成这样（和 TangoMod 一样）
+    public AliceMod(FMLJavaModLoadingContext context) {
+        IEventBus modEventBus = context.getModEventBus();
+
         // 物品注册(MOD 总线)
         AliceItems.ITEMS.register(modEventBus);
+        // 容器菜单注册(MOD 总线)
+        ModMenuTypes.MENUS.register(modEventBus);
         // 网络通道(S2C 任务目标同步 + bot inventory 快照/action)
         AliceNetwork.register();
 
@@ -35,5 +34,8 @@ public class AliceMod {
         MinecraftForge.EVENT_BUS.register(RoadBuilder.class);
         MinecraftForge.EVENT_BUS.register(BotSelftest.class);
         MinecraftForge.EVENT_BUS.register(com.dddgn.alice.tool.ScanWand.class);
+
+        // Bot 遥控器输入处理
+        MinecraftForge.EVENT_BUS.register(new com.dddgn.alice.item.BotRemoteControlHandler());
     }
 }
