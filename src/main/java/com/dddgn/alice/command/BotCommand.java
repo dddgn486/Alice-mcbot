@@ -61,6 +61,8 @@ public final class BotCommand {
                         .then(Commands.argument("name", StringArgumentType.string())
                                 .executes(ctx -> spawn(ctx.getSource(),
                                         StringArgumentType.getString(ctx, "name")))))
+                .then(Commands.literal("come")
+                        .executes(ctx -> come(ctx.getSource())))
                 .then(Commands.literal("mine")
                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                 .executes(ctx -> mine(ctx.getSource(),
@@ -118,7 +120,25 @@ public final class BotCommand {
                                         .suggests((ctx, builder) -> net.minecraft.commands.SharedSuggestionProvider
                                                 .suggest(new String[]{"north", "south", "east", "west"}, builder))
                                         .executes(ctx -> descendDiagnostic(ctx.getSource(),
-                                                StringArgumentType.getString(ctx, "direction"))))))
+                                                StringArgumentType.getString(ctx, "direction")))))
+                        .then(Commands.literal("chain")
+                                .then(Commands.argument("direction", StringArgumentType.word())
+                                        .suggests((ctx, builder) -> net.minecraft.commands.SharedSuggestionProvider
+                                                .suggest(new String[]{"north", "south", "east", "west"}, builder))
+                                        .then(Commands.argument("count", IntegerArgumentType.integer(2, 8))
+                                                .executes(ctx -> chainDiagnostic(ctx.getSource(),
+                                                        StringArgumentType.getString(ctx, "direction"),
+                                                        IntegerArgumentType.getInteger(ctx, "count"))))))
+                        .then(Commands.literal("session-here")
+                                .executes(ctx -> pathSessionHere(ctx.getSource())))
+                        .then(Commands.literal("battery")
+                                .executes(ctx -> pathingBattery(ctx.getSource())))
+                        .then(Commands.literal("plan-here")
+                                .executes(ctx -> planPathHere(ctx.getSource())))
+                        .then(Commands.literal("plan")
+                                .then(Commands.argument("pos", BlockPosArgument.blockPos())
+                                        .executes(ctx -> planPath(ctx.getSource(),
+                                                BlockPosArgument.getLoadedBlockPos(ctx, "pos"))))))
                 .then(Commands.literal("status")
                         .executes(ctx -> status(ctx.getSource())))
                 .then(Commands.literal("bot-inventory")
@@ -509,6 +529,159 @@ public final class BotCommand {
         source.sendSuccess(() -> Component.literal("[alice] R2-C Ascend submitted bot="
                 + bot.getName().getString() + " from=" + from.toShortString()
                 + " to=" + to.toShortString()), false);
+        return 1;
+    }
+
+    /** R4 路径会话：规划到命令执行者脚下并逐段执行（零参数）。 */
+    private static int pathSessionHere(CommandSourceStack source) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) {
+            source.sendFailure(Component.literal("[alice] session-here 需要玩家执行"));
+            return 0;
+        }
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            bot = BotManager.firstOrSpawn(source.getLevel(), player.blockPosition());
+        }
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] bot_unavailable"));
+            return 0;
+        }
+        final BlockPos goal = player.blockPosition().immutable();
+        final String botName = bot.getName().getString();
+        if (!BotManager.assignPathSessionDiagnostic(bot, goal)) {
+            source.sendFailure(Component.literal("[alice] bot_busy"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("[alice] R4 路径会话已提交 bot="
+                + botName + " → " + goal.toShortString() + "（规划 + 逐段执行）"), false);
+        return 1;
+    }
+
+    /** 把最近的 bot 叫到玩家身边（场景测试摆位用；零参数）。 */
+    private static int come(CommandSourceStack source) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) {
+            source.sendFailure(Component.literal("[alice] come 需要玩家执行"));
+            return 0;
+        }
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            bot = BotManager.firstOrSpawn(source.getLevel(), player.blockPosition());
+        }
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] bot_unavailable"));
+            return 0;
+        }
+        BlockPos foot = player.blockPosition().immutable();
+        // 带头部同步的传送重载，避免头身不一致
+        bot.teleportTo(source.getLevel(), foot.getX() + 0.5D, foot.getY(), foot.getZ() + 0.5D,
+                java.util.Set.of(), bot.getYRot(), bot.getXRot());
+        bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+        bot.controller().stopMovement();
+        final String name = bot.getName().getString();
+        source.sendSuccess(() -> Component.literal("[alice] " + name + " 已到位 " + foot.toShortString()), false);
+        return 1;
+    }
+
+    /** 一键自检电池：规划检查 + 全部 Movement + 2 段链，零参数。 */
+    private static int pathingBattery(CommandSourceStack source) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        ServerPlayer player = source.getPlayer();
+        if (bot == null && player != null) {
+            bot = BotManager.firstOrSpawn(source.getLevel(), player.blockPosition());
+        }
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] bot_unavailable"));
+            return 0;
+        }
+        final BlockPos anchor = player == null ? bot.blockPosition().immutable()
+                : player.blockPosition().immutable();
+        final String botName = bot.getName().getString();
+        if (!BotManager.assignPathingBattery(bot, anchor)) {
+            source.sendFailure(Component.literal("[alice] bot_busy"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("[alice] R3 自检电池已提交 bot="
+                + botName + " 起点=" + anchor.toShortString()
+                + "（规划 + 全部 Movement + 链），结果见聊天/日志"), false);
+        return 1;
+    }
+
+    /** 零参数规划测试：从最近 bot 规划到命令执行者脚下的脚位。 */
+    private static int planPathHere(CommandSourceStack source) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) {
+            source.sendFailure(Component.literal("[alice] plan-here 需要玩家执行"));
+            return 0;
+        }
+        return planPath(source, player.blockPosition().immutable());
+    }
+
+    /**
+     * R3 规划内核诊断：从最近 bot 的脚位到目标脚位跑一次 Movement-aware A*，
+     * 只报告 {@code PathPlan}，不执行、不修改世界。
+     */
+    private static int planPath(CommandSourceStack source, BlockPos goalFoot) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] bot_unavailable"));
+            return 0;
+        }
+        BlockPos startFoot = bot.blockPosition().immutable();
+        com.dddgn.alice.pathing.core.search.PathPlan plan =
+                new com.dddgn.alice.pathing.core.search.CorePathPlanner()
+                        .planTo(source.getLevel(), bot.getUUID().toString(), startFoot, goalFoot, "command");
+        BotLog.info("[R3 Plan] {} bot={} from={} to={}", plan.summary(),
+                bot.getName().getString(), startFoot.toShortString(), goalFoot.toShortString());
+        for (int i = 0; i < plan.movements().size(); i++) {
+            var movement = plan.movements().get(i);
+            BotLog.info("[R3 Plan] step={} type={} from={} to={} cost={}",
+                    i, movement.movementType(), movement.fromFoot().toShortString(),
+                    movement.toFoot().toShortString(), String.format(java.util.Locale.ROOT, "%.3f", movement.cost()));
+        }
+        source.sendSuccess(() -> Component.literal("[alice] R3 Plan " + plan.summary()
+                + " from=" + startFoot.toShortString() + " to=" + goalFoot.toShortString()
+                + (plan.diagnostics().isEmpty() ? "" : " | " + plan.diagnostics())), false);
+        return plan.reached() ? 1 : 0;
+    }
+
+    /**
+     * 多段链接诊断：沿指定方向连续下降 count 级（每级水平 1 格 + 下降 1 格），
+     * 用于验证 D-026 合法位置集与统一完成契约下的多段链接不断链。
+     */
+    private static int chainDiagnostic(CommandSourceStack source, String rawDirection, int count) {
+        Direction direction = switch (rawDirection.toLowerCase(java.util.Locale.ROOT)) {
+            case "north" -> Direction.NORTH;
+            case "south" -> Direction.SOUTH;
+            case "east" -> Direction.EAST;
+            case "west" -> Direction.WEST;
+            default -> null;
+        };
+        if (direction == null) {
+            source.sendFailure(Component.literal("[alice] chain_invalid_direction: use north/south/east/west"));
+            return 0;
+        }
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] bot_unavailable"));
+            return 0;
+        }
+        java.util.List<BlockPos> planned = new java.util.ArrayList<>();
+        BlockPos cursor = bot.blockPosition().immutable();
+        planned.add(cursor);
+        for (int i = 0; i < count; i++) {
+            cursor = cursor.relative(direction).below();
+            planned.add(cursor);
+        }
+        if (!BotManager.assignChainDiagnostic(bot, planned)) {
+            source.sendFailure(Component.literal("[alice] bot_busy"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("[alice] R2-C Chain submitted bot="
+                + bot.getName().getString() + " segments=" + count
+                + " from=" + planned.get(0).toShortString()
+                + " to=" + planned.get(planned.size() - 1).toShortString()), false);
         return 1;
     }
 

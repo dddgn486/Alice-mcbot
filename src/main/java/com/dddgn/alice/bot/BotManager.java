@@ -13,7 +13,10 @@ import com.dddgn.alice.task.TransferTask;
 import com.dddgn.alice.task.TraverseDiagnosticTask;
 import com.dddgn.alice.task.DiagonalDiagnosticTask;
 import com.dddgn.alice.task.AscendDiagnosticTask;
+import com.dddgn.alice.task.ChainDiagnosticTask;
 import com.dddgn.alice.task.DescendDiagnosticTask;
+import com.dddgn.alice.task.PathingBatteryTask;
+import com.dddgn.alice.task.PathSessionDiagnosticTask;
 import com.dddgn.alice.transfer.TransferCodes;
 import com.dddgn.alice.transfer.TransferLedgerData;
 import com.dddgn.alice.transfer.TransferRequest;
@@ -358,6 +361,38 @@ public static void assignFollow(BotPlayer bot, ServerPlayer target) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
         session.beginTask(new DescendDiagnosticTask(bot, goalFoot), TaskTarget.block(goalFoot));
+        broadcastTarget(session.target);
+        return true;
+    }
+
+    /** Assigns the focused R2-C multi-segment chain diagnostic (P0 链接验收). */
+    public static boolean assignChainDiagnostic(BotPlayer bot, java.util.List<BlockPos> plannedFoot) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        BlockPos goal = plannedFoot.get(plannedFoot.size() - 1);
+        session.beginTask(new ChainDiagnosticTask(bot, plannedFoot), TaskTarget.block(goal));
+        broadcastTarget(session.target);
+        return true;
+    }
+
+    /**
+     * Assigns the R3 one-action self-test battery (plan + all movements + chain).
+     *
+     * @param hubFoot 测试起点脚位；任务开始与每项开始前会把 bot 锚定到此处
+     */
+    public static boolean assignPathingBattery(BotPlayer bot, BlockPos hubFoot) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        session.beginTask(new PathingBatteryTask(bot, hubFoot), TaskTarget.block(hubFoot));
+        broadcastTarget(session.target);
+        return true;
+    }
+
+    /** Assigns the R4 plan→session execution diagnostic. */
+    public static boolean assignPathSessionDiagnostic(BotPlayer bot, BlockPos goalFoot) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        session.beginTask(new PathSessionDiagnosticTask(bot, goalFoot), TaskTarget.block(goalFoot));
         broadcastTarget(session.target);
         return true;
     }
