@@ -31,6 +31,14 @@
   evidence_sources: [project-local, runtime-logs, client-test]
 
 # Forge Mod Development Skills (deployed 2026-01-26)
+- id: alice-baritone-kernel-alignment
+  version: 1.0.0
+  status: maintainer-approved
+  owner: alice-supervision
+  scope: methodology
+  summary: Alice is a Baritone-compatible kernel; align to Baritone before building anything custom.
+  evidence_sources: [project-local, reference-source, runtime-logs]
+
 - id: forge-fakeplayer-lifecycle
   version: 1.0.0
   status: maintainer-approved

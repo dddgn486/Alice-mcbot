@@ -256,10 +256,12 @@ AI 开始编码前只做这些动作：
 
 当设计或修复寻路/移动系统时，必须先调查 Baritone 的实现：
 
+0. **路线约束（D-036，用户 2026-09-09 重申）**：Alice 是 **Baritone 兼容内核**。非 Alice 目标差异部分一律对齐 Baritone，禁止自制替代内核、禁止补丁堆叠。必须偏离时在 `docs/AI_DECISIONS.md` 登记 Baritone `文件:行` + Alice 特有约束。改动前读 skill `alice-baritone-kernel-alignment`。
 1. **不要凭空设计** - Baritone 已经解决了大部分 Minecraft 寻路边界情况
 2. **主动搜索 Baritone 源码** - 使用 `web_search` 查找对应的 Movement 类实现
    - 例如：`MovementAscend.java`、`MovementDescend.java`、`MovementDiagonal.java`
-   - **本地参考源码**：`/home/fb486/projects/reference/baritone/` 已克隆（2026-01-09）
+   - **本地参考源码**：`/home/fb486/projects/reference/baritone/`（commit `64333af99a072caa3f4d6f17e4b223a5ae7da3f4`）
+   - 关键索引：逐段执行/超时/snipsnap/段间推进 `src/main/java/baritone/pathing/path/PathExecutor.java:93-250`
 3. **理解 Baritone 的处理方式** - 关注：
    - 如何检测前置条件（支撑、空间、碰撞）
    - 如何驱动 Bot（跳跃、冲刺、方向控制）

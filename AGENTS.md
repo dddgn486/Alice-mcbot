@@ -8,6 +8,7 @@ Alice 是 Minecraft Forge 1.20.1 项目。这里的规则用于帮助 AI 在会�
 2. 阅读 `docs/AI_PROJECT_STATE.md`、`docs/AI_DEVELOPMENT_PLAYBOOK.md`、`docs/AI_DECISIONS.md` 和 `docs/AI_TEST_MATRIX.md`；
 3. 根据技术领域读取 `.alice-supervision/skills/` 中相关 skill：
    - 设计/修改测试入口、测试物品、数据包场景、自检夹具 → **`alice-scene-based-testing`（必读）**
+   - 设计/修复寻路、移动、路径执行、自愈、超时、世界交互 → **`alice-baritone-kernel-alignment`（必读）**
    - 同一问题失败 2+ 次 / 证据冲突 → `debugging-root-cause-analysis`、`failure-pattern-recognition`
    - 实体物理/碰撞/移动 → `forge-entity-physics-collision`；实体同步 → `forge-entity-sync-broadcast`
    - GUI/容器 → `forge-container-menu-protocol`；事件 → `forge-event-priority-cancel`
@@ -30,6 +31,7 @@ Alice 是 Minecraft Forge 1.20.1 项目。这里的规则用于帮助 AI 在会�
 - `SOFT_SURFACE` 不得隐式接入挖矿、拾取、道路、隧道、流体或逃生；
 - `SEARCH_LIMIT` 不是 `UNREACHABLE`，不能自动授权挖隧道；
 - 未知模组能力默认只读，不让 AI 猜槽位、配方或写入语义。
+- **内核路线（D-036）：Alice = Baritone 兼容内核**。非 Alice 目标差异部分（搜索 / Movement / 执行器状态机 / 自愈 / 段超时 / 成本模型 / 跳跃门控）一律先对照 `/home/fb486/projects/reference/baritone/` 再实现，禁止自制替代内核和补丁堆叠；必须偏离时在 `docs/AI_DECISIONS.md` 登记（Baritone `文件:行` + Alice 特有约束）。
 
 ## 客户端测试规则
 
