@@ -154,7 +154,16 @@
   1. 设计/修复寻路系统必须先调查 Baritone 对应实现（`web_search` 源码），适配 Alice 契约，不凭空猜物理。
   2. 客户端测试失败时在关键检查点加临时诊断日志探针；根因确认后必须随手回收全部探针，生产代码只保留 started/completed/failed/rejected 终态日志。
 - 证据：`.alice-supervision/client-tests/pathing-core-r2c-movements-20260907/evidence/`（含 4 轮日志、根因探针记录、探针回收说明）。
-- 下一步：R2-D 世界修改 Movement / R3 PathSession / Git 提交，待用户选择。
+- 过冲行为分析结论（2026-09-08，实测 4/4 样本 + 机制审查）：
+  1. 当前诊断阶段**维持暂不处理**：失败语义诚实（FAILED + Controller 清理，无静默成功）、人在回路可平凡修正、Legacy 生产链零影响。
+  2. 但存在两个不可自愈的隐患：(a) 过冲落点列从未被前置校验——等于一次无安全审查的计划外位置迁移，真实地形下可能是悬崖/熔岩/禁区；(b) west 例"爬回上一级"使 LOCAL_STEP 回收记账对实际脚位失效（`support=false, onGround=true` 站立机制未查明，证据缺口）。
+  3. **R3 硬前置**：过冲率 3/4，多段链接下每段工厂校验 `bot.blockPosition()==fromFoot`，过冲必 stale-start 断链。R3 开工必须先完成"第 0 号闭环"：
+     - 先 `web_search` 调查 Baritone `MovementDescend` 的输入时机与落点约束（新工作流规则）；
+     - 实现**边缘切断输入**（水平越过支撑边缘后停止 setForward，垂直落入目标列，同时消除落地踩台阶）；
+     - **落点列前置校验**（把过冲可能落到的相邻列纳入 precondition，不通过即拒绝）；
+     - 一次 Windows 客户端测试验证"精确落点 + 多段不断链"。
+  4. 不放宽后置条件到 1.0D——落点漂移合法化会污染路径链脚位契约。
+- 下一步：R3 PathSession（以第 0 号闭环起步）或用户指定的其他任务。
 
 ## D-014：执行器不能用单一通行检查覆盖所有 Movement
 

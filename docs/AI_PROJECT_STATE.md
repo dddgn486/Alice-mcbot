@@ -6,7 +6,7 @@
 
 ## 当前目标
 
-**R2-C（Diagonal/Ascend/Descend）已完成客户端验收并归档证据**。下一步待用户选择：R2-D 世界修改 Movement / R3 PathSession / 提交 Git / 其他任务。
+**R2-C 已验收归档，Git 已整理提交（7 个提交，工作区干净）**。下一步待用户确认：进入 R3 PathSession（以"Descend 过冲修复"为第 0 号闭环，见 D-023），或转向其他任务。
 
 项目：Minecraft Forge 1.20.1 / Forge 47.4.10 / Java 17  
 开发目录：`/home/fb486/projects/alice`  
@@ -72,7 +72,8 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
   - 已知限制（用户裁定暂不处理）：Descend 落点过冲（自动踩台阶带上相邻方块边缘）、Ascend 偶发上层水平偏差
   - 关键教训：Descend 下降检测必须用 `blockPosition().getY()` 而非 `getY()`；Ascend 一级台阶不需要跳跃
 - ⏸️ **R2-D 世界修改 Movement**：BreakAndTraverse、PlaceStepAndTraverse（未启动）
-- ⏸️ **PathSession / Planner**：多段链接、搜索集成（未启动）
+- ⏸️ **R3 PathSession**：多段链接、搜索集成（未启动）
+  - ⚠️ **第 0 号闭环（硬前置，D-023）**：Descend 落点过冲修复——先调查 Baritone MovementDescend，再实现边缘切断输入 + 落点列前置校验，客户端验证"精确落点 + 多段不断链"。原因：过冲率 3/4，链式执行下必 stale-start；且过冲落点列从未被前置校验，是安全模型层面的洞
 
 **保留但未接入生产**：
 - Movement 实验 1-6 的物理验证链
@@ -92,6 +93,7 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
 - ❌ 不把 `SEARCH_LIMIT` 当作 `UNREACHABLE` 或自动授权挖隧道
 - ❌ 不实施多 Bot 并行调度
 - ❌ R1/R2 契约未评审通过前，不扩展 MovementPlanCompiler 或给 WalkMovement 堆叠新语义
+- ❌ 不在完成 Descend 过冲修复（第 0 号闭环）前启动 R3 多段链接；也不得用放宽落点后置条件（如 1.0D）代替修复
 
 ## 开发工具链
 
