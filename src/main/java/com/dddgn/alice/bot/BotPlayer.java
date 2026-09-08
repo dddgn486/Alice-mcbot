@@ -47,6 +47,11 @@ public class BotPlayer extends ServerPlayer {
 
     public BotPlayer(MinecraftServer server, ServerLevel level, GameProfile profile) {
         super(server, level, profile);
+        // D-025：对齐真实玩家台阶物理。ServerPlayer 构造默认 setMaxUpStep(1.0F)
+        // （字节码实证），会使假人直接踩上整格方块，而真实玩家（LocalPlayer，
+        // LivingEntity 默认 0.6f）必须跳跃。为保持与真人/B aritone 参考语义一致，
+        // 显式降为 0.6：一格方块成为真正的障碍，上升必须走跳跃路径。
+        this.setMaxUpStep(0.6F);
         this.controller = new BotController(this);
     }
 

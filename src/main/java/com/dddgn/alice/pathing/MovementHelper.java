@@ -86,6 +86,24 @@ public final class MovementHelper {
         return !Double.isNaN(topY) && Math.abs(entity.getY() - topY) <= epsilon;
     }
 
+    /**
+     * R2-C 统一完成契约：脚位列正确 + 支撑稳定 + 已落地 + 水平距目标中心不超过 maxHorizontal。
+     * <p>四个执行器共用，避免各自为政（D-026）。onGround 是必须项：否则残余动量会在
+     * “判定成功”之后继续把 bot 带离目标列。
+     */
+    public static boolean isSettledAtFootPos(ServerLevel level, net.minecraft.world.entity.Entity entity,
+                                             BlockPos footPos, double maxHorizontal) {
+        if (!isStandingAtFootPos(level, entity, footPos)) {
+            return false;
+        }
+        if (!entity.onGround()) {
+            return false;
+        }
+        double dx = entity.getX() - (footPos.getX() + 0.5D);
+        double dz = entity.getZ() - (footPos.getZ() + 0.5D);
+        return Math.sqrt(dx * dx + dz * dz) <= maxHorizontal;
+    }
+
     /** 支撑碰撞形状的世界坐标顶面；空形状返回 NaN。 */
     public static double supportTopY(ServerLevel level, BlockPos supportPos) {
         net.minecraft.world.phys.shapes.VoxelShape shape = level.getBlockState(supportPos)

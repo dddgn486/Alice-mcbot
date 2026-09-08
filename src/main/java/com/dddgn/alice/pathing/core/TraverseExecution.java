@@ -92,7 +92,7 @@ public final class TraverseExecution implements MovementExecution {
                 || Math.abs(to.getX() - from.getX()) + Math.abs(to.getZ() - from.getZ()) != 1) {
             return false;
         }
-        if (!bot.blockPosition().equals(from)) {
+        if (!bot.blockPosition().equals(from) && !bot.blockPosition().equals(to)) {
             return false;
         }
         return MovementHelper.canWalkThrough(level, to)
@@ -101,8 +101,8 @@ public final class TraverseExecution implements MovementExecution {
     }
 
     private boolean postconditionHolds() {
-        return MovementHelper.isStandingAtFootPos(level, bot, spec.toFoot())
-                && horizontalDistanceToTarget() <= 0.3D;
+        // D-026 统一完成契约：脚位正确 + 落地 + 水平到位
+        return MovementHelper.isSettledAtFootPos(level, bot, spec.toFoot(), 0.3D);
     }
 
     private double horizontalDistanceToTarget() {
@@ -119,8 +119,10 @@ public final class TraverseExecution implements MovementExecution {
         double dx = targetX - bot.getX();
         double dz = targetZ - bot.getZ();
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
+        // Baritone 式旋转（LookBehavior:99-100）：只写身体 yaw，头/身交给原版 tickHeadTurn 管理。
+        // 直接写 yHeadRot 而不同步 yBodyRot 会让客户端把头渲染成扭向一侧。
         bot.setYRot(yaw);
-        bot.setYHeadRot(yaw);
+        bot.setYBodyRot(yaw);
         bot.controller().setForward(1.0F);
         bot.controller().setStrafing(0.0F);
     }

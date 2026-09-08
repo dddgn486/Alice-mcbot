@@ -63,37 +63,41 @@ public final class AscendExecution implements MovementExecution {
         }
 
         if (phase == Phase.EXECUTING) {
-            // 检查是否到达目标高度
-            if (bot.blockPosition().getY() >= spec.toFoot().getY()) {
-                phase = Phase.SETTLING;
-                bot.controller().stopMovement();
-                settlingTicks = 0;
-                return;
-            }
-            driveAndJump();
-            return;
-        }
-
-        if (phase == Phase.SETTLING) {
-            settlingTicks++;
-            if (settlingTicks > MAX_SETTLING_TICKS) {
-                // 超时前检查是否至少到达了目标高度和大致位置
-                if (bot.blockPosition().getY() >= spec.toFoot().getY() 
-                        && horizontalDistanceToTarget() <= 0.6D) {
-                    bot.controller().stopMovement();
-                    phase = Phase.POSTCONDITION_CHECK;
-                    phase = Phase.SUCCEEDED;
-                    return;
-                }
-                fail("ASCEND_SETTLING_TIMEOUT");
-                return;
-            }
+            // 统一完成契约（D-026）：脚位正确 + 落地 + 水平到位才算完成
             if (postconditionHolds()) {
                 bot.controller().stopMovement();
                 phase = Phase.POSTCONDITION_CHECK;
                 phase = Phase.SUCCEEDED;
                 return;
             }
+            // 已到达目标高度并落地 → 进入结算：不再跳跃，只做水平居中
+            // （修复“Y 到位即停手 → 残余动量造成水平偏移”的旧缺陷）
+            if (bot.onGround() && bot.blockPosition().getY() >= spec.toFoot().getY()) {
+                phase = Phase.SETTLING;
+                settlingTicks = 0;
+                return;
+            }
+            driveTowardTarget();
+            if (shouldJump()) {
+                bot.controller().jumpOnce();
+            }
+            return;
+        }
+
+        if (phase == Phase.SETTLING) {
+            settlingTicks++;
+            if (postconditionHolds()) {
+                bot.controller().stopMovement();
+                phase = Phase.POSTCONDITION_CHECK;
+                phase = Phase.SUCCEEDED;
+                return;
+            }
+            if (settlingTicks > MAX_SETTLING_TICKS) {
+                fail("ASCEND_SETTLING_TIMEOUT");
+                return;
+            }
+            // 已在目标层但未居中：继续向目标列中心微调，而不是停手等超时
+            driveTowardTarget();
         }
     }
 
@@ -125,7 +129,7 @@ public final class AscendExecution implements MovementExecution {
             return false;
         }
         
-        if (!bot.blockPosition().equals(from)) {
+        if (!bot.blockPosition().equals(from) && !bot.blockPosition().equals(to)) {
             return false;
         }
         
@@ -141,30 +145,52 @@ public final class AscendExecution implements MovementExecution {
     }
 
     private boolean postconditionHolds() {
-        return MovementHelper.isStandingAtFootPos(level, bot, spec.toFoot())
-                && bot.onGround()
-                && horizontalDistanceToTarget() <= 0.3D;
+        return MovementHelper.isSettledAtFootPos(level, bot, spec.toFoot(), 0.3D);
     }
 
-    private double horizontalDistanceToTarget() {
-        double targetX = spec.toFoot().getX() + 0.5D;
-        double targetZ = spec.toFoot().getZ() + 0.5D;
-        double dx = targetX - bot.getX();
-        double dz = targetZ - bot.getZ();
-        return Math.sqrt(dx * dx + dz * dz);
+    /**
+     * Baritone MovementAscend 式跳跃门控（D-025：假人台阶高度已降为 0.6，
+     * 一格方块必须跳跃才能上）：
+     * <ul>
+     *   <li>必须在地面、且尚未到达目标高度；</li>
+     *   <li>侧向速度 &lt;= 0.1（先对准再跳，避免斜着起跳落回原地）；</li>
+     *   <li>沿运动轴距离 &lt;= 1.2 且横向偏移 &lt;= 0.2（够近才跳，避免撞头/跳空）。</li>
+     * </ul>
+     */
+    private boolean shouldJump() {
+        if (!bot.onGround()) {
+            return false;
+        }
+        if (bot.blockPosition().getY() >= spec.toFoot().getY()) {
+            return false;
+        }
+        BlockPos from = spec.fromFoot();
+        BlockPos to = spec.toFoot();
+        int xAxis = Math.abs(from.getX() - to.getX());
+        int zAxis = Math.abs(from.getZ() - to.getZ());
+        double targetX = to.getX() + 0.5D;
+        double targetZ = to.getZ() + 0.5D;
+        double flatDist = xAxis * Math.abs(targetX - bot.getX()) + zAxis * Math.abs(targetZ - bot.getZ());
+        double sideDist = zAxis * Math.abs(targetX - bot.getX()) + xAxis * Math.abs(targetZ - bot.getZ());
+        double lateralMotion = xAxis * bot.getDeltaMovement().z + zAxis * bot.getDeltaMovement().x;
+        if (Math.abs(lateralMotion) > 0.1D) {
+            return false;
+        }
+        return flatDist <= 1.2D && sideDist <= 0.2D;
     }
 
-    private void driveAndJump() {
+    private void driveTowardTarget() {
         double targetX = spec.toFoot().getX() + 0.5D;
         double targetZ = spec.toFoot().getZ() + 0.5D;
         double dx = targetX - bot.getX();
         double dz = targetZ - bot.getZ();
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
+        // Baritone 式旋转（LookBehavior:99-100）：只写身体 yaw，头/身交给原版 tickHeadTurn 管理。
+        // 直接写 yHeadRot 而不同步 yBodyRot 会让客户端把头渲染成扭向一侧。
         bot.setYRot(yaw);
-        bot.setYHeadRot(yaw);
+        bot.setYBodyRot(yaw);
         bot.controller().setForward(1.0F);
         bot.controller().setStrafing(0.0F);
-        // 不使用跳跃，让 Minecraft 自动踩台阶机制处理一级上升
     }
 
     private void fail(String reason) {

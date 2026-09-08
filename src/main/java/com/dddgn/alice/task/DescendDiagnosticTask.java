@@ -103,7 +103,8 @@ public final class DescendDiagnosticTask implements Task {
                 List.of(), 0L, 0L);
         return new MovementSpec(MovementType.DESCEND, fromFoot, toFoot, 1.2D, capabilities,
                 List.of(), List.of(),
-                List.of("descend_one_level", "target_support", "target_body_clear", "target_head_clear"),
+                List.of("descend_one_level", "target_support", "target_body_clear", "target_head_clear",
+                        "landing_column_hazard_clear", "landing_column_safe_step"),
                 dependency, RecoverabilityLevel.LOCAL_STEP, DescendExecutionFactory.KEY);
     }
 
