@@ -136,7 +136,7 @@
 | 删除任意 BlockItem 兜底 | `BlockInteraction.findPlaceableSlot` 仅白名单 | `Settings.java:230-235` | IMPLEMENTED + COMPILES |
 | D-031 文档修正 | 放置描述去掉"视线校验" | — | 已修正 |
 
-验证夹具：`alice_test:lava_course` + `alice:pathing_lava_guard`（期望 `UNREACHABLE`）。
+验证夹具：`alice_test:fluid_course`（2 格高充水墙，判别性）+ `alice_test:lava_course`（封闭静止岩浆池） + `alice:pathing_fluid_guard`（期望 `UNREACHABLE`）。
 
 ---
 

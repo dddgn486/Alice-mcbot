@@ -17,5 +17,5 @@
   "item.alice.pathing_breaker": "寻路破坏器",
   "item.alice.pathing_placer": "寻路放置器",
   "item.alice.pathing_disturber": "自愈扰动器",
-  "item.alice.pathing_lava_guard": "流体屏障检查器"
+  "item.alice.pathing_fluid_guard": "流体屏障检查器"
 }

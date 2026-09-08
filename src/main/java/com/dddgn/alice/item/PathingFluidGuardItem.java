@@ -18,19 +18,20 @@ import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 
 /**
- * 内核对齐验证：流体屏障检查器（{@code alice:pathing_lava_guard}）：场景专属，右键即启动。
+ * 内核对齐验证：流体屏障检查器（{@code alice:pathing_fluid_guard}）：场景专属，右键即启动。
  *
- * <p>场景：起点与目标之间是一条岩浆屏障。规划允许世界修改（可破坏/可放置），
- * 但**流体不可挖**（对照 Baritone {@code MovementHelper.getMiningDurationTicks:588-590}）。
+ * <p>用于 `alice_test:fluid_course`（2 格高充水墙）与 `alice_test:lava_course`（封闭岩浆池）：
+ * 规划允许世界修改（可破坏/可放置），但**含流体状态的方块不可挖**、**不可往流体里放置**
+ * （对照 Baritone {@code MovementHelper.getMiningDurationTicks:588-590}）。
  * 期望 {@code UNREACHABLE}；若为 {@code REACHED} 说明规划器把流体当成了可挖阻挡物。
  */
-public class PathingLavaGuardItem extends Item {
+public class PathingFluidGuardItem extends Item {
 
-    /** 与 {@code lava_course.mcfunction} 一致。 */
+    /** 与场景函数一致。 */
     public static final BlockPos COURSE_START_FOOT = new BlockPos(0, 64, 66);
-    public static final BlockPos COURSE_GOAL_FOOT = new BlockPos(8, 62, 66);
+    public static final BlockPos COURSE_GOAL_FOOT = new BlockPos(4, 64, 66);
 
-    public PathingLavaGuardItem(Properties properties) {
+    public PathingFluidGuardItem(Properties properties) {
         super(properties);
     }
 
@@ -74,14 +75,14 @@ public class PathingLavaGuardItem extends Item {
                 bot.getUUID().toString(), startFoot, COURSE_GOAL_FOOT);
         PathPlan plan = new CorePathPlanner().plan(bot, level, request);
         boolean pass = !plan.reached();
-        BotLog.info("[LavaGuard] status={} movements={} from={} to={} result={}",
+        BotLog.info("[FluidGuard] status={} movements={} from={} to={} result={}",
                 plan.status(), plan.movements().size(), startFoot.toShortString(),
                 COURSE_GOAL_FOOT.toShortString(), pass ? "PASS" : "FAIL");
         if (player != null) {
             player.sendSystemMessage(Component.literal("[alice] 流体屏障规划 status=" + plan.status()
                     + " movements=" + plan.movements().size()
-                    + (pass ? " → PASS（未把岩浆当可挖方块）"
-                            : " → FAIL（规划穿过了岩浆，见日志 [LavaGuard]）")));
+                    + (pass ? " → PASS（未把含流体方块当可挖阻挡物）"
+                            : " → FAIL（规划穿过了流体，见日志 [FluidGuard]）")));
         }
         return InteractionResult.SUCCESS;
     }

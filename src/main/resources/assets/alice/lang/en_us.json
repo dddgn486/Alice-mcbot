@@ -17,5 +17,5 @@
   "item.alice.pathing_breaker": "Pathing Breaker",
   "item.alice.pathing_placer": "Pathing Placer",
   "item.alice.pathing_disturber": "Self-Heal Disturber",
-  "item.alice.pathing_lava_guard": "Fluid Barrier Guard"
+  "item.alice.pathing_fluid_guard": "Fluid Barrier Guard"
 }

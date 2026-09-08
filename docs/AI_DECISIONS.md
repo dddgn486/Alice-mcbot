@@ -408,7 +408,10 @@
   5. **D-031 文档修正**：放置不再声称"视线校验"（见上）。
 - 附带修复：`en_us.json` / `zh_cn.json` 尾逗号导致客户端跳过语言文件（`latest.log` 实证 `MalformedJsonException`），
   并补齐 en_us 缺失的 pathing 条目。
-- 测试夹具（零参数）：`/function alice_test:lava_course` + `alice:pathing_lava_guard`
-  （期望 `status=UNREACHABLE`；`REACHED` 即缺陷）。
+- 测试夹具（零参数，两个场景共用一个检查器 `alice:pathing_fluid_guard`，目标 `(4,64,66)`）：
+  - `alice_test:fluid_course`：x=2 是 **2 格高充水墙**（判别性用例——脚位高度的岩浆必然流动并毁场景，
+    故用"含流体状态的方块"，同一代码路径 `state.getFluidState()`）。期望 `UNREACHABLE`；`REACHED` 即缺陷。
+  - `alice_test:lava_course`：x=2..3 是**四周封闭的静止岩浆池**（位于支撑层，可重复使用）。
+    期望 `UNREACHABLE`，并观察 bot 不朝岩浆移动。
 - 未改：成本模型 / 启发式 / 执行会话契约（属后续刀次，见审计 §4）。
 - 验证等级：`IMPLEMENTED` + `COMPILES`；客户端待测。
