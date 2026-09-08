@@ -545,9 +545,17 @@ public static void assignFollow(BotPlayer bot, ServerPlayer target) {
         return session == null ? null : session.lastMineStartPos;
     }
 
+    /**
+     * 任务/执行器驱动相位（D-038）。
+     *
+     * <p>用 {@link TickEvent.Phase#START} 而不是 {@code END}：BotPlayer.tick() 的物理在实体 tick 内执行，
+     * 因此 START(N) 设定的输入会被**同一 tick** 的物理消费，而 END(N-1) 的输入要到 tick N 才生效
+     * （多 1 tick 延迟）。Baritone 的 InputOverrideHandler 同样在实体 tick 之前设置输入。
+     * 对齐后每个 Movement 少 1 tick 延迟，Baritone 的距离/速度门控阈值才可移植。
+     */
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END) {
+        if (event.phase != TickEvent.Phase.START) {
             return;
         }
         TransferLedgerData.get(event.getServer()).expireSuspensions(event.getServer().getTickCount(),

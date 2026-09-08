@@ -85,6 +85,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> PATHING_FLUID_GUARD =
             ITEMS.register("pathing_fluid_guard", () -> new PathingFluidGuardItem(new Item.Properties()));
 
+    /** Q7 验收：路线偏好检查器（1 格深坑 vs 同层绕路，场景专属）。 */
+    public static final RegistryObject<Item> PATHING_DIP_ROUTE =
+            ITEMS.register("pathing_dip_route", () -> new PathingDipRouteItem(new Item.Properties()));
+
 
     private AliceItems() {
     }

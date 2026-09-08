@@ -107,7 +107,7 @@ D 的守卫具体化：只有**从落点 `v` 用 ≤1 格 Movement 集合能回�
 
 ---
 
-## Q2/Q3：控制相位 1 tick 对齐（用户已授权尝试）
+## Q2/Q3：控制相位 1 tick 对齐（**已实施 D-038，待客户端验证**）
 
 ### 2.1 事实链（已核实）
 
@@ -132,7 +132,13 @@ D 的守卫具体化：只有**从落点 `v` 用 ≤1 格 Movement 集合能回�
 - 制动早 1 tick → 过冲/滑移窗口变小（D-024 过冲规则更稳）。
 - Baritone 的跳跃门控阈值（`flatDistToNext ≤1.2`、`sideDist ≤0.2`）与 settling 判据更可移植。
 
-### 2.4 风险与验证
+### 2.4 实施状态（2026-09-09）
+
+- 已改 `BotManager.onServerTick` 为 `Phase.START`（D-038）；`segment_done` 增加 `ticks=` 遥测。
+- 待测：`pathing_battery` / `pathing_session` / `pathing_breaker` / `pathing_placer` / `pathing_disturber` 全量回归，
+  并与基线（TRAVERSE 6 / DIAGONAL 8 / ASCEND 10 / DESCEND 16 tick）对比。
+
+### 2.5 风险与验证
 
 - D-026/D-027 的容差与 settling 判据是在"1 tick 延迟"下调出来的 → 必须重跑：`pathing_battery` 8/8、`pathing_session`、`pathing_breaker`、`pathing_placer`、`pathing_disturber`。
 - `MiningSceneFixture`/`MiningReplanFixture` 也监听 `Phase.END`，但它们是**观察者**，不驱动物理 → 保持 END 即可。

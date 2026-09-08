@@ -415,3 +415,19 @@
     期望 `UNREACHABLE`，并观察 bot 不朝岩浆移动。
 - 未改：成本模型 / 启发式 / 执行会话契约（属后续刀次，见审计 §4）。
 - 验证等级：`IMPLEMENTED` + `COMPILES`；客户端待测。
+
+## D-038：任务/执行器驱动相位对齐 Baritone（END → START）
+
+- 状态：已实施，待客户端验证（用户 2026-09-09 授权尝试更换驱动顺序）
+- 事实：`BotManager.onServerTick`（原 `:548-559`）在 `TickEvent.Phase.END` 驱动
+  任务 → `PathSession` → 各执行器 → `bot.controller()` 输入；而 `BotPlayer.tick()` 的物理
+  （`aiStep()`）在实体 tick 内执行 → `END(N-1)` 设定的输入要等 **tick N** 才被消费 = **1 tick 延迟**。
+  Baritone 的 `InputOverrideHandler` 在实体 tick **之前**设置输入 = 0 延迟。
+- 决策：驱动相位改为 `TickEvent.Phase.START`。信息新鲜度不变（看到的仍是"上一次物理完成后的状态"），
+  只是把输入应用提前 1 tick。
+- 预期收益：每个 Movement 少 1 tick 延迟（TRAVERSE 6→5 等）；制动早 1 tick → 过冲窗口变小；
+  Baritone 的距离/速度门控阈值（`flatDistToNext ≤1.2`、`sideDist ≤0.2`）更可移植。
+- 风险：D-026/D-027 的容差与 settling 判据是在"有 1 tick 延迟"的前提下调出来的
+  → 必须重跑 `pathing_battery` / `pathing_session` / `pathing_breaker` / `pathing_placer` / `pathing_disturber`。
+- 观测手段：`PathSession` 的 `segment_done` 日志新增 `ticks=` 字段（永久遥测，用于 Q3/Q7 标定与回归对比）。
+- 回退：把 `Phase.START` 改回 `Phase.END`。

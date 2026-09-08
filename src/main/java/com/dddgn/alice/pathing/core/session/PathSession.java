@@ -134,8 +134,8 @@ public final class PathSession {
         execution.tick();
         switch (execution.phase()) {
             case SUCCEEDED -> {
-                BotLog.info("[R4 Session] segment_done session={} index={} type={} actualFoot={}",
-                        sessionId, index, movements.get(index).movementType(),
+                BotLog.info("[R4 Session] segment_done session={} index={} type={} ticks={} actualFoot={}",
+                        sessionId, index, movements.get(index).movementType(), segmentTicks,
                         bot.blockPosition().toShortString());
                 index++;
                 execution = null;
