@@ -122,7 +122,29 @@
 
 ## §3 分层对照表（并行审计结果）
 
-> 待合并：A 搜索内核 / B 执行会话 / C Movement 与成本 / D 世界交互。
+> 待合并：A 搜索内核 / B 执行会话 / D 世界交互。
+> 标记：✅ = 我已亲自复核行号/语义；⬜ = 来自审计 agent，待我复核。
+
+### 3.C Movement 原语 / 成本 / 候选生成
+
+| 关注点 | Alice（文件:行） | Baritone（文件:行） | 差异实质 | 分类 | 复核 |
+|---|---|---|---|---|---|
+| Traverse 前置 | `core/TraverseExecutionFactory.java:34-38` | `movements/MovementTraverse.java:77-124` | 无 srcDown 检查、无破坏成本 | DEVIATION-UNREGISTERED | ⬜ |
+| 规划谓词 vs 执行谓词 | 规划用 `canTraverse`（含 sweep，`MovementHelper.java:118-137`）；执行工厂用 `canWalkThrough` | 同一 `cost()` 函数同时用于规划与执行 | 执行校验不含 sweep → 可能"可规划不可执行" | DEVIATION-UNREGISTERED | ⬜ |
+| Diagonal 前置/绕行 | `core/DiagonalExecutionFactory.java:44-59` | `MovementDiagonal.java:220-263`（optionA/B） | 无绕行成本 | DEVIATION-UNREGISTERED | ⬜ |
+| Diagonal 几何 | `MovementSpec.java:63-67`（dy=0） | `MovementDiagonal.java:104-114`（dy±1） | 缺对角升降 | MISSING-IN-ALICE（需 D-024 裁决） | ⬜ |
+| **Ascend 跳跃门控** | `core/AscendExecution.java:160-180` | `MovementAscend.java:204-230` + **`headBonkClear()` `:233-243`** | 缺头顶四向净空门控 | DEVIATION-UNREGISTERED | ✅ |
+| Ascend 前置 | `core/AscendExecutionFactory.java:45-55` | `MovementAscend.java:96-131` | 缺 FallingBlock / climbable / bottom-slab | DEVIATION-UNREGISTERED | ⬜ |
+| **`canWalkOn` 判定** | `MovementHelper.java:18-34`：碰撞形状非空即真 | `MovementHelper.java:387-426` **白名单**（`isBlockNormalCube` 且排除 MAGMA/BUBBLE/HONEY + ladder/farmland 等） | Alice 会接受栅栏/蜂蜜块等非整格方块 | DEVIATION-UNREGISTERED | ✅ |
+| 破坏成本 | `SurfaceMovementProvider.java:124-125` `breakTicks/20` | `MovementHelper.java:586-615`（1/strVsBlock + penalty） | 单位混用（秒混进格标度） | DEVIATION-UNREGISTERED | ✅ |
+| **放置成本** | `SurfaceMovementProvider.java:25-26,162`：**4.0**，注释引用不存在的 `PLACE_ONE_BLOCK_COST` | `CalculationContext.java:106` = `blockPlacementPenalty`，`Settings.java:124` 默认 **20** | 值差 5×；注释为错引 | DEVIATION-UNREGISTERED | ✅ |
+| 候选集 | `SurfaceMovementProvider.java:33-71` | `Moves.java:31-317` | 缺 DOWNWARD / PILLAR / PARKOUR / FALL | MISSING-IN-ALICE（FALL/PARKOUR 属 D-024） | ⬜ |
+| sprint | `TraverseExecution.java:126-127` 仅 forward | `MovementTraverse.java:269-271` + `SPRINT_MULTIPLIER` | 从不 sprint，但成本含冲刺系数 | DEVIATION-UNREGISTERED | ⬜ |
+| `MovementSpec` 与工厂矛盾 | `MovementSpec.java:68-77` 允许对角 ASCEND/DESCEND；`AscendExecutionFactory.java:36`/`DescendExecutionFactory` 要求 `horizontalDist==1` | n/a | 契约自相矛盾（当前无调用方触发） | DEVIATION-UNREGISTERED（潜在） | ✅ |
+| legacy 第二内核 | `movement/*`：裸 `setBlock`（`DescendMovement.java:142`、`PillarMovement.java:146`）+ 第二套成本表 | 只有一套 | 违反 D-031 唯一入口 | DEVIATION-UNREGISTERED | ⬜ |
+| `MovementCapabilities` 声明未生效 | `core/MovementCapabilities.java:14,17-19` 无消费者 | n/a | 红线只在 `DescendExecutionFactory` 内联 | DEVIATION-UNREGISTERED | ⬜ |
+| 完成判定/合法位置集/驱动旋转 | `MovementHelper.java:94-105`、D-026、`TraverseExecution.java:124-125` | 各 Movement | Alice 多 onGround/水平约束 | DEVIATION-JUSTIFIED（D-026/D-029） | ✅ |
+| BREAK_AND_TRAVERSE / PLACE_STEP | `MovementSpec.java:78-92` | Baritone 无此类型（破坏/放置计入 traverse cost） | Alice 目标差异 | DEVIATION-JUSTIFIED（D-031/D-033） | ✅ |
 
 ---
 
@@ -141,6 +163,15 @@
 | P2 | `WorldView` 落地（R7）或删除 | `pathing/core/WorldView` | `BlockStateInterface` |
 | P2 | `safeToCancel`/路径抢占 | `MovementExecution` + `PathSession` | `PathExecutor:194,257,268-300` |
 | P2 | 缺失 Movement 类型（FALL/PILLAR/PARKOUR/DOWNWARD）—— 与 D-024 一起立项 | `MovementType` + provider + 执行器 | `Moves.java:30+` |
+| P0 | `canWalkOn` 改白名单（拒绝栅栏/蜂蜜块等非整格"可站"） | `pathing/MovementHelper.canWalkOn` | `MovementHelper.java:387-426` |
+| P1 | Ascend 补 `headBonkClear` 门控 + factory 补 FallingBlock/climbable/bottom-slab 拒绝 | `AscendExecution.shouldJump`、`AscendExecutionFactory.validate` | `MovementAscend.java:96-131,219-243` |
+| P1 | 放置成本 4.0 → 对齐 `blockPlacementPenalty`(20)；修正错引注释 | `SurfaceMovementProvider.java:25-26,162` | `Settings.java:124`、`CalculationContext.java:106` |
+| P1 | 破坏成本统一 tick 单位（去掉 `/20`） | `SurfaceMovementProvider.java:124-125` | `MovementHelper.java:586-615` |
+| P1 | 规划/执行谓词统一（执行工厂改调 `canTraverse`） | `TraverseExecutionFactory.validate`、`DiagonalExecutionFactory` | `MovementTraverse.java:76-172` |
+| P1 | legacy 双内核收口（裸 setBlock + 第二套成本表） | `movement/*`、`PathExecutor`、`FollowTask` | D-031 唯一入口 |
+| P2 | sprint 门控（成本含冲刺系数但从不冲刺） | `TraverseExecution`/`DiagonalExecution` | `MovementTraverse.java:269-271` |
+| P2 | `MovementSpec` 与工厂几何校验矛盾修正 | `MovementSpec`/两个工厂 | 契约一致性 |
+| P2 | `MovementCapabilities` 接入或删除 | `core/MovementCapabilities` | 声明式红线落地 |
 
 ---
 
