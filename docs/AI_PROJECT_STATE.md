@@ -1,0 +1,120 @@
+# Alice 当前项目状态
+
+> 这是新 AI 会话恢复上下文的首要文件。只记录当前，不记录完整历史。
+
+更新时间：2026-09-08
+
+## 当前目标
+
+**R2-C（Diagonal/Ascend/Descend）已完成客户端验收并归档证据**。下一步待用户选择：R2-D 世界修改 Movement / R3 PathSession / 提交 Git / 其他任务。
+
+项目：Minecraft Forge 1.20.1 / Forge 47.4.10 / Java 17  
+开发目录：`/home/fb486/projects/alice`  
+Windows 测试目录：`D:\JAVA_projects\alice\`  
+固定客户端：`D:\JAVA_projects\worldedit-test\versions\1.20.1-Forge_47.4.10`
+
+## 当前工作方式
+
+讨论需求 → 读取相关 skills → 选择最小闭环 → 实施 → compile → 同步 Windows → 用户用游戏内测试物品/命令实测 → 讨论证据和根因 → 再决定是否修复。
+
+不再把旧的 dsh-agent-bus、active-plan、严格监督员、HANDOVER 提交流程作为日常开发硬门槛。
+
+## 稳定架构边界
+
+- LLM 只做目标级决策；确定性执行器负责动作、安全和完成条件。
+- 服务端是世界、bot、任务、权限和库存的真相。
+- 普通挖矿和拾取保持 `HARD_PATH`。
+- `SOFT_SURFACE` 只能通过独立实验入口推进，不能悄悄接入正式任务。
+- `SEARCH_LIMIT` 不等于 `UNREACHABLE`，不自动授权挖隧道。
+- 客户端行为必须由 Windows 真人测试确认；源码分析和服务端日志不能替代。
+
+## 已验证的核心能力
+
+### MineTask 基线（已验收）
+- **场景 A/B/C**：`alice:mining_scene_tester` / `alice:mining_scene_b_tester` / `alice:mining_scene_c_tester`
+  - A：基础挖掘，无障碍
+  - B：有限清障（`TARGET_ACCESS_CLEAR`）
+  - C：动态障碍中途恢复（`BOTMINER_PATH_RETRY`）
+  - 证据：`.alice-supervision/client-tests/minetask-scene-{a,b,c}-20260905/evidence/`
+- **不可达安全失败**：初始 `UNREACHABLE` 直接 `FAILED/no_safe_execution_path`，不执行 BotMiner 或重规划
+  - 证据：`.alice-supervision/client-tests/minetask-unreachable-20260906/evidence/`
+
+### 其他已验收能力
+- `alice:interface_scanner`：C1 只读扫描
+- `alice:pathfinding_tester`：轻量寻路移动器（摆位工具）
+- `alice:mining_replan_tester`：可视动态障碍夹具
+- WorldEdit 7.2.15：外部场景编辑工具，不加入构建依赖
+
+### Movement 物理实验（历史证据保留）
+- **实验 1-6**：BotController 输入 → aiStep 物理链、WalkMovement 单段/序列、一级上升/下降、动态阻挡分类（`BLOCKED_DYNAMIC` / `MOVEMENT_TIMEOUT` / `INVALID_PRECONDITION`）
+  - 证据：`.alice-supervision/client-tests/movement-physics-experiment-{1,2,3,4,5,6a,6b,6c}-20260906/evidence/`
+- **M0/M1/M2**：MovementPlan 契约、MovementPlanCompiler、BotMiner Movement 后端
+  - 已完成独立验证，**未接入正式 MineTask**
+
+## 当前架构阶段：Alice Pathing Core R2
+
+**目标**：构建 Baritone-like Movement-aware Pathing Core，加入可回收性、禁区/保护区、生存兜底和任务失败交接。
+
+**当前进度**：
+- ✅ **R1 契约草案**：`docs/ALICE_PATHING_CORE_R1_CONTRACT.md`
+- ✅ **R2-A 纯数据契约**：`pathing.core` 包（MovementSpec、PlanningDependency、LiveExecutionContext、MovementExecution 等）
+- ✅ **R2-B Traverse 执行器**：`TraverseExecution`、`TraverseExecutionFactory`、`TraverseDiagnosticTask`
+  - 入口：`/alice pathing traverse <north|south|east|west>`
+  - 验收状态：`USER_ACCEPTED`
+  - 工件：SHA-256 `fc0ad051208422882b5d8c1060bb4afe822552a1ef753ac5e0964b8e09e0fbbe`
+  - 证据：已归档 `.alice-supervision/client-tests/pathing-core-r2b-traverse-20260907/evidence/`
+- ✅ **R2-C 三种基础 Movement**：Diagonal / Ascend / Descend
+  - 入口：`/alice pathing diagonal|ascend|descend <direction>`
+  - 验收状态：`USER_ACCEPTED`（2026-09-07）
+  - 验收工件：SHA-256 `804c5eb897a5337a07ff11286332805b1f2a4227d41bf1cdd4e5622982ed98cf`
+  - 运行时清洁版（仅移除探针）：SHA-256 `9c0388aeafa77f9d7a32129dab5d0270d764a48f271e56cbee4ed048a2b8e8d9`
+  - 证据：已归档 `.alice-supervision/client-tests/pathing-core-r2c-movements-20260907/evidence/`
+  - 已知限制（用户裁定暂不处理）：Descend 落点过冲（自动踩台阶带上相邻方块边缘）、Ascend 偶发上层水平偏差
+  - 关键教训：Descend 下降检测必须用 `blockPosition().getY()` 而非 `getY()`；Ascend 一级台阶不需要跳跃
+- ⏸️ **R2-D 世界修改 Movement**：BreakAndTraverse、PlaceStepAndTraverse（未启动）
+- ⏸️ **PathSession / Planner**：多段链接、搜索集成（未启动）
+
+**保留但未接入生产**：
+- Movement 实验 1-6 的物理验证链
+- M0/M1/M2 的 MovementPlan 与 BotMiner 后端
+- 旧 `PathExecutor` 继续作为兼容后端
+
+**设计文档**：
+- `docs/ALICE_PATHING_CORE_ARCHITECTURE.md`：总体架构基线
+- `docs/ALICE_PATHING_CORE_R1_CONTRACT.md`：R1 契约草案
+- `docs/ALICE_PATHING_CORE_R2_MOVEMENTS.md`：R2 Movement 设计
+- `docs/MINETASK_MOVEMENT_MVP_DESIGN.md`：历史方案，仅作参考
+
+## 当前不要做
+
+- ❌ 不删除旧 `PathExecutor` 或直接接入 MineTask
+- ❌ 不把 SOFT_SURFACE、隧道、搭路隐式接入普通挖矿
+- ❌ 不把 `SEARCH_LIMIT` 当作 `UNREACHABLE` 或自动授权挖隧道
+- ❌ 不实施多 Bot 并行调度
+- ❌ R1/R2 契约未评审通过前，不扩展 MovementPlanCompiler 或给 WalkMovement 堆叠新语义
+
+## 开发工具链
+
+- **源码镜像**：`./tools/mirror-windows-workspace.sh` → Windows `/mnt/d/JAVA_projects/alice/`
+  - Windows 是源码镜像，不保留 `.git`
+  - WSL `/home/fb486/projects/alice` 是唯一 Git 管理端
+- **工件同步**：`./tools/sync-windows-artifact.sh [jar] [windows-repo] [runtime-mods-dir]`
+  - 第三个参数显式给出才同步到运行时 `mods`
+- **固定客户端**：`D:\JAVA_projects\worldedit-test\versions\1.20.1-Forge_47.4.10`
+  - 日志：`logs/latest.log`、`logs/debug.log`
+  - 截图/视频：`screenshots/`、`videos/`（如果需要）
+
+## 开始任何新任务前
+
+1. 读取本文件和 `AI_DEVELOPMENT_PLAYBOOK.md`
+2. 读取 `AI_DECISIONS.md` 和相关 skill
+3. 查看当前代码和 Git 状态
+4. 先与用户确认目标、成功条件和最小测试方式
+5. 客户端行为优先设计为游戏内可获得的测试物品/命令，通过右键/Shift+右键/命令观察
+
+## 重要证据规则
+
+- `IMPLEMENTED` → `COMPILES` → `SERVER_TESTED` → `WINDOWS_CLIENT` → `USER_ACCEPTED` 分开记录
+- 不能访问 Windows 文件时，不得声称已经读取 Windows 日志
+- bug 反馈后先询问操作、预期/实际、复现频率和日志/截图，再讨论根因和修复方向
+- 服务端日志片段用 `[关键词]` 筛选；客户端截图关注 Bot 位置、聊天、GUI、粒子和回弹

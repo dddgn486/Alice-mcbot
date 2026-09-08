@@ -21,8 +21,15 @@ Alice 当前实现遵循四条边界：
 - [AI 玩家架构总纲](docs/AI_PLAYER_DESIGN.md)
 - [执行层框架](docs/EXECUTION_FRAMEWORK.md)
 - [寻路重构设计](docs/PATHING_REFACTOR.md)
-- [Mekanism GUI 语义映射](docs/MEK_GUI_SEMANTICS.md)
-- [道路数学模型](docs/ROAD_MATHEMATICAL_MODEL.md)
+- [会话接手入口](docs/START_HERE.md)
+- [AI 开发手册](docs/AI_DEVELOPMENT_PLAYBOOK.md)
+- [文档索引](docs/README.md)
+- [当前项目状态](docs/AI_PROJECT_STATE.md)
+- [架构决策](docs/AI_DECISIONS.md)
+- [测试矩阵](docs/AI_TEST_MATRIX.md)
+- [道路数学模型参考](docs/reference/ROAD_MATHEMATICAL_MODEL.md)
+- [Mekanism GUI 语义参考](docs/reference/MEK_GUI_SEMANTICS.md)
+- [Baritone 移植参考](docs/reference/BARITONE_PORTING_CHECKLIST.md)
 
 ## 当前能力
 
@@ -114,9 +121,9 @@ Focused 服务端验证入口：
 
 ## 开发流程
 
-项目采用监督员批准的工作包流程：架构或客户端可见改动必须先写入 `.alice-supervision/active-plan.md` 并标记 `APPROVED_FOR_IMPLEMENTATION`。实现完成后必须编译、更新 HANDOVER、提交、生成审核包，并在监督二审通过后进入客户端测试。
+当前流程是轻量协作：讨论目标 → 读取相关 skills → 选择最小闭环 → 实施 → 编译/聚焦测试 → 同步 Windows `D:\JAVA_projects\alice\` → 用户通过游戏内测试物品和键盘鼠标实测 → 讨论证据与根因 → 决定是否修复。
 
-公开仓库提交只包含已审核的功能和文档；实验草稿、待修复提交和客户端证据不会因为编译通过而自动发布。
+详细规则见 [`docs/AI_DEVELOPMENT_PLAYBOOK.md`](docs/AI_DEVELOPMENT_PLAYBOOK.md)。旧 dsh-agent-bus 监督流程、HANDOVER 和 active-plan 仅保留在 `docs/archive/legacy-workflow/`，不作为日常开发门槛。
 
 ## License
 
