@@ -2,6 +2,7 @@ package com.dddgn.alice.pathing;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.BaseFireBlock;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -45,11 +46,22 @@ public final class MovementHelper {
         return state.getCollisionShape(level, pos).isEmpty();
     }
 
-    /** 危险方块(走入即受伤/致命):熔岩/火/岩浆块等。 */
+    /**
+     * 危险方块(走入即受伤/致命或无法安全穿过)。
+     * <p>对照 Baritone {@code MovementHelper.avoidWalkingInto:350-360}：熔岩、任意火(含灵魂火/营火)、
+     * 岩浆块、仙人掌、甜浆果丛、末地传送门、蛛网、气泡柱。
+     * <p>注意：Baritone 在此还会拒绝"任意流体"，但 Alice 的水面通行语义不同（见 D-025/D-036 差异登记），
+     * 流体只在破坏路径上拒绝（{@code BlockBreakSafety}）。
+     */
     public static boolean avoidWalkingInto(BlockState state) {
         return state.is(Blocks.LAVA)
-                || state.is(Blocks.FIRE)
-                || state.is(Blocks.MAGMA_BLOCK);
+                || state.getBlock() instanceof BaseFireBlock
+                || state.is(Blocks.MAGMA_BLOCK)
+                || state.is(Blocks.CACTUS)
+                || state.is(Blocks.SWEET_BERRY_BUSH)
+                || state.is(Blocks.END_PORTAL)
+                || state.is(Blocks.COBWEB)
+                || state.is(Blocks.BUBBLE_COLUMN);
     }
 
     /**

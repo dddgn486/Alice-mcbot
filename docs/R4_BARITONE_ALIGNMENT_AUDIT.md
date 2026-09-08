@@ -126,6 +126,18 @@
 - `AStarMovementSearch.java:138-141` 的 `[PlanProbe]` 临时探针仍在生产代码中（审计 B 区发现），
   已删除并编译通过；这是 D-036/测试规则"探针验证后立即删除"的违规实例。
 
+### 2.9 已对齐（第一刀，D-037，2026-09-09）
+
+| 项 | 改动 | Baritone 依据 | 状态 |
+|---|---|---|---|
+| 流体不可挖 | `BlockBreakSafety.explicitTargetRefusal` + `BlockInteraction.estimateBreakTicks` | `MovementHelper.java:588-590` | IMPLEMENTED + COMPILES |
+| 放置校验结果 | `BlockInteraction.placeAt` 检查 `InteractionResult` + 服务器世界复核 | `BlockPlaceHelper.java:48-52` | IMPLEMENTED + COMPILES |
+| 危险方块扩表 | `MovementHelper.avoidWalkingInto`（火/仙人掌/浆果丛/末地门/蛛网/气泡柱） | `MovementHelper.java:350-360` | IMPLEMENTED + COMPILES |
+| 删除任意 BlockItem 兜底 | `BlockInteraction.findPlaceableSlot` 仅白名单 | `Settings.java:230-235` | IMPLEMENTED + COMPILES |
+| D-031 文档修正 | 放置描述去掉"视线校验" | — | 已修正 |
+
+验证夹具：`alice_test:lava_course` + `alice:pathing_lava_guard`（期望 `UNREACHABLE`）。
+
 ---
 
 ## §3 分层对照表（并行审计结果）

@@ -22,6 +22,11 @@ public final class BlockBreakSafety {
     /** 明确指定目标的硬拒绝原因；返回 null 表示目标本身允许挖。 */
     public static String explicitTargetRefusal(ServerPlayer bot, BlockPos target) {
         ServerLevel level = (ServerLevel) bot.level();
+        // 流体不可挖：对照 Baritone MovementHelper.getMiningDurationTicks:588-590（任何流体 → COST_INF）。
+        // 否则岩浆会被当成可清障方块（estimateBreakTicks 给出有限代价），规划器可能选择"挖岩浆"。
+        if (!level.getBlockState(target).getFluidState().isEmpty()) {
+            return "fluid_block";
+        }
         String worldProtection = SafeZoneData.get(level.getServer()).protectionReason(level, target);
         if (worldProtection != null) {
             return worldProtection;

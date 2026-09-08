@@ -240,8 +240,10 @@
   - 新增 `com.dddgn.alice.action.BlockInteraction` + `BlockBreakSession` 作为**挖掘/放置唯一入口**：
     工具选择、触及距离（Forge `getBlockReach`）、朝向（头/身/俯仰同步）、破坏进度
     （`handleBlockBreakAction` + `getDestroyProgress` + `destroyBlockProgress` + 广播）、
-    放置（Baritone `attemptToPlaceABlock` 语义：水平+下的支撑面扫描 + 面中心 + 视线校验 +
-    快捷栏选可放置方块 + 必要时潜行）、破坏拒绝原因（复用 `BlockBreakSafety.clearingRefusal`）、
+    放置（Baritone `attemptToPlaceABlock` 语义：水平+下的支撑面扫描 + 面中心 +
+    快捷栏白名单选方块 + 必要时潜行；**不做客户端射线可见性校验**——Alice 是服务端直接构造
+    `BlockHitResult`，站在方块顶面时射线必然先命中顶面；**必须校验 `InteractionResult`
+    并以服务器世界状态复核**，见 D-037）、破坏拒绝原因（复用 `BlockBreakSafety.clearingRefusal`）、
     破坏 tick 估算（对照 Baritone `getMiningDurationTicks`）。
   - `BreakAndWalkMovement` 改用 `BlockBreakSession`（失败码 `BREAK_OUT_OF_REACH` /
     `BREAK_PROGRESS_TIMEOUT`）。
@@ -388,3 +390,25 @@
 - 首个待办（体验，非 bug）：段间无条件 settle 造成视觉顿挫 → 对照 `PathExecutor:232-236`（SUCCESS 后同 tick 推进、不松输入）改为条件 settle。
 - 关联：D-035 的漂移检测当前是距离启发式，待改为 Baritone `getValidPositions().contains(feet)` 判定（`PathExecutor:101-124`）。
 
+## D-037：第一刀内核对齐（P0 安全与正确性）
+
+- 状态：已实施，待客户端验证（用户 2026-09-09 选定范围 A）
+- 依据：`docs/R4_BARITONE_ALIGNMENT_AUDIT.md`（64 项对照：39 未登记偏离 / 13 缺失 / 7 已登记 / 4 对齐）
+- 5 项改动（全部为"照抄 Baritone 语义"）：
+  1. **流体不可挖**：`BlockBreakSafety.explicitTargetRefusal` 增加 `fluid_block`；
+     `BlockInteraction.estimateBreakTicks` 对流体返回 `+∞`。对照 `MovementHelper.getMiningDurationTicks:588-590`。
+     修复前 `BREAK_AND_TRAVERSE` 会把岩浆当清障方块（代价有限、约 10000 tick），规划可能选择"挖岩浆"。
+  2. **放置校验结果**：`BlockInteraction.placeAt` 检查 `InteractionResult.consumesAction()`，
+     并以服务器世界状态（`placeAt` 是否仍可替换）复核；失败则尝试下一个候选面。
+     对照 `BlockPlaceHelper:48-52`。修复前无条件返回 `PLACED`（假成功 → 执行器重试到超时）。
+  3. **危险方块扩表**：`MovementHelper.avoidWalkingInto` 增加任意 `BaseFireBlock`（火/灵魂火/营火）、
+     仙人掌、甜浆果丛、末地传送门、蛛网、气泡柱。对照 `MovementHelper.avoidWalkingInto:350-360`。
+  4. **删除"任意 BlockItem"兜底**：`BlockInteraction.findPlaceableSlot` 只接受一次性方块白名单，
+     无则返回 -1。对照 `Settings.acceptableThrowawayItems:230-235`。修复前会用火把/花去"搭台阶"。
+  5. **D-031 文档修正**：放置不再声称"视线校验"（见上）。
+- 附带修复：`en_us.json` / `zh_cn.json` 尾逗号导致客户端跳过语言文件（`latest.log` 实证 `MalformedJsonException`），
+  并补齐 en_us 缺失的 pathing 条目。
+- 测试夹具（零参数）：`/function alice_test:lava_course` + `alice:pathing_lava_guard`
+  （期望 `status=UNREACHABLE`；`REACHED` 即缺陷）。
+- 未改：成本模型 / 启发式 / 执行会话契约（属后续刀次，见审计 §4）。
+- 验证等级：`IMPLEMENTED` + `COMPILES`；客户端待测。

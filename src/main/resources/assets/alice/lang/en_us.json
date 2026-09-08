@@ -11,4 +11,11 @@
   "item.alice.mining_scene_b_tester": "Mining Scene B Launcher",
   "item.alice.mining_scene_c_tester": "Mining Scene C Launcher",
   "item.alice.mining_replan_tester": "Mining Replan Tester",
+  "item.alice.pathing_planner": "Pathing Planner",
+  "item.alice.pathing_battery": "Pathing Self-Test Battery",
+  "item.alice.pathing_session": "Path Session Tester",
+  "item.alice.pathing_breaker": "Pathing Breaker",
+  "item.alice.pathing_placer": "Pathing Placer",
+  "item.alice.pathing_disturber": "Self-Heal Disturber",
+  "item.alice.pathing_lava_guard": "Fluid Barrier Guard"
 }

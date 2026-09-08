@@ -5,6 +5,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
@@ -127,10 +128,14 @@ public final class BlockInteraction {
         return !state.getCollisionShape(level, pos).isEmpty();
     }
 
-    /** 快捷栏中可放置的方块槽位：优先一次性方块，其次任意 BlockItem。 */
+    /**
+     * 快捷栏中可放置的方块槽位：**只接受一次性方块白名单**
+     * （对照 Baritone {@code Settings.acceptableThrowawayItems:230-235}）。
+     * <p>不再兜底"任意 BlockItem"：否则火把/花/告示牌会被拿去"搭台阶"，
+     * 放置"成功"但目标仍不可站，执行器只能重试到超时。
+     */
     public static int findPlaceableSlot(ServerPlayer bot) {
         Inventory inventory = bot.getInventory();
-        int fallback = -1;
         for (int slot = 0; slot < 9 && slot < inventory.getContainerSize(); slot++) {
             ItemStack stack = inventory.getItem(slot);
             if (stack.isEmpty() || !(stack.getItem() instanceof BlockItem blockItem)) {
@@ -139,11 +144,8 @@ public final class BlockInteraction {
             if (THROWAWAY.contains(blockItem.getBlock())) {
                 return slot;
             }
-            if (fallback < 0) {
-                fallback = slot;
-            }
         }
-        return fallback;
+        return -1;
     }
 
     /**
@@ -180,7 +182,15 @@ public final class BlockInteraction {
             bot.getInventory().selected = slot;
             ItemStack stack = bot.getInventory().getItem(slot);
             BlockHitResult hit = new BlockHitResult(faceCenter, clickFace, against, false);
-            bot.gameMode.useItemOn(bot, level, stack, InteractionHand.MAIN_HAND, hit);
+            InteractionResult result = bot.gameMode.useItemOn(bot, level, stack, InteractionHand.MAIN_HAND, hit);
+            if (!result.consumesAction()) {
+                // 服务端拒绝该面 → 继续尝试其他候选面（对照 Baritone BlockPlaceHelper:48-52）
+                continue;
+            }
+            if (level.getBlockState(placeAt).canBeReplaced()) {
+                // 返回"成功"但方块未落地：以服务器世界为准，继续尝试
+                continue;
+            }
             bot.swing(InteractionHand.MAIN_HAND);
             return PlaceResult.PLACED;
         }
@@ -223,6 +233,10 @@ public final class BlockInteraction {
         BlockState state = level.getBlockState(pos);
         if (state.isAir()) {
             return 0.0D;
+        }
+        if (!state.getFluidState().isEmpty()) {
+            // 对照 Baritone getMiningDurationTicks:588-590：流体不可挖 → 代价无穷
+            return Double.POSITIVE_INFINITY;
         }
         float hardness = state.getDestroySpeed(level, pos);
         if (hardness < 0.0F) {

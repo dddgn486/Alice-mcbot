@@ -81,6 +81,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> PATHING_DISTURBER =
             ITEMS.register("pathing_disturber", () -> new PathingDisturberItem(new Item.Properties()));
 
+    /** 内核对齐验证：流体屏障检查器（场景专属）。 */
+    public static final RegistryObject<Item> PATHING_LAVA_GUARD =
+            ITEMS.register("pathing_lava_guard", () -> new PathingLavaGuardItem(new Item.Properties()));
+
 
     private AliceItems() {
     }

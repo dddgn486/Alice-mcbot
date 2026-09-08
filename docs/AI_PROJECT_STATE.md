@@ -22,7 +22,13 @@
 - Baritone 对照审计已完成：`docs/R2C_BARITONE_AUDIT.md`；
 - 已决策：D-024（落差红线 + 楼梯细化）、D-025（台阶 0.6 对齐真人）、D-026（合法位置集 + 统一完成契约）、D-027（分段完成容差）、D-028（R3→R4 顺序）、D-035（段计时修复 + 段内漂移检测）。
 
-下一步：R4 自愈闭环待客户端验证。**2026-09-09 客户端扰动测试暴露 P0 缺陷（D-035）**：
+下一步（2026-09-09）：**内核对齐路线（D-036）已启动**。四层审计完成
+（`docs/R4_BARITONE_ALIGNMENT_AUDIT.md`，64 项对照：39 未登记偏离 / 13 缺失 / 7 已登记 / 4 对齐）；
+第一刀 P0 对齐已实施（D-037：流体不可挖 / 放置校验 InteractionResult / 危险方块扩表 /
+删除任意 BlockItem 兜底 / D-031 文档修正），待客户端验证（`alice_test:lava_course` + `alice:pathing_lava_guard`
+期望 `UNREACHABLE`，并回归 `alice:pathing_placer`、`alice:pathing_breaker`）。
+
+历史：R4 自愈闭环待客户端验证。**2026-09-09 客户端扰动测试暴露 P0 缺陷（D-035）**：
 `PathSession.segmentTicks` 从未自增 → 段超时永不触发、健康检查退化为每 tick；夹具把 bot 平移进缺口列后，
 会话空跳 17 次约 10 秒不终止。已修复：段计时自增、落地态漂移检测（`SEGMENT_STALE_START`）、空中不重规划、
 任务级 600 tick 兜底；夹具扰动只在目标位置可站立时生效。

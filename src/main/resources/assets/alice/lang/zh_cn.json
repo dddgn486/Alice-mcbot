@@ -1,6 +1,7 @@
 {
   "item.alice.interface_scanner": "接口扫描器",
   "item.alice.target_selector": "目标指定器",
+  "item.alice.soft_move_selector": "软移动选择器",
   "item.alice.road_planner": "道路蓝图锄",
   "item.alice.transfer_endpoint_selector": "转移端点选择器",
   "item.alice.bot_remote_control": "Bot 遥控器",
@@ -16,4 +17,5 @@
   "item.alice.pathing_breaker": "寻路破坏器",
   "item.alice.pathing_placer": "寻路放置器",
   "item.alice.pathing_disturber": "自愈扰动器",
+  "item.alice.pathing_lava_guard": "流体屏障检查器"
 }
