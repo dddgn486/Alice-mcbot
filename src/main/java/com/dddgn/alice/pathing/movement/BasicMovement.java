@@ -1,5 +1,6 @@
 package com.dddgn.alice.pathing.movement;
 
+import com.dddgn.alice.bot.BotPlayer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.phys.Vec3;
@@ -58,12 +59,67 @@ public final class BasicMovement {
         bot.setYRot(yaw);
         bot.setYHeadRot(yaw);
         
+        // D-025/D-030：台阶高度 0.6，前方高于台阶高度的障碍必须跳跃（参照 Baritone MovementAscend）
+        jumpIfStepAhead(bot, dx, dz, distance);
+        
         // 设置输入并执行移动（使用原版物理）
         bot.xxa = 0.0F;
         bot.zza = 1.0F;
         bot.travel(new Vec3(0.0D, 0.0D, 1.0D));
         
         return distance;
+    }
+
+    /**
+     * 前方是否存在需要跳跃的障碍（高度 &gt; 当前 maxUpStep），并按 Baritone
+     * {@code MovementAscend} 的门控决定是否请求跳跃。
+     *
+     * <p>门控（对照 Baritone `MovementAscend:209-230`）：
+     * <ul>
+     *   <li>必须在地面；</li>
+     *   <li>沿运动轴的横向速度 ≤ 0.1（先对准再跳，避免斜着起跳落回原地）；</li>
+     *   <li>障碍上方可穿过（否则会撞头，不跳）；</li>
+     *   <li>半砖/台阶（顶面 ≤ maxUpStep）不触发，交给原版自动跨台阶。</li>
+     * </ul>
+     * 跳跃请求交给 controller，由下一次 `aiStep()` 消费（legacy 直驱模型下同样生效）。
+     */
+    public static void jumpIfStepAhead(ServerPlayer bot, double dx, double dz, double distance) {
+        if (!(bot instanceof BotPlayer botPlayer) || !bot.onGround() || distance < 1.0E-6D) {
+            return;
+        }
+        double dirX = dx / distance;
+        double dirZ = dz / distance;
+
+        // 沿运动轴的横向速度（Baritone 的 lateralMotion 语义）
+        boolean xDominant = Math.abs(dirX) >= Math.abs(dirZ);
+        double lateral = xDominant
+                ? Math.abs(bot.getDeltaMovement().z)
+                : Math.abs(bot.getDeltaMovement().x);
+        if (lateral > 0.1D) {
+            return;
+        }
+
+        for (double ahead : new double[]{0.55D, 0.85D}) {
+            net.minecraft.core.BlockPos foot = net.minecraft.core.BlockPos.containing(
+                    bot.getX() + dirX * ahead, bot.getY(), bot.getZ() + dirZ * ahead);
+            net.minecraft.world.level.block.state.BlockState state = bot.level().getBlockState(foot);
+            net.minecraft.world.phys.shapes.VoxelShape shape =
+                    state.getCollisionShape(bot.level(), foot);
+            if (shape.isEmpty()) {
+                continue;
+            }
+            double top = shape.max(net.minecraft.core.Direction.Axis.Y);
+            if (top <= bot.maxUpStep() + 1.0E-6D) {
+                continue;
+            }
+            net.minecraft.core.BlockPos head = foot.above();
+            if (!bot.level().getBlockState(head)
+                    .getCollisionShape(bot.level(), head).isEmpty()) {
+                return; // 撞头，不跳
+            }
+            botPlayer.controller().jumpOnce();
+            return;
+        }
     }
     
     /**

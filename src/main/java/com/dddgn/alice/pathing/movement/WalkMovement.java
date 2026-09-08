@@ -160,6 +160,8 @@ public final class WalkMovement implements Movement {
         bot.setYHeadRot(yaw);
         ((BotPlayer) bot).controller().setForward(forward);
         ((BotPlayer) bot).controller().setStrafing(strafe);
+        // D-030：台阶高度 0.6，前方一格障碍必须跳跃（与 BasicMovement 同一门控）
+        BasicMovement.jumpIfStepAhead(bot, dx, dz, remainingDistance);
         return Status.RUNNING;
     }
     
