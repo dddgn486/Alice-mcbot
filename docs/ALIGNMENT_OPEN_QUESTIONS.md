@@ -107,7 +107,7 @@ D 的守卫具体化：只有**从落点 `v` 用 ≤1 格 Movement 集合能回�
 
 ---
 
-## Q2/Q3：控制相位 1 tick 对齐（**已实施 D-038，待客户端验证**）
+## Q2/Q3：控制相位 1 tick 对齐（**D-038 已撤回：前提不成立，见下**）
 
 ### 2.1 事实链（已核实）
 
@@ -132,11 +132,12 @@ D 的守卫具体化：只有**从落点 `v` 用 ≤1 格 Movement 集合能回�
 - 制动早 1 tick → 过冲/滑移窗口变小（D-024 过冲规则更稳）。
 - Baritone 的跳跃门控阈值（`flatDistToNext ≤1.2`、`sideDist ≤0.2`）与 settling 判据更可移植。
 
-### 2.4 实施状态（2026-09-09）
+### 2.4 实施与撤回（2026-09-09）
 
-- 已改 `BotManager.onServerTick` 为 `Phase.START`（D-038）；`segment_done` 增加 `ticks=` 遥测。
-- 待测：`pathing_battery` / `pathing_session` / `pathing_breaker` / `pathing_placer` / `pathing_disturber` 全量回归，
-  并与基线（TRAVERSE 6 / DIAGONAL 8 / ASCEND 10 / DESCEND 16 tick）对比。
+- 曾改为 `Phase.START`，随后**撤回**：Forge `MinecraftServer` 的补丁显示 START 在 `tickChildren` 之前、
+  END 在其之后，两者都处于 **physics(N-1) 之后、physics(N) 之前** → 对延迟是 no-op。
+- 实测（改动生效期间）：电池 8/8；placer 93→88、disturber 93→93、breaker 70 tick，无系统性变化。
+- 结论：**无需对齐**；1 tick 延迟是离散控制回路固有属性（Baritone 亦然）。`ticks=` 遥测保留。
 
 ### 2.5 风险与验证
 

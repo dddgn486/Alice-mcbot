@@ -546,16 +546,17 @@ public static void assignFollow(BotPlayer bot, ServerPlayer target) {
     }
 
     /**
-     * 任务/执行器驱动相位（D-038）。
+     * 任务/执行器驱动相位：保持 {@link TickEvent.Phase#END}。
      *
-     * <p>用 {@link TickEvent.Phase#START} 而不是 {@code END}：BotPlayer.tick() 的物理在实体 tick 内执行，
-     * 因此 START(N) 设定的输入会被**同一 tick** 的物理消费，而 END(N-1) 的输入要到 tick N 才生效
-     * （多 1 tick 延迟）。Baritone 的 InputOverrideHandler 同样在实体 tick 之前设置输入。
-     * 对齐后每个 Movement 少 1 tick 延迟，Baritone 的距离/速度门控阈值才可移植。
+     * <p>D-038 曾改为 {@code START} 以求"输入与物理同 tick"，但 Forge 源码证明两者等价：
+     * {@code onPreServerTick} 在 {@code tickCount++/tickChildren} 之前，{@code onPostServerTick}
+     * 在全部实体 tick 之后——**都位于 physics(N-1) 之后、physics(N) 之前**，观察到的状态与
+     * 输入生效的 tick 完全相同。1 tick 延迟是"先观察后动作"的离散控制回路固有属性（Baritone 亦然）。
+     * 详见 D-038（已撤回）。
      */
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.START) {
+        if (event.phase != TickEvent.Phase.END) {
             return;
         }
         TransferLedgerData.get(event.getServer()).expireSuspensions(event.getServer().getTickCount(),

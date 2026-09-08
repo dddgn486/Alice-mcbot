@@ -242,11 +242,11 @@ def dip_course():
     xs = list(range(-3, 4))            # -3..3
     zs = list(range(60, 71))           # 60..70
     floor_y = 63                       # 支撑层（脚位 64）
-    hole = {(0, 65)}                   # 1x1 深坑（支撑层被挖掉，下方 y=62 是石头）
+    hole = {(x, 65) for x in range(-1, 3)}   # x=-1..2、z=65 的 1 格深坑
     start = (0, 66)
-    goal = (0, 64)
-    route_a = [(0, 66), (0, 65), (0, 64)]                       # 下降 + 上升（2 步）
-    route_b = [(0, 66), (1, 66), (1, 65), (1, 64), (0, 64)]     # 同层绕路（4 步）
+    goal = (-1, 63)
+    route_a = [(0, 66), (0, 65), (0, 64), (-1, 63)]              # 旧模型：下降+上升+对角
+    route_b = [(0, 66), (-1, 66), (-2, 65), (-1, 64), (-1, 63)]  # 标定后：西侧绕路
 
     w = MARGIN * 2 + len(xs) * CELL + 40 + len(zs) * CELL
     h = MARGIN * 2 + 40 + len(zs) * CELL + 60
@@ -256,12 +256,12 @@ def dip_course():
     side_x = MARGIN + len(xs) * CELL + 40
     ys = [62, 63, 64, 65]
     draw_side_view(c, side_x, MARGIN + 30, zs, ys, floor_y, hole,
-                   (66, 64), (64, 64), [(66, 64), (65, 63), (64, 64)],
-                   [(66, 64), (66, 64), (65, 64), (64, 64), (64, 64)])
+                   (66, 64), (63, 64), [(66, 64), (65, 63), (64, 64), (63, 64)],
+                   [(66, 64), (66, 64), (65, 64), (64, 64), (63, 64)])
     legend(c, MARGIN, h - 26, [
         (STONE_TOP, "STONE FLOOR"), (HOLE, "HOLE 1X1"),
-        (START, "START (0,64,66)"), (GOAL, "GOAL (0,64,64)"),
-        (ROUTE_A, "A: DESCEND+ASCEND 2 STEPS"), (ROUTE_B, "B: LEVEL DETOUR 4 STEPS"),
+        (START, "START (0,64,66)"), (GOAL, "GOAL (-1,64,63)"),
+        (ROUTE_A, "OLD: DESCEND+ASCEND+DIAG 34 TICK"), (ROUTE_B, "NEW: WEST DETOUR 28 TICK"),
     ])
     return c
 

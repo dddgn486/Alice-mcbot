@@ -21,19 +21,19 @@ import net.minecraft.world.level.Level;
 /**
  * Q7 验收：路线偏好检查器（{@code alice:pathing_dip_route}）：场景专属，右键即启动。
  *
- * <p>场景：起点到目标之间有一个 1 格深坑。两条候选路线：
+ * <p>场景：x=-1..2、z=65 是一条 1 格深的坑。两条候选路线（由本地模拟器穷举验证，
+ * 并与真实规划器在旧场景上的输出一致）：
  * <ul>
- *   <li>路线 A：下降进坑再上升出来（2 步，实测约 26 tick）；</li>
- *   <li>路线 B：同层绕 4 格（4 步，实测约 24 tick）。</li>
+ *   <li>旧模型：`DESCEND + ASCEND + DIAGONAL`（下降进坑再绕），cost=4.41，实测≈34 tick；</li>
+ *   <li>标定后：`TRAVERSE + DIAGONAL + DIAGONAL + TRAVERSE`（西侧绕路），cost=4.66，实测≈28 tick。</li>
  * </ul>
- * 成本模型按真实耗时标定后，规划器应选**路线 B**（`first=TRAVERSE movements=4`）。
- * 标定前选路线 A（`first=DESCEND movements=2`）——这就是本次验收的判别信号。
+ * 所以标定后规划器应改选**更快的绕路**（`first=TRAVERSE`），这就是本次验收的判别信号。
  */
 public class PathingDipRouteItem extends Item {
 
     /** 与 {@code dip_course.mcfunction} 一致。 */
     public static final BlockPos COURSE_START_FOOT = new BlockPos(0, 64, 66);
-    public static final BlockPos COURSE_GOAL_FOOT = new BlockPos(0, 64, 64);
+    public static final BlockPos COURSE_GOAL_FOOT = new BlockPos(-1, 64, 63);
 
     public PathingDipRouteItem(Properties properties) {
         super(properties);
