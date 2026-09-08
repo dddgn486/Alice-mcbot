@@ -19,3 +19,12 @@ run
 
 # 本地依赖 jar(JEI/JECh),不提交——README 有说明
 libs
+
+# DSH runtime state (supervisor-bus 历史遗留,不再跟踪)
+.dsh-runtime/
+
+# 本地杂项
+videos/
+*.backup
+*.bak
+forge-1.20.1-47.4.10-installer.jar.log
