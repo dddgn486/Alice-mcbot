@@ -127,8 +127,29 @@
 
 ## §3 分层对照表（并行审计结果）
 
-> 待合并：A 搜索内核 / D 世界交互。
+> 待合并：D 世界交互。
 > 标记：✅ = 我已亲自复核行号/语义；⬜ = 来自审计 agent，待我复核。
+
+### 3.A 搜索内核（R3）vs Baritone A*
+
+> 注：本基线 Baritone **没有** `MovementHelper.generateMovements`；候选生成是 `Moves.values()`（`AStarPathFinder.java:102`）+ `Moves.apply`（`:119`）。
+
+| 关注点 | Alice（文件:行） | Baritone（文件:行） | 差异实质 | 分类 | 复核 |
+|---|---|---|---|---|---|
+| 出堆判目标 / 节点哈希 / 开放集 / 取消语义 / closed 重开 | `AStarMovementSearch.java:76-83,100-104`、`SearchNode.java:43-49`、`BinaryHeapOpenSet.java:23-100` | `AStarPathFinder.java:95-101,171-175`、`BetterBlockPos.java:99-103`、`openset/BinaryHeapOpenSet.java:60-131` | 语义等价 | ALIGNED | ⬜ |
+| **启发式公式与可采纳性** | `GoalFoot.java:19-23`（欧氏 + 对称 \|dy\|）；`CostModel.java:17` 声称可采纳 | `GoalBlock.java:108-118`、`GoalXZ.java:114-115`（octile × costHeuristic）、`GoalYLevel.java:49-59`（降 3.894 / 升 3.163 非对称） | **h 高估 → 不可采纳**（反例：p=(0,64,0)→goal=(1,63,0)，h(p)=2.0 而 DESCEND 成本 1.0） | DEVIATION-UNREGISTERED（高） | ✅ |
+| **best-so-far 部分路径被丢弃** | `AStarMovementSearch.java:116-124`、`PathPlan.java:43-49`（失败时 movements 全空，bestSoFar 仅进诊断串） | `AbstractNodeCostSearch.java:203-213`（`MIN_DIST_PATH` ≥5 就返回前缀）、`:126-130`（SUCCESS_TO_GOAL / SUCCESS_SEGMENT） | 预算耗尽时已找到的可行前缀被整条丢弃，重规划只能从零开始 | DEVIATION-UNREGISTERED（高） | ⬜ |
+| **无已加载区块/世界边界门控** | `MovementContext.java:39-41` 只有 `yInBounds` | `AStarPathFinder.java:83,105-111`（`isLoaded` + `numEmptyChunk < pathingMaxChunkBorderFetch`）、`:112`（worldBorder） | Alice 会朝未加载区块扩展（服务端读方块会同步加载/生成区块） | MISSING-IN-ALICE（高） | ✅ |
+| 双超时（主 500ms / 失败 2000ms） | `SearchBudget.java:23-29`、`CorePathPlanner.java:14-15`（单墙钟 3000ms） | `AStarPathFinder.java:72-73,86`、`Settings.java:598,603` | 无主/失败双阶段预算 | DEVIATION-UNREGISTERED（中） | ⬜ |
+| 时间检查粒度 | `AStarMovementSearch.java:70,161-163`（每节点） | `AStarPathFinder.java:79,84-89`（每 64 节点） | 性能差异 | DEVIATION-UNREGISTERED（低） | ⬜ |
+| 改进阈值 | `AStarMovementSearch.java:91`（>0） | `AStarPathFinder.java:167,178`、`AbstractNodeCostSearch.java:83`（>0.01） | 浮点重复重开 | DEVIATION-UNREGISTERED（低） | ⬜ |
+| 路径裁剪 / favoring / isFinished | 未找到 | `AbstractNodeCostSearch.java:114-125,59,101-103`、`AStarPathFinder.java:161-164` | 缺失（长距离/复用场景） | MISSING-IN-ALICE（中/低） | ⬜ |
+| 对角语义 | `SurfaceMovementProvider.java:38-42`、`MovementHelper.java:127-135`（同层、两侧全通） | `MovementDiagonal.java:196-218,220-263,265-267`（单侧绕角 optionA/B、对角升降） | 缺绕角与对角升降 | DEVIATION-UNREGISTERED（中） | ⬜ |
+| ASCEND 语义 | `SurfaceMovementProvider.java:43-53`、`MovementHelper.java:192-208`（纯通行） | `MovementAscend.java:67-155`（含放台阶/挖头/jumpPenalty） | Alice 更保守（放台阶走独立类型） | DEVIATION-JUSTIFIED（D-033） | ⬜ |
+| 放置/破坏成本 | `SurfaceMovementProvider.java:26,125,162` | `Settings.java:124`(20)、`MovementHelper.java:599-604`、`Settings.java:131`(2) | 4.0 vs 20；`breakTicks/20` 单位混用 | DEVIATION-UNREGISTERED（高） | ✅ |
+| 目标类型 | `GoalSpec.java:10-21`、`GoalFoot.java:8-34` | `goals/GoalBlock/GoalTwoBlocks/GoalGetToBlock/GoalXZ/GoalYLevel/GoalComposite/GoalNear` | 只有精确脚位 | MISSING-IN-ALICE（中） | ⬜ |
+| 状态语义 | `PlanningStatus.java:4-14` | `PathCalculationResult.java:48-54` | Alice 区分 SEARCH_LIMIT/UNREACHABLE/CANCELLED | DEVIATION-JUSTIFIED（D-004） | ⬜ |
+| legacy 零启发 Dijkstra | `pathing/AStarPathfinder.java:118-120,240-247` | 单一 A* | 双内核 | DEVIATION-UNREGISTERED（低） | ⬜ |
 
 ### 3.B 执行会话（PathSession）vs PathExecutor
 
@@ -207,6 +228,11 @@
 | P2 | replan 决策下沉到任务层 | `PathSession`、`PathSessionDiagnosticTask` | `PathingBehavior.java:154-193` |
 | P2 | `closestPathPos` + `ticksAway`（软 2/硬 3/200 tick） | `PathSession` | `PathExecutor.java:129-145,256-269` |
 | P2 | 段内重同步（前向/后向搜索 + reset）与 snipsnap 拼接拆分 | `PathSession` | `PathExecutor.java:101-128` |
+| P0 | 启发式改为可采纳（octile + 非对称竖向，或与成本模型同标定） | `GoalFoot.heuristic` | `GoalXZ.java:114-115`、`GoalYLevel.java:49-59` |
+| P1 | 搜索加已加载区块门控 + XZ 世界边界 | `MovementContext`、`SurfaceMovementProvider`、`AStarMovementSearch` | `AStarPathFinder.java:83,105-112` |
+| P1 | 预算耗尽时返回 best-so-far 前缀（`PARTIAL` 状态，不冒充不可达） | `AStarMovementSearch`、`PathPlan`、`PathSession` | `AbstractNodeCostSearch.java:203-213` |
+| P2 | 双阶段预算（主/失败超时）+ 时间检查每 64 节点 + 改进阈值 0.01 | `SearchBudget`、`AStarMovementSearch` | `AStarPathFinder.java:72-86,167-178` |
+| P2 | 目标类型补齐（GoalXZ/GoalYLevel/GoalTwoBlocks 等） | `GoalSpec` 实现类 | `goals/*` |
 
 ---
 
