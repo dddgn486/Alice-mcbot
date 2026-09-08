@@ -11,7 +11,8 @@ public record LiveExecutionContext(
         ServerLevel level,
         String sessionId,
         long currentWorldRevision,
-        long policyVersion
+        long policyVersion,
+        CompletionTolerance tolerance
 ) {
     public LiveExecutionContext {
         Objects.requireNonNull(bot, "bot");
@@ -23,5 +24,12 @@ public record LiveExecutionContext(
         if (currentWorldRevision < 0 || policyVersion < 0) {
             throw new IllegalArgumentException("revisions must be non-negative");
         }
+        tolerance = tolerance == null ? CompletionTolerance.EXACT : tolerance;
+    }
+
+    /** 默认 EXACT 容差（单步诊断等安全关键场景）。 */
+    public LiveExecutionContext(ServerPlayer bot, ServerLevel level, String sessionId,
+                                long currentWorldRevision, long policyVersion) {
+        this(bot, level, sessionId, currentWorldRevision, policyVersion, CompletionTolerance.EXACT);
     }
 }
