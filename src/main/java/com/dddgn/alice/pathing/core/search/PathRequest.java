@@ -39,6 +39,14 @@ public record PathRequest(
                 SearchBudget.UNLIMITED, "unknown");
     }
 
+    /** 纯通行 + PATH_ACCESS 破坏（R5-2）；世界修改必须由调用方显式授权。 */
+    public static PathRequest withPathAccess(String botId, BlockPos startFoot, BlockPos goalFoot) {
+        return new PathRequest(botId, startFoot, new GoalFoot(goalFoot),
+                Set.of(MovementType.TRAVERSE, MovementType.DIAGONAL, MovementType.ASCEND,
+                        MovementType.DESCEND, MovementType.BREAK_AND_TRAVERSE),
+                SearchBudget.UNLIMITED, "unknown");
+    }
+
     public boolean allows(MovementType type) {
         return allowedMovementTypes.contains(type);
     }

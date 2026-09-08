@@ -69,6 +69,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> PATHING_SESSION =
             ITEMS.register("pathing_session", () -> new PathingSessionItem(new Item.Properties()));
 
+    /** R5-2 破坏通行测试器：规划穿墙路径 + 破坏 + 通过（场景专属）。 */
+    public static final RegistryObject<Item> PATHING_BREAKER =
+            ITEMS.register("pathing_breaker", () -> new PathingBreakerItem(new Item.Properties()));
+
 
     private AliceItems() {
     }

@@ -1,6 +1,8 @@
 package com.dddgn.alice.pathing.core.search;
 
+import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.pathing.MovementHelper;
+import com.dddgn.alice.pathing.core.BreakAndTraverseExecution;
 import com.dddgn.alice.pathing.core.MovementType;
 import com.dddgn.alice.pathing.core.RecoverabilityLevel;
 import net.minecraft.core.BlockPos;
@@ -68,7 +70,52 @@ public final class SurfaceMovementProvider implements MovementProvider {
         }
         if (MovementHelper.canTraverse(level, from, to)) {
             append(context, from, to, type, out);
+            return;
         }
+        // R5-2：水平被阻挡但可破坏时，生成破坏通行候选（只对基数为轴的 TRAVERSE 生成）
+        if (type == MovementType.TRAVERSE && context.allows(MovementType.BREAK_AND_TRAVERSE)) {
+            appendBreakAndTraverse(context, level, from, dx, dz, out);
+        }
+    }
+
+    /**
+     * 破坏通行候选（R5-2）：从 {@code from} 沿 (dx,dz) 方向，
+     * 中间列被阻挡且可破坏、其后一格可站时，生成"破坏中间列 + 走到其后一格"的候选
+     * （位移 2 格直线）。成本 = 水平 2 格 + 破坏 tick / 20。
+     */
+    private static void appendBreakAndTraverse(MovementContext context, ServerLevel level,
+                                               BlockPos from, int dx, int dz,
+                                               List<PlannedMovement> out) {
+        BlockPos mid = from.offset(dx, 0, dz);
+        BlockPos to = from.offset(dx * 2, 0, dz * 2);
+        if (!context.yInBounds(to.getY())) {
+            return;
+        }
+        // 中间列必须确实被阻挡
+        List<BlockPos> blockers = BreakAndTraverseExecution.collectBlockers(level, from, to);
+        if (blockers.isEmpty()) {
+            return;
+        }
+        // 目标必须可通行且可站
+        if (!MovementHelper.canWalkThrough(level, to)
+                || !MovementHelper.canWalkThrough(level, to.above())
+                || !MovementHelper.canWalkOn(level, to)) {
+            return;
+        }
+        double breakTicks = 0.0D;
+        for (BlockPos blocker : blockers) {
+            if (context.bot() == null || !BlockInteraction.breakable(context.bot(), level, blocker)) {
+                return;
+            }
+            breakTicks += BlockInteraction.estimateBreakTicks(context.bot(), level, blocker);
+        }
+        if (!Double.isFinite(breakTicks)) {
+            return;
+        }
+        double cost = context.cost(MovementType.TRAVERSE, from, mid)
+                + context.cost(MovementType.TRAVERSE, mid, to) + breakTicks / 20.0D;
+        out.add(new PlannedMovement(MovementType.BREAK_AND_TRAVERSE, from, to, cost,
+                RecoverabilityLevel.LOCAL_STEP));
     }
 
     private static void append(MovementContext context, BlockPos from, BlockPos to,

@@ -20,6 +20,7 @@ import java.util.UUID;
 public final class PathSessionDiagnosticTask implements Task {
     private final BotPlayer bot;
     private final BlockPos goalFoot;
+    private final boolean allowPathAccess;
     private final String sessionId = "r4-session-" + UUID.randomUUID();
     private boolean initialized;
     private PathSession session;
@@ -27,8 +28,13 @@ public final class PathSessionDiagnosticTask implements Task {
 
 
     public PathSessionDiagnosticTask(BotPlayer bot, BlockPos goalFoot) {
+        this(bot, goalFoot, false);
+    }
+
+    public PathSessionDiagnosticTask(BotPlayer bot, BlockPos goalFoot, boolean allowPathAccess) {
         this.bot = bot;
         this.goalFoot = goalFoot.immutable();
+        this.allowPathAccess = allowPathAccess;
     }
 
     @Override
@@ -68,8 +74,12 @@ public final class PathSessionDiagnosticTask implements Task {
 
     private boolean initialize() {
         BlockPos startFoot = bot.blockPosition().immutable();
-        PathPlan plan = new CorePathPlanner().planTo(bot.serverLevel(), bot.getUUID().toString(),
-                startFoot, goalFoot, "r4-session-task");
+        CorePathPlanner planner = new CorePathPlanner();
+        PathPlan plan = allowPathAccess
+                ? planner.planToWithPathAccess(bot, bot.serverLevel(), bot.getUUID().toString(),
+                        startFoot, goalFoot, "r4-session-task")
+                : planner.planTo(bot, bot.serverLevel(), bot.getUUID().toString(),
+                        startFoot, goalFoot, "r4-session-task");
         BotLog.info("[R4 Session] planned session={} {} from={} to={}",
                 sessionId, plan.summary(), startFoot.toShortString(), goalFoot.toShortString());
         if (!plan.reached()) {

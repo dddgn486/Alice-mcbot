@@ -13,19 +13,19 @@ import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 
 /**
- * R4 路径会话测试器（{@code alice:pathing_session}）：场景专属，右键即启动。
+ * R5-2 破坏通行测试器（{@code alice:pathing_breaker}）：场景专属，右键即启动。
  *
- * <p>只负责启动：把 bot 锚定到课程固定起点，规划到课程固定目标（2 段下降链底部），
- * 然后由 {@code PathSession} 逐段执行并报告结构化结果。
+ * <p>把 bot 锚定到固定起点，规划到墙后固定目标（路径需要破坏阻挡方块），
+ * 由 {@code PathSession} 执行并报告结构化结果。
  */
-public class PathingSessionItem extends Item {
+public class PathingBreakerItem extends Item {
 
-    /** 固定起点，与 pathing_course.mcfunction / PathingBatteryItem 一致。 */
-    public static final BlockPos COURSE_START_FOOT = new BlockPos(0, 64, 46);
-    /** 固定目标：课程 2 段下降链底部。 */
-    public static final BlockPos COURSE_GOAL_FOOT = new BlockPos(0, 62, 44);
+    /** 固定起点（与 break_course.mcfunction 一致）。 */
+    public static final BlockPos COURSE_START_FOOT = new BlockPos(0, 64, 66);
+    /** 固定目标：墙后平台。 */
+    public static final BlockPos COURSE_GOAL_FOOT = new BlockPos(7, 64, 66);
 
-    public PathingSessionItem(Properties properties) {
+    public PathingBreakerItem(Properties properties) {
         super(properties);
     }
 
@@ -59,7 +59,6 @@ public class PathingSessionItem extends Item {
             }
             return InteractionResult.SUCCESS;
         }
-        // 安全传送：直线被方块阻挡时拒绝（夹具绝不把 bot 送穿墙体）
         if (!com.dddgn.alice.action.BlockInteraction.teleportSafely(bot, level, COURSE_START_FOOT,
                 bot.getYRot(), bot.getXRot())) {
             if (player != null) {
@@ -71,18 +70,35 @@ public class PathingSessionItem extends Item {
         }
         bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
         bot.controller().stopMovement();
-        if (!BotManager.assignPathSessionDiagnostic(bot, COURSE_GOAL_FOOT)) {
+        // 夹具：确保 bot 有石镐（否则徒手挖石墙 7.5 秒/块，测试过慢且不体现工具选择）
+        ensureStonePickaxe(bot);
+        if (!BotManager.assignPathSessionDiagnostic(bot, COURSE_GOAL_FOOT, true)) {
             if (player != null) {
                 player.sendSystemMessage(Component.literal("[alice] bot 正忙，稍后再试"));
             }
             return InteractionResult.SUCCESS;
         }
         if (player != null) {
-            player.sendSystemMessage(Component.literal("[alice] R4 路径会话启动 bot="
+            player.sendSystemMessage(Component.literal("[alice] R5-2 破坏通行启动 bot="
                     + bot.getName().getString() + " 起点=" + COURSE_START_FOOT.toShortString()
                     + " → 目标=" + COURSE_GOAL_FOOT.toShortString()
-                    + "（先规划、再逐段执行），结果见聊天/日志"));
+                    + "（规划穿墙路径 + 破坏 + 通过）"));
         }
         return InteractionResult.SUCCESS;
+    }
+
+    /** 测试夹具：确保 bot 快捷栏有石镐（记录日志，仅测试用）。 */
+    private static void ensureStonePickaxe(BotPlayer bot) {
+        var inventory = bot.getInventory();
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            if (inventory.getItem(slot).is(net.minecraft.world.item.Items.STONE_PICKAXE)) {
+                inventory.selected = Math.min(slot, 8);
+                return;
+            }
+        }
+        var stack = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.STONE_PICKAXE);
+        inventory.add(stack);
+        com.dddgn.alice.log.BotLog.info("[R5-2 Fixture] gave stone_pickaxe to bot={}",
+                bot.getName().getString());
     }
 }

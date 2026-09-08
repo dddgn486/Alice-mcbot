@@ -1,5 +1,6 @@
 package com.dddgn.alice.command;
 
+import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.gui.BotInventoryService;
@@ -574,9 +575,12 @@ public final class BotCommand {
             return 0;
         }
         BlockPos foot = player.blockPosition().immutable();
-        // 带头部同步的传送重载，避免头身不一致
-        bot.teleportTo(source.getLevel(), foot.getX() + 0.5D, foot.getY(), foot.getZ() + 0.5D,
-                java.util.Set.of(), bot.getYRot(), bot.getXRot());
+        if (!com.dddgn.alice.action.BlockInteraction.teleportSafely(bot, source.getLevel(), foot,
+                bot.getYRot(), bot.getXRot())) {
+            source.sendFailure(Component.literal(
+                    "[alice] bot 与你之间被方块阻挡，已拒绝传送（不穿墙）；请走到 bot 附近再试"));
+            return 0;
+        }
         bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
         bot.controller().stopMovement();
         final String name = bot.getName().getString();
@@ -631,7 +635,7 @@ public final class BotCommand {
         BlockPos startFoot = bot.blockPosition().immutable();
         com.dddgn.alice.pathing.core.search.PathPlan plan =
                 new com.dddgn.alice.pathing.core.search.CorePathPlanner()
-                        .planTo(source.getLevel(), bot.getUUID().toString(), startFoot, goalFoot, "command");
+                        .planTo(bot, source.getLevel(), bot.getUUID().toString(), startFoot, goalFoot, "command");
         BotLog.info("[R3 Plan] {} bot={} from={} to={}", plan.summary(),
                 bot.getName().getString(), startFoot.toShortString(), goalFoot.toShortString());
         for (int i = 0; i < plan.movements().size(); i++) {
@@ -790,7 +794,7 @@ public final class BotCommand {
                 if (actor == null) {
                     skipped++;
                 } else if (com.dddgn.alice.protection.BlockBreakSafety.clearingRefusal(actor, pos) == null) {
-                    source.getLevel().destroyBlock(pos, false);
+                    com.dddgn.alice.action.BlockInteraction.breakForBulkEdit(actor, source.getLevel(), pos, false);
                     changed++;
                 } else {
                     skipped++;

@@ -1,5 +1,6 @@
 package com.dddgn.alice.road;
 
+import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.protection.BlockBreakSafety;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -101,7 +102,7 @@ public final class RoadBuilder {
             if (pos.equals(plan.first()) || pos.equals(plan.second())) continue;
             if (!level.getBlockState(pos).isAir()
                     && BlockBreakSafety.clearingRefusal(actor, pos) == null) {
-                level.destroyBlock(pos, false);
+                BlockInteraction.breakForBulkEdit(actor, level, pos, false);
             }
         }
         for (BlockPos pos : supports) {
@@ -146,7 +147,7 @@ public final class RoadBuilder {
                     BlockPos pos = support.offset(dx, dy, dz);
                     if (isUnstableFallingBlock(pos)
                             && BlockBreakSafety.clearingRefusal(actor, pos) == null) {
-                        level.destroyBlock(pos, false);
+                        BlockInteraction.breakForBulkEdit(actor, level, pos, false);
                     }
                 }
             }

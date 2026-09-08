@@ -1,5 +1,8 @@
 package com.dddgn.alice.pathing.movement;
 
+import com.dddgn.alice.action.BlockBreakSession;
+import com.dddgn.alice.action.BlockInteraction;
+import com.dddgn.alice.log.BotLog;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -49,6 +52,9 @@ public final class BreakAndWalkMovement implements Movement {
     
     private boolean footCleared = false;
     private boolean headCleared = false;
+    /** Baritone 式破坏会话（每 tick 推进进度），替代瞬间销毁。 */
+    private BlockBreakSession footSession;
+    private BlockBreakSession headSession;
     
     private BreakAndWalkMovement(ServerPlayer bot, BlockPos from, BlockPos to, ServerLevel level) {
         this.bot = bot;
@@ -166,12 +172,18 @@ public final class BreakAndWalkMovement implements Movement {
     
     @Override
     public Status tick(ServerPlayer bot) {
-        // Step 1: 挖掉脚位障碍
+        // Step 1: 挖掉脚位障碍（Baritone 式进度破坏，替代原先的瞬间 destroyBlock）
         if (obstacleFootPos != null && !footCleared) {
             if (!level.getBlockState(obstacleFootPos).isAir()) {
-                // TODO: 使用正确的挖掘方法（带工具、掉落物）
-                // 目前先用 destroyBlock 模拟（Phase 1）
-                level.destroyBlock(obstacleFootPos, true);
+                if (footSession == null) {
+                    footSession = BlockInteraction.beginBreak(bot, level, obstacleFootPos);
+                }
+                BlockBreakSession.Status status = footSession.tick();
+                if (status == BlockBreakSession.Status.FAILED) {
+                    BotLog.warn("break_and_walk 破坏脚位障碍失败: pos={} code={}",
+                            obstacleFootPos.toShortString(), footSession.failureCode());
+                    return Status.FAILED;
+                }
                 return Status.RUNNING;
             }
             footCleared = true;
@@ -180,7 +192,15 @@ public final class BreakAndWalkMovement implements Movement {
         // Step 2: 挖掉头位障碍
         if (obstacleHeadPos != null && !headCleared) {
             if (!level.getBlockState(obstacleHeadPos).isAir()) {
-                level.destroyBlock(obstacleHeadPos, true);
+                if (headSession == null) {
+                    headSession = BlockInteraction.beginBreak(bot, level, obstacleHeadPos);
+                }
+                BlockBreakSession.Status status = headSession.tick();
+                if (status == BlockBreakSession.Status.FAILED) {
+                    BotLog.warn("break_and_walk 破坏头位障碍失败: pos={} code={}",
+                            obstacleHeadPos.toShortString(), headSession.failureCode());
+                    return Status.FAILED;
+                }
                 return Status.RUNNING;
             }
             headCleared = true;

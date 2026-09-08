@@ -84,7 +84,7 @@ public final class PathSession {
             return status;
         }
 
-        if (++segmentTicks > MAX_TICKS_PER_SEGMENT) {
+        if (segmentTicks > segmentTimeoutTicks()) {
             execution.cancel();
             fail(PathSessionStatus.TIMEOUT, "SEGMENT_TIMEOUT");
             return status;
@@ -154,6 +154,15 @@ public final class PathSession {
                 sessionId, index, movements.size(), movement.movementType(),
                 movement.fromFoot().toShortString(), movement.toFoot().toShortString(), tolerance,
                 bot.blockPosition().toShortString());
+    }
+
+    /**
+     * 本段超时上限：按规划成本动态放宽（挖掘类 Movement 成本含破坏 tick），
+     * 至少 {@link #MAX_TICKS_PER_SEGMENT}。
+     */
+    private int segmentTimeoutTicks() {
+        double plannedCost = movements.get(index).cost();
+        return Math.max(MAX_TICKS_PER_SEGMENT, (int) Math.ceil(plannedCost * 20.0D) + 100);
     }
 
     /** 当前段目标是否仍然可通行/有支撑（世界变化检测）。 */

@@ -3,6 +3,7 @@ package com.dddgn.alice.pathing.core.search;
 import com.dddgn.alice.pathing.core.MovementType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.util.Objects;
 
@@ -13,6 +14,7 @@ import java.util.Objects;
  * 异步搜索（R7）将改为持有 {@code WorldView} 快照，接口语义不变。
  */
 public record MovementContext(
+        ServerPlayer bot,
         ServerLevel level,
         PathRequest request,
         CostModel costModel,
@@ -25,8 +27,8 @@ public record MovementContext(
         costModel = Objects.requireNonNull(costModel, "costModel");
     }
 
-    public static MovementContext live(ServerLevel level, PathRequest request) {
-        return new MovementContext(level, request, CostModel.TRAVERSAL,
+    public static MovementContext live(ServerPlayer bot, ServerLevel level, PathRequest request) {
+        return new MovementContext(bot, level, request, CostModel.TRAVERSAL,
                 level.getMinBuildHeight(), level.getMaxBuildHeight());
     }
 

@@ -390,9 +390,16 @@ public static void assignFollow(BotPlayer bot, ServerPlayer target) {
 
     /** Assigns the R4 plan→session execution diagnostic. */
     public static boolean assignPathSessionDiagnostic(BotPlayer bot, BlockPos goalFoot) {
+        return assignPathSessionDiagnostic(bot, goalFoot, false);
+    }
+
+    /** Assigns the R4/R5 plan→session diagnostic；allowPathAccess 授权 PATH_ACCESS 破坏。 */
+    public static boolean assignPathSessionDiagnostic(BotPlayer bot, BlockPos goalFoot,
+                                                      boolean allowPathAccess) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
-        session.beginTask(new PathSessionDiagnosticTask(bot, goalFoot), TaskTarget.block(goalFoot));
+        session.beginTask(new PathSessionDiagnosticTask(bot, goalFoot, allowPathAccess),
+                TaskTarget.block(goalFoot));
         broadcastTarget(session.target);
         return true;
     }

@@ -1,6 +1,7 @@
 package com.dddgn.alice.pathing.core.search;
 
 import com.dddgn.alice.pathing.core.AscendExecutionFactory;
+import com.dddgn.alice.pathing.core.BreakAndTraverseExecutionFactory;
 import com.dddgn.alice.pathing.core.DescendExecutionFactory;
 import com.dddgn.alice.pathing.core.DiagonalExecutionFactory;
 import com.dddgn.alice.pathing.core.IntrinsicReversibility;
@@ -44,6 +45,7 @@ public final class PlannedMovementSpecs {
             case DIAGONAL -> DiagonalExecutionFactory.KEY;
             case ASCEND -> AscendExecutionFactory.KEY;
             case DESCEND -> DescendExecutionFactory.KEY;
+            case BREAK_AND_TRAVERSE -> BreakAndTraverseExecutionFactory.KEY;
             default -> throw new IllegalArgumentException("unsupported movement type: " + type);
         };
     }
@@ -54,6 +56,7 @@ public final class PlannedMovementSpecs {
             case DIAGONAL -> new DiagonalExecutionFactory();
             case ASCEND -> new AscendExecutionFactory();
             case DESCEND -> new DescendExecutionFactory();
+            case BREAK_AND_TRAVERSE -> new BreakAndTraverseExecutionFactory();
             default -> throw new IllegalArgumentException("unsupported movement type: " + type);
         };
     }

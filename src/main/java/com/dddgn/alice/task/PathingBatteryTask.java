@@ -22,6 +22,7 @@ import com.dddgn.alice.pathing.core.search.MovementContext;
 import com.dddgn.alice.pathing.core.search.PathPlan;
 import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.pathing.core.search.PlannedMovement;
+import com.dddgn.alice.pathing.core.search.PlannedMovementSpecs;
 import com.dddgn.alice.pathing.core.search.SearchBudget;
 import com.dddgn.alice.pathing.core.search.SurfaceMovementProvider;
 import net.minecraft.core.BlockPos;
@@ -77,7 +78,10 @@ public final class PathingBatteryTask implements Task {
         if (!initialized) {
             initialized = true;
             // 先把 bot 锚定到起点（无论它之前在哪儿），保证测试从课程起点开始
-            anchorToStart();
+            if (!anchorToStart()) {
+                failure = "ANCHOR_BLOCKED";
+                return Status.FAILED;
+            }
             runPlanChecks();
             BotLog.info("[R3 Battery] started session={} bot={} foot={}",
                     sessionId, bot.getName().getString(), bot.blockPosition().toShortString());
@@ -164,14 +168,14 @@ public final class PathingBatteryTask implements Task {
         String botId = bot.getUUID().toString();
         BlockPos foot = bot.blockPosition().immutable();
 
-        PathPlan flat = planner.planTo(bot.serverLevel(), botId, foot, foot.offset(2, 0, 0), "battery");
+        PathPlan flat = planner.planTo(bot, bot.serverLevel(), botId, foot, foot.offset(2, 0, 0), "battery");
         results.put("plan_flat", flat.status().name() + "(" + flat.movements().size() + ")");
 
         List<PlannedMovement> upCandidates = detect(MovementType.ASCEND);
         if (upCandidates.isEmpty()) {
             results.put("plan_up", "SKIP");
         } else {
-            PathPlan up = planner.planTo(bot.serverLevel(), botId, foot,
+            PathPlan up = planner.planTo(bot, bot.serverLevel(), botId, foot,
                     upCandidates.get(0).toFoot(), "battery");
             results.put("plan_up", up.status().name() + "(" + up.movements().size() + ")");
         }
@@ -179,7 +183,7 @@ public final class PathingBatteryTask implements Task {
         PathRequest tight = new PathRequest(botId, foot, new GoalFoot(foot.offset(100, 0, 0)),
                 PathRequest.of(botId, foot, foot).allowedMovementTypes(),
                 SearchBudget.of(200, 200L), "battery");
-        PathPlan budget = planner.plan(bot.serverLevel(), tight);
+        PathPlan budget = planner.plan(bot, bot.serverLevel(), tight);
         results.put("plan_budget", budget.status().name());
 
         BotLog.info("[R3 Battery] plan_flat={} plan_up={} plan_budget={}",
@@ -189,7 +193,7 @@ public final class PathingBatteryTask implements Task {
     /** 用规划器同源候选检测某一类型的一条可执行 Movement。 */
     private List<PlannedMovement> detect(MovementType type) {
         List<PlannedMovement> candidates = new ArrayList<>();
-        MovementContext context = MovementContext.live(bot.serverLevel(),
+        MovementContext context = MovementContext.live(bot, bot.serverLevel(),
                 PathRequest.of(bot.getUUID().toString(), hubFoot, hubFoot));
         new SurfaceMovementProvider().appendCandidates(context, hubFoot, candidates);
         for (PlannedMovement candidate : candidates) {
@@ -208,18 +212,22 @@ public final class PathingBatteryTask implements Task {
         anchorToStart();
     }
 
-    /** 把 bot 传送到测试起点（夹具行为：无论 bot 之前在何处）。 */
-    private void anchorToStart() {
-        // 用 ServerPlayer 的传送重载：它除了移动位置，还会 setYHeadRot(yRot)，
-        // 避免假人传送后头部朝向与身体不一致（3 参重载不做头部同步）。
-        bot.teleportTo(bot.serverLevel(), hubFoot.getX() + 0.5D, hubFoot.getY(),
-                hubFoot.getZ() + 0.5D, java.util.Set.of(), bot.getYRot(), bot.getXRot());
+    /** 把 bot 传送到测试起点（夹具行为）；直线被方块阻挡时拒绝并返回 false。 */
+    private boolean anchorToStart() {
+        // 安全传送（带头部同步 + 直线阻挡检查）：夹具绝不把 bot 送穿方块
+        if (!com.dddgn.alice.action.BlockInteraction.teleportSafely(bot, bot.serverLevel(), hubFoot,
+                bot.getYRot(), bot.getXRot())) {
+            BotLog.warn("[R3 Battery] anchor_blocked foot={} actualFoot={}（拒绝穿墙传送）",
+                    hubFoot.toShortString(), bot.blockPosition().toShortString());
+            return false;
+        }
         bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
         bot.controller().stopMovement();
         BotLog.info("[R3 Battery] anchor_to_start foot={} actualFoot={} yRot={} yHeadRot={}",
                 hubFoot.toShortString(), bot.blockPosition().toShortString(),
                 String.format(java.util.Locale.ROOT, "%.2f", bot.getYRot()),
                 String.format(java.util.Locale.ROOT, "%.2f", bot.getYHeadRot()));
+        return true;
     }
 
     /** 检测 2 段连续下降（标准楼梯）。 */
@@ -237,7 +245,7 @@ public final class PathingBatteryTask implements Task {
 
     private List<PlannedMovement> detectFrom(BlockPos from, MovementType type) {
         List<PlannedMovement> candidates = new ArrayList<>();
-        MovementContext context = MovementContext.live(bot.serverLevel(),
+        MovementContext context = MovementContext.live(bot, bot.serverLevel(),
                 PathRequest.of(bot.getUUID().toString(), from, from));
         new SurfaceMovementProvider().appendCandidates(context, from, candidates);
         for (PlannedMovement candidate : candidates) {
@@ -249,8 +257,9 @@ public final class PathingBatteryTask implements Task {
     }
 
     private boolean startSegment(PlannedMovement movement) {
-        MovementExecutionFactory factory = factoryFor(movement.movementType());
-        MovementSpec spec = createSpec(movement);
+        MovementExecutionFactory factory = PlannedMovementSpecs.factoryFor(movement.movementType());
+        MovementSpec spec = PlannedMovementSpecs.toSpec(movement,
+                List.of("battery_segment", "target_support", "target_body_clear", "target_head_clear"));
         boolean finalSegment = planCursor == currentPlan.size() - 1;
         CompletionTolerance tolerance = finalSegment
                 ? CompletionTolerance.EXACT
@@ -299,36 +308,5 @@ public final class PathingBatteryTask implements Task {
     }
 
 
-    private static MovementExecutionFactory factoryFor(MovementType type) {
-        return switch (type) {
-            case TRAVERSE -> new TraverseExecutionFactory();
-            case DIAGONAL -> new DiagonalExecutionFactory();
-            case ASCEND -> new AscendExecutionFactory();
-            case DESCEND -> new DescendExecutionFactory();
-            default -> throw new IllegalArgumentException("unsupported battery movement: " + type);
-        };
-    }
 
-    private static MovementSpec createSpec(PlannedMovement movement) {
-        MovementCapabilities capabilities = MovementCapabilities.pureTraversal(
-                RecoverabilityLevel.LOCAL_STEP, IntrinsicReversibility.REVERSIBLE);
-        PlanningDependency dependency = new PlanningDependency(
-                List.of(movement.fromFoot(), movement.toFoot(), movement.toFoot().above(),
-                        movement.toFoot().below()),
-                List.of(movement.toFoot(), movement.toFoot().above()), List.of(movement.toFoot().below()),
-                List.of(movement.toFoot(), movement.toFoot().below()),
-                List.of(movement.toFoot(), movement.toFoot().below()),
-                List.of(), 0L, 0L);
-        String key = switch (movement.movementType()) {
-            case TRAVERSE -> TraverseExecutionFactory.KEY;
-            case DIAGONAL -> DiagonalExecutionFactory.KEY;
-            case ASCEND -> AscendExecutionFactory.KEY;
-            case DESCEND -> DescendExecutionFactory.KEY;
-            default -> throw new IllegalArgumentException("unsupported battery movement");
-        };
-        return new MovementSpec(movement.movementType(), movement.fromFoot(), movement.toFoot(),
-                movement.cost(), capabilities, List.of(), List.of(),
-                List.of("battery_segment", "target_support", "target_body_clear", "target_head_clear"),
-                dependency, RecoverabilityLevel.LOCAL_STEP, key);
-    }
 }

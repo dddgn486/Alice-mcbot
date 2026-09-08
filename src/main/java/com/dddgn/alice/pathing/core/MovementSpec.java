@@ -75,7 +75,15 @@ public record MovementSpec(
                     throw new IllegalArgumentException("DESCEND requires a horizontal step with dy=-1");
                 }
             }
-            case BREAK_AND_TRAVERSE, PLACE_STEP_AND_TRAVERSE -> {
+            case BREAK_AND_TRAVERSE -> {
+                // 语义：破坏"中间列"后走到其后一格 → 同层直线 2 格
+                boolean straightTwo = (Math.abs(dx) == 2 && dz == 0) || (Math.abs(dz) == 2 && dx == 0);
+                if (dy != 0 || !straightTwo) {
+                    throw new IllegalArgumentException(
+                            "BREAK_AND_TRAVERSE requires a straight same-level two-block step");
+                }
+            }
+            case PLACE_STEP_AND_TRAVERSE -> {
                 // World-modifying displacement rules are movement-specific and remain future work.
             }
         }

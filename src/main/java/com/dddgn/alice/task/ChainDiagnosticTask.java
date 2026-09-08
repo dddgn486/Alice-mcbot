@@ -17,6 +17,8 @@ import com.dddgn.alice.pathing.core.MovementType;
 import com.dddgn.alice.pathing.core.PlanningDependency;
 import com.dddgn.alice.pathing.core.RecoverabilityLevel;
 import com.dddgn.alice.pathing.core.TraverseExecutionFactory;
+import com.dddgn.alice.pathing.core.search.PlannedMovement;
+import com.dddgn.alice.pathing.core.search.PlannedMovementSpecs;
 import net.minecraft.core.BlockPos;
 
 import java.util.List;
@@ -114,8 +116,10 @@ public final class ChainDiagnosticTask implements Task {
             logSegment("failed", failure);
             return false;
         }
-        MovementExecutionFactory factory = factoryFor(type);
-        MovementSpec spec = createSpec(type, from, to);
+        MovementExecutionFactory factory = PlannedMovementSpecs.factoryFor(type);
+        MovementSpec spec = PlannedMovementSpecs.toSpec(
+                new PlannedMovement(type, from, to, 1.2D, RecoverabilityLevel.LOCAL_STEP),
+                List.of("chain_segment", "target_support", "target_body_clear", "target_head_clear"));
         // D-027：中间段用 COLUMN 容差（对齐 Baritone，消除空中掉头回冲）；
         // 最终段用 EXACT（安全关键站位保持居中）。
         boolean finalSegment = segmentIndex == plannedFoot.size() - 2;
@@ -162,34 +166,5 @@ public final class ChainDiagnosticTask implements Task {
         return null;
     }
 
-    private static MovementExecutionFactory factoryFor(MovementType type) {
-        return switch (type) {
-            case TRAVERSE -> new TraverseExecutionFactory();
-            case DIAGONAL -> new DiagonalExecutionFactory();
-            case ASCEND -> new AscendExecutionFactory();
-            case DESCEND -> new DescendExecutionFactory();
-            default -> throw new IllegalArgumentException("unsupported chain movement type: " + type);
-        };
-    }
 
-    private static MovementSpec createSpec(MovementType type, BlockPos from, BlockPos to) {
-        MovementCapabilities capabilities = MovementCapabilities.pureTraversal(
-                RecoverabilityLevel.LOCAL_STEP, IntrinsicReversibility.REVERSIBLE);
-        PlanningDependency dependency = new PlanningDependency(
-                List.of(from, to, to.above(), to.below()),
-                List.of(to, to.above()), List.of(to.below()),
-                List.of(to, to.below()), List.of(to, to.below()),
-                List.of(), 0L, 0L);
-        String factoryKey = switch (type) {
-            case TRAVERSE -> TraverseExecutionFactory.KEY;
-            case DIAGONAL -> DiagonalExecutionFactory.KEY;
-            case ASCEND -> AscendExecutionFactory.KEY;
-            case DESCEND -> DescendExecutionFactory.KEY;
-            default -> throw new IllegalArgumentException("unsupported chain movement type: " + type);
-        };
-        return new MovementSpec(type, from, to, 1.2D, capabilities,
-                List.of(), List.of(),
-                List.of("chain_segment", "target_support", "target_body_clear", "target_head_clear"),
-                dependency, RecoverabilityLevel.LOCAL_STEP, factoryKey);
-    }
 }

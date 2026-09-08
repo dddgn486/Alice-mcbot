@@ -1,5 +1,6 @@
 package com.dddgn.alice.task;
 
+import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.perception.ScopeBuffer;
 import com.dddgn.alice.road.RoadPlan;
 import net.minecraft.core.BlockPos;
@@ -123,7 +124,7 @@ public final class RoadBuildTask implements Task {
         }
         faceTarget(pos);
         bot.swing(InteractionHand.MAIN_HAND);
-        level.destroyBlock(pos, true, bot);
+        BlockInteraction.breakForBulkEdit(bot, level, pos, true);
         return true;
     }
 
@@ -234,7 +235,7 @@ public final class RoadBuildTask implements Task {
             for (int dx = -1; dx <= 1; dx++) {
                 for (int dz = -1; dz <= 1; dz++) {
                     BlockPos pos = support.offset(dx, dy, dz);
-                    if (isUnstableFallingBlock(pos)) level.destroyBlock(pos, true, bot);
+                    if (isUnstableFallingBlock(pos)) BlockInteraction.breakForBulkEdit(bot, level, pos, true);
                 }
             }
         }
