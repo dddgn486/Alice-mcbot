@@ -57,6 +57,18 @@ public final class AliceItems {
     public static final RegistryObject<Item> MINING_REPLAN_TESTER =
             ITEMS.register("mining_replan_tester", () -> new MiningReplanTester(new Item.Properties()));
 
+    /** R3 规划内核测试工具：右键方块即规划，无需输入坐标。 */
+    public static final RegistryObject<Item> PATHING_PLANNER =
+            ITEMS.register("pathing_planner", () -> new PathingPlannerItem(new Item.Properties()));
+
+    /** R3 一键自检电池：右键即跑完规划 + 全部 Movement + 链。 */
+    public static final RegistryObject<Item> PATHING_BATTERY =
+            ITEMS.register("pathing_battery", () -> new PathingBatteryItem(new Item.Properties()));
+
+    /** R4 路径会话测试器：规划 + 逐段执行（场景专属，固定起终点）。 */
+    public static final RegistryObject<Item> PATHING_SESSION =
+            ITEMS.register("pathing_session", () -> new PathingSessionItem(new Item.Properties()));
+
 
     private AliceItems() {
     }

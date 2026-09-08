@@ -10,4 +10,7 @@
   "item.alice.mining_scene_b_tester": "挖掘场景 B 启动器",
   "item.alice.mining_scene_c_tester": "挖掘场景 C 启动器",
   "item.alice.mining_replan_tester": "挖掘重规划测试器",
+  "item.alice.pathing_planner": "寻路规划器",
+  "item.alice.pathing_battery": "寻路自检电池",
+  "item.alice.pathing_session": "路径会话测试器",
 }
