@@ -84,7 +84,11 @@ public record MovementSpec(
                 }
             }
             case PLACE_STEP_AND_TRAVERSE -> {
-                // World-modifying displacement rules are movement-specific and remain future work.
+                // 语义：目标列缺支撑 → 在目标下方放置方块再走上去（同层桥接或下 1 格）
+                if ((dy != 0 && dy != -1) || Math.abs(dx) + Math.abs(dz) != 1) {
+                    throw new IllegalArgumentException(
+                            "PLACE_STEP_AND_TRAVERSE requires one cardinal step, dy 0 or -1");
+                }
             }
         }
     }

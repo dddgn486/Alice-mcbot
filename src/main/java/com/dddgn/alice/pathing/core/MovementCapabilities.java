@@ -38,6 +38,13 @@ public record MovementCapabilities(
         }
     }
 
+    /** R5-3 临时支撑放置（TEMPORARY_SUPPORT）：消耗资源、改变世界、可回收。 */
+    public static MovementCapabilities temporarySupport(RecoverabilityLevel level) {
+        return new MovementCapabilities(true, Set.of(WorldMutationIntent.TEMPORARY_SUPPORT),
+                true, false, IntrinsicReversibility.REVERSIBLE, level, 0,
+                false, true, false, false, true);
+    }
+
     public static MovementCapabilities pureTraversal(RecoverabilityLevel level,
                                                        IntrinsicReversibility reversibility) {
         return new MovementCapabilities(false, Set.of(), false, false, reversibility,

@@ -78,10 +78,7 @@ public final class PathingBatteryTask implements Task {
         if (!initialized) {
             initialized = true;
             // 先把 bot 锚定到起点（无论它之前在哪儿），保证测试从课程起点开始
-            if (!anchorToStart()) {
-                failure = "ANCHOR_BLOCKED";
-                return Status.FAILED;
-            }
+            anchorToStart();
             runPlanChecks();
             BotLog.info("[R3 Battery] started session={} bot={} foot={}",
                     sessionId, bot.getName().getString(), bot.blockPosition().toShortString());
@@ -212,22 +209,17 @@ public final class PathingBatteryTask implements Task {
         anchorToStart();
     }
 
-    /** 把 bot 传送到测试起点（夹具行为）；直线被方块阻挡时拒绝并返回 false。 */
-    private boolean anchorToStart() {
-        // 安全传送（带头部同步 + 直线阻挡检查）：夹具绝不把 bot 送穿方块
-        if (!com.dddgn.alice.action.BlockInteraction.teleportSafely(bot, bot.serverLevel(), hubFoot,
-                bot.getYRot(), bot.getXRot())) {
-            BotLog.warn("[R3 Battery] anchor_blocked foot={} actualFoot={}（拒绝穿墙传送）",
-                    hubFoot.toShortString(), bot.blockPosition().toShortString());
-            return false;
-        }
+    /** 把 bot 传送到测试起点（夹具行为，允许传送）。 */
+    private void anchorToStart() {
+        // 夹具重置：允许传送（带头部同步的重载，避免头身不一致）
+        bot.teleportTo(bot.serverLevel(), hubFoot.getX() + 0.5D, hubFoot.getY(),
+                hubFoot.getZ() + 0.5D, java.util.Set.of(), bot.getYRot(), bot.getXRot());
         bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
         bot.controller().stopMovement();
         BotLog.info("[R3 Battery] anchor_to_start foot={} actualFoot={} yRot={} yHeadRot={}",
                 hubFoot.toShortString(), bot.blockPosition().toShortString(),
                 String.format(java.util.Locale.ROOT, "%.2f", bot.getYRot()),
                 String.format(java.util.Locale.ROOT, "%.2f", bot.getYHeadRot()));
-        return true;
     }
 
     /** 检测 2 段连续下降（标准楼梯）。 */

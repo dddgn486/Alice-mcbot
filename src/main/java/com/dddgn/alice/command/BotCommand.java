@@ -575,12 +575,9 @@ public final class BotCommand {
             return 0;
         }
         BlockPos foot = player.blockPosition().immutable();
-        if (!com.dddgn.alice.action.BlockInteraction.teleportSafely(bot, source.getLevel(), foot,
-                bot.getYRot(), bot.getXRot())) {
-            source.sendFailure(Component.literal(
-                    "[alice] bot 与你之间被方块阻挡，已拒绝传送（不穿墙）；请走到 bot 附近再试"));
-            return 0;
-        }
+        // 摆位传送（允许）：带头部同步的重载，避免头身不一致
+        bot.teleportTo(source.getLevel(), foot.getX() + 0.5D, foot.getY(), foot.getZ() + 0.5D,
+                java.util.Set.of(), bot.getYRot(), bot.getXRot());
         bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
         bot.controller().stopMovement();
         final String name = bot.getName().getString();

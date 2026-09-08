@@ -33,6 +33,8 @@ public final class PathSession {
     public static final int MAX_TICKS_PER_SEGMENT = 100;
     /** 周期性健康检查间隔（tick）；对照 Baritone PathExecutor 的周期性路径检查。 */
     public static final int HEALTH_CHECK_INTERVAL = 5;
+    /** 段间稳定上限：等 bot 落地并基本停住，避免动量把下一段起点带偏。 */
+    public static final int MAX_SETTLE_TICKS = 10;
 
     private final BotPlayer bot;
     private final ServerLevel level;
@@ -44,6 +46,7 @@ public final class PathSession {
     private int failureSegment = -1;
     private int index;
     private int segmentTicks;
+    private int settleTicks;
     private int totalTicks;
     private MovementExecution execution;
 
@@ -72,6 +75,17 @@ public final class PathSession {
             return status;
         }
         totalTicks++;
+
+        // 段间稳定：松输入并等待落地/减速，避免上一段动量把下一段起点带偏（Baritone settle 语义）
+        if (settleTicks > 0) {
+            settleTicks--;
+            bot.controller().stopMovement();
+            double horizontalSpeed = bot.getDeltaMovement().horizontalDistance();
+            if (settleTicks == 0 || (bot.onGround() && horizontalSpeed < 0.05D)) {
+                settleTicks = 0;
+            }
+            return status;
+        }
 
         if (execution == null) {
             if (index >= movements.size()) {
@@ -104,6 +118,7 @@ public final class PathSession {
                 index++;
                 execution = null;
                 segmentTicks = 0;
+                settleTicks = MAX_SETTLE_TICKS;
             }
             case FAILED, CANCELLED -> mapFailure(execution.failureCode());
             default -> {
@@ -165,13 +180,25 @@ public final class PathSession {
         return Math.max(MAX_TICKS_PER_SEGMENT, (int) Math.ceil(plannedCost * 20.0D) + 100);
     }
 
-    /** 当前段目标是否仍然可通行/有支撑（世界变化检测）。 */
+    /**
+     * 当前段目标是否仍然有效（世界变化检测）。
+     *
+     * <p>按 Movement 类型区分：普通移动要求目标"现在就可站"；
+     * `PLACE_STEP_AND_TRAVERSE` 的目标支撑**由本段放置产生**，
+     * 因此只要求空间可通行 + 放置位仍可放置（或支撑已就位）。
+     */
     private boolean currentTargetStillValid() {
         PlannedMovement movement = movements.get(index);
         BlockPos to = movement.toFoot();
-        return MovementHelper.canWalkThrough(level, to)
-                && MovementHelper.canWalkThrough(level, to.above())
-                && MovementHelper.canWalkOn(level, to);
+        if (!MovementHelper.canWalkThrough(level, to)
+                || !MovementHelper.canWalkThrough(level, to.above())) {
+            return false;
+        }
+        if (movement.movementType() == com.dddgn.alice.pathing.core.MovementType.PLACE_STEP_AND_TRAVERSE) {
+            BlockPos placePos = to.below();
+            return MovementHelper.canWalkThrough(level, placePos) || MovementHelper.canWalkOn(level, to);
+        }
+        return MovementHelper.canWalkOn(level, to);
     }
 
     private void mapFailure(String code) {

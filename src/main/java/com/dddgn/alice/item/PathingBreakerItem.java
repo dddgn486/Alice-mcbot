@@ -59,15 +59,9 @@ public class PathingBreakerItem extends Item {
             }
             return InteractionResult.SUCCESS;
         }
-        if (!com.dddgn.alice.action.BlockInteraction.teleportSafely(bot, level, COURSE_START_FOOT,
-                bot.getYRot(), bot.getXRot())) {
-            if (player != null) {
-                player.sendSystemMessage(Component.literal(
-                        "[alice] 起点与 bot 之间被方块阻挡，已拒绝传送（不穿墙）。"
-                        + "请先把 bot 带到起点附近再试。"));
-            }
-            return InteractionResult.SUCCESS;
-        }
+        // 夹具重置：允许传送（带头部同步的重载，避免头身不一致）
+        bot.teleportTo(level, COURSE_START_FOOT.getX() + 0.5D, COURSE_START_FOOT.getY(),
+                COURSE_START_FOOT.getZ() + 0.5D, java.util.Set.of(), bot.getYRot(), bot.getXRot());
         bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
         bot.controller().stopMovement();
         // 夹具：确保 bot 有石镐（否则徒手挖石墙 7.5 秒/块，测试过慢且不体现工具选择）

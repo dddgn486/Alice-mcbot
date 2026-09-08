@@ -33,10 +33,10 @@ public final class CorePathPlanner {
         return plan(bot, level, request);
     }
 
-    /** 允许 PATH_ACCESS 破坏的规划（R5-2 破坏通行测试用）。 */
-    public PathPlan planToWithPathAccess(ServerPlayer bot, ServerLevel level, String botId,
-                                         BlockPos startFoot, BlockPos goalFoot, String requester) {
-        PathRequest base = PathRequest.withPathAccess(botId, startFoot, goalFoot);
+    /** 允许世界修改（破坏 + 放置）的规划（R5-2/R5-3 测试用）。 */
+    public PathPlan planToWithWorldModification(ServerPlayer bot, ServerLevel level, String botId,
+                                                BlockPos startFoot, BlockPos goalFoot, String requester) {
+        PathRequest base = PathRequest.withWorldModification(botId, startFoot, goalFoot);
         PathRequest request = new PathRequest(botId, startFoot, base.goal(), base.allowedMovementTypes(),
                 SearchBudget.of(DEFAULT_MAX_NODES, DEFAULT_MAX_MILLIS), requester);
         return plan(bot, level, request);

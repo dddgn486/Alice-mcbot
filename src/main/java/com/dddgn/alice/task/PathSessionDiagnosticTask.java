@@ -20,7 +20,7 @@ import java.util.UUID;
 public final class PathSessionDiagnosticTask implements Task {
     private final BotPlayer bot;
     private final BlockPos goalFoot;
-    private final boolean allowPathAccess;
+    private final boolean allowWorldModification;
     private final String sessionId = "r4-session-" + UUID.randomUUID();
     private boolean initialized;
     private PathSession session;
@@ -31,10 +31,10 @@ public final class PathSessionDiagnosticTask implements Task {
         this(bot, goalFoot, false);
     }
 
-    public PathSessionDiagnosticTask(BotPlayer bot, BlockPos goalFoot, boolean allowPathAccess) {
+    public PathSessionDiagnosticTask(BotPlayer bot, BlockPos goalFoot, boolean allowWorldModification) {
         this.bot = bot;
         this.goalFoot = goalFoot.immutable();
-        this.allowPathAccess = allowPathAccess;
+        this.allowWorldModification = allowWorldModification;
     }
 
     @Override
@@ -75,8 +75,8 @@ public final class PathSessionDiagnosticTask implements Task {
     private boolean initialize() {
         BlockPos startFoot = bot.blockPosition().immutable();
         CorePathPlanner planner = new CorePathPlanner();
-        PathPlan plan = allowPathAccess
-                ? planner.planToWithPathAccess(bot, bot.serverLevel(), bot.getUUID().toString(),
+        PathPlan plan = allowWorldModification
+                ? planner.planToWithWorldModification(bot, bot.serverLevel(), bot.getUUID().toString(),
                         startFoot, goalFoot, "r4-session-task")
                 : planner.planTo(bot, bot.serverLevel(), bot.getUUID().toString(),
                         startFoot, goalFoot, "r4-session-task");

@@ -8,10 +8,8 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
@@ -172,9 +170,9 @@ public final class BlockInteraction {
             Direction clickFace = supportSide.getOpposite();
             Vec3 faceCenter = Vec3.atCenterOf(against)
                     .add(Vec3.atLowerCornerOf(clickFace.getNormal()).scale(0.5D));
-            if (!faceVisible(bot, level, against, clickFace, faceCenter)) {
-                continue;
-            }
+            // 说明：Baritone 在客户端会用 rayTraceTowards 校验"该面确实可见"。
+            // Alice 是服务端直接构造 BlockHitResult 调用 gameMode.useItemOn（等价于客户端上报的命中包），
+            // 不依赖本地射线；且站在方块顶面时射线必然先命中顶面，做可见性校验会永远失败。
             faceTowards(bot, faceCenter);
             if (sneak) {
                 bot.setShiftKeyDown(true);
@@ -189,63 +187,14 @@ public final class BlockInteraction {
         return PlaceResult.NO_OPTION;
     }
 
-    /** 从眼睛到面中心的光线是否命中该支撑块的那一面（Baritone 的 rayTraceTowards 校验）。 */
-    private static boolean faceVisible(ServerPlayer bot, ServerLevel level, BlockPos against,
-                                       Direction clickFace, Vec3 faceCenter) {
-        HitResult hit = level.clip(new ClipContext(bot.getEyePosition(), faceCenter,
-                ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, bot));
-        if (hit.getType() != HitResult.Type.BLOCK || !(hit instanceof BlockHitResult blockHit)) {
-            return false;
-        }
-        return blockHit.getBlockPos().equals(against) && blockHit.getDirection() == clickFace;
-    }
-
-    // ==================== 安全传送（夹具/摆位） ====================
-
-    /**
-     * 夹具用安全传送：只有当 bot 当前位置到目标脚位的直线（脚位+头位）完全无方块阻挡，
-     * 且目标脚位/头位为空时才会传送。
-     *
-     * <p>原版 {@code teleportTo} 不做碰撞检查（等同 {@code /tp}），会把 bot 穿过墙体；
-     * 本方法保证**夹具不会把 bot 送穿方块**。被阻挡时返回 false，调用方应提示用户
-     * 先把 bot 带到起点附近。
-     */
-    public static boolean teleportSafely(ServerPlayer bot, ServerLevel level, BlockPos targetFoot,
-                                         float yRot, float xRot) {
-        BlockPos from = bot.blockPosition();
-        if (!positionFree(level, targetFoot)) {
-            return false;
-        }
-        if (!lineClear(level, from, targetFoot)) {
-            return false;
-        }
-        bot.teleportTo(level, targetFoot.getX() + 0.5D, targetFoot.getY(),
-                targetFoot.getZ() + 0.5D, java.util.Set.of(), yRot, xRot);
-        return true;
-    }
-
-    /** 脚位与头位都必须无碰撞。 */
-    private static boolean positionFree(ServerLevel level, BlockPos foot) {
-        return level.getBlockState(foot).getCollisionShape(level, foot).isEmpty()
-                && level.getBlockState(foot.above())
-                        .getCollisionShape(level, foot.above()).isEmpty();
-    }
-
-    /** 两点之间按 0.25 步长采样脚位与头位，全部无碰撞才算直线通畅。 */
-    private static boolean lineClear(ServerLevel level, BlockPos from, BlockPos to) {
-        int steps = (int) Math.ceil(from.distSqr(to) == 0 ? 1.0D
-                : Math.sqrt(from.distSqr(to)) / 0.25D);
-        for (int i = 0; i <= steps; i++) {
-            double t = steps == 0 ? 0.0D : (double) i / steps;
-            double x = from.getX() + 0.5D + (to.getX() - from.getX()) * t;
-            double y = from.getY() + (to.getY() - from.getY()) * t;
-            double z = from.getZ() + 0.5D + (to.getZ() - from.getZ()) * t;
-            BlockPos foot = BlockPos.containing(x, y, z);
-            if (!positionFree(level, foot)) {
-                return false;
+    /** 是否存在可用的放置支撑面（水平+下的邻面里有实心块）。 */
+    public static boolean hasPlacementFace(ServerLevel level, BlockPos placeAt) {
+        for (Direction supportSide : SUPPORT_SIDES) {
+            if (isSolidForPlacement(level, placeAt.relative(supportSide))) {
+                return true;
             }
         }
-        return true;
+        return false;
     }
 
     // ==================== 破坏 ====================

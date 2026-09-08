@@ -39,11 +39,12 @@ public record PathRequest(
                 SearchBudget.UNLIMITED, "unknown");
     }
 
-    /** 纯通行 + PATH_ACCESS 破坏（R5-2）；世界修改必须由调用方显式授权。 */
-    public static PathRequest withPathAccess(String botId, BlockPos startFoot, BlockPos goalFoot) {
+    /** 纯通行 + 世界修改（PATH_ACCESS 破坏 + TEMPORARY_SUPPORT 放置，R5-2/R5-3）。 */
+    public static PathRequest withWorldModification(String botId, BlockPos startFoot, BlockPos goalFoot) {
         return new PathRequest(botId, startFoot, new GoalFoot(goalFoot),
                 Set.of(MovementType.TRAVERSE, MovementType.DIAGONAL, MovementType.ASCEND,
-                        MovementType.DESCEND, MovementType.BREAK_AND_TRAVERSE),
+                        MovementType.DESCEND, MovementType.BREAK_AND_TRAVERSE,
+                        MovementType.PLACE_STEP_AND_TRAVERSE),
                 SearchBudget.UNLIMITED, "unknown");
     }
 

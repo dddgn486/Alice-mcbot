@@ -73,6 +73,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> PATHING_BREAKER =
             ITEMS.register("pathing_breaker", () -> new PathingBreakerItem(new Item.Properties()));
 
+    /** R5-3 放置台阶通行测试器：跨缺口/下台阶时放置方块（场景专属）。 */
+    public static final RegistryObject<Item> PATHING_PLACER =
+            ITEMS.register("pathing_placer", () -> new PathingPlacerItem(new Item.Properties()));
+
 
     private AliceItems() {
     }

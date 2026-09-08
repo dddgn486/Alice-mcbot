@@ -135,6 +135,10 @@ public final class AStarMovementSearch {
             node = node.previous;
         }
         Collections.reverse(movements);
+        // TEMP PROBE（定位 plan 终点与 goal 不一致，验证后删除）
+        com.dddgn.alice.log.BotLog.info("[PlanProbe] goal={} goalNode=({},{},{}) edges={} last={}",
+                goal.goalFoot().toShortString(), goalNode.x, goalNode.y, goalNode.z, movements.size(),
+                movements.isEmpty() ? "-" : movements.get(movements.size() - 1).toFoot().toShortString());
 
         List<BlockPos> projected = new ArrayList<>(movements.size() + 1);
         projected.add(startFoot);
