@@ -153,6 +153,33 @@
 
 ---
 
+## 4.5 ★ R5-2 破坏通行（BreakAndTraverse）
+
+**场景**：`/function alice_test:break_course`
+生成：固定起点 `(0,64,66)` → 目标 `(7,64,66)`，中间 `x=3` 有 **2 格高石墙**。
+
+**操作**：手持 `alice:pathing_breaker`（函数已发放）右键任意方块。
+
+**预期日志**：
+```
+[R4 Session] planned ... status=REACHED movements=... （路径含 BREAK_AND_TRAVERSE）
+[R4 Session] segment_start ... type=BREAK_AND_TRAVERSE
+[BreakAndTraverse] blocked_cleared pos=3,64,66 index=0
+[BreakAndTraverse] blocked_cleared pos=3,65,66 index=1
+[R4 Session] result ... status=COMPLETED
+```
+
+**判定**：
+- 规划确实使用 `BREAK_AND_TRAVERSE`（而不是绕路/失败）
+- bot **逐步破坏**两个方块（能看到破坏进度/摆动，不是瞬间消失）
+- 破坏后走过墙，最终脚位 `(7,64,66)`
+- 不允许出现 `BREAK_BLOCK_PROTECTED` / `BREAK_BLOCK_UNBREAKABLE`
+
+**同时回归**（R5-1 原语改造影响面）：跑一次既有挖掘场景 `alice:mining_scene_tester`，
+确认 legacy 清障路径（`BreakAndWalkMovement` → 进度破坏）没有回归。
+
+---
+
 ## 5. ★ legacy 路径上升兼容（D-030）
 
 **场景**：一条命令建好

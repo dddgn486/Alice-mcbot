@@ -165,6 +165,58 @@
   4. 不放宽后置条件到 1.0D——落点漂移合法化会污染路径链脚位契约。
 - 下一步：R3 PathSession（以第 0 号闭环起步）或用户指定的其他任务。
 
+## D-032：夹具传送不得穿过方块（不穿墙）
+
+- 状态：当前生效（用户 2026-09-08："不管穿不传送，都不能穿墙"）
+- 事实：正常移动（`travel()`/`move()`）与原版碰撞会挡住墙体；R2-C/R3/R4 前置校验也拒绝
+  不可通行目标。唯一能"穿墙"的是夹具的 `ServerPlayer.teleportTo(...)`——原版传送语义
+  等同 `/tp`，**不做碰撞检查**（2026-09-08 场景测试中用户看到的现象即由此产生；
+  日志证明那次 bot 始终在 `pos=0,64,66`，并未真正走过墙体）。
+- 决策：新增 `BlockInteraction.teleportSafely(bot, level, targetFoot, yRot, xRot)`：
+  1. 目标脚位与头位必须无碰撞；
+  2. bot 当前脚位到目标脚位的直线按 0.25 格采样，脚位与头位全部无碰撞；
+  3. 任一条件不满足即**拒绝传送**并返回 false，调用方给出明确提示（"请先把 bot 带到起点附近"）。
+- 接入：`PathingBreakerItem`、`PathingSessionItem`、`PathingBatteryTask.anchorToStart`、
+  `/alice come`。电池锚定失败即整轮失败（`ANCHOR_BLOCKED`）。
+- 原则：夹具可以传送（测试便利），但**绝不允许把 bot 送穿方块**；正常移动永远不穿墙。
+
+## D-031：R5 世界修改 Movement —— 原语统一 + BreakAndTraverse
+
+- 状态：当前生效（用户 2026-09-08 指定 R5，并要求"挖掘和放置语义围绕 Baritone 升级、兼容"）
+- 背景：`BreakAndWalkMovement`、`RoadBuildTask`、`RoadBuilder`、`BotCommand` 使用
+  `level.destroyBlock(...)` **瞬间销毁**，没有工具选择/破坏进度/权限语义；放置也没有
+  Baritone 式的面选择与视线校验。
+- 决策（R5-1 原语）：
+  - 新增 `com.dddgn.alice.action.BlockInteraction` + `BlockBreakSession` 作为**挖掘/放置唯一入口**：
+    工具选择、触及距离（Forge `getBlockReach`）、朝向（头/身/俯仰同步）、破坏进度
+    （`handleBlockBreakAction` + `getDestroyProgress` + `destroyBlockProgress` + 广播）、
+    放置（Baritone `attemptToPlaceABlock` 语义：水平+下的支撑面扫描 + 面中心 + 视线校验 +
+    快捷栏选可放置方块 + 必要时潜行）、破坏拒绝原因（复用 `BlockBreakSafety.clearingRefusal`）、
+    破坏 tick 估算（对照 Baritone `getMiningDurationTicks`）。
+  - `BreakAndWalkMovement` 改用 `BlockBreakSession`（失败码 `BREAK_OUT_OF_REACH` /
+    `BREAK_PROGRESS_TIMEOUT`）。
+  - 批量地形编辑（`RoadBuildTask`、`RoadBuilder`、`BotCommand` 道路应用）统一走
+    `BlockInteraction.breakForBulkEdit(...)`：语义仍是批量编辑，但集中到唯一入口便于审计。
+- 决策（R5-2 Movement）：
+  - 新增 `MovementType.BREAK_AND_TRAVERSE` 执行器 + 工厂（PATH_ACCESS）：
+    **语义为"破坏中间列 + 走到其后一格"（同层直线 2 格）**——破坏脚位/头位阻挡，
+    再穿过被清出的通道走到目标；完成判定沿用 D-026/D-027。
+    （首版曾把 `toFoot` 设为墙块本身，导致规划器从"墙块所在节点"继续扩张时，
+    扫掠检查把自己脚下那格当障碍 → 永远 `UNREACHABLE`；已按 2 格位移修正。）
+  - `SurfaceMovementProvider` 在水平候选被阻挡且可破坏时生成该候选，成本 = 水平成本 +
+    破坏 tick/20；启发式仍可采纳。
+  - 失败码：`BREAK_BLOCK_UNBREAKABLE`、`BREAK_BLOCK_PROTECTED`、
+    `BREAK_AND_TRAVERSE_NO_SUPPORT`、`BREAK_AND_TRAVERSE_NOTHING_TO_BREAK`、
+    `BREAK_AND_TRAVERSE_TIMEOUT`。
+  - `MovementContext` 增加 `bot`（规划期需要工具/资源事实）；`PlannedMovementSpecs` 统一
+    "规划→执行"转换，Battery/Chain 去重。
+- 明确不做：`PLACE_STEP_AND_TRAVERSE`（R5-3）；不把这两个 Movement 接入 `MineTask`。
+- 验收入口：`/function alice_test:break_course` + `alice:pathing_breaker`。
+- 已验证（2026-09-09，用户确认"测试通过了"）：计划 6 段含 1 段 `BREAK_AND_TRAVERSE`；
+  `block_break_done pos=3,64,66 ticks=6` + `pos=3,65,66 ticks=6`（石镐工具选择生效）；
+  `result status=COMPLETED segments=6/6 ticks=58 finalFoot=7,64,66`。证据
+  `.alice-supervision/client-tests/pathing-r5-break-20260909/`。
+
 ## D-030：legacy 路径兼容 0.6 台阶（补条件跳跃，参照 Baritone）
 
 - 状态：当前生效（用户 2026-09-08 指定"legacy 兼容，一定要参考 Baritone"）

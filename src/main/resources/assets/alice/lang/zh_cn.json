@@ -13,4 +13,5 @@
   "item.alice.pathing_planner": "寻路规划器",
   "item.alice.pathing_battery": "寻路自检电池",
   "item.alice.pathing_session": "路径会话测试器",
+  "item.alice.pathing_breaker": "寻路破坏器",
 }
