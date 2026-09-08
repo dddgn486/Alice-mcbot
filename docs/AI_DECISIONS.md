@@ -165,20 +165,45 @@
   4. 不放宽后置条件到 1.0D——落点漂移合法化会污染路径链脚位契约。
 - 下一步：R3 PathSession（以第 0 号闭环起步）或用户指定的其他任务。
 
-## D-032：夹具传送不得穿过方块（不穿墙）
+## D-033：R5-3 PlaceStepAndTraverse（TEMPORARY_SUPPORT 放置台阶）
 
-- 状态：当前生效（用户 2026-09-08："不管穿不传送，都不能穿墙"）
-- 事实：正常移动（`travel()`/`move()`）与原版碰撞会挡住墙体；R2-C/R3/R4 前置校验也拒绝
-  不可通行目标。唯一能"穿墙"的是夹具的 `ServerPlayer.teleportTo(...)`——原版传送语义
-  等同 `/tp`，**不做碰撞检查**（2026-09-08 场景测试中用户看到的现象即由此产生；
-  日志证明那次 bot 始终在 `pos=0,64,66`，并未真正走过墙体）。
-- 决策：新增 `BlockInteraction.teleportSafely(bot, level, targetFoot, yRot, xRot)`：
-  1. 目标脚位与头位必须无碰撞；
-  2. bot 当前脚位到目标脚位的直线按 0.25 格采样，脚位与头位全部无碰撞；
-  3. 任一条件不满足即**拒绝传送**并返回 false，调用方给出明确提示（"请先把 bot 带到起点附近"）。
-- 接入：`PathingBreakerItem`、`PathingSessionItem`、`PathingBatteryTask.anchorToStart`、
-  `/alice come`。电池锚定失败即整轮失败（`ANCHOR_BLOCKED`）。
-- 原则：夹具可以传送（测试便利），但**绝不允许把 bot 送穿方块**；正常移动永远不穿墙。
+- 状态：当前生效（用户 2026-09-08 指定 R5 后按 R5-1 → R5-2 → R5-3 顺序实施）
+- Baritone 参考：`MovementTraverse:125-171` 的桥接分支——目标可走 + 目标下方**可替换**时在下方放置，
+  成本含 `placeCost`；放置面扫描语义见 `MovementHelper.attemptToPlaceABlock:791-843`。
+- 语义：`PLACE_STEP_AND_TRAVERSE` = **目标列缺支撑时，在目标下方放置一个方块，再走上去**。
+  几何：同层直线 1 格且 `dy ∈ {0, -1}`（0 = 跨同层缺口，-1 = 把 2 格落差拆成 1 格）。
+  这正是"两格高差往下踮一格方块"的显式原语，不得隐藏在普通下降里（架构文档 §4.2）。
+- 能力声明：`MovementCapabilities.temporarySupport(...)` =
+  `changesWorld=true` + `mutationIntents={TEMPORARY_SUPPORT}` + `consumesResources=true` + `canPlaceBlocks=true`。
+- 规划候选（`SurfaceMovementProvider`）：目标可通行且**缺支撑**、目标下方可替换、
+  bot 快捷栏有可放置方块、存在支撑面 → 生成候选；成本 = 水平/下降成本 + 4.0
+  （Baritone `PLACE_ONE_BLOCK_COST` 量级）。
+- 授权：`PathRequest.withWorldModification(...)`（破坏 + 放置），世界修改必须显式授权。
+- 失败码：`PLACE_RESOURCE_UNAVAILABLE`、`PLACE_NO_VALID_FACE`、
+  `PLACE_STEP_AND_TRAVERSE_PLACE_OCCUPIED`、`..._SUPPORT_EXISTS`、`..._TARGET_BLOCKED`、
+  `..._STALE_START`、`..._INVALID_GEOMETRY`、`..._TIMEOUT`、`..._INVALID_PRECONDITION`。
+- 恢复：`TEMPORARY_SUPPORT` 已在能力中声明；实际回收（`RECOVERY_CLEANUP` 移除临时方块）为后续闭环。
+- 验收入口：`/function alice_test:place_course` + `alice:pathing_placer`（夹具给 8 圆石）。
+- 已验证（2026-09-09，用户确认"没什么问题"）：`planned movements=8 cost=20.00`；
+  3 次放置 `placed pos=2,63,66 / 3,63,66 / 7,62,66`；末段 `DESCEND (EXACT)` → `(8,62,66)`；
+  `result status=COMPLETED segments=8/8 ticks=87 finalFoot=8,62,66`。证据
+  `.alice-supervision/client-tests/pathing-r5-place-20260909/`。
+- 已知限制（本轮暴露）：COLUMN 容差下下降段仍可能带动量滑入邻列，导致下一段
+  `*_STALE_START`；当前只能诚实失败，需要"重规划 / snipsnap"（R4 后续闭环）自愈。
+  另外：**没有垂直下降 Movement**（DESCEND 强制水平位移 1 格），目标正在脚下时规划器
+  只能绕行（本轮场景已把目标改为下降落点规避）。
+
+## D-032：夹具传送允许（重置 bot 位置）；"不穿墙"针对正常移动
+
+- 状态：当前生效（用户 2026-09-09 澄清："重置 bot 位置允许传送"）
+- 澄清：此前把"不能穿墙"误解为夹具传送限制，加了直线碰撞检查并会拒绝传送，**这是错的**。
+  测试夹具把 bot 重置到固定起点是正常摆位语义（等同 `/tp`），**允许传送**。
+- 真正的红线是**正常移动不得穿墙**，且已由两层保证：
+  1. 原版碰撞（`travel()`/`move()`）——2 格高墙测试已证明 bot 停住不爬不穿；
+  2. 执行器前置校验（`canWalkThrough`/`canSweepPlayer`）拒绝不可通行目标。
+- 实现：`BlockInteraction.teleportSafely` 及其辅助已删除；所有夹具（`pathing_battery`/
+  `pathing_session`/`pathing_breaker`/`pathing_placer`/`/alice come`）恢复为
+  **带头部同步的普通传送**（`teleportTo(level, x, y, z, Set.of(), yRot, xRot)`，D-029 修复项）。
 
 ## D-031：R5 世界修改 Movement —— 原语统一 + BreakAndTraverse
 

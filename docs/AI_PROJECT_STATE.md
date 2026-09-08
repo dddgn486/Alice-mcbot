@@ -22,7 +22,7 @@
 - Baritone 对照审计已完成：`docs/R2C_BARITONE_AUDIT.md`；
 - 已决策：D-024（落差红线 + 楼梯细化）、D-025（台阶 0.6 对齐真人）、D-026（合法位置集 + 统一完成契约）、D-027（分段完成容差）、D-028（R3→R4 顺序）。
 
-下一步：R5-1 原语 + R5-2 BreakAndTraverse **已验证通过**（2026-09-09）；R5-3 `PlaceStepAndTraverse`（TEMPORARY_SUPPORT 放置 + 通过）待做。
+下一步：R5-3 `PlaceStepAndTraverse` **已验证通过**（2026-09-09，8/8 段完成）。R5 三个阶段（原语 / 破坏通行 / 放置通行）全部验收。待用户指定下一闭环（候选：R4 重规划/snipsnap 自愈、R7 异步搜索、多 Bot 并行接口、推送 Git）。
 
 项目：Minecraft Forge 1.20.1 / Forge 47.4.10 / Java 17  
 开发目录：`/home/fb486/projects/alice`  

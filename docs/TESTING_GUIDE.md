@@ -180,6 +180,31 @@
 
 ---
 
+## 4.6 ★ R5-3 放置台阶通行（PlaceStepAndTraverse）
+
+**场景**：`/function alice_test:place_course`
+生成：起点 `(0,64,66)` → **2 格宽缺口（x=2..3）** → 平台 → **低 2 格的目标 `(7,62,66)`**。
+
+**操作**：手持 `alice:pathing_placer`（函数已发放）右键任意方块。
+
+**预期日志**：
+```
+[R4 Session] planned ... status=REACHED movements=...
+[R4 Session] segment_start ... type=PLACE_STEP_AND_TRAVERSE
+[PlaceStepAndTraverse] placed pos=2,63,66 ...
+[PlaceStepAndTraverse] placed pos=3,63,66 ...
+[PlaceStepAndTraverse] placed pos=7,62,66 ...
+[R4 Session] result ... status=COMPLETED finalFoot=7,62,66
+```
+
+**判定**：
+- bot 在缺口处**放置圆石**（能看到方块出现，不是踩空/穿过去）
+- 落差处**先放置台阶再下**（2 格落差被拆成 1 格）
+- 最终脚位 `(7,62,66)`，`status=COMPLETED`
+- 不允许出现 `PLACE_RESOURCE_UNAVAILABLE` / `PLACE_NO_VALID_FACE`
+
+---
+
 ## 5. ★ legacy 路径上升兼容（D-030）
 
 **场景**：一条命令建好
