@@ -77,6 +77,9 @@
   的隐含单位假设与实际物理不符。
 - 对齐方向：改用 Baritone 的 tick 制公式（含 `jumpPenalty`），Alice 侧只需按 D-025 重标定跳跃相关常量；
   `GoalFoot.heuristic` 必须同步换成同单位的可采纳下界。
+- **破坏成本**：Alice `breakTicks/20` 把 tick 当秒折算，导致"破石 ≈ 0.375 走路单位"而 Baritone 是 2.05 走路单位（≈5.5× 偏差）。
+  若保留归一化单位（走路 1.0），除数应为 `WALK_ONE_BLOCK_COST = 4.633`；若整体改 tick 制，则应 `+ breakTicks`（并加 Baritone 的 `blockBreakAdditionalPenalty = 2`）。
+- **放置成本反例更正**：4.0 与 Baritone 20 属不同单位，相对值 4.0× vs 4.32× 走路，**基本对齐**；只需修正错引注释。
 
 ### 2.2 危险方块集合缺失（P0，安全）
 
@@ -127,8 +130,32 @@
 
 ## §3 分层对照表（并行审计结果）
 
-> 待合并：D 世界交互。
+> 四层审计已全部合并。
 > 标记：✅ = 我已亲自复核行号/语义；⬜ = 来自审计 agent，待我复核。
+
+### 3.D 世界交互（破坏/放置/世界视图）vs Baritone utils
+
+> 注：本地 Baritone 树是 **1.21.4**（`gradle.properties:5,11`），Alice 是 1.20.1；行号仅对该树成立，语义需按 1.20.1 复核。
+
+| 关注点 | Alice（文件:行） | Baritone（文件:行） | 差异实质 | 分类 | 复核 |
+|---|---|---|---|---|---|
+| **可规划破坏流体/岩浆** | `SurfaceMovementProvider.java:104-119`（阻挡物经 `canWalkThrough` 收集）+ `BlockInteraction.breakRefusal:206-211`（无流体判定）+ `BlockBreakSafety.clearingRefusal:39-52`（只挡脚下/保护区/不可破坏/黑曜石） | `MovementHelper.java:586-591`（`!state.getFluidState().isEmpty()` → COST_INF） | 岩浆被当作可挖阻挡物，`estimateBreakTicks` 给出有限代价（≈10000 tick）→ 规划可能选"挖岩浆"，执行必然卡到段超时 | DEVIATION-UNREGISTERED（**P0 安全**） | ✅ |
+| **放置忽略 `InteractionResult`** | `BlockInteraction.java:182-186`（调用后直接 `return PlaceResult.PLACED`） | `BlockPlaceHelper.java:48-52`（检查 `InteractionResult.SUCCESS` 才 swing/返回） | 服务端拒绝也算"已放置" → 上层认为成功，随后重试到超时 | DEVIATION-UNREGISTERED（**P0 正确性**） | ✅ |
+| **"任意 BlockItem"兜底** | `BlockInteraction.findPlaceableSlot:130-147`（白名单未命中即取第一个 BlockItem） | `Settings.java:230-235`（`acceptableThrowawayItems` 白名单） | 会用火把/花/告示牌"搭台阶" → 目标仍不可站 → 无限重试 | DEVIATION-UNREGISTERED（P1） | ✅ |
+| 支撑面谓词过宽 + 文档矛盾 | `BlockInteraction.isSolidForPlacement:122-128`（任意非空碰撞）；`docs/AI_DECISIONS.md:243-244` 仍称有视线校验 | `MovementHelper.java:558-565`（整格碰撞或玻璃）+ `:824-830`（逐面射线校验） | 会在半砖/栅栏/箱子侧面放置；D-031 文档与实现不符 | DEVIATION-UNREGISTERED（P1 + 文档） | ✅ |
+| 破坏安全无 `avoidBreaking` 等价物 | `BlockBreakSafety.java:39-52` | `MovementHelper.java:72-115`（冰→水、蛀虫、邻接流体/下落方块） | 会挖冰、蛀虫方块、邻接危险块 | MISSING-IN-ALICE（P1） | ⬜ |
+| 破坏无流体/LOS 语义 | `BlockBreakSession.java:85-87`（仅距离） | `Movement.java:153-197`（LOS + 换目标 + UNREACHABLE） | 只查距离，无可见性 | DEVIATION-UNREGISTERED（P2） | ⬜ |
+| 破坏会话无 STOP/ABORT 包 | `BlockBreakSession.java:92-113`（只发 START）+ `BreakAndTraverseExecution.cancel` | `BlockBreakHelper.java:43-50`（`resetBlockRemoving`） | 取消后客户端裂纹残留（B 区同项） | DEVIATION-UNREGISTERED（P1） | ✅ |
+| 工具选择平手/耐久 | `BlockInteraction.java:95-109` | `ToolSet.java:139-182` | 无材料代价 tie-break、无将坏工具跳过 | DEVIATION-UNREGISTERED（P2） | ⬜ |
+| 破坏 tick 估算公式 | `BlockInteraction.java:222-242` | `ToolSet.java:207-239` | 数学等价（可收获 30h/s、不可收获 100h/s） | ALIGNED | ⬜ |
+| 放置面顺序 | `BlockInteraction.java:34-35` | `Movement.java:36` | N/S/E/W/DOWN 一致 | ALIGNED | ✅ |
+| 放置直放分支 / 放置节奏 | `BlockInteraction.java:157-188`（无直放、无间隔） | `MovementHelper.java:791-796`、`BlockPlaceHelper.java:47`（`rightClickSpeed=4`） | 缺"可替换方块直放"与放置间隔 | MISSING-IN-ALICE（P2） | ⬜ |
+| 世界视图快照 / 未加载区块 | `WorldView.java:7-15`（零实现零调用）；`pathing/` 全包 `isLoaded|hasChunk|getChunk` 0 命中 | `BlockStateInterface.java:79,97,142-165` | 无快照、无"未加载"概念 | MISSING-IN-ALICE（P2/R7） | ✅ |
+| `isReplaceable` 缺失 | `SurfaceMovementProvider.java:148` 用 `canWalkThrough` 代替 | `MovementHelper.java:298-326` | 可能计划往水里放方块 | MISSING-IN-ALICE（P2） | ⬜ |
+| 开门 | 无（`grep openDoors` 0 命中） | `MovementHelper.java:773-790` | 撞门 | MISSING-IN-ALICE（P2） | ⬜ |
+| `canSweepPlayer` 自制扫掠 | `MovementHelper.java:143-182` | 无对应物（用双邻判定） | Alice 更严，未登记 | DEVIATION-UNREGISTERED（P2） | ⬜ |
+| 批量破坏瞬毁 | `BlockInteraction.java:255-257` | 无对应物 | 调用方已保护（`RoadBuilder`/`BotCommand`） | DEVIATION-JUSTIFIED（D-031） | ⬜ |
+| 第二套破坏原语 | `BotMiner.java:374-396,683-690` | 唯一一套 | 违反 D-031"唯一入口" | DEVIATION-UNREGISTERED（P1） | ⬜ |
 
 ### 3.A 搜索内核（R3）vs Baritone A*
 
@@ -185,7 +212,7 @@
 | Ascend 前置 | `core/AscendExecutionFactory.java:45-55` | `MovementAscend.java:96-131` | 缺 FallingBlock / climbable / bottom-slab | DEVIATION-UNREGISTERED | ⬜ |
 | **`canWalkOn` 判定** | `MovementHelper.java:18-34`：碰撞形状非空即真 | `MovementHelper.java:387-426` **白名单**（`isBlockNormalCube` 且排除 MAGMA/BUBBLE/HONEY + ladder/farmland 等） | Alice 会接受栅栏/蜂蜜块等非整格方块 | DEVIATION-UNREGISTERED | ✅ |
 | 破坏成本 | `SurfaceMovementProvider.java:124-125` `breakTicks/20` | `MovementHelper.java:586-615`（1/strVsBlock + penalty） | 单位混用（秒混进格标度） | DEVIATION-UNREGISTERED | ✅ |
-| **放置成本** | `SurfaceMovementProvider.java:25-26,162`：**4.0**，注释引用不存在的 `PLACE_ONE_BLOCK_COST` | `CalculationContext.java:106` = `blockPlacementPenalty`，`Settings.java:124` 默认 **20** | 值差 5×；注释为错引 | DEVIATION-UNREGISTERED | ✅ |
+| 放置成本 | `SurfaceMovementProvider.java:25-26,162`：4.0，注释引用不存在的 `PLACE_ONE_BLOCK_COST` | `CalculationContext.java:106` = `blockPlacementPenalty`，`Settings.java:124` 默认 20 | **相对值几乎对齐**（Alice 4.0/1.0 = 4.0×走路；Baritone 20/4.633 = 4.32×走路）；问题只是**注释错引** | 注释修正（非数值偏离） | ✅（我复核修正） |
 | 候选集 | `SurfaceMovementProvider.java:33-71` | `Moves.java:31-317` | 缺 DOWNWARD / PILLAR / PARKOUR / FALL | MISSING-IN-ALICE（FALL/PARKOUR 属 D-024） | ⬜ |
 | sprint | `TraverseExecution.java:126-127` 仅 forward | `MovementTraverse.java:269-271` + `SPRINT_MULTIPLIER` | 从不 sprint，但成本含冲刺系数 | DEVIATION-UNREGISTERED | ⬜ |
 | `MovementSpec` 与工厂矛盾 | `MovementSpec.java:68-77` 允许对角 ASCEND/DESCEND；`AscendExecutionFactory.java:36`/`DescendExecutionFactory` 要求 `horizontalDist==1` | n/a | 契约自相矛盾（当前无调用方触发） | DEVIATION-UNREGISTERED（潜在） | ✅ |
@@ -233,6 +260,14 @@
 | P1 | 预算耗尽时返回 best-so-far 前缀（`PARTIAL` 状态，不冒充不可达） | `AStarMovementSearch`、`PathPlan`、`PathSession` | `AbstractNodeCostSearch.java:203-213` |
 | P2 | 双阶段预算（主/失败超时）+ 时间检查每 64 节点 + 改进阈值 0.01 | `SearchBudget`、`AStarMovementSearch` | `AStarPathFinder.java:72-86,167-178` |
 | P2 | 目标类型补齐（GoalXZ/GoalYLevel/GoalTwoBlocks 等） | `GoalSpec` 实现类 | `goals/*` |
+| P0 | **破坏拒绝流体**（岩浆/水不可作为清障目标） | `BlockInteraction.breakRefusal`、`BlockBreakSafety.clearingRefusal`、`SurfaceMovementProvider.appendBreakAndTraverse` | `MovementHelper.java:586-591` |
+| P0 | **放置校验 `InteractionResult`**（不再假成功） | `BlockInteraction.placeAt` | `BlockPlaceHelper.java:48-52` |
+| P1 | 删除"任意 BlockItem"兜底（无白名单方块即不可放置） | `BlockInteraction.findPlaceableSlot` | `Settings.java:230-235` |
+| P1 | 破坏安全补 `avoidBreaking` 等价物（冰/蛀虫/邻接流体与下落方块） | `BlockBreakSafety.clearingRefusal` | `MovementHelper.java:72-115` |
+| P1 | 支撑面改整格判定；同步修正 D-031 文档中的"视线校验"描述 | `BlockInteraction.isSolidForPlacement`、`AI_DECISIONS.md` | `MovementHelper.java:558-565` |
+| P1 | `canWalkThrough` 补 Baritone 显式 NO 列表（蛛网/粉末雪/浆果丛/气泡柱/活板门等） | `pathing/MovementHelper.canWalkThrough` | `MovementHelper.java:144-192` |
+| P2 | 工具选择 tie-break 与将坏工具跳过 | `BlockInteraction.findBestToolSlot` | `ToolSet.java:139-182` |
+| P2 | `isReplaceable` / 开门 / 放置间隔 / 直放分支 | `MovementHelper`、`BlockInteraction` | `MovementHelper.java:298-326,773-796` |
 
 ---
 
