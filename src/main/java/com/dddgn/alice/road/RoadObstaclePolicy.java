@@ -17,7 +17,7 @@ import net.minecraft.world.level.block.state.BlockState;
  */
 public final class RoadObstaclePolicy {
     public static final TagKey<Block> ROAD_FORBIDDEN = TagKey.create(Registries.BLOCK,
-            new ResourceLocation("alice", "road_forbidden"));
+            ResourceLocation.fromNamespaceAndPath("alice", "road_forbidden"));
 
     private RoadObstaclePolicy() {}
 

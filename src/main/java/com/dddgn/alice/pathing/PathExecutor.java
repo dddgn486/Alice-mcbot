@@ -1,19 +1,32 @@
 package com.dddgn.alice.pathing;
 
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.pathing.movement.BasicMovement;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.List;
 
 /**
- * 路径跟随器(服务端假人版,参考 mc_aiplayer 的 FakePlayerMotion 思路)。
- * <p>
- * <b>关键机制</b>:服务端 {@code ServerPlayer} 的移动/重力是「客户端权威」——
- * 真实玩家靠客户端发包驱动,假人没有客户端,服务端不跑 travel(重力不生效)。
- * 因此本执行器用<b>手动位置步进</b>:每 tick 朝段目标推进一小段,
- * 到段后对齐 Y 并手动置 onGround(否则落地/拾取判定永远挂起)。</p>
- * <p>A* 已保证路径各段可走(canWalkThrough/canWalkOn),步进不会穿墙。</p>
+ * 路径跟随器（重构版，使用原版物理引擎）。
+ * 
+ * <h3>设计原则</h3>
+ * <ul>
+ *   <li>✅ 使用 BasicMovement（原版 travel() + 物理引擎）</li>
+ *   <li>✅ 自然碰撞检测、重力、摩擦力</li>
+ *   <li>✅ 正确的到达判定（isStandingAtFootPos）</li>
+ *   <li>✅ 物理结算（settle）</li>
+ * </ul>
+ * 
+ * <h3>与旧版本的区别</h3>
+ * <pre>
+ * ❌ 旧版本：手动 setPos() 传送，绕过物理引擎
+ * ✅ 新版本：使用原版物理，自然移动
+ * </pre>
+ * 
+ * @see BasicMovement
+ * @see MovementHelper
  */
 public final class PathExecutor {
 
@@ -22,8 +35,8 @@ public final class PathExecutor {
     public enum Status { MOVING, DONE, FAILED }
 
     private static final double SEGMENT_ARRIVE = 0.3D;
-    private static final double STEP_SPEED = 0.5D;    // 格/tick(约 2 tick 一格)，用于已规划曲面路径
     private static final int NO_PROGRESS_LIMIT = 80;
+    private static final int MAX_SETTLE_TICKS = 30;
 
     private final ServerPlayer bot;
     private final List<BlockPos> path;
@@ -32,6 +45,7 @@ public final class PathExecutor {
     private double lastX, lastY, lastZ;
     private int noProgressTicks;
     private int diagTicks;
+    private int settleTicks;
     private boolean obstructed;
 
     public PathExecutor(ServerPlayer bot, List<BlockPos> path) {
@@ -53,12 +67,15 @@ public final class PathExecutor {
         }
         if (segmentGoal == null) {
             segmentGoal = path.get(index);
+            settleTicks = 0;
             BotLog.info("路径段 {}/{}: {}", index + 1, path.size(), segmentGoal.toShortString());
         }
 
+        ServerLevel level = (ServerLevel) bot.level();
+
         // 路径动态变化:段目标格(脚位/头位)被新方块占据 → 中断, 请求重规划
-        if (!MovementHelper.canWalkThrough((net.minecraft.server.level.ServerLevel) bot.level(), segmentGoal)
-                || !MovementHelper.canWalkThrough((net.minecraft.server.level.ServerLevel) bot.level(), segmentGoal.above())) {
+        if (!MovementHelper.canWalkThrough(level, segmentGoal)
+                || !MovementHelper.canWalkThrough(level, segmentGoal.above())) {
             obstructed = true;
             BotLog.warn("路径受阻: 段目标 {} 不可走(方块变化), 请求重新规划", segmentGoal.toShortString());
             return Status.FAILED;
@@ -70,7 +87,7 @@ public final class PathExecutor {
         double dz = goalZ - bot.getZ();
         double horizontal = Math.sqrt(dx * dx + dz * dz);
 
-        // 诊断:每 40 tick 输出当前位置与段距离(定位多段路径卡住问题)
+        // 诊断:每 40 tick 输出当前位置与段距离
         diagTicks++;
         if (diagTicks % 40 == 0) {
             BotLog.info("路径诊断: bot=({}, {}, {}) 段{}/{} goal={} 水平距离 {:.1f} 无进展 {}",
@@ -82,25 +99,43 @@ public final class PathExecutor {
                     horizontal, noProgressTicks);
         }
 
-        // 到达当前段:对齐到段目标脚位(含 Y),手动着地
+        // 到达当前段：使用物理判定，而不是手动 setPos()
         if (horizontal <= SEGMENT_ARRIVE) {
-            bot.setPos(goalX, segmentGoal.getY(), goalZ);
-            bot.setOnGround(true);
-            bot.fallDistance = 0.0F;
-            index++;
-            segmentGoal = null;
-            return tick(); // 立即推进下一段(或完成)
+            // ✅ 检查是否真正站稳（物理结算完成）
+            boolean settled = MovementHelper.isStandingAtFootPos(level, bot, segmentGoal) 
+                           && bot.onGround();
+            if (settled) {
+                index++;
+                segmentGoal = null;
+                settleTicks = 0;
+                return tick(); // 立即推进下一段(或完成)
+            }
+            
+            // ✅ 物理结算：让 travel() 处理重力、摩擦和落地
+            BasicMovement.settle(bot);
+            
+            if (++settleTicks > MAX_SETTLE_TICKS) {
+                BotLog.warn("路径段 {} 物理结算超时: settleTicks={}, onGround={}, standing={}",
+                        segmentGoal.toShortString(), settleTicks, bot.onGround(),
+                        MovementHelper.isStandingAtFootPos(level, bot, segmentGoal));
+                return Status.FAILED;
+            }
+            return Status.MOVING;
         }
 
-        // 朝段目标水平步进(保持当前 Y,段间 Y 差在到达时对齐)
-        double step = Math.min(STEP_SPEED, horizontal);
-        bot.setPos(bot.getX() + dx / horizontal * step, bot.getY(), bot.getZ() + dz / horizontal * step);
+        // ✅ 朝段目标移动：使用原版物理引擎
+        BasicMovement.applyToward(bot, goalX, goalZ);
 
         // 卡住检测
         double moved = Math.abs(bot.getX() - lastX) + Math.abs(bot.getZ() - lastZ);
         if (moved < 0.0001D) {
             noProgressTicks++;
             if (noProgressTicks > NO_PROGRESS_LIMIT) {
+                BotLog.warn("路径执行失败: 卡住 {} tick, 位置 ({}, {}, {})",
+                        noProgressTicks,
+                        String.format(java.util.Locale.ROOT, "%.2f", bot.getX()),
+                        String.format(java.util.Locale.ROOT, "%.2f", bot.getY()),
+                        String.format(java.util.Locale.ROOT, "%.2f", bot.getZ()));
                 return Status.FAILED;
             }
         } else {

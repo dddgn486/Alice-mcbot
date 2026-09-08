@@ -1,5 +1,7 @@
 package com.dddgn.alice.task;
 
+import com.dddgn.alice.bot.TaskFailureReport;
+
 /**
  * 任务(执行层单元,设计文档 §4 的落地骨架)。
  * <p>
@@ -24,6 +26,11 @@ public interface Task {
 
     /** 失败原因(仅 FAILED 时有意义)。 */
     String failureReason();
+
+    /** 事实型失败报告；未实现领域详情的任务默认返回空报告。 */
+    default TaskFailureReport failureReport() {
+        return new TaskFailureReport(failureReason(), "unknown", "", null, null);
+    }
 
     enum Status {
         RUNNING, DONE, FAILED

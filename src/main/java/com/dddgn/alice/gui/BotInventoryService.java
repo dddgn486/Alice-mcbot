@@ -43,16 +43,33 @@ public final class BotInventoryService {
         return Optional.of(buildSnapshot(bot));
     }
 
-    /** Reads a snapshot and opens the bot-inventory screen on the viewer's client. */
+    /** Opens the bot inventory menu (Plan A: AbstractContainerMenu). */
     public static void open(ServerPlayer viewer, BotPlayer bot) {
         if (viewer == null || bot == null) {
             return;
         }
-        BotInventorySnapshot snap = buildSnapshot(bot);
-        AliceNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> viewer),
-                new BotInventoryPacket(snap.botId(), snap.name(), snap.slots()));
-        BotLog.info("bot_inv: command player={} bot={} slots={} code=accepted",
-                viewer.getName().getString(), bot.getName().getString(), snap.slots().size());
+        
+        // 设置当前打开的 bot（BotInventoryMenu 需要）
+        BotInventoryMenu.OPEN_BOT = bot;
+        
+        // 使用 MenuProvider 打开 Menu
+        viewer.openMenu(new net.minecraft.world.MenuProvider() {
+            @Override
+            public net.minecraft.network.chat.Component getDisplayName() {
+                return net.minecraft.network.chat.Component.literal("Bot Inventory: " + bot.getName().getString());
+            }
+            
+            @Override
+            public net.minecraft.world.inventory.AbstractContainerMenu createMenu(
+                    int containerId, 
+                    net.minecraft.world.entity.player.Inventory playerInv, 
+                    net.minecraft.world.entity.player.Player player) {
+                return new BotInventoryMenu(containerId, playerInv, bot);
+            }
+        });
+        
+        BotLog.info("bot_inv: open menu player={} bot={} busy={}",
+                viewer.getName().getString(), bot.getName().getString(), BotManager.isBusy(bot));
     }
 
     /**
@@ -82,8 +99,9 @@ public final class BotInventoryService {
         Inventory inv = bot.getInventory();
         String code;
         switch (action) {
-            case PICKUP, QUICK_MOVE -> code = pickupToPlayer(inv, actor, slotIndex);
+            case PICKUP -> code = pickupToPlayer(inv, actor, slotIndex);
             case PLACE -> code = placeFromPlayer(inv, actor, slotIndex, playerSlot);
+            case QUICK_MOVE -> code = quickMoveToPlayer(inv, actor, slotIndex);
             default -> code = "invalid_action";
         }
         pushSnapshot(actor, bot);
@@ -110,6 +128,11 @@ public final class BotInventoryService {
         }
         botInv.setItem(slotIndex, ItemStack.EMPTY);
         return "success";
+    }
+
+    /** QUICK_MOVE: 智能移动 bot 槽到玩家背包（同 pickupToPlayer，但用于 Shift 点击）. */
+    private static String quickMoveToPlayer(Inventory botInv, ServerPlayer actor, int slotIndex) {
+        return pickupToPlayer(botInv, actor, slotIndex);
     }
 
     /** Moves the whole actor-inventory playerSlot stack into the bot slot slotIndex. */

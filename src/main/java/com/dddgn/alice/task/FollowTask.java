@@ -1,7 +1,7 @@
 package com.dddgn.alice.task;
 
 import com.dddgn.alice.pathing.MovementHelper;
-import com.dddgn.alice.pathing.SoftMovementPrimitive;
+import com.dddgn.alice.pathing.movement.BasicMovement;
 import com.dddgn.alice.pathing.SurfacePathfinder;
 import com.dddgn.alice.survival.HazardState;
 import com.dddgn.alice.survival.SurvivalSystem;
@@ -14,6 +14,17 @@ import java.util.UUID;
 
 /**
  * 低风险软移动跟随。只跟随同维度在线玩家，使用短周期曲面路径和 NATIVE_TRAVEL。
+ * 
+ * <h3>设计原则</h3>
+ * <ul>
+ *   <li>✅ 使用 BasicMovement（原版物理引擎）</li>
+ *   <li>✅ 短周期重规划（每 10 tick）</li>
+ *   <li>✅ 速度扰动检测（即时重规划）</li>
+ *   <li>✅ 碰撞检测和物理结算</li>
+ * </ul>
+ * 
+ * <h3>参考价值</h3>
+ * <p>这是使用 BasicMovement 的正确示范，可作为其他任务的参考实现。</p>
  */
 public final class FollowTask implements Task {
     private static final double FOLLOW_DISTANCE = 2.0D;
@@ -103,8 +114,7 @@ public final class FollowTask implements Task {
         double dz = goalZ - bot.getZ();
         double horizontal = Math.sqrt(dx * dx + dz * dz);
         if (horizontal > ARRIVE) {
-            SoftMovementPrimitive.applyToward(bot, goalX, goalZ, horizontal,
-                    SoftMovementPrimitive.Backend.NATIVE_TRAVEL);
+            BasicMovement.applyToward(bot, goalX, goalZ);
             return Status.RUNNING;
         }
 
@@ -114,7 +124,7 @@ public final class FollowTask implements Task {
             settleTicks = 0;
             return Status.RUNNING;
         }
-        SoftMovementPrimitive.settle(bot);
+        BasicMovement.settle(bot);
         if (++settleTicks > MAX_SETTLE_TICKS) {
             failure = "follow_unsettled:" + segment.toShortString();
             return Status.FAILED;
@@ -130,7 +140,7 @@ public final class FollowTask implements Task {
             failure = "follow_target_not_on_safe_surface";
             return Status.FAILED;
         }
-        SurfacePathfinder.Result result = SurfacePathfinder.find(level, bot.blockPosition(), targetFoot);
+        SurfacePathfinder.Result result = SurfacePathfinder.find(bot, bot.blockPosition(), targetFoot);
         if (!result.reachable()) {
             failure = result.inconclusive() ? "follow_search_limit" : "follow_no_path";
             return Status.FAILED;

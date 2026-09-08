@@ -13,7 +13,7 @@ public final class AliceNetwork {
 
     public static final String PROTOCOL_VERSION = "1";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
-            new ResourceLocation("alice", "main"),
+            ResourceLocation.fromNamespaceAndPath("alice", "main"),
             () -> PROTOCOL_VERSION,
             PROTOCOL_VERSION::equals,
             PROTOCOL_VERSION::equals);
@@ -25,6 +25,9 @@ public final class AliceNetwork {
 
     /** 在 mod 构造时调用,注册所有包。 */
     public static void register() {
+        CHANNEL.registerMessage(nextId++, MiningReplanFixturePacket.class,
+                MiningReplanFixturePacket::encode, MiningReplanFixturePacket::decode,
+                MiningReplanFixturePacket::handle, java.util.Optional.of(NetworkDirection.PLAY_TO_CLIENT));
         CHANNEL.registerMessage(nextId++, TargetPacket.class,
                 TargetPacket::encode, TargetPacket::decode,
                 TargetPacket::handle, java.util.Optional.of(NetworkDirection.PLAY_TO_CLIENT));
@@ -37,5 +40,8 @@ public final class AliceNetwork {
         CHANNEL.registerMessage(nextId++, BotInventoryActionPacket.class,
                 BotInventoryActionPacket::encode, BotInventoryActionPacket::decode,
                 BotInventoryActionPacket::handle, java.util.Optional.of(NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(nextId++, BotInputPacket.class,
+                BotInputPacket::encode, BotInputPacket::decode,
+                BotInputPacket::handle, java.util.Optional.of(NetworkDirection.PLAY_TO_SERVER));
     }
 }

@@ -2,6 +2,7 @@ package com.dddgn.alice.pathing;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.util.List;
 
@@ -15,11 +16,31 @@ public final class SurfacePathfinder {
     private SurfacePathfinder() {
     }
 
-    public static Result find(ServerLevel level, BlockPos start, BlockPos goal) {
+    public static Result find(ServerPlayer bot, BlockPos start, BlockPos goal) {
         if (start.equals(goal)) {
             return Result.reached(start, List.of(), 0, 0.0D);
         }
         AStarPathfinder.SearchResult search = AStarPathfinder.computeDetailed(
+                bot, start, new Goal.GoalBlock(goal));
+        if (!search.reachable()) {
+            return new Result(search.status(), goal, search.path(), search.expandedNodes(), search.totalCost());
+        }
+        return Result.reached(goal, search.path(), search.expandedNodes(), search.totalCost());
+    }
+
+    /**
+     * 旧接口：用于诊断命令和测试。
+     * 注意：不使用 Movement 系统，使用旧的判定逻辑。
+     * 
+     * @deprecated 使用 {@link #find(ServerPlayer, BlockPos, BlockPos)} 代替
+     */
+    @Deprecated
+    public static Result find(ServerLevel level, BlockPos start, BlockPos goal) {
+        if (start.equals(goal)) {
+            return Result.reached(start, List.of(), 0, 0.0D);
+        }
+        @SuppressWarnings("deprecation")
+        AStarPathfinder.SearchResult search = AStarPathfinder.computeDetailedLegacy(
                 level, start, new Goal.GoalBlock(goal));
         if (!search.reachable()) {
             return new Result(search.status(), goal, search.path(), search.expandedNodes(), search.totalCost());
@@ -28,9 +49,9 @@ public final class SurfacePathfinder {
     }
 
     /** 按给定顺序选择第一个存在曲面路径的合法站位。 */
-    public static CandidateResult findFirst(ServerLevel level, BlockPos start, List<BlockPos> goals) {
+    public static CandidateResult findFirst(ServerPlayer bot, BlockPos start, List<BlockPos> goals) {
         for (BlockPos goal : goals) {
-            Result result = find(level, start, goal);
+            Result result = find(bot, start, goal);
             if (result.reachable()) {
                 return new CandidateResult(result, goals.indexOf(goal));
             }

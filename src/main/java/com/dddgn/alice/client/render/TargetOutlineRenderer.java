@@ -1,6 +1,7 @@
 package com.dddgn.alice.client.render;
 
 import com.dddgn.alice.client.ClientTargetState;
+import com.dddgn.alice.client.ClientMiningReplanState;
 import com.dddgn.alice.client.ClientRoadState;
 import com.dddgn.alice.road.RoadPlan;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -82,7 +83,8 @@ public final class TargetOutlineRenderer {
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES) {
             return;
         }
-        if (!ClientTargetState.isActive() && !ClientRoadState.isActive()) {
+        if (!ClientTargetState.isActive() && !ClientRoadState.isActive()
+                && !ClientMiningReplanState.isActive()) {
             return;
         }
         Minecraft mc = Minecraft.getInstance();
@@ -93,6 +95,9 @@ public final class TargetOutlineRenderer {
 
         if (ClientRoadState.isActive()) {
             renderRoad(mc, event);
+        }
+        if (ClientMiningReplanState.isActive()) {
+            renderMiningReplan(mc, event);
         }
         if (!ClientTargetState.isActive()) {
             return;
@@ -139,6 +144,36 @@ public final class TargetOutlineRenderer {
         RenderSystem.depthMask(true);
         RenderSystem.enableDepthTest();
 
+        pose.popPose();
+    }
+
+    private static void renderMiningReplan(Minecraft mc, RenderLevelStageEvent event) {
+        PoseStack pose = event.getPoseStack();
+        Vec3 cam = event.getCamera().getPosition();
+        pose.pushPose();
+        pose.translate(-cam.x, -cam.y, -cam.z);
+        MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
+        VertexConsumer vc = buffers.getBuffer(OUTLINE_LINES);
+        if (ClientMiningReplanState.target() != null) {
+            LevelRenderer.renderLineBox(pose, vc,
+                    new AABB(ClientMiningReplanState.target()).inflate(0.008D),
+                    0.2F, 1.0F, 0.2F, 0.95F);
+        }
+        if (ClientMiningReplanState.obstacle() != null) {
+            LevelRenderer.renderLineBox(pose, vc,
+                    new AABB(ClientMiningReplanState.obstacle()).inflate(0.015D),
+                    1.0F, 0.65F, 0.1F, 0.95F);
+        }
+        if (ClientMiningReplanState.botStart() != null) {
+            LevelRenderer.renderLineBox(pose, vc,
+                    new AABB(ClientMiningReplanState.botStart()).inflate(0.012D),
+                    0.1F, 0.9F, 1.0F, 0.90F);
+        }
+        RenderSystem.disableDepthTest();
+        RenderSystem.depthMask(false);
+        buffers.endBatch(OUTLINE_LINES);
+        RenderSystem.depthMask(true);
+        RenderSystem.enableDepthTest();
         pose.popPose();
     }
 

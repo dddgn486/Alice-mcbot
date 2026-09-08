@@ -1,7 +1,12 @@
 package com.dddgn.alice.action;
 
+import com.dddgn.alice.bot.RecoveryStage;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.SurfacePathfinder;
+import com.dddgn.alice.pathing.MovementPathExecutor;
+import com.dddgn.alice.pathing.MovementPlan;
+import com.dddgn.alice.task.mining.LineOfSightChecker;
+import com.dddgn.alice.task.mining.MiningPlan;
 import com.dddgn.alice.pathing.PathExecutor;
 import com.dddgn.alice.protection.BlockBreakSafety;
 import com.dddgn.alice.survival.FluidRiskPolicy;
@@ -17,6 +22,7 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -33,11 +39,36 @@ public final class BotMiner {
 
     public enum Status { MOVING, MINING, DONE, FAILED }
 
+    public enum PlanInvalidation {
+        NONE,
+        PLAN_START_MISMATCH,
+        PLAN_PATH_STALE,
+        PLAN_PATH_INCONCLUSIVE,
+        PLAN_STAND_INVALID,
+        RUNTIME_VISIBILITY_FAILED,
+        RUNTIME_OUT_OF_REACH
+    }
+
+    public record FailureReport(String reason, PlanInvalidation planInvalidation) {
+        public FailureReport {
+            reason = reason == null ? "unknown" : reason;
+            planInvalidation = planInvalidation == null ? PlanInvalidation.NONE : planInvalidation;
+        }
+    }
+
     private static final double MAX_REACH = 4.5D;
     private static final int MINE_TIMEOUT_TICKS = 200;
 
     private final ServerPlayer bot;
     private final BlockPos target;
+    private final BlockPos preferredStandingPoint;
+    private SurfacePathfinder.Result plannedPath;
+    private BlockPos plannedStartFoot;
+    private final String executionMode;
+    private MovementPlan movementPlan;
+    private MovementPathExecutor movementExecutor;
+    private boolean movementFinished;
+    private boolean preferredStandingPointFallback;
     private PathExecutor executor;
     private BlockPos standGoal;
     private List<BlockPos> standCandidates;
@@ -47,18 +78,71 @@ public final class BotMiner {
     private int pathRetries;
     private boolean standSearchLimit;
     private String failureReason = "";
+    private PlanInvalidation planInvalidation = PlanInvalidation.NONE;
+    private RecoveryStage recoveryStage = RecoveryStage.NONE;
+    private final List<RecoveryStage> recoveryEvents = new ArrayList<>();
+    private Status lastProbeStatus;
     private Direction face;
     /** 挖掘开始时的 bot 位置与眼睛距离(供自动化验收断言「是否隔空挖」)。 */
     private BlockPos mineStartPos;
     private double mineStartEyeDist;
 
     public BotMiner(ServerPlayer bot, BlockPos target) {
+        this(bot, target, null, "LEGACY");
+    }
+
+    /** 过渡构造器：直接消费 MiningPlan；旧候选回退仍由原有兼容逻辑负责。 */
+    public BotMiner(ServerPlayer bot, MiningPlan plan) {
+        this(bot, plan.target(), plan.standingFoot(), "PLAN");
+        this.plannedPath = plan.path();
+        this.plannedStartFoot = plan.startFoot();
+        BotLog.info("[MiningPlan探针] consumed executionMode={} target={} startFoot={} standingFoot={} pathStatus={} pathSize={} visibility={} executable={}",
+                executionMode,
+                plan.target().toShortString(), plan.startFoot().toShortString(),
+                plan.standingFoot().toShortString(), plan.path().status(), plan.path().path().size(),
+                plan.visibility().isClear(), plan.isExecutable());
+    }
+
+    /** M2 专用入口：只消费 MovementPlan，不回退旧 PathExecutor。 */
+    public BotMiner(ServerPlayer bot, MiningPlan miningPlan, MovementPlan movementPlan) {
+        this(bot, miningPlan.target(), miningPlan.standingFoot(), "MOVEMENT_PLAN");
+        this.plannedPath = miningPlan.path();
+        this.plannedStartFoot = miningPlan.startFoot();
+        this.movementPlan = movementPlan;
+        BotLog.info("[M2 BotMiner] movement plan accepted target={} startFoot={} standingFoot={} segments={} pathStatus={}",
+                miningPlan.target().toShortString(), movementPlan.startFoot().toShortString(),
+                movementPlan.goalFoot().toShortString(), movementPlan.movements().size(), movementPlan.status());
+    }
+
+    /**
+     * 创建带领域首选站位的挖掘器。首选站位只是本次目标的优先方案，
+     * 不可达时仍允许旧候选逻辑回退；临时清障目标不应复用原目标站位。
+     */
+    public BotMiner(ServerPlayer bot, BlockPos target, BlockPos preferredStandingPoint) {
+        this(bot, target, preferredStandingPoint, preferredStandingPoint == null ? "LEGACY" : "PREFERRED_STAND");
+    }
+
+    private BotMiner(ServerPlayer bot, BlockPos target, BlockPos preferredStandingPoint, String executionMode) {
         this.bot = bot;
         this.target = target;
+        this.preferredStandingPoint = preferredStandingPoint == null ? null : preferredStandingPoint.immutable();
+        this.executionMode = executionMode;
     }
 
     public String failureReason() {
         return failureReason;
+    }
+
+    public FailureReport failureReport() {
+        return new FailureReport(failureReason, planInvalidation);
+    }
+
+    public RecoveryStage recoveryStage() {
+        return recoveryStage;
+    }
+
+    public List<RecoveryStage> recoveryEvents() {
+        return Collections.unmodifiableList(recoveryEvents);
     }
 
     /** 挖掘开始时的 bot 位置(隔空挖验收断言用;从未开始挖则为 null)。 */
@@ -71,10 +155,57 @@ public final class BotMiner {
         return mineStartEyeDist;
     }
 
+    private Status tickMovementPlan(ServerLevel level) {
+        if (!bot.blockPosition().equals(movementPlan.startFoot()) && movementExecutor == null) {
+            failureReason = "movement_plan_start_mismatch";
+            planInvalidation = PlanInvalidation.PLAN_START_MISMATCH;
+            BotLog.warn("[M2 BotMiner] movement rejected target={} expectedStart={} actualFoot={}",
+                    target.toShortString(), movementPlan.startFoot().toShortString(), bot.blockPosition().toShortString());
+            return Status.FAILED;
+        }
+        if (movementExecutor == null) {
+            movementExecutor = new MovementPathExecutor(bot, movementPlan.movements());
+            standGoal = movementPlan.goalFoot();
+            BotLog.info("[M2 BotMiner] movement started target={} from={} to={} segments={}",
+                    target.toShortString(), movementPlan.startFoot().toShortString(),
+                    movementPlan.goalFoot().toShortString(), movementPlan.movements().size());
+        }
+        MovementPathExecutor.Status status = movementExecutor.tick();
+        if (status == MovementPathExecutor.Status.MOVING) return Status.MOVING;
+        if (status == MovementPathExecutor.Status.FAILED) {
+            failureReason = "movement_" + movementExecutor.failureReason();
+            planInvalidation = PlanInvalidation.PLAN_PATH_STALE;
+            BotLog.warn("[M2 BotMiner] movement failed target={} actualFoot={} reason={}",
+                    target.toShortString(), bot.blockPosition().toShortString(), failureReason);
+            return Status.FAILED;
+        }
+        if (!bot.blockPosition().equals(movementPlan.goalFoot()) || !atStandPos()) {
+            failureReason = "movement_goal_not_reached";
+            planInvalidation = PlanInvalidation.PLAN_PATH_INCONCLUSIVE;
+            BotLog.warn("[M2 BotMiner] movement completion mismatch target={} expectedFoot={} actualFoot={}",
+                    target.toShortString(), movementPlan.goalFoot().toShortString(), bot.blockPosition().toShortString());
+            return Status.FAILED;
+        }
+        movementFinished = true;
+        BotLog.info("[M2 BotMiner] movement completed target={} actualFoot={} stand={}",
+                target.toShortString(), bot.blockPosition().toShortString(), standGoal.toShortString());
+        return tick();
+    }
+
     public Status tick() {
         ServerLevel level = (ServerLevel) bot.level();
+        if (movementPlan != null && !movementFinished) {
+            return tickMovementPlan(level);
+        }
         BlockState state = level.getBlockState(target);
+        BotLog.info("[BotMiner探针] tick: target={} botPos={} standGoal={} executor={} started={} progress={} elapsed={} failure={}",
+                target.toShortString(), bot.blockPosition().toShortString(),
+                standGoal == null ? "-" : standGoal.toShortString(),
+                executor == null ? "null" : "present", started,
+                String.format(java.util.Locale.ROOT, "%.3f", progress), elapsed,
+                failureReason.isEmpty() ? "-" : failureReason);
         if (state.isAir()) {
+            BotLog.info("[BotMiner探针] target 已为空气，返回 DONE: target={}", target.toShortString());
             return Status.DONE;
         }
         String refusalReason = BlockBreakSafety.explicitTargetRefusal(bot, target);
@@ -88,6 +219,43 @@ public final class BotMiner {
             return Status.FAILED;
         }
         boolean mustReposition = BlockBreakSafety.requiresReposition(bot, target);
+
+        // 1) 优先使用挖掘领域提供的首选站位；不可达时才回退旧候选逻辑。
+        if (standGoal == null && standCandidates == null
+                && preferredStandingPoint != null && !preferredStandingPointFallback) {
+            SurfacePathfinder.Result preferredPath = plannedPath != null
+                    ? plannedPath
+                    : SurfacePathfinder.find(bot, bot.blockPosition(), preferredStandingPoint);
+            boolean preferredLos = lineOfSightClearFrom(level, preferredStandingPoint);
+            if (plannedPath != null && !bot.blockPosition().equals(plannedStartFoot)) {
+                planInvalidation = PlanInvalidation.PLAN_START_MISMATCH;
+                BotLog.info("[MiningPlan探针] currentFoot={} differs from planStartFoot={} ; planPathMayBeStale=true invalidation={}",
+                        bot.blockPosition().toShortString(), plannedStartFoot.toShortString(), planInvalidation);
+            }
+            BotLog.info("[首选站位探针] target={} preferred={} pathStatus={} reachable={} inconclusive={} pathSize={} pathCost={} los={}",
+                    target.toShortString(), preferredStandingPoint.toShortString(), preferredPath.status(),
+                    preferredPath.reachable(), preferredPath.inconclusive(), preferredPath.path().size(),
+                    String.format(java.util.Locale.ROOT, "%.3f", preferredPath.totalCost()), preferredLos);
+            if (preferredPath.reachable()) {
+                standGoal = preferredStandingPoint;
+                if (!bot.blockPosition().equals(standGoal)) {
+                    executor = new PathExecutor(bot, preferredPath.path());
+                }
+                BotLog.info("[站位选择探针] target={} selected={} selectionType=PREFERRED executionMode={} pathSize={} los={}",
+                        target.toShortString(), standGoal.toShortString(), executionMode,
+                        preferredPath.path().size(), preferredLos);
+            } else {
+                if (plannedPath != null) {
+                    planInvalidation = preferredPath.inconclusive()
+                            ? PlanInvalidation.PLAN_PATH_INCONCLUSIVE
+                            : PlanInvalidation.PLAN_PATH_STALE;
+                }
+                BotLog.warn("[首选站位回退] target={} preferred={} reason={} executionMode={} invalidation={} -> LEGACY_FALLBACK",
+                        target.toShortString(), preferredStandingPoint.toShortString(), preferredPath.status(),
+                        executionMode, planInvalidation);
+                preferredStandingPointFallback = true;
+            }
+        }
 
         // 1) 选站位(候选逐个尝试, A* 不通试下一个) + A* 寻路
         if (standGoal == null && standCandidates == null) {
@@ -133,16 +301,26 @@ public final class BotMiner {
         // 2) 沿路径走向站位
         if (executor != null) {
             PathExecutor.Status pathStatus = executor.tick();
+            BotLog.info("[BotMiner探针] PathExecutor: target={} status={} botPos={} standGoal={} obstructed={}",
+                    target.toShortString(), pathStatus, bot.blockPosition().toShortString(),
+                    standGoal == null ? "-" : standGoal.toShortString(), executor.wasObstructed());
             if (pathStatus == PathExecutor.Status.FAILED) {
                 if (executor.wasObstructed() && pathRetries < 2) {
                     // 路径中方块动态变化 → 从当前位置重新规划(限 2 次)
                     pathRetries++;
-                    BotLog.warn("路径受阻,重新规划({}/2): target={}", pathRetries, target.toShortString());
-                    SurfacePathfinder.Result surface = SurfacePathfinder.find(level,
+                    recoveryStage = RecoveryStage.highest(recoveryStage, RecoveryStage.BOTMINER_PATH_RETRY);
+                    recoveryEvents.add(RecoveryStage.BOTMINER_PATH_RETRY);
+                    BotLog.warn("路径受阻,重新规划({}/2): target={} recoveryStage={}", pathRetries,
+                            target.toShortString(), recoveryStage);
+                    SurfacePathfinder.Result surface = SurfacePathfinder.find(bot,
                             bot.blockPosition(), standGoal);
                     if (!surface.reachable()) {
                         failureReason = "no_path";
-                        BotLog.warn("mine 失败: target={} reason={}", target.toShortString(), failureReason);
+                        if (plannedPath != null) {
+                            planInvalidation = PlanInvalidation.PLAN_PATH_STALE;
+                        }
+                        BotLog.warn("mine 失败: target={} reason={} planInvalidation={}",
+                                target.toShortString(), failureReason, planInvalidation);
                         return Status.FAILED;
                     }
                     executor = new PathExecutor(bot, surface.path());
@@ -159,27 +337,33 @@ public final class BotMiner {
         }
 
         // 3) 视线无遮挡检查(M0 验收核心:根治隔空挖)
-        if (!lineOfSightClear()) {
+        boolean lineOfSightClear = lineOfSightClear();
+        double eyeDistance = bot.getEyePosition().distanceTo(target.getCenter());
+        BotLog.info("[BotMiner探针] 挖掘前置: target={} botPos={} standGoal={} los={} eyeDistance={} maxReach={} started={}",
+                target.toShortString(), bot.blockPosition().toShortString(),
+                standGoal == null ? "-" : standGoal.toShortString(), lineOfSightClear,
+                String.format(java.util.Locale.ROOT, "%.3f", eyeDistance), MAX_REACH, started);
+        if (!lineOfSightClear) {
             abortMining(level);
-            // 当前站位视线受阻时先尝试剩余候选；这是清障避障的第一层，避免立刻挖穿
-            // 安全区/基岩/黑曜石。所有站位均失败后，MineTask 才评估是否允许清障。
-            if (standCandidates != null && !standCandidates.isEmpty()) {
-                BotLog.info("当前站位视线受阻: stand={}，改试其他候选({} 个剩余)",
-                        standGoal.toShortString(), standCandidates.size());
-                standGoal = null;
-                executor = null;
-                return Status.MOVING;
-            }
+            // 🔧 修复：到达站位后不再尝试其他候选，保持固定站位
+            // 让 Task 层负责清障，清完后再次尝试（Bot 保持在原站位）
             failureReason = "line_of_sight_blocked";
-            BotLog.warn("mine 失败(所有站位视线均受阻): target={} reason={}",
-                    target.toShortString(), failureReason);
+            if (plannedPath != null) {
+                planInvalidation = PlanInvalidation.RUNTIME_VISIBILITY_FAILED;
+            }
+            BotLog.warn("mine 失败(视线受阻): target={} stand={} planInvalidation={} (保持站位，等待清障)",
+                    target.toShortString(), standGoal.toShortString(), planInvalidation);
             return Status.FAILED;
         }
 
         // 4) 距离检查(对齐原版 4.5)
-        if (bot.getEyePosition().distanceTo(target.getCenter()) > MAX_REACH) {
+        if (eyeDistance > MAX_REACH) {
             failureReason = "out_of_reach";
-            BotLog.warn("mine 失败: target={} reason={}", target.toShortString(), failureReason);
+            if (plannedPath != null) {
+                planInvalidation = PlanInvalidation.RUNTIME_OUT_OF_REACH;
+            }
+            BotLog.warn("mine 失败: target={} reason={} planInvalidation={}",
+                    target.toShortString(), failureReason, planInvalidation);
             abortMining(level);
             return Status.FAILED;
         }
@@ -207,11 +391,17 @@ public final class BotMiner {
         bot.swing(InteractionHand.MAIN_HAND);
 
         if (progress >= 1.0F) {
+            BlockState oldState = level.getBlockState(target);
             bot.gameMode.destroyBlock(target);
             level.destroyBlockProgress(bot.getId(), target, -1);
+
+            // 手动广播方块更新到客户端
+            BlockState newState = level.getBlockState(target);
+            level.sendBlockUpdated(target, oldState, newState, 3);
+            BotLog.info("挖掘完成: target={}", target.toShortString());
+
             started = false;
             progress = 0.0F;
-            BotLog.info("挖掘完成: target={}", target.toShortString());
             return Status.DONE;
         }
 
@@ -229,14 +419,18 @@ public final class BotMiner {
         StandChoice direct = null;
         StandChoice blocked = null;
         for (BlockPos candidate : standCandidates) {
-            SurfacePathfinder.Result surface = SurfacePathfinder.find(level, bot.blockPosition(), candidate);
+            SurfacePathfinder.Result surface = SurfacePathfinder.find(bot, bot.blockPosition(), candidate);
             if (!surface.reachable()) {
                 standSearchLimit |= surface.inconclusive();
                 BotLog.warn("候选站位不可达: {} status={} → 忽略", candidate.toShortString(), surface.status());
                 continue;
             }
-            StandChoice choice = new StandChoice(candidate, surface.path(),
-                    lineOfSightClearFrom(level, candidate));
+            boolean lineOfSight = lineOfSightClearFrom(level, candidate);
+            BotLog.info("[站位候选探针] target={} candidate={} pathStatus={} reachable={} inconclusive={} pathSize={} expandedNodes={} pathCost={} los={}",
+                    target.toShortString(), candidate.toShortString(), surface.status(), surface.reachable(),
+                    surface.inconclusive(), surface.path().size(), surface.expandedNodes(),
+                    String.format(java.util.Locale.ROOT, "%.3f", surface.totalCost()), lineOfSight);
+            StandChoice choice = new StandChoice(candidate, surface.path(), lineOfSight);
             if (choice.lineOfSight()) {
                 if (direct == null || choice.path().size() < direct.path().size()) {
                     direct = choice;
@@ -249,6 +443,14 @@ public final class BotMiner {
         if (selected != null) {
             // 保留其他候选：世界在行走期间变化导致视线失效时，仍可重新挑选。
             standCandidates.remove(selected.stand());
+            BotLog.info("[站位选择探针] target={} selected={} selectionType={} executionMode={} pathSize={} remainingCandidates={}",
+                    target.toShortString(), selected.stand().toShortString(),
+                    selected == direct ? "DIRECT" : "BLOCKED_FALLBACK",
+                    preferredStandingPointFallback ? "LEGACY_FALLBACK" : executionMode,
+                    selected.path().size(), standCandidates.size());
+        } else {
+            BotLog.warn("[站位选择探针] target={} selected=none remainingCandidates={}",
+                    target.toShortString(), standCandidates.size());
         }
         return selected;
     }
@@ -386,11 +588,12 @@ public final class BotMiner {
     /** 从候选站位(眼睛位置)到目标中心视线是否无遮挡。 */
     private boolean lineOfSightClearFrom(ServerLevel level, BlockPos standPos) {
         Vec3 eye = new Vec3(standPos.getX() + 0.5D, standPos.getY() + 1.62D, standPos.getZ() + 0.5D);
-        Vec3 center = target.getCenter();
-        ClipContext context = new ClipContext(eye, center,
-                ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, bot);
-        BlockHitResult hit = level.clip(context);
-        return hit.getType() != HitResult.Type.BLOCK || hit.getBlockPos().equals(target);
+        LineOfSightChecker.LineOfSightResult result = LineOfSightChecker.checkFromEye(level, eye, target);
+        BotLog.info("[LOS探针/候选] stand={} eye={} target={} clear={} blocker={} sample={}",
+                standPos.toShortString(), formatVec(eye), target.toShortString(), result.isClear(),
+                result.getFirstBlocker() == null ? "-" : result.getFirstBlocker().toShortString(),
+                result.getSuccessfulSample() == null ? "-" : formatVec(result.getSuccessfulSample()));
+        return result.isClear();
     }
 
     private boolean atStandPos() {
@@ -401,14 +604,49 @@ public final class BotMiner {
                 && Math.abs(bot.getY() - standGoal.getY()) <= 1.1D;
     }
 
-    /** 眼睛 → 目标方块中心 raycast,途中任何方块遮挡即视为不可挖。 */
+    /** 眼睛 → 目标方块多个内部采样点；任一点首个命中目标即视为可挖。 */
     private boolean lineOfSightClear() {
         Vec3 eye = bot.getEyePosition();
-        Vec3 center = target.getCenter();
-        ClipContext context = new ClipContext(eye, center,
-                ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, bot);
-        BlockHitResult hit = bot.level().clip(context);
-        return hit.getType() != HitResult.Type.BLOCK || hit.getBlockPos().equals(target);
+        LineOfSightChecker.LineOfSightResult result = LineOfSightChecker.checkFromEye(bot.level(), eye, target);
+        BotLog.info("[LOS探针/运行时] botPos={} eye={} target={} clear={} blocker={} sample={}",
+                bot.blockPosition().toShortString(), formatVec(eye), target.toShortString(), result.isClear(),
+                result.getFirstBlocker() == null ? "-" : result.getFirstBlocker().toShortString(),
+                result.getSuccessfulSample() == null ? "-" : formatVec(result.getSuccessfulSample()));
+        return result.isClear();
+    }
+
+    /**
+     * 保留的诊断辅助：记录目标各面内采样点的首个命中结果。
+     * 正式 LOS 判定现在由 LineOfSightChecker 统一负责。
+     */
+    private void logMultiPointVisibility(net.minecraft.world.level.Level level, Vec3 eye, BlockPos target) {
+        double x = target.getX();
+        double y = target.getY();
+        double z = target.getZ();
+        double e = 0.08D;
+        List<String> samples = new ArrayList<>();
+        samples.add(logVisibilitySample(level, eye, target, "CENTER", target.getCenter()));
+        samples.add(logVisibilitySample(level, eye, target, "WEST_FACE", new Vec3(x + e, y + 0.5D, z + 0.5D)));
+        samples.add(logVisibilitySample(level, eye, target, "EAST_FACE", new Vec3(x + 1.0D - e, y + 0.5D, z + 0.5D)));
+        samples.add(logVisibilitySample(level, eye, target, "DOWN_FACE", new Vec3(x + 0.5D, y + e, z + 0.5D)));
+        samples.add(logVisibilitySample(level, eye, target, "UP_FACE", new Vec3(x + 0.5D, y + 1.0D - e, z + 0.5D)));
+        samples.add(logVisibilitySample(level, eye, target, "NORTH_FACE", new Vec3(x + 0.5D, y + 0.5D, z + e)));
+        samples.add(logVisibilitySample(level, eye, target, "SOUTH_FACE", new Vec3(x + 0.5D, y + 0.5D, z + 1.0D - e)));
+        BotLog.info("[LOS多点探针] target={} eye={} epsilon={} samples={}",
+                target.toShortString(), formatVec(eye), e, String.join("; ", samples));
+    }
+
+    private String logVisibilitySample(net.minecraft.world.level.Level level, Vec3 eye,
+                                       BlockPos target, String label, Vec3 sample) {
+        BlockHitResult hit = level.clip(new ClipContext(eye, sample,
+                ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, bot));
+        boolean targetHit = hit.getType() == HitResult.Type.BLOCK && hit.getBlockPos().equals(target);
+        return label + "=" + formatVec(sample) + ":" + (targetHit ? "TARGET" : hit.getType()
+                + "@" + (hit.getType() == HitResult.Type.BLOCK ? hit.getBlockPos().toShortString() : "-"));
+    }
+
+    private static String formatVec(Vec3 vec) {
+        return String.format(java.util.Locale.ROOT, "(%.3f, %.3f, %.3f)", vec.x, vec.y, vec.z);
     }
 
     /** 从眼睛朝方块中心的方向作为破坏面(取主轴)。 */

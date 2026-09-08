@@ -2,5 +2,12 @@
   "item.alice.interface_scanner": "接口扫描器",
   "item.alice.target_selector": "目标指定器",
   "item.alice.road_planner": "道路蓝图锄",
-  "item.alice.transfer_endpoint_selector": "转移端点选择器"
+  "item.alice.transfer_endpoint_selector": "转移端点选择器",
+  "item.alice.bot_remote_control": "Bot 遥控器",
+  "item.alice.lumber_planner": "伐木规划器",
+  "item.alice.auto_lumberer": "自动伐木器",
+  "item.alice.mining_scene_tester": "挖掘场景 A 启动器",
+  "item.alice.mining_scene_b_tester": "挖掘场景 B 启动器",
+  "item.alice.mining_scene_c_tester": "挖掘场景 C 启动器",
+  "item.alice.mining_replan_tester": "挖掘重规划测试器",
 }

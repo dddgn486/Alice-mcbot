@@ -1,5 +1,6 @@
 package com.dddgn.alice.pathing;
 
+import com.dddgn.alice.pathing.movement.Movement;
 import net.minecraft.core.BlockPos;
 
 /**
@@ -11,6 +12,7 @@ public final class PathNode {
     double cost;
     double combinedCost;
     PathNode previous;
+    Movement movementToHere;  // 新增：从 previous 到这个节点的 Movement
     int heapIndex = -1;
     int moves;
     int turns;

@@ -1,5 +1,6 @@
 package com.dddgn.alice.bot;
 
+import com.dddgn.alice.action.BotMiner;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.network.AliceNetwork;
 import com.dddgn.alice.network.TargetPacket;
@@ -9,6 +10,10 @@ import com.dddgn.alice.task.PlaceTask;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
 import com.dddgn.alice.task.TransferTask;
+import com.dddgn.alice.task.TraverseDiagnosticTask;
+import com.dddgn.alice.task.DiagonalDiagnosticTask;
+import com.dddgn.alice.task.AscendDiagnosticTask;
+import com.dddgn.alice.task.DescendDiagnosticTask;
 import com.dddgn.alice.transfer.TransferCodes;
 import com.dddgn.alice.transfer.TransferLedgerData;
 import com.dddgn.alice.transfer.TransferRequest;
@@ -41,17 +46,37 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 假人管理:tick 驱动、创建、当前动作分配。
+ * 假人管理器：负责 Bot 的生命周期和任务调度。
+ * 
+ * <h3>核心职责</h3>
+ * <ul>
+ *   <li><b>生命周期管理</b>：spawn()、remove()、持久化（saveToWorld/restoreFromWorld）</li>
+ *   <li><b>任务调度</b>：BotSession.tick() 驱动任务执行，监听 ServerTickEvent.Phase.END</li>
+ *   <li><b>生存系统</b>：SurvivalSystem.tick() 检查危险状态，必要时中断任务</li>
+ * </ul>
+ * 
+ * <h3>不负责的事项</h3>
+ * <ul>
+ *   <li>❌ 物理计算：由 BotPlayer.tick() → aiStep() → travel() 处理</li>
+ *   <li>❌ 输入控制：由 BotController.onUpdate() 设置输入字段</li>
+ *   <li>❌ 击退/受伤：由 BotPlayer.hurt()/knockback() 处理</li>
+ * </ul>
+ * 
+ * <h3>设计原则</h3>
  * <p>
- * ⚠️ 审查点 1:tick 采用「全局 ServerTickEvent 驱动」而非实体自身 tick 内嵌动作逻辑,
- * 与 mc_aiplayer 的 ActionPack.onUpdate 一致——好处是动作逻辑与实体解耦、易测。</p>
- * <p>
- * 假人生成走「玩家化」流程(mc_aiplayer 同款):{@link BotPlayer} 继承 {@code ServerPlayer},
- * 伪造 {@link Connection} 后经 {@code PlayerList.placeNewPlayer} 注册——
- * 客户端可见、tick 无 NPE、物理/交互全走原版玩家逻辑(审查点 R9)。</p>
- * <p>
- * 持久化:spawn 即写入 {@link BotWorldData}(主世界 SavedData),服务器重启后
- * {@link #restoreFromWorld} 自动恢复;remove/死亡清除时同步清档。</p>
+ * BotManager 只管理"高层逻辑"（任务、生存），不干预"底层物理"（移动、碰撞）。
+ * 这样职责清晰，避免相互干扰。
+ * </p>
+ * 
+ * <h3>历史遗留问题（已修复）</h3>
+ * <ul>
+ *   <li>❌ C-1 兜底消费段（已移除）：曾在 tick 末尾清空 deltaMovement，导致击退失效</li>
+ *   <li>✅ 原版物理已足够处理残留速度（摩擦力自然衰减）</li>
+ * </ul>
+ * 
+ * @see BotPlayer Bot 实体（负责物理和输入）
+ * @see BotController 输入控制器（负责设置移动输入）
+ * @see BotSession 任务会话（负责单个 Bot 的任务执行）
  */
 public final class BotManager {
     private static final long TRANSFER_MAX_SUSPENSION_TICKS = 12_000L;
@@ -60,6 +85,42 @@ public final class BotManager {
     private static final Map<UUID, BotSession> BOTS = new HashMap<>();
 
     private BotManager() {
+    }
+
+    // ==================== Bot 查询方法（遥控器需要） ====================
+    
+    /**
+     * 根据 UUID 获取 Bot。
+     * 
+     * @param uuid Bot 的 UUID
+     * @return BotPlayer 实例，如果不存在返回 null
+     */
+    public static BotPlayer getBot(UUID uuid) {
+        BotSession session = BOTS.get(uuid);
+        return session != null ? session.bot : null;
+    }
+    
+    /**
+     * 获取所有在线的 Bot。
+     * 
+     * @return Bot 列表（不可修改）
+     */
+    public static java.util.Collection<BotPlayer> getAllBots() {
+        return BOTS.values().stream()
+                .map(session -> session.bot)
+                .collect(java.util.stream.Collectors.toList());
+    }
+    
+    /**
+     * 获取第一个 Bot（用于单 Bot 测试）。
+     * 
+     * @return 第一个 Bot，如果没有返回 null
+     */
+    public static BotPlayer first() {
+        return BOTS.values().stream()
+                .map(session -> session.bot)
+                .findFirst()
+                .orElse(null);
     }
 
     /** 在指定位置生成假人:玩家化注册(PlayerList) + 传送 + 强制生存。 */
@@ -84,9 +145,12 @@ public final class BotManager {
         // 注意:不再固定发工具——主手由「行为执行时替换」管理(MineTask 临时设定),
         // 退出重进不再莫名多一把镐(存档按需还原主手,见 saveToWorld)。
 
-        // F1 修复：清除 ServerPlayer 出生保护，使 bot 立即可伤害（方案 A）
+        // F1 修复：清除 ServerPlayer 出生保护，使 bot 立即可伤害（方案 A）。
+        // 开发映射名为 spawnInvulnerableTime，标准发行运行时为 f_8921_；反射不会自动重映射。
         try {
-            java.lang.reflect.Field field = net.minecraft.server.level.ServerPlayer.class.getDeclaredField("spawnInvulnerableTime");
+            java.lang.reflect.Field field = findServerPlayerField(
+                    net.minecraft.server.level.ServerPlayer.class,
+                    "spawnInvulnerableTime", "f_8921_");
             field.setAccessible(true);
             field.setInt(bot, 0);
         } catch (NoSuchFieldException | IllegalAccessException e) {
@@ -118,10 +182,33 @@ public final class BotManager {
 
     /** 把假人主手物品同步给客户端(Inventory.setItem 不会自动发包,玩家侧看不到)。 */
     public static void syncMainHand(net.minecraft.server.level.ServerPlayer bot) {
-        int slot = bot.getInventory().selected;
-        bot.connection.send(new net.minecraft.network.protocol.game.ClientboundSetCarriedItemPacket(slot));
-        bot.connection.send(new net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket(
-                -2, 0, slot, bot.getInventory().getItem(slot)));
+        // ✅ 修复：直接广播装备包给追踪 bot 的玩家（绕过 FakeConnection）
+        // 不能通过 bot.connection.send()，因为 FakeConnection 会丢弃装备包（防止玩家快捷栏混乱）
+        
+        if (bot.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+            net.minecraft.network.protocol.game.ClientboundSetEquipmentPacket equipmentPacket = 
+                    new net.minecraft.network.protocol.game.ClientboundSetEquipmentPacket(
+                            bot.getId(), 
+                            java.util.List.of(
+                                    com.mojang.datafixers.util.Pair.of(
+                                            net.minecraft.world.entity.EquipmentSlot.MAINHAND, 
+                                            bot.getInventory().getItem(bot.getInventory().selected))));
+            
+            // 直接广播给追踪 bot 的玩家（绕过 FakeConnection）
+            serverLevel.getChunkSource().broadcast(bot, equipmentPacket);
+        }
+    }
+
+    private static java.lang.reflect.Field findServerPlayerField(Class<?> type, String... names)
+            throws NoSuchFieldException {
+        for (String name : names) {
+            try {
+                return type.getDeclaredField(name);
+            } catch (NoSuchFieldException ignored) {
+                // 尝试下一种映射命名。
+            }
+        }
+        throw new NoSuchFieldException(java.util.Arrays.toString(names));
     }
 
     /** 把假人概要状态写入世界存档(重启恢复用)。 */
@@ -205,27 +292,13 @@ public final class BotManager {
             if (session.bot().level() == level) {
                 return session.bot();
             }
-        }
-        // 出生在目标上方(而非目标方块内部,避免卡进方块窒息)
-        return spawn(level, pos.above(), "Alice");
     }
+    // 出生在目标上方(而非目标方块内部,避免卡进方块窒息)
+    return spawn(level, pos.above(), "Alice");
+}
 
-    /** 给假人分配独立软地面移动实验，不接入普通挖矿。 */
-    public static void assignSoftMoveProbe(BotPlayer bot, BlockPos target) {
-        assignSoftMoveProbe(bot, target,
-                com.dddgn.alice.pathing.SoftMovementPrimitive.Backend.NATIVE_TRAVEL);
-    }
-
-    /** 分配指定后端的软移动实验；SELF_MOVE 仅用于独立客户端回归对比。 */
-    public static void assignSoftMoveProbe(BotPlayer bot, BlockPos target,
-                                           com.dddgn.alice.pathing.SoftMovementPrimitive.Backend backend) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null) return;
-        session.assignSoftMoveProbe(target, backend);
-    }
-
-    /** 给假人分配保护区内软移动跟随，不接入普通挖矿。 */
-    public static void assignFollow(BotPlayer bot, ServerPlayer target) {
+/** 给假人分配保护区内软移动跟随，不接入普通挖矿。 */
+public static void assignFollow(BotPlayer bot, ServerPlayer target) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null) return;
         session.assignFollow(target);
@@ -239,20 +312,6 @@ public final class BotManager {
         return true;
     }
 
-    /** 给假人分配独立软路径实验，复用曲面 A*，不接入普通挖矿。 */
-    public static void assignSoftPathProbe(BotPlayer bot, BlockPos target) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null) return;
-        session.assignSoftPathProbe(target);
-    }
-
-    /** 给假人分配独立软路径挖掘测试（测试工具专用，Shift+右键），不接入普通挖矿。 */
-    public static void assignSoftPathMine(BotPlayer bot, BlockPos target) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null) return;
-        session.assignSoftPathMine(target);
-    }
-
     /** 给假人分配独立「放置指定方块」任务。 */
     public static void assignPlace(BotPlayer bot, BlockPos target) {
         BotSession session = BOTS.get(bot.getUUID());
@@ -260,6 +319,50 @@ public final class BotManager {
         session.assignPlace(target);
     }
 
+    /** 给假人分配纯 HARD_PATH 脚位移动任务。 */
+    public static void assignWalkTo(BotPlayer bot, BlockPos goalFoot) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null) return;
+        session.assignWalkTo(goalFoot);
+    }
+
+    /** Assigns the focused R2-B one-step Traverse diagnostic. */
+    public static boolean assignTraverseDiagnostic(BotPlayer bot, BlockPos goalFoot) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        session.beginTask(new TraverseDiagnosticTask(bot, goalFoot), TaskTarget.block(goalFoot));
+        broadcastTarget(session.target);
+        return true;
+    }
+
+    /** Assigns the focused R2-C one-step Diagonal diagnostic. */
+    public static boolean assignDiagonalDiagnostic(BotPlayer bot, BlockPos goalFoot) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        session.beginTask(new DiagonalDiagnosticTask(bot, goalFoot), TaskTarget.block(goalFoot));
+        broadcastTarget(session.target);
+        return true;
+    }
+
+    /** Assigns the focused R2-C one-step Ascend diagnostic. */
+    public static boolean assignAscendDiagnostic(BotPlayer bot, BlockPos goalFoot) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        session.beginTask(new AscendDiagnosticTask(bot, goalFoot), TaskTarget.block(goalFoot));
+        broadcastTarget(session.target);
+        return true;
+    }
+
+    /** Assigns the focused R2-C one-step Descend diagnostic. */
+    public static boolean assignDescendDiagnostic(BotPlayer bot, BlockPos goalFoot) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        session.beginTask(new DescendDiagnosticTask(bot, goalFoot), TaskTarget.block(goalFoot));
+        broadcastTarget(session.target);
+        return true;
+    }
+
+    /* legacy movement experiment entry removed; retain core task APIs only */
     /** 给假人分配 Bot 专用道路施工任务。 */
     public static void assignRoadBuild(BotPlayer bot, com.dddgn.alice.road.RoadPlan plan) {
         BotSession session = BOTS.get(bot.getUUID());
@@ -312,6 +415,36 @@ public final class BotManager {
         session.assign(target);
     }
 
+    /** 直接分配任务对象给 bot（用于自定义任务如伐木）。 */
+    public static void assignTask(BotPlayer bot, Task task) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null) {
+            BotLog.warn("assignTask 失败: bot 不存在 uuid={}", bot.getUUID());
+            return;
+        }
+        session.beginTask(task, task.target());
+        BotLog.info("assignTask: bot={} task={}", bot.getName().getString(), task.getClass().getSimpleName());
+    }
+
+    /** 查找最近的 bot（用于工具自动选择 bot）。 */
+    public static BotPlayer findNearestBot(net.minecraft.server.level.ServerLevel level, net.minecraft.core.BlockPos pos) {
+        BotPlayer nearest = null;
+        double minDist = Double.MAX_VALUE;
+        
+        for (BotPlayer bot : getAllBots()) {
+            if (bot.level() != level) {
+                continue;
+            }
+            double dist = bot.blockPosition().distSqr(pos);
+            if (dist < minDist) {
+                minDist = dist;
+                nearest = bot;
+            }
+        }
+        
+        return nearest;
+    }
+
     /** 广播当前任务目标给所有客户端(透视高亮用;null = 清除高亮)。 */
     public static void broadcastTarget(TaskTarget target) {
         TargetPacket packet = target == null
@@ -346,6 +479,12 @@ public final class BotManager {
         return session == null ? null : session.currentTaskSummary();
     }
 
+    /** 只读获取当前 MineTask 计划，供开发期测试夹具观察，不修改任务。 */
+    public static com.dddgn.alice.task.mining.MiningPlan currentMiningPlan(BotPlayer bot) {
+        BotSession session = BOTS.get(bot.getUUID());
+        return session == null ? null : session.currentMiningPlan();
+    }
+
     /** 取最近一次挖掘任务「开始挖掘时的 bot 位置」(隔空挖断言用;从未开始挖则为 null)。 */
     public static BlockPos lastMineStartPos(BotPlayer bot) {
         BotSession session = BOTS.get(bot.getUUID());
@@ -362,33 +501,7 @@ public final class BotManager {
         for (BotSession session : BOTS.values()) {
             HazardState hazard = SurvivalSystem.tick(session.bot());
             session.tick(hazard);
-            // C-1 兜底消费段：任务层输入之外的外部 push 残留 delta（空闲时兜底消费，任务层活动跳过防双消费）
-            if (!isTaskLayerInput(session.bot())) {
-                net.minecraft.world.phys.Vec3 residual = session.bot().getDeltaMovement();
-                double hSqr = residual.x * residual.x + residual.z * residual.z;
-                if (hSqr > 1.0E-8) {
-                    net.minecraft.world.phys.Vec3 start = session.bot().position();
-                    session.bot().move(net.minecraft.world.entity.MoverType.SELF,
-                            new net.minecraft.world.phys.Vec3(residual.x, 0.0D, residual.z));
-                    net.minecraft.world.phys.Vec3 end = session.bot().position();
-                    net.minecraft.world.phys.Vec3 displacement = end.subtract(start);
-                    session.bot().setDeltaMovement(new net.minecraft.world.phys.Vec3(0.0D, residual.y, 0.0D));
-                    BotLog.info("BOT_PHYSICS_C1_CONSUME corr={} tick={} residual=({},{},{}) disp=({},{},{}) hColl={} vCollBelow={}",
-                            String.format(java.util.Locale.ROOT, "%08x", session.bot().getUUID().hashCode()),
-                            event.getServer().getTickCount(),
-                            fmt3(residual.x), fmt3(residual.y), fmt3(residual.z),
-                            fmt3(displacement.x), fmt3(displacement.y), fmt3(displacement.z),
-                            session.bot().horizontalCollision, session.bot().verticalCollisionBelow);
-                }
-            }
         }
-    }
-
-    /** C-1 消歧：任务层输入（有当前任务 = NATIVE_TRAVEL 驱动中 = 兜底跳过，防任务层与兜底段双消费）；
-     *  任务层空闲（无任务）时外部 push 残留归兜底段消费。 */
-    private static boolean isTaskLayerInput(BotPlayer bot) {
-        BotSession session = BOTS.get(bot.getUUID());
-        return session != null && session.task != null;
     }
 
     private static String fmt3(double value) {
@@ -477,6 +590,10 @@ public final class BotManager {
                     + " startedTick=" + taskStartTick;
         }
 
+        public com.dddgn.alice.task.mining.MiningPlan currentMiningPlan() {
+            return task instanceof MineTask mineTask ? mineTask.currentPlan() : null;
+        }
+
         private long serverTick() {
             return bot.getServer().getTickCount();
         }
@@ -520,14 +637,6 @@ public final class BotManager {
         }
 
         /** 分配任务:按目标类型实例化 Task,开启感知作用域,广播高亮。 */
-        public void assignSoftMoveProbe(BlockPos targetPos,
-                                        com.dddgn.alice.pathing.SoftMovementPrimitive.Backend backend) {
-            if (!replaceTaskIfRunning()) return;
-            TaskTarget assignedTarget = TaskTarget.block(targetPos);
-            beginTask(new com.dddgn.alice.task.SoftMoveProbeTask(bot, targetPos, backend), assignedTarget);
-            broadcastTarget(this.target);
-        }
-
         public void assignFollow(ServerPlayer targetPlayer) {
             if (!replaceTaskIfRunning()) return;
             TaskTarget assignedTarget = TaskTarget.entity(targetPlayer.getId());
@@ -535,24 +644,17 @@ public final class BotManager {
             broadcastTarget(this.target);
         }
 
-        public void assignSoftPathProbe(BlockPos targetPos) {
-            if (!replaceTaskIfRunning()) return;
-            TaskTarget assignedTarget = TaskTarget.block(targetPos);
-            beginTask(new com.dddgn.alice.task.SoftPathProbeTask(bot, targetPos), assignedTarget);
-            broadcastTarget(this.target);
-        }
-
-        public void assignSoftPathMine(BlockPos targetPos) {
-            if (!replaceTaskIfRunning()) return;
-            TaskTarget assignedTarget = TaskTarget.block(targetPos);
-            beginTask(new com.dddgn.alice.task.SoftPathMineTask(bot, targetPos, scope), assignedTarget);
-            broadcastTarget(this.target);
-        }
-
         public void assignPlace(BlockPos targetPos) {
             if (!replaceTaskIfRunning()) return;
             TaskTarget assignedTarget = TaskTarget.block(targetPos);
             beginTask(new PlaceTask(bot, targetPos), assignedTarget);
+            broadcastTarget(this.target);
+        }
+
+        public void assignWalkTo(BlockPos goalFoot) {
+            if (!replaceTaskIfRunning()) return;
+            TaskTarget assignedTarget = TaskTarget.block(goalFoot);
+            beginTask(new com.dddgn.alice.task.WalkToTask(bot, goalFoot), assignedTarget);
             broadcastTarget(this.target);
         }
 
@@ -622,11 +724,23 @@ public final class BotManager {
         }
 
         private void complete(String resultCode, TaskExecutionRecord.TerminalStatus terminalStatus) {
-            if (task instanceof MineTask mineTask) {
+            MineTask mineTask = task instanceof MineTask value ? value : null;
+            if (mineTask != null) {
                 lastMineStartPos = mineTask.mineStartPos();
             }
             recordTerminal(taskKind, taskTargetDescription, taskStartTick, terminalStatus,
-                    resultCode, "idle_after_cleanup");
+                    resultCode, "idle_after_cleanup",
+                    mineTask == null ? RecoveryStage.NONE : mineTask.recoveryStage(),
+                    mineTask == null ? List.of() : mineTask.recoveryEvents(),
+                    terminalStatus == TaskExecutionRecord.TerminalStatus.COMPLETED || task == null
+                            ? null : task.failureReport());
+            if (mineTask != null) {
+                BotMiner.FailureReport report = mineTask.lastFailureReport();
+                BotLog.info("[MineTask终态计划证据] target={} attempts={} recoveryAttempts={} recoveryStage={} recoveryEvents={} currentPlanRetained={} reason={} planInvalidation={}",
+                        taskTargetDescription, mineTask.executionAttempts(), mineTask.recoveryAttempts(), mineTask.recoveryStage(),
+                        mineTask.recoveryEvents(), mineTask.currentPlanRetained(), report == null ? "-" : report.reason(),
+                        report == null ? "NONE" : report.planInvalidation());
+            }
             reportItems();
             clearTask();
         }
@@ -634,15 +748,30 @@ public final class BotManager {
         private void recordTerminal(String kind, String targetDescription, long startTick,
                                     TaskExecutionRecord.TerminalStatus terminalStatus,
                                     String resultCode, String recoveryState) {
+            recordTerminal(kind, targetDescription, startTick, terminalStatus, resultCode, recoveryState,
+                    RecoveryStage.NONE, List.of(), null);
+        }
+
+        private void recordTerminal(String kind, String targetDescription, long startTick,
+                                    TaskExecutionRecord.TerminalStatus terminalStatus,
+                                    String resultCode, String recoveryState, RecoveryStage recoveryStage,
+                                    List<RecoveryStage> recoveryEvents, TaskFailureReport failureReport) {
+            BlockPos terminalPos = bot.blockPosition();
+            TaskOutcome outcome = new TaskOutcome(kind, targetDescription, terminalStatus, resultCode,
+                    terminalPos, failureReport);
             lastExecutionRecord = new TaskExecutionRecord(kind, targetDescription, startTick, serverTick(),
-                    terminalStatus, resultCode, bot.blockPosition(), recoveryState);
+                    terminalStatus, resultCode, terminalPos, recoveryState, recoveryStage, recoveryEvents, outcome);
+            TaskFailureReport failure = outcome.failure();
             BotLog.info("task_execution_terminal kind={} target={} startTick={} endTick={} durationTicks={}"
-                            + " terminal={} code={} pos={} recovery={}",
+                            + " terminal={} code={} pos={} recovery={} recoveryStage={} recoveryEvents={}"
+                            + " failureCode={} failurePhase={} failureDetails={}",
                     lastExecutionRecord.taskKind(), lastExecutionRecord.targetDescription(),
                     lastExecutionRecord.startServerTick(), lastExecutionRecord.endServerTick(),
                     lastExecutionRecord.durationTicks(), lastExecutionRecord.terminalStatus(),
                     lastExecutionRecord.resultCode(), lastExecutionRecord.terminalBotPos().toShortString(),
-                    lastExecutionRecord.recoveryState());
+                    lastExecutionRecord.recoveryState(), lastExecutionRecord.recoveryStage(),
+                    lastExecutionRecord.recoveryEvents(), failure == null ? "-" : failure.code(),
+                    failure == null ? "-" : failure.phase(), failure == null ? "-" : failure.details());
         }
 
         /** 任务收尾:清任务、清作用域、广播清除高亮。 */

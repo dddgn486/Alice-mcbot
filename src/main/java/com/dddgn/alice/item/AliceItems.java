@@ -6,9 +6,9 @@ import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
 
 /**
- * Alice 自注册物品(测试工具都走这里,不套原版工具——只套贴图)。
+ * Alice 自注册物品。
  * <ul>
- *   <li>{@code target_selector}:目标指定器,右键方块 → 派挖掘任务给 bot。
+ *   <li>{@code target_selector}: 目标指定器，右键方块 → 派挖掘任务给 bot。
  *       贴图直接引用原版钻石斧(见 assets/alice/models/item/target_selector.json)。</li>
  * </ul>
  */
@@ -17,29 +17,46 @@ public final class AliceItems {
     public static final DeferredRegister<Item> ITEMS =
             DeferredRegister.create(ForgeRegistries.ITEMS, "alice");
 
-    /** 独立 C1 只读接口扫描器；不继承原版铲子行为。 */
-    public static final RegistryObject<Item> INTERFACE_SCANNER =
-            ITEMS.register("interface_scanner", () -> new Item(new Item.Properties()));
-
-    /** 目标指定器:方块目标(挖掘) / 实体目标(攻击,下一步实现)。 */
+    /** 目标指定器: 方块目标(挖掘) / 实体目标(攻击)。 */
     public static final RegistryObject<Item> TARGET_SELECTOR =
             ITEMS.register("target_selector", () -> new TargetSelector(new Item.Properties()));
 
-    /** 软地面移动实验选择器：贴图使用原版金斧。 */
-    public static final RegistryObject<Item> SOFT_MOVE_SELECTOR =
-            ITEMS.register("soft_move_selector", () -> new SoftMoveSelector(new Item.Properties()));
-
-    /** 独立软路径诊断工具：点击支撑方块，只启动 SoftPathProbeTask。 */
-    public static final RegistryObject<Item> SOFT_PATH_PROBE_SELECTOR =
-            ITEMS.register("soft_path_probe_selector", () -> new SoftPathProbeSelector(new Item.Properties()));
-
-    /** 道路数学模型工具：贴图使用原版钻石锄。 */
+    /** 道路规划工具：贴图使用原版钻石锄。 */
     public static final RegistryObject<Item> ROAD_PLANNER =
             ITEMS.register("road_planner", () -> new RoadPlannerItem(new Item.Properties()));
 
-    /** A1.1 endpoint draft selector; it returns PASS so vanilla container interaction remains intact. */
+    /** A1.1 endpoint selector. */
     public static final RegistryObject<Item> TRANSFER_ENDPOINT_SELECTOR =
             ITEMS.register("transfer_endpoint_selector", () -> new TransferEndpointSelector(new Item.Properties()));
+
+    /** Bot 遥控器：右键进入控制模式，WASD 操控 bot 移动。贴图使用原版钟。 */
+    public static final RegistryObject<Item> BOT_REMOTE_CONTROL =
+            ITEMS.register("bot_remote_control", () -> new BotRemoteControl(new Item.Properties()));
+
+    /** 伐木规划器：选择区域并分配伐木任务。贴图使用原版铁斧。 */
+    public static final RegistryObject<Item> LUMBER_PLANNER =
+            ITEMS.register("lumber_planner", () -> new LumberPlanner(new Item.Properties()));
+
+    /** 自动伐木器：持续自动砍树。贴图使用原版钻石斧。 */
+    public static final RegistryObject<Item> AUTO_LUMBERER =
+            ITEMS.register("auto_lumberer", () -> new AutoLumberer(new Item.Properties()));
+
+    /** 开发期 MineTask 场景 A 一键启动器。 */
+    public static final RegistryObject<Item> MINING_SCENE_TESTER =
+            ITEMS.register("mining_scene_tester", () -> new MiningSceneTester(new Item.Properties()));
+
+    /** 开发期 MineTask 场景 B 一键启动器。 */
+    public static final RegistryObject<Item> MINING_SCENE_B_TESTER =
+            ITEMS.register("mining_scene_b_tester", () -> new MiningSceneBTester(new Item.Properties()));
+
+    /** 开发期场景 C 动态障碍启动器。 */
+    public static final RegistryObject<Item> MINING_SCENE_C_TESTER =
+            ITEMS.register("mining_scene_c_tester", () -> new MiningSceneCTester(new Item.Properties()));
+
+    /** 开发期动态障碍/重规划测试器。 */
+    public static final RegistryObject<Item> MINING_REPLAN_TESTER =
+            ITEMS.register("mining_replan_tester", () -> new MiningReplanTester(new Item.Properties()));
+
 
     private AliceItems() {
     }

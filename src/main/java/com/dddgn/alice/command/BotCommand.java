@@ -24,6 +24,7 @@ import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import net.minecraft.commands.arguments.ResourceLocationArgument;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -64,18 +65,6 @@ public final class BotCommand {
                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                 .executes(ctx -> mine(ctx.getSource(),
                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
-                .then(Commands.literal("soft-probe")
-                        .then(Commands.argument("pos", BlockPosArgument.blockPos())
-                                .executes(ctx -> softProbe(ctx.getSource(),
-                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
-                .then(Commands.literal("soft-probe-travel")
-                        .then(Commands.argument("pos", BlockPosArgument.blockPos())
-                                .executes(ctx -> softProbeTravel(ctx.getSource(),
-                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
-                .then(Commands.literal("soft-path-probe")
-                        .then(Commands.argument("pos", BlockPosArgument.blockPos())
-                                .executes(ctx -> softPathProbe(ctx.getSource(),
-                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
                 .then(Commands.literal("follow")
                         .then(Commands.literal("on").executes(ctx -> followOn(ctx.getSource())))
                         .then(Commands.literal("off").executes(ctx -> followOff(ctx.getSource()))))
@@ -86,6 +75,13 @@ public final class BotCommand {
                                          .executes(ctx -> buildRoadByBot(ctx.getSource()))))
                 .then(Commands.literal("observe")
                         .executes(ctx -> observe(ctx.getSource())))
+                .then(Commands.literal("bot-control")
+                        .then(Commands.literal("forward")
+                                .executes(ctx -> botControlForward(ctx.getSource())))
+                        .then(Commands.literal("stop")
+                                .executes(ctx -> botControlStop(ctx.getSource())))
+                        .then(Commands.literal("jump")
+                                .executes(ctx -> botControlJump(ctx.getSource()))))
                 .then(Commands.literal("selftest")
                         .executes(ctx -> selftest(ctx.getSource(), false))
                         .then(Commands.literal("full")
@@ -98,6 +94,31 @@ public final class BotCommand {
                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                 .executes(ctx -> diagnosePath(ctx.getSource(),
                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
+                .then(Commands.literal("pathing")
+                        .then(Commands.literal("traverse")
+                                .then(Commands.argument("direction", StringArgumentType.word())
+                                        .suggests((ctx, builder) -> net.minecraft.commands.SharedSuggestionProvider
+                                                .suggest(new String[]{"north", "south", "east", "west"}, builder))
+                                        .executes(ctx -> traverseDiagnostic(ctx.getSource(),
+                                                StringArgumentType.getString(ctx, "direction")))))
+                        .then(Commands.literal("diagonal")
+                                .then(Commands.argument("direction", StringArgumentType.word())
+                                        .suggests((ctx, builder) -> net.minecraft.commands.SharedSuggestionProvider
+                                                .suggest(new String[]{"northeast", "northwest", "southeast", "southwest"}, builder))
+                                        .executes(ctx -> diagonalDiagnostic(ctx.getSource(),
+                                                StringArgumentType.getString(ctx, "direction")))))
+                        .then(Commands.literal("ascend")
+                                .then(Commands.argument("direction", StringArgumentType.word())
+                                        .suggests((ctx, builder) -> net.minecraft.commands.SharedSuggestionProvider
+                                                .suggest(new String[]{"north", "south", "east", "west"}, builder))
+                                        .executes(ctx -> ascendDiagnostic(ctx.getSource(),
+                                                StringArgumentType.getString(ctx, "direction")))))
+                        .then(Commands.literal("descend")
+                                .then(Commands.argument("direction", StringArgumentType.word())
+                                        .suggests((ctx, builder) -> net.minecraft.commands.SharedSuggestionProvider
+                                                .suggest(new String[]{"north", "south", "east", "west"}, builder))
+                                        .executes(ctx -> descendDiagnostic(ctx.getSource(),
+                                                StringArgumentType.getString(ctx, "direction"))))))
                 .then(Commands.literal("status")
                         .executes(ctx -> status(ctx.getSource())))
                 .then(Commands.literal("bot-inventory")
@@ -334,7 +355,7 @@ public final class BotCommand {
         }
         net.minecraft.resources.ResourceLocation id;
         try {
-            id = new net.minecraft.resources.ResourceLocation(tagStr);
+            id = net.minecraft.resources.ResourceLocation.parse(tagStr);
         } catch (Exception e) {
             source.sendFailure(Component.literal("[alice] 格式错误: " + tagStr));
             return 0;
@@ -399,6 +420,126 @@ public final class BotCommand {
         String message = detail;
         source.sendSuccess(() -> Component.literal(message), false);
         return result.reachable() ? 1 : 0;
+    }
+
+    /** Starts one deterministic same-level cardinal Traverse for the nearest Bot. */
+    private static int traverseDiagnostic(CommandSourceStack source, String rawDirection) {
+        Direction direction = switch (rawDirection.toLowerCase(java.util.Locale.ROOT)) {
+            case "north" -> Direction.NORTH;
+            case "south" -> Direction.SOUTH;
+            case "east" -> Direction.EAST;
+            case "west" -> Direction.WEST;
+            default -> null;
+        };
+        if (direction == null) {
+            source.sendFailure(Component.literal("[alice] traverse_invalid_direction: use north/south/east/west"));
+            return 0;
+        }
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] bot_unavailable"));
+            return 0;
+        }
+        BlockPos from = bot.blockPosition().immutable();
+        BlockPos to = from.relative(direction);
+        if (!BotManager.assignTraverseDiagnostic(bot, to)) {
+            source.sendFailure(Component.literal("[alice] bot_busy"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("[alice] R2-B Traverse submitted bot="
+                + bot.getName().getString() + " from=" + from.toShortString()
+                + " to=" + to.toShortString()), false);
+        return 1;
+    }
+
+    /** Starts one deterministic same-level diagonal movement for the nearest Bot. */
+    private static int diagonalDiagnostic(CommandSourceStack source, String rawDirection) {
+        int dx = 0, dz = 0;
+        switch (rawDirection.toLowerCase(java.util.Locale.ROOT)) {
+            case "northeast" -> { dx = 1; dz = -1; }
+            case "northwest" -> { dx = -1; dz = -1; }
+            case "southeast" -> { dx = 1; dz = 1; }
+            case "southwest" -> { dx = -1; dz = 1; }
+            default -> {
+                source.sendFailure(Component.literal("[alice] diagonal_invalid_direction: use northeast/northwest/southeast/southwest"));
+                return 0;
+            }
+        }
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] bot_unavailable"));
+            return 0;
+        }
+        BlockPos from = bot.blockPosition().immutable();
+        BlockPos to = from.offset(dx, 0, dz);
+        if (!BotManager.assignDiagonalDiagnostic(bot, to)) {
+            source.sendFailure(Component.literal("[alice] bot_busy"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("[alice] R2-C Diagonal submitted bot="
+                + bot.getName().getString() + " from=" + from.toShortString()
+                + " to=" + to.toShortString()), false);
+        return 1;
+    }
+
+    /** Starts one deterministic ascend movement (+1 level) for the nearest Bot. */
+    private static int ascendDiagnostic(CommandSourceStack source, String rawDirection) {
+        Direction direction = switch (rawDirection.toLowerCase(java.util.Locale.ROOT)) {
+            case "north" -> Direction.NORTH;
+            case "south" -> Direction.SOUTH;
+            case "east" -> Direction.EAST;
+            case "west" -> Direction.WEST;
+            default -> null;
+        };
+        if (direction == null) {
+            source.sendFailure(Component.literal("[alice] ascend_invalid_direction: use north/south/east/west"));
+            return 0;
+        }
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] bot_unavailable"));
+            return 0;
+        }
+        BlockPos from = bot.blockPosition().immutable();
+        BlockPos to = from.relative(direction).above();
+        if (!BotManager.assignAscendDiagnostic(bot, to)) {
+            source.sendFailure(Component.literal("[alice] bot_busy"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("[alice] R2-C Ascend submitted bot="
+                + bot.getName().getString() + " from=" + from.toShortString()
+                + " to=" + to.toShortString()), false);
+        return 1;
+    }
+
+    /** Starts one deterministic descend movement (-1 level) for the nearest Bot. */
+    private static int descendDiagnostic(CommandSourceStack source, String rawDirection) {
+        Direction direction = switch (rawDirection.toLowerCase(java.util.Locale.ROOT)) {
+            case "north" -> Direction.NORTH;
+            case "south" -> Direction.SOUTH;
+            case "east" -> Direction.EAST;
+            case "west" -> Direction.WEST;
+            default -> null;
+        };
+        if (direction == null) {
+            source.sendFailure(Component.literal("[alice] descend_invalid_direction: use north/south/east/west"));
+            return 0;
+        }
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] bot_unavailable"));
+            return 0;
+        }
+        BlockPos from = bot.blockPosition().immutable();
+        BlockPos to = from.relative(direction).below();
+        if (!BotManager.assignDescendDiagnostic(bot, to)) {
+            source.sendFailure(Component.literal("[alice] bot_busy"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("[alice] R2-C Descend submitted bot="
+                + bot.getName().getString() + " from=" + from.toShortString()
+                + " to=" + to.toShortString()), false);
+        return 1;
     }
 
     /** 输出当前 bot 的任务可回收状态，不改变任务。 */
@@ -530,79 +671,6 @@ public final class BotCommand {
         return 1;
     }
 
-    private static int softProbe(CommandSourceStack source, BlockPos target) {
-        ServerLevel level = source.getLevel();
-        BotPlayer bot = BotManager.firstInLevel(level);
-        BlockPos origin = bot != null ? bot.blockPosition()
-                : source.getEntity() != null ? source.getEntity().blockPosition() : level.getSharedSpawnPos();
-        com.dddgn.alice.task.SoftMoveProbeTask.ProbeValidation validation =
-                com.dddgn.alice.task.SoftMoveProbeTask.validate(level, origin, target);
-        if (!validation.valid()) {
-            source.sendFailure(Component.literal("[alice] 软移动探针无效: " + validation.reason()));
-            return 0;
-        }
-        if (bot == null) {
-            bot = BotManager.spawn(level, origin, "SoftProbe");
-        }
-        if (BotManager.isBusy(bot)) {
-            source.sendFailure(Component.literal("[alice] bot 当前有任务，未启动软移动探针"));
-            return 0;
-        }
-        BotManager.assignSoftMoveProbe(bot, target);
-        source.sendSuccess(() -> Component.literal("[alice] 已启动 SOFT_SURFACE 软移动探针: "
-                + origin.toShortString() + " -> " + target.toShortString()), false);
-        return 1;
-    }
-
-    /** 原版 travel 物理对比探针；仅客户端实验，不替代金斧默认 SELF_MOVE。 */
-    private static int softProbeTravel(CommandSourceStack source, BlockPos target) {
-        ServerLevel level = source.getLevel();
-        BotPlayer bot = BotManager.firstInLevel(level);
-        if (bot == null) {
-            source.sendFailure(Component.literal("[alice] 请先生成 bot，再运行 travel 对比探针"));
-            return 0;
-        }
-        com.dddgn.alice.task.SoftMoveProbeTask.ProbeValidation validation =
-                com.dddgn.alice.task.SoftMoveProbeTask.validate(level, bot.blockPosition(), target);
-        if (!validation.valid()) {
-            source.sendFailure(Component.literal("[alice] travel 探针无效: " + validation.reason()));
-            return 0;
-        }
-        if (BotManager.isBusy(bot)) {
-            source.sendFailure(Component.literal("[alice] bot 当前有任务，未启动 travel 对比探针"));
-            return 0;
-        }
-        BotManager.assignSoftMoveProbe(bot, target,
-                com.dddgn.alice.pathing.SoftMovementPrimitive.Backend.NATIVE_TRAVEL);
-        source.sendSuccess(() -> Component.literal("[alice] 已启动 NATIVE_TRAVEL 对比探针: "
-                + bot.blockPosition().toShortString() + " -> " + target.toShortString()), false);
-        return 1;
-    }
-
-    /** 连续脚位段软路径实验：仅 NATIVE_TRAVEL，不分配挖矿或道路任务。 */
-    private static int softPathProbe(CommandSourceStack source, BlockPos target) {
-        ServerLevel level = source.getLevel();
-        BotPlayer bot = BotManager.firstInLevel(level);
-        if (bot == null) {
-            source.sendFailure(Component.literal("[alice] 请先生成 bot，再运行软路径探针"));
-            return 0;
-        }
-        if (BotManager.isBusy(bot)) {
-            source.sendFailure(Component.literal("[alice] bot 当前有任务，未启动软路径探针"));
-            return 0;
-        }
-        if (!com.dddgn.alice.pathing.MovementHelper.canWalkOn(level, target)
-                || !com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, target)
-                || !com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, target.above())) {
-            source.sendFailure(Component.literal("[alice] 软路径目标必须是安全脚位格"));
-            return 0;
-        }
-        BotManager.assignSoftPathProbe(bot, target);
-        source.sendSuccess(() -> Component.literal("[alice] 已启动 NATIVE_TRAVEL 软路径探针: "
-                + bot.blockPosition().toShortString() + " -> " + target.toShortString()), false);
-        return 1;
-    }
-
     /** 开启软移动跟随：只跟随命令执行者本人。 */
     private static int followOn(CommandSourceStack source) {
         ServerPlayer player;
@@ -649,6 +717,42 @@ public final class BotCommand {
         String summary = PerceptionSnapshot.summarize(source.getLevel(), center, PerceptionProfile.MINING);
         source.sendSuccess(() -> Component.literal("[alice] 感知摘要已生成(挖矿视角),详见日志"), false);
         BotLog.info("感知摘要(挖矿视角):\n{}", summary);
+        return 1;
+    }
+    
+    /** BotController 测试：让 Bot 前进 */
+    private static int botControlForward(CommandSourceStack source) {
+        BotPlayer bot = BotManager.first();
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] 没有 Bot"));
+            return 0;
+        }
+        bot.controller().setForward(1.0F);
+        source.sendSuccess(() -> Component.literal("[alice] Bot 前进"), false);
+        return 1;
+    }
+    
+    /** BotController 测试：让 Bot 停止 */
+    private static int botControlStop(CommandSourceStack source) {
+        BotPlayer bot = BotManager.first();
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] 没有 Bot"));
+            return 0;
+        }
+        bot.controller().stopMovement();
+        source.sendSuccess(() -> Component.literal("[alice] Bot 停止"), false);
+        return 1;
+    }
+    
+    /** BotController 测试：让 Bot 跳跃 */
+    private static int botControlJump(CommandSourceStack source) {
+        BotPlayer bot = BotManager.first();
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] 没有 Bot"));
+            return 0;
+        }
+        bot.controller().jumpOnce();
+        source.sendSuccess(() -> Component.literal("[alice] Bot 跳跃"), false);
         return 1;
     }
 }

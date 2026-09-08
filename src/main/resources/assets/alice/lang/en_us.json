@@ -3,5 +3,12 @@
   "item.alice.target_selector": "Target Selector",
   "item.alice.soft_move_selector": "Soft Move Selector",
   "item.alice.road_planner": "Road Planner",
-  "item.alice.transfer_endpoint_selector": "Transfer Endpoint Selector"
+  "item.alice.transfer_endpoint_selector": "Transfer Endpoint Selector",
+  "item.alice.bot_remote_control": "Bot Remote Control",
+  "item.alice.lumber_planner": "Lumber Planner",
+  "item.alice.auto_lumberer": "Auto Lumberer",
+  "item.alice.mining_scene_tester": "Mining Scene A Launcher",
+  "item.alice.mining_scene_b_tester": "Mining Scene B Launcher",
+  "item.alice.mining_scene_c_tester": "Mining Scene C Launcher",
+  "item.alice.mining_replan_tester": "Mining Replan Tester",
 }
