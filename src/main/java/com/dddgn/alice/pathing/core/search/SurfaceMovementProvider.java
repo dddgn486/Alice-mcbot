@@ -148,6 +148,10 @@ public final class SurfaceMovementProvider implements MovementProvider {
         if (!MovementHelper.canWalkThrough(level, target)) {
             return;
         }
+        // 守卫：放置位不得是目标脚位（否则放置后目标不可站，计划自相矛盾）
+        if (context.request().goal().isInGoal(target)) {
+            return;
+        }
         if (context.bot() == null || BlockInteraction.findPlaceableSlot(context.bot()) < 0) {
             return;
         }

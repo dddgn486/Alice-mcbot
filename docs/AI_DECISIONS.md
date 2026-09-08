@@ -165,6 +165,31 @@
   4. 不放宽后置条件到 1.0D——落点漂移合法化会污染路径链脚位契约。
 - 下一步：R3 PathSession（以第 0 号闭环起步）或用户指定的其他任务。
 
+## D-034：R4 自愈闭环（snipsnap + 重规划）
+
+- 状态：当前生效（用户 2026-09-09 指定 "R4 自愈闭环"）
+- 背景（D-033 记录的已知限制）：COLUMN 容差下下降段可能带动量滑入邻列，导致下一段
+  `*_STALE_START`；世界变化导致 `SEGMENT_TARGET_CHANGED`（BLOCKED）同理——此前只能诚实失败。
+- Baritone 参考：`PathExecutor.snipsnapifpossible:324-343` —— 空中下落时不吸附；否则在
+  路径位置表里查找当前脚位并**直接跳到该索引**（清输入）。
+- 决策：`PathSession` 在段失败时按顺序自愈，再决定是否终止：
+  1. **snipsnap**：仅当 `onGround`；当前脚位命中计划的投影脚位路径 → 从该索引继续；
+     若命中终点 → 直接 `COMPLETED`；
+  2. **重规划**：从当前脚位用**同一请求（目标/允许 Movement/预算）**重新规划，
+     上限 `MAX_REPLANS=2`，成功则替换计划并从头执行；
+  3. 都失败 → 按原语义终止，上报原始失败码（不掩盖）。
+- 可观测：日志 `snipsnap` / `snipsnap_goal` / `replanned` / `replan_failed`；
+  `PathExecutionResult.diagnostics` 带 `replans=N`。
+- **自愈首次实测暴露的第三个问题（2026-09-09）**：把课程目标设为 `(7,62,66)` 后，
+  `PLACE_STEP_AND_TRAVERSE` 会把台阶**放在目标脚位上**（计划自相矛盾：放置后目标不可站），
+  导致自愈重规划 `UNREACHABLE`。修复：规划器守卫——**放置位不得是目标脚位**
+  （`SurfaceProvider.appendPlaceStepAndTraverse`）。
+- 验收入口：
+  - 正常路径：`/function alice_test:place_course` + `alice:pathing_placer`（目标 `(8,62,66)`）；
+  - 自愈路径：`alice:pathing_disturber` —— 同一路线，但在第 30 tick 把 bot 平移 1 格
+    （模拟被推开/世界变化），确定性触发 `*_STALE_START` 以验证 snipsnap / 重规划。
+- 未验证：客户端实测。
+
 ## D-033：R5-3 PlaceStepAndTraverse（TEMPORARY_SUPPORT 放置台阶）
 
 - 状态：当前生效（用户 2026-09-08 指定 R5 后按 R5-1 → R5-2 → R5-3 顺序实施）
@@ -334,3 +359,17 @@
 - 状态：稳定
 - `PathExecutor` 必须执行当前 Movement 的专用前置条件和后置条件，并报告动态阻挡；不能用统一的“段目标当前必须可通行”检查误伤需要先破坏障碍的 Movement，也不能因此把 `BLOCKED` 偷换为 `UNREACHABLE`。
 - 影响：这是未来修复 `PathExecutor`/`BreakAndWalkMovement` 契约的方向，不是本次文档更新的代码授权。
+
+## D-035：PathSession 段计时缺失（无超时）与段内漂移检测
+
+- 状态：当前生效（缺陷修复，2026-09-09 客户端扰动测试暴露）
+- 事实（`latest.log` 实证，session `r4-session-cb23787c`）：第 30 tick 夹具把 bot 从 `3,64,66` 平移到 `3,64,67`（缺口列 x=2..3，整列无支撑）→ bot 立即下落；自愈连续重规划 2 次（其中一次从**下落中的** `3,64,67`、一次从 `3,63,67` 起算），最后一段 `ASCEND 3,63,67 → 4,64,67` 开始后 bot 掉到坑底，**连续 `controller_jump_once` 空跳 17 次（约 10 秒）直到玩家退出，会话从未结束**。
+- 根因（代码实证）：`PathSession.segmentTicks` **从未自增**（全文件只有读取与归零），导致
+  1. 单段超时判断 `segmentTicks > segmentTimeoutTicks()` **永远为假 → 段超时形同不存在**；
+  2. 周期健康检查 `segmentTicks % HEALTH_CHECK_INTERVAL == 0` **每 tick 都成立**（0%5==0），周期语义失效。
+- 修复：
+  1. 在段执行路径（`execution != null`）内 `segmentTicks++`，恢复超时与 5 tick 周期健康检查；
+  2. 新增 `driftedOutOfSegment()`（对照 Baritone `PathExecutor#playerInValidPosition`）：落地状态下，脚位低于本段两端最低脚位 1 格以上，或同时离开两端 3 格以上 → `SEGMENT_STALE_START` 进入自愈闭环，不再对着不可达目标空跳；
+  3. `handleFailure` 在**空中不吸附/不重规划**（等落地再处理），避免从下落位置产生失真计划（本次日志中的两次失真重规划即此）。
+- 保留兜底：`PathSessionDiagnosticTask.MAX_TASK_TICKS = 600` 任务级上限（正常场景 87 tick 完成）。
+- 红线：段超时是"确定性执行器必须能终止"的底线，任何会话实现都不得让单段无限运行。

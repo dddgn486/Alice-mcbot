@@ -8,7 +8,9 @@ import com.dddgn.alice.pathing.core.LiveExecutionContext;
 import com.dddgn.alice.pathing.core.MovementExecution;
 import com.dddgn.alice.pathing.core.MovementExecutionFactory;
 import com.dddgn.alice.pathing.core.MovementSpec;
+import com.dddgn.alice.pathing.core.search.CorePathPlanner;
 import com.dddgn.alice.pathing.core.search.PathPlan;
+import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.pathing.core.search.PlannedMovement;
 import com.dddgn.alice.pathing.core.search.PlannedMovementSpecs;
 import net.minecraft.core.BlockPos;
@@ -35,11 +37,17 @@ public final class PathSession {
     public static final int HEALTH_CHECK_INTERVAL = 5;
     /** 段间稳定上限：等 bot 落地并基本停住，避免动量把下一段起点带偏。 */
     public static final int MAX_SETTLE_TICKS = 10;
+    /** 自愈重规划上限（对照 Baritone 位置失效后取消重算的语义）。 */
+    public static final int MAX_REPLANS = 2;
+    /** snipsnap 次数上限：防止"吸附到同一索引 → 同段再失败"的无限循环。 */
+    public static final int MAX_SNIPSNAPS = 3;
 
     private final BotPlayer bot;
     private final ServerLevel level;
     private final String sessionId;
-    private final List<PlannedMovement> movements;
+    private final PathRequest request;
+    private List<PlannedMovement> movements;
+    private List<BlockPos> projected;
 
     private PathSessionStatus status = PathSessionStatus.RUNNING;
     private String failureCode = "";
@@ -47,14 +55,20 @@ public final class PathSession {
     private int index;
     private int segmentTicks;
     private int settleTicks;
+    private int replans;
+    private int snipsnaps;
+    private int lastSnipsnapIndex = -1;
     private int totalTicks;
     private MovementExecution execution;
 
-    public PathSession(BotPlayer bot, ServerLevel level, PathPlan plan, String sessionId) {
+    public PathSession(BotPlayer bot, ServerLevel level, PathPlan plan, PathRequest request,
+                       String sessionId) {
         this.bot = Objects.requireNonNull(bot, "bot");
         this.level = Objects.requireNonNull(level, "level");
         this.sessionId = Objects.requireNonNull(sessionId, "sessionId");
+        this.request = Objects.requireNonNull(request, "request");
         this.movements = Objects.requireNonNull(plan, "plan").movements();
+        this.projected = plan.projectedFootPath();
         if (movements.isEmpty()) {
             // 空计划：起点即目标 → 视为已完成；否则计划本身失败，直接上报
             this.status = plan.reached() ? PathSessionStatus.COMPLETED : PathSessionStatus.MOVEMENT_FAILED;
@@ -98,6 +112,7 @@ public final class PathSession {
             return status;
         }
 
+        segmentTicks++;
         if (segmentTicks > segmentTimeoutTicks()) {
             execution.cancel();
             fail(PathSessionStatus.TIMEOUT, "SEGMENT_TIMEOUT");
@@ -105,7 +120,14 @@ public final class PathSession {
         }
         if (segmentTicks % HEALTH_CHECK_INTERVAL == 0 && !currentTargetStillValid()) {
             execution.cancel();
-            fail(PathSessionStatus.BLOCKED, "SEGMENT_TARGET_CHANGED");
+            execution = null;
+            handleFailure("SEGMENT_TARGET_CHANGED");
+            return status;
+        }
+        if (driftedOutOfSegment()) {
+            execution.cancel();
+            execution = null;
+            handleFailure("SEGMENT_STALE_START");
             return status;
         }
 
@@ -120,7 +142,7 @@ public final class PathSession {
                 segmentTicks = 0;
                 settleTicks = MAX_SETTLE_TICKS;
             }
-            case FAILED, CANCELLED -> mapFailure(execution.failureCode());
+            case FAILED, CANCELLED -> handleFailure(execution.failureCode());
             default -> {
             }
         }
@@ -140,7 +162,7 @@ public final class PathSession {
     public PathExecutionResult result() {
         return new PathExecutionResult(status, movements.size(), index, failureCode, failureSegment,
                 bot.blockPosition(), totalTicks,
-                "planner=alice.astar.movement.v1");
+                "planner=alice.astar.movement.v1 replans=" + replans + " snipsnaps=" + snipsnaps);
     }
 
     private void startSegment() {
@@ -155,12 +177,7 @@ public final class PathSession {
         MovementExecutionFactory factory = PlannedMovementSpecs.factoryFor(movement.movementType());
         MovementExecutionFactory.ValidationResult validation = factory.validate(spec, context);
         if (!validation.valid()) {
-            String code = validation.failureCode();
-            if (code.contains("STALE_START")) {
-                fail(PathSessionStatus.STALE, code);
-            } else {
-                fail(PathSessionStatus.INVALID_PRECONDITION, code);
-            }
+            handleFailure(validation.failureCode());
             return;
         }
         execution = factory.create(spec, context);
@@ -199,6 +216,112 @@ public final class PathSession {
             return MovementHelper.canWalkThrough(level, placePos) || MovementHelper.canWalkOn(level, to);
         }
         return MovementHelper.canWalkOn(level, to);
+    }
+
+    /**
+     * 漂移检测（对照 Baritone `PathExecutor#playerInValidPosition`）：
+     * 本段执行期间 bot 被外力/掉落带出本段包络 —— 脚位低于本段两端最低脚位 1 格以上，
+     * 或横向同时离开两个端点 3 格以上 —— 立即判定 STALE_START 交给自愈闭环，
+     * 而不是让执行器对着不可达目标空跳直到超时。
+     *
+     * <p>只在落地后判定：空中位置不稳定，且重规划起点会失真。
+     */
+    private boolean driftedOutOfSegment() {
+        if (!bot.onGround()) {
+            return false;
+        }
+        PlannedMovement movement = movements.get(index);
+        BlockPos feet = bot.blockPosition();
+        BlockPos from = movement.fromFoot();
+        BlockPos to = movement.toFoot();
+        if (feet.getY() < Math.min(from.getY(), to.getY()) - 1) {
+            return true;
+        }
+        return feet.distManhattan(from) > 3 && feet.distManhattan(to) > 3;
+    }
+
+    /**
+     * 段失败路由（R4 自愈闭环）：
+     * 1) 位置漂移/世界变化 → 先尝试 snipsnap（对照 Baritone `snipsnapifpossible:324-343`）；
+     * 2) 失败则从当前脚位重规划（上限 {@link #MAX_REPLANS}）；
+     * 3) 仍失败才按原语义终止并上报事实。
+     */
+    private void handleFailure(String code) {
+        String failure = code == null ? "MOVEMENT_FAILED" : code;
+        // 空中不处理：等落地再吸附/重规划，避免从下落中的位置产生失真计划
+        if (!bot.onGround() && !failure.contains("TIMEOUT") && !failure.contains("CANCELLED")) {
+            return;
+        }
+        if (trySnipsnap(failure)) {
+            return;
+        }
+        if (replans < MAX_REPLANS && replan(failure)) {
+            return;
+        }
+        mapFailure(failure);
+    }
+
+    /**
+     * 把当前脚位吸附到计划投影路径上（Baritone snipsnap 语义）：
+     * 只在落地时吸附；落在路径上则从该位置继续，落在终点则视为完成。
+     */
+    private boolean trySnipsnap(String code) {
+        if (!code.contains("STALE_START") && !code.contains("TARGET_CHANGED")) {
+            return false;
+        }
+        if (!bot.onGround()) {
+            return false;
+        }
+        if (snipsnaps >= MAX_SNIPSNAPS) {
+            return false;
+        }
+        BlockPos feet = bot.blockPosition();
+        int position = projected.indexOf(feet);
+        if (position < 0) {
+            return false;
+        }
+        // 防循环：吸附到与上次相同（或当前）索引时不再吸附，交给重规划/失败
+        if (position == index || position == lastSnipsnapIndex) {
+            return false;
+        }
+        snipsnaps++;
+        lastSnipsnapIndex = position;
+        execution = null;
+        segmentTicks = 0;
+        settleTicks = 0;
+        if (position >= movements.size()) {
+            status = PathSessionStatus.COMPLETED;
+            BotLog.info("[R4 Session] snipsnap_goal session={} feet={}", sessionId, feet.toShortString());
+            return true;
+        }
+        index = position;
+        BotLog.info("[R4 Session] snipsnap session={} feet={} resumeIndex={} code={}",
+                sessionId, feet.toShortString(), position, code);
+        return true;
+    }
+
+    /** 从当前脚位重新规划到同一目标（保留原请求的策略与预算）。 */
+    private boolean replan(String code) {
+        BlockPos feet = bot.blockPosition();
+        PathRequest replanRequest = new PathRequest(request.botId(), feet, request.goal(),
+                request.allowedMovementTypes(), request.budget(), "replan:" + code);
+        PathPlan plan = new CorePathPlanner().plan(bot, level, replanRequest);
+        if (!plan.reached()) {
+            BotLog.warn("[R4 Session] replan_failed session={} code={} status={} feet={}",
+                    sessionId, code, plan.status(), feet.toShortString());
+            return false;
+        }
+        replans++;
+        movements = plan.movements();
+        projected = plan.projectedFootPath();
+        index = 0;
+        execution = null;
+        segmentTicks = 0;
+        settleTicks = 0;
+        BotLog.info("[R4 Session] replanned session={} replans={} movements={} from={} to={} cost={}",
+                sessionId, replans, movements.size(), feet.toShortString(),
+                plan.goalFoot().toShortString(), String.format(java.util.Locale.ROOT, "%.2f", plan.totalCost()));
+        return true;
     }
 
     private void mapFailure(String code) {

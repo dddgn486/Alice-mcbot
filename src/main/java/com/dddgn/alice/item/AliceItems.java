@@ -77,6 +77,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> PATHING_PLACER =
             ITEMS.register("pathing_placer", () -> new PathingPlacerItem(new Item.Properties()));
 
+    /** R4 自愈验证夹具：执行中途平移 bot 1 格，验证 snipsnap/重规划（场景专属）。 */
+    public static final RegistryObject<Item> PATHING_DISTURBER =
+            ITEMS.register("pathing_disturber", () -> new PathingDisturberItem(new Item.Properties()));
+
 
     private AliceItems() {
     }

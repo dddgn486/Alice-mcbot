@@ -393,6 +393,18 @@ public static void assignFollow(BotPlayer bot, ServerPlayer target) {
         return assignPathSessionDiagnostic(bot, goalFoot, false);
     }
 
+    /** Assigns the R4 plan→session diagnostic with a deterministic disturbance (自愈验证夹具). */
+    public static boolean assignPathSessionDiagnostic(BotPlayer bot, BlockPos goalFoot,
+                                                      boolean allowWorldModification,
+                                                      int disturbTick, int disturbDx, int disturbDz) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        session.beginTask(new PathSessionDiagnosticTask(bot, goalFoot, allowWorldModification,
+                disturbTick, disturbDx, disturbDz), TaskTarget.block(goalFoot));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     /** Assigns the R4/R5 plan→session diagnostic；allowWorldModification 授权 PATH_ACCESS 破坏。 */
     public static boolean assignPathSessionDiagnostic(BotPlayer bot, BlockPos goalFoot,
                                                       boolean allowWorldModification) {

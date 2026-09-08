@@ -205,6 +205,30 @@
 
 ---
 
+## 4.7 ★ R4 自愈闭环（位置漂移 / 世界变化后自动恢复）
+
+**场景**：`/function alice_test:place_course`（目标 `(8,62,66)`）
+
+**操作**（两件物品都要测）：
+1. 手持 `alice:pathing_placer` 右键任意方块 → 正常放置通行（应干净完成）；
+2. 手持 `alice:pathing_disturber` 右键任意方块 → **第 30 tick 会被平移 1 格**（模拟被推开），
+   观察是否自动恢复（`snipsnap` / `replanned`）。
+
+**预期日志**（自愈生效）：
+```
+[R4 Session] segment_done ... index=7 type=DESCEND actualFoot=8,62,66
+[R4 Session] failed ... code=TRAVERSE_STALE_START index=8        ← 原失败点
+[R4 Session] replanned session=... replans=1 movements=2 from=9,62,66 to=7,62,66
+[R4 Session] result ... status=COMPLETED ... replans=1
+```
+
+**判定**：
+- 出现 `replanned`（或 `snipsnap`）后任务**继续并完成**，而不是直接 `STALE` 失败
+- `result` 行带 `replans=N`
+- 若既不 snipsnap 也不重规划成功，必须**诚实失败**并保留原始失败码
+
+---
+
 ## 5. ★ legacy 路径上升兼容（D-030）
 
 **场景**：一条命令建好

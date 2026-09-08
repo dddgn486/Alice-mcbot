@@ -20,9 +20,14 @@
 - **头部朝向修复（D-029）**：夹具传送改用带头部同步的 `ServerPlayer.teleportTo(..., Set<RelativeMovement>, yRot, xRot)` 重载；用户确认"现在同步了"。
 - 一键测试基础设施：`/function alice_test:pathing_course`（孤立长方体开阔场景，固定起点）+ `alice:pathing_battery`（8 项自检）+ `alice:pathing_session`（规划→逐段执行）；
 - Baritone 对照审计已完成：`docs/R2C_BARITONE_AUDIT.md`；
-- 已决策：D-024（落差红线 + 楼梯细化）、D-025（台阶 0.6 对齐真人）、D-026（合法位置集 + 统一完成契约）、D-027（分段完成容差）、D-028（R3→R4 顺序）。
+- 已决策：D-024（落差红线 + 楼梯细化）、D-025（台阶 0.6 对齐真人）、D-026（合法位置集 + 统一完成契约）、D-027（分段完成容差）、D-028（R3→R4 顺序）、D-035（段计时修复 + 段内漂移检测）。
 
-下一步：R5-3 `PlaceStepAndTraverse` **已验证通过**（2026-09-09，8/8 段完成）。R5 三个阶段（原语 / 破坏通行 / 放置通行）全部验收。待用户指定下一闭环（候选：R4 重规划/snipsnap 自愈、R7 异步搜索、多 Bot 并行接口、推送 Git）。
+下一步：R4 自愈闭环待客户端验证。**2026-09-09 客户端扰动测试暴露 P0 缺陷（D-035）**：
+`PathSession.segmentTicks` 从未自增 → 段超时永不触发、健康检查退化为每 tick；夹具把 bot 平移进缺口列后，
+会话空跳 17 次约 10 秒不终止。已修复：段计时自增、落地态漂移检测（`SEGMENT_STALE_START`）、空中不重规划、
+任务级 600 tick 兜底；夹具扰动只在目标位置可站立时生效。
+待测：`/function alice_test:place_course` + `alice:pathing_disturber`（期望 `replans=1 status=COMPLETED`），
+以及 `alice:pathing_placer` 干净通过（目标 `8,62,66`）。R5 三阶段已全部验收。
 
 项目：Minecraft Forge 1.20.1 / Forge 47.4.10 / Java 17  
 开发目录：`/home/fb486/projects/alice`  
