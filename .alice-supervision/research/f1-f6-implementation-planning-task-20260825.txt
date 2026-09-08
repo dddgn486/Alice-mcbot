@@ -1,0 +1,67 @@
+# 规划任务：F1-F6 服务端物理断言实施线路（bot 物理根因定案）
+
+- 派发：Alice 架构监督员
+- 执行：Alice 实现规划员（session-0e50f21c）
+- 日期：2026-08-25
+- Git 基线：`6c2b461`（HEAD，审查基线；全量功能审查批 1-4 已完成并验收）
+- 性质：**只读规划**——不修改任何文件，只产出「F1-F6 怎么实施」的线路：放哪、怎么 hook、断言怎么写、结果怎么判定、依赖/风险/停止条件、客户端验收矩阵
+- 用户批准：✅（2026-08-25，用户批准起草 F1-F6 实施计划）
+
+## 背景（审查已建立的事实）
+
+全量功能审查确认 **bot 物理失效**（自 2298dd3 起：bot 无法推挤、无击退）是项目两条未修复问题线之一（另一条=玩家跳跃异常 ab510fd 引入）。审查已收敛根因候选：
+
+1. **B2**：任务层每 tick `xxa=0/zza=1/travel(0,0,1)` 驱动——经 pathing 审查 javap 反编译修正为「**叠加+衰减**」非「覆盖」→ **降级为影响因素之一**（不是唯一根因）
+2. **B3**：BotPlayer.tick() 吞 NPE（try/catch super.tick()）若触发则跳过 aiStep/pushEntities → 候选
+3. **hurt/knockback 未触发**：isPushable/hurt 链可能未生效 → 候选
+4. **客户端同步缺失**：FakeConnection 广播问题（玩家跳跃异常线，与 bot 物理失效独立）→ 客户端候选
+
+**定案手段（已就绪）**：pathing 审查报告（review-batch1-pathing-20260825.md §特别核查①）给出 **F1-F6 服务端断言方案**：F1 hurt→knockback→deltaMovement 非零 / F2 hurt 后延迟 1 tick travel 位移对比 / F3 push→delta+位移 / F4 摩擦衰减 / F5 同 tick vs 延迟 tick 时序 / F6 客户端收包对照。task 审查报告（review-batch1-task-20260825.md）已挂钩 **5 个 travel 调用点**：SoftPathProbeTask:141-144 / SoftPathMineTask:167-170 / FollowTask:106-107 / SoftMoveProbeTask:119-120 / settle 三任务共用 :82-86。
+
+## 必须产出（报告写到 .alice-supervision/research/f1-f6-implementation-plan-20260825.md）
+
+### 1. 实施线路（核心）
+- **hook 位置**：F1-F6 断言放哪个文件/类（候选：SoftPhysicsObservationTest 扩展？新 fixture 类？BotSelftest 扩展？）——给出推荐 + 理由（复用现有测试入口 vs 新建）
+- **每个 F 项的断言写法**：输入（对 bot 调 hurt/knockback/push）、断言点（deltaMovement 读取时机）、预期（根因区分表见第 3 点）
+- **travel 调用点挂钩**：5 个 travel 调用点（task 审查清单）与 F1-F6 的对照——哪些 F 项需要在这些点前后读 delta（用于区分"travel 叠加"是否抹掉/削弱击退）
+- **执行方式**：服务端 fixture（headless 可跑？）还是要游戏内 /alice 命令触发；每项预计实施量级（行数/小时）
+- **与现有测试的合并方式**：SoftPhysicsObservationTest 现有断言扩展 vs 独立新类——不破坏现有 P0 门禁断言
+
+### 2. 结果判定（根因区分表）
+- 每种断言组合结果 → 根因结论（tick 链 NPE / hurt 未触发 / travel 时序 / 同步缺失 / 组合）
+- 明确「什么结果 = 定案」「什么结果 = 仍需客户端复测」
+- 停止条件：断言互相矛盾时（EVIDENCE_CONFLICT）怎么处理
+
+### 3. 依赖与顺序
+- 依赖现有哪些 fixture/selftest 基础设施（BotSelftest 13 测试？SoftPhysicsObservationTest？）
+- 先跑哪几项、后跑哪几项（最省成本的判定顺序：如先 F1/F3 区分服务端根因，再 F5 时序，最后 F6 客户端）
+- 与 active plan p1-client-sync-fix-v1 的关系：F1-F6 是**该线的定案前置**，不打断修复主线；审查结论产出后监督员决定修复时机的分叉
+
+### 4. 风险与边界
+- 修改测试代码的风险（不影响业务代码 BotPlayer/FakeConnection——**F1-F6 只加断言，不改实现**）
+- 禁止事项：不改 bot/pathing 业务实现、不碰 P0 门禁逻辑、不预定修复方案（只定案）
+- 与玩家跳跃异常线的区分：F1-F6 只定 bot 物理失效，跳跃异常线单独处理（packet 抓包）
+
+### 5. 客户端验收矩阵（规划 §5.2 规格）
+- 服务端定案后，哪些结论**仍需 Windows 客户端实测**（如根因指向客户端同步 → F6 需要抓包/玩家观察）
+- 列出：场景 / 观察点 / 预期日志关键字 / 失败回收条件（按监督员职责第 10 条的格式）
+
+### 6. 实施授权边界
+- 规划本身不构成实施授权；实施需监督员审核 + 用户批准后写入 active plan
+- 实施范围限定：**只加服务端断言/测试代码**，不修 BotPlayer/FakeConnection/travel 驱动——修复是定案后的下一步（另行批准）
+
+## 禁止事项
+- 不改任何文件（业务代码、测试、skill、HANDOVER、active plan）
+- 不评估具体代码对错（那是实施/修复阶段）；只规划断言实施
+- 不预定根因结论（F1-F6 的目的就是定案，规划阶段不得预判结果）
+- 不预定修复方案（定案后由监督员分叉决策）
+- 规划不构成实施授权
+
+## 验收标准
+- 报告写到 .alice-supervision/research/f1-f6-implementation-plan-20260825.md
+- 实施线路完整：hook 位置推荐+理由、每 F 项断言写法、5 travel 调用点挂钩对照、执行方式与量级
+- 根因区分表明确（结果→结论映射、定案/需客户端条件、EVIDENCE_CONFLICT 处理）
+- 依赖顺序合理（最省成本判定顺序）
+- 风险边界清楚（只加断言不改实现、不预定修复）
+- 客户端验收矩阵按格式（场景/观察点/日志关键字/失败回收条件）
+- 未改任何文件；不构成实施授权

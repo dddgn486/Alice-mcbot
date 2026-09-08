@@ -1,0 +1,73 @@
+# DSH 维护员任务：P1-S2 Git MCP 只读试点（隔离 profile）
+
+- 派发：Alice 架构监督员（依据 V-B 验收通过 + 用户批准的 P1 试点线路）
+- 执行：DSH 维护员（隔离进程）
+- 日期：2026-08-25
+- 依据：`.alice-supervision/research/skill-upgrade-p1-git-mcp-line-20260824.md` §3.2（P1-S2/S3 范围与判定标准）、§4（停止条件）、§5（验收矩阵 P1-B/P1-C/P1-D）
+- 前序证据：`.alice-supervision/research/dsh-mcp-vb-dryrun-result-20260824.md`（V-B 通过：insert 数组语法可行、版本解析 0.1.1-rc.2）
+
+## 背景（V-B 已验证的事实）
+
+- `cordis.patch.yml` 用 `- insert:` 数组包裹语法可动态挂载不在 bundles 的插件（dsh-mcp-client）
+- 工具命名：`mcp__<serverName>__<rawName>`
+- 实际解析版本：`@deepseek-ai/dsh-mcp-client@0.1.1-rc.2`（DSH 内置）
+- 隔离 profile 机制安全（alice-mcp-lab 3090 已验证，未触碰 3081/3082/3083）
+
+## 任务目标（P1-S2/S3）
+
+在**新建独立 lab profile**（如 `alice-git-lab`，独立端口如 3091，仅 127.0.0.1）挂载**真实 Git MCP server**（`modelcontextprotocol/servers` 的 src/git），只读试点：
+
+1. 挂载 Git MCP server；`git_status`/`git_diff_unstaged`/`git_diff_staged`/`git_diff` **只读子集**；**git_commit 与其他写工具显式不可用**；
+2. 对 `/home/fb486/projects/alice` 跑只读工具，对照 `git -C /home/fb486/projects/alice status/diff` 命令输出，验证正确性与只读性；
+3. `repo_path` 白名单仅 Alice 仓库（`/home/fb486/projects/alice`），无其他路径可读；
+4. 全程不触碰 alice-bus(3083)/alice-bus-lab(3082)/web(3081)。
+
+## 执行方法（严格限定）
+
+1. **新建隔离 profile**：克隆 `alice-mcp-lab` 模板 → `alice-git-lab`（独立 storage、端口 3091 仅 127.0.0.1）。**绝不修改** alice-bus(3083)/alice-bus-lab(3082)/web(3081) 任何文件。
+2. **挂载 Git MCP server**：用 V-B 验证过的 insert 数组语法；serverName 示例 `git`；command 按 Git server 官方安装方式（npx/uvx/本地路径任一，**记录实际命令与版本**）。Git MCP server 版本先核对并固定（官方 README 自述 early development，工具列表可变化）。
+3. **工具白名单**：启动后确认工具清单**只含只读子集**——`git_status`/`git_diff_unstaged`/`git_diff_staged`/`git_diff`；**确认无 git_commit 可用面**（若工具清单出现写工具，立即停止并报告——这是停止条件）。
+4. **只读验证**：对 Alice 仓库跑 git_status、git_diff_unstaged、git_diff_staged → 与 `git -C /home/fb486/projects/alice status` / `git diff` 命令输出对照；记录结果一致性。
+5. **repo_path 白名单**：确认工具只接受/只作用于 `/home/fb486/projects/alice`；尝试白名单外路径应被拒绝（只做**最小验证**：一次非白名单路径请求，预期拒绝/无结果；若反而读取成功 → 停止条件）。
+6. **前后对照**：试点前后 `git -C /home/fb486/projects/alice status --short`、`git log --oneline -1` 完全一致（仓库无任何变化——只读性终极证据）。
+7. **卸载与回滚**：disabled: true 或删除 insert 块 → 工具清单恢复、无残留子进程/监听（确认 3091 端口关闭）→ 停止 profile。
+8. **记录**：启动命令、profile/端口、patch 条目（insert 语法）、工具清单快照（before/after）、每个只读工具调用返回、与 git 命令的对照、白名单拒绝验证、卸载后检查、Git server 版本。
+
+## 禁止事项（硬性）
+
+- **绝不修改** DSH checkout、alice-bus(3083)/alice-bus-lab(3082)/web(3081) 三个 profile 任何配置、3081/3082/3083 端口与运行实例。
+- **绝不执行 git_commit 或任何写工具**（配置/接线层面不暴露；若暴露即停止条件）。
+- **零 env 注入**：Git MCP 配置不注入任何 API key/token/敏感凭据。
+- **不读白名单外路径**（只做一次拒绝验证；拒绝才是预期结果）。
+- 试点异常/挂载失败**立即停止如实报告**，不强行重试改配置。
+- 本任务在隔离 profile 内完成；**不得在 3083 生产 profile 配置任何 MCP**（未来接入需另行审批）。
+
+## 停止条件（触发即停，判定不可行）
+
+- 工具清单出现 `git_commit` 或其他写工具 → 停（P1 §4 停止条件①）。
+- repo_path 白名单外路径可读 → 停（停止条件②）。
+- 需要修改 DSH checkout / 现有三个 profile 之一才能挂载 → 停。
+- 试点前后仓库状态不一致（有任何文件/提交变化）→ 停并报告变更内容。
+- 对 3083 工作流产生任何影响（工具清单/会话/派单差异）→ 停（P1-C 回归判定）。
+
+## 产出
+
+结果报告写到 `/home/fb486/projects/alice/.alice-supervision/research/dsh-mcp-p1-s2-git-trial-result-20260824.md`，含：
+- 判定结论（可行 / 部分可行 / 不可行）+ 依据
+- 工具清单快照（确认只含只读 4 工具、无 git_commit）
+- 每个只读工具调用返回与 git 命令对照（一致性证据）
+- repo_path 白名单拒绝验证结果
+- 试点前后仓库状态对照（无变化证据）
+- Git MCP server 实际版本与安装方式
+- 隔离 profile 完整配置样本（可复用为未来接入模板）
+
+**本任务不授权任何写操作试点、不授权 3083 生产接入。P1-S2 通过后由监督员审核 + 用户批准才考虑后续（写操作/生产接入均需独立新包）。**
+---
+
+## 用户授权记录（2026-08-25）
+
+- 授权人：Alice 项目决策者（用户）
+- 授权内容：**P1-S2 Git MCP 只读试点**（范围如上：只读 4 工具白名单、repo_path 仅 /home/fb486/projects/alice、隔离 profile alice-git-lab 端口 3091、git_commit 显式禁止、停止条件不变）
+- 授权依据：V-B dry-run 验收通过（insert 语法可行、版本 0.1.1-rc.2、用户 GUI 亲测 mcp__mcp-test__ping 返回 pong）+ 监督员审核
+- 授权边界：本授权仅限**只读试点**；写操作试点、3083 生产接入均需独立新授权
+- 记录人：监督员（2026-08-25，依据用户明确批准）

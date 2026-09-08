@@ -1,0 +1,70 @@
+# 审查执行任务：批 2 / network 模块（协议/方向/packet 白名单）——批 2 最后一个模块
+
+- 派发：Alice 架构监督员
+- 执行：Alice 深度调查员（session-f26bd205）
+- 日期：2026-08-25
+- Alice 基线：`6c2b461`（HEAD，审查基线）
+- 依据规划：`.alice-supervision/research/full-review-plan-20260825.md`（已验收）§1.2 批 2、§2 审查模板、§5 执行/验收/停止
+- 前置证据：
+  - `.alice-supervision/research/review-batch2-transfer-20260825.md`（transfer 已验收：S2C 仅 2 处、无 C2S 依赖、服务端权威）
+  - `.alice-supervision/research/review-batch2-client-20260825.md`（client 已验收：三个 Client*State 更新入口与 packet 映射表、packet handle 双隔离）
+  - `.alice-supervision/research/review-batch2-gui-20260825.md`（gui 已验收：方向 B 的 BotInventoryPacket/BotInventoryActionPacket）
+
+## 审查目标（network 模块，批 2 收尾）
+
+network 是**协议层**（SimpleChannel 注册、packet 定义、方向/版本、白名单）。审查必须聚焦：
+
+1. **SimpleChannel 协议面**：`AliceNetwork` 注册的 channel（modid/version 一致性）、packet 序列
+2. **方向/版本正确性**：每个 packet 的 S2C/C2S 方向声明与真实使用一致（transfer/gui/client 三模块的 packet 使用交叉核对）
+3. **packet 白名单**：Alice 注册的 packet 全集（是否只有应为 Alice 的包？是否有无关/遗留包）——白名单 = Alice 网络面的完整清单
+4. **协议版本管理**：channel version 如何校验（不匹配时行为）、decode 边界/上限（gui 审查已发现 BotInventoryPacket.decode 有 Math.min 上限，ActionPacket 无上限靠服务端校验）
+
+## 审查对象
+
+`src/main/java/com/dddgn/alice/network/`（5 文件）：
+- `AliceNetwork.java`（SimpleChannel 注册：register 方法、packet 序列、version）
+- `TargetPacket.java`（S2C 目标状态）
+- `RoadPlanPacket.java`（S2C 道路计划）
+- `BotInventoryPacket.java`（S2C 库存快照）
+- `BotInventoryActionPacket.java`（C2S 库存动作）
+
+## 审查方法（严格按规划 §2 模板，8 字段全覆）
+
+1. **定位与文件清单**：每文件职责 + 3 字角色（通道/包×4）
+2. **边界归属**：协议层（服务端↔客户端媒质）；对照 transfer/gui/client 三模块的 packet 使用者
+3. **正确性核查点**：宣称行为 vs 实现（channel 注册/版本/方向/编解码）；证据类型（静态/服务端可证/客户端实测）
+4. **R#/决策对照**：网络相关决策（如 GUI 方向 B 的 packet 决策、transfer 的 S2C 决策）
+5. **Dual-View**：服务端可证（channel/encode/decode 一致性、方向校验）vs 需客户端实测（包往返时序/渲染）——引用 ab510fd 教训
+6. **证据等级**：各 packet 的客户端验证记录
+7. **风险等级**：A/B/C/D
+8. **替换判据**：按 §4.1 M1-M5（网络方案：SimpleChannel vs vanilla 自定义 payload vs 其他 mod 网络栈——只列方向不选型）
+
+**特别核查项（必须回答）**：
+- **packet 白名单全集**：AliceNetwork.register 注册的 packet 逐一列出（类名/方向/使用方/对应 Client*State 或服务端动作）——确认无遗留/无关包
+- **方向一致性**：每个 packet 声明方向（@OnlyIn?/LogicalSide check?）与实际收发侧一致（grep 发送方/接收方）
+- **版本与解码边界**：channel version 校验行为（不匹配时拒绝/静默？）+ 各 packet decode 上限（BotInventoryPacket Math.min(256)、ActionPacket 无上限靠服务端校验——gui 审查已确认，交叉核实）
+- **C2S 最小面**：仅 BotInventoryActionPacket 一个 C2S？还是还有别的？（服务端权威要求：C2S 面越小越符合）
+
+## 禁止事项（硬性）
+
+- 不修改任何文件（业务代码/HANDOVER/active plan/skill/客户端记录）
+- 疑似 bug 只记录不修；不预定替换结论
+- **GUI FROZEN 边界不可触碰**（BotInventoryPacket/ActionPacket 属方向 B 冻结线——不得建议修改）
+- 与 p1-client-sync-fix-v1 交叉时只提交证据（修改权归修复主线）
+- 工具不可用时：先列可用工具清单复测 read 报错，确认真缺失再 request_input
+
+## 产出
+
+报告写到：`.alice-supervision/research/review-batch2-network-20260825.md`
+- 覆盖 §2 全部 8 字段
+- 含特别核查项结论（packet 白名单全集/方向一致性/版本+解码边界/C2S 最小面）
+- 明确区分已确认/推论/待调查
+
+完成后 report_task 附报告路径。
+
+## 验收标准（规划 §5.2）
+
+- 报告覆盖 §2 全部字段
+- 特别核查项全部回答（白名单全集/方向一致性/版本+解码边界/C2S 最小面）
+- 与 transfer/gui/client 三模块的 packet 使用交叉核对一致
+- 无文件被修改；无预定替换结论；区分已确认/推论/待调查

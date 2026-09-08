@@ -1,0 +1,88 @@
+diff --git a/package.json b/package.json
+index 0e2341e..5ef0ac8 100644
+--- a/package.json
++++ b/package.json
+@@ -100,22 +100,22 @@
+     }
+   },
+   "devDependencies": {
+-    "@deepseek-ai/cordis": "link:../deepseek-harness-master/vendor/cordis",
+-    "@deepseek-ai/dsh-agent": "link:../deepseek-harness-master/packages/core/agent",
+-    "@deepseek-ai/dsh-brand": "link:../deepseek-harness-master/packages/util/brand",
+-    "@deepseek-ai/dsh-client-runtime": "link:..\\deepseek-harness-master\\packages\\client\\runtime",
+-    "@deepseek-ai/dsh-client-ui-primitives": "link:..\\deepseek-harness-master\\packages\\client\\ui-primitives",
+-    "@deepseek-ai/dsh-client-ui-slots": "link:..\\deepseek-harness-master\\packages\\client\\ui-slots",
+-    "@deepseek-ai/dsh-client-ui-tool": "link:..\\deepseek-harness-master\\packages\\client\\ui-tool",
+-    "@deepseek-ai/dsh-home-paths": "link:..\\deepseek-harness-master\\packages\\util\\home-paths",
+-    "@deepseek-ai/dsh-llm": "link:../deepseek-harness-master/packages/llm/llm",
+-    "@deepseek-ai/dsh-session": "link:../deepseek-harness-master/packages/core/session",
+-    "@deepseek-ai/dsh-session-title": "link:..\\deepseek-harness-master\\packages\\session\\session-title",
+-    "@deepseek-ai/dsh-storage-domain": "link:../deepseek-harness-master/packages/storage/storage-domain",
+-    "@deepseek-ai/dsh-system-prompt": "link:../deepseek-harness-master/packages/core/system-prompt",
+-    "@deepseek-ai/dsh-tools": "link:../deepseek-harness-master/packages/core/tools",
+-    "@deepseek-ai/dsh-workspace": "link:../deepseek-harness-master/packages/workspace/workspace",
+-    "@deepseek-ai/schemastery": "link:../deepseek-harness-master/vendor/schemastery",
++    "@deepseek-ai/cordis": "^4.0.1",
++    "@deepseek-ai/dsh-agent": "^0.1.1-rc.2",
++    "@deepseek-ai/dsh-brand": "^0.1.1-rc.2",
++    "@deepseek-ai/dsh-client-runtime": "^0.1.1-rc.2",
++    "@deepseek-ai/dsh-client-ui-primitives": "^0.1.1-rc.2",
++    "@deepseek-ai/dsh-client-ui-slots": "^0.1.1-rc.2",
++    "@deepseek-ai/dsh-client-ui-tool": "^0.1.1-rc.2",
++    "@deepseek-ai/dsh-home-paths": "^0.1.1-rc.2",
++    "@deepseek-ai/dsh-llm": "^0.1.1-rc.2",
++    "@deepseek-ai/dsh-session": "^0.1.1-rc.2",
++    "@deepseek-ai/dsh-session-title": "^0.1.1-rc.2",
++    "@deepseek-ai/dsh-storage-domain": "^0.1.1-rc.2",
++    "@deepseek-ai/dsh-system-prompt": "^0.1.1-rc.2",
++    "@deepseek-ai/dsh-tools": "^0.1.1-rc.2",
++    "@deepseek-ai/dsh-workspace": "^0.1.1-rc.2",
++    "@deepseek-ai/schemastery": "^3.18.1",
+     "@types/node": "^22.20.0",
+     "@types/react": "^19.2.18",
+     "@types/react-dom": "^19.2.4",
+@@ -126,4 +126,4 @@
+     "typescript": "^5.9.3",
+     "vitest": "^4.1.10"
+   }
+-}
++}
+\ No newline at end of file
+diff --git a/src/client/AgentBusToolRow.tsx b/src/client/AgentBusToolRow.tsx
+index 43d86b7..5489e09 100644
+--- a/src/client/AgentBusToolRow.tsx
++++ b/src/client/AgentBusToolRow.tsx
+@@ -11,7 +11,7 @@
+  * @module dsh-agent-bus/client/AgentBusToolRow
+  */
+ 
+-import { useState } from 'react'
++import { useState, type JSX } from 'react'
+ import { DisclosureRow, IconBrowseOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+ import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
+ 
+diff --git a/src/client/DagView.tsx b/src/client/DagView.tsx
+index e190901..65ad184 100644
+--- a/src/client/DagView.tsx
++++ b/src/client/DagView.tsx
+@@ -5,7 +5,7 @@
+  * @module dsh-agent-bus/client/DagView
+  */
+ 
+-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject, type PointerEvent as ReactPointerEvent } from 'react'
++import { useEffect, useLayoutEffect, useMemo, useRef, useState, type JSX, type MutableRefObject, type PointerEvent as ReactPointerEvent } from 'react'
+ import { IconCloseOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+ import {
+   blockedByOf,
+diff --git a/src/client/TaskPanel.tsx b/src/client/TaskPanel.tsx
+index d915b02..5de8c8c 100644
+--- a/src/client/TaskPanel.tsx
++++ b/src/client/TaskPanel.tsx
+@@ -19,6 +19,7 @@ import {
+   useState,
+   useSyncExternalStore,
+   type PointerEvent as ReactPointerEvent,
++  type JSX,
+ } from 'react'
+ import { IconChevronDownOutline14, IconCloseOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+ import type { ObservableSnapshot, SessionListState } from '@deepseek-ai/dsh-client-runtime/client'

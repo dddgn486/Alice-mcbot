@@ -1,0 +1,72 @@
+# 审查执行任务：批 1 / task 模块（任务编排与 HARD_PATH/SOFT_SURFACE 边界）
+
+- 派发：Alice 架构监督员
+- 执行：Alice 深度调查员（session-f26bd205）
+- 日期：2026-08-25
+- Alice 基线：`6c2b461`（HEAD，审查基线）
+- 依据规划：`.alice-supervision/research/full-review-plan-20260825.md`（已验收）§1.2 批 1、§2 审查模板、§5 执行/验收/停止
+- 前置证据：
+  - `.alice-supervision/research/review-batch1-bot-20260825.md`（bot 审查已验收，含 B2 证据更正——任务层 travel 是"叠加+衰减"非"覆盖"，B2 降级为影响因素之一）
+  - `.alice-supervision/research/review-batch1-pathing-20260825.md`（pathing 审查已验收：R26/R30/R33 遵守、矿链零 SOFT 引用、隧道线零调用、F1-F6 服务端断言方案）
+
+## 审查目标（task 模块，批 1 最后一批）
+
+task 是**任务编排核心**：MineTask/DropCollectionTask（HARD_PATH 矿链）与 SoftPath*/FollowTask（SOFT_SURFACE 独立实验）的编排边界、以及 R# 决策的落实情况。审查必须聚焦：
+
+1. **矿链隔离**（AGENTS.md 不可协商边界 + R30）：MineTask 保持 HARD_PATH 不接 SOFT——当前代码是否仍遵守（补充 pathing 审查的 grep 证据到任务层语义）
+2. **SOFT 实验线隔离**：SoftPathProbeTask/SoftMoveProbeTask/SoftPathMineTask/FollowTask 独立实验（R33/R35/R36）——是否被错误接入矿链/拾取/道路/跟随以外的线
+3. **R# 对照**：R24（RoadBuildTask 终点不进最终支撑格）、R25（采集只收 origin 锁定 UUID）、R26（SEARCH_LIMIT≠通道授权）、R33/R35/R36
+4. **与 bot/物理问题的交叉**（前置审查）：task 层 travel 调用点（SoftPathProbeTask:141-144 等）是 B2 影响因素之一——task 审查给出其调用语义与 F1-F6 断言可挂钩的具体核查点
+
+## 审查对象
+
+`src/main/java/com/dddgn/alice/task/`（12 文件）：
+- 核心矿链：`MineTask.java`（HARD_PATH 矿链入口）、`DropCollectionTask.java`（拾取，PathExecutor HARD_PATH；注释"不会调用 TunnelPlanner"）、`PlaceTask.java`（放置）
+- SOFT 实验线：`SoftPathProbeTask.java`（软路径探针，travel 调用点）、`SoftMoveProbeTask.java`、`SoftPathMineTask.java`（软路径挖掘）、`FollowTask.java`（跟随，独立可开关）
+- 道路/传输：`RoadBuildTask.java`（道路施工）、`TransferTask.java`（传输）
+- 基类/数据：`Task.java`（任务基类）、`TaskTarget.java`（目标语义）
+- 测试：`SoftPhysicsObservationTest.java`（物理观测测试——bot 审查指出其无 isPushable/push/knockback 断言）
+
+## 审查方法（严格按规划 §2 模板，8 字段全覆）
+
+1. **定位与文件清单**：每文件职责 + 3 字角色（矿链入口/实验线/道路/传输/基类/夹具）
+2. **边界归属**：矿链（HARD_PATH）vs 实验线（SOFT）vs 道路 vs 传输；对照 R24/R25/R26/R30/R33/R35/R36
+3. **正确性核查点**：宣称行为 vs 实现；证据类型（静态/服务端/客户端）
+4. **R# 对照**：R24/R25/R26/R30/R33/R35/R36 逐条当前遵守性（重点：MineTask 是否任何路径可切 SOFT；DropCollectionTask 的 SEARCH_LIMIT 处理是否符合 R26；SoftPathMineTask 是否实验线独立）
+5. **Dual-View**：服务端可证（任务终态码/ledger 状态/拒绝码）vs 需客户端实测（物理可见性、时序）——引用 ab510fd 教训
+6. **证据等级**：现有证据分级 + 缺口
+7. **风险等级**：A/B/C/D 判定（注意：task 层不改代码，只评等级）
+8. **替换判据**：按 §4.1 M1-M5 填已知/缺证据（任务/调度候选方向：BotSession 自研 vs 通用任务框架——只列方向不选型，标注 R37-R40 不可绕过 Policy Gate）
+
+**特别核查项（必须回答）**：
+- **B2 交叉**：task 层各 travel 调用点（SoftPathProbeTask:141-144、FollowTask:106-107、SoftPathMineTask:167-170、SoftMoveProbeTask:119）逐处列出调用语义（每 tick 显式 travel？输入方向？）；是否与 F1-F6 断言方案挂钩（如何 fixture 证明这些调用点不阻止 hurt/knockback delta 生效）
+- MineTask 是否存在任何可切 SOFT 的路径（R30 遵守性，任务层语义而非仅 pathing 层）
+- DropCollectionTask 的 SEARCH_LIMIT/UNREACHABLE 处理（R26 遵守性）
+- SoftPhysicsObservationTest 是否缺少物理断言（bot 审查指出的缺口，交叉确认）
+
+## 禁止事项（硬性）
+
+- 不修改任何文件（业务代码/HANDOVER/active plan/skill/客户端记录）
+- 疑似 bug 只记录不修；不预定替换结论（候选只列方向）
+- 不得自行实施任何 SOFT 接入矿链的改动（AGENTS.md 不可协商边界 + R30）
+- 与 p1-client-sync-fix-v1 交叉时只提交证据（修改权归修复主线）
+- 工具不可用时：先列可用工具清单复测 read 报错（区分真缺失/瞬态），确认真缺失再 request_input
+
+## 产出
+
+报告写到：`.alice-supervision/research/review-batch1-task-20260825.md`
+- 覆盖 §2 全部 8 字段
+- 含 B2 交叉核查（task 层 travel 调用点逐处语义 + 与 F1-F6 挂钩）
+- R# 逐条遵守性（R24/R25/R26/R30/R33/R35/R36）
+- 明确区分已确认/推论/待调查
+
+完成后 report_task 附报告路径。
+
+## 验收标准（规划 §5.2）
+
+- 报告覆盖 §2 全部字段
+- B2 交叉核查完整（travel 调用点逐处 + F1-F6 挂钩方案）
+- R24/R25/R26/R30/R33/R35/R36 逐条核查
+- 矿链隔离（MineTask 无 SOFT 路径）与 DropCollectionTask SEARCH_LIMIT 处理明确
+- 隧道线/实验线状态明确
+- 无文件被修改；无预定替换结论；区分已确认/推论/待调查

@@ -1,0 +1,68 @@
+# 审查执行任务：批 2 / gui 模块（FROZEN 边界 + 方向 B 死代码核查）
+
+- 派发：Alice 架构监督员
+- 执行：Alice 深度调查员（session-f26bd205）
+- 日期：2026-08-25
+- Alice 基线：`6c2b461`（HEAD，审查基线）
+- 依据规划：`.alice-supervision/research/full-review-plan-20260825.md`（已验收）§1.2 批 2、§2 审查模板、§5 执行/验收/停止
+- 前置证据：`.alice-supervision/research/review-batch2-transfer-20260825.md`（transfer 已验收），`.alice-supervision/research/review-batch1-*.md`（批 1 三模块）
+- **不可翻案边界（最重要）**：GUI 交互 **FROZEN**（commit `19af345` docs 记录）；方向 B（自定义 packet+Screen，`9534a5d` 已实施）已定——**任何切换需用户重新批准并解冻**
+
+## 审查目标（gui 模块，批 2 第二个）
+
+gui 是 **FROZEN 冻结线**的核心模块。审查必须聚焦：
+
+1. **FROZEN 边界**（19af345）：当前 GUI 实现与 FROZEN 决策一致；审查**不得建议任何修改 GUI 的方案**（只记录耦合/引用事实）
+2. **方向 B 后的死代码核查**：`9534a5d` 实施自定义 packet+Screen 方向 B 后——`BotInventoryMenu`/`ModMenuTypes`/`ClientMenuScreens` 是否仍留作死代码？谁还在引用？（规划 §4.2 明确点出：若成死代码需清或保留由监督员定）
+3. **snapshot/service 纯函数性**：`BotInventorySnapshot`（不可变快照？）/`BotInventoryService`（纯查询？）——是否服务端权威、无副作用
+4. **与 transfer 的接缝**（transfer 已验收：零 GUI 引用——gui 侧是否反过来引用 transfer？核对一致性）
+
+## 审查对象
+
+`src/main/java/com/dddgn/alice/gui/`（5 文件）+ `src/main/java/com/dddgn/alice/client/gui/`（client 子目录，方向 B 的 Screen 实现——client 模块批 2 后审，gui 审查只交叉核对调用关系）：
+
+- `BotInventoryMenu.java`（方向 A 遗留？vanilla AbstractContainerMenu 复用——是否死代码）
+- `ModMenuTypes.java`（方向 A 遗留 MenuType 注册——是否死代码）
+- `BotInventoryService.java`（服务端权威查询服务？）
+- `BotInventorySnapshot.java`（不可变快照？）
+- `BotInventoryFixture.java`（夹具）
+
+## 审查方法（严格按规划 §2 模板，8 字段全覆）
+
+1. **定位与文件清单**：每文件职责 + 3 字角色（菜单/注册/服务/快照/夹具）
+2. **边界归属**：FROZEN 冻结线（19af345）——明确标注"本模块属冻结线，只核对不触碰"
+3. **正确性核查点**：宣称行为 vs 实现（方向 B 前 vs 后）；证据类型（静态/服务端/客户端）
+4. **R# 对照**：GUI 相关 R# + FROZEN 决策（19af345）+ 方向 B 决策（9534a5d）遵守性
+5. **Dual-View**：服务端可证（snapshot 一致性/服务查询）vs 需客户端实测（菜单打开/渲染/交互）——引用 ab510fd 教训
+6. **证据等级**：FROZEN 前验收记录等级 + 方向 B 后客户端验证状态
+7. **风险等级**：A/B/C/D（注意：冻结线内不建议任何 C 替换候选——只列方向的话要标注"需解冻+用户批准"）
+8. **替换判据**：按 §4.1 M1-M5 填（GUI 方向：自研容器 vs vanilla AbstractContainerMenu 复用 vs 方向 B 自定义 packet+Screen——规划 §4.2 已列，标注不可翻案项：GUI FROZEN + 方向 B 已定）
+
+**特别核查项（必须回答）**：
+- **死代码清单**：`BotInventoryMenu`/`ModMenuTypes`/`ClientMenuScreens` 当前引用方（grep 全工程）+ 是否仍注册/可达——给出"死代码保留还是清除"的证据（**只给证据与选项，不提交清理方案**，清理与否由监督员+用户定）
+- **方向 B 实施完整性**：`9534a5d` 后自定义 packet+Screen 是否完全接管（menu 路径是否还有玩家可达入口）
+- **snapshot/service 纯度**：BotInventorySnapshot 是否不可变、BotInventoryService 是否只读（服务端权威）
+
+## 禁止事项（硬性）
+
+- 不修改任何文件（业务代码/HANDOVER/active plan/skill/客户端记录）
+- **GUI FROZEN 边界不可触碰**：不得把"建议修改 GUI"当作审查结论；死代码清理只列证据与选项，不提交方案
+- 疑似 bug 只记录不修；不预定替换结论
+- 与 p1-client-sync-fix-v1 交叉时只提交证据（修改权归修复主线）
+- 工具不可用时：先列可用工具清单复测 read 报错，确认真缺失再 request_input
+
+## 产出
+
+报告写到：`.alice-supervision/research/review-batch2-gui-20260825.md`
+- 覆盖 §2 全部 8 字段
+- 含特别核查项结论（死代码清单/方向 B 接管完整性/snapshot+service 纯度）
+- 明确区分已确认/推论/待调查
+
+完成后 report_task 附报告路径。
+
+## 验收标准（规划 §5.2）
+
+- 报告覆盖 §2 全部字段
+- 特别核查项全部回答（死代码引用方清单 / 方向 B 接管完整性 / snapshot+service 纯度）
+- FROZEN 边界声明清楚（只核对不触碰）
+- 无文件被修改；无预定替换结论；区分已确认/推论/待调查

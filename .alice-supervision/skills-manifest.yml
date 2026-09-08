@@ -1,0 +1,105 @@
+# Alice project skills manifest.
+#
+# This is the project's authoritative registry of loadable skills, consumed by
+# the agent-bus required_skills gate (check_required_skills / report_task audit).
+# Only `maintainer-approved` skills satisfy a required_skills gate; `draft`,
+# `deprecated`, and `revoked` never do.
+#
+# Status values: draft | maintainer-approved | deprecated | revoked
+- id: debugging-root-cause-analysis
+  version: 1.0.0
+  status: maintainer-approved
+  owner: alice-supervision
+  scope: methodology
+  summary: Structure root-cause analysis with falsifiable hypotheses.
+  evidence_sources: [project-local, runtime-logs, client-test]
+
+- id: test-coverage-matrix
+  version: 1.0.0
+  status: maintainer-approved
+  owner: alice-supervision
+  scope: methodology
+  summary: Plan verification with an explicit server/client test matrix.
+  evidence_sources: [project-local, headless-fixture, client-test]
+
+- id: evidence-collection-standard
+  version: 1.0.0
+  status: maintainer-approved
+  owner: alice-supervision
+  scope: methodology
+  summary: Enforce a minimum evidence standard for bug/test/investigation reports.
+  evidence_sources: [project-local, runtime-logs, client-test]
+
+# Forge Mod Development Skills (deployed 2026-01-26)
+- id: forge-fakeplayer-lifecycle
+  version: 1.0.0
+  status: maintainer-approved
+  owner: alice-supervision
+  scope: forge-mod-dev
+  summary: Understand FakePlayer vs ServerPlayer lifecycle, registration, and tick flow.
+  evidence_sources: [project-local, runtime-logs, client-test]
+
+- id: forge-entity-sync-broadcast
+  version: 1.0.0
+  status: maintainer-approved
+  owner: alice-supervision
+  scope: forge-mod-dev
+  summary: Understand entity sync mechanism, tracking range, and network packets.
+  evidence_sources: [project-local, runtime-logs, client-test]
+
+- id: forge-container-menu-protocol
+  version: 1.0.0
+  status: maintainer-approved
+  owner: alice-supervision
+  scope: forge-mod-dev
+  summary: Understand Container/Menu system, slot sync, and GUI network protocol.
+  evidence_sources: [project-local, runtime-logs, client-test]
+
+- id: forge-entity-physics-collision
+  version: 1.0.0
+  status: maintainer-approved
+  owner: alice-supervision
+  scope: forge-mod-dev
+  summary: Understand entity physics pipeline, travel(), collision detection, and movement.
+  evidence_sources: [project-local, runtime-logs, client-test]
+
+- id: forge-event-priority-cancel
+  version: 1.0.0
+  status: maintainer-approved
+  owner: alice-supervision
+  scope: forge-mod-dev
+  summary: Understand Forge event priority, cancellation, bus types, and handler order.
+  evidence_sources: [project-local, runtime-logs]
+
+# Universal Development Skills (deployed 2026-01-26)
+- id: failure-pattern-recognition
+  version: 1.0.0
+  status: maintainer-approved
+  owner: alice-supervision
+  scope: methodology
+  summary: Recognize repeated failure patterns and extract common root causes.
+  evidence_sources: [project-local, runtime-logs]
+
+- id: minecraft-client-server-sync
+  version: 1.0.0
+  status: maintainer-approved
+  owner: alice-supervision
+  scope: minecraft-general
+  summary: Understand Minecraft client-server architecture and sync mechanisms.
+  evidence_sources: [project-local, runtime-logs, client-test]
+
+- id: architecture-decision-framework
+  version: 1.0.0
+  status: maintainer-approved
+  owner: alice-supervision
+  scope: methodology
+  summary: Structure technical decisions with trade-off analysis and ADR documentation.
+  evidence_sources: [project-local]
+
+- id: minimal-implementation-planning
+  version: 1.0.0
+  status: maintainer-approved
+  owner: alice-supervision
+  scope: methodology
+  summary: Break complex features into minimal verifiable increments.
+  evidence_sources: [project-local]

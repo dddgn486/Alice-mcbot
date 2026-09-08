@@ -1,0 +1,68 @@
+# DSH 实例管理备忘
+
+## 当前运行的三个实例
+
+- 3081: dsh web（GUI 主界面）
+- 3082: alice-bus-lab（隔离 lab，P0 验证环境）
+- 3083: alice-bus（生产环境，已部署 P0）
+
+---
+
+## 安全关闭所有 DSH 实例
+
+### 方法1：按端口优雅关闭（推荐）
+
+pkill -TERM -f 'dsh.*--port 3081'
+pkill -TERM -f 'dsh.*--port 3082'
+pkill -TERM -f 'dsh.*--port 3083'
+sleep 3
+# 检查是否还有残留
+ps aux | grep -E 'dsh.*--port 3[0-9]{3}' | grep -v grep
+
+### 方法2：一条命令全关
+
+pkill -TERM -f '@deepseek-ai/dsh/lib/bin.js'
+
+### 强制关闭（仅当优雅关闭失败时使用）
+
+pkill -KILL -f '@deepseek-ai/dsh/lib/bin.js'
+
+---
+
+## 重启后恢复实例
+
+### 启动 3081 (web GUI)
+
+dsh web --port 3081 > /tmp/dsh-web-3081.log 2>&1 &
+
+### 启动 3083 (生产 alice-bus，已部署 P0)
+
+dsh --profile alice-bus --port 3083 > /tmp/dsh-alice-3083.log 2>&1 &
+
+### 启动 3082 (lab)
+
+dsh --profile alice-bus --port 3082 > /tmp/dsh-lab-3082.log 2>&1 &
+
+### 检查启动状态
+
+sleep 5
+ss -ltnp 2>/dev/null | grep -E ':(3081|3082|3083)'
+
+---
+
+## 查看实例状态
+
+### 检查监听端口
+ss -ltnp 2>/dev/null | grep -E ':(3081|3082|3083)'
+
+### 查看进程
+ps aux | grep -E 'dsh.*--port 3[0-9]{3}' | grep -v grep
+
+### 查看日志
+tail -20 /tmp/dsh-web-3081.log
+tail -20 /tmp/dsh-alice-3083.log
+tail -20 /tmp/dsh-lab-3082.log
+
+---
+
+创建日期：2026-08-24

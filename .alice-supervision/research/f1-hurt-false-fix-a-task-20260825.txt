@@ -1,0 +1,142 @@
+# F1 hurt false 修复任务（方案 A：生成流程清除出生保护）
+
+## 派发
+- 派发者：Alice 新监督员
+- 执行者：Alice 主开发员
+- 日期：2026-08-25
+- 性质：实施修复（用户已批准方案 A）
+
+## 问题定义
+
+**现象**：方案 C 客户端实测 M2 推挤 PASS，但 M3 击退无位移 FAIL。
+
+**根因**（深度调查已确认）：
+- `ServerPlayer.hurt` 在 `spawnInvulnerableTime > 0` 时拒绝非 bypass 伤害源，返回 false
+- `ServerPlayer` 构造函数设 `spawnInvulnerableTime=60`（出生保护 60 tick）
+- `BotPlayer` 继承此机制；`BotManager.spawn` 未清除保护，导致 bot spawn 后 60 tick 内无法被击退
+- F1 断言在 spawn 后立即执行（未等待 60 tick），触发 `hurtOk=false`
+
+**用户批准方案**：方案 A（生成流程清除出生保护）
+
+## 必读背景
+
+1. **调查报告**：`.alice-supervision/research/f1-hurt-false-investigation-20260825.md` §6 方案 A 段落
+2. **Active plan**：`.alice-supervision/active-plan.md`（Plan ID: `20260825-f1-hurt-false-fix-a-v1`）
+3. **Git 基线**：HEAD=`d058dd0`（C-1 提交闭环；方案 C 已完成）
+
+## 实施范围（严格限定）
+
+| 项 | 内容 |
+|---|---|
+| **改动文件** | 仅 `src/main/java/com/dddgn/alice/bot/BotManager.java` |
+| **注射点** | `spawn` 方法 :88 行（`placeNewPlayer` 后、`return bot` 前）|
+| **改动内容** | 清除 `spawnInvulnerableTime`（+3~5 行）|
+| **优先方式** | ① API（若 `bot.setInvulnerable(false)` 副作用清零 timer）；② 反射单字段（`Field.setInt(bot, "spawnInvulnerableTime", 0)`）|
+
+## 禁止事项
+
+- **不在 BotPlayer override hurt()**：禁止复制 `ServerPlayer.hurt` 的 50 行逻辑（Forge hooks/PVP/abilities/armor 均需保留原版路径）
+- **不反射 hurt 内部状态**：禁止反射 `lastHurt`/`lastDamage`/`hurtDuration`（只清除 spawn timer）
+- **不触碰其他文件**：BotPlayer/ServerPlayer/LivingEntity/hurt 链/fixture 零改动
+- **不触碰边界**：FakeConnection/矿链/5 travel 调用点/P0 门禁零改动
+- **不翻案**：方案 C 不回归
+
+## 实施步骤
+
+### 1. 读调查报告
+- 打开 `.alice-supervision/research/f1-hurt-false-investigation-20260825.md`
+- 重点读 §6 方案 A 段落（注射点、反射代码示例、边界）
+
+### 2. 改动 BotManager.spawn
+```java
+// 在 BotManager.spawn :88 行（placeNewPlayer 后、return bot 前）插入：
+
+// 方式 ①：尝试 API（若存在）
+// bot.setInvulnerable(false); // 若副作用清零 spawnInvulnerableTime
+
+// 方式 ②：反射单字段（若 API 不可用）
+try {
+    Field field = ServerPlayer.class.getDeclaredField("spawnInvulnerableTime");
+    field.setAccessible(true);
+    field.setInt(bot, 0); // 清除 ServerPlayer 出生保护，使 bot 立即可伤害
+} catch (NoSuchFieldException | IllegalAccessException e) {
+    throw new RuntimeException("Failed to clear spawn invulnerability for bot", e);
+}
+```
+
+**注意**：
+- 优先尝试方式 ①（API），若不存在或不生效则用方式 ②（反射）
+- 反射需 import `java.lang.reflect.Field`
+- 注释注明"清除 ServerPlayer 出生保护，使 bot 立即可伤害"
+
+### 3. compileJava 验证
+```bash
+./gradlew compileJava
+```
+预期：BUILD SUCCESSFUL
+
+### 4. headless 验证
+```bash
+./gradlew runServer -Dalice.selftest.auto=true
+```
+
+检查 `run/logs/latest.log`：
+- 搜 `BOT_PHYSICS_ASSERTION_FIXTURE` + `F1_HURT`
+- 预期：
+  - F1 generic hurt：`hurtOk=true`, `healthBefore=20.0`, `healthAfter=18.0`, `deltaBefore=0.0`, `deltaAfter=-2.0`
+  - F1 Zombie hurt：同上（伤害值不同）
+- 既有断言保持 PASS：F2/F4/F5/R2/R3/C1_CONSUME 无 FAIL
+
+### 5. commit
+```bash
+git add src/main/java/com/dddgn/alice/bot/BotManager.java
+git commit -m "fix(phys): F1 clear spawn invulnerability for immediate hurt (scheme A, user-approved)"
+```
+
+确认：
+- `git show --stat`：仅 BotManager.java（+3~5 行）
+- 无其他文件混入
+
+### 6. push
+```bash
+git push origin master
+```
+
+### 7. 更新 HANDOVER
+在 `docs/HANDOVER.md` 追加 F1 修复段落：
+- 根因：`spawnInvulnerableTime=60` 出生保护
+- 方案 A：BotManager.spawn 清除 timer
+- headless 验证：F1 generic/Zombie `hurtOk=true`
+- M3 待客户端实测（Windows）
+
+### 8. 落盘证据
+创建 `.alice-supervision/research/f1-hurt-false-fix-a-result-20260825.md`：
+- headless 日志截取（F1 generic/Zombie 两源 `hurtOk=true`）
+- `git diff` 截取（BotManager.java 改动）
+- commit hash（最终 HEAD）
+- 既有断言复验结果（F2/F4/F5/R2/R3/C1_CONSUME 保持 PASS）
+
+### 9. report_task
+附任务书路径：`.alice-supervision/research/f1-hurt-false-fix-a-task-20260825.txt`
+
+## 验收标准
+
+- compileJava BUILD SUCCESSFUL
+- F1 headless：generic/Zombie 两源 `hurtOk=true`，`healthAfter < healthBefore`
+- 既有断言不回归：F2/F4/F5/R2/R3/C1_CONSUME 保持 PASS
+- 仅 BotManager.java 改动（+3~5 行清除 timer）
+- HANDOVER 已更新 F1 修复段落
+- 证据报告已落盘
+- commit message 语义正确
+- push 成功
+
+## 停止条件
+
+- compileJava FAIL（反射 API 不存在/签名错误）→ 停止，request_input 给监督员
+- F1 headless 仍 FAIL（timer 未清零）→ 停止，检查注射点是否生效，request_input
+- 既有断言回归（F2/F4/F5 FAIL）→ EVIDENCE_CONFLICT，立即停止并 request_input
+- 无法定位注射点 :88 行 → 停止，request_input
+
+---
+
+**本任务已获用户批准（方案 A），监督员授权实施。完成后 report_task 附任务书路径。**

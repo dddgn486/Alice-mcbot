@@ -1,0 +1,69 @@
+# 审查执行任务：批 3 / road 模块（道路计划/构建/连续曲线——R# 决策核对）——批 3 第二个模块
+
+- 派发：Alice 架构监督员
+- 执行：Alice 深度调查员（session-f26bd205）
+- 日期：2026-08-25
+- Alice 基线：`6c2b461`（HEAD，审查基线）
+- 依据规划：`.alice-supervision/research/full-review-plan-20260825.md`（已验收）§1.2 批 3、§2 审查模板、§5 执行/验收/停止
+- 前置证据：批 1（pathing/task：R17/R21/R22/R23 相关、RoadBuildTask）+ 批 3 item（RoadPlannerItem 已核对注册/入口）+ 批 2 client（RoadPlanPacket→ClientRoadState 链路）
+
+## 审查目标（road 模块，批 3 第二个）
+
+road 是**道路计划/施工线**：连续曲线/螺旋/体素化构建。审查必须聚焦：
+
+1. **R# 决策核对**（本模块核心，HANDOVER §八）：
+   - **R17**：路线选择 = 普通弯曲优先，`vertical > horizontal + 4` 时才切螺旋——**已被改为 `verticalDistance > 0` 就试螺旋**（曲线候选失败后）；不要再改回旧阈值
+   - **R21**：`RoadPlan` 静态单例绑定 ServerLevel；切维度/重进世界会重置
+   - **R22/R23**：本会话已移除的临时逻辑（勿复活）
+2. **连续曲线与螺旋**：`ContinuousRoadCurve`（连续曲线体素化）+ RoadPlan.buildUnits 选择链（R17 语义）
+3. **构建边界**：`RoadBuilder`（玩家版道路施工——HANDOVER §3.4 注意事项）+ `RoadObstaclePolicy`（障碍策略）
+4. **与 item/RoadBuildTask 接缝**：RoadPlannerItem 入口（item 已核对）+ RoadBuildTask 施工（批 1 已核对 R24）
+
+## 审查对象
+
+`src/main/java/com/dddgn/alice/road/`（4 文件）：
+- `RoadPlan.java`（道路计划：静态单例 R21、buildUnits 选择链 R17）
+- `ContinuousRoadCurve.java`（连续曲线体素化）
+- `RoadBuilder.java`（玩家版道路施工）
+- `RoadObstaclePolicy.java`（障碍策略）
+
+## 审查方法（严格按规划 §2 模板，8 字段全覆）
+
+1. **定位与文件清单**：每文件职责 + 3 字角色（计划/曲线/构建/策略）
+2. **边界归属**：道路线（独立施工演示 + RoadBuildTask）vs 矿链/SOFT；对照 R17/R21/R22/R23/R24
+3. **正确性核查点**：宣称行为 vs 实现（buildUnits 选择链、连续曲线体素化、螺旋阈值）；证据类型（静态/服务端/客户端）
+4. **R# 对照**：R17（螺旋阈值——当前代码是否"verticalDistance > 0 就试螺旋"且未回旧阈值）/ R21（静态单例绑定 ServerLevel）/ R22/R23（已移除临时逻辑是否复活）逐条核对
+5. **Dual-View**：服务端可证（体素化几何/选择链/单例重置）vs 需客户端实测（道路渲染/施工动画——client 审查已标盲区）
+6. **证据等级**：RoadPlan/ContinuousRoadCurve 现有验证记录（road 渲染无客户端矩阵=盲区）
+7. **风险等级**：A/B/C/D
+8. **替换判据**：按 §4.1 M1-M5（道路结构：自研曲线+螺旋 vs 成熟结构生成——只列方向不选型）
+
+**特别核查项（必须回答）**：
+- **R17 遵守性**：buildUnits 选择链的当前实现（普通弯曲优先？螺旋触发条件是否 verticalDistance > 0？是否未回旧阈值 vertical > horizontal + 4）——**给出代码行号**
+- **R21 遵守性**：RoadPlan 静态单例绑定 ServerLevel 的机制（重置时机/跨维行为）
+- **R22/R23 复活检查**：HANDOVER §3.3 已移除临时逻辑（勿复活）——grep 当前代码是否残留
+- **选择链输出**：buildUnits 产出的单元序列（曲线候选失败→螺旋？）的完整逻辑
+
+## 禁止事项（硬性）
+
+- 不修改任何文件（业务代码/HANDOVER/active plan/skill/客户端记录）
+- 疑似 bug 只记录不修；不预定替换结论
+- **R17/R21/R22/R23 是已定决策**——审查只核对遵守性，不得建议改回旧阈值/复活临时逻辑
+- 与 p1-client-sync-fix-v1 交叉时只提交证据（修改权归修复主线）
+- 工具不可用时：先列可用工具清单复测 read 报错，确认真缺失再 request_input
+
+## 产出
+
+报告写到：`.alice-supervision/research/review-batch3-road-20260825.md`
+- 覆盖 §2 全部 8 字段
+- 含特别核查项结论（R17/R21/R22/R23 逐条遵守性 + 选择链完整逻辑）
+- 明确区分已确认/推论/待调查
+
+完成后 report_task 附报告路径。
+
+## 验收标准（规划 §5.2）
+
+- 报告覆盖 §2 全部字段
+- 特别核查项全部回答（R17 螺旋阈值代码行号 / R21 单例绑定机制 / R22/R23 复活检查 grep 证据 / 选择链完整逻辑）
+- 与批 1（RoadBuildTask R24）/批 3 item（RoadPlannerItem）/批 2 client（渲染盲区）交叉核对一致
+- 无文件被修改；无预定替换结论；区分已确认/推论/待调查
