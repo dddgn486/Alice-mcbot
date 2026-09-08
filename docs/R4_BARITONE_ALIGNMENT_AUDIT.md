@@ -118,12 +118,39 @@
 - Baritone：同 tick 推进，仅 `clearKeys()`（`:231-236`、`:593-596`）。
 - 现象：每格一次顿挫（客户端实测每个段边界 2~3 tick 停止）。
 
+### 2.8 已修：残留探针（本次清理）
+
+- `AStarMovementSearch.java:138-141` 的 `[PlanProbe]` 临时探针仍在生产代码中（审计 B 区发现），
+  已删除并编译通过；这是 D-036/测试规则"探针验证后立即删除"的违规实例。
+
 ---
 
 ## §3 分层对照表（并行审计结果）
 
-> 待合并：A 搜索内核 / B 执行会话 / D 世界交互。
+> 待合并：A 搜索内核 / D 世界交互。
 > 标记：✅ = 我已亲自复核行号/语义；⬜ = 来自审计 agent，待我复核。
+
+### 3.B 执行会话（PathSession）vs PathExecutor
+
+| 关注点 | Alice（文件:行） | Baritone（文件:行） | 差异实质 | 分类 | 复核 |
+|---|---|---|---|---|---|
+| 段间推进 | `PathSession.java:93-102,143` | `PathExecutor.java:231-236`、`onChangeInPathPosition():593-596` | 无条件 settle(10) + 每 tick stopMovement vs 同 tick 推进、只 clearKeys | DEVIATION-JUSTIFIED（D-036 待办） | ✅ |
+| 段超时单位 | `PathSession.java:195-198` | `PathExecutor.java:243` + `movementTimeoutTicks=100` | Alice cost=格数 ×20；Baritone cost 已是 tick → 每格宽松约 4.6× | DEVIATION-UNREGISTERED | ✅ |
+| **三层自制超时** | `BreakAndTraverseExecution.java:40`(400)、`PlaceStepAndTraverseExecution.java:35`(200)、`DescendExecution.java:32`(20)、`AscendExecution.java:96` | 单层 `PathExecutor.java:243` | 执行器内 + 会话 + 任务三层各自为政 | DEVIATION-UNREGISTERED | ✅ |
+| 漂移判定 | `PathSession.java:229-241` | `PathExecutor.java:101-128` + `Movement.java:104-110` | 距离启发式 + onGround 门 vs 每 tick `getValidPositions().contains(feet)` | DEVIATION-JUSTIFIED（D-035/D-036 待改） | ✅ |
+| 离路径距离 | 无 | `PathExecutor.java:51-52,129-145,256-269`；`MAX_TICKS_AWAY=200` | 无 `closestPathPos`/`ticksAway` | MISSING-IN-ALICE | ✅ |
+| snipsnap 语义 | `PathSession.java:268-301` | `PathingBehavior.java:197`（拼接下一段）+ `PathExecutor.java:103-127`（段内重同步） | Alice 把"失败自愈"当 snipsnap，Baritone 是两件事 | DEVIATION-UNREGISTERED | ⬜ |
+| 世界变化检测 | `PathSession.java:121-126,207-219` | `PathExecutor.java:195-219` + `Movement.java:93-96,244-251` | 无 `recalculateCost` / lookahead(5) / maxCostIncrease(10) / `calculatedWhileLoaded` | DEVIATION-UNREGISTERED | ✅ |
+| `safeToCancel` 门控 | 无 | `PathExecutor.java:194,208,213` + `MovementTraverse.java:353-357` | Alice 无条件取消（空中/挖掘中同样取消） | DEVIATION-UNREGISTERED | ⬜ |
+| **COLUMN 容差只有 Descend 生效** | `TraverseExecution.java:105`、`AscendExecution.java:148`、`DiagonalExecution.java:122`、`BreakAndTraverseExecution.java:187`、`PlaceStepAndTraverseExecution.java:171` 全部硬编码 0.3D | `MovementTraverse.java:253-258`、`MovementDescend.java:237` | 会话给中间段 COLUMN，但 5 个执行器忽略 tolerance → 违反 D-027 | DEVIATION-UNREGISTERED | ✅ |
+| 死状态 | `PathSessionStatus.java:13,24`（BLOCKED / POSTCONDITION_FAILED 声明但 `mapFailure` 永不产生） | — | 死枚举 | DEVIATION-UNREGISTERED | ✅ |
+| 重规划位置 | `PathSession.java:304-325`（会话内 MAX_REPLANS=2） | `PathingBehavior.java:154-193`（上层重算） | 重试/放弃属目标级决策却塞进执行器 | DEVIATION-UNREGISTERED | ⬜ |
+| **取消不清破坏进度** | `BreakAndTraverseExecution.cancel():144-151`（只 stopMovement）+ `BlockBreakSession` 无 abort | `PathExecutor.java:603-608` → `BlockBreakHelper.java:43-50` | 客户端裂纹残留 | DEVIATION-UNREGISTERED | ✅ |
+| sprint 门控 | 无（core/movement 下 `setSprinting` 0 命中） | `PathExecutor.java:238-241,345-488` | 从不疾跑（慢约 30%），成本却含冲刺系数 | MISSING-IN-ALICE | ✅ |
+| 未加载区块暂停 | 无 | `PathExecutor.java:186-193` | 服务端读方块即加载，影响低 | MISSING-IN-ALICE（低） | ⬜ |
+| 死参数 | `LiveExecutionContext.java:13-14` + `PathSession.java:176`（revision 恒 0） | — | 版本化失效检测未接线 | DEVIATION-UNREGISTERED | ✅ |
+| **校验失败路径不受段超时覆盖** | `PathSession.java:104-113,178-181`（`execution==null` 时 `segmentTicks` 不递增） | 无（Baritone 直接 cancel 整条） | 只剩任务级 600 tick 兜底 | DEVIATION-UNREGISTERED | ✅ |
+| 输入释放 | 各 Execution `stopMovement` | `Movement.java:139-148`、`PathExecutor.java:593-608` | 语义基本一致 | ALIGNED | ⬜ |
 
 ### 3.C Movement 原语 / 成本 / 候选生成
 
@@ -172,6 +199,14 @@
 | P2 | sprint 门控（成本含冲刺系数但从不冲刺） | `TraverseExecution`/`DiagonalExecution` | `MovementTraverse.java:269-271` |
 | P2 | `MovementSpec` 与工厂几何校验矛盾修正 | `MovementSpec`/两个工厂 | 契约一致性 |
 | P2 | `MovementCapabilities` 接入或删除 | `core/MovementCapabilities` | 声明式红线落地 |
+| P1 | COLUMN 容差在 5 个执行器生效（不再硬编码 EXACT） | 5 个 `*Execution` postcondition | D-027 契约 |
+| P1 | 超时收敛为单层（去掉执行器内 400/200/20 自制超时） | `BreakAndTraverseExecution`/`PlaceStepAndTraverseExecution`/`DescendExecution`/`AscendExecution` | `PathExecutor.java:243` |
+| P1 | 取消时清理破坏进度（`BlockBreakSession.abort()`） | `BreakAndTraverseExecution.cancel`、`BlockBreakSession` | `PathExecutor.java:603-608` |
+| P1 | `execution==null` 校验失败路径也计入段计时 | `PathSession.tick` | 段超时全覆盖 |
+| P2 | 死状态/死参数清理（BLOCKED、POSTCONDITION_FAILED、revision） | `PathSessionStatus`、`LiveExecutionContext` | 代码卫生 |
+| P2 | replan 决策下沉到任务层 | `PathSession`、`PathSessionDiagnosticTask` | `PathingBehavior.java:154-193` |
+| P2 | `closestPathPos` + `ticksAway`（软 2/硬 3/200 tick） | `PathSession` | `PathExecutor.java:129-145,256-269` |
+| P2 | 段内重同步（前向/后向搜索 + reset）与 snipsnap 拼接拆分 | `PathSession` | `PathExecutor.java:101-128` |
 
 ---
 
