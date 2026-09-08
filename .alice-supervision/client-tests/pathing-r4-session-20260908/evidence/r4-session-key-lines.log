@@ -1,0 +1,28 @@
+[089月2026 22:09:12.340] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R4 Session] planned session=r4-session-cc4867d9-8668-47c4-bf36-a4f777d3e5d3 status=REACHED movements=2 cost=2.00 nodes=3 considered=10 elapsedMs=2 planner=alice.astar.movement.v1 from=0, 64, 46 to=0, 62, 44
+[089月2026 22:09:12.344] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R4 Session] segment_start session=r4-session-cc4867d9-8668-47c4-bf36-a4f777d3e5d3 index=0/2 type=DESCEND from=0, 64, 46 to=0, 63, 45 tolerance=COLUMN actualFoot=0, 64, 46
+[089月2026 22:09:12.345] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [RotProbe] tick=1 yRot=4.19 yBodyRot=4.19 yHeadRot=4.19 yRotO=4.19 yBodyRotO=0.00 yHeadRotO=0.00
+[089月2026 22:09:12.393] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [RotProbe] tick=2 yRot=-180.00 yBodyRot=-180.00 yHeadRot=4.19 yRotO=4.19 yBodyRotO=0.00 yHeadRotO=0.00
+[089月2026 22:09:12.434] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [RotProbe] tick=3 yRot=-180.00 yBodyRot=-180.00 yHeadRot=-180.00 yRotO=-180.00 yBodyRotO=0.00 yHeadRotO=0.00
+[089月2026 22:09:12.483] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [RotProbe] tick=4 yRot=-180.00 yBodyRot=-180.00 yHeadRot=-180.00 yRotO=-180.00 yBodyRotO=0.00 yHeadRotO=0.00
+[089月2026 22:09:12.534] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [RotProbe] tick=5 yRot=-180.00 yBodyRot=-180.00 yHeadRot=-180.00 yRotO=-180.00 yBodyRotO=0.00 yHeadRotO=0.00
+[089月2026 22:09:12.585] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [RotProbe] tick=6 yRot=-180.00 yBodyRot=-180.00 yHeadRot=-180.00 yRotO=-180.00 yBodyRotO=0.00 yHeadRotO=0.00
+[089月2026 22:09:12.633] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [RotProbe] tick=7 yRot=-180.00 yBodyRot=-180.00 yHeadRot=-180.00 yRotO=-180.00 yBodyRotO=0.00 yHeadRotO=0.00
+[089月2026 22:09:12.682] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [RotProbe] tick=8 yRot=-180.00 yBodyRot=-180.00 yHeadRot=-180.00 yRotO=-180.00 yBodyRotO=0.00 yHeadRotO=0.00
+[089月2026 22:09:12.734] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [RotProbe] tick=9 yRot=-180.00 yBodyRot=-180.00 yHeadRot=-180.00 yRotO=-180.00 yBodyRotO=0.00 yHeadRotO=0.00
+[089月2026 22:09:12.783] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [RotProbe] tick=10 yRot=-180.00 yBodyRot=-180.00 yHeadRot=-180.00 yRotO=-180.00 yBodyRotO=0.00 yHeadRotO=0.00
+[089月2026 22:09:12.834] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R4 Session] segment_done session=r4-session-cc4867d9-8668-47c4-bf36-a4f777d3e5d3 index=0 type=DESCEND actualFoot=0, 63, 45
+[089月2026 22:09:12.834] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [RotProbe] tick=11 yRot=-180.00 yBodyRot=-180.00 yHeadRot=-180.00 yRotO=-180.00 yBodyRotO=0.00 yHeadRotO=0.00
+[089月2026 22:09:12.882] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R4 Session] segment_start session=r4-session-cc4867d9-8668-47c4-bf36-a4f777d3e5d3 index=1/2 type=DESCEND from=0, 63, 45 to=0, 62, 44 tolerance=EXACT actualFoot=0, 63, 45
+[089月2026 22:09:12.883] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [RotProbe] tick=12 yRot=-180.00 yBodyRot=-180.00 yHeadRot=-180.00 yRotO=-180.00 yBodyRotO=0.00 yHeadRotO=0.00
+[089月2026 22:09:12.933] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [RotProbe] tick=13 yRot=-180.00 yBodyRot=-180.00 yHeadRot=-180.00 yRotO=-180.00 yBodyRotO=0.00 yHeadRotO=0.00
+[089月2026 22:09:12.984] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [RotProbe] tick=14 yRot=-180.00 yBodyRot=-180.00 yHeadRot=-180.00 yRotO=-180.00 yBodyRotO=0.00 yHeadRotO=0.00
+[089月2026 22:09:13.032] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [RotProbe] tick=15 yRot=-180.00 yBodyRot=-180.00 yHeadRot=-180.00 yRotO=-180.00 yBodyRotO=0.00 yHeadRotO=0.00
+[089月2026 22:09:13.082] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [RotProbe] tick=16 yRot=-180.00 yBodyRot=-180.00 yHeadRot=-180.00 yRotO=-180.00 yBodyRotO=0.00 yHeadRotO=0.00
+[089月2026 22:09:13.133] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [RotProbe] tick=17 yRot=-180.00 yBodyRot=-180.00 yHeadRot=-180.00 yRotO=-180.00 yBodyRotO=0.00 yHeadRotO=0.00
+[089月2026 22:09:13.183] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [RotProbe] tick=18 yRot=-180.00 yBodyRot=-180.00 yHeadRot=-180.00 yRotO=-180.00 yBodyRotO=0.00 yHeadRotO=0.00
+[089月2026 22:09:13.234] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [RotProbe] tick=19 yRot=-180.00 yBodyRot=-180.00 yHeadRot=-180.00 yRotO=-180.00 yBodyRotO=0.00 yHeadRotO=0.00
+[089月2026 22:09:13.283] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R4 Session] segment_done session=r4-session-cc4867d9-8668-47c4-bf36-a4f777d3e5d3 index=1 type=DESCEND actualFoot=0, 62, 44
+[089月2026 22:09:13.283] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [RotProbe] tick=20 yRot=-180.00 yBodyRot=-180.00 yHeadRot=-180.00 yRotO=-180.00 yBodyRotO=0.00 yHeadRotO=0.00
+[089月2026 22:09:13.333] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R4 Session] completed session=r4-session-cc4867d9-8668-47c4-bf36-a4f777d3e5d3 segments=2 ticks=21 finalFoot=0, 62, 44
+[089月2026 22:09:13.333] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [RotProbe] tick=21 yRot=-180.00 yBodyRot=-180.00 yHeadRot=-180.00 yRotO=-180.00 yBodyRotO=0.00 yHeadRotO=0.00
+[089月2026 22:09:13.335] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R4 Session] result session=r4-session-cc4867d9-8668-47c4-bf36-a4f777d3e5d3 status=COMPLETED segments=2/2 ticks=21 finalFoot=0, 62, 44 planner=alice.astar.movement.v1 plannedGoal=0, 62, 44
