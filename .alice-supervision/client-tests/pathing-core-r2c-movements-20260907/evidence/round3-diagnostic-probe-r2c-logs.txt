@@ -1,0 +1,4 @@
+[079月2026 23:03:48.231] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] started session=r2c-descend-b4496daf-eec9-4e7f-8d69-d7c00c474cf2 bot=tango from=-1, 65, 2 to=0, 64, 2 support=true onGround=true
+[079月2026 23:03:48.231] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] EXECUTING phase entered, bot Y=65.0 fromY=65
+[079月2026 23:03:48.231] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] Y check passed, entering SETTLING
+[079月2026 23:03:49.279] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] failed session=r2c-descend-b4496daf-eec9-4e7f-8d69-d7c00c474cf2 from=-1, 65, 2 to=0, 64, 2 actualFoot=-1, 65, 2 support=true onGround=true controllerActive=false ticks=22 reason=DESCEND_SETTLING_TIMEOUT

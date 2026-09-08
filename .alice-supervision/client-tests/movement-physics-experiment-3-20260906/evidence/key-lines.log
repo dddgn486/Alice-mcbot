@@ -1,0 +1,67 @@
+[069月2026 11:54:58.855] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] planned count=3 from=3, -60, 51 to=14, -60, 62
+[069月2026 11:54:58.855] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] segment=1/3 type=WalkMovement from=3, -60, 51 to=4, -60, 51 cost=4.651162790697675
+[069月2026 11:54:58.855] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] segment=2/3 type=WalkMovement from=4, -60, 51 to=8, -60, 56 cost=29.78197319736209
+[069月2026 11:54:58.855] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] segment=3/3 type=WalkMovement from=8, -60, 56 to=14, -60, 62 cost=39.466424996458464
+[069月2026 11:54:59.103] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceSceneBot
+[069月2026 11:54:59.103] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] Movement 完成: 1/3 type=WalkMovement to=4, -60, 51
+[069月2026 11:55:00.650] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceSceneBot
+[069月2026 11:55:00.650] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] Movement 完成: 2/3 type=WalkMovement to=8, -60, 56
+[069月2026 11:55:02.649] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceSceneBot
+[069月2026 11:55:02.650] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] Movement 完成: 3/3 type=WalkMovement to=14, -60, 62
+[069月2026 11:55:02.701] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceSceneBot
+[069月2026 11:55:02.701] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] completed segments=3 goalFoot=14, -60, 62 actualFoot=14, -60, 62 pos=(14.429, -60.000, 62.429)
+[069月2026 11:55:02.703] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] task_execution_terminal kind=MovementSequenceWalkTask target=方块@14, -60, 62 startTick=386 endTick=464 durationTicks=78 terminal=COMPLETED code=done pos=14, -60, 62 recovery=idle_after_cleanup recoveryStage=NONE recoveryEvents=[] failureCode=- failurePhase=- failureDetails=-
+[069月2026 11:55:06.801] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] task_execution_terminal kind=MovementSequenceWalkTask target=方块@6, -59, 69 startTick=545 endTick=546 durationTicks=1 terminal=FAILED code=failed:movement_sequence_invalid pos=14, -60, 62 recovery=idle_after_cleanup recoveryStage=NONE recoveryEvents=[] failureCode=movement_sequence_invalid failurePhase=unknown failureDetails=
+[069月2026 11:55:08.199] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] task_execution_terminal kind=MovementSequenceWalkTask target=方块@6, -59, 69 startTick=573 endTick=574 durationTicks=1 terminal=FAILED code=failed:movement_sequence_invalid pos=14, -60, 62 recovery=idle_after_cleanup recoveryStage=NONE recoveryEvents=[] failureCode=movement_sequence_invalid failurePhase=unknown failureDetails=
+[069月2026 11:55:08.949] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] planned count=3 from=14, -60, 62 to=6, -60, 67
+[069月2026 11:55:08.949] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] segment=1/3 type=WalkMovement from=14, -60, 62 to=13, -60, 62 cost=4.651162790697675
+[069月2026 11:55:08.949] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] segment=2/3 type=WalkMovement from=13, -60, 62 to=10, -60, 64 cost=16.770005932390646
+[069月2026 11:55:08.949] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] segment=3/3 type=WalkMovement from=10, -60, 64 to=6, -60, 67 cost=23.25581395348837
+[069月2026 11:55:09.200] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceSceneBot
+[069月2026 11:55:09.201] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] Movement 完成: 1/3 type=WalkMovement to=13, -60, 62
+[069月2026 11:55:10.100] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceSceneBot
+[069月2026 11:55:10.100] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] Movement 完成: 2/3 type=WalkMovement to=10, -60, 64
+[069月2026 11:55:11.299] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceSceneBot
+[069月2026 11:55:11.299] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] Movement 完成: 3/3 type=WalkMovement to=6, -60, 67
+[069月2026 11:55:11.414] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceSceneBot
+[069月2026 11:55:11.415] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] completed segments=3 goalFoot=6, -60, 67 actualFoot=6, -60, 67 pos=(6.550, -60.000, 67.463)
+[069月2026 11:55:11.415] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] task_execution_terminal kind=MovementSequenceWalkTask target=方块@6, -60, 67 startTick=588 endTick=637 durationTicks=49 terminal=COMPLETED code=done pos=6, -60, 67 recovery=idle_after_cleanup recoveryStage=NONE recoveryEvents=[] failureCode=- failurePhase=- failureDetails=-
+[069月2026 11:55:12.201] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] planned count=3 from=6, -60, 67 to=0, -60, 64
+[069月2026 11:55:12.201] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] segment=1/3 type=WalkMovement from=6, -60, 67 to=5, -60, 67 cost=4.651162790697675
+[069月2026 11:55:12.201] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] segment=2/3 type=WalkMovement from=5, -60, 67 to=3, -60, 66 cost=10.400316174417627
+[069月2026 11:55:12.201] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] segment=3/3 type=WalkMovement from=3, -60, 66 to=0, -60, 64 cost=16.770005932390646
+[069月2026 11:55:12.449] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceSceneBot
+[069月2026 11:55:12.449] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] Movement 完成: 1/3 type=WalkMovement to=5, -60, 67
+[069月2026 11:55:12.999] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceSceneBot
+[069月2026 11:55:12.999] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] Movement 完成: 2/3 type=WalkMovement to=3, -60, 66
+[069月2026 11:55:13.900] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceSceneBot
+[069月2026 11:55:13.900] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] Movement 完成: 3/3 type=WalkMovement to=0, -60, 64
+[069月2026 11:55:13.950] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceSceneBot
+[069月2026 11:55:13.950] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] completed segments=3 goalFoot=0, -60, 64 actualFoot=0, -60, 64 pos=(0.529, -60.000, 64.520)
+[069月2026 11:55:13.951] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] task_execution_terminal kind=MovementSequenceWalkTask target=方块@0, -60, 64 startTick=653 endTick=689 durationTicks=36 terminal=COMPLETED code=done pos=0, -60, 64 recovery=idle_after_cleanup recoveryStage=NONE recoveryEvents=[] failureCode=- failurePhase=- failureDetails=-
+[069月2026 11:55:16.149] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] planned count=3 from=0, -60, 64 to=-6, -60, 67
+[069月2026 11:55:16.149] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] segment=1/3 type=WalkMovement from=0, -60, 64 to=-1, -60, 64 cost=4.651162790697675
+[069月2026 11:55:16.149] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] segment=2/3 type=WalkMovement from=-1, -60, 64 to=-3, -60, 65 cost=10.400316174417627
+[069月2026 11:55:16.150] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] segment=3/3 type=WalkMovement from=-3, -60, 65 to=-6, -60, 67 cost=16.770005932390646
+[069月2026 11:55:16.350] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceSceneBot
+[069月2026 11:55:16.350] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] Movement 完成: 1/3 type=WalkMovement to=-1, -60, 64
+[069月2026 11:55:16.951] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceSceneBot
+[069月2026 11:55:16.952] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] Movement 完成: 2/3 type=WalkMovement to=-3, -60, 65
+[069月2026 11:55:17.850] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceSceneBot
+[069月2026 11:55:17.851] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] Movement 完成: 3/3 type=WalkMovement to=-6, -60, 67
+[069月2026 11:55:17.899] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceSceneBot
+[069月2026 11:55:17.899] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] completed segments=3 goalFoot=-6, -60, 67 actualFoot=-6, -60, 67 pos=(-5.507, -60.000, 67.505)
+[069月2026 11:55:17.900] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] task_execution_terminal kind=MovementSequenceWalkTask target=方块@-6, -60, 67 startTick=732 endTick=768 durationTicks=36 terminal=COMPLETED code=done pos=-6, -60, 67 recovery=idle_after_cleanup recoveryStage=NONE recoveryEvents=[] failureCode=- failurePhase=- failureDetails=-
+[069月2026 11:55:18.551] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] planned count=3 from=-6, -60, 67 to=-3, -60, 74
+[069月2026 11:55:18.551] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] segment=1/3 type=WalkMovement from=-6, -60, 67 to=-5, -60, 67 cost=4.651162790697675
+[069月2026 11:55:18.551] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] segment=2/3 type=WalkMovement from=-5, -60, 67 to=-5, -60, 70 cost=13.953488372093023
+[069月2026 11:55:18.551] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] segment=3/3 type=WalkMovement from=-5, -60, 70 to=-3, -60, 74 cost=20.800632348835254
+[069月2026 11:55:18.799] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceSceneBot
+[069月2026 11:55:18.799] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] Movement 完成: 1/3 type=WalkMovement to=-5, -60, 67
+[069月2026 11:55:19.553] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceSceneBot
+[069月2026 11:55:19.553] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] Movement 完成: 2/3 type=WalkMovement to=-5, -60, 70
+[069月2026 11:55:20.651] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceSceneBot
+[069月2026 11:55:20.651] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] Movement 完成: 3/3 type=WalkMovement to=-3, -60, 74
+[069月2026 11:55:20.699] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceSceneBot
+[069月2026 11:55:20.699] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment3] completed segments=3 goalFoot=-3, -60, 74 actualFoot=-3, -60, 74 pos=(-2.528, -60.000, 74.445)
+[069月2026 11:55:20.700] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] task_execution_terminal kind=MovementSequenceWalkTask target=方块@-3, -60, 74 startTick=780 endTick=824 durationTicks=44 terminal=COMPLETED code=done pos=-3, -60, 74 recovery=idle_after_cleanup recoveryStage=NONE recoveryEvents=[] failureCode=- failurePhase=- failureDetails=-

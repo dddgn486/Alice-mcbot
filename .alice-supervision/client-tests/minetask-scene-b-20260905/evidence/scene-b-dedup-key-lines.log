@@ -1,0 +1,12 @@
+[069月2026 00:23:06.164] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MineTask终态计划证据] target=方块@4, 64, 4 attempts=1 recoveryAttempts=0 recoveryStage=NONE recoveryEvents=[] currentPlanRetained=true reason=- planInvalidation=NONE
+[069月2026 00:23:21.753] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MiningSceneFixture] scene=B phase=STARTED observer=dddgn bot=AliceSceneBot start=-3, 64, 0 target=0, 64, 3
+[069月2026 00:23:21.812] [Server thread/WARN] [com.dddgn.alice.log.BotLog/]: [alice] 路径受阻,重新规划(1/2): target=0, 64, 3 recoveryStage=BOTMINER_PATH_RETRY
+[069月2026 00:23:21.862] [Server thread/WARN] [com.dddgn.alice.log.BotLog/]: [alice] 路径受阻,重新规划(2/2): target=0, 64, 3 recoveryStage=BOTMINER_PATH_RETRY
+[069月2026 00:23:21.912] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] 局部清障(1/2): 当前站位直接挖 -3, 65, 1 recoveryStage=BOTMINER_PATH_RETRY
+[069月2026 00:23:22.212] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] 清障完成: 已挖掉遮挡 -3, 65, 1 -> 继续挖原目标 0, 64, 3
+[069月2026 00:23:22.261] [Server thread/WARN] [com.dddgn.alice.log.BotLog/]: [alice] 路径受阻,重新规划(1/2): target=0, 64, 3 recoveryStage=BOTMINER_PATH_RETRY
+[069月2026 00:23:24.662] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] task_execution_terminal kind=MineTask target=方块@0, 64, 3 startTick=729 endTick=788 durationTicks=59 terminal=COMPLETED code=done pos=0, 64, 3 recovery=idle_after_cleanup recoveryStage=BOTMINER_PATH_RETRY recoveryEvents=[BOTMINER_PATH_RETRY, TARGET_ACCESS_CLEAR]
+[069月2026 00:23:24.662] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MineTask终态计划证据] target=方块@0, 64, 3 attempts=3 recoveryAttempts=0 recoveryStage=BOTMINER_PATH_RETRY recoveryEvents=[BOTMINER_PATH_RETRY, TARGET_ACCESS_CLEAR] currentPlanRetained=true reason=path_failed planInvalidation=NONE
+[069月2026 00:23:24.663] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MiningSceneFixture] scene=B phase=FINISHED bot=AliceSceneBot terminalStatus=COMPLETED result=done durationTicks=59 terminalBot=0, 64, 3
+[069月2026 00:23:35.760] [Server thread/WARN] [com.dddgn.alice.log.BotLog/]: [alice] 路径受阻,重新规划(1/2): target=10, 64, 0 recoveryStage=BOTMINER_PATH_RETRY
+[069月2026 00:23:38.411] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MineTask终态计划证据] target=方块@10, 64, 0 attempts=1 recoveryAttempts=0 recoveryStage=BOTMINER_PATH_RETRY recoveryEvents=[BOTMINER_PATH_RETRY] currentPlanRetained=true reason=- planInvalidation=NONE

@@ -1,0 +1,15 @@
+[059月2026 19:13:28.249] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MiningSceneFixture] scene=A phase=STARTED observer=dddgn bot=AliceSceneBot start=0, 64, 0 target=4, 64, 4
+[059月2026 19:13:29.558] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] 开始挖掘: target=4, 64, 4 face=down eye_dist=2.1 bot_pos=4, 65, 4
+[059月2026 19:13:30.655] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] task_execution_terminal kind=MineTask target=方块@4, 64, 4 startTick=1054 endTick=1103 durationTicks=49 terminal=COMPLETED code=done pos=4, 64, 4 recovery=idle_after_cleanup
+[059月2026 19:13:30.655] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MineTask终态计划证据] target=方块@4, 64, 4 attempts=1 recoveryAttempts=0 currentPlanRetained=true reason=- planInvalidation=NONE
+[059月2026 19:13:30.659] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MiningSceneFixture] scene=A phase=FINISHED bot=AliceSceneBot terminalStatus=COMPLETED result=done durationTicks=49 terminalBot=4, 64, 4
+[059月2026 19:13:58.922] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MiningSceneFixture] scene=A phase=STARTED observer=dddgn bot=AliceSceneBot start=0, 64, 0 target=4, 64, 4
+[059月2026 19:14:00.255] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] 开始挖掘: target=4, 64, 4 face=down eye_dist=2.1 bot_pos=4, 65, 4
+[059月2026 19:14:01.356] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] task_execution_terminal kind=MineTask target=方块@4, 64, 4 startTick=1668 endTick=1717 durationTicks=49 terminal=COMPLETED code=done pos=4, 64, 4 recovery=idle_after_cleanup
+[059月2026 19:14:01.356] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MineTask终态计划证据] target=方块@4, 64, 4 attempts=1 recoveryAttempts=0 currentPlanRetained=true reason=- planInvalidation=NONE
+[059月2026 19:14:01.356] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MiningSceneFixture] scene=A phase=FINISHED bot=AliceSceneBot terminalStatus=COMPLETED result=done durationTicks=49 terminalBot=4, 64, 4
+[059月2026 19:14:12.304] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MiningSceneFixture] scene=A phase=STARTED observer=dddgn bot=AliceSceneBot start=0, 64, 0 target=4, 64, 4
+[059月2026 19:14:13.654] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] 开始挖掘: target=4, 64, 4 face=down eye_dist=2.1 bot_pos=4, 65, 4
+[059月2026 19:14:14.755] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] task_execution_terminal kind=MineTask target=方块@4, 64, 4 startTick=1936 endTick=1985 durationTicks=49 terminal=COMPLETED code=done pos=4, 64, 4 recovery=idle_after_cleanup
+[059月2026 19:14:14.755] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MineTask终态计划证据] target=方块@4, 64, 4 attempts=1 recoveryAttempts=0 currentPlanRetained=true reason=- planInvalidation=NONE
+[059月2026 19:14:14.756] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MiningSceneFixture] scene=A phase=FINISHED bot=AliceSceneBot terminalStatus=COMPLETED result=done durationTicks=49 terminalBot=4, 64, 4

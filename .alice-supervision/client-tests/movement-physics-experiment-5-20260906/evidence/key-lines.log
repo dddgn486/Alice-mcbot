@@ -1,0 +1,7 @@
+[069月2026 13:26:32.397] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementSceneD] phase=STARTED from=0, 64, 20 goalFoot=10, 64, 20 obstacle=5, 64, 20
+[069月2026 13:26:32.432] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment5] started from=0, 64, 20 to=10, 64, 20 obstacle=5, 64, 20 cost=46.51162790697674
+[069月2026 13:26:32.729] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementSceneD] phase=OBSTACLE_PLACED botFoot=1, 64, 20 botY=64.000 tick=848 wallBlocks=6 obstacle=5, 64, 20
+[069月2026 13:26:37.430] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceMovementBot
+[069月2026 13:26:37.430] [Server thread/WARN] [com.dddgn.alice.log.BotLog/]: [alice] Movement 超时: 1/1 type=WalkMovement noProgress=101 cleanup=controller_stop_movement
+[069月2026 13:26:37.431] [Server thread/WARN] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment5] failed goalFoot=10, 64, 20 actualFoot=4, 64, 20 obstacle=5, 64, 20 onGround=true y=64.000 reason=movement_timeout_WalkMovement
+[069月2026 13:26:37.433] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] task_execution_terminal kind=MovementDynamicBlockTask target=方块@10, 64, 20 startTick=841 endTick=942 durationTicks=101 terminal=FAILED code=failed:movement_timeout_WalkMovement pos=4, 64, 20 recovery=idle_after_cleanup recoveryStage=NONE recoveryEvents=[] failureCode=movement_timeout_WalkMovement failurePhase=unknown failureDetails=

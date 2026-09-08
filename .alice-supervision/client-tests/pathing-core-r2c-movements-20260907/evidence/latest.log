@@ -1,0 +1,174 @@
+[079月2026 23:07:19.795] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: ModLauncher running: args [--username, dddgn, --version, 1.20.1-Forge_47.4.10, --gameDir, D:\JAVA_projects\worldedit-test\versions\1.20.1-Forge_47.4.10, --assetsDir, D:\JAVA_projects\worldedit-test\assets, --assetIndex, 5, --uuid, 902b9056a82a4919b856b519cca859d2, --accessToken, ❄❄❄❄❄❄❄❄, --clientId, ${clientid}, --xuid, ${auth_xuid}, --userType, msa, --versionType, PCL, --width, 854, --height, 480, --launchTarget, forgeclient, --fml.forgeVersion, 47.4.10, --fml.mcVersion, 1.20.1, --fml.forgeGroup, net.minecraftforge, --fml.mcpVersion, 20230612.114412]
+[079月2026 23:07:19.798] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: ModLauncher 10.0.9+10.0.9+main.dcd20f30 starting: java version 21.0.7 by Eclipse Adoptium; OS Windows 10 arch amd64 version 10.0
+[079月2026 23:07:19.924] [main/INFO] [net.minecraftforge.fml.loading.ImmediateWindowHandler/]: Loading ImmediateWindowProvider fmlearlywindow
+[079月2026 23:07:20.004] [main/INFO] [EARLYDISPLAY/]: Trying GL version 4.6
+[079月2026 23:07:20.313] [main/INFO] [EARLYDISPLAY/]: Requested GL version 4.6 got version 4.6
+[079月2026 23:07:20.401] [main/INFO] [mixin/]: SpongePowered MIXIN Subsystem Version=0.8.5 Source=union:/D:/JAVA_projects/worldedit-test/libraries/org/spongepowered/mixin/0.8.5/mixin-0.8.5.jar%23150!/ Service=ModLauncher Env=CLIENT
+[079月2026 23:07:20.599] [pool-2-thread-1/INFO] [EARLYDISPLAY/]: GL info: NVIDIA GeForce RTX 5070 Ti/PCIe/SSE2 GL version 4.6.0 NVIDIA 595.97, NVIDIA Corporation
+[079月2026 23:07:20.687] [main/WARN] [net.minecraftforge.fml.loading.moddiscovery.ModFileParser/LOADING]: Mod file D:\JAVA_projects\worldedit-test\libraries\net\minecraftforge\fmlcore\1.20.1-47.4.10\fmlcore-1.20.1-47.4.10.jar is missing mods.toml file
+[079月2026 23:07:20.691] [main/WARN] [net.minecraftforge.fml.loading.moddiscovery.ModFileParser/LOADING]: Mod file D:\JAVA_projects\worldedit-test\libraries\net\minecraftforge\javafmllanguage\1.20.1-47.4.10\javafmllanguage-1.20.1-47.4.10.jar is missing mods.toml file
+[079月2026 23:07:20.694] [main/WARN] [net.minecraftforge.fml.loading.moddiscovery.ModFileParser/LOADING]: Mod file D:\JAVA_projects\worldedit-test\libraries\net\minecraftforge\lowcodelanguage\1.20.1-47.4.10\lowcodelanguage-1.20.1-47.4.10.jar is missing mods.toml file
+[079月2026 23:07:20.698] [main/WARN] [net.minecraftforge.fml.loading.moddiscovery.ModFileParser/LOADING]: Mod file D:\JAVA_projects\worldedit-test\libraries\net\minecraftforge\mclanguage\1.20.1-47.4.10\mclanguage-1.20.1-47.4.10.jar is missing mods.toml file
+[079月2026 23:07:20.790] [main/INFO] [net.minecraftforge.fml.loading.moddiscovery.JarInJarDependencyLocator/]: No dependencies to load found. Skipping!
+[079月2026 23:07:21.603] [main/INFO] [cpw.mods.modlauncher.LaunchServiceHandler/MODLAUNCHER]: Launching target 'forgeclient' with arguments [--version, 1.20.1-Forge_47.4.10, --gameDir, D:\JAVA_projects\worldedit-test\versions\1.20.1-Forge_47.4.10, --assetsDir, D:\JAVA_projects\worldedit-test\assets, --uuid, 902b9056a82a4919b856b519cca859d2, --username, dddgn, --assetIndex, 5, --accessToken, ❄❄❄❄❄❄❄❄, --clientId, ${clientid}, --xuid, ${auth_xuid}, --userType, msa, --versionType, PCL, --width, 854, --height, 480]
+[079月2026 23:07:24.257] [Datafixer Bootstrap/INFO] [com.mojang.datafixers.DataFixerBuilder/]: 188 Datafixer optimizations took 93 milliseconds
+[079月2026 23:07:25.383] [Render thread/WARN] [net.minecraft.server.packs.VanillaPackResourcesBuilder/]: Assets URL 'union:/D:/JAVA_projects/worldedit-test/libraries/net/minecraft/client/1.20.1-20230612.114412/client-1.20.1-20230612.114412-srg.jar%23160!/assets/.mcassetsroot' uses unexpected schema
+[079月2026 23:07:25.384] [Render thread/WARN] [net.minecraft.server.packs.VanillaPackResourcesBuilder/]: Assets URL 'union:/D:/JAVA_projects/worldedit-test/libraries/net/minecraft/client/1.20.1-20230612.114412/client-1.20.1-20230612.114412-srg.jar%23160!/data/.mcassetsroot' uses unexpected schema
+[079月2026 23:07:25.396] [Render thread/INFO] [com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService/]: Environment: authHost='https://authserver.mojang.com', accountsHost='https://api.mojang.com', sessionHost='https://sessionserver.mojang.com', servicesHost='https://api.minecraftservices.com', name='PROD'
+[079月2026 23:07:26.679] [Render thread/INFO] [net.minecraft.client.Minecraft/]: Setting user: dddgn
+[079月2026 23:07:26.724] [Render thread/INFO] [net.minecraft.client.Minecraft/]: Backend library: LWJGL version 3.3.1 build 7
+[079月2026 23:07:26.966] [modloading-worker-0/INFO] [net.minecraftforge.common.ForgeMod/FORGEMOD]: Forge mod loading, version 47.4.10, for MC 1.20.1 with MCP 20230612.114412
+[079月2026 23:07:26.966] [modloading-worker-0/INFO] [net.minecraftforge.common.MinecraftForge/FORGE]: MinecraftForge v47.4.10 Initialized
+[079月2026 23:07:27.628] [Render thread/INFO] [net.minecraft.server.packs.resources.ReloadableResourceManager/]: Reloading ResourceManager: vanilla, mod_resources
+[079月2026 23:07:27.702] [Worker-Main-8/INFO] [net.minecraft.client.gui.font.providers.UnihexProvider/]: Found unifont_all_no_pua-15.0.06.hex, loading
+[079月2026 23:07:27.752] [Forge Version Check/INFO] [net.minecraftforge.fml.VersionChecker/]: [forge] Starting version check at https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json
+[079月2026 23:07:28.059] [Worker-Main-1/INFO] [com.sk89q.worldedit.extension.platform.PlatformManager/]: Got request to register class com.sk89q.worldedit.forge.ForgePlatform with WorldEdit [com.sk89q.worldedit.extension.platform.PlatformManager@2626e7c2]
+[079月2026 23:07:28.064] [Worker-Main-1/INFO] [com.sk89q.worldedit.forge.ForgeWorldEdit/]: WorldEdit for Forge (version 7.2.15+6463-5ca4dff) is loaded
+[079月2026 23:07:29.190] [Render thread/WARN] [net.minecraft.client.resources.language.ClientLanguage/]: Skipped language file: alice:lang/en_us.json (com.google.gson.JsonSyntaxException: com.google.gson.stream.MalformedJsonException: Expected name at line 14 column 2 path $.item.alice.mining_replan_tester)
+[079月2026 23:07:29.201] [Render thread/WARN] [net.minecraft.client.resources.language.ClientLanguage/]: Skipped language file: alice:lang/zh_cn.json (com.google.gson.JsonSyntaxException: com.google.gson.stream.MalformedJsonException: Expected name at line 13 column 2 path $.item.alice.mining_replan_tester)
+[079月2026 23:07:29.289] [Render thread/WARN] [net.minecraft.client.sounds.SoundEngine/]: Missing sound for event: minecraft:item.goat_horn.play
+[079月2026 23:07:29.289] [Render thread/WARN] [net.minecraft.client.sounds.SoundEngine/]: Missing sound for event: minecraft:entity.goat.screaming.horn_break
+[079月2026 23:07:29.312] [Render thread/INFO] [com.mojang.blaze3d.audio.Library/]: OpenAL initialized on device OpenAL Soft on 耳机 (Realtek High Definition Audio)
+[079月2026 23:07:29.312] [Render thread/INFO] [net.minecraft.client.sounds.SoundEngine/SOUNDS]: Sound engine started
+[079月2026 23:07:29.353] [Forge Version Check/INFO] [net.minecraftforge.fml.VersionChecker/]: [forge] Found status: UP_TO_DATE Current: 47.4.10 Target: null
+[079月2026 23:07:29.377] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 1024x512x4 minecraft:textures/atlas/blocks.png-atlas
+[079月2026 23:07:29.383] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 256x256x4 minecraft:textures/atlas/signs.png-atlas
+[079月2026 23:07:29.383] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 512x512x4 minecraft:textures/atlas/banner_patterns.png-atlas
+[079月2026 23:07:29.383] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 512x512x4 minecraft:textures/atlas/shield_patterns.png-atlas
+[079月2026 23:07:29.384] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 1024x1024x4 minecraft:textures/atlas/armor_trims.png-atlas
+[079月2026 23:07:29.385] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 256x256x4 minecraft:textures/atlas/chest.png-atlas
+[079月2026 23:07:29.386] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 128x64x4 minecraft:textures/atlas/decorated_pot.png-atlas
+[079月2026 23:07:29.386] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 512x256x4 minecraft:textures/atlas/shulker_boxes.png-atlas
+[079月2026 23:07:29.386] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 512x256x4 minecraft:textures/atlas/beds.png-atlas
+[079月2026 23:07:29.529] [Render thread/WARN] [net.minecraft.client.renderer.ShaderInstance/]: Shader rendertype_entity_translucent_emissive could not find sampler named Sampler2 in the specified shader program.
+[079月2026 23:07:29.573] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 256x256x0 minecraft:textures/atlas/particles.png-atlas
+[079月2026 23:07:29.574] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 256x256x0 minecraft:textures/atlas/paintings.png-atlas
+[079月2026 23:07:29.575] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 128x128x0 minecraft:textures/atlas/mob_effects.png-atlas
+[079月2026 23:07:32.989] [Render thread/INFO] [com.sk89q.worldedit.extension.platform.PlatformCommandManager/]: Registering commands with com.sk89q.worldedit.forge.ForgePlatform
+[079月2026 23:07:33.311] [Render thread/INFO] [net.minecraft.world.item.crafting.RecipeManager/]: Loaded 7 recipes
+[079月2026 23:07:33.312] [Render thread/ERROR] [net.minecraft.server.ServerFunctionLibrary/]: Failed to load function alice_test:movement_d
+java.util.concurrent.CompletionException: java.lang.IllegalArgumentException: Whilst parsing command on line 10: 未知的物品“alice:movement_dynamic_block_tester” at position 8: give @s <--[HERE]
+	at java.util.concurrent.CompletableFuture.encodeThrowable(CompletableFuture.java:315) ~[?:?]
+	at java.util.concurrent.CompletableFuture.completeThrowable(CompletableFuture.java:320) ~[?:?]
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1770) ~[?:?]
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1760) ~[?:?]
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:387) ~[?:?]
+	at java.util.concurrent.ForkJoinPool$WorkQueue.topLevelExec(ForkJoinPool.java:1312) ~[?:?]
+	at java.util.concurrent.ForkJoinPool.scan(ForkJoinPool.java:1843) ~[?:?]
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1808) ~[?:?]
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:188) ~[?:?]
+Caused by: java.lang.IllegalArgumentException: Whilst parsing command on line 10: 未知的物品“alice:movement_dynamic_block_tester” at position 8: give @s <--[HERE]
+	at net.minecraft.commands.CommandFunction.m_77984_(CommandFunction.java:63) ~[client-1.20.1-20230612.114412-srg.jar%23160!/:?]
+	at net.minecraft.server.ServerFunctionLibrary.m_214320_(ServerFunctionLibrary.java:83) ~[client-1.20.1-20230612.114412-srg.jar%23160!/:?]
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1768) ~[?:?]
+	... 6 more
+[079月2026 23:07:33.313] [Render thread/ERROR] [net.minecraft.server.ServerFunctionLibrary/]: Failed to load function alice_test:movement_e
+java.util.concurrent.CompletionException: java.lang.IllegalArgumentException: Whilst parsing command on line 10: 未知的物品“alice:movement_block_reason_tester” at position 8: give @s <--[HERE]
+	at java.util.concurrent.CompletableFuture.encodeThrowable(CompletableFuture.java:315) ~[?:?]
+	at java.util.concurrent.CompletableFuture.completeThrowable(CompletableFuture.java:320) ~[?:?]
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1770) ~[?:?]
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1760) ~[?:?]
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:387) ~[?:?]
+	at java.util.concurrent.ForkJoinPool$WorkQueue.topLevelExec(ForkJoinPool.java:1312) ~[?:?]
+	at java.util.concurrent.ForkJoinPool.scan(ForkJoinPool.java:1843) ~[?:?]
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1808) ~[?:?]
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:188) ~[?:?]
+Caused by: java.lang.IllegalArgumentException: Whilst parsing command on line 10: 未知的物品“alice:movement_block_reason_tester” at position 8: give @s <--[HERE]
+	at net.minecraft.commands.CommandFunction.m_77984_(CommandFunction.java:63) ~[client-1.20.1-20230612.114412-srg.jar%23160!/:?]
+	at net.minecraft.server.ServerFunctionLibrary.m_214320_(ServerFunctionLibrary.java:83) ~[client-1.20.1-20230612.114412-srg.jar%23160!/:?]
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1768) ~[?:?]
+	... 6 more
+[079月2026 23:07:33.313] [Render thread/ERROR] [net.minecraft.server.ServerFunctionLibrary/]: Failed to load function alice_test:movement_f
+java.util.concurrent.CompletionException: java.lang.IllegalArgumentException: Whilst parsing command on line 7: 未知的物品“alice:movement_precondition_tester” at position 8: give @s <--[HERE]
+	at java.util.concurrent.CompletableFuture.encodeThrowable(CompletableFuture.java:315) ~[?:?]
+	at java.util.concurrent.CompletableFuture.completeThrowable(CompletableFuture.java:320) ~[?:?]
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1770) ~[?:?]
+	at java.util.concurrent.CompletableFuture$AsyncSupply.exec(CompletableFuture.java:1760) ~[?:?]
+	at java.util.concurrent.ForkJoinTask.doExec(ForkJoinTask.java:387) ~[?:?]
+	at java.util.concurrent.ForkJoinPool$WorkQueue.topLevelExec(ForkJoinPool.java:1312) ~[?:?]
+	at java.util.concurrent.ForkJoinPool.scan(ForkJoinPool.java:1843) ~[?:?]
+	at java.util.concurrent.ForkJoinPool.runWorker(ForkJoinPool.java:1808) ~[?:?]
+	at java.util.concurrent.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:188) ~[?:?]
+Caused by: java.lang.IllegalArgumentException: Whilst parsing command on line 7: 未知的物品“alice:movement_precondition_tester” at position 8: give @s <--[HERE]
+	at net.minecraft.commands.CommandFunction.m_77984_(CommandFunction.java:63) ~[client-1.20.1-20230612.114412-srg.jar%23160!/:?]
+	at net.minecraft.server.ServerFunctionLibrary.m_214320_(ServerFunctionLibrary.java:83) ~[client-1.20.1-20230612.114412-srg.jar%23160!/:?]
+	at java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1768) ~[?:?]
+	... 6 more
+[079月2026 23:07:33.384] [Render thread/INFO] [net.minecraft.advancements.AdvancementList/]: Loaded 1271 advancements
+[079月2026 23:07:33.610] [Server thread/INFO] [net.minecraft.client.server.IntegratedServer/]: Starting integrated minecraft server version 1.20.1
+[079月2026 23:07:33.611] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Generating keypair
+[079月2026 23:07:33.799] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Preparing start region for dimension minecraft:overworld
+[079月2026 23:07:34.901] [Render thread/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: 准备生成区域中：0%
+[079月2026 23:07:34.901] [Render thread/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: 准备生成区域中：0%
+[079月2026 23:07:34.901] [Render thread/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: 准备生成区域中：0%
+[079月2026 23:07:35.321] [Render thread/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: 准备生成区域中：54%
+[079月2026 23:07:35.400] [Server thread/INFO] [net.minecraftforge.server.permission.PermissionAPI/]: Successfully initialized permission handler forge:default_handler
+[079月2026 23:07:35.410] [Render thread/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Time elapsed: 1600 ms
+[079月2026 23:07:35.998] [Server thread/INFO] [net.minecraft.server.players.PlayerList/]: tango[local] logged in with entity id 15 at (-0.3751930581382216, 65.0, 2.3211485364876885)
+[079月2026 23:07:36.019] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: tango加入了游戏
+[079月2026 23:07:36.048] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] 假人已生成(玩家化): name=tango pos=0, 65, 2
+[079月2026 23:07:36.049] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] 已从世界存档恢复假人: name=tango pos=(0, 65, 2)
+[079月2026 23:07:36.050] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] SELFTEST 待命(手动 /alice selftest 触发)
+[079月2026 23:07:36.144] [Server thread/INFO] [net.minecraft.client.server.IntegratedServer/]: Changing view distance to 12, from 10
+[079月2026 23:07:36.150] [Server thread/INFO] [net.minecraft.client.server.IntegratedServer/]: Changing simulation distance to 12, from 0
+[079月2026 23:07:36.220] [Render thread/WARN] [io.netty.util.internal.SystemPropertyUtil/]: Unable to parse the boolean system property 'java.net.preferIPv6Addresses':system - using the default value: false
+[079月2026 23:07:36.564] [Netty Local Client IO #0/INFO] [net.minecraftforge.network.NetworkHooks/]: Connected to a modded server.
+[079月2026 23:07:36.580] [Server thread/INFO] [net.minecraft.server.players.PlayerList/]: dddgn[local:E:d7e377ec] logged in with entity id 17 at (-0.2468541916024117, 64.0, -1.3174660397691142)
+[079月2026 23:07:36.604] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: dddgn加入了游戏
+[079月2026 23:07:36.955] [Render thread/INFO] [net.minecraft.advancements.AdvancementList/]: Loaded 19 advancements
+[079月2026 23:07:45.568] [Render thread/INFO] [net.minecraft.client.gui.components.ChatComponent/]: [System] [CHAT] 未知或不完整的命令。错误见下
+[079月2026 23:07:45.572] [Render thread/INFO] [net.minecraft.client.gui.components.ChatComponent/]: [System] [CHAT] ...ng descend<--[此处]
+[079月2026 23:07:48.556] [Render thread/INFO] [net.minecraft.client.gui.components.ChatComponent/]: [System] [CHAT] [alice] R2-C Descend submitted bot=tango from=-1, 65, 2 to=0, 64, 2
+[079月2026 23:07:48.561] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] started session=r2c-descend-8f862e32-4a17-4164-a02b-e1dbcffd901c bot=tango from=-1, 65, 2 to=0, 64, 2 support=true onGround=true
+[079月2026 23:07:48.561] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] EXECUTING phase entered, bot Y=65.0 fromY=65
+[079月2026 23:07:48.853] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] blockPos Y dropped, entering SETTLING
+[079月2026 23:07:48.854] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=tango
+[079月2026 23:07:49.053] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=tango
+[079月2026 23:07:49.053] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] completed session=r2c-descend-8f862e32-4a17-4164-a02b-e1dbcffd901c from=-1, 65, 2 to=0, 64, 2 actualFoot=0, 64, 2 support=true onGround=true controllerActive=false ticks=11 reason=-
+[079月2026 23:07:49.056] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] task_execution_terminal kind=DescendDiagnosticTask target=方块@0, 64, 2 startTick=246 endTick=257 durationTicks=11 terminal=COMPLETED code=done pos=0, 64, 2 recovery=idle_after_cleanup recoveryStage=NONE recoveryEvents=[] failureCode=- failurePhase=- failureDetails=-
+[079月2026 23:07:49.056] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] 任务结束: 作用域内无存活掉落物
+[079月2026 23:07:55.300] [Render thread/INFO] [net.minecraft.client.gui.components.ChatComponent/]: [System] [CHAT] [alice] R2-C Descend submitted bot=tango from=-1, 65, 2 to=-1, 64, 1
+[079月2026 23:07:55.303] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] started session=r2c-descend-8f9116da-103d-4482-9b26-c0b23db65197 bot=tango from=-1, 65, 2 to=-1, 64, 1 support=true onGround=true
+[079月2026 23:07:55.303] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] EXECUTING phase entered, bot Y=65.0 fromY=65
+[079月2026 23:07:55.704] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] blockPos Y dropped, entering SETTLING
+[079月2026 23:07:55.704] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=tango
+[079月2026 23:07:56.751] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=tango
+[079月2026 23:07:56.751] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] failed session=r2c-descend-8f9116da-103d-4482-9b26-c0b23db65197 from=-1, 65, 2 to=-1, 64, 1 actualFoot=-1, 64, 0 support=true onGround=true controllerActive=false ticks=30 reason=DESCEND_SETTLING_TIMEOUT
+[079月2026 23:07:56.753] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] task_execution_terminal kind=DescendDiagnosticTask target=方块@-1, 64, 1 startTick=381 endTick=411 durationTicks=30 terminal=FAILED code=failed:DESCEND_SETTLING_TIMEOUT pos=-1, 64, 0 recovery=idle_after_cleanup recoveryStage=NONE recoveryEvents=[] failureCode=DESCEND_SETTLING_TIMEOUT failurePhase=unknown failureDetails=
+[079月2026 23:07:56.753] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] 任务结束: 作用域内无存活掉落物
+[079月2026 23:08:02.329] [Render thread/INFO] [net.minecraft.client.gui.components.ChatComponent/]: [System] [CHAT] [alice] R2-C Descend submitted bot=tango from=-1, 65, 2 to=-1, 64, 3
+[079月2026 23:08:02.351] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] started session=r2c-descend-261250ed-366b-408a-a555-db8d715eebf1 bot=tango from=-1, 65, 2 to=-1, 64, 3 support=true onGround=true
+[079月2026 23:08:02.352] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] EXECUTING phase entered, bot Y=65.0 fromY=65
+[079月2026 23:08:02.602] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] blockPos Y dropped, entering SETTLING
+[079月2026 23:08:02.603] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=tango
+[079月2026 23:08:03.652] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=tango
+[079月2026 23:08:03.653] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] failed session=r2c-descend-261250ed-366b-408a-a555-db8d715eebf1 from=-1, 65, 2 to=-1, 64, 3 actualFoot=-1, 64, 4 support=true onGround=true controllerActive=false ticks=27 reason=DESCEND_SETTLING_TIMEOUT
+[079月2026 23:08:03.653] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] task_execution_terminal kind=DescendDiagnosticTask target=方块@-1, 64, 3 startTick=522 endTick=549 durationTicks=27 terminal=FAILED code=failed:DESCEND_SETTLING_TIMEOUT pos=-1, 64, 4 recovery=idle_after_cleanup recoveryStage=NONE recoveryEvents=[] failureCode=DESCEND_SETTLING_TIMEOUT failurePhase=unknown failureDetails=
+[079月2026 23:08:03.653] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] 任务结束: 作用域内无存活掉落物
+[079月2026 23:08:07.867] [Render thread/INFO] [net.minecraft.client.gui.components.ChatComponent/]: [System] [CHAT] [alice] R2-C Descend submitted bot=tango from=0, 65, 3 to=-1, 64, 3
+[079月2026 23:08:07.902] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] started session=r2c-descend-58d3db33-2e5e-4eb0-a336-5af06d92019c bot=tango from=0, 65, 3 to=-1, 64, 3 support=true onGround=true
+[079月2026 23:08:07.902] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] EXECUTING phase entered, bot Y=65.0 fromY=65
+[079月2026 23:08:08.204] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] blockPos Y dropped, entering SETTLING
+[079月2026 23:08:08.204] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=tango
+[079月2026 23:08:09.252] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=tango
+[079月2026 23:08:09.252] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] failed session=r2c-descend-58d3db33-2e5e-4eb0-a336-5af06d92019c from=0, 65, 3 to=-1, 64, 3 actualFoot=-2, 65, 3 support=false onGround=true controllerActive=false ticks=28 reason=DESCEND_SETTLING_TIMEOUT
+[079月2026 23:08:09.252] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] task_execution_terminal kind=DescendDiagnosticTask target=方块@-1, 64, 3 startTick=633 endTick=661 durationTicks=28 terminal=FAILED code=failed:DESCEND_SETTLING_TIMEOUT pos=-2, 65, 3 recovery=idle_after_cleanup recoveryStage=NONE recoveryEvents=[] failureCode=DESCEND_SETTLING_TIMEOUT failurePhase=unknown failureDetails=
+[079月2026 23:08:09.252] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] 任务结束: 作用域内无存活掉落物
+[079月2026 23:08:10.800] [Server thread/INFO] [net.minecraft.client.server.IntegratedServer/]: Saving and pausing game...
+[079月2026 23:08:10.814] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving chunks for level 'ServerLevel[新的世界]'/minecraft:overworld
+[079月2026 23:08:10.820] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving chunks for level 'ServerLevel[新的世界]'/minecraft:the_end
+[079月2026 23:08:10.822] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving chunks for level 'ServerLevel[新的世界]'/minecraft:the_nether
+[079月2026 23:08:11.354] [Server thread/INFO] [net.minecraft.server.network.ServerGamePacketListenerImpl/]: dddgn lost connection: 连接中断
+[079月2026 23:08:11.354] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: dddgn退出了游戏
+[079月2026 23:08:11.370] [Server thread/INFO] [net.minecraft.server.network.ServerGamePacketListenerImpl/]: Stopping singleplayer server as player logged out
+[079月2026 23:08:11.417] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Stopping server
+[079月2026 23:08:11.417] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving players
+[079月2026 23:08:11.417] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving worlds
+[079月2026 23:08:11.636] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving chunks for level 'ServerLevel[新的世界]'/minecraft:overworld
+[079月2026 23:08:11.822] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving chunks for level 'ServerLevel[新的世界]'/minecraft:the_end
+[079月2026 23:08:11.823] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving chunks for level 'ServerLevel[新的世界]'/minecraft:the_nether
+[079月2026 23:08:11.844] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: ThreadedAnvilChunkStorage (新的世界): All chunks are saved
+[079月2026 23:08:11.844] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: ThreadedAnvilChunkStorage (DIM1): All chunks are saved
+[079月2026 23:08:11.844] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: ThreadedAnvilChunkStorage (DIM-1): All chunks are saved
+[079月2026 23:08:11.844] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: ThreadedAnvilChunkStorage: All dimensions are saved
+[079月2026 23:08:12.619] [Render thread/INFO] [net.minecraft.client.Minecraft/]: Stopping!

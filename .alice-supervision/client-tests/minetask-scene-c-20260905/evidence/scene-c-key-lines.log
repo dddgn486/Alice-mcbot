@@ -1,0 +1,6 @@
+[059月2026 23:33:17.571] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MiningReplanFixture] phase=ARMED player=dddgn target=10, 64, 0 obstacle=5, 64, 0 botStart=0, 64, 0
+[059月2026 23:33:17.775] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MiningReplanFixture] phase=OBSTACLE_PLACED target=10, 64, 0 obstacle=5, 64, 0 botFoot=1, 64, 0 distance=4.00 triggerTick=466 initialPathStatus=REACHED
+[059月2026 23:33:18.524] [Server thread/WARN] [com.dddgn.alice.log.BotLog/]: [alice] 路径受阻: 段目标 5, 64, 0 不可走(方块变化), 请求重新规划
+[059月2026 23:33:18.524] [Server thread/WARN] [com.dddgn.alice.log.BotLog/]: [alice] 路径受阻,重新规划(1/2): target=10, 64, 0
+[059月2026 23:33:21.174] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] task_execution_terminal kind=MineTask target=方块@10, 64, 0 startTick=461 endTick=534 durationTicks=73 terminal=COMPLETED code=done pos=10, 64, 0 recovery=idle_after_cleanup
+[059月2026 23:33:21.175] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MineTask终态计划证据] target=方块@10, 64, 0 attempts=1 recoveryAttempts=0 currentPlanRetained=true reason=- planInvalidation=NONE

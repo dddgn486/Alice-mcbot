@@ -1,0 +1,11 @@
+[059月2026 19:51:19.084] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MiningSceneFixture] scene=B phase=STARTED observer=dddgn bot=AliceSceneBot start=-3, 64, 0 target=0, 64, 3
+[059月2026 19:51:19.111] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MiningPlanner探针] planned target=0, 64, 3 startFoot=-3, 64, 0 standingFoot=0, 65, 3 pathStatus=REACHED pathSize=3 pathCost=39.733 visibility=true executable=true score=1117.778
+[059月2026 19:51:19.114] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MiningPlan探针] consumed executionMode=PLAN target=0, 64, 3 startFoot=-3, 64, 0 standingFoot=0, 65, 3 pathStatus=REACHED pathSize=3 visibility=true executable=true
+[059月2026 19:51:19.227] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] 局部清障(1/2): 当前站位直接挖 -3, 65, 1
+[059月2026 19:51:19.532] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] 清障完成: 已挖掉遮挡 -3, 65, 1 -> 继续挖原目标 0, 64, 3
+[059月2026 19:51:19.532] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MiningPlan探针] consumed executionMode=PLAN target=0, 64, 3 startFoot=-3, 64, 0 standingFoot=0, 65, 3 pathStatus=REACHED pathSize=3 visibility=true executable=true
+[059月2026 19:51:20.876] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] 开始挖掘: target=0, 64, 3 face=down eye_dist=2.1 bot_pos=0, 65, 3
+[059月2026 19:51:21.427] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] 挖掘完成: target=0, 64, 3
+[059月2026 19:51:21.977] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] task_execution_terminal kind=MineTask target=方块@0, 64, 3 startTick=299 endTick=358 durationTicks=59 terminal=COMPLETED code=done pos=0, 64, 3 recovery=idle_after_cleanup
+[059月2026 19:51:21.977] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MineTask终态计划证据] target=方块@0, 64, 3 attempts=3 recoveryAttempts=0 currentPlanRetained=true reason=path_failed planInvalidation=NONE
+[059月2026 19:51:21.981] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MiningSceneFixture] scene=B phase=FINISHED bot=AliceSceneBot terminalStatus=COMPLETED result=done durationTicks=59 terminalBot=0, 64, 3

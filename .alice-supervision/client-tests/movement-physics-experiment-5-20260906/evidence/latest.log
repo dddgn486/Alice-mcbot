@@ -1,0 +1,115 @@
+[069月2026 13:16:01.266] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: ModLauncher running: args [--username, dddgn, --version, 1.20.1-Forge_47.4.10, --gameDir, D:\JAVA_projects\worldedit-test\versions\1.20.1-Forge_47.4.10, --assetsDir, D:\JAVA_projects\worldedit-test\assets, --assetIndex, 5, --uuid, 902b9056a82a4919b856b519cca859d2, --accessToken, ❄❄❄❄❄❄❄❄, --clientId, ${clientid}, --xuid, ${auth_xuid}, --userType, msa, --versionType, PCL, --width, 854, --height, 480, --launchTarget, forgeclient, --fml.forgeVersion, 47.4.10, --fml.mcVersion, 1.20.1, --fml.forgeGroup, net.minecraftforge, --fml.mcpVersion, 20230612.114412]
+[069月2026 13:16:01.270] [main/INFO] [cpw.mods.modlauncher.Launcher/MODLAUNCHER]: ModLauncher 10.0.9+10.0.9+main.dcd20f30 starting: java version 21.0.7 by Eclipse Adoptium; OS Windows 10 arch amd64 version 10.0
+[069月2026 13:16:01.364] [main/INFO] [net.minecraftforge.fml.loading.ImmediateWindowHandler/]: Loading ImmediateWindowProvider fmlearlywindow
+[069月2026 13:16:01.435] [main/INFO] [EARLYDISPLAY/]: Trying GL version 4.6
+[069月2026 13:16:01.605] [main/INFO] [EARLYDISPLAY/]: Requested GL version 4.6 got version 4.6
+[069月2026 13:16:01.687] [main/INFO] [mixin/]: SpongePowered MIXIN Subsystem Version=0.8.5 Source=union:/D:/JAVA_projects/worldedit-test/libraries/org/spongepowered/mixin/0.8.5/mixin-0.8.5.jar%23150!/ Service=ModLauncher Env=CLIENT
+[069月2026 13:16:01.843] [pool-2-thread-1/INFO] [EARLYDISPLAY/]: GL info: NVIDIA GeForce RTX 5070 Ti/PCIe/SSE2 GL version 4.6.0 NVIDIA 595.97, NVIDIA Corporation
+[069月2026 13:16:01.911] [main/WARN] [net.minecraftforge.fml.loading.moddiscovery.ModFileParser/LOADING]: Mod file D:\JAVA_projects\worldedit-test\libraries\net\minecraftforge\fmlcore\1.20.1-47.4.10\fmlcore-1.20.1-47.4.10.jar is missing mods.toml file
+[069月2026 13:16:01.913] [main/WARN] [net.minecraftforge.fml.loading.moddiscovery.ModFileParser/LOADING]: Mod file D:\JAVA_projects\worldedit-test\libraries\net\minecraftforge\javafmllanguage\1.20.1-47.4.10\javafmllanguage-1.20.1-47.4.10.jar is missing mods.toml file
+[069月2026 13:16:01.916] [main/WARN] [net.minecraftforge.fml.loading.moddiscovery.ModFileParser/LOADING]: Mod file D:\JAVA_projects\worldedit-test\libraries\net\minecraftforge\lowcodelanguage\1.20.1-47.4.10\lowcodelanguage-1.20.1-47.4.10.jar is missing mods.toml file
+[069月2026 13:16:01.918] [main/WARN] [net.minecraftforge.fml.loading.moddiscovery.ModFileParser/LOADING]: Mod file D:\JAVA_projects\worldedit-test\libraries\net\minecraftforge\mclanguage\1.20.1-47.4.10\mclanguage-1.20.1-47.4.10.jar is missing mods.toml file
+[069月2026 13:16:01.988] [main/INFO] [net.minecraftforge.fml.loading.moddiscovery.JarInJarDependencyLocator/]: No dependencies to load found. Skipping!
+[069月2026 13:16:02.669] [main/INFO] [cpw.mods.modlauncher.LaunchServiceHandler/MODLAUNCHER]: Launching target 'forgeclient' with arguments [--version, 1.20.1-Forge_47.4.10, --gameDir, D:\JAVA_projects\worldedit-test\versions\1.20.1-Forge_47.4.10, --assetsDir, D:\JAVA_projects\worldedit-test\assets, --uuid, 902b9056a82a4919b856b519cca859d2, --username, dddgn, --assetIndex, 5, --accessToken, ❄❄❄❄❄❄❄❄, --clientId, ${clientid}, --xuid, ${auth_xuid}, --userType, msa, --versionType, PCL, --width, 854, --height, 480]
+[069月2026 13:16:04.978] [Datafixer Bootstrap/INFO] [com.mojang.datafixers.DataFixerBuilder/]: 188 Datafixer optimizations took 76 milliseconds
+[069月2026 13:16:05.942] [Render thread/WARN] [net.minecraft.server.packs.VanillaPackResourcesBuilder/]: Assets URL 'union:/D:/JAVA_projects/worldedit-test/libraries/net/minecraft/client/1.20.1-20230612.114412/client-1.20.1-20230612.114412-srg.jar%23160!/assets/.mcassetsroot' uses unexpected schema
+[069月2026 13:16:05.942] [Render thread/WARN] [net.minecraft.server.packs.VanillaPackResourcesBuilder/]: Assets URL 'union:/D:/JAVA_projects/worldedit-test/libraries/net/minecraft/client/1.20.1-20230612.114412/client-1.20.1-20230612.114412-srg.jar%23160!/data/.mcassetsroot' uses unexpected schema
+[069月2026 13:16:05.953] [Render thread/INFO] [com.mojang.authlib.yggdrasil.YggdrasilAuthenticationService/]: Environment: authHost='https://authserver.mojang.com', accountsHost='https://api.mojang.com', sessionHost='https://sessionserver.mojang.com', servicesHost='https://api.minecraftservices.com', name='PROD'
+[069月2026 13:16:07.432] [Render thread/INFO] [net.minecraft.client.Minecraft/]: Setting user: dddgn
+[069月2026 13:16:07.474] [Render thread/INFO] [net.minecraft.client.Minecraft/]: Backend library: LWJGL version 3.3.1 build 7
+[069月2026 13:16:07.665] [modloading-worker-0/INFO] [net.minecraftforge.common.ForgeMod/FORGEMOD]: Forge mod loading, version 47.4.10, for MC 1.20.1 with MCP 20230612.114412
+[069月2026 13:16:07.665] [modloading-worker-0/INFO] [net.minecraftforge.common.MinecraftForge/FORGE]: MinecraftForge v47.4.10 Initialized
+[069月2026 13:16:08.300] [Render thread/INFO] [net.minecraft.server.packs.resources.ReloadableResourceManager/]: Reloading ResourceManager: vanilla, mod_resources
+[069月2026 13:16:08.358] [Worker-Main-4/INFO] [net.minecraft.client.gui.font.providers.UnihexProvider/]: Found unifont_all_no_pua-15.0.06.hex, loading
+[069月2026 13:16:08.457] [Forge Version Check/INFO] [net.minecraftforge.fml.VersionChecker/]: [forge] Starting version check at https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json
+[069月2026 13:16:08.744] [Worker-Main-1/INFO] [com.sk89q.worldedit.extension.platform.PlatformManager/]: Got request to register class com.sk89q.worldedit.forge.ForgePlatform with WorldEdit [com.sk89q.worldedit.extension.platform.PlatformManager@4fee4936]
+[069月2026 13:16:08.748] [Worker-Main-1/INFO] [com.sk89q.worldedit.forge.ForgeWorldEdit/]: WorldEdit for Forge (version 7.2.15+6463-5ca4dff) is loaded
+[069月2026 13:16:09.569] [Forge Version Check/INFO] [net.minecraftforge.fml.VersionChecker/]: [forge] Found status: UP_TO_DATE Current: 47.4.10 Target: null
+[069月2026 13:16:09.814] [Render thread/WARN] [net.minecraft.client.sounds.SoundEngine/]: Missing sound for event: minecraft:item.goat_horn.play
+[069月2026 13:16:09.814] [Render thread/WARN] [net.minecraft.client.sounds.SoundEngine/]: Missing sound for event: minecraft:entity.goat.screaming.horn_break
+[069月2026 13:16:09.839] [Render thread/INFO] [com.mojang.blaze3d.audio.Library/]: OpenAL initialized on device OpenAL Soft on 耳机 (Realtek High Definition Audio)
+[069月2026 13:16:09.840] [Render thread/INFO] [net.minecraft.client.sounds.SoundEngine/SOUNDS]: Sound engine started
+[069月2026 13:16:09.891] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 1024x512x4 minecraft:textures/atlas/blocks.png-atlas
+[069月2026 13:16:09.896] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 256x256x4 minecraft:textures/atlas/signs.png-atlas
+[069月2026 13:16:09.896] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 512x512x4 minecraft:textures/atlas/banner_patterns.png-atlas
+[069月2026 13:16:09.896] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 512x512x4 minecraft:textures/atlas/shield_patterns.png-atlas
+[069月2026 13:16:09.897] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 1024x1024x4 minecraft:textures/atlas/armor_trims.png-atlas
+[069月2026 13:16:09.898] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 256x256x4 minecraft:textures/atlas/chest.png-atlas
+[069月2026 13:16:09.898] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 128x64x4 minecraft:textures/atlas/decorated_pot.png-atlas
+[069月2026 13:16:09.899] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 512x256x4 minecraft:textures/atlas/beds.png-atlas
+[069月2026 13:16:09.899] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 512x256x4 minecraft:textures/atlas/shulker_boxes.png-atlas
+[069月2026 13:16:10.028] [Render thread/WARN] [net.minecraft.client.renderer.ShaderInstance/]: Shader rendertype_entity_translucent_emissive could not find sampler named Sampler2 in the specified shader program.
+[069月2026 13:16:10.060] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 256x256x0 minecraft:textures/atlas/particles.png-atlas
+[069月2026 13:16:10.061] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 256x256x0 minecraft:textures/atlas/paintings.png-atlas
+[069月2026 13:16:10.061] [Render thread/INFO] [net.minecraft.client.renderer.texture.TextureAtlas/]: Created: 128x128x0 minecraft:textures/atlas/mob_effects.png-atlas
+[069月2026 13:25:40.833] [Render thread/INFO] [com.sk89q.worldedit.extension.platform.PlatformCommandManager/]: Registering commands with com.sk89q.worldedit.forge.ForgePlatform
+[069月2026 13:25:41.206] [Render thread/INFO] [net.minecraft.world.item.crafting.RecipeManager/]: Loaded 7 recipes
+[069月2026 13:25:41.278] [Render thread/INFO] [net.minecraft.advancements.AdvancementList/]: Loaded 1271 advancements
+[069月2026 13:25:41.522] [Server thread/INFO] [net.minecraft.client.server.IntegratedServer/]: Starting integrated minecraft server version 1.20.1
+[069月2026 13:25:41.522] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Generating keypair
+[069月2026 13:25:41.740] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Preparing start region for dimension minecraft:overworld
+[069月2026 13:25:42.924] [Render thread/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: 准备生成区域中：0%
+[069月2026 13:25:42.924] [Render thread/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: 准备生成区域中：0%
+[069月2026 13:25:42.924] [Render thread/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: 准备生成区域中：0%
+[069月2026 13:25:43.271] [Render thread/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: 准备生成区域中：36%
+[069月2026 13:25:43.483] [Server thread/INFO] [net.minecraftforge.server.permission.PermissionAPI/]: Successfully initialized permission handler forge:default_handler
+[069月2026 13:25:43.488] [Render thread/INFO] [net.minecraft.server.level.progress.LoggerChunkProgressListener/]: Time elapsed: 1728 ms
+[069月2026 13:25:44.119] [Server thread/INFO] [net.minecraft.server.players.PlayerList/]: AliceMovementBot[local] logged in with entity id 15 at (4.699999988079071, 64.0, 20.5)
+[069月2026 13:25:44.145] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: AliceMovementBot加入了游戏
+[069月2026 13:25:44.176] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] 假人已生成(玩家化): name=AliceMovementBot pos=4, 64, 20
+[069月2026 13:25:44.176] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] 已从世界存档恢复假人: name=AliceMovementBot pos=(4, 64, 20)
+[069月2026 13:25:44.177] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] SELFTEST 待命(手动 /alice selftest 触发)
+[069月2026 13:25:44.278] [Server thread/INFO] [net.minecraft.client.server.IntegratedServer/]: Changing view distance to 12, from 10
+[069月2026 13:25:44.282] [Server thread/INFO] [net.minecraft.client.server.IntegratedServer/]: Changing simulation distance to 12, from 0
+[069月2026 13:25:44.337] [Render thread/WARN] [io.netty.util.internal.SystemPropertyUtil/]: Unable to parse the boolean system property 'java.net.preferIPv6Addresses':system - using the default value: false
+[069月2026 13:25:44.670] [Netty Local Client IO #0/INFO] [net.minecraftforge.network.NetworkHooks/]: Connected to a modded server.
+[069月2026 13:25:44.676] [Server thread/INFO] [net.minecraft.server.players.PlayerList/]: dddgn[local:E:b7dcf12c] logged in with entity id 16 at (2.358073115702477, 68.53292827534491, 20.37209801711601)
+[069月2026 13:25:44.698] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: dddgn加入了游戏
+[069月2026 13:25:45.044] [Render thread/INFO] [net.minecraft.advancements.AdvancementList/]: Loaded 19 advancements
+[069月2026 13:25:45.278] [Server thread/INFO] [net.minecraft.client.server.IntegratedServer/]: Saving and pausing game...
+[069月2026 13:25:45.298] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving chunks for level 'ServerLevel[新的世界]'/minecraft:overworld
+[069月2026 13:25:45.661] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving chunks for level 'ServerLevel[新的世界]'/minecraft:the_nether
+[069月2026 13:25:45.666] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving chunks for level 'ServerLevel[新的世界]'/minecraft:the_end
+[069月2026 13:26:02.448] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [dddgn: 已执行函数alice_test:movement_d中的21条命令]
+[069月2026 13:26:02.453] [Render thread/INFO] [net.minecraft.client.gui.components.ChatComponent/]: [System] [CHAT] [Alice Movement场景D] 封闭动态阻挡走廊已生成。普通右键启动 Movement，Bot 行走中途会在 x=5 放置横向石墙；Shift+右键清理。
+[069月2026 13:26:02.460] [Render thread/INFO] [net.minecraft.client.gui.components.ChatComponent/]: [System] [CHAT] 已执行函数alice_test:movement_d中的21条命令
+[069月2026 13:26:08.098] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [dddgn: 已执行函数alice_test:movement_d_reset中的8条命令]
+[069月2026 13:26:08.100] [Render thread/INFO] [net.minecraft.client.gui.components.ChatComponent/]: [System] [CHAT] 已执行函数alice_test:movement_d_reset中的8条命令
+[069月2026 13:26:11.558] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [dddgn: 已执行函数alice_test:movement_d中的21条命令]
+[069月2026 13:26:11.559] [Render thread/INFO] [net.minecraft.client.gui.components.ChatComponent/]: [System] [CHAT] [Alice Movement场景D] 封闭动态阻挡走廊已生成。普通右键启动 Movement，Bot 行走中途会在 x=5 放置横向石墙；Shift+右键清理。
+[069月2026 13:26:11.559] [Render thread/INFO] [net.minecraft.client.gui.components.ChatComponent/]: [System] [CHAT] 已执行函数alice_test:movement_d中的21条命令
+[069月2026 13:26:21.953] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [dddgn: 已执行函数alice_test:movement_d_reset中的8条命令]
+[069月2026 13:26:21.955] [Render thread/INFO] [net.minecraft.client.gui.components.ChatComponent/]: [System] [CHAT] 已执行函数alice_test:movement_d_reset中的8条命令
+[069月2026 13:26:25.820] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: [dddgn: 已执行函数alice_test:movement_d中的21条命令]
+[069月2026 13:26:25.820] [Render thread/INFO] [net.minecraft.client.gui.components.ChatComponent/]: [System] [CHAT] [Alice Movement场景D] 封闭动态阻挡走廊已生成。普通右键启动 Movement，Bot 行走中途会在 x=5 放置横向石墙；Shift+右键清理。
+[069月2026 13:26:25.820] [Render thread/INFO] [net.minecraft.client.gui.components.ChatComponent/]: [System] [CHAT] 已执行函数alice_test:movement_d中的21条命令
+[069月2026 13:26:32.397] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementSceneD] phase=STARTED from=0, 64, 20 goalFoot=10, 64, 20 obstacle=5, 64, 20
+[069月2026 13:26:32.400] [Render thread/INFO] [net.minecraft.client.gui.components.ChatComponent/]: [System] [CHAT] [Movement场景D] 已启动；Bot 行走中途会在中央放置封闭横向动态石墙
+[069月2026 13:26:32.432] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment5] started from=0, 64, 20 to=10, 64, 20 obstacle=5, 64, 20 cost=46.51162790697674
+[069月2026 13:26:32.729] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementSceneD] phase=OBSTACLE_PLACED botFoot=1, 64, 20 botY=64.000 tick=848 wallBlocks=6 obstacle=5, 64, 20
+[069月2026 13:26:34.380] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] Movement 执行: 1/1 type=WalkMovement from=0, 64, 20 to=10, 64, 20 bot=(4.70, 64.00, 20.50)
+[069月2026 13:26:36.379] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] Movement 执行: 1/1 type=WalkMovement from=0, 64, 20 to=10, 64, 20 bot=(4.70, 64.00, 20.50)
+[069月2026 13:26:37.430] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceMovementBot
+[069月2026 13:26:37.430] [Server thread/WARN] [com.dddgn.alice.log.BotLog/]: [alice] Movement 超时: 1/1 type=WalkMovement noProgress=101 cleanup=controller_stop_movement
+[069月2026 13:26:37.431] [Server thread/WARN] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment5] failed goalFoot=10, 64, 20 actualFoot=4, 64, 20 obstacle=5, 64, 20 onGround=true y=64.000 reason=movement_timeout_WalkMovement
+[069月2026 13:26:37.433] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] task_execution_terminal kind=MovementDynamicBlockTask target=方块@10, 64, 20 startTick=841 endTick=942 durationTicks=101 terminal=FAILED code=failed:movement_timeout_WalkMovement pos=4, 64, 20 recovery=idle_after_cleanup recoveryStage=NONE recoveryEvents=[] failureCode=movement_timeout_WalkMovement failurePhase=unknown failureDetails=
+[069月2026 13:26:37.433] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] 任务结束: 作用域内无存活掉落物
+[069月2026 13:26:39.404] [Render thread/INFO] [net.minecraft.client.gui.components.ChatComponent/]: [System] [CHAT] 已将截图保存为2026-09-06_13.26.38.png
+[069月2026 13:26:42.278] [Server thread/INFO] [net.minecraft.client.server.IntegratedServer/]: Saving and pausing game...
+[069月2026 13:26:42.291] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving chunks for level 'ServerLevel[新的世界]'/minecraft:overworld
+[069月2026 13:26:42.297] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving chunks for level 'ServerLevel[新的世界]'/minecraft:the_nether
+[069月2026 13:26:42.298] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving chunks for level 'ServerLevel[新的世界]'/minecraft:the_end
+[069月2026 13:26:42.680] [Server thread/INFO] [net.minecraft.server.network.ServerGamePacketListenerImpl/]: dddgn lost connection: 连接中断
+[069月2026 13:26:42.681] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: dddgn退出了游戏
+[069月2026 13:26:42.694] [Server thread/INFO] [net.minecraft.server.network.ServerGamePacketListenerImpl/]: Stopping singleplayer server as player logged out
+[069月2026 13:26:42.741] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Stopping server
+[069月2026 13:26:42.741] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving players
+[069月2026 13:26:42.741] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving worlds
+[069月2026 13:26:43.002] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving chunks for level 'ServerLevel[新的世界]'/minecraft:overworld
+[069月2026 13:26:43.132] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving chunks for level 'ServerLevel[新的世界]'/minecraft:the_nether
+[069月2026 13:26:43.133] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: Saving chunks for level 'ServerLevel[新的世界]'/minecraft:the_end
+[069月2026 13:26:43.150] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: ThreadedAnvilChunkStorage (新的世界): All chunks are saved
+[069月2026 13:26:43.150] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: ThreadedAnvilChunkStorage (DIM-1): All chunks are saved
+[069月2026 13:26:43.150] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: ThreadedAnvilChunkStorage (DIM1): All chunks are saved
+[069月2026 13:26:43.150] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: ThreadedAnvilChunkStorage: All dimensions are saved
+[069月2026 13:26:43.723] [Render thread/INFO] [net.minecraft.client.Minecraft/]: Stopping!

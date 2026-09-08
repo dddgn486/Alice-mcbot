@@ -1,0 +1,16 @@
+[079月2026 23:07:48.561] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] started session=r2c-descend-8f862e32-4a17-4164-a02b-e1dbcffd901c bot=tango from=-1, 65, 2 to=0, 64, 2 support=true onGround=true
+[079月2026 23:07:48.561] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] EXECUTING phase entered, bot Y=65.0 fromY=65
+[079月2026 23:07:48.853] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] blockPos Y dropped, entering SETTLING
+[079月2026 23:07:49.053] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] completed session=r2c-descend-8f862e32-4a17-4164-a02b-e1dbcffd901c from=-1, 65, 2 to=0, 64, 2 actualFoot=0, 64, 2 support=true onGround=true controllerActive=false ticks=11 reason=-
+[079月2026 23:07:55.303] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] started session=r2c-descend-8f9116da-103d-4482-9b26-c0b23db65197 bot=tango from=-1, 65, 2 to=-1, 64, 1 support=true onGround=true
+[079月2026 23:07:55.303] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] EXECUTING phase entered, bot Y=65.0 fromY=65
+[079月2026 23:07:55.704] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] blockPos Y dropped, entering SETTLING
+[079月2026 23:07:56.751] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] failed session=r2c-descend-8f9116da-103d-4482-9b26-c0b23db65197 from=-1, 65, 2 to=-1, 64, 1 actualFoot=-1, 64, 0 support=true onGround=true controllerActive=false ticks=30 reason=DESCEND_SETTLING_TIMEOUT
+[079月2026 23:08:02.351] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] started session=r2c-descend-261250ed-366b-408a-a555-db8d715eebf1 bot=tango from=-1, 65, 2 to=-1, 64, 3 support=true onGround=true
+[079月2026 23:08:02.352] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] EXECUTING phase entered, bot Y=65.0 fromY=65
+[079月2026 23:08:02.602] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] blockPos Y dropped, entering SETTLING
+[079月2026 23:08:03.653] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] failed session=r2c-descend-261250ed-366b-408a-a555-db8d715eebf1 from=-1, 65, 2 to=-1, 64, 3 actualFoot=-1, 64, 4 support=true onGround=true controllerActive=false ticks=27 reason=DESCEND_SETTLING_TIMEOUT
+[079月2026 23:08:07.902] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] started session=r2c-descend-58d3db33-2e5e-4eb0-a336-5af06d92019c bot=tango from=0, 65, 3 to=-1, 64, 3 support=true onGround=true
+[079月2026 23:08:07.902] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] EXECUTING phase entered, bot Y=65.0 fromY=65
+[079月2026 23:08:08.204] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] blockPos Y dropped, entering SETTLING
+[079月2026 23:08:09.252] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [R2-C Descend] failed session=r2c-descend-58d3db33-2e5e-4eb0-a336-5af06d92019c from=0, 65, 3 to=-1, 64, 3 actualFoot=-2, 65, 3 support=false onGround=true controllerActive=false ticks=28 reason=DESCEND_SETTLING_TIMEOUT

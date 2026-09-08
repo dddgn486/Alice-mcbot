@@ -1,0 +1,12 @@
+[069月2026 12:09:56.214] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment4] plan direction=ASCEND from=-3, -60, 74 to=-5, -59, 79 heightDiff=1 support=去皮丛林木 onGround=true y=-60.000
+[069月2026 12:09:57.463] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceSceneBot
+[069月2026 12:09:57.463] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] Movement 完成: 1/1 type=WalkMovement to=-5, -59, 79
+[069月2026 12:09:57.512] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceSceneBot
+[069月2026 12:09:57.513] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment4] completed direction=ASCEND goalFoot=-5, -59, 79 actualFoot=-5, -59, 79 support=去皮丛林木 onGround=true y=-59.000
+[069月2026 12:09:57.515] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] task_execution_terminal kind=MovementVerticalWalkTask target=方块@-5, -59, 79 startTick=369 endTick=396 durationTicks=27 terminal=COMPLETED code=done pos=-5, -59, 79 recovery=idle_after_cleanup recoveryStage=NONE recoveryEvents=[] failureCode=- failurePhase=- failureDetails=-
+[069月2026 12:10:11.311] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment4] plan direction=ASCEND from=-5, -59, 79 to=-5, -60, 82 heightDiff=-1 support=草方块 onGround=true y=-59.000
+[069月2026 12:10:12.063] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceSceneBot
+[069月2026 12:10:12.063] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] Movement 完成: 1/1 type=WalkMovement to=-5, -60, 82
+[069月2026 12:10:12.116] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] controller_stop_movement bot=AliceSceneBot
+[069月2026 12:10:12.116] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] [MovementExperiment4] completed direction=ASCEND goalFoot=-5, -60, 82 actualFoot=-5, -60, 82 support=草方块 onGround=true y=-60.000
+[069月2026 12:10:12.116] [Server thread/INFO] [com.dddgn.alice.log.BotLog/]: [alice] task_execution_terminal kind=MovementVerticalWalkTask target=方块@-5, -60, 82 startTick=671 endTick=688 durationTicks=17 terminal=COMPLETED code=done pos=-5, -60, 82 recovery=idle_after_cleanup recoveryStage=NONE recoveryEvents=[] failureCode=- failurePhase=- failureDetails=-
