@@ -29,6 +29,14 @@
 
 ---
 
+### **🧪 测试类**（把真人测试压缩到最少操作）
+
+| Skill | 用途 | 何时使用 |
+|-------|------|---------|
+| **alice-scene-based-testing** | 一键场景 + 一键自检电池 + 证据规范 | 新增/修改可观察行为需要真人验证、用户抱怨测试繁琐、设计测试入口/物品/数据包场景时 |
+
+---
+
 ## 🎯 使用指南
 
 ### **开发流程中的 Skills 使用**
@@ -36,10 +44,12 @@
 #### **1. 开发新功能前**
 - 涉及 Forge API → 查阅对应的 `forge-*.skill.md`
 - 客户端-服务端交互 → `minecraft-client-server-sync.skill.md`
+- 要设计测试入口/场景 → `alice-scene-based-testing.skill.md`（零参数 + 一键场景 + 一键自检）
 
 #### **2. 遇到问题时**
 - 同一问题失败 2+ 次 → `debugging-root-cause-analysis.skill.md`（用 5 Whys 分析）
 - 多次失败症状不同 → `failure-pattern-recognition.skill.md`（提取共性）
+- 测试太繁琐/入口要输坐标 → `alice-scene-based-testing.skill.md`
 - 具体技术问题 → 查阅对应的 Forge skill
 
 #### **3. 常见症状速查**
@@ -106,13 +116,14 @@
 
 ## 📊 统计
 
-- **总 Skills 数量**：17 个
+- **总 Skills 数量**：18 个
 - **Forge 技术类**：8 个（含 capability/adapter 边界）
 - **调试类**：2 个
+- **测试类**：1 个（`alice-scene-based-testing`）
 - **Alice 协作/业务契约类**：7 个
 - **累计避免浪费时间**：~60-90 小时（基于历史失败案例估算）
 
 ---
 
-**最后更新**：2026-01-04  
+**最后更新**：2026-09-08  
 **维护者**：Alice 项目团队

@@ -6,7 +6,23 @@
 
 ## 当前目标
 
-**R2-C 已验收归档，Git 已整理提交（7 个提交，工作区干净）**。下一步待用户确认：进入 R3 PathSession（以"Descend 过冲修复"为第 0 号闭环，见 D-023），或转向其他任务。
+**（2026-09-08 用户重申）完全参照 Baritone 搭建寻路内核**，差异仅限三条：① Bot 可回收性安全策略；② 多层任务失败向上传递（任务层 → LLM 决策层处理接口）；③ 未来 Bot 并行运行接口。最终交付**完整寻路系统**，供其他任务系统接入。详见 `docs/ALICE_PATHING_CORE_ARCHITECTURE.md` §1.1 与 §13。
+
+当前进度：
+- R2-C 四个 Movement 已通过客户端验证（Descend 4/4 精确命中；Ascend/Diagonal 各 4/4）；
+- **R3 搜索内核已通过客户端验证**（2026-09-08，一键自检电池 8/8 PASS）：
+  `plan_flat=REACHED(2)`、`plan_up=REACHED(1)`、`plan_budget=SEARCH_LIMIT`（预算≠不可达）、
+  `traverse/diagonal/ascend/descend/chain2` 全 PASS；证据
+  `.alice-supervision/client-tests/pathing-r3-battery-20260908/`；
+- **R4 PathSession 已通过客户端验证**（2026-09-08）：`alice:pathing_session` 跑 `plan→session`，
+  `status=COMPLETED segments=2/2 ticks=21`，分段容差 COLUMN→EXACT 生效；证据
+  `.alice-supervision/client-tests/pathing-r4-session-20260908/`；
+- **头部朝向修复（D-029）**：夹具传送改用带头部同步的 `ServerPlayer.teleportTo(..., Set<RelativeMovement>, yRot, xRot)` 重载；用户确认"现在同步了"。
+- 一键测试基础设施：`/function alice_test:pathing_course`（孤立长方体开阔场景，固定起点）+ `alice:pathing_battery`（8 项自检）+ `alice:pathing_session`（规划→逐段执行）；
+- Baritone 对照审计已完成：`docs/R2C_BARITONE_AUDIT.md`；
+- 已决策：D-024（落差红线 + 楼梯细化）、D-025（台阶 0.6 对齐真人）、D-026（合法位置集 + 统一完成契约）、D-027（分段完成容差）、D-028（R3→R4 顺序）。
+
+下一步：legacy 上升兼容（D-030）已验证通过。待用户指定下一闭环（候选：R5 世界修改 Movement、提交整理 Git、多 Bot 并行接口）。
 
 项目：Minecraft Forge 1.20.1 / Forge 47.4.10 / Java 17  
 开发目录：`/home/fb486/projects/alice`  
@@ -26,6 +42,9 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
 - 普通挖矿和拾取保持 `HARD_PATH`。
 - `SOFT_SURFACE` 只能通过独立实验入口推进，不能悄悄接入正式任务。
 - `SEARCH_LIMIT` 不等于 `UNREACHABLE`，不自动授权挖隧道。
+- **Movement 落差红线（D-024）：Bot 不允许超过一格的落差**；Descend 过冲落点列必须与目标同层落脚，更深一律拒绝。
+- **假人台阶高度 = 0.6，对齐真实玩家（D-025）**；一格方块必须跳跃才能上，`BotPlayer` 构造显式 `setMaxUpStep(0.6F)`，禁止改回 1.0。
+- **Movement 合法位置集与统一完成契约（D-026）**：起点校验接受 `{fromFoot, toFoot}`；完成判定统一用 `MovementHelper.isSettledAtFootPos`（脚位 + 支撑 + onGround + 水平 ≤0.3）。
 - 客户端行为必须由 Windows 真人测试确认；源码分析和服务端日志不能替代。
 
 ## 已验证的核心能力

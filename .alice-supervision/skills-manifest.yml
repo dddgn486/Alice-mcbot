@@ -103,3 +103,11 @@
   scope: methodology
   summary: Break complex features into minimal verifiable increments.
   evidence_sources: [project-local]
+
+- id: alice-scene-based-testing
+  version: 1.0.0
+  status: maintainer-approved
+  owner: alice-supervision
+  scope: methodology
+  summary: Compress client testing into one-click scenes plus one-action self-test batteries with machine-readable summaries.
+  evidence_sources: [project-local, client-test, runtime-logs]

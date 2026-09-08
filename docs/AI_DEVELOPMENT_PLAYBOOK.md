@@ -145,10 +145,11 @@ Skills 是 Alice 的技术记忆层，必须使用；但它们不是工作包审
 
 ### 4.1 当前 Skills 清单与触发条件
 
-当前 `.alice-supervision/skills/` 有 17 个 skill：9 个 Forge/调试基础 skill、3 个 Alice 协作与记忆 skill，以及 5 个 Alice 业务契约 skill，覆盖 Alice 最容易出错的核心领域：
+当前 `.alice-supervision/skills/` 有 18 个 skill：9 个 Forge/调试基础 skill、1 个测试类 skill、3 个 Alice 协作与记忆 skill，以及 5 个 Alice 业务契约 skill，覆盖 Alice 最容易出错的核心领域：
 
 | Skill | 必须读取的触发条件 |
 |---|---|
+| `alice-scene-based-testing` | **设计/修改测试入口、测试物品、数据包场景、自检夹具；用户抱怨测试繁琐；需要把真人测试压缩到最少操作** |
 | `forge-fakeplayer-lifecycle` | 创建、恢复、销毁、可见性、玩家列表、FakePlayer/ServerPlayer、bot tick |
 | `forge-entity-sync-broadcast` | bot/实体客户端不可见、位置回弹、广播、追踪范围、同步包 |
 | `forge-entity-physics-collision` | 移动、跳跃、重力、碰撞、`travel`、`move`、`setPos`、回弹 |
@@ -188,7 +189,7 @@ Skills 是 Alice 的技术记忆层，必须使用；但它们不是工作包审
 
 ### 4.3 Skills 完整性判断
 
-当前 skills 对 Alice 的“核心执行链”覆盖较好：FakePlayer 生命周期、实体同步、物理碰撞、GUI 协议、客户端/服务端、事件和坐标对象陷阱均有专门文档；调试层也有根因分析和失败模式识别；新增的 Alice 协作 skill 覆盖会话记忆、Windows 客户端协作和修复前讨论。
+当前 skills 对 Alice 的“核心执行链”覆盖较好：FakePlayer 生命周期、实体同步、物理碰撞、GUI 协议、客户端/服务端、事件和坐标对象陷阱均有专门文档；调试层也有根因分析和失败模式识别；测试层有 `alice-scene-based-testing`（零参数入口 + 一键场景 + 一键自检 + 证据规范）；新增的 Alice 协作 skill 覆盖会话记忆、Windows 客户端协作和修复前讨论。
 
 但它们**还不算完整的项目知识库**。当前明显缺口是：
 
@@ -258,6 +259,7 @@ AI 开始编码前只做这些动作：
 1. **不要凭空设计** - Baritone 已经解决了大部分 Minecraft 寻路边界情况
 2. **主动搜索 Baritone 源码** - 使用 `web_search` 查找对应的 Movement 类实现
    - 例如：`MovementAscend.java`、`MovementDescend.java`、`MovementDiagonal.java`
+   - **本地参考源码**：`/home/fb486/projects/reference/baritone/` 已克隆（2026-01-09）
 3. **理解 Baritone 的处理方式** - 关注：
    - 如何检测前置条件（支撑、空间、碰撞）
    - 如何驱动 Bot（跳跃、冲刺、方向控制）
@@ -268,6 +270,18 @@ AI 开始编码前只做这些动作：
    - Alice 的独立验证链（不接入 MineTask）
    - Alice 的日志前缀和失败码体系
 5. **记录参考来源** - 在代码注释或设计文档中注明参考的 Baritone 实现
+
+**ServerPlayer 物理调用链（已实证验证，2026-01-09）**:
+
+⚠️ **关键事实**：`ServerPlayer.tick()` **不会自动调用** `aiStep()`。
+
+- **BotPlayer 必须显式调用** `this.aiStep()` 才会执行物理（第 120 行）
+- **调用顺序**：
+  1. `controller.onUpdate()` — 读取 forward/strafe/jump，写入 bot.zza/bot.xxa
+  2. `super.tick()` — ServerPlayer 的原版 tick（不含物理计算）
+  3. `this.aiStep()` — **必须显式调用**，内部调用 `travel()` 执行物理
+- **不要删除或注释 `this.aiStep()` 调用** — bot 会完全动不了（实测确认）
+- **不要猜测调用链** — ServerPlayer 的继承链与 LivingEntity 不同，必须显式驱动物理
 
 **示例**：
 ```java
@@ -328,6 +342,59 @@ com.dddgn.alice.log.BotLog.info("[R2-C Descend] tick={} botY={} fromY={} check={
 BotLog.info("[R2-C Descend] completed session={} from={} to={} actualFoot={} ticks={}",
     sessionId, fromFoot, toFoot, bot.blockPosition(), executionTicks);
 ```
+
+**物理场景判定规则（强制主动询问）**：
+
+当关键证据需要分辨具体物理场景、而日志无法完整还原客户端物理效果时，**必须主动向用户询问**，不得凭日志或代码推断直接下结论。
+
+出现下列任一情形即视为"必须询问"：
+
+1. **动作/视觉类事实**：bot 是否跳跃、是否贴墙滑动、是否卡在方块边缘、是否抖动或回弹、是否踩上半砖/台阶、是否出现紫黑贴图或橡皮筋；
+2. **客户端与服务端不一致**：服务端日志显示已到位，但玩家看到偏移、穿模、悬空或位置不符；
+3. **地形与方块状态**：具体方块类型、半砖朝向、流体、蜘蛛网、模组方块行为；
+4. **复现条件**：是否可复现、偶发还是必现、是否需要特定朝向/速度/前序动作；
+5. **日志盲区**：探针未覆盖的关键分支，或日志被截断/轮转导致证据链断裂。
+
+询问时至少覆盖：用了什么测试入口（游戏内物品/命令 + 具体按键）、预期与实际的差异、复现频率、有无截图或短视频、能否提供 `latest.log` / `debug.log` 片段。得到回答后先复述事实、区分事实与推测，再讨论根因。
+
+**禁止**：用"日志里看起来是…""按代码应该会…"替代用户观察来宣称客户端物理行为已验证。
+
+**测试入口设计规则（零参数优先）**：
+
+> 动手设计测试入口前**必读 skill `alice-scene-based-testing`**（含一键场景模板、夹具契约、反模式清单和完成前自检）。
+> 本节是该 skill 的项目侧摘要；冲突时以 skill 为准并同步修订。
+
+新功能的测试入口必须让真人**几乎不用输入**，且**禁止要求用户输入坐标或长参数串**：
+
+1. 首选：**游戏内交互物品**（右键 / Shift+右键），例如 `alice:pathing_planner`（右键方块即规划）；
+2. 次选：**一条无坐标的简单命令**，例如 `/alice pathing plan-here`、`/alice pathing chain east 3`（只允许单词方向、小整数这类参数）；
+3. 禁止：要求用户计算坐标、记忆长参数串、或手动构造复杂命令；
+4. 每个测试入口都必须能在 `docs/TESTING_GUIDE.md` 里用"拿什么物品/打什么命令 + 看什么"三句话写清；
+5. 需要视觉判断的结论（是否跳跃、是否回冲、是否卡边缘）必须在测试指南里标为"需要真人确认"，并在测试后主动询问。
+
+**测试夹具设计原则（一次动作覆盖全部信息）**：
+
+从 2026-09-08 的实践总结，后续新功能的测试夹具按以下模式做：
+
+1. **一键场景**：需要特定地形的测试，必须提供数据包函数（`/function alice_test:<scene>`）一键生成，
+   禁止让用户手搭地形。场景函数自包含：`reset` → 建造 → `tp @s` → `give` → `tellraw` 说明。
+   参考 `tools/test-scenes/alice_test/data/alice_test/functions/pathing_course.mcfunction`。
+2. **场景必须孤立**（用户 2026-09-08 设定）：测试场景必须定义为一个**长方体区域**，该区域边界外
+   至少一圈（含上方与下方）为**空气**，不得与其他场景或自然地形相连。**不要求封闭房间，
+   开阔场景即可**；只有在需要防止 bot 走出/掉落时才加围墙或区域底部隔离地板。
+   `reset` 函数必须先把外扩区域整体清空为空气，再建造内部结构。
+   判定标准：站在场景内任意位置，四周/上方/下方一圈都不存在非本场景方块。
+3. **一键测试**：多个检查项合并为一个自检任务，**一次物品右键跑完**，末尾输出一行
+   `SUMMARY key=VALUE key=VALUE ...`，便于 AI 直接读日志判读。
+   参考 `PathingBatteryTask`（规划检查 + 全部 Movement + 链）。
+4. **各项独立**：每个子项开始前把 bot 复位到统一起点（日志 `reset_to_hub`），避免测试顺序耦合；
+   缺地形的项记 `SKIP`，不算失败。
+5. **候选同源**：夹具检测"可测什么"时必须复用规划器的 `MovementProvider`，保证
+   "可规划即可执行"，避免夹具与内核判定分叉。
+6. **场景入库**：数据包与夹具源码必须进仓库（`tools/test-scenes/`），保证可复现，
+   不依赖客户端世界里的临时文件。
+7. **最小信息量**：能合并的检查项就合并；测试文档按"两次操作"组织（建场景 + 跑自检），
+   细查入口降级为附录。
 
 **清理检查清单**:
 - [ ] 问题根因已确认？

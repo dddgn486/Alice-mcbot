@@ -21,6 +21,25 @@ Baritone 级路径计算与 Movement 执行内核
 
 不以性能或 Movement 数量超过 Baritone 为目标；目标是比直接依赖 Baritone 更好地表达 Alice 的 Bot 生命周期、任务包、行为包、可回收性和失败事实。
 
+### 1.1 目标重申（2026-09-08，用户声明）
+
+当前目标由用户明确重申，作为后续所有 Pathing 工作的判据：
+
+```text
+完全参照 Baritone 搭建寻路内核
++ 差异性要求 1：Bot 可回收性安全策略
++ 差异性要求 2：多层任务失败向上传递（任务层 → LLM 决策层处理接口）
++ 差异性要求 3：未来 Bot 并行运行接口
+= 完整寻路系统，供其他任务系统接入使用
+```
+
+解释与约束：
+
+- **"完全参照 Baritone"** 指搜索内核、Movement 类型语义、执行会话、动态路径检查、成本/启发式模型、失败分类等**以 Baritone 为蓝本**；不得再自行发明简化的替代方案（例如零启发式 Dijkstra、`List<BlockPos>` 规范输出、把全部语义堆在单一 `WalkMovement`）。
+- **差异只允许出现在三条声明内**：① 可回收性安全策略；② 失败事实向上传递到任务层与 LLM 决策层；③ 多 Bot 并行接口预留。除此之外的偏离必须显式记录为决策（`AI_DECISIONS.md`）并说明理由，不得静默存在。
+- **参照不等于照搬数值**：Baritone 运行在客户端玩家（`LocalPlayer`），Alice 运行在服务端假人（`ServerPlayer`），控制回路相位、台阶物理、速度档位均不同（见 §13）。Baritone 的常数与门控必须重新推导后再使用。
+- **接入关系**：Pathing Core 是供任务系统调用的**服务**，不拥有领域目标；`MineTask` 等通过 `PathRequest` / `PathSession` 接入，任务所有权与领域成功条件仍在任务层。
+
 ## 2. 不可混淆的职责层
 
 ```text
@@ -385,3 +404,37 @@ Baritone-like Pathing Core
 ```
 
 当前停止具体寻路代码扩展，下一步只设计 R1 的数据契约与接口草案。生产 MineTask、A/B/C 和旧执行器保持不变。
+
+## 13. 现状、已知偏差与待办（2026-09-08 更新）
+
+### 13.1 已完成
+
+- R2-C 四个 Movement（Traverse / Diagonal / Ascend / Descend）已通过客户端验证；Descend 修复后 **4/4 精确命中目标脚位**，Ascend/Diagonal 各 4/4，多段链 `/alice pathing chain` 在标准楼梯上**逐级通过**。
+- Baritone 对照审计完成：`docs/R2C_BARITONE_AUDIT.md`（A 7 / B 20 / C 5 项分类）。
+
+### 13.2 与 Baritone 的三处结构性偏差（必须在本内核内解决，不得绕过）
+
+| 偏差 | 事实 | 对策 |
+|---|---|---|
+| 台阶物理 | `ServerPlayer` 默认 `maxUpStep=1.0`，真实玩家 `0.6` | 已决策 D-025：假人显式 `0.6`，上升必须跳跃 |
+| 控制回路相位 | Baritone 在玩家 tick **前**施加输入；Alice 在 `ServerTickEvent.Phase.END`（物理**后**），输入延迟 1 tick ≈ 0.2 格 ≈ Baritone 0.25 窗口的 80% | 停止线必须按"预判滑行距离"计算，不能照搬 0.25/0.5；见 §13.3 |
+| 完成判定 | Baritone = 脚位方块相等 + Y 稳定（`MovementDescend:235`），**不含水平距离**；Alice 统一契约要求水平 ≤0.3（D-026） | 引入分段完成容差策略，见 §13.3 |
+
+### 13.3 链式下降"回冲"问题（用户 2026-09-08 反馈）
+
+- **现象**：连续下楼梯时，bot 每下一级会先朝目标中心**回冲一下**，再进入下一级。整体通过，但效率低且观感奇怪。
+- **根因**：落点 `ab≈0.06→0.35` 漂移后超过 D-026 的 0.3 容差 → 控制循环进入"回头朝 dest 重新瞄准"分支（`DescendExecution` 的 `ab > 0.25` 分支）→ 产生可见倒退。Baritone 不会出现该动作，因为它在 `feet == dest` 且 Y 稳定时**直接判成功**，不做水平微调。
+- **设计对策（待实施）**：把完成容差从"全局 0.3"改为**分段策略**：
+  - 中间段（后面还有下一段）：脚位方块正确 + 落地即可完成（对齐 Baritone），不再水平微调；
+  - 最终段 / 安全关键站位（挖矿站位、悬空边缘、需要稳定站位处）：保持 0.3 居中；
+  - 由 `PathSession`/任务在 `PathRequest` 中指定容差等级，执行器不得自行决定。
+- **附带收益**：消除每级回冲可显著降低链式下降的 tick 消耗，并让 `chain` 的观感接近真人下楼梯。
+
+### 13.4 待办清单（按依赖顺序）
+
+1. **R3 搜索内核**：Movement-aware A* + `PathPlan`（规范输出，`List<BlockPos>` 仅作兼容投影）。
+2. **R4 PathSession**：多段执行、周期健康检查、世界版本校验、取消/超时、分段完成容差（§13.3）。
+3. **失败向上传递**：按 `TASK_OUTCOME_CONTRACT.md` 把 `PATH_BLOCKED`/`PATH_STALE`/`SEARCH_LIMIT`/`UNREACHABLE` 等事实结构化上报，任务层与 LLM 决策层据此决定重试/改策略/放弃。
+4. **多 Bot 并行**：按 `MULTI_BOT_INTERFACE_RESERVATION.md` 保证每个 `PathSession` 只属于单个 bot 与任务实例，无全局目标状态。
+5. **legacy 兼容（延后）**：`maxUpStep=0.6` 后 `FollowTask`/`PathExecutor` 的上升会卡住，需在其内部补条件跳跃；用户已明确**当前阶段不动 legacy**。
+
