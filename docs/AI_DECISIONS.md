@@ -1013,7 +1013,7 @@
 
 ## D-063：Place 迁移到新内核（放置走统一路径）
 
-- 状态：已实施，待客户端验证（用户 2026-09-09 迁移顺序第三项）
+- 状态：**已验收**（2026-09-09 客户端：4 次 `PlaceTask` 全 `COMPLETED`，`walk_to_stand` → `completed`，目标格实际放置，11–32 tick）
 - 依据：D-045 迁移顺序 `PlaceTask`。
 - 改动：
   1. 站位寻路：legacy `AStarPathfinder` + `PathExecutor` → `CorePathPlanner` + `PathRetryRunner`
