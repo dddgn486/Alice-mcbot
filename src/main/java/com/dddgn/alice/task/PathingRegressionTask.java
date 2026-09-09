@@ -39,24 +39,37 @@ public final class PathingRegressionTask implements Task {
     }
 
     private record SceneCheck(String scene, BlockPos start, BlockPos goal,
-                              boolean worldModification, Kind kind) {
+                              boolean worldModification, Kind kind,
+                              int wallTick, int disturbTick, int disturbDx, int disturbDz,
+                              int minReplans) {
     }
 
+    private static SceneCheck execute(String scene, BlockPos start, BlockPos goal, boolean worldMod) {
+        return new SceneCheck(scene, start, goal, worldMod, Kind.EXECUTE_COMPLETE, 0, 0, 0, 0, 0);
+    }
+
+    private static SceneCheck refused(String scene, BlockPos start, BlockPos goal, boolean worldMod) {
+        return new SceneCheck(scene, start, goal, worldMod, Kind.PLAN_REFUSED, 0, 0, 0, 0, 0);
+    }
+
+    /** 串联回归场景表：一次右键覆盖全部必要复测项（D-054）。 */
     private static final List<SceneCheck> SCENES = List.of(
-            new SceneCheck("pathing_course", new BlockPos(0, 64, 46), new BlockPos(0, 62, 44),
-                    false, Kind.EXECUTE_COMPLETE),
-            new SceneCheck("place_course", new BlockPos(0, 64, 66), new BlockPos(8, 62, 66),
-                    true, Kind.EXECUTE_COMPLETE),
-            new SceneCheck("break_course", new BlockPos(0, 64, 66), new BlockPos(7, 64, 66),
-                    true, Kind.EXECUTE_COMPLETE),
-            new SceneCheck("fluid_course", new BlockPos(0, 64, 66), new BlockPos(4, 64, 66),
-                    true, Kind.PLAN_REFUSED),
-            new SceneCheck("lava_course", new BlockPos(0, 64, 66), new BlockPos(4, 64, 66),
-                    true, Kind.PLAN_REFUSED),
+            execute("pathing_course", new BlockPos(0, 64, 46), new BlockPos(0, 62, 44), false),
+            execute("place_course", new BlockPos(0, 64, 66), new BlockPos(8, 62, 66), true),
+            execute("break_course", new BlockPos(0, 64, 66), new BlockPos(7, 64, 66), true),
+            execute("vertical_course", new BlockPos(0, 64, 45), new BlockPos(0, 63, 45), true),
+            execute("trace_course", new BlockPos(0, 64, 40), new BlockPos(0, 64, 51), false),
+            refused("fluid_course", new BlockPos(0, 64, 66), new BlockPos(4, 64, 66), true),
+            refused("lava_course", new BlockPos(0, 64, 66), new BlockPos(4, 64, 66), true),
+            refused("fence_course", new BlockPos(0, 64, 48), new BlockPos(0, 64, 44), false),
             new SceneCheck("dip_course", new BlockPos(0, 64, 66), new BlockPos(-1, 64, 63),
-                    false, Kind.PLAN_FIRST_TRAVERSE),
-            new SceneCheck("fence_course", new BlockPos(0, 64, 48), new BlockPos(0, 64, 44),
-                    false, Kind.PLAN_REFUSED));
+                    false, Kind.PLAN_FIRST_TRAVERSE, 0, 0, 0, 0, 0),
+            // 世界变化 → 任务层重规划（计划前方封路，要求至少 1 次 replan）
+            new SceneCheck("place_course+wall", new BlockPos(0, 64, 66), new BlockPos(8, 62, 66),
+                    true, Kind.EXECUTE_COMPLETE, 30, 0, 0, 0, 1),
+            // 位置漂移 → 段内重同步 / 重规划
+            new SceneCheck("place_course+disturb", new BlockPos(0, 64, 66), new BlockPos(8, 62, 66),
+                    true, Kind.EXECUTE_COMPLETE, 0, 30, 0, 1, 0));
 
     /** 任务级安全上限：7 个场景（3 个执行 + 4 个只规划）正常约 400 tick。 */
     private static final int MAX_TASK_TICKS = 2400;
@@ -68,6 +81,8 @@ public final class PathingRegressionTask implements Task {
     private int index;
     private int ticks;
     private boolean prepared;
+    private boolean walled;
+    private boolean disturbed;
     private PathRetryRunner runner;
     private String failure = "";
 
@@ -104,13 +119,16 @@ public final class PathingRegressionTask implements Task {
                     "regression-" + scene.scene());
             return Status.RUNNING;
         }
+        tickFixtures(scene);
         PathRetryRunner.State state = runner.tick();
         if (state == PathRetryRunner.State.RUNNING) {
             return Status.RUNNING;
         }
         var result = runner.result();
-        record(scene, state == PathRetryRunner.State.DONE,
-                result.status() + (runner.replans() > 0 ? "/replans=" + runner.replans() : ""));
+        boolean pass = state == PathRetryRunner.State.DONE && runner.replans() >= scene.minReplans();
+        record(scene, pass, result.status()
+                + (runner.replans() > 0 ? "/replans=" + runner.replans() : "")
+                + (scene.minReplans() > 0 ? "/minReplans=" + scene.minReplans() : ""));
         runner = null;
         advance();
         return index >= SCENES.size() ? finish() : Status.RUNNING;
@@ -134,14 +152,18 @@ public final class PathingRegressionTask implements Task {
     private void prepare(SceneCheck scene) {
         var server = bot.serverLevel().getServer();
         var source = server.createCommandSourceStack().withSuppressedOutput();
+        // 场景标签允许带后缀（如 place_course+wall），地形函数取 '+' 之前的部分
+        String terrain = scene.scene().split("\\+")[0];
         server.getCommands().performPrefixedCommand(source,
-                "function alice_test:" + scene.scene() + "_terrain");
+                "function alice_test:" + terrain + "_terrain");
         bot.teleportTo(bot.serverLevel(), scene.start().getX() + 0.5D, scene.start().getY(),
                 scene.start().getZ() + 0.5D, Set.of(), bot.getYRot(), bot.getXRot());
         bot.setDeltaMovement(Vec3.ZERO);
         bot.controller().stopMovement();
         ensureCobblestone(bot, 8);
         ensureStonePickaxe(bot);
+        walled = false;
+        disturbed = false;
         BotLog.info("[Regression] scene={} start={} goal={} expect={} worldMod={}",
                 scene.scene(), scene.start().toShortString(), scene.goal().toShortString(),
                 scene.kind(), scene.worldModification());
@@ -152,6 +174,44 @@ public final class PathingRegressionTask implements Task {
         return scene.worldModification()
                 ? PathRequest.withWorldModification(botId, scene.start(), scene.goal())
                 : PathRequest.of(botId, scene.start(), scene.goal());
+    }
+
+    /** 场景夹具：计划前方封路 / 位置漂移（与 alice:pathing_waller / pathing_disturber 等价）。 */
+    private void tickFixtures(SceneCheck scene) {
+        if (runner == null || runner.session() == null) {
+            return;
+        }
+        if (scene.wallTick() > 0 && !walled && ticks >= scene.wallTick()) {
+            List<BlockPos> path = runner.session().projectedFootPath();
+            int position = path.indexOf(bot.blockPosition());
+            int target = position >= 0 ? position + 2 : -1;
+            if (target > 0 && target < path.size()) {
+                BlockPos wall = path.get(target);
+                if (bot.serverLevel().getBlockState(wall).isAir()) {
+                    bot.serverLevel().setBlock(wall,
+                            net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(), 3);
+                    walled = true;
+                    BotLog.info("[Regression] wall_placed scene={} at={} tick={}",
+                            scene.scene(), wall.toShortString(), ticks);
+                }
+            }
+        }
+        if (scene.disturbTick() > 0 && !disturbed && ticks >= scene.disturbTick()) {
+            BlockPos from = bot.blockPosition();
+            BlockPos to = from.offset(scene.disturbDx(), 0, scene.disturbDz());
+            if (com.dddgn.alice.pathing.MovementHelper.canWalkOn(bot.serverLevel(), to)
+                    && com.dddgn.alice.pathing.MovementHelper.canWalkThrough(bot.serverLevel(), to)
+                    && com.dddgn.alice.pathing.MovementHelper.canWalkThrough(bot.serverLevel(), to.above())) {
+                disturbed = true;
+                bot.teleportTo(bot.serverLevel(), to.getX() + 0.5D, to.getY(), to.getZ() + 0.5D,
+                        Set.of(), bot.getYRot(), bot.getXRot());
+                bot.setDeltaMovement(Vec3.ZERO);
+                BotLog.info("[Regression] disturbed scene={} from={} to={} tick={}",
+                        scene.scene(), from.toShortString(), to.toShortString(), ticks);
+            } else if (ticks >= scene.disturbTick() + 40) {
+                disturbed = true;
+            }
+        }
     }
 
     private void runPlanCheck(SceneCheck scene) {

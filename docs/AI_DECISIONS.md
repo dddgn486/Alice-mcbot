@@ -769,3 +769,27 @@
 - 验收：`trace_course` 直线跑的速度曲线**不再每格归零**，且总 tick 明显下降；
   回归（battery 8/8、regression 7/7、vertical、placer/breaker/disturber/waller）不得退化。
 
+## D-053：疾跑门控（对照 Baritone shouldSprintNextTick，忽略饱食度）
+
+- 状态：已实施，待客户端验证（用户 2026-09-09："加入同样的疾跑方案，不需要考虑饱食度成本"）
+- 依据：D-051 实测——Alice 直线跑 0.216 格/tick（走路），Baritone 0.281（疾跑），差距 1.3×。
+- 实现（`PathSession.shouldSprint()`，每 tick 应用）：
+  1. 只在**平地 TRAVERSE / DIAGONAL** 段疾跑；
+  2. bot 必须在地面、不在水中、未潜行；
+  3. **前方 2 段内出现 DESCEND / DOWNWARD / ASCEND / PLACE_STEP / BREAK 时提前收力**
+     （对照 Baritone `MovementDescend.safeMode`：疾跑冲下台阶会过冲）；
+  4. **忽略饱食度**（用户裁定影响可忽略；Baritone 的 `foodLevel > 6` 条件不移植）。
+- 未移植：Baritone 的 traverse→ascend 跳过、descend→ascend 同向跳过、fall 覆写、frost walker 分支
+  （依赖 FALL/PARKOUR，等那些 Movement 补齐后再评估）。
+
+## D-054：串联回归覆盖全部必要复测项
+
+- 状态：已实施（用户 2026-09-09："重新整理必要复测场景，适当串联"）
+- `alice:pathing_regression` 现在一次右键跑 **11 项**：
+  `pathing_course` / `place_course` / `break_course` / `vertical_course`（DOWNWARD）/ `trace_course`（11 格直线跑）
+  + `fluid_course` / `lava_course` / `fence_course`（拒绝行为）+ `dip_course`（路线偏好）
+  + `place_course+wall`（世界变化 → 任务层重规划，断言 `replans ≥ 1`）
+  + `place_course+disturb`（位置漂移 → 重同步/重规划）。
+- 夹具内联：封路与漂移逻辑从 `PathSessionDiagnosticTask` 复制到回归任务（按场景参数化），
+  单场景物品（`pathing_waller` / `pathing_disturber` 等）保留用于定向排查。
+

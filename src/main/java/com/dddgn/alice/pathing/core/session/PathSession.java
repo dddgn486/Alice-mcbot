@@ -6,6 +6,7 @@ import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.CompletionTolerance;
 import com.dddgn.alice.pathing.core.LiveExecutionContext;
 import com.dddgn.alice.pathing.core.MovementExecution;
+import com.dddgn.alice.pathing.core.MovementType;
 import com.dddgn.alice.pathing.core.MovementExecutionFactory;
 import com.dddgn.alice.pathing.core.MovementSpec;
 import com.dddgn.alice.pathing.core.search.PathPlan;
@@ -151,6 +152,9 @@ public final class PathSession {
             }
         }
 
+        // 疾跑门控（对照 Baritone PathExecutor:238-241 + shouldSprintNextTick:345-495；忽略饱食度，D-053）
+        bot.setSprinting(shouldSprint());
+
         execution.tick();
         switch (execution.phase()) {
             case SUCCEEDED -> {
@@ -237,6 +241,38 @@ public final class PathSession {
                 sessionId, index, movements.size(), movement.movementType(),
                 movement.fromFoot().toShortString(), movement.toFoot().toShortString(), tolerance,
                 bot.blockPosition().toShortString());
+    }
+
+    /**
+     * 疾跑门控（D-053，对照 Baritone `shouldSprintNextTick` 的必要部分）。
+     *
+     * <p>只在**平地直线/对角**段疾跑；且：
+     * <ul>
+     *   <li>bot 必须在地面、不在水中、没有潜行；</li>
+     *   <li>前方 2 段内出现 DESCEND / DOWNWARD / ASCEND / PLACE_STEP / BREAK 时**提前收力**
+     *       （Baritone 的 descend safeMode 同理：疾跑冲下台阶会过冲）。</li>
+     * </ul>
+     * 忽略饱食度（用户 2026-09-09：影响可忽略）。
+     */
+    private boolean shouldSprint() {
+        MovementType type = movements.get(index).movementType();
+        if (type != MovementType.TRAVERSE && type != MovementType.DIAGONAL) {
+            return false;
+        }
+        if (!bot.onGround() || bot.isInWater() || bot.isShiftKeyDown()) {
+            return false;
+        }
+        int lookahead = Math.min(movements.size() - 1, index + 2);
+        for (int i = index + 1; i <= lookahead; i++) {
+            MovementType next = movements.get(i).movementType();
+            if (next == MovementType.DESCEND || next == MovementType.DOWNWARD
+                    || next == MovementType.ASCEND
+                    || next == MovementType.PLACE_STEP_AND_TRAVERSE
+                    || next == MovementType.BREAK_AND_TRAVERSE) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
