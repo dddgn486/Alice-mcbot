@@ -495,3 +495,26 @@
    但该检查原本用于验证"预算耗尽 ≠ 不可达"的 SEARCH_LIMIT 路径。已把预算收紧到 32 节点，
    使其重新触发 SEARCH_LIMIT。
 
+## D-041：站立判定混合化（canWalkOn）+ Ascend 防御性前置检查
+
+- 状态：已实施，待客户端验证（用户 2026-09-09 选定 A+B 捆绑）
+- **A 站立判定**（`MovementHelper.canWalkOn`）：旧实现"碰撞非空即可站"会把栅栏/墙/铁栏杆/门/蜂蜜块
+  当作支撑面。改为混合判定（对照 Baritone `canWalkOnBlockState:387-426` + `isBlockNormalCube:755-771`）：
+  1. 整格碰撞形状（`Block.isShapeFullBlock`）→ 可站（含模组整格方块），**蜂蜜块除外**（Baritone:389）；
+  2. 否则按"已知有碰撞但不能站"的薄/半高面排除：栅栏 / 栅栏门 / 墙 / 铁栏杆与玻璃板 / 门 / 蜂蜜块 /
+     滴水石 / 紫水晶簇 / 末地棒 / 避雷针 / 可可 / 花盆；
+  3. 其余（台阶/半砖/箱子/模组半格方块）**保持可站** —— 这是 Alice 对模组方块的兼容选择，
+     与 Baritone 的严格白名单不同，**已登记为差异**。
+  - 活板门**不排除**（关闭的活板门是真实可站地面），同样登记为差异。
+- **B Ascend 前置**（`AscendExecutionFactory`，对照 Baritone `MovementAscend`）：
+  1. 源头上方 3 格为 `FallingBlock` 且上方 1 格可穿过 → `ASCEND_FALLING_BLOCK_ABOVE`（:96-108，防窒息）；
+  2. 脚下为可攀爬方块（梯子/藤蔓/缠怨藤/垂泪藤，`isClimbable` 对照 Baritone:573-580）→ `ASCEND_FROM_CLIMBABLE`（:115-117）。
+  - 未采用：Baritone 的"头顶净空即提前起跳"分支（`:219-221`）——Alice 段间无动量，提前起跳会浪费跳跃；
+    改为运行期**守卫**（头顶被挡则不起跳，避免撞天花板空跳）。
+  - 未移植：bottom-slab 起跳规则（`MovementAscend:119-131`）——Alice 脚位是方块对齐模型，
+    半砖起跳需先解决脚位表示，另行立项。
+- 验收夹具（零参数）：`alice_test:fence_course` + `alice:pathing_fence_guard`
+  （期望 `UNREACHABLE`；修复前为 `REACHED`，规划器会尝试跨栏）。
+  B 的两项前置检查是**防御性**的（浮空沙会下落、梯子上无法稳定站位），无法构造稳定客户端场景，
+  以代码 + 静态推理验证，见 D-041 说明。
+

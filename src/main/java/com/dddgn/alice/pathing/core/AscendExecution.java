@@ -119,6 +119,12 @@ public final class AscendExecution implements MovementExecution {
     private boolean preconditionsHold() {
         BlockPos from = spec.fromFoot();
         BlockPos to = spec.toFoot();
+        // 运行期守卫（对照 Baritone headBonkClear:233-243 的净空判定）：
+        // 头顶被挡时不起跳，避免"跳起来撞天花板"的空跳循环。
+        // 注：不采用 Baritone 的"净空即起跳"提前分支——Alice 段间无动量，提前起跳会浪费跳跃（D-041）。
+        if (!MovementHelper.canWalkThrough(bot.serverLevel(), from.above(2))) {
+            return false;
+        }
         
         // 验证几何约束
         int dx = to.getX() - from.getX();

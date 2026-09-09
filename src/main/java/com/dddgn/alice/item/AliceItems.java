@@ -89,6 +89,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> PATHING_DIP_ROUTE =
             ITEMS.register("pathing_dip_route", () -> new PathingDipRouteItem(new Item.Properties()));
 
+    /** 内核对齐验证：站立判定检查器（栅栏不可站，场景专属）。 */
+    public static final RegistryObject<Item> PATHING_FENCE_GUARD =
+            ITEMS.register("pathing_fence_guard", () -> new PathingFenceGuardItem(new Item.Properties()));
+
 
     private AliceItems() {
     }

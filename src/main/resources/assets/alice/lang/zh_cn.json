@@ -18,5 +18,6 @@
   "item.alice.pathing_placer": "寻路放置器",
   "item.alice.pathing_disturber": "自愈扰动器",
   "item.alice.pathing_fluid_guard": "流体屏障检查器",
-  "item.alice.pathing_dip_route": "路线偏好检查器"
+  "item.alice.pathing_dip_route": "路线偏好检查器",
+  "item.alice.pathing_fence_guard": "站立判定检查器"
 }

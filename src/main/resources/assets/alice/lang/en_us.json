@@ -18,5 +18,6 @@
   "item.alice.pathing_placer": "Pathing Placer",
   "item.alice.pathing_disturber": "Self-Heal Disturber",
   "item.alice.pathing_fluid_guard": "Fluid Barrier Guard",
-  "item.alice.pathing_dip_route": "Route Preference Checker"
+  "item.alice.pathing_dip_route": "Route Preference Checker",
+  "item.alice.pathing_fence_guard": "Standability Checker"
 }

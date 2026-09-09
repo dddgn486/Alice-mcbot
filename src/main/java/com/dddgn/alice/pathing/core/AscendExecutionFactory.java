@@ -1,6 +1,8 @@
 package com.dddgn.alice.pathing.core;
 
 import com.dddgn.alice.pathing.MovementHelper;
+import net.minecraft.world.level.block.FallingBlock;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.core.BlockPos;
 
 /** R2-C Ascend 的执行工厂；只接受一级上升 MovementSpec。 */
@@ -53,7 +55,21 @@ public final class AscendExecutionFactory implements MovementExecutionFactory {
         if (!MovementHelper.canWalkThrough(context.level(), from.above(2))) {
             return ValidationResult.invalid("ASCEND_NO_HEADROOM");
         }
-        
+
+        // 对照 Baritone MovementAscend:96-108：源头上方 3 格的 FallingBlock 会砸到 bot（可能窒息）
+        BlockState srcUp2 = context.level().getBlockState(from.above(2));
+        BlockState srcUp3 = context.level().getBlockState(from.above(3));
+        if (srcUp3.getBlock() instanceof FallingBlock
+                && (MovementHelper.canWalkThrough(context.level(), from.above(1))
+                    || !(srcUp2.getBlock() instanceof FallingBlock))) {
+            return ValidationResult.invalid("ASCEND_FALLING_BLOCK_ABOVE");
+        }
+
+        // 对照 Baritone MovementAscend:115-117：站在可攀爬方块上无法起跳
+        if (MovementHelper.isClimbable(context.level().getBlockState(from.below()))) {
+            return ValidationResult.invalid("ASCEND_FROM_CLIMBABLE");
+        }
+
         return ValidationResult.accepted();
     }
 

@@ -2,8 +2,25 @@ package com.dddgn.alice.pathing;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.AmethystClusterBlock;
 import net.minecraft.world.level.block.BaseFireBlock;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.CocoaBlock;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.EndRodBlock;
+import net.minecraft.world.level.block.FenceBlock;
+import net.minecraft.world.level.block.FenceGateBlock;
+import net.minecraft.world.level.block.FlowerPotBlock;
+import net.minecraft.world.level.block.HoneyBlock;
+import net.minecraft.world.level.block.IronBarsBlock;
+import net.minecraft.world.level.block.LadderBlock;
+import net.minecraft.world.level.block.LightningRodBlock;
+import net.minecraft.world.level.block.PointedDripstoneBlock;
+import net.minecraft.world.level.block.TwistingVinesBlock;
+import net.minecraft.world.level.block.VineBlock;
+import net.minecraft.world.level.block.WallBlock;
+import net.minecraft.world.level.block.WeepingVinesBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 
@@ -15,23 +32,77 @@ public final class MovementHelper {
     private MovementHelper() {
     }
 
-    /** 该脚位能否站立:下方方块实心可站且非危险。 */
+    /**
+     * 该脚位能否站立（混合判定，D-041）。
+     *
+     * <p>对照 Baritone {@code canWalkOnBlockState:387-426}（整格白名单）与
+     * {@code isBlockNormalCube:755-771}（{@code Block.isShapeFullBlock}）：
+     * <ol>
+     *   <li>整格碰撞形状 → 可站（含模组整格方块），但**蜂蜜块除外**（Baritone:389 显式排除）；</li>
+     *   <li>否则按"已知有碰撞但不能站"的薄/半高面排除（栅栏/栅栏门/墙/铁栏杆与玻璃板/门/滴水石/
+     *       紫水晶簇/末地棒/避雷针/可可/花盆）；</li>
+     *   <li>其余（台阶/半砖/箱子/模组半格方块…）**保持可站**——这是 Alice 对模组方块的兼容选择，
+     *       与 Baritone 的严格白名单不同，已在 D-041 登记。</li>
+     * </ol>
+     * <p>脚下是无碰撞层（草/花/薄雪等）时，看再下一层是否有支撑。
+     */
     public static boolean canWalkOn(ServerLevel level, BlockPos footPos) {
         BlockPos belowPos = footPos.below();
         BlockState below = level.getBlockState(belowPos);
         if (below.isAir() || below.getFluidState().isSource() || avoidWalkingInto(below)) {
             return false;
         }
+        if (!below.getCollisionShape(level, belowPos).isEmpty()) {
+            return isStandableSupport(level, belowPos, below);
+        }
         // 脚下是无碰撞层(草/花/薄雪等可穿过方块):看再下一层是否有支撑
         // (真实玩家站在草丛里,脚位高度还是那层空气格)
-        if (below.getCollisionShape(level, belowPos).isEmpty()) {
-            BlockState below2 = level.getBlockState(belowPos.below());
-            return !below2.isAir()
-                    && !below2.getCollisionShape(level, belowPos.below()).isEmpty()
-                    && !below2.getFluidState().isSource()
-                    && !avoidWalkingInto(below2);
+        BlockPos below2Pos = belowPos.below();
+        BlockState below2 = level.getBlockState(below2Pos);
+        if (below2.isAir() || below2.getFluidState().isSource() || avoidWalkingInto(below2)) {
+            return false;
         }
-        return !below.getCollisionShape(level, belowPos).isEmpty();
+        return !below2.getCollisionShape(level, below2Pos).isEmpty()
+                && isStandableSupport(level, below2Pos, below2);
+    }
+
+    /** 支撑面是否可站：整格形状优先，蜂蜜块与薄/半高面排除（见 {@link #canWalkOn}）。 */
+    private static boolean isStandableSupport(ServerLevel level, BlockPos pos, BlockState state) {
+        Block block = state.getBlock();
+        if (block != Blocks.HONEY_BLOCK
+                && Block.isShapeFullBlock(state.getCollisionShape(level, pos))) {
+            return true;
+        }
+        return !isKnownNonStandable(block);
+    }
+
+    /**
+     * 已知"有碰撞但不能站"的方块（对照 Baritone canWalkOn 白名单的反面：碰撞面太薄或形状不完整）。
+     * <p>注：活板门（TrapDoorBlock）**不在**此表——关闭的活板门是真实可站地面，Alice 保留该能力
+     * （与 Baritone 的严格白名单不同，已在 D-041 登记）。
+     */
+    private static boolean isKnownNonStandable(Block block) {
+        return block instanceof FenceBlock
+                || block instanceof FenceGateBlock
+                || block instanceof WallBlock
+                || block instanceof IronBarsBlock
+                || block instanceof DoorBlock
+                || block instanceof HoneyBlock
+                || block instanceof PointedDripstoneBlock
+                || block instanceof AmethystClusterBlock
+                || block instanceof EndRodBlock
+                || block instanceof LightningRodBlock
+                || block instanceof CocoaBlock
+                || block instanceof FlowerPotBlock;
+    }
+
+    /** 可攀爬方块（对照 Baritone isClimbable:573-580）：梯子/藤蔓/缠怨藤/垂泪藤。 */
+    public static boolean isClimbable(BlockState state) {
+        Block block = state.getBlock();
+        return block instanceof LadderBlock
+                || block instanceof VineBlock
+                || block instanceof WeepingVinesBlock
+                || block instanceof TwistingVinesBlock;
     }
 
     /** 该格能否穿过(身体格):空气或可穿过方块,且非危险。 */
