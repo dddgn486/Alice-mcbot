@@ -11,7 +11,7 @@ import java.util.Objects;
  * 规划上下文：世界读取 + 请求策略 + 成本模型 + 维度边界（架构文档 §6）。
  *
  * <p>R3 为同步主线程搜索，直接持有 {@link ServerLevel} 读取实时世界；
- * 异步搜索（R7）将改为持有 {@code WorldView} 快照，接口语义不变。
+ * 目前直读服务端世界；R7 异步搜索如需快照，将在此接入（空接口 WorldView 已删除，见 D-044）。
  */
 public record MovementContext(
         ServerPlayer bot,

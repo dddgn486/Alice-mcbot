@@ -247,7 +247,8 @@
 | D-041 B | Ascend 前置：FallingBlock / climbable 拒绝 + 运行期头部守卫（bottom-slab 另立项） | 已实施；代码级验证 + ascend 回归 PASS |
 | D-042 C | 执行器契约：COLUMN 容差 ×5 / 超时收敛单层 / 取消清理破坏进度 / 校验失败路径计时 | 已实施，待测（串联回归） |
 | D-043 D | Q4 重规划下沉（`PathRetryRunner`）+ 封路夹具 `alice:pathing_waller` | `WINDOWS_CLIENT`（replans=1 → COMPLETED） |
-| 待办 E | ⑤ 删 `WorldView` 空接口 / ⑥ legacy 收口 / ⑨ `canSweepPlayer` 对比 / Q1 FALL 裁决 | 未开始（最后一批） |
+| D-044 E | ⑤ 删 `WorldView` / ⑨ `canSweepPlayer` 对照登记 / Q1① 可回收性不变式 / Q1② 下降拒绝统计 / Q1③ FALL 暂不采纳 | 已实施（无需客户端） |
+| 待办 E-⑥ | legacy 双内核收口（`pathing/movement/*` + legacy A* + `BotMiner` 原语） | **单独立项**（触及 HARD_PATH） |
 
 ## §4 对齐清单（建议顺序）
 

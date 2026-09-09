@@ -64,8 +64,14 @@ public final class SurfaceMovementProvider implements MovementProvider {
                 if (!context.yInBounds(to.getY())) {
                     continue;
                 }
-                if (MovementHelper.canDescend(level, from, to) && overshootColumnSafe(level, to, d[0], d[1])) {
-                    append(context, from, to, MovementType.DESCEND, out);
+                if (MovementHelper.canDescend(level, from, to)) {
+                    if (overshootColumnSafe(level, to, d[0], d[1])) {
+                        append(context, from, to, MovementType.DESCEND, out);
+                    } else {
+                        PathingStats.record("descend_overshoot_unsafe");
+                    }
+                } else {
+                    PathingStats.record("descend_precondition");
                 }
             }
         }

@@ -583,3 +583,42 @@
   与 `alice:pathing_disturber`（位移 → 重同步）互补：两者分别验证 D-043 的两条路径。
 - 兼容：重试行为与之前等价（仍是"从当前脚位重算、最多 2 次"），但决策点与可观测性转移到任务层。
 
+### D-024 补充（2026-09-09，Q1①/③）：一格红线 = 局部可回收性不变式；FALL 暂不采纳
+
+- **不变式**：在"单次 Movement 落差 ≤1 格"下，**每条被执行的边都存在局部逆边**：
+  TRAVERSE/DIAGONAL 对称；ASCEND 的逆是 DESCEND（起点是刚站过的可站脚位、空间刚被占用）；
+  DESCEND 的逆是 ASCEND；PLACE_STEP 的逆是 ASCEND；BREAK_AND_TRAVERSE 的逆是反向两步 TRAVERSE（中列已破坏）。
+  → bot 永远能撤回上一步，**不需要全局搜索**。
+- 落差 ≥2 时，逆边需要"悬崖腰部存在可站中间台阶"，通常不存在 → 只能依赖全局重规划
+  （2026-09-09 扰动实证：bot 掉进 4 格缺口后重规划 `UNREACHABLE`、空跳不终止）。
+- **裁决（Q1③）**：保持一格红线；Baritone 的 `MovementFall` / `MovementParkour`
+  （`maxFallHeightNoWater=3`）**暂不采纳**——它们与 `PathExecutor.possiblyOffPath:317-323` 的下落特例
+  （改用水平距离判定）成套，单独移植会破坏漂移判定；若将来放宽，必须**整套移植 + 落点可回收守卫**
+  （见 `docs/ALIGNMENT_OPEN_QUESTIONS.md` Q1-D）。
+
+## D-044：待办 E —— 清理与裁决（WorldView / canSweepPlayer / FALL / 统计）
+
+- 状态：已实施（2026-09-09）
+- **⑤ 删除空接口** `pathing/core/WorldView`：全仓零实现、零引用（仅 `MovementContext` javadoc 提及）。
+  R7 异步搜索若立项，按 Baritone `BlockStateInterface`（chunk 缓存 + `isLoaded`）重新落地，而不是留空抽象。
+- **⑨ `canSweepPlayer` 对照**（Alice 自制 AABB 扫掠 vs Baritone `MovementDiagonal:220-249` optionA/optionB）：
+
+  | 维度 | Alice | Baritone |
+  |---|---|---|
+  | 判定方式 | 玩家尺寸（0.6×1.8）直线扫掠 | 两个角格 optionA/optionB 的通行/挖掘成本 |
+  | 单侧阻挡 | **拒绝**（扫掠与角块相交） | **允许**（一侧可绕，加挖掘/惩罚成本） |
+  | 对角升降 | 不支持（dy=0） | 支持（dy=±1，`allowDiagonalAscend`） |
+
+  **结论：不是缺陷。** Alice 的 `DiagonalExecution` 走的是真直线对角，与其规划谓词一致
+  （不存在"可规划不可执行"）；Baritone 的对角可"切角"是因为它的执行器按 L 形绕行。
+  **登记为已对齐差异，不修改**；若将来要对齐，需同时实现"切角执行"（成本更高，且要处理角块碰撞）。
+- **Q1①**：D-024 升级为局部可回收性不变式（见上）。
+- **Q1②**：新增只读统计 `PathingStats`：记录规划期下降候选被拒原因
+  （`descend_precondition` / `descend_overshoot_unsafe`），每次规划结束输出
+  `[PathingStats] ... status=... goal=...`，用于将来量化"一格红线让多少目标变成 UNREACHABLE"。
+- **Q1③**：`MovementFall` / `MovementParkour` 登记为**暂不采纳**（见上）。
+- **⑥ legacy 收口：本轮不做。** 范围：`pathing/movement/*`（BasicMovement / WalkMovement /
+  BreakAndWalkMovement / MovementConstraints / DescendMovement / PillarMovement）+ legacy
+  `pathing/AStarPathfinder`（零启发 Dijkstra）+ `BotMiner` 自带破坏原语，由 `PathExecutor` /
+  `FollowTask` / `MovementPlanCompiler` 驱动，**触及挖矿 HARD_PATH 链路** → 需单独立项 + 完整回归。
+

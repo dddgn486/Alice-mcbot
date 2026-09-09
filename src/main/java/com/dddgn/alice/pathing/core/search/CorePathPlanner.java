@@ -44,6 +44,12 @@ public final class CorePathPlanner {
 
     public PathPlan plan(ServerPlayer bot, ServerLevel level, PathRequest request) {
         MovementContext context = MovementContext.live(bot, level, request);
-        return new AStarMovementSearch(provider).search(context);
+        PathPlan plan = new AStarMovementSearch(provider).search(context);
+        String stats = PathingStats.snapshotAndReset();
+        if (!stats.isEmpty()) {
+            com.dddgn.alice.log.BotLog.info("[PathingStats] {} status={} goal={}",
+                    stats, plan.status(), request.goal().goalFoot().toShortString());
+        }
+        return plan;
     }
 }
