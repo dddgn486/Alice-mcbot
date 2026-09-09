@@ -640,6 +640,7 @@
   `pathing_dip_route` / `pathing_fluid_guard` / `pathing_fence_guard` / `pathing_placer` / `pathing_breaker` /
   `pathing_walller` / `pathing_disturber`）。
 - 迁移顺序（能力补齐后逐个开启）：`WalkToTask` → `FollowTask` → `PlaceTask`/`TransferTask` → `MineTask`（HARD_PATH，最后）。
+  - 进度：**`WalkToTask` 已于 D-060 迁移并解除门禁**；其余仍禁用。
 - 能力前置（迁移前必须补齐）：新内核缺 **`DOWNWARD`（纯垂直下 1 格）**；`PILLAR`（垂直上 1 格）与 DOWNWARD
   是互逆对，**单独存在 PILLAR 时不可回收**（上去了下不来）→ 已按用户裁决**暂不采纳**（见 D-046）。
 
@@ -936,3 +937,24 @@
 - 现状说明（待用户确认）：FALL 的 PILLAR 返回守卫与 ASCEND 的两条前置**目前仍默认开启**；
   按"S 默认 = Baritone 原样"原则它们将来也应默认关闭，等用户确认后再翻。
 - 关联：`docs/RISK_MODES_DISCUSSION.md` 附录 A（用户 2026-09-09 的分层评估框架与设计点）。
+
+## D-060：WalkTo 迁移到新内核（D-045 迁移顺序第一项）
+
+- 状态：已实施，待客户端验证（用户 2026-09-09："任务迁移吧"）
+- 依据：D-045 方案 B 的迁移顺序 `WalkTo → Follow → Place/Transfer → Mine`。
+- 改动：
+  1. `task/WalkToTask` 重写为新内核：`CorePathPlanner`（真 A*，D-040）+ `PathRetryRunner`（D-043 任务层重规划）
+     + `PathSession`（D-026/D-027 契约、D-047 重同步、D-052 连续推进）；
+     请求用 **`PathRequest.of`**（TRAVERSE/DIAGONAL/ASCEND/DESCEND），保持"不挖掘、不放置"语义；
+  2. **失败码保持 legacy 语义**（调用方/日志兼容）：`walk_target_not_safe` / `walk_no_path` /
+     `walk_search_limit` / `walk_blocked` / `walk_timeout` / `walk_stale` / `walk_invalid_precondition` /
+     `walk_execution_failed`；其中 `PLAN_SEARCH_LIMIT` 必须映射为 `walk_search_limit`，
+     **不得与 `walk_no_path` 混淆**（架构边界：SEARCH_LIMIT ≠ UNREACHABLE）；
+  3. `BotManager.assignWalkTo` **解除 legacy 门禁**并改为返回 boolean；
+     `LEGACY_PATHING_TASKS_ENABLED` 仍为 false（只放开 WalkTo 一项）；
+  4. 新场景 `alice_test:walk_course` + 物品 `alice:walk_to_runner` + `WalkToDiagnosticTask`：
+     `walk_flat`（同层绕行）/ `walk_over_wall`（ASCEND+DESCEND 跨 1 格墙）/
+     `walk_unreachable`（孤立柱顶 → `walk_no_path`）/ `walk_unsafe`（无支撑目标 → `walk_target_not_safe`）。
+- 验收（零参数）：`/function alice_test:walk_course` + 右键 `alice:walk_to_runner` →
+  `[WalkTo] SUMMARY walk_flat=PASS walk_over_wall=PASS walk_unreachable=PASS walk_unsafe=PASS`。
+- 后续：`FollowTask` → `PlaceTask`/`TransferTask` → `MineTask`（HARD_PATH，最后）。

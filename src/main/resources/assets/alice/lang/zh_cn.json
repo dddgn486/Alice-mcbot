@@ -26,5 +26,6 @@
   "item.alice.pathing_straight": "直线跑器",
   "item.alice.pathing_pillar": "垂直上升检查器",
   "item.alice.pathing_lava_guard": "岩浆路线检查器",
-  "item.alice.pathing_fall": "落差检查器"
+  "item.alice.pathing_fall": "落差检查器",
+  "item.alice.walk_to_runner": "WalkTo 自检器"
 }

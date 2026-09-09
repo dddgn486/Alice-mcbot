@@ -109,6 +109,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> PATHING_DOWNWARD =
             ITEMS.register("pathing_downward", () -> new PathingDownwardItem(new Item.Properties()));
 
+    /** D-060 WalkTo 迁移自检（新内核任务层，场景专属）。 */
+    public static final RegistryObject<Item> WALK_TO_RUNNER =
+            ITEMS.register("walk_to_runner", () -> new WalkToRunnerItem(new Item.Properties()));
+
     /** D-058 落差验证器（FALL 2~3 格，场景专属）。 */
     public static final RegistryObject<Item> PATHING_FALL =
             ITEMS.register("pathing_fall", () -> new PathingFallItem(new Item.Properties()));

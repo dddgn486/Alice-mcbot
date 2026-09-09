@@ -343,11 +343,21 @@ public final class BotManager {
     }
 
     /** 给假人分配纯 HARD_PATH 脚位移动任务。 */
-    public static void assignWalkTo(BotPlayer bot, BlockPos goalFoot) {
-        if (legacyTaskDisabled("WalkToTask")) return;
+    /** WalkTo 已迁移到新内核（D-060），不再走 legacy 门禁。 */
+    public static boolean assignWalkTo(BotPlayer bot, BlockPos goalFoot) {
         BotSession session = BOTS.get(bot.getUUID());
-        if (session == null) return;
+        if (session == null) return false;
         session.assignWalkTo(goalFoot);
+        return true;
+    }
+
+    public static boolean assignWalkToDiagnostic(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        session.beginTask(new com.dddgn.alice.task.WalkToDiagnosticTask(bot, observer),
+                TaskTarget.block(com.dddgn.alice.task.WalkToDiagnosticTask.OVER_WALL_GOAL));
+        broadcastTarget(session.target);
+        return true;
     }
 
     /** Assigns the focused R2-B one-step Traverse diagnostic. */
