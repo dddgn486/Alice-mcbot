@@ -183,16 +183,47 @@ public final class MiningPlanner {
                 (from, to) -> PathRequest.of(bot.getUUID().toString(), from, to));
     }
 
-    /** 模式 B：候选 → 估算 → top-K 精确规划（挖掘到达请求，允许破坏/放置）。 */
+    /**
+     * 模式 B：候选通常 ≤ 11 个，且**都需要破坏/放置才能到达**——
+     * 纯通行估算（S1/S2）对它们无意义（不在纯通行成本场里），因此**全部候选精确规划**，
+     * 只用一个廉价下界做展开顺序（D-070 修正）。
+     */
     private Result selectBestApproach(ServerPlayer bot, ServerLevel level, BlockPos target,
                                       BlockPos startFoot, List<BlockPos> feet, MiningPlan.Mode mode) {
-        Map<BlockPos, LineOfSightChecker.LineOfSightResult> losByFoot = new HashMap<>();
-        for (BlockPos foot : feet) {
-            losByFoot.put(foot, LineOfSightChecker.checkFromEye(level,
-                    StandingPointSelector.eyeAt(foot), target));
+        List<BlockPos> ordered = new ArrayList<>(feet);
+        ordered.sort(Comparator.comparingDouble(
+                foot -> new com.dddgn.alice.pathing.core.search.GoalFoot(foot).heuristic(startFoot)));
+        StandingPointEvaluator.StandingPointScore best = null;
+        PathPlan bestPath = null;
+        int planned = 0;
+        for (BlockPos foot : ordered) {
+            PathPlan path = planPath(bot, startFoot, foot,
+                    PathRequest.miningApproach(bot.getUUID().toString(), startFoot, foot));
+            planned++;
+            if (!path.reached()) {
+                continue;
+            }
+            double cost = path.totalCost();
+            if (best == null || cost < best.getScore()) {
+                best = StandingPointEvaluator.of(foot, cost, cost, LineOfSightChecker.checkFromEye(
+                        level, StandingPointSelector.eyeAt(foot), target));
+                bestPath = path;
+            }
         }
-        return exactTopK(bot, level, target, startFoot, feet, losByFoot, mode, null, 0.0D,
-                (from, to) -> PathRequest.miningApproach(bot.getUUID().toString(), from, to));
+        if (best == null) {
+            BotLog.warn("[MiningPlanner] mode={} target={} startFoot={} candidates={} planned={} reason=no_reachable",
+                    mode, target.toShortString(), startFoot.toShortString(), ordered.size(), planned);
+            return new Result(null, null, "no_reachable_candidate");
+        }
+        BotLog.info("[MiningPlanner] mode={} target={} startFoot={} candidates={} estimate=EXHAUSTIVE planned={}"
+                        + " chosen={} cost={} pathSize={} los={}",
+                mode, target.toShortString(), startFoot.toShortString(), ordered.size(), planned,
+                best.getPosition().toShortString(),
+                String.format(java.util.Locale.ROOT, "%.3f", best.getScore()),
+                bestPath.movements().size(), best.getLineOfSightResult().isClear());
+        MiningPlan plan = new MiningPlan(target, startFoot, best.getPosition(), bestPath,
+                best.getLineOfSightResult(), mode, null);
+        return new Result(plan, best, "");
     }
 
     private Result exactTopK(ServerPlayer bot, ServerLevel level, BlockPos target, BlockPos startFoot,

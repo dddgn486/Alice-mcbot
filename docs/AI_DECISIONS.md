@@ -1185,3 +1185,16 @@
 - 验收（零参数）：`/function alice_test:mine_course` + 右键 `alice:mine_course_runner` →
   `[MineCourse] SUMMARY free=PASS wall=PASS blocked=PASS headroom=PASS buried=PASS`
   （`blocked` 期望 `mode=TUNNEL`；`buried` 期望 `found_but_unminable` 或 `TUNNEL`）。
+
+### D-070 修正（2026-09-09 客户端首测）
+
+- 首测结果：`free=PASS wall=PASS blocked=FAIL headroom=PASS buried=FAIL`（两次一致）。
+- **① `blocked=FAIL` 是真 bug（集成错）**：模式 B 的候选（需破坏才能进入的格子）**不在纯通行成本场里**，
+  被 `StandingCostEstimator` 直接丢掉 → `ranked` 为空 → 模式 B 永远不可用
+  （日志 `tunnel=no_reachable_tunnel_standing_point`）。
+  **修复**：模式 B 候选通常 ≤ 11 个，**跳过估算器、全部候选精确规划**（只用一个下界做展开顺序），
+  日志改为 `estimate=EXHAUSTIVE`。
+- **② `buried=FAIL` 是场景问题**：场景里 buried 目标**上方没封**，bot 从斜上方站位看到了目标顶面 →
+  模式 A 合法成立（`mode=DIRECT chosen=22,64,132 los=true`）。**修复**：场景补 `setblock 23 65 128 stone`。
+- 经验（再次印证 D-039/D-042）：**允许"从任意角度挖"的站位系统下，场景必须把所有面（含顶面）都封死**
+  才能构造"埋藏"用例；只封四面会留下斜上方视线。

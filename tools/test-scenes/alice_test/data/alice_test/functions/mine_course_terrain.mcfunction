@@ -28,9 +28,10 @@ setblock 23 64 131 minecraft:stone
 setblock 23 65 131 minecraft:stone
 setblock 23 66 131 minecraft:stone
 
-# 5) buried：孤立被包围簇（面格下方无支撑 → 预期 found_but_unminable）
+# 5) buried：孤立被包围簇（**顶面也封** + 面格下方无支撑 → 预期 found_but_unminable）
 setblock 23 63 128 minecraft:stone
 setblock 23 64 128 minecraft:stone
+setblock 23 65 128 minecraft:stone
 setblock 22 64 128 minecraft:stone
 setblock 24 64 128 minecraft:stone
 setblock 23 64 127 minecraft:stone
