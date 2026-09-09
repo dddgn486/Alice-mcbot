@@ -320,6 +320,9 @@ public final class SurfaceMovementProvider implements MovementProvider {
      * 且上述任一情况都不得含即死危害。
      */
     static boolean overshootColumnSafe(ServerLevel level, BlockPos to, int dx, int dz) {
+        if (!com.dddgn.alice.pathing.risk.RiskSwitches.descendOvershootGuard()) {
+            return true;   // D-059：默认关闭（Baritone 原样），低风险模式再打开
+        }
         int signX = Integer.signum(dx);
         int signZ = Integer.signum(dz);
         BlockPos beyond = to.offset(signX, 0, signZ);

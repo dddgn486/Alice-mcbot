@@ -911,3 +911,28 @@
 - 验收（零参数）：`alice_test:fall_course` + `alice:pathing_fall` →
   `[Fall] SUMMARY fall_plan_2=PASS fall_plan_3=PASS drop4_guard=PASS recover_guard=PASS fall_execute=PASS`；
   串联回归新增 `fall_course`（第 13 项）；Baritone 对照 `contrast_fall` / `contrast_trace_fall`。
+
+## D-059：过冲红线默认关闭 + 风险开关接口（用户裁定）
+
+- 状态：已实施，待客户端验证（用户 2026-09-09 讨论裁定）
+- 用户裁定：
+  1. **D-024 的 DESCEND 过冲红线改为默认关闭（对齐 Baritone 原样），低风险模式再打开**；
+     "甚至后续讨论可能删除这个红线机制"；
+  2. 风险画像的最小接口用**一组开关**表达，**不用 H/G/S 三态等级枚举**
+     （用户："等级枚举后续设计怎么处理我不理解"）；
+  3. FALL 的两个守卫检查改为**断言路线属性**（不是"无路可走"）。
+  4. 用户声明：**整套风险评估方案与顺序绝不是最终定案**，先按 Baritone 原样把框架搭好、能用。
+- 实现：
+  - 新增 `pathing/risk/RiskSwitches`（当前只有 `descend_overshoot` 一个开关，默认 `false`）；
+    `DescendExecutionFactory.validate` 与 `SurfaceMovementProvider.overshootColumnSafe`
+    在该开关关闭时直接放行（= Baritone 原样：不检查过冲列）；
+  - 新增命令 `/alice risk`（查看）与 `/alice risk descend_overshoot on|off`（切换），
+    切换时输出 `[Risk] switch ... all=...` 便于日志取证；
+  - `FallDiagnosticTask` 的两项检查重写：
+    - `no_deep_fall`：4 格落差场景断言"不生成 4 格 FALL 候选 **且** 路线中无单段 ≥4 格下落"，
+      **允许**规划器用 PLACE_STEP 搭楼梯到达（2026-09-09 实证 `first=TRAVERSE movements=5`）；
+    - `fall_recover_guard`：断言"不可回收落点不生成 FALL 候选 **且** 同场景可回收落点仍生成 FALL 候选"
+      （证明守卫是选择性的，不是一律禁用）。
+- 现状说明（待用户确认）：FALL 的 PILLAR 返回守卫与 ASCEND 的两条前置**目前仍默认开启**；
+  按"S 默认 = Baritone 原样"原则它们将来也应默认关闭，等用户确认后再翻。
+- 关联：`docs/RISK_MODES_DISCUSSION.md` 附录 A（用户 2026-09-09 的分层评估框架与设计点）。

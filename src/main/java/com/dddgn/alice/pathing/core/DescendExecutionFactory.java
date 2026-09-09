@@ -52,8 +52,12 @@ public final class DescendExecutionFactory implements MovementExecutionFactory {
 
         // 过冲落点列（目标沿运动方向再延伸一格）防御校验
         // （D-023 第 0 号闭环 + D-024 细化版）。
+        // **D-059：默认关闭（对齐 Baritone 原样）；低风险模式由风险评估打开该开关。**
         // 仅当过冲列在落点高度可穿越（存在坠落通道）时才需要检查：
         // 实心墙会挡住过冲（撞停或踩上），不存在坠落风险。
+        if (!com.dddgn.alice.pathing.risk.RiskSwitches.descendOvershootGuard()) {
+            return ValidationResult.accepted();
+        }
         int signDx = Integer.signum(to.getX() - from.getX());
         int signDz = Integer.signum(to.getZ() - from.getZ());
         BlockPos landingBeyond = to.offset(signDx, 0, signDz);

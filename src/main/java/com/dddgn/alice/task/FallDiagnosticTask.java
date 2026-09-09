@@ -4,6 +4,9 @@ import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.core.MovementType;
 import com.dddgn.alice.pathing.core.search.CorePathPlanner;
+import com.dddgn.alice.pathing.core.search.MovementContext;
+import com.dddgn.alice.pathing.core.search.PlannedMovement;
+import com.dddgn.alice.pathing.core.search.SurfaceMovementProvider;
 import com.dddgn.alice.pathing.core.search.PathPlan;
 import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.pathing.core.search.SearchBudget;
@@ -20,8 +23,10 @@ import net.minecraft.world.phys.Vec3;
  * <ol>
  *   <li>2 格落差 `(22,64,66) → (23,62,66)`：期望 `REACHED` 且首步 = FALL；</li>
  *   <li>3 格落差 `(22,64,68) → (23,61,68)`：期望 `REACHED` 且首步 = FALL；</li>
- *   <li>4 格落差 `(22,64,64) → (23,60,64)`：期望**不** REACHED（Baritone `maxFallHeightNoWater=3`）；</li>
- *   <li>落点上方封顶 `(22,64,70) → (23,62,70)`：期望**不** REACHED（PILLAR 返回列被挡 → 不可回收）；</li>
+ *   <li>4 格落差 `(22,64,64) → (23,60,64)`：断言**路线属性**——不生成 4 格 FALL 候选，且路线里没有单段 ≥4 格的下落
+ *       （允许规划器用 PLACE_STEP 搭楼梯绕下去，这本身是安全的）；</li>
+ *   <li>落点上方封顶 `(22,64,70)`：断言**守卫是选择性的**——该落点不生成 FALL 候选（PILLAR 返回列被挡），
+ *       而同场景可回收落点仍能生成 FALL 候选；</li>
  *   <li>实跑 3 格落差：期望 `COMPLETED` 且稳定在 `(23,61,68)`。</li>
  * </ol>
  */
@@ -81,12 +86,12 @@ public final class FallDiagnosticTask implements Task {
                 return Status.RUNNING;
             }
             case 3 -> {
-                drop4GuardPass = checkRefused(DROP4_START, DROP4_GOAL, "drop4_guard");
+                drop4GuardPass = checkNoDeepFall();
                 phase = 4;
                 return Status.RUNNING;
             }
             case 4 -> {
-                recoverGuardPass = checkRefused(GUARD_START, GUARD_GOAL, "recover_guard");
+                recoverGuardPass = checkRecoverGuard();
                 phase = 5;
                 return Status.RUNNING;
             }
@@ -133,15 +138,44 @@ public final class FallDiagnosticTask implements Task {
         return pass;
     }
 
-    private boolean checkRefused(BlockPos start, BlockPos goal, String key) {
-        teleport(start);
-        PathPlan plan = plan(start, goal);
-        boolean pass = !plan.reached();
-        String first = plan.movements().isEmpty()
-                ? "-" : plan.movements().get(0).movementType().name();
-        BotLog.info("[Fall] {}={} detail={}/first={}/movements={}",
-                key, pass ? "PASS" : "FAIL", plan.status(), first, plan.movements().size());
+    /**
+     * 4 格落差断言（路线属性，D-058 修订）：不生成 4 格 FALL 候选，且路线中不出现单段 ≥4 格的下落。
+     * <p>规划器允许用 PLACE_STEP 搭楼梯到达——那是安全行为，不应判失败。
+     */
+    private boolean checkNoDeepFall() {
+        boolean noCandidate = !hasFallCandidate(DROP4_START, DROP4_GOAL);
+        teleport(DROP4_START);
+        PathPlan plan = plan(DROP4_START, DROP4_GOAL);
+        boolean noDeepMove = plan.movements().stream()
+                .allMatch(m -> m.toFoot().getY() - m.fromFoot().getY() >= -3);
+        boolean pass = noCandidate && noDeepMove;
+        BotLog.info("[Fall] no_deep_fall={} fall_candidate={} route={}/first={}/movements={}",
+                pass ? "PASS" : "FAIL", !noCandidate, plan.status(),
+                plan.movements().isEmpty() ? "-" : plan.movements().get(0).movementType().name(),
+                plan.movements().size());
         return pass;
+    }
+
+    /**
+     * 落点可回收守卫断言（选择性，D-058 修订）：不可回收落点不得生成 FALL 候选，
+     * 同场景可回收落点必须仍能生成 FALL 候选（证明守卫不是"一律禁用"）。
+     */
+    private boolean checkRecoverGuard() {
+        boolean blocked = !hasFallCandidate(GUARD_START, GUARD_GOAL);
+        boolean allowed = hasFallCandidate(DROP2_START, DROP2_GOAL);
+        boolean pass = blocked && allowed;
+        BotLog.info("[Fall] fall_recover_guard={} blocked_unrecoverable={} allowed_recoverable={}",
+                pass ? "PASS" : "FAIL", blocked, allowed);
+        return pass;
+    }
+
+    /** 规划器是否为 (from → to) 生成 FALL 候选（直接查询 provider，不经过搜索）。 */
+    private boolean hasFallCandidate(BlockPos from, BlockPos to) {
+        MovementContext context = MovementContext.live(bot, bot.serverLevel(), request(from, to));
+        java.util.List<PlannedMovement> candidates = new java.util.ArrayList<>();
+        new SurfaceMovementProvider().appendCandidates(context, from, candidates);
+        return candidates.stream().anyMatch(m -> m.movementType() == MovementType.FALL
+                && m.fromFoot().equals(from) && m.toFoot().equals(to));
     }
 
     private PathPlan plan(BlockPos start, BlockPos goal) {
@@ -187,8 +221,8 @@ public final class FallDiagnosticTask implements Task {
         boolean allPass = plan2Pass && plan3Pass && drop4GuardPass && recoverGuardPass && executePass;
         String summary = "fall_plan_2=" + (plan2Pass ? "PASS" : "FAIL")
                 + " fall_plan_3=" + (plan3Pass ? "PASS" : "FAIL")
-                + " drop4_guard=" + (drop4GuardPass ? "PASS" : "FAIL")
-                + " recover_guard=" + (recoverGuardPass ? "PASS" : "FAIL")
+                + " no_deep_fall=" + (drop4GuardPass ? "PASS" : "FAIL")
+                + " fall_recover_guard=" + (recoverGuardPass ? "PASS" : "FAIL")
                 + " fall_execute=" + (executePass ? "PASS" : "FAIL");
         BotLog.info("[Fall] SUMMARY {}", summary);
         if (observer != null) {

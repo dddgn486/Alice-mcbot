@@ -104,6 +104,19 @@ public final class BotCommand {
                                    .literal("[alice] 运动轨迹记录 = " + (on ? "开" : "关")));
                            return 1;
                        }))
+               .then(Commands.literal("risk")
+                        .executes(ctx -> {
+                            ctx.getSource().sendSystemMessage(Component
+                                    .literal("[alice] 风险开关（默认全关 = Baritone 原样高风险）："
+                                            + com.dddgn.alice.pathing.risk.RiskSwitches.describe()));
+                            return 1;
+                        })
+                        .then(Commands.literal("descend_overshoot")
+                                .executes(ctx -> riskSwitch(ctx.getSource(), "descend_overshoot", true))
+                                .then(Commands.literal("on")
+                                        .executes(ctx -> riskSwitch(ctx.getSource(), "descend_overshoot", true)))
+                                .then(Commands.literal("off")
+                                        .executes(ctx -> riskSwitch(ctx.getSource(), "descend_overshoot", false)))))
                .then(Commands.literal("pathing")
                         .then(Commands.literal("traverse")
                                 .then(Commands.argument("direction", StringArgumentType.word())
@@ -936,4 +949,18 @@ public final class BotCommand {
         source.sendSuccess(() -> Component.literal("[alice] Bot 跳跃"), false);
         return 1;
     }
+
+    /** D-059：切换风险开关（默认全关 = Baritone 原样高风险）。 */
+    private static int riskSwitch(net.minecraft.commands.CommandSourceStack source, String name, boolean value) {
+        if (!com.dddgn.alice.pathing.risk.RiskSwitches.set(name, value)) {
+            source.sendSystemMessage(Component.literal("[alice] 未知风险开关: " + name));
+            return 0;
+        }
+        source.sendSystemMessage(Component.literal("[alice] 风险开关已更新: "
+                + com.dddgn.alice.pathing.risk.RiskSwitches.describe()));
+        com.dddgn.alice.log.BotLog.info("[Risk] switch {}={} all={}", name, value,
+                com.dddgn.alice.pathing.risk.RiskSwitches.describe());
+        return 1;
+    }
+
 }
