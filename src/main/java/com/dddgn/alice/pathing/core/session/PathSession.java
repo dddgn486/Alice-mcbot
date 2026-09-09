@@ -229,14 +229,7 @@ public final class PathSession {
     private boolean currentTargetStillValid() {
         PlannedMovement movement = movements.get(index);
         BlockPos to = movement.toFoot();
-        if (!MovementHelper.canWalkThrough(level, to)
-                || !MovementHelper.canWalkThrough(level, to.above())) {
-            return false;
-        }
-        if (movement.movementType() == com.dddgn.alice.pathing.core.MovementType.PLACE_STEP_AND_TRAVERSE) {
-            BlockPos placePos = to.below();
-            return MovementHelper.canWalkThrough(level, placePos) || MovementHelper.canWalkOn(level, to);
-        }
+        // 先处理"目标由本段自己产生"的类型，再做通用通行性检查（顺序很关键）
         if (movement.movementType() == com.dddgn.alice.pathing.core.MovementType.DOWNWARD) {
             // 目标方块由本段破坏产生：只要落点支撑仍在、且该方块仍可破坏（或已空）即有效
             if (!MovementHelper.canWalkOn(level, to)
@@ -245,6 +238,14 @@ public final class PathSession {
             }
             return level.getBlockState(to).isAir()
                     || com.dddgn.alice.action.BlockInteraction.breakableExplicit(bot, level, to);
+        }
+        if (!MovementHelper.canWalkThrough(level, to)
+                || !MovementHelper.canWalkThrough(level, to.above())) {
+            return false;
+        }
+        if (movement.movementType() == com.dddgn.alice.pathing.core.MovementType.PLACE_STEP_AND_TRAVERSE) {
+            BlockPos placePos = to.below();
+            return MovementHelper.canWalkThrough(level, placePos) || MovementHelper.canWalkOn(level, to);
         }
         return MovementHelper.canWalkOn(level, to);
     }

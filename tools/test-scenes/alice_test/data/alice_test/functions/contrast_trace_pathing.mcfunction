@@ -6,5 +6,6 @@ clear @s
 kill @e[type=minecraft:marker]
 tp @s 0.5 64.0 46.5
 summon minecraft:marker 0.5 62.0 44.5
+function alice_test:trace_start
 tellraw @s [{"text":"[对照] 已就位：目标 (0,62,44)","color":"gold"}]
 tellraw @s [{"text":"① 输入 ","color":"white"},{"text":"#goto 0 62 44","color":"aqua"},{"text":" ② 立刻执行 ","color":"white"},{"text":"/function alice_test:trace_start","color":"aqua"},{"text":" 开始记录","color":"white"}]
