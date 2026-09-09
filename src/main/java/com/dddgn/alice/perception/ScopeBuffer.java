@@ -51,6 +51,12 @@ public final class ScopeBuffer {
     private record BreakRecord(BlockPos pos, long tick) {
     }
 
+    /** 待登记掉落物：生成事件里先排队，**tick 末**再确认它真的进入了世界。 */
+    private record PendingItem(ItemEntity item, long tick) {
+    }
+
+    private final List<PendingItem> pending = new ArrayList<>();
+
     /** 注册监听区间(重复调用先结束旧区间)。 */
     public void begin(BlockPos center, int radius) {
         begin(center, radius, null);
@@ -63,6 +69,7 @@ public final class ScopeBuffer {
         this.radius = radius;
         this.ownerUuid = owner;
         this.active = true;
+        this.pending.clear();
         ACTIVE.add(this);
         BotLog.info("作用域开启: center={} radius={} owner={}", center.toShortString(), radius, owner);
     }
@@ -71,6 +78,7 @@ public final class ScopeBuffer {
         if (active) {
             ACTIVE.remove(this);
             active = false;
+            pending.clear();
             spawnedItems.clear();
             itemOrigins.clear();
             brokenBlocks.clear();
@@ -83,6 +91,16 @@ public final class ScopeBuffer {
         return active;
     }
 
+    /**
+     * 掉落物是否**真的在世界里**：被其他模组取消的生成不会进入世界，
+     * 但实体对象仍满足 {@code isAlive()}，不剔除就会变成永远追不到的幻影
+     * （Ore Excavation 连锁期间缓冲掉落物即为此类）。
+     */
+    private static boolean inWorld(ItemEntity item) {
+        return !item.isRemoved() && !item.getItem().isEmpty()
+                && item.level() instanceof ServerLevel level && level.getEntity(item.getId()) != null;
+    }
+
     /** 作用域内仍存活、仍有内容的掉落物(每次调用清理已消失的)。 */
     public List<ItemEntity> liveItems() {
         return liveItemsFrom(0);
@@ -90,7 +108,7 @@ public final class ScopeBuffer {
 
     /** 返回指定事件序号之后生成的存活掉落物，用于区分主目标产物与清障副产物。 */
     public List<ItemEntity> liveItemsFrom(int index) {
-        spawnedItems.removeIf(item -> !item.isAlive() || item.getItem().isEmpty());
+        spawnedItems.removeIf(item -> !inWorld(item));
         int from = Math.max(0, Math.min(index, spawnedItems.size()));
         return List.copyOf(spawnedItems.subList(from, spawnedItems.size()));
     }
@@ -101,7 +119,7 @@ public final class ScopeBuffer {
      * <p>连锁挖掘模组会一次破坏多格 → 每个破坏点都登记 → 其掉落物无论聚在一处还是各掉一份都能配对。
      */
     public List<ItemEntity> liveDrops() {
-        spawnedItems.removeIf(item -> !item.isAlive() || item.getItem().isEmpty());
+        spawnedItems.removeIf(item -> !inWorld(item));
         return spawnedItems.stream()
                 .filter(item -> itemOrigins.get(item.getUUID()) != null)
                 .toList();
@@ -109,7 +127,7 @@ public final class ScopeBuffer {
 
     /** 首次捕获时来源方块格等于 origin 的存活掉落物。 */
     public List<ItemEntity> liveItemsFromOrigin(BlockPos origin) {
-        spawnedItems.removeIf(item -> !item.isAlive() || item.getItem().isEmpty());
+        spawnedItems.removeIf(item -> !inWorld(item));
         return spawnedItems.stream()
                 .filter(item -> origin.equals(itemOrigins.get(item.getUUID())))
                 .toList();
@@ -134,7 +152,17 @@ public final class ScopeBuffer {
                 best = record;
             }
         }
-        return best == null ? null : best.pos();
+        if (best != null) {
+            return best.pos();
+        }
+        // 回退：掉落物位置命中"本作用域内已登记的破坏点"（缓冲型模组在结束时才生成掉落物，
+        // 早于配对窗口；它们通常落在被破坏方块的位置上）
+        for (BlockPos broken : brokenBlocks) {
+            if (broken.equals(itemPos)) {
+                return broken;
+            }
+        }
+        return null;
     }
 
     private void pruneBreaks(long tick) {
@@ -147,26 +175,79 @@ public final class ScopeBuffer {
 
     // ---- 全局事件(所有作用域共享派发) ----
 
-    @SubscribeEvent
+    /**
+     * 生成事件必须**最后**处理（LOWEST）：连锁模组会在自己的 handler 里
+     * {@code event.setCanceled(true)} 并缓冲掉落物——被取消的生成不会进入世界。
+     * Forge 默认不把已取消事件投递给未声明 {@code receiveCanceled} 的监听器，
+     * 因此排在取消方之后即可彻底避免把"幻影掉落物"登记进作用域。
+     */
+    /**
+     * 生成事件只**排队**，不立刻登记（见 {@link #flushPending()}）：
+     * 连锁模组会在自己的 handler 里取消生成并缓冲掉落物，而它的监听器同样是
+     * LOWEST 优先级，靠注册顺序不可靠。排队到 tick 末再校验"实体是否真的在世界里"，
+     * 与事件顺序无关。
+     */
+    @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.LOWEST)
     public static void onEntityJoin(EntityJoinLevelEvent event) {
-        if (event.getLevel() instanceof ServerLevel && event.getEntity() instanceof ItemEntity item) {
-            for (ScopeBuffer scope : ACTIVE) {
-                if (!scope.inScope(item.blockPosition())) {
-                    continue;
-                }
-                scope.spawnedItems.add(item);
-                long tick = ((ServerLevel) event.getLevel()).getGameTime();
-                scope.pruneBreaks(tick);
-                BlockPos source = scope.matchBreakSource(item.blockPosition(), tick);
-                scope.itemOrigins.put(item.getUUID(), source);
-                BotLog.info("作用域捕捉掉落物: {} x{} y{} z{} source={}",
-                        item.getItem().getItem(), item.getBlockX(), item.getBlockY(), item.getBlockZ(),
-                        source == null ? "unpaired" : source.toShortString());
+        if (event.isCanceled()) {
+            return;
+        }
+        if (!(event.getLevel() instanceof ServerLevel level) || !(event.getEntity() instanceof ItemEntity item)) {
+            return;
+        }
+        long tick = level.getGameTime();
+        BlockPos pos = item.blockPosition();
+        for (ScopeBuffer scope : ACTIVE) {
+            if (scope.inScope(pos)) {
+                scope.pending.add(new PendingItem(item, tick));
             }
         }
     }
 
-    @SubscribeEvent
+    /** 服务端 tick 末确认排队中的掉落物是否真的进入了世界。 */
+    @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.LOWEST)
+    public static void onServerTickEnd(net.minecraftforge.event.TickEvent.ServerTickEvent event) {
+        if (event.phase != net.minecraftforge.event.TickEvent.Phase.END) {
+            return;
+        }
+        for (ScopeBuffer scope : ACTIVE) {
+            scope.flushPending();
+        }
+    }
+
+    /**
+     * 确认排队掉落物：被模组取消/缓冲的生成不会进入世界（{@code level.getEntity(id) == null}），
+     * 直接丢弃并如实记录——否则会变成"永远追不到的幻影掉落物"。
+     */
+    private void flushPending() {
+        if (pending.isEmpty()) {
+            return;
+        }
+        List<PendingItem> batch = List.copyOf(pending);
+        pending.clear();
+        if (!active) {
+            return;
+        }
+        for (PendingItem entry : batch) {
+            ItemEntity item = entry.item();
+            BlockPos pos = item.blockPosition();
+            if (!inWorld(item)) {
+                BotLog.info("作用域忽略未进入世界的掉落物(生成被取消/缓冲): {} x{} y{} z{}",
+                        item.getItem().getItem(), pos.getX(), pos.getY(), pos.getZ());
+                continue;
+            }
+            spawnedItems.add(item);
+            long now = item.level() instanceof ServerLevel level ? level.getGameTime() : entry.tick();
+            pruneBreaks(now);
+            BlockPos source = matchBreakSource(pos, entry.tick());
+            itemOrigins.put(item.getUUID(), source);
+            BotLog.info("作用域捕捉掉落物: {} x{} y{} z{} source={}",
+                    item.getItem().getItem(), pos.getX(), pos.getY(), pos.getZ(),
+                    source == null ? "unpaired" : source.toShortString());
+        }
+    }
+
+    @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.LOWEST)
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
         if (!(event.getLevel() instanceof ServerLevel serverLevel)) {
             return;

@@ -480,6 +480,26 @@ public final class BotManager {
         return true;
     }
 
+    /** 挖掘专项串联回归（批次 5）。 */
+    public static boolean assignMineRegression(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        session.beginTask(new com.dddgn.alice.task.MineRegressionTask(bot, observer, session.scope()),
+                TaskTarget.block(com.dddgn.alice.task.MineCourseDiagnosticTask.START_FOOT));
+        broadcastTarget(session.target);
+        return true;
+    }
+
+    /** 模组兼容自检：Ore Excavation 连锁挖掘的掉落物捕获与收集。 */
+    public static boolean assignChainMineDiagnostic(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        session.beginTask(new com.dddgn.alice.task.ChainMineDiagnosticTask(bot, observer, session.scope()),
+                TaskTarget.block(com.dddgn.alice.task.ChainMineDiagnosticTask.SEED));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     public static boolean assignBreakEnterDiagnostic(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;

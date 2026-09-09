@@ -7,11 +7,16 @@ import com.dddgn.alice.pathing.core.session.PathExecutionResult;
 import com.dddgn.alice.perception.ScopeBuffer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.Item;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -23,25 +28,38 @@ import java.util.UUID;
  *   <li>**来源判定**：只收集 {@code ScopeBuffer.liveDrops()}——即"由 bot 自己的破坏事件配对到的掉落物"
  *       （D-074；连锁挖掘模组的多点破坏同样覆盖）；</li>
  *   <li>**职责单一**：只收集，不挖方块、不搭桥；"怎么过去"完全交给寻路内核；</li>
- *   <li>**终点 = 掉落物所在位置**（`item.blockPosition()`），不做"相邻站位"改写；</li>
- *   <li>**按需授予世界修改权限**：`allowWorldModification=true` → `PathRequest.withWorldModification`
- *       （可破坏/放置打通路线）；false → 纯通行，够不到就标记不可达；</li>
- *   <li>**自然拾取**：站到物品格（或 1 格内）后等待原版拾取（默认 10 tick 延迟 + 余量），
- *       **不反射、不调 `playerTouch`**；</li>
- *   <li>**best-effort**：收不到不判 FAILED，输出 `[CollectDrops] SUMMARY collected=n/m unreachable=k`；</li>
- *   <li>**每物品预算 + 任务总预算**，替代 legacy 的多套计数与挖台阶逻辑。</li>
+ *   <li>**按需授予世界修改权限**：`allowWorldModification=true` → `PathRequest.withWorldModification`，
+ *       false → 纯通行（`PathRequest.of`，HARD_PATH）；</li>
+ *   <li>**自然拾取**：站进拾取范围后等待原版拾取，**不反射、不调 `playerTouch`**；</li>
+ *   <li>**best-effort**：收不到不判 FAILED，输出 `[CollectDrops] SUMMARY ...`。</li>
  * </ul>
+ *
+ * <p>**簇级收集（D-075 修正，用户裁定）**：原版拾取盒为玩家包围盒外扩 ±1.0 x/z、±0.5 y，
+ * 一次走位会同时吸走邻近多件——逐实体"追一个等一个"既慢又少报。现在：
+ * <ol>
+ *   <li>把候选按**连通距离 2.0 格、|Δy| ≤ 1** 聚成簇；</li>
+ *   <li>走到簇内最近成员格，等该簇成员全部消失（或 40 tick 超时；超时后**最多再换 2 次锚点**扫尾）；</li>
+ *   <li>计数用**背包增量**（唯一地面真相），不再用"实体是否消失"推断；</li>
+ *   <li>**守恒交叉校验**：`背包增量 == 簇起始 stack 总和 − 结束时剩余存活 stack 总和`，
+ *       不等就记 `MISMATCH`（暴露"同类型被他人拾取/重复生成/背包满"等干扰），不做静默相信。</li>
+ * </ol>
  */
 public final class CollectDropsTask implements Task {
 
     /** 任务总预算（tick）。 */
     private static final int DEFAULT_TOTAL_BUDGET_TICKS = 600;
-    /** 单个物品的追踪预算（tick）。 */
-    private static final int ITEM_BUDGET_TICKS = 200;
+    /** 单个簇的扫描预算（tick，含走位与等待）。 */
+    private static final int CLUSTER_BUDGET_TICKS = 200;
     /** 到位后等待自然拾取的 tick 数（原版拾取延迟 10 tick + 余量）。 */
     private static final int PICKUP_WAIT_TICKS = 40;
-    /** 判定"站在物品格附近"的水平距离（格）。 */
+    /** 判定"已站进拾取范围"的水平距离（格）。 */
     private static final double PICKUP_RADIUS = 1.2D;
+    /** 簇内两个掉落物的最大连通距离（格）：对应原版拾取盒 ±1.3。 */
+    private static final double CLUSTER_LINK_DISTANCE = 2.0D;
+    /** 簇内允许的最大垂直差（格）。 */
+    private static final int CLUSTER_LINK_DY = 1;
+    /** 一个簇内最多换几次锚点扫尾（覆盖簇边缘够不到的物品）。 */
+    private static final int MAX_REANCHORS = 2;
     /** 超过该距离（格）放弃追踪（D-074 用户裁定）。 */
     private static final double MAX_CHASE_DISTANCE = 32.0D;
 
@@ -53,22 +71,33 @@ public final class CollectDropsTask implements Task {
     private final int totalBudgetTicks;
 
     private int ticks;
-    private int collected;
-    private final Set<UUID> known = new LinkedHashSet<>();
-    private final Set<UUID> unreachable = new LinkedHashSet<>();
-    private final Set<UUID> vanished = new LinkedHashSet<>();
-    private final Set<UUID> gone = new LinkedHashSet<>();
-    private UUID lastTargetId;
-    private boolean lastTargetNear;
-    /** 当前目标的物品类型与追踪开始时的背包数量（用于精确判定"是否被自己拾取"）。 */
-    private net.minecraft.world.item.Item currentItemType;
-    private int currentItemCountBefore;
-    private PathRetryRunner runner;
-    private UUID currentId;
-    private BlockPos currentPos;
-    private int itemTicks;
-    private int waitTicks;
     private String failure = "";
+
+    // ---- 全局统计 ----
+    private final Set<UUID> known = new LinkedHashSet<>();
+    private final Set<UUID> firstSeen = new LinkedHashSet<>();
+    private final Set<UUID> consumed = new LinkedHashSet<>();
+    private final Set<UUID> retired = new LinkedHashSet<>();
+    private final Map<UUID, Integer> lastSeenStack = new HashMap<>();
+    private final Map<UUID, ItemEntity> liveById = new LinkedHashMap<>();
+    /** 期望物品数 = 首次见到各实体时的 stack 数量之和（合并不会改变它）。 */
+    private int expectedItems;
+    /** 实际进背包的物品数 = 各次扫描的背包增量之和。 */
+    private int collectedItems;
+    private int clustersSwept;
+    private int unreachableCount;
+    private int pickupTimeoutCount;
+    private int mismatchCount;
+
+    // ---- 当前簇扫描状态 ----
+    private List<UUID> clusterIds;
+    private BlockPos anchor;
+    private Map<Item, Integer> typeBefore;
+    private int clusterStartSum;
+    private int sweepTicks;
+    private int waitTicks;
+    private int reanchors;
+    private PathRetryRunner runner;
 
     public CollectDropsTask(BotPlayer bot, BlockPos origin, ScopeBuffer scope,
                             List<UUID> expectedIds, boolean allowWorldModification) {
@@ -95,87 +124,144 @@ public final class CollectDropsTask implements Task {
         return failure;
     }
 
+    /** 实际进背包的物品数（背包增量口径）。 */
+    public int collected() {
+        return collectedItems;
+    }
+
     @Override
     public Status tick() {
         if (++ticks > totalBudgetTicks) {
             return finish("timeout");
         }
-        List<ItemEntity> items = candidates();
-        trackDisappearances(items);
-        if (items.isEmpty()) {
-            return finish("done");
-        }
-        ItemEntity item = choose(items);
-        lastTargetId = item.getUUID();
-        BlockPos itemPos = item.blockPosition().immutable();
+        List<ItemEntity> live = refreshCandidates();
+        trackDisappearances(live);
 
-        // 目标切换（消失/超距/换物品）→ 重置追踪状态
-        if (currentId == null || !currentId.equals(item.getUUID()) || !itemPos.equals(currentPos)) {
-            cancelRunner();
-            currentId = item.getUUID();
-            currentPos = itemPos;
-            currentItemType = item.getItem().getItem();
-            currentItemCountBefore = countInInventory(currentItemType);
-            itemTicks = 0;
-            waitTicks = 0;
-        }
-        if (++itemTicks > ITEM_BUDGET_TICKS) {
-            markUnreachable(item.getUUID(), "item_budget");
+        if (clusterIds == null) {
+            if (live.isEmpty()) {
+                return finish("done");
+            }
+            beginCluster(live);
             return Status.RUNNING;
         }
 
-        // 已在拾取范围内 → 等待原版自然拾取
-        double dx = bot.getX() - (itemPos.getX() + 0.5D);
-        double dz = bot.getZ() - (itemPos.getZ() + 0.5D);
-        boolean near = Math.abs(bot.getY() - itemPos.getY()) <= 1.5D
-                && Math.sqrt(dx * dx + dz * dz) <= PICKUP_RADIUS;
-        lastTargetNear = near;
-        if (near) {
-            cancelRunner();
-            if (++waitTicks >= PICKUP_WAIT_TICKS && !item.isRemoved()) {
-                markUnreachable(item.getUUID(), "pickup_wait_timeout");
+        List<ItemEntity> members = liveMembers(live);
+        if (members.isEmpty()) {
+            endCluster(false);
+            return Status.RUNNING;
+        }
+        if (++sweepTicks > CLUSTER_BUDGET_TICKS) {
+            for (ItemEntity member : members) {
+                retire(member.getUUID(), "cluster_budget");
+            }
+            endCluster(true);
+            return Status.RUNNING;
+        }
+
+        // 0) 尚未走位、且还没进入拾取范围 → 建路径（走位优先；不建就会"原地放弃"）
+        if (runner == null && members.stream().noneMatch(this::inPickupRange)) {
+            PathRequest request = allowWorldModification
+                    ? PathRequest.withWorldModification(bot.getUUID().toString(), bot.blockPosition(), anchor)
+                    : PathRequest.of(bot.getUUID().toString(), bot.blockPosition(), anchor);
+            runner = new PathRetryRunner(bot, request, PathRetryRunner.DEFAULT_MAX_REPLANS,
+                    "collect-" + anchor.getX() + "_" + anchor.getY() + "_" + anchor.getZ());
+            BotLog.info("[CollectDrops] sweep_start anchor={} members={} feet={} worldMod={}",
+                    anchor.toShortString(), members.size(), bot.blockPosition().toShortString(),
+                    allowWorldModification);
+        }
+
+        // 1) 走位优先：runner 未结束就继续走完（原版拾取会在路过时自动发生，
+        //    提前取消寻路会让 bot 停在"看着够得着、实际差半格"的位置上，D-076 修正）
+        if (runner != null) {
+            PathRetryRunner.State state = runner.tick();
+            if (state == PathRetryRunner.State.RUNNING) {
+                return Status.RUNNING;
+            }
+            if (state == PathRetryRunner.State.DONE) {
+                cancelRunner();
+                return Status.RUNNING;
+            }
+            PathExecutionResult result = runner.result();
+            String reason = result == null ? "unreachable" : result.status().name();
+            for (ItemEntity member : members) {
+                retire(member.getUUID(), reason);
+            }
+            endCluster(true);
+            return Status.RUNNING;
+        }
+
+        // 2) 已到位：只有**真的进入原版拾取范围**才等待（否则继续换锚点/如实退休）
+        if (members.stream().anyMatch(this::inPickupRange)) {
+            if (++waitTicks >= PICKUP_WAIT_TICKS) {
+                if (reanchors < MAX_REANCHORS) {
+                    reanchor(members);
+                } else {
+                    for (ItemEntity member : members) {
+                        retire(member.getUUID(), "pickup_timeout");
+                    }
+                    endCluster(true);
+                }
             }
             return Status.RUNNING;
         }
 
-        // 移动：终点 = 掉落物所在位置
-        if (runner == null) {
-            PathRequest request = allowWorldModification
-                    ? PathRequest.withWorldModification(bot.getUUID().toString(), bot.blockPosition(), itemPos)
-                    : PathRequest.of(bot.getUUID().toString(), bot.blockPosition(), itemPos);
-            runner = new PathRetryRunner(bot, request, PathRetryRunner.DEFAULT_MAX_REPLANS,
-                    "collect-" + itemPos.getX() + "_" + itemPos.getY() + "_" + itemPos.getZ());
-            BotLog.info("[CollectDrops] chase item={} pos={} feet={} worldMod={}",
-                    item.getUUID(), itemPos.toShortString(), bot.blockPosition().toShortString(),
-                    allowWorldModification);
-        }
-        PathRetryRunner.State state = runner.tick();
-        if (state == PathRetryRunner.State.RUNNING) {
+        // 3) 到位但够不到（物品卡在够不着的位置）→ 换最近成员再试，用尽后如实退休
+        if (reanchors < MAX_REANCHORS) {
+            reanchor(members);
             return Status.RUNNING;
         }
-        if (state == PathRetryRunner.State.DONE) {
-            cancelRunner();
-            return Status.RUNNING;
+        for (ItemEntity member : members) {
+            retire(member.getUUID(), "not_in_pickup_range");
         }
-        PathExecutionResult result = runner.result();
-        markUnreachable(item.getUUID(), result == null ? "unreachable" : result.status().name());
+        endCluster(true);
         return Status.RUNNING;
     }
 
-    /** 当前仍在范围内、且未标记不可达的候选物品。 */
-    private List<ItemEntity> candidates() {
+    /** 换到**离 bot 最近的存活成员**作为新锚点（原样重走）。 */
+    private void reanchor(List<ItemEntity> members) {
+        reanchors++;
+        ItemEntity nearest = members.stream()
+                .min(java.util.Comparator.comparingDouble(item -> bot.distanceToSqr(item)))
+                .orElse(members.get(0));
+        anchor = nearest.blockPosition().immutable();
+        waitTicks = 0;
+        runner = null;
+        BotLog.info("[CollectDrops] reanchor cluster_anchor={} remaining={} reanchors={}/{}",
+                anchor.toShortString(), members.size(), reanchors, MAX_REANCHORS);
+    }
+
+    /**
+     * 是否已进入**原版拾取范围**：与原版 `Player.tick()` 的判定完全一致——
+     * 玩家包围盒外扩 `1.0 x/z、0.5 y` 与掉落物包围盒相交（掉落物落地后中心约在方块底面 +0.125，
+     * 用"到方块中心距离"判定会出现"看着到位、实际差半格"的假到位）。
+     */
+    private boolean inPickupRange(ItemEntity item) {
+        return bot.getBoundingBox().inflate(1.0D, 0.5D, 1.0D).intersects(item.getBoundingBox());
+    }
+
+    // ---- 候选与观测 ----
+
+    /** 当前仍在范围、未被淘汰的候选；同时刷新 known/expected/lastSeenStack。 */
+    private List<ItemEntity> refreshCandidates() {
+        liveById.clear();
         List<ItemEntity> result = new ArrayList<>();
         for (ItemEntity item : scope.liveDrops()) {
             UUID id = item.getUUID();
-            known.add(id);
-            if (unreachable.contains(id)) {
+            if (consumed.contains(id) || retired.contains(id)) {
                 continue;
             }
+            known.add(id);
+            if (firstSeen.add(id)) {
+                expectedItems += item.getItem().getCount();
+            }
+            lastSeenStack.put(id, item.getItem().getCount());
+            liveById.put(id, item);
             if (!expectedIds.isEmpty() && !expectedIds.contains(id)) {
                 continue;
             }
             if (bot.distanceToSqr(item) > MAX_CHASE_DISTANCE * MAX_CHASE_DISTANCE) {
-                markUnreachable(id, "too_far");
+                retire(id, "too_far");
+                liveById.remove(id);
                 continue;
             }
             result.add(item);
@@ -183,47 +269,146 @@ public final class CollectDropsTask implements Task {
         return result;
     }
 
-    /** 最近优先 + 粘滞（同一物品连续追）。 */
-    private ItemEntity choose(List<ItemEntity> items) {
-        if (currentId != null) {
-            for (ItemEntity item : items) {
-                if (item.getUUID().equals(currentId)) {
-                    return item;
-                }
-            }
-        }
-        return items.stream()
-                .min(Comparator.comparingDouble(item -> bot.distanceToSqr(item)))
-                .orElse(items.get(0));
-    }
-
-    /** 记录"从已知集合里消失"的物品：目标物品且在拾取范围内 → 计为已收集；否则计为消失。 */
+    /** 记录"从已知集合里消失"的实体（被拾取、被合并、或离开世界）。计数不在这里，在簇结束时按背包增量统计。 */
     private void trackDisappearances(List<ItemEntity> live) {
         Set<UUID> liveIds = new LinkedHashSet<>();
         for (ItemEntity item : live) {
             liveIds.add(item.getUUID());
         }
         for (UUID id : known) {
-            if (liveIds.contains(id) || gone.contains(id)) {
+            if (liveIds.contains(id) || consumed.contains(id) || retired.contains(id)) {
                 continue;
             }
-            gone.add(id);
-            // 精确判定：背包里该物品数量是否增加（比"距离阈值"可靠——原版拾取范围随 bbox 变化）
-            int now = currentItemType == null ? 0 : countInInventory(currentItemType);
-            boolean picked = id.equals(lastTargetId) && currentItemType != null
-                    && now > currentItemCountBefore;
-            if (picked) {
-                collected++;
-                BotLog.info("[CollectDrops] collected item={} type={} count {}->{}",
-                        id, currentItemType, currentItemCountBefore, now);
-            } else {
-                vanished.add(id);
-                BotLog.info("[CollectDrops] vanished item={}", id);
-            }
+            consumed.add(id);
+            BotLog.info("[CollectDrops] entity_gone item={}", id);
         }
     }
 
-    private int countInInventory(net.minecraft.world.item.Item item) {
+    // ---- 簇 ----
+
+    private void beginCluster(List<ItemEntity> live) {
+        ItemEntity seed = live.stream()
+                .min(java.util.Comparator.comparingDouble(item -> bot.distanceToSqr(item)))
+                .orElse(live.get(0));
+        clusterIds = new ArrayList<>();
+        Set<UUID> inCluster = new LinkedHashSet<>();
+        Deque<ItemEntity> queue = new ArrayDeque<>();
+        clusterIds.add(seed.getUUID());
+        inCluster.add(seed.getUUID());
+        queue.add(seed);
+        while (!queue.isEmpty()) {
+            ItemEntity current = queue.poll();
+            for (ItemEntity other : live) {
+                if (inCluster.contains(other.getUUID())) {
+                    continue;
+                }
+                if (linked(current, other)) {
+                    inCluster.add(other.getUUID());
+                    clusterIds.add(other.getUUID());
+                    queue.add(other);
+                }
+            }
+        }
+        anchor = seed.blockPosition().immutable();
+        clusterStartSum = 0;
+        typeBefore = new LinkedHashMap<>();
+        for (UUID id : clusterIds) {
+            ItemEntity item = liveById.get(id);
+            if (item == null) {
+                continue;
+            }
+            clusterStartSum += item.getItem().getCount();
+            typeBefore.putIfAbsent(item.getItem().getItem(), countInInventory(item.getItem().getItem()));
+        }
+        sweepTicks = 0;
+        waitTicks = 0;
+        reanchors = 0;
+        runner = null;
+        BotLog.info("[CollectDrops] cluster_start anchor={} members={} items={} types={}",
+                anchor.toShortString(), clusterIds.size(), clusterStartSum, typeBefore.size());
+    }
+
+    private static boolean linked(ItemEntity a, ItemEntity b) {
+        double dx = a.getX() - b.getX();
+        double dz = a.getZ() - b.getZ();
+        return Math.abs(a.getY() - b.getY()) <= CLUSTER_LINK_DY
+                && dx * dx + dz * dz <= CLUSTER_LINK_DISTANCE * CLUSTER_LINK_DISTANCE;
+    }
+
+    private List<ItemEntity> liveMembers(List<ItemEntity> live) {
+        List<ItemEntity> members = new ArrayList<>();
+        for (ItemEntity item : live) {
+            if (clusterIds.contains(item.getUUID())) {
+                members.add(item);
+            }
+        }
+        return members;
+    }
+
+    /**
+     * 结束一次簇扫描：按**背包增量**计收集数，并用守恒式交叉校验
+     * `增量 == 起始 stack 总和 − 结束剩余存活 stack 总和`。
+     */
+    private void endCluster(boolean timedOut) {
+        int delta = 0;
+        if (typeBefore != null) {
+            for (Map.Entry<Item, Integer> entry : typeBefore.entrySet()) {
+                delta += countInInventory(entry.getKey()) - entry.getValue();
+            }
+        }
+        int remaining = 0;
+        for (UUID id : clusterIds) {
+            ItemEntity item = liveById.get(id);
+            if (item != null) {
+                remaining += item.getItem().getCount();
+            }
+        }
+        int expectedGain = clusterStartSum - remaining;
+        collectedItems += Math.max(0, delta);
+        clustersSwept++;
+        if (delta != expectedGain) {
+            mismatchCount++;
+            BotLog.warn("[CollectDrops] MISMATCH anchor={} delta={} expected={} startSum={} remaining={}"
+                            + "（同类型被他人拾取/重复生成/背包满/统计漏洞）",
+                    anchor == null ? "-" : anchor.toShortString(), delta, expectedGain, clusterStartSum, remaining);
+        }
+        BotLog.info("[CollectDrops] cluster_done anchor={} members={} delta={} remaining={} ticks={} timeout={}",
+                anchor == null ? "-" : anchor.toShortString(), clusterIds.size(), delta, remaining,
+                sweepTicks, timedOut);
+        clusterIds = null;
+        anchor = null;
+        typeBefore = null;
+        runner = null;
+        sweepTicks = 0;
+        waitTicks = 0;
+        reanchors = 0;
+    }
+
+    private void retire(UUID id, String reason) {
+        if (!retired.add(id)) {
+            return;
+        }
+        if ("pickup_timeout".equals(reason)) {
+            pickupTimeoutCount++;
+        } else {
+            unreachableCount++;
+        }
+        ItemEntity item = liveById.get(id);
+        BotLog.warn("[CollectDrops] retire item={} reason={} itemPos={} itemY={} stack={}"
+                        + " botFeet={} botBox={} inRange={}",
+                id, reason,
+                item == null ? "-" : item.blockPosition().toShortString(),
+                item == null ? "-" : String.format(java.util.Locale.ROOT, "%.3f", item.getY()),
+                lastSeenStack.getOrDefault(id, 0),
+                bot.blockPosition().toShortString(),
+                String.format(java.util.Locale.ROOT, "[%.2f..%.2f y %.2f..%.2f z %.2f..%.2f]",
+                        bot.getBoundingBox().minX, bot.getBoundingBox().maxX,
+                        bot.getBoundingBox().minY, bot.getBoundingBox().maxY,
+                        bot.getBoundingBox().minZ, bot.getBoundingBox().maxZ),
+                item != null && inPickupRange(item));
+    }
+
+    private int countInInventory(Item item) {
         int total = 0;
         var inventory = bot.getInventory();
         for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
@@ -233,16 +418,6 @@ public final class CollectDropsTask implements Task {
             }
         }
         return total;
-    }
-
-    private void markUnreachable(UUID id, String reason) {
-        cancelRunner();
-        if (unreachable.add(id)) {
-            BotLog.warn("[CollectDrops] unreachable item={} reason={} pos={}",
-                    id, reason, currentPos == null ? "-" : currentPos.toShortString());
-        }
-        currentId = null;
-        currentPos = null;
     }
 
     private void cancelRunner() {
@@ -255,16 +430,15 @@ public final class CollectDropsTask implements Task {
 
     private Status finish(String reason) {
         cancelRunner();
-        int total = known.size();
-        int missing = Math.max(0, total - collected);
-        String summary = "reason=" + reason + " collected=" + collected + "/" + total
-                + " vanished=" + vanished.size() + " unreachable=" + unreachable.size()
+        String summary = "reason=" + reason
+                + " collected=" + collectedItems + "/" + expectedItems
+                + " entities=" + consumed.size() + "/" + known.size()
+                + " clusters=" + clustersSwept
+                + " unreachable=" + unreachableCount
+                + " pickup_timeout=" + pickupTimeoutCount
+                + " mismatch=" + mismatchCount
                 + " ticks=" + ticks;
         BotLog.info("[CollectDrops] SUMMARY {}", summary);
         return Status.DONE;
-    }
-
-    public int collected() {
-        return collected;
     }
 }

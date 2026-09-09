@@ -115,6 +115,23 @@ public final class BotCommand {
                                         .executes(ctx -> miningEstimate(ctx.getSource(), "lower_bound")))
                                 .then(Commands.literal("dijkstra")
                                         .executes(ctx -> miningEstimate(ctx.getSource(), "dijkstra")))))
+               .then(Commands.literal("chain")
+                        .executes(ctx -> {
+                            ctx.getSource().sendSystemMessage(Component.literal(
+                                    "[alice] 连锁挖掘：" + com.dddgn.alice.task.mining.MiningTuning.chainMode()
+                                            + "（默认 OFF=原版单格）"
+                                            + " mod=" + (com.dddgn.alice.compat.ChainMining.available()
+                                                    ? "present" : "absent")
+                                            + " settings=" + com.dddgn.alice.compat.ChainMining.settingsSummary()
+                                            + " 白名单=AUTO 时仅矿石/原木"));
+                            return 1;
+                        })
+                        .then(Commands.literal("off")
+                                .executes(ctx -> chainMode(ctx.getSource(), "off")))
+                        .then(Commands.literal("auto")
+                                .executes(ctx -> chainMode(ctx.getSource(), "auto")))
+                        .then(Commands.literal("force")
+                                .executes(ctx -> chainMode(ctx.getSource(), "force"))))
                .then(Commands.literal("risk")
                         .executes(ctx -> {
                             ctx.getSource().sendSystemMessage(Component
@@ -976,6 +993,21 @@ public final class BotCommand {
 
 
     /** D-067 批次 2：切换候选成本估算方案。 */
+    private static int chainMode(net.minecraft.commands.CommandSourceStack source, String mode) {
+        if (!com.dddgn.alice.task.mining.MiningTuning.setChainMode(mode)) {
+            source.sendSystemMessage(Component.literal("[alice] 未知连锁策略: " + mode
+                    + "（可选 off / auto / force）"));
+            return 0;
+        }
+        String summary = "[alice] 连锁挖掘 = "
+                + com.dddgn.alice.task.mining.MiningTuning.chainMode()
+                + " mod=" + (com.dddgn.alice.compat.ChainMining.available() ? "present" : "absent");
+        source.sendSystemMessage(Component.literal(summary));
+        com.dddgn.alice.log.BotLog.info("[ChainMining] 策略切换 mode={} all={}",
+                mode, com.dddgn.alice.task.mining.MiningTuning.describe());
+        return 1;
+    }
+
     private static int miningEstimate(net.minecraft.commands.CommandSourceStack source, String mode) {
         if (!com.dddgn.alice.task.mining.MiningTuning.setEstimateMode(mode)) {
             source.sendSystemMessage(Component.literal("[alice] 未知估算方案: " + mode));

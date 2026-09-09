@@ -121,6 +121,14 @@ public final class AliceItems {
     public static final RegistryObject<Item> MINE_COURSE_RUNNER =
             ITEMS.register("mine_course_runner", () -> new MineCourseRunnerItem(new Item.Properties()));
 
+    /** 挖掘专项串联回归（批次 5，场景专属）。 */
+    public static final RegistryObject<Item> MINE_REGRESSION =
+            ITEMS.register("mine_regression", () -> new MineRegressionItem(new Item.Properties()));
+
+    /** 模组兼容自检：Ore Excavation 连锁挖掘的掉落物捕获与收集（场景专属）。 */
+    public static final RegistryObject<Item> CHAIN_TEST_RUNNER =
+            ITEMS.register("chain_test_runner", () -> new ChainTestRunnerItem(new Item.Properties()));
+
     /** D-068 破坏进入验证器（BREAK_AND_ENTER，场景专属）。 */
     public static final RegistryObject<Item> PATHING_BREAK_ENTER =
             ITEMS.register("pathing_break_enter", () -> new PathingBreakEnterItem(new Item.Properties()));

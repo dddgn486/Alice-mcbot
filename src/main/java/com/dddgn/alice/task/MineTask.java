@@ -1,6 +1,7 @@
 package com.dddgn.alice.task;
 
 import com.dddgn.alice.action.MineBlockRunner;
+import com.dddgn.alice.compat.ChainMining;
 import com.dddgn.alice.bot.RecoveryStage;
 import com.dddgn.alice.bot.TaskFailureReport;
 import com.dddgn.alice.log.BotLog;
@@ -10,8 +11,10 @@ import com.dddgn.alice.survival.SurvivalSystem;
 import com.dddgn.alice.task.mining.MiningBudget;
 import com.dddgn.alice.task.mining.MiningPlan;
 import com.dddgn.alice.task.mining.MiningPlanner;
+import com.dddgn.alice.task.mining.MiningTuning;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -31,10 +34,13 @@ import java.util.List;
  * 深埋目标是否可挖由 `MiningBudget` 决定（超预算 → `found_but_unminable`）。
  */
 public final class MineTask implements Task {
-    private enum Phase { EVALUATING, MINING, COLLECTING }
+    private enum Phase { EVALUATING, MINING, CHAIN, COLLECTING }
 
     /** 视线失败等可重试情形最多重试 2 次（D-067 Q5）。 */
     private static final int MAX_RECOVERY_ATTEMPTS = 2;
+
+    /** 连锁挖掘等待上限（tick）；超时即停止连锁并如实处理（D-077）。 */
+    private static final int CHAIN_TIMEOUT_TICKS = 200;
 
     private final ServerPlayer bot;
     private final BlockPos target;
@@ -55,6 +61,15 @@ public final class MineTask implements Task {
     private MineBlockRunner.Status lastProbeStatus;
     private BlockPos optimalStandingPoint;
     private boolean standingPointEvaluated;
+
+    // ---- 连锁挖掘（D-077）----
+    /** 本任务是否走模组连锁（规划期一次性判定，回落时置 false）。 */
+    private boolean useChain;
+    private boolean chainTriggered;
+    private int chainTicks;
+    private int lastChainMined;
+    /** 触发连锁前的目标方块状态（用于判断连锁是否真的把它挖掉了）。 */
+    private BlockState chainTargetState;
 
     public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope) {
         this(bot, target, scope, MiningBudget.forTarget(
@@ -123,6 +138,11 @@ public final class MineTask implements Task {
         return currentPlan;
     }
 
+    /** 收集阶段实际进背包的物品数（未进入收集阶段时为 0；D-076 起为**物品个数**口径）。 */
+    public int collectedItems() {
+        return collector == null ? 0 : collector.collected();
+    }
+
     private void recordRecovery(RecoveryStage stage) {
         if (stage == null || stage == RecoveryStage.NONE) {
             return;
@@ -145,6 +165,10 @@ public final class MineTask implements Task {
             return evaluateStandingPoint();
         }
 
+        if (phase == Phase.CHAIN) {
+            return tickChain();
+        }
+
         if (phase == Phase.COLLECTING) {
             Status status = collector.tick();
             if (status == Status.FAILED) {
@@ -165,18 +189,10 @@ public final class MineTask implements Task {
             return Status.RUNNING;
         }
         if (status == MineBlockRunner.Status.DONE) {
-            if (!budget.collectDrops()) {
-                BotLog.info("[MineTask] collect_skipped target={} reason=collectDrops=false",
-                        target.toShortString());
-                return Status.DONE;
+            if (useChain && !chainTriggered) {
+                return beginChain();
             }
-            phase = Phase.COLLECTING;
-            if (!(bot instanceof com.dddgn.alice.bot.BotPlayer botPlayer)) {
-                throw new IllegalStateException("MineTask requires BotPlayer");
-            }
-            collector = new CollectDropsTask(botPlayer, target, scope, List.of(), true);
-            BotLog.info("挖掘阶段完成,进入拾取阶段: target={}", target.toShortString());
-            return Status.RUNNING;
+            return enterCollection();
         }
 
         MineBlockRunner.FailureReport report = miner.failureReport();
@@ -191,6 +207,81 @@ public final class MineTask implements Task {
             return Status.RUNNING;
         }
         return escalateFailure(report);
+    }
+
+    /** 破坏阶段结束（或连锁完成）→ 进入收集阶段。 */
+    private Status enterCollection() {
+        if (!budget.collectDrops()) {
+            BotLog.info("[MineTask] collect_skipped target={} reason=collectDrops=false",
+                    target.toShortString());
+            return Status.DONE;
+        }
+        phase = Phase.COLLECTING;
+        if (!(bot instanceof com.dddgn.alice.bot.BotPlayer botPlayer)) {
+            throw new IllegalStateException("MineTask requires BotPlayer");
+        }
+        collector = new CollectDropsTask(botPlayer, target, scope, List.of(), true);
+        BotLog.info("挖掘阶段完成,进入拾取阶段: target={}", target.toShortString());
+        return Status.RUNNING;
+    }
+
+    /**
+     * 站到站位后触发模组连锁（D-077）。任何失败都**如实回落**到单格挖掘，
+     * 不让"模组不在场/被占用"变成任务失败。
+     */
+    private Status beginChain() {
+        chainTriggered = true;
+        chainTargetState = bot.level().getBlockState(target);
+        ChainMining.StartResult result = ChainMining.start(bot, target);
+        if (result != ChainMining.StartResult.OK) {
+            BotLog.warn("[ChainMine] prod_fallback target={} reason={} → 回落单格挖掘",
+                    target.toShortString(), result);
+            useChain = false;
+            miner = null;
+            startMining();
+            phase = Phase.MINING;
+            return Status.RUNNING;
+        }
+        chainTicks = 0;
+        lastChainMined = ChainMining.minedCount(bot);
+        phase = Phase.CHAIN;
+        BotLog.info("[ChainMine] prod_trigger target={} state={} mode={} settings={} mined0={}",
+                target.toShortString(), chainTargetState.getBlock(), MiningTuning.chainMode(),
+                ChainMining.settingsSummary(), lastChainMined);
+        return Status.RUNNING;
+    }
+
+    /** 等待连锁结束 → 校验目标真的没了 → 进入收集；没挖掉则回落单格挖掘。 */
+    private Status tickChain() {
+        chainTicks++;
+        if (ChainMining.isRunning(bot)) {
+            int mined = ChainMining.minedCount(bot);
+            if (mined != lastChainMined) {
+                lastChainMined = mined;
+                BotLog.info("[ChainMine] prod_progress target={} mined={} tick={}",
+                        target.toShortString(), mined, chainTicks);
+            }
+            if (chainTicks <= CHAIN_TIMEOUT_TICKS) {
+                return Status.RUNNING;
+            }
+            BotLog.warn("[ChainMine] prod_timeout target={} ticks={} mined={} → 停止连锁",
+                    target.toShortString(), chainTicks, mined);
+            ChainMining.stop(bot);
+        }
+        int mined = ChainMining.minedCount(bot);
+        BlockState now = bot.level().getBlockState(target);
+        if (chainTargetState != null && now.getBlock() != chainTargetState.getBlock()) {
+            BotLog.info("[ChainMine] prod_done target={} mined={} ticks={} → 收集",
+                    target.toShortString(), mined, chainTicks);
+            return enterCollection();
+        }
+        BotLog.warn("[ChainMine] prod_target_remains target={} mined={} → 回落单格挖掘",
+                target.toShortString(), mined);
+        useChain = false;
+        miner = null;
+        startMining();
+        phase = Phase.MINING;
+        return Status.RUNNING;
     }
 
     private boolean tryReplan(MineBlockRunner.FailureReport report) {
@@ -256,6 +347,13 @@ public final class MineTask implements Task {
         currentPlan = result.plan();
         optimalStandingPoint = currentPlan.standingFoot();
         standingPointEvaluated = true;
+        BlockState targetState = bot.level().getBlockState(target);
+        useChain = ChainMining.shouldChain(MiningTuning.chainMode(), targetState);
+        if (useChain) {
+            BotLog.info("[ChainMine] prod_armed target={} state={} mode={} chainable={} settings={}",
+                    target.toShortString(), targetState.getBlock(), MiningTuning.chainMode(),
+                    ChainMining.isChainable(targetState), ChainMining.settingsSummary());
+        }
         BotLog.info("[MiningPlanner探针] planned target={} startFoot={} standingFoot={} mode={} pathStatus={} pathSize={} pathCost={} visibility={} executable={} support={} score={}",
                 currentPlan.target().toShortString(), currentPlan.startFoot().toShortString(),
                 currentPlan.standingFoot().toShortString(), currentPlan.mode(),
@@ -275,7 +373,8 @@ public final class MineTask implements Task {
         if (!(bot instanceof com.dddgn.alice.bot.BotPlayer botPlayer)) {
             throw new IllegalStateException("MineTask requires BotPlayer");
         }
-        miner = new MineBlockRunner(botPlayer, currentPlan);
+        // useChain=true 时只走到站位（walkOnly），破坏由任务层触发模组连锁
+        miner = new MineBlockRunner(botPlayer, currentPlan, useChain && !chainTriggered);
         lastProbeStatus = null;
         BotLog.info("[MineTask探针] 创建 MineBlockRunner: target={} mode={} stand={} botPos={} attempt={}",
                 target.toShortString(), currentPlan.mode(),

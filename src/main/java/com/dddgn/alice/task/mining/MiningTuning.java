@@ -18,6 +18,21 @@ public final class MiningTuning {
 
     private static volatile EstimateMode estimateMode = EstimateMode.DIJKSTRA;
 
+    /**
+     * 连锁挖掘策略（D-077，默认 {@link #OFF} = 原版单格）。
+     *
+     * <ul>
+     *   <li>{@code OFF}：永不用模组连锁，生产路径与接入前完全一致；</li>
+     *   <li>{@code AUTO}：模组在场且目标属**矿石/原木**时才连锁（玩家手动启用后的默认档）；</li>
+     *   <li>{@code FORCE}：模组在场即连锁（仅测试/诊断用，绕过白名单）。</li>
+     * </ul>
+     */
+    public enum ChainMode {
+        OFF, AUTO, FORCE
+    }
+
+    private static volatile ChainMode chainMode = ChainMode.OFF;
+
     /** S2 成本场：最大成本半径（走路格数）与节点上限。 */
     private static volatile double costFieldMaxCost = 24.0D;
     private static volatile int costFieldMaxNodes = 20_000;
@@ -56,6 +71,24 @@ public final class MiningTuning {
         return false;
     }
 
+    public static ChainMode chainMode() {
+        return chainMode;
+    }
+
+    /** 按名切换连锁策略；返回是否命中。 */
+    public static boolean setChainMode(String name) {
+        if (name == null) {
+            return false;
+        }
+        for (ChainMode mode : ChainMode.values()) {
+            if (mode.name().equalsIgnoreCase(name)) {
+                chainMode = mode;
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static double costFieldMaxCost() {
         return costFieldMaxCost;
     }
@@ -82,6 +115,7 @@ public final class MiningTuning {
 
     public static String describe() {
         return "estimate=" + estimateMode
+                + " chain=" + chainMode
                 + " costFieldMaxCost=" + costFieldMaxCost
                 + " topK=" + exactTopK + "/" + exactTopKMax
                 + " losEpsilon=" + losSampleEpsilon

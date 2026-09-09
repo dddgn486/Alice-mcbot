@@ -41,6 +41,8 @@ public final class MineBlockRunner {
     private final ServerLevel level;
     private final MiningPlan plan;
     private final BlockPos target;
+    /** 只走到站位、不破坏目标（破坏由任务层接管；D-077 连锁兼容）。 */
+    private final boolean walkOnly;
 
     private PathRetryRunner runner;
     private BlockBreakSession breakSession;
@@ -53,6 +55,15 @@ public final class MineBlockRunner {
     private double mineStartEyeDist;
 
     public MineBlockRunner(BotPlayer bot, MiningPlan plan) {
+        this(bot, plan, false);
+    }
+
+    /**
+     * @param walkOnly 只走到站位（不破坏目标），用于任务层接管破坏动作的场景
+     *                 （例如连锁挖掘模组兼容，D-077）。到位后返回 {@link Status#DONE}。
+     */
+    public MineBlockRunner(BotPlayer bot, MiningPlan plan, boolean walkOnly) {
+        this.walkOnly = walkOnly;
         this.bot = bot;
         this.level = bot.serverLevel();
         this.plan = plan;
@@ -102,7 +113,16 @@ public final class MineBlockRunner {
             return tickSupportPlacement();
         }
 
-        // 3) 破坏目标
+        // 3) 只走位模式：到位即完成（破坏由任务层接管）
+        if (walkOnly) {
+            bot.controller().stopMovement();
+            BotLog.info("[MineRunner] at_stand target={} stand={} walkOnly=true",
+                    target.toShortString(), plan.standingFoot().toShortString());
+            status = Status.DONE;
+            return status;
+        }
+
+        // 4) 破坏目标
         return tickBreak();
     }
 

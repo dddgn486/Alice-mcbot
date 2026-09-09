@@ -30,5 +30,7 @@
   "item.alice.walk_to_runner": "WalkTo Self-check",
   "item.alice.follow_runner": "Follow Runner",
   "item.alice.pathing_break_enter": "Break-And-Enter Checker",
-  "item.alice.mine_course_runner": "Mine Stand Checker"
+  "item.alice.mine_course_runner": "Mine Stand Checker",
+  "item.alice.chain_test_runner": "Chain-Mine Compat Checker",
+  "item.alice.mine_regression": "Mining Regression"
 }
