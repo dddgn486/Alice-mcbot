@@ -1,6 +1,6 @@
 # Baritone 对照：break_course（破坏墙后通过）
 # 用法：/function alice_test:contrast_break → 然后 #goto 7 64 66
-function alice_test:break_course
+function alice_test:break_course_terrain
 clear @s
 kill @e[type=minecraft:marker]
 tp @s 0.5 64.0 66.5

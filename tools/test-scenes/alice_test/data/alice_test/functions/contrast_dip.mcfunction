@@ -1,6 +1,6 @@
 # Baritone 对照：dip_course（1 格深坑 vs 同层绕路）
 # 用法：/function alice_test:contrast_dip → 然后 #goto -1 64 63
-function alice_test:dip_course
+function alice_test:dip_course_terrain
 clear @s
 kill @e[type=minecraft:marker]
 tp @s 0.5 64.0 66.5

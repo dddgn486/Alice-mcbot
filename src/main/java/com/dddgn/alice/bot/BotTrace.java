@@ -28,12 +28,20 @@ public final class BotTrace {
         return enabled;
     }
 
+    /** 采样上限：到点自动关闭，避免忘记关开关时刷满日志。 */
+    private static final int MAX_TICKS = 600;
+
     /** 由 BotSession 每 tick 调用（服务端主线程）。 */
     public static void tick(BotPlayer bot) {
         if (!enabled) {
             return;
         }
         ticks++;
+        if (ticks > MAX_TICKS) {
+            enabled = false;
+            BotLog.info("[TRACE] recording=false reason=budget_exhausted ticks={}", ticks);
+            return;
+        }
         BotLog.info("[TRACE] {} t={} x={} y={} z={} vx={} vy={} vz={} og={} yaw={}",
                 bot.getName().getString(), ticks,
                 Math.round(bot.getX() * 1000.0D), Math.round(bot.getY() * 1000.0D),

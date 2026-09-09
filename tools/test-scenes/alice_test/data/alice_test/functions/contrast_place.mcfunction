@@ -1,6 +1,6 @@
 # Baritone 对照：place_course（放置台阶跨缺口）
 # 用法：/function alice_test:contrast_place → 然后 #goto 8 62 66
-function alice_test:place_course
+function alice_test:place_course_terrain
 clear @s
 kill @e[type=minecraft:marker]
 tp @s 0.5 64.0 66.5

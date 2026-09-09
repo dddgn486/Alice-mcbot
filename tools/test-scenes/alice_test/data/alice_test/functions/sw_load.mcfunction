@@ -9,3 +9,4 @@ scoreboard objectives add alice_tr_vy dummy {"text":"轨迹 vy(毫格/tick)"}
 scoreboard objectives add alice_tr_vz dummy {"text":"轨迹 vz(毫格/tick)"}
 scoreboard objectives add alice_tr_og dummy {"text":"轨迹 落地"}
 scoreboard objectives add alice_tr_yaw dummy {"text":"轨迹 偏航(百分度)"}
+scoreboard objectives add alice_tr_budget dummy {"text":"轨迹剩余 tick"}

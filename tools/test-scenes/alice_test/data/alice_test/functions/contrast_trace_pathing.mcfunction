@@ -1,6 +1,6 @@
 # 连续行动数据采集：pathing_course（平地长走廊）—— 一键准备 + 开始记录
 # 用法：/function alice_test:contrast_trace_pathing → 立刻输入 #goto 0 62 44
-function alice_test:pathing_course
+function alice_test:pathing_course_terrain
 clear @s
 kill @e[type=minecraft:marker]
 tp @s 0.5 64.0 46.5
