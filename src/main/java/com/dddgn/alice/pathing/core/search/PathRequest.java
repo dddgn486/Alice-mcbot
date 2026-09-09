@@ -51,6 +51,18 @@ public record PathRequest(
                 SearchBudget.UNLIMITED, "unknown");
     }
 
+    /**
+     * 挖掘到达请求（D-067 ㉘）：允许破坏进入 / 破坏通行 / 放置台阶，**显式禁用** PILLAR / FALL / DOWNWARD，
+     * 避免"挖矿时先搭柱子/跳下来"这类奇技。
+     */
+    public static PathRequest miningApproach(String botId, BlockPos startFoot, BlockPos goalFoot) {
+        return new PathRequest(botId, startFoot, new GoalFoot(goalFoot),
+                Set.of(MovementType.TRAVERSE, MovementType.DIAGONAL, MovementType.ASCEND,
+                        MovementType.DESCEND, MovementType.BREAK_AND_TRAVERSE,
+                        MovementType.BREAK_AND_ENTER, MovementType.PLACE_STEP_AND_TRAVERSE),
+                SearchBudget.UNLIMITED, "unknown");
+    }
+
     public boolean allows(MovementType type) {
         return allowedMovementTypes.contains(type);
     }

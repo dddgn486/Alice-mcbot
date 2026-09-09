@@ -37,18 +37,17 @@ public final class MineTask implements Task {
     private enum Phase { EVALUATING, MINING, COLLECTING }
     private enum FailureHandling { CONTINUE_EXISTING_RECOVERY, ESCALATE }
 
-    private static final int MAX_CLEAR_DEPTH = 2;
-    private static final int MAX_RECOVERY_ATTEMPTS = 1;
-    private static final double MAX_CLEAR_REACH = 4.5D;
+    /** D-067 批次 3：视线失败等可重试情形最多重试 2 次（Q5 裁定）。 */
+    private static final int MAX_RECOVERY_ATTEMPTS = 2;
 
     private final ServerPlayer bot;
     private final BlockPos target;
     private final ScopeBuffer scope;
+    private final com.dddgn.alice.task.mining.MiningBudget budget;
     private final MiningPlanner miningPlanner = new MiningPlanner();
     private BotMiner miner;
     private MiningPlan currentPlan;
     private BlockPos currentMineTarget;
-    private int clearDepth;
     private Phase phase = Phase.EVALUATING;
     private DropCollectionTask collector;
     private String failureReason = "";
@@ -66,9 +65,17 @@ public final class MineTask implements Task {
     private boolean standingPointEvaluated = false;
 
     public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope) {
+        this(bot, target, scope, com.dddgn.alice.task.mining.MiningBudget.forTarget(
+                bot, (net.minecraft.server.level.ServerLevel) bot.level(), target, true));
+    }
+
+    /** D-067 批次 3：`collectDrops` 为必要参数（false 时跳过放支撑块与收集）。 */
+    public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope,
+                    com.dddgn.alice.task.mining.MiningBudget budget) {
         this.bot = bot;
         this.target = target.immutable();
         this.scope = scope;
+        this.budget = budget;
         this.currentMineTarget = this.target;
         bot.getInventory().setItem(bot.getInventory().selected,
                 new ItemStack(Items.DIAMOND_PICKAXE));
@@ -193,6 +200,11 @@ public final class MineTask implements Task {
                 startMining(target);
                 return Status.RUNNING;
             }
+            if (!budget.collectDrops()) {
+                BotLog.info("[MineTask] collect_skipped target={} reason=collectDrops=false",
+                        target.toShortString());
+                return Status.DONE;
+            }
             phase = Phase.COLLECTING;
             collector = new DropCollectionTask(bot, target, scope);
             BotLog.info("挖掘阶段完成,进入拾取阶段: target={}", target.toShortString());
@@ -206,40 +218,22 @@ public final class MineTask implements Task {
                 target.toShortString(), currentMineTarget.toShortString(), executionAttempts,
                 failureReport.reason(), failureReport.planInvalidation(), currentPlanRetained());
         FailureHandling handling = classifyFailure(minerFailure, failureReport);
-        BotLog.info("[MineTask失败处理探针] target={} reason={} planInvalidation={} handling={} clearDepth={}/{}",
+        BotLog.info("[MineTask失败处理探针] target={} reason={} planInvalidation={} handling={} recoveryAttempts={}/{}",
                 target.toShortString(), minerFailure, failureReport.planInvalidation(), handling,
-                clearDepth, MAX_CLEAR_DEPTH);
+                recoveryAttempts, MAX_RECOVERY_ATTEMPTS);
         if (handling == FailureHandling.ESCALATE) {
             return escalateFailure(minerFailure, failureReport);
         }
-        BlockPos blocker = findDirectBlocker();
-        if (blocker != null && clearDepth < MAX_CLEAR_DEPTH
-                && !blocker.equals(currentMineTarget)) {
-            String refusalReason = BlockBreakSafety.clearingRefusal(bot, blocker);
-            if (refusalReason != null) {
-                BotLog.warn("清障被安全策略拦截: blocker={} target={} reason={}",
-                        blocker.toShortString(), target.toShortString(), refusalReason);
-                return escalateFailure(refusalReason, failureReport);
-            }
-            clearDepth++;
-            recordRecovery(RecoveryStage.TARGET_ACCESS_CLEAR);
-            BotLog.info("局部清障({}/{}): 当前站位直接挖 {} recoveryStage={}", clearDepth,
-                    MAX_CLEAR_DEPTH, blocker.toShortString(), recoveryStage);
-            startMining(blocker);
+        // D-067 批次 3：不再有独立清障；失败一律走"重新规划"（规划器会自动从 A 降级到 B），
+        // 重试预算用尽后如实上报（深埋目标由 MiningBudget 决定是 TUNNEL 还是 found_but_unminable）。
+        if (tryReplan(failureReport)) {
             return Status.RUNNING;
         }
         if ("stand_search_limit".equals(minerFailure)
                 || failureReport.planInvalidation() == BotMiner.PlanInvalidation.PLAN_PATH_INCONCLUSIVE) {
-            BotLog.info("目标站位搜索预算耗尽: target={} minerFailure={} clearDepth={}/{}",
-                    target.toShortString(), minerFailure, clearDepth, MAX_CLEAR_DEPTH);
             return escalateFailure("stand_search_limit", failureReport);
         }
-        BotLog.info("目标需要独立通道规划: target={} minerFailure={} clearDepth={}/{}",
-                target.toShortString(), minerFailure, clearDepth, MAX_CLEAR_DEPTH);
-        if (tryReplan(failureReport)) {
-            return Status.RUNNING;
-        }
-        return escalateFailure("target_requires_tunnel", failureReport);
+        return escalateFailure(minerFailure, failureReport);
     }
 
     private boolean tryReplan(BotMiner.FailureReport report) {
@@ -249,7 +243,7 @@ public final class MineTask implements Task {
         }
         recoveryAttempts++;
         MiningPlan previousPlan = currentPlan;
-        MiningPlanner.Result result = miningPlanner.plan(bot, target);
+        MiningPlanner.Result result = miningPlanner.plan(bot, target, budget);
         if (!result.success()) {
             BotLog.warn("[MineTask重规划探针] target={} recoveryAttempt={}/{} oldStanding={} result=FAILED reason={}",
                     target.toShortString(), recoveryAttempts, MAX_RECOVERY_ATTEMPTS,
@@ -259,7 +253,6 @@ public final class MineTask implements Task {
         currentPlan = result.plan();
         recordRecovery(RecoveryStage.MINETASK_REPLAN);
         optimalStandingPoint = currentPlan.standingFoot();
-        clearDepth = 0;
         currentMineTarget = target;
         lastFailureReport = report;
         BotLog.info("[MineTask重规划探针] target={} recoveryAttempt={}/{} oldStanding={} newStanding={} newPathStatus={} newVisibility={} currentPlanReplaced=true",
@@ -289,10 +282,10 @@ public final class MineTask implements Task {
         recordRecovery(RecoveryStage.ESCALATED_FAILURE);
         failureReason = reason == null || reason.isBlank() ? "unknown_failure" : reason;
         lastFailureReport = report;
-        BotLog.warn("[MineTask升级决策探针] target={} reason={} planInvalidation={} attempts={} recoveryAttempts={}/{} clearDepth={} currentPlanRetained={} nextAction=ESCALATE",
+        BotLog.warn("[MineTask升级决策探针] target={} reason={} planInvalidation={} attempts={} recoveryAttempts={}/{} currentPlanRetained={} nextAction=ESCALATE",
                 target.toShortString(), failureReason,
                 report == null ? "NONE" : report.planInvalidation(), executionAttempts,
-                recoveryAttempts, MAX_RECOVERY_ATTEMPTS, clearDepth, currentPlanRetained());
+                recoveryAttempts, MAX_RECOVERY_ATTEMPTS, currentPlanRetained());
         return Status.FAILED;
     }
 
@@ -307,9 +300,9 @@ public final class MineTask implements Task {
         }
 
         BlockPos currentPos = bot.blockPosition().immutable();
-        MiningPlanner.Result result = miningPlanner.plan(bot, target);
+        MiningPlanner.Result result = miningPlanner.plan(bot, target, budget);
         if (!result.success()) {
-            BotLog.warn("[MiningPlanner探针] planning failed target={} reason={}",
+            BotLog.warn("[MiningPlanner探针] planning failed target={} reason={} budget={}",
                     target.toShortString(), result.failureReason());
             return escalateFailure(result.failureReason(), null);
         }
@@ -367,25 +360,4 @@ public final class MineTask implements Task {
                 currentMineTarget.equals(target) && currentPlan != null ? "PLAN" : "LEGACY_COMPAT");
     }
 
-    private BlockPos findDirectBlocker() {
-        net.minecraft.world.phys.Vec3 eye = bot.getEyePosition();
-        BlockPos blocker = raycastBlock(eye, target.getCenter());
-        if (blocker == null || blocker.equals(target)
-                || eye.distanceTo(blocker.getCenter()) > MAX_CLEAR_REACH) {
-            return null;
-        }
-        return blocker;
-    }
-
-    private BlockPos raycastBlock(net.minecraft.world.phys.Vec3 from,
-                                  net.minecraft.world.phys.Vec3 to) {
-        net.minecraft.world.level.ClipContext context = new net.minecraft.world.level.ClipContext(
-                from, to,
-                net.minecraft.world.level.ClipContext.Block.COLLIDER,
-                net.minecraft.world.level.ClipContext.Fluid.NONE,
-                bot);
-        net.minecraft.world.phys.BlockHitResult hit = bot.level().clip(context);
-        return hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
-                ? hit.getBlockPos().immutable() : null;
-    }
 }

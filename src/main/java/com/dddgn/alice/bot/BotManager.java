@@ -472,6 +472,15 @@ public final class BotManager {
     }
 
     /** Assigns the DOWNWARD diagnostic (execute + guard). */
+    public static boolean assignMineCourseDiagnostic(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        session.beginTask(new com.dddgn.alice.task.MineCourseDiagnosticTask(bot, observer),
+                TaskTarget.block(new net.minecraft.core.BlockPos(23, 64, 140)));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     public static boolean assignBreakEnterDiagnostic(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;

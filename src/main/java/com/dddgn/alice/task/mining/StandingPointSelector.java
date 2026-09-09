@@ -3,6 +3,7 @@ package com.dddgn.alice.task.mining;
 import com.dddgn.alice.pathing.MovementHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
@@ -79,6 +80,46 @@ public final class StandingPointSelector {
             return null;
         }
         return los;
+    }
+
+    /**
+     * 模式 B 候选（D-067 批次 3）：**固定几何集，不看当前是否可站**。
+     *
+     * <pre>
+     * 4 面 × {y, y−1}          = 8 格
+     * + 正下方 y−2 … 眼位可达深度
+     * </pre>
+     *
+     * 正下方范围"取到保证能挖到的范围内"（`k ≤ reach + 1.54`，眼位到目标底面），
+     * 但**遇到第一个实心方块时按预算决定是否继续**（避免在实心岩里规划长竖井）。
+     */
+    public static List<BlockPos> tunnelCandidates(ServerPlayer bot, ServerLevel level, BlockPos target,
+                                                  double reach, double maxExtraBreakTicks) {
+        List<BlockPos> result = new ArrayList<>();
+        int[][] faces = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        for (int[] d : faces) {
+            result.add(target.offset(d[0], 0, d[1]).immutable());
+            result.add(target.offset(d[0], -1, d[1]).immutable());
+        }
+        int maxDepth = (int) Math.floor(reach + 1.54D);
+        double accumulated = 0.0D;
+        for (int k = 2; k <= maxDepth; k++) {
+            BlockPos cell = target.below(k).immutable();
+            if (!MovementHelper.canWalkThrough(level, cell)) {
+                double ticks = bot == null
+                        ? Double.POSITIVE_INFINITY
+                        : com.dddgn.alice.action.BlockInteraction.estimateBreakTicks(bot, level, cell);
+                if (!Double.isFinite(ticks)) {
+                    break;
+                }
+                accumulated += ticks;
+                if (accumulated > maxExtraBreakTicks) {
+                    break;
+                }
+            }
+            result.add(cell);
+        }
+        return result;
     }
 
     /** 现成可站：脚下有支撑 + 脚位/头位可通行。 */

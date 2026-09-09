@@ -1163,3 +1163,25 @@
 - 验收（零参数）：`/function alice_test:scene_a` + 右键 `alice:mining_scene_tester`（或 `alice:target_selector` 右键方块），
   检查 `[MiningPlanner] target=.. candidates=N estimate=DIJKSTRA nodes=.. ms=.. planned=.. chosen=.. cost=..`；
   切换 `/alice mining estimate lower_bound` 后再跑一次，观察 `estimate=LOWER_BOUND` 与候选/选择差异。
+
+## D-070：两模式编排 + 下方支撑双策略 + MiningBudget + collectDrops（D-067 批次 3）
+
+- 状态：已实施，待客户端验证（用户 2026-09-09："好，开始批次3"）
+- 设计依据：`docs/MINING_STAND_SELECTION_DESIGN.md` v7（㉑–㉙）
+- 改动：
+  1. **`MiningBudget`（新）**：`collectDrops` 为必要参数；兜底破坏上限 = `N × 普通方块破坏 tick`（N=10），
+     按目标珍贵程度分档（普通 1× / 普通矿石 2× / 钻石·残骸·绿宝石 4×）；估算不可用时回退实测基线 **6 tick**。
+  2. **`PathRequest.miningApproach`（新）**：允许 `BREAK_AND_ENTER`/`BREAK_AND_TRAVERSE`/`PLACE_STEP`，
+     **显式禁用 PILLAR/FALL/DOWNWARD**（㉘）。
+  3. **`MiningPlan`**：新增 `mode`（CURRENT/DIRECT/TUNNEL/ENTER_TARGET）与 `supportPlacementPos`（可空）。
+  4. **`MiningPlanner` 重写编排**：A（当前/直接）→ 下方无支撑时比较"放支撑块 + 侧面站位" vs "只从正下方挖"
+     → B（`tunnelCandidates`：4 面 × {y,y−1} + 正下方，遇实心方块按预算决定是否继续）
+     → 兜底 `ENTER_TARGET`（目标格为终点，破坏成本超预算即 `found_but_unminable`）。
+  5. **`BotMiner`**：按 mode 选择到达请求（TUNNEL/ENTER_TARGET 用 `miningApproach`）；
+     新增"目标下方放支撑块"子步骤（到达站位后、挖掘前）。
+  6. **`MineTask`**：接入 `MiningBudget`；**删除独立清障**（`findDirectBlocker`/`MAX_CLEAR_DEPTH`/射线）；
+     失败一律走重新规划（A 无解时规划器自动降级 B），重试预算 2 次；`collectDrops=false` 时跳过收集阶段。
+- 未做（批次 4/5）：`BotMiner` 退役与伐木迁移、夹具重写、`mine_regression`。
+- 验收（零参数）：`/function alice_test:mine_course` + 右键 `alice:mine_course_runner` →
+  `[MineCourse] SUMMARY free=PASS wall=PASS blocked=PASS headroom=PASS buried=PASS`
+  （`blocked` 期望 `mode=TUNNEL`；`buried` 期望 `found_but_unminable` 或 `TUNNEL`）。

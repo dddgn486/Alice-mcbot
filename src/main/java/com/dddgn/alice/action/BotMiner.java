@@ -1,5 +1,6 @@
 package com.dddgn.alice.action;
 
+import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.bot.RecoveryStage;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.core.search.CorePathPlanner;
@@ -71,6 +72,11 @@ public final class BotMiner {
     private boolean preferredStandingPointFallback;
     /** 站位移动统一走新内核任务层重试器（D-064：BotMiner 只保留动作层）。 */
     private PathRetryRunner runner;
+    /** D-067 批次 3：模式 B/兜底允许破坏+放置到达（PathRequest.miningApproach）。 */
+    private boolean allowWorldModification;
+    /** D-067 批次 3：目标下方无支撑时，需要先放置的支撑方块位置（null = 不需要）。 */
+    private BlockPos supportPlacementPos;
+    private boolean supportPlaced;
     private BlockPos standGoal;
     private List<BlockPos> standCandidates;
     private boolean started;
@@ -96,11 +102,16 @@ public final class BotMiner {
         this(bot, plan.target(), plan.standingFoot(), "PLAN");
         this.plannedPath = plan.path();
         this.plannedStartFoot = plan.startFoot();
-        BotLog.info("[MiningPlan探针] consumed executionMode={} target={} startFoot={} standingFoot={} pathStatus={} pathSize={} visibility={} executable={}",
+        this.allowWorldModification = plan.mode() == MiningPlan.Mode.TUNNEL
+                || plan.mode() == MiningPlan.Mode.ENTER_TARGET;
+        this.supportPlacementPos = plan.supportPlacementPos();
+        BotLog.info("[MiningPlan探针] consumed executionMode={} mode={} target={} startFoot={} standingFoot={} pathStatus={} pathSize={} visibility={} executable={} support={}",
                 executionMode,
                 plan.target().toShortString(), plan.startFoot().toShortString(),
-                plan.standingFoot().toShortString(), plan.path().status(), plan.path().movements().size(),
-                plan.visibility().isClear(), plan.isExecutable());
+                plan.mode(), plan.standingFoot().toShortString(), plan.path().status(),
+                plan.path().movements().size(),
+                plan.visibility().isClear(), plan.isExecutable(),
+                plan.supportPlacementPos() == null ? "-" : plan.supportPlacementPos().toShortString());
     }
 
     /**
@@ -273,6 +284,32 @@ public final class BotMiner {
                 return Status.FAILED;
             }
             runner = null;
+        }
+
+        // 2.5) 目标下方无支撑 → 先在目标下方放支撑块（D-067 批次 3；collectDrops=false 时不会走到这里）
+        if (supportPlacementPos != null && !supportPlaced) {
+            if (bot instanceof com.dddgn.alice.bot.BotPlayer botPlayer) {
+                botPlayer.controller().stopMovement();
+            }
+            if (BlockInteraction.findPlaceableSlot(bot) < 0) {
+                failureReason = "PLACE_RESOURCE_UNAVAILABLE";
+                BotLog.warn("[BotMiner] support_place_no_block target={} support={}",
+                        target.toShortString(), supportPlacementPos.toShortString());
+                return Status.FAILED;
+            }
+            BlockInteraction.PlaceResult placeResult =
+                    BlockInteraction.placeAt(bot, level, supportPlacementPos, false);
+            if (placeResult != BlockInteraction.PlaceResult.PLACED) {
+                failureReason = "SUPPORT_PLACE_FAILED";
+                BotLog.warn("[BotMiner] support_place_failed target={} support={} feet={}",
+                        target.toShortString(), supportPlacementPos.toShortString(),
+                        bot.blockPosition().toShortString());
+                return Status.FAILED;
+            }
+            supportPlaced = true;
+            BotLog.info("[BotMiner] support_placed pos={} feet={}",
+                    supportPlacementPos.toShortString(), bot.blockPosition().toShortString());
+            return Status.MINING;
         }
 
         // 3) 视线无遮挡检查(M0 验收核心:根治隔空挖)

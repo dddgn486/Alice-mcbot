@@ -29,5 +29,6 @@
   "item.alice.pathing_fall": "落差检查器",
   "item.alice.walk_to_runner": "WalkTo 自检器",
   "item.alice.follow_runner": "跟随启动器",
-  "item.alice.pathing_break_enter": "破坏进入检查器"
+  "item.alice.pathing_break_enter": "破坏进入检查器",
+  "item.alice.mine_course_runner": "挖掘站位自检器"
 }
