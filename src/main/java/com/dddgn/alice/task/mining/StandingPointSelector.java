@@ -5,6 +5,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -164,7 +165,7 @@ public final class StandingPointSelector {
      * 检查位置是否是有效的站位。
      */
     private static boolean isValidStandingPoint(ServerLevel level, BlockPos pos, BlockPos target) {
-        // 1. 检查距离
+        // 1. 检查距离（粗筛：块中心距离）
         double distanceSqr = pos.distSqr(target);
         if (distanceSqr > MAX_REACH * MAX_REACH) {
             return false;
@@ -190,7 +191,16 @@ public final class StandingPointSelector {
         if (pos.equals(target) || pos.equals(target.above())) {
             return false;
         }
-        
-        return true;
+
+        // 4. **可挖掘面前提（D-066 语义修正）**：从该站位的假设眼位必须能看到目标的至少一个面
+        //    （`LineOfSightChecker` 的"目标边界内缩多面体"采样：中心 + 6 面内缩点），
+        //    并且那个可见采样点必须在触及距离内——"看得到但打不到"同样不算能挖。
+        //    视线是**前提条件**，不参与评分（评分只用于在"能挖的站位"之间排序）。
+        Vec3 eye = pos.getCenter().add(0.0D, BOT_EYE_HEIGHT - 0.5D, 0.0D);
+        LineOfSightChecker.LineOfSightResult los = LineOfSightChecker.checkFromEye(level, eye, target);
+        if (!los.isClear()) {
+            return false;
+        }
+        return eye.distanceTo(los.getSuccessfulSample()) <= MAX_REACH;
     }
 }

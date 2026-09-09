@@ -38,15 +38,9 @@ public final class StandingPointEvaluator {
     
     private StandingPointEvaluator() {}
     
-    // 权重配置
-    private static final double LINE_OF_SIGHT_WEIGHT = 10.0;  // 视线权重最高
+    // 权重配置（D-066：视线是前提条件，不参与评分）
     private static final double DISTANCE_WEIGHT = 1.0;
     private static final double HEIGHT_WEIGHT = 0.5;
-    
-    // 视线分数
-    private static final double CLEAR_SCORE = 100.0;
-    private static final double ONE_BLOCKER_SCORE = 50.0;
-    private static final double MULTIPLE_BLOCKERS_SCORE = 0.0;
     
     // 高度分数
     private static final double SAME_HEIGHT_SCORE = 100.0;
@@ -75,15 +69,11 @@ public final class StandingPointEvaluator {
         // 计算高度差
         int heightDiff = standingPoint.getY() - target.getY();
         
-        // 计算各项分数
-        double losScore = calculateLineOfSightScore(losResult);
+        // 计算各项分数（D-066：视线只作为前提条件在 StandingPointSelector 里过滤，
+        // 这里只对"已经能挖的站位"按距离/高度排序；LOS 结果仍保留在评分记录里供日志/计划快照使用）
         double distanceScore = calculateDistanceScore(distance, maxReach);
         double heightScore = calculateHeightScore(heightDiff);
-        
-        // 计算总分
-        double totalScore = LINE_OF_SIGHT_WEIGHT * losScore
-                          + DISTANCE_WEIGHT * distanceScore
-                          + HEIGHT_WEIGHT * heightScore;
+        double totalScore = DISTANCE_WEIGHT * distanceScore + HEIGHT_WEIGHT * heightScore;
         
         return new StandingPointScore(standingPoint, totalScore, losResult, distance, heightDiff);
     }
@@ -124,19 +114,6 @@ public final class StandingPointEvaluator {
         
         List<StandingPointScore> scores = evaluateAndSort(level, candidates, target, eyeHeight, maxReach);
         return scores.isEmpty() ? null : scores.get(0).getPosition();
-    }
-    
-    private static double calculateLineOfSightScore(LineOfSightChecker.LineOfSightResult losResult) {
-        if (losResult.isClear()) {
-            return CLEAR_SCORE;
-        }
-        
-        int blockerCount = losResult.getBlockerCount();
-        if (blockerCount == 1) {
-            return ONE_BLOCKER_SCORE;
-        }
-        
-        return MULTIPLE_BLOCKERS_SCORE;
     }
     
     private static double calculateDistanceScore(double distanceSqr, double maxReach) {

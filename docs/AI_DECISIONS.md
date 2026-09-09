@@ -1078,3 +1078,18 @@
   见 `docs/MINE_MIGRATION_DESIGN.md` §2.3。
 - 验收：`/function alice_test:scene_a` → 右键 `alice:mining_scene_tester` →
   期望 `standGoal` 不再是 `target.above()`（应为侧面同层站位），`face` 不再是 `down`。
+
+## D-066：可挖掘面语义修正——从"评分参照"改为"站位前提条件"
+
+- 状态：已实施，待客户端验证（用户 2026-09-09："可挖掘面真正参与选优不是作为参照评分，而是这个站位能挖掘的前提条件"）
+- 改动：
+  1. `StandingPointSelector.isValidStandingPoint` 新增**可挖掘面前提**：
+     从该站位的假设眼位（站位中心 + `BOT_EYE_HEIGHT-0.5`）执行 `LineOfSightChecker.checkFromEye`
+     （目标边界内缩多面体采样：中心 + 6 面内缩点，`SAMPLE_EPSILON=0.08`），
+     要求**至少一条射线先命中目标**，且**该可见采样点在触及距离内**（"看得到但打不到"不算能挖）；
+  2. `StandingPointEvaluator` 移除视线评分项（`LINE_OF_SIGHT_WEIGHT` 及 `calculateLineOfSightScore` 删除），
+     评分只剩 `1×距离 + 0.5×高度`；LOS 结果仍保留在评分记录/`MiningPlan.visibility` 里供日志与计划快照。
+- 语义：**视线 = 过滤（能不能挖）；距离/高度 = 排序（在能挖的站位里选哪个）**。
+- **已识别的后果（待讨论，见审查清单）**：被遮挡但可清障的站位不再进入候选 →
+  现有"运行时发现视线受阻 → `findDirectBlocker` 挖掉遮挡块重试"这条路径会失效
+  （目标被完全遮挡时直接 `no_valid_standing_point`）。
