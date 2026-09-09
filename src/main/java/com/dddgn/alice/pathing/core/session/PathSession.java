@@ -167,7 +167,7 @@ public final class PathSession {
                             sessionId, movements.size(), totalTicks, bot.blockPosition().toShortString());
                     return status;
                 }
-                if (needsSettle(index)) {
+                if (needsSettle(index - 1, index)) {
                     settleTicks = MAX_SETTLE_TICKS;
                     return status;
                 }
@@ -240,17 +240,24 @@ public final class PathSession {
     }
 
     /**
-     * 下一段是否需要"段间稳定"（条件 settle，D-052）。
+     * 段间是否需要"稳定"（条件 settle，D-052）。
      *
-     * <p>需要 settle 的情况：① bot 在空中（等落地）；② 下一段需要精确落点
-     * （DESCEND / DOWNWARD / PLACE_STEP_AND_TRAVERSE / BREAK_AND_TRAVERSE）。
+     * <p>需要 settle：① bot 在空中（等落地）；② **刚结束的段**是精确落点类型
+     * （DESCEND / DOWNWARD / PLACE_STEP_AND_TRAVERSE / BREAK_AND_TRAVERSE）——它的残余动量
+     * 会把下一段起点带偏（2026-09-09 实证：DESCEND 后连续推进滑过目标一格）；
+     * ③ **下一段**是精确落点类型（起段前需要对准/落地）。
      * 其余（共线同层的 TRAVERSE / DIAGONAL / ASCEND）保持动量连续推进。
      */
-    private boolean needsSettle(int nextIndex) {
+    private boolean needsSettle(int finishedIndex, int nextIndex) {
         if (!bot.onGround()) {
             return true;
         }
-        return switch (movements.get(nextIndex).movementType()) {
+        return isPrecisionType(movements.get(finishedIndex).movementType())
+                || isPrecisionType(movements.get(nextIndex).movementType());
+    }
+
+    private static boolean isPrecisionType(com.dddgn.alice.pathing.core.MovementType type) {
+        return switch (type) {
             case DESCEND, DOWNWARD, PLACE_STEP_AND_TRAVERSE, BREAK_AND_TRAVERSE -> true;
             default -> false;
         };
