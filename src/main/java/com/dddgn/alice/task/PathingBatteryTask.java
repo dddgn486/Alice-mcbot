@@ -165,7 +165,9 @@ public final class PathingBatteryTask implements Task {
         String botId = bot.getUUID().toString();
         BlockPos foot = bot.blockPosition().immutable();
 
-        PathPlan flat = planner.planTo(bot, bot.serverLevel(), botId, foot, foot.offset(2, 0, 0), "battery");
+        // 平地 2 格：向南（平台内部无台阶）。注意不要向东——东侧 (1,64,46) 是台阶，
+        // 标定后（D-040）规划器会正确地选择"绕行 4 步（≈24 tick）"而不是"上台阶再下来（≈26 tick）"。
+        PathPlan flat = planner.planTo(bot, bot.serverLevel(), botId, foot, foot.offset(0, 0, 2), "battery");
         results.put("plan_flat", flat.status().name() + "(" + flat.movements().size() + ")");
 
         List<PlannedMovement> upCandidates = detect(MovementType.ASCEND);
@@ -177,9 +179,12 @@ public final class PathingBatteryTask implements Task {
             results.put("plan_up", up.status().name() + "(" + up.movements().size() + ")");
         }
 
+        // 预算边界：目标远在平台外（不可达），预算必须**远小于可达分量**才能触发 SEARCH_LIMIT。
+        // 标定后启发式一致（D-040），每个节点只展开一次，200 节点已足以穷尽约 195 格平台
+        // → 返回 UNREACHABLE（正确但不再验证预算路径），因此收紧到 32 节点。
         PathRequest tight = new PathRequest(botId, foot, new GoalFoot(foot.offset(100, 0, 0)),
                 PathRequest.of(botId, foot, foot).allowedMovementTypes(),
-                SearchBudget.of(200, 200L), "battery");
+                SearchBudget.of(32, 200L), "battery");
         PathPlan budget = planner.plan(bot, bot.serverLevel(), tight);
         results.put("plan_budget", budget.status().name());
 
