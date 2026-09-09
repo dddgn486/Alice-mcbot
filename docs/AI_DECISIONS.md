@@ -849,7 +849,7 @@
 
 ## D-057：lava_course 断言改为"路线不接触岩浆"（新 Movement 打开了合法安全路线）
 
-- 状态：已实施，待客户端验证（用户 2026-09-09：`lava_course` FAIL 后裁定"改成允许 REACHED，但断言路线不接触岩浆"）
+- 状态：**已验收**（2026-09-09 客户端：`[LavaGuard] status=REACHED first=DIAGONAL movements=12 lava_contacts=0 result=PASS`；串联回归 12/12 PASS）
 - 事实（D-056 修复后的 12 项回归）：`pathing/place/break/vertical/pillar/trace/fluid/fence/dip/+wall/+disturb` 全 PASS，
   仅 `lava_course=FAIL detail=REACHED`。
 - 根因分析（**不是内核缺陷**）：该场景原断言是"无路可走 → UNREACHABLE"。封口 3 格高（y=63..65，顶面 y=66）
