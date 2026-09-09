@@ -266,7 +266,7 @@ public final class PathSession {
         for (int i = index + 1; i <= lookahead; i++) {
             MovementType next = movements.get(i).movementType();
             if (next == MovementType.DESCEND || next == MovementType.DOWNWARD
-                    || next == MovementType.ASCEND
+                    || next == MovementType.PILLAR || next == MovementType.ASCEND
                     || next == MovementType.PLACE_STEP_AND_TRAVERSE
                     || next == MovementType.BREAK_AND_TRAVERSE) {
                 return false;
@@ -294,7 +294,7 @@ public final class PathSession {
 
     private static boolean isPrecisionType(com.dddgn.alice.pathing.core.MovementType type) {
         return switch (type) {
-            case DESCEND, DOWNWARD, PLACE_STEP_AND_TRAVERSE, BREAK_AND_TRAVERSE -> true;
+            case DESCEND, DOWNWARD, PILLAR, PLACE_STEP_AND_TRAVERSE, BREAK_AND_TRAVERSE -> true;
             default -> false;
         };
     }
@@ -332,9 +332,12 @@ public final class PathSession {
                 || !MovementHelper.canWalkThrough(level, to.above())) {
             return false;
         }
-        if (movement.movementType() == com.dddgn.alice.pathing.core.MovementType.PLACE_STEP_AND_TRAVERSE) {
+        if (movement.movementType() == com.dddgn.alice.pathing.core.MovementType.PLACE_STEP_AND_TRAVERSE
+                || movement.movementType() == com.dddgn.alice.pathing.core.MovementType.PILLAR) {
             BlockPos placePos = to.below();
-            return MovementHelper.canWalkThrough(level, placePos) || MovementHelper.canWalkOn(level, to);
+            return MovementHelper.canWalkThrough(level, placePos)
+                    || MovementHelper.canWalkOn(level, to)
+                    || com.dddgn.alice.action.BlockInteraction.findPlaceableSlot(bot) >= 0;
         }
         return MovementHelper.canWalkOn(level, to);
     }
@@ -447,7 +450,8 @@ public final class PathSession {
             if (!MovementHelper.canWalkThrough(level, to.above())) {
                 return true;
             }
-            if (movement.movementType() == com.dddgn.alice.pathing.core.MovementType.PLACE_STEP_AND_TRAVERSE) {
+            if (movement.movementType() == com.dddgn.alice.pathing.core.MovementType.PLACE_STEP_AND_TRAVERSE
+                    || movement.movementType() == com.dddgn.alice.pathing.core.MovementType.PILLAR) {
                 continue;
             }
             if (movement.movementType() == com.dddgn.alice.pathing.core.MovementType.DOWNWARD) {

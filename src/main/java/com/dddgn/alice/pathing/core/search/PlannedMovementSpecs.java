@@ -28,7 +28,7 @@ public final class PlannedMovementSpecs {
 
     public static MovementSpec toSpec(PlannedMovement movement, List<String> planningFacts) {
         MovementCapabilities capabilities = switch (movement.movementType()) {
-            case PLACE_STEP_AND_TRAVERSE ->
+            case PLACE_STEP_AND_TRAVERSE, PILLAR ->
                     MovementCapabilities.temporarySupport(RecoverabilityLevel.LOCAL_STEP);
             case BREAK_AND_TRAVERSE, DOWNWARD ->
                     MovementCapabilities.pathAccess(RecoverabilityLevel.LOCAL_STEP);
@@ -53,6 +53,7 @@ public final class PlannedMovementSpecs {
             case ASCEND -> AscendExecutionFactory.KEY;
             case DESCEND -> DescendExecutionFactory.KEY;
             case DOWNWARD -> com.dddgn.alice.pathing.core.DownwardExecutionFactory.KEY;
+            case PILLAR -> com.dddgn.alice.pathing.core.PillarExecutionFactory.KEY;
             case BREAK_AND_TRAVERSE -> BreakAndTraverseExecutionFactory.KEY;
             case PLACE_STEP_AND_TRAVERSE -> PlaceStepAndTraverseExecutionFactory.KEY;
             default -> throw new IllegalArgumentException("unsupported movement type: " + type);
@@ -66,6 +67,7 @@ public final class PlannedMovementSpecs {
             case ASCEND -> new AscendExecutionFactory();
             case DESCEND -> new DescendExecutionFactory();
             case DOWNWARD -> new com.dddgn.alice.pathing.core.DownwardExecutionFactory();
+            case PILLAR -> new com.dddgn.alice.pathing.core.PillarExecutionFactory();
             case BREAK_AND_TRAVERSE -> new BreakAndTraverseExecutionFactory();
             case PLACE_STEP_AND_TRAVERSE -> new PlaceStepAndTraverseExecutionFactory();
             default -> throw new IllegalArgumentException("unsupported movement type: " + type);

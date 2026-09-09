@@ -248,6 +248,12 @@
 | D-042 C | 执行器契约：COLUMN 容差 ×5 / 超时收敛单层 / 取消清理破坏进度 / 校验失败路径计时 | 已实施，待测（串联回归） |
 | D-043 D | Q4 重规划下沉（`PathRetryRunner`）+ 封路夹具 `alice:pathing_waller` | `WINDOWS_CLIENT`（replans=1 → COMPLETED） |
 | D-044 E | ⑤ 删 `WorldView` / ⑨ `canSweepPlayer` 对照登记 / Q1① 可回收性不变式 / Q1② 下降拒绝统计 / Q1③ FALL 暂不采纳 | 已实施（无需客户端） |
+| D-047 | 执行层对齐（跳跃门控 / 输入清理 / 放置语义） | `WINDOWS_CLIENT` |
+| D-048/D-050 | DOWNWARD（破坏脚下 → 掉 1 格）Baritone 原样语义 | `WINDOWS_CLIENT`（`downward_execute=PASS shaft_plan=REACHED`） |
+| D-052 | 条件 settle + 段间连续推进（顿挫修复） | `WINDOWS_CLIENT`（直线跑 96→51 tick、零停顿） |
+| D-053 | 疾跑门控（忽略饱食度） | `WINDOWS_CLIENT`（11 格直线 44 tick） |
+| D-054 | 11 项串联回归 | `WINDOWS_CLIENT`（`SUMMARY` 11/11 PASS） |
+| **D-055** | **PILLAR（垂直上升 1 格）对齐 `MovementPillar`** | **已实施，待客户端验证**（`alice:pathing_pillar` + `pillar_course` + 回归第 12 项 + Baritone 对照） |
 | 待办 E-⑥ | legacy 双内核收口（`pathing/movement/*` + legacy A* + `BotMiner` 原语） | **单独立项**（触及 HARD_PATH） |
 
 ## §4 对齐清单（建议顺序）
@@ -264,7 +270,7 @@
 | P2 | 未加载区块语义（暂停/拒绝） | 搜索 + 执行 | `PathExecutor:186-192`、`BlockStateInterface:79` |
 | P2 | `WorldView` 落地（R7）或删除 | `pathing/core/WorldView` | `BlockStateInterface` |
 | P2 | `safeToCancel`/路径抢占 | `MovementExecution` + `PathSession` | `PathExecutor:194,257,268-300` |
-| P2 | 缺失 Movement 类型（FALL/PILLAR/PARKOUR/DOWNWARD）—— 与 D-024 一起立项 | `MovementType` + provider + 执行器 | `Moves.java:30+` |
+| P2 | 缺失 Movement 类型：DOWNWARD ✅（D-048/050）、PILLAR ✅（D-055）；剩余 FALL（≤3 格，D-024 红线待评估）/ PARKOUR | `MovementType` + provider + 执行器 | `Moves.java:30+` |
 | P0 | `canWalkOn` 改白名单（拒绝栅栏/蜂蜜块等非整格"可站"） | `pathing/MovementHelper.canWalkOn` | `MovementHelper.java:387-426` |
 | P1 | Ascend 补 `headBonkClear` 门控 + factory 补 FallingBlock/climbable/bottom-slab 拒绝 | `AscendExecution.shouldJump`、`AscendExecutionFactory.validate` | `MovementAscend.java:96-131,219-243` |
 | P1 | 放置成本 4.0 → 对齐 `blockPlacementPenalty`(20)；修正错引注释 | `SurfaceMovementProvider.java:25-26,162` | `Settings.java:124`、`CalculationContext.java:106` |

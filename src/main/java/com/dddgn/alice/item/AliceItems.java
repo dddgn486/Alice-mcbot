@@ -109,6 +109,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> PATHING_DOWNWARD =
             ITEMS.register("pathing_downward", () -> new PathingDownwardItem(new Item.Properties()));
 
+    /** D-055 垂直上升验证器（PILLAR，场景专属）。 */
+    public static final RegistryObject<Item> PATHING_PILLAR =
+            ITEMS.register("pathing_pillar", () -> new PathingPillarItem(new Item.Properties()));
+
 
     private AliceItems() {
     }

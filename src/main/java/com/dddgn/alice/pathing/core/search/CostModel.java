@@ -44,6 +44,9 @@ public interface CostModel {
     /** 放置方块的固定代价（对照 Baritone `blockPlacementPenalty = 20 tick`）。 */
     double PLACE_ONE_BLOCK_COST = 20.0D / WALK_ONE_BLOCK_TICKS;
 
+    /** 垂直上升 1 格（PILLAR）：跳跃（ASCEND 的竖向分量）+ 放置一个方块。 */
+    double PILLAR_COST = ASCEND_COST + PLACE_ONE_BLOCK_COST;
+
     double cost(MovementType type, ServerLevel level, BlockPos from, BlockPos to);
 
     CostModel TRAVERSAL = (type, level, from, to) -> switch (type) {
@@ -52,6 +55,7 @@ public interface CostModel {
         case ASCEND -> ASCEND_COST;
         case DESCEND -> DESCEND_COST;
         case DOWNWARD -> DOWNWARD_COST;
+        case PILLAR -> PILLAR_COST;
         default -> Double.POSITIVE_INFINITY;
     };
 }

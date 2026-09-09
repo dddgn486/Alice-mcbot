@@ -43,7 +43,8 @@ public record PathRequest(
     public static PathRequest withWorldModification(String botId, BlockPos startFoot, BlockPos goalFoot) {
         return new PathRequest(botId, startFoot, new GoalFoot(goalFoot),
                 Set.of(MovementType.TRAVERSE, MovementType.DIAGONAL, MovementType.ASCEND,
-                        MovementType.DESCEND, MovementType.DOWNWARD, MovementType.BREAK_AND_TRAVERSE,
+                        MovementType.DESCEND, MovementType.DOWNWARD, MovementType.PILLAR,
+                        MovementType.BREAK_AND_TRAVERSE,
                         MovementType.PLACE_STEP_AND_TRAVERSE),
                 SearchBudget.UNLIMITED, "unknown");
     }

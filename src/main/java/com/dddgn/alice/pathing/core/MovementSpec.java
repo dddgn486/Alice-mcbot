@@ -80,6 +80,11 @@ public record MovementSpec(
                     throw new IllegalArgumentException("DOWNWARD requires a straight vertical drop of one block");
                 }
             }
+            case PILLAR -> {
+                if (dy != 1 || dx != 0 || dz != 0) {
+                    throw new IllegalArgumentException("PILLAR requires a straight vertical rise of one block");
+                }
+            }
             case BREAK_AND_TRAVERSE -> {
                 // 语义：破坏"中间列"后走到其后一格 → 同层直线 2 格
                 boolean straightTwo = (Math.abs(dx) == 2 && dz == 0) || (Math.abs(dz) == 2 && dx == 0);

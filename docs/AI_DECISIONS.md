@@ -793,3 +793,36 @@
 - 夹具内联：封路与漂移逻辑从 `PathSessionDiagnosticTask` 复制到回归任务（按场景参数化），
   单场景物品（`pathing_waller` / `pathing_disturber` 等）保留用于定向排查。
 
+
+## D-055：PILLAR（垂直上升 1 格）对齐 Baritone `MovementPillar`
+
+- 状态：已实施，待客户端验证（用户 2026-09-09："全部通过，按顺序可以进行下一步了" → 计划项 1）
+- 对照来源：`reference/baritone-1.20.1` @8c55ad0
+  `src/main/java/baritone/pathing/movement/movements/MovementPillar.java`（成本 `:62-124`，执行 `:126-231`）。
+- Baritone 语义（逐条落地）：
+  1. 几何：`src → dest = src.above()`，合法位置集 `{src, dest}`，待净空格 = `src.above(2)`（头顶）；
+  2. 成本 = `JUMP_ONE_BLOCK_COST + placeCost + jumpPenalty + hardness`；Alice 用实测 `ASCEND_COST`（已含起跳+落地）
+     + `PLACE_ONE_BLOCK_COST`（= 20 tick / 6）→ `PILLAR_COST = 5.00`；
+  3. 执行顺序：**水平居中到 src 列（阈值 0.17）→ 起跳 → 脚部 y > dest.y + 0.1 后才在脚下放置方块 → 自然落回**；
+     这个 0.1 门槛不是随便取的：脚必须升到待放置格顶面之上，否则原版 `Level.isUnobstructed`
+     会因自身碰撞箱与方块相交而拒绝放置（`MovementPillar:227`）。
+- Alice 实现：
+  - `MovementType.PILLAR` + `MovementSpec` 几何校验（dx=dz=0、dy=+1）+ `CostModel.PILLAR_COST`；
+  - `SurfaceMovementProvider.appendPillar`（目标格/头顶格净空、放置格可替换、快捷栏有一次性方块、有放置面）；
+  - `PillarExecution` + `PillarExecutionFactory`（阶段机：居中 → 起跳 → 升空放置 → 落回稳定；
+    段内 100 tick 上限、放置失败码 `PILLAR_PLACE_FAILED`、无方块 `PLACE_RESOURCE_UNAVAILABLE`）；
+  - `PathSession`：PILLAR 计入精确落点类型（`needsSettle` / `isPrecisionType`）、
+    `currentTargetStillValid` 用"放置位可通行 / 支撑已就位 / 有方块"判定、`futureTargetBlocked` 跳过支撑检查；
+  - `PathRequest.withWorldModification` 加入 PILLAR（TEMPORARY_SUPPORT 能力，LOCAL_STEP 可回收级别）。
+- 偏离登记（3 条，均为"更保守"或等价）：
+  1. **不做"破头顶方块"分支**：Baritone 允许 `src.above(2)` 可破坏时先挖掉再上；Alice 最小闭环要求该格净空
+     （少一条候选，不会产生不安全行为）。需要时再按 `MovementAscend` 的破头分支单独登记实施；
+  2. **放置走服务端 `BlockInteraction.placeAt`**（服务端构造 `BlockHitResult`，等价于客户端上报命中包），
+     因此不需要 Baritone 的潜行姿态与视线射线；
+  3. **规划期放置面按"当前世界"求值**（`hasPlacementFace`）：连续 PILLAR 时第 2/3 段的"脚下已放置方块"
+     在规划期尚不存在，靠侧壁提供放置面；1×1 竖井正好有基岩侧壁。这与 `PLACE_STEP_AND_TRAVERSE` 的既有行为一致，
+     若未来需要"纯靠脚下已放置方块"的连续上升，需要引入投影世界（写入 `docs/ALIGNMENT_OPEN_QUESTIONS.md`）。
+- 验收（一次右键）：`alice_test:pillar_course` + `alice:pathing_pillar`（3 格深 1×1 基岩竖井）
+  期望 `pillar_plan=PASS`（首步 PILLAR、PILLAR 数 = 3）+ `resource_guard=PASS`（清空快捷栏方块后不可规划）
+  + `pillar_execute=PASS`；串联回归新增 `pillar_course`（第 12 项）。
+- Baritone 对照：`alice_test:contrast_pillar` / `contrast_trace_pillar`（同一场景、同一目标 `#goto 25 67 44`）。

@@ -54,6 +54,9 @@ public final class SurfaceMovementProvider implements MovementProvider {
         if (context.allows(MovementType.DOWNWARD)) {
             appendDownward(context, level, from, out);
         }
+        if (context.allows(MovementType.PILLAR)) {
+            appendPillar(context, level, from, out);
+        }
         if (context.allows(MovementType.PLACE_STEP_AND_TRAVERSE)) {
             for (int[] d : CARDINAL) {
                 for (int dy = 0; dy >= -1; dy--) {
@@ -78,6 +81,31 @@ public final class SurfaceMovementProvider implements MovementProvider {
                 }
             }
         }
+    }
+
+    /**
+     * 垂直上升 1 格（PILLAR）：跳跃中在脚下放置方块，落在上面（对照 Baritone `MovementPillar`）。
+     * <p>前置：目标身体+头部净空、脚下可放置、有一次性方块与放置面。
+     */
+    private static void appendPillar(MovementContext context, ServerLevel level, BlockPos from,
+                                     List<PlannedMovement> out) {
+        BlockPos to = from.above();
+        if (!context.yInBounds(to.getY())) {
+            return;
+        }
+        if (!MovementHelper.canWalkThrough(level, to)
+                || !MovementHelper.canWalkThrough(level, to.above())
+                || !MovementHelper.canWalkThrough(level, from)) {
+            return;
+        }
+        if (context.bot() == null || BlockInteraction.findPlaceableSlot(context.bot()) < 0) {
+            return;
+        }
+        if (!BlockInteraction.hasPlacementFace(level, from)) {
+            return;
+        }
+        out.add(new PlannedMovement(MovementType.PILLAR, from, to, CostModel.PILLAR_COST,
+                RecoverabilityLevel.LOCAL_STEP));
     }
 
     /**

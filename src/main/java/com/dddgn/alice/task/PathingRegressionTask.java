@@ -58,6 +58,7 @@ public final class PathingRegressionTask implements Task {
             execute("place_course", new BlockPos(0, 64, 66), new BlockPos(8, 62, 66), true),
             execute("break_course", new BlockPos(0, 64, 66), new BlockPos(7, 64, 66), true),
             execute("vertical_course", new BlockPos(0, 64, 45), new BlockPos(0, 63, 45), true),
+            execute("pillar_course", new BlockPos(24, 64, 44), new BlockPos(25, 67, 44), true),
             execute("trace_course", new BlockPos(0, 64, 40), new BlockPos(0, 64, 51), false),
             refused("fluid_course", new BlockPos(0, 64, 66), new BlockPos(4, 64, 66), true),
             refused("lava_course", new BlockPos(0, 64, 66), new BlockPos(4, 64, 66), true),
@@ -71,7 +72,7 @@ public final class PathingRegressionTask implements Task {
             new SceneCheck("place_course+disturb", new BlockPos(0, 64, 66), new BlockPos(8, 62, 66),
                     true, Kind.EXECUTE_COMPLETE, 0, 30, 0, 1, 0));
 
-    /** 任务级安全上限：7 个场景（3 个执行 + 4 个只规划）正常约 400 tick。 */
+    /** 任务级安全上限：12 个场景正常约 500 tick。 */
     private static final int MAX_TASK_TICKS = 2400;
 
     private final BotPlayer bot;
@@ -258,17 +259,25 @@ public final class PathingRegressionTask implements Task {
         return Status.DONE;
     }
 
+    /** 确保快捷栏里有圆石（放置类 Movement 只从快捷栏取一次性方块）。 */
     private static void ensureCobblestone(BotPlayer bot, int count) {
         var inventory = bot.getInventory();
         int have = 0;
-        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+        for (int slot = 0; slot < 9; slot++) {
             if (inventory.getItem(slot).is(Items.COBBLESTONE)) {
                 have += inventory.getItem(slot).getCount();
             }
         }
-        if (have < count) {
-            inventory.add(new ItemStack(Items.COBBLESTONE, count - have));
+        if (have >= count) {
+            return;
         }
+        for (int slot = 0; slot < 9; slot++) {
+            if (inventory.getItem(slot).isEmpty()) {
+                inventory.setItem(slot, new ItemStack(Items.COBBLESTONE, count - have));
+                return;
+            }
+        }
+        inventory.add(new ItemStack(Items.COBBLESTONE, count - have));
     }
 
     private static void ensureStonePickaxe(BotPlayer bot) {

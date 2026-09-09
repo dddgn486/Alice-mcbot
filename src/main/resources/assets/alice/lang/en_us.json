@@ -23,5 +23,6 @@
   "item.alice.pathing_regression": "Chained Regression Runner",
   "item.alice.pathing_waller": "Path Blocker (Replan Test)",
   "item.alice.pathing_downward": "Vertical Drop Checker",
-  "item.alice.pathing_straight": "Straight Runner"
+  "item.alice.pathing_straight": "Straight Runner",
+  "item.alice.pathing_pillar": "Pillar Checker"
 }

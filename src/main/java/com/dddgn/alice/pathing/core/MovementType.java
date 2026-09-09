@@ -7,6 +7,7 @@ public enum MovementType {
     ASCEND,
     DESCEND,
     DOWNWARD,
+    PILLAR,
     BREAK_AND_TRAVERSE,
     PLACE_STEP_AND_TRAVERSE
 }
