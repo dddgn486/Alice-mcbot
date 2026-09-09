@@ -980,3 +980,33 @@
      `SUMMARY` 末尾输出 `coverage=PASS|FAIL(...)` 与 `executed=<实际执行过的类型>`。
 - 验收：`[Regression] SUMMARY ... coverage=PASS executed=TRAVERSE,DIAGONAL,ASCEND,DESCEND,DOWNWARD,PILLAR,FALL,BREAK_AND_TRAVERSE,PLACE_STEP_AND_TRAVERSE`；
   任何一个类型缺失或某场景不再执行其目标 Movement，都会直接变红。
+
+## D-062：Follow 迁移到新内核 + 目标锚定缺陷修复
+
+- 状态：已实施，待客户端验证（用户 2026-09-09："任务迁移吧"；同日报告 Follow 缺陷）
+- 依据：D-045 迁移顺序第二项 `FollowTask`。
+- **用户报告的缺陷（本次修复的核心）**：玩家**原地跳一下**，bot 就可能认为玩家在空中/不可达。
+  机制：legacy（以及迁移初版）用 `target.blockPosition()` 直接当规划目标；玩家起跳后脚位立刻变成
+  **空中格（脚下无支撑）**，`canWalkOn` 为假 → `follow_target_not_on_safe_surface`，
+  或规划目标不可站 → `follow_no_path`。
+- 修复（对照 Baritone `FollowProcess.java:73` → `new GoalNear(pos, followRadius)`，即"到目标 N 格内"）：
+  1. **目标锚定**：只有目标**落地且脚位可站**时才更新锚点 `lastSafeTargetFoot`；目标在空中时保持旧锚点
+     （并打一条 `[Follow] target_airborne hold_goal=...`），起跳不再影响目标解析；
+  2. **站位目标**：规划目标取锚点**相邻的可站格**（同层优先，最多向下 3 层，取离 bot 最近的一个），
+     即"站到目标旁边"，语义等价 Baritone 的 `GoalNear`，但保留 Alice 精确脚位目标的可采纳启发式（D-040）；
+  3. 已经站在站位格上 → 待命（避免每 tick 重复规划）。
+- 迁移改动：
+  - 规划/执行：legacy `SurfacePathfinder` + `BasicMovement` 直驱 → `CorePathPlanner` + `PathRetryRunner` + `PathSession`；
+    请求 `PathRequest.of`（纯通行）；
+  - 重规划触发：无路径 / 目标脚位漂移 ≥2 格 / 会话失败；**取消 legacy 的"每 10 tick 无条件重规划"**
+    （世界变化已由会话健康检查 D-047 覆盖，无条件重规划会打断 D-052 连续推进）；
+  - 失败码保留 legacy 语义：`follow_target_unavailable` / `follow_distance_limit` /
+    `follow_target_not_on_safe_surface` / `follow_no_path` / `follow_search_limit` /
+    `follow_blocked` / `follow_timeout` / `follow_stale` / `follow_invalid_precondition` /
+    `follow_execution_failed`；取消 `follow_unsettled`（新内核完成契约已覆盖）；
+  - `BotManager.assignFollow` 解除 legacy 门禁并返回 boolean；`stopFollow` 先 `cancel()` 再收尾并输出
+    `[Follow] SUMMARY stopped ticks=.. replans=.. minDist=..`（顺带修复"任务被丢弃后输入未清理"的隐患）。
+- 验收（零参数）：`/function alice_test:follow_course` → 右键 `alice:follow_runner` 启动 →
+  原地跳几下 → 走过墙东侧 → 再点一次结束。
+  期望：无 `follow_*` 失败；日志有 `[Follow] replan reason=initial|goal_moved`、
+  跳跃期间 `[Follow] target_airborne hold_goal=...`、结束时 `[Follow] SUMMARY stopped ...`。

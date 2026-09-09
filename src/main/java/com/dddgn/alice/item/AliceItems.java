@@ -109,6 +109,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> PATHING_DOWNWARD =
             ITEMS.register("pathing_downward", () -> new PathingDownwardItem(new Item.Properties()));
 
+    /** D-062 Follow 迁移入口（跟随点击的玩家；再点一次停止）。 */
+    public static final RegistryObject<Item> FOLLOW_RUNNER =
+            ITEMS.register("follow_runner", () -> new FollowRunnerItem(new Item.Properties()));
+
     /** D-060 WalkTo 迁移自检（新内核任务层，场景专属）。 */
     public static final RegistryObject<Item> WALK_TO_RUNNER =
             ITEMS.register("walk_to_runner", () -> new WalkToRunnerItem(new Item.Properties()));

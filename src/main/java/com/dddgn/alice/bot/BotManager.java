@@ -319,17 +319,21 @@ public final class BotManager {
         return true;
     }
 
-    public static void assignFollow(BotPlayer bot, ServerPlayer target) {
-        if (legacyTaskDisabled("FollowTask")) return;
+    /** Follow 已迁移到新内核（D-062），不再走 legacy 门禁。 */
+    public static boolean assignFollow(BotPlayer bot, ServerPlayer target) {
         BotSession session = BOTS.get(bot.getUUID());
-        if (session == null) return;
-        session.assignFollow(target);
+        if (session == null) return false;
+        return session.assignFollow(target);
     }
 
     /** 取消当前跟随；其他任务不受此入口影响。 */
     public static boolean stopFollow(BotPlayer bot) {
         BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || !(session.task instanceof com.dddgn.alice.task.FollowTask)) return false;
+        if (session == null || !(session.task instanceof com.dddgn.alice.task.FollowTask follow)) {
+            return false;
+        }
+        follow.cancel();
+        BotLog.info("[Follow] SUMMARY stopped {}", follow.summary());
         session.complete("follow_stopped", TaskExecutionRecord.TerminalStatus.CANCELLED_FOLLOW);
         return true;
     }
@@ -782,11 +786,12 @@ public final class BotManager {
         }
 
         /** 分配任务:按目标类型实例化 Task,开启感知作用域,广播高亮。 */
-        public void assignFollow(ServerPlayer targetPlayer) {
-            if (!replaceTaskIfRunning()) return;
+        public boolean assignFollow(ServerPlayer targetPlayer) {
+            if (!replaceTaskIfRunning()) return false;
             TaskTarget assignedTarget = TaskTarget.entity(targetPlayer.getId());
             beginTask(new com.dddgn.alice.task.FollowTask(bot, targetPlayer), assignedTarget);
             broadcastTarget(this.target);
+            return true;
         }
 
         public void assignPlace(BlockPos targetPos) {
