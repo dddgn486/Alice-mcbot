@@ -41,9 +41,12 @@ public class TargetSelector extends Item {
             BlockPos placeTarget = clicked.relative(context.getClickedFace());
             ServerLevel serverLevel = (ServerLevel) level;
             BotPlayer bot = BotManager.firstOrSpawn(serverLevel, placeTarget);
-            BotManager.assignPlace(bot, placeTarget);
-            if (player != null) player.sendSystemMessage(Component.literal(
-                    "[alice] 已指定放置圆石 " + placeTarget.toShortString() + " → " + bot.getName().getString()));
+            // 夹具：放置走统一路径（BlockInteraction.placeAt），需要快捷栏有一次性方块（D-063）
+            ensureCobblestone(bot, 8);
+            boolean assigned = BotManager.assignPlace(bot, placeTarget);
+            if (player != null) player.sendSystemMessage(Component.literal(assigned
+                    ? "[alice] 已指定放置方块 " + placeTarget.toShortString() + " → " + bot.getName().getString()
+                    : "[alice] bot 正忙，稍后再试"));
             return InteractionResult.SUCCESS;
         }
         if (level.getBlockState(clicked).isAir()) return InteractionResult.PASS;
@@ -55,6 +58,28 @@ public class TargetSelector extends Item {
                     "[alice] 已指派挖掘目标 " + clicked.toShortString() + " → " + bot.getName().getString()));
         }
         return InteractionResult.SUCCESS;
+    }
+
+    /** 夹具：确保 bot 快捷栏有圆石（放置路径只接受一次性方块白名单）。 */
+    private static void ensureCobblestone(BotPlayer bot, int count) {
+        var inventory = bot.getInventory();
+        int have = 0;
+        for (int slot = 0; slot < 9; slot++) {
+            if (inventory.getItem(slot).is(net.minecraft.world.item.Items.COBBLESTONE)) {
+                have += inventory.getItem(slot).getCount();
+            }
+        }
+        if (have >= count) {
+            return;
+        }
+        for (int slot = 0; slot < 9; slot++) {
+            if (inventory.getItem(slot).isEmpty()) {
+                inventory.setItem(slot, new ItemStack(net.minecraft.world.item.Items.COBBLESTONE,
+                        count - have));
+                return;
+            }
+        }
+        inventory.add(new ItemStack(net.minecraft.world.item.Items.COBBLESTONE, count - have));
     }
 
     @Override

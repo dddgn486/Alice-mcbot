@@ -1010,3 +1010,24 @@
   原地跳几下 → 走过墙东侧 → 再点一次结束。
   期望：无 `follow_*` 失败；日志有 `[Follow] replan reason=initial|goal_moved`、
   跳跃期间 `[Follow] target_airborne hold_goal=...`、结束时 `[Follow] SUMMARY stopped ...`。
+
+## D-063：Place 迁移到新内核（放置走统一路径）
+
+- 状态：已实施，待客户端验证（用户 2026-09-09 迁移顺序第三项）
+- 依据：D-045 迁移顺序 `PlaceTask`。
+- 改动：
+  1. 站位寻路：legacy `AStarPathfinder` + `PathExecutor` → `CorePathPlanner` + `PathRetryRunner`
+     + `PathSession`（`PathRequest.of` 纯通行）；候选站位仍是"目标 4×4×4 邻域内可站、眼距 ≤4.2 的脚位，
+     按到目标距离排序取前 16，逐个用新内核试规划"；
+  2. **放置动作改为统一路径** `BlockInteraction.placeAt`：legacy 直接 `level.setBlock(...)`（无视库存、
+     支撑面与服务端校验）→ 现在需要快捷栏一次性方块 + 支撑面 + `InteractionResult` 校验 + 服务端世界复核
+     （与 `PLACE_STEP_AND_TRAVERSE` / `PILLAR` 一致，D-037/D-043 语义）；
+  3. 取消 legacy 的手工视线检查（`place_line_of_sight`）：放置可达性与支撑面由 `placeAt` 统一判定；
+  4. 失败码：保留 `place_no_stand` / `place_no_path` / `place_path_failed`，新增
+     `place_resource_unavailable` / `place_no_valid_face`，新内核终态映射
+     `place_blocked` / `place_timeout` / `place_stale` / `place_invalid_precondition` / `place_search_limit`；
+  5. `BotManager.assignPlace` 解除 legacy 门禁并返回 boolean；
+     `TargetSelector`（Shift+右键方块）作为零参数测试入口，并加夹具保证 bot 快捷栏有圆石。
+- 验收：`/function alice_test:place_target_course` → Shift+右键方块侧面 →
+  期望 `[PlaceTask] walk_to_stand target=... stand=...` → `[PlaceTask] completed target=... stand=... feet=...`，
+  且目标格实际出现方块。

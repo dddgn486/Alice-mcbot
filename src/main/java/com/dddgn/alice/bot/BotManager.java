@@ -338,12 +338,11 @@ public final class BotManager {
         return true;
     }
 
-    /** 给假人分配独立「放置指定方块」任务。 */
-    public static void assignPlace(BotPlayer bot, BlockPos target) {
-        if (legacyTaskDisabled("PlaceTask")) return;
+    /** 给假人分配独立「放置指定方块」任务（已迁移到新内核，D-063）。 */
+    public static boolean assignPlace(BotPlayer bot, BlockPos target) {
         BotSession session = BOTS.get(bot.getUUID());
-        if (session == null) return;
-        session.assignPlace(target);
+        if (session == null) return false;
+        return session.assignPlace(target);
     }
 
     /** 给假人分配纯 HARD_PATH 脚位移动任务。 */
@@ -794,11 +793,12 @@ public final class BotManager {
             return true;
         }
 
-        public void assignPlace(BlockPos targetPos) {
-            if (!replaceTaskIfRunning()) return;
+        public boolean assignPlace(BlockPos targetPos) {
+            if (!replaceTaskIfRunning()) return false;
             TaskTarget assignedTarget = TaskTarget.block(targetPos);
             beginTask(new PlaceTask(bot, targetPos), assignedTarget);
             broadcastTarget(this.target);
+            return true;
         }
 
         public void assignWalkTo(BlockPos goalFoot) {
