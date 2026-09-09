@@ -243,8 +243,8 @@
 | D-037 | 流体不可挖 / 放置校验 `InteractionResult` / 危险方块扩表 / 删任意 BlockItem 兜底 / D-031 文档 | `WINDOWS_CLIENT`（`fluid_course`+`lava_course` 通过） |
 | D-038 | 驱动相位 END→START | **已撤回**（Forge 源码证明等价） |
 | D-040 | 成本模型按实测标定（TRAVERSE 1.00/DIAGONAL 1.33/ASCEND 1.67/DESCEND 2.67）+ 启发式 octile/非对称竖向 + 破坏放置成本 + A* 系数 | `WINDOWS_CLIENT` + `USER_ACCEPTED`（路线翻转 PASS、电池 8/8、三场景 COMPLETED 且总 tick 不劣化） |
-| D-041 A | `canWalkOn` 混合判定（整格 OR 白名单 OR 碰撞非空且非已知坏方块） | 已实施，待测（`fence_course`） |
-| D-041 B | Ascend 前置：FallingBlock / climbable 拒绝 + 运行期头部守卫（bottom-slab 另立项） | 已实施，代码级验证 |
+| D-041 A | `canWalkOn` 混合判定（整格 OR 白名单 OR 碰撞非空且非已知坏方块） | `WINDOWS_CLIENT`（`fence_course` UNREACHABLE PASS） |
+| D-041 B | Ascend 前置：FallingBlock / climbable 拒绝 + 运行期头部守卫（bottom-slab 另立项） | 已实施；代码级验证 + ascend 回归 PASS |
 | 待办 C | 执行器契约：COLUMN 容差在 5 个执行器生效 / 三层超时收敛单层 / 取消清理破坏进度 / 校验失败路径计入段计时 | 未开始 |
 | 待办 D | Q4 重规划下沉（会话只重同步 + 任务层 `PathRetryPolicy`）+ 新夹具 | 未开始 |
 | 待办 E | ⑤ 删 `WorldView` 空接口 / ⑥ legacy 收口 / ⑨ `canSweepPlayer` 对比 / Q1 FALL 裁决 | 未开始 |
