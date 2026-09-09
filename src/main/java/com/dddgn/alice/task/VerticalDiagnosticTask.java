@@ -14,7 +14,8 @@ import net.minecraft.server.level.ServerPlayer;
  *
  * <ol>
  *   <li>正例：`(0,64,45)` → `(0,63,45)`，破坏脚下后掉 1 格，期望 `COMPLETED`；</li>
- *   <li>反例：`(2,64,45)` → `(2,63,45)`（1×1 竖井，无逃生路线），期望规划被拒。</li>
+ *   <li>竖井对照：`(2,64,45)` → `(2,63,45)`（1×1 竖井）——Baritone 原样语义下应可规划（`shaft_plan=REACHED`），
+ *       逃生守卫留给后续安全模式。</li>
  * </ol>
  */
 public final class VerticalDiagnosticTask implements Task {
@@ -71,12 +72,13 @@ public final class VerticalDiagnosticTask implements Task {
                 return Status.RUNNING;
             }
             case 2 -> {
+                // Baritone 原样语义下，1x1 竖井也应可规划（逃生守卫属后续安全模式）
                 teleport(SHAFT_START);
                 PathPlan plan = new CorePathPlanner().plan(bot, bot.serverLevel(),
                         request(SHAFT_START, SHAFT_GOAL));
-                guardPass = !plan.reached();
-                BotLog.info("[Vertical] downward_guard={} status={} movements={}",
-                        guardPass ? "PASS" : "FAIL", plan.status(), plan.movements().size());
+                guardPass = plan.reached();
+                BotLog.info("[Vertical] shaft_plan={} status={} movements={}",
+                        guardPass ? "REACHED" : "REFUSED", plan.status(), plan.movements().size());
                 phase = 3;
                 return finish();
             }
@@ -120,7 +122,7 @@ public final class VerticalDiagnosticTask implements Task {
     private Status finish() {
         boolean allPass = executePass && guardPass;
         String summary = "downward_execute=" + (executePass ? "PASS" : "FAIL")
-                + " downward_guard=" + (guardPass ? "PASS" : "FAIL");
+                + " shaft_plan=" + (guardPass ? "REACHED" : "REFUSED");
         BotLog.info("[Vertical] SUMMARY {}", summary);
         if (observer != null) {
             observer.sendSystemMessage(Component.literal("[alice] DOWNWARD 自检 " + summary)

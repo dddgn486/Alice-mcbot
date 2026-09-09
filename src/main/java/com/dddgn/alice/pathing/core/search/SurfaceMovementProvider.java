@@ -81,8 +81,8 @@ public final class SurfaceMovementProvider implements MovementProvider {
     }
 
     /**
-     * 垂直下落 1 格（DOWNWARD）：破坏脚下的方块后掉进 1 格深的洞（对照 Baritone MovementDownward）。
-     * <p>G 语义守卫：落点可站 + 脚下可破坏 + **落点存在逃生路线**（否则拒绝，避免掉进竖井出不来）。
+     * 垂直下落 1 格（DOWNWARD）：破坏脚下的方块后掉进 1 格深的洞（**Baritone 原样语义**，D-050）。
+     * <p>不做"逃生路线"守卫——安全模式的守卫留给后续的安全 Movement / 任务层风险决策。
      */
     private static void appendDownward(MovementContext context, ServerLevel level, BlockPos from,
                                        List<PlannedMovement> out) {
@@ -99,9 +99,6 @@ public final class SurfaceMovementProvider implements MovementProvider {
         }
         double breakTicks = BlockInteraction.estimateBreakTicks(context.bot(), level, to);
         if (!Double.isFinite(breakTicks)) {
-            return;
-        }
-        if (!com.dddgn.alice.pathing.core.SurfaceMovementProviderAccess.hasEscapeFrom(level, to)) {
             return;
         }
         double cost = CostModel.DOWNWARD_COST

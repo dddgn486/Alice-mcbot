@@ -711,3 +711,22 @@
   2. Baritone 侧：`/function alice_test:contrast_trace_pathing` → `#goto 0 62 44`（自动记录并在到达时停表）；
   3. 对比指标：水平速度 `h=√(vx²+vz²)/1000` 是否在每个方块边界降到 ≈0（顿挫来源）。
 
+## D-050：Movement 先做 Baritone 原样语义，安全守卫后置
+
+- 状态：当前生效（用户 2026-09-09 决策）
+- 决策：**先完整实现与 Baritone 相同模式的 Movement（原样语义）**；安全模式（守卫版）作为
+  **后续补充**——可以是独立的安全 Movement，也可以由任务层的风险决策选择（配合 D-046 的 H/G/S）。
+- 理由：DOWNWARD 连续两次验收失败暴露"边做功能边加守卫"会把功能本身拖住；先把 Baritone 的行为做对，
+  安全边界在任务层/独立变体里表达，职责更清晰、可测性更好。
+- 本次落地（DOWNWARD）：
+  1. **去掉逃生路线守卫**（`SurfaceMovementProvider` / `DownwardExecutionFactory` / `DownwardExecution`），
+     与 Baritone `MovementDownward`（`allowDownward=true` + 落点可站 + 脚下可破坏）对齐；
+  2. **修复两处类型感知检查**（真正导致失败的 bug）：
+     - `PathSession.currentTargetStillValid`：DOWNWARD 的目标方块**由本段破坏产生**，不能要求它"现在就可行走"
+       （旧检查在破坏进度 71% 时误判 `SEGMENT_TARGET_CHANGED` 并取消，触发 `BREAK_ABORTED`）；
+     - `PathSession.futureTargetBlocked`：同理，前瞻不能把未来的 DOWNWARD 段目标当成"被封死"。
+  3. 夹具期望更新：`downward_execute=PASS` + `shaft_plan=REACHED`（1×1 竖井在 Baritone 原样语义下可规划；
+     逃生守卫属后续安全模式）。
+- 后续：按同一原则补齐 PILLAR（垂直上升）与 FALL（>1 格落差）等 Baritone 原样 Movement；
+  安全变体与任务层风险决策在功能齐备后统一设计（D-046 预留）。
+

@@ -17,7 +17,7 @@ import java.util.Objects;
  * <p>对照 Baritone {@code MovementDownward}。破坏走 {@link BlockInteraction}/{@link BlockBreakSession}
  * （工具选择 + 进度 + 广播），不使用瞬间销毁。
  *
- * <p>G 语义守卫（D-048）：脚下可破坏、落点有支撑、落点存在逃生路线；破坏期间保持原地，
+ * <p>Baritone 原样语义（D-050）：脚下可破坏 + 落点有支撑；破坏期间保持原地，
  * 破坏完成后等待自然掉落并稳定（统一完成契约 + 分段容差 D-027）。
  */
 public final class DownwardExecution implements MovementExecution {
@@ -134,10 +134,7 @@ public final class DownwardExecution implements MovementExecution {
         if (!MovementHelper.canWalkOn(level, to) || !MovementHelper.canWalkThrough(level, to.above())) {
             return false;
         }
-        if (!level.getBlockState(to).isAir() && !BlockInteraction.breakableExplicit(bot, level, to)) {
-            return false;
-        }
-        return SurfaceMovementProviderAccess.hasEscapeFrom(level, to);
+        return level.getBlockState(to).isAir() || BlockInteraction.breakableExplicit(bot, level, to);
     }
 
     private boolean postconditionHolds() {

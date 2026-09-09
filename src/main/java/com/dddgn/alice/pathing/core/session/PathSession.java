@@ -237,6 +237,15 @@ public final class PathSession {
             BlockPos placePos = to.below();
             return MovementHelper.canWalkThrough(level, placePos) || MovementHelper.canWalkOn(level, to);
         }
+        if (movement.movementType() == com.dddgn.alice.pathing.core.MovementType.DOWNWARD) {
+            // 目标方块由本段破坏产生：只要落点支撑仍在、且该方块仍可破坏（或已空）即有效
+            if (!MovementHelper.canWalkOn(level, to)
+                    || !MovementHelper.canWalkThrough(level, to.above())) {
+                return false;
+            }
+            return level.getBlockState(to).isAir()
+                    || com.dddgn.alice.action.BlockInteraction.breakableExplicit(bot, level, to);
+        }
         return MovementHelper.canWalkOn(level, to);
     }
 
@@ -345,14 +354,20 @@ public final class PathSession {
         for (int i = index + 1; i <= lookahead; i++) {
             PlannedMovement movement = movements.get(i);
             BlockPos to = movement.toFoot();
-            if (!MovementHelper.canWalkThrough(level, to)
-                    || !MovementHelper.canWalkThrough(level, to.above())) {
+            if (!MovementHelper.canWalkThrough(level, to.above())) {
                 return true;
             }
             if (movement.movementType() == com.dddgn.alice.pathing.core.MovementType.PLACE_STEP_AND_TRAVERSE) {
                 continue;
             }
-            if (!MovementHelper.canWalkOn(level, to)) {
+            if (movement.movementType() == com.dddgn.alice.pathing.core.MovementType.DOWNWARD) {
+                // 目标方块由该段破坏产生
+                if (!MovementHelper.canWalkOn(level, to)) {
+                    return true;
+                }
+                continue;
+            }
+            if (!MovementHelper.canWalkThrough(level, to) || !MovementHelper.canWalkOn(level, to)) {
                 return true;
             }
         }
