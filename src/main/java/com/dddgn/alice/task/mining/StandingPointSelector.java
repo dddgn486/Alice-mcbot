@@ -76,7 +76,8 @@ public final class StandingPointSelector {
         if (!los.isClear()) {
             return null;
         }
-        if (eye.distanceTo(los.getSuccessfulSample()) > reach) {
+        // 保守余量：规划期假设眼位 vs 运行期真实眼位可差 ~0.4（D-070 修正）
+        if (eye.distanceTo(los.getSuccessfulSample()) > reach - MiningTuning.reachMargin()) {
             return null;
         }
         return los;

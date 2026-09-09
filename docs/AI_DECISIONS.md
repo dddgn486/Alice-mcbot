@@ -1234,3 +1234,21 @@
   - `BotSelftest` 的注释与 import 同步清理；`Task` javadoc 改指 `MineBlockRunner`。
 - 夹具说明：`MiningSceneFixture` / `MiningReplanFixture` 已只依赖新规划器（`MiningPlan`/`MiningPlanner`），
   **无需重写**（设计里"夹具重写"的动因是它们引用 legacy API，现已不存在）。
+
+### D-071 修正（2026-09-09 客户端首测：`scene_a` FAILED/OUT_OF_REACH）
+
+- 现象：`[MineRunner] walk_start stand=1,64,1` → 立刻 `failed reason=OUT_OF_REACH feet=1,64,1`，
+  重试 2 次后 `ESCALATE`。
+- 根因（两个问题叠加，**都不是场景问题**）：
+  1. **走位没等落定就开挖**：`MineBlockRunner.atStand()` 只比较 `blockPosition()`，
+     bot 刚跨进格子（脚在格子边缘、x≈1.0）就停表 → 实际眼位到目标中心 **5.07 > 4.5** → `OUT_OF_REACH`
+     （旧 `BotMiner` 有 0.6 水平容差的 `atStandPos()`）。
+  2. **触及判定口径不一致**：规划期查"眼位→**可见面采样点**"（4.11 ✓），运行期查"眼位→**方块中心**"
+     （4.39，再叠加边缘偏移就超 4.5）。方块中心比最近面采样点最多远 ~0.87 格。
+- 修复：
+  1. `MineBlockRunner` 只要有 runner 就继续推进，**直到 `PathRetryRunner` 报 DONE**
+     （会话按 EXACT 容差把 bot 落定到站位中心）才进入放置/破坏阶段；
+  2. 运行期触及判定改用**可见面采样点距离**（与规划期同口径）；
+  3. 规划期加**保守余量** `MiningTuning.reachMargin = 0.4`
+     （`眼位→可见面 ≤ reach − 0.4`），吸收"假设眼位 vs 实际眼位"的差异（v7 ㉓ 保守化）；
+  4. 失败日志补充 `eye/sample/dist/reach` 数值，便于下次直接定位。

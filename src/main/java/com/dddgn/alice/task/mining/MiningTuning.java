@@ -29,6 +29,13 @@ public final class MiningTuning {
     /** 视线采样：目标面内缩距离（多面体采样点距方块边界）。 */
     private static volatile double losSampleEpsilon = 0.08D;
 
+    /**
+     * 触及余量（D-070 修正）：规划期用"假设站位中心眼位"，运行期用真实眼位，
+     * 二者可差 ~0.4（EXACT 落点容差 0.3 + 眼高差）。规划期要求
+     * `眼位→可见面距离 ≤ reach - margin`，保证运行期复核不会因微小偏移失败（v7 ㉓ 保守化）。
+     */
+    private static volatile double reachMargin = 0.4D;
+
     private MiningTuning() {
     }
 
@@ -69,10 +76,15 @@ public final class MiningTuning {
         return losSampleEpsilon;
     }
 
+    public static double reachMargin() {
+        return reachMargin;
+    }
+
     public static String describe() {
         return "estimate=" + estimateMode
                 + " costFieldMaxCost=" + costFieldMaxCost
                 + " topK=" + exactTopK + "/" + exactTopKMax
-                + " losEpsilon=" + losSampleEpsilon;
+                + " losEpsilon=" + losSampleEpsilon
+                + " reachMargin=" + reachMargin;
     }
 }

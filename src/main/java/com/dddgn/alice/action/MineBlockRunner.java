@@ -89,8 +89,11 @@ public final class MineBlockRunner {
             return status;
         }
 
-        // 1) 走到站位
-        if (!atStand()) {
+        // 1) 走到站位：只要有 runner 就继续推进，直到它报 DONE（会话按 EXACT 容差落定到站位中心）
+        if (runner != null) {
+            return tickMovement();
+        }
+        if (!bot.blockPosition().equals(plan.standingFoot())) {
             return tickMovement();
         }
 
@@ -174,14 +177,24 @@ public final class MineBlockRunner {
             if (!BlockInteraction.breakableExplicit(bot, level, target)) {
                 return fail("TARGET_NOT_BREAKABLE", "precondition", false);
             }
-            double eyeDistance = bot.getEyePosition().distanceTo(target.getCenter());
-            if (eyeDistance > bot.getBlockReach()) {
-                return fail("OUT_OF_REACH", "precondition", true);
-            }
             LineOfSightChecker.LineOfSightResult los = LineOfSightChecker.checkFromEye(
                     level, bot.getEyePosition(), target);
             if (!los.isClear()) {
                 return fail("LINE_OF_SIGHT_BLOCKED", "precondition", true);
+            }
+            // 触及判定用"眼位 → 可见面采样点"（与规划期同口径）；用方块中心会多算 ~0.87 格
+            double eyeDistance = bot.getEyePosition().distanceTo(los.getSuccessfulSample());
+            if (eyeDistance > bot.getBlockReach()) {
+                BotLog.warn("[MineRunner] out_of_reach target={} feet={} eye={} sample={} dist={} reach={}",
+                        target.toShortString(), bot.blockPosition().toShortString(),
+                        String.format(java.util.Locale.ROOT, "(%.2f,%.2f,%.2f)", bot.getEyePosition().x,
+                                bot.getEyePosition().y, bot.getEyePosition().z),
+                        String.format(java.util.Locale.ROOT, "(%.2f,%.2f,%.2f)",
+                                los.getSuccessfulSample().x, los.getSuccessfulSample().y,
+                                los.getSuccessfulSample().z),
+                        String.format(java.util.Locale.ROOT, "%.3f", eyeDistance),
+                        String.format(java.util.Locale.ROOT, "%.3f", bot.getBlockReach()));
+                return fail("OUT_OF_REACH", "precondition", true);
             }
             breakSession = BlockInteraction.beginBreak(bot, level, target);
             mineStartPos = bot.blockPosition().immutable();
@@ -205,15 +218,6 @@ public final class MineBlockRunner {
         }
         status = Status.MINING;
         return status;
-    }
-
-    private boolean atStand() {
-        BlockPos stand = plan.standingFoot();
-        if (bot.blockPosition().equals(stand)) {
-            return true;
-        }
-        // ENTER_TARGET 的站位就是目标格：破坏完成后目标格即落点
-        return false;
     }
 
     private Status fail(String reason, String phase, boolean retryable) {
