@@ -661,3 +661,20 @@
   H 模式需要 `MovementFall` + Alice 版下落特例（`PathExecutor.possiblyOffPath:317-323` 等价物）；
   PILLAR 需与 DOWNWARD 成对启用。
 
+## D-047：执行层对齐 Baritone —— 合法位置集重同步 + 前瞻封死检测
+
+- 状态：已实施，待客户端验证
+- **段内重同步改为合法位置集判定**（对照 `PathExecutor:101-124`）：
+  `PathSession` 每 tick 检查脚位是否在当前段的 `validPositions` 内；不在则
+  **先向前（更早的段）、再向后（跳 1~2 段）搜索**能容纳该脚位的段并从该段继续（`[R4 Session] resync`），
+  上限 `MAX_RESYNCS=5`。合法位置集按 Movement 类型给出：TRAVERSE {from,to}；DIAGONAL 加两个角格；
+  ASCEND 加 `from.above()`；DESCEND/PLACE_STEP 加 `to.above()`；BREAK 加中间格。
+  - 同时**删除会话内 `trySnipsnap`**（它把"重同步"当失败处理，与 Baritone 语义不符）；
+    找不到重同步点时仍用 `driftedOutOfSegment()` 距离兜底 → 上报 → 任务层重规划（D-043）。
+- **前瞻封死检测**（对照 Baritone `costVerificationLookahead=5`，此处用可达性代理）：
+  周期健康检查除当前段外，另检查**后续 3 段**的目标是否仍可通行/可站；被封死 →
+  `SEGMENT_FUTURE_BLOCKED` → 会话上报 `BLOCKED`（**复活了此前声明但永不产生的死状态**）→
+  任务层 `PathRetryRunner` 重规划（`BLOCKED` 已加入可重试集合）。
+- 与 D-035 的关系：D-035 的"距离启发式漂移判定"降级为**兜底**（重同步失败时才用），
+  主判定改为 Baritone 的合法位置集——这条正是审计 §3.B 登记的待改项。
+

@@ -197,7 +197,7 @@
 | 段间推进 | `PathSession.java:93-102,143` | `PathExecutor.java:231-236`、`onChangeInPathPosition():593-596` | 无条件 settle(10) + 每 tick stopMovement vs 同 tick 推进、只 clearKeys | DEVIATION-JUSTIFIED（D-036 待办） | ✅ |
 | 段超时单位 | `PathSession.java:195-198` | `PathExecutor.java:243` + `movementTimeoutTicks=100` | Alice cost=格数 ×20；Baritone cost 已是 tick → 每格宽松约 4.6× | DEVIATION-UNREGISTERED | ✅ |
 | **三层自制超时** | `BreakAndTraverseExecution.java:40`(400)、`PlaceStepAndTraverseExecution.java:35`(200)、`DescendExecution.java:32`(20)、`AscendExecution.java:96` | 单层 `PathExecutor.java:243` | 执行器内 + 会话 + 任务三层各自为政 | DEVIATION-UNREGISTERED | ✅ |
-| 漂移判定 | `PathSession.java:229-241` | `PathExecutor.java:101-128` + `Movement.java:104-110` | 距离启发式 + onGround 门 vs 每 tick `getValidPositions().contains(feet)` | DEVIATION-JUSTIFIED（D-035/D-036 待改） | ✅ |
+| 漂移判定 | `PathSession` 合法位置集重同步 | `PathExecutor.java:101-128` | **已对齐（D-047）**：每 tick `validPositions` + 前后搜索；距离启发式降级为兜底 | ALIGNED | ✅ |
 | 离路径距离 | 无 | `PathExecutor.java:51-52,129-145,256-269`；`MAX_TICKS_AWAY=200` | 无 `closestPathPos`/`ticksAway` | MISSING-IN-ALICE | ✅ |
 | snipsnap 语义 | `PathSession.java:268-301` | `PathingBehavior.java:197`（拼接下一段）+ `PathExecutor.java:103-127`（段内重同步） | Alice 把"失败自愈"当 snipsnap，Baritone 是两件事 | DEVIATION-UNREGISTERED | ⬜ |
 | 世界变化检测 | `PathSession.java:121-126,207-219` | `PathExecutor.java:195-219` + `Movement.java:93-96,244-251` | 无 `recalculateCost` / lookahead(5) / maxCostIncrease(10) / `calculatedWhileLoaded` | DEVIATION-UNREGISTERED | ✅ |

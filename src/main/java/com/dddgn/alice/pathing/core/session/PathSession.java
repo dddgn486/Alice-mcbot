@@ -37,8 +37,8 @@ public final class PathSession {
     public static final int HEALTH_CHECK_INTERVAL = 5;
     /** 段间稳定上限：等 bot 落地并基本停住，避免动量把下一段起点带偏。 */
     public static final int MAX_SETTLE_TICKS = 10;
-    /** snipsnap 次数上限：防止"吸附到同一索引 → 同段再失败"的无限循环。 */
-    public static final int MAX_SNIPSNAPS = 3;
+    /** 段内重同步上限：防止"吸附回同一位置 → 反复重同步"的循环。 */
+    public static final int MAX_RESYNCS = 5;
 
     private final BotPlayer bot;
     private final ServerLevel level;
@@ -55,8 +55,7 @@ public final class PathSession {
     /** 段槽位计时：`execution == null`（校验失败/等待落地）期间也计时，避免该路径无超时覆盖（D-042）。 */
     private int startSlotTicks;
     private int settleTicks;
-    private int snipsnaps;
-    private int lastSnipsnapIndex = -1;
+    private int resyncs;
     private int totalTicks;
     private MovementExecution execution;
 
@@ -121,17 +120,35 @@ public final class PathSession {
             fail(PathSessionStatus.TIMEOUT, "SEGMENT_TIMEOUT");
             return status;
         }
-        if (segmentTicks % HEALTH_CHECK_INTERVAL == 0 && !currentTargetStillValid()) {
-            execution.cancel();
-            execution = null;
-            handleFailure("SEGMENT_TARGET_CHANGED");
-            return status;
+
+        // ① 每 tick 合法位置集检查（对照 Baritone PathExecutor:101-124）：
+        //    脚位不在本段合法位置集 → 前/后搜索重同步；找不到才走漂移兜底。
+        if (!validPositions(movements.get(index)).contains(bot.blockPosition())) {
+            if (tryResync()) {
+                return status;
+            }
+            if (driftedOutOfSegment()) {
+                execution.cancel();
+                execution = null;
+                handleFailure("SEGMENT_STALE_START");
+                return status;
+            }
         }
-        if (driftedOutOfSegment()) {
-            execution.cancel();
-            execution = null;
-            handleFailure("SEGMENT_STALE_START");
-            return status;
+
+        // ② 周期健康检查：当前段目标 + 前瞻段（对照 Baritone 的 costVerificationLookahead）
+        if (segmentTicks % HEALTH_CHECK_INTERVAL == 0) {
+            if (!currentTargetStillValid()) {
+                execution.cancel();
+                execution = null;
+                handleFailure("SEGMENT_TARGET_CHANGED");
+                return status;
+            }
+            if (futureTargetBlocked()) {
+                execution.cancel();
+                execution = null;
+                handleFailure("SEGMENT_FUTURE_BLOCKED");
+                return status;
+            }
         }
 
         execution.tick();
@@ -166,7 +183,7 @@ public final class PathSession {
     public PathExecutionResult result() {
         return new PathExecutionResult(status, movements.size(), index, failureCode, failureSegment,
                 bot.blockPosition(), totalTicks,
-                "planner=alice.astar.movement.v1 snipsnaps=" + snipsnaps);
+                "planner=alice.astar.movement.v1 resyncs=" + resyncs);
     }
 
     private void startSegment() {
@@ -246,21 +263,100 @@ public final class PathSession {
     }
 
     /**
-     * 段失败路由（D-043 分层）：
-     * 1) 位置漂移/世界变化 → 先尝试 snipsnap（对照 Baritone `snipsnapifpossible:324-343`）；
-     * 2) 否则按原语义终止并上报事实——**重规划决策属于任务层**（`PathRetryRunner`），
-     *    对照 Baritone `PathExecutor` 只 `cancel()`、由 `PathingBehavior` 重新规划。
+     * 段失败路由（D-043 分层）：本段失败不再由会话重规划或吸附，直接按语义上报，
+     * 由任务层 `PathRetryRunner` 决定是否重规划。
      */
     private void handleFailure(String code) {
         String failure = code == null ? "MOVEMENT_FAILED" : code;
-        // 空中不处理：等落地再吸附，避免从下落中的位置产生失真判断
+        // 空中不处理：等落地再判定，避免从下落中的位置产生失真判断
         if (!bot.onGround() && !failure.contains("TIMEOUT") && !failure.contains("CANCELLED")) {
             return;
         }
-        if (trySnipsnap(failure)) {
-            return;
-        }
         mapFailure(failure);
+    }
+
+    /**
+     * 本段合法位置集（对照 Baritone `Movement.getValidPositions`）。
+     * <p>TRAVERSE {from,to}；DIAGONAL 加两个角格；ASCEND 加 from.above()；
+     * DESCEND 加 to.above()；BREAK_AND_TRAVERSE 加中间格；PLACE_STEP 加 to.above()。
+     */
+    private static java.util.Set<BlockPos> validPositions(PlannedMovement movement) {
+        BlockPos from = movement.fromFoot();
+        BlockPos to = movement.toFoot();
+        java.util.Set<BlockPos> set = new java.util.HashSet<>();
+        set.add(from);
+        set.add(to);
+        switch (movement.movementType()) {
+            case DIAGONAL -> {
+                set.add(new BlockPos(to.getX(), from.getY(), from.getZ()));
+                set.add(new BlockPos(from.getX(), from.getY(), to.getZ()));
+            }
+            case ASCEND -> set.add(from.above());
+            case DESCEND, PLACE_STEP_AND_TRAVERSE -> set.add(to.above());
+            case BREAK_AND_TRAVERSE -> set.add(new BlockPos(
+                    (from.getX() + to.getX()) / 2, from.getY(), (from.getZ() + to.getZ()) / 2));
+            default -> {
+            }
+        }
+        return set;
+    }
+
+    /**
+     * Baritone 式段内重同步（`PathExecutor:101-124`）：脚位不在当前段合法位置集时，
+     * 先向前（更早的段）找、再向后（跳 1~2 段）找能容纳当前脚位的段，命中则从该段继续。
+     */
+    private boolean tryResync() {
+        if (resyncs >= MAX_RESYNCS) {
+            return false;
+        }
+        BlockPos feet = bot.blockPosition();
+        int target = -1;
+        for (int i = 0; i < index; i++) {
+            if (validPositions(movements.get(i)).contains(feet)) {
+                target = i;
+                break;
+            }
+        }
+        if (target < 0) {
+            for (int i = index + 3; i < movements.size(); i++) {
+                if (validPositions(movements.get(i)).contains(feet)) {
+                    target = i - 1;
+                    break;
+                }
+            }
+        }
+        if (target < 0) {
+            return false;
+        }
+        resyncs++;
+        execution = null;
+        index = target;
+        segmentTicks = 0;
+        startSlotTicks = 0;
+        settleTicks = 0;
+        BotLog.info("[R4 Session] resync session={} feet={} resumeIndex={}",
+                sessionId, feet.toShortString(), target);
+        return true;
+    }
+
+    /** 前瞻段是否已被封死（对照 Baritone `costVerificationLookahead`，此处用可达性代理）。 */
+    private boolean futureTargetBlocked() {
+        int lookahead = Math.min(movements.size() - 1, index + 3);
+        for (int i = index + 1; i <= lookahead; i++) {
+            PlannedMovement movement = movements.get(i);
+            BlockPos to = movement.toFoot();
+            if (!MovementHelper.canWalkThrough(level, to)
+                    || !MovementHelper.canWalkThrough(level, to.above())) {
+                return true;
+            }
+            if (movement.movementType() == com.dddgn.alice.pathing.core.MovementType.PLACE_STEP_AND_TRAVERSE) {
+                continue;
+            }
+            if (!MovementHelper.canWalkOn(level, to)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 规划投影脚位路径（只读，供任务层/夹具观察当前计划）。 */
@@ -268,51 +364,13 @@ public final class PathSession {
         return java.util.List.copyOf(projected);
     }
 
-    /**
-     * 把当前脚位吸附到计划投影路径上（Baritone snipsnap 语义）：
-     * 只在落地时吸附；落在路径上则从该位置继续，落在终点则视为完成。
-     */
-    private boolean trySnipsnap(String code) {
-        if (!code.contains("STALE_START") && !code.contains("TARGET_CHANGED")) {
-            return false;
-        }
-        if (!bot.onGround()) {
-            return false;
-        }
-        if (snipsnaps >= MAX_SNIPSNAPS) {
-            return false;
-        }
-        BlockPos feet = bot.blockPosition();
-        int position = projected.indexOf(feet);
-        if (position < 0) {
-            return false;
-        }
-        // 防循环：吸附到与上次相同（或当前）索引时不再吸附，交给重规划/失败
-        if (position == index || position == lastSnipsnapIndex) {
-            return false;
-        }
-        snipsnaps++;
-        lastSnipsnapIndex = position;
-        execution = null;
-        segmentTicks = 0;
-        startSlotTicks = 0;
-        settleTicks = 0;
-        if (position >= movements.size()) {
-            status = PathSessionStatus.COMPLETED;
-            BotLog.info("[R4 Session] snipsnap_goal session={} feet={}", sessionId, feet.toShortString());
-            return true;
-        }
-        index = position;
-        BotLog.info("[R4 Session] snipsnap session={} feet={} resumeIndex={} code={}",
-                sessionId, feet.toShortString(), position, code);
-        return true;
-    }
-
     private void mapFailure(String code) {
         String failure = code == null ? "MOVEMENT_FAILED" : code;
         PathSessionStatus mapped;
         if (failure.contains("STALE_START")) {
             mapped = PathSessionStatus.STALE;
+        } else if (failure.contains("BLOCKED")) {
+            mapped = PathSessionStatus.BLOCKED;
         } else if (failure.contains("INVALID_PRECONDITION")) {
             mapped = PathSessionStatus.INVALID_PRECONDITION;
         } else if (failure.contains("TIMEOUT")) {

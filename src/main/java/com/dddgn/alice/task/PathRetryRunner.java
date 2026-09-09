@@ -90,7 +90,8 @@ public final class PathRetryRunner {
         return status == PathSessionStatus.STALE
                 || status == PathSessionStatus.TIMEOUT
                 || status == PathSessionStatus.MOVEMENT_FAILED
-                || status == PathSessionStatus.INVALID_PRECONDITION;
+                || status == PathSessionStatus.INVALID_PRECONDITION
+                || status == PathSessionStatus.BLOCKED;
     }
 
     public PathExecutionResult result() {
