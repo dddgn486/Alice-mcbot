@@ -1117,7 +1117,7 @@
 
 ## D-068：新增 `BREAK_AND_ENTER`（破坏目的地格并进入）—— D-067 批次 1
 
-- 状态：已实施，待客户端验证（用户 2026-09-09："开始批次1"）
+- 状态：**已验收**（2026-09-09 客户端：`[BreakEnter] SUMMARY plan_a=PASS plan_b=PASS execute_a=PASS`；实跑 `block_break_done pos=23,64,100 ticks=6` → `cleared 0/2` → `pos=23,65,100 ticks=6` → `cleared 1/2` → `execute_a=PASS COMPLETED foot=23,64,100`）。**实测破坏速率：石头 + 石镐 = 6 tick/格**（MiningBudget 参考数据）
 - 语义（对照 Baritone `MovementTraverse.positionsToBreak = {to.above(), to}` + `Movement.prepared`）：
   目的地格被可破坏方块占用时，**先破坏目的地躯干 + 头位，再走进该格**；破坏走
   `BlockInteraction`/`BlockBreakSession`（工具/进度/广播/ABORT），不使用瞬间销毁。
