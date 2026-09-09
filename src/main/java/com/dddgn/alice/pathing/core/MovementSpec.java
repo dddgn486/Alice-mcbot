@@ -80,6 +80,12 @@ public record MovementSpec(
                     throw new IllegalArgumentException("DOWNWARD requires a straight vertical drop of one block");
                 }
             }
+            case FALL -> {
+                // 卡基数 1 格 + 落差 2~3 格（Baritone maxFallHeightNoWater=3；无水落地）
+                if (Math.abs(dx) + Math.abs(dz) != 1 || dy > -2 || dy < -3) {
+                    throw new IllegalArgumentException("FALL requires one cardinal step and a 2-3 block drop");
+                }
+            }
             case PILLAR -> {
                 if (dy != 1 || dx != 0 || dz != 0) {
                     throw new IllegalArgumentException("PILLAR requires a straight vertical rise of one block");

@@ -25,5 +25,6 @@
   "item.alice.pathing_downward": "Vertical Drop Checker",
   "item.alice.pathing_straight": "Straight Runner",
   "item.alice.pathing_pillar": "Pillar Checker",
-  "item.alice.pathing_lava_guard": "Lava Route Checker"
+  "item.alice.pathing_lava_guard": "Lava Route Checker",
+  "item.alice.pathing_fall": "Fall Checker"
 }

@@ -869,3 +869,45 @@
 - 保留决定（用户）：其余 11 项回归场景全部保留（每项对应一个 Movement 或一类行为）。
 - 验收：`/function alice_test:lava_course` + 右键 `alice:pathing_lava_guard` → `lava_contacts=0 result=PASS`；
   串联回归期望 `lava_course=PASS detail=REACHED/first=.../movements=.../lava_contacts=0`。
+
+## D-058：FALL（落差 2~3 格）—— Baritone 原样 + Alice 落点可回收守卫
+
+- 状态：已实施，待客户端验证（用户 2026-09-09 计划项 2；三个决策点见下）
+- 用户决策（2026-09-09）：
+  1. **只做"无水落地 ≤3 格"**：不移植 Baritone 的落水 / 水桶救落分支（最小闭环）；
+  2. **只在允许世界修改的任务里启用**（`PathRequest.withWorldModification`）——生产任务的普通通行仍保持一格红线；
+  3. **落点必须能用 PILLAR 返回**（D-024 补记 Q1-D 的可回收守卫落地）。
+- 对照来源：`reference/baritone-1.20.1` @8c55ad0
+  - 生成：`Moves.java:152-215`（`DESCEND_*` 在落点比 src 低超过 1 格时改生成 `MovementFall`）；
+  - 落点扫描：`MovementDescend.dynamicFallCost:145-224`（无水落地分支 `unprotectedFallHeight <= maxFallHeightNoWater + 1 = 4`，
+    底部半砖拒绝 `:203-205`，流体/危险方块由 `canWalkOn/canWalkThrough` 排除）；
+  - 执行：`MovementFall.updateState:79-190`（朝落点中心推进、空中偏离 >0.1 才给前进输入、落地判定 `y-dest.y<0.094`）；
+  - 合法位置集：`MovementFall.calculateValidPositions`（src + **整条下落列**）；
+  - 离轨特例：`PathExecutor:307-311`（下落途中改用**水平距离**判定是否离轨）。
+- 成本（Baritone 结构 + Alice 实测标定，D-040 原则）：
+  `FALL = WALK_OFF(0.8 格) + FALL_N_BLOCKS_TICKS/6 + CENTER(0.2 格) + 段固定开销`，
+  其中逐格下落 tick 取 Baritone `ActionCosts.FALL_N_BLOCKS_COST` 同款速度曲线 `(0.98^t-1)*-3.92`
+  （1 格 4.61 / 2 格 6.79 / 3 格 8.46 tick，下落物理与假人一致）；
+  段固定开销由 Alice 实测 `DESCEND 16 tick` 反推 ≈ 0.90 走路格。
+  → `FALL_TWO_BLOCK_COST = 3.03`、`FALL_THREE_BLOCK_COST = 3.31`（**待客户端 `segment_done ticks=` 实测校正**）。
+- 实现清单：
+  - `MovementType.FALL` + `MovementSpec` 几何（卡基数 1 格、dy ∈ {-2,-3}）；
+  - `CostModel`：`FALL_ONE/TWO/THREE_BLOCKS_TICKS`、`WALK_OFF_EDGE_COST`、`CENTER_AFTER_FALL_COST`、
+    `FALL_SEGMENT_OVERHEAD_COST`、`FALL_TWO/THREE_BLOCK_COST`；
+  - `SurfaceMovementProvider.appendFall`：走离边缘可通行 + 下落列净空 + 落点可站/非流体/非底部半砖 +
+    **PILLAR 返回守卫**（返回列净空到起点层 + 有放置面 + 一次性方块数量 ≥ 落差）；
+  - `FallExecution`（地面阶段走离边缘 → 空中朝落点列推进（0.1）→ 落地后继续收敛（0.3）→
+    `isAtFootColumn` 完成判定）+ `FallExecutionFactory`（几何/起点/边缘/下落列/落点/流体/半砖/守卫全量校验）；
+  - `PathSession`：FALL 计入精确落点类型；`validPositions` 覆盖**整条下落列**；
+    疾跑前瞻加入 FALL（Baritone `shouldSprintNextTick` 的 fall 覆写）；空中不判定漂移（离轨特例的 Alice 等价物）。
+- 偏离登记：
+  1. **不移植落水/水桶**（用户决策；Baritone `MovementFall:100-140` 的落水与 `maxFallHeightBucket` 分支）；
+  2. **新增 Baritone 没有的落点守卫**（PILLAR 返回）——Baritone 的 `MovementFall` 不检查可回收性；
+     这是 Alice 的 D-024 局部可回收性不变式要求，已登记为差异；
+  3. **离轨特例实现方式不同**：Baritone 在 `PathExecutor` 里对 `MovementFall` 改用水平距离；
+     Alice 由"空中一律不判定漂移 + validPositions 含整条下落列"等价覆盖。
+- D-024 更新：红线从"任何 Movement 落差 ≤1 格"改为
+  **"默认 ≤1 格；FALL 允许 2~3 格，但必须通过 PILLAR 返回守卫，且只在允许世界修改的任务中启用"**。
+- 验收（零参数）：`alice_test:fall_course` + `alice:pathing_fall` →
+  `[Fall] SUMMARY fall_plan_2=PASS fall_plan_3=PASS drop4_guard=PASS recover_guard=PASS fall_execute=PASS`；
+  串联回归新增 `fall_course`（第 13 项）；Baritone 对照 `contrast_fall` / `contrast_trace_fall`。

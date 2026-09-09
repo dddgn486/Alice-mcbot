@@ -30,6 +30,9 @@ public final class PlannedMovementSpecs {
         MovementCapabilities capabilities = switch (movement.movementType()) {
             case PLACE_STEP_AND_TRAVERSE, PILLAR ->
                     MovementCapabilities.temporarySupport(RecoverabilityLevel.LOCAL_STEP);
+            // FALL 本身不改世界、不耗资源；落点可回收性由 provider 的 PILLAR 返回守卫保证
+            case FALL -> MovementCapabilities.pureTraversal(RecoverabilityLevel.LOCAL_STEP,
+                    IntrinsicReversibility.CONDITIONALLY_REVERSIBLE);
             case BREAK_AND_TRAVERSE, DOWNWARD ->
                     MovementCapabilities.pathAccess(RecoverabilityLevel.LOCAL_STEP);
             default -> MovementCapabilities.pureTraversal(
@@ -54,6 +57,7 @@ public final class PlannedMovementSpecs {
             case DESCEND -> DescendExecutionFactory.KEY;
             case DOWNWARD -> com.dddgn.alice.pathing.core.DownwardExecutionFactory.KEY;
             case PILLAR -> com.dddgn.alice.pathing.core.PillarExecutionFactory.KEY;
+            case FALL -> com.dddgn.alice.pathing.core.FallExecutionFactory.KEY;
             case BREAK_AND_TRAVERSE -> BreakAndTraverseExecutionFactory.KEY;
             case PLACE_STEP_AND_TRAVERSE -> PlaceStepAndTraverseExecutionFactory.KEY;
             default -> throw new IllegalArgumentException("unsupported movement type: " + type);
@@ -68,6 +72,7 @@ public final class PlannedMovementSpecs {
             case DESCEND -> new DescendExecutionFactory();
             case DOWNWARD -> new com.dddgn.alice.pathing.core.DownwardExecutionFactory();
             case PILLAR -> new com.dddgn.alice.pathing.core.PillarExecutionFactory();
+            case FALL -> new com.dddgn.alice.pathing.core.FallExecutionFactory();
             case BREAK_AND_TRAVERSE -> new BreakAndTraverseExecutionFactory();
             case PLACE_STEP_AND_TRAVERSE -> new PlaceStepAndTraverseExecutionFactory();
             default -> throw new IllegalArgumentException("unsupported movement type: " + type);

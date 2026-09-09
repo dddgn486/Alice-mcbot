@@ -267,6 +267,7 @@ public final class PathSession {
             MovementType next = movements.get(i).movementType();
             if (next == MovementType.DESCEND || next == MovementType.DOWNWARD
                     || next == MovementType.PILLAR || next == MovementType.ASCEND
+                    || next == MovementType.FALL
                     || next == MovementType.PLACE_STEP_AND_TRAVERSE
                     || next == MovementType.BREAK_AND_TRAVERSE) {
                 return false;
@@ -294,7 +295,7 @@ public final class PathSession {
 
     private static boolean isPrecisionType(com.dddgn.alice.pathing.core.MovementType type) {
         return switch (type) {
-            case DESCEND, DOWNWARD, PILLAR, PLACE_STEP_AND_TRAVERSE, BREAK_AND_TRAVERSE -> true;
+            case DESCEND, DOWNWARD, PILLAR, FALL, PLACE_STEP_AND_TRAVERSE, BREAK_AND_TRAVERSE -> true;
             default -> false;
         };
     }
@@ -380,7 +381,7 @@ public final class PathSession {
     /**
      * 本段合法位置集（对照 Baritone `Movement.getValidPositions`）。
      * <p>TRAVERSE {from,to}；DIAGONAL 加两个角格；ASCEND 加 from.above()；
-     * DESCEND 加 to.above()；BREAK_AND_TRAVERSE 加中间格；PLACE_STEP 加 to.above()。
+     * DESCEND 加 to.above()；BREAK_AND_TRAVERSE 加中间格；PLACE_STEP 加 to.above()；FALL 加整条下落列。
      */
     private static java.util.Set<BlockPos> validPositions(PlannedMovement movement) {
         BlockPos from = movement.fromFoot();
@@ -394,6 +395,12 @@ public final class PathSession {
                 set.add(new BlockPos(from.getX(), from.getY(), to.getZ()));
             }
             case ASCEND -> set.add(from.above());
+            case FALL -> {
+                // 对照 Baritone MovementFall.calculateValidPositions：src + 整条下落列
+                for (int y = from.getY(); y >= to.getY(); y--) {
+                    set.add(new BlockPos(to.getX(), y, to.getZ()));
+                }
+            }
             case DESCEND, PLACE_STEP_AND_TRAVERSE -> set.add(to.above());
             case BREAK_AND_TRAVERSE -> set.add(new BlockPos(
                     (from.getX() + to.getX()) / 2, from.getY(), (from.getZ() + to.getZ()) / 2));

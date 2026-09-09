@@ -57,6 +57,11 @@ public final class SurfaceMovementProvider implements MovementProvider {
         if (context.allows(MovementType.PILLAR)) {
             appendPillar(context, level, from, out);
         }
+        if (context.allows(MovementType.FALL)) {
+            for (int[] d : CARDINAL) {
+                appendFall(context, level, from, d[0], d[1], out);
+            }
+        }
         if (context.allows(MovementType.PLACE_STEP_AND_TRAVERSE)) {
             for (int[] d : CARDINAL) {
                 for (int dy = 0; dy >= -1; dy--) {
@@ -81,6 +86,74 @@ public final class SurfaceMovementProvider implements MovementProvider {
                 }
             }
         }
+    }
+
+    /** FALL 支持的落差（Baritone `maxFallHeightNoWater = 3`，无水落地，D-058）。 */
+    private static final int[] FALL_DROPS = {2, 3};
+
+    /**
+     * 落差 2~3 格（{@link MovementType#FALL}）：走离边缘后自由落到低处的可站平台。
+     *
+     * <p>对照 Baritone `MovementDescend.cost` → `dynamicFallCost:145-224`（无水落地分支）：
+     * 落点必须可站、非流体、非底部半砖；落差上限 `maxFallHeightNoWater + 1 = 3`。
+     * <p>**Alice 安全守卫（D-024 补记 Q1-D / D-058）**：落点必须能用 PILLAR 返回
+     * （返回列净空 + 有放置面 + 一次性方块数量 ≥ 落差），否则拒绝——保证局部可回收性不变式。
+     */
+    private static void appendFall(MovementContext context, ServerLevel level, BlockPos from,
+                                   int dx, int dz, List<PlannedMovement> out) {
+        BlockPos edge = from.offset(dx, 0, dz);
+        if (!MovementHelper.canWalkThrough(level, edge)
+                || !MovementHelper.canWalkThrough(level, edge.above())) {
+            return;   // 走不出边缘
+        }
+        for (int drop : FALL_DROPS) {
+            BlockPos to = from.offset(dx, -drop, dz);
+            if (!context.yInBounds(to.getY())) {
+                continue;
+            }
+            // 下落列净空：从边缘下一格到落点上方全部可穿过
+            boolean clear = true;
+            for (int y = from.getY() - 1; y > to.getY(); y--) {
+                if (!MovementHelper.canWalkThrough(level, new BlockPos(to.getX(), y, to.getZ()))) {
+                    clear = false;
+                    break;
+                }
+            }
+            if (!clear) {
+                continue;
+            }
+            // 落点：可站 + 身体/头部净空 + 非流体（本轮只做无水落地）+ 非底部半砖
+            if (!MovementHelper.canWalkOn(level, to)
+                    || !MovementHelper.canWalkThrough(level, to)
+                    || !MovementHelper.canWalkThrough(level, to.above())) {
+                continue;
+            }
+            if (!level.getFluidState(to).isEmpty() || !level.getFluidState(to.above()).isEmpty()) {
+                continue;
+            }
+            if (MovementHelper.isBottomSlab(level.getBlockState(to.below()))) {
+                continue;
+            }
+            if (!fallRecoverable(context, level, to, drop)) {
+                continue;
+            }
+            double cost = drop == 3 ? CostModel.FALL_THREE_BLOCK_COST : CostModel.FALL_TWO_BLOCK_COST;
+            out.add(new PlannedMovement(MovementType.FALL, from, to, cost, RecoverabilityLevel.LOCAL_STEP));
+        }
+    }
+
+    /** 落点可回收守卫：必须能沿落点列 PILLAR 回原高度（净空 + 放置面 + 一次性方块 ≥ 落差）。 */
+    private static boolean fallRecoverable(MovementContext context, ServerLevel level, BlockPos to, int drop) {
+        if (context.bot() == null) {
+            return false;
+        }
+        for (int k = 1; k <= drop + 1; k++) {
+            if (!MovementHelper.canWalkThrough(level, to.above(k))) {
+                return false;
+            }
+        }
+        return BlockInteraction.hasPlacementFace(level, to)
+                && BlockInteraction.countThrowaway(context.bot()) >= drop;
     }
 
     /**

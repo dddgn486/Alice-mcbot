@@ -66,6 +66,7 @@ public final class PathingRegressionTask implements Task {
             execute("break_course", new BlockPos(0, 64, 66), new BlockPos(7, 64, 66), true),
             execute("vertical_course", new BlockPos(0, 64, 45), new BlockPos(0, 63, 45), true),
             execute("pillar_course", new BlockPos(24, 64, 44), new BlockPos(25, 67, 44), true),
+            execute("fall_course", new BlockPos(22, 64, 68), new BlockPos(23, 61, 68), true),
             execute("trace_course", new BlockPos(0, 64, 40), new BlockPos(0, 64, 51), false),
             refused("fluid_course", new BlockPos(0, 64, 66), new BlockPos(4, 64, 66), true),
             safeRoute("lava_course", new BlockPos(0, 64, 66), new BlockPos(4, 64, 66), true),

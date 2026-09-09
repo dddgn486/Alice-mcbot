@@ -96,6 +96,16 @@ public final class MovementHelper {
                 || block instanceof FlowerPotBlock;
     }
 
+    /**
+     * 底部半砖（FALL 落点拒绝，对照 Baritone `MovementDescend.dynamicFallCost:203-205`）：
+     * 落到下半砖上会严重过冲并造成额外坠落伤害。
+     */
+    public static boolean isBottomSlab(net.minecraft.world.level.block.state.BlockState state) {
+        return state.getBlock() instanceof net.minecraft.world.level.block.SlabBlock
+                && state.getValue(net.minecraft.world.level.block.SlabBlock.TYPE)
+                == net.minecraft.world.level.block.state.properties.SlabType.BOTTOM;
+    }
+
     /** 可攀爬方块（对照 Baritone isClimbable:573-580）：梯子/藤蔓/缠怨藤/垂泪藤。 */
     public static boolean isClimbable(BlockState state) {
         Block block = state.getBlock();

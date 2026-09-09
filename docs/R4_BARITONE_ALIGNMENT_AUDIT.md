@@ -254,6 +254,7 @@
 | D-053 | 疾跑门控（忽略饱食度） | `WINDOWS_CLIENT`（11 格直线 44 tick） |
 | D-054 | 11 项串联回归 | `WINDOWS_CLIENT`（`SUMMARY` 11/11 PASS） |
 | **D-055** | **PILLAR（垂直上升 1 格）对齐 `MovementPillar`** | **已实施，待客户端验证**（`alice:pathing_pillar` + `pillar_course` + 回归第 12 项 + Baritone 对照） |
+| **D-058** | **FALL（落差 2~3 格）对齐 `MovementFall` + Alice 落点可回收守卫** | **已实施，待客户端验证** |
 | 待办 E-⑥ | legacy 双内核收口（`pathing/movement/*` + legacy A* + `BotMiner` 原语） | **单独立项**（触及 HARD_PATH） |
 
 ## §4 对齐清单（建议顺序）
@@ -270,7 +271,7 @@
 | P2 | 未加载区块语义（暂停/拒绝） | 搜索 + 执行 | `PathExecutor:186-192`、`BlockStateInterface:79` |
 | P2 | `WorldView` 落地（R7）或删除 | `pathing/core/WorldView` | `BlockStateInterface` |
 | P2 | `safeToCancel`/路径抢占 | `MovementExecution` + `PathSession` | `PathExecutor:194,257,268-300` |
-| P2 | 缺失 Movement 类型：DOWNWARD ✅（D-048/050）、PILLAR ✅（D-055）；剩余 FALL（≤3 格，D-024 红线待评估）/ PARKOUR | `MovementType` + provider + 执行器 | `Moves.java:30+` |
+| P2 | 缺失 Movement 类型：DOWNWARD ✅（D-048/050）、PILLAR ✅（D-055）；FALL ✅（D-058，≤3 格 + PILLAR 返回守卫）；剩余 PARKOUR | `MovementType` + provider + 执行器 | `Moves.java:30+` |
 | P0 | `canWalkOn` 改白名单（拒绝栅栏/蜂蜜块等非整格"可站"） | `pathing/MovementHelper.canWalkOn` | `MovementHelper.java:387-426` |
 | P1 | Ascend 补 `headBonkClear` 门控 + factory 补 FallingBlock/climbable/bottom-slab 拒绝 | `AscendExecution.shouldJump`、`AscendExecutionFactory.validate` | `MovementAscend.java:96-131,219-243` |
 | P1 | 放置成本 4.0 → 对齐 `blockPlacementPenalty`(20)；修正错引注释 | `SurfaceMovementProvider.java:25-26,162` | `Settings.java:124`、`CalculationContext.java:106` |

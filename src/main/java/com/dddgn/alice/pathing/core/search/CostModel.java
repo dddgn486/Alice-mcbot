@@ -47,6 +47,32 @@ public interface CostModel {
     /** 垂直上升 1 格（PILLAR）：跳跃（ASCEND 的竖向分量）+ 放置一个方块。 */
     double PILLAR_COST = ASCEND_COST + PLACE_ONE_BLOCK_COST;
 
+    // ==================== FALL（落差 2~3 格，D-058） ====================
+
+    /**
+     * 逐格下落 tick（Baritone `ActionCosts.FALL_N_BLOCKS_COST = distanceToTicks(n)`，
+     * 速度曲线 `(0.98^t - 1) * -3.92`）：1 格 4.61 / 2 格 6.79 / 3 格 8.46 tick。
+     * 下落物理与假人一致（同为原版玩家实体），因此可直接用该曲线。
+     */
+    double FALL_ONE_BLOCK_TICKS = 4.61D;
+    double FALL_TWO_BLOCKS_TICKS = 6.79D;
+    double FALL_THREE_BLOCKS_TICKS = 8.46D;
+    /** 走离边缘（0.8 格）与落地后居中（0.2 格）——Baritone `WALK_OFF_BLOCK_COST` / `CENTER_AFTER_FALL_COST` 结构。 */
+    double WALK_OFF_EDGE_COST = TRAVERSE_COST * 0.8D;
+    double CENTER_AFTER_FALL_COST = TRAVERSE_COST * 0.2D;
+    /**
+     * 段固定开销：用 Alice 实测 `DESCEND` 16 tick 反推（物理模型只解释 0.8+4.61/6+0.2），
+     * 残差 ≈ 5.4 tick 就是 Alice 每段的逼近/落地稳定开销。
+     */
+    double FALL_SEGMENT_OVERHEAD_COST = DESCEND_COST - WALK_OFF_EDGE_COST
+            - FALL_ONE_BLOCK_TICKS / WALK_ONE_BLOCK_TICKS - CENTER_AFTER_FALL_COST;
+    /** 落差 2 格：≈3.03 走路格（18.2 tick，待客户端实测校正）。 */
+    double FALL_TWO_BLOCK_COST = FALL_SEGMENT_OVERHEAD_COST + WALK_OFF_EDGE_COST
+            + FALL_TWO_BLOCKS_TICKS / WALK_ONE_BLOCK_TICKS + CENTER_AFTER_FALL_COST;
+    /** 落差 3 格：≈3.31 走路格（19.9 tick，待客户端实测校正）。 */
+    double FALL_THREE_BLOCK_COST = FALL_SEGMENT_OVERHEAD_COST + WALK_OFF_EDGE_COST
+            + FALL_THREE_BLOCKS_TICKS / WALK_ONE_BLOCK_TICKS + CENTER_AFTER_FALL_COST;
+
     double cost(MovementType type, ServerLevel level, BlockPos from, BlockPos to);
 
     CostModel TRAVERSAL = (type, level, from, to) -> switch (type) {
@@ -56,6 +82,7 @@ public interface CostModel {
         case DESCEND -> DESCEND_COST;
         case DOWNWARD -> DOWNWARD_COST;
         case PILLAR -> PILLAR_COST;
+        case FALL -> (to.getY() - from.getY()) == -3 ? FALL_THREE_BLOCK_COST : FALL_TWO_BLOCK_COST;
         default -> Double.POSITIVE_INFINITY;
     };
 }

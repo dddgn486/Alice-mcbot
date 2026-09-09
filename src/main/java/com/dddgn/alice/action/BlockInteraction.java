@@ -148,6 +148,22 @@ public final class BlockInteraction {
         return -1;
     }
 
+    /** 快捷栏中一次性方块的总数量（FALL 的"PILLAR 返回"守卫用）。 */
+    public static int countThrowaway(ServerPlayer bot) {
+        Inventory inventory = bot.getInventory();
+        int total = 0;
+        for (int slot = 0; slot < 9 && slot < inventory.getContainerSize(); slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (stack.isEmpty() || !(stack.getItem() instanceof BlockItem blockItem)) {
+                continue;
+            }
+            if (THROWAWAY.contains(blockItem.getBlock())) {
+                total += stack.getCount();
+            }
+        }
+        return total;
+    }
+
     /**
      * 在 {@code placeAt} 放置一个方块（对齐 Baritone attemptToPlaceABlock）。
      *
