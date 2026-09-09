@@ -622,3 +622,24 @@
   `pathing/AStarPathfinder`（零启发 Dijkstra）+ `BotMiner` 自带破坏原语，由 `PathExecutor` /
   `FollowTask` / `MovementPlanCompiler` 驱动，**触及挖矿 HARD_PATH 链路** → 需单独立项 + 完整回归。
 
+## D-045：legacy 寻路任务先禁用、再迁移（方案 B）
+
+- 状态：已实施（用户 2026-09-09 明确选择方案 B）
+- 背景：仓库内并存两套寻路内核——
+  - **legacy**：`pathing/AStarPathfinder`（**零启发 Dijkstra**，见 `:118-119` 注释）+ `pathing/movement/*`
+    + `PathExecutor`，成本表 `TRAVERSE 1 / DESCEND 1 / ASCEND 2 / DOWNWARD 3`（对角与直走同价、下降与走路同价）；
+  - **新内核（R3/R4）**：`core/search/AStarMovementSearch`（真 A*：octile 水平 + 非对称竖向，D-040）。
+  生产任务（`MineTask`/`FollowTask`/`WalkToTask`/`PlaceTask`/`TransferTask`/`DropCollectionTask`）
+  全部走 legacy；新内核此前只在测试面使用。
+- 决策：**先把 legacy 任务入口统一禁用**，新内核逐个接入后再启用对应入口。
+  开关：`BotManager.LEGACY_PATHING_TASKS_ENABLED = false`；
+  统一门禁 `legacyTaskDisabled(task)` 输出 `legacy_pathing_disabled task=... reason=migration_to_core_kernel`。
+- 受影响入口：`assignMine`（含内部 `DropCollectionTask`）、`assignFollow`、`assignWalkTo`、`assignPlace`、
+  `assignTransfer`。随之不可用的还有挖矿测试场景（`scene_a/b/c`、`movement_*`、`legacy_ascend`）与 `BotSelftest`。
+- **不受影响**：新内核全部测试面（`alice:pathing_battery` / `pathing_regression` / `pathing_session` /
+  `pathing_dip_route` / `pathing_fluid_guard` / `pathing_fence_guard` / `pathing_placer` / `pathing_breaker` /
+  `pathing_walller` / `pathing_disturber`）。
+- 迁移顺序（能力补齐后逐个开启）：`WalkToTask` → `FollowTask` → `PlaceTask`/`TransferTask` → `MineTask`（HARD_PATH，最后）。
+- 能力前置（迁移前必须补齐）：新内核缺 **`DOWNWARD`（纯垂直下 1 格）**；`PILLAR`（垂直上 1 格）与 DOWNWARD
+  是互逆对，**单独存在 PILLAR 时不可回收**（上去了下不来）→ 已按用户裁决**暂不采纳**（见 D-046）。
+

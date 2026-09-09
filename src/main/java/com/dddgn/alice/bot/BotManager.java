@@ -301,7 +301,26 @@ public final class BotManager {
 }
 
 /** 给假人分配保护区内软移动跟随，不接入普通挖矿。 */
-public static void assignFollow(BotPlayer bot, ServerPlayer target) {
+/**
+     * 迁移期开关（D-045 / 方案 B）：**legacy 寻路内核驱动的任务暂时禁用**。
+     *
+     * <p>legacy 内核（`pathing/AStarPathfinder` 零启发 Dijkstra + `pathing/movement/*` + `PathExecutor`）
+     * 与 R3/R4 新内核并存；用户决定先禁用这些任务，等新内核逐个接入后再启用。
+     * 新内核测试面（`alice:pathing_*` 系列）不受影响。
+     */
+    public static final boolean LEGACY_PATHING_TASKS_ENABLED = false;
+
+    /** legacy 任务入口的统一门禁：返回 true 表示已拒绝。 */
+    private static boolean legacyTaskDisabled(String task) {
+        if (LEGACY_PATHING_TASKS_ENABLED) {
+            return false;
+        }
+        BotLog.warn("legacy_pathing_disabled task={} reason=migration_to_core_kernel", task);
+        return true;
+    }
+
+    public static void assignFollow(BotPlayer bot, ServerPlayer target) {
+        if (legacyTaskDisabled("FollowTask")) return;
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null) return;
         session.assignFollow(target);
@@ -317,6 +336,7 @@ public static void assignFollow(BotPlayer bot, ServerPlayer target) {
 
     /** 给假人分配独立「放置指定方块」任务。 */
     public static void assignPlace(BotPlayer bot, BlockPos target) {
+        if (legacyTaskDisabled("PlaceTask")) return;
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null) return;
         session.assignPlace(target);
@@ -324,6 +344,7 @@ public static void assignFollow(BotPlayer bot, ServerPlayer target) {
 
     /** 给假人分配纯 HARD_PATH 脚位移动任务。 */
     public static void assignWalkTo(BotPlayer bot, BlockPos goalFoot) {
+        if (legacyTaskDisabled("WalkToTask")) return;
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null) return;
         session.assignWalkTo(goalFoot);
@@ -450,6 +471,7 @@ public static void assignFollow(BotPlayer bot, ServerPlayer target) {
 
     /** Creates the only approved transfer task entry point. */
     public static String assignTransfer(BotPlayer bot, TransferRequest request) {
+        if (legacyTaskDisabled("TransferTask")) return "legacy_pathing_disabled";
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null) return TransferCodes.BOT_UNAVAILABLE;
         TransferLedgerData ledger = TransferLedgerData.get(bot.getServer());
@@ -475,6 +497,7 @@ public static void assignFollow(BotPlayer bot, ServerPlayer target) {
 
     /** 给假人分配「挖掘指定方块」任务(命令/selftest 兼容入口)。 */
     public static void assignMine(BotPlayer bot, BlockPos target) {
+        if (legacyTaskDisabled("MineTask")) return;
         assignTarget(bot, TaskTarget.block(target));
         BotLog.info("分配挖掘任务: bot={} target={}",
                 bot.getName().getString(), target.toShortString());
