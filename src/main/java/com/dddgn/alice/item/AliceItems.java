@@ -97,6 +97,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> PATHING_REGRESSION =
             ITEMS.register("pathing_regression", () -> new PathingRegressionItem(new Item.Properties()));
 
+    /** D-043 重规划验证：前方封路器（场景专属）。 */
+    public static final RegistryObject<Item> PATHING_WALLER =
+            ITEMS.register("pathing_waller", () -> new PathingWallerItem(new Item.Properties()));
+
 
     private AliceItems() {
     }

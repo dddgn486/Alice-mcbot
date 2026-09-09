@@ -8,7 +8,6 @@ import com.dddgn.alice.pathing.core.LiveExecutionContext;
 import com.dddgn.alice.pathing.core.MovementExecution;
 import com.dddgn.alice.pathing.core.MovementExecutionFactory;
 import com.dddgn.alice.pathing.core.MovementSpec;
-import com.dddgn.alice.pathing.core.search.CorePathPlanner;
 import com.dddgn.alice.pathing.core.search.PathPlan;
 import com.dddgn.alice.pathing.core.search.CostModel;
 import com.dddgn.alice.pathing.core.search.PathRequest;
@@ -38,8 +37,6 @@ public final class PathSession {
     public static final int HEALTH_CHECK_INTERVAL = 5;
     /** 段间稳定上限：等 bot 落地并基本停住，避免动量把下一段起点带偏。 */
     public static final int MAX_SETTLE_TICKS = 10;
-    /** 自愈重规划上限（对照 Baritone 位置失效后取消重算的语义）。 */
-    public static final int MAX_REPLANS = 2;
     /** snipsnap 次数上限：防止"吸附到同一索引 → 同段再失败"的无限循环。 */
     public static final int MAX_SNIPSNAPS = 3;
 
@@ -58,7 +55,6 @@ public final class PathSession {
     /** 段槽位计时：`execution == null`（校验失败/等待落地）期间也计时，避免该路径无超时覆盖（D-042）。 */
     private int startSlotTicks;
     private int settleTicks;
-    private int replans;
     private int snipsnaps;
     private int lastSnipsnapIndex = -1;
     private int totalTicks;
@@ -170,7 +166,7 @@ public final class PathSession {
     public PathExecutionResult result() {
         return new PathExecutionResult(status, movements.size(), index, failureCode, failureSegment,
                 bot.blockPosition(), totalTicks,
-                "planner=alice.astar.movement.v1 replans=" + replans + " snipsnaps=" + snipsnaps);
+                "planner=alice.astar.movement.v1 snipsnaps=" + snipsnaps);
     }
 
     private void startSegment() {
@@ -250,24 +246,26 @@ public final class PathSession {
     }
 
     /**
-     * 段失败路由（R4 自愈闭环）：
+     * 段失败路由（D-043 分层）：
      * 1) 位置漂移/世界变化 → 先尝试 snipsnap（对照 Baritone `snipsnapifpossible:324-343`）；
-     * 2) 失败则从当前脚位重规划（上限 {@link #MAX_REPLANS}）；
-     * 3) 仍失败才按原语义终止并上报事实。
+     * 2) 否则按原语义终止并上报事实——**重规划决策属于任务层**（`PathRetryRunner`），
+     *    对照 Baritone `PathExecutor` 只 `cancel()`、由 `PathingBehavior` 重新规划。
      */
     private void handleFailure(String code) {
         String failure = code == null ? "MOVEMENT_FAILED" : code;
-        // 空中不处理：等落地再吸附/重规划，避免从下落中的位置产生失真计划
+        // 空中不处理：等落地再吸附，避免从下落中的位置产生失真判断
         if (!bot.onGround() && !failure.contains("TIMEOUT") && !failure.contains("CANCELLED")) {
             return;
         }
         if (trySnipsnap(failure)) {
             return;
         }
-        if (replans < MAX_REPLANS && replan(failure)) {
-            return;
-        }
         mapFailure(failure);
+    }
+
+    /** 规划投影脚位路径（只读，供任务层/夹具观察当前计划）。 */
+    public java.util.List<BlockPos> projectedFootPath() {
+        return java.util.List.copyOf(projected);
     }
 
     /**
@@ -307,31 +305,6 @@ public final class PathSession {
         index = position;
         BotLog.info("[R4 Session] snipsnap session={} feet={} resumeIndex={} code={}",
                 sessionId, feet.toShortString(), position, code);
-        return true;
-    }
-
-    /** 从当前脚位重新规划到同一目标（保留原请求的策略与预算）。 */
-    private boolean replan(String code) {
-        BlockPos feet = bot.blockPosition();
-        PathRequest replanRequest = new PathRequest(request.botId(), feet, request.goal(),
-                request.allowedMovementTypes(), request.budget(), "replan:" + code);
-        PathPlan plan = new CorePathPlanner().plan(bot, level, replanRequest);
-        if (!plan.reached()) {
-            BotLog.warn("[R4 Session] replan_failed session={} code={} status={} feet={}",
-                    sessionId, code, plan.status(), feet.toShortString());
-            return false;
-        }
-        replans++;
-        movements = plan.movements();
-        projected = plan.projectedFootPath();
-        index = 0;
-        execution = null;
-        segmentTicks = 0;
-        startSlotTicks = 0;
-        settleTicks = 0;
-        BotLog.info("[R4 Session] replanned session={} replans={} movements={} from={} to={} cost={}",
-                sessionId, replans, movements.size(), feet.toShortString(),
-                plan.goalFoot().toShortString(), String.format(java.util.Locale.ROOT, "%.2f", plan.totalCost()));
         return true;
     }
 

@@ -6,8 +6,6 @@ import com.dddgn.alice.pathing.core.MovementType;
 import com.dddgn.alice.pathing.core.search.CorePathPlanner;
 import com.dddgn.alice.pathing.core.search.PathPlan;
 import com.dddgn.alice.pathing.core.search.PathRequest;
-import com.dddgn.alice.pathing.core.session.PathSession;
-import com.dddgn.alice.pathing.core.session.PathSessionStatus;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -70,7 +68,7 @@ public final class PathingRegressionTask implements Task {
     private int index;
     private int ticks;
     private boolean prepared;
-    private PathSession session;
+    private PathRetryRunner runner;
     private String failure = "";
 
     public PathingRegressionTask(BotPlayer bot, ServerPlayer observer) {
@@ -102,23 +100,18 @@ public final class PathingRegressionTask implements Task {
                 advance();
                 return index >= SCENES.size() ? finish() : Status.RUNNING;
             }
-            PathRequest request = request(scene);
-            PathPlan plan = new CorePathPlanner().plan(bot, bot.serverLevel(), request);
-            if (!plan.reached()) {
-                record(scene, false, "PLAN_" + plan.status());
-                advance();
-                return index >= SCENES.size() ? finish() : Status.RUNNING;
-            }
-            session = new PathSession(bot, bot.serverLevel(), plan, request,
+            runner = new PathRetryRunner(bot, request(scene), PathRetryRunner.DEFAULT_MAX_REPLANS,
                     "regression-" + scene.scene());
             return Status.RUNNING;
         }
-        PathSessionStatus status = session.tick();
-        if (status == PathSessionStatus.RUNNING) {
+        PathRetryRunner.State state = runner.tick();
+        if (state == PathRetryRunner.State.RUNNING) {
             return Status.RUNNING;
         }
-        record(scene, status == PathSessionStatus.COMPLETED, status.name());
-        session = null;
+        var result = runner.result();
+        record(scene, state == PathRetryRunner.State.DONE,
+                result.status() + (runner.replans() > 0 ? "/replans=" + runner.replans() : ""));
+        runner = null;
         advance();
         return index >= SCENES.size() ? finish() : Status.RUNNING;
     }

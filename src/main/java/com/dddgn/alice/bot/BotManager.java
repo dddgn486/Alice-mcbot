@@ -426,6 +426,17 @@ public static void assignFollow(BotPlayer bot, ServerPlayer target) {
         return true;
     }
 
+    /** Assigns the D-043 replan fixture: block the path 2 segments ahead at a fixed tick. */
+    public static boolean assignPathingWaller(BotPlayer bot, BlockPos goalFoot, int wallTick) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        session.beginTask(new PathSessionDiagnosticTask(bot, goalFoot, true,
+                        0, 0, 0, wallTick, com.dddgn.alice.task.PathRetryRunner.DEFAULT_MAX_REPLANS),
+                TaskTarget.block(goalFoot));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     /* legacy movement experiment entry removed; retain core task APIs only */
     /** 给假人分配 Bot 专用道路施工任务。 */
     public static void assignRoadBuild(BotPlayer bot, com.dddgn.alice.road.RoadPlan plan) {

@@ -20,5 +20,6 @@
   "item.alice.pathing_fluid_guard": "流体屏障检查器",
   "item.alice.pathing_dip_route": "路线偏好检查器",
   "item.alice.pathing_fence_guard": "站立判定检查器",
-  "item.alice.pathing_regression": "串联回归启动器"
+  "item.alice.pathing_regression": "串联回归启动器",
+  "item.alice.pathing_waller": "前方封路器（重规划验证）"
 }

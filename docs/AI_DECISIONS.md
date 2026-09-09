@@ -553,13 +553,33 @@
   （`movements=11`）。用 `tools/simulate-scene-plan.py` 复刻场景后**精确复现了 11 步路径**
   （`DIAGONAL+TRAVERSE+TRAVERSE+TRAVERSE+DIAGONAL+TRAVERSE+DIAGONAL+TRAVERSE×4`）。
 - 修复：封口改为 **2 格高（y=63..64）**，顶面被占 → 模拟器与预期一致给出 `UNREACHABLE`。
-- 二次修复（用户 2026-09-09 手动验证）：**封口必须 ≥3 格高（y=63..65）**。2 格高仍会 `REACHED`——
-  因为该检查允许世界修改，规划器可以先在 `(1,63,61)` 放一个方块造出脚位 `(1,64,61)`，
-  再 ASCEND 到封口顶面 `(2,65,61)` 沿墙绕行；3 格高时上升目标 `(2,65,61)` 是墙块 → 绕行封死。
+- 二次修复（用户 2026-09-09 手动验证）：**封口必须 ≥3 格高（y=63..65）**。
+  机制（用户观察，权威）：封口第一格与平台支撑同层（y=63），因此 **2 格高时封口顶面 y=65 只比脚位 64 高 1 格**
+  → bot 可以直接踩/跳上去沿墙绕行；3 格高时顶面高 2 格、且中间那格是墙块 → 踩不上去。
   用户手动补上第 3 格后 `UNREACHABLE`，按成功验收。
+  （我曾推测是"放置造脚位再上升"，该推测**未被证实且与用户观察不符**，已撤回。）
 - 场景设计规则（新增，纳入 D-039 校验清单）：
   1. **封堵/围挡方块不得在脚位高度形成可站面**；
   2. **允许世界修改的场景，围挡高度必须 ≥3 格**（顶面距脚位 ≥2），否则"放置造支点 + 上升"可绕过；
   3. `tools/simulate-scene-plan.py` 目前**不建模放置/破坏**，因此"允许世界修改"的场景结论
      必须由客户端串联回归复核，不能只看模拟器。
+
+## D-043：重规划决策下沉到任务层（Q4 / 待办 D）
+
+- 状态：已实施，待客户端验证（用户 2026-09-09 指定）
+- 分层依据（对照 Baritone）：`PathExecutor` 遇到计划失效只 `cancel()` 上报，由 `PathingBehavior:154-193`
+  重新 `findPathInNewThread`；Alice 里对应的决策层是**任务层**（未来由 LLM 目标层裁决）。
+- 改动：
+  1. `PathSession` **删除内置 `replan()`/`MAX_REPLANS`/`replans`**，`handleFailure` 只保留
+     **重同步（snipsnap）** + 结构化失败上报；新增只读 `projectedFootPath()` 供夹具观察当前计划。
+  2. 新增 `task/PathRetryRunner`：任务层重试策略——每次从**当前脚位**重新规划，
+     可重试状态为 `STALE / TIMEOUT / MOVEMENT_FAILED / INVALID_PRECONDITION`，
+     预算 `DEFAULT_MAX_REPLANS=2`，逐次日志 `[PathRetry] planned/replan ...`。
+  3. `PathSessionDiagnosticTask` 改为驱动 `PathRetryRunner`；`PathingRegressionTask` 同步改造。
+     结果行改为 `[R4 Session] result ... replans=N`。
+- 新夹具（零参数）：`place_course` + `alice:pathing_waller` —— 第 30 tick 在**计划路径前方第 2 段**
+  放置一块石头（直接让计划失效，而不是位移 bot）。期望：
+  `[R4 Fixture] wall_placed` → `[PathRetry] replan ...` → `COMPLETED replans=1`。
+  与 `alice:pathing_disturber`（位移 → 重同步）互补：两者分别验证 D-043 的两条路径。
+- 兼容：重试行为与之前等价（仍是"从当前脚位重算、最多 2 次"），但决策点与可观测性转移到任务层。
 
