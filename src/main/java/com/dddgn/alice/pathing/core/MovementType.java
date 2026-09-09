@@ -10,5 +10,6 @@ public enum MovementType {
     PILLAR,
     FALL,
     BREAK_AND_TRAVERSE,
+    BREAK_AND_ENTER,
     PLACE_STEP_AND_TRAVERSE
 }

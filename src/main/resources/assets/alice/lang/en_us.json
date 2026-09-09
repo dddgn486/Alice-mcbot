@@ -28,5 +28,6 @@
   "item.alice.pathing_lava_guard": "Lava Route Checker",
   "item.alice.pathing_fall": "Fall Checker",
   "item.alice.walk_to_runner": "WalkTo Self-check",
-  "item.alice.follow_runner": "Follow Runner"
+  "item.alice.follow_runner": "Follow Runner",
+  "item.alice.pathing_break_enter": "Break-And-Enter Checker"
 }

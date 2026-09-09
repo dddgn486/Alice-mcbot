@@ -87,6 +87,8 @@ public final class PathingRegressionTask implements Task {
                     MovementType.PILLAR),
             execute("fall_course", new BlockPos(22, 64, 68), new BlockPos(23, 61, 68), true,
                     MovementType.FALL),
+            execute("break_enter_course", new BlockPos(22, 64, 100), new BlockPos(23, 64, 100), true,
+                    MovementType.BREAK_AND_ENTER),
             execute("trace_course", new BlockPos(0, 64, 40), new BlockPos(0, 64, 51), false,
                     MovementType.TRAVERSE),
             refused("fluid_course", new BlockPos(0, 64, 66), new BlockPos(4, 64, 66), true),
@@ -107,7 +109,8 @@ public final class PathingRegressionTask implements Task {
     private static final List<MovementType> REQUIRED_COVERAGE = List.of(
             MovementType.TRAVERSE, MovementType.DIAGONAL, MovementType.ASCEND, MovementType.DESCEND,
             MovementType.DOWNWARD, MovementType.PILLAR, MovementType.FALL,
-            MovementType.BREAK_AND_TRAVERSE, MovementType.PLACE_STEP_AND_TRAVERSE);
+            MovementType.BREAK_AND_TRAVERSE, MovementType.BREAK_AND_ENTER,
+            MovementType.PLACE_STEP_AND_TRAVERSE);
 
     /** 任务级安全上限：12 个场景正常约 500 tick。 */
     private static final int MAX_TASK_TICKS = 2400;

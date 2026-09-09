@@ -117,6 +117,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> WALK_TO_RUNNER =
             ITEMS.register("walk_to_runner", () -> new WalkToRunnerItem(new Item.Properties()));
 
+    /** D-068 破坏进入验证器（BREAK_AND_ENTER，场景专属）。 */
+    public static final RegistryObject<Item> PATHING_BREAK_ENTER =
+            ITEMS.register("pathing_break_enter", () -> new PathingBreakEnterItem(new Item.Properties()));
+
     /** D-058 落差验证器（FALL 2~3 格，场景专属）。 */
     public static final RegistryObject<Item> PATHING_FALL =
             ITEMS.register("pathing_fall", () -> new PathingFallItem(new Item.Properties()));

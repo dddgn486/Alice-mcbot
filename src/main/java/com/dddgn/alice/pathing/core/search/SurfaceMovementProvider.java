@@ -62,6 +62,11 @@ public final class SurfaceMovementProvider implements MovementProvider {
                 appendFall(context, level, from, d[0], d[1], out);
             }
         }
+        if (context.allows(MovementType.BREAK_AND_ENTER)) {
+            for (int[] d : CARDINAL) {
+                appendBreakAndEnter(context, level, from, d[0], d[1], out);
+            }
+        }
         if (context.allows(MovementType.PLACE_STEP_AND_TRAVERSE)) {
             for (int[] d : CARDINAL) {
                 for (int dy = 0; dy >= -1; dy--) {
@@ -90,6 +95,49 @@ public final class SurfaceMovementProvider implements MovementProvider {
 
     /** FALL 支持的落差（Baritone `maxFallHeightNoWater = 3`，无水落地，D-058）。 */
     private static final int[] FALL_DROPS = {2, 3};
+
+    /**
+     * 破坏目的地格并进入（{@link MovementType#BREAK_AND_ENTER}，D-067 ⑯）。
+     *
+     * <p>对照 Baritone `MovementTraverse.positionsToBreak = {to.above(), to}`：
+     * 目的地被可破坏方块占用时，先破坏目的地躯干 + 头位，再走进该格。
+     * <p>生成条件：目的地被阻挡、目的地最终可站（支撑存在）、破坏方块可破坏且成本有限。
+     */
+    private static void appendBreakAndEnter(MovementContext context, ServerLevel level, BlockPos from,
+                                            int dx, int dz, List<PlannedMovement> out) {
+        BlockPos to = from.offset(dx, 0, dz);
+        if (!context.yInBounds(to.getY())) {
+            return;
+        }
+        // 目的地可通行 → 属于 TRAVERSE，不生成
+        if (MovementHelper.canWalkThrough(level, to)) {
+            return;
+        }
+        // 目的地最终必须可站（脚下支撑）
+        if (!MovementHelper.canWalkOn(level, to)) {
+            return;
+        }
+        List<BlockPos> blockers =
+                com.dddgn.alice.pathing.core.BreakAndEnterExecution.collectBlockers(level, from, to);
+        if (blockers.isEmpty()) {
+            return;
+        }
+        double breakTicks = 0.0D;
+        for (BlockPos blocker : blockers) {
+            if (context.bot() == null || !BlockInteraction.breakable(context.bot(), level, blocker)) {
+                return;
+            }
+            double ticks = BlockInteraction.estimateBreakTicks(context.bot(), level, blocker);
+            if (!Double.isFinite(ticks)) {
+                return;
+            }
+            breakTicks += ticks;
+        }
+        double cost = context.cost(MovementType.TRAVERSE, from, to)
+                + (breakTicks + CostModel.BREAK_PENALTY_TICKS) / CostModel.WALK_ONE_BLOCK_TICKS;
+        out.add(new PlannedMovement(MovementType.BREAK_AND_ENTER, from, to, cost,
+                RecoverabilityLevel.LOCAL_STEP));
+    }
 
     /**
      * 落差 2~3 格（{@link MovementType#FALL}）：走离边缘后自由落到低处的可站平台。

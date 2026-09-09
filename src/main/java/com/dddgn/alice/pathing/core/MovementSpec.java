@@ -99,6 +99,13 @@ public record MovementSpec(
                             "BREAK_AND_TRAVERSE requires a straight same-level two-block step");
                 }
             }
+            case BREAK_AND_ENTER -> {
+                // 语义：破坏目的地格（含头位）后走进该格 → 同层卡基数 1 格
+                if (dy != 0 || Math.abs(dx) + Math.abs(dz) != 1) {
+                    throw new IllegalArgumentException(
+                            "BREAK_AND_ENTER requires one same-level cardinal step");
+                }
+            }
             case PLACE_STEP_AND_TRAVERSE -> {
                 // 语义：目标列缺支撑 → 在目标下方放置方块再走上去（同层桥接或下 1 格）
                 if ((dy != 0 && dy != -1) || Math.abs(dx) + Math.abs(dz) != 1) {

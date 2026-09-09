@@ -46,6 +46,7 @@ public record PathRequest(
                         MovementType.DESCEND, MovementType.DOWNWARD, MovementType.PILLAR,
                         MovementType.FALL,
                         MovementType.BREAK_AND_TRAVERSE,
+                        MovementType.BREAK_AND_ENTER,
                         MovementType.PLACE_STEP_AND_TRAVERSE),
                 SearchBudget.UNLIMITED, "unknown");
     }

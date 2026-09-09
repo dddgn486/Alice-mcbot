@@ -281,7 +281,8 @@ public final class PathSession {
                     || next == MovementType.PILLAR || next == MovementType.ASCEND
                     || next == MovementType.FALL
                     || next == MovementType.PLACE_STEP_AND_TRAVERSE
-                    || next == MovementType.BREAK_AND_TRAVERSE) {
+                    || next == MovementType.BREAK_AND_TRAVERSE
+                    || next == MovementType.BREAK_AND_ENTER) {
                 return false;
             }
         }
@@ -307,7 +308,8 @@ public final class PathSession {
 
     private static boolean isPrecisionType(com.dddgn.alice.pathing.core.MovementType type) {
         return switch (type) {
-            case DESCEND, DOWNWARD, PILLAR, FALL, PLACE_STEP_AND_TRAVERSE, BREAK_AND_TRAVERSE -> true;
+            case DESCEND, DOWNWARD, PILLAR, FALL, PLACE_STEP_AND_TRAVERSE,
+                    BREAK_AND_TRAVERSE, BREAK_AND_ENTER -> true;
             default -> false;
         };
     }
@@ -340,6 +342,18 @@ public final class PathSession {
             }
             return level.getBlockState(to).isAir()
                     || com.dddgn.alice.action.BlockInteraction.breakableExplicit(bot, level, to);
+        }
+        if (movement.movementType() == com.dddgn.alice.pathing.core.MovementType.BREAK_AND_ENTER) {
+            // 目的地格由本段破坏产生：支撑仍在 + 目的地列仍可破坏（或已空）即有效
+            if (!MovementHelper.canWalkOn(level, to)) {
+                return false;
+            }
+            if (!MovementHelper.canWalkThrough(level, to)
+                    && !com.dddgn.alice.action.BlockInteraction.breakable(bot, level, to)) {
+                return false;
+            }
+            return MovementHelper.canWalkThrough(level, to.above())
+                    || com.dddgn.alice.action.BlockInteraction.breakable(bot, level, to.above());
         }
         if (!MovementHelper.canWalkThrough(level, to)
                 || !MovementHelper.canWalkThrough(level, to.above())) {
@@ -466,6 +480,13 @@ public final class PathSession {
         for (int i = index + 1; i <= lookahead; i++) {
             PlannedMovement movement = movements.get(i);
             BlockPos to = movement.toFoot();
+            if (movement.movementType() == com.dddgn.alice.pathing.core.MovementType.BREAK_AND_ENTER) {
+                // 目的地格由该段破坏产生，只要求落点支撑仍在
+                if (!MovementHelper.canWalkOn(level, to)) {
+                    return true;
+                }
+                continue;
+            }
             if (!MovementHelper.canWalkThrough(level, to.above())) {
                 return true;
             }

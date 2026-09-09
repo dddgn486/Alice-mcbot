@@ -1114,3 +1114,27 @@
      前置条件 = 快照层（同时解决规划期投影世界问题）；届时寻路与站位评估共用快照。
   9. **删除**：独立清障（`findDirectBlocker`/`MAX_CLEAR_DEPTH`）、`BotMiner.pickStandCandidates`、`LineOfSightChecker.blockerCount`；
      `BotMiner` 退役（伐木一起迁）；`MiningSceneFixture`/`MiningReplanFixture` 重写。
+
+## D-068：新增 `BREAK_AND_ENTER`（破坏目的地格并进入）—— D-067 批次 1
+
+- 状态：已实施，待客户端验证（用户 2026-09-09："开始批次1"）
+- 语义（对照 Baritone `MovementTraverse.positionsToBreak = {to.above(), to}` + `Movement.prepared`）：
+  目的地格被可破坏方块占用时，**先破坏目的地躯干 + 头位，再走进该格**；破坏走
+  `BlockInteraction`/`BlockBreakSession`（工具/进度/广播/ABORT），不使用瞬间销毁。
+- 几何：同层卡基数 1 格（`|dx|+|dz| == 1`、`dy == 0`）。
+- **扩张一格**（D-067 ⑯）：仅当"进入时存在高低差"。在 Alice 的 dy=0 方块对齐模型下，源/目的地支撑同层
+  无法产生高低差，**唯一实际情形是空中衔接**（上一段以空中状态结束）→ 执行期若起破坏时 `!bot.onGround()`，
+  额外破坏 `to.above(2)` 并记录 `[BreakEnter] extra_head_break reason=airborne_entry`。
+- 实现清单：
+  - `MovementType.BREAK_AND_ENTER` + `MovementSpec` 几何 + `CostModel`（TRAVERSE_COST，破坏成本由 provider 累加）；
+  - `PathRequest.withWorldModification` 加入（不进 `PathRequest.of`）；
+  - `PlannedMovementSpecs`：能力 `pathAccess(LOCAL_STEP)` + 工厂 key；
+  - `SurfaceMovementProvider.appendBreakAndEnter`：目的地被阻挡 + 落点支撑可站 + 破坏方块可破坏且成本有限；
+  - `BreakAndEnterExecution` + `BreakAndEnterExecutionFactory`（破坏目的地列 → 走入 → `isAtFootColumn` 完成判定）；
+  - `PathSession`：`isPrecisionType` 加入；`currentTargetStillValid` 用"落点支撑 + 目的地列仍可破坏"分支
+    （**必须在通用通行检查之前**，同 DOWNWARD 教训）；`futureTargetBlocked` 对其实"只查支撑"分支；
+    疾跑前瞻加入该类型；
+  - 回归：`REQUIRED_COVERAGE` 加入 `BREAK_AND_ENTER`；新增 `break_enter_course` 场景（第 14 项）。
+- 遥测：`BlockBreakSession` 已有 `block_break_done ... ticks=`（供 `MiningBudget` 标定）。
+- 验收（零参数）：`/function alice_test:break_enter_course` + 右键 `alice:pathing_break_enter` →
+  `[BreakEnter] SUMMARY plan_a=PASS plan_b=PASS execute_a=PASS`；回归 `coverage=PASS`（含新类型）。

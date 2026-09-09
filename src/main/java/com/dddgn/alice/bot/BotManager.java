@@ -472,6 +472,15 @@ public final class BotManager {
     }
 
     /** Assigns the DOWNWARD diagnostic (execute + guard). */
+    public static boolean assignBreakEnterDiagnostic(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        session.beginTask(new com.dddgn.alice.task.BreakEnterDiagnosticTask(bot, observer),
+                TaskTarget.block(com.dddgn.alice.task.BreakEnterDiagnosticTask.GOAL_A));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     public static boolean assignFallDiagnostic(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;

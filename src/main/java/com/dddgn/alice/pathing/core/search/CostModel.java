@@ -82,6 +82,7 @@ public interface CostModel {
         case DESCEND -> DESCEND_COST;
         case DOWNWARD -> DOWNWARD_COST;
         case PILLAR -> PILLAR_COST;
+        case BREAK_AND_ENTER -> TRAVERSE_COST;   // 破坏成本由 provider 累加
         case FALL -> (to.getY() - from.getY()) == -3 ? FALL_THREE_BLOCK_COST : FALL_TWO_BLOCK_COST;
         default -> Double.POSITIVE_INFINITY;
     };
