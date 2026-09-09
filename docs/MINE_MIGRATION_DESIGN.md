@@ -1,6 +1,8 @@
 # Mine 迁移设计（草案，待用户确认后实施）
 
-> 状态：**设计草案**（2026-09-09）。用户裁定：① 直接做 Mine（先恢复核心玩法）；② 先出设计再实施；
+> 状态：**设计已评审**（2026-09-09）。用户裁定：收集=best-effort DONE + 摘要（不挖台阶、删反射）；Baritone `blacklist`/`coalesce` 留后；验收入口沿用 `alice:target_selector` 右键 + 恢复 `scene_a`。
+>
+> 原草案说明：用户裁定：① 直接做 Mine（先恢复核心玩法）；② 先出设计再实施；
 > ③ Mine 逻辑移植清晰、可部分照搬 Baritone；④ `DropCollectionTask` 视为屎山，**按重写设计**。
 
 ---
@@ -54,39 +56,58 @@ Baritone 参考：`reference/baritone-1.20.1` `process/MineProcess.java`。
 
 ---
 
-## 4. 收集任务重写设计（`CollectDropsTask`）
+## 4. 收集任务重写设计（`CollectDropsTask`，**公用子任务**）
 
-### 4.1 职责单一化
-只做一件事：**把指定来源（origin）产生的掉落物捡起来**。不挖方块、不改世界。
+> **用户 2026-09-09 修正**：收集任务要**抽取为公用子任务**（MineTask / 伐木 / 未来任务都能复用），
+> 并**按需授予世界修改权限**——即"怎么过去"完全交给当前寻路系统，**终点 = 掉落物所处的位置**。
 
-### 4.2 输入与生命周期
-- 构造：`CollectDropsTask(BotPlayer bot, BlockPos origin, ScopeBuffer scope, List<UUID> expectedIds)`；
-  由 `MineTask` 在挖掘完成后创建，`expectedIds` = 挖掘前/中登记的掉落物 UUID（可为空 → 走"范围内扫描"）。
-- 结束条件（**best-effort**）：范围内目标掉落物全部消失（被拾取/合并/移除）或全部标记为不可达/超时。
+### 4.1 定位
+- 独立的 `task/CollectDropsTask`（不是 MineTask 的内部阶段），可被任意任务复用；
+- 职责单一：**把指定来源的掉落物捡回来**；不做物品筛选策略、不做挖掘决策；
+- 移动完全由寻路内核负责（含必要时的破坏/放置），本任务不自己挖方块、不自己搭桥。
+
+### 4.2 构造参数（复用接口）
+```java
+CollectDropsTask(
+    BotPlayer bot,
+    BlockPos origin,            // 来源（挖掘点/伐木点），用于确定收集范围
+    ScopeBuffer scope,          // 感知作用域
+    List<UUID> expectedIds,     // 期望收集的掉落物（可为空 → 范围内扫描）
+    boolean allowWorldModification  // 按需授予：true → PathRequest.withWorldModification
+)
+```
+- `allowWorldModification=true`：寻路器可以用 `BREAK_AND_TRAVERSE` / `PLACE_STEP_AND_TRAVERSE` /
+  `DOWNWARD` / `FALL` / `PILLAR` 打通路线（例如掉落物掉进 1×1 坑、被方块挡住）；
+- `false`：只用 `PathRequest.of` 纯通行；够不到就标记该物品不可达。
 
 ### 4.3 算法（每 tick）
-1. **刷新候选**：`scope.liveItemsFromOrigin(origin)` 中仍在的掉落物；优先 `expectedIds`，其余按"新出现且在半径内"纳入。
-2. **选目标**：最近优先 + 粘滞（同一目标连续追，除非它消失/超距/超时）。
-3. **定位站位**：目标方块位置 `p`；若 `p` 可站 → 站位 = `p`；否则取 `p` 的相邻可站格（同层优先，向下 1~2 层），仍无 → 标记不可达。
-4. **移动**：`PathRetryRunner` + `PathRequest.of`（纯通行，不挖不放）走到站位；失败 → 标记该物品不可达（**不挖台阶**）。
-5. **拾取**：站到目标 1 格内后**等待自然拾取**（原版拾取延迟默认 10 tick + 余量，最多 `PICKUP_WAIT_TICKS = 40`）；不做反射、不调 `playerTouch`。
-6. **收尾**：所有目标结束 → 输出 `[CollectDrops] SUMMARY collected=n/m unreachable=k ticks=...`，返回 `DONE`。
+1. **刷新候选**：`scope.liveItemsFromOrigin(origin)` 中仍在的掉落物；优先 `expectedIds`，其余按"新出现且在半径内"纳入；
+2. **选目标**：最近优先 + 粘滞（同一目标连续追，除非消失/超距/超时）；
+3. **终点 = 掉落物的 `blockPosition()`**（不做"相邻站位"改写）——由寻路内核决定如何到达该格；
+4. **移动**：`PathRetryRunner` +（按需）`PathRequest.withWorldModification`；
+   RUNNING → 继续；DONE → 进入拾取等待；FAILED（UNREACHABLE 等）→ 标记该物品不可达，换下一个；
+5. **拾取**：站在掉落物所在格（或 1 格内）后**等待自然拾取**（原版拾取延迟 + 余量，上限 `PICKUP_WAIT_TICKS`）；
+   **不反射、不调 `playerTouch`**；
+6. **收尾**：所有目标结束 → `[CollectDrops] SUMMARY collected=n/m unreachable=k ticks=...` → `DONE`。
 
-### 4.4 失败语义（待确认）
-- 建议：**best-effort** —— 收集不到不判 FAILED，只记日志 + 摘要（`collected=1/3 unreachable=2`）。
-  理由：掉落物可能被岩浆烧掉/被别的实体捡走/掉进深坑，不应让整次挖矿失败。
-- 备选：`MineTask` 可配置"必须收全"（严格模式），默认关。
+### 4.4 失败语义（**已裁定**）
+- **best-effort**：收集不到不判 FAILED，只记日志 + 摘要（`collected=1/3 unreachable=2`）；
+- 理由（用户）：掉落物可能被岩浆烧掉/被别的实体捡走/掉进深坑，不应让整次挖矿失败；
+- 不提供"必须收全"的严格模式（不做死配置）。
 
 ### 4.5 明确删除的 legacy 行为
 | 行为 | 处置 | 理由 |
 |---|---|---|
 | 反射清 `pickupDelay` + `playerTouch` | **删除** | 侵入原版状态；等待即可 |
-| 收集阶段挖台阶（`BotMiner`） | **删除** | 收集任务不得改世界；不可达就放弃该物品 |
+| 收集阶段自己挖台阶（`BotMiner`，`MAX_STAIR_CLEARS=8`） | **删除** | 打通路线改由寻路内核的 `withWorldModification` 负责 |
 | `abandoned` / `retries` / `captureWait` / `waitTicks` 多套计数 | **删除** | 统一为"每物品预算 + 任务总预算" |
-| `pos.above()` 兜底 / `PathExecutor(List.of(pos))` 特例 | **删除** | 由站位解析统一处理 |
+| `pos.above()` 兜底 / `PathExecutor(List.of(pos))` 特例 | **删除** | 终点就是掉落物格；可达性交给内核 |
 | 400 tick 全局超时 | **保留但参数化** | 改为"总预算 + 每物品预算" |
 
----
+### 4.6 与调用方的关系
+- `MineTask`：挖掘完成后 `new CollectDropsTask(bot, target, scope, ids, true)`；
+- 伐木任务（`ContinuousLumberTask` / `RegionLumberTask`）：同款复用；
+- 未来"跟随并拾取""清理区域"等任务：同一子任务，按需决定是否授予世界修改权限。
 
 ## 5. 失败码与重试
 
@@ -107,6 +128,10 @@ Baritone 参考：`reference/baritone-1.20.1` `process/MineProcess.java`。
 2. 挖掘动作由 `BotMiner` 独立执行，**不得**让寻路器用 `withWorldModification` 自己挖隧道；
 3. 深埋目标仍然 `target_requires_tunnel` 失败，不自动授权隧道；
 4. `SOFT_SURFACE` 不接入挖矿链路。
+
+> **与收集子任务的关系（用户 2026-09-09 修正）**：HARD_PATH 约束的是"**走到挖掘站位**"这一段
+> （不得为了接近矿石自动挖隧道）；**收集子任务**是调用方显式授予世界修改权限的独立需求
+> （`allowWorldModification=true`），允许寻路内核为拿到掉落物破坏/放置——两者目的不同，不冲突。
 
 ---
 
@@ -133,10 +158,9 @@ Baritone 参考：`reference/baritone-1.20.1` `process/MineProcess.java`。
 
 ---
 
-## 9. 待用户裁定的问题
+## 9. 用户裁定（2026-09-09）
 
-1. **收集失败语义**：best-effort `DONE` + 摘要（建议）？还是必须收全否则 FAILED？
-2. **收集时是否保留"挖台阶"**：建议 v1 不做（不可达就放弃并记录）。
-3. **`pickupDelay` 反射清理**：建议删除，改为等待自然拾取。
-4. **Baritone `blacklist` / 目标合并 `coalesce`**：现在做还是留到后续对齐批次？
-5. **验收入口**：沿用 `alice:target_selector` 右键，还是新增专门的挖矿自检物品（带 SUMMARY）？
+1. **收集失败语义**：best-effort `DONE` + 摘要；不挖台阶；删除 `pickupDelay` 反射清理（等待自然拾取）。
+2. **Baritone 对齐项**：`blacklist` / `coalesce` **都留后**，本批只做"寻路换内核 + 收集重写"。
+3. **验收入口**：沿用 `alice:target_selector` 右键方块 + 恢复 `alice_test:scene_a`；
+   挖矿自检物品与 `mine_regression` 放到后续批次。
