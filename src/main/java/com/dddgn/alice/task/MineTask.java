@@ -4,8 +4,7 @@ import com.dddgn.alice.action.BotMiner;
 import com.dddgn.alice.bot.RecoveryStage;
 import com.dddgn.alice.bot.TaskFailureReport;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.pathing.PathExecutor;
-import com.dddgn.alice.pathing.SurfacePathfinder;
+import com.dddgn.alice.pathing.core.search.PlanningStatus;
 import com.dddgn.alice.perception.ScopeBuffer;
 import com.dddgn.alice.protection.BlockBreakSafety;
 import com.dddgn.alice.survival.HazardState;
@@ -316,12 +315,12 @@ public final class MineTask implements Task {
         }
 
         currentPlan = result.plan();
-        if (currentPlan.path().status() == com.dddgn.alice.pathing.AStarPathfinder.SearchStatus.SEARCH_LIMIT) {
+        if (currentPlan.path().status() == PlanningStatus.SEARCH_LIMIT) {
             BotLog.warn("[MiningPlanner契约] 初始计划不可执行: target={} pathStatus=SEARCH_LIMIT action=FAIL_SAFE",
                     target.toShortString());
             return escalateFailure("stand_search_limit", null);
         }
-        if (currentPlan.path().status() == com.dddgn.alice.pathing.AStarPathfinder.SearchStatus.UNREACHABLE) {
+        if (currentPlan.path().status() == PlanningStatus.UNREACHABLE) {
             BotLog.warn("[MiningPlanner契约] 初始计划不可执行: target={} pathStatus=UNREACHABLE action=FAIL_SAFE",
                     target.toShortString());
             return escalateFailure("no_safe_execution_path", null);
@@ -331,7 +330,7 @@ public final class MineTask implements Task {
         BotLog.info("[MiningPlanner探针] planned target={} startFoot={} standingFoot={} pathStatus={} pathSize={} pathCost={} visibility={} executable={} score={}",
                 currentPlan.target().toShortString(), currentPlan.startFoot().toShortString(),
                 currentPlan.standingFoot().toShortString(), currentPlan.path().status(),
-                currentPlan.path().path().size(),
+                currentPlan.path().movements().size(),
                 String.format(java.util.Locale.ROOT, "%.3f", currentPlan.path().totalCost()),
                 currentPlan.visibility().isClear(), currentPlan.isExecutable(),
                 result.score() == null ? "-" : String.format(java.util.Locale.ROOT, "%.3f", result.score().getScore()));

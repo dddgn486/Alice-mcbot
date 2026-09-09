@@ -159,7 +159,7 @@ public final class MiningReplanFixture {
             }
             MiningPlan plan = BotManager.currentMiningPlan(session.bot());
             if (plan == null) continue;
-            if (!plan.path().reachable()) {
+            if (!plan.path().reached()) {
                 fail(entry.getKey(), session, "INITIAL_PATH_" + plan.path().status());
                 continue;
             }

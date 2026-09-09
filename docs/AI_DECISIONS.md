@@ -1031,3 +1031,28 @@
 - 验收：`/function alice_test:place_target_course` → Shift+右键方块侧面 →
   期望 `[PlaceTask] walk_to_stand target=... stand=...` → `[PlaceTask] completed target=... stand=... feet=...`，
   且目标格实际出现方块。
+
+## D-064：Mine 迁移（批次 1：BotMiner 去寻路）
+
+- 状态：已实施，待客户端验证（用户 2026-09-09：直接做 Mine、先出设计；设计见 `docs/MINE_MIGRATION_DESIGN.md`）
+- 用户裁定：① 收集任务抽取为**公用子任务**并**按需授予世界修改权限**（终点=掉落物位置，怎么过去交给寻路系统）；
+  ② 收集 best-effort DONE + 摘要、不挖台阶、删 `pickupDelay` 反射；③ Baritone `blacklist`/`coalesce` 留后；
+  ④ 验收入口沿用 `alice:target_selector` 右键 + `alice_test:scene_a`。
+- 批次 1 改动（寻路换内核，动作层不变）：
+  1. `MiningPlan.path`：legacy `SurfacePathfinder.Result` → 新内核 `PathPlan`；
+     `MiningPlanner` 改用 `CorePathPlanner` + `PathRequest.of`（HARD_PATH 纯通行）；
+  2. `BotMiner`：删除 `SurfacePathfinder` / `PathExecutor` / `MovementPlan` / `MovementPathExecutor` 依赖与
+     M2 专用构造器与 `tickMovementPlan`；站位移动统一走 `PathRetryRunner`（任务层重试）；
+     `chooseReachableStand` 用新内核试规划；`StandChoice` 只保留路径段数（不再持有路径列表）；
+     `abortMining` 同时取消 runner；失败码保留 legacy 语义（`no_path` / `stand_search_limit` /
+     `path_failed` / 新增 `path_blocked` / `path_timeout` / `path_stale` / `path_invalid_precondition`）；
+  3. `MineTask` 适配新 `PathPlan`（`PlanningStatus.SEARCH_LIMIT` / `UNREACHABLE`、`movements().size()`）；
+  4. `BotManager.assignMine` 解除 legacy 门禁并返回 boolean。
+- **D-045 门禁漏洞（本次发现并记录）**：`BotSession.assign(TaskTarget.BLOCK)` **直接创建 `MineTask`**，
+  绕过 `assignMine` 的 legacy 门禁——所以 `scene_a` / `target_selector` 右键一直是可用的（走 legacy 内核）；
+  门禁只覆盖了 `assignMine/assignFollow/assignWalkTo/assignPlace/assignTransfer` 这些直接 API。
+  结论：迁移期间的"legacy 已禁用"对 BLOCK 目标不成立，后续迁移任务时需以**实际调用链**为准。
+- 未做（批次 2/3）：`CollectDropsTask` 重写并接入；清障/重规划/失败码对齐 + `mine_course` + `mine_regression`。
+- 验收（零参数）：`/function alice_test:scene_a` → 右键 `alice:mining_scene_tester`（或 `alice:target_selector` 右键方块）。
+  期望：`[MiningPlanner探针] planned ... pathStatus=REACHED` → `[BotMiner探针] 站位移动启动` →
+  `挖掘完成: target=4, 64, 4`；不再出现 legacy `PathExecutor`/`SurfacePathfinder` 日志。

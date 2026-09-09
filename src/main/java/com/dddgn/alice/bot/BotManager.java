@@ -537,11 +537,12 @@ public final class BotManager {
     }
 
     /** 给假人分配「挖掘指定方块」任务(命令/selftest 兼容入口)。 */
-    public static void assignMine(BotPlayer bot, BlockPos target) {
-        if (legacyTaskDisabled("MineTask")) return;
+    /** Mine 已迁移到新内核（D-064 批次 1），不再走 legacy 门禁。 */
+    public static boolean assignMine(BotPlayer bot, BlockPos target) {
         assignTarget(bot, TaskTarget.block(target));
         BotLog.info("分配挖掘任务: bot={} target={}",
                 bot.getName().getString(), target.toShortString());
+        return true;
     }
 
     /** 任务入口(测试工具/决策层共用):按目标类型创建对应 Task 并开始执行。 */
