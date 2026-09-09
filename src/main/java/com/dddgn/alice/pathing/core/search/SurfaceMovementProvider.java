@@ -94,7 +94,7 @@ public final class SurfaceMovementProvider implements MovementProvider {
                 || !MovementHelper.canWalkThrough(level, to.above())) {
             return;
         }
-        if (context.bot() == null || !BlockInteraction.breakable(context.bot(), level, to)) {
+        if (context.bot() == null || !BlockInteraction.breakableExplicit(context.bot(), level, to)) {
             return;
         }
         double breakTicks = BlockInteraction.estimateBreakTicks(context.bot(), level, to);

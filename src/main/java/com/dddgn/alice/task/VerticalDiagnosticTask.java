@@ -50,6 +50,7 @@ public final class VerticalDiagnosticTask implements Task {
         }
         switch (phase) {
             case 0 -> {
+                ensureStonePickaxe();
                 teleport(OPEN_START);
                 runner = new PathRetryRunner(bot, request(OPEN_START, OPEN_GOAL),
                         PathRetryRunner.DEFAULT_MAX_REPLANS, "vertical-open");
@@ -96,6 +97,17 @@ public final class VerticalDiagnosticTask implements Task {
                 com.dddgn.alice.pathing.core.search.SearchBudget.of(
                         CorePathPlanner.DEFAULT_MAX_NODES, CorePathPlanner.DEFAULT_MAX_MILLIS),
                 "vertical-task");
+    }
+
+    /** 夹具：确保有石镐（挖脚下用；否则徒手 150 tick）。 */
+    private void ensureStonePickaxe() {
+        var inventory = bot.getInventory();
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            if (inventory.getItem(slot).is(net.minecraft.world.item.Items.STONE_PICKAXE)) {
+                return;
+            }
+        }
+        inventory.add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.STONE_PICKAXE));
     }
 
     private void teleport(BlockPos foot) {

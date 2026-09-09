@@ -134,7 +134,7 @@ public final class DownwardExecution implements MovementExecution {
         if (!MovementHelper.canWalkOn(level, to) || !MovementHelper.canWalkThrough(level, to.above())) {
             return false;
         }
-        if (!level.getBlockState(to).isAir() && !BlockInteraction.breakable(bot, level, to)) {
+        if (!level.getBlockState(to).isAir() && !BlockInteraction.breakableExplicit(bot, level, to)) {
             return false;
         }
         return SurfaceMovementProviderAccess.hasEscapeFrom(level, to);

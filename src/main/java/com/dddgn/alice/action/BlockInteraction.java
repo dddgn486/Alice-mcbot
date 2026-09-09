@@ -220,9 +220,22 @@ public final class BlockInteraction {
         return com.dddgn.alice.protection.BlockBreakSafety.clearingRefusal(bot, pos);
     }
 
-    /** 该方块能否被本 bot 破坏（清障语义）。 */
+    /** 该方块能否被本 bot 破坏（清障语义：额外回避脚下承重块与高代价方块）。 */
     public static boolean breakable(ServerPlayer bot, ServerLevel level, BlockPos pos) {
         return breakRefusal(bot, level, pos) == null;
+    }
+
+    /**
+     * 该方块能否作为**明确目标**被破坏（对齐 Baritone `MovementDownward` 的"挖脚下"语义）。
+     *
+     * <p>与 {@link #breakable} 的区别：不套用清障的 `underfoot_block` / 高代价回避规则，
+     * 仍保留保护区、不可破坏方块与流体拒绝。
+     */
+    public static boolean breakableExplicit(ServerPlayer bot, ServerLevel level, BlockPos pos) {
+        if (level.getBlockState(pos).isAir()) {
+            return false;
+        }
+        return com.dddgn.alice.protection.BlockBreakSafety.explicitTargetRefusal(bot, pos) == null;
     }
 
     /**
