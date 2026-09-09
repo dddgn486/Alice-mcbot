@@ -1166,7 +1166,7 @@
 
 ## D-070：两模式编排 + 下方支撑双策略 + MiningBudget + collectDrops（D-067 批次 3）
 
-- 状态：已实施，待客户端验证（用户 2026-09-09："好，开始批次3"）
+- 状态：**已验收**（2026-09-09 客户端：修复后 `[MineCourse] SUMMARY free=PASS wall=PASS blocked=PASS headroom=PASS buried=PASS`；`blocked` 走 `mode=TUNNEL candidates=13 estimate=EXHAUSTIVE chosen=23,64,135 cost=7.601`；`buried` 走 `found_but_unminable`）
 - 设计依据：`docs/MINING_STAND_SELECTION_DESIGN.md` v7（㉑–㉙）
 - 改动：
   1. **`MiningBudget`（新）**：`collectDrops` 为必要参数；兜底破坏上限 = `N × 普通方块破坏 tick`（N=10），
