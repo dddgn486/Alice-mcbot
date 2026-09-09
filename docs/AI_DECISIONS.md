@@ -872,7 +872,7 @@
 
 ## D-058：FALL（落差 2~3 格）—— Baritone 原样 + Alice 落点可回收守卫
 
-- 状态：已实施，待客户端验证（用户 2026-09-09 计划项 2；三个决策点见下）
+- 状态：**已验收**（2026-09-09 客户端：`[Fall] SUMMARY fall_plan_2=PASS fall_plan_3=PASS no_deep_fall=PASS fall_recover_guard=PASS fall_execute=PASS`；回归 13/13 PASS，其中 `place_course` 的末尾落差改由 FALL 完成（14 tick））
 - 用户决策（2026-09-09）：
   1. **只做"无水落地 ≤3 格"**：不移植 Baritone 的落水 / 水桶救落分支（最小闭环）；
   2. **只在允许世界修改的任务里启用**（`PathRequest.withWorldModification`）——生产任务的普通通行仍保持一格红线；
@@ -914,7 +914,7 @@
 
 ## D-059：过冲红线默认关闭 + 风险开关接口（用户裁定）
 
-- 状态：已实施，待客户端验证（用户 2026-09-09 讨论裁定）
+- 状态：**已验收**（2026-09-09 客户端：回归 13/13 PASS，含 `fall_course`；`[Fall]` 五项全 PASS）
 - 用户裁定：
   1. **D-024 的 DESCEND 过冲红线改为默认关闭（对齐 Baritone 原样），低风险模式再打开**；
      "甚至后续讨论可能删除这个红线机制"；
