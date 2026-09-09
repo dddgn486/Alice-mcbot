@@ -52,26 +52,34 @@ public final class MineRegressionTask implements Task {
     /**
      * @param exactCollected true = 件数必须**精确相等**（露天单目标、连锁矿脉）；
      *                       false = 至少这么多（模式 B 沿途会破坏通道方块，其掉落物在走位时被自然拾取，
-     *                       不计入收集阶段的 `collected`，只体现在背包增量上）。
+     *                       不计入收集阶段的 `collected`，只体现在背包增量上）；
+     * @param expectSupport  true = 悬空目标：规划必须给出 `supportPlacementPos == target.below()`，
+     *                       执行必须先在该处放下支撑块；
+     * @param expectedDelta  背包净增量：放支撑块会**消耗** 1 个一次性方块，而目标掉落物又是同类时
+     *                       净增量应为 0（正好证明"放了 1 个 + 收了 1 个"两件事都发生）。
      */
     private record CaseDef(String name, String terrain, BlockPos start, BlockPos target,
                            Kind kind, List<MiningPlan.Mode> expectedModes,
-                           int expectedCollected, Item expectedItem, boolean exactCollected) {
+                           int expectedCollected, Item expectedItem, boolean exactCollected,
+                           boolean expectSupport, int expectedDelta) {
     }
 
     private static final BlockPos MINE_START = MineCourseDiagnosticTask.START_FOOT;
     private static final BlockPos CHAIN_START = new BlockPos(23, 64, 170);
     private static final BlockPos CHAIN_TARGET = new BlockPos(23, 64, 172);
+    private static final BlockPos FLOAT_START = new BlockPos(21, 64, 190);
+    private static final BlockPos FLOAT_TARGET = new BlockPos(23, 65, 190);
 
     private static CaseDef plan(String name, String terrain, BlockPos start, BlockPos target,
                                 MiningPlan.Mode... modes) {
-        return new CaseDef(name, terrain, start, target, Kind.PLAN, List.of(modes), 0, null, true);
+        return new CaseDef(name, terrain, start, target, Kind.PLAN, List.of(modes), 0, null,
+                true, false, 0);
     }
 
     private static CaseDef execute(String name, String terrain, BlockPos start, BlockPos target,
                                    int expectedCollected, Item item, boolean exactCollected) {
         return new CaseDef(name, terrain, start, target, Kind.EXECUTE, List.of(),
-                expectedCollected, item, exactCollected);
+                expectedCollected, item, exactCollected, false, expectedCollected);
     }
 
     private static final List<CaseDef> CASES = List.of(
@@ -89,8 +97,16 @@ public final class MineRegressionTask implements Task {
             // 模式 B 沿途破坏通道方块 → 其掉落物可能在走位时被自然拾取，故只要求"至少 1 件"
             execute("exec_blocked", "mine_course", MINE_START, new BlockPos(23, 64, 134),
                     1, Items.COBBLESTONE, false),
+            // 悬空目标：正下方无支撑 → 规划必须给出支撑放置点；执行必须先放支撑块
+            // 起点就能触及悬空目标 → 合法模式是 CURRENT（附带支撑放置）；也允许 DIRECT
+            new CaseDef("floating_plan", "floating_course", FLOAT_START, FLOAT_TARGET,
+                    Kind.PLAN, List.of(MiningPlan.Mode.CURRENT, MiningPlan.Mode.DIRECT),
+                    0, null, true, true, 0),
+            // 放支撑块消耗 1 圆石 + 目标掉落 1 圆石 → 净增量 0
+            new CaseDef("exec_floating", "floating_course", FLOAT_START, FLOAT_TARGET,
+                    Kind.EXECUTE, List.of(), 1, Items.COBBLESTONE, true, true, 0),
             new CaseDef("exec_chain", "chain_mine_course", CHAIN_START, CHAIN_TARGET,
-                    Kind.CHAIN, List.of(), 9, Items.RAW_IRON, true));
+                    Kind.CHAIN, List.of(), 9, Items.RAW_IRON, true, false, 9));
 
     /** 单用例预算与任务总预算（tick）。 */
     private static final int CASE_BUDGET_TICKS = 320;
@@ -167,6 +183,8 @@ public final class MineRegressionTask implements Task {
             inventoryBefore = countInInventory(expectedItem);
             MiningBudget budget = MiningBudget.forTarget(bot, bot.serverLevel(), current.target(), true);
             mineTask = new MineTask(bot, current.target(), scope, budget);
+            // MineTask 构造会占用选中槽放镐 → 之后再补一次性方块，避免被覆盖
+            ensureCobblestone();
             return Status.RUNNING;
         }
 
@@ -181,18 +199,24 @@ public final class MineRegressionTask implements Task {
         }
         int collected = mineTask.collectedItems();
         boolean targetGone = bot.serverLevel().getBlockState(current.target()).isAir();
+        boolean supportOk = !current.expectSupport()
+                || com.dddgn.alice.action.BlockInteraction.isSolidForPlacement(
+                        bot.serverLevel(), current.target().below());
         boolean noDropsLeft = scope.liveDrops().isEmpty();
         int delta = countInInventory(expectedItem) - inventoryBefore;
         boolean countOk = current.exactCollected()
-                ? collected == current.expectedCollected() && delta == current.expectedCollected()
+                ? collected == current.expectedCollected() && delta == current.expectedDelta()
                 : collected >= current.expectedCollected() && delta >= current.expectedCollected();
-        boolean pass = status == Status.DONE && targetGone && noDropsLeft && countOk;
+        boolean pass = status == Status.DONE && targetGone && noDropsLeft && countOk && supportOk;
         record(current, pass, "status=" + status
                 + "/targetGone=" + targetGone
                 + "/collected=" + collected + "/" + current.expectedCollected()
                 + (current.exactCollected() ? "" : "+")
                 + "/inventoryDelta=" + delta
+                + (current.expectedDelta() != current.expectedCollected()
+                        ? "(期望" + current.expectedDelta() + ")" : "")
                 + "/dropsLeft=" + scope.liveDrops().size()
+                + (current.expectSupport() ? "/supportPlaced=" + supportOk : "")
                 + "/ticks=" + caseTicks
                 + (status == Status.DONE ? "" : "/reason=" + mineTask.failureReason()));
         finishCase();
@@ -233,10 +257,16 @@ public final class MineRegressionTask implements Task {
         } else {
             pass = plan != null && current.expectedModes().contains(plan.mode());
         }
+        if (current.expectSupport()) {
+            pass = pass && plan != null && plan.supportPlacementPos() != null
+                    && plan.supportPlacementPos().equals(current.target().below());
+        }
         record(current, pass, "mode=" + (plan == null ? "-" : plan.mode())
                 + "/stand=" + (plan == null ? "-" : plan.standingFoot().toShortString())
                 + "/cost=" + (result.score() == null ? "-"
                         : String.format(java.util.Locale.ROOT, "%.2f", result.score().getScore()))
+                + (current.expectSupport() ? "/support=" + (plan == null || plan.supportPlacementPos() == null
+                        ? "-" : plan.supportPlacementPos().toShortString()) : "")
                 + "/reason=" + result.failureReason());
     }
 
@@ -264,6 +294,27 @@ public final class MineRegressionTask implements Task {
 
     private String currentCase() {
         return index < CASES.size() ? CASES.get(index).name() : "-";
+    }
+
+    /** 快捷栏补 8 个圆石（支撑放置需要一次性方块；只填空格，不动镐）。 */
+    private void ensureCobblestone() {
+        var inventory = bot.getInventory();
+        int have = 0;
+        for (int slot = 0; slot < 9; slot++) {
+            if (inventory.getItem(slot).is(Items.COBBLESTONE)) {
+                have += inventory.getItem(slot).getCount();
+            }
+        }
+        if (have >= 8) {
+            return;
+        }
+        for (int slot = 0; slot < 9; slot++) {
+            if (inventory.getItem(slot).isEmpty()) {
+                inventory.setItem(slot, new ItemStack(Items.COBBLESTONE, 8 - have));
+                return;
+            }
+        }
+        inventory.add(new ItemStack(Items.COBBLESTONE, 8 - have));
     }
 
     private int countInInventory(Item item) {

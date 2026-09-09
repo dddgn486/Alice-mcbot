@@ -90,7 +90,7 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 
 | 连锁挖掘生产开关（D-077） | `/function alice_test:chain_mine_course` + `alice:target_selector` | ① `/alice chain off` → 右键中间铁矿石；② `/alice chain auto` → 重跑场景 → 右键同一块 | off：**不出现** `[ChainMine] prod_*`，只挖 1 格（`collected=1/1`）；auto：`prod_armed → prod_trigger → prod_done`，整条 3x3 脉被连锁挖掉（`mined≈8 broken=9`），`[CollectDrops] SUMMARY collected=9/9 mismatch=0`，任务 `COMPLETED` | `WINDOWS_CLIENT`（2026-09-09 22:34：`off` 时无 `prod_*`，单格 `collected=1/1 mismatch=0 ticks=12`；`force` 已于 22:20 验证 `collected=9/9`；`auto` 未单独跑——与 `force` 同路径，仅多一道矿石/原木白名单） |
 
-| 挖掘专项串联回归（批次 5，D-078） | `/function alice_test:mine_regression_course` + `alice:mine_regression` | 普通右键 | `[MineRegression] SUMMARY free=PASS wall=PASS blocked=PASS headroom=PASS buried=PASS exec_direct=PASS exec_blocked=PASS exec_chain=PASS`；执行项细节行含 `collected=n/期望 inventoryDelta=n dropsLeft=0` | `WINDOWS_CLIENT`（2026-09-09 22:48：8/8 PASS，`ticks=99`，任务 COMPLETED；`exec_chain collected=9/9`；`exec_blocked collected=1/1+ delta=2`（通道副产品）） |
+| 挖掘专项串联回归（批次 5，D-078） | `/function alice_test:mine_regression_course` + `alice:mine_regression` | 普通右键 | `[MineRegression] SUMMARY free=PASS wall=PASS blocked=PASS headroom=PASS buried=PASS floating_plan=PASS exec_direct=PASS exec_blocked=PASS exec_floating=PASS exec_chain=PASS`；执行项细节行含 `collected=n/期望 inventoryDelta=n dropsLeft=0` | `WINDOWS_CLIENT`（2026-09-09 23:13：**10/10 PASS**、`ticks=117`、任务 COMPLETED；`floating_plan support=23,64,190`、`exec_floating supportPlaced=true inventoryDelta=0`） |
 
 ## 性能验证
 

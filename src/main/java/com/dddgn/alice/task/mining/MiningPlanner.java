@@ -79,10 +79,20 @@ public final class MiningPlanner {
                     bot.getUUID().toString(), startFoot, startFoot));
             StandingPointEvaluator.StandingPointScore score =
                     StandingPointEvaluator.of(startFoot, 0.0D, 0.0D, currentLos);
-            BotLog.info("[MiningPlanner] mode=CURRENT target={} stand={} cost=0",
-                    target.toShortString(), startFoot.toShortString());
+            // 悬空目标（D-078 修正，v7 §2.3）：即使当前站位就能挖，也要先在目标下方放支撑块，
+            // 否则掉落物会掉进虚空/岩浆/深坑。当前站位**就在目标正下方**时属于"从下方挖"策略，无需支撑。
+            // 手上没有一次性方块时不强行要求支撑（避免把"没资源"变成任务失败），维持原行为。
+            BlockPos supportPos = null;
+            if (!hasSupportBelow(level, target) && budget.collectDrops()
+                    && !isSameColumn(startFoot, target)
+                    && com.dddgn.alice.action.BlockInteraction.findPlaceableSlot(bot) >= 0) {
+                supportPos = target.below();
+            }
+            BotLog.info("[MiningPlanner] mode=CURRENT target={} stand={} cost=0 support={}",
+                    target.toShortString(), startFoot.toShortString(),
+                    supportPos == null ? "-" : supportPos.toShortString());
             return new Result(new MiningPlan(target, startFoot, startFoot, path, currentLos,
-                    MiningPlan.Mode.CURRENT, null), score, "");
+                    MiningPlan.Mode.CURRENT, supportPos), score, "");
         }
 
         List<StandingPointSelector.Candidate> candidates =

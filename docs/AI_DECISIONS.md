@@ -1453,7 +1453,12 @@
   执行项细节 `exec_direct collected=1/1 delta=1 dropsLeft=0 ticks=19`、
   `exec_blocked collected=1/1+ delta=2 dropsLeft=0 ticks=57`、
   `exec_chain collected=9/9 delta=9 dropsLeft=0 ticks=15`。
-- 未做：`floating`（支撑放置）执行用例——尚未有独立客户端验收，等它先单独立项。
+- **floating 支撑放置（同日补入）**：新增 `floating_course` 场景（目标悬空、正下方挖成 1×1 竖井、
+  东侧留实心块作水平支撑面——`placeAt` 的支撑面只扫水平+下，不扫上）+
+  两个用例 `floating_plan`（规划必须给出 `supportPlacementPos == target.below()`）与
+  `exec_floating`（执行必须放下支撑块 + 目标消失 + 收 1 件）；
+  该用例**背包净增量为 0**（放支撑消耗 1 圆石、目标掉落 1 圆石）——正好证明两件事都发生。
+  合计 10 个用例。
 
 ### D-078 修正（2026-09-09 客户端首测：7/8 PASS，唯一 FAIL 是断言过严）
 
@@ -1469,3 +1474,34 @@
   细节行对非精确用例显示 `collected=1/1+`。
 - 副产物认知：`collected` 是**收集阶段**口径，`inventoryDelta` 是**端到端**口径，两者在"走位时自然拾取"
   场景下本就会不同；回归同时校验两者，避免把正常差异当失败。
+
+### D-078 修正 2（2026-09-09 客户端：floating 用例暴露规划器缺口 → 已修）
+
+- 首测（含 floating）：`floating_plan=FAIL mode=CURRENT/stand=21,64,190/cost=0.00/support=-`、
+  `exec_floating=FAIL collected=1/1/inventoryDelta=1(期望0)/supportPlaced=false`；
+  用户观察"好像没放置方块"。
+- 根因（**规划器真实缺口，不是场景问题**）：`MiningPlanner.planDirect()` 的**模式 CURRENT 短路
+  发生在悬空目标判定之前**——当前站位可达就返回 `supportPlacementPos = null`，
+  v7 §2.3 的"目标下方无支撑 → 放支撑块 vs 正下方挖（按成本选）"只在"当前站位不可达"时才执行。
+  结果：`CURRENT + 悬空目标` 掉落物直接掉走（本例掉进 1×1 竖井，收集阶段还得下井去捡）。
+- 修复（用户裁定 A：改规划器）：`CURRENT` 分支补一句——悬空目标 + `budget.collectDrops()`
+  + 当前站位**不在目标正下方** + 手上有一次性方块 → 附带 `supportPlacementPos = target.below()`
+  （先放支撑再从原地挖）。
+  - 当前站位就在正下方 → 属于"从下方挖"策略，不要求支撑；
+  - 手上没有一次性方块 → 不强行要求（避免把"没资源"变成任务失败），维持原行为；
+  - 落地目标的计划不受影响（`hasSupportBelow=true`）。
+
+### D-078 修正 3（2026-09-09 客户端：floating_plan 期望模式写窄了）
+
+- 复测现象（用户"我这里看他放了支撑了"）：`exec_floating=PASS ... supportPlaced=true`，
+  `support=23, 64, 190` 已进计划，但 `floating_plan=FAIL mode=CURRENT`。
+- 根因：**用例定义错**——`floating_plan` 只声明了期望模式 `{DIRECT}`，
+  而 bot 起点就能触及悬空目标 → 规划器合法地给出 `CURRENT`（且附带支撑放置）。
+- 修复：期望模式改为 `{CURRENT, DIRECT}`；支撑点断言不变（`supportPlacementPos == target.below()`）。
+- 教训：规划类断言应针对**必须成立的性质**（这里是"悬空目标必须给出支撑点"），
+  模式只能是"允许集合"，否则会把合法更优解判成失败。
+- **客户端验收（2026-09-09 23:13，用户"通过了"）**：10/10 PASS、`ticks=117`、任务 `COMPLETED`：
+  `free/wall/blocked/headroom/buried/exec_direct/exec_blocked/floating_plan/exec_floating/exec_chain` 全 PASS；
+  `floating_plan=PASS mode=CURRENT/stand=21,64,190/support=23,64,190`、
+  `exec_floating=PASS collected=1/1 inventoryDelta=0(期望0) dropsLeft=0 supportPlaced=true ticks=20`
+  （用户确认看到 bot 在悬空方块正下方放了方块）。

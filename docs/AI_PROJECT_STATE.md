@@ -19,6 +19,12 @@
 > **批次 5 `mine_regression` 已实施（D-078）**：一键覆盖规划 5 项 + 执行 2 项 + 模组连锁 1 项，
 > **客户端验收通过（2026-09-09 22:48）**：8/8 PASS、`ticks=99`、任务 `COMPLETED`
 > （`exec_chain collected=9/9`、`exec_blocked collected=1/1+ delta=2` 通道副产品）。
+> 同日补入 **floating 支撑放置**（`floating_course` + `floating_plan`/`exec_floating`，共 10 用例）；
+> 首测暴露规划器缺口：`CURRENT` 短路早于悬空判定 → 不放支撑块（掉落物掉走），
+> 已按用户裁定修（`CURRENT+悬空+不在正下方+有一次性方块` → 附带支撑放置）；
+> 复测 `exec_floating=PASS supportPlaced=true`，仅 `floating_plan` 因期望模式写窄（应含 CURRENT）判 FAIL，
+> 已修；**客户端验收通过（2026-09-09 23:13）**：10/10 PASS、`ticks=117`、`COMPLETED`。
+> bot 专属连锁配置映射归入"框架完成后的模组兼容适配"阶段（只登记）。
 >
 > **2026-09-09 晚（批次 5：模组兼容，诊断路径已实施）**：`alice:chain_test_runner` + `alice_test:chain_course`
 > ——反射调用 Ore Excavation 1.13.174 的服务端入口触发连锁，验证"连锁掉落物捕获 + 收集"；
