@@ -940,7 +940,7 @@
 
 ## D-060：WalkTo 迁移到新内核（D-045 迁移顺序第一项）
 
-- 状态：已实施，待客户端验证（用户 2026-09-09："任务迁移吧"）
+- 状态：**已验收**（2026-09-09 客户端：`[WalkTo] SUMMARY walk_flat=PASS walk_over_wall=PASS walk_unreachable=PASS walk_unsafe=PASS`，两次运行一致）
 - 依据：D-045 方案 B 的迁移顺序 `WalkTo → Follow → Place/Transfer → Mine`。
 - 改动：
   1. `task/WalkToTask` 重写为新内核：`CorePathPlanner`（真 A*，D-040）+ `PathRetryRunner`（D-043 任务层重规划）
