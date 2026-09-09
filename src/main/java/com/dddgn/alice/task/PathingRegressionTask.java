@@ -35,7 +35,9 @@ public final class PathingRegressionTask implements Task {
         /** 只规划，要求不是 REACHED（拒绝行为）。 */
         PLAN_REFUSED,
         /** 只规划，要求 REACHED 且首步为 TRAVERSE（路线偏好）。 */
-        PLAN_FIRST_TRAVERSE
+        PLAN_FIRST_TRAVERSE,
+        /** 只规划：允许 REACHED / UNREACHABLE，但路线不得把身体放进岩浆或站在岩浆上（D-057）。 */
+        PLAN_SAFE_ROUTE
     }
 
     private record SceneCheck(String scene, BlockPos start, BlockPos goal,
@@ -52,6 +54,11 @@ public final class PathingRegressionTask implements Task {
         return new SceneCheck(scene, start, goal, worldMod, Kind.PLAN_REFUSED, 0, 0, 0, 0, 0);
     }
 
+    /** 允许有路，但路线不得接触岩浆（`lava_course`：新 Movement 打开了合法搭桥绕行）。 */
+    private static SceneCheck safeRoute(String scene, BlockPos start, BlockPos goal, boolean worldMod) {
+        return new SceneCheck(scene, start, goal, worldMod, Kind.PLAN_SAFE_ROUTE, 0, 0, 0, 0, 0);
+    }
+
     /** 串联回归场景表：一次右键覆盖全部必要复测项（D-054）。 */
     private static final List<SceneCheck> SCENES = List.of(
             execute("pathing_course", new BlockPos(0, 64, 46), new BlockPos(0, 62, 44), false),
@@ -61,7 +68,7 @@ public final class PathingRegressionTask implements Task {
             execute("pillar_course", new BlockPos(24, 64, 44), new BlockPos(25, 67, 44), true),
             execute("trace_course", new BlockPos(0, 64, 40), new BlockPos(0, 64, 51), false),
             refused("fluid_course", new BlockPos(0, 64, 66), new BlockPos(4, 64, 66), true),
-            refused("lava_course", new BlockPos(0, 64, 66), new BlockPos(4, 64, 66), true),
+            safeRoute("lava_course", new BlockPos(0, 64, 66), new BlockPos(4, 64, 66), true),
             refused("fence_course", new BlockPos(0, 64, 48), new BlockPos(0, 64, 44), false),
             new SceneCheck("dip_course", new BlockPos(0, 64, 66), new BlockPos(-1, 64, 63),
                     false, Kind.PLAN_FIRST_TRAVERSE, 0, 0, 0, 0, 0),
@@ -220,11 +227,18 @@ public final class PathingRegressionTask implements Task {
         PathPlan plan = new CorePathPlanner().plan(bot, bot.serverLevel(), request);
         String first = plan.movements().isEmpty()
                 ? "-" : plan.movements().get(0).movementType().name();
+        String shape = plan.status().name() + "/first=" + first + "/movements=" + plan.movements().size();
         switch (scene.kind()) {
-            case PLAN_REFUSED -> record(scene, !plan.reached(), plan.status().name());
+            case PLAN_REFUSED -> record(scene, !plan.reached(), shape);
             case PLAN_FIRST_TRAVERSE -> record(scene,
-                    plan.reached() && MovementType.TRAVERSE.name().equals(first),
-                    plan.status().name() + "/first=" + first);
+                    plan.reached() && MovementType.TRAVERSE.name().equals(first), shape);
+            case PLAN_SAFE_ROUTE -> {
+                java.util.List<BlockPos> contacts = com.dddgn.alice.pathing.core.search.PlanRouteSafety
+                        .lavaContacts(plan, bot.serverLevel());
+                record(scene, contacts.isEmpty(),
+                        shape + "/lava_contacts=" + contacts.size()
+                                + (contacts.isEmpty() ? "" : "/at=" + contacts.get(0).toShortString()));
+            }
             default -> record(scene, false, "KIND_MISMATCH");
         }
     }

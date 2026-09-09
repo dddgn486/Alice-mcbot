@@ -796,7 +796,7 @@
 
 ## D-055：PILLAR（垂直上升 1 格）对齐 Baritone `MovementPillar`
 
-- 状态：已实施，待客户端验证（用户 2026-09-09："全部通过，按顺序可以进行下一步了" → 计划项 1）
+- 状态：**已验收**（2026-09-09 客户端：`[Pillar] SUMMARY pillar_plan=PASS resource_guard=PASS pillar_execute=PASS`，两次 `[Pillar] placed ... feetY=65.166/66.166` = Baritone 的"脚高于目标格顶面才放"门槛生效）
 - 对照来源：`reference/baritone-1.20.1` @8c55ad0
   `src/main/java/baritone/pathing/movement/movements/MovementPillar.java`（成本 `:62-124`，执行 `:126-231`）。
 - Baritone 语义（逐条落地）：
@@ -829,7 +829,7 @@
 
 ## D-056：COLUMN 完成判定补 `onGround`（空中假成功，根因修复）
 
-- 状态：已实施，待客户端验证（用户 2026-09-09 实测 PILLAR："跳跃了，但是没有放置方块"）
+- 状态：**已验收**（2026-09-09 客户端：修复后 12 项回归除 `lava_course` 外全 PASS，PILLAR 两次真实放置）
 - 证据（Windows `latest.log` 11:39，`alice:pathing_pillar` + `pillar_course`）：
   - `segment_done index=0 type=PILLAR ticks=4 actualFoot=24, 65, 44`，**没有任何 `[Pillar] placed` 日志**；
   - 紧接着 `failed status=STALE code=PILLAR_STALE_START index=1 actualFoot=24, 64, 44`（bot 又掉回原脚位）；
@@ -846,3 +846,26 @@
   7 个执行器的 COLUMN 分支全部改用该判定；EXACT 分支（`isSettledAtFootPos`）本来就带 onGround，不变。
 - 附带修正：`PillarDiagnosticTask` 的规划断言从"PILLAR 数量 = 3"改为"≥ 2"——
   实测规划器选 **2×PILLAR + 1×ASCEND（cost 11.68）**，比 3×PILLAR+TRAVERSE（16）更便宜，断言写死了错误值。
+
+## D-057：lava_course 断言改为"路线不接触岩浆"（新 Movement 打开了合法安全路线）
+
+- 状态：已实施，待客户端验证（用户 2026-09-09：`lava_course` FAIL 后裁定"改成允许 REACHED，但断言路线不接触岩浆"）
+- 事实（D-056 修复后的 12 项回归）：`pathing/place/break/vertical/pillar/trace/fluid/fence/dip/+wall/+disturb` 全 PASS，
+  仅 `lava_course=FAIL detail=REACHED`。
+- 根因分析（**不是内核缺陷**）：该场景原断言是"无路可走 → UNREACHABLE"。封口 3 格高（y=63..65，顶面 y=66）
+  在 D-042 时能封死，是因为当时只能 `PLACE_STEP + ASCEND` 上一格；PILLAR 补全后规划器给出**合法且安全**的路线：
+  平台 A 抬高一格 → 在岩浆上方 y=64 用 PLACE_STEP 搭桥（站在自建方块上）→ DESCEND 落到平台 B；
+  全程 bot 身体格与支撑格都不含岩浆。`fluid_course` 仍 `UNREACHABLE`（充水墙顶面不可站），
+  说明"流体不可挖/不可站"的拒绝语义没有退化。
+- 实现：
+  1. `PlanRouteSafety.occupiedCells/lavaContacts`：按每段 Movement 枚举 **bot 身体占据 / 站立其上**的格子
+     （起点与终点身体+头、终点支撑/放置位，DIAGONAL 两个角格，BREAK_AND_TRAVERSE 中间格），检查其中是否含岩浆；
+     **不看"在岩浆上方放置的方块"**——站在自建方块上、方块下方才是岩浆属于安全行为（Baritone 同样搭桥跨越）。
+  2. `PathingRegressionTask` 新增 `Kind.PLAN_SAFE_ROUTE`（允许 REACHED 或 UNREACHABLE，只断言 `lava_contacts=0`），
+     `lava_course` 改用它；同时所有规划类检查的 detail 补上 `first=` / `movements=`，拒绝类失败可自解释。
+  3. 新物品 `alice:pathing_lava_guard`（`PathingLavaGuardItem`）：一键传送到场景起点 → 规划 → 输出
+     `[LavaGuard] status=... first=... movements=... lava_contacts=0 result=PASS`；
+     `lava_course.mcfunction` 改为发放该物品（`pathing_fluid_guard` 仍用于 `fluid_course` 的 UNREACHABLE 断言）。
+- 保留决定（用户）：其余 11 项回归场景全部保留（每项对应一个 Movement 或一类行为）。
+- 验收：`/function alice_test:lava_course` + 右键 `alice:pathing_lava_guard` → `lava_contacts=0 result=PASS`；
+  串联回归期望 `lava_course=PASS detail=REACHED/first=.../movements=.../lava_contacts=0`。
