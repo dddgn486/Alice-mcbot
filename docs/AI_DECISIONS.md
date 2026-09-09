@@ -544,3 +544,16 @@
   `[Regression] SUMMARY <scene>=PASS/FAIL ...`（聊天 + 日志）。
   场景函数已拆分为 `<scene>_terrain`（仅地形）与 `<scene>`（地形+传送+物品+提示），供回归复用。
 
+### D-042 修复：岩浆池场景封口高度（2026-09-09 串联回归实证）
+
+- 现象：串联回归 `lava_course=FAIL detail=REACHED`；单独跑同一场景也是
+  `[FluidGuard] status=REACHED movements=11`。
+- 根因：为阻止岩浆横向流动，场景在 `z=61/z=71` 放了 1 格高（y=63）的封口石块；
+  其**顶面正好是脚位 y=64**，于是成为可站面，对角移动可踩着封口从池外绕过去
+  （`movements=11`）。用 `tools/simulate-scene-plan.py` 复刻场景后**精确复现了 11 步路径**
+  （`DIAGONAL+TRAVERSE+TRAVERSE+TRAVERSE+DIAGONAL+TRAVERSE+DIAGONAL+TRAVERSE×4`）。
+- 修复：封口改为 **2 格高（y=63..64）**，顶面被占 → 模拟器与预期一致给出 `UNREACHABLE`。
+- 场景设计规则（新增，纳入 D-039 的模拟器校验清单）：
+  **任何用于"封堵/围挡"的方块不得在脚位高度形成可站面**；否则必须用模拟器先验证场景的
+  可达性结论，再交给客户端。
+
