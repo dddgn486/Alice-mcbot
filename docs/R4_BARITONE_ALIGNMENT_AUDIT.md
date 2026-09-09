@@ -235,6 +235,20 @@
 
 ---
 
+## §3.9 对齐进度（2026-09-09）
+
+| 批次 | 内容 | 状态 |
+|---|---|---|
+| D-035 | 段计时缺失（永不终止）+ 段内漂移检测 | `WINDOWS_CLIENT`（用户 2026-09-09 通过） |
+| D-037 | 流体不可挖 / 放置校验 `InteractionResult` / 危险方块扩表 / 删任意 BlockItem 兜底 / D-031 文档 | `WINDOWS_CLIENT`（`fluid_course`+`lava_course` 通过） |
+| D-038 | 驱动相位 END→START | **已撤回**（Forge 源码证明等价） |
+| D-040 | 成本模型按实测标定（TRAVERSE 1.00/DIAGONAL 1.33/ASCEND 1.67/DESCEND 2.67）+ 启发式 octile/非对称竖向 + 破坏放置成本 + A* 系数 | `WINDOWS_CLIENT` + `USER_ACCEPTED`（路线翻转 PASS、电池 8/8、三场景 COMPLETED 且总 tick 不劣化） |
+| 待办 A | `canWalkOn` 混合判定（整格 OR 白名单 OR 碰撞非空且非已知坏方块）+ 危险/可穿行集合补齐 | 用户已同意方案 |
+| 待办 B | Ascend `headBonkClear` 门控 + factory 补 FallingBlock/climbable/bottom-slab | 未开始 |
+| 待办 C | 执行器契约：COLUMN 容差在 5 个执行器生效 / 三层超时收敛单层 / 取消清理破坏进度 / 校验失败路径计入段计时 | 未开始 |
+| 待办 D | Q4 重规划下沉（会话只重同步 + 任务层 `PathRetryPolicy`）+ 新夹具 | 未开始 |
+| 待办 E | ⑤ 删 `WorldView` 空接口 / ⑥ legacy 收口 / ⑨ `canSweepPlayer` 对比 / Q1 FALL 裁决 | 未开始 |
+
 ## §4 对齐清单（建议顺序）
 
 | 优先级 | 项 | Alice 改动点 | Baritone 依据 |
