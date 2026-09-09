@@ -37,7 +37,6 @@ public final class BreakAndTraverseExecution implements MovementExecution {
     private int blockerIndex;
     private int tickCount;
     private BlockBreakSession session;
-    private static final int MAX_TICKS = 400;
 
     BreakAndTraverseExecution(MovementSpec spec, LiveExecutionContext context) {
         this.spec = Objects.requireNonNull(spec, "spec");
@@ -100,10 +99,6 @@ public final class BreakAndTraverseExecution implements MovementExecution {
             }
             phase = Phase.EXECUTING;
         }
-        if (++tickCount > MAX_TICKS) {
-            fail("BREAK_AND_TRAVERSE_TIMEOUT");
-            return;
-        }
 
         BlockPos to = spec.toFoot();
         if (postconditionHolds()) {
@@ -146,6 +141,11 @@ public final class BreakAndTraverseExecution implements MovementExecution {
             return;
         }
         bot.controller().stopMovement();
+        if (session != null) {
+            // 对照 Baritone PathExecutor:603-608：取消时清理客户端裂纹广播
+            session.abort();
+            session = null;
+        }
         phase = Phase.CANCELLED;
         failureCode = "BREAK_AND_TRAVERSE_CANCELLED";
     }
@@ -184,7 +184,9 @@ public final class BreakAndTraverseExecution implements MovementExecution {
     }
 
     private boolean postconditionHolds() {
-        return MovementHelper.isSettledAtFootPos(level, bot, spec.toFoot(), 0.3D);
+        return tolerance == CompletionTolerance.COLUMN
+                ? bot.blockPosition().equals(spec.toFoot()) && bot.getY() - spec.toFoot().getY() < 0.5D
+                : MovementHelper.isSettledAtFootPos(level, bot, spec.toFoot(), 0.3D);
     }
 
     private void driveTowardTarget() {

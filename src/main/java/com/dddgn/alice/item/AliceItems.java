@@ -93,6 +93,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> PATHING_FENCE_GUARD =
             ITEMS.register("pathing_fence_guard", () -> new PathingFenceGuardItem(new Item.Properties()));
 
+    /** 串联回归启动器：一次右键跑完所有寻路场景。 */
+    public static final RegistryObject<Item> PATHING_REGRESSION =
+            ITEMS.register("pathing_regression", () -> new PathingRegressionItem(new Item.Properties()));
+
 
     private AliceItems() {
     }

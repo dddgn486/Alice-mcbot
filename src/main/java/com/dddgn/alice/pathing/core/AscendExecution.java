@@ -15,6 +15,7 @@ public final class AscendExecution implements MovementExecution {
     private final ServerLevel level;
     private final String botId;
     private final String sessionId;
+    private final CompletionTolerance tolerance;
     private Phase phase = Phase.NOT_STARTED;
     private String failureCode;
     private int settlingTicks = 0;
@@ -26,6 +27,7 @@ public final class AscendExecution implements MovementExecution {
         this.level = Objects.requireNonNull(context.level(), "level");
         this.botId = bot.getUUID().toString();
         this.sessionId = context.sessionId();
+        this.tolerance = context.tolerance();
     }
 
     @Override
@@ -151,7 +153,10 @@ public final class AscendExecution implements MovementExecution {
     }
 
     private boolean postconditionHolds() {
-        return MovementHelper.isSettledAtFootPos(level, bot, spec.toFoot(), 0.3D);
+        // D-027：容差由会话指定（中间段 COLUMN、最终段 EXACT），执行器不得自行硬编码
+        return tolerance == CompletionTolerance.COLUMN
+                ? bot.blockPosition().equals(spec.toFoot()) && bot.getY() - spec.toFoot().getY() < 0.5D
+                : MovementHelper.isSettledAtFootPos(level, bot, spec.toFoot(), 0.3D);
     }
 
     /**

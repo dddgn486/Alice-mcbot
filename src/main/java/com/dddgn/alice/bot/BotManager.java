@@ -388,6 +388,16 @@ public static void assignFollow(BotPlayer bot, ServerPlayer target) {
         return true;
     }
 
+    /** Assigns the chained multi-scene regression (one action, all scenes). */
+    public static boolean assignPathingRegression(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        session.beginTask(new com.dddgn.alice.task.PathingRegressionTask(bot, observer),
+                TaskTarget.block(new BlockPos(0, 64, 46)));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     /** Assigns the R4 plan→session execution diagnostic. */
     public static boolean assignPathSessionDiagnostic(BotPlayer bot, BlockPos goalFoot) {
         return assignPathSessionDiagnostic(bot, goalFoot, false);

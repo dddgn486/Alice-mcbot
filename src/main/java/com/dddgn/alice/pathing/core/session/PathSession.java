@@ -55,6 +55,8 @@ public final class PathSession {
     private int failureSegment = -1;
     private int index;
     private int segmentTicks;
+    /** 段槽位计时：`execution == null`（校验失败/等待落地）期间也计时，避免该路径无超时覆盖（D-042）。 */
+    private int startSlotTicks;
     private int settleTicks;
     private int replans;
     private int snipsnaps;
@@ -109,6 +111,10 @@ public final class PathSession {
                         sessionId, movements.size(), totalTicks, bot.blockPosition().toShortString());
                 return status;
             }
+            if (++startSlotTicks > segmentTimeoutTicks()) {
+                fail(PathSessionStatus.TIMEOUT, "SEGMENT_START_TIMEOUT");
+                return status;
+            }
             startSegment();
             return status;
         }
@@ -141,6 +147,7 @@ public final class PathSession {
                 index++;
                 execution = null;
                 segmentTicks = 0;
+                startSlotTicks = 0;
                 settleTicks = MAX_SETTLE_TICKS;
             }
             case FAILED, CANCELLED -> handleFailure(execution.failureCode());
@@ -183,6 +190,7 @@ public final class PathSession {
         }
         execution = factory.create(spec, context);
         segmentTicks = 0;
+        startSlotTicks = 0;
         BotLog.info("[R4 Session] segment_start session={} index={}/{} type={} from={} to={} tolerance={} actualFoot={}",
                 sessionId, index, movements.size(), movement.movementType(),
                 movement.fromFoot().toShortString(), movement.toFoot().toShortString(), tolerance,
@@ -289,6 +297,7 @@ public final class PathSession {
         lastSnipsnapIndex = position;
         execution = null;
         segmentTicks = 0;
+        startSlotTicks = 0;
         settleTicks = 0;
         if (position >= movements.size()) {
             status = PathSessionStatus.COMPLETED;
@@ -318,6 +327,7 @@ public final class PathSession {
         index = 0;
         execution = null;
         segmentTicks = 0;
+        startSlotTicks = 0;
         settleTicks = 0;
         BotLog.info("[R4 Session] replanned session={} replans={} movements={} from={} to={} cost={}",
                 sessionId, replans, movements.size(), feet.toShortString(),

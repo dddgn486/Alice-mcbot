@@ -114,6 +114,16 @@ public final class BlockBreakSession {
         return status;
     }
 
+    /**
+     * 中止破坏会话：清理客户端裂纹广播（`destroyBlockProgress(-1)`）。
+     * 对照 Baritone `PathExecutor:603-608` → `BlockBreakHelper:43-50`（取消时 `resetBlockRemoving`）。
+     */
+    public void abort() {
+        if (status == Status.IN_PROGRESS) {
+            fail("BREAK_ABORTED");
+        }
+    }
+
     private Status fail(String code) {
         failureCode = code;
         status = Status.FAILED;

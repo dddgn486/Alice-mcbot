@@ -32,7 +32,6 @@ public final class PlaceStepAndTraverseExecution implements MovementExecution {
     private String failureCode;
     private int tickCount;
     private boolean placed;
-    private static final int MAX_TICKS = 200;
 
     PlaceStepAndTraverseExecution(MovementSpec spec, LiveExecutionContext context) {
         this.spec = Objects.requireNonNull(spec, "spec");
@@ -80,10 +79,6 @@ public final class PlaceStepAndTraverseExecution implements MovementExecution {
                 return;
             }
             phase = Phase.EXECUTING;
-        }
-        if (++tickCount > MAX_TICKS) {
-            fail("PLACE_STEP_AND_TRAVERSE_TIMEOUT");
-            return;
         }
 
         BlockPos to = spec.toFoot();
@@ -168,7 +163,9 @@ public final class PlaceStepAndTraverseExecution implements MovementExecution {
     }
 
     private boolean postconditionHolds() {
-        return MovementHelper.isSettledAtFootPos(level, bot, spec.toFoot(), 0.3D);
+        return tolerance == CompletionTolerance.COLUMN
+                ? bot.blockPosition().equals(spec.toFoot()) && bot.getY() - spec.toFoot().getY() < 0.5D
+                : MovementHelper.isSettledAtFootPos(level, bot, spec.toFoot(), 0.3D);
     }
 
     private void driveTowardTarget() {

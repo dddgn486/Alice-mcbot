@@ -15,6 +15,7 @@ public final class TraverseExecution implements MovementExecution {
     private final ServerLevel level;
     private final String botId;
     private final String sessionId;
+    private final CompletionTolerance tolerance;
     private Phase phase = Phase.NOT_STARTED;
     private String failureCode;
 
@@ -24,6 +25,7 @@ public final class TraverseExecution implements MovementExecution {
         this.level = Objects.requireNonNull(context.level(), "level");
         this.botId = bot.getUUID().toString();
         this.sessionId = context.sessionId();
+        this.tolerance = context.tolerance();
     }
 
     @Override
@@ -102,7 +104,10 @@ public final class TraverseExecution implements MovementExecution {
 
     private boolean postconditionHolds() {
         // D-026 统一完成契约：脚位正确 + 落地 + 水平到位
-        return MovementHelper.isSettledAtFootPos(level, bot, spec.toFoot(), 0.3D);
+        // D-027：容差由会话指定（中间段 COLUMN、最终段 EXACT），执行器不得自行硬编码
+        return tolerance == CompletionTolerance.COLUMN
+                ? bot.blockPosition().equals(spec.toFoot()) && bot.getY() - spec.toFoot().getY() < 0.5D
+                : MovementHelper.isSettledAtFootPos(level, bot, spec.toFoot(), 0.3D);
     }
 
     private double horizontalDistanceToTarget() {
