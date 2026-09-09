@@ -101,6 +101,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> PATHING_WALLER =
             ITEMS.register("pathing_waller", () -> new PathingWallerItem(new Item.Properties()));
 
+    /** D-049 连续行动对照：直线跑器（场景专属）。 */
+    public static final RegistryObject<Item> PATHING_STRAIGHT =
+            ITEMS.register("pathing_straight", () -> new PathingStraightItem(new Item.Properties()));
+
     /** D-048 垂直下落验证器（场景专属）。 */
     public static final RegistryObject<Item> PATHING_DOWNWARD =
             ITEMS.register("pathing_downward", () -> new PathingDownwardItem(new Item.Properties()));
