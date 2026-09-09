@@ -57,7 +57,7 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 | Baritone 对照（连续行动轨迹） | `/function alice_test:contrast_trace_pathing` + `#goto 0 62 44` | 一键准备并开始记录；立刻输入 goto | `latest.log` 每 tick 一行 `[TRACE]`（位置/速度/落地/偏航）；看水平速度是否在方块边界归零 | 后续准备，暂不测试 |
 | 任务层重规划（D-043） | `alice:pathing_waller` + `/function alice_test:place_course` | 普通右键（第 30 tick 在计划前方封路） | 日志 `[R4 Fixture] wall_placed` → `[PathRetry] replan` → 会话 `COMPLETED replans=1`；任务终态 COMPLETED | 待测 |
 | 垂直下落（D-048/D-050） | `alice:pathing_downward` + `/function alice_test:vertical_course` | 普通右键 | `[Vertical] SUMMARY downward_execute=PASS shaft_plan=REACHED`（Baritone 原样语义：破坏脚下掉 1 格；竖井可规划） | 待测 |
-| 顿挫对比轨迹（D-049） | `/alice trace`（开关）+ `alice:pathing_session` | 开→跑场景→关 | `latest.log` 每 tick 一行 `[TRACE]`，与 Baritone 侧 `contrast_trace_pathing` 同格式 | 待测 |
+| 顿挫对比轨迹（D-049） | `/alice trace`（开关）+ `alice:pathing_session` | 开→跑场景→关 | `latest.log` 每 tick 一行 `[TRACE]`；已实测（D-051：Alice 每格停顿 vs Baritone 全程 0.28 连续） | `WINDOWS_CLIENT` |
 | 站立判定（A+B 对齐 D-041） | `alice:pathing_fence_guard` + `/function alice_test:fence_course` | 普通右键 | 聊天/日志 `status=UNREACHABLE`（栅栏不可站、不可穿）；`REACHED` 即缺陷 | `WINDOWS_CLIENT`：`status=UNREACHABLE` → PASS（2026-09-09） |
 | 路线偏好（Q7 验收 D-040） | `alice:pathing_dip_route` + `/function alice_test:dip_course` | 普通右键 | 基线（标定前，客户端实证）`first=DESCEND movements=3 cost=4.41`（≈34 tick）；标定后应为 `first=TRAVERSE movements=4 cost=4.66`（≈28 tick） | `WINDOWS_CLIENT`：标定后 `first=TRAVERSE movements=4 cost=4.66` → PASS（2026-09-09） |
 | 流体屏障（内核对齐 D-037） | `alice:pathing_fluid_guard` + `/function alice_test:fluid_course`（充水墙）或 `alice_test:lava_course`（封闭岩浆池） | 普通右键 | 聊天/日志 `status=UNREACHABLE`（拒绝把含流体方块当可挖阻挡物）；`REACHED` 即缺陷；岩浆场景另看 bot 是否朝岩浆移动 | 待测（第一刀对齐验证项） |

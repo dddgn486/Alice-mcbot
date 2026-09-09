@@ -730,3 +730,26 @@
 - 后续：按同一原则补齐 PILLAR（垂直上升）与 FALL（>1 格落差）等 Baritone 原样 Movement；
   安全变体与任务层风险决策在功能齐备后统一设计（D-046 预留）。
 
+## D-051：连续行动对照实测（顿挫量化）与 DOWNWARD 成本标定
+
+- 状态：已实测入库（2026-09-09，Alice 侧 + Baritone 1.10.5 同场景同目标）
+- 场景：`alice_test:trace_course`（11 格纯平地直线，跨 10 个方块边界），
+  Alice 侧 `/alice trace` + `alice:pathing_straight`；Baritone 侧 `contrast_trace_straight` + `#goto 0 64 51`。
+
+| 指标 | Alice | Baritone |
+|---|---|---|
+| 峰值水平速度 | 0.207 格/tick（走路） | **0.281（疾跑）** |
+| 加速到满速 | 4~5 tick | ~7 tick |
+| 方块边界停顿 | **10 次/11 格（每格 1 tick 归零）** | **0 次** |
+| 速度曲线 | 锯齿 `0.21→0.11→0.06→0.03→0.00` | 直线 `0.28` 恒定 |
+| 全程 | 96 tick | ~40 tick |
+
+- 结论：**顿挫的来源被精确定位为"每段结束的 settle + stopMovement"**（D-036 登记的体验项），
+  与 Baritone "SUCCESS 后同 tick `pathPosition++` 并立即驱动下一段"（`PathExecutor:231-236`）的差异一致。
+  改进方向：**条件 settle**（仅在需要精确落点的段后停：DESCEND / PLACE_STEP / 类型切换 / 空中），
+  共线同类型段保持输入连续推进。另需注意 Baritone 疾跑（Alice 目前不疾跑，速度差 1.35×）。
+- DOWNWARD 成本标定：`(0,64,45)→(0,63,45)` 整段 **11 tick**（破坏 5.6 + 下落稳定 5.4）
+  → `DOWNWARD_COST` 由 1.67 改为 **0.9**；启发式竖向下降速率取 `min(DESCEND−TRAVERSE, DOWNWARD_COST)`
+  以保持对全部下降 Movement 可采纳。
+- 工具：`tools/analyze-trace.py`（位置差分口径；玩家实体 NBT 的 `Motion` 恒为 0，不能用）。
+

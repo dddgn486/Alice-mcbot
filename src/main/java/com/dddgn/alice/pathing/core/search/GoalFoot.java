@@ -36,7 +36,9 @@ public record GoalFoot(BlockPos foot) implements GoalSpec {
         if (dy > 0) {
             h += dy * (CostModel.ASCEND_COST - CostModel.TRAVERSE_COST);
         } else if (dy < 0) {
-            h += -dy * (CostModel.DESCEND_COST - CostModel.TRAVERSE_COST);
+            // 下降下界取"最便宜的下降动作"（DOWNWARD 的下落部分），保证对全部下降 Movement 可采纳
+            h += -dy * Math.min(CostModel.DESCEND_COST - CostModel.TRAVERSE_COST,
+                    CostModel.DOWNWARD_COST);
         }
         return h;
     }

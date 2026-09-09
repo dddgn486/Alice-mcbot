@@ -31,10 +31,13 @@ public interface CostModel {
     double DESCEND_COST = 2.67D;
 
     /**
-     * 垂直下落 1 格（DOWNWARD）：只含 DESCEND 的竖向分量（扣掉它同时覆盖的水平 1 格），
-     * 初始值 1.67 走路格；客户端实测后按 D-040 的标定方式修正。
+     * 垂直下落 1 格（DOWNWARD）的**下落与稳定**部分，0.9 走路格。
+     *
+     * <p>实测标定（2026-09-09 客户端）：`(0,64,45)→(0,63,45)` 整段 11 tick，
+     * 其中破坏（钻石镐 5.6 tick，规划期估计值）之后的下落+稳定 ≈5.4 tick → 0.9 走路格。
+     * 破坏成本另行按 `estimateBreakTicks` 计入。
      */
-    double DOWNWARD_COST = 1.67D;
+    double DOWNWARD_COST = 0.9D;
 
     /** 破坏方块的额外固定代价（对照 Baritone `blockBreakAdditionalPenalty = 2 tick`）。 */
     double BREAK_PENALTY_TICKS = 2.0D;
