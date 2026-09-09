@@ -97,3 +97,53 @@ Alice 侧与 Baritone 侧使用**同一个场景函数、同一个目标**：
 - 停表不停：`marker` 是否被清掉（`contrast_*` 每次会 `kill @e[type=marker]` 再生成）；
   玩家是否真的到达目标（容差 1.5 格）。
 - 计时明显偏大：检查是否手动延迟输入了 `#goto`。
+
+## 八、连续行动数据采集（"消除顿挫"的后续准备）
+
+**目的**：搞清楚 Baritone 为什么能**连续行走、每格不回冲**，为 Alice 的
+"段间条件 settle + 连续推进"（对齐 `PathExecutor:231-236`：SUCCESS 后同 tick `pathPosition++`，
+只 `clearKeys()`）提供前后对比依据。
+
+### 8.1 采集什么
+
+每 tick 采样一次，由数据包记录器输出一行（同时进入 `latest.log`）：
+
+```
+[TRACE] <player> t=<tick> x=<> y=<> z=<> vx=<> vy=<> vz=<> og=<0|1> yaw=<百分度>
+```
+
+- 位置/速度单位 = **毫格**（÷1000 得到格与格/tick）；偏航 = 百分度（÷100）。
+- 字段来自实体 NBT：`Pos[]`、`Motion[]`、`OnGround`、`Rotation[0]`（Baritone 内部每 tick 状态不打日志，
+  所以用外部采样）。
+
+### 8.2 怎么跑
+
+```
+/function alice_test:contrast_trace_pathing
+#goto 0 62 44      ← 提示出现后立刻输入
+```
+
+到达目标 marker 1.5 格内自动停止记录（并 `say [TRACE] 记录结束`）。
+也可以在任何 `contrast_*` 之后单独 `/function alice_test:trace_start` 开始记录。
+
+### 8.3 怎么读
+
+- 水平速度 `h = sqrt(vx² + vz²) / 1000`（格/tick）。参考值：走路 ≈ 0.21，疾跑 ≈ 0.28。
+- **关键指标：h 是否在每个方块边界降到 ≈0**。
+  - 若全程连续（无 dip）→ Baritone 跨段不松键；
+  - 若每格出现 ≈0 的 dip → 与 Alice 现状同型。
+- `og` 序列看起跳时机；`yaw` 看转向是否平滑。
+
+### 8.4 Alice 侧对照（后续）
+
+需要在 `PathSession`/执行器上加一个**常驻调试开关**（不是临时探针），每 tick 记录同样字段，
+然后比较"段边界处 h 是否归零"：
+
+| 侧 | 段边界行为（预期） |
+|---|---|
+| Baritone | h **不归零**（`clearKeys` 与下一段输入在同一 tick 内完成） |
+| Alice 现状 | h 归零 2~3 tick（`controller_stop_movement` 在段间连续出现） |
+| Alice 目标（改后） | 仅在需要精确落点（DESCEND / PLACE / 类型切换）时归零 |
+
+**用途**：为"仅需精确落点时 settle"（审计 §4 体验项）提供改动前后对比证据。
+

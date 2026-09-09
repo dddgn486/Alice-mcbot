@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:item/handheld",
   "textures": {
-    "layer0": "minecraft:item/oak_fence"
+    "layer0": "minecraft:block/oak_fence"
   }
 }
