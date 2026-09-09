@@ -458,6 +458,16 @@ public final class BotManager {
         return true;
     }
 
+    /** Assigns the DOWNWARD diagnostic (execute + guard). */
+    public static boolean assignVerticalDiagnostic(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        session.beginTask(new com.dddgn.alice.task.VerticalDiagnosticTask(bot, observer),
+                TaskTarget.block(com.dddgn.alice.task.VerticalDiagnosticTask.OPEN_GOAL));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     /* legacy movement experiment entry removed; retain core task APIs only */
     /** 给假人分配 Bot 专用道路施工任务。 */
     public static void assignRoadBuild(BotPlayer bot, com.dddgn.alice.road.RoadPlan plan) {
@@ -815,6 +825,7 @@ public final class BotManager {
                 return;
             }
             Task.Status status = task.tick();
+            BotTrace.tick(bot);
             switch (status) {
                 case DONE -> {
                     lastTaskResult = "done";

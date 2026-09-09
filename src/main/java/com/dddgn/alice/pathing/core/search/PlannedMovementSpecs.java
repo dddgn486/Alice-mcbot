@@ -27,10 +27,14 @@ public final class PlannedMovementSpecs {
     }
 
     public static MovementSpec toSpec(PlannedMovement movement, List<String> planningFacts) {
-        MovementCapabilities capabilities = movement.movementType() == MovementType.PLACE_STEP_AND_TRAVERSE
-                ? MovementCapabilities.temporarySupport(RecoverabilityLevel.LOCAL_STEP)
-                : MovementCapabilities.pureTraversal(
-                        RecoverabilityLevel.LOCAL_STEP, IntrinsicReversibility.REVERSIBLE);
+        MovementCapabilities capabilities = switch (movement.movementType()) {
+            case PLACE_STEP_AND_TRAVERSE ->
+                    MovementCapabilities.temporarySupport(RecoverabilityLevel.LOCAL_STEP);
+            case BREAK_AND_TRAVERSE, DOWNWARD ->
+                    MovementCapabilities.pathAccess(RecoverabilityLevel.LOCAL_STEP);
+            default -> MovementCapabilities.pureTraversal(
+                    RecoverabilityLevel.LOCAL_STEP, IntrinsicReversibility.REVERSIBLE);
+        };
         BlockPos to = movement.toFoot();
         PlanningDependency dependency = new PlanningDependency(
                 List.of(movement.fromFoot(), to, to.above(), to.below()),
@@ -48,6 +52,7 @@ public final class PlannedMovementSpecs {
             case DIAGONAL -> DiagonalExecutionFactory.KEY;
             case ASCEND -> AscendExecutionFactory.KEY;
             case DESCEND -> DescendExecutionFactory.KEY;
+            case DOWNWARD -> com.dddgn.alice.pathing.core.DownwardExecutionFactory.KEY;
             case BREAK_AND_TRAVERSE -> BreakAndTraverseExecutionFactory.KEY;
             case PLACE_STEP_AND_TRAVERSE -> PlaceStepAndTraverseExecutionFactory.KEY;
             default -> throw new IllegalArgumentException("unsupported movement type: " + type);
@@ -60,6 +65,7 @@ public final class PlannedMovementSpecs {
             case DIAGONAL -> new DiagonalExecutionFactory();
             case ASCEND -> new AscendExecutionFactory();
             case DESCEND -> new DescendExecutionFactory();
+            case DOWNWARD -> new com.dddgn.alice.pathing.core.DownwardExecutionFactory();
             case BREAK_AND_TRAVERSE -> new BreakAndTraverseExecutionFactory();
             case PLACE_STEP_AND_TRAVERSE -> new PlaceStepAndTraverseExecutionFactory();
             default -> throw new IllegalArgumentException("unsupported movement type: " + type);

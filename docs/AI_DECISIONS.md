@@ -678,3 +678,36 @@
 - 与 D-035 的关系：D-035 的"距离启发式漂移判定"降级为**兜底**（重同步失败时才用），
   主判定改为 Baritone 的合法位置集——这条正是审计 §3.B 登记的待改项。
 
+## D-048：DOWNWARD（垂直下落 1 格）—— 新内核补齐垂直下降
+
+- 状态：已实施，待客户端验证（用户 2026-09-09 确认三件依赖后实施）
+- 语义（对照 Baritone `MovementDownward`，`Moves.DOWNWARD(0,-1,0)`）：**破坏脚下的方块后垂直掉 1 格**。
+  站在方块上时同列不可能凭空下落，所以该 Movement **必然涉及"挖脚下"**——这是"禁止挖脚下"开关的第一个落点。
+- 实现：
+  - `MovementType.DOWNWARD` + `MovementSpec` 几何（dx=dz=0, dy=−1）+ `CostModel.DOWNWARD_COST = 1.67`
+    （= DESCEND 成本扣除水平 1 格后的竖向分量；待客户端实测按 D-040 方式修正）；
+  - `SurfaceMovementProvider.appendDownward`：落点可站 + 脚下可破坏 + **逃生路线守卫** + 成本含破坏 tick；
+  - `DownwardExecution`（破坏期间原地保持 → 破后等待自然掉落 → 统一完成契约 + D-027 容差）、
+    `DownwardExecutionFactory`（几何/起点/落点/可破坏/逃生五重校验）；
+  - `MovementCapabilities.pathAccess(...)`（PATH_ACCESS：改变世界、需工具、破坏不可逆），
+    同时修正了 BREAK_AND_TRAVERSE 此前误用 `pureTraversal` 的能力声明；
+  - `PathRequest.withWorldModification` 加入 DOWNWARD（保守：仅在允许世界修改的任务里启用）。
+- **G 语义守卫**（用户确认的保守版）：落点四邻中必须存在一格，其上一层（原层脚位）可通行且可站
+  （即能从落点用一个 ASCEND 爬回去）；否则拒绝——避免掉进 1×1 竖井出不来。
+- 验收夹具（零参数）：`alice_test:vertical_course` + `alice:pathing_downward` →
+  `[Vertical] SUMMARY downward_execute=PASS downward_guard=PASS`
+  （正例 `(0,64,45)→(0,63,45)` 破坏脚下掉 1 格；反例 `(2,64,45)` 是封死竖井，规划应被拒）。
+- 未做：PILLAR（与 DOWNWARD 成对，按用户裁决暂不采纳）；FALL（>1 格落差，属 H 模式，D-046 预留）。
+
+## D-049：运动轨迹记录（顿挫对比准备）
+
+- 状态：已实施（用户 2026-09-09 要求"同时准备解决顿挫感，可做 Baritone 对比测试"）
+- `BotTrace`：由 `BotSession.tick()` 每 tick 采样一次，输出格式与测试数据包
+  `alice_test:trace_tick` **完全一致**：`[TRACE] <bot> t=.. x=.. y=.. z=.. vx=.. vy=.. vz=.. og=.. yaw=..`
+  （位置/速度=毫格，偏航=百分度）。
+- 开关：`/alice trace`（再次执行关闭，零参数）。
+- 对照用法：
+  1. Alice 侧：`/alice trace` → `/function alice_test:pathing_course` → 右键 `alice:pathing_session` → `/alice trace`；
+  2. Baritone 侧：`/function alice_test:contrast_trace_pathing` → `#goto 0 62 44`（自动记录并在到达时停表）；
+  3. 对比指标：水平速度 `h=√(vx²+vz²)/1000` 是否在每个方块边界降到 ≈0（顿挫来源）。
+

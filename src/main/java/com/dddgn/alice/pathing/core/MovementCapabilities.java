@@ -45,6 +45,13 @@ public record MovementCapabilities(
                 false, true, false, false, true);
     }
 
+    /** PATH_ACCESS 清障破坏（破坏通行 / 垂直下落）：改变世界、需要工具、破坏不可逆。 */
+    public static MovementCapabilities pathAccess(RecoverabilityLevel level) {
+        return new MovementCapabilities(true, Set.of(WorldMutationIntent.PATH_ACCESS),
+                false, true, IntrinsicReversibility.REVERSIBLE, level, 0,
+                true, false, false, false, true);
+    }
+
     public static MovementCapabilities pureTraversal(RecoverabilityLevel level,
                                                        IntrinsicReversibility reversibility) {
         return new MovementCapabilities(false, Set.of(), false, false, reversibility,

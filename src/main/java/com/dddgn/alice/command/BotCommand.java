@@ -97,7 +97,14 @@ public final class BotCommand {
                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                 .executes(ctx -> diagnosePath(ctx.getSource(),
                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
-                .then(Commands.literal("pathing")
+                .then(Commands.literal("trace")
+                       .executes(ctx -> {
+                           boolean on = com.dddgn.alice.bot.BotTrace.toggle();
+                           ctx.getSource().sendSystemMessage(net.minecraft.network.chat.Component
+                                   .literal("[alice] 运动轨迹记录 = " + (on ? "开" : "关")));
+                           return 1;
+                       }))
+               .then(Commands.literal("pathing")
                         .then(Commands.literal("traverse")
                                 .then(Commands.argument("direction", StringArgumentType.word())
                                         .suggests((ctx, builder) -> net.minecraft.commands.SharedSuggestionProvider

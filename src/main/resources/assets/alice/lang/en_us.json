@@ -21,5 +21,6 @@
   "item.alice.pathing_dip_route": "Route Preference Checker",
   "item.alice.pathing_fence_guard": "Standability Checker",
   "item.alice.pathing_regression": "Chained Regression Runner",
-  "item.alice.pathing_waller": "Path Blocker (Replan Test)"
+  "item.alice.pathing_waller": "Path Blocker (Replan Test)",
+  "item.alice.pathing_downward": "Vertical Drop Checker"
 }

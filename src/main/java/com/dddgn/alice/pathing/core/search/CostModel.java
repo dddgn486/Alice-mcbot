@@ -30,6 +30,12 @@ public interface CostModel {
     /** 下降 1 格：实测 16 tick（**旧模型错记为 1.0，实测它是最贵的动作**）。 */
     double DESCEND_COST = 2.67D;
 
+    /**
+     * 垂直下落 1 格（DOWNWARD）：只含 DESCEND 的竖向分量（扣掉它同时覆盖的水平 1 格），
+     * 初始值 1.67 走路格；客户端实测后按 D-040 的标定方式修正。
+     */
+    double DOWNWARD_COST = 1.67D;
+
     /** 破坏方块的额外固定代价（对照 Baritone `blockBreakAdditionalPenalty = 2 tick`）。 */
     double BREAK_PENALTY_TICKS = 2.0D;
     /** 放置方块的固定代价（对照 Baritone `blockPlacementPenalty = 20 tick`）。 */
@@ -42,6 +48,7 @@ public interface CostModel {
         case DIAGONAL -> DIAGONAL_COST;
         case ASCEND -> ASCEND_COST;
         case DESCEND -> DESCEND_COST;
+        case DOWNWARD -> DOWNWARD_COST;
         default -> Double.POSITIVE_INFINITY;
     };
 }

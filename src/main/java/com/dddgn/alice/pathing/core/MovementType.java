@@ -6,6 +6,7 @@ public enum MovementType {
     DIAGONAL,
     ASCEND,
     DESCEND,
+    DOWNWARD,
     BREAK_AND_TRAVERSE,
     PLACE_STEP_AND_TRAVERSE
 }

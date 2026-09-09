@@ -51,6 +51,9 @@ public final class SurfaceMovementProvider implements MovementProvider {
                 }
             }
         }
+        if (context.allows(MovementType.DOWNWARD)) {
+            appendDownward(context, level, from, out);
+        }
         if (context.allows(MovementType.PLACE_STEP_AND_TRAVERSE)) {
             for (int[] d : CARDINAL) {
                 for (int dy = 0; dy >= -1; dy--) {
@@ -75,6 +78,36 @@ public final class SurfaceMovementProvider implements MovementProvider {
                 }
             }
         }
+    }
+
+    /**
+     * 垂直下落 1 格（DOWNWARD）：破坏脚下的方块后掉进 1 格深的洞（对照 Baritone MovementDownward）。
+     * <p>G 语义守卫：落点可站 + 脚下可破坏 + **落点存在逃生路线**（否则拒绝，避免掉进竖井出不来）。
+     */
+    private static void appendDownward(MovementContext context, ServerLevel level, BlockPos from,
+                                       List<PlannedMovement> out) {
+        BlockPos to = from.below();
+        if (!context.yInBounds(to.getY())) {
+            return;
+        }
+        if (!MovementHelper.canWalkOn(level, to)
+                || !MovementHelper.canWalkThrough(level, to.above())) {
+            return;
+        }
+        if (context.bot() == null || !BlockInteraction.breakable(context.bot(), level, to)) {
+            return;
+        }
+        double breakTicks = BlockInteraction.estimateBreakTicks(context.bot(), level, to);
+        if (!Double.isFinite(breakTicks)) {
+            return;
+        }
+        if (!com.dddgn.alice.pathing.core.SurfaceMovementProviderAccess.hasEscapeFrom(level, to)) {
+            return;
+        }
+        double cost = CostModel.DOWNWARD_COST
+                + (breakTicks + CostModel.BREAK_PENALTY_TICKS) / CostModel.WALK_ONE_BLOCK_TICKS;
+        out.add(new PlannedMovement(MovementType.DOWNWARD, from, to, cost,
+                RecoverabilityLevel.LOCAL_STEP));
     }
 
     private static void appendPlane(MovementContext context, ServerLevel level, BlockPos from,
