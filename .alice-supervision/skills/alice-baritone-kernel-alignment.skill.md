@@ -17,7 +17,7 @@ description: Alice 是 Baritone 兼容内核——非 Alice 目标差异部分�
 
 ## 参考位置（本地克隆，可直接读）
 
-`/home/fb486/projects/reference/baritone/`（commit `64333af99a072caa3f4d6f17e4b223a5ae7da3f4`）
+**主树（1.20.1 / v1.10.5 / `8c55ad0`）**：`/home/fb486/projects/reference/baritone-1.20.1/`；辅树（1.21.4 / `64333af`）：`/home/fb486/projects/reference/baritone/`
 
 | 关注点 | Baritone 位置 | Alice 对应 |
 |---|---|---|
