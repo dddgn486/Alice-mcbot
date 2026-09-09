@@ -185,7 +185,7 @@ public final class BreakAndTraverseExecution implements MovementExecution {
 
     private boolean postconditionHolds() {
         return tolerance == CompletionTolerance.COLUMN
-                ? bot.blockPosition().equals(spec.toFoot()) && bot.getY() - spec.toFoot().getY() < 0.5D
+                ? MovementHelper.isAtFootColumn(bot, spec.toFoot())
                 : MovementHelper.isSettledAtFootPos(level, bot, spec.toFoot(), 0.3D);
     }
 

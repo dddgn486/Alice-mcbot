@@ -187,6 +187,19 @@ public final class MovementHelper {
         return Math.sqrt(dx * dx + dz * dz) <= maxHorizontal;
     }
 
+    /**
+     * COLUMN 容差判定（D-027）：脚位所在格正确 + **已落地**。
+     *
+     * <p>`onGround` 是 D-026 统一完成契约的必须项：起跳/下落途中 `blockPosition()` 已经等于目标格，
+     * 若不带 `onGround`，执行器会在空中提前宣布成功（实测 PILLAR 4 tick 假成功 → bot 落回原点 →
+     * 下一段 STALE；ASCEND 同类）。
+     */
+    public static boolean isAtFootColumn(net.minecraft.world.entity.Entity entity, BlockPos footPos) {
+        return entity.onGround()
+                && entity.blockPosition().equals(footPos)
+                && entity.getY() - footPos.getY() < 0.5D;
+    }
+
     /** 支撑碰撞形状的世界坐标顶面；空形状返回 NaN。 */
     public static double supportTopY(ServerLevel level, BlockPos supportPos) {
         net.minecraft.world.phys.shapes.VoxelShape shape = level.getBlockState(supportPos)

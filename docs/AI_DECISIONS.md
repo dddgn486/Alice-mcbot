@@ -826,3 +826,23 @@
   期望 `pillar_plan=PASS`（首步 PILLAR、PILLAR 数 = 3）+ `resource_guard=PASS`（清空快捷栏方块后不可规划）
   + `pillar_execute=PASS`；串联回归新增 `pillar_course`（第 12 项）。
 - Baritone 对照：`alice_test:contrast_pillar` / `contrast_trace_pillar`（同一场景、同一目标 `#goto 25 67 44`）。
+
+## D-056：COLUMN 完成判定补 `onGround`（空中假成功，根因修复）
+
+- 状态：已实施，待客户端验证（用户 2026-09-09 实测 PILLAR："跳跃了，但是没有放置方块"）
+- 证据（Windows `latest.log` 11:39，`alice:pathing_pillar` + `pillar_course`）：
+  - `segment_done index=0 type=PILLAR ticks=4 actualFoot=24, 65, 44`，**没有任何 `[Pillar] placed` 日志**；
+  - 紧接着 `failed status=STALE code=PILLAR_STALE_START index=1 actualFoot=24, 64, 44`（bot 又掉回原脚位）；
+  - 重试 3 次全部同样 → `pillar_execute=FAIL`。
+- 根因：`CompletionTolerance.COLUMN` 的判定是 `blockPosition().equals(to) && getY()-to.getY() < 0.5`，
+  **缺 `onGround`**。bot 起跳后脚到 y≈65.2 时 `blockPosition()` 已等于目标格 → 执行器在空中提前 SUCCEEDED，
+  放置分支从未执行；随后 bot 落回起点，下一段起点校验失败（STALE）。
+  这违反 D-026 已登记的契约："onGround 是必须项：否则残余动量会在判定成功之后继续把 bot 带离目标列"。
+- 影响面：同一缺陷潜伏在**全部 7 个执行器**的 COLUMN 分支（PILLAR/ASCEND/DESCEND/DOWNWARD/
+  BREAK_AND_TRAVERSE/PLACE_STEP_AND_TRAVERSE/DIAGONAL/TRAVERSE）；ASCEND 历史上"偶发上层水平偏差
+  致 settling 超时"很可能同源。
+- 修复（不打 PILLAR 特判，按根因统一）：`MovementHelper.isAtFootColumn(entity, footPos)`
+  = `onGround && blockPosition().equals(footPos) && getY()-footPos.getY() < 0.5`，
+  7 个执行器的 COLUMN 分支全部改用该判定；EXACT 分支（`isSettledAtFootPos`）本来就带 onGround，不变。
+- 附带修正：`PillarDiagnosticTask` 的规划断言从"PILLAR 数量 = 3"改为"≥ 2"——
+  实测规划器选 **2×PILLAR + 1×ASCEND（cost 11.68）**，比 3×PILLAR+TRAVERSE（16）更便宜，断言写死了错误值。

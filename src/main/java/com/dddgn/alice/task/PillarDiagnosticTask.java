@@ -20,7 +20,7 @@ import net.minecraft.world.phys.Vec3;
  *
  * <ol>
  *   <li><b>规划</b>：3 格深 1×1 竖井（基岩壁）内 `(24,64,44)` → 井口边缘 `(25,67,44)`，
- *       期望 `REACHED` 且首步 = PILLAR、PILLAR 数量 = 3（唯一出路就是"跳跃中在脚下放方块"）；</li>
+ *       期望 `REACHED` 且首步 = PILLAR、PILLAR 数量 ≥ 2（唯一出路必须含"跳跃中在脚下放方块"）；</li>
  *   <li><b>资源守卫</b>：清空快捷栏方块后再规划，期望**不** REACHED
  *       （对照 Baritone `costOfPlacingAt` 无一次性方块 → COST_INF）；</li>
  *   <li><b>执行</b>：恢复方块后实跑，期望 `COMPLETED` 并稳定在井口边缘。</li>
@@ -31,8 +31,11 @@ public final class PillarDiagnosticTask implements Task {
     public static final BlockPos SHAFT_START = new BlockPos(24, 64, 44);
     /** 井口边缘脚位（站在壁顶，比井底高 3 格）。 */
     public static final BlockPos RIM_GOAL = new BlockPos(25, 67, 44);
-    /** 竖井应为 3 次 PILLAR。 */
-    private static final int EXPECTED_PILLARS = 3;
+    /**
+     * 竖井逃生的 PILLAR 下限：3 格深 1×1 竖井至少需要 2 次 PILLAR
+     * （规划器实测选 2×PILLAR + 1×ASCEND，cost 11.68，比 3×PILLAR+TRAVERSE 的 16 便宜）。
+     */
+    private static final int MIN_PILLARS = 2;
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -76,7 +79,7 @@ public final class PillarDiagnosticTask implements Task {
                         .filter(m -> m.movementType() == MovementType.PILLAR).count();
                 String first = plan.movements().isEmpty()
                         ? "-" : plan.movements().get(0).movementType().name();
-                planPass = plan.reached() && pillars == EXPECTED_PILLARS
+                planPass = plan.reached() && pillars >= MIN_PILLARS
                         && MovementType.PILLAR.name().equals(first);
                 planDetail = plan.status() + "/first=" + first + "/pillars=" + pillars;
                 BotLog.info("[Pillar] plan_check={} detail={}", planPass ? "PASS" : "FAIL", planDetail);

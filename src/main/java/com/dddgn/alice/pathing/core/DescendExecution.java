@@ -76,7 +76,7 @@ public final class DescendExecution implements MovementExecution {
         // COLUMN：脚位方块正确 + Y 达标即完成（对齐 Baritone MovementDescend:235，链式中间段用）；
         // EXACT ：脚位正确 + 落地 + 水平 ≤0.3（安全关键站位用）。
         boolean arrived = tolerance == CompletionTolerance.COLUMN
-                ? feet.equals(to) && bot.getY() - to.getY() < 0.5D
+                ? MovementHelper.isAtFootColumn(bot, to)
                 : MovementHelper.isSettledAtFootPos(level, bot, to, 0.3D);
         if (arrived) {
             bot.controller().stopMovement();

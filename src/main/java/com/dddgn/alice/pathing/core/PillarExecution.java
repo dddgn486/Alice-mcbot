@@ -212,7 +212,7 @@ public final class PillarExecution implements MovementExecution {
     private boolean postconditionHolds() {
         BlockPos to = spec.toFoot();
         return tolerance == CompletionTolerance.COLUMN
-                ? bot.blockPosition().equals(to) && bot.getY() - to.getY() < 0.5D
+                ? MovementHelper.isAtFootColumn(bot, to)
                 : MovementHelper.isSettledAtFootPos(level, bot, to, 0.3D);
     }
 
