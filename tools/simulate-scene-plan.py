@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """场景设计辅助：在本地用简化模型推演"规划器会选哪条路线"。
 
+⚠️ 已知局限：**不建模放置（PLACE_STEP_AND_TRAVERSE）与破坏（BREAK_AND_TRAVERSE）**，
+因此"允许世界修改"的场景（如 lava_course）不能用它下最终结论——必须由客户端串联回归复核
+（2026-09-09 实证：岩浆池封口 2 格高时模拟器说 UNREACHABLE，实际规划器靠"放置 + 上升"绕行成功）。
+
 ⚠️ 这不是规划器真相，只是**场景设计工具**：它复刻 Alice 的 Movement 集合
 （TRAVERSE / DIAGONAL / ASCEND / DESCEND + D-024 过冲检查）与成本模型，
 用于在让用户跑客户端之前，先确认"这个验收场景能不能判别出路线差异"。

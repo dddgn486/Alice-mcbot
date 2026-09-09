@@ -8,11 +8,12 @@ function alice_test:lava_course_reset
 fill -3 63 62 1 63 70 minecraft:stone
 
 # 岩浆池底部封底 + 两端封口（防下落/横向流动）
-# 注意：封口必须 2 格高（y=63..64）——只做 1 格时，封口顶面（脚位 64）会成为可站面，
-# 对角移动可以踩着它绕过岩浆池（2026-09-09 串联回归实证：movements=11 REACHED）。
+# 封口高度必须 ≥3 格（y=63..65）：本检查允许世界修改，规划器会先在 (1,63,61) 放方块造出
+# 脚位 (1,64,61)，再 ASCEND 到封口顶面绕行。2 格高时顶面 (2,65,61) 可站 → 绕行成立
+# （2026-09-09 实证：2 格高仍 REACHED）；3 格高时上升目标 (2,65,61) 是墙块 → 绕行被封死。
 fill 2 62 62 3 62 70 minecraft:stone
-fill 2 63 61 3 64 61 minecraft:stone
-fill 2 63 71 3 64 71 minecraft:stone
+fill 2 63 61 3 65 61 minecraft:stone
+fill 2 63 71 3 65 71 minecraft:stone
 
 # 岩浆池：x=2..3，位于支撑层 y=63（脚位下方一格），两侧由平台封住 → 静止
 fill 2 63 62 3 63 70 minecraft:lava
