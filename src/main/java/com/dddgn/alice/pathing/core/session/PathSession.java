@@ -49,6 +49,7 @@ public final class PathSession {
     private List<BlockPos> projected;
 
     private PathSessionStatus status = PathSessionStatus.RUNNING;
+    private final java.util.List<MovementType> executedTypes = new java.util.ArrayList<>();
     private String failureCode = "";
     private int failureSegment = -1;
     private int index;
@@ -161,6 +162,7 @@ public final class PathSession {
                 BotLog.info("[R4 Session] segment_done session={} index={} type={} ticks={} actualFoot={}",
                         sessionId, index, movements.get(index).movementType(), segmentTicks,
                         bot.blockPosition().toShortString());
+                executedTypes.add(movements.get(index).movementType());
                 index++;
                 execution = null;
                 segmentTicks = 0;
@@ -186,6 +188,7 @@ public final class PathSession {
                         BotLog.info("[R4 Session] segment_done session={} index={} type={} ticks={} actualFoot={}",
                                 sessionId, index, movements.get(index).movementType(), 0,
                                 bot.blockPosition().toShortString());
+                        executedTypes.add(movements.get(index).movementType());
                         index++;
                         execution = null;
                         segmentTicks = 0;
@@ -211,6 +214,15 @@ public final class PathSession {
             execution.cancel();
         }
         fail(PathSessionStatus.CANCELLED, "SESSION_CANCELLED");
+    }
+
+    /**
+     * 已执行段的 Movement 类型序列（只读遥测，D-061 回归覆盖断言用）。
+     *
+     * <p>按**段成功**顺序追加；重同步回到更早的段会重复记录（覆盖断言只看集合，不受影响）。
+     */
+    public java.util.List<MovementType> executedMovementTypes() {
+        return java.util.List.copyOf(executedTypes);
     }
 
     public PathExecutionResult result() {

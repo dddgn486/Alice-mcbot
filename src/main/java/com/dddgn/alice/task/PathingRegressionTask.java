@@ -40,45 +40,74 @@ public final class PathingRegressionTask implements Task {
         PLAN_SAFE_ROUTE
     }
 
+    /**
+     * 场景检查项。
+     *
+     * <p>{@code required}（D-061）：本场景**必须实际执行到**的 Movement 类型——
+     * Movement 变多后路线会漂移（实测 `place_course` 尾部由 DESCEND×2 变成 FALL），
+     * 覆盖断言保证"场景仍然在测它该测的东西"，否则该场景直接判 FAIL。
+     */
     private record SceneCheck(String scene, BlockPos start, BlockPos goal,
                               boolean worldModification, Kind kind,
                               int wallTick, int disturbTick, int disturbDx, int disturbDz,
-                              int minReplans) {
+                              int minReplans, List<MovementType> required) {
     }
 
-    private static SceneCheck execute(String scene, BlockPos start, BlockPos goal, boolean worldMod) {
-        return new SceneCheck(scene, start, goal, worldMod, Kind.EXECUTE_COMPLETE, 0, 0, 0, 0, 0);
+    private static SceneCheck execute(String scene, BlockPos start, BlockPos goal, boolean worldMod,
+                                      MovementType... required) {
+        return new SceneCheck(scene, start, goal, worldMod, Kind.EXECUTE_COMPLETE, 0, 0, 0, 0, 0,
+                List.of(required));
     }
 
     private static SceneCheck refused(String scene, BlockPos start, BlockPos goal, boolean worldMod) {
-        return new SceneCheck(scene, start, goal, worldMod, Kind.PLAN_REFUSED, 0, 0, 0, 0, 0);
+        return new SceneCheck(scene, start, goal, worldMod, Kind.PLAN_REFUSED, 0, 0, 0, 0, 0, List.of());
     }
 
     /** 允许有路，但路线不得接触岩浆（`lava_course`：新 Movement 打开了合法搭桥绕行）。 */
     private static SceneCheck safeRoute(String scene, BlockPos start, BlockPos goal, boolean worldMod) {
-        return new SceneCheck(scene, start, goal, worldMod, Kind.PLAN_SAFE_ROUTE, 0, 0, 0, 0, 0);
+        return new SceneCheck(scene, start, goal, worldMod, Kind.PLAN_SAFE_ROUTE, 0, 0, 0, 0, 0, List.of());
     }
 
-    /** 串联回归场景表：一次右键覆盖全部必要复测项（D-054）。 */
+    /**
+     * 串联回归场景表：一次右键覆盖全部必要复测项（D-054；覆盖断言 D-061）。
+     *
+     * <p>每个执行场景声明它**必须执行到**的 Movement 类型；结束时另有**全局覆盖断言**
+     * （9 种可执行 Movement 必须至少被执行一次）。
+     */
     private static final List<SceneCheck> SCENES = List.of(
-            execute("pathing_course", new BlockPos(0, 64, 46), new BlockPos(0, 62, 44), false),
-            execute("place_course", new BlockPos(0, 64, 66), new BlockPos(8, 62, 66), true),
-            execute("break_course", new BlockPos(0, 64, 66), new BlockPos(7, 64, 66), true),
-            execute("vertical_course", new BlockPos(0, 64, 45), new BlockPos(0, 63, 45), true),
-            execute("pillar_course", new BlockPos(24, 64, 44), new BlockPos(25, 67, 44), true),
-            execute("fall_course", new BlockPos(22, 64, 68), new BlockPos(23, 61, 68), true),
-            execute("trace_course", new BlockPos(0, 64, 40), new BlockPos(0, 64, 51), false),
+            execute("pathing_course", new BlockPos(0, 64, 46), new BlockPos(0, 62, 44), false,
+                    MovementType.DESCEND),
+            execute("place_course", new BlockPos(0, 64, 66), new BlockPos(8, 62, 66), true,
+                    MovementType.PLACE_STEP_AND_TRAVERSE),
+            execute("break_course", new BlockPos(0, 64, 66), new BlockPos(7, 64, 66), true,
+                    MovementType.BREAK_AND_TRAVERSE),
+            execute("vertical_course", new BlockPos(0, 64, 45), new BlockPos(0, 63, 45), true,
+                    MovementType.DOWNWARD),
+            execute("pillar_course", new BlockPos(24, 64, 44), new BlockPos(25, 67, 44), true,
+                    MovementType.PILLAR),
+            execute("fall_course", new BlockPos(22, 64, 68), new BlockPos(23, 61, 68), true,
+                    MovementType.FALL),
+            execute("trace_course", new BlockPos(0, 64, 40), new BlockPos(0, 64, 51), false,
+                    MovementType.TRAVERSE),
             refused("fluid_course", new BlockPos(0, 64, 66), new BlockPos(4, 64, 66), true),
             safeRoute("lava_course", new BlockPos(0, 64, 66), new BlockPos(4, 64, 66), true),
             refused("fence_course", new BlockPos(0, 64, 48), new BlockPos(0, 64, 44), false),
             new SceneCheck("dip_course", new BlockPos(0, 64, 66), new BlockPos(-1, 64, 63),
-                    false, Kind.PLAN_FIRST_TRAVERSE, 0, 0, 0, 0, 0),
+                    false, Kind.PLAN_FIRST_TRAVERSE, 0, 0, 0, 0, 0, List.of()),
             // 世界变化 → 任务层重规划（计划前方封路，要求至少 1 次 replan）
             new SceneCheck("place_course+wall", new BlockPos(0, 64, 66), new BlockPos(8, 62, 66),
-                    true, Kind.EXECUTE_COMPLETE, 30, 0, 0, 0, 1),
+                    true, Kind.EXECUTE_COMPLETE, 30, 0, 0, 0, 1,
+                    List.of(MovementType.PLACE_STEP_AND_TRAVERSE)),
             // 位置漂移 → 段内重同步 / 重规划
             new SceneCheck("place_course+disturb", new BlockPos(0, 64, 66), new BlockPos(8, 62, 66),
-                    true, Kind.EXECUTE_COMPLETE, 0, 30, 0, 1, 0));
+                    true, Kind.EXECUTE_COMPLETE, 0, 30, 0, 1, 0,
+                    List.of(MovementType.PLACE_STEP_AND_TRAVERSE)));
+
+    /** 全局覆盖断言（D-061）：这 9 种可执行 Movement 必须在本次回归中至少被执行一次。 */
+    private static final List<MovementType> REQUIRED_COVERAGE = List.of(
+            MovementType.TRAVERSE, MovementType.DIAGONAL, MovementType.ASCEND, MovementType.DESCEND,
+            MovementType.DOWNWARD, MovementType.PILLAR, MovementType.FALL,
+            MovementType.BREAK_AND_TRAVERSE, MovementType.PLACE_STEP_AND_TRAVERSE);
 
     /** 任务级安全上限：12 个场景正常约 500 tick。 */
     private static final int MAX_TASK_TICKS = 2400;
@@ -87,6 +116,7 @@ public final class PathingRegressionTask implements Task {
     private final ServerPlayer observer;
     private final Map<String, Boolean> results = new LinkedHashMap<>();
     private final Map<String, String> details = new LinkedHashMap<>();
+    private final java.util.Set<MovementType> executedUnion = new java.util.LinkedHashSet<>();
     private int index;
     private int ticks;
     private boolean prepared;
@@ -134,10 +164,17 @@ public final class PathingRegressionTask implements Task {
             return Status.RUNNING;
         }
         var result = runner.result();
-        boolean pass = state == PathRetryRunner.State.DONE && runner.replans() >= scene.minReplans();
+        java.util.Set<MovementType> executed = runner.executedTypes();
+        executedUnion.addAll(executed);
+        java.util.List<MovementType> missing = scene.required().stream()
+                .filter(type -> !executed.contains(type)).toList();
+        boolean pass = state == PathRetryRunner.State.DONE && runner.replans() >= scene.minReplans()
+                && missing.isEmpty();
         record(scene, pass, result.status()
                 + (runner.replans() > 0 ? "/replans=" + runner.replans() : "")
-                + (scene.minReplans() > 0 ? "/minReplans=" + scene.minReplans() : ""));
+                + (scene.minReplans() > 0 ? "/minReplans=" + scene.minReplans() : "")
+                + "/route=" + routeOf(executed)
+                + (missing.isEmpty() ? "" : "/MISSING=" + missing));
         runner = null;
         advance();
         return index >= SCENES.size() ? finish() : Status.RUNNING;
@@ -244,6 +281,15 @@ public final class PathingRegressionTask implements Task {
         }
     }
 
+    /** 已执行类型集合的稳定字符串（按 REQUIRED_COVERAGE 顺序，便于日志对比）。 */
+    private static String routeOf(java.util.Set<MovementType> executed) {
+        if (executed.isEmpty()) {
+            return "-";
+        }
+        return REQUIRED_COVERAGE.stream().filter(executed::contains)
+                .map(Enum::name).reduce((a, b) -> a + "," + b).orElse("-");
+    }
+
     private void record(SceneCheck scene, boolean pass, String detail) {
         results.put(scene.scene(), pass);
         details.put(scene.scene(), detail);
@@ -260,6 +306,15 @@ public final class PathingRegressionTask implements Task {
             allPass &= ok;
             summary.append(scene.scene()).append('=').append(ok ? "PASS" : "FAIL").append(' ');
         }
+        java.util.List<MovementType> coverageMissing = REQUIRED_COVERAGE.stream()
+                .filter(type -> !executedUnion.contains(type)).toList();
+        boolean coveragePass = coverageMissing.isEmpty();
+        allPass &= coveragePass;
+        summary.append("coverage=").append(coveragePass ? "PASS" : "FAIL");
+        if (!coveragePass) {
+            summary.append('(').append(coverageMissing).append(')');
+        }
+        summary.append(" executed=").append(routeOf(executedUnion));
         String line = summary.toString().trim();
         BotLog.info("[Regression] SUMMARY {}", line);
         if (observer != null) {

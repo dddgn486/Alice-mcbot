@@ -958,3 +958,25 @@
 - 验收（零参数）：`/function alice_test:walk_course` + 右键 `alice:walk_to_runner` →
   `[WalkTo] SUMMARY walk_flat=PASS walk_over_wall=PASS walk_unreachable=PASS walk_unsafe=PASS`。
 - 后续：`FollowTask` → `PlaceTask`/`TransferTask` → `MineTask`（HARD_PATH，最后）。
+
+## D-061：回归覆盖断言（Movement 变多后防止"测试失效但全绿"）
+
+- 状态：已实施，待客户端验证（用户 2026-09-09："好，加上加覆盖断言"）
+- 背景（用户观察 + 日志实证）：Movement 补齐后回归场景的**实际执行路线漂移**了——
+  13 项仍全绿，但"过程"已不同。实测各场景执行序列：
+  `pathing_course=DESCEND×2`、`place_course=TRAVERSE,PLACE_STEP×2,TRAVERSE×3,FALL,TRAVERSE`（尾部**由 DESCEND×2 变成 FALL**）、
+  `pillar_course=PILLAR×2,ASCEND`、`fall_course=FALL`、`vertical_course=DOWNWARD`、
+  `break_course=…BREAK_AND_TRAVERSE…`、`trace_course=TRAVERSE×11`、`place_course+wall/disturb` 含 ASCEND/DIAGONAL/PLACE/FALL。
+  → 覆盖目前完整，但**每个类型大多只靠一个场景**，且路线漂移不会报警。
+- 实现：
+  1. 只读遥测：`PathSession.executedMovementTypes()`（段成功时追加）、
+     `PathRetryRunner.executedTypes()`（跨重规划累加）；
+  2. `PathingRegressionTask.SceneCheck.required`：每个执行场景声明**必须实际执行到**的 Movement
+     （pathing→DESCEND、place→PLACE_STEP、break→BREAK、vertical→DOWNWARD、pillar→PILLAR、
+     fall→FALL、trace→TRAVERSE、place+wall/disturb→PLACE_STEP）；缺类型 → 该场景 **FAIL**，
+     detail 带 `/route=` 与 `/MISSING=`；
+  3. **全局覆盖断言** `REQUIRED_COVERAGE`：9 种可执行 Movement（TRAVERSE/DIAGONAL/ASCEND/DESCEND/
+     DOWNWARD/PILLAR/FALL/BREAK_AND_TRAVERSE/PLACE_STEP_AND_TRAVERSE）必须在本次回归中至少执行一次；
+     `SUMMARY` 末尾输出 `coverage=PASS|FAIL(...)` 与 `executed=<实际执行过的类型>`。
+- 验收：`[Regression] SUMMARY ... coverage=PASS executed=TRAVERSE,DIAGONAL,ASCEND,DESCEND,DOWNWARD,PILLAR,FALL,BREAK_AND_TRAVERSE,PLACE_STEP_AND_TRAVERSE`；
+  任何一个类型缺失或某场景不再执行其目标 Movement，都会直接变红。

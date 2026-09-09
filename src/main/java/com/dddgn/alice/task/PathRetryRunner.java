@@ -33,6 +33,8 @@ public final class PathRetryRunner {
     private PathSession session;
     private PathExecutionResult last;
     private int replans;
+    private final java.util.Set<com.dddgn.alice.pathing.core.MovementType> executedTypes =
+            new java.util.LinkedHashSet<>();
     private int attempts;
 
     public PathRetryRunner(BotPlayer bot, PathRequest template, int maxReplans, String sessionPrefix) {
@@ -69,6 +71,7 @@ public final class PathRetryRunner {
         if (status == PathSessionStatus.RUNNING) {
             return State.RUNNING;
         }
+        executedTypes.addAll(session.executedMovementTypes());
         last = session.result();
         session = null;
         if (status == PathSessionStatus.COMPLETED) {
@@ -100,6 +103,11 @@ public final class PathRetryRunner {
 
     public int replans() {
         return replans;
+    }
+
+    /** 本次任务（含重规划）实际执行过的 Movement 类型集合（D-061 覆盖断言用）。 */
+    public java.util.Set<com.dddgn.alice.pathing.core.MovementType> executedTypes() {
+        return java.util.Set.copyOf(executedTypes);
     }
 
     /** 当前会话（RUNNING 时非 null；夹具用于观察/干扰当前计划）。 */
