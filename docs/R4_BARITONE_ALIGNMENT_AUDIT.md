@@ -246,8 +246,8 @@
 | D-041 A | `canWalkOn` 混合判定（整格 OR 白名单 OR 碰撞非空且非已知坏方块） | `WINDOWS_CLIENT`（`fence_course` UNREACHABLE PASS） |
 | D-041 B | Ascend 前置：FallingBlock / climbable 拒绝 + 运行期头部守卫（bottom-slab 另立项） | 已实施；代码级验证 + ascend 回归 PASS |
 | D-042 C | 执行器契约：COLUMN 容差 ×5 / 超时收敛单层 / 取消清理破坏进度 / 校验失败路径计时 | 已实施，待测（串联回归） |
-| D-043 D | Q4 重规划下沉（`PathRetryRunner`）+ 封路夹具 `alice:pathing_waller` | 已实施，待测 |
-| 待办 E | ⑤ 删 `WorldView` 空接口 / ⑥ legacy 收口 / ⑨ `canSweepPlayer` 对比 / Q1 FALL 裁决 | 未开始 |
+| D-043 D | Q4 重规划下沉（`PathRetryRunner`）+ 封路夹具 `alice:pathing_waller` | `WINDOWS_CLIENT`（replans=1 → COMPLETED） |
+| 待办 E | ⑤ 删 `WorldView` 空接口 / ⑥ legacy 收口 / ⑨ `canSweepPlayer` 对比 / Q1 FALL 裁决 | 未开始（最后一批） |
 
 ## §4 对齐清单（建议顺序）
 

@@ -566,7 +566,7 @@
 
 ## D-043：重规划决策下沉到任务层（Q4 / 待办 D）
 
-- 状态：已实施，待客户端验证（用户 2026-09-09 指定）
+- 状态：**已通过客户端验证**（2026-09-09：`wall_placed at=5,64,66` → `[PathRetry] replan replans=1 reason=INVALID_PRECONDITION` → `COMPLETED replans=1`）
 - 分层依据（对照 Baritone）：`PathExecutor` 遇到计划失效只 `cancel()` 上报，由 `PathingBehavior:154-193`
   重新 `findPathInNewThread`；Alice 里对应的决策层是**任务层**（未来由 LLM 目标层裁决）。
 - 改动：
