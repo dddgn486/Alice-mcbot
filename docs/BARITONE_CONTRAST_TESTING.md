@@ -116,6 +116,15 @@ Alice 侧与 Baritone 侧使用**同一个场景函数、同一个目标**：
 - 字段来自实体 NBT：`Pos[]`、`Motion[]`、`OnGround`、`Rotation[0]`（Baritone 内部每 tick 状态不打日志，
   所以用外部采样）。
 
+### 8.1.1 已知坑（2026-09-09 实测）
+
+- **记录器不会自己停**：只在"进入目标 marker 1.5 格内"或 **600 tick 预算耗尽**时停止。
+  如果你跑完准备函数却忘了输入 `#goto`，它会一直打印（日志看起来"一直在刷位置"）。
+  手动停止：`/function alice_test:trace_stop`（以玩家身份执行）或 `/tag @s remove alice_tr_running`。
+- **场景函数在 Baritone 实例会加载失败**：用户入口函数里有 `give @s alice:*`，Baritone 实例没有 Alice 模组
+  → 报"未知的物品"→ 整个函数加载失败。因此 `contrast_*` 一律改调 `*_terrain`（只建地形）。
+- 日志里 `[TRACE]` 行与 Alice 侧 `/alice trace` 完全同格式，可直接并排比对。
+
 ### 8.2 怎么跑
 
 ```
