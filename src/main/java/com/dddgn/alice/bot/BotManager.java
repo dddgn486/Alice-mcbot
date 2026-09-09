@@ -845,7 +845,8 @@ public final class BotManager {
             switch (newTarget.type()) {
                 case BLOCK -> {
                     // 任务启动即开启作用域:监听掉落物与方块变化(设计文档 §3.2)
-                    scope.begin(newTarget.blockPos(), 8);
+                    // D-074：半径 16 覆盖连锁挖掘；只把 bot 自己造成的破坏登记为掉落来源
+                    scope.begin(newTarget.blockPos(), 16, bot.getUUID());
                     // 单目标默认只走真实可通行曲面的 A*；通道规划后续仅在曲面不可达时显式接入。
                     beginTask(new MineTask(bot, newTarget.blockPos(), scope), newTarget);
                 }

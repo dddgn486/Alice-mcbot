@@ -32,21 +32,39 @@ public final class ScopeBuffer {
     /** 所有活跃作用域(静态事件派发到每个实例做距离过滤)。 */
     private static final List<ScopeBuffer> ACTIVE = new CopyOnWriteArrayList<>();
 
+    /** 破坏事件与随后掉落物的配对窗口（tick）与半径（格）：覆盖连锁挖掘模组。 */
+    private static final int DROP_PAIR_WINDOW_TICKS = 10;
+    private static final double DROP_PAIR_RADIUS = 3.0D;
+
     private BlockPos center;
     private int radius;
     private boolean active;
+    /** 作用域所有者（bot）；只把"该所有者造成的破坏"登记为掉落来源，避免把附近玩家挖的掉落物算进来。 */
+    private java.util.UUID ownerUuid;
     private final List<ItemEntity> spawnedItems = new ArrayList<>();
+    /** 掉落物 → 其**来源方块**（由破坏事件配对得到；未配对为 null）。 */
     private final java.util.Map<java.util.UUID, BlockPos> itemOrigins = new java.util.HashMap<>();
     private final List<BlockPos> brokenBlocks = new ArrayList<>();
+    /** 最近的破坏事件（pos + 游戏 tick），用于与随后生成的掉落物配对。 */
+    private final List<BreakRecord> recentBreaks = new ArrayList<>();
+
+    private record BreakRecord(BlockPos pos, long tick) {
+    }
 
     /** 注册监听区间(重复调用先结束旧区间)。 */
     public void begin(BlockPos center, int radius) {
+        begin(center, radius, null);
+    }
+
+    /** 注册监听区间，并指定所有者（只有该玩家的破坏事件才登记为掉落来源）。 */
+    public void begin(BlockPos center, int radius, java.util.UUID owner) {
         end();
         this.center = center;
         this.radius = radius;
+        this.ownerUuid = owner;
         this.active = true;
         ACTIVE.add(this);
-        BotLog.info("作用域开启: center={} radius={}", center.toShortString(), radius);
+        BotLog.info("作用域开启: center={} radius={} owner={}", center.toShortString(), radius, owner);
     }
 
     public void end() {
@@ -56,6 +74,8 @@ public final class ScopeBuffer {
             spawnedItems.clear();
             itemOrigins.clear();
             brokenBlocks.clear();
+            recentBreaks.clear();
+            ownerUuid = null;
         }
     }
 
@@ -75,6 +95,18 @@ public final class ScopeBuffer {
         return List.copyOf(spawnedItems.subList(from, spawnedItems.size()));
     }
 
+    /**
+     * 已配对到**破坏事件**的存活掉落物（D-074）：来源来自
+     * `BlockEvent.BreakEvent` + 随后 {@link #DROP_PAIR_WINDOW_TICKS} 内、{@link #DROP_PAIR_RADIUS} 内的生成事件。
+     * <p>连锁挖掘模组会一次破坏多格 → 每个破坏点都登记 → 其掉落物无论聚在一处还是各掉一份都能配对。
+     */
+    public List<ItemEntity> liveDrops() {
+        spawnedItems.removeIf(item -> !item.isAlive() || item.getItem().isEmpty());
+        return spawnedItems.stream()
+                .filter(item -> itemOrigins.get(item.getUUID()) != null)
+                .toList();
+    }
+
     /** 首次捕获时来源方块格等于 origin 的存活掉落物。 */
     public List<ItemEntity> liveItemsFromOrigin(BlockPos origin) {
         spawnedItems.removeIf(item -> !item.isAlive() || item.getItem().isEmpty());
@@ -88,6 +120,27 @@ public final class ScopeBuffer {
         return List.copyOf(brokenBlocks);
     }
 
+    /** 与最近窗口内、最近距离的破坏点配对；无匹配返回 null（例如区块加载带入的旧物品）。 */
+    private BlockPos matchBreakSource(BlockPos itemPos, long tick) {
+        BreakRecord best = null;
+        double bestDistance = Double.MAX_VALUE;
+        for (BreakRecord record : recentBreaks) {
+            if (tick - record.tick() > DROP_PAIR_WINDOW_TICKS) {
+                continue;
+            }
+            double distance = record.pos().distSqr(itemPos);
+            if (distance <= DROP_PAIR_RADIUS * DROP_PAIR_RADIUS && distance < bestDistance) {
+                bestDistance = distance;
+                best = record;
+            }
+        }
+        return best == null ? null : best.pos();
+    }
+
+    private void pruneBreaks(long tick) {
+        recentBreaks.removeIf(record -> tick - record.tick() > DROP_PAIR_WINDOW_TICKS);
+    }
+
     private boolean inScope(BlockPos pos) {
         return active && pos != null && pos.distSqr(center) <= (long) radius * radius;
     }
@@ -98,23 +151,37 @@ public final class ScopeBuffer {
     public static void onEntityJoin(EntityJoinLevelEvent event) {
         if (event.getLevel() instanceof ServerLevel && event.getEntity() instanceof ItemEntity item) {
             for (ScopeBuffer scope : ACTIVE) {
-                if (scope.inScope(item.blockPosition())) {
-                    scope.spawnedItems.add(item);
-                    scope.itemOrigins.put(item.getUUID(), item.blockPosition().immutable());
-                    BotLog.info("作用域捕捉掉落物: {} x{} y{} z{}",
-                            item.getItem().getItem(), item.getBlockX(), item.getBlockY(), item.getBlockZ());
+                if (!scope.inScope(item.blockPosition())) {
+                    continue;
                 }
+                scope.spawnedItems.add(item);
+                long tick = ((ServerLevel) event.getLevel()).getGameTime();
+                scope.pruneBreaks(tick);
+                BlockPos source = scope.matchBreakSource(item.blockPosition(), tick);
+                scope.itemOrigins.put(item.getUUID(), source);
+                BotLog.info("作用域捕捉掉落物: {} x{} y{} z{} source={}",
+                        item.getItem().getItem(), item.getBlockX(), item.getBlockY(), item.getBlockZ(),
+                        source == null ? "unpaired" : source.toShortString());
             }
         }
     }
 
     @SubscribeEvent
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
-        if (event.getLevel() instanceof ServerLevel) {
-            for (ScopeBuffer scope : ACTIVE) {
-                if (scope.inScope(event.getPos())) {
-                    scope.brokenBlocks.add(event.getPos().immutable());
-                }
+        if (!(event.getLevel() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        java.util.UUID breaker = event.getPlayer() == null ? null : event.getPlayer().getUUID();
+        long tick = serverLevel.getGameTime();
+        for (ScopeBuffer scope : ACTIVE) {
+            if (!scope.inScope(event.getPos())) {
+                continue;
+            }
+            scope.brokenBlocks.add(event.getPos().immutable());
+            // 只登记所有者造成的破坏（附近玩家/爆炸的掉落物不计入本 bot 的收集目标）
+            if (scope.ownerUuid == null || scope.ownerUuid.equals(breaker)) {
+                scope.recentBreaks.add(new BreakRecord(event.getPos().immutable(), tick));
+                scope.pruneBreaks(tick);
             }
         }
     }

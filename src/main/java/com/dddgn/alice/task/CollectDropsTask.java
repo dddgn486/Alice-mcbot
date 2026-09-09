@@ -20,6 +20,8 @@ import java.util.UUID;
  *
  * <p>设计（`docs/MINE_MIGRATION_DESIGN.md` §4，用户裁定）：
  * <ul>
+ *   <li>**来源判定**：只收集 {@code ScopeBuffer.liveDrops()}——即"由 bot 自己的破坏事件配对到的掉落物"
+ *       （D-074；连锁挖掘模组的多点破坏同样覆盖）；</li>
  *   <li>**职责单一**：只收集，不挖方块、不搭桥；"怎么过去"完全交给寻路内核；</li>
  *   <li>**终点 = 掉落物所在位置**（`item.blockPosition()`），不做"相邻站位"改写；</li>
  *   <li>**按需授予世界修改权限**：`allowWorldModification=true` → `PathRequest.withWorldModification`
@@ -40,6 +42,8 @@ public final class CollectDropsTask implements Task {
     private static final int PICKUP_WAIT_TICKS = 40;
     /** 判定"站在物品格附近"的水平距离（格）。 */
     private static final double PICKUP_RADIUS = 1.2D;
+    /** 超过该距离（格）放弃追踪（D-074 用户裁定）。 */
+    private static final double MAX_CHASE_DISTANCE = 32.0D;
 
     private final BotPlayer bot;
     private final BlockPos origin;
@@ -56,6 +60,9 @@ public final class CollectDropsTask implements Task {
     private final Set<UUID> gone = new LinkedHashSet<>();
     private UUID lastTargetId;
     private boolean lastTargetNear;
+    /** 当前目标的物品类型与追踪开始时的背包数量（用于精确判定"是否被自己拾取"）。 */
+    private net.minecraft.world.item.Item currentItemType;
+    private int currentItemCountBefore;
     private PathRetryRunner runner;
     private UUID currentId;
     private BlockPos currentPos;
@@ -107,6 +114,8 @@ public final class CollectDropsTask implements Task {
             cancelRunner();
             currentId = item.getUUID();
             currentPos = itemPos;
+            currentItemType = item.getItem().getItem();
+            currentItemCountBefore = countInInventory(currentItemType);
             itemTicks = 0;
             waitTicks = 0;
         }
@@ -156,13 +165,17 @@ public final class CollectDropsTask implements Task {
     /** 当前仍在范围内、且未标记不可达的候选物品。 */
     private List<ItemEntity> candidates() {
         List<ItemEntity> result = new ArrayList<>();
-        for (ItemEntity item : scope.liveItemsFromOrigin(origin)) {
+        for (ItemEntity item : scope.liveDrops()) {
             UUID id = item.getUUID();
             known.add(id);
             if (unreachable.contains(id)) {
                 continue;
             }
             if (!expectedIds.isEmpty() && !expectedIds.contains(id)) {
+                continue;
+            }
+            if (bot.distanceToSqr(item) > MAX_CHASE_DISTANCE * MAX_CHASE_DISTANCE) {
+                markUnreachable(id, "too_far");
                 continue;
             }
             result.add(item);
@@ -195,14 +208,31 @@ public final class CollectDropsTask implements Task {
                 continue;
             }
             gone.add(id);
-            if (id.equals(lastTargetId) && lastTargetNear) {
+            // 精确判定：背包里该物品数量是否增加（比"距离阈值"可靠——原版拾取范围随 bbox 变化）
+            int now = currentItemType == null ? 0 : countInInventory(currentItemType);
+            boolean picked = id.equals(lastTargetId) && currentItemType != null
+                    && now > currentItemCountBefore;
+            if (picked) {
                 collected++;
-                BotLog.info("[CollectDrops] collected item={}", id);
+                BotLog.info("[CollectDrops] collected item={} type={} count {}->{}",
+                        id, currentItemType, currentItemCountBefore, now);
             } else {
                 vanished.add(id);
                 BotLog.info("[CollectDrops] vanished item={}", id);
             }
         }
+    }
+
+    private int countInInventory(net.minecraft.world.item.Item item) {
+        int total = 0;
+        var inventory = bot.getInventory();
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            var stack = inventory.getItem(slot);
+            if (!stack.isEmpty() && stack.getItem() == item) {
+                total += stack.getCount();
+            }
+        }
+        return total;
     }
 
     private void markUnreachable(UUID id, String reason) {
