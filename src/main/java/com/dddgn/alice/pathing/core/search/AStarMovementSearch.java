@@ -26,7 +26,7 @@ public final class AStarMovementSearch {
     public static final String PLANNER_NAME = "alice.astar.movement.v1";
 
     /** 加权 A* 系数（越大越贪心）；第 0 项用于最终路径。 */
-    private static final double[] COEFFICIENTS = {1.5D, 2.0D, 2.5D, 4.5D};
+    private static final double[] COEFFICIENTS = {1.5D, 2.0D, 2.5D, 3.0D, 4.0D, 5.0D, 10.0D};
 
     private final MovementProvider provider;
 

@@ -75,9 +75,17 @@ def moves(feet, pos, costs):
 
 
 def astar(feet, start, goal, costs):
-    """与 Alice A* 同形：h = 水平欧氏 + |dy|（可采纳性由成本模型决定，见审计 §7.7）。"""
+    """与 Alice A* 同形：h = octile 水平 + 非对称竖向（扣除垂直移动覆盖的水平进度，见 D-040）。"""
     def h(p):
-        return math.sqrt((p[0] - goal[0]) ** 2 + (p[2] - goal[2]) ** 2) + abs(p[1] - goal[1])
+        dx, dz = abs(p[0] - goal[0]), abs(p[2] - goal[2])
+        dy = goal[1] - p[1]
+        straight = max(dx, dz) - min(dx, dz)
+        val = straight * 1.0 + min(dx, dz) * 1.33
+        if dy > 0:
+            val += dy * (1.67 - 1.0)
+        elif dy < 0:
+            val += -dy * (2.67 - 1.0)
+        return val
 
     openq = [(h(start), 0.0, start, [])]
     seen = set()

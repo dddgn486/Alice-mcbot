@@ -22,7 +22,7 @@
 - Baritone 对照审计已完成：`docs/R2C_BARITONE_AUDIT.md`；
 - 已决策：D-024（落差红线 + 楼梯细化）、D-025（台阶 0.6 对齐真人）、D-026（合法位置集 + 统一完成契约）、D-027（分段完成容差）、D-028（R3→R4 顺序）、D-035（段计时修复 + 段内漂移检测）。
 
-下一步（2026-09-09）：**内核对齐路线（D-036）已启动**。Q3 相位对齐**已撤回**（D-038：Forge 源码证明 START/END 等价，实测无差异）；`segment_done` 保留 `ticks=` 遥测；Q7 验收场景已就绪（`alice_test:dip_course` + `alice:pathing_dip_route`，先采基线）。待决问题专项讨论见
+下一步（2026-09-09）：**内核对齐路线（D-036）进行中**。Q7 成本模型按 Alice 实测标定 + 启发式重写（D-040）已实施，待客户端验证（`dip_course` 期望路线翻转 + 全量回归）。Q3 相位对齐**已撤回**（D-038：Forge 源码证明 START/END 等价，实测无差异）；`segment_done` 保留 `ticks=` 遥测；Q7 验收场景已就绪（`alice_test:dip_course` + `alice:pathing_dip_route`，先采基线）。待决问题专项讨论见
 `docs/ALIGNMENT_OPEN_QUESTIONS.md`（Q1 一格红线可回收性 / Q3 控制相位 1 tick / Q4 replan 归属 / Q7 成本模型偏好）。四层审计完成
 （`docs/R4_BARITONE_ALIGNMENT_AUDIT.md`，64 项对照：39 未登记偏离 / 13 缺失 / 7 已登记 / 4 对齐）；
 第一刀 P0 对齐已实施（D-037：流体不可挖 / 放置校验 InteractionResult / 危险方块扩表 /

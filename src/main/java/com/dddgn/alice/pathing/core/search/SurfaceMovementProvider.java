@@ -22,8 +22,8 @@ import java.util.List;
  */
 public final class SurfaceMovementProvider implements MovementProvider {
     private static final int[][] CARDINAL = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}};
-    /** 放置一个方块的成本量级（Baritone PLACE_ONE_BLOCK_COST 同量级）。 */
-    private static final double PLACE_ONE_BLOCK_COST = 4.0D;
+    /** 放置一个方块的成本（对照 Baritone `blockPlacementPenalty`，见 CostModel）。 */
+    private static final double PLACE_ONE_BLOCK_COST = CostModel.PLACE_ONE_BLOCK_COST;
     private static final int[][] DIAGONAL = {{1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
 
     @Override
@@ -121,8 +121,10 @@ public final class SurfaceMovementProvider implements MovementProvider {
         if (!Double.isFinite(breakTicks)) {
             return;
         }
+        // 破坏成本单位：tick → 走路格数（除以实测走路 tick 数），并加 Baritone 的固定破坏惩罚
         double cost = context.cost(MovementType.TRAVERSE, from, mid)
-                + context.cost(MovementType.TRAVERSE, mid, to) + breakTicks / 20.0D;
+                + context.cost(MovementType.TRAVERSE, mid, to)
+                + (breakTicks + CostModel.BREAK_PENALTY_TICKS) / CostModel.WALK_ONE_BLOCK_TICKS;
         out.add(new PlannedMovement(MovementType.BREAK_AND_TRAVERSE, from, to, cost,
                 RecoverabilityLevel.LOCAL_STEP));
     }
@@ -130,7 +132,7 @@ public final class SurfaceMovementProvider implements MovementProvider {
     /**
      * 放置台阶通行候选（R5-3）：目标列可通行但缺支撑（同层缺口或下 1 格）且
      * 目标下方可放置、bot 有可放置方块、存在支撑面时生成。
-     * 成本 = 水平成本 + 放置成本（对照 Baritone PLACE_ONE_BLOCK_COST 量级）。
+     * 成本 = 水平成本 + 放置成本（对照 Baritone `blockPlacementPenalty`）。
      */
     private static void appendPlaceStepAndTraverse(MovementContext context, ServerLevel level,
                                                    BlockPos from, int dx, int dz, int dy,

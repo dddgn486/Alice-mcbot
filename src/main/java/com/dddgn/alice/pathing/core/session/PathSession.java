@@ -10,6 +10,7 @@ import com.dddgn.alice.pathing.core.MovementExecutionFactory;
 import com.dddgn.alice.pathing.core.MovementSpec;
 import com.dddgn.alice.pathing.core.search.CorePathPlanner;
 import com.dddgn.alice.pathing.core.search.PathPlan;
+import com.dddgn.alice.pathing.core.search.CostModel;
 import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.pathing.core.search.PlannedMovement;
 import com.dddgn.alice.pathing.core.search.PlannedMovementSpecs;
@@ -189,8 +190,8 @@ public final class PathSession {
     }
 
     /**
-     * 本段超时上限：按规划成本动态放宽（挖掘类 Movement 成本含破坏 tick），
-     * 至少 {@link #MAX_TICKS_PER_SEGMENT}。
+     * 本段超时上限：按规划成本动态放宽（成本单位 = 走路 1 格 ≈ 6 tick，见 {@link CostModel}），
+     * 系数 20 是**安全余量**（不是单位换算），至少 {@link #MAX_TICKS_PER_SEGMENT}。
      */
     private int segmentTimeoutTicks() {
         double plannedCost = movements.get(index).cost();

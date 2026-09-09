@@ -454,3 +454,31 @@
   旧模型 `DESCEND+ASCEND+DIAGONAL`（cost 4.41，≈34 tick）；标定后 `TRAVERSE+DIAGONAL+DIAGONAL+TRAVERSE`
   （cost 4.66，≈28 tick）→ 翻转且更快 6 tick。
 
+## D-040：成本模型按 Alice 实测标定 + 启发式重写（Q7）
+
+- 状态：已实施，待客户端验证（用户 2026-09-09 确认方案）
+- 标定来源（Alice 自己的实测段耗时，`.alice-supervision/client-tests/pathing-r3-battery-20260908/evidence/r3-battery-key-lines.log`）：
+  TRAVERSE 6 / DIAGONAL 8 / ASCEND 10 / DESCEND 16 tick → 单位 = "走路 1 格"（{@code WALK_ONE_BLOCK_TICKS = 6}）。
+- 成本常量（旧 → 新）：
+  | 动作 | 旧 | 新 | 实测 tick |
+  |---|---|---|---|
+  | TRAVERSE | 1.00 | 1.00 | 6 |
+  | DIAGONAL | 1.41 | 1.33 | 8 |
+  | ASCEND | 2.00 | 1.67 | 10 |
+  | **DESCEND** | **1.00** | **2.67** | 16 |
+  旧模型把**最贵的动作当成最便宜**（下降与走路同价），这是本次修正的核心。
+- 破坏成本：`breakTicks / 20` → `(breakTicks + BREAK_PENALTY_TICKS) / WALK_ONE_BLOCK_TICKS`
+  （对照 Baritone `getMiningDurationTicks:599-604` 的 `1/strVsBlock + blockBreakAdditionalPenalty`，
+  旧写法把 tick 当秒折算，导致"挖穿比走路便宜"）。
+- 放置成本：`4.0` → `20.0 / 6 = 3.33`（对照 Baritone `blockPlacementPenalty = 20 tick`）。
+- 启发式（`GoalFoot.heuristic`）：欧氏 + 对称 |dy| → **octile 水平 + 非对称竖向**：
+  `h = straight×1.00 + diagonal×1.33 + (dy>0 ? dy×0.67 : -dy×1.67)`，
+  竖向增量 = 垂直移动成本 − 它同时覆盖的 1 格水平成本（1.67−1.00 / 2.67−1.00）。
+  结构与 Baritone `GoalBlock.calculate = GoalYLevel + GoalXZ` 一致；**可采纳且一致**（逐边可验证），
+  旧公式在斜向下降时高估 1.0 → 不可采纳。
+- A* 系数：`{1.5, 2, 2.5, 4.5}` → Baritone 的 `{1.5, 2, 2.5, 3, 4, 5, 10}`。
+- 验收标准：① 既有场景仍 `COMPLETED`；② 同场景总 tick 不劣化（±10%）；③ 无新增危险/悬空/卡边；
+  ④ `dip_course` 路线翻转：基线 `first=DESCEND movements=3 cost=4.41`（≈34 tick，客户端实证）
+  → 标定后 `first=TRAVERSE movements=4 cost=4.66`（≈28 tick，模拟器预测）。
+- 未做：`segmentTimeoutTicks` 的 `*20` 保持为安全余量（不是单位换算），已在注释中说明。
+
