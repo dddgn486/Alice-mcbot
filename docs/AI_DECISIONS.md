@@ -1056,3 +1056,25 @@
 - 验收（零参数）：`/function alice_test:scene_a` → 右键 `alice:mining_scene_tester`（或 `alice:target_selector` 右键方块）。
   期望：`[MiningPlanner探针] planned ... pathStatus=REACHED` → `[BotMiner探针] 站位移动启动` →
   `挖掘完成: target=4, 64, 4`；不再出现 legacy `PathExecutor`/`SurfacePathfinder` 日志。
+
+## D-065：站位选择 off-by-one 修复 + 排除目标正上方（Mine 兼容批）
+
+- 状态：已实施，待客户端验证（用户 2026-09-09："保留站位视线检查选优挖掘，先做兼容，直接用 Movement 走到站位"）
+- 事实（`scene_a` 客户端日志）：
+  `[BotMiner探针] 挖掘前置: target=4,64,4 botPos=4,65,4 standGoal=4,65,4 los=true`、
+  `开始挖掘: target=4,64,4 face=down` → bot **站在目标顶上朝下挖**，挖完掉进坑。
+- 根因：`StandingPointSelector.isValidStandingPoint` 写的是 `MovementHelper.canWalkOn(level, pos.below())`，
+  而 `canWalkOn(level, footPos)` 的语义是"能否站在 footPos"（内部已检查 `footPos.below()`）——
+  等于要求"候选脚位**下方两格**有支撑"，**所有正常地面站位被拒**，只剩"站在一个自身有支撑的方块顶上"，
+  于是只能站在目标方块顶上。
+- 修复（兼容批，不改变设计方向）：
+  1. `canWalkOn(level, pos.below())` → `canWalkOn(level, pos)`；
+  2. 排除 `pos.equals(target) || pos.equals(target.above())`——站在目标顶上挖 = 挖掉自己的支撑，
+     与 legacy `BotMiner.pickStandCandidates` 的排除规则一致。
+- 保留（用户裁定）：Alice 的"站位候选 + 视线评分 + 选优"流程不变；走到站位由新内核
+  `PathRetryRunner`（D-064 批次 1）负责。**不采用** Baritone 的"目标列即终点 + 边走边破坏"模型。
+- 待讨论（用户指定，先不动代码）：① 站位选优机制（评分维度、与 legacy 候选规则合并）；
+  ② 需要挖掘通道的目标（有限清障 vs Baritone 式 B1/B2，与 HARD_PATH 红线的关系）。
+  见 `docs/MINE_MIGRATION_DESIGN.md` §2.3。
+- 验收：`/function alice_test:scene_a` → 右键 `alice:mining_scene_tester` →
+  期望 `standGoal` 不再是 `target.above()`（应为侧面同层站位），`face` 不再是 `down`。

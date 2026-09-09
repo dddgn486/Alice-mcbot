@@ -171,7 +171,9 @@ public final class StandingPointSelector {
         }
         
         // 2. 检查是否可以站立（脚下有支撑，头上有空间）
-        if (!MovementHelper.canWalkOn(level, pos.below())) {
+        // 注意：canWalkOn(level, footPos) 的语义是"能否站在 footPos"（内部已看 footPos.below()）；
+        // 早期写成 pos.below() 相当于要求"下方两格有支撑"，会拒掉所有正常地面站位（D-065 修复）。
+        if (!MovementHelper.canWalkOn(level, pos)) {
             return false;
         }
         
@@ -184,7 +186,8 @@ public final class StandingPointSelector {
         }
         
         // 3. 不能站在目标方块内部
-        if (pos.equals(target)) {
+        // 也不站目标正上方：站在目标顶上挖下去 = 挖掉自己的支撑（与 legacy BotMiner 规则一致）
+        if (pos.equals(target) || pos.equals(target.above())) {
             return false;
         }
         
