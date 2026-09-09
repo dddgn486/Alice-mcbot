@@ -1,86 +1,77 @@
 package com.dddgn.alice.task;
 
-import com.dddgn.alice.action.BotMiner;
+import com.dddgn.alice.action.MineBlockRunner;
 import com.dddgn.alice.bot.RecoveryStage;
 import com.dddgn.alice.bot.TaskFailureReport;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.pathing.core.search.PlanningStatus;
 import com.dddgn.alice.perception.ScopeBuffer;
-import com.dddgn.alice.protection.BlockBreakSafety;
 import com.dddgn.alice.survival.HazardState;
 import com.dddgn.alice.survival.SurvivalSystem;
-import com.dddgn.alice.task.mining.LineOfSightChecker;
+import com.dddgn.alice.task.mining.MiningBudget;
 import com.dddgn.alice.task.mining.MiningPlan;
 import com.dddgn.alice.task.mining.MiningPlanner;
-import com.dddgn.alice.task.mining.StandingPointSelector;
-import com.dddgn.alice.task.mining.StandingPointEvaluator;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 /**
- * 单目标挖掘编排任务：智能站位选择 -> 有限局部清障 -> BotMiner 挖掘 -> DropCollectionTask 收集。
- * 普通挖矿不生成道路或隧道，深埋目标明确失败为 target_requires_tunnel。
- * 
- * <h3>优化</h3>
+ * 单目标挖掘编排任务（D-071，D-067 批次 4 第 2 步）。
+ *
+ * <p>分层：
  * <ul>
- *   <li>任务开始前评估站位质量，优先选择视线清晰的站位</li>
- *   <li>减少无效移动和清障次数</li>
+ *   <li>规划层 `MiningPlanner`：两模式站位选择 + 成本估算 + top-K 精算 + 预算（A→B→兜底）；</li>
+ *   <li>动作层 {@link MineBlockRunner}：走到站位 → 放支撑块 → 破坏目标；</li>
+ *   <li>任务层（本类）：编排"评估/规划 → 挖掘 → 收集"，失败重试（≤2）与如实上报。</li>
  * </ul>
+ *
+ * <p>不再有独立清障：挡路方块由规划器的模式 B（`BREAK_AND_ENTER` 等）在到达过程中处理。
+ * 深埋目标是否可挖由 `MiningBudget` 决定（超预算 → `found_but_unminable`）。
  */
 public final class MineTask implements Task {
     private enum Phase { EVALUATING, MINING, COLLECTING }
-    private enum FailureHandling { CONTINUE_EXISTING_RECOVERY, ESCALATE }
 
-    /** D-067 批次 3：视线失败等可重试情形最多重试 2 次（Q5 裁定）。 */
+    /** 视线失败等可重试情形最多重试 2 次（D-067 Q5）。 */
     private static final int MAX_RECOVERY_ATTEMPTS = 2;
 
     private final ServerPlayer bot;
     private final BlockPos target;
     private final ScopeBuffer scope;
-    private final com.dddgn.alice.task.mining.MiningBudget budget;
+    private final MiningBudget budget;
     private final MiningPlanner miningPlanner = new MiningPlanner();
-    private BotMiner miner;
+
+    private MineBlockRunner miner;
     private MiningPlan currentPlan;
-    private BlockPos currentMineTarget;
     private Phase phase = Phase.EVALUATING;
-    private DropCollectionTask collector;
+    private CollectDropsTask collector;
     private String failureReason = "";
-    private BotMiner.FailureReport lastFailureReport;
+    private MineBlockRunner.FailureReport lastFailureReport;
     private int recoveryAttempts;
     private int executionAttempts;
-    private BotMiner.Status lastProbeMinerStatus;
     private RecoveryStage recoveryStage = RecoveryStage.NONE;
     private final List<RecoveryStage> recoveryEvents = new ArrayList<>();
-    private BotMiner observedMiner;
-    private int observedMinerEventCount;
-    
-    // 站位优化相关
+    private MineBlockRunner.Status lastProbeStatus;
     private BlockPos optimalStandingPoint;
-    private boolean standingPointEvaluated = false;
+    private boolean standingPointEvaluated;
 
     public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope) {
-        this(bot, target, scope, com.dddgn.alice.task.mining.MiningBudget.forTarget(
+        this(bot, target, scope, MiningBudget.forTarget(
                 bot, (net.minecraft.server.level.ServerLevel) bot.level(), target, true));
     }
 
     /** D-067 批次 3：`collectDrops` 为必要参数（false 时跳过放支撑块与收集）。 */
-    public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope,
-                    com.dddgn.alice.task.mining.MiningBudget budget) {
+    public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope, MiningBudget budget) {
         this.bot = bot;
         this.target = target.immutable();
         this.scope = scope;
         this.budget = budget;
-        this.currentMineTarget = this.target;
         bot.getInventory().setItem(bot.getInventory().selected,
-                new ItemStack(Items.DIAMOND_PICKAXE));
+                new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_PICKAXE));
         com.dddgn.alice.bot.BotManager.syncMainHand(bot);
-        BotLog.info("任务创建: MineTask target={}", this.target.toShortString());
+        BotLog.info("任务创建: MineTask target={} budget={}", this.target.toShortString(),
+                budget.describe());
     }
 
     @Override
@@ -99,12 +90,12 @@ public final class MineTask implements Task {
 
     @Override
     public TaskFailureReport failureReport() {
-        BotMiner.FailureReport report = lastFailureReport;
-        String details = report == null ? "" : "planInvalidation=" + report.planInvalidation();
+        MineBlockRunner.FailureReport report = lastFailureReport;
+        String details = report == null ? "" : "phase=" + report.phase() + " retryable=" + report.retryable();
         return new TaskFailureReport(failureReason, phase.name(), details, recoveryStage, recoveryEvents());
     }
 
-    public BotMiner.FailureReport lastFailureReport() {
+    public MineBlockRunner.FailureReport lastFailureReport() {
         return lastFailureReport;
     }
 
@@ -121,33 +112,7 @@ public final class MineTask implements Task {
     }
 
     public List<RecoveryStage> recoveryEvents() {
-        syncMinerRecoveryEvents();
         return Collections.unmodifiableList(new ArrayList<>(recoveryEvents));
-    }
-
-    private void syncMinerRecoveryEvents() {
-        if (miner == null) return;
-        if (miner != observedMiner) {
-            observedMiner = miner;
-            observedMinerEventCount = 0;
-        }
-        List<RecoveryStage> minerEvents = miner.recoveryEvents();
-        while (observedMinerEventCount < minerEvents.size()) {
-            RecoveryStage event = minerEvents.get(observedMinerEventCount++);
-            if (!recoveryEvents.contains(event)) {
-                recoveryEvents.add(event);
-            }
-            recoveryStage = RecoveryStage.highest(recoveryStage, event);
-        }
-    }
-
-    private void recordRecovery(RecoveryStage stage) {
-        syncMinerRecoveryEvents();
-        if (stage == null || stage == RecoveryStage.NONE) return;
-        if (!recoveryEvents.contains(stage)) {
-            recoveryEvents.add(stage);
-        }
-        recoveryStage = RecoveryStage.highest(recoveryStage, stage);
     }
 
     public boolean currentPlanRetained() {
@@ -158,6 +123,16 @@ public final class MineTask implements Task {
         return currentPlan;
     }
 
+    private void recordRecovery(RecoveryStage stage) {
+        if (stage == null || stage == RecoveryStage.NONE) {
+            return;
+        }
+        if (!recoveryEvents.contains(stage)) {
+            recoveryEvents.add(stage);
+        }
+        recoveryStage = RecoveryStage.highest(recoveryStage, stage);
+    }
+
     @Override
     public Status tick() {
         HazardState hazard = SurvivalSystem.tick(bot);
@@ -165,13 +140,11 @@ public final class MineTask implements Task {
             failureReason = SurvivalSystem.interruptionReason(hazard);
             return Status.FAILED;
         }
-        
-        // 阶段 1：评估站位
+
         if (phase == Phase.EVALUATING) {
             return evaluateStandingPoint();
         }
-        
-        // 阶段 2：挖掘
+
         if (phase == Phase.COLLECTING) {
             Status status = collector.tick();
             if (status == Status.FAILED) {
@@ -180,65 +153,48 @@ public final class MineTask implements Task {
             return status;
         }
 
-        BotMiner.Status status = miner.tick();
-        if (status != lastProbeMinerStatus) {
-            BotLog.info("[MineTask探针] BotMiner状态: target={} mineTarget={} phase={} status={} botPos={} stand={} failure={}",
-                    target.toShortString(), currentMineTarget.toShortString(), phase, status,
-                    bot.blockPosition().toShortString(),
+        MineBlockRunner.Status status = miner.tick();
+        if (status != lastProbeStatus) {
+            BotLog.info("[MineTask探针] 挖掘状态: target={} phase={} status={} botPos={} stand={} failure={}",
+                    target.toShortString(), phase, status, bot.blockPosition().toShortString(),
                     optimalStandingPoint == null ? "-" : optimalStandingPoint.toShortString(),
                     miner.failureReason().isEmpty() ? "-" : miner.failureReason());
-            lastProbeMinerStatus = status;
+            lastProbeStatus = status;
         }
-        if (status == BotMiner.Status.MINING || status == BotMiner.Status.MOVING) {
-            recoveryStage = RecoveryStage.highest(recoveryStage, miner.recoveryStage());
+        if (status == MineBlockRunner.Status.MINING || status == MineBlockRunner.Status.MOVING) {
             return Status.RUNNING;
         }
-        if (status == BotMiner.Status.DONE) {
-            if (!currentMineTarget.equals(target)) {
-                BotLog.info("清障完成: 已挖掉遮挡 {} -> 继续挖原目标 {}",
-                        currentMineTarget.toShortString(), target.toShortString());
-                startMining(target);
-                return Status.RUNNING;
-            }
+        if (status == MineBlockRunner.Status.DONE) {
             if (!budget.collectDrops()) {
                 BotLog.info("[MineTask] collect_skipped target={} reason=collectDrops=false",
                         target.toShortString());
                 return Status.DONE;
             }
             phase = Phase.COLLECTING;
-            collector = new DropCollectionTask(bot, target, scope);
+            if (!(bot instanceof com.dddgn.alice.bot.BotPlayer botPlayer)) {
+                throw new IllegalStateException("MineTask requires BotPlayer");
+            }
+            collector = new CollectDropsTask(botPlayer, target, scope, List.of(), true);
             BotLog.info("挖掘阶段完成,进入拾取阶段: target={}", target.toShortString());
             return Status.RUNNING;
         }
 
-        String minerFailure = miner.failureReason();
-        BotMiner.FailureReport failureReport = miner.failureReport();
-        lastFailureReport = failureReport;
-        BotLog.warn("[MineTask计划失败报告] target={} mineTarget={} attempt={} reason={} planInvalidation={} currentPlanRetained={} taskReplanPolicy=ONE_ATTEMPT",
-                target.toShortString(), currentMineTarget.toShortString(), executionAttempts,
-                failureReport.reason(), failureReport.planInvalidation(), currentPlanRetained());
-        FailureHandling handling = classifyFailure(minerFailure, failureReport);
-        BotLog.info("[MineTask失败处理探针] target={} reason={} planInvalidation={} handling={} recoveryAttempts={}/{}",
-                target.toShortString(), minerFailure, failureReport.planInvalidation(), handling,
-                recoveryAttempts, MAX_RECOVERY_ATTEMPTS);
-        if (handling == FailureHandling.ESCALATE) {
-            return escalateFailure(minerFailure, failureReport);
+        MineBlockRunner.FailureReport report = miner.failureReport();
+        lastFailureReport = report;
+        BotLog.warn("[MineTask计划失败报告] target={} attempt={} reason={} phase={} retryable={} currentPlanRetained={}",
+                target.toShortString(), executionAttempts, report.reason(), report.phase(),
+                report.retryable(), currentPlanRetained());
+        if (isHardTargetRefusal(report.reason()) || !report.retryable()) {
+            return escalateFailure(report);
         }
-        // D-067 批次 3：不再有独立清障；失败一律走"重新规划"（规划器会自动从 A 降级到 B），
-        // 重试预算用尽后如实上报（深埋目标由 MiningBudget 决定是 TUNNEL 还是 found_but_unminable）。
-        if (tryReplan(failureReport)) {
+        if (tryReplan(report)) {
             return Status.RUNNING;
         }
-        if ("stand_search_limit".equals(minerFailure)
-                || failureReport.planInvalidation() == BotMiner.PlanInvalidation.PLAN_PATH_INCONCLUSIVE) {
-            return escalateFailure("stand_search_limit", failureReport);
-        }
-        return escalateFailure(minerFailure, failureReport);
+        return escalateFailure(report);
     }
 
-    private boolean tryReplan(BotMiner.FailureReport report) {
-        if (currentPlan == null || report == null || recoveryAttempts >= MAX_RECOVERY_ATTEMPTS
-                || !isReplanEligible(report.planInvalidation())) {
+    private boolean tryReplan(MineBlockRunner.FailureReport report) {
+        if (currentPlan == null || report == null || recoveryAttempts >= MAX_RECOVERY_ATTEMPTS) {
             return false;
         }
         recoveryAttempts++;
@@ -253,111 +209,77 @@ public final class MineTask implements Task {
         currentPlan = result.plan();
         recordRecovery(RecoveryStage.MINETASK_REPLAN);
         optimalStandingPoint = currentPlan.standingFoot();
-        currentMineTarget = target;
         lastFailureReport = report;
-        BotLog.info("[MineTask重规划探针] target={} recoveryAttempt={}/{} oldStanding={} newStanding={} newPathStatus={} newVisibility={} currentPlanReplaced=true",
+        BotLog.info("[MineTask重规划探针] target={} recoveryAttempt={}/{} oldStanding={} newStanding={} mode={} newPathStatus={}",
                 target.toShortString(), recoveryAttempts, MAX_RECOVERY_ATTEMPTS,
                 previousPlan.standingFoot().toShortString(), currentPlan.standingFoot().toShortString(),
-                currentPlan.path().status(), currentPlan.visibility().isClear());
+                currentPlan.mode(), currentPlan.path().status());
         phase = Phase.MINING;
-        startMining(target);
+        startMining();
         return true;
     }
 
-    private static boolean isReplanEligible(BotMiner.PlanInvalidation invalidation) {
-        return invalidation == BotMiner.PlanInvalidation.PLAN_START_MISMATCH
-                || invalidation == BotMiner.PlanInvalidation.PLAN_PATH_STALE
-                || invalidation == BotMiner.PlanInvalidation.RUNTIME_VISIBILITY_FAILED
-                || invalidation == BotMiner.PlanInvalidation.RUNTIME_OUT_OF_REACH;
-    }
-
-    private FailureHandling classifyFailure(String reason, BotMiner.FailureReport report) {
-        if (isHardTargetRefusal(reason)) {
-            return FailureHandling.ESCALATE;
-        }
-        return FailureHandling.CONTINUE_EXISTING_RECOVERY;
-    }
-
-    private Status escalateFailure(String reason, BotMiner.FailureReport report) {
+    private Status escalateFailure(MineBlockRunner.FailureReport report) {
         recordRecovery(RecoveryStage.ESCALATED_FAILURE);
-        failureReason = reason == null || reason.isBlank() ? "unknown_failure" : reason;
+        failureReason = report == null || report.reason().isBlank() ? "unknown_failure" : report.reason();
         lastFailureReport = report;
-        BotLog.warn("[MineTask升级决策探针] target={} reason={} planInvalidation={} attempts={} recoveryAttempts={}/{} currentPlanRetained={} nextAction=ESCALATE",
+        BotLog.warn("[MineTask升级决策探针] target={} reason={} phase={} attempts={} recoveryAttempts={}/{} currentPlanRetained={} nextAction=ESCALATE",
                 target.toShortString(), failureReason,
-                report == null ? "NONE" : report.planInvalidation(), executionAttempts,
+                report == null ? "NONE" : report.phase(), executionAttempts,
                 recoveryAttempts, MAX_RECOVERY_ATTEMPTS, currentPlanRetained());
         return Status.FAILED;
-    }
-
-    /**
-     * 请求一次原始目标的挖掘领域规划，并保存计划快照。
-     */
-    private Status evaluateStandingPoint() {
-        if (standingPointEvaluated) {
-            phase = Phase.MINING;
-            startMining(target);
-            return Status.RUNNING;
-        }
-
-        BlockPos currentPos = bot.blockPosition().immutable();
-        MiningPlanner.Result result = miningPlanner.plan(bot, target, budget);
-        if (!result.success()) {
-            BotLog.warn("[MiningPlanner探针] planning failed target={} reason={} budget={}",
-                    target.toShortString(), result.failureReason());
-            return escalateFailure(result.failureReason(), null);
-        }
-
-        currentPlan = result.plan();
-        if (currentPlan.path().status() == PlanningStatus.SEARCH_LIMIT) {
-            BotLog.warn("[MiningPlanner契约] 初始计划不可执行: target={} pathStatus=SEARCH_LIMIT action=FAIL_SAFE",
-                    target.toShortString());
-            return escalateFailure("stand_search_limit", null);
-        }
-        if (currentPlan.path().status() == PlanningStatus.UNREACHABLE) {
-            BotLog.warn("[MiningPlanner契约] 初始计划不可执行: target={} pathStatus=UNREACHABLE action=FAIL_SAFE",
-                    target.toShortString());
-            return escalateFailure("no_safe_execution_path", null);
-        }
-        optimalStandingPoint = currentPlan.standingFoot();
-        standingPointEvaluated = true;
-        BotLog.info("[MiningPlanner探针] planned target={} startFoot={} standingFoot={} pathStatus={} pathSize={} pathCost={} visibility={} executable={} score={}",
-                currentPlan.target().toShortString(), currentPlan.startFoot().toShortString(),
-                currentPlan.standingFoot().toShortString(), currentPlan.path().status(),
-                currentPlan.path().movements().size(),
-                String.format(java.util.Locale.ROOT, "%.3f", currentPlan.path().totalCost()),
-                currentPlan.visibility().isClear(), currentPlan.isExecutable(),
-                result.score() == null ? "-" : String.format(java.util.Locale.ROOT, "%.3f", result.score().getScore()));
-        phase = Phase.MINING;
-        startMining(target);
-        return Status.RUNNING;
     }
 
     private static boolean isHardTargetRefusal(String reason) {
         return "unbreakable_block".equals(reason)
                 || "fluid_risk_lava".equals(reason)
+                || "TARGET_NOT_BREAKABLE".equals(reason)
                 || reason.startsWith("protected_");
     }
 
-    private void startMining(BlockPos pos) {
-        currentMineTarget = pos.immutable();
-        executionAttempts++;
-        if (currentMineTarget.equals(target) && currentPlan != null) {
-            BotLog.info("[MiningPlan一致性探针] target={} planTarget={} planStartFoot={} planStandingFoot={} optimalStandingPoint={} currentMineTarget={} mode=PLAN",
-                    target.toShortString(), currentPlan.target().toShortString(),
-                    currentPlan.startFoot().toShortString(), currentPlan.standingFoot().toShortString(),
-                    optimalStandingPoint == null ? "-" : optimalStandingPoint.toShortString(),
-                    currentMineTarget.toShortString());
-            miner = new BotMiner(bot, currentPlan);
-        } else {
-            BlockPos preferredStand = currentMineTarget.equals(target) ? optimalStandingPoint : null;
-            miner = new BotMiner(bot, currentMineTarget, preferredStand);
+    /** 阶段 1：请求一次挖掘领域规划（两模式），并保存计划快照。 */
+    private Status evaluateStandingPoint() {
+        if (standingPointEvaluated) {
+            phase = Phase.MINING;
+            startMining();
+            return Status.RUNNING;
         }
-        lastProbeMinerStatus = null;
-        BotLog.info("[MineTask探针] 创建 BotMiner: taskTarget={} mineTarget={} phase={} botPos={} stand={} mode={}",
-                target.toShortString(), currentMineTarget.toShortString(), phase,
-                bot.blockPosition().toShortString(),
-                optimalStandingPoint == null ? "-" : optimalStandingPoint.toShortString(),
-                currentMineTarget.equals(target) && currentPlan != null ? "PLAN" : "LEGACY_COMPAT");
+
+        MiningPlanner.Result result = miningPlanner.plan(bot, target, budget);
+        if (!result.success()) {
+            BotLog.warn("[MiningPlanner探针] planning failed target={} reason={} budget={}",
+                    target.toShortString(), result.failureReason(), budget.describe());
+            return escalateFailure(new MineBlockRunner.FailureReport(
+                    result.failureReason(), "planning", false));
+        }
+
+        currentPlan = result.plan();
+        optimalStandingPoint = currentPlan.standingFoot();
+        standingPointEvaluated = true;
+        BotLog.info("[MiningPlanner探针] planned target={} startFoot={} standingFoot={} mode={} pathStatus={} pathSize={} pathCost={} visibility={} executable={} support={} score={}",
+                currentPlan.target().toShortString(), currentPlan.startFoot().toShortString(),
+                currentPlan.standingFoot().toShortString(), currentPlan.mode(),
+                currentPlan.path().status(), currentPlan.path().movements().size(),
+                String.format(java.util.Locale.ROOT, "%.3f", currentPlan.path().totalCost()),
+                currentPlan.visibility().isClear(), currentPlan.isExecutable(),
+                currentPlan.supportPlacementPos() == null ? "-" : currentPlan.supportPlacementPos().toShortString(),
+                result.score() == null ? "-"
+                        : String.format(java.util.Locale.ROOT, "%.3f", result.score().getScore()));
+        phase = Phase.MINING;
+        startMining();
+        return Status.RUNNING;
     }
 
+    private void startMining() {
+        executionAttempts++;
+        if (!(bot instanceof com.dddgn.alice.bot.BotPlayer botPlayer)) {
+            throw new IllegalStateException("MineTask requires BotPlayer");
+        }
+        miner = new MineBlockRunner(botPlayer, currentPlan);
+        lastProbeStatus = null;
+        BotLog.info("[MineTask探针] 创建 MineBlockRunner: target={} mode={} stand={} botPos={} attempt={}",
+                target.toShortString(), currentPlan.mode(),
+                currentPlan.standingFoot().toShortString(), bot.blockPosition().toShortString(),
+                executionAttempts);
+    }
 }

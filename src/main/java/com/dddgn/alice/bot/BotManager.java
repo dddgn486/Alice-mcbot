@@ -1,6 +1,5 @@
 package com.dddgn.alice.bot;
 
-import com.dddgn.alice.action.BotMiner;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.network.AliceNetwork;
 import com.dddgn.alice.network.TargetPacket;
@@ -905,11 +904,11 @@ public final class BotManager {
                     terminalStatus == TaskExecutionRecord.TerminalStatus.COMPLETED || task == null
                             ? null : task.failureReport());
             if (mineTask != null) {
-                BotMiner.FailureReport report = mineTask.lastFailureReport();
-                BotLog.info("[MineTask终态计划证据] target={} attempts={} recoveryAttempts={} recoveryStage={} recoveryEvents={} currentPlanRetained={} reason={} planInvalidation={}",
+                com.dddgn.alice.action.MineBlockRunner.FailureReport report = mineTask.lastFailureReport();
+                BotLog.info("[MineTask终态计划证据] target={} attempts={} recoveryAttempts={} recoveryStage={} recoveryEvents={} currentPlanRetained={} reason={} phase={}",
                         taskTargetDescription, mineTask.executionAttempts(), mineTask.recoveryAttempts(), mineTask.recoveryStage(),
                         mineTask.recoveryEvents(), mineTask.currentPlanRetained(), report == null ? "-" : report.reason(),
-                        report == null ? "NONE" : report.planInvalidation());
+                        report == null ? "NONE" : report.phase());
             }
             reportItems();
             clearTask();

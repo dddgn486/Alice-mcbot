@@ -1,6 +1,5 @@
 package com.dddgn.alice.bot;
 
-import com.dddgn.alice.action.BotMiner;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.capability.InterfaceScanner;
 import com.dddgn.alice.capability.InterfaceSnapshot;
@@ -469,7 +468,7 @@ public final class BotSelftest {
         boolean blockGone = level.getBlockState(target2).isAir();
         String result = BotManager.lastTaskResult(bot);
         test2MineStart = BotManager.lastMineStartPos(bot);
-        // PASS = 目标被挖掉(隔空挖由 BotMiner 每次挖掘前的视线检查硬保证拦截,
+        // PASS = 目标被挖掉(隔空挖由 MineBlockRunner 每次挖掘前的视线检查硬保证拦截,
         // 清障挖开隔层后站高处挖低处也是合法的) 或 拒绝隔空挖(failed, 合法)。
         test2Pass = withinBudget(blockGone || result.startsWith("failed:"));
         test2Detail = "blockGone=" + blockGone + " result=" + result

@@ -1198,3 +1198,39 @@
   模式 A 合法成立（`mode=DIRECT chosen=22,64,132 los=true`）。**修复**：场景补 `setblock 23 65 128 stone`。
 - 经验（再次印证 D-039/D-042）：**允许"从任意角度挖"的站位系统下，场景必须把所有面（含顶面）都封死**
   才能构造"埋藏"用例；只封四面会留下斜上方视线。
+
+## D-071：`MineBlockRunner` 替代 `BotMiner` 在挖矿链路的角色（D-067 批次 4 第 1/2 步）
+
+- 状态：已实施，待客户端验证（用户 2026-09-09："好一步一步来"）
+- 新增 `action/MineBlockRunner`（消费 `MiningPlan`）：**走到站位 → （必要时）目标下方放支撑块 → 破坏目标**。
+  - 走位请求按 mode：`TUNNEL`/`ENTER_TARGET` → `PathRequest.miningApproach`，其余 → `PathRequest.of`；
+  - 破坏统一走 `BlockBreakSession`（工具/进度广播/ABORT/超时）；
+  - 运行期视线复核失败 → `LINE_OF_SIGHT_BLOCKED`（`retryable=true`，任务层重规划/换站位）。
+- `MineTask` 切换到新原语：删除 `BotMiner.FailureReport`/`PlanInvalidation`/`syncMinerRecoveryEvents`/清障相关代码；
+  失败处理简化为"硬拒绝 → 上报；否则重试（≤2）→ 上报"。
+
+## D-072：`CollectDropsTask`——公用收集子任务（替换 `DropCollectionTask`）
+
+- 状态：已实施，待客户端验证
+- 依据：`docs/MINE_MIGRATION_DESIGN.md` §4（用户裁定：公用子任务 + 按需世界修改权限 + 终点=掉落物位置 + best-effort + 删反射/删挖台阶）
+- 实现：
+  - 构造参数 `(bot, origin, scope, expectedIds, allowWorldModification, totalBudgetTicks)`；
+  - 终点 = 物品 `blockPosition()`；移动走 `PathRetryRunner`（`withWorldModification` 或 `of`）；
+  - 自然拾取等待（`PICKUP_WAIT_TICKS=40`），**不反射、不 `playerTouch`**；
+  - 每物品预算 200 tick + 任务总预算 600 tick；不可达 → 标记并继续；
+  - 终态 `[CollectDrops] SUMMARY reason=.. collected=n/m vanished=v unreachable=k ticks=..` → 始终 `DONE`（best-effort）。
+  - `MineTask` 在 `collectDrops=true` 时调用（`allowWorldModification=true`）。
+- 删除：`task/DropCollectionTask`（241 行屎山：反射 pickupDelay、sticky/abandoned/retries/captureWait 多套计数、收集阶段挖台阶）。
+
+## D-073：伐木任务禁用 + `BotMiner` 删除（用户裁定）
+
+- 状态：已实施
+- 用户裁定（2026-09-09）："BotMiner 要删除，伐木任务直接禁用，不能耽误当前流程"；
+  伐木**推迟并立专项**（原代码混乱，专项重写）。
+- 实施：
+  - 删除 `action/BotMiner`（693 行）与 `task/lumber/*`（`ContinuousLumberTask` 531 行 / `RegionLumberTask` 505 行 /
+    `TreeDetector` / `Tree` / `TreeType`，共 1377 行；git 历史保留，专项重写）；
+  - `alice:auto_lumberer` / `alice:lumber_planner` 两个物品改为"已禁用"提示（保留物品与贴图，避免资源缺失）；
+  - `BotSelftest` 的注释与 import 同步清理；`Task` javadoc 改指 `MineBlockRunner`。
+- 夹具说明：`MiningSceneFixture` / `MiningReplanFixture` 已只依赖新规划器（`MiningPlan`/`MiningPlanner`），
+  **无需重写**（设计里"夹具重写"的动因是它们引用 legacy API，现已不存在）。

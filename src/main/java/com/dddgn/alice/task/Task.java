@@ -9,7 +9,7 @@ import com.dddgn.alice.bot.TaskFailureReport;
  * 职责分工:
  * <ul>
  *   <li><b>任务层</b>(本包):编排「先做什么、后做什么」——如挖矿 → 拾取;</li>
- *   <li><b>动作层</b>({@code action/} 包):单动作状态机——如 {@code BotMiner} 挖掘;</li>
+ *   <li><b>动作层</b>({@code action/} 包):单动作状态机——如 {@code MineBlockRunner} 挖掘;</li>
  *   <li><b>感知层</b>({@code perception/} 包):任务运行时的世界状态查询
  *       (目标校验、掉落物定位)——Task 构造时注入,即「感知驱动执行」的接线点。</li>
  * </ul>
