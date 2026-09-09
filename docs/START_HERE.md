@@ -10,8 +10,7 @@
 **核心原则**：
 - LLM 只做目标级决策；确定性代码负责动作、安全和完成条件
 - 服务端是世界、bot、任务和库存的真相
-- 普通挖矿和拾取保持 `HARD_PATH`
-- `SOFT_SURFACE` 不能悄悄接入正式任务
+- 寻路请求默认纯通行；破坏/放置只能由上层任务显式授权并受预算闸门约束（D-076）
 - `SEARCH_LIMIT` ≠ `UNREACHABLE`，不能自动授权挖隧道
 - 未知模组能力默认只读，不猜槽位、配方或写入语义
 
@@ -82,7 +81,7 @@ Skills 是技术知识库，不是审批流程。**遇到以下场景必须先�
 
 ### AI 在客户端测试中的职责
 1. **用户表示"测试通过"或"测试完成"后**，AI **必须主动**读取 Windows 客户端日志：
-   - 筛选关键日志前缀（如 `[R2-B Traverse]`、`[MineTask]`、`[BotMiner]` 等）
+   - 筛选关键日志前缀（如 `[R2-B Traverse]`、`[MineTask]`、`[MineRunner]`、`[CollectDrops]`、`[ChainMine]` 等）
    - 确认 started/completed/failed 终态
    - 验证实际脚位、支撑、onGround、controller 状态等事实
 2. **主动询问**（如果日志不可访问或不足）：

@@ -4,6 +4,29 @@
 
 更新时间：2026-09-09
 
+> **2026-09-09 晚（批次 5：模组兼容）**：首测发现模组连锁会取消原版逐格掉落物生成（缓冲后聚合生成），
+> 我们的作用域把"从未进入世界"的幻影实体登记成掉落物 → 收集阶段空转 ~11 s。
+> 已修（`ScopeBuffer` 延迟登记 + `inWorld()` 判定）并**按用户裁定把 `CollectDropsTask` 改为簇级收集**
+> （背包增量计数 + 守恒交叉校验 `MISMATCH`）。**客户端验收通过（2026-09-09 21:06）**：
+> `drops=1`、`collected=9/9`、`mismatch=0`、收集 `ticks=8`（修复前 220）、任务 `COMPLETED` 32 tick；
+> 自家挖矿路径同日复测通过（`scene_a`：`collected=1/1 mismatch=0 ticks=14`，`MineTask COMPLETED` 37 tick）。
+> **连锁生产开关已实施（D-077）**：默认 `OFF`、`/alice chain off|auto|force` 游戏内切换、AUTO 仅矿石/原木、
+> 失败如实回落单格挖掘。首测暴露收集判据缺陷（"看着到位却不捡"：用了到方块中心距离而非原版包围盒相交，
+> 且提前取消寻路），已修（D-076 修正）；随后发现重写时误删"创建寻路"段导致直接放弃，
+> 已补回并加退休坐标探针；**客户端验收通过（2026-09-09 22:34）**：
+> 单格两次 `collected=1/1 mismatch=0 ticks=12`（一次盒内直接吸走、一次走下台阶吸走），与用户观察一致。
+> **D-077 三档全部验收**（off 无 `prod_*`；force/auto 各 `collected=9/9 mismatch=0`）。
+> **批次 5 `mine_regression` 已实施（D-078）**：一键覆盖规划 5 项 + 执行 2 项 + 模组连锁 1 项，
+> **客户端验收通过（2026-09-09 22:48）**：8/8 PASS、`ticks=99`、任务 `COMPLETED`
+> （`exec_chain collected=9/9`、`exec_blocked collected=1/1+ delta=2` 通道副产品）。
+>
+> **2026-09-09 晚（批次 5：模组兼容，诊断路径已实施）**：`alice:chain_test_runner` + `alice_test:chain_course`
+> ——反射调用 Ore Excavation 1.13.174 的服务端入口触发连锁，验证"连锁掉落物捕获 + 收集"；
+> 同步加固 `ScopeBuffer`（跳过被取消的生成事件 + 破坏点位置回退配对，应对模组缓冲掉落物）。
+> jar `38fc2bd5…` 已同步固定客户端，**待客户端实测**（`WINDOWS_CLIENT` 未取得）。
+> 策略见 **D-075**：连锁全局默认 `OFF`（原版），玩家游戏内手动启用，默认只连锁**矿石与原木**；
+> bot 专属连锁配置映射、范围/批量建筑等能力留待后续（联动其他模组）。
+
 ## 当前目标
 
 **（2026-09-08 用户重申）完全参照 Baritone 搭建寻路内核**，差异仅限三条：① Bot 可回收性安全策略；② 多层任务失败向上传递（任务层 → LLM 决策层处理接口）；③ 未来 Bot 并行运行接口。最终交付**完整寻路系统**，供其他任务系统接入。详见 `docs/ALICE_PATHING_CORE_ARCHITECTURE.md` §1.1 与 §13。
@@ -51,8 +74,10 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
 
 - LLM 只做目标级决策；确定性执行器负责动作、安全和完成条件。
 - 服务端是世界、bot、任务、权限和库存的真相。
-- 普通挖矿和拾取保持 `HARD_PATH`。
-- `SOFT_SURFACE` 只能通过独立实验入口推进，不能悄悄接入正式任务。
+- **寻路红线（D-076，取代 `HARD_PATH` 旧语句）**：寻路请求默认纯通行（`PathRequest.of`）；
+  破坏/放置只能由上层任务**显式授权**并受**预算闸门**约束（挖掘站位 `miningApproach` + `MiningBudget`；
+  收集 `allowWorldModification=true`）；禁止寻路器自行挖穿地形、禁止把 `SEARCH_LIMIT` 当授权、
+  禁止实验性移动模式隐式接入正式任务。
 - `SEARCH_LIMIT` 不等于 `UNREACHABLE`，不自动授权挖隧道。
 - **Movement 落差红线（D-024）：Bot 不允许超过一格的落差**；Descend 过冲落点列必须与目标同层落脚，更深一律拒绝。
 - **假人台阶高度 = 0.6，对齐真实玩家（D-025）**；一格方块必须跳跃才能上，`BotPlayer` 构造显式 `setMaxUpStep(0.6F)`，禁止改回 1.0。
@@ -120,7 +145,7 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
 ## 当前不要做
 
 - ❌ 不删除旧 `PathExecutor` 或直接接入 MineTask
-- ❌ 不把 SOFT_SURFACE、隧道、搭路隐式接入普通挖矿
+- ❌ 不把隧道、搭路、实验性移动隐式接入普通挖矿（D-076）
 - ❌ 不把 `SEARCH_LIMIT` 当作 `UNREACHABLE` 或自动授权挖隧道
 - ❌ 不实施多 Bot 并行调度
 - ❌ R1/R2 契约未评审通过前，不扩展 MovementPlanCompiler 或给 WalkMovement 堆叠新语义

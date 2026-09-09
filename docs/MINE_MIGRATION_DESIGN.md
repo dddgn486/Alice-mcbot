@@ -92,11 +92,13 @@ CollectDropsTask(
 
 ### 4.3 算法（每 tick）
 1. 刷新候选：`scope.liveItemsFromOrigin(origin)`；优先 `expectedIds`，其余按"新出现且在半径内"纳入；
-2. 选目标：最近优先 + 粘滞（除非消失/超距/超时）；
-3. **终点 = 掉落物的 `blockPosition()`**（不做"相邻站位"改写）；
-4. 移动：`PathRetryRunner` +（按需）`withWorldModification`；FAILED（不可达）→ 标记该物品不可达；
-5. 拾取：站在掉落物格（或 1 格内）后**等待自然拾取**（上限 `PICKUP_WAIT_TICKS`）；**不反射、不调 `playerTouch`**；
-6. 收尾：`[CollectDrops] SUMMARY collected=n/m unreachable=k ticks=...` → `DONE`。
+2. 分簇：候选按**连通距离 2.0 格、|Δy| ≤ 1** 聚簇（D-076；对应原版拾取盒 ±1.3 x/z、±0.5 y）；
+3. **终点 = 簇内最近成员的 `blockPosition()`**（不做"相邻站位"改写）；超时后最多再换 2 次锚点扫尾；
+4. 移动：`PathRetryRunner` +（按需）`withWorldModification`；FAILED（不可达）→ 标记该簇不可达；
+5. 拾取：站进范围后**等待自然拾取**（上限 `PICKUP_WAIT_TICKS`）；**不反射、不调 `playerTouch`**；
+6. 计数：**背包增量**（物品个数，非实体个数）+ 守恒交叉校验（`增量 == 起始 stack 总和 − 剩余存活 stack 总和`）；
+7. 收尾：`[CollectDrops] SUMMARY reason=.. collected=<物品>/<期望> entities=<消耗>/<已知> clusters=..
+   unreachable=.. pickup_timeout=.. mismatch=.. ticks=..` → `DONE`。
 
 ### 4.4 失败语义（已裁定）
 best-effort：收集不到不判 FAILED，只记日志 + 摘要。理由：掉落物可能被岩浆烧掉/被别的实体捡走/掉进深坑。
@@ -125,15 +127,18 @@ best-effort：收集不到不判 FAILED，只记日志 + 摘要。理由：掉�
 
 ---
 
-## 6. HARD_PATH 红线
+## 6. 寻路红线（D-076 现行表述）
 
-1. `MineTask` 的**到站位**路径必须用 `PathRequest.of`（TRAVERSE/DIAGONAL/ASCEND/DESCEND）；
-2. 挖掘动作由 `BotMiner` 独立执行；不得让寻路器用 `withWorldModification` 自己挖隧道；
-3. 深埋目标仍然 `target_requires_tunnel` 失败（除非 §2.3 讨论后另行裁定）；
-4. `SOFT_SURFACE` 不接入挖矿链路。
+> **寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。**
 
-> **与收集子任务的关系**：HARD_PATH 约束的是"走到挖掘站位"这一段；
-> 收集子任务是调用方显式授予世界修改权限的独立需求（`allowWorldModification=true`），两者不冲突。
+1. **默认**：`MineTask` 的到站位路径用 `PathRequest.of`（TRAVERSE/DIAGONAL/ASCEND/DESCEND）；
+2. **挖掘站位的授权例外**：模式 B / 浮动目标支撑用 `PathRequest.miningApproach`
+   （允许 `BREAK_AND_TRAVERSE / BREAK_AND_ENTER / PLACE_STEP_AND_TRAVERSE`，**禁用 `PILLAR / FALL / DOWNWARD`**），
+   受 `MiningBudget.maxExtraBreakTicks` 限制；超预算 → `found_but_unminable`（如实失败，不静默挖隧道）；
+3. **动作层分离**：破坏由 `BlockBreakSession`（目标 + 有限清障）执行，寻路器不得自己挖；
+4. **收集子任务**：`CollectDropsTask` 默认 `PathRequest.of`，只有调用方显式 `allowWorldModification=true`
+   才走 `withWorldModification`——这是**显式授权**，不与红线冲突；
+5. 禁止把 `SEARCH_LIMIT` 当授权、把不可达当"那就挖过去"、把实验性移动模式接入正式任务。
 
 ---
 

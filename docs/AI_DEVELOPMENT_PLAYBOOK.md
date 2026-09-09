@@ -102,12 +102,13 @@ docs/AI_CHANGELOG.md           按日期记录实际改动、失败和修复
 每条决策只写结论、理由、范围和替代方案：
 
 ```markdown
-## D-012：普通挖矿保持 HARD_PATH
-- 状态：冻结
-- 决定：MineTask/DropCollectionTask 不调用 SOFT_SURFACE
-- 原因：软移动尚未完成全场景客户端验证
-- 影响：曲面不可达时返回 target_requires_tunnel 或保守失败
-- 可改条件：独立软移动矩阵通过，并重新讨论任务接入
+## D-076：寻路红线现行表述（**格式示例**，内容为现行真实决策）
+- 状态：稳定
+- 决定：寻路请求默认纯通行（`PathRequest.of`）；破坏/放置只能由上层任务显式授权并受预算闸门约束
+- 原因：旧表述引用的 `DropCollectionTask`/`BotMiner`/`target_requires_tunnel`/`SOFT_SURFACE` 已删除或不再是实现语义
+- 影响：挖掘站位走 `miningApproach` + `MiningBudget`（超预算 `found_but_unminable`）；
+  收集走 `allowWorldModification` 显式授权；寻路器不得自行挖穿地形
+- 可改条件：新增授权入口需在 `AI_DECISIONS.md` 登记能力集与预算
 ```
 
 决策不是永远不能变，而是变更必须显式写成“替换旧决策”，不能在修 bug 时悄悄推翻。
@@ -432,7 +433,7 @@ BotLog.info("[R2-C Descend] completed session={} from={} to={} actualFoot={} tic
 - 完成判断不能只看整数 `blockPosition()`；半砖、台阶和碰撞形状要比较实际脚底与支撑顶面。
 - 不要通过不断增加 epsilon、timeout、重试次数来掩盖错误的坐标契约或物理入口。
 - `SEARCH_LIMIT` 不等于不可达，更不自动授权挖隧道。
-- 普通挖矿、拾取和稳定任务继续使用已验证的 `HARD_PATH`；软移动实验必须保持独立，直到有明确客户端证据。
+- 稳定任务走纯通行寻路（`PathRequest.of`）；需要破坏/放置时由任务显式授权并受预算闸门约束（D-076），实验性移动保持独立。
 
 ### 5.4 GUI、容器和网络
 
@@ -576,7 +577,7 @@ AI 只有在能回答以下问题时，才可以说“根因已确认”：
 Windows 测试工作目录是 D:\\JAVA_projects\\alice\\；AI 应主动寻找 Windows runtime 的 latest.log、debug.log、crash-reports 和截图，但不能假称自己读到了用户未提供且当前环境不可访问的文件。
 发现 bug 后不要立即实施可能修复：先询问关键操作和现象，区分已证实根因与假设，并与用户讨论修复方向。
 不要猜测“已完成”：分别报告 IMPLEMENTED、COMPILES、SERVER_TESTED、CLIENT_TESTED、USER_ACCEPTED。
-LLM 只做目标级决策；服务端权威；普通挖矿和拾取保持 HARD_PATH；SOFT_SURFACE 不得隐式接入正式任务。
+LLM 只做目标级决策；服务端权威；寻路默认纯通行、世界修改须显式授权并受预算闸门约束（D-076）。
 遇到第二次失败或症状与结论矛盾时，停止打补丁，使用可证伪假设、工作/失败对照和定向测试。
 每次改动结束时更新当前状态：改了什么、证据是什么、还有什么没验证、下一步是什么。
 ```

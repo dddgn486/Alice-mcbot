@@ -27,8 +27,10 @@ Alice 是 Minecraft Forge 1.20.1 项目。这里的规则用于帮助 AI 在会�
 
 - LLM 只做目标级决策；确定性执行器负责动作、权限、安全和完成条件；
 - 服务端是世界、bot、任务和库存的真相；
-- `MineTask`、`DropCollectionTask` 和普通挖矿保持 `HARD_PATH`；
-- `SOFT_SURFACE` 不得隐式接入挖矿、拾取、道路、隧道、流体或逃生；
+- **寻路红线（D-076）：寻路请求默认纯通行（`PathRequest.of`）；破坏/放置只能由上层任务显式授权并受预算闸门约束**
+  ——挖掘站位用 `PathRequest.miningApproach` + `MiningBudget`（禁用 `PILLAR/FALL/DOWNWARD`），
+  掉落物收集需调用方显式 `allowWorldModification=true`；禁止寻路器自行挖穿地形、禁止把 `SEARCH_LIMIT` 当授权、
+  禁止实验性移动模式隐式接入正式任务；
 - `SEARCH_LIMIT` 不是 `UNREACHABLE`，不能自动授权挖隧道；
 - 未知模组能力默认只读，不让 AI 猜槽位、配方或写入语义。
 - **内核路线（D-036）：Alice = Baritone 兼容内核**。非 Alice 目标差异部分（搜索 / Movement / 执行器状态机 / 自愈 / 段超时 / 成本模型 / 跳跃门控）一律先对照 `/home/fb486/projects/reference/baritone/` 再实现，禁止自制替代内核和补丁堆叠；必须偏离时在 `docs/AI_DECISIONS.md` 登记（Baritone `文件:行` + Alice 特有约束）。

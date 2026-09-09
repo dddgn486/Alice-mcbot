@@ -14,7 +14,7 @@
 
 ## D-003：普通挖矿和拾取使用 HARD_PATH
 
-- 状态：稳定
+- 状态：稳定（**表述已由 D-076 更新为现行术语，语义不变**）
 - `SOFT_SURFACE` 只能通过独立实验入口推进，未经真实客户端验证不得接入正式任务。
 
 ## D-004：SEARCH_LIMIT 不等于 UNREACHABLE
@@ -74,7 +74,7 @@
 
 ## D-015：HARD_PATH 与 SOFT_SURFACE 暂不作为准确实现语义
 
-- 状态：待重新定义
+- 状态：待重新定义（**表述已由 D-076 更新为现行术语，语义不变**）
 - 事实：当前正式 `PathExecutor` 使用 `BasicMovement.travel()`，并非旧文档所述的纯 `setPos` 瞬移；`SOFT_SURFACE` 只有模式名和部分真实物理基础设施，尚无完整客户端闭环证据。
 - 当前决定：HARD_PATH 暂按“当前已验收的受控路径执行后端”理解；SOFT_SURFACE 暂按“目标中的真实物理移动模式”理解，均不据名称推断实现完成度。
 - 影响：在物理调用链、到达/碰撞/失败后置条件完成审计前，不把 SOFT_SURFACE 接入 MineTask，也不把 HARD_PATH 直接改造成另一种实现。
@@ -1275,3 +1275,197 @@
   - 候选改用 `scope.liveDrops()`；
   - 新增 `MAX_CHASE_DISTANCE = 32`：超过该距离标记 `unreachable(reason=too_far)` 并放弃；
   - 归属判定仍是"背包数量差"（同类型混淆可接受）。
+
+## D-075：连锁挖掘（模组兼容）默认关闭 + 玩家手动启用（用户裁定）
+
+- 状态：诊断路径已实施（`alice:chain_test_runner` + `chain_course`）；生产开关**未实施**
+- 用户裁定（2026-09-09）：
+  1. **全局默认原版**（不连锁），玩家在游戏内**手动启用**连锁模式；
+  2. 默认只连锁**矿石与原木**；
+  3. 以后要做 **bot 专属连锁配置映射**：玩家可自定义 bot 的连锁配置；
+  4. 范围、批量建筑等能力**等联动其他模组**再做。
+- 机制分层（红线）：
+  - 连锁触发只允许在**任务层**（`MineTask` / 未来 `ChainMineTask`），
+    **禁止**进入 `MineBlockRunner` / `BlockBreakSession`——两套机制永不交错；
+  - 生产路径（`MiningPlanner` → `MineBlockRunner` → `BlockBreakSession`）保持原版单格语义，默认 `OFF`；
+  - 全局同一时刻只允许一次连锁（模组 `EventHandler.captureAgent` 是**静态单例**，连锁期间会吞掉落物生成）。
+- 开关设计（待实施）：`MiningTuning.ChainMode{OFF, AUTO, FORCE}` + `/alice mining chain off|auto|force`；
+  默认 `OFF`；`AUTO` = 模组在场 + 目标属矿石/原木 + 调用方允许；模组缺失时**回落我们自己的单格挖掘**（回落不是猜测）。
+- 已核实的模组事实（Ore Excavation 1.13.174 字节码，作为兼容依据，非推测）：
+  - 触发入口 `MiningScheduler.INSTANCE.startMining(ServerPlayer, BlockPos, BlockState, ExcavateShape, Direction, Direction)`
+    是公开服务端 API；`shape = null` 合法；返回 `null` = `EventExcavate.Pre` 被取消；
+  - 连锁破坏走 `player.gameMode.destroyBlock(pos)`（`ServerPlayerGameMode.m_9280_`）→ **会触发 `BlockEvent.BreakEvent`**，
+    与本项目 `BlockBreakSession` 同一调用，作用域配对链成立；
+  - 连锁期间 `EventHandler.onEntitySpawn` 取消 ItemEntity/XP 生成并缓冲进 `captureAgent`
+    （**仅 `tickMiner` 那一 tick 内**，`tickAgents` 前后 set/clear），agent 结束时 `dropEverything()` 一次性生成，
+    全部堆在**同一格**（`autoPickup ? player.blockPosition() : origin`）；
+  - `EventHandler.onBlockBreak` 对普通破坏会给玩家发 `PacketExcavation`
+    （bot 的 `FakeConnection.send` 直接丢弃 → 对原版挖掘无影响）。
+- 兼容性加固（已实施）：
+  - `ScopeBuffer.onEntityJoin` 跳过 `event.isCanceled()`（模组取消的生成不会进入世界）；
+  - `matchBreakSource` 增加"破坏点位置回退"：缓冲型模组延迟生成时，掉落物落在已登记破坏点上也能配对。
+- 结论（回答"强行兼容是否影响原版挖掘"）：**反射调用本身不影响**（无 mixin、不覆盖原版方法、
+  只在诊断/显式启用时调用）；模组在场的副作用仅限连锁运行的那一 tick（掉落物缓冲）与每次普通破坏的一个客户端包。
+
+### D-075 修正（2026-09-09 客户端首测：连锁成功但"幻影掉落物"导致收集空转 ~11 s）
+
+- 现象：`mined=8 broken=9 drops=10 inventory_gain=9`（连锁正常），但 bot 之后逐个追掉落物，
+  每个都在 `pickup_wait_timeout` 后标 `unreachable`，`collected=1/10 vanished=9 ticks=220`；
+  任务结束时作用域里仍有 9 个 `raw_iron` 被列为"存活掉落物"。用户观感："掉落物一开始就全进背包了，却在同一格捡来捡去"。
+- 根因（**顺序 + 取消语义**，非规划缺陷）：
+  1. 模组连锁时用 `player.gameMode.destroyBlock` 逐格破坏 → 原版**每格**生成一个 ItemEntity
+     → 模组的 `EventHandler.onEntitySpawn` 把它们 `setCanceled(true)` 并缓冲，连锁结束才在**同一格**
+     （`autoPickup ? 玩家位置 : origin`）一次性生成聚合堆；
+  2. 模组的监听器是 `@SubscribeEvent(priority = LOWEST)`（字节码实证），而 `ScopeBuffer.onEntityJoin`
+     也是普通/LOWEST 优先级 → 同一优先级靠注册顺序，**我们有时先收到未取消的生成事件**，
+     于是把"从未进入世界"的 10 个幻影实体登记成了掉落物；
+  3. 幻影实体的 `isAlive()` 恒为 true（只是没被加入世界）→ `liveDrops()` 过滤不掉 →
+     `CollectDropsTask` 逐个追、逐个等 40 tick、再标 `unreachable`（日志还谎报"不可达"）。
+- 修复（`ScopeBuffer`）：
+  1. 生成事件只**排队**（`PendingItem(item, tick)`），到**服务端 tick 末**再确认
+     `level.getEntity(item.getId()) != null`——与事件顺序无关；未进入世界的如实记
+     `作用域忽略未进入世界的掉落物(生成被取消/缓冲)` 并丢弃；
+  2. `liveItems*`/`liveDrops` 的存活判定升级为 `inWorld()`（`isRemoved` + 内容非空 + **真的在 level 里**）；
+  3. 配对窗口仍按**生成 tick** 计算，聚合堆（在 `origin`）可与破坏点配对 ✓。
+- 客户端复测结果（2026-09-09 20:49，修复前）：连锁 `mined=8`、`inventory_gain=9`（聚合堆被一次拾取）✓
+  说明**触发与拾取语义都对**，问题只在幻影登记。
+- 簇级收集（**已实施**，用户 2026-09-09 裁定"簇级可以，但准确度要够"）：
+  - 候选按**连通距离 2.0 格、|Δy| ≤ 1** 聚簇（对应原版拾取盒 ±1.3 x/z、±0.5 y）；
+  - 走位一次到簇内最近成员格 → 等该簇成员全部消失或 40 tick 超时；超时后**最多再换 2 次锚点**扫尾，
+    仍够不到才如实记 `pickup_timeout`（不再把"顺手捡到的"误报成 `unreachable`）；
+  - **计数口径 = 背包增量**（唯一地面真相），替代"实体是否消失"的推断；
+  - **守恒交叉校验**：`背包增量 == 簇起始 stack 总和 − 结束剩余存活 stack 总和`，
+    不等即 `[CollectDrops] MISMATCH`（暴露同类型被他人拾取/重复生成/背包满/统计漏洞），**不静默相信**；
+  - 终态 `[CollectDrops] SUMMARY reason=.. collected=<物品数>/<期望物品数> entities=<消耗>/<已知>
+    clusters=.. unreachable=.. pickup_timeout=.. mismatch=.. ticks=..`（`collected` 语义从"实体个数"改为"物品个数"）；
+  - 不变：只收 `liveDrops()`（bot 自己的破坏配对）、默认纯通行寻路（D-076）、best-effort 始终 `DONE`、
+    32 格放弃上限；经验球与"非破坏事件产生的掉落物"仍不收集（D-074）。
+- **客户端验收（2026-09-09 21:06，用户"测试通过"）**：
+  `作用域忽略未进入世界的掉落物` ×9 + `作用域捕捉掉落物` ×1（真掉落物）→
+  `drops=1`、`cluster_start items=9`、`cluster_done delta=9 remaining=0 ticks=5`、
+  `SUMMARY collected=9/9 entities=1/1 clusters=1 unreachable=0 pickup_timeout=0 mismatch=0 ticks=8`、
+  `terminal=COMPLETED durationTicks=32`。修复前同场景为 `drops=10 collected=1/10 unreachable=9 ticks=220`。
+  自家挖矿路径同样复测通过（2026-09-09 21:19，`scene_a` + `alice:mining_scene_tester`）：
+  `walk_start → break_start(eyeDist=3.87) → done`、`作用域捕捉掉落物: cobbled_deepslate x4 y64 z4 source=4,64,4`、
+  `cluster_done delta=1 remaining=0 ticks=11`、`SUMMARY collected=1/1 mismatch=0 ticks=14`、`MineTask COMPLETED 37 tick`。
+
+
+## D-076：寻路红线现行表述（取代 HARD_PATH 旧语句，语义不变）
+
+- 状态：稳定（2026-09-09 用户裁定"这个红线也要改一下语句了，太老了"）
+- 背景：旧表述里引用的 `DropCollectionTask`、`BotMiner`、`target_requires_tunnel`、`HARD_PATH`/`SOFT_SURFACE`
+  分别已被删除或不再是实现语义（D-015/D-071/D-073），继续沿用会误导新会话。
+- **现行表述（权威版）**：
+  > **寻路请求默认纯通行；破坏/放置只能由上层任务显式授权，并受预算闸门约束。**
+  1. **默认**：`PathRequest.of`（`TRAVERSE / DIAGONAL / ASCEND / DESCEND`）——走到目标不允许破坏、放置或特殊垂直移动；
+  2. **显式授权入口**（已登记，不得新增隐式默认）：
+     - 挖掘站位（`MiningPlanner` 模式 B / 浮动目标支撑）：`PathRequest.miningApproach`，
+       允许 `BREAK_AND_TRAVERSE / BREAK_AND_ENTER / PLACE_STEP_AND_TRAVERSE`，
+       **禁用 `PILLAR / FALL / DOWNWARD`**；超出 `MiningBudget.maxExtraBreakTicks` → `found_but_unminable`（如实失败）；
+     - 掉落物收集（`CollectDropsTask`）：调用方显式 `allowWorldModification=true` 才走 `withWorldModification`，默认 `of`；
+     - 其他任务（道路 / 放置 / 转移）：各自入口显式声明能力集，不共享隐式默认；
+  3. **分层边界**：红线约束**寻路请求**（"怎么走过去"），不约束**动作层**破坏
+     （`BlockBreakSession` 挖目标与有限清障）；
+  4. **禁止**：寻路器自行挖穿地形；把 `SEARCH_LIMIT` 当作授权（D-004）；把不可达当作"那就挖过去"；
+     把实验性移动模式隐式接入正式任务；
+  5. **术语对照**：`HARD_PATH` / `SOFT_SURFACE` 是旧内核模式名，现行实现用**路径请求能力集 + 授权/预算**表达同一语义；
+     `DropCollectionTask` → `CollectDropsTask`、`BotMiner` → `MineBlockRunner`、
+     `target_requires_tunnel` → `found_but_unminable` / 模式 B 预算闸门。
+- 影响：`AGENTS.md`、`AI_PROJECT_STATE.md`、`AI_DEVELOPMENT_PLAYBOOK.md`、`START_HERE.md`、
+  `MINE_MIGRATION_DESIGN.md` §6 与相关 skill 同步改为现行表述；**行为与边界不变**。
+
+## D-077：连锁挖掘生产开关（默认 OFF + 玩家手动启用 + 矿石/原木白名单）
+
+- 状态：已实施，待客户端验证
+- 用户裁定（D-075）：全局默认原版，玩家在游戏内**手动启用**连锁；默认只连锁**矿石与原木**；
+  bot 专属连锁配置映射与范围/批量建筑等能力留待后续。
+- 实现：
+  - `compat/ChainMining`：软依赖反射适配器（`available/isChainable/start/isRunning/minedCount/stop/settingsSummary`），
+    `MineTask` 与 `ChainMineDiagnosticTask` 共用，消除重复反射；
+  - `MiningTuning.ChainMode{OFF, AUTO, FORCE}`，**默认 OFF**；`AUTO` = 模组在场 + 目标命中白名单
+    （`forge:ores` + `minecraft:logs`）；`FORCE` = 仅诊断/测试用（绕过白名单）；
+  - 游戏内开关：`/alice chain`（查询，含模组在场状态与配置摘要）、`/alice chain off|auto|force`；
+  - `MineTask` 新增 `Phase.CHAIN`：规划期一次性判定 `useChain` → `MineBlockRunner(..., walkOnly=true)`
+    只走到站位 → 任务层触发连锁 → 轮询 `isRunning` → **校验目标方块真的没了** → 进入收集；
+  - **回落如实**：`MOD_ABSENT / LEASE_BUSY / NOT_STARTED / REFLECTION_FAILED / prod_target_remains / prod_timeout`
+    一律记 `[ChainMine] prod_fallback|prod_target_remains` 并回落本项目自己的单格挖掘，不把模组问题变成任务失败；
+  - **租约**：模组 `EventHandler.captureAgent` 是全局静态 → `ChainMining` 用全局租约挡住并发连锁，
+    连锁结束/停止/超时自动释放。
+- 分层边界（红线 D-076 不变）：
+  - 连锁触发**只在任务层**（`MineTask.tickChain`），**不进入** `MineBlockRunner`/`BlockBreakSession`；
+  - 走位仍走 `MineBlockRunner` 的既有规划（模式 A/B + `PathRequest.of`/`miningApproach`），
+    `walkOnly` 只表示"到位后不破坏"，不携带任何模组语义；
+  - 收集仍由 `CollectDropsTask` 负责（延迟登记 + 簇级 + 守恒校验），不因连锁改变。
+- 本轮未做（按用户裁定推迟）：bot 专属连锁配置映射（范围/速度/白名单自定义）、
+  模组 `autoPickup=true` 变体验证、连锁与 `MiningBudget` 的额度换算。
+- 测试入口：`/function alice_test:chain_mine_course` + `alice:target_selector`（A/B 对比，见 `AI_TEST_MATRIX.md`）。
+
+### D-076 修正（2026-09-09 客户端：单格挖掘"看着到位却不捡"）
+
+- 现象（`chain_mine_course` 场景，chain=OFF）：bot 挖掉矿石后，收集阶段站在**未挖矿石顶上**（脚 y=65），
+  离掉落物（落在 y≈64.125）差 0.25 格；40 tick ×2 次换锚点后掉落物被他人取走（`MISMATCH delta=0 expected=1`），
+  单格收集耗时 105~108 tick；用户观感"一直不捡掉落物"。
+- 根因（**判据错，不是寻路错**）：簇级收集的"已到位"用的是
+  `到锚点方块中心水平 ≤1.2 且 |Δy| ≤1.5`，与**原版拾取判定**不是一回事：
+  原版 `Player.tick()` 用 `getBoundingBox().inflate(1.0, 0.5, 1.0)` 与掉落物包围盒相交
+  （srg `Player.class` 字节码实证）；掉落物落地后中心在方块底面 +0.125，站在上一层（脚 y+1）
+  时外扩盒底 64.5 > 掉落物顶 64.25 → **不接触**。假"到位"还会**提前取消寻路**
+  （日志 `[R4 Session] failed ... status=CANCELLED code=SESSION_CANCELLED`），bot 停在半格之外干等。
+- 修复（`CollectDropsTask`）：
+  1. 走位优先：`runner != null` 时**走完**（原版拾取会在路过时自动发生），不再用"距离近"提前取消；
+  2. "已到位"改用 `inPickupRange(item)` = **玩家包围盒 inflate(1.0, 0.5, 1.0) 与掉落物包围盒相交**（与原版同口径）；
+  3. 到位却够不到 → 换**离 bot 最近的存活成员**重走（≤2 次）→ 用尽后如实记 `not_in_pickup_range`；
+  4. 场景侧：观察点后移 1 格（`(23.5,64,169.5)`），避免玩家站在拾取盒内把掉落物先捡走。
+- 二次修正（同日，用户澄清"两次都没进背包"）：重写时**误删了"创建寻路"那一段**，
+  导致 bot 完全不走位（日志无 `sweep_start`）→ 换锚点 2 次后直接 `not_in_pickup_range` 退休。
+  已补回：`runner == null && 未进入拾取范围` → 建 `PathRetryRunner` 走到锚点。
+  同时 `retire` 日志补 `itemPos/itemY/botFeet/botBox/inRange`，便于下次直接定位。
+- **客户端验收（2026-09-09 22:34，用户"这次对了"）**：单格挖掘两次
+  `SUMMARY collected=1/1 entities=1/1 clusters=1 unreachable=0 pickup_timeout=0 mismatch=0 ticks=12`，
+  任务各 `COMPLETED` 25 tick；日志形态与用户观察一致——
+  第一次无 `sweep_start`（已在拾取盒内，**直接吸走**），第二次有 `sweep_start`
+  （**走下台阶进入被挖空的那一格**后吸走）。
+- `MISMATCH` 的真实成因（已查清，非"他人拾取"）：原版 `ItemEntity` 合并的判据是
+  `包围盒各向外扩 0.5`，相邻 1 格的两个同类掉落物**会合并**——被吸收的实体从世界移除（`entity_gone`），
+  其数量并入吸收者；若吸收者来自**上一个被替换任务**（已不在当前作用域 `spawnedItems` 里），
+  这次扫描的背包增量就是 0 → `MISMATCH`。这正是交叉校验该抓的"物品去了别处"。
+  簇内自合并不影响守恒式（吸收者仍在簇内）。
+
+## D-078：挖掘专项串联回归（批次 5，`alice:mine_regression`）
+
+- 状态：已实施，待客户端验证
+- 目标：一次右键覆盖挖掘链路的全部必要复测项，与寻路回归（只覆盖 Movement）分离。
+- 覆盖（每用例前重放地形 + 复位 bot 到统一起点）：
+  1. 规划 5 项（`mine_course_terrain`）：`free`/`wall`/`headroom` → 模式 A；`blocked` → 模式 B（TUNNEL）；
+     `buried` → 模式 B 或 `found_but_unminable`（预算不足必须如实报，不许静默挖隧道）；
+  2. 执行 2 项：`exec_direct`（露天目标）、`exec_blocked`（被包围目标走模式 B）——通过条件四项同时成立：
+     子任务 `DONE` + 目标方块已空 + `MineTask.collectedItems()` == 期望件数 + 作用域内无剩余存活掉落物
+     （另核对背包增量）；
+  3. 兼容 1 项：`exec_chain`（临时切 `chain=AUTO`，跑 3x3 铁矿脉，期望 `collected=9`）；
+     模组缺失 → `SKIP`（不计 FAIL），结束后恢复原档位。
+- 入口（零参数）：`alice:mine_regression` 普通右键（或 `/function alice_test:mine_regression_course` 给物品并传送到中立观察点）。
+- 复用：地形直接用既有 `*_terrain` 函数（与单项诊断同一套场景，避免"回归场景和诊断场景不一致"）；
+  规划断言与 `mine_course` 同口径；执行复用 `MineTask` 本体（回归测的是生产路径，不是替身）。
+- 终态：`[MineRegression] SUMMARY free=.. wall=.. blocked=.. headroom=.. buried=.. exec_direct=.. exec_blocked=.. exec_chain=..`
+  + 每项细节行（`mode/stand/collected/inventoryDelta/dropsLeft/ticks`）。
+- **客户端验收（2026-09-09 22:48，用户"PASS啦"）**：8/8 PASS，`ticks=99`（约 5 秒），任务 `COMPLETED`：
+  `free/wall/blocked/headroom/buried/exec_direct/exec_blocked/exec_chain` 全 PASS；
+  执行项细节 `exec_direct collected=1/1 delta=1 dropsLeft=0 ticks=19`、
+  `exec_blocked collected=1/1+ delta=2 dropsLeft=0 ticks=57`、
+  `exec_chain collected=9/9 delta=9 dropsLeft=0 ticks=15`。
+- 未做：`floating`（支撑放置）执行用例——尚未有独立客户端验收，等它先单独立项。
+
+### D-078 修正（2026-09-09 客户端首测：7/8 PASS，唯一 FAIL 是断言过严）
+
+- 首测结果：`free=PASS wall=PASS blocked=PASS headroom=PASS buried=PASS exec_direct=PASS
+  exec_blocked=FAIL exec_chain=PASS ticks=94`，任务 `FAILED`（唯一 FAIL 来自断言）。
+- `exec_blocked` 实际行为**全部正常**：`status=DONE/targetGone=true/collected=1/1/dropsLeft=0/ticks=57`，
+  只有 `inventoryDelta=2 ≠ 1`。
+- 根因（**不是链路缺陷，是断言口径错**）：模式 B（TUNNEL）为进入被包围的目标会沿途破坏 1 格通道，
+  该方块同样掉落圆石；这件掉落物在 bot **走位/开挖阶段**就被自然拾取（早于收集阶段），
+  因此 `CollectDropsTask.collected` 只记它扫到的 1 件（`collected=1/1` 自洽），背包增量却是 2。
+- 修复：断言区分 `exactCollected`（露天单目标 / 连锁矿脉 → 精确相等）与"至少 N 件"
+  （模式 B → `collected >= N && inventoryDelta >= N`，额外件数是通道副产品）；
+  细节行对非精确用例显示 `collected=1/1+`。
+- 副产物认知：`collected` 是**收集阶段**口径，`inventoryDelta` 是**端到端**口径，两者在"走位时自然拾取"
+  场景下本就会不同；回归同时校验两者，避免把正常差异当失败。
