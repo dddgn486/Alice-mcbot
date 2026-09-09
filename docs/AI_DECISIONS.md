@@ -1138,3 +1138,28 @@
 - 遥测：`BlockBreakSession` 已有 `block_break_done ... ticks=`（供 `MiningBudget` 标定）。
 - 验收（零参数）：`/function alice_test:break_enter_course` + 右键 `alice:pathing_break_enter` →
   `[BreakEnter] SUMMARY plan_a=PASS plan_b=PASS execute_a=PASS`；回归 `coverage=PASS`（含新类型）。
+
+## D-069：挖掘站位候选重写 + 成本估算（D-067 批次 2）
+
+- 状态：已实施，待客户端验证（用户 2026-09-09："好，进入批次2，下次我会做回归"）
+- 设计依据：`docs/MINING_STAND_SELECTION_DESIGN.md` v7（§2.1 候选、§2.2 评分/估算、§6 Q2′/Q6′）
+- 改动：
+  1. **`MiningTuning`（新）**：估算方案开关（`LOWER_BOUND`/`DIJKSTRA`，默认 S2）、成本场半径/节点上限、
+     top-K（4/10）、视线采样内缩距离（0.08）；命令 `/alice mining`（查看）与
+     `/alice mining estimate lower_bound|dijkstra`（切换）。
+  2. **`StandingPointSelector` 重写**：候选 = 眼位可触及范围内**现成可站**的格子；
+     垂直规则 = y+1/y/y−1 全水平展开 + **y−2…y−4 只允许正下方**；排除目标自身、目标正上方；
+     **删除 `target.above(2)`**（脚下支撑必挡视线，无效候选）；可挖掘面为硬前提（D-066）。
+  3. **`StandingCostEstimator`（新）**：S1 直线下界（`GoalFoot.heuristic`）/ S2 一次**纯通行 Dijkstra 成本场**
+     （复用内核 provider 的 TRAVERSE/DIAGONAL/ASCEND/DESCEND 谓词，半径/节点上限可调）。
+  4. **`StandingPointEvaluator` 重写**：评分 = **精确路径成本**（`score`）+ 估算成本（`estimate`，仅排序）；
+     视线/距离/高度/拾取距离/可见面数**全部移出评分**。
+  5. **`MiningPlanner` 重写**：当前站位可挖 → 直接用；否则 候选 → 估算排序 → **top-K 精算**
+     （`CorePathPlanner` + `PathRequest.of`）→ 取精确成本最小者；"最优精确成本 > 第 K+1 名估算"则 K 递增（上限 10）。
+     新增观测日志 `[MiningPlanner] candidates=.. estimate=.. nodes=.. ms=.. planned=.. chosen=.. cost=.. pathSize=..`。
+  6. **`LineOfSightChecker`**：删除 `blockerCount`（恒 0/1 的死字段，D-067 附录）；采样内缩距离走 `MiningTuning`。
+- 未做（批次 3）：模式 B（埋藏/需通道）候选与编排、目标下方支撑双策略、`MiningBudget`、`collectDrops` 参数、
+  失败枚举 `found_but_unminable`、A→B 降级。
+- 验收（零参数）：`/function alice_test:scene_a` + 右键 `alice:mining_scene_tester`（或 `alice:target_selector` 右键方块），
+  检查 `[MiningPlanner] target=.. candidates=N estimate=DIJKSTRA nodes=.. ms=.. planned=.. chosen=.. cost=..`；
+  切换 `/alice mining estimate lower_bound` 后再跑一次，观察 `estimate=LOWER_BOUND` 与候选/选择差异。

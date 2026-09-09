@@ -104,6 +104,17 @@ public final class BotCommand {
                                    .literal("[alice] 运动轨迹记录 = " + (on ? "开" : "关")));
                            return 1;
                        }))
+               .then(Commands.literal("mining")
+                        .executes(ctx -> {
+                            ctx.getSource().sendSystemMessage(Component.literal(
+                                    "[alice] 挖掘站位调参：" + com.dddgn.alice.task.mining.MiningTuning.describe()));
+                            return 1;
+                        })
+                        .then(Commands.literal("estimate")
+                                .then(Commands.literal("lower_bound")
+                                        .executes(ctx -> miningEstimate(ctx.getSource(), "lower_bound")))
+                                .then(Commands.literal("dijkstra")
+                                        .executes(ctx -> miningEstimate(ctx.getSource(), "dijkstra")))))
                .then(Commands.literal("risk")
                         .executes(ctx -> {
                             ctx.getSource().sendSystemMessage(Component
@@ -960,6 +971,20 @@ public final class BotCommand {
                 + com.dddgn.alice.pathing.risk.RiskSwitches.describe()));
         com.dddgn.alice.log.BotLog.info("[Risk] switch {}={} all={}", name, value,
                 com.dddgn.alice.pathing.risk.RiskSwitches.describe());
+        return 1;
+    }
+
+
+    /** D-067 批次 2：切换候选成本估算方案。 */
+    private static int miningEstimate(net.minecraft.commands.CommandSourceStack source, String mode) {
+        if (!com.dddgn.alice.task.mining.MiningTuning.setEstimateMode(mode)) {
+            source.sendSystemMessage(Component.literal("[alice] 未知估算方案: " + mode));
+            return 0;
+        }
+        source.sendSystemMessage(Component.literal("[alice] 挖掘估算方案已切换："
+                + com.dddgn.alice.task.mining.MiningTuning.describe()));
+        com.dddgn.alice.log.BotLog.info("[MiningTuning] estimate={} all={}", mode,
+                com.dddgn.alice.task.mining.MiningTuning.describe());
         return 1;
     }
 

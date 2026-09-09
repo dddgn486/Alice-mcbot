@@ -2,205 +2,102 @@ package com.dddgn.alice.task.mining;
 
 import com.dddgn.alice.pathing.MovementHelper;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 站位选择器 - 为挖掘任务选择最优站位。
- * 
- * <h3>选择策略</h3>
- * <ol>
- *   <li>生成候选站位（目标周围 3x3x3 区域）</li>
- *   <li>过滤不可站立的位置</li>
- *   <li>评估视线质量、距离、高度</li>
- *   <li>返回最优站位</li>
- * </ol>
- * 
- * <h3>候选站位规则</h3>
+ * 挖掘站位候选生成（D-067 批次 2 重写）。
+ *
+ * <p>设计（`docs/MINING_STAND_SELECTION_DESIGN.md` v7）：
  * <ul>
- *   <li>必须是可站立的安全位置</li>
- *   <li>必须在触及范围内（通常 4.5 格）</li>
- *   <li>优先选择视线清晰的位置</li>
+ *   <li>**候选范围**：眼位可触及目标任一面的格子（`bot.getBlockReach()` 决定），不再是"水平最多 1 格"；</li>
+ *   <li>**垂直规则**：y+1 / y / y−1 全水平展开；**y−2 … y−4 只允许正下方**（向上挖）；</li>
+ *   <li>**只收"现成可站"**：无支撑 / 头脚空间不足的格子归模式 B（批次 3），A 不放置、不破坏；</li>
+ *   <li>**排除**：目标自身、目标正上方（挖掉自己支撑）、`target.above(2)`（脚下支撑必然挡视线，无效候选）；</li>
+ *   <li>**硬前提（可挖掘面）**：从该站位的假设眼位能看到目标至少一个面（内缩多面体采样），
+ *       且该可见采样点在触及距离内——"看得到但打不到"不算能挖（D-066）。</li>
  * </ul>
  */
 public final class StandingPointSelector {
-    
-    private StandingPointSelector() {}
-    
-    /** Bot 眼睛高度（从脚底到眼睛） */
-    private static final double BOT_EYE_HEIGHT = 1.62;
-    
-    /** 最大触及距离 */
-    private static final double MAX_REACH = 4.5;
-    
-    /**
-     * 为目标方块选择最优站位。
-     * 
-     * @param level 世界
-     * @param target 目标方块
-     * @param currentPos Bot 当前位置（可选，用于优先考虑不需要移动的站位）
-     * @return 最优站位，如果没有合适的站位则返回 null
-     */
-    public static BlockPos selectStandingPoint(ServerLevel level, BlockPos target, BlockPos currentPos) {
-        // 1. 生成候选站位
-        List<BlockPos> candidates = generateCandidates(level, target, currentPos);
-        
-        if (candidates.isEmpty()) {
+    /** Bot 眼睛高度（脚底到眼睛）。 */
+    public static final double BOT_EYE_HEIGHT = 1.62D;
+    /** 正下方候选层数：y−2 … y−(1+BELOW_LEVELS)。 */
+    private static final int BELOW_LEVELS = 3;
+
+    /** 候选站位：脚位 + 该站位的视线结果（供计划快照与日志复用）。 */
+    public record Candidate(BlockPos foot, LineOfSightChecker.LineOfSightResult los) {
+    }
+
+    private StandingPointSelector() {
+    }
+
+    /** 生成模式 A 候选（只含现成可站且能挖到的站位）。 */
+    public static List<Candidate> generateCandidates(ServerLevel level, BlockPos target,
+                                                     BlockPos botFoot, double reach) {
+        List<Candidate> result = new ArrayList<>();
+        int radius = (int) Math.ceil(reach) + 1;
+        // y+1 / y / y−1：全水平展开
+        for (int dy = 1; dy >= -1; dy--) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    addCandidate(level, target, target.offset(dx, dy, dz), reach, result);
+                }
+            }
+        }
+        // y−2 … y−4：只允许正下方
+        for (int k = 2; k <= 1 + BELOW_LEVELS; k++) {
+            addCandidate(level, target, target.below(k), reach, result);
+        }
+        return result;
+    }
+
+    /** Bot 当前站位是否已经"能挖到"（省去选位与寻路）。 */
+    public static boolean isCurrentPositionGoodEnough(ServerLevel level, BlockPos target,
+                                                      BlockPos currentPos, double reach) {
+        return isValidStandingPoint(level, target, currentPos, reach) != null;
+    }
+
+    /** 站位有效性：可站 + 排除项 + 可挖掘面（可见面且在触及内）；返回视线结果，无效返回 null。 */
+    public static LineOfSightChecker.LineOfSightResult isValidStandingPoint(ServerLevel level,
+                                                                            BlockPos target,
+                                                                            BlockPos pos, double reach) {
+        if (pos.equals(target) || pos.equals(target.above())) {
             return null;
         }
-        
-        // 2. 评估并选择最优站位
-        return StandingPointEvaluator.selectBest(level, candidates, target, BOT_EYE_HEIGHT, MAX_REACH);
-    }
-    
-    /**
-     * 选择最优站位并返回详细评分结果。
-     * 
-     * @param level 世界
-     * @param target 目标方块
-     * @param currentPos Bot 当前位置
-     * @return 所有候选站位的评分结果（按分数降序）
-     */
-    public static List<StandingPointEvaluator.StandingPointScore> selectWithDetails(
-            ServerLevel level, BlockPos target, BlockPos currentPos) {
-        List<BlockPos> candidates = generateCandidates(level, target, currentPos);
-        
-        if (candidates.isEmpty()) {
-            return List.of();
+        if (!isStandable(level, pos)) {
+            return null;
         }
-        
-        return StandingPointEvaluator.evaluateAndSort(level, candidates, target, BOT_EYE_HEIGHT, MAX_REACH);
-    }
-    
-    /**
-     * 检查 Bot 当前站位是否已经是最优的。
-     * 
-     * @param level 世界
-     * @param target 目标方块
-     * @param currentPos Bot 当前位置
-     * @return true 如果当前站位已经足够好
-     */
-    public static boolean isCurrentPositionGoodEnough(ServerLevel level, BlockPos target, BlockPos currentPos) {
-        // 检查当前位置是否可站立
-        if (!isValidStandingPoint(level, currentPos, target)) {
-            return false;
-        }
-        
-        // 检查视线是否清晰
-        LineOfSightChecker.LineOfSightResult losResult = 
-                LineOfSightChecker.check(level, currentPos, target, BOT_EYE_HEIGHT);
-        
-        // 检查距离是否在范围内
-        double distanceSqr = currentPos.distSqr(target);
-        
-        return losResult.isClear() && distanceSqr <= MAX_REACH * MAX_REACH;
-    }
-    
-    /**
-     * 生成候选站位列表。
-     */
-    private static List<BlockPos> generateCandidates(ServerLevel level, BlockPos target, BlockPos currentPos) {
-        List<BlockPos> candidates = new ArrayList<>();
-        
-        // 优先检查当前位置
-        if (currentPos != null && isValidStandingPoint(level, currentPos, target)) {
-            candidates.add(currentPos.immutable());
-        }
-        
-        // 搜索目标周围的站位
-        // 水平方向：目标的 4 个侧面和 4 个对角
-        for (Direction dir : Direction.Plane.HORIZONTAL) {
-            BlockPos adjacent = target.relative(dir);
-            
-            // 直接相邻位置
-            addCandidateIfValid(level, adjacent, target, candidates, currentPos);
-            
-            // 高 1 格
-            addCandidateIfValid(level, adjacent.above(), target, candidates, currentPos);
-            
-            // 低 1 格
-            addCandidateIfValid(level, adjacent.below(), target, candidates, currentPos);
-        }
-        
-        // 对角位置
-        int[][] diagonals = {
-            {1, 1}, {1, -1}, {-1, 1}, {-1, -1}
-        };
-        
-        for (int[] diag : diagonals) {
-            BlockPos diagPos = target.offset(diag[0], 0, diag[1]);
-            addCandidateIfValid(level, diagPos, target, candidates, currentPos);
-            addCandidateIfValid(level, diagPos.above(), target, candidates, currentPos);
-            addCandidateIfValid(level, diagPos.below(), target, candidates, currentPos);
-        }
-        
-        // 正上方和正下方（特殊情况）
-        addCandidateIfValid(level, target.above(), target, candidates, currentPos);
-        addCandidateIfValid(level, target.above(2), target, candidates, currentPos);
-        
-        return candidates;
-    }
-    
-    /**
-     * 如果位置有效则添加到候选列表。
-     */
-    private static void addCandidateIfValid(ServerLevel level, BlockPos pos, BlockPos target,
-                                             List<BlockPos> candidates, BlockPos currentPos) {
-        // 避免重复添加当前位置
-        if (currentPos != null && pos.equals(currentPos)) {
-            return;
-        }
-        
-        if (isValidStandingPoint(level, pos, target)) {
-            candidates.add(pos.immutable());
-        }
-    }
-    
-    /**
-     * 检查位置是否是有效的站位。
-     */
-    private static boolean isValidStandingPoint(ServerLevel level, BlockPos pos, BlockPos target) {
-        // 1. 检查距离（粗筛：块中心距离）
-        double distanceSqr = pos.distSqr(target);
-        if (distanceSqr > MAX_REACH * MAX_REACH) {
-            return false;
-        }
-        
-        // 2. 检查是否可以站立（脚下有支撑，头上有空间）
-        // 注意：canWalkOn(level, footPos) 的语义是"能否站在 footPos"（内部已看 footPos.below()）；
-        // 早期写成 pos.below() 相当于要求"下方两格有支撑"，会拒掉所有正常地面站位（D-065 修复）。
-        if (!MovementHelper.canWalkOn(level, pos)) {
-            return false;
-        }
-        
-        if (!MovementHelper.canWalkThrough(level, pos)) {
-            return false;
-        }
-        
-        if (!MovementHelper.canWalkThrough(level, pos.above())) {
-            return false;
-        }
-        
-        // 3. 不能站在目标方块内部
-        // 也不站目标正上方：站在目标顶上挖下去 = 挖掉自己的支撑（与 legacy BotMiner 规则一致）
-        if (pos.equals(target) || pos.equals(target.above())) {
-            return false;
-        }
-
-        // 4. **可挖掘面前提（D-066 语义修正）**：从该站位的假设眼位必须能看到目标的至少一个面
-        //    （`LineOfSightChecker` 的"目标边界内缩多面体"采样：中心 + 6 面内缩点），
-        //    并且那个可见采样点必须在触及距离内——"看得到但打不到"同样不算能挖。
-        //    视线是**前提条件**，不参与评分（评分只用于在"能挖的站位"之间排序）。
-        Vec3 eye = pos.getCenter().add(0.0D, BOT_EYE_HEIGHT - 0.5D, 0.0D);
+        Vec3 eye = eyeAt(pos);
         LineOfSightChecker.LineOfSightResult los = LineOfSightChecker.checkFromEye(level, eye, target);
         if (!los.isClear()) {
-            return false;
+            return null;
         }
-        return eye.distanceTo(los.getSuccessfulSample()) <= MAX_REACH;
+        if (eye.distanceTo(los.getSuccessfulSample()) > reach) {
+            return null;
+        }
+        return los;
+    }
+
+    /** 现成可站：脚下有支撑 + 脚位/头位可通行。 */
+    public static boolean isStandable(ServerLevel level, BlockPos pos) {
+        return MovementHelper.canWalkOn(level, pos)
+                && MovementHelper.canWalkThrough(level, pos)
+                && MovementHelper.canWalkThrough(level, pos.above());
+    }
+
+    private static void addCandidate(ServerLevel level, BlockPos target, BlockPos pos, double reach,
+                                     List<Candidate> out) {
+        LineOfSightChecker.LineOfSightResult los = isValidStandingPoint(level, target, pos, reach);
+        if (los != null) {
+            out.add(new Candidate(pos.immutable(), los));
+        }
+    }
+
+    /** 站位假设眼位（与 {@link LineOfSightChecker#check} 的口径一致）。 */
+    public static Vec3 eyeAt(BlockPos foot) {
+        return foot.getCenter().add(0.0D, BOT_EYE_HEIGHT - 0.5D, 0.0D);
     }
 }
