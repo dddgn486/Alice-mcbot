@@ -161,7 +161,36 @@ public final class PathSession {
                 execution = null;
                 segmentTicks = 0;
                 startSlotTicks = 0;
-                settleTicks = MAX_SETTLE_TICKS;
+                if (index >= movements.size()) {
+                    status = PathSessionStatus.COMPLETED;
+                    BotLog.info("[R4 Session] completed session={} segments={} ticks={} finalFoot={}",
+                            sessionId, movements.size(), totalTicks, bot.blockPosition().toShortString());
+                    return status;
+                }
+                if (needsSettle(index)) {
+                    settleTicks = MAX_SETTLE_TICKS;
+                    return status;
+                }
+                // 条件 settle 的"否"分支（D-052）：共线同类型段**同一 tick 连续推进**——
+                // 对照 Baritone PathExecutor:231-236（SUCCESS 后 pathPosition++ 并立即驱动下一段）。
+                BotLog.info("[R4 Session] continuous_advance session={} nextIndex={} type={}",
+                        sessionId, index, movements.get(index).movementType());
+                startSegment();
+                if (execution != null) {
+                    execution.tick();
+                    if (execution.phase() == MovementExecution.Phase.SUCCEEDED) {
+                        BotLog.info("[R4 Session] segment_done session={} index={} type={} ticks={} actualFoot={}",
+                                sessionId, index, movements.get(index).movementType(), 0,
+                                bot.blockPosition().toShortString());
+                        index++;
+                        execution = null;
+                        segmentTicks = 0;
+                        startSlotTicks = 0;
+                    } else if (execution.phase() == MovementExecution.Phase.FAILED
+                            || execution.phase() == MovementExecution.Phase.CANCELLED) {
+                        handleFailure(execution.failureCode());
+                    }
+                }
             }
             case FAILED, CANCELLED -> handleFailure(execution.failureCode());
             default -> {
@@ -208,6 +237,23 @@ public final class PathSession {
                 sessionId, index, movements.size(), movement.movementType(),
                 movement.fromFoot().toShortString(), movement.toFoot().toShortString(), tolerance,
                 bot.blockPosition().toShortString());
+    }
+
+    /**
+     * 下一段是否需要"段间稳定"（条件 settle，D-052）。
+     *
+     * <p>需要 settle 的情况：① bot 在空中（等落地）；② 下一段需要精确落点
+     * （DESCEND / DOWNWARD / PLACE_STEP_AND_TRAVERSE / BREAK_AND_TRAVERSE）。
+     * 其余（共线同层的 TRAVERSE / DIAGONAL / ASCEND）保持动量连续推进。
+     */
+    private boolean needsSettle(int nextIndex) {
+        if (!bot.onGround()) {
+            return true;
+        }
+        return switch (movements.get(nextIndex).movementType()) {
+            case DESCEND, DOWNWARD, PLACE_STEP_AND_TRAVERSE, BREAK_AND_TRAVERSE -> true;
+            default -> false;
+        };
     }
 
     /**

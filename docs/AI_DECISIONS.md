@@ -753,3 +753,19 @@
   以保持对全部下降 Movement 可采纳。
 - 工具：`tools/analyze-trace.py`（位置差分口径；玩家实体 NBT 的 `Motion` 恒为 0，不能用）。
 
+## D-052：条件 settle + 段间连续推进（顿挫修复）
+
+- 状态：已实施，待客户端验证（用户 2026-09-09 指定，依据 D-051 的实测对照）
+- 依据：D-051 实测——Alice 在 11 格直线中每格停顿 1 tick（速度归零），Baritone 全程 0.28 格/tick 无停顿；
+  Baritone 的做法是 `PathExecutor:231-236`：Movement SUCCESS 后**同一 tick** `pathPosition++` 并立即驱动下一段。
+- 实现（`PathSession`）：
+  1. 段成功后的 `settleTicks` 改为**条件值**：`needsSettle(index)` 为真才进入 settle；
+  2. `needsSettle` = ① bot 在空中（等落地）；② 下一段需要精确落点（DESCEND / DOWNWARD /
+     PLACE_STEP_AND_TRAVERSE / BREAK_AND_TRAVERSE）；
+  3. 否则**同一 tick 连续推进**：`startSegment()` 后立即 `execution.tick()` 一次（补上执行器成功时
+     清掉的输入），并记录 `[R4 Session] continuous_advance`；
+  4. 段成功时若已到末尾，直接置 COMPLETED（不再多等一轮）。
+- 保留：需要精确落点的段仍走原 settle（`stopMovement` + 等落地减速），保证 D-024/D-027 的落点精度。
+- 验收：`trace_course` 直线跑的速度曲线**不再每格归零**，且总 tick 明显下降；
+  回归（battery 8/8、regression 7/7、vertical、placer/breaker/disturber/waller）不得退化。
+
