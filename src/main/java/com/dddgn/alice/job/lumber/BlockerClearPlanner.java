@@ -125,6 +125,14 @@ public final class BlockerClearPlanner {
      * （日志表现：4 根原木全部 `clear_failed`、`cleared=0`、bot 一步没走）。
      *
      * <p>修正后是**由外向内剥离**：从可站位置能看到的最外层树叶先清，露出下一层，逐层推进。
+     *
+     * <p>**第二处修正（2026-09-10 第二次客户端实测，`no_valid_standing_point`）**：
+     * 只按"它是射线上第一块"还不够——**被清的那一格自己也必须能被清掉**。
+     * 实测反例：橡树树冠 y=65 是 5×5 叶团，射线从观察位进入树团时第一块是 `(19,65,207)`，
+     * 但该格的四个横向邻居与上方**全是树叶**，从任何现成可站位置到它的连线都必经相邻树叶
+     * → 清障子任务规划期候选集为空（`no_valid_standing_point`），四次清障全部失败、bot 一步没走。
+     * 现在用**清障子任务将要使用的同一判据**（{@link StandingPointSelector#isValidStandingPoint}，
+     * 且从同一个观察位出发）校验候选格，保证"可规划即可执行"。
      */
     public static BlockPos nextClearStep(ServerLevel level, ServerPlayer bot, BlockPos log,
                                         double reach, int budgetLeft, WriteGrant grant) {
@@ -136,9 +144,6 @@ public final class BlockerClearPlanner {
         for (BlockPos stand : observationStands(log, reach)) {
             if (!StandingPointSelector.isStandable(level, stand)) {
                 continue;   // 只能从"现在就能站"的位置出发（否则清障子任务自己也没站位）
-            }
-            if (!MovementHelper.canWalkOn(level, stand.below())) {
-                continue;
             }
             Vec3 eye = StandingPointSelector.eyeAt(stand);
             for (Vec3 sample : LineOfSightChecker.samples(log)) {
@@ -156,8 +161,14 @@ public final class BlockerClearPlanner {
                         break;
                     }
                 }
-                if (ok) {
-                    return blockers.get(0);   // 射线上的**最外层**阻挡：它能被当前站位直接挖到
+                if (!ok) {
+                    continue;
+                }
+                // 逐块检查：返回第一块**自己也能被清掉**的阻挡（从当前观察位算，与清障子任务同判据）
+                for (BlockPos blocker : blockers) {
+                    if (StandingPointSelector.isValidStandingPoint(level, blocker, stand, reach) != null) {
+                        return blocker;
+                    }
                 }
             }
         }

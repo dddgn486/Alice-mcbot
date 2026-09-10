@@ -1644,3 +1644,39 @@
 **本轮不做（已登记为后续，见 `docs/WORLD_WRITE_AUTHORIZATION.md` §4）**：
 `PathRequest.requester` 全量填值（21 处）、执行期复验 `allowedMovementTypes`、
 模组连锁破坏的凭证化（`ChainMining` 反射内部不可插入判定）、容器写入维度（`TransferTask`）、J6 持久化账本。
+
+---
+
+## D-083 清障目标必须"自己也能被清掉"：可规划即可执行（2026-09-10）
+
+**现象（第二次客户端实测，jar `3cd606f7`）**：`/function alice_test:lumber_course` → 右键 `alice:lumber_job`，
+4 根原木全部失败，terminal `FAILED partial_tree 0/4 ticks=11`，`writes breaks=0 unknown=0`（D-082 审计链路正常）。
+
+```
+[Job] phase=CLEAR target=19,65,207  为 20,64,208 …   → [MiningPlanner] standable_only reason=no_valid_standing_point
+[Job] phase=CLEAR target=19,65,207  为 20,65,208 …   → 同上
+[Job] phase=CLEAR target=19,67,208  为 20,66,208 …   → reason=no_reachable_standing_point
+[Job] phase=CLEAR target=20,68,208  为 20,67,208 …   → reason=no_reachable_standing_point
+```
+
+**根因（用夹具真实方块逐格复现，非推断）**：橡树 4 根原木在 `y=64..67`（x=20,z=208），
+树冠是 **y=65..68 的 5×5 叶团**（y=64 那层除原木本身全是空气）。
+
+`nextClearStep` 取"观察位 → 原木"射线上**第一块**阻挡，第一版修正只保证"该块可从当前观察位被看到"，
+但**没保证该块自己能被打到**：
+
+- 树冠 y=65 是 5×5 **实心叶团**，射线从观察位（如 `18,64,206`）进入树团时的第一块是 `19,65,207`；
+- 而 `19,65,207` 的四个横向邻居 `(18/20,65,207)`、`(19,65,206/208)` **与上方 `(19,66,207)` 全是树叶**
+  → 从任何现成可站位置到它的连线必经过相邻树叶 → `generateCandidates` 候选集为空
+  → `no_valid_standing_point` → 清障子任务 2 tick 内失败；
+- `19,67,208` / `20,68,208` 属另一类：候选**存在**但**路径不可达**（要爬上树冠 = J7 攀爬，未实现）
+  → `no_reachable_standing_point`（**正确且诚实的失败**，不是 bug）。
+
+**裁定（修正）**：`nextClearStep` 返回的格子必须通过**清障子任务将要使用的同一判据**
+`StandingPointSelector.isValidStandingPoint(level, blocker, stand, reach)`，且从**同一个观察位**出发计算。
+即"**可规划即可执行**"从夹具要求上升为**生产代码不变量**。
+同时删除上一轮误加的 `canWalkOn(level, stand.below())` 检查——它要求"站位下方那格还另有支撑"，
+在 1 格厚平台/浮空岛上会否掉全部合法站位。
+
+**预期结果（离线按真实方块手算）**：橡树只需清 **1~2 片树叶**即可砍完全部 4 根，
+`cleared≈1~2`、`inventoryDelta=4`、`writes breaks=1~2 unknown=0`。
