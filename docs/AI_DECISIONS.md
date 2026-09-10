@@ -1505,3 +1505,19 @@
   `floating_plan=PASS mode=CURRENT/stand=21,64,190/support=23,64,190`、
   `exec_floating=PASS collected=1/1 inventoryDelta=0(期望0) dropsLeft=0 supportPlaced=true ticks=20`
   （用户确认看到 bot 在悬空方块正下方放了方块）。
+
+## D-079：移除 JEI / JECh 构建依赖（用户裁定）+ 修复 CI
+
+- 状态：已实施（2026-09-10）
+- 用户裁定："把 JEI 和另一个 JEI 附属依赖先删除，然后我们只在客户端实例使用（我自己安装了）"。
+- 实施（`build.gradle`）：
+  - 删除 `compileOnly`/`runtimeOnly` 的 `mezz.jei:jei-1.20.1-forge:15.49.0.187`；
+  - 删除 `clientOnly` 的 `local:jecharacters:1.20.1-forge-4.6.9`（JEI 中文/拼音搜索附属），
+    以及仅供它使用的 `configurations { clientOnly }` 声明与 `runClient` 注入钩子；
+  - 删除为解析 `libs/` jar 而设的 `flatDir { dir 'libs' }` 仓库；
+  - 项目代码本就不 `import` 其 API，发布 jar 不含它们 → 行为零变化。
+- **CI 失败根因（顺带查清）**：JEI 的编译期依赖此前由 `libs/jei-*.jar` 经 `flatDir` 满足，
+  而 `libs/` 被 `.gitignore` → 干净 clone 的 `:compileJava` 必然失败（2026-09-03 起所有 CI run 均 failure）。
+- 验证：移除 `libs/` 后 `./gradlew clean build --offline` **BUILD SUCCESSFUL**，产物字节数一致；
+  推送后 GitHub Actions 首次 `success`（run for `4998fa1`）。
+- 影响：开发机不再需要 `libs/`；JEI/JECh 只在个人客户端实例 `mods/` 安装；干净 clone 可直接构建。
