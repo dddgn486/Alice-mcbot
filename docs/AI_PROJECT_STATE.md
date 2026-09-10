@@ -42,7 +42,9 @@
 > LOS 限次清障 ≤8 格/棵、高树 v1 拒绝但攀爬登记为未来能力。
 > **二次裁定（D-081）**：接受"建拆同权"（放置与拆除同一授权）、持久化 `WorldModLedger`、
 > 可持续伐木区做成 `MAINTAIN` 持续型 Job；**切片顺序 J1–J5 → J6 账本+恢复 → J7 攀爬 → J8 区域型**。
-> **待实施（从 J1 起）**。
+> **J1 已实施（2026-09-10）**：`job/` 契约七件 + `job/lumber/`（TreeScanner/LumberCandidateSource/LumberJob）
+> + `job/policy/`（Nearest / NearestExposed）+ 入口 `alice:lumber_job` + 场景 `lumber_course` + `BotSession` 子目标跟随。
+> jar `已同步`，**待客户端验证**。
 
 ## 当前目标
 

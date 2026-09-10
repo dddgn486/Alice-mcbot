@@ -92,6 +92,8 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 
 | 挖掘专项串联回归（批次 5，D-078） | `/function alice_test:mine_regression_course` + `alice:mine_regression` | 普通右键 | `[MineRegression] SUMMARY free=PASS wall=PASS blocked=PASS headroom=PASS buried=PASS floating_plan=PASS exec_direct=PASS exec_blocked=PASS exec_floating=PASS exec_chain=PASS`；执行项细节行含 `collected=n/期望 inventoryDelta=n dropsLeft=0` | `WINDOWS_CLIENT`（2026-09-09 23:13：**10/10 PASS**、`ticks=117`、任务 COMPLETED；`floating_plan support=23,64,190`、`exec_floating supportPlaced=true inventoryDelta=0`） |
 
+| L3 伐木 Job（D-080，切片 J1） | `/function alice_test:lumber_course` + `alice:lumber_job` | 普通右键 | `[Job] select job=lumber policy=nearest picked=tree@23,64,213 reason=nearest d=… candidates=3 rejected=[tree@23,64,209:no_stand,tree@23,64,217:not_nearest,tree@23,64,220:trunk_too_tall(unreachable=…)]`；`[Job] step phase=CUT log 1/4`…；`[Job] terminal result=DONE reason=quota_met progress=logs 4/4 … inventoryDelta=4`。断言：选中的必须是 B（露天 4 原木）、A 必须因 `no_stand` 被拒、E 必须因 `trunk_too_tall` 被拒、背包原木增量 = 4 且作用域无剩余掉落物 | 待测（J1） |
+
 ## 性能验证
 
 | 能力 | 测试入口 | 关键观察 | 当前状态 |

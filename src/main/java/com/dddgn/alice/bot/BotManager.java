@@ -480,6 +480,21 @@ public final class BotManager {
         return true;
     }
 
+    /** 伐木 Job（L3/D-080，切片 J1）：在起点附近选一棵树砍完并收集。 */
+    public static boolean assignLumberJob(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        com.dddgn.alice.job.GoalSpec spec = com.dddgn.alice.job.GoalSpec.harvestUnits(
+                com.dddgn.alice.task.LumberCourseAnchor.START_FOOT, 16, 1, 1200);
+        com.dddgn.alice.job.lumber.LumberJob job = new com.dddgn.alice.job.lumber.LumberJob(
+                bot, spec, session.scope(),
+                new com.dddgn.alice.job.lumber.LumberCandidateSource(),
+                new com.dddgn.alice.job.policy.NearestPolicy());
+        session.beginTask(job, TaskTarget.block(com.dddgn.alice.task.LumberCourseAnchor.START_FOOT));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     /** 挖掘专项串联回归（批次 5）。 */
     public static boolean assignMineRegression(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
@@ -897,6 +912,13 @@ public final class BotManager {
                 return;
             }
             Task.Status status = task.tick();
+            // L3（D-080）：子目标高亮跟随——Job 的目标随内部阶段变化（树 → 当前原木 → 收集点），
+            // 其他任务的目标恒定，比较后只在变化时广播。
+            TaskTarget liveTarget = task.target();
+            if (liveTarget != null && !liveTarget.equals(target)) {
+                target = liveTarget;
+                broadcastTarget(target);
+            }
             BotTrace.tick(bot);
             switch (status) {
                 case DONE -> {

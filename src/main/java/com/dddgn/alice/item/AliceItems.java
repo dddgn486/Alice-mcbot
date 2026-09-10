@@ -121,6 +121,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> MINE_COURSE_RUNNER =
             ITEMS.register("mine_course_runner", () -> new MineCourseRunnerItem(new Item.Properties()));
 
+    /** 伐木 Job（L3/D-080，切片 J1，场景专属）。 */
+    public static final RegistryObject<Item> LUMBER_JOB =
+            ITEMS.register("lumber_job", () -> new LumberJobItem(new Item.Properties()));
+
     /** 挖掘专项串联回归（批次 5，场景专属）。 */
     public static final RegistryObject<Item> MINE_REGRESSION =
             ITEMS.register("mine_regression", () -> new MineRegressionItem(new Item.Properties()));

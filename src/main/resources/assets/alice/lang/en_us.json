@@ -32,5 +32,6 @@
   "item.alice.pathing_break_enter": "Break-And-Enter Checker",
   "item.alice.mine_course_runner": "Mine Stand Checker",
   "item.alice.chain_test_runner": "Chain-Mine Compat Checker",
-  "item.alice.mine_regression": "Mining Regression"
+  "item.alice.mine_regression": "Mining Regression",
+  "item.alice.lumber_job": "Lumber Job Runner"
 }
