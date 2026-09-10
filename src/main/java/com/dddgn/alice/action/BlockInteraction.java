@@ -184,6 +184,8 @@ public final class BlockInteraction {
      */
     public static PlaceResult placeAt(ServerPlayer bot, ServerLevel level, BlockPos placeAt, boolean sneak,
                                       WriteGrant grant) {
+        // 账本要在放置**之前**拿到原状态（J6-a：精确恢复原状的前提）
+        BlockState previousState = level.getBlockState(placeAt);
         if (!reachable(bot, placeAt)) {
             return PlaceResult.NO_OPTION;
         }
@@ -223,6 +225,9 @@ public final class BlockInteraction {
             }
             bot.swing(InteractionHand.MAIN_HAND);
             WriteAudit.placeWrite(level, placeAt, level.getBlockState(placeAt), grant);
+            // 账本记录（J6-a）：动作层是唯一看得见"每一次修改"的地方（含内核 PILLAR 放的方块）
+            com.dddgn.alice.ledger.WorldModLedger.recordPlacement(level, bot.getUUID(), grant, placeAt,
+                    previousState, level.getBlockState(placeAt));
             return PlaceResult.PLACED;
         }
         return PlaceResult.NO_OPTION;
@@ -315,8 +320,11 @@ public final class BlockInteraction {
                     pos.toShortString(), grant.describe(), protectedReason);
             return false;
         }
+        BlockState previousState = level.getBlockState(pos);
         WriteAudit.placeWrite(level, pos, state, grant);
         level.setBlock(pos, state, 3);
+        com.dddgn.alice.ledger.WorldModLedger.recordPlacement(level, bot.getUUID(), grant, pos,
+                previousState, state);
         return true;
     }
 

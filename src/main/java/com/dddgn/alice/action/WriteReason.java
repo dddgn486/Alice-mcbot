@@ -84,4 +84,14 @@ public enum WriteReason {
     public String label() {
         return label;
     }
+
+    /**
+     * 该理由下的放置是否属于**临时**（必须配对拆除，即"建拆同权"约束的那一类）。
+     *
+     * <p>J6-a：只有临时放置需要、也能够被恢复；道路等永久放置（`BULK_EDIT`）与玩家命令（`MANUAL`）
+     * 走独立授权，不受配对约束——两者不可混（D-081 §12.1 / D-095）。
+     */
+    public boolean temporary() {
+        return this == STEP_PLACEMENT || this == SUPPORT_PLACEMENT;
+    }
 }

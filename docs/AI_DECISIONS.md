@@ -2175,3 +2175,38 @@ mined 4/4 inventoryDelta=4`，且 `progressSummary`/`writes … unknown=0` 与�
 
 **验证等级**：`IMPLEMENTED` + `COMPILES`。**运行时断言待补**：需要一个"路径上有容器"的场景
 （正向断言"绕开而非拆掉"），计划并入 J6 自检——本轮不声称已验证。
+
+---
+
+## D-096 J6-a：世界修改账本 `WorldModLedger`（只记放置）+ 动作层自动记录 + 只读查看（2026-09-10）
+
+按 D-081 §12 的四层分工落地第一步（"记录"层）。用户已裁定：账本**只记放置**（与 `WriteAudit` 分工，
+后者管"谁授权、为什么"含破坏）、`KEEP` 走独立授权不受配对约束、恢复触发先做"任务结束 + 只读查看"、
+验收用现有 `pillar_course`/`place_course` 素材。
+
+### 实现
+1. **`ledger/WorldModLedger extends SavedData`**（`alice_world_mod_ledger`，存 overworld 的 DataStorage）
+   - 条目：`(pos, placed, previous, reason, policy, scopeId, owner, tick)`；一格一条（重放即覆盖）；
+   - `Policy { TEMP, KEEP }`：由 `WriteReason.temporary()` 派生——`STEP_PLACEMENT` / `SUPPORT_PLACEMENT` = **TEMP**，
+     `BULK_EDIT` / `MANUAL` = **KEEP**（道路等永久放置走独立授权，不受"建拆同权"约束）；
+   - **反序列化时未知 policy 一律按 `TEMP`**（宁可多拆自家的，也不漏拆）；
+   - `previous` 字段是"精确恢复原状"与"只拆自己放的"的前提（往雪/草里放置时原状态不是空气）。
+2. **记录点 = 动作层**（`BlockInteraction.placeAt` / `placeBulkEdit`）：只有动作层看得见**每一次**修改——
+   **含内核 `PILLAR` 放的方块**（Job 未必看得见）。`previous` 在放置**之前**采样。
+3. **授权作用域 = 一次任务**：`BotSession.beginTask` → `openScope`，`clearTask` → `closeScope`。
+   作用域单位正是 `RESTORE_BY_SCOPE` 的粒度。
+4. **建拆同权的可断言信号**：`clearTask` 关闭作用域时若账本仍非空，输出
+   `world_mod_ledger_close scope=… 仍有 N 条未清除的放置（建拆同权未闭合）` 警告。
+   **J6-a 阶段这条警告是预期出现的**——恢复机制（J6-b）还不存在，警告正是"配对未闭合"的证据。
+5. **只读命令 `/alice ledger [all]`**：打印 `pending / TEMP / KEEP / openScopes` + 最近若干条明细。
+   **只读**——不分配任务、不改世界、不清账本。
+
+### 本轮不做（J6-b/c）
+- **恢复**（`RestoreScopeTask`：自上而下拆自己的 TEMP、比对 `placed` 才算自己的）；
+- 崩溃/重启续做；
+- 把 `previous` 从"方块注册名"升级为**完整 BlockState**（精确原状）——当前按注册名记录/比对，
+  等恢复实现真的需要区分半砖/雪层朝向时再升级，避免现在背上 NBT 兼容负担。
+
+**验证等级**：COMPILES。验收（客户端）：右键 `alice:pathing_regression`（其中 `place_course`/`pillar_course`
+会真的放置方块）→ 日志出现 `[Ledger] place …` 与 `world_mod_ledger_close … 仍有 N 条` →
+`/alice ledger` 显示 `pending>0 TEMP>0` 且条目含 `scope=` 与 `STEP_PLACEMENT`。

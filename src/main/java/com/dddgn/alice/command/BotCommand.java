@@ -220,6 +220,9 @@ public final class BotCommand {
                 .then(Commands.literal("transfer-abort")
                         .then(Commands.argument("request", StringArgumentType.word())
                                 .executes(ctx -> transferAbort(ctx.getSource(), StringArgumentType.getString(ctx, "request")))))
+                .then(Commands.literal("ledger")
+                        .executes(ctx -> ledger(ctx.getSource(), false))
+                        .then(Commands.literal("all").executes(ctx -> ledger(ctx.getSource(), true))))
                 .then(Commands.literal("auto-mine")
                         .then(Commands.argument("tag", StringArgumentType.string())
                                 .executes(ctx -> autoMine(ctx.getSource(),
@@ -459,6 +462,31 @@ public final class BotCommand {
         String resultMsg = "挖掘 Job 已启动: 目标 " + targetName + " 配额 " + quota
                 + " 半径 " + radius + "（决策与终态见 [Job] 日志）";
         source.sendSuccess(() -> Component.literal("[alice] " + bot.getName().getString() + " " + resultMsg), false);
+        return 1;
+    }
+
+    /**
+     * 只读查看世界修改账本（J6-a）：未清除的放置、按策略分类、打开中的授权作用域。
+     *
+     * <p>只读——不分配任务、不改变世界、不清理账本。清理是 J6-b 的 `RestoreScopeTask` 的职责。
+     */
+    private static int ledger(CommandSourceStack source, boolean all) {
+        net.minecraft.server.MinecraftServer server = source.getServer();
+        var entries = com.dddgn.alice.ledger.WorldModLedger.recent(server, all ? 16 : 6);
+        var open = com.dddgn.alice.ledger.WorldModLedger.openScopes(server);
+        int size = com.dddgn.alice.ledger.WorldModLedger.size(server);
+        long temp = com.dddgn.alice.ledger.WorldModLedger.pending(server).stream()
+                .filter(e -> e.policy() == com.dddgn.alice.ledger.WorldModLedger.Policy.TEMP).count();
+        long keep = size - temp;
+        source.sendSuccess(() -> Component.literal("[alice] 世界修改账本 pending=" + size
+                + " TEMP=" + temp + " KEEP=" + keep + " openScopes=" + open.size()), false);
+        if (size == 0) {
+            source.sendSuccess(() -> Component.literal("[alice] （空：建拆同权已闭合）"), false);
+        }
+        for (var entry : entries) {
+            String line = "  " + entry.describe();
+            source.sendSuccess(() -> Component.literal(line), false);
+        }
         return 1;
     }
 

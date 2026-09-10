@@ -109,6 +109,8 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 | L3 挖掘 Job（切片 **J5**：L3 不只服务伐木 + 孤岛拆除） | `/function alice_test:ore_course` → 右键 `alice:mine_job` | 普通右键（零参数） | 场景为孤立长方体区域 + 石体顶面 6 处裸露铁矿；配额 4 | `WINDOWS_CLIENT` + `USER_ACCEPTED`（2026-09-10 23:18：`DONE quota_met mined 4/4 inventoryDelta=4 writes breaks=4 unknown=0 ticks=240`）。证据：`candidates` 6→5→4→3（`attempted` 过滤生效、拒绝带 `:not_nearest` 理由码）；每次 `select` 按当前位置重算最近（d=4.0/4.0/8.0/4.0）；**日志格式与伐木逐字同构** ⇒ 同一套 Job/Trace 复用成立 |
 | 通用挖掘入口（孤岛替代） | `/alice auto-mine <tag\|block> [count]` | 一行命令（无坐标） | 原 `AutoMineDecision` 已删除，改经 `assignMineJob` → `MineJob` | `待测`（可选：任意目标标签/方块 ID，默认挖最近 1 个） |
 
+| J6-a 世界修改账本（只记放置 + 动作层记录 + 只读查看） | 右键 `alice:pathing_regression`（`place_course`/`pillar_course` 会真的放置方块）→ `/alice ledger` | 零参数右键 + 一行只读命令 | 账本条目 `(pos, placed, previous, reason, policy, scopeId, owner, tick)`；策略由 `WriteReason.temporary()` 派生 | `待测`（预期：日志 `[Ledger] place …`、`world_mod_ledger_close … 仍有 N 条未清除的放置（建拆同权未闭合）`；`/alice ledger` 显示 `pending>0 TEMP>0`） |
+
 ## 性能验证
 
 | 能力 | 测试入口 | 关键观察 | 当前状态 |

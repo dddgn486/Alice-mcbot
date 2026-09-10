@@ -836,6 +836,9 @@ public final class BotManager {
         }
 
         private void beginTask(Task assignedTask, TaskTarget assignedTarget) {
+            // 一次任务 = 一个世界修改授权作用域（J6-a）：账本按 scope 聚合，恢复以 scope 为单位
+            com.dddgn.alice.ledger.WorldModLedger.openScope(bot.getServer(), bot.getUUID(),
+                    assignedTask.getClass().getSimpleName());
             task = assignedTask;
             target = assignedTarget;
             taskKind = assignedTask.getClass().getSimpleName();
@@ -1027,6 +1030,14 @@ public final class BotManager {
         /** 任务收尾:清任务、清作用域、广播清除高亮。 */
         void clearTask() {
             if (task != null) {
+                String closedScope = com.dddgn.alice.ledger.WorldModLedger.closeScope(
+                        bot.getServer(), bot.getUUID());
+                int pending = com.dddgn.alice.ledger.WorldModLedger.pending(bot.getServer()).size();
+                if (pending > 0) {
+                    // 建拆同权的可断言信号：任务收尾时账本非空 ⇒ 有未拆除的临时放置
+                    BotLog.warn("world_mod_ledger_close scope={} 仍有 {} 条未清除的放置（建拆同权未闭合）",
+                            closedScope, pending);
+                }
                 scope.end();
                 task = null;
                 target = null;
