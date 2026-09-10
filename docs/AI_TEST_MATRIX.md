@@ -2,7 +2,7 @@
 
 > 轻量记录关键场景，不要求每个功能制作复杂报告。客户端测试在 Windows，由真人完成。
 >
-> 恢复层级字段见 `docs/MINETASK_RECOVERY_CONTRACT.md`；A/B/C 已用事件序列契约复核，不改变其行为边界。
+> 恢复层级字段见 `docs/archive/legacy-2026-08/MINETASK_RECOVERY_CONTRACT.md`；A/B/C 已用事件序列契约复核，不改变其行为边界。
 
 ## 证据等级
 

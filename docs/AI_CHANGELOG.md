@@ -87,7 +87,7 @@
 - 新增：`pathing/MovementPlan`，明确 `startFoot`、`goalFoot`、`List<Movement>`、脚位投影路径、搜索状态、成本和规划器名称。
 - 校验：坐标统一按脚位解释；投影路径必须从起点到终点；已到达计划不得携带 Movement；已到达且非同脚位路线必须有 Movement；Movement 首尾和相邻段必须连接。
 - 保持：未修改 MineTask、BotMiner、PathExecutor、MovementPathExecutor、客户端行为或多 Bot 调度；未删除旧路径模型。
-- 验证：`./gradlew compileJava --no-daemon` 通过；状态更新见 `docs/MINETASK_MOVEMENT_MVP_DESIGN.md`。
+- 验证：`./gradlew compileJava --no-daemon` 通过；状态更新见 `docs/archive/legacy-2026-08/MINETASK_MOVEMENT_MVP_DESIGN.md`。
 - 下一步：用户确认后进入 M1，仅支持已验证同高度 `WalkMovement` 的独立编译/验证入口。
 
 
@@ -139,7 +139,7 @@
 - 寻路盘点：项目同时存在 `PathPlanner.PathResult + MovementPathExecutor` 平行模型；AStarPathfinder 的正式搜索已使用 Movement Provider 枚举邻居，但正式执行仍消费 BlockPos 序列
 - 风险：路径状态名称、输出对象、配置预算和旧 ServerLevel 入口存在语义分叉；不能仅凭注释中的“统一/推荐”接入 MineTask
 - 验证：代码审查完成；未修改寻路或任务行为；A/B/C 边界保持不变
-- 报告：`docs/MINETASK_INTERNAL_CONTRACT_AUDIT.md`
+- 报告：`docs/archive/legacy-2026-08/MINETASK_INTERNAL_CONTRACT_AUDIT.md`
 - 下一步：与用户严肃讨论正式寻路契约和两套模型的取舍，再决定最小可验证收敛方案
 
 ## 2026-09-06：移动物理调用链与模式语义纠正
@@ -148,7 +148,7 @@
 - 修正审查：不能把“实体 tick 不自动 travel”和“任务侧 travel 可能重复推进”混为一谈；两者分别审计
 - 新事实：当前移动入口至少包括 `PathExecutor + BasicMovement.travel`、`MovementPathExecutor + Movement`、`BotController` 输入、`BotPlayer.aiStep`、直接 `setPos/setDeltaMovement` 旁路和世界修改型 Movement
 - 模式结论：`HARD_PATH` 与 `SOFT_SURFACE` 均不能按名称理解实现；当前 `PathExecutor` 不是纯 setPos 瞬移，`SOFT_SURFACE` 也没有完整真实行走闭环证据
-- 文档：扩展 `docs/MINETASK_INTERNAL_CONTRACT_AUDIT.md`，新增 D-015/D-016；未修改运行代码
+- 文档：扩展 `docs/archive/legacy-2026-08/MINETASK_INTERNAL_CONTRACT_AUDIT.md`，新增 D-015/D-016；未修改运行代码
 - 下一步：先做 Movement 纯行走和 Forge Bot 单 tick 物理调用链的最小审计，再讨论正式命名、执行后端和 MineTask 解耦
 
 ## 2026-09-06：准备 Movement 物理实验 1
@@ -157,7 +157,7 @@
 - 实验边界：不接 MineTask、BotMiner、PathExecutor、MovementPathExecutor、PathPlanner 或世界修改型 Movement
 - 重点数据：每 tick 输入、位置、速度、支撑、onGround，并尽可能记录 travel/aiStep 调用计数
 - 目标：确认 Forge Bot 的物理推进调用链和真实行走基础，不提前宣布 SOFT_SURFACE 完成
-- 文档：`docs/MOVEMENT_PHYSICS_EXPERIMENT_1.md`
+- 文档：`docs/archive/legacy-2026-08/MOVEMENT_PHYSICS_EXPERIMENT_1.md`
 - 状态：平地前进/停止已获用户验收；台阶、落差、动态阻挡和 Movement 序列待后续实验
 
 ## 2026-09-06：实施 Movement 实验 2
@@ -281,7 +281,7 @@
 - 保持：不改变 `HARD_PATH`、`SEARCH_LIMIT`、BotMiner 两次内部重试、MineTask 一次任务级重规划及 A/B/C 场景
 - 验证：`./gradlew compileJava --no-daemon`、`./gradlew build --no-daemon` 均通过
 - 客户端：本轮仅增加观测字段，未重新同步或声称 A/B/C 回归验收
-- 文档：`docs/MINETASK_RECOVERY_CONTRACT.md`
+- 文档：`docs/archive/legacy-2026-08/MINETASK_RECOVERY_CONTRACT.md`
 - 下一步：如需验证 `MINETASK_REPLAN`，先提交场景 D 预览图和几何方案，用户确认后再实现
 
 > 只记录关键开发轮次、失败和根因，不替代 Git 历史。

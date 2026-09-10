@@ -410,7 +410,7 @@ Baritone-like Pathing Core
 ### 13.1 已完成
 
 - R2-C 四个 Movement（Traverse / Diagonal / Ascend / Descend）已通过客户端验证；Descend 修复后 **4/4 精确命中目标脚位**，Ascend/Diagonal 各 4/4，多段链 `/alice pathing chain` 在标准楼梯上**逐级通过**。
-- Baritone 对照审计完成：`docs/R2C_BARITONE_AUDIT.md`（A 7 / B 20 / C 5 项分类）。
+- Baritone 对照审计完成：`docs/archive/legacy-2026-08/R2C_BARITONE_AUDIT.md`（A 7 / B 20 / C 5 项分类）。
 
 ### 13.2 与 Baritone 的三处结构性偏差（必须在本内核内解决，不得绕过）
 
