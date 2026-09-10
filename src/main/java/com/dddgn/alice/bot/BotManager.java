@@ -521,6 +521,29 @@ public final class BotManager {
         return true;
     }
 
+    /**
+     * 触发一次作用域恢复（J6-b 的**命令兜底**）：拆掉我方放置的临时方块并销账。
+     *
+     * <p>正常路径是"任务收尾自动追加恢复任务"；本命令用于处理**历史遗留**（例如崩溃/重启留下的
+     * 脚手架，或升级前账本里已有的条目）。
+     *
+     * @param all true = 恢复账本里全部待恢复的 TEMP；false = 仅当前打开的作用域
+     */
+    public static boolean assignRestore(BotPlayer bot, ServerPlayer observer, boolean all) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        var pending = com.dddgn.alice.ledger.WorldModLedger.pendingTemporary(bot.getServer(), null);
+        if (pending.isEmpty()) {
+            BotLog.info("[Restore] 账本无待恢复项（无需启动）");
+            return false;
+        }
+        String scope = all ? null : pending.get(0).scopeId();
+        session.beginTask(new com.dddgn.alice.task.RestoreScopeTask(bot, session.scope(), scope),
+                TaskTarget.block(pending.get(0).pos()));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     /** 伐木失败语义自检（切片 J4）：五条终止路径各一个用例。 */
     public static boolean assignLumberFailureCheck(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
@@ -1030,18 +1053,32 @@ public final class BotManager {
         /** 任务收尾:清任务、清作用域、广播清除高亮。 */
         void clearTask() {
             if (task != null) {
+                Task ending = task;
                 String closedScope = com.dddgn.alice.ledger.WorldModLedger.closeScope(
                         bot.getServer(), bot.getUUID());
-                int pending = com.dddgn.alice.ledger.WorldModLedger.pending(bot.getServer()).size();
-                if (pending > 0) {
-                    // 建拆同权的可断言信号：任务收尾时账本非空 ⇒ 有未拆除的临时放置
-                    BotLog.warn("world_mod_ledger_close scope={} 仍有 {} 条未清除的放置（建拆同权未闭合）",
-                            closedScope, pending);
-                }
+                var pendingTemp = com.dddgn.alice.ledger.WorldModLedger.pendingTemporary(
+                        bot.getServer(), closedScope);
                 scope.end();
                 task = null;
                 target = null;
                 broadcastTarget(null);
+                if (pendingTemp.isEmpty()) {
+                    return;
+                }
+                // **建拆同权（D-081 §12.1）**：任务收尾时该作用域仍有我方**临时**放置 →
+                // **自动追加一个恢复任务**，而不是只留一条警告。这样"建了必须拆"由会话强制，
+                // 不依赖每个 Job 自觉（也覆盖非 Job 的任务，例如寻路回归）。
+                // 恢复任务自身不放置任何东西，故不会自我递归。
+                if (!(ending instanceof com.dddgn.alice.task.RestoreScopeTask)) {
+                    BotLog.warn("world_mod_ledger_close scope={} 仍有 {} 条未清除的放置 → 自动追加恢复任务",
+                            closedScope, pendingTemp.size());
+                    beginTask(new com.dddgn.alice.task.RestoreScopeTask(bot, scope, closedScope),
+                            TaskTarget.block(pendingTemp.get(0).pos()));
+                    broadcastTarget(target);
+                    return;
+                }
+                BotLog.warn("world_mod_ledger_close scope={} 仍有 {} 条未清除（恢复任务本身未清完）",
+                        closedScope, pendingTemp.size());
             }
         }
 

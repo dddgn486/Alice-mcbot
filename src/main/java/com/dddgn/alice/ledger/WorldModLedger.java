@@ -138,6 +138,29 @@ public final class WorldModLedger extends SavedData {
         return new ArrayList<>(get(server).entries.values());
     }
 
+    /** 按位置取条目（恢复前用它核对"这格是不是我放的"）。 */
+    public static Entry at(MinecraftServer server, BlockPos pos) {
+        return get(server).entries.get(key(pos));
+    }
+
+    /**
+     * 待恢复的临时放置：`scopeId` 为 null 时取全部。
+     *
+     * <p>**只取 TEMP**——`KEEP`（道路等永久放置）不该被恢复（D-095/§12.1）。
+     */
+    public static List<Entry> pendingTemporary(MinecraftServer server, String scopeId) {
+        List<Entry> result = new ArrayList<>();
+        for (Entry entry : get(server).entries.values()) {
+            if (entry.policy() != Policy.TEMP) {
+                continue;
+            }
+            if (scopeId == null || entry.scopeId().equals(scopeId)) {
+                result.add(entry);
+            }
+        }
+        return result;
+    }
+
     /** 某个作用域下未清除的记录。 */
     public static List<Entry> pendingInScope(MinecraftServer server, String scopeId) {
         List<Entry> result = new ArrayList<>();

@@ -111,6 +111,9 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 
 | J6-a 世界修改账本（只记放置 + 动作层记录 + 只读查看） | 右键 `alice:pathing_regression`（`place_course`/`pillar_course` 会真的放置方块）→ `/alice ledger` | 零参数右键 + 一行只读命令 | 账本条目 `(pos, placed, previous, reason, policy, scopeId, owner, tick)`；策略由 `WriteReason.temporary()` 派生 | `WINDOWS_CLIENT` + `USER_ACCEPTED`（2026-09-10 23:47）：7 条 `[Ledger] place …`，全部 `cobblestone←air [TEMP STEP_PLACEMENT scope=…:PathingRegressionTask]` —— **抓到的是内核 `PILLAR`/`PLACE_STEP_AND_TRAVERSE` 在寻路途中放的方块**（"Job 未必看得见"那一类）⇒ 动作层记录点选对了；`world_mod_ledger_close … 仍有 5 条未清除的放置（建拆同权未闭合）`；`/alice ledger → pending=5 TEMP=5 KEEP=0 openScopes=0`（7 条记录→5 条：两处被重放，一格一条覆盖 ✓）。同轮 `pathing_regression` 仍 14/14 PASS ⇒ 账本钩子与 D-095 谓词均无回归 |
 
+| J6-b1 作用域恢复（建拆同权由会话强制） | 右键 `alice:pathing_regression`（其 5 处放置成为待恢复项）→ `/alice ledger` | 零参数右键 + 一行只读命令 | 恢复严格自上而下、只拆自己放的、不许挖地形 | `待测`（预期：`仍有 5 条未清除的放置 → 自动追加恢复任务`；`[Restore] SUMMARY … restored=5 skipped=0 remaining=0 → DONE`；`/alice ledger → pending=0`） |
+| J6-b1 命令兜底 | `/alice restore` | 一行只读式命令（无坐标） | 处理崩溃/重启/升级前的历史遗留 | `待测`（可选；与上行配合验证 `pending` 归零） |
+
 ## 性能验证
 
 | 能力 | 测试入口 | 关键观察 | 当前状态 |

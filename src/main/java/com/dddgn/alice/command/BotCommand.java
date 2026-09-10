@@ -220,6 +220,8 @@ public final class BotCommand {
                 .then(Commands.literal("transfer-abort")
                         .then(Commands.argument("request", StringArgumentType.word())
                                 .executes(ctx -> transferAbort(ctx.getSource(), StringArgumentType.getString(ctx, "request")))))
+                .then(Commands.literal("restore")
+                        .executes(ctx -> restore(ctx.getSource(), true)))
                 .then(Commands.literal("ledger")
                         .executes(ctx -> ledger(ctx.getSource(), false))
                         .then(Commands.literal("all").executes(ctx -> ledger(ctx.getSource(), true))))
@@ -462,6 +464,22 @@ public final class BotCommand {
         String resultMsg = "挖掘 Job 已启动: 目标 " + targetName + " 配额 " + quota
                 + " 半径 " + radius + "（决策与终态见 [Job] 日志）";
         source.sendSuccess(() -> Component.literal("[alice] " + bot.getName().getString() + " " + resultMsg), false);
+        return 1;
+    }
+
+    /** 触发作用域恢复（J6-b 兜底）：拆掉我方放置的临时方块并销账。 */
+    private static int restore(CommandSourceStack source, boolean all) {
+        var bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] 没有可用 bot"));
+            return 0;
+        }
+        if (!BotManager.assignRestore(bot, source.getPlayer(), all)) {
+            source.sendFailure(Component.literal("[alice] 无可恢复项，或 bot 正忙"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("[alice] 已启动恢复任务（详见 [Restore] 日志；"
+                + "结束后用 /alice ledger 确认 pending=0）"), false);
         return 1;
     }
 

@@ -19,6 +19,10 @@ public enum WriteReason {
     /** 明确的挖掘目标：允许挖脚下承重块，只受保护区/不可破坏/流体约束。 */
     EXPECTED_TARGET(Policy.EXPLICIT_TARGET, Action.BREAK, "明确目标挖掘"),
 
+    /** 回收我方放置的临时方块（垫脚柱/台阶/支撑）：**目标是脚下那格**，
+     *  故必须走明确目标策略——清障策略会拒 `underfoot_block`（D-097/J6-b）。 */
+    SCAFFOLD_RESTORE(Policy.EXPLICIT_TARGET, Action.BREAK, "回收临时放置"),
+
     /** 向下挖掘（Baritone {@code MovementDownward} 语义）：目标是脚下那一格。 */
     DESCEND_FOOT(Policy.EXPLICIT_TARGET, Action.BREAK, "向下挖掘"),
 
