@@ -36,6 +36,7 @@
 | A5 | `PlaceTask` 放置 | 目标格 | 一次性方块白名单 + 支撑面 | `taskName()` | `STEP_PLACEMENT` | ✅ |
 | A6 | 道路施工（`RoadBuildTask` / `RoadBuilder`） | 单元格 | ⚠️ 无预算 | 常量 `road-build` / `road-builder` | `BULK_EDIT`（破坏与放置） | ✅ |
 | A7 | 玩家命令（`BotManager` 挖掘 / `BotCommand`） | 目标格 | `MiningBudget` | 常量 `command` | `EXPECTED_TARGET` / `MANUAL` | ✅ |
+| A8 | **脚手架回收**（`RestoreScopeTask`，J6-b） | 账本里**我方 TEMP 放置**逐块 | 每块两段寻路（`300` tick/块） | `restore` | `SCAFFOLD_RESTORE` | ✅ 并**销账** |
 
 ### 2.2 寻路内核（Movement 触发的破坏/放置）
 
@@ -50,6 +51,8 @@
 | P4 | `PillarExecution` | `PILLAR` | 自己脚下 1 格 | 一次性方块 | `STEP_PLACEMENT` | ✅ |
 | P5 | `PlaceStepAndTraverseExecution` | `PLACE_STEP_AND_TRAVERSE` | 前方落点 1 格 | 一次性方块 | `STEP_PLACEMENT` | ✅ |
 | P6 | `BreakAndWalkMovement`（legacy，**无生产调用者**） | — | 脚位/头位障碍 | 无 | `PATH_ACCESS`（`requester=legacy-break-and-walk`） | ✅ |
+| P7 | **脚手架回收专用请求** `PathRequest.scaffoldRemoval`（J6-b） | `DOWNWARD` + `TRAVERSE/DIAGONAL/ASCEND/DESCEND/FALL` | 脚下那一格（`DOWNWARD` 语义） | 每块 300 tick | `restore` | ✅ |
+| | ↑ **刻意不含** `PILLAR` / `PLACE_STEP_AND_TRAVERSE`（回收阶段不许再建）与 `BREAK_AND_*`（不许沿途挖地形） | | | | | |
 
 ### 2.3 三个工厂的 Movement 集合（授权强度）
 

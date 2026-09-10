@@ -2284,3 +2284,30 @@ D-095 的"路径上有容器 → 绕开而非拆掉"断言需要"箱子挡在必
 其收尾应自动追加恢复任务 → 日志出现 `仍有 5 条未清除的放置 → 自动追加恢复任务`、
 `[Restore] start … blocks=5`、`[Restore] SUMMARY … restored=5 … remaining=0 → DONE`，
 随后 `/alice ledger` 显示 `pending=0`。
+
+### D-098 附注（首测纠正）：拆脚手架**必须用 DOWNWARD**，不能用 MineTask
+首测结果：`restored=0 skipped=5 remaining=4 ticks=9 reason=restore_partial → FAILED`。
+5 块里 1 块判 `not_ours`（账本记 cobblestone、现场是 air → **正确地放弃并销账**），
+其余 4 块**在 9 tick 内全部规划失败**：
+
+```
+[Restore] block 24,65,44 → [MiningPlanner] standable_only reason=no_valid_standing_point
+[Restore] block 24,64,44 → reason=no_reachable_standing_point
+[Restore] block 2,63,66  → reason=no_reachable_standing_point
+```
+
+**根因（我的实现错，不是设计错）**：`MiningPlanner` 模式 A **显式排除 `target.above()`
+作为站位**——因为"站在目标头上"正是 `DOWNWARD` 的语义，不是"站位"。所以"用 `MineTask`
+拆自己脚下那格"**必然规划失败**。而设计文档 D-081 §12.3 早就写明了正确机制：
+**"挖脚下 → `DOWNWARD` 落 1 格 → 重复（`DOWNWARD` 已于 D-048/D-050 客户端验收）"**——我绕开了它。
+
+**修正**：`RestoreScopeTask` 改为每块两阶段：**① APPROACH 走到目标正上方站好 → ② DESCEND
+向下走一格**（`DOWNWARD` 破坏脚下并让 bot 落进去）→ 销账。于是拆 n 格垫脚柱 = "落 n 次"，
+天然自上而下，且下一块正好落到脚下，形成紧凑循环。
+配套新增**显式授权入口** `PathRequest.scaffoldRemoval`：只允许
+`TRAVERSE/DIAGONAL/ASCEND/DESCEND/DOWNWARD/FALL`，**刻意不含** `PILLAR`/`PLACE_STEP_AND_TRAVERSE`
+（回收阶段不许再建）与 `BREAK_AND_*`（不许沿途挖地形）；已在
+`docs/WORLD_WRITE_AUTHORIZATION.md` 登记为 P7（回收任务用 A8）。
+
+**教训**：实现前应当先读**设计文档里已经写明的机制**（§12.3 明写 DOWNWARD），
+而不是凭"复用 MineTask"的直觉开工——`MineTask` 的排除规则是**为挖掘场景**设的。
