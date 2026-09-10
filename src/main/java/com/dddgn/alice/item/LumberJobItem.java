@@ -17,7 +17,8 @@ import net.minecraft.world.level.Level;
 /**
  * 伐木 Job 启动器（{@code alice:lumber_job}，L3/D-080，切片 J1）：普通右键，零参数。
  *
- * <p>在场景固定起点附近扫描树木，选一棵砍完并收集入包；决策与终态走 {@code [Job]} 决策日志。
+ * <p>在场景固定起点附近扫描树木，**按配额循环**砍完并收集入包；决策与终态走 {@code [Job]} 决策日志。
+ * 配额取自物品默认值（J2：**2 棵**，覆盖循环 / 逐树记账 / 终止语义，见 {@code JOB_LAYER_DESIGN.md} §6.2c）。
  */
 public class LumberJobItem extends Item {
 

@@ -3,6 +3,7 @@ package com.dddgn.alice.job.lumber;
 import com.dddgn.alice.action.WriteReason;
 import com.dddgn.alice.action.WriteGrant;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.job.Candidate;
 import com.dddgn.alice.job.CandidateSet;
 import com.dddgn.alice.job.DecisionTrace;
 import com.dddgn.alice.job.GoalSpec;
@@ -26,7 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 伐木 Job（L3 第一消费者，切片 J1：**只砍一棵、不循环**）。
+ * 伐木 Job（L3 第一消费者；J1 = 单棵闭环，**J2 = 循环 + 配额 + 终止语义**）。
  *
  * <p>职责只有四件（`docs/JOB_LAYER_DESIGN.md` §3）：**选目标 → 生成子任务 → 记账 → 终止**。
  * 移动/挖掘/收集全部复用已验收的 L2：
@@ -37,7 +38,16 @@ import java.util.List;
  * </ul>
  *
  * <p>完成判据 = **产物入包**：整棵砍完 **且** 背包中 `ItemTags.LOGS` 增量 ≥ 该树原木数。
- * 做不到就如实报：`partial_tree` / `product_not_collected` / `goal_timeout` / `no_reachable_candidate`。
+ * 做不到就如实报（`docs/JOB_LAYER_DESIGN.md` §6.2c 五条终止路径）：
+ * <ul>
+ *   <li>① 配额达成 → `DONE quota_met`；</li>
+ *   <li>② 无可行候选（且一棵都没砍成）→ `FAILED no_reachable_candidate` + 理由集；</li>
+ *   <li>③ 背包放不下 → `DONE inventory_full`（不空转）；</li>
+ *   <li>④ 硬超时 → `FAILED goal_timeout`；</li>
+ *   <li>⑤ 砍到一半该树作废 → 记入 `attempted` 跳过该树继续下一棵；配额未达且候选用尽 → `FAILED partial_quota` + 逐树失败清单。</li>
+ * </ul>
+ *
+ * <p>**循环不变量（§6.2b）**：`attempted` 保证**不重复砍同一棵**——半成品树若被反复重选会死循环。
  */
 public final class LumberJob implements Job {
 
@@ -54,6 +64,10 @@ public final class LumberJob implements Job {
     private final LumberCandidateSource source;
     private final SelectionPolicy policy;
     private final int logsBefore;
+    /** 已尝试过的树基座（成功或失败都算）——保证**不重复砍同一棵**（§6.2b 循环不变量）。 */
+    private final java.util.Set<BlockPos> attempted = new java.util.HashSet<>();
+    /** 逐树的失败清单（Job 级，用于 §6.2c⑤ 的如实上报）。 */
+    private final java.util.List<String> attemptFailures = new ArrayList<>();
 
     private Phase phase = Phase.SELECT;
     private int ticks;
@@ -61,6 +75,13 @@ public final class LumberJob implements Job {
     private List<BlockPos> queue = List.of();
     private int queueIndex;
     private int choppedLogs;
+    /** 配额进度：已完成整棵的树数。 */
+    private int treesDone;
+    /** 报告用累计值（monotone）：已砍原木数 / 计划原木数。 */
+    private int choppedTotal;
+    private int plannedTotal;
+    /** **本棵树**开始前的背包原木数（逐树完成判据的基线）。 */
+    private int logsBeforeThisTree;
     private final List<String> failedLogs = new ArrayList<>();
     private MineTask miner;
     private MineTask clearTask;
@@ -115,9 +136,9 @@ public final class LumberJob implements Job {
 
     @Override
     public String progressSummary() {
-        int total = queue.isEmpty() ? 0 : queue.size();
-        return "logs " + choppedLogs + "/" + total + " trees " + (terminated && failure.isEmpty() ? 1 : 0)
-                + "/" + spec.quota() + (clearedTotal > 0 ? " cleared=" + clearedTotal : "");
+        return "trees " + treesDone + "/" + spec.quota()
+                + " logs " + choppedTotal + "/" + plannedTotal
+                + (clearedTotal > 0 ? " cleared=" + clearedTotal : "");
     }
 
     @Override
@@ -141,13 +162,12 @@ public final class LumberJob implements Job {
     // ==================== 阶段 ====================
 
     private Task.Status select() {
-        CandidateSet set = source.candidates(bot, spec);
+        CandidateSet raw = source.candidates(bot, spec);
+        CandidateSet set = withoutAttempted(raw);
         Selection selection = policy.select(bot, spec, set);
         DecisionTrace.select(jobName(), policy.name(), set, selection);
         if (selection.picked() == null) {
-            terminalReason = "no_reachable_candidate";
-            failure = terminalReason;
-            return finish(Task.Status.FAILED);
+            return shortfall(set);
         }
         Tree picked = source.treeAt(selection.picked().anchor());
         if (picked == null) {
@@ -156,8 +176,13 @@ public final class LumberJob implements Job {
             return finish(Task.Status.FAILED);
         }
         tree = picked;
-        clearedThisTree = 0;   // 预算按棵重置（D-080「≤8 格/棵」）
+        clearedThisTree = 0;            // 预算按棵重置（D-080「≤8 格/棵」）
+        queueIndex = 0;
+        choppedLogs = 0;
+        failedLogs.clear();
+        logsBeforeThisTree = countLogs();   // 逐树基线（job 级 logsBefore 只用于总报告）
         queue = picked.logsBottomUp();
+        plannedTotal += picked.logCount();
         scope.begin(picked.base(), 16, bot.getUUID());
         DecisionTrace.step(jobName(), "SELECT", picked.base().toShortString(),
                 "logs=" + picked.logCount() + " height=" + picked.trunkHeight()
@@ -267,19 +292,88 @@ public final class LumberJob implements Job {
         if (status == Task.Status.RUNNING) {
             return Task.Status.RUNNING;
         }
-        phase = Phase.DONE;
-        int gained = countLogs() - logsBefore;
+        int gained = countLogs() - logsBeforeThisTree;
         boolean allChopped = failedLogs.isEmpty() && choppedLogs == queue.size() && !queue.isEmpty();
-        if (allChopped && gained >= tree.logCount()) {
+        boolean harvested = allChopped && gained >= tree.logCount();
+        tried(tree.base(), harvested, gained);
+
+        if (treesDone >= spec.quota()) {
             terminalReason = "quota_met";
             return finish(Task.Status.DONE);
         }
-        terminalReason = allChopped ? "product_not_collected" : "partial_tree";
-        if (!failedLogs.isEmpty()) {
-            BotLog.warn("[Job] lumber 未砍完的原木: {}", String.join(",", failedLogs));
+        if (!hasRoomForLogs()) {
+            terminalReason = "inventory_full";
+            BotLog.warn("[Job] lumber 背包放不下更多原木，提前结束：trees {}/{}",
+                    treesDone, spec.quota());
+            return finish(Task.Status.DONE);
         }
-        failure = terminalReason;
+        // 循环：回到选树（attempted 保证不重复砍同一棵）
+        DecisionTrace.step(jobName(), "NEXT", "trees " + treesDone + "/" + spec.quota(),
+                "继续选下一棵；已尝试 " + attempted.size() + " 棵");
+        phase = Phase.SELECT;
+        return Task.Status.RUNNING;
+    }
+
+    /** 结算一棵树：成功计进度，失败进清单（§6.2c⑤）。 */
+    private void tried(BlockPos base, boolean harvested, int gained) {
+        attempted.add(base);
+        choppedTotal += choppedLogs;
+        if (harvested) {
+            treesDone++;
+            return;
+        }
+        String detail = base.toShortString() + ":"
+                + (allChoppedNow() ? "product_not_collected" : "partial_tree")
+                + " gained=" + gained + "/" + tree.logCount()
+                + (failedLogs.isEmpty() ? "" : " failed=" + String.join(",", failedLogs));
+        attemptFailures.add(detail);
+        BotLog.warn("[Job] lumber 该树未完成 {}", detail);
+    }
+
+    private boolean allChoppedNow() {
+        return failedLogs.isEmpty() && choppedLogs == queue.size() && !queue.isEmpty();
+    }
+
+    /** 配额未达成时的终态：有产出 → `partial_quota`，一棵没成 → `no_reachable_candidate`。 */
+    private Task.Status shortfall(CandidateSet set) {
+        if (!attemptFailures.isEmpty()) {
+            BotLog.warn("[Job] lumber 未能完成的树: {}", String.join(" | ", attemptFailures));
+        }
+        terminalReason = treesDone > 0 ? "partial_quota" : "no_reachable_candidate";
+        failure = terminalReason + (set.rejected().isEmpty() ? "" : " " + String.join(",", set.rejected()));
         return finish(Task.Status.FAILED);
+    }
+
+    /** 过滤掉已尝试过的树，并把过滤原因写进 rejected（§6.2a：拒绝必须带理由码）。 */
+    private CandidateSet withoutAttempted(CandidateSet raw) {
+        if (attempted.isEmpty()) {
+            return raw;
+        }
+        List<Candidate> viable = new ArrayList<>();
+        List<String> rejected = new ArrayList<>(raw.rejected());
+        for (Candidate candidate : raw.viable()) {
+            if (attempted.contains(candidate.anchor())) {
+                rejected.add(candidate.anchor().toShortString() + ":already_attempted");
+            } else {
+                viable.add(candidate);
+            }
+        }
+        return new CandidateSet(viable, rejected);
+    }
+
+    /** 背包是否还能装下原木（§6.2c③：放不下就别空转）。 */
+    private boolean hasRoomForLogs() {
+        var inventory = bot.getInventory();
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (stack.isEmpty()) {
+                return true;
+            }
+            if (stack.is(ItemTags.LOGS) && stack.getCount() < stack.getMaxStackSize()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Task.Status finish(Task.Status status) {

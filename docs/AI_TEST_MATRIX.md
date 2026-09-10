@@ -92,7 +92,13 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 
 | 挖掘专项串联回归（批次 5，D-078） | `/function alice_test:mine_regression_course` + `alice:mine_regression` | 普通右键 | `[MineRegression] SUMMARY free=PASS wall=PASS blocked=PASS headroom=PASS buried=PASS floating_plan=PASS exec_direct=PASS exec_blocked=PASS exec_floating=PASS exec_chain=PASS`；执行项细节行含 `collected=n/期望 inventoryDelta=n dropsLeft=0` | `WINDOWS_CLIENT`（2026-09-09 23:13：**10/10 PASS**、`ticks=117`、任务 COMPLETED；`floating_plan support=23,64,190`、`exec_floating supportPlaced=true inventoryDelta=0`） |
 
-| L3 伐木 Job（D-080，切片 J1，**真树夹具**） | `/function alice_test:lumber_course` + `alice:lumber_job` | 普通右键 | 夹具由玩家催熟的真树抓取（`tools/capture-scene.py`）；预期由 `tools/analyze-lumber-scene.py` 离线预测：橡树(20,64,208) logs=4/1 可见/2 掏空/**1 需清障**；云杉(28,64,208) logs=7/3/4/0；2x2 高大云杉(22,64,218) 77 原木含 6 硬遮挡→拒绝。期望 `[Job] select picked=tree@20,64,208`、`rejected` 含 `22,64,218:trunk_too_tall(...hard=6)` 与 `28,64,208:not_nearest`；砍伐顺序自下而上（第 2 格走侧面/清障，第 3 格起掏空仰挖）；终态 `result=DONE reason=quota_met`、背包原木增量 = 4、作用域无剩余掉落物 | 待测（J1） |
+| L3 伐木 Job（D-080，切片 J1，**真树夹具**） | `/function alice_test:lumber_course` + `alice:lumber_job` | 普通右键 | 夹具由玩家催熟的真树抓取（`tools/capture-scene.py`）；预期由 `tools/analyze-lumber-scene.py` 离线预测：橡树(20,64,208) logs=4/1 可见/2 掏空/**1 需清障**；云杉(28,64,208) logs=7/3/4/0；2x2 高大云杉(22,64,218) 77 原木含 6 硬遮挡→拒绝。期望 `[Job] select picked=tree@20,64,208`、`rejected` 含 `22,64,218:trunk_too_tall(...hard=6)` 与 `28,64,208:not_nearest`；砍伐顺序自下而上（第 2 格走侧面/清障，第 3 格起掏空仰挖）；终态 `result=DONE reason=quota_met`、背包原木增量 = 4、作用域无剩余掉落物 | `WINDOWS_CLIENT` + `USER_ACCEPTED`（2026-09-10 20:35：`result=DONE reason=quota_met`、`logs 4/4 trees 1/1 cleared=3 inventoryDelta=4`、`writes breaks=7 unknown=0`、`ticks=354`）。实跑与离线预测一致（清障 3 格：`18,65,207`/`19,65,207`/`19,65,208`；原木 3、4 根零清障走"掏空仰望"）。多轮复跑通过（20:09 / 20:17 / 20:24 / 20:35） |
+
+| 挖掘回归复验（R2b 授权闸门 + D-086 假失败修复后） | 右键 `alice:mine_regression` | 期望**首次即** 10/10 •无 `UNAUTHORIZED_MOVEMENT` •无 `cluster_budget` | `WINDOWS_CLIENT`（2026-09-10 20:34:52 **单次启动**即 10/10 PASS，`ticks=146`；`exec_floating=PASS`、日志无 `reanchor`/`cluster_budget`） |
+| 寻路回归复验（R2b 后） | 右键 `alice:pathing_regression` | 14 场景全 PASS，含全部写入型 `BREAK_AND_TRAVERSE`/`DOWNWARD`/`PILLAR`/`PLACE_STEP`/`BREAK_AND_ENTER`；`UNAUTHORIZED_MOVEMENT` 必须为 0 | `WINDOWS_CLIENT`（2026-09-10 20:27:29 全 PASS，`terminal=COMPLETED`；越权检查命中 0） |
+| 世界写入授权审计（D-082） | 任意任务跑一次，看 `[WRITE]` 行与终态 `writes … unknown=` | `by=<任务身份>:<REASON>`；`unknown=0`（计数为**会话累计**，跨任务不重置） | `WINDOWS_CLIENT`（2026-09-10：`by=MineRegressionTask:EXPECTED_TARGET` / `SUPPORT_PLACEMENT` / `lumber:LINE_OF_SIGHT`，全程 `unknown=0`） |
+
+| L3 伐木 Job（D-080，切片 **J2**：循环 + 配额 + 终止） | `/function alice_test:lumber_course` + `alice:lumber_job` | 普通右键 | 配额 **2 棵**；场景 4 棵树 / 3 棵可行（橡树`20,64,208`、复制橡树`29,64,215`、云杉`28,64,208`）/ 高大云杉被拒 | `待测`（预期 `result=DONE reason=quota_met`、`trees 2/2`、`inventoryDelta≥8`、`unknown=0`；两棵橡树各清障 3~4 格 → 验证按棵预算重置） |
 
 ## 性能验证
 

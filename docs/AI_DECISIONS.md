@@ -1790,3 +1790,39 @@ retire item=… reason=cluster_budget itemPos=24,64,189 inRange=false
 与"少收集一根原木"是**同一个终态但完全不同的原因**，会让 J2 的失败信号无法判读。
 
 **验证等级**：COMPILES。待 `alice:mine_regression`（应首次即 10/10）+ 伐木场景复验。
+
+---
+
+## D-087 J2：伐木 Job 循环 + 配额 + 终止语义（2026-09-10）
+
+**背景**：J1（单棵闭环）已在客户端通过。J2 = 「循环 + 配额 + `GoalProgress` + 终止语义」
+（`JOB_LAYER_DESIGN.md` §6.2c 五条终止路径 + §6.2b 不变量），完成判据 `DONE quota_met`。
+
+### 实现
+- **循环**：`collectPhase` 结算一棵树后不再直接终止，改为回到 `SELECT`；`NEXT` 决策行打印进度。
+- **不重复砍同一棵（§6.2b）**：`attempted` 集合记录**已尝试过**的树基座（成功或失败都算）。
+  半成品树若被反复重选会死循环——这是循环的**硬不变量**，不是优化。
+  过滤掉的候选写进 `rejected`（`<anchor>:already_attempted`），满足 §6.2a「拒绝必须带理由码」。
+- **逐树记账**：新增 `logsBeforeThisTree`（逐树完成判据的基线）；`logsBefore` 降级为 job 级总报告。
+- **报告**：`progressSummary` = `trees <done>/<quota> logs <choppedTotal>/<plannedTotal> cleared=<total>`（monotone）。
+- **终止路径**：① `quota_met`；② 一棵没成 → `no_reachable_candidate` + 理由集；
+  ③ 背包放不下 → `inventory_full`（新增 `hasRoomForLogs()`，不空转）；④ `goal_timeout`（已有）；
+  ⑤ 有产出但配额未达 → `partial_quota` + 逐树失败清单。
+- **配额**：物品默认值 **1 → 2 棵**，上限 1200 → 2400 tick（`BotManager.assignLumberJob`）。
+
+### 夹具：为 J2 增加第二棵「可砍完」的树
+原场景只有 2 棵可行树，其中 7 格云杉的**顶格 y=70 触及 4.46 > 4.1**
+（`deferred` 覆盖到 y=69，y=70 只能站到树冠顶上才看得见 —— 那是 J7 攀爬的事），
+所以配额 2 无法由「橡树 + 云杉」达成。
+
+新增 `lumber_course_trees.mcfunction`：**把已验证可行的那棵真橡树按方块原样平移复制**到
+`29,64,215`（61 块，trunk+canopy 全部取自 `capture-scene.py` 抓取的真实存档，
+**不是手搓几何**）。约束：足迹完全落在 `lumber_course_terrain` 的清空盒 `[17..31]×[203..231]` 内
+（否则重跑场景会残留），与既有树净空 7 格，距起点 10.0 格（在 Job 扫描半径 16 内）。
+离线分析器确认新场景 = 4 棵树 / 3 棵可行（两棵橡树 + 云杉）/ 高大云杉仍被拒。
+
+**副作用（正面）**：两棵橡树**各需清障**（0 可见 / 2 掏空 / 4 需清障，同型），
+于是这个场景成为 `clearedThisTree` 按棵重置（D-085③）的**真实回归**——
+若预算没按棵重置，第二棵橡树会在累计 8 格后 `clear_budget` 失败。
+
+**验证等级**：COMPILES。待客户端实测。
