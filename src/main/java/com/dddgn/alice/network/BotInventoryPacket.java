@@ -16,7 +16,7 @@ import java.util.function.Supplier;
  * (a FakeConnection no-op). The client stores it in {@link ClientBotInventoryState} and opens
  * the bot inventory screen; it never mutates local inventory.
  */
-public record BotInventoryPacket(UUID botId, String name, List<ItemStack> slots) {
+public record BotInventoryPacket(UUID botId, String name, List<ItemStack> slots, int selected) {
 
     public static void encode(BotInventoryPacket packet, FriendlyByteBuf buf) {
         buf.writeUUID(packet.botId);
@@ -25,6 +25,7 @@ public record BotInventoryPacket(UUID botId, String name, List<ItemStack> slots)
         for (ItemStack stack : packet.slots) {
             buf.writeItem(stack);
         }
+        buf.writeVarInt(packet.selected);   // 主手 = 选中槽（0..8），D-091
     }
 
     public static BotInventoryPacket decode(FriendlyByteBuf buf) {
@@ -35,7 +36,7 @@ public record BotInventoryPacket(UUID botId, String name, List<ItemStack> slots)
         for (int i = 0; i < size; i++) {
             slots.add(buf.readItem());
         }
-        return new BotInventoryPacket(botId, name, slots);
+        return new BotInventoryPacket(botId, name, slots, buf.readVarInt());
     }
 
     public static void handle(BotInventoryPacket packet, Supplier<NetworkEvent.Context> ctx) {
@@ -44,7 +45,7 @@ public record BotInventoryPacket(UUID botId, String name, List<ItemStack> slots)
                 net.minecraftforge.api.distmarker.Dist.CLIENT,
                 () -> () -> {
                     ClientBotInventoryState.update(packet);
-                    ClientBotInventoryState.openScreen();
+                    ClientBotInventoryState.openScreenIfNone();
                 }));
         context.setPacketHandled(true);
     }

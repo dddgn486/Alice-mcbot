@@ -23,6 +23,12 @@ public final class ClientBotInventoryState {
         latest = packet;
     }
 
+    /** 最近快照里的选中槽（主手）；尚无快照时返回 {@code fallback}。 */
+    public static int selectedOrDefault(int fallback) {
+        BotInventoryPacket packet = latest;
+        return packet == null ? fallback : packet.selected();
+    }
+
     public static BotInventoryPacket get() {
         return latest;
     }
@@ -32,6 +38,22 @@ public final class ClientBotInventoryState {
     }
 
     /** Opens the bot inventory screen on the render thread (client-only). */
+    /**
+     * 打开 bot 背包界面；**已经开着就不重开**（D-091）。
+     *
+     * <p>面板内的每次动作都会让服务端回推一次快照，而回推处理原本无条件
+     * {@code openScreen()} —— 于是自绘界面与菜单界面会互相替换。
+     */
+    public static void openScreenIfNone() {
+        net.minecraft.client.gui.screens.Screen current =
+                net.minecraft.client.Minecraft.getInstance().screen;
+        if (current instanceof com.dddgn.alice.client.gui.BotInventoryScreen
+                || current instanceof com.dddgn.alice.client.gui.BotInventoryMenuScreen) {
+            return;
+        }
+        openScreen();
+    }
+
     public static void openScreen() {
         net.minecraft.client.Minecraft.getInstance().setScreen(
                 new com.dddgn.alice.client.gui.BotInventoryScreen());

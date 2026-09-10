@@ -51,6 +51,9 @@ public final class BotInventoryService {
         
         // 设置当前打开的 bot（BotInventoryMenu 需要）
         BotInventoryMenu.OPEN_BOT = bot;
+        // 打开时也下发一次快照（D-091）：`selected` 随包走，界面才能把金框画在**真实主手**上。
+        // 此前只在动作后下发，导致菜单界面从打开到第一次动作之间没有选中槽信息。
+        pushSnapshot(viewer, bot);
         
         // 使用 MenuProvider 打开 Menu
         viewer.openMenu(new net.minecraft.world.MenuProvider() {
@@ -222,7 +225,7 @@ public final class BotInventoryService {
     private static void pushSnapshot(ServerPlayer viewer, BotPlayer bot) {
         BotInventorySnapshot snap = buildSnapshot(bot);
         AliceNetwork.CHANNEL.send(PacketDistributor.PLAYER.with(() -> viewer),
-                new BotInventoryPacket(snap.botId(), snap.name(), snap.slots()));
+                new BotInventoryPacket(snap.botId(), snap.name(), snap.slots(), snap.selected()));
     }
 
     private static BotInventorySnapshot buildSnapshot(BotPlayer bot) {
@@ -239,7 +242,7 @@ public final class BotInventoryService {
         }
         // Offhand (index 40).
         slots.add(inv.getItem(40));
-        return new BotInventorySnapshot(bot.getUUID(), bot.getName().getString(), slots);
+        return new BotInventorySnapshot(bot.getUUID(), bot.getName().getString(), slots, inv.selected);
     }
 
     /** Finds a live bot in the given level by UUID via the player list (placeNewPlayer registers bots). */

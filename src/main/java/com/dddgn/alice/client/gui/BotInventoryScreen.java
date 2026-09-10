@@ -191,6 +191,10 @@ public class BotInventoryScreen extends Screen {
     /** 绘制 Bot 快捷栏（1×9）*/
     private void renderBotHotbar(GuiGraphics graphics, BotInventoryPacket packet, int x, int y) {
         graphics.drawString(font, "Hotbar", x + 62, y + 92, 0xFFAAAAAA);
+        // 金框 = 主手（= 当前选中槽，D-091）。vanilla 里 MAINHAND 由 selected 派生，
+        // 工具切换（如砍树切到斧子）改的就是它。
+        int mainHand = Math.max(0, Math.min(8, packet.selected()));
+        graphics.drawString(font, "主手", x + 62 + mainHand * SLOT_SIZE + 2, y + 92, 0xFFFFAA00);
         
         for (int col = 0; col < 9; col++) {
             int slotIndex = col;  // 0-8
@@ -198,6 +202,9 @@ public class BotInventoryScreen extends Screen {
             int sy = y + 104;
             
             renderSlot(graphics, sx, sy);
+            if (col == mainHand) {
+                renderMainHandFrame(graphics, sx, sy);
+            }
             
             // 如果这个槽被拿起了，不渲染物品
             if (slotIndex != pickedBotSlot) {
@@ -210,6 +217,16 @@ public class BotInventoryScreen extends Screen {
         }
     }
     
+    /** 主手（选中槽）金色边框；与 {@code BotInventoryMenuScreen} 的高亮同色。 */
+    private void renderMainHandFrame(GuiGraphics graphics, int x, int y) {
+        int color = 0xFFFFAA00;
+        int w = SLOT_SIZE;
+        graphics.fill(x - 1, y - 1, x + w + 1, y, color);              // 上
+        graphics.fill(x - 1, y + w, x + w + 1, y + w + 1, color);      // 下
+        graphics.fill(x - 1, y, x, y + w, color);                      // 左
+        graphics.fill(x + w, y, x + w + 1, y + w, color);              // 右
+    }
+
     /** 绘制玩家背包（3×9 + 1×9 快捷栏）*/
     private void renderPlayerInventory(GuiGraphics graphics, int x, int y) {
         graphics.drawString(font, "Player", x + 8, y + 130, 0xFFAAAAAA);

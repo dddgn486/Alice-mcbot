@@ -1920,3 +1920,50 @@ block_break_done pos=27,65,214 ticks=6    ← 树叶 0.2×1.5÷1.0×20，同为�
 4. **工具不存在时怎么办**：补一把（夹具行为）/ 如实失败 / 去打一把（牵扯背包与合成，属后期）；
 5. **快捷栏满**：`ensureAxe` 的"挪走最无用一格"是夹具解法，生产语义待定
    （`PathingBreakerItem` 里 `Math.min(slot, 8)` 在工具落主背包时会指向错误物品，同属这一类缺陷）。
+
+## D-091 主手语义：`selected` 派生，不设"固定第一格"（2026-09-10）
+
+### 纰漏
+用户提问："以前设计 bot 背包时把快捷栏第一格定义为主手格，这一格是什么 bot 手上就是什么，
+还专门用边框注释标出来了，现在还是这样吗？"
+
+核查结论：**不是了，而且代码里同时存在两种互相矛盾的表述**：
+
+| 位置 | 说的是 |
+|---|---|
+| `BotInventoryMenuScreen:69-71` | `// 高亮 bot 的主手槽（hotbar 第一格，固定位置）` / `// Bot 的主手槽永远是 inventory index 0` |
+| `BotInventorySnapshot` javadoc | `The main hand is the ordinary {@code selected} slot (0..8) and is not duplicated.` |
+| 全部运行代码（`syncMainHand`、`MineTask`、`switchToBestToolFor`、`placeAt`、登录恢复） | 按 vanilla **`selected`** |
+
+GUI 之所以硬编码，是因为 `BotInventorySnapshot` 里**没有 `selected` 字段**——客户端无从得知选中哪一格。
+语义搬到 `selected` 之后 GUI 没跟着改，于是它**高亮错的格**（例如斧子被选在 slot 1，仍高亮 slot 0）。
+
+### 设计讨论（用户提出"要不要让玩家手动固定主手物品"）
+来源是**车万女仆模组**的"独立主手格"（装备什么就用什么，不手动换手持）。
+关键判断：**那是"实体（entity）"的表达方式**——对生物而言 `EquipmentSlot.MAINHAND` 就是"手上拿什么"
+的唯一机制，独立主手格是**架构后果**，不是设计偏好。而 Alice 的 bot 是**假 `ServerPlayer`**：
+vanilla 里 MAINHAND **由 `inventory.selected` 派生**（`syncMainHand` 广播的正是这个派生值）。
+所以"给假玩家一个独立主手格"在实现上**等价于**"把 `selected` 钉死在 0 并每次换工具搬动物品栈" ——
+而搬运正是本项目两次翻车的形态：D-086（补镐顶掉一叠 19 个圆石 → `inventoryDelta=-18` 假失败）、
+D-089（快捷栏满，斧子退化进主背包 → 选不到 → 全程用镐）。
+
+**裁定**：主手语义保留 vanilla `selected`。玩家的控制需求用**偏好/白名单**表达
+（"只在斧类里换" / "优先用槽 N 的这把"），归入已推迟的工具系统（D-090）。
+若将来出现"必须锁死"的硬需求（模组工具带充能/绑定），正确形态是在 `selected` **之上加一层 lock**，
+**而不是换掉槽位语义** —— 这样"装备什么就用什么"的保证拿到了，而渲染/`useItemOn`/破坏速度/
+登录恢复仍共用同一个真相。
+
+### 已实施（纯客户端展示 + 一次下发，不动 bot 行为）
+1. `BotInventorySnapshot` + `BotInventoryPacket` 携带 `selected`（含编码/解码，构造器校验 0..8）；
+2. `BotInventoryService` 填充 `selected`，并在 `open()` 时**也下发一次快照**
+   （此前只在动作后下发，菜单界面从打开到第一次动作之间没有选中槽信息）；
+3. 两个界面都改为按 `selected` 高亮：自绘 `BotInventoryScreen.renderBotHotbar` 新增金框 + "主手"标注，
+   `BotInventoryMenuScreen` 删掉硬编码 `32` 与旧注释，改用 `BOT_HOTBAR_START + selected`；
+4. `BotInventoryMenu.BOT_HOTBAR_START` 公开为**菜单索引 ↔ 背包索引映射的唯一来源**；
+5. 顺带修一处既有不一致：回推快照时 `openScreen()` **无条件重开界面** → 两个 GUI 互相替换；
+   改为 `openScreenIfNone()`（已开着就不重开）。
+
+**已知限制**：界面上的金框新鲜度 = 最近一次快照（打开时 / 每次动作）。打开期间 bot 若自行换工具，
+需要重开或触发一次动作才刷新。够用，暂不为实时刷新引入推送。
+
+**验证等级**：COMPILES。待客户端目视确认（打开 bot 背包 → 金框应在**真实主手**那格）。

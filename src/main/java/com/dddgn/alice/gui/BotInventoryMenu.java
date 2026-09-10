@@ -43,7 +43,8 @@ public final class BotInventoryMenu extends AbstractContainerMenu {
     private static final int BOT_EQUIPMENT_END = 4;    // Armor slots (0-3), exclusive end
     private static final int BOT_OFFHAND_SLOT = 4;
     private static final int BOT_MAIN_INVENTORY_START = 5;  // Start of main inventory (27 slots)
-    private static final int BOT_HOTBAR_START = 32;         // Start of hotbar (9 slots)
+    /** 菜单里 bot 快捷栏的起始槽索引（= 背包 index 0 对应的菜单槽）。公开给客户端界面做高亮定位。 */
+    public static final int BOT_HOTBAR_START = 32;          // Start of hotbar (9 slots)
     private static final int BOT_HOTBAR_END = 41;           // End of bot slots, exclusive
 
     private static final EquipmentSlot[] ARMOR_SLOT_IDS = {

@@ -66,9 +66,13 @@ public class BotInventoryMenuScreen extends AbstractContainerScreen<BotInventory
             renderSlotBackground(graphics, sx, sy);
         }
         
-        // 高亮 bot 的主手槽（hotbar 第一格，固定位置）
-        // Bot 的主手槽永远是 inventory index 0，在 GUI 中是 menu 索引 32
-        int mainHandSlotIndex = 32;  // hotbar 第一格
+        // 高亮 bot 的**当前选中槽 = 主手**（D-091）。
+        // 2026-09-10 修正：原实现在此硬编码 menu 索引 32，注释写"主手槽永远是 inventory index 0"——
+        // 那是**已被取代**的旧设计（受车万女仆模组的独立主手格影响，见 AI_DECISIONS D-091）。
+        // vanilla 里 MAINHAND 由 selected 派生，工具切换改的正是 selected（如砍树切到斧子），
+        // 所以固定高亮第一格会**指错格**。选中槽现在随快照/包下发。
+        int mainHandSlotIndex = com.dddgn.alice.gui.BotInventoryMenu.BOT_HOTBAR_START
+                + com.dddgn.alice.client.ClientBotInventoryState.selectedOrDefault(0);
         if (mainHandSlotIndex < this.menu.slots.size()) {
             var slot = this.menu.slots.get(mainHandSlotIndex);
             renderSelectedSlotHighlight(graphics, x + slot.x - 1, y + slot.y - 1);
