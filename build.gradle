@@ -127,18 +127,9 @@ repositories {
         url = 'https://modmaven.dev/'
     }
 
-    // If you have mod jar dependencies in ./libs, you can declare them as a repository like so.
-    // See https://docs.gradle.org/current/userguide/declaring_repositories.html#sub:flat_dir_resolver
-    flatDir {
-        dir 'libs'
-    }
 }
 
 // 纯客户端开发工具依赖(不进 runtimeClasspath/发布): 仅 runClient 注入
-configurations {
-    clientOnly
-}
-
 dependencies {
     // Specify the version of Minecraft to use.
     // Any artifact can be supplied so long as it has a "userdev" classifier artifact and is a compatible patcher artifact.
@@ -151,21 +142,10 @@ dependencies {
     implementation fg.deobf("mekanism:Mekanism:1.20.1-10.4.16.80")
     runtimeOnly fg.deobf("mekanism:Mekanism:1.20.1-10.4.16.80:generators")
 
-    // ── 开发期可选工具(非硬依赖, mods.toml 未声明, 发布 jar 不含) ──
-    // JEI(物品配方查看): compileOnly 供将来写联动时引用 API;
-    //   runtimeOnly 仅 dev 环境查看界面(JEI 在 dedicated server 安全, 保留)
-    compileOnly fg.deobf("mezz.jei:jei-1.20.1-forge:15.49.0.187")
-    runtimeOnly fg.deobf("mezz.jei:jei-1.20.1-forge:15.49.0.187")
-    // JECh(中文/拼音搜索): 纯客户端模组, 放独立 clientOnly 配置,
-    //   仅 runClient 注入——不进 runtimeClasspath, runServer 不加载(R14 根治)
-    clientOnly fg.deobf("local:jecharacters:1.20.1-forge-4.6.9")
-}
-
-// 把 clientOnly 注入 runClient 任务(FG 的 run 任务创建时机晚, 用 whenTaskAdded 钩子)
-tasks.whenTaskAdded { task ->
-    if (task.name == 'runClient' && task instanceof JavaExec) {
-        task.classpath += configurations.clientOnly
-    }
+    // ── 开发期可选工具：一律不进构建依赖（2026-09-10 用户裁定）──
+    // JEI（物品配方查看）与 JECh（JEI 中文/拼音搜索）：**不在 build.gradle 声明**，
+    // 只在个人客户端实例的 mods/ 里安装使用；项目代码不 import 其 API，
+    // 发布 jar 也不含它们——这样干净 clone 不需要 libs/ 即可编译（CI 修复根因）。
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

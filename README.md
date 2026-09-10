@@ -91,7 +91,9 @@ A1.1 只支持：
 
 离线构建可用 `--offline`（Parchment 仓库不可达时）。
 
-`libs/` 需手动放置 `jecharacters-1.20.1-forge-4.6.9.jar`；JEI/JECh 仅用于开发环境，`mods.toml` 未声明为运行时硬依赖。
+**不再需要 `libs/`**：JEI（配方查看）与 JECh（JEI 中文/拼音搜索）**不是构建依赖**（2026-09-10 裁定），
+只在个人客户端实例的 `mods/` 里安装使用；项目代码不 import 其 API，发布 jar 也不含它们。
+干净 clone 直接 `./gradlew build` 即可，CI 依赖此约定。
 
 同步到 Windows 测试客户端：
 
