@@ -2210,3 +2210,17 @@ mined 4/4 inventoryDelta=4`，且 `progressSummary`/`writes … unknown=0` 与�
 **验证等级**：COMPILES。验收（客户端）：右键 `alice:pathing_regression`（其中 `place_course`/`pillar_course`
 会真的放置方块）→ 日志出现 `[Ledger] place …` 与 `world_mod_ledger_close … 仍有 N 条` →
 `/alice ledger` 显示 `pending>0 TEMP>0` 且条目含 `scope=` 与 `STEP_PLACEMENT`。
+
+### D-096 验收（2026-09-10 23:47）：J6-a 完成
+`alice:pathing_regression` → `/alice ledger`：7 条 `[Ledger] place …` 全为
+`cobblestone←air [TEMP STEP_PLACEMENT scope=1ae26630#1:PathingRegressionTask]`；
+`clearTask` 输出 `仍有 5 条未清除的放置（建拆同权未闭合）`（J6-a 阶段预期：恢复机制未实现）；
+`/alice ledger → pending=5 TEMP=5 KEEP=0 openScopes=0`。
+
+**最有价值的一点**：抓到的方块是**内核 `PILLAR` / `PLACE_STEP_AND_TRAVERSE` 在寻路途中放的**——
+正是设计里"Job 未必看得见、必须由动作层记录"的那一类，证明记录点选对了。
+同轮 `pathing_regression` 仍 **14/14 PASS** + `coverage=PASS`（10 种 Movement）⇒ 账本钩子无回归。
+
+**下一步 J6-b**：`RestoreScopeTask`（严格自上而下拆自己的 TEMP、比对 `placed` 才算自己的、
+拆完 `forget`）+ 由 Job 在收尾调度 + D-095 的"路径上有容器 → 绕开而非拆掉"断言。
+验收：`/alice ledger` 回到空 + 场景无残留。
