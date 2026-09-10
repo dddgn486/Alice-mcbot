@@ -1,5 +1,7 @@
 package com.dddgn.alice.job.lumber;
 
+import com.dddgn.alice.action.WriteReason;
+import com.dddgn.alice.action.WriteGrant;
 import com.dddgn.alice.job.Candidate;
 import com.dddgn.alice.job.CandidateSet;
 import com.dddgn.alice.job.CandidateSource;
@@ -36,6 +38,10 @@ public final class LumberCandidateSource implements CandidateSource {
     private static final int SKY_CHECK_HEIGHT = 8;
     /** 单棵树允许的清障格数上限（`JOB_LAYER_DESIGN.md` §9-4：≤8 格/棵）。 */
     public static final int MAX_CLEAR_PER_TREE = 8;
+
+    /** 候选评估期用的授权身份（真正授权在执行期由 LumberJob 声明；此处只做"是否会被允许"的预演）。 */
+    private static final WriteGrant CLEAR_GRANT =
+            WriteGrant.of("lumber-plan", WriteReason.LINE_OF_SIGHT);
 
     private List<Tree> lastScan = List.of();
 
@@ -81,7 +87,7 @@ public final class LumberCandidateSource implements CandidateSource {
                 }
                 // 限次清障方案（不区分软/硬方块，只靠预算兜底）
                 int plan = BlockerClearPlanner.clearPlanCount(level, bot, log, reach,
-                        MAX_CLEAR_PER_TREE - clearBlocks);
+                        MAX_CLEAR_PER_TREE - clearBlocks, CLEAR_GRANT);
                 if (plan >= 0) {
                     clearBlocks += plan;
                     softBlocked++;

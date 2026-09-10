@@ -1,5 +1,6 @@
 package com.dddgn.alice.protection;
 
+import com.dddgn.alice.action.WriteReason;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -17,6 +18,22 @@ import net.minecraft.world.level.block.state.BlockState;
 public final class BlockBreakSafety {
 
     private BlockBreakSafety() {
+    }
+
+    /**
+     * **按声明的写入理由派生策略**——破坏判定的唯一分发入口（D-082）。
+     *
+     * <p>在此之前，策略是由"调用哪个方法"隐式选择的（{@code breakable} vs {@code breakableExplicit}），
+     * 授权语义因此藏在方法名里。现在理由成为数据，调用点必须显式声明。
+     *
+     * @param reason 声明的写入理由；null 视为最保守的清障策略
+     * @return null = 允许；非 null = 拒绝原因
+     */
+    public static String refusal(ServerPlayer bot, BlockPos target, WriteReason reason) {
+        if (reason != null && reason.policy() == WriteReason.Policy.EXPLICIT_TARGET) {
+            return explicitTargetRefusal(bot, target);
+        }
+        return clearingRefusal(bot, target);
     }
 
     /** 明确指定目标的硬拒绝原因；返回 null 表示目标本身允许挖。 */

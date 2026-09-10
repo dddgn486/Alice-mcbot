@@ -1,5 +1,7 @@
 package com.dddgn.alice.pathing.core;
 
+import com.dddgn.alice.action.WriteReason;
+import com.dddgn.alice.action.WriteGrant;
 import com.dddgn.alice.action.BlockBreakSession;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.bot.BotPlayer;
@@ -30,6 +32,8 @@ public final class BreakAndTraverseExecution implements MovementExecution {
     private final String botId;
     private final String sessionId;
     private final CompletionTolerance tolerance;
+    /** 授权身份（D-082）。 */
+    private final WriteGrant grant;
     private final List<BlockPos> blockers;
 
     private Phase phase = Phase.NOT_STARTED;
@@ -45,6 +49,7 @@ public final class BreakAndTraverseExecution implements MovementExecution {
         this.botId = bot.getUUID().toString();
         this.sessionId = context.sessionId();
         this.tolerance = context.tolerance();
+        this.grant = WriteGrant.of(context.requester(), WriteReason.PATH_ACCESS);
         this.blockers = collectBlockers(level, spec.fromFoot(), spec.toFoot());
     }
 
@@ -117,7 +122,7 @@ public final class BreakAndTraverseExecution implements MovementExecution {
                 return;
             }
             if (session == null) {
-                session = BlockInteraction.beginBreak(bot, level, blocker);
+                session = BlockInteraction.beginBreak(bot, level, blocker, grant);
             }
             BlockBreakSession.Status status = session.tick();
             if (status == BlockBreakSession.Status.DONE) {
@@ -176,7 +181,7 @@ public final class BreakAndTraverseExecution implements MovementExecution {
         }
         // 每个阻挡方块必须可破坏
         for (BlockPos blocker : blockers) {
-            if (!BlockInteraction.breakable(bot, level, blocker)) {
+            if (!BlockInteraction.breakable(bot, level, blocker, grant)) {
                 return false;
             }
         }

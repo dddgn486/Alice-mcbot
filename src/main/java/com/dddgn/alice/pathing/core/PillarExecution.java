@@ -1,5 +1,7 @@
 package com.dddgn.alice.pathing.core;
 
+import com.dddgn.alice.action.WriteReason;
+import com.dddgn.alice.action.WriteGrant;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
@@ -28,6 +30,9 @@ import java.util.Objects;
  * 等价于客户端上报的命中包），因此不需要潜行姿态与视线射线；其余阈值与 Baritone 一致。
  */
 public final class PillarExecution implements MovementExecution {
+
+    /** 放置授权（D-082）。 */
+    private final WriteGrant grant;
     /** 水平居中阈值（Baritone `MovementPillar:196` 的 0.17）。 */
     private static final double CENTER_TOLERANCE = 0.17D;
     /** 允许放置的脚部高度：目标格顶面 + 0.1（Baritone `MovementPillar:227`）。 */
@@ -49,6 +54,7 @@ public final class PillarExecution implements MovementExecution {
     private boolean placed;
 
     PillarExecution(MovementSpec spec, LiveExecutionContext context) {
+        this.grant = WriteGrant.of(context.requester(), WriteReason.STEP_PLACEMENT);
         this.spec = Objects.requireNonNull(spec, "spec");
         this.bot = requireBot(context.bot());
         this.level = Objects.requireNonNull(context.level(), "level");
@@ -142,7 +148,8 @@ public final class PillarExecution implements MovementExecution {
                     return;
                 }
                 BlockInteraction.PlaceResult result =
-                        BlockInteraction.placeAt(bot, level, from, false);
+                        BlockInteraction.placeAt(bot, level, from, false,
+                                grant);
                 if (result != BlockInteraction.PlaceResult.PLACED) {
                     fail("PILLAR_PLACE_FAILED");
                     return;

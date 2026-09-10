@@ -172,7 +172,8 @@ public final class BlockInteraction {
      *
      * @return {@link PlaceResult#PLACED} 表示已发起放置；{@link PlaceResult#NO_OPTION} 表示不可行
      */
-    public static PlaceResult placeAt(ServerPlayer bot, ServerLevel level, BlockPos placeAt, boolean sneak) {
+    public static PlaceResult placeAt(ServerPlayer bot, ServerLevel level, BlockPos placeAt, boolean sneak,
+                                      WriteGrant grant) {
         if (!reachable(bot, placeAt)) {
             return PlaceResult.NO_OPTION;
         }
@@ -208,6 +209,7 @@ public final class BlockInteraction {
                 continue;
             }
             bot.swing(InteractionHand.MAIN_HAND);
+            WriteAudit.placeWrite(level, placeAt, level.getBlockState(placeAt), grant);
             return PlaceResult.PLACED;
         }
         return PlaceResult.NO_OPTION;
@@ -226,32 +228,22 @@ public final class BlockInteraction {
     // ==================== 破坏 ====================
 
     /**
-     * 破坏拒绝原因（null = 允许）。清障语义比"明确目标"更保守：
-     * 脚下承重块、保护区、不可破坏方块、高代价方块都会被拒绝。
+     * 破坏拒绝原因（null = 允许）。**策略由 {@link WriteGrant#reason()} 派生**（D-082），
+     * 调用点不再通过"调哪个方法"隐式选择策略。
      */
-    public static String breakRefusal(ServerPlayer bot, ServerLevel level, BlockPos pos) {
+    public static String breakRefusal(ServerPlayer bot, ServerLevel level, BlockPos pos, WriteGrant grant) {
         if (level.getBlockState(pos).isAir()) {
             return "already_air";
         }
-        return com.dddgn.alice.protection.BlockBreakSafety.clearingRefusal(bot, pos);
-    }
-
-    /** 该方块能否被本 bot 破坏（清障语义：额外回避脚下承重块与高代价方块）。 */
-    public static boolean breakable(ServerPlayer bot, ServerLevel level, BlockPos pos) {
-        return breakRefusal(bot, level, pos) == null;
+        return com.dddgn.alice.protection.BlockBreakSafety.refusal(bot, pos, grant.reason());
     }
 
     /**
-     * 该方块能否作为**明确目标**被破坏（对齐 Baritone `MovementDownward` 的"挖脚下"语义）。
-     *
-     * <p>与 {@link #breakable} 的区别：不套用清障的 `underfoot_block` / 高代价回避规则，
-     * 仍保留保护区、不可破坏方块与流体拒绝。
+     * 该方块能否被本 bot 破坏。**策略由授权里的理由派生**（D-082）：
+     * `EXPECTED_TARGET/DESCEND_FOOT/BULK_EDIT` 走明确目标策略，其余走更保守的清障策略。
      */
-    public static boolean breakableExplicit(ServerPlayer bot, ServerLevel level, BlockPos pos) {
-        if (level.getBlockState(pos).isAir()) {
-            return false;
-        }
-        return com.dddgn.alice.protection.BlockBreakSafety.explicitTargetRefusal(bot, pos) == null;
+    public static boolean breakable(ServerPlayer bot, ServerLevel level, BlockPos pos, WriteGrant grant) {
+        return breakRefusal(bot, level, pos, grant) == null;
     }
 
     /**
@@ -284,9 +276,35 @@ public final class BlockInteraction {
         return Math.max(1.0D, seconds * 20.0D);
     }
 
-    /** 开启一个按 tick 推进的破坏会话（推荐路径）。 */
-    public static BlockBreakSession beginBreak(ServerPlayer bot, ServerLevel level, BlockPos pos) {
+    /** 开启一个按 tick 推进的破坏会话（推荐路径）；登记审计。 */
+    public static BlockBreakSession beginBreak(ServerPlayer bot, ServerLevel level, BlockPos pos,
+                                              WriteGrant grant) {
+        WriteAudit.breakWrite(level, pos, level.getBlockState(pos), grant);
         return BlockBreakSession.begin(bot, level, pos);
+    }
+
+    /**
+     * 批量地形编辑用：立即放置方块（道路施工等非寻路场景）。
+     *
+     * <p>与 {@link #placeAt} 的区别：**不消耗背包物品**、不做支撑面射线，直接写世界。
+     * 正因如此它没有天然的资源约束，**授权与保护区检查必须在这里做**：
+     * 2026-09-10 勘测发现道路施工有两套实现都在裸调 {@code level.setBlock}，
+     * 既不查保护区也无任何凭证（D-082 修复）。
+     *
+     * @return true = 已放置；false = 被保护区拒绝（**未写入**）
+     */
+    public static boolean placeBulkEdit(ServerPlayer bot, ServerLevel level, BlockPos pos, BlockState state,
+                                        WriteGrant grant) {
+        String protectedReason = com.dddgn.alice.protection.SafeZoneData.get(level.getServer())
+                .protectionReason(level, pos);
+        if (protectedReason != null) {
+            com.dddgn.alice.log.BotLog.warn("[WRITE-REFUSED] place pos={} by={} reason={}",
+                    pos.toShortString(), grant.describe(), protectedReason);
+            return false;
+        }
+        WriteAudit.placeWrite(level, pos, state, grant);
+        level.setBlock(pos, state, 3);
+        return true;
     }
 
     /**
@@ -295,7 +313,9 @@ public final class BlockInteraction {
      * <p>语义与 {@code level.destroyBlock} 相同，但集中到本层以便统一审计：
      * 调用方必须先做权限/保护区检查（{@code BlockBreakSafety}）。
      */
-    public static void breakForBulkEdit(ServerPlayer bot, ServerLevel level, BlockPos pos, boolean dropItems) {
+    public static void breakForBulkEdit(ServerPlayer bot, ServerLevel level, BlockPos pos, boolean dropItems,
+                                       WriteGrant grant) {
+        WriteAudit.breakWrite(level, pos, level.getBlockState(pos), grant);
         level.destroyBlock(pos, dropItems, bot);
     }
 }

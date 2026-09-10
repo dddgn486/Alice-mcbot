@@ -1,5 +1,7 @@
 package com.dddgn.alice.job.lumber;
 
+import com.dddgn.alice.action.WriteReason;
+import com.dddgn.alice.action.WriteGrant;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.job.CandidateSet;
 import com.dddgn.alice.job.DecisionTrace;
@@ -185,7 +187,8 @@ public final class LumberJob implements Job {
             // 没有现成可站站位 → **由 Job 显式清障**，而不是让规划器掉进"挖隧道/挖地站进去"
             if (!hasStandNow(log)) {
                 BlockPos step = BlockerClearPlanner.nextClearStep(bot.serverLevel(), bot, log,
-                        bot.getBlockReach(), MAX_CLEAR_PER_TREE - clearedBlocks);
+                        bot.getBlockReach(), MAX_CLEAR_PER_TREE - clearedBlocks,
+                        WriteGrant.of(jobName(), WriteReason.LINE_OF_SIGHT));
                 if (step == null) {
                     failedLogs.add(log.toShortString() + (clearedBlocks >= MAX_CLEAR_PER_TREE
                             ? ":clear_budget" : ":no_stand"));
@@ -196,14 +199,16 @@ public final class LumberJob implements Job {
                         "为 " + log.toShortString() + " 腾站位/通视线 clear="
                                 + (clearedBlocks + 1) + "/" + MAX_CLEAR_PER_TREE);
                 clearTask = new MineTask(bot, step, scope,
-                        MiningBudget.forTarget(bot, bot.serverLevel(), step, false), true);
+                        MiningBudget.forTarget(bot, bot.serverLevel(), step, false), true,
+                        WriteGrant.of(jobName(), WriteReason.LINE_OF_SIGHT));
                 return Task.Status.RUNNING;
             }
             DecisionTrace.step(jobName(), "CUT", log.toShortString(),
                     "log " + (queueIndex + 1) + "/" + queue.size());
             // standableOnly=true：**禁止**规划器自己挖隧道或破坏进入（伐木不允许"往地里挖"）
             miner = new MineTask(bot, log, scope,
-                    MiningBudget.forTarget(bot, bot.serverLevel(), log, false), true);
+                    MiningBudget.forTarget(bot, bot.serverLevel(), log, false), true,
+                    WriteGrant.of(jobName(), WriteReason.EXPECTED_TARGET));
             return Task.Status.RUNNING;
         }
 
@@ -222,12 +227,14 @@ public final class LumberJob implements Job {
                 && clearedBlocks < MAX_CLEAR_PER_TREE) {
             BlockPos blocker = LineOfSightChecker.checkFromEye(bot.serverLevel(), bot.getEyePosition(), log)
                     .getFirstBlocker();
-            if (blocker != null && BlockerClearPlanner.clearable(bot, bot.serverLevel(), blocker)) {
+            if (blocker != null && BlockerClearPlanner.clearable(bot, bot.serverLevel(), blocker,
+                    WriteGrant.of(jobName(), WriteReason.LINE_OF_SIGHT))) {
                 DecisionTrace.step(jobName(), "CLEAR", blocker.toShortString(),
                         "blocking " + log.toShortString() + " clear=" + (clearedBlocks + 1)
                                 + "/" + MAX_CLEAR_PER_TREE);
                 clearTask = new MineTask(bot, blocker, scope,
-                        MiningBudget.forTarget(bot, bot.serverLevel(), blocker, false), true);
+                        MiningBudget.forTarget(bot, bot.serverLevel(), blocker, false), true,
+                        WriteGrant.of(jobName(), WriteReason.LINE_OF_SIGHT));
                 miner = null;   // 保留 queueIndex：清完重试同一根
                 return Task.Status.RUNNING;
             }
@@ -269,7 +276,8 @@ public final class LumberJob implements Job {
             terminated = true;
             bot.controller().stopMovement();
             DecisionTrace.terminal(jobName(), status == Task.Status.DONE ? "DONE" : "FAILED",
-                    terminalReason, progressSummary() + " inventoryDelta=" + (countLogs() - logsBefore),
+                    terminalReason, progressSummary() + " inventoryDelta=" + (countLogs() - logsBefore)
+                            + " " + com.dddgn.alice.action.WriteAudit.summary(),
                     ticks);
         }
         return status;

@@ -1,5 +1,7 @@
 package com.dddgn.alice.pathing.core.search;
 
+import com.dddgn.alice.action.WriteGrant;
+import com.dddgn.alice.action.WriteReason;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.BreakAndTraverseExecution;
@@ -124,7 +126,8 @@ public final class SurfaceMovementProvider implements MovementProvider {
         }
         double breakTicks = 0.0D;
         for (BlockPos blocker : blockers) {
-            if (context.bot() == null || !BlockInteraction.breakable(context.bot(), level, blocker)) {
+            if (context.bot() == null || !BlockInteraction.breakable(context.bot(), level, blocker,
+                    WriteGrant.of(context.request().requester(), WriteReason.PATH_ACCESS))) {
                 return;
             }
             double ticks = BlockInteraction.estimateBreakTicks(context.bot(), level, blocker);
@@ -243,7 +246,8 @@ public final class SurfaceMovementProvider implements MovementProvider {
                 || !MovementHelper.canWalkThrough(level, to.above())) {
             return;
         }
-        if (context.bot() == null || !BlockInteraction.breakableExplicit(context.bot(), level, to)) {
+        if (context.bot() == null || !BlockInteraction.breakable(context.bot(), level, to,
+                WriteGrant.of(context.request().requester(), WriteReason.DESCEND_FOOT))) {
             return;
         }
         double breakTicks = BlockInteraction.estimateBreakTicks(context.bot(), level, to);
@@ -298,7 +302,8 @@ public final class SurfaceMovementProvider implements MovementProvider {
         }
         double breakTicks = 0.0D;
         for (BlockPos blocker : blockers) {
-            if (context.bot() == null || !BlockInteraction.breakable(context.bot(), level, blocker)) {
+            if (context.bot() == null || !BlockInteraction.breakable(context.bot(), level, blocker,
+                    WriteGrant.of(context.request().requester(), WriteReason.PATH_ACCESS))) {
                 return;
             }
             breakTicks += BlockInteraction.estimateBreakTicks(context.bot(), level, blocker);

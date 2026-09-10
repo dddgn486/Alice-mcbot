@@ -1,5 +1,6 @@
 package com.dddgn.alice.action;
 
+import com.dddgn.alice.action.WriteGrant;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.core.search.PathRequest;
@@ -53,17 +54,20 @@ public final class MineBlockRunner {
     private boolean retryable;
     private BlockPos mineStartPos;
     private double mineStartEyeDist;
+    /** 本次挖掘的授权（D-082）：目标破坏用自身理由，放支撑块派生 SUPPORT_PLACEMENT。 */
+    private final WriteGrant grant;
 
-    public MineBlockRunner(BotPlayer bot, MiningPlan plan) {
-        this(bot, plan, false);
+    public MineBlockRunner(BotPlayer bot, MiningPlan plan, WriteGrant grant) {
+        this(bot, plan, false, grant);
     }
 
     /**
      * @param walkOnly 只走到站位（不破坏目标），用于任务层接管破坏动作的场景
      *                 （例如连锁挖掘模组兼容，D-077）。到位后返回 {@link Status#DONE}。
      */
-    public MineBlockRunner(BotPlayer bot, MiningPlan plan, boolean walkOnly) {
+    public MineBlockRunner(BotPlayer bot, MiningPlan plan, boolean walkOnly, WriteGrant grant) {
         this.walkOnly = walkOnly;
+        this.grant = grant;
         this.bot = bot;
         this.level = bot.serverLevel();
         this.plan = plan;
@@ -181,7 +185,8 @@ public final class MineBlockRunner {
             return fail("PLACE_RESOURCE_UNAVAILABLE", "support", false);
         }
         BlockInteraction.PlaceResult result =
-                BlockInteraction.placeAt(bot, level, plan.supportPlacementPos(), false);
+                BlockInteraction.placeAt(bot, level, plan.supportPlacementPos(), false,
+                    grant.with(WriteReason.SUPPORT_PLACEMENT));
         if (result != BlockInteraction.PlaceResult.PLACED) {
             return fail("SUPPORT_PLACE_FAILED", "support", true);
         }
@@ -194,7 +199,7 @@ public final class MineBlockRunner {
 
     private Status tickBreak() {
         if (breakSession == null) {
-            if (!BlockInteraction.breakableExplicit(bot, level, target)) {
+            if (!BlockInteraction.breakable(bot, level, target, grant)) {
                 return fail("TARGET_NOT_BREAKABLE", "precondition", false);
             }
             LineOfSightChecker.LineOfSightResult los = LineOfSightChecker.checkFromEye(
@@ -216,7 +221,7 @@ public final class MineBlockRunner {
                         String.format(java.util.Locale.ROOT, "%.3f", bot.getBlockReach()));
                 return fail("OUT_OF_REACH", "precondition", true);
             }
-            breakSession = BlockInteraction.beginBreak(bot, level, target);
+            breakSession = BlockInteraction.beginBreak(bot, level, target, grant);
             mineStartPos = bot.blockPosition().immutable();
             mineStartEyeDist = eyeDistance;
             BotLog.info("[MineRunner] break_start target={} stand={} eyeDist={} mode={}",

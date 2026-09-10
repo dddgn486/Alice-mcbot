@@ -27,6 +27,14 @@ public interface Task {
     /** 失败原因(仅 FAILED 时有意义)。 */
     String failureReason();
 
+    /**
+     * 任务身份（D-082）：世界写入授权与失败归因里的"谁"。
+     * 默认取类名；需要更短/更稳定的名字时覆写（如 Job 用 {@code lumber}）。
+     */
+    default String taskName() {
+        return getClass().getSimpleName();
+    }
+
     /** 事实型失败报告；未实现领域详情的任务默认返回空报告。 */
     default TaskFailureReport failureReport() {
         return new TaskFailureReport(failureReason(), "unknown", "", null, null);

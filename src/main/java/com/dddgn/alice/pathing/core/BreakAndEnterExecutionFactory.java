@@ -1,5 +1,7 @@
 package com.dddgn.alice.pathing.core;
 
+import com.dddgn.alice.action.WriteGrant;
+import com.dddgn.alice.action.WriteReason;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.pathing.MovementHelper;
 import net.minecraft.core.BlockPos;
@@ -56,7 +58,8 @@ public final class BreakAndEnterExecutionFactory implements MovementExecutionFac
             return ValidationResult.invalid("BREAK_AND_ENTER_DESTINATION_CLEAR");
         }
         for (BlockPos blocker : blockers) {
-            if (!BlockInteraction.breakable(context.bot(), context.level(), blocker)) {
+            if (!BlockInteraction.breakable(context.bot(), context.level(), blocker,
+                    WriteGrant.of(context.requester(), WriteReason.PATH_ACCESS))) {
                 return ValidationResult.invalid("BREAK_AND_ENTER_BLOCK_NOT_BREAKABLE");
             }
         }

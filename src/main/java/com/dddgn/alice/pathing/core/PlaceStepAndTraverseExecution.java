@@ -1,5 +1,7 @@
 package com.dddgn.alice.pathing.core;
 
+import com.dddgn.alice.action.WriteReason;
+import com.dddgn.alice.action.WriteGrant;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
@@ -21,6 +23,8 @@ import java.util.Objects;
  * 支撑面扫描 + 面中心 + 视线校验 + 快捷栏选块）。
  */
 public final class PlaceStepAndTraverseExecution implements MovementExecution {
+    /** 放置授权（D-082）。 */
+    private final WriteGrant grant;   // NOSONAR: 构造器赋值
     private final MovementSpec spec;
     private final BotPlayer bot;
     private final ServerLevel level;
@@ -34,6 +38,7 @@ public final class PlaceStepAndTraverseExecution implements MovementExecution {
     private boolean placed;
 
     PlaceStepAndTraverseExecution(MovementSpec spec, LiveExecutionContext context) {
+        this.grant = WriteGrant.of(context.requester(), WriteReason.STEP_PLACEMENT);
         this.spec = Objects.requireNonNull(spec, "spec");
         this.bot = requireBot(context.bot());
         this.level = Objects.requireNonNull(context.level(), "level");
@@ -101,7 +106,8 @@ public final class PlaceStepAndTraverseExecution implements MovementExecution {
                 return;
             }
             BlockInteraction.PlaceResult result =
-                    BlockInteraction.placeAt(bot, level, target, false);
+                    BlockInteraction.placeAt(bot, level, target, false,
+                            grant);
             if (result == BlockInteraction.PlaceResult.NO_OPTION) {
                 fail("PLACE_NO_VALID_FACE");
                 return;

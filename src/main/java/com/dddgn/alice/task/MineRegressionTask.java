@@ -1,5 +1,7 @@
 package com.dddgn.alice.task;
 
+import com.dddgn.alice.action.WriteReason;
+import com.dddgn.alice.action.WriteGrant;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.compat.ChainMining;
 import com.dddgn.alice.log.BotLog;
@@ -182,7 +184,8 @@ public final class MineRegressionTask implements Task {
             expectedItem = current.expectedItem();
             inventoryBefore = countInInventory(expectedItem);
             MiningBudget budget = MiningBudget.forTarget(bot, bot.serverLevel(), current.target(), true);
-            mineTask = new MineTask(bot, current.target(), scope, budget);
+            mineTask = new MineTask(bot, current.target(), scope, budget,
+                    WriteGrant.of(taskName(), WriteReason.EXPECTED_TARGET));
             // MineTask 构造会占用选中槽放镐 → 之后再补一次性方块，避免被覆盖
             ensureCobblestone();
             return Status.RUNNING;

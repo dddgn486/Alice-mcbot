@@ -1,5 +1,7 @@
 package com.dddgn.alice.pathing.movement;
 
+import com.dddgn.alice.action.WriteReason;
+import com.dddgn.alice.action.WriteGrant;
 import com.dddgn.alice.action.BlockBreakSession;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.log.BotLog;
@@ -43,6 +45,12 @@ public final class BreakAndWalkMovement implements Movement {
     private final BlockPos from;
     private final BlockPos to;
     private final ServerLevel level;
+    /**
+     * 遗留移动模式（实验性，D-076 禁止隐式接入正式任务）没有 {@code PathRequest} 上下文，
+     * 因此无法从请求取授权身份：显式标为 legacy，其写入会被计入审计的 unknown 缺口。
+     */
+    private static final WriteGrant LEGACY_GRANT =
+            WriteGrant.of("legacy-break-and-walk", WriteReason.PATH_ACCESS);
     
     private final BlockPos obstacleFootPos;   // 脚位障碍
     private final BlockPos obstacleHeadPos;   // 头位障碍（可能为 null）
@@ -176,7 +184,7 @@ public final class BreakAndWalkMovement implements Movement {
         if (obstacleFootPos != null && !footCleared) {
             if (!level.getBlockState(obstacleFootPos).isAir()) {
                 if (footSession == null) {
-                    footSession = BlockInteraction.beginBreak(bot, level, obstacleFootPos);
+                    footSession = BlockInteraction.beginBreak(bot, level, obstacleFootPos, LEGACY_GRANT);
                 }
                 BlockBreakSession.Status status = footSession.tick();
                 if (status == BlockBreakSession.Status.FAILED) {
@@ -193,7 +201,7 @@ public final class BreakAndWalkMovement implements Movement {
         if (obstacleHeadPos != null && !headCleared) {
             if (!level.getBlockState(obstacleHeadPos).isAir()) {
                 if (headSession == null) {
-                    headSession = BlockInteraction.beginBreak(bot, level, obstacleHeadPos);
+                    headSession = BlockInteraction.beginBreak(bot, level, obstacleHeadPos, LEGACY_GRANT);
                 }
                 BlockBreakSession.Status status = headSession.tick();
                 if (status == BlockBreakSession.Status.FAILED) {

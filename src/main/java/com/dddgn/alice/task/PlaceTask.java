@@ -1,5 +1,7 @@
 package com.dddgn.alice.task;
 
+import com.dddgn.alice.action.WriteReason;
+import com.dddgn.alice.action.WriteGrant;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
@@ -97,7 +99,8 @@ public final class PlaceTask implements Task {
             failure = "place_resource_unavailable";
             return Status.FAILED;
         }
-        BlockInteraction.PlaceResult result = BlockInteraction.placeAt(bot, level, target, false);
+        BlockInteraction.PlaceResult result = BlockInteraction.placeAt(bot, level, target, false,
+                WriteGrant.of(taskName(), WriteReason.STEP_PLACEMENT));
         if (result != BlockInteraction.PlaceResult.PLACED) {
             failure = "place_no_valid_face";
             BotLog.warn("[PlaceTask] place_failed target={} stand={} feet={}",

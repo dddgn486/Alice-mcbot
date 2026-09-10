@@ -1,5 +1,6 @@
 package com.dddgn.alice.job.lumber;
 
+import com.dddgn.alice.action.WriteGrant;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.task.mining.LineOfSightChecker;
@@ -37,12 +38,12 @@ public final class BlockerClearPlanner {
     }
 
     /** 该方块是否允许作为"限次清障"对象。 */
-    public static boolean clearable(ServerPlayer bot, ServerLevel level, BlockPos pos) {
+    public static boolean clearable(ServerPlayer bot, ServerLevel level, BlockPos pos, WriteGrant grant) {
         BlockState state = level.getBlockState(pos);
         if (state.isAir() || state.is(BlockTags.LOGS)) {
             return false;   // 原木是目标（可能是自己的，也可能是别的树）→ 不清
         }
-        return BlockInteraction.breakable(bot, level, pos);
+        return BlockInteraction.breakable(bot, level, pos, grant);
     }
 
     /**
@@ -51,7 +52,7 @@ public final class BlockerClearPlanner {
      * @param budget 允许的最大清障数（超出即视为不可行）
      */
     public static int clearPlanCount(ServerLevel level, ServerPlayer bot, BlockPos log,
-                                     double reach, int budget) {
+                                     double reach, int budget, WriteGrant grant) {
         double limit = reach - MiningTuning.reachMargin();
         int minY = log.getY() - 1;
         for (BlockPos stand : lumberStands(log)) {
@@ -64,7 +65,7 @@ public final class BlockerClearPlanner {
                 if (MovementHelper.canWalkThrough(level, cell)) {
                     continue;
                 }
-                if (clearable(bot, level, cell) && cell.getY() >= minY) {
+                if (clearable(bot, level, cell, grant) && cell.getY() >= minY) {
                     clears++;
                 } else {
                     standOk = false;
@@ -85,7 +86,7 @@ public final class BlockerClearPlanner {
                 }
                 boolean ok = true;
                 for (BlockPos blocker : blockers) {
-                    if (!clearable(bot, level, blocker) || blocker.getY() < minY) {
+                    if (!clearable(bot, level, blocker, grant) || blocker.getY() < minY) {
                         ok = false;
                         break;
                     }
@@ -126,7 +127,7 @@ public final class BlockerClearPlanner {
      * <p>修正后是**由外向内剥离**：从可站位置能看到的最外层树叶先清，露出下一层，逐层推进。
      */
     public static BlockPos nextClearStep(ServerLevel level, ServerPlayer bot, BlockPos log,
-                                        double reach, int budgetLeft) {
+                                        double reach, int budgetLeft, WriteGrant grant) {
         if (budgetLeft <= 0) {
             return null;
         }
@@ -150,7 +151,7 @@ public final class BlockerClearPlanner {
                 }
                 boolean ok = true;
                 for (BlockPos blocker : blockers) {
-                    if (!clearable(bot, level, blocker) || blocker.getY() < minY) {
+                    if (!clearable(bot, level, blocker, grant) || blocker.getY() < minY) {
                         ok = false;
                         break;
                     }

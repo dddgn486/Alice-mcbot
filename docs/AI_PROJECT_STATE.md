@@ -181,6 +181,14 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
   - 日志：`logs/latest.log`、`logs/debug.log`
   - 截图/视频：`screenshots/`、`videos/`（如果需要）
 
+## 当前进行中（2026-09-10）
+
+- **D-082 世界写入授权契约**（`docs/WORLD_WRITE_AUTHORIZATION.md`）：授权成为数据
+  （`WriteReason` + `WriteGrant` + `WriteAudit`），`BlockInteraction` 为唯一写入原语层，
+  破坏策略由 `reason.policy()` 派生；新增 `placeBulkEdit` 封掉道路施工的裸 `level.setBlock`。
+  **已 COMPILES，未做客户端验证。** 已登记缺口 G1–G8 见该文 §3；
+  下一步 R2（填 `PathRequest.requester` + 执行期复验授权）→ J6 账本。
+
 ## 开始任何新任务前
 
 1. 读取本文件和 `AI_DEVELOPMENT_PLAYBOOK.md`

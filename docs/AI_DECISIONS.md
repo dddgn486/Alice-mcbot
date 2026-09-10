@@ -1599,3 +1599,48 @@
   另核查：**工具等级成本无需改动**——寻路三处破坏成本（`BREAK_AND_ENTER`/`DOWNWARD`/`BREAK_AND_TRAVERSE`）
   已调用 `BlockInteraction.estimateBreakTicks`（按快捷栏最佳工具 + `getDestroySpeed` + 不能收获时 ×5），
   与 `MiningBudget` 同源；实测砍原木 60 tick/根与该估算**完全吻合**（镐 speed 1.0）。
+
+---
+
+## D-082 世界写入授权契约：授权成为数据（2026-09-10）
+
+**背景**：用户追问"为什么不能直接在伐木任务声明授权"。核查结论——伐木**当时已经在任务层声明授权**
+（`LumberJob` 自己挑出要清的那一格再建 `MineTask`），真正的病灶是**授权的表达方式分裂**：
+
+1. **策略由"调哪个方法"隐式决定**：调 `BlockInteraction.breakable` 走清障策略，
+   调 `breakableExplicit` 走明确目标策略——同一份授权语义藏在两个方法名里，调用点看不出"谁授权了什么"。
+2. **归因缺失**：`PathRequest` 有 `requester` 字段，但三个工厂全部硬编码 `"unknown"`（`PathRequest.java:39/51/63`），
+   全仓唯一读取点只有 `PathRetryRunner.java:53` 的字符串拼接。
+3. **写入点分散**：破坏有 5 个入口（`beginBreak` / `breakForBulkEdit` / `placeAt` / **裸 `level.setBlock`** / 模组反射），
+   其中道路施工两套实现（`RoadBuildTask`、`RoadBuilder`）**零凭证**：不查保护区、不查库存、无理由、无 requester。
+4. **执行期不复验授权**：MovementType 许可只在搜索期（`SurfaceMovementProvider`）生效；
+   `PathSession` 保存 `request` 后不再读取，`startSegment()` 直接按 plan 建执行器。
+
+**裁定：授权 = (谁, 为什么) 的数据，而不是任务级开关。实施三件套（`action/` 包）：**
+
+- `WriteReason`（枚举）：10 个结构化理由，各自携带
+  ① 策略 `Policy{EXPLICIT_TARGET, CLEARING}`（决定走 `BlockBreakSafety` 哪套拒绝规则）、
+  ② 动作 `Action{BREAK, PLACE, BOTH}`；
+- `WriteGrant`（record）：`requester + reason`。**不含预算**——预算是既有的独立概念
+  （`MiningBudget` / `SearchBudget`），本轮**不合并**，避免造出第三套预算表达；
+- `WriteAudit`：每次写入记一条（`[WRITE] break pos=.. block=.. by=lumber:LINE_OF_SIGHT tick=..`）
+  + 计数 + `unknownRequesterWrites()` 缺口度量。**这是 J6 账本的唯一数据来源**，本轮只做内存 + 日志。
+
+**唯一入口**：`BlockInteraction` 的全部破坏/放置/批量编辑签名改为**必须携带 `WriteGrant`**；
+`breakableExplicit` **删除**（策略改由 `grant.reason().policy()` 派生）；新增
+`placeBulkEdit(...)` 封掉道路施工的裸 `level.setBlock`（自做保护区检查 + 审计，被拒即不写入）。
+
+**为什么不能用任务级布尔开关**（用户方案的另一半，已讨论并否决）：
+① 谓词必须能被下层判定——寻路内核只算几何与成本，无法区分"树叶/玩家房子/矿床"，给它通行证等于**免检**；
+② 授权范围里会塞进与任务无关的能力（`withWorldModification` 含 `PILLAR`/`FALL`/`DOWNWARD`/`PLACE_STEP`）；
+③ 预算无法归因，"这棵树花掉多少破坏预算"算不出来，J6 的建拆同权与恢复就没有依据；
+④ 失败归因塌陷：`clear_failed`/`no_stand`/`clear_budget`/`MOVE_MOVEMENT_FAILED` 会全部变成一句 `unreachable`；
+⑤ **实测证据**：9-10 那次给过内核通用破坏权（`standableOnly` 之前），结果是
+`planned standingFoot=20,63,207 mode=TUNNEL` → **往下挖了一格 + 6 秒地道** + `MOVE_MOVEMENT_FAILED`。
+规则因此明确为：**每个授权入口必须携带下层可判定的谓词 + 可归因的预算；任务可以声明，但只能声明"这一格/这一次"。**
+
+**新增任务身份**：`Task.taskName()` 默认取类名（Job 覆写为 `lumber` 等），作为授权的 `requester`。
+
+**本轮不做（已登记为后续，见 `docs/WORLD_WRITE_AUTHORIZATION.md` §4）**：
+`PathRequest.requester` 全量填值（21 处）、执行期复验 `allowedMovementTypes`、
+模组连锁破坏的凭证化（`ChainMining` 反射内部不可插入判定）、容器写入维度（`TransferTask`）、J6 持久化账本。

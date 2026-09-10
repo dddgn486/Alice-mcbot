@@ -1,5 +1,7 @@
 package com.dddgn.alice.pathing.core;
 
+import com.dddgn.alice.action.WriteReason;
+import com.dddgn.alice.action.WriteGrant;
 import com.dddgn.alice.action.BlockBreakSession;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.bot.BotPlayer;
@@ -39,6 +41,8 @@ public final class BreakAndEnterExecution implements MovementExecution {
     private final String sessionId;
     private final CompletionTolerance tolerance;
     private final List<BlockPos> blockers;
+    /** 授权身份（来自 LiveExecutionContext，D-082）：破坏记账用。 */
+    private final WriteGrant grant;
 
     private Phase phase = Phase.NOT_STARTED;
     private String failureCode;
@@ -53,6 +57,7 @@ public final class BreakAndEnterExecution implements MovementExecution {
         this.botId = bot.getUUID().toString();
         this.sessionId = context.sessionId();
         this.tolerance = context.tolerance();
+        this.grant = WriteGrant.of(context.requester(), WriteReason.PATH_ACCESS);
         this.blockers = new ArrayList<>(collectBlockers(level, spec.fromFoot(), spec.toFoot()));
     }
 
@@ -118,7 +123,7 @@ public final class BreakAndEnterExecution implements MovementExecution {
             extraHeadBreakAdded = true;
             BlockPos extra = spec.toFoot().above(2);
             if (!MovementHelper.canWalkThrough(level, extra)
-                    && BlockInteraction.breakable(bot, level, extra)) {
+                    && BlockInteraction.breakable(bot, level, extra, grant)) {
                 blockers.add(extra);
                 BotLog.info("[BreakEnter] extra_head_break pos={} reason=airborne_entry",
                         extra.toShortString());
@@ -135,7 +140,7 @@ public final class BreakAndEnterExecution implements MovementExecution {
                 return;
             }
             if (session == null) {
-                session = BlockInteraction.beginBreak(bot, level, blocker);
+                session = BlockInteraction.beginBreak(bot, level, blocker, grant);
             }
             BlockBreakSession.Status status = session.tick();
             if (status == BlockBreakSession.Status.DONE) {
@@ -194,7 +199,7 @@ public final class BreakAndEnterExecution implements MovementExecution {
             return false;
         }
         for (BlockPos blocker : blockers) {
-            if (!BlockInteraction.breakable(bot, level, blocker)) {
+            if (!BlockInteraction.breakable(bot, level, blocker, grant)) {
                 return false;
             }
         }

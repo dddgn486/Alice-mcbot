@@ -1,5 +1,6 @@
 package com.dddgn.alice.task;
 
+import com.dddgn.alice.action.WriteGrant;
 import com.dddgn.alice.action.MineBlockRunner;
 import com.dddgn.alice.compat.ChainMining;
 import com.dddgn.alice.bot.RecoveryStage;
@@ -50,6 +51,8 @@ public final class MineTask implements Task {
     private final MiningPlanner miningPlanner = new MiningPlanner();
     /** true = 只允许"现成可站站位"（伐木用；禁止挖隧道/破坏进入，见 MiningPlanner#plan）。 */
     private final boolean standableOnly;
+    /** 世界写入授权（D-082）。 */
+    private final WriteGrant grant;
 
     private MineBlockRunner miner;
     private MiningPlan currentPlan;
@@ -74,20 +77,25 @@ public final class MineTask implements Task {
     /** 触发连锁前的目标方块状态（用于判断连锁是否真的把它挖掉了）。 */
     private BlockState chainTargetState;
 
-    public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope) {
+    public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope, WriteGrant grant) {
         this(bot, target, scope, MiningBudget.forTarget(
-                bot, (net.minecraft.server.level.ServerLevel) bot.level(), target, true));
+                bot, (net.minecraft.server.level.ServerLevel) bot.level(), target, true), false, grant);
     }
 
     /** D-067 批次 3：`collectDrops` 为必要参数（false 时跳过放支撑块与收集）。 */
-    public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope, MiningBudget budget) {
-        this(bot, target, scope, budget, false);
+    public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope, MiningBudget budget,
+                    WriteGrant grant) {
+        this(bot, target, scope, budget, false, grant);
     }
 
-    /** @param standableOnly true = 只用现成可站站位（伐木：禁止挖隧道；清障由 Job 显式负责）。 */
+    /**
+     * @param standableOnly true = 只用现成可站站位（伐木：禁止挖隧道；清障由 Job 显式负责）
+     * @param grant        世界写入授权（D-082）：**调用点必须显式声明**"谁、为什么"挖这一格
+     */
     public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope, MiningBudget budget,
-                    boolean standableOnly) {
+                    boolean standableOnly, WriteGrant grant) {
         this.standableOnly = standableOnly;
+        this.grant = grant;
         this.bot = bot;
         this.target = target.immutable();
         this.scope = scope;
@@ -403,7 +411,7 @@ public final class MineTask implements Task {
             throw new IllegalStateException("MineTask requires BotPlayer");
         }
         // useChain=true 时只走到站位（walkOnly），破坏由任务层触发模组连锁
-        miner = new MineBlockRunner(botPlayer, currentPlan, useChain && !chainTriggered);
+        miner = new MineBlockRunner(botPlayer, currentPlan, useChain && !chainTriggered, grant);
         lastProbeStatus = null;
         BotLog.info("[MineTask探针] 创建 MineBlockRunner: target={} mode={} stand={} botPos={} attempt={}",
                 target.toShortString(), currentPlan.mode(),

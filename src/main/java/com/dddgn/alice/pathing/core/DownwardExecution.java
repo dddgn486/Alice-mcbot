@@ -1,5 +1,7 @@
 package com.dddgn.alice.pathing.core;
 
+import com.dddgn.alice.action.WriteReason;
+import com.dddgn.alice.action.WriteGrant;
 import com.dddgn.alice.action.BlockBreakSession;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.bot.BotPlayer;
@@ -27,6 +29,8 @@ public final class DownwardExecution implements MovementExecution {
     private final String botId;
     private final String sessionId;
     private final CompletionTolerance tolerance;
+    /** 授权身份（D-082）。 */
+    private final WriteGrant grant;
 
     private Phase phase = Phase.NOT_STARTED;
     private String failureCode;
@@ -39,6 +43,7 @@ public final class DownwardExecution implements MovementExecution {
         this.botId = bot.getUUID().toString();
         this.sessionId = context.sessionId();
         this.tolerance = context.tolerance();
+        this.grant = WriteGrant.of(context.requester(), WriteReason.DESCEND_FOOT);
     }
 
     @Override
@@ -87,7 +92,7 @@ public final class DownwardExecution implements MovementExecution {
             // 破坏脚下的方块（破坏期间保持原地，避免动量带偏）
             bot.controller().stopMovement();
             if (breakSession == null) {
-                breakSession = BlockInteraction.beginBreak(bot, level, target);
+                breakSession = BlockInteraction.beginBreak(bot, level, target, grant);
             }
             BlockBreakSession.Status status = breakSession.tick();
             if (status == BlockBreakSession.Status.DONE) {
@@ -134,7 +139,7 @@ public final class DownwardExecution implements MovementExecution {
         if (!MovementHelper.canWalkOn(level, to) || !MovementHelper.canWalkThrough(level, to.above())) {
             return false;
         }
-        return level.getBlockState(to).isAir() || BlockInteraction.breakableExplicit(bot, level, to);
+        return level.getBlockState(to).isAir() || BlockInteraction.breakable(bot, level, to, grant);
     }
 
     private boolean postconditionHolds() {

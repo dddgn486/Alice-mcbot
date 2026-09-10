@@ -1,5 +1,7 @@
 package com.dddgn.alice.task;
 
+import com.dddgn.alice.action.WriteReason;
+import com.dddgn.alice.action.WriteGrant;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.perception.ScopeBuffer;
 import com.dddgn.alice.road.RoadPlan;
@@ -25,6 +27,10 @@ import java.util.Set;
  * 这让施工过程可见，同时产出的道路仍是玩家可通过的真实方块结构。</p>
  */
 public final class RoadBuildTask implements Task {
+
+    /** 道路施工的授权身份（D-082）。 */
+    private static final WriteGrant BULK_GRANT =
+            WriteGrant.of("road-build", WriteReason.BULK_EDIT);
     private enum Phase { BUILD_UNIT, WAIT_STABLE, MOVE_TO_NEXT_UNIT, MINE_TARGET, DONE }
 
     private static final int STABLE_WAIT_TICKS = 5;
@@ -101,7 +107,8 @@ public final class RoadBuildTask implements Task {
         if (!supportPlaced) {
             if (level.getBlockState(unit.support()).isAir()) {
                 faceTarget(unit.support());
-                level.setBlock(unit.support(), Blocks.COBBLESTONE.defaultBlockState(), 3);
+                BlockInteraction.placeBulkEdit(bot, level, unit.support(),
+                        Blocks.COBBLESTONE.defaultBlockState(), BULK_GRANT);
                 bot.swing(InteractionHand.MAIN_HAND);
             }
             supportPlaced = true;
@@ -124,7 +131,7 @@ public final class RoadBuildTask implements Task {
         }
         faceTarget(pos);
         bot.swing(InteractionHand.MAIN_HAND);
-        BlockInteraction.breakForBulkEdit(bot, level, pos, true);
+        BlockInteraction.breakForBulkEdit(bot, level, pos, true, BULK_GRANT);
         return true;
     }
 
@@ -149,7 +156,8 @@ public final class RoadBuildTask implements Task {
         } else if (unitIndex + 1 >= plan.units().size()) {
             // 最终支撑格的上方就是仍存在的目标方块，不能强制把 bot 移入该格。
             // bot 此时已在倒数第二个缓冲单元，直接交给 MineTask 从当前可挖站位处理目标。
-            targetTask = new MineTask(bot, plan.second(), scope);
+            targetTask = new MineTask(bot, plan.second(), scope,
+                    BULK_GRANT.with(WriteReason.EXPECTED_TARGET));
             phase = Phase.MINE_TARGET;
         } else {
             moveDestinationIndex = unitIndex + 1;
@@ -173,7 +181,8 @@ public final class RoadBuildTask implements Task {
             bot.setOnGround(true);
             bot.fallDistance = 0.0F;
             if (destinationIndex == unitIndex && unitIndex + 1 >= plan.units().size()) {
-                targetTask = new MineTask(bot, plan.second(), scope);
+                targetTask = new MineTask(bot, plan.second(), scope,
+                    BULK_GRANT.with(WriteReason.EXPECTED_TARGET));
                 phase = Phase.MINE_TARGET;
             } else {
                 unitIndex++;
@@ -235,7 +244,7 @@ public final class RoadBuildTask implements Task {
             for (int dx = -1; dx <= 1; dx++) {
                 for (int dz = -1; dz <= 1; dz++) {
                     BlockPos pos = support.offset(dx, dy, dz);
-                    if (isUnstableFallingBlock(pos)) BlockInteraction.breakForBulkEdit(bot, level, pos, true);
+                    if (isUnstableFallingBlock(pos)) BlockInteraction.breakForBulkEdit(bot, level, pos, true, BULK_GRANT);
                 }
             }
         }

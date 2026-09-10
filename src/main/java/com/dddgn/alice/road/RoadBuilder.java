@@ -1,5 +1,7 @@
 package com.dddgn.alice.road;
 
+import com.dddgn.alice.action.WriteReason;
+import com.dddgn.alice.action.WriteGrant;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.protection.BlockBreakSafety;
 import net.minecraft.core.BlockPos;
@@ -19,6 +21,10 @@ import java.util.Set;
  * 才允许进入下一单元。重复执行同一单元只检查当前状态，不重复放置/挖掘。
  */
 public final class RoadBuilder {
+
+    /** 道路施工的授权身份（D-082）。 */
+    private static final WriteGrant BULK_GRANT =
+            WriteGrant.of("road-builder", WriteReason.BULK_EDIT);
     private static final RoadBuilder INSTANCE = new RoadBuilder();
     private RoadPlan plan;
     private ServerLevel level;
@@ -102,13 +108,14 @@ public final class RoadBuilder {
             if (pos.equals(plan.first()) || pos.equals(plan.second())) continue;
             if (!level.getBlockState(pos).isAir()
                     && BlockBreakSafety.clearingRefusal(actor, pos) == null) {
-                BlockInteraction.breakForBulkEdit(actor, level, pos, false);
+                BlockInteraction.breakForBulkEdit(actor, level, pos, false, BULK_GRANT);
             }
         }
         for (BlockPos pos : supports) {
             if (pos.equals(plan.first()) || pos.equals(plan.second())) continue;
             if (level.getBlockState(pos).isAir()) {
-                level.setBlock(pos, net.minecraft.world.level.block.Blocks.COBBLESTONE.defaultBlockState(), 3);
+                BlockInteraction.placeBulkEdit(actor, level, pos,
+                        net.minecraft.world.level.block.Blocks.COBBLESTONE.defaultBlockState(), BULK_GRANT);
             }
         }
     }
@@ -147,7 +154,7 @@ public final class RoadBuilder {
                     BlockPos pos = support.offset(dx, dy, dz);
                     if (isUnstableFallingBlock(pos)
                             && BlockBreakSafety.clearingRefusal(actor, pos) == null) {
-                        BlockInteraction.breakForBulkEdit(actor, level, pos, false);
+                        BlockInteraction.breakForBulkEdit(actor, level, pos, false, BULK_GRANT);
                     }
                 }
             }
