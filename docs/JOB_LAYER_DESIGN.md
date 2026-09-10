@@ -192,11 +192,18 @@ public final class DecisionTrace {
 
 **事实**：`LineOfSightChecker.LineOfSightResult.getFirstBlocker()` **已经返回遮挡方块坐标** → 不需要自制"找树叶"逻辑。
 
+**规则（2026-09-10 用户裁定：取消软/硬方块分类）**：
+> 树叶本来就有碰撞箱，把它单列成"软方块"是**多余分类**。统一规则是——
+> **任何可破坏（排除保护区/不可破坏/流体）且不是原木的阻挡方块都可以清**，上限由**预算**兜底。
+
+运行时真实存在的两种无解情形只有：**预算用尽** 与 **阻挡物不可破坏**。
+
 流程：
 1. 子任务（`MineTask`）报 `LINE_OF_SIGHT_BLOCKED`；
 2. Job 取 `getFirstBlocker()` → 判定是否**可清除**：
-   - 必须是**可破坏**（`BlockInteraction.breakable`）且**不属于本树的原木**、**不在保护区**、**清除后确实能看见目标**（清除前先做一次模拟判定，避免"清了还是看不见"）；
-   - 默认白名单倾向保守：树叶 / 雪层 / 藤蔓 / 草（原木碰撞箱之外的软遮挡），其余一律拒绝；
+   - 必须是**可破坏**（`BlockInteraction.breakable`）且**不是原木**（原木是目标，可能是别的树）；
+   - 规划期先估算"清几格能看见"（`BlockerClearPlanner.clearPlanCount`：站位被占的格 + 射线上的阻挡格），
+     超过预算即视为该树不可行——避免"清了还是看不见"；
 3. 作为**独立子任务**执行（`MineTask` on blocker），计入 `clearBudget`（默认 **≤ 8 格/棵**）；
 4. 超预算 → 该树拒绝 `los_blocked_permanent` → 选下一棵 + trace。
 
