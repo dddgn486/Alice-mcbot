@@ -1,83 +1,69 @@
 # Alice
 
-Alice 是一个处于早期研发和验证阶段的 Minecraft Forge 1.20.1 模组。项目目标是在服务端运行一个客户端可见的假人玩家，让它通过结构化感知、确定性任务和受约束的世界交互完成工作。
+Alice 是一个 Minecraft Forge 1.20.1 模组：在服务端运行一个客户端可见的假人玩家，让它通过结构化感知、确定性任务和受约束的世界交互完成工作。
 
 > 当前版本用于开发与测试，尚不适合作为稳定发布版直接安装使用。
+> 内核路线见 [D-036](docs/AI_DECISIONS.md)：**Alice = Baritone 兼容内核**（搜索 / Movement / 执行器 / 自愈 / 成本模型先对照 Baritone 再实现）。
 
 ## 架构原则
 
-Alice 当前实现遵循四条边界：
+1. **LLM 只做目标级决策**：语言模型负责选择目标，不直接输出逐 tick 移动、背包写入或世界修改。
+2. **确定性执行器负责落地**：任务状态机、寻路、库存验证和失败回收由服务端执行，并输出稳定结果码。
+3. **服务端权威**：Bot、任务、库存、容器和世界变化均以服务端事实为准；客户端只负责显示与交互。
+4. **寻路红线（D-076）**：寻路请求**默认纯通行**（`PathRequest.of`）；破坏/放置只能由上层任务**显式授权**并受**预算闸门**约束——挖掘站位用 `PathRequest.miningApproach` + `MiningBudget`（禁用 `PILLAR/FALL/DOWNWARD`），掉落物收集需调用方显式 `allowWorldModification=true`。禁止寻路器自行挖穿地形、禁止把 `SEARCH_LIMIT` 当授权、禁止实验性移动模式隐式接入正式任务。
+5. **未知模组能力默认只读**：不猜槽位、配方或写入语义；模组兼容必须走可验证的软依赖适配器（如 `compat/ChainMining`）。
 
-1. **LLM 只做目标级决策**：语言模型未来负责选择目标和任务，不直接输出逐 tick 移动、背包写入或世界修改。
-2. **确定性执行器负责落地**：任务状态机、寻路、库存验证和失败回收由服务端代码执行，并输出稳定结果码。
-3. **服务端权威**：Bot、任务、库存、容器和世界变化均以服务端事实为准；客户端只负责显示和交互。
-4. **GUI 转换为语义接口**：面向模组机器的长期方案是调用经过验证的 capability/adapter，而不是模拟视觉点击 GUI。
+## 文档入口
 
-普通挖矿和拾取始终使用 `HARD_PATH`。`SOFT_SURFACE`、原版 `travel` 和软路径能力目前只存在于独立实验入口或已限定的短程跟随中，不会隐式接入挖矿、拾取、道路、隧道、流体或逃生。
-
-设计文档：
-
-- [产品架构路线](docs/PRODUCT_ARCHITECTURE_ROADMAP.md)
-- [AI 玩家架构总纲](docs/AI_PLAYER_DESIGN.md)
-- [执行层框架](docs/EXECUTION_FRAMEWORK.md)
-- [寻路重构设计](docs/PATHING_REFACTOR.md)
-- [会话接手入口](docs/START_HERE.md)
-- [AI 开发手册](docs/AI_DEVELOPMENT_PLAYBOOK.md)
-- [文档索引](docs/README.md)
-- [当前项目状态](docs/AI_PROJECT_STATE.md)
-- [架构决策](docs/AI_DECISIONS.md)
-- [测试矩阵](docs/AI_TEST_MATRIX.md)
-- [道路数学模型参考](docs/reference/ROAD_MATHEMATICAL_MODEL.md)
-- [Mekanism GUI 语义参考](docs/reference/MEK_GUI_SEMANTICS.md)
-- [Baritone 移植参考](docs/reference/BARITONE_PORTING_CHECKLIST.md)
+- **接手第一入口**：[`docs/START_HERE.md`](docs/START_HERE.md)
+- 当前状态：[`docs/AI_PROJECT_STATE.md`](docs/AI_PROJECT_STATE.md) ｜ 决策：[`docs/AI_DECISIONS.md`](docs/AI_DECISIONS.md) ｜ 测试矩阵：[`docs/AI_TEST_MATRIX.md`](docs/AI_TEST_MATRIX.md)
+- 开发协作与 skills：[`docs/AI_DEVELOPMENT_PLAYBOOK.md`](docs/AI_DEVELOPMENT_PLAYBOOK.md)、[`AGENTS.md`](AGENTS.md)、[`.alice-supervision/skills/`](.alice-supervision/skills)
+- 内核与设计：[`ALICE_PATHING_CORE_ARCHITECTURE.md`](docs/ALICE_PATHING_CORE_ARCHITECTURE.md)、[`R4_BARITONE_ALIGNMENT_AUDIT.md`](docs/R4_BARITONE_ALIGNMENT_AUDIT.md)、[`MINING_STAND_SELECTION_DESIGN.md`](docs/MINING_STAND_SELECTION_DESIGN.md)、[`MINE_MIGRATION_DESIGN.md`](docs/MINE_MIGRATION_DESIGN.md)
+- 测试流程：[`TESTING_GUIDE.md`](docs/TESTING_GUIDE.md)、[`BARITONE_CONTRAST_TESTING.md`](docs/BARITONE_CONTRAST_TESTING.md)
+- 完整索引与归档说明：[`docs/README.md`](docs/README.md)
 
 ## 当前能力
 
 | 模块 | 当前状态 |
 |---|---|
-| 假人玩家 | `BotPlayer` 继承 `ServerPlayer`，通过服务端玩家列表注册并在客户端可见 |
-| 感知与任务 | `PerceptionSnapshot`、`ScopeBuffer`、`Task` 状态机和只读任务执行记录 |
-| 挖矿与拾取 | 曲面可达站位、视线校验、显式掉落物追踪；深层目标保守失败为 `target_requires_tunnel` |
-| HARD_PATH | `SurfacePathfinder` + `PathExecutor`，不破坏方块，不把 `SEARCH_LIMIT` 当作可挖隧道 |
-| SOFT_SURFACE 实验 | 独立的短程移动和连续脚位探针；未接入普通挖矿、拾取或道路任务 |
-| 短程跟随 | 同维度、命令执行者本人、距离与重算频率受限；与保护区巡逻无关 |
-| C1 只读接口扫描 | 独立物品 `alice:interface_scanner` 读取原始只读 capability 快照；不继承原版钻石铲行为 |
-| 道路模型 | 独立蓝图工具、普通弯曲路线和受限 2x2 螺旋模型；与挖矿链隔离 |
-| A1.1 容器转移实验 | 权限等级 2 的显式命令执行单种原版无 NBT 物品、正数量、单箱到 Bot 背包再到单箱的审计式转移 |
-| 转移端点选择器 | 独立木棍外观测试物品；Shift+右键选择 source、右键选择 destination，原版箱子 GUI 保持可用；submit 支持显式或受限默认 item/count |
+| 假人玩家 | `BotPlayer` 继承 `ServerPlayer`，服务端注册并在客户端可见（`FakeConnection` 只转发旋转包） |
+| 寻路内核 | Baritone 兼容：9 种 Movement（含 `BREAK_AND_ENTER`、`PILLAR`、`FALL`）、两模式搜索、`PathSession` 分段执行 + 自愈重规划；客户端回归 14 项 + 覆盖断言 |
+| 挖掘 | `MiningPlanner`（站位候选 + S1/S2 成本估算 + top-K 精算）→ `MineBlockRunner`（走位 → 放支撑 → 破坏）→ `BlockBreakSession`；深埋目标由 `MiningBudget` 判定，超预算如实报 `found_but_unminable` |
+| 掉落物收集 | `CollectDropsTask`：来源由 `BlockEvent.BreakEvent` 配对、**簇级**扫掠（连通 2.0 格）、按**背包增量**计数 + 守恒交叉校验（不一致记 `MISMATCH`） |
+| 模组兼容（Ore Excavation） | 软依赖 `compat/ChainMining` 反射触发连锁；`MiningTuning.ChainMode{OFF,AUTO,FORCE}` **默认 OFF**，AUTO 仅连锁**矿石/原木**，失败如实回落单格挖掘 |
+| 回归入口 | `alice:pathing_regression`（寻路，含覆盖率断言）、`alice:mine_regression`（挖掘 10 项：规划 5 + 执行 3 + 悬空支撑 + 连锁） |
+| 感知与任务 | `PerceptionSnapshot`、`ScopeBuffer`、`Task` 状态机与执行记录 |
+| 跟随 / WalkTo | 已迁移新内核：`alice:follow_runner`、`alice:walk_to_runner`（受限目标语义，对齐 Baritone `GoalNear`） |
+| C1 只读接口扫描 | `alice:interface_scanner` 读取只读 capability 快照，不继承原版钻石铲行为 |
+| 道路模型 | 独立蓝图工具与受限路线模型，与挖矿链隔离 |
+| 容器转移（A1.1） | 权限等级 2 的显式命令，单箱 → Bot 背包 → 单箱的审计式转移（边界见下） |
+| 伐木 | **已禁用**（D-073）：`alice:auto_lumberer` / `alice:lumber_planner` 只提示"已禁用"，待专项重写 |
 
-### 验证状态
+### 验证等级
 
-- `alice:interface_scanner` 的独立物品身份、原版单箱只读扫描、无 Block Entity 目标和原版钻石铲隔离已完成 Windows 客户端验收；该结论仅覆盖 C1 只读快照。
-- A1.1 容器转移已通过 focused 服务端 fixture 和监督二审，仍处于 `CLIENT_TEST_PENDING`；客户端移动、在途背包可见性、冲突/重启/abort 和原版箱子 GUI 隔离仍需 Windows 实测。
-- `alice:transfer_endpoint_selector` 已通过 focused fixture 和监督二审，仍处于独立 `CLIENT_TEST_PENDING`；E1-E10 验证权限、GUI PASS、默认参数、admission 一致性和重启失效。
-- 编译成功、headless 日志和监督审核均不替代客户端验收。
+始终区分 `IMPLEMENTED` / `COMPILES` / `SERVER_TESTED` / `WINDOWS_CLIENT` / `USER_ACCEPTED`。
+编译成功与服务端日志**不能替代**真人在 Windows 客户端的观察；每项能力的当前等级见 [`docs/AI_TEST_MATRIX.md`](docs/AI_TEST_MATRIX.md)。
 
 ## 测试入口
 
-所有 `/alice` 命令要求权限等级 2。
+优先使用**游戏内物品右键**（零参数），其次是无坐标的一条命令；场景由数据包函数一键生成（`/function alice_test:<scene>`）。
 
 | 工具或命令 | 用途 |
 |---|---|
-| `/alice spawn <name>` | 生成服务端假人 |
-| `/alice mine <x y z>` | 指派一次显式挖掘任务 |
-| `/alice auto-mine <tag-or-id>` | 最小规则决策：选择最近且未受保护的目标 |
-| `/alice observe` | 输出挖矿视角的结构化感知摘要 |
-| `/alice status` | 查看当前任务和最近终态记录 |
-| `/alice protect ...` | 管理持久化保护区域、方块 ID 或标签 |
-| `alice:target_selector` | 钻石斧外观；右键选择挖掘目标，Shift+右键启动隔离的放置测试 |
-| `alice:interface_scanner` | 钻石铲外观的独立 Alice 物品；右键执行 C1 只读扫描 |
-| `/alice scan <x y z>` | C1 扫描的命令入口 |
-| `alice:road_planner` | 钻石锄外观；选择道路蓝图端点，Shift+右键重置 |
-| `/alice road build` | 构建当前道路蓝图 |
-| `/alice soft-probe <x y z>` | 独立短程 `NATIVE_TRAVEL` 实验 |
-| `/alice soft-path-probe <x y z>` | 独立连续脚位软路径实验 |
-| `/alice follow on|off` | 开关受限的同维度短程跟随 |
-| `alice:transfer_endpoint_selector` | 木棍外观；Shift+右键 source、右键 destination，只记录服务端短期草稿且不拦截箱子 GUI |
-| `/alice transfer-selection status|clear|submit [item] [count]` | 查看/清除草稿，或通过既有 transfer admission 提交；无参时取源箱第一种合格物品及其总数 |
-| `/alice transfer-test <source> <destination> <item> <count>` | A1.1 显式容器转移实验 |
-| `/alice transfer-status <request>` | 只读查看转移 ledger 状态 |
-| `/alice transfer-abort <request>` | 管理员 abort；在途物品保持保护并要求人工接管 |
+| `alice:pathing_regression` | 寻路串联回归（一键跑完全部寻路场景 + Movement 覆盖率断言） |
+| `alice:mine_regression` | 挖掘专项回归（规划 5 + 执行 3 + 悬空支撑 + 模组连锁，共 10 项） |
+| `alice:target_selector` | 右键指派挖掘目标；Shift+右键指派放置 |
+| `alice:mining_scene_tester` / `_b_` / `_c_` | 挖掘场景 A/B/C 单项验证（配合 `alice_test:scene_a` 等） |
+| `alice:mine_course_runner` | 挖掘站位选优自检（自由/贴墙/被围/头位/掩埋五类） |
+| `alice:chain_test_runner` | 模组连锁兼容自检（掉落物捕获 + 收集） |
+| `alice:pathing_battery` / `alice:pathing_session` / `alice:pathing_break_enter` / `alice:pathing_fall` / `alice:pathing_pillar` / `alice:pathing_lava_guard` / `alice:pathing_fluid_guard` / `alice:pathing_fence_guard` / `alice:pathing_dip_route` / `alice:pathing_waller` / `alice:pathing_disturber` | 单项寻路能力与守卫验证 |
+| `alice:walk_to_runner` / `alice:follow_runner` | 迁移后的 WalkTo / 跟随验证 |
+| `/alice spawn <name>` / `/alice status` / `/alice stop` | 生成假人、查看当前任务与终态、停止 |
+| `/alice chain` / `off` / `auto` / `force` | 连锁挖掘策略查询与切换（默认 `off`） |
+| `/alice mining estimate lower_bound\|dijkstra` | 站位成本估算方案切换 |
+| `/alice risk` / `/alice trace` | 风险开关查询、运动轨迹记录开关 |
+| `/alice protect ...` / `/alice scan <x y z>` / `/alice road build` | 保护区域、C1 只读扫描、道路构建 |
+| `/alice transfer-selection ...` / `/alice transfer-test ...` / `/alice transfer-status ...` / `/alice transfer-abort ...` | A1.1 容器转移草稿与审计式执行 |
 
 ## A1.1 转移边界
 
@@ -94,13 +80,7 @@ A1.1 只支持：
 
 ## 构建与运行
 
-环境：
-
-- JDK 17
-- Minecraft 1.20.1
-- Forge 47.4.10
-- Gradle 8.8 wrapper
-- Parchment 2023.09.03
+环境：JDK 17 · Minecraft 1.20.1 · Forge 47.4.10 · Gradle 8.8 wrapper · Parchment 2023.09.03
 
 ```bash
 ./gradlew compileJava
@@ -109,21 +89,24 @@ A1.1 只支持：
 ./gradlew runServer
 ```
 
-`libs/` 需要手动放置 `jecharacters-1.20.1-forge-4.6.9.jar`。JEI/JECh 只用于开发环境；`mods.toml` 未把它们声明为运行时硬依赖，项目代码也不依赖其 API。
+离线构建可用 `--offline`（Parchment 仓库不可达时）。
 
-Focused 服务端验证入口：
+`libs/` 需手动放置 `jecharacters-1.20.1-forge-4.6.9.jar`；JEI/JECh 仅用于开发环境，`mods.toml` 未声明为运行时硬依赖。
+
+同步到 Windows 测试客户端：
 
 ```bash
-./gradlew runServer -Dalice.selftest.auto=true
+./tools/mirror-windows-workspace.sh                                   # 源码镜像
+./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar \
+    /mnt/d/JAVA_projects/alice "/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10/mods"
 ```
-
-该命令会继续进入历史 broad selftest；因此应以明确的 suite PASS/FAIL 日志和进程退出事实分别记录，不能因出现某个 PASS 行就声称整套测试通过。
 
 ## 开发流程
 
-当前流程是轻量协作：讨论目标 → 读取相关 skills → 选择最小闭环 → 实施 → 编译/聚焦测试 → 同步 Windows `D:\JAVA_projects\alice\` → 用户通过游戏内测试物品和键盘鼠标实测 → 讨论证据与根因 → 决定是否修复。
+讨论目标 → 读取相关 skills → 选择最小闭环 → 实施 → 编译/聚焦测试 → 同步 Windows → 用户用游戏内物品实测 → 讨论证据与根因 → 决定是否修复。
 
-详细规则见 [`docs/AI_DEVELOPMENT_PLAYBOOK.md`](docs/AI_DEVELOPMENT_PLAYBOOK.md)。旧 dsh-agent-bus 监督流程、HANDOVER 和 active-plan 仅保留在 `docs/archive/legacy-workflow/`，不作为日常开发门槛。
+详细规则见 [`docs/AI_DEVELOPMENT_PLAYBOOK.md`](docs/AI_DEVELOPMENT_PLAYBOOK.md)。
+旧 dsh-agent-bus 监督流程、HANDOVER、active-plan 与 review packet 已删除或归档（内容仍在 git 历史与 `docs/archive/`、`.alice-supervision/archive/`），不作为日常开发门槛。
 
 ## License
 
