@@ -499,6 +499,28 @@ public final class BotManager {
         return true;
     }
 
+    /**
+     * 挖掘 Job（切片 J5）：把原来"扫一遍最近方块 → 直接建 MineTask"的孤岛，
+     * 换成与伐木同一套 L3 骨架（候选集 → 策略 → 决策 trace → 终止语义）。
+     *
+     * @param target 目标（标签或方块 ID），由命令解析后传入
+     */
+    public static boolean assignMineJob(BotPlayer bot, ServerPlayer observer,
+                                        com.dddgn.alice.job.mine.MineCandidateSource.Target target,
+                                        int quota, int radius) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        com.dddgn.alice.job.GoalSpec spec = com.dddgn.alice.job.GoalSpec.mineBlocks(
+                bot.blockPosition(), radius, quota, 3600);
+        com.dddgn.alice.job.mine.MineJob job = new com.dddgn.alice.job.mine.MineJob(
+                bot, spec, session.scope(),
+                new com.dddgn.alice.job.mine.MineCandidateSource(target, radius),
+                new com.dddgn.alice.job.policy.NearestPolicy());
+        session.beginTask(job, TaskTarget.block(bot.blockPosition()));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     /** 伐木失败语义自检（切片 J4）：五条终止路径各一个用例。 */
     public static boolean assignLumberFailureCheck(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());

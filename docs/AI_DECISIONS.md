@@ -2096,3 +2096,44 @@ D-089（快捷栏满，斧子退化进主背包 → 选不到 → 全程用镐�
 至此 **J1–J4 全部收口**（J1/J2 伐木闭环与循环配额、J3 决策缝可替换、J4 失败语义与安全守护），
 R2（授权契约 + 执行期复验）亦已闭合。剩余：**J5**（`AutoMineDecision` → `MineCandidateSource` + `MineJob`）
 → **J6**（账本 + 建拆同权 + 恢复，J7/J8 前置）→ J7 → J8。
+
+---
+
+## D-094 J5：L3 不只服务伐木——`MineCandidateSource` + `MineJob`，孤岛拆除（2026-09-10）
+
+### 背景：78 行的孤岛
+`decision/AutoMineDecision`（78 行）自己做三件事：扫描、挑最近、打日志。它绕开了 L3 已建的
+**整套**设施——`CandidateSet`（含拒绝理由码）、`SelectionPolicy`（决策缝）、`DecisionTrace`
+（可判读决策）、`GoalSpec`（配额/超时）、§6.2c 终止语义。勘测员把它记为"不可复用孤岛"，
+`CandidateSource` 的接口注释里也写了"J5 要把它迁过来"。
+
+### 实现
+1. **`job/mine/MineCandidateSource implements CandidateSource`**（第二个真实实现）
+   - `Target`（标签 **或** 方块 ID，与命令原有解析口径一致）+ `parse(level, id)`；
+   - 以 `spec.center()` 为中心、半径取 `min(来源半径, spec.radius())` 扫描；
+   - **只把"匹配目标却被拒"的方块写进 `rejected`**（`protected` / `unbreakable`；一个都没匹配到则
+     记 `scan(...):not_found`）——不匹配的方块是背景，不是"被拒候选"，不刷理由码；
+   - 特征：`d` / `block` / `y`；破坏判定按**声明的理由**派生策略（D-082，`EXPECTED_TARGET`）。
+2. **`job/mine/MineJob implements Job`**（第二个消费者）
+   - 与 `LumberJob` **同一套骨架**：`CandidateSet` → `SelectionPolicy` → `DecisionTrace` →
+     `GoalSpec` 配额/超时 → §6.2c 同一组终止理由
+     （`quota_met`/`no_reachable_candidate`/`partial_quota`/`inventory_full`/`goal_timeout`/`product_not_collected`）；
+   - **同一批硬不变量**：`attempted` 防重复选同一格；开工前 `scope.begin`（掉落物登记依赖它）；
+     背包无空位即 `inventory_full` 收工；**执行期身份复检**（该格已不是目标 → 记 `target_replaced` + 跳过）。
+   - `GoalSpec.mineBlocks(...)` 复用 `HARVEST_UNITS`（**一个方块 = 一个单位**），因此配额语义与伐木同源。
+3. **孤岛删除**：删掉 `decision/AutoMineDecision.java`；`/alice auto-mine <tag|block> [count]`
+   （原 `/alice auto-mine <tag>`，新增可选 count，默认 1 保持旧行为）改经
+   `BotManager.assignMineJob` → `MineJob`；`BotSelftest` TEST9 改用
+   `MineCandidateSource` + `NearestPolicy`（与生产同一条缝）。
+4. **夹具共享**：把"工具必须进快捷栏"（D-089 教训）抽成 `FixtureToolKit.ensureHotbarTool`，
+   `LumberJobItem.ensureAxe` 改为委托，新增的镐路径复用同一实现——**不再制造第六份重复**。
+
+### 夹具（零参数入口）
+- 新场景 `ore_course`：孤立长方体区域（x46..66, y58..76, z122..144），石体顶面 y=62，
+  顶面层嵌 **6 处裸露铁矿**（52/56/60 × 128/136），起点 `56,63,132` ⇒ 全部走模式 A；
+- `alice:mine_job`（零参数右键）：配额 **4**（共 6 处，留 2 处证明"到配额即停"），
+  并保证快捷栏有镐；通用入口仍是命令（任意目标/任意世界）。
+
+**验收判据（"同一套"的证据）**：`[Job] select job=mine policy=nearest picked=block@…` →
+`[Job] step phase=MINE … target 1/4` → `[Job] terminal job=mine result=DONE reason=quota_met
+mined 4/4 inventoryDelta=4`，且 `progressSummary`/`writes … unknown=0` 与伐木同格式。

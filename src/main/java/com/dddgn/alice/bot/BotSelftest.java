@@ -705,12 +705,20 @@ public final class BotSelftest {
         BotLog.info("SELFTEST TEST9: 决策层匹配, bot={} 煤炭={} 石头={}",
                 surface.toShortString(), surface.offset(2, 0, 0).toShortString(),
                 surface.offset(0, 0, 2).toShortString());
-        // 标签模式: 应找到煤炭矿石
-        var tagTarget = com.dddgn.alice.decision.AutoMineDecision.pickNearest(
-                level, surface, net.minecraft.tags.BlockTags.COAL_ORES, 8);
-        // 方块模式: 应找到石头
-        var blockTarget = com.dddgn.alice.decision.AutoMineDecision.pickNearestBlock(
-                level, surface, Blocks.STONE, 8);
+        // 标签模式: 应找到煤炭矿石；方块模式: 应找到石头
+        // J5：改走 MineCandidateSource（候选集）+ NearestPolicy（选择），与生产同一条决策缝
+        var selftestSpec = com.dddgn.alice.job.GoalSpec.mineBlocks(surface, 8, 1, 200);
+        var selftestPolicy = new com.dddgn.alice.job.policy.NearestPolicy();
+        var tagPick = selftestPolicy.select(bot, selftestSpec,
+                new com.dddgn.alice.job.mine.MineCandidateSource(
+                        com.dddgn.alice.job.mine.MineCandidateSource.Target.ofTag(
+                                net.minecraft.tags.BlockTags.COAL_ORES), 8).candidates(bot, selftestSpec));
+        var blockPick = selftestPolicy.select(bot, selftestSpec,
+                new com.dddgn.alice.job.mine.MineCandidateSource(
+                        com.dddgn.alice.job.mine.MineCandidateSource.Target.ofBlock(Blocks.STONE), 8)
+                        .candidates(bot, selftestSpec));
+        var tagTarget = tagPick.picked() == null ? null : tagPick.picked().anchor();
+        var blockTarget = blockPick.picked() == null ? null : blockPick.picked().anchor();
         boolean tagOk = tagTarget != null && tagTarget.equals(surface.offset(2, 0, 0));
         boolean blockOk = blockTarget != null && blockTarget.equals(surface.offset(0, 0, 2));
         test9Pass = tagOk && blockOk;

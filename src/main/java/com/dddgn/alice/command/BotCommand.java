@@ -223,7 +223,11 @@ public final class BotCommand {
                 .then(Commands.literal("auto-mine")
                         .then(Commands.argument("tag", StringArgumentType.string())
                                 .executes(ctx -> autoMine(ctx.getSource(),
-                                        StringArgumentType.getString(ctx, "tag")))))
+                                        StringArgumentType.getString(ctx, "tag"), 1))
+                                .then(Commands.argument("count", IntegerArgumentType.integer(1, 64))
+                                        .executes(ctx -> autoMine(ctx.getSource(),
+                                                StringArgumentType.getString(ctx, "tag"),
+                                                IntegerArgumentType.getInteger(ctx, "count"))))))
                 .then(Commands.literal("protect")
                         .then(Commands.literal("add-area")
                                 .then(Commands.argument("pos", BlockPosArgument.blockPos())
@@ -417,7 +421,7 @@ public final class BotCommand {
     /** 决策层最小规则:感知扫描最近的 <tag 或 方块ID> → 自动挖(感知→决策→执行闭环)。
      * 输入两种写法都支持:存在同名标签(如 minecraft:coal_ores)按标签匹配一组方块;
      * 否则按方块 ID 精确匹配(如 minecraft:stone / stone)。 */
-    private static int autoMine(CommandSourceStack source, String tagStr) {
+    private static int autoMine(CommandSourceStack source, String tagStr, int quota) {
         ServerLevel level = source.getLevel();
         if (tagStr.startsWith("#")) {
             tagStr = tagStr.substring(1);
@@ -433,43 +437,27 @@ public final class BotCommand {
                 ? source.getEntity().blockPosition()
                 : new BlockPos(level.getSharedSpawnPos());
 
-        // 先尝试按标签解析(存在同名标签才用标签模式)
-        net.minecraft.tags.TagKey<net.minecraft.world.level.block.Block> tag =
-                net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.BLOCK, id);
-        boolean tagExists = level.registryAccess()
-                .registryOrThrow(net.minecraft.core.registries.Registries.BLOCK)
-                .getTag(tag).isPresent();
-
-        BlockPos target;
-        String mode;
-        if (tagExists) {
-            target = com.dddgn.alice.decision.AutoMineDecision.pickNearest(
-                    level, center, tag, com.dddgn.alice.decision.AutoMineDecision.SCAN_RADIUS);
-            mode = "标签";
-        } else {
-            // 无同名标签 → 按方块 ID 精确匹配
-            net.minecraft.world.level.block.Block block =
-                    net.minecraftforge.registries.ForgeRegistries.BLOCKS.getValue(id);
-            if (block == null || block == net.minecraft.world.level.block.Blocks.AIR) {
-                source.sendFailure(Component.literal(
-                        "[alice] 既不是标签也不是方块 ID: " + tagStr));
-                return 0;
-            }
-            target = com.dddgn.alice.decision.AutoMineDecision.pickNearestBlock(
-                    level, center, block, com.dddgn.alice.decision.AutoMineDecision.SCAN_RADIUS);
-            mode = "方块";
-        }
-
-        if (target == null) {
-            source.sendFailure(Component.literal("[alice] 扫描半径 "
-                    + com.dddgn.alice.decision.AutoMineDecision.SCAN_RADIUS
-                    + " 内没找到 " + tagStr + "(" + mode + ")"));
+        // 目标解析与扫描都交给 MineCandidateSource（J5：原来这里是 AutoMineDecision 孤岛）
+        com.dddgn.alice.job.mine.MineCandidateSource.Target targetSpec =
+                com.dddgn.alice.job.mine.MineCandidateSource.Target.parse(level, id);
+        if (targetSpec == null) {
+            source.sendFailure(Component.literal("[alice] 既不是标签也不是方块 ID: " + tagStr));
             return 0;
         }
-        // 执行
-        BotPlayer bot = BotManager.firstOrSpawn(level, target);
-        BotManager.assignTarget(bot, com.dddgn.alice.task.TaskTarget.block(target));
-        String resultMsg = "自动挖矿(" + mode + "): 最近 " + tagStr + " @ " + target.toShortString();
+        BotPlayer bot = BotManager.firstOrSpawn(level, center);
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] bot 生成失败"));
+            return 0;
+        }
+        // 半径取 Job 规格半径：命令语义是"以我为中心扫描"，故用来源默认半径
+        int radius = com.dddgn.alice.job.mine.MineCandidateSource.SCAN_RADIUS;
+        String targetName = targetSpec.describe();
+        if (!BotManager.assignMineJob(bot, source.getPlayer(), targetSpec, quota, radius)) {
+            source.sendFailure(Component.literal("[alice] bot 正忙，稍后再试"));
+            return 0;
+        }
+        String resultMsg = "挖掘 Job 已启动: 目标 " + targetName + " 配额 " + quota
+                + " 半径 " + radius + "（决策与终态见 [Job] 日志）";
         source.sendSuccess(() -> Component.literal("[alice] " + bot.getName().getString() + " " + resultMsg), false);
         return 1;
     }

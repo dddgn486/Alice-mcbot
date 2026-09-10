@@ -106,6 +106,9 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 | L3 伐木 Job（切片 **J4**：五条终止路径 + 身份复检安全缺口） | `/function alice_test:lumber_course` → 右键 `alice:lumber_failure_check` | 普通右键（零参数，约 30 秒） | 五条终止路径**各有真实 Job 场景**；用例前重放场景保证独立 | `WINDOWS_CLIENT` + `USER_ACCEPTED`（2026-09-10 23:05 **5/5 PASS**）：`no_candidates=PASS(no_reachable_candidate)`、`all_rejected=PASS(+too_large)`、`inventory_full=PASS(DONE)`、`goal_timeout=PASS(ticks=41 ≤120 不空转)`、`log_replaced=PASS(DONE quota_met, replacedPos=20,64,208 仍为圆石=true)` —— 末条证明 **bot 不挖玩家换上的非原木方块** |
 | 安全缺口：队列原木身份复检（§6.2c⑤） | 同上 `log_replaced` 用例 | 夹具注入（Job 选完树后替换队列首格） | 断言"注入格仍是替换后的方块"而非字符串匹配 | `WINDOWS_CLIENT`（同上，随 J4 一并验证） |
 
+| L3 挖掘 Job（切片 **J5**：L3 不只服务伐木 + 孤岛拆除） | `/function alice_test:ore_course` → 右键 `alice:mine_job` | 普通右键（零参数） | 场景为孤立长方体区域 + 石体顶面 6 处裸露铁矿；配额 4 | `待测`（预期 `[Job] select job=mine policy=nearest picked=block@…`、`terminal DONE reason=quota_met mined 4/4 inventoryDelta=4`、`unknown=0`；证明与伐木同一套候选/策略/trace/终止） |
+| 通用挖掘入口（孤岛替代） | `/alice auto-mine <tag\|block> [count]` | 一行命令（无坐标） | 原 `AutoMineDecision` 已删除，改经 `assignMineJob` → `MineJob` | `待测`（可选：任意目标标签/方块 ID，默认挖最近 1 个） |
+
 ## 性能验证
 
 | 能力 | 测试入口 | 关键观察 | 当前状态 |

@@ -48,6 +48,16 @@ public record GoalSpec(Kind kind, int quota, BlockPos center, int radius, int ma
         return new GoalSpec(Kind.HARVEST_UNITS, units, center, radius, maxTicks, false, null);
     }
 
+    /**
+     * 挖掘（J5）：在 center 半径内挖到 quota 个目标方块。
+     *
+     * <p>与伐木同用 {@link Kind#HARVEST_UNITS}——"一个方块"就是一个单位，
+     * 于是挖掘与伐木共用同一套配额/终止语义（J5 的"同一套 Job/Trace 复用"）。
+     */
+    public static GoalSpec mineBlocks(BlockPos center, int radius, int blocks, int maxTicks) {
+        return new GoalSpec(Kind.HARVEST_UNITS, blocks, center, radius, maxTicks, false, null);
+    }
+
     /** 采集：在 center 半径内收集 quota 个匹配 `tag` 的产物。 */
     public static GoalSpec collectItems(BlockPos center, int radius, int items,
                                         TagKey<Item> tag, int maxTicks) {

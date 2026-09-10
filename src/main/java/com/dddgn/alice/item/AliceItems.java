@@ -129,6 +129,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> LUMBER_POLICY_CHECK =
             ITEMS.register("lumber_policy_check", () -> new LumberPolicyCheckItem(new Item.Properties()));
 
+    /** J5 挖掘 Job 夹具入口（零参数，ore_course 场景）。 */
+    public static final RegistryObject<Item> MINE_JOB =
+            ITEMS.register("mine_job", () -> new MineJobItem(new Item.Properties()));
+
     /** J4 伐木失败语义自检：五条终止路径各一个用例。 */
     public static final RegistryObject<Item> LUMBER_FAILURE_CHECK =
             ITEMS.register("lumber_failure_check", () -> new LumberFailureCheckItem(new Item.Properties()));
