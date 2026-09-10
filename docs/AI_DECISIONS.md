@@ -2137,3 +2137,11 @@ R2（授权契约 + 执行期复验）亦已闭合。剩余：**J5**（`AutoMine
 **验收判据（"同一套"的证据）**：`[Job] select job=mine policy=nearest picked=block@…` →
 `[Job] step phase=MINE … target 1/4` → `[Job] terminal job=mine result=DONE reason=quota_met
 mined 4/4 inventoryDelta=4`，且 `progressSummary`/`writes … unknown=0` 与伐木同格式。
+
+### D-094 验收（2026-09-10 23:18）：J5 完成
+`/function alice_test:ore_course` → 右键 `alice:mine_job`：
+`DONE quota_met mined 4/4 inventoryDelta=4 writes breaks=4 unknown=0 ticks=240`。
+`candidates` 6→5→4→3（`attempted` 过滤 + `:not_nearest` 理由码）、每次 `select` 按当前位置重算最近，
+**日志与伐木逐字同构** ⇒ "同一套 Job/Trace 复用"成立，`AutoMineDecision` 孤岛已彻底拆除。
+
+**J1–J5 全部收口**。剩余：**J6**（账本 + 建拆同权 + 恢复，J7/J8 前置）→ J7 → J8。
