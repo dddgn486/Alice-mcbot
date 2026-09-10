@@ -1,6 +1,6 @@
 {
-  "parent": "minecraft:item/handheld",
+  "parent": "minecraft:item/generated",
   "textures": {
-    "layer0": "minecraft:item/diamond_axe"
+    "layer0": "alice:item/select"
   }
 }

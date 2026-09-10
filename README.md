@@ -31,18 +31,22 @@ Alice 是一个 Minecraft Forge 1.20.1 模组：在服务端运行一个客户�
 | 挖掘 | `MiningPlanner`（站位候选 + S1/S2 成本估算 + top-K 精算）→ `MineBlockRunner`（走位 → 放支撑 → 破坏）→ `BlockBreakSession`；深埋目标由 `MiningBudget` 判定，超预算如实报 `found_but_unminable` |
 | 掉落物收集 | `CollectDropsTask`：来源由 `BlockEvent.BreakEvent` 配对、**簇级**扫掠（连通 2.0 格）、按**背包增量**计数 + 守恒交叉校验（不一致记 `MISMATCH`） |
 | 模组兼容（Ore Excavation） | 软依赖 `compat/ChainMining` 反射触发连锁；`MiningTuning.ChainMode{OFF,AUTO,FORCE}` **默认 OFF**，AUTO 仅连锁**矿石/原木**，失败如实回落单格挖掘 |
-| 回归入口 | `alice:pathing_regression`（寻路，含覆盖率断言）、`alice:mine_regression`（挖掘 10 项：规划 5 + 执行 3 + 悬空支撑 + 连锁） |
+| 回归入口 | `alice:pathing_regression`（寻路 14 项，含 10 种 Movement 覆盖率断言）、`alice:mine_regression`（挖掘 10 项）、`alice:lumber_failure_check`（5 项失败语义）、`alice:lumber_policy_check`（策略可替换性） |
 | 感知与任务 | `PerceptionSnapshot`、`ScopeBuffer`、`Task` 状态机与执行记录 |
 | 跟随 / WalkTo | 已迁移新内核：`alice:follow_runner`、`alice:walk_to_runner`（受限目标语义，对齐 Baritone `GoalNear`） |
 | C1 只读接口扫描 | `alice:interface_scanner` 读取只读 capability 快照，不继承原版钻石铲行为 |
 | 道路模型 | 独立蓝图工具与受限路线模型，与挖矿链隔离 |
 | 容器转移（A1.1） | 权限等级 2 的显式命令，单箱 → Bot 背包 → 单箱的审计式转移（边界见下） |
-| 伐木 | **已禁用**（D-073）：`alice:auto_lumberer` / `alice:lumber_planner` 只提示"已禁用"，待专项重写 |
+| 伐木（L3 Job） | `alice:lumber_job`：选树 → 就近策略 → 限次清障（≤8 格/棵）→ 自下而上砍 → 收集入包；支持**配额循环**、逐树记账与 §6.2c 终止语义 |
+| 挖掘（L3 Job） | `alice:mine_job` / `/alice auto-mine <tag\|block> [count]`：与伐木**同一套**候选集 / 策略 / 决策 trace / 终止词表 |
+| 世界写入授权 | 唯一写入原语携带 `WriteGrant(谁, 为什么)`（D-082），执行期复验授权集合；每次写入进 `WriteAudit`（`unknown=0` 即无漏接） |
+| 世界修改账本 | `WorldModLedger`（J6-a）：动作层自动记录**放置**（含内核 `PILLAR` 放的方块）+ 配对策略 TEMP/KEEP；`/alice ledger` 只读查看 |
+| 决策缝自检 | `alice:lumber_policy_check`（同场景两策略对比）、`alice:lumber_failure_check`（五条终止路径各有真实场景） |
 
 ### 验证等级
 
 始终区分 `IMPLEMENTED` / `COMPILES` / `SERVER_TESTED` / `WINDOWS_CLIENT` / `USER_ACCEPTED`。
-编译成功与服务端日志**不能替代**真人在 Windows 客户端的观察；每项能力的当前等级见 [`docs/AI_TEST_MATRIX.md`](docs/AI_TEST_MATRIX.md)。
+编译成功与服务端日志**不能替代**真人在游戏客户端的观察；每项能力的当前等级见 [`docs/AI_TEST_MATRIX.md`](docs/AI_TEST_MATRIX.md)。
 
 ## 测试入口
 
@@ -91,24 +95,20 @@ A1.1 只支持：
 
 离线构建可用 `--offline`（Parchment 仓库不可达时）。
 
-**不再需要 `libs/`**：JEI（配方查看）与 JECh（JEI 中文/拼音搜索）**不是构建依赖**（2026-09-10 裁定），
-只在个人客户端实例的 `mods/` 里安装使用；项目代码不 import 其 API，发布 jar 也不含它们。
-干净 clone 直接 `./gradlew build` 即可，CI 依赖此约定。
+干净 clone 即可 `./gradlew build`。
 
-同步到 Windows 测试客户端：
+## 开发方式
 
-```bash
-./tools/mirror-windows-workspace.sh                                   # 源码镜像
-./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar \
-    /mnt/d/JAVA_projects/alice "/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10/mods"
-```
+以**最小可验证闭环**推进：先定成功条件与验证方式，再实现，最后以日志/客户端证据判定。
+决策与验收分别记录在 [`docs/AI_DECISIONS.md`](docs/AI_DECISIONS.md) 与
+[`docs/AI_TEST_MATRIX.md`](docs/AI_TEST_MATRIX.md)；协作细则见
+[`docs/AI_DEVELOPMENT_PLAYBOOK.md`](docs/AI_DEVELOPMENT_PLAYBOOK.md)。
 
-## 开发流程
+## Credits
 
-讨论目标 → 读取相关 skills → 选择最小闭环 → 实施 → 编译/聚焦测试 → 同步 Windows → 用户用游戏内物品实测 → 讨论证据与根因 → 决定是否修复。
-
-详细规则见 [`docs/AI_DEVELOPMENT_PLAYBOOK.md`](docs/AI_DEVELOPMENT_PLAYBOOK.md)。
-旧 dsh-agent-bus 监督流程、HANDOVER、active-plan 与 review packet 已删除或归档（内容仍在 git 历史与 `docs/archive/`、`.alice-supervision/archive/`），不作为日常开发门槛。
+部分物品贴图来自开源贴图集 [malcolmriley/unused-textures](https://github.com/malcolmriley/unused-textures)，
+以 **CC-BY-4.0** 许可使用（署名与逐项映射见
+[`src/main/resources/assets/alice/textures/CREDITS.md`](src/main/resources/assets/alice/textures/CREDITS.md)）。
 
 ## License
 

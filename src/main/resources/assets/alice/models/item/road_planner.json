@@ -1,6 +1,6 @@
 {
-  "parent": "item/handheld",
+  "parent": "minecraft:item/generated",
   "textures": {
-    "layer0": "minecraft:item/diamond_hoe"
+    "layer0": "alice:item/pathing"
   }
 }

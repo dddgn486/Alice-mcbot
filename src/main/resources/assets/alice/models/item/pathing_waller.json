@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:item/handheld",
   "textures": {
-    "layer0": "minecraft:block/cobblestone"
+    "layer0": "alice:item/mine"
   }
 }

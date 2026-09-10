@@ -2224,3 +2224,25 @@ mined 4/4 inventoryDelta=4`，且 `progressSummary`/`writes … unknown=0` 与�
 **下一步 J6-b**：`RestoreScopeTask`（严格自上而下拆自己的 TEMP、比对 `placed` 才算自己的、
 拆完 `forget`）+ 由 Job 在收尾调度 + D-095 的"路径上有容器 → 绕开而非拆掉"断言。
 验收：`/alice ledger` 回到空 + 场景无残留。
+
+---
+
+## D-097 测试物品贴图按类共用 + README 去除个人环境内容（2026-09-10）
+
+**背景（用户提出）**：测试物品贴图"不够了"——36 个物品模型全在**借用原版贴图**（6 个共用 `iron_pickaxe`、
+4 个共用 `diamond_axe`…），背包里分不清；另有 3 个物品（J5/J3/J4 新增）**连模型都没有**。
+用户同时指出 README 里不该出现"同步到 Windows 测试客户端""不再需要 `libs/`：JEI"这类**开发者个人环境/习惯**。
+
+**贴图（用户裁定"不精挑、同类共用、靠名字区分即可"）**：
+取自开源贴图集 [`malcolmriley/unused-textures`](https://github.com/malcolmriley/unused-textures)（**CC-BY-4.0**，可用但**必须署名**），
+按领域归为 **6 类**共用：`lumber`（锯）/ `mine`（镐模）/ `pathing`（齿轮）/ `guard`（水晶）/ `check`（泥板）/ `select`（透镜）。
+36 个物品模型全部重写为引用 `alice:item:<类>`；署名与逐项映射见
+`src/main/resources/assets/alice/textures/CREDITS.md`（含作者、来源、许可、映射表）。
+抓取走 jsDelivr CDN（`raw.githubusercontent.com` 在本机不可达）。
+
+**README**：删除 `libs/`/JEI 段落与"同步到 Windows 测试客户端"整节（含 `/mnt/d/...` 绝对路径）；
+"开发流程"改为不含本地环境的通用描述；"真人在 Windows 客户端的观察"→"真人在游戏客户端的观察"；
+新增 **Credits** 节（贴图来源与许可）。**顺带修正一处过期内容**：能力表原写"伐木**已禁用**（D-073）"，
+而 J1–J5 均已验收——改为如实描述伐木/挖掘两个 L3 Job、世界写入授权、修改账本与决策缝自检。
+
+**验证等级**：COMPILES（贴图与 CREDITS 确认已打包进构建产物）。

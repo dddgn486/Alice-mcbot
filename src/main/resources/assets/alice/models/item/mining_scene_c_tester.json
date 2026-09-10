@@ -1,3 +1,6 @@
 {
-  "parent": "minecraft:item/ender_eye"
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "alice:item/check"
+  }
 }
