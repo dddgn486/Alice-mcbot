@@ -143,24 +143,9 @@ public final class PillarDiagnosticTask implements Task {
 
     /** 夹具：确保快捷栏里有圆石（放置一次性方块用）。 */
     private void ensureCobblestone(int count) {
-        var inventory = bot.getInventory();
-        int have = 0;
-        for (int slot = 0; slot < 9; slot++) {
-            ItemStack stack = inventory.getItem(slot);
-            if (stack.is(Items.COBBLESTONE)) {
-                have += stack.getCount();
-            }
-        }
-        if (have >= count) {
-            return;
-        }
-        for (int slot = 0; slot < 9; slot++) {
-            if (inventory.getItem(slot).isEmpty()) {
-                inventory.setItem(slot, new ItemStack(Items.COBBLESTONE, count - have));
-                return;
-            }
-        }
-        inventory.add(new ItemStack(Items.COBBLESTONE, count - have));
+        com.dddgn.alice.item.FixtureToolKit.ensureHotbarStack(bot,
+                () -> new ItemStack(Items.COBBLESTONE),
+                stack -> stack.is(Items.COBBLESTONE), count, "cobblestone");
     }
 
     /** 临时清空快捷栏的方块物品，返回清空的槽位数（用于资源守卫检查）。 */

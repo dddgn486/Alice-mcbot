@@ -1,5 +1,6 @@
 package com.dddgn.alice.item;
 
+import net.minecraft.world.item.Items;
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
 import net.minecraft.core.BlockPos;
@@ -82,15 +83,8 @@ public class PathingWallerItem extends Item {
     }
 
     private static void ensureCobblestone(BotPlayer bot, int count) {
-        var inventory = bot.getInventory();
-        int have = 0;
-        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
-            if (inventory.getItem(slot).is(net.minecraft.world.item.Items.COBBLESTONE)) {
-                have += inventory.getItem(slot).getCount();
-            }
-        }
-        if (have < count) {
-            inventory.add(new ItemStack(net.minecraft.world.item.Items.COBBLESTONE, count - have));
-        }
+        com.dddgn.alice.item.FixtureToolKit.ensureHotbarStack(bot,
+                () -> new ItemStack(Items.COBBLESTONE),
+                stack -> stack.is(Items.COBBLESTONE), count, "cobblestone");
     }
 }

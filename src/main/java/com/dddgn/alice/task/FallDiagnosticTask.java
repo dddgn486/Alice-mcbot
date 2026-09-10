@@ -191,23 +191,9 @@ public final class FallDiagnosticTask implements Task {
 
     /** 夹具：确保快捷栏里有圆石（FALL 的 PILLAR 返回守卫需要一次性方块）。 */
     private void ensureCobblestone(int count) {
-        var inventory = bot.getInventory();
-        int have = 0;
-        for (int slot = 0; slot < 9; slot++) {
-            if (inventory.getItem(slot).is(Items.COBBLESTONE)) {
-                have += inventory.getItem(slot).getCount();
-            }
-        }
-        if (have >= count) {
-            return;
-        }
-        for (int slot = 0; slot < 9; slot++) {
-            if (inventory.getItem(slot).isEmpty()) {
-                inventory.setItem(slot, new ItemStack(Items.COBBLESTONE, count - have));
-                return;
-            }
-        }
-        inventory.add(new ItemStack(Items.COBBLESTONE, count - have));
+        com.dddgn.alice.item.FixtureToolKit.ensureHotbarStack(bot,
+                () -> new ItemStack(Items.COBBLESTONE),
+                stack -> stack.is(Items.COBBLESTONE), count, "cobblestone");
     }
 
     private void teleport(BlockPos foot) {

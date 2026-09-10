@@ -118,13 +118,9 @@ public final class BreakEnterDiagnosticTask implements Task {
     }
 
     private void ensureStonePickaxe() {
-        var inventory = bot.getInventory();
-        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
-            if (inventory.getItem(slot).is(Items.STONE_PICKAXE)) {
-                return;
-            }
-        }
-        inventory.add(new ItemStack(Items.STONE_PICKAXE));
+        com.dddgn.alice.item.FixtureToolKit.ensureHotbarTool(bot,
+                () -> new ItemStack(Items.STONE_PICKAXE),
+                stack -> stack.is(net.minecraft.tags.ItemTags.PICKAXES), "stone_pickaxe");
     }
 
     private void teleport(BlockPos foot) {

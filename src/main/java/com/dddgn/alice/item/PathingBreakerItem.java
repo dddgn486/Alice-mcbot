@@ -1,5 +1,7 @@
 package com.dddgn.alice.item;
 
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.ItemStack;
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
 import net.minecraft.core.BlockPos;
@@ -83,20 +85,8 @@ public class PathingBreakerItem extends Item {
 
     /** 测试夹具：确保 bot 快捷栏有石镐（记录日志，仅测试用）。 */
     private static void ensureStonePickaxe(BotPlayer bot) {
-        var inventory = bot.getInventory();
-        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
-            if (inventory.getItem(slot).is(net.minecraft.world.item.Items.STONE_PICKAXE)) {
-                int hotbar = Math.min(slot, 8);
-                if (inventory.selected != hotbar) {
-                    inventory.selected = hotbar;
-                    com.dddgn.alice.bot.BotManager.syncMainHand(bot);   // 手持显示必须同步（D-090）
-                }
-                return;
-            }
-        }
-        var stack = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.STONE_PICKAXE);
-        inventory.add(stack);
-        com.dddgn.alice.log.BotLog.info("[R5-2 Fixture] gave stone_pickaxe to bot={}",
-                bot.getName().getString());
+        com.dddgn.alice.item.FixtureToolKit.ensureHotbarTool(bot,
+                () -> new ItemStack(Items.STONE_PICKAXE),
+                stack -> stack.is(net.minecraft.tags.ItemTags.PICKAXES), "stone_pickaxe");
     }
 }

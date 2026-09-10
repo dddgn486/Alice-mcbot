@@ -1,5 +1,7 @@
 package com.dddgn.alice.task;
 
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.ItemStack;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.core.search.CorePathPlanner;
@@ -103,13 +105,9 @@ public final class VerticalDiagnosticTask implements Task {
 
     /** 夹具：确保有石镐（挖脚下用；否则徒手 150 tick）。 */
     private void ensureStonePickaxe() {
-        var inventory = bot.getInventory();
-        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
-            if (inventory.getItem(slot).is(net.minecraft.world.item.Items.STONE_PICKAXE)) {
-                return;
-            }
-        }
-        inventory.add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.STONE_PICKAXE));
+        com.dddgn.alice.item.FixtureToolKit.ensureHotbarTool(bot,
+                () -> new ItemStack(Items.STONE_PICKAXE),
+                stack -> stack.is(net.minecraft.tags.ItemTags.PICKAXES), "stone_pickaxe");
     }
 
     private void teleport(BlockPos foot) {

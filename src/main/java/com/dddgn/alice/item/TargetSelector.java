@@ -1,5 +1,6 @@
 package com.dddgn.alice.item;
 
+import net.minecraft.world.item.Items;
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.task.TaskTarget;
@@ -62,24 +63,9 @@ public class TargetSelector extends Item {
 
     /** 夹具：确保 bot 快捷栏有圆石（放置路径只接受一次性方块白名单）。 */
     private static void ensureCobblestone(BotPlayer bot, int count) {
-        var inventory = bot.getInventory();
-        int have = 0;
-        for (int slot = 0; slot < 9; slot++) {
-            if (inventory.getItem(slot).is(net.minecraft.world.item.Items.COBBLESTONE)) {
-                have += inventory.getItem(slot).getCount();
-            }
-        }
-        if (have >= count) {
-            return;
-        }
-        for (int slot = 0; slot < 9; slot++) {
-            if (inventory.getItem(slot).isEmpty()) {
-                inventory.setItem(slot, new ItemStack(net.minecraft.world.item.Items.COBBLESTONE,
-                        count - have));
-                return;
-            }
-        }
-        inventory.add(new ItemStack(net.minecraft.world.item.Items.COBBLESTONE, count - have));
+        com.dddgn.alice.item.FixtureToolKit.ensureHotbarStack(bot,
+                () -> new ItemStack(Items.COBBLESTONE),
+                stack -> stack.is(Items.COBBLESTONE), count, "cobblestone");
     }
 
     @Override

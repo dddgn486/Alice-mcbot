@@ -2,140 +2,147 @@ package com.dddgn.alice.item;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.Blocks;
 
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
- * 夹具共享工具：保证 bot **快捷栏**里有某件工具（D-089 的教训收敛到一处）。
+ * 夹具共享工具：保证 bot **快捷栏（0..8）**里有工具或一次性方块。
  *
- * <p>为什么必须进快捷栏：工具选择 `BlockInteraction.findBestToolSlot` **只扫快捷栏 0..8**
- * （与 Baritone `MovementHelper.switchToBestToolFor` 同范围）。一旦退化到 `inventory.add(...)`，
- * 物品会落进主背包（9..35）而**永远选不到**——实测症状是"手里看着是镐、实际按空手速度挖"
- * （原木 61 tick vs 应为 8 tick）。
+ * <p>**为什么必须是快捷栏**：`BlockInteraction.findPlaceableSlot` / `countThrowaway` /
+ * `findBestToolSlot` 与 Baritone 同口径，**都只扫 0..8**。物品一旦落进主背包（9..35）就
+ * **永远选不到**——这个病灶已出现三次：D-089（斧子落主背包 → 全程用镐，`ticks=61` vs `8`）、
+ * D-099（一次性方块落主背包 → `PILLAR`/`PLACE_STEP`/`FALL` 生成不出来、寻路回归 5 个场景
+ * `UNREACHABLE`）。故在此收敛为一处实现。
  *
- * <p>策略（三步，均带日志）：① 已有则沿用 → ② 有空格则放入 → ③ 全满则把"对目标也没用"的一格
- * 挪进主背包再放工具。腾不出空间就告警，**不再静默放进选不到的地方**。
+ * <p>**策略（2026-09-10 用户裁定：夹具就是"创造背包"逻辑，强制替换无妨）**：
+ * <ol>
+ *   <li>快捷栏已够 → 完事；</li>
+ *   <li>否则把**主背包**里已有的同种物品搬进快捷栏（先并进同类栈，再放空格）；</li>
+ *   <li>还不足 → 填空格；没有空格就**直接覆盖**第一个非选中格
+ *       （被覆盖的栈尽量塞回主背包，塞不下就丢弃并告警）。</li>
+ * </ol>
+ * 不做"这格有没有用"的讲究——测试阶段保证夹具前置比保全杂物重要。
  */
 public final class FixtureToolKit {
 
     private FixtureToolKit() {
     }
 
-    /**
-     * @param tool     要保证存在的工具（每次调用现造一份新栈，避免复用同一实例）
-     * @param isTool   判定"快捷栏里已有的这件算不算同类工具"
-     * @param label    日志标签（如 {@code axe}）
-     */
+    /** 工具版：保证快捷栏里有至少一件匹配的工具（斧/镐…）。 */
     public static void ensureHotbarTool(BotPlayer bot, Supplier<ItemStack> tool,
                                         Predicate<ItemStack> isTool, String label) {
-        var inventory = bot.getInventory();
-        for (int slot = 0; slot < 9; slot++) {
-            if (isTool.test(inventory.getItem(slot))) {
-                BotLog.info("[FixtureTool] {} 已在快捷栏 slot={}（沿用）", label, slot);
-                return;
-            }
-        }
-        for (int slot = 0; slot < 9; slot++) {
-            if (slot != inventory.selected && inventory.getItem(slot).isEmpty()) {
-                inventory.setItem(slot, tool.get());
-                BotLog.info("[FixtureTool] {} 放入快捷栏空格 slot={}", label, slot);
-                return;
-            }
-        }
-        for (int slot = 0; slot < 9; slot++) {
-            if (slot == inventory.selected) {
-                continue;
-            }
-            ItemStack old = inventory.getItem(slot);
-            if (isTool.test(old)) {
-                continue;
-            }
-            // 对目标也帮不上忙（不是任何工具）→ 让位
-            if (old.getDestroySpeed(Blocks.OAK_LOG.defaultBlockState()) > 1.0F
-                    || old.getDestroySpeed(Blocks.STONE.defaultBlockState()) > 1.0F) {
-                continue;
-            }
-            inventory.setItem(slot, tool.get());
-            boolean stashed = stashIntoMain(inventory, old);
-            BotLog.warn("[FixtureTool] 快捷栏已满：slot={} 的 {} 让位给 {}（{}）",
-                    slot, old.getHoverName().getString(), label,
-                    stashed ? "已存入主背包" : "主背包也满，丢弃");
-            return;
-        }
-        BotLog.warn("[FixtureTool] 无法腾出快捷栏放 {}：所有格都对目标有用，维持原状", label);
+        ensureHotbarStack(bot, tool, isTool, 1, label);
     }
 
-    /**
-     * 保证**快捷栏**里有至少 {@code minCount} 个匹配物品（D-089 教训的**推广**）。
-     *
-     * <p>为什么必须是快捷栏：`BlockInteraction.findPlaceableSlot` / `countThrowaway` /
-     * `findBestToolSlot` **都只扫 0..8**（与 Baritone 同口径）。一旦退化到 `inventory.add(...)`，
-     * 物品落进主背包就**永远选不到**——症状是"看着有料却规划不出 `PILLAR`/`PLACE_STEP`"
-     * 或"手里是镐却在砍树"。
-     *
-     * <p>这是同一病灶的**第三次**出现（D-089 斧子落主背包 → 全程用镐；D-099 一次性方块落主背包
-     * → `place/pillar/fall` 三个场景搜索直接 `UNREACHABLE`），故在此收敛为一处实现。
-     */
+    /** 保证快捷栏里至少有 {@code minCount} 个匹配物品。 */
     public static void ensureHotbarStack(BotPlayer bot, Supplier<ItemStack> sample,
                                          Predicate<ItemStack> isMatch, int minCount, String label) {
-        var inventory = bot.getInventory();
-        int have = 0;
-        for (int slot = 0; slot < 9; slot++) {
-            if (isMatch.test(inventory.getItem(slot))) {
-                have += inventory.getItem(slot).getCount();
-            }
-        }
+        Inventory inventory = bot.getInventory();
+        int have = countInHotbar(inventory, isMatch);
         if (have >= minCount) {
             BotLog.info("[FixtureTool] {} 快捷栏已有 {}（≥{}）", label, have, minCount);
             return;
         }
-        int need = minCount - have;
-        for (int slot = 0; slot < 9; slot++) {
-            if (slot != inventory.selected && inventory.getItem(slot).isEmpty()) {
-                inventory.setItem(slot, withCount(sample, need));
-                BotLog.info("[FixtureTool] {} 放入快捷栏空格 slot={} ×{}", label, slot, need);
+        // ② 主背包里有同种物品 → 搬进快捷栏
+        if (pullFromMain(inventory, isMatch)) {
+            have = countInHotbar(inventory, isMatch);
+            if (have >= minCount) {
+                BotLog.info("[FixtureTool] {} 已从主背包搬入快捷栏（现有 {}）", label, have);
                 return;
             }
         }
-        for (int slot = 0; slot < 9; slot++) {
-            if (slot == inventory.selected) {
-                continue;
-            }
-            ItemStack old = inventory.getItem(slot);
-            if (isMatch.test(old) || isUsefulTool(old)) {
-                continue;   // 不动目标物本身，也不动有用的工具
-            }
+        // ③ 填空格；没有空格就强制覆盖一个非选中格
+        int need = minCount - have;
+        int slot = firstEmptyHotbarSlot(inventory);
+        if (slot >= 0) {
             inventory.setItem(slot, withCount(sample, need));
-            boolean stashed = stashIntoMain(inventory, old);
-            BotLog.warn("[FixtureTool] 快捷栏已满：slot={} 的 {} 让位给 {}×{}（{}）",
-                    slot, old.getHoverName().getString(), label, need,
-                    stashed ? "已存入主背包" : "主背包也满，丢弃");
+            BotLog.info("[FixtureTool] {} 放入快捷栏空格 slot={} ×{}", label, slot, need);
             return;
         }
-        inventory.add(withCount(sample, need));
-        BotLog.warn("[FixtureTool] 腾不出快捷栏放 {}×{}：物品进了主背包，**工具/放置判定扫不到**（D-089/D-099）",
-                label, need);
+        slot = firstNonSelectedSlot(inventory);
+        ItemStack displaced = inventory.getItem(slot);
+        boolean stashed = stashIntoMain(inventory, displaced);
+        inventory.setItem(slot, withCount(sample, need));
+        BotLog.warn("[FixtureTool] 快捷栏已满：slot={} 的 {} 被 {}×{} **强制覆盖**（{}）",
+                slot, displaced.isEmpty() ? "空" : displaced.getHoverName().getString(),
+                label, need, stashed ? "旧物已存入主背包" : "主背包也满，旧物丢弃");
     }
 
-    /** 该物品对伐木或挖石有没有帮助（用来判断"能不能让位"）。 */
-    private static boolean isUsefulTool(ItemStack stack) {
-        return !stack.isEmpty()
-                && (stack.getDestroySpeed(Blocks.OAK_LOG.defaultBlockState()) > 1.0F
-                    || stack.getDestroySpeed(Blocks.STONE.defaultBlockState()) > 1.0F);
+    // ==================== 内部 ====================
+
+    private static int countInHotbar(Inventory inventory, Predicate<ItemStack> isMatch) {
+        int total = 0;
+        for (int slot = 0; slot < 9; slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (isMatch.test(stack)) {
+                total += stack.getCount();
+            }
+        }
+        return total;
     }
 
-    private static ItemStack withCount(Supplier<ItemStack> sample, int count) {
-        ItemStack stack = sample.get();
-        stack.setCount(count);
-        return stack;
+    /**
+     * 把主背包（9..35）里的同种物品搬进快捷栏：**先并进同类栈，再放空格**。
+     *
+     * @return 是否搬动了任何东西
+     */
+    private static boolean pullFromMain(Inventory inventory, Predicate<ItemStack> isMatch) {
+        boolean moved = false;
+        for (int slot = 9; slot < inventory.getContainerSize(); slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (!isMatch.test(stack) || stack.isEmpty()) {
+                continue;
+            }
+            // 先并入快捷栏里的同类栈
+            for (int hot = 0; hot < 9 && !stack.isEmpty(); hot++) {
+                ItemStack target = inventory.getItem(hot);
+                if (!isMatch.test(target) || target.getCount() >= target.getMaxStackSize()) {
+                    continue;
+                }
+                int space = target.getMaxStackSize() - target.getCount();
+                int move = Math.min(space, stack.getCount());
+                target.grow(move);
+                stack.shrink(move);
+                moved = true;
+            }
+            if (stack.isEmpty()) {
+                inventory.setItem(slot, ItemStack.EMPTY);
+                continue;
+            }
+            // 再找快捷栏空格整叠搬入
+            int empty = firstEmptyHotbarSlot(inventory);
+            if (empty >= 0) {
+                inventory.setItem(empty, stack.copy());
+                inventory.setItem(slot, ItemStack.EMPTY);
+                moved = true;
+            }
+        }
+        return moved;
+    }
+
+    private static int firstEmptyHotbarSlot(Inventory inventory) {
+        for (int slot = 0; slot < 9; slot++) {
+            if (inventory.getItem(slot).isEmpty()) {
+                return slot;
+            }
+        }
+        return -1;
+    }
+
+    private static int firstNonSelectedSlot(Inventory inventory) {
+        for (int slot = 0; slot < 9; slot++) {
+            if (slot != inventory.selected) {
+                return slot;
+            }
+        }
+        return 0;
     }
 
     /** 把一叠物品塞进主背包（9..35）的第一个空位；无空位返回 false。 */
-    private static boolean stashIntoMain(net.minecraft.world.entity.player.Inventory inventory,
-                                         ItemStack stack) {
+    private static boolean stashIntoMain(Inventory inventory, ItemStack stack) {
         if (stack.isEmpty()) {
             return true;
         }
@@ -146,5 +153,11 @@ public final class FixtureToolKit {
             }
         }
         return false;
+    }
+
+    private static ItemStack withCount(Supplier<ItemStack> sample, int count) {
+        ItemStack stack = sample.get();
+        stack.setCount(count);
+        return stack;
     }
 }

@@ -85,17 +85,8 @@ public class PathingDisturberItem extends Item {
     }
 
     private static void ensureCobblestone(BotPlayer bot, int count) {
-        var inventory = bot.getInventory();
-        int have = 0;
-        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
-            if (inventory.getItem(slot).is(Items.COBBLESTONE)) {
-                have += inventory.getItem(slot).getCount();
-            }
-        }
-        if (have < count) {
-            inventory.add(new ItemStack(Items.COBBLESTONE, count - have));
-            com.dddgn.alice.log.BotLog.info("[R4 Fixture] gave {} cobblestone to bot={}",
-                    count - have, bot.getName().getString());
-        }
+        com.dddgn.alice.item.FixtureToolKit.ensureHotbarStack(bot,
+                () -> new ItemStack(Items.COBBLESTONE),
+                stack -> stack.is(Items.COBBLESTONE), count, "cobblestone");
     }
 }

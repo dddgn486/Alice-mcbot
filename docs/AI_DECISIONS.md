@@ -2351,3 +2351,25 @@ D-095 的"路径上有容器 → 绕开而非拆掉"断言需要"箱子挡在必
 登记为 **J6-b1b**，下一轮做。
 
 **验证等级**：COMPILES。验收：`pathing_regression` 回到 **14/14**、`coverage=PASS`。
+
+### D-099 追加（用户裁定）：夹具 = 创造背包逻辑 → 强制替换，并收敛全部发料点
+首测修复后仍失败，但**我加的自证日志直接给出了答案**：
+```
+[FixtureTool] 腾不出快捷栏放 cobblestone×8：物品进了主背包，**工具/放置判定扫不到**
+```
+9 个快捷栏格全被历次运行攒下的工具占满，"只让无用格"的策略一格都让不出。
+
+**用户裁定**："这个阶段的工具赋予只是临时测试手段，强制替换也无妨——不然就给予后让 bot
+从背包里拿到快捷栏，如果还是满了，就覆盖，**其实就是创造背包的逻辑**。"
+
+**据此重写 `FixtureToolKit`（不再讲究"这格有没有用"）**：
+① 快捷栏已够 → 完事；② 否则把**主背包**里的同种物品搬进快捷栏（先并进同类栈、再放空格）；
+③ 还不足 → 填空格；没有空格就**直接覆盖**第一个非选中格（旧物尽量塞回主背包，塞不下就丢并告警）。
+
+**同时把全部 12 个"自己发料"的夹具收敛到该实现**（此前各自 `数空格 → inventory.add`，
+是同一 latent bug 的 12 份拷贝）：`PathingRegressionTask`、`MineRegressionTask`、
+`Fall/Pillar/Vertical/BreakEnter/MineCourse` 诊断任务、`TargetSelector`、
+`PathingBreaker/ Waller / Placer / Disturber / LavaGuard` 物品。
+现全仓**只剩这一处**往快捷栏发料。
+
+**验证等级**：COMPILES。验收：`pathing_regression` 回到 14/14、`coverage=PASS`。
