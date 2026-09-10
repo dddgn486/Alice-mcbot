@@ -110,11 +110,20 @@ public final class BlockInteraction {
         return bestSpeed > 0.0F ? bestSlot : -1;
     }
 
-    /** 切换到挖掘该方块的最佳工具（空手速度视为 1.0）。 */
+    /**
+     * 切换到挖掘该方块的最佳工具（空手速度视为 1.0）。
+     *
+     * <p>**改选中槽必须同时广播手持物品**（2026-09-10 修：用户实测"bot 看起来拿着镐子，
+     * 砍树却很快"）：服务端换了工具（破坏速度按斧子算 → 快），但客户端仍渲染旧物品（镐），
+     * 重进存档才刷新。原因是这里只改了 `inventory.selected` 这个服务端字段，
+     * 没有复用 {@code BotManager.syncMainHand}（它广播 `ClientboundSetEquipmentPacket`，
+     * 且**刻意绕过 FakeConnection**——FakeConnection 会丢弃装备包以免搞乱玩家快捷栏）。
+     */
     public static void switchToBestToolFor(ServerPlayer bot, BlockPos pos) {
         int slot = findBestToolSlot(bot, pos);
-        if (slot >= 0) {
+        if (slot >= 0 && slot != bot.getInventory().selected) {
             bot.getInventory().selected = slot;
+            com.dddgn.alice.bot.BotManager.syncMainHand(bot);
         }
     }
 
@@ -197,7 +206,10 @@ public final class BlockInteraction {
             if (sneak) {
                 bot.setShiftKeyDown(true);
             }
-            bot.getInventory().selected = slot;
+            if (bot.getInventory().selected != slot) {
+                bot.getInventory().selected = slot;
+                com.dddgn.alice.bot.BotManager.syncMainHand(bot);   // 同 switchToBestToolFor：显示必须跟上
+            }
             ItemStack stack = bot.getInventory().getItem(slot);
             BlockHitResult hit = new BlockHitResult(faceCenter, clickFace, against, false);
             InteractionResult result = bot.gameMode.useItemOn(bot, level, stack, InteractionHand.MAIN_HAND, hit);

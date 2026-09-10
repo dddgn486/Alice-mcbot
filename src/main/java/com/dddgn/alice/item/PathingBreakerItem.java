@@ -86,7 +86,11 @@ public class PathingBreakerItem extends Item {
         var inventory = bot.getInventory();
         for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
             if (inventory.getItem(slot).is(net.minecraft.world.item.Items.STONE_PICKAXE)) {
-                inventory.selected = Math.min(slot, 8);
+                int hotbar = Math.min(slot, 8);
+                if (inventory.selected != hotbar) {
+                    inventory.selected = hotbar;
+                    com.dddgn.alice.bot.BotManager.syncMainHand(bot);   // 手持显示必须同步（D-090）
+                }
                 return;
             }
         }

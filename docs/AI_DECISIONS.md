@@ -1880,3 +1880,43 @@ block_break_done pos=27,65,214 ticks=6    ← 树叶 0.2×1.5÷1.0×20，同为�
 而斧子对原木（8.0）与树叶都不低于镐，故安全。**不做无谓改动**。
 
 **验证等级**：COMPILES。判据：`block_break_done … ticks≈8`（原木）。
+
+## D-090 手持物品客户端同步：改 `selected` 必须广播 MAINHAND（2026-09-10）
+
+**现象（用户实测）**：bot **看起来拿着镐子，砍树却很快**；重进存档后显示才更新。
+
+**根因**：`BotManager.syncMainHand`（`:186-202`）是既有的修复——**直接广播
+`ClientboundSetEquipmentPacket`**，且刻意绕开 FakeConnection（FakeConnection 会丢弃装备包，
+以免搞乱真实玩家的快捷栏）。但 `BlockInteraction.switchToBestToolFor`（`:114-118`）与
+`placeAt`（`:200`）改完 `inventory.selected` **从不调用它** →
+服务端按斧子算破坏速度（`ticks=8`，快），客户端仍渲染旧物品（镐）→ 现象完全吻合。
+
+**修正**：三处改 `selected` 的地方统一改为"变了才改 + 立刻 `syncMainHand`"：
+`BlockInteraction.switchToBestToolFor`、`BlockInteraction.placeAt`、`PathingBreakerItem.ensureStonePickaxe`。
+
+---
+
+### 裁定：工具「确认 + 更换」系统**明确推迟**（用户裁定，2026-09-10）
+
+用户原话：「当前的更换工具操作是测试时代码，以后需要在挖掘前做一次工具确认和更换，
+砍树换斧子，挖石头换镐子，不过这个系统还需要讨论一下设计……这个小系统以后往后面排，
+因为对于现在测试没必要还可能影响测试」。
+
+**现状定性（重要，三者性质不同）**：
+
+| 代码 | 性质 | 内容 |
+|---|---|---|
+| `BlockInteraction.switchToBestToolFor` | **生产** | 破坏开始时"在快捷栏挑速度最高的"——反应式一行，无工具就空手 |
+| `MineTask.ensureTool` | **夹具**（源码注释即写"开发夹具"） | 往**选中槽**补钻石镐 |
+| `LumberJobItem.ensureAxe` / `PathingBreakerItem.ensureStonePickaxe` | **夹具** | 测试物品保证快捷栏有对应工具 |
+
+即：**"工具从哪来 / 值不值得换 / 耐久成本"目前只有夹具在管**，生产侧仅一个反应式挑选。
+
+**已登记的设计问题（推迟到 J 主线之后讨论）**：
+1. **"最快"还是"够快"**：树叶用剪刀最快（用户举例，若记错则当假想例子），
+   但空手速度已足够且**不消耗任何耐久** → 判据应是"够快且代价最低"，需要一条成本/耐久规则；
+2. **最佳工具表由谁定义**：`mineable/*` 标签派生，还是硬编码表（后者对模组目标不友好）；
+3. **确认时机**：挖掘前一次（用户建议）还是每次破坏会话开始（现状）；
+4. **工具不存在时怎么办**：补一把（夹具行为）/ 如实失败 / 去打一把（牵扯背包与合成，属后期）；
+5. **快捷栏满**：`ensureAxe` 的"挪走最无用一格"是夹具解法，生产语义待定
+   （`PathingBreakerItem` 里 `Math.min(slot, 8)` 在工具落主背包时会指向错误物品，同属这一类缺陷）。
