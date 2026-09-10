@@ -125,6 +125,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> LUMBER_JOB =
             ITEMS.register("lumber_job", () -> new LumberJobItem(new Item.Properties()));
 
+    /** J3 决策缝自检：同场景下两策略对比（只规划、不执行）。 */
+    public static final RegistryObject<Item> LUMBER_POLICY_CHECK =
+            ITEMS.register("lumber_policy_check", () -> new LumberPolicyCheckItem(new Item.Properties()));
+
     /** 挖掘专项串联回归（批次 5，场景专属）。 */
     public static final RegistryObject<Item> MINE_REGRESSION =
             ITEMS.register("mine_regression", () -> new MineRegressionItem(new Item.Properties()));

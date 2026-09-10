@@ -1967,3 +1967,52 @@ D-089（快捷栏满，斧子退化进主背包 → 选不到 → 全程用镐�
 需要重开或触发一次动作才刷新。够用，暂不为实时刷新引入推送。
 
 **验证等级**：COMPILES。待客户端目视确认（打开 bot 背包 → 金框应在**真实主手**那格）。
+
+## D-092 J3：策略可替换性——先修 `exposed` 语义，再接第二个策略（2026-09-10）
+
+### 发现：`exposed` 的原定义对真实树**没有区分力**
+原定义（`LumberCandidateSource`）= "树顶原木正上方那一列无遮挡"。把当前场景三棵树逐个算：
+
+```
+树(20,64,208) 顶 y=67 → y68=oak_leaves        ⇒ exposed=false
+树(28,64,208) 顶 y=70 → y71/y72=spruce_leaves ⇒ exposed=false
+树(29,64,215) 顶 y=67 → y68=oak_leaves        ⇒ exposed=false
+```
+
+**3/3 全 false，而且不是地形偶然**：自然树的树冠本来就会盖在顶格上方（云杉的叶尖甚至高出顶格 2 格）。
+后果：`NearestExposedPolicy` 每次都回退到"最近"，与 `NearestPolicy` **永远给出相同选择**，
+`JOB_LAYER_DESIGN.md` §6.3「两策略必须给出不同且都可解释的选择」**根本无法成立**。
+即：**不是 J3 写不出来，是度量的东西选错了。**
+
+### 裁定：`exposed` 重定义为「至少有一根原木当前可见（无需清障即可下手）」
+理由是它**对伐木真正有意义**——决定"先砍哪棵最省事"，而场景里立刻产生分歧：
+
+| 树 | `visible` | 新 `exposed` | 含义 |
+|---|---|---|---|
+| 橡树（×3，同型） | 0 | **false** | 树冠盖住基部 → 必须清障才能下手 |
+| 云杉 | 3 | **true** | 基部裸露 → 可直接砍 |
+
+旧定义**不删**，降级为独立特征 `open_sky`（保留观测价值，不再驱动策略）；
+同时新增 `visible` 特征（可见原木数），使 `[Job] select` 与自检日志可直接判读。
+
+### 实现
+1. `LumberCandidateSource`：`features(...)` 增参 `visibleLogs`；新增 `visible`、`open_sky`；
+   `exposed = visibleLogs > 0`（`visibleLogs = logCount - unreachable`）。
+2. 新增 `alice:lumber_policy_check`（零参数、右键）：**只规划不执行**（复用挖掘回归 PLAN 型做法，
+   无副作用、不干扰其它测试）——同一候选集跑两个策略，打印候选特征、两侧选择理由与拒绝列表，
+   并给出机器可读结论：
+   ```
+   [PolicyCheck] SUMMARY nearest=… exposed=… differ=… explainable=… exposedHonest=… → PASS|FAIL
+   ```
+   PASS 三条判据：① 两侧选中不同（§6.3）；② 两侧理由非空**且拒绝列表都带理由码**（§6.2a）；
+   ③ 暴露策略名副其实——选中项 `exposed=true`，或**如实回退**并写明 `fallback=no_exposed`。
+
+### 夹具：把「按棵预算重置」变成**真回归**（补上 D-085③ 的诚实性欠账）
+原 J2 场景累计清障只有 6 格（< `MAX_CLEAR_PER_TREE=8`），job 级计数器也能通过——
+即那条修复当时**没有被真正验证**。现再复制**两棵**同型真橡树
+（`lumber_course_trees.mcfunction`：`19,64,213`、`29,64,213`，均由 `capture-scene.py` 抓取的真实树
+按方块原样平移），使场景成为 **3 棵同型橡树（各 3 格清障）**：
+配额提到 **3 棵** ⇒ 累计清障 **9 格 > 8** ⇒ **若预算不是按棵重置，第 3 棵必在清障时 `clear_budget` 失败**。
+
+**验证等级**：COMPILES（离线分析器：5 棵树 / 4 棵可行 = 3 橡树 + 云杉 / 高大云杉仍被拒）。
+待客户端：`lumber_policy_check` → PASS；`lumber_job` → `DONE quota_met trees 3/3` 且 `cleared≈9`。

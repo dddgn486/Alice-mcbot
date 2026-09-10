@@ -484,9 +484,10 @@ public final class BotManager {
     public static boolean assignLumberJob(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
-        // J2：配额 = 2 棵（该夹具里正好两棵可行树：橡树 + 云杉），上限放宽到 2400 tick
+        // J3：配额 = 3 棵（夹具里 3 棵同型橡树，各需清障 3 格 ⇒ 累计 9 格 > MAX_CLEAR_PER_TREE(8)，
+        // 因此这一轮同时是「按棵预算重置」（D-085③）的真实回归）；上限 3600 tick
         com.dddgn.alice.job.GoalSpec spec = com.dddgn.alice.job.GoalSpec.harvestUnits(
-                com.dddgn.alice.task.LumberCourseAnchor.START_FOOT, 16, 2, 2400);
+                com.dddgn.alice.task.LumberCourseAnchor.START_FOOT, 16, 3, 3600);
         com.dddgn.alice.job.lumber.LumberJob job = new com.dddgn.alice.job.lumber.LumberJob(
                 bot, spec, session.scope(),
                 new com.dddgn.alice.job.lumber.LumberCandidateSource(),

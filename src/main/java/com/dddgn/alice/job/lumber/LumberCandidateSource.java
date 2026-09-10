@@ -106,7 +106,7 @@ public final class LumberCandidateSource implements CandidateSource {
                 continue;
             }
             // 全部"可见 或 仅被软遮挡（树叶等）" → 可行；执行期按预算清障（§5.4）
-            Map<String, String> features = features(level, bot, tree);
+            Map<String, String> features = features(level, bot, tree, tree.logCount() - unreachable);
             if (deferred > 0) {
                 features.put("deferred", Integer.toString(deferred));
             }
@@ -182,7 +182,11 @@ public final class LumberCandidateSource implements CandidateSource {
         return "tree@" + tree.base().getX() + "," + tree.base().getY() + "," + tree.base().getZ();
     }
 
-    private static Map<String, String> features(ServerLevel level, ServerPlayer bot, Tree tree) {
+    /**
+     * @param visibleLogs 当前就能看见（无需清障即可下手）的原木数
+     */
+    private static Map<String, String> features(ServerLevel level, ServerPlayer bot, Tree tree,
+                                                int visibleLogs) {
         Map<String, String> features = new LinkedHashMap<>();
         features.put("d", String.format(java.util.Locale.ROOT, "%.1f", Math.sqrt(bot.distanceToSqr(
                 tree.base().getX() + 0.5D, tree.base().getY() + 0.5D, tree.base().getZ() + 0.5D))));
@@ -190,11 +194,19 @@ public final class LumberCandidateSource implements CandidateSource {
         features.put("height", Integer.toString(tree.trunkHeight()));
         features.put("species", tree.species());
         features.put("canopy", Boolean.toString(tree.hasCanopy()));
-        features.put("exposed", Boolean.toString(isExposedToSky(level, tree)));
+        features.put("visible", Integer.toString(visibleLogs));
+        // **exposed 重定义（D-092）**：原定义是"树顶正上方通天"，但**自然树几乎永不满足**——
+        // 实测本场景 3/3 棵树的顶格上方都被树叶盖住（云杉的叶尖甚至高出顶格 2 格），
+        // 于是 NearestExposedPolicy 每次都回退到"最近"，两策略永远给出相同选择，
+        // §6.3「两策略必须给出不同且可解释的选择」根本无法成立。
+        // 改为**对伐木真正有意义**的判据：至少有一根原木当前可见（无需清障即可下手）。
+        // 旧定义不删，降级为独立特征 `open_sky`。
+        features.put("exposed", Boolean.toString(visibleLogs > 0));
+        features.put("open_sky", Boolean.toString(isExposedToSky(level, tree)));
         return features;
     }
 
-    /** 暴露 = 树顶原木往上的垂直列无遮挡（用于"暴露优先"策略；定义写死以免两处口径不一）。 */
+    /** `open_sky` = 树顶原木往上的垂直列无遮挡（原 `exposed` 定义，D-092 起不再驱动策略）。 */
     private static boolean isExposedToSky(ServerLevel level, Tree tree) {
         BlockPos top = tree.top();
         for (int k = 1; k <= SKY_CHECK_HEIGHT; k++) {
