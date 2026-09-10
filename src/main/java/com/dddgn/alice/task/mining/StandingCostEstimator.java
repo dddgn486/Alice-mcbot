@@ -70,7 +70,7 @@ public final class StandingCostEstimator {
     private static Result dijkstra(ServerPlayer bot, ServerLevel level,
                                    Collection<BlockPos> candidates, long start) {
         BlockPos startFoot = bot.blockPosition().immutable();
-        PathRequest request = PathRequest.of(bot.getUUID().toString(), startFoot, startFoot);
+        PathRequest request = PathRequest.of(bot.getUUID().toString(), startFoot, startFoot, "standing-cost-estimator");
         MovementContext context = MovementContext.live(bot, level, request);
         MovementProvider provider = new SurfaceMovementProvider();
 

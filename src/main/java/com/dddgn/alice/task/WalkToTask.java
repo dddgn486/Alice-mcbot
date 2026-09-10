@@ -50,7 +50,7 @@ public final class WalkToTask implements Task {
                         bot.getName().getString(), goalFoot.toShortString());
                 return Status.FAILED;
             }
-            PathRequest request = PathRequest.of(bot.getUUID().toString(), bot.blockPosition(), goalFoot);
+            PathRequest request = PathRequest.of(bot.getUUID().toString(), bot.blockPosition(), goalFoot, "walk-to");
             runner = new PathRetryRunner(bot, request, PathRetryRunner.DEFAULT_MAX_REPLANS,
                     "walkto-" + goalFoot.getX() + "_" + goalFoot.getY() + "_" + goalFoot.getZ());
         }

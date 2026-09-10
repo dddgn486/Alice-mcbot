@@ -4,6 +4,7 @@ import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.AscendExecutionFactory;
+import com.dddgn.alice.pathing.core.CompletionTolerance;
 import com.dddgn.alice.pathing.core.IntrinsicReversibility;
 import com.dddgn.alice.pathing.core.LiveExecutionContext;
 import com.dddgn.alice.pathing.core.MovementCapabilities;
@@ -76,7 +77,8 @@ public final class AscendDiagnosticTask implements Task {
             bot.controller().stopMovement();
             return false;
         }
-        LiveExecutionContext context = new LiveExecutionContext(bot, bot.serverLevel(), sessionId, 0L, 0L);
+        LiveExecutionContext context = new LiveExecutionContext(bot, bot.serverLevel(), sessionId, 0L, 0L,
+                CompletionTolerance.EXACT, "ascend-diagnostic");
         AscendExecutionFactory factory = new AscendExecutionFactory();
         AscendExecutionFactory.ValidationResult validation = factory.validate(spec, context);
         if (!validation.valid()) {

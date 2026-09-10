@@ -241,7 +241,10 @@ public final class PathSession {
         CompletionTolerance tolerance = finalSegment
                 ? CompletionTolerance.EXACT
                 : CompletionTolerance.COLUMN;
-        LiveExecutionContext context = new LiveExecutionContext(bot, level, sessionId, 0L, 0L, tolerance);
+        // 归因（D-082/G1）：执行期的破坏/放置记账必须带上"谁发起的这次寻路"，
+        // 否则内核写入永远是 unknown（原先这里用 5 参兼容构造器，requester 被填成 UNKNOWN）。
+        LiveExecutionContext context = new LiveExecutionContext(bot, level, sessionId, 0L, 0L,
+                tolerance, request.requester());
         MovementExecutionFactory factory = PlannedMovementSpecs.factoryFor(movement.movementType());
         MovementExecutionFactory.ValidationResult validation = factory.validate(spec, context);
         if (!validation.valid()) {

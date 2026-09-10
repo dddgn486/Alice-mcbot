@@ -56,7 +56,7 @@ public class PathingPlannerItem extends Item {
 
         BlockPos startFoot = bot.blockPosition().immutable();
         PathPlan plan = new CorePathPlanner().planTo(bot, serverLevel, bot.getUUID().toString(),
-                startFoot, goalFoot, "pathing_planner_item");
+                startFoot, goalFoot, "item:pathing-planner");
 
         BotLog.info("[R3 Plan] {} bot={} from={} to={} mode={}", plan.summary(),
                 bot.getName().getString(), startFoot.toShortString(), goalFoot.toShortString(),

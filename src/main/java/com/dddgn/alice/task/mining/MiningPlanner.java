@@ -92,7 +92,7 @@ public final class MiningPlanner {
                 StandingPointSelector.isValidStandingPoint(level, target, startFoot, reach);
         if (currentLos != null) {
             PathPlan path = planPath(bot, startFoot, startFoot, PathRequest.of(
-                    bot.getUUID().toString(), startFoot, startFoot));
+                    bot.getUUID().toString(), startFoot, startFoot, "mining-planner"));
             StandingPointEvaluator.StandingPointScore score =
                     StandingPointEvaluator.of(startFoot, 0.0D, 0.0D, currentLos);
             // 悬空目标（D-078 修正，v7 §2.3）：即使当前站位就能挖，也要先在目标下方放支撑块，
@@ -165,7 +165,7 @@ public final class MiningPlanner {
                                    BlockPos startFoot, MiningBudget budget) {
         // 兜底：以目标格为终点（破坏进入），破坏成本受预算限制
         PathPlan path = planPath(bot, startFoot, target,
-                PathRequest.miningApproach(bot.getUUID().toString(), startFoot, target));
+                PathRequest.miningApproach(bot.getUUID().toString(), startFoot, target, "mining-planner"));
         if (!path.reached()) {
             return new Result(null, null, "enter_target_unreachable");
         }
@@ -206,7 +206,7 @@ public final class MiningPlanner {
             losByFoot.put(candidate.foot(), candidate.los());
         }
         return exactTopK(bot, level, target, startFoot, feet, losByFoot, mode, supportPos, extraCost,
-                (from, to) -> PathRequest.of(bot.getUUID().toString(), from, to));
+                (from, to) -> PathRequest.of(bot.getUUID().toString(), from, to, "mining-planner"));
     }
 
     /**
@@ -224,7 +224,7 @@ public final class MiningPlanner {
         int planned = 0;
         for (BlockPos foot : ordered) {
             PathPlan path = planPath(bot, startFoot, foot,
-                    PathRequest.miningApproach(bot.getUUID().toString(), startFoot, foot));
+                    PathRequest.miningApproach(bot.getUUID().toString(), startFoot, foot, "mining-planner"));
             planned++;
             if (!path.reached()) {
                 continue;

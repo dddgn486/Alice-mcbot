@@ -63,7 +63,7 @@
 
 | # | 缺口 | 事实 | 影响 |
 |---|---|---|---|
-| G1 | `PathRequest.requester` 恒为 `"unknown"` | 三个工厂硬编码；21 处调用点永久失去归因 | `WriteAudit.unknownRequesterWrites()` > 0；账本无法回答"谁授权的" |
+| ~~G1~~ | ~~`PathRequest.requester` 恒为 `"unknown"`~~ **已修复（R2a）** | 三个工厂改为**必填** requester 参数（无 3 参重载），**29 处**调用点全部显式命名；`LiveExecutionContext` 改为必填第 7 组件并**删除 5/6 参兼容构造器**（那是"默认 unknown"通道）；`PathSession.startSegment` 传入 `request.requester()` → 内核写入 P1–P5 现在也有主 | 已闭合（待客户端 `unknown=0` 复验） |
 | G2 | 执行期不复验授权 | `PathSession` 保存 `request` 后不再读取（`session/PathSession.java:47/69`）；`startSegment` 按 plan 直接建执行器 | 搜索期许可与执行期实际 Movement **不绑定**；理论上可执行未授权 Movement |
 | G3 | 模组连锁破坏无凭证 | `MineTask.beginChain` → `ChainMining` 反射调模组 `MiningScheduler` | 破坏量不受 Alice 预算约束，**Alice 无法在其内部插入判定**；只能控制"是否触发" |
 | G4 | 内核写入无独立预算 | P1–P3 的破坏量只体现在搜索成本里，执行期不再比对 | 到达路径的实际破坏量不受 `MiningBudget` 约束（勘测清单 4 已记） |
@@ -80,7 +80,8 @@
 
 | 步骤 | 内容 | 前置 |
 |---|---|---|
-| **R2** | 填 `PathRequest.requester`（21 处）+ 执行期复验 `allowedMovementTypes`（G1/G2） | 无 |
+| ~~R2a~~ | ~~填 `PathRequest.requester`~~ **已完成**：29 处工厂调用点 + `PathSession` → `LiveExecutionContext` 归因贯通 | — |
+| **R2b** | 执行期复验 `allowedMovementTypes`（G2）+ 把拒绝闸门收进 `breakForBulkEdit`（G9） | R2a |
 | **R3** | 内核写入预算（G4）：把 `MiningBudget` 或等价预算接到 P1–P3 的执行期 | R2 |
 | **J6** | `WriteAudit` → 持久化 `WorldModLedger`；建拆同权配对；恢复 | R2/R3 |
 | 之后 | G3（模组连锁，需与模组能力层一起）、G5（容器写入维度）、G6/G7/G8 清理 | J6 |

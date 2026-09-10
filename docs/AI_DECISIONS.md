@@ -1680,3 +1680,35 @@
 
 **预期结果（离线按真实方块手算）**：橡树只需清 **1~2 片树叶**即可砍完全部 4 根，
 `cleared≈1~2`、`inventoryDelta=4`、`writes breaks=1~2 unknown=0`。
+
+---
+
+## D-084 掉落物落定判据：只等"下落"漏掉了原版上抛阶段（2026-09-10）
+
+**现象（第三次客户端实测，jar `6806229a`）**：橡树**砍完了**——4/4 根原木、3 次清障、
+`writes breaks=7 unknown=0`（= 3 清障 + 4 原木，授权链路完全正确）——但终态仍是
+`FAILED product_not_collected`、`inventoryDelta=3`（少 1 根）。
+
+```
+20:08:55.084  block_break_done pos=20,67,208          ← 最后一根原木破块
+20:08:55.085  作用域捕捉掉落物: oak_log x20 y67 z208  ← 掉落物生成
+20:08:55.237  [CollectDrops] sweep_start anchor=20,67,208 feet=20,64,208 worldMod=false
+20:08:55.240  [PathingStats] descend_precondition=1308 status=UNREACHABLE goal=20,67,208
+20:08:55.240  [CollectDrops] retire item=... reason=MOVEMENT_FAILED itemY=67.750
+```
+
+**根因**：`CollectDropsTask.isFalling(item)` 的判据是 `!onGround() && dy < -0.02`（只认"正在下落"）。
+但原版 `Block.popResource` 生成的 `ItemEntity` **带向上初速度**，破块后最初几 tick `dy > 0`
+→ 判据为假 → 落定闸门不生效 → 收集器立刻去追那一格**空中位置** → `UNREACHABLE`
+（要爬上树冠）→ `MOVEMENT_FAILED` → 物品被**退役**。物品本会落到 bot 脚下（`20,64,208` 正是
+被掏空的树干底格，bot 就站在那里）自然被拾取。
+
+**裁定**：判据改为 `!item.onGround()`（改名 `isAirborne`），**"只要还没接地就等它落定"**，
+上抛与下落一并覆盖；上限仍是 `MAX_SETTLE_TICKS=40`。已接地但位置很高的物品不受影响——
+它仍走正常走位，确实够不到时如实 `unreachable` 退休。
+
+**同时完成的归因闭合（R2a，见 `docs/WORLD_WRITE_AUTHORIZATION.md` G1）**：
+`PathRequest` 三个工厂改为**必填 requester**（无 3 参重载）；`LiveExecutionContext` 改为必填
+第 7 组件并**删除 5/6 参兼容构造器**；`PathSession.startSegment` 传入 `request.requester()`。
+此前内核写入（P1–P5）即使请求带了 requester，也会在 `PathSession` 被替换成 `UNKNOWN`——
+即"归因只到搜索期、到不了执行期"。5 个诊断任务的自建请求统一改用 `base.requester()`（一条请求链一个身份）。

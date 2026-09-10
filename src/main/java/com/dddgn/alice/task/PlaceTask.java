@@ -137,7 +137,7 @@ public final class PlaceTask implements Task {
     }
 
     private PathRequest request(BlockPos goalFoot) {
-        return PathRequest.of(bot.getUUID().toString(), bot.blockPosition(), goalFoot);
+        return PathRequest.of(bot.getUUID().toString(), bot.blockPosition(), goalFoot, "place");
     }
 
     /** 生成可站位候选（可达距离内、可站可通行），按到目标的距离排序并截断。 */

@@ -221,8 +221,8 @@ public final class PathingRegressionTask implements Task {
     private PathRequest request(SceneCheck scene) {
         String botId = bot.getUUID().toString();
         return scene.worldModification()
-                ? PathRequest.withWorldModification(botId, scene.start(), scene.goal())
-                : PathRequest.of(botId, scene.start(), scene.goal());
+                ? PathRequest.withWorldModification(botId, scene.start(), scene.goal(), "pathing-regression")
+                : PathRequest.of(botId, scene.start(), scene.goal(), "pathing-regression");
     }
 
     /** 场景夹具：计划前方封路 / 位置漂移（与 alice:pathing_waller / pathing_disturber 等价）。 */

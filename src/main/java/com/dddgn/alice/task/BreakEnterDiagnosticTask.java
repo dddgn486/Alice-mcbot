@@ -111,10 +111,10 @@ public final class BreakEnterDiagnosticTask implements Task {
     }
 
     private PathRequest request(BlockPos start, BlockPos goal) {
-        PathRequest base = PathRequest.withWorldModification(bot.getUUID().toString(), start, goal);
+        PathRequest base = PathRequest.withWorldModification(bot.getUUID().toString(), start, goal, "break-enter-diagnostic");
         return new PathRequest(base.botId(), start, base.goal(), base.allowedMovementTypes(),
                 SearchBudget.of(CorePathPlanner.DEFAULT_MAX_NODES, CorePathPlanner.DEFAULT_MAX_MILLIS),
-                "break-enter-task");
+                base.requester());
     }
 
     private void ensureStonePickaxe() {

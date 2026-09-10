@@ -153,11 +153,11 @@ public final class CollectDropsTask implements Task {
             endCluster(false);
             return Status.RUNNING;
         }
-        // 掉落物仍在**空中下落**时不要追：它的"当前格"在空中有可能够不到，
-        // 追它会得到假的 MOVEMENT_FAILED（2026-09-10 客户端实测：砍完 6/7 根原木，
-        // 最后一根的掉落物在下落途中被记为 unreachable，collected=0/1）。
-        // 等它落地（≤ MAX_SETTLE_TICKS）——落在簇内自然会被拾取，或随后正常走位去捡。
-        if (members.stream().anyMatch(CollectDropsTask::isFalling)
+        // 掉落物**还不在接地状态**时不要追：它的"当前格"可能够不到，
+        // 追它会得到假的 MOVEMENT_FAILED（2026-09-10 两次客户端实测：
+        // ① 6/7 根原木时追下落中的物品；② 4/4 根全砍完但最后一根的掉落物被退役 → inventoryDelta=3）。
+        // 等它落定（≤ MAX_SETTLE_TICKS）——落在簇内自然会被拾取，或随后正常走位去捡。
+        if (members.stream().anyMatch(CollectDropsTask::isAirborne)
                 && ++settleTicks <= MAX_SETTLE_TICKS) {
             if (settleTicks == 1) {
                 BotLog.info("[CollectDrops] settling members={}（等待空中的掉落物落地）", members.size());
@@ -177,8 +177,8 @@ public final class CollectDropsTask implements Task {
         // 0) 尚未走位、且还没进入拾取范围 → 建路径（走位优先；不建就会"原地放弃"）
         if (runner == null && members.stream().noneMatch(this::inPickupRange)) {
             PathRequest request = allowWorldModification
-                    ? PathRequest.withWorldModification(bot.getUUID().toString(), bot.blockPosition(), anchor)
-                    : PathRequest.of(bot.getUUID().toString(), bot.blockPosition(), anchor);
+                    ? PathRequest.withWorldModification(bot.getUUID().toString(), bot.blockPosition(), anchor, "collect-drops")
+                    : PathRequest.of(bot.getUUID().toString(), bot.blockPosition(), anchor, "collect-drops");
             runner = new PathRetryRunner(bot, request, PathRetryRunner.DEFAULT_MAX_REPLANS,
                     "collect-" + anchor.getX() + "_" + anchor.getY() + "_" + anchor.getZ());
             BotLog.info("[CollectDrops] sweep_start anchor={} members={} feet={} worldMod={}",
@@ -346,8 +346,20 @@ public final class CollectDropsTask implements Task {
     }
 
     /** 是否仍在空中下落（未落地且速度向下）。 */
-    private static boolean isFalling(ItemEntity item) {
-        return !item.onGround() && item.getDeltaMovement().y < -0.02D;
+    /**
+     * 物品是否还未落定（仍在空中）。
+     *
+     * <p>**2026-09-10 第二次修正**：原判据是 `!onGround() && dy < -0.02`，只认"正在下落"，
+     * 漏掉了原版掉落物的**上抛阶段**——`Block.popResource` 生成的 `ItemEntity` 带向上初速度，
+     * 破块后最初几 tick `dy > 0`，判据为假 → 收集器立刻去追那一格空中位置 →
+     * `UNREACHABLE`/`MOVEMENT_FAILED` → 物品被**退役**。
+     * 实测代价：4 根原木全砍完，最后一根的掉落物在 `itemY=67.75` 被退役 → `inventoryDelta=3`
+     * → 终态 `product_not_collected`（树砍完了却判失败）。
+     * 改为"只要还没接地就等它落定"，上抛与下落一并覆盖；已接地但位置很高的物品不受影响，
+     * 仍会走正常走位并在确实够不到时如实退休。
+     */
+    private static boolean isAirborne(ItemEntity item) {
+        return !item.onGround();
     }
 
     private static boolean linked(ItemEntity a, ItemEntity b) {

@@ -72,7 +72,7 @@ public class PathingFluidGuardItem extends Item {
 
         BlockPos startFoot = bot.blockPosition().immutable();
         PathRequest request = PathRequest.withWorldModification(
-                bot.getUUID().toString(), startFoot, COURSE_GOAL_FOOT);
+                bot.getUUID().toString(), startFoot, COURSE_GOAL_FOOT, "item:pathing-fluid-guard");
         PathPlan plan = new CorePathPlanner().plan(bot, level, request);
         boolean pass = !plan.reached();
         BotLog.info("[FluidGuard] status={} movements={} from={} to={} result={}",

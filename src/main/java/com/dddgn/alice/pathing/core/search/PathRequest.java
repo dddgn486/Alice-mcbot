@@ -32,15 +32,16 @@ public record PathRequest(
         }
     }
 
-    public static PathRequest of(String botId, BlockPos startFoot, BlockPos goalFoot) {
+    public static PathRequest of(String botId, BlockPos startFoot, BlockPos goalFoot, String requester) {
         return new PathRequest(botId, startFoot, new GoalFoot(goalFoot),
                 Set.of(MovementType.TRAVERSE, MovementType.DIAGONAL,
                         MovementType.ASCEND, MovementType.DESCEND),
-                SearchBudget.UNLIMITED, "unknown");
+                SearchBudget.UNLIMITED, requester);
     }
 
     /** 纯通行 + 世界修改（PATH_ACCESS 破坏 + TEMPORARY_SUPPORT 放置，R5-2/R5-3）。 */
-    public static PathRequest withWorldModification(String botId, BlockPos startFoot, BlockPos goalFoot) {
+    public static PathRequest withWorldModification(String botId, BlockPos startFoot, BlockPos goalFoot,
+                                                     String requester) {
         return new PathRequest(botId, startFoot, new GoalFoot(goalFoot),
                 Set.of(MovementType.TRAVERSE, MovementType.DIAGONAL, MovementType.ASCEND,
                         MovementType.DESCEND, MovementType.DOWNWARD, MovementType.PILLAR,
@@ -48,19 +49,20 @@ public record PathRequest(
                         MovementType.BREAK_AND_TRAVERSE,
                         MovementType.BREAK_AND_ENTER,
                         MovementType.PLACE_STEP_AND_TRAVERSE),
-                SearchBudget.UNLIMITED, "unknown");
+                SearchBudget.UNLIMITED, requester);
     }
 
     /**
      * 挖掘到达请求（D-067 ㉘）：允许破坏进入 / 破坏通行 / 放置台阶，**显式禁用** PILLAR / FALL / DOWNWARD，
      * 避免"挖矿时先搭柱子/跳下来"这类奇技。
      */
-    public static PathRequest miningApproach(String botId, BlockPos startFoot, BlockPos goalFoot) {
+    public static PathRequest miningApproach(String botId, BlockPos startFoot, BlockPos goalFoot,
+                                             String requester) {
         return new PathRequest(botId, startFoot, new GoalFoot(goalFoot),
                 Set.of(MovementType.TRAVERSE, MovementType.DIAGONAL, MovementType.ASCEND,
                         MovementType.DESCEND, MovementType.BREAK_AND_TRAVERSE,
                         MovementType.BREAK_AND_ENTER, MovementType.PLACE_STEP_AND_TRAVERSE),
-                SearchBudget.UNLIMITED, "unknown");
+                SearchBudget.UNLIMITED, requester);
     }
 
     public boolean allows(MovementType type) {

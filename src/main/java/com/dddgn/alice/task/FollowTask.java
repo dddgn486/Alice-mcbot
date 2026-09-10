@@ -171,7 +171,7 @@ public final class FollowTask implements Task {
     }
 
     private PathRequest request(BlockPos goalFoot) {
-        return PathRequest.of(bot.getUUID().toString(), bot.blockPosition(), goalFoot);
+        return PathRequest.of(bot.getUUID().toString(), bot.blockPosition(), goalFoot, "follow");
     }
 
     /** 脚位是否可站（支撑 + 身体/头部净空）。 */

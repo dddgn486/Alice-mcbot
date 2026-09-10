@@ -80,7 +80,7 @@ public class PathingLavaGuardItem extends Item {
 
         BlockPos startFoot = bot.blockPosition().immutable();
         PathRequest request = PathRequest.withWorldModification(
-                bot.getUUID().toString(), startFoot, COURSE_GOAL_FOOT);
+                bot.getUUID().toString(), startFoot, COURSE_GOAL_FOOT, "item:pathing-lava-guard");
         PathPlan plan = new CorePathPlanner().plan(bot, level, request);
         List<BlockPos> contacts = PlanRouteSafety.lavaContacts(plan, level);
         boolean pass = contacts.isEmpty();

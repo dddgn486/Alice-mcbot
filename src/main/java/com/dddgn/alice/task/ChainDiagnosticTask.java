@@ -127,7 +127,7 @@ public final class ChainDiagnosticTask implements Task {
                 ? CompletionTolerance.EXACT
                 : CompletionTolerance.COLUMN;
         LiveExecutionContext context = new LiveExecutionContext(bot, bot.serverLevel(), sessionId,
-                0L, 0L, tolerance);
+                0L, 0L, tolerance, "chain-diagnostic");
         MovementExecutionFactory.ValidationResult validation = factory.validate(spec, context);
         if (!validation.valid()) {
             failure = validation.failureCode();

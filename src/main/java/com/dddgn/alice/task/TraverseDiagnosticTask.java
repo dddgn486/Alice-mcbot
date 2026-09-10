@@ -3,6 +3,7 @@ package com.dddgn.alice.task;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
+import com.dddgn.alice.pathing.core.CompletionTolerance;
 import com.dddgn.alice.pathing.core.IntrinsicReversibility;
 import com.dddgn.alice.pathing.core.LiveExecutionContext;
 import com.dddgn.alice.pathing.core.MovementCapabilities;
@@ -76,7 +77,8 @@ public final class TraverseDiagnosticTask implements Task {
             bot.controller().stopMovement();
             return false;
         }
-        LiveExecutionContext context = new LiveExecutionContext(bot, bot.serverLevel(), sessionId, 0L, 0L);
+        LiveExecutionContext context = new LiveExecutionContext(bot, bot.serverLevel(), sessionId, 0L, 0L,
+                CompletionTolerance.EXACT, "traverse-diagnostic");
         TraverseExecutionFactory factory = new TraverseExecutionFactory();
         TraverseExecutionFactory.ValidationResult validation = factory.validate(spec, context);
         if (!validation.valid()) {

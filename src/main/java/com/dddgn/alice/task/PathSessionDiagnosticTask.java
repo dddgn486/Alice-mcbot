@@ -172,13 +172,13 @@ public final class PathSessionDiagnosticTask implements Task {
     private void initialize() {
         BlockPos startFoot = bot.blockPosition().immutable();
         PathRequest base = allowWorldModification
-                ? PathRequest.withWorldModification(bot.getUUID().toString(), startFoot, goalFoot)
-                : PathRequest.of(bot.getUUID().toString(), startFoot, goalFoot);
+                ? PathRequest.withWorldModification(bot.getUUID().toString(), startFoot, goalFoot, "path-session-diagnostic")
+                : PathRequest.of(bot.getUUID().toString(), startFoot, goalFoot, "path-session-diagnostic");
         PathRequest request = new PathRequest(base.botId(), startFoot, base.goal(),
                 base.allowedMovementTypes(),
                 com.dddgn.alice.pathing.core.search.SearchBudget.of(
                         CorePathPlanner.DEFAULT_MAX_NODES, CorePathPlanner.DEFAULT_MAX_MILLIS),
-                "r4-session-task");
+                base.requester());
         runner = new PathRetryRunner(bot, request, maxReplans, sessionId);
         BotLog.info("[R4 Session] start session={} from={} to={} worldMod={} maxReplans={}",
                 sessionId, startFoot.toShortString(), goalFoot.toShortString(),

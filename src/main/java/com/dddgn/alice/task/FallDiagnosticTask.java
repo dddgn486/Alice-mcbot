@@ -183,10 +183,10 @@ public final class FallDiagnosticTask implements Task {
     }
 
     private PathRequest request(BlockPos start, BlockPos goal) {
-        PathRequest base = PathRequest.withWorldModification(bot.getUUID().toString(), start, goal);
+        PathRequest base = PathRequest.withWorldModification(bot.getUUID().toString(), start, goal, "fall-diagnostic");
         return new PathRequest(base.botId(), start, base.goal(), base.allowedMovementTypes(),
                 SearchBudget.of(CorePathPlanner.DEFAULT_MAX_NODES, CorePathPlanner.DEFAULT_MAX_MILLIS),
-                "fall-task");
+                base.requester());
     }
 
     /** 夹具：确保快捷栏里有圆石（FALL 的 PILLAR 返回守卫需要一次性方块）。 */

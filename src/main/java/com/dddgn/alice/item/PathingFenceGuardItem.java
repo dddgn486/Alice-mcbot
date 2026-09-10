@@ -70,7 +70,7 @@ public class PathingFenceGuardItem extends Item {
         bot.controller().stopMovement();
 
         BlockPos startFoot = bot.blockPosition().immutable();
-        PathRequest request = PathRequest.of(bot.getUUID().toString(), startFoot, COURSE_GOAL_FOOT);
+        PathRequest request = PathRequest.of(bot.getUUID().toString(), startFoot, COURSE_GOAL_FOOT, "item:pathing-fence-guard");
         PathPlan plan = new CorePathPlanner().plan(bot, level, request);
         String first = plan.movements().isEmpty()
                 ? "-" : plan.movements().get(0).movementType().name();

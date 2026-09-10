@@ -131,10 +131,10 @@ public final class PillarDiagnosticTask implements Task {
 
     private PathRequest request() {
         PathRequest base = PathRequest.withWorldModification(bot.getUUID().toString(),
-                SHAFT_START, RIM_GOAL);
+                SHAFT_START, RIM_GOAL, "pillar-diagnostic");
         return new PathRequest(base.botId(), SHAFT_START, base.goal(), base.allowedMovementTypes(),
                 SearchBudget.of(CorePathPlanner.DEFAULT_MAX_NODES, CorePathPlanner.DEFAULT_MAX_MILLIS),
-                "pillar-task");
+                base.requester());
     }
 
     private PathPlan plan() {

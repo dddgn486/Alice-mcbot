@@ -155,9 +155,9 @@ public final class MineBlockRunner {
             PathRequest request = plan.mode() == MiningPlan.Mode.TUNNEL
                     || plan.mode() == MiningPlan.Mode.ENTER_TARGET
                     ? PathRequest.miningApproach(bot.getUUID().toString(), bot.blockPosition(),
-                            plan.standingFoot())
+                            plan.standingFoot(), "mine-runner")
                     : PathRequest.of(bot.getUUID().toString(), bot.blockPosition(),
-                            plan.standingFoot());
+                            plan.standingFoot(), "mine-runner");
             runner = new PathRetryRunner(bot, request, PathRetryRunner.DEFAULT_MAX_REPLANS,
                     "mine-" + target.getX() + "_" + target.getY() + "_" + target.getZ());
             BotLog.info("[MineRunner] walk_start target={} stand={} mode={} feet={}",

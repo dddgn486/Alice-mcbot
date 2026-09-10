@@ -94,11 +94,11 @@ public final class VerticalDiagnosticTask implements Task {
     }
 
     private PathRequest request(BlockPos start, BlockPos goal) {
-        PathRequest base = PathRequest.withWorldModification(bot.getUUID().toString(), start, goal);
+        PathRequest base = PathRequest.withWorldModification(bot.getUUID().toString(), start, goal, "vertical-diagnostic");
         return new PathRequest(base.botId(), start, base.goal(), base.allowedMovementTypes(),
                 com.dddgn.alice.pathing.core.search.SearchBudget.of(
                         CorePathPlanner.DEFAULT_MAX_NODES, CorePathPlanner.DEFAULT_MAX_MILLIS),
-                "vertical-task");
+                base.requester());
     }
 
     /** 夹具：确保有石镐（挖脚下用；否则徒手 150 tick）。 */

@@ -167,7 +167,7 @@ public final class PathingBatteryTask implements Task {
 
         // 平地 2 格：向南（平台内部无台阶）。注意不要向东——东侧 (1,64,46) 是台阶，
         // 标定后（D-040）规划器会正确地选择"绕行 4 步（≈24 tick）"而不是"上台阶再下来（≈26 tick）"。
-        PathPlan flat = planner.planTo(bot, bot.serverLevel(), botId, foot, foot.offset(0, 0, 2), "battery");
+        PathPlan flat = planner.planTo(bot, bot.serverLevel(), botId, foot, foot.offset(0, 0, 2), "pathing-battery");
         results.put("plan_flat", flat.status().name() + "(" + flat.movements().size() + ")");
 
         List<PlannedMovement> upCandidates = detect(MovementType.ASCEND);
@@ -175,7 +175,7 @@ public final class PathingBatteryTask implements Task {
             results.put("plan_up", "SKIP");
         } else {
             PathPlan up = planner.planTo(bot, bot.serverLevel(), botId, foot,
-                    upCandidates.get(0).toFoot(), "battery");
+                    upCandidates.get(0).toFoot(), "pathing-battery");
             results.put("plan_up", up.status().name() + "(" + up.movements().size() + ")");
         }
 
@@ -183,8 +183,8 @@ public final class PathingBatteryTask implements Task {
         // 标定后启发式一致（D-040），每个节点只展开一次，200 节点已足以穷尽约 195 格平台
         // → 返回 UNREACHABLE（正确但不再验证预算路径），因此收紧到 32 节点。
         PathRequest tight = new PathRequest(botId, foot, new GoalFoot(foot.offset(100, 0, 0)),
-                PathRequest.of(botId, foot, foot).allowedMovementTypes(),
-                SearchBudget.of(32, 200L), "battery");
+                PathRequest.of(botId, foot, foot, "pathing-battery").allowedMovementTypes(),
+                SearchBudget.of(32, 200L), "pathing-battery");
         PathPlan budget = planner.plan(bot, bot.serverLevel(), tight);
         results.put("plan_budget", budget.status().name());
 
@@ -196,7 +196,7 @@ public final class PathingBatteryTask implements Task {
     private List<PlannedMovement> detect(MovementType type) {
         List<PlannedMovement> candidates = new ArrayList<>();
         MovementContext context = MovementContext.live(bot, bot.serverLevel(),
-                PathRequest.of(bot.getUUID().toString(), hubFoot, hubFoot));
+                PathRequest.of(bot.getUUID().toString(), hubFoot, hubFoot, "pathing-battery"));
         new SurfaceMovementProvider().appendCandidates(context, hubFoot, candidates);
         for (PlannedMovement candidate : candidates) {
             if (candidate.movementType() == type) {
@@ -243,7 +243,7 @@ public final class PathingBatteryTask implements Task {
     private List<PlannedMovement> detectFrom(BlockPos from, MovementType type) {
         List<PlannedMovement> candidates = new ArrayList<>();
         MovementContext context = MovementContext.live(bot, bot.serverLevel(),
-                PathRequest.of(bot.getUUID().toString(), from, from));
+                PathRequest.of(bot.getUUID().toString(), from, from, "pathing-battery"));
         new SurfaceMovementProvider().appendCandidates(context, from, candidates);
         for (PlannedMovement candidate : candidates) {
             if (candidate.movementType() == type) {
@@ -262,7 +262,7 @@ public final class PathingBatteryTask implements Task {
                 ? CompletionTolerance.EXACT
                 : CompletionTolerance.COLUMN;
         LiveExecutionContext context = new LiveExecutionContext(bot, bot.serverLevel(), sessionId,
-                0L, 0L, tolerance);
+                0L, 0L, tolerance, "pathing-battery");
         MovementExecutionFactory.ValidationResult validation = factory.validate(spec, context);
         if (!validation.valid()) {
             record(currentLabel, validation.failureCode());
