@@ -2311,3 +2311,43 @@ D-095 的"路径上有容器 → 绕开而非拆掉"断言需要"箱子挡在必
 
 **教训**：实现前应当先读**设计文档里已经写明的机制**（§12.3 明写 DOWNWARD），
 而不是凭"复用 MineTask"的直觉开工——`MineTask` 的排除规则是**为挖掘场景**设的。
+
+---
+
+## D-099 回归大面积失败：一次性方块落进主背包（D-089 的同一病灶，第三次出现）
+
+**现象**：`pathing_regression` 从 14/14 掉到 **9/14**，失败集中在
+`place_course` / `pillar_course` / `fall_course` / `place_course+wall` / `+disturb`，
+`coverage=FAIL([DIAGONAL, ASCEND, PILLAR, FALL, PLACE_STEP_AND_TRAVERSE])`，
+`executed` 里恰好缺这三种"需要放置"的 Movement。
+
+**诊断链**（不是"我的新代码碰了搜索"）：
+```
+[PathingStats] descend_precondition=180 status=UNREACHABLE goal=8,62,66
+[PathRetry]    plan_failed attempt=0 status=UNREACHABLE
+```
+搜索直接判不可达 ⇒ 这些 Movement **根本没被生成**。共同点：`PILLAR` / `PLACE_STEP_AND_TRAVERSE` /
+`FALL` 的生成都要求**能手拿一次性方块**（`SurfaceMovementProvider:225/347` 用
+`findPlaceableSlot`；FALL 的"PILLAR 返回"守卫用 `countThrowaway`）。
+
+**根因**：`BlockInteraction.findPlaceableSlot` / `countThrowaway` **只扫快捷栏 0..8**
+（与 Baritone 同口径）；而夹具 `PathingRegressionTask.ensureCobblestone(bot, 8)` 只填空格，
+**快捷栏满时退化到 `inventory.add(...)` → 方块落进主背包 → 永远选不到** ⇒
+`PILLAR`/`PLACE_STEP`/`FALL` 生成不出来 ⇒ 三个场景 `UNREACHABLE`、覆盖率断言缺三种。
+
+**这与 D-089（斧子落主背包 → 全程用镐）是同一个病灶**，且同样**只在"跑了一整天之后"暴露**
+（快捷栏被历次运行积累的物品塞满）——第三次出现了。
+
+**修正（治一类，不治一个）**：在 `item/FixtureToolKit` 增加
+**`ensureHotbarStack(bot, sample, isMatch, minCount, label)`**：数快捷栏 → 有空格放入 →
+否则把"既不是目标物、也不是有用工具"的一格挪进主背包 → 实在腾不出则**明确告警**
+（而不是静默放进扫不到的地方）。`PathingRegressionTask.ensureCobblestone` 与
+`MineRegressionTask.ensureCobblestone` 均改走该共享实现（与 D-089 的工具版本同源）。
+
+**如实标注未做完的一点**：`RestoreScopeTask` 目前**只拆不收回**——拆下来的方块变成掉落物，
+而恢复任务是在 `scope.end()` 之后跑的（作用域未开启、掉落物不被登记），因此**材料没有回到背包**。
+夹具的 `ensureHotbarStack` 只是保证"每轮够用"，并没有解决"拆了要收回"。
+这正是"建拆同权"的**物质闭环**该有的下一步（重开作用域 + 收尾调一次 `CollectDropsTask`），
+登记为 **J6-b1b**，下一轮做。
+
+**验证等级**：COMPILES。验收：`pathing_regression` 回到 **14/14**、`coverage=PASS`。

@@ -333,24 +333,20 @@ public final class PathingRegressionTask implements Task {
     }
 
     /** 确保快捷栏里有圆石（放置类 Movement 只从快捷栏取一次性方块）。 */
+    /**
+     * 保证快捷栏里有 {@code count} 个圆石（**一次性方块**：`PILLAR` / `PLACE_STEP_AND_TRAVERSE` /
+     * `FALL` 的生成都要求能拿到它）。
+     *
+     * <p>**2026-09-11 修正（回归大面积失败）**：原实现只填空格，快捷栏满时退化到
+     * `inventory.add(...)` → 落进主背包 → `BlockInteraction.findPlaceableSlot`（**只扫快捷栏**）
+     * 找不到 → 三个需要放置的场景搜索直接 `UNREACHABLE`、覆盖率断言缺三种 Movement。
+     * 现改用 {@code FixtureToolKit.ensureHotbarStack}（与 D-089 斧子问题**同一病灶**，已收敛一处）。
+     */
     private static void ensureCobblestone(BotPlayer bot, int count) {
-        var inventory = bot.getInventory();
-        int have = 0;
-        for (int slot = 0; slot < 9; slot++) {
-            if (inventory.getItem(slot).is(Items.COBBLESTONE)) {
-                have += inventory.getItem(slot).getCount();
-            }
-        }
-        if (have >= count) {
-            return;
-        }
-        for (int slot = 0; slot < 9; slot++) {
-            if (inventory.getItem(slot).isEmpty()) {
-                inventory.setItem(slot, new ItemStack(Items.COBBLESTONE, count - have));
-                return;
-            }
-        }
-        inventory.add(new ItemStack(Items.COBBLESTONE, count - have));
+        com.dddgn.alice.item.FixtureToolKit.ensureHotbarStack(bot,
+                () -> new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.COBBLESTONE),
+                stack -> stack.is(net.minecraft.world.item.Items.COBBLESTONE),
+                count, "cobblestone");
     }
 
     private static void ensureStonePickaxe(BotPlayer bot) {

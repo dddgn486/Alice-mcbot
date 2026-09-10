@@ -304,24 +304,12 @@ public final class MineRegressionTask implements Task {
     }
 
     /** 快捷栏补 8 个圆石（支撑放置需要一次性方块；只填空格，不动镐）。 */
+    /** 保证快捷栏里有一次性方块（挖矿"悬空目标放支撑"要用）；实现见 {@link com.dddgn.alice.item.FixtureToolKit}。 */
     private void ensureCobblestone() {
-        var inventory = bot.getInventory();
-        int have = 0;
-        for (int slot = 0; slot < 9; slot++) {
-            if (inventory.getItem(slot).is(Items.COBBLESTONE)) {
-                have += inventory.getItem(slot).getCount();
-            }
-        }
-        if (have >= 8) {
-            return;
-        }
-        for (int slot = 0; slot < 9; slot++) {
-            if (inventory.getItem(slot).isEmpty()) {
-                inventory.setItem(slot, new ItemStack(Items.COBBLESTONE, 8 - have));
-                return;
-            }
-        }
-        inventory.add(new ItemStack(Items.COBBLESTONE, 8 - have));
+        com.dddgn.alice.item.FixtureToolKit.ensureHotbarStack(bot,
+                () -> new ItemStack(Items.COBBLESTONE),
+                stack -> stack.is(Items.COBBLESTONE),
+                8, "cobblestone");
     }
 
     private int countInInventory(Item item) {

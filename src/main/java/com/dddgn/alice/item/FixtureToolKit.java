@@ -68,6 +68,71 @@ public final class FixtureToolKit {
         BotLog.warn("[FixtureTool] 无法腾出快捷栏放 {}：所有格都对目标有用，维持原状", label);
     }
 
+    /**
+     * 保证**快捷栏**里有至少 {@code minCount} 个匹配物品（D-089 教训的**推广**）。
+     *
+     * <p>为什么必须是快捷栏：`BlockInteraction.findPlaceableSlot` / `countThrowaway` /
+     * `findBestToolSlot` **都只扫 0..8**（与 Baritone 同口径）。一旦退化到 `inventory.add(...)`，
+     * 物品落进主背包就**永远选不到**——症状是"看着有料却规划不出 `PILLAR`/`PLACE_STEP`"
+     * 或"手里是镐却在砍树"。
+     *
+     * <p>这是同一病灶的**第三次**出现（D-089 斧子落主背包 → 全程用镐；D-099 一次性方块落主背包
+     * → `place/pillar/fall` 三个场景搜索直接 `UNREACHABLE`），故在此收敛为一处实现。
+     */
+    public static void ensureHotbarStack(BotPlayer bot, Supplier<ItemStack> sample,
+                                         Predicate<ItemStack> isMatch, int minCount, String label) {
+        var inventory = bot.getInventory();
+        int have = 0;
+        for (int slot = 0; slot < 9; slot++) {
+            if (isMatch.test(inventory.getItem(slot))) {
+                have += inventory.getItem(slot).getCount();
+            }
+        }
+        if (have >= minCount) {
+            BotLog.info("[FixtureTool] {} 快捷栏已有 {}（≥{}）", label, have, minCount);
+            return;
+        }
+        int need = minCount - have;
+        for (int slot = 0; slot < 9; slot++) {
+            if (slot != inventory.selected && inventory.getItem(slot).isEmpty()) {
+                inventory.setItem(slot, withCount(sample, need));
+                BotLog.info("[FixtureTool] {} 放入快捷栏空格 slot={} ×{}", label, slot, need);
+                return;
+            }
+        }
+        for (int slot = 0; slot < 9; slot++) {
+            if (slot == inventory.selected) {
+                continue;
+            }
+            ItemStack old = inventory.getItem(slot);
+            if (isMatch.test(old) || isUsefulTool(old)) {
+                continue;   // 不动目标物本身，也不动有用的工具
+            }
+            inventory.setItem(slot, withCount(sample, need));
+            boolean stashed = stashIntoMain(inventory, old);
+            BotLog.warn("[FixtureTool] 快捷栏已满：slot={} 的 {} 让位给 {}×{}（{}）",
+                    slot, old.getHoverName().getString(), label, need,
+                    stashed ? "已存入主背包" : "主背包也满，丢弃");
+            return;
+        }
+        inventory.add(withCount(sample, need));
+        BotLog.warn("[FixtureTool] 腾不出快捷栏放 {}×{}：物品进了主背包，**工具/放置判定扫不到**（D-089/D-099）",
+                label, need);
+    }
+
+    /** 该物品对伐木或挖石有没有帮助（用来判断"能不能让位"）。 */
+    private static boolean isUsefulTool(ItemStack stack) {
+        return !stack.isEmpty()
+                && (stack.getDestroySpeed(Blocks.OAK_LOG.defaultBlockState()) > 1.0F
+                    || stack.getDestroySpeed(Blocks.STONE.defaultBlockState()) > 1.0F);
+    }
+
+    private static ItemStack withCount(Supplier<ItemStack> sample, int count) {
+        ItemStack stack = sample.get();
+        stack.setCount(count);
+        return stack;
+    }
+
     /** 把一叠物品塞进主背包（9..35）的第一个空位；无空位返回 false。 */
     private static boolean stashIntoMain(net.minecraft.world.entity.player.Inventory inventory,
                                          ItemStack stack) {
