@@ -2086,3 +2086,13 @@ D-089（快捷栏满，斧子退化进主背包 → 选不到 → 全程用镐�
 
 教训（与 D-092 附注同类）：**夹具的注入动作和被测断言一样需要前置校验**；
 "以为 target() 已经是队列格"是我的假设，不是事实。
+
+### D-093 验收（2026-09-10 23:05）：J4 完成
+`alice:lumber_failure_check` **5/5 PASS**，五条终止路径各有真实 Job 场景，全部机器可读：
+`no_candidates` / `all_rejected(+too_large)` / `inventory_full(DONE)` / `goal_timeout(ticks=41 ≤120)`
+/ `log_replaced(DONE quota_met, 注入格仍为圆石)`。
+末条同时验收了本轮修的安全缺口：**bot 不得挖玩家换上的非原木方块**。
+
+至此 **J1–J4 全部收口**（J1/J2 伐木闭环与循环配额、J3 决策缝可替换、J4 失败语义与安全守护），
+R2（授权契约 + 执行期复验）亦已闭合。剩余：**J5**（`AutoMineDecision` → `MineCandidateSource` + `MineJob`）
+→ **J6**（账本 + 建拆同权 + 恢复，J7/J8 前置）→ J7 → J8。

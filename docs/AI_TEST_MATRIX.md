@@ -103,6 +103,9 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 | L3 伐木 Job（切片 **J3**：策略可替换性） | `/function alice_test:lumber_course` → 右键 `alice:lumber_policy_check` | 普通右键（零参数） | **只规划不执行**；同候选集对比 `NearestPolicy` 与 `NearestExposedPolicy` | `WINDOWS_CLIENT` + `USER_ACCEPTED`（2026-09-10 21:26：`SUMMARY nearest=tree@20,64,208 exposed=tree@28,64,208 differ=true explainable=true exposedHonest=true → PASS`；候选特征印证重定义：橡树 `visible=0 exposed=false`、云杉 `visible=3 exposed=true`，而 `open_sky` 对全部 4 棵树均为 false） |
 | L3 伐木 Job（配额 **4** 棵 = 按棵预算真回归） | 同上场景 → 右键 `alice:lumber_job` | 普通右键 | 3 棵同型橡树各需清障 3 格 ⇒ 累计 **9 > MAX_CLEAR_PER_TREE(8)**；云杉顶格仍不可达（如实 partial） | `WINDOWS_CLIENT`（2026-09-10 21:26，**配额 3 棵**轮：`DONE quota_met trees 3/3 logs 12/12 ``cleared=8 inventoryDelta=12 unknown=0 ticks=474` —— **但 8 格正好压线，未触发按棵预算回归**，见 D-092 附注）。现配额提到 **4 棵**：`待测`（预期 `trees 4/4`、`cleared≥9`；若预算非按棵重置，第 3~4 棵必 `clear_budget` 失败） |
 
+| L3 伐木 Job（切片 **J4**：五条终止路径 + 身份复检安全缺口） | `/function alice_test:lumber_course` → 右键 `alice:lumber_failure_check` | 普通右键（零参数，约 30 秒） | 五条终止路径**各有真实 Job 场景**；用例前重放场景保证独立 | `WINDOWS_CLIENT` + `USER_ACCEPTED`（2026-09-10 23:05 **5/5 PASS**）：`no_candidates=PASS(no_reachable_candidate)`、`all_rejected=PASS(+too_large)`、`inventory_full=PASS(DONE)`、`goal_timeout=PASS(ticks=41 ≤120 不空转)`、`log_replaced=PASS(DONE quota_met, replacedPos=20,64,208 仍为圆石=true)` —— 末条证明 **bot 不挖玩家换上的非原木方块** |
+| 安全缺口：队列原木身份复检（§6.2c⑤） | 同上 `log_replaced` 用例 | 夹具注入（Job 选完树后替换队列首格） | 断言"注入格仍是替换后的方块"而非字符串匹配 | `WINDOWS_CLIENT`（同上，随 J4 一并验证） |
+
 ## 性能验证
 
 | 能力 | 测试入口 | 关键观察 | 当前状态 |
