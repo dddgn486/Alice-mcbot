@@ -29,6 +29,17 @@
 | [`MULTI_BOT_INTERFACE_RESERVATION.md`](MULTI_BOT_INTERFACE_RESERVATION.md) | 多 bot 并行接口预留 |
 | [`AI_CHANGELOG.md`](AI_CHANGELOG.md) | 历史改动流水（含失败与根因假设） |
 
+## 待裁定草案（**非最终方案**）
+
+> 与外部 AI 讨论产出的设计草案与问题清单：**未定案，不作为当前实现授权**。
+> 入库目的是把"已核实的事实 / 待裁定的问题 / 建议切片"留存下来，避免重复调查。
+
+| 文件 | 内容 |
+|---|---|
+| [`RISK_SYSTEM_DESIGN_DRAFT.md`](RISK_SYSTEM_DESIGN_DRAFT.md) | 风险系统实现草案：8 条设计原则、契约三种时机、切片 S1–S6、与既有决策的对齐 |
+| [`RISK_SYSTEM_ISSUE_LIST.md`](RISK_SYSTEM_ISSUE_LIST.md) | 风险与维生系统问题修复清单：P0-A/B/C、P1-A/B/C、P2-A/B/C 与待确认事实 Q1 |
+| [`RISK_SYSTEM_REVIEW_20260910.md`](RISK_SYSTEM_REVIEW_20260910.md) | **本仓库复核记录**：9 条断言逐条核对全部属实、Q1 反编译答案（同步加载而非 void air）、P0-B 机制精确化、§3.7 的一处反对意见、执行顺序调整建议 |
+
 ## 测试与验收
 
 | 文件 | 用途 |
