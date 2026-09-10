@@ -64,7 +64,16 @@ public final class LumberJob implements Job {
     private final List<String> failedLogs = new ArrayList<>();
     private MineTask miner;
     private MineTask clearTask;
-    private int clearedBlocks;
+    /**
+     * **本棵树**已清障格数（预算闸门用）。
+     *
+     * <p>2026-09-10 修正（勘测员 06 §0.2，已只读复核）：原实现只有一个 job 级计数器，
+     * 却拿去比 **per-tree** 限额 `MAX_CLEAR_PER_TREE=8` 且**换树不重置** ——
+     * 单树测试永远暴露不了，一进多树循环（J2）累计 8 格后**后面每棵树都会 `clear_budget` 失败**。
+     */
+    private int clearedThisTree;
+    /** 整个 Job 累计清障格数（仅用于报告，不参与闸门）。 */
+    private int clearedTotal;
     private CollectDropsTask collector;
     private String terminalReason = "";
     private String failure = "";
@@ -108,7 +117,7 @@ public final class LumberJob implements Job {
     public String progressSummary() {
         int total = queue.isEmpty() ? 0 : queue.size();
         return "logs " + choppedLogs + "/" + total + " trees " + (terminated && failure.isEmpty() ? 1 : 0)
-                + "/" + spec.quota() + (clearedBlocks > 0 ? " cleared=" + clearedBlocks : "");
+                + "/" + spec.quota() + (clearedTotal > 0 ? " cleared=" + clearedTotal : "");
     }
 
     @Override
@@ -147,6 +156,7 @@ public final class LumberJob implements Job {
             return finish(Task.Status.FAILED);
         }
         tree = picked;
+        clearedThisTree = 0;   // 预算按棵重置（D-080「≤8 格/棵」）
         queue = picked.logsBottomUp();
         scope.begin(picked.base(), 16, bot.getUUID());
         DecisionTrace.step(jobName(), "SELECT", picked.base().toShortString(),
@@ -162,7 +172,7 @@ public final class LumberJob implements Job {
             collector = new CollectDropsTask(bot, tree.base(), scope, List.of(), false);
             DecisionTrace.step(jobName(), "COLLECT", tree.base().toShortString(),
                     "chopped=" + choppedLogs + "/" + queue.size() + " failed=" + failedLogs.size()
-                            + (clearedBlocks > 0 ? " cleared=" + clearedBlocks : ""));
+                            + (clearedTotal > 0 ? " cleared=" + clearedTotal : ""));
             return Task.Status.RUNNING;
         }
         BlockPos log = queue.get(queueIndex);
@@ -175,7 +185,8 @@ public final class LumberJob implements Job {
             }
             clearTask = null;
             if (clearStatus == Task.Status.DONE) {
-                clearedBlocks++;
+                clearedThisTree++;
+                clearedTotal++;
             } else {
                 failedLogs.add(log.toShortString() + ":clear_failed");
                 queueIndex++;
@@ -187,17 +198,17 @@ public final class LumberJob implements Job {
             // 没有现成可站站位 → **由 Job 显式清障**，而不是让规划器掉进"挖隧道/挖地站进去"
             if (!hasStandNow(log)) {
                 BlockPos step = BlockerClearPlanner.nextClearStep(bot.serverLevel(), bot, log,
-                        bot.getBlockReach(), MAX_CLEAR_PER_TREE - clearedBlocks,
+                        bot.getBlockReach(), MAX_CLEAR_PER_TREE - clearedThisTree,
                         WriteGrant.of(jobName(), WriteReason.LINE_OF_SIGHT));
                 if (step == null) {
-                    failedLogs.add(log.toShortString() + (clearedBlocks >= MAX_CLEAR_PER_TREE
+                    failedLogs.add(log.toShortString() + (clearedThisTree >= MAX_CLEAR_PER_TREE
                             ? ":clear_budget" : ":no_stand"));
                     queueIndex++;
                     return Task.Status.RUNNING;
                 }
                 DecisionTrace.step(jobName(), "CLEAR", step.toShortString(),
                         "为 " + log.toShortString() + " 腾站位/通视线 clear="
-                                + (clearedBlocks + 1) + "/" + MAX_CLEAR_PER_TREE);
+                                + (clearedThisTree + 1) + "/" + MAX_CLEAR_PER_TREE);
                 clearTask = new MineTask(bot, step, scope,
                         MiningBudget.forTarget(bot, bot.serverLevel(), step, false), true,
                         WriteGrant.of(jobName(), WriteReason.LINE_OF_SIGHT));
@@ -224,13 +235,13 @@ public final class LumberJob implements Job {
         }
         // 运行期视线被挡（规划期看不见、执行期才暴露）→ 仍走同一套限次清障
         if ("LINE_OF_SIGHT_BLOCKED".equals(miner.failureReason())
-                && clearedBlocks < MAX_CLEAR_PER_TREE) {
+                && clearedThisTree < MAX_CLEAR_PER_TREE) {
             BlockPos blocker = LineOfSightChecker.checkFromEye(bot.serverLevel(), bot.getEyePosition(), log)
                     .getFirstBlocker();
             if (blocker != null && BlockerClearPlanner.clearable(bot, bot.serverLevel(), blocker,
                     WriteGrant.of(jobName(), WriteReason.LINE_OF_SIGHT))) {
                 DecisionTrace.step(jobName(), "CLEAR", blocker.toShortString(),
-                        "blocking " + log.toShortString() + " clear=" + (clearedBlocks + 1)
+                        "blocking " + log.toShortString() + " clear=" + (clearedThisTree + 1)
                                 + "/" + MAX_CLEAR_PER_TREE);
                 clearTask = new MineTask(bot, blocker, scope,
                         MiningBudget.forTarget(bot, bot.serverLevel(), blocker, false), true,

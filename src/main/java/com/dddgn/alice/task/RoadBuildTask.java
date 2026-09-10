@@ -131,7 +131,11 @@ public final class RoadBuildTask implements Task {
         }
         faceTarget(pos);
         bot.swing(InteractionHand.MAIN_HAND);
-        BlockInteraction.breakForBulkEdit(bot, level, pos, true, BULK_GRANT);
+        // 闸门在 breakForBulkEdit 内（保护区/不可破坏/流体）；被拒即如实失败，不再"假装破坏成功"
+        if (!BlockInteraction.breakForBulkEdit(bot, level, pos, true, BULK_GRANT)) {
+            failure = "road_block_refused_" + pos.toShortString();
+            return false;
+        }
         return true;
     }
 

@@ -1712,3 +1712,39 @@
 第 7 组件并**删除 5/6 参兼容构造器**；`PathSession.startSegment` 传入 `request.requester()`。
 此前内核写入（P1–P5）即使请求带了 requester，也会在 `PathSession` 被替换成 `UNKNOWN`——
 即"归因只到搜索期、到不了执行期"。5 个诊断任务的自建请求统一改用 `base.requester()`（一条请求链一个身份）。
+
+---
+
+## D-085 执行期复验授权 + 批量破坏闸门 + 清障预算按棵计（R2b，2026-09-10）
+
+**背景**：J1 伐木切片已在客户端通过（`DONE quota_met logs 4/4 trees 1/1 cleared=3
+inventoryDelta=4 writes breaks=7 unknown=0`）。用户裁定**先走 R2 再走 J2**，理由是红线不变式
+必须在扩大接触面之前关上。落地三件事：
+
+### ① 执行期复验授权（闭合 G2）
+`PathSession.startSegment` 此前**只保存** `PathRequest`，建执行器时直接按 plan 里的
+`movementType` 走，从不核对 `request.allowedMovementTypes` —— 授权**只在搜索期**生效。
+后果：一个 plan 只要活着，就能执行调用方**从未授权**的 Movement（D-076 禁止的"隐式授权"）。
+风险不是理论：`CollectDropsTask` 在 `allowWorldModification=false` 时用纯净的 `PathRequest.of`，
+而 `MineBlockRunner` 会按 `plan.mode()` **另建**请求 → plan 比请求活得久就会越权。
+
+修正：每段执行前 `if (!request.allows(movement.movementType()))` → 记
+`UNAUTHORIZED_MOVEMENT` 并**拒绝执行**（走 `mapFailure` 而非 `handleFailure`，
+因为授权违规不应因"bot 在空中"被延后）。
+
+### ② 批量破坏的闸门收进原语（闭合 G9）
+`breakForBulkEdit` 原先只审计、把拒绝判定"外推给调用方"，而勘测证实 `RoadBuildTask.forceBreak`
+**根本没有保护区检查**（只判 `getDestroyProgress > 0`）→ 道路施工可在保护区内破坏。
+修正：闸门移入方法内（按 `grant.reason()` 派生策略；`BULK_EDIT` → 明确目标策略 =
+保护区/不可破坏/流体拒绝），返回值改为 `true=已破坏 / false=被拒未写入`，
+`forceBreak` 改为如实失败（`road_block_refused_<pos>`），不再"假装破坏成功"。
+
+### ③ 清障预算按"棵"计（J2 前置缺陷，勘测员 06 §0.2，已只读复核为真）
+`LumberJob` 原只有一个 **job 级** `clearedBlocks`，却拿去比 **per-tree** 限额
+`MAX_CLEAR_PER_TREE=8` 且**换树不重置** —— 单树测试永远暴露不了；一进多树循环（J2），
+累计清 8 格后**后面每棵树都会 `clear_budget` 失败**。
+修正：拆成 `clearedThisTree`（**闸门**，在 `select()` 换树时归零，符合 D-080「≤8 格/棵」）
+与 `clearedTotal`（**仅报告**）。这是 J2 能跑通的前提。
+
+**验证等级**：COMPILES。三处均为行为变更，需回归验证：
+`alice:mine_regression`（原 10/10）+ `alice:pathing_regression` + 伐木场景。

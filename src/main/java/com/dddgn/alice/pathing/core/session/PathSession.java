@@ -243,6 +243,17 @@ public final class PathSession {
                 : CompletionTolerance.COLUMN;
         // 归因（D-082/G1）：执行期的破坏/放置记账必须带上"谁发起的这次寻路"，
         // 否则内核写入永远是 unknown（原先这里用 5 参兼容构造器，requester 被填成 UNKNOWN）。
+        // 执行期复验授权（R2b，闭合 G2）：搜索期确实只会生成被授权的 Movement，
+        // 但 **plan 可能比产生它的请求活得更久**（重规划、plan 复用、上层按 plan.mode() 另建请求），
+        // 那时执行器就会执行一条会话请求**从未授权**的 Movement —— 即 D-076 禁止的"隐式授权"。
+        // 所以每一步执行前都用**会话自己的请求**复验。未授权一律拒绝，而不是默默执行。
+        if (!request.allows(movement.movementType())) {
+            BotLog.warn("[R4 Session] unauthorized_movement session={} type={} requester={} allowed={}",
+                    sessionId, movement.movementType(), request.requester(),
+                    request.allowedMovementTypes());
+            mapFailure("UNAUTHORIZED_MOVEMENT");
+            return;
+        }
         LiveExecutionContext context = new LiveExecutionContext(bot, level, sessionId, 0L, 0L,
                 tolerance, request.requester());
         MovementExecutionFactory factory = PlannedMovementSpecs.factoryFor(movement.movementType());

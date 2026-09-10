@@ -1,5 +1,6 @@
 package com.dddgn.alice.action;
 
+import com.dddgn.alice.log.BotLog;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -298,7 +299,7 @@ public final class BlockInteraction {
         String protectedReason = com.dddgn.alice.protection.SafeZoneData.get(level.getServer())
                 .protectionReason(level, pos);
         if (protectedReason != null) {
-            com.dddgn.alice.log.BotLog.warn("[WRITE-REFUSED] place pos={} by={} reason={}",
+            BotLog.warn("[WRITE-REFUSED] place pos={} by={} reason={}",
                     pos.toShortString(), grant.describe(), protectedReason);
             return false;
         }
@@ -310,12 +311,25 @@ public final class BlockInteraction {
     /**
      * 批量地形编辑用：立即销毁方块（道路施工等非寻路场景）。
      *
-     * <p>语义与 {@code level.destroyBlock} 相同，但集中到本层以便统一审计：
-     * 调用方必须先做权限/保护区检查（{@code BlockBreakSafety}）。
+     * <p>语义与 {@code level.destroyBlock} 相同，但集中到本层以便统一审计；
+     * **拒绝判定已收进本方法**（见方法体），调用方不再需要自行预检。
+     *
+     * @return true = 已破坏；false = 被拒绝（**未写入**）
      */
-    public static void breakForBulkEdit(ServerPlayer bot, ServerLevel level, BlockPos pos, boolean dropItems,
-                                       WriteGrant grant) {
+    public static boolean breakForBulkEdit(ServerPlayer bot, ServerLevel level, BlockPos pos, boolean dropItems,
+                                           WriteGrant grant) {
+        // 闸门收进本方法（R2b，闭合 G9）：2026-09-10 勘测发现道路施工两套实现里
+        // RoadBuildTask **根本没做任何保护区检查**，只判 `getDestroyProgress > 0`，
+        // 而原先的 javadoc 把检查责任"外推给调用方"——等于没有闸门。
+        // 现在按授权里的理由派生策略（BULK_EDIT → 明确目标策略：保护区/不可破坏/流体拒绝）。
+        String refusal = breakRefusal(bot, level, pos, grant);
+        if (refusal != null) {
+            BotLog.warn("[WRITE-REFUSED] break pos={} by={} reason={}",
+                    pos.toShortString(), grant.describe(), refusal);
+            return false;
+        }
         WriteAudit.breakWrite(level, pos, level.getBlockState(pos), grant);
         level.destroyBlock(pos, dropItems, bot);
+        return true;
     }
 }

@@ -64,13 +64,13 @@
 | # | 缺口 | 事实 | 影响 |
 |---|---|---|---|
 | ~~G1~~ | ~~`PathRequest.requester` 恒为 `"unknown"`~~ **已修复（R2a）** | 三个工厂改为**必填** requester 参数（无 3 参重载），**29 处**调用点全部显式命名；`LiveExecutionContext` 改为必填第 7 组件并**删除 5/6 参兼容构造器**（那是"默认 unknown"通道）；`PathSession.startSegment` 传入 `request.requester()` → 内核写入 P1–P5 现在也有主 | 已闭合（待客户端 `unknown=0` 复验） |
-| G2 | 执行期不复验授权 | `PathSession` 保存 `request` 后不再读取（`session/PathSession.java:47/69`）；`startSegment` 按 plan 直接建执行器 | 搜索期许可与执行期实际 Movement **不绑定**；理论上可执行未授权 Movement |
+| ~~G2~~ | ~~执行期不复验授权~~ **已修复（R2b）** | `PathSession.startSegment` 现在每段执行前用**会话自己的请求**复验 `request.allows(movementType)`，未授权即 `UNAUTHORIZED_MOVEMENT` 拒绝执行 | 已闭合 |
 | G3 | 模组连锁破坏无凭证 | `MineTask.beginChain` → `ChainMining` 反射调模组 `MiningScheduler` | 破坏量不受 Alice 预算约束，**Alice 无法在其内部插入判定**；只能控制"是否触发" |
 | G4 | 内核写入无独立预算 | P1–P3 的破坏量只体现在搜索成本里，执行期不再比对 | 到达路径的实际破坏量不受 `MiningBudget` 约束（勘测清单 4 已记） |
 | G5 | 容器写入是第三个维度 | `TransferTask` / `ChestBotTransferPrimitive`（`extractItem`/`insertItem`） | 现有授权面完全不覆盖；需单独立项（`TransferLedgerData` 是记账不是权限） |
 | G6 | legacy `pathing/movement` 裸写入 | `DescendMovement.java:142`、`PillarMovement.java:146` 裸 `level.setBlock(DIRT)` | 当前**无生产调用者**（`MovementHelper.generateMovements` 无外部调用），是潜在缺口 |
 | G7 | 死代码闸门 | `FluidRiskPolicy.miningRefusal` 无调用者，但 `MineTask` 保留 `fluid_risk_lava` 硬拒绝分支 | 一个**永远为假**的硬拒绝分支（勘测清单 4） |
-| G9 | `breakForBulkEdit` 只审计不设闸 | 本次只给它加了审计；**拒绝判定仍由调用方负责**，而 `RoadBuildTask` 并未做保护区检查（勘测清单 3） | 道路施工可在保护区内破坏；R2 把闸门收进 `breakForBulkEdit`（行为变更，需单独验证） |
+| ~~G9~~ | ~~`breakForBulkEdit` 只审计不设闸~~ **已修复（R2b）** | 闸门收进方法内（按 `grant.reason()` 派生策略；`BULK_EDIT` → 明确目标策略）；`RoadBuildTask.forceBreak` 改为**如实返回被拒**（不再假装成功）；返回值 `true=已破坏 / false=被拒未写入` | 已闭合（行为变更，待回归验证） |
 | G8 | `MovementCapabilities` 无读取点 | `changesWorld`/`canBreakBlocks`/`requiresZoneAuthorization` 等字段只在自身内部出现 | 文档性元数据，**不构成闸门**（勘测清单 2） |
 
 **豁免（非生产写入）**：`bot/BotSelftest`、`pathing/PathingRegression`、`task/mining/MiningReplanFixture`、
@@ -81,7 +81,7 @@
 | 步骤 | 内容 | 前置 |
 |---|---|---|
 | ~~R2a~~ | ~~填 `PathRequest.requester`~~ **已完成**：29 处工厂调用点 + `PathSession` → `LiveExecutionContext` 归因贯通 | — |
-| **R2b** | 执行期复验 `allowedMovementTypes`（G2）+ 把拒绝闸门收进 `breakForBulkEdit`（G9） | R2a |
+| ~~R2b~~ | ~~执行期复验授权（G2）+ 闸门收进 `breakForBulkEdit`（G9）~~ **已完成**；附带修 `LumberJob` 清障预算按棵计（J2 前置缺陷） | R2a |
 | **R3** | 内核写入预算（G4）：把 `MiningBudget` 或等价预算接到 P1–P3 的执行期 | R2 |
 | **J6** | `WriteAudit` → 持久化 `WorldModLedger`；建拆同权配对；恢复 | R2/R3 |
 | 之后 | G3（模组连锁，需与模组能力层一起）、G5（容器写入维度）、G6/G7/G8 清理 | J6 |
