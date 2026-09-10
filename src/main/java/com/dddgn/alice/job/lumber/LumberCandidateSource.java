@@ -133,7 +133,9 @@ public final class LumberCandidateSource implements CandidateSource {
     /**
      * "先砍下方、再站进去仰望"是否可达（**几何判定，不改世界**）。
      *
-     * <p>成立条件：存在一个柱底格（掏空后能站），且眼位到该原木**最近面心**的距离在保守触及内。
+     * <p>成立条件：存在一个柱底格（掏空后能站），眼位到该原木**最近面心**的距离在保守触及内，
+     * **且目标至少比站位高 2 格**——否则头位就是目标本身，站不进去
+     * （紧邻其上的那一根只能从**侧面**挖，树冠挡住侧面时就要走限次清障）。
      * 同列时中间格必然是本树原木（会被掏空），相邻列（2×2 树干）由"同层优先"的砍伐顺序保证先空出来；
      * 真正的视线是否通，**由运行期如实裁决**（挖不动就报 `partial_tree`，不在这里假装成功）。
      */
@@ -143,6 +145,9 @@ public final class LumberCandidateSource implements CandidateSource {
         for (BlockPos stand : anchorStands) {
             if (stand.equals(log)) {
                 continue;
+            }
+            if (log.getY() < stand.getY() + 2) {
+                continue;   // 头位 = 目标所在格 → 站不进去（第二格必须从侧面挖）
             }
             int dx = Math.abs(stand.getX() - log.getX());
             int dz = Math.abs(stand.getZ() - log.getZ());

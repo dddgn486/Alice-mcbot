@@ -1,7 +1,7 @@
-# 伐木 Job（L3 切片 J1）一键场景
+# 伐木 Job（L3 切片 J1）一键场景：真树夹具
 function alice_test:lumber_course_terrain
-tp @s 21.5 64.0 205.5
+tp @s 24.5 64.0 205.5
 give @s alice:lumber_job
-tellraw @s [{"text":"[Alice 伐木 Job 场景] ","color":"gold"},{"text":"4 棵树：A 被封死、B 露天 4 原木（应选）、C 更远 6 原木、E 高树 8 原木。","color":"white"}]
-tellraw @s [{"text":"伐木 Job 启动器","color":"aqua"},{"text":"右键：bot 扫描 → 决策（选哪棵/为什么）→ 逐根砍 → 收集入包。判读 [Job] select / step / terminal。","color":"white"}]
+tellraw @s [{"text":"[Alice 伐木 Job 场景·真树] ","color":"gold"},{"text":"橡树(20,64,208) + 云杉(28,64,208) + 2x2 高大云杉(22,64,218)。","color":"white"}]
+tellraw @s [{"text":"伐木 Job 启动器","color":"aqua"},{"text":"右键：扫描 → 决策（应选橡树，高大云杉应被拒）→ 逐根砍（自下而上、掏空后仰头挖）→ 收集入包。","color":"white"}]
 tellraw @s [{"text":"注意","color":"yellow"},{"text":"站在观察点别走近树（掉落物会被你先捡走）。","color":"white"}]
