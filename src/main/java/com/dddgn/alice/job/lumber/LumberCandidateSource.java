@@ -34,6 +34,8 @@ public final class LumberCandidateSource implements CandidateSource {
 
     /** 暴露度判定：树顶原木往上的垂直净空高度。 */
     private static final int SKY_CHECK_HEIGHT = 8;
+    /** 单棵树允许的清障格数上限（`JOB_LAYER_DESIGN.md` §9-4：≤8 格/棵）。 */
+    public static final int MAX_CLEAR_PER_TREE = 8;
 
     private List<Tree> lastScan = List.of();
 
@@ -65,6 +67,7 @@ public final class LumberCandidateSource implements CandidateSource {
             int deferred = 0;
             int softBlocked = 0;
             int noise = 0;
+            int clearBlocks = 0;
             for (BlockPos log : tree.logsBottomUp()) {
                 if (!StandingPointSelector.generateCandidates(level, log, bot.blockPosition(), reach).isEmpty()) {
                     continue;   // 现在就能看见
@@ -76,8 +79,11 @@ public final class LumberCandidateSource implements CandidateSource {
                     deferred++;
                     continue;
                 }
-                BlockerDiagnosis diagnosis = diagnoseBlocker(level, bot, log, reach);
-                if (diagnosis == BlockerDiagnosis.SOFT) {
+                // 限次清障方案（不区分软/硬方块，只靠预算兜底）
+                int plan = BlockerClearPlanner.clearPlanCount(level, bot, log, reach,
+                        MAX_CLEAR_PER_TREE - clearBlocks);
+                if (plan >= 0) {
+                    clearBlocks += plan;
                     softBlocked++;
                 } else {
                     noise++;
@@ -99,7 +105,7 @@ public final class LumberCandidateSource implements CandidateSource {
                 features.put("deferred", Integer.toString(deferred));
             }
             if (softBlocked > 0) {
-                features.put("clear", Integer.toString(softBlocked));
+                features.put("clear", clearBlocks + "(" + softBlocked + "根)");
             }
             viable.add(new Candidate(tree.base(), "tree", features));
         }
@@ -164,29 +170,6 @@ public final class LumberCandidateSource implements CandidateSource {
             }
         }
         return false;
-    }
-
-    /** 遮挡诊断：软（树叶等，可限次清除）/ 硬（石头、建筑、超触及）。 */
-    private enum BlockerDiagnosis { SOFT, HARD }
-
-    private static BlockerDiagnosis diagnoseBlocker(ServerLevel level, ServerPlayer bot, BlockPos log,
-                                                    double reach) {
-        // 先用几何候选集找一个**可站立**的观察位（不要求它看得见），从那里判遮挡
-        double maxExtra = MiningBudget.forTarget(bot, level, log, false).maxExtraBreakTicks();
-        for (BlockPos pos : StandingPointSelector.tunnelCandidates(bot, level, log, reach, maxExtra)) {
-            if (!StandingPointSelector.isStandable(level, pos)) {
-                continue;
-            }
-            LineOfSightChecker.LineOfSightResult los = LineOfSightChecker.checkFromEye(
-                    level, StandingPointSelector.eyeAt(pos), log);
-            BlockPos blocker = los.getFirstBlocker();
-            if (blocker == null) {
-                return BlockerDiagnosis.HARD;
-            }
-            return SoftBlockPolicy.isClearable(bot, level, blocker, log)
-                    ? BlockerDiagnosis.SOFT : BlockerDiagnosis.HARD;
-        }
-        return BlockerDiagnosis.HARD;
     }
 
     private static String id(Tree tree) {

@@ -62,6 +62,8 @@ public final class CollectDropsTask implements Task {
     private static final int MAX_REANCHORS = 2;
     /** 超过该距离（格）放弃追踪（D-074 用户裁定）。 */
     private static final double MAX_CHASE_DISTANCE = 32.0D;
+    /** 等待"仍在空中下落的掉落物"落地的最大 tick 数（2026-09-10 修正）。 */
+    private static final int MAX_SETTLE_TICKS = 40;
 
     private final BotPlayer bot;
     private final BlockPos origin;
@@ -97,6 +99,7 @@ public final class CollectDropsTask implements Task {
     private int sweepTicks;
     private int waitTicks;
     private int reanchors;
+    private int settleTicks;
     private PathRetryRunner runner;
 
     public CollectDropsTask(BotPlayer bot, BlockPos origin, ScopeBuffer scope,
@@ -150,6 +153,19 @@ public final class CollectDropsTask implements Task {
             endCluster(false);
             return Status.RUNNING;
         }
+        // 掉落物仍在**空中下落**时不要追：它的"当前格"在空中有可能够不到，
+        // 追它会得到假的 MOVEMENT_FAILED（2026-09-10 客户端实测：砍完 6/7 根原木，
+        // 最后一根的掉落物在下落途中被记为 unreachable，collected=0/1）。
+        // 等它落地（≤ MAX_SETTLE_TICKS）——落在簇内自然会被拾取，或随后正常走位去捡。
+        if (members.stream().anyMatch(CollectDropsTask::isFalling)
+                && ++settleTicks <= MAX_SETTLE_TICKS) {
+            if (settleTicks == 1) {
+                BotLog.info("[CollectDrops] settling members={}（等待空中的掉落物落地）", members.size());
+            }
+            cancelRunner();
+            return Status.RUNNING;
+        }
+
         if (++sweepTicks > CLUSTER_BUDGET_TICKS) {
             for (ItemEntity member : members) {
                 retire(member.getUUID(), "cluster_budget");
@@ -323,9 +339,15 @@ public final class CollectDropsTask implements Task {
         sweepTicks = 0;
         waitTicks = 0;
         reanchors = 0;
+        settleTicks = 0;
         runner = null;
         BotLog.info("[CollectDrops] cluster_start anchor={} members={} items={} types={}",
                 anchor.toShortString(), clusterIds.size(), clusterStartSum, typeBefore.size());
+    }
+
+    /** 是否仍在空中下落（未落地且速度向下）。 */
+    private static boolean isFalling(ItemEntity item) {
+        return !item.onGround() && item.getDeltaMovement().y < -0.02D;
     }
 
     private static boolean linked(ItemEntity a, ItemEntity b) {
@@ -382,6 +404,7 @@ public final class CollectDropsTask implements Task {
         sweepTicks = 0;
         waitTicks = 0;
         reanchors = 0;
+        settleTicks = 0;
     }
 
     private void retire(UUID id, String reason) {

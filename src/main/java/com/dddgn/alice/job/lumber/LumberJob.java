@@ -43,7 +43,7 @@ public final class LumberJob implements Job {
     public static final String NAME = "lumber";
 
     /** 单棵树的清障预算（`JOB_LAYER_DESIGN.md` §9-4：≤8 格/棵）。 */
-    private static final int MAX_CLEAR_PER_TREE = 8;
+    private static final int MAX_CLEAR_PER_TREE = LumberCandidateSource.MAX_CLEAR_PER_TREE;
 
     private final BotPlayer bot;
     private final GoalSpec spec;
@@ -198,7 +198,7 @@ public final class LumberJob implements Job {
         if ("LINE_OF_SIGHT_BLOCKED".equals(miner.failureReason()) && clearedBlocks < MAX_CLEAR_PER_TREE) {
             BlockPos blocker = LineOfSightChecker.checkFromEye(bot.serverLevel(), bot.getEyePosition(), log)
                     .getFirstBlocker();
-            if (blocker != null && SoftBlockPolicy.isClearable(bot, bot.serverLevel(), blocker, log)) {
+            if (blocker != null && BlockerClearPlanner.clearable(bot, bot.serverLevel(), blocker)) {
                 DecisionTrace.step(jobName(), "CLEAR", blocker.toShortString(),
                         "blocking " + log.toShortString() + " clear=" + (clearedBlocks + 1)
                                 + "/" + MAX_CLEAR_PER_TREE);

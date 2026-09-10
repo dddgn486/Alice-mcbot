@@ -44,6 +44,28 @@ public class LumberJobItem extends Item {
         return InteractionResultHolder.success(player.getItemInHand(hand));
     }
 
+    /**
+     * 夹具职责：确保 bot 快捷栏里有一把斧子（原木的正确工具，破坏速度 8 而非 1）。
+     *
+     * <p>只填空格，**不动选中槽**——`MineTask` 的夹具补镐写的是选中槽，会覆盖那里。
+     * 破坏时 `BlockBreakSession.switchToBestToolFor` 会自动切到最合适的工具。
+     */
+    private static void ensureAxe(BotPlayer bot) {
+        var inventory = bot.getInventory();
+        for (int slot = 0; slot < 9; slot++) {
+            if (inventory.getItem(slot).is(net.minecraft.tags.ItemTags.AXES)) {
+                return;
+            }
+        }
+        for (int slot = 0; slot < 9; slot++) {
+            if (slot != inventory.selected && inventory.getItem(slot).isEmpty()) {
+                inventory.setItem(slot, new ItemStack(net.minecraft.world.item.Items.DIAMOND_AXE));
+                return;
+            }
+        }
+        inventory.add(new ItemStack(net.minecraft.world.item.Items.DIAMOND_AXE));
+    }
+
     private InteractionResult start(net.minecraft.world.entity.player.Player player, ServerLevel level) {
         BotPlayer bot = BotManager.firstInLevel(level);
         if (bot == null) {
@@ -62,6 +84,8 @@ public class LumberJobItem extends Item {
                 java.util.Set.of(), bot.getYRot(), bot.getXRot());
         bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
         bot.controller().stopMovement();
+
+        ensureAxe(bot);
 
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
         if (!BotManager.assignLumberJob(bot, observer)) {

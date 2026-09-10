@@ -14,6 +14,7 @@ import com.dddgn.alice.task.mining.MiningPlanner;
 import com.dddgn.alice.task.mining.MiningTuning;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.ArrayList;
@@ -82,11 +83,30 @@ public final class MineTask implements Task {
         this.target = target.immutable();
         this.scope = scope;
         this.budget = budget;
-        bot.getInventory().setItem(bot.getInventory().selected,
-                new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_PICKAXE));
-        com.dddgn.alice.bot.BotManager.syncMainHand(bot);
+        ensureTool(bot, this.target);
         BotLog.info("任务创建: MineTask target={} budget={}", this.target.toShortString(),
                 budget.describe());
+    }
+
+    /**
+     * 开发夹具：主手**没有对该目标有效的工具**（破坏速度 ≤ 1）时才补一把钻石镐。
+     *
+     * <p>2026-09-10 修正：原实现无条件把钻石镐写进当前选中槽，会**顶掉夹具放的斧子**——
+     * 结果是砍原木用镐（speed 1.0，3.0 s/根）而不是斧（speed 8.0，0.375 s/根），慢 8 倍。
+     * 现在已有有效工具就不动；空手或更差时仍补镐（保持既有场景入口行为）。
+     */
+    private static void ensureTool(ServerPlayer bot, BlockPos target) {
+        var inventory = bot.getInventory();
+        ItemStack main = inventory.getItem(inventory.selected);
+        net.minecraft.world.level.block.state.BlockState state = bot.serverLevel().getBlockState(target);
+        if (!main.isEmpty() && main.getDestroySpeed(state) > 1.0F) {
+            return;
+        }
+        ItemStack pickaxe = new ItemStack(net.minecraft.world.item.Items.DIAMOND_PICKAXE);
+        if (main.isEmpty() || pickaxe.getDestroySpeed(state) > main.getDestroySpeed(state)) {
+            inventory.setItem(inventory.selected, pickaxe);
+            com.dddgn.alice.bot.BotManager.syncMainHand(bot);
+        }
     }
 
     @Override
