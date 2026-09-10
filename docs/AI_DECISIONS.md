@@ -1853,3 +1853,30 @@ retire item=… reason=cluster_budget itemPos=24,64,189 inRange=false
 B 完成后本处的归零可以撤掉——归零是"掩盖症状"，恢复才是"消除症状"。
 
 **验证等级**：COMPILES。待客户端目视确认（走位时是否平视）。
+
+## D-089 伐木工具：斧子必须进"快捷栏"，不是"背包里"（2026-09-10）
+
+**现象（用户实测）**：bot 砍树时**还在用镐子**。
+
+**客观验证（日志破坏耗时）**：
+```
+block_break_done pos=28,65,208 ticks=61   ← 2.0(硬度)×1.5÷1.0×20 = 速度 1.0 = 镐/空手
+block_break_done pos=27,65,214 ticks=6    ← 树叶 0.2×1.5÷1.0×20，同为速度 1.0
+```
+斧子对原木是速度 8 → 应为 ~8 tick。**61 tick 反推有效速度 1.0，等于斧子完全没生效。**
+
+**根因**：工具选择 `BlockInteraction.findBestToolSlot` 只扫**快捷栏 0..8**
+（与 Baritone `MovementHelper.switchToBestToolFor` 同范围），而
+`LumberJobItem.ensureAxe` 在**快捷栏 9 格全满**时退化到 `inventory.add(...)` →
+斧子落进**主背包（9..35）**，永远选不到。bot 跑过多轮回归后快捷栏被圆石等塞满，
+所以这条缺陷**只在"跑了一阵之后"出现**，首测时不会暴露。
+
+**修正**：`ensureAxe` 保证斧子**一定进快捷栏**——① 已有则沿用；② 有空格则放入；
+③ 全满则把"对木材也无用（速度 ≤1 且非斧）"的一格挪进主背包再放斧；④ 全无可能时告警而非静默。
+每步都打 `[LumberJobItem] axe ...` 日志，使"斧子在不在快捷栏"以后一眼可判。
+
+**顺带核实（未改代码）**：`MineTask.ensureTool` 不会顶掉斧子——它的第二个条件要求
+钻石镐**严格更优**（`pickaxe.getDestroySpeed(state) > main.getDestroySpeed(state)`），
+而斧子对原木（8.0）与树叶都不低于镐，故安全。**不做无谓改动**。
+
+**验证等级**：COMPILES。判据：`block_break_done … ticks≈8`（原木）。
