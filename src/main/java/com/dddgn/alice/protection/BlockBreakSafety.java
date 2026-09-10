@@ -70,6 +70,16 @@ public final class BlockBreakSafety {
         if (isExpensiveToClear(state)) {
             return "expensive_clearing_block";
         }
+        // 含方块实体的方块（箱子/熔炉/漏斗/告示牌/刷怪笼/**模组机器**）不得作为"清障"对象（D-095）。
+        // 风险不是理论：箱子被拆物品会掉落（还好），但**模组机器可能内容物直接蒸发**。
+        // 为什么放在"可破坏集合"里而不是单独加一段拒绝逻辑：`breakable` 会喂给搜索
+        // （`SurfaceMovementProvider` 用它生成 BREAK_AND_* 候选）——**剔除之后规划器会自动绕开**，
+        // 绕不开就如实 `found_but_unminable`。于是"绕路"是免费得到的，不需要新机制。
+        // 只作用于清障策略（LINE_OF_SIGHT/STANDING_SPACE/PATH_ACCESS）；
+        // **玩家明确指定的目标**（EXPECTED_TARGET）不受影响。
+        if (state.hasBlockEntity()) {
+            return "block_entity";
+        }
         return null;
     }
 
