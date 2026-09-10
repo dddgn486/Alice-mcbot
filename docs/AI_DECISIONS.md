@@ -2065,3 +2065,24 @@ D-089（快捷栏满，斧子退化进主背包 → 选不到 → 全程用镐�
 最后一条的断言是"**那一格仍是圆石**"——比字符串匹配硬：直接证明 bot 没有拆掉玩家的方块。
 
 **验证等级**：COMPILES。待客户端 `alice:lumber_failure_check` → `SUMMARY … → PASS`。
+
+### D-093 附注（首测纠正）：注入时机错了 —— 夹具自己也必须自证
+首测结果：**4/5 PASS，`log_replaced` FAIL**，失败原因是**自检自身的 bug**，不是产品缺陷：
+
+```
+[FailCheck] log_replaced 注入：队列首格 23, 64, 207 已换成圆石   ← 那是 bot 自己站的格子！
+[FailCheck] LOG_REPLACED FAIL status=FAILED reason=no_reachable_candidate
+            replacedPos=23, 64, 207 仍为圆石=true
+```
+
+根因：注入发生在 Job **第一次 `tick()` 之前**，此时仍在 `SELECT` 阶段，
+`LumberJob.target()` 走 fallback 分支返回 `TaskTarget.block(spec.center())`（= `START_FOOT`），
+于是把 **bot 脚下那格**换成了圆石（bot 被砌在方块里 → 后续如实报 `no_reachable_candidate`）。
+
+修正两条：
+1. **注入时机**：改到第一次 `job.tick()` **之后**（此时 SELECT 已完成，`target()` 才是队列首格）；
+2. **注入前置校验**：只在 `LumberJob.isStillLog(planned)` 为真时才注入 ——
+   这样**结构上不可能**把 bot 脚下那格当目标（bot 不可能站在原木里）。
+
+教训（与 D-092 附注同类）：**夹具的注入动作和被测断言一样需要前置校验**；
+"以为 target() 已经是队列格"是我的假设，不是事实。

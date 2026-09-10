@@ -97,11 +97,6 @@ public final class LumberFailureCheckTask implements Task {
             return Task.Status.RUNNING;
         }
 
-        // 用例 5：等 Job 选完树（队列已建）后，把队列首格换成圆石
-        if (current == Case.LOG_REPLACED && !replacedArmed && job != null) {
-            armReplacedLog();
-        }
-
         if (job != null) {
             if (++caseTicks > CASE_TICKS) {
                 record(current, false, "case_timeout ticks=" + caseTicks);
@@ -109,6 +104,12 @@ public final class LumberFailureCheckTask implements Task {
                 return Task.Status.RUNNING;
             }
             Task.Status status = job.tick();
+            // 用例 5：**必须等第一次 tick 之后**才注入——那时 SELECT 才完成，
+            // `job.target()` 才是"队列首格"；在此之前它走 fallback 返回 `spec.center()`（=起点），
+            // 曾因此把 bot 自己脚下那格换成圆石（2026-09-10 首测 FAIL 的原因）。
+            if (current == Case.LOG_REPLACED && !replacedArmed) {
+                armReplacedLog();
+            }
             if (status == Task.Status.RUNNING) {
                 return Task.Status.RUNNING;
             }
@@ -177,11 +178,22 @@ public final class LumberFailureCheckTask implements Task {
         savedInventory = null;
     }
 
-    /** 用例 5：把 Job 已排队的首格换成圆石（模拟"砍到一半被玩家改掉"）。 */
+    /**
+     * 用例 5：把 Job 已排队的首格换成圆石（模拟"砍到一半被玩家改掉"）。
+     *
+     * <p>**注入前置校验**：只有该格现在**确实是原木**才注入——否则说明 `target()` 还不是队列格
+     * （例如仍处于 SELECT 的 fallback），此时注入会误伤无关方块（首测就误伤了 bot 自己脚下那格）。
+     */
     private void armReplacedLog() {
         BlockPos planned = job.target() == null ? null : job.target().blockPos();
         replacedArmed = true;
         if (planned == null) {
+            record(Case.LOG_REPLACED, false, "注入失败：Job 尚未给出队列格");
+            return;
+        }
+        if (!LumberJob.isStillLog(bot.serverLevel(), planned)) {
+            record(Case.LOG_REPLACED, false,
+                    "注入失败：待注入格 " + planned.toShortString() + " 不是原木（时机过早）");
             return;
         }
         replacedPos = planned.immutable();
