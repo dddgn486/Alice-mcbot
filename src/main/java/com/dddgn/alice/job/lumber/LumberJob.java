@@ -20,6 +20,8 @@ import com.dddgn.alice.task.mining.LineOfSightChecker;
 import com.dddgn.alice.task.mining.MiningBudget;
 import com.dddgn.alice.task.mining.StandingPointSelector;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.item.ItemStack;
 
@@ -135,6 +137,11 @@ public final class LumberJob implements Job {
     }
 
     @Override
+    public String terminalReason() {
+        return terminalReason;
+    }
+
+    @Override
     public String progressSummary() {
         return "trees " + treesDone + "/" + spec.quota()
                 + " logs " + choppedTotal + "/" + plannedTotal
@@ -150,6 +157,12 @@ public final class LumberJob implements Job {
             terminalReason = "goal_timeout";
             failure = terminalReason;
             return finish(Task.Status.FAILED);
+        }
+        // 前置检查（§6.2c③）：背包放不下原木时**直接收工**，不要先砍一棵再发现装不下
+        if (!hasRoomForLogs(bot)) {
+            terminalReason = "inventory_full";
+            BotLog.warn("[Job] lumber 背包放不下任何原木，直接结束（未动世界）");
+            return finish(Task.Status.DONE);
         }
         return switch (phase) {
             case SELECT -> select();
@@ -201,6 +214,18 @@ public final class LumberJob implements Job {
             return Task.Status.RUNNING;
         }
         BlockPos log = queue.get(queueIndex);
+
+        // **身份复检（§6.2c⑤，安全修复）**：`queue` 是**决策时刻的位置快照**，执行期世界可能已变。
+        // 若不复查就挖，bot 会去挖玩家放在那一格的**别的方块**（箱子/矿石/机器）——那是拿别人的东西；
+        // `MineTask` 只拦"保护区/不可破坏/流体"，不拦"这还是不是原木"。
+        // 复查失败即**放弃本树**（计划已失效）并如实记账，交给结算走 partial 路径。
+        if (!isStillLog(bot.serverLevel(), log)) {
+            failedLogs.add(log.toShortString() + ":log_replaced");
+            DecisionTrace.step(jobName(), "SKIP", log.toShortString(),
+                    "该格已不是原木（决策后被改动）→ 放弃本树");
+            queueIndex = queue.size();
+            return Task.Status.RUNNING;
+        }
 
         // 清障子任务优先推进（腾站位 / 打通视线；限次 = MAX_CLEAR_PER_TREE）
         if (clearTask != null) {
@@ -301,7 +326,7 @@ public final class LumberJob implements Job {
             terminalReason = "quota_met";
             return finish(Task.Status.DONE);
         }
-        if (!hasRoomForLogs()) {
+        if (!hasRoomForLogs(bot)) {
             terminalReason = "inventory_full";
             BotLog.warn("[Job] lumber 背包放不下更多原木，提前结束：trees {}/{}",
                     treesDone, spec.quota());
@@ -361,9 +386,14 @@ public final class LumberJob implements Job {
         return new CandidateSet(viable, rejected);
     }
 
-    /** 背包是否还能装下原木（§6.2c③：放不下就别空转）。 */
-    private boolean hasRoomForLogs() {
-        var inventory = bot.getInventory();
+    /** 该格现在仍是原木吗（`BlockTags.LOGS`）——执行期身份复检用（§6.2c⑤）。 */
+    public static boolean isStillLog(ServerLevel level, BlockPos pos) {
+        return level.getBlockState(pos).is(net.minecraft.tags.BlockTags.LOGS);
+    }
+
+    /** 背包是否还能装下原木（§6.2c③：放不下就别开工）。 */
+    public static boolean hasRoomForLogs(ServerPlayer player) {
+        var inventory = player.getInventory();
         for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
             ItemStack stack = inventory.getItem(slot);
             if (stack.isEmpty()) {

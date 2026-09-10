@@ -22,4 +22,13 @@ public interface Job extends Task {
 
     /** 人类可读进度（终态与定期健康输出用），如 `logs 4/8 trees 1/3`。 */
     String progressSummary();
+
+    /**
+     * 终止理由（**DONE 与 FAILED 都有**），如 `quota_met` / `inventory_full` / `partial_quota`。
+     *
+     * <p>为什么必须有：`Task.failureReason()` 只在 FAILED 时有意义，而 §6.2c 的
+     * ⑤ 条终止路径里有两条是 **DONE**（配额达成、背包满）——自检与上层调度必须能区分
+     * "达成了" 与 "背包满了提前收工"，否则无法断言。
+     */
+    String terminalReason();
 }

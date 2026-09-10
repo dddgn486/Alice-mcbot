@@ -499,6 +499,16 @@ public final class BotManager {
         return true;
     }
 
+    /** 伐木失败语义自检（切片 J4）：五条终止路径各一个用例。 */
+    public static boolean assignLumberFailureCheck(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        session.beginTask(new com.dddgn.alice.task.LumberFailureCheckTask(bot, session.scope()),
+                TaskTarget.block(com.dddgn.alice.task.LumberCourseAnchor.START_FOOT));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     /** 挖掘专项串联回归（批次 5）。 */
     public static boolean assignMineRegression(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());

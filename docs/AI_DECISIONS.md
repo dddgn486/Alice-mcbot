@@ -2028,3 +2028,40 @@ D-089（快捷栏满，斧子退化进主背包 → 选不到 → 全程用镐�
 
 → 追加**第 4 棵**同型橡树（`24,64,213`，与既有树净空 5 格），配额提到 **4 棵**：
 累计清障预期 **≥9**（实测 4 棵中已有 3 棵分别需要 3/3/2），跨过阈值 ⇒ 失效即 `clear_budget` 失败。
+
+---
+
+## D-093 J4：失败语义——身份复检（安全修复）+ 五条终止路径各有场景（2026-09-10）
+
+### ① 安全修复：队列原木的**身份复检**（§6.2c⑤）
+`LumberJob.queue` 是**决策时刻的位置快照**。执行期世界可能已变——**原实现直接挖该格**，
+而 `MineTask` 只拦"保护区/不可破坏/流体"，**不拦"这还是不是原木"**。
+后果：玩家把那一格换成箱子/矿石/机器，bot 就会去拆——**拿别人的东西**。
+修正：`chop()` 取到队列格后先 `isStillLog(...)`（`BlockTags.LOGS`）复检，失败即
+记 `log_replaced` + `SKIP` 决策行 + **放弃本树**（`queueIndex` 推到队尾，计划已失效），
+交给结算走 partial 路径。`isStillLog` 提为 `public static` 以便自检断言。
+
+### ② `inventory_full` 提为**前置检查**（§6.2c③）
+原实现只在一棵树结算后才查背包 → 语义是"砍完才发现装不下"。现在 `tick()` 开头就查
+（`hasRoomForLogs(ServerPlayer)` 提为 public static），放不下就 `DONE inventory_full`，
+**不动世界**、不空转。
+
+### ③ `Job.terminalReason()`：把终止理由变成接口契约
+`Task.failureReason()` 只在 FAILED 时有意义，而 §6.2c 有两条终止是 **DONE**
+（`quota_met`、`inventory_full`）——上层调度与自检必须能区分"达成了"与"背包满提前收工"。
+故在 `Job` 接口上新增 `terminalReason()`（DONE/FAILED 都有），`LumberJob` 实现之。
+
+### ④ 新增 `alice:lumber_failure_check`：**五条终止路径各有真实场景**
+用例编排复刻 `MineRegressionTask` 模式（每用例前重放 `lumber_course_terrain` + `_trees` 保证独立）：
+
+| 用例 | 注入 | 断言 |
+|---|---|---|
+| `no_candidates` | 扫描半径 2（范围外无树） | `FAILED no_reachable_candidate` |
+| `all_rejected` | 只把 2×2 超大树（77 原木）圈进半径 | `FAILED no_reachable_candidate` + 理由码 `too_large` |
+| `inventory_full` | 背包 36 格塞满圆石（跑完恢复） | `DONE inventory_full`，**未动世界** |
+| `goal_timeout` | `maxTicks=40` | `FAILED goal_timeout` 且 `ticks ≤ 120`（**不空转**） |
+| `log_replaced` | Job **选完树后**把队列首格换成圆石 | 该格**仍是圆石**（bot 没挖非原木）+ 改砍下一棵并 `DONE quota_met` |
+
+最后一条的断言是"**那一格仍是圆石**"——比字符串匹配硬：直接证明 bot 没有拆掉玩家的方块。
+
+**验证等级**：COMPILES。待客户端 `alice:lumber_failure_check` → `SUMMARY … → PASS`。
