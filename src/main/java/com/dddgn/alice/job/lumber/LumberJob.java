@@ -13,6 +13,7 @@ import com.dddgn.alice.task.CollectDropsTask;
 import com.dddgn.alice.task.MineTask;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
+import com.dddgn.alice.task.mining.LineOfSightChecker;
 import com.dddgn.alice.task.mining.MiningBudget;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.ItemTags;
@@ -41,6 +42,9 @@ public final class LumberJob implements Job {
 
     public static final String NAME = "lumber";
 
+    /** 单棵树的清障预算（`JOB_LAYER_DESIGN.md` §9-4：≤8 格/棵）。 */
+    private static final int MAX_CLEAR_PER_TREE = 8;
+
     private final BotPlayer bot;
     private final GoalSpec spec;
     private final ScopeBuffer scope;
@@ -56,6 +60,8 @@ public final class LumberJob implements Job {
     private int choppedLogs;
     private final List<String> failedLogs = new ArrayList<>();
     private MineTask miner;
+    private MineTask clearTask;
+    private int clearedBlocks;
     private CollectDropsTask collector;
     private String terminalReason = "";
     private String failure = "";
@@ -99,7 +105,7 @@ public final class LumberJob implements Job {
     public String progressSummary() {
         int total = queue.isEmpty() ? 0 : queue.size();
         return "logs " + choppedLogs + "/" + total + " trees " + (terminated && failure.isEmpty() ? 1 : 0)
-                + "/" + spec.quota();
+                + "/" + spec.quota() + (clearedBlocks > 0 ? " cleared=" + clearedBlocks : "");
     }
 
     @Override
@@ -156,6 +162,22 @@ public final class LumberJob implements Job {
             return Task.Status.RUNNING;
         }
         BlockPos log = queue.get(queueIndex);
+        // 清障子任务优先推进（兜底路径：最底那根只能从侧面挖时，树冠可能挡住视线的场景）
+        if (clearTask != null) {
+            Task.Status clearStatus = clearTask.tick();
+            if (clearStatus == Task.Status.RUNNING) {
+                return Task.Status.RUNNING;
+            }
+            clearTask = null;
+            if (clearStatus == Task.Status.DONE) {
+                clearedBlocks++;
+            } else {
+                failedLogs.add(log.toShortString() + ":clear_failed");
+                miner = null;
+                queueIndex++;
+            }
+            return Task.Status.RUNNING;
+        }
         if (miner == null) {
             DecisionTrace.step(jobName(), "CUT", log.toShortString(),
                     "log " + (queueIndex + 1) + "/" + queue.size());
@@ -169,9 +191,24 @@ public final class LumberJob implements Job {
         }
         if (status == Task.Status.DONE) {
             choppedLogs++;
-        } else {
-            failedLogs.add(log.toShortString() + ":" + miner.failureReason());
+            miner = null;
+            queueIndex++;
+            return Task.Status.RUNNING;
         }
+        if ("LINE_OF_SIGHT_BLOCKED".equals(miner.failureReason()) && clearedBlocks < MAX_CLEAR_PER_TREE) {
+            BlockPos blocker = LineOfSightChecker.checkFromEye(bot.serverLevel(), bot.getEyePosition(), log)
+                    .getFirstBlocker();
+            if (blocker != null && SoftBlockPolicy.isClearable(bot, bot.serverLevel(), blocker, log)) {
+                DecisionTrace.step(jobName(), "CLEAR", blocker.toShortString(),
+                        "blocking " + log.toShortString() + " clear=" + (clearedBlocks + 1)
+                                + "/" + MAX_CLEAR_PER_TREE);
+                clearTask = new MineTask(bot, blocker, scope,
+                        MiningBudget.forTarget(bot, bot.serverLevel(), blocker, false));
+                miner = null;   // 保留 queueIndex：清完重试同一根
+                return Task.Status.RUNNING;
+            }
+        }
+        failedLogs.add(log.toShortString() + ":" + miner.failureReason());
         miner = null;
         queueIndex++;
         return Task.Status.RUNNING;

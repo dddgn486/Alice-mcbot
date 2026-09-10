@@ -48,8 +48,13 @@ public final class StandingPointSelector {
                 }
             }
         }
-        // y−2 … y−4：只允许正下方
-        for (int k = 2; k <= 1 + BELOW_LEVELS; k++) {
+        // 正下方：深度按触及推导（与 tunnelCandidates 同口径 `k ≤ reach + 1.54`）。
+        // 2026-09-10 修正：原固定 `y−2…y−(1+BELOW_LEVELS=3)` 只到下方 4 格，
+        // 使"掏空树干后站在里面仰望上方原木底面"的伐木策略最多只支持 5 格树干；
+        // 按触及推导后可达下方第 5 格（6 格树干），且新增候选仍必须通过 isValidStandingPoint
+        // （可站 + 视线 + 触及），不会引入不合法站位。
+        int belowDepth = Math.max(1 + BELOW_LEVELS, (int) Math.floor(reach + 1.54D));
+        for (int k = 2; k <= belowDepth; k++) {
             addCandidate(level, target, target.below(k), reach, result);
         }
         return result;

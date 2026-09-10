@@ -9,7 +9,6 @@ import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
@@ -60,7 +59,17 @@ public final class TreeScanner {
                 continue;
             }
             boolean tooLarge = logs.size() > MAX_LOGS;
-            logs.sort(Comparator.comparingInt(BlockPos::getY));
+            // 层级优先：先砍完一层的所有列，再上下一层。
+            // 理由（用户指出的机制）：自下而上砍完后站进掏空的树干里仰望上方原木底面即可，
+            // 不需要清理树叶；但 2×2 树干必须"同层各列都先空出来"，侧向的视线通路才成立。
+            logs.sort((a, b) -> {
+                int compare = Integer.compare(a.getY(), b.getY());
+                if (compare != 0) {
+                    return compare;
+                }
+                compare = Integer.compare(a.getX(), b.getX());
+                return compare != 0 ? compare : Integer.compare(a.getZ(), b.getZ());
+            });
             trees.add(new Tree(base, logs, speciesOf(level.getBlockState(base)),
                     hasCanopy(level, logs), tooLarge));
         }

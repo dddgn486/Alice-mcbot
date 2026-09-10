@@ -52,6 +52,16 @@ public final class LineOfSightChecker {
                 ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, null));
     }
 
+    /**
+     * 目标的可视面采样点（中心 + 6 个**面心**，各向内缩 `losSampleEpsilon`）。
+     *
+     * <p>公开给需要"离线可行性估算"的调用方（例如伐木 Job 判断"掏空树干后从下方仰望能否看见"），
+     * 保证与运行期判定**同口径**——不允许在别处再写一份面心公式。
+     */
+    public static List<Vec3> samples(BlockPos target) {
+        return targetSamples(target);
+    }
+
     private static List<Vec3> targetSamples(BlockPos target) {
         double x = target.getX();
         double y = target.getY();

@@ -5,6 +5,11 @@ import com.dddgn.alice.job.CandidateSet;
 import com.dddgn.alice.job.CandidateSource;
 import com.dddgn.alice.job.GoalSpec;
 import com.dddgn.alice.protection.SafeZoneData;
+import com.dddgn.alice.pathing.MovementHelper;
+import com.dddgn.alice.task.mining.LineOfSightChecker;
+import com.dddgn.alice.task.mining.MiningTuning;
+import net.minecraft.world.phys.Vec3;
+import com.dddgn.alice.task.mining.MiningBudget;
 import com.dddgn.alice.task.mining.StandingPointSelector;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -54,21 +59,49 @@ public final class LumberCandidateSource implements CandidateSource {
                 rejected.add(id + ":protected");
                 continue;
             }
+            // 掏空后可以站进去的"柱底"格子：本树原木格，且其下方不是本树原木（= 真实地面）
+            List<BlockPos> anchorStands = anchorStands(level, tree);
             int unreachable = 0;
+            int deferred = 0;
+            int softBlocked = 0;
+            int noise = 0;
             for (BlockPos log : tree.logsBottomUp()) {
-                if (StandingPointSelector.generateCandidates(level, log, bot.blockPosition(), reach).isEmpty()) {
-                    unreachable++;
+                if (!StandingPointSelector.generateCandidates(level, log, bot.blockPosition(), reach).isEmpty()) {
+                    continue;   // 现在就能看见
+                }
+                unreachable++;
+                if (deferredReachable(level, tree, log, anchorStands, reach)) {
+                    // 现在看不见，但**自下而上砍完后站进掏空的树干里仰望底面**即可：
+                    // 底面不会被树叶遮（树叶在侧面/顶上），因此不需要清障。
+                    deferred++;
+                    continue;
+                }
+                BlockerDiagnosis diagnosis = diagnoseBlocker(level, bot, log, reach);
+                if (diagnosis == BlockerDiagnosis.SOFT) {
+                    softBlocked++;
+                } else {
+                    noise++;
                 }
             }
-            if (unreachable == tree.logCount()) {
+            if (noise == tree.logCount()) {
                 rejected.add(id + ":no_stand");
                 continue;
             }
-            if (unreachable > 0) {
-                rejected.add(id + ":trunk_too_tall(unreachable=" + unreachable + ")");
+            if (noise > 0) {
+                // 硬遮挡（石头/建筑/超触及）：不允许清障，如实拒绝
+                rejected.add(id + ":trunk_too_tall(unreachable=" + unreachable
+                        + ",hard=" + noise + ")");
                 continue;
             }
-            viable.add(new Candidate(tree.base(), "tree", features(level, bot, tree)));
+            // 全部"可见 或 仅被软遮挡（树叶等）" → 可行；执行期按预算清障（§5.4）
+            Map<String, String> features = features(level, bot, tree);
+            if (deferred > 0) {
+                features.put("deferred", Integer.toString(deferred));
+            }
+            if (softBlocked > 0) {
+                features.put("clear", Integer.toString(softBlocked));
+            }
+            viable.add(new Candidate(tree.base(), "tree", features));
         }
         return new CandidateSet(viable, rejected);
     }
@@ -81,6 +114,74 @@ public final class LumberCandidateSource implements CandidateSource {
             }
         }
         return null;
+    }
+
+    /** 掏空后可以站进去的柱底格（本树原木格，且下方不是本树原木 → 是真实地面）。 */
+    private static List<BlockPos> anchorStands(ServerLevel level, Tree tree) {
+        List<BlockPos> stands = new ArrayList<>();
+        for (BlockPos cell : tree.logs()) {
+            if (tree.logs().contains(cell.below())) {
+                continue;   // 下方是本树原木 → 掏空后没有支撑，站不住
+            }
+            if (MovementHelper.canWalkOn(level, cell.below())) {
+                stands.add(cell);
+            }
+        }
+        return stands;
+    }
+
+    /**
+     * "先砍下方、再站进去仰望"是否可达（**几何判定，不改世界**）。
+     *
+     * <p>成立条件：存在一个柱底格（掏空后能站），且眼位到该原木**最近面心**的距离在保守触及内。
+     * 同列时中间格必然是本树原木（会被掏空），相邻列（2×2 树干）由"同层优先"的砍伐顺序保证先空出来；
+     * 真正的视线是否通，**由运行期如实裁决**（挖不动就报 `partial_tree`，不在这里假装成功）。
+     */
+    private static boolean deferredReachable(ServerLevel level, Tree tree, BlockPos log,
+                                             List<BlockPos> anchorStands, double reach) {
+        double limit = reach - MiningTuning.reachMargin();
+        for (BlockPos stand : anchorStands) {
+            if (stand.equals(log)) {
+                continue;
+            }
+            int dx = Math.abs(stand.getX() - log.getX());
+            int dz = Math.abs(stand.getZ() - log.getZ());
+            if (dx > 1 || dz > 1) {
+                continue;   // 只对同列/相邻列成立
+            }
+            Vec3 eye = StandingPointSelector.eyeAt(stand);
+            double best = Double.MAX_VALUE;
+            for (Vec3 sample : LineOfSightChecker.samples(log)) {
+                best = Math.min(best, eye.distanceTo(sample));
+            }
+            if (best <= limit) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 遮挡诊断：软（树叶等，可限次清除）/ 硬（石头、建筑、超触及）。 */
+    private enum BlockerDiagnosis { SOFT, HARD }
+
+    private static BlockerDiagnosis diagnoseBlocker(ServerLevel level, ServerPlayer bot, BlockPos log,
+                                                    double reach) {
+        // 先用几何候选集找一个**可站立**的观察位（不要求它看得见），从那里判遮挡
+        double maxExtra = MiningBudget.forTarget(bot, level, log, false).maxExtraBreakTicks();
+        for (BlockPos pos : StandingPointSelector.tunnelCandidates(bot, level, log, reach, maxExtra)) {
+            if (!StandingPointSelector.isStandable(level, pos)) {
+                continue;
+            }
+            LineOfSightChecker.LineOfSightResult los = LineOfSightChecker.checkFromEye(
+                    level, StandingPointSelector.eyeAt(pos), log);
+            BlockPos blocker = los.getFirstBlocker();
+            if (blocker == null) {
+                return BlockerDiagnosis.HARD;
+            }
+            return SoftBlockPolicy.isClearable(bot, level, blocker, log)
+                    ? BlockerDiagnosis.SOFT : BlockerDiagnosis.HARD;
+        }
+        return BlockerDiagnosis.HARD;
     }
 
     private static String id(Tree tree) {

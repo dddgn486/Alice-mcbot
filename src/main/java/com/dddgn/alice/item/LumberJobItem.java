@@ -55,6 +55,14 @@ public class LumberJobItem extends Item {
             }
             return InteractionResult.SUCCESS;
         }
+        // 夹具职责：把 bot 放进场景起点。场景是孤立平台，上一轮的位置到此**没有可行走路径**，
+        // 若不传送，每个子任务都会在规划阶段如实报 found_but_unminable（J1 首测即为此故障）。
+        bot.teleportTo(level, LumberCourseAnchor.START_FOOT.getX() + 0.5D,
+                LumberCourseAnchor.START_FOOT.getY(), LumberCourseAnchor.START_FOOT.getZ() + 0.5D,
+                java.util.Set.of(), bot.getYRot(), bot.getXRot());
+        bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+        bot.controller().stopMovement();
+
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
         if (!BotManager.assignLumberJob(bot, observer)) {
             if (player != null) {
