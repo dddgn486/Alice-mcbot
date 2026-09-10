@@ -67,8 +67,40 @@ def solid(block: str) -> bool:
     return base_name(block) not in NON_SOLID
 
 
+class FixtureWorld:
+    """从数据包函数（setblock/fill 行）重建方块表——夹具即真相，不需要客户端跑过场景。"""
+
+    def __init__(self, path: str):
+        self.blocks = {}
+        self._loaded = False
+        self._path = path
+
+    def _load(self):
+        with open(self._path, encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = line.split()
+                if parts[0] == "setblock":
+                    self.blocks[(int(parts[1]), int(parts[2]), int(parts[3]))] = parts[4]
+                elif parts[0] == "fill":
+                    x1, y1, z1, x2, y2, z2 = (int(v) for v in parts[1:7])
+                    block = parts[7]
+                    for x in range(min(x1, x2), max(x1, x2) + 1):
+                        for y in range(min(y1, y2), max(y1, y2) + 1):
+                            for z in range(min(z1, z2), max(z1, z2) + 1):
+                                self.blocks[(x, y, z)] = block
+        self._loaded = True
+
+    def block_at(self, x, y, z) -> str:
+        if not self._loaded:
+            self._load()
+        return self.blocks.get((x, y, z), "minecraft:air")
+
+
 class Scene:
-    def __init__(self, world: str, start, end):
+    def __init__(self, world, start, end):
         self.world = world
         self.start = start
         self.end = end
@@ -154,6 +186,8 @@ def stand_candidates(scene: Scene, tx, ty, tz):
 
 def can_see(scene: Scene, stand, target) -> bool:
     sx, sy, sz = stand
+    if stand == target or stand == (target[0], target[1] + 1, target[2]):
+        return False   # 与 Java isValidStandingPoint 一致：目标自身/正上方不算站位
     if not scene.standable(sx, sy, sz):
         return False
     ex, ey, ez = eye(sx, sy, sz)
@@ -171,17 +205,74 @@ def visible_from_any_stand(scene: Scene, target) -> bool:
     return False
 
 
-def first_blocker(scene: Scene, target):
-    """从任一可站立观察位看过去，遇到的第一个遮挡方块。"""
-    for stand in stand_candidates(scene, *target):
-        if not scene.standable(*stand):
+def clearable(scene: Scene, pos) -> bool:
+    """统一规则（2026-09-10 用户裁定）：可清 = 有碰撞 且 非原木（原木是目标）。
+
+    近似 Java 的 BlockInteraction.breakable：保护区/不可破坏/流体未在此模拟（夹具里没有这些）。
+    """
+    block = scene.at(*pos)
+    return solid(block) and not is_log(block)
+
+
+def ray_blockers(scene: Scene, origin, sample, target):
+    """沿射线收集阻挡方格；命中目标返回阻挡集合，未命中返回 None（与 Java 同口径，步长 0.05）。"""
+    distance = math.dist(origin, sample)
+    steps = max(1, math.ceil(distance / 0.05))
+    blockers = set()
+    for i in range(1, steps + 1):
+        ratio = i / steps
+        point = tuple(o + (s - o) * ratio for o, s in zip(origin, sample))
+        cell = (math.floor(point[0]), math.floor(point[1]), math.floor(point[2]))
+        if cell == target:
+            return blockers
+        if scene.solid(*cell):
+            blockers.add(cell)
+    return None
+
+
+def geometric_stands(target):
+    stands = []
+    for dx, dz in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        stands.append((target[0] + dx, target[1], target[2] + dz))
+        stands.append((target[0] + dx, target[1] - 1, target[2] + dz))
+    for k in range(2, int(math.floor(REACH + 1.54)) + 1):
+        stands.append((target[0], target[1] - k, target[2]))
+    return stands
+
+
+def clear_plan_count(scene: Scene, log, budget: int) -> int:
+    """返回"清几格后可挖"的格数；不可行返回 -1（镜像 Java BlockerClearPlanner.clearPlanCount）。"""
+    if budget <= 0:
+        return -1
+    limit = EFFECTIVE
+    for stand in geometric_stands(log):
+        if not scene.solid(stand[0], stand[1] - 1, stand[2]):
+            continue
+        clears = 0
+        ok = True
+        for cell in (stand, (stand[0], stand[1] + 1, stand[2])):
+            if not scene.solid(*cell):
+                continue
+            if clearable(scene, cell):
+                clears += 1
+            else:
+                ok = False
+                break
+        if not ok or clears > budget:
             continue
         ex, ey, ez = eye(*stand)
-        for sample in samples(*target):
-            hit = first_solid(scene, (ex, ey, ez), sample)
-            if hit is not None and hit != target:
-                return hit
-    return None
+        for sample in samples(*log):
+            if math.dist((ex, ey, ez), sample) > limit:
+                continue
+            blockers = ray_blockers(scene, (ex, ey, ez), sample, log)
+            if blockers is None:
+                continue
+            if not all(clearable(scene, b) for b in blockers):
+                continue
+            total = clears + len(blockers)
+            if total <= budget:
+                return total
+    return -1
 
 
 def scan_trees(scene: Scene, start, end):
@@ -254,12 +345,16 @@ def deferred_reachable(scene: Scene, logs, log):
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--world", required=True)
+    parser.add_argument("--world", help="存档目录（含 region/）")
+    parser.add_argument("--fixture", help="数据包函数文件（.mcfunction）——离线优先用它")
     parser.add_argument("--from", dest="start", nargs=3, type=int, required=True)
     parser.add_argument("--to", dest="end", nargs=3, type=int, required=True)
     args = parser.parse_args()
+    if not args.world and not args.fixture:
+        parser.error("需要 --world 或 --fixture 之一")
 
-    scene = Scene(cap.World(args.world), args.start, args.end)
+    world = FixtureWorld(args.fixture) if args.fixture else cap.World(args.world)
+    scene = Scene(world, args.start, args.end)
     trees = scan_trees(scene, args.start, args.end)
     print("发现 %d 棵树\n" % len(trees))
     header = ("% -22s %-12s %5s %5s %7s %8s %5s %5s   %s" %
@@ -277,9 +372,9 @@ def main() -> int:
             if deferred_reachable(scene, logs, log):
                 deferred += 1
                 continue
-            blocker = first_blocker(scene, log)
-            if blocker is not None and is_leaves(scene.at(*blocker)):
-                soft += 1
+            plan = clear_plan_count(scene, log, 8 - soft)
+            if plan >= 0:
+                soft += plan
             else:
                 hard += 1
         height = logs[-1][1] - logs[0][1] + 1
