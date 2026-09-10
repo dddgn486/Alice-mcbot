@@ -98,7 +98,7 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 | 寻路回归复验（R2b 后） | 右键 `alice:pathing_regression` | 14 场景全 PASS，含全部写入型 `BREAK_AND_TRAVERSE`/`DOWNWARD`/`PILLAR`/`PLACE_STEP`/`BREAK_AND_ENTER`；`UNAUTHORIZED_MOVEMENT` 必须为 0 | `WINDOWS_CLIENT`（2026-09-10 20:27:29 全 PASS，`terminal=COMPLETED`；越权检查命中 0） |
 | 世界写入授权审计（D-082） | 任意任务跑一次，看 `[WRITE]` 行与终态 `writes … unknown=` | `by=<任务身份>:<REASON>`；`unknown=0`（计数为**会话累计**，跨任务不重置） | `WINDOWS_CLIENT`（2026-09-10：`by=MineRegressionTask:EXPECTED_TARGET` / `SUPPORT_PLACEMENT` / `lumber:LINE_OF_SIGHT`，全程 `unknown=0`） |
 
-| L3 伐木 Job（D-080，切片 **J2**：循环 + 配额 + 终止） | `/function alice_test:lumber_course` + `alice:lumber_job` | 普通右键 | 配额 **2 棵**；场景 4 棵树 / 3 棵可行（橡树`20,64,208`、复制橡树`29,64,215`、云杉`28,64,208`）/ 高大云杉被拒 | `待测`（预期 `result=DONE reason=quota_met`、`trees 2/2`、`inventoryDelta≥8`、`unknown=0`；两棵橡树各清障 3~4 格 → 验证按棵预算重置） |
+| L3 伐木 Job（D-080，切片 **J2**：循环 + 配额 + 终止） | `/function alice_test:lumber_course` + `alice:lumber_job` | 普通右键 | 配额 **2 棵**；场景 4 棵树 / 3 棵可行（橡树`20,64,208`、复制橡树`29,64,215`、云杉`28,64,208`）/ 高大云杉被拒 | `WINDOWS_CLIENT` + `USER_ACCEPTED`（2026-09-10 20:43：`result=DONE reason=quota_met`、`trees 2/2`、`logs 14/15`、`cleared=6`、`inventoryDelta=14`、`unknown=0`、`ticks=1152`）。顺序 = 橡树(20,64,208) → 云杉(28,64,208) → 复制橡树(29,64,215)（距离 3.2/5.1/10.0）；云杉如实报 `该树未完成 28,64,208:partial_tree gained=6/7 failed=28,70,208:no_reachable_standing_point`（**已知高树触及上限**，4.46>4.1，属 J7 攀爬范围）；循环走 `phase=NEXT` ✓。**注**：累计清障仅 6 格（<8），故本场景只是 `clearedThisTree` 按棵重置的*潜在*回归，真要逼出该缺陷需跨树累计 >8 格 |
 
 ## 性能验证
 

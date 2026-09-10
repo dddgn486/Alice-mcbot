@@ -1826,3 +1826,30 @@ retire item=… reason=cluster_budget itemPos=24,64,189 inRange=false
 若预算没按棵重置，第二棵橡树会在累计 8 格后 `clear_budget` 失败。
 
 **验证等级**：COMPILES。待客户端实测。
+
+---
+
+## D-088 走位时仰着头：视线是"瞬时"还是"永久"（2026-09-10）
+
+**现象（用户客户端实测）**：bot 在**换树的长距离走位**中**整段仰着头**，走到站位才恢复。
+只在这种长距离走位明显；挖完单根原木后的小走位不易察觉。
+
+**根因（代码事实）**：`BlockBreakSession:99` 在开始破坏时调 `BlockInteraction.faceBlock`
+把视线对准被挖方块；伐木自下而上、越挖越高 → 俯仰角为**仰视**。
+而 `BlockInteraction.faceTowards`（`:81-92`）是**永久写入** `setYRot/setXRot`，
+`PathSession` 与 `MineBlockRunner` **都不碰俯仰角** → 破坏结束后那段走位一路沿用仰视角。
+
+**这是对 Baritone 的一处未登记偏离**：Baritone `behavior/LookBehavior.java:96-125` 把"看向某处"
+当作**逐 tick 瞬时**行为——`PRE` 写入目标旋转，`POST` 用 `prevRotation` **恢复**玩家原旋转
+（`Target.Mode.SERVER` 分支）。所以 Baritone 走路时不会被上一次交互的俯仰角粘住。
+
+**已实施（A，最小改动）**：`PathSession.startSegment` 在每段起点把 `xRot` 归零。
+安全性依据：需要特定视线的 Movement 会**自行设置**——`FallExecution`/`PillarExecution`
+有 `faceTowards`；破坏/放置在动作层 `faceBlock`/`placeAt` 设置（逐个核对过其余 Movement 为 0 处）。
+
+**已登记待办（B，用户裁定"先 A 后 B"）**：对齐 Baritone 完整形态 =
+「交互期临时写入 + 结束恢复 `prevRotation`」，即给 `BlockBreakSession` 加保存/恢复
+（约 8 个调用点：`MineBlockRunner` + 5 个执行器 + legacy movement）。
+B 完成后本处的归零可以撤掉——归零是"掩盖症状"，恢复才是"消除症状"。
+
+**验证等级**：COMPILES。待客户端目视确认（走位时是否平视）。

@@ -235,6 +235,18 @@ public final class PathSession {
 
     private void startSegment() {
         PlannedMovement movement = movements.get(index);
+        // 走路视线归位（D-088，修 2026-09-10 用户实测的"走位时仰着头"）：
+        // 对照 Baritone `behavior/LookBehavior.java:96-125`——它把"看向某处"当作**逐 tick 瞬时**行为
+        // （PRE 写入目标旋转，POST 用 `prevRotation` 恢复），所以走路时不会粘住上一次交互的俯仰角。
+        // Alice 的 `BlockInteraction.faceTowards` 是**永久写入**（无人复位）：伐木自下而上挖高处原木时
+        // 仰视，破坏结束后那段走位就一路仰头（实测：整段换树走位都仰着，走到站位才恢复）。
+        // 归零放在段起点是安全的：需要特定视线的 Movement 会自行设置
+        // （`FallExecution`/`PillarExecution` 有 `faceTowards`；破坏/放置在动作层 `faceBlock`/`placeAt`）。
+        // TODO(D-088-B)：对齐 Baritone 的完整形态 = "交互期临时写入 + 结束恢复 prevRotation"
+        // （给 `BlockBreakSession` 加保存/恢复），届时本处归零可撤。
+        if (bot.getXRot() != 0.0F) {
+            bot.setXRot(0.0F);
+        }
         MovementSpec spec = PlannedMovementSpecs.toSpec(movement,
                 List.of("session_segment", "target_support", "target_body_clear", "target_head_clear"));
         boolean finalSegment = index == movements.size() - 1;
