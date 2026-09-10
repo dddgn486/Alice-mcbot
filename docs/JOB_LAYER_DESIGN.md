@@ -1,0 +1,292 @@
+# L3 目标级任务层（Job）设计 —— 伐木作为第一消费者
+
+> 状态：**设计草案 v1**，待用户裁定 §9 的 5 项后转实施。
+> 定位：这是 [D-073](AI_DECISIONS.md) 立的「伐木专项」落地设计，也是"决策层"的第一块地基。
+> 前置裁定（2026-09-10，用户同意）：**新增 `Job` 层组合现有 `Task`，不扩展 `Task` 契约**（L2 已验收，保持不动）。
+
+## §0 结论摘要
+
+1. **缺口是 L3（目标级编排），不是 LLM。** `Task` 契约只支持"单目标单发"，高级任务无处安放——旧伐木 1037 行就是两个任务各造一套循环。
+2. **L3 只做四件事**：选目标 → 生成子任务 → 记账 → 终止。移动/挖掘/收集**全部复用已验收的 L2**。
+3. **决策缝三件套**：`CandidateSource`（候选从哪来）+ `SelectionPolicy`（选哪个，带理由）+ `DecisionTrace`（可判读）。第一版就有 **2 个真实策略** + **2 个真实候选源**（树 / 挖矿），不产生空抽象。
+4. **完成判据 = 产物入包**（原始设计 §4.2 标准 3），用背包增量，与 `CollectDropsTask` 同口径。
+5. **验收标准要升级**：L3 必须新增三类断言——**决策可判读 / 不变量 / 终止与恢复**；现有「场景 + SUMMARY」只能验收 L2。
+
+---
+
+## §1 目标与非目标
+
+**目标**
+- 让"目标"成为一等公民：一个 `GoalSpec`（配额 + 终止条件 + 范围）驱动一个 `Job`，`Job` 内部多步推进直到达成或**如实终止**。
+- 让"选哪个"可判读、可断言、可替换（rule-based → 将来 LLM 用同一接口）。
+
+**非目标（本轮明确不做）**
+- ❌ LLM 接入（只留 `SelectionPolicy` 接口，不实现任何模型调用）
+- ❌ 风险画像 / 维生"去向"（属横切，见 §10；它们需要 L3 作为消费者才不变成死抽象）
+- ❌ 多 bot 并行、生产流水线（AE）、战斗
+- ❌ 攀爬超高的树（v1 拒绝并给理由，见 §9-3）
+
+---
+
+## §2 现状证据与教训
+
+### 2.1 `Task` 契约是单目标单发
+
+```java
+public interface Task {
+    TaskTarget target();                    // ← 一个目标
+    Status tick();
+    String failureReason();
+    enum Status { RUNNING, DONE, FAILED }   // ← 没有"进度/配额/子目标"
+}
+```
+
+`BotManager` 有 ~20 个 `assignXxx` 入口，**全部是"单目标单发"**；`decision` 包只有 78 行的 `AutoMineDecision`，且只被 `/alice auto-mine <tag>` 一条命令调用（任务层无法复用）。
+
+### 2.2 旧伐木代码的教训：六件事被两个任务各写两遍
+
+被 D-073 删除的 `ContinuousLumberTask`（531 行）与 `RegionLumberTask`（505 行）：
+
+| 职责 | Continuous | Region | **新归属（本设计）** |
+|---|---|---|---|
+| 目标选择 | `handleScanning` + `findTreeBase` + `countNearbyLogs` | `scanTrees` + `selectNextTree` | **L3**：`CandidateSource` + `SelectionPolicy` |
+| 树识别 / 树模型 | `TreeDetector` / `Tree` / `TreeType`（两者共用） | 同 | **领域模块**：`TreeScanner` / `Tree`（保留并修正，见 §5.1） |
+| 状态机 | 自带 `Phase{SCANNING,CUTTING,COLLECTING}` | 自带 `Phase` 枚举 | **L3**：`Job` 单一状态机 |
+| 移动 | 藏在 `BotMiner` 内 | **`moveTowards`（自制直线移动）** | **复用 L2/L1**：`MineTask` / `WalkToTask` |
+| 视线清障 | `clearDepth` + `MAX_CLEAR_DEPTH=3` | `findLeafBlocker` + `clearDepth` | **动作层限次能力**（§5.4） |
+| 收集掉落物 | `handleCollecting` + `collectTicks=40` | `trackNearbyDrops` + `handleCollecting` | **复用 L2**：`CollectDropsTask` |
+| 记账 / 终止 | 自带计数 | `treesCut` + `startTime` | **L3**：`GoalProgress` |
+
+> 结论：旧代码不是"写得烂"，而是**没地方放**。本设计让每件事**各归其位、只写一遍**；`Job` 只剩"决策 + 记账 + 终止"。
+
+### 2.3 一处文档债（本轮发现）
+
+`docs/MINE_MIGRATION_DESIGN.md:126` 仍写着「清障：保留 `MAX_CLEAR_DEPTH = 2`（视线直接遮挡 → 挖掉遮挡块）」，
+但**现行实现没有独立清障**：`MineTask` javadoc 明确"不再有独立清障：挡路方块由规划器的模式 B 处理"（D-071），
+`MineBlockRunner` 遇遮挡只报 `LINE_OF_SIGHT_BLOCKED`（可重试）→ 重规划 ≤2 次 → 升级失败。
+建议随本设计一并更正为「清障归 L3 Job，限次 + 预算内（§5.4）」。
+
+---
+
+## §3 架构
+
+```
+玩家命令 / 未来的 LLM                    ← 目标来源（本轮只有玩家）
+        │  GoalSpec(配额 + 终止 + 范围 + 预算)
+        ▼
+   Job（L3）  ── 选目标 → 生成子任务 → 记账 → 终止
+        ├── CandidateSource   （TreeScanner / MineScanner）
+        ├── SelectionPolicy   （NearestPolicy / NearestExposedPolicy / 将来 LLM）
+        └── DecisionTrace     （机器可判读）
+        │  单个子目标
+        ▼
+   现有 Task（L2，**零改动**）：MineTask / CollectDropsTask / WalkToTask / PlaceTask
+        │
+        ▼
+   L1 寻路内核 + L0 动作原语（已验收）
+```
+
+**接入方式（最小改动）**：`Job implements Task`。
+`BotSession.beginTask(Task, TaskTarget)` 已存在 → **L3 接入不需要改 `BotManager`/`BotSession` 的既有调度**。
+唯一需要的 5 行改动：`BotSession.tick()` 里比较 `task.target()` 与 `session.target`，变化时更新并 `broadcastTarget`（子目标高亮跟随）。
+
+---
+
+## §4 契约
+
+```java
+// ── 目标规格：一次 Job 的全部外部输入 ──
+public record GoalSpec(
+        Kind kind,                 // COLLECT_ITEMS | HARVEST_UNITS | UNTIL_FULL
+        int quota,                 // 配额（COLLECT_ITEMS=物品数；HARVEST_UNITS=棵/块数）
+        BlockPos center, int radius,
+        int maxTicks,              // 硬上限（必须存在：禁止空转）
+        boolean stopWhenFull,      // 背包满即停（计入 DONE）
+        TagKey<Item> productTag    // 产物判定（伐木 = minecraft:logs）
+) {}
+
+// ── 候选 ──
+public record Candidate(BlockPos anchor, String describe, Map<String, Object> features) {}
+
+public interface CandidateSource {
+    List<Candidate> candidates(ServerPlayer bot, GoalSpec spec);
+}
+
+// ── 选择：返回 null = 全部拒绝（必须带理由集）──
+public record Selection(Candidate picked, String reason, List<String> rejected) {}
+
+public interface SelectionPolicy {
+    Selection select(ServerPlayer bot, GoalSpec spec, List<Candidate> candidates);
+}
+
+// ── Job ──
+public interface Job extends Task {
+    String progressSummary();     // "原木 4/8 棵 1/3"
+}
+
+// ── 决策可判读（统一出口，不新建日志框架）──
+public final class DecisionTrace {
+    static void selection(String job, Selection selection, List<Candidate> all);
+    static void progress(String job, String phase, String detail);
+    static void terminal(String job, String result, String reason, String progress);
+}
+```
+
+**日志格式（机器可判读，约定死）**：
+
+```
+[Job] select job=lumber picked=tree@12,64,8 reason=nearest d=3.2 exposed=true logs=4
+      candidates=3 rejected=[tree@10,64,9:no_stand,tree@18,64,14:trunk_too_tall]
+[Job] step   job=lumber target=12,64,8 phase=CUT log=1/4
+[Job] terminal job=lumber result=DONE reason=quota_met progress=logs 4/4 ticks=210
+```
+
+---
+
+## §5 伐木领域设计
+
+### 5.1 树识别（`TreeScanner`）——保留旧知识，修正三个弱项
+
+**保留**：连通性 BFS 向上找原木、基座 = 最低原木、`getLogsInCutOrder()` 按 y 升序。
+
+**修正**（旧 `TreeDetector` 的已知弱项）：
+
+| # | 旧实现 | 问题 | 新实现 |
+|---|---|---|---|
+| 1 | 硬编码 8 种 `Blocks.OAK_LOG…` | 模组原木一律识别不出 | 用 `BlockTags.LOGS`（模组友好，符合"未知模组默认只读"原则） |
+| 2 | BFS 只搜"上行 3×3 + 正下方" | **2×2 深色橡木 / 红树气根会被拆成多棵** | 增加**同层水平 4 向**邻居；仍只向下 1 格（避免连到玩家建筑） |
+| 3 | `isValid()` 要求 `logs ≥ 4 && !leaves.isEmpty()` | 小树、被砍过一半的树**判不出**；且 5×5×5 逐原木扫叶会**串到邻树的树冠** | **不再要求有树叶才算树**；树叶只作**暴露度特征**，且扫描有上限 |
+| — | 无上限 | 玩家搭的原木墙会被当成"巨树" | `maxLogs`（默认 64）超出即不算树（记 `too_large`） |
+
+`Tree` 字段：`basePos`、`logs`（y 升序）、`species`（按原木方块映射，未知=UNKNOWN）、`trunkHeight`、`columnCount`、`hasCanopy`。
+
+### 5.2 可达性 = "能砍完"的可行性（v1 判据）
+
+**不做**"能不能走到树旁边"，而做**"这棵树能不能被完整砍掉"**：
+
+1. 从任一**可站立位置**（`StandingPointSelector` 口径）出发，对每个原木要求
+   `眼位 → 可见面采样点 ≤ reach`（与 `MineBlockRunner` 运行期同口径，含 `reachMargin`）；
+2. 允许**自下而上**推理：砍掉下方原木后，脚下地面不变 → 上方原木的可达性不变（v1 只做这一步，不做"站到树干缺口里"这种高级推理）；
+3. 全部满足 → 候选可行；否则拒绝并给理由码。
+
+**理由码表**（进 `DecisionTrace.rejected`）：
+
+| 码 | 含义 |
+|---|---|
+| `no_stand` | 周围没有可站立位置 |
+| `trunk_too_tall` | 最高原木超出触及（超出 reach） |
+| `los_blocked_permanent` | 视线遮挡且遮挡物不可破坏/超清障预算（§5.4） |
+| `protected` | 落在保护区（`SafeZoneData`，与 `AutoMineDecision` 同口径） |
+| `too_large` | 超过 `maxLogs`（疑似玩家建筑） |
+| `not_nearest` | 该策略下的排序劣势（**保留在 trace 里，用于解释"为什么不选它"**） |
+
+### 5.3 砍伐顺序与子任务分工
+
+- 顺序：`logs` 按 y 升序（**自下而上**，与旧 `getLogsInCutOrder()` 一致）；
+- 每个原木 = 一个 **`MineTask` 子任务**（复用已验收的规划→走位→破坏→收集）；但**收集不逐块做**：
+  - 子任务只负责"破坏这个原木"（`MineBudget.collectDrops=false`，D-070 已有该参数）；
+  - 整棵树（或整轮）砍完后由 Job 起**一次** `CollectDropsTask`（簇级 + 守恒校验）→ 避免"挖一格捡一次"（旧代码 `collectTicks=40` 每棵都等一次，是慢的主因之一）；
+- 工具：`BlockBreakSession` 已自动 `switchToBestToolFor` ✓ → Job 只保证背包里有斧。
+
+### 5.4 视线遮挡：限次 + 预算内 + 用现有遮挡位置
+
+**事实**：`LineOfSightChecker.LineOfSightResult.getFirstBlocker()` **已经返回遮挡方块坐标** → 不需要自制"找树叶"逻辑。
+
+流程：
+1. 子任务（`MineTask`）报 `LINE_OF_SIGHT_BLOCKED`；
+2. Job 取 `getFirstBlocker()` → 判定是否**可清除**：
+   - 必须是**可破坏**（`BlockInteraction.breakable`）且**不属于本树的原木**、**不在保护区**、**清除后确实能看见目标**（清除前先做一次模拟判定，避免"清了还是看不见"）；
+   - 默认白名单倾向保守：树叶 / 雪层 / 藤蔓 / 草（原木碰撞箱之外的软遮挡），其余一律拒绝；
+3. 作为**独立子任务**执行（`MineTask` on blocker），计入 `clearBudget`（默认 **≤ 8 格/棵**）；
+4. 超预算 → 该树拒绝 `los_blocked_permanent` → 选下一棵 + trace。
+
+**红线一致性（D-076）**：清障不是"寻路器自己挖"，而是 **Job 显式授权的独立子任务 + 硬预算**，与
+"收集子任务由调用方授予 `allowWorldModification`"同构。
+
+**不主动清树叶**：原木砍完后原版树叶会自然衰减（4 格内无原木即开始衰减），无需清理——旧代码的 `MAX_CLEAR_DEPTH=3` 整段逻辑永久删除。
+
+### 5.5 记账与完成判据
+
+- **产物入包**（原始设计 §4.2 标准 3）：`原木增量 = countInInventory(productTag) − 起始值 ≥ quota`；
+- 副产物（树苗/木棍/苹果）不计入配额，但**掉落物必须清零**（`scope.liveDrops().isEmpty()`）；
+- `HARVEST_UNITS`：**整棵砍完**才 +1（半棵不计数，防止"刷进度"）。
+
+---
+
+## §6 测试与验收（L3 三类断言）
+
+> 现有「一键物品 + 场景 + SUMMARY」标准**能验收 L0–L2，验收不了 L3** —— 它测"动作结果"，不测"**选对了哪个**"。
+
+### 6.1 场景 `lumber_course`（隔离区域、固定布局 → 期望选择唯一）
+
+| 树 | 布局 | 期望 |
+|---|---|---|
+| **A** | 距起点最近，但 3 面 + 顶被石头封死（需隧道，超预算） | `rejected=A:no_stand` |
+| **B** | 中等距离、露天、4 原木、有树冠 | **`picked=B`** |
+| **C** | 更远、6 原木 | `rejected=C:not_nearest`（nearest 策略下） |
+| **D** | 原木柱但位于保护区内 | `rejected=D:protected` |
+
+### 6.2 三类断言
+
+| 类 | 断言 |
+|---|---|
+| **a 决策可判读** | `[Job] select` 行必须含：候选总数、`picked`、理由（距离/暴露/原木数）、**每条被拒项的理由码**。固定布局下 `picked` 必须唯一确定 |
+| **b 不变量** | 原木增量 ≥ 该树 `logCount`；`dropsLeft=0`；**未破坏非目标方块**（场景快照比对：只允许 A–D 的原木与树冠变化）；不重复砍同一棵 |
+| **c 终止与恢复** | ① 配额达成 → `DONE reason=quota_met`；② 全部候选被拒 → `FAILED reason=no_reachable_candidate` + 理由集；③ 无候选且背包满 → `DONE reason=inventory_full`；④ 硬超时 → `FAILED reason=goal_timeout`（**不空转**）；⑤ 砍到一半原木被替换/消失 → 跳过该树并 trace，配额未达成且无候选则如实失败 |
+
+### 6.3 策略可替换性（为 LLM 铺路）
+
+同一场景、同一断言，**`NearestPolicy` 与 `NearestExposedPolicy` 必须给出不同且都可解释的选择**
+（例如 C 有树冠暴露而 B 被树冠半包时，exposed 策略应改选 C）→ 证明"策略是可替换的决策缝"，而不是写死的 if。
+
+**验证等级**：J1/J2 = `SERVER_TESTED` + `WINDOWS_CLIENT`（必须真人看到砍倒与入包）；J3/J4 = `SERVER_TESTED`（决策断言服务端可判读）+ 抽测。
+
+---
+
+## §7 实施切片
+
+| 片 | 内容 | 入口 | 完成判据 |
+|---|---|---|---|
+| **J1** | `GoalSpec` + `Job` 骨架 + `TreeScanner`/`Tree` + `NearestPolicy` + `DecisionTrace`；**只砍一棵、不循环** | `alice:lumber_job` 物品（零参数）+ `/function alice_test:lumber_course` | 选中 B 并砍完一棵 + 收集入包；`[Job] select/terminal` 可判读 |
+| **J2** | 循环 + 配额 + `GoalProgress` + 终止语义（§6.2c） | 同上（配额来自物品默认值/命令单参数） | `DONE quota_met`；不变量全过 |
+| **J3** | 第二个策略 `NearestExposedPolicy` + §6.3 策略可替换断言 | 同上 | 两策略选择不同且均可解释 |
+| **J4** | 理由集完备 + 失败场景（保护/替换/超时）+ §5.4 限次清障 | 同上 + 夹具注入 | 五条终止路径各有场景 |
+| **J5**（可选） | 把 `AutoMineDecision` 迁移为 `MineCandidateSource` + `MineJob` | `/alice job mine <tag>` | 同一套 Job/Trace 复用；**顺手消灭 78 行的不可复用孤岛** |
+
+> 排序理由：J1 证明"决策缝 + 复用"成立（最小可验证闭环）；J2 才引入配额与终止（长任务的真正难点）；J3/J4 补决策与失败语义；J5 证明 L3 不是伐木专用。
+
+---
+
+## §8 与既有决策的对齐
+
+| 决策 | 关系 |
+|---|---|
+| **D-073** | 本设计即其"伐木专项"落地；旧领域知识保留（§5.1），其六份重复全部归位（§2.2） |
+| **D-076** | Job 不新增隐式世界修改；清障是**显式授权子任务 + 硬预算**（§5.4），与收集子任务同构 |
+| **D-062 / 草案 P1-B** | 维生中断仍由 `BotSession` 统一处理，**Job 内不调用 `SurvivalSystem.tick`**（不重犯重复调用） |
+| **D-070** | 子任务用 `MiningBudget.collectDrops=false` 跳过逐块收集，Job 统一收一次（§5.3） |
+| **D-040** | 一切数值（清障预算、超时、扫描半径）按 Alice 实测标定，不照抄他人常量 |
+| **原始设计 §4.2** | 标准 2（搜索必排序、暴露优先）= `NearestExposedPolicy`；标准 3（完成=产物入包）= §5.5 |
+| **风险/维生草案** | **顺序上在本设计之后**：`RiskProfile` 的第一个真实读者 = Job 的候选筛选（"这棵树值不值得去"）；维生"去向" = Job 终止后的一次 `WalkToTask` |
+
+---
+
+## §9 待裁定（5 项）
+
+| # | 问题 | 我的倾向 |
+|---|---|---|
+| **1** | 接入形态：`Job implements Task` vs `BotSession` 加独立字段 | **`implements Task`**：现有调度零改动，只需 5 行让子目标高亮跟随 |
+| **2** | v1 配额类型 | 支持 `COLLECT_ITEMS` + `HARVEST_UNITS` + `maxTicks`；`UNTIL_FULL` 延后 |
+| **3** | 超出触及的高树 | v1 **拒绝并给理由**（`trunk_too_tall`）；攀爬（`PILLAR`）需单独立项 + 预算，且触及 D-076 红线 |
+| **4** | 视线限次清障 | **允许**（≤8 格/棵、白名单保守、每次可 trace）；若你要求更保守，可先只允许"树叶"一类 |
+| **5** | 砍到一半目标被替换/消失 | **跳过该树继续**（记 trace）；配额未达成且无候选 → `FAILED no_reachable_candidate` |
+
+---
+
+## §10 本设计**不**解决的问题（登记，避免误以为已覆盖）
+
+- LLM 接入（只留 `SelectionPolicy` 接口）
+- 风险画像 / 维生出口（横切，需 L3 作为消费者）
+- 攀爬高树、树苗补种、只砍指定树种（`species` 已记录但 v1 不做过滤）
+- 多 bot 并行（`MULTI_BOT_INTERFACE_RESERVATION.md` 的边界不变）
+- 异步决策（`PathingStats` 清空式约束不变，仍同步主线程）

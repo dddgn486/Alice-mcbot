@@ -24,6 +24,7 @@
 | [`R4_BARITONE_ALIGNMENT_AUDIT.md`](R4_BARITONE_ALIGNMENT_AUDIT.md) | 与 Baritone 的四层对照审计（未登记偏离/缺失清单） |
 | [`MINING_STAND_SELECTION_DESIGN.md`](MINING_STAND_SELECTION_DESIGN.md) | 挖掘站位选优设计（v7 定稿，两模式 + 成本估算） |
 | [`MINE_MIGRATION_DESIGN.md`](MINE_MIGRATION_DESIGN.md) | Mine 迁移设计与寻路红线（§6） |
+| [`JOB_LAYER_DESIGN.md`](JOB_LAYER_DESIGN.md) | **L3 目标级任务层（`Job`）设计**：决策缝三件套 + 伐木第一消费者（D-073 专项） |
 | [`ALIGNMENT_OPEN_QUESTIONS.md`](ALIGNMENT_OPEN_QUESTIONS.md) | 待决对齐问题（Q1/Q3/Q4/Q7…） |
 | [`RISK_MODES_DISCUSSION.md`](RISK_MODES_DISCUSSION.md) | 风险模式 H/G/S 讨论（只讨论，未实现） |
 | [`MULTI_BOT_INTERFACE_RESERVATION.md`](MULTI_BOT_INTERFACE_RESERVATION.md) | 多 bot 并行接口预留 |
