@@ -192,6 +192,9 @@ def can_see(scene: Scene, stand, target) -> bool:
         return False
     ex, ey, ez = eye(sx, sy, sz)
     for sample in samples(*target):
+        # 与 Java isValidStandingPoint 一致：命中的那个样本必须在"保守触及"内
+        if math.dist((ex, ey, ez), sample) > EFFECTIVE:
+            continue
         hit = first_solid(scene, (ex, ey, ez), sample)
         if hit == target:
             return True
