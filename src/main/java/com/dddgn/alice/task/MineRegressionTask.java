@@ -182,10 +182,14 @@ public final class MineRegressionTask implements Task {
             }
             scope.begin(current.target(), 16, bot.getUUID());
             expectedItem = current.expectedItem();
-            inventoryBefore = countInInventory(expectedItem);
             MiningBudget budget = MiningBudget.forTarget(bot, bot.serverLevel(), current.target(), true);
             mineTask = new MineTask(bot, current.target(), scope, budget,
                     WriteGrant.of(taskName(), WriteReason.EXPECTED_TARGET));
+            // **基线必须在 MineTask 构造之后采集**（2026-09-10 修正）：
+            // 构造函数里的 "夹具补镐" 会**覆盖选中槽**，若那一槽恰好放着一叠"预期掉落物"
+            // （跨轮次残留，例如上一轮回归留下的圆石），物品就被顶掉 → 实测 `inventoryDelta=-18`
+            // 而其余判据全 PASS → 一条纯粹的**假失败**，且只在选中槽恰好是该物品时复现。
+            inventoryBefore = countInInventory(expectedItem);
             // MineTask 构造会占用选中槽放镐 → 之后再补一次性方块，避免被覆盖
             ensureCobblestone();
             return Status.RUNNING;

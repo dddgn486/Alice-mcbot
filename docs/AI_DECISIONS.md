@@ -1748,3 +1748,45 @@ inventoryDelta=4 writes breaks=7 unknown=0`）。用户裁定**先走 R2 再走 
 
 **验证等级**：COMPILES。三处均为行为变更，需回归验证：
 `alice:mine_regression`（原 10/10）+ `alice:pathing_regression` + 伐木场景。
+
+---
+
+## D-086 回归假失败的两个根因：夹具测量时机 + 收集器 0 步计划空转（2026-09-10）
+
+**现象**：`alice:mine_regression` 第 1 次跑 `→ FAIL`（`exec_direct` / `exec_floating`），
+第 2、3 次跑 **10/10 PASS**。用户初判"场景没重置"。逐行核对后：**两个不同根因，只有一个与"状态残留"有关，
+且残留的对象不是地形而是 bot 背包**。
+
+`prepare()` 每个用例都会重放地形 + 复位起点，**地形确实会重置**。
+
+### 根因 A：夹具在 `MineTask` 构造**之前**采集背包基线（假失败）
+```java
+inventoryBefore = countInInventory(expectedItem);          // ← 此刻选中槽躺着 19 个圆石
+mineTask = new MineTask(...);                              // ← 构造里 "夹具补镐" 覆盖选中槽
+ensureCobblestone();                                       // 只填空格，救不回被顶掉的
+int delta = countInInventory(expectedItem) - inventoryBefore;   // 1 - 19 = -18
+```
+`exec_direct` 其余判据全部 PASS（`collected=1/1 targetGone=true dropsLeft=0`），
+唯一失败是 `inventoryDelta=-18`。触发条件是**状态依赖**的：只有当选中槽恰好放着一叠
+"预期掉落物"（跨轮次残留）时才发生；第 2、3 次跑时选中槽已是镐，所以不复现。
+→ **修正**：基线移到 `new MineTask(...)` **之后**采集。
+
+### 根因 B：收集器"0 步计划"导致每 tick 重建同一请求（**生产 bug**）
+```
+sweep_start anchor=23,65,190 feet=23,65,190
+[PathRetry] planned status=REACHED movements=0 cost=0.00 from=23,65,190 to=23,65,190
+… 重复 201 tick …
+retire item=… reason=cluster_budget itemPos=24,64,189 inRange=false
+```
+掉落物从浮空平台掉到相邻下方 `(24,64,189)`，而 `anchor` 仍是它的出生格
+（= 被挖掉的那格 = bot 自己站的位置）→ 请求退化成"从自己走自己" → `movements=0 / REACHED`。
+`CollectDropsTask` 在 `DONE` 分支**提前 return**，走不到下面既有的 `reanchor` 逻辑
+（按物品**当前**位置重锚点）→ 空转到 `CLUSTER_BUDGET_TICKS=200` 才 `cluster_budget` 放弃。
+→ **修正**：`DONE` 时不再提前 return，落到既有的"到位判定"：
+在拾取范围内就等；不在就 `reanchor` 到物品当前位置（重锚次数用尽才如实 `not_in_pickup_range` 退休）。
+
+**为什么必须修 B**：J2 多树砍伐会产生更多掉落物，任何一个落到平台边缘或低一格，
+收集器就会空转 200 tick 后放弃 → Job 判 `product_not_collected` ——
+与"少收集一根原木"是**同一个终态但完全不同的原因**，会让 J2 的失败信号无法判读。
+
+**验证等级**：COMPILES。待 `alice:mine_regression`（应首次即 10/10）+ 伐木场景复验。

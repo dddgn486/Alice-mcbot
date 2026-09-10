@@ -195,15 +195,22 @@ public final class CollectDropsTask implements Task {
             }
             if (state == PathRetryRunner.State.DONE) {
                 cancelRunner();
+                // **不提前 return**（2026-09-10 修正）：当目标格就是 bot 自己所在格时，
+                // 请求退化成"从自己走自己" → `movements=0 / REACHED` → 本分支每 tick 命中一次，
+                // 于是重建同一个请求、空转到 CLUSTER_BUDGET_TICKS 才放弃。
+                // 实测：掉落物从浮空平台掉到相邻下方 (24,64,189)，收集器空转 201 tick 后
+                // reason=cluster_budget，使 mine_regression 的 exec_floating 假失败。
+                // 现在落到下方既有的"到位判定"：在拾取范围内就等，
+                // 不在就 reanchor 到物品**当前**位置（reanchor 一直存在，只是此前走不到）。
+            } else {
+                PathExecutionResult result = runner.result();
+                String reason = result == null ? "unreachable" : result.status().name();
+                for (ItemEntity member : members) {
+                    retire(member.getUUID(), reason);
+                }
+                endCluster(true);
                 return Status.RUNNING;
             }
-            PathExecutionResult result = runner.result();
-            String reason = result == null ? "unreachable" : result.status().name();
-            for (ItemEntity member : members) {
-                retire(member.getUUID(), reason);
-            }
-            endCluster(true);
-            return Status.RUNNING;
         }
 
         // 2) 已到位：只有**真的进入原版拾取范围**才等待（否则继续换锚点/如实退休）
