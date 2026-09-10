@@ -11,8 +11,13 @@ import net.minecraft.core.BlockPos;
  */
 public final class LumberCourseAnchor {
 
-    /** 统一自检起点（脚位）：距橡树最近、远离云杉与高大云杉。 */
-    public static final BlockPos START_FOOT = new BlockPos(21, 64, 206);
+    /**
+     * 统一自检起点（脚位）：距橡树最近、远离云杉与高大云杉，且**头位为空**
+     * （2026-09-10 实测：原定 (21,64,206) 的头位被橡树树叶占据 → 树叶有碰撞，bot 站不进去）。
+     *
+     * <p>距离：橡树 3.16 / 云杉 5.10 / 高大云杉 11.05 → 最近者无歧义。
+     */
+    public static final BlockPos START_FOOT = new BlockPos(23, 64, 207);
 
     /** 期望被选中的树：普通橡树（4 原木，1 现在可见 + 3 掏空仰望可达，无需清障）。 */
     public static final BlockPos EXPECTED_TREE = new BlockPos(20, 64, 208);
