@@ -1521,3 +1521,33 @@
 - 验证：移除 `libs/` 后 `./gradlew clean build --offline` **BUILD SUCCESSFUL**，产物字节数一致；
   推送后 GitHub Actions 首次 `success`（run for `4998fa1`）。
 - 影响：开发机不再需要 `libs/`；JEI/JECh 只在个人客户端实例 `mods/` 安装；干净 clone 可直接构建。
+
+## D-080：L3 目标级任务层（`Job`）立项 + 伐木作为第一消费者
+
+- 状态：**设计已定稿（`docs/JOB_LAYER_DESIGN.md`），待实施**；用户 2026-09-10 同意方案与裁定
+- 背景（用户判断，与本仓库证据一致）：现有 `MineTask` 是**低级局部任务**（单目标单发），
+  决策层近乎空白（只有 78 行 `decision/AutoMineDecision`，且只被一条命令调用）；
+  项目缺的不是 LLM，而是**"目标 → 子任务"这一层**。
+- 立项内容：
+  1. 新增 `Job implements Task`（**不扩展 `Task` 契约**，L2 已验收保持不动）；`BotSession` 零改动，
+     仅需比较 `task.target()` 变化后重广播（子目标高亮跟随）；
+  2. 决策缝三件套：`CandidateSource` + `SelectionPolicy`（带理由）+ `DecisionTrace`（机器可判读）；
+     第一版**两个真实策略**（`Nearest` / `NearestExposed`）+ 两个真实候选源（树 / 挖矿）；
+  3. `GoalSpec`（配额 + 终止 + 范围 + 硬超时）；**完成判据 = 产物入包**（原始设计 §4.2 标准 3）；
+  4. 子任务复用 L2：每个原木一个 `MineTask(collectDrops=false)`，整轮一次 `CollectDropsTask`（D-070 参数）。
+- 裁定（用户 2026-09-10）：
+  - `Job implements Task`；
+  - v1 支持 `COLLECT_ITEMS` / `HARVEST_UNITS` / `maxTicks`，`UNTIL_FULL` 延后；
+  - **超出触及的高树：v1 拒绝（`trunk_too_tall`），但明确"不是最终方案"——攀爬砍树登记为未来能力**
+    （`JOB_LAYER_DESIGN.md` §11-①，含它触及 D-076 红线的原因与实现所需的 6 项要素）；
+  - **视线限次清障允许**：白名单保守（树叶/雪/藤/草）、**≤8 格/棵**、超预算拒绝该树、每次可 trace；
+    实现上用既有的 `LineOfSightResult.getFirstBlocker()`，**不自制找树叶逻辑**；
+  - 半途目标被替换/消失 → 跳过该树继续；配额未达成且无候选 → `FAILED no_reachable_candidate`。
+- 永久删除（旧伐木的六份重复）：`MAX_CLEAR_DEPTH` / `findLeafBlocker`（树叶不主动清理，原版自然衰减）、
+  自制 `moveTowards`、每棵等 40 tick 的收集、两套 `Phase` 状态机与记账。
+- L3 验收标准升级（新增三类断言）：**决策可判读**（候选/选中/理由/被拒理由码）、
+  **不变量**（原木增量 ≥ 该树原木数、`dropsLeft=0`、未破坏非目标方块）、
+  **终止与恢复**（配额达成 / 全候选被拒 / 背包满 / 硬超时 / 半途目标变化，五条路径各自有场景且都不空转）。
+- 实施切片 J1–J5（J1 = 决策缝 + 砍一棵的最小闭环，入口 `alice:lumber_job` + 场景 `lumber_course`）。
+- 顺序说明：**风险系统与维生系统的实施排在本设计之后**——`RiskProfile` 的第一个真实消费者 =
+  Job 的候选筛选（"这棵树值不值得去"）；维生"去向" = Job 终止后的一次 `WalkToTask`。
