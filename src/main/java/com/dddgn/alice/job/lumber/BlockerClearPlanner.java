@@ -14,7 +14,6 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
  * 视线清障规划（限次、预算内、显式授权；`docs/JOB_LAYER_DESIGN.md` §5.4）。
@@ -117,10 +116,14 @@ public final class BlockerClearPlanner {
     }
 
     /**
-     * 返回"清掉这一格就能推进"的方块；null = 横向邻域内已无可行方案。
+     * 返回"清掉这一格就能推进"的方块；null = 相邻可达区域内已无可行方案。
      *
-     * <p>顺序：先处理站位本身被占的格（脚/头），再处理视线上最靠近站位的阻挡。
-     * **绝不返回 y < 目标 y − 1 的方块**（即不往地里挖）。
+     * <p>**关键修正（2026-09-10 客户端实测"bot 没动"）**：清障目标必须从**当前就能站**的位置出发选，
+     * 且必须是射线上**最外层**那一块。原实现从"清完才能站"的贴树格出发，返回的是树冠**内层**树叶——
+     * 那种树叶从任何可站位置都看不见，于是"清这一格"的子任务自己也找不到站位、2 tick 就失败
+     * （日志表现：4 根原木全部 `clear_failed`、`cleared=0`、bot 一步没走）。
+     *
+     * <p>修正后是**由外向内剥离**：从可站位置能看到的最外层树叶先清，露出下一层，逐层推进。
      */
     public static BlockPos nextClearStep(ServerLevel level, ServerPlayer bot, BlockPos log,
                                         double reach, int budgetLeft) {
@@ -129,22 +132,11 @@ public final class BlockerClearPlanner {
         }
         double limit = reach - MiningTuning.reachMargin();
         int minY = log.getY() - 1;
-        for (BlockPos stand : lumberStands(log)) {
+        for (BlockPos stand : observationStands(log, reach)) {
+            if (!StandingPointSelector.isStandable(level, stand)) {
+                continue;   // 只能从"现在就能站"的位置出发（否则清障子任务自己也没站位）
+            }
             if (!MovementHelper.canWalkOn(level, stand.below())) {
-                continue;
-            }
-            boolean blocked = false;
-            for (BlockPos cell : List.of(stand, stand.above())) {
-                if (MovementHelper.canWalkThrough(level, cell)) {
-                    continue;
-                }
-                if (clearable(bot, level, cell) && cell.getY() >= minY) {
-                    return cell;   // 站稳这块地：清掉占位的方块
-                }
-                blocked = true;
-                break;
-            }
-            if (blocked) {
                 continue;
             }
             Vec3 eye = StandingPointSelector.eyeAt(stand);
@@ -164,25 +156,29 @@ public final class BlockerClearPlanner {
                     }
                 }
                 if (ok) {
-                    return blockers.get(0);   // 视线上最外层那块先清
+                    return blockers.get(0);   // 射线上的**最外层**阻挡：它能被当前站位直接挖到
                 }
             }
         }
         return null;
     }
 
-    /** 站位几何集：4 面 × {y, y−1} + 正下方（与规划器模式 B 同口径，但不要求当前可站）。 */
-    private static List<BlockPos> geometricStands(BlockPos log, double reach) {
-        java.util.List<BlockPos> stands = new java.util.ArrayList<>();
-        int[][] faces = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-        for (int[] face : faces) {
-            stands.add(log.offset(face[0], 0, face[1]));
-            stands.add(log.offset(face[0], -1, face[1]));
+    /**
+     * 观察位候选：贴树横向 8 格 + 以原木为中心的横向搜索盒（半径 `ceil(reach)`，y−1..y+1），
+     * 按到原木的距离升序（近者优先 → 需要清的格数更少）。
+     */
+    private static List<BlockPos> observationStands(BlockPos log, double reach) {
+        java.util.Set<BlockPos> unique = new java.util.LinkedHashSet<>(lumberStands(log));
+        int radius = (int) Math.ceil(reach);
+        for (int dy = 1; dy >= -1; dy--) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    unique.add(log.offset(dx, dy, dz));
+                }
+            }
         }
-        int maxDepth = (int) Math.floor(reach + 1.54D);
-        for (int k = 2; k <= maxDepth; k++) {
-            stands.add(log.below(k));
-        }
+        List<BlockPos> stands = new java.util.ArrayList<>(unique);
+        stands.sort(java.util.Comparator.comparingDouble(pos -> pos.distSqr(log)));
         return stands;
     }
 
