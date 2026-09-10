@@ -181,13 +181,31 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
   - 日志：`logs/latest.log`、`logs/debug.log`
   - 截图/视频：`screenshots/`、`videos/`（如果需要）
 
-## 当前进行中（2026-09-10）
+## 当前进行中（2026-09-10 收工快照）
 
-- **D-082 世界写入授权契约**（`docs/WORLD_WRITE_AUTHORIZATION.md`）：授权成为数据
-  （`WriteReason` + `WriteGrant` + `WriteAudit`），`BlockInteraction` 为唯一写入原语层，
-  破坏策略由 `reason.policy()` 派生；新增 `placeBulkEdit` 封掉道路施工的裸 `level.setBlock`。
-  **已 COMPILES，未做客户端验证。** 已登记缺口 G1–G8 见该文 §3；
-  下一步 R2（填 `PathRequest.requester` + 执行期复验授权）→ J6 账本。
+**已收口（均有客户端证据）**
+- **L3 Job 主干 J1–J5**：伐木单棵闭环 / 循环+配额+逐树记账 / 决策缝可替换（策略对比自检）/
+  失败语义五条终止路径（`alice:lumber_failure_check` 5/5）/ 挖掘 Job（`alice:mine_job`，
+  `AutoMineDecision` 孤岛已删，与伐木同一套候选/策略/trace/终止）。
+- **R2 授权契约**：`WriteGrant(谁,为什么)` 唯一入口 + 执行期复验授权集合（G1/G2/G9 闭合）。
+- **J6-a 世界修改账本**：动作层自动记录**放置**（抓到内核 `PILLAR` 放的方块）+ `/alice ledger` 只读。
+- **J6-b1 作用域恢复**：`RestoreScopeTask`（自上而下、只拆自己放的、不许挖地形）+
+  任务收尾**自动追加**恢复任务（建拆同权由会话强制）+ `/alice restore` 兜底。
+- 期间修复：清障目标自身可达（D-083）、掉落物上抛阶段（D-084）、走位仰头（D-088）、
+  斧子/一次性方块必须进快捷栏（D-089/D-099）、手持显示同步（D-090）、主手语义（D-091）、
+  `exposed` 重定义（D-092）、清障不拆容器（D-095）、回归假失败（D-086）。
+
+**下一步（按序）**
+1. **J6-b1b**：恢复要**收回材料**（重开作用域 + 收尾 `CollectDropsTask`）——建拆同权的物质闭环；
+2. **J6-b2**：D-095 的"路径上有容器 → 绕开而非拆掉"断言场景；
+3. **G4**：内核写入的执行期预算（用户裁定紧随 J6 之后）；
+4. **J7 攀爬**（第一处真正需要脚手架放置的 Job，将首次实检建拆同权）→ **J8 MAINTAIN 区域型**。
+5. 仍登记未做：G3（模组连锁破坏无凭证）、G5（容器写入维度）。
+
+**测试入口速查**（全部零参数或一行命令）
+`alice:lumber_job` / `alice:lumber_policy_check` / `alice:lumber_failure_check` /
+`alice:mine_job`（`ore_course`）/ `alice:mine_regression` / `alice:pathing_regression` /
+`/alice ledger` / `/alice restore` / `/alice auto-mine <tag|block> [count]`。
 
 ## 开始任何新任务前
 

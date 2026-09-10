@@ -113,6 +113,7 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 
 | J6-b1 作用域恢复（建拆同权由会话强制） | 右键 `alice:pathing_regression`（其 5 处放置成为待恢复项）→ `/alice ledger` | 零参数右键 + 一行只读命令 | 恢复严格自上而下、只拆自己放的、不许挖地形 | `待测`（预期：`仍有 5 条未清除的放置 → 自动追加恢复任务`；`[Restore] SUMMARY … restored=5 skipped=0 remaining=0 → DONE`；`/alice ledger → pending=0`） |
 | J6-b1 命令兜底 | `/alice restore` | 一行只读式命令（无坐标） | 处理崩溃/重启/升级前的历史遗留 | `待测`（可选；与上行配合验证 `pending` 归零） |
+| 寻路回归复验（D-099 夹具修复后） | 右键 `alice:pathing_regression` | 14 场景 + 10 种 Movement 覆盖 | 一次性方块必须进快捷栏，否则 `PILLAR`/`PLACE_STEP`/`FALL` 生成不出来 | `WINDOWS_CLIENT`（2026-09-11 00:4x **14/14 PASS + coverage=PASS**；`[FixtureTool]` 覆盖策略生效） |
 
 ## 性能验证
 
