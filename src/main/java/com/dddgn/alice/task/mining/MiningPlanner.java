@@ -45,6 +45,17 @@ public final class MiningPlanner {
     }
 
     public Result plan(ServerPlayer bot, BlockPos target, MiningBudget budget) {
+        return plan(bot, target, budget, false);
+    }
+
+    /**
+     * @param standableOnly true = **只允许模式 A**（现成可站站位），禁止模式 B 挖隧道与"破坏进入"。
+     *                      伐木必须用它：树的目标周围常无可站面，模式 B 会选"正下方/邻格"的**几何**候选
+     *                      （例如平台内部 y−1 的格子）并挖地进去站——对矿石是特性，对砍树是荒谬行为
+     *                      （2026-09-10 客户端实测：bot 往地里挖一格站进去，随后爬不出来、2/4 根原木失败）。
+     *                      需要清障时由**上层 Job** 显式做（限次 + 预算），不由规划器偷偷挖。
+     */
+    public Result plan(ServerPlayer bot, BlockPos target, MiningBudget budget, boolean standableOnly) {
         ServerLevel level = bot.serverLevel();
         BlockPos immutableTarget = target.immutable();
         BlockPos startFoot = bot.blockPosition().immutable();
@@ -53,6 +64,11 @@ public final class MiningPlanner {
         Result direct = planDirect(bot, level, immutableTarget, startFoot, reach, budget);
         if (direct.success()) {
             return direct;
+        }
+        if (standableOnly) {
+            BotLog.info("[MiningPlanner] standable_only target={} reason={}",
+                    immutableTarget.toShortString(), direct.failureReason());
+            return new Result(null, null, "no_reachable_standing_point");
         }
         Result tunnel = planTunnel(bot, level, immutableTarget, startFoot, reach, budget);
         if (tunnel.success()) {

@@ -48,6 +48,8 @@ public final class MineTask implements Task {
     private final ScopeBuffer scope;
     private final MiningBudget budget;
     private final MiningPlanner miningPlanner = new MiningPlanner();
+    /** true = 只允许"现成可站站位"（伐木用；禁止挖隧道/破坏进入，见 MiningPlanner#plan）。 */
+    private final boolean standableOnly;
 
     private MineBlockRunner miner;
     private MiningPlan currentPlan;
@@ -79,6 +81,13 @@ public final class MineTask implements Task {
 
     /** D-067 批次 3：`collectDrops` 为必要参数（false 时跳过放支撑块与收集）。 */
     public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope, MiningBudget budget) {
+        this(bot, target, scope, budget, false);
+    }
+
+    /** @param standableOnly true = 只用现成可站站位（伐木：禁止挖隧道；清障由 Job 显式负责）。 */
+    public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope, MiningBudget budget,
+                    boolean standableOnly) {
+        this.standableOnly = standableOnly;
         this.bot = bot;
         this.target = target.immutable();
         this.scope = scope;
@@ -310,7 +319,7 @@ public final class MineTask implements Task {
         }
         recoveryAttempts++;
         MiningPlan previousPlan = currentPlan;
-        MiningPlanner.Result result = miningPlanner.plan(bot, target, budget);
+        MiningPlanner.Result result = miningPlanner.plan(bot, target, budget, standableOnly);
         if (!result.success()) {
             BotLog.warn("[MineTask重规划探针] target={} recoveryAttempt={}/{} oldStanding={} result=FAILED reason={}",
                     target.toShortString(), recoveryAttempts, MAX_RECOVERY_ATTEMPTS,
@@ -356,7 +365,7 @@ public final class MineTask implements Task {
             return Status.RUNNING;
         }
 
-        MiningPlanner.Result result = miningPlanner.plan(bot, target, budget);
+        MiningPlanner.Result result = miningPlanner.plan(bot, target, budget, standableOnly);
         if (!result.success()) {
             BotLog.warn("[MiningPlanner探针] planning failed target={} reason={} budget={}",
                     target.toShortString(), result.failureReason(), budget.describe());

@@ -15,6 +15,7 @@ import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
 import com.dddgn.alice.task.mining.LineOfSightChecker;
 import com.dddgn.alice.task.mining.MiningBudget;
+import com.dddgn.alice.task.mining.StandingPointSelector;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.item.ItemStack;
@@ -158,11 +159,13 @@ public final class LumberJob implements Job {
             phase = Phase.COLLECT;
             collector = new CollectDropsTask(bot, tree.base(), scope, List.of(), false);
             DecisionTrace.step(jobName(), "COLLECT", tree.base().toShortString(),
-                    "chopped=" + choppedLogs + "/" + queue.size() + " failed=" + failedLogs.size());
+                    "chopped=" + choppedLogs + "/" + queue.size() + " failed=" + failedLogs.size()
+                            + (clearedBlocks > 0 ? " cleared=" + clearedBlocks : ""));
             return Task.Status.RUNNING;
         }
         BlockPos log = queue.get(queueIndex);
-        // 清障子任务优先推进（兜底路径：最底那根只能从侧面挖时，树冠可能挡住视线的场景）
+
+        // 清障子任务优先推进（腾站位 / 打通视线；限次 = MAX_CLEAR_PER_TREE）
         if (clearTask != null) {
             Task.Status clearStatus = clearTask.tick();
             if (clearStatus == Task.Status.RUNNING) {
@@ -173,18 +176,37 @@ public final class LumberJob implements Job {
                 clearedBlocks++;
             } else {
                 failedLogs.add(log.toShortString() + ":clear_failed");
-                miner = null;
                 queueIndex++;
             }
             return Task.Status.RUNNING;
         }
+
         if (miner == null) {
+            // 没有现成可站站位 → **由 Job 显式清障**，而不是让规划器掉进"挖隧道/挖地站进去"
+            if (!hasStandNow(log)) {
+                BlockPos step = BlockerClearPlanner.nextClearStep(bot.serverLevel(), bot, log,
+                        bot.getBlockReach(), MAX_CLEAR_PER_TREE - clearedBlocks);
+                if (step == null) {
+                    failedLogs.add(log.toShortString() + (clearedBlocks >= MAX_CLEAR_PER_TREE
+                            ? ":clear_budget" : ":no_stand"));
+                    queueIndex++;
+                    return Task.Status.RUNNING;
+                }
+                DecisionTrace.step(jobName(), "CLEAR", step.toShortString(),
+                        "为 " + log.toShortString() + " 腾站位/通视线 clear="
+                                + (clearedBlocks + 1) + "/" + MAX_CLEAR_PER_TREE);
+                clearTask = new MineTask(bot, step, scope,
+                        MiningBudget.forTarget(bot, bot.serverLevel(), step, false), true);
+                return Task.Status.RUNNING;
+            }
             DecisionTrace.step(jobName(), "CUT", log.toShortString(),
                     "log " + (queueIndex + 1) + "/" + queue.size());
+            // standableOnly=true：**禁止**规划器自己挖隧道或破坏进入（伐木不允许"往地里挖"）
             miner = new MineTask(bot, log, scope,
-                    MiningBudget.forTarget(bot, bot.serverLevel(), log, false));
+                    MiningBudget.forTarget(bot, bot.serverLevel(), log, false), true);
             return Task.Status.RUNNING;
         }
+
         Task.Status status = miner.tick();
         if (status == Task.Status.RUNNING) {
             return Task.Status.RUNNING;
@@ -195,7 +217,9 @@ public final class LumberJob implements Job {
             queueIndex++;
             return Task.Status.RUNNING;
         }
-        if ("LINE_OF_SIGHT_BLOCKED".equals(miner.failureReason()) && clearedBlocks < MAX_CLEAR_PER_TREE) {
+        // 运行期视线被挡（规划期看不见、执行期才暴露）→ 仍走同一套限次清障
+        if ("LINE_OF_SIGHT_BLOCKED".equals(miner.failureReason())
+                && clearedBlocks < MAX_CLEAR_PER_TREE) {
             BlockPos blocker = LineOfSightChecker.checkFromEye(bot.serverLevel(), bot.getEyePosition(), log)
                     .getFirstBlocker();
             if (blocker != null && BlockerClearPlanner.clearable(bot, bot.serverLevel(), blocker)) {
@@ -203,7 +227,7 @@ public final class LumberJob implements Job {
                         "blocking " + log.toShortString() + " clear=" + (clearedBlocks + 1)
                                 + "/" + MAX_CLEAR_PER_TREE);
                 clearTask = new MineTask(bot, blocker, scope,
-                        MiningBudget.forTarget(bot, bot.serverLevel(), blocker, false));
+                        MiningBudget.forTarget(bot, bot.serverLevel(), blocker, false), true);
                 miner = null;   // 保留 queueIndex：清完重试同一根
                 return Task.Status.RUNNING;
             }
@@ -212,6 +236,12 @@ public final class LumberJob implements Job {
         miner = null;
         queueIndex++;
         return Task.Status.RUNNING;
+    }
+
+    /** 当前是否已有"现成可站"的站位能挖到该原木（复用规划器同一口径）。 */
+    private boolean hasStandNow(BlockPos log) {
+        return !StandingPointSelector.generateCandidates(bot.serverLevel(), log,
+                bot.blockPosition(), bot.getBlockReach()).isEmpty();
     }
 
     private Task.Status collectPhase() {

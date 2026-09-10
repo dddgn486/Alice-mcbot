@@ -54,7 +54,8 @@ public final class BlockerClearPlanner {
     public static int clearPlanCount(ServerLevel level, ServerPlayer bot, BlockPos log,
                                      double reach, int budget) {
         double limit = reach - MiningTuning.reachMargin();
-        for (BlockPos stand : geometricStands(log, reach)) {
+        int minY = log.getY() - 1;
+        for (BlockPos stand : lumberStands(log)) {
             if (!MovementHelper.canWalkOn(level, stand.below())) {
                 continue;
             }
@@ -64,7 +65,7 @@ public final class BlockerClearPlanner {
                 if (MovementHelper.canWalkThrough(level, cell)) {
                     continue;
                 }
-                if (clearable(bot, level, cell)) {
+                if (clearable(bot, level, cell) && cell.getY() >= minY) {
                     clears++;
                 } else {
                     standOk = false;
@@ -79,13 +80,13 @@ public final class BlockerClearPlanner {
                 if (eye.distanceTo(sample) > limit) {
                     continue;
                 }
-                Set<BlockPos> blockers = rayBlockers(level, eye, sample, log);
+                List<BlockPos> blockers = rayBlockers(level, eye, sample, log);
                 if (blockers == null) {
                     continue;
                 }
                 boolean ok = true;
                 for (BlockPos blocker : blockers) {
-                    if (!clearable(bot, level, blocker)) {
+                    if (!clearable(bot, level, blocker) || blocker.getY() < minY) {
                         ok = false;
                         break;
                     }
@@ -97,6 +98,77 @@ public final class BlockerClearPlanner {
             }
         }
         return -1;
+    }
+
+    /**
+     * 伐木专用站位集：**只有贴着树干横向的 8 格**（4 面 × {y, y−1}）。
+     *
+     * <p>为什么不含"正下方"：那是挖矿模式 B 的策略（从下方挖上去），对树意味着**往地里挖**。
+     * 2026-09-10 客户端实测就是这么翻车的：规划器选了 y−1 的几何候选（平台内部）并挖地进去站，
+     * 随后爬不出来、2/4 根原木失败。清障只允许在**树干横向邻域**发生。
+     */
+    public static List<BlockPos> lumberStands(BlockPos log) {
+        List<BlockPos> stands = new java.util.ArrayList<>();
+        for (int[] face : new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
+            stands.add(log.offset(face[0], 0, face[1]));
+            stands.add(log.offset(face[0], -1, face[1]));
+        }
+        return stands;
+    }
+
+    /**
+     * 返回"清掉这一格就能推进"的方块；null = 横向邻域内已无可行方案。
+     *
+     * <p>顺序：先处理站位本身被占的格（脚/头），再处理视线上最靠近站位的阻挡。
+     * **绝不返回 y < 目标 y − 1 的方块**（即不往地里挖）。
+     */
+    public static BlockPos nextClearStep(ServerLevel level, ServerPlayer bot, BlockPos log,
+                                        double reach, int budgetLeft) {
+        if (budgetLeft <= 0) {
+            return null;
+        }
+        double limit = reach - MiningTuning.reachMargin();
+        int minY = log.getY() - 1;
+        for (BlockPos stand : lumberStands(log)) {
+            if (!MovementHelper.canWalkOn(level, stand.below())) {
+                continue;
+            }
+            boolean blocked = false;
+            for (BlockPos cell : List.of(stand, stand.above())) {
+                if (MovementHelper.canWalkThrough(level, cell)) {
+                    continue;
+                }
+                if (clearable(bot, level, cell) && cell.getY() >= minY) {
+                    return cell;   // 站稳这块地：清掉占位的方块
+                }
+                blocked = true;
+                break;
+            }
+            if (blocked) {
+                continue;
+            }
+            Vec3 eye = StandingPointSelector.eyeAt(stand);
+            for (Vec3 sample : LineOfSightChecker.samples(log)) {
+                if (eye.distanceTo(sample) > limit) {
+                    continue;
+                }
+                List<BlockPos> blockers = rayBlockers(level, eye, sample, log);
+                if (blockers == null || blockers.isEmpty()) {
+                    continue;
+                }
+                boolean ok = true;
+                for (BlockPos blocker : blockers) {
+                    if (!clearable(bot, level, blocker) || blocker.getY() < minY) {
+                        ok = false;
+                        break;
+                    }
+                }
+                if (ok) {
+                    return blockers.get(0);   // 视线上最外层那块先清
+                }
+            }
+        }
+        return null;
     }
 
     /** 站位几何集：4 面 × {y, y−1} + 正下方（与规划器模式 B 同口径，但不要求当前可站）。 */
@@ -119,8 +191,8 @@ public final class BlockerClearPlanner {
      *
      * <p>用固定步长采样而非解析求交：只为**计数**服务，精度足够，且运行期仍以真实判定为准。
      */
-    private static Set<BlockPos> rayBlockers(ServerLevel level, Vec3 eye, Vec3 sample, BlockPos target) {
-        Set<BlockPos> blockers = new LinkedHashSet<>();
+    private static List<BlockPos> rayBlockers(ServerLevel level, Vec3 eye, Vec3 sample, BlockPos target) {
+        List<BlockPos> blockers = new java.util.ArrayList<>();
         double distance = eye.distanceTo(sample);
         int steps = Math.max(1, (int) Math.ceil(distance / RAY_STEP));
         for (int i = 1; i <= steps; i++) {
@@ -129,7 +201,8 @@ public final class BlockerClearPlanner {
             if (cell.equals(target)) {
                 return blockers;
             }
-            if (!level.getBlockState(cell).getCollisionShape(level, cell).isEmpty()) {
+            if (!level.getBlockState(cell).getCollisionShape(level, cell).isEmpty()
+                    && !blockers.contains(cell)) {
                 blockers.add(cell.immutable());
             }
         }

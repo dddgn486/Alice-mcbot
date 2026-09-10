@@ -234,12 +234,12 @@ def ray_blockers(scene: Scene, origin, sample, target):
 
 
 def geometric_stands(target):
+    """伐木专用站位集：只有贴着树干横向的 8 格（4 面 × {y, y−1}），**不含正下方**——
+    正下方是挖矿模式 B 的策略，对树意味着往地里挖（2026-09-10 实测翻车点）。"""
     stands = []
     for dx, dz in ((1, 0), (-1, 0), (0, 1), (0, -1)):
         stands.append((target[0] + dx, target[1], target[2] + dz))
         stands.append((target[0] + dx, target[1] - 1, target[2] + dz))
-    for k in range(2, int(math.floor(REACH + 1.54)) + 1):
-        stands.append((target[0], target[1] - k, target[2]))
     return stands
 
 
@@ -256,7 +256,7 @@ def clear_plan_count(scene: Scene, log, budget: int) -> int:
         for cell in (stand, (stand[0], stand[1] + 1, stand[2])):
             if not scene.solid(*cell):
                 continue
-            if clearable(scene, cell):
+            if clearable(scene, cell) and cell[1] >= log[1] - 1:
                 clears += 1
             else:
                 ok = False
@@ -270,7 +270,7 @@ def clear_plan_count(scene: Scene, log, budget: int) -> int:
             blockers = ray_blockers(scene, (ex, ey, ez), sample, log)
             if blockers is None:
                 continue
-            if not all(clearable(scene, b) for b in blockers):
+            if not all(clearable(scene, b) and b[1] >= log[1] - 1 for b in blockers):
                 continue
             total = clears + len(blockers)
             if total <= budget:
