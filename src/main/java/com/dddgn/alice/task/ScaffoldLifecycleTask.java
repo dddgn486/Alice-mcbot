@@ -60,15 +60,17 @@ public final class ScaffoldLifecycleTask implements Task {
      * （`BASE_TICKS + 每格 450 tick`，5 格 ≈ 2350），否则外层会先把正常拆除掐成超时。
      */
     private static final int PHASE_BUDGET_TICKS = 4000;
-    /** 收尾收集的 tick 预算（与 `RestoreScopeTask` 的收尾收集一致）。 */
+    /** ③ 落地扫尾的 tick 预算（与 `RestoreScopeTask` 的收尾收集一致）。 */
     private static final int COLLECT_BUDGET_TICKS = 600;
+    /** ① 就地扫尾的 tick 预算（best-effort：够不到就留给 ③，不长等）。 */
+    private static final int SWEEP_UP_BUDGET_TICKS = 200;
     /** 高处目标的掉落物落点附近（收尾收集的锚点）。 */
     private static final BlockPos DROP_ANCHOR = new BlockPos(40, 64, 46);
     /** 场景包围盒（世界事实扫描：地上还有没有掉落物）。 */
     private static final net.minecraft.world.phys.AABB SCENE_BOX =
             new net.minecraft.world.phys.AABB(32, 58, 38, 45, 75, 55);
 
-    private enum Phase { SETUP, CLIMB, MINE, TEARDOWN, COLLECT, ASSERT, DONE }
+    private enum Phase { SETUP, CLIMB, MINE, SWEEP_UP, TEARDOWN, SWEEP_GROUND, ASSERT, DONE }
 
     private final BotPlayer bot;
     private final ScopeBuffer scope;
@@ -88,7 +90,10 @@ public final class ScaffoldLifecycleTask implements Task {
     private MineTask miner;
     private RestoreScopeTask restore;
     private CollectDropsTask collector;
-    private int collectedDrops;
+    /** ① 就地扫尾（仍在脚手架上）收进背包的数量。 */
+    private int sweptUp;
+    /** ③ 落地扫尾（拆除完成、回到地面）收进背包的数量。 */
+    private int sweptGround;
 
     public ScaffoldLifecycleTask(BotPlayer bot, ScopeBuffer scope) {
         this.bot = bot;
@@ -121,8 +126,9 @@ public final class ScaffoldLifecycleTask implements Task {
             case SETUP -> setup();
             case CLIMB -> climb();
             case MINE -> mine();
+            case SWEEP_UP -> sweepUp();
             case TEARDOWN -> teardown();
-            case COLLECT -> collect();
+            case SWEEP_GROUND -> sweepGround();
             case ASSERT -> assertResult();
             case DONE -> Task.Status.DONE;
         };
@@ -240,6 +246,49 @@ public final class ScaffoldLifecycleTask implements Task {
                 mineStatus, at.toShortString(), bot.serverLevel().getBlockState(TARGET).isAir());
         miner = null;
         ticks = 0;
+        // 作业期间不追掉落物（`collectDrops=false`）→ 产物收在 ① 就地扫尾这一处，
+        // 因为"够得到"这件事会随着拆除而消失（实测：停在壁柱顶面的掉落物，拆完就再也够不到）
+        phase = Phase.SWEEP_UP;
+        return Task.Status.RUNNING;
+    }
+
+    /**
+     * ① **就地扫尾**：作业完成后、拆除之前，仍在脚手架上，只收"此刻够得到"的产物。
+     *
+     * <p>为什么必须有这一步：掉落物有 `pickupDelay`（约 10 tick），而拆除是每格 ~14 tick 往下走；
+     * 如果只等"拆完落地再收"，**作业点平台上的产物会先变得够不到**（实测 `retire reason=MOVEMENT_FAILED
+     * itemPos=39,69,46`）。本步是 best-effort：够不到的不硬追，留给 ③ 或如实报 `drops_left`。
+     *
+     * <p>不额外加"不许下行"的限制：越界的风险由已有的前提断言 `on_top_at_teardown` 兜住
+     * （真走下去了就直接 FAIL 并暴露，而不是悄悄改语义）。
+     */
+    private Task.Status sweepUp() {
+        if (collector == null) {
+            collector = new CollectDropsTask(bot, TARGET, scope, java.util.List.of(), false,
+                    SWEEP_UP_BUDGET_TICKS);
+            BotLog.info("[Scaffold] sweep_up_start anchor={} foot={} live_drops={}（仍在架上，就地收）",
+                    TARGET.toShortString(),
+                    MovementHelper.footCell(bot.serverLevel(), bot).toShortString(),
+                    scope.liveDrops().size());
+            ticks = 0;
+            return Task.Status.RUNNING;
+        }
+        if (++ticks > SWEEP_UP_BUDGET_TICKS + 40) {
+            BotLog.warn("[Scaffold] sweep_up 超时（{} tick）→ 继续拆除", ticks);
+            collector = null;
+            phase = Phase.TEARDOWN;
+            return Task.Status.RUNNING;
+        }
+        Task.Status status = collector.tick();
+        if (status == Task.Status.RUNNING) {
+            return Task.Status.RUNNING;
+        }
+        sweptUp = collector.collected();
+        BotLog.info("[Scaffold] sweep_up_end status={} swept={} live_drops={} foot={}",
+                status, sweptUp, scope.liveDrops().size(),
+                MovementHelper.footCell(bot.serverLevel(), bot).toShortString());
+        collector = null;
+        ticks = 0;
         phase = Phase.TEARDOWN;
         return Task.Status.RUNNING;
     }
@@ -273,8 +322,8 @@ public final class ScaffoldLifecycleTask implements Task {
         BotLog.info("[Scaffold] teardown_end status={} reason={} foot={}", status, restoreReason,
                 MovementHelper.footCell(bot.serverLevel(), bot).toShortString());
         restore = null;
-        // 拆除成功 → 收尾收集（高处作业的掉落物落在地面，必须**拆完落地后**再收）
-        phase = failure.isEmpty() ? Phase.COLLECT : Phase.ASSERT;
+        // 拆除成功 → ③ 落地扫尾（拆除过程中落地的产物与拆下来的方块）
+        phase = failure.isEmpty() ? Phase.SWEEP_GROUND : Phase.ASSERT;
         return Task.Status.RUNNING;
     }
 
@@ -284,7 +333,7 @@ public final class ScaffoldLifecycleTask implements Task {
      * <p>顺序即规则：**先完成会话内拆除并落地，再收集**。此时 bot 在地面，掉落物就在旁边。
      * 这里复用 {@link CollectDropsTask}（只收"由本次破坏配对到的掉落物"、best-effort、worldMod=false）。
      */
-    private Task.Status collect() {
+    private Task.Status sweepGround() {
         if (collector == null) {
             ServerLevel level = bot.serverLevel();
             // **收养一次**（D-108）：拆除任务重开过作用域，而 ScopeBuffer.begin() 会先 end()
@@ -292,7 +341,7 @@ public final class ScaffoldLifecycleTask implements Task {
             // （实测 live_drops=0，收尾收集无物可追）。这里的顺序仍是"拆完落地 → 再收"。
             scope.begin(DROP_ANCHOR, 8, bot.getUUID());
             int adopted = scope.adoptExistingDrops(level, DROP_ANCHOR, 8);
-            BotLog.info("[Scaffold] collect_start anchor={} foot={} live_drops={} adopted={}"
+            BotLog.info("[Scaffold] sweep_ground_start anchor={} foot={} live_drops={} adopted={}"
                             + "（拆完落地后再收）",
                     DROP_ANCHOR.toShortString(),
                     MovementHelper.footCell(level, bot).toShortString(),
@@ -303,7 +352,7 @@ public final class ScaffoldLifecycleTask implements Task {
             return Task.Status.RUNNING;
         }
         if (++ticks > COLLECT_BUDGET_TICKS + 40) {
-            BotLog.warn("[Scaffold] collect 超时（{} tick）→ 断言", ticks);
+            BotLog.warn("[Scaffold] sweep_ground 超时（{} tick）→ 断言", ticks);
             collector = null;
             phase = Phase.ASSERT;
             return Task.Status.RUNNING;
@@ -312,9 +361,9 @@ public final class ScaffoldLifecycleTask implements Task {
         if (status == Task.Status.RUNNING) {
             return Task.Status.RUNNING;
         }
-        collectedDrops = collector.collected();
-        BotLog.info("[Scaffold] collect_end status={} collected={} live_drops={}",
-                status, collectedDrops, scope.liveDrops().size());
+        sweptGround = collector.collected();
+        BotLog.info("[Scaffold] sweep_ground_end status={} swept={} live_drops={}",
+                status, sweptGround, scope.liveDrops().size());
         collector = null;
         phase = Phase.ASSERT;
         return Task.Status.RUNNING;
@@ -331,8 +380,12 @@ public final class ScaffoldLifecycleTask implements Task {
         }
         boolean targetGone = level.getBlockState(TARGET).isAir();
         int dropsLeft = scope.liveDrops().size();
-        int itemsOnGround = level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
-                SCENE_BOX).size();
+        java.util.List<net.minecraft.world.entity.item.ItemEntity> strandedItems =
+                level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, SCENE_BOX);
+        int itemsOnGround = strandedItems.size();
+        String strandedPos = strandedItems.isEmpty() ? "-"
+                : strandedItems.stream().map(item -> item.blockPosition().toShortString())
+                        .collect(java.util.stream.Collectors.joining(","));
         boolean noDrops = dropsLeft == 0 && itemsOnGround == 0;
         BlockPos at = MovementHelper.footCell(level, bot);
         boolean grounded = at.getY() == START_FOOT.getY();
@@ -345,7 +398,8 @@ public final class ScaffoldLifecycleTask implements Task {
                     + " remaining=" + remaining + " residue=" + residue
                     + " targetGone=" + targetGone + " grounded=" + grounded
                     + " onTopBeforeTeardown=" + onTopBeforeTeardown
-                    + " dropsLeft=" + dropsLeft + " itemsOnGround=" + itemsOnGround;
+                    + " dropsLeft=" + dropsLeft + " itemsOnGround=" + itemsOnGround
+                    + " strandedAt=" + strandedPos;
         }
         if (remaining > 0) {
             terminalReason = "scaffold_left_behind:" + remaining;
@@ -353,10 +407,10 @@ public final class ScaffoldLifecycleTask implements Task {
             terminalReason = "scaffold_closed";
         }
         BotLog.info("[Scaffold] SUMMARY pillar={}/{} torn={} remaining={} residue={} target={}"
-                        + " collected={} drops_left={} on_top_at_teardown={} grounded={}"
-                        + " climb={} mine={} restore={} → {}",
+                        + " sweep_up={} sweep_ground={} drops_left={} stranded={}"
+                        + " on_top_at_teardown={} grounded={} climb={} mine={} restore={} → {}",
                 pillarCount, CLIMB_BUDGET, torn, remaining, residue, targetGone ? "gone" : "present",
-                collectedDrops, itemsOnGround, onTopBeforeTeardown, grounded,
+                sweptUp, sweptGround, itemsOnGround, strandedPos, onTopBeforeTeardown, grounded,
                 climbStatus, mineStatus, restoreReason, pass ? "PASS" : "FAIL");
         phase = Phase.DONE;
         return pass ? Task.Status.DONE : Task.Status.FAILED;

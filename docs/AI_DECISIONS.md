@@ -2734,30 +2734,51 @@ movements=0 pillar=0/12` → 原地不动。**根因不在夹具几何，而在 
 
 **验证等级**：IMPLEMENTED / COMPILES（客户端待复测）。
 
-### D-107 附注：高处作业的掉落物 —— "先拆完落地，再收集"（2026-09-11，用户复测反馈）
+### D-107 附注：高处作业的掉落物 —— **两处扫尾**生命周期（2026-09-11，用户两轮复测后定稿）
 
-**用户观察**："bot 最后没有去捡掉落物"，并猜测"在柱子上时判定掉落物掉下去了不能直接捡到 /
-拆完柱子捡拾任务又早就结束了"。
+**用户两轮观察**
+1. "bot 最后没有去捡掉落物"（第一轮）；
+2. "掉下去的掉落物确实在拆完后去捡了，但是有一个掉落物掉在了石头柱子上、没吸进背包，
+   然后 bot 拆完柱子，掉落物又捡不到了" —— 并指出"**要重新考虑设计，避免打多重混乱的补丁**"。
 
-**日志事实**：
-- 柱子材料**回收成功**：`作用域捕捉掉落物: cobblestone x38 y64..67 z46`（4 块），
-  `[CollectDrops] SUMMARY collected=1/1 unreachable=0`，`[Restore] … restored=4 remaining=0
-  recovered=4~5（一次性方块库存变化）` —— 其中 3 块在沿柱下降时被自动拾取；
-- 留在地上的是**目标方块那一块**：`[WRITE] break 40,70,46 stone by=ScaffoldLifecycle:EXPECTED_TARGET`
-  + `[MineTask] collect_skipped target=40,70,46 reason=collectDrops=false`。
+**日志事实**
+- 柱子材料回收正常：`作用域捕捉掉落物: cobblestone x38 y64..67 z46`（4 块）、
+  `[Restore] restored=4 remaining=0 recovered=4~5`（其中 3 块沿柱下降时被自动拾取）；
+- 第一轮缺的是**作业产物**：`[MineTask] collect_skipped … reason=collectDrops=false`，地上留 1 个；
+- 第二轮暴露**时刻问题**：`[CollectDrops] cluster_start anchor=39,69,46 members=1` →
+  `[WARN] retire reason=MOVEMENT_FAILED itemPos=39,69,46 itemY=69.000` ——
+  产物先落在**作业点平台（壁柱顶面）**，物品有 `pickupDelay`（约 10 tick），
+  而拆除是每格 ~14 tick 往下走 ⇒ bot 在它能被拾取之前就离开了；等拆完柱子，那块平台
+  **只有脚手架才够得到**，于是永久够不到 ✗。
 
-**成因（夹具的选择，不是内核缺陷）**：开采阶段若开收集，`MineTask` 会先去追掉落物（要跑下柱子），
-直接破坏 §12.3「**仍在柱顶时拆除**」的前提。所以夹具当初选了 `collectDrops=false`，
-但**没有把"捡它"补在该补的地方**——这是夹具少一步。
+**设计（定稿：收集不是"事后补救"，而是"两处扫尾"）**
+```
+建 → 爬 → 用（作业期间**不追**掉落物：追 = 离开站位）
+        ↓
+   ① 就地扫尾（仍在脚手架上，anchor = 作业点）      ← 收获业点附近的产物（含拾取延迟等待）
+        ↓
+   ② 自上而下拆除（产物落到地面）
+        ↓
+   ③ 落地扫尾（anchor = 落地范围，先重开作用域并收养）
+        ↓
+   断言 drops_left（世界事实扫描）+ 卡住坐标必须为 0
+```
+- `MineTask collectDrops=false` **不是 hack**，它就是"作业期间不追掉落物"这条设计；
+- `RestoreScopeTask` 自带的收尾收集 = ②的材料闭环（**保留**：语义是"拆下来的方块回到背包"，
+  standalone `/alice restore` 也需要；与 ③ 的"作业产物收拢"职责不同）；
+- **① 的越界风险不加新限制**：就地扫尾用纯通行移动，理论上可能自己走下去 —— 由已有的前提断言
+  `on_top_at_teardown` 兜住（真走下去了直接 FAIL 并暴露，而不是悄悄改语义）；
+- 收集复用同一个 `CollectDropsTask`（两处只是**时刻 + 锚点**不同），未新增机制。
 
-**规则（本轮确立，J7 Step 2/3 砍树时必须遵守）**：
-> 高处作业（攀爬/脚手架）产生的掉落物**必然落在地面**。收集必须安排为
-> **先完成会话内拆除 → 落地 → 再收集**；不允许在高处追掉落物（那等于放弃"仍在顶上拆除"）。
+**配套（已落地，非补丁）**
+- `ScopeBuffer.adoptExistingDrops`（D-108）：修复"作用域重开清空登记 → 已落地产物丢失归属"；
+- `drops_left` **世界事实断言**（缓冲视图 + 场景包围盒内 item 实体数）+ SUMMARY 打印
+  `sweep_up= / sweep_ground= / stranded=<卡住的坐标>` —— 本轮两次失败都是它抓出来的；
+- 场景复位 `kill @e[type=minecraft:item,…]` 清历史残留；夹具开始 `clear <bot>`
+  （用户建议：避免背包爆满 + 让一次性方块账目干净）。
 
-**落地**：`ScaffoldLifecycleTask` 新增 `COLLECT` 阶段（拆除成功且落地后）——
-复用 `CollectDropsTask`（anchor = 落点附近、`worldMod=false`、best-effort），
-断言新增 `collected=N` 与 `drops_left`（**缓冲视图 + 世界事实扫描**：场景包围盒内 item 实体数必须为 0）；
-场景复位加 `kill @e[type=minecraft:item,…]` 清历史残留，保证跨轮可重复。
+**J7 Step 2/3 必须遵守**：砍高树时产物（原木）会成批落到地面，收集同样按"① 作业点就地 + ③ 落地后"
+安排；树越高越要靠这个顺序，而不是在高处追掉落物。
 
 ## D-108 作用域重开会丢失掉落物归属 → `adoptExistingDrops`（2026-09-11）
 

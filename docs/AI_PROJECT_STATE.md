@@ -218,9 +218,9 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
 - 待办（Slice B2）：`MiningBudget.maxExtraBreakTicks` 升级为尝试级 tick 预算（需先定口径）。
 
 **下一步（按序）**
-1. **客户端验收 J7 Step 1（第三次）**：右键 `alice:scaffold_check` —— 期望
-   `collected=1 drops_left=0 → PASS`（D-108 收养修好了"作用域重开丢掉落物归属"；夹具已按用户建议
-   开始时 `clear <bot>`）；
+1. **客户端验收 J7 Step 1（第四次）**：右键 `alice:scaffold_check` —— 生命周期已按用户裁定
+   改为**两处扫尾**（① 作业点就地 + ③ 落地后），期望 `sweep_up=1 sweep_ground=… drops_left=0
+   stranded=- → PASS`（缺口发生在"够得到的时刻"之前，而不是事后补救）；
 2. **J7 Step 2**：以树干为脚手架爬真实高树 + 砍伐顺序耦合（不许砍自己脚下那格）；
    Step 3 接进 `LumberJob`；Step 4 = §12.4 崩溃兜底 → 之后是 J8；
 3. **G4 Slice B2（待定口径，无实测需求驱动）**：`MiningBudget.maxExtraBreakTicks` 升级为尝试级 tick 预算；
