@@ -2982,3 +2982,38 @@ world_mod_ledger_close scope=…:MineRegressionTask 仍有 1 条我方临时放�
 - 旧语义（支撑留在世界里）：放支撑 −1 ＋ 目标掉落 +1 ⇒ 净 **0**；
 - 新语义（D-112 建拆同权）：放支撑 −1 ＋ 目标掉落 +1 ＋ **拆回支撑 +1** ⇒ 净 **+1**。
 已把 `expectedDelta` 由 0 改为 1，并在 `CaseDef` 的 javadoc 里写明算式与"旧期望随 D-112 作废"。
+
+## D-113 `floating_course` 竖井实际 4 格深 → 掉落物落在"站不住的格"上收不回（2026-09-11）
+
+**触发**（同一用例第二次失败，两轮数字不一致 ⇒ 停止调期望值，改查根因）：
+```
+run A: exec_floating FAIL … inventoryDelta=2(期望0) dropsLeft=0 supportRestored=true
+run B: exec_floating FAIL … inventoryDelta=0         dropsLeft=1 supportRestored=true
+```
+**日志取证（run B）**
+```
+[WRITE] break 23,64,190 cobblestone by=RestoreScope:SCAFFOLD_RESTORE    ← 拆支撑块
+[Restore] 23,64,190 ：向下拆 不通 → 改为侧拆兜底（不挖地形）              ← 站不到正上方
+[MineTask] … stand=24,65,190                                            ← 侧拆站位（站在"放置面"台阶上）
+[CollectDrops] sweep_start … feet=24,65,190 worldMod=false
+[PathRetry] plan_failed status=UNREACHABLE feet=24,65,190 goal=23,64,190 ← 掉落物所在格不可达
+[CollectDrops] retire … itemPos=22,64,190 reason=MOVEMENT_FAILED         ← 退役 → 残留 1
+[Restore] 仍有 1 个掉落物没收回（可能落在够不到的地方）
+```
+**根因（场景几何）**：`floating_course_terrain` 只写了 `setblock 23 63 190 air`，而下方 y=60..62
+全是空气、底垫在 y=59 ⇒ 那口"1×1 竖井"**实际 4 格深**。于是：
+1. 拆支撑块时 `DOWNWARD` 前提不成立（正上方站位够不到）→ 走**侧拆兜底**，bot 留在 (24,65,190)；
+2. 支撑块的掉落物**掉进 4 格深井**，落点 (23,63,190) 下面是空气 ⇒ **不是可站格**；
+3. 收集任务的寻路目标是"掉落物所在格"⇒ 规划器如实报 `UNREACHABLE` ⇒ 退役 ⇒ 残留。
+run A 只是掉落物恰好没滑进井里 —— **不稳定场景**，不是随机 bug。
+
+**修复（最小、根因）**：场景补 `fill 23 60 190 23 62 190 stone` ⇒ 竖井变 **1 格深**：
+掉落物落在 (23,63,190)（y=62 是实心 ⇒ 可站）⇒ 可就地回收 ✓；`DOWNWARD` 拆除路径也随之可行 ✓。
+案件前提不变：目标 (23,65,190) 正下方仍是空气 ⇒ 仍走"侧面站位 + 放支撑块"分支 ✓。
+
+**登记但不本轮做（通用改进，有证据）**：`CollectDropsTask` 的寻路目标是**掉落物所在格**；
+当掉落物落在"站不住的格"（1×1 井内、栅栏上、台阶边缘…）时，即使相邻就有可站格也会被判
+`UNREACHABLE` 并退役。正确做法应是"**寻路到够得着它的可站格**"（拾取半径 ≈1 格）。
+本轮不顺手改（会动到已验收的收集任务），登记为待办，等有第二个实例再一起做。
+
+**验证等级**：IMPLEMENTED（场景修复已入库；客户端复测一次 `alice:mine_regression` 即可）。
