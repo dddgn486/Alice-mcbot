@@ -129,6 +129,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> LUMBER_POLICY_CHECK =
             ITEMS.register("lumber_policy_check", () -> new LumberPolicyCheckItem(new Item.Properties()));
 
+    /** J6-b1b 恢复自检（零参数）：把 bot 送到待恢复方块旁再跑恢复任务。 */
+    public static final RegistryObject<Item> RESTORE_CHECK =
+            ITEMS.register("restore_check", () -> new RestoreCheckItem(new Item.Properties()));
+
     /** J5 挖掘 Job 夹具入口（零参数，ore_course 场景）。 */
     public static final RegistryObject<Item> MINE_JOB =
             ITEMS.register("mine_job", () -> new MineJobItem(new Item.Properties()));

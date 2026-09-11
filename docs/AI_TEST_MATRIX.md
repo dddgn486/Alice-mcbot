@@ -117,6 +117,8 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 
 | J6-b1b 恢复的物质闭环 | 右键 `alice:pathing_regression` → 自动追加恢复任务 → 看 `[Restore] SUMMARY` | 零参数右键 | 恢复期间重开作用域让掉落物被登记，收尾调一次收集（`worldMod=false`） | `待测`（预期 `restored=N recovered≥1`、无 `drops_left`；`/alice ledger → pending=0`） |
 
+| J6-b1b 恢复自检（夹具负责传送） | `/give @s alice:restore_check` → 右键 | 物品右键（零参数） | 场景相互孤立，恢复任务走不过去 → 夹具把 bot 送到待恢复方块旁的可站格 | `待测`（预期 `[Restore] … restored≥1 recovered≥1`；跨场景的仍如实 `approach_failed`） |
+
 ## 性能验证
 
 | 能力 | 测试入口 | 关键观察 | 当前状态 |
