@@ -100,9 +100,9 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 
 | D-112 挖掘侧建拆同权 | 右键 `alice:mine_regression`（自带复位）；`alice:mine_job` 需**先** `/function alice_test:ore_course` | 零参数右键 | 用完自己放的临时方块（支撑/台阶）后，**仍在架上**自上而下拆掉；`[MineTask] restore_start/restore_end` 可判读；任务收尾不得再出现 `仍有 N 条我方临时放置未拆除` | `待测`（预期 `mine_regression` 10 项全 PASS 且**残留警告消失**；`supportRestored=true`） |
 
-| D-111 能力信封（切片 A）复跑 | 右键 `alice:lumber_job` / `alice:lumber_failure_check` / `alice:mine_regression` / `alice:scaffold_check` | 四次零参数右键 | 加高能力已下沉 L2（`MiningProfile`），四个调用点行为应与改造前一致 | `待测`（高树仍靠加高完成、`lumber_failure_check` 5/5、`mine_regression` 不变、`scaffold_check` PASS） |
+| D-111 能力信封（切片 A）复跑 | 右键 `alice:lumber_failure_check` / `alice:mine_regression` / `alice:scaffold_check`（三者自带复位）；`alice:lumber_job` 需**先** `/function alice_test:lumber_course` | 四次零参数右键 | 加高能力已下沉 L2（`MiningProfile`），四个调用点行为应与改造前一致 | `待测`（高树仍靠加高完成、`lumber_failure_check` 5/5、`mine_regression` 不变、`scaffold_check` PASS） |
 
-| J7 Step 2 伐木攀爬兜底（D-109） | 右键 `alice:lumber_job`（`lumber_course`，含高树） | 零参数右键 | 够不到的原木先**贴着树干搭柱子爬上去**再砍（`CLIMB` 阶段）；每棵树用完**仍在架上**拆除我方放置；`climbed=/climbBlocks=/scaffoldLeft=` 进终态 | `待测`（第三次，按用户裁定改为**最小高度增益**：预期 `[Job] step phase=GAIN …` → 该原木 `CUT` 成功；高树不再出现 `no_reachable_standing_point`；`climbed≥1`、`scaffoldLeft=0`） |
+| J7 Step 2 伐木攀爬兜底（D-109） | **先** `/function alice_test:lumber_course`（含复位+传送+发物品）→ 再右键 `alice:lumber_job` | 零参数右键 | 够不到的原木先**贴着树干搭柱子爬上去**再砍（`CLIMB` 阶段）；每棵树用完**仍在架上**拆除我方放置；`climbed=/climbBlocks=/scaffoldLeft=` 进终态 | `待测`（第三次，按用户裁定改为**最小高度增益**：预期 `[Job] step phase=GAIN …` → 该原木 `CUT` 成功；高树不再出现 `no_reachable_standing_point`；`climbed≥1`、`scaffoldLeft=0`） |
 
 | J4 终止路径复跑（D-109 后须确认未被新阶段破坏） | 右键 `alice:lumber_failure_check` | 零参数右键 | 五条终止路径各一个用例 | `待测`（预期 5/5 PASS） |
 
