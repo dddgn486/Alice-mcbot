@@ -212,13 +212,15 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
   `breakable` 谓词与执行期同一判据；我方临时放置回收（`SCAFFOLD_RESTORE`）豁免但仍计数；
   超限 = 硬停 + `WRITE_BUDGET_EXHAUSTED` + 作用域收尾一行 `[WriteBudget] SUMMARY`。
 - 夹具：`alice:write_budget_check`（把上限压到 1 格，断言"只拆 1 格后如实失败"）。
-- 待办（Slice B）：计划期剪枝 + 尝试级 tick 预算（`MiningBudget.maxExtraBreakTicks` 升级）。
+- Slice B（同日完成）：计划期剪枝（`MovementContext.writesAllowed` 拦写边生成）+
+  计划级下界检查与 `pureTraversal()` 降级；夹具 `refusedPlaces` 2→0、耗时 51→24 tick，
+  回归 16 场景零误剪（预算实耗不变 5/64、7/32）。
+- 待办（Slice B2）：`MiningBudget.maxExtraBreakTicks` 升级为尝试级 tick 预算（需先定口径）。
 
 **下一步（按序）**
-1. **客户端验收 G4 Slice B**：右键 `alice:write_budget_check`（判据新增 `refusedPlaces==0`）
-   + 复跑 `alice:pathing_regression`（防止计划期闸门误剪合法写边）；
-2. **G4 Slice B2（待定口径）**：`MiningBudget.maxExtraBreakTicks` 升级为尝试级 tick 预算
+1. **G4 Slice B2（待定口径）**：`MiningBudget.maxExtraBreakTicks` 升级为尝试级 tick 预算
    （需先定非挖掘请求的预算来源与优先级）；
+2. **J7 攀爬**：第一处真正需要脚手架放置的 Job，会首次实检建拆同权；
 2. **J7 攀爬**（第一处真正需要脚手架放置的 Job，将首次实检建拆同权）→ **J8 MAINTAIN 区域型**。
 3. 仍登记未做：G3（模组连锁破坏无凭证）、G5（容器写入维度）、
    `isExpensiveToClear` 的成本化 + `#alice:clear_forbidden` 标签、`MiningBudget.tierOf` 的 `#forge:ores/*`、

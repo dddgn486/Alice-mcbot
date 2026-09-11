@@ -2647,6 +2647,20 @@ APPROACH 成功（`movements=0`），但 **DESCEND 失败**：
    `BREAK_AND_TRAVERSE` 记 2）会把上限 1 的合法场景整条剪掉（夹具实测教训）。下界**不会误剪**，
    而"绝不超过上限"由执行期闸门（Slice A）保证——两者是分工，不是重复。
 
+**Slice B 验证等级**：WINDOWS_CLIENT + USER_ACCEPTED（2026-09-11 19:15）。
+- 夹具（同一场景、同一上限 1 格）修复前后对比：`refusedPlaces` **2 → 0**、`replans` **2 → 1**、
+  任务耗时 **51 → 24 tick**，且日志里不再出现 `[WRITE-REFUSED] place`
+  —— 即"破坏被拒后改规划放置绕行"这条病消失（B1 在计划期就不生成写边）。
+  期望行：`CHECK breaks=1/1 places=0/0 refusedBreaks=1 refusedPlaces=0 exhausted=true
+  wall_broken=1 passed_wall=false status=MOVEMENT_FAILED → PASS`。
+- 反例守卫（防误剪）：回归 16 场景 + `foot_cell_rule` + `coverage` 全 PASS，
+  预算实耗与 Slice A 时**完全一致**（`breaks=5/64 places=7/32 refused=0`），
+  `plan_write_budget_insufficient` 出现 **0** 次 ⇒ 合法写边一条没被误剪。
+- 新遥测：`[PathRetry] planned … writes>=b/p`（每个计划的写入下界；`place_course` 0/2、
+  `pillar_course` 0/2、`break_course` 1/0 均符合预期）。
+- 语义提醒（下界的固有性质）：上限 1 格的场景里，**第一次尝试仍会真的拆掉那 1 格**，
+  之后才停下——预算是"许可"而不是"预测"，"绝不超过上限"由执行期闸门保证。
+
 **仍待做（Slice B2）**：`MiningBudget.maxExtraBreakTicks`（6 tick/格 ×10 × 珍贵度）目前仍只用于
 规划期选站位。升级为"每次尝试允许累计消耗的破坏 tick"需要先定两件事：①非挖掘类请求（带世界修改的
 通行）的 tick 预算从哪里来；②它与任务级次数上限（64/32）的优先级。等有实测需求再定，避免先造口径。
