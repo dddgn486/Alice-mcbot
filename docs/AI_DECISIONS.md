@@ -3522,3 +3522,31 @@ code=done recovery=idle_after_cleanup recoveryEvents=[]` ✅
 "信封已派生"的日志证据，行为待场景。
 
 **验证等级**：IMPLEMENTED / COMPILES（客户端待验：`alice:clear_retry_check` → `SUMMARY … → PASS`）。
+
+### D-121 附注（2026-09-12 00:32–00:33 客户端实测：连续 3 轮 PASS）
+
+`alice:clear_retry_check` 三轮全绿，**换候选语义拿到逐条证据**（相位①故意无镐）：
+```
+clear_start target=6,64,64 blocker=5,65,64 used=1/4 attempt=1 → 子任务 no_suitable_tool
+clear_skip  blocker=5,65,64 reason=no_suitable_tool（换下一个候选，不放弃整棵树）
+clear_end   … used=1/4 attempts=1 failed=1 exhausted=false      ← 旧代码在这里就整体放弃了
+clear_start … blocker=5,64,64  attempt=2 → clear_skip … exhausted=false
+clear_start … blocker=6,65,63  attempt=3 → clear_skip … exhausted=false
+clear_start … blocker=6,64,63  attempt=4 → clear_skip … exhausted=false
+[ClearRetry] retry attempts=4 failed=4 targetIntact=true status=FAILED → PASS
+```
+⇒ **4 次尝试 = 4 个不同候选**（`5,65,64` / `5,64,64` / `6,65,63` / `6,64,63`），且每一步
+`exhausted=false`（只有预算用尽才停），完全符合"这一格失败就换下一个"的设计 ✓（旧实现：
+第一次失败即 `exhausted=true`，8 格预算只用 1 格）。
+
+相位②（发回镐，同一信封）：`break 5,65,64 stone by=…:LINE_OF_SIGHT` → `break 6,64,64 dirt`
+→ `clear_then_mine=DONE cleared=1 targetGone=true → PASS`（新子信封没破坏正常清障）✓；
+`clear_subtask_profile … profile=standableOnly=true gain<=1 blocks<=12 clear=none` ✓；
+`sub_profile` 两个纯逻辑断言（父 `gain<=3` ⇒ 子 `gain<=1`；父无加高 ⇒ 子 `gain=none clear=none`）均 PASS ✓。
+同轮 `[WriteBudget] SUMMARY breaks=2/64 … refusedBreaks=0 exhausted=false`（预算无干扰）✓。
+
+**附带观察（无害）**：新增物品会打一条
+`Registry minecraft:item: Object did not get ID it asked for. Name: alice:clear_retry_check Expected: 1286 Got: 1295`
+—— 已存在的存档里物品 ID 表与新注册顺序不一致，Forge 自行重映射；只影响诊断，不影响行为。
+
+**验证等级**：`WINDOWS_CLIENT`（`[ClearRetry] SUMMARY … → PASS` ×3）。
