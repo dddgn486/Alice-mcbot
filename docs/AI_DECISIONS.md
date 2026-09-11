@@ -3483,3 +3483,42 @@ code=done recovery=idle_after_cleanup recoveryEvents=[]` ✅
 
 **验证等级**：IMPLEMENTED / COMPILES；`mine_regression` 与 `lumber_job` 两入口 `WINDOWS_CLIENT`，
 其余 7 个入口按 §1.7 清单下次串联复测。
+
+## D-121 R2：限次清障"换候选" + 子任务信封 = 父信封子集（2026-09-12）
+
+**病灶（现场证据）**：`MineTask.tickClear()` 一旦某个清障候选失败就把 `clearExhausted` **整体**置真，
+于是 `clearProfile.clearBudget=8` 只用了 **1** 格就放弃整个目标（2026-09-11 实测
+`clear_start … used=1/8` → `clear_end … exhausted=true`，随后整棵树/整根原木失败）。
+当初这么写是为了修"同一格重试 8 次烧光预算"（21:54 实测）——**修过头了**：正确语义是
+"**这一格**不再重试，换下一个候选"。
+
+**实现**
+1. `BlockerClearPlanner.nextClearStep(…, Set<BlockPos> excluded)`：新增排除集重载（旧签名委托空集）。
+   失败过的候选不再被挑中；**候选都用过**（或预算用尽）才返回 null。
+2. `MineTask`：
+   - `failedBlockers` 记录失败候选；`tickClear()` 失败时只登记该格并打
+     `[MineTask] clear_skip blocker=… reason=…（换下一个候选，不放弃整棵树）`，**不再闩锁**；
+   - `tryClear()` 只在 `nextClearStep` 返回 null 时闩锁，并打 `clear_exhausted … tried=/used=`；
+   - 运行期"视线被挡"路径：若首个阻挡物刚失败过，改走规划器路径（同样换候选），不原地重试；
+   - `clear_end` 增记 `attempts=/failed=`，便于日志判读；
+   - 夹具可读：`clearAttempts()` / `failedClearBlockers()`。
+3. **`MiningProfile.nestedSubTask()`**：嵌套子任务信封 = **父信封的子集**——清障归零（防"清障里的清障"
+   递归）、加高取 `min(父,1)`（父不允许则子也不允许）、**建拆同权归 false**（只归会话所有者，D-112）。
+   清障子任务原先硬编码 `STANDABLE_ONLY`（无加高），现在从父信封派生；`clear_start` 后追加
+   `clear_subtask_profile` 日志，让"子任务拿到了什么信封"在日志里可查。
+
+**验证入口（新）**：`alice:clear_retry_check`（零参数右键，自带场景）——运行时复用 `break_course` 平台，
+把目标 `6,64,64` 放**泥土**（不需要正确工具 ⇒ 父任务不会被工具判定拦下）、四周用**石头**围 3×3×2 壳
+（视线全挡 ⇒ 必然走清障），分两相位：
+1. **retry**：先清空背包（借 R1 的"无镐"制造**确定的**清障失败）⇒ 断言 `clearAttempts() ≥ 2`、
+   `failedClearBlockers() ≥ 1`（确实换过候选）、目标未动、父任务 FAILED；
+2. **clear_then_mine**：发回镐重跑同一信封 ⇒ 断言清障成功（`clearedBlocks() ≥ 1`）、目标被挖掉、DONE；
+3. **sub_profile**（纯逻辑）：`withGain(3).withClear(8).nestedSubTask()` = `gain<=1 … clear=none`；
+   无加高父信封 ⇒ `gain=none clear=none`。
+
+**未覆盖（登记）**：本夹具验证的是"失败后换候选 + 换完确实能清通"；**几何性**的"第一个候选因站位不可达而
+失败、第二个候选可达且成功"仍需专门场景（`isValidStandingPoint` 不判可达性，这类场景要造"可达性缺陷"的
+地形）——留待做 J8/专项夹具时补。清障子任务**加高**的实际行为（父允许时子可爬 1 格）同理只有
+"信封已派生"的日志证据，行为待场景。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待验：`alice:clear_retry_check` → `SUMMARY … → PASS`）。

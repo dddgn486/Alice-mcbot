@@ -568,6 +568,16 @@ public final class BotManager {
         return true;
     }
 
+    /** R2 限次清障"换候选"自检：一个候选失败要换下一个，而不是放弃整棵树。 */
+    public static boolean assignClearRetryCheck(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        session.beginTask(new com.dddgn.alice.task.ClearRetryCheckTask(bot, session.scope()),
+                TaskTarget.block(com.dddgn.alice.task.ClearRetryCheckTask.START_FOOT));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     /** 写入预算自检（D-106）：任务级破坏上限压到 1 格，断言"用满即停、如实失败"。 */
     public static boolean assignWriteBudgetCheck(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());

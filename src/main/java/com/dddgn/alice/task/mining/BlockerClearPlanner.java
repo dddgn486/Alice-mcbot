@@ -136,6 +136,17 @@ public final class BlockerClearPlanner {
      */
     public static BlockPos nextClearStep(ServerLevel level, ServerPlayer bot, BlockPos log,
                                         double reach, int budgetLeft, WriteGrant grant) {
+        return nextClearStep(level, bot, log, reach, budgetLeft, grant, java.util.Set.of());
+    }
+
+    /**
+     * @param excluded 已经**失败过**的候选（R2 / D-121）：跳过它们去挑下一个候选。
+     *                 为什么要排除而不是原地重试：清障失败往往是**确定性**的（站位不可达、
+     *                 没有正确工具…），重复挑同一格只会烧光预算（2026-09-11 21:54 实测 8 次同格）。
+     */
+    public static BlockPos nextClearStep(ServerLevel level, ServerPlayer bot, BlockPos log,
+                                        double reach, int budgetLeft, WriteGrant grant,
+                                        java.util.Set<BlockPos> excluded) {
         if (budgetLeft <= 0) {
             return null;
         }
@@ -166,6 +177,9 @@ public final class BlockerClearPlanner {
                 }
                 // 逐块检查：返回第一块**自己也能被清掉**的阻挡（从当前观察位算，与清障子任务同判据）
                 for (BlockPos blocker : blockers) {
+                    if (excluded.contains(blocker)) {
+                        continue;   // R2：失败过的候选不再重复挑
+                    }
                     if (StandingPointSelector.isValidStandingPoint(level, blocker, stand, reach) != null) {
                         return blocker;
                     }

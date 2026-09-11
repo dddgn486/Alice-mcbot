@@ -141,6 +141,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> WRITE_BUDGET_CHECK =
             ITEMS.register("write_budget_check", () -> new WriteBudgetCheckItem(new Item.Properties()));
 
+    /** R2 限次清障"换候选"自检（零参数）：一个候选失败要换下一个，而不是放弃整棵树。 */
+    public static final RegistryObject<Item> CLEAR_RETRY_CHECK =
+            ITEMS.register("clear_retry_check", () -> new ClearRetryCheckItem(new Item.Properties()));
+
     /** J6-b1b 恢复自检（零参数）：把 bot 送到待恢复方块旁再跑恢复任务。 */
     public static final RegistryObject<Item> RESTORE_CHECK =
             ITEMS.register("restore_check", () -> new RestoreCheckItem(new Item.Properties()));

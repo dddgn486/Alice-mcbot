@@ -87,6 +87,16 @@ public final class MineTask implements Task {
     private CollectDropsTask collector;
     /** 工具前置判定结果（D-119）：非 null 时本任务一 tick 内如实失败，不再动世界。 */
     private final String toolRefusal;
+    /**
+     * **清障失败的候选**（R2 / D-121）：失败过的阻挡格不再重复挑，而是换下一个候选。
+     * 旧实现一失败就把 `clearExhausted` 整体置真 ⇒ 8 格预算只用了 1 格就放弃整棵树
+     * （2026-09-11 实测 `clear_start used=1/8` → `clear_end exhausted=true`）。
+     */
+    private final java.util.Set<BlockPos> failedBlockers = new java.util.LinkedHashSet<>();
+    /** 本次正在清的阻挡格（`tickClear` 失败时登记进 {@link #failedBlockers}）。 */
+    private BlockPos clearingBlocker;
+    /** 清障尝试次数（夹具断言用：应当 > 1 = 确实换过候选）。 */
+    private int clearAttempts;
     private String failureReason = "";
     private MineBlockRunner.FailureReport lastFailureReport;
     private int recoveryAttempts;
@@ -557,7 +567,15 @@ public final class MineTask implements Task {
         BlockPos blocker = com.dddgn.alice.task.mining.BlockerClearPlanner.nextClearStep(
                 bot.serverLevel(), bot, target, bot.getBlockReach(),
                 profile.clearBudget() - clearSteps,
-                grant.with(com.dddgn.alice.action.WriteReason.LINE_OF_SIGHT));
+                grant.with(com.dddgn.alice.action.WriteReason.LINE_OF_SIGHT),
+                failedBlockers);
+        if (blocker == null) {
+            // R2：**候选都用过了**才放弃（而不是"失败一次就放弃"）
+            clearExhausted = true;
+            BotLog.info("[MineTask] clear_exhausted target={} tried={} used={}/{}（没有更多候选）",
+                    target.toShortString(), clearAttempts, clearSteps, profile.clearBudget());
+            return false;
+        }
         return startClear(blocker, "planning:" + reason);
     }
 
@@ -568,6 +586,10 @@ public final class MineTask implements Task {
         }
         BlockPos blocker = com.dddgn.alice.task.mining.LineOfSightChecker
                 .checkFromEye(bot.serverLevel(), bot.getEyePosition(), target).getFirstBlocker();
+        if (blocker != null && failedBlockers.contains(blocker)) {
+            // R2：这一格刚失败过 ⇒ 不原地重试，走"换下一个候选"的规划器路径
+            return tryClear("runtime:line_of_sight_blocked");
+        }
         return startClear(blocker, "runtime:line_of_sight_blocked");
     }
 
@@ -578,11 +600,18 @@ public final class MineTask implements Task {
             return false;
         }
         clearSteps++;
-        BotLog.info("[MineTask] clear_start target={} blocker={} used={}/{} why={}",
-                target.toShortString(), blocker.toShortString(), clearSteps, profile.clearBudget(), why);
+        clearAttempts++;
+        clearingBlocker = blocker.immutable();
+        BotLog.info("[MineTask] clear_start target={} blocker={} used={}/{} attempt={} why={}",
+                target.toShortString(), blocker.toShortString(), clearSteps, profile.clearBudget(),
+                clearAttempts, why);
+        // R2：子任务信封 = **父信封的子集**（清障归零防递归；加高取 min(父,1)；建拆同权归 false）
+        MiningProfile subProfile = profile.nestedSubTask();
+        BotLog.info("[MineTask] clear_subtask_profile target={} blocker={} profile={}",
+                target.toShortString(), blocker.toShortString(), subProfile.describe());
         clearTask = new MineTask(bot, blocker, scope,
                 MiningBudget.forTarget(bot, bot.serverLevel(), blocker, false),
-                MiningProfile.STANDABLE_ONLY,
+                subProfile,
                 grant.with(com.dddgn.alice.action.WriteReason.LINE_OF_SIGHT));
         phase = Phase.CLEAR;
         return true;
@@ -605,11 +634,19 @@ public final class MineTask implements Task {
         if (status == Status.DONE) {
             clearedBlocks++;
         } else {
-            clearExhausted = true;   // 清障失败 → 本目标不再清障（否则会反复挑同一格烧预算）
+            // R2：只登记**这一格**失败，换下一个候选；整体放弃交给 tryClear（候选用尽）或预算用尽
+            if (clearingBlocker != null) {
+                failedBlockers.add(clearingBlocker);
+                BotLog.warn("[MineTask] clear_skip blocker={} reason={}（换下一个候选，不放弃整棵树）",
+                        clearingBlocker.toShortString(),
+                        clearTask.failureReason().isEmpty() ? "unknown" : clearTask.failureReason());
+            }
         }
-        BotLog.info("[MineTask] clear_end target={} status={} cleared={} used={}/{} exhausted={}",
+        BotLog.info("[MineTask] clear_end target={} status={} cleared={} used={}/{} attempts={}"
+                        + " failed={} exhausted={}",
                 target.toShortString(), status, clearedBlocks, clearSteps, profile.clearBudget(),
-                clearExhausted);
+                clearAttempts, failedBlockers.size(), clearExhausted);
+        clearingBlocker = null;
         clearTask = null;
         standingPointEvaluated = false;
         phase = Phase.EVALUATING;
@@ -712,6 +749,16 @@ public final class MineTask implements Task {
     }
 
     /** 本任务为"腾站位/通视线/开立柱"成功清掉的阻挡方块数（L3 用它做逐树/逐目标记账）。 */
+    /** 清障尝试次数（夹具断言"失败后确实换过候选"）。 */
+    public int clearAttempts() {
+        return clearAttempts;
+    }
+
+    /** 清障失败过的候选格（不可变副本）。 */
+    public List<BlockPos> failedClearBlockers() {
+        return List.copyOf(failedBlockers);
+    }
+
     public int clearedBlocks() {
         return clearedBlocks;
     }

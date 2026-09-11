@@ -76,6 +76,22 @@ public record MiningProfile(boolean standableOnly, int maxGainSteps, int gainBlo
         return new MiningProfile(standableOnly, maxGainSteps, gainBlockBudget, clearBudget, true);
     }
 
+    /**
+     * **嵌套子任务的信封**（R2 / D-121）：子任务的能力必须是父信封的**子集**。
+     *
+     * <p>规则（三条都来自既有裁定）：
+     * <ol>
+     *   <li>**清障归零** —— 不许"清障里的清障"无限递归（D-115）；</li>
+     *   <li>**加高取 `min(父, 1)`** 且沿用父的方块预算 —— 父不允许加高时子也不允许，
+     *       父允许时子最多爬 1 格（够到阻挡物即可，实测清障只差 1 格）；</li>
+     *   <li>**建拆同权归 false** —— 只归"会话所有者"（D-112），否则子任务会把所有者还要用的脚手架拆掉。</li>
+     * </ol>
+     */
+    public MiningProfile nestedSubTask() {
+        int steps = Math.min(maxGainSteps, 1);
+        return new MiningProfile(standableOnly, steps, steps > 0 ? gainBlockBudget : 0, 0, false);
+    }
+
     /** 是否允许加高。 */
     public boolean mayGain() {
         return maxGainSteps > 0;

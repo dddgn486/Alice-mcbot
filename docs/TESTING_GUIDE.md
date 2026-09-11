@@ -66,6 +66,7 @@
 | 容器绕行自检 | `alice:clear_guard_check` | `clear_guard_terrain` |
 | 写入预算自检 | `alice:write_budget_check` | `break_course_terrain` |
 | 伐木失败语义 | `alice:lumber_failure_check` | `lumber_course_terrain` + `lumber_course_trees` |
+| 清障换候选（R2） | `alice:clear_retry_check` | 运行时复用 `break_course_terrain` + 脚本搭石头壳 |
 
 **不自带复位**（物品只负责"传送 + 发料"，**必须先跑场景函数**，否则会消耗上一轮剩下的矿/树）：
 
@@ -92,7 +93,8 @@
 | 6 | 右键 `alice:write_budget_check` | 自带 | `refusedPlaces=0 …` | 同 2 |
 | 7 | 右键 `alice:lumber_failure_check` | 自带 | `[LumberFailCheck] SUMMARY … 5/5 PASS` | 同 2 |
 | 8 | `/function alice_test:ore_course` → 右键 `alice:mine_job` | 手动 | `DONE …` | 同 2 |
-| 9 | 右键 `alice:pathing_regression` | 自带 | `16/16` | —（不涉挖矿，仅防连带回归） |
+| 9 | 右键 `alice:clear_retry_check` | 自带 | `[ClearRetry] SUMMARY retry=PASS attempts=… clear_then_mine=PASS cleared=… sub_profile=PASS → PASS` | **期望**若干条 `[MineTask] clear_skip …`（换候选）与 `no_suitable_tool`（相位①故意无镐） |
+| 10 | 右键 `alice:pathing_regression` | 自带 | `16/16` | —（不涉挖矿，仅防连带回归） |
 
 > 判据含义：`no_suitable_tool` = 生产任务**拒绝**在没有正确工具时挖"必须正确工具才掉落"的方块（D-119）；
 > `tool_in_main_inventory` / `no_tool` = 夹具**漏发或发错位置**（工具落 9..35 就永远选不到 —— D-089 斧子、
