@@ -3550,3 +3550,36 @@ clear_start … blocker=6,64,63  attempt=4 → clear_skip … exhausted=false
 —— 已存在的存档里物品 ID 表与新注册顺序不一致，Forge 自行重映射；只影响诊断，不影响行为。
 
 **验证等级**：`WINDOWS_CLIENT`（`[ClearRetry] SUMMARY … → PASS` ×3）。
+
+## D-122 串联回归电池（`alice:regression_battery`）：一次右键跑完 9 项常用回归（2026-09-12）
+
+**用户裁定**："你帮我串联下必要的常用回归部分" —— 把 `TESTING_GUIDE §1.7` 的清单从"让用户点 9 次"
+改成**一个电池任务**（项目规矩本来就是"多项检查合并为一次交互，输出 `SUMMARY key=VALUE`"，
+拆成多次点击是反模式）。
+
+**实现**：`task/RegressionBatteryTask` + `item/RegressionBatteryItem`（`alice:regression_battery`）。
+一步一项、各自复位、**任一失败不中断**（一趟看全），最后一行
+`[Regression] SUMMARY clear_retry=… pathing=… (9/9) ticks=… → PASS|FAIL`。清单（由轻到重）：
+
+| # | 项 | 场景 | 夹具发料（D-119 起生产任务不发工具） |
+|---|---|---|---|
+| 1 | `clear_retry` | 任务自建（break_course 平台 + 石头壳） | 任务内部两相位各管一次 |
+| 2 | `write_budget` | 自带复位 | 自带 |
+| 3 | `scaffold` | 自带复位 | 自带 |
+| 4 | `clear_guard` | 自带复位 | 自带 |
+| 5 | `lumber_failure` | 自带复位 | 自带 |
+| 6 | `mine_regression` | 自带复位（逐例） | 自带 |
+| 7 | `lumber_job` | `lumber_course_terrain` + `lumber_course_trees` | 电池复刻 `LumberJobItem`：`resetInventory` + 斧 + 镐 + 圆石 ×12 |
+| 8 | `mine_job` | `ore_course_terrain` | 电池复刻 `MineJobItem`：`resetInventory` + 镐 |
+| 9 | `pathing` | 自带复位 | 自带 |
+
+**关键坑（本实现必须处理）**：`WriteBudget`（D-106）的 64/32 上限与账本 TEMP 都是
+**"一次任务 = 一个作用域"**（`WorldModLedger.openScope`）。九项若共用外层任务的作用域，后面的项会
+撞上前面的破坏上限、恢复阶段还会互相看见对方的临时方块 ⇒ 电池**每步自己 `openScope`**，
+并在步末镜像 `BotSession.clearTask` 的收尾（关账本作用域 → `WriteBudget.closeScope`（打摘要）
+→ `dropStale` → `scope.end()`），若步末仍有我方临时放置则 WARN 报出来。
+
+**用法**：`/give @s alice:regression_battery` → 右键 → 等约 3~5 分钟（9 项，总预算 20000 tick）
+→ 看 `[Regression] SUMMARY`。期间不要启动其它任务；人站远一点别捡掉落物。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待跑；本电池本身也是"§1.7 清单"的可执行版本）。

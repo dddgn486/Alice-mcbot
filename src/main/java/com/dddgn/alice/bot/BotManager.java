@@ -568,6 +568,16 @@ public final class BotManager {
         return true;
     }
 
+    /** 串联回归电池（D-122）：一次跑完 9 项常用回归，每项独立复位、失败不中断。 */
+    public static boolean assignRegressionBattery(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        session.beginTask(new com.dddgn.alice.task.RegressionBatteryTask(bot, observer, session.scope()),
+                TaskTarget.block(bot.blockPosition()));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     /** R2 限次清障"换候选"自检：一个候选失败要换下一个，而不是放弃整棵树。 */
     public static boolean assignClearRetryCheck(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());

@@ -67,6 +67,7 @@
 | 写入预算自检 | `alice:write_budget_check` | `break_course_terrain` |
 | 伐木失败语义 | `alice:lumber_failure_check` | `lumber_course_terrain` + `lumber_course_trees` |
 | 清障换候选（R2） | `alice:clear_retry_check` | 运行时复用 `break_course_terrain` + 脚本搭石头壳 |
+| **串联回归电池（★推荐）** | `alice:regression_battery` | 内部逐项复位（各步自带的 + lumber/ore 场景函数） |
 
 **不自带复位**（物品只负责"传送 + 发料"，**必须先跑场景函数**，否则会消耗上一轮剩下的矿/树）：
 
@@ -79,7 +80,18 @@
 > 规律：**场景函数（`*_course`）负责复位**；物品负责"传送 + 发料 + 启动"。
 > 所以凡是"物品不带场景函数"的入口，说明里必须写清先跑哪条函数。
 
-### 1.7 串联回归清单（改到生产任务后的必跑集，一次跑完）
+### 1.7 串联回归清单（改到生产任务后的必跑集）
+
+**★ 首选：一条右键跑完全部 9 项**
+
+```
+/give @s alice:regression_battery          # 一次性
+右键 arbitrary 方块                          # 等约 3~5 分钟
+```
+判据：`[Regression] SUMMARY clear_retry=… mine_regression=… lumber_job=… pathing=… (9/9) → PASS`，
+逐项失败不中断（一趟看全）。期间别启动其它任务、人站远一点别捡掉落物。
+
+下面是**逐项手工版**（排查单项时用；每项都自带复位，两个 Job 需要先跑场景函数）：
 
 凡改动生产任务（`MineTask` / `RestoreScopeTask` / Job 层）后，按此顺序**一次跑完**再读日志对判据：
 
