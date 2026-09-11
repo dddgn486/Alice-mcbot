@@ -57,8 +57,9 @@ public final class MineRegressionTask implements Task {
      *                       不计入收集阶段的 `collected`，只体现在背包增量上）；
      * @param expectSupport  true = 悬空目标：规划必须给出 `supportPlacementPos == target.below()`，
      *                       执行必须先在该处放下支撑块；
-     * @param expectedDelta  背包净增量：放支撑块会**消耗** 1 个一次性方块，而目标掉落物又是同类时
-     *                       净增量应为 0（正好证明"放了 1 个 + 收了 1 个"两件事都发生）。
+     * @param expectedDelta  背包净增量。**D-112 建拆同权后算式变了**：悬空目标
+     *                       = 放支撑 −1 ＋ 目标掉落 +1 ＋ **用完即拆后回收支撑 +1** = **净 +1**
+     *                       （旧语义是"支撑留在世界里"⇒ 净 0；那条期望随 D-112 一起作废）。
      */
     private record CaseDef(String name, String terrain, BlockPos start, BlockPos target,
                            Kind kind, List<MiningPlan.Mode> expectedModes,
@@ -104,9 +105,9 @@ public final class MineRegressionTask implements Task {
             new CaseDef("floating_plan", "floating_course", FLOAT_START, FLOAT_TARGET,
                     Kind.PLAN, List.of(MiningPlan.Mode.CURRENT, MiningPlan.Mode.DIRECT),
                     0, null, true, true, 0),
-            // 放支撑块消耗 1 圆石 + 目标掉落 1 圆石 → 净增量 0
+            // D-112：放支撑 −1 ＋ 目标掉落 +1 ＋ 拆回支撑 +1 ⇒ 净增量 +1（支撑"用完即拆"是硬要求）
             new CaseDef("exec_floating", "floating_course", FLOAT_START, FLOAT_TARGET,
-                    Kind.EXECUTE, List.of(), 1, Items.COBBLESTONE, true, true, 0),
+                    Kind.EXECUTE, List.of(), 1, Items.COBBLESTONE, true, true, 1),
             new CaseDef("exec_chain", "chain_mine_course", CHAIN_START, CHAIN_TARGET,
                     Kind.CHAIN, List.of(), 9, Items.RAW_IRON, true, false, 9));
 

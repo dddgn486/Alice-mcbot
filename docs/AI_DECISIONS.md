@@ -2973,3 +2973,12 @@ world_mod_ledger_close scope=…:MineRegressionTask 仍有 1 条我方临时放�
 回归 `alice:lumber_job` / `alice:lumber_failure_check`（嵌套路径不受影响）、`alice:clear_guard_check`。
 
 **验证等级**：IMPLEMENTED / COMPILES（客户端待验）。
+
+### D-112 附注：`mine_regression` 的悬空目标期望值随之更新（2026-09-11）
+
+客户端首测：`exec_floating=FAIL status=DONE/targetGone=true/collected=1/1/inventoryDelta=2(期望0)`
+`dropsLeft=0 supportRestored=true` —— **功能正确**（支撑块用完即拆 ✓、掉落物 0 残留 ✓），
+失败的是**过时的期望值**：
+- 旧语义（支撑留在世界里）：放支撑 −1 ＋ 目标掉落 +1 ⇒ 净 **0**；
+- 新语义（D-112 建拆同权）：放支撑 −1 ＋ 目标掉落 +1 ＋ **拆回支撑 +1** ⇒ 净 **+1**。
+已把 `expectedDelta` 由 0 改为 1，并在 `CaseDef` 的 javadoc 里写明算式与"旧期望随 D-112 作废"。
