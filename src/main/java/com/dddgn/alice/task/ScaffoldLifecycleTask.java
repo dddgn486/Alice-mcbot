@@ -149,10 +149,7 @@ public final class ScaffoldLifecycleTask implements Task {
         scope.begin(START_FOOT, 24, bot.getUUID());
         // 夹具职责（用户 2026-09-11 建议）：**先清空背包**再发料 —— ①避免 bot 背包爆满；
         // ②让"一次性方块库存变化（recovered）"这类账目干净（否则历史余料会把账搅浑）
-        String botName = bot.getName().getString();
-        server.getCommands().performPrefixedCommand(
-                server.createCommandSourceStack().withSuppressedOutput(), "clear " + botName);
-        BotLog.info("[Scaffold] clear_inventory bot={}", botName);
+        com.dddgn.alice.item.FixtureToolKit.resetInventory(bot);
         // 夹具职责：一次性方块（攀爬消耗）+ 石镐（采高处目标）
         com.dddgn.alice.item.FixtureToolKit.ensureHotbarStack(bot,
                 () -> new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.COBBLESTONE),

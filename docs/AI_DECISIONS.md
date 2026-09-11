@@ -2848,4 +2848,39 @@ movements=0 pillar=0/12` → 原地不动。**根因不在夹具几何，而在 
 `4.46 > reach 4.1`）——正是本次要闭合的缺口。同时必须复跑 `alice:lumber_failure_check`
 （J4 五条终止路径不能被新阶段破坏）。
 
-**验证等级**：IMPLEMENTED / COMPILES（客户端待验）。
+**首次客户端实测（2026-09-11 20:24，用户"还是没有砍高树"）**
+```
+[Job] step job=lumber phase=CUT   target=28, 70, 208 detail=log 7/7
+[Job] step job=lumber phase=CLIMB target=28, 70, 208 detail=四周没有可站格 → 放弃攀爬
+[Job] lumber 该树未完成 28, 64, 208:partial_tree gained=6/7 failed=28, 70, 208:no_reachable_standing_point
+```
+**根因（场景文件可查）**：顶端原木 (28,70,208) 的四邻全是 `spruce_leaves`
+（`(27,69,208)`、`(29,69,208)`、`(28,69,207)`、`(28,69,209)`）⇒ 攀爬立柱的每一层都被**树冠**占住，
+`climbGoalFor` 四侧全返回 null。**这才是 §11-① 要素⑥ 在 Alice 里的真实形态**：不是"踩到自己砍的
+原木"（那一条已按构造消失），而是"**树冠挡住脚手架立柱**"。
+
+**补齐（仍不新增机制）**：`tryStartClimb` 改为逐侧尝试 —— 某侧被挡时用
+`BlockerClearPlanner.clearable` 判断"能不能清"，能清就记下 `climbBlocker`；四次都不可行则
+`startClimbClear()` 用**既有** `MineTask` + **既有**每棵树清障预算（`MAX_CLEAR_PER_TREE=8`）
+清掉那一格，`queueIndex` 不变 → 清完重试同一根原木。立柱净空用 `firstBlockingCell`
+（从地面到目标格逐层查"站得住 + 钻得过"，与 `PILLAR` 的规划前提同口径）。
+
+**验证等级**：IMPLEMENTED / COMPILES（第二次客户端待验：期望高树 `climbed≥1`、不再出现
+`28,70,208:no_reachable_standing_point`、`scaffoldLeft=0`）。
+
+## D-110 夹具改背包必须广播主手（单点收敛，2026-09-11）
+
+**用户反馈**："客户端没有同步渲染 bot 手持物品的问题**又回来了**"。
+
+**根因**：`FixtureToolKit` 直接改背包（填空格 / 强制覆盖 / 从主背包搬入），**从不广播**；
+而本轮新增的 `clear <bot>`（用户建议，避免背包爆满）把背包清空后，服务端主手变为空，
+客户端却继续渲染上一件物品 —— 正是 D-090 修过的那条病灶被夹具重新踩到。
+
+**修法（收敛到一个地方，不再逐处补）**：
+1. `FixtureToolKit.ensureHotbarStack` 出口**统一广播** `BotManager.syncMainHand(bot)`
+   （原实现拆成 `ensureHotbarStackInternal`，公开方法包一层）；
+2. 新增 `FixtureToolKit.resetInventory(bot)`：`clear <bot>` + 广播 + 日志 ——
+   两个夹具入口（伐木 / 脚手架）都改调它，不再各自内联 `clear`。
+
+**教训（与 D-089/D-099 同源）**：夹具对背包的任何修改都必须经过**同一个出口**，
+否则"工具进快捷栏 / 一次性方块进快捷栏 / 主手同步"这三件事会一次次各自漏掉。

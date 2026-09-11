@@ -40,6 +40,29 @@ public final class FixtureToolKit {
     /** 保证快捷栏里至少有 {@code minCount} 个匹配物品。 */
     public static void ensureHotbarStack(BotPlayer bot, Supplier<ItemStack> sample,
                                          Predicate<ItemStack> isMatch, int minCount, String label) {
+        ensureHotbarStackInternal(bot, sample, isMatch, minCount, label);
+        // **唯一收敛点**（D-110）：夹具改完背包一律广播一次主手装备。
+        // 2026-09-11 实测：夹具清空/发料后客户端仍渲染旧手持物品（D-090 的病灶被夹具重新踩到）
+        com.dddgn.alice.bot.BotManager.syncMainHand(bot);
+    }
+
+    /**
+     * 夹具复位背包（用户 2026-09-11 建议）：清空 + **广播主手**。
+     *
+     * <p>用 `clear <bot>` 而不是逐个槽位清：一次指令搞定，且与玩家侧的观感一致。
+     * 广播不可省——清空后服务端主手是空的，客户端不广播就会继续渲染上一件物品。
+     */
+    public static void resetInventory(BotPlayer bot) {
+        var server = bot.getServer();
+        server.getCommands().performPrefixedCommand(
+                server.createCommandSourceStack().withSuppressedOutput(),
+                "clear " + bot.getName().getString());
+        com.dddgn.alice.bot.BotManager.syncMainHand(bot);
+        BotLog.info("[FixtureTool] 已清空 {} 的背包并广播主手", bot.getName().getString());
+    }
+
+    private static void ensureHotbarStackInternal(BotPlayer bot, Supplier<ItemStack> sample,
+                                                  Predicate<ItemStack> isMatch, int minCount, String label) {
         Inventory inventory = bot.getInventory();
         int have = countInHotbar(inventory, isMatch);
         if (have >= minCount) {

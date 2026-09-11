@@ -91,11 +91,8 @@ public class LumberJobItem extends Item {
         bot.controller().stopMovement();
 
         // 夹具职责（用户 2026-09-11 建议）：**先清空背包**再发料 —— ①避免 bot 背包爆满；
-        // ②让"原木增量（逐树 harvest 判据）"这类账目干净
-        var server = level.getServer();
-        server.getCommands().performPrefixedCommand(
-                server.createCommandSourceStack().withSuppressedOutput(),
-                "clear " + bot.getName().getString());
+        // ②让"原木增量（逐树 harvest 判据）"这类账目干净。清空后一律广播主手（D-110）。
+        FixtureToolKit.resetInventory(bot);
         ensureAxe(bot);
         ensureThrowaway(bot, 12);   // 攀爬兜底的方块预算（D-109）
 
