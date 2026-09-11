@@ -3610,3 +3610,41 @@ lumber_failure=FAIL mine_regression=PASS lumber_job=PASS mine_job=PASS pathing=P
 不归建拆同权管；电池按步如实 WARN 出来是正确的（每步仍各自独立作用域，不影响其它步）。
 
 **验证等级**：IMPLEMENTED / COMPILES（待复跑电池，期望 9/9）。
+
+### D-122 附注二（2026-09-12 00:52–00:55 复跑：**9/9 PASS**，2416 tick ≈ 2 分钟）
+
+```
+[Regression] SUMMARY clear_retry=PASS write_budget=PASS scaffold=PASS clear_guard=PASS
+            lumber_failure=PASS mine_regression=PASS lumber_job=PASS mine_job=PASS
+            pathing=PASS (9/9) ticks=2416 → PASS
+task_execution_terminal kind=RegressionBatteryTask … terminal=COMPLETED code=done
+                     recovery=idle_after_cleanup recoveryEvents=[]     ← 全场唯一非 COMPLETED 记录：无
+```
+逐项细节：`clear_retry` 59 / `write_budget` 23 / `scaffold` 171 / `clear_guard` 123 /
+`lumber_failure` 473（`[FailCheck] SUMMARY … log_replaced=PASS(status=DONE reason=quota_met
+replacedPos 仍为圆石=true) → PASS`，修复生效）/ `mine_regression` 183（**11/11**，含
+`no_tool_refuses=PASS`）/ `lumber_job` 666（`DONE quota_met trees 4/4 logs 19/19 cleared=8
+scaffoldLeft=0`）/ `mine_job` 240（`DONE quota_met mined 4/4 inventoryDelta=4`）/
+`pathing` 459（18 场景 + `foot_cell_rule` + coverage 全 PASS）。
+
+**每步独立作用域已被日志证实**：`[WriteBudget] SUMMARY scope=… #112:Regression:lumber_failure
+breaks=22/64 … #113:Regression:mine_regression breaks=4/64 … #114:Regression:lumber_job 29/64 …
+#115:Regression:mine_job 4/64 … #116:Regression:pathing 5/64`（各自计数、**无跨步累加** ⇒
+"一次任务=一个作用域"的设计正确）。
+
+**噪声逐条归类（全部为期望输出）**：
+- `no_suitable_tool` ×5 条实体告警 = `clear_retry` 相位①的 4 个壳方块 + `mine_regression` 负例 1 条；
+  另有 4 条 `clear_skip … reason=no_suitable_tool`（换候选取证）✓
+- `no_tool` ×1（`clear_retry` 相位①故意无工具）✓
+- `tool_in_main_inventory` **0** ✓；`clear_exhausted` **0** ✓；`scaffold_left` **0** ✓
+- `该树未完成` ×2 均出自 `lumber_failure` 自身的用例场景（`log_replaced` 与随后一棵残树），
+  该夹具用例本就容许 partial（其 SUMMARY 5/5 PASS）✓
+- `[Regression] step=pathing 收尾仍有 4 条我方临时放置未拆` —— `place_course` 系列**故意改世界**
+  的场景，复位靠下次 `*_terrain` 重放，不归建拆同权管 ✓
+
+**一条如实记录的口径差异**：电池里 `lumber_job` 的 `inventoryDelta=21`（干净手工轮是 19）——
+电池各步共用一个世界，前面 `lumber_failure` 用例留在地上的原木会在本步被顺路捡起。
+**判据不受影响**（`DONE quota_met`、`logs 19/19`、`scaffoldLeft=0` 都成立）；要拿"干净增量"就单独跑手工入口。
+
+**验证等级**：`WINDOWS_CLIENT`（9/9）。本电池一次性复验了 D-119（工具语义/负例）、D-121（清障换候选）、
+D-116（① 扫尾/② 对账）、D-117（伐木通道）等此前各项 ✓。
