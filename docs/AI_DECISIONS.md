@@ -2373,3 +2373,31 @@ D-095 的"路径上有容器 → 绕开而非拆掉"断言需要"箱子挡在必
 现全仓**只剩这一处**往快捷栏发料。
 
 **验证等级**：COMPILES。验收：`pathing_regression` 回到 14/14、`coverage=PASS`。
+
+---
+
+## D-100 `THROWAWAY` 标签化（2026-09-11，用户裁定"只整理、不扩张"）
+
+**背景**：用户提问——"可破坏集合是白名单吗？黑曜石严格说是条件可拆而非不可拆，这条规则对模组兼容怎么样？"
+核查结论：破坏判定是**默认允许 + 拒绝清单**（黑名单式），黑曜石的拒绝码是
+`expensive_clearing_block`（**代价**）而非 `unbreakable_block`（**不可能**），且**只作用于清障策略**——
+作为**明确目标**仍可挖 ✓，正是用户描述的"条件可拆"。模组兼容的真正短板是**三处硬编码方块清单**：
+`isExpensiveToClear`（3 个原版方块）、`THROWAWAY`（7 个原版方块）、`MiningBudget.tierOf`（原版 8 种矿石）。
+按"按 API/状态判定"的规则（流体、负硬度、`block_entity`、保护区、破坏成本）都对模组友好，
+凡"硬编码清单"的都对模组排斥。
+
+**本轮只做 `THROWAWAY` 标签化**（用户裁定：模组扩展已知改哪里、以后再加；先整理现有逻辑）：
+- 新增数据包标签 `data/alice/tags/blocks/throwaway.json`，内容与原清单**完全一致**（7 个原版方块）；
+- `BlockInteraction.THROWAWAY` 由 `List<Block>` 改为 `TagKey<Block>`（`alice:throwaway`），
+  两处用法（`findPlaceableSlot` / `countThrowaway`）改判 `defaultBlockState().is(THROWAWAY)`；
+- **行为不变**（同一批方块），但从此**不改代码即可扩展**：整合包/模组在自己的
+  `data/<ns>/tags/blocks/throwaway.json` 里追加（`replace:false` 合并）✓；
+  将来要放宽，只需把通用标签（`#minecraft:base_stone_overworld`、`#forge:cobblestone` 等）加进标签文件。
+
+**未做（已登记，等模组适配阶段）**：`isExpensiveToClear` 改"代价阈值"（用已有的
+`estimateBreakTicks`，黑曜石自然被挡住、模组高代价方块自动被挡住）+ 标签扩展点
+`#alice:clear_forbidden`；`tierOf` 接 `#forge:ores/*`。
+
+**验证等级**：COMPILES。**验收判断很方便**：若标签没生效，`findPlaceableSlot` 会返回 -1，
+`PILLAR`/`PLACE_STEP`/`FALL` 立刻生成不出来——即 `pathing_regression` 的 place/pillar/fall
+三个场景会像昨天 D-099 那样失败 ⇒ **跑一次 `pathing_regression` 回到 14/14 即证明标签生效**。

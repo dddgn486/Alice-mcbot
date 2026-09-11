@@ -2,6 +2,10 @@ package com.dddgn.alice.action;
 
 import com.dddgn.alice.log.BotLog;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.tags.TagKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -36,15 +40,21 @@ public final class BlockInteraction {
     private static final List<Direction> SUPPORT_SIDES = List.of(
             Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.DOWN);
 
-    /** 优先使用的"一次性"方块（Baritone selectThrowawayForLocation 的等价简化）。 */
-    private static final List<net.minecraft.world.level.block.Block> THROWAWAY = List.of(
-            net.minecraft.world.level.block.Blocks.DIRT,
-            net.minecraft.world.level.block.Blocks.COBBLESTONE,
-            net.minecraft.world.level.block.Blocks.STONE,
-            net.minecraft.world.level.block.Blocks.NETHERRACK,
-            net.minecraft.world.level.block.Blocks.ANDESITE,
-            net.minecraft.world.level.block.Blocks.DIORITE,
-            net.minecraft.world.level.block.Blocks.GRANITE);
+    /**
+     * "一次性"方块（垫脚 / 台阶 / 挖矿支撑用的可损失方块）——**数据驱动**（`alice:throwaway` 标签）。
+     *
+     * <p>对照 Baritone {@code selectThrowawayForLocation}（Alice 的等价简化）。
+     *
+     * <p>**为什么改成标签**（2026-09-11，用户裁定"只做标签化、集合内容不变"）：
+     * 原为硬编码 7 个原版方块的清单——**任何模组方块都用不了**，整合包里会出现
+     * "有石头却垫不了脚、`PILLAR`/`PLACE_STEP` 生成不出来"（即 D-099 那类故障的模组版）。
+     * 标签化后**不改代码**即可扩展：整合包/模组在自己的
+     * {@code data/<ns>/tags/blocks/throwaway.json} 里追加即可（`replace:false` 会合并）。
+     * 本轮**只整理、不扩张**：标签内容与原清单完全一致；将来要放宽，把通用标签
+     * （{@code #minecraft:base_stone_overworld} / {@code #forge:cobblestone} 之类）加进标签文件即可。
+     */
+    public static final TagKey<Block> THROWAWAY = TagKey.create(Registries.BLOCK,
+            ResourceLocation.fromNamespaceAndPath("alice", "throwaway"));
 
     public enum PlaceResult { PLACED, NO_OPTION }
 
@@ -151,7 +161,7 @@ public final class BlockInteraction {
             if (stack.isEmpty() || !(stack.getItem() instanceof BlockItem blockItem)) {
                 continue;
             }
-            if (THROWAWAY.contains(blockItem.getBlock())) {
+            if (blockItem.getBlock().defaultBlockState().is(THROWAWAY)) {
                 return slot;
             }
         }
@@ -167,7 +177,7 @@ public final class BlockInteraction {
             if (stack.isEmpty() || !(stack.getItem() instanceof BlockItem blockItem)) {
                 continue;
             }
-            if (THROWAWAY.contains(blockItem.getBlock())) {
+            if (blockItem.getBlock().defaultBlockState().is(THROWAWAY)) {
                 total += stack.getCount();
             }
         }
