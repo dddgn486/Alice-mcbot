@@ -3103,3 +3103,36 @@ run A 只是掉落物恰好没滑进井里 —— **不稳定场景**，不是�
 2. **`[CollectDrops] goal_shift item=… itemPos=28,70,207 goal=27,69,207`** 在**伐木**路径上真实触发了一次 ✓
    —— 高树顶端原木的掉落物停在树冠里"站不住的格"，D-114 把寻路目标改到旁边**可站格**后收回 ✓✓
    （这正是它设计要解决的那一类；不是只在夹具里生效 ✓）。
+
+## D-115 切片 B1：限次清障能力下沉 L2（`MiningProfile.clearBudget`）（2026-09-11）
+
+**用户裁定**："做切片 B"。切片 B 的目标是让"新授权不再需要在调用点写逻辑"。
+本轮先做 **B1（清障）**，B2（把 `ScaffoldLifecycleTask` 的多步 climb 也收进信封）留下一轮。
+
+**事实（用户最初指出的病根）**：伐木 Job 自己实现了**两套**清障——
+规划期 `BlockerClearPlanner.nextClearStep`（腾站位/通视线）+ 运行期 `LINE_OF_SIGHT_BLOCKED` 兜底——
+任何新任务想清障都得重写一遍 ✗。
+
+**B1 实现**
+1. `MiningProfile` 增加 `clearBudget` + `mayClear()` + `withClear(n)`（0 = 不允许清障）；
+2. `BlockerClearPlanner` 从 `job/lumber/` **迁到 `task/mining/`**（它本来就只依赖 mining 包的
+   `LineOfSightChecker`/`StandingPointSelector`/`MiningTuning` ⇒ 归位合理，且避免 L2 反向依赖 L3）；
+3. `MineTask` 增加 `CLEAR` 阶段与两个触发点：
+   - **规划失败**（站位类原因）→ `tryClear()` → 清掉"最该清的一格"→ 重试；
+   - **运行期 `LINE_OF_SIGHT_BLOCKED`** → `tryClearLineOfSight()` → 清阻塞物 → 重试；
+   预算用 `clearBudget` 递减；**顺序固定为"先清障、后加高"**（与客户端已验证的伐木行为一致）；
+   新增汇报 `MineTask.clearedBlocks()` 与日志 `clear_start/clear_end`；
+4. `LumberJob` **删除**两套清障实现（含 `clearTask`、`hasStandNow`、运行期 LOS 分支），
+   改为：每根原木声明 `TARGET_PROFILE.withClear(8 - clearedThisTree)`（**每棵树 8 格的预算
+   仍由 Job 决定**，只是执行交给 L2）+ 从 `miner.clearedBlocks()` 逐树记账（`cleared=` 报告不变）。
+
+**行为面**：清障仍走**同一个** `BlockerClearPlanner`、**同一个** `LINE_OF_SIGHT` 理由、**同一个**
+每棵树 8 格预算 ⇒ 期望行为不变；唯一可观察差异：失败码由 Job 自造的
+`:clear_budget` / `:clear_failed` 变为 L2 上报的站点类原因（更诚实，文档同步更新）。
+
+**评估后本轮不做（写清理由，避免被当遗漏）**：把 6 个 `PathRequest` 工厂的 Movement 集合
+"由 profile 派生"——它们各自是一行、且编码的是**清晰不同的策略**（只通行 / 可破坏 / 可搭 / 只拆向下…），
+派生只会把同样的信息换个地方写、并新增 5 个能力开关，收益不足以抵消复杂度 ⇒ **暂不派生**。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待验：`lumber_job`（高树 + 清障）、
+`lumber_failure_check`（5/5）、`mine_regression`（10/10，非伐木路径不受影响））。

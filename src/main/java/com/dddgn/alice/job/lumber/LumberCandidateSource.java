@@ -86,7 +86,7 @@ public final class LumberCandidateSource implements CandidateSource {
                     continue;
                 }
                 // 限次清障方案（不区分软/硬方块，只靠预算兜底）
-                int plan = BlockerClearPlanner.clearPlanCount(level, bot, log, reach,
+                int plan = com.dddgn.alice.task.mining.BlockerClearPlanner.clearPlanCount(level, bot, log, reach,
                         MAX_CLEAR_PER_TREE - clearBlocks, CLEAR_GRANT);
                 if (plan >= 0) {
                     clearBlocks += plan;

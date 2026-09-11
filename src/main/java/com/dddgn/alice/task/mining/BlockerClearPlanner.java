@@ -1,4 +1,4 @@
-package com.dddgn.alice.job.lumber;
+package com.dddgn.alice.task.mining;
 
 import com.dddgn.alice.action.WriteGrant;
 import com.dddgn.alice.action.BlockInteraction;

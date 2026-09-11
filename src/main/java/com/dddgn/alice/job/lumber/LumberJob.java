@@ -14,6 +14,7 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
 import com.dddgn.alice.task.CollectDropsTask;
 import com.dddgn.alice.task.MineTask;
+import com.dddgn.alice.task.mining.MiningProfile;
 import com.dddgn.alice.task.PathRetryRunner;
 import com.dddgn.alice.task.RestoreScopeTask;
 import com.dddgn.alice.pathing.core.MovementType;
@@ -22,9 +23,7 @@ import com.dddgn.alice.pathing.core.search.PathPlan;
 import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
-import com.dddgn.alice.task.mining.LineOfSightChecker;
 import com.dddgn.alice.task.mining.MiningBudget;
-import com.dddgn.alice.task.mining.StandingPointSelector;
 import com.dddgn.alice.pathing.MovementHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
@@ -100,7 +99,6 @@ public final class LumberJob implements Job {
     private int logsBeforeThisTree;
     private final List<String> failedLogs = new ArrayList<>();
     private MineTask miner;
-    private MineTask clearTask;
     /**
      * **本棵树**已清障格数（预算闸门用）。
      *
@@ -265,48 +263,15 @@ public final class LumberJob implements Job {
             return Task.Status.RUNNING;
         }
 
-        // 清障子任务优先推进（腾站位 / 打通视线；限次 = MAX_CLEAR_PER_TREE）
-        if (clearTask != null) {
-            Task.Status clearStatus = clearTask.tick();
-            if (clearStatus == Task.Status.RUNNING) {
-                return Task.Status.RUNNING;
-            }
-            clearTask = null;
-            if (clearStatus == Task.Status.DONE) {
-                clearedThisTree++;
-                clearedTotal++;
-            } else {
-                failedLogs.add(log.toShortString() + ":clear_failed");
-                queueIndex++;
-            }
-            return Task.Status.RUNNING;
-        }
-
         if (miner == null) {
-            // 没有现成可站站位 → **由 Job 显式清障**，而不是让规划器掉进"挖隧道/挖地站进去"
-            if (!hasStandNow(log)) {
-                BlockPos step = BlockerClearPlanner.nextClearStep(bot.serverLevel(), bot, log,
-                        bot.getBlockReach(), MAX_CLEAR_PER_TREE - clearedThisTree,
-                        WriteGrant.of(jobName(), WriteReason.LINE_OF_SIGHT));
-                if (step == null) {
-                    failedLogs.add(log.toShortString() + (clearedThisTree >= MAX_CLEAR_PER_TREE
-                            ? ":clear_budget" : ":no_stand"));
-                    queueIndex++;
-                    return Task.Status.RUNNING;
-                }
-                DecisionTrace.step(jobName(), "CLEAR", step.toShortString(),
-                        "为 " + log.toShortString() + " 腾站位/通视线 clear="
-                                + (clearedThisTree + 1) + "/" + MAX_CLEAR_PER_TREE);
-                clearTask = new MineTask(bot, step, scope,
-                        MiningBudget.forTarget(bot, bot.serverLevel(), step, false), true,
-                        WriteGrant.of(jobName(), WriteReason.LINE_OF_SIGHT));
-                return Task.Status.RUNNING;
-            }
             DecisionTrace.step(jobName(), "CUT", log.toShortString(),
-                    "log " + (queueIndex + 1) + "/" + queue.size());
-            // standableOnly=true：**禁止**规划器自己挖隧道或破坏进入（伐木不允许"往地里挖"）
+                    "log " + (queueIndex + 1) + "/" + queue.size()
+                            + " clearLeft=" + (MAX_CLEAR_PER_TREE - clearedThisTree));
+            // **D-115：清障能力已下沉 L2** —— Job 只声明这份信封（每棵树最多清 8 格、够不到时
+            // 可原地加高 3 格、用完即拆），不再自己实现"腾站位/通视线"两套清障逻辑。
+            MiningProfile profile = TARGET_PROFILE.withClear(MAX_CLEAR_PER_TREE - clearedThisTree);
             miner = new MineTask(bot, log, scope,
-                    MiningBudget.forTarget(bot, bot.serverLevel(), log, false), TARGET_PROFILE,
+                    MiningBudget.forTarget(bot, bot.serverLevel(), log, false), profile,
                     WriteGrant.of(jobName(), WriteReason.EXPECTED_TARGET));
             return Task.Status.RUNNING;
         }
@@ -317,36 +282,30 @@ public final class LumberJob implements Job {
         }
         if (status == Task.Status.DONE) {
             choppedLogs++;
+            recordClear(miner);
             recordGain(miner);
             miner = null;
             queueIndex++;
             return Task.Status.RUNNING;
         }
-        // 运行期视线被挡（规划期看不见、执行期才暴露）→ 仍走同一套限次清障
-        if ("LINE_OF_SIGHT_BLOCKED".equals(miner.failureReason())
-                && clearedThisTree < MAX_CLEAR_PER_TREE) {
-            BlockPos blocker = LineOfSightChecker.checkFromEye(bot.serverLevel(), bot.getEyePosition(), log)
-                    .getFirstBlocker();
-            if (blocker != null && BlockerClearPlanner.clearable(bot, bot.serverLevel(), blocker,
-                    WriteGrant.of(jobName(), WriteReason.LINE_OF_SIGHT))) {
-                DecisionTrace.step(jobName(), "CLEAR", blocker.toShortString(),
-                        "blocking " + log.toShortString() + " clear=" + (clearedThisTree + 1)
-                                + "/" + MAX_CLEAR_PER_TREE);
-                clearTask = new MineTask(bot, blocker, scope,
-                        MiningBudget.forTarget(bot, bot.serverLevel(), blocker, false), true,
-                        WriteGrant.of(jobName(), WriteReason.LINE_OF_SIGHT));
-                miner = null;   // 保留 queueIndex：清完重试同一根
-                return Task.Status.RUNNING;
-            }
-        }
-        // 站位类失败（够不到/不可达）在 L2 里已经先试过"原地加高"（D-111 切片 A 的能力信封）；
-        // 走到这里说明加高用尽或不可行 → 如实记账并跳过该原木
+        // 清障（D-115）与加高（D-111）都已在 L2 内按信封尝试过；走到这里说明用尽/不可行 → 如实记账
         String reason = String.valueOf(miner.failureReason());
+        recordClear(miner);
         recordGain(miner);
         failedLogs.add(log.toShortString() + ":" + reason);
         miner = null;
         queueIndex++;
         return Task.Status.RUNNING;
+    }
+
+    /** 累计本棵树的清障格数（L2 汇报，D-115；Job 只做逐树记账与报告）。 */
+    private void recordClear(MineTask finished) {
+        int cleared = finished == null ? 0 : finished.clearedBlocks();
+        if (cleared <= 0) {
+            return;
+        }
+        clearedThisTree += cleared;
+        clearedTotal += cleared;
     }
 
     /** 累计本棵树的加高格数（L2 汇报；同时记账"加高过的树"）。 */
@@ -446,12 +405,6 @@ public final class LumberJob implements Job {
         restore = null;
         restoredThisTree = true;
         return advanceAfterChop();
-    }
-
-    /** 当前是否已有"现成可站"的站位能挖到该原木（复用规划器同一口径）。 */
-    private boolean hasStandNow(BlockPos log) {
-        return !StandingPointSelector.generateCandidates(bot.serverLevel(), log,
-                MovementHelper.footCell(bot.serverLevel(), bot), bot.getBlockReach()).isEmpty();
     }
 
     private Task.Status collectPhase() {

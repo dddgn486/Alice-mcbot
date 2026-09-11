@@ -20,25 +20,27 @@ package com.dddgn.alice.task.mining;
  * @param standableOnly          true = 只用现成可站站位（禁止规划器自己挖隧道/挖地进站）
  * @param maxGainSteps           允许"原地加高"几次（0 = 不允许；每步 1 个方块）
  * @param gainBlockBudget        加高最多消耗几个一次性方块
+ * @param clearBudget            **限次清障预算**（D-115）：为了"腾站位 / 通视线 / 开立柱"，最多破坏
+ *                               几个阻挡方块（0 = 不允许清障；只统计"非原木、可破坏"的方块）。
  * @param restoreOwnPlacements   **建拆同权**（D-112）：本任务用完自己放的临时方块后，
  *                               在**会话内**自上而下拆掉（`RestoreScopeTask`）。
  *                               嵌套子任务必须为 false —— 否则子任务会把"会话所有者"还要用的
  *                               脚手架拆掉（例如伐木的加高柱）。
  */
 public record MiningProfile(boolean standableOnly, int maxGainSteps, int gainBlockBudget,
-                            boolean restoreOwnPlacements) {
+                            int clearBudget, boolean restoreOwnPlacements) {
 
     /** 加高方块预算默认值（用户 2026-09-11 裁定：12，砍树够用；模组超高树不在范围）。 */
     public static final int DEFAULT_GAIN_BLOCK_BUDGET = 12;
 
     /** 只用现成可站站位、且**不许加高**（伐木 J1–J5 的原行为）。 */
-    public static final MiningProfile STANDABLE_ONLY = new MiningProfile(true, 0, 0, false);
+    public static final MiningProfile STANDABLE_ONLY = new MiningProfile(true, 0, 0, 0, false);
 
     /** 允许规划器自己挖隧道/挖地进站（挖掘 Job 的原行为）。 */
-    public static final MiningProfile TUNNEL_ALLOWED = new MiningProfile(false, 0, 0, false);
+    public static final MiningProfile TUNNEL_ALLOWED = new MiningProfile(false, 0, 0, 0, false);
 
     public MiningProfile {
-        if (maxGainSteps < 0 || gainBlockBudget < 0) {
+        if (maxGainSteps < 0 || gainBlockBudget < 0 || clearBudget < 0) {
             throw new IllegalArgumentException("gain budgets must be non-negative");
         }
         if (maxGainSteps > 0 && gainBlockBudget <= 0) {
@@ -52,7 +54,18 @@ public record MiningProfile(boolean standableOnly, int maxGainSteps, int gainBlo
     }
 
     public MiningProfile withGain(int steps, int blockBudget) {
-        return new MiningProfile(standableOnly, steps, blockBudget, restoreOwnPlacements);
+        return new MiningProfile(standableOnly, steps, blockBudget, clearBudget, restoreOwnPlacements);
+    }
+
+    /** 允许"限次清障"（腾站位 / 通视线 / 开立柱），最多破坏 {@code budget} 个阻挡方块。 */
+    public MiningProfile withClear(int budget) {
+        return new MiningProfile(standableOnly, maxGainSteps, gainBlockBudget, budget,
+                restoreOwnPlacements);
+    }
+
+    /** 是否允许清障。 */
+    public boolean mayClear() {
+        return clearBudget > 0;
     }
 
     /**
@@ -60,7 +73,7 @@ public record MiningProfile(boolean standableOnly, int maxGainSteps, int gainBlo
      * 只应由"会话所有者"开启（Job 的每个目标 / standalone MineTask），嵌套子任务保持 false。
      */
     public MiningProfile withRestore() {
-        return new MiningProfile(standableOnly, maxGainSteps, gainBlockBudget, true);
+        return new MiningProfile(standableOnly, maxGainSteps, gainBlockBudget, clearBudget, true);
     }
 
     /** 是否允许加高。 */
@@ -76,6 +89,7 @@ public record MiningProfile(boolean standableOnly, int maxGainSteps, int gainBlo
     public String describe() {
         return "standableOnly=" + standableOnly
                 + (mayGain() ? " gain<=" + maxGainSteps + " blocks<=" + gainBlockBudget : " gain=none")
+                + (mayClear() ? " clear<=" + clearBudget : " clear=none")
                 + (restoreOwnPlacements ? " restore=own" : "");
     }
 }

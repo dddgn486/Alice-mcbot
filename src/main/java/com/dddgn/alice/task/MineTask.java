@@ -41,7 +41,7 @@ public final class MineTask implements Task {
      * 阶段（D-111 切片 A 起含**加高**）：
      * `EVALUATING →（规划失败且 profile 允许时）GAIN_CLEAR / GAIN → EVALUATING` … `MINING → CHAIN → COLLECTING`。
      */
-    private enum Phase { EVALUATING, GAIN_CLEAR, GAIN, MINING, CHAIN, COLLECTING, RESTORE }
+    private enum Phase { EVALUATING, CLEAR, GAIN_CLEAR, GAIN, MINING, CHAIN, COLLECTING, RESTORE }
 
     /** 视线失败等可重试情形最多重试 2 次（D-067 Q5）。 */
     private static final int MAX_RECOVERY_ATTEMPTS = 2;
@@ -58,6 +58,10 @@ public final class MineTask implements Task {
     /** **能力信封**（D-111）：允许什么手段 + 各自预算；由 L3 构造、本层只读。 */
     private final MiningProfile profile;
     private int gainSteps;
+    /** 限次清障（D-115）：已发起的清障次数（预算闸门口径）与成功的次数（报告口径）。 */
+    private int clearSteps;
+    private int clearedBlocks;
+    private MineTask clearTask;
     /** 建拆同权（D-112）：会话内自上而下拆除本任务放的临时方块。 */
     private RestoreScopeTask restoreTask;
     private int restoredBlocks;
@@ -227,6 +231,9 @@ public final class MineTask implements Task {
             return evaluateStandingPoint();
         }
 
+        if (phase == Phase.CLEAR) {
+            return tickClear();
+        }
         if (phase == Phase.GAIN_CLEAR) {
             return tickGainClear();
         }
@@ -272,6 +279,10 @@ public final class MineTask implements Task {
         BotLog.warn("[MineTask计划失败报告] target={} attempt={} reason={} phase={} retryable={} currentPlanRetained={}",
                 target.toShortString(), executionAttempts, report.reason(), report.phase(),
                 report.retryable(), currentPlanRetained());
+        // D-115：运行期"视线被挡"→ 仍走同一套限次清障（清完重试同一目标）
+        if ("LINE_OF_SIGHT_BLOCKED".equals(report.reason()) && tryClearLineOfSight()) {
+            return Status.RUNNING;
+        }
         if (isHardTargetRefusal(report.reason()) || !report.retryable()) {
             return escalateFailure(report);
         }
@@ -464,6 +475,73 @@ public final class MineTask implements Task {
     }
 
     /** 阶段 1：请求一次挖掘领域规划（两模式），并保存计划快照。 */
+    // ==================== D-115：限次清障（能力下沉到 L2） ====================
+
+    /**
+     * **限次清障**：站位规划失败时，若 profile 给了清障预算，就先清掉"最该清的那一格"再重试。
+     *
+     * <p>为什么下沉到 L2：伐木 Job 原先自己实现了两套清障（规划期 `nextClearStep` + 运行期
+     * `LINE_OF_SIGHT_BLOCKED`），换任何新任务都要重写一遍（正是用户指出的"不同授权就要重写逻辑"）。
+     * 现在只有一处实现，预算由 {@link MiningProfile#clearBudget()} 声明、逐目标递减。
+     */
+    private boolean tryClear(String reason) {
+        if (!profile.mayClear() || clearSteps >= profile.clearBudget()) {
+            return false;
+        }
+        if (reason == null || !(reason.contains("standing_point") || reason.contains("no_valid")
+                || reason.contains("no_reachable") || reason.contains("LINE_OF_SIGHT"))) {
+            return false;
+        }
+        BlockPos blocker = com.dddgn.alice.task.mining.BlockerClearPlanner.nextClearStep(
+                bot.serverLevel(), bot, target, bot.getBlockReach(),
+                profile.clearBudget() - clearSteps,
+                grant.with(com.dddgn.alice.action.WriteReason.LINE_OF_SIGHT));
+        return startClear(blocker, "planning:" + reason);
+    }
+
+    /** 运行期视线被挡 → 清掉当前第一个阻挡物。 */
+    private boolean tryClearLineOfSight() {
+        if (!profile.mayClear() || clearSteps >= profile.clearBudget()) {
+            return false;
+        }
+        BlockPos blocker = com.dddgn.alice.task.mining.LineOfSightChecker
+                .checkFromEye(bot.serverLevel(), bot.getEyePosition(), target).getFirstBlocker();
+        return startClear(blocker, "runtime:line_of_sight_blocked");
+    }
+
+    private boolean startClear(BlockPos blocker, String why) {
+        if (blocker == null
+                || !com.dddgn.alice.task.mining.BlockerClearPlanner.clearable(bot, bot.serverLevel(),
+                        blocker, grant.with(com.dddgn.alice.action.WriteReason.LINE_OF_SIGHT))) {
+            return false;
+        }
+        clearSteps++;
+        BotLog.info("[MineTask] clear_start target={} blocker={} used={}/{} why={}",
+                target.toShortString(), blocker.toShortString(), clearSteps, profile.clearBudget(), why);
+        clearTask = new MineTask(bot, blocker, scope,
+                MiningBudget.forTarget(bot, bot.serverLevel(), blocker, false),
+                MiningProfile.STANDABLE_ONLY,
+                grant.with(com.dddgn.alice.action.WriteReason.LINE_OF_SIGHT));
+        phase = Phase.CLEAR;
+        return true;
+    }
+
+    private Status tickClear() {
+        Status status = clearTask.tick();
+        if (status == Status.RUNNING) {
+            return Status.RUNNING;
+        }
+        if (status == Status.DONE) {
+            clearedBlocks++;
+        }
+        BotLog.info("[MineTask] clear_end target={} status={} cleared={} used={}/{}",
+                target.toShortString(), status, clearedBlocks, clearSteps, profile.clearBudget());
+        clearTask = null;
+        standingPointEvaluated = false;
+        phase = Phase.EVALUATING;
+        return Status.RUNNING;
+    }
+
     // ==================== D-111 切片 A：最小高度增益（能力下沉到 L2） ====================
 
     /**
@@ -528,12 +606,10 @@ public final class MineTask implements Task {
         return true;
     }
 
-    /** 加高时"能不能清掉挡住头顶的这一格"：非空气、非原木（目标物）、且谓词允许破坏。 */
+    /** 加高时"能不能清掉挡住头顶的这一格"（与清障能力同一口径）。 */
     private boolean clearableForGain(BlockPos pos, WriteGrant clearGrant) {
-        var state = bot.serverLevel().getBlockState(pos);
-        return !state.isAir()
-                && !state.is(net.minecraft.tags.BlockTags.LOGS)
-                && com.dddgn.alice.action.BlockInteraction.breakable(bot, bot.serverLevel(), pos, clearGrant);
+        return com.dddgn.alice.task.mining.BlockerClearPlanner
+                .clearable(bot, bot.serverLevel(), pos, clearGrant);
     }
 
     private Status tickGainClear() {
@@ -575,6 +651,11 @@ public final class MineTask implements Task {
         return gainSteps;
     }
 
+    /** 本任务为"腾站位/通视线/开立柱"成功清掉的阻挡方块数（L3 用它做逐树/逐目标记账）。 */
+    public int clearedBlocks() {
+        return clearedBlocks;
+    }
+
     private Status evaluateStandingPoint() {
         if (standingPointEvaluated) {
             phase = Phase.MINING;
@@ -586,8 +667,8 @@ public final class MineTask implements Task {
         if (!result.success()) {
             BotLog.warn("[MiningPlanner探针] planning failed target={} reason={} budget={} profile={}",
                     target.toShortString(), result.failureReason(), budget.describe(), profile.describe());
-            // D-111 切片 A：够不到（站位规划失败）时，若 profile 允许 → **原地加高 1 格再试**
-            if (tryGainHeight(result.failureReason())) {
+            // D-115：先试**限次清障**（腾站位 / 通视线）；D-111：再试**原地加高 1 格**
+            if (tryClear(result.failureReason()) || tryGainHeight(result.failureReason())) {
                 return Status.RUNNING;
             }
             return escalateFailure(new MineBlockRunner.FailureReport(
