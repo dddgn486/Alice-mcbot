@@ -78,6 +78,27 @@
 > 规律：**场景函数（`*_course`）负责复位**；物品负责"传送 + 发料 + 启动"。
 > 所以凡是"物品不带场景函数"的入口，说明里必须写清先跑哪条函数。
 
+### 1.7 串联回归清单（改到生产任务后的必跑集，一次跑完）
+
+凡改动生产任务（`MineTask` / `RestoreScopeTask` / Job 层）后，按此顺序**一次跑完**再读日志对判据：
+
+| # | 入口 | 复位 | 期望摘要 | 日志判据（D-119 工具语义） |
+|---|---|---|---|---|
+| 1 | 右键 `alice:mine_regression` | 自带 | `[MineRegression] SUMMARY … no_tool_refuses=PASS ticks=…`（**11/11**） | **恰好 1 条** `[MineTask] no_suitable_tool target=23, 64, 140 …`（第 11 例负例的**期望输出**） |
+| 2 | `/function alice_test:lumber_course` → 右键 `alice:lumber_job` | 手动 | `DONE quota_met trees 4/4 logs 19/19 … scaffoldLeft=0` | 零 `no_suitable_tool`、零 `tool_in_main_inventory`、零 `no_tool`；`[Restore] … remaining=0 → DONE` |
+| 3 | 右键 `alice:scaffold_check` | 自带 | `[Scaffold] SUMMARY … PASS` | 同 2 |
+| 4 | 右键 `alice:restore_check` | 需账本有**待恢复项** | `[Restore] SUMMARY … remaining=0 → DONE` | 同 2 |
+| 5 | 右键 `alice:clear_guard_check` | 自带 | `predicate_refuses=true chest_intact=true target_removed=true → PASS` | 同 2 |
+| 6 | 右键 `alice:write_budget_check` | 自带 | `refusedPlaces=0 …` | 同 2 |
+| 7 | 右键 `alice:lumber_failure_check` | 自带 | `[LumberFailCheck] SUMMARY … 5/5 PASS` | 同 2 |
+| 8 | `/function alice_test:ore_course` → 右键 `alice:mine_job` | 手动 | `DONE …` | 同 2 |
+| 9 | 右键 `alice:pathing_regression` | 自带 | `16/16` | —（不涉挖矿，仅防连带回归） |
+
+> 判据含义：`no_suitable_tool` = 生产任务**拒绝**在没有正确工具时挖"必须正确工具才掉落"的方块（D-119）；
+> `tool_in_main_inventory` / `no_tool` = 夹具**漏发或发错位置**（工具落 9..35 就永远选不到 —— D-089 斧子、
+> D-099 一次性方块，同一病灶第三次同形）。
+> **不要**再按"破坏速度 ≤ 1"判断夹具漏料：树叶这类方块本来就没有更快工具（2026-09-12 实测，8/8 全是清障树叶噪声）。
+
 ---
 
 ## 2. ★ 一键自检（推荐，两次操作覆盖全部）

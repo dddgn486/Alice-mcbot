@@ -3459,3 +3459,27 @@ code=done recovery=idle_after_cleanup recoveryEvents=[]` ✅
 `write_budget_check` / `lumber_failure_check`）仍应**零** `no_suitable_tool`、零 `no_effective_tool`。
 
 **验证等级**：IMPLEMENTED / COMPILES（客户端待验：期望 `no_tool_refuses=PASS`、其余 10 例照旧 PASS）。
+
+### D-120 工具诊断去噪 + 串联回归清单（2026-09-12，R1 收尾）
+
+**实测（00:18 两入口）**：`alice:mine_regression` **11/11**，其中负例
+`no_tool_refuses=PASS status=FAILED/reason=no_suitable_tool/targetKept=true/toolNotGiven=true/noToolFabricated=true/ticks=1`
+（全程仅 **1** 条 `no_suitable_tool`，即负例本身）；`lumber_job` 再次
+`DONE quota_met trees 4/4 logs 19/19 cleared=8 inventoryDelta=19 scaffoldLeft=0`，F2 对账分支再次命中
+（`[Restore] 未能恢复: 28,66,208:side_break_failed` → `对账：1 条…现场已无我方方块` → DONE）。**R1 目标达成。**
+
+**修正（噪声 = 隐患）**：原实现按"最佳破坏速度 ≤ 1"打 `[MineTask] no_effective_tool`，
+本轮伐木刷出 **8 条**，全部是**清障橡树叶**，而 bot 手上明明有镐（`[FixtureTool] pickaxe 快捷栏已有 1`）
+—— 树叶本来就没有更快的工具（原版只有剪刀更快，伐木清障不需要）。这种噪声会把真正的病症埋掉。
+改为只报两类**可行动**病症：
+- `tool_in_main_inventory`：快捷栏 0..8 无工具、主背包 9..35 有 ⇒ **永远选不到**（D-089 斧子 / D-099
+  一次性方块，同一病灶第三次同形）；
+- `no_tool`：身上根本没有工具 ⇒ 徒手继续（夹具应在入口发料）。
+即"工具在手、只是对这个方块不更快"**不再出声**。同时删除随之失去用途的 `BlockInteraction.bestDestroySpeed`。
+
+**串联回归清单入库**：`docs/TESTING_GUIDE.md` 新增 **§1.7 串联回归清单**（9 个入口 + 复位方式 + 期望摘要 +
+日志判据），供"改到生产任务后一次跑完"；`mine_regression` 的 `no_tool_refuses` 那一条
+`no_suitable_tool` 是**期望输出**，已在指南与矩阵里写清，避免下次被误判成回归。
+
+**验证等级**：IMPLEMENTED / COMPILES；`mine_regression` 与 `lumber_job` 两入口 `WINDOWS_CLIENT`，
+其余 7 个入口按 §1.7 清单下次串联复测。

@@ -141,11 +141,8 @@ public final class MineTask implements Task {
         this.budget = budget;
         // D-119：只做**只读**工具判定，绝不改背包（详见 toolRefusal 的注释）。
         this.toolRefusal = toolRefusal(bot, this.target);
-        if (this.toolRefusal == null
-                && com.dddgn.alice.action.BlockInteraction.bestDestroySpeed(bot, this.target) <= 1.0F) {
-            // 徒手/工具对该方块无效：原版允许（慢），如实继续；但夹具漏发工具时这行会**喊出来**
-            BotLog.warn("[MineTask] no_effective_tool target={}（徒手水平，如实继续；"
-                    + "夹具应在入口发料）", this.target.toShortString());
+        if (this.toolRefusal == null) {
+            diagnoseTools(bot, this.target);
         }
         BotLog.info("任务创建: MineTask target={} budget={}", this.target.toShortString(),
                 budget.describe());
@@ -180,6 +177,38 @@ public final class MineTask implements Task {
                 target.toShortString(),
                 net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(state.getBlock()));
         return "no_suitable_tool";
+    }
+
+    /**
+     * 工具状态诊断（**只读**，D-119 附注）：只在"夹具很可能漏发 / 发错位置"时出声。
+     *
+     * <p>**为什么不按"最佳破坏速度 ≤ 1"报警**：树叶/草这类方块**本来就没有更快的工具**
+     * （原版只有剪刀更快，而伐木清障不需要剪刀）⇒ 按速度报警会在每轮伐木刷 8 条噪声
+     * （2026-09-12 实测 8/8 全是清障树叶，而 bot 手上明明有镐），反而把真正的病症埋掉。
+     * 现在只报两类**可行动**的病症：
+     * <ul>
+     *   <li>{@code tool_in_main_inventory}：快捷栏（0..8）没有工具，但主背包里有 ⇒ **选不到**
+     *       （D-089 斧子、D-099 一次性方块，同一病灶第三次同形）；</li>
+     *   <li>{@code no_tool}：身上根本没有工具 ⇒ 徒手继续（夹具应在入口发料）。</li>
+     * </ul>
+     */
+    private static void diagnoseTools(ServerPlayer bot, BlockPos target) {
+        var inventory = bot.getInventory();
+        for (int slot = 0; slot < 9 && slot < inventory.getContainerSize(); slot++) {
+            if (inventory.getItem(slot).getItem() instanceof net.minecraft.world.item.DiggerItem) {
+                return;   // 快捷栏里有工具 ⇒ 正常，不出声
+            }
+        }
+        for (int slot = 9; slot < inventory.getContainerSize(); slot++) {
+            if (inventory.getItem(slot).getItem() instanceof net.minecraft.world.item.DiggerItem) {
+                BotLog.warn("[MineTask] tool_in_main_inventory target={}"
+                                + "（快捷栏 0..8 里没有工具，主背包里有 ⇒ 永远选不到；夹具应发到快捷栏）",
+                        target.toShortString());
+                return;
+            }
+        }
+        BotLog.warn("[MineTask] no_tool target={}（身上没有工具，徒手继续；夹具应在入口发料）",
+                target.toShortString());
     }
 
     @Override

@@ -125,21 +125,6 @@ public final class BlockInteraction {
         return bestSpeed > 0.0F ? bestSlot : -1;
     }
 
-    /** 快捷栏里对该方块的**最佳破坏速度**（空手按 1.0 计；0 = 根本挖不动）。 */
-    public static float bestDestroySpeed(ServerPlayer bot, BlockPos pos) {
-        BlockState state = bot.level().getBlockState(pos);
-        Inventory inventory = bot.getInventory();
-        float best = 0.0F;
-        for (int slot = 0; slot < 9 && slot < inventory.getContainerSize(); slot++) {
-            ItemStack stack = inventory.getItem(slot);
-            float speed = stack.isEmpty() ? 1.0F : stack.getDestroySpeed(state);
-            if (speed > best) {
-                best = speed;
-            }
-        }
-        return best;
-    }
-
     /**
      * 快捷栏里有没有"对该方块算正确工具"的物品（原版 {@code isCorrectToolForDrops} 口径）。
      *
