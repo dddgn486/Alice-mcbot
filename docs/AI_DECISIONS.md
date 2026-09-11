@@ -2644,5 +2644,19 @@ APPROACH 成功（`movements=0`），但 **DESCEND 失败**：
 把本次任务上限压到 **1 格**，断言不变式：破坏 ≤1 / 放置 ≤0 / 墙区空气格 ≤1（**用世界事实复核，
 不只信计数器**）/ 预算确实被触发 / 没穿过墙 / 通行没被判成功。
 
-**验证等级**：IMPLEMENTED / COMPILES（客户端待验）。回归 16 场景复跑作为"预算没有误伤合法路径"的反例守卫，
-并注意正常任务里是否出现 `[WriteBudget] exhausted`（若出现说明 64/32 需要按数据调整）。
+**验证等级**：WINDOWS_CLIENT + USER_ACCEPTED（2026-09-11 19:03）。
+- 夹具：`[WriteBudget] CHECK breaks=1/1 places=0/0 exhausted=true wall_broken=1 passed_wall=false
+  status=MOVEMENT_FAILED → PASS`（51 tick，任务 `COMPLETED`）；中间证据齐全——
+  `[WriteBudget] exhausted … action=break pos=3,65,66 by=write-budget-check:attempt0:PATH_ACCESS breaks=1/1`
+  → `[WRITE-REFUSED] break`（不写世界），随后 attempt1/attempt2 改走放置也被 `[WRITE-REFUSED] place` 拒绝。
+- 反例守卫：`pathing_regression` 16 场景 + `foot_cell_rule` + `coverage` 全 PASS，预算实耗
+  **breaks=5/64、places=7/32、refused=0**（`[WriteBudget] SUMMARY scope=…#23:PathingRegressionTask`）
+  ⇒ 上限约为实际需要的 13 倍，正常路径零打扰。**这是 64/32 的实测依据**（后续按数据收紧）。
+- 修复（客户端发现）：`placeAt` 的**提前拒绝**不经过 `consumePlace`，导致 SUMMARY 漏报放置拒绝次数
+  （日志有 2 条 `[WRITE-REFUSED] place` 而 `refusedPlaces=0`）→ 新增 `notePlaceRefusal` 补计，
+  并把 `exhausted` 警告统一到同一处。
+
+**待办（Slice B，已由本轮日志证实必要性）**：夹具日志显示——破坏预算用满后，**重规划仍会规划
+"靠放置绕行"的路线**（attempt1/attempt2 的 `STEP_PLACEMENT`），在生产上限（32）下这意味着可能烧掉
+若干次放置才如实失败。⇒ Slice B：把预算并入 `PathRequest`/搜索做计划期剪枝，并让"尝试级耗尽"降级为
+纯通行重规划（而不是换一种写入方式继续试）。

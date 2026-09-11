@@ -175,6 +175,31 @@ public final class WriteBudget {
         return Verdict.ALLOW;
     }
 
+    /**
+     * 记录一次"**提前判定**被拒的放置"（`placeAt`/`placeBulkEdit` 在尝试写入前就拒绝，
+     * 不经过 {@link #consumePlace}，因此拒绝计数要在这里补上，否则 SUMMARY 会漏报）。
+     *
+     * <p>与破坏侧的差别：破坏的执行期拒绝走 `beginBreak → consumeBreak`，已经计数正确；
+     * 而 `breakable(...)` 是**搜索谓词**（一次规划会被调用成千上万次），**不在这里计数**——
+     * 拒绝次数只统计"真的打算动手"的那一次。
+     */
+    public static void notePlaceRefusal(ServerPlayer bot, BlockPos pos, WriteGrant grant) {
+        String scope = scopeOf(bot);
+        if (scope == null) {
+            return;
+        }
+        Counters counters = SCOPES.computeIfAbsent(scope, key -> new Counters());
+        Caps caps = CAPS.getOrDefault(scope, Caps.DEFAULT);
+        counters.refusedPlaces++;
+        if (!counters.placeExhausted) {
+            counters.placeExhausted = true;
+            BotLog.warn("[WriteBudget] exhausted scope={} action=place pos={} by={} places={}/{}"
+                            + " → 本任务停止继续放置",
+                    scope, pos.toShortString(), grant == null ? "-" : grant.describe(),
+                    counters.places, caps.maxPlaces());
+        }
+    }
+
     // ==================== 只读查询（内核谓词/计划期用） ====================
 
     /**

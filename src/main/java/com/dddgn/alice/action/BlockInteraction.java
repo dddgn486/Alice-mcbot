@@ -203,6 +203,7 @@ public final class BlockInteraction {
         BlockState previousState = level.getBlockState(placeAt);
         // 执行期写入预算（D-106）：任务级放置预算用满 → 提前拒绝（不消耗物品、不试面）
         if (!WriteBudget.placeAllowed(bot)) {
+            WriteBudget.notePlaceRefusal(bot, placeAt, grant);
             BotLog.warn("[WRITE-REFUSED] place pos={} by={} reason=write_budget_exhausted {}",
                     placeAt.toShortString(), grant == null ? "-" : grant.describe(), WriteBudget.describe(bot));
             return PlaceResult.BUDGET_EXHAUSTED;
@@ -358,6 +359,7 @@ public final class BlockInteraction {
     public static boolean placeBulkEdit(ServerPlayer bot, ServerLevel level, BlockPos pos, BlockState state,
                                         WriteGrant grant) {
         if (!WriteBudget.placeAllowed(bot)) {
+            WriteBudget.notePlaceRefusal(bot, pos, grant);
             BotLog.warn("[WRITE-REFUSED] bulk_place pos={} by={} reason=write_budget_exhausted {}",
                     pos.toShortString(), grant == null ? "-" : grant.describe(), WriteBudget.describe(bot));
             return false;
