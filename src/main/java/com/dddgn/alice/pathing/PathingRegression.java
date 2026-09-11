@@ -122,8 +122,10 @@ public final class PathingRegression {
      * <p>不变式：**`footCell` 给出的格必须是规划层 {@link MovementHelper#canWalkOn} 认可的格**
      * ——支撑是整格时二者天然一致；支撑不满一格时（箱子/灵魂沙 0.875、底半砖 0.5）原版
      * `blockPosition()` 会把脚留在支撑自己那一格，与规划层差整整一格，完成契约因此死锁。
+     *
+     * <p>公开给 `PathingRegressionTask` 作为夹具级断言（自建区域，与场景不重叠）。
      */
-    private static boolean assertFootCellRule(ServerLevel level, BlockPos origin) {
+    public static boolean assertFootCellRule(ServerLevel level, BlockPos origin) {
         clearAndFloor(level, origin, 12, 12);
         BlockPos base = origin.offset(12, 0, 12);
         BlockPos chest = base;

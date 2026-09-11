@@ -308,6 +308,14 @@ public final class PathingRegressionTask implements Task {
     }
 
     private Status finish() {
+        // 夹具级无头断言（D-105）：运行期脚位格规则（箱子/底半砖/灵魂沙/地毯/整格）。
+        // 纯读方块形状 + 固定坐标，不依赖 bot 物理；放在夹具自建区域（z=300，远离所有场景）。
+        boolean footCellRule = com.dddgn.alice.pathing.PathingRegression
+                .assertFootCellRule(bot.serverLevel(), new BlockPos(0, 64, 300));
+        results.put("foot_cell_rule", footCellRule);
+        BotLog.info("[Regression] scene=foot_cell_rule result={} detail=headless/footCell-vs-canWalkOn",
+                footCellRule ? "PASS" : "FAIL");
+
         StringBuilder summary = new StringBuilder();
         boolean allPass = true;
         for (SceneCheck scene : SCENES) {
@@ -316,6 +324,8 @@ public final class PathingRegressionTask implements Task {
             allPass &= ok;
             summary.append(scene.scene()).append('=').append(ok ? "PASS" : "FAIL").append(' ');
         }
+        allPass &= footCellRule;
+        summary.append("foot_cell_rule=").append(footCellRule ? "PASS" : "FAIL").append(' ');
         java.util.List<MovementType> coverageMissing = REQUIRED_COVERAGE.stream()
                 .filter(type -> !executedUnion.contains(type)).toList();
         boolean coveragePass = coverageMissing.isEmpty();

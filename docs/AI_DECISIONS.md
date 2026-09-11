@@ -2580,8 +2580,10 @@ APPROACH 成功（`movements=0`），但 **DESCEND 失败**：
    不涉及跳跃的卡死仍由段超时兜底。
 
 **验收夹具**
-- 无头断言（`PATHING_REGRESSION ... foot_cell_rule`）：箱子 0.875 / 底半砖 0.5 / 灵魂沙 0.875 /
-  地毯 0.0625 / 整格，逐项断言"`footCell` 给出的格 = `canWalkOn` 认可的格"。
+- 无头断言（`PathingRegression.assertFootCellRule`，自建区域 z=300，不依赖 bot 物理）：
+  箱子 0.875 / 底半砖 0.5 / 灵魂沙 0.875 / 地毯 0.0625 / 整格，逐项断言"`footCell` 给出的格 =
+  `canWalkOn` 认可的格"。它随 `alice:pathing_regression` 的 SUMMARY 输出 `foot_cell_rule=PASS/FAIL`，
+  也随 `/alice selftest` 全量跑（原先只挂在 selftest 上，2026-09-11 客户端首测发现"回归项没跑它"，已补挂）。
 - 可执行回归项（`pathing_regression` 一次右键覆盖）：
   `chest_step_course`（起点 (1,64,126) → 目标 (2,65,126)，必须执行 `ASCEND` 到箱顶）、
   `slab_step_course`（封闭 1 格宽走廊，(4,64,145) → (8,64,145)，中途一块底半砖）。

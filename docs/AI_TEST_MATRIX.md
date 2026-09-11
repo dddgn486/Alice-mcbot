@@ -121,7 +121,7 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 
 | J6-b2 容器绕行自检（D-095 断言） | `/function alice_test:clear_guard_course` → 右键 `alice:clear_guard_check` | 物品右键（零参数） | 目标在墙后、唯一通道（缺口开在 y=65..66，脚位踩不到）被两个箱子堵住；跑真实 `MineTask` 后断言箱子完好 | `待测`（预期 `predicate_refuses=true chest_intact=true → PASS`；不得再出现 8 秒原地弹跳） |
 
-| 运行期脚位格规则（D-105，无头断言） | 右键 `alice:pathing_regression`（末尾自动跑 `PathingRegression.run`） | 零参数右键 | `footCell` 给出的格必须 = 规划层 `canWalkOn` 认可的格：箱子 0.875 / 底半砖 0.5 / 灵魂沙 0.875 上移一格，地毯 0.0625 与整格不上移 | `待测`（预期 `PATHING_REGRESSION PASS ... footCellRule=true`） |
+| 运行期脚位格规则（D-105，无头断言） | 右键 `alice:pathing_regression`（末尾自动跑 `PathingRegression.run`） | 零参数右键 | `footCell` 给出的格必须 = 规划层 `canWalkOn` 认可的格：箱子 0.875 / 底半砖 0.5 / 灵魂沙 0.875 上移一格，地毯 0.0625 与整格不上移 | `待测`（预期 `[Regression] SUMMARY … foot_cell_rule=PASS …`；自建区域 z=300，与场景不重叠） |
 
 | 非满高支撑的可执行回归（D-105） | 右键 `alice:pathing_regression`（自动建地形并执行） | 零参数右键 | `chest_step_course`：起点 (1,64,126) → 目标 (2,65,126) 必须**真的执行 ASCEND 并完成**（旧行为：箱顶原地弹跳 → `SEGMENT_TIMEOUT` 161 tick）；`slab_step_course`：(4,64,145) → (8,64,145) 封闭走廊，中途一块底半砖必须走过去（旧行为：TRAVERSE 完成契约死锁） | `待测`（预期 16 场景全 PASS + `coverage=PASS`；日志无 `SEGMENT_TIMEOUT`） |
 

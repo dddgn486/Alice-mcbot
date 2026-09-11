@@ -203,9 +203,9 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
   支撑顶面 ∈ [0.5, 1.0)（箱子/灵魂沙 0.875、底半砖 0.5、模组半格方块）时两者差一格
   → 所有 `*Execution` 的 COLUMN 完成契约 / D-026 合法位置集永不成立。
 - 修复：`MovementHelper.footCell`（唯一口径）+ R2 零进展快速失败（`SEGMENT_NO_PROGRESS`）。
-- 新增夹具：`PATHING_REGRESSION ... foot_cell_rule`（无头断言）、
+- 新增夹具：`foot_cell_rule`（无头断言，随回归 SUMMARY 输出）、
   `chest_step_course` / `slab_step_course`（可执行，`alice:pathing_regression` 一次右键覆盖）。
-  **`pathing_regression` 现在是 16 场景**。
+  **`pathing_regression` 现在是 16 场景 + 1 项无头断言**。
 
 **下一步（按序）**
 1. **客户端验收 D-105**：右键 `alice:pathing_regression` → 期望 16 场景全 PASS + `coverage=PASS`
