@@ -207,8 +207,16 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
   `chest_step_course` / `slab_step_course`（可执行，`alice:pathing_regression` 一次右键覆盖）。
   **`pathing_regression` 现在是 16 场景 + 1 项无头断言**。
 
+**刚实现、待客户端验收：G4 Slice A（D-106）执行期写入预算**
+- 任务级上限：破坏 64 / 放置 32（分开计，用户裁定），挂在 `BlockInteraction` 三个写入咽喉；
+  `breakable` 谓词与执行期同一判据；我方临时放置回收（`SCAFFOLD_RESTORE`）豁免但仍计数；
+  超限 = 硬停 + `WRITE_BUDGET_EXHAUSTED` + 作用域收尾一行 `[WriteBudget] SUMMARY`。
+- 夹具：`alice:write_budget_check`（把上限压到 1 格，断言"只拆 1 格后如实失败"）。
+- 待办（Slice B）：计划期剪枝 + 尝试级 tick 预算（`MiningBudget.maxExtraBreakTicks` 升级）。
+
 **下一步（按序）**
-1. **G4**：内核写入的执行期预算（用户裁定紧随 J6 之后）；
+1. **客户端验收 D-106**：右键 `alice:write_budget_check`（期望 PASS）+ 复跑 `alice:pathing_regression`
+   （期望 16 场景全 PASS 且无 `[WriteBudget] exhausted`）；
 2. **J7 攀爬**（第一处真正需要脚手架放置的 Job，将首次实检建拆同权）→ **J8 MAINTAIN 区域型**。
 3. 仍登记未做：G3（模组连锁破坏无凭证）、G5（容器写入维度）、
    `isExpensiveToClear` 的成本化 + `#alice:clear_forbidden` 标签、`MiningBudget.tierOf` 的 `#forge:ores/*`、

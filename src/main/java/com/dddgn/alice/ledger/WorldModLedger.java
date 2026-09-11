@@ -91,6 +91,18 @@ public final class WorldModLedger extends SavedData {
         return closed;
     }
 
+    /**
+     * 该 owner 当前打开的作用域 id；没有打开时返回 {@code null}。
+     *
+     * <p>供 {@code action/WriteBudget}（D-106）按"一次任务 = 一个作用域"记账；
+     * 与 {@link #scopeOf} 不同，这里**不回退**到 {@code implicit}——
+     * 没有任务作用域时写入不设上限（作用域是记账单位），由调用方决定如何留痕。
+     */
+    public static String currentScope(MinecraftServer server, UUID owner) {
+        WorldModLedger ledger = get(server);
+        return owner == null ? null : ledger.openScopes.get(owner);
+    }
+
     /** 该 owner 当前的作用域；没有打开的作用域时回退为 `implicit`（不静默丢弃记录）。 */
     private static String scopeOf(WorldModLedger ledger, UUID owner) {
         String open = owner == null ? null : ledger.openScopes.get(owner);

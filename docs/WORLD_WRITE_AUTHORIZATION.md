@@ -85,7 +85,8 @@
 |---|---|---|
 | ~~R2a~~ | ~~填 `PathRequest.requester`~~ **已完成**：29 处工厂调用点 + `PathSession` → `LiveExecutionContext` 归因贯通 | — |
 | ~~R2b~~ | ~~执行期复验授权（G2）+ 闸门收进 `breakForBulkEdit`（G9）~~ **已完成**；附带修 `LumberJob` 清障预算按棵计（J2 前置缺陷） | R2a |
-| **R3** | 内核写入预算（G4）：把 `MiningBudget` 或等价预算接到 P1–P3 的执行期 | R2 |
+| ~~R3（Slice A）~~ | ~~内核写入预算（G4）：任务级破坏/放置上限 + 执行期闸门（D-106）~~ **已完成**：`WriteBudget`（scope 记账、破坏/放置分开、我方临时回收豁免、64/32）挂在 `BlockInteraction` 三个写入咽喉上；`breakable` 谓词与执行期同一判据 | R2 |
+| **R3（Slice B）** | 计划期预算剪枝：把预算并入 `PathRequest`/搜索（避免"计划承诺超出预算的路径"）+ 尝试级 tick 预算（`MiningBudget.maxExtraBreakTicks` 升级为执行期累计闸门） | Slice A |
 | **J6** | `WriteAudit` → 持久化 `WorldModLedger`；建拆同权配对；恢复 | R2/R3 |
 | 之后 | G3（模组连锁，需与模组能力层一起）、G5（容器写入维度）、G6/G7/G8 清理 | J6 |
 

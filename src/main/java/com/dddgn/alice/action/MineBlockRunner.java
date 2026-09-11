@@ -188,6 +188,9 @@ public final class MineBlockRunner {
         BlockInteraction.PlaceResult result =
                 BlockInteraction.placeAt(bot, level, plan.supportPlacementPos(), false,
                     grant.with(WriteReason.SUPPORT_PLACEMENT));
+        if (result == BlockInteraction.PlaceResult.BUDGET_EXHAUSTED) {
+            return fail("WRITE_BUDGET_EXHAUSTED", "support", false);
+        }
         if (result != BlockInteraction.PlaceResult.PLACED) {
             return fail("SUPPORT_PLACE_FAILED", "support", true);
         }
@@ -223,6 +226,10 @@ public final class MineBlockRunner {
                 return fail("OUT_OF_REACH", "precondition", true);
             }
             breakSession = BlockInteraction.beginBreak(bot, level, target, grant);
+            if (breakSession == null) {
+                // 执行期写入预算耗尽（D-106）
+                return fail("WRITE_BUDGET_EXHAUSTED", "break", false);
+            }
             mineStartPos = bot.blockPosition().immutable();
             mineStartEyeDist = eyeDistance;
             BotLog.info("[MineRunner] break_start target={} stand={} eyeDist={} mode={}",

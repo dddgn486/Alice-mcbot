@@ -141,6 +141,10 @@ public final class BreakAndEnterExecution implements MovementExecution {
             }
             if (session == null) {
                 session = BlockInteraction.beginBreak(bot, level, blocker, grant);
+                if (session == null) {
+                    fail("WRITE_BUDGET_EXHAUSTED");
+                    return;
+                }
             }
             BlockBreakSession.Status status = session.tick();
             if (status == BlockBreakSession.Status.DONE) {

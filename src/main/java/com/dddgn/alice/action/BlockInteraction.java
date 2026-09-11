@@ -56,7 +56,12 @@ public final class BlockInteraction {
     public static final TagKey<Block> THROWAWAY = TagKey.create(Registries.BLOCK,
             ResourceLocation.fromNamespaceAndPath("alice", "throwaway"));
 
-    public enum PlaceResult { PLACED, NO_OPTION }
+    public enum PlaceResult {
+        PLACED,
+        NO_OPTION,
+        /** 执行期写入预算耗尽（D-106）：**未写入**，调用方须如实上报。 */
+        BUDGET_EXHAUSTED
+    }
 
     private BlockInteraction() {
     }
@@ -196,6 +201,12 @@ public final class BlockInteraction {
                                       WriteGrant grant) {
         // 账本要在放置**之前**拿到原状态（J6-a：精确恢复原状的前提）
         BlockState previousState = level.getBlockState(placeAt);
+        // 执行期写入预算（D-106）：任务级放置预算用满 → 提前拒绝（不消耗物品、不试面）
+        if (!WriteBudget.placeAllowed(bot)) {
+            BotLog.warn("[WRITE-REFUSED] place pos={} by={} reason=write_budget_exhausted {}",
+                    placeAt.toShortString(), grant == null ? "-" : grant.describe(), WriteBudget.describe(bot));
+            return PlaceResult.BUDGET_EXHAUSTED;
+        }
         if (!reachable(bot, placeAt)) {
             return PlaceResult.NO_OPTION;
         }
@@ -234,6 +245,13 @@ public final class BlockInteraction {
                 continue;
             }
             bot.swing(InteractionHand.MAIN_HAND);
+            // 预算计数放在**真正落地之后**：放置尝试会轮换支撑面，失败不占额度。
+            // 顶部已用 placeAllowed 判过，这里只计数（若仍被拒说明有并发/错位，如实记日志不掩盖）
+            if (WriteBudget.consumePlace(bot, level, placeAt, grant) == WriteBudget.Verdict.REFUSED) {
+                BotLog.warn("[WriteBudget] place_after_check_refused pos={} by={} {}",
+                        placeAt.toShortString(), grant == null ? "-" : grant.describe(),
+                        WriteBudget.describe(bot));
+            }
             WriteAudit.placeWrite(level, placeAt, level.getBlockState(placeAt), grant);
             // 账本记录（J6-a）：动作层是唯一看得见"每一次修改"的地方（含内核 PILLAR 放的方块）
             com.dddgn.alice.ledger.WorldModLedger.recordPlacement(level, bot.getUUID(), grant, placeAt,
@@ -271,6 +289,11 @@ public final class BlockInteraction {
      * `EXPECTED_TARGET/DESCEND_FOOT/BULK_EDIT` 走明确目标策略，其余走更保守的清障策略。
      */
     public static boolean breakable(ServerPlayer bot, ServerLevel level, BlockPos pos, WriteGrant grant) {
+        // 执行期写入预算（D-106）：任务级破坏预算用满后，**搜索与执行同时**不再把破坏当选项
+        // （规划期与执行期同一个判据，避免"计划说能过、执行到一半才被拒"）
+        if (!WriteBudget.breakAllowed(bot, grant)) {
+            return false;
+        }
         return breakRefusal(bot, level, pos, grant) == null;
     }
 
@@ -304,9 +327,20 @@ public final class BlockInteraction {
         return Math.max(1.0D, seconds * 20.0D);
     }
 
-    /** 开启一个按 tick 推进的破坏会话（推荐路径）；登记审计。 */
+    /**
+     * 开启一个按 tick 推进的破坏会话（推荐路径）；登记审计。
+     *
+     * <p>**执行期写入预算闸门（D-106）**：这是唯一实际发生破坏的入口，因此预算判定放在这里
+     * ——被拒时**不写世界、不登记审计、不开会话**，返回 {@code null}，调用方必须处理
+     * （内核路径统一映射为 {@code WRITE_BUDGET_EXHAUSTED} 失败码）。
+     */
     public static BlockBreakSession beginBreak(ServerPlayer bot, ServerLevel level, BlockPos pos,
                                               WriteGrant grant) {
+        if (WriteBudget.consumeBreak(bot, level, pos, grant) == WriteBudget.Verdict.REFUSED) {
+            BotLog.warn("[WRITE-REFUSED] break pos={} by={} reason=write_budget_exhausted {}",
+                    pos.toShortString(), grant == null ? "-" : grant.describe(), WriteBudget.describe(bot));
+            return null;
+        }
         WriteAudit.breakWrite(level, pos, level.getBlockState(pos), grant);
         return BlockBreakSession.begin(bot, level, pos);
     }
@@ -323,6 +357,11 @@ public final class BlockInteraction {
      */
     public static boolean placeBulkEdit(ServerPlayer bot, ServerLevel level, BlockPos pos, BlockState state,
                                         WriteGrant grant) {
+        if (!WriteBudget.placeAllowed(bot)) {
+            BotLog.warn("[WRITE-REFUSED] bulk_place pos={} by={} reason=write_budget_exhausted {}",
+                    pos.toShortString(), grant == null ? "-" : grant.describe(), WriteBudget.describe(bot));
+            return false;
+        }
         String protectedReason = com.dddgn.alice.protection.SafeZoneData.get(level.getServer())
                 .protectionReason(level, pos);
         if (protectedReason != null) {
@@ -348,6 +387,11 @@ public final class BlockInteraction {
      */
     public static boolean breakForBulkEdit(ServerPlayer bot, ServerLevel level, BlockPos pos, boolean dropItems,
                                            WriteGrant grant) {
+        if (WriteBudget.consumeBreak(bot, level, pos, grant) == WriteBudget.Verdict.REFUSED) {
+            BotLog.warn("[WRITE-REFUSED] bulk_break pos={} by={} reason=write_budget_exhausted {}",
+                    pos.toShortString(), grant == null ? "-" : grant.describe(), WriteBudget.describe(bot));
+            return false;
+        }
         // 闸门收进本方法（R2b，闭合 G9）：2026-09-10 勘测发现道路施工两套实现里
         // RoadBuildTask **根本没做任何保护区检查**，只判 `getDestroyProgress > 0`，
         // 而原先的 javadoc 把检查责任"外推给调用方"——等于没有闸门。

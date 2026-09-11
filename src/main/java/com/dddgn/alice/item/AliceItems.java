@@ -133,6 +133,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> CLEAR_GUARD_CHECK =
             ITEMS.register("clear_guard_check", () -> new ClearGuardCheckItem(new Item.Properties()));
 
+    /** D-106 写入预算自检（零参数）：预算用满后不再改世界、如实失败。 */
+    public static final RegistryObject<Item> WRITE_BUDGET_CHECK =
+            ITEMS.register("write_budget_check", () -> new WriteBudgetCheckItem(new Item.Properties()));
+
     /** J6-b1b 恢复自检（零参数）：把 bot 送到待恢复方块旁再跑恢复任务。 */
     public static final RegistryObject<Item> RESTORE_CHECK =
             ITEMS.register("restore_check", () -> new RestoreCheckItem(new Item.Properties()));

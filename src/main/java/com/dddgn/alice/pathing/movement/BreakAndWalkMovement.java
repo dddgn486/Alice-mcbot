@@ -185,6 +185,9 @@ public final class BreakAndWalkMovement implements Movement {
             if (!level.getBlockState(obstacleFootPos).isAir()) {
                 if (footSession == null) {
                     footSession = BlockInteraction.beginBreak(bot, level, obstacleFootPos, LEGACY_GRANT);
+                    if (footSession == null) {
+                        return Status.FAILED;   // D-106：写入预算耗尽
+                    }
                 }
                 BlockBreakSession.Status status = footSession.tick();
                 if (status == BlockBreakSession.Status.FAILED) {
@@ -202,6 +205,9 @@ public final class BreakAndWalkMovement implements Movement {
             if (!level.getBlockState(obstacleHeadPos).isAir()) {
                 if (headSession == null) {
                     headSession = BlockInteraction.beginBreak(bot, level, obstacleHeadPos, LEGACY_GRANT);
+                    if (headSession == null) {
+                        return Status.FAILED;   // D-106：写入预算耗尽
+                    }
                 }
                 BlockBreakSession.Status status = headSession.tick();
                 if (status == BlockBreakSession.Status.FAILED) {

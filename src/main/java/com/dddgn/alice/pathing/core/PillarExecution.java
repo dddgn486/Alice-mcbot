@@ -150,6 +150,10 @@ public final class PillarExecution implements MovementExecution {
                 BlockInteraction.PlaceResult result =
                         BlockInteraction.placeAt(bot, level, from, false,
                                 grant);
+                if (result == BlockInteraction.PlaceResult.BUDGET_EXHAUSTED) {
+                    fail("WRITE_BUDGET_EXHAUSTED");
+                    return;
+                }
                 if (result != BlockInteraction.PlaceResult.PLACED) {
                     fail("PILLAR_PLACE_FAILED");
                     return;

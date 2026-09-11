@@ -556,6 +556,16 @@ public final class BotManager {
         return true;
     }
 
+    /** 写入预算自检（D-106）：任务级破坏上限压到 1 格，断言"用满即停、如实失败"。 */
+    public static boolean assignWriteBudgetCheck(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        session.beginTask(new com.dddgn.alice.task.WriteBudgetCheckTask(bot, session.scope()),
+                TaskTarget.block(com.dddgn.alice.task.WriteBudgetCheckTask.START_FOOT));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     /** 伐木失败语义自检（切片 J4）：五条终止路径各一个用例。 */
     public static boolean assignLumberFailureCheck(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
@@ -1067,6 +1077,8 @@ public final class BotManager {
             if (task != null) {
                 String closedScope = com.dddgn.alice.ledger.WorldModLedger.closeScope(
                         bot.getServer(), bot.getUUID());
+                // 执行期写入预算收尾（D-106）：一行可观测摘要（breaks/places 对上限、豁免、拒绝次数）
+                com.dddgn.alice.action.WriteBudget.closeScope(closedScope);
                 // 账本保持"活的"：现场已不是我方方块的条目就地销掉（场景重放/别人拆掉/我方已拆）
                 com.dddgn.alice.ledger.WorldModLedger.dropStale(bot.serverLevel());
                 var pendingTemp = com.dddgn.alice.ledger.WorldModLedger.pendingTemporary(

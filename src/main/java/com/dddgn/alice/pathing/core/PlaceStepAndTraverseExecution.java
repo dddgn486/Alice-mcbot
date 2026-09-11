@@ -108,6 +108,10 @@ public final class PlaceStepAndTraverseExecution implements MovementExecution {
             BlockInteraction.PlaceResult result =
                     BlockInteraction.placeAt(bot, level, target, false,
                             grant);
+            if (result == BlockInteraction.PlaceResult.BUDGET_EXHAUSTED) {
+                fail("WRITE_BUDGET_EXHAUSTED");
+                return;
+            }
             if (result == BlockInteraction.PlaceResult.NO_OPTION) {
                 fail("PLACE_NO_VALID_FACE");
                 return;

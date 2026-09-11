@@ -2598,3 +2598,51 @@ APPROACH 成功（`movements=0`），但 **DESCEND 失败**：
 - `clear_guard_check`：`predicate_refuses=true chest_intact=true target_removed=true → PASS`（91 tick）
   —— bot 在容器缺口旁合法挖 2 格石头绕行（`[WRITE] break 50,64,159 / 50,65,159 PATH_ACCESS`），
   全程未触碰容器。
+
+## D-106 执行期写入预算（G4 Slice A）：任务级破坏/放置上限（2026-09-11）
+
+**问题**：授权（`WriteGrant`）只约束"**这一格**能不能改"，不约束"**改了多少格**"。内核清障
+（`PATH_ACCESS` 破坏 + `SUPPORT_PLACEMENT` 放置）是"有多少拆多少"：目标不可达时它会一直试下去，
+世界侧**没有任何"到此为止"**。D-082 当时明确把预算留作独立概念（"预算不合并"），本轮把它接上。
+
+**Baritone 对照**（本地 1.20.1 树，D-036 规则 4 登记为 Alice 特有差异）：
+- 写入权限 = `CalculationContext.allowBreak:104` / `allowBreakAnyway:105` + `blocksToDisallowBreaking`
+  （`MovementHelper.java:73`）；
+- 写入代价 = `breakCostMultiplierAt:175`、`costOfPlacingAt:156` 进路径成本，由
+  `PathExecutor.java:242-250`（超时）与 `:213`（`maxCostIncrease`）兜底；
+- **没有任何"计数上限"**（全树 grep `maxBreaks/breakLimit/writeBudget` 为空）。
+⇒ Alice 加计数上限的理由：服务端权威 + 可审计 + 可归因（同 D-082 的立场），不是"补 Baritone 的缺"。
+
+**用户裁定（2026-09-11）**：(a) 破坏与放置**分开计**；(b) 起点 **64 / 32**（先观测再收紧）；
+(c) **只读**：不加运行期覆盖命令（夹具内部构造"预算不足"场景除外）。
+
+**口径**
+| 项 | 决定 |
+|---|---|
+| 记账单位 | `WorldModLedger` 的 scopeId（**一次任务 = 一个作用域**；Job 就是一个任务） |
+| 默认上限 | 破坏 64 / 放置 32，**分开计**（`Caps` 可按作用域覆写，仅夹具使用） |
+| 豁免 | `WriteReason.SCAFFOLD_RESTORE`（回收我方临时放置）**豁免上限但仍计数** —— 否则"谁建谁拆"会被自己的预算卡死（J6 教训） |
+| 无作用域 | 不设上限，但记 `[WriteBudget] no_scope`（缺口不静默） |
+| 超限语义 | **硬停 + 如实报告**：`[WriteBudget] exhausted …` 警告 + 内核失败码 `WRITE_BUDGET_EXHAUSTED`；**不自动补恢复**（恢复仍按 D-103 会话内做） |
+| 可观测 | 作用域收尾一行 `[WriteBudget] SUMMARY scope=… breaks=n/64 places=n/32 exempt… refused… exhausted=…` |
+
+**执行点（不可绕过）**：写入只有一个咽喉 `BlockInteraction`
+（`placeAt→setBlock`、`beginBreak→gameMode.destroyBlock`、`breakForBulkEdit/placeBulkEdit`），闸门就放在这里；
+其中 `beginBreak` 被拒时**不写世界、不登记审计、不开会话**，返回 `null`，6 个调用点全部映射为
+`WRITE_BUDGET_EXHAUSTED`。`placeAt` 新增 `PlaceResult.BUDGET_EXHAUSTED`（4 个调用点逐一处理；
+**注意**：`PlaceStepAndTraverseExecution` 原先只判 `== NO_OPTION`，新值若不处理会被当成成功）。
+`breakable(...)` 谓词用**同一个判据**（`WriteBudget.breakAllowed`），因此**搜索与执行不会各行其是**。
+
+**已知缺口（Slice B 待做，本轮有意不做）**
+1. **计划期不剪枝**：搜索不知道预算会被消耗，因此可能承诺一条超出预算的路径 → 执行到一半被拒、
+   重规划、如实失败。行为是安全的（**绝不多拆**），但不够经济。
+2. **尝试级预算缺席**：`MiningBudget.maxExtraBreakTicks`（6 tick/格 ×10 × 珍贵度）目前仍只用于
+   规划期选站位；升级为"每次尝试允许累计消耗的破坏 tick" + 耗尽后本次尝试降级为纯通行，是 Slice B。
+3. 放置上限 0 的场景只被夹具间接覆盖。
+
+**验收夹具**：`alice:write_budget_check`（零参数右键）——复用 `break_course`（x=3 两格高石墙），
+把本次任务上限压到 **1 格**，断言不变式：破坏 ≤1 / 放置 ≤0 / 墙区空气格 ≤1（**用世界事实复核，
+不只信计数器**）/ 预算确实被触发 / 没穿过墙 / 通行没被判成功。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待验）。回归 16 场景复跑作为"预算没有误伤合法路径"的反例守卫，
+并注意正常任务里是否出现 `[WriteBudget] exhausted`（若出现说明 64/32 需要按数据调整）。

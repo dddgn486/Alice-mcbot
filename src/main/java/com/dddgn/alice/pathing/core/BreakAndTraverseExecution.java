@@ -123,6 +123,11 @@ public final class BreakAndTraverseExecution implements MovementExecution {
             }
             if (session == null) {
                 session = BlockInteraction.beginBreak(bot, level, blocker, grant);
+                if (session == null) {
+                    // 执行期写入预算耗尽（D-106）：内核不许再改世界，如实上报
+                    fail("WRITE_BUDGET_EXHAUSTED");
+                    return;
+                }
             }
             BlockBreakSession.Status status = session.tick();
             if (status == BlockBreakSession.Status.DONE) {

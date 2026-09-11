@@ -125,6 +125,10 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 
 | 非满高支撑的可执行回归（D-105） | 右键 `alice:pathing_regression`（自动建地形并执行） | 零参数右键 | `chest_step_course`：起点 (1,64,126) → 目标 (2,65,126) 必须**真的执行 ASCEND 并完成**（旧行为：箱顶原地弹跳 → `SEGMENT_TIMEOUT` 161 tick）；`slab_step_course`：(4,64,145) → (8,64,145) 封闭走廊，中途一块底半砖必须走过去（旧行为：TRAVERSE 完成契约死锁） | `WINDOWS_CLIENT` + `USER_ACCEPTED`（2026-09-11 18:31）：16 场景 + `foot_cell_rule` + `coverage` 全 PASS；`chest_step` 的 ASCEND 10 tick（旧 161 tick 弹跳）；全程无 `SEGMENT_TIMEOUT` |
 
+| 执行期写入预算（D-106）：任务级上限 | `/give @s alice:write_budget_check` → 右键（零参数） | 物品右键 | 复用 `break_course`，本次任务破坏上限压到 1 格；断言"只拆 1 格 → 用满即停 → 如实失败 → 绝不继续拆"，并用**世界事实**复核（墙区空气格 ≤1） | `待测`（预期 `[WriteBudget] CHECK breaks=1/1 places=0/0 exhausted=true wall_broken=1 passed_wall=false status=… → PASS`） |
+
+| 预算不误伤合法路径（D-106 反例守卫） | 右键 `alice:pathing_regression`（16 场景） | 零参数右键 | 正常任务的破坏/放置应远低于 64/32；出现 `[WriteBudget] exhausted` 即说明上限需要按数据调整 | `待测`（预期 16 场景 + `foot_cell_rule` + `coverage` 全 PASS，且无 `exhausted`） |
+
 | R2 零进展快速失败（D-105） | 任一卡死场景（如旧版 `clear_guard` 的箱顶弹跳） | 观察日志 | 连续 3 次"起跳后落回同一脚位格"即 `[R4 Session] no_progress … → TIMEOUT/SEGMENT_NO_PROGRESS`，约 40 tick 内退出而不是 161 tick | `待测`（构造性验证：需要能复现"物理上不可能收敛"的场景） |
 
 ## 性能验证

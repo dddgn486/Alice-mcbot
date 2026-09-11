@@ -93,6 +93,10 @@ public final class DownwardExecution implements MovementExecution {
             bot.controller().stopMovement();
             if (breakSession == null) {
                 breakSession = BlockInteraction.beginBreak(bot, level, target, grant);
+                if (breakSession == null) {
+                    fail("WRITE_BUDGET_EXHAUSTED");
+                    return;
+                }
             }
             BlockBreakSession.Status status = breakSession.tick();
             if (status == BlockBreakSession.Status.DONE) {
