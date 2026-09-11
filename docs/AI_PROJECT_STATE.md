@@ -197,7 +197,7 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
   斧子/一次性方块必须进快捷栏（D-089/D-099）、手持显示同步（D-090）、主手语义（D-091）、
   `exposed` 重定义（D-092）、清障不拆容器（D-095）、回归假失败（D-086）。
 
-**刚实现、待客户端验收：D-105 运行期脚位格统一**
+**已验收（2026-09-11 18:31，客户端 16/16 + foot_cell_rule + coverage 全 PASS）：D-105 运行期脚位格统一**
 - 现象：bot 在箱子上原地弹跳 12 次（161 tick → `SEGMENT_TIMEOUT`）。
 - 根因：规划层脚位格 = "支撑格的上一格"，运行期 `blockPosition()` = "脚所在格"；
   支撑顶面 ∈ [0.5, 1.0)（箱子/灵魂沙 0.875、底半砖 0.5、模组半格方块）时两者差一格
@@ -208,12 +208,11 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
   **`pathing_regression` 现在是 16 场景 + 1 项无头断言**。
 
 **下一步（按序）**
-1. **客户端验收 D-105**：右键 `alice:pathing_regression` → 期望 16 场景全 PASS + `coverage=PASS`
-   + `footCellRule=true`，且日志无 `SEGMENT_TIMEOUT`；随后重跑 `clear_guard_course` 看 J6-b2 断言。
-2. **G4**：内核写入的执行期预算（用户裁定紧随 J6 之后）；
-3. **J7 攀爬**（第一处真正需要脚手架放置的 Job，将首次实检建拆同权）→ **J8 MAINTAIN 区域型**。
-4. 仍登记未做：G3（模组连锁破坏无凭证）、G5（容器写入维度）、
-   `isExpensiveToClear` 的成本化 + `#alice:clear_forbidden` 标签、`MiningBudget.tierOf` 的 `#forge:ores/*`。
+1. **G4**：内核写入的执行期预算（用户裁定紧随 J6 之后）；
+2. **J7 攀爬**（第一处真正需要脚手架放置的 Job，将首次实检建拆同权）→ **J8 MAINTAIN 区域型**。
+3. 仍登记未做：G3（模组连锁破坏无凭证）、G5（容器写入维度）、
+   `isExpensiveToClear` 的成本化 + `#alice:clear_forbidden` 标签、`MiningBudget.tierOf` 的 `#forge:ores/*`、
+   R2 的实战触发构造（R1 修好后旧场景不再触发它）。
 
 **测试入口速查**（全部零参数或一行命令）
 `alice:lumber_job` / `alice:lumber_policy_check` / `alice:lumber_failure_check` /

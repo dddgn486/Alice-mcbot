@@ -119,11 +119,11 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 
 | J6-b1b 恢复自检（夹具负责传送） | `/give @s alice:restore_check` → 右键 | 物品右键（零参数） | 场景相互孤立，恢复任务走不过去 → 夹具把 bot 送到待恢复方块旁的可站格 | `待测`（预期 `[Restore] … restored≥1 recovered≥1`；跨场景的仍如实 `approach_failed`） |
 
-| J6-b2 容器绕行自检（D-095 断言） | `/function alice_test:clear_guard_course` → 右键 `alice:clear_guard_check` | 物品右键（零参数） | 目标在墙后、唯一通道（缺口开在 y=65..66，脚位踩不到）被两个箱子堵住；跑真实 `MineTask` 后断言箱子完好 | `待测`（预期 `predicate_refuses=true chest_intact=true → PASS`；不得再出现 8 秒原地弹跳） |
+| J6-b2 容器绕行自检（D-095 断言） | `/function alice_test:clear_guard_course` → 右键 `alice:clear_guard_check` | 物品右键（零参数） | 目标在墙后、唯一通道（缺口开在 y=65..66，脚位踩不到）被两个箱子堵住；跑真实 `MineTask` 后断言箱子完好 | `WINDOWS_CLIENT` + `USER_ACCEPTED`（2026-09-11 18:31）：`predicate_refuses=true chest_intact=true target_removed=true → PASS`（91 tick）——合法绕行未触碰容器 |
 
-| 运行期脚位格规则（D-105，无头断言） | 右键 `alice:pathing_regression`（末尾自动跑 `PathingRegression.run`） | 零参数右键 | `footCell` 给出的格必须 = 规划层 `canWalkOn` 认可的格：箱子 0.875 / 底半砖 0.5 / 灵魂沙 0.875 上移一格，地毯 0.0625 与整格不上移 | `待测`（预期 `[Regression] SUMMARY … foot_cell_rule=PASS …`；自建区域 z=300，与场景不重叠） |
+| 运行期脚位格规则（D-105，无头断言） | 右键 `alice:pathing_regression`（末尾自动跑 `PathingRegression.run`） | 零参数右键 | `footCell` 给出的格必须 = 规划层 `canWalkOn` 认可的格：箱子 0.875 / 底半砖 0.5 / 灵魂沙 0.875 上移一格，地毯 0.0625 与整格不上移 | `WINDOWS_CLIENT` + `USER_ACCEPTED`（2026-09-11 18:31）：`PATHING_REGRESSION PASS foot_cell_rule chest=true bottomSlab=true soulSand=true thinFace=true fullBlock=true` |
 
-| 非满高支撑的可执行回归（D-105） | 右键 `alice:pathing_regression`（自动建地形并执行） | 零参数右键 | `chest_step_course`：起点 (1,64,126) → 目标 (2,65,126) 必须**真的执行 ASCEND 并完成**（旧行为：箱顶原地弹跳 → `SEGMENT_TIMEOUT` 161 tick）；`slab_step_course`：(4,64,145) → (8,64,145) 封闭走廊，中途一块底半砖必须走过去（旧行为：TRAVERSE 完成契约死锁） | `待测`（预期 16 场景全 PASS + `coverage=PASS`；日志无 `SEGMENT_TIMEOUT`） |
+| 非满高支撑的可执行回归（D-105） | 右键 `alice:pathing_regression`（自动建地形并执行） | 零参数右键 | `chest_step_course`：起点 (1,64,126) → 目标 (2,65,126) 必须**真的执行 ASCEND 并完成**（旧行为：箱顶原地弹跳 → `SEGMENT_TIMEOUT` 161 tick）；`slab_step_course`：(4,64,145) → (8,64,145) 封闭走廊，中途一块底半砖必须走过去（旧行为：TRAVERSE 完成契约死锁） | `WINDOWS_CLIENT` + `USER_ACCEPTED`（2026-09-11 18:31）：16 场景 + `foot_cell_rule` + `coverage` 全 PASS；`chest_step` 的 ASCEND 10 tick（旧 161 tick 弹跳）；全程无 `SEGMENT_TIMEOUT` |
 
 | R2 零进展快速失败（D-105） | 任一卡死场景（如旧版 `clear_guard` 的箱顶弹跳） | 观察日志 | 连续 3 次"起跳后落回同一脚位格"即 `[R4 Session] no_progress … → TIMEOUT/SEGMENT_NO_PROGRESS`，约 40 tick 内退出而不是 161 tick | `待测`（构造性验证：需要能复现"物理上不可能收敛"的场景） |
 

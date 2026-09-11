@@ -2588,4 +2588,13 @@ APPROACH 成功（`movements=0`），但 **DESCEND 失败**：
   `chest_step_course`（起点 (1,64,126) → 目标 (2,65,126)，必须执行 `ASCEND` 到箱顶）、
   `slab_step_course`（封闭 1 格宽走廊，(4,64,145) → (8,64,145)，中途一块底半砖）。
 
-**验证等级**：IMPLEMENTED / COMPILES（客户端实测待补）。
+**验证等级**：WINDOWS_CLIENT + USER_ACCEPTED（2026-09-11 18:31，用户"测试完了"）。
+- `[Regression] SUMMARY … chest_step_course=PASS slab_step_course=PASS foot_cell_rule=PASS coverage=PASS`
+  （16 场景 + 1 无头断言全 PASS，任务 `COMPLETED` 460 tick）；
+- `chest_step_course`：`ASCEND from=1,64,126 to=2,65,126` **10 tick 完成**，`actualFoot=2,65,126`
+  （旧行为：箱顶原地弹跳 12 次 → `SEGMENT_TIMEOUT` 161 tick）；
+- 全程 `SEGMENT_TIMEOUT` / `no_progress` 出现 **0** 次 ⇒ R2 无误报；
+  R2 本身仍是构造性验证（R1 修好后无法用原场景主动触发）；
+- `clear_guard_check`：`predicate_refuses=true chest_intact=true target_removed=true → PASS`（91 tick）
+  —— bot 在容器缺口旁合法挖 2 格石头绕行（`[WRITE] break 50,64,159 / 50,65,159 PATH_ACCESS`），
+  全程未触碰容器。
