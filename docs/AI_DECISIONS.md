@@ -3285,3 +3285,32 @@ B1 把清障搬进 L2 时，我漏了改造前 Job 的一条关键行为：**清
 它决定 `partial_quota`（`trees 3/4`），与 F2/F3 无因果。**待评估**：清障是否允许对 blocker 加高/嵌套。
 
 **验证等级**：F2/F3 = IMPLEMENTED / COMPILES；客户端复测待跑（判据见测试矩阵 D-116 行）。
+
+### D-116 附注三（2026-09-11 23:34 复测：不再假报 scaffoldLeft；两轮差异=树叶腐烂时机）
+
+**本轮事实**（客户端 23:33–23:34，jar `bb9929e4d9…`）
+```
+23:34:12.334 [Job] lumber sweep_up_start foot=28,65,208 live_drops=1（仍在架上）
+23:34:13.084 [CollectDrops] entity_gone → cluster_done delta=1 → SUMMARY collected=1/1
+23:34:13.133 [Job] lumber sweep_up_end swept=1 live_drops=0
+23:34:13.237 [Restore] start … blocks=1（自上而下：站上去 → 向下拆）
+23:34:14.333 [Restore] SUMMARY restored=1 skipped=0 reconciled=0 remaining=0 recovered=1 → DONE
+23:34:20.439 [Job] terminal job=lumber result=FAILED reason=partial_quota
+             progress=trees 3/4 logs 15/23 inventoryDelta=15 gainedTrees=1 gainedBlocks=1
+                      scaffoldLeft=0 writes breaks=22 places=1 unknown=0
+```
+- `① 就地扫尾` 再次生效；高云杉 7/7（连续第三轮），`inventoryDelta=15`。
+- ② **本轮走的是正常路径**（`skipped=0`），**不含** `scaffold_left`，终态只剩 `partial_quota`；
+  `recovered=1` 与"放 1 收 1"完全对账（F3 未再出现整栈被抹）。
+- 诚实边界：**上一轮触发 `reconciled` 的条件是随机出现的，本轮没复现** ⇒ 该对账分支
+  （`reconciled>0 → restore_done_by_other_action`）仍属**未在客户端验证**，已登记待复现。
+
+**两轮差异的根因（**世界事实**，与客户端物理无关）**：掉落物是否停在树冠 `27,70,207`，取决于
+**树叶随机刻腐烂**的时机。顶部原木破掉时若树叶还在 → 掉落物停在树冠（22:44/22:46/23:08，需要 ①
+加高上去拿）；若树叶已腐烂 → 掉落物顺柱落下（23:34，① 原地即可收）。23:08 轮日志里
+`作用域捕捉掉落物: spruce_sapling/stick x27 y71 z208 source=unpaired` 就是腐烂产物
+（`unpaired` = 非我方破坏产生）——这是同一机制的另一面证据。
+⇒ **测试场景的这个分支天生带随机性**：要覆盖 ① 的加高路径与 ② 的对账路径，需要多轮或
+更确定的场景构造（登记为夹具改进项，不属本轮）。
+
+**F4 仍是唯一未过的原因**（`partial_quota`，19/24 橡树），与 F2/F3 无因果。
