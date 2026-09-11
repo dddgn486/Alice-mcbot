@@ -53,8 +53,14 @@ public final class ScaffoldLifecycleTask implements Task {
     private static final int COLUMN_Z = START_FOOT.getZ();
     private static final int COLUMN_Y_MIN = 64;
     private static final int COLUMN_Y_MAX = 68;
-    /** 方块预算（用户 2026-09-11 裁定：默认 12，高树够用；模组超高树不在范围）。 */
-    public static final int CLIMB_BUDGET = 12;
+    /**
+     * 方块预算（用户 2026-09-11 裁定：默认 12，高树够用；模组超高树不在范围）。
+     *
+     * <p>D-111 起，这个值由**能力信封**统一承载（{@code MiningProfile.DEFAULT_GAIN_BLOCK_BUDGET}），
+     * 不再各写一份——本夹具的"爬到指定作业平台"是另一种能力（多步 climb），其预算沿用同一个默认值。
+     */
+    public static final int CLIMB_BUDGET = com.dddgn.alice.task.mining.MiningProfile
+            .DEFAULT_GAIN_BLOCK_BUDGET;
     /**
      * 单个阶段的安全上限（tick）。必须**大于** {@code RestoreScopeTask} 自己的内部预算
      * （`BASE_TICKS + 每格 450 tick`，5 格 ≈ 2350），否则外层会先把正常拆除掐成超时。

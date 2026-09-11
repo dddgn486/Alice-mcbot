@@ -2859,14 +2859,30 @@ movements=0 pillar=0/12` → 原地不动。**根因不在夹具几何，而在 
 `climbGoalFor` 四侧全返回 null。**这才是 §11-① 要素⑥ 在 Alice 里的真实形态**：不是"踩到自己砍的
 原木"（那一条已按构造消失），而是"**树冠挡住脚手架立柱**"。
 
-**补齐（仍不新增机制）**：`tryStartClimb` 改为逐侧尝试 —— 某侧被挡时用
-`BlockerClearPlanner.clearable` 判断"能不能清"，能清就记下 `climbBlocker`；四次都不可行则
-`startClimbClear()` 用**既有** `MineTask` + **既有**每棵树清障预算（`MAX_CLEAR_PER_TREE=8`）
-清掉那一格，`queueIndex` 不变 → 清完重试同一根原木。立柱净空用 `firstBlockingCell`
-（从地面到目标格逐层查"站得住 + 钻得过"，与 `PILLAR` 的规划前提同口径）。
+**用户第二次裁定（2026-09-11 20:31，一针见血）**：
+> "你是怎么判定砍伐高处原木的，为什么每次只判定'侧'？明显只需要**搭一格柱子，从下方向上砍**
+> 成本最低啊。现在砍高树的站位选择没有直接接入 `MineTask` 的挖掘站位选择吗，还是说原来的系统就有问题？"
 
-**验证等级**：IMPLEMENTED / COMPILES（第二次客户端待验：期望高树 `climbed≥1`、不再出现
-`28,70,208:no_reachable_standing_point`、`scaffoldLeft=0`）。
+三条都成立，前两条是我的实现错了：
+1. **原来的系统没问题、也没接错**：伐木用 `standable_only=true`（D-070：不许往地里挖/搭架子），
+   `miningApproach` 又按 D-067 ㉘ 显式禁用 `PILLAR/FALL/DOWNWARD` —— 两条都是**有意为之**；
+   缺的不是"站位选择没接上"，而是**"允许最小必要的高度增益"这个授权**（§11-① 要素①②）。
+2. **我原来写成"爬到原木旁边那一格站上去"是错的**：那等于贴着树干在树冠里搭一根 5 格高柱子，
+   四侧全被树叶挡住（场景文件证据：顶端原木四邻全是 `spruce_leaves`）⇒ 几乎必然失败、成本还高。
+3. **正确形状 = 最小高度增益**（用户给的）：**在当前站位往上加高到该原木进入触及范围**。
+   这棵树只差约 0.36 格 ⇒ **1 格**即可；加高后**bot 自己脚下的柱子顶面**就成了合法站位
+   （在 reach 内、0 步可达）⇒ `MineTask` 原班站位选择立刻成功，且树越高越省。
+
+**实现（替换，而非叠加）**：`tryGainHeight(log)` —— 目标 = `foot.above()`（+1 格）；
+只检查**头顶那两格**能否钻过（被树冠挡住时只清那 1 格，共用每棵树的清障预算，
+`WriteReason.STANDING_SPACE`）；计划要求恰为 **1 次 `PILLAR`**；成功后 `queueIndex` 不变 → 重试同一根；
+每棵树加高上限 3 次，超限如实回落 `:no_stand`。原先"逐侧找平台 + 清整列"的实现**已删除**。
+
+**日志依据**：`[MiningPlanner] standable_only … reason=no_reachable_standing_point`
+—— 站位候选**存在**但不可达，正是"差一点点高度"的签名；加高 1 格后 bot 自身即成为候选。
+
+**验证等级**：IMPLEMENTED / COMPILES（第三次客户端待验：期望 `[Job] step phase=GAIN …` →
+`climb_end state=DONE` → 该原木 `CUT` 成功；`climbed≥1`、`scaffoldLeft=0`）。
 
 ## D-110 夹具改背包必须广播主手（单点收敛，2026-09-11）
 
@@ -2884,3 +2900,43 @@ movements=0 pillar=0/12` → 原地不动。**根因不在夹具几何，而在 
 
 **教训（与 D-089/D-099 同源）**：夹具对背包的任何修改都必须经过**同一个出口**，
 否则"工具进快捷栏 / 一次性方块进快捷栏 / 主手同步"这三件事会一次次各自漏掉。
+
+## D-111 挖掘能力信封 `MiningProfile`（切片 A：加高下沉到 L2，2026-09-11）
+
+**用户观察（架构问题）**："`MineTask` 本来是大部分任务的低级子任务，但对不同授权的任务甚至需要重写
+一部分逻辑——这个问题需要更改任务架构吗？"
+
+**事实（可量化）**：授权信封当时散成三种形状——
+| 维度 | 形状 | 位置 |
+|---|---|---|
+| 能不能搭架子 | `boolean standableOnly` | `MineTask` 参数 |
+| 允许哪些 Movement | **6 份硬编码集合** | `PathRequest` 的 6 个工厂 |
+| 清障/加高预算 | `MAX_CLEAR_PER_TREE=8`、`MAX_GAIN_PER_LOG=3`、`CLIMB_BUDGET=12` | `LumberCandidateSource` / `LumberJob` / `ScaffoldLifecycleTask`（**12 写了两份** ✗） |
+
+⇒ 症状：每出现一种新授权需求，**调用点就要自己重写一段 L2 逻辑**。J7 的"原地加高"已经
+在两个调用点各实现了一遍（脚手架夹具 + 伐木 Job）✗。
+
+**用户裁定**：不改分层，**收敛信封**；先做切片 A。
+
+**切片 A（本轮完成）**
+1. 新增 `MiningProfile(standableOnly, maxGainSteps, gainBlockBudget)`（`task/mining/`）——
+   能力白名单 + 预算，由 L3 显式构造、L2 只读消费；`STANDABLE_ONLY` / `TUNNEL_ALLOWED`
+   精确对应旧的两个布尔取值 ⇒ **既有调用点行为不变**；加高产生的放置用
+   `gainReason()=STANDING_SPACE` 派生归因（requester 仍取自任务的 `WriteGrant`）。
+2. **"最小高度增益"下沉到 L2**（`MineTask.tryGainHeight` + `GAIN`/`GAIN_CLEAR` 阶段）：
+   站位规划失败且 profile 允许时 → 原地加高 1 格 → 重新评估；头顶被树冠挡住时只清那一格
+   （嵌套一个 `STANDABLE_ONLY` 的 `MineTask`）；每格 1 次 `PILLAR`；上限由 profile 给。
+   成功经验经 `gainedSteps()` 上报给 L3（决定是否需要 ① 就地扫尾）。
+3. `LumberJob` **删除**自己那份增益实现（含 `tryGainHeight`/`startClimbClear`/`climb()`/`CLIMB` 阶段
+   与全部重复常量），改为传 `MiningProfile.STANDABLE_ONLY.withGain(3)` ✓；
+   `CLIMB_BUDGET=12` 的两份重复收敛为 `MiningProfile.DEFAULT_GAIN_BLOCK_BUDGET` 一处。
+4. **不动**：三层分层、D-076 默认纯通行、`WriteBudget`（执行期闸门独立）、`MiningBudget` 标定值。
+
+**仍存的一处重复（留待切片 B/C）**：`ScaffoldLifecycleTask` 的"爬到指定作业平台"是**另一种能力**
+（多步 climb + 目标平台），本轮仍由夹具自己实现（但预算已引用同一默认值）✓。
+
+**验证入口**：`alice:lumber_job`（高树，期望 `gainedTrees≥1` / `scaffoldLeft=0`）、
+`alice:lumber_failure_check`（J4 五条路径）、`alice:mine_regression`（隧道模式不受影响）、
+`alice:scaffold_check`（多步 climb 不受影响）。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待复测）。

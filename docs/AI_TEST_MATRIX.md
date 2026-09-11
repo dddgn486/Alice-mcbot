@@ -98,7 +98,9 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 | 寻路回归复验（R2b 后） | 右键 `alice:pathing_regression` | 14 场景全 PASS，含全部写入型 `BREAK_AND_TRAVERSE`/`DOWNWARD`/`PILLAR`/`PLACE_STEP`/`BREAK_AND_ENTER`；`UNAUTHORIZED_MOVEMENT` 必须为 0 | `WINDOWS_CLIENT`（2026-09-10 20:27:29 全 PASS，`terminal=COMPLETED`；越权检查命中 0） |
 | 世界写入授权审计（D-082） | 任意任务跑一次，看 `[WRITE]` 行与终态 `writes … unknown=` | `by=<任务身份>:<REASON>`；`unknown=0`（计数为**会话累计**，跨任务不重置） | `WINDOWS_CLIENT`（2026-09-10：`by=MineRegressionTask:EXPECTED_TARGET` / `SUPPORT_PLACEMENT` / `lumber:LINE_OF_SIGHT`，全程 `unknown=0`） |
 
-| J7 Step 2 伐木攀爬兜底（D-109） | 右键 `alice:lumber_job`（`lumber_course`，含高树） | 零参数右键 | 够不到的原木先**贴着树干搭柱子爬上去**再砍（`CLIMB` 阶段）；每棵树用完**仍在架上**拆除我方放置；`climbed=/climbBlocks=/scaffoldLeft=` 进终态 | `待测`（预期：高树不再出现 `no_reachable_standing_point`，`climbed≥1`、`scaffoldLeft=0`、`quota_met`） |
+| D-111 能力信封（切片 A）复跑 | 右键 `alice:lumber_job` / `alice:lumber_failure_check` / `alice:mine_regression` / `alice:scaffold_check` | 四次零参数右键 | 加高能力已下沉 L2（`MiningProfile`），四个调用点行为应与改造前一致 | `待测`（高树仍靠加高完成、`lumber_failure_check` 5/5、`mine_regression` 不变、`scaffold_check` PASS） |
+
+| J7 Step 2 伐木攀爬兜底（D-109） | 右键 `alice:lumber_job`（`lumber_course`，含高树） | 零参数右键 | 够不到的原木先**贴着树干搭柱子爬上去**再砍（`CLIMB` 阶段）；每棵树用完**仍在架上**拆除我方放置；`climbed=/climbBlocks=/scaffoldLeft=` 进终态 | `待测`（第三次，按用户裁定改为**最小高度增益**：预期 `[Job] step phase=GAIN …` → 该原木 `CUT` 成功；高树不再出现 `no_reachable_standing_point`；`climbed≥1`、`scaffoldLeft=0`） |
 
 | J4 终止路径复跑（D-109 后须确认未被新阶段破坏） | 右键 `alice:lumber_failure_check` | 零参数右键 | 五条终止路径各一个用例 | `待测`（预期 5/5 PASS） |
 

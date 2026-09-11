@@ -67,7 +67,7 @@ public final class LumberJob implements Job {
      * **建 → 爬 → 用 → ① 作业点就地收 → ② 仍在架上自上而下拆 → ③ 落地后收**。
      * ①/② 只在**本棵树真的爬了**时才做（没爬就没有"够不到"的问题，保持原有零打扰路径）。
      */
-    private enum Phase { SELECT, CHOP, CLIMB, SWEEP_UP, RESTORE, COLLECT, DONE }
+    private enum Phase { SELECT, CHOP, SWEEP_UP, RESTORE, COLLECT, DONE }
 
     public static final String NAME = "lumber";
 
@@ -112,34 +112,25 @@ public final class LumberJob implements Job {
     /** 整个 Job 累计清障格数（仅用于报告，不参与闸门）。 */
     private int clearedTotal;
     private CollectDropsTask collector;
-    /** 攀爬兜底（J7 Step 2）：一次"爬上去够那根原木"的执行器。 */
-    private PathRetryRunner climber;
-    /** 本次攀爬的目标原木（爬完要回来重试它）。 */
-    private BlockPos climbTargetLog;
-    /** 本棵树是否用过攀爬（决定要不要 ① 就地扫尾）。 */
-    private boolean climbedThisTree;
-    /** 本棵树攀爬消耗的方块数（计划里的 `PILLAR` 边数）。 */
-    private int climbedBlocksThisTree;
-    /** 本次攀爬计划里的 `PILLAR` 步数（爬完计入报告）。 */
-    private int climbPlannedPillars;
     /**
-     * 攀爬**阻塞格**（可为 null）：树冠挡住立柱时，这里给出"先清掉哪一格"。
+     * 本棵树累计"原地加高"格数（由 {@link MineTask#gainedSteps()} 汇报——D-111 切片 A 起加高在 L2）。
      *
-     * <p>2026-09-11 客户端实测（高大云杉）：顶端原木 (28,70,208) 四邻全是 `spruce_leaves`，
-     * 攀爬立柱的每一层都被树冠占住 ⇒ 只清"视线/站位"永远开不出立柱。这才是 §11-① 要素⑥
-     * 在 Alice 里的真实形态：不是"踩到自己砍的原木"，而是"**树冠挡住脚手架立柱**"。
+     * <p>用途：决定本棵树结束时是否要 ① 就地扫尾（D-107 附注：爬过高才有"够不到"的问题）。
      */
-    private BlockPos climbBlocker;
-    /** 整 Job 攀爬次数与方块数（报告用）。 */
-    private int climbedTrees;
-    private int climbedBlocksTotal;
+    private int gainedThisTree;
+    /** 整 Job 加高过的树数与总格数（报告用）。 */
+    private int gainedTrees;
+    private int gainedBlocksTotal;
+    /** 每棵树的加高预算（交给 L2 的能力信封；用户 2026-09-11 裁定 3 次/棵）。 */
+    private static final int MAX_GAIN_PER_TREE = 3;
+    /** 目标原木的能力信封：只用现成可站站位 + 允许原地加高（D-111 切片 A）。 */
+    private static final com.dddgn.alice.task.mining.MiningProfile TARGET_PROFILE =
+            com.dddgn.alice.task.mining.MiningProfile.STANDABLE_ONLY.withGain(MAX_GAIN_PER_TREE);
     /** ② 会话内拆除（仍在架上时自上而下拆我方 TEMP 放置）。 */
     private RestoreScopeTask restore;
     private boolean restoredThisTree;
     /** 任务结束时仍未拆除的我方临时放置（如实报告，不静默）。 */
     private int scaffoldLeft;
-    /** 攀爬方块预算（用户 2026-09-11 裁定：默认 12，砍树够用）。 */
-    private static final int CLIMB_BUDGET = 12;
     /** ① 就地扫尾的 tick 预算（best-effort）。 */
     private static final int SWEEP_UP_BUDGET_TICKS = 200;
     private boolean sweptUpThisTree;
@@ -213,7 +204,6 @@ public final class LumberJob implements Job {
         return switch (phase) {
             case SELECT -> select();
             case CHOP -> chop();
-            case CLIMB -> climb();
             case SWEEP_UP -> sweepUp();
             case RESTORE -> restorePhase();
             case COLLECT -> collectPhase();
@@ -239,8 +229,7 @@ public final class LumberJob implements Job {
         }
         tree = picked;
         clearedThisTree = 0;            // 预算按棵重置（D-080「≤8 格/棵」）
-        climbedThisTree = false;
-        climbedBlocksThisTree = 0;
+        gainedThisTree = 0;
         sweptUpThisTree = false;
         restoredThisTree = false;
         scaffoLeftReported = false;
@@ -300,14 +289,6 @@ public final class LumberJob implements Job {
                         bot.getBlockReach(), MAX_CLEAR_PER_TREE - clearedThisTree,
                         WriteGrant.of(jobName(), WriteReason.LINE_OF_SIGHT));
                 if (step == null) {
-                    // J7 Step 2：够不到（或腾不出站位）→ **先试攀爬兜底**（§11-① 要素①）
-                    if (tryStartClimb(log)) {
-                        return Task.Status.RUNNING;
-                    }
-                    // 攀爬立柱被树冠挡住 → 先清那一格（共用每棵树的清障预算），清完重试同一根
-                    if (startClimbClear(log)) {
-                        return Task.Status.RUNNING;
-                    }
                     failedLogs.add(log.toShortString() + (clearedThisTree >= MAX_CLEAR_PER_TREE
                             ? ":clear_budget" : ":no_stand"));
                     queueIndex++;
@@ -325,7 +306,7 @@ public final class LumberJob implements Job {
                     "log " + (queueIndex + 1) + "/" + queue.size());
             // standableOnly=true：**禁止**规划器自己挖隧道或破坏进入（伐木不允许"往地里挖"）
             miner = new MineTask(bot, log, scope,
-                    MiningBudget.forTarget(bot, bot.serverLevel(), log, false), true,
+                    MiningBudget.forTarget(bot, bot.serverLevel(), log, false), TARGET_PROFILE,
                     WriteGrant.of(jobName(), WriteReason.EXPECTED_TARGET));
             return Task.Status.RUNNING;
         }
@@ -336,6 +317,7 @@ public final class LumberJob implements Job {
         }
         if (status == Task.Status.DONE) {
             choppedLogs++;
+            recordGain(miner);
             miner = null;
             queueIndex++;
             return Task.Status.RUNNING;
@@ -357,23 +339,27 @@ public final class LumberJob implements Job {
                 return Task.Status.RUNNING;
             }
         }
+        // 站位类失败（够不到/不可达）在 L2 里已经先试过"原地加高"（D-111 切片 A 的能力信封）；
+        // 走到这里说明加高用尽或不可行 → 如实记账并跳过该原木
         String reason = String.valueOf(miner.failureReason());
-        if (reason.contains("standing_point") || reason.contains("no_valid") || reason.contains("no_reachable")) {
-            miner = null;   // 保留 queueIndex：爬上去后重试同一根
-            if (tryStartClimb(log)) {
-                return Task.Status.RUNNING;
-            }
-            if (startClimbClear(log)) {
-                return Task.Status.RUNNING;
-            }
-            failedLogs.add(log.toShortString() + ":" + reason);
-            queueIndex++;
-            return Task.Status.RUNNING;
-        }
+        recordGain(miner);
         failedLogs.add(log.toShortString() + ":" + reason);
         miner = null;
         queueIndex++;
         return Task.Status.RUNNING;
+    }
+
+    /** 累计本棵树的加高格数（L2 汇报；同时记账"加高过的树"）。 */
+    private void recordGain(MineTask finished) {
+        int steps = finished == null ? 0 : finished.gainedSteps();
+        if (steps <= 0) {
+            return;
+        }
+        if (gainedThisTree == 0) {
+            gainedTrees++;
+        }
+        gainedThisTree += steps;
+        gainedBlocksTotal += steps;
     }
 
     /**
@@ -385,7 +371,7 @@ public final class LumberJob implements Job {
      * </pre>
      */
     private Task.Status advanceAfterChop() {
-        if (climbedThisTree && !sweptUpThisTree) {
+        if (gainedThisTree > 0 && !sweptUpThisTree) {
             phase = Phase.SWEEP_UP;
             return Task.Status.RUNNING;
         }
@@ -398,7 +384,7 @@ public final class LumberJob implements Job {
         DecisionTrace.step(jobName(), "COLLECT", tree.base().toShortString(),
                 "chopped=" + choppedLogs + "/" + queue.size() + " failed=" + failedLogs.size()
                         + (clearedTotal > 0 ? " cleared=" + clearedTotal : "")
-                        + (climbedThisTree ? " climbed=" + climbedBlocksThisTree : ""));
+                        + (gainedThisTree > 0 ? " gained=" + gainedThisTree : ""));
         return Task.Status.RUNNING;
     }
 
@@ -409,120 +395,6 @@ public final class LumberJob implements Job {
         return scopeId == null ? 0
                 : com.dddgn.alice.ledger.WorldModLedger
                         .pendingTemporary(bot.getServer(), scopeId).size();
-    }
-
-    // ==================== J7 Step 2：攀爬兜底 ====================
-
-    /**
-     * 尝试为这根原木开一次攀爬（§11-① 要素①②③⑤）。
-     *
-     * <p>站位选在**原木正旁边、与原木同高**的那一格：攀爬柱贴着树干立起来，**树干本身就是
-     * 每一层的放置面**（要素⑤），因此不需要任何新机制——`PILLAR` 的规划前提
-     * `hasPlacementFace` 由树干满足。爬完 `queueIndex` 不变，回到 CHOP 重试同一根。
-     *
-     * @return true = 已启动攀爬（调用方应 return RUNNING）；false = 不可行/超预算（调用方保持如实失败）
-     */
-    private boolean tryStartClimb(BlockPos log) {
-        climbBlocker = null;
-        for (int[] d : new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
-            BlockPos goal = log.offset(d[0], -1, d[1]);   // 脚位与原木同高，贴着树干
-            BlockPos blocking = firstBlockingCell(goal);
-            if (blocking != null) {
-                // 这一侧被占（树冠/别的树）：能清就记下来，清掉后再试；不能清就换下一侧
-                if (climbBlocker == null && BlockerClearPlanner.clearable(bot, bot.serverLevel(),
-                        blocking, WriteGrant.of(jobName(), WriteReason.LINE_OF_SIGHT))) {
-                    climbBlocker = blocking;
-                }
-                continue;
-            }
-            PathRequest request = PathRequest.climbApproach(bot.getUUID().toString(),
-                    MovementHelper.footCell(bot.serverLevel(), bot), goal, "lumber-climb");
-            PathPlan plan = new CorePathPlanner().plan(bot, bot.serverLevel(), request);
-            int pillars = (int) plan.movements().stream()
-                    .filter(m -> m.movementType() == MovementType.PILLAR).count();
-            if (!plan.reached() || pillars == 0 || pillars > CLIMB_BUDGET) {
-                DecisionTrace.step(jobName(), "CLIMB", log.toShortString(),
-                        "该侧不可行 status=" + plan.status() + " pillar=" + pillars + "/" + CLIMB_BUDGET);
-                continue;
-            }
-            climbTargetLog = log;
-            climbPlannedPillars = pillars;
-            climber = new PathRetryRunner(bot, request, PathRetryRunner.DEFAULT_MAX_REPLANS,
-                    "lumber-climb");
-            DecisionTrace.step(jobName(), "CLIMB", goal.toShortString(),
-                    "为 " + log.toShortString() + " 攀爬 pillar=" + pillars + "/" + CLIMB_BUDGET);
-            phase = Phase.CLIMB;
-            return true;
-        }
-        if (climbBlocker != null) {
-            DecisionTrace.step(jobName(), "CLIMB_BLOCKED", climbBlocker.toShortString(),
-                    "攀爬立柱被挡（树冠）→ 先清障再爬");
-        } else {
-            DecisionTrace.step(jobName(), "CLIMB", log.toShortString(), "四侧都不可行 → 放弃攀爬");
-        }
-        return false;
-    }
-
-    /** 从地面到目标格这一列里，第一个"站不住/钻不过"的格子（PILLAR 立柱的净空检查）。 */
-    private BlockPos firstBlockingCell(BlockPos goal) {
-        int from = Math.min(MovementHelper.footCell(bot.serverLevel(), bot).getY(), goal.getY());
-        for (int y = from; y <= goal.getY(); y++) {
-            BlockPos cell = new BlockPos(goal.getX(), y, goal.getZ());
-            if (!MovementHelper.canWalkThrough(bot.serverLevel(), cell)
-                    || !MovementHelper.canWalkThrough(bot.serverLevel(), cell.above())) {
-                return cell;
-            }
-        }
-        return null;
-    }
-
-    /** 为攀爬立柱清障（复用既有 `MineTask` + 每棵树清障预算；`queueIndex` 不变，清完重试）。 */
-    private boolean startClimbClear(BlockPos log) {
-        if (climbBlocker == null || clearedThisTree >= MAX_CLEAR_PER_TREE) {
-            return false;
-        }
-        BlockPos blocker = climbBlocker;
-        climbBlocker = null;
-        DecisionTrace.step(jobName(), "CLEAR", blocker.toShortString(),
-                "为攀爬立柱清障（" + log.toShortString() + "）clear=" + (clearedThisTree + 1)
-                        + "/" + MAX_CLEAR_PER_TREE);
-        clearTask = new MineTask(bot, blocker, scope,
-                MiningBudget.forTarget(bot, bot.serverLevel(), blocker, false), true,
-                WriteGrant.of(jobName(), WriteReason.LINE_OF_SIGHT));
-        return true;
-    }
-
-    /** 攀爬执行：成功后回到 CHOP 重试那根原木；失败则如实记账并跳过它。 */
-    private Task.Status climb() {
-        if (climber == null) {
-            phase = Phase.CHOP;
-            return Task.Status.RUNNING;
-        }
-        PathRetryRunner.State state = climber.tick();
-        if (state == PathRetryRunner.State.RUNNING) {
-            return Task.Status.RUNNING;
-        }
-        boolean ok = state == PathRetryRunner.State.DONE;
-        BlockPos foot = MovementHelper.footCell(bot.serverLevel(), bot);
-        BotLog.info("[Job] lumber climb_end state={} foot={} log={} blocks={}",
-                state, foot.toShortString(), climbTargetLog == null ? "-" : climbTargetLog.toShortString(),
-                climbedBlocksThisTree);
-        climber = null;
-        if (ok) {
-            climbedThisTree = true;
-            climbedTrees++;
-            climbedBlocksThisTree = climbPlannedPillars;
-            climbedBlocksTotal += climbedBlocksThisTree;
-            DecisionTrace.step(jobName(), "CLIMB_OK", foot.toShortString(),
-                    "已就位，重试 " + climbTargetLog.toShortString());
-            phase = Phase.CHOP;   // queueIndex 未变 → 重试同一根
-            return Task.Status.RUNNING;
-        }
-        failedLogs.add((climbTargetLog == null ? "?" : climbTargetLog.toShortString()) + ":climb_failed");
-        climbTargetLog = null;
-        queueIndex++;
-        phase = Phase.CHOP;
-        return Task.Status.RUNNING;
     }
 
     /** ① 就地扫尾：仍在架上时收"此刻够得到"的产物（D-107 附注）。 */
@@ -686,12 +558,12 @@ public final class LumberJob implements Job {
             }
             DecisionTrace.terminal(jobName(), status == Task.Status.DONE ? "DONE" : "FAILED",
                     terminalReason, progressSummary() + " inventoryDelta=" + (countLogs() - logsBefore)
-                            + " climbed=" + climbedTrees + " climbBlocks=" + climbedBlocksTotal
+                            + " gainedTrees=" + gainedTrees + " gainedBlocks=" + gainedBlocksTotal
                             + " scaffoldLeft=" + scaffoldLeft
                             + " " + com.dddgn.alice.action.WriteAudit.summary(),
                     ticks);
-            BotLog.info("[Job] lumber SUMMARY climbed={} climbBlocks={} scaffoldLeft={}",
-                    climbedTrees, climbedBlocksTotal, scaffoldLeft);
+            BotLog.info("[Job] lumber SUMMARY gainedTrees={} gainedBlocks={} scaffoldLeft={}",
+                    gainedTrees, gainedBlocksTotal, scaffoldLeft);
         }
         return status;
     }

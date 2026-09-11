@@ -12,6 +12,7 @@ import com.dddgn.alice.survival.SurvivalSystem;
 import com.dddgn.alice.task.mining.MiningBudget;
 import com.dddgn.alice.task.mining.MiningPlan;
 import com.dddgn.alice.task.mining.MiningPlanner;
+import com.dddgn.alice.task.mining.MiningProfile;
 import com.dddgn.alice.task.mining.MiningTuning;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
@@ -36,7 +37,11 @@ import java.util.List;
  * 深埋目标是否可挖由 `MiningBudget` 决定（超预算 → `found_but_unminable`）。
  */
 public final class MineTask implements Task {
-    private enum Phase { EVALUATING, MINING, CHAIN, COLLECTING }
+    /**
+     * 阶段（D-111 切片 A 起含**加高**）：
+     * `EVALUATING →（规划失败且 profile 允许时）GAIN_CLEAR / GAIN → EVALUATING` … `MINING → CHAIN → COLLECTING`。
+     */
+    private enum Phase { EVALUATING, GAIN_CLEAR, GAIN, MINING, CHAIN, COLLECTING }
 
     /** 视线失败等可重试情形最多重试 2 次（D-067 Q5）。 */
     private static final int MAX_RECOVERY_ATTEMPTS = 2;
@@ -50,7 +55,11 @@ public final class MineTask implements Task {
     private final MiningBudget budget;
     private final MiningPlanner miningPlanner = new MiningPlanner();
     /** true = 只允许"现成可站站位"（伐木用；禁止挖隧道/破坏进入，见 MiningPlanner#plan）。 */
-    private final boolean standableOnly;
+    /** **能力信封**（D-111）：允许什么手段 + 各自预算；由 L3 构造、本层只读。 */
+    private final MiningProfile profile;
+    private int gainSteps;
+    private PathRetryRunner gainRunner;
+    private MineTask gainClearer;
     /** 世界写入授权（D-082）。 */
     private final WriteGrant grant;
 
@@ -94,7 +103,17 @@ public final class MineTask implements Task {
      */
     public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope, MiningBudget budget,
                     boolean standableOnly, WriteGrant grant) {
-        this.standableOnly = standableOnly;
+        this(bot, target, scope, budget,
+                standableOnly ? MiningProfile.STANDABLE_ONLY : MiningProfile.TUNNEL_ALLOWED, grant);
+    }
+
+    /**
+     * **能力信封入口**（D-111）：调用点显式声明"允许什么手段、各花多少"，
+     * 而不是散落的布尔与硬编码 Movement 集合。
+     */
+    public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope, MiningBudget budget,
+                    MiningProfile profile, WriteGrant grant) {
+        this.profile = profile;
         this.grant = grant;
         this.bot = bot;
         this.target = target.immutable();
@@ -202,6 +221,12 @@ public final class MineTask implements Task {
             return evaluateStandingPoint();
         }
 
+        if (phase == Phase.GAIN_CLEAR) {
+            return tickGainClear();
+        }
+        if (phase == Phase.GAIN) {
+            return tickGain();
+        }
         if (phase == Phase.CHAIN) {
             return tickChain();
         }
@@ -327,7 +352,7 @@ public final class MineTask implements Task {
         }
         recoveryAttempts++;
         MiningPlan previousPlan = currentPlan;
-        MiningPlanner.Result result = miningPlanner.plan(bot, target, budget, standableOnly);
+        MiningPlanner.Result result = miningPlanner.plan(bot, target, budget, profile.standableOnly());
         if (!result.success()) {
             BotLog.warn("[MineTask重规划探针] target={} recoveryAttempt={}/{} oldStanding={} result=FAILED reason={}",
                     target.toShortString(), recoveryAttempts, MAX_RECOVERY_ATTEMPTS,
@@ -366,6 +391,117 @@ public final class MineTask implements Task {
     }
 
     /** 阶段 1：请求一次挖掘领域规划（两模式），并保存计划快照。 */
+    // ==================== D-111 切片 A：最小高度增益（能力下沉到 L2） ====================
+
+    /**
+     * 够不到目标时**原地加高 1 格**再重试（用户 2026-09-11 裁定：树越高越省，差多少加多少）。
+     *
+     * <p>为什么加高 1 格就能成：加高后 **bot 自己脚下的柱子顶面**在目标触及范围内且 0 步可达，
+     * 于是 {@code MiningPlanner} 的原班站位选择立刻成功（实测 2026-09-11：`mode=CURRENT cost=0`、
+     * `eyeDist 4.46 → 3.88`）。
+     *
+     * <p>被树冠挡住头顶时：只清**那一格**（嵌套一个不许加高的 `MineTask`），清完再试。
+     */
+    private boolean tryGainHeight(String reason) {
+        if (!profile.mayGain() || gainSteps >= profile.maxGainSteps()) {
+            return false;
+        }
+        if (reason == null || !(reason.contains("standing_point")
+                || reason.contains("no_valid") || reason.contains("no_reachable"))) {
+            return false;   // 非"站位"类失败不靠加高解决
+        }
+        BlockPos foot = com.dddgn.alice.pathing.MovementHelper
+                .footCell(bot.serverLevel(), bot);
+        BlockPos goal = foot.above();
+        for (BlockPos cell : new BlockPos[]{goal, goal.above()}) {
+            if (!com.dddgn.alice.pathing.MovementHelper.canWalkThrough(bot.serverLevel(), cell)) {
+                WriteGrant clearGrant = grant.with(profile.gainReason());
+                if (!clearableForGain(cell, clearGrant)) {
+                    return false;
+                }
+                BotLog.info("[MineTask] gain_clear target={} head={} profile={}",
+                        target.toShortString(), cell.toShortString(), profile.describe());
+                gainClearer = new MineTask(bot, cell, scope,
+                        MiningBudget.forTarget(bot, bot.serverLevel(), cell, false),
+                        MiningProfile.STANDABLE_ONLY, clearGrant);
+                phase = Phase.GAIN_CLEAR;
+                return true;
+            }
+        }
+        com.dddgn.alice.pathing.core.search.PathRequest request =
+                com.dddgn.alice.pathing.core.search.PathRequest.climbApproach(
+                        bot.getUUID().toString(), foot, goal, grant.requester() + ":gain");
+        com.dddgn.alice.pathing.core.search.PathPlan plan =
+                new com.dddgn.alice.pathing.core.search.CorePathPlanner()
+                        .plan(bot, bot.serverLevel(), request);
+        int pillars = (int) plan.movements().stream()
+                .filter(m -> m.movementType() == com.dddgn.alice.pathing.core.MovementType.PILLAR)
+                .count();
+        if (!plan.reached() || pillars != 1 || pillars > profile.gainBlockBudget()) {
+            BotLog.info("[MineTask] gain_unavailable target={} status={} pillar={}/{} profile={}",
+                    target.toShortString(), plan.status(), pillars, profile.gainBlockBudget(),
+                    profile.describe());
+            return false;
+        }
+        if (!(bot instanceof com.dddgn.alice.bot.BotPlayer botPlayer)) {
+            throw new IllegalStateException("MineTask requires BotPlayer");
+        }
+        gainRunner = new PathRetryRunner(botPlayer, request, PathRetryRunner.DEFAULT_MAX_REPLANS,
+                grant.requester() + "-gain");
+        BotLog.info("[MineTask] gain_start target={} from={} to={} steps={}/{} profile={}",
+                target.toShortString(), foot.toShortString(), goal.toShortString(),
+                gainSteps + 1, profile.maxGainSteps(), profile.describe());
+        phase = Phase.GAIN;
+        return true;
+    }
+
+    /** 加高时"能不能清掉挡住头顶的这一格"：非空气、非原木（目标物）、且谓词允许破坏。 */
+    private boolean clearableForGain(BlockPos pos, WriteGrant clearGrant) {
+        var state = bot.serverLevel().getBlockState(pos);
+        return !state.isAir()
+                && !state.is(net.minecraft.tags.BlockTags.LOGS)
+                && com.dddgn.alice.action.BlockInteraction.breakable(bot, bot.serverLevel(), pos, clearGrant);
+    }
+
+    private Status tickGainClear() {
+        Status status = gainClearer.tick();
+        if (status == Status.RUNNING) {
+            return Status.RUNNING;
+        }
+        gainClearer = null;
+        standingPointEvaluated = false;
+        phase = Phase.EVALUATING;
+        return Status.RUNNING;
+    }
+
+    private Status tickGain() {
+        PathRetryRunner.State state = gainRunner.tick();
+        if (state == PathRetryRunner.State.RUNNING) {
+            return Status.RUNNING;
+        }
+        boolean ok = state == PathRetryRunner.State.DONE;
+        gainRunner = null;
+        if (!ok) {
+            gainSteps = profile.maxGainSteps();   // 加高不可行 → 不再重试（避免原地打转）
+            BotLog.warn("[MineTask] gain_failed target={} state={} → 如实失败", target.toShortString(), state);
+        } else {
+            gainSteps++;
+            BotLog.info("[MineTask] gain_done target={} foot={} steps={}/{}",
+                    target.toShortString(),
+                    com.dddgn.alice.pathing.MovementHelper
+                            .footCell(bot.serverLevel(), bot).toShortString(),
+                    gainSteps, profile.maxGainSteps());
+        }
+        standingPointEvaluated = false;
+        phase = Phase.EVALUATING;
+        return Status.RUNNING;
+    }
+
+    /** 本任务为够到目标加高了几格（L3 用它决定是否需要"作业点就地扫尾"，D-107 附注）。 */
+    public int gainedSteps() {
+        return gainSteps;
+    }
+
     private Status evaluateStandingPoint() {
         if (standingPointEvaluated) {
             phase = Phase.MINING;
@@ -373,10 +509,14 @@ public final class MineTask implements Task {
             return Status.RUNNING;
         }
 
-        MiningPlanner.Result result = miningPlanner.plan(bot, target, budget, standableOnly);
+        MiningPlanner.Result result = miningPlanner.plan(bot, target, budget, profile.standableOnly());
         if (!result.success()) {
-            BotLog.warn("[MiningPlanner探针] planning failed target={} reason={} budget={}",
-                    target.toShortString(), result.failureReason(), budget.describe());
+            BotLog.warn("[MiningPlanner探针] planning failed target={} reason={} budget={} profile={}",
+                    target.toShortString(), result.failureReason(), budget.describe(), profile.describe());
+            // D-111 切片 A：够不到（站位规划失败）时，若 profile 允许 → **原地加高 1 格再试**
+            if (tryGainHeight(result.failureReason())) {
+                return Status.RUNNING;
+            }
             return escalateFailure(new MineBlockRunner.FailureReport(
                     result.failureReason(), "planning", false));
         }
