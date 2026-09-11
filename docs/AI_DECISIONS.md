@@ -2733,3 +2733,28 @@ movements=0 pillar=0/12` → 原地不动。**根因不在夹具几何，而在 
    （`movement_*_tester`）→ 客户端启动时 3 条 `Failed to load function` ERROR；全仓库无引用，已删除。
 
 **验证等级**：IMPLEMENTED / COMPILES（客户端待复测）。
+
+### D-107 附注：高处作业的掉落物 —— "先拆完落地，再收集"（2026-09-11，用户复测反馈）
+
+**用户观察**："bot 最后没有去捡掉落物"，并猜测"在柱子上时判定掉落物掉下去了不能直接捡到 /
+拆完柱子捡拾任务又早就结束了"。
+
+**日志事实**：
+- 柱子材料**回收成功**：`作用域捕捉掉落物: cobblestone x38 y64..67 z46`（4 块），
+  `[CollectDrops] SUMMARY collected=1/1 unreachable=0`，`[Restore] … restored=4 remaining=0
+  recovered=4~5（一次性方块库存变化）` —— 其中 3 块在沿柱下降时被自动拾取；
+- 留在地上的是**目标方块那一块**：`[WRITE] break 40,70,46 stone by=ScaffoldLifecycle:EXPECTED_TARGET`
+  + `[MineTask] collect_skipped target=40,70,46 reason=collectDrops=false`。
+
+**成因（夹具的选择，不是内核缺陷）**：开采阶段若开收集，`MineTask` 会先去追掉落物（要跑下柱子），
+直接破坏 §12.3「**仍在柱顶时拆除**」的前提。所以夹具当初选了 `collectDrops=false`，
+但**没有把"捡它"补在该补的地方**——这是夹具少一步。
+
+**规则（本轮确立，J7 Step 2/3 砍树时必须遵守）**：
+> 高处作业（攀爬/脚手架）产生的掉落物**必然落在地面**。收集必须安排为
+> **先完成会话内拆除 → 落地 → 再收集**；不允许在高处追掉落物（那等于放弃"仍在顶上拆除"）。
+
+**落地**：`ScaffoldLifecycleTask` 新增 `COLLECT` 阶段（拆除成功且落地后）——
+复用 `CollectDropsTask`（anchor = 落点附近、`worldMod=false`、best-effort），
+断言新增 `collected=N` 与 `drops_left`（**缓冲视图 + 世界事实扫描**：场景包围盒内 item 实体数必须为 0）；
+场景复位加 `kill @e[type=minecraft:item,…]` 清历史残留，保证跨轮可重复。
