@@ -62,6 +62,14 @@ public final class MineTask implements Task {
     private int clearSteps;
     private int clearedBlocks;
     private MineTask clearTask;
+    /**
+     * 清障已失败过 → 本目标不再尝试清障（D-115 修正）。
+     *
+     * <p>为什么必须有：客户端实测（2026-09-11 21:54）清障失败后我又去问 `nextClearStep`，
+     * 它给出**同一个** blocker → 重试 8 次烧光整棵树的预算（`clear_end status=FAILED` ×8），
+     * 而改造前的伐木 Job 是"清障失败 → 直接放弃这根原木"。失败即不再重试，才不会变成长时间打转。
+     */
+    private boolean clearExhausted;
     /** 建拆同权（D-112）：会话内自上而下拆除本任务放的临时方块。 */
     private RestoreScopeTask restoreTask;
     private int restoredBlocks;
@@ -485,7 +493,7 @@ public final class MineTask implements Task {
      * 现在只有一处实现，预算由 {@link MiningProfile#clearBudget()} 声明、逐目标递减。
      */
     private boolean tryClear(String reason) {
-        if (!profile.mayClear() || clearSteps >= profile.clearBudget()) {
+        if (clearExhausted || !profile.mayClear() || clearSteps >= profile.clearBudget()) {
             return false;
         }
         if (reason == null || !(reason.contains("standing_point") || reason.contains("no_valid")
@@ -501,7 +509,7 @@ public final class MineTask implements Task {
 
     /** 运行期视线被挡 → 清掉当前第一个阻挡物。 */
     private boolean tryClearLineOfSight() {
-        if (!profile.mayClear() || clearSteps >= profile.clearBudget()) {
+        if (clearExhausted || !profile.mayClear() || clearSteps >= profile.clearBudget()) {
             return false;
         }
         BlockPos blocker = com.dddgn.alice.task.mining.LineOfSightChecker
@@ -526,6 +534,15 @@ public final class MineTask implements Task {
         return true;
     }
 
+    /** 现在是否存在"触及范围内"的站位候选（改造前 Job 的 `hasStandNow` 口径，用于二分加高/清障）。 */
+    private boolean hasStandingCandidateNow() {
+        return !com.dddgn.alice.task.mining.StandingPointSelector
+                .generateCandidates(bot.serverLevel(), target,
+                        com.dddgn.alice.pathing.MovementHelper.footCell(bot.serverLevel(), bot),
+                        bot.getBlockReach())
+                .isEmpty();
+    }
+
     private Status tickClear() {
         Status status = clearTask.tick();
         if (status == Status.RUNNING) {
@@ -533,9 +550,12 @@ public final class MineTask implements Task {
         }
         if (status == Status.DONE) {
             clearedBlocks++;
+        } else {
+            clearExhausted = true;   // 清障失败 → 本目标不再清障（否则会反复挑同一格烧预算）
         }
-        BotLog.info("[MineTask] clear_end target={} status={} cleared={} used={}/{}",
-                target.toShortString(), status, clearedBlocks, clearSteps, profile.clearBudget());
+        BotLog.info("[MineTask] clear_end target={} status={} cleared={} used={}/{} exhausted={}",
+                target.toShortString(), status, clearedBlocks, clearSteps, profile.clearBudget(),
+                clearExhausted);
         clearTask = null;
         standingPointEvaluated = false;
         phase = Phase.EVALUATING;
@@ -667,8 +687,15 @@ public final class MineTask implements Task {
         if (!result.success()) {
             BotLog.warn("[MiningPlanner探针] planning failed target={} reason={} budget={} profile={}",
                     target.toShortString(), result.failureReason(), budget.describe(), profile.describe());
-            // D-115：先试**限次清障**（腾站位 / 通视线）；D-111：再试**原地加高 1 格**
-            if (tryClear(result.failureReason()) || tryGainHeight(result.failureReason())) {
+            // **与改造前的伐木行为一致（D-115 修正）**：这不是"先清障后加高"的串联，而是**二选一**——
+            //   站位候选**存在**（在触及范围内）但路径不通 ⇒ **加高**（抬高后候选变可达，实测高云杉）；
+            //   站位候选**不存在**（超出触及）⇒ **清障**（开一个站位/通视线），清障失败即放弃本目标。
+            // 串联会把"该放弃的树"也拿去搭柱子（实测 gainedBlocks=10，改造前只有 1）。
+            if (hasStandingCandidateNow()) {
+                if (tryGainHeight(result.failureReason())) {
+                    return Status.RUNNING;
+                }
+            } else if (tryClear(result.failureReason())) {
                 return Status.RUNNING;
             }
             return escalateFailure(new MineBlockRunner.FailureReport(

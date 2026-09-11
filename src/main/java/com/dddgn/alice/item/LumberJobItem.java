@@ -64,6 +64,17 @@ public class LumberJobItem extends Item {
      * <p>没有它，`PILLAR` 的规划前提"快捷栏里有可放置的一次性方块"就不成立，
      * 攀爬兜底会如实回落到 `:no_stand`（不是缺陷，但测不出攀爬）。
      */
+    /**
+     * 夹具职责：石镐。J7 起伐木会**搭柱子加高**、并在建拆同权阶段**把柱子拆回来**——
+     * 拆的是我们自己放的圆石，没有镐就是徒手 200 tick/块（2026-09-11 实测：30 次 ~200 tick 的破块）。
+     */
+    private static void ensurePickaxe(BotPlayer bot) {
+        FixtureToolKit.ensureHotbarTool(bot,
+                () -> new ItemStack(net.minecraft.world.item.Items.DIAMOND_PICKAXE),
+                stack -> stack.is(net.minecraft.tags.ItemTags.PICKAXES),
+                "pickaxe");
+    }
+
     private static void ensureThrowaway(BotPlayer bot, int count) {
         FixtureToolKit.ensureHotbarStack(bot,
                 () -> new ItemStack(net.minecraft.world.item.Items.COBBLESTONE),
@@ -94,6 +105,7 @@ public class LumberJobItem extends Item {
         // ②让"原木增量（逐树 harvest 判据）"这类账目干净。清空后一律广播主手（D-110）。
         FixtureToolKit.resetInventory(bot);
         ensureAxe(bot);
+        ensurePickaxe(bot);         // 拆自己搭的圆石柱要用镐（2026-09-11 实测教训）
         ensureThrowaway(bot, 12);   // 攀爬兜底的方块预算（D-109）
 
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
