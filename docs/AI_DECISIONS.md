@@ -3371,3 +3371,39 @@ B1 把清障搬进 L2 时，我漏了改造前 Job 的一条关键行为：**清
 **验证等级**：IMPLEMENTED（夹具，几何已 diff 证明等于已验证版本）；客户端待验
 （判据：`19,64,213` 的 `clear_start blocker=19,65,215` 能真的清掉 → `phase=CUT` 正常开挖；
 终态 `DONE quota_met trees 4/4`、`cleared≥9`、`scaffoldLeft=0`）。
+
+### D-118 伐木全流程转绿 + F2/F3 客户端验证（2026-09-11 23:55–23:56，两轮连续）
+
+**两轮都是**：`[Job] terminal job=lumber result=DONE reason=quota_met progress=trees 4/4 logs 19/19
+cleared=8 inventoryDelta=19 gainedTrees=1 gainedBlocks=1 scaffoldLeft=0 writes breaks=28/58 places=1/4
+unknown=0 ticks=634/691`（writes 为**会话累计**，故第二轮更大）。`task_execution_terminal … terminal=COMPLETED
+code=done recovery=idle_after_cleanup recoveryEvents=[]` ✅
+
+**F4（夹具通道）** —— 修好，判据全部命中
+```
+23:55:21 clear_start target=19,64,213 blocker=19,65,215 used=1/8
+23:55:25 [WRITE] break 19,65,215 minecraft:oak_leaves by=lumber:LINE_OF_SIGHT   ← 这一格就是历轮卡死点
+23:55:27 clear_start target=19,65,213 blocker=19,65,214 → 清掉
+23:55:29 phase=COLLECT target=19,64,213 detail=chopped=4/4 failed=0 cleared=5
+```
+逐树：20(`18,65,207`/`19,65,207`/`19,65,208`，3 格) → 19(`19,65,215`/`19,65,214`，2 格) →
+29(`27,65,212`/`28,65,212`/`28,65,213`，3 格) → 28 云杉（`gain_start steps=1/3` + ① 扫尾
+`sweep_up_start live_drops=1 → swept=1`，7/7）。19/19 原木、`inventoryDelta=19` 全数入袋。
+
+**F2（② 世界事实对账）** —— **第二轮真的走到对账分支了** ✅
+```
+23:56:28.210 [Ledger] 销掉 1 条已失效条目（现场已非我方方块）: 28,66,208(cobblestone→air)
+23:56:28.210 [Restore] SUMMARY … restored=2 skipped=1 reconciled=1 remaining=0 recovered=3
+             ticks=57 reason=restore_done_by_other_action → DONE
+```
+即："协议没亲手拆、但现场已无我方方块"被如实识别为 `reconciled=1`、终态 `DONE`（旧代码在这里会报
+`remaining=1 → FAILED` + `scaffoldLeft=1`），而 Job 终态 `scaffoldLeft=0` ✅ —— 该分支从此**有客户端证据**。
+
+**F3（补工具不顶物品）** —— `recovered=1`（第一轮：放 1 收 1）与 `recovered=3`（第二轮，累计放 4 收 3，
+差额为已回收进背包/自动拾取），**再无负值**（历史病态 `-8`），19/19 原木与背包对账一致 ✅。
+未再出现 `[FixtureTool] … 强制覆盖`。
+
+**残留缺口（如实登记，未修）**：累计清障 **正好 8 格**（20:3 + 19:2 + 29:3 + 云杉:0），
+而矩阵该行原期望 `cleared ≥ 9` —— 目的是"越过 `MAX_CLEAR_PER_TREE(8)` 阈值，让**按棵重置**这一回归
+真正被检验"（若计数器是 job 级，越过阈值的那棵树必 `clear_budget` 失败）。今天恰好压线 ⇒
+**该回归项仍未被真正检验**（与 09-10 那次"8 格压线"同病）。功能面已全绿，此缺口属**夹具覆盖度**问题。
