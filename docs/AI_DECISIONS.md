@@ -2814,3 +2814,38 @@ movements=0 pillar=0/12` → 原地不动。**根因不在夹具几何，而在 
 ②让"一次性方块库存变化（`recovered`）"这类账目干净（历史余料会把账搅浑）。
 
 **验证等级**：IMPLEMENTED / COMPILES（客户端待复测：预期 `adopted=1`、`collected=1`、`drops_left=0 → PASS`）。
+
+## D-109 J7 Step 2：伐木接入攀爬兜底 + 每棵树的会话内拆除（2026-09-11）
+
+**用户裁定**："可以继续主线了"（Step 1 收口后）。Step 2 = §11-① 要素⑤（以树干为脚手架）+
+要素⑥（砍伐顺序耦合）。
+
+**关键设计结论（两个要素都按构造解决，不需要新机制）**
+1. **我们爬自己的柱子，不爬树**：bot 站在自己放的方块上作业 ⇒ 要素⑥"边爬边砍时脚下的原木
+   可能正被自己砍掉"**按构造消失**（脚下支撑不是目标物）✓；
+2. **树干天然是放置面**：`PILLAR` 的规划前提 `hasPlacementFace`（水平/下方邻格有实心块）由
+   **树干本身**满足（树干是整格方块）⇒ 要素⑤"以目标树为脚手架"**无需任何内核改动** ✓
+   （Step 1 的场景里提供放置面的是一道石壁，这里换成树干，机制完全一样）。
+   ⇒ 也与"不自己发明机制"一致：只新增**站位选择**（原木正旁边、与原木同高那一格）与**预算**。
+
+**实现（`LumberJob`）**
+- 每棵树的阶段：`SELECT → CHOP →（够不到时）CLIMB → ① SWEEP_UP → ② RESTORE → ③ COLLECT → 下一棵`；
+- **攀爬兜底触发点**（两处，都是原本如实失败的地方）：
+  ① `hasStandNow == false` 且限次清障也无解；② `MineTask` 报 `*standing_point*` /
+  `no_valid` / `no_reachable` 类失败。两处都**保留 `queueIndex`**，爬完重试同一根原木；
+- **预算**：`CLIMB_BUDGET = 12`（计划里的 `PILLAR` 边数）；不可行或超预算 → 如实回落 `:no_stand`
+  （绝不悄悄放宽）；
+- **① 就地扫尾只在"本棵树真的爬过"时执行**：没爬就没有"够不到"的问题，保持原有零打扰路径；
+- **② 会话内拆除**（§12.3）仅当作用域内仍有我方 `TEMP` 放置时执行，复用 `RestoreScopeTask`
+  （仍在架上 → 自上而下）。这在**会话内**第一次闭合了伐木遗留的"建拆同权"；未闭合则记
+  `scaffoldLeft` 并进终态（不静默）；
+- 报告：`[Job] lumber SUMMARY climbed=… climbBlocks=… scaffoldLeft=…`。
+
+**夹具**：`alice:lumber_job` 入口新增 `clear <bot>` + 一次性方块 ×12 ——
+没有一次性方块时 `PILLAR` 根本生成不出来（会如实回落到 `:no_stand`，不是缺陷但测不出攀爬）。
+
+**验证入口**：现有 `lumber_course`（含那棵高树：矩阵记录 `failed=28,70,208:no_reachable_standing_point`，
+`4.46 > reach 4.1`）——正是本次要闭合的缺口。同时必须复跑 `alice:lumber_failure_check`
+（J4 五条终止路径不能被新阶段破坏）。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待验）。

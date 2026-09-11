@@ -98,6 +98,10 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 | 寻路回归复验（R2b 后） | 右键 `alice:pathing_regression` | 14 场景全 PASS，含全部写入型 `BREAK_AND_TRAVERSE`/`DOWNWARD`/`PILLAR`/`PLACE_STEP`/`BREAK_AND_ENTER`；`UNAUTHORIZED_MOVEMENT` 必须为 0 | `WINDOWS_CLIENT`（2026-09-10 20:27:29 全 PASS，`terminal=COMPLETED`；越权检查命中 0） |
 | 世界写入授权审计（D-082） | 任意任务跑一次，看 `[WRITE]` 行与终态 `writes … unknown=` | `by=<任务身份>:<REASON>`；`unknown=0`（计数为**会话累计**，跨任务不重置） | `WINDOWS_CLIENT`（2026-09-10：`by=MineRegressionTask:EXPECTED_TARGET` / `SUPPORT_PLACEMENT` / `lumber:LINE_OF_SIGHT`，全程 `unknown=0`） |
 
+| J7 Step 2 伐木攀爬兜底（D-109） | 右键 `alice:lumber_job`（`lumber_course`，含高树） | 零参数右键 | 够不到的原木先**贴着树干搭柱子爬上去**再砍（`CLIMB` 阶段）；每棵树用完**仍在架上**拆除我方放置；`climbed=/climbBlocks=/scaffoldLeft=` 进终态 | `待测`（预期：高树不再出现 `no_reachable_standing_point`，`climbed≥1`、`scaffoldLeft=0`、`quota_met`） |
+
+| J4 终止路径复跑（D-109 后须确认未被新阶段破坏） | 右键 `alice:lumber_failure_check` | 零参数右键 | 五条终止路径各一个用例 | `待测`（预期 5/5 PASS） |
+
 | L3 伐木 Job（D-080，切片 **J2**：循环 + 配额 + 终止） | `/function alice_test:lumber_course` + `alice:lumber_job` | 普通右键 | 配额 **2 棵**；场景 4 棵树 / 3 棵可行（橡树`20,64,208`、复制橡树`29,64,215`、云杉`28,64,208`）/ 高大云杉被拒 | `WINDOWS_CLIENT` + `USER_ACCEPTED`（2026-09-10 20:43：`result=DONE reason=quota_met`、`trees 2/2`、`logs 14/15`、`cleared=6`、`inventoryDelta=14`、`unknown=0`、`ticks=1152`）。顺序 = 橡树(20,64,208) → 云杉(28,64,208) → 复制橡树(29,64,215)（距离 3.2/5.1/10.0）；云杉如实报 `该树未完成 28,64,208:partial_tree gained=6/7 failed=28,70,208:no_reachable_standing_point`（**已知高树触及上限**，4.46>4.1，属 J7 攀爬范围）；循环走 `phase=NEXT` ✓。**注**：累计清障仅 6 格（<8），故本场景只是 `clearedThisTree` 按棵重置的*潜在*回归，真要逼出该缺陷需跨树累计 >8 格 —— **已由切片 J3 的场景补上**（3 棵同型橡树 ⇒ 9 格） |
 
 | L3 伐木 Job（切片 **J3**：策略可替换性） | `/function alice_test:lumber_course` → 右键 `alice:lumber_policy_check` | 普通右键（零参数） | **只规划不执行**；同候选集对比 `NearestPolicy` 与 `NearestExposedPolicy` | `WINDOWS_CLIENT` + `USER_ACCEPTED`（2026-09-10 21:26：`SUMMARY nearest=tree@20,64,208 exposed=tree@28,64,208 differ=true explainable=true exposedHonest=true → PASS`；候选特征印证重定义：橡树 `visible=0 exposed=false`、云杉 `visible=3 exposed=true`，而 `open_sky` 对全部 4 棵树均为 false） |

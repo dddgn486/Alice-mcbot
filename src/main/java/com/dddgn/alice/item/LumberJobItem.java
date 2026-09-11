@@ -58,6 +58,19 @@ public class LumberJobItem extends Item {
                 "axe");
     }
 
+    /**
+     * 夹具职责：一次性方块（J7 Step 2 起，够不到的树上原木要靠**贴着树干搭柱子**爬上去）。
+     *
+     * <p>没有它，`PILLAR` 的规划前提"快捷栏里有可放置的一次性方块"就不成立，
+     * 攀爬兜底会如实回落到 `:no_stand`（不是缺陷，但测不出攀爬）。
+     */
+    private static void ensureThrowaway(BotPlayer bot, int count) {
+        FixtureToolKit.ensureHotbarStack(bot,
+                () -> new ItemStack(net.minecraft.world.item.Items.COBBLESTONE),
+                stack -> stack.is(net.minecraft.world.item.Items.COBBLESTONE),
+                count, "cobblestone");
+    }
+
     private InteractionResult start(net.minecraft.world.entity.player.Player player, ServerLevel level) {
         BotPlayer bot = BotManager.firstInLevel(level);
         if (bot == null) {
@@ -77,7 +90,14 @@ public class LumberJobItem extends Item {
         bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
         bot.controller().stopMovement();
 
+        // 夹具职责（用户 2026-09-11 建议）：**先清空背包**再发料 —— ①避免 bot 背包爆满；
+        // ②让"原木增量（逐树 harvest 判据）"这类账目干净
+        var server = level.getServer();
+        server.getCommands().performPrefixedCommand(
+                server.createCommandSourceStack().withSuppressedOutput(),
+                "clear " + bot.getName().getString());
         ensureAxe(bot);
+        ensureThrowaway(bot, 12);   // 攀爬兜底的方块预算（D-109）
 
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
         if (!BotManager.assignLumberJob(bot, observer)) {
