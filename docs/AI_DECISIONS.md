@@ -3407,3 +3407,40 @@ code=done recovery=idle_after_cleanup recoveryEvents=[]` ✅
 而矩阵该行原期望 `cleared ≥ 9` —— 目的是"越过 `MAX_CLEAR_PER_TREE(8)` 阈值，让**按棵重置**这一回归
 真正被检验"（若计数器是 job 级，越过阈值的那棵树必 `clear_budget` 失败）。今天恰好压线 ⇒
 **该回归项仍未被真正检验**（与 09-10 那次"8 格压线"同病）。功能面已全绿，此缺口属**夹具覆盖度**问题。
+
+## D-119 R1：工具语义——生产 `MineTask` 不再给 bot 发工具（2026-09-12）
+
+**背景（盘点 R1）**：`MineTask` 构造函数里住着一段**夹具语义**：主手没有对该目标有效的工具时，
+**凭空写一把钻石镐**进快捷栏。后果有两层：
+1. **游戏真实性**：所有采矿路径都变成"创造模式"——没带工具也能挖石头/矿石；
+2. **分层边界**：生产任务依赖夹具类（`FixtureToolKit`），且"夹具补料"与"任务构造"的**顺序**
+   被隐式绑定（`MineRegressionTask` 里甚至写着"构造 MineTask（夹具补镐）→ 补一次性方块 → 采基线"）。
+
+**原版事实（本次修正的依据）**：`BlockState.requiresCorrectToolForDrops()` 为真的方块
+（石头/圆石/矿石…）**徒手破坏不掉落** ⇒ 没有正确工具时"挖了也白挖"，这是**上层该知道的约束**
+（目标级决策：先去弄工具），不是任务该偷偷绕过的。
+
+**实现**
+1. `MineTask`：删掉 `ensureTool`（发镐）与对 `FixtureToolKit` 的依赖；构造时只做**只读**判定
+   `toolRefusal(bot, target)`：目标要求正确工具而快捷栏里没有（`BlockInteraction.hasCorrectTool`）
+   ⇒ 记 `failureReason = no_suitable_tool`，`tick()` 首帧如实 FAILED（不空转、不改世界、不动背包）。
+   目标**不要求**正确工具时一律允许（原版本来就能慢慢挖），但若最佳破坏速度 ≤ 1（徒手水平）
+   打一条 `[MineTask] no_effective_tool …` WARN —— **夹具漏发工具会喊出来**，不再静默变慢。
+2. `BlockInteraction` 新增两个只读助手：`bestDestroySpeed(bot,pos)`、`hasCorrectTool(bot,pos)`
+   （与既有 `findBestToolSlot` 同口径）。
+3. 夹具侧收敛一处供应商：`FixtureToolKit.ensurePickaxe/ensureAxe`（D-110 唯一写入点）；
+   `LumberJobItem` 的私有实现改为复用；**入口发料**补齐到此前依赖"偷偷发镐"的三处：
+   `/alice mine` 命令入口、`/alice road` 命令入口、`assignRestore`（拆我方圆石要镐）、
+   `MineRegressionTask`（**发镐移到构造 MineTask 之前**，否则第一例就会 `no_suitable_tool`）、
+   `LumberFailureCheckItem`。
+
+**验证入口**：`alice:mine_regression`（10 例，含石头/圆石/悬空目标）、`alice:lumber_job` +
+`/function alice_test:lumber_course`、`alice:lumber_failure_check`、`alice:scaffold_check`、
+`alice:restore_check`、`alice:clear_guard_check`、`alice:write_budget_check`、`/alice mine <pos>`；
+日志判据：全部照旧 PASS、**不再出现**任务内部发工具、也无 `no_effective_tool/no_suitable_tool`。
+
+**未自动化（登记）**：`no_suitable_tool` 的**负例**（故意不给工具应如实失败）目前没有夹具入口 ——
+需要"清掉工具 → 跑 MineTask → 断言失败码且未变出工具"的自检用例；建议加进 `mine_regression`
+（第 11 例）或做独立自检夹具，待用户裁定。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待验；负例待做夹具）。

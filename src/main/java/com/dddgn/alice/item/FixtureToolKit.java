@@ -37,6 +37,23 @@ public final class FixtureToolKit {
         ensureHotbarStack(bot, tool, isTool, 1, label);
     }
 
+    /**
+     * 夹具职责：石镐（D-119 起生产 `MineTask` **不再**给 bot 发工具）。
+     *
+     * <p>凡是要挖"必须正确工具才掉落"的方块（石头/圆石/矿石）或要拆自己搭的圆石柱的入口，
+     * **都必须在入口**调这里；否则任务会如实失败 `no_suitable_tool`（这是期望行为，不是缺陷）。
+     */
+    public static void ensurePickaxe(BotPlayer bot) {
+        ensureHotbarTool(bot, () -> new ItemStack(net.minecraft.world.item.Items.DIAMOND_PICKAXE),
+                stack -> stack.is(net.minecraft.tags.ItemTags.PICKAXES), "pickaxe");
+    }
+
+    /** 夹具职责：钻石斧（伐木用；砍原木用镐会慢 8 倍，D-089）。 */
+    public static void ensureAxe(BotPlayer bot) {
+        ensureHotbarTool(bot, () -> new ItemStack(net.minecraft.world.item.Items.DIAMOND_AXE),
+                stack -> stack.is(net.minecraft.tags.ItemTags.AXES), "axe");
+    }
+
     /** 保证快捷栏里至少有 {@code minCount} 个匹配物品。 */
     public static void ensureHotbarStack(BotPlayer bot, Supplier<ItemStack> sample,
                                          Predicate<ItemStack> isMatch, int minCount, String label) {

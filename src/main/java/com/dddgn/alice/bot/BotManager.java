@@ -533,6 +533,8 @@ public final class BotManager {
     public static boolean assignRestore(BotPlayer bot, ServerPlayer observer, boolean all) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
+        // D-119：拆我方圆石需要镐；工具由**入口**准备（生产 MineTask 不再兜底发工具）
+        com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
         com.dddgn.alice.ledger.WorldModLedger.dropStale(bot.serverLevel());
         var pending = com.dddgn.alice.ledger.WorldModLedger.pendingTemporary(bot.getServer(), null);
         if (pending.isEmpty()) {
@@ -965,6 +967,8 @@ public final class BotManager {
             }
             TaskTarget assignedTarget = TaskTarget.block(plan.second());
             scope.begin(plan.second(), 8);
+            // D-119：`/alice road` 同样是开发/测试入口 —— 修路会破方块，工具在这里给
+            com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
             beginTask(new com.dddgn.alice.task.RoadBuildTask(bot, plan, scope), assignedTarget);
             broadcastTarget(this.target);
         }
@@ -976,6 +980,9 @@ public final class BotManager {
                     // 任务启动即开启作用域:监听掉落物与方块变化(设计文档 §3.2)
                     // D-074：半径 16 覆盖连锁挖掘；只把 bot 自己造成的破坏登记为掉落来源
                     scope.begin(newTarget.blockPos(), 16, bot.getUUID());
+                    // D-119：`/alice mine` 是**开发/测试入口** —— 工具在这里给（生产 MineTask 不再发），
+                    // 否则挖石头/矿石会如实失败 `no_suitable_tool`（原版徒手不掉落）。
+                    com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
                     // 单目标默认只走真实可通行曲面的 A*；通道规划后续仅在曲面不可达时显式接入。
                     // D-112：这是顶层"会话所有者"（一条 /alice mine 指令 = 一次使用会话）→ 用完即拆
                     beginTask(new MineTask(bot, newTarget.blockPos(), scope,

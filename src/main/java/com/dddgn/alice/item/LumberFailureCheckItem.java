@@ -60,6 +60,10 @@ public class LumberFailureCheckItem extends Item {
                 java.util.Set.of(), bot.getYRot(), bot.getXRot());
         bot.setDeltaMovement(Vec3.ZERO);
         bot.controller().stopMovement();
+        // D-119：本夹具用真实 LumberJob 跑五条终止路径（会砍原木、可能拆我方圆石柱），
+        // 工具由**入口**准备；生产 MineTask 不再兜底发工具。
+        com.dddgn.alice.item.FixtureToolKit.ensureAxe(bot);
+        com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
 
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
         if (!BotManager.assignLumberFailureCheck(bot, observer)) {

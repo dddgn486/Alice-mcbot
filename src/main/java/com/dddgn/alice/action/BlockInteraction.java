@@ -125,6 +125,40 @@ public final class BlockInteraction {
         return bestSpeed > 0.0F ? bestSlot : -1;
     }
 
+    /** 快捷栏里对该方块的**最佳破坏速度**（空手按 1.0 计；0 = 根本挖不动）。 */
+    public static float bestDestroySpeed(ServerPlayer bot, BlockPos pos) {
+        BlockState state = bot.level().getBlockState(pos);
+        Inventory inventory = bot.getInventory();
+        float best = 0.0F;
+        for (int slot = 0; slot < 9 && slot < inventory.getContainerSize(); slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            float speed = stack.isEmpty() ? 1.0F : stack.getDestroySpeed(state);
+            if (speed > best) {
+                best = speed;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * 快捷栏里有没有"对该方块算正确工具"的物品（原版 {@code isCorrectToolForDrops} 口径）。
+     *
+     * <p>用途（D-119）：区分"能用现有工具慢慢挖"与"挖了也不掉落"。原版规则下
+     * {@code requiresCorrectToolForDrops} 的方块（石头/圆石/矿石…）**徒手破坏不掉落**，
+     * 所以任务必须先做这个**只读**判定并如实失败，而**不是**给 bot 发一把工具。
+     */
+    public static boolean hasCorrectTool(ServerPlayer bot, BlockPos pos) {
+        BlockState state = bot.level().getBlockState(pos);
+        Inventory inventory = bot.getInventory();
+        for (int slot = 0; slot < 9 && slot < inventory.getContainerSize(); slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (!stack.isEmpty() && stack.isCorrectToolForDrops(state)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * 切换到挖掘该方块的最佳工具（空手速度视为 1.0）。
      *

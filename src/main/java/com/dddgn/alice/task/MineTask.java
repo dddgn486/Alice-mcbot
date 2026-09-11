@@ -85,6 +85,8 @@ public final class MineTask implements Task {
     private MiningPlan currentPlan;
     private Phase phase = Phase.EVALUATING;
     private CollectDropsTask collector;
+    /** 工具前置判定结果（D-119）：非 null 时本任务一 tick 内如实失败，不再动世界。 */
+    private final String toolRefusal;
     private String failureReason = "";
     private MineBlockRunner.FailureReport lastFailureReport;
     private int recoveryAttempts;
@@ -137,46 +139,47 @@ public final class MineTask implements Task {
         this.target = target.immutable();
         this.scope = scope;
         this.budget = budget;
-        ensureTool(bot, this.target);
+        // D-119：只做**只读**工具判定，绝不改背包（详见 toolRefusal 的注释）。
+        this.toolRefusal = toolRefusal(bot, this.target);
+        if (this.toolRefusal == null
+                && com.dddgn.alice.action.BlockInteraction.bestDestroySpeed(bot, this.target) <= 1.0F) {
+            // 徒手/工具对该方块无效：原版允许（慢），如实继续；但夹具漏发工具时这行会**喊出来**
+            BotLog.warn("[MineTask] no_effective_tool target={}（徒手水平，如实继续；"
+                    + "夹具应在入口发料）", this.target.toShortString());
+        }
         BotLog.info("任务创建: MineTask target={} budget={}", this.target.toShortString(),
                 budget.describe());
     }
 
     /**
-     * 开发夹具：主手**没有对该目标有效的工具**（破坏速度 ≤ 1）时才补一把钻石镐。
+     * **只读**工具前置判定（D-119 / R1）。生产 `MineTask` **绝不**改背包。
      *
-     * <p>2026-09-10 修正：原实现无条件把钻石镐写进当前选中槽，会**顶掉夹具放的斧子**——
-     * 结果是砍原木用镐（speed 1.0，3.0 s/根）而不是斧（speed 8.0，0.375 s/根），慢 8 倍。
-     * 现在已有有效工具就不动；空手或更差时仍补镐（保持既有场景入口行为）。
+     * <p>为什么改成"判定并如实失败"而不是继续"兜底发一把钻石镐"：
+     * <ol>
+     *   <li>**原版事实**：{@code requiresCorrectToolForDrops} 的方块（石头/圆石/矿石…）
+     *       **徒手破坏不掉落** —— 没有正确工具时挖了也是白挖，这是**上层该知道的约束**
+     *       （目标级决策："先去弄工具"），不是任务该偷偷绕过的问题；</li>
+     *   <li>**分层边界**：任务凭空变出工具 = 生产语义被测试语义替换（此前"夹具职责"住在生产
+     *       `MineTask` 里，还顺手把所有采矿路径都变成了创造模式）。夹具要工具请在**入口**发
+     *       （{@link com.dddgn.alice.item.FixtureToolKit}，D-110 唯一写入点）。</li>
+     * </ol>
      *
-     * <p>2026-09-11 修正（D-116 回归实测）：改走<b>夹具唯一写入点</b>
-     * {@link com.dddgn.alice.item.FixtureToolKit}（D-110）。原实现直接
-     * {@code inventory.setItem(inventory.selected, pickaxe)}，而 `PILLAR` 放置后内核会把
-     * <b>选中槽</b>留在一次性方块栈上 ⇒ 整栈被镐子<b>覆盖抹掉</b>。实测证据：高云杉那棵树的
-     * ② 侧拆兜底创建 `MineTask target=28,65,208` 时抹掉了 10 个圆石，由
-     * `[Restore] SUMMARY … recovered=-8`（基线 10 − 被抹 10 + 收回 2 = 2）反推证实，
-     * 且它同时绕过了"塞回背包、塞不下才告警"的策略。走夹具后：优先填快捷栏空格，
-     * 没有空格才覆盖<b>非选中</b>格并把旧物塞回背包（塞不下会告警）。
-     * 工具选择由内核负责（`BlockInteraction.findBestToolSlot` + `selectSlot`），不必占选中槽。
+     * @return null = 可以开工（徒手/劣质工具都允许，原版本来就能慢慢挖）；
+     *         非 null = 如实失败的失败码（本任务一 tick 内返回 FAILED，不空转）
      */
-    private static void ensureTool(ServerPlayer bot, BlockPos target) {
-        if (!(bot instanceof com.dddgn.alice.bot.BotPlayer fixtureBot)) {
-            return;   // 夹具只服务 bot：非 bot 一律不写背包（绝不顶掉真人玩家物品）
+    private static String toolRefusal(ServerPlayer bot, BlockPos target) {
+        BlockState state = bot.serverLevel().getBlockState(target);
+        if (!state.requiresCorrectToolForDrops()) {
+            return null;   // 徒手也能挖下来（只是慢）⇒ 不拦
         }
-        var inventory = fixtureBot.getInventory();
-        ItemStack main = inventory.getItem(inventory.selected);
-        net.minecraft.world.level.block.state.BlockState state = fixtureBot.serverLevel().getBlockState(target);
-        if (!main.isEmpty() && main.getDestroySpeed(state) > 1.0F) {
-            return;
+        if (com.dddgn.alice.action.BlockInteraction.hasCorrectTool(bot, target)) {
+            return null;
         }
-        ItemStack pickaxe = new ItemStack(net.minecraft.world.item.Items.DIAMOND_PICKAXE);
-        if (!main.isEmpty() && pickaxe.getDestroySpeed(state) <= main.getDestroySpeed(state)) {
-            return;
-        }
-        com.dddgn.alice.item.FixtureToolKit.ensureHotbarTool(fixtureBot,
-                () -> new ItemStack(net.minecraft.world.item.Items.DIAMOND_PICKAXE),
-                stack -> stack.is(net.minecraft.world.item.Items.DIAMOND_PICKAXE),
-                "pickaxe（MineTask 兜底）");
+        BotLog.warn("[MineTask] no_suitable_tool target={} block={}（该方块必须正确工具才掉落；"
+                        + "本任务**不发工具**，请上层/夹具在入口准备）",
+                target.toShortString(),
+                net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(state.getBlock()));
+        return "no_suitable_tool";
     }
 
     @Override
@@ -248,6 +251,12 @@ public final class MineTask implements Task {
         HazardState hazard = SurvivalSystem.tick(bot);
         if (SurvivalSystem.shouldInterrupt(hazard)) {
             failureReason = SurvivalSystem.interruptionReason(hazard);
+            return Status.FAILED;
+        }
+
+        // D-119：工具不满足（方块必须正确工具才掉落）⇒ 如实失败，不空转、不改世界
+        if (toolRefusal != null) {
+            failureReason = toolRefusal;
             return Status.FAILED;
         }
 

@@ -52,10 +52,7 @@ public class LumberJobItem extends Item {
      * 工具必须进**快捷栏**，因为工具选择只扫 0..8；退化到主背包就永远选不到）。
      */
     private static void ensureAxe(BotPlayer bot) {
-        FixtureToolKit.ensureHotbarTool(bot,
-                () -> new ItemStack(net.minecraft.world.item.Items.DIAMOND_AXE),
-                stack -> stack.is(net.minecraft.tags.ItemTags.AXES),
-                "axe");
+        FixtureToolKit.ensureAxe(bot);   // D-119：共享一处供应商（FixtureToolKit）
     }
 
     /**
@@ -69,10 +66,7 @@ public class LumberJobItem extends Item {
      * 拆的是我们自己放的圆石，没有镐就是徒手 200 tick/块（2026-09-11 实测：30 次 ~200 tick 的破块）。
      */
     private static void ensurePickaxe(BotPlayer bot) {
-        FixtureToolKit.ensureHotbarTool(bot,
-                () -> new ItemStack(net.minecraft.world.item.Items.DIAMOND_PICKAXE),
-                stack -> stack.is(net.minecraft.tags.ItemTags.PICKAXES),
-                "pickaxe");
+        FixtureToolKit.ensurePickaxe(bot);   // D-119：共享一处供应商（FixtureToolKit）
     }
 
     private static void ensureThrowaway(BotPlayer bot, int count) {

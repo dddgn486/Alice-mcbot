@@ -184,11 +184,14 @@ public final class MineRegressionTask implements Task {
             scope.begin(current.target(), 16, bot.getUUID());
             expectedItem = current.expectedItem();
             MiningBudget budget = MiningBudget.forTarget(bot, bot.serverLevel(), current.target(), true);
+            // D-119：**工具必须在构造 MineTask 之前到手** —— 生产 MineTask 不再兜底发工具，
+            // 构造时就做只读工具判定（挖石头/圆石没有正确工具会如实失败 `no_suitable_tool`）。
+            com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
             // D-112：本自检就是"会话所有者" → 断言"用完即拆"
             mineTask = new MineTask(bot, current.target(), scope, budget,
                     com.dddgn.alice.task.mining.MiningProfile.TUNNEL_ALLOWED.withRestore(),
                     WriteGrant.of(taskName(), WriteReason.EXPECTED_TARGET));
-            // **顺序（2026-09-11 修正）**：构造 MineTask（夹具补镐，会覆盖选中槽 ✗）→ 补一次性方块
+            // **顺序（2026-09-11 修正 / D-119 再修正）**：补镐 → 构造 MineTask → 补一次性方块
             // → **再采基线**。原实现把补料放在基线之后，于是"补了多少圆石"直接进了 inventoryDelta
             // （bot 手头圆石 <8 时就会漂移）⇒ 精确计数根本不是一个不变量。
             ensureCobblestone();
