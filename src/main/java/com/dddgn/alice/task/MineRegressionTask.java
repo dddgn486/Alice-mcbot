@@ -188,13 +188,12 @@ public final class MineRegressionTask implements Task {
             mineTask = new MineTask(bot, current.target(), scope, budget,
                     com.dddgn.alice.task.mining.MiningProfile.TUNNEL_ALLOWED.withRestore(),
                     WriteGrant.of(taskName(), WriteReason.EXPECTED_TARGET));
-            // **基线必须在 MineTask 构造之后采集**（2026-09-10 修正）：
-            // 构造函数里的 "夹具补镐" 会**覆盖选中槽**，若那一槽恰好放着一叠"预期掉落物"
-            // （跨轮次残留，例如上一轮回归留下的圆石），物品就被顶掉 → 实测 `inventoryDelta=-18`
-            // 而其余判据全 PASS → 一条纯粹的**假失败**，且只在选中槽恰好是该物品时复现。
-            inventoryBefore = countInInventory(expectedItem);
-            // MineTask 构造会占用选中槽放镐 → 之后再补一次性方块，避免被覆盖
+            // **顺序（2026-09-11 修正）**：构造 MineTask（夹具补镐，会覆盖选中槽 ✗）→ 补一次性方块
+            // → **再采基线**。原实现把补料放在基线之后，于是"补了多少圆石"直接进了 inventoryDelta
+            // （bot 手头圆石 <8 时就会漂移）⇒ 精确计数根本不是一个不变量。
             ensureCobblestone();
+            // 基线在此采集：之后的净增量只反映"放置消耗 + 回收 + 掉落物"这些真实事件
+            inventoryBefore = countInInventory(expectedItem);
             return Status.RUNNING;
         }
 
@@ -212,16 +211,27 @@ public final class MineRegressionTask implements Task {
         // D-112 建拆同权：悬空目标的支撑块**用完即拆**（旧断言"支撑仍在"是改造前的语义）
         boolean supportOk = !current.expectSupport()
                 || bot.serverLevel().getBlockState(current.target().below()).isAir();
+        // 支撑类用例的**材料闭环**用账本事实判（比背包净增量稳）：
+        //   restoredBlocks ≥ 1（确实拆回了自己放的方块）&& scaffoldLeft == 0（没留残）
+        boolean restoredOk = !current.expectSupport()
+                || (mineTask.restoredBlocks() >= 1 && mineTask.scaffoldLeft() == 0);
         // 掉落物判据改用**世界事实**：拆除阶段会 scope.end()，缓冲视图会变成空集（假通过）
         int dropsLeft = bot.serverLevel().getEntitiesOfClass(
                 net.minecraft.world.entity.item.ItemEntity.class,
                 new net.minecraft.world.phys.AABB(current.target()).inflate(6)).size();
         boolean noDropsLeft = dropsLeft == 0;
         int delta = countInInventory(expectedItem) - inventoryBefore;
-        boolean countOk = current.exactCollected()
-                ? collected == current.expectedCollected() && delta == current.expectedDelta()
-                : collected >= current.expectedCollected() && delta >= current.expectedCollected();
-        boolean pass = status == Status.DONE && targetGone && noDropsLeft && countOk && supportOk;
+        // 精确净增量只在**不涉及支撑块**的用例上成立（那时净增量=掉落物本身，稳定）；
+        // 支撑类用例的净增量混了"放置消耗 + 拆回 + 可能的夹具补料"，**不是不变量**
+        // （2026-09-11 三轮实测同一用例出现过 2 / 0 / 2）→ 改判账本事实 restoredOk + 下界。
+        boolean countOk = current.expectSupport()
+                ? collected >= current.expectedCollected() && delta >= current.expectedCollected()
+                : (current.exactCollected()
+                        ? collected == current.expectedCollected() && delta == current.expectedDelta()
+                        : collected >= current.expectedCollected()
+                                && delta >= current.expectedCollected());
+        boolean pass = status == Status.DONE && targetGone && noDropsLeft && countOk && supportOk
+                && restoredOk;
         record(current, pass, "status=" + status
                 + "/targetGone=" + targetGone
                 + "/collected=" + collected + "/" + current.expectedCollected()
@@ -231,6 +241,8 @@ public final class MineRegressionTask implements Task {
                         ? "(期望" + current.expectedDelta() + ")" : "")
                 + "/dropsLeft=" + dropsLeft
                 + (current.expectSupport() ? "/supportRestored=" + supportOk : "")
+                + (current.expectSupport() ? "/ledgerRestored=" + mineTask.restoredBlocks()
+                        + "/scaffoldLeft=" + mineTask.scaffoldLeft() : "")
                 + "/ticks=" + caseTicks
                 + (status == Status.DONE ? "" : "/reason=" + mineTask.failureReason()));
         finishCase();
