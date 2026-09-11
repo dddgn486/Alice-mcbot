@@ -36,6 +36,8 @@ public final class PathRetryRunner {
     private final java.util.Set<com.dddgn.alice.pathing.core.MovementType> executedTypes =
             new java.util.LinkedHashSet<>();
     private int attempts;
+    /** D-106 Slice B：本次运行是否已因写入预算不足而降级为纯通行（一旦降级，后续尝试都保持）。 */
+    private boolean degradedToPureTraversal;
 
     public PathRetryRunner(BotPlayer bot, PathRequest template, int maxReplans, String sessionPrefix) {
         this.bot = bot;
@@ -48,9 +50,10 @@ public final class PathRetryRunner {
     public State tick() {
         if (session == null) {
             BlockPos feet = bot.blockPosition().immutable();
-            PathRequest request = new PathRequest(template.botId(), feet, template.goal(),
-                    template.allowedMovementTypes(), template.budget(),
-                    template.requester() + ":attempt" + attempts);
+            PathRequest base = degradedToPureTraversal ? template.pureTraversal() : template;
+            PathRequest request = new PathRequest(base.botId(), feet, base.goal(),
+                    base.allowedMovementTypes(), base.budget(),
+                    base.requester() + ":attempt" + attempts);
             PathPlan plan = new CorePathPlanner().plan(bot, bot.serverLevel(), request);
             if (!plan.reached()) {
                 BotLog.warn("[PathRetry] plan_failed attempt={} status={} feet={} goal={}",
@@ -60,10 +63,34 @@ public final class PathRetryRunner {
                         "PLAN_" + plan.status(), -1, feet, 0, "planner=alice.astar.movement.v1");
                 return State.FAILED;
             }
-            BotLog.info("[PathRetry] planned attempt={} status={} movements={} cost={} from={} to={}",
+            int plannedBreaks = plan.movements().stream()
+                    .mapToInt(m -> com.dddgn.alice.pathing.core.search.MovementContext
+                            .plannedBreaks(m.movementType()))
+                    .sum();
+            int plannedPlaces = plan.movements().stream()
+                    .mapToInt(m -> com.dddgn.alice.pathing.core.search.MovementContext
+                            .plannedPlaces(m.movementType()))
+                    .sum();
+            BotLog.info("[PathRetry] planned attempt={} status={} movements={} cost={} writes>={}/{}"
+                            + " from={} to={}",
                     attempts, plan.status(), plan.movements().size(),
                     String.format(java.util.Locale.ROOT, "%.2f", plan.totalCost()),
-                    feet.toShortString(), template.goal().goalFoot().toShortString());
+                    plannedBreaks, plannedPlaces,
+                    feet.toShortString(), base.goal().goalFoot().toShortString());
+            // D-106 Slice B：计划本身超出剩余写入额度 → **本次运行降级为纯通行**重规划一次。
+            // 判据用下界（每条写边至少 1 次写入）：不会误剪合法路径，但足以拦住"注定执行不完"的计划。
+            if (!degradedToPureTraversal
+                    && (plannedBreaks > com.dddgn.alice.action.WriteBudget.remainingBreaks(bot)
+                    || plannedPlaces > com.dddgn.alice.action.WriteBudget.remainingPlaces(bot))) {
+                degradedToPureTraversal = true;
+                attempts++;
+                BotLog.warn("[PathRetry] plan_write_budget_insufficient attempt={} planWrites>={}/{}"
+                                + " remaining={}/{} → 本次运行降级为纯通行重规划",
+                        attempts - 1, plannedBreaks, plannedPlaces,
+                        com.dddgn.alice.action.WriteBudget.remainingBreaks(bot),
+                        com.dddgn.alice.action.WriteBudget.remainingPlaces(bot));
+                return State.RUNNING;
+            }
             session = new PathSession(bot, bot.serverLevel(), plan, request,
                     sessionPrefix + "-" + attempts);
         }

@@ -43,4 +43,42 @@ public record MovementContext(
     public double cost(MovementType type, BlockPos from, BlockPos to) {
         return costModel.cost(type, level, from, to);
     }
+
+    /**
+     * 该类 Movement 的**写入下界**（D-106 Slice B）：一条写边至少产生的破坏次数。
+     *
+     * <p>刻意取下界（不为 0 的写边一律记 1）：计划期剪枝只用它判断"还写不写得动"，
+     * 取上界会误剪合法路径（实测教训：把两格高墙的 `BREAK_AND_TRAVERSE` 记成 2，
+     * 上限 1 的场景会被整条剪掉）。真正的"绝不超过上限"由执行期闸门保证。
+     */
+    public static int plannedBreaks(MovementType type) {
+        return switch (type) {
+            case BREAK_AND_TRAVERSE, BREAK_AND_ENTER, DOWNWARD -> 1;
+            default -> 0;
+        };
+    }
+
+    /** 该类 Movement 的**写入下界**：一条写边至少产生的放置次数。 */
+    public static int plannedPlaces(MovementType type) {
+        return switch (type) {
+            case PLACE_STEP_AND_TRAVERSE, PILLAR -> 1;
+            default -> 0;
+        };
+    }
+
+    /**
+     * 本条写边现在还能不能规划（D-106 Slice B）：任一预算桶耗尽 → 一律 {@code false}
+     * （"耗尽后降级为纯通行"，不允许换成另一种写入方式继续试）。
+     */
+    public boolean writesAllowed(MovementType type) {
+        int breaks = plannedBreaks(type);
+        int places = plannedPlaces(type);
+        if (breaks == 0 && places == 0) {
+            return true;
+        }
+        if (bot == null) {
+            return true;   // 无 bot 的纯规划（headless 回归）不做预算剪枝
+        }
+        return com.dddgn.alice.action.WriteBudget.plannedWritesAllowed(bot, breaks, places);
+    }
 }

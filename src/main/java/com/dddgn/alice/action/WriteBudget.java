@@ -203,6 +203,69 @@ public final class WriteBudget {
     // ==================== 只读查询（内核谓词/计划期用） ====================
 
     /**
+     * **计划期**剪枝（D-106 Slice B）：这条边**至少**要 b 次破坏 / p 次放置时，是否还在预算内。
+     *
+     * <p>语义是"下界"检查（一条写边至少写 1 次），因此**不会过度剪枝**合法路径；
+     * 真正的"绝不超过上限"仍由执行期闸门（{@link #consumeBreak}/{@link #consumePlace}）保证。
+     * 任一桶**已经**耗尽时，对任何写入边一律返回 {@code false} —— 这正是"耗尽后本次尝试
+     * 降级为纯通行"的实现（否则 bot 会换成另一种写入方式继续试：夹具日志实测过这个病）。
+     */
+    public static boolean plannedWritesAllowed(ServerPlayer bot, int minBreaks, int minPlaces) {
+        String scope = scopeOf(bot);
+        if (scope == null) {
+            return true;
+        }
+        Counters counters = SCOPES.get(scope);
+        if (counters == null) {
+            return true;
+        }
+        if (counters.breakExhausted || counters.placeExhausted) {
+            return false;
+        }
+        Caps caps = CAPS.getOrDefault(scope, Caps.DEFAULT);
+        if (minBreaks > 0 && counters.breaks + minBreaks > caps.maxBreaks()) {
+            return false;
+        }
+        return minPlaces <= 0 || counters.places + minPlaces <= caps.maxPlaces();
+    }
+
+    /** 剩余破坏额度（计划级检查用；无作用域 = 无限）。 */
+    public static int remainingBreaks(ServerPlayer bot) {
+        String scope = scopeOf(bot);
+        if (scope == null) {
+            return Integer.MAX_VALUE;
+        }
+        Counters counters = SCOPES.get(scope);
+        return counters == null ? CAPS.getOrDefault(scope, Caps.DEFAULT).maxBreaks()
+                : Math.max(0, CAPS.getOrDefault(scope, Caps.DEFAULT).maxBreaks() - counters.breaks);
+    }
+
+    /** 剩余放置额度（计划级检查用；无作用域 = 无限）。 */
+    public static int remainingPlaces(ServerPlayer bot) {
+        String scope = scopeOf(bot);
+        if (scope == null) {
+            return Integer.MAX_VALUE;
+        }
+        Counters counters = SCOPES.get(scope);
+        return counters == null ? CAPS.getOrDefault(scope, Caps.DEFAULT).maxPlaces()
+                : Math.max(0, CAPS.getOrDefault(scope, Caps.DEFAULT).maxPlaces() - counters.places);
+    }
+
+    /** 已拒绝的破坏次数（诊断/夹具断言）。 */
+    public static int refusedBreaks(ServerPlayer bot) {
+        String scope = scopeOf(bot);
+        Counters counters = scope == null ? null : SCOPES.get(scope);
+        return counters == null ? 0 : counters.refusedBreaks;
+    }
+
+    /** 已拒绝的放置次数（诊断/夹具断言）。 */
+    public static int refusedPlaces(ServerPlayer bot) {
+        String scope = scopeOf(bot);
+        Counters counters = scope == null ? null : SCOPES.get(scope);
+        return counters == null ? 0 : counters.refusedPlaces;
+    }
+
+    /**
      * 现在还允许破坏吗（**不计数**，供内核谓词/搜索剪枝用）。
      *
      * <p>与 {@link #consumeBreak} 用同一判据，因此"搜索认为可以破坏"与"执行时允许破坏"

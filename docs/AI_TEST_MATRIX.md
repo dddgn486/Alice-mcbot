@@ -125,7 +125,9 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 
 | 非满高支撑的可执行回归（D-105） | 右键 `alice:pathing_regression`（自动建地形并执行） | 零参数右键 | `chest_step_course`：起点 (1,64,126) → 目标 (2,65,126) 必须**真的执行 ASCEND 并完成**（旧行为：箱顶原地弹跳 → `SEGMENT_TIMEOUT` 161 tick）；`slab_step_course`：(4,64,145) → (8,64,145) 封闭走廊，中途一块底半砖必须走过去（旧行为：TRAVERSE 完成契约死锁） | `WINDOWS_CLIENT` + `USER_ACCEPTED`（2026-09-11 18:31）：16 场景 + `foot_cell_rule` + `coverage` 全 PASS；`chest_step` 的 ASCEND 10 tick（旧 161 tick 弹跳）；全程无 `SEGMENT_TIMEOUT` |
 
-| 执行期写入预算（D-106）：任务级上限 | `/give @s alice:write_budget_check` → 右键（零参数） | 物品右键 | 复用 `break_course`，本次任务破坏上限压到 1 格；断言"只拆 1 格 → 用满即停 → 如实失败 → 绝不继续拆"，并用**世界事实**复核（墙区空气格 ≤1） | `WINDOWS_CLIENT` + `USER_ACCEPTED`（2026-09-11 19:03）：`[WriteBudget] CHECK breaks=1/1 places=0/0 exhausted=true wall_broken=1 passed_wall=false status=MOVEMENT_FAILED → PASS`；随后 attempt1/2 的放置也被拒（发现提前拒绝漏计数 → 已修） |
+| 执行期写入预算（D-106）：任务级上限 | `/give @s alice:write_budget_check` → 右键（零参数） | 物品右键 | 复用 `break_course`，本次任务破坏上限压到 1 格；断言"只拆 1 格 → 用满即停 → 如实失败 → 绝不继续拆"，并用**世界事实**复核（墙区空气格 ≤1） | `WINDOWS_CLIENT` + `USER_ACCEPTED`（2026-09-11 19:03，Slice A）；**Slice B 后需复跑**：判据新增 `refusedPlaces==0`（预算用满后搜索不再规划任何写入，旧行为会规划放置绕行并被拒） |
+
+| Slice B 计划期剪枝不误剪（D-106） | 右键 `alice:pathing_regression`（16 场景含 `break_course`/`place_course`/`pillar_course`） | 零参数右键 | 计划期闸门只能"拦注定执行不完的写边"，**不能**动合法写边；`[PathRetry] planned … writes>=b/p` 可见每个计划的下界 | `待测`（预期 16 场景 + `foot_cell_rule` + `coverage` 全 PASS，且无 `plan_write_budget_insufficient`） |
 
 | 预算不误伤合法路径（D-106 反例守卫） | 右键 `alice:pathing_regression`（16 场景） | 零参数右键 | 正常任务的破坏/放置应远低于 64/32；出现 `[WriteBudget] exhausted` 即说明上限需要按数据调整 | `WINDOWS_CLIENT` + `USER_ACCEPTED`（2026-09-11 19:03）：16 场景 + `foot_cell_rule` + `coverage` 全 PASS；预算实耗 **breaks=5/64 places=7/32 refused=0** ⇒ 零打扰，64/32 有实测余量 |
 

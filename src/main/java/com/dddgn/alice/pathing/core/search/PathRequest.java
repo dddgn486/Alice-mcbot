@@ -87,4 +87,20 @@ public record PathRequest(
     public boolean allows(MovementType type) {
         return allowedMovementTypes.contains(type);
     }
+
+    /**
+     * 本次尝试**降级为纯通行**（D-106 Slice B，用户 2026-09-11 裁定）。
+     *
+     * <p>什么算纯通行：不改世界的 Movement —— `TRAVERSE/DIAGONAL/ASCEND/DESCEND/FALL`。
+     * 与 {@link #of} 相比保留 `FALL`（它同样不写世界，且排除它会让本来就该走的下落路线消失）；
+     * 与之相比**去掉** `PILLAR`（放置）/`DOWNWARD`（破坏）/`BREAK_*`/`PLACE_STEP_*`。
+     *
+     * <p>目标、预算、归因不变：降级只改"允许的动作集合"，不改"要去哪"。
+     */
+    public PathRequest pureTraversal() {
+        return new PathRequest(botId, startFoot, goal,
+                Set.of(MovementType.TRAVERSE, MovementType.DIAGONAL,
+                        MovementType.ASCEND, MovementType.DESCEND, MovementType.FALL),
+                budget, requester);
+    }
 }

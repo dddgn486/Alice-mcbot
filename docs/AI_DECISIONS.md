@@ -2633,12 +2633,23 @@ APPROACH 成功（`movements=0`），但 **DESCEND 失败**：
 **注意**：`PlaceStepAndTraverseExecution` 原先只判 `== NO_OPTION`，新值若不处理会被当成成功）。
 `breakable(...)` 谓词用**同一个判据**（`WriteBudget.breakAllowed`），因此**搜索与执行不会各行其是**。
 
-**已知缺口（Slice B 待做，本轮有意不做）**
-1. **计划期不剪枝**：搜索不知道预算会被消耗，因此可能承诺一条超出预算的路径 → 执行到一半被拒、
-   重规划、如实失败。行为是安全的（**绝不多拆**），但不够经济。
-2. **尝试级预算缺席**：`MiningBudget.maxExtraBreakTicks`（6 tick/格 ×10 × 珍贵度）目前仍只用于
-   规划期选站位；升级为"每次尝试允许累计消耗的破坏 tick" + 耗尽后本次尝试降级为纯通行，是 Slice B。
-3. 放置上限 0 的场景只被夹具间接覆盖。
+**Slice B（2026-09-11 同日完成，用户"先做 G4 Slice B"）**
+1. **B1 计划期剪枝**：`MovementContext.writesAllowed(type)` + `WriteBudget.plannedWritesAllowed`
+   —— 任何预算桶**已耗尽**时，写边走**根本不生成**（"降级为纯通行"的实现，杜绝"换个写入方式继续试"）；
+   否则按**下界**（每条写边至少 1 次）判断额度是否还够。
+   `SurfaceMovementProvider` 的 5 个写边（`BREAK_AND_TRAVERSE`/`BREAK_AND_ENTER`/`DOWNWARD`/`PILLAR`/
+   `PLACE_STEP_AND_TRAVERSE`）入口各加一道闸门。
+2. **B2 计划级检查 + 降级**：`PathRetryRunner` 在计划到达后统计该计划的写入**下界**
+   （`[PathRetry] planned … writes>=b/p`），若超过剩余额度 → `plan_write_budget_insufficient` →
+   **本次运行整体降级为纯通行**（`PathRequest.pureTraversal()` = `TRAVERSE/DIAGONAL/ASCEND/DESCEND/FALL`，
+   保留目标与归因；保留 `FALL` 是因为它同样不写世界，而 `PathRequest.of` 的纯通行集不含它）。
+3. **为什么用下界而不是精确值**：`PlannedMovement` 不带写入计数，若按类型取"上界"（两格高墙的
+   `BREAK_AND_TRAVERSE` 记 2）会把上限 1 的合法场景整条剪掉（夹具实测教训）。下界**不会误剪**，
+   而"绝不超过上限"由执行期闸门（Slice A）保证——两者是分工，不是重复。
+
+**仍待做（Slice B2）**：`MiningBudget.maxExtraBreakTicks`（6 tick/格 ×10 × 珍贵度）目前仍只用于
+规划期选站位。升级为"每次尝试允许累计消耗的破坏 tick"需要先定两件事：①非挖掘类请求（带世界修改的
+通行）的 tick 预算从哪里来；②它与任务级次数上限（64/32）的优先级。等有实测需求再定，避免先造口径。
 
 **验收夹具**：`alice:write_budget_check`（零参数右键）——复用 `break_course`（x=3 两格高石墙），
 把本次任务上限压到 **1 格**，断言不变式：破坏 ≤1 / 放置 ≤0 / 墙区空气格 ≤1（**用世界事实复核，

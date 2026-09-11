@@ -21,7 +21,9 @@ import java.util.Set;
  *   <li>破坏次数 ≤ 上限、放置次数 = 0（上限 0）——**没有任何一类写入越界**；</li>
  *   <li>世界事实与计数一致：墙区（x=3, y=64..65, z=62..70）变空气的格子数 ≤ 上限；</li>
  *   <li>预算确实被触发过（`exhausted`）；</li>
- *   <li>bot 没有穿过墙、且这次通行没有被判成功 —— "没路了就如实失败"，不是"想办法继续拆"。</li>
+ *   <li>bot 没有穿过墙、且这次通行没有被判成功 —— "没路了就如实失败"，不是"想办法继续拆"；</li>
+ *   <li>**预算用满后不再规划任何写入**（`refusedPlaces == 0`，D-106 Slice B）——
+ *       曾经的行为是"换个写入方式继续试"（破坏被拒后改规划放置绕行），日志里就是 `[WRITE-REFUSED] place`。</li>
  * </ol>
  *
  * <p>输出：`[WriteBudget] CHECK breaks=?/1 exhausted=? wall_broken=? passed_wall=? status=? → PASS|FAIL`。
@@ -134,6 +136,8 @@ public final class WriteBudgetCheckTask implements Task {
         ServerLevel level = bot.serverLevel();
         int breaks = WriteBudget.breaks(bot);
         int places = WriteBudget.places(bot);
+        int refusedBreaks = WriteBudget.refusedBreaks(bot);
+        int refusedPlaces = WriteBudget.refusedPlaces(bot);
         boolean triggered = WriteBudget.breakExhausted(bot) || WriteBudget.placeExhausted(bot);
         // 世界事实复核：墙区里变成空气的格子数（只信世界，不只信计数器）
         int wallBroken = 0;
@@ -151,15 +155,19 @@ public final class WriteBudgetCheckTask implements Task {
         // ③ 预算确实被触发过；④ 没穿过墙 + 没被当成成功
         boolean noOverrun = breaks <= CAP_BREAKS && places <= 0 && wallBroken <= CAP_BREAKS;
         boolean stopped = !passedWall && !"COMPLETED".equals(resultStatus);
-        boolean pass = noOverrun && stopped && triggered;
-        BotLog.info("[WriteBudget] CHECK breaks={}/{} places={}/0 exhausted={} wall_broken={}"
-                        + " passed_wall={} status={} → {}",
-                breaks, CAP_BREAKS, places, triggered, wallBroken, passedWall, resultStatus,
-                pass ? "PASS" : "FAIL");
+        // D-106 Slice B（计划期剪枝）：预算用满后**搜索不该再规划任何写入**——
+        // 曾经的行为是"换个写入方式继续试"（改规划放置绕行），证据就是 refusedPlaces>0
+        boolean noDoomedWrites = refusedPlaces == 0;
+        boolean pass = noOverrun && stopped && triggered && noDoomedWrites;
+        BotLog.info("[WriteBudget] CHECK breaks={}/{} places={}/0 refusedBreaks={} refusedPlaces={}"
+                        + " exhausted={} wall_broken={} passed_wall={} status={} → {}",
+                breaks, CAP_BREAKS, places, refusedBreaks, refusedPlaces, triggered, wallBroken,
+                passedWall, resultStatus, pass ? "PASS" : "FAIL");
         if (!pass) {
             failure = "WRITE_BUDGET_CHECK_FAILED breaks=" + breaks + " places=" + places
-                    + " triggered=" + triggered + " wallBroken=" + wallBroken
-                    + " passedWall=" + passedWall + " status=" + resultStatus;
+                    + " triggered=" + triggered + " refusedPlaces=" + refusedPlaces
+                    + " wallBroken=" + wallBroken + " passedWall=" + passedWall
+                    + " status=" + resultStatus;
             phase = Phase.DONE;
             return Task.Status.FAILED;
         }

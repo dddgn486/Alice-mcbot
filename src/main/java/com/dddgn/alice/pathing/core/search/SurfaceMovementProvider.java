@@ -107,6 +107,11 @@ public final class SurfaceMovementProvider implements MovementProvider {
      */
     private static void appendBreakAndEnter(MovementContext context, ServerLevel level, BlockPos from,
                                             int dx, int dz, List<PlannedMovement> out) {
+        // D-106 Slice B（计划期剪枝）：预算不允许写入时，写边根本不生成——
+        // 否则会规划出"执行到一半必然被拒"的路径（实测：破坏预算用满后改规划放置绕行）
+        if (!context.writesAllowed(MovementType.BREAK_AND_ENTER)) {
+            return;
+        }
         BlockPos to = from.offset(dx, 0, dz);
         if (!context.yInBounds(to.getY())) {
             return;
@@ -213,6 +218,11 @@ public final class SurfaceMovementProvider implements MovementProvider {
      */
     private static void appendPillar(MovementContext context, ServerLevel level, BlockPos from,
                                      List<PlannedMovement> out) {
+        // D-106 Slice B（计划期剪枝）：预算不允许写入时，写边根本不生成——
+        // 否则会规划出"执行到一半必然被拒"的路径（实测：破坏预算用满后改规划放置绕行）
+        if (!context.writesAllowed(MovementType.PILLAR)) {
+            return;
+        }
         BlockPos to = from.above();
         if (!context.yInBounds(to.getY())) {
             return;
@@ -238,6 +248,11 @@ public final class SurfaceMovementProvider implements MovementProvider {
      */
     private static void appendDownward(MovementContext context, ServerLevel level, BlockPos from,
                                        List<PlannedMovement> out) {
+        // D-106 Slice B（计划期剪枝）：预算不允许写入时，写边根本不生成——
+        // 否则会规划出"执行到一半必然被拒"的路径（实测：破坏预算用满后改规划放置绕行）
+        if (!context.writesAllowed(MovementType.DOWNWARD)) {
+            return;
+        }
         BlockPos to = from.below();
         if (!context.yInBounds(to.getY())) {
             return;
@@ -284,6 +299,11 @@ public final class SurfaceMovementProvider implements MovementProvider {
     private static void appendBreakAndTraverse(MovementContext context, ServerLevel level,
                                                BlockPos from, int dx, int dz,
                                                List<PlannedMovement> out) {
+        // D-106 Slice B（计划期剪枝）：预算不允许写入时，写边根本不生成——
+        // 否则会规划出"执行到一半必然被拒"的路径（实测：破坏预算用满后改规划放置绕行）
+        if (!context.writesAllowed(MovementType.BREAK_AND_TRAVERSE)) {
+            return;
+        }
         BlockPos mid = from.offset(dx, 0, dz);
         BlockPos to = from.offset(dx * 2, 0, dz * 2);
         if (!context.yInBounds(to.getY())) {
@@ -327,6 +347,11 @@ public final class SurfaceMovementProvider implements MovementProvider {
     private static void appendPlaceStepAndTraverse(MovementContext context, ServerLevel level,
                                                    BlockPos from, int dx, int dz, int dy,
                                                    List<PlannedMovement> out) {
+        // D-106 Slice B（计划期剪枝）：预算不允许写入时，写边根本不生成——
+        // 否则会规划出"执行到一半必然被拒"的路径（实测：破坏预算用满后改规划放置绕行）
+        if (!context.writesAllowed(MovementType.PLACE_STEP_AND_TRAVERSE)) {
+            return;
+        }
         BlockPos to = from.offset(dx, dy, dz);
         if (!context.yInBounds(to.getY())) {
             return;

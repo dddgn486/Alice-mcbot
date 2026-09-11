@@ -215,9 +215,10 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
 - 待办（Slice B）：计划期剪枝 + 尝试级 tick 预算（`MiningBudget.maxExtraBreakTicks` 升级）。
 
 **下一步（按序）**
-1. **G4 Slice B**：计划期预算剪枝（把预算并入 `PathRequest`/搜索）+ 尝试级 tick 预算
-   （`MiningBudget.maxExtraBreakTicks` 升级为执行期累计闸门、耗尽后降级纯通行）——
-   必要性已由夹具日志证实（破坏预算用满后仍会规划"靠放置绕行"的路线）；
+1. **客户端验收 G4 Slice B**：右键 `alice:write_budget_check`（判据新增 `refusedPlaces==0`）
+   + 复跑 `alice:pathing_regression`（防止计划期闸门误剪合法写边）；
+2. **G4 Slice B2（待定口径）**：`MiningBudget.maxExtraBreakTicks` 升级为尝试级 tick 预算
+   （需先定非挖掘请求的预算来源与优先级）；
 2. **J7 攀爬**（第一处真正需要脚手架放置的 Job，将首次实检建拆同权）→ **J8 MAINTAIN 区域型**。
 3. 仍登记未做：G3（模组连锁破坏无凭证）、G5（容器写入维度）、
    `isExpensiveToClear` 的成本化 + `#alice:clear_forbidden` 标签、`MiningBudget.tierOf` 的 `#forge:ores/*`、
