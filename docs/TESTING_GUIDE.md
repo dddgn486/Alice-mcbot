@@ -52,6 +52,31 @@
 | 候选同源 | 夹具用规划器的 `MovementProvider` 检测可测项 | `SurfaceMovementProvider` |
 | 场景入库 | 数据包与夹具源码进仓库，不依赖客户端临时文件 | `tools/test-scenes/alice_test/` |
 | 视觉结论真人确认 | 是否跳跃/回冲/卡边缘必须问用户 | §1 通用原则 |
+| **入口必须写清"场景 + 复位"** | 不自带复位的入口，说明里**必须**写出先跑哪个场景函数；只写物品名视为不完整说明 | 见下表 |
+
+### 1.6 测试入口与复位方式（照此写说明，别再漏）
+
+**自带复位**（右键即跑，每次都会重放场景——可连续点）：
+
+| 测试项 | 物品（零参数右键） | 复位的场景函数（代码内部调用） |
+|---|---|---|
+| 寻路串联回归 | `alice:pathing_regression` | 每个子场景的 `<scene>_terrain` |
+| 挖掘串联回归 | `alice:mine_regression` | 每例的 `<case>_terrain` |
+| 脚手架生命周期 | `alice:scaffold_check` | `scaffold_course_terrain` |
+| 容器绕行自检 | `alice:clear_guard_check` | `clear_guard_terrain` |
+| 写入预算自检 | `alice:write_budget_check` | `break_course_terrain` |
+| 伐木失败语义 | `alice:lumber_failure_check` | `lumber_course_terrain` + `lumber_course_trees` |
+
+**不自带复位**（物品只负责"传送 + 发料"，**必须先跑场景函数**，否则会消耗上一轮剩下的矿/树）：
+
+| 测试项 | 先跑（一键，含复位 + 传送 + 发物品） | 再右键 |
+|---|---|---|
+| 挖掘 Job | `/function alice_test:ore_course` | `alice:mine_job` |
+| 伐木 Job | `/function alice_test:lumber_course` | `alice:lumber_job` |
+| 策略对比 | `/function alice_test:lumber_course` | `alice:lumber_policy_check` |
+
+> 规律：**场景函数（`*_course`）负责复位**；物品负责"传送 + 发料 + 启动"。
+> 所以凡是"物品不带场景函数"的入口，说明里必须写清先跑哪条函数。
 
 ---
 
