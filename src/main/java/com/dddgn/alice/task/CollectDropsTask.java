@@ -177,6 +177,10 @@ public final class CollectDropsTask implements Task {
 
         // 0) 尚未走位、且还没进入拾取范围 → 建路径（走位优先；不建就会"原地放弃"）
         if (runner == null && members.stream().noneMatch(this::inPickupRange)) {
+            // D-114：寻路目标必须是"**够得着掉落物的可站格**"，而不是掉落物所在格。
+            // 反例（2026-09-11 实测）：支撑块被拆后掉落物停在平台格 (23,64,189) ✓，而锚点是
+            // 刚拆掉的支撑块所在格 (23,64,190)——空气+下面也是空气 ⇒ 不可站 ⇒ UNREACHABLE ⇒ 退役残留。
+            normalizeAnchor(members);
             PathRequest request = allowWorldModification
                     ? PathRequest.withWorldModification(bot.getUUID().toString(), MovementHelper.footCell(bot.serverLevel(), bot), anchor, "collect-drops")
                     : PathRequest.of(bot.getUUID().toString(), MovementHelper.footCell(bot.serverLevel(), bot), anchor, "collect-drops");
@@ -244,14 +248,79 @@ public final class CollectDropsTask implements Task {
     /** 换到**离 bot 最近的存活成员**作为新锚点（原样重走）。 */
     private void reanchor(List<ItemEntity> members) {
         reanchors++;
-        ItemEntity nearest = members.stream()
-                .min(java.util.Comparator.comparingDouble(item -> bot.distanceToSqr(item)))
-                .orElse(members.get(0));
-        anchor = nearest.blockPosition().immutable();
+        normalizeAnchor(members);
         waitTicks = 0;
         runner = null;
         BotLog.info("[CollectDrops] reanchor cluster_anchor={} remaining={} reanchors={}/{}",
                 anchor.toShortString(), members.size(), reanchors, MAX_REANCHORS);
+    }
+
+    /**
+     * 把当前锚点（= 最近掉落物的所在格）规范化成"**够得着它的可站格**"（D-114）。
+     *
+     * <p>为什么必须：掉落物常常停在**站不住的格**上或旁边——刚被拆掉的支撑块所在格（空气+下方空气）、
+     * 1×1 竖井口、台阶边缘、悬空块上方……此时若照原样去寻路，规划器会如实报 `UNREACHABLE`
+     * （它不会为"走到一个站不住的格"编路径），于是物品被退役、材料留在世界里。
+     * 实测两例：J7 掉在壁柱顶（够不到）②D-112 支撑块拆除后掉落物落在平台格而锚点在井口。
+     *
+     * <p>判据：优先用掉落物所在格（今天的行为，可站时完全不变）；否则在其周围
+     * （水平 4 邻、y ∈ {0,+1,-1}，必要时半径 2）找**最近的可站格**，且与掉落物在拾取半径内。
+     * 一个都没有 → 保留原格（失败码保持诚实，随后照旧退役）。
+     */
+    private void normalizeAnchor(List<ItemEntity> members) {
+        ItemEntity nearest = members.stream()
+                .min(java.util.Comparator.comparingDouble(item -> bot.distanceToSqr(item)))
+                .orElse(members.get(0));
+        BlockPos itemCell = nearest.blockPosition().immutable();
+        BlockPos goal = pickupGoalFor(nearest, itemCell);
+        anchor = goal;
+        if (!goal.equals(itemCell)) {
+            BotLog.info("[CollectDrops] goal_shift item={} itemPos={} goal={}（掉落物所在格不可站 → 走到够得着的可站格）",
+                    nearest.getUUID(), itemCell.toShortString(), goal.toShortString());
+        }
+    }
+
+    /** 够得着该掉落物的可站格；掉落物所在格可站时原样返回。 */
+    private BlockPos pickupGoalFor(ItemEntity item, BlockPos itemCell) {
+        if (isStandableCell(itemCell)) {
+            return itemCell;
+        }
+        BlockPos best = null;
+        double bestDist = Double.MAX_VALUE;
+        for (int radius = 1; radius <= 2 && best == null; radius++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    if (Math.abs(dx) != radius && Math.abs(dz) != radius) {
+                        continue;   // 只看这一圈的边
+                    }
+                    for (int dy = 0; dy >= -1; dy--) {
+                        BlockPos cell = itemCell.offset(dx, dy, dz);
+                        if (!isStandableCell(cell) || !withinPickupReach(cell, item)) {
+                            continue;
+                        }
+                        double d = cell.distSqr(itemCell);
+                        if (d < bestDist) {
+                            bestDist = d;
+                            best = cell.immutable();
+                        }
+                    }
+                }
+            }
+        }
+        return best == null ? itemCell : best;
+    }
+
+    /** 可站：脚下有支撑 + 脚位/头位可穿过（与挖掘站位同一口径）。 */
+    private boolean isStandableCell(BlockPos cell) {
+        return com.dddgn.alice.task.mining.StandingPointSelector
+                .isStandable(bot.serverLevel(), cell);
+    }
+
+    /** 粗判"站在该格能否拾取到该掉落物"（原版拾取盒外扩 1.0 x/z、0.5 y）；精确判定仍走 inPickupRange。 */
+    private static boolean withinPickupReach(BlockPos cell, ItemEntity item) {
+        return Math.abs(cell.getX() + 0.5D - item.getX()) <= 1.2D
+                && Math.abs(cell.getZ() + 0.5D - item.getZ()) <= 1.2D
+                && Math.abs(cell.getY() - item.getY()) <= 1.2D;
     }
 
     /**

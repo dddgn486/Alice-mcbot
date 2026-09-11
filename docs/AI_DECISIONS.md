@@ -3017,3 +3017,47 @@ run A 只是掉落物恰好没滑进井里 —— **不稳定场景**，不是�
 本轮不顺手改（会动到已验收的收集任务），登记为待办，等有第二个实例再一起做。
 
 **验证等级**：IMPLEMENTED（场景修复已入库；客户端复测一次 `alice:mine_regression` 即可）。
+
+## D-114 收集的寻路目标改为"够得着掉落物的可站格"（2026-09-11，用户裁定方案 A）
+
+**背景**：`mine_regression` 的 `exec_floating` 用例**三次失败、三种数字**（`delta=2/drops=0`、
+`delta=0/drops=1`、`delta=0/drops=1`）。前两轮我去调夹具期望值与场景几何 ✗——**都调错了地方**。
+第三轮取证才拿到根因（日志逐行）：
+
+```
+[Restore] block 23,64,190 placed=cobblestone            ← 要拆的支撑块
+[Restore] 23,64,190 ：向下拆 不通 → 改为侧拆兜底          ← 正确（落点站不住，内核拒绝 DOWNWARD）
+[WRITE] break 23,64,190 cobblestone ✓                   ← 支撑块确实拆掉了（建拆同权 ✓）
+[Restore] 开始回收材料 origin=23,64,190（restored=1）
+[CollectDrops] sweep_start anchor=23,64,190 … feet=24,65,190
+[PathRetry] plan_failed UNREACHABLE feet=24,65,190 goal=23,64,190   ← 要走到"刚拆掉的支撑块那格"
+[CollectDrops] retire item=… itemPos=23,64,189 reason=MOVEMENT_FAILED  ← 物品其实停在**可站**的平台格
+[Restore] 仍有 1 个掉落物没收回
+```
+
+**根因（真缺陷，不是夹具写法）**：`CollectDropsTask` 的**寻路目标**是
+「锚点 = 最近掉落物的 `blockPosition()`」（初始锚点取自构造参数 `origin`，如"被恢复方块的位置"）。
+当该格**不可站**时（刚拆掉的支撑块所在格 = 空气 + 下方也是空气、1×1 竖井口、台阶边缘、悬空块上方…）
+规划器如实报 `UNREACHABLE`（它不会为"走到一个站不住的格"编路径）⇒ 物品退役 ⇒ **材料留在世界里**。
+反例规律：**锚点格可站 ⇔ 被拆/被挖的方块下方有实心地面**——所以"支撑块放在地面上"的用例一直好使，
+而"悬空目标 + 支撑块放在井口"的用例必然踩到。
+
+**第二次独立实例**：J7 那次"掉落物停在壁柱顶收不回"（同属"寻路目标选错格"这一类，已由两处扫尾缓和）。
+
+**修法（用户裁定方案 A，最小面）**：新增 `normalizeAnchor(members)`——
+1. 掉落物所在格**可站**（`StandingPointSelector.isStandable` 同口径）⇒ 原样使用（**今天的行为完全不变**）；
+2. 否则在它周围（水平 4 邻、`y ∈ {0,-1}`，先半径 1 再半径 2）找**最近的可站格**，且与掉落物在拾取半径内
+   （粗判 `withinPickupReach`；精确判定仍走原 `inPickupRange`）；命中即把锚点换成它；
+3. 一个都没有 ⇒ 保留原格（失败码保持诚实）→ 照旧退役。
+调用点：起始 sweep（建 runner 之前）+ `reanchor`。新增日志
+`[CollectDrops] goal_shift item=… itemPos=… goal=…` 供判读。
+
+**不改**：收集判据（`inPickupRange` 原版拾取盒）、预算、退役语义、`worldMod` 策略 ✓。
+
+**本修法不覆盖的情形（保持诚实）**：目标格**可站但路径不可达**（J7 壁柱顶那种）——
+那属于"够得到的时刻"问题，由 D-107 附注的**两处扫尾**负责，不在这里兜。
+
+**验证入口**：`alice:mine_regression`（`exec_floating` 应转绿、10/10）；回归
+`alice:pathing_regression`、`/function alice_test:lumber_course` → `alice:lumber_job`（收集口径不变）。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待验）。

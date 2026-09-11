@@ -98,6 +98,8 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 | 寻路回归复验（R2b 后） | 右键 `alice:pathing_regression` | 14 场景全 PASS，含全部写入型 `BREAK_AND_TRAVERSE`/`DOWNWARD`/`PILLAR`/`PLACE_STEP`/`BREAK_AND_ENTER`；`UNAUTHORIZED_MOVEMENT` 必须为 0 | `WINDOWS_CLIENT`（2026-09-10 20:27:29 全 PASS，`terminal=COMPLETED`；越权检查命中 0） |
 | 世界写入授权审计（D-082） | 任意任务跑一次，看 `[WRITE]` 行与终态 `writes … unknown=` | `by=<任务身份>:<REASON>`；`unknown=0`（计数为**会话累计**，跨任务不重置） | `WINDOWS_CLIENT`（2026-09-10：`by=MineRegressionTask:EXPECTED_TARGET` / `SUPPORT_PLACEMENT` / `lumber:LINE_OF_SIGHT`，全程 `unknown=0`） |
 
+| D-114 收集寻路目标=可站格 | 右键 `alice:mine_regression`（重点 `exec_floating`）；回归 `alice:pathing_regression`、`/function alice_test:lumber_course` → `alice:lumber_job` | 零参数右键 | 掉落物停在"站不住的格"（刚拆掉的支撑块所在格 / 井口）时，收集应改走"够得着它的可站格"（日志 `goal_shift`），不再 `UNREACHABLE` → 退役 | `待测`（预期 `exec_floating=PASS … inventoryDelta=1 dropsLeft=0`；`goal_shift` 可见；其余夹具收集口径不变） |
+
 | D-112 挖掘侧建拆同权 | 右键 `alice:mine_regression`（自带复位）；`alice:mine_job` 需**先** `/function alice_test:ore_course` | 零参数右键 | 用完自己放的临时方块（支撑/台阶）后，**仍在架上**自上而下拆掉；`[MineTask] restore_start/restore_end` 可判读；任务收尾不得再出现 `仍有 N 条我方临时放置未拆除` | `待测`（预期 `mine_regression` 10 项全 PASS 且**残留警告消失**；`supportRestored=true`） |
 
 | D-111 能力信封（切片 A）复跑 | 右键 `alice:lumber_failure_check` / `alice:mine_regression` / `alice:scaffold_check`（三者自带复位）；`alice:lumber_job` 需**先** `/function alice_test:lumber_course` | 四次零参数右键 | 加高能力已下沉 L2（`MiningProfile`），四个调用点行为应与改造前一致 | `待测`（高树仍靠加高完成、`lumber_failure_check` 5/5、`mine_regression` 不变、`scaffold_check` PASS） |
