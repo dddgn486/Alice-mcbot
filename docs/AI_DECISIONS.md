@@ -3444,3 +3444,18 @@ code=done recovery=idle_after_cleanup recoveryEvents=[]` ✅
 （第 11 例）或做独立自检夹具，待用户裁定。
 
 **验证等级**：IMPLEMENTED / COMPILES（客户端待验；负例待做夹具）。
+
+### D-119 附注（2026-09-12）：`no_suitable_tool` 负例自检落地
+
+`mine_regression` 增加**第 11 例 `no_tool_refuses`**（新 `Kind.TOOL_REFUSAL`）：
+同一格圆石（`23,64,140`，与 `exec_direct` 同目标），但用例开头走 `FixtureToolKit.resetInventory`
+**清空背包**（=没有镐）→ 构造 `MineTask` → 断言四件事同时成立：
+`status=FAILED` / `reason=no_suitable_tool` / 目标方块仍在（没被破坏）/ **背包里没有镐**（没变出工具），
+随后复原告一段（`ensurePickaxe`）供后续用例使用。
+
+**日志判据随之更新**：跑 `mine_regression` 时**应当**恰好看到一条
+`[MineTask] no_suitable_tool target=23, 64, 140 …`（来自本负例）——这是**期望输出**，不是回归；
+其余入口（`lumber_job` / `mine_job` / `scaffold_check` / `restore_check` / `clear_guard_check` /
+`write_budget_check` / `lumber_failure_check`）仍应**零** `no_suitable_tool`、零 `no_effective_tool`。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待验：期望 `no_tool_refuses=PASS`、其余 10 例照旧 PASS）。

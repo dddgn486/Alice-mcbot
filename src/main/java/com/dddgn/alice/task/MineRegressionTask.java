@@ -48,7 +48,12 @@ public final class MineRegressionTask implements Task {
         /** 规划 + 执行 + 收集断言。 */
         EXECUTE,
         /** 模组连锁：执行 + 收集断言；模组缺失时 SKIP。 */
-        CHAIN
+        CHAIN,
+        /**
+         * 工具负例（D-119）：**故意不给工具**去挖"必须正确工具才掉落"的方块，
+         * 断言任务如实失败 {@code no_suitable_tool}、目标未被破坏、且**没有变出工具**。
+         */
+        TOOL_REFUSAL
     }
 
     /**
@@ -109,7 +114,10 @@ public final class MineRegressionTask implements Task {
             new CaseDef("exec_floating", "floating_course", FLOAT_START, FLOAT_TARGET,
                     Kind.EXECUTE, List.of(), 1, Items.COBBLESTONE, true, true, 1),
             new CaseDef("exec_chain", "chain_mine_course", CHAIN_START, CHAIN_TARGET,
-                    Kind.CHAIN, List.of(), 9, Items.RAW_IRON, true, false, 9));
+                    Kind.CHAIN, List.of(), 9, Items.RAW_IRON, true, false, 9),
+            // D-119 负例：同一格圆石，但**清空背包**后开工 —— 必须如实失败、不破坏方块、不变出工具
+            new CaseDef("no_tool_refuses", "mine_course", MINE_START, new BlockPos(23, 64, 140),
+                    Kind.TOOL_REFUSAL, List.of(), 0, Items.COBBLESTONE, true, false, 0));
 
     /** 单用例预算与任务总预算（tick）。 */
     private static final int CASE_BUDGET_TICKS = 320;
@@ -186,7 +194,12 @@ public final class MineRegressionTask implements Task {
             MiningBudget budget = MiningBudget.forTarget(bot, bot.serverLevel(), current.target(), true);
             // D-119：**工具必须在构造 MineTask 之前到手** —— 生产 MineTask 不再兜底发工具，
             // 构造时就做只读工具判定（挖石头/圆石没有正确工具会如实失败 `no_suitable_tool`）。
-            com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
+            if (current.kind() == Kind.TOOL_REFUSAL) {
+                // 负例：清空背包（走夹具唯一写入点，D-110）⇒ 没有镐 ⇒ 必须被如实拒绝
+                com.dddgn.alice.item.FixtureToolKit.resetInventory(bot);
+            } else {
+                com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
+            }
             // D-112：本自检就是"会话所有者" → 断言"用完即拆"
             mineTask = new MineTask(bot, current.target(), scope, budget,
                     com.dddgn.alice.task.mining.MiningProfile.TUNNEL_ALLOWED.withRestore(),
@@ -208,6 +221,27 @@ public final class MineRegressionTask implements Task {
         Status status = mineTask.tick();
         if (status == Status.RUNNING) {
             return Status.RUNNING;
+        }
+        if (current.kind() == Kind.TOOL_REFUSAL) {
+            // D-119 负例断言：如实失败 + 目标未动 + **没有变出工具**
+            boolean refused = status == Status.FAILED
+                    && "no_suitable_tool".equals(mineTask.failureReason());
+            boolean targetKept = !bot.serverLevel().getBlockState(current.target()).isAir();
+            boolean toolNotGiven = !com.dddgn.alice.action.BlockInteraction
+                    .hasCorrectTool(bot, current.target());
+            boolean noToolAnywhere = !bot.getInventory().contains(
+                    new ItemStack(Items.DIAMOND_PICKAXE));
+            boolean pass = refused && targetKept && toolNotGiven && noToolAnywhere;
+            record(current, pass, "status=" + status
+                    + "/reason=" + (mineTask.failureReason().isEmpty() ? "-" : mineTask.failureReason())
+                    + "/targetKept=" + targetKept
+                    + "/toolNotGiven=" + toolNotGiven
+                    + "/noToolFabricated=" + noToolAnywhere
+                    + "/ticks=" + caseTicks);
+            // 复原：后续用例照常（发回工具）
+            com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
+            finishCase();
+            return index >= CASES.size() ? finish() : Status.RUNNING;
         }
         int collected = mineTask.collectedItems();
         boolean targetGone = bot.serverLevel().getBlockState(current.target()).isAir();
