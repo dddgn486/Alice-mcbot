@@ -92,6 +92,46 @@ public final class ScopeBuffer {
     }
 
     /**
+     * **收养**当前已经躺在世界里的掉落物（D-108）：把它们纳入本作用域的登记表，使其重新成为
+     * `liveDrops()` 的候选。
+     *
+     * <p>为什么需要：{@link #begin} 会先 {@link #end}，而 `end()` 会清空 {@code spawnedItems} /
+     * {@code itemOrigins}。于是"**先登记过、随后作用域被重开**"的掉落物**会丢失归属**——即使它
+     * 还好端端躺在地上。实测（J7 Step 1，2026-09-11 19:54）：拆除任务重开作用域后，
+     * 高处作业掉落的目标方块 `live_drops=0`，收尾收集**无物可追**，`drops_left=1`（世界事实）。
+     *
+     * <p>正确用法是"**先拆除落地、再收集**"时调用一次：此时 bot 在地面，掉落物就在旁边。
+     * 收养条目的"来源方块"取它**当前所在格**（原始来源已不可考），因此只会被
+     * {@code liveDrops()}（按来源配对）接受，语义仍是"我方掉落物"。
+     *
+     * <p>**调用方负责范围**：本方法把半径内**所有**存活掉落物都收养（无法按主人归属，
+     * 掉落物实体不带"谁挖的"信息），所以只在孤立场景/明确属于我方的区域里用。
+     *
+     * @return 新收养的条目数（已在登记表里的不重复计入）
+     */
+    public int adoptExistingDrops(ServerLevel level, BlockPos center, int radius) {
+        if (!active) {
+            return 0;
+        }
+        spawnedItems.removeIf(item -> !inWorld(item));
+        java.util.Set<java.util.UUID> known = new java.util.HashSet<>();
+        for (ItemEntity item : spawnedItems) {
+            known.add(item.getUUID());
+        }
+        int adopted = 0;
+        for (ItemEntity item : level.getEntitiesOfClass(ItemEntity.class,
+                new net.minecraft.world.phys.AABB(center).inflate(radius))) {
+            if (!inWorld(item) || known.contains(item.getUUID())) {
+                continue;
+            }
+            spawnedItems.add(item);
+            itemOrigins.put(item.getUUID(), item.blockPosition().immutable());
+            adopted++;
+        }
+        return adopted;
+    }
+
+    /**
      * 掉落物是否**真的在世界里**：被其他模组取消的生成不会进入世界，
      * 但实体对象仍满足 {@code isAlive()}，不剔除就会变成永远追不到的幻影
      * （Ore Excavation 连锁期间缓冲掉落物即为此类）。

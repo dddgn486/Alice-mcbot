@@ -2758,3 +2758,38 @@ movements=0 pillar=0/12` → 原地不动。**根因不在夹具几何，而在 
 复用 `CollectDropsTask`（anchor = 落点附近、`worldMod=false`、best-effort），
 断言新增 `collected=N` 与 `drops_left`（**缓冲视图 + 世界事实扫描**：场景包围盒内 item 实体数必须为 0）；
 场景复位加 `kill @e[type=minecraft:item,…]` 清历史残留，保证跨轮可重复。
+
+## D-108 作用域重开会丢失掉落物归属 → `adoptExistingDrops`（2026-09-11）
+
+**用户复测反馈**："这次 bot 也没有去捡掉下去的目标掉落物，是你的夹具设计吧" —— 判断正确，
+但根因在**更底层**：夹具只是踩到了它。
+
+**日志事实（2026-09-11 19:54）**
+```
+作用域捕捉掉落物: cobblestone x40 y70 z46 source=40,70,46      ← 目标掉落物**登记过**
+[Scaffold] collect_start anchor=40,64,46 live_drops=0          ← 收尾时登记表里已空
+[CollectDrops] SUMMARY collected=0/0 entities=0/0 clusters=0
+[Scaffold] SUMMARY … collected=0 drops_left=1 … → FAIL        ← 世界事实断言抓到了（这次运行是 FAIL）
+```
+
+**根因**：`ScopeBuffer.begin(...)` 会先调 `end()`，而 `end()` **清空 `spawnedItems` / `itemOrigins`**
+（原本用意是"避免污染下一个任务的掉落物登记"，合理）。但拆除任务 `RestoreScopeTask`
+**在任务中途重开作用域**（为了登记它自己拆出来的掉落物），于是"**已经登记过、此刻仍躺在世界里**"
+的目标掉落物**丢了归属** → `liveDrops()`（按破坏事件配对）返回空 → 收尾收集无物可追。
+⇒ 这不是夹具独有的问题：**任何"先拆完落地、再收集"的流程都会踩**（J7 Step 2/3 砍高树时会有十几根原木
+掉在地上，必然撞上）。
+
+**修法（opt-in，不改既有语义）**：新增
+`ScopeBuffer.adoptExistingDrops(ServerLevel level, BlockPos center, int radius)`（D-108）——
+把半径内**当前还在世界里**的存活掉落物纳入登记表（来源方块取它当前所在格），返回新收养条目数。
+`begin/end` 的清空语义**保持不变**（不污染下一个任务的判断），收养由调用方在需要时显式做。
+
+**调用方**：`ScaffoldLifecycleTask` 的 COLLECT 阶段 —— `scope.begin(落点, 8)` 后 `adopt` 再收集，
+顺序仍是"**拆完落地 → 再收**"（D-107 附注的规则因此真正可用）。
+**注意**：收养按**范围**生效、无法按"谁挖的"归属（掉落物实体不带该信息），因此只应在
+孤立场景 / 明确属于我方的区域里使用。
+
+**同轮采纳用户建议**：夹具开始时执行 `clear <bot>` —— ①避免 bot 背包爆满；
+②让"一次性方块库存变化（`recovered`）"这类账目干净（历史余料会把账搅浑）。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待复测：预期 `adopted=1`、`collected=1`、`drops_left=0 → PASS`）。

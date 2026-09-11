@@ -141,6 +141,12 @@ public final class ScaffoldLifecycleTask implements Task {
         bot.setDeltaMovement(Vec3.ZERO);
         bot.controller().stopMovement();
         scope.begin(START_FOOT, 24, bot.getUUID());
+        // 夹具职责（用户 2026-09-11 建议）：**先清空背包**再发料 —— ①避免 bot 背包爆满；
+        // ②让"一次性方块库存变化（recovered）"这类账目干净（否则历史余料会把账搅浑）
+        String botName = bot.getName().getString();
+        server.getCommands().performPrefixedCommand(
+                server.createCommandSourceStack().withSuppressedOutput(), "clear " + botName);
+        BotLog.info("[Scaffold] clear_inventory bot={}", botName);
         // 夹具职责：一次性方块（攀爬消耗）+ 石镐（采高处目标）
         com.dddgn.alice.item.FixtureToolKit.ensureHotbarStack(bot,
                 () -> new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.COBBLESTONE),
@@ -280,13 +286,19 @@ public final class ScaffoldLifecycleTask implements Task {
      */
     private Task.Status collect() {
         if (collector == null) {
-            collector = new CollectDropsTask(bot, DROP_ANCHOR, scope, java.util.List.of(), false,
-                    COLLECT_BUDGET_TICKS);
-            BotLog.info("[Scaffold] collect_start anchor={} foot={} live_drops={}"
+            ServerLevel level = bot.serverLevel();
+            // **收养一次**（D-108）：拆除任务重开过作用域，而 ScopeBuffer.begin() 会先 end()
+            // 并清空掉落登记 —— 已经落地、仍在世界里的目标掉落物会因此"失去归属"
+            // （实测 live_drops=0，收尾收集无物可追）。这里的顺序仍是"拆完落地 → 再收"。
+            scope.begin(DROP_ANCHOR, 8, bot.getUUID());
+            int adopted = scope.adoptExistingDrops(level, DROP_ANCHOR, 8);
+            BotLog.info("[Scaffold] collect_start anchor={} foot={} live_drops={} adopted={}"
                             + "（拆完落地后再收）",
                     DROP_ANCHOR.toShortString(),
-                    MovementHelper.footCell(bot.serverLevel(), bot).toShortString(),
-                    scope.liveDrops().size());
+                    MovementHelper.footCell(level, bot).toShortString(),
+                    scope.liveDrops().size(), adopted);
+            collector = new CollectDropsTask(bot, DROP_ANCHOR, scope, java.util.List.of(), false,
+                    COLLECT_BUDGET_TICKS);
             ticks = 0;
             return Task.Status.RUNNING;
         }
