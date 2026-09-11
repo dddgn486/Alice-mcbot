@@ -183,7 +183,9 @@ public final class MineRegressionTask implements Task {
             scope.begin(current.target(), 16, bot.getUUID());
             expectedItem = current.expectedItem();
             MiningBudget budget = MiningBudget.forTarget(bot, bot.serverLevel(), current.target(), true);
+            // D-112：本自检就是"会话所有者" → 断言"用完即拆"
             mineTask = new MineTask(bot, current.target(), scope, budget,
+                    com.dddgn.alice.task.mining.MiningProfile.TUNNEL_ALLOWED.withRestore(),
                     WriteGrant.of(taskName(), WriteReason.EXPECTED_TARGET));
             // **基线必须在 MineTask 构造之后采集**（2026-09-10 修正）：
             // 构造函数里的 "夹具补镐" 会**覆盖选中槽**，若那一槽恰好放着一叠"预期掉落物"
@@ -206,10 +208,14 @@ public final class MineRegressionTask implements Task {
         }
         int collected = mineTask.collectedItems();
         boolean targetGone = bot.serverLevel().getBlockState(current.target()).isAir();
+        // D-112 建拆同权：悬空目标的支撑块**用完即拆**（旧断言"支撑仍在"是改造前的语义）
         boolean supportOk = !current.expectSupport()
-                || com.dddgn.alice.action.BlockInteraction.isSolidForPlacement(
-                        bot.serverLevel(), current.target().below());
-        boolean noDropsLeft = scope.liveDrops().isEmpty();
+                || bot.serverLevel().getBlockState(current.target().below()).isAir();
+        // 掉落物判据改用**世界事实**：拆除阶段会 scope.end()，缓冲视图会变成空集（假通过）
+        int dropsLeft = bot.serverLevel().getEntitiesOfClass(
+                net.minecraft.world.entity.item.ItemEntity.class,
+                new net.minecraft.world.phys.AABB(current.target()).inflate(6)).size();
+        boolean noDropsLeft = dropsLeft == 0;
         int delta = countInInventory(expectedItem) - inventoryBefore;
         boolean countOk = current.exactCollected()
                 ? collected == current.expectedCollected() && delta == current.expectedDelta()
@@ -222,8 +228,8 @@ public final class MineRegressionTask implements Task {
                 + "/inventoryDelta=" + delta
                 + (current.expectedDelta() != current.expectedCollected()
                         ? "(期望" + current.expectedDelta() + ")" : "")
-                + "/dropsLeft=" + scope.liveDrops().size()
-                + (current.expectSupport() ? "/supportPlaced=" + supportOk : "")
+                + "/dropsLeft=" + dropsLeft
+                + (current.expectSupport() ? "/supportRestored=" + supportOk : "")
                 + "/ticks=" + caseTicks
                 + (status == Status.DONE ? "" : "/reason=" + mineTask.failureReason()));
         finishCase();

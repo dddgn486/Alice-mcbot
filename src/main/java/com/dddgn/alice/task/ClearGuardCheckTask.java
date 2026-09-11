@@ -97,6 +97,7 @@ public final class ClearGuardCheckTask implements Task {
         BotLog.info("[ClearGuard] 场景就位 start={} target={} containers={}",
                 START_FOOT.toShortString(), TARGET.toShortString(), CONTAINERS);
         miner = new MineTask(bot, TARGET, scope, MiningBudget.forTarget(bot, level, TARGET, true),
+                com.dddgn.alice.task.mining.MiningProfile.TUNNEL_ALLOWED.withRestore(),
                 WriteGrant.of(taskName(), WriteReason.EXPECTED_TARGET));
         phase = Phase.MINE;
         return Task.Status.RUNNING;

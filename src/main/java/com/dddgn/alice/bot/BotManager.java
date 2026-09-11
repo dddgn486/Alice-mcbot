@@ -977,7 +977,11 @@ public final class BotManager {
                     // D-074：半径 16 覆盖连锁挖掘；只把 bot 自己造成的破坏登记为掉落来源
                     scope.begin(newTarget.blockPos(), 16, bot.getUUID());
                     // 单目标默认只走真实可通行曲面的 A*；通道规划后续仅在曲面不可达时显式接入。
+                    // D-112：这是顶层"会话所有者"（一条 /alice mine 指令 = 一次使用会话）→ 用完即拆
                     beginTask(new MineTask(bot, newTarget.blockPos(), scope,
+                            com.dddgn.alice.task.mining.MiningBudget
+                                    .forTarget(bot, bot.serverLevel(), newTarget.blockPos(), true),
+                            com.dddgn.alice.task.mining.MiningProfile.TUNNEL_ALLOWED.withRestore(),
                             com.dddgn.alice.action.WriteGrant.of("command",
                                     com.dddgn.alice.action.WriteReason.EXPECTED_TARGET)), newTarget);
                 }

@@ -41,7 +41,7 @@ public final class MineTask implements Task {
      * 阶段（D-111 切片 A 起含**加高**）：
      * `EVALUATING →（规划失败且 profile 允许时）GAIN_CLEAR / GAIN → EVALUATING` … `MINING → CHAIN → COLLECTING`。
      */
-    private enum Phase { EVALUATING, GAIN_CLEAR, GAIN, MINING, CHAIN, COLLECTING }
+    private enum Phase { EVALUATING, GAIN_CLEAR, GAIN, MINING, CHAIN, COLLECTING, RESTORE }
 
     /** 视线失败等可重试情形最多重试 2 次（D-067 Q5）。 */
     private static final int MAX_RECOVERY_ATTEMPTS = 2;
@@ -58,6 +58,12 @@ public final class MineTask implements Task {
     /** **能力信封**（D-111）：允许什么手段 + 各自预算；由 L3 构造、本层只读。 */
     private final MiningProfile profile;
     private int gainSteps;
+    /** 建拆同权（D-112）：会话内自上而下拆除本任务放的临时方块。 */
+    private RestoreScopeTask restoreTask;
+    private int restoredBlocks;
+    private int restorePendingBefore;
+    /** 没拆干净的数量（如实上报，不静默）。 */
+    private int scaffoldLeft;
     private PathRetryRunner gainRunner;
     private MineTask gainClearer;
     /** 世界写入授权（D-082）。 */
@@ -231,12 +237,16 @@ public final class MineTask implements Task {
             return tickChain();
         }
 
+        if (phase == Phase.RESTORE) {
+            return tickRestore();
+        }
         if (phase == Phase.COLLECTING) {
             Status status = collector.tick();
             if (status == Status.FAILED) {
                 failureReason = collector.failureReason();
+                return status;
             }
-            return status;
+            return status == Status.DONE ? enterRestoreOrDone() : status;
         }
 
         MineBlockRunner.Status status = miner.tick();
@@ -271,12 +281,75 @@ public final class MineTask implements Task {
         return escalateFailure(report);
     }
 
+    // ==================== D-112：建拆同权（会话内自上而下拆我方临时方块） ====================
+
+    /**
+     * 目标已挖完（掉落物也收完）→ 若 profile 要求**建拆同权**，先把自己放的临时方块拆掉再结束。
+     *
+     * <p>为什么必须在这个时刻：这些方块（悬空目标下方的支撑块、接近路上的台阶、原地加高的柱子）
+     * 只有在"人还在上面"时才够得到。§12.3 的生命周期：**用 → 仍在架上自上而下拆 → 才允许离开**。
+     * 复用 {@link RestoreScopeTask}（自上而下 / 只拆账本内我方 TEMP / `placedState` 不匹配即跳过 /
+     * 侧拆兜底 / 收尾材料回收）。
+     *
+     * <p>**嵌套子任务必须保持 {@code restoreOwnPlacements=false}**：否则它会拆掉会话所有者还要用的
+     * 脚手架（例如伐木的加高柱）。
+     */
+    private Status enterRestoreOrDone() {
+        if (!profile.restoreOwnPlacements()) {
+            return Status.DONE;
+        }
+        String scopeId = com.dddgn.alice.ledger.WorldModLedger
+                .currentScope(bot.getServer(), bot.getUUID());
+        int pending = scopeId == null ? 0
+                : com.dddgn.alice.ledger.WorldModLedger
+                        .pendingTemporary(bot.getServer(), scopeId).size();
+        if (pending == 0) {
+            return Status.DONE;
+        }
+        if (!(bot instanceof com.dddgn.alice.bot.BotPlayer botPlayer)) {
+            throw new IllegalStateException("MineTask requires BotPlayer");
+        }
+        restorePendingBefore = pending;
+        BotLog.info("[MineTask] restore_start target={} pending={} scope={}（用完即拆）",
+                target.toShortString(), pending, scopeId);
+        restoreTask = new RestoreScopeTask(botPlayer, scope, scopeId);
+        phase = Phase.RESTORE;
+        return Status.RUNNING;
+    }
+
+    private Status tickRestore() {
+        Status status = restoreTask.tick();
+        if (status == Status.RUNNING) {
+            return Status.RUNNING;
+        }
+        String scopeId = com.dddgn.alice.ledger.WorldModLedger
+                .currentScope(bot.getServer(), bot.getUUID());
+        scaffoldLeft = scopeId == null ? 0
+                : com.dddgn.alice.ledger.WorldModLedger
+                        .pendingTemporary(bot.getServer(), scopeId).size();
+        restoredBlocks = Math.max(0, restorePendingBefore - scaffoldLeft);
+        BotLog.info("[MineTask] restore_end target={} status={} restored={} remaining={}",
+                target.toShortString(), status, restoredBlocks, scaffoldLeft);
+        restoreTask = null;
+        return Status.DONE;
+    }
+
+    /** 本任务拆除的我方临时方块数（诊断用）。 */
+    public int restoredBlocks() {
+        return restoredBlocks;
+    }
+
+    /** 本任务结束时仍未拆除的数量（如实上报）。 */
+    public int scaffoldLeft() {
+        return scaffoldLeft;
+    }
+
     /** 破坏阶段结束（或连锁完成）→ 进入收集阶段。 */
     private Status enterCollection() {
         if (!budget.collectDrops()) {
             BotLog.info("[MineTask] collect_skipped target={} reason=collectDrops=false",
                     target.toShortString());
-            return Status.DONE;
+            return enterRestoreOrDone();
         }
         phase = Phase.COLLECTING;
         if (!(bot instanceof com.dddgn.alice.bot.BotPlayer botPlayer)) {

@@ -165,8 +165,10 @@ public final class MineJob implements Job {
                 "block=" + selection.picked().feature("block")
                         + " d=" + selection.picked().feature("d")
                         + " target " + (minedCount + 1) + "/" + spec.quota());
+        // D-112 建拆同权：本 Job 是"会话所有者"，每个目标用完就把它自己放的临时方块拆掉
         miner = new MineTask(bot, current, scope,
                 MiningBudget.forTarget(bot, level, current, true),
+                com.dddgn.alice.task.mining.MiningProfile.TUNNEL_ALLOWED.withRestore(),
                 WriteGrant.of(jobName(), WriteReason.EXPECTED_TARGET));
         phase = Phase.MINE;
         return Task.Status.RUNNING;

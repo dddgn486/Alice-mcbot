@@ -2940,3 +2940,36 @@ movements=0 pillar=0/12` → 原地不动。**根因不在夹具几何，而在 
 `alice:scaffold_check`（多步 climb 不受影响）。
 
 **验证等级**：IMPLEMENTED / COMPILES（客户端待复测）。
+
+## D-112 建拆同权补上挖掘路径：`MiningProfile.restoreOwnPlacements`（2026-09-11）
+
+**触发**（客户端日志，非本次改动引入）：一次 `mine_regression` 之后
+```
+world_mod_ledger_close scope=…:MineRegressionTask 仍有 1 条我方临时放置未拆除（建拆同权未闭合）
+```
+即 **mine 路径从未拆掉自己放的临时方块**（悬空目标下方的 `SUPPORT_PLACEMENT`、接近路上的
+`STEP_PLACEMENT`）。伐木侧已经闭合（每棵树 ② RESTORE ✓），挖掘侧还漏着。
+
+**归属原则（本决策最关键的一点）**：`restoreOwnPlacements` **只能由"会话所有者"开启**。
+嵌套子任务必须保持 `false`，否则子任务会拆掉所有者还要用的脚手架——两个具体反例：
+- 伐木的清障/目标挖掘子任务若开启，会把 **Job 的加高柱**拆掉（人还在上面 ✗）；
+- `ScaffoldLifecycleTask` 的挖掘阶段若开启，会把**爬升立柱**提前拆掉（`on_top_at_teardown` 前提被破坏 ✗）。
+
+**时机（§12.3）**：目标挖完、掉落物收完 → **仍在架上**即刻自上而下拆 → 才允许离开；
+复用 `RestoreScopeTask`（自上而下 / 只拆账本内我方 TEMP / `placedState` 不匹配即跳过 / 侧拆兜底 /
+收尾材料回收）。拆不完 → `scaffoldLeft` 如实上报（不静默）。
+
+**开启点**：`MineJob`（每个目标一次）、`MineRegressionTask`、`/alice mine` 命令路径、
+`ClearGuardCheckTask`（J6-b2 夹具）。
+**刻意不开启**：伐木的清障与目标挖掘（Job 的 ② 负责）、`RestoreScopeTask` 自身的挖掘（它就是拆除）、
+`ScaffoldLifecycleTask` 的挖掘（夹具自己的 ② 负责）、`RoadBuildTask`（可能跨步骤依赖 TEMP 台阶，
+待单独评估）。
+
+**夹具断言随之更新（这是语义变化）**：`mine_regression` 的悬空目标用例从"**支撑块仍在**"
+（改造前的语义）改为"**用完即拆**（支撑格恢复为空气）"；掉落物判据从 `scope.liveDrops()` 改为
+**世界事实扫描**（拆除阶段会 `ScopeBuffer.end()` 清空缓冲，缓冲视图会变成空集 → 假通过）。
+
+**验证入口**：`alice:mine_regression`（10 项 + 残留警告消失）、`alice:mine_job`、
+回归 `alice:lumber_job` / `alice:lumber_failure_check`（嵌套路径不受影响）、`alice:clear_guard_check`。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待验）。

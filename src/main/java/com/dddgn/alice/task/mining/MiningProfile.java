@@ -17,20 +17,25 @@ package com.dddgn.alice.task.mining;
  * <p>**默认即现状**：{@link #STANDABLE_ONLY} 与 {@link #TUNNEL_ALLOWED} 精确对应旧的两个布尔取值，
  * 因此既有调用点在改造后行为不变。
  *
- * @param standableOnly    true = 只用现成可站站位（禁止规划器自己挖隧道/挖地进站）
- * @param maxGainSteps     允许"原地加高"几次（0 = 不允许；每步 1 个方块）
- * @param gainBlockBudget  加高最多消耗几个一次性方块
+ * @param standableOnly          true = 只用现成可站站位（禁止规划器自己挖隧道/挖地进站）
+ * @param maxGainSteps           允许"原地加高"几次（0 = 不允许；每步 1 个方块）
+ * @param gainBlockBudget        加高最多消耗几个一次性方块
+ * @param restoreOwnPlacements   **建拆同权**（D-112）：本任务用完自己放的临时方块后，
+ *                               在**会话内**自上而下拆掉（`RestoreScopeTask`）。
+ *                               嵌套子任务必须为 false —— 否则子任务会把"会话所有者"还要用的
+ *                               脚手架拆掉（例如伐木的加高柱）。
  */
-public record MiningProfile(boolean standableOnly, int maxGainSteps, int gainBlockBudget) {
+public record MiningProfile(boolean standableOnly, int maxGainSteps, int gainBlockBudget,
+                            boolean restoreOwnPlacements) {
 
     /** 加高方块预算默认值（用户 2026-09-11 裁定：12，砍树够用；模组超高树不在范围）。 */
     public static final int DEFAULT_GAIN_BLOCK_BUDGET = 12;
 
     /** 只用现成可站站位、且**不许加高**（伐木 J1–J5 的原行为）。 */
-    public static final MiningProfile STANDABLE_ONLY = new MiningProfile(true, 0, 0);
+    public static final MiningProfile STANDABLE_ONLY = new MiningProfile(true, 0, 0, false);
 
     /** 允许规划器自己挖隧道/挖地进站（挖掘 Job 的原行为）。 */
-    public static final MiningProfile TUNNEL_ALLOWED = new MiningProfile(false, 0, 0);
+    public static final MiningProfile TUNNEL_ALLOWED = new MiningProfile(false, 0, 0, false);
 
     public MiningProfile {
         if (maxGainSteps < 0 || gainBlockBudget < 0) {
@@ -47,7 +52,15 @@ public record MiningProfile(boolean standableOnly, int maxGainSteps, int gainBlo
     }
 
     public MiningProfile withGain(int steps, int blockBudget) {
-        return new MiningProfile(standableOnly, steps, blockBudget);
+        return new MiningProfile(standableOnly, steps, blockBudget, restoreOwnPlacements);
+    }
+
+    /**
+     * **建拆同权**（D-112）：本任务用完自己放的临时方块后，在会话内自上而下拆掉。
+     * 只应由"会话所有者"开启（Job 的每个目标 / standalone MineTask），嵌套子任务保持 false。
+     */
+    public MiningProfile withRestore() {
+        return new MiningProfile(standableOnly, maxGainSteps, gainBlockBudget, true);
     }
 
     /** 是否允许加高。 */
@@ -62,6 +75,7 @@ public record MiningProfile(boolean standableOnly, int maxGainSteps, int gainBlo
 
     public String describe() {
         return "standableOnly=" + standableOnly
-                + (mayGain() ? " gain<=" + maxGainSteps + " blocks<=" + gainBlockBudget : " gain=none");
+                + (mayGain() ? " gain<=" + maxGainSteps + " blocks<=" + gainBlockBudget : " gain=none")
+                + (restoreOwnPlacements ? " restore=own" : "");
     }
 }

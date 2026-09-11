@@ -221,7 +221,8 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
 1. **客户端验收 J7 Step 1（第四次）**：右键 `alice:scaffold_check` —— 生命周期已按用户裁定
    改为**两处扫尾**（① 作业点就地 + ③ 落地后），期望 `sweep_up=1 sweep_ground=… drops_left=0
    stranded=- → PASS`（缺口发生在"够得到的时刻"之前，而不是事后补救）；
-2. **客户端验收 J7 Step 2（D-109）**：右键 `alice:lumber_job`（高树应靠攀爬兜底完成、
+2. **客户端验收 D-112（挖掘侧建拆同权）**：`mine_regression`（10 项 + 残留警告消失）+ `mine_job`；
+3. **（历史）J7 Step 2（D-109）**：右键 `alice:lumber_job`（高树应靠攀爬兜底完成、
    `scaffoldLeft=0`）+ 复跑 `alice:lumber_failure_check`（J4 五条路径）；
 3. **G4 Slice B2（待定口径，无实测需求驱动）**：`MiningBudget.maxExtraBreakTicks` 升级为尝试级 tick 预算；
 2. **J7 攀爬**（第一处真正需要脚手架放置的 Job，将首次实检建拆同权）→ **J8 MAINTAIN 区域型**。
