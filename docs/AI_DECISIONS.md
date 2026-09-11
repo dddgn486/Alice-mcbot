@@ -3085,3 +3085,21 @@ run A 只是掉落物恰好没滑进井里 —— **不稳定场景**，不是�
 - 明细行新增 `/ledgerRestored=N/scaffoldLeft=M` 供判读。
 
 **验证等级**：IMPLEMENTED / COMPILES（客户端待验）。
+
+### D-112 / D-114 客户端验收（2026-09-11 21:36，用户"测试通过了，顺便做了其他几个回归"）
+
+| 夹具 | 结果 |
+|---|---|
+| `alice:mine_regression` | **10/10 PASS**（`ticks=178`）；`exec_floating=PASS status=DONE/targetGone=true/collected=1/1/inventoryDelta=1/dropsLeft=0/supportRestored=true/**ledgerRestored=1/scaffoldLeft=0**` |
+| `alice:lumber_failure_check` | **5/5 PASS**（`no_candidates`/`all_rejected`/`inventory_full`/`goal_timeout(41 tick)`/`log_replaced(仍为圆石=true)`） |
+| `alice:mine_job`（`ore_course`） | `MineJob … terminal=COMPLETED code=done`（239 tick）；`WriteBudget SUMMARY … breaks=4/64 places=0/32` |
+| `/function alice_test:lumber_course` → `alice:lumber_job` | `[Job] lumber SUMMARY gainedTrees=1 gainedBlocks=1 scaffoldLeft=0`（高树靠**L2 的原地加高**完成 ✓） |
+| **残留类告警** | `仍有 N 条我方临时放置未拆除` = **0**、`仍有 X 个掉落物没收回` = **0** ✓（D-112 建拆同权在挖掘路径上闭合 ✓） |
+| `alice:pathing_regression` | 本轮**未跑**（不冒认） |
+
+**两条额外证据（写进记录，避免以后又走回头路）**
+1. `exec_floating` 的 `inventoryDelta` 在本轮是 **1**，而上一轮是 **2** ⇒ **精确净增量确实不是不变量** ✓
+   —— D-114 附注里"改判账本事实 + 下界"的决定因此被实测证实 ✓。
+2. **`[CollectDrops] goal_shift item=… itemPos=28,70,207 goal=27,69,207`** 在**伐木**路径上真实触发了一次 ✓
+   —— 高树顶端原木的掉落物停在树冠里"站不住的格"，D-114 把寻路目标改到旁边**可站格**后收回 ✓✓
+   （这正是它设计要解决的那一类；不是只在夹具里生效 ✓）。
