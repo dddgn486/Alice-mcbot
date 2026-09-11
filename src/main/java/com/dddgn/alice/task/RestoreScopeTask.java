@@ -155,6 +155,7 @@ public final class RestoreScopeTask implements Task {
     private void buildQueue() {
         queueBuilt = true;
         ServerLevel level = bot.serverLevel();
+        WorldModLedger.dropStale(level);   // 先把"现场已不是我方方块"的幽灵条目销掉
         List<BlockPos> positions = new ArrayList<>();
         for (WorldModLedger.Entry entry : WorldModLedger.pendingTemporary(level.getServer(), scopeId)) {
             positions.add(entry.pos());
@@ -339,8 +340,12 @@ public final class RestoreScopeTask implements Task {
      * 且 `standableOnly=true`——**恢复一律不许挖地形**。
      */
     private Task.Status startSideBreak() {
+        // `collectDrops=false`（**关键**）：它同时关掉"悬空目标先在下方放支撑块"——
+        // 于是恢复**不需要任何材料**。实测反例：桥面方块是悬空的 → MineTask 要放支撑 →
+        // `PLACE_RESOURCE_UNAVAILABLE`（bot 刚把方块全用掉，正在等着被收回）→ 鸡生蛋。
+        // 材料回收由本任务收尾的那次 `CollectDropsTask` 负责（J6-b1b），不靠挖掘支撑块。
         miner = new MineTask(bot, current, scope,
-                MiningBudget.forTarget(bot, bot.serverLevel(), current, true),
+                MiningBudget.forTarget(bot, bot.serverLevel(), current, false),
                 true,
                 WriteGrant.of(taskName(), WriteReason.SCAFFOLD_RESTORE));
         return Task.Status.RUNNING;

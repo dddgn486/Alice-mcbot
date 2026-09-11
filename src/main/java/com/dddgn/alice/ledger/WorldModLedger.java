@@ -119,6 +119,42 @@ public final class WorldModLedger extends SavedData {
         BotLog.info("[Ledger] place {} by={}", entry.describe(), grant.describe());
     }
 
+    /**
+     * **销掉幽灵条目**：现场已不是账本记录的方块（场景重放清掉、别人拆掉、我方已拆都算）。
+     *
+     * <p>为什么需要：`not_ours` 判定原来只在恢复任务**走到**那一格时才执行——
+     * 而测试夹具的场景重放会把方块直接抹掉，条目却留在账本里 ⇒ `pending` 只增不减。
+     * 这里把判定提前到"动作发生的地方"（任务收尾 / 触发恢复前），账本因此保持"活的"。
+     *
+     * <p>**不是静默丢弃**：每条被销掉的都记日志（含账本记录 vs 现场方块）。
+     *
+     * @return 销掉的条数
+     */
+    public static int dropStale(ServerLevel level) {
+        MinecraftServer server = level.getServer();
+        if (server == null) {
+            return 0;
+        }
+        WorldModLedger ledger = get(server);
+        List<String> dropped = new ArrayList<>();
+        java.util.Iterator<Map.Entry<String, Entry>> it = ledger.entries.entrySet().iterator();
+        while (it.hasNext()) {
+            Entry entry = it.next().getValue();
+            String nowId = blockId(level.getBlockState(entry.pos()));
+            if (!nowId.equals(entry.placed())) {
+                dropped.add(entry.pos().toShortString() + "(" + entry.placed() + "→" + nowId + ")");
+                it.remove();
+            }
+        }
+        if (!dropped.isEmpty()) {
+            ledger.setDirty();
+            BotLog.info("[Ledger] 销掉 {} 条已失效条目（现场已非我方方块）: {}",
+                    dropped.size(), String.join(", ", dropped.size() > 8
+                            ? dropped.subList(0, 8) : dropped));
+        }
+        return dropped.size();
+    }
+
     /** 移除一条记录（该放置已被我方配对拆除）。 */
     public static void forget(ServerLevel level, BlockPos pos) {
         MinecraftServer server = level.getServer();

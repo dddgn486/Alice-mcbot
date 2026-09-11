@@ -532,6 +532,7 @@ public final class BotManager {
     public static boolean assignRestore(BotPlayer bot, ServerPlayer observer, boolean all) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
+        com.dddgn.alice.ledger.WorldModLedger.dropStale(bot.serverLevel());
         var pending = com.dddgn.alice.ledger.WorldModLedger.pendingTemporary(bot.getServer(), null);
         if (pending.isEmpty()) {
             BotLog.info("[Restore] 账本无待恢复项（无需启动）");
@@ -1053,32 +1054,27 @@ public final class BotManager {
         /** 任务收尾:清任务、清作用域、广播清除高亮。 */
         void clearTask() {
             if (task != null) {
-                Task ending = task;
                 String closedScope = com.dddgn.alice.ledger.WorldModLedger.closeScope(
                         bot.getServer(), bot.getUUID());
+                // 账本保持"活的"：现场已不是我方方块的条目就地销掉（场景重放/别人拆掉/我方已拆）
+                com.dddgn.alice.ledger.WorldModLedger.dropStale(bot.serverLevel());
                 var pendingTemp = com.dddgn.alice.ledger.WorldModLedger.pendingTemporary(
                         bot.getServer(), closedScope);
                 scope.end();
                 task = null;
                 target = null;
                 broadcastTarget(null);
-                if (pendingTemp.isEmpty()) {
-                    return;
-                }
-                // **建拆同权（D-081 §12.1）**：任务收尾时该作用域仍有我方**临时**放置 →
-                // **自动追加一个恢复任务**，而不是只留一条警告。这样"建了必须拆"由会话强制，
-                // 不依赖每个 Job 自觉（也覆盖非 Job 的任务，例如寻路回归）。
-                // 恢复任务自身不放置任何东西，故不会自我递归。
-                if (!(ending instanceof com.dddgn.alice.task.RestoreScopeTask)) {
-                    BotLog.warn("world_mod_ledger_close scope={} 仍有 {} 条未清除的放置 → 自动追加恢复任务",
+                if (!pendingTemp.isEmpty()) {
+                    // **只报信号，不自动追任务**（2026-09-11 简化，D-103）：
+                    // 原先在这里自动追加一个"远程恢复任务"，但那时 bot 已经离开脚手架，
+                    // 于是被迫引入"走回去 / 跨场景寻路 / 站位选择 / 侧拆兜底 / 放支撑块"——
+                    // 复杂度与失败几乎都来自这个**错误的位置**（实测：走不到 + 往返跑）。
+                    // 设计文档 §12.3 的原意是"**仍在脚手架上时**自上而下拆除，才允许离开"——
+                    // 那属于**放方块的那个任务**（会话内），将在 J7 攀爬落地时接上。
+                    BotLog.warn("world_mod_ledger_close scope={} 仍有 {} 条我方临时放置未拆除"
+                                    + "（建拆同权未闭合；如需手动清理用 /alice restore）",
                             closedScope, pendingTemp.size());
-                    beginTask(new com.dddgn.alice.task.RestoreScopeTask(bot, scope, closedScope),
-                            TaskTarget.block(pendingTemp.get(0).pos()));
-                    broadcastTarget(target);
-                    return;
                 }
-                BotLog.warn("world_mod_ledger_close scope={} 仍有 {} 条未清除（恢复任务本身未清完）",
-                        closedScope, pendingTemp.size());
             }
         }
 
