@@ -2,6 +2,9 @@ package com.dddgn.alice.task;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.ledger.WorldModLedger;
+import com.dddgn.alice.action.WriteGrant;
+import com.dddgn.alice.action.WriteReason;
+import com.dddgn.alice.task.mining.MiningBudget;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.perception.ScopeBuffer;
@@ -30,6 +33,16 @@ import java.util.List;
  * <p>三条纪律：**严格自上而下**（y 降序）、**只拆自己放的**（拆前比对账本 `placed` 与现场方块，
  * 不匹配即放弃并销账 `not_ours`）、**不许沿途挖地形**（授权集合不含 `BREAK_AND_*`）。
  *
+ * <p>**两条拆除路径（J6-b1c，按块依次尝试）**：
+ * <ol>
+ *   <li>**站上去 → 向下拆**（`APPROACH` + `DESCEND`，`DOWNWARD`）——设计文档 §12.3 的机制，
+ *       适用于**下方有支撑**的垫脚柱；</li>
+ *   <li>**侧拆兜底**（`SIDE_BREAK`，`MineTask` + 明确目标策略）——用于 ① 走不通的情形：
+ *       典型是**悬空的桥面/台阶**（拆掉后 bot 会掉进坑里，内核**正确地**拒绝 `DOWNWARD`：
+ *       `canWalkOn(to)` 要求"目标下方有支撑"），以及"走不到正上方"的情形。</li>
+ * </ol>
+ * 两条路都坚持"**不许挖地形**"（① 用只拆不建的请求，② 用 `standableOnly=true`）。
+ *
  * <p>**物质闭环（J6-b1b）**：拆下来的方块会变成掉落物——所以恢复任务在开始时**重开作用域**
  * （`ScopeBuffer.begin`，否则掉落物不被登记），处理完后**收尾调一次收集**（`CollectDropsTask`），
  * 并在终态日志里如实报出"一次性方块库存的变化"。这样"建拆同权"不只是把方块从世界里拿掉，
@@ -40,12 +53,12 @@ import java.util.List;
 public final class RestoreScopeTask implements Task {
 
     /** 每块预算：两段寻路 + 一次破坏。 */
-    private static final int TICKS_PER_BLOCK = 300;
+    private static final int TICKS_PER_BLOCK = 450;   // 现在单块最多三段：APPROACH + DESCEND + 侧拆
     private static final int BASE_TICKS = 100;
     /** 收尾收集的 tick 预算（与 CollectDropsTask 默认一致）。 */
     private static final int COLLECT_BUDGET_TICKS = 600;
 
-    private enum Stage { APPROACH, DESCEND }
+    private enum Stage { APPROACH, DESCEND, SIDE_BREAK }
 
     private final BotPlayer bot;
     private final ScopeBuffer scope;
@@ -66,6 +79,8 @@ public final class RestoreScopeTask implements Task {
     private BlockPos current;
     private Stage stage = Stage.APPROACH;
     private PathRetryRunner runner;
+    /** 侧拆兜底用的挖掘子任务（第二条路）。 */
+    private MineTask miner;
     /** 收尾收集（J6-b1b）：把拆下来的方块收回背包。 */
     private CollectDropsTask collector;
     private boolean collectStarted;
@@ -125,6 +140,9 @@ public final class RestoreScopeTask implements Task {
         }
         if (collector != null) {
             return tickCollector();
+        }
+        if (miner != null) {
+            return tickMiner();
         }
         if (runner != null) {
             return tickRunner();
@@ -293,14 +311,60 @@ public final class RestoreScopeTask implements Task {
             current = null;
             return Task.Status.RUNNING;
         }
-        // 该段失败 → 如实记账并换下一块（不重试，避免空转）
-        String detail = stage == Stage.APPROACH ? "approach_failed" : "descend_failed";
-        notes.add(current.toShortString() + ":" + detail);
+        // ①/② 走不通 → **退到侧拆兜底**（桥面/台阶这类悬空块，或走不到正上方）
+        if (stage != Stage.SIDE_BREAK) {
+            Stage failed = stage;
+            stage = Stage.SIDE_BREAK;
+            runner = null;
+            BotLog.info("[Restore] {} ：{} 不通 → 改为侧拆兜底（不挖地形）",
+                    current.toShortString(), failed == Stage.APPROACH ? "走上正上方" : "向下拆");
+            return startSideBreak();
+        }
+        // ③ 侧拆也失败 → 如实记账并换下一块（不重试，避免空转）
+        notes.add(current.toShortString() + ":" + (stage == Stage.APPROACH ? "approach_failed"
+                : stage == Stage.DESCEND ? "descend_failed" : "side_break_failed"));
         skipped++;
         BotLog.warn("[Restore] 恢复失败 {} stage={}（不挖地形，如实记录）",
                 current.toShortString(), stage);
         runner = null;
         current = null;
+        return Task.Status.RUNNING;
+    }
+
+    /**
+     * 第二条路：侧拆兜底。
+     *
+     * <p>用 {@link MineTask}（走位 → 视线 → 触及 → 破坏）+ **明确目标策略**
+     * （`SCAFFOLD_RESTORE`：目标是"我方放置的方块"，需要允许拆脚下那格；清障策略会拒 `underfoot_block`），
+     * 且 `standableOnly=true`——**恢复一律不许挖地形**。
+     */
+    private Task.Status startSideBreak() {
+        miner = new MineTask(bot, current, scope,
+                MiningBudget.forTarget(bot, bot.serverLevel(), current, true),
+                true,
+                WriteGrant.of(taskName(), WriteReason.SCAFFOLD_RESTORE));
+        return Task.Status.RUNNING;
+    }
+
+    private Task.Status tickMiner() {
+        Task.Status status = miner.tick();
+        if (status == Task.Status.RUNNING) {
+            return Task.Status.RUNNING;
+        }
+        BlockPos pos = current;
+        miner = null;
+        current = null;
+        if (status == Task.Status.DONE) {
+            WorldModLedger.forget(bot.serverLevel(), pos);
+            restored++;
+            if (firstRestored == null) {
+                firstRestored = pos;
+            }
+            return Task.Status.RUNNING;
+        }
+        notes.add(pos.toShortString() + ":side_break_failed");
+        skipped++;
+        BotLog.warn("[Restore] 侧拆兜底也失败 {}（不挖地形，如实记录）", pos.toShortString());
         return Task.Status.RUNNING;
     }
 

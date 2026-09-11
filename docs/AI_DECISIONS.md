@@ -2447,3 +2447,34 @@ DOWNWARD 机制（D-098 附注）本身仍未被证伪，只是尚未被走到�
 任务收尾自动追加的恢复任务**必然走不到**它们 ⇒ 每轮回归都会留下 `pending`（账本只增不减）。
 这是"夹具几何"与"建拆同权"的冲突，需要单独处理（可选方向：夹具在自己的场景内自行清理 /
 给恢复任务一个"仅限本场景"的范围参数 / 让夹具把 bot 传送到每个块附近）。
+
+---
+
+## D-102 J6-b1c：恢复加**侧拆兜底**——两条拆除路径（2026-09-11）
+
+**上一轮的诊断（切中机制本身）**：`restore_check` 把 bot 送到待恢复方块正上方后，
+APPROACH 成功（`movements=0`），但 **DESCEND 失败**：
+```
+[PathingStats] status=UNREACHABLE goal=2,63,66
+[PathRetry]    plan_failed feet=2,64,66 goal=2,63,66
+```
+读 `SurfaceMovementProvider.appendDownward`（`:243-247`）：`DOWNWARD` 要求
+`canWalkOn(level, to)`——即**目标格的下方必须有支撑**。而 `(2,63,66)` 是 `place_course` 里
+**跨坑的桥面方块**（下面是坑）⇒ 生成不出 `DOWNWARD` ⇒ `UNREACHABLE`。
+**内核是对的**：拆掉桥面后 bot 会掉进坑里、没有落点，拒绝下降是正确的安全行为。
+
+**结论**：设计文档 §12.3 的"挖脚下 → DOWNWARD"机制**只覆盖"下方有支撑"的垫脚柱**；
+悬空的桥面/台阶需要**从侧面拆**。于是恢复任务改为**两条路径按块依次尝试**：
+
+| 路径 | 适用 | 授权 |
+|---|---|---|
+| ① APPROACH + DESCEND（`DOWNWARD`） | 垫脚柱（下方有支撑） | `PathRequest.scaffoldRemoval`（只拆不建、只允许向下拆脚） |
+| ② **SIDE_BREAK 兜底**（`MineTask`） | 悬空桥面/台阶、或走不到正上方 | `WriteReason.SCAFFOLD_RESTORE`（明确目标策略——清障策略会拒 `underfoot_block`）+ `standableOnly=true` |
+
+两条路都坚持"**恢复一律不许挖地形**"；单块预算从 300 提到 450 tick（最多三段）。
+
+**验收**：`restore_check` 右键后，**同一个场景内**的桥面方块应被侧拆并销账
+（`restored≥1 recovered≥1`，`/alice ledger` 的 `pending` 相应下降）；
+跨场景的（孤立区域走不到）仍如实 `approach_failed`，任务终态为 `restore_partial`（如实失败）。
+
+**验证等级**：COMPILES。
