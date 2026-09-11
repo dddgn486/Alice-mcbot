@@ -1,6 +1,11 @@
 # 复制自真实存档的橡树（原树 20,64,208，按方块原样平移）——J2/J3 配额与策略分歧目标
 # 形状非手搓：trunk + canopy 全部来自 capture-scene.py 抓取的真实树
-# 三棵同型橡树 ⇒ 累计清障 9 格 > MAX_CLEAR_PER_TREE(8)，可真正检验按棵预算重置（D-085③）
+# 四棵同型橡树 ⇒ 累计清障 > MAX_CLEAR_PER_TREE(8)，可真正检验按棵预算重置（D-085③）
+# ⚠ **通道红线（2026-09-11，F4 根因）**：这一排树冠在 y=65 的 z=212..214 连成 x=17..31 的墙，
+#   而可行走台地只有 x=18..30（terrain: `fill 18 59 204 30 62 230`）⇒ **x=22 是全墙唯一 2 格高通道**
+#   （工作基线 2026-09-10 21:25 的路线：北上 z=205 → 东到 x=22 → 南下穿墙）。4 号橡树的树叶
+#   **禁止占用 x=22 列**，否则通道封死 ⇒ bot 到不了南侧站位，19/24 两棵树全部
+#   `no_valid_standing_point` / `no_reachable_standing_point`（09-10 21:28 起每轮实测如此）。
 # --- 橡树#1 基座 19,64,213（距起点 7.2）---
 setblock 19 64 213 minecraft:oak_log[axis=y]
 setblock 17 65 212 minecraft:oak_leaves[distance=3,persistent=false,waterlogged=false]
@@ -126,10 +131,8 @@ setblock 29 68 213 minecraft:oak_leaves[distance=1,persistent=false,waterlogged=
 setblock 29 68 214 minecraft:oak_leaves[distance=2,persistent=false,waterlogged=false]
 setblock 30 68 213 minecraft:oak_leaves[distance=2,persistent=false,waterlogged=false]
 # --- 橡树#4 基座 24,64,213（距起点 6.1）——让累计清障跨过 8 格门槛 ---
+# （树冠整体东移一列：x=23..26；x=22 是唯一通道，见文件头"通道红线"，绝不占用）
 setblock 24 64 213 minecraft:oak_log[axis=y]
-setblock 22 65 212 minecraft:oak_leaves[distance=3,persistent=false,waterlogged=false]
-setblock 22 65 213 minecraft:oak_leaves[distance=2,persistent=false,waterlogged=false]
-setblock 22 65 214 minecraft:oak_leaves[distance=3,persistent=false,waterlogged=false]
 setblock 23 65 211 minecraft:oak_leaves[distance=3,persistent=false,waterlogged=false]
 setblock 23 65 212 minecraft:oak_leaves[distance=2,persistent=false,waterlogged=false]
 setblock 23 65 213 minecraft:oak_leaves[distance=1,persistent=false,waterlogged=false]
@@ -150,10 +153,6 @@ setblock 26 65 212 minecraft:oak_leaves[distance=3,persistent=false,waterlogged=
 setblock 26 65 213 minecraft:oak_leaves[distance=2,persistent=false,waterlogged=false]
 setblock 26 65 214 minecraft:oak_leaves[distance=3,persistent=false,waterlogged=false]
 setblock 26 65 215 minecraft:oak_leaves[distance=4,persistent=false,waterlogged=false]
-setblock 22 66 211 minecraft:oak_leaves[distance=4,persistent=false,waterlogged=false]
-setblock 22 66 212 minecraft:oak_leaves[distance=3,persistent=false,waterlogged=false]
-setblock 22 66 213 minecraft:oak_leaves[distance=2,persistent=false,waterlogged=false]
-setblock 22 66 214 minecraft:oak_leaves[distance=3,persistent=false,waterlogged=false]
 setblock 23 66 211 minecraft:oak_leaves[distance=3,persistent=false,waterlogged=false]
 setblock 23 66 212 minecraft:oak_leaves[distance=2,persistent=false,waterlogged=false]
 setblock 23 66 213 minecraft:oak_leaves[distance=1,persistent=false,waterlogged=false]
