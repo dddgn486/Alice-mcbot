@@ -119,6 +119,8 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 
 | J6-b1b 恢复自检（夹具负责传送） | `/give @s alice:restore_check` → 右键 | 物品右键（零参数） | 场景相互孤立，恢复任务走不过去 → 夹具把 bot 送到待恢复方块旁的可站格 | `待测`（预期 `[Restore] … restored≥1 recovered≥1`；跨场景的仍如实 `approach_failed`） |
 
+| J6-b2 容器绕行自检（D-095 断言） | `/function alice_test:clear_guard_course` → 右键 `alice:clear_guard_check` | 物品右键（零参数） | 目标在墙后、唯一通道被箱子堵住；跑真实 `MineTask` 后断言箱子完好 | `待测`（预期 `predicate_refuses=true chest_intact=true → PASS`） |
+
 ## 性能验证
 
 | 能力 | 测试入口 | 关键观察 | 当前状态 |

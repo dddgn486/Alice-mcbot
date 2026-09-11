@@ -2513,3 +2513,25 @@ APPROACH 成功（`movements=0`），但 **DESCEND 失败**：
 
 **验证等级**：COMPILES。验收：`pathing_regression` 跑完**不再自动追加恢复任务**（日志只有一条
 未闭合信号），随后 `/alice ledger` 的 `pending` 因 GC 而**自动下降**（场景重放抹掉的条目被销账）。
+
+---
+
+## D-104 J6-b2：容器绕行自检——"不为取目标而拆箱子"（2026-09-11）
+
+**目的**：把 D-095 那条规则（含方块实体的方块从"可破坏集合"里剔除 ⇒ 规划器自然绕开）
+从"代码推断"变成**可实测的断言**。
+
+**场景 `clear_guard_course`**（isolated 长方体区域，x40..62 / y58..78 / z150..170）：
+平台 y=63；一道横墙（x=50，y64..67，够高防跳越），**唯一缺口 (50,64,158) 用箱子堵住**；
+目标石头在墙另一侧 (56,64,158) 附近；bot 起点 (44,64,158)。
+⇒ 想拿到目标，**要么绕路、要么拆箱子** —— 正是要检验的抉择点。
+
+**自检 `alice:clear_guard_check`（零参数右键）跑一次真实 `MineTask`，断言三件事**：
+1. **谓词层**：`BlockInteraction.breakable(chest, PATH_ACCESS)` 必须为 `false`
+   （含方块实体不得作为"通行破坏"对象）；
+2. **执行层**：跑完之后**箱子仍在**（`chest_intact=true`）——bot 没有为取目标而拆它；
+3. **诚实性**：`target_removed` 只作参考、**不作判据**——绕路成功或如实失败**都算 PASS**，
+   本自检只要求"**不伤害非目标容器**"。
+输出：`[ClearGuard] SUMMARY predicate_refuses=? chest_intact=? target_removed=? → PASS|FAIL`。
+
+**验证等级**：COMPILES。验收：右键 `alice:clear_guard_check` → `→ PASS`（箱子完好）。

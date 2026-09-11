@@ -545,6 +545,16 @@ public final class BotManager {
         return true;
     }
 
+    /** J6-b2：容器绕行自检（断言 bot 不为取目标而拆箱子，D-095）。 */
+    public static boolean assignClearGuardCheck(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        session.beginTask(new com.dddgn.alice.task.ClearGuardCheckTask(bot, session.scope()),
+                TaskTarget.block(com.dddgn.alice.task.ClearGuardCheckTask.START_FOOT));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     /** 伐木失败语义自检（切片 J4）：五条终止路径各一个用例。 */
     public static boolean assignLumberFailureCheck(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());

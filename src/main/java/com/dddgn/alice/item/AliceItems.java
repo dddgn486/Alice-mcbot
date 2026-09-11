@@ -129,6 +129,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> LUMBER_POLICY_CHECK =
             ITEMS.register("lumber_policy_check", () -> new LumberPolicyCheckItem(new Item.Properties()));
 
+    /** J6-b2 容器绕行自检（零参数）：断言 bot 不为取目标而拆箱子（D-095）。 */
+    public static final RegistryObject<Item> CLEAR_GUARD_CHECK =
+            ITEMS.register("clear_guard_check", () -> new ClearGuardCheckItem(new Item.Properties()));
+
     /** J6-b1b 恢复自检（零参数）：把 bot 送到待恢复方块旁再跑恢复任务。 */
     public static final RegistryObject<Item> RESTORE_CHECK =
             ITEMS.register("restore_check", () -> new RestoreCheckItem(new Item.Properties()));
