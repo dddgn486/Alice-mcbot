@@ -72,6 +72,13 @@ public final class RestoreScopeTask implements Task {
     private int ticks;
     private int restored;
     private int skipped;
+    /**
+     * 记为"未能恢复"的位置（`skipped` 的明细），收尾用**世界事实**对账：
+     * 现场已无我方方块的那些不算 `remaining`（2026-09-11 修正）。
+     */
+    private final List<BlockPos> unresolved = new ArrayList<>();
+    /** 本次失败是否来自 `skipped`（用于收尾按世界事实改判终态；超时类失败不在此列）。 */
+    private boolean partialBySkipped;
     /** 第一个成功恢复的位置（收尾收集的锚点）。 */
     private BlockPos firstRestored;
     private final List<String> notes = new ArrayList<>();
@@ -230,6 +237,7 @@ public final class RestoreScopeTask implements Task {
                 // **绝不拆不是自己放的方块**：账本记的是 X，现场是别的 → 放弃并销账
                 WorldModLedger.forget(level, pos);
                 skipped++;
+                unresolved.add(pos);
                 notes.add(pos.toShortString() + ":not_ours(" + entry.placed() + "→" + nowId + ")");
                 BotLog.warn("[Restore] 跳过 {}：账本记的是 {}，现场是 {}（非我方放置）",
                         pos.toShortString(), entry.placed(), nowId);
@@ -250,6 +258,7 @@ public final class RestoreScopeTask implements Task {
         }
         if (skipped > 0) {
             failure = "restore_partial skipped=" + skipped;
+            partialBySkipped = true;
             return finish(Task.Status.FAILED);
         }
         return finish(Task.Status.DONE);
@@ -277,6 +286,7 @@ public final class RestoreScopeTask implements Task {
         }
         if (skipped > 0) {
             failure = "restore_partial skipped=" + skipped;
+            partialBySkipped = true;
             return finish(Task.Status.FAILED);
         }
         return finish(Task.Status.DONE);
@@ -325,6 +335,7 @@ public final class RestoreScopeTask implements Task {
         notes.add(current.toShortString() + ":" + (stage == Stage.APPROACH ? "approach_failed"
                 : stage == Stage.DESCEND ? "descend_failed" : "side_break_failed"));
         skipped++;
+        unresolved.add(current);
         BotLog.warn("[Restore] 恢复失败 {} stage={}（不挖地形，如实记录）",
                 current.toShortString(), stage);
         runner = null;
@@ -369,6 +380,7 @@ public final class RestoreScopeTask implements Task {
         }
         notes.add(pos.toShortString() + ":side_break_failed");
         skipped++;
+        unresolved.add(pos);
         BotLog.warn("[Restore] 侧拆兜底也失败 {}（不挖地形，如实记录）", pos.toShortString());
         return Task.Status.RUNNING;
     }
@@ -380,12 +392,45 @@ public final class RestoreScopeTask implements Task {
             scope.end();   // 本任务自己开的作用域，自己关（避免污染下一个任务的掉落物登记）
             scopeOpened = false;
         }
-        int remaining = WorldModLedger.pendingTemporary(bot.serverLevel().getServer(), scopeId).size();
-        int recovered = countThrowaway() - throwawayBefore;
-        BotLog.info("[Restore] SUMMARY scope={} restored={} skipped={} remaining={} recovered={}"
+        // **以世界事实对账**（2026-09-11 修正，D-116 回归实测）。
+        //
+        // 病灶：`pickNext()` 判"这一块没能恢复"只看**当帧**的规划/兜底结果，而那一块完全可能被
+        // **后续动作顺带拆掉**。实测（高云杉 28,64,208 那棵树）：① 就地扫尾收物品时把 bot 留在
+        // PILLAR 起跳的半空 ⇒ ② 对 `28,65,208` 的"走上正上方"当帧 `UNREACHABLE`、侧拆兜底也
+        // `no_reachable_standing_point` ⇒ 记 `skipped=1`；紧接着拆**下一块**时用 `DOWNWARD`
+        // 把 `28,65,208` 当支撑拆掉了（`[Downward] support_broken pos=28,65,208`）。
+        // 世界已经干净，但账本条目还挂着 ⇒ 老代码直接拿账本数当 `remaining=1` ⇒
+        // `[Job] lumber scaffold_left pending=1` ⇒ 整轮 Job FAILED，而 `[Ledger] 销掉 1 条已失效
+        // 条目 …(cobblestone→air)` 要到**下一棵树**才把它对掉。
+        //
+        // `WorldModLedger.dropStale()` 就是既有机制（"现场已非我方方块 → 销账"），原先只在
+        // `buildQueue()` **开头**跑一次。现在收尾再跑一次：`remaining` 从此等于**世界事实**
+        // （还有几块我方 TEMP 方块真的留在世界里），而不是账本残留。
+        ServerLevel level = bot.serverLevel();
+        WorldModLedger.dropStale(level);
+        int remaining = WorldModLedger.pendingTemporary(level.getServer(), scopeId).size();
+        int reconciled = 0;
+        for (BlockPos pos : unresolved) {
+            if (WorldModLedger.at(level.getServer(), pos) == null) {
+                reconciled++;   // 名单里的块现场已无我方方块（被别的动作满足/已非我方）
+            }
+        }
+        if (reconciled > 0) {
+            BotLog.warn("[Restore] 对账：{} 条「未能恢复」现场已无我方方块（被其他动作顺带拆掉 / 已非我方，不计入 remaining）",
+                    reconciled);
+        }
+        // 终态也按世界事实定：世界里没有我方方块了 ⇒ 建拆同权已闭合（协议层没亲手拆，但目标达成）。
+        // 超时等**非** skipped 类失败仍然如实 FAILED（`partialBySkipped` 只标记 skipped 来源）。
+        if (remaining == 0 && partialBySkipped && status == Task.Status.FAILED) {
+            terminalReason = "restore_done_by_other_action";
+            failure = "";
+            status = Task.Status.DONE;
+        }
+        int recovered = queueBuilt && !queue.isEmpty() ? countThrowaway() - throwawayBefore : 0;
+        BotLog.info("[Restore] SUMMARY scope={} restored={} skipped={} reconciled={} remaining={} recovered={}"
                         + "（一次性方块库存变化）ticks={} reason={} → {}",
-                scopeId == null ? "<all>" : scopeId, restored, skipped, remaining, recovered, ticks,
-                terminalReason, status);
+                scopeId == null ? "<all>" : scopeId, restored, skipped, reconciled, remaining, recovered,
+                ticks, terminalReason, status);
         return status;
     }
 }

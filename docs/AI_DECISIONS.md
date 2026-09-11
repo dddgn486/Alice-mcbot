@@ -3236,3 +3236,52 @@ B1 把清障搬进 L2 时，我漏了改造前 Job 的一条关键行为：**清
 
 **验证等级**：IMPLEMENTED / COMPILES / SERVER_TESTED（症状与根因均已由日志+反汇编确认）；
 客户端待验如上判别点。
+
+### D-116 附注二（2026-09-11 客户端复测：① 已生效；② 暴露"假 scaffoldLeft"与"夹具补工具顶掉物品"）
+
+**采样**：客户端 23:04–23:11（jar `afdaf9a3…`，与本地 build md5 一致）。
+
+**① 就地扫尾 ✅ 达成 D-116 目标**
+```
+23:08:12.212 [Job] lumber sweep_up_start foot=28,65,208 live_drops=1（仍在架上）
+23:08:12.512 [CollectDrops] goal_shift itemPos=27,70,207 → goal=27,69,206
+23:08:12.514 [CollectDrops] gain_start steps=1/8 → PILLAR 65→66（放柱 28,65,208）
+23:08:13.412 [CollectDrops] gain_start steps=2/8 → 66→67
+23:08:13.612 [CollectDrops] entity_gone → cluster_done delta=1 → SUMMARY collected=1/1
+23:08:13.664 [Job] lumber sweep_up_end swept=1 live_drops=0
+```
+高云杉 `28,64,208` 从 `product_not_collected gained=6/7` 变成 **7/7 且不再报"该树未完成"**；
+`inventoryDelta` 14→**15**（多出的正是树冠那根）；`trees 3/4`（历轮最好：21:35/21:54/22:04 均 2/4）。
+**D-114+D-116 的分工实测成立**：D-114 `goal_shift` 先换到可站格 → 走不通 → D-116 `gain` 原地加高够到。
+
+**F2：假 `scaffoldLeft=1`（本轮修）**
+链条：① 收到物品时把 bot 留在 `PILLAR` 起跳的半空（第 2 步 `gain_start steps=2/8` 后**没有** `segment_done`）
+⇒ ② 对 `28,65,208` 的"走上正上方"当帧 `UNREACHABLE`（`feet=28,67,208`）、侧拆兜底 `no_reachable_standing_point`
+⇒ `skipped=1`；紧接着拆**下一块** `28,64,208` 时用 `DOWNWARD` 把 `28,65,208` 当支撑顺带拆掉
+（`[Downward] support_broken pos=28,65,208`）⇒ 世界已干净。
+**病灶**：`RestoreScopeTask.finish()` 直接拿账本数当 `remaining`，而 `WorldModLedger.dropStale()`
+（"现场已非我方方块 → 销账"）只在 `buildQueue()` 开头跑一次 ⇒ 幽灵条目让 Job 报
+`scaffold_left(1)` 并 FAILED，直到**下一棵树**的 ② 才 `[Ledger] 销掉 1 条已失效条目 …(cobblestone→air)`。
+**修正**：收尾先 `dropStale` 再算 `remaining`（从此 `remaining` = 世界事实）；新增 `reconciled`
+计数与对账 WARN；终态同口径 —— `remaining==0` 且失败仅来自 `skipped` ⇒ 改判
+`restore_done_by_other_action`/DONE（超时类失败不受影响，仍 FAILED）。
+顺带修掉同类"报告不等于事实"：队列为空（`nothing_to_restore`）时 `recovered` 不再报成整个背包的
+一次性方块数（实测下一棵树曾报 `recovered=2`，其实一块都没收）。
+
+**F3：`MineTask.ensureTool` 顶掉背包物品（本轮修）**
+`recovered=-8` 是硬证据：基线 10（12 − 2 次放置）− 被抹 10 + 收回 2 = 2。全程 `writes places=2`
+（WriteAudit 真值）⇒ 没有任何"看不见的放置"能消耗它。唯一能整栈覆盖的是
+`ensureTool` 的 `inventory.setItem(inventory.selected, DIAMOND_PICKAXE)`：`PILLAR` 放置后内核把
+**选中槽**留在圆石栈上 ⇒ 整栈被镐子覆盖抹掉（10 个圆石），且它绕过了 D-110 定的唯一写入点
+`FixtureToolKit`（那里"塞回背包、塞不下才告警"）。
+**修正**：改走 `FixtureToolKit.ensureHotbarTool`（优先填空格，无空格才覆盖**非选中**格并塞回旧物）；
+工具选择本就由内核负责（`BlockInteraction.findBestToolSlot` + `selectSlot`），不必占选中槽。
+非 bot 的 `ServerPlayer` 一律不写背包。
+
+**F4：19/24 两棵橡树砍不动 —— 旧问题，只登记不改**
+本轮 `failed=…no_reachable_standing_point`×4；归档对照：21:35 `clear_failed`×4、21:54/22:04 同类失败。
+链条：`clear_start blocker=19,65,215 used=1/8` → 清障子任务自身 `no_reachable_standing_point`
+→ `clear_end status=FAILED cleared=0 exhausted=true`（子任务 `gain=none clear=none`，不做嵌套恢复）。
+它决定 `partial_quota`（`trees 3/4`），与 F2/F3 无因果。**待评估**：清障是否允许对 blocker 加高/嵌套。
+
+**验证等级**：F2/F3 = IMPLEMENTED / COMPILES；客户端复测待跑（判据见测试矩阵 D-116 行）。

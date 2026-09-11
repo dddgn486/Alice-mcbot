@@ -148,19 +148,35 @@ public final class MineTask implements Task {
      * <p>2026-09-10 修正：原实现无条件把钻石镐写进当前选中槽，会**顶掉夹具放的斧子**——
      * 结果是砍原木用镐（speed 1.0，3.0 s/根）而不是斧（speed 8.0，0.375 s/根），慢 8 倍。
      * 现在已有有效工具就不动；空手或更差时仍补镐（保持既有场景入口行为）。
+     *
+     * <p>2026-09-11 修正（D-116 回归实测）：改走<b>夹具唯一写入点</b>
+     * {@link com.dddgn.alice.item.FixtureToolKit}（D-110）。原实现直接
+     * {@code inventory.setItem(inventory.selected, pickaxe)}，而 `PILLAR` 放置后内核会把
+     * <b>选中槽</b>留在一次性方块栈上 ⇒ 整栈被镐子<b>覆盖抹掉</b>。实测证据：高云杉那棵树的
+     * ② 侧拆兜底创建 `MineTask target=28,65,208` 时抹掉了 10 个圆石，由
+     * `[Restore] SUMMARY … recovered=-8`（基线 10 − 被抹 10 + 收回 2 = 2）反推证实，
+     * 且它同时绕过了"塞回背包、塞不下才告警"的策略。走夹具后：优先填快捷栏空格，
+     * 没有空格才覆盖<b>非选中</b>格并把旧物塞回背包（塞不下会告警）。
+     * 工具选择由内核负责（`BlockInteraction.findBestToolSlot` + `selectSlot`），不必占选中槽。
      */
     private static void ensureTool(ServerPlayer bot, BlockPos target) {
-        var inventory = bot.getInventory();
+        if (!(bot instanceof com.dddgn.alice.bot.BotPlayer fixtureBot)) {
+            return;   // 夹具只服务 bot：非 bot 一律不写背包（绝不顶掉真人玩家物品）
+        }
+        var inventory = fixtureBot.getInventory();
         ItemStack main = inventory.getItem(inventory.selected);
-        net.minecraft.world.level.block.state.BlockState state = bot.serverLevel().getBlockState(target);
+        net.minecraft.world.level.block.state.BlockState state = fixtureBot.serverLevel().getBlockState(target);
         if (!main.isEmpty() && main.getDestroySpeed(state) > 1.0F) {
             return;
         }
         ItemStack pickaxe = new ItemStack(net.minecraft.world.item.Items.DIAMOND_PICKAXE);
-        if (main.isEmpty() || pickaxe.getDestroySpeed(state) > main.getDestroySpeed(state)) {
-            inventory.setItem(inventory.selected, pickaxe);
-            com.dddgn.alice.bot.BotManager.syncMainHand(bot);
+        if (!main.isEmpty() && pickaxe.getDestroySpeed(state) <= main.getDestroySpeed(state)) {
+            return;
         }
+        com.dddgn.alice.item.FixtureToolKit.ensureHotbarTool(fixtureBot,
+                () -> new ItemStack(net.minecraft.world.item.Items.DIAMOND_PICKAXE),
+                stack -> stack.is(net.minecraft.world.item.Items.DIAMOND_PICKAXE),
+                "pickaxe（MineTask 兜底）");
     }
 
     @Override
