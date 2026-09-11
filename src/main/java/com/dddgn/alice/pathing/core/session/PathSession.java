@@ -43,6 +43,16 @@ public final class PathSession {
     /** 段内重同步上限：防止"吸附回同一位置 → 反复重同步"的循环。 */
     public static final int MAX_RESYNCS = 5;
 
+    /**
+     * 零进展快速失败阈值（D-105）：连续 N 次"起跳后落回同一脚位格"即判定本段无进展。
+     *
+     * <p>对照 Baritone `PathExecutor.java:242-250`：它用"本段 tick 数 > 原始成本估计 +
+     * `movementTimeoutTicks`"兜底；Alice 的段超时是 `cost * 20 + 100`，实测一次卡死要
+     * 可见原地弹跳 161 tick（约 8 秒）。这里把"跳了又落回原地"这个物理事实提前判出来，
+     * 出口仍是重规划（`TIMEOUT`），只是提前约 120 tick，并给出可诊断的失败码。
+     */
+    public static final int MAX_WASTED_JUMP_LANDINGS = 3;
+
     private final BotPlayer bot;
     private final ServerLevel level;
     private final String sessionId;
@@ -62,6 +72,11 @@ public final class PathSession {
     private int resyncs;
     private int totalTicks;
     private MovementExecution execution;
+    /** 零进展检测（D-105）：连续"起跳后落回同一脚位格"的次数。 */
+    private int wastedJumpLandings;
+    /** 最近一次离地时的脚位格；落地时与之相同即视为无效跳跃。 */
+    private BlockPos lastTakeoffFoot;
+    private boolean wasOnGround = true;
 
     public PathSession(BotPlayer bot, ServerLevel level, PathPlan plan, PathRequest request,
                        String sessionId) {
@@ -107,7 +122,7 @@ public final class PathSession {
             if (index >= movements.size()) {
                 status = PathSessionStatus.COMPLETED;
                 BotLog.info("[R4 Session] completed session={} segments={} ticks={} finalFoot={}",
-                        sessionId, movements.size(), totalTicks, bot.blockPosition().toShortString());
+                        sessionId, movements.size(), totalTicks, MovementHelper.footCell(level, bot).toShortString());
                 return status;
             }
             if (++startSlotTicks > segmentTimeoutTicks()) {
@@ -125,9 +140,14 @@ public final class PathSession {
             return status;
         }
 
+        // ⓪ 零进展快速失败（D-105）：起跳后落回同一脚位格 → 无效跳跃计数；连续 N 次即判本段无进展。
+        if (detectNoProgress()) {
+            return status;
+        }
+
         // ① 每 tick 合法位置集检查（对照 Baritone PathExecutor:101-124）：
         //    脚位不在本段合法位置集 → 前/后搜索重同步；找不到才走漂移兜底。
-        if (!validPositions(movements.get(index)).contains(bot.blockPosition())) {
+        if (!validPositions(movements.get(index)).contains(MovementHelper.footCell(level, bot))) {
             if (tryResync()) {
                 return status;
             }
@@ -163,7 +183,7 @@ public final class PathSession {
             case SUCCEEDED -> {
                 BotLog.info("[R4 Session] segment_done session={} index={} type={} ticks={} actualFoot={}",
                         sessionId, index, movements.get(index).movementType(), segmentTicks,
-                        bot.blockPosition().toShortString());
+                        MovementHelper.footCell(level, bot).toShortString());
                 executedTypes.add(movements.get(index).movementType());
                 index++;
                 execution = null;
@@ -172,7 +192,7 @@ public final class PathSession {
                 if (index >= movements.size()) {
                     status = PathSessionStatus.COMPLETED;
                     BotLog.info("[R4 Session] completed session={} segments={} ticks={} finalFoot={}",
-                            sessionId, movements.size(), totalTicks, bot.blockPosition().toShortString());
+                            sessionId, movements.size(), totalTicks, MovementHelper.footCell(level, bot).toShortString());
                     return status;
                 }
                 if (needsSettle(index - 1, index)) {
@@ -189,7 +209,7 @@ public final class PathSession {
                     if (execution.phase() == MovementExecution.Phase.SUCCEEDED) {
                         BotLog.info("[R4 Session] segment_done session={} index={} type={} ticks={} actualFoot={}",
                                 sessionId, index, movements.get(index).movementType(), 0,
-                                bot.blockPosition().toShortString());
+                                MovementHelper.footCell(level, bot).toShortString());
                         executedTypes.add(movements.get(index).movementType());
                         index++;
                         execution = null;
@@ -229,11 +249,12 @@ public final class PathSession {
 
     public PathExecutionResult result() {
         return new PathExecutionResult(status, movements.size(), index, failureCode, failureSegment,
-                bot.blockPosition(), totalTicks,
+                MovementHelper.footCell(level, bot), totalTicks,
                 "planner=alice.astar.movement.v1 resyncs=" + resyncs);
     }
 
     private void startSegment() {
+        resetProgressWatch();
         PlannedMovement movement = movements.get(index);
         // 走路视线归位（D-088，修 2026-09-10 用户实测的"走位时仰着头"）：
         // 对照 Baritone `behavior/LookBehavior.java:96-125`——它把"看向某处"当作**逐 tick 瞬时**行为
@@ -280,7 +301,7 @@ public final class PathSession {
         BotLog.info("[R4 Session] segment_start session={} index={}/{} type={} from={} to={} tolerance={} actualFoot={}",
                 sessionId, index, movements.size(), movement.movementType(),
                 movement.fromFoot().toShortString(), movement.toFoot().toShortString(), tolerance,
-                bot.blockPosition().toShortString());
+                MovementHelper.footCell(level, bot).toShortString());
     }
 
     /**
@@ -413,7 +434,7 @@ public final class PathSession {
             return false;
         }
         PlannedMovement movement = movements.get(index);
-        BlockPos feet = bot.blockPosition();
+        BlockPos feet = MovementHelper.footCell(level, bot);
         BlockPos from = movement.fromFoot();
         BlockPos to = movement.toFoot();
         if (feet.getY() < Math.min(from.getY(), to.getY()) - 1) {
@@ -475,7 +496,7 @@ public final class PathSession {
         if (resyncs >= MAX_RESYNCS) {
             return false;
         }
-        BlockPos feet = bot.blockPosition();
+        BlockPos feet = MovementHelper.footCell(level, bot);
         int target = -1;
         for (int i = 0; i < index; i++) {
             if (validPositions(movements.get(i)).contains(feet)) {
@@ -500,9 +521,56 @@ public final class PathSession {
         segmentTicks = 0;
         startSlotTicks = 0;
         settleTicks = 0;
+        resetProgressWatch();
         BotLog.info("[R4 Session] resync session={} feet={} resumeIndex={}",
                 sessionId, feet.toShortString(), target);
         return true;
+    }
+
+    /**
+     * 零进展快速失败（D-105）：把"跳了又落回同一脚位格"这一物理事实提前判出来。
+     *
+     * <p>判据只依赖 `onGround` 的**离地→落地**翻转与脚位格（{@link MovementHelper#footCell}）：
+     * <ul>
+     *   <li>离地时记录起飞脚位格；若与上次起飞格不同，说明确实移动过 → 计数清零；</li>
+     *   <li>落地脚位格 == 起飞脚位格 → 无效跳跃 +1；换了一格则清零；</li>
+     *   <li>连续 {@link #MAX_WASTED_JUMP_LANDINGS} 次 → 本段判 `TIMEOUT / SEGMENT_NO_PROGRESS`。</li>
+     * </ul>
+     * 不涉及跳跃的卡死（比如贴着墙走不动）不受影响，仍由段超时兜底。
+     */
+    private boolean detectNoProgress() {
+        boolean onGround = bot.onGround();
+        BlockPos foot = MovementHelper.footCell(level, bot);
+        if (wasOnGround && !onGround) {
+            if (lastTakeoffFoot == null || !lastTakeoffFoot.equals(foot)) {
+                wastedJumpLandings = 0;   // 换了一格再起跳 → 有进展
+            }
+            lastTakeoffFoot = foot;
+        } else if (!wasOnGround && onGround) {
+            if (lastTakeoffFoot != null && lastTakeoffFoot.equals(foot)) {
+                wastedJumpLandings++;
+                if (wastedJumpLandings >= MAX_WASTED_JUMP_LANDINGS) {
+                    BotLog.warn("[R4 Session] no_progress session={} index={} type={} foot={}"
+                                    + " wastedJumpLandings={} (起跳后落回同一脚位格)",
+                            sessionId, index, movements.get(index).movementType(),
+                            foot.toShortString(), wastedJumpLandings);
+                    execution.cancel();
+                    fail(PathSessionStatus.TIMEOUT, "SEGMENT_NO_PROGRESS");
+                    return true;
+                }
+            } else {
+                wastedJumpLandings = 0;
+            }
+        }
+        wasOnGround = onGround;
+        return false;
+    }
+
+    /** 段切换/重同步后清零零进展计数（换段即重新计时）。 */
+    private void resetProgressWatch() {
+        wastedJumpLandings = 0;
+        lastTakeoffFoot = null;
+        wasOnGround = bot.onGround();
     }
 
     /** 前瞻段是否已被封死（对照 Baritone `costVerificationLookahead`，此处用可达性代理）。 */
@@ -568,6 +636,6 @@ public final class PathSession {
         failureCode = code;
         failureSegment = index;
         BotLog.warn("[R4 Session] failed session={} status={} code={} index={} actualFoot={}",
-                sessionId, mapped, code, index, bot.blockPosition().toShortString());
+                sessionId, mapped, code, index, MovementHelper.footCell(level, bot).toShortString());
     }
 }

@@ -36,7 +36,7 @@ public final class DiagonalExecutionFactory implements MovementExecutionFactory 
         }
         
         // D-026 合法位置集：接受 from 或 to（含"已在目标"的幂等情形）
-        BlockPos feet = context.bot().blockPosition();
+        BlockPos feet = MovementHelper.footCell(context.level(), context.bot());
         if (!feet.equals(from) && !feet.equals(to)) {
             return ValidationResult.invalid("DIAGONAL_STALE_START");
         }

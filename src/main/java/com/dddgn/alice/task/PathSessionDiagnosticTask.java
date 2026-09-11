@@ -2,6 +2,7 @@ package com.dddgn.alice.task;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.search.CorePathPlanner;
 import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.pathing.core.session.PathExecutionResult;
@@ -126,7 +127,7 @@ public final class PathSessionDiagnosticTask implements Task {
         if (disturbed || ticks < disturbTick) {
             return;
         }
-        BlockPos from = bot.blockPosition();
+        BlockPos from = MovementHelper.footCell(bot.serverLevel(), bot);
         BlockPos to = from.offset(disturbDx, 0, disturbDz);
         if (com.dddgn.alice.pathing.MovementHelper.canWalkOn(bot.serverLevel(), to)
                 && com.dddgn.alice.pathing.MovementHelper.canWalkThrough(bot.serverLevel(), to)
@@ -170,7 +171,7 @@ public final class PathSessionDiagnosticTask implements Task {
     }
 
     private void initialize() {
-        BlockPos startFoot = bot.blockPosition().immutable();
+        BlockPos startFoot = MovementHelper.footCell(bot.serverLevel(), bot).immutable();
         PathRequest base = allowWorldModification
                 ? PathRequest.withWorldModification(bot.getUUID().toString(), startFoot, goalFoot, "path-session-diagnostic")
                 : PathRequest.of(bot.getUUID().toString(), startFoot, goalFoot, "path-session-diagnostic");

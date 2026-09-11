@@ -32,7 +32,7 @@ public final class AscendDiagnosticTask implements Task {
 
     public AscendDiagnosticTask(BotPlayer bot, BlockPos toFoot) {
         this.bot = bot;
-        this.fromFoot = bot.blockPosition().immutable();
+        this.fromFoot = MovementHelper.footCell(bot.serverLevel(), bot).immutable();
         this.toFoot = toFoot.immutable();
     }
 

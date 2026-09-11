@@ -203,10 +203,13 @@ public final class MovementHelper {
      * <p>`onGround` 是 D-026 统一完成契约的必须项：起跳/下落途中 `blockPosition()` 已经等于目标格，
      * 若不带 `onGround`，执行器会在空中提前宣布成功（实测 PILLAR 4 tick 假成功 → bot 落回原点 →
      * 下一段 STALE；ASCEND 同类）。
+     *
+     * <p>脚位格必须用 {@link #footCell} 取，不能用原版 `blockPosition()`（D-105）。
      */
-    public static boolean isAtFootColumn(net.minecraft.world.entity.Entity entity, BlockPos footPos) {
+    public static boolean isAtFootColumn(ServerLevel level, net.minecraft.world.entity.Entity entity,
+                                         BlockPos footPos) {
         return entity.onGround()
-                && entity.blockPosition().equals(footPos)
+                && footCell(level, entity).equals(footPos)
                 && entity.getY() - footPos.getY() < 0.5D;
     }
 
@@ -218,6 +221,44 @@ public final class MovementHelper {
             return Double.NaN;
         }
         return supportPos.getY() + shape.max(net.minecraft.core.Direction.Axis.Y);
+    }
+
+    /**
+     * 运行期脚位格：**统一**"实体当前站在哪一格"的口径，与规划层 node 语义对齐（D-105）。
+     *
+     * <p>规划层的脚位格定义是"支撑格的上一格"（{@link #canWalkOn(ServerLevel, BlockPos)} 查的是
+     * 脚位格**下方**那格），而原版 {@code entity.blockPosition()} 返回"脚**所在**格"。支撑是整格时
+     * 两者恰好重合；支撑顶面不足一格时（箱子/灵魂沙 0.875、底半砖 0.5、模组半格方块）原版会把脚留在
+     * 支撑自己那一格 —— "站在箱子上"在两套坐标里相差整整一格，于是
+     * `footCell.equals(toFoot)` 之类的完成契约与合法位置集检查永远不成立。
+     *
+     * <p>实测（J6-b2，`clear_guard` 场景）：ASCEND 到箱顶后 bot 原地起跳 12 次（每次从箱顶 64.875
+     * 跳到顶点 66.125 → 落回 64.875），三个出口全部锁死，只能等 `SEGMENT_TIMEOUT`（161 tick）。
+     *
+     * <p>判定规则：脚所在格有碰撞形状、**可站**、且顶面 ≥ 半格 → 脚位格取其上一格。
+     * 与 Baritone `IPlayerContext.playerFeet()`（`y + 0.1251`，底半砖再上移一格）语义一致；
+     * 这里按碰撞形状判定而非硬编码常量，因此对模组半格方块同样成立（D-041 的兼容立场）。
+     */
+    public static BlockPos footCell(ServerLevel level, net.minecraft.world.entity.Entity entity) {
+        return footCell(level, entity.getX(), entity.getY(), entity.getZ());
+    }
+
+    /**
+     * {@link #footCell(ServerLevel, net.minecraft.world.entity.Entity)} 的坐标版本：便于无头断言
+     * （`PathingRegression` 直接喂坐标，不依赖 bot 物理）。
+     */
+    public static BlockPos footCell(ServerLevel level, double x, double y, double z) {
+        BlockPos raw = BlockPos.containing(x, y, z);
+        BlockState here = level.getBlockState(raw);
+        if (here.isAir()) {
+            return raw;
+        }
+        // 无碰撞形状（草/花/薄雪/地毯等）或顶面不足半格 → 脚就在这一格里
+        double topY = supportTopY(level, raw);
+        if (Double.isNaN(topY) || topY - raw.getY() < 0.5D) {
+            return raw;
+        }
+        return isStandableSupport(level, raw, here) ? raw.above() : raw;
     }
 
     /** 平地移动(从 from 脚位水平走到 to 脚位)。 */

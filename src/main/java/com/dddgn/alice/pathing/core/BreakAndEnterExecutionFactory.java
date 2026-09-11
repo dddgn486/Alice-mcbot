@@ -42,7 +42,7 @@ public final class BreakAndEnterExecutionFactory implements MovementExecutionFac
         }
 
         // D-026 合法位置集
-        BlockPos feet = context.bot().blockPosition();
+        BlockPos feet = MovementHelper.footCell(context.level(), context.bot());
         if (!feet.equals(from) && !feet.equals(to)) {
             return ValidationResult.invalid("BREAK_AND_ENTER_STALE_START");
         }

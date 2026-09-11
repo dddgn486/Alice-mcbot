@@ -21,6 +21,7 @@ import com.dddgn.alice.transfer.TransferLedgerData;
 import com.dddgn.alice.transfer.TransferRequest;
 import com.dddgn.alice.survival.HazardState;
 import com.dddgn.alice.survival.SurvivalSystem;
+import com.dddgn.alice.pathing.MovementHelper;
 import com.mojang.authlib.GameProfile;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -1043,7 +1044,7 @@ public final class BotManager {
                                     TaskExecutionRecord.TerminalStatus terminalStatus,
                                     String resultCode, String recoveryState, RecoveryStage recoveryStage,
                                     List<RecoveryStage> recoveryEvents, TaskFailureReport failureReport) {
-            BlockPos terminalPos = bot.blockPosition();
+            BlockPos terminalPos = MovementHelper.footCell(bot.serverLevel(), bot);
             TaskOutcome outcome = new TaskOutcome(kind, targetDescription, terminalStatus, resultCode,
                     terminalPos, failureReport);
             lastExecutionRecord = new TaskExecutionRecord(kind, targetDescription, startTick, serverTick(),

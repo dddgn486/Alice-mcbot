@@ -170,7 +170,8 @@ public final class BreakAndTraverseExecution implements MovementExecution {
         if (dy != 0 || !straightTwo) {
             return false;
         }
-        if (!bot.blockPosition().equals(from) && !bot.blockPosition().equals(to)) {
+        BlockPos feet = MovementHelper.footCell(level, bot);
+        if (!feet.equals(from) && !feet.equals(to)) {
             return false;
         }
         // 目标必须最终可通行且可站（造支撑是 PLACE_STEP_AND_TRAVERSE 的职责）
@@ -190,7 +191,7 @@ public final class BreakAndTraverseExecution implements MovementExecution {
 
     private boolean postconditionHolds() {
         return tolerance == CompletionTolerance.COLUMN
-                ? MovementHelper.isAtFootColumn(bot, spec.toFoot())
+                ? MovementHelper.isAtFootColumn(level, bot, spec.toFoot())
                 : MovementHelper.isSettledAtFootPos(level, bot, spec.toFoot(), 0.3D);
     }
 
@@ -213,7 +214,7 @@ public final class BreakAndTraverseExecution implements MovementExecution {
         failureCode = reason;
         BotLog.warn("[BreakAndTraverse] failed session={} from={} to={} code={} actualFoot={}",
                 sessionId, spec.fromFoot().toShortString(), spec.toFoot().toShortString(),
-                reason, bot.blockPosition().toShortString());
+                reason, MovementHelper.footCell(level, bot).toShortString());
     }
 
     private static BotPlayer requireBot(ServerPlayer bot) {

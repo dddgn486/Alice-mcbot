@@ -2,6 +2,7 @@ package com.dddgn.alice.task;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.MovementType;
 import com.dddgn.alice.pathing.core.search.CorePathPlanner;
 import com.dddgn.alice.pathing.core.search.PathPlan;
@@ -80,7 +81,7 @@ public final class BreakEnterDiagnosticTask implements Task {
                 if (state == PathRetryRunner.State.RUNNING) {
                     return Status.RUNNING;
                 }
-                executeA = state == PathRetryRunner.State.DONE && bot.blockPosition().equals(GOAL_A);
+                executeA = state == PathRetryRunner.State.DONE && MovementHelper.footCell(bot.serverLevel(), bot).equals(GOAL_A);
                 BotLog.info("[BreakEnter] execute_a={} detail={} replans={} foot={}",
                         executeA ? "PASS" : "FAIL",
                         runner.result() == null ? "-" : runner.result().status().name(),

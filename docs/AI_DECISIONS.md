@@ -2535,3 +2535,55 @@ APPROACH 成功（`movements=0`），但 **DESCEND 失败**：
 输出：`[ClearGuard] SUMMARY predicate_refuses=? chest_intact=? target_removed=? → PASS|FAIL`。
 
 **验证等级**：COMPILES。验收：右键 `alice:clear_guard_check` → `→ PASS`（箱子完好）。
+
+## D-105 运行期脚位格统一（`footCell`）+ R4 会话零进展快速失败（2026-09-11）
+
+**触发**：J6-b2 客户端实测"bot 在箱子上跳了半天"。日志与代码定位到**不是**箱子这一类方块的问题，
+而是**两套脚位格坐标系**：规划层是"支撑格的上一格"，运行期 `entity.blockPosition()` 是"脚所在格"。
+
+**证据链（可复查）**
+1. `latest.log`（2026-09-11 17:11）：TRAVERSE 44→49 每段 4–5 tick 正常；`ASCEND from=49,64,158 to=50,65,158`
+   （目标格 = 箱子上一格）开始后 `controller_jump_once` ×12（每 ~0.6 s = 一次完整跳跃周期），
+   17:11:17.9 `SEGMENT_TIMEOUT`，整段 161 tick；超时瞬间 `actualFoot=50,66,158`
+   （= 箱顶 64.875 起跳 1.25 格的顶点格）→ bot 确实爬上了箱子，然后在箱顶原地弹跳。
+2. `AscendExecution` 三个出口全部以 `blockPosition().getY() >= toFoot.getY()` 为界；站在 0.875 高的
+   箱子上该值恒为 from 的高度 → **完成不了、结算进不去、跳跃永远允许**，只剩段超时。
+3. 所有 `*Execution` 的 COLUMN 完成契约与 D-026 合法位置集都在比 `blockPosition()`；而
+   `isStandingAtFootPos`（EXACT 路径）早已按 `supportTopY` 形状判定 —— 说明"形状感知"本就是这个项目
+   的意图，只是 COLUMN 路径没跟上。
+
+**Baritone 对照（本地 1.20.1 树 `/home/fb486/projects/reference/baritone-1.20.1/`）**
+- `src/api/java/baritone/api/utils/IPlayerContext.java:63-81`：`playerFeet()` 对裸坐标 `y + 0.1251`
+  再取整，并且"脚位格是 `SlabBlock` 就再上移一格" —— 与 `MovementAscend` 的目标格语义对齐，
+  所以 Baritone 不会进入本死锁（它的移动完成判定 `PathExecutor.java:428` 用的就是这个校正后的脚位）。
+- `src/main/java/baritone/pathing/movement/MovementHelper.java:394-430`：`canWalkOnBlockState` 对
+  `CHEST / TRAPPED_CHEST / ENDER_CHEST` 直接返回 `YES`，底半砖按 `allowWalkOnBottomSlab` 处理
+  ⇒ **"箱子可走"是 Baritone 的既定语义**，Alice 的 D-041（非满高方块保持可站）与之一致；
+  错的不是"把箱子当可站"，而是运行期脚位格没有做同样的对齐。
+- `src/main/java/baritone/pathing/path/PathExecutor.java:242-250`：段级兜底是
+  `ticksOnCurrent > 原始成本估计 + movementTimeoutTicks`（Baritone 没有独立的"零进展"检测）。
+
+**决定（两件独立的事）**
+1. **R1（根因）**：新增 `MovementHelper.footCell(ServerLevel, Entity|坐标)` 作为**唯一**的运行期脚位格口径：
+   脚所在格有碰撞形状、可站、且顶面 ≥ 半格 → 取上一格；否则就是脚所在格。
+   与 Baritone `playerFeet()` 语义一致，但用**碰撞形状**判定而非硬编码 `0.1251` + `SlabBlock instanceof`
+   （D-041 的模组兼容立场：模组半格方块同样成立）。
+   替换点：全部 `*Execution` 前置/完成/跳跃门控、`*ExecutionFactory` 前置、`PathSession`
+   （D-026 合法位置集 / 重同步 / 漂移 / 遥测）、以及任务层所有"以 bot 当前脚位格为输入"的地方
+   （`PathRequest` 起点、到达判定、站位候选、`task_execution_terminal pos`、回归覆盖索引）。
+   `isAtFootColumn` 签名相应改为 `(level, entity, footPos)`。
+2. **R2（安全网，Alice 特有）**：`PathSession` 增加"起跳后落回**同一脚位格**"计数，
+   连续 3 次 → `TIMEOUT / SEGMENT_NO_PROGRESS`（仍走重规划，只是提前约 120 tick）。
+   **这是登记在案的偏离**：Baritone 只有段超时兜底；Alice 加它的理由是"8 秒可见原地弹跳"既是体验问题、
+   也让失败码无法区分（`SEGMENT_TIMEOUT` 掩盖了"物理上不可能收敛"这一事实）。
+   可验证后果：正常收敛路径不受影响（落点变了即清零，回归 14/16 必须保持）；
+   不涉及跳跃的卡死仍由段超时兜底。
+
+**验收夹具**
+- 无头断言（`PATHING_REGRESSION ... foot_cell_rule`）：箱子 0.875 / 底半砖 0.5 / 灵魂沙 0.875 /
+  地毯 0.0625 / 整格，逐项断言"`footCell` 给出的格 = `canWalkOn` 认可的格"。
+- 可执行回归项（`pathing_regression` 一次右键覆盖）：
+  `chest_step_course`（起点 (1,64,126) → 目标 (2,65,126)，必须执行 `ASCEND` 到箱顶）、
+  `slab_step_course`（封闭 1 格宽走廊，(4,64,145) → (8,64,145)，中途一块底半砖）。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端实测待补）。

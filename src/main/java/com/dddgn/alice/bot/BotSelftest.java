@@ -4,6 +4,7 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.capability.InterfaceScanner;
 import com.dddgn.alice.capability.InterfaceSnapshot;
 import com.dddgn.alice.capability.ObservationStatus;
+import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.PathingRegression;
 import com.dddgn.alice.transfer.TransferFixture;
 import com.dddgn.alice.transfer.TransferSelectionFixture;
@@ -432,7 +433,7 @@ public final class BotSelftest {
                 && record.terminalStatus() == TaskExecutionRecord.TerminalStatus.COMPLETED
                 && "done".equals(record.resultCode())
                 && "idle_after_cleanup".equals(record.recoveryState())
-                && record.terminalBotPos().equals(bot.blockPosition());
+                && record.terminalBotPos().equals(MovementHelper.footCell(bot.serverLevel(), bot));
         test1Pass = withinBudget(blockGone && "done".equals(result) && observabilityPass);
         test1Detail = "blockGone=" + blockGone + " result=" + result + " observability=" + observabilityPass
                 + (scenarioTimedOut ? " (超时 " + scenarioElapsedTicks + " tick)" : " (耗时 " + scenarioElapsedTicks + " tick)");

@@ -38,7 +38,7 @@ public final class DescendExecutionFactory implements MovementExecutionFactory {
 
         // D-026 合法位置集（对齐 Baritone MovementDescend.calculateValidPositions）：
         // 接受 {from, to, to.above()}。to.above() 覆盖"上一段带动量结束、正在落入目标列"的入口位置。
-        BlockPos feet = context.bot().blockPosition();
+        BlockPos feet = MovementHelper.footCell(context.level(), context.bot());
         if (!feet.equals(from) && !feet.equals(to) && !feet.equals(to.above())) {
             return ValidationResult.invalid("DESCEND_STALE_START");
         }

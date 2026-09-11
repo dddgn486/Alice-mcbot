@@ -27,7 +27,7 @@ public final class TraverseExecutionFactory implements MovementExecutionFactory 
         BlockPos to = spec.toFoot();
         // D-026 合法位置集：接受 from 或 to（含"已在目标"的幂等情形）。
         // 上一段允许的落点容忍集保证多段链接不会因微小落点偏差 STALE_START 断链。
-        BlockPos feet = context.bot().blockPosition();
+        BlockPos feet = MovementHelper.footCell(context.level(), context.bot());
         if (!feet.equals(from) && !feet.equals(to)) {
             return ValidationResult.invalid("TRAVERSE_STALE_START");
         }

@@ -3,6 +3,7 @@ package com.dddgn.alice.item;
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.search.CorePathPlanner;
 import com.dddgn.alice.pathing.core.search.PathPlan;
 import com.dddgn.alice.pathing.core.search.PathRequest;
@@ -70,7 +71,7 @@ public class PathingFluidGuardItem extends Item {
         bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
         bot.controller().stopMovement();
 
-        BlockPos startFoot = bot.blockPosition().immutable();
+        BlockPos startFoot = MovementHelper.footCell(bot.serverLevel(), bot).immutable();
         PathRequest request = PathRequest.withWorldModification(
                 bot.getUUID().toString(), startFoot, COURSE_GOAL_FOOT, "item:pathing-fluid-guard");
         PathPlan plan = new CorePathPlanner().plan(bot, level, request);

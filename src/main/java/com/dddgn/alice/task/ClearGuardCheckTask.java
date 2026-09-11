@@ -29,7 +29,9 @@ public final class ClearGuardCheckTask implements Task {
 
     /** 场景常量（与 `clear_guard_terrain.mcfunction` 对齐）。 */
     public static final BlockPos START_FOOT = new BlockPos(44, 64, 158);
-    private static final BlockPos CHEST = new BlockPos(50, 64, 158);
+    /** 堵住唯一通道的两个容器（缺口开在身子/头的高度，踩不到）。 */
+    private static final java.util.List<BlockPos> CONTAINERS = java.util.List.of(
+            new BlockPos(50, 65, 158), new BlockPos(50, 66, 158));
     private static final BlockPos TARGET = new BlockPos(56, 64, 158);
 
     /** 单次挖掘的 tick 上限。 */
@@ -92,8 +94,8 @@ public final class ClearGuardCheckTask implements Task {
         com.dddgn.alice.item.FixtureToolKit.ensureHotbarTool(bot,
                 () -> new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND_PICKAXE),
                 stack -> stack.is(net.minecraft.tags.ItemTags.PICKAXES), "pickaxe");
-        BotLog.info("[ClearGuard] 场景就位 start={} target={} chest={}",
-                START_FOOT.toShortString(), TARGET.toShortString(), CHEST.toShortString());
+        BotLog.info("[ClearGuard] 场景就位 start={} target={} containers={}",
+                START_FOOT.toShortString(), TARGET.toShortString(), CONTAINERS);
         miner = new MineTask(bot, TARGET, scope, MiningBudget.forTarget(bot, level, TARGET, true),
                 WriteGrant.of(taskName(), WriteReason.EXPECTED_TARGET));
         phase = Phase.MINE;
@@ -121,9 +123,10 @@ public final class ClearGuardCheckTask implements Task {
 
     private Task.Status assertResult() {
         ServerLevel level = bot.serverLevel();
-        boolean predicateRefuses = !BlockInteraction.breakable(bot, level, CHEST,
-                WriteGrant.of(taskName(), WriteReason.PATH_ACCESS));
-        boolean chestIntact = level.getBlockState(CHEST).is(net.minecraft.world.level.block.Blocks.CHEST);
+        boolean predicateRefuses = CONTAINERS.stream().noneMatch(pos -> BlockInteraction.breakable(
+                bot, level, pos, WriteGrant.of(taskName(), WriteReason.PATH_ACCESS)));
+        boolean chestIntact = CONTAINERS.stream().allMatch(
+                pos -> level.getBlockState(pos).is(net.minecraft.world.level.block.Blocks.CHEST));
         // 目标拿没拿到**不作为判据**：本自检只要求"不伤害非目标容器"
         boolean pass = predicateRefuses && chestIntact;
         BotLog.info("[ClearGuard] SUMMARY predicate_refuses={} chest_intact={} target_removed={} → {}",

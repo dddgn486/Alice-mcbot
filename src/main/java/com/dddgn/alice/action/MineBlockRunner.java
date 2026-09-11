@@ -3,6 +3,7 @@ package com.dddgn.alice.action;
 import com.dddgn.alice.action.WriteGrant;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.pathing.core.session.PathExecutionResult;
 import com.dddgn.alice.task.PathRetryRunner;
@@ -108,7 +109,7 @@ public final class MineBlockRunner {
         if (runner != null) {
             return tickMovement();
         }
-        if (!bot.blockPosition().equals(plan.standingFoot())) {
+        if (!MovementHelper.footCell(bot.serverLevel(), bot).equals(plan.standingFoot())) {
             return tickMovement();
         }
 
@@ -154,9 +155,9 @@ public final class MineBlockRunner {
         if (runner == null) {
             PathRequest request = plan.mode() == MiningPlan.Mode.TUNNEL
                     || plan.mode() == MiningPlan.Mode.ENTER_TARGET
-                    ? PathRequest.miningApproach(bot.getUUID().toString(), bot.blockPosition(),
+                    ? PathRequest.miningApproach(bot.getUUID().toString(), MovementHelper.footCell(bot.serverLevel(), bot),
                             plan.standingFoot(), "mine-runner")
-                    : PathRequest.of(bot.getUUID().toString(), bot.blockPosition(),
+                    : PathRequest.of(bot.getUUID().toString(), MovementHelper.footCell(bot.serverLevel(), bot),
                             plan.standingFoot(), "mine-runner");
             runner = new PathRetryRunner(bot, request, PathRetryRunner.DEFAULT_MAX_REPLANS,
                     "mine-" + target.getX() + "_" + target.getY() + "_" + target.getZ());

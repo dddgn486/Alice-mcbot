@@ -2,6 +2,7 @@ package com.dddgn.alice.task;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.pathing.MovementHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -80,7 +81,7 @@ public final class WalkToDiagnosticTask implements Task {
         if (status == Status.RUNNING) {
             return Status.RUNNING;
         }
-        boolean arrived = bot.blockPosition().equals(goal);
+        boolean arrived = MovementHelper.footCell(bot.serverLevel(), bot).equals(goal);
         String reason = subTask.failureReason();
         boolean pass;
         String detail;

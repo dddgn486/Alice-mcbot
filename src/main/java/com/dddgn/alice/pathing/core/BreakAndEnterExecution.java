@@ -187,7 +187,8 @@ public final class BreakAndEnterExecution implements MovementExecution {
         if (dy != 0 || Math.abs(dx) + Math.abs(dz) != 1) {
             return false;
         }
-        if (!bot.blockPosition().equals(from) && !bot.blockPosition().equals(to)) {
+        BlockPos feet = MovementHelper.footCell(level, bot);
+        if (!feet.equals(from) && !feet.equals(to)) {
             return false;
         }
         // 目的地最终必须可站（支撑 + 破坏后身体/头部空间）
@@ -208,7 +209,7 @@ public final class BreakAndEnterExecution implements MovementExecution {
 
     private boolean postconditionHolds() {
         return tolerance == CompletionTolerance.COLUMN
-                ? MovementHelper.isAtFootColumn(bot, spec.toFoot())
+                ? MovementHelper.isAtFootColumn(level, bot, spec.toFoot())
                 : MovementHelper.isSettledAtFootPos(level, bot, spec.toFoot(), 0.3D);
     }
 
@@ -231,7 +232,7 @@ public final class BreakAndEnterExecution implements MovementExecution {
         failureCode = reason;
         BotLog.warn("[BreakEnter] failed session={} from={} to={} code={} actualFoot={}",
                 sessionId, spec.fromFoot().toShortString(), spec.toFoot().toShortString(),
-                reason, bot.blockPosition().toShortString());
+                reason, MovementHelper.footCell(level, bot).toShortString());
     }
 
     private static BotPlayer requireBot(ServerPlayer bot) {

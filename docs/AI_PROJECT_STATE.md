@@ -181,7 +181,7 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
   - 日志：`logs/latest.log`、`logs/debug.log`
   - 截图/视频：`screenshots/`、`videos/`（如果需要）
 
-## 当前进行中（2026-09-10 收工快照）
+## 当前进行中（2026-09-11 快照）
 
 **已收口（均有客户端证据）**
 - **L3 Job 主干 J1–J5**：伐木单棵闭环 / 循环+配额+逐树记账 / 决策缝可替换（策略对比自检）/
@@ -189,18 +189,31 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
   `AutoMineDecision` 孤岛已删，与伐木同一套候选/策略/trace/终止）。
 - **R2 授权契约**：`WriteGrant(谁,为什么)` 唯一入口 + 执行期复验授权集合（G1/G2/G9 闭合）。
 - **J6-a 世界修改账本**：动作层自动记录**放置**（抓到内核 `PILLAR` 放的方块）+ `/alice ledger` 只读。
-- **J6-b1 作用域恢复**：`RestoreScopeTask`（自上而下、只拆自己放的、不许挖地形）+
-  任务收尾**自动追加**恢复任务（建拆同权由会话强制）+ `/alice restore` 兜底。
+- **J6-b1/b1b/b1c**：`RestoreScopeTask`（自上而下、只拆自己放的、不许挖地形）+ 物质闭环
+  （重开作用域 + 收尾收集）+ 侧拆兜底；**D-103 起不再自动追加恢复**（拆除属于会话内、人还在脚手架上时做）。
+- **J6-b2 容器绕行自检**（D-104/D-095）：`alice:clear_guard_check` 跑真实 `MineTask`，
+  断言"不为取目标而拆容器"。首测（2026-09-11）断言 PASS，但暴露 **D-105**（见下）。
 - 期间修复：清障目标自身可达（D-083）、掉落物上抛阶段（D-084）、走位仰头（D-088）、
   斧子/一次性方块必须进快捷栏（D-089/D-099）、手持显示同步（D-090）、主手语义（D-091）、
   `exposed` 重定义（D-092）、清障不拆容器（D-095）、回归假失败（D-086）。
 
+**刚实现、待客户端验收：D-105 运行期脚位格统一**
+- 现象：bot 在箱子上原地弹跳 12 次（161 tick → `SEGMENT_TIMEOUT`）。
+- 根因：规划层脚位格 = "支撑格的上一格"，运行期 `blockPosition()` = "脚所在格"；
+  支撑顶面 ∈ [0.5, 1.0)（箱子/灵魂沙 0.875、底半砖 0.5、模组半格方块）时两者差一格
+  → 所有 `*Execution` 的 COLUMN 完成契约 / D-026 合法位置集永不成立。
+- 修复：`MovementHelper.footCell`（唯一口径）+ R2 零进展快速失败（`SEGMENT_NO_PROGRESS`）。
+- 新增夹具：`PATHING_REGRESSION ... foot_cell_rule`（无头断言）、
+  `chest_step_course` / `slab_step_course`（可执行，`alice:pathing_regression` 一次右键覆盖）。
+  **`pathing_regression` 现在是 16 场景**。
+
 **下一步（按序）**
-1. **J6-b1b**：恢复要**收回材料**（重开作用域 + 收尾 `CollectDropsTask`）——建拆同权的物质闭环；
-2. **J6-b2**：D-095 的"路径上有容器 → 绕开而非拆掉"断言场景；
-3. **G4**：内核写入的执行期预算（用户裁定紧随 J6 之后）；
-4. **J7 攀爬**（第一处真正需要脚手架放置的 Job，将首次实检建拆同权）→ **J8 MAINTAIN 区域型**。
-5. 仍登记未做：G3（模组连锁破坏无凭证）、G5（容器写入维度）。
+1. **客户端验收 D-105**：右键 `alice:pathing_regression` → 期望 16 场景全 PASS + `coverage=PASS`
+   + `footCellRule=true`，且日志无 `SEGMENT_TIMEOUT`；随后重跑 `clear_guard_course` 看 J6-b2 断言。
+2. **G4**：内核写入的执行期预算（用户裁定紧随 J6 之后）；
+3. **J7 攀爬**（第一处真正需要脚手架放置的 Job，将首次实检建拆同权）→ **J8 MAINTAIN 区域型**。
+4. 仍登记未做：G3（模组连锁破坏无凭证）、G5（容器写入维度）、
+   `isExpensiveToClear` 的成本化 + `#alice:clear_forbidden` 标签、`MiningBudget.tierOf` 的 `#forge:ores/*`。
 
 **测试入口速查**（全部零参数或一行命令）
 `alice:lumber_job` / `alice:lumber_policy_check` / `alice:lumber_failure_check` /

@@ -1,6 +1,7 @@
 package com.dddgn.alice.task.mining;
 
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.search.CorePathPlanner;
 import com.dddgn.alice.pathing.core.search.PathPlan;
 import com.dddgn.alice.pathing.core.search.PathRequest;
@@ -58,7 +59,7 @@ public final class MiningPlanner {
     public Result plan(ServerPlayer bot, BlockPos target, MiningBudget budget, boolean standableOnly) {
         ServerLevel level = bot.serverLevel();
         BlockPos immutableTarget = target.immutable();
-        BlockPos startFoot = bot.blockPosition().immutable();
+        BlockPos startFoot = MovementHelper.footCell(bot.serverLevel(), bot).immutable();
         double reach = bot.getBlockReach();
 
         Result direct = planDirect(bot, level, immutableTarget, startFoot, reach, budget);

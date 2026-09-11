@@ -75,7 +75,7 @@ public final class LumberCandidateSource implements CandidateSource {
             int noise = 0;
             int clearBlocks = 0;
             for (BlockPos log : tree.logsBottomUp()) {
-                if (!StandingPointSelector.generateCandidates(level, log, bot.blockPosition(), reach).isEmpty()) {
+                if (!StandingPointSelector.generateCandidates(level, log, MovementHelper.footCell(level, bot), reach).isEmpty()) {
                     continue;   // 现在就能看见
                 }
                 unreachable++;

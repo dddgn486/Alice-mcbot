@@ -145,7 +145,7 @@ public final class DownwardExecution implements MovementExecution {
     private boolean postconditionHolds() {
         BlockPos to = spec.toFoot();
         return tolerance == CompletionTolerance.COLUMN
-                ? MovementHelper.isAtFootColumn(bot, to)
+                ? MovementHelper.isAtFootColumn(level, bot, to)
                 : MovementHelper.isSettledAtFootPos(level, bot, to, 0.3D);
     }
 

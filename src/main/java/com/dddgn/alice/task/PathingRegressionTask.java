@@ -2,6 +2,7 @@ package com.dddgn.alice.task;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.MovementType;
 import com.dddgn.alice.pathing.core.search.CorePathPlanner;
 import com.dddgn.alice.pathing.core.search.PathPlan;
@@ -91,6 +92,12 @@ public final class PathingRegressionTask implements Task {
                     MovementType.BREAK_AND_ENTER),
             execute("trace_course", new BlockPos(0, 64, 40), new BlockPos(0, 64, 51), false,
                     MovementType.TRAVERSE),
+            // 非满高支撑（D-105）：箱子 0.875 / 底半砖 0.5 —— 运行期脚位格必须与规划层一致，
+            // 否则完成契约 `footCell.equals(toFoot)` 永不成立（旧行为：原地弹跳到段超时）
+            execute("chest_step_course", new BlockPos(1, 64, 126), new BlockPos(2, 65, 126), false,
+                    MovementType.ASCEND),
+            execute("slab_step_course", new BlockPos(4, 64, 145), new BlockPos(8, 64, 145), false,
+                    MovementType.TRAVERSE),
             refused("fluid_course", new BlockPos(0, 64, 66), new BlockPos(4, 64, 66), true),
             safeRoute("lava_course", new BlockPos(0, 64, 66), new BlockPos(4, 64, 66), true),
             refused("fence_course", new BlockPos(0, 64, 48), new BlockPos(0, 64, 44), false),
@@ -112,7 +119,7 @@ public final class PathingRegressionTask implements Task {
             MovementType.BREAK_AND_TRAVERSE, MovementType.BREAK_AND_ENTER,
             MovementType.PLACE_STEP_AND_TRAVERSE);
 
-    /** 任务级安全上限：12 个场景正常约 500 tick。 */
+    /** 任务级安全上限：14 个场景正常约 560 tick。 */
     private static final int MAX_TASK_TICKS = 2400;
 
     private final BotPlayer bot;
@@ -232,7 +239,7 @@ public final class PathingRegressionTask implements Task {
         }
         if (scene.wallTick() > 0 && !walled && ticks >= scene.wallTick()) {
             List<BlockPos> path = runner.session().projectedFootPath();
-            int position = path.indexOf(bot.blockPosition());
+            int position = path.indexOf(MovementHelper.footCell(bot.serverLevel(), bot));
             int target = position >= 0 ? position + 2 : -1;
             if (target > 0 && target < path.size()) {
                 BlockPos wall = path.get(target);
@@ -246,7 +253,7 @@ public final class PathingRegressionTask implements Task {
             }
         }
         if (scene.disturbTick() > 0 && !disturbed && ticks >= scene.disturbTick()) {
-            BlockPos from = bot.blockPosition();
+            BlockPos from = MovementHelper.footCell(bot.serverLevel(), bot);
             BlockPos to = from.offset(scene.disturbDx(), 0, scene.disturbDz());
             if (com.dddgn.alice.pathing.MovementHelper.canWalkOn(bot.serverLevel(), to)
                     && com.dddgn.alice.pathing.MovementHelper.canWalkThrough(bot.serverLevel(), to)

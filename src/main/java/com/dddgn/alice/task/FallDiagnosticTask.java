@@ -2,6 +2,7 @@ package com.dddgn.alice.task;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.MovementType;
 import com.dddgn.alice.pathing.core.search.CorePathPlanner;
 import com.dddgn.alice.pathing.core.search.MovementContext;
@@ -108,7 +109,7 @@ public final class FallDiagnosticTask implements Task {
                     return Status.RUNNING;
                 }
                 executePass = state == PathRetryRunner.State.DONE
-                        && bot.blockPosition().equals(DROP3_GOAL);
+                        && MovementHelper.footCell(bot.serverLevel(), bot).equals(DROP3_GOAL);
                 BotLog.info("[Fall] execute={} detail={} replans={} foot={}",
                         executePass ? "PASS" : "FAIL",
                         runner.result() == null ? "-" : runner.result().status().name(),

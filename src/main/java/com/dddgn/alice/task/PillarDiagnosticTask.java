@@ -2,6 +2,7 @@ package com.dddgn.alice.task;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.MovementType;
 import com.dddgn.alice.pathing.core.search.CorePathPlanner;
 import com.dddgn.alice.pathing.core.search.PathPlan;
@@ -110,7 +111,7 @@ public final class PillarDiagnosticTask implements Task {
                     return Status.RUNNING;
                 }
                 executePass = state == PathRetryRunner.State.DONE
-                        && bot.blockPosition().equals(RIM_GOAL);
+                        && MovementHelper.footCell(bot.serverLevel(), bot).equals(RIM_GOAL);
                 BotLog.info("[Pillar] execute={} detail={} replans={} foot={}",
                         executePass ? "PASS" : "FAIL",
                         runner.result() == null ? "-" : runner.result().status().name(),

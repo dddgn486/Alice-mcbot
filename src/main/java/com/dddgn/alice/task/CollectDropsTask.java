@@ -2,6 +2,7 @@ package com.dddgn.alice.task;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.pathing.core.session.PathExecutionResult;
 import com.dddgn.alice.perception.ScopeBuffer;
@@ -177,8 +178,8 @@ public final class CollectDropsTask implements Task {
         // 0) 尚未走位、且还没进入拾取范围 → 建路径（走位优先；不建就会"原地放弃"）
         if (runner == null && members.stream().noneMatch(this::inPickupRange)) {
             PathRequest request = allowWorldModification
-                    ? PathRequest.withWorldModification(bot.getUUID().toString(), bot.blockPosition(), anchor, "collect-drops")
-                    : PathRequest.of(bot.getUUID().toString(), bot.blockPosition(), anchor, "collect-drops");
+                    ? PathRequest.withWorldModification(bot.getUUID().toString(), MovementHelper.footCell(bot.serverLevel(), bot), anchor, "collect-drops")
+                    : PathRequest.of(bot.getUUID().toString(), MovementHelper.footCell(bot.serverLevel(), bot), anchor, "collect-drops");
             runner = new PathRetryRunner(bot, request, PathRetryRunner.DEFAULT_MAX_REPLANS,
                     "collect-" + anchor.getX() + "_" + anchor.getY() + "_" + anchor.getZ());
             BotLog.info("[CollectDrops] sweep_start anchor={} members={} feet={} worldMod={}",

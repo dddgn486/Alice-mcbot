@@ -3,6 +3,7 @@ package com.dddgn.alice.item;
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.search.CorePathPlanner;
 import com.dddgn.alice.pathing.core.search.PathPlan;
 import com.dddgn.alice.pathing.core.search.PathRequest;
@@ -78,7 +79,7 @@ public class PathingLavaGuardItem extends Item {
         bot.controller().stopMovement();
         ensureCobblestone(bot, 8);
 
-        BlockPos startFoot = bot.blockPosition().immutable();
+        BlockPos startFoot = MovementHelper.footCell(bot.serverLevel(), bot).immutable();
         PathRequest request = PathRequest.withWorldModification(
                 bot.getUUID().toString(), startFoot, COURSE_GOAL_FOOT, "item:pathing-lava-guard");
         PathPlan plan = new CorePathPlanner().plan(bot, level, request);

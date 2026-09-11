@@ -137,7 +137,7 @@ public final class FallExecution implements MovementExecution {
         failureCode = reason;
         BotLog.warn("[Fall] failed session={} from={} to={} code={} feet={} onGround={}",
                 sessionId, spec.fromFoot().toShortString(), spec.toFoot().toShortString(),
-                reason, bot.blockPosition().toShortString(), bot.onGround());
+                reason, MovementHelper.footCell(level, bot).toShortString(), bot.onGround());
     }
 
     private boolean preconditionsHold() {
@@ -149,7 +149,7 @@ public final class FallExecution implements MovementExecution {
         if (Math.abs(dx) + Math.abs(dz) != 1 || dy > -2 || dy < -3) {
             return false;
         }
-        BlockPos feet = bot.blockPosition();
+        BlockPos feet = MovementHelper.footCell(level, bot);
         if (!feet.equals(from) && !feet.equals(to)) {
             return false;
         }
@@ -179,7 +179,7 @@ public final class FallExecution implements MovementExecution {
     private boolean postconditionHolds() {
         BlockPos to = spec.toFoot();
         if (tolerance == CompletionTolerance.COLUMN) {
-            return MovementHelper.isAtFootColumn(bot, to);
+            return MovementHelper.isAtFootColumn(level, bot, to);
         }
         return MovementHelper.isSettledAtFootPos(level, bot, to, 0.3D);
     }

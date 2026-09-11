@@ -73,7 +73,7 @@ public final class PlaceTask implements Task {
         if (stand == null && !selectStand(level)) {
             return Status.FAILED;
         }
-        if (runner == null && !bot.blockPosition().equals(stand)) {
+        if (runner == null && !MovementHelper.footCell(bot.serverLevel(), bot).equals(stand)) {
             runner = new PathRetryRunner(bot, request(stand),
                     PathRetryRunner.DEFAULT_MAX_REPLANS, "place-" + target.getX() + "_" + target.getY()
                     + "_" + target.getZ());
@@ -122,7 +122,7 @@ public final class PlaceTask implements Task {
             }
         }
         for (BlockPos candidate : candidates) {
-            if (candidate.equals(bot.blockPosition())) {
+            if (candidate.equals(MovementHelper.footCell(bot.serverLevel(), bot))) {
                 stand = candidate;
                 return true;
             }
@@ -137,7 +137,7 @@ public final class PlaceTask implements Task {
     }
 
     private PathRequest request(BlockPos goalFoot) {
-        return PathRequest.of(bot.getUUID().toString(), bot.blockPosition(), goalFoot, "place");
+        return PathRequest.of(bot.getUUID().toString(), MovementHelper.footCell(bot.serverLevel(), bot), goalFoot, "place");
     }
 
     /** 生成可站位候选（可达距离内、可站可通行），按到目标的距离排序并截断。 */

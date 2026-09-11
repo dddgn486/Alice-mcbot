@@ -117,7 +117,7 @@ public final class FollowTask implements Task {
             return Status.RUNNING;   // 还没拿到可站锚点（刚起跳/刚传送），等下一 tick
         }
         BlockPos goalFoot = chooseStandoff(level, lastSafeTargetFoot);
-        if (bot.blockPosition().equals(goalFoot)) {
+        if (MovementHelper.footCell(bot.serverLevel(), bot).equals(goalFoot)) {
             // 已经站到目标旁边：待命（避免每 tick 重复规划）
             cancelRunner();
             return Status.RUNNING;
@@ -171,7 +171,7 @@ public final class FollowTask implements Task {
     }
 
     private PathRequest request(BlockPos goalFoot) {
-        return PathRequest.of(bot.getUUID().toString(), bot.blockPosition(), goalFoot, "follow");
+        return PathRequest.of(bot.getUUID().toString(), MovementHelper.footCell(bot.serverLevel(), bot), goalFoot, "follow");
     }
 
     /** 脚位是否可站（支撑 + 身体/头部净空）。 */

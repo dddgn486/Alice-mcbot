@@ -2,6 +2,7 @@ package com.dddgn.alice.task;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.AscendExecutionFactory;
 import com.dddgn.alice.pathing.core.CompletionTolerance;
 import com.dddgn.alice.pathing.core.DescendExecutionFactory;
@@ -163,7 +164,7 @@ public final class PathingBatteryTask implements Task {
     private void runPlanChecks() {
         CorePathPlanner planner = new CorePathPlanner();
         String botId = bot.getUUID().toString();
-        BlockPos foot = bot.blockPosition().immutable();
+        BlockPos foot = MovementHelper.footCell(bot.serverLevel(), bot).immutable();
 
         // 平地 2 格：向南（平台内部无台阶）。注意不要向东——东侧 (1,64,46) 是台阶，
         // 标定后（D-040）规划器会正确地选择"绕行 4 步（≈24 tick）"而不是"上台阶再下来（≈26 tick）"。
@@ -208,7 +209,7 @@ public final class PathingBatteryTask implements Task {
 
     /** 每项开始前把 bot 放回统一起点，保证各项独立可测（夹具行为，会写日志）。 */
     private void resetToHub() {
-        if (bot.blockPosition().equals(hubFoot)) {
+        if (MovementHelper.footCell(bot.serverLevel(), bot).equals(hubFoot)) {
             return;
         }
         anchorToStart();

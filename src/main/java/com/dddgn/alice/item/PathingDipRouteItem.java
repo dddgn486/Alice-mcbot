@@ -3,6 +3,7 @@ package com.dddgn.alice.item;
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.MovementType;
 import com.dddgn.alice.pathing.core.search.CorePathPlanner;
 import com.dddgn.alice.pathing.core.search.PathPlan;
@@ -74,7 +75,7 @@ public class PathingDipRouteItem extends Item {
         bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
         bot.controller().stopMovement();
 
-        BlockPos startFoot = bot.blockPosition().immutable();
+        BlockPos startFoot = MovementHelper.footCell(bot.serverLevel(), bot).immutable();
         PathRequest request = PathRequest.of(bot.getUUID().toString(), startFoot, COURSE_GOAL_FOOT, "item:pathing-dip-route");
         PathPlan plan = new CorePathPlanner().plan(bot, level, request);
         String first = plan.movements().isEmpty()

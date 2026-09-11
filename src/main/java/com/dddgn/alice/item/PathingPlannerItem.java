@@ -3,6 +3,7 @@ package com.dddgn.alice.item;
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.search.CorePathPlanner;
 import com.dddgn.alice.pathing.core.search.PathPlan;
 import com.dddgn.alice.pathing.core.search.PlannedMovement;
@@ -54,7 +55,7 @@ public class PathingPlannerItem extends Item {
             return InteractionResult.SUCCESS;
         }
 
-        BlockPos startFoot = bot.blockPosition().immutable();
+        BlockPos startFoot = MovementHelper.footCell(bot.serverLevel(), bot).immutable();
         PathPlan plan = new CorePathPlanner().planTo(bot, serverLevel, bot.getUUID().toString(),
                 startFoot, goalFoot, "item:pathing-planner");
 

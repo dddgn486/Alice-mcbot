@@ -68,7 +68,7 @@ public final class DescendExecution implements MovementExecution {
             tickCount = 0;
         }
 
-        BlockPos feet = bot.blockPosition();
+        BlockPos feet = MovementHelper.footCell(level, bot);
         BlockPos from = spec.fromFoot();
         BlockPos to = spec.toFoot();
 
@@ -76,7 +76,7 @@ public final class DescendExecution implements MovementExecution {
         // COLUMN：脚位方块正确 + Y 达标即完成（对齐 Baritone MovementDescend:235，链式中间段用）；
         // EXACT ：脚位正确 + 落地 + 水平 ≤0.3（安全关键站位用）。
         boolean arrived = tolerance == CompletionTolerance.COLUMN
-                ? MovementHelper.isAtFootColumn(bot, to)
+                ? MovementHelper.isAtFootColumn(level, bot, to)
                 : MovementHelper.isSettledAtFootPos(level, bot, to, 0.3D);
         if (arrived) {
             bot.controller().stopMovement();
@@ -95,7 +95,7 @@ public final class DescendExecution implements MovementExecution {
 
         // 过冲落得比目标更低（落到下一级台阶/更深）→ 立即诚实失败，
         // 不再白等超时；D-024 细化允许过冲列是下一级台阶，但那属于"未到达目标"。
-        if (bot.onGround() && bot.blockPosition().getY() < to.getY()) {
+        if (bot.onGround() && MovementHelper.footCell(level, bot).getY() < to.getY()) {
             fail("DESCEND_OVERSHOT_BELOW_TARGET");
             return;
         }
@@ -144,9 +144,10 @@ public final class DescendExecution implements MovementExecution {
         // 合法起点集对齐 Baritone MovementDescend.calculateValidPositions()：
         // {src, dest.above(), dest} —— 包含"已越过边缘、正在落入目标列"的位置，
         // 否则链式下降上一段带动量结束时，下一段会因起点不匹配而断链。
-        if (!bot.blockPosition().equals(from)
-                && !bot.blockPosition().equals(to)
-                && !bot.blockPosition().equals(to.above())) return false;
+        BlockPos feet = MovementHelper.footCell(level, bot);
+        if (!feet.equals(from)
+                && !feet.equals(to)
+                && !feet.equals(to.above())) return false;
         return MovementHelper.canWalkThrough(level, to)
                 && MovementHelper.canWalkThrough(level, to.above())
                 && MovementHelper.canWalkOn(level, to);

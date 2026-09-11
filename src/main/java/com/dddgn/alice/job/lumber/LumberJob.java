@@ -19,6 +19,7 @@ import com.dddgn.alice.task.TaskTarget;
 import com.dddgn.alice.task.mining.LineOfSightChecker;
 import com.dddgn.alice.task.mining.MiningBudget;
 import com.dddgn.alice.task.mining.StandingPointSelector;
+import com.dddgn.alice.pathing.MovementHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerLevel;
@@ -309,7 +310,7 @@ public final class LumberJob implements Job {
     /** 当前是否已有"现成可站"的站位能挖到该原木（复用规划器同一口径）。 */
     private boolean hasStandNow(BlockPos log) {
         return !StandingPointSelector.generateCandidates(bot.serverLevel(), log,
-                bot.blockPosition(), bot.getBlockReach()).isEmpty();
+                MovementHelper.footCell(bot.serverLevel(), bot), bot.getBlockReach()).isEmpty();
     }
 
     private Task.Status collectPhase() {

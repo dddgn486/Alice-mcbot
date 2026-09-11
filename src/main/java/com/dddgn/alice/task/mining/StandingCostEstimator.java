@@ -1,5 +1,6 @@
 package com.dddgn.alice.task.mining;
 
+import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.search.GoalFoot;
 import com.dddgn.alice.pathing.core.search.MovementContext;
 import com.dddgn.alice.pathing.core.search.MovementProvider;
@@ -69,7 +70,7 @@ public final class StandingCostEstimator {
     /** S2：一次纯通行 Dijkstra 成本场（半径与节点上限见 {@link MiningTuning}）。 */
     private static Result dijkstra(ServerPlayer bot, ServerLevel level,
                                    Collection<BlockPos> candidates, long start) {
-        BlockPos startFoot = bot.blockPosition().immutable();
+        BlockPos startFoot = MovementHelper.footCell(bot.serverLevel(), bot).immutable();
         PathRequest request = PathRequest.of(bot.getUUID().toString(), startFoot, startFoot, "standing-cost-estimator");
         MovementContext context = MovementContext.live(bot, level, request);
         MovementProvider provider = new SurfaceMovementProvider();

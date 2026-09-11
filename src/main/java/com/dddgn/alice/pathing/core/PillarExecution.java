@@ -192,7 +192,7 @@ public final class PillarExecution implements MovementExecution {
         failureCode = reason;
         BotLog.warn("[Pillar] failed session={} from={} to={} code={} feet={} onGround={}",
                 sessionId, spec.fromFoot().toShortString(), spec.toFoot().toShortString(),
-                reason, bot.blockPosition().toShortString(), bot.onGround());
+                reason, MovementHelper.footCell(level, bot).toShortString(), bot.onGround());
     }
 
     private boolean preconditionsHold() {
@@ -202,7 +202,7 @@ public final class PillarExecution implements MovementExecution {
             return false;
         }
         // D-026 合法位置集
-        BlockPos feet = bot.blockPosition();
+        BlockPos feet = MovementHelper.footCell(level, bot);
         if (!feet.equals(from) && !feet.equals(to)) {
             return false;
         }
@@ -219,7 +219,7 @@ public final class PillarExecution implements MovementExecution {
     private boolean postconditionHolds() {
         BlockPos to = spec.toFoot();
         return tolerance == CompletionTolerance.COLUMN
-                ? MovementHelper.isAtFootColumn(bot, to)
+                ? MovementHelper.isAtFootColumn(level, bot, to)
                 : MovementHelper.isSettledAtFootPos(level, bot, to, 0.3D);
     }
 

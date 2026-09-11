@@ -94,7 +94,8 @@ public final class TraverseExecution implements MovementExecution {
                 || Math.abs(to.getX() - from.getX()) + Math.abs(to.getZ() - from.getZ()) != 1) {
             return false;
         }
-        if (!bot.blockPosition().equals(from) && !bot.blockPosition().equals(to)) {
+        BlockPos feet = MovementHelper.footCell(level, bot);
+        if (!feet.equals(from) && !feet.equals(to)) {
             return false;
         }
         return MovementHelper.canWalkThrough(level, to)
@@ -106,7 +107,7 @@ public final class TraverseExecution implements MovementExecution {
         // D-026 统一完成契约：脚位正确 + 落地 + 水平到位
         // D-027：容差由会话指定（中间段 COLUMN、最终段 EXACT），执行器不得自行硬编码
         return tolerance == CompletionTolerance.COLUMN
-                ? bot.blockPosition().equals(spec.toFoot()) && bot.getY() - spec.toFoot().getY() < 0.5D
+                ? MovementHelper.footCell(level, bot).equals(spec.toFoot()) && bot.getY() - spec.toFoot().getY() < 0.5D
                 : MovementHelper.isSettledAtFootPos(level, bot, spec.toFoot(), 0.3D);
     }
 

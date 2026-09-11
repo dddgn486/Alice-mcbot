@@ -35,7 +35,7 @@ public final class PlaceStepAndTraverseExecutionFactory implements MovementExecu
         }
 
         // D-026 合法位置集
-        BlockPos feet = context.bot().blockPosition();
+        BlockPos feet = MovementHelper.footCell(context.level(), context.bot());
         if (!feet.equals(from) && !feet.equals(to)) {
             return ValidationResult.invalid("PLACE_STEP_AND_TRAVERSE_STALE_START");
         }

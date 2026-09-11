@@ -74,7 +74,7 @@ public final class AscendExecution implements MovementExecution {
             }
             // 已到达目标高度并落地 → 进入结算：不再跳跃，只做水平居中
             // （修复“Y 到位即停手 → 残余动量造成水平偏移”的旧缺陷）
-            if (bot.onGround() && bot.blockPosition().getY() >= spec.toFoot().getY()) {
+            if (bot.onGround() && MovementHelper.footCell(level, bot).getY() >= spec.toFoot().getY()) {
                 phase = Phase.SETTLING;
                 settlingTicks = 0;
                 return;
@@ -137,7 +137,8 @@ public final class AscendExecution implements MovementExecution {
             return false;
         }
         
-        if (!bot.blockPosition().equals(from) && !bot.blockPosition().equals(to)) {
+        BlockPos feet = MovementHelper.footCell(level, bot);
+        if (!feet.equals(from) && !feet.equals(to)) {
             return false;
         }
         
@@ -155,7 +156,7 @@ public final class AscendExecution implements MovementExecution {
     private boolean postconditionHolds() {
         // D-027：容差由会话指定（中间段 COLUMN、最终段 EXACT），执行器不得自行硬编码
         return tolerance == CompletionTolerance.COLUMN
-                ? MovementHelper.isAtFootColumn(bot, spec.toFoot())
+                ? MovementHelper.isAtFootColumn(level, bot, spec.toFoot())
                 : MovementHelper.isSettledAtFootPos(level, bot, spec.toFoot(), 0.3D);
     }
 
@@ -172,7 +173,7 @@ public final class AscendExecution implements MovementExecution {
         if (!bot.onGround()) {
             return false;
         }
-        if (bot.blockPosition().getY() >= spec.toFoot().getY()) {
+        if (MovementHelper.footCell(level, bot).getY() >= spec.toFoot().getY()) {
             return false;
         }
         BlockPos from = spec.fromFoot();
