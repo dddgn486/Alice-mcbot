@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:item/generated",
   "textures": {
-    "layer0": "alice:item/check"
+    "layer0": "alice:item/scaffold_check"
   }
 }

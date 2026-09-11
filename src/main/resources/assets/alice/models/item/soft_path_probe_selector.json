@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:item/handheld",
   "textures": {
-    "layer0": "minecraft:item/compass_00"
+    "layer0": "alice:item/soft_path_probe_selector"
   }
 }
