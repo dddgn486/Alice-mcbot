@@ -138,6 +138,12 @@ public final class LumberFailureCheckTask implements Task {
                 Set.of(), bot.getYRot(), bot.getXRot());
         bot.setDeltaMovement(Vec3.ZERO);
         bot.controller().stopMovement();
+        // D-122 附注：**任务自己发工具**（生产 MineTask 自 D-119 起不再兜底发工具）。
+        // 此前只有物品入口（`LumberFailureCheckItem`）发料，任何直接跑本任务的调用者
+        // （例如串联回归电池）都会徒手砍树 —— 实测 61 tick/根（有斧 6~8 tick/根），
+        // 令 `LOG_REPLACED`（预算 600）超时成 `goal_timeout`。故放到任务里，调用者无关。
+        com.dddgn.alice.item.FixtureToolKit.ensureAxe(bot);
+        com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
         caseTicks = 0;
         replacedArmed = false;
         replacedPos = null;

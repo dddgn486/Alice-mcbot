@@ -489,6 +489,13 @@ public final class BotManager {
         // 跨过 MAX_CLEAR_PER_TREE(8) ⇒ 这才是「按棵预算重置」（D-085③）的**真回归**：
         // 若计数器是 job 级，第 3~4 棵必在 clear_budget 失败。
         // （教训：3 棵时实测累计只有 8 格，正好压在阈值上、未触发——见 D-092 附注。）
+        // D-119/D-122：夹具职责——入口发料（生产 MineTask 不再兜底发工具）。物品入口已发过，
+        // 这里再保证一次，让**任何**调用者（含串联回归电池）都不会徒手砍树。
+        com.dddgn.alice.item.FixtureToolKit.ensureAxe(bot);
+        com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
+        com.dddgn.alice.item.FixtureToolKit.ensureHotbarStack(bot,
+                () -> new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.COBBLESTONE),
+                stack -> stack.is(net.minecraft.world.item.Items.COBBLESTONE), 12, "cobblestone");
         com.dddgn.alice.job.GoalSpec spec = com.dddgn.alice.job.GoalSpec.harvestUnits(
                 com.dddgn.alice.task.LumberCourseAnchor.START_FOOT, 16, 4, 3600);
         com.dddgn.alice.job.lumber.LumberJob job = new com.dddgn.alice.job.lumber.LumberJob(
@@ -511,6 +518,8 @@ public final class BotManager {
                                         int quota, int radius) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
+        // D-122：同上——入口保证有镐
+        com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
         com.dddgn.alice.job.GoalSpec spec = com.dddgn.alice.job.GoalSpec.mineBlocks(
                 bot.blockPosition(), radius, quota, 3600);
         com.dddgn.alice.job.mine.MineJob job = new com.dddgn.alice.job.mine.MineJob(

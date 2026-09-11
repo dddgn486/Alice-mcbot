@@ -3583,3 +3583,30 @@ clear_start … blocker=6,64,63  attempt=4 → clear_skip … exhausted=false
 → 看 `[Regression] SUMMARY`。期间不要启动其它任务；人站远一点别捡掉落物。
 
 **验证等级**：IMPLEMENTED / COMPILES（客户端待跑；本电池本身也是"§1.7 清单"的可执行版本）。
+
+### D-122 附注（2026-09-12 00:47–00:49 首次实跑：8/9，电池抓到的第一个真缺陷）
+
+**结果**：`[Regression] SUMMARY clear_retry=PASS write_budget=PASS scaffold=PASS clear_guard=PASS
+lumber_failure=FAIL mine_regression=PASS lumber_job=PASS mine_job=PASS pathing=PASS (8/9) ticks=2531 → FAIL`
+
+**缺陷（`lumber_failure`）**：子用例 `log_replaced` 变成 `status=FAILED reason=goal_timeout`
+（安全不变式仍成立：`replacedPos=20,64,208 仍为圆石=true`，即 bot 没挖非原木 ✓）。
+根因由**破块速度**一眼定位：该步是 **61 tick/根**（原木徒手速度），而后面的 `lumber_job` 步是
+**6~8 tick/根**（有斧）⇒ 该步**没有工具**，徒手砍树 8 倍慢，`LOG_REPLACED`（`maxTicks=600`）超时。
+
+**为什么会没工具**：D-119 起"发工具"是**入口/夹具职责**，而 `LumberFailureCheckTask` 的工具发在
+**物品入口**（`LumberFailureCheckItem`）里；电池**直接跑任务**、绕过物品 ⇒ 徒手。
+**修正**：把发料放进**任务自己**的 `prepare()`（`ensureAxe` + `ensurePickaxe`，对任何调用者都成立）；
+并给 `BotManager.assignLumberJob` / `assignMineJob` 加同样的防御性发料（物品入口那层保持不变，
+重复发料是幂等 no-op）。
+
+**教训（写进夹具规范）**：**发料要放在"任务"里，不能只放在"物品"里** —— 物品只是入口之一，
+电池/命令/后续调用者都会绕过它。这条与 D-119"生产任务不发工具"并不矛盾：生产任务不该发，
+**夹具任务**该发，且要发在自己身上。
+
+**另一条期望输出（不是缺陷）**：`[Regression] step=pathing 收尾仍有 4 条我方临时放置未拆` ——
+寻路回归的 `place_course` 系列是**故意改世界**的场景（`worldMod=true`，内核 `PILLAR`/
+`PLACE_STEP_AND_TRAVERSE` 的放置按账本记 TEMP），它们的复位靠下一次 `*_terrain` 重放，
+不归建拆同权管；电池按步如实 WARN 出来是正确的（每步仍各自独立作用域，不影响其它步）。
+
+**验证等级**：IMPLEMENTED / COMPILES（待复跑电池，期望 9/9）。
