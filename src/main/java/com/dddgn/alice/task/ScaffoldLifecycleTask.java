@@ -39,10 +39,15 @@ public final class ScaffoldLifecycleTask implements Task {
 
     /** 与 `scaffold_course_terrain` 对齐。 */
     public static final BlockPos START_FOOT = new BlockPos(38, 64, 46);
-    /** 爬升终点：柱顶（脚位 y=69 ⇒ 5 次 `PILLAR`）。 */
-    public static final BlockPos CLIMB_GOAL_FOOT = new BlockPos(38, 69, 46);
-    /** 高处目标（地面够不到）。 */
-    private static final BlockPos TARGET = new BlockPos(39, 70, 46);
+    /**
+     * 爬升终点：**竖壁壁顶** (39,69,46)（脚位 y=69 ⇒ 在 x=38 列上 5 次 `PILLAR` + 1 次 `TRAVERSE`）。
+     *
+     * <p>为什么终点在壁上而不是柱顶：`PILLAR` 的规划前提是"当前格有放置面"，而壁体正好给出
+     * 每一层的放置面（见场景注释）；壁顶又天然**可站**，是攀爬的合法目标脚位。
+     */
+    public static final BlockPos CLIMB_GOAL_FOOT = new BlockPos(39, 69, 46);
+    /** 高处目标（地面够不到，只有壁顶够得着）。 */
+    private static final BlockPos TARGET = new BlockPos(40, 70, 46);
     /** 我方柱子所在的列（残留检查）：y=64..68 是放置出来的方块，y=69 是站位空气格。 */
     private static final int COLUMN_X = START_FOOT.getX();
     private static final int COLUMN_Z = START_FOOT.getZ();

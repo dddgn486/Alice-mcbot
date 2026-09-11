@@ -2716,4 +2716,20 @@ Step 3 = 接进 `LumberJob`，Step 4 = §12.4 崩溃兜底 → 之后才是 J8�
 其中 `on_top_at_teardown` 是**前提断言**：若采矿阶段自己先跑下去，拆除前提就不成立（届时应作为发现上报，
 而不是悄悄走过）。
 
-**验证等级**：IMPLEMENTED / COMPILES（客户端待验）。
+**首次客户端实测（2026-09-11 19:31，用户"bot 没有行动"）**：`[Scaffold] plan status=UNREACHABLE
+movements=0 pillar=0/12` → 原地不动。**根因不在夹具几何，而在 `PILLAR` 的规划前提**：
+`appendPillar`（`SurfaceMovementProvider:219-245`）每一步都要求 `hasPlacementFace(level, from)`
+（当前格的水平/下方邻格里有实心块）；空旷地形里**只有第一步有面**（地板），规划期再往上没有任何方块
+⇒ 链条在第二步就断。回归 `pillar_course` 之所以成立，正是因为它有**竖井基岩壁**给每一层提供放置面。
+**修法（夹具侧）**：场景加一道竖壁 x=39,y=64..68,z=46 —— 既给攀爬柱每层提供放置面，壁顶
+(39,69,46) 又天然**可站**，成为攀爬的合法目标脚位；目标改到壁外的 (40,70,46)
+（地面 5.27 > reach 4.5，且唯一相邻可站格就是壁顶）。
+
+**同轮发现并修掉的两个资源问题**（非 J7 逻辑）：
+1. **4 个夹具物品缺模型**（`clear_guard_check`/`restore_check`/`write_budget_check`/`scaffold_check`
+   —— 客户端 4 条 `Unable to load model` 警告，物品会显示紫黑）：补 `models/item/*.json`，
+   统一指向 `alice:item/check`（与 `lumber_failure_check` 同款）。
+2. **3 个僵尸场景**（`movement_d/e/f.mcfunction`）引用早已删除的物品
+   （`movement_*_tester`）→ 客户端启动时 3 条 `Failed to load function` ERROR；全仓库无引用，已删除。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待复测）。
