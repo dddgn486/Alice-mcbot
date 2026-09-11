@@ -3169,3 +3169,31 @@ B1 把清障搬进 L2 时，我漏了改造前 Job 的一条关键行为：**清
 
 **验证等级**：IMPLEMENTED / COMPILES（客户端待验：`lumber_job` 路线与耗时回到改造前水平、
 高树仍靠加高完成且只搭必要格数；`lumber_failure_check` 5/5；`mine_regression` 10/10）。
+
+## D-116 收集复用"加高"能力：`GainStepRunner` + `CollectDropsTask` 可选信封（2026-09-11）
+
+**用户裁定**："让收集复用'加高'能力"。
+
+**背景（D-114 明确不覆盖的那一类）**：高云杉第 7 根原木的掉落物停在**树冠里 (27,70,207)**，
+而 bot 站在自己柱子顶（脚位 65，低 5 格）⇒ ① 就地扫尾纯走位直接 `MOVEMENT_FAILED` ⇒ 退役 ⇒
+`28,64,208:product_not_collected gained=6/7`（7 根全砍完却算未完成）。D-114 只解决"目标格**不可站**"，
+这一类是"目标格可站、但**路径不可达**"。
+
+**实现（不新增机制，并把重复消灭在一处）**
+1. 新增 `task/mining/GainStepRunner`：**共享**的"原地加高 1 格"执行器（规划 `foot → foot.above()`、
+   要求恰好 1 次 `PILLAR`、按 `MiningProfile.gainBlockBudget` 限块、逐步推进、统一日志）。
+   `MineTask` 原先内联的那份实现改为使用它 —— 否则"加高"就有两份实现，正是用户反复指出的病灶。
+2. `CollectDropsTask` 增加**可选** `MiningProfile gainProfile`（默认 `STANDABLE_ONLY` = 不允许加高
+   ⇒ **既有调用点行为完全不变**）：走位失败时，若最近的掉落物**明显在头顶**且预算允许 ⇒
+   加高 1 格 → 重锚重试走位；用尽或不可行才退役（日志 `gain_start/gain_done/gain_failed`）。
+3. `LumberJob` 的 **① 就地扫尾**启用加高（≤8 格，方块预算沿用默认 12）；
+   **③ 落地扫尾刻意不给**——它在 ② 拆除**之后**，产生的放置没人收回（会留残）。
+   ① 的加高放置落在同一作用域 ⇒ 紧随其后的 **② 建拆同权**一并收回 ✓（归属用 `STEP_PLACEMENT`，
+   与内核 `PILLAR` 一致）。
+4. 与 D-114 的分工写清：**D-114 横着挪（换可站格）；D-116 往上抬（加高够）**，两个不同手段。
+
+**验证入口**：`/function alice_test:lumber_course` → `alice:lumber_job`（期望高云杉
+`chopped=7/7 … gained=7/7`，不再 `product_not_collected`）；`alice:mine_regression`（默认信封不变，
+仍 10/10）；`alice:lumber_failure_check`（5/5）。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待验）。

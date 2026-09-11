@@ -129,6 +129,12 @@ public final class LumberJob implements Job {
     private boolean restoredThisTree;
     /** 任务结束时仍未拆除的我方临时放置（如实报告，不静默）。 */
     private int scaffoldLeft;
+    /**
+     * ① 就地扫尾的能力信封（D-116）：允许原地加高最多 8 格（一棵树从脚手架上到树冠的余量），
+     * 方块预算沿用默认 12。③ 落地扫尾**不给**加高——它在 ② 拆除之后，产生的放置没人收（会留残）。
+     */
+    private static final MiningProfile COLLECT_GAIN_PROFILE =
+            MiningProfile.STANDABLE_ONLY.withGain(8);
     /** ① 就地扫尾的 tick 预算（best-effort）。 */
     private static final int SWEEP_UP_BUDGET_TICKS = 200;
     private boolean sweptUpThisTree;
@@ -359,8 +365,11 @@ public final class LumberJob implements Job {
     /** ① 就地扫尾：仍在架上时收"此刻够得到"的产物（D-107 附注）。 */
     private Task.Status sweepUp() {
         if (collector == null) {
+            // D-116：① 就地扫尾允许"原地加高"——高树顶端的原木掉落物常常停在树冠里、正在头顶够不到；
+            // 此时 bot 还在自己的脚手架上、一次性方块在手、树干就是放置面 ⇒ 搭 1~N 格上去拿最省。
+            // 这些放置落在同一作用域里，紧随其后的 ② 建拆同权会一并收回。
             collector = new CollectDropsTask(bot, bot.blockPosition(), scope, List.of(), false,
-                    SWEEP_UP_BUDGET_TICKS);
+                    SWEEP_UP_BUDGET_TICKS, COLLECT_GAIN_PROFILE);
             BotLog.info("[Job] lumber sweep_up_start foot={} live_drops={}（仍在架上）",
                     MovementHelper.footCell(bot.serverLevel(), bot).toShortString(),
                     scope.liveDrops().size());

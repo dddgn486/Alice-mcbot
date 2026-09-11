@@ -71,6 +71,13 @@ public final class CollectDropsTask implements Task {
     private final ScopeBuffer scope;
     private final Set<UUID> expectedIds;
     private final boolean allowWorldModification;
+    /**
+     * 收集阶段的**能力信封**（D-116）：掉落物在头顶够不到时，允许用同一份"原地加高"能力上去拿。
+     * 默认 {@link MiningProfile#STANDABLE_ONLY}（不允许加高）⇒ 既有调用点行为完全不变。
+     */
+    private final com.dddgn.alice.task.mining.MiningProfile gainProfile;
+    private com.dddgn.alice.task.mining.GainStepRunner gainRunner;
+    private int gainSteps;
     private final int totalBudgetTicks;
 
     private int ticks;
@@ -110,6 +117,19 @@ public final class CollectDropsTask implements Task {
 
     public CollectDropsTask(BotPlayer bot, BlockPos origin, ScopeBuffer scope,
                             List<UUID> expectedIds, boolean allowWorldModification, int totalBudgetTicks) {
+        this(bot, origin, scope, expectedIds, allowWorldModification, totalBudgetTicks,
+                com.dddgn.alice.task.mining.MiningProfile.STANDABLE_ONLY);
+    }
+
+    /**
+     * @param gainProfile 收集阶段的能力信封（D-116）：允许"原地加高"时，头顶够不到的掉落物
+     *                    可以搭上去拿（放置落在同一作用域内，由建拆同权阶段收回）。
+     */
+    public CollectDropsTask(BotPlayer bot, BlockPos origin, ScopeBuffer scope,
+                            List<UUID> expectedIds, boolean allowWorldModification, int totalBudgetTicks,
+                            com.dddgn.alice.task.mining.MiningProfile gainProfile) {
+        this.gainProfile = gainProfile == null
+                ? com.dddgn.alice.task.mining.MiningProfile.STANDABLE_ONLY : gainProfile;
         this.bot = bot;
         this.origin = origin.immutable();
         this.scope = scope;
@@ -175,6 +195,30 @@ public final class CollectDropsTask implements Task {
             return Status.RUNNING;
         }
 
+        // 0) 正在加高（D-116）：先把它跑完 —— 完成后重锚并重试走位
+        if (gainRunner != null) {
+            com.dddgn.alice.task.mining.GainStepRunner.State gainState = gainRunner.tick();
+            if (gainState == com.dddgn.alice.task.mining.GainStepRunner.State.RUNNING) {
+                return Status.RUNNING;
+            }
+            gainRunner = null;
+            if (gainState == com.dddgn.alice.task.mining.GainStepRunner.State.DONE) {
+                gainSteps++;
+                BotLog.info("[CollectDrops] gain_done item={} steps={}/{} foot={}",
+                        members.get(0).getUUID(), gainSteps, gainProfile.maxGainSteps(),
+                        bot.blockPosition().toShortString());
+                reanchor(members);
+                return Status.RUNNING;
+            }
+            BotLog.warn("[CollectDrops] gain_failed steps={}/{} → 如实退役",
+                    gainSteps, gainProfile.maxGainSteps());
+            for (ItemEntity member : members) {
+                retire(member.getUUID(), "gain_failed");
+            }
+            endCluster(true);
+            return Status.RUNNING;
+        }
+
         // 0) 尚未走位、且还没进入拾取范围 → 建路径（走位优先；不建就会"原地放弃"）
         if (runner == null && members.stream().noneMatch(this::inPickupRange)) {
             // D-114：寻路目标必须是"**够得着掉落物的可站格**"，而不是掉落物所在格。
@@ -210,6 +254,11 @@ public final class CollectDropsTask implements Task {
             } else {
                 PathExecutionResult result = runner.result();
                 String reason = result == null ? "unreachable" : result.status().name();
+                // D-116：走位到不了（典型：掉落物在**头顶**的树冠里）→ 先用能力信封里的"加高"上去够，
+                // 用尽或不可行才退役。与 D-114（换可站格）是两个不同手段：一个横着挪、一个往上抬。
+                if (startGainToward(members)) {
+                    return Status.RUNNING;
+                }
                 for (ItemEntity member : members) {
                     retire(member.getUUID(), reason);
                 }
@@ -253,6 +302,31 @@ public final class CollectDropsTask implements Task {
         runner = null;
         BotLog.info("[CollectDrops] reanchor cluster_anchor={} remaining={} reanchors={}/{}",
                 anchor.toShortString(), members.size(), reanchors, MAX_REANCHORS);
+    }
+
+    /**
+     * 掉落物在**头顶**且走位不可达时，开一次"原地加高"（D-116，复用共享 {@code GainStepRunner}）。
+     *
+     * <p>只对"明显在上方"的成员动手（否则交给 D-114 的换格逻辑）；预算由信封的
+     * `maxGainSteps` 决定；加高产生的放置记在同一作用域里 ⇒ 由任务的建拆同权阶段收回。
+     */
+    private boolean startGainToward(List<ItemEntity> members) {
+        if (!gainProfile.mayGain() || gainSteps >= gainProfile.maxGainSteps()) {
+            return false;
+        }
+        ItemEntity nearest = members.stream()
+                .min(java.util.Comparator.comparingDouble(item -> bot.distanceToSqr(item)))
+                .orElse(members.get(0));
+        if (nearest.getY() <= bot.getY() + 0.5D) {
+            return false;   // 不在头顶 → 不靠加高解决
+        }
+        BotLog.info("[CollectDrops] gain_start item={} itemPos={} botFeet={} steps={}/{}",
+                nearest.getUUID(), nearest.blockPosition().toShortString(),
+                bot.blockPosition().toShortString(), gainSteps + 1, gainProfile.maxGainSteps());
+        gainRunner = new com.dddgn.alice.task.mining.GainStepRunner(bot, gainProfile,
+                com.dddgn.alice.action.WriteGrant.of("collect-drops",
+                        com.dddgn.alice.action.WriteReason.STEP_PLACEMENT));
+        return true;
     }
 
     /**

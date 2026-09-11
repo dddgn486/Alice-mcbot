@@ -76,7 +76,7 @@ public final class MineTask implements Task {
     private int restorePendingBefore;
     /** 没拆干净的数量（如实上报，不静默）。 */
     private int scaffoldLeft;
-    private PathRetryRunner gainRunner;
+    private com.dddgn.alice.task.mining.GainStepRunner gainRunner;
     private MineTask gainClearer;
     /** 世界写入授权（D-082）。 */
     private final WriteGrant grant;
@@ -599,26 +599,11 @@ public final class MineTask implements Task {
                 return true;
             }
         }
-        com.dddgn.alice.pathing.core.search.PathRequest request =
-                com.dddgn.alice.pathing.core.search.PathRequest.climbApproach(
-                        bot.getUUID().toString(), foot, goal, grant.requester() + ":gain");
-        com.dddgn.alice.pathing.core.search.PathPlan plan =
-                new com.dddgn.alice.pathing.core.search.CorePathPlanner()
-                        .plan(bot, bot.serverLevel(), request);
-        int pillars = (int) plan.movements().stream()
-                .filter(m -> m.movementType() == com.dddgn.alice.pathing.core.MovementType.PILLAR)
-                .count();
-        if (!plan.reached() || pillars != 1 || pillars > profile.gainBlockBudget()) {
-            BotLog.info("[MineTask] gain_unavailable target={} status={} pillar={}/{} profile={}",
-                    target.toShortString(), plan.status(), pillars, profile.gainBlockBudget(),
-                    profile.describe());
-            return false;
-        }
         if (!(bot instanceof com.dddgn.alice.bot.BotPlayer botPlayer)) {
             throw new IllegalStateException("MineTask requires BotPlayer");
         }
-        gainRunner = new PathRetryRunner(botPlayer, request, PathRetryRunner.DEFAULT_MAX_REPLANS,
-                grant.requester() + "-gain");
+        // D-116：加高动作抽成**共享执行器**（收集侧也要用同一份实现，不再各写一遍）
+        gainRunner = new com.dddgn.alice.task.mining.GainStepRunner(botPlayer, profile, grant);
         BotLog.info("[MineTask] gain_start target={} from={} to={} steps={}/{} profile={}",
                 target.toShortString(), foot.toShortString(), goal.toShortString(),
                 gainSteps + 1, profile.maxGainSteps(), profile.describe());
@@ -644,15 +629,16 @@ public final class MineTask implements Task {
     }
 
     private Status tickGain() {
-        PathRetryRunner.State state = gainRunner.tick();
-        if (state == PathRetryRunner.State.RUNNING) {
+        com.dddgn.alice.task.mining.GainStepRunner.State state = gainRunner.tick();
+        if (state == com.dddgn.alice.task.mining.GainStepRunner.State.RUNNING) {
             return Status.RUNNING;
         }
-        boolean ok = state == PathRetryRunner.State.DONE;
+        boolean ok = state == com.dddgn.alice.task.mining.GainStepRunner.State.DONE;
         gainRunner = null;
         if (!ok) {
             gainSteps = profile.maxGainSteps();   // 加高不可行 → 不再重试（避免原地打转）
-            BotLog.warn("[MineTask] gain_failed target={} state={} → 如实失败", target.toShortString(), state);
+            BotLog.warn("[MineTask] gain_failed target={} state={} → 如实失败",
+                    target.toShortString(), state);
         } else {
             gainSteps++;
             BotLog.info("[MineTask] gain_done target={} foot={} steps={}/{}",
