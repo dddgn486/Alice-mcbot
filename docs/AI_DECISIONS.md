@@ -3197,3 +3197,42 @@ B1 把清障搬进 L2 时，我漏了改造前 Job 的一条关键行为：**清
 仍 10/10）；`alice:lumber_failure_check`（5/5）。
 
 **验证等级**：IMPLEMENTED / COMPILES（客户端待验）。
+
+### D-116 附注（2026-09-11 客户端回归实测：① 就地扫尾被**静默跳过**）
+
+**实测现象**（`/function alice_test:lumber_course` → `alice:lumber_job`，两次独立运行同症状）：
+高云杉 `28,64,208` 砍完 7/7、末根触发加高 `steps=1/3`（`gained=1`），但日志
+**零** `[Job] lumber sweep_up_start/sweep_up_end`，最后一个原木刚破完 150 ms 就直接
+`[Job] lumber restore_start … pending=1（仍在架上拆除）`（=②），随后 `phase=COLLECT … gained=1`，
+结算 `28,64,208:product_not_collected gained=6/7`。
+
+**事实核对（先排除产物嫌疑）**：客户端 `mods/alice-*.jar` 与本地 `build/libs/` 的 md5 完全一致；
+对该 jar 内 `LumberJob.class` 反汇编确认 `advanceAfterChop()` 的 ① 门槛就是
+`gainedThisTree > 0 && !sweptUpThisTree` → `Phase.SWEEP_UP`，`tick()` 的 switch 也确实是
+`SWEEP_UP → sweepUp()`。⇒ 不是旧产物，是逻辑真跳过了 ①。
+
+**根因（两处，同一处代码里叠加；README 记为"阶段局部状态写成全局状态"）**
+1. `sweepUp()` 用 job **全局**计数器 `ticks`（`tick()` 里 `++ticks > spec.maxTicks()` 的那个）
+   当 ① 的阶段预算：跑到第 4 棵树时它已是几千 ⇒ `++ticks > SWEEP_UP_BUDGET_TICKS + 40 (240)`
+   **首帧就成立**，走的是**唯一没有日志**的超时分支（`sweptUpThisTree = true; return advanceAfterChop();`）。
+2. `collectPhase()` 收完**不置空** `collector`，而 `sweepUp()` 又用 `collector == null` 表示"① 还没开工"
+   ⇒ 第二棵树起，`collector` 是上一棵树 ③ 留下的**僵尸任务**，"开工分支"（含 `sweep_up_start`
+   日志）永远进不去，直接落到上面那个静默超时分支。
+
+两者叠加 = ① 一次都没跑、一行日志都不留、`sweptUpThisTree` 被置真后正常掉进 ② —— 与日志逐行吻合
+（含"末根破完 → 150 ms 后 restore_start"这一帧间距）。
+
+**修正**（最小、无新机制）
+- ① 用**自己的**阶段状态：`sweepStarted` + `sweepTicks`（`select()` 里逐树重置），不再碰 `ticks`；
+- 超时分支补日志 `[Job] lumber sweep_up_timeout ticks=…`（"best-effort 放弃"不能再无声无息）；
+- `collectPhase()` 收完 `collector = null`（阶段用完即弃，杜绝跨树复用）。
+
+**待验的判别点（下一次客户端测试直接看这一行）**：① 开工日志里的 `live_drops=N`。
+- `live_drops≥1` 且随后 `sweep_up_end swept=…` 收掉 ⇒ 第 7 根原木的掉落物一直在（停在树冠
+  `27,70,207`），① 补收即闭合，`gained=7/7`；
+- `live_drops=0` ⇒ 掉落物在 ② 之前就已不在世界/作用域里（③ 的 `entities=0/0` 也印证），
+  那是**另一条**根因（加高时把方块放在**掉落物所在格**上、② 再拆掉它的后果），
+  下一轮单独定位，不在这轮修。
+
+**验证等级**：IMPLEMENTED / COMPILES / SERVER_TESTED（症状与根因均已由日志+反汇编确认）；
+客户端待验如上判别点。

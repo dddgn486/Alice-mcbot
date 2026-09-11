@@ -137,6 +137,21 @@ public final class LumberJob implements Job {
             MiningProfile.STANDABLE_ONLY.withGain(8);
     /** ① 就地扫尾的 tick 预算（best-effort）。 */
     private static final int SWEEP_UP_BUDGET_TICKS = 200;
+    /**
+     * ① 就地扫尾的**阶段局部**状态（专用计数器 + 是否已开工）。
+     *
+     * <p>2026-09-11 修正（D-116 回归实测）：① 原先用 `collector == null` 判断"还没开工"、
+     * 用 job 级全局计数器 `ticks` 当预算 —— 两个都是错的，合起来让 ① **静默跳过**：
+     * <ol>
+     *   <li>`collector` 在 ③ 收完后不置空，下一棵树进 ① 时它是上一棵的**僵尸任务**，
+     *       "没开工"分支（含 `sweep_up_start` 日志）永远进不去；</li>
+     *   <li>`ticks` 是 job 全局 tick 计数（第 4 棵树早已 ≫ 240），于是 `++ticks > 预算+40`
+     *       立刻成立，走**唯一没有日志**的超时分支 → `sweptUpThisTree = true` → ① 无声作废。</li>
+     * </ol>
+     * 现象：`gained=1` 却直接 `restore_start`（②），零 `sweep_up_start/end`，顶部原木掉落物没人收。
+     */
+    private int sweepTicks;
+    private boolean sweepStarted;
     private boolean sweptUpThisTree;
     private boolean scaffoLeftReported;
     private String terminalReason = "";
@@ -234,6 +249,8 @@ public final class LumberJob implements Job {
         tree = picked;
         clearedThisTree = 0;            // 预算按棵重置（D-080「≤8 格/棵」）
         gainedThisTree = 0;
+        sweepStarted = false;
+        sweepTicks = 0;
         sweptUpThisTree = false;
         restoredThisTree = false;
         scaffoLeftReported = false;
@@ -364,19 +381,22 @@ public final class LumberJob implements Job {
 
     /** ① 就地扫尾：仍在架上时收"此刻够得到"的产物（D-107 附注）。 */
     private Task.Status sweepUp() {
-        if (collector == null) {
+        if (!sweepStarted) {
             // D-116：① 就地扫尾允许"原地加高"——高树顶端的原木掉落物常常停在树冠里、正在头顶够不到；
             // 此时 bot 还在自己的脚手架上、一次性方块在手、树干就是放置面 ⇒ 搭 1~N 格上去拿最省。
             // 这些放置落在同一作用域里，紧随其后的 ② 建拆同权会一并收回。
+            sweepStarted = true;
+            sweepTicks = 0;
             collector = new CollectDropsTask(bot, bot.blockPosition(), scope, List.of(), false,
                     SWEEP_UP_BUDGET_TICKS, COLLECT_GAIN_PROFILE);
             BotLog.info("[Job] lumber sweep_up_start foot={} live_drops={}（仍在架上）",
                     MovementHelper.footCell(bot.serverLevel(), bot).toShortString(),
                     scope.liveDrops().size());
-            ticks = 0;
             return Task.Status.RUNNING;
         }
-        if (++ticks > SWEEP_UP_BUDGET_TICKS + 40) {
+        if (++sweepTicks > SWEEP_UP_BUDGET_TICKS + 40) {
+            BotLog.warn("[Job] lumber sweep_up_timeout ticks={}（best-effort：交由 ② 拆除后落地再收）",
+                    sweepTicks);
             collector = null;
             sweptUpThisTree = true;
             return advanceAfterChop();
@@ -421,6 +441,7 @@ public final class LumberJob implements Job {
         if (status == Task.Status.RUNNING) {
             return Task.Status.RUNNING;
         }
+        collector = null;   // ③ 收完即弃：留着会让下一棵树的 ① 误判"已经在扫尾"（D-116 修正）
         int gained = countLogs() - logsBeforeThisTree;
         boolean allChopped = failedLogs.isEmpty() && choppedLogs == queue.size() && !queue.isEmpty();
         boolean harvested = allChopped && gained >= tree.logCount();
