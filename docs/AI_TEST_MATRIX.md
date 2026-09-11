@@ -127,6 +127,8 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 
 | 执行期写入预算（D-106）：任务级上限 | `/give @s alice:write_budget_check` → 右键（零参数） | 物品右键 | 复用 `break_course`，本次任务破坏上限压到 1 格；断言"只拆 1 格 → 用满即停 → 如实失败 → 绝不继续拆"，并用**世界事实**复核（墙区空气格 ≤1） | `WINDOWS_CLIENT` + `USER_ACCEPTED`（2026-09-11 19:15）：`CHECK breaks=1/1 places=0/0 refusedBreaks=1 refusedPlaces=0 exhausted=true wall_broken=1 passed_wall=false status=MOVEMENT_FAILED → PASS`；相比 Slice A：`refusedPlaces` 2→0、`replans` 2→1、耗时 51→24 tick，且不再出现 `[WRITE-REFUSED] place` |
 
+| J7 Step 1 脚手架生命周期（D-107） | `/give @s alice:scaffold_check` → 右键（零参数） | 物品右键 | 搭柱爬到柱顶（5 次 `PILLAR`）→ 采高处够不到的目标 → **仍在柱顶**自上而下拆 → 落地；断言建 N 拆 N、账本 scope 清空、柱列无残留（世界事实复核） | `待测`（预期 `[Scaffold] SUMMARY pillar=5/12 torn=5 remaining=0 residue=0 target=gone on_top_at_teardown=true grounded=true → PASS`；账本无 `仍有 N 条未拆除` 警告） |
+
 | Slice B 计划期剪枝不误剪（D-106） | 右键 `alice:pathing_regression`（16 场景含 `break_course`/`place_course`/`pillar_course`） | 零参数右键 | 计划期闸门只能"拦注定执行不完的写边"，**不能**动合法写边；`[PathRetry] planned … writes>=b/p` 可见每个计划的下界 | `WINDOWS_CLIENT` + `USER_ACCEPTED`（2026-09-11 19:15）：16 场景 + `foot_cell_rule` + `coverage` 全 PASS；预算实耗与 Slice A 完全一致（`breaks=5/64 places=7/32 refused=0`）；`plan_write_budget_insufficient` 0 次 ⇒ 零误剪 |
 
 | 预算不误伤合法路径（D-106 反例守卫） | 右键 `alice:pathing_regression`（16 场景） | 零参数右键 | 正常任务的破坏/放置应远低于 64/32；出现 `[WriteBudget] exhausted` 即说明上限需要按数据调整 | `WINDOWS_CLIENT` + `USER_ACCEPTED`（2026-09-11 19:03）：16 场景 + `foot_cell_rule` + `coverage` 全 PASS；预算实耗 **breaks=5/64 places=7/32 refused=0** ⇒ 零打扰，64/32 有实测余量 |

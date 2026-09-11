@@ -79,6 +79,15 @@
 **豁免（非生产写入）**：`bot/BotSelftest`、`pathing/PathingRegression`、`task/mining/MiningReplanFixture`、
 `transfer/*Fixture` 等夹具类直接改世界用于布景，不走授权面。
 
+## 3.5 攀爬授权（A10，J7 Step 1，D-107）
+
+| 入口 | 允许的 Movement | 谁开启 | 备注 |
+|---|---|---|---|
+| `PathRequest.climbApproach` | `TRAVERSE / DIAGONAL / ASCEND / DESCEND / **PILLAR**` | **只由攀爬任务显式开启**（`ScaffoldLifecycleTask`；Step 3 起由 `LumberJob` 按预算决定） | 不含 `FALL/DOWNWARD/BREAK_*`；方块预算 = 计划里 `PILLAR` 边数 ≤ 12；**不进任何默认集合**，`miningApproach` 仍禁用 `PILLAR/FALL/DOWNWARD` |
+
+拆除走既有入口 `PathRequest.scaffoldRemoval`（P7：只拆不建、只允许向下拆脚下那一格），
+拆除的破坏计 `SCAFFOLD_RESTORE` 理由 → 按 D-106 **豁免破坏上限但仍计数**。
+
 ## 4. 后续顺序
 
 | 步骤 | 内容 | 前置 |

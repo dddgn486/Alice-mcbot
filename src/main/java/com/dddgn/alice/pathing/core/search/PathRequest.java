@@ -84,6 +84,25 @@ public record PathRequest(
                 SearchBudget.UNLIMITED, "restore");
     }
 
+    /**
+     * 攀爬到达请求（J7 Step 1，§11-① 要素①）：**显式授权入口**，允许 `PILLAR`（跳跃中在脚下放方块）。
+     *
+     * <p>为什么必须单列一个入口：D-076 规定寻路默认纯通行，放置类能力只能由上层**显式授权**；
+     * 为挖掘站位服务的 {@link #miningApproach} 显式禁用 `PILLAR/FALL/DOWNWARD`（D-067 ㉘），
+     * 因此"搭着方块爬上去"在今天**没有任何合法入口**——本工厂就是那个入口，**只由 Job/任务显式开启**，
+     * 不进任何默认集合。已登记：`docs/WORLD_WRITE_AUTHORIZATION.md` A10。
+     *
+     * <p>允许集刻意**不含** `FALL` / `DOWNWARD` / `BREAK_*`：爬上去的途中不许破坏，也不许跳下去
+     * （下来属于**拆除阶段**，走 {@link #scaffoldRemoval}）。
+     */
+    public static PathRequest climbApproach(String botId, BlockPos startFoot, BlockPos goalFoot,
+                                            String requester) {
+        return new PathRequest(botId, startFoot, new GoalFoot(goalFoot),
+                Set.of(MovementType.TRAVERSE, MovementType.DIAGONAL, MovementType.ASCEND,
+                        MovementType.DESCEND, MovementType.PILLAR),
+                SearchBudget.UNLIMITED, requester);
+    }
+
     public boolean allows(MovementType type) {
         return allowedMovementTypes.contains(type);
     }

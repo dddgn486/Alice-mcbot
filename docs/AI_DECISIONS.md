@@ -2685,3 +2685,35 @@ APPROACH 成功（`movements=0`），但 **DESCEND 失败**：
 "靠放置绕行"的路线**（attempt1/attempt2 的 `STEP_PLACEMENT`），在生产上限（32）下这意味着可能烧掉
 若干次放置才如实失败。⇒ Slice B：把预算并入 `PathRequest`/搜索做计划期剪枝，并让"尝试级耗尽"降级为
 纯通行重规划（而不是换一种写入方式继续试）。
+
+## D-107 J7 Step 1：脚手架生命周期闭环（2026-09-11）
+
+**用户裁定**：Step 1 范围 = **机制闭环夹具**（不碰树）；方块预算默认 **12**（砍树够用；模组超高树不管）；
+拆除**先复用 `RestoreScopeTask`**（少造机制）。"一步一步来"，Step 2 = 以树干为脚手架 + 砍伐顺序耦合，
+Step 3 = 接进 `LumberJob`，Step 4 = §12.4 崩溃兜底 → 之后才是 J8。
+
+**本步实现 §11-① 的四要素（①–④）**
+1. **显式授权入口**：`PathRequest.climbApproach(...)` —— 允许 `TRAVERSE/DIAGONAL/ASCEND/DESCEND/PILLAR`，
+   **不含** `FALL/DOWNWARD/BREAK_*`（爬升途中不破坏、不跳下；下来属于拆除阶段走 `scaffoldRemoval`）。
+   只由 Job/任务显式开启，不进任何默认集合；`miningApproach` 仍禁用 `PILLAR/FALL/DOWNWARD`。
+   授权文档登记为 **A10**。
+2. **方块预算**：`ScaffoldLifecycleTask.CLIMB_BUDGET = 12`，判据是**计划里 `PILLAR` 边数**（规划期先数一次）；
+   超预算 → 该目标拒绝并给理由码 `climb_budget_exceeded`（另受 D-106 的 `places` 上限与快捷栏一次性方块约束）。
+3. **返回保证**：柱子**就是**下行路线（拆一格 → `DOWNWARD` 落一格），不需要额外留路；
+   与 D-058 的 PILLAR 返回守卫是同一思想。
+4. **残留策略**：**会话内、仍在柱顶**拆除（§12.3 生命周期），复用 `RestoreScopeTask`
+   （自上而下 / 只拆账本内我方 `TEMP` / `placedState` 不匹配即跳过 / 侧拆兜底）；拆不完不许静默 →
+   `terminalReason=scaffold_left_behind:<剩余格数>`。
+
+**夹具**：`alice:scaffold_check`（零参数右键）+ 场景 `scaffold_course_terrain`
+（孤立长方体 x32..44 / y58..74 / z38..54；地板 y=63；目标 `stone` 浮在 (39,70,46)，
+从地面**够不到**——眼位 (38.5,65.6,46.5) 到中心 ≈ 4.98 > reach 4.5，且周围没有"可走到且够得着"的站位）。
+流程：搭柱爬到 (38,69,46)（5 次 `PILLAR`）→ 采高处目标 → **仍在柱顶**拆掉 → 落地。
+
+**断言（`[Scaffold] SUMMARY`）**：`pillar=N/12`、`torn==pillar`、`remaining==0`（账本该 scope 为空）、
+`residue==0`（柱列 x=38,y=64..68,z=46 全为空气——**世界事实复核**）、`target=gone`、
+`on_top_at_teardown=true`、`grounded=true`。
+其中 `on_top_at_teardown` 是**前提断言**：若采矿阶段自己先跑下去，拆除前提就不成立（届时应作为发现上报，
+而不是悄悄走过）。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待验）。

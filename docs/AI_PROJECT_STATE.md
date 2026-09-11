@@ -218,9 +218,11 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
 - 待办（Slice B2）：`MiningBudget.maxExtraBreakTicks` 升级为尝试级 tick 预算（需先定口径）。
 
 **下一步（按序）**
-1. **G4 Slice B2（待定口径）**：`MiningBudget.maxExtraBreakTicks` 升级为尝试级 tick 预算
-   （需先定非挖掘请求的预算来源与优先级）；
-2. **J7 攀爬**：第一处真正需要脚手架放置的 Job，会首次实检建拆同权；
+1. **客户端验收 J7 Step 1**：右键 `alice:scaffold_check`（期望 `[Scaffold] SUMMARY … → PASS`；
+   账本无残留警告）；
+2. **J7 Step 2**：以树干为脚手架爬真实高树 + 砍伐顺序耦合（不许砍自己脚下那格）；
+   Step 3 接进 `LumberJob`；Step 4 = §12.4 崩溃兜底 → 之后是 J8；
+3. **G4 Slice B2（待定口径，无实测需求驱动）**：`MiningBudget.maxExtraBreakTicks` 升级为尝试级 tick 预算；
 2. **J7 攀爬**（第一处真正需要脚手架放置的 Job，将首次实检建拆同权）→ **J8 MAINTAIN 区域型**。
 3. 仍登记未做：G3（模组连锁破坏无凭证）、G5（容器写入维度）、
    `isExpensiveToClear` 的成本化 + `#alice:clear_forbidden` 标签、`MiningBudget.tierOf` 的 `#forge:ores/*`、

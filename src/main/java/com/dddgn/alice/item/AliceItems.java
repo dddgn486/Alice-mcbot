@@ -133,6 +133,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> CLEAR_GUARD_CHECK =
             ITEMS.register("clear_guard_check", () -> new ClearGuardCheckItem(new Item.Properties()));
 
+    /** J7 Step 1 脚手架生命周期自检（零参数）：建 N 拆 N、账本清空、无残留。 */
+    public static final RegistryObject<Item> SCAFFOLD_CHECK =
+            ITEMS.register("scaffold_check", () -> new ScaffoldCheckItem(new Item.Properties()));
+
     /** D-106 写入预算自检（零参数）：预算用满后不再改世界、如实失败。 */
     public static final RegistryObject<Item> WRITE_BUDGET_CHECK =
             ITEMS.register("write_budget_check", () -> new WriteBudgetCheckItem(new Item.Properties()));

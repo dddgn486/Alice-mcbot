@@ -556,6 +556,16 @@ public final class BotManager {
         return true;
     }
 
+    /** 脚手架生命周期自检（J7 Step 1）：搭柱子爬上去 → 高处干活 → 仍在顶上拆掉 → 落地。 */
+    public static boolean assignScaffoldCheck(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        session.beginTask(new com.dddgn.alice.task.ScaffoldLifecycleTask(bot, session.scope()),
+                TaskTarget.block(com.dddgn.alice.task.ScaffoldLifecycleTask.CLIMB_GOAL_FOOT));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     /** 写入预算自检（D-106）：任务级破坏上限压到 1 格，断言"用满即停、如实失败"。 */
     public static boolean assignWriteBudgetCheck(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
