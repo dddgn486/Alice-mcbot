@@ -30,6 +30,11 @@ import java.util.List;
  * <p>三条纪律：**严格自上而下**（y 降序）、**只拆自己放的**（拆前比对账本 `placed` 与现场方块，
  * 不匹配即放弃并销账 `not_ours`）、**不许沿途挖地形**（授权集合不含 `BREAK_AND_*`）。
  *
+ * <p>**物质闭环（J6-b1b）**：拆下来的方块会变成掉落物——所以恢复任务在开始时**重开作用域**
+ * （`ScopeBuffer.begin`，否则掉落物不被登记），处理完后**收尾调一次收集**（`CollectDropsTask`），
+ * 并在终态日志里如实报出"一次性方块库存的变化"。这样"建拆同权"不只是把方块从世界里拿掉，
+ * 而是**材料也回到背包**——否则每轮都在净消耗，夹具只能靠补料掩盖（D-099 的教训）。
+ *
  * <p>终态：`restore_done` / `restore_partial`（超时或仍有剩余，如实失败）/ `nothing_to_restore`。
  */
 public final class RestoreScopeTask implements Task {
@@ -37,6 +42,8 @@ public final class RestoreScopeTask implements Task {
     /** 每块预算：两段寻路 + 一次破坏。 */
     private static final int TICKS_PER_BLOCK = 300;
     private static final int BASE_TICKS = 100;
+    /** 收尾收集的 tick 预算（与 CollectDropsTask 默认一致）。 */
+    private static final int COLLECT_BUDGET_TICKS = 600;
 
     private enum Stage { APPROACH, DESCEND }
 
@@ -52,11 +59,19 @@ public final class RestoreScopeTask implements Task {
     private int ticks;
     private int restored;
     private int skipped;
+    /** 第一个成功恢复的位置（收尾收集的锚点）。 */
+    private BlockPos firstRestored;
     private final List<String> notes = new ArrayList<>();
 
     private BlockPos current;
     private Stage stage = Stage.APPROACH;
     private PathRetryRunner runner;
+    /** 收尾收集（J6-b1b）：把拆下来的方块收回背包。 */
+    private CollectDropsTask collector;
+    private boolean collectStarted;
+    /** 开始时的一次性方块库存（用于终态报"收回多少"）。 */
+    private int throwawayBefore;
+    private boolean scopeOpened;
     private String terminalReason = "";
     private String failure = "";
     private boolean terminated;
@@ -108,6 +123,9 @@ public final class RestoreScopeTask implements Task {
             failure = terminalReason + "（超时，仍有 " + (queue.size() - index) + " 块未处理）";
             return finish(Task.Status.FAILED);
         }
+        if (collector != null) {
+            return tickCollector();
+        }
         if (runner != null) {
             return tickRunner();
         }
@@ -128,7 +146,54 @@ public final class RestoreScopeTask implements Task {
                 .thenComparingInt(BlockPos::getX).thenComparingInt(BlockPos::getZ);
         positions.sort(topDown);
         queue = positions;
-        maxTicks = BASE_TICKS + TICKS_PER_BLOCK * Math.max(1, queue.size());
+        maxTicks = BASE_TICKS + TICKS_PER_BLOCK * Math.max(1, queue.size()) + COLLECT_BUDGET_TICKS;
+        if (positions.isEmpty()) {
+            return;   // 没有待恢复项 → 不开关作用域（免得影响调用方的掉落物登记）
+        }
+        // **物质闭环**：重开作用域，否则 DOWNWARD 拆下来的掉落物不会被登记（收集阶段就找不到）
+        throwawayBefore = countThrowaway();
+        BlockPos center = centroid(positions);
+        int radius = spreadRadius(positions, center);
+        scope.begin(center, radius, bot.getUUID());
+        scopeOpened = true;
+        BotLog.info("[Restore] 作用域已开启 center={} radius={}（用于回收拆下的方块）",
+                center.toShortString(), radius);
+    }
+
+    /** 队列的几何中心（作用域中心）。 */
+    private static BlockPos centroid(List<BlockPos> positions) {
+        long x = 0, y = 0, z = 0;
+        for (BlockPos pos : positions) {
+            x += pos.getX();
+            y += pos.getY();
+            z += pos.getZ();
+        }
+        int n = Math.max(1, positions.size());
+        return new BlockPos((int) (x / n), (int) (y / n), (int) (z / n));
+    }
+
+    /** 覆盖全部目标的作用域半径（至少 8 格）。 */
+    private static int spreadRadius(List<BlockPos> positions, BlockPos center) {
+        int max = 0;
+        for (BlockPos pos : positions) {
+            max = Math.max(max, (int) Math.ceil(Math.sqrt(center.distSqr(pos))));
+        }
+        return Math.max(8, max + 4);
+    }
+
+    /** 背包里"一次性方块"总数（= 会被恢复任务收回的那类材料）。 */
+    private int countThrowaway() {
+        int total = 0;
+        var inventory = bot.getInventory();
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            var stack = inventory.getItem(slot);
+            if (!stack.isEmpty() && stack.getItem() instanceof net.minecraft.world.item.BlockItem blockItem
+                    && blockItem.getBlock().defaultBlockState()
+                            .is(com.dddgn.alice.action.BlockInteraction.THROWAWAY)) {
+                total += stack.getCount();
+            }
+        }
+        return total;
     }
 
     private Task.Status pickNext() {
@@ -161,6 +226,36 @@ public final class RestoreScopeTask implements Task {
         if (!notes.isEmpty()) {
             BotLog.warn("[Restore] 未能恢复: {}", String.join(" | ", notes));
         }
+        if (restored > 0 && !collectStarted) {
+            return startCollect();
+        }
+        if (skipped > 0) {
+            failure = "restore_partial skipped=" + skipped;
+            return finish(Task.Status.FAILED);
+        }
+        return finish(Task.Status.DONE);
+    }
+
+    /** 收尾收集（J6-b1b）：把拆下来的方块收回背包——物质闭环。 */
+    private Task.Status startCollect() {
+        collectStarted = true;
+        BlockPos origin = firstRestored != null ? firstRestored : bot.blockPosition();
+        collector = new CollectDropsTask(bot, origin, scope, List.of(), false, COLLECT_BUDGET_TICKS);
+        BotLog.info("[Restore] 开始回收材料 origin={}（restored={}）", origin.toShortString(), restored);
+        return Task.Status.RUNNING;
+    }
+
+    private Task.Status tickCollector() {
+        Task.Status status = collector.tick();
+        if (status == Task.Status.RUNNING) {
+            return Task.Status.RUNNING;
+        }
+        collector = null;
+        int remainingDrops = scope.liveDrops().size();
+        if (remainingDrops > 0) {
+            notes.add("drops_left=" + remainingDrops);
+            BotLog.warn("[Restore] 仍有 {} 个掉落物没收回（可能落在够不到的地方）", remainingDrops);
+        }
         if (skipped > 0) {
             failure = "restore_partial skipped=" + skipped;
             return finish(Task.Status.FAILED);
@@ -192,6 +287,9 @@ public final class RestoreScopeTask implements Task {
             // DESCEND 完成：脚下那格已拆掉且 bot 落进去了 → 销账
             WorldModLedger.forget(bot.serverLevel(), current);
             restored++;
+            if (firstRestored == null) {
+                firstRestored = current;
+            }
             current = null;
             return Task.Status.RUNNING;
         }
@@ -209,9 +307,15 @@ public final class RestoreScopeTask implements Task {
     private Task.Status finish(Task.Status status) {
         terminated = true;
         bot.controller().stopMovement();
+        if (scopeOpened) {
+            scope.end();   // 本任务自己开的作用域，自己关（避免污染下一个任务的掉落物登记）
+            scopeOpened = false;
+        }
         int remaining = WorldModLedger.pendingTemporary(bot.serverLevel().getServer(), scopeId).size();
-        BotLog.info("[Restore] SUMMARY scope={} restored={} skipped={} remaining={} ticks={} reason={} → {}",
-                scopeId == null ? "<all>" : scopeId, restored, skipped, remaining, ticks,
+        int recovered = countThrowaway() - throwawayBefore;
+        BotLog.info("[Restore] SUMMARY scope={} restored={} skipped={} remaining={} recovered={}"
+                        + "（一次性方块库存变化）ticks={} reason={} → {}",
+                scopeId == null ? "<all>" : scopeId, restored, skipped, remaining, recovered, ticks,
                 terminalReason, status);
         return status;
     }

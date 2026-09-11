@@ -115,6 +115,8 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 | J6-b1 命令兜底 | `/alice restore` | 一行只读式命令（无坐标） | 处理崩溃/重启/升级前的历史遗留 | `待测`（可选；与上行配合验证 `pending` 归零） |
 | 寻路回归复验（D-099 夹具修复后） | 右键 `alice:pathing_regression` | 14 场景 + 10 种 Movement 覆盖 | 一次性方块必须进快捷栏，否则 `PILLAR`/`PLACE_STEP`/`FALL` 生成不出来 | `WINDOWS_CLIENT`（2026-09-11 00:4x **14/14 PASS + coverage=PASS**；`[FixtureTool]` 覆盖策略生效） |
 
+| J6-b1b 恢复的物质闭环 | 右键 `alice:pathing_regression` → 自动追加恢复任务 → 看 `[Restore] SUMMARY` | 零参数右键 | 恢复期间重开作用域让掉落物被登记，收尾调一次收集（`worldMod=false`） | `待测`（预期 `restored=N recovered≥1`、无 `drops_left`；`/alice ledger → pending=0`） |
+
 ## 性能验证
 
 | 能力 | 测试入口 | 关键观察 | 当前状态 |

@@ -2401,3 +2401,27 @@ D-095 的"路径上有容器 → 绕开而非拆掉"断言需要"箱子挡在必
 **验证等级**：COMPILES。**验收判断很方便**：若标签没生效，`findPlaceableSlot` 会返回 -1，
 `PILLAR`/`PLACE_STEP`/`FALL` 立刻生成不出来——即 `pathing_regression` 的 place/pillar/fall
 三个场景会像昨天 D-099 那样失败 ⇒ **跑一次 `pathing_regression` 回到 14/14 即证明标签生效**。
+
+---
+
+## D-101 J6-b1b：恢复的**物质闭环**——拆下来的方块要回到背包（2026-09-11）
+
+**背景（D-099 附注里我自己标注的欠账）**：`RestoreScopeTask` 原来"只拆不收回"——它跑在
+`BotSession.clearTask` 的 `scope.end()` **之后**，作用域未开启、掉落物**不被登记**，
+于是拆下来的方块变成无人认领的掉落物（最终消失）。后果是"建拆同权"只完成了**世界侧**，
+**材料侧**每轮净消耗——夹具只能靠 `ensureHotbarStack` 补料掩盖（正是 D-099 的成因之一）。
+
+**实现（三步）**：
+1. **重开作用域**：`buildQueue` 里按队列的几何中心与覆盖半径 `scope.begin(center, radius, owner)`
+   （空队列时不开，避免影响调用方的掉落物登记）；半径至少 8 格、按最远目标 +4；
+2. **收尾收集**：所有块处理完后进入收集阶段，用 `CollectDropsTask(bot, origin=首个成功恢复点,
+   scope, expectedIds=[], allowWorldModification=false)`——**不允许为收材料而改世界**；
+   预算 600 tick，与 `CollectDropsTask` 默认一致，并计入总预算；
+3. **如实报账**：终态日志新增 `recovered=`（**一次性方块库存的净变化**），
+   并若仍有掉落物未收回则记 `drops_left=N`（够不到就如实说，不粉饰）；
+   任务自己开的作用域在 `finish` 里自己关。
+
+**验收判据**：`[Restore] SUMMARY … restored=N recovered=?` —— `recovered` 期望为正
+（拆下的方块以掉落物形式被收回）；`/alice ledger` 仍为 `pending=0`。
+
+**验证等级**：COMPILES。待客户端（`alice:pathing_regression` → 自动恢复 → 看 SUMMARY 的 `recovered`）。
