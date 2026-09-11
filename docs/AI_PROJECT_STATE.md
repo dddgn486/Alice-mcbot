@@ -2,7 +2,7 @@
 
 > 这是新 AI 会话恢复上下文的首要文件。只记录当前，不记录完整历史。
 
-更新时间：2026-09-09
+更新时间：2026-09-12
 
 > **2026-09-09 晚（批次 5：模组兼容）**：首测发现模组连锁会取消原版逐格掉落物生成（缓冲后聚合生成），
 > 我们的作用域把"从未进入世界"的幻影实体登记成掉落物 → 收集阶段空转 ~11 s。
@@ -181,59 +181,52 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
   - 日志：`logs/latest.log`、`logs/debug.log`
   - 截图/视频：`screenshots/`、`videos/`（如果需要）
 
-## 当前进行中（2026-09-11 快照）
+## 当前进行中（2026-09-12 收工快照）
 
-**已收口（均有客户端证据）**
-- **L3 Job 主干 J1–J5**：伐木单棵闭环 / 循环+配额+逐树记账 / 决策缝可替换（策略对比自检）/
-  失败语义五条终止路径（`alice:lumber_failure_check` 5/5）/ 挖掘 Job（`alice:mine_job`，
-  `AutoMineDecision` 孤岛已删，与伐木同一套候选/策略/trace/终止）。
-- **R2 授权契约**：`WriteGrant(谁,为什么)` 唯一入口 + 执行期复验授权集合（G1/G2/G9 闭合）。
-- **J6-a 世界修改账本**：动作层自动记录**放置**（抓到内核 `PILLAR` 放的方块）+ `/alice ledger` 只读。
-- **J6-b1/b1b/b1c**：`RestoreScopeTask`（自上而下、只拆自己放的、不许挖地形）+ 物质闭环
-  （重开作用域 + 收尾收集）+ 侧拆兜底；**D-103 起不再自动追加恢复**（拆除属于会话内、人还在脚手架上时做）。
-- **J6-b2 容器绕行自检**（D-104/D-095）：`alice:clear_guard_check` 跑真实 `MineTask`，
-  断言"不为取目标而拆容器"。首测（2026-09-11）断言 PASS，但暴露 **D-105**（见下）。
-- 期间修复：清障目标自身可达（D-083）、掉落物上抛阶段（D-084）、走位仰头（D-088）、
-  斧子/一次性方块必须进快捷栏（D-089/D-099）、手持显示同步（D-090）、主手语义（D-091）、
-  `exposed` 重定义（D-092）、清障不拆容器（D-095）、回归假失败（D-086）。
+**今晚收口（全部 `WINDOWS_CLIENT`）**
 
-**已验收（2026-09-11 18:31，客户端 16/16 + foot_cell_rule + coverage 全 PASS）：D-105 运行期脚位格统一**
-- 现象：bot 在箱子上原地弹跳 12 次（161 tick → `SEGMENT_TIMEOUT`）。
-- 根因：规划层脚位格 = "支撑格的上一格"，运行期 `blockPosition()` = "脚所在格"；
-  支撑顶面 ∈ [0.5, 1.0)（箱子/灵魂沙 0.875、底半砖 0.5、模组半格方块）时两者差一格
-  → 所有 `*Execution` 的 COLUMN 完成契约 / D-026 合法位置集永不成立。
-- 修复：`MovementHelper.footCell`（唯一口径）+ R2 零进展快速失败（`SEGMENT_NO_PROGRESS`）。
-- 新增夹具：`foot_cell_rule`（无头断言，随回归 SUMMARY 输出）、
-  `chest_step_course` / `slab_step_course`（可执行，`alice:pathing_regression` 一次右键覆盖）。
-  **`pathing_regression` 现在是 16 场景 + 1 项无头断言**。
+| 项 | 内容 | 证据 |
+|---|---|---|
+| **R1 工具语义**（D-119+D-120） | 生产 `MineTask` **不再**给 bot 发工具（原实现凭空写钻石镐）；改为**只读**判定：目标 `requiresCorrectToolForDrops` 且快捷栏无正确工具 ⇒ `no_suitable_tool` 首帧如实失败；不要求工具的方块照旧（徒手），只报可行动的 `tool_in_main_hotbar` 反例（`tool_in_main_inventory` / `no_tool`）。工具一律由**入口**用 `FixtureToolKit` 准备 | `mine_regression` **11/11**（含新负例 `no_tool_refuses=PASS`：清空背包 → 如实拒绝 + 目标未动 + **没变出工具**）；`lumber_job` 4/4 |
+| **R2 限次清障换候选**（D-121） | 一个清障候选失败**只跳过该候选**（新增 `BlockerClearPlanner.nextClearStep(excluded)`、`failedBlockers`、`clear_skip` 日志），只有候选用尽/预算用尽才闩锁；运行期 LOS 路径同样换候选。清障子任务信封 = **父信封子集**（`MiningProfile.nestedSubTask()`：`clear=0` 防递归、加高 `min(父,1)`、无建拆同权） | `alice:clear_retry_check` **连续 3 轮 PASS**：4 次尝试 = **4 个不同候选**、全程 `exhausted=false`；相位②清障成功并挖掉目标 |
+| **串联回归电池**（D-122） | `alice:regression_battery`：**一次右键跑完 9 项常用回归**（clear_retry / write_budget / scaffold / clear_guard / lumber_failure / mine_regression / lumber_job / mine_job / pathing），逐步复位、失败不中断、末尾一行 SUMMARY。关键实现：**每步自己 `openScope`** 并镜像 `BotSession.clearTask` 收尾（WriteBudget 的 64/32 上限与账本 TEMP 都是"一次任务=一个作用域"） | 首跑 8/9（抓到夹具缺工具的真缺陷）→ 修复后 **9/9 PASS，2416 tick ≈ 2 分钟**；每步独立作用域由 `[WriteBudget] SUMMARY scope=…:Regression:<step>` 各自计数证实 |
+| 今日更早（同一会话内已验） | ① 就地扫尾真正跑起来（D-116）；② 拆除按**世界事实**对账（假 `scaffoldLeft` 修掉）；夹具补工具不再顶掉整栈物品（`recovered=-8` 病灶）；伐木场景**通道红线**（D-117：第 4 棵橡树封死唯一通道 ⇒ 已撤回，几何回到验证过的版本） | `lumber_job` `DONE quota_met trees 4/4 logs 19/19 cleared=8 scaffoldLeft=0`（多轮） |
 
-**已验收（2026-09-11 19:03）：G4 Slice A（D-106）执行期写入预算**
-- 任务级上限：破坏 64 / 放置 32（分开计，用户裁定），挂在 `BlockInteraction` 三个写入咽喉；
-  `breakable` 谓词与执行期同一判据；我方临时放置回收（`SCAFFOLD_RESTORE`）豁免但仍计数；
-  超限 = 硬停 + `WRITE_BUDGET_EXHAUSTED` + 作用域收尾一行 `[WriteBudget] SUMMARY`。
-- 夹具：`alice:write_budget_check`（把上限压到 1 格，断言"只拆 1 格后如实失败"）。
-- Slice B（同日完成）：计划期剪枝（`MovementContext.writesAllowed` 拦写边生成）+
-  计划级下界检查与 `pureTraversal()` 降级；夹具 `refusedPlaces` 2→0、耗时 51→24 tick，
-  回归 16 场景零误剪（预算实耗不变 5/64、7/32）。
-- 待办（Slice B2）：`MiningBudget.maxExtraBreakTicks` 升级为尝试级 tick 预算（需先定口径）。
+**新增/变化的测试入口**
+- **★ `alice:regression_battery`**（推荐入口）：`/give @s alice:regression_battery` → 右键 → 约 2~5 分钟 → 看 `[Regression] SUMMARY … (9/9) → PASS`。
+- 新增 `alice:clear_retry_check`（R2 自检，自带场景：泥土目标 + 石头壳）。
+- `alice:mine_regression` 从 10 例 → **11 例**（新增 `no_tool_refuses` 负例）。
+- 逐项目手工清单与判据：`docs/TESTING_GUIDE.md §1.6 / §1.7`（含"哪些日志是**期望噪声**"）。
 
-**下一步（按序）**
-1. **客户端验收 J7 Step 1（第四次）**：右键 `alice:scaffold_check` —— 生命周期已按用户裁定
-   改为**两处扫尾**（① 作业点就地 + ③ 落地后），期望 `sweep_up=1 sweep_ground=… drops_left=0
-   stranded=- → PASS`（缺口发生在"够得到的时刻"之前，而不是事后补救）；
-2. **客户端验收 D-112（挖掘侧建拆同权）**：`mine_regression`（10 项 + 残留警告消失）+ `mine_job`；
-3. **（历史）J7 Step 2（D-109）**：右键 `alice:lumber_job`（高树应靠攀爬兜底完成、
-   `scaffoldLeft=0`）+ 复跑 `alice:lumber_failure_check`（J4 五条路径）；
-3. **G4 Slice B2（待定口径，无实测需求驱动）**：`MiningBudget.maxExtraBreakTicks` 升级为尝试级 tick 预算；
-2. **J7 攀爬**（第一处真正需要脚手架放置的 Job，将首次实检建拆同权）→ **J8 MAINTAIN 区域型**。
-3. 仍登记未做：G3（模组连锁破坏无凭证）、G5（容器写入维度）、
-   `isExpensiveToClear` 的成本化 + `#alice:clear_forbidden` 标签、`MiningBudget.tierOf` 的 `#forge:ores/*`、
-   R2 的实战触发构造（R1 修好后旧场景不再触发它）。
+**今晚新立的规矩（下次别再踩）**
+1. **发料要放在"任务"里，不能只放在"物品"里** —— 物品只是入口之一，电池/命令/后续调用者都会绕过它（D-122 附注）。
+2. **"报告"必须等于"世界事实"** —— ② 拆除的 `remaining` 要按现场对账（`dropStale`），否则会误报 `scaffoldLeft`（D-116 附注二）。
+3. **夹具加树/加地形必须检查唯一通道**（树冠高度也算），场景内部不能自封航线（D-117）。
+4. **子任务能力 = 父信封子集**；"一次任务 = 一个作用域"（预算与账本都按此记账）。
+5. 噪声 = 隐患：报警只报**可行动**的病症（不再按"破坏速度 ≤ 1"报警，树叶本来就没更快工具）。
 
-**测试入口速查**（全部零参数或一行命令）
-`alice:lumber_job` / `alice:lumber_policy_check` / `alice:lumber_failure_check` /
-`alice:mine_job`（`ore_course`）/ `alice:mine_regression` / `alice:pathing_regression` /
-`/alice ledger` / `/alice restore` / `/alice auto-mine <tag|block> [count]`。
+**待办（按我建议的优先级）**
+1. **R3 常量标定**：`MAX_CLEAR_PER_TREE=8` / `DEFAULT_GAIN_BLOCK_BUDGET=12` / `COLLECT_GAIN_PROFILE withGain(8)` /
+   `SWEEP_UP_BUDGET_TICKS=200` 目前是按**本测试场景**反推的；改成从树高/规格推导（`MAX_GAIN_PER_TREE=3` 是用户裁定，不动）。
+2. **R4 作用域语义陷阱**：`ScopeBuffer.begin()` 会清掉已登记掉落物归属 ⇒ 重开作用域后收集变瞎；
+   只有 J7 Step 1 夹具用了 `adoptExistingDrops`。给它一个通用接入点（或让 `begin` 可选保留）。
+3. **夹具工程**：R5 配额与场景解耦（`lumber_course` 可行树数 = 4 与 Job 默认配额耦合）；
+   R6 通道/可规划性**离线校验**（可扩展 `tools/simulate-scene-plan.py`）；R7 "清障预算按棵重置"回归仍未真正越过阈值
+   （实测累计正好 8 格压线）—— 可用"专项 clear-budget 夹具"或"扩台地 + 加树"。
+4. **R2 未覆盖**：几何不可达导致"首个候选失败、第二个成功"的场景；清障子任务**加高**的行为（目前只有信封日志证据）。
+5. **生命周期收敛（B 类）**：能力信封已收敛，但 `LumberJob` 的"建→爬→用→①/②/③"生命周期仍是伐木专有；
+   等第二个"建-用-拆"消费者（J8 MAINTAIN / 建筑类 Job）出现时再抽。
+6. **J7 Step 3/4**：§12.4 崩溃恢复（恢复未完成的拆除）；`trunk_too_tall` 与"爬了但没砍完"的区分。
+7. 历史登记项：G3（模组连锁破坏无凭证）、G5（容器写入维度）、`isExpensiveToClear` 成本化 +
+   `#alice:clear_forbidden` 标签、`MiningBudget.tierOf` 的 `#forge:ores/*`、G4 Slice B2（尝试级 tick 预算）。
+
+**测试入口速查**
+★ `alice:regression_battery`（9 项一次跑完）；
+`alice:mine_regression`（11/11）/ `alice:clear_retry_check` / `alice:scaffold_check` /
+`alice:clear_guard_check` / `alice:write_budget_check` / `alice:lumber_failure_check` /
+`alice:pathing_regression`（18 场景 + 无头断言）；
+`alice:lumber_job`（先 `/function alice_test:lumber_course`）/ `alice:mine_job`（先 `ore_course`）/
+`alice:lumber_policy_check` / `/alice ledger` / `/alice restore`。
 
 ## 开始任何新任务前
 
