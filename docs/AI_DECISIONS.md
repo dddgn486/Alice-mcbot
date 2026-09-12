@@ -3756,3 +3756,20 @@ T7"清障预算按棵重置"回归覆盖。寻路内核里程碑编号**保持�
 
 **验证等级**：IMPLEMENTED / COMPILES（待复测：`mine_regression` 期望 **12/12**、
 `scope_reopen_keeps_drops=PASS status=DONE/dropsInWorld=1/liveDropsBeforeReopen=1/liveDropsAfterReopen=1`）。
+
+### D-124 附注二（2026-09-12 10:04–10:07 客户端实测：**12/12 + 电池 9/9**，继承在三个历史病灶点全部生效）
+
+```
+[MineRegression] scope_reopen_keeps_drops=PASS
+   status=DONE/dropsInWorld=1/liveDropsBeforeReopen=1/liveDropsAfterReopen=1/ticks=12
+[MineRegression] SUMMARY … scope_reopen_keeps_drops=PASS ticks=213 / 214（连续两轮 12/12）
+[Regression] SUMMARY … (9/9) ticks=2468 → PASS（scaffold=PASS）
+作用域重开: center=23, 64, 140 radius=16 继承掉落物=1     ← 第 12 例自身
+作用域重开: center=38, 65, 46  radius=8  继承掉落物=1     ← scaffold 夹具收尾收集（D-108 手工收养已删）
+作用域重开: center=22, 66, 207 radius=8  继承掉落物=1     ← lumber ② 拆除后重开（原先 ③ 因此 live_drops=0）
+作用域重开: center=28, 65, 208 radius=8  继承掉落物=1     ← 同上（另一棵树）
+```
+`liveDropsBeforeReopen=1 → liveDropsAfterReopen=1` 直接证明"重开不再丢归属"（修前必为 `1 → 0`）；
+三处历史病灶点（自建用例 / scaffold 收尾 / lumber ②③ 之间）都靠**通用继承**而不是各自打补丁。
+
+**验证等级**：`WINDOWS_CLIENT`。

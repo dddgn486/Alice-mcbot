@@ -220,7 +220,7 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
    `withGain(8)` 与 `SWEEP_UP_BUDGET_TICKS=200`，已改为 `MiningProfile.sweepGain(trunkHeight)` +
    `CollectDropsTask.suggestedSweepTicks(drops, profile)`，并把推导过程打进日志（一轮内两个树干高 3/7
    的算术都被核对过）。未覆盖：截断分支（`trunkHeight+1>12`）与 ① 扫尾超时分支。
-2. ~~**T4 作用域归属**~~ ✅ **已完成（D-124，`WINDOWS_CLIENT` 待验）**：`ScopeBuffer.begin()` **默认继承**
+2. ~~**T4 作用域归属**~~ ✅ **已完成（D-124，`WINDOWS_CLIENT` 2026-09-12 10:04）**：`ScopeBuffer.begin()` **默认继承**
    "仍活着且在新区间内的我方掉落物"（会话内重开继承、会话结束 `end()` 清空），
    `ScaffoldLifecycleTask` 去掉了 D-108 手工收养；`mine_regression` 增第 12 例
    `scope_reopen_keeps_drops` 做针对性回归。
