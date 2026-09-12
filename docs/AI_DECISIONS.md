@@ -3815,3 +3815,14 @@ git show a5901f5:<trees> > /tmp/sealed && tools/... --fixture terrain /tmp/seale
 
 **验证等级**：T6 = 本机离线自证（上面三段）；T5 = IMPLEMENTED / COMPILES
 （客户端待测：`lumber_job` 应打 `场景可行树=4 ⇒ 配额=4` 且终态仍是 `trees 4/4`）。
+
+### D-125 附注（2026-09-12 10:19–10:20 客户端实测：T5 生效）
+
+```
+[Alice 伐木 Job 场景·真树] … 配额=场景可行树数（启动时推导，不再写死）。   ← 场景文案已更新
+[Job] lumber 场景可行树=4 ⇒ 配额=4（T5：配额随场景推导）                  ← 推导日志
+[Job] terminal job=lumber result=DONE reason=quota_met trees 4/4 logs 19/19
+                cleared=8 inventoryDelta=19 gainedTrees=1 gainedBlocks=1 scaffoldLeft=0 ticks=689
+```
+**T5 验证等级：`WINDOWS_CLIENT`**（推导结果与终态均符合预期；当前场景推导值恰为 4，与旧写死值一致 ⇒ 行为不变）。
+T6 无需客户端（本机 `--selftest` + `--all` + `a5901f5` 旧版本复现三段自证，见 D-125 正文）。
