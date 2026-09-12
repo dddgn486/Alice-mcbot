@@ -909,6 +909,8 @@ public final class BotManager {
         for (BotSession session : BOTS.values()) {
             HazardState hazard = SurvivalSystem.tick(session.bot());
             session.tick(hazard);
+            // D-135：决策层循环（事件驱动 + 节流；这里只做"收结果 + 空闲触发"）
+            com.dddgn.alice.decision.GoalDirector.tick(session.bot());
         }
     }
 
@@ -1000,6 +1002,11 @@ public final class BotManager {
         BotLog.info("[alice] 已显式停止任务 {}（{}）{}", kind, reason == null ? "user" : reason,
                 residue == 0 ? "" : "；账本仍有 " + residue + " 条我方临时方块未拆（/alice restore 可清理）");
         return kind;
+    }
+
+    /** 取 bot 的会话（决策层快照只读用；null = 未注册）。 */
+    public static BotSession sessionOf(BotPlayer bot) {
+        return bot == null ? null : BOTS.get(bot.getUUID());
     }
 
     /** bot 名下**未闭合**的我方临时方块条数（`/alice region stop` 回执用，只读）。 */
@@ -1284,6 +1291,9 @@ public final class BotManager {
                 complete(lastTaskResult, TaskExecutionRecord.TerminalStatus.SURVIVAL_INTERRUPTED);
                 // **否决必须带出口**（用户规矩）：问维生要一个安全落点，用已验收的 WalkTo 走过去。
                 startSurvivalExit();
+                // D-135：维生中断也通知决策层（逃生已经起好，决策层决定"逃生之后干什么"）
+                com.dddgn.alice.decision.GoalDirector.onSurvivalInterrupt(bot,
+                        SurvivalSystem.interruptionReason(hazard));
                 return;
             }
             Task.Status status = task.tick();
@@ -1352,6 +1362,9 @@ public final class BotManager {
             }
             reportItems();
             clearTask();
+            // D-135：任务终态是最自然的"下一步做什么"时机 —— 交给决策层（有节流）
+            com.dddgn.alice.decision.GoalDirector.onTaskTerminal(bot, taskKind,
+                    lastExecutionRecord == null ? "" : lastExecutionRecord.terminalReason());
         }
 
         /**

@@ -4581,3 +4581,57 @@ task_execution_terminal kind=SurvivalExitTask … durationTicks=6 terminal=COMPL
 ### 下一步（② 第 2 步，待用户确认一处事实）
 LLM 循环的**管道**可以先做且可验（快照契约 / 动作词汇表 / 事件驱动 + 节流触发 / 严格拒绝未知动作），
 但**真实 provider 不能猜**：需要用户给出可用的端点与模型（或明确"先用脚本化假 LLM 验管道"）。
+
+## D-135 ② 决策层接入 · 第 2 步：目标级决策循环（2026-09-12）
+
+**用户裁定（原文）**："按默认做吧" + "你可以直接移植当前使用的api配置，不要读取key，只操作复制，然后你可以直接下一步"。
+
+### 落地范围（用户默认口径）
+- **输入快照**：只放服务端**已经知道的事实**（bot 状态/危险/背包摘要/当前任务/**上一条终态记录**（含 D-134 的
+  `terminalReason`/`botId`）/区域状态/账本待清理数）；**不放**方块级世界细节与执行器内部状态
+  ——否则 LLM 会开始管执行细节，越过"只做目标级决策"的边界。也不放任何凭据。
+- **动作词汇表**（6 种形态 / 4 类）：`start_job(lumber|mine|region_lumber)` / `stop_current` /
+  `report_status` / `no_op`。**未知动作、未知 kind、缺字段、参数超范围 ⇒ 拒绝**（`Refused`），
+  不做"尽力猜测"；数值参数**夹取到安全区间**并记一行日志（LLM 多写个 0 不该崩服务器）。
+- **触发节奏**：事件驱动（任务终态 / 维生中断）+ 空闲触发（**默认关**，`idleDecisionEnabled=false`）
+  + 手动（夹具）。三道节流闸：最小间隔 tick、每分钟请求上限、同一时刻最多 1 个在飞。
+- **执行**：`start_job` 只能走 `BotManager.assignJob`（= D-134 的统一入口，发料+构造都在那一处）；
+  `stop_current` 走 `BotManager.stopTask`；拒绝动作**不动世界、不改任务**。
+
+### 实现
+| 文件 | 作用 |
+|---|---|
+| `decision/LlmConfig` | 读 `config/alice-llm.json`（不存在⇒写模板 + 如实登记"未配置 ⇒ 保持确定性策略"）；**永不打印 key** |
+| `decision/LlmClient` | OpenAI 兼容 `POST {url}` → `choices[0].message.content`；单线程池异步（**绝不在主线程等**）；HTTP/超时/解析失败如实回报 |
+| `decision/DecisionSnapshot` | 权威状态快照（JSON）+ prompt 包装；快照原文进日志 `[Goal] snapshot` |
+| `decision/GoalAction` | 严格解析（容忍 ```json 围栏、容忍前后解释文字，取第一个**平衡** JSON 对象）；`Refused` 分支 |
+| `decision/GoalDirector` | 触发 + 节流 + 执行 + 决策 trace（`[Goal] decision_request/decision_action/execute`） |
+| `item/GoalDirectorItem` | `alice:goal_director` 零参数右键：打印配置（不含 key）+ 快照摘要 + 强制一次决策 |
+
+### 配置移植（**只复制，不读取**）
+从当前部署读出：provider `deepseek-official`、baseURL `https://api.deepseek.com`
+（`dsh-llm-deepseek` 默认，`$DEEPSEEK_BASE_URL` 未设置）、model `deepseek-flash`、
+key 在 `~/.dsh/.credentials.yaml:refs.DEEPSEEK_API_KEY`（len=35，**脚本直接复制，未打印**）。
+写入 `<client>/config/alice-llm.json`（`enabled=true`）。
+
+### 实测发现（WSL 侧已用**同一条请求**打过真实 API）
+1. **`deepseek-flash` 是推理模型**：会先输出 `reasoning_content`。`max_tokens=16` 时预算全烧在推理上，
+   正文只剩 `"p"` ⇒ **`max_tokens` 必须给足**（改为可配置，默认 2000；实测 2000 时
+   `completion_tokens=210`、`reasoning_tokens=189`、正文完整）。
+2. **它真的会按词汇表回答**：用真实 prompt 打过去，回复
+   `{"action":"start_job","kind":"region_lumber","maxTicks":24000}` —— 而那份快照里**没有区域**，
+   所以 mod 侧会走 `Refused(region_lumber_without_saved_region（区域必须由玩家划定）)`
+   —— 这正是设计里"**LLM 不能凭空发明区域**"的守卫生效的现成用例。
+3. **空闲触发默认关**：空闲每 20 s 一次真调用会持续烧钱；先只做事件驱动 + 手动，
+   需要时用 `idleDecisionEnabled=true` 打开。
+
+**验证入口**：`alice:goal_director`（零参数右键）—— 期望：
+```
+[alice] 决策层配置：enabled=true usable=true model=deepseek-flash url=… apiKey=已配置 …
+[Goal] snapshot chars=… json={"bot":…,"task":{…"terminalReason":"quota_met"…},…}
+[Goal] decision_request trigger=manual model=deepseek-flash
+[Goal] llm_reply id=… latency=…ms chars=…
+[Goal] decision_action trigger=manual raw={"action":…} → StartJob(kind=…) / Refused(…)
+[Goal] execute action=… 
+```
+**验证等级**：IMPLEMENTED / COMPILES + 真实 API 冒烟（WSL 侧同请求）已通过；mod 内端到端待客户端。

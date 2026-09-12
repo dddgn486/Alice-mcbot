@@ -165,6 +165,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> LUMBER_FAILURE_CHECK =
             ITEMS.register("lumber_failure_check", () -> new LumberFailureCheckItem(new Item.Properties()));
 
+    /** D-135 决策层自检（零参数）：打印 LLM 配置 + 权威快照 + 强制一次目标级决策。 */
+    public static final RegistryObject<Item> GOAL_DIRECTOR =
+            ITEMS.register("goal_director", () -> new GoalDirectorItem(new Item.Properties()));
+
     /** D-134 统一 Job 入口自检（零参数，`lumber_course` 场景）：验 `JobRequest → JobLauncher → assignJob`。 */
     public static final RegistryObject<Item> JOB_LAUNCHER =
             ITEMS.register("job_launcher", () -> new JobLauncherItem(new Item.Properties()));
