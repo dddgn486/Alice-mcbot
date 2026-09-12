@@ -10,6 +10,8 @@
 3. [`AI_DEVELOPMENT_PLAYBOOK.md`](AI_DEVELOPMENT_PLAYBOOK.md) —— 协作流程、skills 使用、Windows 测试习惯
 4. [`AI_DECISIONS.md`](AI_DECISIONS.md) —— 稳定架构决策（D-001 起；新增决策按同一格式追加）
 5. [`AI_TEST_MATRIX.md`](AI_TEST_MATRIX.md) —— 测试入口、预期行为、真实验收结果
+6. [`OPEN_ITEMS_LEDGER.md`](OPEN_ITEMS_LEDGER.md) —— **未收口项总账**（勘测/审计报告结论的现状复核 +
+   方向候选）；"还剩什么、为什么、怎么验"先看这里
 6. 相关 skill：`.alice-supervision/skills/`（跨模块改动先读 `minimal-implementation-planning`）
 
 规则文件还有仓库根的 [`../AGENTS.md`](../AGENTS.md)（会话级不可悄悄改变的边界）。
@@ -28,6 +30,7 @@
 | [`ALIGNMENT_OPEN_QUESTIONS.md`](ALIGNMENT_OPEN_QUESTIONS.md) | 待决对齐问题（Q1/Q3/Q4/Q7…） |
 | [`RISK_MODES_DISCUSSION.md`](RISK_MODES_DISCUSSION.md) | 风险模式 H/G/S 讨论（只讨论，未实现） |
 | [`MULTI_BOT_INTERFACE_RESERVATION.md`](MULTI_BOT_INTERFACE_RESERVATION.md) | 多 bot 并行接口预留 |
+| [`OPEN_ITEMS_LEDGER.md`](OPEN_ITEMS_LEDGER.md) | **未收口项总账**（2026-09-12）：安全底座 / 内核搜索 / Job 契约 / 写入授权登记 / 验证债 / 文档债 + 方向候选 |
 | [`AI_CHANGELOG.md`](AI_CHANGELOG.md) | 历史改动流水（含失败与根因假设） |
 
 ## 待裁定草案（**非最终方案**）

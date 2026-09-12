@@ -241,7 +241,7 @@ tools/check-scene-connectivity.py --all        # 离线：22 场景无「封航�
   ③ 显式打断记成 `CANCELLED_REPLACED`（与文档不符）⇒ 新增 `CANCELLED_BY_USER`；
   ④ `clearTask()` 不清残留移动输入（`/alice region stop` 停在半路 ⇒ "说停了却还在走"）。
 
-**下一步（按建议优先级）**
+**下一步（按建议优先级；**完整未收口项与方向候选见 [`OPEN_ITEMS_LEDGER.md`](OPEN_ITEMS_LEDGER.md)**）**
 1. **未覆盖的行为分支（与 T2/T3 同批登记）**：几何不可达导致的「首候选失败、次候选成功」场景、
    清障子任务**加高**行为、`trunkHeight+1>12` 截断、① 扫尾超时分支、`climb_incomplete` 场景、
    `too_far` 恢复分支、真实崩溃重启路径。

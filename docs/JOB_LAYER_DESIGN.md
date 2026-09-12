@@ -389,8 +389,10 @@ public final class DecisionTrace {
 
 ## §10 本设计**不**解决的问题（登记，避免误以为已覆盖）
 
-- LLM 接入（只留 `SelectionPolicy` 接口）
-- 风险画像 / 维生出口（横切，需 L3 作为消费者）
+- LLM 接入（只留 `SelectionPolicy` 接口）—— **现状：J1–J8 已把"决策缝"地基做完，但仍无 LLM 消费者；
+  缺什么见 `docs/OPEN_ITEMS_LEDGER.md` §3（J-1/J-2/J-3/J-9）**
+- 风险画像 / 维生出口（横切，需 L3 作为消费者）—— **现状：L3 已就位（J8 常驻），
+  风险清单 9 条断言仍全部未修，见 `docs/OPEN_ITEMS_LEDGER.md` §1**
 - 攀爬高树、树苗补种、只砍指定树种（`species` 已记录但 v1 不做过滤）
 - 多 bot 并行（`MULTI_BOT_INTERFACE_RESERVATION.md` 的边界不变）
 - 异步决策（`PathingStats` 清空式约束不变，仍同步主线程）
@@ -405,6 +407,9 @@ public final class DecisionTrace {
 ### ① 攀爬砍树（超出触及的高树）
 
 **现状**：v1 用 `trunk_too_tall` 拒绝。**用户裁定：这只是 v1 范围，不是最终方案。**
+**✅ 2026-09-12 更新：本条已实现（J7，D-107/D-109/D-127/D-128）** —— `PathRequest.climbApproach` +
+`ScaffoldLifecycleTask`（搭-用-拆闭环）+ 逐树会话内拆除 + 崩溃兜底；客户端验收见 `AI_TEST_MATRIX.md` 的
+J7 Step 1–4 行与 `alice:lumber_failure_check` 6/6。**下述 6 项要素与触发条件保留为设计记录**（它们正是落地时的检查表）。
 
 **为什么它触及 D-076 红线**：要够到超出触及的原木，bot 必须获得高度，而唯一现成的垂直上升能力是
 `MovementType.PILLAR`（跳跃中在脚下放方块）——**它是一个"会放置方块"的 Movement**。
@@ -440,7 +445,10 @@ D-076 规定：寻路请求默认纯通行（`PathRequest.of`），破坏/放置
 
 ### ③ 树种过滤与补种
 
-**现状**：`Tree.species` 已记录（按原木方块映射），v1 **不做**过滤、**不做**补种。
+**现状（2026-09-12 更新）**：`Tree.species` 已记录（按原木方块映射），**仍不做过滤**；
+**补种已部分实现** —— J8 Slice B 的**区域补种**（`RegionLumberJob` 欠树 ⇒ 在树桩补种，
+`WriteReason.REGION_REPLANT` ⇒ 账本 `KEEP`、受 `WriteBudget` 约束；D-129/D-131）已 `WINDOWS_CLIENT`。
+**未做**：一次性任务的补种、按 `species` 过滤。
 **触发条件**：出现"只要橡木""砍完补种树苗"这类目标时启用；补种属于**放置类世界修改**，同样要走显式授权 + 预算。
 
 ### ④ 树叶主动清理
