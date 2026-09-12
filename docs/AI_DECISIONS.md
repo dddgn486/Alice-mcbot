@@ -3863,3 +3863,19 @@ J3 的 3 棵树恰好 3+3+2 = **8 压线**；`a5901f5` 想加第 4 棵树，却�
 **验证等级**：T7 场景改动 + 工具修正 = IMPLEMENTED / COMPILES / **本机离线自证**
 （`--selftest` 双向、当前场景 exit 0、历史封死版本 exit 1）；客户端待测：
 `alice:lumber_job` 应 `trees 5/5` 且 `cleared ≥ 9`，电池应仍 9/9。
+
+### D-126 附注（2026-09-12 10:35–10:36 客户端实测：**T7 达成**）
+
+```
+[Alice 伐木 Job 场景·真树] 4 棵同型橡树(20,64,208 / 19,64,213 / 29,64,213 / 33,64,208) + …
+[Job] lumber 场景可行树=5 ⇒ 配额=5（T5：配额随场景推导）
+[Job] terminal job=lumber result=DONE reason=quota_met
+      progress=trees 5/5 logs 23/23 cleared=9 inventoryDelta=23 gainedTrees=1 gainedBlocks=1 scaffoldLeft=0 ticks=806
+逐树清障：20→3、19→2、29→1、云杉→0、新树 33,64,208→3
+```
+**`cleared=9 > MAX_CLEAR_PER_TREE(8)`** ⇒ "清障预算按棵重置"这一回归**第一次真正跨过阈值**
+（历史两次：J3 恰好 8 压线；`a5901f5` 想加树却封死通道）。若计数器是 job 级，第 9 格清障必
+`clear_budget` 失败 —— 该回归从"形同虚设"变成"真断言" ✓。
+新树（`33,64,208`，由「橡树#1」整体平移 (+14,−5) 得到）正常 `chopped=4/4`，东扩台地与通道均无副作用。
+
+**验证等级**：`WINDOWS_CLIENT`。
