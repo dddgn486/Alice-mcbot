@@ -26,12 +26,23 @@ public final class LumberCourseAnchor {
     public static final BlockPos REJECTED_TALL_TREE = new BlockPos(22, 64, 218);
 
     /**
-     * **可持续伐木区**（J8 / §13.2）的测试区域：覆盖本场景全部树木（含被拒的高大云杉，
-     * 它会被候选源以 `trunk_too_tall` 排除；区域型 Job 只在该区域内找树）。
-     * 与 `lumber_course_terrain` 注释里的场景盒 `x 17..37 / y 58..116 / z 203..231` 对齐。
+     * **可持续伐木区**（J8 / §13.2）的测试区域：**只划水平范围**（夹具帮忙划好），垂直自适应。
+     * 与 `lumber_course_terrain` 注释里的场景盒水平范围一致（x 17..37 / z 203..231）；
+     * `baseY` 取场景地板（58），高度上限 48（够覆盖本场景的树；实际生效上界由巡查按实测树高收紧）。
      */
-    public static final BlockPos REGION_MIN = new BlockPos(17, 58, 203);
-    public static final BlockPos REGION_MAX = new BlockPos(37, 80, 231);
+    public static final int REGION_MIN_X = 17;
+    public static final int REGION_MAX_X = 37;
+    public static final int REGION_MIN_Z = 203;
+    public static final int REGION_MAX_Z = 231;
+    public static final int REGION_BASE_Y = 58;
+    public static final int REGION_MAX_HEIGHT = 48;
+
+    /** 夹具用的区域定义（玩家自定义走 {@code /alice region set <pos1> <pos2>}）。 */
+    public static com.dddgn.alice.job.lumber.LumberRegionState.Region region() {
+        return new com.dddgn.alice.job.lumber.LumberRegionState.Region(
+                REGION_MIN_X, REGION_MIN_Z, REGION_MAX_X, REGION_MAX_Z, REGION_BASE_Y,
+                REGION_MAX_HEIGHT);
+    }
 
     private LumberCourseAnchor() {
     }

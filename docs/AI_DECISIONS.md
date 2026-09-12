@@ -4109,3 +4109,34 @@ Step 1 生命周期闭环（D-107）/ Step 2 攀爬兜底（D-109）/ Step 3 崩
 发现候选 ⇒ `[Job] maintain 发现活 ⇒ 巡查间隔恢复` + `pick tree@…` 砍掉它 ⇒ 再补种回树桩。
 
 **验证等级**：Slice B 补种 = `WINDOWS_CLIENT`；常驻巡查 + 退避 = IMPLEMENTED / COMPILES（客户端待测）。
+
+### D-130 J8 区域语义修正（用户 2026-09-12 裁定）：**玩家只划水平范围**、**常驻只由显式打断结束**
+
+**用户裁定原文要点**：① 区域应由**玩家**定义（夹具可以帮忙划好）；② 玩家**只划分水平区域**，
+**垂直区域自适应**；③ 常驻任务"本来就应该让玩家或者决策层**显式打断**才结束"，
+旧的"自动 `IDLE_NO_WORK` 收工"可以作为**之前设计的默认**（= 保留为可选模式）。
+
+**改动**
+1. **`LumberRegionState.Region` 换成"水平范围 + 自适应垂直"**：
+   `(minX, minZ, maxX, maxZ, baseY, maxHeight)` —— 玩家给的两个角只取**水平** x/z 与较低的那个 Y 作基准层；
+   实际生效上界由巡查**按实测树高**收紧：
+   `effectiveTop = max(baseY + 8, min(baseY + maxHeight, 区域内最高原木 + 4))`（日志 `adaptiveTop=`）。
+   于是"刚长高的树不会被漏掉"，也不会把整片天空算进区域。持久化格式同步更新。
+2. **常驻语义**：`autoIdleStop`（区域状态里持久化，**默认 false**）—— 默认**常驻**，只由
+   `/alice region stop` 或任何 `/alice` 指令（`cancelled:replaced`）打断；
+   只有显式打开 `idle-stop` 时才在"无树无苗无欠"时 `IDLE_NO_WORK` 收工。
+   `BotManager.stopTask(bot, reason)` 新增：按 `cancelled:<reason>` 记账并跑收尾（与"被替换"区分）。
+3. **命令面（玩家接口）**：
+   - `/alice region set <pos1> <pos2>` —— **只划水平范围**（竖直自适应，回执里写明）；
+   - `/alice region start` / `stop` —— 启动 / **显式打断**；
+   - `/alice region sapling <item>` —— 选补种树苗（只收 `#minecraft:saplings`；不必与原树同种）；
+   - `/alice region idle-stop <true|false>` —— 是否启用"无活即收工"（默认 false=常驻）；
+   - `/alice region info` —— 区域/基准层/上限/我种的苗/待补种/选定树苗/统计/模式。
+4. 夹具 `alice:region_lumber` 仍帮忙划好场景区域（`LumberCourseAnchor.region()`，水平 17..37 × 203..231、
+   基准层 58、高度上限 48）。
+
+**验证入口**：`/alice region set …`（或右键 `alice:region_lumber`）→ 砍完/补种后**任务不应自行结束**，
+日志出现 `待机巡查：saplings(N)，间隔退避 40 → 80 → … → 600 tick（常驻：只由玩家/决策层打断）`；
+手动催熟 ⇒ `发现活 ⇒ 巡查间隔恢复` + `pick tree@…`；`/alice region stop` ⇒ `cancelled:region_stop`。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待测）。

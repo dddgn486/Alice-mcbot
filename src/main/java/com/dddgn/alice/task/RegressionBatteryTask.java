@@ -171,8 +171,7 @@ public final class RegressionBatteryTask implements Task {
                     }
                 },
                 () -> new com.dddgn.alice.job.lumber.RegionLumberJob(bot,
-                        new com.dddgn.alice.job.lumber.LumberRegionState.Region(
-                                LumberCourseAnchor.REGION_MIN, LumberCourseAnchor.REGION_MAX),
+                        LumberCourseAnchor.region(),
                         scope, new LumberCandidateSource(), new NearestPolicy(), 20, 8000),
                 2000,
                 // 常驻任务：砍到 ≥1 棵且补种 ≥1 棵即算本步通过（之后它会继续巡查等苗长大）

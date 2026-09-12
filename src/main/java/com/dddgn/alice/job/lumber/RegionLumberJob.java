@@ -49,6 +49,10 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
      * 有新树/需要补种时立刻恢复成配置的间隔。
      */
     public static final int MAX_PATROL_INTERVAL_TICKS = 600;
+    /** 垂直自适应：生效上界 = 区域内最高原木 + 这么多格（够覆盖树冠/掉落物，不把整片天空算进来）。 */
+    public static final int VERTICAL_MARGIN = 4;
+    /** 垂直自适应下界（即使区域内暂时没树，也至少留这么高，免得刚种下的苗被漏掉）。 */
+    public static final int MIN_ADAPTIVE_HEIGHT = 8;
 
     private final BotPlayer bot;
     private final LumberRegionState.Region region;
@@ -156,18 +160,28 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         var spec = GoalSpec.harvestUnits(region.center(), region.coverRadius(), 1, maxTicks);
         CandidateSet raw = source.candidates(bot, spec);
 
-        List<Candidate> inRegion = new ArrayList<>();
-        for (Candidate candidate : raw.viable()) {
-            if (region.contains(candidate.anchor()) && !tried.contains(candidate.anchor())) {
-                inRegion.add(candidate);
-            }
-        }
         state.markPatrol(bot.getUUID(), server.getTickCount());
         // §13.2：先**对账我种的苗**（长成树就销账、被拔掉也销账），否则"欠树"判断会被幽灵条目污染
         reconcileMySaplings(state);
+        // **垂直自适应**（用户 2026-09-12 裁定：玩家只划水平范围）：生效上界按**实测树高**收紧，
+        // 既不会漏掉刚长高的树，也不会把"整片天空"算进区域。
+        int tallestTop = tallestTreeTopY();
+        int effectiveTop = Math.max(region.baseY() + MIN_ADAPTIVE_HEIGHT,
+                Math.min(region.baseY() + region.maxHeight(), tallestTop + VERTICAL_MARGIN));
+        List<Candidate> inRegion = new ArrayList<>();
+        for (Candidate candidate : raw.viable()) {
+            if (region.containsHorizontal(candidate.anchor())
+                    && candidate.anchor().getY() >= region.baseY() - 2
+                    && candidate.anchor().getY() <= effectiveTop
+                    && !tried.contains(candidate.anchor())) {
+                inRegion.add(candidate);
+            }
+        }
         int viableInRegion = 0;
         for (Candidate candidate : raw.viable()) {
-            if (region.contains(candidate.anchor())) {
+            if (region.containsHorizontal(candidate.anchor())
+                    && candidate.anchor().getY() >= region.baseY() - 2
+                    && candidate.anchor().getY() <= effectiveTop) {
                 viableInRegion++;
             }
         }
@@ -182,7 +196,8 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         BotLog.info("[Job] maintain region={} viable={} inRegion={} tried={} mySaplings={}"
                         + " standing={} baseline={} deficit={} chopped={} failed={} planted={}"
                         + " pendingReplant={} waiting={} interval={} lastPatrol={}",
-                region.describe(), raw.viable().size(), inRegion.size(), tried.size(),
+                region.describe() + " adaptiveTop=" + effectiveTop,
+                raw.viable().size(), inRegion.size(), tried.size(),
                 state.mySaplingCount(bot.getUUID()), standing, state.baselineTrees(bot.getUUID()),
                 deficit, treesChopped, treesFailed,
                 LumberRegionState.get(server).saplingsPlanted(bot.getUUID()),
@@ -211,16 +226,24 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
                 // **苗还在长（mySaplings>0）或还欠树（deficit>0）都不算没活** —— MAINTAIN 是常驻任务
                 // （§13.1"都满足 ⇒ 巡查待机"；用户 2026-09-12 实测：原实现收工太早，
                 // 手动催熟的树立刻没人管）。
-                if (deficit == 0 && state.mySaplingCount(bot.getUUID()) == 0) {
+                // 用户 2026-09-12 裁定：**常驻任务本就该只由玩家/决策层显式打断**
+                // （`/alice region stop` 或任何 `/alice` 指令）。旧的"连续无活即 IDLE_NO_WORK 收工"
+                // 保留为**可选模式**（`/alice region idle-stop on`），默认关闭。
+                if (state.autoIdleStop(bot.getUUID())
+                        && deficit == 0 && state.mySaplingCount(bot.getUUID()) == 0) {
                     terminalReason = "idle_no_work";
                     return finish(com.dddgn.alice.task.Task.Status.DONE);
                 }
-                // 还有苗/欠树 ⇒ 常驻等待，**巡查退避**（禁止高频扫描）
+                // 常驻等待：**巡查退避**（§13.1「树苗生长需要真实时间，禁止高频扫描」）
+                int previous = currentPatrolInterval;
                 currentPatrolInterval = Math.min(currentPatrolInterval * 2, MAX_PATROL_INTERVAL_TICKS);
                 waitingFor = deficit > 0 ? "deficit(" + deficit + ")" : "saplings("
                         + state.mySaplingCount(bot.getUUID()) + ")";
-                BotLog.info("[Job] maintain 待机巡查：{}，间隔退避到 {} tick（有新树/要补种立刻恢复 {}）",
-                        waitingFor, currentPatrolInterval, patrolIntervalTicks);
+                if (currentPatrolInterval != previous) {
+                    BotLog.info("[Job] maintain 待机巡查：{}，间隔退避 {} → {} tick"
+                                    + "（常驻：只由玩家/决策层打断；有新树/要补种立刻恢复 {}）",
+                            waitingFor, previous, currentPatrolInterval, patrolIntervalTicks);
+                }
             }
             return com.dddgn.alice.task.Task.Status.RUNNING;
         }
@@ -336,6 +359,18 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         BotLog.info("[Job] maintain plant sapling@{}（deficit={} → 补种后 standing 上升；KEEP 策略）",
                 spot.toShortString(), deficit);
         return null;
+    }
+
+    /** 区域内（水平范围内）最高原木的 Y；没有树时返回基准层。 */
+    private int tallestTreeTopY() {
+        int tallest = region.baseY();
+        for (var tree : TreeScanner.scan(bot.serverLevel(), region.center(), region.coverRadius())) {
+            if (!region.containsHorizontal(tree.base())) {
+                continue;
+            }
+            tallest = Math.max(tallest, tree.top().getY());
+        }
+        return tallest;
     }
 
     /** 单棵树的局部搜索半径：够覆盖该树及其树冠即可，不必整片区域。 */

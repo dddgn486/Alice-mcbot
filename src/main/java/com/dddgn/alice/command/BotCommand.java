@@ -225,6 +225,17 @@ public final class BotCommand {
                 .then(Commands.literal("region")
                         .then(Commands.literal("info").executes(ctx -> regionInfo(ctx.getSource())))
                         .then(Commands.literal("start").executes(ctx -> regionStart(ctx.getSource())))
+                        .then(Commands.literal("stop").executes(ctx -> regionStop(ctx.getSource())))
+                        .then(Commands.literal("idle-stop")
+                                .then(Commands.argument("value", com.mojang.brigadier.arguments.BoolArgumentType.bool())
+                                        .executes(ctx -> regionIdleStop(ctx.getSource(),
+                                                com.mojang.brigadier.arguments.BoolArgumentType.getBool(ctx, "value")))))
+                        .then(Commands.literal("set")
+                                .then(Commands.argument("pos1", BlockPosArgument.blockPos())
+                                        .then(Commands.argument("pos2", BlockPosArgument.blockPos())
+                                                .executes(ctx -> regionSet(ctx.getSource(),
+                                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos1"),
+                                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos2"))))))
                         .then(Commands.literal("sapling")
                                 .then(Commands.argument("item", ResourceLocationArgument.id())
                                         .executes(ctx -> regionSapling(ctx.getSource(),
@@ -495,6 +506,56 @@ public final class BotCommand {
      *
      * <p>只读——不分配任务、不改变世界、不清理账本。清理是 J6-b 的 `RestoreScopeTask` 的职责。
      */
+    /**
+     * {@code /alice region set <pos1> <pos2>}：玩家**只划水平范围**（x/z 取两角），
+     * 竖直方向**自适应**（基准层取两角较低的 Y，上界由巡查按实测树高收紧）。
+     */
+    private static int regionSet(CommandSourceStack source, net.minecraft.core.BlockPos a,
+                                 net.minecraft.core.BlockPos b) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendSuccess(() -> Component.literal("[alice] 没有可用 bot"), false);
+            return 0;
+        }
+        int baseY = Math.min(a.getY(), b.getY());
+        var region = new com.dddgn.alice.job.lumber.LumberRegionState.Region(
+                a.getX(), a.getZ(), b.getX(), b.getZ(), baseY,
+                com.dddgn.alice.task.LumberCourseAnchor.REGION_MAX_HEIGHT);
+        com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer())
+                .setRegion(bot.getUUID(), region);
+        source.sendSuccess(() -> Component.literal("[alice] 可持续伐木区已设定 " + region.describe()
+                + "（只划水平范围，竖直自适应；用 /alice region start 启动、stop 停止）"), false);
+        return 1;
+    }
+
+    /** {@code /alice region stop}：**显式打断**常驻任务（§13.1：常驻任务只由玩家/决策层打断）。 */
+    private static int regionStop(CommandSourceStack source) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendSuccess(() -> Component.literal("[alice] 没有可用 bot"), false);
+            return 0;
+        }
+        String stopped = BotManager.stopTask(bot, "region_stop");
+        source.sendSuccess(() -> Component.literal(stopped == null
+                ? "[alice] 当前没有在跑的任务"
+                : "[alice] 已停止 " + stopped), false);
+        return 1;
+    }
+
+    /** {@code /alice region idle-stop <true|false>}：是否启用"连续无活即 IDLE_NO_WORK 收工"（默认关=常驻）。 */
+    private static int regionIdleStop(CommandSourceStack source, boolean value) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendSuccess(() -> Component.literal("[alice] 没有可用 bot"), false);
+            return 0;
+        }
+        com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer())
+                .setAutoIdleStop(bot.getUUID(), value);
+        source.sendSuccess(() -> Component.literal("[alice] 区域任务 idle-stop=" + value
+                + (value ? "（无活会自行 IDLE_NO_WORK 收工）" : "（常驻：只由玩家/决策层打断）")), false);
+        return 1;
+    }
+
     /** {@code /alice region info}：读区域状态（区域/我种的苗/选定树苗/统计）。 */
     private static int regionInfo(CommandSourceStack source) {
         BotPlayer bot = BotManager.firstInLevel(source.getLevel());
@@ -514,6 +575,7 @@ public final class BotCommand {
                 + " chopped=" + state.treesChopped(bot.getUUID())
                 + " planted=" + state.saplingsPlanted(bot.getUUID())
                 + " patrols=" + state.patrols(bot.getUUID())
+                + " autoIdleStop=" + state.autoIdleStop(bot.getUUID())
                 + " lastPatrol=" + state.lastPatrolTick(bot.getUUID())), false);
         return 1;
     }

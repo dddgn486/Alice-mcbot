@@ -949,6 +949,26 @@ public final class BotManager {
         return "resumed";
     }
 
+    /**
+     * **显式停止当前任务**（J8 / §13.1）：常驻任务（如可持续伐木区）**只由玩家/决策层打断**，
+     * 不自己收工。这里按 `CANCELLED_BY_USER` 记账（与"被新指令替换"区分开），并跑一遍收尾。
+     *
+     * @return 被停掉的任务名；没有任务时返回 null
+     */
+    public static String stopTask(BotPlayer bot, String reason) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task == null) {
+            return null;
+        }
+        String kind = session.taskKind;
+        session.recordTerminal(session.taskKind, session.taskTargetDescription, session.taskStartTick,
+                TaskExecutionRecord.TerminalStatus.CANCELLED_REPLACED,
+                "cancelled:" + (reason == null ? "user" : reason), "idle_after_cleanup");
+        session.clearTask();
+        BotLog.info("[alice] 已显式停止任务 {}（{}）", kind, reason == null ? "user" : reason);
+        return kind;
+    }
+
     /** 服务器启动完成:恢复存档假人(若有)。 */
     @SubscribeEvent
     public static void onServerStarted(ServerStartedEvent event) {

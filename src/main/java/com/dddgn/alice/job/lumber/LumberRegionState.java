@@ -33,34 +33,55 @@ public final class LumberRegionState extends SavedData {
 
     private static final String DATA_KEY = "alice_lumber_regions";
 
-    /** 立方区域（含端点）。 */
-    public record Region(BlockPos min, BlockPos max) {
+    /**
+     * **可持续伐木区**：**只划水平范围**（玩家定义 x/z），**垂直自适应**。
+     *
+     * <p>用户 2026-09-12 裁定：区域由玩家划分，但玩家只圈水平范围；竖直方向不该让玩家操心 ——
+     * 这里存一个 {@code baseY}（基准层，取玩家选区较低的那个 Y）与 {@code maxHeight}（自适应**上限**），
+     * 实际生效的上界由巡查按**实测树高**收紧（见 {@code RegionLumberJob#effectiveTopY}）：
+     * 既不会漏掉刚长高的树，也不会有个"柱子一样"的固定高度把整片天空算进来。
+     */
+    public record Region(int minX, int minZ, int maxX, int maxZ, int baseY, int maxHeight) {
+
         public Region {
-            min = min.immutable();
-            max = max.immutable();
+            minX = Math.min(minX, maxX);
+            maxX = Math.max(minX, maxX);
+            minZ = Math.min(minZ, maxZ);
+            maxZ = Math.max(minZ, maxZ);
+            maxHeight = Math.max(1, maxHeight);
         }
 
+        /** 水平（x/z）是否落在区域内。 */
+        public boolean containsHorizontal(BlockPos pos) {
+            return pos.getX() >= minX && pos.getX() <= maxX
+                    && pos.getZ() >= minZ && pos.getZ() <= maxZ;
+        }
+
+        /** 是否落在区域盒内（竖直方向用"基准层往下留 2 格（树桩）+ 自适应上限"）。 */
         public boolean contains(BlockPos pos) {
-            return pos.getX() >= min.getX() && pos.getX() <= max.getX()
-                    && pos.getY() >= min.getY() && pos.getY() <= max.getY()
-                    && pos.getZ() >= min.getZ() && pos.getZ() <= max.getZ();
+            return containsHorizontal(pos)
+                    && pos.getY() >= baseY - 2
+                    && pos.getY() <= baseY + maxHeight;
+        }
+
+        /** 覆盖该水平范围所需的外接半径（`TreeScanner` 只吃"中心 + 半径"）。 */
+        public int coverRadius() {
+            int dx = maxX - minX;
+            int dz = maxZ - minZ;
+            return (int) Math.ceil(Math.sqrt((double) dx * dx + (double) dz * dz) / 2.0D) + 2;
         }
 
         public BlockPos center() {
-            return new BlockPos((min.getX() + max.getX()) / 2, (min.getY() + max.getY()) / 2,
-                    (min.getZ() + max.getZ()) / 2);
+            return new BlockPos((minX + maxX) / 2, baseY, (minZ + maxZ) / 2);
         }
 
-        /** 覆盖该区域所需的外接半径（`TreeScanner` 只吃"中心 + 半径"）。 */
-        public int coverRadius() {
-            int dx = max.getX() - min.getX();
-            int dy = max.getY() - min.getY();
-            int dz = max.getZ() - min.getZ();
-            return (int) Math.ceil(Math.sqrt((double) dx * dx + (double) dy * dy + (double) dz * dz) / 2.0D) + 1;
+        public int areaXZ() {
+            return (maxX - minX + 1) * (maxZ - minZ + 1);
         }
 
         public String describe() {
-            return min.toShortString() + ".." + max.toShortString();
+            return "x" + minX + ".." + maxX + " z" + minZ + ".." + maxZ
+                    + " baseY=" + baseY + " maxH=" + maxHeight + "（垂直自适应）";
         }
     }
 
@@ -75,6 +96,13 @@ public final class LumberRegionState extends SavedData {
         private final Set<BlockPos> pendingReplant = new LinkedHashSet<>();
         /** **区域目标棵数**（首次巡查时按当时的可作业树数确定；区域"欠树"就是相对它算的）。 */
         private int baselineTrees;
+        /**
+         * 是否"连续无活就自动收工"（旧设计的默认行为，`IDLE_NO_WORK`）。
+         *
+         * <p>用户 2026-09-12 裁定：**常驻任务本就该只由玩家/决策层显式打断**，所以默认 {@code false}
+         * （= 一直巡查等生长）；想要旧行为可用 {@code /alice region idle-stop on} 打开。
+         */
+        private boolean autoIdleStop;
         private long lastPatrolTick;
         private int treesChopped;
         private int saplingsPlanted;
@@ -196,6 +224,18 @@ public final class LumberRegionState extends SavedData {
         return entry == null ? 0 : entry.pendingReplant.size();
     }
 
+    /** 是否"无活即自动收工"（默认 false = 常驻，只由显式打断结束）。 */
+    public boolean autoIdleStop(UUID owner) {
+        Entry entry = entry(owner, false);
+        return entry != null && entry.autoIdleStop;
+    }
+
+    public void setAutoIdleStop(UUID owner, boolean value) {
+        Entry entry = entry(owner, true);
+        entry.autoIdleStop = value;
+        setDirty();
+    }
+
     /** 区域目标棵数（0 = 还没定，首次巡查时确定）。 */
     public int baselineTrees(UUID owner) {
         Entry entry = entry(owner, false);
@@ -257,11 +297,14 @@ public final class LumberRegionState extends SavedData {
                 continue;
             }
             Entry entry = new Entry();
-            if (tag.contains("min")) {
-                entry.region = new Region(readPos(tag.getCompound("min")), readPos(tag.getCompound("max")));
+            if (tag.contains("region")) {
+                CompoundTag r = tag.getCompound("region");
+                entry.region = new Region(r.getInt("min_x"), r.getInt("min_z"), r.getInt("max_x"),
+                        r.getInt("max_z"), r.getInt("base_y"), r.getInt("max_h"));
             }
             entry.saplingItem = tag.contains("sapling_item") ? tag.getString("sapling_item") : null;
             entry.baselineTrees = tag.getInt("baseline");
+            entry.autoIdleStop = tag.getBoolean("auto_idle_stop");
             entry.lastPatrolTick = tag.getLong("last_patrol");
             entry.treesChopped = tag.getInt("chopped");
             entry.saplingsPlanted = tag.getInt("planted");
@@ -287,13 +330,20 @@ public final class LumberRegionState extends SavedData {
             CompoundTag tag = new CompoundTag();
             tag.putString("owner", e.getKey().toString());
             if (entry.region != null) {
-                tag.put("min", writePos(entry.region.min()));
-                tag.put("max", writePos(entry.region.max()));
+                CompoundTag r = new CompoundTag();
+                r.putInt("min_x", entry.region.minX());
+                r.putInt("min_z", entry.region.minZ());
+                r.putInt("max_x", entry.region.maxX());
+                r.putInt("max_z", entry.region.maxZ());
+                r.putInt("base_y", entry.region.baseY());
+                r.putInt("max_h", entry.region.maxHeight());
+                tag.put("region", r);
             }
             if (entry.saplingItem != null) {
                 tag.putString("sapling_item", entry.saplingItem);
             }
             tag.putInt("baseline", entry.baselineTrees);
+            tag.putBoolean("auto_idle_stop", entry.autoIdleStop);
             tag.putLong("last_patrol", entry.lastPatrolTick);
             tag.putInt("chopped", entry.treesChopped);
             tag.putInt("planted", entry.saplingsPlanted);
@@ -335,7 +385,8 @@ public final class LumberRegionState extends SavedData {
                     + " region=" + (entry.region == null ? "-" : entry.region.describe())
                     + " mySaplings=" + entry.mySaplings.size()
                     + " saplingItem=" + (entry.saplingItem == null ? "-" : entry.saplingItem)
-                    + " baseline=" + entry.baselineTrees + " pendingReplant=" + entry.pendingReplant.size()
+                    + " baseline=" + entry.baselineTrees
+                    + " autoIdleStop=" + entry.autoIdleStop + " pendingReplant=" + entry.pendingReplant.size()
                     + " chopped=" + entry.treesChopped + " planted=" + entry.saplingsPlanted
                     + " patrols=" + entry.patrols + " lastPatrol=" + entry.lastPatrolTick);
         }

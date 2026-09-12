@@ -51,8 +51,7 @@ public class RegionLumberItem extends Item {
                 java.util.Set.of(), bot.getYRot(), bot.getXRot());
         bot.setDeltaMovement(Vec3.ZERO);
         bot.controller().stopMovement();
-        var region = new LumberRegionState.Region(LumberCourseAnchor.REGION_MIN,
-                LumberCourseAnchor.REGION_MAX);
+        var region = LumberCourseAnchor.region();
         if (!BotManager.assignRegionLumber(bot, player instanceof ServerPlayer sp ? sp : null, region)) {
             say(player, "[alice] bot 正忙，稍后再试");
             return;
