@@ -219,21 +219,25 @@ public final class LumberJob implements Job {
             failure = terminalReason;
             return finish(Task.Status.FAILED);
         }
+        // 前置检查（§6.2c③）：背包放不下原木时**直接收工**，不要先砍一棵再发现装不下
+        if (!hasRoomForLogs(bot)) {
+            terminalReason = "inventory_full";
+            BotLog.warn("[Job] lumber 背包放不下任何原木，直接结束（未动世界）");
+            return finish(Task.Status.DONE);
+        }
         // 前置检查（J7 Step 4 / §13.3）：**没有斧头就不开工**。原版允许徒手砍原木，但慢 8 倍
         // （实测 61 tick/根 vs 6~8），拿它去撞 tick 预算只会得到"砍了一半超时"这种噪声失败；
         // 缺工具是**目标级决策**（"先去弄工具"）该知道的事实 ⇒ 如实上抛 `tool_missing`。
+        //
+        // **顺序即语义**（2026-09-12 夹具实测教训）：必须放在"背包放不下"之后 ——
+        // `INVENTORY_FULL` 用例把背包塞满（连快捷栏一起覆盖、斧头也没了），若缺工具检查在前，
+        // 就会把"停止收工(DONE inventory_full)"误报成 `FAILED tool_missing`。
         if (!hasChoppingTool(bot)) {
             terminalReason = "tool_missing";
             failure = terminalReason;
             BotLog.warn("[Job] lumber 缺少砍伐工具（快捷栏无斧）⇒ FAILED tool_missing（徒手慢 8 倍，"
                     + "不拿它去撞预算；这是目标级决策该接的事实）");
             return finish(Task.Status.FAILED);
-        }
-        // 前置检查（§6.2c③）：背包放不下原木时**直接收工**，不要先砍一棵再发现装不下
-        if (!hasRoomForLogs(bot)) {
-            terminalReason = "inventory_full";
-            BotLog.warn("[Job] lumber 背包放不下任何原木，直接结束（未动世界）");
-            return finish(Task.Status.DONE);
         }
         return switch (phase) {
             case SELECT -> select();

@@ -3973,3 +3973,21 @@ J3 的 3 棵树恰好 3+3+2 = **8 压线**；`a5901f5` 想加第 4 棵树，却�
 **验证等级**：IMPLEMENTED / COMPILES（客户端待测：`lumber_failure_check` 应 6/6，其中
 `tool_missing=PASS(status=FAILED reason=tool_missing)`、`all_rejected=PASS(… trunk_too_tall)`；
 `lumber_job` 与电池行为不变）。
+
+### D-128 附注（2026-09-12 11:44 客户端实测：5/6，**夹具抓到我自己的顺序 bug**）
+
+**实测**：`tool_missing=PASS(status=FAILED reason=tool_missing)` ✓、`all_rejected=PASS(… trunk_too_tall)` ✓，
+`lumber_job` 正常路径不变（`trees 5/5 logs 23/23 cleared=9 scaffoldLeft=0 ticks=750`）✓；
+但 **`inventory_full=FAIL(status=FAILED reason=tool_missing)`** ✗。
+
+**根因（顺序即语义）**：我把"缺斧 ⇒ tool_missing"的前置检查放在了"背包放不下"**之前**；
+而 `INVENTORY_FULL` 用例是把背包**塞满圆石**（连快捷栏一起覆盖 ⇒ 斧头也没了）⇒ 该用例被误判成
+`FAILED tool_missing`，而它的既定语义是"**停止收工**：`DONE inventory_full`，未动世界"。
+（这也解释了为什么该用例此前一直 PASS：改造前只有库存这一个前置检查。）
+
+**修正**：把缺工具检查移到库存检查**之后** —— "装不下 ⇒ 收工"优先于"缺工具 ⇒ 失败"。
+（顺带登记一条夹具写实性观察：`fillInventory` 会连快捷栏一起覆盖，真实场景里塞满背包**不该**没收工具；
+本轮只按既有语义修顺序，夹具写实性留待以后。）
+
+**验证等级**：IMPLEMENTED / COMPILES（待复测：`lumber_failure_check` 应 **6/6**，
+尤其 `inventory_full=PASS(status=DONE reason=inventory_full)` 与 `tool_missing=PASS` 同时成立）。
