@@ -241,6 +241,11 @@ tools/check-scene-connectivity.py --all        # 离线：22 场景无「封航�
   ③ 显式打断记成 `CANCELLED_REPLACED`（与文档不符）⇒ 新增 `CANCELLED_BY_USER`；
   ④ `clearTask()` 不清残留移动输入（`/alice region stop` 停在半路 ⇒ "说停了却还在走"）。
 
+**④ 决策层框架（2026-09-12 规划）**：`docs/DECISION_LAYER_DESIGN.md` —— 三条通道
+（**决策 / 汇报 / 请示**）+ 契约 + 分步骨架 **S1 事实层 → S2 选择层 → S3 请示层 → S4 事件层 →
+S5 知识层(只读配方图) → S6 执行层(Craft/Smelt/Process + 偏好规则)**；S0（契约与管道）已 `WINDOWS_CLIENT`。
+知识/配方面的参考材料见 `docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md`。
+
 **① 安全底座小批次已完成（全部 `WINDOWS_CLIENT`，D-132 附注三）**：S-1 维生出口 / S-2 未加载区块·边界准入 /
 S-3 删重复维生调用 / S-4 流体探针接线 + 起点脱困（D-133）。**② 决策层接入进行中**。
 

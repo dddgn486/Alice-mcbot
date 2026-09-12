@@ -31,6 +31,8 @@
 | [`RISK_MODES_DISCUSSION.md`](RISK_MODES_DISCUSSION.md) | 风险模式 H/G/S 讨论（只讨论，未实现） |
 | [`MULTI_BOT_INTERFACE_RESERVATION.md`](MULTI_BOT_INTERFACE_RESERVATION.md) | 多 bot 并行接口预留 |
 | [`OPEN_ITEMS_LEDGER.md`](OPEN_ITEMS_LEDGER.md) | **未收口项总账**（2026-09-12）：安全底座 / 内核搜索 / Job 契约 / 写入授权登记 / 验证债 / 文档债 + 方向候选 |
+| [`DECISION_LAYER_DESIGN.md`](DECISION_LAYER_DESIGN.md) | **L4 决策层设计**：三条通道（决策/汇报/请示）+ 契约 + 分步骨架 S1–S6 |
+| [`KNOWLEDGE_RECIPE_GRAPH_NOTES.md`](KNOWLEDGE_RECIPE_GRAPH_NOTES.md) | 参考材料：LLM 的知识面 / 配方图 / 整合包复杂度（含 mc_aiplayer 对照）+ P1–P5 阶段 |
 | [`AI_CHANGELOG.md`](AI_CHANGELOG.md) | 历史改动流水（含失败与根因假设） |
 
 ## 待裁定草案（**非最终方案**）
