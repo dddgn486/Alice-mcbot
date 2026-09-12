@@ -347,16 +347,15 @@ public final class ScaffoldLifecycleTask implements Task {
     private Task.Status sweepGround() {
         if (collector == null) {
             ServerLevel level = bot.serverLevel();
-            // **收养一次**（D-108）：拆除任务重开过作用域，而 ScopeBuffer.begin() 会先 end()
-            // 并清空掉落登记 —— 已经落地、仍在世界里的目标掉落物会因此"失去归属"
-            // （实测 live_drops=0，收尾收集无物可追）。这里的顺序仍是"拆完落地 → 再收"。
+            // D-124 起**不需要**再手工收养（D-108 的 `adoptExistingDrops`）：重开区间会继承
+            // "仍活着且落在区间内"的我方掉落物归属，收尾收集自然看得见它们。
+            // 顺序仍是"拆完落地 → 再收"。
             scope.begin(DROP_ANCHOR, 8, bot.getUUID());
-            int adopted = scope.adoptExistingDrops(level, DROP_ANCHOR, 8);
-            BotLog.info("[Scaffold] sweep_ground_start anchor={} foot={} live_drops={} adopted={}"
+            BotLog.info("[Scaffold] sweep_ground_start anchor={} foot={} live_drops={}"
                             + "（拆完落地后再收）",
                     DROP_ANCHOR.toShortString(),
                     MovementHelper.footCell(level, bot).toShortString(),
-                    scope.liveDrops().size(), adopted);
+                    scope.liveDrops().size());
             collector = new CollectDropsTask(bot, DROP_ANCHOR, scope, java.util.List.of(), false,
                     COLLECT_BUDGET_TICKS);
             ticks = 0;

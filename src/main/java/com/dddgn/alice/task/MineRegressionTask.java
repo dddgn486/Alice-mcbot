@@ -53,7 +53,13 @@ public final class MineRegressionTask implements Task {
          * 工具负例（D-119）：**故意不给工具**去挖"必须正确工具才掉落"的方块，
          * 断言任务如实失败 {@code no_suitable_tool}、目标未被破坏、且**没有变出工具**。
          */
-        TOOL_REFUSAL
+        TOOL_REFUSAL,
+        /**
+         * **作用域重开继承掉落物**（D-124 / T4）：挖出掉落物（本用例 `collectDrops=false`，
+         * 先不收集）→ **重开作用域**（同样的中心/半径）→ 断言掉落物**仍在账上**
+         * （`liveDrops() ≥ 1`）。修前 `begin()` 会清空登记 ⇒ 这里必然是 0。
+         */
+        SCOPE_REOPEN
     }
 
     /**
@@ -117,7 +123,11 @@ public final class MineRegressionTask implements Task {
                     Kind.CHAIN, List.of(), 9, Items.RAW_IRON, true, false, 9),
             // D-119 负例：同一格圆石，但**清空背包**后开工 —— 必须如实失败、不破坏方块、不变出工具
             new CaseDef("no_tool_refuses", "mine_course", MINE_START, new BlockPos(23, 64, 140),
-                    Kind.TOOL_REFUSAL, List.of(), 0, Items.COBBLESTONE, true, false, 0));
+                    Kind.TOOL_REFUSAL, List.of(), 0, Items.COBBLESTONE, true, false, 0),
+            // D-124：挖出掉落物 → 重开作用域 → 掉落物必须**仍在账上**（修前 begin() 会清空登记）
+            new CaseDef("scope_reopen_keeps_drops", "mine_course", MINE_START,
+                    new BlockPos(23, 64, 140), Kind.SCOPE_REOPEN, List.of(), 0,
+                    Items.COBBLESTONE, true, false, 0));
 
     /** 单用例预算与任务总预算（tick）。 */
     private static final int CASE_BUDGET_TICKS = 320;
@@ -191,7 +201,9 @@ public final class MineRegressionTask implements Task {
             }
             scope.begin(current.target(), 16, bot.getUUID());
             expectedItem = current.expectedItem();
-            MiningBudget budget = MiningBudget.forTarget(bot, bot.serverLevel(), current.target(), true);
+            // D-124：作用域重开用例**先不收集**（collectDrops=false）——掉落物留在世界里才谈得上"重开后还在不在账上"
+            MiningBudget budget = MiningBudget.forTarget(bot, bot.serverLevel(), current.target(),
+                    current.kind() != Kind.SCOPE_REOPEN);
             // D-119：**工具必须在构造 MineTask 之前到手** —— 生产 MineTask 不再兜底发工具，
             // 构造时就做只读工具判定（挖石头/圆石没有正确工具会如实失败 `no_suitable_tool`）。
             if (current.kind() == Kind.TOOL_REFUSAL) {
@@ -221,6 +233,18 @@ public final class MineRegressionTask implements Task {
         Status status = mineTask.tick();
         if (status == Status.RUNNING) {
             return Status.RUNNING;
+        }
+        if (current.kind() == Kind.SCOPE_REOPEN) {
+            // D-124 断言：挖出掉落物（未收集）→ 重开作用域 → 账上仍在
+            int before = scope.liveDrops().size();
+            scope.begin(current.target(), 16, bot.getUUID());   // 与 prepare 同一中心/半径
+            int after = scope.liveDrops().size();
+            boolean pass = status == Status.DONE && before >= 1 && after >= 1;
+            record(current, pass, "status=" + status
+                    + "/liveDropsBeforeReopen=" + before + "/liveDropsAfterReopen=" + after
+                    + "/ticks=" + caseTicks);
+            finishCase();
+            return index >= CASES.size() ? finish() : Status.RUNNING;
         }
         if (current.kind() == Kind.TOOL_REFUSAL) {
             // D-119 负例断言：如实失败 + 目标未动 + **没有变出工具**

@@ -64,14 +64,63 @@ public final class ScopeBuffer {
 
     /** 注册监听区间，并指定所有者（只有该玩家的破坏事件才登记为掉落来源）。 */
     public void begin(BlockPos center, int radius, java.util.UUID owner) {
-        end();
+        begin(center, radius, owner, true);
+    }
+
+    /**
+     * 注册监听区间（可指定是否**继承**已登记的掉落物）。
+     *
+     * <p>**D-124 / T4：重开区间默认继承掉落物归属**。历史病灶：{@link #begin} 原先无条件
+     * {@link #end()}，而 `end()` 会清空 {@code spawnedItems}/{@code itemOrigins} ⇒
+     * "先配对到来源、随后区间被重开"的掉落物**丢掉归属**，即使它还好端端躺在地上；
+     * 后续收集再也看不见它（实测：拆除任务重开区间后 `live_drops=0`，收尾收集无物可追）。
+     * D-108 的 {@link #adoptExistingDrops} 只是当时的手工补丁（而且会把**别人**的掉落物也收养进来）。
+     *
+     * <p>现在的语义：重开只换"监听窗口"，**仍活着且落在新窗口内**的我方掉落物照旧记账；
+     * 被移出窗口/已消失的自然淘汰；{@code pending}/{@code brokenBlocks}/{@code recentBreaks}
+     * 仍照常清空（它们只服务"刚刚发生的破坏-掉落配对"，跨重开没有意义）。
+     * **整个会话结束时**仍走 {@link #end()}（`BotSession.clearTask` 调用），所以跨任务不会串味。
+     *
+     * @param inheritDrops false = 旧行为（彻底清空后重开），仅供需要"干净区间"的调用点显式选择
+     */
+    public void begin(BlockPos center, int radius, java.util.UUID owner, boolean inheritDrops) {
+        List<ItemEntity> carried = new ArrayList<>();
+        java.util.Map<java.util.UUID, BlockPos> carriedOrigins = new java.util.HashMap<>();
+        if (inheritDrops && active) {
+            long maxDistSqr = (long) radius * radius;
+            for (ItemEntity item : spawnedItems) {
+                if (!inWorld(item) || item.blockPosition().distSqr(center) > maxDistSqr) {
+                    continue;   // 已消失 / 已被移出新区间 ⇒ 不再记账
+                }
+                carried.add(item);
+                BlockPos origin = itemOrigins.get(item.getUUID());
+                if (origin != null) {
+                    carriedOrigins.put(item.getUUID(), origin);
+                }
+            }
+        }
+        if (active) {
+            ACTIVE.remove(this);
+            active = false;
+        }
         this.center = center;
         this.radius = radius;
         this.ownerUuid = owner;
         this.active = true;
         this.pending.clear();
+        this.spawnedItems.clear();
+        this.itemOrigins.clear();
+        this.brokenBlocks.clear();
+        this.recentBreaks.clear();
+        this.spawnedItems.addAll(carried);
+        this.itemOrigins.putAll(carriedOrigins);
         ACTIVE.add(this);
-        BotLog.info("作用域开启: center={} radius={} owner={}", center.toShortString(), radius, owner);
+        if (carried.isEmpty()) {
+            BotLog.info("作用域开启: center={} radius={} owner={}", center.toShortString(), radius, owner);
+        } else {
+            BotLog.info("作用域重开: center={} radius={} owner={} 继承掉落物={}（仍在区间内的我方掉落物）",
+                    center.toShortString(), radius, owner, carried.size());
+        }
     }
 
     public void end() {

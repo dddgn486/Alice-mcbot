@@ -3703,3 +3703,37 @@ D-116（① 扫尾/② 对账）、D-117（伐木通道）等此前各项 ✓。
 
 **验证等级**：`WINDOWS_CLIENT`（推导算术语料 + 行为回归双证据）。仍未覆盖（沿用 D-123 登记）：
 `trunkHeight+1 > 12` 的**截断分支**与 ① 扫尾**超时分支**。
+
+## D-124 T4：作用域重开**继承**掉落物归属（2026-09-12）
+
+**病灶（盘点风险项 T4，原编号 R4 与寻路内核里程碑 R4 撞车，见下）**：`ScopeBuffer.begin()` 无条件
+`end()`，而 `end()` 清空 `spawnedItems`/`itemOrigins` ⇒ "已配对到来源、随后区间被重开"的掉落物
+**丢掉归属**，即使它还好端端躺在地上；后续收集看不见它（实测：拆除任务重开区间后 `live_drops=0`，
+收尾收集无物可追）。D-108 的 `adoptExistingDrops` 只是当时的手工补丁，而且会把**别人**的掉落物
+一并收养（文档里已标注该风险）。
+
+**修正（通用接入点，不再指望每个调用点记得打补丁）**
+- `ScopeBuffer.begin(center, radius, owner, inheritDrops)`：默认 `inheritDrops=true`。
+  重开只换**监听窗口**：仍活着且落在**新区间内**的我方掉落物照旧记账（`spawnedItems`/`itemOrigins`
+  过滤后搬运），移出窗口/已消失的自然淘汰；`pending`/`brokenBlocks`/`recentBreaks` 仍照常清空
+  （它们只服务"刚刚发生的破坏-掉落配对"，跨重开无意义）。
+- **整个会话结束**仍走 `end()`（`BotSession.clearTask` 调用）⇒ **跨任务不会串味**（语义边界清晰：
+  会话内重开继承，会话结束清空）。
+- 新增日志 `作用域重开: center=… 继承掉落物=N（仍在区间内的我方掉落物）`（可观测）。
+- `ScaffoldLifecycleTask.sweepGround()` 删掉 D-108 的手工收养（已被通用继承取代，且顺带去掉了
+  "收养别人掉落物"的风险面）。
+
+**针对性回归（`mine_regression` 第 12 例 `scope_reopen_keeps_drops`）**：挖出掉落物（该例
+`collectDrops=false` 先不收集）→ **重开同一中心/半径的作用域** → 断言 `liveDrops()` 仍 ≥ 1
+（修前必然是 0）。判据行：`liveDropsBeforeReopen=… / liveDropsAfterReopen=…`。
+
+**编号澄清（用户 2026-09-12 提问）**：本文档里我一直用的 `R1–R7` 是 **9/11 盘点时临时起的"风险项"编号**，
+与项目既有的**寻路内核里程碑 R1/R2/R3/R4/R5**（`R1 契约` → `R2-A/B/C/D Movements` → `R3 PathSession/Battery`
+→ `R4 Session 执行` → `R5 世界修改 Movement`，日志前缀 `[R2-B Traverse]`/`[R3 Battery]`/`[R4 Session]`/`R5-2`）
+**撞车**。为免继续混淆，盘点项自此改称 **T1–T7**：
+T1 工具语义（D-119/120 ✅）、T2 清障换候选（D-121 ✅）、T3 扫尾预算推导（D-123 ✅）、
+**T4 作用域归属（D-124，本条）**、T5 配额与场景解耦、T6 通道/可规划性离线校验、
+T7"清障预算按棵重置"回归覆盖。寻路内核里程碑编号**保持原样**。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待跑：`mine_regression` 应 **12/12**，其中
+`scope_reopen_keeps_drops=PASS … liveDropsAfterReopen≥1`；串联回归电池应仍 9/9）。
