@@ -496,11 +496,21 @@ public final class BotManager {
         com.dddgn.alice.item.FixtureToolKit.ensureHotbarStack(bot,
                 () -> new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.COBBLESTONE),
                 stack -> stack.is(net.minecraft.world.item.Items.COBBLESTONE), 12, "cobblestone");
+        // **T5（D-125）：配额随场景推导**，不再写死 4 —— 原来「夹具可行树数(4) 与 Job 默认配额(4)」
+        // 互相标定，场景里任何一棵树变得不可行都会表现为 `partial_quota`，看起来像代码 bug
+        // （2026-09-11 为此花了两轮客户端）。现在用**同一套候选源**数一遍可行树（too_large 已进 rejected），
+        // 配额 = 可行树数；场景变了配额自动跟上，日志里如实打出推导结果。
+        com.dddgn.alice.job.lumber.LumberCandidateSource source =
+                new com.dddgn.alice.job.lumber.LumberCandidateSource();
+        com.dddgn.alice.job.GoalSpec probe = com.dddgn.alice.job.GoalSpec.harvestUnits(
+                com.dddgn.alice.task.LumberCourseAnchor.START_FOOT, 16, 1, 300);
+        int feasible = source.candidates(bot, probe).viable().size();
+        int quota = Math.max(1, feasible);
+        BotLog.info("[Job] lumber 场景可行树={} ⇒ 配额={}（T5：配额随场景推导）", feasible, quota);
         com.dddgn.alice.job.GoalSpec spec = com.dddgn.alice.job.GoalSpec.harvestUnits(
-                com.dddgn.alice.task.LumberCourseAnchor.START_FOOT, 16, 4, 3600);
+                com.dddgn.alice.task.LumberCourseAnchor.START_FOOT, 16, quota, 3600);
         com.dddgn.alice.job.lumber.LumberJob job = new com.dddgn.alice.job.lumber.LumberJob(
-                bot, spec, session.scope(),
-                new com.dddgn.alice.job.lumber.LumberCandidateSource(),
+                bot, spec, session.scope(), source,
                 new com.dddgn.alice.job.policy.NearestPolicy());
         session.beginTask(job, TaskTarget.block(com.dddgn.alice.task.LumberCourseAnchor.START_FOOT));
         broadcastTarget(session.target);

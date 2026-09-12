@@ -5,6 +5,6 @@ tp @s 24.5 64.0 205.5
 give @s alice:lumber_job
 give @s alice:lumber_policy_check
 give @s alice:lumber_failure_check
-tellraw @s [{"text":"[Alice 伐木 Job 场景·真树] ","color":"gold"},{"text":"3 棵同型橡树(20,64,208 / 19,64,213 / 29,64,213) + 云杉(28,64,208) + 2x2 高大云杉(22,64,218)。配额 4 棵。","color":"white"}]
-tellraw @s [{"text":"伐木 Job 启动器","color":"aqua"},{"text":"右键 lumber_job：循环砍满 4 棵（含云杉；累计清障应 ≥9，跨过按棵预算阈值）；右键 lumber_policy_check：两策略对比。","color":"white"}]
+tellraw @s [{"text":"[Alice 伐木 Job 场景·真树] ","color":"gold"},{"text":"3 棵同型橡树(20,64,208 / 19,64,213 / 29,64,213) + 云杉(28,64,208) + 2x2 高大云杉(22,64,218)。配额=场景可行树数（启动时推导，不再写死）。","color":"white"}]
+tellraw @s [{"text":"伐木 Job 启动器","color":"aqua"},{"text":"右键 lumber_job：循环砍满全部可行树（含云杉；累计清障应 ≥9，跨过按棵预算阈值）；右键 lumber_policy_check：两策略对比。","color":"white"}]
 tellraw @s [{"text":"注意","color":"yellow"},{"text":"站在观察点别走近树（掉落物会被你先捡走）。","color":"white"}]

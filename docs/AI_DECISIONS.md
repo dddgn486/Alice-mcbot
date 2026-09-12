@@ -3773,3 +3773,45 @@ T7"清障预算按棵重置"回归覆盖。寻路内核里程碑编号**保持�
 三处历史病灶点（自建用例 / scaffold 收尾 / lumber ②③ 之间）都靠**通用继承**而不是各自打补丁。
 
 **验证等级**：`WINDOWS_CLIENT`。
+
+## D-125 T6 离线可规划性自检 + T5 配额随场景推导（2026-09-12）
+
+### T6：`tools/check-scene-connectivity.py`（夹具"自封航线"机器可查）
+
+**动机**：D-117 的封死通道只验到 `COMPILES` 就进了主线，白花两轮客户端才定位；同类缺陷
+（"目标站位的可达性被新加的方块掐断"）本该**离线**就能发现。
+
+**做法（有意不另写一套判定）**
+- **方块表**复用 `analyze-lumber-scene.py` 的 `FixtureWorld`（从数据包函数 setblock/fill 重建，"夹具即真相"），
+  **站位/视线判据**复用其 `stand_candidates` / `can_see`（与 Java `StandingPointSelector` 同口径）。
+- 可达性做**保守下界**泛洪：水平 1 格 / 上 1 格 / 下落 ≤3 格 / 对角要求两侧正交可通行；
+  **不含**跳跃越沟、加高（PILLAR）、破坏通行 ⇒ 判"不可达"是**强提示但非定论**（需真规划器复核），
+  判"可达"则基本可信（内核能力的子集）。
+- 检查两件事：① 每个**原木/矿石目标**（按树干列取最低格为代表）是否**至少有一个可达的合法站位**；
+  ② 每个场景声明的**目标格**是否可达 —— 含 `expect_gap=True` 的场景（`fluid_course`/`fence_course`）
+  **必须仍然不可达**（哪天被改得"能过去了"，测试前提也就失效了）。
+  依赖破坏/放置/加高的场景（`needs_world_mod`）保守模型**跳过目标判定**并如实标注。
+- 输出可达/搁浅站位统计、逐目标结论，`--verbose` 给 ASCII 切片（`#` 实心 / `o` 可达站位 / `x` 搁浅站位）。
+
+**自证（都在本机离线完成）**
+```
+tools/check-scene-connectivity.py --selftest
+  封死通道 → 报不可达 = True；留 2 格缺口 → 全部可达 = True      ✓
+tools/check-scene-connectivity.py --all
+  22 个场景检查完毕；有目标无可达站位的场景：无                    ✓（对已知能跑的场景零假报）
+git show a5901f5:<trees> > /tmp/sealed && tools/... --fixture terrain /tmp/sealed --start 23 64 207
+  可达站位 67 格；目标 9 个，**无可达站位 8 个**（含每轮都失败的 19,64,213 与封死通道的 24,64,213）✓
+```
+⇒ 该工具**能在离线复现 D-117 并拦下它**，已写进 `alice-scene-based-testing` skill 的流程
+（"改完场景先跑 `--all`"）。
+
+### T5：伐木 Job 的配额随场景推导
+
+**病灶**：`lumber_course` 的可行树数(4) 与 `BotManager.assignLumberJob` 写死的配额(4) 互相标定 ⇒
+场景里任何一棵树变不可行都表现为 `partial_quota`，看起来像代码 bug（2026-09-11 为此多花两轮）。
+**修正**：`assignLumberJob` 用**同一套 `LumberCandidateSource`** 数一遍可行树（`too_large` 本就在 `rejected` 里），
+`配额 = max(1, 可行树数)`，并打 `[Job] lumber 场景可行树=N ⇒ 配额=N（T5：配额随场景推导）`；
+场景 tellraw 不再写死"配额 4 棵"。当前场景推导结果仍是 4（行为不变），但**场景变了配额自动跟上**。
+
+**验证等级**：T6 = 本机离线自证（上面三段）；T5 = IMPLEMENTED / COMPILES
+（客户端待测：`lumber_job` 应打 `场景可行树=4 ⇒ 配额=4` 且终态仍是 `trees 4/4`）。

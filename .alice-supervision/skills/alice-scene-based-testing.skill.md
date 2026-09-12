@@ -63,6 +63,21 @@ tellraw @s [操作说明]
 
 参考实现：`tools/test-scenes/alice_test/data/alice_test/functions/pathing_course*.mcfunction`。
 
+**改完场景必须先跑离线可规划性自检（T6 / D-125）**：
+
+```
+tools/check-scene-connectivity.py --all      # 全部内置场景：每个目标是否都有/都没有可达站位
+tools/check-scene-connectivity.py --scene lumber_course --verbose   # 单场景 + ASCII 切片
+tools/check-scene-connectivity.py --selftest # 工具自检（封死通道必须被判不可达）
+```
+
+它复用 `analyze-lumber-scene.py` 的方块表与站位/视线判据（**不另写一套**），做**保守下界**可达性泛洪：
+- 报「目标无任何可达合法站位」= **强提示**（真规划器可能靠破坏/搭桥过去 ⇒ 需游戏内复核）；
+- 报「全部可达」则基本可信（模型只覆盖纯通行的子集）。
+
+**D-117 的封死通道就是这类缺陷**：当时只验到 `COMPILES`，白花两轮客户端才定位；
+现在同样的改动（实测用 `a5901f5` 的旧版本文件复跑：9 个目标里 8 个被判无站位）会**立刻**被本工具拦下。
+
 ---
 
 ## 3. 一键自检夹具（Battery）
