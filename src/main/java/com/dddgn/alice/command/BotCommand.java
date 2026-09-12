@@ -256,6 +256,12 @@ public final class BotCommand {
                                                         StringArgumentType.getString(ctx, "id"),
                                                         StringArgumentType.getString(ctx, "option"),
                                                         StringArgumentType.getString(ctx, "scope")))))))
+                // S5 只读配方图：导出运行时配方表（含整合包魔改）供离线规划器使用
+                .then(Commands.literal("recipes")
+                        .executes(ctx -> recipesDump(ctx.getSource(), "alice-recipes.json"))
+                        .then(Commands.argument("file", StringArgumentType.word())
+                                .executes(ctx -> recipesDump(ctx.getSource(),
+                                        StringArgumentType.getString(ctx, "file")))))
                 // S3.5 收集授权：查看 / 提升为永久 / 清空
                 .then(Commands.literal("grant")
                         .executes(ctx -> grantList(ctx.getSource()))
@@ -675,6 +681,15 @@ public final class BotCommand {
                 ? "[alice] 可持续伐木区已启动 region=" + region.describe()
                 : "[alice] bot 正忙，稍后再试"), false);
         return ok ? 1 : 0;
+    }
+
+    /** {@code /alice recipes [file]}：导出运行时配方表 + 物品标签（S5 / D-146）。 */
+    private static int recipesDump(CommandSourceStack source, String file) {
+        var result = com.dddgn.alice.decision.RecipeDump.dump(source.getServer(), file);
+        source.sendSuccess(() -> Component.literal("[alice] 配方导出 " + result.describe()), false);
+        source.sendSuccess(() -> Component.literal("[alice] 离线分析：python3 tools/recipe-graph.py "
+                + "--recipes <该文件> --target <物品 id>"), false);
+        return 1;
     }
 
     /** {@code /alice grant}：列出有效收集授权（`always` 会显式标记）。 */
