@@ -121,7 +121,7 @@
 ```
 ① 右键 alice:region_lumber                 # 夹具区域（x17..37 z203..231）+ 常驻巡查，等 chopped 在涨
 ② /alice region stop                       # 显式打断
-   期望聊天：[alice] 已停止 region_lumber（region_stop）；账本已闭合（无我方临时方块残留）
+   期望聊天：[alice] 已停止 RegionLumberJob（region_stop）；账本已闭合（无我方临时方块残留）
              或 …；**账本仍有 N 条我方临时方块未拆**（/alice restore 可清理）
    期望日志：task_execution_terminal … terminal=CANCELLED_BY_USER code=cancelled:region_stop
 ③ /alice region info                       # 区域**仍在**（打断不丢区域）、autoIdleStop=false
