@@ -4495,3 +4495,46 @@ region=x17..37 z203..231 baseY=58 maxH=48（垂直自适应） adaptiveTop=84 �
 "起点非法 / 距离写死 / 边界没成为约束"，没有一次来自被测的门控代码。
 夹具必须先把前提**探测出来并如实报告**（`local_space=` / `NO_UNLOADED_CHUNK_IN_RANGE` 之类），
 否则"假失败"会一路吃掉客户端回合。
+
+### D-132 附注三（2026-09-12 14:58 复测）：**S-1–S-4 全部收口**（① 安全底座完成）
+
+```
+14:58:46 / 14:58:51 两次复现：
+[ChunkGuard] 前置：bot 已放到干净落点 64, 64, 102
+[ChunkGuard] A 目标=1088,64,1126 status=GOAL_NOT_LOADED 规划后仍未加载=true
+[ChunkGuard] B 正对照 目标=65,64,102 status=REACHED movements=1 nodes=2
+[ChunkGuard] C 目标=88,64,102 status=UNREACHABLE 谓词(内/外)=true/false 本地空间=true
+             diagnostics=… skipped_border=8
+[ChunkGuard] SUMMARY far_goal=GOAL_NOT_LOADED no_sync_load=true PASS near_goal=REACHED PASS
+             border_predicate=true not_reached=true local_space=true skipped_border=true PASS → PASS
+task_execution_terminal kind=ChunkGuardCheckTask … terminal=COMPLETED         ← **S-2 = PASS**
+[Survival] 维生中断 ⇒ 逃生出口 refuge=66,64,103（距 1.000 格）——启动 SurvivalExitTask
+[Search] start_escape 起点非法 ⇒ 按目的地谓词生成 8 条脱困候选
+task_execution_terminal kind=SurvivalExitTask … durationTicks=6 terminal=COMPLETED ← **S-1 = PASS（第 3 次复现）**
+```
+
+**S-1 的端到端证据链（这次可以量化"真的脱离了危险"）**：
+`hazard=SUFFOCATING` 在整个会话里**只出现 1 次**（14:58:52.697）——
+逃生成功后危险观测就再没出现过（对照：修复前那一轮刷了 400+ 行、bot 原地被烧）。
+
+**S-3 的结构性证据**：`survival_suffocating` 只出现在两处 ——
+会话的 `任务因维生危险中断` 一行 + **一条** `kind=WalkToTask … terminal=SURVIVAL_INTERRUPTED`；
+**没有**任务侧自己记的第二条 `terminal=FAILED code=failed:survival_*` ⇒ "维生终态只由会话产生"成立。
+
+**顺带修的紫黑块**：三个新物品漏了物品模型（`Unable to load model: 'alice:chunk_guard_check#inventory'`）
+⇒ 已补 `assets/alice/models/item/{chunk_guard_check,fluid_mine_check,survival_exit_check}.json`
+（复用既有贴图 `guard/mine/check`）。这属于"必须主动问的紫黑贴图"那一类现象，本次由日志自查发现。
+
+**① 安全底座小批次收口表**
+
+| 项 | 判据 | 等级 |
+|---|---|---|
+| S-1 维生否决必须带出口 | `[Survival] 逃生出口` → `start_escape` → `SurvivalExitTask COMPLETED`；危险只被观测 1 次；3 次复现 | `WINDOWS_CLIENT` |
+| S-2 未加载区块/边界准入 | A `GOAL_NOT_LOADED` + `no_sync_load=true`；B `REACHED`；C 谓词 `true/false` + `skipped_border=8`；2 次复现 | `WINDOWS_CLIENT` |
+| S-3 删重复维生调用 | 维生终态只由会话记一次（无任务侧重复终态） | `WINDOWS_CLIENT`（结构性） |
+| S-4 流体探针接线 | `[FluidMineCheck] SUMMARY plan_refuse=fluid_risk_lava run_refuse=FAILED… no_clear_gain=true control=DONE → PASS` | `WINDOWS_CLIENT` |
+| D-133 起点脱困 | 起点非法时 `start_escape=N`，且"可规划即可执行"保持（执行器同款谓词） | `WINDOWS_CLIENT` |
+
+**→ 下一步进入 ② 决策层接入**（用户 2026-09-12 裁定 ①→②）：先补 Job 契约缺口
+（`Job.terminalReason()` → `TaskOutcome`/`TaskExecutionRecord`、`botUuid`、`GoalSpec`→`Job` 统一入口），
+再与用户确认 LLM 的输入快照 / 动作词汇表 / 触发节奏后实现目标级决策循环。

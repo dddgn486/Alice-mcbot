@@ -139,8 +139,9 @@
 | **⑤ 内核完备性** | `K-1` best-so-far 前缀 + `K-2` legacy 双内核收口 | `K-2` 是 R7 异步搜索与"唯一入口"的未解债务；`K-1` 对长距离/挖矿重试有直接收益 | 不直接服务业务；`K-1` 需同时定 `PARTIAL` 的对外语义（不得 = `UNREACHABLE`） |
 
 **用户裁定（2026-09-12）**：**① → ②**（先安全底座小批次，再开决策层接入）。
-① 的本轮范围 = S-1/S-2/S-3/S-4，已实施（D-132），验证入口 `alice:survival_exit_check`、
-`alice:chunk_guard_check`、`alice:fluid_mine_check`（均零参数右键）。
+**① 已完成并全部 `WINDOWS_CLIENT`**（S-1/S-2/S-3/S-4 + 起点脱困 D-133，见 D-132 附注三收口表）；
+入口 `alice:survival_exit_check`、`alice:chunk_guard_check`、`alice:fluid_mine_check`（均零参数右键）。
+→ **当前进行中 = ② 决策层接入**（先补 §3 的 J-1/J-2/J-3 契约）。
 
 **整理者的原建议**：**① → ②**。
 先花 1–2 天把安全底座那 4 项小改做完（其中 S-2 与内核 K 项是同一件事，一次改动吃两份收益；
