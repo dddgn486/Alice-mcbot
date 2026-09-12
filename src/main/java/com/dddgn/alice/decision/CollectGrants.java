@@ -73,9 +73,11 @@ public final class CollectGrants {
         long until = scope == PermissionGate.Scope.ALWAYS || durationTicks < 0
                 ? -1L : server.getTickCount() + Math.max(20, durationTicks);
         Grant grant = new Grant(id, minX, minZ, maxX, maxZ, until, scope, grantedBy, 0);
-        SESSION.put(id, grant);
         if (scope == PermissionGate.Scope.ALWAYS) {
+            // **ALWAYS 只进持久化表**：否则同一条会在"会话 + 持久化"里各出现一次（列表重复）
             GrantsData.get(server).add(grant);
+        } else {
+            SESSION.put(id, grant);
         }
         BotLog.warn("[Grant] add {}（{} ⇒ 落在该范围内的掉落物按 GRANTED_AREA 处理）", grant.describe(),
                 scope == PermissionGate.Scope.ALWAYS ? "**always 级授权（已持久化，报告会显式标记）**"

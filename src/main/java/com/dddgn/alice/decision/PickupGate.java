@@ -26,7 +26,7 @@ import net.minecraftforge.fml.common.Mod;
 public final class PickupGate {
 
     /** 同一件物品的拦截日志冷却（tick）与累计次数：防刷屏，同时保留"被拦了多少次"的事实。 */
-    private static final long LOG_COOLDOWN_TICKS = 100L;
+    private static final long LOG_COOLDOWN_TICKS = 600L;
     private static final java.util.Map<java.util.UUID, long[]> BLOCKED = new java.util.HashMap<>();
     private static long blockedTotal;
 

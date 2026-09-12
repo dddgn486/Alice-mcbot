@@ -5043,3 +5043,29 @@ A 我方掉落物（收养）应被捡；B 外来掉落物应被拦下且留在�
 
 **仍未做（登记）**：`CollectDropsTask` 的 `policy_blocked` 终态区分（当前靠"候选在扫阶就被过滤掉"避免空转，
 若收集途中归属变化仍可能报超时）；"我方放置/拆除点"并入松窗（当前松窗以**破坏点**为锚）。
+
+### D-144 附注（2026-09-12 18:37–18:38 客户端实测）：三用例全过；节流生效；修三处小瑕疵
+
+```
+18:37:05 [PickupGateCheck] C 造物：授权区 25,64,210 内的外来掉落物 1 堆
+         （授权 g1 x23..27 z208..212 至 tick 12305 scope=SESSION by=fixture:pickup_gate_check）
+18:37:06 A 断言：走到我方掉落物上 ⇒ 圆石增量=4（基准 44）        ← AUTO 放行 ✓
+18:37:07 B 断言：走到外来掉落物上 ⇒ 地上还剩 1 堆                ← ASK 被动拦截 ✓
+18:37:08 C 断言：走到授权区里的外来掉落物上 ⇒ 增量=4 地上剩=0     ← **GRANTED_AREA 放行** ✓
+         SUMMARY a_picked=4 b_remaining=1 c_picked=4 c_remaining=0 reason=passed → PASS（56 tick）
+         task_terminal_reason kind=PickupGateCheckTask terminalReason=passed ✓
+[Pickup] blocked：**5 行**（上次 584 行），带 次数=18/51/95 累计=19/70/165  ← 节流生效 ✓
+/alice grant → g1 … scope=SESSION by=fixture:pickup_gate_check ；★always g2 … 永久 scope=ALWAYS by=player:dddgn ✓
+/alice grant always → 已提升为**永久**收集授权 ✓ ；/alice grant clear → 已清空 3 条 ✓
+报告里出现"收集授权（范围内的掉落物按 GRANTED_AREA 处理）：" ✓
+```
+
+**同轮修掉三处小瑕疵**
+1. `ALWAYS` 授权同时进"会话表 + 持久化表" ⇒ `/alice grant` **同一条列两次**（实测 g2 出现 2 行）。
+   修：`ALWAYS` **只进持久化表**；
+2. `/alice grant always` 回执打印的是**旧**（会话级、带到期 tick）描述 ⇒ 看起来像"提升没生效"。
+   修：回执用**新**授权的描述；
+3. 被动拾取日志冷却 `100 → 600 tick`（站在被拦物品上时 5 s 一条 ⇒ 30 s 一条，噪声再降一档；
+   计数仍完整保留在 `次数=`/`累计=` 与 `PickupGate.blockedTotal()`）。
+
+**验证等级**：`WINDOWS_CLIENT`（三用例 + 节流 + 授权命令 + 报告段落；三处瑕疵修复待复测）。

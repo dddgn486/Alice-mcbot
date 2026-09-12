@@ -706,11 +706,12 @@ public final class BotCommand {
         var last = grants.get(grants.size() - 1);
         String by = source.getEntity() instanceof net.minecraft.server.level.ServerPlayer player
                 ? "player:" + player.getName().getString() : "console";
-        com.dddgn.alice.decision.CollectGrants.add(source.getServer(), last.minX(), last.minZ(),
-                last.maxX(), last.maxZ(),
+        var promoted = com.dddgn.alice.decision.CollectGrants.add(source.getServer(), last.minX(),
+                last.minZ(), last.maxX(), last.maxZ(),
                 com.dddgn.alice.decision.PermissionGate.Scope.ALWAYS, by, -1);
+        // 回执用**新授权**（旧的是会话级、带到期 tick，容易让人误以为"提升没生效"）
         source.sendSuccess(() -> Component.literal("[alice] 已提升为**永久**收集授权 "
-                + last.describe() + "（报告里会带 ★always 标记）"), false);
+                + promoted.describe() + "（报告里会带 ★always 标记）"), false);
         return 1;
     }
 
