@@ -140,14 +140,17 @@ public final class LlmClient {
      */
     private static HttpResponse<String> sendWithPathMatrix(int id, LlmConfig config, String payload)
             throws java.io.IOException, InterruptedException {
+        // 顺序（2026-09-12 实测修正）：**直连优先**（最少依赖、实测 2078ms）→ 系统代理（3074ms）
+        // → 中继（仅当用户显式配置；那是开发兜底）。三条路实测在游戏内都通，
+        // 之前"都超时"是我自己的 executor 死锁，不是环境问题。
         java.util.List<String[]> candidates = new java.util.ArrayList<>();
-        if (!config.relayUrl().isBlank()) {
-            candidates.add(new String[]{"relay", config.relayUrl()});
-        }
+        candidates.add(new String[]{"api+direct", config.url()});
         if (!config.proxy().isBlank()) {
             candidates.add(new String[]{"api+proxy", config.url()});
         }
-        candidates.add(new String[]{"api+direct", config.url()});
+        if (!config.relayUrl().isBlank()) {
+            candidates.add(new String[]{"relay", config.relayUrl()});
+        }
         String remembered = chosenPath;
         if (remembered != null) {
             for (String[] candidate : candidates) {

@@ -116,8 +116,9 @@
 ### 1.11 决策层（② 第 2 步，D-135）——`alice:goal_director` + 出网路径
 
 ```
-# 前提：先起本地中继（WSL 侧，能直连 API 的那一侧）
-python3 tools/llm-relay.py --port 8791        # 只监听 127.0.0.1，key 从 config 读且不打印
+# 现在**不需要中继**（直连实测可用）。仅当直连/代理都不通时才起兜底中继：
+# python3 tools/llm-relay.py --port 8791       # 只监听 127.0.0.1，key 从 config 读且不打印
+# 并在 config/alice-llm.json 里设 "relayUrl": "http://127.0.0.1:8791/chat/completions"
 # 验证：curl.exe -s -m 10 -o /dev/null -w "%{http_code}\n" -X POST http://127.0.0.1:8791/chat/completions \
 #        -H "Content-Type: application/json" -d '{"model":"deepseek-flash","messages":[{"role":"user","content":"ping"}]}'
 #       （期望 200；实测 Windows→WSL 中继 11 ms）
@@ -129,7 +130,7 @@ python3 tools/llm-relay.py --port 8791        # 只监听 127.0.0.1，key 从 co
       [Goal] decision_action trigger=manual raw={"action":…} → StartJob(…) / Refused(…)
       [Goal] execute action=… ok=…
 ```
-> **路径矩阵**：`relay` → `api+proxy`（系统代理按配置）→ `api+direct`，取第一条成功的并记住；
+> **路径矩阵**：`api+direct`（默认，实测 2078ms）→ `api+proxy`（3074ms）→ `relay`（仅当配置了 `relayUrl`），取第一条成功的并记住；
 > 每条都打 `path_try`。实测某环境里 Minecraft 的 `java.exe` 外网被火绒静默丢弃（curl 却通），
 > 此时只有 `relay` 那条能过 —— 用户把 `java.exe` 加进安全软件允许列表后可清空 `relayUrl` 回到直连。
 
