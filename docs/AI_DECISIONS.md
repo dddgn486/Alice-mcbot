@@ -4930,3 +4930,28 @@ S2 精化：[Goal] candidate_menu rejected(不可做)= [tree@22,64,218:trunk_too
 点「allow（批准）」⇒ `[Perm] answer … by=player:…` + 任务 `terminalReason=allowed`（与命令等价）；
 不点 ⇒ 30 s 后卡片消失 + `[Perm] timeout …⇒默认 deny`。
 **验证等级**：IMPLEMENTED / COMPILES（客户端待测）。
+
+## D-142 S3c 请示答复改走"聊天可点按钮 + 快捷键"（用户 2026-09-12 实测反馈）
+
+**用户反馈（原文）**："弹窗再在界面没办法用鼠标啊，要不改成主界面快捷键回答加玩家聊天栏点击"
+
+**我的设计失误**：游戏内鼠标是**锁定**的（准星模式）——HUD 卡片只能"看"，**按钮点不到**。
+`InputEvent.MouseButton.Pre` 能收到点击，但**没有可移动的指针**去悬停到按钮上。
+（`ScreenEvent.MouseButtonPressed` 更不适用：只在有 `Screen` 时发。）
+
+**改法（两条路，都走同一个 `PermissionGate.answer`，`/alice ask` 仍是等价入口）**
+1. **聊天栏可点击按钮（主路径）**：`PermissionGate` 在发起请示时向所有玩家发一行
+   `[Alice 请示 pN] capability：` + **[ 允许 ]** + **[ 拒绝 ]** + `（30s 后按默认「deny」…）`，
+   按钮带 `ClickEvent.runCommand("/alice ask <id> allow|deny once")` + 悬停说明 ——
+   **完全是原版机制，不依赖任何客户端渲染**，也不受"鼠标锁定"影响。
+2. **快捷键（S3c）**：`client/PermissionKeys` 注册两个键位
+   （`key.alice.permission_allow` = **Y**、`key.alice.permission_deny` = **N**，
+   `KeyConflictContext.IN_GAME`、可在"选项→控制"改），按一下对**最新一条**请示发答复（scope=ONCE）；
+   开着界面（聊天/背包）时不响应，避免打字误触。
+3. **HUD 卡片降级为只读展示**：保留标题/能力/理由/倒计时，底部改成提示行
+   `[Y] 允许 [N] 拒绝（或用聊天里的按钮）`；**移除全部鼠标交互代码**（并留注释说明为什么不能点）。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待测）。判据：
+请示出现时聊天里有一条带 `[ 允许 ]`/`[ 拒绝 ]` 的消息（可点）；
+游戏内按 `Y`/`N` 直接答复 ⇒ `[Perm] answer … by=player:…` + 任务 `terminalReason=allowed/denied:…`；
+不答 ⇒ 30 s 超时 + 卡片与提示行消失。

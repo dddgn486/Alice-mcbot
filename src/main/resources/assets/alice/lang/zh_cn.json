@@ -33,5 +33,8 @@
   "item.alice.mine_course_runner": "挖掘站位自检器",
   "item.alice.chain_test_runner": "模组连锁兼容检查器",
   "item.alice.mine_regression": "挖掘回归自检器",
-  "item.alice.lumber_job": "伐木任务启动器"
+  "item.alice.lumber_job": "伐木任务启动器",
+  "key.categories.alice": "Alice",
+  "key.alice.permission_allow": "允许 Alice 请示",
+  "key.alice.permission_deny": "拒绝 Alice 请示"
 }

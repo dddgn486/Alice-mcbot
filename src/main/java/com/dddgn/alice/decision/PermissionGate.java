@@ -162,6 +162,9 @@ public final class PermissionGate {
                 id, capability, reason, options, defaultOption, timeoutTicks);
         // S3b：推给客户端画卡片（没有该 mod 的客户端会自动忽略；聊天/命令入口照样可用）
         notifyClients(true, id, capability, reason, options, defaultOption, timeoutTicks);
+        // S3c：**聊天栏可点击按钮** —— 游戏内鼠标被锁定，HUD 按钮点不到；
+        // 聊天里的 ClickEvent.runCommand 是原版就支持的路，**不依赖任何客户端渲染**
+        broadcastChatRequest(id, capability, reason, defaultOption, timeoutTicks);
         return null;
     }
 
@@ -237,6 +240,54 @@ public final class PermissionGate {
                             option1, option2, defaultOption, deadlineTicks));
         } catch (Exception ex) {
             BotLog.warn("[Perm] 请示通知推送失败（不影响服务端流程）：{}", ex.toString());
+        }
+    }
+
+    /**
+     * 聊天栏请示（S3c）：一行文本 + 两个**可点击**按钮（`ClickEvent.runCommand`）。
+     *
+     * <p>为什么这是主路径：游戏内鼠标被锁定 ⇒ HUD 卡片只能"看"，答复要靠**聊天里的可点按钮**
+     * 或**快捷键**（`Y` 允许 / `N` 拒绝）。聊天这条**完全是原版机制**，不依赖客户端 mod 渲染。
+     */
+    private static void broadcastChatRequest(String id, String capability, String reason,
+                                             String defaultOption, int timeoutTicks) {
+        try {
+            var server = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
+            if (server == null) {
+                return;
+            }
+            int seconds = Math.max(1, timeoutTicks / 20);
+            net.minecraft.network.chat.Component head = net.minecraft.network.chat.Component
+                    .literal("[Alice 请示 " + id + "] " + capability + "：").withStyle(style ->
+                            style.withColor(net.minecraft.ChatFormatting.YELLOW));
+            net.minecraft.network.chat.MutableComponent allow = net.minecraft.network.chat.Component
+                    .literal("[ 允许 ]").withStyle(style -> style
+                            .withColor(net.minecraft.ChatFormatting.GREEN)
+                            .withClickEvent(new net.minecraft.network.chat.ClickEvent(
+                                    net.minecraft.network.chat.ClickEvent.Action.RUN_COMMAND,
+                                    "/alice ask " + id + " allow once"))
+                            .withHoverEvent(new net.minecraft.network.chat.HoverEvent(
+                                    net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT,
+                                    net.minecraft.network.chat.Component.literal("点击允许（本次）"))));
+            net.minecraft.network.chat.MutableComponent deny = net.minecraft.network.chat.Component
+                    .literal(" [ 拒绝 ]").withStyle(style -> style
+                            .withColor(net.minecraft.ChatFormatting.RED)
+                            .withClickEvent(new net.minecraft.network.chat.ClickEvent(
+                                    net.minecraft.network.chat.ClickEvent.Action.RUN_COMMAND,
+                                    "/alice ask " + id + " deny once"))
+                            .withHoverEvent(new net.minecraft.network.chat.HoverEvent(
+                                    net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT,
+                                    net.minecraft.network.chat.Component.literal("点击拒绝（本次）"))));
+            net.minecraft.network.chat.Component tail = net.minecraft.network.chat.Component
+                    .literal("（" + seconds + "s 后按默认「" + defaultOption + "」；也可 " + reason + "）")
+                    .withStyle(net.minecraft.ChatFormatting.GRAY);
+            net.minecraft.network.chat.Component line = net.minecraft.network.chat.Component.empty()
+                    .append(head).append(allow).append(deny).append(tail);
+            for (var player : server.getPlayerList().getPlayers()) {
+                player.sendSystemMessage(line);
+            }
+        } catch (Exception ex) {
+            BotLog.warn("[Perm] 聊天请示推送失败（不影响服务端流程）：{}", ex.toString());
         }
     }
 

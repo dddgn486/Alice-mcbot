@@ -1,15 +1,12 @@
 package com.dddgn.alice.client.render;
 
 import com.dddgn.alice.client.ClientPermissionState;
-import com.dddgn.alice.network.AliceNetwork;
-import com.dddgn.alice.network.PermissionAnswerPacket;
 import com.dddgn.alice.network.PermissionNoticePacket;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -81,32 +78,10 @@ public final class PermissionHudRenderer {
         graphics.drawString(font, "§7" + seconds + "s 后按默认「" + notice.defaultOption() + "」处理",
                 x + 6, y + 39, TEXT_DIM, false);
 
-        // 两个按钮（选项 1 / 选项 2），左键点击即答复（scope=ONCE）
-        int buttonY = y + HEIGHT - BUTTON_HEIGHT - 4;
-        int half = (WIDTH - 18) / 2;
-        drawButton(graphics, font, x + 6, buttonY, half,
-                label(notice.option1(), notice.defaultOption()), isAllow(notice.option1()));
-        drawButton(graphics, font, x + 12 + half, buttonY, half,
-                label(notice.option2(), notice.defaultOption()), isAllow(notice.option2()));
-    }
-
-    private static String label(String option, String defaultOption) {
-        if (option == null || option.isBlank()) {
-            return "-";
-        }
-        return option + ("allow".equalsIgnoreCase(option) ? "（批准）" : "");
-    }
-
-    private static boolean isAllow(String option) {
-        return option != null && (option.equalsIgnoreCase("allow") || option.equalsIgnoreCase("yes"));
-    }
-
-    private static void drawButton(GuiGraphics graphics, Font font, int x, int y, int width,
-                                   String text, boolean allow) {
-        boolean hovered = isHovered(x, y, width, BUTTON_HEIGHT);
-        graphics.fill(x, y, x + width, y + BUTTON_HEIGHT, hovered ? BUTTON_HOVER : BUTTON_BG);
-        int color = allow ? ALLOW_COLOR : DENY_COLOR;
-        graphics.drawString(font, text, x + 4, y + 4, color, false);
+        // 提示行（**不做可点击按钮**：游戏内鼠标锁定，点不到）
+        int hintY = y + HEIGHT - 18;
+        graphics.drawString(font, "§a[Y] 允许§r  §c[N] 拒绝§r  §7（或用聊天里的按钮）",
+                x + 6, hintY, TEXT, false);
     }
 
     private static String trim(Font font, String text, int maxWidth) {
@@ -120,41 +95,15 @@ public final class PermissionHudRenderer {
         return cut + "…";
     }
 
-    private static boolean isHovered(int x, int y, int width, int height) {
-        Minecraft mc = Minecraft.getInstance();
-        double mouseX = mc.mouseHandler.xpos() * mc.getWindow().getGuiScaledWidth()
-                / mc.getWindow().getScreenWidth();
-        double mouseY = mc.mouseHandler.ypos() * mc.getWindow().getGuiScaledHeight()
-                / mc.getWindow().getScreenHeight();
-        return mouseX >= x && mouseX <= x + width && mouseY >= y && mouseY <= y + height;
-    }
-
-    /** 点击卡片按钮 ⇒ 发答复包（与 `/alice ask <id> <option> once` 等价）。 */
-    @SubscribeEvent
-    public static void onMouseButton(InputEvent.MouseButton.Pre event) {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null || event.getButton() != 0 || event.getAction() != 1) {
-            return;   // 只看左键按下
-        }
-        PermissionNoticePacket notice = ClientPermissionState.current();
-        if (notice == null) {
-            return;
-        }
-        int x = panelX(mc);
-        int y = panelY(mc);
-        int buttonY = y + HEIGHT - BUTTON_HEIGHT - 4;
-        int half = (WIDTH - 18) / 2;
-        String clicked = null;
-        if (isHovered(x + 6, buttonY, half, BUTTON_HEIGHT)) {
-            clicked = notice.option1();
-        } else if (isHovered(x + 12 + half, buttonY, half, BUTTON_HEIGHT)) {
-            clicked = notice.option2();
-        }
-        if (clicked == null || clicked.isBlank()) {
-            return;
-        }
-        AliceNetwork.CHANNEL.sendToServer(new PermissionAnswerPacket(notice.id(), clicked, "ONCE"));
-        ClientPermissionState.clear(notice.id());
-        event.setCanceled(true);   // 吃掉这次点击，别让它穿透到游戏里
-    }
+    /**
+     * **注意：这里故意不处理鼠标点击**（2026-09-12 用户实测反馈）。
+     *
+     * <p>游戏内鼠标是**锁定**的（准星模式），HUD 上的按钮**无法悬停/点击** —— 我最初按"可点击卡片"设计是错的。
+     * 答复改走两条**在游戏里真的能用**的路（都由服务端推送/注册，见 `PermissionGate` 与 `PermissionKeys`）：
+     * <ol>
+     *   <li>**聊天栏可点击按钮**：请示发出时服务端推一条带 `ClickEvent.runCommand` 的聊天消息；</li>
+     *   <li>**快捷键**：允许/拒绝各一个键位（默认 `Y` / `N`，可在控制里改）。</li>
+     * </ol>
+     * 本渲染器只负责**显示**（标题/能力/理由/倒计时/默认档），不参与交互。
+     */
 }
