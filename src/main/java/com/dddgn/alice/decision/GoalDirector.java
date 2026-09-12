@@ -82,6 +82,11 @@ public final class GoalDirector {
             state.lastIdleTick = now;
             return;
         }
+        // **空闲触发默认关**（D-135）：配置了才启用。2026-09-12 实测我漏了这道闸，
+        // 结果空闲时每 ~10 s 反复发请求（全部超时）⇒ 持续烧钱。配置项存在 ≠ 被读。
+        if (!LlmConfig.get().idleDecisionEnabled()) {
+            return;
+        }
         if (now - state.lastIdleTick >= LlmConfig.get().idleTriggerTicks()) {
             maybeTrigger(bot, "idle(" + (now - state.lastIdleTick) + "tick)");
         }

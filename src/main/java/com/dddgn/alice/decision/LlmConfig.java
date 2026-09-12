@@ -35,12 +35,14 @@ public final class LlmConfig {
     private final String systemPrompt;
     private final int maxTokens;
     private final boolean idleDecisionEnabled;
+    private final String proxy;
+    private final int connectTimeoutMs;
     private final String loadNote;
 
     private LlmConfig(boolean enabled, String url, String model, String apiKey, int timeoutMs,
                       int maxRequestsPerMinute, int minIntervalTicks, int idleTriggerTicks,
                       int maxReplyChars, String systemPrompt, int maxTokens,
-                      boolean idleDecisionEnabled, String loadNote) {
+                      boolean idleDecisionEnabled, String proxy, int connectTimeoutMs, String loadNote) {
         this.enabled = enabled;
         this.url = url;
         this.model = model;
@@ -53,6 +55,8 @@ public final class LlmConfig {
         this.systemPrompt = systemPrompt;
         this.maxTokens = maxTokens;
         this.idleDecisionEnabled = idleDecisionEnabled;
+        this.proxy = proxy;
+        this.connectTimeoutMs = connectTimeoutMs;
         this.loadNote = loadNote;
     }
 
@@ -89,6 +93,8 @@ public final class LlmConfig {
                     str(root, "systemPrompt", ""),
                     integer(root, "maxTokens", 2000),
                     bool(root, "idleDecisionEnabled", false),
+                    str(root, "proxy", ""),
+                    integer(root, "connectTimeoutMs", 10000),
                     "已加载");
         } catch (Exception ex) {
             BotLog.warn("[Goal] LLM 配置解析失败（{}）⇒ 决策层保持确定性策略", ex.toString());
@@ -97,7 +103,7 @@ public final class LlmConfig {
     }
 
     private static LlmConfig defaults(String note) {
-        return new LlmConfig(false, "", "", "", 25000, 6, 100, 400, 2000, "", 2000, false, note);
+        return new LlmConfig(false, "", "", "", 25000, 6, 100, 400, 2000, "", 2000, false, "", 10000, note);
     }
 
     private static void writeTemplate(Path path) {
@@ -116,6 +122,8 @@ public final class LlmConfig {
                       "maxReplyChars": 2000,
                       "maxTokens": 2000,
                       "idleDecisionEnabled": false,
+                      "proxy": "",
+                      "connectTimeoutMs": 10000,
                       "systemPrompt": ""
                     }
                     """, StandardCharsets.UTF_8);
@@ -186,6 +194,21 @@ public final class LlmConfig {
         return idleDecisionEnabled;
     }
 
+    /**
+     * 出网代理（`host:port`；空 = 直连）。
+     *
+     * <p>**为什么需要它**：Java 的 `HttpClient` 默认**不读 Windows 系统代理**，
+     * 于是"浏览器/命令行能通、mod 直连 10 s 超时"（2026-09-12 实测：本机系统代理
+     * `ProxyEnable=1 ProxyServer=127.0.0.1:7897`，mod 报 `HttpConnectTimeoutException`）。
+     */
+    public String proxy() {
+        return proxy;
+    }
+
+    public int connectTimeoutMs() {
+        return Math.max(1000, connectTimeoutMs);
+    }
+
     /** 可用 = 打开 + 有 URL + 有 key。 */
     public boolean usable() {
         return enabled && !url.isBlank() && !apiKey.isBlank();
@@ -197,6 +220,7 @@ public final class LlmConfig {
                 + " url=" + (url.isBlank() ? "-" : url) + " apiKey=" + (apiKey.isBlank() ? "缺失" : "已配置")
                 + " timeout=" + timeoutMs + "ms 间隔>=" + minIntervalTicks + "tick"
                 + " 空闲触发=" + (idleDecisionEnabled ? idleTriggerTicks + "tick" : "关")
-                + " maxTokens=" + maxTokens + " (" + loadNote + ")";
+                + " maxTokens=" + maxTokens + " proxy=" + (proxy.isBlank() ? "直连" : proxy)
+                + " (" + loadNote + ")";
     }
 }

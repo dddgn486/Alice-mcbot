@@ -33,10 +33,17 @@ public final class LlmClient {
         thread.setDaemon(true);
         return thread;
     });
-    private static final HttpClient HTTP = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(10))
-            .executor(EXECUTOR)
-            .build();
+    static {
+        // Windows 上 Java **默认不读系统代理**；这个属性必须在代理选择器初始化前设置才有效
+        // （2026-09-12 实测根因：系统代理 127.0.0.1:7897，mod 直连 ⇒ HttpConnectTimeoutException）
+        try {
+            if (System.getProperty("java.net.useSystemProxies") == null) {
+                System.setProperty("java.net.useSystemProxies", "true");
+            }
+        } catch (Exception ignored) {
+            // 只读安全属性失败不影响功能：显式配置的 proxy 仍然生效
+        }
+    }
     private static final AtomicInteger SEQ = new AtomicInteger();
 
     private LlmClient() {
@@ -75,15 +82,23 @@ public final class LlmClient {
         long started = System.currentTimeMillis();
         return CompletableFuture.supplyAsync(() -> {
             try {
-                HttpRequest request = HttpRequest.newBuilder(URI.create(config.url()))
-                        .timeout(Duration.ofMillis(config.timeoutMs()))
-                        .header("Content-Type", "application/json")
-                        .header("Authorization", "Bearer " + config.apiKey())
-                        .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
-                        .build();
-                BotLog.info("[Goal] llm_request id={} model={} promptChars={}", id, config.model(),
-                        userPrompt.length());
-                HttpResponse<String> response = HTTP.send(request, HttpResponse.BodyHandlers.ofString());
+                URI uri = URI.create(config.url());
+                // 诊断：把 DNS 解析结果打出来（IPv6 不通 / DNS 污染 这类问题一眼可见）
+                logDns(uri);
+                BotLog.info("[Goal] llm_request id={} model={} promptChars={} proxy={}", id, config.model(),
+                        userPrompt.length(), config.proxy().isBlank() ? "直连" : config.proxy());
+                HttpResponse<String> response;
+                try {
+                    response = send(config, uri, body.toString(), config.proxy());
+                } catch (java.io.IOException first) {
+                    if (config.proxy().isBlank()) {
+                        throw first;
+                    }
+                    // 代理不通 ⇒ **直连兜底**（用户可能把代理关了），并如实登记走了哪条路
+                    BotLog.warn("[Goal] llm_proxy_failed id={} proxy={} {} ⇒ 改直连重试一次",
+                            id, config.proxy(), first.getClass().getSimpleName());
+                    response = send(config, uri, body.toString(), "");
+                }
                 long latency = System.currentTimeMillis() - started;
                 if (response.statusCode() / 100 != 2) {
                     String detail = response.body() == null ? "" : truncate(response.body(), 200);
@@ -105,6 +120,53 @@ public final class LlmClient {
                 return new Reply(false, "", "transport:" + ex.getClass().getSimpleName(), latency);
             }
         }, EXECUTOR);
+    }
+
+    /** 按（代理/连接超时）建 client 并发送（每次新建：配置可热改，调用频率很低）。 */
+    private static HttpResponse<String> send(LlmConfig config, URI uri, String payload, String proxy)
+            throws java.io.IOException, InterruptedException {
+        HttpClient.Builder builder = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofMillis(config.connectTimeoutMs()))
+                .executor(EXECUTOR);
+        if (proxy.isBlank()) {
+            builder.proxy(new java.net.ProxySelector() {
+                @Override
+                public java.util.List<java.net.Proxy> select(URI target) {
+                    return java.util.List.of(java.net.Proxy.NO_PROXY);
+                }
+
+                @Override
+                public void connectFailed(URI target, java.net.SocketAddress address, java.io.IOException ex) {
+                    // 直连失败没有"代理连接失败"可报
+                }
+            });
+        } else {
+            String[] parts = proxy.split(":");
+            int port = parts.length > 1 ? Integer.parseInt(parts[1].trim()) : 8080;
+            builder.proxy(java.net.ProxySelector.of(
+                    new java.net.InetSocketAddress(parts[0].trim(), port)));
+        }
+        HttpRequest request = HttpRequest.newBuilder(uri)
+                .timeout(Duration.ofMillis(config.timeoutMs()))
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer " + config.apiKey())
+                .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
+                .build();
+        return builder.build().send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    /** 解析并记录目标主机的地址（不上网，只查 DNS）。 */
+    private static void logDns(URI uri) {
+        try {
+            var addresses = java.net.InetAddress.getAllByName(uri.getHost());
+            StringBuilder builder = new StringBuilder();
+            for (var address : addresses) {
+                builder.append(address.getHostAddress()).append(' ');
+            }
+            BotLog.info("[Goal] llm_dns host={} → {}", uri.getHost(), builder.toString().trim());
+        } catch (Exception ex) {
+            BotLog.warn("[Goal] llm_dns host={} 解析失败: {}", uri.getHost(), ex.toString());
+        }
     }
 
     /** OpenAI 兼容：`choices[0].message.content`（也容忍 `choices[0].text`）。 */

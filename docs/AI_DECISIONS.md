@@ -4635,3 +4635,34 @@ key 在 `~/.dsh/.credentials.yaml:refs.DEEPSEEK_API_KEY`（len=35，**脚本直�
 [Goal] execute action=… 
 ```
 **验证等级**：IMPLEMENTED / COMPILES + 真实 API 冒烟（WSL 侧同请求）已通过；mod 内端到端待客户端。
+
+### D-135 附注（2026-09-12 15:28 客户端实测）：配置/快照都对，卡在**出网代理**；并抓到我自己一个 bug
+
+```
+15:28:32 [alice] 决策层配置：enabled=true usable=true model=deepseek-flash
+         url=https://api.deepseek.com/chat/completions apiKey=已配置 timeout=25000ms 间隔>=100tick
+         空闲触发=关 maxTokens=2000                      ← 配置与"不含 key"的日志都对 ✓
+15:28:32 [Goal] snapshot chars=524 json={"bot":{…},"inventory":…}    ← 快照契约正常 ✓
+15:28:32 [Goal] decision_request trigger=manual model=deepseek-flash
+15:28:32 [Goal] llm_request id=1 model=deepseek-flash promptChars=584
+15:28:42 [Goal] llm_transport_error id=1 after 10045ms: java.net.http.HttpConnectTimeoutException: HTTP connect timed out
+15:28:42 [Goal] decision_failed trigger=manual error=transport:HttpConnectTimeoutException
+15:28:42 [Goal] decision_request trigger=idle(606tick) …           ← **空闲也触发了（我的 bug）**
+```
+
+**根因（事实，非推测）**：Windows 上开着**系统代理** ——
+`HKCU\...\Internet Settings`：`ProxyEnable=1`、`ProxyServer=127.0.0.1:7897`；
+而 **Java 的 `HttpClient` 默认不读 Windows 系统代理**（`java.net.useSystemProxies` 默认 false），
+于是 mod 直连 → 连接被挡 → 10 s 连接超时。
+WSL 侧对照：`curl -4` 直连 `api.deepseek.com` **22 ms / HTTP 401**（401 = 只差鉴权，说明网络通），
+`curl -6` 不通（IPv6 不可用）。
+
+**修复（本轮）**
+1. **代理支持**：配置新增 `proxy`（`host:port`，空=直连），`HttpClient` 按它建；并设
+   `java.net.useSystemProxies=true`（在代理选择器初始化前）作为"自动读系统代理"的兜底；
+   **代理失败 ⇒ 自动改直连重试一次**并如实登记走了哪条（用户关掉代理后不用改配置也能通）；
+2. **诊断**：每次请求前打 `[Goal] llm_dns host=… → <IP列表>`（IPv6 不通 / DNS 污染一眼可见），
+   请求行带上 `proxy=`；
+3. **修我自己的 bug**：`idleDecisionEnabled=false` 配了却没读 —— 空闲触发没有加闸，
+   导致空闲时每 ~10 s 反复发请求（全部超时）。已在 `GoalDirector.tick` 里补上这道闸
+   （教训与 D-132 附注三同源：**配置项存在 ≠ 被读；闸必须有判据**）。
