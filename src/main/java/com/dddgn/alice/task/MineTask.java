@@ -7,8 +7,6 @@ import com.dddgn.alice.bot.RecoveryStage;
 import com.dddgn.alice.bot.TaskFailureReport;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
-import com.dddgn.alice.survival.HazardState;
-import com.dddgn.alice.survival.SurvivalSystem;
 import com.dddgn.alice.task.mining.MiningBudget;
 import com.dddgn.alice.task.mining.MiningPlan;
 import com.dddgn.alice.task.mining.MiningPlanner;
@@ -287,11 +285,11 @@ public final class MineTask implements Task {
 
     @Override
     public Status tick() {
-        HazardState hazard = SurvivalSystem.tick(bot);
-        if (SurvivalSystem.shouldInterrupt(hazard)) {
-            failureReason = SurvivalSystem.interruptionReason(hazard);
-            return Status.FAILED;
-        }
+        // S-3（P1-B，2026-09-12）：**不再自调维生**。`BotManager` 的调度循环每 tick 已经
+        // `SurvivalSystem.tick(...)` 并把 `HazardState` 交给 `BotSession.tick(hazard)`；
+        // 这里再调一次会造出**两套终态记录**（任务自己 FAILED vs 会话 SURVIVAL_INTERRUPTED），
+        // 且与 `FollowTask` / 新 Job 层（`job/Job.java`：Job 不调用 SurvivalSystem）的做法不一致。
+        // 维生否决 ⇒ 由会话统一记 `SURVIVAL_INTERRUPTED` + 逃生出口（S-1）。
 
         // D-119：工具不满足（方块必须正确工具才掉落）⇒ 如实失败，不空转、不改世界
         if (toolRefusal != null) {
@@ -774,6 +772,14 @@ public final class MineTask implements Task {
         if (!result.success()) {
             BotLog.warn("[MiningPlanner探针] planning failed target={} reason={} budget={} profile={}",
                     target.toShortString(), result.failureReason(), budget.describe(), profile.describe());
+            // S-4（P0-C，2026-09-12 接线）：**硬拒绝**（流体风险 / 保护 / 不可破坏）不是"站位没找好" ——
+            // 绝不允许再去加高或清障：在岩浆旁搭柱子、或把挡路方块清掉，等于**主动把自己送进危险**
+            // （清障/加高各自还会起一个嵌套 `MineTask`，而那正是"挖穿后邻格岩浆涌入"的场景）。
+            // 判据沿用既有清单 `isHardTargetRefusal`（它本来就列了 `fluid_risk_lava`，只是此前没有生产者）。
+            if (isHardTargetRefusal(result.failureReason())) {
+                return escalateFailure(new MineBlockRunner.FailureReport(
+                        result.failureReason(), "planning", false));
+            }
             // **与改造前的伐木行为一致（D-115 修正）**：这不是"先清障后加高"的串联，而是**二选一**——
             //   站位候选**存在**（在触及范围内）但路径不通 ⇒ **加高**（抬高后候选变可达，实测高云杉）；
             //   站位候选**不存在**（超出触及）⇒ **清障**（开一个站位/通视线），清障失败即放弃本目标。

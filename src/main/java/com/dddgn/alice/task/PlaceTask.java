@@ -185,6 +185,9 @@ public final class PlaceTask implements Task {
         if (code.startsWith("PLAN_SEARCH_LIMIT")) {
             return "place_search_limit";
         }
+        if (code.startsWith("PLAN_GOAL_NOT_LOADED")) {
+            return "place_goal_unloaded";   // S-2：没加载 ≠ 不可达
+        }
         if (code.startsWith("PLAN_")) {
             return "place_path_failed";
         }

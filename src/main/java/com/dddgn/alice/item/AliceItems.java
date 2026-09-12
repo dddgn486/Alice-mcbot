@@ -165,6 +165,18 @@ public final class AliceItems {
     public static final RegistryObject<Item> LUMBER_FAILURE_CHECK =
             ITEMS.register("lumber_failure_check", () -> new LumberFailureCheckItem(new Item.Properties()));
 
+    /** S-2 未加载区块/世界边界门控自检（零参数，无头规划三用例）。 */
+    public static final RegistryObject<Item> CHUNK_GUARD_CHECK =
+            ITEMS.register("chunk_guard_check", () -> new ChunkGuardCheckItem(new Item.Properties()));
+
+    /** S-4 挖掘前流体风险自检（零参数，`fluid_mine_course` 场景）。 */
+    public static final RegistryObject<Item> FLUID_MINE_CHECK =
+            ITEMS.register("fluid_mine_check", () -> new FluidMineCheckItem(new Item.Properties()));
+
+    /** S-1 维生出口自检（零参数，`survival_course` 场景）：否决之后必须给出一次明确出口。 */
+    public static final RegistryObject<Item> SURVIVAL_EXIT_CHECK =
+            ITEMS.register("survival_exit_check", () -> new SurvivalExitCheckItem(new Item.Properties()));
+
     /** 挖掘专项串联回归（批次 5，场景专属）。 */
     public static final RegistryObject<Item> MINE_REGRESSION =
             ITEMS.register("mine_regression", () -> new MineRegressionItem(new Item.Properties()));

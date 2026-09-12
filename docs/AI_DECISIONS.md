@@ -4317,3 +4317,76 @@ region=x17..37 z203..231 baseY=58 maxH=48（垂直自适应） adaptiveTop=84 �
 **遗留提醒**：`idle-stop` 是**持久化**的 —— 本轮最后一条命令是 `idle-stop true`，
 所以该 bot 现在的默认是**旧的可选模式**（无活即 `IDLE_NO_WORK` 收工）。
 要回到"常驻（只由玩家/决策层打断）"的 D-130 语义，跑一次 `/alice region idle-stop false` 即可。
+
+## D-132 安全底座小批次（S-1–S-4）：否决必须带出口 + 未加载区块/边界准入 + 死探针接线（2026-09-12）
+
+**来源**：`docs/OPEN_ITEMS_LEDGER.md` §1（风险/维生清单 9 条断言**至今全部成立、P0/P1/P2 无一实施**）
++ §2（对齐审计仍影响业务的 2 项）。用户 2026-09-12 裁定方向：**①安全底座小批次 → ②决策层接入**。
+
+### S-1（P1-C）维生否决必须有出口
+- **改前**：`SurvivalSystem` 有否决权（`shouldInterrupt`：`LAVA_CONTACT` / `SUFFOCATING`），
+  但 `BotSession.tick` 在 `complete(SURVIVAL_INTERRUPTED)` 之后直接 `return` ⇒ **泡在岩浆里的 bot
+  任务失败、站着不动、继续被烧**（全项目唯一的"拒绝没有出口"反例）。
+- **职责分工照用户规矩**：`SurvivalSystem.nearestSafeRefuge(bot, radius[, exclude])` 是**纯查询**
+  （只回答"哪个落点算安全"，**不规划路径** —— 该类 javadoc 的承诺不破）；
+  移动交给新 `SurvivalExitTask extends WalkToTask`（**已客户端验收**的硬路径，`PathRequest.of` 纯通行）。
+- **判据（保守）**：脚/头位都可穿过（不窒息）、脚下有真支撑（`canWalkOn`）、脚/头位都不是流体、
+  **所在区块已加载**（复用 S-2 的门控，不为逃生去同步加载区块）。
+- **豁免规则**：`SurvivalExit` 标记接口 —— 逃生任务**本身不被维生二次否决**，否则
+  "中断 ⇒ 起逃生 ⇒ 下一 tick 又被中断"会成为每 tick 自杀循环，一步都走不出去。
+  只豁免逃生动作；挖矿/伐木/放置这类会把 bot 送进危险的任务照旧被否决。
+- **诚实分支**：半径内找不到安全落点 ⇒ 日志 `[Survival] …找不到安全落点：无出口（如实登记）`，
+  不假装成功、也不造一个注定失败的任务。
+- **验证入口**：`alice:survival_exit_check`（零参数）+ 新场景 `alice_test:survival_course`
+  （脚位正常、**头顶那一格是石头** ⇒ `isInWall()`=SUFFOCATING；四周同层可走 ⇒ 逃生只需 1 步）。
+  期望：`维生监测 hazard=SUFFOCATING` → `任务因维生危险中断 … reason=survival_suffocating` →
+  `[Survival] 维生中断 ⇒ 逃生出口 refuge=…——启动 SurvivalExitTask` →
+  `task_execution_terminal kind=SurvivalExitTask … terminal=COMPLETED`；**肉眼看到 bot 走出那一步**。
+- **为什么不用岩浆做自检**：岩浆里能否爬出来取决于流体物理（本内核的 Movement 不建模岩浆游动），
+  那是另一个问题；这一条只验"否决之后有没有去向"。岩浆场景登记为**未覆盖**（见总账 §5）。
+
+### S-2（P1-A + 审计 §3.A:181）未加载区块 / 世界边界准入
+- **事实（反编译证据，`RISK_SYSTEM_REVIEW_20260910.md` §2）**：服务端在未加载区块上 `getBlockState`
+  **会同步加载/生成区块并阻塞主线程** —— 不是 void air。所以搜索层既不能把"没加载"错报成"到不了"，
+  也不能为了看一眼就把区块拉起来。
+- **照 Baritone 抄**（`/home/fb486/projects/reference/baritone/`）：
+  - `BlockStateInterface.worldContainsLoadedChunk` / `isLoaded`：`provider.getChunk(..., FULL, **false**)`
+    —— **从不加载区块**；`AStarPathFinder:105-112` 只在**跨区块**时 `if (!isLoaded(newX,newZ)) continue;`；
+  - `AStarPathFinder` 的世界边界：`if (!worldBorder.entirelyContains(newX,newZ)) continue;`；
+  - `PathExecutor:188`：执行期"目的地仍在已加载边缘"就**暂停**（不跨出去）。
+- **Alice 落地**：
+  1. `MovementContext.chunkLoaded(pos)`（= `level.hasChunkAt`，不加载）/ `withinWorldBorder(pos)`；
+  2. **目标准入**：目标区块没加载 ⇒ 新独立状态 `PlanningStatus.GOAL_NOT_LOADED`
+     （**不是** `UNREACHABLE`、**不是** `SEARCH_LIMIT` —— D-004 红线的延伸），
+     失败码 `PLAN_GOAL_NOT_LOADED`，任务层映射 `walk_/place_/follow_goal_unloaded`；
+  3. **节点门控**：只有跨区块时才查一次（`>>4` 比较，零成本），未加载 ⇒ **跳过这条边**；
+     边界外 ⇒ 跳过；两者都进诊断串（`skipped_unloaded=/skipped_border=`），**诚实报告**。
+- **验证入口**：`alice:chunk_guard_check`（零参数、纯无头规划、就地取材）：
+  A 远目标（±512 格，必未加载）⇒ `GOAL_NOT_LOADED` **且规划前后那一格区块都仍未加载**（证明无同步加载副作用）；
+  B 正对照（身边已加载可站格）⇒ `REACHED`（证明门控没掐死正常寻路）；
+  C 世界边界（临时缩到 8 格、目标放在边界外**已加载**区块）⇒ 不可 `REACHED` 且诊断含 `skipped_border>0`，
+  **随后立刻还原边界**。
+
+### S-3（P1-B）删掉 `MineTask` 的重复维生调用
+- `MineTask.tick` 自调 `SurvivalSystem.tick` + 判定，而 `BotManager` 调度循环每 tick 已经
+  `SurvivalSystem.tick(...)` 并把 `HazardState` 交给 `BotSession.tick(hazard)` ⇒ **两套终态记录**
+  （任务自己 `FAILED` vs 会话 `SURVIVAL_INTERRUPTED`），且与 `FollowTask` / 新 Job 层
+  （`job/Job.java`：Job 不调用 `SurvivalSystem`）不一致。已删除（含两个 import）。
+- 副作用（有意）：`MineTask` 的失败码不再自称 `survival_*` —— 维生一律由**会话**记
+  `SURVIVAL_INTERRUPTED` + `code=failed:survival_*`，并要求有出口（S-1）。
+
+### S-4（P0-C）接上早就写好、却零调用的流体探针
+- **事实**：`FluidRiskPolicy.miningRefusal`（目标格或 6 邻格有岩浆 ⇒ `fluid_risk_lava`）全仓库
+  **只有它自己的定义**；而 `MineTask.isHardTargetRefusal` 早就把 `fluid_risk_lava` 列进去了
+  ⇒ 一个**永远为假**的分支（第 3 个死抽象，G7）。
+- **接线**：`MiningPlanner.plan(...)` 在**任何站位/隧道规划之前**做目标确认，拒 ⇒ 直接返回 `fluid_risk_lava`；
+  `MineTask.evaluateStandingPoint` 的规划失败分支**先查硬拒绝**（`isHardTargetRefusal`）——
+  硬拒不许再去**加高或清障**（在岩浆旁搭柱子/清方块 = 主动把自己送进危险，而清障/加高各自还会
+  起一个嵌套 `MineTask`，正是"挖穿后邻格岩浆涌入"的场景）。
+- 覆盖范围不重叠：D-037 管"身体别**进**岩浆"（Movement 通行性），这条管"挖穿后**会不会涌进来**"。
+- **验证入口**：`alice:fluid_mine_check`（零参数）+ 新场景 `alice_test:fluid_mine_course`
+  （目标正下方 y=63 是岩浆源，目标本身是盖在坑上的石头 ⇒ 挖穿掉落物直接掉进岩浆）。
+  期望 `[FluidMineCheck] SUMMARY plan_refuse=fluid_risk_lava run_refuse=FAILED_fluid_risk_lava
+  no_clear_gain=true control=DONE → PASS`。
+
+**验证等级**：IMPLEMENTED / COMPILES（四项；客户端待测见下方附注）。

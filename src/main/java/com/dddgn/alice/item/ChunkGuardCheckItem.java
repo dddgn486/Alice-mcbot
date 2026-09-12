@@ -1,0 +1,70 @@
+package com.dddgn.alice.item;
+
+import com.dddgn.alice.bot.BotManager;
+import com.dddgn.alice.bot.BotPlayer;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+
+/**
+ * 未加载区块 / 世界边界准入自检启动器（{@code alice:chunk_guard_check}，S-2 / P1-A）：普通右键，零参数。
+ *
+ * <p>纯无头规划，**不需要场景**（就地取材：bot 站的地方就是起点）。三个用例见
+ * {@link com.dddgn.alice.task.ChunkGuardCheckTask}，输出 {@code [ChunkGuard] SUMMARY …}。
+ */
+public class ChunkGuardCheckItem extends Item {
+
+    public ChunkGuardCheckItem(Properties properties) {
+        super(properties);
+    }
+
+    @Override
+    public InteractionResult useOn(net.minecraft.world.item.context.UseOnContext context) {
+        Level level = context.getLevel();
+        if (level.isClientSide) {
+            return InteractionResult.SUCCESS;
+        }
+        start(context.getPlayer(), (ServerLevel) level);
+        return InteractionResult.SUCCESS;
+    }
+
+    @Override
+    public InteractionResultHolder<ItemStack> use(Level level, net.minecraft.world.entity.player.Player player,
+                                                  InteractionHand hand) {
+        if (level.isClientSide) {
+            return InteractionResultHolder.success(player.getItemInHand(hand));
+        }
+        start(player, (ServerLevel) level);
+        return InteractionResultHolder.success(player.getItemInHand(hand));
+    }
+
+    private void start(net.minecraft.world.entity.player.Player player, ServerLevel level) {
+        BotPlayer bot = BotManager.firstInLevel(level);
+        if (bot == null) {
+            say(player, "[alice] 需要先有 bot（/alice spawn 或任意夹具入口）");
+            return;
+        }
+        if (BotManager.isBusy(bot)) {
+            say(player, "[alice] bot 正忙，稍后再试");
+            return;
+        }
+        if (!BotManager.assignChunkGuardCheck(bot, player instanceof ServerPlayer sp ? sp : null)) {
+            say(player, "[alice] bot 正忙，稍后再试");
+            return;
+        }
+        say(player, "[alice] 区块/边界门控自检已启动：远目标=未加载区块必须 GOAL_NOT_LOADED 且不加载它；"
+                + "身边目标必须 REACHED；边界外目标不得 REACHED。看 [ChunkGuard] SUMMARY");
+    }
+
+    private static void say(net.minecraft.world.entity.player.Player player, String text) {
+        if (player != null) {
+            player.sendSystemMessage(Component.literal(text));
+        }
+    }
+}

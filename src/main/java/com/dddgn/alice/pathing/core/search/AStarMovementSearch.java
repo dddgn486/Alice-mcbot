@@ -41,6 +41,19 @@ public final class AStarMovementSearch {
         GoalSpec goal = request.goal();
         SearchBudget budget = request.budget();
 
+        // S-2（P1-A / 审计 §3.A:181，2026-09-12）：**目标准入** —— 目标区块没加载就硬拒，
+        // 返回**独立状态** `GOAL_NOT_LOADED`（不是 UNREACHABLE、不是 SEARCH_LIMIT）。
+        // 理由：服务端读未加载区块会同步加载/生成并阻塞主线程；"没加载"也不等于"到不了"。
+        // 对照 Baritone：从不加载区块（`getChunk(..., FULL, false)`），执行期在
+        // `PathExecutor:188` "Pausing since destination is at edge of loaded chunks" 等区块。
+        if (!context.chunkLoaded(goal.goalFoot())) {
+            return PathPlan.failure(PlanningStatus.GOAL_NOT_LOADED, startFoot, goal.goalFoot(),
+                    0, 0, elapsed(startMillis), PLANNER_NAME,
+                    "goal_chunk_not_loaded goal=" + goal.goalFoot().toShortString()
+                            + " chunk=" + (goal.goalFoot().getX() >> 4) + ","
+                            + (goal.goalFoot().getZ() >> 4));
+        }
+
         Map<Long, SearchNode> nodes = new HashMap<>();
         BinaryHeapOpenSet openSet = new BinaryHeapOpenSet();
         List<PlannedMovement> candidates = new ArrayList<>(16);
@@ -59,6 +72,9 @@ public final class AStarMovementSearch {
 
         int expandedNodes = 0;
         int movementsConsidered = 0;
+        // 门控计数（诚实报告用）：跳过多少条"会跨到未加载区块"或"越出世界边界"的边
+        int skippedUnloaded = 0;
+        int skippedBorder = 0;
         boolean budgetExhausted = false;
 
         while (!openSet.isEmpty()) {
@@ -85,6 +101,23 @@ public final class AStarMovementSearch {
             candidates.clear();
             provider.appendCandidates(context, currentFoot, candidates);
             for (PlannedMovement movement : candidates) {
+                BlockPos toFoot = movement.toFoot();
+                // S-2 节点级门控（对照 Baritone `AStarPathFinder:105-112`）：
+                // **只在跨越区块边界时**才查一次"目的地区块是否已加载"，未加载 ⇒ 跳过这条边
+                // （`continue`，不是把整条路径判死）。这样搜索**永远不会去读未加载区块的方块**，
+                // 也就不会触发服务端的同步加载/生成（主线程阻塞 + 世界副作用）。
+                if ((toFoot.getX() >> 4) != (current.x >> 4)
+                        || (toFoot.getZ() >> 4) != (current.z >> 4)) {
+                    if (!context.chunkLoaded(toFoot)) {
+                        skippedUnloaded++;
+                        continue;
+                    }
+                }
+                // 世界边界（对照 Baritone `worldBorder.entirelyContains`）：越界的边一律不生成
+                if (!context.withinWorldBorder(toFoot)) {
+                    skippedBorder++;
+                    continue;
+                }
                 movementsConsidered++;
                 double tentativeCost = current.cost + movement.cost();
                 SearchNode neighbor = nodeAt(nodes, movement.toFoot(), goal);
@@ -117,11 +150,13 @@ public final class AStarMovementSearch {
             return PathPlan.failure(PlanningStatus.SEARCH_LIMIT, startFoot, goal.goalFoot(),
                     expandedNodes, movementsConsidered, elapsed, PLANNER_NAME,
                     "budget exhausted (maxNodes=" + budget.maxNodes() + ", maxMillis=" + budget.maxMillis()
-                            + ", openSet=" + openSet.size() + ", best=" + bestSoFar[0].cost + ")");
+                            + ", openSet=" + openSet.size() + ", best=" + bestSoFar[0].cost
+                            + ", skipped_unloaded=" + skippedUnloaded + " skipped_border=" + skippedBorder + ")");
         }
         return PathPlan.failure(PlanningStatus.UNREACHABLE, startFoot, goal.goalFoot(),
                 expandedNodes, movementsConsidered, elapsed, PLANNER_NAME,
-                "open set exhausted; best=" + bestSoFar[0].cost);
+                "open set exhausted; best=" + bestSoFar[0].cost
+                        + "; skipped_unloaded=" + skippedUnloaded + " skipped_border=" + skippedBorder);
     }
 
     private PathPlan reachedPlan(BlockPos startFoot, GoalSpec goal, SearchNode goalNode,

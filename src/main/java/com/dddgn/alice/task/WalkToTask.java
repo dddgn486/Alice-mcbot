@@ -22,7 +22,7 @@ import net.minecraft.server.level.ServerLevel;
  *       `walk_blocked` / `walk_timeout` / `walk_stale` / `walk_invalid_precondition` / `walk_execution_failed`。</li>
  * </ul>
  */
-public final class WalkToTask implements Task {
+public class WalkToTask implements Task {   // 非 final：S-1 的逃生任务 SurvivalExitTask 复用同一套执行
     private final BotPlayer bot;
     private final BlockPos goalFoot;
     private PathRetryRunner runner;
@@ -89,6 +89,10 @@ public final class WalkToTask implements Task {
         }
         if (code.startsWith("PLAN_SEARCH_LIMIT")) {
             return "walk_search_limit";   // SEARCH_LIMIT ≠ UNREACHABLE（架构边界）
+        }
+        if (code.startsWith("PLAN_GOAL_NOT_LOADED")) {
+            // S-2：目标区块没加载 ≠ 不可达 ⇒ 独立码，调用方可以稍后重试/先靠近
+            return "walk_goal_unloaded";
         }
         if (code.startsWith("PLAN_")) {
             return "walk_plan_failed";

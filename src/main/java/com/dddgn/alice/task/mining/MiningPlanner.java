@@ -62,6 +62,19 @@ public final class MiningPlanner {
         BlockPos startFoot = MovementHelper.footCell(bot.serverLevel(), bot).immutable();
         double reach = bot.getBlockReach();
 
+        // S-4（P0-C，2026-09-12 接线）：**挖掘前目标确认** —— 目标格本身不是岩浆，但它的 6 个邻格里
+        // 有岩浆 ⇒ 挖穿后岩浆会**流进来**。这条与 D-037（`MovementHelper` 的通行性：身体别**进**岩浆、
+        // 流体不可挖）**不重叠**：那条管"别走进去"，这条管"挖穿后会不会涌进来"。
+        // 探针 `FluidRiskPolicy.miningRefusal` 早已写好但**零调用**（登记为第 3 个死抽象）——
+        // 这里接上，返回 `fluid_risk_lava` 这个**硬拒绝码**（`MineTask.isHardTargetRefusal` 已认它）。
+        // 成本 6 次方块读取，可忽略；目标确认在任何站位/隧道规划之前，避免为"注定不能挖的目标"做规划。
+        String fluidRefusal = com.dddgn.alice.survival.FluidRiskPolicy.miningRefusal(bot, immutableTarget);
+        if (fluidRefusal != null) {
+            BotLog.warn("[MiningPlanner] fluid_refusal target={} reason={}（邻格岩浆会涌入，S-4/P0-C）",
+                    immutableTarget.toShortString(), fluidRefusal);
+            return new Result(null, null, fluidRefusal);
+        }
+
         Result direct = planDirect(bot, level, immutableTarget, startFoot, reach, budget);
         if (direct.success()) {
             return direct;

@@ -40,6 +40,22 @@ public record MovementContext(
         return y >= minY && y < maxY;
     }
 
+    /**
+     * **该落点所在区块是否已加载**（S-2 / P1-A，2026-09-12）。
+     *
+     * <p>用 {@code hasChunkAt}（等价于 `getChunk(..., FULL, **false**)`）**绝不加载区块** ——
+     * 对照 Baritone `BlockStateInterface.worldContainsLoadedChunk`。服务端在未加载区块上读方块会
+     * **同步加载/生成区块并阻塞主线程**，所以搜索层必须先问这个，再决定要不要看那一格。
+     */
+    public boolean chunkLoaded(BlockPos pos) {
+        return level.hasChunkAt(pos);
+    }
+
+    /** 是否在**世界边界**内（对照 Baritone `AStarPathFinder` 的 `worldBorder.entirelyContains`）。 */
+    public boolean withinWorldBorder(BlockPos pos) {
+        return level.getWorldBorder().isWithinBounds(pos);
+    }
+
     public double cost(MovementType type, BlockPos from, BlockPos to) {
         return costModel.cost(type, level, from, to);
     }

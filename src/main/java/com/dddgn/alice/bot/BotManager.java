@@ -981,6 +981,49 @@ public final class BotManager {
                 .pendingForOwner(bot.serverLevel().getServer(), bot.getUUID()).size();
     }
 
+    /** **未加载区块/世界边界门控自检**（S-2 / P1-A）：无头规划三个用例，不改世界（边界临时改后立刻还原）。 */
+    public static boolean assignChunkGuardCheck(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(new com.dddgn.alice.task.ChunkGuardCheckTask(bot, observer),
+                TaskTarget.block(bot.blockPosition()));
+        broadcastTarget(session.target);
+        return true;
+    }
+
+    /** **挖掘前流体风险自检**（S-4 / P0-C）：目标下方是岩浆必须硬拒，普通目标必须挖完。 */
+    public static boolean assignFluidMineCheck(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(new com.dddgn.alice.task.FluidMineCheckTask(bot, observer, session.scope()),
+                TaskTarget.block(com.dddgn.alice.task.FluidMineCheckTask.TARGET_OVER_LAVA));
+        broadcastTarget(session.target);
+        return true;
+    }
+
+    /**
+     * **维生出口自检**（S-1 / P1-C）：起一个"注定会被维生否决"的 dummy 任务。
+     *
+     * <p>为什么要 dummy：维生否决发生在**任务运行中**（`BotSession.tick` 只在 `task != null` 时检查
+     * `shouldInterrupt`）—— 所以夹具必须让 bot 手上有个活，否则否决路径根本不会触发。
+     * dummy 用纯通行的 `WalkToTask`（不挖不放置，D-076 不受影响），它在下一个 tick 就会被打断，
+     * 随后由 {@code startSurvivalExit()} 接上逃生出口。
+     */
+    public static boolean assignSurvivalExitCheck(BotPlayer bot, ServerPlayer observer,
+                                                  net.minecraft.core.BlockPos dummyGoal) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        session.assignWalkTo(dummyGoal);
+        broadcastTarget(session.target);
+        return true;
+    }
+
     /** 服务器启动完成:恢复存档假人(若有)。 */
     @SubscribeEvent
     public static void onServerStarted(ServerStartedEvent event) {
@@ -1201,13 +1244,19 @@ public final class BotManager {
             if (task == null) {
                 return;
             }
-            if (SurvivalSystem.shouldInterrupt(hazard)) {
+            // S-1（P1-C，2026-09-12）：**逃生任务本身豁免否决** —— 否则"中断 ⇒ 起逃生 ⇒ 下一 tick
+            // 又被中断"会变成每 tick 自杀循环，逃生一步都走不出去。只豁免逃生动作；
+            // 挖矿/伐木/放置这类会把 bot 送进危险的任务照旧被否决。
+            if (!(task instanceof com.dddgn.alice.task.SurvivalExit)
+                    && SurvivalSystem.shouldInterrupt(hazard)) {
                 if (task instanceof TransferTask transfer) {
                     transfer.survivalInterrupted(SurvivalSystem.interruptionReason(hazard));
                 }
                 lastTaskResult = "failed:" + SurvivalSystem.interruptionReason(hazard);
                 BotLog.warn("任务因维生危险中断: bot={} reason={}", bot.getName().getString(), lastTaskResult);
                 complete(lastTaskResult, TaskExecutionRecord.TerminalStatus.SURVIVAL_INTERRUPTED);
+                // **否决必须带出口**（用户规矩）：问维生要一个安全落点，用已验收的 WalkTo 走过去。
+                startSurvivalExit();
                 return;
             }
             Task.Status status = task.tick();
@@ -1232,6 +1281,29 @@ public final class BotManager {
                     // 进行中,保持
                 }
             }
+        }
+
+        /**
+         * **维生出口**（S-1 / P1-C，2026-09-12）：否决之后必须说清"那该去哪"。
+         *
+         * <p>分工严格照用户的规矩：`SurvivalSystem.nearestSafeRefuge` 是**纯查询**（给落点、不找路），
+         * 真正的移动交给 `SurvivalExitTask`（= 已验收的硬路径 `WalkToTask`，纯通行、不挖不放置）。
+         * 找不到落点就**如实登记"无出口"**（不假装成功、不造一个必失败的任务）。
+         */
+        private void startSurvivalExit() {
+            BlockPos refuge = SurvivalSystem.nearestSafeRefuge(bot, SurvivalSystem.REFUGE_RADIUS,
+                    bot.blockPosition());
+            if (refuge == null) {
+                BotLog.warn("[Survival] 维生中断 ⇒ 半径 {} 格内**找不到安全落点**：无出口"
+                                + "（如实登记，等玩家/决策层干预；bot 停在 {}）",
+                        SurvivalSystem.REFUGE_RADIUS, bot.blockPosition().toShortString());
+                return;
+            }
+            BotLog.warn("[Survival] 维生中断 ⇒ 逃生出口 refuge={}（距 {} 格）——启动 SurvivalExitTask",
+                    refuge.toShortString(), fmt3(Math.sqrt(refuge.distSqr(bot.blockPosition()))));
+            TaskTarget exitTarget = TaskTarget.block(refuge);
+            beginTask(new com.dddgn.alice.task.SurvivalExitTask(bot, refuge), exitTarget);
+            broadcastTarget(this.target);
         }
 
         private void complete(String resultCode, TaskExecutionRecord.TerminalStatus terminalStatus) {

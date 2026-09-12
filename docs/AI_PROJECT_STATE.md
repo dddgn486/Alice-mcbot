@@ -241,6 +241,14 @@ tools/check-scene-connectivity.py --all        # 离线：22 场景无「封航�
   ③ 显式打断记成 `CANCELLED_REPLACED`（与文档不符）⇒ 新增 `CANCELLED_BY_USER`；
   ④ `clearTask()` 不清残留移动输入（`/alice region stop` 停在半路 ⇒ "说停了却还在走"）。
 
+**当前进行中（2026-09-12 用户裁定 ①→②）**：**① 安全底座小批次**已实施（D-132）
+—— S-1 维生出口（`SurvivalExitTask` + 纯查询 `nearestSafeRefuge` + 逃生豁免）、
+S-2 未加载区块/世界边界准入（新状态 `GOAL_NOT_LOADED` + 跨区块节点门控，照 Baritone）、
+S-3 删 `MineTask` 重复维生调用、S-4 接上 `FluidRiskPolicy`（硬拒不许再加高/清障）。
+入口：`alice:survival_exit_check` / `alice:chunk_guard_check` / `alice:fluid_mine_check`（零参数右键）。
+**客户端待测**；测完进入 **② 决策层接入**（先补 Job 契约：`terminalReason`→`TaskOutcome`、`botUuid`、
+`GoalSpec`→`Job` 统一入口）。
+
 **下一步（按建议优先级；**完整未收口项与方向候选见 [`OPEN_ITEMS_LEDGER.md`](OPEN_ITEMS_LEDGER.md)**）**
 1. **未覆盖的行为分支（与 T2/T3 同批登记）**：几何不可达导致的「首候选失败、次候选成功」场景、
    清障子任务**加高**行为、`trunkHeight+1>12` 截断、① 扫尾超时分支、`climb_incomplete` 场景、

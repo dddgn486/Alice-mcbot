@@ -234,6 +234,9 @@ public final class FollowTask implements Task {
         if (code.startsWith("PLAN_SEARCH_LIMIT")) {
             return "follow_search_limit";   // SEARCH_LIMIT ≠ UNREACHABLE（架构边界）
         }
+        if (code.startsWith("PLAN_GOAL_NOT_LOADED")) {
+            return "follow_goal_unloaded";  // S-2：没加载 ≠ 不可达
+        }
         if (code.startsWith("PLAN_")) {
             return "follow_plan_failed";
         }

@@ -113,6 +113,17 @@
 > D-099 一次性方块，同一病灶第三次同形）。
 > **不要**再按"破坏速度 ≤ 1"判断夹具漏料：树叶这类东西本来就没有更快工具（2026-09-12 实测，8/8 全是清障树叶噪声）。
 
+### 1.9 安全底座小批次（S-1–S-4，D-132）——三个零参数右键
+
+| 入口 | 场景 | 期望（一行判据） |
+|---|---|---|
+| 右键 `alice:survival_exit_check` | `alice_test:survival_course`（自动生成） | `维生监测 hazard=SUFFOCATING` → `任务因维生危险中断 … survival_suffocating` → `[Survival] 维生中断 ⇒ 逃生出口 refuge=…——启动 SurvivalExitTask` → `task_execution_terminal kind=SurvivalExitTask terminal=COMPLETED`；**肉眼：bot 从压顶那格走出一步** |
+| 右键 `alice:chunk_guard_check` | 无（就地无头规划） | `[ChunkGuard] SUMMARY far_goal=GOAL_NOT_LOADED no_sync_load=true PASS near_goal=REACHED PASS border_goal=… skipped_border=true PASS → PASS` |
+| 右键 `alice:fluid_mine_check` | `alice_test:fluid_mine_course`（自动生成） | `[FluidMineCheck] SUMMARY plan_refuse=fluid_risk_lava run_refuse=FAILED_fluid_risk_lava no_clear_gain=true control=DONE → PASS`，且日志里**没有** `tryClear`/加高相位 |
+
+> S-1 用的是"**头顶压石头**（窒息）"而不是岩浆：本条目验的是**否决之后有没有去向**；
+> 岩浆里能否爬出来取决于流体物理（内核不建模岩浆游动），那条登记为未覆盖。
+
 ### 1.8 可持续伐木区（J8 / MAINTAIN）——一次跑完三个玩家接口
 
 区域型 Job 的功能已验收（D-130 附注）；这一节专门验**玩家接口**（`stop` / `set` / `idle-stop`），
