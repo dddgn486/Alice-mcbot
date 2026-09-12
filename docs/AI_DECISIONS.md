@@ -4883,3 +4883,27 @@ HttpClient 的内部任务排不进来 ⇒ **死锁**：请求发不出去，超
 `/alice ask` 列出 → 答复 `allow` ⇒ `[Perm] answer … option=allow` + 任务 `terminalReason=allowed`；
 不答 ⇒ 30 s 后 `[Perm] timeout … ⇒ 按默认档 deny` + `terminalReason=denied:timeout`（**自动返回**）。
 **验证等级**：IMPLEMENTED / COMPILES（客户端待测）。
+
+### D-140 附注（2026-09-12 17:46–17:47 客户端实测）：S3 两条路径均通过；S2 精化亦通过
+
+```
+① 超时路径（不答，用户裁定"超时=拒绝"）
+17:46:11 [Perm] request id=p1 capability=demo_ask options=[allow,deny] default=deny deadlineIn=600tick
+17:46:41 [Perm] timeout id=p1 ⇒ 按默认档 deny（超时=拒绝，自动返回）      ← 精确 30s（600 tick）✓
+         [Perm] demo decision DENY option=deny by=timeout scope=ONCE → terminalReason=denied:timeout
+         task_terminal_reason kind=PermissionDemoTask terminalReason=denied:timeout ✓
+② 批准路径（once）
+17:46:51 [Perm] request id=p2 …
+17:47:09 [Perm] answer id=p2 option=allow scope=ONCE by=player:dddgn      ← 只有玩家能批准 ✓
+         [Perm] demo decision ALLOW option=allow by=player:dddgn scope=ONCE → terminalReason=allowed
+         task_terminal_reason kind=PermissionDemoTask terminalReason=allowed ✓
+聊天：[alice] 已答复 p2 = allow（ONCE，by=player:dddgn）
+
+S2 精化：[Goal] candidate_menu rejected(不可做)= [tree@22,64,218:trunk_too_tall]
+        [Goal] candidate_menu entries=6 → 5（可行树；砍掉的树从菜单消失）
+```
+
+**验证等级**：`WINDOWS_CLIENT`（S3 服务端契约版 + S2 精化）。
+**仍未验证**：`alice:bot_report` 的"⚠ 未决请示"段落（本轮未在 30 s 窗口内点报告）。
+**下一步**：S3b 客户端弹窗（屏幕一侧卡片 + 服务端→客户端通知包 + 倒计时 + 点击答复，与 `/alice ask` 等价），
+随后 S3.5 收集归属 + 被动闸门。
