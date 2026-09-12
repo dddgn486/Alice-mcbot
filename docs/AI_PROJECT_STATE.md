@@ -4,6 +4,14 @@
 
 更新时间：2026-09-12
 
+> **编号体系速查（2026-09-12）**：本项目有四套编号，互不相同 ——
+> ① **寻路内核里程碑 `R1–R5`**（`R1 契约` → `R2-A/B/C/D Movements` → `R3 PathSession+Battery` →
+> `R4 Session 执行` → `R5 世界修改 Movement`；日志前缀 `[R2-B Traverse]`/`[R3 Battery]`/`[R4 Session]`/`R5-2`）；
+> ② **L3 目标层切片 `J1–J8`**（`JOB_LAYER_DESIGN.md`）；
+> ③ **缺口/契约项 `G1–G9`**（如 `G4 写入预算`）；
+> ④ **架构决策 `D-001–`**（`AI_DECISIONS.md`，单调递增）。
+> 2026-09-11 盘点时我曾临时用 `R1–R7` 记"风险项"，与①**撞车**，现已改称 **`T1–T7`**（见 D-124 末段）。
+
 > **2026-09-09 晚（批次 5：模组兼容）**：首测发现模组连锁会取消原版逐格掉落物生成（缓冲后聚合生成），
 > 我们的作用域把"从未进入世界"的幻影实体登记成掉落物 → 收集阶段空转 ~11 s。
 > 已修（`ScopeBuffer` 延迟登记 + `inWorld()` 判定）并**按用户裁定把 `CollectDropsTask` 改为簇级收集**
@@ -187,9 +195,9 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
 
 | 项 | 内容 | 证据 |
 |---|---|---|
-| **R1 工具语义**（D-119+D-120） | 生产 `MineTask` **不再**给 bot 发工具（原实现凭空写钻石镐）；改为**只读**判定：目标 `requiresCorrectToolForDrops` 且快捷栏无正确工具 ⇒ `no_suitable_tool` 首帧如实失败；不要求工具的方块照旧（徒手），只报可行动的 `tool_in_main_hotbar` 反例（`tool_in_main_inventory` / `no_tool`）。工具一律由**入口**用 `FixtureToolKit` 准备 | `mine_regression` **11/11**（含新负例 `no_tool_refuses=PASS`：清空背包 → 如实拒绝 + 目标未动 + **没变出工具**）；`lumber_job` 4/4 |
-| **R2 限次清障换候选**（D-121） | 一个清障候选失败**只跳过该候选**（新增 `BlockerClearPlanner.nextClearStep(excluded)`、`failedBlockers`、`clear_skip` 日志），只有候选用尽/预算用尽才闩锁；运行期 LOS 路径同样换候选。清障子任务信封 = **父信封子集**（`MiningProfile.nestedSubTask()`：`clear=0` 防递归、加高 `min(父,1)`、无建拆同权） | `alice:clear_retry_check` **连续 3 轮 PASS**：4 次尝试 = **4 个不同候选**、全程 `exhausted=false`；相位②清障成功并挖掉目标 |
-| **串联回归电池**（D-122） | `alice:regression_battery`：**一次右键跑完 9 项常用回归**（clear_retry / write_budget / scaffold / clear_guard / lumber_failure / mine_regression / lumber_job / mine_job / pathing），逐步复位、失败不中断、末尾一行 SUMMARY。关键实现：**每步自己 `openScope`** 并镜像 `BotSession.clearTask` 收尾（WriteBudget 的 64/32 上限与账本 TEMP 都是"一次任务=一个作用域"） | 首跑 8/9（抓到夹具缺工具的真缺陷）→ 修复后 **9/9 PASS，2416 tick ≈ 2 分钟**；每步独立作用域由 `[WriteBudget] SUMMARY scope=…:Regression:<step>` 各自计数证实 |
+| **T1 工具语义**（D-119+D-120） | 生产 `MineTask` **不再**给 bot 发工具（原实现凭空写钻石镐）；改为**只读**判定：目标 `requiresCorrectToolForDrops` 且快捷栏无正确工具 ⇒ `no_suitable_tool` 首帧如实失败；不要求工具的方块照旧（徒手），只报可行动的 `tool_in_main_hotbar` 反例（`tool_in_main_inventory` / `no_tool`）。工具一律由**入口**用 `FixtureToolKit` 准备 | `mine_regression` **11/11**（含新负例 `no_tool_refuses=PASS`：清空背包 → 如实拒绝 + 目标未动 + **没变出工具**）；`lumber_job` 4/4 |
+| **T2 限次清障换候选**（D-121） | 一个清障候选失败**只跳过该候选**（新增 `BlockerClearPlanner.nextClearStep(excluded)`、`failedBlockers`、`clear_skip` 日志），只有候选用尽/预算用尽才闩锁；运行期 LOS 路径同样换候选。清障子任务信封 = **父信封子集**（`MiningProfile.nestedSubTask()`：`clear=0` 防递归、加高 `min(父,1)`、无建拆同权） | `alice:clear_retry_check` **连续 3 轮 PASS**：4 次尝试 = **4 个不同候选**、全程 `exhausted=false`；相位②清障成功并挖掉目标 |
+| **串联回归电池**（D-122，非盘点项） | `alice:regression_battery`：**一次右键跑完 9 项常用回归**（clear_retry / write_budget / scaffold / clear_guard / lumber_failure / mine_regression / lumber_job / mine_job / pathing），逐步复位、失败不中断、末尾一行 SUMMARY。关键实现：**每步自己 `openScope`** 并镜像 `BotSession.clearTask` 收尾（WriteBudget 的 64/32 上限与账本 TEMP 都是"一次任务=一个作用域"） | 首跑 8/9（抓到夹具缺工具的真缺陷）→ 修复后 **9/9 PASS，2416 tick ≈ 2 分钟**；每步独立作用域由 `[WriteBudget] SUMMARY scope=…:Regression:<step>` 各自计数证实 |
 | 今日更早（同一会话内已验） | ① 就地扫尾真正跑起来（D-116）；② 拆除按**世界事实**对账（假 `scaffoldLeft` 修掉）；夹具补工具不再顶掉整栈物品（`recovered=-8` 病灶）；伐木场景**通道红线**（D-117：第 4 棵橡树封死唯一通道 ⇒ 已撤回，几何回到验证过的版本） | `lumber_job` `DONE quota_met trees 4/4 logs 19/19 cleared=8 scaffoldLeft=0`（多轮） |
 
 **新增/变化的测试入口**
@@ -206,16 +214,18 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
 5. 噪声 = 隐患：报警只报**可行动**的病症（不再按"破坏速度 ≤ 1"报警，树叶本来就没更快工具）。
 
 **待办（按我建议的优先级）**
-1. ~~**R3 常量标定**~~ ✅ **已完成（D-123，`WINDOWS_CLIENT` 2026-09-12 09:40）**：
+1. ~~**T3 常量标定**~~ ✅ **已完成（D-123，`WINDOWS_CLIENT` 2026-09-12 09:40）**：
    查出身时纠正了范围——`MAX_CLEAR_PER_TREE=8`（`JOB_LAYER_DESIGN §9-4`）与
    `DEFAULT_GAIN_BLOCK_BUDGET=12`（**用户裁定**）是**裁定常量**，不动；真正场景反推的只有 ① 扫尾的
    `withGain(8)` 与 `SWEEP_UP_BUDGET_TICKS=200`，已改为 `MiningProfile.sweepGain(trunkHeight)` +
    `CollectDropsTask.suggestedSweepTicks(drops, profile)`，并把推导过程打进日志（一轮内两个树干高 3/7
    的算术都被核对过）。未覆盖：截断分支（`trunkHeight+1>12`）与 ① 扫尾超时分支。
-2. **R4 作用域语义陷阱**：`ScopeBuffer.begin()` 会清掉已登记掉落物归属 ⇒ 重开作用域后收集变瞎；
-   只有 J7 Step 1 夹具用了 `adoptExistingDrops`。给它一个通用接入点（或让 `begin` 可选保留）。
-3. **夹具工程**：R5 配额与场景解耦（`lumber_course` 可行树数 = 4 与 Job 默认配额耦合）；
-   R6 通道/可规划性**离线校验**（可扩展 `tools/simulate-scene-plan.py`）；R7 "清障预算按棵重置"回归仍未真正越过阈值
+2. ~~**T4 作用域归属**~~ ✅ **已完成（D-124，`WINDOWS_CLIENT` 待验）**：`ScopeBuffer.begin()` **默认继承**
+   "仍活着且在新区间内的我方掉落物"（会话内重开继承、会话结束 `end()` 清空），
+   `ScaffoldLifecycleTask` 去掉了 D-108 手工收养；`mine_regression` 增第 12 例
+   `scope_reopen_keeps_drops` 做针对性回归。
+3. **夹具工程**：T5 配额与场景解耦（`lumber_course` 可行树数 = 4 与 Job 默认配额耦合）；
+   T6 通道/可规划性**离线校验**（可扩展 `tools/simulate-scene-plan.py`）；T7 "清障预算按棵重置"回归仍未真正越过阈值
    （实测累计正好 8 格压线）—— 可用"专项 clear-budget 夹具"或"扩台地 + 加树"。
 4. **R2 未覆盖**：几何不可达导致"首个候选失败、第二个成功"的场景；清障子任务**加高**的行为（目前只有信封日志证据）。
 5. **生命周期收敛（B 类）**：能力信封已收敛，但 `LumberJob` 的"建→爬→用→①/②/③"生命周期仍是伐木专有；
