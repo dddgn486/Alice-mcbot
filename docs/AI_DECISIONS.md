@@ -3914,3 +3914,24 @@ J3 的 3 棵树恰好 3+3+2 = **8 压线**；`a5901f5` 想加第 4 棵树，却�
 
 **验证等级**：IMPLEMENTED / COMPILES（客户端待测：`alice:scaffold_check` 应出现第二轮
 `recover_decide … decision=ready` 与 `RECOVERY SUMMARY … → PASS`；串联电池的 `scaffold` 步仍 PASS）。
+
+### D-127 附注（2026-09-12 10:57–11:00 客户端实测：**J7 Step 3 达成**）
+
+```
+[Recovery] 启动检查：账本有我方临时放置 4 条、未闭合作用域 0 个   ← 启动报告确实抓到了上次会话的残留
+[Scaffold] SUMMARY pillar=4/12 torn=4 remaining=0 residue=0 target=gone … → PASS   ← 第一轮原样
+[Scaffold] 第一轮通过 ⇒ 第二轮：再爬上柱顶后**故意不拆**，验证崩溃兜底
+[Recovery] 账本发现 6 条我方未拆除的临时方块（上次会话未闭合）最近 2.236 格 ⇒ 就近（2.236 格）⇒ 可就地续做
+[Scaffold] recover_decide decision=ready pending=4
+[Scaffold] teardown_start foot=39,69,46 on_top=true pending=39,69,46   ← 仍在架上（§12.3）
+[Scaffold] RECOVERY SUMMARY decision=ready ledger_before=4 ledger_after=0 residue=0
+                            restore=restore_done → PASS
+[Restore] SUMMARY scope=…#157:Regression:scaffold restored=4 skipped=0 remaining=0 → DONE
+[Regression] scaffold=PASS ticks=321 ； 电池 (9/9) ticks=2732 → PASS ；无一条非 COMPLETED
+```
+要点：① **判定阈值生效**（最近 2.236 格 ⇒ ready ⇒ 续做）；② 续做走的就是 `/alice restore` 同一条
+`RestoreScopeTask(scopeId=null)` 路径（`restored=4 remaining=0`）；③ 断言用**账本事实 + 世界事实**
+（`ledger_after=0`、`residue=0`）而不是"跑完就算"；④ 启动报告在真实残留上触发（4 条）✓。
+未覆盖（沿用 D-127 登记）：`too_far` 分支、真实崩溃重启路径。
+
+**验证等级**：`WINDOWS_CLIENT`。
