@@ -4457,3 +4457,41 @@ region=x17..37 z203..231 baseY=58 maxH=48（垂直自适应） adaptiveTop=84 �
 
 **影响面**：正常寻路零变化（合法起点不触发）；受益者 = 维生逃生（S-1）、以及任何
 "bot 被卡住/落进水里后要自救"的场景。
+
+### D-132 附注二（2026-09-12 14:47 复测）：**S-1 完整通过**；S-2 A/B 通过，C 是夹具的第三次自身缺陷
+
+```
+14:47:17/14:47:28 两次复现（一次是被中断的 ChunkGuard、一次是 survival_exit_check 本体）：
+  [Survival] 维生中断 ⇒ 逃生出口 refuge=66,64,103（距 1.000 格）——启动 SurvivalExitTask
+  [Search] start_escape 起点非法 ⇒ 按目的地谓词生成 8 条脱困候选（S-1/D-133）
+  [PathRetry] planned status=REACHED movements=1 cost=1.00 from=66,64,104 to=66,64,103
+  [R4 Session] segment_done type=TRAVERSE ticks=5 actualFoot=66,64,103        ← **真的从方块里挪出来了**
+  [WalkToTask] completed … replans=0
+  task_execution_terminal kind=SurvivalExitTask … terminal=COMPLETED          ← **S-1 = PASS（含物理）**
+  （终态 failureCode 也已从 unknown_failure 变成 failed:survival_suffocating）
+14:47:37 [ChunkGuard] A 目标=1088,64,1126 status=GOAL_NOT_LOADED 规划后仍未加载=true  ← **A PASS**
+         [ChunkGuard] B 正对照 目标=65,64,102 status=REACHED movements=1 nodes=2      ← **B PASS**
+         [ChunkGuard] C 目标=88,64,102 status=UNREACHABLE … skipped_border=0 start_escape=0  ← 仍 FAIL
+```
+
+**S-1 的物理疑问被证伪（好消息）**：我原先担心"实体卡在方块内时 vanilla 碰撞会把水平位移钳到 0"——
+实测**允许走出**（`ticks=5` 完成 1 格 TRAVERSE）⇒ 逃生出口不需要"破块脱身"这条更重的设计线。
+
+**S-2 用例 C 的根因（第三次都是夹具，不是门控）**：那次 bot 站在 **5×5** 的存活场景地板上，
+而临时边界是"中心 ±4" ⇒ **卡住搜索的是地板边缘而不是边界**（`best=4.0` 恰好是走到地板尽头 x=68），
+所以 `skipped_border=0` 是"门控没被触发"，不是"门控坏了"。
+
+**修法（把 C 变成确定性判据）**：
+1. 边界尺寸 `8 → 3`（中心 ±1.5）：这样"距离 1 的格在界内、距离 2 的格在界外"，
+   而任何 ≥3 格宽的可走面都必然存在距离 2 的格子 ⇒ 门控一定会被踩到；
+2. **谓词直断**（与地形无关）：`MovementContext.withinWorldBorder(距离1)==true && (距离2)==false`
+   —— 这是 C 的**主判据**；
+3. 搜索层计数 `skipped_border>0` 作为**集成判据**，但先探测"本地是否有距离 2 的可走空间"
+   （`local_space=`），没有就不把它算进判据（诚实前置，而不是假失败）；
+4. 物品侧先调用 `findCleanStandNear` 把 bot 挪到干净落点**再**起任务 ——
+   否则上一轮留下的窒息会把任务在第 1 tick 就中断掉（本次实测：ChunkGuard 被 `SURVIVAL_INTERRUPTED`）。
+
+**教训（写给下次）**：自检夹具的**前提本身**也需要判据 —— 三次失败全部来自
+"起点非法 / 距离写死 / 边界没成为约束"，没有一次来自被测的门控代码。
+夹具必须先把前提**探测出来并如实报告**（`local_space=` / `NO_UNLOADED_CHUNK_IN_RANGE` 之类），
+否则"假失败"会一路吃掉客户端回合。

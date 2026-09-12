@@ -58,6 +58,15 @@ public class ChunkGuardCheckItem extends Item {
             say(player, "[alice] bot 正忙，稍后再试");
             return;
         }
+        // 先离开危险格：否则维生会在任务第 1 tick 就把它中断掉（2026-09-12 实测：
+        // 上一轮 survival_exit_check 之后 bot 还卡在压顶格里，chunk_guard 直接被 SURVIVAL_INTERRUPTED）
+        var clean = com.dddgn.alice.task.ChunkGuardCheckTask.findCleanStandNear(level, bot);
+        if (clean != null) {
+            bot.teleportTo(level, clean.getX() + 0.5D, clean.getY(), clean.getZ() + 0.5D,
+                    java.util.Set.of(), bot.getYRot(), bot.getXRot());
+            bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+            bot.controller().stopMovement();
+        }
         if (!BotManager.assignChunkGuardCheck(bot, player instanceof ServerPlayer sp ? sp : null)) {
             say(player, "[alice] bot 正忙，稍后再试");
             return;

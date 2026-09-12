@@ -40,8 +40,15 @@ public class ChunkGuardCheckTask implements Task {
 
     /** 用例 A 的候选距离（格）：逐个试，取第一个**未加载**的（视距可调，不能写死一个数）。 */
     private static final int[] FAR_CANDIDATE_DISTANCES = {512, 1024, 2048, 4096, 8192};
-    /** 用例 C 用的临时边界尺寸（以 bot 为中心 8 格）。 */
-    private static final double TEST_BORDER_SIZE = 8.0D;
+    /**
+     * 用例 C 用的临时边界尺寸（以 bot 为中心 3 格 ⇒ 中心 ±1.5）。
+     *
+     * <p>为什么必须这么小：首测用 8 格边界，而当时 bot 站在 **5×5** 的场地上 ⇒
+     * 卡住搜索的是**地板边缘**（`best=4.0` 正好走到地板尽头）而不是边界，
+     * 于是 `skipped_border=0`、用例假失败（2026-09-12 14:47）。取 ±1.5 后，
+     * "距离 2 的格子"必在界外，而任何 ≥3 格宽的可走面都必然存在这样的格子 ⇒ 门控一定会被触发。
+     */
+    private static final double TEST_BORDER_SIZE = 3.0D;
     /** 用例 C 的目标距离：在已加载区块内、但在缩小后的边界之外。 */
     private static final int BORDER_GOAL_DISTANCE = 24;
 
@@ -99,6 +106,11 @@ public class ChunkGuardCheckTask implements Task {
      * `UNREACHABLE best=0.0`（2026-09-12 首测就是这么废掉的）。
      */
     private BlockPos findCleanStart(ServerLevel level) {
+        return findCleanStandNear(level, bot);
+    }
+
+    /** 在 bot 附近（±4 水平 / ±1 垂直）找一个**合法落点**；没有 ⇒ null。物品侧与任务侧共用。 */
+    public static BlockPos findCleanStandNear(ServerLevel level, BotPlayer bot) {
         BlockPos origin = MovementHelper.footCell(level, bot);
         for (BlockPos candidate : BlockPos.betweenClosed(origin.offset(-4, -1, -4), origin.offset(4, 1, 4))) {
             BlockPos foot = candidate.immutable();
@@ -192,14 +204,29 @@ public class ChunkGuardCheckTask implements Task {
                 lines.add("border_goal=UNLOADED_CHUNK FAIL");
                 return;
             }
+            // ① **谓词直断**（与地形无关，确定性）：距离 1 在界内、距离 2 在界外
+            PathRequest probe = PathRequest.of(bot.getUUID().toString(), startFoot, outside, "chunk-guard-probe");
+            var context = com.dddgn.alice.pathing.core.search.MovementContext
+                    .live(bot, level, probe);
+            BlockPos insideCell = startFoot.offset(1, 0, 0);
+            BlockPos borderCell = startFoot.offset(2, 0, 0);
+            boolean predicateOk = context.withinWorldBorder(insideCell)
+                    && !context.withinWorldBorder(borderCell);
+            // ② 搜索层：从起点朝边界方向有可走空间时，越界的边必须被跳过
+            boolean localSpace = isCleanStand(level, borderCell)
+                    && MovementHelper.canTraverse(level, insideCell, borderCell);
             PathPlan plan = planTo(level, startFoot, outside);
             boolean notReached = !plan.reached();
             boolean sawBorderGate = plan.diagnostics().contains("skipped_border=")
                     && !plan.diagnostics().contains("skipped_border=0");
-            lines.add("border_goal=" + plan.status().name() + " skipped_border=" + sawBorderGate
-                    + (notReached && sawBorderGate ? " PASS" : " FAIL"));
-            BotLog.info("[ChunkGuard] C 目标={} status={} diagnostics={}",
-                    outside.toShortString(), plan.status(), plan.diagnostics());
+            boolean pass = predicateOk && notReached && (!localSpace || sawBorderGate);
+            lines.add("border_predicate=" + predicateOk + " not_reached=" + notReached
+                    + " local_space=" + localSpace + " skipped_border=" + sawBorderGate
+                    + (pass ? " PASS" : " FAIL"));
+            BotLog.info("[ChunkGuard] C 目标={} status={} 谓词(内/外)={}/{} 本地空间={} diagnostics={}",
+                    outside.toShortString(), plan.status(),
+                    context.withinWorldBorder(insideCell), context.withinWorldBorder(borderCell),
+                    localSpace, plan.diagnostics());
         } finally {
             // **立刻还原**：这是世界级状态，绝不能留在测试模式
             border.setSize(oldSize);
