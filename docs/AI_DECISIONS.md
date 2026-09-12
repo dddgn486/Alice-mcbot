@@ -4907,3 +4907,26 @@ S2 精化：[Goal] candidate_menu rejected(不可做)= [tree@22,64,218:trunk_too
 **仍未验证**：`alice:bot_report` 的"⚠ 未决请示"段落（本轮未在 30 s 窗口内点报告）。
 **下一步**：S3b 客户端弹窗（屏幕一侧卡片 + 服务端→客户端通知包 + 倒计时 + 点击答复，与 `/alice ask` 等价），
 随后 S3.5 收集归属 + 被动闸门。
+
+## D-141 S3b 请示卡片（**只做这一格界面**，2026-09-12）
+
+**用户裁定（原文）**："我觉得可以做这个弹窗，但是只需要做这一格界面，方便测试，没必要现在就做对话和管理主界面。"
+⇒ 本轮只做**屏幕一侧的请示卡片**；聊天/命令入口（`/alice ask`）继续作为等价入口，不做任何对话或管理主界面。
+
+**落地**
+- `network/PermissionNoticePacket`（S2C）：`{active, id, capability, reason, option1, option2, default, deadlineInTicks}`
+  —— `active=false` 表示**撤下卡片**（已答复或已超时）；
+- `network/PermissionAnswerPacket`（C2S）：`{id, option, scope}` ⇒ 服务端走**同一个**
+  `PermissionGate.answer(...)`（与 `/alice ask` 完全等价，"**只有玩家能批准**"不变）；
+- `client/ClientPermissionState`：**只保留最新一条**（一格界面；排队/多卡片留给以后），客户端 tick 倒计时；
+- `client/render/PermissionHudRenderer`：右侧面板（标题 + 能力 + 理由 + 倒计时 + 两个按钮 + 默认档提示），
+  悬停高亮；点击钩子用 **`InputEvent.MouseButton.Pre`** ——
+  已用字节码确认：`MouseHandler` 在**无界面**时也触发 `ForgeHooksClient.onMouseButtonPre`
+  （`ScreenEvent.MouseButtonPressed` 只在有 Screen 时发，不适用）；点中按钮会 `setCanceled(true)` 吃掉这次点击；
+- `PermissionGate`：发起请示时 `PacketDistributor.ALL` 推送通知，答复/超时时推送"撤下"通知；
+  推送失败**静默**（无客户端/未安装时聊天入口照旧）；服务端逻辑不依赖客户端。
+
+**判据**：右键 `alice:permission_demo` ⇒ 屏幕右侧出现卡片（标题 `Alice 请示 pN`、倒计时）⇒
+点「allow（批准）」⇒ `[Perm] answer … by=player:…` + 任务 `terminalReason=allowed`（与命令等价）；
+不点 ⇒ 30 s 后卡片消失 + `[Perm] timeout …⇒默认 deny`。
+**验证等级**：IMPLEMENTED / COMPILES（客户端待测）。

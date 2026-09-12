@@ -43,5 +43,12 @@ public final class AliceNetwork {
         CHANNEL.registerMessage(nextId++, BotInputPacket.class,
                 BotInputPacket::encode, BotInputPacket::decode,
                 BotInputPacket::handle, java.util.Optional.of(NetworkDirection.PLAY_TO_SERVER));
+        // S3b 请示卡片：服务端→客户端通知 + 客户端→服务端答复
+        CHANNEL.registerMessage(nextId++, PermissionNoticePacket.class,
+                PermissionNoticePacket::encode, PermissionNoticePacket::decode,
+                PermissionNoticePacket::handle, java.util.Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(nextId++, PermissionAnswerPacket.class,
+                PermissionAnswerPacket::encode, PermissionAnswerPacket::decode,
+                PermissionAnswerPacket::handle, java.util.Optional.of(NetworkDirection.PLAY_TO_SERVER));
     }
 }

@@ -160,6 +160,8 @@ public final class PermissionGate {
         BotLog.warn("[Perm] request id={} capability={} reason={} options={} default={} deadlineIn={}tick"
                         + "（超时按默认档；LLM 无权批准）",
                 id, capability, reason, options, defaultOption, timeoutTicks);
+        // S3b：推给客户端画卡片（没有该 mod 的客户端会自动忽略；聊天/命令入口照样可用）
+        notifyClients(true, id, capability, reason, options, defaultOption, timeoutTicks);
         return null;
     }
 
@@ -185,6 +187,8 @@ public final class PermissionGate {
                 }
                 putAnswer(request.botId(), request.capability(),
                         new Decision(allowed, chosen, by, scope, ""));
+                notifyClients(false, request.id(), request.capability(), "", request.options(),
+                        request.defaultOption(), 0);
                 return true;
             }
         }
@@ -213,9 +217,26 @@ public final class PermissionGate {
                     && !request.defaultOption().equalsIgnoreCase("no");
             putAnswer(request.botId(), request.capability(),
                     new Decision(allowedByDefault, request.defaultOption(), "timeout", Scope.ONCE, ""));
+            notifyClients(false, request.id(), request.capability(), "", request.options(),
+                    request.defaultOption(), 0);
             BotEventLog.record(bot, "PERMISSION", "warn",
                     "请示超时⇒默认 " + request.defaultOption(),
                     "capability=" + request.capability() + " id=" + request.id());
+        }
+    }
+
+    /** 推送请示通知（S2C）。**只发通知，不改任何服务端状态**；失败（无客户端/未安装）静默。 */
+    private static void notifyClients(boolean active, String id, String capability, String reason,
+                                      List<String> options, String defaultOption, int deadlineTicks) {
+        try {
+            String option1 = options != null && options.size() > 0 ? options.get(0) : "";
+            String option2 = options != null && options.size() > 1 ? options.get(1) : "";
+            com.dddgn.alice.network.AliceNetwork.CHANNEL.send(
+                    net.minecraftforge.network.PacketDistributor.ALL.noArg(),
+                    new com.dddgn.alice.network.PermissionNoticePacket(active, id, capability, reason,
+                            option1, option2, defaultOption, deadlineTicks));
+        } catch (Exception ex) {
+            BotLog.warn("[Perm] 请示通知推送失败（不影响服务端流程）：{}", ex.toString());
         }
     }
 
