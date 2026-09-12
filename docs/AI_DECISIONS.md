@@ -4140,3 +4140,24 @@ Step 1 生命周期闭环（D-107）/ Step 2 攀爬兜底（D-109）/ Step 3 崩
 手动催熟 ⇒ `发现活 ⇒ 巡查间隔恢复` + `pick tree@…`；`/alice region stop` ⇒ `cancelled:region_stop`。
 
 **验证等级**：IMPLEMENTED / COMPILES（客户端待测）。
+
+### D-130 附注（2026-09-12 12:54–13:06 客户端实测：**常驻/退避/自适应/生长循环全部达成**）
+
+```
+[Job] maintain plant sapling@33,64,208（deficit=1 … KEEP 策略）            ← 初始 5 棵砍完 + 5 个苗补回
+[Job] maintain 待机巡查：saplings(5)，间隔退避 40 → 80 tick（常驻：只由玩家/决策层打断；…）
+        … 80 → 160 → 320 → 600 tick（此后稳定 600，每轮仍有完整健康输出）
+[Job] maintain 发现活 ⇒ 巡查间隔恢复 40 tick → pick tree@20,64,208 → 完成 chopped=6 → plant sapling@20,64,208
+[Job] maintain 发现活 ⇒ 巡查间隔恢复 40 tick → pick tree@28,64,208 → 完成 chopped=7 → plant sapling@…
+[Job] maintain 发现活 ⇒ 巡查间隔恢复 40 tick → pick tree@20,64,208 → 完成 chopped=8 → plant sapling@…
+region=x17..37 z203..231 baseY=58 maxH=48（垂直自适应） adaptiveTop=84 …
+```
+- **常驻**：任务一直没自行结束（客户端 13:11 退出时仍在巡查）⇒ "只由玩家/决策层显式打断" 达成 ✓；
+- **退避**：40→80→160→320→600 tick（§13.1「禁止高频扫描」）✓，一发现活立刻恢复 40 ✓；
+- **生长循环**：用户三次手动催熟 ⇒ 都被下一轮巡查发现、砍掉、并在树桩补种回（可持续闭环）✓；
+- **垂直自适应**：`adaptiveTop=84` = 实测最高原木 80 + 4，**没有**用满 `baseY+maxH=106` ✓。
+
+**未覆盖（登记）**：`/alice region stop`（本轮直接退客户端）与 `/alice region set`（本轮用夹具区域）
+这两个**玩家接口**只有代码/命令定义证据；`idle-stop=true` 的可选模式同样未实跑。
+
+**验证等级**：`WINDOWS_CLIENT`（常驻 / 退避 / 生长循环 / 垂直自适应）；玩家接口=IMPLEMENTED / COMPILES。
