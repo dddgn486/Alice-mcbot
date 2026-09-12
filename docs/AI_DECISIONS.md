@@ -5069,3 +5069,40 @@ A 我方掉落物（收养）应被捡；B 外来掉落物应被拦下且留在�
    计数仍完整保留在 `次数=`/`累计=` 与 `PickupGate.blockedTotal()`）。
 
 **验证等级**：`WINDOWS_CLIENT`（三用例 + 节流 + 授权命令 + 报告段落；三处瑕疵修复待复测）。
+
+## D-145 S5 / P1：只读配方图逆推规划器（**离线优先**，2026-09-12）
+
+**依据**：`KNOWLEDGE_RECIPE_GRAPH_NOTES.md` §1/§5（**配方是数据不是知识**；运行时 > wiki；
+先做"只读、零风险、可离线断言"的 P1，它是所有支线任务的地图）。
+
+**落地**：`tools/recipe-graph.py`（离线，Python）
+- 数据源两种、**格式统一**：① 游戏内导出 `config/alice-recipes.json`（权威：KubeJS/CraftTweaker/GT 的魔改
+  最终都体现在运行时配方表）② jar 里的 `data/*/recipes` + `data/*/tags/items`（用于离线开发与自检）；
+- 归一化：`crafting_shaped`（按 pattern 计数）/`crafting_shapeless`/`smelting`/`blasting`/`smoking`/
+  `campfire_cooking`/`stonecutting`/`smithing_*` ⇒ `{输出, 数量, 工作站, 输入[]}`；**未知类型如实跳过并计数**
+  （模组机器/多方块不猜语义）；
+- **BOM 聚合展开**（关键正确性）：需求累加 + 每次合成 `ceil(need/产出)` + **余料回填**给后续兄弟需求
+  + 同一输入的二次需求**必须重新入队**；
+- **标签 → 成员**：`#planks`/`#forge:ingots/*` 这类先看是否**有成员没有配方**（= 原始材料，直接列为
+  "任取其一"），否则取成员里缺料最少的配方 —— 避免"原木→木块→木板"这种荒谬绕路；
+- **环有界**（铜锭↔铜粉）：深度 + 已访问集合；自检里用合成数据专门验；
+- `--selftest` 用**原版数据**自证：木镐 ⇒ 3 木板 + 2 木棍 ⇒ **2 原木**（每根出 4 木板，5 块 ⇒ 2 次合成）+
+  库存足够应短路 + 环应有界。
+
+**自证抓到并修掉的三个真错误**（这就是"能离线断言"的价值）
+1. **递归树各自 ceil** ⇒ 两个 `#planks` 子节点各展开一次 ⇒ **5 木板被算成 8 原木**；
+   改为 BOM 全局账 + 余料回填后 = **2 原木** ✓；
+2. **标签成员挑到可合成项**：`#acacia_logs` 挑到 `acacia_wood`（要 4 原木）⇒ 改为**优先原始材料**
+   （`acacia_log` 直接作为"需采集"叶子）✓；
+3. **二次需求不入队**：木棍还要 2 木板时，因"已在 demand 里"而没重新入队 ⇒ 少算一根原木 ✓ 修。
+
+**用法**
+```
+python3 tools/recipe-graph.py --selftest                       # 原版数据自证（PASS）
+python3 tools/recipe-graph.py --recipes <导出文件|数据目录> --target minecraft:wooden_pickaxe \
+        [--count N] [--have minecraft:oak_log=2] [--depth 8] [--branch 4] [--json out.json]
+```
+
+**验证等级**：本机自证 `PASS`（`--selftest`，含三项边界）。
+**下一步（S5 第二步）**：游戏内 `/alice recipes dump`（把运行时配方 + 已知物品标签导出成同一格式），
+之后就能对**真实整合包**跑 P1（含 KubeJS/GT 魔改）。再往后才有 S6（`CraftTask`/`SmeltTask` → `ProcessTask`）。
