@@ -588,6 +588,22 @@ public final class BotManager {
         com.dddgn.alice.job.lumber.LumberRegionState state =
                 com.dddgn.alice.job.lumber.LumberRegionState.get(bot.getServer());
         state.setRegion(bot.getUUID(), region);
+        // 树苗选择接口的**默认值**（用户裁定：补种树苗不必与被砍的树一一对应）：
+        // 未配置时用橡树苗；想换就用 `/alice region sapling <item>`（写进持久化的区域状态）
+        if (state.saplingItem(bot.getUUID()) == null) {
+            state.setSaplingItem(bot.getUUID(), "minecraft:oak_sapling");
+            BotLog.info("[Job] region_lumber 未选择树苗 ⇒ 默认 {}（/alice region sapling 可更换）",
+                    "minecraft:oak_sapling");
+        }
+        // 夹具/开发入口发料：把**选定的那种**树苗放进快捷栏（区域欠树时补种要用）
+        var saplingId = net.minecraft.resources.ResourceLocation.tryParse(state.saplingItem(bot.getUUID()));
+        var saplingItem = saplingId == null ? null
+                : net.minecraft.core.registries.BuiltInRegistries.ITEM.get(saplingId);
+        if (saplingItem != null && saplingItem != net.minecraft.world.item.Items.AIR) {
+            com.dddgn.alice.item.FixtureToolKit.ensureHotbarStack(bot,
+                    () -> new net.minecraft.world.item.ItemStack(saplingItem),
+                    stack -> stack.is(saplingItem), 8, "sapling(" + state.saplingItem(bot.getUUID()) + ")");
+        }
         BotLog.info("[Job] region_lumber 区域={} saplingItem={}（补种树苗由用户选择，见 /alice region）",
                 region.describe(), state.saplingItem(bot.getUUID()) == null
                         ? "-" : state.saplingItem(bot.getUUID()));

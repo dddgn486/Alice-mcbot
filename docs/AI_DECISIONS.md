@@ -4038,3 +4038,43 @@ Step 1 生命周期闭环（D-107）/ Step 2 攀爬兜底（D-109）/ Step 3 崩
 用户已裁定"不必与被砍的树一一对应"）+ 欠树判断（区域目标棵数）与巡查周期配置。
 
 **验证等级**：IMPLEMENTED / COMPILES（客户端待测：`region_lumber` 或电池第 10 步 `region_maintain=PASS`）。
+
+### D-129 附注（Slice A 客户端验收）+ Slice B：补种与树苗选择接口（2026-09-12）
+
+**Slice A 实测（12:30–12:31，`WINDOWS_CLIENT`）**
+```
+[Job] region_lumber 区域=17,58,203..37,80,231 saplingItem=-（补种树苗由用户选择，见 /alice region）
+[Job] maintain region=… viable=5 inRegion=5 … → pick tree@20,64,208 reason=nearest d=3.2 candidates=5 → 完成 chopped=1
+…（19 → 29 → 28 → 33，逐棵；每轮巡查都有一行健康输出）…
+[Job] maintain region=… viable=0 inRegion=0 chopped=5 failed=0   ×3（连续无活）
+[Job] maintain SUMMARY region=… chopped=5 failed=0 patrols=8 mySaplings=0 reason=idle_no_work → DONE
+```
+即："巡查 → 挑一棵 → 复用一次性 `LumberJob` 砍掉 → 继续巡查 → 无活待机"整条链路 ✓。
+
+**Slice B（本轮）**
+1. **补种理由**：`WriteReason.REGION_REPLANT`（`temporary()==false` ⇒ 账本记 **`KEEP`**）——
+   与脚手架的 `STEP_PLACEMENT`（`TEMP`，必须配对拆除）**刻意区分**（§13.2：补种是区域不变量的一部分）。
+2. **区域状态扩展**：`pendingReplant`（砍完留下的树桩格，待补种）+ `baselineTrees`（**区域目标棵数**，
+   首次巡查按当时可作业树数确定 ⇒ "可持续"= 维持原状），均持久化。
+3. **`RegionLumberJob` 的补种流程**（每轮巡查一次）：
+   - **先对账我种的苗**（已长成树/被拔掉 ⇒ 从"我种的"销账，避免"欠树"被幽灵条目污染）；
+   - `deficit = max(0, baseline − (区域内可作业树 + 我种的活苗))`；
+   - `deficit > 0` ⇒ 在**自己砍过的树桩**里找一格（要求该格空气、下方是土/草）补种：
+     经 `WriteBudget.consumePlace`（超限即硬停）→ `setBlock` → **账本记 `KEEP`** → 扣掉一个树苗 →
+     `mySaplings += spot` → `pendingReplant -= spot`；日志 `[Job] maintain plant sapling@…`；
+   - **未选择树苗** ⇒ `FAILED sapling_unavailable`（附"用 `/alice region sapling <item>`"）；
+     **选了但背包里没有** ⇒ `FAILED tool_missing`（§13.3 口径）；
+   - `idle_no_work` 只在不欠树时判定（欠树说明还有活）。
+4. **树苗选择接口（用户要的那个）**：
+   - `/alice region sapling <item>`：写持久化的 `saplingItem`（**只收 `#minecraft:saplings` 标签**，
+     其余明确拒绝）；**不必与被砍的树一一对应**（用户裁定）⇒ 想全种橡树也行；
+   - `/alice region info`：区域 / 目标棵数 / 我种的苗 / 待补种 / 选定树苗 / 统计一行读出来；
+   - `/alice region start`：用已保存的区域起 Job（停止：下任意 `/alice` 指令 ⇒ `cancelled:replaced`）。
+   - 未配置时的**默认**：`minecraft:oak_sapling`（`assignRegionLumber` 里写默认值并打日志，便于零参数测试）。
+5. 夹具：`alice:region_lumber` 与电池第 10 步都会按**选定树苗**发 8 个苗（夹具自足）。
+
+**验证入口**：右键 `alice:region_lumber`（场景自带 4 棵同型橡树 + 云杉 + 新树）→ 期望
+`chopped=5` 后 `planted=5`、`mySaplings=5`、`deficit=0` ⇒ `SUMMARY … reason=idle_no_work → DONE`；
+再 `/alice region info` 复核读数。
+
+**验证等级**：Slice A `WINDOWS_CLIENT`；Slice B = IMPLEMENTED / COMPILES（客户端待测）。

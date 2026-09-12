@@ -71,6 +71,10 @@ public final class LumberRegionState extends SavedData {
         private final Set<BlockPos> mySaplings = new LinkedHashSet<>();
         /** 用户选定的树苗物品 id（`alice:item/...` 形态的物品注册名）；null = 未配置。 */
         private String saplingItem;
+        /** 砍完树留下的**待补种位置**（通常是树桩格）；补种成功后从这里销账。 */
+        private final Set<BlockPos> pendingReplant = new LinkedHashSet<>();
+        /** **区域目标棵数**（首次巡查时按当时的可作业树数确定；区域"欠树"就是相对它算的）。 */
+        private int baselineTrees;
         private long lastPatrolTick;
         private int treesChopped;
         private int saplingsPlanted;
@@ -166,6 +170,44 @@ public final class LumberRegionState extends SavedData {
         }
     }
 
+    // ==================== 待补种位置（§13.2 的区域不变量）====================
+
+    public void addPendingReplant(UUID owner, BlockPos pos) {
+        Entry entry = entry(owner, true);
+        if (entry.pendingReplant.add(pos.immutable())) {
+            setDirty();
+        }
+    }
+
+    public void removePendingReplant(UUID owner, BlockPos pos) {
+        Entry entry = entry(owner, false);
+        if (entry != null && entry.pendingReplant.remove(pos)) {
+            setDirty();
+        }
+    }
+
+    public List<BlockPos> pendingReplant(UUID owner) {
+        Entry entry = entry(owner, false);
+        return entry == null ? List.of() : List.copyOf(entry.pendingReplant);
+    }
+
+    public int pendingReplantCount(UUID owner) {
+        Entry entry = entry(owner, false);
+        return entry == null ? 0 : entry.pendingReplant.size();
+    }
+
+    /** 区域目标棵数（0 = 还没定，首次巡查时确定）。 */
+    public int baselineTrees(UUID owner) {
+        Entry entry = entry(owner, false);
+        return entry == null ? 0 : entry.baselineTrees;
+    }
+
+    public void setBaselineTrees(UUID owner, int baseline) {
+        Entry entry = entry(owner, true);
+        entry.baselineTrees = baseline;
+        setDirty();
+    }
+
     // ==================== 巡查与统计 ====================
 
     public void markPatrol(UUID owner, long tick) {
@@ -191,6 +233,11 @@ public final class LumberRegionState extends SavedData {
         return entry == null ? 0 : entry.treesChopped;
     }
 
+    public int saplingsPlanted(UUID owner) {
+        Entry entry = entry(owner, false);
+        return entry == null ? 0 : entry.saplingsPlanted;
+    }
+
     public int patrols(UUID owner) {
         Entry entry = entry(owner, false);
         return entry == null ? 0 : entry.patrols;
@@ -214,6 +261,7 @@ public final class LumberRegionState extends SavedData {
                 entry.region = new Region(readPos(tag.getCompound("min")), readPos(tag.getCompound("max")));
             }
             entry.saplingItem = tag.contains("sapling_item") ? tag.getString("sapling_item") : null;
+            entry.baselineTrees = tag.getInt("baseline");
             entry.lastPatrolTick = tag.getLong("last_patrol");
             entry.treesChopped = tag.getInt("chopped");
             entry.saplingsPlanted = tag.getInt("planted");
@@ -221,6 +269,10 @@ public final class LumberRegionState extends SavedData {
             ListTag saplings = tag.getList("saplings", Tag.TAG_COMPOUND);
             for (int k = 0; k < saplings.size(); k++) {
                 entry.mySaplings.add(readPos(saplings.getCompound(k)));
+            }
+            ListTag replant = tag.getList("replant", Tag.TAG_COMPOUND);
+            for (int k = 0; k < replant.size(); k++) {
+                entry.pendingReplant.add(readPos(replant.getCompound(k)));
             }
             state.entries.put(owner, entry);
         }
@@ -241,6 +293,7 @@ public final class LumberRegionState extends SavedData {
             if (entry.saplingItem != null) {
                 tag.putString("sapling_item", entry.saplingItem);
             }
+            tag.putInt("baseline", entry.baselineTrees);
             tag.putLong("last_patrol", entry.lastPatrolTick);
             tag.putInt("chopped", entry.treesChopped);
             tag.putInt("planted", entry.saplingsPlanted);
@@ -250,6 +303,11 @@ public final class LumberRegionState extends SavedData {
                 saplings.add(writePos(pos));
             }
             tag.put("saplings", saplings);
+            ListTag replant = new ListTag();
+            for (BlockPos pos : entry.pendingReplant) {
+                replant.add(writePos(pos));
+            }
+            tag.put("replant", replant);
             list.add(tag);
         }
         root.put("regions", list);
@@ -277,6 +335,7 @@ public final class LumberRegionState extends SavedData {
                     + " region=" + (entry.region == null ? "-" : entry.region.describe())
                     + " mySaplings=" + entry.mySaplings.size()
                     + " saplingItem=" + (entry.saplingItem == null ? "-" : entry.saplingItem)
+                    + " baseline=" + entry.baselineTrees + " pendingReplant=" + entry.pendingReplant.size()
                     + " chopped=" + entry.treesChopped + " planted=" + entry.saplingsPlanted
                     + " patrols=" + entry.patrols + " lastPatrol=" + entry.lastPatrolTick);
         }

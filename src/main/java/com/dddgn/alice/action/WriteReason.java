@@ -48,6 +48,14 @@ public enum WriteReason {
     /** 放置台阶/垫脚（{@code PLACE_STEP_AND_TRAVERSE}、搭柱子）。 */
     STEP_PLACEMENT(Policy.EXPLICIT_TARGET, Action.PLACE, "放置台阶/垫脚"),
 
+    /**
+     * **区域补种**（J8 / §13.2）：可持续伐木区里"欠树则补种"，属**计划内永久修改**。
+     *
+     * <p>与脚手架的 {@code STEP_PLACEMENT}（`TEMP`，必须配对拆除）**刻意区分**：
+     * 补种是区域不变量的一部分，不受建拆同权约束 ⇒ 账本记为 {@code KEEP}（`temporary()==false`）。
+     */
+    REGION_REPLANT(Policy.EXPLICIT_TARGET, Action.PLACE, "区域补种（计划内永久）"),
+
     // ---- 外部触发 ----
 
     /** 玩家命令直接写入（管理/调试入口）。 */

@@ -144,6 +144,19 @@ public final class RegressionBatteryTask implements Task {
                     FixtureToolKit.ensurePickaxe(bot);
                     FixtureToolKit.ensureHotbarStack(bot, () -> new ItemStack(Items.COBBLESTONE),
                             stack -> stack.is(Items.COBBLESTONE), 12, "cobblestone");
+                    // Slice B：区域欠树要补种 ⇒ 夹具发**选定的那种**树苗（未选则默认橡树苗）
+                    var state = com.dddgn.alice.job.lumber.LumberRegionState.get(bot.getServer());
+                    if (state.saplingItem(bot.getUUID()) == null) {
+                        state.setSaplingItem(bot.getUUID(), "minecraft:oak_sapling");
+                    }
+                    var saplingId = net.minecraft.resources.ResourceLocation
+                            .tryParse(state.saplingItem(bot.getUUID()));
+                    var sapling = saplingId == null ? null
+                            : net.minecraft.core.registries.BuiltInRegistries.ITEM.get(saplingId);
+                    if (sapling != null && sapling != Items.AIR) {
+                        FixtureToolKit.ensureHotbarStack(bot, () -> new ItemStack(sapling),
+                                stack -> stack.is(sapling), 8, "sapling");
+                    }
                 },
                 () -> new com.dddgn.alice.job.lumber.RegionLumberJob(bot,
                         new com.dddgn.alice.job.lumber.LumberRegionState.Region(
