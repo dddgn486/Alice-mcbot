@@ -111,72 +111,63 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
 - **Movement 合法位置集与统一完成契约（D-026）**：起点校验接受 `{fromFoot, toFoot}`；完成判定统一用 `MovementHelper.isSettledAtFootPos`（脚位 + 支撑 + onGround + 水平 ≤0.3）。
 - 客户端行为必须由 Windows 真人测试确认；源码分析和服务端日志不能替代。
 
-## 已验证的核心能力
+## 能力现状（2026-09-12 重写；旧版是 09-07 的 R2 阶段快照，已过时 ⇒ 见 git 历史）
 
-### MineTask 基线（已验收）
-- **场景 A/B/C**：`alice:mining_scene_tester` / `alice:mining_scene_b_tester` / `alice:mining_scene_c_tester`
-  - A：基础挖掘，无障碍
-  - B：有限清障（`TARGET_ACCESS_CLEAR`）
-  - C：动态障碍中途恢复（`BOTMINER_PATH_RETRY`）
-  - 证据：`.alice-supervision/client-tests/minetask-scene-{a,b,c}-20260905/evidence/`
-- **不可达安全失败**：初始 `UNREACHABLE` 直接 `FAILED/no_safe_execution_path`，不执行 BotMiner 或重规划
-  - 证据：`.alice-supervision/client-tests/minetask-unreachable-20260906/evidence/`
+### L0–L2 寻路内核（R1–R5 全部客户端验收）
+- **9+1 种 Movement 原语**（`MovementType`）：`TRAVERSE / DIAGONAL / ASCEND / DESCEND / DOWNWARD /
+  PILLAR / FALL / BREAK_AND_TRAVERSE / BREAK_AND_ENTER / PLACE_STEP_AND_TRAVERSE`
+  （COLUMN 空中平台由 `PathSession` 上层处理，见 D-056）。
+- **搜索与执行**：`AStarMovementSearch`（成本模型 + 启发式，D-040）→ `PathSession`（分段、完成容差、
+  段计时/漂移检测、重规划 D-043、`no_progress` 快速失败 D-105、自愈 D-041）。
+- **入口**：`alice:pathing_regression`（**18 场景 + 覆盖断言**，一次右键）、`alice:pathing_battery`、
+  以及各 `alice:pathing_*` 单项诊断（traverse/ascend/descend/diagonal/pillar/fall/downward/placer/breaker…）。
+- **红线纪律**：D-076（`PathRequest.of` 默认纯通行；破坏/放置必须显式授权 + 预算闸门）、
+  D-024（落差 ≤1）、D-025（台阶 0.6）、`SEARCH_LIMIT ≠ UNREACHABLE`。
 
-### 其他已验收能力
-- `alice:interface_scanner`：C1 只读扫描
-- `alice:pathfinding_tester`：轻量寻路移动器（摆位工具）
-- `alice:mining_replan_tester`：可视动态障碍夹具
-- WorldEdit 7.2.15：外部场景编辑工具，不加入构建依赖
+### L2 任务（已验收）
+- `MineTask`（站位选优 + 清障 + 恢复阶段）/ `CollectDropsTask`（簇级收集 + 守恒交叉校验）/
+  `PlaceTask` / `RestoreScopeTask`（恢复严格自上而下）/ `ScaffoldLifecycleTask`（搭-用-拆闭环）/
+  `WalkToTask` / `FollowTask` / `TransferTask`。
+- 一键回归：`alice:regression_battery`（**9 项，一次右键**；`mine_regression` 12 例、`lumber_failure_check` 6 例、
+  `clear_retry_check`、`write_budget_check`、`scaffold_check`、`clear_guard_check`、`pathing`、还有 `lumber_job`/`region_maintain`）。
 
-### Movement 物理实验（历史证据保留）
-- **实验 1-6**：BotController 输入 → aiStep 物理链、WalkMovement 单段/序列、一级上升/下降、动态阻挡分类（`BLOCKED_DYNAMIC` / `MOVEMENT_TIMEOUT` / `INVALID_PRECONDITION`）
-  - 证据：`.alice-supervision/client-tests/movement-physics-experiment-{1,2,3,4,5,6a,6b,6c}-20260906/evidence/`
-- **M0/M1/M2**：MovementPlan 契约、MovementPlanCompiler、BotMiner Movement 后端
-  - 已完成独立验证，**未接入正式 MineTask**
+### L3 目标层 `Job`（J1–J8 **已收工**，伐木=首个高级任务）
+- **契约七件**：`GoalSpec` / `Job` / `Candidate`+`CandidateSet` / `SelectionPolicy` /
+  `DecisionTrace` / `GoalProgress` / `Selection`；**两个真实消费者**：伐木（`LumberJob`，J1–J4/J7/J8）、
+  挖掘（`MineJob`，J5）。
+- **J6 世界修改账本**：`WorldModLedger`（`TEMP`/`KEEP` 策略 + 作用域）+ 建拆同权 +
+  `WriteBudget`（D-106 每作用域 64 breaks/32 places）+ 崩溃兜底 `pendingForOwner`（D-127）。
+- **J7 攀爬砍树**：`ScaffoldLifecycleTask` + 逐树会话内拆除（D-107/D-109）。
+- **J8 区域型 MAINTAIN**：`LumberRegionState`（持久化区域/我种的苗/待补种/baseline/统计）+
+  `RegionLumberJob`（巡查→复用一次性 `LumberJob` 砍一棵→继续巡查）+ 常驻（只由显式打断）+
+  垂直自适应 + 区域补种（`REGION_REPLANT` ⇒ 账本 `KEEP`）+ 玩家接口
+  `/alice region info|start|stop|set|sapling|idle-stop`（D-129/D-130/D-131）。
 
-## 当前架构阶段：Alice Pathing Core R2
+### 决策缝现状（**距离"LLM 决策层"还差什么**）
+- **已有**：候选从哪来（`CandidateSource`）、选哪个且**带理由**（`SelectionPolicy` + `[Job] pick … reason=`）、
+  可判读 trace、失败/终止码（`failureReason()` / `terminalReason` / `TaskExecutionRecord` /
+  `TaskOutcome` 的 `terminal` + `code` + `failureCode`）。
+- **没有**：真正的 LLM 调用、**给 LLM 的权威状态快照契约**、**动作词汇表**（"起哪个 Job + 什么 spec"）、
+  **触发节奏**（LLM 不能每 tick 调）。设计文档 §10 明确把这四项登记为"本设计不解决"。
 
-**目标**：构建 Baritone-like Movement-aware Pathing Core，加入可回收性、禁区/保护区、生存兜底和任务失败交接。
+### 项目立项目标的"三条与 Baritone 的差异"现状
+| # | 差异 | 现状 |
+|---|---|---|
+| ① | Bot **可回收性安全策略** | 概念已定义（`RecoverabilityLevel`/`IntrinsicReversibility`、PILLAR 返回守卫 D-058），但**全仓库 0 处读取** ⇒ 仍是空实现（风险清单 P0-B，2026-09-12 复核实测确认） |
+| ② | **多层失败上抛 → LLM 决策层** | 数据面齐（见上"决策缝"），**没有消费者**；上抛只到 `BotLog` + `TaskExecutionRecord` |
+| ③ | 未来 **bot 并行**接口 | 仅 `docs/MULTI_BOT_INTERFACE_RESERVATION.md` 预留 |
 
-**当前进度**：
-- ✅ **R1 契约草案**：`docs/ALICE_PATHING_CORE_R1_CONTRACT.md`
-- ✅ **R2-A 纯数据契约**：`pathing.core` 包（MovementSpec、PlanningDependency、LiveExecutionContext、MovementExecution 等）
-- ✅ **R2-B Traverse 执行器**：`TraverseExecution`、`TraverseExecutionFactory`、`TraverseDiagnosticTask`
-  - 入口：`/alice pathing traverse <north|south|east|west>`
-  - 验收状态：`USER_ACCEPTED`
-  - 工件：SHA-256 `fc0ad051208422882b5d8c1060bb4afe822552a1ef753ac5e0964b8e09e0fbbe`
-  - 证据：已归档 `.alice-supervision/client-tests/pathing-core-r2b-traverse-20260907/evidence/`
-- ✅ **R2-C 三种基础 Movement**：Diagonal / Ascend / Descend
-  - 入口：`/alice pathing diagonal|ascend|descend <direction>`
-  - 验收状态：`USER_ACCEPTED`（2026-09-07）
-  - 验收工件：SHA-256 `804c5eb897a5337a07ff11286332805b1f2a4227d41bf1cdd4e5622982ed98cf`
-  - 运行时清洁版（仅移除探针）：SHA-256 `9c0388aeafa77f9d7a32129dab5d0270d764a48f271e56cbee4ed048a2b8e8d9`
-  - 证据：已归档 `.alice-supervision/client-tests/pathing-core-r2c-movements-20260907/evidence/`
-  - 已知限制（用户裁定暂不处理）：Descend 落点过冲（自动踩台阶带上相邻方块边缘）、Ascend 偶发上层水平偏差
-  - 关键教训：Descend 下降检测必须用 `blockPosition().getY()` 而非 `getY()`；Ascend 一级台阶不需要跳跃
-- ⏸️ **R2-D 世界修改 Movement**：BreakAndTraverse、PlaceStepAndTraverse（未启动）
-- ⏸️ **R3 PathSession**：多段链接、搜索集成（未启动）
-  - ⚠️ **第 0 号闭环（硬前置，D-023）**：Descend 落点过冲修复——先调查 Baritone MovementDescend，再实现边缘切断输入 + 落点列前置校验，客户端验证"精确落点 + 多段不断链"。原因：过冲率 3/4，链式执行下必 stale-start；且过冲落点列从未被前置校验，是安全模型层面的洞
-
-**保留但未接入生产**：
-- Movement 实验 1-6 的物理验证链
-- M0/M1/M2 的 MovementPlan 与 BotMiner 后端
-- 旧 `PathExecutor` 继续作为兼容后端
-
-**设计文档**：
-- `docs/ALICE_PATHING_CORE_ARCHITECTURE.md`：总体架构基线
-- `docs/ALICE_PATHING_CORE_R1_CONTRACT.md`：R1 契约草案
-- `docs/ALICE_PATHING_CORE_R2_MOVEMENTS.md`：R2 Movement 设计
-- `docs/archive/legacy-2026-08/MINETASK_MOVEMENT_MVP_DESIGN.md`：历史方案，仅作参考
+### 历史证据（不再逐条列举）
+`.alice-supervision/client-tests/` 下保留 R2–R5、MineTask A/B/C、Movement 物理实验 1–6、各阶段验收证据目录；
+改动流水见 `docs/AI_CHANGELOG.md`，稳定裁定见 `docs/AI_DECISIONS.md`（D-001…D-131）。
 
 ## 当前不要做
 
-- ❌ 不删除旧 `PathExecutor` 或直接接入 MineTask
-- ❌ 不把隧道、搭路、实验性移动隐式接入普通挖矿（D-076）
-- ❌ 不把 `SEARCH_LIMIT` 当作 `UNREACHABLE` 或自动授权挖隧道
-- ❌ 不实施多 Bot 并行调度
-- ❌ R1/R2 契约未评审通过前，不扩展 MovementPlanCompiler 或给 WalkMovement 堆叠新语义
-- ❌ 不在完成 Descend 过冲修复（第 0 号闭环）前启动 R3 多段链接；也不得用放宽落点后置条件（如 1.0D）代替修复
+- ❌ 不把隧道、搭路、实验性移动**隐式**接入普通任务（D-076：必须显式授权 + 预算）
+- ❌ 不把 `SEARCH_LIMIT` 当作 `UNREACHABLE`，也不据此自动授权挖隧道
+- ❌ 不实施多 Bot 并行调度（只保留接口边界）
+- ❌ 不让 `SOFT_SURFACE` / 实验性 Movement 悄悄进入生产任务
+- ❌ 不在没有"预算 + 回收保证 + 残留策略"三件套时发放新的放置授权（§11-① 的 6 项要素）
 
 ## 开发工具链
 
