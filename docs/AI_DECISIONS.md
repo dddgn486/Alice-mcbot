@@ -4229,3 +4229,56 @@ region=x17..37 z203..231 baseY=58 maxH=48（垂直自适应） adaptiveTop=84 �
 —— 三条都拿到即三个玩家接口由"只有代码证据"升级为 `WINDOWS_CLIENT`。
 
 **验证等级**：IMPLEMENTED / COMPILES（客户端待测；结果见下方附注）。
+
+### D-131 附注（2026-09-12 13:35–13:39 客户端实测）：`stop` / `set` 拿到 `WINDOWS_CLIENT`，`idle-stop=true` 漏跑
+
+**拿到的证据（latest.log）**
+```
+13:35:31 右键 alice:region_lumber → [Job] maintain … viable=2 inRegion=2 mySaplings=3 baseline=5 deficit=0 interval=40
+13:35:35~52 逐棵 maintain tree@20/28/33,64,208 完成 chopped=1→2→3（每棵都在树桩 plant sapling@… KEEP）
+13:36:00 task_execution_terminal kind=RegionLumberJob startTick=531 endTick=1111 durationTicks=580
+                             terminal=CANCELLED_BY_USER code=cancelled:region_stop pos=28,64,214   ← ② 接口① ✓
+13:36:00 [alice] 已显式停止任务 RegionLumberJob（region_stop）；账本仍有 4 条我方临时方块未拆   ← 残留回执 ✓
+13:36:00 [alice] 任务收尾：清除残留移动输入（forward=1.00 strafing=0.00 …）                 ← 见下"意外收获"
+13:36:09 /alice region info → region=x17..37 z203..231 … baseline=5 mySaplings=3 chopped=21 planted=16
+                             patrols=65 autoIdleStop=false                                     ← ③ 打断不丢区域 ✓
+13:37:34 /alice region set ~ ~ ~ ~8 ~ ~8 → 新 x18..26 z230..238 baseY=64 maxH=48
+         [Job] maintain 区域重划 ⇒ 派生记账重置（旧 … → 新 …）：baseline=0，丢弃界外苗=3 待补种=0   ← ④ 接口② ✓
+13:37:46 region info → baseline=0 mySaplings=0（旧区域的 baseline=5 已被清掉 ⇒ D-131 修复点生效）
+13:37:55 /alice region start → 常驻巡查：viable=0 deficit=0 interval 40→80→160→320→600（4 分钟一直没结束）
+13:39:22 /alice region idle-stop false        ← **唯一一条 idle-stop 指令，而且是 false**
+13:39:46 玩家退出客户端
+```
+
+**结论**
+1. **接口① `/alice region stop` = `WINDOWS_CLIENT`**：终态 `CANCELLED_BY_USER` + `code=cancelled:region_stop` ✔；
+   区域在打断后**仍在**（`region info` 照旧读出 x17..37 z203..231）✔；残留回执如实报出 **4 条**未闭合临时方块
+   （当轮确实停在脚手架半路，pos=28,64,214）✔ —— 这条信息以前只在日志里。
+2. **接口② `/alice region set` = `WINDOWS_CLIENT`**：相对坐标 `~ ~ ~ ~8 ~ ~8` 划出 x18..26 z230..238、
+   `baseY=64`（取较低角）、`maxH=48`（区域语义默认值）✔；**重划确实重置了派生记账**
+   （`baseline=0`、界外苗丢弃 3 条），旧区域的 `baseline=5` 没有污染新区 ✔ —— 这正是 D-131 修的缺陷。
+3. **接口③ `idle-stop=true` 仍未验证**：用户这一轮只跑过 `idle-stop false`（13:39:22），
+   所以空区域在**常驻**（默认）语义下正确表现为"没有活干就退避巡查"，
+   `interval` 一路 40→80→160→320→600、任务不结束。**"看不到反应" = 空区域 + 常驻默认，不是回归**；
+   但也暴露一个**体验缺陷**：常驻任务没活干时**聊天里一个字都没有**（只有服务端日志），玩家无从判断。
+
+**意外收获（第 4 条修复其实是真缺陷，不是"潜在"）**：`/alice region stop` 那一刻控制器里
+**确实残留着 `forward=1.00`**（打断发生在走位途中）—— 归零前的日志把它抓了现行。
+若不修，玩家会看到"命令说停了、bot 还在往前走"。
+
+**本轮新增（针对"看不到反应"，IMPLEMENTED / COMPILES 待测）**
+1. **常驻任务不许是黑箱**（§13.1）：`RegionLumberJob` 接一个可空 `observer`（`assignRegionLumber` 传入），
+   - **首次**巡查发现"区域内没有可作业的树"⇒ 聊天回一句现场状态 + 怎么收工：
+     `区域 x… z… 里没有可作业的树（viable=0 mySaplings=0 deficit=0）——常驻巡查中（间隔退避到 600 tick，等树长大；要它收工用 /alice region stop）`；
+     `idle-stop=true` 时报的是"连续 3 次无活就收工"。**只提示一次**，不刷屏。
+   - **终态**也回聊天：`idle_no_work` ⇒ `区域没有活干了（无树无苗无欠）⇒ idle_no_work 收工；想让它常驻就用 /alice region idle-stop false 再 /alice region start`；
+     `FAILED` ⇒ `区域任务失败：<failure>`。
+   - 观察者已退出/被移除时不再写连接（常驻任务可能比玩家在线时间还长）。
+2. **`baseline=0` 的每轮重推噪声**：`baselineTrees<=0` 被当成"还没推导"，而空区域推出来就是 0 ⇒
+   每轮巡查重推 + 重打一行（实测每 600 tick 一行、永久刷下去）。改为持久化的
+   **`baselineDerived` 标记**（重划区域时作废；旧存档 `baseline>0` 视为已推导，不冲掉历史目标）。
+   判据：空区域常驻时 `区域目标棵数 baseline=…` 只出现**一次**。
+
+**待测**：`idle-stop=true` ⇒ `SUMMARY … reason=idle_no_work → DONE` + 上面两条聊天。
+**路径**：区域已经划好（x18..26 z230..238），`/alice region start` 后跑一句 `/alice region idle-stop true`
+即可（`idlePatrols` 已经 ≥3，下一轮巡查就会收工，最多 30 s），不必重划。

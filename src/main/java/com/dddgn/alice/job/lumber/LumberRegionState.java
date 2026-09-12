@@ -106,6 +106,14 @@ public final class LumberRegionState extends SavedData {
         /** **区域目标棵数**（首次巡查时按当时的可作业树数确定；区域"欠树"就是相对它算的）。 */
         private int baselineTrees;
         /**
+         * 目标棵数是否**已按本区域推导过**。
+         *
+         * <p>为什么不能用 `baselineTrees == 0` 当"还没推导"：**空区域推导出来的结果就是 0**，
+         * 于是每一轮巡查都会重推一次、重打一行 `区域目标棵数 baseline=0`（2026-09-12 实测：常驻空区域
+         * 每 600 tick 刷一行噪声，永久刷下去）。重划区域会让它作废（见 {@link #setRegion}）。
+         */
+        private boolean baselineDerived;
+        /**
          * 是否"连续无活就自动收工"（旧设计的默认行为，`IDLE_NO_WORK`）。
          *
          * <p>用户 2026-09-12 裁定：**常驻任务本就该只由玩家/决策层显式打断**，所以默认 {@code false}
@@ -164,6 +172,7 @@ public final class LumberRegionState extends SavedData {
         entry.region = region;
         if (previous != null && !previous.equals(region)) {
             entry.baselineTrees = 0;
+            entry.baselineDerived = false;
             int droppedSaplings = dropOutside(entry.mySaplings, region);
             int droppedReplant = dropOutside(entry.pendingReplant, region);
             com.dddgn.alice.log.BotLog.info("[Job] maintain 区域重划 ⇒ 派生记账重置 "
@@ -293,6 +302,18 @@ public final class LumberRegionState extends SavedData {
         setDirty();
     }
 
+    /** 目标棵数是否已按当前区域推导过（false ⇒ 下一次巡查推一次）。 */
+    public boolean baselineDerived(UUID owner) {
+        Entry entry = entry(owner, false);
+        return entry != null && entry.baselineDerived;
+    }
+
+    public void setBaselineDerived(UUID owner, boolean derived) {
+        Entry entry = entry(owner, true);
+        entry.baselineDerived = derived;
+        setDirty();
+    }
+
     // ==================== 巡查与统计 ====================
 
     public void markPatrol(UUID owner, long tick) {
@@ -349,6 +370,9 @@ public final class LumberRegionState extends SavedData {
             }
             entry.saplingItem = tag.contains("sapling_item") ? tag.getString("sapling_item") : null;
             entry.baselineTrees = tag.getInt("baseline");
+            // 旧存档没有这个标记：正数目标棵数视为"已推导"（别把历史目标冲掉）；0 则允许推一次
+            entry.baselineDerived = tag.contains("baseline_derived")
+                    ? tag.getBoolean("baseline_derived") : entry.baselineTrees > 0;
             entry.autoIdleStop = tag.getBoolean("auto_idle_stop");
             entry.lastPatrolTick = tag.getLong("last_patrol");
             entry.treesChopped = tag.getInt("chopped");
@@ -388,6 +412,7 @@ public final class LumberRegionState extends SavedData {
                 tag.putString("sapling_item", entry.saplingItem);
             }
             tag.putInt("baseline", entry.baselineTrees);
+            tag.putBoolean("baseline_derived", entry.baselineDerived);
             tag.putBoolean("auto_idle_stop", entry.autoIdleStop);
             tag.putLong("last_patrol", entry.lastPatrolTick);
             tag.putInt("chopped", entry.treesChopped);

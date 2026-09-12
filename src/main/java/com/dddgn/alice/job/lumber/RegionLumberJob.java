@@ -67,6 +67,12 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
     private final SelectionPolicy policy;
     private final int patrolIntervalTicks;
     private final int maxTicks;
+    /**
+     * 玩家观察者（可空；夹具/电池里可能没有）。**常驻任务不能是黑箱**（§13.1）：
+     * "区域里没有活干、正在等什么、怎么让它收工"必须能在聊天里看到，
+     * 否则玩家只会看到 bot 站着不动（2026-09-12 实测：空区域常驻 = 看起来"没有任何反应"）。
+     */
+    private final net.minecraft.server.level.ServerPlayer observer;
 
     private final Set<net.minecraft.core.BlockPos> tried = new LinkedHashSet<>();
     private final List<String> failureNotes = new ArrayList<>();
@@ -84,10 +90,19 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
     private String terminalReason = "";
     private String failure = "";
     private boolean terminated;
+    /** 本会话是否已就"没有活干"提示过玩家（只提示一次，别刷屏）。 */
+    private boolean toldNoWork;
 
     public RegionLumberJob(BotPlayer bot, LumberRegionState.Region region, ScopeBuffer scope,
                            LumberCandidateSource source, SelectionPolicy policy,
                            int patrolIntervalTicks, int maxTicks) {
+        this(bot, region, scope, source, policy, patrolIntervalTicks, maxTicks, null);
+    }
+
+    public RegionLumberJob(BotPlayer bot, LumberRegionState.Region region, ScopeBuffer scope,
+                           LumberCandidateSource source, SelectionPolicy policy,
+                           int patrolIntervalTicks, int maxTicks,
+                           net.minecraft.server.level.ServerPlayer observer) {
         this.bot = bot;
         this.region = region;
         this.scope = scope;
@@ -96,6 +111,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         this.patrolIntervalTicks = Math.max(1, patrolIntervalTicks);
         this.currentPatrolInterval = this.patrolIntervalTicks;
         this.maxTicks = maxTicks;
+        this.observer = observer;
     }
 
     @Override
@@ -193,12 +209,15 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         }
         int mySaplings = state.mySaplingCount(bot.getUUID());
         int standing = viableInRegion + mySaplings;
-        if (state.baselineTrees(bot.getUUID()) <= 0) {
+        if (!state.baselineDerived(bot.getUUID())) {
             // 区域目标棵数 = 首次巡查时"站着的可作业树 + 我种的苗"（= standing）。
             // **把我种的苗算进去**（2026-09-12 J8 收尾）：在一片"已经砍完、只剩苗"的地块上启动时，
             // 目标不会退化成 0（否则那一轮之后再也补不回"欠 N 棵"的区域不变量）；
             // 空区域仍然是 0 ⇒ 仍然可以如实待机（`idle_no_work`）。
+            // 判据是**持久化的"已推导"标记**（不是 `baseline<=0`）：空区域推出来的结果就是 0，
+            // 拿 0 当"没推导"会让常驻空区域每轮重推一次、永久刷日志（2026-09-12 实测）。
             state.setBaselineTrees(bot.getUUID(), standing);
+            state.setBaselineDerived(bot.getUUID(), true);
             BotLog.info("[Job] maintain 区域目标棵数 baseline={}"
                             + "（首次巡查确定 = 现场可作业树 {} + 我种的苗 {}；之后按它算欠树）",
                     standing, viableInRegion, mySaplings);
@@ -226,6 +245,19 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
 
         if (inRegion.isEmpty()) {
             idlePatrols++;
+            if (!toldNoWork) {
+                // **常驻任务不能是黑箱**（§13.1）：玩家划完区、start 之后如果什么都没发生，
+                // 至少要说清"现在是什么状态、在等什么、怎么收工"（2026-09-12 客户端实测：
+                // 空区域常驻 ⇒ 玩家只看到 bot 站着不动，以为"没有任何反应"）。
+                toldNoWork = true;
+                tell("区域 " + region.describe() + " 里没有可作业的树"
+                        + "（viable=" + viableInRegion + " mySaplings="
+                        + state.mySaplingCount(bot.getUUID()) + " deficit=" + deficit + "）——"
+                        + (state.autoIdleStop(bot.getUUID())
+                        ? "idle-stop=true：连续 " + IDLE_PATROLS + " 次无活就收工（idle_no_work）"
+                        : "常驻巡查中（间隔退避到 " + MAX_PATROL_INTERVAL_TICKS + " tick，等树长大；"
+                        + "要它收工用 /alice region stop）"));
+            }
             if (idlePatrols >= IDLE_PATROLS) {
                 if (!failureNotes.isEmpty()) {
                     // §13.3：区域里有树但全不可达 ⇒ FAILED no_reachable_candidate + 逐树理由
@@ -431,6 +463,22 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
                 LumberRegionState.get(bot.getServer()).baselineTrees(bot.getUUID()),
                 String.valueOf(LumberRegionState.get(bot.getServer()).saplingItem(bot.getUUID())),
                 terminalReason, status);
+        // 终态也回聊天（否则"任务悄悄结束/悄悄失败"只有日志里看得到）
+        if ("idle_no_work".equals(terminalReason)) {
+            tell("区域没有活干了（无树无苗无欠）⇒ idle_no_work 收工；"
+                    + "想让它常驻就用 /alice region idle-stop false 再 /alice region start");
+        } else if (status == com.dddgn.alice.task.Task.Status.FAILED) {
+            tell("区域任务失败：" + failure);
+        }
         return status;
+    }
+
+    /** 给玩家观察者回一句（没有观察者、或观察者已退出就只留在日志里）。 */
+    private void tell(String text) {
+        // 常驻任务可能比玩家的在线时间还长：退出/被移除后不要再往那条连接写（安全兜底）
+        if (observer == null || observer.hasDisconnected() || observer.isRemoved()) {
+            return;
+        }
+        observer.sendSystemMessage(net.minecraft.network.chat.Component.literal("[alice] " + text));
     }
 }

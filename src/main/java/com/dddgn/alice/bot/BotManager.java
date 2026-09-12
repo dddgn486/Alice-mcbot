@@ -609,7 +609,7 @@ public final class BotManager {
                         ? "-" : state.saplingItem(bot.getUUID()));
         session.beginTask(new com.dddgn.alice.job.lumber.RegionLumberJob(bot, region,
                         session.scope(), new com.dddgn.alice.job.lumber.LumberCandidateSource(),
-                        new com.dddgn.alice.job.policy.NearestPolicy(), 40, 24000),
+                        new com.dddgn.alice.job.policy.NearestPolicy(), 40, 24000, observer),
                 TaskTarget.block(region.center()));
         broadcastTarget(session.target);
         return true;
