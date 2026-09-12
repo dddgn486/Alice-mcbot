@@ -4666,3 +4666,41 @@ WSL 侧对照：`curl -4` 直连 `api.deepseek.com` **22 ms / HTTP 401**（401 =
 3. **修我自己的 bug**：`idleDecisionEnabled=false` 配了却没读 —— 空闲触发没有加闸，
    导致空闲时每 ~10 s 反复发请求（全部超时）。已在 `GoalDirector.tick` 里补上这道闸
    （教训与 D-132 附注三同源：**配置项存在 ≠ 被读；闸必须有判据**）。
+
+### D-135 附注二（2026-09-12 15:35 复测 + 系统取证）：**不是代码、不是地址，是那个 JVM 的外网被安全软件静默丢弃**
+
+```
+15:35:11 [Goal] llm_dns host=api.deepseek.com → 36.147.63.115 120.226.37.16     ← DNS 正常
+15:35:11 [Goal] llm_request id=1 proxy=127.0.0.1:7897
+15:35:21 [Goal] llm_proxy_failed proxy=127.0.0.1:7897 HttpConnectTimeoutException ⇒ 改直连重试一次
+15:35:31 [Goal] llm_transport_error after 20055ms: HttpConnectTimeoutException   ← 直连也超时
+```
+
+**系统取证（逐条事实）**
+| 检查 | 结果 |
+|---|---|
+| Windows 系统代理 | `ProxyEnable=1`、`ProxyServer=127.0.0.1:7897`；`netstat` 显示 **mihomo(PID 26228) 正在听**，且有大量 ESTABLISHED ⇒ 代理本身活着 |
+| Windows 防火墙 | `Get-NetFirewallProfile`：Domain/Private/Public **Enabled=False**（全关）⇒ 不是它 |
+| 第三方安全软件 | **火绒 HIPS 在跑**（`HipsDaemon.exe`、`HipsTray.exe`） |
+| Windows `curl.exe` 直连 API | `http=401 connect=0.066s` ⇒ 机器出网正常（401 = 只差鉴权） |
+| Windows `curl.exe` 走代理 | `http=401 connect=0.0008s` ⇒ 代理对普通进程也正常 |
+| Minecraft 的 JVM | `D:\JDK-21\bin\java.exe`；代理与直连**都** `HttpConnectTimeoutException` |
+
+⇒ **结论：该 JVM 进程的外网 TCP 被静默丢弃（丢弃=连接超时，不是拒绝），头号嫌疑是火绒的联网控制**
+（Windows 防火墙已排除）。这与 JVM 版本/代码无关：同一台机器、同一目标 IP，`curl` 通、`java.exe` 不通。
+
+**两条修法（都落地）**
+1. **正解（需要用户操作）**：把 `D:\JDK-21\bin\java.exe` 加进火绒的"允许联网"（或首次弹窗时选允许）。
+   之后可把 `config/alice-llm.json` 的 `relayUrl` 清空，让 mod 直接走 API。
+2. **开发兜底（本轮已通）**：`tools/llm-relay.py` —— 跑在 **WSL**（那侧直连 API 22 ms 正常），
+   把 `POST /chat/completions` 原样转发上游；mod 只需访问 `http://127.0.0.1:8791/chat/completions`
+   （Windows→WSL 的 localhost 转发）。**已从 Windows 侧验证**：`curl.exe → http=200`（11 ms）。
+   启动：`python3 tools/llm-relay.py --port 8791`（key 只从配置读，不打印；只监听 127.0.0.1）。
+
+**mod 侧硬化（本轮）**：`LlmClient` 改为**路径矩阵** —— 依次试 `relay` → `api+proxy` → `api+direct`，
+取第一条成功的并**记住**（`chosenPath`），失败时清空记忆下次重探；每条路径逐条登记
+`[Goal] path_try name=… target=… proxy=… → ok/异常`，成功记 `[Goal] path_selected`。
+这样"哪条路通"变成**一行可读证据**，而不是靠猜；也让"用户关掉代理/开了火绒规则"之后无需改代码即可自愈。
+
+**教训**：诊断网络问题必须**分层取证**（OS 层 curl → 代理层 → 进程层 → JVM 层），
+"同一台机器 curl 通、程序不通"几乎一定指向**进程级策略**（安全软件/防火墙/沙箱），而不是代码。

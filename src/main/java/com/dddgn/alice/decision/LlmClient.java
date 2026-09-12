@@ -82,23 +82,9 @@ public final class LlmClient {
         long started = System.currentTimeMillis();
         return CompletableFuture.supplyAsync(() -> {
             try {
-                URI uri = URI.create(config.url());
-                // 诊断：把 DNS 解析结果打出来（IPv6 不通 / DNS 污染 这类问题一眼可见）
-                logDns(uri);
-                BotLog.info("[Goal] llm_request id={} model={} promptChars={} proxy={}", id, config.model(),
-                        userPrompt.length(), config.proxy().isBlank() ? "直连" : config.proxy());
-                HttpResponse<String> response;
-                try {
-                    response = send(config, uri, body.toString(), config.proxy());
-                } catch (java.io.IOException first) {
-                    if (config.proxy().isBlank()) {
-                        throw first;
-                    }
-                    // 代理不通 ⇒ **直连兜底**（用户可能把代理关了），并如实登记走了哪条路
-                    BotLog.warn("[Goal] llm_proxy_failed id={} proxy={} {} ⇒ 改直连重试一次",
-                            id, config.proxy(), first.getClass().getSimpleName());
-                    response = send(config, uri, body.toString(), "");
-                }
+                BotLog.info("[Goal] llm_request id={} model={} promptChars={}（路径矩阵见 path_try）",
+                        id, config.model(), userPrompt.length());
+                HttpResponse<String> response = sendWithPathMatrix(id, config, body.toString());
                 long latency = System.currentTimeMillis() - started;
                 if (response.statusCode() / 100 != 2) {
                     String detail = response.body() == null ? "" : truncate(response.body(), 200);
@@ -120,6 +106,65 @@ public final class LlmClient {
                 return new Reply(false, "", "transport:" + ex.getClass().getSimpleName(), latency);
             }
         }, EXECUTOR);
+    }
+
+    /** 记住上一次成功的路径（名字），避免每次都把矩阵试一遍。 */
+    private static volatile String chosenPath;
+
+    /**
+     * **路径矩阵**（D-135 附注二）：按顺序试 —— 本地中继 → API+代理 → API+直连，取第一条成功的，
+     * 并**记住**它；每条路径的成败都如实登记（`path_try`），失败时清空记忆以便下次重新探测。
+     *
+     * <p>为什么需要矩阵：2026-09-12 实测某个 JVM 的外网连接被安全软件静默丢弃（超时），
+     * 而同一台机器上的 `curl.exe` 与 WSL 都通 —— 单一路径无法自愈，也不足以定位。
+     */
+    private static HttpResponse<String> sendWithPathMatrix(int id, LlmConfig config, String payload)
+            throws java.io.IOException, InterruptedException {
+        java.util.List<String[]> candidates = new java.util.ArrayList<>();
+        if (!config.relayUrl().isBlank()) {
+            candidates.add(new String[]{"relay", config.relayUrl()});
+        }
+        if (!config.proxy().isBlank()) {
+            candidates.add(new String[]{"api+proxy", config.url()});
+        }
+        candidates.add(new String[]{"api+direct", config.url()});
+        String remembered = chosenPath;
+        if (remembered != null) {
+            for (String[] candidate : candidates) {
+                if (candidate[0].equals(remembered)) {
+                    candidates.remove(candidate);
+                    candidates.add(0, candidate);
+                    break;
+                }
+            }
+        }
+        java.io.IOException last = null;
+        for (String[] candidate : candidates) {
+            String name = candidate[0];
+            String target = candidate[1];
+            String proxy = "relay".equals(name) ? "" : ("api+direct".equals(name) ? "" : config.proxy());
+            URI uri = URI.create(target);
+            logDns(uri);
+            try {
+                long started = System.currentTimeMillis();
+                HttpResponse<String> response = send(config, uri, payload, proxy);
+                long elapsed = System.currentTimeMillis() - started;
+                BotLog.info("[Goal] path_try name={} target={} proxy={} → ok status={} {}ms",
+                        name, target, proxy.isBlank() ? "-" : proxy, response.statusCode(), elapsed);
+                chosenPath = name;
+                return response;
+            } catch (java.io.IOException ex) {
+                last = ex;
+                BotLog.warn("[Goal] path_try name={} target={} proxy={} → {}（{}）",
+                        name, target, proxy.isBlank() ? "-" : proxy,
+                        ex.getClass().getSimpleName(), ex.getMessage());
+            }
+        }
+        chosenPath = null;
+        if (last != null) {
+            throw last;
+        }
+        throw new java.io.IOException("no_candidate_path");
     }
 
     /** 按（代理/连接超时）建 client 并发送（每次新建：配置可热改，调用频率很低）。 */

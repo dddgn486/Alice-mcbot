@@ -36,13 +36,15 @@ public final class LlmConfig {
     private final int maxTokens;
     private final boolean idleDecisionEnabled;
     private final String proxy;
+    private final String relayUrl;
     private final int connectTimeoutMs;
     private final String loadNote;
 
     private LlmConfig(boolean enabled, String url, String model, String apiKey, int timeoutMs,
                       int maxRequestsPerMinute, int minIntervalTicks, int idleTriggerTicks,
                       int maxReplyChars, String systemPrompt, int maxTokens,
-                      boolean idleDecisionEnabled, String proxy, int connectTimeoutMs, String loadNote) {
+                      boolean idleDecisionEnabled, String proxy, String relayUrl, int connectTimeoutMs,
+                      String loadNote) {
         this.enabled = enabled;
         this.url = url;
         this.model = model;
@@ -56,6 +58,7 @@ public final class LlmConfig {
         this.maxTokens = maxTokens;
         this.idleDecisionEnabled = idleDecisionEnabled;
         this.proxy = proxy;
+        this.relayUrl = relayUrl;
         this.connectTimeoutMs = connectTimeoutMs;
         this.loadNote = loadNote;
     }
@@ -94,6 +97,7 @@ public final class LlmConfig {
                     integer(root, "maxTokens", 2000),
                     bool(root, "idleDecisionEnabled", false),
                     str(root, "proxy", ""),
+                    str(root, "relayUrl", ""),
                     integer(root, "connectTimeoutMs", 10000),
                     "已加载");
         } catch (Exception ex) {
@@ -103,7 +107,7 @@ public final class LlmConfig {
     }
 
     private static LlmConfig defaults(String note) {
-        return new LlmConfig(false, "", "", "", 25000, 6, 100, 400, 2000, "", 2000, false, "", 10000, note);
+        return new LlmConfig(false, "", "", "", 25000, 6, 100, 400, 2000, "", 2000, false, "", "", 10000, note);
     }
 
     private static void writeTemplate(Path path) {
@@ -123,6 +127,7 @@ public final class LlmConfig {
                       "maxTokens": 2000,
                       "idleDecisionEnabled": false,
                       "proxy": "",
+                      "relayUrl": "",
                       "connectTimeoutMs": 10000,
                       "systemPrompt": ""
                     }
@@ -209,6 +214,18 @@ public final class LlmConfig {
         return Math.max(1000, connectTimeoutMs);
     }
 
+    /**
+     * **本地中继地址**（开发环境兜底，`POST` 到它就是纯 HTTP loopback）。
+     *
+     * <p>为什么需要：2026-09-12 实测——机器网络正常（Windows `curl.exe` 直连/代理都通），
+     * 但 Minecraft 的 JVM（`D:\JDK-21\bin\java.exe`）**外网连接被安全软件静默丢弃**
+     * （Windows 防火墙全关，机器上跑着火绒 HipsDaemon；丢弃表现为连接超时）。
+     * 此时 mod 走 `http://127.0.0.1:<relay>`（WSL 侧中继，见 `tools/llm-relay.py`）即可绕过。
+     */
+    public String relayUrl() {
+        return relayUrl;
+    }
+
     /** 可用 = 打开 + 有 URL + 有 key。 */
     public boolean usable() {
         return enabled && !url.isBlank() && !apiKey.isBlank();
@@ -221,6 +238,7 @@ public final class LlmConfig {
                 + " timeout=" + timeoutMs + "ms 间隔>=" + minIntervalTicks + "tick"
                 + " 空闲触发=" + (idleDecisionEnabled ? idleTriggerTicks + "tick" : "关")
                 + " maxTokens=" + maxTokens + " proxy=" + (proxy.isBlank() ? "直连" : proxy)
+                + " relay=" + (relayUrl.isBlank() ? "无" : relayUrl)
                 + " (" + loadNote + ")";
     }
 }

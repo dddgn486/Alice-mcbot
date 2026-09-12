@@ -113,6 +113,26 @@
 > D-099 一次性方块，同一病灶第三次同形）。
 > **不要**再按"破坏速度 ≤ 1"判断夹具漏料：树叶这类东西本来就没有更快工具（2026-09-12 实测，8/8 全是清障树叶噪声）。
 
+### 1.11 决策层（② 第 2 步，D-135）——`alice:goal_director` + 出网路径
+
+```
+# 前提：先起本地中继（WSL 侧，能直连 API 的那一侧）
+python3 tools/llm-relay.py --port 8791        # 只监听 127.0.0.1，key 从 config 读且不打印
+# 验证：curl.exe -s -m 10 -o /dev/null -w "%{http_code}\n" -X POST http://127.0.0.1:8791/chat/completions \
+#        -H "Content-Type: application/json" -d '{"model":"deepseek-flash","messages":[{"role":"user","content":"ping"}]}'
+#       （期望 200；实测 Windows→WSL 中继 11 ms）
+
+右键 alice:goal_director
+期望：[Goal] path_try name=relay … → ok status=200 …ms
+      [Goal] llm_dns host=127.0.0.1 → 127.0.0.1
+      [Goal] llm_reply id=1 latency=…ms chars=…
+      [Goal] decision_action trigger=manual raw={"action":…} → StartJob(…) / Refused(…)
+      [Goal] execute action=… ok=…
+```
+> **路径矩阵**：`relay` → `api+proxy`（系统代理按配置）→ `api+direct`，取第一条成功的并记住；
+> 每条都打 `path_try`。实测某环境里 Minecraft 的 `java.exe` 外网被火绒静默丢弃（curl 却通），
+> 此时只有 `relay` 那条能过 —— 用户把 `java.exe` 加进安全软件允许列表后可清空 `relayUrl` 回到直连。
+
 ### 1.10 统一 Job 入口 + 终态契约（② 第 1 步，D-134）——一个零参数右键
 
 ```
