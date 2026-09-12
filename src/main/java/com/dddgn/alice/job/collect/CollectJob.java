@@ -1,0 +1,205 @@
+package com.dddgn.alice.job.collect;
+
+import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.job.GoalSpec;
+import com.dddgn.alice.job.Job;
+import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.perception.ScopeBuffer;
+import com.dddgn.alice.task.CollectDropsTask;
+import com.dddgn.alice.task.Task;
+import com.dddgn.alice.task.TaskNode;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.phys.AABB;
+
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+
+/**
+ * **掉落物搜索 + 捡拾**（用户 2026-09-12 要求进任务候选 / D-137）。
+ *
+ * <p>为什么单独做成 Job 而不是"顺手收集"：捡拾在**别的任务里**是收尾动作（`CollectDropsTask` 被
+ * 伐木/挖掘复用），但**玩家或决策层也可能想单独捡一次**（"把地上那堆东西捡回来"）。
+ * 之前只有"收尾"用法，没有"主动去捡"的入口 —— 本 Job 补上：
+ * <pre>
+ * SCAN（读事实：范围内有哪些掉落物）→ 挑最近的一簇 → COLLECT（复用已验收的 CollectDropsTask）
+ *   → 回来继续 SCAN，直到没得捡 / 达配额 / 超时
+ * </pre>
+ *
+ * <p>**安全边界（重要）**：默认**只捡"我方的"掉落物**（`ScopeBuffer` 登记过的：我方破坏事件产生、
+ * 或夹具显式收养的）。要捡**任意无主掉落物**必须显式 {@code anyDrops=true} —— 因为它可能包括
+ * **玩家自己的东西**；这个开关**不进 LLM 动作词汇表**（等 S3 请示通道：捡玩家物品要走 ASK）。
+ */
+public final class CollectJob implements Job {
+
+    public static final String NAME = "collect";
+
+    private enum Phase { SCAN, COLLECT, DONE }
+
+    private final BotPlayer bot;
+    private final GoalSpec spec;
+    private final ScopeBuffer scope;
+    private final int radius;
+    private final boolean anyDrops;
+
+    private Phase phase = Phase.SCAN;
+    private CollectDropsTask current;
+    private int ticks;
+    private int collectedItems;
+    private int clusters;
+    private String terminalReason = "";
+    private String failure = "";
+    private boolean terminated;
+
+    public CollectJob(BotPlayer bot, GoalSpec spec, ScopeBuffer scope, boolean anyDrops) {
+        this.bot = bot;
+        this.spec = spec;
+        this.scope = scope;
+        this.radius = spec.radius();
+        this.anyDrops = anyDrops;
+    }
+
+    @Override
+    public String jobName() {
+        return NAME;
+    }
+
+    @Override
+    public com.dddgn.alice.task.TaskTarget target() {
+        BlockPos anchor = current != null ? current.target().blockPos() : bot.blockPosition();
+        return com.dddgn.alice.task.TaskTarget.block(anchor);
+    }
+
+    @Override
+    public String progressSummary() {
+        return "collected=" + collectedItems + " clusters=" + clusters + " phase=" + phase;
+    }
+
+    @Override
+    public List<TaskNode> subTasks() {
+        if (current == null) {
+            return List.of();
+        }
+        return List.of(TaskNode.leaf("CollectDropsTask", current.target().describe(), phase.name(),
+                ticks, "collected=" + current.collected()));
+    }
+
+    @Override
+    public String terminalReason() {
+        return terminalReason;
+    }
+
+    @Override
+    public String failureReason() {
+        return failure;
+    }
+
+    @Override
+    public Task.Status tick() {
+        if (terminated) {
+            return Task.Status.DONE;
+        }
+        if (++ticks > spec.maxTicks()) {
+            return finish(Task.Status.DONE, "goal_timeout");
+        }
+        if (current != null) {
+            return collect();
+        }
+        return scan();
+    }
+
+    // ==================== SCAN ====================
+
+    private Task.Status scan() {
+        List<ItemEntity> drops = dropsInRange();
+        if (drops.isEmpty()) {
+            return finish(Task.Status.DONE, collectedItems > 0 ? "collected" : "none_found");
+        }
+        // 取最近的一簇（以最近那一件为锚）
+        ItemEntity nearest = null;
+        double bestDistance = Double.MAX_VALUE;
+        for (ItemEntity drop : drops) {
+            double distance = drop.distanceToSqr(bot);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                nearest = drop;
+            }
+        }
+        if (nearest == null) {
+            return finish(Task.Status.DONE, collectedItems > 0 ? "collected" : "none_found");
+        }
+        BlockPos anchor = nearest.blockPosition();
+        List<java.util.UUID> ids = new ArrayList<>();
+        for (ItemEntity drop : drops) {
+            if (drop.blockPosition().distSqr(anchor) <= 9.0D) {   // 同一簇：锚点周围 3×3×3
+                ids.add(drop.getUUID());
+                if (ids.size() >= 16) {
+                    break;
+                }
+            }
+        }
+        BotLog.info("[Job] collect pick cluster@{} drops={} nearest={} anyDrops={}",
+                anchor.toShortString(), ids.size(),
+                String.format(java.util.Locale.ROOT, "%.1f", Math.sqrt(bestDistance)), anyDrops);
+        current = new CollectDropsTask(bot, anchor, scope, ids, false,
+                Math.max(200, spec.maxTicks() - ticks));
+        phase = Phase.COLLECT;
+        return Task.Status.RUNNING;
+    }
+
+    /** 范围内待捡的掉落物：默认**只认我方登记过的**（安全），显式 anyDrops 才扫世界。 */
+    private List<ItemEntity> dropsInRange() {
+        if (!anyDrops) {
+            List<ItemEntity> ours = new ArrayList<>();
+            for (ItemEntity item : scope.liveDrops()) {
+                if (item.isAlive() && item.distanceToSqr(bot) <= (double) radius * radius) {
+                    ours.add(item);
+                }
+            }
+            return ours;
+        }
+        AABB box = bot.getBoundingBox().inflate(radius);
+        return bot.serverLevel().getEntitiesOfClass(ItemEntity.class, box, ItemEntity::isAlive);
+    }
+
+    // ==================== COLLECT ====================
+
+    private Task.Status collect() {
+        Task.Status status = current.tick();
+        if (status == Task.Status.RUNNING) {
+            return Task.Status.RUNNING;
+        }
+        // inner 的 collected() 是它这一趟的净增量 ⇒ 直接累加（不再自造"差值"口径）
+        int gained = Math.max(0, current.collected());
+        collectedItems += gained;
+        clusters++;
+        BotLog.info("[Job] collect cluster@{} done status={} collected={}（累计 {}）",
+                current.target().blockPos().toShortString(), status, gained, collectedItems);
+        boolean innerFailed = status == Task.Status.FAILED;
+        String innerReason = current.failureReason();
+        current = null;
+        phase = Phase.SCAN;
+        if (innerFailed && collectedItems < spec.quota()) {
+            // 一簇捡不动不判死：如实记一笔，继续找下一簇（与伐木"换候选"同一哲学）
+            BotLog.warn("[Job] collect cluster_failed reason={} ⇒ 继续扫下一簇", innerReason);
+        }
+        if (collectedItems >= spec.quota()) {
+            return finish(Task.Status.DONE, "quota_met");
+        }
+        return Task.Status.RUNNING;
+    }
+
+    private Task.Status finish(Task.Status status, String reason) {
+        terminated = true;
+        phase = Phase.DONE;
+        bot.controller().stopMovement();
+        terminalReason = reason;
+        if (status == Task.Status.FAILED) {
+            failure = reason;
+        }
+        BotLog.info("[Job] collect SUMMARY reason={} collected={} clusters={} ticks={} → {}",
+                reason, collectedItems, clusters, ticks, status);
+        return status;
+    }
+}

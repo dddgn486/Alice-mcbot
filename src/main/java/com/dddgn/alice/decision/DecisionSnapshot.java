@@ -97,6 +97,50 @@ public final class DecisionSnapshot {
             root.add("region", regionNode);
         }
 
+        // S1 事实层：**任务树**（Job → 内嵌子任务 → 阶段）——"汇报当前完整情况"的核心
+        JsonArray tree = new JsonArray();
+        if (session != null && session.currentTask() != null) {
+            var current = session.currentTask();
+            String progress = current instanceof com.dddgn.alice.job.Job job
+                    ? job.progressSummary() : "";
+            var children = current instanceof com.dddgn.alice.job.Job job
+                    ? job.subTasks() : java.util.List.<com.dddgn.alice.task.TaskNode>of();
+            JsonObject node = new JsonObject();
+            node.addProperty("kind", current.taskName());
+            node.addProperty("target", session.currentTarget() == null
+                    ? "-" : session.currentTarget().describe());
+            node.addProperty("ticks", bot.getServer().getTickCount() - session.taskStartTick());
+            node.addProperty("progress", progress);
+            if (!children.isEmpty()) {
+                JsonArray childArray = new JsonArray();
+                for (var child : children) {
+                    JsonObject childNode = new JsonObject();
+                    childNode.addProperty("kind", child.kind());
+                    childNode.addProperty("target", child.target());
+                    childNode.addProperty("phase", child.phase());
+                    childNode.addProperty("ticks", child.ticks());
+                    childNode.addProperty("progress", child.progress());
+                    childNode.addProperty("lastFailure", child.lastFailure());
+                    childArray.add(childNode);
+                }
+                node.add("children", childArray);
+            }
+            tree.add(node);
+        }
+        root.add("tree", tree);
+
+        // S1 事实层：**最近事件环**（危险/失败/恢复/达成）——汇报按需读，不推送
+        JsonArray events = new JsonArray();
+        for (var event : BotEventLog.recent(bot, 12)) {
+            JsonObject eventNode = new JsonObject();
+            eventNode.addProperty("tick", event.tick());
+            eventNode.addProperty("type", event.type());
+            eventNode.addProperty("severity", event.severity());
+            eventNode.addProperty("summary", event.summary());
+            events.add(eventNode);
+        }
+        root.add("recentEvents", events);
+
         int pendingTemp = com.dddgn.alice.ledger.WorldModLedger
                 .pendingForOwner(bot.serverLevel().getServer(), bot.getUUID()).size();
         JsonObject world = new JsonObject();

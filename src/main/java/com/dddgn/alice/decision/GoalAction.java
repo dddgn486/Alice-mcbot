@@ -95,6 +95,8 @@ public sealed interface GoalAction {
             case "lumber" -> new StartJob(JobRequest.lumber(center, radius, quota, maxTicks), note, clamps);
             case "mine" -> new StartJob(JobRequest.mine(center, radius, quota, maxTicks, productTag),
                     note, clamps);
+            case "collect" -> new StartJob(JobRequest.collect(center, radius, quota, maxTicks,
+                    false), note, clamps);   // anyDrops 不放给 LLM（捡玩家物品要走 S3 请示）
             case "region_lumber", "region" -> {
                 var region = com.dddgn.alice.job.lumber.LumberRegionState.get(bot.getServer())
                         .region(bot.getUUID());

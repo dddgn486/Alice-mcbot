@@ -4756,3 +4756,45 @@ HttpClient 的内部任务排不进来 ⇒ **死锁**：请求发不出去，超
 "同一台机器 `curl` 通、程序不通"虽然是进程级策略的经典特征，但**它同样**是
 "执行器/线程模型自己有毛病"的经典特征 —— 判据是"换成独立线程池 + 不共用 executor 后是否立刻恢复"，
 而不是"哪个安全软件最可疑"。
+
+## D-136 S1 事实层：任务树 + 事件环 + 状态报告（2026-09-12）
+
+**背景**：决策层三条通道（`DECISION_LAYER_DESIGN.md` §2）里"汇报"这条此前**没有事实底座** ——
+`BotSession` 只暴露顶层任务，内层在干什么（内嵌 `LumberJob` 砍哪棵树、卡在哪个阶段）不可见，
+"汇报当前完整情况"无从谈起。
+
+**落地**
+1. `task/TaskNode`（新）：任务树节点的**只读摘要**（kind/target/phase/ticks/progress/lastFailure/children）；
+2. `Job.subTasks()`（默认空）：有内嵌结构的 Job 覆写 —— `LumberJob`（内嵌 MineTask/CollectDropsTask/
+   RestoreScopeTask）、`RegionLumberJob`（内嵌 LumberJob）、`MineJob`（内嵌 MineTask/CollectDropsTask）；
+3. `decision/BotEventLog`（新）：每 bot 定长事件环（32 条，类型 DANGER/FAILURE/RECOVERY/MILESTONE/
+   COMBAT/COMMAND）。**按需读，不推送**（LLM 不该每 tick 收东西）；
+4. `DecisionSnapshot` 增加 `tree` 与 `recentEvents` —— **玩家报告与 LLM 快照共用同一份事实**
+   （所以"报告错了"与"LLM 看到的错了"不可能分叉）；
+5. `decision/BotStateReport`（新）：把同一份 JSON 渲染成聊天可读多行（任务树缩进 + 上次终态
+   （含 `terminalReason`）+ 背包 + 账本 + 事件倒序）；
+6. 零参数入口 `alice:bot_report`；完整 JSON 同时进日志 `[Report] json=…` 便于逐字段核对；
+7. 事件钩子：任务终态（COMPLETED⇒MILESTONE / 其他⇒FAILURE，带 `terminalReason`）、
+   维生中断（DANGER）。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待测；判据 = 报告字段与实际一致、事件环顺序正确）。
+
+## D-137 掉落物搜索 + 捡拾进任务候选（用户 2026-09-12 要求）
+
+**用户原话**："像捡拾掉落物的子任务，最好也加入任务候选里，只是包装成掉落物搜索加捡拾，有时候还是会用到。"
+
+**为什么之前没有**：捡拾一直只是**收尾动作**（`CollectDropsTask` 被伐木/挖掘复用），没有"**主动去捡**"的入口。
+
+**落地**
+- `job/collect/CollectJob`（新）：`SCAN`（读事实：范围内有哪些掉落物 → 挑最近一簇）
+  → `COLLECT`（复用**已验收**的 `CollectDropsTask`，簇内最多 16 件）→ 回来继续 `SCAN`，
+  直到没得捡 / 达配额 / 超时；终态理由 `collected` / `quota_met` / `none_found` / `goal_timeout`；
+  一簇捡不动**不判死**（记一笔继续下一簇，与伐木"换候选"同一哲学）。
+- `JobRequest.Kind.COLLECT` + `JobLauncher` 分支 + 词汇表 `{"action":"start_job","kind":"collect",…}`；
+  同时把早已存在却**零消费者**的 `GoalSpec.Kind.COLLECT_ITEMS`/`collectItems(...)` 用起来（总账 §3 J-5）。
+- **安全边界（重要）**：默认**只捡我方登记过的掉落物**（`ScopeBuffer`，我方破坏事件产生或夹具显式收养）；
+  捡**任意无主掉落物**需 `anyDrops=true`，而它**不进 LLM 动作词汇表** —— 因为那可能包括**玩家自己的东西**，
+  要等 S3 请示通道（捡玩家物品必须 ASK）。`JobRequest` 里的 `anyDrops` 字段只给夹具/命令用。
+- 验证入口：`alice:collect_job`（零参数）—— 夹具在 bot 旁生成 3 堆圆石并 `adoptExistingDrops` 登记，
+  再起 `COLLECT`（走**安全默认**那条路）。判据：`[Job] collect pick cluster@…` →
+  `done collected=…` → `SUMMARY reason=collected`；**玩家自己的东西不动**。

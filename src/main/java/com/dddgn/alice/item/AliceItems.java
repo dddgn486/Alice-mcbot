@@ -165,6 +165,14 @@ public final class AliceItems {
     public static final RegistryObject<Item> LUMBER_FAILURE_CHECK =
             ITEMS.register("lumber_failure_check", () -> new LumberFailureCheckItem(new Item.Properties()));
 
+    /** D-137 掉落物搜索+捡拾自检（零参数）：夹具生成掉落物并登记为我方 ⇒ 起 COLLECT Job。 */
+    public static final RegistryObject<Item> COLLECT_JOB =
+            ITEMS.register("collect_job", () -> new CollectJobItem(new Item.Properties()));
+
+    /** S1 状态汇报（零参数）：任务树 + 生存 + 背包 + 最近事件 + 账本（确定性事实）。 */
+    public static final RegistryObject<Item> BOT_REPORT =
+            ITEMS.register("bot_report", () -> new BotReportItem(new Item.Properties()));
+
     /** D-135 决策层自检（零参数）：打印 LLM 配置 + 权威快照 + 强制一次目标级决策。 */
     public static final RegistryObject<Item> GOAL_DIRECTOR =
             ITEMS.register("goal_director", () -> new GoalDirectorItem(new Item.Properties()));

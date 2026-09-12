@@ -133,6 +133,17 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
     }
 
     @Override
+    public java.util.List<com.dddgn.alice.task.TaskNode> subTasks() {
+        java.util.List<com.dddgn.alice.task.TaskNode> children = new java.util.ArrayList<>();
+        if (current != null) {
+            children.add(new com.dddgn.alice.task.TaskNode("LumberJob(inner)",
+                    current.target().describe(), "HARVEST", ticks, current.progressSummary(),
+                    "", current.subTasks()));
+        }
+        return children;
+    }
+
+    @Override
     public String terminalReason() {
         return terminalReason;
     }

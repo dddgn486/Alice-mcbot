@@ -37,6 +37,9 @@ public final class JobLauncher {
                         stack -> stack.is(Items.COBBLESTONE), 12, "cobblestone");
             }
             case MINE -> FixtureToolKit.ensurePickaxe(bot);
+            case COLLECT -> {
+                // 捡拾不需要工具/材料（纯通行 + 原版拾取），无需发料
+            }
             case REGION_LUMBER -> {
                 FixtureToolKit.ensureAxe(bot);
                 FixtureToolKit.ensurePickaxe(bot);
@@ -72,6 +75,10 @@ public final class JobLauncher {
                     new com.dddgn.alice.job.mine.MineCandidateSource(
                             mineTargetFor(bot, request), request.radius()),
                     policy);
+            case COLLECT -> new com.dddgn.alice.job.collect.CollectJob(bot,
+                    GoalSpec.collectItems(request.center(), request.radius(), request.quota(), null,
+                            request.maxTicks()),
+                    scope, request.anyDrops());
             case REGION_LUMBER -> {
                 if (request.region() == null) {
                     throw new IllegalArgumentException("REGION_LUMBER 请求必须带 region");

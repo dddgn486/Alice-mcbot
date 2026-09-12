@@ -101,6 +101,21 @@ public final class MineJob implements Job {
     }
 
     @Override
+    public java.util.List<com.dddgn.alice.task.TaskNode> subTasks() {
+        java.util.List<com.dddgn.alice.task.TaskNode> children = new java.util.ArrayList<>();
+        if (miner != null) {
+            children.add(com.dddgn.alice.task.TaskNode.leaf("MineTask",
+                    miner.target().describe(), phase.name(), ticks,
+                    "cleared=" + miner.clearedBlocks()));
+        }
+        if (collector != null) {
+            children.add(com.dddgn.alice.task.TaskNode.leaf("CollectDropsTask",
+                    collector.target().describe(), phase.name(), ticks, ""));
+        }
+        return children;
+    }
+
+    @Override
     public String terminalReason() {
         return terminalReason;
     }

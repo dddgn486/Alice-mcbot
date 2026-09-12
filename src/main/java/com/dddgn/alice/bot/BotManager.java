@@ -1144,6 +1144,16 @@ public final class BotManager {
             return target;
         }
 
+        /** 当前任务本体（S1 事实层：汇报需要遍历 Job 的子任务树；无任务为 null）。 */
+        public Task currentTask() {
+            return task;
+        }
+
+        /** 当前任务启动 tick（汇报里算"已跑多久"）。 */
+        public long taskStartTick() {
+            return taskStartTick;
+        }
+
         public TaskExecutionRecord lastExecutionRecord() {
             return lastExecutionRecord;
         }
@@ -1291,6 +1301,10 @@ public final class BotManager {
                 complete(lastTaskResult, TaskExecutionRecord.TerminalStatus.SURVIVAL_INTERRUPTED);
                 // **否决必须带出口**（用户规矩）：问维生要一个安全落点，用已验收的 WalkTo 走过去。
                 startSurvivalExit();
+                // S1 事实层：危险进事件环（DANGER）——汇报与阈值（S4）都读它
+                com.dddgn.alice.decision.BotEventLog.record(bot, "DANGER", "warn",
+                        "维生中断 " + SurvivalSystem.interruptionReason(hazard),
+                        "pos=" + bot.blockPosition().toShortString());
                 // D-135：维生中断也通知决策层（逃生已经起好，决策层决定"逃生之后干什么"）
                 com.dddgn.alice.decision.GoalDirector.onSurvivalInterrupt(bot,
                         SurvivalSystem.interruptionReason(hazard));
@@ -1362,6 +1376,12 @@ public final class BotManager {
             }
             reportItems();
             clearTask();
+            // S1 事实层：任务终态进事件环（达成=MILESTONE，失败=FAILURE）
+            com.dddgn.alice.decision.BotEventLog.record(bot,
+                    terminalStatus == TaskExecutionRecord.TerminalStatus.COMPLETED ? "MILESTONE" : "FAILURE",
+                    terminalStatus == TaskExecutionRecord.TerminalStatus.COMPLETED ? "info" : "warn",
+                    taskKind + " " + terminalStatus + " " + resultCode,
+                    lastExecutionRecord == null ? "" : "reason=" + lastExecutionRecord.terminalReason());
             // D-135：任务终态是最自然的"下一步做什么"时机 —— 交给决策层（有节流）
             com.dddgn.alice.decision.GoalDirector.onTaskTerminal(bot, taskKind,
                     lastExecutionRecord == null ? "" : lastExecutionRecord.terminalReason());

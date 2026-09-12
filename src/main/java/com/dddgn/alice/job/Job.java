@@ -31,4 +31,15 @@ public interface Job extends Task {
      * "达成了" 与 "背包满了提前收工"，否则无法断言。
      */
     String terminalReason();
+
+    /**
+     * **子任务摘要**（S1 事实层 / D-136）：内层正在干什么。
+     *
+     * <p>默认空列表（顶层 Job 没有内嵌子任务时）。有内嵌结构的 Job（如 `LumberJob` 内嵌
+     * `MineTask`/`CollectDropsTask`、`RegionLumberJob` 内嵌 `LumberJob`）覆写它，
+     * 汇报通道与决策层据此看到**真实的任务树**，而不是只有顶层名字。
+     */
+    default java.util.List<com.dddgn.alice.task.TaskNode> subTasks() {
+        return java.util.List.of();
+    }
 }

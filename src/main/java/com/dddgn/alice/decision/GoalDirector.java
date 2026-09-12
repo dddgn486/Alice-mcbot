@@ -39,6 +39,8 @@ public final class GoalDirector {
             可选动作（严格 JSON，单个对象，不要多余文字）：
             1. {"action":"start_job","kind":"lumber","radius":16,"quota":2,"maxTicks":3600}
             2. {"action":"start_job","kind":"mine","radius":16,"quota":8,"maxTicks":3600,"productTag":"#forge:ores/iron"}
+            2b. {"action":"start_job","kind":"collect","radius":16,"quota":8,"maxTicks":1200}
+                // 掉落物搜索 + 捡拾；**只捡我方造成的掉落物**（不会捡玩家的东西）
             3. {"action":"start_job","kind":"region_lumber","maxTicks":24000}   // 只能用"已保存的区域"（玩家划定）
             4. {"action":"stop_current","reason":"..."}
             5. {"action":"report_status","note":"..."}
