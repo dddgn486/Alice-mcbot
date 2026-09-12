@@ -97,10 +97,11 @@ SCENES = {
     "chest_step_course": dict(scenes=["chest_step_course_terrain"], start=(1, 64, 126), goals=[(2, 65, 126)]),
     "slab_step_course":  dict(scenes=["slab_step_course_terrain"], start=(4, 64, 145), goals=[(8, 64, 145)]),
     "dip_course":        dict(scenes=["dip_course_terrain"], start=(0, 64, 66), goals=[(-1, 64, 63)]),
+    # 下面两个的"过不去"是**内核策略**（不游泳 / 不跨栅栏），不是几何隔断 ⇒ 保守模型不判其目标
     "fluid_course":      dict(scenes=["fluid_course_terrain"], start=(0, 64, 66),
-                              goals=[(4, 64, 66)], expect_gap=True),
+                              goals=[(4, 64, 66)], policy_only=True),
     "fence_course":      dict(scenes=["fence_course_terrain"], start=(0, 64, 48),
-                              goals=[(0, 64, 44)], expect_gap=True),
+                              goals=[(0, 64, 44)], policy_only=True),
     "lava_course":       dict(scenes=["lava_course_terrain"], start=(0, 64, 66),
                               goals=[(4, 64, 66)], needs_world_mod=True),
 }
@@ -309,17 +310,27 @@ def check(name, spec, verbose=False, warn_only=False, quiet=False):
     goals = [tuple(g) for g in spec.get("goals", [])]
     expect_gap = bool(spec.get("expect_gap", False))
     needs_world_mod = bool(spec.get("needs_world_mod", False))
+    policy_only = bool(spec.get("policy_only", False))
 
     scene = scene_of(names, start)
     entry, reachable, all_stands = flood(scene, start)
     results = scan_targets(scene, reachable)
     stranded = sorted(all_stands - reachable)
 
-    bad_targets = [t for (t, stands, ok) in results if not ok]
+    # **硬伤**：目标有合法站位、但**全部不可达** ⇒ 通道被封（D-117 的签名，确定是场景缺陷）
+    # **软提示**：目标**没有**合法站位 ⇒ 需要清障/协助才能作业（属 `analyze-lumber-scene.py`
+    #           的判定范围：那里会算"需要清几格、是否根本做不到"）。两者混在一起会淹掉真信号。
+    # **硬伤**：目标有合法站位、却**全部不可达** ⇒ 通道被封/区域被隔断（D-117 的签名；
+    #         实测历史封死版本正是这样（高云杉 22/23,64,218/219 全部 0 可达））。
+    # **软提示**：目标**没有**合法站位 ⇒ 需要清障/协助才能作业（伐木的正常流程）。
+    #   ⚠ 已登记的盲区：像"从来就看不见目标、必须清障"的那类（19/24），本工具只给软提示 ——
+    #   "清障是否可行"由 `analyze-lumber-scene.py` 的 soft/hard 判定，且它**不计可达性**。
+    hard = [t for (t, stands, ok) in results if stands and not ok]
+    soft = [t for (t, stands, ok) in results if not stands]
     bad_goals = []
     for goal in goals:
-        if needs_world_mod:
-            continue                      # 保守模型不覆盖破坏/放置/加高通行，不判
+        if needs_world_mod or policy_only:
+            continue                      # 保守模型不覆盖破坏/放置/加高通行，也不判"策略拒绝"场景
         got = goal_reachable(reachable, goal)
         if expect_gap and got:
             bad_goals.append((goal, "应当不可达，却可达（测试前提失效）"))
@@ -329,23 +340,20 @@ def check(name, spec, verbose=False, warn_only=False, quiet=False):
     if not quiet:
         print("=" * 78)
         print("场景 %s  起点=%s(实际 %s)  函数=%s" % (name, start, entry, ", ".join(names)))
-        print("可达站位 %d 格；搁浅站位 %d 格；原木/矿石目标 %d 个（无可达站位 %d 个）；目标格 %d 个%s"
-              % (len(reachable), len(stranded), len(results), len(bad_targets), len(goals),
-                 "（需世界修改通行，保守模型跳过）" if needs_world_mod else ""))
+        print("可达站位 %d 格；搁浅站位 %d 格；目标 %d 个（封航线 %d 个 / 需清障或协助 %d 个）；目标格 %d 个%s"
+              % (len(reachable), len(stranded), len(results), len(hard), len(soft), len(goals),
+                 "（需世界修改通行，保守模型跳过）" if needs_world_mod
+                 else ("（策略拒绝场景，保守模型跳过目标判定）" if policy_only else "")))
         for target, stands, ok in results:
             if ok and not verbose:
                 continue
+            tag = "✗ 封航线" if (stands and not ok) else "… 需清障/协助"
             print("  %s 目标 %-14s 合法站位 %2d，可达 %2d%s"
-                  % ("✓" if ok else "✗", target, len(stands), len(ok),
+                  % (tag, target, len(stands), len(ok),
                      "" if stands else "（附近没有合法站位）"))
         for goal, why in bad_goals:
             print("  ✗ 目标格 %-14s %s" % (goal, why))
-        if verbose:
-            ys = [p[1] for p in reachable]
-            for line in render_slice(scene, reachable, all_stands, min(ys), max(ys)):
-                print("   " + line)
-
-    failed = bool(bad_targets) or bool(bad_goals)
+    failed = bool(hard) or bool(bad_goals)
     return 1 if (failed and not warn_only) else 0
 
 
@@ -376,7 +384,7 @@ def selftest() -> int:
     world = MultiFixtureWorld([floor, sealed])
     scene = ana.Scene(world, start, start)
     _, reachable, _ = flood(scene, start)
-    sealed_ok = any(not ok for (_, _, ok) in scan_targets(scene, reachable))
+    sealed_ok = any(stands and not ok for (_, stands, ok) in scan_targets(scene, reachable))
 
     world2 = MultiFixtureWorld([floor, open_lane])
     scene2 = ana.Scene(world2, start, start)
@@ -419,7 +427,7 @@ def main() -> int:
                 missing.append(name)
                 continue
             try:
-                if check(name, spec, args.verbose, warn_only=True, quiet=not args.verbose) != 0:
+                if check(name, spec, args.verbose, warn_only=False, quiet=not args.verbose) != 0:
                     failures.append(name)
             except Exception as exc:                       # 单场景失败不拖垮整轮
                 print("  ! 场景 %s 检查异常：%s" % (name, exc))
@@ -440,18 +448,21 @@ def _check_paths(paths, start, verbose, warn_only):
     scene = ana.Scene(world, start, start)
     entry, reachable, all_stands = flood(scene, start)
     results = scan_targets(scene, reachable)
-    bad = [(t, s) for (t, s, ok) in results if not ok]
+    hard = [t for (t, stands, ok) in results if stands and not ok]
+    soft = [t for (t, stands, ok) in results if not stands]
     print("=" * 78)
-    print("起点=%s(实际 %s)  可达站位 %d 格  目标 %d 个，无可达站位 %d 个"
-          % (start, entry, len(reachable), len(results), len(bad)))
+    print("起点=%s(实际 %s)  可达站位 %d 格  目标 %d 个（封航线 %d / 需清障或协助 %d）"
+          % (start, entry, len(reachable), len(results), len(hard), len(soft)))
     for target, stands, ok in results:
-        print("  %s 目标 %-14s 合法站位 %2d 可达 %2d"
-              % ("✓" if ok else "✗", target, len(stands), len(ok)))
+        tag = "✓" if ok else ("✗ 封航线" if stands else "… 需清障/协助")
+        if ok and not verbose:
+            continue
+        print("  %s 目标 %-14s 合法站位 %2d 可达 %2d" % (tag, target, len(stands), len(ok)))
     if verbose:
         ys = [p[1] for p in reachable]
         for line in render_slice(scene, reachable, all_stands, min(ys), max(ys)):
             print("   " + line)
-    return 0 if (not bad or warn_only) else 1
+    return 1 if (hard and not warn_only) else 0
 
 
 if __name__ == "__main__":
