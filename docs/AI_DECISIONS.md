@@ -3684,3 +3684,22 @@ D-116（① 扫尾/② 对账）、D-117（伐木通道）等此前各项 ✓。
 
 **验证等级**：IMPLEMENTED / COMPILES（客户端待跑：串联回归电池应仍 9/9，且日志出现推导后的
 `trunkHeight=/gain<=/blockBudget=/budgetTicks=`）。
+
+### D-123 附注（2026-09-12 09:40 客户端实测：**9/9 PASS**，推导算术语料齐）
+
+```
+[Regression] SUMMARY … (9/9) ticks=2407 → PASS
+[Scaffold] sweep_up_start anchor=40,70,46 foot=39,69,46 live_drops=1 budgetTicks=180（仍在架上，就地收）
+[Job] lumber sweep_up_start foot=22,69,207 live_drops=1 trunkHeight=3 gain<=4 blockBudget=4 budgetTicks=280
+[Job] lumber sweep_up_start foot=28,65,208 live_drops=1 trunkHeight=7 gain<=8 blockBudget=8 budgetTicks=380
+```
+**关键点：一轮里出现了两个不同的树干高（3 与 7）** ⇒ 公式确实是**输入驱动**的，而不是换个地方写死：
+- `trunkHeight=3` → `min(3+1,12)=4` 步、块预算 4、tick `120+1×60+4×25=280` ✓
+- `trunkHeight=7` → `min(7+1,12)=8` 步、块预算 8、tick `120+1×60+8×25=380` ✓
+- 不加高的 ① 扫尾（scaffold 夹具）→ `120+1×60+0×25=180` ✓
+
+行为未变：电池 9/9，`lumber_job` 4/4、`mine_job` 4/4、`mine_regression` 11/11、`lumber_failure` 5/5 全绿
+（预算变化被真实扫尾路径覆盖）。
+
+**验证等级**：`WINDOWS_CLIENT`（推导算术语料 + 行为回归双证据）。仍未覆盖（沿用 D-123 登记）：
+`trunkHeight+1 > 12` 的**截断分支**与 ① 扫尾**超时分支**。

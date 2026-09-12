@@ -206,8 +206,12 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
 5. 噪声 = 隐患：报警只报**可行动**的病症（不再按"破坏速度 ≤ 1"报警，树叶本来就没更快工具）。
 
 **待办（按我建议的优先级）**
-1. **R3 常量标定**：`MAX_CLEAR_PER_TREE=8` / `DEFAULT_GAIN_BLOCK_BUDGET=12` / `COLLECT_GAIN_PROFILE withGain(8)` /
-   `SWEEP_UP_BUDGET_TICKS=200` 目前是按**本测试场景**反推的；改成从树高/规格推导（`MAX_GAIN_PER_TREE=3` 是用户裁定，不动）。
+1. ~~**R3 常量标定**~~ ✅ **已完成（D-123，`WINDOWS_CLIENT` 2026-09-12 09:40）**：
+   查出身时纠正了范围——`MAX_CLEAR_PER_TREE=8`（`JOB_LAYER_DESIGN §9-4`）与
+   `DEFAULT_GAIN_BLOCK_BUDGET=12`（**用户裁定**）是**裁定常量**，不动；真正场景反推的只有 ① 扫尾的
+   `withGain(8)` 与 `SWEEP_UP_BUDGET_TICKS=200`，已改为 `MiningProfile.sweepGain(trunkHeight)` +
+   `CollectDropsTask.suggestedSweepTicks(drops, profile)`，并把推导过程打进日志（一轮内两个树干高 3/7
+   的算术都被核对过）。未覆盖：截断分支（`trunkHeight+1>12`）与 ① 扫尾超时分支。
 2. **R4 作用域语义陷阱**：`ScopeBuffer.begin()` 会清掉已登记掉落物归属 ⇒ 重开作用域后收集变瞎；
    只有 J7 Step 1 夹具用了 `adoptExistingDrops`。给它一个通用接入点（或让 `begin` 可选保留）。
 3. **夹具工程**：R5 配额与场景解耦（`lumber_course` 可行树数 = 4 与 Job 默认配额耦合）；
