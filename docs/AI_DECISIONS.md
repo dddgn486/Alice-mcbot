@@ -4857,3 +4857,29 @@ HttpClient 的内部任务排不进来 ⇒ **死锁**：请求发不出去，超
 候选 id 直接取 `Candidate.id()`（与 Job 决策日志同一口径）；被拒候选记一行
 `[Goal] candidate_menu rejected(不可做)=…`（诚实：菜单只给能做的，不能做的如实登记）。
 这正是项目既有规矩"夹具/菜单的候选必须复用规划器 provider（可规划即可执行）"。
+
+## D-140 S3 请示层（服务端契约与闸门，2026-09-12）
+
+**落地**（客户端弹窗 UI 归 **S3b**，本步先做契约 + 闸门 + 聊天等价入口）
+1. `decision/PermissionGate`（新）：
+   - 能力分级 `AUTO / NOTIFY / ASK / IGNORE`（默认表在代码里，玩家可改、可 `always` 持久化）；
+   - `request(bot, capability, reason, options, default, timeoutTicks)` —— 命中 `AUTO`/`NOTIFY` 立即放行
+     （`NOTIFY` 记一行提醒）、`IGNORE` 立即拒绝、有 `session`/`always` 授权直接放行；
+     否则**登记请示并返回 `null`**（调用方继续 tick，**绝不阻塞**）；
+   - **己答复/己超时的结论按 bot+能力暂存，调用方下一次 `request()` 取走一次** ——
+     这是"每 tick 轮询"语义的关键（否则会无限重复问）；
+   - **超时按默认档落档**（用户裁定：`ASK` 默认=拒绝），并留审计；
+   - `PermissionsData`（SavedData）持久化 `always` 级策略。
+2. `/alice ask`（列出未决请示）/ `/alice ask <id> <option> [once|session|always]`（**只有玩家/控制台能批**）/
+   `/alice policy`（查看）/ `/alice policy <capability> <AUTO|NOTIFY|ASK|IGNORE>`（修改并持久化）。
+3. 快照与报告新增 `pendingRequests`：玩家报告显示"⚠ 未决请示（等玩家拍板；超时按默认档）"，
+   决策层也能看到"有人在等玩家拍板"，不会误判为"卡住"。
+4. `alice:permission_demo`（零参数）+ `PermissionDemoTask`：发起 `demo_ask`（默认 deny、30 s 超时）⇒
+   `allow` = 执行演示能力；`deny`/不答 = **自动返回**并如实记终态理由。
+5. 顺带把 `terminalReason()` 提到 `Task` 层（默认空串）——原先只有 `Job` 有，普通任务（请示演示、诊断类）
+   的终态理由在记录里永远是空串；`BotManager` 改为从 `Task` 取值。
+
+**判据**：`[Perm] request id=p1 capability=demo_ask … default=deny deadlineIn=600tick` →
+`/alice ask` 列出 → 答复 `allow` ⇒ `[Perm] answer … option=allow` + 任务 `terminalReason=allowed`；
+不答 ⇒ 30 s 后 `[Perm] timeout … ⇒ 按默认档 deny` + `terminalReason=denied:timeout`（**自动返回**）。
+**验证等级**：IMPLEMENTED / COMPILES（客户端待测）。

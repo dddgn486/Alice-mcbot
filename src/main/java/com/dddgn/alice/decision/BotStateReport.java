@@ -102,6 +102,19 @@ public final class BotStateReport {
             lines.add("可做（候选菜单）：空");
         }
 
+        JsonArray pendingRequests = snapshot.getAsJsonArray("pendingRequests");
+        if (pendingRequests != null && !pendingRequests.isEmpty()) {
+            lines.add("⚠ 未决请示（等玩家拍板；超时按默认档）：");
+            for (var element : pendingRequests) {
+                JsonObject request = element.getAsJsonObject();
+                lines.add("  " + request.get("id").getAsString()
+                        + " capability=" + request.get("capability").getAsString()
+                        + " 默认=" + request.get("default").getAsString()
+                        + " —— " + request.get("reason").getAsString()
+                        + "（答复：/alice ask <id> allow|deny [once|session|always]）");
+            }
+        }
+
         JsonArray events = snapshot.getAsJsonArray("recentEvents");
         if (events.isEmpty()) {
             lines.add("最近事件：无");

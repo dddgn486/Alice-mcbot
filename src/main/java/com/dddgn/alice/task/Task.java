@@ -28,6 +28,17 @@ public interface Task {
     String failureReason();
 
     /**
+     * **终止理由**（DONE 与 FAILED 都有；非 Job 任务默认为空串）。
+     *
+     * <p>为什么提到 `Task` 层：D-134 起终态记录会把"任务自己报的终止理由"落档（`terminalReason`），
+     * 原先只对 `Job` 取值 ⇒ 普通任务（如请示演示、诊断类）永远是空串。
+     * 现在任何任务都能报 —— `Job` 仍然是抽象要求（它必须给理由）。
+     */
+    default String terminalReason() {
+        return "";
+    }
+
+    /**
      * 任务身份（D-082）：世界写入授权与失败归因里的"谁"。
      * 默认取类名；需要更短/更稳定的名字时覆写（如 Job 用 {@code lumber}）。
      */

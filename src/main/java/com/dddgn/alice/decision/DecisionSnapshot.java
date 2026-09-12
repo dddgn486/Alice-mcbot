@@ -149,6 +149,19 @@ public final class DecisionSnapshot {
         }
         root.add("recentEvents", events);
 
+        // S3：**未决请示** —— 决策层要知道"有人在等玩家拍板"，别把它当成"卡住"
+        JsonArray pendingRequests = new JsonArray();
+        for (var request : PermissionGate.pending(bot)) {
+            JsonObject node = new JsonObject();
+            node.addProperty("id", request.id());
+            node.addProperty("capability", request.capability());
+            node.addProperty("reason", request.reason());
+            node.addProperty("default", request.defaultOption());
+            node.addProperty("deadlineTick", request.deadlineTick());
+            pendingRequests.add(node);
+        }
+        root.add("pendingRequests", pendingRequests);
+
         int pendingTemp = com.dddgn.alice.ledger.WorldModLedger
                 .pendingForOwner(bot.serverLevel().getServer(), bot.getUUID()).size();
         JsonObject world = new JsonObject();

@@ -243,6 +243,26 @@ public final class BotCommand {
                 .then(Commands.literal("ledger")
                         .executes(ctx -> ledger(ctx.getSource(), false))
                         .then(Commands.literal("all").executes(ctx -> ledger(ctx.getSource(), true))))
+                // S3 请示通道：查看/答复未决请示 + 查看/修改能力分级
+                .then(Commands.literal("ask")
+                        .executes(ctx -> askList(ctx.getSource()))
+                        .then(Commands.argument("id", StringArgumentType.word())
+                                .then(Commands.argument("option", StringArgumentType.word())
+                                        .executes(ctx -> askAnswer(ctx.getSource(),
+                                                StringArgumentType.getString(ctx, "id"),
+                                                StringArgumentType.getString(ctx, "option"), "once"))
+                                        .then(Commands.argument("scope", StringArgumentType.word())
+                                                .executes(ctx -> askAnswer(ctx.getSource(),
+                                                        StringArgumentType.getString(ctx, "id"),
+                                                        StringArgumentType.getString(ctx, "option"),
+                                                        StringArgumentType.getString(ctx, "scope")))))))
+                .then(Commands.literal("policy")
+                        .executes(ctx -> policyList(ctx.getSource()))
+                        .then(Commands.argument("capability", StringArgumentType.word())
+                                .then(Commands.argument("policy", StringArgumentType.word())
+                                        .executes(ctx -> policySet(ctx.getSource(),
+                                                StringArgumentType.getString(ctx, "capability"),
+                                                StringArgumentType.getString(ctx, "policy"))))))
                 .then(Commands.literal("auto-mine")
                         .then(Commands.argument("tag", StringArgumentType.string())
                                 .executes(ctx -> autoMine(ctx.getSource(),
@@ -645,6 +665,72 @@ public final class BotCommand {
                 ? "[alice] 可持续伐木区已启动 region=" + region.describe()
                 : "[alice] bot 正忙，稍后再试"), false);
         return ok ? 1 : 0;
+    }
+
+    /** {@code /alice ask}：列出未决请示（S3 / D-140）。 */
+    private static int askList(CommandSourceStack source) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendSuccess(() -> Component.literal("[alice] 没有可用 bot"), false);
+            return 0;
+        }
+        var pending = com.dddgn.alice.decision.PermissionGate.pending(bot);
+        if (pending.isEmpty()) {
+            source.sendSuccess(() -> Component.literal("[alice] 没有未决请示"), false);
+            return 1;
+        }
+        for (var request : pending) {
+            long remaining = request.deadlineTick() - source.getServer().getTickCount();
+            source.sendSuccess(() -> Component.literal("[alice] " + request.id()
+                    + " capability=" + request.capability() + " 默认=" + request.defaultOption()
+                    + " 剩余=" + remaining + "tick —— " + request.reason()
+                    + "（/alice ask " + request.id() + " allow|deny [once|session|always]）"), false);
+        }
+        return 1;
+    }
+
+    /** {@code /alice ask <id> <option> [scope]}：玩家答复请示（**只有玩家/配置能批准**）。 */
+    private static int askAnswer(CommandSourceStack source, String id, String option, String scope) {
+        com.dddgn.alice.decision.PermissionGate.Scope parsed;
+        try {
+            parsed = com.dddgn.alice.decision.PermissionGate.Scope
+                    .valueOf(scope.trim().toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            source.sendSuccess(() -> Component.literal("[alice] scope 只能是 once/session/always"), false);
+            return 0;
+        }
+        String by = source.getEntity() instanceof net.minecraft.server.level.ServerPlayer player
+                ? "player:" + player.getName().getString() : "console";
+        boolean ok = com.dddgn.alice.decision.PermissionGate.answer(source.getServer(), id, option, parsed, by);
+        source.sendSuccess(() -> Component.literal(ok
+                ? "[alice] 已答复 " + id + " = " + option + "（" + parsed + "，by=" + by + "）"
+                : "[alice] 没有这条待答复请示：" + id), false);
+        return ok ? 1 : 0;
+    }
+
+    /** {@code /alice policy}：查看能力分级（AUTO/NOTIFY/ASK/IGNORE）。 */
+    private static int policyList(CommandSourceStack source) {
+        for (var entry : com.dddgn.alice.decision.PermissionGate
+                .policyTable(source.getServer()).entrySet()) {
+            source.sendSuccess(() -> Component.literal("[alice] " + entry.getKey() + " = " + entry.getValue()), false);
+        }
+        return 1;
+    }
+
+    /** {@code /alice policy <capability> <AUTO|NOTIFY|ASK|IGNORE>}：修改并持久化（always 级）。 */
+    private static int policySet(CommandSourceStack source, String capability, String policy) {
+        com.dddgn.alice.decision.PermissionGate.Policy parsed;
+        try {
+            parsed = com.dddgn.alice.decision.PermissionGate.Policy
+                    .valueOf(policy.trim().toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            source.sendSuccess(() -> Component.literal("[alice] policy 只能是 AUTO/NOTIFY/ASK/IGNORE"), false);
+            return 0;
+        }
+        com.dddgn.alice.decision.PermissionGate.setPolicy(source.getServer(), capability, parsed);
+        source.sendSuccess(() -> Component.literal("[alice] " + capability + " = " + parsed
+                + "（已持久化；报告里会显式标记 always 级授权）"), false);
+        return 1;
     }
 
     /**

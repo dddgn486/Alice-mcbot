@@ -171,6 +171,7 @@ public final class BotManager {
     /** 移除假人(实体 + PlayerList + 世界存档记录)。 */
     public static void remove(BotPlayer bot) {
         SurvivalSystem.forget(bot);
+        com.dddgn.alice.decision.PermissionGate.forget(bot.getUUID());
         BotSession session = BOTS.remove(bot.getUUID());
         if (session != null) {
             if (session.task instanceof TransferTask transfer) {
@@ -909,6 +910,8 @@ public final class BotManager {
         for (BotSession session : BOTS.values()) {
             HazardState hazard = SurvivalSystem.tick(session.bot());
             session.tick(hazard);
+            // S3：请示超时（按时限把"没答复"落档为默认档 —— 用户裁定：超时=拒绝）
+            com.dddgn.alice.decision.PermissionGate.tick(session.bot());
             // D-135：决策层循环（事件驱动 + 节流；这里只做"收结果 + 空闲触发"）
             com.dddgn.alice.decision.GoalDirector.tick(session.bot());
         }
@@ -1013,6 +1016,18 @@ public final class BotManager {
     public static int pendingTemporaryCount(BotPlayer bot) {
         return com.dddgn.alice.ledger.WorldModLedger
                 .pendingForOwner(bot.serverLevel().getServer(), bot.getUUID()).size();
+    }
+
+    /** **请示通道演示**（S3 / D-140）：起 `PermissionDemoTask`（发起 demo_ask 请示并轮询结论）。 */
+    public static boolean assignPermissionDemo(BotPlayer bot, ServerPlayer observer, int maxTicks) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(new com.dddgn.alice.task.PermissionDemoTask(bot, observer, maxTicks),
+                TaskTarget.block(bot.blockPosition()));
+        broadcastTarget(session.target);
+        return true;
     }
 
     /** **未加载区块/世界边界门控自检**（S-2 / P1-A）：无头规划三个用例，不改世界（边界临时改后立刻还原）。 */
@@ -1418,8 +1433,7 @@ public final class BotManager {
             BlockPos terminalPos = MovementHelper.footCell(bot.serverLevel(), bot);
             // D-134（决策层契约）：把 **Job 自己报的终止理由** 与 **botId** 一起落进终态记录，
             // 否则 `resultCode` 只会有 `done`/`failed:…`，决策层分不清"配额达成"与"背包满提前收工"。
-            String terminalReason = task instanceof com.dddgn.alice.job.Job job
-                    ? String.valueOf(job.terminalReason()) : "";
+            String terminalReason = task == null ? "" : String.valueOf(task.terminalReason());
             String botId = bot.getUUID().toString();
             TaskOutcome outcome = new TaskOutcome(kind, targetDescription, terminalStatus, resultCode,
                     terminalPos, failureReport, botId, terminalReason);
