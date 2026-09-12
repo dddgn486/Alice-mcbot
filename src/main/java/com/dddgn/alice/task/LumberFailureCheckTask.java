@@ -43,7 +43,9 @@ public final class LumberFailureCheckTask implements Task {
     private static final int CASE_TICKS = 900;
 
     private enum Case {
-        NO_CANDIDATES, ALL_REJECTED, INVENTORY_FULL, GOAL_TIMEOUT, LOG_REPLACED
+        NO_CANDIDATES, ALL_REJECTED, INVENTORY_FULL, GOAL_TIMEOUT, LOG_REPLACED,
+        /** J7 Step 4：**没有斧头** ⇒ 前置检查直接 FAILED `tool_missing`（不拿徒手去撞预算）。 */
+        TOOL_MISSING
     }
 
     private final BotPlayer bot;
@@ -142,8 +144,13 @@ public final class LumberFailureCheckTask implements Task {
         // 此前只有物品入口（`LumberFailureCheckItem`）发料，任何直接跑本任务的调用者
         // （例如串联回归电池）都会徒手砍树 —— 实测 61 tick/根（有斧 6~8 tick/根），
         // 令 `LOG_REPLACED`（预算 600）超时成 `goal_timeout`。故放到任务里，调用者无关。
-        com.dddgn.alice.item.FixtureToolKit.ensureAxe(bot);
-        com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
+        if (current == Case.TOOL_MISSING) {
+            // J7 Step 4：本用例故意**清空背包**（无斧）——生产侧应先置检查并如实 tool_missing
+            com.dddgn.alice.item.FixtureToolKit.resetInventory(bot);
+        } else {
+            com.dddgn.alice.item.FixtureToolKit.ensureAxe(bot);
+            com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
+        }
         caseTicks = 0;
         replacedArmed = false;
         replacedPos = null;
@@ -154,6 +161,7 @@ public final class LumberFailureCheckTask implements Task {
             case INVENTORY_FULL -> GoalSpec.harvestUnits(LumberCourseAnchor.START_FOOT, 16, 1, 400);
             case GOAL_TIMEOUT -> GoalSpec.harvestUnits(LumberCourseAnchor.START_FOOT, 16, 1, 40);
             case LOG_REPLACED -> GoalSpec.harvestUnits(LumberCourseAnchor.START_FOOT, 16, 1, 600);
+            case TOOL_MISSING -> GoalSpec.harvestUnits(LumberCourseAnchor.START_FOOT, 16, 1, 300);
         };
         if (current == Case.INVENTORY_FULL) {
             fillInventory();
@@ -218,7 +226,7 @@ public final class LumberFailureCheckTask implements Task {
                     "status=" + status + " reason=" + terminal);
             case ALL_REJECTED -> record(current,
                     status == Task.Status.FAILED && "no_reachable_candidate".equals(terminal)
-                            && job.failureReason().contains("too_large"),
+                            && job.failureReason().contains("trunk_too_tall"),
                     "status=" + status + " reason=" + terminal + " failure=" + job.failureReason());
             case INVENTORY_FULL -> record(current,
                     status == Task.Status.DONE && "inventory_full".equals(terminal),
@@ -228,6 +236,10 @@ public final class LumberFailureCheckTask implements Task {
                             && caseTicks <= 120,
                     "status=" + status + " reason=" + terminal + " ticks=" + caseTicks
                             + "（不空转要求 ≤120）");
+            case TOOL_MISSING -> record(current,
+                    status == Task.Status.FAILED && "tool_missing".equals(terminal),
+                    "status=" + status + " reason=" + terminal
+                            + "（前置检查：快捷栏无斧 ⇒ 不去徒手撞预算）");
             case LOG_REPLACED -> {
                 BlockState now = replacedPos == null
                         ? null : bot.serverLevel().getBlockState(replacedPos);

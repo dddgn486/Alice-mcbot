@@ -3935,3 +3935,41 @@ J3 的 3 棵树恰好 3+3+2 = **8 压线**；`a5901f5` 想加第 4 棵树，却�
 未覆盖（沿用 D-127 登记）：`too_far` 分支、真实崩溃重启路径。
 
 **验证等级**：`WINDOWS_CLIENT`。
+
+## D-128 J7 Step 4：失败语义收敛 + 工具语义上抛（2026-09-12）
+
+**要解决的问题**：同一件"没干成"在日志里散成三种口径 —— 候选期（`too_large`）、规划期
+（`no_reachable_standing_point`）、结算期（`partial_tree`/`product_not_collected`），而目标级决策
+（LLM）需要的是 §13.3 表格那种**可消费的顶层码**（`tool_missing` / `no_reachable_candidate` /
+`scaffold_restore_incomplete` / …）。另外「**树干太高**」与「**爬了但没砍完**」都落在 `partial_tree` 里分不开。
+
+**实现**
+1. **候选期码正名**：`LumberCandidateSource` 的 `too_large` ⇒ **`trunk_too_tall`**
+   （与 `JOB_LAYER_DESIGN §13.3`、矩阵 J1 行的既有期望一致；旧名分不清"树太高"与"清障不可行"）。
+2. **`tool_missing` 前置检查（`LumberJob.tick()` 顶部）**：快捷栏没有斧 ⇒ 直接
+   `FAILED tool_missing`，**不拿徒手去撞 tick 预算**。依据：原版允许徒手砍原木，但慢 8 倍
+   （实测 61 tick/根 vs 6~8），撞预算只会产出"砍一半超时"这种噪声失败；而"缺工具"是
+   **目标级决策**该接的事实（"先去弄工具"）。
+3. **`climb_incomplete` 分类**：逐树理由不再只看"有没有砍完"，而是用 **L2 汇报的加高步数**
+   （`gainedThisTree`，D-111 起加高在 L2）区分：
+   `product_not_collected`（全砍完但产物没收齐）/ **`climb_incomplete`（爬过、仍没砍完）** /
+   `partial_tree`（没爬、也没砍完）。
+4. **顶层归因 `deriveTopLevelReason`**：只在"树被尝试过、却一棵都没成功"（`partial_quota`）时，
+   若**所有**逐树失败都指向同一根因 ⇒ 顶层码换成 `tool_missing` 或 `climb_incomplete`；
+   有任一成功则保持 `partial_quota`（不能甩锅）✓。
+5. **§13.3 的命名**：建拆同权未闭合的终态后缀 `+scaffold_left(n)` ⇒ **`+scaffold_restore_incomplete(n)`**
+   （`restorePhase` 里的 `scaffold_left` **日志关键词保持不变**，判据不受影响）。
+6. 夹具可读：`LumberJob.attemptFailures()`。
+
+**验证入口**：`alice:lumber_failure_check` 由 5 例 ⇒ **6 例**：新增 `tool_missing`
+（该例**故意清空背包** ⇒ 期望 `FAILED tool_missing`），并同步把 `all_rejected` 的期望改为
+`trunk_too_tall`。仍跑 `alice:lumber_job` / 串联电池确认正常路径不受影响（`assignLumberJob` 与
+`LumberJobItem` 都会发斧 ✓）。
+
+**未覆盖（如实登记）**：`climb_incomplete` 的**场景**仍未构造 —— 它要求"某次成功加高之后仍有原木没砍完"
+（现实成因是"爬上去之后清障预算耗尽/够不到"）；`deriveTopLevelReason` 里对 `climb_incomplete` 的
+归因分支目前只有代码证据。**J7 的失败码骨架已齐**，这条留作专项场景（与 T2/T3 的未覆盖分支同批）。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待测：`lumber_failure_check` 应 6/6，其中
+`tool_missing=PASS(status=FAILED reason=tool_missing)`、`all_rejected=PASS(… trunk_too_tall)`；
+`lumber_job` 与电池行为不变）。

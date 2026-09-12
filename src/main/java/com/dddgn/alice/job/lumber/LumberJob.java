@@ -219,6 +219,16 @@ public final class LumberJob implements Job {
             failure = terminalReason;
             return finish(Task.Status.FAILED);
         }
+        // 前置检查（J7 Step 4 / §13.3）：**没有斧头就不开工**。原版允许徒手砍原木，但慢 8 倍
+        // （实测 61 tick/根 vs 6~8），拿它去撞 tick 预算只会得到"砍了一半超时"这种噪声失败；
+        // 缺工具是**目标级决策**（"先去弄工具"）该知道的事实 ⇒ 如实上抛 `tool_missing`。
+        if (!hasChoppingTool(bot)) {
+            terminalReason = "tool_missing";
+            failure = terminalReason;
+            BotLog.warn("[Job] lumber 缺少砍伐工具（快捷栏无斧）⇒ FAILED tool_missing（徒手慢 8 倍，"
+                    + "不拿它去撞预算；这是目标级决策该接的事实）");
+            return finish(Task.Status.FAILED);
+        }
         // 前置检查（§6.2c③）：背包放不下原木时**直接收工**，不要先砍一棵再发现装不下
         if (!hasRoomForLogs(bot)) {
             terminalReason = "inventory_full";
@@ -483,8 +493,11 @@ public final class LumberJob implements Job {
             treesDone++;
             return;
         }
+        // J7 Step 4（D-128）：把"爬了但没砍完"与"根本没爬上去/没砍完"分开 ——
+        // 依据是 **L2 汇报的加高步数**（`gainedThisTree`，D-111 起加高在 L2），不是背包增量。
         String detail = base.toShortString() + ":"
-                + (allChoppedNow() ? "product_not_collected" : "partial_tree")
+                + (allChoppedNow() ? "product_not_collected"
+                        : (gainedThisTree > 0 ? "climb_incomplete" : "partial_tree"))
                 + " gained=" + gained + "/" + tree.logCount()
                 + (failedLogs.isEmpty() ? "" : " failed=" + String.join(",", failedLogs));
         attemptFailures.add(detail);
@@ -542,13 +555,62 @@ public final class LumberJob implements Job {
         return false;
     }
 
+    /**
+     * **顶层失败码归因**（J7 Step 4 / D-128）：逐树理由里若**所有**失败都指向同一根因，
+     * 就把顶层码换成那个根因，让目标级决策（LLM）能直接消费"为什么没干成"：
+     * <ul>
+     *   <li>全部缺工具（`no_suitable_tool`/`tool_missing`）⇒ `tool_missing`（§13.3）；</li>
+     *   <li>全部是"爬了但没砍完"⇒ `climb_incomplete`；</li>
+     *   <li>其余 ⇒ 保持原码（`partial_quota` / `no_reachable_candidate` / …）+ 逐树理由。</li>
+     * </ul>
+     * 只在**没有一棵树成功**时才归因（有成功就说明工具/攀爬本身可用，不能甩锅给它们）。
+     */
+    private String deriveTopLevelReason(String base) {
+        // 只对"**树被尝试过、但一棵都没成功**"这个总括码做归因；其它终态（超时/装不下/没候选/缺工具）
+        // 本身就是明确原因，不能被逐树理由盖掉。
+        if (!"partial_quota".equals(base) || attemptFailures.isEmpty() || treesDone > 0) {
+            return base;
+        }
+        boolean allTool = attemptFailures.stream()
+                .allMatch(f -> f.contains("no_suitable_tool") || f.contains("tool_missing"));
+        if (allTool) {
+            return "tool_missing";
+        }
+        boolean allClimb = attemptFailures.stream().allMatch(f -> f.contains("climb_incomplete"));
+        if (allClimb) {
+            return "climb_incomplete";
+        }
+        return base;
+    }
+
+    /** 快捷栏里有没有砍伐工具（斧）。没有 ⇒ §13.3 的 `tool_missing`。 */
+    private static boolean hasChoppingTool(ServerPlayer bot) {
+        var inventory = bot.getInventory();
+        for (int slot = 0; slot < 9 && slot < inventory.getContainerSize(); slot++) {
+            var stack = inventory.getItem(slot);
+            if (!stack.isEmpty() && stack.is(net.minecraft.tags.ItemTags.AXES)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 逐树失败理由（夹具断言用，J7 Step 4）。 */
+    public java.util.List<String> attemptFailures() {
+        return java.util.List.copyOf(attemptFailures);
+    }
+
     private Task.Status finish(Task.Status status) {
         if (!terminated) {
             terminated = true;
             bot.controller().stopMovement();
             // J7 Step 2：攀爬与"建拆同权"的账一起进终态（爬了几次、花了几块、还剩没拆的）
-            if (scaffoldLeft > 0 && terminalReason != null && !terminalReason.contains("scaffold")) {
-                terminalReason = terminalReason + "+scaffold_left(" + scaffoldLeft + ")";
+            // J7 Step 4（D-128）：顶层码优先按"所有失败是否同一根因"上抛（§13.3 的表格口径），
+            // 再补"建拆同权未闭合"（§13.3 的 `scaffold_restore_incomplete`）
+            terminalReason = deriveTopLevelReason(terminalReason);
+            if (scaffoldLeft > 0 && terminalReason != null
+                    && !terminalReason.contains("scaffold_restore_incomplete")) {
+                terminalReason = terminalReason + "+scaffold_restore_incomplete(" + scaffoldLeft + ")";
             }
             DecisionTrace.terminal(jobName(), status == Task.Status.DONE ? "DONE" : "FAILED",
                     terminalReason, progressSummary() + " inventoryDelta=" + (countLogs() - logsBefore)

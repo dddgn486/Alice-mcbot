@@ -60,7 +60,9 @@ public final class LumberCandidateSource implements CandidateSource {
         for (Tree tree : lastScan) {
             String id = id(tree);
             if (tree.tooLarge()) {
-                rejected.add(id + ":too_large");
+                // J7 Step 4（D-128）：候选期拒绝码明确化 —— 与 §13.3 表格、矩阵行期望的
+                // `trunk_too_tall` 对齐（旧名 `too_large` 分不清"树干太高"与"清障不可行"）
+                rejected.add(id + ":trunk_too_tall");
                 continue;
             }
             if (SafeZoneData.get(level.getServer()).protectionReason(level, tree.base()) != null) {
