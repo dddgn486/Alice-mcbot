@@ -47,7 +47,11 @@ public class ChunkGuardCheckItem extends Item {
     private void start(net.minecraft.world.entity.player.Player player, ServerLevel level) {
         BotPlayer bot = BotManager.firstInLevel(level);
         if (bot == null) {
-            say(player, "[alice] 需要先有 bot（/alice spawn 或任意夹具入口）");
+            // 就地取材：玩家站的地方就是起点，所以 bot 也生成在玩家脚位
+            bot = BotManager.firstOrSpawn(level, player.blockPosition());
+        }
+        if (bot == null) {
+            say(player, "[alice] bot 生成失败");
             return;
         }
         if (BotManager.isBusy(bot)) {
