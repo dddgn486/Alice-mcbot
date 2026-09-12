@@ -25,7 +25,40 @@ import net.minecraftforge.fml.common.Mod;
 @Mod.EventBusSubscriber(modid = "alice")
 public final class PickupGate {
 
+    /** 同一件物品的拦截日志冷却（tick）与累计次数：防刷屏，同时保留"被拦了多少次"的事实。 */
+    private static final long LOG_COOLDOWN_TICKS = 100L;
+    private static final java.util.Map<java.util.UUID, long[]> BLOCKED = new java.util.HashMap<>();
+    private static long blockedTotal;
+
     private PickupGate() {
+    }
+
+    private static synchronized void logBlocked(BotPlayer bot, ItemEntity item,
+                                                DropPolicy.Provenance provenance) {
+        blockedTotal++;
+        long now = bot.getServer().getTickCount();
+        long[] state = BLOCKED.computeIfAbsent(item.getUUID(), ignored -> new long[]{now, 0});
+        state[1]++;
+        boolean first = state[0] == now || now - state[0] >= LOG_COOLDOWN_TICKS;
+        if (state[0] != now && now - state[0] >= LOG_COOLDOWN_TICKS) {
+            state[0] = now;   // 冷却到期 ⇒ 允许再报一次（并带上这一段累计次数）
+        }
+        if (first) {
+            long repeats = state[1];
+            state[1] = 0;
+            BotLog.warn("[Pickup] blocked bot={} item={} x{} provenance={} policy={} 次数={} 累计={}"
+                            + "（被动拾取闸门；要捡请显式派活或先授权）",
+                    bot.getName().getString(), item.getItem().getItem(), item.getItem().getCount(),
+                    provenance, DropPolicy.policy(bot, provenance), repeats, blockedTotal);
+        }
+        if (BLOCKED.size() > 256) {
+            BLOCKED.entrySet().removeIf(entry -> now - entry.getValue()[0] > 1200L);
+        }
+    }
+
+    /** 本次服务器会话累计拦截次数（汇报/自检可读）。 */
+    public static synchronized long blockedTotal() {
+        return blockedTotal;
     }
 
     @SubscribeEvent
@@ -47,9 +80,9 @@ public final class PickupGate {
             return;
         }
         event.setCanceled(true);
-        BotLog.warn("[Pickup] blocked bot={} item={} x{} provenance={} policy={}（被动拾取闸门；"
-                        + "要捡请显式派活或先授权）",
-                bot.getName().getString(), item.getItem().getItem(), item.getItem().getCount(),
-                provenance, DropPolicy.policy(bot, provenance));
+        // **节流**（D-143 附注）：bot 站在物品上时事件**每 tick** 都触发 ——
+        // 2026-09-12 实测一次测试刷了 584 行。按项目规矩"报警只报可行动的病症"：
+        // 同一件物品 100 tick 内只报一次，之后只**累计次数**（计数在报告/汇总里可见）。
+        logBlocked(bot, item, provenance);
     }
 }

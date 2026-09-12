@@ -42,6 +42,7 @@ public class PickupGateCheckTask implements Task {
     private Phase phase = Phase.SETUP;
     private int ticks;
     private int itemsBefore;
+    private int cobbleBefore;
     private int aPicked;
     private int bRemaining;
     private String note = "-";
@@ -101,11 +102,17 @@ public class PickupGateCheckTask implements Task {
         if (session == null) {
             return finish("no_session");
         }
+        // **先清场**：上一轮测试可能残留掉落物，会把"收养/增量"数字污染
+        // （2026-09-12 实测：adopted=4、背包 44，其实混进了旧掉落物）
+        server.getCommands().performPrefixedCommand(source,
+                "kill @e[type=item,x=" + (DROP_A.getX() - 16) + ",y=" + (DROP_A.getY() - 8)
+                        + ",z=" + (DROP_A.getZ() - 16) + ",dx=32,dy=24,dz=32]");
+        cobbleBefore = inventoryCobblestone();
         session.scope().begin(DROP_A, 16, bot.getUUID());
         // A：我方掉落物（显式收养 ⇒ OURS_DIRECT）
         spawn(level, DROP_A, 1);
         int adopted = session.scope().adoptExistingDrops(level, DROP_A, 4);
-        BotLog.info("[PickupGateCheck] A 造物：我方掉落物 1 堆（adopted={}）", adopted);
+        BotLog.info("[PickupGateCheck] A 造物：我方掉落物 1 堆（清场后 adopted={}，应=1）", adopted);
         // B：外来掉落物（**不登记** ⇒ FOREIGN）
         spawn(level, DROP_B, 1);
         itemsBefore = countNear(level, DROP_B, 2.0D);
@@ -149,8 +156,9 @@ public class PickupGateCheckTask implements Task {
     }
 
     private Status assertA() {
-        aPicked = inventoryCobblestone();
-        BotLog.info("[PickupGateCheck] A 断言：走到我方掉落物上 ⇒ 背包圆石={}（应 >0，策略 AUTO 放行）", aPicked);
+        aPicked = inventoryCobblestone() - cobbleBefore;   // **增量**（清场后仍以增量为准，抗残留）
+        BotLog.info("[PickupGateCheck] A 断言：走到我方掉落物上 ⇒ 圆石增量={}（基准 {}，应 >0，策略 AUTO 放行）",
+                aPicked, cobbleBefore);
         phase = Phase.WALK_B;
         return Status.RUNNING;
     }

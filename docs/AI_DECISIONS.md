@@ -4988,3 +4988,28 @@ S2 精化：[Goal] candidate_menu rejected(不可做)= [tree@22,64,218:trunk_too
 **未做（S3.5 第二步，登记）**：`CollectGrant`（选区物品授权 + `once/session/always`）、
 `GRANTED_AREA` 归属判定、`CollectJob` 按策略过滤候选、`CollectDropsTask` 区分 `policy_blocked` 与超时、
 "我方放置/拆除点"并入松窗（目前松窗以**破坏点**为锚）。
+
+### D-143 附注（2026-09-12 18:25 客户端实测）：被动拾取闸门通过；同时抓出两个我该修的缺陷
+
+```
+[PickupGateCheck] A 造物：我方掉落物 1 堆（adopted=4）
+         A 断言：走到我方掉落物上 ⇒ 背包圆石=44                     ← 该捡的捡到 ✓
+         B 造物：外来掉落物 1 堆（未登记 ⇒ FOREIGN），命中数=2
+         [Pickup] blocked bot=tango item=cobblestone x4 provenance=FOREIGN policy=ASK
+         B 断言：走到外来掉落物上 ⇒ 地上还剩 1 堆                    ← 没被顺走 ✓
+         SUMMARY a_picked=44 b_remaining=1 reason=passed → PASS（indirect_window=60tick/4.0格）
+         task_terminal_reason kind=PickupGateCheckTask terminalReason=passed（30 tick）
+         作用域捕捉掉落物: oak_log … provenance=OURS_DIRECT source=…   ← 归属标记生效 ✓
+用户确认："测试完了，符合预期"
+```
+
+**瑕疵 1（噪声=隐患，已修）**：`[Pickup] blocked` 一次测试刷了 **584 行** —— bot 站在物品上时
+`EntityItemPickupEvent` **每 tick** 都触发。修：同一件物品 **100 tick 内只报一次**，
+并带 `次数=`（这一段累计）与 `累计=`（本次会话总数），`PickupGate.blockedTotal()` 可被汇报/自检读取；
+表超过 256 条时清理过期项。**报警只报可行动的病症**这条规矩在事件的"每 tick 语义"下必须显式节流。
+
+**瑕疵 2（夹具不干净，已修）**：`adopted=4` / 背包 44 是**上一轮残留掉落物**被一起收养造成的
+（`adoptExistingDrops` 收半径内**所有**东西）。修：夹具 setup 先 `kill @e[type=item,…]` 清场，
+断言改用**背包增量**（基准 `cobbleBefore`），并在日志里写明"清场后 adopted 应=1"。
+
+**验证等级**：`WINDOWS_CLIENT`（闸门两用例 + 归属标记；两项瑕疵修复待复测）。
