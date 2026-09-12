@@ -48,7 +48,11 @@ PermissionResponse { id, chosen, scope=once|session|always }
 CapabilityPolicy   { capability → AUTO | NOTIFY | ASK }（默认值进配置，玩家可改）
 ```
 
-## §3.1 掉落物归属与收集授权（**D-138 提案**，用户 2026-09-12 提出）
+## §3.1 掉落物归属与收集授权（**D-138 已裁定**，用户 2026-09-12）
+
+> **裁定结果**：`FOREIGN` 默认 **`ASK`**（超时=不捡）；`OURS_INDIRECT` 窗口 **60 tick / 4 格**（可配置 + 进报告）；
+> 授权入口 = **选区物品右键** + 命令兜底；**`always` 允许但必须显式标记**；
+> **被动拾取默认 `auto`**（只放行 `OURS_*`，`FOREIGN` 转 ASK），另留 `off`/`notify`/`ask`。
 
 **动机**：现在"能捡什么"只认 `ScopeBuffer` 登记过的（我方**破坏事件**配对 / 夹具收养）。
 这漏了三类**真实需要**，其中第 1 类用户点名要求：

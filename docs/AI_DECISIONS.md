@@ -4798,3 +4798,31 @@ HttpClient 的内部任务排不进来 ⇒ **死锁**：请求发不出去，超
 - 验证入口：`alice:collect_job`（零参数）—— 夹具在 bot 旁生成 3 堆圆石并 `adoptExistingDrops` 登记，
   再起 `COLLECT`（走**安全默认**那条路）。判据：`[Job] collect pick cluster@…` →
   `done collected=…` → `SUMMARY reason=collected`；**玩家自己的东西不动**。
+
+## D-138 掉落物归属 / 收集授权 / 被动拾取：用户裁定（2026-09-12）
+
+**用户裁定（原文"我同意"，即接受以下四条建议 + 被动拾取档位）**
+
+| # | 议题 | 定案 |
+|---|---|---|
+| 1 | `FOREIGN`（玩家丢的/未知来源）默认档位 | **`ASK`** —— 问一次，**超时=不捡** |
+| 2 | `OURS_INDIRECT`（我方行为间接后果）归属窗口起点 | **60 tick / 4 格**，**可配置**且**写进报告**便于实测标定 |
+| 3 | 授权入口形态 | **选区物品右键**（零参数、可重复）为主 + 命令兜底 |
+| 4 | `always` 级授权（写配置永久生效） | **允许**，但**必须在报告与日志里显式标记**（"该区域 FOREIGN 已授权"） |
+| 5 | **被动拾取**默认档位 | **`auto`**（只放行 `OURS_*`；`FOREIGN` 转 `ASK`）；另保留 `off`（完全不被动拾取）/ `notify`（路过就捡 + 事后一行）/ `ask` |
+
+**落地范围（并入 `DECISION_LAYER_DESIGN.md` §3.1 + 骨架 S3.5）**
+- `DropProvenance = OURS_DIRECT | OURS_INDIRECT | GRANTED_AREA | FOREIGN`；
+- `DropPolicy = provenance → AUTO | NOTIFY | ASK | IGNORE`（默认值进配置，玩家可改）；
+- `CollectGrant { area, until, provenanceMask, scope=once|session|always, grantedBy }`；**`anyDrops` 退役**；
+- **授权只能由玩家或配置签发**，决策层（LLM）只能请求；
+- `PickupGate`（`EntityItemPickupEvent`，可取消）与 `CollectJob` **共用同一份 `DropPolicy`** ——
+  两条路径（主动 / 被动）不允许分叉；
+- 每条归属判定留证据（进事件环与报告）：`provenance=OURS_INDIRECT because=owner_window(…)`。
+- 连带必修：`CollectDropsTask` 区分 `policy_blocked` 与 `pickup_timeout`（不空转到超时）；
+  `CollectJob` 候选先按策略过滤。
+
+**验证矩阵（四类 + 被动）**：① 我方直接自动捡（已验）② 我方间接（树叶衰减/仙人掌甘蔗）自动捡
+③ 玩家丢的**不捡**（ASK，超时=不捡）④ 授权区**可捡**（含玩家物品）⑤ 被动：路过 `FOREIGN` 掉落物**不吸附**且留 `[Pickup] blocked …`。
+
+**开工顺序（已与用户确认）**：S2 选择层 → S3 请示层 → **S3.5 收集归属 + 被动闸门**。
