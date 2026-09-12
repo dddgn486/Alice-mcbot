@@ -147,6 +147,15 @@ public final class MineRegressionTask implements Task {
     private MineTask mineTask;
     private Item expectedItem;
     private int inventoryBefore;
+    /**
+     * 用例内"等待掉落物登记确认"的截止 tick（D-124 附注）。
+     *
+     * <p>为什么必须等：`ScopeBuffer` 在**服务器 tick 的 END** 阶段才 `flushPending()`，
+     * 所以"破坏发生的当 tick 内"查 `liveDrops()` **一定是 0**（首版用例就这么假失败了一次：
+     * `status=DONE/liveDropsBeforeReopen=0`）。留几 tick 余量再查，且要 **< 掉落物 pickupDelay**
+     * （约 10 tick，否则会被 bot 顺手捡走）。
+     */
+    private int settleUntilTick;
     private String chainModeBefore;
     private String failure = "";
 
@@ -181,6 +190,7 @@ public final class MineRegressionTask implements Task {
             prepare(current);
             prepared = true;
             caseTicks = 0;
+            settleUntilTick = 0;
             if (current.kind() == Kind.PLAN) {
                 runPlanCase(current);
                 advance();
@@ -235,12 +245,24 @@ public final class MineRegressionTask implements Task {
             return Status.RUNNING;
         }
         if (current.kind() == Kind.SCOPE_REOPEN) {
-            // D-124 断言：挖出掉落物（未收集）→ 重开作用域 → 账上仍在
+            // D-124 断言：挖出掉落物（未收集）→ 重开作用域 → 账上仍在。
+            // **先等 pending 确认**（ScopeBuffer 在 tick END 才 flushPending；当 tick 查必为 0），
+            // 等待窗口取 5 tick：≥1（跨过一次 tick END）且 < pickupDelay(~10)（免得被捡走）。
+            if (settleUntilTick == 0) {
+                settleUntilTick = caseTicks + 5;
+            }
+            if (caseTicks < settleUntilTick) {
+                return Status.RUNNING;
+            }
+            int inWorld = bot.serverLevel().getEntitiesOfClass(
+                    net.minecraft.world.entity.item.ItemEntity.class,
+                    new net.minecraft.world.phys.AABB(current.target()).inflate(4)).size();
             int before = scope.liveDrops().size();
             scope.begin(current.target(), 16, bot.getUUID());   // 与 prepare 同一中心/半径
             int after = scope.liveDrops().size();
             boolean pass = status == Status.DONE && before >= 1 && after >= 1;
             record(current, pass, "status=" + status
+                    + "/dropsInWorld=" + inWorld
                     + "/liveDropsBeforeReopen=" + before + "/liveDropsAfterReopen=" + after
                     + "/ticks=" + caseTicks);
             finishCase();

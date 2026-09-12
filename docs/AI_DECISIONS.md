@@ -3737,3 +3737,22 @@ T7"清障预算按棵重置"回归覆盖。寻路内核里程碑编号**保持�
 
 **验证等级**：IMPLEMENTED / COMPILES（客户端待跑：`mine_regression` 应 **12/12**，其中
 `scope_reopen_keeps_drops=PASS … liveDropsAfterReopen≥1`；串联回归电池应仍 9/9）。
+
+### D-124 附注（首测假失败：**"破坏当 tick 查 `liveDrops()` 必为 0"**）
+
+首版 `scope_reopen_keeps_drops` 判 FAIL，明细是 `status=DONE/liveDropsBeforeReopen=0/liveDropsAfterReopen=0`
+——注意 **重开之前就是 0**，所以**不是继承没生效**，而是**掉落物还没登记进账**。
+根因：`ScopeBuffer` 的掉落物登记分两步 —— `EntityJoinLevelEvent` 只把实体排进 `pending`，
+真正确认在**服务器 tick 的 END**（`TickEvent.ServerTickEvent.Phase.END` → `flushPending()`，
+期间还要判定实体确实在世界里，防模组取消生成造成的"幻影掉落物"）。而用例在
+`MineTask` 返回 DONE 的**同一 tick 内**就查账 ⇒ 必然看到 0。
+
+**修正**：用例加"等待确认"窗口 —— 等 **5 tick**（≥1 跨过一次 tick END，且 **< 掉落物
+`pickupDelay`(~10)**，免得被 bot 顺手捡走），并在明细里同时报世界侧计数
+`dropsInWorld=N`（区分"没掉出来"与"掉了但没登记"）。
+
+**教训（写进夹具规范）**：**凡断言"我方掉落物是否在账上"，必须跨过一次服务器 tick END**；
+在破坏/放置的当 tick 内查 `liveDrops()` 恒为 0。这条同样适用于将来任何"收集前先看账"的用例。
+
+**验证等级**：IMPLEMENTED / COMPILES（待复测：`mine_regression` 期望 **12/12**、
+`scope_reopen_keeps_drops=PASS status=DONE/dropsInWorld=1/liveDropsBeforeReopen=1/liveDropsAfterReopen=1`）。
