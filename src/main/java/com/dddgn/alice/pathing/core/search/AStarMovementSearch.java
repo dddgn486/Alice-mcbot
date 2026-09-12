@@ -1,5 +1,6 @@
 package com.dddgn.alice.pathing.core.search;
 
+import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.core.RecoverabilityLevel;
 import net.minecraft.core.BlockPos;
 
@@ -75,6 +76,7 @@ public final class AStarMovementSearch {
         // 门控计数（诚实报告用）：跳过多少条"会跨到未加载区块"或"越出世界边界"的边
         int skippedUnloaded = 0;
         int skippedBorder = 0;
+        int startEscape = 0;
         boolean budgetExhausted = false;
 
         while (!openSet.isEmpty()) {
@@ -100,6 +102,17 @@ public final class AStarMovementSearch {
 
             candidates.clear();
             provider.appendCandidates(context, currentFoot, candidates);
+            if (candidates.isEmpty() && current == startNode) {
+                // **起点脱困**（S-1 / D-133）：起点自身非法（头部被堵 / 泡在流体里）时，
+                // `canTraverse` 的扫掠包含起点体积 ⇒ 常规候选全被掐死，连"迈出一步"都规划不出来。
+                // 只对**起点**放宽成"只检查目的地"（执行器的前置条件本来就是这样 ⇒ 仍可规划即可执行）。
+                provider.appendStartEscapeCandidates(context, currentFoot, candidates);
+                if (!candidates.isEmpty()) {
+                    startEscape = candidates.size();
+                    BotLog.info("[Search] start_escape 起点非法 ⇒ 按目的地谓词生成 {} 条脱困候选"
+                            + "（S-1/D-133；Baritone Movement 只看目的地）", startEscape);
+                }
+            }
             for (PlannedMovement movement : candidates) {
                 BlockPos toFoot = movement.toFoot();
                 // S-2 节点级门控（对照 Baritone `AStarPathFinder:105-112`）：
@@ -156,7 +169,8 @@ public final class AStarMovementSearch {
         return PathPlan.failure(PlanningStatus.UNREACHABLE, startFoot, goal.goalFoot(),
                 expandedNodes, movementsConsidered, elapsed, PLANNER_NAME,
                 "open set exhausted; best=" + bestSoFar[0].cost
-                        + "; skipped_unloaded=" + skippedUnloaded + " skipped_border=" + skippedBorder);
+                        + "; skipped_unloaded=" + skippedUnloaded + " skipped_border=" + skippedBorder
+                        + " start_escape=" + startEscape);
     }
 
     private PathPlan reachedPlan(BlockPos startFoot, GoalSpec goal, SearchNode goalNode,

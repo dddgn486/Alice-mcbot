@@ -4390,3 +4390,70 @@ region=x17..37 z203..231 baseY=58 maxH=48（垂直自适应） adaptiveTop=84 �
   no_clear_gain=true control=DONE → PASS`。
 
 **验证等级**：IMPLEMENTED / COMPILES（四项；客户端待测见下方附注）。
+
+### D-132 附注（2026-09-12 14:26–14:28 客户端实测）：S-4 通过；S-1/S-2 首测暴露"起点非法"这个真根因
+
+**结果速览**
+```
+14:27:32 [FluidMineCheck] A 规划层 target=66,64,104 success=false reason=fluid_risk_lava
+         [MiningPlanner] fluid_refusal target=66,64,104 reason=fluid_risk_lava（邻格岩浆会涌入）
+         [FluidMineCheck] A 终态 status=FAILED reason=fluid_risk_lava cleared=0 gained=0
+         [WRITE] break 64,64,106 stone … ; B 正对照 status=DONE
+         [FluidMineCheck] SUMMARY plan_refuse=fluid_risk_lava run_refuse=FAILED_fluid_risk_lava
+                          no_clear_gain=true control=DONE → PASS        ← **S-4 = PASS ✅**
+14:27:55 task_execution_terminal kind=WalkToTask … terminal=SURVIVAL_INTERRUPTED
+                          code=failed:survival_suffocating failureCode=unknown_failure
+         task_execution_terminal kind=SurvivalExitTask target=方块@66,64,103
+                          durationTicks=1 terminal=FAILED code=failed:walk_no_path   ← **S-1 逃生第一步就规划不出来**
+14:26:51 [ChunkGuard] 用例 A 前提不成立：540,64,726 竟然已加载（视距过大？）
+         [ChunkGuard] B 正对照 目标=25,64,211 status=UNREACHABLE movements=0
+         [ChunkGuard] C 目标=52,64,214 status=UNREACHABLE skipped_unloaded=0 skipped_border=0
+         [ChunkGuard] SUMMARY … → FAIL
+```
+
+**根因（代码级确认，不是猜）**：`MovementHelper.canSweepPlayer(from, to)` 的扫掠 AABB
+`minY=min(from.y,to.y) … maxY=max(from.y,to.y)+1.8` **包含起点自身的体积** ⇒ 起点非法时
+（头部被方块占据 = 窒息；脚/头泡在流体里）**一条边都生成不出来**，连"迈出去一步"都规划不了。
+- S-1 的逃生目标就在 **1 格之外**（`方块@66,64,103`）却报 `walk_no_path` —— 正是这个原因；
+- S-2 的 B/C 用例 `UNREACHABLE best=0.0`（best 还是起点）也是**同一个根因**：夹具把 bot 放在
+  树冠里（`pos=28,64,214`，`y=65` 是树叶），起点自身非法 ⇒ 搜索零扩展。
+
+**对照 Baritone（先查参考再动手）**：`MovementTraverse.cost` **只看 `dest` / `positionsToBreak`，
+从不检查 `src` 的占用**；Baritone 的 `Movement` 里没有"起点扫掠"这种概念
+⇒ Baritone 天然能从被堵/水里的格子规划出第一步。Alice 的扫掠是**更严格的自制偏离**（D-044 ⑨）。
+
+**修复（D-133，见下）**：新增 `MovementProvider.appendStartEscapeCandidates` ——
+**只对搜索起点**、且**常规候选为空**时启用，谓词**与执行器一致**（`to`/`to.above()` 可穿 + `to` 可站 +
+目的地无流体；`dy=+1` 另加执行器要的 `from.above(2)` 可穿）⇒ 不产生"可规划不可执行"
+（D-044 ⑨ 的担忧不适用：`TraverseExecutionFactory.validate` 本来也只检查目的地）。
+
+**S-2 夹具的两个自身缺陷（与门控无关）**
+1. **远目标距离写死 ±512**：本客户端视距 32 chunk = 512 格 ⇒ `540,64,726` **已加载**，
+   用例 A 前提不成立。改为**逐个试** {512,1024,2048,4096,8192} 取第一个未加载的；
+2. **正对照选了"窗口内第一个可站格"**：`25,64,211` 与起点之间隔着树冠墙（z=212..214 的通行红线）
+   ⇒ 本来就不可达。改为**紧邻一格**（4 正 + 4 斜），并先做"前置：把 bot 放到干净落点"
+   （扫描 ±4 找脚/头可穿 + 有支撑 + 无流体），否则起点非法会污染全部用例。
+
+**顺带修的观测缺陷**：维生中断的终态记录里 `failureCode=unknown_failure`（任务被中断时
+`failureReason()` 为空）⇒ `BotSession.failureReportFor(...)` 按会话事实补 `phase=survival` 报告，
+使 `failureCode` 与 `code=failed:survival_*` 一致。
+
+## D-133 起点脱困：`appendStartEscapeCandidates`（S-1 物理前提，2026-09-12）
+
+**问题**：`canTraverse` 末尾 `canSweepPlayer(from, to)` 的扫掠包含**起点体积** ⇒ 起点非法
+（窒息 / 泡在流体里）时搜索**零扩展**，"从危险里迈出一步"在规划层就被否决（D-132 附注实测）。
+
+**裁定**：**只对搜索起点放宽**，且**只放宽到执行器的谓词**（Baritone 对齐）。
+- 触发条件：`current == startNode` **且** `appendCandidates` 返回**空**（合法起点永远走不到这一步）；
+- 候选：8 方向 × `dy ∈ {0, +1}`，判定 = `to` 可站 + `to`/`to.above()` 可穿 + 目的地非流体
+  （`dy=1` 再加 `from.above(2)` 可穿，对齐 ASCEND 执行器）；
+- **不做**起点扫掠 —— 与 `MovementTraverse.cost`（Baritone，只看 `dest`）一致；
+- 诊断：`start_escape=N` 进 `PathPlan.diagnostics`，日志一行
+  `[Search] start_escape 起点非法 ⇒ 按目的地谓词生成 N 条脱困候选`。
+
+**为什么不违背 D-044 ⑨**（"扫掠是已对齐差异，不修改"）：该结论管的是**常规边**
+（"可规划即可执行"的对角/贴边一致性）；本条只在"起点自身已经非法"这一种情况下放宽，
+而执行器的前置条件**本来就不含起点扫掠** ⇒ 依然"可规划即可执行"。
+
+**影响面**：正常寻路零变化（合法起点不触发）；受益者 = 维生逃生（S-1）、以及任何
+"bot 被卡住/落进水里后要自救"的场景。

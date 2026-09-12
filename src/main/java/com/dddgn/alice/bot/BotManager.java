@@ -1315,8 +1315,7 @@ public final class BotManager {
                     resultCode, "idle_after_cleanup",
                     mineTask == null ? RecoveryStage.NONE : mineTask.recoveryStage(),
                     mineTask == null ? List.of() : mineTask.recoveryEvents(),
-                    terminalStatus == TaskExecutionRecord.TerminalStatus.COMPLETED || task == null
-                            ? null : task.failureReport());
+                    failureReportFor(terminalStatus, resultCode));
             if (mineTask != null) {
                 com.dddgn.alice.action.MineBlockRunner.FailureReport report = mineTask.lastFailureReport();
                 BotLog.info("[MineTask终态计划证据] target={} attempts={} recoveryAttempts={} recoveryStage={} recoveryEvents={} currentPlanRetained={} reason={} phase={}",
@@ -1326,6 +1325,23 @@ public final class BotManager {
             }
             reportItems();
             clearTask();
+        }
+
+        /**
+         * 终态失败报告（S-1 附注，2026-09-12）：**维生中断**不是领域失败 —— 任务自己往往来不及写
+         * `failureReport`（`WalkToTask` 被中断时 `failureReason()` 还是空串），记录里于是出现
+         * `failureCode=unknown_failure`。这里按**会话事实**补一条 `phase=survival` 的报告，
+         * 让 `failureCode` 与 `code=failed:survival_*` 对得上（报告 = 会话事实）。
+         */
+        private TaskFailureReport failureReportFor(TaskExecutionRecord.TerminalStatus terminalStatus,
+                                                   String resultCode) {
+            if (terminalStatus == TaskExecutionRecord.TerminalStatus.COMPLETED || task == null) {
+                return null;
+            }
+            if (terminalStatus == TaskExecutionRecord.TerminalStatus.SURVIVAL_INTERRUPTED) {
+                return new TaskFailureReport(resultCode, "survival", "", null, null);
+            }
+            return task.failureReport();
         }
 
         private void recordTerminal(String kind, String targetDescription, long startTick,

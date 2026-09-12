@@ -95,6 +95,47 @@ public final class SurfaceMovementProvider implements MovementProvider {
         }
     }
 
+    /**
+     * **起点脱困**（S-1 / D-133）：起点自身非法时，只按**目的地谓词**生成第一跳。
+     *
+     * <p>谓词与执行器完全一致（`to`/`to.above()` 可穿过 + `to` 可站 + 目的地无流体）⇒ 可规划即可执行。
+     * 允许 `dy ∈ {0, +1}`：0 用于"从被堵的格里横着挪出去"，+1 用于"从 1 格深的坑/岩浆里跨上台面"。
+     */
+    @Override
+    public void appendStartEscapeCandidates(MovementContext context, BlockPos from,
+                                            List<PlannedMovement> out) {
+        ServerLevel level = context.level();
+        int[][] dirs = new int[CARDINAL.length + DIAGONAL.length][];
+        System.arraycopy(CARDINAL, 0, dirs, 0, CARDINAL.length);
+        System.arraycopy(DIAGONAL, 0, dirs, CARDINAL.length, DIAGONAL.length);
+        for (int[] d : dirs) {
+            boolean diagonal = d[0] != 0 && d[1] != 0;
+            MovementType plane = diagonal ? MovementType.DIAGONAL : MovementType.TRAVERSE;
+            for (int dy = 0; dy <= 1; dy++) {
+                MovementType type = dy == 0 ? plane : MovementType.ASCEND;
+                if (!context.allows(type)) {
+                    continue;
+                }
+                BlockPos to = from.offset(d[0], dy, d[1]);
+                if (!context.yInBounds(to.getY())) {
+                    continue;
+                }
+                if (!MovementHelper.canWalkOn(level, to)
+                        || !MovementHelper.canWalkThrough(level, to)
+                        || !MovementHelper.canWalkThrough(level, to.above())) {
+                    continue;
+                }
+                if (!level.getFluidState(to).isEmpty() || !level.getFluidState(to.above()).isEmpty()) {
+                    continue;   // 目的地是流体 ⇒ 不往危险里"脱困"
+                }
+                if (dy == 1 && !MovementHelper.canWalkThrough(level, from.above(2))) {
+                    continue;   // ASCEND 执行器还要求"起点头部空间"（from+2 可穿）⇒ 别造可规划不可执行的边
+                }
+                append(context, from, to, type, out);
+            }
+        }
+    }
+
     /** FALL 支持的落差（Baritone `maxFallHeightNoWater = 3`，无水落地，D-058）。 */
     private static final int[] FALL_DROPS = {2, 3};
 
