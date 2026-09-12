@@ -227,10 +227,16 @@ tools/check-scene-connectivity.py --all        # 离线：22 场景无「封航�
 `cleared=9`）、`alice:mine_job`（`ore_course`）、`alice:lumber_failure_check`、`alice:scaffold_check`、
 `alice:clear_guard_check`、`alice:write_budget_check`、`alice:pathing_regression`（18 场景 + 无头断言）。
 
+**J7 收口（Step 1–4 全部 `WINDOWS_CLIENT`）**
+- Step 1 生命周期闭环（D-107）｜Step 2 攀爬兜底 + 逐树会话内拆除（D-109）｜
+  Step 3 崩溃兜底（D-127：`pendingForOwner` + 就近续做判定/阈值 16 格 + 启动报告，夹具第二轮"故意不拆"验证）｜
+  Step 4 失败语义收敛（D-128：`trunk_too_tall` 正名、缺斧前置 `tool_missing`、`climb_incomplete` 分类、
+  顶层归因、`scaffold_restore_incomplete` 命名）⇒ `alice:lumber_failure_check` **6/6**。
+
 **下一步（按建议优先级）**
-1. **J7 Step 3/4**：§12.4 崩溃恢复（恢复"未完成的拆除"）；`trunk_too_tall` 与「爬了但没砍完」的区分；
-   生产侧「手上没有合适拆除工具」的感知（T1 已把发料移出生产任务，这一步是把**工具语义接上目标级决策**）。
-2. **J8 MAINTAIN 区域型**：第一个"周期/区域"型 Job；也是检验"生命周期是否要收敛"（B 类）的时机。
+1. **J8 MAINTAIN 区域型**（§13）：第一个"周期/区域"型 Job（区域不变量：无未砍完的树、无我方残留、补种），
+   同一 `LumberJob` + 不同 `GoalSpec`/策略；也是检验"生命周期是否要收敛"（B 类）的时机。
+   前置：`LumberRegionState`（区域定义 + 我种的苗 + 上次巡查 tick）与 `KEEP` 策略（补种属计划内永久修改）。
 3. **未覆盖的行为分支（与 T2/T3 同批登记）**：几何不可达导致的「首候选失败、次候选成功」场景、
    清障子任务**加高**行为、`trunkHeight+1>12` 截断、① 扫尾超时分支。
 4. **T6 盲区**：`19/24` 那种「本来就看不见目标、必须清障」的目标只给软提示 —— 其"清障是否可行"

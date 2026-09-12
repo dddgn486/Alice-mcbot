@@ -3991,3 +3991,20 @@ J3 的 3 棵树恰好 3+3+2 = **8 压线**；`a5901f5` 想加第 4 棵树，却�
 
 **验证等级**：IMPLEMENTED / COMPILES（待复测：`lumber_failure_check` 应 **6/6**，
 尤其 `inventory_full=PASS(status=DONE reason=inventory_full)` 与 `tool_missing=PASS` 同时成立）。
+
+### D-128 附注二（2026-09-12 12:15–12:16 客户端实测：**6/6 PASS**，J7 失败码骨架收口）
+
+```
+[FailCheck] SUMMARY no_candidates=PASS(status=FAILED reason=no_reachable_candidate)
+   all_rejected=PASS(… tree@22,64,218:trunk_too_tall)
+   inventory_full=PASS(status=DONE reason=inventory_full)          ← 库存优先于缺工具（顺序修复生效）
+   goal_timeout=PASS(status=FAILED reason=goal_timeout ticks=41)
+   log_replaced=PASS(status=DONE reason=quota_met replacedPos 仍为圆石=true)
+   tool_missing=PASS(status=FAILED reason=tool_missing) → PASS（**6/6**，两轮均 terminal=COMPLETED）
+[Job] lumber 背包放不下任何原木，直接结束（未动世界）
+[Job] lumber 缺少砍伐工具（快捷栏无斧）⇒ FAILED tool_missing
+```
+另：`lumber_job` 正常路径不受影响（`trees 5/5 logs 23/23 cleared=9 scaffoldLeft=0`）。
+
+**验证等级**：`WINDOWS_CLIENT`。**J7（Step 1–4）整条收口**：
+Step 1 生命周期闭环（D-107）/ Step 2 攀爬兜底（D-109）/ Step 3 崩溃兜底（D-127）/ Step 4 失败语义收敛（D-128）。
