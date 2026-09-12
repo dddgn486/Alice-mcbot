@@ -25,6 +25,14 @@ public final class LumberCourseAnchor {
     /** 期望被拒的对照：2x2 高大云杉（77 原木、20 高，含硬遮挡 → trunk_too_tall）。 */
     public static final BlockPos REJECTED_TALL_TREE = new BlockPos(22, 64, 218);
 
+    /**
+     * **可持续伐木区**（J8 / §13.2）的测试区域：覆盖本场景全部树木（含被拒的高大云杉，
+     * 它会被候选源以 `trunk_too_tall` 排除；区域型 Job 只在该区域内找树）。
+     * 与 `lumber_course_terrain` 注释里的场景盒 `x 17..37 / y 58..116 / z 203..231` 对齐。
+     */
+    public static final BlockPos REGION_MIN = new BlockPos(17, 58, 203);
+    public static final BlockPos REGION_MAX = new BlockPos(37, 80, 231);
+
     private LumberCourseAnchor() {
     }
 }

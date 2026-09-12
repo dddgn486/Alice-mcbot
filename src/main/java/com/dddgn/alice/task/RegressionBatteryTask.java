@@ -134,6 +134,22 @@ public final class RegressionBatteryTask implements Task {
                                 MineCandidateSource.SCAN_RADIUS),
                         new NearestPolicy()),
                 2200));
+        // J8 可持续伐木区（MAINTAIN）：同一个伐木场景，但走"巡查 → 砍 → 继续巡查"的区域型 Job
+        steps.add(new Step("region_maintain",
+                List.of("alice_test:lumber_course_terrain", "alice_test:lumber_course_trees"),
+                () -> {
+                    teleportBot(LumberCourseAnchor.START_FOOT);
+                    FixtureToolKit.resetInventory(bot);
+                    FixtureToolKit.ensureAxe(bot);
+                    FixtureToolKit.ensurePickaxe(bot);
+                    FixtureToolKit.ensureHotbarStack(bot, () -> new ItemStack(Items.COBBLESTONE),
+                            stack -> stack.is(Items.COBBLESTONE), 12, "cobblestone");
+                },
+                () -> new com.dddgn.alice.job.lumber.RegionLumberJob(bot,
+                        new com.dddgn.alice.job.lumber.LumberRegionState.Region(
+                                LumberCourseAnchor.REGION_MIN, LumberCourseAnchor.REGION_MAX),
+                        scope, new LumberCandidateSource(), new NearestPolicy(), 20, 8000),
+                2000));
         steps.add(new Step("pathing", List.of(), null,
                 () -> new PathingRegressionTask(bot, observer), 5000));
     }

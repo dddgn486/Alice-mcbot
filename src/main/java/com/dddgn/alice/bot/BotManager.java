@@ -569,6 +569,36 @@ public final class BotManager {
         return true;
     }
 
+    /**
+     * **可持续伐木区（MAINTAIN）入口**（J8 / §13）：设定区域 → 起 {@code RegionLumberJob}。
+     *
+     * <p>与一次性伐木共用同一套候选源/策略/内嵌 `LumberJob`（§13 的"一个 Job 两套参数"）；
+     * 这里额外做两件事：把**区域边界**写进持久化的 {@link com.dddgn.alice.job.lumber.LumberRegionState}
+     * （跨会话记得"这片区域该长什么样"），以及入口发料（D-119 起生产任务不发工具）。
+     */
+    public static boolean assignRegionLumber(BotPlayer bot, ServerPlayer observer,
+                                             com.dddgn.alice.job.lumber.LumberRegionState.Region region) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        com.dddgn.alice.item.FixtureToolKit.ensureAxe(bot);
+        com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
+        com.dddgn.alice.item.FixtureToolKit.ensureHotbarStack(bot,
+                () -> new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.COBBLESTONE),
+                stack -> stack.is(net.minecraft.world.item.Items.COBBLESTONE), 12, "cobblestone");
+        com.dddgn.alice.job.lumber.LumberRegionState state =
+                com.dddgn.alice.job.lumber.LumberRegionState.get(bot.getServer());
+        state.setRegion(bot.getUUID(), region);
+        BotLog.info("[Job] region_lumber 区域={} saplingItem={}（补种树苗由用户选择，见 /alice region）",
+                region.describe(), state.saplingItem(bot.getUUID()) == null
+                        ? "-" : state.saplingItem(bot.getUUID()));
+        session.beginTask(new com.dddgn.alice.job.lumber.RegionLumberJob(bot, region,
+                        session.scope(), new com.dddgn.alice.job.lumber.LumberCandidateSource(),
+                        new com.dddgn.alice.job.policy.NearestPolicy(), 40, 24000),
+                TaskTarget.block(region.center()));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     /** J6-b2：容器绕行自检（断言 bot 不为取目标而拆箱子，D-095）。 */
     public static boolean assignClearGuardCheck(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());

@@ -141,6 +141,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> WRITE_BUDGET_CHECK =
             ITEMS.register("write_budget_check", () -> new WriteBudgetCheckItem(new Item.Properties()));
 
+    /** J8 可持续伐木区（零参数右键）：设定测试区域并起区域型 Job（巡查 → 砍 → 继续巡查）。 */
+    public static final RegistryObject<Item> REGION_LUMBER =
+            ITEMS.register("region_lumber", () -> new RegionLumberItem(new Item.Properties()));
+
     /** 串联回归电池（零参数）：一次右键跑完 9 项常用回归，末尾一行 SUMMARY。 */
     public static final RegistryObject<Item> REGRESSION_BATTERY =
             ITEMS.register("regression_battery", () -> new RegressionBatteryItem(new Item.Properties()));

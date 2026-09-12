@@ -4008,3 +4008,33 @@ J3 的 3 棵树恰好 3+3+2 = **8 压线**；`a5901f5` 想加第 4 棵树，却�
 
 **验证等级**：`WINDOWS_CLIENT`。**J7（Step 1–4）整条收口**：
 Step 1 生命周期闭环（D-107）/ Step 2 攀爬兜底（D-109）/ Step 3 崩溃兜底（D-127）/ Step 4 失败语义收敛（D-128）。
+
+## D-129 J8 Slice A：可持续伐木区（MAINTAIN）——区域状态 + 巡查编排 + 复用一次性伐木（2026-09-12）
+
+**用户裁定（本轮）**：开始 J8；**补种的树苗不需要与原树一一对应**，但**要留一个接口让用户选择用哪种树苗**。
+
+**§13 的口径**：MAINTAIN 与"自动找树砍"是**同一个 Job 家族 + 不同 `GoalSpec`/策略**，不是两套任务；
+区域不变量 = 无未砍完的树、无我方残留、欠树则补种；停止只由玩家命令触发；常驻任务**必须有健康输出**。
+
+**Slice A（本轮，先不补种）**
+1. **`LumberRegionState`（`SavedData`，与账本同族）**：按 owner 存 区域边界 / **我种下的树苗位置** /
+   上次巡查 tick / 累计统计 / **用户选定的树苗物品 id**（`saplingItem`，用户接口的存储位，
+   补种逻辑在 Slice B 用）。跨会话持久化：`MAINTAIN` 必须记得"这片区域该长什么样"。
+2. **`RegionLumberJob`（L3）**：只做编排 —— `PATROL`（每 N tick 巡查：候选源扫区域 → 按**区域边界**过滤
+   → 排除本轮试过的 → 策略挑最近）→ `HARVEST`（**原样内嵌 `LumberJob`，quota=1、center=那棵树**）
+   → 结算 → 回 `PATROL`。因此清障预算 / 建拆同权 / 攀爬兜底 / 失败语义**全部沿用已验证的那一套，没有第二份实现**。
+   - 健康输出：每次巡查一行 `[Job] maintain region=… viable=… inRegion=… mySaplings=… chopped=… lastPatrol=…`；
+   - 终止：连续 `IDLE_PATROLS=3` 次无活 ⇒ `DONE idle_no_work`（§13.3：如实待机，**不算失败**）；
+     本轮全部树都失败 ⇒ `FAILED no_reachable_candidate` + 逐树理由；缺斧 ⇒ 内嵌 Job 的 `tool_missing`。
+3. **入口**：`alice:region_lumber`（零参数右键，夹具区域 = `LumberCourseAnchor.REGION_MIN/MAX`，
+   与场景盒对齐）；`BotManager.assignRegionLumber` 负责**发料 + 写区域 + 起 Job**（与一次性伐木入口对称）。
+4. **串联电池新增第 10 步 `region_maintain`**（同一伐木场景，巡查间隔压到 20 tick 便于测试）。
+
+**验证入口**：右键 `alice:region_lumber`（或跑电池）→ 期望：
+`[Job] maintain pick tree@…` 逐棵 → 5 棵砍完 → `[Job] maintain SUMMARY … chopped=5 failed=0 reason=idle_no_work → DONE`。
+
+**Slice B（下一步，已设计未实现）**：**补种**（`KEEP` 策略：计划内永久修改，与脚手架 `TEMP` 同账本不同策略）
++ **树苗选择接口**（`/alice region sapling <item_id>` 写 `LumberRegionState.saplingItem`，`/alice region info` 读数；
+用户已裁定"不必与被砍的树一一对应"）+ 欠树判断（区域目标棵数）与巡查周期配置。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待测：`region_lumber` 或电池第 10 步 `region_maintain=PASS`）。
