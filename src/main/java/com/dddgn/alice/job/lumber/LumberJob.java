@@ -130,13 +130,18 @@ public final class LumberJob implements Job {
     /** 任务结束时仍未拆除的我方临时放置（如实报告，不静默）。 */
     private int scaffoldLeft;
     /**
-     * ① 就地扫尾的能力信封（D-116）：允许原地加高最多 8 格（一棵树从脚手架上到树冠的余量），
-     * 方块预算沿用默认 12。③ 落地扫尾**不给**加高——它在 ② 拆除之后，产生的放置没人收（会留残）。
+     * ① 就地扫尾的信封与预算**逐树推导**（R3 / D-123），不再写死 `gain<=8` / `200 tick`：
+     * <ul>
+     *   <li>能力：{@link MiningProfile#sweepGain(int)} —— 由**该树树干高度**推出加高步数
+     *       （上界 = 树干高 + 1，且不超过一次性方块预算 12）；</li>
+     *   <li>tick：{@link CollectDropsTask#suggestedSweepTicks(int, MiningProfile)} ——
+     *       固定开销 + 待收物数×单价 + 加高步数×单价。</li>
+     * </ul>
+     * ③ 落地扫尾**不给**加高——它在 ② 拆除之后，产生的放置没人收（会留残）。
      */
-    private static final MiningProfile COLLECT_GAIN_PROFILE =
-            MiningProfile.STANDABLE_ONLY.withGain(8);
-    /** ① 就地扫尾的 tick 预算（best-effort）。 */
-    private static final int SWEEP_UP_BUDGET_TICKS = 200;
+    private static final int SWEEP_PHASE_SLACK_TICKS = 40;
+    /** 本棵树 ① 扫尾的实际预算（逐树在 `sweepUp()` 里推导后写入）。 */
+    private int sweepBudgetTicks;
     /**
      * ① 就地扫尾的**阶段局部**状态（专用计数器 + 是否已开工）。
      *
@@ -387,16 +392,22 @@ public final class LumberJob implements Job {
             // 这些放置落在同一作用域里，紧随其后的 ② 建拆同权会一并收回。
             sweepStarted = true;
             sweepTicks = 0;
+            // R3：信封与预算**从这棵树推导**（树干高 → 加高步数；待收物数 + 步数 → tick 预算）
+            MiningProfile sweepProfile = MiningProfile.sweepGain(tree.trunkHeight());
+            sweepBudgetTicks = CollectDropsTask.suggestedSweepTicks(
+                    scope.liveDrops().size(), sweepProfile);
             collector = new CollectDropsTask(bot, bot.blockPosition(), scope, List.of(), false,
-                    SWEEP_UP_BUDGET_TICKS, COLLECT_GAIN_PROFILE);
-            BotLog.info("[Job] lumber sweep_up_start foot={} live_drops={}（仍在架上）",
+                    sweepBudgetTicks, sweepProfile);
+            BotLog.info("[Job] lumber sweep_up_start foot={} live_drops={} trunkHeight={}"
+                            + " gain<={} blockBudget={} budgetTicks={}（仍在架上）",
                     MovementHelper.footCell(bot.serverLevel(), bot).toShortString(),
-                    scope.liveDrops().size());
+                    scope.liveDrops().size(), tree.trunkHeight(),
+                    sweepProfile.maxGainSteps(), sweepProfile.gainBlockBudget(), sweepBudgetTicks);
             return Task.Status.RUNNING;
         }
-        if (++sweepTicks > SWEEP_UP_BUDGET_TICKS + 40) {
-            BotLog.warn("[Job] lumber sweep_up_timeout ticks={}（best-effort：交由 ② 拆除后落地再收）",
-                    sweepTicks);
+        if (++sweepTicks > sweepBudgetTicks + SWEEP_PHASE_SLACK_TICKS) {
+            BotLog.warn("[Job] lumber sweep_up_timeout ticks={}/{}（best-effort：交由 ② 拆除后落地再收）",
+                    sweepTicks, sweepBudgetTicks);
             collector = null;
             sweptUpThisTree = true;
             return advanceAfterChop();

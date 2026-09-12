@@ -3648,3 +3648,39 @@ breaks=22/64 … #113:Regression:mine_regression breaks=4/64 … #114:Regression
 
 **验证等级**：`WINDOWS_CLIENT`（9/9）。本电池一次性复验了 D-119（工具语义/负例）、D-121（清障换候选）、
 D-116（① 扫尾/② 对账）、D-117（伐木通道）等此前各项 ✓。
+
+## D-123 R3：① 扫尾的信封与预算改为**从树木几何推导**（2026-09-12）
+
+**先查出身（避免把"裁定常量"误当"场景常量"改掉）**
+- `MAX_CLEAR_PER_TREE = 8`：出身是 `JOB_LAYER_DESIGN.md §9-4「≤8 格/棵」` —— **设计裁定**，不动
+  （J2/J3 的夹具反而是**照着它**造成"累计 ≥8 才跨阈值"的）。
+- `MiningProfile.DEFAULT_GAIN_BLOCK_BUDGET = 12`：**用户 2026-09-11 裁定**（"砍树够用"，模组超高树不在范围），
+  且已把 `CLIMB_BUDGET=12` 的两份重复收敛到一处 —— 不动。
+- 真正"按本测试场景反推"的只有两个：① 扫尾的 `withGain(8)`（注释自述"一棵树从脚手架上到树冠的余量"）
+  与 `SWEEP_UP_BUDGET_TICKS = 200` ⇒ **本轮只改这两个**。
+
+**实现**
+1. `MiningProfile.sweepGain(int trunkHeight)`：加高步数 = `min(树干高 + 1, 12)`，且**方块预算 = 步数**
+   （每个加高步恰好消耗 1 个方块 ⇒ 紧界，不再沿用宽松的 12）。
+   依据（实测）：高云杉脚位 65 → 掉落物 70、树干 64..70 ⇒ 上界就是**整根树干的高度**（+1 给树冠余量）；
+   `Tree.trunkHeight()` 是"顶格 − 底格 + 1"的跨度 ⇒ 天然是不小于实际所需的**安全上界**。
+   模组超高树如实停在 12 格（不做无限加高）。
+2. `CollectDropsTask.suggestedSweepTicks(dropEstimate, gainProfile)` =
+   `120（建立簇/等 pickupDelay/等落地/收尾）+ 待收物数×60 + 加高步数×25`，
+   单价来自实测代价（PILLAR 一步 10~16 tick；一次走位-吸取 6~30 tick），不是"试出来的一个数"。
+3. 两个调用点改用推导值并把**推导过程打进日志**（便于核对算术）：
+   - `LumberJob.sweepUp()`：`sweep_up_start … trunkHeight=7 gain<=8 blockBudget=8 budgetTicks=380`；
+     超时日志带 `ticks=…/预算`；新增 `SWEEP_PHASE_SLACK_TICKS = 40`（阶段守护余量，不再是匿名的 `+40`）。
+   - `ScaffoldLifecycleTask.sweepUp()`：同样推导（该夹具扫尾不加高 ⇒ `120 + 1×60 = 180`，原为写死 200），
+     `sweep_up_start … budgetTicks=180`。
+
+**对当前场景的数值**（可核对）：高云杉 `trunkHeight=7` ⇒ 加高 8 步、块预算 8、tick 预算 **380**
+（原 200）；`scaffold` 夹具 ① 扫尾 **180**（原 200）。两者都被串联回归电池行为性覆盖
+（`lumber_job` 需 ① 扫尾收树冠掉落物、`scaffold` 断言 `drops_left=0`）。
+
+**未覆盖（登记）**：`trunkHeight + 1 > 12` 的**截断分支**（模组超高树）只有代码/算术证据，没有场景；
+① 扫尾 **超时分支**（`sweep_up_timeout`）同样未构造。两者都需要"更高的树"或"故意够不到的掉落物"，
+留待专项目标时一起做（与 R2 的两条未覆盖同批）。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待跑：串联回归电池应仍 9/9，且日志出现推导后的
+`trunkHeight=/gain<=/blockBudget=/budgetTicks=`）。

@@ -69,7 +69,12 @@ public final class ScaffoldLifecycleTask implements Task {
     /** ③ 落地扫尾的 tick 预算（与 `RestoreScopeTask` 的收尾收集一致）。 */
     private static final int COLLECT_BUDGET_TICKS = 600;
     /** ① 就地扫尾的 tick 预算（best-effort：够不到就留给 ③，不长等）。 */
-    private static final int SWEEP_UP_BUDGET_TICKS = 200;
+    /**
+     * ① 就地扫尾的 tick 预算**按同一口径推导**（R3 / D-123）：本夹具扫尾不加高（信封为
+     * `STANDABLE_ONLY`）⇒ 预算 = 固定开销 + 待收物数×单价。原先写死 200。
+     */
+    private int sweepBudgetTicks = com.dddgn.alice.task.CollectDropsTask
+            .suggestedSweepTicks(1, null);
     /** 高处目标的掉落物落点附近（收尾收集的锚点）。 */
     private static final BlockPos DROP_ANCHOR = new BlockPos(40, 64, 46);
     /** 场景包围盒（世界事实扫描：地上还有没有掉落物）。 */
@@ -267,17 +272,20 @@ public final class ScaffoldLifecycleTask implements Task {
      */
     private Task.Status sweepUp() {
         if (collector == null) {
+            sweepBudgetTicks = com.dddgn.alice.task.CollectDropsTask.suggestedSweepTicks(
+                    scope.liveDrops().size(), null);
             collector = new CollectDropsTask(bot, TARGET, scope, java.util.List.of(), false,
-                    SWEEP_UP_BUDGET_TICKS);
-            BotLog.info("[Scaffold] sweep_up_start anchor={} foot={} live_drops={}（仍在架上，就地收）",
+                    sweepBudgetTicks);
+            BotLog.info("[Scaffold] sweep_up_start anchor={} foot={} live_drops={} budgetTicks={}"
+                            + "（仍在架上，就地收）",
                     TARGET.toShortString(),
                     MovementHelper.footCell(bot.serverLevel(), bot).toShortString(),
-                    scope.liveDrops().size());
+                    scope.liveDrops().size(), sweepBudgetTicks);
             ticks = 0;
             return Task.Status.RUNNING;
         }
-        if (++ticks > SWEEP_UP_BUDGET_TICKS + 40) {
-            BotLog.warn("[Scaffold] sweep_up 超时（{} tick）→ 继续拆除", ticks);
+        if (++ticks > sweepBudgetTicks + 40) {
+            BotLog.warn("[Scaffold] sweep_up 超时（{}/{} tick）→ 继续拆除", ticks, sweepBudgetTicks);
             collector = null;
             phase = Phase.TEARDOWN;
             return Task.Status.RUNNING;

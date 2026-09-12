@@ -92,6 +92,23 @@ public record MiningProfile(boolean standableOnly, int maxGainSteps, int gainBlo
         return new MiningProfile(standableOnly, steps, steps > 0 ? gainBlockBudget : 0, 0, false);
     }
 
+    /**
+     * **① 就地扫尾的能力信封**（R3 / D-123）：加高步数**从树的几何推导**，不再写死 8。
+     *
+     * <p>推导依据（实测）：扫尾是从"作业脚位"往上够树冠里的掉落物，最坏情况就是**整根树干的高度**
+     * （高云杉实测：脚位 65 → 掉落物 70，树干 64..70 共 7 格 ⇒ 上界 = 树干高 + 1 给树冠留余量）。
+     * 同时**不允许超过一次性方块预算**（每个加高步恰好消耗 1 个方块）——该预算由用户 2026-09-11
+     * 裁定为 {@link #DEFAULT_GAIN_BLOCK_BUDGET}（12）；模组超高树因此如实停在 12 格，
+     * 不做"无限加高"（策略：超出预算就让 ② 拆除后落地再收或如实报 `product_not_collected`）。
+     *
+     * @param trunkHeight 树干高度（格）；来自候选树自身（`Tree.trunkHeight()`）
+     */
+    public static MiningProfile sweepGain(int trunkHeight) {
+        int steps = Math.max(1, Math.min(trunkHeight + 1, DEFAULT_GAIN_BLOCK_BUDGET));
+        // 每步 1 个方块 ⇒ 方块预算 = 步数（紧界，不再沿用"默认 12"的宽松值）
+        return STANDABLE_ONLY.withGain(steps, steps);
+    }
+
     /** 是否允许加高。 */
     public boolean mayGain() {
         return maxGainSteps > 0;

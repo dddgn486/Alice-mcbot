@@ -6,6 +6,7 @@ import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.pathing.core.session.PathExecutionResult;
 import com.dddgn.alice.perception.ScopeBuffer;
+import com.dddgn.alice.task.mining.MiningProfile;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.Item;
@@ -51,6 +52,30 @@ public final class CollectDropsTask implements Task {
     private static final int DEFAULT_TOTAL_BUDGET_TICKS = 600;
     /** 单个簇的扫描预算（tick，含走位与等待）。 */
     private static final int CLUSTER_BUDGET_TICKS = 200;
+
+    // ==================== 扫尾预算的推导口径（R3 / D-123） ====================
+    // 依据实测代价反推，而不是"按某个场景试出来一个数"：
+    //   · 建立簇 / 等 pickupDelay(~10 tick) / 等掉落物落地 / 收尾 —— 固定开销；
+    //   · 每个待收掉落物一次走位-吸取循环（实测 6~30 tick）；
+    //   · 每允许加高一步 = 一次 PILLAR（实测 10~16 tick）+ 重锚重规划余量。
+    /** 扫尾固定开销（建立簇 + 等落地 + 收尾）。 */
+    public static final int SWEEP_BASE_TICKS = 120;
+    /** 每个待收掉落物的代价（实测 6~30 tick，取 2 倍余量）。 */
+    public static final int SWEEP_TICKS_PER_DROP = 60;
+    /** 每一步加高的代价（PILLAR 实测 10~16 tick + 重锚/重规划余量）。 */
+    public static final int SWEEP_TICKS_PER_GAIN_STEP = 25;
+
+    /**
+     * 扫尾阶段的 tick 预算：`固定开销 + 待收物数 × 单价 + 允许的加高步数 × 单价`。
+     *
+     * @param dropEstimate 进入扫尾时作用域里的存活掉落物数（下界估计，`max(1, n)`）
+     * @param gainProfile  扫尾用的能力信封（null = 不允许加高）
+     */
+    public static int suggestedSweepTicks(int dropEstimate, MiningProfile gainProfile) {
+        int drops = Math.max(1, dropEstimate);
+        int steps = gainProfile == null ? 0 : gainProfile.maxGainSteps();
+        return SWEEP_BASE_TICKS + drops * SWEEP_TICKS_PER_DROP + steps * SWEEP_TICKS_PER_GAIN_STEP;
+    }
     /** 到位后等待自然拾取的 tick 数（原版拾取延迟 10 tick + 余量）。 */
     private static final int PICKUP_WAIT_TICKS = 40;
     /** 判定"已站进拾取范围"的水平距离（格）。 */
