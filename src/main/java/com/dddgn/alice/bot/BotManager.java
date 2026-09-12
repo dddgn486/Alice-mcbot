@@ -951,7 +951,10 @@ public final class BotManager {
 
     /**
      * **显式停止当前任务**（J8 / §13.1）：常驻任务（如可持续伐木区）**只由玩家/决策层打断**，
-     * 不自己收工。这里按 `CANCELLED_BY_USER` 记账（与"被新指令替换"区分开），并跑一遍收尾。
+     * 不自己收工。这里按 {@code CANCELLED_BY_USER} 记账（与"被新指令替换"区分开），并跑一遍收尾。
+     *
+     * <p>打断是**正常**结束方式，但可能停在"脚手架上/半棵树"的中间态：收尾若发现有我方临时方块
+     * 未拆除，会另起一行如实说明（`world_mod_ledger_close …`，不自动追任务，见 D-103）。
      *
      * @return 被停掉的任务名；没有任务时返回 null
      */
@@ -962,11 +965,20 @@ public final class BotManager {
         }
         String kind = session.taskKind;
         session.recordTerminal(session.taskKind, session.taskTargetDescription, session.taskStartTick,
-                TaskExecutionRecord.TerminalStatus.CANCELLED_REPLACED,
+                TaskExecutionRecord.TerminalStatus.CANCELLED_BY_USER,
                 "cancelled:" + (reason == null ? "user" : reason), "idle_after_cleanup");
         session.clearTask();
-        BotLog.info("[alice] 已显式停止任务 {}（{}）", kind, reason == null ? "user" : reason);
+        int residue = com.dddgn.alice.ledger.WorldModLedger
+                .pendingForOwner(bot.serverLevel().getServer(), bot.getUUID()).size();
+        BotLog.info("[alice] 已显式停止任务 {}（{}）{}", kind, reason == null ? "user" : reason,
+                residue == 0 ? "" : "；账本仍有 " + residue + " 条我方临时方块未拆（/alice restore 可清理）");
         return kind;
+    }
+
+    /** bot 名下**未闭合**的我方临时方块条数（`/alice region stop` 回执用，只读）。 */
+    public static int pendingTemporaryCount(BotPlayer bot) {
+        return com.dddgn.alice.ledger.WorldModLedger
+                .pendingForOwner(bot.serverLevel().getServer(), bot.getUUID()).size();
     }
 
     /** 服务器启动完成:恢复存档假人(若有)。 */
@@ -1273,7 +1285,7 @@ public final class BotManager {
                     failure == null ? "-" : failure.phase(), failure == null ? "-" : failure.details());
         }
 
-        /** 任务收尾:清任务、清作用域、广播清除高亮。 */
+        /** 任务收尾:清任务、清作用域、广播清除高亮、**输入归零**。 */
         void clearTask() {
             if (task != null) {
                 String closedScope = com.dddgn.alice.ledger.WorldModLedger.closeScope(
@@ -1288,6 +1300,15 @@ public final class BotManager {
                 task = null;
                 target = null;
                 broadcastTarget(null);
+                // **输入归零**（2026-09-12 J8 收尾）：`BotController.onUpdate()` 每 tick 都会把**上次留下的
+                // 输入**继续压到 bot 上，而清任务之后没有任务再去 drive 它（`PathSession` 只在自己被 tick
+                // 到终态时才 `stopMovement()`）。**显式打断**（`/alice region stop`）恰好停在半路，
+                // 不归零就会出现"说停了却还在走/还在跳"。只在确实有残留输入时清，免得刷日志。
+                if (bot.controller().hasActiveMovement()) {
+                    BotLog.info("[alice] 任务收尾：清除残留移动输入（{}）",
+                            bot.controller().getInputStateString());
+                    bot.controller().stopMovement();
+                }
                 if (!pendingTemp.isEmpty()) {
                     // **只报信号，不自动追任务**（2026-09-11 简化，D-103）：
                     // 原先在这里自动追加一个"远程恢复任务"，但那时 bot 已经离开脚手架，

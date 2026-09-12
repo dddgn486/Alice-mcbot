@@ -233,16 +233,28 @@ tools/check-scene-connectivity.py --all        # 离线：22 场景无「封航�
   Step 4 失败语义收敛（D-128：`trunk_too_tall` 正名、缺斧前置 `tool_missing`、`climb_incomplete` 分类、
   顶层归因、`scaffold_restore_incomplete` 命名）⇒ `alice:lumber_failure_check` **6/6**。
 
+**J8 收口（区域型 MAINTAIN；D-129 / D-130 / D-131）**
+- Slice A 可持续伐木区（`LumberRegionState` + `RegionLumberJob` + `alice:region_lumber` + 电池第 10 步）
+  ｜Slice B 区域补种（`REGION_REPLANT` ⇒ 账本 `KEEP`）+ 树苗选择接口 ｜
+  D-130 语义修正：**玩家只划水平范围 / 垂直自适应**（`adaptiveTop`）、**常驻**（只由显式打断结束）、
+  等生长退避 40→…→600 tick ｜D-131 收尾：三个玩家接口做实 + 三处收尾缺陷。
+  验证等级：功能全部 `WINDOWS_CLIENT`（D-130 附注）；玩家接口见 D-131（客户端待测）。
+- J8 收尾修掉的**真缺陷**（不是"没测"那么简单，见 D-131）：
+  ① `/alice region set` 重划区域不作废旧区域的派生记账（`baseline=5` 污染空区域 ⇒ 永不待机）；
+  ② 目标棵数未把"我种的苗"算进去（在"已砍完只剩苗"的地块上启动会退化）；
+  ③ 显式打断记成 `CANCELLED_REPLACED`（与文档不符）⇒ 新增 `CANCELLED_BY_USER`；
+  ④ `clearTask()` 不清残留移动输入（`/alice region stop` 停在半路 ⇒ "说停了却还在走"）。
+
 **下一步（按建议优先级）**
-1. **J8 MAINTAIN 区域型**（§13）：第一个"周期/区域"型 Job（区域不变量：无未砍完的树、无我方残留、补种），
-   同一 `LumberJob` + 不同 `GoalSpec`/策略；也是检验"生命周期是否要收敛"（B 类）的时机。
-   前置：`LumberRegionState`（区域定义 + 我种的苗 + 上次巡查 tick）与 `KEEP` 策略（补种属计划内永久修改）。
-3. **未覆盖的行为分支（与 T2/T3 同批登记）**：几何不可达导致的「首候选失败、次候选成功」场景、
-   清障子任务**加高**行为、`trunkHeight+1>12` 截断、① 扫尾超时分支。
-4. **T6 盲区**：`19/24` 那种「本来就看不见目标、必须清障」的目标只给软提示 —— 其"清障是否可行"
+1. **未覆盖的行为分支（与 T2/T3 同批登记）**：几何不可达导致的「首候选失败、次候选成功」场景、
+   清障子任务**加高**行为、`trunkHeight+1>12` 截断、① 扫尾超时分支、`climb_incomplete` 场景、
+   `too_far` 恢复分支、真实崩溃重启路径。
+2. **T6 盲区**：`19/24` 那种「本来就看不见目标、必须清障」的目标只给软提示 —— 其"清障是否可行"
    仍归 `analyze-lumber-scene.py`（且不计可达性）；两项合一才算完整。
-5. 历史登记项：G3（模组连锁破坏无凭证）、G5（容器写入维度）、G4 Slice B2（尝试级 tick 预算）、
+3. 历史登记项：G3（模组连锁破坏无凭证）、G5（容器写入维度）、G4 Slice B2（尝试级 tick 预算）、
    `isExpensiveToClear` 成本化 + `#alice:clear_forbidden` 标签、`MiningBudget.tierOf` 的 `#forge:ores/*`。
+4. 可选（J8 未做的小项）：区域"目标密度"的手动配置接口（现在自动推导 = 首次巡查的 standing）、
+   选区魔杖（右键记 pos1 / 潜行右键记 pos2 ⇒ 免坐标命令的零参数入口）。
 
 ## 开始任何新任务前
 

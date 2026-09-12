@@ -502,13 +502,11 @@ public final class BotCommand {
     }
 
     /**
-     * 只读查看世界修改账本（J6-a）：未清除的放置、按策略分类、打开中的授权作用域。
-     *
-     * <p>只读——不分配任务、不改变世界、不清理账本。清理是 J6-b 的 `RestoreScopeTask` 的职责。
-     */
-    /**
      * {@code /alice region set <pos1> <pos2>}：玩家**只划水平范围**（x/z 取两角），
      * 竖直方向**自适应**（基准层取两角较低的 Y，上界由巡查按实测树高收紧）。
+     *
+     * <p>**重划区域**（与已保存的不同）会重置按旧区域积累的派生记账（目标棵数/界外苗/界外待补种），
+     * 见 {@code LumberRegionState#setRegion}；划**同一个**区域是幂等重入，不动记账。
      */
     private static int regionSet(CommandSourceStack source, net.minecraft.core.BlockPos a,
                                  net.minecraft.core.BlockPos b) {
@@ -520,11 +518,19 @@ public final class BotCommand {
         int baseY = Math.min(a.getY(), b.getY());
         var region = new com.dddgn.alice.job.lumber.LumberRegionState.Region(
                 a.getX(), a.getZ(), b.getX(), b.getZ(), baseY,
-                com.dddgn.alice.task.LumberCourseAnchor.REGION_MAX_HEIGHT);
-        com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer())
-                .setRegion(bot.getUUID(), region);
+                com.dddgn.alice.job.lumber.LumberRegionState.DEFAULT_MAX_HEIGHT);
+        var state = com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer());
+        boolean redefined = state.region(bot.getUUID()) != null
+                && !state.region(bot.getUUID()).equals(region);
+        state.setRegion(bot.getUUID(), region);
+        // 正在跑的 Job 持有的是**启动时那一刻**的区域对象（§13.1 一次启动 = 一个区域）：
+        // 重划不回灌进运行中的任务，如实说清楚，免得玩家以为"改了没生效"
+        boolean running = BotManager.isBusy(bot);
         source.sendSuccess(() -> Component.literal("[alice] 可持续伐木区已设定 " + region.describe()
-                + "（只划水平范围，竖直自适应；用 /alice region start 启动、stop 停止）"), false);
+                + "（x/z 取自两角、baseY 取较低的那个 Y，竖直自适应"
+                + (redefined ? "；区域变了 ⇒ 目标棵数重新推导" : "")
+                + "；用 /alice region start 启动、/alice region stop 停止）"
+                + (running ? " —— 注意：当前有任务在跑，新区域在**下一次 /alice region start** 生效" : "")), false);
         return 1;
     }
 
@@ -536,9 +542,16 @@ public final class BotCommand {
             return 0;
         }
         String stopped = BotManager.stopTask(bot, "region_stop");
-        source.sendSuccess(() -> Component.literal(stopped == null
-                ? "[alice] 当前没有在跑的任务"
-                : "[alice] 已停止 " + stopped), false);
+        if (stopped == null) {
+            source.sendSuccess(() -> Component.literal("[alice] 当前没有在跑的任务"), false);
+            return 1;
+        }
+        // 打断是常驻任务的正常结束方式，但可能停在"脚手架上/半棵树"的中间态：如实报出未闭合残留
+        int residue = BotManager.pendingTemporaryCount(bot);
+        source.sendSuccess(() -> Component.literal("[alice] 已停止 " + stopped + "（region_stop）"
+                + (residue == 0
+                        ? "；账本已闭合（无我方临时方块残留）"
+                        : "；**账本仍有 " + residue + " 条我方临时方块未拆**（/alice restore 可清理）")), false);
         return 1;
     }
 
@@ -611,7 +624,7 @@ public final class BotCommand {
         return 1;
     }
 
-    /** {@code /alice region start}：用**已保存的区域**起区域型伐木 Job（停止：下任意 /alice 指令）。 */
+    /** {@code /alice region start}：用**已保存的区域**起区域型伐木 Job（停止：`/alice region stop`，或下其它 /alice 指令替换）。 */
     private static int regionStart(CommandSourceStack source) {
         BotPlayer bot = BotManager.firstInLevel(source.getLevel());
         if (bot == null) {
@@ -634,6 +647,11 @@ public final class BotCommand {
         return ok ? 1 : 0;
     }
 
+    /**
+     * 只读查看世界修改账本（J6-a）：未清除的放置、按策略分类、打开中的授权作用域。
+     *
+     * <p>只读——不分配任务、不改变世界、不清理账本。清理是 J6-b 的 `RestoreScopeTask` 的职责。
+     */
     private static int ledger(CommandSourceStack source, boolean all) {
         net.minecraft.server.MinecraftServer server = source.getServer();
         var entries = com.dddgn.alice.ledger.WorldModLedger.recent(server, all ? 16 : 6);

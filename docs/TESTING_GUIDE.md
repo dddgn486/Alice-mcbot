@@ -111,7 +111,33 @@
 > 判据含义：`no_suitable_tool` = 生产任务**拒绝**在没有正确工具时挖"必须正确工具才掉落"的方块（D-119）；
 > `tool_in_main_inventory` / `no_tool` = 夹具**漏发或发错位置**（工具落 9..35 就永远选不到 —— D-089 斧子、
 > D-099 一次性方块，同一病灶第三次同形）。
-> **不要**再按"破坏速度 ≤ 1"判断夹具漏料：树叶这类方块本来就没有更快工具（2026-09-12 实测，8/8 全是清障树叶噪声）。
+> **不要**再按"破坏速度 ≤ 1"判断夹具漏料：树叶这类东西本来就没有更快工具（2026-09-12 实测，8/8 全是清障树叶噪声）。
+
+### 1.8 可持续伐木区（J8 / MAINTAIN）——一次跑完三个玩家接口
+
+区域型 Job 的功能已验收（D-130 附注）；这一节专门验**玩家接口**（`stop` / `set` / `idle-stop`），
+一次跑完约 1 分钟。区域定义**只有水平范围**（x/z 取自两个角，`baseY` 取较低的那个 Y，竖直自适应）。
+
+```
+① 右键 alice:region_lumber                 # 夹具区域（x17..37 z203..231）+ 常驻巡查，等 chopped 在涨
+② /alice region stop                       # 显式打断
+   期望聊天：[alice] 已停止 region_lumber（region_stop）；账本已闭合（无我方临时方块残留）
+             或 …；**账本仍有 N 条我方临时方块未拆**（/alice restore 可清理）
+   期望日志：task_execution_terminal … terminal=CANCELLED_BY_USER code=cancelled:region_stop
+③ /alice region info                       # 区域**仍在**（打断不丢区域）、autoIdleStop=false
+④ 走到一片空地站定（附近没有树），然后：      # 相对坐标，不用算数
+   /alice region set ~ ~ ~ ~8 ~ ~8          # 回执里写 "x… z… baseY=… maxH=48（垂直自适应）+ 目标棵数重新推导"
+   /alice region info                       # baseline=0（旧区域的 5 已被清掉 ⇒ D-131 修复点）
+⑤ /alice region idle-stop true              # 打开"无活即收工"的可选模式（默认关=常驻）
+⑥ /alice region start                       # 空区域 + 无苗 + 无欠 ⇒ 约 3 轮巡查后
+   期望日志：[Job] maintain region=… viable=0 … deficit=0 …
+             [Job] maintain SUMMARY … reason=idle_no_work → DONE
+⑦ /alice region idle-stop false             # 复原默认（常驻），免得下轮任务自己收工
+```
+
+> 注意：`/alice region info|sapling|idle-stop|set` 是**读/写配置**，**不会**打断正在跑的任务；
+> 会分配任务的指令（`start`、`mine`、`follow`…）才替换任务（`cancelled:replaced`）；
+> **只有 `/alice region stop` 是显式打断**。重划区域在"当前有任务在跑"时**下一次 start 才生效**。
 
 ---
 

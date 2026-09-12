@@ -4161,3 +4161,71 @@ region=x17..37 z203..231 baseY=58 maxH=48（垂直自适应） adaptiveTop=84 �
 这两个**玩家接口**只有代码/命令定义证据；`idle-stop=true` 的可选模式同样未实跑。
 
 **验证等级**：`WINDOWS_CLIENT`（常驻 / 退避 / 生长循环 / 垂直自适应）；玩家接口=IMPLEMENTED / COMPILES。
+
+### D-131 J8 收尾小项：把三个"只有代码证据"的玩家接口做实（+ 三处收尾缺陷）2026-09-12
+
+**本轮定位**：J8 的功能（常驻 / 退避 / 生长循环 / 垂直自适应）已 `WINDOWS_CLIENT`，
+但 D-130 附注登记的**三个玩家接口**（`/alice region stop`、`/alice region set`、`idle-stop=true`）
+只有代码证据。收尾时逐条走查代码，发现其中两个**本来就会坏**（不是"没测"那么简单），
+外加两个"任务收尾语义"的漏项，一并修掉。
+
+**1（真缺陷）`/alice region set` 会被「旧区域的账」污染**
+- 现象（代码推演）：`baselineTrees`（区域目标棵数）与 `pendingReplant` 是**持久化**的，
+  但 `/alice region set` 只是换掉 `region` 字段 —— 于是"在一个新划的空区域上启动"时，
+  上一片区域留下的 `baseline=5` 会让新区域第一轮就报 `deficit=5`，每轮都去补种（无树桩可补 ⇒ 空转），
+  `idlePatrols` 被清零 ⇒ **永远不会待机**。`mySaplings` 同理：界外的旧苗仍被算进 `standing`。
+- 修法（`LumberRegionState.setRegion`）：**区域被重新划定（与旧的不同）⇒ 派生记账全部作废** ——
+  `baselineTrees=0`（下轮按新区域现场重推）+ 丢掉**水平范围之外**的苗/待补种位置（方块本身不动）；
+  划**同一个**区域是幂等重入，不动记账（否则"砍完树后重启一次"就会把目标棵数丢掉）。
+  日志：`[Job] maintain 区域重划 ⇒ 派生记账重置（旧 … → 新 …）：baseline=0，丢弃界外苗=N 待补种=N`。
+- 顺带：`/alice region set` 的 `maxHeight` 原来取**夹具常量** `LumberCourseAnchor.REGION_MAX_HEIGHT`，
+  改为区域语义自带的 `LumberRegionState.DEFAULT_MAX_HEIGHT=48`（玩家接口不该依赖测试夹具的常量）；
+  另外在"当前有任务在跑"时如实提示"新区域在下一次 `/alice region start` 生效"
+  （运行中的 Job 持有启动那一刻的区域对象，重划不回灌）。
+
+**2（真缺陷，与 1 同源）目标棵数该把「我种的苗」算进去**
+- `baseline = 首次巡查时的可行树数`，而 `standing = 可行树 + 我种的苗`。
+  于是在一片"**已经砍完、只剩苗**"的地块上启动（正是 `/alice region set` 后的常见状态）时
+  `baseline` 退化成 0 ⇒ 之后再也补不回"欠 N 棵"。改为 `baseline = standing`（= 树 + 苗），
+  日志写明出处：`baseline=5（首次巡查确定 = 现场可作业树 5 + 我种的苗 0；之后按它算欠树）`。
+  空区域仍是 0 ⇒ `idle_no_work` 分支不受影响。
+
+**3（真缺陷）显式打断的终态语义对不上文档**
+- `BotManager.stopTask` 的 javadoc 写"按 `CANCELLED_BY_USER` 记账（与'被新指令替换'区分开）"，
+  但代码发的是 `CANCELLED_REPLACED` —— 常驻任务的**正常结束方式**（玩家叫停）被记成"被替换"。
+  新增枚举值 `TaskExecutionRecord.TerminalStatus.CANCELLED_BY_USER`，`stopTask` 改用它
+  （`code=cancelled:<reason>` 不变，如 `cancelled:region_stop`）；枚举无 switch 消费者，纯增量。
+- `/alice region stop` 回执补齐**现场事实**：`…（region_stop）；账本已闭合（无我方临时方块残留）`
+  或 `…；**账本仍有 N 条我方临时方块未拆**（/alice restore 可清理）` ——
+  打断是正常结束，但可能停在"脚手架上/半棵树"的中间态，不能是黑箱。
+
+**4（潜在、可见）`clearTask()` 不清残留移动输入**
+- `BotController.onUpdate()` **每 tick** 把上次留下的 `forward/strafing/jumping` 压到 bot 上，
+  而清任务之后没有任务再 drive 它（`PathSession` 只在自己被 tick 到终态时才 `stopMovement()`）。
+  显式打断恰好停在半路 ⇒ 不归零就可能"说停了却还在走/还在跳"。
+  修法：`BotSession.clearTask()` 里 **有残留输入才** 归零（`hasActiveMovement()` 判定 + 一行日志），
+  保持"任务收尾 = 清任务/清作用域/清高亮/+输入归零"这条契约完整。
+
+**玩家接口的读法（收尾顺带说清）**：只读/写配置的 `/alice region info|sapling|idle-stop|set`
+**不打断**正在跑的任务（否则没法在运行中调档）；会分配任务的指令（`start`、`mine`、`follow`…）
+才替换任务（`cancelled:replaced`）；**只有 `/alice region stop` 是显式打断**。
+
+**验证入口（一次客户端跑完，零坐标计算）**
+```
+① 右键 alice:region_lumber → 常驻巡查（确认 chopped 在涨）
+② /alice region stop                     → 回执 + task_execution_terminal
+                                            terminal=CANCELLED_BY_USER code=cancelled:region_stop
+③ /alice region info                     → 区域**仍在**（打断不丢区域）、autoIdleStop=false
+④ 走到一片空地站定（附近没有树）：
+   /alice region set ~ ~ ~ ~8 ~ ~8        → 回执"已设定 x… baseY=… maxH=48 …"（重划 ⇒ baseline 重推）
+   /alice region info                     → baseline=0（旧区域的 5 已被清掉）
+⑤ /alice region idle-stop true           → 回执 idle-stop=true
+⑥ /alice region start                    → 约 3 轮巡查后
+                                            [Job] maintain SUMMARY … reason=idle_no_work → DONE
+                                            （空区域 + 无苗 + 无欠 ⇒ 旧的可选模式）
+⑦ /alice region idle-stop false          → 复原默认（常驻）
+```
+判据：② 的 `terminal=CANCELLED_BY_USER`、⑥ 的 `idle_no_work → DONE`、④ 的 `baseline=0`
+—— 三条都拿到即三个玩家接口由"只有代码证据"升级为 `WINDOWS_CLIENT`。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待测；结果见下方附注）。

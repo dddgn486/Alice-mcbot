@@ -17,9 +17,11 @@ import net.minecraft.world.phys.Vec3;
  *
  * <p>把**测试场景的固定区域**（{@link LumberCourseAnchor#REGION_MIN}/{@link LumberCourseAnchor#REGION_MAX}）
  * 写进持久化的 {@code LumberRegionState} 并起 {@code RegionLumberJob}：巡查 → 挑一棵 → 复用一次性
- * 伐木 Job 砍它 → 回来继续巡查；区域里没有可砍的树且连续数次无活 ⇒ `idle_no_work`（如实待机）。
+ * 伐木 Job 砍它 → 回来继续巡查。**默认常驻**（无活就退避等待，只由玩家/决策层显式打断）；
+ * 只有 `/alice region idle-stop true` 打开时才退回旧的 `idle_no_work` 收工行为。
  *
- * <p>玩家停止：下任意 `/alice …` 指令即替换任务（§13.1：停止只由玩家命令触发）。
+ * <p>玩家停止：`/alice region stop`（显式打断 ⇒ `cancelled:region_stop`），
+ * 或下任意其它 `/alice …` 指令替换任务（§13.1：停止只由玩家/决策层触发）。
  */
 public class RegionLumberItem extends Item {
 
@@ -57,7 +59,8 @@ public class RegionLumberItem extends Item {
             return;
         }
         say(player, "[alice] 可持续伐木区已启动 bot=" + bot.getName().getString()
-                + " 区域 " + region.describe() + "（巡查 → 砍 → 继续巡查；无活则 idle_no_work）");
+                + " 区域 " + region.describe()
+                + "（巡查 → 砍 → 继续巡查；**常驻**：只由 /alice region stop 打断）");
     }
 
     private static void say(net.minecraft.world.entity.player.Player player, String text) {

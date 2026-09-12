@@ -26,8 +26,11 @@ import java.util.Set;
  * <pre>
  * PATROL（每 {@code patrolIntervalTicks} 巡查一次：扫区域 → 过滤掉试过的 → 挑最近的一棵）
  *   ├─ 有树 ⇒ HARVEST（内嵌 LumberJob, quota=1）→ 结算 → 回 PATROL
- *   └─ 无树 ⇒ 连续 {@link #IDLE_PATROLS} 次无活 ⇒ `idle_no_work`（§13.3：如实待机，**不算失败**）
+ *   └─ 无树 ⇒ 连续 {@link #IDLE_PATROLS} 次无活 ⇒ **退避等待**（默认常驻；只有 `idle-stop=true` 才 `idle_no_work` 收工）
  * </pre>
+ *
+ * <p>注：`idle_no_work` 是 §13.3 的"如实待机，**不算失败**"，属于**可选模式**（默认关）——
+ * 常驻时会退避到 {@link #MAX_PATROL_INTERVAL_TICKS} 继续巡查，等树长大/玩家催熟。
  *
  * <p>失败语义（§13.3）：区域里有树但全不可达 ⇒ `no_reachable_candidate` + 逐树理由；
  * 缺工具 ⇒ `tool_missing`（沿用 D-128 的前置检查）；脚手架没拆干净 ⇒ `scaffold_restore_incomplete`。
@@ -35,7 +38,10 @@ import java.util.Set;
  * <p>**健康输出**（§13.1：常驻任务不能是黑箱）：每次巡查一行
  * {@code [Job] maintain region=… viable=… mySaplings=… chopped=… actions=… lastPatrol=…}。
  *
- * <p>停止：只由玩家命令触发（下一条 `/alice …` 指令会替换任务，`cancelled:replaced`）。
+ * <p>停止：**只由玩家/决策层显式打断**（§13.1 / 用户 2026-09-12 裁定）——
+ * {@code /alice region stop} ⇒ `cancelled:region_stop`（终态 `CANCELLED_BY_USER`），
+ * 下任何其它 `/alice …` 指令 ⇒ 被替换 `cancelled:replaced`。`idle-stop` 打开时才退回旧行为
+ * （无树无苗无欠 ⇒ `idle_no_work`）。
  */
 public final class RegionLumberJob implements com.dddgn.alice.job.Job {
 
@@ -185,20 +191,25 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
                 viableInRegion++;
             }
         }
+        int mySaplings = state.mySaplingCount(bot.getUUID());
+        int standing = viableInRegion + mySaplings;
         if (state.baselineTrees(bot.getUUID()) <= 0) {
-            // 区域目标棵数 = 首次巡查时"本来有多少棵可作业的树"（维持原状即可持续）
-            state.setBaselineTrees(bot.getUUID(), viableInRegion);
-            BotLog.info("[Job] maintain 区域目标棵数 baseline={}（首次巡查确定，之后按它算欠树）",
-                    viableInRegion);
+            // 区域目标棵数 = 首次巡查时"站着的可作业树 + 我种的苗"（= standing）。
+            // **把我种的苗算进去**（2026-09-12 J8 收尾）：在一片"已经砍完、只剩苗"的地块上启动时，
+            // 目标不会退化成 0（否则那一轮之后再也补不回"欠 N 棵"的区域不变量）；
+            // 空区域仍然是 0 ⇒ 仍然可以如实待机（`idle_no_work`）。
+            state.setBaselineTrees(bot.getUUID(), standing);
+            BotLog.info("[Job] maintain 区域目标棵数 baseline={}"
+                            + "（首次巡查确定 = 现场可作业树 {} + 我种的苗 {}；之后按它算欠树）",
+                    standing, viableInRegion, mySaplings);
         }
-        int standing = viableInRegion + state.mySaplingCount(bot.getUUID());
         int deficit = Math.max(0, state.baselineTrees(bot.getUUID()) - standing);
         BotLog.info("[Job] maintain region={} viable={} inRegion={} tried={} mySaplings={}"
                         + " standing={} baseline={} deficit={} chopped={} failed={} planted={}"
                         + " pendingReplant={} waiting={} interval={} lastPatrol={}",
                 region.describe() + " adaptiveTop=" + effectiveTop,
                 raw.viable().size(), inRegion.size(), tried.size(),
-                state.mySaplingCount(bot.getUUID()), standing, state.baselineTrees(bot.getUUID()),
+                mySaplings, standing, state.baselineTrees(bot.getUUID()),
                 deficit, treesChopped, treesFailed,
                 LumberRegionState.get(server).saplingsPlanted(bot.getUUID()),
                 state.pendingReplantCount(bot.getUUID()), waitingFor, currentPatrolInterval,

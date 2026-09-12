@@ -34,6 +34,15 @@ public final class LumberRegionState extends SavedData {
     private static final String DATA_KEY = "alice_lumber_regions";
 
     /**
+     * 玩家用 {@code /alice region set} 划区时的**自适应高度上限**默认值（不是"固定高度"）。
+     *
+     * <p>生效上界永远由巡查按**实测树高**收紧（见 {@link #Region}），这个值只做
+     * "别把整片天空算进来"的兜底。放在这里而不是放在夹具的 {@code LumberCourseAnchor}，
+     * 是因为它属于**区域语义** —— 玩家接口不该回头依赖测试夹具的常量（2026-09-12 J8 收尾）。
+     */
+    public static final int DEFAULT_MAX_HEIGHT = 48;
+
+    /**
      * **可持续伐木区**：**只划水平范围**（玩家定义 x/z），**垂直自适应**。
      *
      * <p>用户 2026-09-12 裁定：区域由玩家划分，但玩家只圈水平范围；竖直方向不该让玩家操心 ——
@@ -135,10 +144,46 @@ public final class LumberRegionState extends SavedData {
         return entry == null ? null : entry.region;
     }
 
+    /**
+     * 设定/重划区域。
+     *
+     * <p>**区域被重新划定（与旧区域不同）⇒ 按旧区域积累的派生记账全部作废**（2026-09-12 J8 收尾）：
+     * <ul>
+     *   <li>{@code baselineTrees = 0} —— 让下一次巡查按**新区域**现场重推目标棵数。
+     *       否则旧区域的 baseline 会污染新区域：典型症状是"在一个空区域上启动，
+     *       立刻报 `deficit=5`、每轮都试图补种"（`/alice region set` 划到别处时必然遇到）；</li>
+     *   <li>丢掉**水平范围之外**的"我种的苗/待补种位置"—— 区域不变量只对区域内的东西定义，
+     *       界外的旧苗不该再算进 `standing`（方块本身不动，只是不再算作我们欠的账）。</li>
+     * </ul>
+     * 划**同一个**区域则是幂等重入（夹具反复右键、`/alice region start` 重启都一样），
+     * 不重置任何记账 —— 否则砍完树后重启一次就会把"欠 5 棵"的目标丢掉。
+     */
     public void setRegion(UUID owner, Region region) {
         Entry entry = entry(owner, true);
+        Region previous = entry.region;
         entry.region = region;
+        if (previous != null && !previous.equals(region)) {
+            entry.baselineTrees = 0;
+            int droppedSaplings = dropOutside(entry.mySaplings, region);
+            int droppedReplant = dropOutside(entry.pendingReplant, region);
+            com.dddgn.alice.log.BotLog.info("[Job] maintain 区域重划 ⇒ 派生记账重置 "
+                            + "（旧 {} → 新 {}）：baseline=0，丢弃界外苗={} 待补种={}",
+                    previous.describe(), region.describe(), droppedSaplings, droppedReplant);
+        }
         setDirty();
+    }
+
+    /** 丢掉落在水平范围外的记录，返回丢弃条数。 */
+    private static int dropOutside(Set<BlockPos> positions, Region region) {
+        int dropped = 0;
+        var it = positions.iterator();
+        while (it.hasNext()) {
+            if (!region.containsHorizontal(it.next())) {
+                it.remove();
+                dropped++;
+            }
+        }
+        return dropped;
     }
 
     public void clearRegion(UUID owner) {
