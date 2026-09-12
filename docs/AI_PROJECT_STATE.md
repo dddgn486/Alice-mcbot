@@ -224,9 +224,15 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
    "仍活着且在新区间内的我方掉落物"（会话内重开继承、会话结束 `end()` 清空），
    `ScaffoldLifecycleTask` 去掉了 D-108 手工收养；`mine_regression` 增第 12 例
    `scope_reopen_keeps_drops` 做针对性回归。
-3. **夹具工程**：T5 配额与场景解耦（`lumber_course` 可行树数 = 4 与 Job 默认配额耦合）；
-   T6 通道/可规划性**离线校验**（可扩展 `tools/simulate-scene-plan.py`）；T7 "清障预算按棵重置"回归仍未真正越过阈值
-   （实测累计正好 8 格压线）—— 可用"专项 clear-budget 夹具"或"扩台地 + 加树"。
+3. ~~**T5 配额与场景解耦**~~ ✅ **已完成（D-125，`WINDOWS_CLIENT` 2026-09-12 10:19）**：
+   `assignLumberJob` 用同一套 `LumberCandidateSource` 数可行树 ⇒ `配额=max(1,可行树数)`，并打
+   `[Job] lumber 场景可行树=N ⇒ 配额=N`；场景文案不再写死配额。
+   ~~**T6 通道/可规划性离线校验**~~ ✅ **已完成（D-125）**：新增 `tools/check-scene-connectivity.py`
+   （`--all` / `--scene` / `--selftest`），复用 `FixtureWorld` + `stand_candidates`/`can_see` 做**保守下界**
+   可达性泛洪；本机自证：`--all` 22 场景零假报、对 `a5901f5` 旧场景复跑 9 目标中 8 个判无站位
+   （**离线复现并拦下 D-117**）；已写进 `alice-scene-based-testing` skill 流程（改完场景先跑 `--all`）。
+   **T7 "清障预算按棵重置"回归覆盖** ⏳ 仍差一格压线（实测累计正好 8 格）——**先用 T6 离线验证**，
+   再决定"扩台地加第二条通道 + 第 4 棵树"或"专项 clear-budget 夹具"。
 4. **R2 未覆盖**：几何不可达导致"首个候选失败、第二个成功"的场景；清障子任务**加高**的行为（目前只有信封日志证据）。
 5. **生命周期收敛（B 类）**：能力信封已收敛，但 `LumberJob` 的"建→爬→用→①/②/③"生命周期仍是伐木专有；
    等第二个"建-用-拆"消费者（J8 MAINTAIN / 建筑类 Job）出现时再抽。
