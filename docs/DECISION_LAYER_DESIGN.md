@@ -80,6 +80,35 @@ CollectGrant {  area(region/radius), until(tick|once), provenanceMask, scope=onc
   `drop@20,64,208 provenance=OURS_INDIRECT because=owner_window(lumber#12, dt=40tick, d=3.2)`
   —— 便于复盘与标定窗口参数。
 
+### 被动拾取必须同一策略管（用户 2026-09-12 追问："有办法控制 bot 的被动拾取吗"）
+
+**问题**：原版里玩家**走路路过就自动吸附**掉落物 —— 这条路径**绕过** `CollectJob` 的策略，
+于是"不派它去捡玩家的东西"会被一次路过直接推翻。
+
+**钩子（已用字节码确认）**：
+```
+ItemEntity.playerTouch → ForgeEventFactory.onItemPickup(ItemEntity, Player)  ← 可取消的 EntityItemPickupEvent
+                       → ForgeEventFactory.firePlayerItemPickupEvent(...)    ← 拾取后通知（不参与拦截）
+```
+⇒ 用 Forge 的 `EntityItemPickupEvent` **取消本次转移**即可；**不要**用 `ItemEntity.setNeverPickUp()`
+（那会改物品状态、连玩家也捡不了）。
+
+**`PickupGate`（S3.5 的一部分，与 `DropPolicy` 同一份判定）**
+1. 只对 `BotPlayer` 介入（其他玩家一概不动）；
+2. 分类该掉落物的 `DropProvenance`；`AUTO` 放行 / `ASK` 取消并聚合待请示 / `IGNORE` 取消并静默计数；
+3. 留证据：`[Pickup] blocked bot=… item=… count=… provenance=FOREIGN reason=policy:ASK`。
+
+**玩家侧档位**（配置 + 命令）：`off`（完全不被动拾取，捡拾必须显式派活）/ `auto`（**推荐默认**：只放行
+`OURS_*`）/ `notify`（路过就捡 + 事后一行）/ `ask`（连我方掉落物也问）。
+
+**连带必修**（否则造新病）：
+1. `CollectDropsTask` 要把"策略拒绝"与 `pickup_timeout`/`unreachable` 区分开（新增 `policy_blocked`
+   计数与终态理由），且**不空转到超时**；
+2. `CollectJob` 候选扫描**先按策略过滤**，否则"挑不动还一直挑同一堆"。
+
+**待客户端实测**：取消后物品是否仍留在地上且玩家可捡；`setTarget` 飞行吸附是否同路径；
+取消与 `CollectDropsTask` 守恒校验的交互。
+
 ### 技术缺口（要动的地方）
 1. `ScopeBuffer` 的窗口目前只有**破坏点**（`BreakRecord`）⇒ 要并入**我方放置/拆除点**
    （`WorldModLedger` 已有记录），合成"我方最近动作点集合"，再按窗口给新生成的 `ItemEntity`
