@@ -161,7 +161,24 @@ public final class GoalDirector {
 
     private static void pollResult(BotPlayer bot, State state) {
         CompletableFuture<LlmClient.Reply> pending = state.pending;
-        if (pending == null || !pending.isDone()) {
+        if (pending == null) {
+            return;
+        }
+        if (!pending.isDone()) {
+            // **看门狗**（2026-09-12 教训）：HttpClient 的超时在某些挂起形态下不会触发，
+            // 于是"玩家点一次就永远没有下文"。这里按"请求发出时刻 + timeout + 5s"兜底，
+            // 超时就取消并**如实回报**，绝不让决策层静默卡死。
+            long waited = bot.getServer().getTickCount() - state.lastRequestTick;
+            long limitTicks = (LlmConfig.get().timeoutMs() + 5000L) / 50L;   // tick ≈ 50ms
+            if (waited > limitTicks) {
+                pending.cancel(true);
+                state.pending = null;
+                BotLog.warn("[Goal] decision_timeout trigger={} waited={}tick（>{}ms+5s）"
+                                + "⇒ 取消并保持确定性策略", state.pendingTrigger, waited,
+                        LlmConfig.get().timeoutMs());
+                tell(state, "[alice] 决策层请求超时（" + (LlmConfig.get().timeoutMs() + 5000)
+                        + "ms）⇒ 保持确定性策略");
+            }
             return;
         }
         state.pending = null;

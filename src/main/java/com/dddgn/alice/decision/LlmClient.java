@@ -28,7 +28,15 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class LlmClient {
 
-    private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor(runnable -> {
+    /**
+     * 跑**阻塞式** HTTP 调用的线程池。
+     *
+     * <p>两条教训（2026-09-12 实测）：① 必须**多线程**（缓存池）——一个卡住的调用不能把整条管道堵死；
+     * ② **绝不能**把它同时交给 `HttpClient` 当内部 executor —— 否则 `send()` 占住唯一线程、
+     * HttpClient 的内部任务排不进来 ⇒ **死锁**：请求发不出去，超时也永不触发
+     * （实测现象：日志停在 `llm_dns` 之后整整 5 分钟没有任何一行，中继也从未收到请求）。
+     */
+    private static final ExecutorService EXECUTOR = Executors.newCachedThreadPool(runnable -> {
         Thread thread = new Thread(runnable, "alice-llm");
         thread.setDaemon(true);
         return thread;
@@ -145,6 +153,9 @@ public final class LlmClient {
             String proxy = "relay".equals(name) ? "" : ("api+direct".equals(name) ? "" : config.proxy());
             URI uri = URI.create(target);
             logDns(uri);
+            tcpProbe(uri, proxy);
+            BotLog.info("[Goal] path_try_begin name={} target={} proxy={}", name, target,
+                    proxy.isBlank() ? "-" : proxy);
             try {
                 long started = System.currentTimeMillis();
                 HttpResponse<String> response = send(config, uri, payload, proxy);
@@ -170,9 +181,9 @@ public final class LlmClient {
     /** 按（代理/连接超时）建 client 并发送（每次新建：配置可热改，调用频率很低）。 */
     private static HttpResponse<String> send(LlmConfig config, URI uri, String payload, String proxy)
             throws java.io.IOException, InterruptedException {
+        // **不设置 executor**：HttpClient 的内部线程由 JDK 自己管理（共用我们的池会死锁，见上）
         HttpClient.Builder builder = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofMillis(config.connectTimeoutMs()))
-                .executor(EXECUTOR);
+                .connectTimeout(Duration.ofMillis(config.connectTimeoutMs()));
         if (proxy.isBlank()) {
             builder.proxy(new java.net.ProxySelector() {
                 @Override
@@ -198,6 +209,30 @@ public final class LlmClient {
                 .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
                 .build();
         return builder.build().send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    /**
+     * **裸 TCP 探针**：直接 socket 连一下目标（3 s），把"连得上/连不上/连多久"与 HTTP 层分开。
+     *
+     * <p>为什么需要：进程级拦截/+ 挂起时，"HTTP 超时"与"TCP 不通"看起来一样；分开打点后
+     * 日志能直接指出是哪一层（2026-09-12 的死锁就是这么定位的）。
+     */
+    private static void tcpProbe(URI uri, String proxy) {
+        String host = uri.getHost();
+        int port = uri.getPort() > 0 ? uri.getPort() : ("https".equals(uri.getScheme()) ? 443 : 80);
+        if (!proxy.isBlank()) {
+            String[] parts = proxy.split(":");
+            host = parts[0].trim();
+            port = parts.length > 1 ? Integer.parseInt(parts[1].trim()) : 8080;
+        }
+        long started = System.currentTimeMillis();
+        try (java.net.Socket socket = new java.net.Socket()) {
+            socket.connect(new java.net.InetSocketAddress(host, port), 3000);
+            BotLog.info("[Goal] tcp_probe {}:{} → ok {}ms", host, port, System.currentTimeMillis() - started);
+        } catch (Exception ex) {
+            BotLog.warn("[Goal] tcp_probe {}:{} → {} {}ms", host, port, ex.getClass().getSimpleName(),
+                    System.currentTimeMillis() - started);
+        }
     }
 
     /** 解析并记录目标主机的地址（不上网，只查 DNS）。 */
