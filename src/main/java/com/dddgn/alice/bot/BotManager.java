@@ -1018,6 +1018,18 @@ public final class BotManager {
                 .pendingForOwner(bot.serverLevel().getServer(), bot.getUUID()).size();
     }
 
+    /** **被动拾取闸门自检**（S3.5 / D-143）：我方掉落物应捡、外来掉落物应被拦下。 */
+    public static boolean assignPickupGateCheck(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(new com.dddgn.alice.task.PickupGateCheckTask(bot, observer),
+                TaskTarget.block(com.dddgn.alice.task.PickupGateCheckTask.DROP_B));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     /** **请示通道演示**（S3 / D-140）：起 `PermissionDemoTask`（发起 demo_ask 请示并轮询结论）。 */
     public static boolean assignPermissionDemo(BotPlayer bot, ServerPlayer observer, int maxTicks) {
         BotSession session = BOTS.get(bot.getUUID());

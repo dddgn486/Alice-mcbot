@@ -69,7 +69,9 @@ public class PermissionDemoTask implements Task {
         if (decision == null) {
             return Status.RUNNING;   // 等玩家答复/超时
         }
-        terminalReason = decision.allowed() ? "allowed" : ("denied:" + decision.decidedBy());
+        // 终止理由保持**机器可读**：denied:timeout / denied:player（不把玩家名塞进理由里）
+        terminalReason = decision.allowed() ? "allowed"
+                : ("denied:" + (decision.decidedBy().startsWith("player") ? "player" : decision.decidedBy()));
         BotLog.info("[Perm] demo decision {} → terminalReason={}", decision.describe(), terminalReason);
         return finish(decision.allowed()
                 ? "演示能力**已执行**（批准来源=" + decision.decidedBy() + "，范围=" + decision.scope() + "）"

@@ -76,6 +76,12 @@ public final class PermissionGate {
         // 用户裁定：改世界/占用玩家资源必须 ASK；取材料这类"自己动手"先 NOTIFY（S3 起为 ASK 以便验证）
         DEFAULTS.put(CAP_FETCH_TOOLS, Policy.ASK);
         DEFAULTS.put(CAP_DEMO, Policy.ASK);
+        // D-138 裁定：掉落物归属策略 —— 我方（直接/间接）与授权区 AUTO；FOREIGN 默认 **ASK**
+        // （被动路径上 ASK 会被直接拦下，不弹请示；要捡只能显式派活/先授权）
+        DEFAULTS.put(DropPolicy.CAP_OURS_DIRECT, Policy.AUTO);
+        DEFAULTS.put(DropPolicy.CAP_OURS_INDIRECT, Policy.AUTO);
+        DEFAULTS.put(DropPolicy.CAP_GRANTED_AREA, Policy.AUTO);
+        DEFAULTS.put(DropPolicy.CAP_FOREIGN, Policy.ASK);
     }
 
     /** 会话级（`session` 范围）与内存中的待答复队列。 */

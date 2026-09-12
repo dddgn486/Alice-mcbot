@@ -44,6 +44,12 @@ public final class ScopeBuffer {
     private final List<ItemEntity> spawnedItems = new ArrayList<>();
     /** 掉落物 → 其**来源方块**（由破坏事件配对得到；未配对为 null）。 */
     private final java.util.Map<java.util.UUID, BlockPos> itemOrigins = new java.util.HashMap<>();
+    /**
+     * 掉落物 → **归属**（S3.5 / D-138）：直接配对 = `OURS_DIRECT`；落在"我方动作点松窗内" = `OURS_INDIRECT`。
+     * 未登记 = 不是我们的（`FOREIGN`，由 `DropPolicy` 判定怎么处理）。
+     */
+    private final java.util.Map<java.util.UUID, com.dddgn.alice.decision.DropPolicy.Provenance>
+            itemProvenance = new java.util.HashMap<>();
     private final List<BlockPos> brokenBlocks = new ArrayList<>();
     /** 最近的破坏事件（pos + 游戏 tick），用于与随后生成的掉落物配对。 */
     private final List<BreakRecord> recentBreaks = new ArrayList<>();
@@ -175,9 +181,52 @@ public final class ScopeBuffer {
             }
             spawnedItems.add(item);
             itemOrigins.put(item.getUUID(), item.blockPosition().immutable());
+            itemProvenance.put(item.getUUID(),
+                    com.dddgn.alice.decision.DropPolicy.Provenance.OURS_DIRECT);
             adopted++;
         }
         return adopted;
+    }
+
+    /**
+     * **间接归属**（S3.5 / D-138 裁定：松窗起点 **60 tick / 4 格**，可配置 + 进报告便于标定）。
+     *
+     * <p>覆盖用户点名的两类：砍树后**树叶自然衰减**掉的树苗/木棍、移除支撑后**仙人掌/甘蔗**弹出 ——
+     * 它们不是"我方破坏事件直接配对"，但发生在**我方动作点附近的时间窗内**。
+     *
+     * @return 匹配到的动作点；不在窗口内 ⇒ null
+     */
+    private BlockPos matchIndirectOrigin(BlockPos itemPos, long tick) {
+        double radiusSqr = com.dddgn.alice.decision.DropPolicy.INDIRECT_WINDOW_RADIUS
+                * com.dddgn.alice.decision.DropPolicy.INDIRECT_WINDOW_RADIUS;
+        BlockPos best = null;
+        long bestAge = Long.MAX_VALUE;
+        for (BreakRecord record : recentBreaks) {
+            long age = tick - record.tick();
+            if (age < 0 || age > com.dddgn.alice.decision.DropPolicy.INDIRECT_WINDOW_TICKS) {
+                continue;
+            }
+            if (record.pos().distSqr(itemPos) > radiusSqr) {
+                continue;
+            }
+            if (age < bestAge) {
+                bestAge = age;
+                best = record.pos();
+            }
+        }
+        return best;
+    }
+
+    /** 立刻按"我方掉落物"登记（夹具用；真实来源见 {@link #matchBreakSource} / {@link #matchIndirectOrigin}）。 */
+    public boolean registerAsOurs(net.minecraft.world.entity.item.ItemEntity item,
+                                 com.dddgn.alice.decision.DropPolicy.Provenance provenance,
+                                 BlockPos origin) {
+        if (item == null || provenance == null) {
+            return false;
+        }
+        itemProvenance.put(item.getUUID(), provenance);
+        itemOrigins.put(item.getUUID(), origin == null ? item.blockPosition().immutable() : origin);
+        return true;
     }
 
     /**
@@ -188,6 +237,15 @@ public final class ScopeBuffer {
     private static boolean inWorld(ItemEntity item) {
         return !item.isRemoved() && !item.getItem().isEmpty()
                 && item.level() instanceof ServerLevel level && level.getEntity(item.getId()) != null;
+    }
+
+    /**
+     * 该掉落物的**归属**（S3.5）：{@code null} = 不在我方登记表里（即 `FOREIGN`）。
+     *
+     * <p>`OURS_INDIRECT` 的判定见 {@link #matchIndirectOrigin}（我方动作点的时间/空间松窗）。
+     */
+    public com.dddgn.alice.decision.DropPolicy.Provenance provenanceOf(net.minecraft.world.entity.item.ItemEntity item) {
+        return item == null ? null : itemProvenance.get(item.getUUID());
     }
 
     /** 作用域内仍存活、仍有内容的掉落物(每次调用清理已消失的)。 */
@@ -328,10 +386,26 @@ public final class ScopeBuffer {
             spawnedItems.add(item);
             long now = item.level() instanceof ServerLevel level ? level.getGameTime() : entry.tick();
             pruneBreaks(now);
+            // ① 直接配对（10 tick / 3 格）→ OURS_DIRECT
             BlockPos source = matchBreakSource(pos, entry.tick());
+            com.dddgn.alice.decision.DropPolicy.Provenance provenance = null;
+            if (source != null) {
+                provenance = com.dddgn.alice.decision.DropPolicy.Provenance.OURS_DIRECT;
+            } else {
+                // ② 松窗归属（60 tick / 4 格）→ OURS_INDIRECT：树叶衰减、支撑移除后弹出（S3.5/D-138）
+                BlockPos indirect = matchIndirectOrigin(pos, entry.tick());
+                if (indirect != null) {
+                    source = indirect;
+                    provenance = com.dddgn.alice.decision.DropPolicy.Provenance.OURS_INDIRECT;
+                }
+            }
             itemOrigins.put(item.getUUID(), source);
-            BotLog.info("作用域捕捉掉落物: {} x{} y{} z{} source={}",
+            if (provenance != null) {
+                itemProvenance.put(item.getUUID(), provenance);
+            }
+            BotLog.info("作用域捕捉掉落物: {} x{} y{} z{} provenance={} source={}",
                     item.getItem().getItem(), pos.getX(), pos.getY(), pos.getZ(),
+                    provenance == null ? "FOREIGN(未登记)" : provenance,
                     source == null ? "unpaired" : source.toShortString());
         }
     }

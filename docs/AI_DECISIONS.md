@@ -4955,3 +4955,36 @@ S2 精化：[Goal] candidate_menu rejected(不可做)= [tree@22,64,218:trunk_too
 请示出现时聊天里有一条带 `[ 允许 ]`/`[ 拒绝 ]` 的消息（可点）；
 游戏内按 `Y`/`N` 直接答复 ⇒ `[Perm] answer … by=player:…` + 任务 `terminalReason=allowed/denied:…`；
 不答 ⇒ 30 s 超时 + 卡片与提示行消失。
+
+## D-143 S3.5 第一步：掉落物归属（`DropProvenance`）+ **被动拾取闸门**（2026-09-12）
+
+**依据**：D-138 五条裁定（`FOREIGN`=ASK、间接窗口 60tick/4 格、选区物品授权、`always` 允许但需标记、被动默认 `auto`）。
+
+**落地**
+1. `decision/DropPolicy`（新）：
+   - `Provenance = OURS_DIRECT | OURS_INDIRECT | GRANTED_AREA | FOREIGN`；
+   - 能力名复用 `PermissionGate` 的策略表 ⇒ **`/alice policy drop.foreign ASK` 立刻可用**；
+     默认表新增：`drop.ours_direct/ours_indirect/granted_area = AUTO`、`drop.foreign = ASK`；
+   - `mayCollect`（主动）/`mayPickUpPassively`（被动）；**被动路径上 `ASK` 直接拦下不弹请示**
+     （否则每路过一堆就问一次＝骚扰；想捡 `FOREIGN` 只能显式派活或先授权）；
+   - 窗口常量 `INDIRECT_WINDOW_TICKS=60` / `INDIRECT_WINDOW_RADIUS=4.0`（D-138 裁定值，`describeWindow()` 进日志便于标定）。
+2. `ScopeBuffer`：
+   - 新增 `itemProvenance`（掉落物 → 归属）+ `provenanceOf(item)`；
+   - 生成确认时：**直接配对** → `OURS_DIRECT`；否则走**松窗**（我方动作点 60 tick/4 格内）→ `OURS_INDIRECT`
+     —— 覆盖用户点名的"砍树后树叶衰减掉的树苗/木棍、移除支撑后甘蔗/仙人掌弹出"；
+   - 日志升级为 `作用域捕捉掉落物: … provenance=OURS_DIRECT|OURS_INDIRECT|FOREIGN(未登记) source=…`；
+   - `adoptExistingDrops` 打 `OURS_DIRECT`；新增 `registerAsOurs(...)`（夹具用）。
+3. `decision/PickupGate`（新）：`EntityItemPickupEvent` 处理器 —— **只对 `BotPlayer` 介入**（真人玩家一概不动），
+   查归属 ⇒ 策略不允许就 `setCanceled(true)` 并记 `[Pickup] blocked bot=… item=… provenance=… policy=…`；
+   **只取消这一次转移**，不改物品实体（不用 `setNeverPickUp()`，那会连玩家一起禁掉）。
+4. 验证入口：`alice:pickup_gate_check`（零参数）+ `PickupGateCheckTask`：① 我方掉落物（收养）⇒ 走过去**应捡到**；
+   ② 外来掉落物（不登记）⇒ 走过去**应被拦下、东西留在地上**。两条必须一起过（只测 A 证明不了闸门存在，
+   只测 B 证明不了没把正常拾取弄坏）。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待测）。判据：
+`[Pickup] blocked bot=tango item=minecraft:cobblestone x4 provenance=FOREIGN policy=ASK` +
+`[PickupGateCheck] SUMMARY a_picked>0 b_remaining>0 → PASS（indirect_window=60tick/4.0格）`。
+
+**未做（S3.5 第二步，登记）**：`CollectGrant`（选区物品授权 + `once/session/always`）、
+`GRANTED_AREA` 归属判定、`CollectJob` 按策略过滤候选、`CollectDropsTask` 区分 `policy_blocked` 与超时、
+"我方放置/拆除点"并入松窗（目前松窗以**破坏点**为锚）。
