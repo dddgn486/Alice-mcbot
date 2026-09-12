@@ -41,7 +41,8 @@ public final class CollectJob implements Job {
     private final GoalSpec spec;
     private final ScopeBuffer scope;
     private final int radius;
-    private final boolean anyDrops;
+    /** 被策略拦下的候选数（报告/日志用：说明"地上有东西但没资格捡"）。 */
+    private int blockedCandidates;
 
     private Phase phase = Phase.SCAN;
     private CollectDropsTask current;
@@ -52,12 +53,11 @@ public final class CollectJob implements Job {
     private String failure = "";
     private boolean terminated;
 
-    public CollectJob(BotPlayer bot, GoalSpec spec, ScopeBuffer scope, boolean anyDrops) {
+    public CollectJob(BotPlayer bot, GoalSpec spec, ScopeBuffer scope) {
         this.bot = bot;
         this.spec = spec;
         this.scope = scope;
         this.radius = spec.radius();
-        this.anyDrops = anyDrops;
     }
 
     @Override
@@ -73,7 +73,8 @@ public final class CollectJob implements Job {
 
     @Override
     public String progressSummary() {
-        return "collected=" + collectedItems + " clusters=" + clusters + " phase=" + phase;
+        return "collected=" + collectedItems + " clusters=" + clusters + " blocked=" + blockedCandidates
+                + " phase=" + phase;
     }
 
     @Override
@@ -139,28 +140,41 @@ public final class CollectJob implements Job {
                 }
             }
         }
-        BotLog.info("[Job] collect pick cluster@{} drops={} nearest={} anyDrops={}",
+        BotLog.info("[Job] collect pick cluster@{} drops={} nearest={} 被拦下={}",
                 anchor.toShortString(), ids.size(),
-                String.format(java.util.Locale.ROOT, "%.1f", Math.sqrt(bestDistance)), anyDrops);
+                String.format(java.util.Locale.ROOT, "%.1f", Math.sqrt(bestDistance)), blockedCandidates);
         current = new CollectDropsTask(bot, anchor, scope, ids, false,
                 Math.max(200, spec.maxTicks() - ticks));
         phase = Phase.COLLECT;
         return Task.Status.RUNNING;
     }
 
-    /** 范围内待捡的掉落物：默认**只认我方登记过的**（安全），显式 anyDrops 才扫世界。 */
+    /**
+     * 范围内**有资格捡**的掉落物（S3.5 第二步）：扫世界 → **按 {@link DropPolicy} 过滤**。
+     *
+     * <p>`anyDrops` 布尔**已退役**（D-138）：能不能捡由**归属 + 策略**决定 ——
+     * 我方（直接/间接）与**玩家授权区**默认 `AUTO`；`FOREIGN` 默认 `ASK` ⇒ 这里直接过滤掉
+     * （要捡就显式派活 + 先授权）。被拦下的数量记进 `blockedCandidates`，便于"地上有东西但没资格捡"的可观测性。
+     */
     private List<ItemEntity> dropsInRange() {
-        if (!anyDrops) {
-            List<ItemEntity> ours = new ArrayList<>();
-            for (ItemEntity item : scope.liveDrops()) {
-                if (item.isAlive() && item.distanceToSqr(bot) <= (double) radius * radius) {
-                    ours.add(item);
-                }
-            }
-            return ours;
-        }
         AABB box = bot.getBoundingBox().inflate(radius);
-        return bot.serverLevel().getEntitiesOfClass(ItemEntity.class, box, ItemEntity::isAlive);
+        List<ItemEntity> result = new ArrayList<>();
+        int blocked = 0;
+        for (ItemEntity item : bot.serverLevel().getEntitiesOfClass(ItemEntity.class, box,
+                ItemEntity::isAlive)) {
+            var provenance = com.dddgn.alice.decision.DropPolicy.effectiveProvenance(bot, item);
+            if (com.dddgn.alice.decision.DropPolicy.mayCollect(bot, provenance)) {
+                result.add(item);
+            } else {
+                blocked++;
+            }
+        }
+        if (blocked != blockedCandidates) {
+            BotLog.info("[Job] collect scan 可捡={} 被策略拦下={}（provenance/policy 决定；要捡需授权）",
+                    result.size(), blocked);
+        }
+        blockedCandidates = blocked;
+        return result;
     }
 
     // ==================== COLLECT ====================

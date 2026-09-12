@@ -5013,3 +5013,33 @@ S2 精化：[Goal] candidate_menu rejected(不可做)= [tree@22,64,218:trunk_too
 断言改用**背包增量**（基准 `cobbleBefore`），并在日志里写明"清场后 adopted 应=1"。
 
 **验证等级**：`WINDOWS_CLIENT`（闸门两用例 + 归属标记；两项瑕疵修复待复测）。
+
+## D-144 S3.5 第二步：收集授权（`CollectGrant` + `GRANTED_AREA`）+ `anyDrops` 退役 + 收集按策略过滤（2026-09-12）
+
+**依据**：D-138 裁定（选区物品授权为主 + 命令兜底；`always` 允许但要显式标记；`FOREIGN` 默认 ASK）。
+
+**落地**
+1. `decision/CollectGrants`（新）：`Grant{水平范围, untilTick(-1=永久), scope=ONCE|SESSION|ALWAYS, grantedBy}`；
+   - `SESSION`/`ONCE` 内存、`ALWAYS` 走 SavedData（`alice_collect_grants`）持久化；
+   - `covering(server, pos)`（授权查询，过期自动销账）、`active(...)`（报告用）、`consumeOnce(...)`（用掉一次即失效）、`clear(...)`；
+   - 水平范围 + **竖直自适应**（沿用 D-130 的区域语义），日志 `[Grant] add …`。
+2. `DropPolicy.effectiveProvenance(bot, item)`（**唯一判定入口**）：① 我方登记在册（`ScopeBuffer` 直接/间接）
+   ② 落在授权区 ⇒ `GRANTED_AREA` ③ 其余 `FOREIGN`。**主动与被动两条路共用它**，不允许各写一套。
+3. `PickupGate` 改用 `effectiveProvenance` ⇒ 授权区内的东西**被动路径也放行**（默认 AUTO）。
+4. **`anyDrops` 布尔退役**（D-138 明确）：`CollectJob` 改为「**扫世界 → 按策略过滤**」——
+   可捡 = `mayCollect(effectiveProvenance)`；被拦下的数量进 `blockedCandidates` 并打
+   `[Job] collect scan 可捡=… 被拦下=…`（"地上有东西但没资格捡"变成可观测事实）；
+   `JobRequest.collect(...)` 去掉该参数，`JobLauncher`/`GoalAction`/夹具同步。
+5. **选区物品** `alice:collect_grant`（零参数）：右键记 pos1、**潜行右键**记 pos2 ⇒ 生成 `SESSION` 授权；
+   命令兜底：`/alice grant`（列出，`★always` 显式标记）/ `/alice grant always`（把最后一条提升为永久）/
+   `/alice grant clear`。**只有玩家能签发**（决策层只能请求）。
+6. 报告新增"收集授权"段：`★always` 与"（永久授权：bot 会一直捡这片区域里的东西，含玩家物品）"字样
+   —— 落实用户裁定第 4 条"必须在报告/日志里显式标记"。
+
+**验证入口**：`alice:pickup_gate_check`（零参数）升级为**三用例**：
+A 我方掉落物（收养）应被捡；B 外来掉落物应被拦下且留在地上；
+**C 授权区内的外来掉落物应被捡**（`GRANTED_AREA ⇒ AUTO`）⇒ `SUMMARY a_picked>0 b_remaining>0 c_picked>0 c_remaining=0 → PASS`。
+**验证等级**：IMPLEMENTED / COMPILES（客户端待测）。
+
+**仍未做（登记）**：`CollectDropsTask` 的 `policy_blocked` 终态区分（当前靠"候选在扫阶就被过滤掉"避免空转，
+若收集途中归属变化仍可能报超时）；"我方放置/拆除点"并入松窗（当前松窗以**破坏点**为锚）。

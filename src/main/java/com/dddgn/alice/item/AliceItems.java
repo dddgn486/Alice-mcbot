@@ -165,6 +165,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> LUMBER_FAILURE_CHECK =
             ITEMS.register("lumber_failure_check", () -> new LumberFailureCheckItem(new Item.Properties()));
 
+    /** S3.5 收集授权选区器（零参数）：右键记 pos1、潜行右键记 pos2 ⇒ 生成 GRANTED_AREA 授权。 */
+    public static final RegistryObject<Item> COLLECT_GRANT =
+            ITEMS.register("collect_grant", () -> new CollectGrantItem(new Item.Properties()));
+
     /** S3.5 被动拾取闸门自检（零参数）：我方掉落物该捡、外来掉落物该被拦下。 */
     public static final RegistryObject<Item> PICKUP_GATE_CHECK =
             ITEMS.register("pickup_gate_check", () -> new PickupGateCheckItem(new Item.Properties()));

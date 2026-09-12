@@ -27,13 +27,7 @@ public record JobRequest(
         /** 产物标签（挖掘用，如 `#forge:ores/iron`）；null = 不限。 */
         String productTag,
         /** 区域型专用：水平区域（玩家划定；null = 非区域型）。 */
-        com.dddgn.alice.job.lumber.LumberRegionState.Region region,
-        /**
-         * 捡拾专用：是否捡**任意无主掉落物**（false = 只捡我方登记过的）。
-         *
-         * <p>默认 false —— 捡玩家自己的东西必须显式允许（**不进 LLM 动作词汇表**，等 S3 请示通道）。
-         */
-        boolean anyDrops
+        com.dddgn.alice.job.lumber.LumberRegionState.Region region
 ) {
 
     public enum Kind {
@@ -55,23 +49,24 @@ public record JobRequest(
     }
 
     public static JobRequest lumber(BlockPos center, int radius, int quota, int maxTicks) {
-        return new JobRequest(Kind.LUMBER, center, radius, quota, maxTicks, null, null, false);
+        return new JobRequest(Kind.LUMBER, center, radius, quota, maxTicks, null, null);
     }
 
     public static JobRequest mine(BlockPos center, int radius, int quota, int maxTicks, String productTag) {
-        return new JobRequest(Kind.MINE, center, radius, quota, maxTicks, productTag, null, false);
+        return new JobRequest(Kind.MINE, center, radius, quota, maxTicks, productTag, null);
     }
 
     public static JobRequest region(com.dddgn.alice.job.lumber.LumberRegionState.Region region,
                                     int radius, int quota, int maxTicks) {
-        return new JobRequest(Kind.REGION_LUMBER, region.center(), radius, quota, maxTicks, null, region,
-                false);
+        return new JobRequest(Kind.REGION_LUMBER, region.center(), radius, quota, maxTicks, null, region);
     }
 
-    /** 掉落物搜索 + 捡拾；{@code anyDrops=false} = 只捡我方登记过的（安全默认）。 */
-    public static JobRequest collect(BlockPos center, int radius, int quota, int maxTicks,
-                                     boolean anyDrops) {
-        return new JobRequest(Kind.COLLECT, center, radius, quota, maxTicks, null, null, anyDrops);
+    /**
+     * 掉落物搜索 + 捡拾（S3.5：`anyDrops` 布尔**已退役** —— 能不能捡由**归属 + `DropPolicy`**决定：
+     * 我方（直接/间接）与**玩家授权区**默认 AUTO；`FOREIGN` 默认 ASK ⇒ 收集路径直接过滤掉）。
+     */
+    public static JobRequest collect(BlockPos center, int radius, int quota, int maxTicks) {
+        return new JobRequest(Kind.COLLECT, center, radius, quota, maxTicks, null, null);
     }
 
     /** 一行摘要（决策日志用）。 */
@@ -79,7 +74,6 @@ public record JobRequest(
         return "kind=" + kind + " center=" + center.toShortString() + " radius=" + radius
                 + " quota=" + quota + " maxTicks=" + maxTicks
                 + (productTag == null ? "" : " product=" + productTag)
-                + (region == null ? "" : " region=" + region.describe())
-                + (anyDrops ? " anyDrops=true" : "");
+                + (region == null ? "" : " region=" + region.describe());
     }
 }

@@ -256,6 +256,16 @@ public final class BotCommand {
                                                         StringArgumentType.getString(ctx, "id"),
                                                         StringArgumentType.getString(ctx, "option"),
                                                         StringArgumentType.getString(ctx, "scope")))))))
+                // S3.5 收集授权：查看 / 提升为永久 / 清空
+                .then(Commands.literal("grant")
+                        .executes(ctx -> grantList(ctx.getSource()))
+                        .then(Commands.literal("always").executes(ctx -> grantAlways(ctx.getSource())))
+                        .then(Commands.literal("clear").executes(ctx -> {
+                            int cleared = com.dddgn.alice.decision.CollectGrants.clear(ctx.getSource().getServer());
+                            ctx.getSource().sendSuccess(() -> Component.literal(
+                                    "[alice] 已清空收集授权 " + cleared + " 条"), false);
+                            return 1;
+                        })))
                 .then(Commands.literal("policy")
                         .executes(ctx -> policyList(ctx.getSource()))
                         .then(Commands.argument("capability", StringArgumentType.word())
@@ -665,6 +675,43 @@ public final class BotCommand {
                 ? "[alice] 可持续伐木区已启动 region=" + region.describe()
                 : "[alice] bot 正忙，稍后再试"), false);
         return ok ? 1 : 0;
+    }
+
+    /** {@code /alice grant}：列出有效收集授权（`always` 会显式标记）。 */
+    private static int grantList(CommandSourceStack source) {
+        var grants = com.dddgn.alice.decision.CollectGrants
+                .active(source.getServer(), source.getServer().getTickCount());
+        if (grants.isEmpty()) {
+            source.sendSuccess(() -> Component.literal(
+                    "[alice] 没有收集授权（用 alice:collect_grant 右键记 pos1、潜行右键记 pos2）"), false);
+            return 1;
+        }
+        for (var grant : grants) {
+            boolean always = grant.scope() == com.dddgn.alice.decision.PermissionGate.Scope.ALWAYS;
+            source.sendSuccess(() -> Component.literal("[alice] " + (always ? "★always " : "")
+                    + grant.describe() + (always ? "（永久授权：bot 会一直捡这片区域里的东西，含玩家物品）" : "")),
+                    false);
+        }
+        return 1;
+    }
+
+    /** {@code /alice grant always}：把**最后一条**会话授权提升为永久（持久化 + 报告标记）。 */
+    private static int grantAlways(CommandSourceStack source) {
+        var grants = com.dddgn.alice.decision.CollectGrants
+                .active(source.getServer(), source.getServer().getTickCount());
+        if (grants.isEmpty()) {
+            source.sendSuccess(() -> Component.literal("[alice] 没有可提升的授权（先选区授权）"), false);
+            return 0;
+        }
+        var last = grants.get(grants.size() - 1);
+        String by = source.getEntity() instanceof net.minecraft.server.level.ServerPlayer player
+                ? "player:" + player.getName().getString() : "console";
+        com.dddgn.alice.decision.CollectGrants.add(source.getServer(), last.minX(), last.minZ(),
+                last.maxX(), last.maxZ(),
+                com.dddgn.alice.decision.PermissionGate.Scope.ALWAYS, by, -1);
+        source.sendSuccess(() -> Component.literal("[alice] 已提升为**永久**收集授权 "
+                + last.describe() + "（报告里会带 ★always 标记）"), false);
+        return 1;
     }
 
     /** {@code /alice ask}：列出未决请示（S3 / D-140）。 */

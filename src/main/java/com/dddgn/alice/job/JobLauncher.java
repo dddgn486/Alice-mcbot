@@ -78,7 +78,7 @@ public final class JobLauncher {
             case COLLECT -> new com.dddgn.alice.job.collect.CollectJob(bot,
                     GoalSpec.collectItems(request.center(), request.radius(), request.quota(), null,
                             request.maxTicks()),
-                    scope, request.anyDrops());
+                    scope);
             case REGION_LUMBER -> {
                 if (request.region() == null) {
                     throw new IllegalArgumentException("REGION_LUMBER 请求必须带 region");

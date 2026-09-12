@@ -122,7 +122,7 @@ public sealed interface GoalAction {
                     note, clamps);
             case "collect" -> new StartJob(JobRequest.collect(center, radius,
                     target != null && target.amount() > 0 ? Math.min(quota, target.amount()) : quota,
-                    maxTicks, false), note, clamps);   // anyDrops 不放给 LLM（捡玩家物品要走 S3 请示）
+                    maxTicks), note, clamps);   // 能不能捡由归属+策略决定（LLM 不能自造授权）
             case "region_lumber", "region" -> {
                 var region = com.dddgn.alice.job.lumber.LumberRegionState.get(bot.getServer())
                         .region(bot.getUUID());

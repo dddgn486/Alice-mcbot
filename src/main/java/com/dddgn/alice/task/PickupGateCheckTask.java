@@ -33,8 +33,10 @@ public class PickupGateCheckTask implements Task {
     public static final BlockPos DROP_A = com.dddgn.alice.task.LumberCourseAnchor.START_FOOT.offset(4, 0, 0);
     /** 外来掉落物落点（更远一点，避免两批混在一起）。 */
     public static final BlockPos DROP_B = com.dddgn.alice.task.LumberCourseAnchor.START_FOOT.offset(6, 0, 0);
+    /** **授权区**里的外来掉落物落点（S3.5 第二步：授权后应放行）。 */
+    public static final BlockPos DROP_C = com.dddgn.alice.task.LumberCourseAnchor.START_FOOT.offset(2, 0, 3);
 
-    private enum Phase { SETUP, WALK_A, ASSERT_A, WALK_B, ASSERT_B, DONE }
+    private enum Phase { SETUP, WALK_A, ASSERT_A, WALK_B, ASSERT_B, WALK_C, ASSERT_C, DONE }
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -45,6 +47,8 @@ public class PickupGateCheckTask implements Task {
     private int cobbleBefore;
     private int aPicked;
     private int bRemaining;
+    private int cPicked;
+    private int cRemaining;
     private String note = "-";
 
     public PickupGateCheckTask(BotPlayer bot, ServerPlayer observer) {
@@ -83,6 +87,8 @@ public class PickupGateCheckTask implements Task {
             case ASSERT_A -> assertA();
             case WALK_B -> walkB();
             case ASSERT_B -> assertB();
+            case WALK_C -> walkC();
+            case ASSERT_C -> assertC();
             case DONE -> passed() ? Status.DONE : Status.FAILED;
         };
     }
@@ -117,6 +123,14 @@ public class PickupGateCheckTask implements Task {
         spawn(level, DROP_B, 1);
         itemsBefore = countNear(level, DROP_B, 2.0D);
         BotLog.info("[PickupGateCheck] B 造物：外来掉落物 1 堆（未登记 ⇒ FOREIGN），命中数={}", itemsBefore);
+        // C：**授权区里的外来掉落物** —— 玩家授权一片范围后，那里的东西应放行（GRANTED_AREA ⇒ AUTO）
+        var grant = com.dddgn.alice.decision.CollectGrants.add(level.getServer(),
+                DROP_C.getX() - 2, DROP_C.getZ() - 2, DROP_C.getX() + 2, DROP_C.getZ() + 2,
+                com.dddgn.alice.decision.PermissionGate.Scope.SESSION, "fixture:pickup_gate_check",
+                20 * 600);
+        spawn(level, DROP_C, 1);
+        BotLog.info("[PickupGateCheck] C 造物：授权区 {} 内的外来掉落物 1 堆（授权 {}）",
+                DROP_C.toShortString(), grant.describe());
         phase = Phase.WALK_A;
         return Status.RUNNING;
     }
@@ -174,6 +188,20 @@ public class PickupGateCheckTask implements Task {
         bRemaining = countNear(bot.serverLevel(), DROP_B, 2.0D);
         BotLog.info("[PickupGateCheck] B 断言：走到外来掉落物上 ⇒ 地上还剩 {} 堆（应 >0，策略 ASK 在被动路径上拦截）",
                 bRemaining);
+        phase = Phase.WALK_C;
+        return Status.RUNNING;
+    }
+
+    private Status walkC() {
+        return walkTo(DROP_C, Phase.ASSERT_C);
+    }
+
+    private Status assertC() {
+        cPicked = inventoryCobblestone() - cobbleBefore - aPicked;
+        cRemaining = countNear(bot.serverLevel(), DROP_C, 2.0D);
+        BotLog.info("[PickupGateCheck] C 断言：走到授权区里的外来掉落物上 ⇒ 增量={} 地上剩={} "
+                        + "（授权 ⇒ GRANTED_AREA ⇒ AUTO，应被捡起）",
+                cPicked, cRemaining);
         phase = Phase.DONE;
         return finish(passed() ? "passed" : "failed");
     }
@@ -203,7 +231,8 @@ public class PickupGateCheckTask implements Task {
         finished = true;
         boolean pass = passed();
         note = reason;
-        String summary = "a_picked=" + aPicked + " b_remaining=" + bRemaining + " reason=" + reason
+        String summary = "a_picked=" + aPicked + " b_remaining=" + bRemaining
+                + " c_picked=" + cPicked + " c_remaining=" + cRemaining + " reason=" + reason
                 + " → " + (pass ? "PASS" : "FAIL");
         BotLog.info("[PickupGateCheck] SUMMARY {}（{}）", summary, DropPolicy.describeWindow());
         if (observer != null && !observer.hasDisconnected() && !observer.isRemoved()) {
@@ -213,6 +242,7 @@ public class PickupGateCheckTask implements Task {
     }
 
     private boolean passed() {
-        return aPicked > 0 && bRemaining > 0 && Phase.DONE == phase;
+        // 三条一起过：我方该捡（A）、外来该拦（B）、**授权区该放行**（C）
+        return aPicked > 0 && bRemaining > 0 && cPicked > 0 && cRemaining == 0 && Phase.DONE == phase;
     }
 }

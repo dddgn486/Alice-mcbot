@@ -70,12 +70,8 @@ public final class PickupGate {
         if (item == null) {
             return;
         }
-        BotManager.BotSession session = BotManager.sessionOf(bot);
-        DropPolicy.Provenance provenance = session == null ? null
-                : session.scope().provenanceOf(item);
-        if (provenance == null) {
-            provenance = DropPolicy.Provenance.FOREIGN;
-        }
+        // 归属判定**只走这一个入口**（登记在册 → 授权区 → FOREIGN），与主动收集路径共用
+        DropPolicy.Provenance provenance = DropPolicy.effectiveProvenance(bot, item);
         if (DropPolicy.mayPickUpPassively(bot, provenance)) {
             return;
         }

@@ -94,7 +94,7 @@ public class CollectJobItem extends Item {
         session.scope().begin(DROP_CENTER, 12, bot.getUUID());
         int adopted = session.scope().adoptExistingDrops(level, DROP_CENTER, 12);
         if (!BotManager.assignJob(bot, player instanceof ServerPlayer sp ? sp : null,
-                JobRequest.collect(DROP_CENTER, 16, 8 * STACKS, 1200, false))) {
+                JobRequest.collect(DROP_CENTER, 16, 8 * STACKS, 1200))) {
             say(player, "[alice] bot 正忙，稍后再试");
             return;
         }

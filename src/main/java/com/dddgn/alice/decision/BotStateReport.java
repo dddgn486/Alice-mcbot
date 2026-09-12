@@ -115,6 +115,16 @@ public final class BotStateReport {
             }
         }
 
+        var grants = CollectGrants.active(bot.getServer(), bot.getServer().getTickCount());
+        if (!grants.isEmpty()) {
+            lines.add("收集授权（范围内的掉落物按 GRANTED_AREA 处理）：");
+            for (var grant : grants) {
+                boolean always = grant.scope() == PermissionGate.Scope.ALWAYS;
+                lines.add("  " + (always ? "★always " : "") + grant.describe()
+                        + (always ? "  ← 永久授权（含玩家物品；/alice grant clear 可清）" : ""));
+            }
+        }
+
         JsonArray events = snapshot.getAsJsonArray("recentEvents");
         if (events.isEmpty()) {
             lines.add("最近事件：无");

@@ -56,6 +56,27 @@ public final class DropPolicy {
         };
     }
 
+    /**
+     * **有效归属**（S3.5 第二步）：按优先级判定 —— ① 我方登记在册（`ScopeBuffer`，直接/间接）
+     * ② 落在**玩家授权区**内（`CollectGrants`）③ 其余 = `FOREIGN`。
+     *
+     * <p>主动（`CollectJob`）与被动（`PickupGate`）**都必须用这一个入口**判定，不允许各写一套。
+     */
+    public static Provenance effectiveProvenance(BotPlayer bot, net.minecraft.world.entity.item.ItemEntity item) {
+        if (bot == null || item == null) {
+            return Provenance.FOREIGN;
+        }
+        var session = com.dddgn.alice.bot.BotManager.sessionOf(bot);
+        Provenance registered = session == null ? null : session.scope().provenanceOf(item);
+        if (registered != null) {
+            return registered;
+        }
+        if (CollectGrants.covering(bot.getServer(), item.blockPosition()) != null) {
+            return Provenance.GRANTED_AREA;
+        }
+        return Provenance.FOREIGN;
+    }
+
     /** 策略（默认值由 `PermissionGate` 的表给出：我方的 AUTO，FOREIGN 的 ASK）。 */
     public static PermissionGate.Policy policy(BotPlayer bot, Provenance provenance) {
         return PermissionGate.policy(bot.getServer(), capability(provenance));
