@@ -118,6 +118,18 @@ public final class LlmClient {
 
     /** 记住上一次成功的路径（名字），避免每次都把矩阵试一遍。 */
     private static volatile String chosenPath;
+    /** 下一次请求是否把矩阵全部试一遍（诊断模式：手动触发时打开）。 */
+    private static volatile boolean forceProbeAll;
+
+    /**
+     * **强制重探**（诊断用）：把手动触发变成"把三条路都试一遍并逐条登记"，
+     * 而不是命中记忆里那条就返回。用于回答"游戏内 JVM 到底能不能直连"这类问题
+     * （2026-09-12：同一个 `java.exe` 在游戏外直连正常，游戏内却曾超时，需要就地取证）。
+     */
+    public static void forgetChosenPath() {
+        chosenPath = null;
+        forceProbeAll = true;
+    }
 
     /**
      * **路径矩阵**（D-135 附注二）：按顺序试 —— 本地中继 → API+代理 → API+直连，取第一条成功的，
@@ -146,6 +158,9 @@ public final class LlmClient {
                 }
             }
         }
+        boolean probeAll = forceProbeAll;
+        forceProbeAll = false;
+        HttpResponse<String> firstSuccess = null;
         java.io.IOException last = null;
         for (String[] candidate : candidates) {
             String name = candidate[0];
@@ -162,14 +177,23 @@ public final class LlmClient {
                 long elapsed = System.currentTimeMillis() - started;
                 BotLog.info("[Goal] path_try name={} target={} proxy={} → ok status={} {}ms",
                         name, target, proxy.isBlank() ? "-" : proxy, response.statusCode(), elapsed);
-                chosenPath = name;
-                return response;
+                if (!probeAll) {
+                    chosenPath = name;
+                    return response;
+                }
+                if (firstSuccess == null) {
+                    firstSuccess = response;   // 探针模式：记下第一条成功的，继续把其余路径也试完
+                    chosenPath = name;
+                }
             } catch (java.io.IOException ex) {
                 last = ex;
                 BotLog.warn("[Goal] path_try name={} target={} proxy={} → {}（{}）",
                         name, target, proxy.isBlank() ? "-" : proxy,
                         ex.getClass().getSimpleName(), ex.getMessage());
             }
+        }
+        if (firstSuccess != null) {
+            return firstSuccess;
         }
         chosenPath = null;
         if (last != null) {

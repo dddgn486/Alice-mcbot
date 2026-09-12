@@ -115,8 +115,10 @@ public final class GoalDirector {
             BotLog.warn("[Goal] {}", text);
             return text;
         }
+        // 手动触发 = 诊断模式：把 relay/proxy/direct 三条路都试一遍并逐条登记
+        LlmClient.forgetChosenPath();
         fire(bot, state, "manual");
-        return "sent";
+        return "sent(诊断模式：三条路径都会试一遍)";
     }
 
     public static String describe() {
