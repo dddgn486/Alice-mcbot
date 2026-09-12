@@ -48,6 +48,56 @@ PermissionResponse { id, chosen, scope=once|session|always }
 CapabilityPolicy   { capability → AUTO | NOTIFY | ASK }（默认值进配置，玩家可改）
 ```
 
+## §3.1 掉落物归属与收集授权（**D-138 提案**，用户 2026-09-12 提出）
+
+**动机**：现在"能捡什么"只认 `ScopeBuffer` 登记过的（我方**破坏事件**配对 / 夹具收养）。
+这漏了三类**真实需要**，其中第 1 类用户点名要求：
+1. **我方行为的间接后果** —— 砍树后**树叶自然衰减**掉的树苗/木棍；移除支撑后**仙人掌/甘蔗**弹出；
+   重力方块摔碎；流体移除后的作物。它们**不是**"我方破坏事件"，但**是我方行为的结果**；
+2. **玩家派活** —— "去把那片东西捡了"：目标区域的掉落物可能是玩家丢的/箱子碎的/怪物掉的；
+3. （将来）**我方击杀的 mob 掉落**。
+
+同时，**默认谁都捡是危险的**：会捡走玩家故意丢在箱子边的东西、破坏玩家用掉落物做的分类/装饰，
+多 bot 后还会互相抢。
+
+### 契约
+
+```
+DropProvenance = OURS_DIRECT | OURS_INDIRECT | GRANTED_AREA | FOREIGN
+DropPolicy     = provenance → AUTO | NOTIFY | ASK | IGNORE     （默认值进配置，玩家可改）
+
+CollectGrant {  area(region/radius), until(tick|once), provenanceMask, scope=once|session|always,
+                grantedBy="player:…"|"config" }
+```
+- `OURS_DIRECT`（现有配对）与 `OURS_INDIRECT`（**时间窗 + 空间窗**归属）⇒ `AUTO`；
+- `GRANTED_AREA`（落在玩家授权区/时段内）⇒ `AUTO`；
+- `FOREIGN` ⇒ **默认 `ASK`**（弹窗/聊天问一次，超时=不捡）；可配成 `NOTIFY`（静默捡+事后报告）
+  或 `IGNORE`（永不捡）；
+- **`anyDrops` 布尔退役**，语义由 `CollectGrant` + `DropPolicy` 覆盖；
+- **授权只能由玩家或配置签发**：决策层（LLM）可以**请求** collect，但**不能自己签 grant**；
+  要在授权区外动 `FOREIGN` ⇒ 走 S3 请示；
+- **每条归属判定都要留证据**（进事件环与报告），例：
+  `drop@20,64,208 provenance=OURS_INDIRECT because=owner_window(lumber#12, dt=40tick, d=3.2)`
+  —— 便于复盘与标定窗口参数。
+
+### 技术缺口（要动的地方）
+1. `ScopeBuffer` 的窗口目前只有**破坏点**（`BreakRecord`）⇒ 要并入**我方放置/拆除点**
+   （`WorldModLedger` 已有记录），合成"我方最近动作点集合"，再按窗口给新生成的 `ItemEntity`
+   打 `OURS_INDIRECT` 标记（**只登记归属，不判所有权**）；
+2. `CollectJob.dropsInRange()` 改为「扫描 → 分类 → 按 `DropPolicy` 过滤」：
+   `AUTO` 直接捡、`ASK` 聚合成一条请示、`IGNORE` 跳过；报告/菜单里给出
+   "可捡 N 堆（我方 N1 / 授权区 N2 / 待请示 N3）"；
+3. 授权入口（零参数优先）：**选区物品右键**（记 pos1/pos2 或半径）为主 + 命令兜底；
+4. 窗口参数（时间/空间）**可配置并写进报告**，先给 `60 tick / 4 格` 作为起点，靠实测标定。
+
+### 验证矩阵（四类，都要可测）
+| 用例 | 场景 | 期望 |
+|---|---|---|
+| 1 我方直接 | 我方挖掉方块 | `OURS_DIRECT` ⇒ 自动捡（**已验**，D-137） |
+| 2 我方间接 | 砍树后**等树叶衰减**；或移除甘蔗下方沙块 | `OURS_INDIRECT` ⇒ 自动捡（**当前会漏**，需要窗口归属） |
+| 3 玩家丢的 | 玩家在不属授权区的地方丢几堆 | `FOREIGN` ⇒ **不捡**（默认 ASK；测试里选不捡或超时） |
+| 4 玩家授权区 | 玩家授权某区域后丢/碎 | `GRANTED_AREA` ⇒ 自动捡（含玩家的东西） |
+
 ## §4 分步骨架（每步独立可验证；**一次只做一步**）
 
 | 步 | 内容 | 判据 | 依赖 |
@@ -55,6 +105,7 @@ CapabilityPolicy   { capability → AUTO | NOTIFY | ASK }（默认值进配置�
 | **S1 事实层** | `TaskNode`/`TaskTree`（Job 暴露子任务摘要）+ `BotEvent` 环形缓冲 + `BotStateReport` 组装 + 零参数入口 `alice:bot_report` | 报告字段齐、与事实一致（对照日志逐字段核）；LLM 措辞不引入新事实（可选开关）；**纯只读** | S0 |
 | **S2 选择层** | `CandidateMenu`（附近树/矿、已保存区域、可执行 Job 类型）+ 动作 `target` 只能引用菜单项 + 输入精简（摘要+菜单+任务树摘要） | 复跑"LLM 选了没有树的地方"场景 ⇒ 不再出现；引用不存在的 id ⇒ `Refused` | S1 |
 | **S3 请示层** | `PermissionRequest/Response` + `CapabilityPolicy` + 客户端侧边弹窗**与聊天等价入口** + 超时默认拒绝 + `once/session/always` + 审计日志 | "是否允许 bot 自行取工具材料"跑通：批准执行一次；不答 ⇒ 超时拒绝并自动返回 | S2 |
+| **S3.5 收集归属** | `DropProvenance` 分类（破坏点 + **我方放置/拆除点**的时空窗口）+ `CollectGrant` + `DropPolicy` + 授权入口（选区物品）；`anyDrops` 退役 | 验证矩阵四类全过（尤其**树叶衰减/仙人掌**这类间接掉落能自动捡，**玩家丢的不捡**） | S3 |
 | **S4 事件层** | 阈值（危险 / **工具总耐久** / 卡住 / 无活 / 关键材料不足）只上报**可行动病症**；事件驱动决策接阈值 | 阈值触发一次决策；噪声（树叶清障一类）不上报 | S1 |
 | **S5 知识层（只读）** | 游戏内导出运行时配方/JEI 类别 → 离线 Python 建索引 + 逆推规划（材料树/机器需求/top-N 路线） | 与 JEI 人工核对一致；环（铜锭↔铜粉）给出有界不循环路线 | S1（汇报里显示缺料树） |
 | **S6 执行层** | `CraftTask`/`SmeltTask` → `ProcessTask`（JEI 类别适配器，先 1–2 种）→ `RoutePreference` 偏好规则 | 库存 0 ⇒ 做出木镐/石镐；一句"矿石先磨粉再烧" ⇒ 计划改道 | S5 |
