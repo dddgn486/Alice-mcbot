@@ -4078,3 +4078,34 @@ Step 1 生命周期闭环（D-107）/ Step 2 攀爬兜底（D-109）/ Step 3 崩
 再 `/alice region info` 复核读数。
 
 **验证等级**：Slice A `WINDOWS_CLIENT`；Slice B = IMPLEMENTED / COMPILES（客户端待测）。
+
+### D-129 附注二（Slice B 验收 + 用户实测发现的**设计缺口**：常驻巡查收工太早）
+
+**Slice B 实测（12:40–12:41，`WINDOWS_CLIENT`）：补种链路完全正确**
+```
+[Job] maintain plant sapling@19,64,213（deficit=1 → 补种后 standing 上升；KEEP 策略）  … 逐棵树桩补种 …
+[Job] maintain region=… viable=0 mySaplings=5 standing=5 baseline=5 deficit=0 chopped=5 planted=5 pendingReplant=0
+[Job] maintain SUMMARY region=… chopped=5 failed=0 patrols=16 mySaplings=5 planted=5 baseline=5
+                      saplingItem=minecraft:oak_sapling reason=idle_no_work → DONE
+```
+5 棵砍完 ⇒ 5 个树桩各补回一个苗 ⇒ `deficit=0` ⇒ `KEEP` 策略入账（不受建拆同权约束）✓。
+
+**用户实测发现缺口（本轮修）**：随后用户**手动催熟**了树苗，但 bot 没去砍 —— 因为任务**已经收工**了
+（`idle_no_work → DONE`），没人再看新长出来的树。**这是实现偏离设计**：
+§13.1 说 `MAINTAIN` 是**常驻**任务（"都满足 ⇒ **巡查待机**"），而 §13.3 的 `IDLE_NO_WORK` 条件是
+"连续 N 次巡查无进展**且区域内无树无苗**"。我实现成了"连续 3 次无活就收工" ✗ ⇒ 苗还在长就说再见。
+
+**修正（`RegionLumberJob`）**
+1. `idle_no_work` 收紧为**真的什么都没有**：`viable == 0 && deficit == 0 && mySaplings == 0`
+   —— 只要还有我种的苗（等它长）或还欠树，任务就**常驻**。
+2. **等生长时巡查退避**（§13.1「树苗生长需要真实时间，禁止高频扫描」）：间隔逐步翻倍到
+   `MAX_PATROL_INTERVAL_TICKS = 600`（30 s），一发现新树/需补种立刻恢复配置间隔并打日志；
+   健康输出新增 `waiting=saplings(N)/deficit(N)` 与 `interval=`。
+3. **电池适配常驻任务**：`Step` 增加 `doneWhen` 谓词 —— 区域这一步改为
+   "砍到 ≥1 棵 **且** 补种 ≥1 棵即判过"（不再靠预算超时，否则会把"本来就该常驻"误报成失败）。
+
+**验证入口**：右键 `alice:region_lumber` → 砍完 5 + 补种 5 后应看到
+`待机巡查：saplings(5)，间隔退避到 40→80→160→320→600 tick`；此时**手动催熟一个苗** ⇒ 下一轮巡查
+发现候选 ⇒ `[Job] maintain 发现活 ⇒ 巡查间隔恢复` + `pick tree@…` 砍掉它 ⇒ 再补种回树桩。
+
+**验证等级**：Slice B 补种 = `WINDOWS_CLIENT`；常驻巡查 + 退避 = IMPLEMENTED / COMPILES（客户端待测）。

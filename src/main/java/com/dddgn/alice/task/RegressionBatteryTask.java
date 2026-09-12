@@ -43,8 +43,20 @@ public final class RegressionBatteryTask implements Task {
     /** 与 `MineJobItem` 对齐的挖掘 Job 配额。 */
     private static final int MINE_QUOTA = 4;
 
+    /**
+     * @param doneWhen 非 null = **常驻任务**（如区域型 Job 会一直巡查等生长）：满足该谓词就判本步通过，
+     *                 不必等它自己结束（否则只能靠预算超时，把"本来就该常驻"误报成失败）。
+     *                 为 null = 按常规"跑完看终态"。
+     */
     private record Step(String name, List<String> scenes, Runnable provision,
-                        Supplier<Task> factory, int budgetTicks) {
+                        Supplier<Task> factory, int budgetTicks,
+                        java.util.function.Predicate<Task> doneWhen) {
+    }
+
+    /** 常规步骤（跑完看终态）。 */
+    private static Step step(String name, List<String> scenes, Runnable provision,
+                             Supplier<Task> factory, int budgetTicks) {
+        return new Step(name, scenes, provision, factory, budgetTicks, null);
     }
 
     private final BotPlayer bot;
@@ -90,20 +102,20 @@ public final class RegressionBatteryTask implements Task {
 
     private void buildSteps() {
         // 由轻到重：先跑秒级自检，再跑 Job / 长回归，便于"早失败早知道"
-        steps.add(new Step("clear_retry", List.of(), null,
+        steps.add(step("clear_retry", List.of(), null,
                 () -> new ClearRetryCheckTask(bot, scope), 900));
-        steps.add(new Step("write_budget", List.of(), null,
+        steps.add(step("write_budget", List.of(), null,
                 () -> new WriteBudgetCheckTask(bot, scope), 900));
-        steps.add(new Step("scaffold", List.of(), null,
+        steps.add(step("scaffold", List.of(), null,
                 () -> new ScaffoldLifecycleTask(bot, scope), 900));
-        steps.add(new Step("clear_guard", List.of(), null,
+        steps.add(step("clear_guard", List.of(), null,
                 () -> new ClearGuardCheckTask(bot, scope), 900));
-        steps.add(new Step("lumber_failure", List.of(), null,
+        steps.add(step("lumber_failure", List.of(), null,
                 () -> new LumberFailureCheckTask(bot, scope), 1800));
-        steps.add(new Step("mine_regression", List.of(), null,
+        steps.add(step("mine_regression", List.of(), null,
                 () -> new MineRegressionTask(bot, observer, scope), 3200));
         // 伐木 Job：手动场景（terrain + 手写树）⇒ 电池自己跑场景函数 + 复刻 LumberJobItem 的发料
-        steps.add(new Step("lumber_job",
+        steps.add(step("lumber_job",
                 List.of("alice_test:lumber_course_terrain", "alice_test:lumber_course_trees"),
                 () -> {
                     teleportBot(LumberCourseAnchor.START_FOOT);
@@ -118,7 +130,7 @@ public final class RegressionBatteryTask implements Task {
                         scope, new LumberCandidateSource(), new NearestPolicy()),
                 1500));
         // 挖掘 Job：同上（ore_course + 复刻 MineJobItem 的发料）
-        steps.add(new Step("mine_job",
+        steps.add(step("mine_job",
                 List.of("alice_test:ore_course_terrain"),
                 () -> {
                     teleportBot(OreCourseAnchor.START_FOOT);
@@ -162,8 +174,11 @@ public final class RegressionBatteryTask implements Task {
                         new com.dddgn.alice.job.lumber.LumberRegionState.Region(
                                 LumberCourseAnchor.REGION_MIN, LumberCourseAnchor.REGION_MAX),
                         scope, new LumberCandidateSource(), new NearestPolicy(), 20, 8000),
-                2000));
-        steps.add(new Step("pathing", List.of(), null,
+                2000,
+                // 常驻任务：砍到 ≥1 棵且补种 ≥1 棵即算本步通过（之后它会继续巡查等苗长大）
+                task -> task instanceof com.dddgn.alice.job.lumber.RegionLumberJob region
+                        && region.treesChopped() >= 1 && region.plantedSomething()));
+        steps.add(step("pathing", List.of(), null,
                 () -> new PathingRegressionTask(bot, observer), 5000));
     }
 
@@ -182,6 +197,12 @@ public final class RegressionBatteryTask implements Task {
             return startStep(steps.get(index));
         }
         Status status = current.tick();
+        if (steps.get(index).doneWhen() != null && steps.get(index).doneWhen().test(current)) {
+            record(steps.get(index).name(), "PASS",
+                    "ticks=" + stepTicks + "（常驻任务按达成判过：chopped/planted 已达判据）");
+            endStep();
+            return Status.RUNNING;
+        }
         if (status == Status.RUNNING) {
             if (++stepTicks > steps.get(index).budgetTicks()) {
                 record(steps.get(index).name(), "TIMEOUT",

@@ -43,6 +43,12 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
 
     /** 连续多少次"巡查无活"才判定待机（§13.1：巡查周期由配置决定，禁止高频扫描）。 */
     public static final int IDLE_PATROLS = 3;
+    /**
+     * **等生长时的巡查退避上限**（tick）。§13.1：「树苗生长需要真实时间，**禁止高频扫描**」——
+     * 所以一旦"活都干完了、只剩等苗长大"，巡查间隔就逐步翻倍到这个上限（默认 30 s），
+     * 有新树/需要补种时立刻恢复成配置的间隔。
+     */
+    public static final int MAX_PATROL_INTERVAL_TICKS = 600;
 
     private final BotPlayer bot;
     private final LumberRegionState.Region region;
@@ -58,6 +64,10 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
     private LumberJob current;
     private int ticks;
     private int patrolCooldown;
+    /** 当前生效的巡查间隔（等生长时退避；发现活就恢复配置值）。 */
+    private int currentPatrolInterval;
+    /** 上一轮巡查"在等什么"（生长/补种），用于健康输出。 */
+    private String waitingFor = "-";
     private int idlePatrols;
     private int treesChopped;
     private int treesFailed;
@@ -74,6 +84,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         this.source = source;
         this.policy = policy;
         this.patrolIntervalTicks = Math.max(1, patrolIntervalTicks);
+        this.currentPatrolInterval = this.patrolIntervalTicks;
         this.maxTicks = maxTicks;
     }
 
@@ -100,6 +111,16 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         return terminalReason;
     }
 
+    /** 本会话已砍棵数（夹具/电池断言用）。 */
+    public int treesChopped() {
+        return treesChopped;
+    }
+
+    /** 本会话是否已至少补种一棵（夹具/电池断言用）。 */
+    public boolean plantedSomething() {
+        return LumberRegionState.get(bot.getServer()).saplingsPlanted(bot.getUUID()) > 0;
+    }
+
     @Override
     public String progressSummary() {
         return "region=" + region.describe() + " chopped=" + treesChopped + " failed=" + treesFailed
@@ -123,7 +144,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
             patrolCooldown--;
             return com.dddgn.alice.task.Task.Status.RUNNING;
         }
-        patrolCooldown = patrolIntervalTicks;
+        patrolCooldown = currentPatrolInterval;
         return patrol();
     }
 
@@ -160,12 +181,13 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         int deficit = Math.max(0, state.baselineTrees(bot.getUUID()) - standing);
         BotLog.info("[Job] maintain region={} viable={} inRegion={} tried={} mySaplings={}"
                         + " standing={} baseline={} deficit={} chopped={} failed={} planted={}"
-                        + " pendingReplant={} lastPatrol={}",
+                        + " pendingReplant={} waiting={} interval={} lastPatrol={}",
                 region.describe(), raw.viable().size(), inRegion.size(), tried.size(),
                 state.mySaplingCount(bot.getUUID()), standing, state.baselineTrees(bot.getUUID()),
                 deficit, treesChopped, treesFailed,
                 LumberRegionState.get(server).saplingsPlanted(bot.getUUID()),
-                state.pendingReplantCount(bot.getUUID()), server.getTickCount());
+                state.pendingReplantCount(bot.getUUID()), waitingFor, currentPatrolInterval,
+                server.getTickCount());
 
         // ① 欠树 ⇒ 先补种（§13.1"有空格且欠树 → 补种"）；② 有树 ⇒ 砍；两者都在同一轮里按需做
         if (deficit > 0) {
@@ -185,14 +207,30 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
                     failure = terminalReason + " " + String.join(" | ", failureNotes);
                     return finish(com.dddgn.alice.task.Task.Status.FAILED);
                 }
-                // §13.3：连续 N 次巡查无进展且区域内无树无苗 ⇒ 如实待机（**不算失败**）
-                terminalReason = "idle_no_work";
-                return finish(com.dddgn.alice.task.Task.Status.DONE);
+                // §13.3：只有"连续 N 次巡查无进展**且区域内无树无苗**"才如实待机收工。
+                // **苗还在长（mySaplings>0）或还欠树（deficit>0）都不算没活** —— MAINTAIN 是常驻任务
+                // （§13.1"都满足 ⇒ 巡查待机"；用户 2026-09-12 实测：原实现收工太早，
+                // 手动催熟的树立刻没人管）。
+                if (deficit == 0 && state.mySaplingCount(bot.getUUID()) == 0) {
+                    terminalReason = "idle_no_work";
+                    return finish(com.dddgn.alice.task.Task.Status.DONE);
+                }
+                // 还有苗/欠树 ⇒ 常驻等待，**巡查退避**（禁止高频扫描）
+                currentPatrolInterval = Math.min(currentPatrolInterval * 2, MAX_PATROL_INTERVAL_TICKS);
+                waitingFor = deficit > 0 ? "deficit(" + deficit + ")" : "saplings("
+                        + state.mySaplingCount(bot.getUUID()) + ")";
+                BotLog.info("[Job] maintain 待机巡查：{}，间隔退避到 {} tick（有新树/要补种立刻恢复 {}）",
+                        waitingFor, currentPatrolInterval, patrolIntervalTicks);
             }
             return com.dddgn.alice.task.Task.Status.RUNNING;
         }
 
         idlePatrols = 0;
+        if (currentPatrolInterval != patrolIntervalTicks) {
+            BotLog.info("[Job] maintain 发现活 ⇒ 巡查间隔恢复 {} tick", patrolIntervalTicks);
+            currentPatrolInterval = patrolIntervalTicks;
+        }
+        waitingFor = "-";
         int localRadius = localSearchRadius();
         Selection selection = policy.select(bot, spec, new CandidateSet(inRegion, raw.rejected()));
         Candidate picked = selection.picked();
