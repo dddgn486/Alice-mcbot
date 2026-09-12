@@ -70,7 +70,7 @@ public class SurvivalExitCheckItem extends Item {
             bot = BotManager.firstOrSpawn(level, HAZARD_FOOT);
         }
         if (bot == null || BotManager.isBusy(bot)) {
-            say(player, bot == null ? "[alice] bot 生成失败" : "[alice] bot 正忙，稍后再试");
+            say(player, bot == null ? "[alice] bot 生成失败" : "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         var server = level.getServer();
@@ -81,7 +81,7 @@ public class SurvivalExitCheckItem extends Item {
         bot.setDeltaMovement(Vec3.ZERO);
         bot.controller().stopMovement();
         if (!BotManager.assignSurvivalExitCheck(bot, player instanceof ServerPlayer sp ? sp : null, DUMMY_GOAL)) {
-            say(player, "[alice] bot 正忙，稍后再试");
+            say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         BotLog.info("[SurvivalExitCheck] 就位 bot={} hazard_foot={}（头顶 {} 是石头 ⇒ SUFFOCATING）；"

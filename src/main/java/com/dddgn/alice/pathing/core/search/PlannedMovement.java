@@ -17,9 +17,19 @@ public record PlannedMovement(
         BlockPos fromFoot,
         BlockPos toFoot,
         double cost,
-        RecoverabilityLevel recoverability
+        RecoverabilityLevel recoverability,
+        com.dddgn.alice.pathing.core.RecoverabilityFacts recoverabilityFacts
 ) {
+    /** 便捷构造：**什么都没验**（`RecoverabilityFacts.NONE`）。FALL 用它会保守降级。 */
+    public PlannedMovement(MovementType movementType, BlockPos fromFoot, BlockPos toFoot, double cost,
+                           RecoverabilityLevel recoverability) {
+        this(movementType, fromFoot, toFoot, cost, recoverability,
+                com.dddgn.alice.pathing.core.RecoverabilityFacts.NONE);
+    }
+
     public PlannedMovement {
+        recoverabilityFacts = recoverabilityFacts == null
+                ? com.dddgn.alice.pathing.core.RecoverabilityFacts.NONE : recoverabilityFacts;
         movementType = Objects.requireNonNull(movementType, "movementType");
         fromFoot = Objects.requireNonNull(fromFoot, "fromFoot").immutable();
         toFoot = Objects.requireNonNull(toFoot, "toFoot").immutable();

@@ -82,14 +82,21 @@
 
 ### 1.7 串联回归清单（改到生产任务后的必跑集）
 
-**★ 首选：一条右键跑完全部 9 项**
+**★ 首选：一条右键跑完全部 23 项**
 
 ```
 /give @s alice:regression_battery          # 一次性
 右键 arbitrary 方块                          # 等约 3~5 分钟
 ```
-判据：`[Regression] SUMMARY clear_retry=… mine_regression=… lumber_job=… pathing=… (9/9) → PASS`，
+判据：`[Regression] SUMMARY clear_retry=… mine_regression=… lumber_job=… decision_contract=… permission_gate=…
+pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=… (23/23) → PASS`，
 逐项失败不中断（一趟看全）。期间别启动其它任务、人站远一点别捡掉落物。
+
+> 决策层 6 步中，`pickup_gate` / `collect_job` / `event_thresholds` 另有**单跑物品**
+> （`alice:pickup_gate_check` / `alice:collect_job` / `alice:event_threshold_check`）；
+> `decision_contract` / `permission_gate` / `recipes_dump` **只有电池入口** —— 它们验的是契约与阈值，不需要手搭场景；
+> 排查单项时改看 `[DecisionContract]` / `[PermissionContract]` / `[PickupGate]` / `[CollectJob]` /
+> `[RecipeDump]` / `[EventThreshold]` 前缀的行（每项自己的 `SUMMARY key=VALUE` 都在电池里）。
 
 下面是**逐项手工版**（排查单项时用；每项都自带复位，两个 Job 需要先跑场景函数）：
 
@@ -107,6 +114,24 @@
 | 8 | `/function alice_test:ore_course` → 右键 `alice:mine_job` | 手动 | `DONE …` | 同 2 |
 | 9 | 右键 `alice:clear_retry_check` | 自带 | `[ClearRetry] SUMMARY retry=PASS attempts=… clear_then_mine=PASS cleared=… sub_profile=PASS → PASS` | **期望**若干条 `[MineTask] clear_skip …`（换候选）与 `no_suitable_tool`（相位①故意无镐） |
 | 10 | 右键 `alice:pathing_regression` | 自带 | `16/16` | —（不涉挖矿，仅防连带回归） |
+
+**决策层 6 步（D-149/D-150，电池内自动跑；下面是各自的手工对照入口）**
+
+| # | 入口 | 复位 | 期望摘要 | 日志判据 |
+|---|---|---|---|---|
+| D1 | 电池 `decision_contract` | 自带 | `snapshot=… menu=…`（契约自检） | 无 `refused` 之外的异常；`GoalAction` 越界被钳制 |
+| D2 | 电池 `permission_gate` / 右键 `alice:permission_demo` | 自带 | 四档行为 + 超时=默认拒绝 | `[Permission] … pending/answered` |
+| D3 | 电池 `pickup_gate` / 右键 `alice:pickup_gate_check` | 自带 | `A 捡到 / B 被拦（东西留地上）` | A 无 blocked；B **恰好一条** `[Pickup] blocked`（600 tick 冷却，不是 584 条） |
+| D4 | 电池 `collect_job` / 右键 `alice:collect_job` | 自带 | `[CollectJob] … collected=N` | 我方掉落物登记后放行 |
+| D5 | 电池 `recipes_dump` / 命令 `/alice recipes` | 自带 | 导出文件写出（行数 > 0） | `[RecipeDump] written=… recipes=…` |
+| D13 | 电池 `transfer` / 右键 `alice:transfer_check`（R2+R3+L1+L2，约 2 秒；`end_to_end` 默认走**菜单路线**） | 场景函数 `alice_test:transfer_check_terrain`（夹具内部自动调用） | `fixture=PASS end_to_end=PASS selection=PASS selector_events=PASS command_parse=PASS verdict=PASS` | `[Transfer] SUMMARY …`；**`end_to_end`** 跑真实 `TransferTask`（走位→触及校验→容器预算→两段写入），日志里应能看到 `containers=N/M` |
+| D12 | 电池 `partial_search` / 右键 `alice:partial_search_check`（K-1，约 1 秒，纯规划） | 自带 | `partial_with_prefix=PASS same_goal_reachable_with_budget=PASS no_prefix_for_real_failures=PASS verdict=PASS` | `[PartialSearch] SUMMARY …` |
+| D11 | 电池 `capability_gate` / 右键 `alice:capability_gate_check`（基-8，约 1 秒，纯逻辑） | 自带 | `pure_traversal_allowed=PASS capability_unauthorized=PASS zone_protected=PASS no_tool=PASS no_throwaway=PASS no_place_budget=PASS declarations=PASS verdict=PASS` | `[CapabilityGate] SUMMARY …` |
+| D10 | 电池 `tool_supply` / 右键 `alice:tool_supply_check`（基-9，约 2 秒） | 自带（**会临时改写 bot 背包并在收尾复原**） | `tool_swap=PASS worn_no_spare=PASS no_tool_no_conjure=PASS verdict=PASS` | `[ToolSupply] SUMMARY …`；`no_tool_no_conjure` 是**负例**：不许凭空变出工具 |
+| D9 | 电池 `llm_contract` / 右键 `alice:llm_contract_check`（基-5，约 1 秒） | 自带 | `job_failure_reports=PASS product_filter_target=PASS product_filter_default=PASS refusal_readback=PASS verdict=PASS` | `[LlmContract] SUMMARY …`；`refusal_readback` 同时验"进 prompt"与"接受后清掉" |
+| D8 | 电池 `decision_trace` / 右键 `alice:decision_trace_check`（基-4，约 1 秒） | 自带 | `trace_written=PASS trace_memory_tail=PASS state_nbt_roundtrip=PASS restart_semantics=PASS verdict=PASS` | `[DecisionTrace] SUMMARY …`；同时可看 `<config>/alice-decisions.jsonl` 是否新增一行 |
+| D7 | 电池 `recoverability` / 右键 `alice:recoverability_check`（基-1，纯计算，约 1 秒） | 自带 | `table_nondeterministic=PASS per_type=PASS guard_is_live=PASS fall_with_fact_accepted=PASS fall_without_fact_refused=PASS policy_table=PASS verdict=PASS` | `[Recover] SUMMARY …` + `[Recover] 规则表 …` + `[Recover] 策略表 …`；两个负例：`required>evaluated` 必须抛、**不带返回守卫事实的 FALL 边必须被拒** |
+| D6 | 电池 `event_thresholds` / 右键 `alice:event_threshold_check`（约 25 秒，可盯着看竖井段） | 自带 | `tool_low_once=PASS tool_rearm=PASS stuck_once=PASS stuck_no_spam=PASS` | 每段**恰好一条** `[Events] TOOL_LOW` / `[Events] STUCK`；前提失败会直接报 `fixture_*` |
 
 > 判据含义：`no_suitable_tool` = 生产任务**拒绝**在没有正确工具时挖"必须正确工具才掉落"的方块（D-119）；
 > `tool_in_main_inventory` / `no_tool` = 夹具**漏发或发错位置**（工具落 9..35 就永远选不到 —— D-089 斧子、

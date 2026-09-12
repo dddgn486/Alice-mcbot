@@ -22,6 +22,9 @@ public final class SearchNode {
     public net.minecraft.core.BlockPos previousFoot;
     public com.dddgn.alice.pathing.core.MovementType previousType;
     public double previousCost;
+    /** 到达本节点那条边**已验证的可回收性事实**（逐边事实，见 {@code RecoverabilityFacts}）。 */
+    public com.dddgn.alice.pathing.core.RecoverabilityFacts previousFacts =
+            com.dddgn.alice.pathing.core.RecoverabilityFacts.NONE;
 
     int heapIndex = -1;
     boolean open;

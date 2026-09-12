@@ -12,9 +12,9 @@ import net.minecraft.world.level.Level;
 /**
  * 串联回归电池启动器（{@code alice:regression_battery}，D-122）：普通右键，零参数。
  *
- * <p>一次跑完"改了生产任务必须复跑"的 9 项常用回归（清单见 {@code RegressionBatteryTask} 与
+ * <p>一次跑完"改了生产任务必须复跑"的 23 项常用回归（清单见 {@code RegressionBatteryTask} 与
  * {@code docs/TESTING_GUIDE.md §1.7}），每项自己复位、失败不中断，最后一行
- * {@code [Regression] SUMMARY … (9/9) → PASS|FAIL}。
+ * {@code [Regression] SUMMARY … (23/23) → PASS|FAIL}。
  */
 public class RegressionBatteryItem extends Item {
 
@@ -38,15 +38,15 @@ public class RegressionBatteryItem extends Item {
             bot = BotManager.firstOrSpawn(level, com.dddgn.alice.task.ClearRetryCheckTask.START_FOOT);
         }
         if (bot == null || BotManager.isBusy(bot)) {
-            say(player, bot == null ? "[alice] bot 生成失败" : "[alice] bot 正忙，稍后再试");
+            say(player, bot == null ? "[alice] bot 生成失败" : "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
         if (!BotManager.assignRegressionBattery(bot, observer)) {
-            say(player, "[alice] bot 正忙，稍后再试");
+            say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
-        say(player, "[alice] 串联回归电池已启动（9 项，约 3~5 分钟）。"
+        say(player, "[alice] 串联回归电池已启动（23 项，约 4~6 分钟）。"
                 + "请站远一点别捡掉落物；结果看日志 [Regression] SUMMARY。");
     }
 

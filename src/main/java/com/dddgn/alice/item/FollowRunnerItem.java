@@ -77,7 +77,7 @@ public class FollowRunnerItem extends Item {
                     foot.toShortString());
         }
         if (!BotManager.assignFollow(bot, target)) {
-            player.sendSystemMessage(Component.literal("[alice] bot 正忙，稍后再试"));
+            player.sendSystemMessage(Component.literal("[alice] " + BotManager.busyMessage(bot)));
             return InteractionResult.SUCCESS;
         }
         player.sendSystemMessage(Component.literal("[alice] 跟随启动 bot=" + bot.getName().getString()

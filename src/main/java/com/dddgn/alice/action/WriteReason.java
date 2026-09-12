@@ -56,6 +56,19 @@ public enum WriteReason {
      */
     REGION_REPLANT(Policy.EXPLICIT_TARGET, Action.PLACE, "区域补种（计划内永久）"),
 
+    // ---- 容器写入（2026-09-13 用户裁定：**容器写入算"世界改动"** ⇒ 与方块写入同规格登记/受预算约束）----
+
+    /**
+     * 容器传输：从源容器取出 / 写入目标容器。
+     *
+     * <p>为什么单列：它既不是"破坏方块"也不是"放置方块"，但对世界的改动**同样是永久性的**
+     * （物品换了位置）。此前只做审计（G5 留痕）、**没有任何授权与预算**——
+     * 这是传输模块彻查（`docs/TRANSFER_MODULE_AUDIT.md` F4）点出的缺口。
+     */
+    // 注：这里用 `Action.BOTH` 而不是新增 `Action.CONTAINER` —— 因为 `Action` 字段**目前无读者**
+    //（只有 `policy()`/`temporary()` 被读）⇒ 新增值只会再造一个死值（K-5 同族，已登记）。
+    CONTAINER_TRANSFER(Policy.EXPLICIT_TARGET, Action.BOTH, "容器传输：取出/写入容器"),
+
     // ---- 外部触发 ----
 
     /** 玩家命令直接写入（管理/调试入口）。 */

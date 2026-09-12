@@ -71,7 +71,7 @@ public class PathingDisturberItem extends Item {
         if (!BotManager.assignPathSessionDiagnostic(bot, COURSE_GOAL_FOOT, true,
                 DISTURB_TICK, 0, DISTURB_DZ)) {
             if (player != null) {
-                player.sendSystemMessage(Component.literal("[alice] bot 正忙，稍后再试"));
+                player.sendSystemMessage(Component.literal("[alice] " + BotManager.busyMessage(bot)));
             }
             return InteractionResult.SUCCESS;
         }

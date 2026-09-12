@@ -23,6 +23,67 @@ public final class TransferLedgerData extends SavedData {
 
     private final Map<UUID, Entry> entries = new LinkedHashMap<>();
 
+    /** 保留多少条**物品移动**记录（G5）。 */
+    private static final int MOVEMENT_CAPACITY = 32;
+
+    // ==================== G5：**容器写入维度** ====================
+    // 2026-09-12 复核：这个账本记的是**请求与状态迁移**，不记"到底哪几件东西从哪去了哪"。
+    // 于是"bot 往箱子里放了什么 / 从箱子里拿了什么"没有可审计的痕迹（方块改动有账本，容器没有）。
+    // 本批只补**记录**（方向/物品/数量/位置/tick），**不做**自动撤销或恢复。
+    /**
+     * 一次真实的物品移动。
+     *
+     * @param leg  `chest_to_bot`（从源箱取出）或 `bot_to_chest`（写入目标箱）
+     */
+    public record Movement(String requestId, String leg, String itemId, int count, String pos, long tick,
+                           String requester, String reason) {
+        /** 一行式描述（含授权信息 ⇒ 审计能回答"谁按什么理由动的这箱东西"）。 */
+        public String describe() {
+            return leg + " " + itemId + " x" + count + " @" + pos + " by=" + requester + " reason=" + reason;
+        }
+    }
+
+    private final java.util.Deque<Movement> movements = new java.util.ArrayDeque<>();
+    private int movementCount;
+    private int movementItems;
+    private String lastMovement = "-";
+
+    /** 记录一次物品移动（由 `TransferTask` 在两段**已证明**的写入之后调用）。 */
+    public void recordMovement(String requestId, String leg, String itemId, int count, String pos, long tick,
+                               String requester, String reason) {
+        if (count <= 0) {
+            return;
+        }
+        Movement movement = new Movement(requestId, leg, itemId, count, pos, tick, requester, reason);
+        movements.addLast(movement);
+        while (movements.size() > MOVEMENT_CAPACITY) {
+            movements.removeFirst();
+        }
+        movementCount++;
+        movementItems += count;
+        lastMovement = movement.describe() + " tick=" + tick;
+        setDirty();
+    }
+
+    public int movementCount() {
+        return movementCount;
+    }
+
+    public int movementItems() {
+        return movementItems;
+    }
+
+    public java.util.List<Movement> movements() {
+        return java.util.List.copyOf(movements);
+    }
+
+    /** 一行式事实（汇报与自检共用）。 */
+    public String describeMovements() {
+        return movementCount == 0
+                ? "容器写入=0（本档还没有物品进出容器）"
+                : "容器写入=" + movementCount + " 次 / " + movementItems + " 件（最后 " + lastMovement + "）";
+    }
+
     public static TransferLedgerData get(MinecraftServer server) {
         return server.overworld().getDataStorage()
                 .computeIfAbsent(TransferLedgerData::load, TransferLedgerData::new, DATA_KEY);
@@ -36,6 +97,16 @@ public final class TransferLedgerData extends SavedData {
                 data.entries.put(entry.request().requestId(), entry);
             }
         }
+        for (Tag value : root.getList("movements", Tag.TAG_COMPOUND)) {
+            CompoundTag tag = (CompoundTag) value;
+            Movement movement = new Movement(tag.getString("request"), tag.getString("leg"),
+                    tag.getString("item"), tag.getInt("count"), tag.getString("pos"), tag.getLong("tick"),
+                    tag.getString("requester"), tag.getString("reason"));
+            data.movements.addLast(movement);
+            data.lastMovement = movement.describe() + " tick=" + movement.tick();
+        }
+        data.movementCount = root.getInt("movement_count");
+        data.movementItems = root.getInt("movement_items");
         return data;
     }
 
@@ -47,11 +118,33 @@ public final class TransferLedgerData extends SavedData {
             serialized.add(entry.save());
         }
         root.put("entries", serialized);
+        // G5：物品移动记录（有界，最多 MOVEMENT_CAPACITY 条）
+        ListTag movementTags = new ListTag();
+        for (Movement movement : movements) {
+            CompoundTag tag = new CompoundTag();
+            tag.putString("request", movement.requestId());
+            tag.putString("leg", movement.leg());
+            tag.putString("item", movement.itemId());
+            tag.putInt("count", movement.count());
+            tag.putString("pos", movement.pos());
+            tag.putLong("tick", movement.tick());
+            tag.putString("requester", movement.requester());
+            tag.putString("reason", movement.reason());
+            movementTags.add(tag);
+        }
+        root.put("movements", movementTags);
+        root.putInt("movement_count", movementCount);
+        root.putInt("movement_items", movementItems);
         return root;
     }
 
     public Optional<Entry> find(UUID requestId) {
         return Optional.ofNullable(entries.get(requestId));
+    }
+
+    /** 自检辅助：save → load 往返（验证 G5 的移动记录真的进了 NBT）。 */
+    public static TransferLedgerData roundTrip(TransferLedgerData source) {
+        return load(source.save(new CompoundTag()));
     }
 
     public boolean admit(TransferRequest request) {
@@ -123,6 +216,13 @@ public final class TransferLedgerData extends SavedData {
                 && (entry.state() == State.IN_TRANSIT_BOT || entry.state() == State.SUSPENDED));
     }
 
+    /**
+     * 请求状态机。
+     *
+     * <p>注意：`SOURCE_LEG_PRE` / `DESTINATION_LEG_PRE` 是**审计哨兵**（记录"某段写入之前"这一刻），
+     * 供事后复盘读时间线；它们**不被决策逻辑读取**（读的是 `IN_TRANSIT_BOT`/`SUSPENDED`/`ABORTED`），
+     * 属**证据**而非死码（2026-09-13 传输彻查 F3 的处置结论）。
+     */
     public enum State {
         PLANNED, PREFLIGHT_SOURCE, MOVE_TO_SOURCE, SOURCE_LEG_PRE, SOURCE_LEG_SIMULATED, SOURCE_EXTRACTED,
         IN_TRANSIT_BOT, MOVE_TO_DESTINATION, DESTINATION_LEG_PRE, DESTINATION_LEG_SIMULATED,

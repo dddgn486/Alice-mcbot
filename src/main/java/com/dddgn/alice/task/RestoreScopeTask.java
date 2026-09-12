@@ -427,6 +427,17 @@ public final class RestoreScopeTask implements Task {
             status = Task.Status.DONE;
         }
         int recovered = queueBuilt && !queue.isEmpty() ? countThrowaway() - throwawayBefore : 0;
+        // **残留 = 可回收性失败**（D-153）：世界事实里还有我方方块没收回 ⇒ 不只是"恢复没做完"，
+        // 而是"bot 没能干净地离开"。计数 + 结构化日志 + 事件（自检窗口内只记录不通知）。
+        if (remaining > 0) {
+            String causes = notes.isEmpty() ? "-" : String.join(" | ", notes);
+            com.dddgn.alice.pathing.core.RecoverabilityReport.recordResidue(scopeId, remaining, causes);
+            BotLog.warn("[Recover] RESIDUE scope={} remaining={} causes={}",
+                    scopeId == null ? "<all>" : scopeId, remaining, causes);
+            com.dddgn.alice.decision.DecisionEvents.emit(bot, "RESIDUE", "warn",
+                    "可回收性失败：仍有 " + remaining + " 块我方方块未收回",
+                    "scope=" + (scopeId == null ? "<all>" : scopeId) + " causes=" + causes);
+        }
         BotLog.info("[Restore] SUMMARY scope={} restored={} skipped={} reconciled={} remaining={} recovered={}"
                         + "（一次性方块库存变化）ticks={} reason={} → {}",
                 scopeId == null ? "<all>" : scopeId, restored, skipped, reconciled, remaining, recovered,

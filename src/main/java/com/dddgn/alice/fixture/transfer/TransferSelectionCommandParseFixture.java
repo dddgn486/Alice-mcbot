@@ -1,4 +1,6 @@
-package com.dddgn.alice.command;
+package com.dddgn.alice.fixture.transfer;
+
+import com.dddgn.alice.transfer.*;
 
 import com.mojang.brigadier.StringReader;
 import net.minecraft.commands.arguments.ResourceLocationArgument;

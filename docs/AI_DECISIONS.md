@@ -5175,3 +5175,1091 @@ python3 tools/recipe-graph.py --recipes <导出文件|数据目录> --target min
 必要时改为从模组 jar 的 `data/**/recipes/*.json` 交叉验证标签。
 
 **下一步**：**阶段 1 基层收口开工** —— 先 **基-2（决策层进回归电池）** 与 **基-3（S4 事件层）**。
+
+## D-149 基-2：决策层五件套进回归电池（2026-09-12）
+
+**做了什么**：`alice:regression_battery` 新增 6 步，插在 `pathing` 之前（决策层失败不该淹没在 5000 tick 的寻路里）：
+
+| 步骤 | 验的事 | 入口任务 |
+| --- | --- | --- |
+| `decision_contract` | 快照/菜单/`GoalAction` 严格解析 + `target` 必须命中菜单 + 越界钳制 | `DecisionContractCheckTask` |
+| `permission_gate` | AUTO/NOTIFY/ASK/IGNORE 四档 + 超时=默认拒绝 + 答复队列 | `PermissionContractCheckTask` |
+| `pickup_gate` | 我方掉落物放行 / 外来掉落物拦截（被动拾取闸门） | `PickupGateCheckTask` |
+| `collect_job` | `JobRequest.collect(...)` → `JobLauncher.create` → `CollectJob` 扫描+收集闭环 | `JobLauncher.create` |
+| `recipes_dump` | 运行时配方导出能跑通并写出文件 | `RecipesDumpCheckTask` |
+| `event_thresholds` | 工具见底 / 卡住两类事件（见 D-150） | `EventThresholdCheckTask` |
+
+**为什么**：D-135 附注三起，决策层已有 6 个独立测试物品；但"改了生产任务必须复跑"的清单（`docs/TESTING_GUIDE.md §1.7`）
+一直没有把它们收进来 ⇒ 决策层改动**不在**任何回归网里。用户一次右键跑电池 = 顺带回归整层。
+
+**纪律**：每步仍然自开账本作用域、自复位夹具、互不干扰；任一步失败**不中断**（一趟看全）。
+电池从 9 项扩到 **16 项**（决策层 6 步 + 原有的 10 步），总兜底仍 20000 tick。
+
+## D-150 S4 事件层：阈值只报"可行动病症"，且同一病症只报一次（2026-09-12）
+
+**问题（这是缺口，不是优化）**：D-135 起决策层**唯一的触发是"任务终态"**。于是三类典型的可行动病症没人上报：
+① 工具耐久见底（bot 会安静地把唯一一把镐磨没）；② 有任务却长时间不动（卡住/被判定死角）；
+③ 无活可干（已有 `idle_no_work`）。结果就是：**决策层只在事情结束之后才知道事情发生了**。
+
+**实现**：`decision/EventThresholds`（每 tick 由 `BotManager` 调度循环调，读数**只读**）：
+
+| 事件 | 触发 | 复位（滞回） |
+| --- | --- | --- |
+| `TOOL_LOW` | 背包里**剩余比例最低**的斧/镐 ≤ 20% | 该比例回到 ≥ 35%（换新/修好） |
+| `STUCK` | **有任务 + 有移动意图**（`controller.hasActiveMovement()`）且脚位连续 200 tick 未变 | 脚位一变、或换了任务 ⇒ 可再报 |
+
+**为什么 `STUCK` 的判据里必须有"移动意图"**（写下来因为这是个容易做错的判断）：只写"有任务且不动"会把
+**等待态**（等 LLM 回复、等请示答复、等冷却）误报成病症 —— 那些时刻决策层什么都做不了，报了纯噪声。
+真卡住的定义是"**正在走**却一格没挪"；等待态**不计时**（时钟拨到当前 tick）。同一（脚位, 任务）episode
+只报一次，避免"意图闪烁"反复刷屏（阈值跨越 = 事件，不是每 tick 事件）。
+
+事件写入 `BotEventLog`（汇报可见）+ `BotLog.warn` 一行 + 通知 `GoalDirector.onEvent(...)`（有节流）。
+
+**已知局限（诚实登记）**：`hasActiveMovement()` 只是"移动意图"的**代理**。纯跳跃相位（如 `DESCEND` 两次
+`jumpOnce()` 之间）输入可能为 0 ⇒ 那些相位**不计时**。方向是**宁可漏报、不可误报**（等待态误报会污染
+决策层上下文），若将来发现真实卡死场景漏报，再改成"路径执行器显式报告 `in_progress` 且 `hasActiveMovement()`
+或段超时计时器在跑"。
+
+**为什么"只报一次"是硬纪律**：2026-09-12 实测 `[Pickup] blocked` 刷了 584 行 —— 每 tick 都满足的判据
+如果每 tick 都上报，日志和 LLM 上下文都会被同一件事灌满。⇒ **阈值跨越 = 事件；滞回复位后才可能再报**。
+同理，"无任务"不算 `STUCK`（那是 idle，不是病症）；树叶清障、单次重试这类噪声不上报。
+
+**自检**（`alice:event_thresholds` / 电池 `event_thresholds` 步）四例：
+A 全部斧镐压到 15% ⇒ 60 tick 内**恰好一条** `TOOL_LOW`；B 修满后再压 ⇒ **再报一条**（证明不是一次性开关，滞回真的复位）；
+C 站进 `pillar_course` 的 **1×1 基岩竖井**顶壁长按前进（**真有移动意图**）⇒ 200 tick 内**恰好一条** `STUCK`；
+D 继续顶壁 100 tick ⇒ **不再增加**（不刷屏）。
+夹具前提自带断言：找不到斧/镐、bot 不在地面、竖井未封闭、bot 被挤出竖井 ⇒ 直接 FAIL 报**夹具**问题，
+不算"阈值没触发"（前者是 fixture，后者才是缺陷；两者混在一起就是 2026-09-12 那三次假失败的老病）。
+
+### D-150 附注一：首次实测没跑到 S4（事实登记 + 单跑入口）
+
+**事实（读客户端 `latest.log`，2026-09-12 19:08:10–19:09:35）**：
+1. 电池跑到 `step=lumber_job (7/16)`，随后 19:09:22 与 19:09:35 两次 `Saving and pausing game...`
+   ⇒ 单人游戏暂停，**运行在 7/16 处中断**；
+2. 全日志 **0 条** `[EventThreshold]`、**0 条** `[Events]` ⇒ S4 那一步（15/16）**从未执行**，
+   用户"没看到竖井顶壁"是**没跑到**，不是"跑了但没触发"；
+3. 顺带得到一条**部分阴性证据**：前 7 步里 bot 有大量"有任务但静止等待"的帧（夹具复位、等待、挖掘间隙），
+   **零** `[Events] STUCK` —— 与 D-150"等待态不计时"的设计一致（老判据在这里会刷屏）。
+   但这**不足以**证明 STUCK 能报（阳性证据仍未取得）。
+
+**同时修正的笔误**：电池实际是 **16 项**（`step(...)` 15 次 + `region_maintain` 用带 `doneWhen` 的
+`new Step(...)` 1 次），此前文档写 15 ⇒ 已全量订正（`TESTING_GUIDE` / `AI_PROJECT_STATE` / `AliceItems` /
+`RegressionBatteryTask` / `RegressionBatteryItem`）。
+
+**新增单跑入口**（`alice:event_threshold_check`，零参数，约 25 秒）：S4 的现场只有**站近盯着看**才有意义
+（bot 在 1×1 竖井里顶壁约 7 秒），而电池一轮 4~6 分钟且中途还有别的场景；给一个能单独重跑、能盯着看的
+入口，既省时间也能取得"物理上真的没动"的目击证据。判据与电池第 15 步完全相同
+（`EventThresholdCheckTask`，自带 `pillar_course` 场景与夹具前提断言）。
+
+### D-150 附注二：单跑实测抓到两个**夹具/报告**缺陷（不是阈值问题）
+
+**实测（2026-09-12 19:18–19:20，客户端 `latest.log` + 世界存档复核）**
+
+1. **前两次：竖井被上一轮 pillar 测试的残留方块堵死** ⇒ bot 一被放进 `24,64,44` 就
+   `hazard=SUFFOCATING` / `onGround=false`，**维生系统在第 1 tick 打断任务**
+   （`durationTicks=1 terminal=SURVIVAL_INTERRUPTED code=failed:survival_suffocating`）⇒ 夹具连断言的机会都没有。
+   用户随后手动清空，症状依旧 ⇒ 引出下面第 2 条。
+   *（世界存档复核 `tools/capture-scene.py`：`24,63,44` 石头、`24,64..66,44` 空气、四周 `23/25,43/45` 基岩 —— 清理后竖井结构本身是对的。）*
+
+2. **夹具缺陷：`onGround()` 在 teleport 的同一 tick 断言**。`onGround` 由 `move()` 更新，
+   teleport 后当 tick 读到的仍是**上一状态的 stale 值** ⇒ 空气竖井里也报 `fixture_not_on_ground`。
+   修法：新增 `Phase.SETTLE`（10 tick 静止等重力结算）后再断言，并把前提拆成五条各自可诊断：
+   `fixture_shaft_blocked`（中心列可通行）/ `fixture_no_floor`（脚下实心）/ `fixture_not_on_ground` /
+   `fixture_shaft_not_enclosed` / `fixture_no_tool`。
+
+3. **报告缺陷（更危险）**：夹具前提失败时四个用例**一个都没跑**，SUMMARY 却打印
+   `tool_low_once=PASS tool_rearm=PASS stuck_once=PASS stuck_no_spam=PASS` ——
+   因为 `verdict()` 只查"用例名是否在 `failures` 里"，夹具失败映射不到用例上 ⇒ **把"没跑"报成"通过"**。
+   修法：三态 `PASS / FAIL / NOT_RUN`（`completed` 集合只在真的断言时登记），并加 `verdict=` 总结。
+
+4. **入口修法**：`alice:event_threshold_check` 不再把 bot 直接塞进竖井（否则堵死的竖井会让维生系统
+   在夹具重建场景之前就打断任务）；改为**先跑场景函数、再把 bot 放到竖井顶沿**（`RIM_GOAL`，基岩环上方
+   保证不窒息），进竖井由任务自己的 `setup` 负责。
+
+**教训（与 D-135 附注同族）**：夹具前提的断言时机本身就是前提的一部分；"没跑"与"通过"必须在输出上可区分 ——
+否则一次夹具故障会被读成"功能已验证"。
+
+### D-150 附注三：`fixture_not_supported` 的根因 = 我的公式差一格 + `onGround` 粘滞语义
+
+**实测（2026-09-12 19:38，探针 + 前提日志）**
+
+```
+[EventThreshold] premise feetY=64.0 floorTop=65.0 onGround=false dy=0.0 supported=false
+[PhysicsProbe] stage=after_aiStep pos=(24.500,64.000,44.500) velocity=(0.000,-0.078,0.000) onGround=false travelCalls=1
+```
+
+1. **公式差一格（我的错）**：脚位格 `shaft=(24,64,44)`，脚下方块 `below=(24,63,44)` 的**底面**在 `below.getY()=63`，
+   顶面 = `63 + 形状高度(1.0) = 64.0`。我写成 `shaft.getY() + 形状高度 = 65.0` ⇒ 判定 `feetY(64.0) < 64.95`
+   ⇒ 必然 `fixture_not_supported`。**bot 一直好好站在 64.0 上。**
+2. **`onGround=false` + "悬空不下落"的真因（附注三当时的解释是错的，此处订正）**：当时我归因于
+   "`onGround` 粘滞语义"，**不准**。2026-09-12 20:40 实测（去掉每 tick 清速度后）：
+   `premise feetY=64.0 floorTop=64.0 onGround=true dy=-0.078 box=[24.20,64.00..24.80,65.80] collisions=0`
+   ⇒ bot **自然落到了 64.0 并 `onGround=true`**。真因是**夹具每 tick `setDeltaMovement(ZERO)` 与物理互相打架**：
+   外部把速度归零 ⇒ 位移永远为 0 ⇒ 位置恒定、`onGround` 不被重算 —— **是夹具造出来的假状态，不是物理缺陷**。
+   教训（同族于"夹具前提自带断言"）：**夹具不该每 tick 覆写物理量**；那一轮我还保留了 `box/collisions` 定点诊断，
+   它先排除了"卡在方块里"（collisions=0），把怀疑逼到"外部干预物理"这条正解上。
+3. **修法**：① 修正 `floorTop = below.getY() + 形状高度`；② teleport 时**抬高 0.25** 再落下，让落地那次位移带截断
+   （`onGround` 随之变 true，状态也更自然）；③ `onGround` 降级为**信息**（`supported` 已证明站在地板上），
+   若仍为 false 只记警告、不判死 —— 站立判定的其他读者另行单独审计，不把夹具卡死在这。
+
+### D-150 附注四：S4 事件层**实测通过**，且第一次跑通了「事件 → LLM 决策 → 执行」闭环
+
+**实测（2026-09-12 19:46–19:47，客户端 `latest.log`）**
+
+| 用例 | 证据 | 结论 |
+| --- | --- | --- |
+| A `tool_low_once` | `case=tool_low_once result=PASS delta=1 ticks=1` + `[Events] TOOL_LOW … 钻石斧 剩余 234/1561（15%）` | ✅ 阈值跨越即报，**恰好一条** |
+| B `tool_rearm` | `case=tool_rearm result=PASS delta=2 ticks=32`（修满 → 滞回复位 → 再压到 15% 再报一条） | ✅ 不是一次性开关 |
+| C `stuck_once` | `case=stuck_once result=PASS delta=1 ticks=202 intent=true` + `[Events] STUCK … 有移动意图但 200 tick 没挪过格` | ✅ 有意图不动 200 tick 报，**恰好一条**；用户目视确认"bot 没动"（物理事实） |
+| D `stuck_no_spam` | **未断言** —— 见下 | ⏳ |
+
+**闭环（本项目第一次真实发生）**：`[Events] STUCK` → `GoalDirector.onEvent` → `[Goal] decision_request trigger=event:STUCK:…`
+→ LLM 返回 `{"action":"stop_current","reason":"…卡在方块@24,64,44 已 200+ tick 无移动，且钻石斧耐久仅剩 15%…"}`
+→ `[Goal] execute action=stop_current` → `task_execution_terminal terminal=CANCELLED_BY_USER code=cancelled:llm:…`。
+**S4 的设计目的（把可行动病症送到决策层并让它动手）在真实客户端上成立了**，且 LLM 的理由与事实一致。
+
+**因此新增 `GoalDirector.suspend(bot, ticks)`**：自检/回归期间**暂停自动触发**（空闲/终态/事件都不再发起决策），
+以免生产决策层在用例中途把被检任务砍掉（D 段就是被 `stop_current` 在第 522 tick 砍掉的）。手动诊断入口
+（`forceOnce`）不受影响。**注意这是"检具"而非"改语义"**：生产行为（事件招来决策并动手）保持不变。
+
+**遗留疑点（已加定点诊断，不猜）**：探针显示 bot 停在 `y=64.250`（离地 0.25）**完全不下落**，
+速度恒 `-0.078`、位置恒定、`onGround=false`、`hazard=NONE`、`travel()` 每 tick 跑了一次。
+在"脚下是空气"的前提下这不合理 ⇒ 已把「包围盒 + 方块碰撞数 + 脚位/头上/头上二格的方块」打进夹具前提行，
+下一轮据数判定（可能是我"粘滞标记"的解释不完整）。**不影响本轮 S4 判定**：C 段的判据是"有移动意图 + 脚位不变"，
+两者都有独立证据（日志 intent=true + 用户目视）。
+
+### D-150 附注五：C/D 用例通过；A/B 失败是**夹具不可重入**；A/B 两项裁定已实施
+
+**2026-09-12 20:13 实测**
+- ✅ `case=stuck_once result=PASS delta=1 ticks=202 intent=true`、`case=stuck_no_spam result=PASS`（继续顶壁 100 tick 后 STUCK 总数仍为 1）
+  ⇒ **S4 的四个用例全部有实测证据**；`GoalDirector.suspend` 生效（`trigger_skipped reason=suspended`），本轮无 LLM 介入。
+- ❌ `case=tool_low_once FAIL` / `case=tool_rearm FAIL` —— **夹具不可重入**：夹具把斧/镐压到 15% 后**从不复原**，
+  于是**第二轮**开始时斧子仍处于"已上报"状态（`toolBase=1`）⇒ 再压到 15% 不会产生新事件。
+  实锤：整份日志恰好 2 条 `[Events] TOOL_LOW`，第一条发生在夹具开始之前。
+  **修法**：新增 `Phase.NORMALIZE` —— 每轮先**修满并等 30 tick 让滞回复位**（复位没发生则如实报 `fixture_rearm_failed`），
+  再压到 15% 起算；`finish()` 收尾也把工具修满（否则 15% 的斧子会持续污染后续任务/下一轮）。
+- `premise … box=[24.20,64.25,44.20..24.80,66.05,44.80] collisions=0 blocks: foot=空气 above=空气 above2=空气`
+  ⇒ **包围盒正常、零方块碰撞、三格全空气**，bot 却停在 64.25 不下落 ⇒ 排除"卡在方块里"。
+  结合探针（速度恒 -0.078、travel 每 tick 跑一次、位置恒定），**最可能是夹具每 tick `setDeltaMovement(ZERO)`
+  与物理互相打架**造成的假象；本轮已**去掉每 tick 清速度**（C/D 只保留前进输入），下一轮看 bot 是否自然落到 64.0。
+
+**用户裁定（2026-09-12）**：A、B 两项都做。
+- **A 已实施**：自检暂停窗口内，事件**只记录不通知决策层**（`GoalDirector.isSuspended` + `EventThresholds.emit`
+  打印 `[Events] X 已记录（自检暂停：不通知决策层）`）。理由：检具不该在生产侧留下决策痕迹（上一轮真的把 LLM 招来起了常驻 Job）。
+- **B 已实施**：`BotManager.busyMessage(bot)` 统一文案，**替换全部 49 处**"bot 正忙，稍后再试"：
+  常驻区域伐木巡查 ⇒ `bot 正忙：正在跑常驻区域伐木巡查…要它收工用 /alice region stop`；
+  其他 ⇒ `bot 正忙：正在跑 <TaskKind>。要打断用 /alice stop（或等它自己结束）`。
+
+### D-150 附注六：S4 事件层收尾（`WINDOWS_CLIENT`）
+
+**2026-09-12 20:40 实测（客户端 `latest.log`，用户目视确认 bot 顶壁没动）**
+
+```
+premise feetY=64.0 floorTop=64.0 onGround=true dy=-0.078 supported=true box=[24.20,64.00,44.20..24.80,65.80,44.80] collisions=0
+case=tool_low_once result=PASS delta=1 ticks=1
+case=tool_rearm    result=PASS delta=2 ticks=32
+case=stuck_once    result=PASS delta=1 ticks=202 intent=true
+case=stuck_no_spam result=PASS 继续顶壁 100 tick 后 STUCK 总数=1（期望 1）
+task_execution_terminal … terminal=COMPLETED code=done
+[Events] TOOL_LOW 已记录（自检暂停：不通知决策层）    ← A 项闸门生效
+[Goal] trigger_skipped reason=suspended trigger=terminal:EventThresholdCheckTask(passed)
+```
+
+**结论**：`基-3 S4 事件层` = `IMPLEMENTED` + `COMPILES` + `SERVER_TESTED` + `WINDOWS_CLIENT`（四例全 PASS、恰好 1 条/例、
+滞回复位有效、不刷屏）+ `USER_ACCEPTED`（用户目视"顶壁没动"）。事件环、阈值、滞回、决策通知与**自检闸门**全部有实测证据；
+D-150 附注四记录的「事件 → LLM → `stop_current`」闭环是生产路径的实测。
+
+**收尾两处小修**：① 成功路径也打 `SUMMARY`（此前只在失败/前提不成立时打，成功时只有四条 `case=`）；
+② `finish()` 收尾把工具修满（夹具不再污染后续任务）。
+
+**新增可复用能力**（本轮顺带产出，后续基线要用）：
+`GoalDirector.suspend(bot, ticks)` / `isSuspended(bot)`（自检期间暂停触发 + 事件只记录不通知）、
+`BotManager.busyMessage(bot)`（统一"bot 正忙"文案，常驻任务直接给 `/alice region stop`）。
+
+## D-151 基-1 第一步：可回收性**真的被算出来**（只测量，不改准入）2026-09-12
+
+**问题（P0-B，复核 §3 已精确化）**：`PlannedMovementSpecs.toSpec()` 是规划→执行的**唯一转换点**，
+它**同时**写死两边：`evaluatedRecoverability = LOCAL_STEP`，各类型的 `required = LOCAL_STEP`
+⇒ `MovementSpec` 的校验 `evaluated < required` 就是 `0 < 0` **恒假**；而且 provider 在 `PlannedMovement`
+上算好的 `recoverability` 字段**被整个丢掉**（全仓库 0 处读取）。于是"可回收性"这个**项目签名能力**
+（D-036 差异①）在代码里从未被计算过。
+
+**本轮做了什么（严格按"先测量、后接线"）**
+1. `RecoverabilityAssessment`（等级 + **依据 basis**）：等级必须能被追问"凭什么"，否则又是一个说不出所以然的枚举。
+2. `RecoverabilityEvaluator`（**唯一裁决点**）：按 Movement 类型的规则表给出等级 + 依据，依据都对应
+   **规划期真实做过的验证**：
+   | Movement | 等级 | 依据 |
+   |---|---|---|
+   | TRAVERSE / DIAGONAL | `PATH_REVERSIBLE` | 几何未变 ⇒ 反步同型可用 |
+   | ASCEND / DESCEND | `PATH_REVERSIBLE` | 反程 = DESCEND/ASCEND 1 格，起点格刚站过/刚占用过 ⇒ 可用且安全 |
+   | PLACE_STEP_AND_TRAVERSE | `PATH_REVERSIBLE` | 放置只**增加**支撑 ⇒ 反步仍成立 |
+   | FALL | `PATH_REVERSIBLE` | provider **只在** `fallRecoverable`（PILLAR 返回守卫）通过时才产出 FALL 边 |
+   | PILLAR | `LOCAL_STEP` | 上升合法，但**回程要拆自己放的方块**（授权/预算未在规划期验证）⇒ 不给回程保证 |
+   | BREAK_* / DOWNWARD | `LOCAL_STEP` | 破坏地形且**不恢复** |
+3. provider 全部 8 个产出点 + `AStarMovementSearch` 改为向评估器取值；`toSpec` 采用评估值并**核对**
+   provider 字段（不一致 ⇒ `[Recover] provider/评估器不一致` 告警，防止将来漏改）。
+4. `RecoverabilityReport`：在唯一转换点记账（类型=等级/依据），会话完成时打一行
+   `[Recover] session=… movements=… distinctLevels=… {…}` ⇒ "可回收性是不是常量"变成**可核对的数据**。
+5. **自检** `alice:regression_battery` 新增第 17 步 `recoverability`（纯计算，约 1 秒，四例）：
+   A 规则表非常量；B 逐类型抽查（等级**和依据**都对）；C **负例**——`required=PATH_REVERSIBLE` +
+   `evaluated=LOCAL_STEP` **必须抛异常**（证明校验是活的，P0-B 不复发）；D 转换点用的是评估值。
+
+**本机纯逻辑实测（非客户端，2026-09-12）**
+```
+GUARD=LIVE: evaluated recoverability is below Movement requirement
+TOSPEC_FALL evaluated=PATH_REVERSIBLE required=LOCAL_STEP
+TOSPEC_PILLAR evaluated=LOCAL_STEP
+REPORT=movements=2 distinctLevels=2 {FALL=PATH_REVERSIBLE/pillar_return_guard_passed=1, PILLAR=LOCAL_STEP/ascent_reverse_break_unverified=1}
+```
+
+**明确不做（下一步才做，顺序不能反）**：把 `required` 提上去（如 FALL → `PATH_REVERSIBLE`）。
+本轮的 `required` **一律维持 `LOCAL_STEP`** ⇒ 准入结果与行为**零变化**（评估值都 ≥ LOCAL_STEP，校验恒真不抛）。
+接线时必须先确保"所有仍存在的 FALL 边都过了守卫"，否则 `LOCAL_STEP < PATH_REVERSIBLE` 会**抛异常崩规划器**
+（复核 §3 的警告）。
+
+### D-151 附注一：真实计划实测 + 一个必须避开的"假接线"陷阱
+
+**实测（2026-09-12 21:3x，客户端 `latest.log`）**
+1. **自检四例全 PASS**（`nondeterministic_table` / `per_type`×5 / `guard_is_live` / `to_spec_uses_assessment`），
+   `terminal=COMPLETED`；其中 `guard_is_live` 是**负例**：`required>evaluated` 真的抛了
+   `evaluated recoverability is below Movement requirement` ⇒ P0-B 的"恒假校验"已变活。
+2. **真实计划分布**（`alice:pathing_regression`，12 个会话，movements=2…58）——一个 58 段的会话：
+   ```
+   distinctLevels=2
+   DESCEND=PATH_REVERSIBLE/geometry_unchanged_reverse_ascend=3
+   TRAVERSE=PATH_REVERSIBLE/geometry_unchanged_reverse_step=34
+   PLACE_STEP_AND_TRAVERSE=PATH_REVERSIBLE/placement_only_supports_reverse=6
+   FALL=PATH_REVERSIBLE/pillar_return_guard_passed=5
+   ASCEND=PATH_REVERSIBLE/geometry_unchanged_reverse_descend=3
+   DIAGONAL=PATH_REVERSIBLE/geometry_unchanged_reverse_step=1
+   PILLAR=LOCAL_STEP/ascent_reverse_break_unverified=3
+   BREAK_AND_TRAVERSE=LOCAL_STEP/world_modified_not_restored=1
+   BREAK_AND_ENTER=LOCAL_STEP/world_modified_not_restored=1
+   DOWNWARD=LOCAL_STEP/world_modified_not_restored=1
+   ```
+   ⇒ 全部 10 种 Movement 都被真实计划覆盖到，等级**不再是常量**，每条都带得出依据。
+3. **寻路回归 13/13 PASS**（`pathing/place/break/vertical/pillar/fall/break_enter/trace/chest_step/slab_step/fluid/lava/fence`），
+   写预算 `breaks=5/64 places=7/32 refusedBreaks=0 refusedPlaces=0` ⇒ 改评估值**未造成退化**。
+
+**⚠️ 第二步的陷阱（写在动手之前）**：单纯把 `required` 抬到 `PATH_REVERSIBLE` 是**假接线**。
+因为当前评估器是**按类型**裁决的 ⇒ FALL 的 evaluated 永远等于 PATH_REVERSIBLE ⇒
+`required=PATH_REVERSIBLE` 也就**永远成立** ⇒ 校验只是从"0<0 恒假"变成"1<1 恒真"，
+**依然没有鉴别力**（正是本项目反复抓到的"看起来在工作、其实从未计算"）。
+
+**因此第二步的正确形态 = 让评估依赖"逐边事实"而不是"类型假设"**：
+1. `PlannedMovement` 携带该边**已验证的事实**（如 `fall_recover_guard=passed`；平走边带 `geometry_unchanged`）；
+2. `RecoverabilityEvaluator.evaluate(type, facts)`：**事实缺失 ⇒ 保守降到 `LOCAL_STEP` + 依据 `unverified_*`**；
+3. `RecoverabilityPolicy.requiredFor(type)` 数据表：FALL → `PATH_REVERSIBLE`（唯一产出点在 `fallRecoverable` 之后，
+   前置已核实：`requiredRecoverabilityLevel` 全仓库只有 `MovementSpec` 一个读者）；
+4. 于是"没过守卫的 FALL 边"会**真的抛异常**；自检加**负例**：造一条"无事实的 FALL 边"必须抛，
+   而"带 `fall_recover_guard=passed` 的 FALL 边"必须通过。
+只有这样，"可回收性"才真正**改变准入结果**（D-036 差异①落地）。
+
+## D-152 基-1 第二步：可回收性**真的改变准入结果**（逐边事实 + 策略表）2026-09-12
+
+**为什么不能只抬 `required`**（D-151 附注一的陷阱）：评估若只看 Movement **类型**，FALL 的 evaluated
+就永远等于 `PATH_REVERSIBLE` ⇒ `required=PATH_REVERSIBLE` 永远成立 ⇒ 校验只是从"恒假"变"恒真"。
+
+**做了什么**
+1. `RecoverabilityFacts`（新）：**逐边事实**。今天只有一条 `fallReturnVerified`（该 FALL 边过了
+   `SurfaceMovementProvider.fallRecoverable` 的 PILLAR 返回守卫）；默认值 `NONE` = 什么都没验。
+2. 事实**穿过搜索**：`PlannedMovement` 增加 `recoverabilityFacts` 分量（保留 5 参构造器 ⇒ 缺省 = NONE）、
+   `SearchNode.previousFacts`、`AStarMovementSearch` 在展开时写入、回放计划时读回。
+3. `RecoverabilityEvaluator.evaluate(type, facts)`：FALL **缺事实 ⇒ 保守降级**
+   `LOCAL_STEP/fall_return_unverified`；带事实 ⇒ `PATH_REVERSIBLE/pillar_return_guard_passed`。
+4. `RecoverabilityPolicy`（新，**策略表**）：`requiredFor(FALL)=PATH_REVERSIBLE`，其余 `LOCAL_STEP`。
+   `PlannedMovementSpecs.toSpec` 的 `required` 一律取自该表（不再散落写死）。
+5. 自检加三例：`fall_with_fact_accepted`（带事实必须通过）、**`fall_without_fact_refused`（不带事实必须被拒）**、
+   `policy_table`（FALL 要求 PATH_REVERSIBLE、其余维持 LOCAL_STEP）；规则表快照同时打出"有事实/无事实"两行。
+
+**本机纯逻辑实测**
+```
+GUARDED_FALL   evaluated=PATH_REVERSIBLE required=PATH_REVERSIBLE      → 通过
+UNGUARDED_FALL → REFUSED: evaluated recoverability is below Movement requirement
+FALL_nofact=LOCAL_STEP/fall_return_unverified   FALL_fact=PATH_REVERSIBLE/pillar_return_guard_passed
+POLICY=… FALL>=PATH_REVERSIBLE（其余 LOCAL_STEP）
+```
+⇒ **D-036 差异① 第一次真的改变准入结果**（不再是"签名能力空实现"）。
+
+**改动面与安全边界**：`requiredRecoverabilityLevel` 全仓库只有 `MovementSpec` 一个读者；FALL 只有一个产出点
+（在守卫之后）且已带事实；其余手工构造 FALL 的地方（`ChainDiagnosticTask` 只产 TRAVERSE/DIAGONAL/ASCEND/DESCEND、
+`PathingBatteryTask` 用 provider）不受影响。**回归判据**：`alice:pathing_regression` 的 `fall_course` 场景会走
+真实 FALL 边穿过搜索 ⇒ 事实链路若断，该场景立刻失败。
+
+**仍未使用**：`SAFE_EXIT_REQUIRED` / `EMERGENCY_EXIT_REQUIRED` 依然**没有产出者**（策略表里不写死它们）。
+它们的语义属于"逃逸场景"（生存出口），要有真实产出者时再接。
+
+### D-152 附注一：第二步客户端实测（自检 6/6）+ 一条真实的"残留未收回"观测
+
+**客户端实测（2026-09-12 21:48，`latest.log`）**
+```
+[Recover] SUMMARY table_nondeterministic=PASS per_type=PASS guard_is_live=PASS
+          fall_with_fact_accepted=PASS fall_without_fact_refused=PASS policy_table=PASS verdict=PASS
+[Recover] 策略表 … FALL>=PATH_REVERSIBLE …（其余 LOCAL_STEP）
+task_execution_terminal kind=RecoverabilityCheckTask terminal=COMPLETED
+```
+⇒ **不带返回守卫事实的 FALL 边在真实客户端上被真的拒绝**（`fall_without_fact_refused=PASS`），
+"可回收性改变准入结果"这条不再是本机推断。
+日志里那条 `[Recover] provider/评估器不一致 type=FALL provider=PATH_REVERSIBLE assessed=LOCAL_STEP`
+**是自检自己的负例**（故意造的无事实 FALL 边）触发的护栏告警 ✓ 符合设计。
+
+**本轮未覆盖**：`R4 Session completed = 0` ⇒ 本会话**没有跑真实寻路**，所以
+"事实穿过搜索链路（`SearchNode.previousFacts` → 计划回放 → `toSpec`）在真实 FALL 边上成立"
+**仍未验证**。判据：`alice:pathing_regression` 的 `fall_course`（它必须走到真实 FALL 边）。
+
+**顺带观测到一条真实残留（与本次改动无关，但属于可回收性范畴）**：
+```
+[Restore] start scope=<all> blocks=4
+[Restore] block 24, 65, 44 placed=cobblestone policy=TEMP scope=1ae26630#277:PathingRegressionTask
+[Restore] 走上正上方 不通 → 改为侧拆兜底（不挖地形）→ 侧拆兜底也失败
+[PathingStats] descend_precondition=3769 status=UNREACHABLE goal=24, 65, 44
+[Restore] SUMMARY … restored=0 skipped=4 remaining=4 → FAILED（restore_partial）
+```
+- 4 块**上一轮 `pathing_regression` 留下的我方 TEMP 方块**（2 块在基岩竖井内 `24,64,44`/`24,65,44`，
+  2 块在 `2,63,66`/`3,63,66`）本轮尝试回收，结果 **UNREACHABLE**（bot 在 `8,62,66`，`no_valid_standing_point`）。
+- **不是本次改动造成的**：全日志无 Alice 异常、无 `[Recover]` 拒绝；失败码是可达性
+  （`UNREACHABLE`）而不是可回收性拒绝；`DESCEND` 的要求未变。
+- **但它正是"可回收性不变式"该管的事**：*一次活动留下的我方方块，事后必须能被收回*。
+  登记为基-1 的下一批候选（"残留 = 可回收性失败"），待与用户确认是否并入。
+
+## D-153 可回收性的第二条轴：**残留 = 可回收性失败**（用户 2026-09-12 批准"按建议来"）
+
+**背景（真实观测，不是假想）**：一轮 `pathing_regression` 在**基岩竖井内**留下 4 块我方 cobblestone
+（scope `#277:PathingRegressionTask`），事后回收 **UNREACHABLE**（bot 站不到正上方、侧拆兜底也失败），
+只报出 `restore_partial skipped=4`。这暴露一件事：**"可回收"以前只被理解成"每一步有没有回程"，
+没被理解成"我改过的世界有没有收回来"**。
+
+**做了什么（两条轴 + 夹具自清场）**
+1. **可回收性 = 两条轴**（写进 `RecoverabilityReport` 的类文档）：
+   ① 逐步的"有回程"（D-151/D-152：`evaluated ≥ required`）；
+   ② 活动的"没留残留"（本决策：我方 TEMP 方块必须全部收回）。两条都不满足才算真的可回收。
+2. **残留计数 + 结构化日志 + 事件**：`RestoreScopeTask` 收尾若**世界事实**里仍有我方方块
+   （`pendingTemporary` 对账后 `remaining > 0`）⇒ `RecoverabilityReport.recordResidue(...)` +
+   `[Recover] RESIDUE scope=… remaining=N causes=…` + **事件 `RESIDUE`**
+   （`DecisionEvents.emit` ⇒ 事件环 + 通知决策层；**自检窗口内只记录不通知**）。
+   `alice:bot_report` 的"最近事件"因此能直接看到它。
+3. **事件出口收敛为 `DecisionEvents`**（新）：环 + 日志 + 通知决策层（含自检暂停闸门）。
+   `EventThresholds` 改为复用它 —— 避免"某个生产者忘了通知决策层/忘了尊重自检暂停"的分叉。
+4. **夹具自己清场**：`PathingRegressionTask.advance()` 在**判分之后、进入下一场景之前**重建该场景地形
+   （所有 `*_terrain` 函数首行都是 `fill <区域> air`，幂等重放）⇒ 夹具留下的我方方块被一并抹掉；
+   账本侧按世界事实对账（`reconciled`）而不是记成失败。日志：
+   `[Regression] scene=… cleanup=terrain 我方临时放置剩余=N`。
+
+**验证判据（客户端）**
+- `alice:pathing_regression` 跑完后：`[Regression] scene=… cleanup=terrain 我方临时放置剩余=0`，
+  随后再跑一次 `alice:restore_check`（或等自动回收）应无 `[Recover] RESIDUE`
+  （上一轮的 4 块残块也应被 `pillar_course_terrain` 的 `fill … air` 顺带抹掉 ⇒ 对账为 `reconciled`）；
+- `alice:recoverability_check` 的 SUMMARY 末尾多出 `residues[residues=0…]`（本次会话没有残留才算干净）。
+
+**仍未做**：残留的**自动补救**（例如"回收 UNREACHABLE ⇒ 允许在授权下挖开/搭桥取回"）属于能力扩展，
+且会碰 D-076 红线，**不在本轮**；本轮只保证"残留一定被如实、结构化地报出来"。
+
+### D-153 附注一：我的清场实现把 bot 埋了（客户端实测暴露，已修）
+
+**实测（2026-09-12 22:51）**：`pathing_regression` 跑到 `break_enter_course` 判 PASS 后，我的清场
+（重跑该场景 `_terrain` 函数）执行 ⇒ **bot 正站在该区域里**，`fill <区域> air` + 回填把它埋进方块 ⇒
+`hazard=SUFFOCATING` ⇒ `terminal=SURVIVAL_INTERRUPTED code=failed:survival_suffocating pos=23, 64, 100`；
+随后**每一次**启动（回归两次、连 `RecoverabilityCheckTask`）都在 1~3 tick 内被维生系统打断，
+`SurvivalExitTask` 也 `walk_stale` 失败 —— 现象就是"一启动就马上停"。
+
+**教训（写给未来的自己）**：**夹具清场只能动自己放的东西，不能重建 bot 所在区域的地形**。
+场景函数给夹具**搭**场景是安全的（那时 bot 还没进去，且 `prepare` 的顺序是"先建地形再传送"），
+但**拆**场景不能在同一位置就地重放。
+
+**修法**：`cleanupScene` 改为**账本精准回收** ——
+取当前作用域下本 bot 的 TEMP 记录，逐条核对"世界里的方块是否仍是我方放的那个"：
+是 ⇒ `setblock … air` + `WorldModLedger.forget`；不是 ⇒ 留给 `dropStale` 按世界事实销账；
+并跳过 bot 所在格与头位格（保险）。**完全不碰地形，也不会有埋人风险**。
+日志：`[Regression] scene=… cleanup=ledger 回收我方临时方块=N 非我方=N 销账=N 剩余=N`。
+
+**救援（给当时被埋的现场）**：`/alice come` —— 把 bot 传送回玩家所在位置（带头部同步），
+用于把卡在方块里的 bot 拉出来继续测试。
+
+### D-152 附注二：第二步**客户端全绿** —— 事实链在真实 FALL 边上成立
+
+**实测（2026-09-12 22:59，`latest.log`）**
+```
+[Recover] session=regression-place_course+disturb-1 … FALL=PATH_REVERSIBLE/pillar_return_guard_passed=5
+（多会话均出现：…=1 / =3 / =4 / =5）
+SUMMARY pathing_course=PASS place_course=PASS break_course=PASS vertical_course=PASS pillar_course=PASS
+        fall_course=PASS break_enter_course=PASS trace_course=PASS chest_step_course=PASS slab_step_course=PASS
+        fluid_course=PASS lava_course=PASS fence_course=PASS … executed=TRAVERSE,DIAGONAL,ASCEND,DESCEND,
+        DOWNWARD,PILLAR,FALL,BREAK_AND_TRAVERSE,BREAK_AND_ENTER,PLACE_STEP_AND_TRAVERSE
+task_execution_terminal kind=PathingRegressionTask … terminal=COMPLETED
+```
+⇒ **`RecoverabilityFacts` 穿过搜索链路（provider → `SearchNode.previousFacts` → 计划回放 → `toSpec`）在真实 FALL 边上成立**，
+且 **13/13 场景 + 10 种 Movement 全覆盖**没有退化。第二条轴也同时验到（见 D-153 附注二）。
+日志中唯一一条 `provider/评估器不一致` 出现在自检负例 `fall_without_fact_refused` 之前，是**该负例自己触发的护栏告警** ✓。
+
+### D-153 附注二：账本精准清场**生效**，残留归零
+
+```
+[Regression] scene=place_course+wall    cleanup=ledger 回收我方临时方块=1 非我方=0 销账=0 剩余=0
+[Regression] scene=place_course+disturb cleanup=ledger 回收我方临时方块=2 非我方=0 销账=0 剩余=0
+（其余场景 0/0/0/0）
+[Recover] SUMMARY … fall_without_fact_refused=PASS … residues[residues=0（本进程内没有出现「我方方块未收回」）]
+[Recover] RESIDUE 出现次数 = 0
+```
+⇒ ① 夹具真的回收了自己放的方块（含竖井内那类"回收 UNREACHABLE"的残块场景）；
+② `residues=0` + 零 `RESIDUE` 事件 ⇒ 世界干净、且"一旦不干净就会被结构化报出"的通道已就位；
+③ `PathingRegressionTask … terminal=COMPLETED` ⇒ 上一轮"清场埋 bot ⇒ 一启动就停"的 bug 已消除。
+
+**结论**：`基-1 可回收性不变式（项目差异①）` 两条轴都已**客户端验证**：
+① 逐步"有回程"（D-151 测量 → D-152 逐边事实 + 策略表，能真的拒绝不带守卫的 FALL 边）；
+② 活动"没留残留"（D-153 计数 + `RESIDUE` 事件 + 夹具自清场）。
+**仍未做（明确登记，不假装）**：`SAFE_EXIT_REQUIRED`/`EMERGENCY_EXIT_REQUIRED` **无产出者**（策略表不写死它们）；
+残留的**自动补救**（回收 UNREACHABLE 时挖开/搭桥取回）碰 D-076 红线，属能力扩展。
+
+## D-154 基-4：决策 trace 落盘 + 跨重启语义（2026-09-12）
+
+**先盘点现状（事实，不猜）**
+| 类别 | 内容 | 重启后 |
+|---|---|---|
+| 已持久化（SavedData） | 能力分级 `PermissionsData`、收集授权 `CollectGrants`、区域 `LumberRegionState`、世界改动账本 `WorldModLedger`、传输账本、安全区 | **存活**（按设计） |
+| **重启即丢（本次登记）** | ① `PermissionGate` 的**未决请示**（内存 `PENDING`/`ANSWERS`/`SESSION_GRANTS`）；② **当前任务**（bot 是假人，重启后从 idle 开始）；③ 决策层节流/菜单等内存态 | 丢失 |
+| 只有日志 | 每次决策的请求/回复/执行（`[Goal] …` 行） | 日志轮转后不可查 |
+
+**语义裁定（写下来，否则每次都要重新讨论）**
+1. **未决请示重启后一律作废** —— 它承诺的是"某个正在阻塞等待的任务"，而该任务重启后已不存在；
+   恢复成悬空请示只会误导玩家与 LLM。**但必须报出来**（日志 + trace + 事件 `RESTART`），绝不静默丢弃。
+2. **任务不自动续做** —— 任务树不持久化（任务对象持有世界/会话引用）；重启后如实汇报
+   "重启前正在跑 X，未续做"，由玩家/决策层重新决定。
+3. **不做任何自动恢复动作** —— 避免造出"看起来恢复了、其实状态不一致"的假象（本项目的头号病灶类型）。
+
+**实现**
+- `DecisionTrace`（新）：**JSONL 追加**到 `<config>/alice-decisions.jsonl`（与 `RecipeDump` 同套路：离线可读、可被工具/LLM 消费），
+  内存保留最近 64 条供游戏内汇报；超 8 MB 轮转 `.1`；**写失败只告警一次并停用，绝不影响决策**。
+  记录点：`GoalDirector` 的请求（含菜单大小）、超时/异常/LLM 错误、以及**每个动作的结局**（executed/refused/no_task + 理由）。
+- `DecisionState`（新 SavedData）：登记"重启会丢什么"——每 bot 的未决请示与"正在跑的任务"；
+  `consumeRestartReport(botId)` **读后即清**（天然只报一次，避免每次生成 bot 都刷）。
+- 接线：`PermissionGate` 入队/答复 ⇒ 登记/清除；`BotSession.beginTask`/`clearTask` ⇒ 登记/清除；
+  `BotManager` 生成 bot 时调 `reportRestartState`（日志 + trace + 事件环，**不通知决策层** —— 否则每次开服白花一次 LLM 调用）。
+- `DecisionEvents.record(...)`（新，只入环不通知）与 `emit(...)` 分离。
+- `alice:bot_report` 新增"决策 trace（最近 8 条）"段；新入口 `alice:decision_trace_check`（零参数，约 1 秒）+ 电池第 18 步 `decision_trace`。
+
+**自检四例**：A 落盘真的写了（从磁盘读回末行）；B 内存尾可读；C `DecisionState` NBT 往返；
+D 重启语义（报出来 / **只报一次** / 报完清空）。**本机纯逻辑实测**：
+```
+REPORT=重启前正在跑「PathingRegressionTask target=x」⇒ 未续做（任务树不持久化）；
+       重启作废了 1 条未决请示（发起任务已不存在）：demo_ask by p1 probe
+SECOND=[]      CLEARED pending={} task={}
+```
+**待客户端复测**（`alice:decision_trace_check` + 电池 `decision_trace` 步）。
+
+### D-154 附注一：基-4 **客户端全绿**，并完成一次真实跨重启验证
+
+**实测（2026-09-12 23:16–23:17，客户端 `latest.log`）**
+```
+[DecisionTrace] case=trace_written result=PASS 磁盘末行={"t":…,"kind":"selfcheck_trace_marker","tick":765,…}
+[DecisionTrace] case=trace_memory_tail result=PASS recent=[restart:重启状态报告,
+                request:event:TOOL_LOW:工具耐久见底：钻石镐 剩余 219/1561（14%）, result:start_job,
+                selfcheck_trace_marker:trace_write_probe]
+[DecisionTrace] case=state_nbt_roundtrip result=PASS pendingKept=true taskKept=true
+[DecisionTrace] case=restart_semantics result=PASS reported=true onlyOnce=true cleared=true
+[DecisionTrace] SUMMARY … verdict=PASS file=D:\…\config\alice-decisions.jsonl written=4 tail=4
+task_execution_terminal kind=DecisionTraceCheckTask … COMPLETED
+```
+⇒ 落盘（真的写进 `config/alice-decisions.jsonl`）、内存尾、NBT 往返、重启报告"只报一次"四例全部成立；
+且内存尾里出现的是**真实决策**（`TOOL_LOW` 请求 → `start_job` 结果），不是只有自检标记。
+
+**真实跨重启验证（用户主动重启客户端）**
+```
+[DecisionState] bot=tango 重启前正在跑「RegionLumberJob target=方块@27, 58, 217」⇒ 未续做（任务树不持久化）
+[Events] RESTART bot=tango 重启状态：未恢复上次的请示/任务（…）
+（alice:bot_report 的事件环里能看到 #0 RESTART/warn）
+```
+⇒ 重启前**确实在跑**一个 `RegionLumberJob`，它被持久化登记、重启后被**如实报出且不假装恢复** ——
+D-154 的三条裁定在真实重启路径上落地。`基-4 = IMPLEMENTED + COMPILES + WINDOWS_CLIENT`。
+
+**顺带观测（已登记的旧缺口，不是新问题）**：trace 里 `event:TOOL_LOW → start_job` 再次出现
+（镐子 14% 时事件招来 LLM，而词汇表里没有"工具维护"这类动作，它只能起 Job）⇒ 属 **S5/S6 知识/动作缺口**。
+
+## D-155 基-5：LLM 上抛契约补全（J-4 / J-6 / J-7，2026-09-12）
+
+**J-6 挖掘产物判定口径（原：硬编码矿物清单）**
+- 病：`MineJob.countTargetItems()` 写死 8 个原版标签 + 8 个原版物品 ⇒ ① **模组矿物统计不到**
+  （配额永远不满足 ⇒ 任务只能跑到 `goal_timeout`/`partial_quota`）；② **无视 `productTag`**
+  （LLM 要铁，配额却被煤顶满 —— 语义错位）。
+- 修：新增 `MineProductFilter`（**目标驱动 + 标签族兜底**，纯函数、可断言）：
+  指定 `productTag` ⇒ 只认它，且若是 `forge:ores/<material>` 就**同时认** `forge:raw_materials/<material>`
+  （Forge 约定：矿掉原矿，否则"挖铁"永远差一个）；未指定 ⇒ 认 `forge:ores/*` + `forge:raw_materials/*`
+  **标签族**（运行时从注册表枚举，模组矿物天然覆盖）+ 原版掉落兜底集合。
+  `MineJob` 构造时建一次过滤器并打一行 `[MineJob] productFilter=…`。
+
+**J-4 Job 失败报告（原：默认 `phase=unknown` + 空 details）**
+- 病：`Task.failureReport()` 默认实现不给领域信息，而四个 Job（`LumberJob`/`MineJob`/`RegionLumberJob`/`CollectJob`）
+  **都没覆写** ⇒ 决策层 prompt 里的 `lastTerminal` 有 `failureCode` 却没有"卡在哪一步、当时什么进度"。
+- 修：四个 Job 各自覆写 `failureReport()`，`phase` 用自家阶段枚举，`details` 带进度摘要 + `terminalReason` +
+  领域细节（MineJob：`attempted`/`inventoryDelta`/`filter`/最后一次尝试失败；RegionLumber：`waitingFor`/苗情；
+  Collect：簇数/被拦次数；Lumber：树进度 + recovery 阶段）。
+
+**J-7 结构化拒绝回读**
+- 病：LLM 动作被拒的理由只进日志 + 玩家聊天 ⇒ **下一轮 prompt 里没有它**，模型会反复给同一个非法动作。
+- 修：`GoalDirector` 记 `lastRefusal{Reason,Tick,Count}`（执行路径与自检**共用** `noteRefusal` 入口）；
+  `DecisionSnapshot` 在 `task` 节点写入 `lastRefusal`（**下一轮 prompt 真的带上**）；
+  `BotStateReport` 增一行"⚠ 上次决策被拒"；动作被接受执行时清掉（不留 stale 理由）。
+
+**自检（电池第 19 步 `llm_contract` / `alice:llm_contract_check`，纯计算约 1 秒）**
+`job_failure_reports`（反射断言四个 Job **真的覆写**了 `failureReport`）、
+`product_filter_target`（`#forge:ores/iron` 认铁矿+原铁、不认煤/圆石）、
+`product_filter_default`（标签族/原版兜底认矿物、不认圆石/原木）、
+`refusal_readback`（登记后 `lastRefusal` 读得到 + **prompt 里真有该字段** + 清掉后消失）。
+
+### D-155 附注一：基-5 **客户端全绿**
+
+**实测（2026-09-12 23:2x，`latest.log`）**
+```
+[LlmContract] case=job_failure_reports result=PASS 四个 Job 的 failureReport 声明类都=自己
+[LlmContract] case=product_filter_target result=PASS filter=#forge:ores/iron | #forge:raw_materials/iron
+              ironOre=true rawIron=true coal=false
+[LlmContract] case=product_filter_default result=PASS familyTags=13（运行时枚举出的 Forge 矿物/原矿标签数）
+[LlmContract] case=refusal_readback result=PASS promptHasField=true cleared=true
+[LlmContract] SUMMARY … verdict=PASS     task_execution_terminal kind=LlmContractCheckTask … COMPLETED
+```
+⇒ J-4/J-6/J-7 三项都在客户端成立。**`familyTags=13`** 是"标签族"口径的实证（旧硬编码清单只覆盖原版 8 个标签，
+装模组后统计不到的病灶由此消除）。`基-5 = IMPLEMENTED + COMPILES + WINDOWS_CLIENT`。
+
+## D-156 基-9：工具与耐久管理（第一批，2026-09-12）
+
+**现状复核（事实）**：生产路径**完全不读耐久**（只有 S4 的 `TOOL_LOW` 事件在看）；`MineTask` 对
+"工具在主背包"只打一行 `tool_in_main_inventory` **警告**、不会自己修（D-089/D-099 同一病灶第三次同形）；
+而且**没有"维护工具"这个动作** ⇒ `TOOL_LOW` 把 LLM 招来时词汇表里没得选，它只能瞎起 Job
+（实测三次：`event:TOOL_LOW → start_job region_lumber`）。
+
+**做了什么（只做"不写世界、不耗资源"的部分）**
+1. `ToolSupply`（新）：**确定性事实 + 安全动作**。
+   - `Kind{PICKAXE,AXE,SHOVEL,SWORD}`（按原版标签 + 物品类识别，模组工具挂标签即可）；
+   - `inspect()` 给"**现在能用什么**"（快捷栏优先 —— 与生产路径的选工具口径一致），
+     `bestInMain()/bestInHotbar()` 给"**还能换成什么**"；
+   - `promoteFromMain()`：主背包有更好的同类 ⇒ **对调**（新的进快捷栏、旧的回主背包）；快捷栏空 ⇒ 搬入；
+     结果码 `swapped_with_worn`/`moved_to_empty`/`already_in_hotbar`/`hotbar_full_no_swap`/`no_tool`；
+   - **不合成、不去取材料、不动世界** —— 那是 S6 + 请示通道（能力名 `fetch_tool_materials` 已登记）。
+2. `ToolMaintenanceTask`（新）：确定性维护流程，终态四种：`already_ok` / `promoted_from_main` /
+   **`worn_no_spare`**（手上这件已 ≤20% 且没有更好的 ⇒ 如实说"需外部补充"，**不假装修好了**）/ `no_tool`。
+   任务不产生失败（`failureReason()` 恒空），事实写在 `terminalReason` + summary 里。
+3. **决策层动作** `{"action":"maintain_tool","kind":"pickaxe"}`（词汇表 + `GoalAction.MaintainTool` + 解析 +
+   执行 + `BotManager.assignToolMaintenance`）⇒ `TOOL_LOW` 之后终于有**能自己解决**的选项。
+4. **事实进 prompt/汇报**：`DecisionSnapshot` 新增 `tools` 节点（summary + 每种工具的 present/inHotbar/
+   remaining/max/spareInMain）；`bot_report` 增"工具：…"一行。
+5. **事件文案可行动**：`TOOL_LOW` 现在带上"在主背包（可用 maintain_tool 搬进快捷栏）/ 主背包有更好的 /
+   身上没有更好的（需外部补充）"。
+
+**自检**（电池第 20 步 `tool_supply` / `alice:tool_supply_check`）：
+A 手上快坏的镐 + 主背包新镐 ⇒ 维护后 **新的到手上**（`promoted_from_main`，ratio>0.9）；
+B 只有快坏的、无替代 ⇒ `worn_no_spare`；**C 负例**：身上没有镐 ⇒ `no_tool` 且**不得凭空变出工具**。
+收尾复原背包（一把镐 + 一把斧）。
+
+**未做（明确登记）**：工具**来源**（合成/取材料/容器取用）与"耐久不足以完成计划工作量时提前拒绝"
+（需要与 `MiningPlanner` 的工作量估算打通）—— 前者属 S6，后者列入下一批。
+
+### D-156 附注一：首轮"失败"是**我自检的断言 bug**，功能本身在日志里已经做对了
+
+**实测（2026-09-12，`latest.log`）**
+```
+[ToolMaint] 镐 code=swapped_with_worn     → SUMMARY terminal=promoted_from_main
+             before[镐=钻石镐 157/1561(10%) 快捷栏] after[镐=铁镐 250/250(100%) 快捷栏]
+[ToolMaint] 镐 code=already_in_hotbar     → SUMMARY terminal=worn_no_spare
+             （"可用工具剩余耐久仅 10%，且身上没有更好的 ⇒ 需外部补充"）
+[ToolMaint] 镐 no_tool                    → SUMMARY terminal=no_tool
+```
+⇒ **三种行为（换上更好的 / 没得换如实上报 / 没有工具）在真实客户端上都正确执行了**；
+`after_restore=镐=钻石镐 1561/1561 | 斧=钻石斧 1561/1561` ⇒ 收尾复原也生效。
+
+**但自检红了，原因全在我自己的断言代码：**
+1. `runSub` 里**先把 `sub` 置 null、再通过 lambda 读 `sub.terminalReason()`** ⇒ 永远读到占位符 `-`
+   （日志里 `terminal=-` 就是这个）；修法：**先取终态再置 null**（已去掉那层没必要的 lambda）。
+2. `Snapshot.spareInMain` 被我写成"主背包件数 − 1"，语义错（自检前提 `spareInMain>=1` 因此失败）。
+   修法：语义定为"**主背包里该类工具的件数**"，并新增 `bestMainRemaining`（"主背包那件还剩多少"）——
+   这样"能不能自己换上"是**数据**，不是推断（`TOOL_LOW` 文案与 prompt 都用它）。
+
+**教训（第 N 次同族）**：断言代码自己也会说谎。判据要能区分"功能没做对"与"断言写错了"——
+本轮日志里 `[ToolMaint]` 的行为行与 `[ToolSupply] case=` 的断言行是**分开的**，所以一眼能分开。
+
+### D-156 附注二：基-9 第一批 **客户端全绿**
+
+**实测（2026-09-12 23:5x，`latest.log`）**
+```
+case=swap_premise PASS   before=镐=钻石镐 157/1561(10%) 快捷栏 主背包另有 1 件（其中更好）
+case=tool_swap PASS      terminal=promoted_from_main  after=镐=铁镐 250/250(100%)
+case=worn_premise PASS   before=镐=铁镐 25/250(10%) 快捷栏
+case=worn_no_spare PASS  terminal=worn_no_spare（"身上没有更好的 ⇒ 需外部补充"）
+case=no_tool_premise PASS   inspect=镐=无
+case=no_tool PASS        terminal=no_tool 仍无镐=true（负例：不得凭空变出工具）
+SUMMARY tool_swap=PASS worn_no_spare=PASS no_tool_no_conjure=PASS verdict=PASS
+after_restore=镐=钻石镐 1561/1561(100%) | 斧=钻石斧 1561/1561(100%)
+task_execution_terminal kind=ToolSupplyCheckTask … terminal=COMPLETED
+```
+⇒ `基-9（第一批）= IMPLEMENTED + COMPILES + WINDOWS_CLIENT`。
+**未完项（登记在册）**：① 工具**来源**（合成/取材料/容器取用）属 S6；② "**耐久不足以完成计划工作量时提前拒绝**"
+（需与 `MiningPlanner` 的工作量估算打通）—— 归入下一批。
+
+## D-157 基-8（第一批）：把 `MovementCapabilities` 变成**执行期真的会拦人**的能力闸门
+
+**复核发现（比总账登记的更严重，另有一条登记已过期）**
+- **G8 不只是 3 个字段**：`MovementCapabilities` 的 **10 个分量读者为 0**（`changesWorld` / `canBreakBlocks` /
+  `canPlaceBlocks` / `requiresZoneAuthorization` / `consumesResources` / `requiresTool` / `maxNaturalDrop` /
+  `supportsMidExecutionRevalidation` / `mutationIntents` / `intrinsicReversibility`），
+  只有 `requiredRecoverabilityLevel` 在基-1 后有读者。⇒ "寻路不许偷偷写世界"（D-076）此前**只靠
+  `PathRequest.allowedMovementTypes` 这一层类型清单**在守，能力声明本身是装饰（P0-B 同族病灶）。
+- **`REGION_REPLANT`：代码早已接线、文档登记表缺号** —— 代码侧 `RegionLumberJob` 用它作补种放置的
+  `WriteReason`（`temporary()==false` ⇒ 账本记 `KEEP`，且过 `WriteBudget.consumePlace`）；
+  但**授权登记表文档** `WORLD_WRITE_AUTHORIZATION.md` 的表格只到 A8、下一节直接是 A10 ⇒ **A9 断档**。
+  ⇒ 总账那条"未登记"指**文档**、是对的；我一开始误判为"过期信息"，此处**自我订正**，并已补上 **A9 条目**。
+
+**做了什么**
+1. `CapabilityGate`（新，**纯函数**）：执行期复验，五类拒绝码 + 一个放行：
+   - `CAPABILITY_UNAUTHORIZED`：**会改世界**的 Movement 却拿**纯通行请求**执行（声明与授权不符）；
+   - `ZONE_PROTECTED_AREA` / `ZONE_PROTECTED_BLOCK` / `ZONE_PROTECTED_TAG`：目标落在保护区（读 `SafeZoneData`）；
+   - `NO_REQUIRED_TOOL`：需要工具而快捷栏没有（生产路径只从快捷栏选 ⇒ 白挖）；
+   - `NO_THROWAWAY_BLOCKS`：需要消耗一次性方块而没有；
+   - `BREAK_BUDGET_EXHAUSTED` / `PLACE_BUDGET_EXHAUSTED`：写入预算用尽（读 `WriteBudget`）。
+   世界事实由 `CapabilityGate.Facts` 注入 ⇒ 纯逻辑可自检（喂假事实即可断言"能不能拦住"）。
+2. `PathSession.startSegment` 在**授权复验之后、执行之前**调用闸门；拒绝 ⇒ `[R4 Session] capability_gate_denied …`
+   + `mapFailure(code)`（拒绝码进会话失败码，可归因）。**为什么在执行期**：与 D-076「plan 可能比产生它的
+   请求活得更久」同一条理由 —— 保护区、一次性方块、工具、预算都可能在计划之后变化。
+3. 自检（电池第 21 步 `capability_gate` / `alice:capability_gate_check`）：五个**负例** + 两个正例 +
+   一组**声明一致性**断言（真实 `toSpec` 产出的 caps 必须与 Movement 的写世界性质相符：
+   平走类 `changesWorld=false`、放置类 `canPlaceBlocks=true`、破坏类 `canBreakBlocks=true`）。
+
+**仍未接线的字段（明确登记，不假装）**：`maxNaturalDrop`（掉落上限）、`supportsMidExecutionRevalidation`
+（本闸门就是"执行期复验"的载体，但该布尔本身仍未读）、`mutationIntents`（目前只用于构造期自洽校验）、
+`intrinsicReversibility`（可回收性用类型规则而非它 ⇒ 二者重叠，待收口）。
+**G3（模组连锁破坏无凭证）与 G5（容器写入维度）** 未动，列入下一批。
+
+### D-157 附注一：能力闸门首测失败 = **两处我的期望错**，其中一处暴露真问题
+
+**实测（2026-09-13 00:3x，`latest.log`）**
+```
+case=pure_traversal_allowed PASS   case=capability_unauthorized PASS
+case=zone_protected FAIL expected=ZONE_PROTECTED_AREA actual=(放行)
+case=no_tool PASS   case=no_throwaway PASS   case=no_place_budget PASS   case=all_facts_ok_allowed PASS
+case=declarations FAIL  … PILLAR=changesWorld=true break=false place=true
+```
+1. **`declarations` FAIL = 我的期望写错**：PILLAR 我写成 `(changesWorld=false, breaks=true)`，实际是
+   `(changesWorld=true, breaks=false, place=true)`（PILLAR 是"放方块往上爬"，不破坏）。已改为 `(true,true,false)`。
+2. **`zone_protected` FAIL = 真问题**：`MovementCapabilities.pathAccess()` 把
+   `requiresZoneAuthorization` 声明成 **false**（`temporarySupport()` 同样）⇒ 即使闸门接了保护区检查，
+   **生产里也永远不会触发** —— 字段又退化成装饰（G8 同族，第 N 次）。
+   修法：**改工厂**（会改世界的 Movement 一律 `requiresZoneAuthorization=true`），而不是改测试。
+   默认没有任何保护区时行为不变；一旦玩家划了保护区，破坏/放置类 Movement 会被
+   `ZONE_PROTECTED_*` 拒绝（这正是保护区的意义）。
+3. 自检同时保留**合成用例**（`zoneAuth=true` 的 caps）+ **生产声明用例**（`zone_protected_by_declaration`），
+   后者专门防"字段又变装饰"回归。
+
+**顺带（用户反馈）**：测试物品贴图此前全落到默认 `alice:item/check` ⇒ 分不清。已按类别补齐：
+`check_pathing`（蓝：内核/安全）、`check_decision`（紫：决策层）、`check_fixture`（橙：夹具/工具），
+并复用已有的 `mine`/`lumber`/`pathing`/`select`；21 个模型已归类。
+
+### D-157 附注二：G3 第一批 —— 范围内**外来破坏**不再无声无息
+
+**复核（`ScopeBuffer.onBlockBreak`）**：原先只登记**我方**破坏（用于掉落物配对），
+范围内由**别人/模组连锁/爆炸**造成的破坏被**静默忽略** ⇒ 世界确实被改了，但账本、预算、上报里都看不见。
+这正是"未知模组能力默认只读、不让 AI 猜"的对偶面：不猜可以，**但不能装作没发生**。
+
+**做了什么（只记录，不改变行为）**
+- `ScopeBuffer` 新增**有界外来破坏记录**（16 条）+ 计数 + 节流告警（第 1 次与每 10 次）：
+  `[Scope] 范围内**外来破坏** #N pos tick by=<uuid|unattributed>（非我方；账本不恢复、预算不计入 —— 仅如实记录）`；
+  `unattributed` 专指**没有玩家来源**的破坏（爆炸 / 模组程序化破坏）。
+- `bot_report` 新增一行 `作用域：外来破坏=N（最后 pos tick by=…）`。
+- **自检（能力闸门任务内，双向断言）**：伪造两条 `BreakEvent`（模组连锁走的正是同一条事件路径）——
+  ① breaker=**观察者** ⇒ 计入；② breaker=**本 bot** ⇒ **不得**计入。
+  只测 ① 无法排除"把所有破坏都记成外来"的假实现，所以必须双向。
+
+**明确未做**：**阻止**外来破坏（`BreakEvent` 可取消 ⇒ 技术上能拦，但那会改变模组行为与保护区语义，
+属独立决策）；外来破坏的**恢复**（我们不恢复非我方改动）。
+**G5（容器写入维度）** 仍未动，作为 基-8 的最后一项。
+
+### D-157 附注三：G5 —— 容器写入维度（只记录，不撤销）
+
+**复核**：方块改动有账本（`WorldModLedger`），**容器改动没有** —— `TransferLedgerData` 记的是
+**请求与状态迁移**，不记"哪几件东西从哪去了哪" ⇒ "bot 往箱子里放了什么/拿了什么"没有可审计的痕迹。
+
+**做了什么**
+- `TransferLedgerData` 新增**物品移动**记录（有界 32 条）+ 计数 + 件数 + 一行式描述，并**持久化进 NBT**：
+  `record Movement(requestId, leg, itemId, count, pos, tick)`，`leg ∈ {chest_to_bot, bot_to_chest}`。
+- 两段**已证明**的写入之后各记一条（取真实的 `botDelta` / `destinationDelta`）：
+  `TransferTask.sourceWrite()`（从源箱取出）与 `destinationWrite()`（写入目标箱）。
+- `bot_report` 新增一行 `容器写入：N 次 / M 件（最后 …）`。
+- 自检（能力闸门任务内）`container_write_record`：用**独立实例**记两条移动 ⇒ 断言计数/件数/描述，
+  再 `save → load` **NBT 往返**断言记录真的进存档（只活在内存里不算审计痕迹）。
+
+**明确未做**：容器写入的**撤销/恢复**（把东西放回去）—— 那需要"谁授权、恢复到哪个状态"的完整语义，
+属独立决策；本批只保证**留痕**。
+
+**至此 基-8 四项全部有交代**：G8 能力闸门（含"保护区字段又变装饰"的真问题修复）、A9 登记表断档补齐、
+G3 外来破坏留痕（双向自检）、G5 容器写入留痕（含 NBT 往返断言）。
+
+## D-158 基-7 第一批：K-1 best-so-far 前缀（顺带把 K-5 的死状态变成活状态）
+
+**复核（事实）**
+- `AStarMovementSearch` 里 `bestSoFar[]` **一直在算**，但预算耗尽/搜索穷尽时只把 `best=cost` 写进诊断字符串，
+  **前缀被丢掉** ⇒ 调用方只能拿到"失败"，拿不到"已经走通的那一段"；
+- 新版枚举 `PlanningStatus` **没有 PARTIAL**；而 `pathing/PathPlanner.Status.PARTIAL`（**遗留内核**枚举）
+  虽然有这个值，却**零产出者**（K-5 死状态）⇒ K-1 与 K-5 是同一件事的两面；
+- 唯一的执行期消费者 `PathRetryRunner` 对**任何**非 `REACHED` 一律 `FAILED`（`plan_failed`），前缀无处可用。
+
+**做了什么**
+1. `PlanningStatus.PARTIAL`（新）：文档写死语义 —— **不是到达**（`PathPlan.reached()` 仍 false）、
+   **不是不可达**（前缀的存在恰恰说明还有得走）、承载"**先走一段再重规划**"。
+2. `PathPlan.partial(...)` + `partial()`；搜索抽出 `prefixTo(node)`/`projectedFootPath(...)`（与 `reachedPlan` 共用，
+   避免两份前缀构造逻辑）。
+3. `AStarMovementSearch`：**只在预算耗尽**且 best-so-far 有前驱时返回 `PARTIAL`（`partialPrefix=N` 写进诊断）；
+   **搜索空间真穷尽（UNREACHABLE）不给前缀**（那是"证明到不了"），`SEARCH_LIMIT` 无前缀时保持原样。
+4. **让消费者真的用它**（否则又是一个"产出无人读"的值）：`PathRetryRunner`
+   - `PARTIAL` ⇒ `[PathRetry] partial_plan hop=k/4 movements=N` ⇒ **执行前缀**，走完**不算到达**，
+     从新位置**继续重规划**（连续消费上限 `MAX_PARTIAL_HOPS=4`，防"永远走一段、永远到不了"的空转）；
+   - 超出上限 ⇒ 如实失败 `PLAN_PARTIAL_LIMIT` / 无重规划额度 ⇒ `PLAN_PARTIAL_NO_REPLAN`；
+   - 其它非 `REACHED`（UNREACHABLE / GOAL_NOT_LOADED / CANCELLED）**行为不变**（仍如实失败）。
+5. 自检（电池第 22 步 `partial_search` / `alice:partial_search_check`，纯规划不动 bot）：
+   A 远目标 + 极小预算 ⇒ `PARTIAL` 且前缀非空、投影长度 = 边数+1；
+   B **同目标** + 正常预算 ⇒ `REACHED`（证明 A 是"没算完"而非"规划不好"）；
+   C 目标丢到极远处（未加载）⇒ `GOAL_NOT_LOADED` 且**无前缀**（守住"真失败不给前缀"的契约）。
+
+**仍未做（基-7 余项）**：K-2 `SurfacePathfinder`/`PathExecutor` 等**遗留内核仍有 7+ 处活调用**（须迁移或显式登记）；
+K-3 `safeToCancel` 概念全缺（Baritone 有：取消时是否安全）；K-4 谓词不统一；
+K-5 遗留枚举 `PathPlanner.Status.PARTIAL` 仍是死值（随 K-2 收口处理）。
+
+## D-159 基-7 第二批：K-2 legacy 双内核 —— **生产路径已收敛到单内核**
+
+**逐点清单（2026-09-13 复核，`SurfacePathfinder.find` 共 7 处调用）**
+
+| 调用点 | 性质 | 处置 |
+|---|---|---|
+| `TransferTask.move()`（走到源箱/目标箱） | **生产路径**（传输两段行走） | ✅ **迁移**到 `PathRetryRunner`（新内核） |
+| `BotCommand.diagnosePath()`（`/alice path` 只读诊断） | **开发命令** | ✅ **迁移**到 `CorePathPlanner` |
+| `PathingRegression`（legacy 自带回归，×2） | 仅被 `BotSelftest`（手动开发自检）调用 | 登记为**遗留保留**（非生产路径） |
+| `TunnelPlanner`（×2） | **无调用者** | 登记为**死代码**，待 K-2 batch 3 删除 |
+| `LocalPathPlanner`（×1） | **无调用者**（连同 `HybridPathPlanner`/`PathPlanners`） | 同上（死代码） |
+
+**迁移细节（TransferTask）**：`PathRetryRunner` 每次**从当前脚位重规划**并可重试；
+失败码映射保持原词表 —— `PLAN_*UNREACHABLE` ⇒ `HARD_PATH_UNREACHABLE`，
+其余 `PLAN_*`（预算耗尽/未加载/前缀用尽）⇒ `HARD_PATH_SEARCH_LIMIT`（对齐 D-076「`SEARCH_LIMIT ≠ UNREACHABLE`」），
+会话级失败 ⇒ `HARD_PATH_FAILED`。顺带白拿 **K-1**：预算耗尽时先走前缀再重规划。
+
+**迁移细节（`/alice path` 诊断）**：改用 `CorePathPlanner`，输出 `PlanningStatus`（`SEARCH_LIMIT`/`GOAL_NOT_LOADED`/
+`UNREACHABLE`/`PARTIAL` 四态明确区分），并在"预算耗尽/未加载/只有前缀"时**明确写出"不能据此授权挖通道"**。
+
+**迁移后**：剩余 `SurfacePathfinder.find` 调用点**全部在 legacy 文件内部**（`PathingRegression`/`TunnelPlanner`/
+`LocalPathPlanner`），**生产与开发命令路径上已无 legacy 引用**。
+
+**K-2 batch 3（待做）**：删除无调用者的 `TunnelPlanner`/`TunnelObstaclePolicy`/`LocalPathPlanner`/
+`HybridPathPlanner`/`PathPlanners`（除非有保留理由）；`BotSelftest` + legacy `PathingRegression`
+二选一：**迁移**到新内核自检，或**显式登记为仅手动开发自检**。
+**验证入口**：传输行走由 `TransferFixture` 覆盖，而它由 `/alice selftest` 触发（见 `BotSelftest:346`）。
+
+## D-160 活雷拆除：`InterfaceScanner` 的 Mekanism 硬引用 → **absence-safe**
+
+**崩溃现场（2026-09-13 00:44，客户端 `crash-reports/`）**
+```
+Description: Exception in server tick loop
+java.lang.NoClassDefFoundError: mekanism/common/capabilities/Capabilities
+  at InterfaceScanner.scanMek(InterfaceScanner.java:167)
+  at InterfaceScanner.capture:65 → BotSelftest.runInterfaceSnapshotRegression:373 → BotSelftest.setup:344
+```
+**根因**：Mekanism 是**可选模组**（`build.gradle:142` 是 `implementation`），但
+`InterfaceScanner` 里有 **15 处 `mekanism.*` 符号引用**（capability / ITileRedstone / ITileUpgradable /
+ISecurityTile / ISideConfiguration / Upgrade / RelativeSide / DataType …）⇒ **任何没装 Mek 的客户端**
+只要走到 `capture()`（例如 `/alice selftest`）就必崩。
+
+**修法（absence-safe，不靠反射）**
+- 全部 Mek 代码（`scanMek` 家族 + `appendIfPresent`，119 行）搬进新类 `capability/MekanismScanner.java`；
+  `InterfaceScanner` 只剩一处**守卫式调用**：
+  ```java
+  if (net.minecraftforge.fml.ModList.get().isLoaded("mekanism")) {
+      MekanismScanner.scan(legacy, be);
+  }
+  ```
+  **JVM 惰性加载** ⇒ 缺席时 `MekanismScanner` 永不加载 ⇒ 永远不会去解析 `mekanism.*` 符号 ✓
+  （比反射干净：保留了编译期类型检查）。
+- `InterfaceScanner` 现在**零 Mek 符号引用**（只剩注释与那句 `isLoaded("mekanism")`）。
+- 语义不变：Mek 探查仍是**只读**（"有什么接口"），不驱动不写入（见 `docs/MEK_GUI_SEMANTICS.md`）。
+
+**同类风险提示（大清查待办）**：任何"可选模组的硬引用"都是同一种雷。
+本轮同时确认：客户端装的 243 个模组里**只有 oreexcavation/JEI** 与本仓库有交互面，
+其余（Mek/Thermal/Create）**都没装** ⇒ 阶段 2 若要在客户端测它们，必须先把 jar 放进 `mods/`，
+**而不是**让代码假设它们在场。
+
+**待定**：`build.gradle` 是否把 Mekanism 从 `implementation` 改为 **`compileOnly`**（让开发期也没有它，
+从而**在开发期就暴露**这类硬引用）—— 这是"让环境与测试客户端一致"的做法，但会改变本地 dev 运行条件，**待用户定**。
+
+## D-161 传输模块重构 R1+R2 + 依赖清理 + selftest 退役（用户 2026-09-13 裁定）
+
+**用户裁定**：① **R1/R2/R3 全做**；② **容器写入算"世界改动"** ⇒ 进 A 表 + 要授权/预算；
+③ 交互做 **L1（范围内代码操作）**先，**L2（真实 openMenu 菜单协议）另行专门讨论**（它影响整个项目的
+模组方块交互基底）；④ **selftest 退役**；⑤ **删掉与 Alice 本质无关的模组依赖**（"要用时我自己在客户端装"）。
+
+**已完成的四项**
+
+1. **依赖清理（B1）**：`build.gradle` 移除 Mekanism（`implementation` + `runtimeOnly generators`）——
+   **项目不再声明任何可选模组依赖**。理由（教训）：开发期有 Mek、测试客户端没有 ⇒
+   `InterfaceScanner` 15 处 `mekanism.*` 硬引用在真实客户端**必崩**（2026-09-13 崩溃报告）。
+   **开发环境必须与测试客户端一致**，否则缺陷被环境差异掩盖。模组集成今后一律"运行时反射/独立可选模块"。
+   随之**删除 `MekanismScanner`**（上一轮刚拆出的 absence-safe 类）——既然不留编译依赖，Mek 探查代码一并撤掉；
+   语义知识保留在 `docs/MEK_GUI_SEMANTICS.md`。
+2. **selftest 退役（B2）**：删除 `bot/BotSelftest.java`、`/alice selftest` 命令、legacy `pathing/PathingRegression.java`；
+   其中**唯一仍被新内核使用**的有用断言 `assertFootCellRule` 救出为 `pathing/FootCellRuleCheck.java`
+   （`PathingRegressionTask` 仍用它做 D-105 无头断言）。
+3. **R1 生产/测试分离（B3）**：4 个传输夹具迁到新包 `com.dddgn.alice.fixture.transfer`
+   （`TransferFixture`/`TransferSelectionFixture`/`TransferEndpointSelectorEventsFixture`/
+   `TransferSelectionCommandParseFixture`，共 5 个类）。生产侧只保留**一个显式、公开、默认惰性**的接缝
+   `transfer/TransferTestHooks`（含原 `TransferTask.fixtureMovementOutcome` 的接缝化版本
+   `movementOutcome()/takeMovementOutcome()`）；`TransferTask` 不再自带夹具状态。
+4. **R2 一键入口（B3）**：新增 `alice:transfer_check`（`TransferCheckItem` + `TransferCheckTask`）
+   —— 零参数右键一次跑完 4 个夹具、输出 `[Transfer] SUMMARY fixture=… selection=… selector_events=…
+   command_parse=… verdict=…`；**单个夹具抛异常也只记 FAIL，不炸整条自检**（`guarded(...)`）；
+   已进回归电池第 **23** 步。
+
+**产物核对**（jar 内类表）：`BotSelftest` 0 处、legacy `PathingRegression` 0 处、`MekanismScanner` 0 处、
+新夹具包 5 个类、`TransferCheckItem/Task` 在场、总类数 535 ✓（避免上次那种"类错位"崩溃）。
+
+**仍未做**：**R3**（删 3 个死码 + 处理 2 个只写状态 + 容器写入入 A 表并接授权/预算）、
+**L1**（传输行走改为"附近任一可站点 + 触及校验"，取代"站箱子上"）。二者为下一批。
+
+## D-162 传输模块 R3 + L1：容器写入纳入授权/预算；行走改为"附近任一可站点 + 触及校验"
+
+**R3（清死码 + 授权维度）**
+1. **删 3 个零引用错误码**（`SURVIVAL_SUFFOCATING`/`ACTOR_DISCONNECT`/`BOT_MISSING`）。
+2. **两个"只写状态"重新定性，不删**：`SOURCE_LEG_PRE`/`DESTINATION_LEG_PRE` 是**审计哨兵**
+   （记录"某段写入之前"这一刻），账本本职是**证据链**（类文档 "stores evidence"）⇒ 删掉等于删证据。
+   已在 `TransferLedgerData.State` 上写明：它们**不被决策逻辑读取**，属证据而非死码。
+3. **容器写入纳入"世界改动"体系（用户裁定）**：
+   - `WriteReason.CONTAINER_TRANSFER`（`Policy.EXPLICIT_TARGET`；**用 `Action.BOTH` 而非新增 `Action.CONTAINER`**
+     —— `Action` 字段目前**无读者**，新增值只会再造一个死值，已登记该元数据债）；
+   - `WriteBudget` 新增**第三维度**：`Caps.maxContainerWrites`（默认 **32**）+ `consumeContainerWrite(...)`
+     （超限即 `REFUSED`）+ `remainingContainerWrites(...)`；SUMMARY 增
+     `containers=N/M refusedContainers=N`；`Caps` 加了兼容构造器（旧的 2 参调用点不受影响）；
+   - `TransferTask` 两段写入前各消费一次；被拒 ⇒ `container_budget_exhausted`（如实失败，不硬写）；
+   - **审计带授权**：G5 的物品移动记录新增 `requester`/`reason`（NBT 也持久化）⇒ 审计能回答
+     "谁按什么理由动的这箱东西"；
+   - 登记表补 **A11 容器写入（传输）**。
+
+**L1（用户裁定：先做"范围内代码操作"，L2 真实菜单协议另立项）**
+- `TransferTask.move(...)` 的目标从"**箱子正上方**"改为 **端点附近最近的合法站点**
+  （正上方 + 同层 4 正邻 + 8 斜邻，要求 `canWalkOn` 且两格净空）；
+- 到达后按**原版触及语义**校验（`BlockInteraction.reachable`）⇒ 够不到就 `endpoint_out_of_reach` 如实失败；
+  两段写入前**再各校验一次**（站好了也可能漂移）；
+- 边界情况已处理：**已经站在可站点上**时跳过规划（避免"零长度路径"这种边界）；
+- 找不到站点 ⇒ `endpoint_no_standing_point`；两个新码与预算拒绝码一并入 `TransferCodes`。
+
+**验证**：编译通过 + jar 内容核对（旧类零残留）。**待客户端复测**：`alice:transfer_check`
+（4 夹具全绿即可确认 L1 的三条路径没破坏既有行为），并留意日志里 `containers=N/M` 是否出现。
+
+## D-163 L2 技术验证探针：`alice:menu_probe`（B 路线可行性第一测）
+
+**背景（用户 2026-09-13 裁定）**：同意 **"B 默认 + A 显式优化"** 的分层；先做
+`INTERACTION_LAYERS_COMPARISON.md` §3 第 5 项的**最小验证**（"无真实客户端时服务端菜单状态是否自洽"），
+并要求**加延迟**以便在游戏里肉眼观察菜单效果。
+
+**探针做什么**（`task/MenuProbeTask`，约 8 秒，带延迟：`FACE_HOLD=30 / OPEN_HOLD=40 / CLICK_HOLD=20`）：
+1. `SETUP`：bot 东侧 2 格放箱子、塞 3 个铁锭、清空 bot 背包、传送到箱子旁（探针求确定性；
+   生产 L2 应走内核寻路 + L1 站位/触及）；日志打印 start 信息；
+2. `FACE`：**转向箱子**（`BlockInteraction.faceTowards`）并停 1.5 秒 —— 人能看见 bot 转头；
+3. `OPEN`：**`bot.gameMode.useItemOn(bot, level, 主手, MAIN_HAND, BlockHitResult)`** + `swing`
+   —— 这是**真人客户端开箱最终走的同一个方法**；随后断言 `bot.containerMenu != inventoryMenu`
+   并打印菜单类型/槽位数；
+4. `CLICK_PICK`：在菜单里找到铁锭所在槽 ⇒ **`menu.clicked(slot, 0, ClickType.PICKUP, bot)`** + `broadcastChanges()`
+   ⇒ 该堆"拿在鼠标上"（打印 `carried`）；
+5. `CLICK_PLACE`：找**快捷栏空槽**（ChestMenu 27 格：0..26 箱子 / 27..53 背包 / 54..62 快捷栏）再点一次
+   ⇒ 落进 bot 手上（客户端能"看到 bot 拿着铁锭"）；
+6. `CLOSE`：`bot.closeContainer()` ⇒ 断言回到 `inventoryMenu`（盖子合上）；
+7. `ASSERT`：bot 背包 3 铁锭、箱子 0 ⇒ `[MenuProbe] SUMMARY menu_opened=… menu_type=ChestMenu/N
+   clicks=… item_moved=… verdict=…`。
+
+**判据与意义**：`menu_opened=PASS` + `item_moved=PASS` ⇒ **B 路线（通用菜单驱动器）可行**，
+可以继续按 §4 建议投入（槽位语义表 / 生命周期与超时 / A11 授权衔接）；
+若 `menu_not_opened` 或点击无效 ⇒ **整条 B 路线需重新评估**（而不是先写一堆适配器）。
+
+**卫生**：任何失败路径都会 `closeContainer()`，不把 bot 卡在菜单里（探针自身的教训来自
+"卡在状态里"这一类历史缺陷）。**探针不进回归电池**（它是可行性验证，不是生产功能）。
+
+### D-163 附注一：L2 **验证通过**（用户实测"符合预期"）+ 立即暴露的生命周期漏洞已修
+
+**验证结论（用户目视 + 判据）**：`useItemOn` 真的开出了 `ChestMenu`、`menu.clicked` 真的搬动了物品、
+`closeContainer` 干净收尾 ⇒ **B 路线（真实菜单协议）技术上成立**，
+"B 默认 + A 显式优化"的分层可以作为后续主线（`docs/INTERACTION_LAYERS_COMPARISON.md` §4）。
+
+**用户立即发现的真问题**："**任务终止的时候箱子还是开着的**"。
+根因：探针只在**正常路径**的 `CLOSE` 阶段关菜单；**任何提前终止**
+（用户 `/alice stop`、维生打断、任务被替换、失败）都绕过它 ⇒ `ContainerOpenersCounter` 没减回去，
+**盖子一直开着**（箱子还会长期处于"被占用"状态）。
+
+**修法（`bot/MenuLifecycle`，两条保证）**
+1. **收尾收敛点强制关闭**：`BotSession.clearTask()`（`stopTask` / 被替换 / 维生打断 / 正常结束**都走它**）
+   与 bot 移除处调用 `MenuLifecycle.closeOpen(bot, reason)` ⇒ 关闭 + **打警告**（哪条路径漏了一眼可见）。
+2. **看门狗（诚实兜底，不是掩盖）**：每 tick 若"菜单开着但**没有任何任务**在跑"超过
+   `IDLE_MENU_LIMIT_TICKS=60` ⇒ **先告警**（含菜单类型）再关闭，并计入 `closedByWatchdog`
+   ⇒ **有告警就说明有人忘了收尾**（可审计：`MenuLifecycle.describe()`）。
+
+**复测判据**：跑 `alice:menu_probe` 后在它中途 `/alice stop`（制造提前终止）⇒
+应看到 `[Menu] 收尾时仍开着容器菜单 ChestMenu（reason=clearTask:MenuProbe）⇒ 强制关闭`
+且**箱子盖子合上**；若出现 `[Menu] 看门狗：…` 则说明还有路径没在收尾点关闭（要补，而不是容忍）。
+
+## D-164 L2 生产化第一步：`MenuSession`（菜单会话）+ 探针改为其首个消费者
+
+**背景**：D-163 证明 B 路线（真实菜单协议）技术成立；用户在实测中立刻发现"任务终止时箱子还开着"，
+说明"菜单开着"这个新状态**必须由组件本身保证生命周期**，不能靠调用点自觉。
+
+**做了什么**
+1. `action/MenuCodes`（新）：菜单维度的**稳定失败码**（与方块写入的失败码分维度，避免日志里
+   "没权限"和"菜单没开"混在一起）：`menu_open_failed` / `menu_open_timeout` / `menu_target_mismatch` /
+   `menu_closed_early` / `menu_slot_mismatch` / `menu_container_full`。
+2. `action/MenuSession`（新，**唯一的菜单交互组件**）：
+   - **打开异步化**：`open(bot, target, containerSlots)` 立刻发真实右键（转向 + 挥手 + `gameMode.useItemOn`），
+     随后 `tick()` 推进直到 `containerMenu` 生效；超时 ⇒ `menu_open_timeout`；
+     开出来的容器比声明的小 ⇒ `menu_target_mismatch`（点到别的容器了）；
+   - **只走菜单协议**：`click(slot, ClickType)` = `menu.clicked(...)` + `broadcastChanges()`（真人左键的同一条路）；
+     提供 `findInContainer(predicate)` / `findEmptyPlayerSlot()` / `firstHotbarSlot()` / `carried()` / `stillValid()`
+     —— **不猜槽位语义**（语义由上层或未来的语义表决定）；
+   - **生命周期自我保证**：`close(reason)` **幂等**；**任何失败路径都自动收尾**（`fail()` 内部就调 `close`）；
+     与 `MenuLifecycle`（收尾收敛点 + 看门狗）互补成双保险。
+3. **探针改为 `MenuSession` 的首个消费者**（关键：不让新抽象变成"没人读的 API"）：`MenuProbeTask` 的
+   打开/点击/关闭全部改走会话，新增 `OPENING` 阶段（等会话生效），断言里补 `session.failure()`/`session_left_open`。
+   ⇒ 用户可用**同一个入口**（`alice:menu_probe`）复测"抽象化之后行为是否一致"。
+
+**待定（下次讨论）**：① "**打开菜单算不算读取**"（是否入账本/预算）；② 槽位**语义表**的产出方式；
+③ 把 `TransferTask` 的容器读写也切到菜单路线（届时 A11 授权与菜单会话如何衔接）。
+
+### D-164 附注一：`MenuSession` **客户端验证通过**（含扰动与中断两个用例）
+
+**用户实测（2026-09-13，三轮，均"符合预期"；其中一次 FAIL 是用户误用 `tp` 造成的，属预期外扰动）**
+
+| 用例 | 日志证据 | 结论 |
+|---|---|---|
+| **正常流程** | `[Menu] opened … type=ChestMenu slots=63 ticks=1` → `click_pick slot=0 carried=3x铁锭` → `click_place slot=54 carried_after=空 clicksOk=true` → `[Menu] closed reason=probe_done` → `[MenuProbe] SUMMARY … verdict=PASS botHasIron=3 chestLeftIron=0` | ✅ `MenuSession` 打开/槽位查找/点击/关闭**全部走通**；`ticks=1` 说明服务端菜单**同 tick 即生效**（`FakeConnection` 不影响） |
+| **扰动（误用 `tp`）** | `use_item_on result=CONSUME` → `[Menu] failed code=menu_open_timeout ticks=21` → `verdict=FAIL`、`terminal=FAILED` | ✅ **如实失败、不挂死**：会话超时后自动收尾；这正是"宁可承认失败，也不假装成功"的姿态 |
+| **提前终止（`/alice stop`）** | `[Menu] opened …` → `[Menu] 收尾时仍开着容器菜单 ChestMenu（reason=clearTask:MenuProbeTask）⇒ 强制关闭`、`terminal=CANCELLED_BY_USER` | ✅ **上一轮的生命周期漏洞修复生效**（盖子不再一直开着） |
+
+**顺带修正**：探针失败文案原先写死 `menu_open_failed`，现**透传会话真实码**
+（`menu_open_timeout` = "发出右键但服务端没给菜单"；`menu_open_failed` = "右键本身没被接受"）——
+下次扰动一眼可分辨。
+
+**结论**：`L2 = 探针验证 + 组件化（MenuSession）+ 生命周期双保险` 三件都成立，可以进入**生产化**：
+把真实业务（当前是容器传输）切到菜单路线，并沉淀"槽位语义表 v0"。
+
+## D-165 L2 生产化：容器语义表 v0 + 路线开关 + 传输切到菜单路线 + 菜单打开入事件环
+
+**用户裁定（2026-09-13）**：① 传输**切到菜单路线并保留开关**；② "**打开容器菜单**"记为
+**读取事件**入事件环（**不占写入预算**）；③ 语义表 v0 **只做纯物流容器**。
+
+**实现**
+1. `action/ContainerSemantics`（**语义表 v0**）：方块 → `Info(slotCount, label)`。
+   收录：箱子 27 / 陷阱箱 27 / 木桶 27 / 潜影盒（任意颜色）27 / 漏斗 5 / 发射器 9 / 投掷器 9。
+   **表里没有的一律 `null` ⇒ 调用方必须如实失败**（`unsupported_container`），**不许猜槽位语义**
+   —— 熔炉类虽然"能做菜单"，但 v0 没有输入/燃料/输出角色表 ⇒ 同样判为不支持（用户裁定先不做）。
+2. `transfer/TransferRoutes`（**路线开关**）：`MENU`（默认）/ `CAPABILITY`；进程内存态，切换打一行
+   "谁改的、从什么到什么"；命令 `/alice transfer route [menu|capability]`（不带参数显示当前）。
+   ⇒ 用户可在游戏里**并排对比 A/B 两种观感与行为**，出问题一键回退。
+3. `TransferTask` **菜单路线**（`sourceWriteViaMenu` / `destinationWriteViaMenu`）：**子状态机**
+   （`NONE → OPENING → PICK → PLACE`，因为菜单生效与点击都跨 tick）：
+   - 语义表校验 → **消耗 A11 容器写入预算** → `MenuSession.open(...)` → 等 `OPEN` →
+     在容器槽位找目标物品 / 找空玩家槽（源腿）或找空容器槽（目标腿）→ `click(PICKUP)` 两次 →
+     `close(...)` → **按背包/容器实际数量校验** → G5 记账（带 requester/reason）→ 下一相位；
+   - 失败路径：**关菜单 + 如实记账**（`container_menu_failed` 并把会话的具体码写进证据）、
+     `unsupported_container` / `bot_inventory_full` / `destination_full` / `source_insufficient`；
+   - A 路线（capability 直写）**代码原样保留**，仅由开关选择 —— 便于对照与回退。
+4. **P3 菜单打开入事件环**：`MenuSession` 在 `OPEN` 时 `DecisionEvents.record(bot, "MENU_OPEN", "info", …)`
+   —— **只入环不通知决策层**（菜单打开是高频常规动作，通知会平白招 LLM 调用）；**不占写入预算**。
+
+**覆盖**：`alice:transfer_check` 的 `end_to_end` 用例跑**真实 `TransferTask`** ⇒ 现在默认走**菜单路线**
+（走位 → 触及 → 预算 → 开菜单 → 点击 → 校验），因此它同时是 L2 生产化的端到端验证；
+4 个夹具仍直接调原语/接缝 ⇒ **两条路线都被覆盖**。
+
+### D-165 附注一：`end_to_end` 首测 FAIL —— 一个夹具前提问题 + 一个**真可诊断性缺陷**
+
+**实测**：`[Transfer] end_to_end status=FAILED ticks=366 moved=0 sourceEmpty=false terminal=`
+且**日志里一条 `[Menu]` 都没有** ⇒ 任务**根本没走到写入阶段**；`verdict=FAIL`。
+
+**两个原因，性质不同**
+1. **夹具前提没自证（我的问题）**：`end_to_end` 直接用"bot 当前位置旁边"放箱子，而 bot 这次站在
+   z≈130 的**任意地形**（不是伐木场地）⇒ L1 的站位搜索找不到合法站点 ⇒ 失败。
+   **修法**：夹具**自己铺一小块平台**（6×6 地板 + 两层空气），箱子放固定相对位置，
+   bot 传送回平台起点 ⇒ **与地形无关**（这正是"夹具前提必须自证"的第 N 次印证）。
+2. **真缺陷：中止路径静默**！`TransferTask.suspend(...)` 原先**不打任何日志** ⇒
+   `end_to_end` 失败时日志一片空白，只能靠猜。**修法**：`suspend(...)` 现在打印
+   `[Transfer] suspend code=… location=… phase=… route=… bot=… src=… dest=…`；
+   `failNotMovedMenu(...)` 与"端点周围找不到可站点"也各补一行。
+   ⇒ 以后任何中止都有**可归因的第一现场**（这是本项目的硬要求：失败必须能归因）。
+
+**已修并同步**（jar `f8b6d5ec…`）：夹具自建平台 + 中止路径留痕。
+
+### D-165 附注二：`end_to_end` 再测仍 FAIL —— 夹具地形改由**数据包场景函数**生成（用户建议）
+
+**新诊断立刻定位**（上一轮刚补的 `suspend` 留痕）：
+```
+[Transfer] suspend code=hard_path_failed location=NOT_MOVED phase=TO_SOURCE route=MENU
+           bot=6,64,130 src=6,64,136 dest=9,64,136
+```
+⇒ 卡在**第一段走位**（连 2 格都走不到）⇒ 我在 Java 里 `setBlock` 手搓的平台**几何对不上**
+（bot 站的位置、箱子位置、地板没有对齐）。
+
+**用户建议（正确，且本来就是项目规矩）**："不能直接把 function 塞夹具里吗？这样生成平台不太好"。
+AGENTS.md 明确要求"**需要特定地形时用数据包函数一键生成**"，夹具只该负责"传送 + 填内容 + 断言"。
+
+**修法**
+1. 新增场景函数 `alice_test:transfer_check_terrain`（`tools/test-scenes/alice_test/data/alice_test/functions/`）：
+   **孤立长方体平台**（区域 `x40..60, y60..70, z392..420`；整体先 `fill … air` 含上下空气层 ⇒ 平台悬空、
+   与周围地形不相连；地板 y=63 ⇒ 脚位 y=64）+ 两个箱子 + 玩家观察台；刻意避开其它场景
+   （伐木 z204..222 / 垂直 z38..54 / 脚位格 z300 / 石台 z100）。
+2. 新增 `task/TransferCourseAnchor`：**Java 与数据包函数对齐的固定坐标**
+   （`BASE=(44,64,404)`、`SOURCE=(46,64,404)`、`DESTINATION=(46,64,407)`、`FIXTURE_BASE=(44,64,414)`）。
+3. 夹具改为**只调场景函数 + 传送 + 填内容 + 断言**（删掉全部手搓 `setBlock` 循环）；
+   并补**夹具前提断言**（场景没建好 ⇒ 直接报"场景函数未放置箱子"）。
+4. 顺带修一处语义：站位候选**不再包含"容器正上方"** —— 那是 L0 遗留行为，且踩**不满一格高**的容器
+   （箱子 0.875）会给内核 ASCEND 出难题；现在只取**同层 4 正邻 + 8 斜邻**。
+
+**离线校验**（用仓库自己的工具，不靠猜）：`tools/check-scene-connectivity.py --fixture … --start 44 64 404`
+⇒ **可达站位 609 格、封航线 0** ✓（场景自封航线这种历史坑，现在有机器可查的手段）。
+**场景函数已同步到客户端数据包**（`saves/新的世界/datapacks/alice_test/...`），随重启加载生效。
+
+### D-165 附注三：`end_to_end` 的**真根因** —— 嵌套任务不能在同一 tick 内同步循环推进
+
+**新证据（上一轮补的 `suspend` 留痕 + 既有 `[PathRetry]`/`[R4 Session]` 日志）**
+```
+[PathRetry] planned attempt=0 status=REACHED movements=1 cost=1.00 from=44,64,404 to=45,64,404   ← 规划完全正确
+[R4 Session] failed status=TIMEOUT code=SEGMENT_TIMEOUT index=0 actualFoot=44,64,404             ← bot 一格没动
+```
+
+**根因（我的夹具写法错）**：`end_to_end` 原先在**同一个服务器 tick 内**用
+`while (status == RUNNING && ticks++ < 600) task.tick();` 同步推进真实 `TransferTask`。
+但 **bot 的物理是在服务器 tick 之间发生的**：循环把"段计时"烧光（会话按调用次数计时），
+真实时间却为零 ⇒ 段超时、`actualFoot` 一动不动。
+`TransferFixture` 一直没暴露它，是因为那些用例只断言**错误码映射**（接缝注入），**不需要真的走路**。
+
+**修法**：`TransferCheckTask` 改为**阶段化**：`FIXTURES`（4 个同步夹具）→
+`END_TO_END`（**每真实 tick 推进子任务一次**，预算 300 tick）→ `REPORT`（SUMMARY）→ `DONE`。
+断言与日志拆成 `prepareEndToEnd(...)`（建请求/填内容/建任务）与 `assertEndToEnd(...)`（按目标箱实际数量断言）。
+
+**教训（值得写下来）**：**"嵌套驱动一个需要真实时间的任务"必须在真实 tick 上推进**；
+"同一 tick 内 while 循环"只适用于**纯计算/接缝注入**型夹具（如错误码映射），
+一旦涉及走位/物理，就必须跨 tick。这条与"夹具前提自证""断言自己也会说谎"同族。
+
+### D-165 附注四：`end_to_end` 的**第二个真根因** —— 背包索引 ≠ 菜单槽位号（已修，待客户端复测）
+
+**证据（本轮日志，故障点已精确定位）**
+```
+[Menu] closed reason=source_leg_done                          ← 源腿（箱子→bot）**成功**
+[R4 Session] completed session=transfer-MOVE_TO_DESTINATION-0  ← 目标腿走位**成功**
+[Menu] opened target=46,64,407 type=ChestMenu slots=63         ← 目标箱菜单**打开成功**
+[Menu] closed reason=destination_leg_done                      ← 两次点击都"成功"
+[Transfer] suspend code=unknown_discrepancy … phase=DESTINATION_WRITE   ← 但校验读到 0
+[Transfer] end_to_end status=FAILED ticks=24 moved=0 sourceEmpty=true
+```
+
+**根因（我的 bug）**：目标腿用 `findBotSlotWith(...)` 拿到的是 **`Inventory` 背包索引（0..35）**，
+却直接当作**菜单槽位号**去 `click`。原版物流菜单的布局是
+`0..26 箱子 / 27..53 主背包 / 54..62 快捷栏` ⇒ 点在了**箱子里的空格**上，物品压根没动
+⇒ 目标箱为 0 ⇒ `unknown_discrepancy`。
+**源腿一直是对的**，因为它用的是 `findEmptyPlayerSlot()`（返回的本来就是菜单槽位号）。
+
+**修法**
+- `MenuSession.playerMenuSlotFor(int inventoryIndex)`：**背包索引 → 菜单槽位号**的转换
+  （快捷栏 0..8 ⇒ `containerSlotCount + 27 + i`；主背包 9..35 ⇒ `containerSlotCount + (i - 9)`；
+  越界/布局不符 ⇒ `-1` ⇒ 调用方**如实失败**，不许猜）；
+- `TransferTask` 目标腿改用 `findBotInventoryIndexWith(...)` + 上述转换；转换失败时给
+  `container_menu_failed`（而不是含糊的 `source_insufficient`）；
+- 旧方法名 `findBotSlotWith` 改名并加**显式警告注释**（"这是背包索引，不是菜单槽位号"），
+  防止再次混用。
+
+**这条坑的意义**：它**印证了"槽位语义表"的必要性** —— 语义表不只编码"哪个槽是输入/输出"，
+还必须编码**索引空间映射**（原版物流容器一致，模组菜单可能不同）。
+**待客户端复测**（本轮修复未经验证；判据：`end_to_end=PASS` 且 `moved=3`）。

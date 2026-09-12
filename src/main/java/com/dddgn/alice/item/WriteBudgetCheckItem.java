@@ -61,7 +61,7 @@ public class WriteBudgetCheckItem extends Item {
         bot.controller().stopMovement();
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
         if (!BotManager.assignWriteBudgetCheck(bot, observer)) {
-            say(player, "[alice] bot 正忙，稍后再试");
+            say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         say(player, "[alice] 写入预算自检已启动（破坏上限压到 1 格；判据：只拆 1 格后如实失败）");

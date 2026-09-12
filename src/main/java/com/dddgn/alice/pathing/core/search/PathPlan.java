@@ -39,6 +39,20 @@ public record PathPlan(
         return status == PlanningStatus.REACHED;
     }
 
+    /** K-1：**只到前缀**（未到达目标、但有可执行的边）。调用方可用它"先走一段再重规划"。 */
+    public boolean partial() {
+        return status == PlanningStatus.PARTIAL;
+    }
+
+    /** K-1：用 best-so-far 前缀构造部分计划（`movements` 非空；`reached()` = false）。 */
+    public static PathPlan partial(BlockPos startFoot, BlockPos goalFoot, List<PlannedMovement> movements,
+                                  List<BlockPos> projectedFootPath, double bestCost, int nodesExpanded,
+                                  int movementsConsidered, long elapsedMillis, String plannerName,
+                                  String diagnostics) {
+        return new PathPlan(PlanningStatus.PARTIAL, startFoot, goalFoot, movements, projectedFootPath,
+                bestCost, nodesExpanded, movementsConsidered, elapsedMillis, plannerName, diagnostics);
+    }
+
     /** 无路径结果（含不可达、预算耗尽、取消）。 */
     public static PathPlan failure(PlanningStatus status, BlockPos startFoot, BlockPos goalFoot,
                                    int nodesExpanded, int movementsConsidered, long elapsedMillis,

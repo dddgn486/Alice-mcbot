@@ -65,7 +65,7 @@ public class CollectJobItem extends Item {
             bot = BotManager.firstOrSpawn(level, LumberCourseAnchor.START_FOOT);
         }
         if (bot == null || BotManager.isBusy(bot)) {
-            say(player, bot == null ? "[alice] bot 生成失败" : "[alice] bot 正忙，稍后再试");
+            say(player, bot == null ? "[alice] bot 生成失败" : "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         var server = level.getServer();
@@ -95,7 +95,7 @@ public class CollectJobItem extends Item {
         int adopted = session.scope().adoptExistingDrops(level, DROP_CENTER, 12);
         if (!BotManager.assignJob(bot, player instanceof ServerPlayer sp ? sp : null,
                 JobRequest.collect(DROP_CENTER, 16, 8 * STACKS, 1200))) {
-            say(player, "[alice] bot 正忙，稍后再试");
+            say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         say(player, "[alice] 捡拾自检：已生成 " + STACKS + " 堆掉落物并登记为我方掉落物（adopted="

@@ -56,7 +56,7 @@ public class PathingPillarItem extends Item {
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
         if (!BotManager.assignPillarDiagnostic(bot, observer)) {
             if (player != null) {
-                player.sendSystemMessage(Component.literal("[alice] bot 正忙，稍后再试"));
+                player.sendSystemMessage(Component.literal("[alice] " + BotManager.busyMessage(bot)));
             }
             return InteractionResult.SUCCESS;
         }

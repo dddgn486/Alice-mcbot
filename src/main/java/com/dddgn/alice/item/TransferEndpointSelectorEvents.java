@@ -30,15 +30,17 @@ public final class TransferEndpointSelectorEvents {
     }
 
     @FunctionalInterface
-    interface Recorder { String record(boolean source); }
+    /** 记录器（测试接缝的参数类型）。 */
+    public interface Recorder { String record(boolean source); }
 
-    static String dispatch(boolean serverSide, boolean selectorHand, boolean secondaryUse, Recorder recorder) {
+    /** 测试接缝（隔离夹具用）：把"是否选择器/是否潜行/是否副手 + 记录器"喂进来，返回结果串。 */
+    public static String dispatch(boolean serverSide, boolean selectorHand, boolean secondaryUse, Recorder recorder) {
         if (!serverSide || !selectorHand) return null;
         return recorder.record(secondaryUse);
     }
 
-    static String roleFor(boolean secondaryUse) { return secondaryUse ? "source" : "destination"; }
-    static boolean preservesVanillaInteraction() { return true; }
+    public static String roleFor(boolean secondaryUse) { return secondaryUse ? "source" : "destination"; }
+    public static boolean preservesVanillaInteraction() { return true; }
     static String decision(boolean permission, boolean validEndpoint, boolean selected) {
         if (!permission) return TransferCodes.UNAUTHORIZED_ACTOR;
         if (!validEndpoint) return TransferCodes.ENDPOINT_NOT_SINGLE_CHEST;

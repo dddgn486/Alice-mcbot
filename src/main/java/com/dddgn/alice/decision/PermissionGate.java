@@ -149,6 +149,7 @@ public final class PermissionGate {
         // ① 已经有结论（玩家答过 / 超时默认）⇒ **取走并返回**（调用方每 tick 轮询的语义）
         Map<String, Decision> answers = ANSWERS.get(bot.getUUID());
         if (answers != null && answers.containsKey(capability)) {
+            DecisionState.get(bot.getServer()).clearPending(bot.getUUID(), capability);
             return answers.remove(capability);
         }
         // ② 已有同一能力同一 bot 的待答复 ⇒ 复用（不重复问）
@@ -163,6 +164,9 @@ public final class PermissionGate {
                 bot.getServer().getTickCount() + Math.max(20, timeoutTicks),
                 Map.of("bot", bot.getName().getString(), "pos", bot.blockPosition().toShortString()));
         PENDING.computeIfAbsent(bot.getUUID(), ignored -> new ArrayList<>()).add(request);
+        // 基-4：未决请示是**重启会丢**的东西 ⇒ 登记到 SavedData，重启后如实报"已作废"
+        DecisionState.get(bot.getServer()).recordPending(bot.getUUID(), capability,
+                request.id(), reason);
         BotLog.warn("[Perm] request id={} capability={} reason={} options={} default={} deadlineIn={}tick"
                         + "（超时按默认档；LLM 无权批准）",
                 id, capability, reason, options, defaultOption, timeoutTicks);

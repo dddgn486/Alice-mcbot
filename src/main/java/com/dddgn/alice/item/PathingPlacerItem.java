@@ -69,7 +69,7 @@ public class PathingPlacerItem extends Item {
         ensureCobblestone(bot, 8);
         if (!BotManager.assignPathSessionDiagnostic(bot, COURSE_GOAL_FOOT, true)) {
             if (player != null) {
-                player.sendSystemMessage(Component.literal("[alice] bot 正忙，稍后再试"));
+                player.sendSystemMessage(Component.literal("[alice] " + BotManager.busyMessage(bot)));
             }
             return InteractionResult.SUCCESS;
         }

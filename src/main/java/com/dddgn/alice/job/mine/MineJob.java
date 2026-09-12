@@ -55,6 +55,8 @@ public final class MineJob implements Job {
     private final MineCandidateSource source;
     private final SelectionPolicy policy;
     private final int itemsBefore;
+    /** 产物判定口径（J-6）：由 `GoalSpec.productTag` 决定，见 {@link MineProductFilter}。 */
+    private final MineProductFilter productFilter;
 
     /** 已尝试过的目标格（挖成与挖不动都算）——保证不重复选同一格。 */
     private final Set<BlockPos> attempted = new HashSet<>();
@@ -79,7 +81,10 @@ public final class MineJob implements Job {
         this.scope = scope;
         this.source = source;
         this.policy = policy;
+        this.productFilter = MineProductFilter.forTag(spec.productTag());
         this.itemsBefore = countTargetItems();
+        BotLog.info("[MineJob] productFilter={}（J-6：目标驱动，不再硬编码原版矿物）",
+                productFilter.describe());
     }
 
     @Override
@@ -120,7 +125,19 @@ public final class MineJob implements Job {
         return terminalReason;
     }
 
+    /** J-4：决策层要能读到"卡在哪一步、试过哪些格、产物判定口径是什么"。 */
     @Override
+    public com.dddgn.alice.bot.TaskFailureReport failureReport() {
+        return new com.dddgn.alice.bot.TaskFailureReport(
+                failureReason(), phase.name(), progressSummary()
+                + " terminal=" + terminalReason
+                + " attempted=" + attempted.size()
+                + " inventoryDelta=" + (countTargetItems() - itemsBefore)
+                + " filter={" + productFilter.describe() + "}"
+                + (attemptFailures.isEmpty() ? "" : " lastAttempt=" + attemptFailures.get(attemptFailures.size() - 1)),
+                com.dddgn.alice.bot.RecoveryStage.NONE, java.util.List.of());
+    }
+
     public String progressSummary() {
         return "mined " + minedCount + "/" + spec.quota()
                 + (attemptFailures.isEmpty() ? "" : " failed=" + attemptFailures.size());
@@ -289,27 +306,19 @@ public final class MineJob implements Job {
         return false;
     }
 
-    /** 背包中"矿物类"物品总数——完成判据的地面真相（与伐木用 `ItemTags.LOGS` 同构）。 */
+    /**
+     * 背包中"目标产物"总数——完成判据的地面真相。
+     *
+     * <p>口径在 {@link MineProductFilter}（J-6）：指定了 `productTag` 就**只认它**（矿标签同时认原矿兄弟标签），
+     * 没指定就按 `forge:ores/*` + `forge:raw_materials/*` 标签族 + 原版掉落兜底 ——
+     * 不再是一份**只认原版**的硬编码清单（那会让装了模组之后配额永远不满足、任务只能超时）。
+     */
     private int countTargetItems() {
         int total = 0;
         var inventory = bot.getInventory();
         for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
             ItemStack stack = inventory.getItem(slot);
-            if (stack.isEmpty()) {
-                continue;
-            }
-            if (stack.is(ItemTags.COAL_ORES) || stack.is(ItemTags.IRON_ORES)
-                    || stack.is(ItemTags.COPPER_ORES) || stack.is(ItemTags.GOLD_ORES)
-                    || stack.is(ItemTags.DIAMOND_ORES) || stack.is(ItemTags.EMERALD_ORES)
-                    || stack.is(ItemTags.LAPIS_ORES) || stack.is(ItemTags.REDSTONE_ORES)
-                    || stack.is(net.minecraft.world.item.Items.RAW_IRON)
-                    || stack.is(net.minecraft.world.item.Items.RAW_COPPER)
-                    || stack.is(net.minecraft.world.item.Items.RAW_GOLD)
-                    || stack.is(net.minecraft.world.item.Items.COAL)
-                    || stack.is(net.minecraft.world.item.Items.DIAMOND)
-                    || stack.is(net.minecraft.world.item.Items.EMERALD)
-                    || stack.is(net.minecraft.world.item.Items.LAPIS_LAZULI)
-                    || stack.is(net.minecraft.world.item.Items.REDSTONE)) {
+            if (productFilter.matches(stack)) {
                 total += stack.getCount();
             }
         }

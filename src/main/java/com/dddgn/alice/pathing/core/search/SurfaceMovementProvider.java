@@ -185,7 +185,7 @@ public final class SurfaceMovementProvider implements MovementProvider {
         double cost = context.cost(MovementType.TRAVERSE, from, to)
                 + (breakTicks + CostModel.BREAK_PENALTY_TICKS) / CostModel.WALK_ONE_BLOCK_TICKS;
         out.add(new PlannedMovement(MovementType.BREAK_AND_ENTER, from, to, cost,
-                RecoverabilityLevel.LOCAL_STEP));
+                com.dddgn.alice.pathing.core.RecoverabilityEvaluator.levelOf(MovementType.BREAK_AND_ENTER)));
     }
 
     /**
@@ -235,7 +235,12 @@ public final class SurfaceMovementProvider implements MovementProvider {
                 continue;
             }
             double cost = drop == 3 ? CostModel.FALL_THREE_BLOCK_COST : CostModel.FALL_TWO_BLOCK_COST;
-            out.add(new PlannedMovement(MovementType.FALL, from, to, cost, RecoverabilityLevel.LOCAL_STEP));
+            // **逐边事实**：本边刚刚通过 `fallRecoverable`（PILLAR 返回守卫）⇒ 带上"已验证回程"。
+            // 评估器缺事实会保守降级为 LOCAL_STEP，而策略表要求 FALL ≥ PATH_REVERSIBLE ⇒ 会抛异常。
+            out.add(new PlannedMovement(MovementType.FALL, from, to, cost,
+                    com.dddgn.alice.pathing.core.RecoverabilityEvaluator.levelOf(
+                            MovementType.FALL, com.dddgn.alice.pathing.core.RecoverabilityFacts.FALL_RETURN_VERIFIED),
+                    com.dddgn.alice.pathing.core.RecoverabilityFacts.FALL_RETURN_VERIFIED));
         }
     }
 
@@ -280,7 +285,7 @@ public final class SurfaceMovementProvider implements MovementProvider {
             return;
         }
         out.add(new PlannedMovement(MovementType.PILLAR, from, to, CostModel.PILLAR_COST,
-                RecoverabilityLevel.LOCAL_STEP));
+                com.dddgn.alice.pathing.core.RecoverabilityEvaluator.levelOf(MovementType.PILLAR)));
     }
 
     /**
@@ -313,7 +318,7 @@ public final class SurfaceMovementProvider implements MovementProvider {
         double cost = CostModel.DOWNWARD_COST
                 + (breakTicks + CostModel.BREAK_PENALTY_TICKS) / CostModel.WALK_ONE_BLOCK_TICKS;
         out.add(new PlannedMovement(MovementType.DOWNWARD, from, to, cost,
-                RecoverabilityLevel.LOCAL_STEP));
+                com.dddgn.alice.pathing.core.RecoverabilityEvaluator.levelOf(MovementType.DOWNWARD)));
     }
 
     private static void appendPlane(MovementContext context, ServerLevel level, BlockPos from,
@@ -377,7 +382,7 @@ public final class SurfaceMovementProvider implements MovementProvider {
                 + context.cost(MovementType.TRAVERSE, mid, to)
                 + (breakTicks + CostModel.BREAK_PENALTY_TICKS) / CostModel.WALK_ONE_BLOCK_TICKS;
         out.add(new PlannedMovement(MovementType.BREAK_AND_TRAVERSE, from, to, cost,
-                RecoverabilityLevel.LOCAL_STEP));
+                com.dddgn.alice.pathing.core.RecoverabilityEvaluator.levelOf(MovementType.BREAK_AND_TRAVERSE)));
     }
 
     /**
@@ -419,7 +424,7 @@ public final class SurfaceMovementProvider implements MovementProvider {
         MovementType base = dy == 0 ? MovementType.TRAVERSE : MovementType.DESCEND;
         double cost = context.cost(base, from, to) + PLACE_ONE_BLOCK_COST;
         out.add(new PlannedMovement(MovementType.PLACE_STEP_AND_TRAVERSE, from, to, cost,
-                RecoverabilityLevel.LOCAL_STEP));
+                com.dddgn.alice.pathing.core.RecoverabilityEvaluator.levelOf(MovementType.PLACE_STEP_AND_TRAVERSE)));
     }
 
     private static void append(MovementContext context, BlockPos from, BlockPos to,
@@ -428,7 +433,7 @@ public final class SurfaceMovementProvider implements MovementProvider {
         if (!Double.isFinite(cost) || cost <= 0.0D) {
             return;
         }
-        out.add(new PlannedMovement(type, from, to, cost, RecoverabilityLevel.LOCAL_STEP));
+        out.add(new PlannedMovement(type, from, to, cost, com.dddgn.alice.pathing.core.RecoverabilityEvaluator.levelOf(type)));
     }
 
     /**

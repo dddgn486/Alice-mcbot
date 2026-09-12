@@ -45,7 +45,7 @@ public class RegionLumberItem extends Item {
             bot = BotManager.firstOrSpawn(level, LumberCourseAnchor.START_FOOT);
         }
         if (bot == null || BotManager.isBusy(bot)) {
-            say(player, bot == null ? "[alice] bot 生成失败" : "[alice] bot 正忙，稍后再试");
+            say(player, bot == null ? "[alice] bot 生成失败" : "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         bot.teleportTo(level, LumberCourseAnchor.START_FOOT.getX() + 0.5D,
@@ -55,7 +55,7 @@ public class RegionLumberItem extends Item {
         bot.controller().stopMovement();
         var region = LumberCourseAnchor.region();
         if (!BotManager.assignRegionLumber(bot, player instanceof ServerPlayer sp ? sp : null, region)) {
-            say(player, "[alice] bot 正忙，稍后再试");
+            say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         say(player, "[alice] 可持续伐木区已启动 bot=" + bot.getName().getString()

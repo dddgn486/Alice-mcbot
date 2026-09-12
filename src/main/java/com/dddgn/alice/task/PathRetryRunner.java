@@ -33,6 +33,11 @@ public final class PathRetryRunner {
     private PathSession session;
     private PathExecutionResult last;
     private int replans;
+    /** K-1：本次会话执行的是"前缀计划"（预算耗尽的结果）⇒ 走完**不算到达**，要继续重规划。 */
+    private boolean sessionIsPartial;
+    /** K-1：最多连续消费几次前缀（防"永远走一段、永远到不了"的空转）。 */
+    private static final int MAX_PARTIAL_HOPS = 4;
+    private int partialHops;
     private final java.util.Set<com.dddgn.alice.pathing.core.MovementType> executedTypes =
             new java.util.LinkedHashSet<>();
     private int attempts;
@@ -55,7 +60,25 @@ public final class PathRetryRunner {
                     base.allowedMovementTypes(), base.budget(),
                     base.requester() + ":attempt" + attempts);
             PathPlan plan = new CorePathPlanner().plan(bot, bot.serverLevel(), request);
-            if (!plan.reached()) {
+            // K-1：**PARTIAL = 只找到前缀**（预算耗尽但有得走）⇒ 先执行前缀、再重规划；
+            // 其余非 REACHED（UNREACHABLE / GOAL_NOT_LOADED / CANCELLED）仍如实失败。
+            if (!plan.reached() && plan.partial()) {
+                if (partialHops >= MAX_PARTIAL_HOPS) {
+                    BotLog.warn("[PathRetry] partial_hop_limit attempt={} hops={} feet={} goal={}"
+                                    + "（连续走前缀仍未到达 ⇒ 如实失败）",
+                            attempts, partialHops, feet.toShortString(),
+                            template.goal().goalFoot().toShortString());
+                    last = new PathExecutionResult(PathSessionStatus.MOVEMENT_FAILED, 0, 0,
+                            "PLAN_PARTIAL_LIMIT", -1, feet, 0, "planner=alice.astar.movement.v1");
+                    return State.FAILED;
+                }
+                partialHops++;
+                BotLog.warn("[PathRetry] partial_plan attempt={} hop={}/{} movements={} best={} feet={}"
+                                + " ⇒ 先走前缀再重规划",
+                        attempts, partialHops, MAX_PARTIAL_HOPS, plan.movements().size(),
+                        String.format(java.util.Locale.ROOT, "%.2f", plan.totalCost()),
+                        feet.toShortString());
+            } else if (!plan.reached()) {
                 BotLog.warn("[PathRetry] plan_failed attempt={} status={} feet={} goal={}",
                         attempts, plan.status(), feet.toShortString(),
                         template.goal().goalFoot().toShortString());
@@ -63,6 +86,7 @@ public final class PathRetryRunner {
                         "PLAN_" + plan.status(), -1, feet, 0, "planner=alice.astar.movement.v1");
                 return State.FAILED;
             }
+            sessionIsPartial = plan.partial();
             int plannedBreaks = plan.movements().stream()
                     .mapToInt(m -> com.dddgn.alice.pathing.core.search.MovementContext
                             .plannedBreaks(m.movementType()))
@@ -102,6 +126,22 @@ public final class PathRetryRunner {
         last = session.result();
         session = null;
         if (status == PathSessionStatus.COMPLETED) {
+            if (sessionIsPartial) {
+                // K-1：走完前缀 ≠ 到达目标 ⇒ 换新位置继续重规划（受 replans 上限约束）
+                sessionIsPartial = false;
+                if (replans < maxReplans) {
+                    replans++;
+                    attempts++;
+                    BotLog.info("[PathRetry] partial_prefix_done attempt={} replans={} feet={}"
+                                    + " ⇒ 从新位置重规划",
+                            attempts, replans, bot.blockPosition().toShortString());
+                    return State.RUNNING;
+                }
+                last = new PathExecutionResult(PathSessionStatus.MOVEMENT_FAILED, 0, 0,
+                        "PLAN_PARTIAL_NO_REPLAN", -1, bot.blockPosition(), 0,
+                        "planner=alice.astar.movement.v1");
+                return State.FAILED;
+            }
             return State.DONE;
         }
         if (replans < maxReplans && retryable(status)) {

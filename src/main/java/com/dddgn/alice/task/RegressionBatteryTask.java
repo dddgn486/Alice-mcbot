@@ -26,18 +26,18 @@ import java.util.function.Supplier;
  * **串联回归电池**（{@code alice:regression_battery}，D-122）：一次右键跑完"改了生产任务必须复跑"的常用回归。
  *
  * <p>为什么要有它（项目测试规矩）："多个检查项合并为一个自检任务，一次右键跑完，输出
- * {@code SUMMARY key=VALUE}"；把 9 个入口拆成让用户点 9 次是**反模式**。本电池把
+ * {@code SUMMARY key=VALUE}"；把 23 个入口拆成让用户点 23 次是**反模式**。本电池把
  * {@code docs/TESTING_GUIDE.md §1.7} 的清单固化下来，一步一项、各自复位、互不干扰。
  *
  * <p>每项独立：进入该项前先跑它需要的场景函数（有的项目已自带复位，就留空）、发齐夹具工具
  * （D-119 起生产任务不发工具）、把 bot 放到该场景起点，然后 tick 到终态；**任一项失败不中断**
  * （一趟看全），最后一行汇总。
  *
- * <p>输出：`[Regression] SUMMARY clear_retry=PASS … pathing=PASS (9/9) ticks=… → PASS`。
+ * <p>输出：`[Regression] SUMMARY clear_retry=PASS … pathing=PASS (23/23) ticks=… → PASS`。
  */
 public final class RegressionBatteryTask implements Task {
 
-    /** 总兜底预算（各项预算之和 + 余量）；典型实跑约 4000~6000 tick（3~5 分钟）。 */
+    /** 总兜底预算（各项预算之和 + 余量）；典型实跑约 5000~7500 tick（4~6 分钟，含决策层事件窗口 300 tick）。 */
     private static final int TOTAL_BUDGET_TICKS = 20000;
 
     /** 与 `MineJobItem` 对齐的挖掘 Job 配额。 */
@@ -177,6 +177,66 @@ public final class RegressionBatteryTask implements Task {
                 // 常驻任务：砍到 ≥1 棵且补种 ≥1 棵即算本步通过（之后它会继续巡查等苗长大）
                 task -> task instanceof com.dddgn.alice.job.lumber.RegionLumberJob region
                         && region.treesChopped() >= 1 && region.plantedSomething()));
+        // ==================== 决策层判据（基-2 / D-149）====================
+        // 契约类断言：纯逻辑、不改世界、不调 LLM ⇒ 便宜且确定，任何改动都跑得到
+        steps.add(step("decision_contract",
+                List.of("alice_test:lumber_course_terrain", "alice_test:lumber_course_trees"),
+                () -> teleportBot(LumberCourseAnchor.START_FOOT),
+                () -> new DecisionContractCheckTask(bot, observer), 200));
+        // 基-4：决策 trace 落盘 + 跨重启语义（NBT 往返 / 只报一次）
+        steps.add(step("decision_trace", List.of(), null,
+                () -> new DecisionTraceCheckTask(bot, observer), 200));
+        // 基-5：LLM 上抛契约（Job 失败报告 / 产物判定口径 / 结构化拒绝回读）
+        // 基-9：工具供给（换更好的 / 没得换如实报 / 不能凭空变出工具）
+        // 基-8：能力闸门（MovementCapabilities 真的能拦人：保护区/资源/工具/预算/声明一致性）
+        // 基-7：前缀搜索（K-1：预算耗尽交出前缀；真失败不给前缀）
+        // R2：传输模块（4 个夹具：主流程/端点选择/选择器事件/命令解析）
+        steps.add(step("transfer", List.of(), null,
+                () -> new TransferCheckTask(bot, observer), 400));
+        steps.add(step("partial_search", List.of(), null,
+                () -> new PartialSearchCheckTask(bot, observer), 200));
+        steps.add(step("capability_gate", List.of(), null,
+                () -> new CapabilityGateCheckTask(bot, observer), 200));
+        steps.add(step("tool_supply", List.of(), null,
+                () -> new ToolSupplyCheckTask(bot, observer), 400));
+        steps.add(step("llm_contract", List.of(), null,
+                () -> new LlmContractCheckTask(bot, observer), 200));
+        steps.add(step("permission_gate", List.of(), null,
+                () -> new PermissionContractCheckTask(bot, observer), 400));
+        steps.add(step("pickup_gate",
+                List.of("alice_test:lumber_course_terrain"),
+                () -> teleportBot(LumberCourseAnchor.START_FOOT),
+                () -> new PickupGateCheckTask(bot, observer), 600));
+        steps.add(step("collect_job",
+                List.of("alice_test:lumber_course_terrain"),
+                () -> {
+                    teleportBot(LumberCourseAnchor.START_FOOT);
+                    // 夹具造掉落物并**登记为我方**（走安全默认那条路：我方 AUTO 放行）
+                    for (int i = 0; i < 3; i++) {
+                        var drop = new net.minecraft.world.entity.item.ItemEntity(bot.serverLevel(),
+                                com.dddgn.alice.item.CollectJobItem.DROP_CENTER.getX() + 0.5D + i * 0.4D,
+                                com.dddgn.alice.item.CollectJobItem.DROP_CENTER.getY() + 0.5D,
+                                com.dddgn.alice.item.CollectJobItem.DROP_CENTER.getZ() + 0.5D,
+                                new net.minecraft.world.item.ItemStack(
+                                        net.minecraft.world.item.Items.COBBLESTONE, 8));
+                        drop.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+                        bot.serverLevel().addFreshEntity(drop);
+                    }
+                    scope.begin(com.dddgn.alice.item.CollectJobItem.DROP_CENTER, 12, bot.getUUID());
+                    scope.adoptExistingDrops(bot.serverLevel(), com.dddgn.alice.item.CollectJobItem.DROP_CENTER, 12);
+                },
+                // **走统一入口**（JobRequest → JobLauncher）：顺带覆盖 D-134 的"起任意 Job"路径
+                () -> com.dddgn.alice.job.JobLauncher.create(bot, scope,
+                        com.dddgn.alice.job.JobRequest.collect(com.dddgn.alice.item.CollectJobItem.DROP_CENTER, 16, 24, 600)),
+                800));
+        steps.add(step("recipes_dump", List.of(), null,
+                () -> new RecipesDumpCheckTask(bot, observer), 200));
+        // S4 事件层：工具见底 / 卡住 两类可行动病症，各验"报到"和"只报一次"（自带夹具前提断言）
+        steps.add(step("event_thresholds", List.of(), null,
+                () -> new EventThresholdCheckTask(bot, observer), 800));
+        // 基-1：可回收性真的被评估（P0-B：不再是"两边写死 LOCAL_STEP、校验恒假"）
+        steps.add(step("recoverability", List.of(), null,
+                () -> new RecoverabilityCheckTask(bot, observer), 200));
         steps.add(step("pathing", List.of(), null,
                 () -> new PathingRegressionTask(bot, observer), 5000));
     }

@@ -158,7 +158,19 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         return LumberRegionState.get(bot.getServer()).saplingsPlanted(bot.getUUID()) > 0;
     }
 
+    /** J-4：常驻 Job 的失败报告要说清"区域状态 + 巡查了多少轮 + 最近一次子任务为什么失败"。 */
     @Override
+    public com.dddgn.alice.bot.TaskFailureReport failureReport() {
+        return new com.dddgn.alice.bot.TaskFailureReport(
+                failureReason(), "maintain", progressSummary()
+                + " terminal=" + terminalReason
+                + " waitingFor=" + waitingFor
+                + " mySaplings=" + com.dddgn.alice.job.lumber.LumberRegionState
+                        .get(bot.getServer()).mySaplingCount(bot.getUUID())
+                + (failure.isBlank() ? "" : " failure=" + failure),
+                com.dddgn.alice.bot.RecoveryStage.NONE, java.util.List.of());
+    }
+
     public String progressSummary() {
         return "region=" + region.describe() + " chopped=" + treesChopped + " failed=" + treesFailed
                 + " mySaplings=" + LumberRegionState.get(bot.getServer()).mySaplingCount(bot.getUUID());

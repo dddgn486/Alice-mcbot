@@ -37,6 +37,8 @@
 | A6 | 道路施工（`RoadBuildTask` / `RoadBuilder`） | 单元格 | ⚠️ 无预算 | 常量 `road-build` / `road-builder` | `BULK_EDIT`（破坏与放置） | ✅ |
 | A7 | 玩家命令（`BotManager` 挖掘 / `BotCommand`） | 目标格 | `MiningBudget` | 常量 `command` | `EXPECTED_TARGET` / `MANUAL` | ✅ |
 | A8 | **脚手架回收**（`RestoreScopeTask`，J6-b） | 账本里**我方 TEMP 放置**逐块 | 每块两段寻路（`300` tick/块） | `restore` | `SCAFFOLD_RESTORE` | ✅ 并**销账** |
+| **A11** | **容器写入（传输）**（`TransferTask` 两段写入；2026-09-13 用户裁定"容器写入算世界改动"） | 源箱取出 / 目标箱写入各一次 | `WriteBudget.consumeContainerWrite`（容器写入额度，默认 32；**超限即 REFUSED**） | `WriteGrant.of("transfer", …)` | `CONTAINER_TRANSFER`（`Policy.EXPLICIT_TARGET`） | ✅ 记账（G5 物品移动记录**带 requester/reason**）+ 触及校验（L1） |
+| **A9** | **区域补种放置**（`RegionLumberJob`，J8 Slice B；D-131/D-157 补登记） | 区域欠树时的补种格 `spot`（计划内**永久**保留） | `WriteBudget.consumePlace`（放置额度；**超限即硬停**，不越界改世界） | `jobName()` = `region_lumber` | `REGION_REPLANT`（`temporary()==false` ⇒ 账本记 `KEEP`，**不受"建拆同权"约束**） | ✅ 记账（`WorldModLedger.recordPlacement`） |
 
 ### 2.2 寻路内核（Movement 触发的破坏/放置）
 

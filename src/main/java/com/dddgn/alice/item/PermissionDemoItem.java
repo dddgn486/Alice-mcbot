@@ -58,12 +58,12 @@ public class PermissionDemoItem extends Item {
             bot = BotManager.firstOrSpawn(level, LumberCourseAnchor.START_FOOT);
         }
         if (bot == null || BotManager.isBusy(bot)) {
-            say(player, bot == null ? "[alice] bot 生成失败" : "[alice] bot 正忙，稍后再试");
+            say(player, bot == null ? "[alice] bot 生成失败" : "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         if (!BotManager.assignPermissionDemo(bot,
                 player instanceof ServerPlayer sp ? sp : null, 1200)) {
-            say(player, "[alice] bot 正忙，稍后再试");
+            say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         say(player, "[alice] 请示演示：已发起 `demo_ask`（默认 deny、30 s 超时）。"

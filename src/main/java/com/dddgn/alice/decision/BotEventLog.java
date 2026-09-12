@@ -16,7 +16,9 @@ import java.util.UUID;
  * <p>为什么是环而不是推送：LLM 不该每 tick 收到东西（成本 + 噪声）。确定性层把事件按类型塞进定长环，
  * **汇报时读它**、**阈值触发时读它**（S4）。类型沿用设计文档 §3：
  * {@code DANGER}（危险/维生中断）/ {@code FAILURE}（任务失败）/ {@code RECOVERY}（自愈/恢复成功）/
- * {@code MILESTONE}（任务达成、区域补种等）/ {@code COMBAT}（战斗，预留）/ {@code COMMAND}（玩家指令）。
+ * {@code MILESTONE}（任务达成、区域补种等）/ {@code COMBAT}（战斗，预留）/ {@code COMMAND}（玩家指令），
+ * 以及 S4 起新增的**可行动病症**：{@code TOOL_LOW}（工具耐久见底）/ {@code STUCK}（有移动意图却不动）/
+ * {@code RESIDUE}（**可回收性失败**：我方方块没收回，见 D-153）。
  */
 public final class BotEventLog {
 

@@ -200,8 +200,55 @@ public final class PathingRegressionTask implements Task {
     }
 
     private void advance() {
+        // **夹具自己清场**（D-153）：场景跑完回收本场景期间我方放置的 TEMP 方块。
+        // 2026-09-12 实测：pillar 场景在基岩竖井里留了 cobblestone，事后回收 UNREACHABLE ⇒ 跨会话残留 4 块。
+        // 注意**不能**用"重跑场景地形函数"清场（那会把站在区域里的 bot 埋进方块 —— 见 cleanupScene 注释）。
+        if (index < SCENES.size()) {
+            cleanupScene(SCENES.get(index));
+        }
         index++;
         prepared = false;
+    }
+
+    /**
+     * **夹具清场：只回收我方账本里的 TEMP 方块**（绝不重建地形）。
+     *
+     * <p>⚠️ 2026-09-12 实测的教训（我自己的 bug）：最初这里用"重跑本场景的 `_terrain` 函数"清场 ——
+     * 而 `*_terrain` 函数首行就是 `fill <区域> air` 再回填，**而 bot 正站在该区域里** ⇒ 它被回填埋进方块，
+     * 立刻 `hazard=SUFFOCATING`，随后**每一次**启动（回归、自检）都在 1~3 tick 内 `SURVIVAL_INTERRUPTED`，
+     * 连 `SurvivalExitTask` 都 `walk_stale` 失败。教训：**夹具清场只动自己放的东西，不动地形**。
+     *
+     * <p>做法：取当前作用域下本 bot 的 TEMP 记录，逐条核对"世界里的方块还是不是我方放的那个"，
+     * 是 ⇒ `setblock … air` + 销账；不是 ⇒ 交给 `dropStale` 按世界事实销账。既不碰地形、也不会埋 bot。
+     */
+    private void cleanupScene(SceneCheck scene) {
+        var server = bot.serverLevel().getServer();
+        var level = bot.serverLevel();
+        var source = server.createCommandSourceStack().withSuppressedOutput();
+        String scope = com.dddgn.alice.ledger.WorldModLedger.currentScope(server, bot.getUUID());
+        int removed = 0;
+        int foreign = 0;
+        for (com.dddgn.alice.ledger.WorldModLedger.Entry entry
+                : com.dddgn.alice.ledger.WorldModLedger.pendingTemporary(server, scope)) {
+            BlockPos pos = entry.pos();
+            String nowId = String.valueOf(net.minecraft.core.registries.BuiltInRegistries.BLOCK
+                    .getKey(level.getBlockState(pos).getBlock()));
+            if (!nowId.equals(entry.placed())) {
+                foreign++;   // 已不是我方方块 ⇒ 交给 dropStale 销账，不去动它
+                continue;
+            }
+            if (pos.equals(bot.blockPosition()) || pos.equals(bot.blockPosition().above())) {
+                continue;    // 保险：不拆 bot 所在格/头位格
+            }
+            server.getCommands().performPrefixedCommand(source,
+                    "setblock " + pos.getX() + " " + pos.getY() + " " + pos.getZ() + " minecraft:air");
+            com.dddgn.alice.ledger.WorldModLedger.forget(level, pos);
+            removed++;
+        }
+        int stale = com.dddgn.alice.ledger.WorldModLedger.dropStale(level);
+        BotLog.info("[Regression] scene={} cleanup=ledger 回收我方临时方块={} 非我方={} 销账={} 剩余={}",
+                scene.scene(), removed, foreign, stale,
+                com.dddgn.alice.ledger.WorldModLedger.pendingTemporary(server, scope).size());
     }
 
     /** 建地形 + 传送 + 装备（放置/破坏场景需要圆石与石镐）。 */
@@ -310,7 +357,7 @@ public final class PathingRegressionTask implements Task {
     private Status finish() {
         // 夹具级无头断言（D-105）：运行期脚位格规则（箱子/底半砖/灵魂沙/地毯/整格）。
         // 纯读方块形状 + 固定坐标，不依赖 bot 物理；放在夹具自建区域（z=300，远离所有场景）。
-        boolean footCellRule = com.dddgn.alice.pathing.PathingRegression
+        boolean footCellRule = com.dddgn.alice.pathing.FootCellRuleCheck
                 .assertFootCellRule(bot.serverLevel(), new BlockPos(0, 64, 300));
         results.put("foot_cell_rule", footCellRule);
         BotLog.info("[Regression] scene=foot_cell_rule result={} detail=headless/footCell-vs-canWalkOn",

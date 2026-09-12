@@ -59,7 +59,7 @@ public class ScaffoldCheckItem extends Item {
         bot.controller().stopMovement();
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
         if (!BotManager.assignScaffoldCheck(bot, observer)) {
-            say(player, "[alice] bot 正忙，稍后再试");
+            say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         say(player, "[alice] 脚手架自检已启动（判据：建 N 拆 N、账本清空、柱列无残留）");

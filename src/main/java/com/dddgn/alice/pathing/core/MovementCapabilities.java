@@ -40,16 +40,20 @@ public record MovementCapabilities(
 
     /** R5-3 临时支撑放置（TEMPORARY_SUPPORT）：消耗资源、改变世界、可回收。 */
     public static MovementCapabilities temporarySupport(RecoverabilityLevel level) {
+        // 同上：放置类 Movement 也会改世界 ⇒ 必须过保护区检查
         return new MovementCapabilities(true, Set.of(WorldMutationIntent.TEMPORARY_SUPPORT),
                 true, false, IntrinsicReversibility.REVERSIBLE, level, 0,
-                false, true, false, false, true);
+                false, true, false, true, true);
     }
 
     /** PATH_ACCESS 清障破坏（破坏通行 / 垂直下落）：改变世界、需要工具、破坏不可逆。 */
     public static MovementCapabilities pathAccess(RecoverabilityLevel level) {
+        // `requiresZoneAuthorization=true`（2026-09-12 修）：**会改世界的 Movement 必须尊重保护区**。
+        // 此前这里写的是 false ⇒ `CapabilityGate` 的保护区分支在生产里**永不触发**，
+        // "保护区"字段又退化成装饰（G8 同族）。默认没有任何保护区时行为不变。
         return new MovementCapabilities(true, Set.of(WorldMutationIntent.PATH_ACCESS),
                 false, true, IntrinsicReversibility.REVERSIBLE, level, 0,
-                true, false, false, false, true);
+                true, false, false, true, true);
     }
 
     public static MovementCapabilities pureTraversal(RecoverabilityLevel level,

@@ -1,4 +1,6 @@
-package com.dddgn.alice.transfer;
+package com.dddgn.alice.fixture.transfer;
+
+import com.dddgn.alice.transfer.*;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
@@ -207,7 +209,7 @@ public final class TransferFixture {
             TransferLedgerData ledger = new TransferLedgerData();
             TransferRequest request = requestForBot(level, bot, source, destination, 1);
             ledger.admit(request);
-            com.dddgn.alice.task.TransferTask.setFixtureMovementOutcome(outcome);
+            com.dddgn.alice.transfer.TransferTestHooks.movementOutcome(outcome);
             com.dddgn.alice.task.TransferTask task = new com.dddgn.alice.task.TransferTask(bot, request, ledger);
             task.tick();
             TransferLedgerData.Entry entry = ledger.find(request.requestId()).orElse(null);

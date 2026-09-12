@@ -30,7 +30,8 @@ public final class TransferSelectionData {
         return drafts != null && drafts.remove(playerId) != null;
     }
     public static void clearServer(MinecraftServer server) { DRAFTS.remove(server); }
-    static int fixtureEntryCount(MinecraftServer server) { return DRAFTS.getOrDefault(server, Map.of()).size(); }
+    /** 诊断/夹具用：当前有多少份活跃草稿（**只读**；不改变任何状态）。 */
+    public static int fixtureEntryCount(MinecraftServer server) { return DRAFTS.getOrDefault(server, Map.of()).size(); }
     private static Optional<SelectionDraft> active(MinecraftServer server, UUID playerId, long tick) {
         Map<UUID, SelectionDraft> drafts = DRAFTS.get(server);
         SelectionDraft draft = drafts == null ? null : drafts.get(playerId);

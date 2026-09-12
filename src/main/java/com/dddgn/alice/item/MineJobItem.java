@@ -80,7 +80,7 @@ public class MineJobItem extends Item {
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
         var target = MineCandidateSource.Target.ofBlock(net.minecraft.world.level.block.Blocks.IRON_ORE);
         if (!BotManager.assignMineJob(bot, observer, target, QUOTA, MineCandidateSource.SCAN_RADIUS)) {
-            say(player, "[alice] bot 正忙，稍后再试");
+            say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         BotLog.info("[MineJobItem] 启动 mine Job target={} quota={}", target.describe(), QUOTA);

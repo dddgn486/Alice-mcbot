@@ -85,10 +85,6 @@ public final class BotCommand {
                                 .executes(ctx -> botControlStop(ctx.getSource())))
                         .then(Commands.literal("jump")
                                 .executes(ctx -> botControlJump(ctx.getSource()))))
-                .then(Commands.literal("selftest")
-                        .executes(ctx -> selftest(ctx.getSource(), false))
-                        .then(Commands.literal("full")
-                                .executes(ctx -> selftest(ctx.getSource(), true))))
                 .then(Commands.literal("scan")
                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                 .executes(ctx -> scan(ctx.getSource(),
@@ -204,6 +200,12 @@ public final class BotCommand {
                                                                 BlockPosArgument.getLoadedBlockPos(ctx, "destination"),
                                                                 StringArgumentType.getString(ctx, "item"),
                                                                 IntegerArgumentType.getInteger(ctx, "count"))))))))
+                .then(Commands.literal("transfer-route")
+                        .executes(ctx -> transferRouteShow(ctx.getSource()))
+                        .then(Commands.literal("menu").executes(ctx ->
+                                transferRouteSet(ctx.getSource(), "menu")))
+                        .then(Commands.literal("capability").executes(ctx ->
+                                transferRouteSet(ctx.getSource(), "capability"))))
                 .then(Commands.literal("transfer-status")
                         .then(Commands.argument("request", StringArgumentType.word())
                                 .executes(ctx -> transferStatus(ctx.getSource(), StringArgumentType.getString(ctx, "request")))))
@@ -512,7 +514,7 @@ public final class BotCommand {
         int radius = com.dddgn.alice.job.mine.MineCandidateSource.SCAN_RADIUS;
         String targetName = targetSpec.describe();
         if (!BotManager.assignMineJob(bot, source.getPlayer(), targetSpec, quota, radius)) {
-            source.sendFailure(Component.literal("[alice] bot 正忙，稍后再试"));
+            source.sendFailure(Component.literal("[alice] " + BotManager.busyMessage(bot)));
             return 0;
         }
         String resultMsg = "挖掘 Job 已启动: 目标 " + targetName + " 配额 " + quota
@@ -679,7 +681,7 @@ public final class BotCommand {
                 region);
         source.sendSuccess(() -> Component.literal(ok
                 ? "[alice] 可持续伐木区已启动 region=" + region.describe()
-                : "[alice] bot 正忙，稍后再试"), false);
+                : "[alice] " + BotManager.busyMessage(bot)), false);
         return ok ? 1 : 0;
     }
 
@@ -821,21 +823,58 @@ public final class BotCommand {
         return 1;
     }
 
-    /** 只读曲面寻路诊断，不分配任务、不改变世界。 */
+    /**
+     * 只读寻路诊断，不分配任务、不改变世界。
+     *
+     * <p>K-2（2026-09-13）：改用**新内核**（`CorePathPlanner`）—— 原先这里是 legacy `SurfacePathfinder`。
+     * 语义更严格：`PlanningStatus` 明确区分 `SEARCH_LIMIT`（预算耗尽，可达性未知）/
+     * `GOAL_NOT_LOADED`（未加载）/ `UNREACHABLE`（确实到不了）/ `PARTIAL`（只找到前缀）。
+     */
     private static int diagnosePath(CommandSourceStack source, BlockPos goal) {
         ServerLevel level = source.getLevel();
         BlockPos start = source.getEntity() != null ? source.getEntity().blockPosition()
                 : level.getSharedSpawnPos();
-        SurfacePathfinder.Result result = SurfacePathfinder.find(level, start, goal);
-        String detail = "[alice] 曲面诊断 " + result.status() + ": "
+        com.dddgn.alice.bot.BotPlayer bot = com.dddgn.alice.bot.BotManager.firstInLevel(level);
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] 诊断需要一只可用 bot（先用 /alice spawn）"));
+            return 0;
+        }
+        com.dddgn.alice.pathing.core.search.PathPlan plan = new com.dddgn.alice.pathing.core.search.CorePathPlanner()
+                .plan(bot, level, com.dddgn.alice.pathing.core.search.PathRequest.of(
+                        bot.getUUID().toString(), start, goal, "command:diagnose"));
+        String detail = "[alice] 寻路诊断 " + plan.status() + ": "
                 + start.toShortString() + " -> " + goal.toShortString()
-                + ", path=" + result.path().size() + ", expanded=" + result.expandedNodes();
-        if (result.inconclusive()) {
-            detail += "；搜索预算耗尽，不能据此授权挖通道";
+                + ", movements=" + plan.movements().size() + ", expanded=" + plan.nodesExpanded()
+                + ", " + plan.summary();
+        if (plan.status() == com.dddgn.alice.pathing.core.search.PlanningStatus.SEARCH_LIMIT
+                || plan.status() == com.dddgn.alice.pathing.core.search.PlanningStatus.GOAL_NOT_LOADED
+                || plan.partial()) {
+            detail += "；**不能据此授权挖通道**（预算耗尽/未加载/只有前缀）";
         }
         String message = detail;
         source.sendSuccess(() -> Component.literal(message), false);
-        return result.reachable() ? 1 : 0;
+        return plan.reached() ? 1 : 0;
+    }
+
+    /** 显示当前容器读写路线（L2 调试/对照开关）。 */
+    private static int transferRouteShow(CommandSourceStack source) {
+        source.sendSuccess(() -> Component.literal("[alice] 容器读写路线："
+                + com.dddgn.alice.transfer.TransferRoutes.describe()), false);
+        return 1;
+    }
+
+    /** 切换容器读写路线（menu=真实菜单协议 / capability=能力直写）。 */
+    private static int transferRouteSet(CommandSourceStack source, String raw) {
+        com.dddgn.alice.transfer.TransferRoutes.Route route =
+                com.dddgn.alice.transfer.TransferRoutes.parse(raw);
+        if (route == null) {
+            source.sendFailure(Component.literal("[alice] 未知路线：" + raw + "（可选 menu | capability）"));
+            return 0;
+        }
+        com.dddgn.alice.transfer.TransferRoutes.set(route, source.getTextName());
+        source.sendSuccess(() -> Component.literal("[alice] 容器读写路线已切到 "
+                + com.dddgn.alice.transfer.TransferRoutes.describe()), false);
+        return 1;
     }
 
     /** Starts one deterministic same-level cardinal Traverse for the nearest Bot. */
@@ -1208,13 +1247,6 @@ public final class BotCommand {
         return 1;
     }
 
-    /** 手动触发自检(默认不自动跑,审查点 R8)。 */
-    private static int selftest(CommandSourceStack source, boolean full) {
-        com.dddgn.alice.bot.BotSelftest.start(full);
-        source.sendSuccess(() -> Component.literal("[alice] " + (full ? "完整回归" : "基础冒烟")
-                + "自检已启动,结果见日志"), false);
-        return 1;
-    }
 
     private static int spawn(CommandSourceStack source, String name) {
         ServerLevel level = source.getLevel();

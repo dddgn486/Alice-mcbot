@@ -123,6 +123,7 @@ public final class PathSession {
                 status = PathSessionStatus.COMPLETED;
                 BotLog.info("[R4 Session] completed session={} segments={} ticks={} finalFoot={}",
                         sessionId, movements.size(), totalTicks, MovementHelper.footCell(level, bot).toShortString());
+                logRecoverability();
                 return status;
             }
             if (++startSlotTicks > segmentTimeoutTicks()) {
@@ -193,6 +194,7 @@ public final class PathSession {
                     status = PathSessionStatus.COMPLETED;
                     BotLog.info("[R4 Session] completed session={} segments={} ticks={} finalFoot={}",
                             sessionId, movements.size(), totalTicks, MovementHelper.footCell(level, bot).toShortString());
+                    logRecoverability();
                     return status;
                 }
                 if (needsSettle(index - 1, index)) {
@@ -253,6 +255,12 @@ public final class PathSession {
                 "planner=alice.astar.movement.v1 resyncs=" + resyncs);
     }
 
+    /** 基-1 实测：本会话执行过的 Movement 被评估成什么等级、依据是什么（累计统计）。 */
+    private void logRecoverability() {
+        BotLog.info("[Recover] session={} {}", sessionId,
+                com.dddgn.alice.pathing.core.RecoverabilityReport.describe());
+    }
+
     private void startSegment() {
         resetProgressWatch();
         PlannedMovement movement = movements.get(index);
@@ -285,6 +293,19 @@ public final class PathSession {
                     sessionId, movement.movementType(), request.requester(),
                     request.allowedMovementTypes());
             mapFailure("UNAUTHORIZED_MOVEMENT");
+            return;
+        }
+        // 基-8 / G8：**能力闸门**（执行期复验）—— 让 MovementCapabilities 真的能拦人。
+        // 搜索期检查过的事实（保护区/一次性方块/工具/预算）在真正执行前可能已经变了，
+        // 与 D-076「plan 可能比产生它的请求活得更久」同一条理由。
+        java.util.Optional<String> capabilityDenied = com.dddgn.alice.pathing.core.CapabilityGate.check(
+                spec.capabilities(), movement.movementType(), movement.toFoot(), capabilityFacts());
+        if (capabilityDenied.isPresent()) {
+            BotLog.warn("[R4 Session] capability_gate_denied session={} type={} code={} pos={} caps={}",
+                    sessionId, movement.movementType(), capabilityDenied.get(),
+                    movement.toFoot().toShortString(),
+                    com.dddgn.alice.pathing.core.CapabilityGate.describe(spec.capabilities()));
+            mapFailure(capabilityDenied.get());
             return;
         }
         LiveExecutionContext context = new LiveExecutionContext(bot, level, sessionId, 0L, 0L,
@@ -610,6 +631,43 @@ public final class PathSession {
     /** 规划投影脚位路径（只读，供任务层/夹具观察当前计划）。 */
     public java.util.List<BlockPos> projectedFootPath() {
         return java.util.List.copyOf(projected);
+    }
+
+    /** 能力闸门需要的世界事实（在这里落地，纯逻辑在 `CapabilityGate`；便于自检喂假事实）。 */
+    private com.dddgn.alice.pathing.core.CapabilityGate.Facts capabilityFacts() {
+        return new com.dddgn.alice.pathing.core.CapabilityGate.Facts() {
+            @Override
+            public String protectionReason(BlockPos pos) {
+                return com.dddgn.alice.protection.SafeZoneData.get(bot.getServer())
+                        .protectionReason((net.minecraft.server.level.ServerLevel) level, pos);
+            }
+
+            @Override
+            public int throwawayBlocks() {
+                return com.dddgn.alice.action.BlockInteraction.countThrowaway(bot);
+            }
+
+            @Override
+            public boolean hasWriteBudget(boolean breaking) {
+                return com.dddgn.alice.action.WriteBudget.plannedWritesAllowed(bot,
+                        breaking ? 1 : 0, breaking ? 0 : 1);
+            }
+
+            @Override
+            public boolean hasRequiredTool(MovementType type) {
+                // 破坏类需要手上有挖掘工具（快捷栏没有 = 生产路径选不到 ⇒ 白挖）
+                return com.dddgn.alice.bot.ToolSupply.bestInHotbar(bot,
+                        com.dddgn.alice.bot.ToolSupply.Kind.PICKAXE).slot() >= 0
+                        || com.dddgn.alice.bot.ToolSupply.bestInHotbar(bot,
+                        com.dddgn.alice.bot.ToolSupply.Kind.AXE).slot() >= 0;
+            }
+
+            @Override
+            public boolean pureTraversalRequest() {
+                return com.dddgn.alice.pathing.core.CapabilityGate.PURE_TRAVERSAL_TYPES
+                        .containsAll(request.allowedMovementTypes());
+            }
+        };
     }
 
     private void mapFailure(String code) {

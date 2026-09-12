@@ -54,6 +54,20 @@ public final class ScopeBuffer {
     /** 最近的破坏事件（pos + 游戏 tick），用于与随后生成的掉落物配对。 */
     private final List<BreakRecord> recentBreaks = new ArrayList<>();
 
+    // ==================== G3：**外来破坏**（模组连锁/爆炸/其他玩家） ====================
+    // 2026-09-12 复核：原先只登记"我方破坏"，范围内由**别人/模组**造成的破坏被静默忽略 ——
+    // 世界确实被改了，但账本、预算、上报里都看不见。这里把事实记下来并上报（**不改行为**：
+    // 是否要阻止外来破坏属于另一层决策，本批只保证"不再无声无息"）。
+    /** 范围内"非我方"破坏的**有界**记录（最新在后）。 */
+    private final java.util.Deque<ForeignBreak> foreignBreaks = new java.util.ArrayDeque<>();
+    private static final int FOREIGN_CAPACITY = 16;
+    private int foreignBreakCount;
+    private String lastForeignSummary = "-";
+
+    /** 一次外来破坏的事实：位置、tick、归因（uuid 或 `unattributed`=无玩家来源，如爆炸/模组程序化破坏）。 */
+    public record ForeignBreak(BlockPos pos, long tick, String source) {
+    }
+
     private record BreakRecord(BlockPos pos, long tick) {
     }
 
@@ -118,6 +132,9 @@ public final class ScopeBuffer {
         this.itemOrigins.clear();
         this.brokenBlocks.clear();
         this.recentBreaks.clear();
+        this.foreignBreaks.clear();
+        this.foreignBreakCount = 0;
+        this.lastForeignSummary = "-";
         this.spawnedItems.addAll(carried);
         this.itemOrigins.putAll(carriedOrigins);
         ACTIVE.add(this);
@@ -138,6 +155,9 @@ public final class ScopeBuffer {
             itemOrigins.clear();
             brokenBlocks.clear();
             recentBreaks.clear();
+            foreignBreaks.clear();
+            foreignBreakCount = 0;
+            lastForeignSummary = "-";
             ownerUuid = null;
         }
     }
@@ -410,6 +430,34 @@ public final class ScopeBuffer {
         }
     }
 
+    private void recordForeignBreak(BlockPos pos, long tick, String source) {
+        foreignBreakCount++;
+        lastForeignSummary = pos.toShortString() + " tick=" + tick + " by=" + source;
+        foreignBreaks.addLast(new ForeignBreak(pos, tick, source));
+        while (foreignBreaks.size() > FOREIGN_CAPACITY) {
+            foreignBreaks.removeFirst();
+        }
+        if (foreignBreakCount == 1 || foreignBreakCount % 10 == 0) {
+            BotLog.warn("[Scope] 范围内**外来破坏** #{} {}（非我方；账本不恢复、预算不计入 —— 仅如实记录）",
+                    foreignBreakCount, lastForeignSummary);
+        }
+    }
+
+    /** G3 事实：范围内外来破坏的累计次数（0 = 本作用域内世界只被我们改过）。 */
+    public int foreignBreakCount() {
+        return foreignBreakCount;
+    }
+
+    public String describeForeignBreaks() {
+        return foreignBreakCount == 0 ? "外来破坏=0"
+                : "外来破坏=" + foreignBreakCount + "（最后 " + lastForeignSummary + "）";
+    }
+
+    /** 最近的外来破坏（最新在后，供汇报）。 */
+    public java.util.List<ForeignBreak> recentForeignBreaks() {
+        return java.util.List.copyOf(foreignBreaks);
+    }
+
     @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.LOWEST)
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
         if (!(event.getLevel() instanceof ServerLevel serverLevel)) {
@@ -422,10 +470,14 @@ public final class ScopeBuffer {
                 continue;
             }
             scope.brokenBlocks.add(event.getPos().immutable());
-            // 只登记所有者造成的破坏（附近玩家/爆炸的掉落物不计入本 bot 的收集目标）
             if (scope.ownerUuid == null || scope.ownerUuid.equals(breaker)) {
+                // 我方破坏：用于掉落物配对
                 scope.recentBreaks.add(new BreakRecord(event.getPos().immutable(), tick));
                 scope.pruneBreaks(tick);
+            } else {
+                // **G3：外来破坏**（模组连锁/爆炸/其他玩家）⇒ 记录 + 计数 + 节流告警（不再静默）
+                scope.recordForeignBreak(event.getPos().immutable(), tick,
+                        breaker == null ? "unattributed" : breaker.toString());
             }
         }
     }

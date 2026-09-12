@@ -221,7 +221,19 @@ public final class LumberJob implements Job {
         return terminalReason;
     }
 
+    /**
+     * J-4：**Job 也要给决策层一份领域化的失败报告**（默认实现只给 `phase=unknown` + 空 details，
+     * 于是 LLM 拿到 `lastTerminal` 也不知道"卡在哪一步、当时什么进度"）。
+     */
     @Override
+    public com.dddgn.alice.bot.TaskFailureReport failureReport() {
+        return new com.dddgn.alice.bot.TaskFailureReport(
+                failureReason(), phase.name(), progressSummary()
+                + " terminal=" + terminalReason
+                + (failure.isBlank() ? "" : " failure=" + failure),
+                com.dddgn.alice.bot.RecoveryStage.NONE, java.util.List.of());
+    }
+
     public String progressSummary() {
         return "trees " + treesDone + "/" + spec.quota()
                 + " logs " + choppedTotal + "/" + plannedTotal

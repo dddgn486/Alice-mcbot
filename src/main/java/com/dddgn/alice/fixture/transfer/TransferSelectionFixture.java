@@ -1,4 +1,6 @@
-package com.dddgn.alice.transfer;
+package com.dddgn.alice.fixture.transfer;
+
+import com.dddgn.alice.transfer.*;
 
 import com.dddgn.alice.log.BotLog;
 import net.minecraft.core.BlockPos;

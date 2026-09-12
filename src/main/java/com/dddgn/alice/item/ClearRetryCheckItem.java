@@ -39,11 +39,11 @@ public class ClearRetryCheckItem extends Item {
             bot = BotManager.firstOrSpawn(level, ClearRetryCheckTask.START_FOOT);
         }
         if (bot == null || BotManager.isBusy(bot)) {
-            say(player, bot == null ? "[alice] bot 生成失败" : "[alice] bot 正忙，稍后再试");
+            say(player, bot == null ? "[alice] bot 生成失败" : "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         if (!BotManager.assignClearRetryCheck(bot, player instanceof ServerPlayer sp ? sp : null)) {
-            say(player, "[alice] bot 正忙，稍后再试");
+            say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         say(player, "[alice] 清障换候选自检已启动 bot=" + bot.getName().getString()

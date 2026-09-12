@@ -43,7 +43,10 @@ public final class GoalDirector {
             2b. {"action":"start_job","kind":"collect","target":"drops@27,64,207","radius":16,"quota":24,"maxTicks":1200}
                 // 掉落物搜索 + 捡拾；**只捡我方造成的掉落物**（不会捡玩家的东西）
             3. {"action":"start_job","kind":"region_lumber","maxTicks":24000}   // 只能用"已保存的区域"（玩家划定）
-            4. {"action":"stop_current","reason":"..."}
+            4. {"action":"maintain_tool","kind":"pickaxe"}   // 工具耐久见底 / 工具落在主背包选不到时：
+                                                            // 搬进快捷栏。kind ∈ pickaxe|axe|shovel|sword；
+                                                            // **只动背包，不合成、不挖材料**
+            4b. {"action":"stop_current","reason":"..."}
             5. {"action":"report_status","note":"..."}
             6. {"action":"no_op","note":"..."}
 
@@ -66,6 +69,13 @@ public final class GoalDirector {
         String lastAction = "-";
         CandidateMenu lastMenu;
         ServerPlayer observer;
+        /** 暂停触发的截止 tick（自检期间用；见 {@link #suspend}）。 */
+        long suspendedUntilTick = Long.MIN_VALUE;
+        boolean suspendLogged;
+        // J-7：**结构化拒绝回读** —— 上一轮动作被拒的理由要能被下一轮读到（而不是只躺在日志里）
+        String lastRefusalReason = "";
+        long lastRefusalTick = -1L;
+        int lastRefusalCount;
     }
 
     private static State state(BotPlayer bot) {
@@ -102,6 +112,32 @@ public final class GoalDirector {
                 ? "" : "(" + terminalReason + ")"));
     }
 
+    /**
+     * **暂停触发**（自检/回归用）：`ticks` 内不因空闲/终态/事件自动发起决策。
+     *
+     * <p>为什么需要：2026-09-12 实测 —— S4 的 `STUCK` 事件触发了真实决策，LLM 选了
+     * `stop_current`，**在自检第 522 tick 把任务砍掉**（`CANCELLED_BY_USER code=cancelled:llm:…`），
+     * 导致后续用例（"同一病症不重复上报"）没跑完。自检要的是**确定性**，不该被生产决策层中途接管；
+     * 手动诊断入口（{@code forceOnce}）**不受**此开关影响，仍然可用。
+     */
+    public static void suspend(BotPlayer bot, int ticks) {
+        State state = state(bot);
+        state.suspendedUntilTick = bot.getServer().getTickCount() + Math.max(0, ticks);
+        state.suspendLogged = false;
+        BotLog.info("[Goal] 决策触发已暂停 {} tick（自检模式）", ticks);
+    }
+
+    /** 当前是否处于自检暂停窗口（事件生产者据此决定"只记录不通知"）。 */
+    public static boolean isSuspended(BotPlayer bot) {
+        State state = STATES.get(bot.getUUID());
+        return state != null && bot.getServer().getTickCount() < state.suspendedUntilTick;
+    }
+
+    /** **事件阈值**触发的决策（S4）：工具见底 / 卡住 —— 有节流，重复事件不会连环调用。 */
+    public static void onEvent(BotPlayer bot, String summary) {
+        maybeTrigger(bot, "event:" + summary);
+    }
+
     /** 维生中断后调用（逃生出口已由 `BotSession` 起好）。 */
     public static void onSurvivalInterrupt(BotPlayer bot, String reason) {
         maybeTrigger(bot, "survival:" + reason);
@@ -136,6 +172,14 @@ public final class GoalDirector {
             return;
         }
         long now = bot.getServer().getTickCount();
+        if (now < state.suspendedUntilTick) {
+            if (!state.suspendLogged) {
+                state.suspendLogged = true;
+                BotLog.info("[Goal] trigger_skipped reason=suspended trigger={} until={}",
+                        trigger, state.suspendedUntilTick);
+            }
+            return;
+        }
         if (state.lastRequestTick != Long.MIN_VALUE && now - state.lastRequestTick < config.minIntervalTicks()) {
             BotLog.info("[Goal] trigger_skipped reason=throttle trigger={} sinceLast={}tick",
                     trigger, now - state.lastRequestTick);
@@ -164,6 +208,7 @@ public final class GoalDirector {
         String prompt = DecisionSnapshot.buildPrompt(bot, state.lastMenu);
         BotLog.info("[Goal] decision_request trigger={} model={} calledAtTick={}",
                 trigger, config.model(), state.lastRequestTick);
+        DecisionTrace.request(bot, trigger, state.lastMenu.entries().size());
         state.pending = LlmClient.askAsync(system, prompt);
     }
 
@@ -184,6 +229,8 @@ public final class GoalDirector {
                 BotLog.warn("[Goal] decision_timeout trigger={} waited={}tick（>{}ms+5s）"
                                 + "⇒ 取消并保持确定性策略", state.pendingTrigger, waited,
                         LlmConfig.get().timeoutMs());
+                DecisionTrace.failure(bot, state.pendingTrigger, "timeout",
+                        "waited=" + waited + "tick");
                 tell(state, "[alice] 决策层请求超时（" + (LlmConfig.get().timeoutMs() + 5000)
                         + "ms）⇒ 保持确定性策略");
             }
@@ -195,12 +242,14 @@ public final class GoalDirector {
             reply = pending.get();
         } catch (Exception ex) {
             BotLog.warn("[Goal] decision_failed trigger={} {}", state.pendingTrigger, ex.toString());
+            DecisionTrace.failure(bot, state.pendingTrigger, "exception", ex.toString());
             tell(state, "[alice] 决策层请求失败：" + ex.getClass().getSimpleName());
             return;
         }
         if (!reply.ok()) {
             BotLog.warn("[Goal] decision_failed trigger={} error={} latency={}ms",
                     state.pendingTrigger, reply.error(), reply.latencyMs());
+            DecisionTrace.failure(bot, state.pendingTrigger, "llm_error", reply.error());
             tell(state, "[alice] 决策层不可用（" + reply.error() + "）⇒ 保持确定性策略");
             return;
         }
@@ -224,6 +273,9 @@ public final class GoalDirector {
         if (action instanceof GoalAction.StopCurrent stop) {
             return "StopCurrent(" + stop.reason() + ")";
         }
+        if (action instanceof GoalAction.MaintainTool maintain) {
+            return "MaintainTool(" + maintain.kind() + ")";
+        }
         if (action instanceof GoalAction.ReportStatus report) {
             return "ReportStatus(" + report.note() + ")";
         }
@@ -236,32 +288,91 @@ public final class GoalDirector {
 
     /** 执行动作：**只走既定入口**，未知/拒绝动作不动任何东西。 */
     private static void execute(BotPlayer bot, State state, GoalAction action, String trigger) {
+        clearRefusal(state);
         if (action instanceof GoalAction.StartJob start) {
             boolean ok = BotManager.assignJob(bot, state.observer, start.request());
             BotLog.info("[Goal] execute action=start_job ok={} trigger={}", ok, trigger);
+            DecisionTrace.result(bot, trigger, "start_job", ok ? "executed" : "refused",
+                    start.request().describe(), 0L);
             tell(state, ok ? "[alice] 决策层：已起 Job " + start.request().describe()
                     : "[alice] 决策层：起 Job 失败（bot 正忙？）");
             return;
         }
+        clearRefusal(state);
         if (action instanceof GoalAction.StopCurrent stop) {
             String stopped = BotManager.stopTask(bot, "llm:" + stop.reason());
             BotLog.info("[Goal] execute action=stop_current stopped={} trigger={}", stopped, trigger);
+            DecisionTrace.result(bot, trigger, "stop_current", stopped == null ? "no_task" : "executed",
+                    stop.reason(), 0L);
             tell(state, "[alice] 决策层：已停止 " + (stopped == null ? "（当时没有任务）" : stopped));
+            return;
+        }
+        clearRefusal(state);
+        if (action instanceof GoalAction.MaintainTool maintain) {
+            boolean accepted = BotManager.assignToolMaintenance(bot, state.observer, maintain.kind());
+            BotLog.info("[Goal] execute action=maintain_tool kind={} ok={} trigger={}",
+                    maintain.kind(), accepted, trigger);
+            DecisionTrace.result(bot, trigger, "maintain_tool", accepted ? "executed" : "refused",
+                    maintain.kind() + " " + maintain.note(), 0L);
+            tell(state, accepted ? "[alice] 决策层：维护工具 " + maintain.kind().label()
+                    : "[alice] 决策层：维护工具失败（bot 正忙？）");
+            clearRefusal(state);
             return;
         }
         if (action instanceof GoalAction.ReportStatus report) {
             BotLog.info("[Goal] execute action=report_status note={}", report.note());
+            DecisionTrace.result(bot, trigger, "report_status", "executed", report.note(), 0L);
             tell(state, "[alice] 决策层状态：" + report.note());
             return;
         }
+        clearRefusal(state);
         if (action instanceof GoalAction.NoOp noop) {
             BotLog.info("[Goal] execute action=no_op note={}", noop.note());
+            DecisionTrace.result(bot, trigger, "no_op", "executed", noop.note(), 0L);
             tell(state, "[alice] 决策层：不动（" + noop.note() + "）");
             return;
         }
         GoalAction.Refused refused = (GoalAction.Refused) action;
         BotLog.warn("[Goal] execute action=refused reason={} trigger={}", refused.reason(), trigger);
+        DecisionTrace.result(bot, trigger, "refused", "refused", refused.reason(), 0L);
+        // J-7：记下来 —— 下一轮 prompt 会带上"上次为什么被拒"，避免 LLM 反复撞同一堵墙
+        noteRefusal(bot, refused.reason());
         tell(state, "[alice] 决策层动作被拒绝：" + refused.reason());
+    }
+
+    /**
+     * 登记一次"动作被拒"（**执行路径与自检共用同一条入口**，避免自检另走一条假路径）。
+     */
+    public static void noteRefusal(BotPlayer bot, String reason) {
+        State state = state(bot);
+        state.lastRefusalReason = reason == null ? "" : reason;
+        state.lastRefusalTick = bot.getServer().getTickCount();
+        state.lastRefusalCount++;
+    }
+
+    /** 清掉拒绝状态（自检收尾用；执行路径在动作被接受时自行清理）。 */
+    public static void clearRefusal(BotPlayer bot) {
+        clearRefusal(state(bot));
+    }
+
+    /** 动作被接受执行 ⇒ 上一次的拒绝理由过期（下一轮不该再看到它）。 */
+    private static void clearRefusal(State state) {
+        state.lastRefusalReason = "";
+        state.lastRefusalTick = -1L;
+        state.lastRefusalCount = 0;
+    }
+
+    /**
+     * **读取上一次决策被拒的理由**（J-7）：供 prompt 快照与 `alice:bot_report` 使用。
+     * 返回空串 = 没有待处理的拒绝。
+     */
+    public static String lastRefusal(BotPlayer bot) {
+        State state = STATES.get(bot.getUUID());
+        if (state == null || state.lastRefusalReason.isBlank()) {
+            return "";
+        }
+        return state.lastRefusalReason + "（tick=" + state.lastRefusalTick
+                + " 连续=" + state.lastRefusalCount + "）";
     }
 
     private static void tell(State state, String text) {

@@ -63,7 +63,7 @@ public class JobLauncherItem extends Item {
             bot = BotManager.firstOrSpawn(level, LumberCourseAnchor.START_FOOT);
         }
         if (bot == null || BotManager.isBusy(bot)) {
-            say(player, bot == null ? "[alice] bot 生成失败" : "[alice] bot 正忙，稍后再试");
+            say(player, bot == null ? "[alice] bot 生成失败" : "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         var server = level.getServer();
@@ -76,7 +76,7 @@ public class JobLauncherItem extends Item {
         bot.controller().stopMovement();
         JobRequest request = JobRequest.lumber(LumberCourseAnchor.START_FOOT, 16, CHECK_QUOTA, 3600);
         if (!BotManager.assignJob(bot, player instanceof ServerPlayer sp ? sp : null, request)) {
-            say(player, "[alice] bot 正忙，稍后再试");
+            say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         say(player, "[alice] 统一 Job 入口自检：已用 JobRequest 起 LUMBER（quota=" + CHECK_QUOTA + "）；"

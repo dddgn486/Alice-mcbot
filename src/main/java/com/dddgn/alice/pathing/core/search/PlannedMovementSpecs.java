@@ -11,6 +11,7 @@ import com.dddgn.alice.pathing.core.MovementExecutionFactory;
 import com.dddgn.alice.pathing.core.MovementSpec;
 import com.dddgn.alice.pathing.core.MovementType;
 import com.dddgn.alice.pathing.core.PlanningDependency;
+import com.dddgn.alice.pathing.core.RecoverabilityAssessment;
 import com.dddgn.alice.pathing.core.RecoverabilityLevel;
 import com.dddgn.alice.pathing.core.TraverseExecutionFactory;
 import net.minecraft.core.BlockPos;
@@ -27,18 +28,31 @@ public final class PlannedMovementSpecs {
     }
 
     public static MovementSpec toSpec(PlannedMovement movement, List<String> planningFacts) {
+        // required 来自**策略表**（RecoverabilityPolicy），不再散落写死；FALL 要求 PATH_REVERSIBLE
+        // ⇒ **没带 fall_return_verified 事实**的 FALL 边会在 MovementSpec 构造时直接抛异常。
+        RecoverabilityLevel required =
+                com.dddgn.alice.pathing.core.RecoverabilityPolicy.requiredFor(movement.movementType());
         MovementCapabilities capabilities = switch (movement.movementType()) {
             case PLACE_STEP_AND_TRAVERSE, PILLAR ->
-                    MovementCapabilities.temporarySupport(RecoverabilityLevel.LOCAL_STEP);
-            // FALL 本身不改世界、不耗资源；落点可回收性由 provider 的 PILLAR 返回守卫保证
-            case FALL -> MovementCapabilities.pureTraversal(RecoverabilityLevel.LOCAL_STEP,
+                    MovementCapabilities.temporarySupport(required);
+            // FALL 本身不改世界、不耗资源；回程保证由 provider 的 PILLAR 返回守卫（逐边事实）给出
+            case FALL -> MovementCapabilities.pureTraversal(required,
                     IntrinsicReversibility.CONDITIONALLY_REVERSIBLE);
             case BREAK_AND_TRAVERSE, BREAK_AND_ENTER, DOWNWARD ->
-                    MovementCapabilities.pathAccess(RecoverabilityLevel.LOCAL_STEP);
-            default -> MovementCapabilities.pureTraversal(
-                    RecoverabilityLevel.LOCAL_STEP, IntrinsicReversibility.REVERSIBLE);
+                    MovementCapabilities.pathAccess(required);
+            default -> MovementCapabilities.pureTraversal(required, IntrinsicReversibility.REVERSIBLE);
         };
         BlockPos to = movement.toFoot();
+        // 基-1（P0-B）：evaluatedRecoverability 必须来自**真实评估**，不是常量。
+        // 规则表在 RecoverabilityEvaluator（唯一裁决点）；这里顺带核对 provider 边上的字段，
+        // 两边不一致说明有 provider 漏改 ⇒ 告警而不是静默沿用。
+        RecoverabilityAssessment assessment = com.dddgn.alice.pathing.core.RecoverabilityEvaluator
+                .evaluate(movement.movementType(), movement.recoverabilityFacts());
+        if (movement.recoverability() != assessment.level()) {
+            com.dddgn.alice.log.BotLog.warn("[Recover] provider/评估器不一致 type={} provider={} assessed={}（以评估器为准）",
+                    movement.movementType(), movement.recoverability(), assessment.level());
+        }
+        com.dddgn.alice.pathing.core.RecoverabilityReport.record(movement.movementType(), assessment);
         PlanningDependency dependency = new PlanningDependency(
                 List.of(movement.fromFoot(), to, to.above(), to.below()),
                 List.of(to, to.above()), List.of(to.below()),
@@ -46,7 +60,7 @@ public final class PlannedMovementSpecs {
                 List.of(), 0L, 0L);
         return new MovementSpec(movement.movementType(), movement.fromFoot(), to,
                 movement.cost(), capabilities, List.of(), List.of(), planningFacts,
-                dependency, RecoverabilityLevel.LOCAL_STEP, factoryKey(movement.movementType()));
+                dependency, assessment.level(), factoryKey(movement.movementType()));
     }
 
     public static String factoryKey(MovementType type) {

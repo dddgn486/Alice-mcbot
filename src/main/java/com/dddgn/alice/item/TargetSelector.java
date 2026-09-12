@@ -47,7 +47,7 @@ public class TargetSelector extends Item {
             boolean assigned = BotManager.assignPlace(bot, placeTarget);
             if (player != null) player.sendSystemMessage(Component.literal(assigned
                     ? "[alice] 已指定放置方块 " + placeTarget.toShortString() + " → " + bot.getName().getString()
-                    : "[alice] bot 正忙，稍后再试"));
+                    : "[alice] " + BotManager.busyMessage(bot)));
             return InteractionResult.SUCCESS;
         }
         if (level.getBlockState(clicked).isAir()) return InteractionResult.PASS;

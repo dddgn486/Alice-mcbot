@@ -1,7 +1,6 @@
 package com.dddgn.alice;
 
 import com.dddgn.alice.bot.BotManager;
-import com.dddgn.alice.bot.BotSelftest;
 import com.dddgn.alice.task.mining.MiningReplanFixture;
 import com.dddgn.alice.task.mining.MiningSceneFixture;
 import com.dddgn.alice.gui.ModMenuTypes;
@@ -34,7 +33,6 @@ public class AliceMod {
         MinecraftForge.EVENT_BUS.register(BotManager.class);
         MinecraftForge.EVENT_BUS.register(ScopeBuffer.class);
         MinecraftForge.EVENT_BUS.register(RoadBuilder.class);
-        MinecraftForge.EVENT_BUS.register(BotSelftest.class);
         MinecraftForge.EVENT_BUS.register(MiningReplanFixture.class);
         MinecraftForge.EVENT_BUS.register(MiningSceneFixture.class);
 

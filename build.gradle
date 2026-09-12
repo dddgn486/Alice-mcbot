@@ -138,9 +138,12 @@ dependencies {
     // then special handling is done to allow a setup of a vanilla dependency without the use of an external repository.
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
 
-    // Mekanism(科技模组测试对象):核心提供 API,发电机作为常用机器一起挂上
-    implementation fg.deobf("mekanism:Mekanism:1.20.1-10.4.16.80")
-    runtimeOnly fg.deobf("mekanism:Mekanism:1.20.1-10.4.16.80:generators")
+    // **不声明任何"可选模组"依赖**（2026-09-13 用户裁定）：
+    // "不能让开发期有 mek 和其他与 Alice 本质没有依赖关系的模组，要用的时候我自己在客户端装相关模组就行"。
+    // 动机（教训）：Mekanism 曾是 `implementation` ⇒ 开发期在场、测试客户端缺席，
+    // 于是 `InterfaceScanner` 里 15 处 `mekanism.*` 硬引用在真实客户端**必崩**
+    // （2026-09-13 崩溃报告）。**开发环境与测试客户端必须一致**，否则缺陷会被环境差异掩盖。
+    // 模组集成一律改为：**运行时反射/独立可选模块**，不把可选模组变成编译依赖。
 
     // ── 开发期可选工具：一律不进构建依赖（2026-09-10 用户裁定）──
     // JEI（物品配方查看）与 JECh（JEI 中文/拼音搜索）：**不在 build.gradle 声明**，

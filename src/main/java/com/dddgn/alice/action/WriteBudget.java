@@ -44,6 +44,8 @@ public final class WriteBudget {
     public static final int DEFAULT_MAX_BREAKS = 64;
     /** 任务级放置上限（同上，32 起点）。 */
     public static final int DEFAULT_MAX_PLACES = 32;
+    /** **任务级容器写入上限**（2026-09-13：容器写入纳入"世界改动"体系；32 起点，按观测再收紧）。 */
+    public static final int DEFAULT_MAX_CONTAINER_WRITES = 32;
 
     /** 判定结果。 */
     public enum Verdict {
@@ -56,17 +58,26 @@ public final class WriteBudget {
     }
 
     /** 上限（可按作用域覆写：夹具用它构造"预算不足"场景，不暴露给玩家命令）。 */
-    public record Caps(int maxBreaks, int maxPlaces) {
-        public static final Caps DEFAULT = new Caps(DEFAULT_MAX_BREAKS, DEFAULT_MAX_PLACES);
+    public record Caps(int maxBreaks, int maxPlaces, int maxContainerWrites) {
+        public static final Caps DEFAULT =
+                new Caps(DEFAULT_MAX_BREAKS, DEFAULT_MAX_PLACES, DEFAULT_MAX_CONTAINER_WRITES);
+
+        /** 兼容构造：只关心破坏/放置的调用点（容器写入取默认上限）。 */
+        public Caps(int maxBreaks, int maxPlaces) {
+            this(maxBreaks, maxPlaces, DEFAULT_MAX_CONTAINER_WRITES);
+        }
 
         public Caps {
-            if (maxBreaks < 0 || maxPlaces < 0) {
+            if (maxBreaks < 0 || maxPlaces < 0 || maxContainerWrites < 0) {
                 throw new IllegalArgumentException("caps must be non-negative");
             }
         }
     }
 
     private static final class Counters {
+        int containerWrites;
+        int refusedContainerWrites;
+        boolean containerExhausted;
         int breaks;
         int places;
         int exemptBreaks;
@@ -113,10 +124,13 @@ public final class WriteBudget {
             return;
         }
         Caps effective = caps == null ? Caps.DEFAULT : caps;
-        BotLog.info("[WriteBudget] SUMMARY scope={} breaks={}/{} places={}/{} exemptBreaks={}"
-                        + " exemptPlaces={} refusedBreaks={} refusedPlaces={} exhausted={}",
+        BotLog.info("[WriteBudget] SUMMARY scope={} breaks={}/{} places={}/{} containers={}/{}"
+                        + " exemptBreaks={} exemptPlaces={} refusedBreaks={} refusedPlaces={}"
+                        + " refusedContainers={} exhausted={}",
                 scopeId, counters.breaks, effective.maxBreaks(), counters.places, effective.maxPlaces(),
+                counters.containerWrites, effective.maxContainerWrites(),
                 counters.exemptBreaks, counters.exemptPlaces, counters.refusedBreaks, counters.refusedPlaces,
+                counters.refusedContainerWrites,
                 counters.breakExhausted || counters.placeExhausted);
     }
 
@@ -183,6 +197,44 @@ public final class WriteBudget {
      * 而 `breakable(...)` 是**搜索谓词**（一次规划会被调用成千上万次），**不在这里计数**——
      * 拒绝次数只统计"真的打算动手"的那一次。
      */
+    /**
+     * **容器写入**计入预算（2026-09-13 用户裁定：容器写入算"世界改动"）。
+     *
+     * <p>与方块写入同一套语义：超限即 **REFUSED**（调用方必须停止写入并如实失败），
+     * 走同一作用域（一个任务一个作用域）与同一份 SUMMARY。
+     */
+    public static Verdict consumeContainerWrite(ServerPlayer bot, BlockPos pos, WriteGrant grant) {
+        String scope = scopeOf(bot);
+        if (scope == null) {
+            logNoScope(bot, "container", pos);
+            return Verdict.ALLOW;
+        }
+        Counters counters = SCOPES.computeIfAbsent(scope, key -> new Counters());
+        Caps caps = CAPS.getOrDefault(scope, Caps.DEFAULT);
+        if (counters.containerWrites >= caps.maxContainerWrites()) {
+            counters.refusedContainerWrites++;
+            if (!counters.containerExhausted) {
+                counters.containerExhausted = true;
+                BotLog.warn("[WriteBudget] exhausted scope={} action=container pos={} by={} writes={}/{}"
+                                + " → 本任务停止继续写入容器",
+                        scope, pos.toShortString(), grant == null ? "-" : grant.describe(),
+                        counters.containerWrites, caps.maxContainerWrites());
+            }
+            return Verdict.REFUSED;
+        }
+        counters.containerWrites++;
+        return Verdict.ALLOW;
+    }
+
+    /** 本作用域还剩多少次容器写入（调用方可在规划期先问）。 */
+    public static int remainingContainerWrites(ServerPlayer bot) {
+        String scope = scopeOf(bot);
+        Caps caps = scope == null ? Caps.DEFAULT : CAPS.getOrDefault(scope, Caps.DEFAULT);
+        Counters counters = scope == null ? null : SCOPES.get(scope);
+        int used = counters == null ? 0 : counters.containerWrites;
+        return Math.max(0, caps.maxContainerWrites() - used);
+    }
+
     public static void notePlaceRefusal(ServerPlayer bot, BlockPos pos, WriteGrant grant) {
         String scope = scopeOf(bot);
         if (scope == null) {

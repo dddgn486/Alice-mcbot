@@ -1,4 +1,7 @@
-package com.dddgn.alice.item;
+package com.dddgn.alice.fixture.transfer;
+
+import com.dddgn.alice.transfer.*;
+import com.dddgn.alice.item.TransferEndpointSelectorEvents;
 
 import com.dddgn.alice.transfer.TransferCodes;
 

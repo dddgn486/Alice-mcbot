@@ -163,15 +163,40 @@ public final class BotManager {
         BOTS.put(bot.getUUID(), new BotSession(bot));
         saveToWorld(bot);
         BotLog.info("假人已生成(玩家化): name={} pos={}", name, pos.toShortString());
+        // 基-4：**重启后第一次出场**时，如实汇报"重启丢了什么"（未决请示作废 / 重启前的任务未续做）。
+        // 只入事件环 + 日志 + trace，**不通知决策层**（否则每次开服都白花一次 LLM 调用）。
+        reportRestartState(bot);
         // J7 Step 3（D-127）：bot 变得可用时检查"上次会话没拆完的脚手架"
         tryRecoverUnfinishedTeardown(bot);
         return bot;
+    }
+
+    /**
+     * **重启状态报告**（基-4，一次性）：读取 {@code DecisionState} 里登记下来的"未决请示 / 正在跑的任务"，
+     * 如实说出它们**没有**被恢复，然后清掉登记（第二次调用为空 ⇒ 天然幂等，不会每次生成 bot 都刷）。
+     *
+     * <p>语义见 {@code DecisionState} 的类文档：未决请示一律作废（它承诺的那个任务已不存在）、
+     * 任务不自动续做（任务树不持久化）—— 这里只负责**把它说出来**。
+     */
+    private static void reportRestartState(BotPlayer bot) {
+        String report = com.dddgn.alice.decision.DecisionState.get(bot.getServer())
+                .consumeRestartReport(bot.getUUID());
+        if (report.isBlank()) {
+            return;
+        }
+        BotLog.warn("[DecisionState] bot={} {}", bot.getName().getString(), report);
+        com.dddgn.alice.decision.DecisionTrace.lifecycle(bot, "restart", "重启状态报告", report);
+        com.dddgn.alice.decision.DecisionEvents.record(bot, "RESTART", "warn",
+                "重启状态：未恢复上次的请示/任务", report);
     }
 
     /** 移除假人(实体 + PlayerList + 世界存档记录)。 */
     public static void remove(BotPlayer bot) {
         SurvivalSystem.forget(bot);
         com.dddgn.alice.decision.PermissionGate.forget(bot.getUUID());
+        com.dddgn.alice.decision.EventThresholds.forget(bot.getUUID());
+        MenuLifecycle.closeOpen(bot, "bot_removed");
+        MenuLifecycle.forget(bot.getUUID());
         BotSession session = BOTS.remove(bot.getUUID());
         if (session != null) {
             if (session.task instanceof TransferTask transfer) {
@@ -912,6 +937,10 @@ public final class BotManager {
             session.tick(hazard);
             // S3：请示超时（按时限把"没答复"落档为默认档 —— 用户裁定：超时=拒绝）
             com.dddgn.alice.decision.PermissionGate.tick(session.bot());
+            // L2：容器菜单生命周期看门狗（菜单开着却没有任务在跑 ⇒ 告警 + 收尾）
+            MenuLifecycle.tick(session.bot());
+            // S4：事件阈值（工具耐久见底 / 卡住）—— 只报可行动病症，跨越阈值只报一次
+            com.dddgn.alice.decision.EventThresholds.tick(session.bot());
             // D-135：决策层循环（事件驱动 + 节流；这里只做"收结果 + 空闲触发"）
             com.dddgn.alice.decision.GoalDirector.tick(session.bot());
         }
@@ -1019,6 +1048,145 @@ public final class BotManager {
     }
 
     /** **被动拾取闸门自检**（S3.5 / D-143）：我方掉落物应捡、外来掉落物应被拦下。 */
+    /** L2 菜单协议最小验证探针（开真菜单 → 菜单点击搬物品 → 关闭）。 */
+    public static boolean assignMenuProbe(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(new com.dddgn.alice.task.MenuProbeTask(bot, observer),
+                TaskTarget.block(bot.blockPosition()));
+        broadcastTarget(session.target);
+        return true;
+    }
+
+    /** R2 传输模块自检：跑 4 个夹具（主流程/端点选择/选择器事件/命令解析）。 */
+    public static boolean assignTransferCheck(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(new com.dddgn.alice.task.TransferCheckTask(bot, observer),
+                TaskTarget.block(bot.blockPosition()));
+        broadcastTarget(session.target);
+        return true;
+    }
+
+    /** 基-7 前缀搜索自检（K-1，纯规划）：PARTIAL 前缀 / 同目标可达 / 真失败不给前缀。 */
+    public static boolean assignPartialSearchCheck(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(new com.dddgn.alice.task.PartialSearchCheckTask(bot, observer),
+                TaskTarget.block(bot.blockPosition()));
+        broadcastTarget(session.target);
+        return true;
+    }
+
+    /** 基-8 能力闸门自检（D-157，纯逻辑）：保护区/资源/工具/预算/声明一致性。 */
+    public static boolean assignCapabilityGateCheck(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(new com.dddgn.alice.task.CapabilityGateCheckTask(bot, observer),
+                TaskTarget.block(bot.blockPosition()));
+        broadcastTarget(session.target);
+        return true;
+    }
+
+    /** 基-9 工具供给自检：换更好的 / 没得换如实报 / 不能凭空变出工具。 */
+    public static boolean assignToolSupplyCheck(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(new com.dddgn.alice.task.ToolSupplyCheckTask(bot, observer),
+                TaskTarget.block(bot.blockPosition()));
+        broadcastTarget(session.target);
+        return true;
+    }
+
+    /** 基-9 工具维护（决策层动作 `maintain_tool`）：把已拥有的同类工具弄到手上（只动背包）。 */
+    public static boolean assignToolMaintenance(BotPlayer bot, ServerPlayer observer,
+                                                com.dddgn.alice.bot.ToolSupply.Kind kind) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(new com.dddgn.alice.task.ToolMaintenanceTask(bot, observer, kind),
+                TaskTarget.block(bot.blockPosition()));
+        broadcastTarget(session.target);
+        return true;
+    }
+
+    /** 基-5 LLM 上抛契约自检（D-155）：Job 失败报告 / 产物判定口径 / 结构化拒绝回读。 */
+    public static boolean assignLlmContractCheck(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(new com.dddgn.alice.task.LlmContractCheckTask(bot, observer),
+                TaskTarget.block(bot.blockPosition()));
+        broadcastTarget(session.target);
+        return true;
+    }
+
+    /** 基-4 决策 trace / 跨重启语义自检（D-154）：落盘 / 内存尾 / NBT 往返 / 重启报告只报一次。 */
+    public static boolean assignDecisionTraceCheck(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(new com.dddgn.alice.task.DecisionTraceCheckTask(bot, observer),
+                TaskTarget.block(bot.blockPosition()));
+        broadcastTarget(session.target);
+        return true;
+    }
+
+    /** 基-1 可回收性自检（D-151，纯计算）：规则表/逐类型/负例/转换点四例。 */
+    public static boolean assignRecoverabilityCheck(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(new com.dddgn.alice.task.RecoverabilityCheckTask(bot, observer),
+                TaskTarget.block(bot.blockPosition()));
+        broadcastTarget(session.target);
+        return true;
+    }
+
+    /** S4 事件阈值自检（D-150）：工具见底 / 卡住 两类病症的"上报 + 只报一次"。 */
+    public static boolean assignEventThresholdCheck(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(new com.dddgn.alice.task.EventThresholdCheckTask(bot, observer),
+                TaskTarget.block(com.dddgn.alice.task.PillarDiagnosticTask.SHAFT_START));
+        broadcastTarget(session.target);
+        return true;
+    }
+
+    /**
+     * **统一的"bot 正忙"文案**（测试入口一律用它，别各写各的）。
+     *
+     * <p>为什么：2026-09-12 实测 —— 常驻区域巡查任务占着会话时，玩家右键任何测试物品只看到
+     * "bot 正忙，稍后再试"，既不知道**在跑什么**、也不知道**怎么停**（用户原话："我发现 bot
+     * 怎么一直在执行区域挖掘任务"）。常驻任务只能由玩家/决策层打断（D-131），所以这里必须把
+     * 打断方式一并说清。
+     */
+    public static String busyMessage(BotPlayer bot) {
+        BotSession session = BOTS.get(bot.getUUID());
+        String kind = session == null || session.task == null ? "未知任务" : session.taskKind;
+        if ("RegionLumberJob".equals(kind)) {
+            return "bot 正忙：正在跑常驻区域伐木巡查（viable/苗情见汇报）。"
+                    + "要它收工用 /alice region stop";
+        }
+        return "bot 正忙：正在跑 " + kind + "。要打断用 /alice stop（或等它自己结束）";
+    }
+
     public static boolean assignPickupGateCheck(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) {
@@ -1207,6 +1375,9 @@ public final class BotManager {
             taskKind = assignedTask.getClass().getSimpleName();
             taskTargetDescription = assignedTarget.describe();
             taskStartTick = serverTick();
+            // 基-4：登记"当前任务"⇒ 重启后能如实报"重启前正在跑 X（未续做）"，而不是装作无事发生
+            com.dddgn.alice.decision.DecisionState.get(bot.getServer())
+                    .recordTask(bot.getUUID(), taskKind + " target=" + taskTargetDescription);
         }
 
         private boolean replaceTaskIfRunning() {
@@ -1471,6 +1642,11 @@ public final class BotManager {
         /** 任务收尾:清任务、清作用域、广播清除高亮、**输入归零**。 */
         void clearTask() {
             if (task != null) {
+                // L2 生命周期保证（2026-09-13 用户实测）：任务终止时若还开着容器菜单 ⇒ 强制关闭，
+                // 否则箱子盖子会一直开着（`ContainerOpenersCounter` 没减回去）。
+                MenuLifecycle.closeOpen(bot, "clearTask:" + taskKind);
+                // 基-4：任务结束 ⇒ 清掉"正在跑的任务"登记（否则重启报告会瞎报）
+                com.dddgn.alice.decision.DecisionState.get(bot.getServer()).clearTask(bot.getUUID());
                 String closedScope = com.dddgn.alice.ledger.WorldModLedger.closeScope(
                         bot.getServer(), bot.getUUID());
                 // 执行期写入预算收尾（D-106）：一行可观测摘要（breaks/places 对上限、豁免、拒绝次数）

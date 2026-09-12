@@ -145,7 +145,7 @@ public final class AliceItems {
     public static final RegistryObject<Item> REGION_LUMBER =
             ITEMS.register("region_lumber", () -> new RegionLumberItem(new Item.Properties()));
 
-    /** 串联回归电池（零参数）：一次右键跑完 9 项常用回归，末尾一行 SUMMARY。 */
+    /** 串联回归电池（零参数）：一次右键跑完 23 项常用回归（含决策层 6 步），末尾一行 SUMMARY。 */
     public static final RegistryObject<Item> REGRESSION_BATTERY =
             ITEMS.register("regression_battery", () -> new RegressionBatteryItem(new Item.Properties()));
 
@@ -172,6 +172,42 @@ public final class AliceItems {
     /** S3.5 被动拾取闸门自检（零参数）：我方掉落物该捡、外来掉落物该被拦下。 */
     public static final RegistryObject<Item> PICKUP_GATE_CHECK =
             ITEMS.register("pickup_gate_check", () -> new PickupGateCheckItem(new Item.Properties()));
+
+    /** L2 菜单协议最小验证探针（零参数，约 8 秒，故意放慢便于观察开盖/音效/逐次点击）。 */
+    public static final RegistryObject<Item> MENU_PROBE =
+            ITEMS.register("menu_probe", () -> new MenuProbeItem(new Item.Properties()));
+
+    /** R2 传输模块自检（零参数，约 1~2 秒）：主流程 / 端点选择 / 选择器事件 / 命令解析。 */
+    public static final RegistryObject<Item> TRANSFER_CHECK =
+            ITEMS.register("transfer_check", () -> new TransferCheckItem(new Item.Properties()));
+
+    /** 基-7 前缀搜索自检（零参数，约 1 秒，纯规划）：PARTIAL 前缀 / 同目标可达 / 真失败不给前缀。 */
+    public static final RegistryObject<Item> PARTIAL_SEARCH_CHECK =
+            ITEMS.register("partial_search_check", () -> new PartialSearchCheckItem(new Item.Properties()));
+
+    /** 基-8 能力闸门自检（零参数，约 1 秒，纯逻辑）：保护区/资源/工具/预算/声明一致性。 */
+    public static final RegistryObject<Item> CAPABILITY_GATE_CHECK =
+            ITEMS.register("capability_gate_check", () -> new CapabilityGateCheckItem(new Item.Properties()));
+
+    /** 基-9 工具供给自检（零参数，约 2 秒）：换更好的 / 没得换如实报 / **不能凭空变出工具**。 */
+    public static final RegistryObject<Item> TOOL_SUPPLY_CHECK =
+            ITEMS.register("tool_supply_check", () -> new ToolSupplyCheckItem(new Item.Properties()));
+
+    /** 基-5 LLM 上抛契约自检（零参数，约 1 秒）：Job 失败报告 / 产物判定口径 / 结构化拒绝回读。 */
+    public static final RegistryObject<Item> LLM_CONTRACT_CHECK =
+            ITEMS.register("llm_contract_check", () -> new LlmContractCheckItem(new Item.Properties()));
+
+    /** 基-4 决策 trace / 跨重启语义自检（零参数，约 1 秒）：落盘、内存尾、NBT 往返、"只报一次"。 */
+    public static final RegistryObject<Item> DECISION_TRACE_CHECK =
+            ITEMS.register("decision_trace_check", () -> new DecisionTraceCheckItem(new Item.Properties()));
+
+    /** 基-1 可回收性自检（零参数，约 1 秒，纯计算）：验等级真的被算出来、且准入校验不是恒假。 */
+    public static final RegistryObject<Item> RECOVERABILITY_CHECK =
+            ITEMS.register("recoverability_check", () -> new RecoverabilityCheckItem(new Item.Properties()));
+
+    /** S4 事件阈值自检（零参数，约 25 秒）：工具见底/卡住两类病症"该报时报、只报一次"。 */
+    public static final RegistryObject<Item> EVENT_THRESHOLD_CHECK =
+            ITEMS.register("event_threshold_check", () -> new EventThresholdCheckItem(new Item.Properties()));
 
     /** S3 请示通道演示（零参数）：发起 demo_ask 请示，验"允许执行/超时自动返回"。 */
     public static final RegistryObject<Item> PERMISSION_DEMO =

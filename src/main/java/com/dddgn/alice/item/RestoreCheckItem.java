@@ -65,7 +65,7 @@ public class RestoreCheckItem extends Item {
             return;
         }
         if (BotManager.isBusy(bot)) {
-            say(player, "[alice] bot 正忙，稍后再试");
+            say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         List<WorldModLedger.Entry> pending = WorldModLedger.pendingTemporary(level.getServer(), null);

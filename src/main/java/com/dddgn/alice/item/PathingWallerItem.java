@@ -69,7 +69,7 @@ public class PathingWallerItem extends Item {
         ensureCobblestone(bot, 8);
         if (!BotManager.assignPathingWaller(bot, COURSE_GOAL_FOOT, WALL_TICK)) {
             if (player != null) {
-                player.sendSystemMessage(Component.literal("[alice] bot 正忙，稍后再试"));
+                player.sendSystemMessage(Component.literal("[alice] " + BotManager.busyMessage(bot)));
             }
             return InteractionResult.SUCCESS;
         }

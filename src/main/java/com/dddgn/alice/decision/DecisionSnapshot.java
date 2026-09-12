@@ -86,7 +86,35 @@ public final class DecisionSnapshot {
             }
             task.add("lastTerminal", last);
         }
+        // J-7：**结构化拒绝回读** —— LLM 必须能看到"上一轮动作为什么被拒"，
+        // 否则它会反复给出同一个非法动作。
+        String refusal = GoalDirector.lastRefusal(bot);
+        if (!refusal.isBlank()) {
+            task.addProperty("lastRefusal", refusal);
+        }
         root.add("task", task);
+
+        // 基-9：**工具事实**（手上有什么、还剩多少、有没有更好的在主背包）——
+        // 以前 LLM 只能从 `TOOL_LOW` 事件的一行文字里猜，现在它是结构化事实。
+        JsonObject tools = new JsonObject();
+        tools.addProperty("summary", com.dddgn.alice.bot.ToolSupply.describe(bot));
+        JsonArray toolRows = new JsonArray();
+        for (var entry : com.dddgn.alice.bot.ToolSupply.inspectAll(bot).entrySet()) {
+            com.dddgn.alice.bot.ToolSupply.Snapshot snapshot = entry.getValue();
+            JsonObject row = new JsonObject();
+            row.addProperty("kind", entry.getKey().name().toLowerCase(java.util.Locale.ROOT));
+            row.addProperty("present", snapshot.present());
+            if (snapshot.present()) {
+                row.addProperty("inHotbar", snapshot.inHotbar());
+                row.addProperty("remaining", snapshot.remaining());
+                row.addProperty("max", snapshot.max());
+                row.addProperty("spareInMain", snapshot.spareInMain());
+                row.addProperty("bestMainRemaining", snapshot.bestMainRemaining());
+            }
+            toolRows.add(row);
+        }
+        tools.add("kinds", toolRows);
+        root.add("tools", tools);
 
         var regionState = com.dddgn.alice.job.lumber.LumberRegionState.get(bot.getServer());
         var region = regionState.region(bot.getUUID());

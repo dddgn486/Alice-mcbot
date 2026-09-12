@@ -53,7 +53,7 @@ public class FluidMineCheckItem extends Item {
             bot = BotManager.firstOrSpawn(level, FluidMineCheckTask.STAND_FOOT);
         }
         if (bot == null || BotManager.isBusy(bot)) {
-            say(player, bot == null ? "[alice] bot 生成失败" : "[alice] bot 正忙，稍后再试");
+            say(player, bot == null ? "[alice] bot 生成失败" : "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         bot.teleportTo(level, FluidMineCheckTask.STAND_FOOT.getX() + 0.5D,
@@ -62,7 +62,7 @@ public class FluidMineCheckItem extends Item {
         bot.setDeltaMovement(Vec3.ZERO);
         bot.controller().stopMovement();
         if (!BotManager.assignFluidMineCheck(bot, player instanceof ServerPlayer sp ? sp : null)) {
-            say(player, "[alice] bot 正忙，稍后再试");
+            say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         say(player, "[alice] 挖掘流体风险自检已启动：目标下方是岩浆的那一格必须被拒（不做清障/加高），"

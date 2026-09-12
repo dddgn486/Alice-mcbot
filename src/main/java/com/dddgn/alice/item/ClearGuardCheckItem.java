@@ -59,7 +59,7 @@ public class ClearGuardCheckItem extends Item {
         bot.controller().stopMovement();
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
         if (!BotManager.assignClearGuardCheck(bot, observer)) {
-            say(player, "[alice] bot 正忙，稍后再试");
+            say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         say(player, "[alice] 容器绕行自检已启动（判据：箱子必须完好）");

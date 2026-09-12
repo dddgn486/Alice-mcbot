@@ -71,7 +71,16 @@ public final class CollectJob implements Job {
         return com.dddgn.alice.task.TaskTarget.block(anchor);
     }
 
+    /** J-4：捡拾 Job 的失败报告要带上"扫到几簇、被闸门拦了几次"。 */
     @Override
+    public com.dddgn.alice.bot.TaskFailureReport failureReport() {
+        return new com.dddgn.alice.bot.TaskFailureReport(
+                failureReason(), phase.name(), progressSummary()
+                + " terminal=" + terminalReason
+                + (failure.isBlank() ? "" : " failure=" + failure),
+                com.dddgn.alice.bot.RecoveryStage.NONE, java.util.List.of());
+    }
+
     public String progressSummary() {
         return "collected=" + collectedItems + " clusters=" + clusters + " blocked=" + blockedCandidates
                 + " phase=" + phase;

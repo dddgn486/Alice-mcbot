@@ -141,6 +141,7 @@ public final class AStarMovementSearch {
                 neighbor.previousFoot = currentFoot;
                 neighbor.previousType = movement.movementType();
                 neighbor.previousCost = movement.cost();
+                neighbor.previousFacts = movement.recoverabilityFacts();
                 neighbor.cost = tentativeCost;
                 neighbor.combinedCost = tentativeCost + neighbor.estimatedCostToGoal;
                 if (neighbor.isOpen()) {
@@ -160,11 +161,22 @@ public final class AStarMovementSearch {
 
         long elapsed = elapsed(startMillis);
         if (budgetExhausted) {
+            String budgetNote = "budget exhausted (maxNodes=" + budget.maxNodes() + ", maxMillis="
+                    + budget.maxMillis() + ", openSet=" + openSet.size() + ", best=" + bestSoFar[0].cost
+                    + ", skipped_unloaded=" + skippedUnloaded + " skipped_border=" + skippedBorder + ")";
+            // K-1：**预算耗尽可能只是"没算完"** —— 若 best-so-far 已经走出过一段（有前驱），
+            // 就把那段前缀交出来（PARTIAL），而不是报"一无所获"。注意：
+            //  · 只有**预算类**耗尽才给前缀；搜索空间真穷尽（下面的 UNREACHABLE）**不给**（那是证明到不了）；
+            //  · PARTIAL 的 `reached()` 仍为 false ⇒ 不会被误当到达。
+            List<PlannedMovement> prefix = prefixTo(bestSoFar[0]);
+            if (!prefix.isEmpty()) {
+                List<BlockPos> projected = projectedFootPath(startFoot, prefix);
+                return PathPlan.partial(startFoot, goal.goalFoot(), prefix, projected,
+                        bestSoFar[0].cost, expandedNodes, movementsConsidered, elapsed, PLANNER_NAME,
+                        budgetNote + " partialPrefix=" + prefix.size());
+            }
             return PathPlan.failure(PlanningStatus.SEARCH_LIMIT, startFoot, goal.goalFoot(),
-                    expandedNodes, movementsConsidered, elapsed, PLANNER_NAME,
-                    "budget exhausted (maxNodes=" + budget.maxNodes() + ", maxMillis=" + budget.maxMillis()
-                            + ", openSet=" + openSet.size() + ", best=" + bestSoFar[0].cost
-                            + ", skipped_unloaded=" + skippedUnloaded + " skipped_border=" + skippedBorder + ")");
+                    expandedNodes, movementsConsidered, elapsed, PLANNER_NAME, budgetNote);
         }
         return PathPlan.failure(PlanningStatus.UNREACHABLE, startFoot, goal.goalFoot(),
                 expandedNodes, movementsConsidered, elapsed, PLANNER_NAME,
@@ -173,23 +185,36 @@ public final class AStarMovementSearch {
                         + " start_escape=" + startEscape);
     }
 
-    private PathPlan reachedPlan(BlockPos startFoot, GoalSpec goal, SearchNode goalNode,
-                                 int expandedNodes, int movementsConsidered, long elapsed) {
+    /** 从某节点回溯出**到起点的边序列**（正向），供"到达计划"与 K-1 的"前缀计划"共用。 */
+    private static List<PlannedMovement> prefixTo(SearchNode node) {
         List<PlannedMovement> movements = new ArrayList<>();
-        SearchNode node = goalNode;
-        while (node.previous != null) {
-            movements.add(new PlannedMovement(node.previousType, node.previousFoot,
-                    new BlockPos(node.x, node.y, node.z), node.previousCost,
-                    RecoverabilityLevel.LOCAL_STEP));
-            node = node.previous;
+        SearchNode cursor = node;
+        while (cursor.previous != null) {
+            movements.add(new PlannedMovement(cursor.previousType, cursor.previousFoot,
+                    new BlockPos(cursor.x, cursor.y, cursor.z), cursor.previousCost,
+                    com.dddgn.alice.pathing.core.RecoverabilityEvaluator.levelOf(
+                            cursor.previousType, cursor.previousFacts),
+                    cursor.previousFacts));
+            cursor = cursor.previous;
         }
         Collections.reverse(movements);
+        return movements;
+    }
 
+    /** 脚位投影（起点 + 每条边的终点）。 */
+    private static List<BlockPos> projectedFootPath(BlockPos startFoot, List<PlannedMovement> movements) {
         List<BlockPos> projected = new ArrayList<>(movements.size() + 1);
         projected.add(startFoot);
         for (PlannedMovement movement : movements) {
             projected.add(movement.toFoot());
         }
+        return projected;
+    }
+
+    private PathPlan reachedPlan(BlockPos startFoot, GoalSpec goal, SearchNode goalNode,
+                                 int expandedNodes, int movementsConsidered, long elapsed) {
+        List<PlannedMovement> movements = prefixTo(goalNode);
+        List<BlockPos> projected = projectedFootPath(startFoot, movements);
         return new PathPlan(PlanningStatus.REACHED, startFoot, goal.goalFoot(),
                 movements, projected, goalNode.cost, expandedNodes, movementsConsidered,
                 elapsed, PLANNER_NAME, "goal reached");

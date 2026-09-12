@@ -31,6 +31,13 @@ public sealed interface GoalAction {
     record StopCurrent(String reason) implements GoalAction {
     }
 
+    /**
+     * **维护工具**（基-9）：把"已经拥有但选不到/更差"的同类工具弄到手上。
+     * 只做**背包内移动**（不写世界、不耗资源）⇒ 不需要额外授权。
+     */
+    record MaintainTool(com.dddgn.alice.bot.ToolSupply.Kind kind, String note) implements GoalAction {
+    }
+
     /** 只要一条状态回报（写进日志/聊天，不动世界）。 */
     record ReportStatus(String note) implements GoalAction {
     }
@@ -82,10 +89,25 @@ public sealed interface GoalAction {
             case "start_job" -> parseStartJob(root, note, bot, menu);
             case "stop_current" -> new StopCurrent(root.has("reason") && root.get("reason").isJsonPrimitive()
                     ? root.get("reason").getAsString() : "llm_requested");
+            case "maintain_tool" -> parseMaintainTool(root, note);
             case "report_status" -> new ReportStatus(note);
             case "no_op" -> new NoOp(note);
             default -> new Refused("unknown_action:" + action);
         };
+    }
+
+    /** `maintain_tool`：`{"action":"maintain_tool","kind":"pickaxe"}`（kind 未知 ⇒ 拒绝，不猜）。 */
+    private static GoalAction parseMaintainTool(JsonObject root, String note) {
+        if (!root.has("kind") || !root.get("kind").isJsonPrimitive()) {
+            return new Refused("maintain_tool_missing_kind");
+        }
+        String raw = root.get("kind").getAsString().trim().toUpperCase(java.util.Locale.ROOT);
+        for (com.dddgn.alice.bot.ToolSupply.Kind kind : com.dddgn.alice.bot.ToolSupply.Kind.values()) {
+            if (kind.name().equals(raw)) {
+                return new MaintainTool(kind, note);
+            }
+        }
+        return new Refused("maintain_tool_unknown_kind:" + raw);
     }
 
     private static GoalAction parseStartJob(JsonObject root, String note,

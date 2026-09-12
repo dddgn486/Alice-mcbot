@@ -63,7 +63,7 @@ public class PathingStraightItem extends Item {
         bot.controller().stopMovement();
         if (!BotManager.assignPathSessionDiagnostic(bot, COURSE_GOAL_FOOT)) {
             if (player != null) {
-                player.sendSystemMessage(Component.literal("[alice] bot 正忙，稍后再试"));
+                player.sendSystemMessage(Component.literal("[alice] " + BotManager.busyMessage(bot)));
             }
             return InteractionResult.SUCCESS;
         }

@@ -161,6 +161,14 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
 `.alice-supervision/client-tests/` 下保留 R2–R5、MineTask A/B/C、Movement 物理实验 1–6、各阶段验收证据目录；
 改动流水见 `docs/AI_CHANGELOG.md`，稳定裁定见 `docs/AI_DECISIONS.md`（D-001…D-131）。
 
+## 传输模块彻查（2026-09-13）
+
+用户要求"从架构与实现查有没有屎山，并定要不要二次重构"。产出
+[`TRANSFER_MODULE_AUDIT.md`](TRANSFER_MODULE_AUDIT.md)：**不是屎山**，三处真问题（生产/测试错位、
+死码与只写状态、容器写入无授权维度），核心设计扎实 ⇒ **建议定向重构 R1–R3，不推倒重写**；
+`/alice selftest` 建议退役（必崩于无 Mekanism + 与 in-game 电池重复），但 `InterfaceScanner` 的
+Mekanism 硬引用是**活雷**，需立即修。
+
 ## 当前不要做
 
 - ❌ 不把隧道、搭路、实验性移动**隐式**接入普通任务（D-076：必须显式授权 + 预算）
@@ -243,12 +251,68 @@ tools/check-scene-connectivity.py --all        # 离线：22 场景无「封航�
 
 **⑤ 路线重规划（2026-09-12，D-147）**：用户要求"先把基层补齐，模组适配只做浅测"。三阶段 ——
 **阶段 1 基层收口**（决策层进回归电池 → S4 事件层 → 可回收性不变式接线（项目差异①）→ 决策 trace 落盘与跨重启语义）
+
+**阶段 1 进度（2026-09-12）**：
+- ✅ **基-2 决策层进回归电池**（D-149）：电池 9 项 → **16 项**，新增 `decision_contract` /
+  `permission_gate` / `pickup_gate` / `collect_job` / `recipes_dump` / `event_thresholds`，插在 `pathing` 之前；
+- ✅ **基-3 S4 事件层**（D-150）：`EventThresholds` —— `TOOL_LOW`（斧/镐剩余 ≤20%，回到 ≥35% 才复位）与
+  `STUCK`（**有任务 + 有移动意图**且脚位 200 tick 未变；等待态不计时）两类**可行动病症**；写事件环 + 通知 `GoalDirector.onEvent`，
+  **同一病症只报一次**（滞回复位才可再报）；自检四例 A 报一次 / B 复位数后再报 / C 卡住报一次 / D 继续不动不刷屏；
+- ⏭ **下一个 = 基-1 可回收性不变式**（项目差异①：bot 可回收 = 不留残留、不掉落、不卡地形；**仍是空实现**，
+  按 P0-B 顺序先填真实档位再打开检查）。以上两项**已实现已编译**；
+  **首次实测（19:08–19:09）电池只跑到 7/16 就被暂停 ⇒ S4 那一步未执行**（D-150 附注一），
+  已加单跑入口 `alice:event_threshold_check`（约 25 秒）。**首轮单跑又抓到 3 个夹具/报告缺陷**
+  （D-150 附注二：竖井残留方块 ⇒ 维生第 1 tick 打断；`onGround` 同 tick 断言是 stale 值；
+  夹具失败时 SUMMARY 把"没跑"报成 PASS —— 已全部修）。**第二轮又抓到 2 个**（D-150 附注三：
+  支撑判定公式差一格（floorTop 应为"脚下方块底面+形状高度"）；`onGround` 是**粘滞**标记，
+  被 teleport 到刚好贴地 + 每 tick 清零速度 ⇒ 永远读 false，非物理缺陷）。**2026-09-12 19:46 实测：
+S4 事件层通过**（A/B/C 三例 PASS、TOOL_LOW×2 + STUCK×1 各恰好一条、用户目视确认 bot 顶壁没动），
+并**第一次跑通「事件 → LLM 决策 → 执行」闭环**（LLM 选 `stop_current` 停掉卡死任务）。
+新增 `GoalDirector.suspend()` 供自检期间暂停触发（D-150 附注四）。
+**2026-09-12 20:13：C/D 用例 PASS，S4 四例全部有实测证据**；A/B 失败系**夹具不可重入**（已加归一化阶段）。
+用户裁定 A/B 两项均做：**A** 自检窗口内事件只记录不通知决策层；**B** `BotManager.busyMessage` 统一
+"bot 正忙"文案（49 处，常驻任务直接给 `/alice region stop`）—— 见 D-150 附注五。
+**2026-09-12 20:40 收尾：S4 四例全 PASS + `terminal=COMPLETED` + 用户目视确认 ⇒ `WINDOWS_CLIENT`**
+（D-150 附注六）；"悬空不下落/onGround=false"真因 = 夹具每 tick 清速度（附注三已订正）。
+**基-9 工具与耐久管理第一批已完成（D-156 + 附注一/二，`WINDOWS_CLIENT` 全绿）**：`ToolSupply`（"现在能用什么 / 还能换成什么"，
+快捷栏优先与生产选工具口径一致）+ `ToolMaintenanceTask`（4 种终态，含 `worn_no_spare` 如实上报）+
+决策动作 `maintain_tool`（`TOOL_LOW` 之后 LLM 终于有能自己解决的选项）+ 工具事实进 prompt/汇报。
+**未做**：工具来源（S6）、"耐久不足以完成计划工作量时提前拒绝"。
+
+**基-8 授权登记缺口已完成（D-157 三附注，`WINDOWS_CLIENT`）**：G8 能力闸门（10 个死字段中 6 个变活，
+含"保护区字段又变装饰"的真问题修复）、A9 登记表断档补齐、G3 外来破坏留痕、G5 容器写入留痕
+（自检 10 项全 PASS）。
+**基-7 内核残余第一批（K-1）已完成（D-158，待客户端复测）**：`PlanningStatus.PARTIAL` +
+best-so-far 前缀 + `PathRetryRunner` 消费（先走前缀再重规划），顺带让 K-5 的死状态在新内核变活。
+**余项**：K-2 legacy 活引用（`SurfacePathfinder` 7+ 处）、K-3 `safeToCancel`、K-4 谓词不统一、K-5 遗留枚举。
+
+**基-5 LLM 上抛契约已完成（D-155 + 附注一，`WINDOWS_CLIENT`）**：四个 Job 覆写 `failureReport()`（决策层能看到相位/进度）、
+`MineProductFilter`（挖掘产物**目标驱动 + 标签族**，不再硬编码原版矿物、且尊重 `productTag`）、
+**结构化拒绝回读**（`lastRefusal` 进下一轮 prompt + 进汇报 + 动作被接受后清除）。
+
+**基-4 决策 trace + 跨重启语义已完成（D-154 + 附注一，`WINDOWS_CLIENT`，含一次真实跨重启验证）**：`DecisionTrace`（JSONL 落盘 + 内存尾、
+超限轮转、写失败不影响决策）+ `DecisionState`（登记"重启会丢的未决请示/当前任务"，启动时**只报一次**）。
+裁定：未决请示**作废但必须报出**；任务**不自动续做**但如实汇报；不做任何"看起来恢复了"的自动恢复。
+
+**基-1 可回收性不变式（项目差异①）已完成两条轴并客户端验证（D-151/152/153 + 附注）**：：① 逐步"有回程"（D-151 测量 / D-152 逐边事实＋策略表，
+**已客户端验证**）；② 活动"没留残留"（**D-153：残留 = 可回收性失败**，计数 + `RESIDUE` 事件 + 夹具自清场）。
+**第一步已完成（D-151）**：`RecoverabilityEvaluator` 按类型给出
+"等级 + 依据"、provider 8 个产出点与 `AStarMovementSearch` 改为取值、唯一转换点采用评估值并互相核对、
+`RecoverabilityReport` 记账并在会话完成时打印；电池第 17 步 `recoverability` 四例（含**负例**：
+`required>evaluated` 必须抛异常 ⇒ 证明 P0-B 的恒假校验已变活）。本机纯逻辑实测 `GUARD=LIVE`、
+`TOSPEC_FALL evaluated=PATH_REVERSIBLE`。**`required` 一律未动 ⇒ 行为零变化**。
+**实测（D-151 附注一）**：自检四例全 PASS（含"`required>evaluated` 必须抛异常"的负例 ⇒ 校验已变活）；
+真实计划 12 会话、10 种 Movement 全覆盖、`distinctLevels=2`；寻路回归 **13/13 PASS 无退化**。
+**第二步已实施（D-152）**：可回收性评估改为**逐边事实**（`RecoverabilityFacts` 穿搜索到执行期）+
+`RecoverabilityPolicy` 策略表（`FALL>=PATH_REVERSIBLE`）⇒ 本机实测"**不带返回守卫事实的 FALL 边被拒绝**"，
+即 D-036 差异① 第一次真的改变准入结果；自检新增 `fall_without_fact_refused` 负例。**待客户端复测**
 → **阶段 2 真实数据浅测**（挑两个模组，只验"运行时导出 + P1 读得懂多少"，不写适配器）
 → **阶段 3 能力扩展**（S6 Craft/Smelt → 机器适配器 → 偏好规则；多 bot 并行另立项）。完整缺口表见 D-147 与总账。
 
 **④ 决策层框架（2026-09-12 规划）**：`docs/DECISION_LAYER_DESIGN.md` —— 三条通道
 （**决策 / 汇报 / 请示**）+ 契约 + 分步骨架 **S1 事实层 → S2 选择层 → S3 请示层 → S4 事件层 →
-S5 知识层(只读配方图) → S6 执行层(Craft/Smelt/Process + 偏好规则)**；S0（契约与管道）已 `WINDOWS_CLIENT`。
+S5 知识层(只读配方图) → S6 执行层(Craft/Smelt/Process + 偏好规则)**；S0（契约与管道）已 `WINDOWS_CLIENT`；
+**S4 事件层已实现（D-150，待客户端验）**。
 知识/配方面的参考材料见 `docs/KNOWLEDGE_RECIPE_GRAPH_NOTES.md`。
 
 **① 安全底座小批次已完成（全部 `WINDOWS_CLIENT`，D-132 附注三）**：S-1 维生出口 / S-2 未加载区块·边界准入 /
@@ -272,6 +336,18 @@ S-3 删 `MineTask` 重复维生调用、S-4 接上 `FluidRiskPolicy`（硬拒不
    `isExpensiveToClear` 成本化 + `#alice:clear_forbidden` 标签、`MiningBudget.tierOf` 的 `#forge:ores/*`。
 4. 可选（J8 未做的小项）：区域"目标密度"的手动配置接口（现在自动推导 = 首次巡查的 standing）、
    选区魔杖（右键记 pos1 / 潜行右键记 pos2 ⇒ 免坐标命令的零参数入口）。
+
+## 会话收尾（2026-09-13）
+
+**本会话主线**：阶段 1 基层收口（基-1/2/3/4/5/7-K1K2/8/9 大部分）+ **L2 方块交互路线**
+（对比 → 探针验证 → `MenuSession` 组件 → 生产化）+ **传输模块彻查与重构**（R1/R2/R3 + L1）。
+详见 `AI_DECISIONS.md` 的 D-151…D-165 与 `TRANSFER_MODULE_AUDIT.md` / `INTERACTION_LAYERS_COMPARISON.md`。
+
+**唯一未收口**：`alice:transfer_check` 的 `end_to_end` 用例（根因已定位并修：**背包索引 ≠ 菜单槽位号**，
+D-165 附注四），**待客户端复测**。判据与排查入口见 `OPEN_ITEMS_LEDGER.md` §6.11。
+
+**环境提醒**：镜像脚本 `tools/mirror-windows-workspace.sh` 现为"默认不备份/不校验"快跑（8.6 秒）；
+备份轮转由 `ALICE_BACKUP_KEEP`（默认 2）控制；`ALICE_MIRROR_BACKUP=1` / `ALICE_MIRROR_VERIFY=1` 可按需开启。
 
 ## 开始任何新任务前
 

@@ -55,7 +55,7 @@ public class ChunkGuardCheckItem extends Item {
             return;
         }
         if (BotManager.isBusy(bot)) {
-            say(player, "[alice] bot 正忙，稍后再试");
+            say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         // 先离开危险格：否则维生会在任务第 1 tick 就把它中断掉（2026-09-12 实测：
@@ -68,7 +68,7 @@ public class ChunkGuardCheckItem extends Item {
             bot.controller().stopMovement();
         }
         if (!BotManager.assignChunkGuardCheck(bot, player instanceof ServerPlayer sp ? sp : null)) {
-            say(player, "[alice] bot 正忙，稍后再试");
+            say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         say(player, "[alice] 区块/边界门控自检已启动：远目标=未加载区块必须 GOAL_NOT_LOADED 且不加载它；"

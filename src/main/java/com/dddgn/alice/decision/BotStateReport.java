@@ -137,6 +137,32 @@ public final class BotStateReport {
                         + " " + event.get("summary").getAsString());
             }
         }
+        // G5：**容器写入**（物品进出箱子的可审计痕迹；方块有账本，容器此前没有）
+        lines.add("容器写入：" + com.dddgn.alice.transfer.TransferLedgerData.get(bot.getServer())
+                .describeMovements());
+        // G3：范围内**外来破坏**（模组连锁/爆炸/其他玩家）—— 账本不恢复、预算不计入，但必须可见
+        com.dddgn.alice.bot.BotManager.BotSession reportSession =
+                com.dddgn.alice.bot.BotManager.sessionOf(bot);
+        if (reportSession != null && reportSession.scope() != null) {
+            lines.add("作用域：" + reportSession.scope().describeForeignBreaks());
+        }
+        if (snapshot.has("tools")) {
+            lines.add("工具：" + snapshot.getAsJsonObject("tools").get("summary").getAsString());
+        }
+        String refusal = GoalDirector.lastRefusal(bot);
+        if (!refusal.isBlank()) {
+            lines.add("⚠ 上次决策被拒（LLM 下一轮 prompt 也会看到）：" + refusal);
+        }
+        // 基-4：决策 trace 的**内存尾**（完整历史在 <config>/alice-decisions.jsonl）
+        List<String> trace = DecisionTrace.recent(8);
+        if (trace.isEmpty()) {
+            lines.add("决策 trace：内存尾为空（" + DecisionTrace.describe() + "）");
+        } else {
+            lines.add("决策 trace（最近 " + trace.size() + " 条，" + DecisionTrace.describe() + "）：");
+            for (int i = trace.size() - 1; i >= 0; i--) {
+                lines.add("  " + trace.get(i));
+            }
+        }
         return lines;
     }
 }

@@ -53,7 +53,7 @@ public class PickupGateCheckItem extends Item {
             bot = BotManager.firstOrSpawn(level, LumberCourseAnchor.START_FOOT);
         }
         if (bot == null || BotManager.isBusy(bot)) {
-            say(player, bot == null ? "[alice] bot 生成失败" : "[alice] bot 正忙，稍后再试");
+            say(player, bot == null ? "[alice] bot 生成失败" : "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         bot.teleportTo(level, LumberCourseAnchor.START_FOOT.getX() + 0.5D,
@@ -62,7 +62,7 @@ public class PickupGateCheckItem extends Item {
         bot.setDeltaMovement(Vec3.ZERO);
         bot.controller().stopMovement();
         if (!BotManager.assignPickupGateCheck(bot, player instanceof ServerPlayer sp ? sp : null)) {
-            say(player, "[alice] bot 正忙，稍后再试");
+            say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         say(player, "[alice] 被动拾取闸门自检：① 我方掉落物应被捡起 ② 外来掉落物应被拦下"
