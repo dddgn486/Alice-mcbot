@@ -11,7 +11,11 @@ public record TaskOutcome(
         TaskExecutionRecord.TerminalStatus terminalStatus,
         String resultCode,
         BlockPos terminalBotPos,
-        TaskFailureReport failure) {
+        TaskFailureReport failure,
+        /** 所有者（多 bot 预留）：bot 的 UUID 字符串。 */
+        String botId,
+        /** 任务自己报的终止理由（Job 层；非 Job 为空串）—— 决策层据此区分"达成"与"提前收工"。 */
+        String terminalReason) {
 
     public TaskOutcome {
         taskKind = taskKind == null ? "unknown" : taskKind;
@@ -20,6 +24,8 @@ public record TaskOutcome(
                 ? TaskExecutionRecord.TerminalStatus.FAILED : terminalStatus;
         resultCode = resultCode == null ? "" : resultCode;
         terminalBotPos = terminalBotPos == null ? BlockPos.ZERO : terminalBotPos.immutable();
+        botId = botId == null ? "" : botId;
+        terminalReason = terminalReason == null ? "" : terminalReason;
     }
 
     public boolean succeeded() {

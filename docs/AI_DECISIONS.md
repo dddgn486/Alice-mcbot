@@ -4538,3 +4538,46 @@ task_execution_terminal kind=SurvivalExitTask … durationTicks=6 terminal=COMPL
 **→ 下一步进入 ② 决策层接入**（用户 2026-09-12 裁定 ①→②）：先补 Job 契约缺口
 （`Job.terminalReason()` → `TaskOutcome`/`TaskExecutionRecord`、`botUuid`、`GoalSpec`→`Job` 统一入口），
 再与用户确认 LLM 的输入快照 / 动作词汇表 / 触发节奏后实现目标级决策循环。
+
+## D-134 ② 决策层接入 · 第 1 步：Job 契约批次（2026-09-12）
+
+**背景**：① 安全底座已全部 `WINDOWS_CLIENT`（D-132 附注三）。用户裁定 **①→②** 后，
+本轮先补"**决策层要用的契约**"——即总账 §3 的 J-1/J-2/J-3。这三条不补，LLM 拿到的终态
+分不清"达成了"与"提前收工"，也没有"用一个动作起任意 Job"的入口。
+
+### J-1 终止理由进终态记录
+- 改前：`resultCode` 只有 `done` / `failed:<reason>`，而 `Job.terminalReason()`（`quota_met` /
+  `inventory_full` / `partial_quota` / `idle_no_work` / `no_reachable_candidate` …）**只进日志**。
+- 改后：`TaskExecutionRecord` 与 `TaskOutcome` 各加两个字段 —— `botId` 与 `terminalReason`；
+  `BotSession.recordTerminal` 从 `task instanceof Job` 取值（非 Job 为空串），并新增一行可 grep 的证据：
+  ```
+  task_terminal_reason kind=LumberJob botId=… terminalReason=quota_met
+  ```
+- **兼容**：全部便捷构造器补默认值（null ⇒ `""`），既有调用点与断言（`code=done`）**不变** ——
+  刻意不动 `resultCode` 的形状，避免打破已验收的判据。
+
+### J-3 `botId`
+- 同上两个字段一并落地（`MULTI_BOT_INTERFACE_RESERVATION.md:7` 的期望：终态记录能关联 bot）。
+  目前是 UUID 字符串；将来多 bot 只需要在记录里按它分组，不用再改数据结构。
+
+### J-2 `GoalSpec` → `Job` 统一入口
+- 改前：`BotManager` 逐域硬编码（`assignLumberJob` / `assignMineJob` / `assignRegionLumber`），
+  调用方必须自己 new 具体 `Job` 类 ⇒ 决策层无法"用一个动作起任意 Job"。
+- 改后：
+  - `job/JobRequest`（record）：`kind`（`LUMBER` / `MINE` / `REGION_LUMBER`）+ `center` / `radius` /
+    `quota` / `maxTicks` / `productTag` / `region`；**只装目标级参数**（怎么走、怎么挖属于 L1/L2 能力信封）；
+  - `job/JobLauncher`：**唯一构造点** + **入口发料**（D-119/D-122：发料必须在入口，否则
+    "LLM 起的 Job 徒手砍树"迟早复发；未知挖掘目标 ⇒ **回落到默认并如实登记，不猜语义**）；
+  - `BotManager.assignJob(bot, observer, JobRequest)`：发料 → 构造 → 登记会话 → 广播目标；
+  - 既有领域入口保留（夹具/命令兼容），但 `assignMineJob` 已改为"经同一套 `JobLauncher` 记录 + 构造"。
+- ⇒ 决策层的动作词汇表由此收敛成 **`start_job(kind, spec)` 一条**。
+
+**验证入口**：`alice:job_launcher`（零参数右键，自带 `lumber_course` 复位与传送）。
+期望：`[Job] launch bot=… kind=LUMBER … quota=2 …` → 正常伐木 → `kind=LumberJob terminal=COMPLETED`
+→ **`task_terminal_reason … terminalReason=quota_met`**。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待测）。
+
+### 下一步（② 第 2 步，待用户确认一处事实）
+LLM 循环的**管道**可以先做且可验（快照契约 / 动作词汇表 / 事件驱动 + 节流触发 / 严格拒绝未知动作），
+但**真实 provider 不能猜**：需要用户给出可用的端点与模型（或明确"先用脚本化假 LLM 验管道"）。

@@ -113,6 +113,18 @@
 > D-099 一次性方块，同一病灶第三次同形）。
 > **不要**再按"破坏速度 ≤ 1"判断夹具漏料：树叶这类东西本来就没有更快工具（2026-09-12 实测，8/8 全是清障树叶噪声）。
 
+### 1.10 统一 Job 入口 + 终态契约（② 第 1 步，D-134）——一个零参数右键
+
+```
+右键 alice:job_launcher                  # 自带 lumber_course 复位 + 传送 + 发料
+期望：[Job] launch bot=… kind=LUMBER center=… radius=16 quota=2 maxTicks=3600
+      … 正常伐木（pick tree / tree@… 完成）…
+      task_execution_terminal kind=LumberJob … terminal=COMPLETED code=done
+      task_terminal_reason kind=LumberJob botId=<uuid> terminalReason=quota_met   ← 契约判据
+```
+> `terminalReason` 就是决策层要的东西：`quota_met`（达成）/ `inventory_full`（背包满提前收工）/
+> `idle_no_work` / `no_reachable_candidate` 等 —— 以前这些只有日志里有，现在进终态记录。
+
 ### 1.9 安全底座小批次（S-1–S-4，D-132）——三个零参数右键
 
 | 入口 | 场景 | 期望（一行判据） |

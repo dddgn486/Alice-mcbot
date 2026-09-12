@@ -525,19 +525,46 @@ public final class BotManager {
      *
      * @param target 目标（标签或方块 ID），由命令解析后传入
      */
+    /**
+     * **统一 Job 入口**（D-134 / ② 决策层契约）：决策层唯一需要的"起 Job"动作。
+     *
+     * <p>三件事一次做对：① 发料（{@link com.dddgn.alice.job.JobLauncher#provision}）；
+     * ② 构造 Job（`JobLauncher.create`）；③ 登记会话 + 广播目标。各领域的 `assign*` 入口
+     * 现在都走这里，避免"决策层起的 Job 与夹具起的 Job 行为不同"。
+     */
+    public static boolean assignJob(BotPlayer bot, ServerPlayer observer,
+                                    com.dddgn.alice.job.JobRequest request) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        if (!com.dddgn.alice.job.JobLauncher.provision(bot, request)) {
+            BotLog.warn("[Job] launch 发料失败 ⇒ 不起 Job（{}）", request.describe());
+            return false;
+        }
+        com.dddgn.alice.job.JobLauncher.logLaunch(bot, request);
+        com.dddgn.alice.job.Job job = com.dddgn.alice.job.JobLauncher.create(bot, session.scope(), request);
+        session.beginTask(job, TaskTarget.block(request.center()));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     public static boolean assignMineJob(BotPlayer bot, ServerPlayer observer,
                                         com.dddgn.alice.job.mine.MineCandidateSource.Target target,
                                         int quota, int radius) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
-        // D-122：同上——入口保证有镐
+        // D-134：统一走 JobLauncher（发料 + 构造）；tag 由 Target 的 describe 反推不方便，
+        // 这里直接把 Target 交给一条等价的 JobRequest（productTag 仅用于日志/决策层可读）
         com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
-        com.dddgn.alice.job.GoalSpec spec = com.dddgn.alice.job.GoalSpec.mineBlocks(
-                bot.blockPosition(), radius, quota, 3600);
-        com.dddgn.alice.job.mine.MineJob job = new com.dddgn.alice.job.mine.MineJob(
-                bot, spec, session.scope(),
-                new com.dddgn.alice.job.mine.MineCandidateSource(target, radius),
+        com.dddgn.alice.job.JobRequest request = com.dddgn.alice.job.JobRequest.mine(
+                bot.blockPosition(), radius, quota, 3600, target.describe());
+        // 用调用方给的具体 Target（而不是重新解析字符串）：语义完全等价，避免二次解析差异
+        com.dddgn.alice.job.Job job = new com.dddgn.alice.job.mine.MineJob(
+                bot, com.dddgn.alice.job.GoalSpec.mineBlocks(bot.blockPosition(), radius, quota, 3600),
+                session.scope(), new com.dddgn.alice.job.mine.MineCandidateSource(target, radius),
                 new com.dddgn.alice.job.policy.NearestPolicy());
+        com.dddgn.alice.job.JobLauncher.logLaunch(bot, request);
         session.beginTask(job, TaskTarget.block(bot.blockPosition()));
         broadcastTarget(session.target);
         return true;
@@ -1356,10 +1383,16 @@ public final class BotManager {
                                     String resultCode, String recoveryState, RecoveryStage recoveryStage,
                                     List<RecoveryStage> recoveryEvents, TaskFailureReport failureReport) {
             BlockPos terminalPos = MovementHelper.footCell(bot.serverLevel(), bot);
+            // D-134（决策层契约）：把 **Job 自己报的终止理由** 与 **botId** 一起落进终态记录，
+            // 否则 `resultCode` 只会有 `done`/`failed:…`，决策层分不清"配额达成"与"背包满提前收工"。
+            String terminalReason = task instanceof com.dddgn.alice.job.Job job
+                    ? String.valueOf(job.terminalReason()) : "";
+            String botId = bot.getUUID().toString();
             TaskOutcome outcome = new TaskOutcome(kind, targetDescription, terminalStatus, resultCode,
-                    terminalPos, failureReport);
+                    terminalPos, failureReport, botId, terminalReason);
             lastExecutionRecord = new TaskExecutionRecord(kind, targetDescription, startTick, serverTick(),
-                    terminalStatus, resultCode, terminalPos, recoveryState, recoveryStage, recoveryEvents, outcome);
+                    terminalStatus, resultCode, terminalPos, recoveryState, recoveryStage, recoveryEvents, outcome,
+                    botId, terminalReason);
             TaskFailureReport failure = outcome.failure();
             BotLog.info("task_execution_terminal kind={} target={} startTick={} endTick={} durationTicks={}"
                             + " terminal={} code={} pos={} recovery={} recoveryStage={} recoveryEvents={}"
@@ -1371,6 +1404,9 @@ public final class BotManager {
                     lastExecutionRecord.recoveryState(), lastExecutionRecord.recoveryStage(),
                     lastExecutionRecord.recoveryEvents(), failure == null ? "-" : failure.code(),
                     failure == null ? "-" : failure.phase(), failure == null ? "-" : failure.details());
+            BotLog.info("task_terminal_reason kind={} botId={} terminalReason={}",
+                    lastExecutionRecord.taskKind(), lastExecutionRecord.botId(),
+                    lastExecutionRecord.terminalReason());
         }
 
         /** 任务收尾:清任务、清作用域、广播清除高亮、**输入归零**。 */
