@@ -4847,5 +4847,13 @@ HttpClient 的内部任务排不进来 ⇒ **死锁**：请求发不出去，超
 4. `GoalDirector`：每次决策前生成菜单并记进状态（`lastMenu`），解析时用它校验；`BotStateReport`
    也渲染菜单（玩家能看到"现在能做什么"）——**汇报与 LLM 仍共用同一份事实**。
 
-**验证等级**：IMPLEMENTED / COMPILES（客户端待测）。判据：`[Goal] candidate_menu entries=…` 出现；
-LLM 的动作里带 `target=tree@…/drops@…`；伐木**不再**出现"选了没树的地方 ⇒ 1 tick `no_reachable_candidate`"。
+**验证等级**：`WINDOWS_CLIENT`（2026-09-12 17:34）—— 菜单生成 ✓、LLM 引用 `target=tree@20,64,208` ✓、
+执行成功 ✓、第一棵树 `terminalReason=quota_met` ✓、砍掉的树**从下一轮菜单消失** ✓、报告里渲染菜单 ✓。
+
+**首测暴露并已修的一处缺陷（S2 精化）**：菜单原先用裸 `TreeScanner`（**所有**树），
+而 Job 用 `LumberCandidateSource`（**可行**树）⇒ 把 Job 注定拒绝的 2×2 高大云杉
+（`tree@22,64,218`，`trunk_too_tall`）递给了 LLM，执行后 `no_reachable_candidate`。
+**修复**：菜单的伐木候选改为**复用 Job 自己的候选源**（`LumberCandidateSource.candidates` 的 `viable`），
+候选 id 直接取 `Candidate.id()`（与 Job 决策日志同一口径）；被拒候选记一行
+`[Goal] candidate_menu rejected(不可做)=…`（诚实：菜单只给能做的，不能做的如实登记）。
+这正是项目既有规矩"夹具/菜单的候选必须复用规划器 provider（可规划即可执行）"。

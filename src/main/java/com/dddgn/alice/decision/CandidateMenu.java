@@ -97,16 +97,28 @@ public final class CandidateMenu {
         final List<Entry> entries = new ArrayList<>();
         final BlockPos botPos = bot.blockPosition();
 
-        // ① 树（最近若干棵，带距离）—— 伐木候选
-        var trees = TreeScanner.scan(bot.serverLevel(), botPos, SCAN_RADIUS);
-        trees.stream()
-                .sorted(java.util.Comparator.comparingDouble(tree -> tree.base().distSqr(botPos)))
+        // ① 树 —— 伐木候选。**必须复用 Job 自己的候选源**（`LumberCandidateSource`），
+        // 而不是裸 `TreeScanner`：否则会把 Job 注定拒绝的树（如 2×2 高大云杉 `trunk_too_tall`）
+        // 递给 LLM —— 2026-09-12 实测就发生了（菜单给了 `tree@22,64,218`，Job 报 `no_reachable_candidate`）。
+        // 这就是项目既有规矩："夹具/菜单的候选必须复用规划器 provider（可规划即可执行）"。
+        var lumberSource = new com.dddgn.alice.job.lumber.LumberCandidateSource();
+        var probe = com.dddgn.alice.job.GoalSpec.harvestUnits(botPos, SCAN_RADIUS, 1, 3600);
+        var candidates = lumberSource.candidates(bot, probe);
+        candidates.viable().stream()
+                .sorted(java.util.Comparator.comparingDouble(c -> c.anchor().distSqr(botPos)))
                 .limit(MAX_PER_KIND)
-                .forEach(tree -> entries.add(new Entry(
-                        "tree@" + tree.base().getX() + "," + tree.base().getY() + "," + tree.base().getZ(),
-                        "lumber", "树(" + tree.species() + ") 距离"
-                        + String.format(java.util.Locale.ROOT, "%.1f", Math.sqrt(tree.base().distSqr(botPos))),
-                        tree.base(), 1, "height=" + (tree.top().getY() - tree.base().getY() + 1))));
+                .forEach(c -> entries.add(new Entry(
+                        c.id(),   // 与 Job 决策日志同一个 id 口径（`tree@x,y,z`）
+                        "lumber", "可行树 距离"
+                        + String.format(java.util.Locale.ROOT, "%.1f",
+                        Math.sqrt(c.anchor().distSqr(botPos))),
+                        c.anchor(), 1,
+                        "species=" + c.feature("species") + " height=" + c.feature("height")
+                                + " logs=" + c.feature("logs"))));
+
+        if (!candidates.rejected().isEmpty()) {
+            BotLog.info("[Goal] candidate_menu rejected(不可做)= {}", candidates.rejected());
+        }
 
         // ② 我方掉落的簇（**只列我方登记过的**；FOREIGN/授权区要等 S3.5）—— 捡拾候选
         var session = BotManager.sessionOf(bot);
