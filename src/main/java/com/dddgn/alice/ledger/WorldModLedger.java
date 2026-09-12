@@ -196,6 +196,25 @@ public final class WorldModLedger extends SavedData {
      *
      * <p>**只取 TEMP**——`KEEP`（道路等永久放置）不该被恢复（D-095/§12.1）。
      */
+    /**
+     * 该 owner 名下**所有**未拆除的我方临时放置（跨 scope）。
+     *
+     * <p>用途（J7 Step 3 / §12.4 崩溃兜底）：服务器上次是崩溃/被强杀退出的，账本里可能留着
+     * "建了一半没拆"的脚手架；bot 重新可用时要能一眼看到它们，并在**就近**时续做拆除。
+     */
+    public static List<Entry> pendingForOwner(MinecraftServer server, java.util.UUID owner) {
+        if (owner == null) {
+            return List.of();
+        }
+        List<Entry> result = new java.util.ArrayList<>();
+        for (Entry entry : get(server).entries.values()) {
+            if (owner.equals(entry.owner()) && entry.policy() == Policy.TEMP) {
+                result.add(entry);
+            }
+        }
+        return result;
+    }
+
     public static List<Entry> pendingTemporary(MinecraftServer server, String scopeId) {
         List<Entry> result = new ArrayList<>();
         for (Entry entry : get(server).entries.values()) {

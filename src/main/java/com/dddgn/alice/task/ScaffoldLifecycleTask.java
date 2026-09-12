@@ -81,7 +81,8 @@ public final class ScaffoldLifecycleTask implements Task {
     private static final net.minecraft.world.phys.AABB SCENE_BOX =
             new net.minecraft.world.phys.AABB(32, 58, 38, 45, 75, 55);
 
-    private enum Phase { SETUP, CLIMB, MINE, SWEEP_UP, TEARDOWN, SWEEP_GROUND, ASSERT, DONE }
+    private enum Phase { SETUP, CLIMB, MINE, SWEEP_UP, TEARDOWN, SWEEP_GROUND, ASSERT,
+                         CLIMB_PLAN, RECOVER_DECIDE, RECOVER_ASSERT, DONE }
 
     private final BotPlayer bot;
     private final ScopeBuffer scope;
@@ -105,6 +106,15 @@ public final class ScaffoldLifecycleTask implements Task {
     private int sweptUp;
     /** ③ 落地扫尾（拆除完成、回到地面）收进背包的数量。 */
     private int sweptGround;
+    // ==== 第二轮（J7 Step 3 / D-127）：**故意不拆**，验证崩溃兜底判定与续做 ====
+    /** 1 = 正常生命周期；2 = 残留验证轮。 */
+    private int round = 1;
+    /** 第一轮是否通过（第二轮断言要把两轮一起算）。 */
+    private boolean phase1Pass;
+    private String recoveryDecision = "-";
+    private int recoveryLeftBefore = -1;
+    private int recoveryLeftAfter = -1;
+    private int recoveryResidue = -1;
 
     public ScaffoldLifecycleTask(BotPlayer bot, ScopeBuffer scope) {
         this.bot = bot;
@@ -141,6 +151,9 @@ public final class ScaffoldLifecycleTask implements Task {
             case TEARDOWN -> teardown();
             case SWEEP_GROUND -> sweepGround();
             case ASSERT -> assertResult();
+            case CLIMB_PLAN -> planClimbForRound2();
+            case RECOVER_DECIDE -> recoverDecide();
+            case RECOVER_ASSERT -> assertRecovery();
             case DONE -> Task.Status.DONE;
         };
     }
@@ -171,28 +184,35 @@ public final class ScaffoldLifecycleTask implements Task {
         scopeId = WorldModLedger.currentScope(server, bot.getUUID());
 
         // 要素②：先规划一次，数出这条攀爬路线要花几个方块；超预算 → 该目标拒绝
+        prepareClimbPlan();
+        return Task.Status.RUNNING;
+    }
+
+    /**
+     * 规划一次攀爬（第一轮 SETUP 与第二轮 CLIMB_PLAN 共用）：数 PILLAR 步数、超预算即拒绝。
+     *
+     * @return true = 计划可用（已把 {@code phase} 置为 CLIMB）；false = 拒绝（已置 failure 与 ASSERT）
+     */
+    private boolean prepareClimbPlan() {
+        ServerLevel level = bot.serverLevel();
         PathRequest request = climbRequest();
         PathPlan plan = new CorePathPlanner().plan(bot, level, request);
         pillarCount = (int) plan.movements().stream()
                 .filter(m -> m.movementType() == MovementType.PILLAR)
                 .count();
-        BotLog.info("[Scaffold] plan status={} movements={} pillar={}/{} target={} start={}",
+        BotLog.info("[Scaffold] plan status={} movements={} pillar={}/{} target={} start={} round={}",
                 plan.status(), plan.movements().size(), pillarCount, CLIMB_BUDGET,
-                TARGET.toShortString(), START_FOOT.toShortString());
-        if (!plan.reached()) {
-            failure = "climb_plan_failed:" + plan.status();
-            phase = Phase.ASSERT;
-            return Task.Status.RUNNING;
-        }
-        if (pillarCount == 0 || pillarCount > CLIMB_BUDGET) {
-            failure = pillarCount == 0 ? "climb_plan_not_climbing" : "climb_budget_exceeded";
+                TARGET.toShortString(), START_FOOT.toShortString(), round);
+        if (!plan.reached() || pillarCount == 0 || pillarCount > CLIMB_BUDGET) {
+            failure = !plan.reached() ? "climb_plan_failed:" + plan.status()
+                    : (pillarCount == 0 ? "climb_plan_not_climbing" : "climb_budget_exceeded");
             BotLog.warn("[Scaffold] climb 被拒 {} pillar={}/{}", failure, pillarCount, CLIMB_BUDGET);
             phase = Phase.ASSERT;
-            return Task.Status.RUNNING;
+            return false;
         }
         climber = new PathRetryRunner(bot, request, PathRetryRunner.DEFAULT_MAX_REPLANS, "scaffold-climb");
         phase = Phase.CLIMB;
-        return Task.Status.RUNNING;
+        return true;
     }
 
     private Task.Status climb() {
@@ -222,7 +242,8 @@ public final class ScaffoldLifecycleTask implements Task {
         BotLog.info("[Scaffold] climbed foot={} ledgerPending={} blocks={}（准备在高处干活）",
                 at.toShortString(), pendingBefore,
                 com.dddgn.alice.action.BlockInteraction.countThrowaway(bot));
-        phase = Phase.MINE;
+        // 第二轮：爬上去后**故意不拆**，交给崩溃兜底验证
+        phase = round == 2 ? Phase.RECOVER_DECIDE : Phase.MINE;
         return Task.Status.RUNNING;
     }
 
@@ -333,8 +354,13 @@ public final class ScaffoldLifecycleTask implements Task {
         BotLog.info("[Scaffold] teardown_end status={} reason={} foot={}", status, restoreReason,
                 MovementHelper.footCell(bot.serverLevel(), bot).toShortString());
         restore = null;
-        // 拆除成功 → ③ 落地扫尾（拆除过程中落地的产物与拆下来的方块）
-        phase = failure.isEmpty() ? Phase.SWEEP_GROUND : Phase.ASSERT;
+        // 拆除成功 → ③ 落地扫尾（拆除过程中落地的产物与拆下来的方块）；
+        // 第二轮（残留验证）拆完直接进第二轮断言
+        if (round == 2) {
+            phase = Phase.RECOVER_ASSERT;
+        } else {
+            phase = failure.isEmpty() ? Phase.SWEEP_GROUND : Phase.ASSERT;
+        }
         return Task.Status.RUNNING;
     }
 
@@ -380,6 +406,9 @@ public final class ScaffoldLifecycleTask implements Task {
     }
 
     private Task.Status assertResult() {
+        if (round == 2) {
+            return assertRecovery();
+        }
         ServerLevel level = bot.serverLevel();
         int remaining = WorldModLedger.pendingTemporary(level.getServer(), scopeId).size();
         int residue = 0;
@@ -422,6 +451,72 @@ public final class ScaffoldLifecycleTask implements Task {
                 pillarCount, CLIMB_BUDGET, torn, remaining, residue, targetGone ? "gone" : "present",
                 sweptUp, sweptGround, itemsOnGround, strandedPos, onTopBeforeTeardown, grounded,
                 climbStatus, mineStatus, restoreReason, pass ? "PASS" : "FAIL");
+        if (!pass) {
+            phase = Phase.DONE;
+            return Task.Status.FAILED;
+        }
+        // 第一轮通过 ⇒ 进入第二轮：**再爬一次、故意不拆**，验证 §12.4 的崩溃兜底
+        phase1Pass = true;
+        round = 2;
+        BotLog.info("[Scaffold] 第一轮通过 ⇒ 第二轮：再爬上柱顶后**故意不拆**，验证崩溃兜底（J7 Step 3）");
+        phase = Phase.CLIMB_PLAN;
+        return Task.Status.RUNNING;
+    }
+
+    /** 第二轮：只用已有台地重新规划一次攀爬（**不重放场景**，免得把第一轮的结论洗掉）。 */
+    private Task.Status planClimbForRound2() {
+        // 第二轮要再搭一次柱子：把一次性方块补回预算（第一轮拆下来的应已回收，这里兜底保证夹具自足）
+        com.dddgn.alice.item.FixtureToolKit.ensureHotbarStack(bot,
+                () -> new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.COBBLESTONE),
+                stack -> stack.is(net.minecraft.world.item.Items.COBBLESTONE),
+                CLIMB_BUDGET, "cobblestone");
+        if (!prepareClimbPlan()) {
+            phase = Phase.RECOVER_ASSERT;   // failure 已置 ⇒ 第二轮断言会如实 FAIL
+            return Task.Status.RUNNING;
+        }
+        return Task.Status.RUNNING;
+    }
+
+    /** 判定：账本残留是否"就近可续做"（**故意不在这轮自己拆**，先看判定）。 */
+    private Task.Status recoverDecide() {
+        recoveryLeftBefore = WorldModLedger
+                .pendingTemporary(bot.serverLevel().getServer(), scopeId).size();
+        recoveryDecision = com.dddgn.alice.bot.BotManager.teardownRecoveryDecision(bot);
+        BotLog.info("[Scaffold] recover_decide decision={} pending={}", recoveryDecision,
+                recoveryLeftBefore);
+        if (!"ready".equals(recoveryDecision)) {
+            failure = "recovery_decision_" + recoveryDecision;
+            phase = Phase.RECOVER_ASSERT;
+            return Task.Status.RUNNING;
+        }
+        // 复用既有 TEARDOWN 相位做"续做"（round==2 ⇒ 它完成后会回到 RECOVER_ASSERT）
+        phase = Phase.TEARDOWN;
+        return Task.Status.RUNNING;
+    }
+
+    /** 第二轮断言：续做是否真的把这次未闭合的会话收尾（账本 + 世界事实）。 */
+    private Task.Status assertRecovery() {
+        ServerLevel level = bot.serverLevel();
+        recoveryLeftAfter = WorldModLedger
+                .pendingTemporary(level.getServer(), scopeId).size();
+        recoveryResidue = 0;
+        for (int y = COLUMN_Y_MIN; y <= COLUMN_Y_MAX; y++) {
+            if (!level.getBlockState(new BlockPos(COLUMN_X, y, COLUMN_Z)).isAir()) {
+                recoveryResidue++;
+            }
+        }
+        boolean pass = phase1Pass && failure.isEmpty()
+                && "ready".equals(recoveryDecision)
+                && recoveryLeftBefore > 0 && recoveryLeftAfter == 0 && recoveryResidue == 0;
+        if (!pass && failure.isEmpty()) {
+            failure = "TEARDOWN_RECOVERY_FAILED decision=" + recoveryDecision
+                    + " before=" + recoveryLeftBefore + " after=" + recoveryLeftAfter
+                    + " residue=" + recoveryResidue;
+        }
+        BotLog.info("[Scaffold] RECOVERY SUMMARY decision={} ledger_before={} ledger_after={}"
+                        + " residue={} restore={} → {}",
+                recoveryDecision, recoveryLeftBefore, recoveryLeftAfter, recoveryResidue,
+                restoreReason, pass ? "PASS" : "FAIL");
         phase = Phase.DONE;
         return pass ? Task.Status.DONE : Task.Status.FAILED;
     }

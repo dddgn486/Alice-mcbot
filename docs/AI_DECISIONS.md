@@ -3879,3 +3879,38 @@ J3 的 3 棵树恰好 3+3+2 = **8 压线**；`a5901f5` 想加第 4 棵树，却�
 新树（`33,64,208`，由「橡树#1」整体平移 (+14,−5) 得到）正常 `chopped=4/4`，东扩台地与通道均无副作用。
 
 **验证等级**：`WINDOWS_CLIENT`。
+
+## D-127 J7 Step 3：崩溃兜底（§12.4）——账本残留的判定与"就近续做"（2026-09-12）
+
+**设计要求**（`JOB_LAYER_DESIGN §12.4`）：启动时扫描账本中未完成的拆除会话 → 续做；不变量：
+任务/会话结束时该 scope 账本为空。**同时必须尊重 §12.3 与 D-103 的教训**：
+拆除要在"**仍在架上**时"做（从地面拆高层柱子必然留悬空残块），且**不能**把"走回去拆"这种复杂度
+塞进每个任务的收尾（D-103 就是为此删掉了自动追加恢复）。
+
+**实现（三处，都不改变正常路径的行为）**
+1. `WorldModLedger.pendingForOwner(server, owner)`：查该 owner **跨 scope** 的未拆除 `TEMP` 放置
+   （`Entry` 自带 `owner` 字段，不必解析 scopeId）。
+2. `BotManager.teardownRecoveryDecision(bot)`：先 `dropStale`（现场已非我方方块的条目销掉），
+   再按**最近残留距离**判定 —— `none`（干净）/ `ready`（≤ `TEARDOWN_RECOVERY_RANGE = 16` 格，
+   通常是崩溃时 bot 就站在架上 ⇒ 可就地续做）/ `too_far`（**不自动走回去**，如实报告并留给
+   `/alice restore`）。判定与动作分开，便于夹具单测（不劫持当前会话）。
+3. `BotManager.tryRecoverUnfinishedTeardown(bot)`：`ready` 且 bot 空闲 ⇒ 起一个
+   `RestoreScopeTask(scopeId=null)`（与 `/alice restore` 同一条路径）续做；
+   挂钩① **bot 会话建立时**（`BOTS.put(...)` 那个唯一入口）；挂钩② `onServerStarted` 打**启动报告**
+   （有残留或未闭合作用域才出声，避免噪声）。
+
+**可验证闭环（复用脚手架夹具，不新增物品）**：`ScaffoldLifecycleTask` 增加**第二轮**：
+第一轮（正常生命周期）通过后 ⇒ 再爬一次柱顶、**故意不拆** ⇒
+`recover_decide`（断言判定必须是 `ready`）⇒ 复用既有 `TEARDOWN` 相位做"续做" ⇒
+`RECOVERY SUMMARY decision=ready ledger_before=N ledger_after=0 residue=0 → PASS`。
+判据 = **账本事实**（`pendingTemporary` 归零）+ **世界事实**（立柱列无残留）+ 第一轮仍 PASS。
+（第二轮规划攀爬时不重放场景，避免洗掉第一轮的结论；补发一次性方块保证夹具自足。）
+
+**未覆盖（如实登记）**
+- `too_far` 分支：夹具场景台地只有 13×17，**没法安全地把 bot 挪到 >16 格外**（走出去就是虚空）
+  ⇒ 该分支只有代码与日志证据；触发条件已写清（崩溃后 bot 被传送走 / 换了场景）。
+- 挂钩①的**真实崩溃路径**（服务器被强杀 → 重启 → bot 恢复）无法在夹具里复现；夹具验证的是
+  "判定正确 + 续做机制把账本收尾"（同一条 `RestoreScopeTask` 路径）。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待测：`alice:scaffold_check` 应出现第二轮
+`recover_decide … decision=ready` 与 `RECOVERY SUMMARY … → PASS`；串联电池的 `scaffold` 步仍 PASS）。

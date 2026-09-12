@@ -163,6 +163,8 @@ public final class BotManager {
         BOTS.put(bot.getUUID(), new BotSession(bot));
         saveToWorld(bot);
         BotLog.info("假人已生成(玩家化): name={} pos={}", name, pos.toShortString());
+        // J7 Step 3（D-127）：bot 变得可用时检查"上次会话没拆完的脚手架"
+        tryRecoverUnfinishedTeardown(bot);
         return bot;
     }
 
@@ -841,12 +843,85 @@ public final class BotManager {
         return String.format(java.util.Locale.ROOT, "%.3f", value);
     }
 
+    /** 崩溃兜底：bot 距残留多近才自动续做（格）。远了**不自动走回去** —— §12.3 要求"仍在架上时拆"。 */
+    public static final double TEARDOWN_RECOVERY_RANGE = 16.0D;
+
+    /**
+     * **崩溃兜底判定**（J7 Step 3 / §12.4，可单测）：账本里还有没有我这个 bot 没拆完的临时放置，近不近。
+     *
+     * <p>为什么不无条件续做：D-103 的教训 —— "从地面走回去拆高层柱子"会引出跨场景寻路/站位/支撑等
+     * 一整串复杂度，而且**从下面拆高层柱子必然留悬空残块**（§12.3）。所以只做两件事：
+     * 近（≤ {@link #TEARDOWN_RECOVERY_RANGE} 格，通常是崩溃时 bot 就站在架上）⇒ 续做；
+     * 远 ⇒ **如实报告并留给 `/alice restore`**，不自己走过去。
+     *
+     * @return {@code none}（干净）/ {@code ready}（可就地续做）/ {@code too_far}（残留太远，只报告）
+     */
+    public static String teardownRecoveryDecision(BotPlayer bot) {
+        var level = bot.serverLevel();
+        com.dddgn.alice.ledger.WorldModLedger.dropStale(level);   // 现场已非我方方块的条目先销掉
+        var pending = com.dddgn.alice.ledger.WorldModLedger
+                .pendingForOwner(level.getServer(), bot.getUUID());
+        if (pending.isEmpty()) {
+            return "none";
+        }
+        double nearest = Double.MAX_VALUE;
+        for (var entry : pending) {
+            nearest = Math.min(nearest, Math.sqrt(entry.pos().distSqr(bot.blockPosition())));
+        }
+        BotLog.warn("[Recovery] 账本发现 {} 条我方未拆除的临时方块（上次会话未闭合）最近 {} 格",
+                pending.size(), fmt3(nearest));
+        if (nearest > TEARDOWN_RECOVERY_RANGE) {
+            BotLog.warn("[Recovery] 距离超过 {} 格 ⇒ **不自动走回去**（§12.3：拆除须在仍在架上时做）；"
+                    + "如需清理：/alice restore", fmt3(TEARDOWN_RECOVERY_RANGE));
+            return "too_far";
+        }
+        BotLog.info("[Recovery] 就近（{} 格）⇒ 可就地续做拆除", fmt3(nearest));
+        return "ready";
+    }
+
+    /**
+     * bot 可用时调用：残留**就近**且 bot 空闲 ⇒ 起一个恢复任务把这次未闭合的会话收尾。
+     *
+     * @return 见 {@link #teardownRecoveryDecision}（外加 {@code busy} / {@code resumed}）
+     */
+    public static String tryRecoverUnfinishedTeardown(BotPlayer bot) {
+        String decision = teardownRecoveryDecision(bot);
+        if (!"ready".equals(decision)) {
+            return decision;
+        }
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            BotLog.info("[Recovery] bot 正忙/未注册 ⇒ 本次不自动续做（留给 /alice restore）");
+            return "busy";
+        }
+        var pending = com.dddgn.alice.ledger.WorldModLedger
+                .pendingForOwner(bot.serverLevel().getServer(), bot.getUUID());
+        session.beginTask(new com.dddgn.alice.task.RestoreScopeTask(bot, session.scope(), null),
+                TaskTarget.block(pending.get(0).pos()));
+        broadcastTarget(session.target);
+        BotLog.info("[Recovery] 续做拆除：scope=all blocks={}", pending.size());
+        return "resumed";
+    }
+
     /** 服务器启动完成:恢复存档假人(若有)。 */
     @SubscribeEvent
     public static void onServerStarted(ServerStartedEvent event) {
         TransferLedgerData.get(event.getServer()).suspendUnfinished(TransferCodes.SERVER_RESTART,
                 event.getServer().getTickCount());
         restoreFromWorld(event.getServer());
+        // J7 Step 3（D-127）：启动就报出"上次没拆完的脚手架"（0 条时不出声，避免噪声）
+        var openScopes = com.dddgn.alice.ledger.WorldModLedger.openScopes(event.getServer());
+        int residual = 0;
+        for (var entry : com.dddgn.alice.ledger.WorldModLedger.pending(event.getServer())) {
+            if (entry.policy() == com.dddgn.alice.ledger.WorldModLedger.Policy.TEMP) {
+                residual++;
+            }
+        }
+        if (residual > 0 || !openScopes.isEmpty()) {
+            BotLog.warn("[Recovery] 启动检查：账本有我方临时放置 {} 条、未闭合作用域 {} 个"
+                            + "（上次不是正常收尾；bot 上线后就近会续做，或用 /alice restore）",
+                    residual, openScopes.size());
+        }
     }
 
     /** 关服前:冗余写一次档(平时 spawn/remove 已维护,这里兜底防崩溃丢档)。 */
