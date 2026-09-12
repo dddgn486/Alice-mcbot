@@ -49,6 +49,16 @@ public sealed interface GoalAction {
 
     /** 严格解析一行 LLM 回复（容忍被 ```json 包裹或前后有解释文字）。 */
     static GoalAction parse(String reply, com.dddgn.alice.bot.BotPlayer bot) {
+        return parse(reply, bot, null);
+    }
+
+    /**
+     * 严格解析（S2：带候选菜单校验）。
+     *
+     * <p>`start_job` 的 `target` **必须命中本轮菜单**：这是"选项由确定性层生成、LLM 只选择"的落地点
+     * —— 于是 LLM 既不能编坐标，也不能挑一个"那里什么都没有"的位置。
+     */
+    static GoalAction parse(String reply, com.dddgn.alice.bot.BotPlayer bot, CandidateMenu menu) {
         if (reply == null || reply.isBlank()) {
             return new Refused("empty_reply");
         }
@@ -69,7 +79,7 @@ public sealed interface GoalAction {
         String note = root.has("note") && root.get("note").isJsonPrimitive()
                 ? root.get("note").getAsString() : "";
         return switch (action) {
-            case "start_job" -> parseStartJob(root, note, bot);
+            case "start_job" -> parseStartJob(root, note, bot, menu);
             case "stop_current" -> new StopCurrent(root.has("reason") && root.get("reason").isJsonPrimitive()
                     ? root.get("reason").getAsString() : "llm_requested");
             case "report_status" -> new ReportStatus(note);
@@ -79,7 +89,7 @@ public sealed interface GoalAction {
     }
 
     private static GoalAction parseStartJob(JsonObject root, String note,
-                                            com.dddgn.alice.bot.BotPlayer bot) {
+                                            com.dddgn.alice.bot.BotPlayer bot, CandidateMenu menu) {
         if (!root.has("kind") || !root.get("kind").isJsonPrimitive()) {
             return new Refused("start_job_missing_kind");
         }
@@ -90,13 +100,29 @@ public sealed interface GoalAction {
         int maxTicks = clamp(number(root, "maxTicks", 3600), 20, MAX_TICKS, "maxTicks", clamps);
         String productTag = root.has("productTag") && root.get("productTag").isJsonPrimitive()
                 ? root.get("productTag").getAsString() : null;
-        var center = bot == null ? net.minecraft.core.BlockPos.ZERO : bot.blockPosition().immutable();
+        // S2：target 必须是菜单里出现过的 id；解析不出 ⇒ 拒绝（不猜坐标）
+        String targetId = root.has("target") && root.get("target").isJsonPrimitive()
+                ? root.get("target").getAsString().trim() : "";
+        CandidateMenu.Entry target = menu == null ? null : menu.find(targetId);
+        var botPos = bot == null ? net.minecraft.core.BlockPos.ZERO : bot.blockPosition().immutable();
+        var center = target != null && target.pos() != null ? target.pos() : botPos;
+        boolean needsTarget = "lumber".equals(kind) || "collect".equals(kind);
+        if (needsTarget && target == null) {
+            return new Refused("missing_or_unknown_target:" + (targetId.isBlank() ? "(未给)" : targetId)
+                    + "（start_job kind=" + kind + " 必须引用菜单里的候选 id）");
+        }
+        if (target != null && !target.kind().equals(kind)
+                && !("region_lumber".equals(kind) && "region_lumber".equals(target.kind()))) {
+            return new Refused("target_kind_mismatch:" + targetId + " is " + target.kind()
+                    + " but kind=" + kind);
+        }
         return switch (kind) {
             case "lumber" -> new StartJob(JobRequest.lumber(center, radius, quota, maxTicks), note, clamps);
             case "mine" -> new StartJob(JobRequest.mine(center, radius, quota, maxTicks, productTag),
                     note, clamps);
-            case "collect" -> new StartJob(JobRequest.collect(center, radius, quota, maxTicks,
-                    false), note, clamps);   // anyDrops 不放给 LLM（捡玩家物品要走 S3 请示）
+            case "collect" -> new StartJob(JobRequest.collect(center, radius,
+                    target != null && target.amount() > 0 ? Math.min(quota, target.amount()) : quota,
+                    maxTicks, false), note, clamps);   // anyDrops 不放给 LLM（捡玩家物品要走 S3 请示）
             case "region_lumber", "region" -> {
                 var region = com.dddgn.alice.job.lumber.LumberRegionState.get(bot.getServer())
                         .region(bot.getUUID());

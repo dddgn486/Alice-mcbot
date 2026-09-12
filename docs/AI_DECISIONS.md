@@ -4826,3 +4826,26 @@ HttpClient 的内部任务排不进来 ⇒ **死锁**：请求发不出去，超
 ③ 玩家丢的**不捡**（ASK，超时=不捡）④ 授权区**可捡**（含玩家物品）⑤ 被动：路过 `FOREIGN` 掉落物**不吸附**且留 `[Pickup] blocked …`。
 
 **开工顺序（已与用户确认）**：S2 选择层 → S3 请示层 → **S3.5 收集归属 + 被动闸门**。
+
+## D-139 S2 选择层：候选菜单 + 动作 target（2026-09-12）
+
+**问题（D-135 附注四实测）**：动作里的 `center` 只能是 bot 当前位置 ⇒ LLM 选 `lumber` 时选中一片没树的地方，
+1 tick 就 `no_reachable_candidate`。**不是它笨，是我们没给菜单。**
+
+**落地**
+1. `decision/CandidateMenu`（新）：从**服务端事实**生成**有界**选项（每类 ≤5、总数 ≤12）：
+   - `tree@x,y,z`（`TreeScanner` 半径 24 内最近的树，带距离/树种/高度）→ 伐木；
+   - `drops@x,y,z`（**只列我方登记过的**掉落物簇，带数量与 `provenance=OURS_DIRECT`）→ 捡拾；
+   - `region:saved`（已保存区域，带 baseline/我种的苗）→ 区域型；
+   - 日志一行 `[Goal] candidate_menu entries=…`（可 grep、可断言）。
+2. `DecisionSnapshot.build(bot, menu)`：快照新增 `menu`；prompt 里明确"`target` 只能引用 menu 里的 id"；
+3. `GoalAction.parse(reply, bot, menu)`：
+   - `target` **必须命中本轮菜单**（`CandidateMenu.find`），未命中/缺失 ⇒ `Refused`（**不猜坐标**）；
+   - `lumber`/`collect` **必须带 target**；`mine`/`region_lumber` 可省（区域必须来自已保存区域）；
+   - target 的 kind 与动作 kind 不符 ⇒ `Refused(target_kind_mismatch)`；
+   - 捡拾的 quota 会被**菜单里的实际数量**夹取（`min(quota, amount)`），避免"要 24 只有 12"的空转。
+4. `GoalDirector`：每次决策前生成菜单并记进状态（`lastMenu`），解析时用它校验；`BotStateReport`
+   也渲染菜单（玩家能看到"现在能做什么"）——**汇报与 LLM 仍共用同一份事实**。
+
+**验证等级**：IMPLEMENTED / COMPILES（客户端待测）。判据：`[Goal] candidate_menu entries=…` 出现；
+LLM 的动作里带 `target=tree@…/drops@…`；伐木**不再**出现"选了没树的地方 ⇒ 1 tick `no_reachable_candidate`"。

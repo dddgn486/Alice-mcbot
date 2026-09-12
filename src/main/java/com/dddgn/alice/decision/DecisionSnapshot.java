@@ -27,6 +27,11 @@ public final class DecisionSnapshot {
     }
 
     public static JsonObject build(BotPlayer bot) {
+        return build(bot, null);
+    }
+
+    /** @param menu S2 候选菜单（null = 不附菜单，例如玩家手动报告时按需生成） */
+    public static JsonObject build(BotPlayer bot, CandidateMenu menu) {
         JsonObject root = new JsonObject();
         JsonObject botNode = new JsonObject();
         botNode.addProperty("name", bot.getName().getString());
@@ -129,6 +134,9 @@ public final class DecisionSnapshot {
         }
         root.add("tree", tree);
 
+        // S2 选择层：**候选菜单** —— 服务端算好的有界选项，LLM 只能引用其中的 id
+        root.add("menu", menu == null ? new JsonArray() : menu.toJson());
+
         // S1 事实层：**最近事件环**（危险/失败/恢复/达成）——汇报按需读，不推送
         JsonArray events = new JsonArray();
         for (var event : BotEventLog.recent(bot, 12)) {
@@ -150,11 +158,14 @@ public final class DecisionSnapshot {
     }
 
     /** 完整 prompt（状态 + 输出契约），并记一行"发了多少字"。 */
-    public static String buildPrompt(BotPlayer bot) {
-        String state = build(bot).toString();
+    public static String buildPrompt(BotPlayer bot, CandidateMenu menu) {
+        String state = build(bot, menu).toString();
         String prompt = """
                 当前状态（服务端权威事实，JSON）：
                 %s
+
+                注意：`start_job` 的 `target` **只能引用 menu 里出现过的 id**（例如 `tree@20,64,208`）；
+                引用菜单里没有的 target 会被**拒绝**，也不要自己编坐标。
 
                 请只回**一个** JSON 对象，不要解释、不要 Markdown 围栏。""".formatted(state);
         BotLog.info("[Goal] snapshot chars={} json={}", state.length(),

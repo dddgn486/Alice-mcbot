@@ -24,9 +24,9 @@ public final class BotStateReport {
     private BotStateReport() {
     }
 
-    /** 同一份事实（给 LLM 与给玩家共用）。 */
+    /** 同一份事实（给 LLM 与给玩家共用；**含候选菜单** —— 玩家也能看到"现在能做什么"）。 */
     public static JsonObject json(BotPlayer bot) {
-        return DecisionSnapshot.build(bot);
+        return DecisionSnapshot.build(bot, CandidateMenu.build(bot));
     }
 
     /** 聊天友好的多行文本。 */
@@ -87,6 +87,20 @@ public final class BotStateReport {
         }
         lines.add("账本未闭合临时方块：" + snapshot.getAsJsonObject("worldMod")
                 .get("pendingTemporaryBlocks").getAsInt());
+
+        JsonArray menu = snapshot.getAsJsonArray("menu");
+        if (menu != null && !menu.isEmpty()) {
+            lines.add("可做（候选菜单，LLM 只能从里面挑）：");
+            for (var element : menu) {
+                JsonObject entry = element.getAsJsonObject();
+                lines.add("  " + entry.get("id").getAsString()
+                        + " —— " + entry.get("label").getAsString()
+                        + (entry.has("amount") ? " 数量=" + entry.get("amount").getAsInt() : "")
+                        + (entry.has("extra") ? " " + entry.get("extra").getAsString() : ""));
+            }
+        } else {
+            lines.add("可做（候选菜单）：空");
+        }
 
         JsonArray events = snapshot.getAsJsonArray("recentEvents");
         if (events.isEmpty()) {

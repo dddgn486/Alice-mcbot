@@ -37,9 +37,10 @@ public final class GoalDirector {
             不决定怎么走、怎么挖、怎么放方块（那些由确定性执行器负责，且有预算与安全闸门）。
 
             可选动作（严格 JSON，单个对象，不要多余文字）：
-            1. {"action":"start_job","kind":"lumber","radius":16,"quota":2,"maxTicks":3600}
+            1. {"action":"start_job","kind":"lumber","target":"tree@20,64,208","radius":16,"quota":1,"maxTicks":3600}
+               // target **必须**是状态里 menu 出现过的 id（伐木/捡拾必须给；mine/region_lumber 可省）
             2. {"action":"start_job","kind":"mine","radius":16,"quota":8,"maxTicks":3600,"productTag":"#forge:ores/iron"}
-            2b. {"action":"start_job","kind":"collect","radius":16,"quota":8,"maxTicks":1200}
+            2b. {"action":"start_job","kind":"collect","target":"drops@27,64,207","radius":16,"quota":24,"maxTicks":1200}
                 // 掉落物搜索 + 捡拾；**只捡我方造成的掉落物**（不会捡玩家的东西）
             3. {"action":"start_job","kind":"region_lumber","maxTicks":24000}   // 只能用"已保存的区域"（玩家划定）
             4. {"action":"stop_current","reason":"..."}
@@ -47,7 +48,7 @@ public final class GoalDirector {
             6. {"action":"no_op","note":"..."}
 
             规则：
-            - 未知动作或未知 kind 会被**拒绝**；不要编造坐标（中心一律取 bot 当前位置）。
+            - 未知动作/未知 kind/未在 menu 中的 target 一律被**拒绝**；不要编造坐标。
             - 不要要求"挖穿地形/搭桥/放置方块"——那需要显式授权，不在你的词汇表里。
             - 任务刚失败过（lastTerminal.terminal=FAILED）时，优先考虑换目标或 no_op，而不是立刻重跑同一个。
             """;
@@ -63,6 +64,7 @@ public final class GoalDirector {
         int minuteRequests;
         long minuteStartTick;
         String lastAction = "-";
+        CandidateMenu lastMenu;
         ServerPlayer observer;
     }
 
@@ -157,7 +159,9 @@ public final class GoalDirector {
         state.minuteRequests++;
         state.pendingTrigger = trigger;
         String system = VOCABULARY + (config.systemPrompt().isBlank() ? "" : "\n" + config.systemPrompt());
-        String prompt = DecisionSnapshot.buildPrompt(bot);
+        // S2：决策前先由**确定性层**生成候选菜单（有界），prompt 里带上，LLM 只能引用其中的 id
+        state.lastMenu = CandidateMenu.build(bot);
+        String prompt = DecisionSnapshot.buildPrompt(bot, state.lastMenu);
         BotLog.info("[Goal] decision_request trigger={} model={} calledAtTick={}",
                 trigger, config.model(), state.lastRequestTick);
         state.pending = LlmClient.askAsync(system, prompt);
@@ -203,7 +207,7 @@ public final class GoalDirector {
         String trimmed = reply.text().length() > LlmConfig.get().maxReplyChars()
                 ? reply.text().substring(0, LlmConfig.get().maxReplyChars())
                 : reply.text();
-        GoalAction action = GoalAction.parse(trimmed, bot);
+        GoalAction action = GoalAction.parse(trimmed, bot, state.lastMenu);
         state.lastAction = action.getClass().getSimpleName();
         BotLog.info("[Goal] decision_action trigger={} latency={}ms raw={} → {}",
                 state.pendingTrigger, reply.latencyMs(),
