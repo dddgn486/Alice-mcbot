@@ -132,9 +132,14 @@
 ⑥ /alice region start                       # 空区域 + 无苗 + 无欠 ⇒ 约 3 轮巡查后
    期望日志：[Job] maintain region=… viable=0 … deficit=0 …
              [Job] maintain SUMMARY … reason=idle_no_work → DONE
-⑦ /alice region idle-stop false             # 复原默认（常驻），免得下轮任务自己收工
+⑦ /alice region idle-stop false             # ★复原默认（常驻）—— idle-stop 是持久化的，忘了这步
+                                            #   下次任务会在"无活"时自己收工（看起来像"突然停了"）
 ```
 
+> **实测（2026-09-12 13:50–13:51）**：`stop` / `set` / `idle-stop true` 三个接口全部通过（D-131 附注二）。
+> `idle-stop true` 可以在任务**正在跑**时直接开：下一轮巡查就会 `idle_no_work` 收工（实测 1 s 内），
+> 不必先 `stop` 再 `start`。
+>
 > 注意：`/alice region info|sapling|idle-stop|set` 是**读/写配置**，**不会**打断正在跑的任务；
 > 会分配任务的指令（`start`、`mine`、`follow`…）才替换任务（`cancelled:replaced`）；
 > **只有 `/alice region stop` 是显式打断**。重划区域在"当前有任务在跑"时**下一次 start 才生效**。

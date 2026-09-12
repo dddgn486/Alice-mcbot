@@ -238,11 +238,12 @@ tools/check-scene-connectivity.py --all        # 离线：22 场景无「封航�
   ｜Slice B 区域补种（`REGION_REPLANT` ⇒ 账本 `KEEP`）+ 树苗选择接口 ｜
   D-130 语义修正：**玩家只划水平范围 / 垂直自适应**（`adaptiveTop`）、**常驻**（只由显式打断结束）、
   等生长退避 40→…→600 tick ｜D-131 收尾：三个玩家接口做实 + 三处收尾缺陷。
-  验证等级：功能全部 `WINDOWS_CLIENT`（D-130 附注）；玩家接口 `/alice region stop`、`/alice region set`
-  **`WINDOWS_CLIENT`**（D-131 附注），`idle-stop=true` **待测**（本轮漏跑）。
-- J8 收尾后的**体验缺陷**（D-131 附注，"看不到反应"的根因）：常驻空区域在聊天里**零反馈**
-  ⇒ 首次查无活时回一句现场状态 + 怎么收工，终态（`idle_no_work` / `FAILED`）也回聊天；
-  `baseline=0` 被当成"没推导" ⇒ 每轮重推刷日志，改为持久化 `baselineDerived` 标记。
+  验证等级：功能全部 `WINDOWS_CLIENT`（D-130 附注）；三个玩家接口 `/alice region stop`、`/alice region set`、
+  `idle-stop=true` **全部 `WINDOWS_CLIENT`**（D-131 附注 / 附注二）⇒ **J8 整条闭合**。
+  ⚠ 注意 `idle-stop` 是持久化的：上一轮最后一条命令是 `idle-stop true`，要"常驻"语义先跑一次 `false`。
+- J8 收尾后的**体验缺陷**（D-131 附注二已验，`WINDOWS_CLIENT`）：常驻空区域在聊天里**零反馈**
+  ⇒ 首次查无活时回一句现场状态 + 怎么收工，终态（`idle_no_work` / `FAILED`）也回聊天（**只提示一次**）；
+  `baseline=0` 被当成"没推导" ⇒ 每轮重推刷日志，改为持久化 `baselineDerived` 标记（整会话只打印 1 次）。
 - J8 收尾修掉的**真缺陷**（不是"没测"那么简单，见 D-131；其中 ④ 已在客户端**当场抓到** `forward=1.00` 残留）：
   ① `/alice region set` 重划区域不作废旧区域的派生记账（`baseline=5` 污染空区域 ⇒ 永不待机）；
   ② 目标棵数未把"我种的苗"算进去（在"已砍完只剩苗"的地块上启动会退化）；

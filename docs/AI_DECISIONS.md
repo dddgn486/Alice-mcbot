@@ -4282,3 +4282,38 @@ region=x17..37 z203..231 baseY=58 maxH=48（垂直自适应） adaptiveTop=84 �
 **待测**：`idle-stop=true` ⇒ `SUMMARY … reason=idle_no_work → DONE` + 上面两条聊天。
 **路径**：区域已经划好（x18..26 z230..238），`/alice region start` 后跑一句 `/alice region idle-stop true`
 即可（`idlePatrols` 已经 ≥3，下一轮巡查就会收工，最多 30 s），不必重划。
+
+### D-131 附注二（2026-09-12 13:50–13:51 客户端实测）：J8 三个玩家接口**全部 `WINDOWS_CLIENT`**
+
+```
+13:50:06 /alice region start（空区域）
+         [CHAT] 区域 x18..26 z230..238 baseY=64 maxH=48（垂直自适应） 里没有可作业的树
+                （viable=0 mySaplings=0 deficit=0）——常驻巡查中（间隔退避到 600 tick，等树长大；
+                要它收工用 /alice region stop）                    ← 新增"不是黑箱"反馈，**首轮即出** ✓
+         [Job] maintain 区域目标棵数 baseline=0（首次巡查确定 …）    ← 本会话**仅此一次**
+13:50:31 /alice region stop → terminal=CANCELLED_BY_USER code=cancelled:region_stop
+                               回执：账本仍有 4 条我方临时方块未拆（再来一次，稳定复现）
+13:50:52 /alice region start → 再来一轮：**没有**再打印 `区域目标棵数 baseline=0`
+                               （`baselineDerived` 已持久化 ⇒ 去噪生效）✓
+13:51:05 /alice region idle-stop false
+13:51:12 /alice region idle-stop true
+13:51:13 [Job] maintain SUMMARY region=… chopped=0 failed=0 patrols=85 … reason=idle_no_work → DONE
+         task_execution_terminal kind=RegionLumberJob durationTicks=366 terminal=COMPLETED code=done
+         [CHAT] 区域没有活干了（无树无苗无欠）⇒ idle_no_work 收工；想让它常驻就用
+                /alice region idle-stop false 再 /alice region start              ← 接口③ ✓
+         [Ledger] 销掉 1 条已失效条目：33,64,208(oak_sapling→oak_log)              ← 苗长成树即销账 ✓
+```
+
+**结论：J8 收尾整条闭合**
+| 项 | 判据 | 等级 |
+|---|---|---|
+| `/alice region stop`（显式打断） | `terminal=CANCELLED_BY_USER code=cancelled:region_stop` + 残留回执 + 区域不丢 | `WINDOWS_CLIENT` |
+| `/alice region set`（只划水平） | 回执 x18..26 z230..238 baseY=64 maxH=48 + 重划重置派生记账 | `WINDOWS_CLIENT` |
+| `idle-stop=true`（可选收工模式） | `SUMMARY … reason=idle_no_work → DONE` + `terminal=COMPLETED code=done` | `WINDOWS_CLIENT` |
+| 常驻空区域不再黑箱 | 首轮巡查即回聊天（现场状态 + 怎么收工），**只提示一次** | `WINDOWS_CLIENT` |
+| `baselineDerived` 去噪 | 整会话 `区域目标棵数` **只出现 1 次**（同一区域第二次 start 不再打印） | `WINDOWS_CLIENT` |
+| `clearTask` 输入归零 | 打断当场抓到 `forward=1.00` 残留并清除（真缺陷） | `WINDOWS_CLIENT` |
+
+**遗留提醒**：`idle-stop` 是**持久化**的 —— 本轮最后一条命令是 `idle-stop true`，
+所以该 bot 现在的默认是**旧的可选模式**（无活即 `IDLE_NO_WORK` 收工）。
+要回到"常驻（只由玩家/决策层打断）"的 D-130 语义，跑一次 `/alice region idle-stop false` 即可。
