@@ -8099,4 +8099,4 @@ cleanup 在菜单已关时对玩家背包菜单跑发现器 + 拿旧地址点击
 
 **电池 24 → 25 项**（`craft_goal` 进 MAIN ⇒ CORE 25 / FULL 35），`docs/BATTERY_CURATION.md` 同步。
 
-**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `85e20510…`）；**待客户端**（`alice:craft_goal_check` + CORE 25/25 + `/alice ask`）。
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `cd3a6816…`）；**待客户端**（`alice:craft_goal_check` + CORE 25/25 + `/alice ask`）。

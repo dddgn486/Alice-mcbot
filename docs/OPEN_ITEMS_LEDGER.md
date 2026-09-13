@@ -668,6 +668,7 @@ jar `3312608d…`。
   `craft_furnace=PASS`（原版方块炉回归无变化，`input=#0 fuel=#1 output=#2`）；
   `PROFILE=CORE baseline=13 main=11 extra_skipped=10`、无 SKIP/FAIL、无崩溃。
 - ⇒ **A4b（菜单型炉子 / 精妙"熔炼升级页签"）收口**；阶段 3-A 只剩 **A5 决策层接线**。
+- **USER_ACCEPTED（用户 2026-09-13 确认）**：客户端看到"只开关箱子 2~3 次、没有连续开关"，**认可 A4b 通过**。
 
 **§6.43 A5 决策层接线：`GoalAction.Craft` + 可做清单 + 生产路径 `CraftJob`**（2026-09-13，D-199，实施完成待客户端）
 - **词汇表**：新增动作 `{"action":"craft","item":"<物品id>","count":N}`（`GoalAction.Craft`）。**严格解析**：
@@ -687,4 +688,4 @@ jar `3312608d…`。
 - **自检入口**：`alice:craft_goal_check`（零参数、**不需要场景**）+ 电池步 `craft_goal`（MAIN ⇒ **CORE 25 / FULL 35**）：
   给 4 块橡木木板 ⇒ 断言清单里有 `minecraft:crafting_table` 且 `can_use=true` ⇒ 断言越界被拒、在清单里被接受 ⇒
   用同一个 `CraftJob` 真做一个工作台 ⇒ 断言木板 −4、工作台 +1 ⇒ 清空背包。
-- **等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（76 项）+ 已同步（jar `85e20510…`）；**待客户端**（`alice:craft_goal_check` + CORE 电池 = 25/25 + `/alice ask` 观察 LLM 只在清单里选）。
+- **等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（76 项）+ 已同步（jar `cd3a6816…`）；**待客户端**（`alice:craft_goal_check` + CORE 电池 = 25/25 + `/alice ask` 观察 LLM 只在清单里选）。

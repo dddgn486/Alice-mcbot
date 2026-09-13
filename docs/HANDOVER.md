@@ -24,7 +24,7 @@
 | A 装配层（L2） | `alice:craft_station_provision_check`：`provision_verified=true`、`deprovision_verified=true`、`item_returned=true`、`no_block_writes=true` |
 | C 模组站点真合成 | `alice:craft_station_craft_check`：消耗 8 圆石 / 产物 1、**产物进容器**、不自动补料、装→用→拆全绿 |
 | A4 熔炉（方块型） | `alice:craft_furnace_check`：`discover=OK input=#0 fuel=#1 output=#2 container=FurnaceBlockEntity`、`smelted=true`、`no_half_products=true`、**自复位**（`burnLeft=1398 → 重建方块=true`） |
-| **A4b 菜单型炉子（精妙"熔炼升级页签"）** | `alice:craft_cooking_check`：`discover=OK input=#64 fuel=#65 output=#66 container=SimpleContainer data=CookingLogicContainer(selfReported)`、`smelt_ticks=207`、`smelted=true`、`input_consumed=true`、`no_half_products=true`、`leftovers_returned` 三项全 true、`deprovision_moved=true`、`upgrade_returned=true`、`verdict=PASS` |
+| **A4b 菜单型炉子（精妙"熔炼升级页签"）**（**USER_ACCEPTED**：用户确认"只开关 2~3 次、无连续开关"） | `alice:craft_cooking_check`：`discover=OK input=#64 fuel=#65 output=#66 container=SimpleContainer data=CookingLogicContainer(selfReported)`、`smelt_ticks=207`、`smelted=true`、`input_consumed=true`、`no_half_products=true`、`leftovers_returned` 三项全 true、`deprovision_moved=true`、`upgrade_returned=true`、`verdict=PASS` |
 | 电池分档 | CORE **`(24/24) ticks=2809 → PASS`**（含 `craft_cooking=PASS`、`craft_furnace=PASS`；FULL 34 项） |
 
 ## 3. A4b（菜单型炉子 = 精妙"熔炼升级页签"）—— **已收口 ✅**（能力 + 夹具双双客户端 PASS）
@@ -59,7 +59,7 @@
 3. 若第 1 步仍红：**先看 `[FurnaceDiag]` 里的 `slotOwners=` / `owner=… nested=[…] cookingSlots=3 progress=true`**
    （新加的诊断行），再看是"没认出来"还是"认出来但点击/放料没生效"——**这两种要分开判**。
 
-## 3b. A5（决策层接线：`GoalAction.Craft`）—— 已实施，待客户端复测（jar `85e20510…`）
+## 3b. A5（决策层接线：`GoalAction.Craft`）—— 已实施，待客户端复测（jar `cd3a6816…`）
 
 **做了什么**：词汇表加 `craft`（**只能在候选菜单的可做清单里选**；站点做不了/越界都在解析层拒绝并回读）；
 候选菜单加 `craftable` 清单（**只读**配方扫描 + 站点事实，有界且如实标 `truncated`）；
@@ -90,7 +90,7 @@
 - 电池：**CORE = BASELINE 13 + MAIN 12 = 25 项**（FULL 35）；配置唯一入口 `RegressionBatteryTask.CURATION`。
 - 模组（客户端 mods/）：alice、JEI、OreExcavation、JEI-pinyin、WorldEdit、create、extendedcrafting、cucumber、
   mekanism、thermal_*、**精妙存储 1.4.86.2131 + 精妙核心 1.5.1.2335 + 精妙背包 3.26.3.2157**、RefinedStorage 1.12.4。
-- 本轮最后同步的 jar：`85e20510d22247e6b907f58fb3daa3a3f8230d78fde4428013ff0f9d19aab852`（源码镜像 + 运行工件均已同步）。
+- 本轮最后同步的 jar：`cd3a6816c751f75334fa0a42199d8395b01db7f10b8c9d9c2a6e41f91d5ac610`（源码镜像 + 运行工件均已同步）。
 
 ## 6. 纪律提醒（别再踩）
 
