@@ -722,3 +722,16 @@ jar `3312608d…`。
 - **登记为临时裁定**：直连通道放行菜单校验**削弱了 A5 红线**；复核触发 = A5 的 LLM 路径验证通过 ⇒ 二选一：
   回收 `/alice instruct`，或加 `LlmConfig` 闸门（默认关）并写进红线说明。
 - `/alice region clear`：清掉玩家已选定区域（夹具/测试收尾），菜单里不再出现 `region:saved`。
+
+**§6.47 A5 的 LLM 路径客户端验证 ✅（jar `b31727dc…`，2026-09-13 20:39）**
+```
+[Goal] decision_request trigger=operator mode=directed model=deepseek-flash calledAtTick=243
+[Goal] directed_result raw={"action":"craft","item":"minecraft:crafting_table","count":1} → Craft(minecraft:crafting_table x1)
+[Goal] execute action=craft ok=true trigger=operator
+[CraftJob] query item=minecraft:crafting_table x1 → CRAFTABLE … grid=2x2 crafts=1
+[CraftJob] 站点 OK station=inventory 随身菜单（无需打开）
+[CraftJob] craft OK … produced=1 consumed=[crafting_table+1]
+[CraftJob] 世界事实 product 0→1（目标 x1）⇒ 达成
+```
+⇒ **prompt → LLM 选动作 → 严格解析 → 唯一执行入口 → 真世界变化** 整条 LLM 通路成立；
+用户确认"结果符合预期"。**阶段 3-A（A1–A5）到此全部客户端验证。**

@@ -8156,3 +8156,19 @@ user prompt 的"注意"段也补上"craftable 清单 / `craftable_truncated` 的
 4. `instruct()` 的状态快照也带上 `trigger="operator"`（与 D-200 的 trigger 字段配套）。
 
 **等级**：IMPLEMENTED + COMPILES + 已同步（jar `b31727dc…`）；**待客户端复测**（期望 `mode=directed` + `directed_result` 行）。
+
+#### D-200 附注二：直连通道验证通过 + **临时裁定复核结论**
+
+**验证**（20:39）：`mode=directed` 明确出现在请求行 ⇒ 指令真的送到；LLM 回 `{"action":"craft","item":"minecraft:crafting_table","count":1}`
+⇒ 解析成 `Craft(…)` ⇒ `execute action=craft ok=true` ⇒ `[CraftJob] … 世界事实 product 0→1 ⇒ 达成`。
+**A5 的 LLM 路径成立**（用户确认符合预期）。
+
+**复核结论（D-200 登记的复核触发条件已满足）**：`/alice instruct` **保留**，并把"放行菜单校验"从
+"临时让步"升格为**有名字、有范围的例外**：
+> **红线例外（唯一一处）**：`"LLM 只能从菜单里选"` 的唯一例外 = `/alice instruct`（操作者直连测试通道）。
+> 约束：① 只由玩家命令显式调用；② 自动触发路径（终态/事件/空闲/维生）**永不**进入 directed 模式；
+> ③ 每次都用 `[Goal] decision_request … mode=directed` + `[Goal] directed_result raw=…` 留痕。
+
+**为什么保留而不是回收**：它今天一次性证明了它的价值——正是它把"**指令没送达**（我的状态传递 bug）"
+与"**LLM 不听话**"分开；若只有菜单式测试，这两种故障会长得一模一样。
+**可选加固（用户定）**：若要更保险，可加 `LlmConfig.allowDirected`（默认 false）——代价是默认情况下这条诊断路要手动开。

@@ -7,7 +7,7 @@
 ## 1. 主线与目标
 
 - **长期目标**：完全参照 Baritone 搭建寻路内核（差异仅三条：可回收性安全策略 / 多层任务失败向上传递 / 未来并行 Bot 接口）。
-- **当前主线（阶段 3-A）**：把"合成/熔炼"接进任务层 —— **A1–A4b 已完成并客户端验证**；**A5（决策层接线）已实施，待客户端复测**（见 §3b）。
+- **当前主线（阶段 3-A）已收口**：A1–A5 全部客户端验证（合成/熔炼接进任务层，含决策层接线）。**下一步待用户定方向**（机器适配器 / 背包型站点 / 其他）。
 - 用户裁定（本阶段）：**不硬编码合成方式**；工作站**由玩家切换、不自动选优**；**装升级=配置行为（独立一层）**；
   **页签层**：实测"开与不开无差别"⇒ **什么都不做**；电池**只测必要基础 + 当前主线，AI 负责维护**。
 
@@ -71,9 +71,10 @@
    站点做不了 `Refused(station_cannot:…)`、`job_terminal=DONE`、`planks_delta=-4 product_count=1`、`durationTicks=8`）；
 2. CORE 电池 **`(25/25) ticks=2737 → PASS`**（含 `craft_goal=PASS`）。
 
-**LLM 路径还没测**（用户那次 `/alice ask` 走错门了）：`/alice ask` = **S3 权限请示**通道，不发起决策；
-要触发一次真实决策用 **`alice:goal_director`（右键，`GoalDirector.forceOnce`，不受自检暂停影响）**。
-观察点：LLM 是否只从 `menu` 的 `craftable` 里选；越界时 `Refused(not_in_menu:…)` 会写进下一轮的 `task.lastRefusal`。
+**LLM 路径已验证 ✅**（20:39，jar `b31727dc…`）：`/alice instruct 用你词汇表里的 craft 动作做一个工作台` ⇒
+`mode=directed` → `directed_result raw={"action":"craft","item":"minecraft:crafting_table","count":1}` →
+`execute action=craft ok=true` → `[CraftJob] … 世界事实 product 0→1 ⇒ 达成`。
+⇒ **阶段 3-A（A1–A5）全部收口**；下一阶段候选见 §4 待办。
 
 ## 4. 待办队列
 
