@@ -8316,3 +8316,23 @@ S2（站点/槽位发现）**等 S1 读数出来再定范围**——先看类型
 
 **等级**：IMPLEMENTED + COMPILES + 已同步（jar `21ab912c…`）；**待客户端**：CORE 期望回到 `(25/25)`，
 且 `premise_station_menu_open=true` / `premise_own_menu=true` 均不误报。
+
+### D-204（3-B / S1）：**机器配方只读探针** `alice:machine_probe`（零参数、零写入）
+
+**为什么需要它**：S0（`docs/MEKANISM_FACTS.md`，用阶段 2 的**运行时**导出离线算得：Mekanism 26 类型 / 1171 条，
+`crushing` 210 起）只给了**类型×条数**，**不含这些类型的输入/输出样例**（它们本就不在原版白名单里）
+⇒ 认机器（S2）之前必须先取证"这些类型长什么样"。
+
+**实现**：`task/MachineProbeTask`（`*ProbeTask` 命名 + `isSelfCheck()=true` ⇒ 不招 LLM）
++ `item/MachineProbeItem`（零参数右键）+ `BotManager.assignMachineProbe`；产物 = 一行 `SUMMARY`：
+```
+namespace=mekanism types=26 type_recipes=1171 readable_total=2923 skipped_total=2370 samples_per_type=2 no_writes=true verdict=PASS
+```
+外加日志里每个类型的 `count=` 与最多 2 条 `sample id=… out=… x… in=[…]`。
+**只读**：只读 `RecipeManager`，不改世界、不发包、不派任务；`no_writes` = 我方账本 pending=0。
+
+**下一步（S2 的范围由这批样例决定）**：拿到样例后写"类型 → 输入/输出 + 机器类型"的读法（只读），
+把查询层的 `machine_recipe_unsupported` 升级为**有出处的机器路线**；探针按纪律**验证通过即回收**
+（或按 D-197 转成电池步）。换模组只改 `NAMESPACE` 与入口名字——**这就是"实验模板"的可复用性检验**。
+
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（77 项）+ 已同步（jar `8e497003…`）；**待客户端**（一次右键）。

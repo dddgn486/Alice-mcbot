@@ -46,5 +46,6 @@
   "key.categories.alice": "Alice",
   "key.alice.permission_allow": "允许 Alice 请示",
   "key.alice.permission_deny": "拒绝 Alice 请示",
-  "item.alice.craft_goal_check": "决策层合成自检"
+  "item.alice.craft_goal_check": "决策层合成自检",
+  "item.alice.machine_probe": "机器配方只读探针"
 }
