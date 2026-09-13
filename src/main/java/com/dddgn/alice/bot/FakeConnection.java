@@ -30,6 +30,29 @@ import java.util.UUID;
  */
 public class FakeConnection extends Connection {
 
+    /**
+     * **连接 tick 计数（D-176 附注）**：字节码事实 —— `ServerPlayer.doTick()`（`aig.m()`）
+     * 的唯一调用者是 `ServerGamePacketListenerImpl`（`aiy`），而 `doTick()` 内部 `invokespecial`
+     * 调父类 `tick()`；也就是说**假人的物理（`BotPlayer.tick()`）挂在它的连接被 tick 这条链上**。
+     * 与 Alice 的任务/会话（跑在全局 `ServerTickEvent.END`）**不同源** ⇒ 一旦这条链断了，
+     * 就是"任务在跑、bot 一格不动、且没有任何报错"（实测 `entityTicksInSegment=0`）。
+     *
+     * <p>这里只**计数**（不做任何行为改变）：冻结复现时对照 `entityTickCount` 即可判定
+     * "是连接没被 tick" 还是"连接 tick 了但实体没 tick"。
+     */
+    private long tickCount;
+
+    /** 连接被 tick 的累计次数（只读诊断量）。 */
+    public long tickCount() {
+        return tickCount;
+    }
+
+    @Override
+    public void tick() {
+        tickCount++;
+        super.tick();
+    }
+
     private static final boolean PACKET_OBSERVER = Boolean.getBoolean("alice.packet.observer");
     private static final Map<String, Integer> PACKET_DUPLICATES = new HashMap<>();
 

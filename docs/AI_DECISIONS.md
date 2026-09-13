@@ -6929,3 +6929,37 @@ dropsLeft=1`、`restore_end status=FAILED remaining=1`（拆不动、收不到�
 `[Job] region_returned`（回到区内恢复作业，原先没有恢复日志）。
 
 **未验证**：`outside_region` 终态本身（需连续漂移 20 秒；修好后重测一次即可）。
+
+### D-180：**传送感知**（用户要求：只加报告，不改行为）
+
+**动机**：bot 被传送（`/tp`、夹具传送、任何 `teleportTo`）时，它自己与决策层**都无从得知**——
+D-179 那轮事故的起点正是"bot 被传送到 198 格外而 Job 毫无察觉"。用户明确要求**只加报告**（不加自动反应）。
+
+**实现（纯报告，零行为改动）**：
+- `BotPlayer` 覆写**两个** `teleportTo` 入口（`(ServerLevel,x,y,z,Set,float,float)` 与 `(x,y,z)`），
+  汇入 `noteTeleport(...)`：累计计数 + 最近一次 `from/to/tick/距离` + 一行 `[Bot] teleported …`
+  + 决策事件环一条 `TELEPORT`（`DecisionEvents.record` = 只入环+记日志，**不通知决策层**，非可行动事实）。
+- `alice:bot_report` 增行：`传送：N 次；最近 A → B（距离 D，tick=T）`。
+
+**状态**：`IMPLEMENTED` + `COMPILES`；**未验证**：客户端（判据：传送 bot 一次后 `bot_report` 出现该行、
+日志出现 `[Bot] teleported from=… to=… distance=… tick=…`）。
+
+### D-176 附注一：B 项结构性调查 —— 假人物理**挂在连接 tick 这条链上**（字节码实证）
+
+用 Gradle 缓存里的 **Mojang 映射 + 混淆 client.jar** 做了调用图核对（不靠记忆）：
+
+```
+映射：ServerPlayer → aig，ServerGamePacketListenerImpl → aiy，PlayerList → alk，ServerLevel → aif
+反汇编 aig.m()（= ServerPlayer.doTick()）：内部 invokespecial #806 // Method byo.l:()V  ← 调父类 tick()
+调用者搜索：aig.m:()V 只出现在 aiy（ServerGamePacketListenerImpl）里；
+            alk（PlayerList）与 aif（ServerLevel）**都没有**调用它。
+```
+⇒ **`ServerPlayer` 的实体 tick 由 `ServerGamePacketListenerImpl.tick()` 驱动**，而假人的那个 listener
+背后是 Alice 的 `FakeConnection`（`EmbeddedChannel`，**没有注册进 `ServerConnectionListener` 的连接表**）。
+而 Alice 的任务/会话跑在**全局 `ServerTickEvent.END`** ⇒ **两条链不同源**：
+连接 tick 一断，就出现"任务在跑、bot 一格不动、无任何报错"（实测 `entityTicksInSegment=0`）。
+
+**据此新增一个**精准探针（只计数，不改行为）：`FakeConnection.tick()` 覆写并计数，
+看门狗新增 `connTicks=`。冻结复现时：
+- `connTicks` **不动** ⇒ 断在**连接 tick**（这条链是脆点，修复方向 = 让假人 tick 不依赖连接，或保证连接被 tick）；
+- `connTicks` 在涨而 `entityTicksInSegment=0` ⇒ 断在**实体侧**（另一条路要查）。

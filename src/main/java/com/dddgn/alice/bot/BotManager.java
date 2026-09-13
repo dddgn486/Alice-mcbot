@@ -1064,7 +1064,7 @@ public final class BotManager {
                 BlockPos pos = bot.blockPosition();
                 BotLog.warn("[Bot] entity_tick_missing streak={} serverTick={} bot={} pos={}"
                                 + " removed={} levelLoaded={} entityTicking={} inLevelPlayers={} inPlayerList={}"
-                                + " connection={} task={}",
+                                + " connection={} connTicks={} task={}",
                         session.entityTickMissingStreak, bot.getServer().getTickCount(),
                         bot.getName().getString(), pos.toShortString(),
                         bot.isRemoved(), bot.serverLevel().isLoaded(pos),
@@ -1074,7 +1074,14 @@ public final class BotManager {
                         bot.serverLevel().isPositionEntityTicking(pos),
                         bot.serverLevel().players().contains(bot),
                         bot.getServer().getPlayerList().getPlayers().contains(bot),
-                        bot.connection != null, session.taskKind);
+                        bot.connection != null,
+                        // D-176 附注：字节码事实 —— 假人物理挂在"连接被 tick"这条链上
+                        // （doTick 的唯一调用者 = ServerGamePacketListenerImpl，其内部调父类 tick）。
+                        // 冻结时用它对照 entityTickCount：connTicks 不动 ⇒ 断在连接；动了而实体不动 ⇒ 断在实体侧。
+                        (bot.connection != null && bot.connection.connection
+                                instanceof com.dddgn.alice.bot.FakeConnection fake)
+                                ? fake.tickCount() : -1L,
+                        session.taskKind);
             }
         } else {
             session.entityTickMissingStreak = 0;

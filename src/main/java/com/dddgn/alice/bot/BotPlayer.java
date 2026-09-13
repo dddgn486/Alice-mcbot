@@ -64,6 +64,80 @@ public class BotPlayer extends ServerPlayer {
         return travelInvocationCount;
     }
 
+    /**
+     * **传送感知（D-180，用户要求：只加报告，不改行为）**。
+     *
+     * <p>为什么需要：bot 被传送（`/tp`、夹具传送、任何 `teleportTo`）时，它自己与决策层**都无从得知**——
+     * 2026-09-13 实测过后果：常驻伐木 Job 在 bot 被传送到 198 格外后仍照常作业（现已由 D-179 拦住）。
+     * 这里只做**事实记录与上报**：计数 + 最近一次的 from/to/tick，并在决策事件环里留一条（不含任何自动动作）。
+     */
+    private int teleportCount;
+    private net.minecraft.core.BlockPos lastTeleportFrom;
+    private net.minecraft.core.BlockPos lastTeleportTo;
+    private long lastTeleportTick;
+    private double lastTeleportDistance;
+
+    /** 传送累计次数（只读）。 */
+    public int teleportCount() {
+        return teleportCount;
+    }
+
+    /** 最近一次传送的起点（未发生过为 null）。 */
+    public net.minecraft.core.BlockPos lastTeleportFrom() {
+        return lastTeleportFrom;
+    }
+
+    /** 最近一次传送的终点（未发生过为 null）。 */
+    public net.minecraft.core.BlockPos lastTeleportTo() {
+        return lastTeleportTo;
+    }
+
+    /** 最近一次传送发生的 server tick（未发生过为 -1）。 */
+    public long lastTeleportTick() {
+        return lastTeleportTick;
+    }
+
+    /** 最近一次传送的直线距离（未发生过为 0）。 */
+    public double lastTeleportDistance() {
+        return lastTeleportDistance;
+    }
+
+    /** 记录一次传送（唯一入口：两个 `teleportTo` 重载都汇到这里）。 */
+    private void noteTeleport(double toX, double toY, double toZ) {
+        net.minecraft.core.BlockPos from = this.blockPosition();
+        net.minecraft.core.BlockPos to = net.minecraft.core.BlockPos.containing(toX, toY, toZ);
+        if (from.equals(to) && teleportCount > 0) {
+            // 原地"传送"（夹具有时会用 teleportTo 做复位）不算位移事件，但仍计数
+        }
+        teleportCount++;
+        lastTeleportFrom = from;
+        lastTeleportTo = to;
+        lastTeleportTick = getServer() == null ? -1L : getServer().getTickCount();
+        lastTeleportDistance = Math.sqrt(this.distanceToSqr(toX, toY, toZ));
+        BotLog.info("[Bot] teleported from={} to={} distance={} tick={} count={}",
+                from.toShortString(), to.toShortString(),
+                String.format(java.util.Locale.ROOT, "%.1f", lastTeleportDistance),
+                lastTeleportTick, teleportCount);
+        com.dddgn.alice.decision.DecisionEvents.record(this, "TELEPORT", "info",
+                "bot 被传送 " + from.toShortString() + " → " + to.toShortString(),
+                "distance=" + String.format(java.util.Locale.ROOT, "%.1f", lastTeleportDistance)
+                        + " tick=" + lastTeleportTick);
+    }
+
+    @Override
+    public boolean teleportTo(net.minecraft.server.level.ServerLevel level, double x, double y, double z,
+                              java.util.Set<net.minecraft.world.entity.RelativeMovement> relatives,
+                              float yaw, float pitch) {
+        noteTeleport(x, y, z);
+        return super.teleportTo(level, x, y, z, relatives, yaw, pitch);
+    }
+
+    @Override
+    public void teleportTo(double x, double y, double z) {
+        noteTeleport(x, y, z);
+        super.teleportTo(x, y, z);
+    }
+
     public BotPlayer(MinecraftServer server, ServerLevel level, GameProfile profile) {
         super(server, level, profile);
         // D-025：对齐真实玩家台阶物理。ServerPlayer 构造默认 setMaxUpStep(1.0F)

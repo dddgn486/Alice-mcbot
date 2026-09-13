@@ -370,8 +370,13 @@ S-1 因常驻任务而真实化），再开 **②决策层接入** 这条真正�
 `entity_tick_missing` / `segment_stall` / 异常均为 **0**。
 
 **仍未闭环（按优先级）**：
-1. **P0 假人物理冻结**（D-176）：任务/会话跑全局 `ServerTickEvent.END`，而 `BotPlayer.tick()` 是实体 tick
-   （受区块 entity-ticking 影响）⇒ 不同源。看门狗已带 `entityTicking=` 判别位，**待复现取现场**后定修法。
+1. **P0 假人物理冻结**（D-176 / 附注一）：**字节码实证** —— `ServerPlayer.doTick()` 的唯一调用者是
+   `ServerGamePacketListenerImpl`（内部调父类 `tick()`）⇒ 假人物理**挂在"假连接被 tick"这条链上**，
+   与 Alice 的全局 `ServerTickEvent.END` **不同源**。看门狗已带 `entityTicking=` 与新加的 `connTicks=`
+   （`FakeConnection.tick()` 计数）：`connTicks` 不动 ⇒ 断在连接；在涨而实体不动 ⇒ 断在实体侧。
+   **待复现取现场**后定修法（候选：让任务侧兜底驱动、或保证假连接进连接表）。
+2. **传送感知**（D-180，用户要求只加报告）：`BotPlayer` 覆写两个 `teleportTo` ⇒ 计数 + from/to/tick +
+   `[Bot] teleported` 日志 + 事件环 `TELEPORT` + `bot_report` 一行。**待客户端复测**。
 2. **终态幂等契约推广**：19 处直接 tick 点里 17 处是夹具（已被电池隔离 + `idempotent=` 点名兜住），
    推广属欠账（同型 NPE 已出现两次：09-06 / 09-13）。
 3. ~~两处设计洞~~ → **② 已修（A 项，D-179）**：`MiningTuning.gainHorizontallyReachable` 唯一定义 +

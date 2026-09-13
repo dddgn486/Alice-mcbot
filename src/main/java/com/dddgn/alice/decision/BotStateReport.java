@@ -153,6 +153,16 @@ public final class BotStateReport {
             lines.add("安全点取消：" + stopSession.describeSafeStops()
                     + "；菜单门 " + com.dddgn.alice.action.MenuSession.describeGates());
         }
+        // D-180：**传送感知**（用户要求：只报告，不改行为）——bot 被 /tp 或夹具传送过就必须能看见，
+        // 否则"Job 在 198 格外照常作业"这类现象无从解释（现已由 D-179 拦住，但事实仍需可读）。
+        if (bot.teleportCount() > 0) {
+            lines.add("传送：" + bot.teleportCount() + " 次；最近 "
+                    + (bot.lastTeleportFrom() == null ? "-" : bot.lastTeleportFrom().toShortString())
+                    + " → "
+                    + (bot.lastTeleportTo() == null ? "-" : bot.lastTeleportTo().toShortString())
+                    + "（距离 " + String.format(java.util.Locale.ROOT, "%.1f", bot.lastTeleportDistance())
+                    + "，tick=" + bot.lastTeleportTick() + "）");
+        }
         if (snapshot.has("tools")) {
             lines.add("工具：" + snapshot.getAsJsonObject("tools").get("summary").getAsString());
         }
