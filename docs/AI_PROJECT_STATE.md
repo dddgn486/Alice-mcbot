@@ -383,12 +383,22 @@ D-165 附注四），**待客户端复测**。判据与排查入口见 `OPEN_ITE
 | **D-169 电池自杀事故** | 电池里的 `k3_stop_defer` 停的是**顶层任务=电池自己**（三轮电池都没 SUMMARY 的真因）；修：K-3 退出电池（25 → **23** 项）+ `fixture_not_top_level` 前提断言 + 手工入口扩成右键 DEFER / Shift+右键 FORCED | `WINDOWS_CLIENT`（电池 23/23 PASS） |
 | **D-170 资源缺陷** | `k3_stop_check`/`menu_probe`/`transfer_check` 模型是 **0 字节**、`partial_search_check` 引用死贴图 ⇒ 客户端缺失模型/紫黑块（**K-3 一直没被测的真因**）；补齐修正 + 新增 `tools/check-item-models.sh`（空文件/坏 JSON/死贴图，已自测）并写入构建前清单 | 建模修正 `COMPILES`；**客户端 0 条 `Failed to load model alice`**（本轮日志）⇒ `WINDOWS_CLIENT` |
 
-**唯一待测项**：**K-3 自检复测** —— DEFER（右键）+ FORCED（Shift+右键）各 5 秒，
-判据 `bot_report` → `deferred=1` / `forcedUnsafe=1`。本轮客户端日志里**没有** `[K3]` 行（本轮只做了模型显示确认 + 假人恢复），
-所以 FORCED 用例至今**从未跑过**，DEFER 也自"加前提断言 + 改物品入口"之后没复测。
+**K-3 自检（DEFER + FORCED）客户端验证通过**（2026-09-13，`WINDOWS_CLIENT`）：
+`[K3] mode=DEFER … task=K3StopCheckTask` → 请求后仍被 tick(15) → 落地后 `已到安全点，执行延后的停止`
+（terminal `cancelled:k3_defer:safe_point`，25 tick）；FORCED 同一入口 Shift+右键 →
+`任务在不安全时刻被强制停止`（terminal `cancelled:k3_forced:forced_unsafe`，33 tick）；
+`bot_report`：`deferred=1 forcedUnsafe=1 survivalUnsafe=0`；`目标准入（K-4 累计）：无异常计数`。
+
+**K-2 第三批 + K-5 已完成（D-171/D-172，`COMPILES`，待电池回归）**：
+legacy 双内核整批删除（19 文件，依据"按路径分析的零活引用"）；`POSTCONDITION_FAILED` 不删值、
+改为给生产者（`PathSessionStatus.classify` 唯一定义）并加"无死值"自检。
+
+**唯一待测项**：**跑一次完整电池**（23 项，约 4~5 分钟）作为 K-2 第三批（删 19 个 legacy 文件）
+与 K-5（`classify` + 新用例 `session_status_no_dead_value`）的回归门 —— 判据
+`(23/23) → PASS`，且 `capability_gate` 的 `SUMMARY` 里有 `session_status_no_dead_value=PASS`。
 
 **本轮环境事实**：电池现 **23 项**（`(23/23) ticks=3507 → PASS`）；`k3_stop_check` 等 4 个道具贴图已正常；
-镜像/同步脚本正常（`3aaa8cc5…` 为最后一次同步的 jar）。
+镜像/同步脚本正常；`tools/check-item-models.sh` 已接入构建前清单（`checked=66 … PASS`）。
 
 **环境提醒**：镜像脚本 `tools/mirror-windows-workspace.sh` 现为"默认不备份/不校验"快跑（8.6 秒）；
 备份轮转由 `ALICE_BACKUP_KEEP`（默认 2）控制；`ALICE_MIRROR_BACKUP=1` / `ALICE_MIRROR_VERIFY=1` 可按需开启。

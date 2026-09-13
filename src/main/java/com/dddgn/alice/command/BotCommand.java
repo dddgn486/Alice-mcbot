@@ -7,7 +7,6 @@ import com.dddgn.alice.gui.BotInventoryService;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.PerceptionProfile;
 import com.dddgn.alice.perception.PerceptionSnapshot;
-import com.dddgn.alice.pathing.SurfacePathfinder;
 import com.dddgn.alice.survival.HazardState;
 import com.dddgn.alice.survival.SurvivalSystem;
 import com.dddgn.alice.transfer.ChestEndpointRef;

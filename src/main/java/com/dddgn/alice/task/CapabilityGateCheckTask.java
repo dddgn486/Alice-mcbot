@@ -153,6 +153,7 @@ public class CapabilityGateCheckTask implements Task {
         checkForeignBreakAttribution();
         checkSafeCancelWiring();
         checkContainerWriteRecord();
+        checkSessionStatusCoverage();
 
         String summary = "pure_traversal_allowed=" + verdict("pure_traversal_allowed")
                 + " capability_unauthorized=" + verdict("capability_unauthorized")
@@ -165,6 +166,7 @@ public class CapabilityGateCheckTask implements Task {
                 + " foreign_break_attribution=" + verdict("foreign_break_attribution")
                 + " safe_cancel_wiring=" + verdict("safe_cancel_wiring")
                 + " container_write_record=" + verdict("container_write_record")
+                + " session_status_no_dead_value=" + verdict("session_status_no_dead_value")
                 + " verdict=" + (failures.isEmpty() ? "PASS" : "FAIL");
         BotLog.info("[CapabilityGate] SUMMARY {}", summary);
         if (observer != null) {
@@ -246,6 +248,70 @@ public class CapabilityGateCheckTask implements Task {
         var idleRunner = new com.dddgn.alice.task.PathRetryRunner(bot, request, 0, "safe-cancel-check");
         check("safe_cancel_wiring", defaultTrue && idleRunner.safeToCancel(),
                 "defaultTrue=" + defaultTrue + " idleRunnerSafe=" + idleRunner.safeToCancel());
+    }
+
+    /**
+     * **K-5：`PathSessionStatus` 不得有死值**（纯逻辑，无世界依赖）。
+     *
+     * <p>背景：审计发现 `POSTCONDITION_FAILED` **声明了但没有任何生产者**（观测盲区）。
+     * 修法是给它真实的生产者（执行器里 `*_SETTLING_TIMEOUT` / `*_OVERSHOT_*` 这类
+     * "到了但完成契约不成立"的失败）并**断言分类表与覆盖率**：
+     * <ul>
+     *   <li>分类表逐条断言（含**顺序陷阱**：`ASCEND_SETTLING_TIMEOUT` 同时含 "TIMEOUT"，
+     *       必须归到 `POSTCONDITION_FAILED`，不能被泛化超时吞掉）；</li>
+     *   <li>覆盖率断言：除 `RUNNING`/`COMPLETED`（会话初态/终态，不由失败码产生）外，
+     *       **每个枚举值都必须至少被一条真实失败码样本命中** ⇒ 以后再加死值这条会红。</li>
+     * </ul>
+     */
+    private void checkSessionStatusCoverage() {
+        var status = com.dddgn.alice.pathing.core.session.PathSessionStatus.class;
+        java.util.Map<String, Object> table = new java.util.LinkedHashMap<>();
+        table.put("STALE_START", enumOf(status, "STALE"));
+        table.put("SEGMENT_BLOCKED", enumOf(status, "BLOCKED"));
+        table.put("TRAVERSE_INVALID_PRECONDITION", enumOf(status, "INVALID_PRECONDITION"));
+        table.put("SEGMENT_TIMEOUT", enumOf(status, "TIMEOUT"));
+        table.put("ASCEND_SETTLING_TIMEOUT", enumOf(status, "POSTCONDITION_FAILED"));
+        table.put("DESCEND_OVERSHOT_BELOW_TARGET", enumOf(status, "POSTCONDITION_FAILED"));
+        table.put("SESSION_CANCELLED", enumOf(status, "CANCELLED"));
+        table.put("SOMETHING_UNKNOWN", enumOf(status, "MOVEMENT_FAILED"));
+        table.put(null, enumOf(status, "MOVEMENT_FAILED"));
+
+        StringBuilder detail = new StringBuilder();
+        boolean tableOk = true;
+        java.util.Set<Object> covered = new java.util.HashSet<>();
+        for (var entry : table.entrySet()) {
+            Object actual = com.dddgn.alice.pathing.core.session.PathSessionStatus
+                    .classify(entry.getKey());
+            covered.add(actual);
+            boolean hit = actual == entry.getValue();
+            tableOk &= hit;
+            detail.append(entry.getKey()).append("→").append(actual)
+                    .append(hit ? " " : " ✗期望" + entry.getValue() + " ");
+        }
+        // 覆盖率：除 RUNNING/COMPLETED 外每个值都要有生产者
+        java.util.List<Object> missing = new java.util.ArrayList<>();
+        for (Object v : status.getEnumConstants()) {
+            String name = ((Enum<?>) v).name();
+            if (name.equals("RUNNING") || name.equals("COMPLETED")) {
+                continue;
+            }
+            if (!covered.contains(v)) {
+                missing.add(v);
+            }
+        }
+        boolean coverageOk = missing.isEmpty();
+        check("session_status_no_dead_value", tableOk && coverageOk,
+                "tableOk=" + tableOk + " missingProducer=" + missing
+                        + " 表：" + detail.toString().trim());
+    }
+
+    private static Object enumOf(Class<?> enumClass, String name) {
+        for (Object v : enumClass.getEnumConstants()) {
+            if (((Enum<?>) v).name().equals(name)) {
+                return v;
+            }
+        }
+        throw new IllegalArgumentException("no such value: " + name);
     }
 
     /** 真实转换点产出的 caps 必须与 Movement 的写世界性质相符（否则能力声明仍可能是假的）。 */

@@ -6596,3 +6596,55 @@ K-3 的语义就是"**顶层任务**在不安全时刻不被硬停，延后到�
 
 **同轮其他确认**：23 项电池 **全 PASS**（`ticks=3507`，含 `mine_regression` 11/11 ⇒ D-168 掉落物修复生效）；
 无 `=FAIL` / `=TIMEOUT`；无 `[K4]` 告警。
+
+### D-171：K-2 第三批 —— **删除 legacy 双内核**（19 个文件，先证零活引用再删）
+
+**背景**：批次 2 已把生产/开发路径切到新内核（`TransferTask` 行走 + `/alice path` 诊断），
+但 `pathing/`（顶层，非 `core`）下还留着整套旧实验内核。第三批 = **删干净**。
+
+**删除前的证据（不是"看着像死的"）**：按**路径**做的引用分析（简单名会被同名类污染，已修正），
+逐类区分"活引用 / 只出现在注释和 import / 无外部引用"：
+
+| 判定 | 类 | 依据 |
+|---|---|---|
+| **删**（19 个） | `AStarPathfinder`、`AStarPathPlanner`、`PathPlanner`、`PathPlanners`、`LocalPathPlanner`、`HybridPathPlanner`、`SurfacePathfinder`、`OpenSet`、`PathNode`、`Goal`、`MovementPlan`、`MovementPlanCompiler`、`MovementPathExecutor`、`MovementMode`、`MovementType`(顶层)、`PathExecutor`、`TunnelPlanner`、`TunnelObstaclePolicy`、`TunnelPlan` | 外部**活引用 = 0**（`PathExecutor` 13 处、`SurfacePathfinder` 5 处、`PathNode`/`AStarPathfinder` 各若干，全是注释或"原先用 X"的历史说明）；无通配 import、无反射、无资源引用 |
+| **留**（2 个） | `MovementHelper`（303 处活引用）、`FootCellRuleCheck`（`PathingRegressionTask` 用） | 新内核与夹具真的在用 |
+
+**顺带清掉的耦合**：
+- `MovementHelper.cost(legacy MovementType)` —— 唯一调用者是 `AStarPathfinder:307`，随之删除；
+- `BotCommand` 的 `import …SurfacePathfinder`（早已不用，纯残留 import）；
+- 顶层 `MovementType`（4 值旧枚举）随之消失 ⇒ 与新内核 `core.MovementType`（10 值）**不再并存**
+  （这正是"两套枚举同名"这类混乱的根源）。
+
+**刻意不动的**：`FollowTask` / `WalkToTask` / `TransferTask` / `MiningPlan` / `BotCommand` 里
+"原先这里是 legacy X → 现用新内核 Y"的**历史注释**保留（它们解释了迁移与差异登记的来龙去脉）。
+
+**验证**：`compileJava` + `build` PASS（删了 19 个文件后无编译错 ⇒ 与"零活引用"结论一致）；
+资源自检 `CHECK_ITEM_MODELS_RESULT PASS`。
+
+### D-172：K-5 —— `POSTCONDITION_FAILED` **不删值，改"给它生产者"**（死状态/观测盲区）
+
+**问题（审计原话）**：`PathSessionStatus` 里 `BLOCKED`（D-047 已复活）与 `POSTCONDITION_FAILED`
+"声明但 `mapFailure` 从不产出" ⇒ **观测盲区**：这个状态永远不会出现，写它的代码等于没有。
+
+**决定：不删**。理由：架构文档 §5.3 的 `ExecutionStatus` **契约里就有它**；
+而且执行器里真的存在"**到了但完成契约没成立**"这一类失败，只是被 `mapFailure` 的字符串匹配
+**并吞**了：`ASCEND_SETTLING_TIMEOUT`（稳定等待超时，含 "TIMEOUT" ⇒ 被吞成 `TIMEOUT`）、
+`DESCEND_OVERSHOT_BELOW_TARGET`（冲过目标 ⇒ 被吞成 `MOVEMENT_FAILED`）。
+
+**修法**：
+1. 归属规则收敛成**唯一定义** `PathSessionStatus.classify(code)`（纯函数、有序表；
+   `set`/`overshot`/`postcondition` 规则**必须排在 `TIMEOUT` 之前**，否则又被吞）；
+   `PathSession.mapFailure` 改为委托它；
+2. 语义登记：`POSTCONDITION_FAILED` = "站位/落点不对"（重试同一目标往往有效），
+   与 `TIMEOUT`（没算完/没走到）、`MOVEMENT_FAILED`（走不动）区分开 —— 对 Job/决策层的重试策略有意义；
+3. **自检断言"不得有死值"**（`CapabilityGateCheckTask` 新增用例 `session_status_no_dead_value`）：
+   ①分类表逐条断言（含上面的顺序陷阱）；②覆盖率断言 —— 除 `RUNNING`/`COMPLETED`
+   （会话初态/终态，不由失败码产生）外，**每个枚举值都必须至少被一条真实失败码样本命中**；
+   以后谁再添一个死值，这条会直接变红。
+
+**诚实边界**：这两类失败码在迄今的客户端日志里**一次都没出现过**（今日全部归档 + latest 全文 grep = 0），
+所以本项是"把已存在但被吞掉的语义接出来"，**不是**"实测有需求"。等真出现时，
+`bot_report`/终态会显示 `POSTCONDITION_FAILED` 而不是含糊的 `TIMEOUT`。
+
+**状态**：`IMPLEMENTED` + `COMPILES`；**未验证**：客户端（电池里 `capability_gate` 步会跑新用例）。

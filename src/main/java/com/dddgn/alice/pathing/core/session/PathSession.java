@@ -694,20 +694,8 @@ public final class PathSession {
 
     private void mapFailure(String code) {
         String failure = code == null ? "MOVEMENT_FAILED" : code;
-        PathSessionStatus mapped;
-        if (failure.contains("STALE_START")) {
-            mapped = PathSessionStatus.STALE;
-        } else if (failure.contains("BLOCKED")) {
-            mapped = PathSessionStatus.BLOCKED;
-        } else if (failure.contains("INVALID_PRECONDITION")) {
-            mapped = PathSessionStatus.INVALID_PRECONDITION;
-        } else if (failure.contains("TIMEOUT")) {
-            mapped = PathSessionStatus.TIMEOUT;
-        } else if (failure.contains("CANCELLED")) {
-            mapped = PathSessionStatus.CANCELLED;
-        } else {
-            mapped = PathSessionStatus.MOVEMENT_FAILED;
-        }
+        // K-5：归属规则只有一处定义（`PathSessionStatus.classify`），自检可断言它不产生死值。
+        PathSessionStatus mapped = PathSessionStatus.classify(failure);
         fail(mapped, failure);
     }
 
