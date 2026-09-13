@@ -38,7 +38,14 @@ public record JobRequest(
         /** 可持续伐木区（J8 / MAINTAIN）。 */
         REGION_LUMBER,
         /** 掉落物搜索 + 捡拾（用户 2026-09-12 要求；默认只捡我方掉落物）。 */
-        COLLECT
+        COLLECT,
+        /**
+         * **合成 / 熔炼**（A5 / D-199）：`productTag` = 要产出的物品 id，`quota` = 产物数量。
+         *
+         * <p>为什么复用这两个字段：它们本来就是"目标级"的（要什么、要几个）；
+         * 用哪个工作站**不进请求** —— 那是**玩家**的切换（用户裁定），Job 只读当前选择。
+         */
+        CRAFT
     }
 
     public JobRequest {
@@ -67,6 +74,11 @@ public record JobRequest(
      */
     public static JobRequest collect(BlockPos center, int radius, int quota, int maxTicks) {
         return new JobRequest(Kind.COLLECT, center, radius, quota, maxTicks, null, null);
+    }
+
+    /** 合成 / 熔炼请求（A5）：`itemId` = 产物 id，`count` = 产物数量。 */
+    public static JobRequest craft(BlockPos center, String itemId, int count, int maxTicks) {
+        return new JobRequest(Kind.CRAFT, center, 1, Math.max(1, count), maxTicks, itemId, null);
     }
 
     /** 一行摘要（决策日志用）。 */

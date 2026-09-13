@@ -121,6 +121,7 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("craft_station_craft", Profile.MAIN),
             Map.entry("craft_furnace", Profile.MAIN),
             Map.entry("craft_cooking", Profile.MAIN),
+            Map.entry("craft_goal", Profile.MAIN),
             // ---- EXTRA：已验收/无关/耗时（10）----
             Map.entry("lumber_failure", Profile.EXTRA),
             Map.entry("region_maintain", Profile.EXTRA),
@@ -358,6 +359,10 @@ public final class RegressionBatteryTask implements Task {
                 () -> new com.dddgn.alice.task.CraftFurnaceCheckTask(bot, observer, true), 1600,
                 task -> task.failureReason().contains("mod_present")
                         || task.failureReason().contains("station_found")));
+        // 阶段 3-A / A5（D-199）：**决策层合成自检**（可做清单 + 严格解析 + 生产路径 CraftJob）；
+        // **不需要场景**（随身 2×2 用背包里的 4 块木板做工作台）
+        steps.add(step("craft_goal", List.of(), () -> { },
+                () -> new com.dddgn.alice.task.CraftGoalCheckTask(bot, observer), 600));
         // 基-7：前缀搜索（K-1：预算耗尽交出前缀；真失败不给前缀）
         // R2：传输模块（4 个夹具：主流程/端点选择/选择器事件/命令解析）
         // K-3 安全点停止（D-169）**故意不进电池**：它的判据是"**顶层任务**被延后停止"，

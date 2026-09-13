@@ -231,6 +231,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> CRAFT_COOKING_CHECK =
             ITEMS.register("craft_cooking_check", () -> new CraftCookingCheckItem(new Item.Properties()));
 
+    /** 阶段 3-A / A5（D-199）**决策层合成自检**（零参数、**不需要场景**）：可做清单 → 严格解析 → 真做一个工作台。 */
+    public static final RegistryObject<Item> CRAFT_GOAL_CHECK =
+            ITEMS.register("craft_goal_check", () -> new CraftGoalCheckItem(new Item.Properties()));
+
     /** 基-9 工具供给自检（零参数，约 2 秒）：换更好的 / 没得换如实报 / **不能凭空变出工具**。 */
     public static final RegistryObject<Item> TOOL_SUPPLY_CHECK =
             ITEMS.register("tool_supply_check", () -> new ToolSupplyCheckItem(new Item.Properties()));

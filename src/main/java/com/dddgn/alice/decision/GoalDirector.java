@@ -276,6 +276,10 @@ public final class GoalDirector {
         if (action instanceof GoalAction.MaintainTool maintain) {
             return "MaintainTool(" + maintain.kind() + ")";
         }
+        if (action instanceof GoalAction.Craft craft) {
+            return "Craft(" + craft.item() + " x" + craft.count()
+                    + (craft.clamps().isEmpty() ? "" : " clamps=" + craft.clamps()) + ")";
+        }
         if (action instanceof GoalAction.ReportStatus report) {
             return "ReportStatus(" + report.note() + ")";
         }
@@ -305,6 +309,20 @@ public final class GoalDirector {
             DecisionTrace.result(bot, trigger, "stop_current", stopped == null ? "no_task" : "executed",
                     stop.reason(), 0L);
             tell(state, "[alice] 决策层：已停止 " + (stopped == null ? "（当时没有任务）" : stopped));
+            return;
+        }
+        clearRefusal(state);
+        if (action instanceof GoalAction.Craft craft) {
+            // A5：合成/熔炼也走**唯一入口**（JobRequest → JobLauncher → assignJob），
+            // 站点由玩家的选择决定（请求里不带站点）；世界写入（按需装配）在 Job 里走预算闸门。
+            var request = com.dddgn.alice.job.JobRequest.craft(bot.blockPosition(),
+                    craft.item(), craft.count(), 3600);
+            boolean ok = BotManager.assignJob(bot, state.observer, request);
+            BotLog.info("[Goal] execute action=craft ok={} trigger={} raw={}", ok, trigger, craft.note());
+            DecisionTrace.result(bot, trigger, "craft", ok ? "executed" : "refused",
+                    request.describe(), 0L);
+            tell(state, ok ? "[alice] 决策层：已起合成 Job " + request.describe()
+                    : "[alice] 决策层：起合成 Job 失败（bot 正忙？）");
             return;
         }
         clearRefusal(state);

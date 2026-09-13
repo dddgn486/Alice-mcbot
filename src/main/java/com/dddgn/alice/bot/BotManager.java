@@ -1143,6 +1143,18 @@ public final class BotManager {
     }
 
     /** **熔炼页签自检**（阶段 3-A / A4b，D-198）：菜单型炉子（装升级→烧→取→拆回）。 */
+    /** A5：决策层合成自检（`alice:craft_goal_check`）。 */
+    public static boolean assignCraftGoalCheck(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(new com.dddgn.alice.task.CraftGoalCheckTask(bot, observer),
+                TaskTarget.block(bot.blockPosition()));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     public static boolean assignCraftCookingCheck(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) {

@@ -40,6 +40,10 @@ public final class JobLauncher {
             case COLLECT -> {
                 // 捡拾不需要工具/材料（纯通行 + 原版拾取），无需发料
             }
+            case CRAFT -> {
+                // **不发料**：合成只真消耗真产物（"不许凭空给物品"是同族铁律）。
+                // 材料从哪来由玩家/世界决定；缺料由 CraftJob 如实报 missing_ingredients。
+            }
             case REGION_LUMBER -> {
                 FixtureToolKit.ensureAxe(bot);
                 FixtureToolKit.ensurePickaxe(bot);
@@ -75,6 +79,8 @@ public final class JobLauncher {
                     new com.dddgn.alice.job.mine.MineCandidateSource(
                             mineTargetFor(bot, request), request.radius()),
                     policy);
+            case CRAFT -> new com.dddgn.alice.job.craft.CraftJob(bot, request.productTag(),
+                    request.quota(), request.maxTicks());
             case COLLECT -> new com.dddgn.alice.job.collect.CollectJob(bot,
                     GoalSpec.collectItems(request.center(), request.radius(), request.quota(), null,
                             request.maxTicks()),

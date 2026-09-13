@@ -46,6 +46,24 @@ public sealed interface GoalAction {
     record NoOp(String note) implements GoalAction {
     }
 
+    /**
+     * **合成 / 熔炼**（A5 / D-199）：把"点一下就出"与"按时间工作"两类加工接进词汇表。
+     *
+     * <pre>
+     * {"action":"craft","item":"minecraft:crafting_table","count":1}
+     * </pre>
+     *
+     * <p>**严格解析（"选项由确定性层生成、LLM 只选择"）**：
+     * <ul>
+     *   <li>`item` **必须出现在本轮候选菜单的"可做清单"里**（清单由**只读**配方查询 + 站点发现产出），
+     *       否则 {@link Refused} 并**回读**清单规模与截断事实（别让 LLM 把"没列出来"当成"做不到"）；</li>
+     *   <li>`count` 夹取到安全区间并记一行 `clamps`；</li>
+     *   <li>**不接站点参数**：用哪个工作站由**玩家**切换（用户裁定），LLM 只能选"要什么"。</li>
+     * </ul>
+     */
+    record Craft(String item, int count, String note, java.util.List<String> clamps) implements GoalAction {
+    }
+
     /** 拒绝：未知动作/非法参数（**如实回报**，不猜）。 */
     record Refused(String reason) implements GoalAction {
     }
@@ -53,6 +71,8 @@ public sealed interface GoalAction {
     int MAX_RADIUS = 64;
     int MAX_QUOTA = 64;
     int MAX_TICKS = 120000;
+    /** 一次合成请求的数量上限（按"几个产物"计）。 */
+    int MAX_CRAFT_COUNT = 32;
 
     /** 严格解析一行 LLM 回复（容忍被 ```json 包裹或前后有解释文字）。 */
     static GoalAction parse(String reply, com.dddgn.alice.bot.BotPlayer bot) {
@@ -90,6 +110,7 @@ public sealed interface GoalAction {
             case "stop_current" -> new StopCurrent(root.has("reason") && root.get("reason").isJsonPrimitive()
                     ? root.get("reason").getAsString() : "llm_requested");
             case "maintain_tool" -> parseMaintainTool(root, note);
+            case "craft" -> parseCraft(root, note, menu);
             case "report_status" -> new ReportStatus(note);
             case "no_op" -> new NoOp(note);
             default -> new Refused("unknown_action:" + action);
@@ -157,6 +178,40 @@ public sealed interface GoalAction {
             }
             default -> new Refused("unknown_job_kind:" + kind);
         };
+    }
+
+    /**
+     * `craft`：`{"action":"craft","item":"minecraft:crafting_table","count":1}`。
+     *
+     * <p>**只接受"可做清单"里的物品**：清单来自 `CandidateMenu` 的 `craftable` 条目（只读配方查询 +
+     * 站点发现产出的事实）。不在清单里 ⇒ {@link Refused}，并把**清单规模/是否被截断**回读给 LLM
+     * ——否则它会把"菜单没列"误当成"做不到"，然后开始瞎试。
+     *
+     * <p>站点**不由 LLM 指定**（用户裁定：工作站由玩家切换）；清单里带 `can_use=` 事实，
+     * 当前站点做不了就在**解析层**如实拒绝（失败快、回读清楚），而不是等执行到一半才失败。
+     */
+    private static GoalAction parseCraft(JsonObject root, String note, CandidateMenu menu) {
+        String item = root.has("item") && root.get("item").isJsonPrimitive()
+                ? root.get("item").getAsString().trim().toLowerCase(java.util.Locale.ROOT) : "";
+        if (item.isBlank()) {
+            return new Refused("craft_missing_item（要写 {\"action\":\"craft\",\"item\":\"<物品id>\"}）");
+        }
+        java.util.List<String> clamps = new java.util.ArrayList<>();
+        int count = clamp(number(root, "count", 1), 1, MAX_CRAFT_COUNT, "count", clamps);
+        if (menu == null) {
+            return new Refused("craft_without_menu（合成目标必须来自候选菜单的 craftable 清单）");
+        }
+        Boolean canUse = menu.craftable().get(item);
+        if (canUse == null) {
+            return new Refused("not_in_menu:" + item + "（可做清单 " + menu.craftable().size() + " 项"
+                    + (menu.craftableTruncated() ? "，已按上限截断" : "")
+                    + "；清单只列\"材料已持有且配方属于原版可读类型\"的产物）");
+        }
+        if (!canUse) {
+            return new Refused("station_cannot:" + item + "（当前选中的工作站做不了它；"
+                    + "换工作站由玩家决定，见 /alice craft station）");
+        }
+        return new Craft(item, count, note, clamps);
     }
 
     private static int number(JsonObject root, String key, int fallback) {

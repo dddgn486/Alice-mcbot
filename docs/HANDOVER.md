@@ -7,7 +7,7 @@
 ## 1. 主线与目标
 
 - **长期目标**：完全参照 Baritone 搭建寻路内核（差异仅三条：可回收性安全策略 / 多层任务失败向上传递 / 未来并行 Bot 接口）。
-- **当前主线（阶段 3-A）**：把"合成/熔炼"接进任务层 —— **A1–A4b 全部完成并客户端验证**；**下一步 = A5 决策层接线**。
+- **当前主线（阶段 3-A）**：把"合成/熔炼"接进任务层 —— **A1–A4b 已完成并客户端验证**；**A5（决策层接线）已实施，待客户端复测**（见 §3b）。
 - 用户裁定（本阶段）：**不硬编码合成方式**；工作站**由玩家切换、不自动选优**；**装升级=配置行为（独立一层）**；
   **页签层**：实测"开与不开无差别"⇒ **什么都不做**；电池**只测必要基础 + 当前主线，AI 负责维护**。
 
@@ -59,10 +59,22 @@
 3. 若第 1 步仍红：**先看 `[FurnaceDiag]` 里的 `slotOwners=` / `owner=… nested=[…] cookingSlots=3 progress=true`**
    （新加的诊断行），再看是"没认出来"还是"认出来但点击/放料没生效"——**这两种要分开判**。
 
+## 3b. A5（决策层接线：`GoalAction.Craft`）—— 已实施，待客户端复测（jar `85e20510…`）
+
+**做了什么**：词汇表加 `craft`（**只能在候选菜单的可做清单里选**；站点做不了/越界都在解析层拒绝并回读）；
+候选菜单加 `craftable` 清单（**只读**配方扫描 + 站点事实，有界且如实标 `truncated`）；
+执行走唯一入口 `JobRequest.CRAFT` → `job/craft/CraftJob`（开**玩家选中的**站点 → 按需装配 → 网格合成/3 格烧炼 →
+**只看世界事实判成功** → 失败清场；**不自动拆回**升级、**不发料**）。
+
+**复测（零参数、不需要场景）**：
+1. `alice:craft_goal_check` ⇒ 期望 `SUMMARY menu_has_target=true parse_out_of_menu_refused=true
+   parse_in_menu_accepted=true job_done=true planks_delta=-4 product_count=1… verdict=PASS`；
+2. `alice:regression_battery`（CORE）⇒ 期望 `(25/25) → PASS`（新步 `craft_goal`）；
+3. `/alice ask …`（让 LLM 自己选）：**观察点** = 它只能引用清单里的 id；越界时日志里是 `Refused(not_in_menu:…)`。
+
 ## 4. 待办队列
 
-1. **A5 决策层接线**：`GoalAction.Craft`（词汇表 + 严格解析 + 把"可做路线/站点/缺料"作为**确定性事实**喂候选菜单，LLM 只选）；
-   并按裁定接好"任务层失败向上传递"接口。
+1. **A5 复测**（见 §3b）；通过后阶段 3-A 收口。
 2. 已登记未做：菜单型站点/背包型站点（精妙背包）复用同一套；Refined Storage 兼容（用户暂缓）。
 
 ## 5. 关键入口与环境（复现用）
@@ -73,12 +85,12 @@
 - 场景函数（客户端数据包 `alice_test`）：`craft_table_course`、`craft_station_course`、`craft_tab_course`（精妙容器）、
   `furnace_course`（原版熔炉）、`craft_tab_snapshot`（打印容器 NBT 供差分）。
 - 零参数入口：`alice:craft_check|craft_action_check|craft_table_check|craft_station_check|craft_grid_probe|
-  craft_station_provision_check|craft_station_craft_check|craft_furnace_check|craft_cooking_check|regression_battery|bot_report`。
+  craft_station_provision_check|craft_station_craft_check|craft_furnace_check|craft_cooking_check|craft_goal_check|regression_battery|bot_report`。
 - 命令：`/alice craft station <auto|inventory|table|upgradetab|cookingtab>`、`/alice battery core|full|list`。
-- 电池：**CORE = BASELINE 13 + MAIN 11 = 24 项**（FULL 34）；配置唯一入口 `RegressionBatteryTask.CURATION`。
+- 电池：**CORE = BASELINE 13 + MAIN 12 = 25 项**（FULL 35）；配置唯一入口 `RegressionBatteryTask.CURATION`。
 - 模组（客户端 mods/）：alice、JEI、OreExcavation、JEI-pinyin、WorldEdit、create、extendedcrafting、cucumber、
   mekanism、thermal_*、**精妙存储 1.4.86.2131 + 精妙核心 1.5.1.2335 + 精妙背包 3.26.3.2157**、RefinedStorage 1.12.4。
-- 本轮最后同步的 jar：`502ec5f290d6df26798aa839544c92b4006c2c3fc737836a75f34114e6ea17e2`（源码镜像 + 运行工件均已同步）。
+- 本轮最后同步的 jar：`85e20510d22247e6b907f58fb3daa3a3f8230d78fde4428013ff0f9d19aab852`（源码镜像 + 运行工件均已同步）。
 
 ## 6. 纪律提醒（别再踩）
 
@@ -91,3 +103,5 @@
 - 拿升级右键容器 = **物品自己装进去、GUI 不开**（夹具开菜单前先把主手换空）。
 - 判成功**一律看世界事实**（产物/材料/清空），不信原语或上游的自述；测出来的东西要**记进 SUMMARY**。
 - 失败**也要清场**（回滚 + 复位）；熔炉用完要**熄灭**（重建方块）。
+- **A5 起"合成只能从清单里选"**：`craft` 的 `item` 必须在候选菜单 `craftable` 里；`JobLauncher` 对 `CRAFT` **不发料**；
+  `CraftJob` **不自动拆回**升级（装配独立成层）。

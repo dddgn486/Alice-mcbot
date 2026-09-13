@@ -45,5 +45,6 @@
   "item.alice.lumber_job": "Lumber Job Runner",
   "key.categories.alice": "Alice",
   "key.alice.permission_allow": "Alice: Allow",
-  "key.alice.permission_deny": "Alice: Deny"
+  "key.alice.permission_deny": "Alice: Deny",
+  "item.alice.craft_goal_check": "Craft Goal Check"
 }

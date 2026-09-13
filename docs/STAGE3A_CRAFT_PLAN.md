@@ -34,7 +34,7 @@
 | A3 ✅已实施·客户端 PASS（D-188） | **工作台 3×3（用现成）**：找台→走位→开 `CraftingMenu`→合成，**零世界写入** | `task/craft/TableCraft` + 复用 `MenuSession` | `alice:craft_table_check`（D17） | 现成工作台路径**零写入**（硬断言） |
 | **A3b ✅已实施（待客户端）** | **自放工作站**：附近没有时自己放置（`WriteReason.CRAFT_STATION_PLACE` + `WriteBudget` + **A 表 A12**），且**用完即拆**（建拆同权闭环，走 `RestoreScopeTask`） | `task/craft/StationPlacement`（新）+ 1 个夹具 + 1 个场景 | `alice:craft_station_check`（D18）+ 电池步 `craft_station` | `station_placed`（世界事实）/ `write_accounted`（账本 TEMP）/ `teardown_clean`（**方块回空气 + pending=0**） |
 | A4 | **熔炉**（时间/燃料语义）：插料、加燃料、等待、取出 | 同上 + 超时/清理 | 场景函数造熔炉 + 夹具 | 燃料选择有据、超时如实失败、**失败不留半成品** |
-| A5 | **决策层接线**：`GoalAction.Craft`（词汇表 + 严格解析 + 候选菜单给出"可做的合成"） | `decision/` 3 处 + 文档 | 电池 + `/alice ask` 观察 | LLM 只能从菜单选；越界/缺料被 `Refused` 并回读 |
+| **A5 ✅已实施（待客户端）** | **决策层接线**：`GoalAction.Craft`（词汇表 + 严格解析 + 候选菜单给出"可做的合成"）+ `job/craft/CraftJob`（D-199） | `decision/` 3 处 + `job/` + 文档 | `alice:craft_goal_check`（零参数、无场景）+ 电池 `craft_goal` + `/alice ask` 观察 | LLM 只能从菜单选；越界/缺料被 `Refused` 并回读 |
 
 **不在本轮**：机器适配器（D-183 排序：Mekanism 1171·26 类 > Thermal 652·30 类 > Create 506·15 类）；
 跨模组材料归一（标签展开是查询层既有能力，A1 里**只用**原版配方体系，标签按已知成员展开照旧）。

@@ -12,6 +12,7 @@ import net.minecraft.world.entity.item.ItemEntity;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * **候选菜单**（S2 选择层 / D-139）：把"能做什么"变成**服务端算好的有界选项**，LLM 只负责挑一个。
@@ -33,15 +34,38 @@ public final class CandidateMenu {
     public static final int MAX_TOTAL = 12;
     /** 树/掉落物的扫描半径。 */
     public static final int SCAN_RADIUS = 24;
+    /** **可做清单**最多列几项（超出**如实标 truncated**，不静默隐藏）。 */
+    public static final int MAX_CRAFTABLE = 40;
+    /** 配方扫描上限（整合包配方表很大；超限**如实标 truncated**）。 */
+    public static final int MAX_RECIPE_SCAN = 8000;
 
     /** 菜单项（{@code id} 是 LLM 唯一被允许引用的东西）。 */
     public record Entry(String id, String kind, String label, BlockPos pos, int amount, String extra) {
     }
 
     private final List<Entry> entries;
+    /** **可做清单**：产物 id → 当前选中的工作站能不能做它（只读事实，供 {@code GoalAction.Craft} 校验）。 */
+    private final Map<String, Boolean> craftable;
+    private final boolean craftableTruncated;
 
     private CandidateMenu(List<Entry> entries) {
+        this(entries, Map.of(), false);
+    }
+
+    private CandidateMenu(List<Entry> entries, Map<String, Boolean> craftable, boolean craftableTruncated) {
         this.entries = List.copyOf(entries);
+        this.craftable = Map.copyOf(craftable);
+        this.craftableTruncated = craftableTruncated;
+    }
+
+    /** 可做清单（产物 id → 当前站点能否做）。 */
+    public Map<String, Boolean> craftable() {
+        return craftable;
+    }
+
+    /** 可做清单是否因**扫描/列示上限**被截断（诚实标注：被截断 ≠ 做不到）。 */
+    public boolean craftableTruncated() {
+        return craftableTruncated;
     }
 
     public List<Entry> entries() {
@@ -155,10 +179,139 @@ public final class CandidateMenu {
                             + " mySaplings=" + regionState.mySaplingCount(bot.getUUID())));
         }
 
+        // ④ **可做清单**（A5 / D-199）：以"当前背包里**实际持有**的材料"为准，用**只读**配方扫描
+        //    算出"现在就能做出来的东西"。事实口径（**不猜**）：产物 id + 配方类型映射出的工作站 +
+        //    **当前玩家选中的站点能不能做**（`can_use=`）。扫描/列示都有上限，超限写 `truncated`。
+        //    为什么单独一组：它在语义上不是"位置候选"，不该挤掉树/掉落物的 12 项预算
+        //    ⇒ 有界性 = `MAX_TOTAL`（位置类）+ `MAX_CRAFTABLE`（可做清单）。
+        List<Entry> craftableEntries = new ArrayList<>();
+        Map<String, Boolean> craftable = new java.util.LinkedHashMap<>();
+        boolean craftableTruncated = craftableScan(bot, craftableEntries, craftable);
+        entries.addAll(craftableEntries);
+
         List<Entry> bounded = entries.size() > MAX_TOTAL
                 ? new ArrayList<>(entries.subList(0, MAX_TOTAL)) : entries;
-        CandidateMenu menu = new CandidateMenu(bounded);
-        BotLog.info("[Goal] candidate_menu entries={} {}", menu.entries().size(), menu.describe());
+        // 可做清单**不参与**位置类预算（否则 40 项会把树/掉落物挤掉）
+        if (!craftable.isEmpty()) {
+            bounded = new ArrayList<>(bounded);
+            for (Entry entry : craftableEntries) {
+                if (!bounded.contains(entry)) {
+                    bounded.add(entry);
+                }
+            }
+        }
+        CandidateMenu menu = new CandidateMenu(bounded, craftable, craftableTruncated);
+        BotLog.info("[Goal] candidate_menu entries={} craftable={}{} {}",
+                menu.entries().size(), menu.craftable().size(),
+                menu.craftableTruncated() ? "(truncated)" : "", menu.describe());
         return menu;
+    }
+
+    /**
+     * **可做清单的确定性扫描**（只读；A5）。
+     *
+     * <p>口径（每条都是客观事实，不做"大概能做"）：
+     * <ol>
+     *   <li>产物来自**运行时的原版配方体系**（`RecipeManager`）；类型不在
+     *       {@link RecipeDump#stationFor} 白名单里 ⇒ **如实跳过**（机器配方不在其中，不猜语义）；</li>
+     *   <li>材料**当前背包里就持有**（按 `Ingredient` 逐个"至少有一个匹配物品"；
+     *       这是**保守**口径：宁可漏报也不谎报"能做"）；</li>
+     *   <li>`can_use` = **当前选中的工作站**做不做得了它（站点由**玩家**切换，不自动选优）：
+     *       随身=只做 2×2 放得下的；工作台/升级页签=3×3；熔炼页签=烧炼；其余（高炉/烟熏/切石/锻造）
+     *       我们**还没有可驱动的站点** ⇒ 如实 `false`（列出来但明确"当前站点做不了"）。</li>
+     * </ol>
+     *
+     * @return 是否因扫描上限被截断
+     */
+    private static boolean craftableScan(BotPlayer bot, List<Entry> out, Map<String, Boolean> craftable) {
+        var server = bot.getServer();
+        if (server == null) {
+            return false;
+        }
+        var access = server.registryAccess();
+        String selected = com.dddgn.alice.task.craft.CraftStation.selected(bot);
+        int scanned = 0;
+        boolean truncated = false;
+        java.util.Set<String> seen = new java.util.LinkedHashSet<>();
+        for (net.minecraft.world.item.crafting.Recipe<?> recipe : server.getRecipeManager().getRecipes()) {
+            if (++scanned > MAX_RECIPE_SCAN) {
+                truncated = true;
+                break;
+            }
+            if (craftable.size() >= MAX_CRAFTABLE) {
+                truncated = true;
+                break;
+            }
+            net.minecraft.world.item.ItemStack result = recipe.getResultItem(access);
+            if (result.isEmpty()) {
+                continue;
+            }
+            String typeId = net.minecraft.core.registries.BuiltInRegistries.RECIPE_TYPE
+                    .getKey(recipe.getType()).toString();
+            String station = RecipeDump.stationFor(typeId);
+            if (station == null) {
+                continue;   // 未支持的配方类型 ⇒ 如实跳过（不猜）
+            }
+            if (!ingredientsHeld(bot, recipe)) {
+                continue;
+            }
+            String id = net.minecraft.core.registries.BuiltInRegistries.ITEM
+                    .getKey(result.getItem()).toString();
+            if (!seen.add(id)) {
+                continue;
+            }
+            boolean canUse = stationCanDo(selected, station, recipe);
+            craftable.put(id, canUse);
+            out.add(new Entry("craft:" + id, "craftable", "可做 " + result.getHoverName().getString()
+                    + " x" + result.getCount(),
+                    botPos(bot), result.getCount(),
+                    "station=" + station + " can_use=" + canUse));
+        }
+        return truncated;
+    }
+
+    private static BlockPos botPos(BotPlayer bot) {
+        return bot.blockPosition().immutable();
+    }
+
+    /** 材料是否**当前就持有**（保守：逐个 `Ingredient` 要求"背包里至少有一个匹配物品"）。 */
+    private static boolean ingredientsHeld(BotPlayer bot, net.minecraft.world.item.crafting.Recipe<?> recipe) {
+        var inventory = bot.getInventory();
+        for (net.minecraft.world.item.crafting.Ingredient ingredient : recipe.getIngredients()) {
+            if (ingredient.isEmpty()) {
+                continue;
+            }
+            boolean found = false;
+            for (int i = 0; i < inventory.getContainerSize() && !found; i++) {
+                net.minecraft.world.item.ItemStack stack = inventory.getItem(i);
+                if (!stack.isEmpty() && ingredient.test(stack)) {
+                    found = true;
+                }
+            }
+            if (!found) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** 当前选中的站点能不能做（**保守**：只认已经验收过的能力组合）。 */
+    private static boolean stationCanDo(String selected, String station,
+                                        net.minecraft.world.item.crafting.Recipe<?> recipe) {
+        if (recipe instanceof net.minecraft.world.item.crafting.CraftingRecipe crafting
+                && "crafting_table".equals(station)) {
+            boolean fits2x2 = crafting.canCraftInDimensions(2, 2);
+            boolean fits3x3 = crafting.canCraftInDimensions(3, 3);
+            return switch (selected) {
+                case "table", "upgradetab" -> fits3x3;
+                // 随身只做 2×2；`auto` 也按"随身一定能做"算 —— **不替玩家自动选优**
+                default -> fits2x2;
+            };
+        }
+        if ("furnace".equals(station)) {
+            // 目前只有"熔炼页签"这一条被验收过的烧炼站点；方块型熔炉尚未进站点模型 ⇒ 其余如实 false
+            return "cookingtab".equals(selected);
+        }
+        return false;
     }
 }
