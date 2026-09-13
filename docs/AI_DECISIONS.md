@@ -7480,3 +7480,40 @@ D4-**A**（命令切换）、D5-**A**（夹具里 bot 用菜单协议装升级�
 **等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（`checked=71`）+ 已同步客户端（jar `3cb0efcf…`）。
 **未验证**：客户端（探针输出、精妙菜单的真实槽位表、`grid_addressable_without_tab` 的真值）。
 **第二步**（S1-5）：按实测给 `upgradetab` 定 `take/source`，再谈执行接入；L2 装配任务（装升级）与新 `WriteReason`。
+
+#### D-192 附注一：首次客户端实测 —— **探针把服务端 tick 循环打崩了**（`menu.getType()` 陷阱）
+
+**用户反馈**："一开始任务开始崩溃了喵"。
+
+**实测事实**（`crash-reports/crash-2026-09-13_17.01.00-server.txt` + `latest.log`）：
+```
+UnsupportedOperationException: Unable to construct this menu by type
+  at net.minecraft.world.inventory.AbstractContainerMenu.m_6772_(AbstractContainerMenu.java:80)
+  at com.dddgn.alice.task.craft.GridDiscovery.describeMenu(GridDiscovery.java:223)   ← 我方代码
+  at com.dddgn.alice.task.CraftGridProbeTask.report(CraftGridProbeTask.java:156)
+…  Description: Exception in server tick loop
+[CraftGridProbe] open → OK station=inventory 随身菜单（无需打开） foot=46, 64, 304 onGround=false
+```
+**根因**：`GridDiscovery.describeMenu()` 无保护地调了 `menu.getType()`。而 `AbstractContainerMenu.getType()`
+在**没有 MenuType** 的菜单上会抛 `UnsupportedOperationException` —— **原版自己的 `InventoryMenu`（玩家随身菜单）
+就是用 `null` MenuType 构造的**（不是模组的毛病）。用户当时选择是 `auto` ⇒ 探针走随身菜单 ⇒ 必崩。
+**两条教训**（比这个 bug 本身值钱）：
+1. **菜单身份是可选信息**，拿不到就如实标 `unregistered`，绝不为它冒崩服务的险；
+2. **凡是对"来源未知的菜单/槽位对象"取值，一律加保护** —— 这类对象来自模组，可能在**任何** getter 里抛。
+
+**修法（全链路清理同类地雷）**：
+- `describeMenu`：`getType()` 包 try/catch → `unregistered(<异常类>)`；
+- `describeSlots`：**逐槽** try/catch（异常写进那一格的描述，不让整张表陪葬）；
+- `GridDiscovery.discover`：逐槽保护 + `matrix.getWidth()/getHeight()` 保护（新码
+  `grid_metrics_failed` / `slot_facts_partial`）—— 它是**报告路径**上的常用入口
+  （`bot_report`、候选列出每次都调），必须绝对安全；
+- `CraftStation.candidates`：每个候选包 try/catch → `probe_exception:<类>`；
+  `MenuSession.open` 也包了（`menu_open_failed`）；
+- `CraftGridProbeTask.report`：整段包 try/catch（`probe_exception` 一行 + `verdict=FAIL`，**不崩**）。
+
+**顺带修掉的第二个假失败风险**（同一次日志暴露）：`onGround=false` —— teleport 之后**不止一 tick**
+才落地，而 `MenuSession.open` 有 K-3 门"空中硬拒" ⇒ 若用户当时选的是 `upgradetab`，
+会把"探针还没落地"记成"菜单打不开"。修：开菜单前**显式等落地**（预算 40 tick，等不到如实失败），
+并把 `settle_ticks=N` 记进 SUMMARY。
+
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `ade7f714…`）。**待客户端复测**。

@@ -50,6 +50,10 @@ public final class GridDiscovery {
         public static final String AMBIGUOUS_RESULT = "ambiguous_result";
         /** 网格槽数量与 `getWidth()*getHeight()` 不符（布局不是规整矩形）。 */
         public static final String SHAPE_MISMATCH = "grid_shape_mismatch";
+        /** 网格容器自己在 `getWidth()/getHeight()/getContainerSize()` 里抛了异常（模组实现问题，如实上报）。 */
+        public static final String GRID_METRICS_FAILED = "grid_metrics_failed";
+        /** 扫描槽位时至少有一格抛异常（细节见 note；**不因此崩服务端**）。 */
+        public static final String SLOTS_PARTIAL = "slot_facts_partial";
         /** 菜单里没有玩家背包槽（无法把材料/产物放回去）。 */
         public static final String NO_PLAYER_SLOTS = "no_player_inventory_slots";
 
@@ -134,10 +138,20 @@ public final class GridDiscovery {
         boolean resultIsVanillaResultSlot = false;
         List<Integer> playerSlots = new ArrayList<>();
         Container playerInv = player == null ? null : player.getInventory();
+        int slotExceptions = 0;
 
         for (int i = 0; i < menu.slots.size(); i++) {
-            Slot slot = menu.getSlot(i);
-            Container container = slot.container;
+            // 逐槽保护：这是**报告路径**上的常用入口（`bot_report`、候选列出都调它），
+            // 来源未知的槽位对象可能在任何 getter 里抛 ⇒ 一格出事不该崩服务端。
+            Slot slot;
+            Container container;
+            try {
+                slot = menu.getSlot(i);
+                container = slot.container;
+            } catch (RuntimeException e) {
+                slotExceptions++;
+                continue;
+            }
             if (container instanceof CraftingContainer crafting) {
                 if (matrix == null) {
                     matrix = crafting;
@@ -179,8 +193,16 @@ public final class GridDiscovery {
             return new Result(null, Codes.AMBIGUOUS_RESULT, "结果槽多于一个",
                     matrixClass, matrixSlots, resultSlotClass, resultCount);
         }
-        int width = matrix.getWidth();
-        int height = matrix.getHeight();
+        int width;
+        int height;
+        try {
+            width = matrix.getWidth();
+            height = matrix.getHeight();
+        } catch (RuntimeException e) {
+            return new Result(null, Codes.GRID_METRICS_FAILED,
+                    "网格容器在 getWidth/getHeight 里抛了 " + e.getClass().getSimpleName(),
+                    matrixClass, matrixSlots, resultSlotClass, resultCount);
+        }
         if (width * height != gridSlots.size()) {
             return new Result(null, Codes.SHAPE_MISMATCH,
                     "网格槽数 " + gridSlots.size() + " != " + width + "x" + height + "（布局不是规整矩形）",
@@ -194,7 +216,8 @@ public final class GridDiscovery {
         InventoryCraft.GridSpec spec = new InventoryCraft.GridSpec(slots, width, height,
                 resultSlots.get(0), playerSlots.get(0), playerSlots.get(playerSlots.size() - 1));
         String note = "resultSlotIsVanillaResultSlot=" + resultIsVanillaResultSlot
-                + " playerSlots=" + playerSlots.size();
+                + " playerSlots=" + playerSlots.size()
+                + (slotExceptions > 0 ? " slotExceptions=" + slotExceptions + "(" + Codes.SLOTS_PARTIAL + ")" : "");
         return new Result(spec, "", note, matrixClass, matrixSlots, resultSlotClass, resultCount);
     }
 
@@ -205,23 +228,45 @@ public final class GridDiscovery {
             return out;
         }
         for (int i = 0; i < menu.slots.size(); i++) {
-            Slot slot = menu.getSlot(i);
-            ItemStack stack = slot.getItem();
-            String item = stack.isEmpty() ? ""
-                    : BuiltInRegistries.ITEM.getKey(stack.getItem()) + "x" + stack.getCount();
-            out.add(new SlotInfo(i, slot.getClass().getSimpleName(),
-                    slot.container.getClass().getSimpleName(), slot.x, slot.y, slot.isActive(), item));
+            // **逐槽保护**：来源未知的槽位对象可能在任何 getter 里抛（模组实现千奇百怪）；
+            // 一格出事不该让整张表（更不该让服务端）陪葬 —— 如实把异常写进那一格的描述里。
+            try {
+                Slot slot = menu.getSlot(i);
+                ItemStack stack = slot.getItem();
+                String item = stack.isEmpty() ? ""
+                        : BuiltInRegistries.ITEM.getKey(stack.getItem()) + "x" + stack.getCount();
+                out.add(new SlotInfo(i, slot.getClass().getSimpleName(),
+                        slot.container.getClass().getSimpleName(), slot.x, slot.y, slot.isActive(), item));
+            } catch (RuntimeException e) {
+                out.add(new SlotInfo(i, "?", "?", 0, 0, false,
+                        "EXCEPTION:" + e.getClass().getSimpleName()));
+            }
         }
         return out;
     }
 
-    /** 菜单身份（日志/报告用）：类名 + 槽数 + 菜单类型 id。 */
+    /**
+     * 菜单身份（日志/报告用）：类名 + 槽数 + 菜单类型 id（**可能没有**）。
+     *
+     * <p><b>2026-09-13 实测事故</b>：这里原本直接调 `menu.getType()`，结果把整个服务端 tick 循环打崩了 ——
+     * `AbstractContainerMenu.getType()` 在**没有 MenuType** 的菜单上会抛
+     * `UnsupportedOperationException: Unable to construct this menu by type`，
+     * 而**原版自己的 `InventoryMenu`（玩家随身菜单）就是用 `null` MenuType 构造的**，
+     * 不是模组的毛病。教训有两层：
+     * ① 菜单身份是**可选信息**，拿不到就如实标 `unregistered`，绝不为它冒崩服务的险；
+     * ② **凡是对"来源未知的菜单/槽位对象"取值，一律加保护**（模组可能在任何方法里抛）。
+     */
     public static String describeMenu(AbstractContainerMenu menu) {
         if (menu == null) {
             return "-";
         }
-        ResourceLocation type = BuiltInRegistries.MENU.getKey(menu.getType());
-        return menu.getClass().getSimpleName() + "(" + (type == null ? "?" : type) + ") slots="
-                + menu.slots.size();
+        String type;
+        try {
+            ResourceLocation key = BuiltInRegistries.MENU.getKey(menu.getType());
+            type = key == null ? "?" : key.toString();
+        } catch (RuntimeException e) {
+            type = "unregistered(" + e.getClass().getSimpleName() + ")";
+        }
+        return menu.getClass().getSimpleName() + "(" + type + ") slots=" + menu.slots.size();
     }
 }

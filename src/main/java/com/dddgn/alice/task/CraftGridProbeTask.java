@@ -41,6 +41,8 @@ public class CraftGridProbeTask implements Task {
     public static final BlockPos START = new BlockPos(46, 64, 304);
     private static final int SCAN_RADIUS = 6;
     private static final int MAX_TICKS = 400;
+    /** 等"落地"的预算：teleport 之后要几 tick 才会 onGround（实测下一 tick 仍为 false）。 */
+    private static final int SETTLE_TICKS = 40;
 
     private enum Phase { PREPARE, OPEN, REPORT, DONE }
 
@@ -116,6 +118,17 @@ public class CraftGridProbeTask implements Task {
 
     private Status open() {
         if (opened == null) {
+            // **等落地**：`MenuSession.open` 有 K-3 门（空中一律硬拒 `menu_not_settled`），
+            // 而实测 teleport 之后**不止一 tick** 才会 `onGround=true`（17:01 日志：下一 tick 仍是 false）。
+            // ⇒ 这里显式等"落地"再开菜单，等不到就如实失败（不猜、不硬开）。
+            if (!bot.onGround()) {
+                if (phaseTicks > SETTLE_TICKS) {
+                    check("station_opened", false, "not_on_ground after " + phaseTicks + " ticks");
+                    return finish();
+                }
+                return Status.RUNNING;
+            }
+            record("settle_ticks", String.valueOf(phaseTicks));
             opened = CraftStation.open(bot, SCAN_RADIUS);
             BotLog.info("[CraftGridProbe] open → {} foot={} onGround={}", opened.describe(),
                     bot.blockPosition().toShortString(), bot.onGround());
@@ -153,6 +166,19 @@ public class CraftGridProbeTask implements Task {
     }
 
     private Status report() {
+        // **对"来源未知的菜单"取值一律加保护**（2026-09-13 实测：一次 `menu.getType()` 就把服务端打崩）。
+        // 探针是"看事实"的工具，任何意外都必须变成一行如实报告，而不是一次崩溃。
+        try {
+            return reportUnguarded();
+        } catch (RuntimeException | LinkageError e) {
+            record("probe_exception", e.getClass().getSimpleName() + ": " + e.getMessage());
+            failures.add("probe_exception");
+            BotLog.warn("[CraftGridProbe] 探针异常（已拦截，未崩服务端）：{}", e.toString());
+            return finish();
+        }
+    }
+
+    private Status reportUnguarded() {
         String menuDescription = GridDiscovery.describeMenu(menu);
         record("menu", menuDescription);
         BotLog.info("[CraftGridProbe] menu={}", menuDescription);

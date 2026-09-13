@@ -124,27 +124,37 @@ public final class CraftStation {
         BlockPos center = bot.blockPosition();
         List<Candidate> out = new ArrayList<>();
         for (Descriptor station : ALL) {
-            switch (station.kind()) {
-                case INVENTORY -> {
-                    var discovery = GridDiscovery.discover(bot.inventoryMenu, bot);
-                    out.add(new Candidate(station, discovery.ok(),
-                            discovery.ok() ? discovery.describe() : "随身菜单：" + discovery.describe()));
-                }
-                case BLOCK -> {
-                    BlockPos pos = findStationBlock(level, center, radius, station);
-                    if (pos == null) {
-                        out.add(new Candidate(station, false, "半径 " + radius + " 内没有 "
-                                + describeStationBlock(station)));
-                        continue;
-                    }
-                    boolean reach = inReach(bot, pos);
-                    out.add(new Candidate(station, true, "block=" + pos.toShortString()
-                            + (reach ? "" : "（不在触及距离内，需要先走过去）")));
-                }
-                default -> out.add(new Candidate(station, false, "未知形态"));
+            // 候选列出是**报告路径**（`bot_report` 每次都会走）⇒ 任何一格异常都必须变成一行事实，
+            // 不许把服务端 tick 打崩（2026-09-13 的教训）。
+            try {
+                out.add(probeCandidate(bot, level, center, radius, station));
+            } catch (RuntimeException | LinkageError e) {
+                out.add(new Candidate(station, false,
+                        "probe_exception:" + e.getClass().getSimpleName()));
             }
         }
         return out;
+    }
+
+    private static Candidate probeCandidate(BotPlayer bot, ServerLevel level, BlockPos center,
+                                            int radius, Descriptor station) {
+        return switch (station.kind()) {
+            case INVENTORY -> {
+                GridDiscovery.Result discovery = GridDiscovery.discover(bot.inventoryMenu, bot);
+                yield new Candidate(station, discovery.ok(),
+                        discovery.ok() ? discovery.describe() : "随身菜单：" + discovery.describe());
+            }
+            case BLOCK -> {
+                BlockPos pos = findStationBlock(level, center, radius, station);
+                if (pos == null) {
+                    yield new Candidate(station, false,
+                            "半径 " + radius + " 内没有 " + describeStationBlock(station));
+                }
+                boolean reach = inReach(bot, pos);
+                yield new Candidate(station, true, "block=" + pos.toShortString()
+                        + (reach ? "" : "（不在触及距离内，需要先走过去）"));
+            }
+        };
     }
 
     /** 一行事实（`bot_report` / 探针用）：当前选择 + 每个候选能不能用。 */
@@ -224,7 +234,13 @@ public final class CraftStation {
                 return new Opened(station, false, Codes.OUT_OF_REACH,
                         "block=" + pos.toShortString() + " 不在触及距离内（本步不做走路）", pos, null, null);
             }
-            MenuSession session = MenuSession.open(bot, pos, 0);
+            MenuSession session;
+            try {
+                session = MenuSession.open(bot, pos, 0);
+            } catch (RuntimeException | LinkageError e) {
+                return new Opened(station, false, Codes.MENU_FAILED,
+                        "open 抛异常 " + e.getClass().getSimpleName(), pos, null, null);
+            }
             BotLog.info("[CraftStation] open station={} pos={} menu={}", station.id(),
                     pos.toShortString(), MenuSession.describeGates());
             return new Opened(station, true, "", "opening", pos, null, session);
