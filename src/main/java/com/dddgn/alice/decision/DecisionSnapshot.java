@@ -32,6 +32,15 @@ public final class DecisionSnapshot {
 
     /** @param menu S2 候选菜单（null = 不附菜单，例如玩家手动报告时按需生成） */
     public static JsonObject build(BotPlayer bot, CandidateMenu menu) {
+        return build(bot, menu, "-");
+    }
+
+    /**
+     * @param trigger **为什么现在问我**（`terminal:…` / `event:…` / `manual` / `operator`）——
+     *                2026-09-13 补：原先它只进日志/聊天，**LLM 看不到**，只能从 `task.lastTerminal`
+     *                猜意图 ⇒ 它答 `no_op` 时无法判断是"上下文说别做"还是"没告诉它要干什么"。
+     */
+    public static JsonObject build(BotPlayer bot, CandidateMenu menu, String trigger) {
         JsonObject root = new JsonObject();
         JsonObject botNode = new JsonObject();
         botNode.addProperty("name", bot.getName().getString());
@@ -43,6 +52,7 @@ public final class DecisionSnapshot {
         botNode.addProperty("inLiquid", bot.isInWater() || bot.isInLava());
         HazardState hazard = SurvivalSystem.current(bot);
         botNode.addProperty("hazard", String.valueOf(hazard.type()));
+        root.addProperty("trigger", trigger == null || trigger.isBlank() ? "-" : trigger);
         root.add("bot", botNode);
 
         // 背包摘要：前 8 个非空堆 + 空槽数（够 LLM 判断"要不要继续装/够不够工具"，又不灌爆上下文）
@@ -200,10 +210,17 @@ public final class DecisionSnapshot {
 
     /** 完整 prompt（状态 + 输出契约），并记一行"发了多少字"。 */
     public static String buildPrompt(BotPlayer bot, CandidateMenu menu) {
-        String state = build(bot, menu).toString();
+        return buildPrompt(bot, menu, "-");
+    }
+
+    public static String buildPrompt(BotPlayer bot, CandidateMenu menu, String trigger) {
+        String state = build(bot, menu, trigger).toString();
         String prompt = """
                 当前状态（服务端权威事实，JSON）：
                 %s
+
+                其中 `trigger` = **为什么现在问你**（`terminal:<任务>(<终止理由>)` / `event:<事件>` /
+                `manual` = 玩家/夹具手动触发 / `operator` = 操作者直连指令）。
 
                 注意：`start_job` 的 `target` **只能引用 menu 里出现过的 id**（例如 `tree@20,64,208`）；
                 `craft` 的 `item` **只能引用 menu 中 `kind="craftable"` 且 `can_use=true` 的 id**

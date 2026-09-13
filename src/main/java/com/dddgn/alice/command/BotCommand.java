@@ -230,6 +230,7 @@ public final class BotCommand {
                         .then(Commands.literal("info").executes(ctx -> regionInfo(ctx.getSource())))
                         .then(Commands.literal("start").executes(ctx -> regionStart(ctx.getSource())))
                         .then(Commands.literal("stop").executes(ctx -> regionStop(ctx.getSource())))
+                        .then(Commands.literal("clear").executes(ctx -> regionClear(ctx.getSource())))
                         .then(Commands.literal("idle-stop")
                                 .then(Commands.argument("value", com.mojang.brigadier.arguments.BoolArgumentType.bool())
                                         .executes(ctx -> regionIdleStop(ctx.getSource(),
@@ -248,6 +249,13 @@ public final class BotCommand {
                         .executes(ctx -> ledger(ctx.getSource(), false))
                         .then(Commands.literal("all").executes(ctx -> ledger(ctx.getSource(), true))))
                 // S3 请示通道：查看/答复未决请示 + 查看/修改能力分级
+                // 操作者直连指令（连通性测试通道；**不询问**，让 LLM 直接执行这句话）
+                .then(Commands.literal("instruct")
+                        .then(Commands.argument("instruction",
+                                        com.mojang.brigadier.arguments.StringArgumentType.greedyString())
+                                .executes(ctx -> instruct(ctx.getSource(),
+                                        com.mojang.brigadier.arguments.StringArgumentType
+                                                .getString(ctx, "instruction")))))
                 .then(Commands.literal("ask")
                         .executes(ctx -> askList(ctx.getSource()))
                         .then(Commands.argument("id", StringArgumentType.word())
@@ -630,6 +638,36 @@ public final class BotCommand {
     }
 
     /** {@code /alice region info}：读区域状态（区域/我种的苗/选定树苗/统计）。 */
+    /** {@code /alice region clear}：清掉**已选定区域**（测试/夹具收尾用；区域是玩家划的，只由玩家显式清）。 */
+    private static int regionClear(CommandSourceStack source) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendSuccess(() -> Component.literal("[alice] 没有可用 bot"), false);
+            return 0;
+        }
+        com.dddgn.alice.job.lumber.LumberRegionState state =
+                com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer());
+        boolean had = state.region(bot.getUUID()) != null;
+        state.clearRegion(bot.getUUID());
+        com.dddgn.alice.log.BotLog.info("region_clear: owner={} had={}", bot.getName().getString(), had);
+        source.sendSuccess(() -> Component.literal("[alice] 已清除选定区域（had=" + had + "）"
+                + " —— 决策菜单里不会再出现 region:saved"), false);
+        return had ? 1 : 0;
+    }
+
+    /** {@code /alice instruct <指令>}：把操作者原话**直接**交给 LLM 执行（连通性测试通道）。 */
+    private static int instruct(CommandSourceStack source, String instruction) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendSuccess(() -> Component.literal("[alice] 没有可用 bot"), false);
+            return 0;
+        }
+        String result = com.dddgn.alice.decision.GoalDirector.instruct(bot,
+                source.getEntity() instanceof ServerPlayer sp ? sp : null, instruction);
+        source.sendSuccess(() -> Component.literal("[alice] 直连指令：" + result), false);
+        return 1;
+    }
+
     private static int regionInfo(CommandSourceStack source) {
         BotPlayer bot = BotManager.firstInLevel(source.getLevel());
         if (bot == null) {

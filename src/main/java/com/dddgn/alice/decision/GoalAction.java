@@ -86,6 +86,12 @@ public sealed interface GoalAction {
      * —— 于是 LLM 既不能编坐标，也不能挑一个"那里什么都没有"的位置。
      */
     static GoalAction parse(String reply, com.dddgn.alice.bot.BotPlayer bot, CandidateMenu menu) {
+        return parse(reply, bot, menu, false);
+    }
+
+    /** @param directed true = **操作者直连测试通道**（放行"只能从菜单选"的校验，见 `GoalDirector.instruct`） */
+    static GoalAction parse(String reply, com.dddgn.alice.bot.BotPlayer bot, CandidateMenu menu,
+                            boolean directed) {
         if (reply == null || reply.isBlank()) {
             return new Refused("empty_reply");
         }
@@ -110,7 +116,7 @@ public sealed interface GoalAction {
             case "stop_current" -> new StopCurrent(root.has("reason") && root.get("reason").isJsonPrimitive()
                     ? root.get("reason").getAsString() : "llm_requested");
             case "maintain_tool" -> parseMaintainTool(root, note);
-            case "craft" -> parseCraft(root, note, menu);
+            case "craft" -> parseCraft(root, note, menu, directed);
             case "report_status" -> new ReportStatus(note);
             case "no_op" -> new NoOp(note);
             default -> new Refused("unknown_action:" + action);
@@ -190,7 +196,8 @@ public sealed interface GoalAction {
      * <p>站点**不由 LLM 指定**（用户裁定：工作站由玩家切换）；清单里带 `can_use=` 事实，
      * 当前站点做不了就在**解析层**如实拒绝（失败快、回读清楚），而不是等执行到一半才失败。
      */
-    private static GoalAction parseCraft(JsonObject root, String note, CandidateMenu menu) {
+    private static GoalAction parseCraft(JsonObject root, String note, CandidateMenu menu,
+                                         boolean directed) {
         String item = root.has("item") && root.get("item").isJsonPrimitive()
                 ? root.get("item").getAsString().trim().toLowerCase(java.util.Locale.ROOT) : "";
         if (item.isBlank()) {
@@ -199,15 +206,24 @@ public sealed interface GoalAction {
         java.util.List<String> clamps = new java.util.ArrayList<>();
         int count = clamp(number(root, "count", 1), 1, MAX_CRAFT_COUNT, "count", clamps);
         if (menu == null) {
+            if (directed) {
+                BotLog.warn("[Goal] directed: 没有菜单（直连模式放行）item={}", item);
+                return new Craft(item, count, note, clamps);
+            }
             return new Refused("craft_without_menu（合成目标必须来自候选菜单的 craftable 清单）");
         }
         Boolean canUse = menu.craftable().get(item);
+        if (directed && canUse == null) {
+            // 直连测试通道：**只记录、不放行语义**（执行层会如实失败或成功，那才是通路证据）
+            BotLog.warn("[Goal] directed: {} 不在可做清单里（直连模式放行，仅记录）", item);
+            return new Craft(item, count, note, clamps);
+        }
         if (canUse == null) {
             return new Refused("not_in_menu:" + item + "（可做清单 " + menu.craftable().size() + " 项"
                     + (menu.craftableTruncated() ? "，已按上限截断" : "")
                     + "；清单只列\"材料已持有且配方属于原版可读类型\"的产物）");
         }
-        if (!canUse) {
+        if (!canUse && !directed) {
             return new Refused("station_cannot:" + item + "（当前选中的工作站做不了它；"
                     + "换工作站由玩家决定，见 /alice craft station）");
         }

@@ -82,6 +82,8 @@ public final class GoalDirector {
         String lastRefusalReason = "";
         long lastRefusalTick = -1L;
         int lastRefusalCount;
+        /** 直连指令模式（操作者给了明确指令）：非 null 时用它当 user prompt，且**放行菜单校验**。 */
+        String directedPrompt;
     }
 
     private static State state(BotPlayer bot) {
@@ -167,6 +169,46 @@ public final class GoalDirector {
         return "sent(诊断模式：三条路径都会试一遍)";
     }
 
+    /**
+     * **操作者直连指令**（连通性测试通道，2026-09-13 用户要求）。
+     *
+     * <p>与正常决策的区别（**只为测试通路而存在**）：
+     * <ul>
+     *   <li>user prompt = **操作者原话**（"直接执行它"），不是"从菜单里挑一个"；</li>
+     *   <li>解析时**放行候选菜单校验**（`craft` 的 item 不在清单里也照做 —— 测试时包里可能没材料，
+     *       执行层会如实报 `missing_ingredients`，那本身就是通路证据）；</li>
+     *   <li>**仍然只走既定执行入口**（`execute()` → `BotManager.assignJob`），不新增旁路；</li>
+     *   <li>不影响生产语义：自动触发（终态/事件/空闲）一律继续按"只能从菜单选"校验。</li>
+     * </ul>
+     *
+     * @return 一行结果（给聊天栏）
+     */
+    public static String instruct(BotPlayer bot, ServerPlayer observer, String instruction) {
+        State state = state(bot);
+        state.observer = observer;
+        if (state.pending != null) {
+            return "busy:已有一个请求在飞";
+        }
+        if (!LlmConfig.get().usable()) {
+            return "LLM 未配置（" + LlmConfig.get().describe() + "）";
+        }
+        if (instruction == null || instruction.isBlank()) {
+            return "指令为空";
+        }
+        LlmClient.forgetChosenPath();
+        state.directedPrompt = """
+                操作者指令（**直接执行它**；不要做目标选择，不要回 no_op/report_status）：
+                %s
+
+                当前状态（服务端权威事实，JSON）：
+                %s
+
+                请只回**一个** JSON 对象，表示执行该指令所需的动作（从词汇表里选）。
+                """.formatted(instruction, DecisionSnapshot.build(bot, null).toString());
+        fire(bot, state, "operator");
+        return "sent(直连指令，动作结果见聊天/日志 [Goal] directed_result)";
+    }
+
     public static String describe() {
         return LlmConfig.get().describe();
     }
@@ -208,10 +250,13 @@ public final class GoalDirector {
         state.lastRequestTick = bot.getServer().getTickCount();
         state.minuteRequests++;
         state.pendingTrigger = trigger;
+        state.directedPrompt = null;
         String system = VOCABULARY + (config.systemPrompt().isBlank() ? "" : "\n" + config.systemPrompt());
         // S2：决策前先由**确定性层**生成候选菜单（有界），prompt 里带上，LLM 只能引用其中的 id
         state.lastMenu = CandidateMenu.build(bot);
-        String prompt = DecisionSnapshot.buildPrompt(bot, state.lastMenu);
+        String prompt = state.directedPrompt != null
+                ? state.directedPrompt
+                : DecisionSnapshot.buildPrompt(bot, state.lastMenu, trigger);
         BotLog.info("[Goal] decision_request trigger={} model={} calledAtTick={}",
                 trigger, config.model(), state.lastRequestTick);
         DecisionTrace.request(bot, trigger, state.lastMenu.entries().size());
@@ -262,7 +307,13 @@ public final class GoalDirector {
         String trimmed = reply.text().length() > LlmConfig.get().maxReplyChars()
                 ? reply.text().substring(0, LlmConfig.get().maxReplyChars())
                 : reply.text();
-        GoalAction action = GoalAction.parse(trimmed, bot, state.lastMenu);
+        boolean directed = state.directedPrompt != null;
+        GoalAction action = GoalAction.parse(trimmed, bot, state.lastMenu, directed);
+        if (directed) {
+            // 直连测试通道：**把 raw 与解析结果打成一行终态日志**（操作者测试连通性用）
+            BotLog.info("[Goal] directed_result raw={} → {}", trimmed.replace('\n', ' ').trim(),
+                    describeAction(action));
+        }
         state.lastAction = action.getClass().getSimpleName();
         BotLog.info("[Goal] decision_action trigger={} latency={}ms raw={} → {}",
                 state.pendingTrigger, reply.latencyMs(),

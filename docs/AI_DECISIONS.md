@@ -8110,3 +8110,26 @@ user prompt 的"注意"段也补上"craftable 清单 / `craftable_truncated` 的
 
 **教训（登记为纪律）**：新增任何动作，**必须同时改三处**：① `GoalAction` 解析；② `VOCABULARY`（system prompt）；
 ③ user prompt/状态的说明文字。只做①=能力存在但没人会叫它。
+
+### D-200：`trigger` 进状态 + 操作者直连指令通道 + `/alice region clear`（含**临时裁定**登记）
+
+**背景**：用户要求 ① 把 `trigger`（"为什么现在问我"）写进给 LLM 的状态；② 测试连通性时**不想靠改菜单**，
+要能**直接管理"问 LLM 的那句话"**、不询问、直接让 LLM 执行；③ `/alice region` 加清除指令给夹具收尾。
+并按用户新明确的原则（PLAYBOOK §5.0b）**登记临时性**。
+
+**已实施**：
+1. **`trigger` 进快照**（`DecisionSnapshot.build/buildPrompt` 增 trigger 参数；`GoalDirector.fire` 传入）——
+   原先它只进日志/聊天，LLM 只能从 `task.lastTerminal` 猜意图 ⇒ 它答 `no_op` 时无法判断是
+   "上下文说别做"还是"没告诉它要干什么"。**这是补齐输入契约，不是放宽约束**（判定为**最终决策**）。
+2. **`/alice instruct <原话>`**：user prompt = 操作者原话（"直接执行它"），解析走
+   `GoalAction.parse(..., directed=true)`：`craft` 的 item **不在可做清单里也放行**（只 warn 记录），
+   且 **仍然只走既定执行入口**（`execute()` → `BotManager.assignJob`）；自动触发路径**照旧**按
+   "只能从菜单选"校验。结果打一行 `[Goal] directed_result raw=… → …`。
+3. **`/alice region clear`**：清掉已选定区域（夹具/测试收尾用；区域是玩家划的，只由玩家显式清）。
+
+**⚠️ AI 的评价（用户已授权评价其决策）**：第 2 条**削弱了"LLM 只能从菜单里选"这条 A5 红线**——
+直连通道给了 LLM 一条"绕过菜单校验仍能执行"的路。我的判断：**作为连通性测试通道可以接受，但必须限域与回收**，
+因此实现上做了三件事：只经命令入口（不参与自动触发）、单独日志前缀、**不新增执行旁路**。
+**登记为临时裁定**：`（临时）` 直连通道放行菜单校验；
+**复核触发条件 = A5 的 LLM 路径验证通过（或发现它在生产触发里被用到）⇒ 立即二选一**：
+(a) 回收 `/alice instruct`，或 (b) 加配置闸门（如 `LlmConfig.allowDirected`，默认关）并写进红线说明。
