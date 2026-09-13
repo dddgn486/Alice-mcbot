@@ -402,6 +402,19 @@ public final class GridDiscovery {
         return new Result(spec, "", note, matrixClass, expected, resultSlotClass, 1);
     }
 
+    /**
+     * **按点击地址取槽位**（上游自管地址 ⇒ **绝不能用 `menu.getSlot(address)`**：
+     * `AbstractContainerMenu.getSlot(i)` 是 `slots.get(i)`，地址 64..73 会直接 IndexOutOfBounds）。
+     */
+    public static Slot slotByAddress(AbstractContainerMenu menu, int address) {
+        for (Slot slot : scan(menu).slots()) {
+            if (slot.index == address) {
+                return slot;
+            }
+        }
+        return null;
+    }
+
     /** 点击地址：**`slot.index`**（上游把槽位建在 `menu.slots` 之外时只有它可寻址）。 */
     private static int address(Slot slot) {
         return slot.index;

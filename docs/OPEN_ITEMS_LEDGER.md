@@ -556,3 +556,8 @@ A1 判据（零参数 `alice:craft_check`）：正例给工作站+材料清单�
   `CraftStation.UPGRADE_TAB.provisionUpgrade`（数据驱动"该装什么"）；电池 31 → **32 项**。
 - **待测**：`materials_consumed=8`、`product_produced=1`、产物去向（`product_in_player`/`product_in_container`）、
   开关值 `shift_click_into_storage`、以及"原语假设是否被打脸"（`primitive_assumption_mismatch`）。
+
+**§6.30 D-195 附注一（C 首测失败 → 已修）**：`InventoryCraft.click` 用 `slot >= menu.slots.size()` 守卫，
+把上游自管地址（64..72/73 ≥ 63）**静默拒绝** ⇒ 材料没动、产物 0，且失败码被报成 `missing_ingredient`（病名反向）。
+修：守卫只拒负数 + `GridDiscovery.slotByAddress` + `placeGrid` 返回**区分过的**失败码 + 清理/找料改用发现表。
+**待客户端复测**（jar `81fc53ec…`）。

@@ -7732,3 +7732,40 @@ grid_found=true inactive_slots=0 tab_action=none grid_addressable_without_tab=tr
 **电池 31 → 32 项**（`craft_station_craft`，自带场景；模组不在/站点不在 ⇒ SKIP）。
 
 **等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `b5a99c1d…`）。**未验证**：客户端这一步。
+
+#### D-195 附注一：C 首测失败 —— **点击原语静默拒绝"上游自管地址"**，还把病因报成 `missing_ingredient`
+
+**客户端事实（17:54:51）**：
+```
+fixture_gave_materials=true upgrade=1 cobblestone=8（含容器的总量）
+provision_verified=true  OK grid=3x3 slots=[64..72] result=73
+materials_consumed=false consumed=0      ← 一颗材料都没动
+product_produced=false   produced=0
+grid_after_craft=-,-,-,-,-,-,-,-,-
+primitive_verdict=FAIL:missing_ingredient   ← 但材料明明在背包里
+deprovision_verified=true  upgrade_returned=true
+```
+
+**根因（我方代码，两处叠加）**：
+1. `InventoryCraft.click(...)` 有一句**静默拒绝**：
+   `if (slot < 0 || slot >= menu.slots.size()) return false;` —— 而模组站点的 9 格与结果槽
+   **建在 `menu.slots` 之外**（地址 64..72 / 73，`menu.slots.size()==63`，D-192 附注三/四）
+   ⇒ **每一次摆料与取产物的点击都被吞掉**，材料一颗没动。
+   （同源第三例：`MenuSession.click` 也有同样的守卫；那个我早先绕开了，这里忘了改。）
+2. `placeGrid` 把"点击被拒"与"缺料"**混成一个失败码**（`missing_ingredient`）⇒ 报了个**反向**的病名，
+   白白把排查方向带偏一个回合。
+
+**修法**：
+- `InventoryCraft.click`：**只拒绝负数地址**；地址合法性由调用方用"**发现出来的槽位集合**"保证
+  （`GridDiscovery.scan`），并在方法注释里写明这次事故。
+- 新增 `GridDiscovery.slotByAddress(menu, address)`：**按点击地址取槽位**（`menu.getSlot(address)` 对 64+ 会 IndexOutOfBounds）。
+- `placeGrid` 改为**返回失败码**（`missing_ingredient` / `click_rejected` 分开），并在被拒时打印
+  `cell / address / 可达槽位数`；`clearGrid` 与 `findInventorySlot` 一并改用发现出来的槽位表
+  （顺带把"逐个 getSlot"的 O(n²) 也去掉了）。
+
+**教训**：`menu.slots` **不是**"菜单里所有槽位"—— 这条已经在本会话出现**三次**
+（发现器一次、`MenuSession.click` 一次、`InventoryCraft.click` 一次）。
+**凡是拿"地址"去点/取槽位的代码，都要先问一句：这个地址在 `menu.slots` 里吗？**
+今后新增写入原语时，**守卫一律用"发现出来的槽位集合"，不用 `menu.slots.size()`**。
+
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `81fc53ec…`）。**待客户端复测**。

@@ -5,6 +5,7 @@ import com.dddgn.alice.log.BotLog;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
@@ -118,9 +119,10 @@ public final class InventoryCraft {
         List<String> consumed = new ArrayList<>();
 
         for (int round = 0; round < crafts; round++) {
-            if (!placeGrid(bot, menu, recipe, grid, spec)) {
+            String placeFailure = placeGrid(bot, menu, recipe, grid, spec);
+            if (placeFailure != null) {
                 clearGrid(bot, menu, spec);
-                return new Result(false, Codes.MISSING_INGREDIENT, round, produced, consumed);
+                return new Result(false, placeFailure, round, produced, consumed);
             }
             int before = RecipeQuery.countInInventory(bot, preview.getItem());
             if (!click(bot, menu, spec.resultSlot(), ClickType.QUICK_MOVE)) {
@@ -174,8 +176,15 @@ public final class InventoryCraft {
     }
 
     /** 把配方要求的材料逐格摆进 2×2 网格（每格 1 个）。 */
-    private static boolean placeGrid(BotPlayer bot, AbstractContainerMenu menu, Recipe<?> recipe, int[] grid,
-                                     GridSpec spec) {
+    /**
+     * 摆料。
+     *
+     * @return **null = 成功**；否则是失败码（{@link Codes#MISSING_INGREDIENT} 或
+     *         {@link Codes#CLICK_REJECTED}）—— 刻意**区分**这两种：
+     *         "缺料"与"我们点不动"是两回事，混成一个码会把排查方向带偏（D-195 附注一就是这么白费了一个回合）。
+     */
+    private static String placeGrid(BotPlayer bot, AbstractContainerMenu menu, Recipe<?> recipe, int[] grid,
+                                    GridSpec spec) {
         List<Ingredient> ingredients = recipe.getIngredients();
         Inventory inventory = bot.getInventory();
         for (int cell = 0; cell < grid.length; cell++) {
@@ -186,42 +195,57 @@ public final class InventoryCraft {
             Ingredient ingredient = ingredients.get(ingredientIndex);
             int source = findInventorySlot(menu, inventory, ingredient, spec);
             if (source < 0) {
-                BotLog.warn("[InventoryCraft] 缺料：网格格 {} 需要 {}，背包里找不到",
-                        cell, ingredient.getItems().length > 0 ? ingredient.getItems()[0] : "?");
-                return false;
+                BotLog.warn("[InventoryCraft] 缺料：网格格 {} 需要 {}，背包里找不到（区间 {}..{}）",
+                        cell, ingredient.getItems().length > 0 ? ingredient.getItems()[0] : "?",
+                        spec.inventoryFirst(), spec.inventoryLast());
+                return Codes.MISSING_INGREDIENT;
             }
             int gridSlot = spec.gridSlots()[cell];
             if (!click(bot, menu, source, ClickType.PICKUP)) {
-                return false;
+                BotLog.warn("[InventoryCraft] 点击源槽被拒 address={}（背包区间 {}..{}）",
+                        source, spec.inventoryFirst(), spec.inventoryLast());
+                return Codes.CLICK_REJECTED;
             }
             if (!click(bot, menu, gridSlot, ClickType.PICKUP, 1)) {   // 右键：只放 1 个
                 click(bot, menu, source, ClickType.PICKUP);           // 放回
-                return false;
+                BotLog.warn("[InventoryCraft] 点击网格格被拒 cell={} address={}（可达槽位 {} 个）",
+                        cell, gridSlot, GridDiscovery.scan(menu).slots().size());
+                return Codes.CLICK_REJECTED;
             }
             // 余量放回原槽（光标为空时是无害的空点）
             click(bot, menu, source, ClickType.PICKUP);
         }
-        return true;
+        return null;
     }
 
     /** 把网格里的东西全部收回背包（失败清理 / 收尾）。 */
     private static void clearGrid(BotPlayer bot, AbstractContainerMenu menu, GridSpec spec) {
         for (int cell = 0; cell < spec.gridSlots().length; cell++) {
             int gridSlot = spec.gridSlots()[cell];
-            if (menu.getSlot(gridSlot).getItem().isEmpty()) {
+            Slot gridCell = GridDiscovery.slotByAddress(menu, gridSlot);
+            if (gridCell == null || gridCell.getItem().isEmpty()) {
                 continue;
             }
             click(bot, menu, gridSlot, ClickType.QUICK_MOVE);
         }
     }
 
-    /** 找背包里第一个匹配该 ingredient 的槽位（9..44）。 */
+    /**
+     * 找背包里第一个匹配该 ingredient 的槽位（地址落在 {@code spec} 的背包区间内）。
+     *
+     * <p>用**一次发现的槽位表**来找（而不是 `menu.getSlot(地址)` 逐个取）：既避免对上游自管地址越界，
+     * 也避免 O(n²) 反复扫描。地址用 `slot.index`（点击地址），与摆放/清理保持同一口径。
+     */
     private static int findInventorySlot(AbstractContainerMenu menu, Inventory inventory, Ingredient ingredient,
                                          GridSpec spec) {
-        for (int slot = spec.inventoryFirst(); slot <= spec.inventoryLast(); slot++) {
-            ItemStack stack = menu.getSlot(slot).getItem();
+        for (Slot slot : GridDiscovery.scan(menu).slots()) {
+            if (slot.container != inventory || slot.index < spec.inventoryFirst()
+                    || slot.index > spec.inventoryLast()) {
+                continue;
+            }
+            ItemStack stack = slot.getItem();
             if (!stack.isEmpty() && ingredient.test(stack)) {
-                return slot;
+                return slot.index;
             }
         }
         return -1;
@@ -231,8 +255,17 @@ public final class InventoryCraft {
         return click(bot, menu, slot, type, 0);
     }
 
+    /**
+     * 菜单点击。**只拒绝负数地址**。
+     *
+     * <p>**2026-09-13 实测缺陷（D-195 附注一）**：这里原本还有 `slot >= menu.slots.size()` 的守卫，
+     * 于是"精妙存储的合成页签"（那 9 格与结果槽建在 `menu.slots` **之外**，地址 64..72/73，
+     * 而 `menu.slots.size()==63`）**每一次点击都被静默拒绝** —— 材料一颗没动、产物为 0，
+     * 而失败码却报成 `missing_ingredient`（把"我们点不动"说成"你没料"），白费一个回合。
+     * ⇒ **地址的合法性由调用方用"发现出来的槽位集合"保证**（{@link GridDiscovery#scan}），这里只管协议。
+     */
     private static boolean click(BotPlayer bot, AbstractContainerMenu menu, int slot, ClickType type, int button) {
-        if (slot < 0 || slot >= menu.slots.size()) {
+        if (slot < 0) {
             return false;
         }
         try {
