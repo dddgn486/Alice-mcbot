@@ -72,6 +72,9 @@ public final class PathSession {
     private int settleTicks;
     private int resyncs;
     private int totalTicks;
+    /** D-174 段卡死诊断基线：段起点时的实体 tick / travel() 累计值（进程内单调，见 BotPlayer）。 */
+    private long stallBaseEntityTicks;
+    private long stallBaseTravelCalls;
     private MovementExecution execution;
     /** 零进展检测（D-105）：连续"起跳后落回同一脚位格"的次数。 */
     private int wastedJumpLandings;
@@ -273,6 +276,8 @@ public final class PathSession {
 
     private void startSegment() {
         resetProgressWatch();
+        stallBaseEntityTicks = bot.entityTickCount();
+        stallBaseTravelCalls = bot.travelInvocationCount();
         PlannedMovement movement = movements.get(index);
         // 走路视线归位（D-088，修 2026-09-10 用户实测的"走位时仰着头"）：
         // 对照 Baritone `behavior/LookBehavior.java:96-125`——它把"看向某处"当作**逐 tick 瞬时**行为
@@ -710,14 +715,17 @@ public final class PathSession {
         net.minecraft.world.phys.Vec3 delta = bot.getDeltaMovement();
         return String.format(java.util.Locale.ROOT,
                 "to=%s botFoot=%s pos=%.3f,%.3f,%.3f onGround=%s delta=%.4f,%.4f,%.4f "
-                        + "input=%s toBlock=%s headBlock=%s supportBlock=%s segmentTicks=%d totalTicks=%d",
+                        + "input=%s toBlock=%s headBlock=%s supportBlock=%s segmentTicks=%d totalTicks=%d"
+                        + " entityTicksInSegment=%d travelCallsInSegment=%d",
                 to.toShortString(),
                 MovementHelper.footCell(level, bot).toShortString(),
                 bot.getX(), bot.getY(), bot.getZ(),
                 bot.onGround(), delta.x, delta.y, delta.z,
                 bot.controller().getInputStateString(),
                 blockName(to), blockName(to.above()), blockName(to.below()),
-                segmentTicks, totalTicks);
+                segmentTicks, totalTicks,
+                bot.entityTickCount() - stallBaseEntityTicks,
+                bot.travelInvocationCount() - stallBaseTravelCalls);
     }
 
     private String blockName(BlockPos pos) {

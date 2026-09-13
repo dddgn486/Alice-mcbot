@@ -242,7 +242,11 @@ C 视觉识别；含"兼容性与效率""玩家能看到什么"两项逐维度�
 **§6.13 第四次电池（2026-09-13 晚）**：23 项 **22/23**，唯一失败 = `transfer` 步的 `end_to_end`
 （间歇：同计划 10:09 / 11:06 两次 5 tick 走完，这次一格没动磨满段预算）。
 已排除夹具/重生成/菜单/强制停；已补**失败终态诊断** `[R4 Session] segment_stall`（D-174），
-最强候选 = **遥控器输入干扰任务**（`BotInputPacket` 每 tick 把玩家输入写给 bot ⇒ 任务设的前进被改回 0）。
+**遥控器候选已被用户否证**（没用过遥控器）⇒ 改为"链路计数"诊断（D-174 附注一）：
+段卡死时同时打出 `entityTicksInSegment` / `travelCallsInSegment` + 输入串，
+可判定"实体没 tick / tick 了但 travel 没进 / 物理跑了但没位移 / 有人每 tick 清零输入"。
+**待复现**（`alice:transfer_check` 单跑几次，约 2 秒一次）。
+另登记潜在设计洞（非本次病因）：任务驱动与手动遥控无互斥。
 K-5 新用例 `session_status_no_dead_value=PASS` ✓（能力闸门 11 项全 PASS）。
 另：D-173 补删 `pathing/movement/` 14 文件 + 一个被 `.gitignore` 藏住的 `.backup` 残留。
 

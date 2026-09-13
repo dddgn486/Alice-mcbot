@@ -44,6 +44,25 @@ public class BotPlayer extends ServerPlayer {
     private boolean needRestoreKnockback = false;
     private int physicsProbeTicks;
     private int physicsTravelCalls;
+    /**
+     * 实体 tick 累计次数（进程内单调递增，2026-09-13 D-174）。
+     *
+     * <p>用途：段卡死诊断里区分"**实体根本没被 tick**"（输入设了也没人消费）与"tick 了但没位移"
+     * —— 这两类原因的修法完全不同。只作为只读诊断量，不参与任何逻辑判断。
+     */
+    private long entityTickCount;
+    /** `travel()` 累计调用次数（同上；正常每 tick 1~2 次 —— 本类 `tick()` 会显式再调一次 `aiStep()`）。 */
+    private long travelInvocationCount;
+
+    /** 累计实体 tick 次数（只读诊断量）。 */
+    public long entityTickCount() {
+        return entityTickCount;
+    }
+
+    /** 累计 `travel()` 调用次数（只读诊断量）。 */
+    public long travelInvocationCount() {
+        return travelInvocationCount;
+    }
 
     public BotPlayer(MinecraftServer server, ServerLevel level, GameProfile profile) {
         super(server, level, profile);
@@ -95,6 +114,7 @@ public class BotPlayer extends ServerPlayer {
     
     @Override
     public void tick() {
+        entityTickCount++;   // D-174：只读诊断量（段卡死时判断"实体到底有没有被 tick"）
         // ✅ 击退修复：恢复被清空的击退速度
         if (needRestoreKnockback) {
             this.setDeltaMovement(savedKnockbackVelocity);
@@ -133,6 +153,7 @@ public class BotPlayer extends ServerPlayer {
     @Override
     public void travel(Vec3 travelVector) {
         physicsTravelCalls++;
+        travelInvocationCount++;   // D-174：只读诊断量
         super.travel(travelVector);
     }
 
