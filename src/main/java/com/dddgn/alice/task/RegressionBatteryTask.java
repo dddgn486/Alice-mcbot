@@ -242,6 +242,13 @@ public final class RegressionBatteryTask implements Task {
                 },
                 () -> new com.dddgn.alice.task.CraftGridProbeTask(bot, observer), 400,
                 task -> task.failureReason().contains("station_opened")));
+        // 阶段 3-A / L2（D-194）：**工作站装配**（装升级 → 能力验证 3×3 → 取回复原）
+        // 依赖精妙存储：模组不在或站点不在 ⇒ SKIP（环境不具备，不判红）
+        steps.add(stepSkippable("craft_station_provision", List.of("alice_test:craft_tab_course"),
+                () -> teleportBot(com.dddgn.alice.task.CraftGridProbeTask.START),
+                () -> new com.dddgn.alice.task.CraftStationProvisionCheckTask(bot, observer), 900,
+                task -> task.failureReason().contains("mod_present")
+                        || task.failureReason().contains("station_found")));
         // 基-7：前缀搜索（K-1：预算耗尽交出前缀；真失败不给前缀）
         // R2：传输模块（4 个夹具：主流程/端点选择/选择器事件/命令解析）
         // K-3 安全点停止（D-169）**故意不进电池**：它的判据是"**顶层任务**被延后停止"，

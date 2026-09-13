@@ -83,6 +83,14 @@ public enum WriteReason {
     // ---- 外部触发 ----
 
     /** 玩家命令直接写入（管理/调试入口）。 */
+    /**
+     * **工作站装配**（L2 / D-194）：把"升级物品"放进容器的**升级槽**、以及用完再取出来。
+     *
+     * <p>语义 = 用户裁定："**装上升级本身算一种配置行为**" ⇒ 它不属于合成任务，
+     * 而是独立的一层（`StationProvisionTask`）；走**容器写入**维度（`WriteBudget.consumeContainerWrite`，
+     * 与 A11 的 `CONTAINER_TRANSFER` 同源），并且**建拆同权**：装进去的东西必须能原样取回。
+     */
+    STATION_PROVISION(Policy.EXPLICIT_TARGET, Action.BOTH, "装配/拆除工作站升级（用完即拆）"),
     MANUAL(Policy.EXPLICIT_TARGET, Action.BOTH, "玩家命令");
 
     /** 判定策略：决定走 {@code BlockBreakSafety} 的哪一套拒绝规则。 */

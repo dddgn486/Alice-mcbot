@@ -1130,6 +1130,18 @@ public final class BotManager {
         return true;
     }
 
+    /** **工作站装配自检**（阶段 3-A / L2，D-194）：装升级→能力验证→取回复原。 */
+    public static boolean assignCraftStationProvisionCheck(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(new com.dddgn.alice.task.CraftStationProvisionCheckTask(bot, observer),
+                TaskTarget.block(bot.blockPosition()));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     /** **合成网格探针**（阶段 3-A / S1-3，D-192）：只读打开当前工作站并打印网格/槽位事实。 */
     public static boolean assignCraftGridProbe(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());

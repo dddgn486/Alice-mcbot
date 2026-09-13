@@ -2,6 +2,7 @@
   "item.alice.craft_table_check": "工作台合成自检",
   "item.alice.craft_station_check": "自放工作站合成自检",
   "item.alice.craft_grid_probe": "合成网格探针",
+  "item.alice.craft_station_provision_check": "工作站装配自检",
   "item.alice.craft_action_check": "随身合成自检",
   "item.alice.craft_check": "配方查询自检（只读）",
   "item.alice.interface_scanner": "接口扫描器",

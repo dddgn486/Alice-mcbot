@@ -7671,3 +7671,37 @@ grid_found=true inactive_slots=0 tab_action=none grid_addressable_without_tab=tr
 **与两个常量逐项一致**。⇒ 行为等价由 **电池里的 `craft_action` / `craft_table` / `craft_station` 三步 + 两条硬断言探针步**证明。
 
 **等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `34cf8b1b…`）。**待客户端**：30 项电池整轮复测。
+
+### D-194：阶段 3-A / **L2 装配层** —— 工作站升级的"装/拆"自成一类（用能力验证 + 建拆同权）
+
+**用户裁定**：*"装上升级本身算一种配置行为"*、*"bot 自己用菜单协议把合成升级点进升级槽这条路可以"*、
+*"用完即拆"*；并按 **B → A → C** 推进（B 已完成：D-193）。
+
+**做了什么**：
+1. **新写入理由** `WriteReason.STATION_PROVISION`（`EXPLICIT_TARGET` / `BOTH`）+ **A 表 A13**：
+   装配走**容器写入**维度（`WriteBudget.consumeContainerWrite`，与 A11 `CONTAINER_TRANSFER` 同源），超限即 REFUSED。
+2. **`task/craft/StationProvision`**（那一层本身）：
+   - `moveIntoContainer`：先 `QUICK_MOVE`（**落点由菜单自己决定** ⇒ 不猜槽位语义），上游不接受时兜底读
+     模组自己的 `upgradeSlots` 字段直接放；`moveOutOfContainer` 是其对称操作；
+   - **地址映射也是发现出来的**：玩家背包下标 → 菜单地址一律查
+     `slot.container == player.getInventory() && slot.getContainerSlot() == 下标`，
+     **不按公式猜**（精妙容器的玩家背包段是 27..53 + 54..62，`36+i` 那种公式一猜就错）；
+   - 点击走 `menu.clicked(...)` 而**不是** `MenuSession.click`：后者会拒绝超出 `menu.slots.size()` 的地址，
+     而上游自管的槽位恰恰在那里（D-192 附注三/四）。
+3. **夹具** `CraftStationProvisionCheckTask` + 零参数入口 `alice:craft_station_provision_check`：
+   前提（站点在、**当前无网格**）→ 装 → **关掉再开菜单**（上游在菜单构造时才按升级建容器）→
+   **用能力验证**（`GridDiscovery` 必须认出 ≥3×3）→ **取回** → 能力必须消失、物品必须回到背包 →
+   `no_block_writes`（本夹具只搬物品）。**装配验证失败会回滚**并记 `rollback_clean`。
+4. **电池 30 → 31 项**（`craft_station_provision`，自带场景 + teleport；**模组不在/站点不在 ⇒ SKIP**）。
+5. 场景 `alice_test:craft_tab_course` **不再给玩家发升级**（用户指出：那颗升级不该塞给玩家）——
+   装配现在由 bot 自己做。
+
+**两个刻意的"不猜"**：① 落点不猜（交给菜单，用**结果**验证）；② 地址不猜（查容器身份 + 容器槽号）。
+**一条纪律**：装配**不是合成任务的一部分** —— 合成任务只接受"已经具备能力"的站点；没装就如实报
+`station_not_provisioned`（未来接入时的码），绝不偷偷替用户改配置。
+
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `9eca7b4a…`）。
+**未验证（客户端）**：① 上游是否接受 `QUICK_MOVE` 把升级送进升级槽（不接受就走兜底路径）；
+② 关掉再开菜单后 3×3 是否真的出现（`provision_verified`）；③ 取回后能力是否消失（`deprovision_verified`）。
+**下一步 C**：模组站点**真合成**（往 `#64..#72` 摆料、从 `#73` 取产物），并实测两维语义
+（"Shift 右击将成品放入容器/玩家物品栏"那个开关、以及"材料来源=容器优先"）。

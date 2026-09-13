@@ -6,7 +6,7 @@ fill 40 59 300 52 72 312 minecraft:air
 fill 40 63 300 52 63 312 minecraft:stone
 # ↓ 模组方块：模组没装时这一行会报错（前面的平台已经建好，便于分辨"是模组缺失"还是"场景坏了"）
 setblock 46 64 306 sophisticatedstorage:chest
-# ↓ 给玩家一颗合成升级，便于**手动**装进容器升级槽（自动装配 = 下一步的 L2 层）
-give @p sophisticatedstorage:crafting_upgrade 1
+# 注意：**不再给玩家发升级** —— L2 装配层落地后由 bot 自己装/拆（D-194）；
+# 驱动入口：`alice:craft_station_provision_check`（零参数）或电池步 `craft_station_provision`
 # 掉落物实体一并清掉（孤立场景前提）
 kill @e[type=minecraft:item,x=40,y=60,z=300,dx=13,dy=13,dz=13]

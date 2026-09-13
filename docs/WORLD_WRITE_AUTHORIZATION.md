@@ -9,7 +9,7 @@
 
 | 组件 | 位置 | 职责 |
 |---|---|---|
-| `WriteReason` | `action/WriteReason.java` | 13 个结构化理由；每个理由携带 `Policy`（决定拒绝规则）与 `Action`（BREAK/PLACE/BOTH） |
+| `WriteReason` | `action/WriteReason.java` | 14 个结构化理由；每个理由携带 `Policy`（决定拒绝规则）与 `Action`（BREAK/PLACE/BOTH） |
 | `WriteGrant` | `action/WriteGrant.java` | `(requester, reason)`——**谁、为什么**。不含预算 |
 | `WriteAudit` | `action/WriteAudit.java` | 每次写入一条记录 + `[WRITE]` 日志 + 计数 + `unknownRequesterWrites()` 缺口度量。J6 账本的数据源 |
 | `BlockBreakSafety.refusal(bot, pos, reason)` | `protection/BlockBreakSafety.java` | **破坏判定的唯一分发点**：按 `reason.policy()` 选 `explicitTargetRefusal` 或 `clearingRefusal` |
@@ -48,6 +48,7 @@
 | A7 | 玩家命令（`BotManager` 挖掘 / `BotCommand`） | 目标格 | `MiningBudget` | 常量 `command` | `EXPECTED_TARGET` / `MANUAL` | ✅ |
 | A8 | **脚手架回收**（`RestoreScopeTask`，J6-b） | 账本里**我方 TEMP 放置**逐块 | 每块两段寻路（`300` tick/块） | `restore` | `SCAFFOLD_RESTORE` | ✅ 并**销账** |
 | **A11** | **容器写入（传输）**（`TransferTask` 两段写入；2026-09-13 用户裁定"容器写入算世界改动"） | 源箱取出 / 目标箱写入各一次 | `WriteBudget.consumeContainerWrite`（容器写入额度，默认 32；**超限即 REFUSED**） | `WriteGrant.of("transfer", …)` | `CONTAINER_TRANSFER`（`Policy.EXPLICIT_TARGET`） | ✅ 记账（G5 物品移动记录**带 requester/reason**）+ 触及校验（L1） |
+| **A13** | **工作站装配**（`StationProvision`，L2 / D-194） | 容器**升级槽**里的一次物品移动：装入 / 取回各一次（`QUICK_MOVE`，落点由**菜单自己**决定 ⇒ **不猜槽位语义**） | `WriteBudget.consumeContainerWrite`（**容器写入**维度，与 A11 同源；超限即 REFUSED） | `WriteGrant.of("station-provision", …)` | `STATION_PROVISION`（`Policy.EXPLICIT_TARGET` / `Action.BOTH`） | ✅ **用能力验证**（重开菜单后 `GridDiscovery` 必须认出 ≥3×3）+ **建拆同权**（`REMOVE` 必须能把升级取回、能力复原）；失败即**回滚**并记 `rollback_clean` |
 | **A12** | **合成工作站放置**（`StationPlacement`，阶段 3-A / A3b；D-190） | `findSpot` 返回的**单格**（bot 周围 2 格内：空气 + 下方有碰撞 + `hasPlacementFace`；**不猜面**，面由 `BlockInteraction.placeAt` 的支撑面扫描决定） | `WriteBudget.placeAllowed`（放置额度默认 32；`Action.PLACE`） | `WriteGrant.of("craft-station", CRAFT_STATION_PLACE)` | `CRAFT_STATION_PLACE`（`temporary()==true` ⇒ 账本 `TEMP`，**受建拆同权约束**） | ✅ `WorldModLedger.recordPlacement` + 夹具断言 `write_accounted` / `teardown_clean` |
 | **A9** | **区域补种放置**（`RegionLumberJob`，J8 Slice B；D-131/D-157 补登记） | 区域欠树时的补种格 `spot`（计划内**永久**保留） | `WriteBudget.consumePlace`（放置额度；**超限即硬停**，不越界改世界） | `jobName()` = `region_lumber` | `REGION_REPLANT`（`temporary()==false` ⇒ 账本记 `KEEP`，**不受"建拆同权"约束**） | ✅ 记账（`WorldModLedger.recordPlacement`） |
 

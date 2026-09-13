@@ -536,3 +536,13 @@ A1 判据（零参数 `alice:craft_check`）：正例给工作站+材料清单�
 - **下一步 A（L2 装配层）**：bot 用菜单协议装/拆合成升级（独立 `WriteReason.STATION_PROVISION` + A 表 + 复位纪律）
   ⇒ 之后 `craft_probe_upgradetab` 升级成 3×3 硬断言。再往后的 C：模组站点真合成（摆 `#64..#72`、取 `#73`，
   并实测"Shift 右击将成品放入容器/玩家物品栏"开关与"材料来源=容器优先"两维）。
+
+**§6.28 D-194（L2 装配层）**（2026-09-13，待客户端）
+- 新写入理由 `WriteReason.STATION_PROVISION` + **A13**（容器写入维度 `consumeContainerWrite`，超限 REFUSED）。
+- `task/craft/StationProvision`：装入/取回两个动作，**落点交给菜单**（QUICK_MOVE，不被接受时兜底读模组 `upgradeSlots`），
+  **地址映射靠发现**（`container == player.getInventory() && getContainerSlot() == 下标`），绝不按公式猜；
+  点击用 `menu.clicked`（不用 `MenuSession.click`，它会拒绝超出 `menu.slots` 的上游自管地址）。
+- 夹具 `CraftStationProvisionCheckTask` + 入口 `alice:craft_station_provision_check`：
+  前提（无网格）→ 装 → **关掉再开** → **能力验证 ≥3×3** → 取回 → 能力消失 + 物品回包；失败**回滚**。
+- 电池 30 → **31 项**（模组不在/站点不在 ⇒ SKIP）；场景不再给玩家发升级。
+- **未验证**：QUICK_MOVE 是否被上游接受、重开后 3×3 是否出现、取回后是否复原。**下一步 C**：模组站点真合成 + 两维语义实测。

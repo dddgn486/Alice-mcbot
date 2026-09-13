@@ -406,7 +406,14 @@ legacy 双内核整批删除（19 文件，依据"按路径分析的零活引用
 **D-173 补漏**：`pathing/movement/` 14 文件（外部真引用 0）整包删除 + `.gitignore` 藏住的
 `PathExecutor.java.backup` 删除。
 
-**阶段 3-A / S1 合成工作站可切换（最新，D-192，待客户端）**：新增 `task/craft/GridDiscovery`（通用网格发现，
+**阶段 3-A / L2 工作站装配（最新，D-194，待客户端）**：新增 `task/craft/StationProvision`（装配那一层：
+QUICK_MOVE 装入 / 取回；**落点不猜、地址不猜**）+ 夹具 `CraftStationProvisionCheckTask` +
+零参数入口 `alice:craft_station_provision_check` + **新写入理由 `STATION_PROVISION` 与 A 表 A13**（容器写入维度）；
+电池 30 → **31 项**（`craft_station_provision`，模组不在 ⇒ SKIP）。场景 `craft_tab_course` **不再给玩家发升级**。
+此前 B（D-193）已把合成执行接入发现器（`InventoryCraft`/`TableCraft` 不再看写死下标），
+电池 (30/30) ticks=3383 复测通过。
+
+**阶段 3-A / S1 合成工作站可切换（D-192，客户端已验证）**：新增 `task/craft/GridDiscovery`（通用网格发现，
 只用原版 `CraftingContainer`/`ResultContainer` 判据，零模组知识）、`task/craft/CraftStation`（站点描述符 +
 `/alice craft station` 切换 + 候选事实，`auto` 不含升级页签 ⇒ 不自动选优）、`task/CraftGridProbeTask` +
 `alice:craft_grid_probe`（零参数只读探针）、场景 `alice_test:craft_tab_course` 与诊断

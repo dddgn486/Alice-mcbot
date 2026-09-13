@@ -2,6 +2,7 @@
   "item.alice.craft_table_check": "Crafting Table Check",
   "item.alice.craft_station_check": "Crafting Station Check",
   "item.alice.craft_grid_probe": "Craft Grid Probe",
+  "item.alice.craft_station_provision_check": "Crafting Station Provision Check",
   "item.alice.craft_action_check": "Inventory Craft Check",
   "item.alice.craft_check": "Craft Query Check (read-only)",
   "item.alice.interface_scanner": "Interface Scanner",
