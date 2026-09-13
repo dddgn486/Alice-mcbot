@@ -218,6 +218,11 @@ public final class AliceItems {
             ITEMS.register("craft_station_provision_check",
                     () -> new CraftStationProvisionCheckItem(new Item.Properties()));
 
+    /** 阶段 3-A / C（D-195）**模组站点真合成自检**（零参数）：装升级→用页签合成→拆回。 */
+    public static final RegistryObject<Item> CRAFT_STATION_CRAFT_CHECK =
+            ITEMS.register("craft_station_craft_check",
+                    () -> new CraftStationCraftCheckItem(new Item.Properties()));
+
     /** 基-9 工具供给自检（零参数，约 2 秒）：换更好的 / 没得换如实报 / **不能凭空变出工具**。 */
     public static final RegistryObject<Item> TOOL_SUPPLY_CHECK =
             ITEMS.register("tool_supply_check", () -> new ToolSupplyCheckItem(new Item.Properties()));

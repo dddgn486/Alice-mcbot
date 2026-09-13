@@ -546,3 +546,13 @@ A1 判据（零参数 `alice:craft_check`）：正例给工作站+材料清单�
   前提（无网格）→ 装 → **关掉再开** → **能力验证 ≥3×3** → 取回 → 能力消失 + 物品回包；失败**回滚**。
 - 电池 30 → **31 项**（模组不在/站点不在 ⇒ SKIP）；场景不再给玩家发升级。
 - **未验证**：QUICK_MOVE 是否被上游接受、重开后 3×3 是否出现、取回后是否复原。**下一步 C**：模组站点真合成 + 两维语义实测。
+
+**§6.29 D-195（C：模组站点真合成）**（2026-09-13，待客户端）
+- **A 已客户端验证通过**：`provision_verified=true`（QUICK_MOVE 被上游接受：`fromSlot=54`）、
+  `item_moved_into_container=true`、`deprovision_verified=true`（`fromAddress=63` 取回）、`item_returned=true`、
+  `no_block_writes=true`、`verdict=PASS`。
+- 用户确认场景："装一次 → 一直用 → 直到让它拆"（装配独立成层；夹具的"装→验→拆"只是自检）。
+- C 新增：`CraftStationCraftCheckTask` + `alice:craft_station_craft_check`；
+  `CraftStation.UPGRADE_TAB.provisionUpgrade`（数据驱动"该装什么"）；电池 31 → **32 项**。
+- **待测**：`materials_consumed=8`、`product_produced=1`、产物去向（`product_in_player`/`product_in_container`）、
+  开关值 `shift_click_into_storage`、以及"原语假设是否被打脸"（`primitive_assumption_mismatch`）。

@@ -51,20 +51,27 @@ public final class CraftStation {
     /** **材料来源**：守恒断言的判据（材料在容器/网络里时，"玩家背包 −M"的口径不成立）。 */
     public enum Source { INVENTORY, UNKNOWN }
 
-    /** 一个站点。`id` 是玩家可输入的稳定名字。 */
-    public record Descriptor(String id, String label, Kind kind, Take take, Source source, String note) {
+    /**
+     * 一个站点。`id` 是玩家可输入的稳定名字。
+     *
+     * @param provisionUpgrade **能把这个站点"装配"起来的升级物品 id**（null = 不可装配）。
+     *                         装配层用它决定"该往升级槽塞什么"，**不需要判断站点类名**。
+     */
+    public record Descriptor(String id, String label, Kind kind, Take take, Source source, String note,
+                             ResourceLocation provisionUpgrade) {
     }
 
     /** 随身 2×2（今天 A2 走的路）。 */
     public static final Descriptor INVENTORY = new Descriptor("inventory", "随身 2×2", Kind.INVENTORY,
-            Take.QUICK_MOVE, Source.INVENTORY, "玩家自带 InventoryMenu（D-163 布局）");
+            Take.QUICK_MOVE, Source.INVENTORY, "玩家自带 InventoryMenu（D-163 布局）", null);
     /** 工作台 3×3（今天 A3 走的路）。 */
     public static final Descriptor TABLE = new Descriptor("table", "工作台 3×3", Kind.BLOCK,
-            Take.QUICK_MOVE, Source.INVENTORY, "原版 crafting_table");
+            Take.QUICK_MOVE, Source.INVENTORY, "原版 crafting_table", null);
     /** 精妙存储/精妙背包的"合成升级页签"（3×3 藏在容器菜单里）。 */
     public static final Descriptor UPGRADE_TAB = new Descriptor("upgradetab", "升级页签容器 3×3", Kind.BLOCK,
             Take.UNKNOWN, Source.UNKNOWN,
-            "sophisticatedstorage 的容器（按方块 id 形态识别）；协议/来源待实测（第二步）");
+            "sophisticatedstorage 的容器（按方块 id 形态识别）；协议/来源待实测（第二步）",
+            ResourceLocation.fromNamespaceAndPath("sophisticatedstorage", "crafting_upgrade"));
 
     private static final List<Descriptor> ALL = List.of(INVENTORY, TABLE, UPGRADE_TAB);
     /** `auto` 的现状顺序：**不含** upgradetab（不做自动选优）。 */

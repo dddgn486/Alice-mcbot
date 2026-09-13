@@ -7705,3 +7705,30 @@ grid_found=true inactive_slots=0 tab_action=none grid_addressable_without_tab=tr
 ② 关掉再开菜单后 3×3 是否真的出现（`provision_verified`）；③ 取回后能力是否消失（`deprovision_verified`）。
 **下一步 C**：模组站点**真合成**（往 `#64..#72` 摆料、从 `#73` 取产物），并实测两维语义
 （"Shift 右击将成品放入容器/玩家物品栏"那个开关、以及"材料来源=容器优先"）。
+
+### D-195：阶段 3-A / C = **S1-5b 模组站点真合成**（装一次 → 用 → 拆回）
+
+**用户裁定**：*"不用加这个入口（单向装配命令），现在的测试已经有足够证据了，继续下一步"* ⇒ 直接进 C。
+用户同时确认了最终应用场景：**"让 bot 装一次配置，然后就可以一直用了，直到让 bot 拆下升级"** ——
+这与现有分层一致：**装配（装/拆）独立成层，合成只读能力**；夹具之所以"装→验证→拆"跑一遍，是因为它是**自检**
+（两个方向都要验 + 跑完把世界还原），**不是生产流程**。升级的持久性已由存档实证（`upgradeInventory` 跨会话）。
+
+**`CraftStation.UPGRADE_TAB` 增加数据字段 `provisionUpgrade`**（= `sophisticatedstorage:crafting_upgrade`）：
+"这个站点该装什么升级"由**站点描述符的数据**决定，装配层不需要判断站点类名（命令入口按用户裁定**不加**）。
+
+**新增夹具** `CraftStationCraftCheckTask` + 零参数入口 `alice:craft_station_craft_check`：
+装（L2）→ 用**发现出来的规格**合成（S1-5a 的 `InventoryCraft.craft(..., spec)`）→ 拆回（建拆同权），
+一次右键跑完。**判据一律是世界事实**（产物总量 +1、圆石总量 −8），而**不是**某个原语的自述。
+
+**这一项刻意把两维语义当"测量对象"记进 SUMMARY**（而不是假设）：
+| 记录项 | 含义 |
+|---|---|
+| `shift_click_into_storage` | 那个"Shift 右击将成品放入容器/玩家物品栏"开关的**当前值**（读升级物品 NBT） |
+| `product_in_player` / `product_in_container` | 产物**实际**落在哪（两处都数） |
+| `primitive_verdict` / `primitive_assumption_mismatch` | `InventoryCraft` 怎么报的、它"产物进玩家背包"的假设有没有被现实打脸 |
+| `grid_after_craft` | 合成后页签 9 格剩什么（看它会不会**自动补料**） |
+| `materials_consumed` / `product_produced` | 世界事实（判 PASS/FAIL 的依据） |
+
+**电池 31 → 32 项**（`craft_station_craft`，自带场景；模组不在/站点不在 ⇒ SKIP）。
+
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `b5a99c1d…`）。**未验证**：客户端这一步。
