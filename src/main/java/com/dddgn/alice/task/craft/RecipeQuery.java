@@ -158,7 +158,11 @@ public final class RecipeQuery {
                                 List.of(), 0, 0));
                     }
                     machineRoutes.add(new Route(recipe.getId().toString(), type, type, false, crafts, per, materials));
-                } else {
+                } else if (vanillaHits) {
+                    // **只在"这条配方确实产出目标物品"时才记类型**（2026-09-14 修 bug）：
+                    // 原先我把它放在目标过滤之前 ⇒ 任何一次查询都会把**全表**的机器类型收进来，
+                    // 于是"负例物品"（如 barrier）被判成 MACHINE_RECIPE_UNSUPPORTED 而不是 NO_RECIPE
+                    // —— 是**夹具的自证负例**把这个回归抓出来的。
                     machineTypes.add(type);   // 读不出物品输出（化学品/气体）⇒ 如实记录，不猜语义
                 }
                 continue;

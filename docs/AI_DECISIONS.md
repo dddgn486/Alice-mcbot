@@ -8335,7 +8335,7 @@ namespace=mekanism types=26 type_recipes=1171 readable_total=2923 skipped_total=
 把查询层的 `machine_recipe_unsupported` 升级为**有出处的机器路线**；探针按纪律**验证通过即回收**
 （或按 D-197 转成电池步）。换模组只改 `NAMESPACE` 与入口名字——**这就是"实验模板"的可复用性检验**。
 
-**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（77 项）+ 已同步（jar `5c69d9d8…`）；**待客户端**（一次右键）。
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（77 项）+ 已同步（jar `f20b6283…`）；**待客户端**（一次右键）。
 
 #### D-204 附注一：S1 取证**发现了关键事实**——原版 `Recipe` 接口**取不到**机器配方的输入/输出
 
@@ -8415,7 +8415,7 @@ Mekanism 的具体方法名只出现在**模组专属适配器**里。
 若 `upstream_readable` 接近样例数 ⇒ 先把"物品→物品"接进查询层；若 `machine_output_not_item` 占多数 ⇒
 只做"如实报码"，不碰化学品语义。
 
-**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `5c69d9d8…`）；**待客户端**（一次右键）。
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `f20b6283…`）；**待客户端**（一次右键）。
 
 #### D-205 附注一：**`pause` 对 AI 是单向的**（实测）——所以"到测试点暂停"要靠**你**恢复
 
@@ -8468,7 +8468,7 @@ the user must resume it"）。这**正好符合** D-205 的意图（"恢复只�
 打印 `query item=… verdict=…`（期望 `MACHINE_ROUTE`）并计数 `query_probed` / `query_machine_route` ——
 **自证式验证**：不需要你手输物品 id，也不用我硬编码样例。
 
-**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `5c69d9d8…`）；**待客户端**（一次右键 `alice:machine_probe`）。
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `f20b6283…`）；**待客户端**（一次右键 `alice:machine_probe`）。
 **之后**：探针回收（S5）或按 D-197 转电池步 —— 等这次验证过再动。
 
 #### D-204 附注七：S1 **收口** —— 歧义修掉 + 探针按 S5 回收（转电池步）
@@ -8482,7 +8482,7 @@ the user must resume it"）。这**正好符合** D-205 的意图（"恢复只�
    ⇒ 探针生命周期闭合：**用它取证 → 判定成立 → 回收入口、保留为回归**（D-197 规则 1）。
 3. **电池 25 → 26 项**（MAIN 12 → 13），`docs/BATTERY_CURATION.md` 历史表同步。
 
-**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（76 项，探针物品已回收）+ 已同步（jar `5c69d9d8…`）；
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（76 项，探针物品已回收）+ 已同步（jar `f20b6283…`）；
 **待客户端**：CORE `(26/26) → PASS`（其中 `machine_route=PASS`；若 Mekanism 不在则 `SKIP`）。
 
 #### D-204 附注八：S1 改动让 **A1 夹具**的旧断言过期 —— 按"能力升级"更新，并换掉一个**前提过期**的负例
@@ -8500,7 +8500,7 @@ the user must resume it"）。这**正好符合** D-205 的意图（"恢复只�
 **纪律**：能力升级时，**夹具断言要跟着升级，但必须逐个说明"为什么不是放宽判据"**；
 负例则优先换一个**依然不可能**的物品，而不是把负例删掉。
 
-**等级**：IMPLEMENTED + COMPILES + 已同步（jar `5c69d9d8…`）；**待客户端**：CORE 期望回到 `(26/26) → PASS`。
+**等级**：IMPLEMENTED + COMPILES + 已同步（jar `f20b6283…`）；**待客户端**：CORE 期望回到 `(26/26) → PASS`。
 
 #### D-204 附注九：负例改为**运行时自证**（写死物品必然随模组集过期）
 
@@ -8515,4 +8515,23 @@ the user must resume it"）。这**正好符合** D-205 的意图（"恢复只�
 
 **纪律**：**负例的前提也必须自证**，不能靠"我觉得它没配方"。这与 `§6.9.1 ②`（按当前模组集核对前提）同源。
 
-**等级**：IMPLEMENTED + COMPILES + 已同步（jar `5c69d9d8…`）；**待客户端**：CORE 期望 `(26/26) → PASS`。
+**等级**：IMPLEMENTED + COMPILES + 已同步（jar `f20b6283…`）；**待客户端**：CORE 期望 `(26/26) → PASS`。
+
+#### D-204 附注十：**夹具的自证负例抓出查询层真 bug** —— `machineTypes` 未按目标过滤（已修）
+
+**实测**（CORE 第三轮）：自证负例挑中 `minecraft:barrier`，却报 `MACHINE_RECIPE_UNSUPPORTED`
+且列出 `create:milling / create:haunting / create:cutting / thermal:pyrolyzer / mekanism:sawing …`
+—— 这些类型与屏障**毫无关系** ⇒ 一眼可见不是"屏障有机器配方"。
+
+**根因（我的实现缺陷）**：S1 接线时我把"机器/未知类型"分支**放到了目标过滤之前**，
+于是那条分支对**全表每一张机器配方**都会执行，`machineTypes` 被塞进"整个整合包的机器类型集合"。
+后果：任何**没有配方**的物品都会被判成 `MACHINE_RECIPE_UNSUPPORTED`（而不是 `NO_RECIPE`）——
+即"读不懂"被夸大成了"被机器产出"。
+
+**修**：机器分支只在**该配方确实产出目标物品**时才记类型（`else if (vanillaHits) machineTypes.add(type)`）；
+上游自述命中目标的仍走 `MACHINE_ROUTE`（不变）。
+
+**这次事故的价值**：抓出它的是**夹具的"自证负例"**（上一轮刚改成运行时挑选）——
+说明"负例前提自证"不只是防过期，还能**当断言用**去发现实现缺陷。已与 §6.9.1 一并登记。
+
+**等级**：IMPLEMENTED + COMPILES + 已同步（jar `f20b6283…`）；**待客户端**：CORE 期望 `(26/26) → PASS`。
