@@ -108,25 +108,32 @@ public class CraftGridProbeTask implements Task {
         record("candidates", CraftStation.describe(bot, SCAN_RADIUS));
         BotLog.info("[CraftGridProbe] selected={} candidates={}", CraftStation.selected(bot),
                 CraftStation.describe(bot, SCAN_RADIUS));
-        opened = CraftStation.open(bot, SCAN_RADIUS);
-        BotLog.info("[CraftGridProbe] open → {}", opened.describe());
-        if (!opened.ok()) {
-            record("open", opened.describe());
-            check("station_opened", false, opened.describe());
-            return finish();
-        }
-        check("station_opened", true, opened.describe());
-        record("station", opened.station().id()
-                + (opened.pos() == null ? "" : "@" + opened.pos().toShortString()));
-        if (opened.menu() != null) {
-            menu = opened.menu();
-            return advance(Phase.REPORT);
-        }
-        session = opened.session();
+        // **不在本 tick 开菜单**：刚 teleport 完的那一 tick 物理还没结算（`onGround` 可能是上一处的状态），
+        // 而 `MenuSession.open` 有 K-3 门：空中一律硬拒（`menu_not_settled`）⇒ 会把"探针没摆好"记成"菜单打不开"。
+        // 所以传送与开菜单**分成两个 tick**（D-187 §6.9 的老教训：夹具前提要自己保证）。
         return advance(Phase.OPEN);
     }
 
     private Status open() {
+        if (opened == null) {
+            opened = CraftStation.open(bot, SCAN_RADIUS);
+            BotLog.info("[CraftGridProbe] open → {} foot={} onGround={}", opened.describe(),
+                    bot.blockPosition().toShortString(), bot.onGround());
+            if (!opened.ok()) {
+                record("open", opened.describe());
+                check("station_opened", false, opened.describe());
+                return finish();
+            }
+            check("station_opened", true, opened.describe());
+            record("station", opened.station().id()
+                    + (opened.pos() == null ? "" : "@" + opened.pos().toShortString()));
+            if (opened.menu() != null) {
+                menu = opened.menu();
+                return advance(Phase.REPORT);
+            }
+            session = opened.session();
+            return Status.RUNNING;
+        }
         MenuSession.State state = session.tick();
         if (state == MenuSession.State.FAILED) {
             check("menu_opened", false, "state=FAILED reason=" + session.failure());
