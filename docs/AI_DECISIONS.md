@@ -8416,3 +8416,16 @@ Mekanism 的具体方法名只出现在**模组专属适配器**里。
 只做"如实报码"，不碰化学品语义。
 
 **等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `f9860c3c…`）；**待客户端**（一次右键）。
+
+#### D-205 附注一：**`pause` 对 AI 是单向的**（实测）——所以"到测试点暂停"要靠**你**恢复
+
+实跑发现（工具层事实）：模型**不能**自行 `resume` 一个 `paused` 的 goal（报错"the model cannot resume a paused goal;
+the user must resume it"）。这**正好符合** D-205 的意图（"恢复只由用户明确唤醒触发"），但要用对：
+- **到"需要用户测试/拍板"时：`pause`** ⇒ 自动续行停止，**不会**重复唤醒查看测试结果 ✓；
+- **恢复方式**：由**你**发起（一句明确的"恢复 goal / 继续推进"或 GUI 上的恢复操作）——我这边只能等你。
+- **顺带结论**：`pause` 之前要把"要测什么/期望看到什么/怎么回话"写在回复里（否则你恢复时没有上下文）。
+
+**同日 S1 读数（探针第二轮，51 条样例）**：`unreadable_via_vanilla=31 upstream_readable=20 machine_output_not_item=31`，
+且样例 `in=[]` **普遍为空** ⇒ **输入侧必须走上游**（`ItemStackIngredient implements InputIngredient<ItemStack>`，
+枚举方法在 `InputIngredient` 上）。⇒ S1 的覆盖面 = "**物品→物品**"子集（原版 ∪ 上游自述），
+其余（化学品/气体，如 `rotary`）**如实报 `machine_output_not_item`**。
