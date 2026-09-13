@@ -1089,6 +1089,9 @@ public final class BotManager {
         session.lastEntityTicks = now;
     }
 
+    /** 自检任务暂停决策层的窗口（tick）：60 秒，覆盖夹具本身 + 冷却。 */
+    private static final int SELF_CHECK_SUSPEND_TICKS = 1200;
+
     /** 取 bot 的会话（决策层快照只读用；null = 未注册）。 */
     public static BotSession sessionOf(BotPlayer bot) {
         return bot == null ? null : BOTS.get(bot.getUUID());
@@ -1479,6 +1482,14 @@ public final class BotManager {
             task = assignedTask;
             target = assignedTarget;
             taskKind = assignedTask.getClass().getSimpleName();
+            // D-189：**自检任务开始即暂停决策层** —— 否则任务终态会触发 LLM，常选 start_job（实测
+            // region_lumber）⇒ 每次测试（尤其失败后）bot 就跑去做生产作业，把测试场地占住。
+            // 窗口取 1200 tick（60 秒，与 EventThresholdCheckTask 同口径）：覆盖夹具本身 + 一段冷却。
+            if (assignedTask.isSelfCheck()) {
+                com.dddgn.alice.decision.GoalDirector.suspend(bot, SELF_CHECK_SUSPEND_TICKS);
+                BotLog.info("[alice] 自检任务 {} ⇒ 暂停决策层 {} tick（自检窗口内不通知 LLM）",
+                        taskKind, SELF_CHECK_SUSPEND_TICKS);
+            }
             taskTargetDescription = assignedTarget.describe();
             taskStartTick = serverTick();
             // 基-4：登记"当前任务"⇒ 重启后能如实报"重启前正在跑 X（未续做）"，而不是装作无事发生

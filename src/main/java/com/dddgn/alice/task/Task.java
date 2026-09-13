@@ -76,6 +76,20 @@ public interface Task {
      */
     Status tick();
 
+    /**
+     * **是否自检/夹具任务**（D-189，用户实测反馈："测试完 bot 就自己跑去伐木"）。
+     *
+     * <p>为什么需要：决策层在**任务终态**会被触发一次，LLM 常选 `start_job`（实测就是 `region_lumber`）
+     * ⇒ 每次自检结束（尤其**失败**后）bot 就跑去做生产作业，把测试场地占住、把人看懵。
+     * 项目早有同类裁定（`DecisionEvents.record` 注释："自检窗口内只记录不通知 —— 检具不该在生产侧
+     * 留下决策痕迹"），但**终态触发**当时没被覆盖，这里补上：自检任务开始即**暂停决策层**。
+     *
+     * <p>默认按命名约定识别（`*CheckTask`）——所有既有夹具都符合；需要例外时覆写本方法。
+     */
+    default boolean isSelfCheck() {
+        return getClass().getSimpleName().endsWith("CheckTask");
+    }
+
     /** 事实型失败报告；未实现领域详情的任务默认返回空报告。 */
     default TaskFailureReport failureReport() {
         return new TaskFailureReport(failureReason(), "unknown", "", null, null);

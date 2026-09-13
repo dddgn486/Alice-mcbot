@@ -101,6 +101,15 @@ public class CraftTableCheckTask implements Task {
     // ==================== 相位 ====================
 
     private Status find() {
+        // **夹具自摆前提**（D-187 §6.9.1 / 实测教训）：独立物品入口**没人**替本夹具传送，
+        // 上一轮实测就因此从伐木场(20,64,208)出发去够 100 格外的台子 ⇒ walked_to_table=FAIL。
+        // 起点、发料、场景复位一律由夹具自己负责；随后**自断言**起点确实到位。
+        bot.teleportTo(bot.serverLevel(), START.getX() + 0.5D, START.getY(), START.getZ() + 0.5D,
+                java.util.Set.of(), bot.getYRot(), bot.getXRot());
+        bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+        bot.controller().stopMovement();
+        check("start_premise", bot.blockPosition().distSqr(START) <= 4.0D,
+                "foot=" + bot.blockPosition().toShortString() + " start=" + START.toShortString());
         FixtureToolKit.resetInventory(bot);
         give(Items.COBBLESTONE, 8);
         table = TableCraft.findTable(bot.serverLevel(), START, TABLES_RADIUS);

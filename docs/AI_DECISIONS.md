@@ -7271,3 +7271,35 @@ D-185 附注一（"圆石没有配方"—— 装模组后它有机器配方）�
 
 **边界**：A3 **零世界写入**（有断言）；3×3 = 工作台（熔炉等**加工**仍是 A4）；未接决策层（A5）。
 **状态**：`IMPLEMENTED` + `COMPILES` + 资源自检 PASS。**未验证**：客户端。
+
+### D-189：**自检任务一律暂停决策层**（用户反馈："测试完 bot 就自己跑去伐木"）+ A3 夹具自摆前提
+
+**用户反馈（原话）**："啥时候能别让失败自动伐木任务了" —— 每次自检结束（尤其**失败**后），
+决策层被"任务终态"触发，LLM 常选 `start_job`（实测 `region_lumber`）⇒ bot 跑去做生产作业、
+把测试场地占住。日志实证：
+```
+15:55:40 task_execution_terminal kind=CraftTableCheckTask … terminal=FAILED
+15:55:40 [Goal] decision_request trigger=terminal:CraftTableCheckTask
+15:55:42 [Goal] decision_action … raw={"action":"start_job","kind":"region_lumber",…}
+15:55:42 [Goal] execute action=start_job ok=true
+```
+
+**根因**：项目**早有**同类裁定（`DecisionEvents.record` 注释："自检窗口内**只记录不通知** ——
+检具不该在生产侧留下决策痕迹（2026-09-12 实测：夹具造的事件把 LLM 招来，在测试场地起了常驻 Job 把会话占死）"），
+但那时只覆盖了**事件**通道；**终态触发**（`terminal:<Task>`）没被覆盖 ⇒ 独立物品入口的自检
+（电池自己有 suspend，所以只在电池里看不到这个问题）结束后仍会触发 LLM。
+
+**修法**：
+1. `Task.isSelfCheck()`（默认按命名约定 `*CheckTask` 识别 —— 既有夹具全部符合；可覆写）；
+2. `BotSession.beginTask(...)`：**自检任务开始即 `GoalDirector.suspend(bot, 1200)`**（60 秒，
+   与 `EventThresholdCheckTask` 同口径）= 覆盖夹具本身 + 冷却 ⇒ 终态触发被 `trigger_skipped reason=suspended` 跳过，
+   自检**失败也不会**招来生产 job。日志留一行 `自检任务 X ⇒ 暂停决策层 1200 tick`。
+
+**同轮修掉 A3 夹具的前提缺陷（第 5 次"夹具没自摆前提"）**：
+实测 `table_found=PASS` 但 `walked_to_table=FAIL foot=20,64,208 stand=46,64,307` —— 独立物品入口
+**没人**替夹具传送（电池步会 `teleportBot`，物品不会）⇒ 从伐木场出发去够 100 格外的台子必然失败。
+**修**：`CraftTableCheckTask` 在首相位**自己 teleport 到场景起点**（零动量 + 停输入）并加
+`start_premise` 自断言（起点到位才继续）。
+
+**待用户确认的设计问题**：是否还要一条**通用**规则 —— "**失败终态不自动起 job**"（不仅是自检任务）？
+本轮只做了自检窗口（用户当前痛点），通用规则等用户裁定。
