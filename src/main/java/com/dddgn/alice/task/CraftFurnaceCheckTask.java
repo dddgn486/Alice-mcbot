@@ -49,7 +49,7 @@ public class CraftFurnaceCheckTask implements Task {
     private static final int SMELT_BUDGET_TICKS = 420;
     private static final ResourceLocation SMELT_RECIPE = ResourceLocation.withDefaultNamespace("stone");
 
-    private enum Phase { PREPARE, OPEN, DISCOVER, PLACE, WAIT, TAKE, ASSERT, CLEANUP, DONE }
+    private enum Phase { PREPARE, OPEN, DISCOVER, PLACE, WAIT, TAKE, ASSERT, CLEANUP, DEPROVISION, DONE }
 
     /** true = 测**菜单型炉子**（"熔炼升级页签"，A4b）；false = 原版方块熔炉（A4）。 */
     private final boolean upgradeTab;
@@ -122,6 +122,7 @@ public class CraftFurnaceCheckTask implements Task {
             case TAKE -> take();
             case ASSERT -> assertResult();
             case CLEANUP -> cleanupFurnace();
+            case DEPROVISION -> deprovision();
             case DONE -> finish();
         };
     }
@@ -255,14 +256,19 @@ public class CraftFurnaceCheckTask implements Task {
 
     private Status waitSmelt() {
         ItemStack output = FurnaceStation.stackAt(bot.containerMenu, found.output());
-        FurnaceStation.Result now = FurnaceStation.discover(bot.containerMenu);
-        if (now.ok() && phaseTicks % 40 == 0) {
-            BotLog.info("[CraftFurnaceCheck] 进度 {}%（{}tick）", now.found().percent(), phaseTicks);
-        }
         if (output != null && !output.isEmpty()) {
+            FurnaceStation.Result done = FurnaceStation.discover(bot.containerMenu);
             record("smelt_ticks", String.valueOf(phaseTicks));
-            record("progress_at_done", now.ok() ? String.valueOf(now.found().percent()) : "-");
+            record("progress_at_done", done.ok() ? String.valueOf(done.found().percent()) : "-");
             return advance(Phase.TAKE);
+        }
+        // 发现器**每 40 tick 问一次就够**：它是反射遍历、而且成功时会打一行"认出炉子"；
+        // **每 tick 问一次**会刷出几百行日志（2026-09-13 A4b 实测 383 行），把真正要看的东西淹掉。
+        if (phaseTicks % 40 == 0) {
+            FurnaceStation.Result now = FurnaceStation.discover(bot.containerMenu);
+            if (now.ok()) {
+                BotLog.info("[CraftFurnaceCheck] 进度 {}%（{}tick）", now.found().percent(), phaseTicks);
+            }
         }
         if (phaseTicks > SMELT_BUDGET_TICKS) {
             // **失败不留半成品**：把输入取回背包（燃料烧掉就烧掉，如实记）
@@ -316,20 +322,30 @@ public class CraftFurnaceCheckTask implements Task {
      *       这是**夹具自己的场景管理**（与 A3b 挪动场景工作台同规格），**不是**生产写入 ⇒
      *       `no_block_writes` 的含义仍是"我方账本里没有临时方块"。</li>
      * </ol>
+     *
+     * <p><b>必须"进相位只做一次"</b>（2026-09-13 A4b 实测教训）：本方法是**每 tick 都被调用的相位处理函数**。
+     * A4b 分支要交给需要多 tick 的 {@link #deprovision()}（开菜单 → 等 OPEN → 取回升级）：原先它
+     * `closeSession(...)` 后**相位仍停在 CLEANUP** ⇒ 下一 tick 又跑进来、把刚开的菜单关掉 ⇒
+     * **一 tick 一开一关永远收敛不了**（实测 `closed reason=furnace_cleanup` ↔ `use_item_on` 每 50ms 一对）。
+     * ⇒ 现在一律 `advance(Phase.DEPROVISION)` 换相位，CLEANUP 只走一次。
      */
     private Status cleanupFurnace() {
         AbstractContainerMenu menu = bot.containerMenu;
-        FurnaceStation.Result now = FurnaceStation.discover(menu);
-        int burnLeft = now.ok() ? now.found().litTime() : -1;
+        boolean stationOpen = menu != null && !(menu instanceof net.minecraft.world.inventory.InventoryMenu);
+        // 菜单已经关了（或只剩玩家自带菜单）⇒ 别对"玩家背包菜单"跑发现器、更别拿旧地址去点（会抛 ReportedException）
+        FurnaceStation.Result now = stationOpen ? FurnaceStation.discover(menu) : null;
+        int burnLeft = now != null && now.ok() ? now.found().litTime() : -1;
         record("burn_left_ticks_before_reset", String.valueOf(burnLeft));
-        boolean fuelBack = found != null && FurnaceStation.takeAll(bot, menu, found.fuel());
-        boolean inputBack = found != null && FurnaceStation.takeAll(bot, menu, found.input());
-        boolean outputBack = found != null && FurnaceStation.takeAll(bot, menu, found.output());
+        record("cleanup_station_open", String.valueOf(stationOpen));
+        boolean fuelBack = stationOpen && found != null && FurnaceStation.takeAll(bot, menu, found.fuel());
+        boolean inputBack = stationOpen && found != null && FurnaceStation.takeAll(bot, menu, found.input());
+        boolean outputBack = stationOpen && found != null && FurnaceStation.takeAll(bot, menu, found.output());
         record("leftovers_returned", "fuel=" + fuelBack + " input=" + inputBack + " output=" + outputBack);
         if (upgradeTab && upgradeItem != null) {
-            // A4b：**拆回升级**（建拆同权）——烧炼状态跟着升级物品走，拆掉即等于熄灭
+            // A4b：**拆回升级**（建拆同权）——烧炼状态跟着升级物品走，拆掉即等于熄灭。
+            // 换相位去做（开菜单 → 取回 → 断言），**不要**留在这个相位里每 tick 重入。
             closeSession("furnace_cleanup");
-            return deprovisionAndFinish();
+            return advance(Phase.DEPROVISION);
         }
         closeSession("furnace_cleanup");
         // 场景同款复位：先空气再放炉子（重建方块实体 ⇒ 熄灭 + 清空）
@@ -407,8 +423,8 @@ public class CraftFurnaceCheckTask implements Task {
         return best;
     }
 
-    /** A4b 收尾：重新开菜单 → 取回熔炼升级 → 断言能力消失 + 物品回包。 */
-    private Status deprovisionAndFinish() {
+    /** A4b 收尾（**独立相位**，因为要跨多 tick：开菜单 → 取回熔炼升级 → 断言能力消失 + 物品回包）。 */
+    private Status deprovision() {
         if (session == null) {
             if (!bot.onGround()) {
                 return Status.RUNNING;
