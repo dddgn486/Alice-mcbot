@@ -7050,3 +7050,27 @@ Modrinth/CurseForge 的网页元数据可能不全。
 
 **状态**：安装与校验 = 已完成（sha1 全 OK、依赖闭合、无重复）。
 **未验证**：客户端**启动**与 `/alice recipes` 导出（下一步由用户执行；若启动报缺依赖，日志会点名，我据此补装）。
+
+### D-183：阶段 2 首轮导出 —— **白名单用了序列化器 id 而非类型 id**（读得懂 15% → 预测 55%）
+
+**首轮实测（772 可读 / ≈5293 总量）**：可读类型只有 5 种（stonecutting/smelting/blasting/smoking/
+campfire），而"**读不懂第一名**"是 `minecraft:crafting` **2136 条** —— 这显然不合理，于是查代码：
+
+```
+RecipeDump.STATION_BY_TYPE 原键：minecraft:crafting_shaped / crafting_shapeless /
+                                smithing_transform / smithing_trim      ← 这些是**序列化器** id
+运行时 recipe.getType() 给的是：minecraft:crafting / minecraft:smithing ← **类型** id
+⇒ 命中不了白名单 ⇒ 2136 + 31 条原版配方被"如实跳过"
+```
+**修**：白名单改用**类型 id**（保留序列化器 id 作兼容入口）。**预测**可读 772 → **2939（55.5%）**。
+**教训（写进规矩）**：Forge 里"配方类型 id"与"配方序列化器 id"是两套命名空间，
+写白名单/匹配表时必须明确用的是哪一套，并**用运行时导出直方图验收**（本次正是直方图抓到的）。
+
+**适配器候选（只列清单，不写代码，D-182/148 口径）**：按"类型数 × 配方量"——
+Mekanism（1171，26 类；crushing/enriching/injecting/purifying 覆盖主链）>
+Thermal（652，30 类；press/pulverizer/smelter/insolator/centrifuge）>
+Create（506，15 类；cutting/deploying/crushing/milling/splashing）> Extended Crafting（25，4 类）。
+这些都是**机器加工语义**不在原版配方体系里 ⇒ 适配前需要能力声明 + 授权 + 预算（对齐 `CapabilityGate`）。
+
+**报告产物**：`docs/STAGE2_MODS_READABILITY.md`（安装集 / 读得懂统计 / 该缺陷 / 冲突然当前不可信 /
+适配器候选 / 待复测）。**未完成**：修复后需重新导出一次以出最终版（可读率与跨模组同产出清单）。

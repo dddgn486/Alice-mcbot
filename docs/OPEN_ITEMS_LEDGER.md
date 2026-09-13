@@ -405,5 +405,10 @@ S-1 因常驻任务而真实化），再开 **②决策层接入** 这条真正�
   sha1 全 OK；`flywheel`+`ponder` 内嵌在 create、`thermal_core` 内嵌在 thermal_foundation（均已 `mandatory=true`）
   ⇒ 依赖闭合；Forge 47.4.10 与已装 JEI 均满足；无重复 modId（客户端真实 jar 12 个）⇒ 读不懂类型可干净归因。
 - **顺带修掉**：同步脚本在客户端 `mods/` 留 271 份 `.bak`（241 MB）不清理 ⇒ 已加轮转（keep=2）并清理（287 MB → 50 MB）。
-- **待用户两步**：① 重启客户端（确认能进世界）；② 进游戏跑 `/alice recipes`（零参数，写 `config/alice-recipes.json`）；
-  然后我直接读导出文件出报告（**不写适配器**）。
+- **首轮导出已完成并出报告**（`docs/STAGE2_MODS_READABILITY.md`，D-183）：
+  可读 **772 / ≈5293（14.6%）**，可读类型只有 5 种；**抓到真问题** —— `STATION_BY_TYPE` 原键是
+  **序列化器 id**（`crafting_shaped`…）而运行时是**类型 id**（`minecraft:crafting`）⇒ 2136 条工作台配方 +
+  31 条锻造配方被误跳；已改用类型 id（预测可读率 → **2939 / 55.5%**）。
+  适配器候选（只列不写）：Mekanism 1171/26 类 > Thermal 652/30 类 > Create 506/15 类 > Extended Crafting 25/4 类。
+  冲突检测当前**不可信**（模组 crafting 未进可读集 ⇒ 跨模组同产出=0 是假象）。
+- **待用户一步**：重启客户端 → `/alice recipes` 重新导出 ⇒ 我出**最终版报告**（可读率 + 跨模组同产出清单）。

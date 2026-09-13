@@ -44,14 +44,28 @@ public final class RecipeDump {
     /** 配方输入"任取其一"列表的长度上限。 */
     public static final int INGREDIENT_LIST_LIMIT = 16;
 
+    /**
+     * 配方**类型 id** → 工作站。注意：键必须是 `BuiltInRegistries.RECIPE_TYPE` 的 id，
+     * **不是**配方**序列化器**（serializer）的 id —— 二者容易混：
+     *
+     * <p>2026-09-13 阶段 2 实测（D-183）：这里原先写的是 `minecraft:crafting_shaped` /
+     * `crafting_shapeless` / `smithing_transform` / `smithing_trim`（那些是**序列化器** id），
+     * 而运行时 `recipe.getType()` 给的**类型** id 是 `minecraft:crafting` / `minecraft:smithing`
+     * ⇒ 命中不了白名单，**2136 条工作台配方 + 31 条锻造配方被"如实跳过"**，
+     * 导出可读率只剩 772/5293（15%），而"读不懂第一名"荒谬地落在**原版工作台**上。
+     * 换成类型 id 后，这两类立刻进可读集（这是"读得懂多少"这条判据第一次真正抓到东西）。
+     */
     private static final Map<String, String> STATION_BY_TYPE = Map.ofEntries(
-            Map.entry("minecraft:crafting_shaped", "crafting_table"),
-            Map.entry("minecraft:crafting_shapeless", "crafting_table"),
+            Map.entry("minecraft:crafting", "crafting_table"),
             Map.entry("minecraft:smelting", "furnace"),
             Map.entry("minecraft:blasting", "blast_furnace"),
             Map.entry("minecraft:smoking", "smoker"),
             Map.entry("minecraft:campfire_cooking", "campfire"),
             Map.entry("minecraft:stonecutting", "stonecutter"),
+            Map.entry("minecraft:smithing", "smithing_table"),
+            // 兼容：部分版本/数据包直接以序列化器 id 注册类型时也能命中（保留但不再是唯一入口）
+            Map.entry("minecraft:crafting_shaped", "crafting_table"),
+            Map.entry("minecraft:crafting_shapeless", "crafting_table"),
             Map.entry("minecraft:smithing_transform", "smithing_table"),
             Map.entry("minecraft:smithing_trim", "smithing_table"));
 
