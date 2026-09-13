@@ -54,6 +54,14 @@
 > + `job/policy/`（Nearest / NearestExposed）+ 入口 `alice:lumber_job` + 场景 `lumber_course` + `BotSession` 子目标跟随。
 > jar `已同步`，**待客户端验证**。
 
+## 最新（2026-09-14）—— 先读这里
+
+**阶段 3-A（合成/熔炼接进任务层）已收口**（A1–A5 客户端验证 + `USER_ACCEPTED`）。
+**当前主线 = 阶段 3-B 模组机器适配**（实验对象 Mekanism，方法见 `docs/MOD_ADAPTER_PROTOCOL.md`）：
+**S0/S1/S2 已完成**（类型事实表 / 机器配方只读 `MACHINE_ROUTE` / 机器站点只读），**下一步 = S3**
+（"机器类型 ↔ 机器方块/菜单"的单一映射，让路线能回答"去哪台机器"）。
+电池 **CORE=27 / FULL=37**。**详细交接见 `docs/HANDOVER.md`**；今天的新纪律见 PLAYBOOK §5.0b/§5.0c/§5.0d。
+
 ## 当前目标
 
 **（2026-09-08 用户重申）完全参照 Baritone 搭建寻路内核**，差异仅限三条：① Bot 可回收性安全策略；② 多层任务失败向上传递（任务层 → LLM 决策层处理接口）；③ 未来 Bot 并行运行接口。最终交付**完整寻路系统**，供其他任务系统接入。详见 `docs/ALICE_PATHING_CORE_ARCHITECTURE.md` §1.1 与 §13。

@@ -781,3 +781,19 @@ jar `3312608d…`。
      账本与归因检查**限定在自己的时间窗内**），做到**顺序无关**；
   ③ 然后**逐条**把步骤移出 CORE，**每移一条复跑一次**，绿灯才继续；
   ④ 把这条写进 `docs/MOD_ADAPTER_PROTOCOL.md` 的反模式（"**不许依赖上一步顺便清场；前置必须显式自证**"）。
+
+**§6.51 阶段 3-B 启动与 S0/S1/S2（2026-09-13/14，D-202~D-206）**
+- **方法先行**：`docs/MOD_ADAPTER_PROTOCOL.md`（六步流水线 + 通用/专属分离判据 + 记录模板 + 反模式）；
+  用户裁定"本次适配 = 今后适配其它模组/附属模组的实验"。
+- **S0**（离线，真数据）：`docs/MEKANISM_FACTS.md` —— Mekanism **26 类型 / 1171 条**（`crushing` 210、
+  `pigment_extracting` 178、`painting` 176、`enriching` 142、`sawing` 124…）；总量随会话变化已标出处。
+- **S1**（只读，客户端验证）：`MachineRecipeFacts`（问上游 + 自校验）→ `RecipeQuery.MACHINE_ROUTE`
+  （有出处路线：机器类型 + 材料）；`CraftJob` 对机器路线**如实拒绝** `machine_recipe_unsupported:not_executable`。
+  实测样例：`mekanism:dust_lithium → MACHINE_ROUTE station=mekanism:crystallizing`；
+  `mekanism:dust_iron → station=mekanism:enriching perCraft=12 mats=[minecraft:raw_iron_block x1]`。
+  期间修掉两个真 bug：机器分支未按目标过滤（`machineTypes` 收全表）、非物品输入的 `mats=[]` 歧义。
+- **S2**（只读，客户端验证）：机器站点认得出（命名空间方块 → `MekanismTileContainer` → `getTileEntity()`）；
+  **进度=上游自述**（`getScaledProgress`/`getOperatingTicks`/`getActive`）。
+- **S5 回收**：两支临时入口（`alice:machine_probe`、`alice:machine_station_probe`）已删除，
+  任务转电池步 `machine_route` / `machine_station`（机器不在 ⇒ SKIP）⇒ **CORE 25 → 27**。
+- **夹具纪律**（用户要求）：场景夹具**自带传送 + 结束复位**（PLAYBOOK §5.0d）；审计已无缺口。

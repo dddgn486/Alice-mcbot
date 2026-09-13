@@ -464,3 +464,13 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
 亲眼观察：ascend 是否跳跃 / chain2 是否回冲 / 有无卡边缘
 复现：必现 / 偶发
 ```
+
+## 阶段 3-B（模组机器适配）相关（2026-09-14）
+
+- **场景**：`/function alice_test:machine_course`（孤立平台 + 一台 `mekanism:enrichment_chamber` @66,64,306）。
+- **电池步**（零参数、无需你手动点）：
+  - `machine_route`（S1）：机器配方**只读**——问上游自述读输入/输出 + 查询层给 `MACHINE_ROUTE`；模组不在 ⇒ SKIP；
+  - `machine_station`（S2）：机器**站点**只读——找机器 → 开菜单 → 读槽位表/`ContainerData`/上游进度方法名；
+    夹具**自带传送与结束复位**；机器不在 ⇒ SKIP。
+- **注意**：S1/S2 期间用过的两支**临时探针物品已按 S5 回收**
+  （`alice:machine_probe`、`alice:machine_station_probe` 不再存在）——它们的能力现在由上面两个电池步覆盖。
