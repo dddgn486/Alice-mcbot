@@ -262,10 +262,12 @@ public final class CandidateMenu {
             }
             boolean canUse = stationCanDo(selected, station, recipe);
             craftable.put(id, canUse);
-            out.add(new Entry("craft:" + id, "craftable", "可做 " + result.getHoverName().getString()
+            // `id` **就是物品 id**：LLM 直接把它抄进 `{"action":"craft","item":…}`，
+            // 少一层"craft: 前缀"的翻译（少一次犯错的机会），也让 prompt 更省字。
+            out.add(new Entry(id, "craftable", result.getHoverName().getString()
                     + " x" + result.getCount(),
                     botPos(bot), result.getCount(),
-                    "station=" + station + " can_use=" + canUse));
+                    "needs=" + station + " can_use=" + canUse));
         }
         return truncated;
     }
