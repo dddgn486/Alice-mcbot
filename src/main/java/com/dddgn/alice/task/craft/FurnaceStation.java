@@ -100,16 +100,37 @@ public final class FurnaceStation {
                 candidates.add(entry);
             }
         }
-        if (candidates.isEmpty()) {
-            return new Result(null, Codes.NO_FURNACE, "菜单里没有\"恰好 3 格\"的候选容器");
-        }
-        if (candidates.size() > 1) {
+        List<Slot> slots = null;
+        String pickedBy = "";
+        Container pickedContainer = null;
+        if (candidates.size() == 1) {
+            pickedContainer = candidates.get(0).getKey();
+            slots = new ArrayList<>(candidates.get(0).getValue());
+            slots.sort(Comparator.comparingInt(Slot::getContainerSlot));
+            pickedBy = "slotContainerIdentity";
+        } else if (candidates.size() > 1) {
             return new Result(null, Codes.AMBIGUOUS,
                     "有 " + candidates.size() + " 个 3 格候选容器（哪台是目标不由我们猜）");
+        } else {
+            // **路径 ③（上游自述）**：模组的烹饪页签不是"一个容器占 3 格"，而是
+            // `CookingLogicContainer.getCookingSlots()` 自述 3 个槽（2026-09-13 实测：精妙"熔炼升级"就是这种）
+            Object logic = findCookingLogic(menu, null);
+            Object declared = logic == null ? null : callNoArg(logic, "getCookingSlots");
+            if (declared instanceof List<?> list && list.size() == 3
+                    && list.stream().allMatch(Slot.class::isInstance)) {
+                slots = new ArrayList<>();
+                for (Object entry : list) {
+                    slots.add((Slot) entry);
+                }
+                pickedContainer = slots.get(0).container;
+                pickedBy = "ownerDeclaration(getCookingSlots)";
+            }
         }
-        Map.Entry<Container, List<Slot>> picked = candidates.get(0);
-        List<Slot> slots = new ArrayList<>(picked.getValue());
-        slots.sort(Comparator.comparingInt(Slot::getContainerSlot));
+        if (slots == null) {
+            return new Result(null, Codes.NO_FURNACE,
+                    "既没有\"恰好 3 格\"的容器、也没有可识别的 3 格上游自述");
+        }
+        Map.Entry<Container, List<Slot>> picked = Map.entry(pickedContainer, slots);
         // **两条证据路径**（都可能"证明它按时间工作"）：
         //   ① 菜单里有 `ContainerData` 字段（原版熔炉形态，下标 0..3 有固定约定）；
         //   ② 菜单/上游容器里**有对象自述**了烹饪进度方法族（精妙存储的"熔炼升级页签"就是这样：
@@ -141,8 +162,38 @@ public final class FurnaceStation {
             litTime = intCall(logic, "getBurnTimeTotal");
             dataName = cookingLogicName(logic) + "(selfReported)";
         }
-        Found found = new Found(slots.get(0).index, slots.get(1).index, slots.get(2).index,
+        int input = slots.get(0).index;
+        int fuel = slots.get(1).index;
+        int output = slots.get(2).index;
+        String assignBy = "containerSlotOrder";
+        if (!"slotContainerIdentity".equals(pickedBy)) {
+            // **行为判定**（不信任自述顺序）：结果槽拒绝放置；燃料槽接受煤但拒绝圆石；输入槽接受圆石
+            Slot outputSlot = null;
+            Slot fuelSlot = null;
+            Slot inputSlot = null;
+            for (Slot slot : slots) {
+                boolean coal = accepts(slot, net.minecraft.world.item.Items.COAL);
+                boolean cobble = accepts(slot, net.minecraft.world.item.Items.COBBLESTONE);
+                if (!coal && !cobble) {
+                    outputSlot = slot;
+                } else if (coal && !cobble) {
+                    fuelSlot = slot;
+                } else if (cobble) {
+                    inputSlot = slot;
+                }
+            }
+            if (inputSlot != null && fuelSlot != null && outputSlot != null) {
+                input = inputSlot.index;
+                fuel = fuelSlot.index;
+                output = outputSlot.index;
+                assignBy = "mayPlaceProbe";
+            } else {
+                assignBy = "upstreamOrder(fallback)";
+            }
+        }
+        Found found = new Found(input, fuel, output,
                 containerName(picked.getKey()), dataName, progress, maxProgress, litTime);
+        BotLog.info("[Furnace] 认出炉子 by={} assignBy={} {}", pickedBy, assignBy, found.describe());
         return new Result(found, "", found.describe());
     }
 
@@ -257,6 +308,34 @@ public final class FurnaceStation {
             }
         }
         return false;
+    }
+
+    /** 该槽是否接受这个物品（**只读探针**；`mayPlace` 是原版语义"这格收不收"）。 */
+    private static boolean accepts(Slot slot, net.minecraft.world.item.Item item) {
+        try {
+            return slot.mayPlace(new ItemStack(item));
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    private static Object callNoArg(Object target, String name) {
+        if (target == null) {
+            return null;
+        }
+        Class<?> type = target.getClass();
+        while (type != null && type != Object.class) {
+            try {
+                var method = type.getDeclaredMethod(name);
+                method.setAccessible(true);
+                return method.invoke(target);
+            } catch (NoSuchMethodException e) {
+                type = type.getSuperclass();
+            } catch (Throwable t) {
+                return null;
+            }
+        }
+        return null;
     }
 
     private static int intCall(Object target, String name) {

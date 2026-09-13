@@ -8001,3 +8001,23 @@ pickup_gate / collect_job / recipes_dump / event_thresholds）。
 （这正走了一遍 D-197 立下的维护规则）。
 
 **等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `2d7cf69e…`）。**待客户端**。
+
+#### D-198 附注一：A4b 首测失败 —— 模组烹饪页签**不是"一个容器占 3 格"**（已修）
+
+**客户端事实**（18:53:28）：
+```
+[CraftFurnaceCheck] station_found=true furnace=46, 64, 306   mod_present=true upgradeId=…:smelting_upgrade
+[Provision] QUICK_MOVE 送出 upgrade=sophisticatedstorage:smelting_upgrade fromSlot=56
+[CraftFurnaceCheck] provision_verified=false FAIL:no_furnace_slots 菜单里没有"恰好 3 格"的候选容器
+```
+⇒ **装配本身成功了**，是**发现器认不出**：模组的烹饪页签把 3 个槽放在**各自的物品处理器**上（不是一个 3 格容器），
+所以"同一容器恰好 3 格"这条判据不成立。
+
+**修法（与"合成网格"完全同一套路：再加一条上游自述路径 + 行为验证）**：
+1. **路径 ③**：可达对象自述 `getCookingSlots()` 且返回**恰好 3 个 Slot** ⇒ 采用（这正是 `CookingLogicContainer` 的接口）；
+2. **不信任自述顺序**：用 **`mayPlace` 行为探针**判定哪格是哪个 ——
+   **结果槽**：煤与圆石**都不收**；**燃料槽**：收煤、不收圆石；**输入槽**：收圆石。
+   三者都判得出来才用探针结果，否则如实回退到上游顺序并在 note 里标 `upstreamOrder(fallback)`；
+3. 日志新增 `[Furnace] 认出炉子 by=… assignBy=…`（**用了哪条路径、怎么分的格**永远可见）。
+
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `c94a2ee9…`）。**待客户端**复测。

@@ -606,3 +606,7 @@ jar `3312608d…`。
 + **方法自述**（无 `ContainerData`）⇒ `FurnaceStation` 加第二条证据路径；站点模型加 `COOKING_TAB`
 （容器 + 哪一种能力）；夹具复用 `CraftFurnaceCheckTask(upgradeTab=true)`；入口 `alice:craft_cooking_check`；
 电池 33 → **34**（MAIN 11 ⇒ CORE 24），归属表与说明书同步。jar `2d7cf69e…`；**待客户端**。
+
+**§6.39 D-198 附注一（A4b 首测失败→已修）**：装配成功但 `no_furnace_slots` —— 模组烹饪页签的 3 格**不在同一个容器**上。
+修：`FurnaceStation` 加**路径 ③ 上游自述** `getCookingSlots()`（恰好 3 个 Slot）+ **`mayPlace` 行为探针**判定
+输入/燃料/输出（结果槽两样都不收、燃料槽收煤不收圆石、输入槽收圆石），并打印 `by=`/`assignBy=`。jar `c94a2ee9…`。
