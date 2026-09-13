@@ -60,7 +60,15 @@ public final class BlockInteraction {
         PLACED,
         NO_OPTION,
         /** 执行期写入预算耗尽（D-106）：**未写入**，调用方须如实上报。 */
-        BUDGET_EXHAUSTED
+        BUDGET_EXHAUSTED,
+        /**
+         * **指定方块**不在快捷栏（{@link #placeAt(ServerPlayer, ServerLevel, BlockPos, boolean,
+         * WriteGrant, Block)} 专用）：**未写入**。
+         *
+         * <p>单独一个值而不是复用 `NO_OPTION`：两者病因完全不同 —— `NO_OPTION` = 没有可用的支撑面，
+         * `NO_ITEM` = 手上根本没有那种方块。混成一个值会让"为什么没放成"在下游无法区分。
+         */
+        NO_ITEM
     }
 
     private BlockInteraction() {
@@ -192,6 +200,34 @@ public final class BlockInteraction {
         return -1;
     }
 
+    /**
+     * 快捷栏中**持指定方块**的槽位；没有则 -1。
+     *
+     * <p>对照 Baritone {@code BuilderProcess:563-570}：builder 放的是**计划里的那个方块**，
+     * 槽位由"**按想要的方块状态**去匹配"得到（`valid(...)`），**不是**"随便挑一个能放的"。
+     * 本方法就是那个"按方块匹配"的一半；`findPlaceableSlot` 是另一半（一次性方块白名单，
+     * 服务于 PILLAR/STEP/SUPPORT 这类"有得垫就行"的语义）。**两种语义必须分开**：
+     * 2026-09-13 实测事故 —— 用 `findPlaceableSlot` 去放工作台，它挑中了背包里的圆石，
+     * 于是"放工作站"变成了"放了一块圆石"。
+     *
+     * <p>只查**快捷栏**（0..8）：从主背包搬东西到快捷栏是另一个能力（Baritone 走
+     * `InventoryBehavior.attemptToPutOnHotbar`），未实现前**如实报 `NO_ITEM`**，不假装能做。
+     */
+    public static int findSlotForBlock(ServerPlayer bot, net.minecraft.world.level.block.Block wanted) {
+        if (wanted == null) {
+            return -1;
+        }
+        Inventory inventory = bot.getInventory();
+        for (int slot = 0; slot < 9 && slot < inventory.getContainerSize(); slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (!stack.isEmpty() && stack.getItem() instanceof BlockItem blockItem
+                    && blockItem.getBlock() == wanted) {
+                return slot;
+            }
+        }
+        return -1;
+    }
+
     /** 快捷栏中一次性方块的总数量（FALL 的"PILLAR 返回"守卫用）。 */
     public static int countThrowaway(ServerPlayer bot) {
         Inventory inventory = bot.getInventory();
@@ -209,7 +245,11 @@ public final class BlockInteraction {
     }
 
     /**
-     * 在 {@code placeAt} 放置一个方块（对齐 Baritone attemptToPlaceABlock）。
+     * 在 {@code placeAt} 放置**一个一次性方块**（对齐 Baritone attemptToPlaceABlock +
+     * `acceptableThrowawayItems`）：槽位来自 {@link #findPlaceableSlot}（`alice:throwaway` 白名单）。
+     *
+     * <p>**要放"指定的"方块（工作台/箱子/机器…）请用带 {@code wanted} 的重载** ——
+     * 本方法是"有得垫就行"的语义，它会**换掉主手**（切到白名单里第一个槽）。
      *
      * <p>流程：触及检查 → 选可放置方块 → 扫水平+下的邻面找支撑 → 计算面中心 →
      * 视线校验（命中该支撑块且面朝 placeAt）→ 转向 → 使用物品。
@@ -218,6 +258,43 @@ public final class BlockInteraction {
      */
     public static PlaceResult placeAt(ServerPlayer bot, ServerLevel level, BlockPos placeAt, boolean sneak,
                                       WriteGrant grant) {
+        return placeAt(bot, level, placeAt, sneak, grant, findPlaceableSlot(bot));
+    }
+
+    /**
+     * 在 {@code placeAt} 放置**指定的**方块（对照 Baritone `BuilderProcess:563-570`）。
+     *
+     * <p>槽位来源是{@link #findSlotForBlock 按方块匹配}，**不是**"手边随便一个能放的"。
+     * 这条区分是 2026-09-13 的客户端实测事故换来的：`StationPlacement` 第一版用了"放一个一次性方块"
+     * 的原语去放工作台 ⇒ 它按白名单挑中了背包里的**圆石**，"放工作站"于是变成了"放了一块圆石"
+     * （日志 `[Ledger] place 46,64,303 minecraft:cobblestone←minecraft:air [TEMP CRAFT_STATION_PLACE]`）。
+     * 两个语义都对，**但必须分开**。
+     *
+     * @return {@link PlaceResult#PLACED} 已落地；{@link PlaceResult#NO_ITEM} 手上没有该方块（未写入）；
+     *         {@link PlaceResult#NO_OPTION} 无可用支撑面；{@link PlaceResult#BUDGET_EXHAUSTED} 预算耗尽
+     */
+    public static PlaceResult placeAt(ServerPlayer bot, ServerLevel level, BlockPos placeAt, boolean sneak,
+                                      WriteGrant grant, net.minecraft.world.level.block.Block wanted) {
+        if (wanted == null) {
+            return PlaceResult.NO_OPTION;
+        }
+        int slot = findSlotForBlock(bot, wanted);
+        if (slot < 0) {
+            BotLog.warn("[BlockInteraction] place 指定方块不在快捷栏 wanted={} pos={} by={}（不换别的方块凑）",
+                    net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(wanted),
+                    placeAt.toShortString(), grant == null ? "-" : grant.describe());
+            return PlaceResult.NO_ITEM;
+        }
+        return placeAt(bot, level, placeAt, sneak, grant, slot);
+    }
+
+    /**
+     * 放置的**唯一实现体**：槽位由调用方给定（两个公开入口各自决定"放哪个方块"）。
+     *
+     * <p>槽位 {@code < 0} = 没有可放的方块 ⇒ {@code NO_OPTION}（保持既有调用者的行为不变）。
+     */
+    private static PlaceResult placeAt(ServerPlayer bot, ServerLevel level, BlockPos placeAt, boolean sneak,
+                                       WriteGrant grant, int slot) {
         // 账本要在放置**之前**拿到原状态（J6-a：精确恢复原状的前提）
         BlockState previousState = level.getBlockState(placeAt);
         // 执行期写入预算（D-106）：任务级放置预算用满 → 提前拒绝（不消耗物品、不试面）
@@ -230,7 +307,6 @@ public final class BlockInteraction {
         if (!reachable(bot, placeAt)) {
             return PlaceResult.NO_OPTION;
         }
-        int slot = findPlaceableSlot(bot);
         if (slot < 0) {
             return PlaceResult.NO_OPTION;
         }

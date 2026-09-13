@@ -16,6 +16,16 @@
 | `BlockInteraction.*(..., WriteGrant)` | `action/BlockInteraction.java` | **方块写入的唯一原语层**：`beginBreak` / `breakForBulkEdit` / `placeAt` / `placeBulkEdit` |
 | `Task.taskName()` | `task/Task.java` | 任务身份默认值（类名；Job 覆写为 `lumber` 等），授权的 `requester` 来源 |
 
+**`placeAt` 的两个语义（2026-09-13 实测事故后显式区分，D-190 附注一）**：
+
+| 重载 | 槽位来源 | 语义 | 现有调用者 |
+|---|---|---|---|
+| `placeAt(bot, level, pos, sneak, grant)` | `findPlaceableSlot`（`alice:throwaway` 白名单） | **放一个**一次性方块（"有得垫就行"，**会换主手**） | `PillarExecution` / `PlaceStepAndTraverseExecution` / `MineBlockRunner`（支撑块）/ `PlaceTask` |
+| `placeAt(bot, level, pos, sneak, grant, Block wanted)` | `findSlotForBlock(bot, wanted)`（**按方块匹配**，对照 Baritone `BuilderProcess:563-570`） | 放**指定的**方块；找不到返回 `NO_ITEM`（**不换别的方块凑**） | `StationPlacement`（A12） |
+
+两者共用**同一个实现体**（预算 / `WriteAudit` / `WorldModLedger` 一条都不会被绕过）。
+**新增写入调用点前先答一句：我要的是"放某个"还是"放这个"？**
+
 **策略派生规则**（不再由"调哪个方法"决定）：
 
 | `Policy` | 理由 | 语义 |

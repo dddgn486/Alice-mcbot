@@ -32,6 +32,8 @@ public final class StationPlacement {
         public static final String BUDGET_EXHAUSTED = "place_budget_exhausted";
         public static final String PLACE_FAILED = "place_failed";
         public static final String NOT_PLACED = "station_not_present_after_place";
+        /** 快捷栏里没有工作站方块（**不换别的方块凑**；从背包搬东西到快捷栏是另一个未实现的能力）。 */
+        public static final String NOT_IN_HOTBAR = "station_not_in_hotbar";
 
         private Codes() {
         }
@@ -112,9 +114,14 @@ public final class StationPlacement {
             return new Outcome(false, Codes.PLACE_FAILED, spot);
         }
         WriteGrant grant = WriteGrant.of("craft-station", WriteReason.CRAFT_STATION_PLACE);
-        BlockInteraction.PlaceResult result = BlockInteraction.placeAt(bot, level, spot, false, grant);
+        // **必须用"放指定方块"的重载**：通用重载是"放一个一次性方块"的语义（白名单 + 自己换主手），
+        // 2026-09-13 实测就是它在我们手里挑中了背包里的圆石 ⇒ 放出去的是圆石不是工作台。
+        BlockInteraction.PlaceResult result = BlockInteraction.placeAt(bot, level, spot, false, grant, wanted);
         if (result == BlockInteraction.PlaceResult.BUDGET_EXHAUSTED) {
             return new Outcome(false, Codes.BUDGET_EXHAUSTED, spot);
+        }
+        if (result == BlockInteraction.PlaceResult.NO_ITEM) {
+            return new Outcome(false, Codes.NOT_IN_HOTBAR, spot);
         }
         if (result != BlockInteraction.PlaceResult.PLACED) {
             return new Outcome(false, Codes.PLACE_FAILED, spot);

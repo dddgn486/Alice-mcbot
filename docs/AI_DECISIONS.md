@@ -7355,3 +7355,50 @@ A3 之后紧接着跑 A3b 时它顺手把 A3 的台子清掉，"周围没有工�
 
 **边界**：只覆盖"**放 + 用 + 拆**"这一条闭环；**尚未**做 ① A4 熔炉加工（燃料/时间/取出）、
 ② A5 决策层接线（`GoalAction.Craft` + 缺料多路事实）。**未验证**：客户端。
+
+#### D-190 附注一：首次客户端实测 —— **"放工作站"放出了一块圆石**（原语语义用错 + 夹具没做失败清理）
+
+**用户反馈（原话）**："没通过，他怎么放了个圆石？"
+
+**实测事实**（客户端 `latest.log` 16:09，两轮一致）：
+```
+[CraftStationCheck] start_premise=PASS foot=46, 64, 304 start=46, 64, 304
+[CraftStationCheck] no_station_premise=PASS existingTable=-
+[CraftStationCheck] holding_station_item=PASS mainHand=crafting_table      ← 主手确实是工作台
+[Ledger] place 46, 64, 303 minecraft:cobblestone←minecraft:air [TEMP CRAFT_STATION_PLACE scope=…:CraftStationCheckTask]
+[CraftStationCheck] station_placed=FAIL FAIL:station_not_present_after_place spot=46, 64, 303 block=圆石
+[CraftStationCheck] SUMMARY … write_accounted=PASS verdict=FAIL           ← 2 tick 就终态，没进拆除相位
+world_mod_ledger_close … 仍有 1 条我方临时放置未拆除（建拆同权未闭合…）      ← 圆石真留在世界里
+```
+
+**根因（两个独立缺陷）**：
+
+1. **原语语义用错**（主因）：`BlockInteraction.placeAt(bot, …, grant)` 是 **"放一个一次性方块"** 的原语 ——
+   槽位来自 `findPlaceableSlot`（只认 `alice:throwaway` 白名单）并**自己改 `inventory.selected`**。
+   4 个既有调用者（`PillarExecution` / `PlaceStepAndTraverseExecution` / `MineBlockRunner` 支撑块 / `PlaceTask`）
+   都是这个语义，**它们没错**；错的是我拿它当"放**指定**方块"用 ⇒ 它在白名单里挑中背包的**圆石**，
+   于是"放工作站"变成"放圆石"。
+   对照 Baritone `BuilderProcess:563-570`：builder 放的是**计划里的那个方块**，槽位由
+   **按想要的方块状态匹配**得到（`valid(...)`），并在同一处 `player.getInventory().selected = toPlace.hotbarSelection`
+   —— **两种语义在 Baritone 里也是分开的**。
+2. **夹具没做失败清理**：`station_placed=FAIL` 时直接 `finish()` ⇒ 已写入的那格留在世界（违反 D-187 §6.9.4
+   "副作用边界：失败也要清理"）⇒ 用户看到地上真的多了一块圆石。
+
+**修法**：
+1. `BlockInteraction` 增加**第二个语义**（共用唯一的实现体 ⇒ 预算/审计/账本一条都不会被绕过）：
+   - `placeAt(bot, level, pos, sneak, grant)` = 一次性方块（白名单，**语义与行为完全不变**）；
+   - `placeAt(bot, level, pos, sneak, grant, Block wanted)` = **指定方块**，槽位来自新增
+     `findSlotForBlock(bot, wanted)`（对照 Baritone 的"按方块匹配"的一半），
+     找不到就如实返回**新值 `NO_ITEM`**（不换别的方块凑；两个 `NO_*` 病因不同，不能混）。
+   只查**快捷栏**：从背包搬东西到快捷栏是另一个能力（Baritone `InventoryBehavior.attemptToPutOnHotbar`），
+   **未实现 ⇒ 如实报 `station_not_in_hotbar`**，不假装能做。
+2. `StationPlacement.place` 改用带 `wanted` 的重载（`wanted` = 主手方块），自断言仍是世界事实
+   （放下后那格必须 `is(wanted)`）。
+3. 夹具补**失败清理相位 `CLEANUP`**：`finish()` 发现账本里还有我方 `TEMP` ⇒ 先跑 `RestoreScopeTask`
+   拆回去再出 SUMMARY；清理本身失败则多记一条 `cleanup_on_failure`。
+   另外 `prepare()` 起手 `WorldModLedger.dropStale` 销掉**上一轮失败留下的幽灵条目**
+   （场景函数已把地清空 ⇒ 条目与现实不符），否则下一次的 `teardown_clean` 会被旧残留顶成假失败。
+
+**教训（与 D-187 同族，第五条）**：读日志的人一眼就能看出"放了圆石"，
+但**代码里没有任何一处写着圆石** —— 这类缺陷只能靠"**这个原语的语义到底是什么**"这一问拦住。
+⇒ 调用写入原语前先答：它是"**放某个**"还是"**放这个**"？（已写进 `WORLD_WRITE_AUTHORIZATION.md` §1）。

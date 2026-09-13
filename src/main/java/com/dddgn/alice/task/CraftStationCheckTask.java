@@ -55,7 +55,7 @@ public class CraftStationCheckTask implements Task {
     private static final int PLACE_CRAFT_TICKS = 120;
     private static final int TEARDOWN_TICKS = 1500;
 
-    private enum Phase { PREPARE, PLACE, PLACE_CRAFT, TEARDOWN, DONE }
+    private enum Phase { PREPARE, PLACE, PLACE_CRAFT, TEARDOWN, CLEANUP, DONE }
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -70,6 +70,8 @@ public class CraftStationCheckTask implements Task {
     private RestoreScopeTask restore;
     /** 恢复任务的终态理由（`RestoreScopeTask` 特有，接口没有）；失败时是唯一能区分病因的字段。 */
     private String restoreReason = "-";
+    /** 失败路径的清理尝试过没有（防 `finish()` ↔ `CLEANUP` 互相递归）。 */
+    private boolean cleanupAttempted;
 
     public CraftStationCheckTask(BotPlayer bot, ServerPlayer observer) {
         this.bot = bot;
@@ -106,6 +108,7 @@ public class CraftStationCheckTask implements Task {
             case PLACE -> placeStation();
             case PLACE_CRAFT -> craftAtStation();
             case TEARDOWN -> teardownStation();
+            case CLEANUP -> cleanupAfterFailure();
             case DONE -> finish();
         };
     }
@@ -124,6 +127,12 @@ public class CraftStationCheckTask implements Task {
         bot.controller().stopMovement();
         check("start_premise", bot.blockPosition().distSqr(start) <= 4.0D,
                 "foot=" + bot.blockPosition().toShortString() + " start=" + start.toShortString());
+        // **上一轮失败留下的残留**先销账：场景函数把这块地清成空气了，账本里的条目已是幽灵；
+        // 不销掉的话下面的 `teardown_clean`（pendingAll==0）会被上一轮的残留顶成假失败。
+        int stale = WorldModLedger.dropStale(bot.serverLevel());
+        if (stale > 0) {
+            BotLog.info("[CraftStationCheck] 起手销掉 {} 条上一轮的幽灵账目", stale);
+        }
         FixtureToolKit.resetInventory(bot);
         // **顺序要紧**：先占住选中槽放工作站（放置读主手），再发圆石到**别的空槽**。
         // 反过来写会出事：`give` 从 0 号槽找空位放进圆石，`giveHeld` 再往同一个选中槽写工作台 ⇒ 圆石被覆盖。
@@ -219,6 +228,7 @@ public class CraftStationCheckTask implements Task {
             return phaseTicks > TEARDOWN_TICKS ? finishWith("teardown_timeout") : Status.RUNNING;
         }
         restore = null;
+        cleanupAttempted = true;
         BotLog.info("[CraftStationCheck] restore 终态 status={} reason={}",
                 status, restoreReason == null ? "-" : restoreReason);
         boolean gone = !StationPlacement.isStation(bot.serverLevel(), placedStation,
@@ -231,6 +241,45 @@ public class CraftStationCheckTask implements Task {
     }
 
     // ==================== 收尾 ====================
+
+    /**
+     * **失败路径的清理**：把已经写进世界的东西拆回（不追加任何用例，只保证现场干净），
+     * 然后照常出 SUMMARY —— 但要如实记一条 `cleanup_on_failure`，如果连清理也没做成。
+     */
+    private Status cleanupAfterFailure() {
+        if (restore == null) {
+            BotManager.BotSession botSession = BotManager.sessionOf(bot);
+            if (botSession == null || botSession.scope() == null) {
+                check("cleanup_on_failure", false, "no_session_scope");
+                cleanupAttempted = true;
+                return finish();
+            }
+            String scopeId = WorldModLedger.currentScope(bot.serverLevel().getServer(), bot.getUUID());
+            restore = new RestoreScopeTask(bot, botSession.scope(), scopeId);
+            return Status.RUNNING;
+        }
+        Task.Status status = restore.tick();
+        restoreReason = restore.terminalReason();
+        if (status == Task.Status.RUNNING) {
+            return phaseTicks > TEARDOWN_TICKS ? failCleanup("cleanup_timeout") : Status.RUNNING;
+        }
+        restore = null;
+        int left = WorldModLedger.pendingForOwner(bot.serverLevel().getServer(), bot.getUUID()).size();
+        if (left > 0 || status != Task.Status.DONE) {
+            check("cleanup_on_failure", false,
+                    "left=" + left + " status=" + status + " reason=" + restoreReason);
+        } else {
+            BotLog.info("[CraftStationCheck] 失败路径已把世界改动拆回（restore={}）", restoreReason);
+        }
+        return finish();
+    }
+
+    /** 清理也超时：如实记一条，然后出 SUMMARY（不再递归进 CLEANUP）。 */
+    private Status failCleanup(String code) {
+        check("cleanup_on_failure", false, code);
+        restore = null;
+        return finish();
+    }
 
     private Status advance(Phase next) {
         phase = next;
@@ -252,6 +301,14 @@ public class CraftStationCheckTask implements Task {
     }
 
     private Status finish() {
+        // **§6.9.4 副作用边界**：任何失败路径都不许把世界改动留在身后。
+        // 2026-09-13 实测就吃了这一条：`station_placed=FAIL` 直接 finish() ⇒ 那块圆石留在世界里，
+        // 客户端还打了 `world_mod_ledger_close … 仍有 1 条我方临时放置未拆除`。
+        if (!cleanupAttempted
+                && !WorldModLedger.pendingForOwner(bot.serverLevel().getServer(), bot.getUUID()).isEmpty()) {
+            cleanupAttempted = true;
+            return advance(Phase.CLEANUP);
+        }
         phase = Phase.DONE;
         StringBuilder summary = new StringBuilder();
         for (Map.Entry<String, String> entry : results.entrySet()) {
