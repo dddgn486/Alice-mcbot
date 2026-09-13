@@ -145,7 +145,7 @@ public final class AliceItems {
     public static final RegistryObject<Item> REGION_LUMBER =
             ITEMS.register("region_lumber", () -> new RegionLumberItem(new Item.Properties()));
 
-    /** 串联回归电池（零参数）：一次右键跑完 25 项常用回归（含决策层 6 步），末尾一行 SUMMARY。 */
+    /** 串联回归电池（零参数）：一次右键跑完 26 项常用回归（含决策层 6 步），末尾一行 SUMMARY。 */
     public static final RegistryObject<Item> REGRESSION_BATTERY =
             ITEMS.register("regression_battery", () -> new RegressionBatteryItem(new Item.Properties()));
 
@@ -200,6 +200,10 @@ public final class AliceItems {
     /** 阶段 3-A / A2（D-186）**随身 2×2 合成自检**（零参数，约 1 秒）：真消耗真产物 + 缺料如实失败 + 网格清理。 */
     public static final RegistryObject<Item> CRAFT_ACTION_CHECK =
             ITEMS.register("craft_action_check", () -> new CraftActionCheckItem(new Item.Properties()));
+
+    /** 阶段 3-A / A3（D-188）**现成工作台 3×3 合成自检**（零参数，约 3 秒）：找台→走过去→开菜单→合成，**零世界写入**。 */
+    public static final RegistryObject<Item> CRAFT_TABLE_CHECK =
+            ITEMS.register("craft_table_check", () -> new CraftTableCheckItem(new Item.Properties()));
 
     /** 基-9 工具供给自检（零参数，约 2 秒）：换更好的 / 没得换如实报 / **不能凭空变出工具**。 */
     public static final RegistryObject<Item> TOOL_SUPPLY_CHECK =

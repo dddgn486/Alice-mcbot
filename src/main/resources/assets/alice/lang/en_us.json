@@ -1,4 +1,5 @@
 {
+  "item.alice.craft_table_check": "Crafting Table Check",
   "item.alice.craft_action_check": "Inventory Craft Check",
   "item.alice.craft_check": "Craft Query Check (read-only)",
   "item.alice.interface_scanner": "Interface Scanner",

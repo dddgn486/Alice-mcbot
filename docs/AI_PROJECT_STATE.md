@@ -202,7 +202,7 @@ Mekanism 硬引用是**活雷**，需立即修。
 | **T4 作用域归属** | `ScopeBuffer.begin()` **默认继承**「仍活着且在新区间内」的我方掉落物（会话内继承、会话结束 `end()` 清空）；删掉 D-108 手工收养 | D-124 | `WINDOWS_CLIENT`（`mine_regression` 12/12；三个历史病灶点都出现「继承掉落物=1」） |
 | **T5 配额解耦** | `assignLumberJob` 用同一套候选源数可行树 ⇒ 配额随场景推导，不再与场景互相标定 | D-125 | `WINDOWS_CLIENT`（`场景可行树=4 ⇒ 配额=4`，后随 T7 变为 5） |
 | **T6 离线可规划性自检** | 新增 `tools/check-scene-connectivity.py`：复用 `FixtureWorld`+`stand_candidates`/`can_see` 做**保守下界**可达性泛洪，查「封航线」（有合法站位但全不可达）与「目标格必须可达/必须不可达」 | D-125 | **本机自证**：`--selftest` 双向、`--all` 22 场景无硬伤、历史封死版本 `exit 1` |
-| **T7 按棵预算真回归** | 台地东扩 + 第 4 棵同型橡树（`33,64,208`，由「橡树#1」平移得到）⇒ 累计清障 **9 > 8** | D-126 | `WINDOWS_CLIENT`（`trees 5/5 logs 25/25 **cleared=9** scaffoldLeft=0`） |
+| **T7 按棵预算真回归** | 台地东扩 + 第 4 棵同型橡树（`33,64,208`，由「橡树#1」平移得到）⇒ 累计清障 **9 > 8** | D-126 | `WINDOWS_CLIENT`（`trees 5/5 logs 26/26 **cleared=9** scaffoldLeft=0`） |
 
 **本阶段立下的规矩（下次别再踩）**
 1. **发料放在「任务」里，不能只放在「物品」里** —— 电池/命令/后续调用者都会绕过物品（D-122 附注）。
@@ -299,10 +299,10 @@ final_segment_target_post_write=51` —— 两类**真异常码 0 次**（`[K4]`
 改为**基线 UUID 增量**（残留报 `foreignDrops=`，不计入判据）+ 三个挖掘场景函数补 `kill @e[type=item,…]`。
 **D-169 电池自杀事故（第三轮实测的真因，已修）**：K-3 夹具嵌在电池里时，`stopTask` 停的是
 **顶层任务 = 电池自己**（`停止请求延后到安全点：task=RegressionBatteryTask` → 第 12/25 步 CANCELLED_BY_USER）
-⇒ 三轮电池都没有 SUMMARY。修法：K-3 **退出电池**（25 → 25 项）+ `fixture_not_top_level` 前提断言
+⇒ 三轮电池都没有 SUMMARY。修法：K-3 **退出电池**（25 → 26 项）+ `fixture_not_top_level` 前提断言
 （绝不再伤父任务）+ 手工入口扩成**右键 DEFER / Shift+右键 FORCED**（FORCED 此前从未被验证）。
 一般规矩：**夹具不得对父任务产生副作用**，需要观察"顶层任务被停"就必须做成顶层入口。
-**第四轮实测（WINDOWS_CLIENT）**：25 项电池**全 PASS** `(25/25) ticks=3507 → PASS`，
+**第四轮实测（WINDOWS_CLIENT）**：26 项电池**全 PASS** `(26/26) ticks=3507 → PASS`，
 其中 `K4=OK(goal_not_standable=0 final_segment_not_standable=0 写入类例外=88)` ⇒
 **K-4 收口完成**（按"0 ⇒ 删临时告警"的义务删掉两处 `[K4]` 告警行，保留计数 + 电池自断言；
 结论：缝真实存在但实战不咬 ⇒ 不引 `GOAL_NOT_STANDABLE` 硬拒）；
@@ -380,7 +380,7 @@ D-165 附注四），**待客户端复测**。判据与排查入口见 `OPEN_ITE
 |---|---|---|
 | **K-4 谓词统一**（D-167 + 附注一） | "可站"谓词 6 处复制 → 唯一定义 `MovementHelper.canStandCentered`（8 调用点，纯重构）；目标准入先测量不硬拒；完整电池 `K4=OK(真异常 0 / 写入类例外 88)` ⇒ **收口**：不引 `GOAL_NOT_STANDABLE`，删临时告警、留计数 + 电池自断言 | `WINDOWS_CLIENT` |
 | **D-168 夹具测量** | `mine_regression` 的 `dropsLeft` 原本数"盒内全部掉落物"⇒ 世界残留假失败（run1 两次 FAIL 只因 `dropsLeft=1`）；改**基线 UUID 增量** + 三个挖掘场景函数清实体 ⇒ `mine_regression` **11/11 PASS**，用户不必再手动清掉落物 | `WINDOWS_CLIENT` |
-| **D-169 电池自杀事故** | 电池里的 `k3_stop_defer` 停的是**顶层任务=电池自己**（三轮电池都没 SUMMARY 的真因）；修：K-3 退出电池（25 → **23** 项）+ `fixture_not_top_level` 前提断言 + 手工入口扩成右键 DEFER / Shift+右键 FORCED | `WINDOWS_CLIENT`（电池 25/25 PASS） |
+| **D-169 电池自杀事故** | 电池里的 `k3_stop_defer` 停的是**顶层任务=电池自己**（三轮电池都没 SUMMARY 的真因）；修：K-3 退出电池（25 → **23** 项）+ `fixture_not_top_level` 前提断言 + 手工入口扩成右键 DEFER / Shift+右键 FORCED | `WINDOWS_CLIENT`（电池 26/26 PASS） |
 | **D-170 资源缺陷** | `k3_stop_check`/`menu_probe`/`transfer_check` 模型是 **0 字节**、`partial_search_check` 引用死贴图 ⇒ 客户端缺失模型/紫黑块（**K-3 一直没被测的真因**）；补齐修正 + 新增 `tools/check-item-models.sh`（空文件/坏 JSON/死贴图，已自测）并写入构建前清单 | 建模修正 `COMPILES`；**客户端 0 条 `Failed to load model alice`**（本轮日志）⇒ `WINDOWS_CLIENT` |
 
 **K-3 自检（DEFER + FORCED）客户端验证通过**（2026-09-13，`WINDOWS_CLIENT`）：
@@ -393,7 +393,7 @@ D-165 附注四），**待客户端复测**。判据与排查入口见 `OPEN_ITE
 legacy 双内核整批删除（19 文件，依据"按路径分析的零活引用"）；`POSTCONDITION_FAILED` 不删值、
 改为给生产者（`PathSessionStatus.classify` 唯一定义）并加"无死值"自检。
 
-**最新复测（客户端 12:42，全绿）**：电池 `(25/25) ticks=3301 → PASS`、`K4=OK(真异常 0 / 写入类例外 83)`、
+**最新复测（客户端 12:42，全绿）**：电池 `(26/26) ticks=3301 → PASS`、`K4=OK(真异常 0 / 写入类例外 83)`、
 **22/22 个终态步 `idempotent=true`**、四个 exec 用例 `foreignOk=true(另有残留1件不计入)`
 ⇒ D-168"残留不计入"分支**首次全量实测通过**；`entity_tick_missing` / `segment_stall` / 异常均 **0**。
 
@@ -406,7 +406,7 @@ legacy 双内核整批删除（19 文件，依据"按路径分析的零活引用
 **D-173 补漏**：`pathing/movement/` 14 文件（外部真引用 0）整包删除 + `.gitignore` 藏住的
 `PathExecutor.java.backup` 删除。
 
-**本轮环境事实**：电池现 **25 项**（`(25/25) ticks=3507 → PASS`）；`k3_stop_check` 等 4 个道具贴图已正常；
+**本轮环境事实**：电池现 **26 项**（`(26/26) ticks=3507 → PASS`）；`k3_stop_check` 等 4 个道具贴图已正常；
 镜像/同步脚本正常；`tools/check-item-models.sh` 已接入构建前清单（`checked=66 … PASS`）。
 
 **环境提醒**：镜像脚本 `tools/mirror-windows-workspace.sh` 现为"默认不备份/不校验"快跑（8.6 秒）；

@@ -7248,3 +7248,26 @@ D-185 附注一（"圆石没有配方"—— 装模组后它有机器配方）�
 
 **另注（用户侧预期管理，已入册）**：服务端瞬时完成且**不改世界**的自检（如随身 2×2 合成）
 在玩家侧**没有任何可见动作** —— 交付时必须主动说明"能看到什么/看不到什么是正常的"。
+
+### D-188：阶段 3-A / A3 —— **用现成工作台的 3×3 合成**（零世界写入）
+
+**为什么先只做"用现成"**：放置工作台属于**世界写入**（D-076：显式授权 + 预算 + 进 A 表），
+而"附近本来就有工作台"是最常见的真实情形。把零写入路径做扎实，写路径（放置 + 用完即拆）留到 **A3b** 单独验账本闭环。
+
+**实施**：
+1. **格网泛化**：`InventoryCraft.GridSpec{gridSlots,width,height,resultSlot,invFirst,invLast}` ——
+   2×2（`{1,2,3,4}` w2 h2 / 背包 9..44）与 3×3（工作台 `{1..9}` w3 h3 / 背包 10..45）共用同一套
+   摆料/取产物/失败清理逻辑（**不复制第二份**）。槽位口径来自既有 L2 记录（D-163/D-165）。
+2. **`TableCraft`**：`findTable`（半径内最近工作台）→ `standPointNear`（用**内核同口径**
+   `MovementHelper.canStandCentered` 找旁边可站格）→ `inReach`（眼位距离 ≤ 触及，与传输任务同口径）
+   → `openTable`（`MenuSession.open(..., 46)`）→ **`craftWithMenu` 自断言必须是 `CraftingMenu`**
+   （不是 3×3 菜单就说明"3×3 合成"根本没被测到 ⇒ 如实失败，而不是照做）。
+3. **夹具 `CraftTableCheckTask` + 场景 `craft_table_course` + 零参数入口 `alice:craft_table_check`**：
+   **分相位跨真实 tick**（FIND→WALK→REACH→OPEN→CRAFT→断言，D-165 的教训：同步循环会烧尽段预算）；
+   用例：`table_found` / `walked_to_table` / `table_in_reach` / `menu_is_crafting_menu` /
+   `crafted_furnace`（8 圆石→1 熔炉，判据看净变化）/ **`no_world_write`**（账本无我方临时方块 = 零写入硬断言）/
+   `no_table_honest`（把台挪走后重试 ⇒ 如实失败，**不放置、不绕路**，随后还原场景）。
+4. 电池 25 → **26 项**（`craft_table` 步，自带场景 + teleport 起点）；`TESTING_GUIDE` 增 D17。
+
+**边界**：A3 **零世界写入**（有断言）；3×3 = 工作台（熔炉等**加工**仍是 A4）；未接决策层（A5）。
+**状态**：`IMPLEMENTED` + `COMPILES` + 资源自检 PASS。**未验证**：客户端。

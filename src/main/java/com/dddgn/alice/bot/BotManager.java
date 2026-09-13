@@ -1115,6 +1115,18 @@ public final class BotManager {
     }
 
     /** L2 菜单协议最小验证探针（开真菜单 → 菜单点击搬物品 → 关闭）。 */
+    /** **现成工作台 3×3 合成自检**（阶段 3-A / A3，D-188）：找台→走位→开菜单→合成 + 零写入断言。 */
+    public static boolean assignCraftTableCheck(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(new com.dddgn.alice.task.CraftTableCheckTask(bot, observer),
+                TaskTarget.block(bot.blockPosition()));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     /** **随身 2×2 合成自检**（阶段 3-A / A2，D-186）：真消耗真产物 + 缺料如实失败 + 网格清理。 */
     public static boolean assignCraftActionCheck(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
