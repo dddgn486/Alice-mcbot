@@ -47,6 +47,20 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
 
     public static final String NAME = "region_lumber";
 
+    /**
+     * 作业区漂移守卫常量（D-179）：常驻 Job 必须知道自己被搬走了。
+     *
+     * 2026-09-13 实测：转移夹具把 bot 传送到 z≈406，而本 Job 的作业区是 z203..231 ⇒ Job 毫无察觉，
+     * 仍在区域内选树（最近的也在 198 格外）并逐个尝试 ⇒ 白白空转（用户最后只能手动 /alice region stop）。
+     * 更早一轮还因此就地搭了 12 格圆石（写入位置与目标无因果关系，已由 MiningTuning.gainHorizontallyReachable 拦住）。
+     *
+     * 语义：距区域过远时**挂起**（不选目标、不消耗候选、不写世界），每 100 tick 如实告警；
+     * 连续 MAX_DRIFT_TICKS tick 都在区外 ⇒ **如实失败** outside_region（不无限等、不静默空转；回到区内自动继续）。
+     */
+    private static final int DRIFT_MARGIN = 8;
+    /** 区外挂起上限（20 秒）。 */
+    private static final int MAX_DRIFT_TICKS = 400;
+
     /** 连续多少次"巡查无活"才判定待机（§13.1：巡查周期由配置决定，禁止高频扫描）。 */
     public static final int IDLE_PATROLS = 3;
     /**
@@ -62,6 +76,8 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
 
     private final BotPlayer bot;
     private final LumberRegionState.Region region;
+    /** 连续在作业区外的 tick 数（D-179 漂移守卫）。 */
+    private int driftTicks;
     private final ScopeBuffer scope;
     private final LumberCandidateSource source;
     private final SelectionPolicy policy;
@@ -199,7 +215,38 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
 
     // ==================== 巡查 ====================
 
+    /** bot 是否仍在作业区 + 余量内（水平外扩 DRIFT_MARGIN；竖直给 baseY±8 宽容）。 */
+    private boolean nearRegion() {
+        net.minecraft.core.BlockPos foot = com.dddgn.alice.pathing.MovementHelper
+                .footCell(bot.serverLevel(), bot);
+        boolean horizontallyNear = foot.getX() >= region.minX() - DRIFT_MARGIN
+                && foot.getX() <= region.maxX() + DRIFT_MARGIN
+                && foot.getZ() >= region.minZ() - DRIFT_MARGIN
+                && foot.getZ() <= region.maxZ() + DRIFT_MARGIN;
+        boolean verticallySane = foot.getY() >= region.baseY() - DRIFT_MARGIN
+                && foot.getY() <= region.baseY() + region.maxHeight() + DRIFT_MARGIN;
+        return horizontallyNear && verticallySane;
+    }
+
     private com.dddgn.alice.task.Task.Status patrol() {
+        // D-179：先确认我还在自己的作业区附近，再谈选树/作业。
+        if (!nearRegion()) {
+            driftTicks++;
+            if (driftTicks == 1 || driftTicks % 100 == 0) {
+                BotLog.warn("[Job] region_drifted foot={} region={} driftTicks={} ⇒ 挂起作业"
+                                + "（不选目标/不写世界；超过 {} tick 将如实失败 outside_region）",
+                        com.dddgn.alice.pathing.MovementHelper
+                                .footCell(bot.serverLevel(), bot).toShortString(),
+                        region.describe(), driftTicks, MAX_DRIFT_TICKS);
+            }
+            if (driftTicks > MAX_DRIFT_TICKS) {
+                terminalReason = "outside_region";
+                failure = terminalReason;
+                return finish(com.dddgn.alice.task.Task.Status.FAILED);
+            }
+            return com.dddgn.alice.task.Task.Status.RUNNING;
+        }
+        driftTicks = 0;
         var server = bot.serverLevel().getServer();
         LumberRegionState state = LumberRegionState.get(server);
         var spec = GoalSpec.harvestUnits(region.center(), region.coverRadius(), 1, maxTicks);

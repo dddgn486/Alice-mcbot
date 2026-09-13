@@ -374,6 +374,9 @@ S-1 因常驻任务而真实化），再开 **②决策层接入** 这条真正�
    （受区块 entity-ticking 影响）⇒ 不同源。看门狗已带 `entityTicking=` 判别位，**待复现取现场**后定修法。
 2. **终态幂等契约推广**：19 处直接 tick 点里 17 处是夹具（已被电池隔离 + `idempotent=` 点名兜住），
    推广属欠账（同型 NPE 已出现两次：09-06 / 09-13）。
-3. **两处设计洞（用户已实际遇到）**：① 任务驱动与**手动遥控**无互斥（`BotInputPacket` 会静默覆盖任务输入）；
-   ② **常驻 Job 不感知"bot 被传送离开作业范围"**（实测在转移场景搭了 12 格圆石）。
+3. ~~两处设计洞~~ → **② 已修（A 项，D-179）**：`MiningTuning.gainHorizontallyReachable` 唯一定义 +
+   `MineTask`/`CollectDropsTask` 入口守卫 + `RegionLumberJob` 的 `nearRegion()` 漂移守卫
+   （区外挂起、每 100 tick 告警、400 tick 后如实失败 `outside_region`）；
+   断言 `capability_gate → gain_requires_proximity`。**待客户端复测**。
+   ① 任务驱动与**手动遥控**无互斥（`BotInputPacket` 静默覆盖任务输入）—— **仍未修**（需先定语义）。
 4. `pathing/` 包语义（`MovementHelper`/`FootCellRuleCheck` 是否迁入 `core`）。

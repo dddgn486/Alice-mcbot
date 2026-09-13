@@ -708,6 +708,15 @@ public final class MineTask implements Task {
         }
         BlockPos foot = com.dddgn.alice.pathing.MovementHelper
                 .footCell(bot.serverLevel(), bot);
+        // D-179 守卫：**加高只能在目标附近用**（加高改善"够不够得着"，不能把 bot 送到远处目标那里）。
+        // 缺了它：被传送/漂移到 198 格外的 bot 会就地搭柱子（实测 12 格圆石，位置与目标无因果关系）。
+        if (!com.dddgn.alice.task.mining.MiningTuning.gainHorizontallyReachable(bot, target)) {
+            BotLog.warn("[MineTask] gain_refused target={} foot={} reason=target_out_of_range"
+                            + "（水平超出触及 ⇒ 拒绝异地加高；交由上层换目标/挂起，绝不在无关位置写世界）",
+                    target.toShortString(), foot.toShortString());
+            failureReason = "gain_target_out_of_range";
+            return false;
+        }
         BlockPos goal = foot.above();
         for (BlockPos cell : new BlockPos[]{goal, goal.above()}) {
             if (!com.dddgn.alice.pathing.MovementHelper.canWalkThrough(bot.serverLevel(), cell)) {

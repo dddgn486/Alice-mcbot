@@ -154,6 +154,7 @@ public class CapabilityGateCheckTask implements Task {
         checkSafeCancelWiring();
         checkContainerWriteRecord();
         checkSessionStatusCoverage();
+        checkGainProximityGuard();
 
         String summary = "pure_traversal_allowed=" + verdict("pure_traversal_allowed")
                 + " capability_unauthorized=" + verdict("capability_unauthorized")
@@ -167,6 +168,7 @@ public class CapabilityGateCheckTask implements Task {
                 + " safe_cancel_wiring=" + verdict("safe_cancel_wiring")
                 + " container_write_record=" + verdict("container_write_record")
                 + " session_status_no_dead_value=" + verdict("session_status_no_dead_value")
+                + " gain_requires_proximity=" + verdict("gain_requires_proximity")
                 + " verdict=" + (failures.isEmpty() ? "PASS" : "FAIL");
         BotLog.info("[CapabilityGate] SUMMARY {}", summary);
         if (observer != null) {
@@ -303,6 +305,25 @@ public class CapabilityGateCheckTask implements Task {
         check("session_status_no_dead_value", tableOk && coverageOk,
                 "tableOk=" + tableOk + " missingProducer=" + missing
                         + " 表：" + detail.toString().trim());
+    }
+
+    /**
+     * **D-179：加高的"就近"前提**（纯逻辑，无世界依赖）。
+     *
+     * 2026-09-13 实测事故：常驻伐木 Job 在 bot 被传送出作业区后仍作业，规划器给出
+     * no_reachable_standing_point ⇒ 任务走了"加高"兜底 ⇒ 在**与目标相距 198 格**的位置搭了 12 格圆石。
+     * 守卫 = MiningTuning.gainHorizontallyReachable（判据单一定义处）。这里断言它的判断：
+     * 近处目标可加高、远处目标必须被拒（两种方向都断言，避免"永远返回 true"这种假守卫）。
+     */
+    private void checkGainProximityGuard() {
+        BlockPos foot = bot.blockPosition();
+        boolean nearOk = com.dddgn.alice.task.mining.MiningTuning
+                .gainHorizontallyReachable(bot, foot.east());
+        boolean farRefused = !com.dddgn.alice.task.mining.MiningTuning
+                .gainHorizontallyReachable(bot, foot.offset(40, 0, 40));
+        check("gain_requires_proximity", nearOk && farRefused,
+                "near=" + nearOk + " farRefused=" + farRefused
+                        + " reach=" + bot.getBlockReach());
     }
 
     private static Object enumOf(Class<?> enumClass, String name) {

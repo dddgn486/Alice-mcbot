@@ -6852,3 +6852,57 @@ dropsLeft=1`、`restore_end status=FAILED remaining=1`（拆不动、收不到�
 
 **预期副作用（要主动告知用户）**：加 ⑤ 之后，**首次运行可能出现新的 `idempotent=false` FAIL**——
 那不是回归，而是契约违规被**发现**；日志会给出步名与"再 tick 返回了什么"，据此逐个修。
+
+### D-179：**常驻 Job 的"漂移"守卫** + 加高（gain）的"就近"前提（用户 A 项，实锤修法）
+
+#### 现场（客户端归档 `2026-09-13-5.log.gz`，12:00 会话）
+
+```
+12:00:00.383 task_execution_terminal kind=TransferCheckTask           ← 上一轮传输自检结束
+12:00:00.387 [Goal] decision_request trigger=terminal:TransferCheckTask（LLM 请求发出，此时 bot 空闲）
+12:00:01.254 玩家又右键传输自检（新任务开始）
+12:00:03.135 [Goal] decision_action raw={"action":"start_job","kind":"region_lumber…"}
+12:00:03.141 [Goal] execute action=start_job ok=true                 ← 决策层起 Job
+12:00:03.237 [Job] select job=lumber picked=tree@33,64,208 d=198.5    ← 目标在作业区内，但 bot 在 198 格外
+12:00:03.352 [MiningPlanner] standable_only … reason=no_reachable_standing_point
+12:00:03.356 [MineTask] gain_start target=33,64,208 from=45,64,406 to=45,65,406   ← 就地加高兜底
+12:00:03.638 [WRITE] place 45, 64, 406 cobblestone by=lumber:gain:attempt0:STEP_PLACEMENT
+…（一路搭到 y=75，共 12 格，随后 [Restore] 又拆回）
+12:00:26.6  玩家手动 /alice region stop 才停下（`停止请求延后到安全点：task=RegionLumberJob reason=command`）
+```
+
+#### 两个根因（都在**基层**，不是局部特判能盖住的）
+
+**R1 · 加高（gain）没有"就近"前提**：`MineTask.tryGainHeight()` 把"目标"取成 **bot 自己头上那格**
+（`goal = foot.above()`），**从不校验 bot 与 `target` 的关系** ⇒ 当 bot 被传送/漂移到 198 格外时，
+"加高"仍会执行 ⇒ **在世界里写入与目标毫无因果关系的方块**（12 格圆石）。
+调用条件本身也是错的：`hasStandingCandidateNow()` 判断的是"**目标几何上**有站位候选"（在目标旁边），
+与"**bot 现在**够不够得着"无关。
+
+**判据（用实测数据定的，不是拍的）**：全部 `gain_start` 样本分两簇 —— 合法加高的水平曼哈顿距离
+全部 ≤2（`28,70,208←28,64,208` / `21,66,207←23,64,207` / `20,67,208←22,68,207`），
+漂移事故是 **198** ⇒ 取 `≤ ceil(bot.getBlockReach())` 分离干净。**竖直不设限**（目标在下方也可能需加高）。
+
+**R2 · 常驻 Job 不感知"我被搬走了"**：`RegionLumberJob` 的候选过滤只按**目标是否在区域内**，
+从不检查 **bot 自己是否还在区域附近** ⇒ bot 在 198 格外时仍逐个尝试区域内目标，
+既空转又污染 `tried` 集合（最后只能人工停）。
+
+#### 修法（三处，判据单一定义）
+
+1. **`MiningTuning.gainHorizontallyReachable(bot, goal)`**（唯一定义，含 R1 的证据与理由注释）；
+2. **`MineTask.tryGainHeight`**：入口即校验；不满足 ⇒ `gain_refused` 告警 + `failureReason =
+   gain_target_out_of_range` + **返回 false**（如实失败/上抛，绝不在无关位置写世界）。
+   两个分支（就地清头顶 / 就地加高）都在这条守卫之后；
+3. **`CollectDropsTask.startGainToward`**：原先只看"掉落物在头顶"（竖直），**同一缺陷类** ⇒ 补水平前提；
+4. **`RegionLumberJob`**：`patrol()` 入口加 `nearRegion()` 守卫（区域矩形外扩 `DRIFT_MARGIN=8`，
+   竖直 baseY±8）：区外**挂起**（不选目标、不消耗候选、不写世界）、每 100 tick 如实告警一次，
+   连续 `MAX_DRIFT_TICKS=400`（20 秒）仍在区外 ⇒ **如实失败 `outside_region`**（不无限等、不静默空转；
+   回到区内自动继续）。
+
+#### 断言
+
+`capability_gate` 新增**纯逻辑**用例 `gain_requires_proximity`：近处目标必须可加高、40 格外必须被拒
+（双向断言，防"永远返回 true"的假守卫）。
+
+**状态**：`IMPLEMENTED` + `COMPILES`；**未验证**：客户端（判据：电池 `capability_gate` 步出现
+`gain_requires_proximity=PASS`；以及真起一次 region_lumber 后把 bot 传走，应看到 `region_drifted` 而不是搭柱子）。

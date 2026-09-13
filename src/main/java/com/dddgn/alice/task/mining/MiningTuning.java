@@ -8,6 +8,29 @@ package com.dddgn.alice.task.mining;
  */
 public final class MiningTuning {
 
+    /**
+     * **加高（gain）的水平前提（D-179，2026-09-13 实测事故后补的守卫）**。
+     *
+     * <p>加高的语义是"**已经站在目标旁边但够不到** ⇒ 往上搭一格/两格更接近它"（D-115/D-116）。
+     * 它**只能**改善"够不够得着"，**不能**把 bot 送到远处的目标那里去。
+     *
+     * <p>缺了这条守卫会怎样（实测）：`RegionLumberJob` 被起在 bot **已被传送离开作业区**之后
+     * （转移夹具把 bot 放到 z≈406，而作业区是 z203..231）⇒ 规划器给 `no_reachable_standing_point`
+     * ⇒ 任务选了**加高**兜底 ⇒ `[MineTask] gain_start target=33,64,208 from=45,64,406 to=45,65,406`
+     * ⇒ 在转移场景里一路搭了 **12 格圆石**（随后又拆回）。写入位置与目标**相距 198 格、毫无因果关系**，
+     * 却因为"自己拆自己"骗过了建拆同权检查。
+     *
+     * <p>判据取**水平曼哈顿距离 ≤ ceil(触及)**：实测合法加高全部 ≤2 格（`28,70,208←28,64,208`、
+     * `21,66,207←23,64,207`、`20,67,208←22,68,207`），而漂移事故是 198 格 ⇒ 两类分离干净。
+     * 竖直方向不设限（目标在下方也可能需要加高后往下够），交给既有规则决定。
+     */
+    public static boolean gainHorizontallyReachable(net.minecraft.server.level.ServerPlayer bot,
+                                                    net.minecraft.core.BlockPos goal) {
+        double horizontal = Math.abs(goal.getX() + 0.5D - bot.getX())
+                + Math.abs(goal.getZ() + 0.5D - bot.getZ());
+        return horizontal <= Math.ceil(bot.getBlockReach());
+    }
+
     /** 候选成本估算方案（可切换，默认 S2）。 */
     public enum EstimateMode {
         /** S1：A* 的 octile 下界（最快，精度在有绕行时下降）。 */
