@@ -8136,7 +8136,7 @@ user prompt 的"注意"段也补上"craftable 清单 / `craftable_truncated` 的
 
 #### D-200 附注一：直连指令**被自己的清空语句擦掉**（"让它做工作台，它却发了伐木指令"）—— 已结构性修复
 
-**客户端事实**（20:36，jar `d485ee0f…`）：`/alice instruct 用你词汇表里的 craft 动作做一个工作台` 之后
+**客户端事实**（20:36，jar `21ab912c…`）：`/alice instruct 用你词汇表里的 craft 动作做一个工作台` 之后
 ```
 [Goal] decision_action trigger=operator latency=4153ms raw={"action":"start_job","kind":"region_lumber","target":"region:saved",…} → StartJob(REGION_LUMBER …)
 [Goal] execute action=start_job ok=true trigger=operator
@@ -8155,7 +8155,7 @@ user prompt 的"注意"段也补上"craftable 清单 / `craftable_truncated` 的
 3. **可见性**：`[Goal] decision_request trigger=… mode=directed|normal model=…` —— 以后"指令到底发出去没有"一眼可判；
 4. `instruct()` 的状态快照也带上 `trigger="operator"`（与 D-200 的 trigger 字段配套）。
 
-**等级**：IMPLEMENTED + COMPILES + 已同步（jar `d485ee0f…`）；**待客户端复测**（期望 `mode=directed` + `directed_result` 行）。
+**等级**：IMPLEMENTED + COMPILES + 已同步（jar `21ab912c…`）；**待客户端复测**（期望 `mode=directed` + `directed_result` 行）。
 
 #### D-200 附注二：直连通道验证通过 + **临时裁定复核结论**
 
@@ -8263,7 +8263,7 @@ S2（站点/槽位发现）**等 S1 读数出来再定范围**——先看类型
    原实现会"静默退化成一个必然失败的变体"，让失败原因长得像"归因坏了"。这正是 §6.50/D-201 附注一
    那条纪律的第一个落地：**前置必须显式自证，不许默认契约具备**。
 
-**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `d485ee0f…`）；
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `21ab912c…`）；
 **待客户端**：`/alice battery full` 期望 `(35/35) → PASS`（这是"FULL 顺序下也真绿"的第一次验证）。
 
 #### D-203：夹具**前提自证**机制落地（试点 2 处；D-201 附注一的执行）
@@ -8297,4 +8297,22 @@ S2（站点/槽位发现）**等 S1 读数出来再定范围**——先看类型
 **同时保留夹具级自证**（D-203）：`CraftFurnaceCheckTask.discover()`、`CraftGoalCheckTask.prepare()`；
 其余夹具的逐条接线与"逐条撤步瘦身"作为继续项（瘦身前提不变：先自证、再逐条撤、每条复跑）。
 
-**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `d485ee0f…`）；**待客户端**（一次 CORE/FULL 即可同时验证）。
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `21ab912c…`）；**待客户端**（一次 CORE/FULL 即可同时验证）。
+
+#### D-203 附注二：**前提必须按调用点写** —— `ownMenu` 用在"打开站点之后"会假红
+
+**实测**（CORE 23/25）：新断言抓到真东西——**`own_menu=false` 出现 6 次**（电池每步之间确有残留容器菜单，
+被"每步清场"关掉后继续跑 ✓），但同时 `craft_furnace`/`craft_cooking` 双红
+`reason=premise_own_menu`。**根因是我把断言写反了**：这两个夹具的**全部工作就是自己把站点菜单打开**
+（熔炉 / 熔炼页签），所以 `discover()` 处正确的断言是"**站点菜单确实开着**"，不是"菜单是玩家自带的"。
+
+**修**：`FixturePremise` 增加**反向**前提 `stationMenuOpen(bot)`（`premise_station_menu_open`），
+`CraftFurnaceCheckTask.discover()` 改用它；`CraftGoalCheckTask.prepare()` 仍用 `ownMenu`（它在此处确实还没开菜单）。
+
+**纪律（登记）**：**前提按调用点写**——动手**之前**用 `ownMenu`（无别的容器菜单）；打开站点**之后**用
+`stationMenuOpen`。前提断言本身也要"知道自己被放在哪一步"，否则它会制造假红（本轮即是）。
+可选后续（不改行为、只增事实）：把 6 次 `own_menu=false` 的**来源步骤**也打出来（谁留下的菜单），
+便于把"残留"从"被清掉"升级为"追责到具体步骤"。
+
+**等级**：IMPLEMENTED + COMPILES + 已同步（jar `21ab912c…`）；**待客户端**：CORE 期望回到 `(25/25)`，
+且 `premise_station_menu_open=true` / `premise_own_menu=true` 均不误报。

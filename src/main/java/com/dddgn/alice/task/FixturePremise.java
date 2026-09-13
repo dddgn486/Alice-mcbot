@@ -44,6 +44,23 @@ public final class FixturePremise {
                         + " ⇒ 先关掉它再动手（否则点击可能落到错误菜单上）");
     }
 
+    /**
+     * **前提：站点（容器）菜单确实打开了** —— 与 {@link #ownMenu} **相反**的场景。
+     *
+     * <p>2026-09-13 实测教训：`CraftFurnaceCheckTask.discover()` 里我一开始写的是 `ownMenu`
+     * （要求"菜单是玩家自带的"）⇒ 对"**本步刚自己打开了熔炉/熔炼页签菜单**"的夹具来说**断言写反了**，
+     * 于是 `craft_furnace`/`craft_cooking` 双双以 `premise_own_menu` 假红。
+     * ⇒ 前提必须**按调用点写**：动手**之前**用 `ownMenu`，打开站点**之后**用本方法。
+     */
+    public static Fact stationMenuOpen(BotPlayer bot) {
+        var menu = bot.containerMenu;
+        boolean open = menu != null && !(menu instanceof InventoryMenu);
+        return new Fact("premise_station_menu_open", open,
+                open ? "menu=" + menu.getClass().getSimpleName() + " slots=" + menu.slots.size()
+                        : "站点菜单没打开（menu=" + (menu == null ? "null" : menu.getClass().getSimpleName())
+                                + "）⇒ 后续点击会落到玩家背包上");
+    }
+
     /** **前提：bot 站在地上**（不许在空中开始"放料/点菜单"这类动作）。 */
     public static Fact onGround(BotPlayer bot) {
         return new Fact("premise_on_ground", bot.onGround(),

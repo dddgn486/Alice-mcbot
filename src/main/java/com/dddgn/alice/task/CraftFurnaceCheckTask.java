@@ -229,10 +229,11 @@ public class CraftFurnaceCheckTask implements Task {
     }
 
     private Status discover() {
-        // **前提自证**（D-201 附注一）：认炉子/放料前，先证明"当前菜单是这次打开的那个容器菜单"——
-        // 上游页签槽位地址会重叠（64..66 既是合成页签格子也是熔炼页签格子）⇒ 点错菜单的症状是"料进了却不烧"。
-        FixturePremise.Fact own = FixturePremise.ownMenu(bot);
-        check(own.name(), own.ok(), own.detail());
+        // **前提自证**（D-201 附注一 / D-203 附注二）：本步**自己刚打开了站点菜单**，所以要断言的是
+        // "**站点菜单确实开着**"（而不是 ownMenu！—— 2026-09-13 实测：写成 ownMenu 会假红）。
+        // 意义：若站点没开成，后面的点击会落到玩家背包上，症状是"料进了却不烧"。
+        FixturePremise.Fact station = FixturePremise.stationMenuOpen(bot);
+        check(station.name(), station.ok(), station.detail());
         FurnaceStation.Result result = FurnaceStation.discover(bot.containerMenu);
         record("discover", result.describe());
         check(upgradeTab ? "provision_verified" : "furnace_slots_discovered", result.ok(), result.describe());
