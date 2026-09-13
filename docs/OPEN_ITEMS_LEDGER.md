@@ -601,3 +601,8 @@ jar `1aef94f3…`；**待客户端**：CORE 23 项跑通。
 用户提醒"熔炉会一直燃烧"属实（煤 1600tick vs 一次 200tick ⇒ ~1400tick 余焰，且取走燃料不会灭）⇒
 夹具加 CLEANUP：取回炉内剩余物 + `setblock air`→`furnace` 复位方块（场景同款做法）。
 jar `3312608d…`。
+
+**§6.38 D-198（A4b 菜单型炉子）**：精妙"熔炼升级"= `sophisticatedstorage:smelting_upgrade`，页签是 3 格烹饪槽
++ **方法自述**（无 `ContainerData`）⇒ `FurnaceStation` 加第二条证据路径；站点模型加 `COOKING_TAB`
+（容器 + 哪一种能力）；夹具复用 `CraftFurnaceCheckTask(upgradeTab=true)`；入口 `alice:craft_cooking_check`；
+电池 33 → **34**（MAIN 11 ⇒ CORE 24），归属表与说明书同步。jar `2d7cf69e…`；**待客户端**。

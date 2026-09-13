@@ -1142,6 +1142,18 @@ public final class BotManager {
         return true;
     }
 
+    /** **熔炼页签自检**（阶段 3-A / A4b，D-198）：菜单型炉子（装升级→烧→取→拆回）。 */
+    public static boolean assignCraftCookingCheck(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(new com.dddgn.alice.task.CraftFurnaceCheckTask(bot, observer, true),
+                TaskTarget.block(bot.blockPosition()));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     /** **熔炉自检**（阶段 3-A / A4，D-196）：认炉子→放料→等烧→取产物（另一种执行形状）。 */
     public static boolean assignCraftFurnaceCheck(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());

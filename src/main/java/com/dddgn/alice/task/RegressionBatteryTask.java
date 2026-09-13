@@ -120,6 +120,7 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("craft_station_provision", Profile.MAIN),
             Map.entry("craft_station_craft", Profile.MAIN),
             Map.entry("craft_furnace", Profile.MAIN),
+            Map.entry("craft_cooking", Profile.MAIN),
             // ---- EXTRA：已验收/无关/耗时（10）----
             Map.entry("lumber_failure", Profile.EXTRA),
             Map.entry("region_maintain", Profile.EXTRA),
@@ -351,6 +352,12 @@ public final class RegressionBatteryTask implements Task {
         steps.add(step("craft_furnace", List.of("alice_test:furnace_course"),
                 () -> teleportBot(com.dddgn.alice.task.CraftFurnaceCheckTask.START),
                 () -> new com.dddgn.alice.task.CraftFurnaceCheckTask(bot, observer), 1000));
+        // 阶段 3-A / A4b（D-198）：**菜单型炉子**（"熔炼升级页签"）—— 复用同一发现器，装升级→烧→取→拆回
+        steps.add(stepSkippable("craft_cooking", List.of("alice_test:craft_tab_course"),
+                () -> teleportBot(com.dddgn.alice.task.CraftFurnaceCheckTask.START),
+                () -> new com.dddgn.alice.task.CraftFurnaceCheckTask(bot, observer, true), 1600,
+                task -> task.failureReason().contains("mod_present")
+                        || task.failureReason().contains("station_found")));
         // 基-7：前缀搜索（K-1：预算耗尽交出前缀；真失败不给前缀）
         // R2：传输模块（4 个夹具：主流程/端点选择/选择器事件/命令解析）
         // K-3 安全点停止（D-169）**故意不进电池**：它的判据是"**顶层任务**被延后停止"，

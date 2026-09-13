@@ -227,6 +227,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> CRAFT_FURNACE_CHECK =
             ITEMS.register("craft_furnace_check", () -> new CraftFurnaceCheckItem(new Item.Properties()));
 
+    /** 阶段 3-A / A4b（D-198）**熔炼页签自检**（零参数）：装熔炼升级→烧→取→拆回。 */
+    public static final RegistryObject<Item> CRAFT_COOKING_CHECK =
+            ITEMS.register("craft_cooking_check", () -> new CraftCookingCheckItem(new Item.Properties()));
+
     /** 基-9 工具供给自检（零参数，约 2 秒）：换更好的 / 没得换如实报 / **不能凭空变出工具**。 */
     public static final RegistryObject<Item> TOOL_SUPPLY_CHECK =
             ITEMS.register("tool_supply_check", () -> new ToolSupplyCheckItem(new Item.Properties()));

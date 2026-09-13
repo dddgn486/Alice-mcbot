@@ -19,7 +19,7 @@
 SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 **跳过多少、跑多少、各档几项**一眼可见；归属表与实跑项对不上（漏登记 / 文档说测了其实没测）**直接判红**。
 
-## 2. 当前归属表（33 项 → CORE 23 项）
+## 2. 当前归属表（34 项 → CORE 24 项）
 
 ### BASELINE（13）
 `pathing`（移动内核聚合 + 覆盖断言）、`write_budget`（写入预算/授权闸门）、`mine_regression`（挖掘闭环 11 用例）、
@@ -27,11 +27,11 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 `clear_guard` / `clear_retry` / `scaffold`（三条破坏性路径的守卫与建拆同权）、`partial_search`（`SEARCH_LIMIT ≠ UNREACHABLE`）、
 `capability_gate`（闸门）、`tool_supply`（不凭空变工具）、`recoverability`（可回收性等级）
 
-### MAIN（10）—— 阶段 3-A 工作站 + 熔炉
+### MAIN（11）—— 阶段 3-A 工作站 + 熔炉（方块型 + 菜单型）
 `craft_check`（A1 只读查询）、`craft_action`（A2 随身 2×2）、`craft_table`（A3 工作台 3×3，零写入）、
 `craft_station`（A3b 自放工作站）、`craft_probe_inventory` / `craft_probe_table`（发现器回归：硬断言 2×2 / 3×3）、
 `craft_probe_upgradetab`（模组站点探测）、`craft_station_provision`（L2 装配装/拆）、
-`craft_station_craft`（C 模组站点真合成）、`craft_furnace`（A4 熔炉）
+`craft_station_craft`（C 模组站点真合成）、`craft_furnace`（A4 熔炉-方块型）、`craft_cooking`（A4b 熔炉-菜单型/熔炼页签）
 
 ### EXTRA（10）
 `lumber_failure`、`region_maintain`（区域常驻 Job，耗时）、`decision_contract`、`decision_trace`、`llm_contract`、
@@ -51,3 +51,4 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 | 日期 | CORE | FULL | 说明 |
 |---|---|---|---|
 | 2026-09-13 | 23 | 33 | 建立分档：BASELINE 13 / MAIN 10（3-A 工作站+熔炉）/ EXTRA 10 |
+| 2026-09-13 | 24 | 34 | 新增 A4b 菜单型炉子（`craft_cooking`）⇒ MAIN 11 |

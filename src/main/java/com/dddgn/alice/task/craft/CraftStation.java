@@ -73,7 +73,15 @@ public final class CraftStation {
             "sophisticatedstorage 的容器（按方块 id 形态识别）；协议/来源待实测（第二步）",
             ResourceLocation.fromNamespaceAndPath("sophisticatedstorage", "crafting_upgrade"));
 
-    private static final List<Descriptor> ALL = List.of(INVENTORY, TABLE, UPGRADE_TAB);
+    /**
+     * **熔炼页签容器**（A4b / D-198）：同一个精妙容器，装的是**熔炼升级**而不是合成升级 ——
+     * 站点 = "容器 + 哪一种能力"，所以用**独立描述符**表达（`provisionUpgrade` 不同）。
+     */
+    public static final Descriptor COOKING_TAB = new Descriptor("cookingtab", "熔炼页签容器 3 格", Kind.BLOCK,
+            Take.UNKNOWN, Source.UNKNOWN, "sophisticatedstorage 容器 + 熔炼升级（按时间工作）",
+            ResourceLocation.fromNamespaceAndPath("sophisticatedstorage", "smelting_upgrade"));
+
+    private static final List<Descriptor> ALL = List.of(INVENTORY, TABLE, UPGRADE_TAB, COOKING_TAB);
     /** `auto` 的现状顺序：**不含** upgradetab（不做自动选优）。 */
     private static final List<Descriptor> AUTO_ORDER = List.of(INVENTORY, TABLE);
     /** 每个 bot 的选择（`auto` 或站点 id）。**内存态**：重启回到 `auto`（未接存档，如实记录）。 */

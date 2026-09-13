@@ -110,20 +110,39 @@ public final class FurnaceStation {
         Map.Entry<Container, List<Slot>> picked = candidates.get(0);
         List<Slot> slots = new ArrayList<>(picked.getValue());
         slots.sort(Comparator.comparingInt(Slot::getContainerSlot));
+        // **两条证据路径**（都可能"证明它按时间工作"）：
+        //   ① 菜单里有 `ContainerData` 字段（原版熔炉形态，下标 0..3 有固定约定）；
+        //   ② 菜单/上游容器里**有对象自述**了烹饪进度方法族（精妙存储的"熔炼升级页签"就是这样：
+        //      `CookingLogicContainer.getCookTimeTotal/getCookTimeFinish/getBurnTimeTotal/isCooking`）——
+        //      与 `GridDiscovery` 的"上游自述"同一套路：只认**方法名形态**，且用返回值**自校验**。
         ContainerData data = findContainerData(menu);
-        if (data == null) {
+        Object logic = data == null ? findCookingLogic(menu, picked.getKey()) : null;
+        if (data == null && logic == null) {
             return new Result(null, Codes.NO_PROGRESS_DATA,
                     "有 3 格容器（" + picked.getKey().getClass().getSimpleName()
-                            + "）但菜单里没有 ContainerData ⇒ 无法确认它按时间工作");
+                            + "）但既没有 ContainerData、也没有可识别的烹饪进度自述 ⇒ 不确认它按时间工作");
         }
         // 原版 `AbstractFurnaceBlockEntity.dataAccess` 的约定：0=剩余燃烧时间 1=本次燃料总时长
         // 2=烧炼进度 3=本配方总时长（先前我按 0/1/2 读，进度恒为 0/0 —— 纯报告瑕疵，已修）。
         // **注意**：这只用于"过程证据"；**判成功与否一律看世界事实**（产物/输入/炉内是否清空）。
-        int litTime = safeGet(data, 0);
-        int progress = safeGet(data, 2);
-        int maxProgress = safeGet(data, 3);
+        int litTime;
+        int progress;
+        int maxProgress;
+        String dataName;
+        if (data != null) {
+            litTime = safeGet(data, 0);
+            progress = safeGet(data, 2);
+            maxProgress = safeGet(data, 3);
+            dataName = dataName(data);
+        } else {
+            // 上游自述（路径 ②）：只有"总量"可读（精妙存储给的是 cookTimeTotal/burnTimeTotal）
+            maxProgress = intCall(logic, "getCookTimeTotal");
+            progress = intCall(logic, "getCookTimeFinish") > 0 ? maxProgress : 0;
+            litTime = intCall(logic, "getBurnTimeTotal");
+            dataName = cookingLogicName(logic) + "(selfReported)";
+        }
         Found found = new Found(slots.get(0).index, slots.get(1).index, slots.get(2).index,
-                containerName(picked.getKey()), dataName(data), progress, maxProgress, litTime);
+                containerName(picked.getKey()), dataName, progress, maxProgress, litTime);
         return new Result(found, "", found.describe());
     }
 
@@ -158,6 +177,107 @@ public final class FurnaceStation {
 
     private static String dataName(ContainerData data) {
         String simple = data.getClass().getSimpleName();
+        return simple == null || simple.isEmpty() ? "(anonymous)" : simple;
+    }
+
+    /**
+     * **路径 ②：上游自述的烹饪逻辑**（**按方法名形态**找，不按类名）。
+     *
+     * <p>判据：某个可达对象同时有 `getCookTimeTotal()` 与 `isCooking()`/`getBurnTimeTotal()` 之一。
+     * 只做"只读调用"，返回值仅用于**报告过程证据**；**判成功与否一律看世界事实**。
+     */
+    private static Object findCookingLogic(AbstractContainerMenu menu, Container furnaceContainer) {
+        List<Object> candidates = new ArrayList<>();
+        candidates.add(menu);
+        candidates.addAll(reachableObjects(menu));
+        for (Object candidate : candidates) {
+            if (hasMethod(candidate, "getCookTimeTotal")
+                    && (hasMethod(candidate, "isCooking") || hasMethod(candidate, "getBurnTimeTotal"))) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    /** 菜单**可达的对象**（字段/集合/映射展开一层，深度受限；只读、逐项容错）。 */
+    private static List<Object> reachableObjects(Object root) {
+        List<Object> out = new ArrayList<>();
+        collect(root, out, 0, java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()));
+        return out;
+    }
+
+    private static void collect(Object value, List<Object> out, int depth, java.util.Set<Object> seen) {
+        if (value == null || depth > 2 || !seen.add(value)) {
+            return;
+        }
+        if (value instanceof java.util.Map<?, ?> map) {
+            for (Object entry : map.values()) {
+                collect(entry, out, depth + 1, seen);
+            }
+            return;
+        }
+        if (value instanceof Iterable<?> iterable) {
+            for (Object entry : iterable) {
+                collect(entry, out, depth + 1, seen);
+            }
+            return;
+        }
+        if (value instanceof Slot || value instanceof Container && depth > 0) {
+            return;   // 槽位/普通容器内部不再展开（避免把整个世界翻一遍）
+        }
+        out.add(value);
+        if (depth >= 2) {
+            return;
+        }
+        Class<?> type = value.getClass();
+        while (type != null && type != Object.class) {
+            for (Field field : type.getDeclaredFields()) {
+                if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+                    continue;
+                }
+                try {
+                    field.setAccessible(true);
+                    collect(field.get(value), out, depth + 1, seen);
+                } catch (Throwable ignored) {
+                    // 只读诊断：读不到就跳过
+                }
+            }
+            type = type.getSuperclass();
+        }
+    }
+
+    private static boolean hasMethod(Object target, String name) {
+        Class<?> type = target.getClass();
+        while (type != null && type != Object.class) {
+            try {
+                type.getDeclaredMethod(name);
+                return true;
+            } catch (NoSuchMethodException e) {
+                type = type.getSuperclass();
+            }
+        }
+        return false;
+    }
+
+    private static int intCall(Object target, String name) {
+        Class<?> type = target.getClass();
+        while (type != null && type != Object.class) {
+            try {
+                var method = type.getDeclaredMethod(name);
+                method.setAccessible(true);
+                Object value = method.invoke(target);
+                return value instanceof Integer i ? i : -1;
+            } catch (NoSuchMethodException e) {
+                type = type.getSuperclass();
+            } catch (Throwable t) {
+                return -1;
+            }
+        }
+        return -1;
+    }
+
+    private static String cookingLogicName(Object logic) {
+        String simple = logic.getClass().getSimpleName();
         return simple == null || simple.isEmpty() ? "(anonymous)" : simple;
     }
 

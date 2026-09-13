@@ -8,11 +8,13 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.task.craft.FurnaceStation;
 import com.dddgn.alice.task.craft.GridDiscovery;
 import com.dddgn.alice.task.craft.RecipeQuery;
+import com.dddgn.alice.task.craft.StationProvision;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
@@ -49,6 +51,11 @@ public class CraftFurnaceCheckTask implements Task {
 
     private enum Phase { PREPARE, OPEN, DISCOVER, PLACE, WAIT, TAKE, ASSERT, CLEANUP, DONE }
 
+    /** true = 测**菜单型炉子**（"熔炼升级页签"，A4b）；false = 原版方块熔炉（A4）。 */
+    private final boolean upgradeTab;
+    private static final ResourceLocation SMELTING_UPGRADE =
+            ResourceLocation.fromNamespaceAndPath("sophisticatedstorage", "smelting_upgrade");
+
     private final BotPlayer bot;
     private final ServerPlayer observer;
     private final List<String> failures = new ArrayList<>();
@@ -63,10 +70,22 @@ public class CraftFurnaceCheckTask implements Task {
     private int stoneBefore;
     private int cobbleBefore;
     private int openRetries;
+    private boolean provisionAttempted;
+    private boolean provisionReload;
+    private net.minecraft.world.item.Item upgradeItem;
 
     public CraftFurnaceCheckTask(BotPlayer bot, ServerPlayer observer) {
+        this(bot, observer, false);
+    }
+
+    /**
+     * @param upgradeTab true = 菜单型炉子（A4b）：站点是**精妙容器**，先装配"熔炼升级"（L2），
+     *                   用完拆回；false = 原版方块熔炉（A4）
+     */
+    public CraftFurnaceCheckTask(BotPlayer bot, ServerPlayer observer, boolean upgradeTab) {
         this.bot = bot;
         this.observer = observer;
+        this.upgradeTab = upgradeTab;
     }
 
     @Override
@@ -117,15 +136,24 @@ public class CraftFurnaceCheckTask implements Task {
         check("start_premise", bot.blockPosition().distSqr(START) <= 4.0D,
                 "foot=" + bot.blockPosition().toShortString());
         WorldModLedger.dropStale(bot.serverLevel());
-        furnace = findFurnace();
-        check("furnace_found", furnace != null,
+        furnace = upgradeTab ? findStationBlock() : findFurnace();
+        check(upgradeTab ? "station_found" : "furnace_found", furnace != null,
                 "furnace=" + (furnace == null ? "-" : furnace.toShortString()) + " radius=" + SCAN_RADIUS);
         if (furnace == null) {
             return finish();
         }
         FixtureToolKit.resetInventory(bot);
-        give(Items.COBBLESTONE, 3);
+        give(upgradeTab ? Items.SAND : Items.COBBLESTONE, 3);
         give(Items.COAL, 2);
+        if (upgradeTab) {
+            Item upgrade = BuiltInRegistries.ITEM.get(SMELTING_UPGRADE);
+            check("mod_present", upgrade != null && upgrade != Items.AIR, "upgradeId=" + SMELTING_UPGRADE);
+            if (upgrade == null || upgrade == Items.AIR) {
+                return finish();
+            }
+            give(upgrade, 1);
+            this.upgradeItem = upgrade;
+        }
         // **夹具纪律**：手里别握着会被右键消费的东西（A4 只需空手右键开炉子）
         var inventory = bot.getInventory();
         for (int slot = 0; slot < 9; slot++) {
@@ -135,8 +163,8 @@ public class CraftFurnaceCheckTask implements Task {
                 break;
             }
         }
-        stoneBefore = totalCount(Items.STONE);
-        cobbleBefore = totalCount(Items.COBBLESTONE);
+        stoneBefore = totalCount(upgradeTab ? Items.GLASS : Items.STONE);
+        cobbleBefore = totalCount(upgradeTab ? Items.SAND : Items.COBBLESTONE);
         // 燃料事实：原版 API 给出"这玩意儿能烧多久"（不猜）
         int burn = net.minecraftforge.common.ForgeHooks.getBurnTime(new ItemStack(Items.COAL),
                 net.minecraft.world.item.crafting.RecipeType.SMELTING);
@@ -157,6 +185,11 @@ public class CraftFurnaceCheckTask implements Task {
             return Status.RUNNING;
         }
         MenuSession.State state = session.tick();
+        if (state == MenuSession.State.OPEN && upgradeTab && !provisionAttempted) {
+            provisionAttempted = true;
+            provision();
+            return Status.RUNNING;
+        }
         if (state == MenuSession.State.FAILED) {
             String failure = session.failure();
             BotLog.warn("[CraftFurnaceCheck] 开炉子失败 code={} 已重试={}", failure, openRetries);
@@ -174,10 +207,30 @@ public class CraftFurnaceCheckTask implements Task {
         return advance(Phase.DISCOVER);
     }
 
+    /** A4b：**先把"熔炼升级"装进去**（L2 装配层；已有旧装配先取回），再让 DISCOVER 用能力验证它。 */
+    private void provision() {
+        AbstractContainerMenu menu = bot.containerMenu;
+        if (StationProvision.containerHas(menu, bot, upgradeItem)) {
+            StationProvision.moveOutOfContainer(bot, menu, upgradeItem);   // 前提：先清干净
+        }
+        if (!StationProvision.allowContainerWrite(bot, furnace)) {
+            record("provision", StationProvision.Codes.BUDGET_REFUSED);
+            return;
+        }
+        boolean moved = StationProvision.moveIntoContainer(bot, menu, upgradeItem, furnace);
+        record("install_move_accepted", String.valueOf(moved));
+        closeSession("provisioned");
+        // 关掉再开（上游在菜单构造时才按升级建容器）⇒ 用一个新相位重开
+        phase = Phase.OPEN;
+        phaseTicks = 0;
+        provisionReload = true;
+        session = null;
+    }
+
     private Status discover() {
         FurnaceStation.Result result = FurnaceStation.discover(bot.containerMenu);
         record("discover", result.describe());
-        check("furnace_slots_discovered", result.ok(), result.describe());
+        check(upgradeTab ? "provision_verified" : "furnace_slots_discovered", result.ok(), result.describe());
         if (!result.ok()) {
             closeSession("no_furnace");
             return finish();
@@ -188,7 +241,8 @@ public class CraftFurnaceCheckTask implements Task {
 
     private Status place() {
         AbstractContainerMenu menu = bot.containerMenu;
-        boolean input = FurnaceStation.placeOne(bot, menu, found, found.input(), Items.COBBLESTONE);
+        boolean input = FurnaceStation.placeOne(bot, menu, found, found.input(),
+                upgradeTab ? Items.SAND : Items.COBBLESTONE);
         boolean fuel = FurnaceStation.placeOne(bot, menu, found, found.fuel(), Items.COAL);
         record("input_placed", String.valueOf(input));
         record("fuel_placed", String.valueOf(fuel));
@@ -228,21 +282,21 @@ public class CraftFurnaceCheckTask implements Task {
 
     private Status assertResult() {
         AbstractContainerMenu menu = bot.containerMenu;
-        int stoneAfter = totalCount(Items.STONE);
-        int cobbleAfter = totalCount(Items.COBBLESTONE);
+        int stoneAfter = totalCount(upgradeTab ? Items.GLASS : Items.STONE);
+        int cobbleAfter = totalCount(upgradeTab ? Items.SAND : Items.COBBLESTONE);
         ItemStack input = FurnaceStation.stackAt(menu, found.input());
         ItemStack fuel = FurnaceStation.stackAt(menu, found.fuel());
         ItemStack output = FurnaceStation.stackAt(menu, found.output());
-        record("stone_delta", String.valueOf(stoneAfter - stoneBefore));
+        record("product_delta", String.valueOf(stoneAfter - stoneBefore));
         record("cobblestone_delta", String.valueOf(cobbleAfter - cobbleBefore));
         record("input_left", input == null || input.isEmpty() ? "0" : String.valueOf(input.getCount()));
         record("fuel_left", fuel == null || fuel.isEmpty() ? "0" : String.valueOf(fuel.getCount()));
         record("output_left", output == null || output.isEmpty() ? "0" : String.valueOf(output.getCount()));
         if (!failures.contains("smelted")) {
-            check("smelted", stoneAfter - stoneBefore == 1, "stone+" + (stoneAfter - stoneBefore));
+            check("smelted", stoneAfter - stoneBefore == 1, "product+" + (stoneAfter - stoneBefore));
         }
         check("input_consumed", cobbleAfter - cobbleBefore == -1,
-                "cobblestone" + (cobbleAfter - cobbleBefore));
+                "input" + (cobbleAfter - cobbleBefore));
         check("no_half_products", (input == null || input.isEmpty()) && (output == null || output.isEmpty()),
                 "inputLeft=" + (input == null ? "-" : input.getCount())
                         + " outputLeft=" + (output == null ? "-" : output.getCount()));
@@ -272,6 +326,11 @@ public class CraftFurnaceCheckTask implements Task {
         boolean inputBack = found != null && FurnaceStation.takeAll(bot, menu, found.input());
         boolean outputBack = found != null && FurnaceStation.takeAll(bot, menu, found.output());
         record("leftovers_returned", "fuel=" + fuelBack + " input=" + inputBack + " output=" + outputBack);
+        if (upgradeTab && upgradeItem != null) {
+            // A4b：**拆回升级**（建拆同权）——烧炼状态跟着升级物品走，拆掉即等于熄灭
+            closeSession("furnace_cleanup");
+            return deprovisionAndFinish();
+        }
         closeSession("furnace_cleanup");
         // 场景同款复位：先空气再放炉子（重建方块实体 ⇒ 熄灭 + 清空）
         var server = bot.serverLevel().getServer();
@@ -306,6 +365,30 @@ public class CraftFurnaceCheckTask implements Task {
         return total;
     }
 
+    /** A4b：站点 = 精妙容器（按方块 id 形态识别，与 `CraftStation` 同一判据）。 */
+    private BlockPos findStationBlock() {
+        BlockPos center = bot.blockPosition();
+        BlockPos best = null;
+        double bestDistance = Double.MAX_VALUE;
+        for (BlockPos pos : BlockPos.betweenClosed(center.offset(-SCAN_RADIUS, -SCAN_RADIUS, -SCAN_RADIUS),
+                center.offset(SCAN_RADIUS, SCAN_RADIUS, SCAN_RADIUS))) {
+            ResourceLocation key = BuiltInRegistries.BLOCK.getKey(bot.serverLevel().getBlockState(pos).getBlock());
+            if (key == null || !"sophisticatedstorage".equals(key.getNamespace())) {
+                continue;
+            }
+            String path = key.getPath();
+            if (!(path.contains("chest") || path.contains("barrel") || path.contains("shulker"))) {
+                continue;
+            }
+            double distance = pos.distSqr(center);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = pos.immutable();
+            }
+        }
+        return best;
+    }
+
     private BlockPos findFurnace() {
         BlockPos center = bot.blockPosition();
         BlockPos best = null;
@@ -322,6 +405,31 @@ public class CraftFurnaceCheckTask implements Task {
             }
         }
         return best;
+    }
+
+    /** A4b 收尾：重新开菜单 → 取回熔炼升级 → 断言能力消失 + 物品回包。 */
+    private Status deprovisionAndFinish() {
+        if (session == null) {
+            if (!bot.onGround()) {
+                return Status.RUNNING;
+            }
+            session = MenuSession.open(bot, furnace, 0);
+            return Status.RUNNING;
+        }
+        MenuSession.State state = session.tick();
+        if (state == MenuSession.State.FAILED) {
+            check("deprovision_verified", false, "menu_failed");
+            return finish();
+        }
+        if (state != MenuSession.State.OPEN) {
+            return phaseTicks > OPEN_TICKS ? failAndFinish("deprovision_open_timeout") : Status.RUNNING;
+        }
+        boolean moved = StationProvision.moveOutOfContainer(bot, bot.containerMenu, upgradeItem);
+        record("deprovision_moved", String.valueOf(moved));
+        closeSession("deprovisioned");
+        int inInventory = RecipeQuery.countInInventory(bot, upgradeItem);
+        check("upgrade_returned", inInventory >= 1, "inInventory=" + inInventory);
+        return finish();
     }
 
     private Status advance(Phase next) {

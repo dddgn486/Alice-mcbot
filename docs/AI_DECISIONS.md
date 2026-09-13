@@ -7976,3 +7976,28 @@ pickup_gate / collect_job / recipes_dump / event_thresholds）。
   顺带把"熔炉升级"这条用户最初提到的兼容形态补齐；
 - **A5 决策层接线**：`GoalAction.Craft`（词汇表 + 严格解析 + 把"可做的合成/熔炼路线与站点"作为**确定性事实**喂给候选菜单，
   LLM 只选），并按裁定"任务层失败向上传递"接好接口 —— 这是"LLM 只选目标"落地的最后一块。
+
+### D-198：阶段 3-A / **A4b 菜单型炉子**（"熔炼升级页签"）—— 同一发现器的第二条证据路径
+
+**调查事实**（装的 Core 1.5.1）：精妙存储的"熔炉升级"物品 id 是
+`sophisticatedstorage:smelting_upgrade`（tooltip *"Smelting in an upgrade tab"*）；它的页签内容是
+`CookingUpgradeContainer` → `CookingLogicContainer`，**3 个烹饪槽**（input/fuel/output 沿用槽号 0/1/2），
+但**没有 `ContainerData` 字段** —— 进度是**方法自述**：`getCookTimeTotal()` / `getCookTimeFinish()` /
+`getBurnTimeTotal()` / `isCooking()` / `getCookingSlots()`。
+
+**给 `FurnaceStation` 加第二条证据路径**（与 `GridDiscovery` 的"上游自述"同一套路，**只认方法名形态 + 自校验**）：
+① `ContainerData` 字段（原版形态，下标 0/1/2/3 有约定）；② 可达对象自述了烹饪进度方法族。
+两者都拿不到才 `no_progress_data`（**不猜**）。判成功与否仍然**一律看世界事实**，进度只是过程证据。
+
+**站点模型**：同一个容器 + **不同升级** = 不同能力 ⇒ 新增描述符 `CraftStation.COOKING_TAB`
+（`provisionUpgrade = sophisticatedstorage:smelting_upgrade`）。站点 = "容器 + 哪一种能力"，数据驱动，不判断类名。
+
+**夹具复用**：`CraftFurnaceCheckTask` 加 `upgradeTab` 模式（**不另写一套**）：
+页签模式下站点 = 精妙容器（按方块 id 形态找）、先 `StationProvision` 装升级（会先清掉旧装配）、
+`discover` 成功即 `provision_verified`（用能力验证装配）、输入换沙子、收尾**拆回升级**
+（烧炼状态跟着升级物品走 ⇒ 拆掉即等于熄灭）。零参数入口 `alice:craft_cooking_check`。
+
+**电池 33 → 34 项**（`craft_cooking` 进 MAIN ⇒ CORE 24），归属表与 `docs/BATTERY_CURATION.md` 同步更新
+（这正走了一遍 D-197 立下的维护规则）。
+
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `2d7cf69e…`）。**待客户端**。
