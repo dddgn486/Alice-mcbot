@@ -723,7 +723,7 @@ jar `3312608d…`。
   回收 `/alice instruct`，或加 `LlmConfig` 闸门（默认关）并写进红线说明。
 - `/alice region clear`：清掉玩家已选定区域（夹具/测试收尾），菜单里不再出现 `region:saved`。
 
-**§6.47 A5 的 LLM 路径客户端验证 ✅（jar `152fb94c…`，2026-09-13 20:39）**
+**§6.47 A5 的 LLM 路径客户端验证 ✅（jar `d485ee0f…`，2026-09-13 20:39）**
 ```
 [Goal] decision_request trigger=operator mode=directed model=deepseek-flash calledAtTick=243
 [Goal] directed_result raw={"action":"craft","item":"minecraft:crafting_table","count":1} → Craft(minecraft:crafting_table x1)

@@ -565,6 +565,21 @@ public final class RegressionBatteryTask implements Task {
         if (step.provision() != null) {
             step.provision().run();
         }
+        // **每步前提自证 + 修复**（D-201 附注一/三 / D-203）：一步开始前，环境必须干净到
+        // "没有别人的容器菜单挂着"。为什么必须在**每步之间**做：上游页签槽位地址会重叠
+        // （精妙容器菜单的 64..66 既是合成页签格子、也是熔炼页签格子）⇒ 上一步残留的菜单会让下一步
+        // 的点击"被接受却落到别处"，症状是**料进去了却不烧**（2026-09-13 实测：撤走 8 步后
+        // craft_furnace/craft_cooking/transfer 可复现变红，而 FULL 里同三步全绿 ⇒ 缺的就是这里的清场）。
+        var premiseOwn = com.dddgn.alice.task.FixturePremise.ownMenu(bot);
+        var premiseGround = com.dddgn.alice.task.FixturePremise.onGround(bot);
+        BotLog.info("[Regression] premise step={} {} | {}", steps.get(index).name(),
+                premiseOwn.ok() ? "own_menu=true" : "own_menu=false(" + premiseOwn.detail() + ")",
+                premiseGround.ok() ? "on_ground=true" : "on_ground=false(" + premiseGround.detail() + ")");
+        if (!premiseOwn.ok()) {
+            BotLog.warn("[Regression] premise step={} 有残留容器菜单 ⇒ 先关掉再跑（{}）",
+                    steps.get(index).name(), premiseOwn.detail());
+            bot.closeContainer();
+        }
         stepTicks = 0;
         stepStarted = true;
         current = step.factory().get();

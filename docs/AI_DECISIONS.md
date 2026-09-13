@@ -8136,7 +8136,7 @@ user prompt 的"注意"段也补上"craftable 清单 / `craftable_truncated` 的
 
 #### D-200 附注一：直连指令**被自己的清空语句擦掉**（"让它做工作台，它却发了伐木指令"）—— 已结构性修复
 
-**客户端事实**（20:36，jar `152fb94c…`）：`/alice instruct 用你词汇表里的 craft 动作做一个工作台` 之后
+**客户端事实**（20:36，jar `d485ee0f…`）：`/alice instruct 用你词汇表里的 craft 动作做一个工作台` 之后
 ```
 [Goal] decision_action trigger=operator latency=4153ms raw={"action":"start_job","kind":"region_lumber","target":"region:saved",…} → StartJob(REGION_LUMBER …)
 [Goal] execute action=start_job ok=true trigger=operator
@@ -8155,7 +8155,7 @@ user prompt 的"注意"段也补上"craftable 清单 / `craftable_truncated` 的
 3. **可见性**：`[Goal] decision_request trigger=… mode=directed|normal model=…` —— 以后"指令到底发出去没有"一眼可判；
 4. `instruct()` 的状态快照也带上 `trigger="operator"`（与 D-200 的 trigger 字段配套）。
 
-**等级**：IMPLEMENTED + COMPILES + 已同步（jar `152fb94c…`）；**待客户端复测**（期望 `mode=directed` + `directed_result` 行）。
+**等级**：IMPLEMENTED + COMPILES + 已同步（jar `d485ee0f…`）；**待客户端复测**（期望 `mode=directed` + `directed_result` 行）。
 
 #### D-200 附注二：直连通道验证通过 + **临时裁定复核结论**
 
@@ -8263,7 +8263,7 @@ S2（站点/槽位发现）**等 S1 读数出来再定范围**——先看类型
    原实现会"静默退化成一个必然失败的变体"，让失败原因长得像"归因坏了"。这正是 §6.50/D-201 附注一
    那条纪律的第一个落地：**前置必须显式自证，不许默认契约具备**。
 
-**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `152fb94c…`）；
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `d485ee0f…`）；
 **待客户端**：`/alice battery full` 期望 `(35/35) → PASS`（这是"FULL 顺序下也真绿"的第一次验证）。
 
 #### D-203：夹具**前提自证**机制落地（试点 2 处；D-201 附注一的执行）
@@ -8282,3 +8282,19 @@ S2（站点/槽位发现）**等 S1 读数出来再定范围**——先看类型
 **等级**：IMPLEMENTED + COMPILES + 已同步；**待客户端**（随下一次 CORE 一起验，不单独占你的轮次）。
 **继续项**：把其余步骤夹具逐条接上（transfer 的站位/前方方块、各 `craft_*` 的菜单身份），
 然后才按"逐条撤 + 每条复跑"瘦身。
+
+#### D-203 附注一：**"每步之间"清场**（电池级前提自证 + 修复）——把三步红的机制从根上关掉
+
+在 `RegressionBatteryTask` 的**步骤启动处**（场景函数 + provision 之后、`factory().get()` 之前）加：
+1. **每步打印前提事实**：`[Regression] premise step=<name> own_menu=true|false(…) | on_ground=…`（永远可见，便于下次一眼判读）；
+2. **前提修复**：`own_menu=false`（上一步残留了容器菜单）⇒ **先 `bot.closeContainer()` 再跑**，并打 WARN。
+
+**为什么放在"每步之间"而不是散在各夹具里**：这是三次实测的共同机制——上游页签槽位建在 `menu.slots` 之外且
+**地址会重叠**（精妙容器菜单的 64..66 既是合成页签格子、也是熔炼页签格子）⇒ 残留菜单会让下一步的点击
+"**被接受却落到别处**"，症状正是 `craft_furnace`/`craft_cooking` 的"**料进去了却不烧**"。
+一处插入点覆盖全部步骤（配合各夹具自证，形成"电池级清场 + 夹具级自证"两层）。
+
+**同时保留夹具级自证**（D-203）：`CraftFurnaceCheckTask.discover()`、`CraftGoalCheckTask.prepare()`；
+其余夹具的逐条接线与"逐条撤步瘦身"作为继续项（瘦身前提不变：先自证、再逐条撤、每条复跑）。
+
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `d485ee0f…`）；**待客户端**（一次 CORE/FULL 即可同时验证）。
