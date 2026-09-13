@@ -393,9 +393,12 @@ D-165 附注四），**待客户端复测**。判据与排查入口见 `OPEN_ITE
 legacy 双内核整批删除（19 文件，依据"按路径分析的零活引用"）；`POSTCONDITION_FAILED` 不删值、
 改为给生产者（`PathSessionStatus.classify` 唯一定义）并加"无死值"自检。
 
-**唯一待测项**：**跑一次完整电池**（23 项，约 4~5 分钟）作为 K-2 第三批（删 19 个 legacy 文件）
-与 K-5（`classify` + 新用例 `session_status_no_dead_value`）的回归门 —— 判据
-`(23/23) → PASS`，且 `capability_gate` 的 `SUMMARY` 里有 `session_status_no_dead_value=PASS`。
+**第四次电池结果（22/23）**：K-5 新用例 `session_status_no_dead_value=PASS` ✓、K-2 删除无回归 ✓；
+唯一失败 = `transfer` 步 `end_to_end`（**间歇**：同计划 10:09/11:06 走完 5 tick，这次一格没动磨满 120 tick 段预算）。
+**下一步**：用新增的失败终态诊断 `[R4 Session] segment_stall`（D-174）复现定位；
+最强候选 = **遥控器输入干扰任务**（`BotInputPacket` 每 tick 把玩家输入写给 bot，任务与手动遥控无互斥）。
+**D-173 补漏**：`pathing/movement/` 14 文件（外部真引用 0）整包删除 + `.gitignore` 藏住的
+`PathExecutor.java.backup` 删除。
 
 **本轮环境事实**：电池现 **23 项**（`(23/23) ticks=3507 → PASS`）；`k3_stop_check` 等 4 个道具贴图已正常；
 镜像/同步脚本正常；`tools/check-item-models.sh` 已接入构建前清单（`checked=66 … PASS`）。

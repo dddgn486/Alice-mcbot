@@ -6648,3 +6648,50 @@ K-3 的语义就是"**顶层任务**在不安全时刻不被硬停，延后到�
 `bot_report`/终态会显示 `POSTCONDITION_FAILED` 而不是含糊的 `TIMEOUT`。
 
 **状态**：`IMPLEMENTED` + `COMPILES`；**未验证**：客户端（电池里 `capability_gate` 步会跑新用例）。
+
+### D-173：K-2 收尾补漏（`pathing/movement/` 14 文件 + 一个 `.backup` 残留）
+
+D-171 只分析了 `pathing/*.java`（顶层），**漏了子包**。补做的**按路径**分析（同名类会污染简单名统计，
+所以判据是"外部文件是否 `import com.dddgn.alice.pathing.movement.X` 或用完全限定名"）结论：
+
+- `pathing/movement/`（14 文件：`Movement`/`MovementProvider`/`MovementRegistry`/`MovementConstraints`/
+  `MovementHelper`/`BasicMovement`/`WalkMovement(Provider)`/`DescendMovement(Provider)`/`PillarMovement(Provider)`/
+  `BreakAndWalkMovement(Provider)`）—— **外部真引用 = 0**（只有包内互引；`Movement`/`MovementHelper`/
+  `MovementProvider` 那些"命中"全是同名类误报，如 `core.Movement`、`pathing.MovementHelper`）⇒ **整包删除**。
+- `pathing/risk/RiskSwitches` —— **活引用**（`DescendExecutionFactory` / `SurfaceMovementProvider` / `BotCommand`）⇒ 保留。
+- `pathing/PathExecutor.java.backup`（4.6 KB，09-02 的脚本残留）：`.gitignore` 里有 `*.backup` ⇒ 它既不被编译、
+  也不出现在 `git status`，**静默躺在源码树里**。已删。**教训**：`.gitignore` 忽略的残留不会自己冒头，
+  收尾时要用 `find src -name '*.backup' -o -name '*.orig' -o -name '*.rej'` 扫一遍。
+
+删除后 `build` PASS。**未验证**：客户端电池（与 D-171 同一次回归）。
+
+### D-174：`[R4 Session] segment_stall` —— 补上"段卡死"的日志盲区（transfer `end_to_end` 间歇失败）
+
+**现场（2026-09-13 第四次电池）**：`transfer=FAIL reason=end_to_end`，而且**同样的计划**
+（`TRAVERSE 44,64,404 → 45,64,404`，1 格、cost 1.0）在 10:09 与 11:06 两次运行里 **5 tick 走完**，
+这次却**一格没动**、`actualFoot=44,64,404` 磨满 120 tick 段预算后 `SEGMENT_TIMEOUT`：
+
+```
+[R4 Session] segment_start session=transfer-MOVE_TO_SOURCE-0 index=0/1 type=TRAVERSE from=44, 64, 404 to=45, 64, 404 tolerance=EXACT
+（6 秒内**一行日志都没有**）
+[R4 Session] failed … status=TIMEOUT code=SEGMENT_TIMEOUT index=0 actualFoot=44, 64, 404
+[Goal] snapshot … "pos":"44, 64, 404","health":20.0,"onGround":true,"inLiquid":false,"hazard":"NONE"
+```
+且同一次运行里**后面的 `pickup_gate`/`event_thresholds`/`pathing` 步都 PASS**（bot 能正常走）⇒ 是**局部、瞬时**的卡死。
+
+**已排除（有日志依据）**：夹具用例 `survival_interrupt_death_removal`（纯账本，不动 bot）；
+bot 被移除/重生成（全程只有 11:19:28 一次"假人已生成"）；菜单未开（`[Menu` 0 行）；
+`stopMovement` 未被反复调用（只在失败那一刻出现一次）；执行器每 tick 都设了 `setForward(1.0F)`
+（`driveTowardTarget` 无条件写）。
+
+**已补的诊断（永久、只在失败终态打）**：`[R4 Session] segment_stall …`，
+一次性给出区分"输入没生效 / 被谁按住 / 目的地被堵 / 实体没在 tick"所需的客观量：
+控制器输入串、真实坐标与速度、`onGround`、目的地/头位/支撑方块、段与总耗时。
+（该项目已有 `BotPlayer` 的 200 tick `[PhysicsProbe]`，但它的入口是**遥控器右键**，
+而遥控器本身会把玩家输入持续写给 bot ⇒ **不能**用它测这个场景，故新增失败即打的诊断。）
+
+**仍未定论（下次复现时用上面的新日志判定）**，当前最强的两个候选：
+1. **遥控输入干扰**（`BotInputPacket`:67-68 每 tick 把**玩家**输入写给 bot；客户端 `ClientInputHandler`
+   在"主手拿着带 `BotUUID` 标签的遥控器"时**每 tick** 发包）⇒ 任务设的 `forward=1` 在实体 tick 前被改回 0，
+   表现为"一格没动、无日志"。**这是真实的设计洞**：任务驱动与手动遥控**没有互斥**。
+2. bot 实体在该时段没有 tick（但后续步骤能走，需要"瞬时未 tick"的解释）。

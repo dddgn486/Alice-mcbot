@@ -128,6 +128,8 @@ public final class PathSession {
                 return status;
             }
             if (++startSlotTicks > segmentTimeoutTicks()) {
+                BotLog.warn("[R4 Session] segment_stall session={} index={} kind=start_timeout {}",
+                        sessionId, index, describeStall(index));
                 fail(PathSessionStatus.TIMEOUT, "SEGMENT_START_TIMEOUT");
                 return status;
             }
@@ -137,6 +139,8 @@ public final class PathSession {
 
         segmentTicks++;
         if (segmentTicks > segmentTimeoutTicks()) {
+            BotLog.warn("[R4 Session] segment_stall session={} index={} kind=segment_timeout {}",
+                    sessionId, index, describeStall(index));
             execution.cancel();
             fail(PathSessionStatus.TIMEOUT, "SEGMENT_TIMEOUT");
             return status;
@@ -692,8 +696,37 @@ public final class PathSession {
         };
     }
 
-    private void mapFailure(String code) {
-        String failure = code == null ? "MOVEMENT_FAILED" : code;
+    /**
+     * 段卡死时的**现场事实**（2026-09-13 实测补的日志盲区）。
+     *
+     * <p>起因：`alice:transfer_check` 的 `end_to_end` 曾出现"1 格 TRAVERSE 跑满整段预算、
+     * `actualFoot` 与起点一模一样"，而日志里**只有一行 segment_start 和一行失败** ——
+     * 无法区分"输入没生效 / 被什么按住 / 目的地被堵 / bot 实体没在 tick"。
+     * 这里把区分这些问题所需的客观量一次性打出来（只在**失败终态**打，不是每 tick 探针）：
+     * 控制器输入、真实坐标与速度、`onGround`、目的地/头位/支撑方块、段耗时。
+     */
+    private String describeStall(int index) {
+        BlockPos to = movements.get(index).toFoot();
+        net.minecraft.world.phys.Vec3 delta = bot.getDeltaMovement();
+        return String.format(java.util.Locale.ROOT,
+                "to=%s botFoot=%s pos=%.3f,%.3f,%.3f onGround=%s delta=%.4f,%.4f,%.4f "
+                        + "input=%s toBlock=%s headBlock=%s supportBlock=%s segmentTicks=%d totalTicks=%d",
+                to.toShortString(),
+                MovementHelper.footCell(level, bot).toShortString(),
+                bot.getX(), bot.getY(), bot.getZ(),
+                bot.onGround(), delta.x, delta.y, delta.z,
+                bot.controller().getInputStateString(),
+                blockName(to), blockName(to.above()), blockName(to.below()),
+                segmentTicks, totalTicks);
+    }
+
+    private String blockName(BlockPos pos) {
+        net.minecraft.world.level.block.state.BlockState state = level.getBlockState(pos);
+        String name = state.getBlock().getName().getString();
+        return state.getFluidState().isEmpty() ? name : name + "(fluid)";
+    }
+
+    private void mapFailure(String code) {        String failure = code == null ? "MOVEMENT_FAILED" : code;
         // K-5：归属规则只有一处定义（`PathSessionStatus.classify`），自检可断言它不产生死值。
         PathSessionStatus mapped = PathSessionStatus.classify(failure);
         fail(mapped, failure);
