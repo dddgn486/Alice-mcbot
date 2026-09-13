@@ -24,7 +24,7 @@ import java.util.Map;
  *   <li>{@code machine_only_vanilla}：查 `minecraft:cobblestone`（原版只能挖，但装了 Mekanism/Create 后
  *       它们给了 `crushing`/`milling`/`enriching`）⇒ **S1 起**期望 `MACHINE_ROUTE`（有出处的机器路线）
  *       —— **"只由机器产出"与物品是不是模组物品无关**（2026-09-13 实测教训）；</li>
- *   <li>{@code no_recipe}：查 {@link #NO_RECIPE_ITEM}（**任何**配方类型都产不出；基岩已不适用——本整合包里它有机器配方）⇒ 期望 `NO_RECIPE`；</li>
+ *   <li>{@code no_recipe}：**运行时自证**地挑一个"任何配方类型都产不出"的物品（见 `firstUnproducibleItem`；写死物品会随模组集过期）⇒ 期望 `NO_RECIPE`；</li>
  *   <li>{@code machine_only}：查一个**只由机器配方产出**的物品（默认 `mekanism:dust_iron`；
  *       未装 Mekanism 时该用例如实记 `SKIP`）⇒ **S1 起**期望 `MACHINE_ROUTE` 且路线带机器类型；</li>
  *   <li>{@code read_only}：上面全部查询跑完，**背包逐槽快照必须与开始时完全一致**（本原语是只读的硬断言）。</li>
@@ -33,8 +33,6 @@ import java.util.Map;
 public class CraftCheckTask implements Task {
 
     /** 机器专属物品（用于"不猜机器语义"的负例；未装该模组时跳过）。 */
-    /** **任何**配方类型都产不出它（创造模式专属）——负例用；换物品时必须在此处改，并说明为什么。 */
-    private static final String NO_RECIPE_ITEM = "minecraft:command_block";
     private static final String MACHINE_ONLY_ITEM = "mekanism:dust_iron";
 
     private final BotPlayer bot;
@@ -123,9 +121,15 @@ public class CraftCheckTask implements Task {
         //    ⇒ 在 S1 之后它正确地变成 `MACHINE_ROUTE`，旧期望假失败。这正是 §6.9.1 ② 那条纪律：
         //    **负例必须按"当前模组集"核对**（"原版视角"写死会过期）。改用创造模式专属物品。
         FixtureToolKit.resetInventory(bot);
-        RecipeQuery.Result negative = RecipeQuery.query(server, bot, NO_RECIPE_ITEM, 1);
-        expect("no_recipe", negative, RecipeQuery.Verdict.NO_RECIPE,
-                r -> r.machineTypes().isEmpty(), 5);
+        String negativeItem = firstUnproducibleItem(server);
+        if (negativeItem == null) {
+            record("no_recipe", "SKIP", "负例前提不成立（本整合包里找不到任何配方都产不出的物品）");
+        } else {
+            record("no_recipe_item", negativeItem, "运行时自证挑出的负例物品");
+            RecipeQuery.Result negative = RecipeQuery.query(server, bot, negativeItem, 1);
+            expect("no_recipe", negative, RecipeQuery.Verdict.NO_RECIPE,
+                    r -> r.machineTypes().isEmpty(), 5);
+        }
 
         // ⑥ 负例：只由机器配方产出（**模组物品**）⇒ 如实拒绝、不猜语义（没装该模组就 SKIP）
         FixtureToolKit.resetInventory(bot);
@@ -154,6 +158,41 @@ public class CraftCheckTask implements Task {
         RecipeQuery.query(bot.getServer(), bot, "minecraft:crafting_table", 1);
         RecipeQuery.query(bot.getServer(), bot, "minecraft:diamond_pickaxe", 1);
     }
+
+    /**
+     * **运行时自证**地挑一个"任何配方类型都产不出"的物品（负例前提）。
+     *
+     * <p>为什么不能用写死的物品（2026-09-14 两次实测教训）：`minecraft:bedrock` 在本整合包里**有机器配方**，
+     * 换成 `minecraft:command_block` **同样有**（`thermal:press` / `create:deploying` / `mekanism:*`…）
+     * ⇒ 写死负例必然随模组集变化而假失败（§6.9.1 ② 那条纪律）。
+     * 改成：扫描全表（原版产出 ∪ 机器上游自述产出）建"可产出集合"，再从候选里挑**没出现过**的那个。
+     */
+    private static String firstUnproducibleItem(net.minecraft.server.MinecraftServer server) {
+        var access = server.registryAccess();
+        java.util.Set<String> producible = new java.util.HashSet<>();
+        for (net.minecraft.world.item.crafting.Recipe<?> recipe : server.getRecipeManager().getRecipes()) {
+            var result = recipe.getResultItem(access);
+            if (result != null && !result.isEmpty()) {
+                producible.add(net.minecraft.core.registries.BuiltInRegistries.ITEM
+                        .getKey(result.getItem()).toString());
+            }
+            for (var item : com.dddgn.alice.task.craft.MachineRecipeFacts.read(recipe).outputs()) {
+                producible.add(net.minecraft.core.registries.BuiltInRegistries.ITEM
+                        .getKey(item.getItem()).toString());
+            }
+        }
+        for (String candidate : NO_RECIPE_CANDIDATES) {
+            if (!producible.contains(candidate)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    /** 负例候选（创造模式/调试类，通常不被任何配方产出）；**自证**：不在"可产出集合"里才采用。 */
+    private static final java.util.List<String> NO_RECIPE_CANDIDATES = java.util.List.of(
+            "minecraft:barrier", "minecraft:debug_stick", "minecraft:structure_void",
+            "minecraft:jigsaw", "minecraft:light", "minecraft:command_block", "minecraft:bedrock");
 
     private void expect(String name, RecipeQuery.Result result, RecipeQuery.Verdict wanted,
                         java.util.function.Predicate<RecipeQuery.Result> extra, int order) {
