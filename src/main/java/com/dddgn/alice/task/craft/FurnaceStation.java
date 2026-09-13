@@ -24,11 +24,19 @@ import java.util.Map;
  *      <b>输入/燃料/输出按该容器自己的槽号 0/1/2</b>（原版 `AbstractFurnaceMenu` 的语义，也是模组普遍沿用的形状）；</li>
  *   <li>菜单里存在一个 **`ContainerData` 类型的字段**（= 这台机器会同步"烧炼进度/燃烧时间"），
  *      这是"这是个会**按时间工作**的机器"的证据（与"点一下就出"的合成菜单区分开）；</li>
+ *   <li>**路径 ③ 上游自述**：没有"恰好 3 格的容器"时，改找**自己声明了 3 个烹饪槽**的上游对象
+ *      （`getCookingSlots()`；精妙存储/精妙背包的"熔炼升级页签"就是这种 —— 那 3 格分属不同的
+ *      `Container`，形态学判据必然认不出）。输入/燃料/输出**不采信自述顺序**，一律用 `mayPlace` 行为判定；</li>
  *   <li>候选**多于一个**就如实拒绝（不猜）+ 报 `ambiguous_furnace`。</li>
  * </ol>
  *
  * <p>**为什么按字段类型而不是字段名**：vanilla 的字段名在 Forge 生产环境是 SRG 名（`f_xxxxx_`），
  * 字符串反射必然踩空（D-192 附注五的教训）。
+ *
+ * <p>**为什么候选集要对"槽位宿主"多展开一层**（2026-09-13 A4b 实测）：上游把自述者放在宿主的私有字段里
+ * （`CookingUpgradeContainer.cookingLogicContainer`），宿主本身在 2 层遍历里可见、自述者正好被深度上限挡住
+ * ⇒ 症状是"**看见宿主却看不见自述者**"（`no_furnace_slots` 且 diag 里只有宿主）。
+ * 修法是**只对产出过槽位的宿主**多展开一层（不是把全世界翻深一层），并**自校验**采用与否。
  */
 public final class FurnaceStation {
 
@@ -56,9 +64,9 @@ public final class FurnaceStation {
     public record Found(int input, int fuel, int output, String containerClass, String dataClass,
                         int progress, int maxProgress, int litTime) {
 
-        /** 进度百分比（0..100；读不到给 -1）。 */
+        /** 进度百分比（0..100；读不到给 -1 —— 别把"读不到"说成 0%）。 */
         public int percent() {
-            return maxProgress <= 0 ? -1 : (int) (100L * progress / maxProgress);
+            return maxProgress <= 0 || progress < 0 ? -1 : (int) (100L * progress / maxProgress);
         }
 
         public String describe() {
@@ -103,6 +111,7 @@ public final class FurnaceStation {
         List<Slot> slots = null;
         String pickedBy = "";
         Container pickedContainer = null;
+        Declaration declaration = null;
         if (candidates.size() == 1) {
             pickedContainer = candidates.get(0).getKey();
             slots = new ArrayList<>(candidates.get(0).getValue());
@@ -112,16 +121,11 @@ public final class FurnaceStation {
             return new Result(null, Codes.AMBIGUOUS,
                     "有 " + candidates.size() + " 个 3 格候选容器（哪台是目标不由我们猜）");
         } else {
-            // **路径 ③（上游自述）**：模组的烹饪页签不是"一个容器占 3 格"，而是
-            // `CookingLogicContainer.getCookingSlots()` 自述 3 个槽（2026-09-13 实测：精妙"熔炼升级"就是这种）
-            Object logic = findCookingLogic(menu, null);
-            Object declared = logic == null ? null : callNoArg(logic, "getCookingSlots");
-            if (declared instanceof List<?> list && list.size() == 3
-                    && list.stream().allMatch(Slot.class::isInstance)) {
-                slots = new ArrayList<>();
-                for (Object entry : list) {
-                    slots.add((Slot) entry);
-                }
+            // **路径 ③（上游自述）**：模组的烹饪页签不是"一个容器占 3 格"，而是上游容器
+            // `CookingLogicContainer.getCookingSlots()` 自述 3 个槽（2026-09-13 实测：精妙"熔炼升级"就是这种）。
+            declaration = findCookingDeclaration(menu);
+            if (declaration != null) {
+                slots = declaration.slots();
                 pickedContainer = slots.get(0).container;
                 pickedBy = "ownerDeclaration(getCookingSlots)";
             }
@@ -140,7 +144,7 @@ public final class FurnaceStation {
         //      `CookingLogicContainer.getCookTimeTotal/getCookTimeFinish/getBurnTimeTotal/isCooking`）——
         //      与 `GridDiscovery` 的"上游自述"同一套路：只认**方法名形态**，且用返回值**自校验**。
         ContainerData data = findContainerData(menu);
-        Object logic = data == null ? findCookingLogic(menu, picked.getKey()) : null;
+        Object logic = data == null ? cookingProgressReporter(menu, declaration) : null;
         if (data == null && logic == null) {
             return new Result(null, Codes.NO_PROGRESS_DATA,
                     "有 3 格容器（" + picked.getKey().getClass().getSimpleName()
@@ -159,9 +163,11 @@ public final class FurnaceStation {
             maxProgress = safeGet(data, 3);
             dataName = dataName(data);
         } else {
-            // 上游自述（路径 ②）：只有"总量"可读（精妙存储给的是 cookTimeTotal/burnTimeTotal）
+            // 上游自述（路径 ②）：只有"总量"可读（精妙存储给的是 cookTimeTotal/burnTimeTotal）；
+            // `getCookTimeFinish()` 是**一个 long 级别的游戏时刻**（不是倒计时），拿它跟总量算不出百分比
+            // ⇒ 进度如实报**未知（-1）**，别把"读不到"写成 0%（原版路径靠 `ContainerData` 才有百分比）。
             maxProgress = intCall(logic, "getCookTimeTotal");
-            progress = intCall(logic, "getCookTimeFinish") > 0 ? maxProgress : 0;
+            progress = -1;
             litTime = intCall(logic, "getBurnTimeTotal");
             dataName = cookingLogicName(logic) + "(selfReported)";
         }
@@ -214,6 +220,35 @@ public final class FurnaceStation {
             return lines;
         }
         lines.add("menu=" + menu.getClass().getName() + " menuSlots=" + menu.slots.size());
+        // **槽位宿主 + 它下面一层**：路径 ③ 的候选来源。实测教训（2026-09-13）：自述者
+        // （`CookingLogicContainer`）藏在宿主的私有字段里，只有把这一层也摊开才看得见。
+        GridDiscovery.Scan scan = GridDiscovery.scan(menu);
+        lines.add("slotOwners=" + scan.owners().size() + " reachableSlots=" + scan.slots().size()
+                + " registeredSlots=" + scan.registered());
+        for (Object owner : scan.owners()) {
+            List<String> nested = new ArrayList<>();
+            for (Field field : allFields(owner.getClass())) {
+                if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+                    continue;
+                }
+                try {
+                    field.setAccessible(true);
+                    Object value = field.get(owner);
+                    if (value != null && !(value instanceof Slot)) {
+                        String simple = value.getClass().getSimpleName();
+                        nested.add(simple.isEmpty() ? value.getClass().getName() : simple);
+                    }
+                } catch (Throwable ignored) {
+                    // 只读诊断：读不到就跳过
+                }
+            }
+            String ownerName = owner.getClass().getSimpleName();
+            lines.add("  owner=" + (ownerName.isEmpty() ? owner.getClass().getName() : ownerName)
+                    + " nested=" + nested
+                    + " cookingSlots=" + (callNoArg(owner, "getCookingSlots") instanceof List<?> list
+                            ? String.valueOf(list.size()) : "-")
+                    + " progress=" + hasCookingProgress(owner));
+        }
         List<Object> reachable = reachableObjects(menu);
         lines.add("reachableObjects=" + reachable.size());
         for (Object object : reachable) {
@@ -283,22 +318,112 @@ public final class FurnaceStation {
     }
 
     /**
-     * **路径 ②：上游自述的烹饪逻辑**（**按方法名形态**找，不按类名）。
+     * **路径 ③ 的产物**：自述"我有 3 个烹饪槽"的上游对象 + 它自述的那 3 格。
      *
-     * <p>判据：某个可达对象同时有 `getCookTimeTotal()` 与 `isCooking()`/`getBurnTimeTotal()` 之一。
-     * 只做"只读调用"，返回值仅用于**报告过程证据**；**判成功与否一律看世界事实**。
+     * @param slots 自述的 3 个槽（顺序**只当参考**；输入/燃料/输出一律由 {@code mayPlace} 行为判定）
+     * @param owner 自述者本身（它通常也自述烹饪进度，见 {@link #cookingProgressReporter}）
      */
-    private static Object findCookingLogic(AbstractContainerMenu menu, Container furnaceContainer) {
-        List<Object> candidates = new ArrayList<>();
-        candidates.add(menu);
-        candidates.addAll(reachableObjects(menu));
-        for (Object candidate : candidates) {
-            if (hasMethod(candidate, "getCookTimeTotal")
-                    && (hasMethod(candidate, "isCooking") || hasMethod(candidate, "getBurnTimeTotal"))) {
+    private record Declaration(List<Slot> slots, Object owner) {
+    }
+
+    /**
+     * **路径 ③：上游自述的烹饪槽位**（**按方法名形态**找，不按类名）。
+     *
+     * <p>判据 = 某个可达对象自己声明 `getCookingSlots()` 且**确实**给出 3 个 `Slot`
+     * （精妙存储/精妙背包的"熔炼/高炉/烟熏升级页签"就是这种：那 3 格不挂在同一个 `Container` 上，
+     * 所以"一个容器恰好 3 格"这条形态学判据必然认不出它）。
+     *
+     * <p>**为什么候选集要扩一层**（2026-09-13 A4b 首测 `no_furnace_slots` 的真因）：上游把自述者
+     * 放在槽位宿主的**私有字段**里（`CookingUpgradeContainer.cookingLogicContainer`）；宿主在 2 层遍历里
+     * 看得见（diag 里 `obj=CookingUpgradeContainer methods=[getSmeltingLogicContainer]`），
+     * 自述者正好被深度上限挡在外面 ⇒ **看见宿主却看不见自述者**。见 {@link #cookingCandidates}。
+     */
+    private static Declaration findCookingDeclaration(AbstractContainerMenu menu) {
+        for (Object candidate : cookingCandidates(menu)) {
+            Object declared = callNoArg(candidate, "getCookingSlots");
+            if (!(declared instanceof List<?> list) || list.size() != 3) {
+                continue;
+            }
+            if (!list.stream().allMatch(Slot.class::isInstance)) {
+                continue;
+            }
+            List<Slot> slots = new ArrayList<>();
+            for (Object entry : list) {
+                slots.add((Slot) entry);
+            }
+            return new Declaration(slots, candidate);
+        }
+        return null;
+    }
+
+    /**
+     * **自述烹饪进度的对象**：判据 = `getCookTimeTotal()` 且（`isCooking()` 或 `getBurnTimeTotal()`）。
+     * 只做"只读调用"，返回值仅用于**报告过程证据**；**判成功与否一律看世界事实**。
+     *
+     * <p>自述槽位与自述进度实测是**同一个对象**（`CookingLogicContainer`），所以先问它、避免重复遍历。
+     */
+    private static Object cookingProgressReporter(AbstractContainerMenu menu, Declaration declaration) {
+        if (declaration != null && hasCookingProgress(declaration.owner())) {
+            return declaration.owner();
+        }
+        for (Object candidate : cookingCandidates(menu)) {
+            if (hasCookingProgress(candidate)) {
                 return candidate;
             }
         }
         return null;
+    }
+
+    private static boolean hasCookingProgress(Object target) {
+        return hasMethod(target, "getCookTimeTotal")
+                && (hasMethod(target, "isCooking") || hasMethod(target, "getBurnTimeTotal"));
+    }
+
+    /**
+     * 烹饪自述的**候选对象**：菜单 + 菜单可达对象 + 每个"**槽位宿主**"的字段再展开一层。
+     *
+     * <p>只对"产出过槽位的宿主"（{@link GridDiscovery.Scan#owners()}，即上游容器对象）多展开一层：
+     * 既够到藏在宿主私有字段里的自述者，又**不会把遍历炸开**（宿主不是 `ServerLevel` 那种世界对象）。
+     * 收进来的对象一律要**自校验**（自述 3 个烹饪槽 / 自述烹饪进度方法族）才会被采用。
+     */
+    private static List<Object> cookingCandidates(AbstractContainerMenu menu) {
+        List<Object> out = new ArrayList<>();
+        out.add(menu);
+        out.addAll(reachableObjects(menu));
+        for (Object owner : GridDiscovery.scan(menu).owners()) {
+            if (owner == null) {
+                continue;
+            }
+            out.add(owner);
+            for (Field field : allFields(owner.getClass())) {
+                if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+                    continue;
+                }
+                try {
+                    field.setAccessible(true);
+                    Object value = field.get(owner);
+                    if (value != null) {
+                        out.add(value);
+                    }
+                } catch (Throwable ignored) {
+                    // 只读诊断：读不到就跳过
+                }
+            }
+        }
+        return out;
+    }
+
+    /** 类层次上声明的全部字段（vanilla/上游都可能把东西藏在父类里）。 */
+    private static List<Field> allFields(Class<?> type) {
+        List<Field> fields = new ArrayList<>();
+        Class<?> current = type;
+        while (current != null && current != Object.class) {
+            for (Field field : current.getDeclaredFields()) {
+                fields.add(field);
+            }
+            current = current.getSuperclass();
+        }
+        return fields;
     }
 
     /** 菜单**可达的对象**（字段/集合/映射展开一层，深度受限；只读、逐项容错）。 */
