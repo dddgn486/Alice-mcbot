@@ -8136,7 +8136,7 @@ user prompt 的"注意"段也补上"craftable 清单 / `craftable_truncated` 的
 
 #### D-200 附注一：直连指令**被自己的清空语句擦掉**（"让它做工作台，它却发了伐木指令"）—— 已结构性修复
 
-**客户端事实**（20:36，jar `b31727dc…`）：`/alice instruct 用你词汇表里的 craft 动作做一个工作台` 之后
+**客户端事实**（20:36，jar `288fc05f…`）：`/alice instruct 用你词汇表里的 craft 动作做一个工作台` 之后
 ```
 [Goal] decision_action trigger=operator latency=4153ms raw={"action":"start_job","kind":"region_lumber","target":"region:saved",…} → StartJob(REGION_LUMBER …)
 [Goal] execute action=start_job ok=true trigger=operator
@@ -8155,7 +8155,7 @@ user prompt 的"注意"段也补上"craftable 清单 / `craftable_truncated` 的
 3. **可见性**：`[Goal] decision_request trigger=… mode=directed|normal model=…` —— 以后"指令到底发出去没有"一眼可判；
 4. `instruct()` 的状态快照也带上 `trigger="operator"`（与 D-200 的 trigger 字段配套）。
 
-**等级**：IMPLEMENTED + COMPILES + 已同步（jar `b31727dc…`）；**待客户端复测**（期望 `mode=directed` + `directed_result` 行）。
+**等级**：IMPLEMENTED + COMPILES + 已同步（jar `288fc05f…`）；**待客户端复测**（期望 `mode=directed` + `directed_result` 行）。
 
 #### D-200 附注二：直连通道验证通过 + **临时裁定复核结论**
 
@@ -8172,3 +8172,36 @@ user prompt 的"注意"段也补上"craftable 清单 / `craftable_truncated` 的
 **为什么保留而不是回收**：它今天一次性证明了它的价值——正是它把"**指令没送达**（我的状态传递 bug）"
 与"**LLM 不听话**"分开；若只有菜单式测试，这两种故障会长得一模一样。
 **可选加固（用户定）**：若要更保险，可加 `LlmConfig.allowDirected`（默认 false）——代价是默认情况下这条诊断路要手动开。
+
+### D-201：阶段 3-A 收口复盘 + 电池整理（CORE 25 → **17**）
+
+**触发**：阶段 3-A（A1–A5）全部客户端验证完成；用户同意"收口复盘 + 电池整理"。按 `BATTERY_CURATION.md` 规则 2/4。
+
+**整理口径（唯一判据：这一类机制是不是"只此一步覆盖"）**：
+- **留在 MAIN（4）**：
+  | 步 | 只此一步覆盖的机制 |
+  |---|---|
+  | `craft_check` | 只读配方查询层（最便宜的一步） |
+  | `craft_goal` | **A5 端到端**（可做清单 + 严格解析 + 生产路径 `CraftJob`）；顺带覆盖 A2/A3/C 的**同一套**发现器与执行器 |
+  | `craft_furnace` | **方块型**熔炉：`ContainerData` 进度路径 + 炉子自复位（重建方块熄灭） |
+  | `craft_cooking` | **菜单型**炉子：上游自述 3 格 + **未登记槽位地址**（`slot.index ≥ menu.slots.size()`）+ 按需装配 |
+- **退 EXTRA（8，FULL 仍全覆盖）**：`craft_action`、`craft_table`、`craft_station`、`craft_probe_inventory`、
+  `craft_probe_table`、`craft_probe_upgradetab`、`craft_station_provision`、`craft_station_craft`
+  —— 它们覆盖的**机制**分别被 `craft_goal`（网格合成/发现器）、`craft_cooking`（装配）、
+  BASELINE 的 `write_budget`/`clear_guard`/`clear_retry`/`scaffold`（写入预算 + 建拆同权）覆盖。
+- **BASELINE 不动（13）**：规则 3 说的是"新的破坏性路径/写入维度"要进 BASELINE；
+  3-A 的容器写入维度已由既有 `write_budget` 守卫，不重复占默认预算。
+
+**当轮 CORE 项数 = 13 + 4 = 17（FULL 35）**。`CURATION` 与 `docs/BATTERY_CURATION.md` 同步（自校验要求一致）。
+
+**阶段 3-A 收口复盘（教训，均已落到代码或纪律）**：
+1. **判据别只看形态**：模组把 3 格分挂在各自的物品处理器上 ⇒ 问**上游自述**（`getCookingSlots()`）；
+2. **"找不到对象"先怀疑遍历深度**：自述者在宿主的**私有字段**里（比 2 层上限深一层）⇒ 只对**槽位宿主**扩一层，不全局加深；
+3. **相位函数要么幂等、要么换相位**：跨 tick 的分支留在原相位 = 每 tick 互相抵消的活锁（关菜单 ↔ 开菜单）；
+4. **新增动作必须同时改三处**：解析层 + **system prompt 词汇表** + user prompt/状态说明（漏了第 2 处 = 能力存在但没人会叫它）；
+5. **可变状态别跨调用传参**：`State.directedPrompt` 这种"邮箱"被 `fire()` 自己擦掉 ⇒ 直连指令退化成普通决策请求；
+   改成**显式参数**后这类 bug 结构上不可能（D-200 附注一）。
+
+**仍然开放/未做（不假装已完成）**：机器/未支持配方类型（如实 `machine_recipe_unsupported`）；方块型熔炉**未进站点模型**
+（`cookingtab` 之外的烧炼站点还不能被 A5 选中）；`craftable` 扫描成本（≤8000 配方/次，未测极端整合包下的耗时）；
+直连通道这一处红线例外（D-200 附注二）；背包型站点、Refined Storage 兼容未做。

@@ -109,20 +109,23 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("capability_gate", Profile.BASELINE),
             Map.entry("tool_supply", Profile.BASELINE),
             Map.entry("recoverability", Profile.BASELINE),
-            // ---- MAIN：当前主线 = 阶段 3-A 工作站 + 熔炉（10）----
+            // ---- MAIN：阶段 3-A 收口后的最小烟测集（4）----
+            // 口径（D-201）：每一类"只此一步覆盖"的机制各留一步 + 查询层最便宜一步；
+            // A2/A3/A3b/C/装配/发现器探针等同机制夹具退 FULL（机制不丢，默认时长下降）
             Map.entry("craft_check", Profile.MAIN),
-            Map.entry("craft_action", Profile.MAIN),
-            Map.entry("craft_table", Profile.MAIN),
-            Map.entry("craft_station", Profile.MAIN),
-            Map.entry("craft_probe_inventory", Profile.MAIN),
-            Map.entry("craft_probe_table", Profile.MAIN),
-            Map.entry("craft_probe_upgradetab", Profile.MAIN),
-            Map.entry("craft_station_provision", Profile.MAIN),
-            Map.entry("craft_station_craft", Profile.MAIN),
             Map.entry("craft_furnace", Profile.MAIN),
             Map.entry("craft_cooking", Profile.MAIN),
             Map.entry("craft_goal", Profile.MAIN),
-            // ---- EXTRA：已验收/无关/耗时（10）----
+            // ---- EXTRA：已验收/无关/耗时（18）----
+            // 阶段 3-A 收口后从 MAIN 退场（2026-09-13 D-201）：机制已被保留项覆盖 ⇒ 只留 FULL 全覆盖
+            Map.entry("craft_action", Profile.EXTRA),
+            Map.entry("craft_table", Profile.EXTRA),
+            Map.entry("craft_station", Profile.EXTRA),
+            Map.entry("craft_probe_inventory", Profile.EXTRA),
+            Map.entry("craft_probe_table", Profile.EXTRA),
+            Map.entry("craft_probe_upgradetab", Profile.EXTRA),
+            Map.entry("craft_station_provision", Profile.EXTRA),
+            Map.entry("craft_station_craft", Profile.EXTRA),
             Map.entry("lumber_failure", Profile.EXTRA),
             Map.entry("region_maintain", Profile.EXTRA),
             Map.entry("decision_contract", Profile.EXTRA),

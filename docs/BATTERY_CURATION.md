@@ -27,16 +27,18 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 `clear_guard` / `clear_retry` / `scaffold`（三条破坏性路径的守卫与建拆同权）、`partial_search`（`SEARCH_LIMIT ≠ UNREACHABLE`）、
 `capability_gate`（闸门）、`tool_supply`（不凭空变工具）、`recoverability`（可回收性等级）
 
-### MAIN（12）—— 阶段 3-A 工作站 + 熔炉（方块型 + 菜单型）+ A5 决策层接线
-`craft_check`（A1 只读查询）、`craft_action`（A2 随身 2×2）、`craft_table`（A3 工作台 3×3，零写入）、
-`craft_station`（A3b 自放工作站）、`craft_probe_inventory` / `craft_probe_table`（发现器回归：硬断言 2×2 / 3×3）、
-`craft_probe_upgradetab`（模组站点探测）、`craft_station_provision`（L2 装配装/拆）、
-`craft_station_craft`（C 模组站点真合成）、`craft_furnace`（A4 熔炉-方块型）、`craft_cooking`（A4b 熔炉-菜单型/熔炼页签）、
-`craft_goal`（A5 决策层接线：可做清单 + 严格解析 + 生产路径 `CraftJob`；**不需要场景**）
+### MAIN（4）—— 阶段 3-A 收口后的最小烟测集（2026-09-13 D-201）
+口径：**每一类「只此一步覆盖」的机制各留一步 + 查询层最便宜的一步**；同机制的夹具退回 FULL。
+`craft_check`（A1 只读配方查询，最便宜）、`craft_goal`（A5 端到端：可做清单 + 严格解析 + 生产路径 `CraftJob`
+—— 顺带覆盖 A2/A3/C 的**同一套**发现器与执行器）、`craft_furnace`（**方块型**熔炉：只此一步覆盖
+`ContainerData` 路径 + 炉子自复位）、`craft_cooking`（**菜单型**炉子：只此一步覆盖「上游自述 3 格」+
+未登记槽位地址 + 按需装配）。
 
-### EXTRA（10）
+### EXTRA（18）
 `lumber_failure`、`region_maintain`（区域常驻 Job，耗时）、`decision_contract`、`decision_trace`、`llm_contract`、
-`permission_gate`、`pickup_gate`、`collect_job`、`recipes_dump`、`event_thresholds`
+`permission_gate`、`pickup_gate`、`collect_job`、`recipes_dump`、`event_thresholds`，
+以及 3-A 收口退场（机制已被 MAIN 保留项覆盖，FULL 仍全覆盖）：`craft_action`、`craft_table`、`craft_station`、
+`craft_probe_inventory`、`craft_probe_table`、`craft_probe_upgradetab`、`craft_station_provision`、`craft_station_craft`
 
 ## 3. 维护规则（我 = AI 负责执行）
 
@@ -54,3 +56,4 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 | 2026-09-13 | 23 | 33 | 建立分档：BASELINE 13 / MAIN 10（3-A 工作站+熔炉）/ EXTRA 10 |
 | 2026-09-13 | 24 | 34 | 新增 A4b 菜单型炉子（`craft_cooking`）⇒ MAIN 11 |
 | 2026-09-13 | 25 | 35 | 新增 A5 决策层接线（`craft_goal`）⇒ MAIN 12 |
+| 2026-09-13 | **17** | 35 | **3-A 收口整理**（D-201）：MAIN 12 → **4**（只留「只此一步覆盖」的机制：查询／决策端到端／方块炉／菜单炉），8 项退 EXTRA |

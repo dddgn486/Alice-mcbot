@@ -71,14 +71,14 @@
    站点做不了 `Refused(station_cannot:…)`、`job_terminal=DONE`、`planks_delta=-4 product_count=1`、`durationTicks=8`）；
 2. CORE 电池 **`(25/25) ticks=2737 → PASS`**（含 `craft_goal=PASS`）。
 
-**LLM 路径已验证 ✅**（20:39，jar `b31727dc…`）：`/alice instruct 用你词汇表里的 craft 动作做一个工作台` ⇒
+**LLM 路径已验证 ✅**（20:39，jar `288fc05f…`）：`/alice instruct 用你词汇表里的 craft 动作做一个工作台` ⇒
 `mode=directed` → `directed_result raw={"action":"craft","item":"minecraft:crafting_table","count":1}` →
 `execute action=craft ok=true` → `[CraftJob] … 世界事实 product 0→1 ⇒ 达成`。
 ⇒ **阶段 3-A（A1–A5）全部收口**；下一阶段候选见 §4 待办。
 
 ## 4. 待办队列
 
-1. **A5 复测**（见 §3b）；通过后阶段 3-A 收口。
+1. **电池整理后复跑一次 CORE**（期望 `(17/17) → PASS`；FULL 仍 35 项，用 `/alice battery full` 全覆盖）。
 2. 已登记未做：菜单型站点/背包型站点（精妙背包）复用同一套；Refined Storage 兼容（用户暂缓）。
 
 ## 5. 关键入口与环境（复现用）
@@ -91,7 +91,7 @@
 - 零参数入口：`alice:craft_check|craft_action_check|craft_table_check|craft_station_check|craft_grid_probe|
   craft_station_provision_check|craft_station_craft_check|craft_furnace_check|craft_cooking_check|craft_goal_check|regression_battery|bot_report`。
 - 命令：`/alice craft station <auto|inventory|table|upgradetab|cookingtab>`、`/alice battery core|full|list`。
-- 电池：**CORE = BASELINE 13 + MAIN 12 = 25 项**（FULL 35）；配置唯一入口 `RegressionBatteryTask.CURATION`。
+- 电池：**CORE = BASELINE 13 + MAIN 4 = 17 项**（FULL 35；3-A 收口整理见 D-201）；配置唯一入口 `RegressionBatteryTask.CURATION`。
 - 模组（客户端 mods/）：alice、JEI、OreExcavation、JEI-pinyin、WorldEdit、create、extendedcrafting、cucumber、
   mekanism、thermal_*、**精妙存储 1.4.86.2131 + 精妙核心 1.5.1.2335 + 精妙背包 3.26.3.2157**、RefinedStorage 1.12.4。
 - 本轮最后同步的 jar：`8497ec11c573ccbde9679546856f4cec79b8d2260b5a0a9e1bf530f456f663b0`（源码镜像 + 运行工件均已同步）。
