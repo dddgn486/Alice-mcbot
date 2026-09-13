@@ -141,6 +141,32 @@ public final class StationProvision {
         return count;
     }
 
+    /**
+     * **开菜单前把手里的升级换走**（夹具纪律）。
+     *
+     * <p>**2026-09-13 实测机制**：拿着合成升级右键容器时，**升级物品自己会把它装进容器**
+     * （物品驱动的装配路径，"Right Click To Add"），于是那次右键**不打开 GUI** ——
+     * 表现就是 `use_item_on … result=SUCCESS`（而正常打开时是 `CONSUME`）+ 随后 `menu_open_timeout`。
+     * ⇒ 凡是要"打开站点菜单"的动作，**先把选中的快捷栏槽换成空格**，行为才确定。
+     *
+     * @return 是否换过（换过会同步主手，客户端观感一致）
+     */
+    public static boolean clearHeldUpgrade(BotPlayer bot, net.minecraft.world.item.Item upgrade) {
+        var inventory = bot.getInventory();
+        if (upgrade == null || !inventory.getItem(inventory.selected).is(upgrade)) {
+            return false;
+        }
+        for (int slot = 0; slot < 9 && slot < inventory.getContainerSize(); slot++) {
+            if (inventory.getItem(slot).isEmpty()) {
+                inventory.selected = slot;
+                com.dddgn.alice.bot.BotManager.syncMainHand(bot);
+                BotLog.info("[Provision] 开菜单前把升级换出主手（selected={}）", slot);
+                return true;
+            }
+        }
+        return false;
+    }
+
     // ==================== 动作（每个方法 = 一次点击，调用方负责 tick 节奏） ====================
 
     /**

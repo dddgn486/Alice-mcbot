@@ -179,6 +179,8 @@ public class CraftStationCraftCheckTask implements Task {
             if (!bot.onGround()) {
                 return phaseTicks > OPEN_TICKS ? failAndFinish("not_on_ground") : Status.RUNNING;
             }
+            // **夹具纪律**：手里握着升级右键容器 = 物品自己装进去、**GUI 不开**（实测）⇒ 开菜单前先换走
+            StationProvision.clearHeldUpgrade(bot, upgrade);
             if (viaSelectedStation) {
                 CraftStation.Opened opened = CraftStation.open(bot, SCAN_RADIUS);
                 if (!opened.ok()) {

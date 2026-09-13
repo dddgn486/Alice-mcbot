@@ -406,7 +406,13 @@ legacy 双内核整批删除（19 文件，依据"按路径分析的零活引用
 **D-173 补漏**：`pathing/movement/` 14 文件（外部真引用 0）整包删除 + `.gitignore` 藏住的
 `PathExecutor.java.backup` 删除。
 
-**阶段 3-A / L2 工作站装配（最新，D-194，待客户端）**：新增 `task/craft/StationProvision`（装配那一层：
+**阶段 3-A「工作站」大块收口（2026-09-13，客户端全绿）**：通用发现（随身 2×2 / 工作台 3×3 /
+精妙存储"合成升级页签"3×3，**零模组专属代码**）、工作站可切换（`/alice craft station`，不自动选优）、
+只读探针（`alice:craft_grid_probe`）、执行接入发现器（B，D-193）、装配层装/拆（A，D-194）、
+模组站点**真合成**（C，D-195）—— **32 项电池 `(32/32) ticks=3592 → PASS`**。
+实测语义：产物**进容器**（`product_in_container=1`）、**不自动补料**、握升级右键容器=物品自己装进去（GUI 不开）。
+
+**阶段 3-A / L2 工作站装配（D-194，客户端已验证）**：新增 `task/craft/StationProvision`（装配那一层：
 QUICK_MOVE 装入 / 取回；**落点不猜、地址不猜**）+ 夹具 `CraftStationProvisionCheckTask` +
 零参数入口 `alice:craft_station_provision_check` + **新写入理由 `STATION_PROVISION` 与 A 表 A13**（容器写入维度）；
 电池 30 → **31 项**（`craft_station_provision`，模组不在 ⇒ SKIP）。场景 `craft_tab_course` **不再给玩家发升级**。

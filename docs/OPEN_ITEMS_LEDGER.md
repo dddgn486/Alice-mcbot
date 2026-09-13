@@ -578,3 +578,9 @@ jar `4217b7ec…`。
 `craft_station_provision` 的"本来没有合成能力"前提被弄脏。修：场景先 `setblock … air` 再放箱子；
 两个夹具都**自己清理前提**（provision 记 `premise_cleaned`，craft 重算数量基线）。
 jar `2efb2d1e…`；**教训**："重建场景"不等于"状态干净"。
+
+**§6.34 32 项电池第三轮：全绿 + 机制发现（已加固）**：`(32/32) ticks=3592 → PASS`、无 SKIP/FAIL/崩溃。
+发现：**握着合成升级右键容器 ⇒ 物品自己装进去、GUI 不开**（`result=SUCCESS` vs 正常 `CONSUME`），
+这解释了上一轮的 `menu_open_timeout`，也解释了本轮夹具为何要清理"残留升级"。
+加固：开菜单前 `clearHeldUpgrade`（把选中槽换成空格）。
+**阶段 3-A 工作站大块收口**。jar `e8082b1b…`。

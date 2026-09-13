@@ -224,6 +224,8 @@ public class CraftStationProvisionCheckTask implements Task {
             if (!bot.onGround()) {
                 return phaseTicks > OPEN_TICKS ? failAndFinish("not_on_ground") : Status.RUNNING;
             }
+            // **夹具纪律**：手里握着升级右键容器 = 物品自己装进去、**GUI 不开**（实测）⇒ 开菜单前先换走
+            StationProvision.clearHeldUpgrade(bot, upgrade);
             // 与探针同一条路：**经过 `CraftStation.open`**（它按选中的站点解析，未来换形态也不用改这里）
             CraftStation.Opened opened = CraftStation.open(bot, SCAN_RADIUS);
             if (!opened.ok()) {
