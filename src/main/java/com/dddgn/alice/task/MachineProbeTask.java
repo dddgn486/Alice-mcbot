@@ -80,6 +80,35 @@ public class MachineProbeTask implements Task {
         return failed ? Status.FAILED : Status.DONE;
     }
 
+    /**
+     * **问上游自述**（协议 §3 第一条：上游自述 + 自校验）：机器类型不认原版语义，但常常**自己声明**了
+     * 与输入无关的输出定义（实测 `ItemStackToItemStackRecipe.getOutputDefinition() → List&lt;ItemStack&gt;`）。
+     * 这里**按返回值形态**取（不写死具体类名），并**自校验**（非空、不含 AIR）。
+     */
+    private static java.util.List<ItemStack> upstreamOutputDefinition(Recipe<?> recipe) {
+        for (String name : new String[]{"getOutputDefinition", "getOutputs"}) {
+            try {
+                var method = recipe.getClass().getMethod(name);
+                Object value = method.invoke(recipe);
+                if (!(value instanceof java.util.List<?> list)) {
+                    continue;
+                }
+                java.util.List<ItemStack> out = new ArrayList<>();
+                for (Object entry : list) {
+                    if (entry instanceof ItemStack stack && !stack.isEmpty()) {
+                        out.add(stack);
+                    }
+                }
+                if (!out.isEmpty()) {
+                    return out;   // 自校验通过才采信
+                }
+            } catch (Throwable ignored) {
+                // 没有这个方法/取不到就换下一个（不猜语义）
+            }
+        }
+        return java.util.List.of();
+    }
+
     private void run() {
         var server = bot.getServer();
         var access = server.registryAccess();
@@ -97,6 +126,10 @@ public class MachineProbeTask implements Task {
                 byType.computeIfAbsent(typeId, key -> new ArrayList<>()).add(recipe);
             }
         }
+        int samples = 0;
+        int unreadableViaVanilla = 0;
+        int upstreamReadable = 0;
+        int machineOutputNotItem = 0;
         int types = byType.size();
         int typeTotal = byType.values().stream().mapToInt(List::size).sum();
         BotLog.info("[MachineProbe] 命名空间={} 类型={} 条数={}（全表：可读={} 跳过={}）",
@@ -120,8 +153,22 @@ public class MachineProbeTask implements Task {
                         break;
                     }
                 }
-                BotLog.info("[MachineProbe]     sample id={} out={} x{} in={}",
-                        recipe.getId(), BuiltInRegistries.ITEM.getKey(out.getItem()), out.getCount(), ins);
+                java.util.List<ItemStack> upstream = upstreamOutputDefinition(recipe);
+                samples++;
+                boolean vanillaReadable = !out.isEmpty() && out.getItem() != net.minecraft.world.item.Items.AIR;
+                if (!vanillaReadable) {
+                    unreadableViaVanilla++;
+                }
+                if (!upstream.isEmpty()) {
+                    upstreamReadable++;
+                } else if (!vanillaReadable) {
+                    machineOutputNotItem++;   // 原版读不出、上游也没给出物品输出 ⇒ 如实归为"非物品输出"
+                }
+                BotLog.info("[MachineProbe]     sample id={} out={} x{} in={} upstream_item_out={}",
+                        recipe.getId(), BuiltInRegistries.ITEM.getKey(out.getItem()), out.getCount(), ins,
+                        upstream.isEmpty() ? "-"
+                                : BuiltInRegistries.ITEM.getKey(upstream.get(0).getItem()) + " x"
+                                        + upstream.get(0).getCount());
             }
         }
         int pending = WorldModLedger.pendingForOwner(server, bot.getUUID()).size();
@@ -135,6 +182,10 @@ public class MachineProbeTask implements Task {
                 .append(" readable_total=").append(readable)
                 .append(" skipped_total=").append(skipped)
                 .append(" samples_per_type=").append(SAMPLES_PER_TYPE)
+                .append(" samples=").append(samples)
+                .append(" unreadable_via_vanilla=").append(unreadableViaVanilla)
+                .append(" upstream_readable=").append(upstreamReadable)
+                .append(" machine_output_not_item=").append(machineOutputNotItem)
                 .append(" no_writes=").append(pending == 0)
                 .append(" verdict=").append(failed ? "FAIL" : "PASS");
         BotLog.info("[MachineProbe] SUMMARY {}", summary);

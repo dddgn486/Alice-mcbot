@@ -8335,7 +8335,7 @@ namespace=mekanism types=26 type_recipes=1171 readable_total=2923 skipped_total=
 把查询层的 `machine_recipe_unsupported` 升级为**有出处的机器路线**；探针按纪律**验证通过即回收**
 （或按 D-197 转成电池步）。换模组只改 `NAMESPACE` 与入口名字——**这就是"实验模板"的可复用性检验**。
 
-**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（77 项）+ 已同步（jar `8e497003…`）；**待客户端**（一次右键）。
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（77 项）+ 已同步（jar `f9860c3c…`）；**待客户端**（一次右键）。
 
 #### D-204 附注一：S1 取证**发现了关键事实**——原版 `Recipe` 接口**取不到**机器配方的输入/输出
 
@@ -8402,3 +8402,17 @@ Mekanism 的具体方法名只出现在**模组专属适配器**里。
 
 **我的执行承诺**：下一段"阶段 3-B / S1"我会开一个 goal，范围=**实现 Mekanism 只读适配器 + 探针补两栏 + 编译同步**，
 停止条件=**"探针准备好、需要你点一次"**；到那点即 `pause` 并等你回话，**不会自动来回查你测没测**。
+
+#### D-204 附注四：探针补"上游自述"读取 + 三栏计数（S1 取证第二轮，已同步）
+
+探针现在对每条样例**额外问一次上游自述**（`getOutputDefinition()`/`getOutputs()`，**按返回形态取 + 自校验**：
+非空且不含 AIR 才采信），并输出三栏计数——把上一轮"`out=air x0 in=[]`"的**歧义**拆开：
+- `unreadable_via_vanilla=N`：原版 `getResultItem()` 读不出（预期≈全部机器样例）；
+- `upstream_readable=N`：**上游自述能给出物品输出**（预期 > 0 ⇒ 证明"物品→物品"这一大类**可读**）；
+- `machine_output_not_item=N`：原版读不出、上游也没给物品输出 ⇒ **如实归为"非物品输出"**（化学品等，不硬塞语义）。
+
+样例行也多了 `upstream_item_out=…`（`-` = 上游没给）。**这一轮读数直接决定 S1 读法的覆盖面**：
+若 `upstream_readable` 接近样例数 ⇒ 先把"物品→物品"接进查询层；若 `machine_output_not_item` 占多数 ⇒
+只做"如实报码"，不碰化学品语义。
+
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `f9860c3c…`）；**待客户端**（一次右键）。
