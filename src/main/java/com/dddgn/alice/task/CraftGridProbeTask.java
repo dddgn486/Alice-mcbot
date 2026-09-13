@@ -4,6 +4,7 @@ import com.dddgn.alice.action.MenuSession;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.ledger.WorldModLedger;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.task.craft.CraftMenuIntrospection;
 import com.dddgn.alice.task.craft.CraftStation;
 import com.dddgn.alice.task.craft.GridDiscovery;
 import net.minecraft.core.BlockPos;
@@ -213,6 +214,16 @@ public class CraftGridProbeTask implements Task {
         record("menu_slots", String.valueOf(slots.size()));
         long inactive = slots.stream().filter(s -> !s.active()).count();
         record("inactive_slots", String.valueOf(inactive));
+
+        // **只读反射诊断**（D-192）：当"方块实体存档里明明有升级槽/升级，菜单里却没有"时，
+        // 必须把"菜单手里的包装器"与"方块实体手里的包装器"**分别**打印出来对比 —— 靠推理解决不了这种矛盾。
+        for (String fact : CraftMenuIntrospection.facts(menu, bot.serverLevel())) {
+            int eq = fact.indexOf('=');
+            if (eq > 0) {
+                record(fact.substring(0, eq), fact.substring(eq + 1));
+            }
+            BotLog.info("[CraftGridProbe] {}", fact);
+        }
 
         // L3 判据：**没有发包**的前提下，网格是否已可寻址（有 ⇒ 按用户裁定"没区别就不用管"）
         record("tab_action", "none");

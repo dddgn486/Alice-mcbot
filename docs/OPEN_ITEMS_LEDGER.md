@@ -482,3 +482,14 @@ A1 判据（零参数 `alice:craft_check`）：正例给工作站+材料清单�
   ⇒ 时序是：**探针 → 装升级 → 关游戏**。
 - ⏭ **只差重跑一次探针**（jar 未变，**不用重启**）：应看到 `slots≈74`（27+1 升级槽+10 合成+36 玩家）+
   `discover=OK grid=3x3 …` + `grid_addressable_without_tab=true`。
+
+**§6.22 D-192 第四轮：**升级确实在里面，服务端菜单却不认**（真矛盾，不是时序）**
+- 精确时间线（`latest.log` + `stat`）：`17:13:32` 跑场景（**重建箱子**）→ `17:13:35/17:13:50` 两次"暂停并保存"（装升级）→
+  **`region/r.0.0.mca` 写入时刻 `17:13:43.95`，解析出 `x:46 y:64 z:306 id:sophisticatedstorage:chest`、
+  `numberOfUpgradeSlots:1`、`upgradeInventory:[sophisticatedstorage:crafting_upgrade]`** → `17:13:57` 探针仍 `63 槽、无升级槽、无网格`。
+  ⇒ **升级比探针早 14 秒**，所以**不是时序问题**：方块实体有升级槽，服务端菜单里连升级槽都没有。
+- 结论：需要**现场内省**才能定位（菜单手里的包装器 vs 方块实体手里的包装器）。已加**只读反射诊断** `CraftMenuIntrospection`
+  （逐项 try/catch、只调 getter/读字段、只认接口形态），探针 SUMMARY 会多出 `diag_menu_wrapper=` / `diag_be_wrapper=` /
+  `diag_menu_upgradeContainers=` 三行。
+- **待测**：重启后**不要重跑场景**（否则升级又被清掉）→ `/alice craft station upgradetab` → 右键探针 → 看 `diag_*`。
+  另请**自己打开那个箱子**看一眼：右侧有没有"合成"页签（这条客户端事实能立刻分开"模组不给"与"我们开法不同"）。
