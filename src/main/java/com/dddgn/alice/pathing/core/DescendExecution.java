@@ -123,6 +123,15 @@ public final class DescendExecution implements MovementExecution {
         tickCount++;
     }
 
+    /** K-3：下落 1 格同样是"已提交"动作 ⇒ 空中不可取消（落地后可）。 */
+    @Override
+    public boolean safeToCancel() {
+        if (phase() != Phase.EXECUTING) {
+            return true;
+        }
+        return bot.onGround();
+    }
+
     @Override
     public void cancel() {
         if (phase == Phase.SUCCEEDED || phase == Phase.FAILED || phase == Phase.CANCELLED) return;

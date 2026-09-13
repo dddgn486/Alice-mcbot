@@ -78,6 +78,9 @@ public final class BotCommand {
                                          .executes(ctx -> buildRoadByBot(ctx.getSource()))))
                 .then(Commands.literal("observe")
                         .executes(ctx -> observe(ctx.getSource())))
+                // K-3：**取消当前任务**（`bot-control stop` 只停移动输入，不停任务）
+                .then(Commands.literal("stop-task")
+                        .executes(ctx -> stopTaskCommand(ctx.getSource())))
                 .then(Commands.literal("bot-control")
                         .then(Commands.literal("forward")
                                 .executes(ctx -> botControlForward(ctx.getSource())))
@@ -1334,6 +1337,25 @@ public final class BotCommand {
     }
     
     /** BotController 测试：让 Bot 停止 */
+    /** K-3：取消当前任务（安全点语义 + 结果如实回报）。 */
+    private static int stopTaskCommand(CommandSourceStack source) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] 没有可用 bot"));
+            return 0;
+        }
+        String kind = BotManager.stopTask(bot, "command");
+        if (kind == null) {
+            source.sendSuccess(() -> Component.literal("[alice] 当前没有任务"), false);
+            return 1;
+        }
+        var session = BotManager.sessionOf(bot);
+        String state = session == null ? "-" : session.describeSafeStops();
+        source.sendSuccess(() -> Component.literal("[alice] 已请求停止 " + kind
+                + "（安全点立即停；空中/已提交位移则延后到安全点）：" + state), false);
+        return 1;
+    }
+
     private static int botControlStop(CommandSourceStack source) {
         BotPlayer bot = BotManager.first();
         if (bot == null) {

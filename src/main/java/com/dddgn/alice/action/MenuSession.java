@@ -65,12 +65,38 @@ public final class MenuSession {
         this.containerSlotCount = containerSlotCount;
     }
 
-    /** 开始一次会话（立刻发出真实右键；随后每 tick 调 {@link #tick()}）。 */
+    private static int blockedAirborne;
+    private static int openWhileMoving;
+
+    /**
+     * 开始一次会话（立刻发出真实右键；随后每 tick 调 {@link #tick()}）。
+     *
+     * <p>**K-3 门**（对齐 Baritone `InventoryPauserProcess:53`：`safeToCancel && 站定 ≥2 tick` 才允许停下来开背包）：
+     * ① **空中一律硬拒**（打开容器菜单会让物品移动，半空中做既不合逻辑也不安全）；
+     * ② **控制器仍有输入**先告警 + 计数（段结束时可能有 1~2 tick 残留，数据不足不硬判 —— 不猜）。
+     */
     public static MenuSession open(BotPlayer bot, BlockPos target, int containerSlotCount) {
         MenuSession session = new MenuSession(bot, target, containerSlotCount);
+        if (!bot.onGround()) {
+            blockedAirborne++;
+            BotLog.warn("[Menu] 拒绝在空中开菜单（累计 {}）target={} bot={}",
+                    blockedAirborne, target.toShortString(), bot.blockPosition().toShortString());
+            session.fail(MenuCodes.MENU_NOT_SETTLED);
+            return session;
+        }
+        if (bot.controller() != null && bot.controller().hasActiveMovement()) {
+            openWhileMoving++;
+            BotLog.warn("[Menu] 开菜单时控制器仍有输入（累计 {}）target={} —— 频繁出现则应升为硬门",
+                    openWhileMoving, target.toShortString());
+        }
         session.state = State.OPENING;
         session.swingAndUse();
         return session;
+    }
+
+    /** 自检/汇报用：K-3 门的计数。 */
+    public static String describeGates() {
+        return "blockedAirborne=" + blockedAirborne + " openWhileMoving=" + openWhileMoving;
     }
 
     /** 推进打开过程。返回当前状态。 */

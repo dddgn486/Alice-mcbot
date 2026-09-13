@@ -72,6 +72,19 @@ public final class TraverseExecution implements MovementExecution {
         driveTowardTarget();
     }
 
+    /**
+     * K-3（对齐 Baritone `MovementTraverse.safeToCancel`）：不在执行中 ⇒ 可取消；
+     * 执行中则要求**目的地下方可站**（否则可能正走向"需要垫脚/回填才有支撑"的格子，取消会悬空）。
+     */
+    @Override
+    public boolean safeToCancel() {
+        if (phase() != Phase.EXECUTING) {
+            return true;
+        }
+        BlockPos destination = spec().toFoot();
+        return MovementHelper.canWalkOn(level, destination.below());
+    }
+
     @Override
     public void cancel() {
         if (phase == Phase.SUCCEEDED || phase == Phase.FAILED || phase == Phase.CANCELLED) {

@@ -103,6 +103,18 @@ public final class AscendExecution implements MovementExecution {
         }
     }
 
+    /**
+     * K-3（对齐 Baritone `MovementAscend.safeToCancel` 的"已提交"语义）：跳跃上升**空中**不可取消；
+     * 已落地（或未开始/已结束）则可以。Alice 的 ASCEND 不放置方块 ⇒ 承诺点是"起跳"本身。
+     */
+    @Override
+    public boolean safeToCancel() {
+        if (phase() != Phase.EXECUTING) {
+            return true;
+        }
+        return bot.onGround();
+    }
+
     @Override
     public void cancel() {
         if (phase == Phase.SUCCEEDED || phase == Phase.FAILED || phase == Phase.CANCELLED) {

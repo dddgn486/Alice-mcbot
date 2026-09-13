@@ -2,6 +2,10 @@
 # 区域：x 18..30, y 59..75, z 124..142
 fill 18 59 124 30 75 142 minecraft:air
 fill 18 59 124 30 59 142 minecraft:stone
+# 场景内**掉落物实体**一并清掉（孤立场景前提；与 scaffold_course_terrain/reset 同约定）。
+# 2026-09-13：用户实测暴露 —— 本函数原先只清方块，历史残留的掉落物（上一轮测试/玩家自己挖的）
+# 会让 `dropsLeft` 假失败（`collected=1/1` 也判 FAIL）。夹具侧另有 UUID 基线兜底。
+kill @e[type=minecraft:item,x=18,y=59,z=124,dx=13,dy=17,dz=19]
 
 # 平台：支撑 y=63（脚位 64），x 20..26，z 130..142
 fill 20 63 130 26 63 142 minecraft:stone

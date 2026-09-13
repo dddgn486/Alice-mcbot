@@ -3,6 +3,8 @@
 fill 17 58 165 31 76 181 minecraft:air
 fill 18 59 166 30 75 180 minecraft:air
 fill 18 59 166 30 59 180 minecraft:stone
+# 场景内掉落物实体一并清掉（孤立场景前提，2026-09-13；理由见 mine_course_terrain）
+kill @e[type=minecraft:item,x=18,y=59,z=166,dx=13,dy=17,dz=15]
 
 # 平台：支撑 y=63（脚位 64），x 20..26，z 168..178
 fill 20 63 168 26 63 178 minecraft:stone

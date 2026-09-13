@@ -1019,22 +1019,29 @@ public final class BotManager {
      *
      * @return 被停掉的任务名；没有任务时返回 null
      */
+    /**
+     * **请求停止任务**（K-3，2026-09-13）：能安全停就立刻停；**不安全则延后到安全点**
+     * （对齐 Baritone `PathExecutor:287`："不安全时不许取消"）。
+     *
+     * <p>判据（两条并集）：`task.safeToCancel()`（各 Movement 的承诺点：已跨出边缘/已放置/已起跳…）
+     * **或** `!bot.onGround()`（空中 = 与任务类型无关的硬事实 —— 这条让 **Job 也自动受保护**）。
+     * 延后上限 {@link BotSession#SAFE_STOP_DEFER_TICKS}，超时则**强制停并计数**（诚实上报，不无限等）。
+     */
     public static String stopTask(BotPlayer bot, String reason) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task == null) {
             return null;
         }
-        String kind = session.taskKind;
-        session.recordTerminal(session.taskKind, session.taskTargetDescription, session.taskStartTick,
-                TaskExecutionRecord.TerminalStatus.CANCELLED_BY_USER,
-                "cancelled:" + (reason == null ? "user" : reason), "idle_after_cleanup");
-        session.clearTask();
-        int residue = com.dddgn.alice.ledger.WorldModLedger
-                .pendingForOwner(bot.serverLevel().getServer(), bot.getUUID()).size();
-        BotLog.info("[alice] 已显式停止任务 {}（{}）{}", kind, reason == null ? "user" : reason,
-                residue == 0 ? "" : "；账本仍有 " + residue + " 条我方临时方块未拆（/alice restore 可清理）");
-        return kind;
+        if (session.safeToStopNow()) {
+            return session.immediateStop(reason, false);
+        }
+        session.pendingStopReason = reason == null ? "user" : reason;
+        session.pendingStopTicks = 0;
+        BotLog.info("[alice] 停止请求**延后到安全点**：task={} reason={}（空中或已提交位移）",
+                session.taskKind, session.pendingStopReason);
+        return session.taskKind;
     }
+
 
     /** 取 bot 的会话（决策层快照只读用；null = 未注册）。 */
     public static BotSession sessionOf(BotPlayer bot) {
@@ -1048,6 +1055,19 @@ public final class BotManager {
     }
 
     /** **被动拾取闸门自检**（S3.5 / D-143）：我方掉落物应捡、外来掉落物应被拦下。 */
+    /** K-3 安全点停止自检（确定性夹具：升空后请求停止）。 */
+    public static boolean assignK3StopCheck(BotPlayer bot, ServerPlayer observer,
+                                            com.dddgn.alice.task.K3StopCheckTask.Mode mode) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(new com.dddgn.alice.task.K3StopCheckTask(bot, observer, mode),
+                TaskTarget.block(bot.blockPosition()));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     /** L2 菜单协议最小验证探针（开真菜单 → 菜单点击搬物品 → 关闭）。 */
     public static boolean assignMenuProbe(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
@@ -1482,9 +1502,63 @@ public final class BotManager {
             broadcastTarget(this.target);
         }
 
+        /** K-3：延迟停止的上限（≈1 秒）；超时强制停并计数。 */
+        static final int SAFE_STOP_DEFER_TICKS = 20;
+        private String pendingStopReason;
+        private int pendingStopTicks;
+        private int safeStopDeferredCount;
+        private int forcedUnsafeStopCount;
+        private int survivalUnsafeInterruptCount;
+
+        /** K-3：此刻停这个任务安全吗（任务层承诺点 + 空中硬事实）。 */
+        boolean safeToStopNow() {
+            return task != null && task.safeToCancel() && bot.onGround();
+        }
+
+        /** 立即停止（原 `stopTask` 主体）；`forced` = 在不安全时刻被强制停。 */
+        String immediateStop(String reason, boolean forced) {
+            String kind = taskKind;
+            recordTerminal(taskKind, taskTargetDescription, taskStartTick,
+                    TaskExecutionRecord.TerminalStatus.CANCELLED_BY_USER,
+                    "cancelled:" + (reason == null ? "user" : reason), "idle_after_cleanup");
+            clearTask();
+            int residue = com.dddgn.alice.ledger.WorldModLedger
+                    .pendingForOwner(bot.serverLevel().getServer(), bot.getUUID()).size();
+            BotLog.info("[alice] 已显式停止任务 {}（{}）残余临时方块={}", kind,
+                    reason == null ? "user" : reason, residue);
+            if (forced) {
+                forcedUnsafeStopCount++;
+                BotLog.warn("[alice] 任务在**不安全时刻被强制停止**（累计 {}）：空中/已提交位移时取消有风险",
+                        forcedUnsafeStopCount);
+            }
+            return kind;
+        }
+
+        /** K-3 计数（汇报用）。 */
+        public String describeSafeStops() {
+            return "deferred=" + safeStopDeferredCount + " forcedUnsafe=" + forcedUnsafeStopCount
+                    + " survivalUnsafe=" + survivalUnsafeInterruptCount
+                    + (pendingStopReason == null ? "" : " pending=" + pendingStopReason);
+        }
+
         private void tick(HazardState hazard) {
             if (task == null) {
                 return;
+            }
+            // K-3：待处理的安全点停止（每 tick 检查一次）
+            if (pendingStopReason != null) {
+                boolean safe = safeToStopNow();
+                if (safe || ++pendingStopTicks > SAFE_STOP_DEFER_TICKS) {
+                    String reason = pendingStopReason;
+                    pendingStopReason = null;
+                    if (safe) {
+                        safeStopDeferredCount++;
+                        BotLog.info("[alice] 已到安全点，执行延后的停止（等待 {} tick）", pendingStopTicks);
+                    }
+                    pendingStopTicks = 0;
+                    immediateStop(reason + (safe ? ":safe_point" : ":forced_unsafe"), !safe);
+                    return;
+                }
             }
             // S-1（P1-C，2026-09-12）：**逃生任务本身豁免否决** —— 否则"中断 ⇒ 起逃生 ⇒ 下一 tick
             // 又被中断"会变成每 tick 自杀循环，逃生一步都走不出去。只豁免逃生动作；
@@ -1493,6 +1567,13 @@ public final class BotManager {
                     && SurvivalSystem.shouldInterrupt(hazard)) {
                 if (task instanceof TransferTask transfer) {
                     transfer.survivalInterrupted(SurvivalSystem.interruptionReason(hazard));
+                }
+                // K-3：生存打断**必须立即**（安全优先），但要**记录**它是否发生在不安全时刻 ——
+                // 这是"我们有多常在半空中取消"的真实数据，用来决定是否值得做更细的延迟策略。
+                if (!safeToStopNow()) {
+                    survivalUnsafeInterruptCount++;
+                    BotLog.warn("[alice] 生存打断发生在**不安全时刻**（累计 {}，task={}）",
+                            survivalUnsafeInterruptCount, taskKind);
                 }
                 lastTaskResult = "failed:" + SurvivalSystem.interruptionReason(hazard);
                 BotLog.warn("任务因维生危险中断: bot={} reason={}", bot.getName().getString(), lastTaskResult);

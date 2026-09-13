@@ -72,6 +72,19 @@ public final class DiagonalExecution implements MovementExecution {
         driveTowardTarget();
     }
 
+    /**
+     * K-3（对齐 Baritone `MovementDiagonal.safeToCancel` 的意图，但用**保守近似**）：
+     * Baritone 读玩家坐标做几何悬空判定；Alice 这里用"**不在执行中 或 目的地下方可站**"近似
+     * —— 对角移动同样可能走向"需要垫脚才有支撑"的格子。真正的几何判定留给需要时再加（不猜物理）。
+     */
+    @Override
+    public boolean safeToCancel() {
+        if (phase() != Phase.EXECUTING) {
+            return true;
+        }
+        return MovementHelper.canWalkOn(level, spec().toFoot().below());
+    }
+
     @Override
     public void cancel() {
         if (phase == Phase.SUCCEEDED || phase == Phase.FAILED || phase == Phase.CANCELLED) {

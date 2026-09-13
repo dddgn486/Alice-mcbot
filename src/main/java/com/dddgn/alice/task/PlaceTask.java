@@ -206,4 +206,10 @@ public final class PlaceTask implements Task {
         }
         return "place_path_failed";
     }
+
+    /** K-3：把"当前寻路段是否安全"透传给取消方（`/alice stop` 会据此延后到安全点）。 */
+    @Override
+    public boolean safeToCancel() {
+        return runner == null || runner.safeToCancel();
+    }
 }

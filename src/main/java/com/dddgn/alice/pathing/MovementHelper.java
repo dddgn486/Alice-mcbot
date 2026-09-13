@@ -128,6 +128,27 @@ public final class MovementHelper {
     }
 
     /**
+     * 规划期"可站"世界前提（K-4 / D-167）：脚下有支撑 + 脚位可通行 + 头位可通行。
+     *
+     * <p><b>与执行期契约的关系</b>：运行期完成判定 {@link #isSettledAtFootPos}
+     * （EXACT = 脚位格正确 + 已落地 + 水平距中心 ≤0.3）里，只有"世界前提"这部分能在规划期证明；
+     * "已落地"与"带没带到位"是运行期事实。所以本方法是 EXACT 的**必要条件**，不是充分条件——
+     * 规划期能证明的必须成立：支撑存在且非源流体（与 {@link #canWalkOn} 同口径）、
+     * 脚位与头位无碰撞（碰撞形状空 ⇒ 以格中心摆放的 0.6×1.8 玩家包围盒必然放得下，
+     * 因此"站得正"在规划期等价于这两条）。
+     *
+     * <p><b>唯一定义</b>（K-4 侦察结论）：本谓词原先在 {@code SurfaceMovementProvider} 复制 3 处、
+     * {@code StandingPointSelector.isStandable} 复制 1 处，而**目标准入一处都没查**。
+     * 现在一律调本方法；两条**故意更宽**的例外留在原处并注明理由（破坏类移动的落点
+     * 只能证明"破坏之后可站"，见 `SurfaceMovementProvider` 的 BREAK_AND_ENTER / DOWNWARD）。
+     */
+    public static boolean canStandCentered(ServerLevel level, BlockPos foot) {
+        return canWalkOn(level, foot)
+                && canWalkThrough(level, foot)
+                && canWalkThrough(level, foot.above());
+    }
+
+    /**
      * 危险方块(走入即受伤/致命或无法安全穿过)。
      * <p>对照 Baritone {@code MovementHelper.avoidWalkingInto:350-360}：熔岩、任意火(含灵魂火/营火)、
      * 岩浆块、仙人掌、甜浆果丛、末地传送门、蛛网、气泡柱。
@@ -263,10 +284,8 @@ public final class MovementHelper {
 
     /** 平地移动(从 from 脚位水平走到 to 脚位)。 */
     public static boolean canTraverse(ServerLevel level, BlockPos from, BlockPos to) {
-        // 目标脚位可站,目标身体格与头格可穿过
-        if (!canWalkOn(level, to)
-                || !canWalkThrough(level, to)
-                || !canWalkThrough(level, to.above())) {
+        // 目标脚位可站,目标身体格与头格可穿过（K-4/D-167：共用唯一定义）
+        if (!canStandCentered(level, to)) {
             return false;
         }
         int dx = to.getX() - from.getX();

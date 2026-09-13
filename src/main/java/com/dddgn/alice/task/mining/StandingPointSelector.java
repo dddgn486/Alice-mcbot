@@ -128,11 +128,9 @@ public final class StandingPointSelector {
         return result;
     }
 
-    /** 现成可站：脚下有支撑 + 脚位/头位可通行。 */
+    /** 现成可站：脚下有支撑 + 脚位/头位可通行（K-4/D-167：委托内核唯一定义）。 */
     public static boolean isStandable(ServerLevel level, BlockPos pos) {
-        return MovementHelper.canWalkOn(level, pos)
-                && MovementHelper.canWalkThrough(level, pos)
-                && MovementHelper.canWalkThrough(level, pos.above());
+        return MovementHelper.canStandCentered(level, pos);
     }
 
     private static void addCandidate(ServerLevel level, BlockPos target, BlockPos pos, double reach,

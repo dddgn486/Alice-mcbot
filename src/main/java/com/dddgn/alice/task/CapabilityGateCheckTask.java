@@ -151,6 +151,7 @@ public class CapabilityGateCheckTask implements Task {
 
         checkDeclarations();
         checkForeignBreakAttribution();
+        checkSafeCancelWiring();
         checkContainerWriteRecord();
 
         String summary = "pure_traversal_allowed=" + verdict("pure_traversal_allowed")
@@ -162,6 +163,7 @@ public class CapabilityGateCheckTask implements Task {
                 + " no_place_budget=" + verdict("no_place_budget")
                 + " declarations=" + verdict("declarations")
                 + " foreign_break_attribution=" + verdict("foreign_break_attribution")
+                + " safe_cancel_wiring=" + verdict("safe_cancel_wiring")
                 + " container_write_record=" + verdict("container_write_record")
                 + " verdict=" + (failures.isEmpty() ? "PASS" : "FAIL");
         BotLog.info("[CapabilityGate] SUMMARY {}", summary);
@@ -224,6 +226,26 @@ public class CapabilityGateCheckTask implements Task {
                 && reloaded.movements().size() == 2;
         check("container_write_record", recorded && persisted,
                 "recorded=" + recorded + " persisted=" + persisted + " " + reloaded.describeMovements());
+    }
+
+    /**
+     * **K-3 接线断言**（纯）：
+     * ① 非寻路任务的 `safeToCancel()` 必须是**默认 true**（否则取消会被无谓地延后）；
+     * ② **没有活跃寻路段**的 `PathRetryRunner` 必须报"安全"（否则空转等待安全点）。
+     */
+    private void checkSafeCancelWiring() {
+        boolean defaultTrue = new com.dddgn.alice.task.ToolSupplyCheckTask(bot, null).safeToCancel();
+        var request = new com.dddgn.alice.pathing.core.search.PathRequest(
+                bot.getUUID().toString(), bot.blockPosition(),
+                new com.dddgn.alice.pathing.core.search.GoalFoot(bot.blockPosition().east()),
+                com.dddgn.alice.pathing.core.search.PathRequest
+                        .of(bot.getUUID().toString(), bot.blockPosition(),
+                                bot.blockPosition().east(), "safe_cancel_check")
+                        .allowedMovementTypes(),
+                com.dddgn.alice.pathing.core.search.SearchBudget.UNLIMITED, "safe_cancel_check");
+        var idleRunner = new com.dddgn.alice.task.PathRetryRunner(bot, request, 0, "safe-cancel-check");
+        check("safe_cancel_wiring", defaultTrue && idleRunner.safeToCancel(),
+                "defaultTrue=" + defaultTrue + " idleRunnerSafe=" + idleRunner.safeToCancel());
     }
 
     /** 真实转换点产出的 caps 必须与 Movement 的写世界性质相符（否则能力声明仍可能是假的）。 */

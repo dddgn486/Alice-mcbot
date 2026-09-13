@@ -127,6 +127,19 @@ public final class PlaceStepAndTraverseExecution implements MovementExecution {
         driveTowardTarget();
     }
 
+    /**
+     * K-3：放置后**目标已有支撑**（Baritone `MovementTraverse` 的判据就是"目的地可站 ⇒ 可取消"），
+     * 所以只有"还没放置、且正在执行"时才算不安全？—— 不：放置是**资源承诺**，取消会留下一个
+     * 白放的方块（账本可回收，但观感与语义都不干净）⇒ 放置后到落稳前不可取消。
+     */
+    @Override
+    public boolean safeToCancel() {
+        if (phase() != Phase.EXECUTING) {
+            return true;
+        }
+        return !placed;
+    }
+
     @Override
     public void cancel() {
         if (phase == Phase.SUCCEEDED || phase == Phase.FAILED || phase == Phase.CANCELLED) {

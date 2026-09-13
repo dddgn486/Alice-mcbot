@@ -9,6 +9,7 @@ import com.dddgn.alice.pathing.core.CompletionTolerance;
 import com.dddgn.alice.pathing.core.LiveExecutionContext;
 import com.dddgn.alice.pathing.core.MovementExecution;
 import com.dddgn.alice.pathing.core.MovementType;
+import com.dddgn.alice.pathing.core.search.PathingStats;
 import com.dddgn.alice.pathing.core.MovementExecutionFactory;
 import com.dddgn.alice.pathing.core.MovementSpec;
 import com.dddgn.alice.pathing.core.search.PathPlan;
@@ -230,6 +231,11 @@ public final class PathSession {
         return status;
     }
 
+    /** K-3：当前执行段是否**可以安全取消**（无执行 ⇒ 安全）。 */
+    public boolean safeToCancel() {
+        return execution == null || execution.safeToCancel();
+    }
+
     public void cancel() {
         if (status != PathSessionStatus.RUNNING) {
             return;
@@ -282,6 +288,22 @@ public final class PathSession {
         CompletionTolerance tolerance = finalSegment
                 ? CompletionTolerance.EXACT
                 : CompletionTolerance.COLUMN;
+        if (finalSegment && !MovementHelper.canStandCentered(level, movement.toFoot())) {
+            // K-4 / D-167：最终段要求 EXACT（脚位 + 落地 + 距中心 ≤0.3），而它的目标格
+            // 连**规划期可查的世界前提**都不成立 ⇒ 该段只能在运行期撞 EXACT 判定。
+            // **只计数、不改行为**，并按最后一条边是不是写入类分档：
+            //  · 写入类（BREAK_AND_ENTER / DOWNWARD 等）：目标格"破坏之后才可站"是**设计如此**
+            //    （挖掘 ENTER_TARGET 模式的目标格就是矿块本身）⇒ 信息码；
+            //  · 纯通行边：理应被 provider 的 `canStandCentered` 挡掉 ⇒ 真异常。
+            // **收口（D-167）**：实测一轮完整电池里真异常码为 0 ⇒ 删掉当时的临时告警行，
+            // 只留累计计数（`alice:bot_report`）+ 电池 `K4=` 自断言（真异常会让电池判 FAIL）。
+            boolean writeEdge = com.dddgn.alice.pathing.core.search.MovementContext
+                    .plannedBreaks(movement.movementType()) > 0
+                    || com.dddgn.alice.pathing.core.search.MovementContext
+                    .plannedPlaces(movement.movementType()) > 0;
+            PathingStats.recordTotal(writeEdge
+                    ? "final_segment_target_post_write" : "final_segment_target_not_standable");
+        }
         // 归因（D-082/G1）：执行期的破坏/放置记账必须带上"谁发起的这次寻路"，
         // 否则内核写入永远是 unknown（原先这里用 5 参兼容构造器，requester 被填成 UNKNOWN）。
         // 执行期复验授权（R2b，闭合 G2）：搜索期确实只会生成被授权的 Movement，

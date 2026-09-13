@@ -478,4 +478,10 @@ public final class TransferTask implements Task {
     public TransferRequest request() { return request; }
     private void transition(TransferLedgerData.State state, TransferLedgerData.Location location, String code, boolean manual) { ledger.transition(request.requestId(), state, location, code, level.getGameTime(), state + ":" + location + ":" + level.getGameTime(), manual); }
     private static String evidence(ChestBotTransferPrimitive.Result r) { return " source=" + r.sourceDelta() + " bot=" + r.botDelta() + " destination=" + r.destinationDelta(); }
+
+    /** K-3：把"当前寻路段是否安全"透传给取消方（`/alice stop` 会据此延后到安全点）。 */
+    @Override
+    public boolean safeToCancel() {
+        return runner == null || runner.safeToCancel();
+    }
 }

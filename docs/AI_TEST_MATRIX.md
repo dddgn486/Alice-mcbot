@@ -16,12 +16,28 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 
 ## 当前架构阶段说明
 
+> **2026-09-13 更新**：下面这段"R1/R2 入口尚未定义"的说法**已过期** —— 新 Pathing Core 已建立，
+> 且有一整套零参数入口。**当前可用入口与判据的唯一权威清单是 [`TESTING_GUIDE.md`](TESTING_GUIDE.md)**；
+> 本文件只保留"能力 × 等级"的历史验收记录。
+
 当前测试矩阵分为两类：
 
 - Legacy 正式任务：MineTask/A/B/C、不可达安全失败，继续作为稳定基线；
 - Movement 独立实验：M1/M2 证据保留，但不代表新 Pathing Core 已建立，也不授权 MineTask 接入。
 
-新的 Pathing Core R1/R2 测试入口尚未定义；在契约评审通过前不新增生产寻路入口。
+### 当前主线入口与等级（2026-09-13）
+
+| 能力 | 零参数入口 | 关键判据 | 等级 |
+|---|---|---|---|
+| **串联回归电池**（23 项，★首选） | `alice:regression_battery` 右键 | `SUMMARY … (23/23) → PASS` + `K4=OK(…)` | `WINDOWS_CLIENT`（`ticks=3507`） |
+| 挖掘回归（11 用例） | 电池 `mine_regression` / `alice:mine_regression` | `SUMMARY free=PASS … scope_reopen_keeps_drops=PASS`；`dropsLeft` 只数本用例新增（D-168） | `WINDOWS_CLIENT`（11/11） |
+| **K-4 谓词一致性** | 电池 SUMMARY 的 `K4=` 段；`alice:bot_report` 的"目标准入（K-4 累计）"行 | 真异常 0；写入类例外仅计数 | `WINDOWS_CLIENT`（收口：不引硬拒） |
+| K-1 部分计划 | 电池 `partial_search` / `alice:partial_search_check` | `partial_with_prefix=PASS … verdict=PASS` | `WINDOWS_CLIENT`（电池内 PASS） |
+| 基-8 能力闸门 | 电池 `capability_gate` / `alice:capability_gate_check` | 10 用例含 `safe_cancel_wiring` | `WINDOWS_CLIENT`（电池内 PASS） |
+| L2 菜单/容器 | 电池 `transfer` / `alice:transfer_check` | `fixture=PASS end_to_end=PASS … verdict=PASS` | `WINDOWS_CLIENT`（电池内 PASS） |
+| 决策层 6 步 | 电池内 `decision_contract` / `decision_trace` / `permission_gate` / `pickup_gate` / `collect_job` / `recipes_dump` | 各自 `SUMMARY` | `WINDOWS_CLIENT`（电池内 PASS） |
+| **K-3 安全点停止** | `alice:k3_stop_check` 右键（DEFER）/ **Shift+右键**（FORCED） | `deferred=1` / `forcedUnsafe=1` | **待测**（FORCED 从未跑过；DEFER 需在"前提断言 + 新入口"后复测） |
+| 道具资源完整性 | `./tools/check-item-models.sh`（构建前） | `RESULT PASS`（空模型/坏 JSON/死贴图） | 脚本自测通过（D-170） |
 
 ## 当前矩阵
 

@@ -26,14 +26,14 @@ import java.util.function.Supplier;
  * **串联回归电池**（{@code alice:regression_battery}，D-122）：一次右键跑完"改了生产任务必须复跑"的常用回归。
  *
  * <p>为什么要有它（项目测试规矩）："多个检查项合并为一个自检任务，一次右键跑完，输出
- * {@code SUMMARY key=VALUE}"；把 23 个入口拆成让用户点 23 次是**反模式**。本电池把
+ * {@code SUMMARY key=VALUE}"；把 25 个入口拆成让用户点 25 次是**反模式**。本电池把
  * {@code docs/TESTING_GUIDE.md §1.7} 的清单固化下来，一步一项、各自复位、互不干扰。
  *
  * <p>每项独立：进入该项前先跑它需要的场景函数（有的项目已自带复位，就留空）、发齐夹具工具
  * （D-119 起生产任务不发工具）、把 bot 放到该场景起点，然后 tick 到终态；**任一项失败不中断**
  * （一趟看全），最后一行汇总。
  *
- * <p>输出：`[Regression] SUMMARY clear_retry=PASS … pathing=PASS (23/23) ticks=… → PASS`。
+ * <p>输出：`[Regression] SUMMARY clear_retry=PASS … pathing=PASS K4=OK(…) (23/23) ticks=… → PASS`。
  */
 public final class RegressionBatteryTask implements Task {
 
@@ -71,11 +71,15 @@ public final class RegressionBatteryTask implements Task {
     private int stepTicks;
     private Task current;
     private boolean stepStarted;
+    private final Map<String, Integer> k4Baseline;
 
     public RegressionBatteryTask(BotPlayer bot, ServerPlayer observer, ScopeBuffer scope) {
         this.bot = bot;
         this.observer = observer;
         this.scope = scope;
+        // K-4 / D-167：记录"谓词不统一"计数的基线 ⇒ 收尾时按**本次电池的增量**断言
+        // （进程累计会被电池之前的服务端活动污染，增量才是这次电池所有步骤的真实结果）。
+        this.k4Baseline = com.dddgn.alice.pathing.core.search.PathingStats.totalsSnapshot();
         buildSteps();
     }
 
@@ -191,6 +195,11 @@ public final class RegressionBatteryTask implements Task {
         // 基-8：能力闸门（MovementCapabilities 真的能拦人：保护区/资源/工具/预算/声明一致性）
         // 基-7：前缀搜索（K-1：预算耗尽交出前缀；真失败不给前缀）
         // R2：传输模块（4 个夹具：主流程/端点选择/选择器事件/命令解析）
+        // K-3 安全点停止（D-169）**故意不进电池**：它的判据是"**顶层任务**被延后停止"，
+        // 而 `stopTask` 停的是 bot 的顶层任务 —— 在电池里就是**电池自己**
+        // （实测：`停止请求延后到安全点：task=RegressionBatteryTask` → 电池在第 12 步自杀、无 SUMMARY）。
+        // ⇒ 走独立入口 `alice:k3_stop_check`（右键 DEFER / Shift+右键 FORCED），
+        // 任务侧另有 `fixture_not_top_level` 前提断言兜底。
         steps.add(step("transfer", List.of(), null,
                 () -> new TransferCheckTask(bot, observer), 400));
         steps.add(step("partial_search", List.of(), null,
@@ -330,7 +339,23 @@ public final class RegressionBatteryTask implements Task {
     private Status finish() {
         long pass = results.values().stream().filter("PASS"::equals).count();
         int expected = steps.size();
-        boolean allPass = pass == expected && results.size() == expected;
+        // K-4 / D-167 自断言：本次电池里**纯通行类**的目标准入矛盾必须为 0。
+        //   · goal_not_standable：规划期用离散格相等宣布 REACHED，但该格连"可站"都不成立，
+        //     且最后一条边不是写入类 ⇒ 与 provider 自身的 canStandCentered 保证直接冲突；
+        //   · final_segment_target_not_standable：最终段（EXACT）的目标格不可站且非写入类。
+        // 写入类的两个信息码（goal_post_write_not_standable / final_segment_target_post_write）
+        // 是**设计如此**（破坏类移动的落点只能证明"破坏之后可站"），不计入失败。
+        int goalBad = k4Delta("goal_not_standable");
+        int finalBad = k4Delta("final_segment_target_not_standable");
+        int postWrite = k4Delta("goal_post_write_not_standable")
+                + k4Delta("final_segment_target_post_write");
+        boolean k4Ok = goalBad == 0 && finalBad == 0;
+        if (!k4Ok) {
+            BotLog.warn("[K4] VIOLATION 本次电池出现谓词矛盾：goal_not_standable={}"
+                            + " final_segment_target_not_standable={}（可站谓词不统一的实测证据）",
+                    goalBad, finalBad);
+        }
+        boolean allPass = pass == expected && results.size() == expected && k4Ok;
         StringBuilder line = new StringBuilder();
         for (Step step : steps) {
             if (!line.isEmpty()) {
@@ -339,9 +364,19 @@ public final class RegressionBatteryTask implements Task {
             line.append(step.name()).append('=')
                     .append(results.getOrDefault(step.name(), "SKIPPED"));
         }
+        line.append(" K4=").append(k4Ok
+                ? "OK(goal_not_standable=0 final_segment_not_standable=0 写入类例外=" + postWrite + ")"
+                : "VIOLATION(goal_not_standable=" + goalBad
+                        + " final_segment_not_standable=" + finalBad + ")");
         BotLog.info("[Regression] SUMMARY {} ({}/{}) ticks={} → {}",
                 line, pass, expected, ticks, allPass ? "PASS" : "FAIL");
         return allPass ? Status.DONE : Status.FAILED;
+    }
+
+    /** 本次电池期间的累计计数增量。 */
+    private int k4Delta(String code) {
+        Map<String, Integer> now = com.dddgn.alice.pathing.core.search.PathingStats.totalsSnapshot();
+        return now.getOrDefault(code, 0) - k4Baseline.getOrDefault(code, 0);
     }
 
     private String currentStepName() {

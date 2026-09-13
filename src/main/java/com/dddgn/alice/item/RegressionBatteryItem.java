@@ -46,7 +46,7 @@ public class RegressionBatteryItem extends Item {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
-        say(player, "[alice] 串联回归电池已启动（23 项，约 4~6 分钟）。"
+        say(player, "[alice] 串联回归电池已启动（23 项，约 4~5 分钟）。"
                 + "请站远一点别捡掉落物；结果看日志 [Regression] SUMMARY。");
     }
 

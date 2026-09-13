@@ -182,6 +182,11 @@ public final class PathRetryRunner {
         return session;
     }
 
+    /** K-3：当前段是否处于"可以安全取消"的时刻（无会话 ⇒ 安全）。 */
+    public boolean safeToCancel() {
+        return session == null || session.safeToCancel();
+    }
+
     public void cancel() {
         if (session != null) {
             session.cancel();

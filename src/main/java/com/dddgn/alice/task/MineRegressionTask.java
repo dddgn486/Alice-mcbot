@@ -158,6 +158,11 @@ public final class MineRegressionTask implements Task {
     private int settleUntilTick;
     private String chainModeBefore;
     private String failure = "";
+    /**
+     * 用例开始时测量盒内的掉落物 UUID（2026-09-13）：判据只数**新增**的掉落物，
+     * 世界历史残留单独报 `foreignDrops=` 不计入（修"不清掉落物就 FAIL"的夹具缺陷）。
+     */
+    private final Set<java.util.UUID> dropsAtCaseStart = new java.util.HashSet<>();
 
     public MineRegressionTask(BotPlayer bot, ServerPlayer observer, ScopeBuffer scope) {
         this.bot = bot;
@@ -298,10 +303,18 @@ public final class MineRegressionTask implements Task {
         //   restoredBlocks ≥ 1（确实拆回了自己放的方块）&& scaffoldLeft == 0（没留残）
         boolean restoredOk = !current.expectSupport()
                 || (mineTask.restoredBlocks() >= 1 && mineTask.scaffoldLeft() == 0);
-        // 掉落物判据改用**世界事实**：拆除阶段会 scope.end()，缓冲视图会变成空集（假通过）
-        int dropsLeft = bot.serverLevel().getEntitiesOfClass(
-                net.minecraft.world.entity.item.ItemEntity.class,
-                new net.minecraft.world.phys.AABB(current.target()).inflate(6)).size();
+        // 掉落物判据改用**世界事实**：拆除阶段会 scope.end()，缓冲视图会变成空集（假通过）。
+        // 2026-09-13：只数**本用例新增**的掉落物（基线 UUID 见 `prepare`）——历史残留不算数。
+        int dropsInBox = 0;
+        int foreignDrops = 0;
+        for (var item : bot.serverLevel().getEntitiesOfClass(
+                net.minecraft.world.entity.item.ItemEntity.class, dropsBox(current.target()))) {
+            dropsInBox++;
+            if (dropsAtCaseStart.contains(item.getUUID())) {
+                foreignDrops++;
+            }
+        }
+        int dropsLeft = dropsInBox - foreignDrops;
         boolean noDropsLeft = dropsLeft == 0;
         int delta = countInInventory(expectedItem) - inventoryBefore;
         // 精确净增量只在**不涉及支撑块**的用例上成立（那时净增量=掉落物本身，稳定）；
@@ -323,6 +336,7 @@ public final class MineRegressionTask implements Task {
                 + (current.expectedDelta() != current.expectedCollected()
                         ? "(期望" + current.expectedDelta() + ")" : "")
                 + "/dropsLeft=" + dropsLeft
+                + (foreignDrops > 0 ? "(另有残留" + foreignDrops + "件不计入)" : "")
                 + (current.expectSupport() ? "/supportRestored=" + supportOk : "")
                 + (current.expectSupport() ? "/ledgerRestored=" + mineTask.restoredBlocks()
                         + "/scaffoldLeft=" + mineTask.scaffoldLeft() : "")
@@ -344,9 +358,30 @@ public final class MineRegressionTask implements Task {
                 current.start().getZ() + 0.5D, Set.of(), bot.getYRot(), bot.getXRot());
         bot.setDeltaMovement(Vec3.ZERO);
         bot.controller().stopMovement();
+        // 掉落物判据的**基线**（2026-09-13 用户实测暴露的夹具缺陷）：
+        // 原先 `dropsLeft` 直接数"目标周围 ±6 内的全部掉落物实体"⇒ 世界里的**历史残留**
+        // （上一轮测试/玩家自己挖的东西）会被算成"本用例留下的掉落物"，
+        // 于是 `collected=1/1` 也判 FAIL（run1 实测 `dropsLeft=1`，清掉残留后才 PASS）。
+        // 修法：用例开始时把该范围内的掉落物 **UUID** 记下来，结束时只数**新增**的
+        // （= 本用例自己产生的），残留单独报 `foreignDrops=` 并且**不计入判据**。
+        dropsAtCaseStart.clear();
+        for (var item : bot.serverLevel().getEntitiesOfClass(
+                net.minecraft.world.entity.item.ItemEntity.class, dropsBox(current.target()))) {
+            dropsAtCaseStart.add(item.getUUID());
+        }
+        if (!dropsAtCaseStart.isEmpty()) {
+            BotLog.warn("[MineRegression] case={} 起点范围内已有 {} 个掉落物（非本用例产生，"
+                            + "判据只数新增；场景函数应已清理，若常有说明世界有残留）",
+                    current.name(), dropsAtCaseStart.size());
+        }
         BotLog.info("[MineRegression] case={} kind={} terrain={} start={} target={}",
                 current.name(), current.kind(), current.terrain(),
                 current.start().toShortString(), current.target().toShortString());
+    }
+
+    /** 掉落物判据的测量盒（用例起点的基线与结束时的计数**必须同盒**，否则基线无效）。 */
+    private static net.minecraft.world.phys.AABB dropsBox(BlockPos target) {
+        return new net.minecraft.world.phys.AABB(target).inflate(6);
     }
 
     /** 规划断言（与 `mine_course` 同口径）。 */

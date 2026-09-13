@@ -89,8 +89,16 @@
 右键 arbitrary 方块                          # 等约 3~5 分钟
 ```
 判据：`[Regression] SUMMARY clear_retry=… mine_regression=… lumber_job=… decision_contract=… permission_gate=…
-pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=… (23/23) → PASS`，
+pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=… K4=OK(goal_not_standable=0 final_segment_not_standable=0 写入类例外=N) (23/23) → PASS`，
 逐项失败不中断（一趟看全）。期间别启动其它任务、人站远一点别捡掉落物。
+
+> `K4=…` 是**谓词一致性自断言**（K-4 / D-167）：本次电池里"规划期宣布 REACHED 但目标格不可站"
+> 的矛盾计数必须为 0；`VIOLATION(...)` 会直接把电池判 FAIL，并伴随 `[K4] …` 告警行。
+> 累计值也能随时用 `alice:bot_report` 看（"目标准入（K-4 累计）"行；`无异常计数` = 从未发生）。
+
+> **掉落物判据只数"本用例新增"**（D-168）：挖掘回归的 `dropsLeft` 已改为"取基线做增量"，
+> 场景函数也补了 `kill @e[type=item,…]` ⇒ **世界里有历史残留掉落物不会再导致假失败**；
+> 残留单独显示为 `dropsLeft=0(另有残留1件不计入)`。所以**不必**再手动清掉落物。
 
 > 决策层 6 步中，`pickup_gate` / `collect_job` / `event_thresholds` 另有**单跑物品**
 > （`alice:pickup_gate_check` / `alice:collect_job` / `alice:event_threshold_check`）；
@@ -125,6 +133,7 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
 | D4 | 电池 `collect_job` / 右键 `alice:collect_job` | 自带 | `[CollectJob] … collected=N` | 我方掉落物登记后放行 |
 | D5 | 电池 `recipes_dump` / 命令 `/alice recipes` | 自带 | 导出文件写出（行数 > 0） | `[RecipeDump] written=… recipes=…` |
 | D13 | 电池 `transfer` / 右键 `alice:transfer_check`（R2+R3+L1+L2，约 2 秒；`end_to_end` 默认走**菜单路线**） | 场景函数 `alice_test:transfer_check_terrain`（夹具内部自动调用） | `fixture=PASS end_to_end=PASS selection=PASS selector_events=PASS command_parse=PASS verdict=PASS` | `[Transfer] SUMMARY …`；**`end_to_end`** 跑真实 `TransferTask`（走位→触及校验→容器预算→两段写入），日志里应能看到 `containers=N/M` |
+| D14 | **K-3 安全点停止**（D-166/D-169）：右键 `alice:k3_stop_check`（DEFER）/ **Shift+右键**（FORCED）；**不在电池里**（会停掉顶层任务=电池自己） | 自带（把 bot 升空） | DEFER：`停止请求延后到安全点：task=K3StopCheckTask` → 请求后仍被 tick → `已到安全点，执行延后的停止`；FORCED：`任务在不安全时刻被强制停止` | `bot_report` → `安全点取消：deferred=1`（DEFER）/ `forcedUnsafe=1`（FORCED）；前提失败报 `fixture_not_airborne`，被嵌套时报 `fixture_not_top_level` |
 | D12 | 电池 `partial_search` / 右键 `alice:partial_search_check`（K-1，约 1 秒，纯规划） | 自带 | `partial_with_prefix=PASS same_goal_reachable_with_budget=PASS no_prefix_for_real_failures=PASS verdict=PASS` | `[PartialSearch] SUMMARY …` |
 | D11 | 电池 `capability_gate` / 右键 `alice:capability_gate_check`（基-8，约 1 秒，纯逻辑） | 自带 | `pure_traversal_allowed=PASS capability_unauthorized=PASS zone_protected=PASS no_tool=PASS no_throwaway=PASS no_place_budget=PASS declarations=PASS verdict=PASS` | `[CapabilityGate] SUMMARY …` |
 | D10 | 电池 `tool_supply` / 右键 `alice:tool_supply_check`（基-9，约 2 秒） | 自带（**会临时改写 bot 背包并在收尾复原**） | `tool_swap=PASS worn_no_spare=PASS no_tool_no_conjure=PASS verdict=PASS` | `[ToolSupply] SUMMARY …`；`no_tool_no_conjure` 是**负例**：不许凭空变出工具 |

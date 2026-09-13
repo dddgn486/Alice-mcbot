@@ -105,6 +105,12 @@ public final class RestoreScopeTask implements Task {
         this.maxTicks = BASE_TICKS;
     }
 
+    /** K-3：把"当前寻路段是否安全"透传给取消方（`/alice stop` 会据此延后到安全点）。 */
+    @Override
+    public boolean safeToCancel() {
+        return runner == null || runner.safeToCancel();
+    }
+
     @Override
     public String taskName() {
         return "RestoreScope";

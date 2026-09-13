@@ -120,10 +120,8 @@ public final class SurfaceMovementProvider implements MovementProvider {
                 if (!context.yInBounds(to.getY())) {
                     continue;
                 }
-                if (!MovementHelper.canWalkOn(level, to)
-                        || !MovementHelper.canWalkThrough(level, to)
-                        || !MovementHelper.canWalkThrough(level, to.above())) {
-                    continue;
+                if (!MovementHelper.canStandCentered(level, to)) {
+                    continue;   // K-4/D-167：与挖掘站位、目标准入共用同一"可站"谓词
                 }
                 if (!level.getFluidState(to).isEmpty() || !level.getFluidState(to.above()).isEmpty()) {
                     continue;   // 目的地是流体 ⇒ 不往危险里"脱困"
@@ -161,7 +159,11 @@ public final class SurfaceMovementProvider implements MovementProvider {
         if (MovementHelper.canWalkThrough(level, to)) {
             return;
         }
-        // 目的地最终必须可站（脚下支撑）
+        // 目的地最终必须可站（脚下支撑）。
+        // **故意比 `MovementHelper.canStandCentered` 宽**（K-4/D-167）：本移动会先破坏目的地的
+        // 躯干+头位方块，所以"脚位/头位可通行"在**破坏之后**才成立，规划期查它会自相矛盾
+        // （实测：查了就连一条 BREAK_AND_ENTER 都生成不出来）。代价是**破坏类请求的目标格**
+        // 在规划期无法被证明可站 ⇒ 这类请求的目标准入只能靠运行期 EXACT 兜底（K-4 遥测在测）。
         if (!MovementHelper.canWalkOn(level, to)) {
             return;
         }
@@ -220,10 +222,8 @@ public final class SurfaceMovementProvider implements MovementProvider {
                 continue;
             }
             // 落点：可站 + 身体/头部净空 + 非流体（本轮只做无水落地）+ 非底部半砖
-            if (!MovementHelper.canWalkOn(level, to)
-                    || !MovementHelper.canWalkThrough(level, to)
-                    || !MovementHelper.canWalkThrough(level, to.above())) {
-                continue;
+            if (!MovementHelper.canStandCentered(level, to)) {
+                continue;   // K-4/D-167：共用"可站"谓词
             }
             if (!level.getFluidState(to).isEmpty() || !level.getFluidState(to.above()).isEmpty()) {
                 continue;
@@ -303,6 +303,8 @@ public final class SurfaceMovementProvider implements MovementProvider {
         if (!context.yInBounds(to.getY())) {
             return;
         }
+        // **故意比 `canStandCentered` 宽**（K-4/D-167）：DOWNWARD 要破坏的正是 `to` 这一格，
+        // 规划期 `canWalkThrough(to)` 必然为假（否则不会走 DOWNWARD），加进去等于禁用本移动。
         if (!MovementHelper.canWalkOn(level, to)
                 || !MovementHelper.canWalkThrough(level, to.above())) {
             return;
@@ -360,10 +362,8 @@ public final class SurfaceMovementProvider implements MovementProvider {
         if (blockers.isEmpty()) {
             return;
         }
-        // 目标必须可通行且可站
-        if (!MovementHelper.canWalkThrough(level, to)
-                || !MovementHelper.canWalkThrough(level, to.above())
-                || !MovementHelper.canWalkOn(level, to)) {
+        // 目标必须可通行且可站（K-4/D-167：共用"可站"谓词）
+        if (!MovementHelper.canStandCentered(level, to)) {
             return;
         }
         double breakTicks = 0.0D;

@@ -284,7 +284,35 @@ S4 事件层通过**（A/B/C 三例 PASS、TOOL_LOW×2 + STUCK×1 各恰好一�
 （自检 10 项全 PASS）。
 **基-7 内核残余第一批（K-1）已完成（D-158，待客户端复测）**：`PlanningStatus.PARTIAL` +
 best-so-far 前缀 + `PathRetryRunner` 消费（先走前缀再重规划），顺带让 K-5 的死状态在新内核变活。
-**余项**：K-2 legacy 活引用（`SurfacePathfinder` 7+ 处）、K-3 `safeToCancel`、K-4 谓词不统一、K-5 遗留枚举。
+**K-3 `safeToCancel` 已完成并客户端验证（D-166，`WINDOWS_CLIENT`）**：运行期安全承诺点
+（`MovementExecution.safeToCancel()` 默认 true + 8 个执行器覆写）+ 延后停止 + L2 开菜单空中门；
+`alice:k3_stop_check` 的 DEFER 用例实测通过（`deferred=1`）。
+**K-4 谓词不统一已完成"统一 + 测量"两步（D-167，`COMPILES`，待客户端）**：
+"可站"谓词原先在 6 处各写一遍、**目标准入一遍没查** ⇒ 现统一为 `MovementHelper.canStandCentered`
+（8 个调用点，纯重构）；目标准入**不硬拒**（"起点即目标"合法 + 挖掘 `ENTER_TARGET` 的 goal 就是矿块），
+改为进程累计遥测（`bot_report` 的"目标准入（K-4 累计）"行）+ 回归电池 SUMMARY 自断言 `K4=OK/VIOLATION`。
+**K-4 遥测已在真实运行中被使用（`SERVER_TESTED`）**：`目标准入（K-4 累计）：goal_post_write_not_standable=89
+final_segment_target_post_write=51` —— 两类**真异常码 0 次**（`[K4]` 告警 0 行），
+写入类例外 89 次 = 设计如此；完整电池跑的 `K4=OK` 自断言仍待一次**跑完**的电池。
+**D-168 夹具断言不得依赖世界历史**（用户实测"不清理掉落物就失败"）：`mine_regression` 的 `dropsLeft`
+原先数"±6 盒内全部掉落物" ⇒ 世界残留导致假失败（run1 `collected=1/1` 却 `dropsLeft=1`，run2 手动清后 PASS）；
+改为**基线 UUID 增量**（残留报 `foreignDrops=`，不计入判据）+ 三个挖掘场景函数补 `kill @e[type=item,…]`。
+**D-169 电池自杀事故（第三轮实测的真因，已修）**：K-3 夹具嵌在电池里时，`stopTask` 停的是
+**顶层任务 = 电池自己**（`停止请求延后到安全点：task=RegressionBatteryTask` → 第 12/25 步 CANCELLED_BY_USER）
+⇒ 三轮电池都没有 SUMMARY。修法：K-3 **退出电池**（25 → 23 项）+ `fixture_not_top_level` 前提断言
+（绝不再伤父任务）+ 手工入口扩成**右键 DEFER / Shift+右键 FORCED**（FORCED 此前从未被验证）。
+一般规矩：**夹具不得对父任务产生副作用**，需要观察"顶层任务被停"就必须做成顶层入口。
+**第四轮实测（WINDOWS_CLIENT）**：23 项电池**全 PASS** `(23/23) ticks=3507 → PASS`，
+其中 `K4=OK(goal_not_standable=0 final_segment_not_standable=0 写入类例外=88)` ⇒
+**K-4 收口完成**（按"0 ⇒ 删临时告警"的义务删掉两处 `[K4]` 告警行，保留计数 + 电池自断言；
+结论：缝真实存在但实战不咬 ⇒ 不引 `GOAL_NOT_STANDABLE` 硬拒）；
+`mine_regression` 11/11 PASS ⇒ D-168 掉落物修复生效（无需手动清理）。
+**D-170 资源缺陷（客户端日志才发现）**：`k3_stop_check`/`menu_probe`/`transfer_check` 三个模型是
+**0 字节**（紫黑块/看不见 —— 这大概率就是 K-3 自检一直没被测的原因），`partial_search_check` 还指向
+不存在的贴图；已补齐/改正 + 新增 **`tools/check-item-models.sh`**（空文件/坏 JSON/死贴图引用，脚本自测过）
+并写进构建前检查清单。**未验证**：这 4 个物品贴图的实际显示（需看一眼背包）。
+**余项**：K-2 legacy 活引用（`SurfacePathfinder` 7+ 处）、K-5 遗留枚举；
+**K-3 自检（DEFER 回归 + FORCED 新入口）仍待测**（道具这轮才修好，之前看不见）。
 
 **基-5 LLM 上抛契约已完成（D-155 + 附注一，`WINDOWS_CLIENT`）**：四个 Job 覆写 `failureReport()`（决策层能看到相位/进度）、
 `MineProductFilter`（挖掘产物**目标驱动 + 标签族**，不再硬编码原版矿物、且尊重 `productTag`）、
@@ -345,6 +373,22 @@ S-3 删 `MineTask` 重复维生调用、S-4 接上 `FluidRiskPolicy`（硬拒不
 
 **唯一未收口**：`alice:transfer_check` 的 `end_to_end` 用例（根因已定位并修：**背包索引 ≠ 菜单槽位号**，
 D-165 附注四），**待客户端复测**。判据与排查入口见 `OPEN_ITEMS_LEDGER.md` §6.11。
+
+**本轮（K-3 之后）四条收口线**，全部有客户端证据：
+
+| 线 | 结果 | 等级 |
+|---|---|---|
+| **K-4 谓词统一**（D-167 + 附注一） | "可站"谓词 6 处复制 → 唯一定义 `MovementHelper.canStandCentered`（8 调用点，纯重构）；目标准入先测量不硬拒；完整电池 `K4=OK(真异常 0 / 写入类例外 88)` ⇒ **收口**：不引 `GOAL_NOT_STANDABLE`，删临时告警、留计数 + 电池自断言 | `WINDOWS_CLIENT` |
+| **D-168 夹具测量** | `mine_regression` 的 `dropsLeft` 原本数"盒内全部掉落物"⇒ 世界残留假失败（run1 两次 FAIL 只因 `dropsLeft=1`）；改**基线 UUID 增量** + 三个挖掘场景函数清实体 ⇒ `mine_regression` **11/11 PASS**，用户不必再手动清掉落物 | `WINDOWS_CLIENT` |
+| **D-169 电池自杀事故** | 电池里的 `k3_stop_defer` 停的是**顶层任务=电池自己**（三轮电池都没 SUMMARY 的真因）；修：K-3 退出电池（25 → **23** 项）+ `fixture_not_top_level` 前提断言 + 手工入口扩成右键 DEFER / Shift+右键 FORCED | `WINDOWS_CLIENT`（电池 23/23 PASS） |
+| **D-170 资源缺陷** | `k3_stop_check`/`menu_probe`/`transfer_check` 模型是 **0 字节**、`partial_search_check` 引用死贴图 ⇒ 客户端缺失模型/紫黑块（**K-3 一直没被测的真因**）；补齐修正 + 新增 `tools/check-item-models.sh`（空文件/坏 JSON/死贴图，已自测）并写入构建前清单 | 建模修正 `COMPILES`；**客户端 0 条 `Failed to load model alice`**（本轮日志）⇒ `WINDOWS_CLIENT` |
+
+**唯一待测项**：**K-3 自检复测** —— DEFER（右键）+ FORCED（Shift+右键）各 5 秒，
+判据 `bot_report` → `deferred=1` / `forcedUnsafe=1`。本轮客户端日志里**没有** `[K3]` 行（本轮只做了模型显示确认 + 假人恢复），
+所以 FORCED 用例至今**从未跑过**，DEFER 也自"加前提断言 + 改物品入口"之后没复测。
+
+**本轮环境事实**：电池现 **23 项**（`(23/23) ticks=3507 → PASS`）；`k3_stop_check` 等 4 个道具贴图已正常；
+镜像/同步脚本正常（`3aaa8cc5…` 为最后一次同步的 jar）。
 
 **环境提醒**：镜像脚本 `tools/mirror-windows-workspace.sh` 现为"默认不备份/不校验"快跑（8.6 秒）；
 备份轮转由 `ALICE_BACKUP_KEEP`（默认 2）控制；`ALICE_MIRROR_BACKUP=1` / `ALICE_MIRROR_VERIFY=1` 可按需开启。

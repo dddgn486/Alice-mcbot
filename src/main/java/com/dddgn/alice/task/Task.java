@@ -46,6 +46,20 @@ public interface Task {
         return getClass().getSimpleName();
     }
 
+    /**
+     * **此刻终止本任务是否安全**（K-3，2026-09-13，对齐 Baritone `Movement.safeToCancel` 的用法）。
+     *
+     * <p>为什么任务层也要报这个：Baritone 的 `PathExecutor:287` 在"不安全时**不许取消**"，
+     * 而取消的发起者是**任务/命令层**（`/alice stop`、任务被替换）。驱动寻路的任务因此要把
+     * "当前段是否安全"透传上来（默认 true = 不阻挠取消）。
+     *
+     * <p>空中的任务**一律**视为不安全：那是与任务类型无关的硬事实
+     * （`BotSession` 会用 `task.safeToCancel() && bot.onGround()` 一起判定）。
+     */
+    default boolean safeToCancel() {
+        return true;
+    }
+
     /** 事实型失败报告；未实现领域详情的任务默认返回空报告。 */
     default TaskFailureReport failureReport() {
         return new TaskFailureReport(failureReason(), "unknown", "", null, null);

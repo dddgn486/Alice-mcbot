@@ -1,6 +1,8 @@
 package com.dddgn.alice.pathing.core.search;
 
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.pathing.MovementHelper;
+import com.dddgn.alice.pathing.core.MovementType;
 import com.dddgn.alice.pathing.core.RecoverabilityLevel;
 import net.minecraft.core.BlockPos;
 
@@ -96,6 +98,33 @@ public final class AStarMovementSearch {
             BlockPos currentFoot = new BlockPos(current.x, current.y, current.z);
 
             if (goal.isInGoal(currentFoot)) {
+                // K-4 / D-167：目标准入原先**只看离散格相等**，与执行期最终段的 EXACT
+                // （脚位 + 落地 + 距中心 ≤0.3）不是同一个谓词。规划期能查的那部分
+                // （世界是否可站）在这里**计数**（不改行为），因为有两类**合法**例外：
+                //  ① 起点即目标：合法的"已经在那儿"，硬拒不合适（但起点不可站本身是异常）；
+                //  ② 最后一条边是写入类（BREAK_AND_ENTER / DOWNWARD 等）：目标格本来就
+                //     "破坏之后才可站"（provider 两处宽谓词；挖掘 ENTER_TARGET 模式的目标格
+                //     就是矿块本身）⇒ 这类只记信息码。
+                // 只有**纯通行边**走进来的目标格不可站，才是真正的谓词矛盾（REACHED 但 EXACT
+                // 世界前提不成立）⇒ `goal_not_standable`。
+                // **收口（D-167）**：实测一轮完整电池 + 两轮部分电池里两类真异常码**均为 0**
+                // ⇒ 按收口义务删掉当时的临时告警行，只保留计数（进 `PathingStats` 单次规划摘要、
+                // 累计计数进 `alice:bot_report`）+ 电池 SUMMARY 的 `K4=` 自断言；
+                // 真异常再次出现时，电池会直接判 FAIL 并在 SUMMARY 里报数，不靠翻日志。
+                if (!MovementHelper.canStandCentered(context.level(), currentFoot)) {
+                    MovementType incoming = current.previousType;
+                    String code;
+                    if (incoming == null) {
+                        code = "goal_not_standable_start";
+                    } else if (MovementContext.plannedBreaks(incoming) > 0
+                            || MovementContext.plannedPlaces(incoming) > 0) {
+                        code = "goal_post_write_not_standable";
+                    } else {
+                        code = "goal_not_standable";
+                    }
+                    PathingStats.record(code);
+                    PathingStats.recordTotal(code);
+                }
                 return reachedPlan(startFoot, goal, current, expandedNodes, movementsConsidered,
                         elapsed(startMillis));
             }

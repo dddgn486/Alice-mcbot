@@ -177,6 +177,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> MENU_PROBE =
             ITEMS.register("menu_probe", () -> new MenuProbeItem(new Item.Properties()));
 
+    /** K-3 安全点停止自检（零参数，约 5 秒）：升空后请求停止 ⇒ 延后到安全点 / 超时强停。 */
+    public static final RegistryObject<Item> K3_STOP_CHECK =
+            ITEMS.register("k3_stop_check", () -> new K3StopCheckItem(new Item.Properties()));
+
     /** R2 传输模块自检（零参数，约 1~2 秒）：主流程 / 端点选择 / 选择器事件 / 命令解析。 */
     public static final RegistryObject<Item> TRANSFER_CHECK =
             ITEMS.register("transfer_check", () -> new TransferCheckItem(new Item.Properties()));

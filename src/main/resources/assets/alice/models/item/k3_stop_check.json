@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:item/generated",
   "textures": {
-    "layer0": "alice:item/check_fixture"
+    "layer0": "alice:item/check_decision"
   }
 }

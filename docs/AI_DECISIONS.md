@@ -6263,3 +6263,336 @@ AGENTS.md 明确要求"**需要特定地形时用数据包函数一键生成**"�
 **这条坑的意义**：它**印证了"槽位语义表"的必要性** —— 语义表不只编码"哪个槽是输入/输出"，
 还必须编码**索引空间映射**（原版物流容器一致，模组菜单可能不同）。
 **待客户端复测**（本轮修复未经验证；判据：`end_to_end=PASS` 且 `moved=3`）。
+
+## D-166 基-7 K-3：`safeToCancel`（第一步 = **声明规则**，消费者下一步再接）
+
+**Baritone 依据（照规矩先查对照实现，不自制）**
+- `Movement.safeToCancel()` 默认 **true**（`pathing/movement/Movement.java:196-202`）；
+- `MovementTraverse:353`：`state != RUNNING || canWalkOn(dest.below())`（正走向"需要垫脚/回填"的格子时不可取消）；
+- `MovementFall:182`：`playerFeet == src || state != RUNNING`（**已跨出边缘 ⇒ 空中不可取消**）；
+- `MovementAscend:246`：`state != RUNNING || ticksWithoutPlacement == 0`（**放下方块即已提交**）；
+- `MovementDiagonal:65`：读玩家坐标做**几何悬空**判定；
+- 消费者：`PathExecutor:287`（不安全时**不许**取消）、`PathExecutor:194`、`PathingBehavior:153/197`，
+  以及 **`InventoryPauserProcess:53`：`safeToCancel && 站定 ≥2 tick` ⇒ 才允许停下来开背包**
+  —— **这条正是 Alice L2 菜单路线需要的门**：打开容器菜单会让物品移动，绝不能在半空中做。
+
+**Alice 侧第一步（本次，纯声明，行为不变）**
+`MovementExecution` 新增 `default boolean safeToCancel()`（默认 true），8 个执行器按各自的**承诺点**覆写
+（`pathing/core/*Execution.java`，共 9 个文件含接口）：
+
+| Movement | Alice 规则 | Baritone 对应 |
+|---|---|---|
+| TRAVERSE / DIAGONAL | `phase != EXECUTING` 或 **目的地下方可站** | `MovementTraverse` / `MovementDiagonal`（几何判定用保守近似） |
+| ASCEND / DESCEND | `phase != EXECUTING` 或 **已落地**（`bot.onGround()`） | `MovementAscend` 的"已提交"语义 |
+| FALL | `phase != EXECUTING` 或 **尚未离开起点**（脚位仍 = `fromFoot`） | `MovementFall` 同款 |
+| PILLAR / PLACE_STEP_AND_TRAVERSE | `phase != EXECUTING` 或 **尚未放置** | `MovementAscend` 的 `ticksWithoutPlacement` |
+| DOWNWARD | `phase != EXECUTING` 或 **已落地**（脚下方块已被挖掉是承诺点） | （Alice 特有：Baritone 的 DOWNWARD 走 `MovementDownward`） |
+| BREAK_* | 默认 true（破坏不产生位移承诺） | 默认 true |
+
+**为什么这一步先只做声明**：用户正在客户端验证昨天的传输修复（jar `aeb3e3d9…`），
+而 K-3 的**消费者**要改 `PathSession.cancel()` / `BotManager.stopTask` / 生存打断 /
+`MenuSession.open` —— 那些会直接影响正在验证的行为。**先把规则落地（零行为变化），
+等这次验证结果出来再接消费者**，避免把两件事混在一起查。
+
+**下一步（K-3 第二步，待接）**
+1. `PathSession.safeToCancel()`（暴露当前段的安全性）+ `PathSession.cancel()` 的**安全点延迟**
+   （对齐 `PathExecutor:287`：不安全则不解取消；有界（如 20 tick）后强制 + 诚实记 `unsafe_cancel`）；
+2. **生存打断**保持立即（安全优先）但**记录 `unsafe_cancel`**（拿到真实频率数据）；
+3. **L2 门**：`MenuSession.open(...)` 要求"安全 + 站定 ≥2 tick"（`InventoryPauserProcess:53` 对齐）；
+4. 自检：合成执行的规则断言（纯）+ 真实打断用例（可观测 `unsafe_cancel` 计数）。
+
+### D-165 附注五：**L2 生产路线客户端验证通过**（`end_to_end` PASS）
+
+```
+[Transfer] end_to_end status=DONE ticks=24 moved=3 sourceEmpty=true
+[Transfer] SUMMARY fixture=PASS end_to_end=PASS selection=PASS selector_events=PASS command_parse=PASS verdict=PASS
+[Menu] opened target=46,64,404 type=ChestMenu slots=63 → closed reason=source_leg_done
+[Menu] opened target=46,64,407 type=ChestMenu slots=63 → closed reason=destination_leg_done
+[WriteBudget] SUMMARY scope=…#348:TransferCheckTask breaks=0/64 places=0/32 containers=2/32 refusedContainers=0
+```
+⇒ **B 路线（真实菜单协议）在生产路径上端到端成立**：
+走位（新内核）→ 触及校验（L1）→ **A11 容器预算恰好吃 2 次**（一腿一次）→
+**真 `openMenu`** → **菜单点击搬物品** → 按目标箱实际数量校验 → 干净关闭。
+`TransferCheckTask` 的 5 个用例（4 同步夹具 + 端到端）全绿 ⇒ 传输模块 R1/R2/R3 + L1 + L2 一并收口。
+
+### D-166 附注一：K-3 **第二步（接消费者）已实施** —— 安全点停止 + 生存打断计数 + L2 空中门
+
+**1. 任务层透传**：`Task.safeToCancel()`（默认 true）+ `PathSession.safeToCancel()`（无执行 ⇒ 安全）
++ `PathRetryRunner.safeToCancel()`（无会话 ⇒ 安全）；**7 个驱动寻路的任务**透传
+（`WalkToTask`/`TransferTask`/`FollowTask`/`PlaceTask`/`CollectDropsTask`/`RestoreScopeTask`/`ScaffoldLifecycleTask`）。
+`Job.subTasks()` 只是**汇报结构**（`TaskNode`）⇒ 无法聚合 ⇒ 改用下面的"空中硬事实"覆盖 Job。
+
+**2. 安全点停止**（`BotManager.stopTask` → `BotSession.requestStop` 语义）：
+- 能安全停 ⇒ 立即停（原行为）；
+- **不安全 ⇒ 延后到安全点**（对齐 Baritone `PathExecutor:287`），上限 `SAFE_STOP_DEFER_TICKS = 20`，
+  超时**强制停并计数**（诚实上报，不无限等）；
+- 判据 = `task.safeToCancel() && bot.onGround()` —— **`!onGround()` 是与任务类型无关的硬事实**，
+  于是**Job 也自动获得"空中不取消"保护**（不必给每个 Job 写聚合）；
+- 只有**两处**调用 `stopTask`（LLM 的 `stop_current`、`/alice region stop`）⇒ 都是用户路径，
+  **不影响回归电池**（夹具不走这个入口）。
+- 新增计数器：`deferred`（延后成功）/`forcedUnsafe`（超时强停）/`survivalUnsafe`（生存打断撞上不安全时刻），
+  经 `BotSession.describeSafeStops()` 进 `bot_report`。
+
+**3. 新增用户入口 `/alice stop-task`**：原先**没有**"取消当前任务"的命令
+（`bot-control stop` 只停移动输入），K-3 也就没法被用户验证 ⇒ 补上；它回报"立即停/延后到安全点"与计数器。
+
+**4. L2 门（`MenuSession.open`）**：对齐 Baritone `InventoryPauserProcess:53`（`safeToCancel && 站定 ≥2 tick`
+才允许停下来开背包）—— **空中一律硬拒**（`MenuCodes.MENU_NOT_SETTLED`）；
+"控制器仍有输入"先**告警 + 计数**（段结束时可能 1~2 tick 残留，数据不足不硬判，**不猜**）。
+
+**5. 自检**：`capability_gate` 增 `safe_cancel_wiring`（非寻路任务默认 true + 无会话的 runner 报安全）。
+
+**诚实的未完成项**：Job 的**细粒度**承诺点（如"LumberJob 内部正在 PILLAR 半途"）尚未逐 Job 聚合 ——
+当前靠"空中硬事实"覆盖最主要的一类；等 `survivalUnsafe`/`forcedUnsafe` 有真实频率数据后再决定要不要细做。
+
+### D-166 附注二：把 K-3 做成**确定性夹具**（用户实测"不好抓时机，过程有点乱"）
+
+**用户反馈（对的批评）**：手动抢"跳跃瞬间"没法稳定命中延后路径 ⇒ 本轮实测只打出
+`已显式停止任务 …（command）`（**都是"安全 ⇒ 立即停"**），延后路径**一次没被触发**。
+**"靠人手抢时机的测试就是夹具设计失败"**（项目规矩：一次动作覆盖全部、可复现）。
+
+**顺带确认（回归）**：`[Transfer] SUMMARY fixture=PASS end_to_end=PASS … verdict=PASS` ⇒
+新的 **L2 空中门没有拦坏已验证的菜单路线** ✓。
+
+**修法：`K3StopCheckTask`（确定性制造"不安全"）**
+- **原理**：K-3 判据是 `task.safeToCancel() && bot.onGround()`，而 `!onGround()` 是**与任务类型无关的硬事实**
+  ⇒ 夹具只要**把 bot 升空**，请求停止就**必然**落在"不安全"上（不靠手速）。
+- **两用例**：
+  - `DEFER`：升空 → 请求停止 → **放开吊空**（自然落地）⇒ 期望 `已到安全点，执行延后的停止（等待 N tick）`
+    且 `bot_report` 的 `deferred` **+1**；夹具在请求后**仍被 tick** 即是"延后生效"的直接证据；
+  - `FORCED`：升空 → 请求停止 → **一直吊在空中**（每 5 tick 拉回原位）⇒ 超过 20 tick 后
+    `任务在**不安全时刻被强制停止**` 且 `forcedUnsafe` **+1**（验"不无限等"）。
+- 夹具自带前提断言（请求前必须 `!onGround()`，否则报 `fixture_not_airborne`）与窗口上限
+  （`OBSERVE_AFTER_REQUEST=60`：DEFER 落地后仍不停 / FORCED 超时不强停 ⇒ 如实判失败）。
+- **入口**：`alice:k3_stop_check`（零参数右键，跑 DEFER）+ 电池两步 `k3_stop_defer` / `k3_stop_forced`
+  （电池 23 → **25** 项；用户入口只跑 DEFER，FORCED 用例走电池 —— 刻意避免再加一个道具）。
+
+### D-166 附注三：K-3 **DEFER 用例客户端验证通过**（确定性夹具）
+
+```
+[K3] mode=DEFER 升空到 24,70,44（夹具前提：空中 ⇒ 停止必然不安全）
+[alice] 停止请求**延后到安全点**：task=K3StopCheckTask reason=k3_defer（空中或已提交位移）
+[K3] mode=DEFER 已请求停止 task=K3StopCheckTask accepted=true airborne=true
+[K3] DEFER：放开吊空，等它落地（落点即安全点）
+[K3] mode=DEFER 请求后仍被 tick（tick=15）⇒ 延后生效（等待安全点）
+[alice] 已到安全点，执行延后的停止（等待 12 tick）
+[alice] 已显式停止任务 K3StopCheckTask（k3_defer:safe_point）残余临时方块=0
+task_execution_terminal … durationTicks=25 terminal=CANCELLED_BY_USER
+bot_report：安全点取消：deferred=1 forcedUnsafe=0 survivalUnsafe=0；菜单门 blockedAirborne=0 openWhileMoving=0
+```
+⇒ **"不安全时不取消"真的生效**：空中 → 延后 → 请求后仍被 tick（延后生效的直接证据）→ 落地（12 tick）→
+在安全点执行停止（`:safe_point` 后缀）。**计数也对上**（`deferred=1`）。
+同时 **`blockedAirborne=0` / `openWhileMoving=0`** ⇒ L2 门没被触发，说明传输路径确实是
+"落地 + 静止"后才开菜单（设计意图成立，不是靠门兜住）。
+
+**未验证**：`FORCED`（吊在空中直到 20 tick 上限被强停）—— 它是电池步 `k3_stop_forced`，
+会在下一次跑电池时一并验证（不额外加道具）。
+
+### D-167：K-4 **谓词统一** —— "可站"只有一处定义 + 目标准入**先测量不硬拒**
+
+#### 侦察：同一件事被写了 5 遍，而目标准入一遍都没查（K-4 结论）
+
+执行期与规划期对"bot 能不能站在这一格"有**三套**互不相干的说法：
+
+| 位置 | 谓词 | 性质 |
+|---|---|---|
+| 运行期完成判定 `MovementHelper.isSettledAtFootPos(…, 0.3)` | 脚位格正确 + **已落地** + 水平距中心 ≤0.3 | **连续**、含运行期事实 |
+| 规划期候选/站位 | `canWalkOn(to) && canWalkThrough(to) && canWalkThrough(to.above())` | **离散**、世界事实 |
+| 目标准入 `AStarMovementSearch:99` | `goal.isInGoal(currentFoot)` = 格坐标相等 | 只看格，**什么都不查** |
+
+⇒ "规划期宣布 REACHED、最终段 EXACT 却满足不了"在结构上可能（K-4 的原始怀疑）。
+K-4 侦察把复制点查清：上述 3 子句在 `SurfaceMovementProvider` 复制 **3** 处、
+`MovementHelper.canTraverse` **1** 处、`FallExecution.canFall` **1** 处、
+`StandingPointSelector.isStandable` **1** 处（共 6 处），而**目标准入 0 处**。
+
+#### 修法一：唯一定义（纯重构，子句集合逐字相同 ⇒ 行为不变）
+
+新增 `MovementHelper.canStandCentered(level, foot)`，上述 **6 处全部委托**它；
+方法注释写清它与 EXACT 的关系：**必要不充分**——
+"已落地""带没带到位"是运行期事实，规划期**只能**证明"支撑存在且非源流体 + 脚位/头位无碰撞"，
+而"以格中心摆放 0.6×1.8 玩家盒必然放得下"正是后两条的等价物。
+
+**两处故意更宽、不并入**（并已在代码处写明理由，避免以后被"统一"掉）：
+- `SurfaceMovementProvider` 的 **BREAK_AND_ENTER**：本移动要破坏目的地躯干+头位，
+  规划期查"可通行"必然为假 ⇒ **自相矛盾**（实测：查了就一条边都生成不出来）；它只证明"破坏之后可站"；
+- 同处的 **DOWNWARD**：要破坏的正是 `to` 本身，加"可通行"等于禁用该移动。
+- 运行期侧 `PathSession` 的合法位置集检查本来就对写入类移动**显式分支**（支撑仍在 + 仍可破坏），
+  这是运行期该有的形态，保持独立。
+
+#### 修法二：目标准入**只测量、不改行为**（不硬拒的三条理由）
+
+1. **"起点即目标"是合法的"已经在那儿"**，硬拒会把合法调用变成失败；
+2. **破坏类请求的目标格本来就证明不了可站**：挖掘 `ENTER_TARGET` 兜底模式的 goal 就是**矿块自身**，
+   只能由 BREAK_AND_ENTER 到达 ⇒ 硬拒会打断一条已实现的挖掘策略（这是"不猜"的直接后果）；
+3. `SEARCH_LIMIT ≠ UNREACHABLE` 的精神同理：**"目标自身不满足完成契约"是第三种事实**，
+   既不是"到不了"也不是"没算完"，要引新状态码就得先把频率测出来。
+
+**遥测码（进程累计，进 `alice:bot_report` 的"目标准入（K-4 累计）"行）**：
+
+| 码 | 含义 | 性质 |
+|---|---|---|
+| `goal_not_standable` | 纯通行边走进的目标格不可站 ⇒ REACHED 与 provider 自身保证**直接冲突** | **真异常** |
+| `final_segment_target_not_standable` | 最终段（EXACT）目标格不可站且非写入类 | **真异常** |
+| `goal_not_standable_start` | 起点即目标且起点不可站（bot 泡在流体/卡在墙里） | 观察项 |
+| `goal_post_write_not_standable` / `final_segment_target_post_write` | 写入类移动的落点（设计如此） | 信息 |
+
+#### 修法三：夹具**自断言**（断言不许说谎）
+
+回归电池构造时取 `PathingStats.totalsSnapshot()` 作基线，收尾按**本次增量**断言
+两个"真异常"码必须为 0，并把结论写进 SUMMARY：`K4=OK(goal_not_standable=0 …)` /
+`K4=VIOLATION(…)`；VIOLATION 会使电池整体判**FAIL**（不静默）。用增量而非绝对值，
+是因为进程累计会被电池之前的服务端活动污染。
+
+**状态**：`IMPLEMENTED` + `COMPILES`。**未验证**：客户端实测（需跑电池 25 项 + `bot_report`）。
+**未完成（有数据后再决定）**：若实测计数为 0，则 K-4 视为"缝存在但实战不咬"，
+**不**引入 `GOAL_NOT_STANDABLE` 状态码；若不为 0，按现场数据把纯通行类改成硬拒 + 新状态码。
+**收口义务（两条路都要做，避免临时探针留在生产代码里）**：0 ⇒ 删掉 `[K4]` 告警行，
+只留电池自断言；≠0 ⇒ 换硬拒 + 状态码，告警行由否决路径取代。
+夹具侧只**复用**内核谓词（`canStandCentered`）而不另写判据，符合
+`alice-scene-based-testing` §7"夹具与内核判定不得分叉"。
+
+### D-168：夹具断言**不得依赖世界历史**（用户实测"不清理掉落物就 FAIL"的根因与修法）
+
+#### 现场事实（客户端日志，2026-09-13）
+
+| 运行 | `exec_direct` | `exec_blocked` | 说明 |
+|---|---|---|---|
+| run1（世界里有历史残留掉落物） | `FAIL … collected=1/1 inventoryDelta=1 **dropsLeft=1**` | `FAIL … collected=1/1+ inventoryDelta=2 **dropsLeft=1**` | 本用例自己的掉落物**已收齐**，唯一失败项是"盒内还有 1 件掉落物" |
+| run2（用户手动清掉残留后） | `PASS … dropsLeft=0` | `PASS … dropsLeft=0` | 同样代码、同样用例 ⇒ 差异只在世界历史 |
+
+**旁证（同一份日志）**：下一个用例 `scope_reopen_keeps_drops` 打出
+`dropsInWorld=2 liveDropsBeforeReopen=1 liveDropsAfterReopen=1` —— 同一 ±4 盒内确实**有 2 件**掉落物，
+而"我方掉落物"只有 1 件。⇒ 那 1 件是**外来残留**（上一轮测试/玩家自己挖的），不是 bot 留下的。
+
+#### 根因：测量方式本身不合法（不是内核 bug、不是 bot 行为 bug）
+
+`MineRegressionTask` 的 `dropsLeft` = `getEntitiesOfClass(ItemEntity, AABB(target).inflate(6)).size()`，
+即"**该范围内所有掉落物实体**"，且场景函数 `mine_course_terrain` 只清方块、**不清实体**
+（对比：`scaffold_course_terrain` / `contrast_*` / `reset` 都有 `kill @e[type=item,…]`）。
+⇒ 判据 = `世界历史` × `本用例行为`，而它只该由后者决定。**违反"夹具可复现/自断言前提"**。
+
+#### 修法（两层，都是夹具/场景侧，内核零改动）
+
+1. **夹具取基线**（主修）：`prepare()` 跑完场景函数后，把测量盒内掉落物的 **UUID** 记进
+   `dropsAtCaseStart`；用例结束时 `dropsLeft` 只数**不在基线里**的（= 本用例新增），
+   基线内的报 `foreignDrops=N` 且**明确标注"不计入"**。基线非空时打一行 warn
+   （提示世界有残留；正常情况场景函数已清空 ⇒ 基线为空）。基线盒与结束盒**必须是同一个**
+   （同一 `dropsBox(target)`），否则基线无效。
+2. **场景清实体**（前提）：`mine_course_terrain` / `floating_course_terrain` /
+   `chain_mine_course_terrain` 各补一行 `kill @e[type=minecraft:item,x=…,y=…,z=…,dx=…,dy=…,dz=…]`，
+   覆盖各自孤立盒（与既有场景同约定）。
+
+> 为什么两层都要：场景清理保证"起点干净"（前提），基线保证"即使有残留也不会假失败"（判据）。
+> **只做场景清理是不够的** —— 夹具的测量盒（target ±6）比场景盒更大（如 z140 ±6 → 到 z146，场景只到 z142），
+> 盒外的静止残留仍会被数进来。
+
+#### 同类风险登记（未扩大修改）
+
+`ScaffoldLifecycleTask` 也断言 `itemsOnGround == 0`（整场景盒）—— 它的场景
+`scaffold_course_terrain` 已有 `kill`，当前不会假失败，但**同样依赖"场景已清"这一前提**。
+**规则（新）**：凡夹具断言涉及**世界掉落物**或**背包净增量**，必须 ①场景函数清该场景盒实体，
+或 ②取基线做增量；二者至少一条，写进该夹具注释。
+
+#### 顺带确认（K-4 遥测在真实运行中的表现，`SERVER_TESTED`）
+
+`bot_report` 新行渲染正常：`目标准入（K-4 累计）：goal_post_write_not_standable=89 final_segment_target_post_write=51`
+—— **两类"真异常"码一次都没出现**（`[K4]` 告警 0 行），只有**设计如此**的写入类例外被计数，
+印证 D-167 的分档是对的：破坏类移动的目标格确实经常"破坏之后才可站"（89 次）。
+另：`安全点取消：deferred=1` —— 用户用命令中止那一轮电池时 bot 正在空中 ⇒ 走了 **K-3 延后停止**路径
+（真实世界用例，非夹具造）。
+
+> **更正（见 D-169）**：本条的"run2 关客户端"是**误读** —— run2/run3 的电池都是被
+> **K-3 夹具自己停掉的**（`停止请求延后到安全点：task=RegressionBatteryTask`），与用户操作无关；
+> 旧日志已被重启覆盖，故当时只能推断，现在有第三轮的硬证据。
+
+### D-169：**夹具不得停掉它的父任务** —— 电池里的 `k3_stop_defer` 让电池自杀（两轮无 SUMMARY 的真因）
+
+#### 现场事实（客户端日志，2026-09-13 第三轮）
+
+```
+10:55:34.554 [Regression] step=k3_stop_defer (12/25) …
+10:55:35.155 [alice] 停止请求**延后到安全点**：task=**RegressionBatteryTask** reason=k3_defer
+10:55:35.806 [alice] 已到安全点，执行延后的停止（等待 12 tick）
+10:55:35.807 [alice] 已显式停止任务 **RegressionBatteryTask**（k3_defer:safe_point）
+10:55:35.807 task_execution_terminal kind=RegressionBatteryTask … terminal=CANCELLED_BY_USER code=cancelled:…
+```
+⇒ 电池在第 12/25 步**把自己停了**，所以**永远打不出 SUMMARY**；之后 bot 空转，
+`[Pickup] blocked … oak_sapling` 刷了 2 分钟直到玩家退出（10:57:47）。
+
+**前一版判断是错的**（D-168 里我写"run2 是用户关客户端"）：run2 同样在第 12 步开始后 8 秒内失去所有日志，
+而死法完全一致；只是 `latest.log`/`debug.log` 在客户端重启时被**覆盖**，无法再直接取证 ⇒ 记为**高度可能、未取证**。
+
+#### 根因（不是 K-3 实现错，是**用例放错了层级**）
+
+K-3 的语义就是"**顶层任务**在不安全时刻不被硬停，延后到安全点再停"；
+而 `BotManager.stopTask` 停的是 `session.task`（**顶层**任务）。夹具作为电池的一个**步**被 tick 时，
+`session.task` 是**电池**，不是夹具 ⇒ 夹具请求停止 = 请父任务自杀。
+`alice:k3_stop_check` 独立运行时没问题（那时它自己就是顶层任务，D-166 附注三已验证）。
+
+#### 修法（三处，最小改动）
+
+1. **K-3 退出电池**：删掉 `k3_stop_defer` / `k3_stop_forced` 两步（电池 25 → **23** 项，
+   改 `RegressionBatteryTask` 注释 + 物品文案 + 文档计数），并在 `buildSteps` 处写明**为什么不能进**；
+2. **夹具自断言前提**（`K3StopCheckTask.setup()`）：若 `session.currentTask() != this` ⇒
+   立即 `fixture_not_top_level` 失败，**绝不调用 `stopTask`**。这条把"静默杀死父任务"变成"诚实失败"，
+   也符合"夹具必须自断言前提"的既有规矩（与 `fixture_not_airborne` 同级）；
+3. **两种模式都保留手工入口（零参数）**：`alice:k3_stop_check` **右键 = DEFER**，**Shift+右键 = FORCED**
+   （原 `k3_stop_forced` 只在电池里、从没被验证过 —— 现在有了独立入口）。
+
+> 一般化的规矩（写入本项目规则）：**夹具/夹具步骤不得对父任务产生副作用**。
+> 需要"父任务被停"这类观察时，必须做成**顶层入口**；需要嵌进串联时，只能断言"决策/谓词"，
+> 且必须显式记录"本步没有真的执行副作用"。
+
+**状态**：`IMPLEMENTED` + `COMPILES`。**未验证**：客户端（DEFER 入口回归 + FORCED 新入口 + 23 项电池跑完出 SUMMARY）。
+
+### D-170：**资源缺陷只有客户端日志能看出来** —— 3 个 0 字节模型 + 1 个死贴图引用（新自检脚本）
+
+#### 现场事实（客户端 `latest.log`，2026-09-13）
+
+```
+[Worker-Main-7/ERROR] Failed to load model alice:models/item/k3_stop_check.json
+    com.google.gson.JsonParseException: JSON data was null or empty
+[Worker-Main-7/ERROR] Failed to load model alice:models/item/menu_probe.json    （同上）
+[Worker-Main-7/ERROR] Failed to load model alice:models/item/transfer_check.json（同上）
+[Worker-Main-7/WARN] Unable to load model: 'alice:k3_stop_check#inventory' …
+```
+⇒ `k3_stop_check` / `menu_probe` / `transfer_check` 三个模型 JSON 在源里就是 **0 字节**
+（`find src/main/resources -type f -size 0` 恰好命中这三个；上一轮脚本写文件时留下的空文件），
+物品在客户端是**缺失模型**（紫黑块/看不见）。**这大概率就是这轮 K-3 自检没被测的原因**（看不见道具）。
+
+另查出第 4 个缺陷：`partial_search_check.json` 指向**不存在的**贴图 `alice:item/check_pathing_decision`
+（实际只有 `check_pathing` / `check_decision`）⇒ 模型能加载、只有 WARN，是**紫黑贴图**，更容易漏。
+
+**为什么编译/打包/同步全 PASS 也挡不住**：这是**纯资源**缺陷 —— Java 编译不看 JSON，
+`./gradlew build` 不校验模型引用，jar 里存的就是 0 字节。**唯一的报警面是客户端模型加载日志。**
+
+#### 修法
+
+1. 三个空模型按既有模板补全（`k3_stop_check`→`check_decision`、`menu_probe`→`interface_scanner`、
+   `transfer_check`→`check_fixture`）；`partial_search_check` 的死引用改为 `check_pathing`。
+2. **新增 `tools/check-item-models.sh`**：扫全部 `models/**/*.json`，抓三类问题 ——
+   ①空文件 ②JSON 语法坏 ③引用的贴图文件不存在；输出 `CHECK_ITEM_MODELS … RESULT PASS|FAIL`（退出码 0/1）。
+   **脚本自测过**（临时造一个空模型 + 一个死引用 ⇒ 两个都被抓出、退出码 1；删除探针后恢复 PASS）。
+3. 之后**每次改资源后、build 前**跑一遍；`build.gradle` 未接钩子（避免拖慢日常编译），
+   但已写入 `AI_DEVELOPMENT_PLAYBOOK.md` 的构建前检查清单。
+
+**状态**：`IMPLEMENTED` + `COMPILES` + 脚本自测通过；**未验证**：客户端重启后这 4 个物品贴图是否正常显示
+（需要用户看背包/快捷栏一眼）。
+
+### D-167 附注一：K-4 **收口完成**（数据为 0 ⇒ 删临时告警，留计数 + 自断言）
+
+**实测数据（2026-09-13 第四轮，完整电池）**：
+```
+[Regression] SUMMARY … pathing=PASS K4=OK(goal_not_standable=0 final_segment_not_standable=0 写入类例外=88) (23/23) ticks=3507 → PASS
+```
+按 D-167 定的收口义务（0 ⇒ 删告警行），已删除 `AStarMovementSearch` 与 `PathSession` 里两处临时
+`[K4] …` 告警（`[K4]` 在代码里现为 0 处），**保留**：单次规划摘要计数（`[PathingStats]`）、
+累计计数（`bot_report` 的"目标准入（K-4 累计）"行）、电池 SUMMARY 的 `K4=` 自断言（真异常会让电池 FAIL）。
+
+**K-4 最终结论**：规划期"可站"谓词原先 6 处各写一遍、目标准入一处不查，**缝是真的**；
+但纯通行类目标准入矛盾在**完整电池 + 两轮部分电池里一次都没发生**（真异常 0，`[K4]` 告警 0），
+只有**设计允许**的写入类落点例外被计数（88 次）⇒ **不引入 `GOAL_NOT_STANDABLE` 硬拒**，
+改为"谓词唯一定义 + 永久自断言"的形态收尾。
+
+**同轮其他确认**：23 项电池 **全 PASS**（`ticks=3507`，含 `mine_regression` 11/11 ⇒ D-168 掉落物修复生效）；
+无 `=FAIL` / `=TIMEOUT`；无 `[K4]` 告警。

@@ -652,4 +652,10 @@ public final class CollectDropsTask implements Task {
         BotLog.info("[CollectDrops] SUMMARY {}", summary);
         return Status.DONE;
     }
+
+    /** K-3：把"当前寻路段是否安全"透传给取消方（`/alice stop` 会据此延后到安全点）。 */
+    @Override
+    public boolean safeToCancel() {
+        return runner == null || runner.safeToCancel();
+    }
 }

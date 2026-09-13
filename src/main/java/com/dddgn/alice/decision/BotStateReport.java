@@ -146,9 +146,20 @@ public final class BotStateReport {
         if (reportSession != null && reportSession.scope() != null) {
             lines.add("作用域：" + reportSession.scope().describeForeignBreaks());
         }
+        // K-3：安全点取消计数器（延后几次/强制几次/生存打断撞上不安全时刻几次）
+        com.dddgn.alice.bot.BotManager.BotSession stopSession =
+                com.dddgn.alice.bot.BotManager.sessionOf(bot);
+        if (stopSession != null) {
+            lines.add("安全点取消：" + stopSession.describeSafeStops()
+                    + "；菜单门 " + com.dddgn.alice.action.MenuSession.describeGates());
+        }
         if (snapshot.has("tools")) {
             lines.add("工具：" + snapshot.getAsJsonObject("tools").get("summary").getAsString());
         }
+        // K-4 / D-167：谓词统一后的**累计**遥测。全为 0 ⇒ "规划期说到了、执行期 EXACT 到不了"
+        // 这条缝在实战里没咬到（计数只在真的发生时出现，所以空 = 从未发生）。
+        String admission = com.dddgn.alice.pathing.core.search.PathingStats.describeTotals();
+        lines.add("目标准入（K-4 累计）：" + (admission.isEmpty() ? "无异常计数" : admission));
         String refusal = GoalDirector.lastRefusal(bot);
         if (!refusal.isBlank()) {
             lines.add("⚠ 上次决策被拒（LLM 下一轮 prompt 也会看到）：" + refusal);

@@ -113,6 +113,18 @@ public final class DownwardExecution implements MovementExecution {
         bot.controller().stopMovement();
     }
 
+    /**
+     * K-3：向下挖一格会**改变脚位所在的高度**（挖穿后回落）⇒ 空中/未落地时不可取消。
+     * 破坏本身不产生"位移承诺"，但"脚下的方块已经被挖掉了"是承诺点。
+     */
+    @Override
+    public boolean safeToCancel() {
+        if (phase() != Phase.EXECUTING) {
+            return true;
+        }
+        return bot.onGround();
+    }
+
     @Override
     public void cancel() {
         if (phase == Phase.SUCCEEDED || phase == Phase.FAILED || phase == Phase.CANCELLED) {

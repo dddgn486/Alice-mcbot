@@ -175,6 +175,18 @@ public final class PillarExecution implements MovementExecution {
         bot.controller().stopMovement();
     }
 
+    /**
+     * K-3（对齐 Baritone `MovementAscend.safeToCancel` 的 `ticksWithoutPlacement == 0` 思路）：
+     * **一旦放下方块就已经提交** —— 必须完成"落回/站上去"，否则会留一个悬空块且 bot 状态不定。
+     */
+    @Override
+    public boolean safeToCancel() {
+        if (phase() != Phase.EXECUTING) {
+            return true;
+        }
+        return !placed;
+    }
+
     @Override
     public void cancel() {
         if (phase == Phase.SUCCEEDED || phase == Phase.FAILED || phase == Phase.CANCELLED) {

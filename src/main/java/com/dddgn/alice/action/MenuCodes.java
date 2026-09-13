@@ -19,6 +19,8 @@ public final class MenuCodes {
     public static final String MENU_CLOSED_EARLY = "menu_closed_early";
     /** 槽位语义不匹配（找不到目标槽／槽位类型不对）。 */
     public static final String MENU_SLOT_MISMATCH = "menu_slot_mismatch";
+    /** K-3 门：此刻（空中/未站定）**不允许**打开菜单。 */
+    public static final String MENU_NOT_SETTLED = "menu_not_settled";
     /** 容器已满，放不下。 */
     public static final String MENU_CONTAINER_FULL = "menu_container_full";
 

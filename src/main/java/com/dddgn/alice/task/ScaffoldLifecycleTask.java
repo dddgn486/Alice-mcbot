@@ -121,6 +121,12 @@ public final class ScaffoldLifecycleTask implements Task {
         this.scope = scope;
     }
 
+    /** K-3：把"当前寻路段是否安全"透传给取消方（`/alice stop` 会据此延后到安全点）。 */
+    @Override
+    public boolean safeToCancel() {
+        return climber == null || climber.safeToCancel();
+    }
+
     @Override
     public String taskName() {
         return "ScaffoldLifecycle";

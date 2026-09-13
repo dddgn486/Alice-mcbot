@@ -116,6 +116,19 @@ public final class FallExecution implements MovementExecution {
         }
     }
 
+    /**
+     * K-3（对齐 Baritone `MovementFall.safeToCancel`）：**还没离开起点**（脚位仍在 `fromFoot`）
+     * 或已不在执行中 ⇒ 可以取消；一旦**已经跨出边缘**（空中/下落中）就不能取消 —— 那时取消
+     * 等于把 bot 丢在空中（它会掉下去，但落点/支撑都没验证过）。
+     */
+    @Override
+    public boolean safeToCancel() {
+        if (phase() != Phase.EXECUTING) {
+            return true;
+        }
+        return MovementHelper.footCell(level, bot).equals(spec().fromFoot());
+    }
+
     @Override
     public void cancel() {
         if (phase == Phase.SUCCEEDED || phase == Phase.FAILED || phase == Phase.CANCELLED) {
@@ -167,10 +180,8 @@ public final class FallExecution implements MovementExecution {
                 return false;
             }
         }
-        if (!MovementHelper.canWalkOn(level, to)
-                || !MovementHelper.canWalkThrough(level, to)
-                || !MovementHelper.canWalkThrough(level, to.above())) {
-            return false;
+        if (!MovementHelper.canStandCentered(level, to)) {
+            return false;   // K-4/D-167：共用唯一定义
         }
         return level.getFluidState(to).isEmpty() && level.getFluidState(to.above()).isEmpty()
                 && !MovementHelper.isBottomSlab(level.getBlockState(to.below()));
