@@ -393,11 +393,38 @@ public final class MineRegressionTask implements Task {
         // `foreignDrops >= 1` ⇒ 断言"残留真的被排除了"，而不是"恰好没有残留"。
         expectedForeignDrop = false;
         if (current.kind() == Kind.EXECUTE || current.kind() == Kind.CHAIN) {
-            BlockPos dropAt = current.start().offset(0, 0, 1);
-            server.getCommands().performPrefixedCommand(source, String.format(java.util.Locale.ROOT,
-                    "summon minecraft:item %d %d %d {Item:{id:\"minecraft:dirt\",Count:1b},PickupDelay:32767s}",
-                    dropAt.getX(), dropAt.getY(), dropAt.getZ()));
-            expectedForeignDrop = true;
+            // 播种点必须**同时**满足：① 落在 `dropsBox(target)`（判据用的测量盒，以 target 为中心 ±6）内；
+            // ② 该格是空气、下方有支撑（不然掉落物会掉出盒外/穿进方块）。
+            // 2026-09-13 实测教训：原先固定用 `start+Z1`，对 target 偏北的用例（exec_blocked，
+            // target z=134 ⇒ 盒 z=[128,140]）落在**盒外** ⇒ 播种"成功"但基线里没有它 ⇒ `foreignOk=false` 假失败。
+            BlockPos dropAt = null;
+            for (BlockPos candidate : List.of(current.start(), current.start().offset(0, 0, 1),
+                    current.start().offset(0, 0, -1), current.start().offset(1, 0, 0),
+                    current.start().offset(-1, 0, 0))) {
+                if (!dropsBox(current.target()).contains(candidate.getCenter())) {
+                    continue;
+                }
+                if (!bot.serverLevel().getBlockState(candidate).isAir()) {
+                    continue;
+                }
+                if (bot.serverLevel().getBlockState(candidate.below())
+                        .getCollisionShape(bot.serverLevel(), candidate.below()).isEmpty()) {
+                    continue;   // 无支撑 ⇒ 会掉下去，可能掉出测量盒
+                }
+                dropAt = candidate;
+                break;
+            }
+            if (dropAt == null) {
+                BotLog.warn("[MineRegression] case={} 找不到合法的播种点（测量盒内 + 空气 + 有支撑）"
+                        + "⇒ 本用例不做 foreignDrops 断言（如实降级，不假失败）", current.name());
+            } else {
+                server.getCommands().performPrefixedCommand(source, String.format(java.util.Locale.ROOT,
+                        "summon minecraft:item %d %d %d {Item:{id:\"minecraft:dirt\",Count:1b},PickupDelay:32767s}",
+                        dropAt.getX(), dropAt.getY(), dropAt.getZ()));
+                expectedForeignDrop = true;
+                BotLog.info("[MineRegression] case={} 播种外来掉落物于 {}（测量盒内，用于验证 D-168 排除逻辑）",
+                        current.name(), dropAt.toShortString());
+            }
         }
         dropsAtCaseStart.clear();
         for (var item : bot.serverLevel().getEntitiesOfClass(

@@ -138,3 +138,66 @@ MineRegression exec_* … idempotent=true （5 处）
 - ❌ "D-168 残留容错有效" —— 分支未被真实触发（逻辑成立是用代码推的，不是实测的）。
 - ❌ "看门狗字段足以定性冻结" —— 字段是按机理**推测**出来的（removed/区块/玩家表/连接），
   尚未在真实冻结时读到过；若下次现场显示这些量都"正常"，说明要走"谁在 tick 连接"这条更深的路。
+
+---
+
+# 附：基层（base layer）专项审查（用户要求，2026-09-13 晚）
+
+> 用户判断："这些问题很多都来自项目的基层"。逐条**用代码与日志核实**，不靠印象。
+
+## B-1 【已核实·生产安全】任务生命周期：终态即清任务
+
+**事实（代码）**：`BotSession.tick()` 里 `Task.Status status = task.tick();`
+→ `switch(status)`: `DONE/FAILED → complete(...)` → `recordTerminal(...)` → **`clearTask()`**（`task = null`）。
+之后每 tick 开头 `if (task == null) return;` ⇒ **生产路径永远不会 tick 一个终态任务**。
+
+**结论**：2026-09-13 的服务端崩溃**不是生产路径具备的性质**，而是**测试台（夹具/诊断任务）直接 tick 任务**时
+破坏了契约 ⇒ 归类为"**测试台调用纪律**"缺陷，而不是"会话调度"缺陷。
+**已采取的基层措施**：① 契约写进 `Task.tick()` javadoc（唯一声明处，含 09-06/09-13 两次 NPE 的来由）；
+② 电池对每个终态步任务补 tick 两次并断言 `idempotent=`（集中执行点，不必逐个类改）。
+
+## B-2 【已核实·隐患面】19 处"直接 tick 任务"的调用点
+
+脚本扫描"Task/Runner/Step/Job 字段被置 null 且 `.tick()` 无 null 守卫" ⇒ 19 处。逐个归类后：
+
+| 类别 | 数量 | 风险 | 处置 |
+|---|---|---|---|
+| 生产任务（会被会话 tick） | 2（`MineTask`、`TransferTask`） | **低**：会话终态即清任务（B-1）⇒ 不会被二次 tick | `MineTask` 已加终态闩锁；`TransferTask` 待观察 |
+| 夹具/自检任务（被自身或电池直接 tick） | 17 | **中**：夹具写法一旦"终态后又 tick"就崩（09-13 实例） | 电池已 try/catch 隔离 + `idempotent=` 断言点名；逐个加闩锁列为单独立项 |
+
+**结论**：隐患面**真实存在但已被两层兜住**（隔离 + 断言），不需要立刻改 17 个夹具；
+但**契约推广**仍是欠账，且这是**同型缺陷第二次出现**（09-06 已崩过一次）。
+
+## B-3 【已核实·未闭环】假人 tick 依赖实体 tick（与任务层不同源）
+
+**事实（读数）**：冻结现场 `segmentTicks=121 / entityTicksInSegment=0 / travelCallsInSegment=0`，
+`input=forward=1.00`、`onGround=true`、`delta=0`、三格方块正常。
+**结构事实（代码）**：任务/会话跑在 **`ServerTickEvent.Phase.END`**（全局）；而 `BotPlayer.tick()`
+是**实体 tick**（`BotPlayer.tick() → aiStep() → travel()`），受**区块 entity-ticking** 影响。
+⇒ 两者**不同源**：会话可以一直跑，而实体一次都不 tick —— 与观测完全一致。
+**首要假设**：机器人所在区块的 **entity-ticking 掉了**（或实体被移出 tick 列表）⇒ 物理冻结、无任何报错、之后自恢复。
+**验证手段（已加）**：看门狗新增 `entityTicking=level.isPositionEntityTicking(pos)`
+（连同 `removed / levelLoaded / inLevelPlayers / inPlayerList / connection / task`）。
+**未闭环**：仍未复现；**不许**在拿到现场前加"补 tick"这类特判。
+
+## B-4 【已核实·夹具纪律】"夹具自己的前提也必须断言"第三次应验
+
+本轮唯一失败 = 我上一轮新加的 `foreignOk` 断言——**原因是播种点算错**（用 `start+Z1`，
+而测量盒以 **target** 为中心 ±6；`exec_blocked` 的 target z=134 ⇒ 盒 z∈[128,140]，播种在 z=141 ⇒ 盒外）。
+**已修**：播种点改为"测量盒内 + 空气 + 下方有支撑"的第一个候选，找不到就**如实降级**（不做该断言并告警）。
+
+**正面结果（D-168 分支首次实测成立）**：`exec_direct`/`exec_floating`/`exec_chain` 三个用例
+打出 `foreignOk=true(另有残留1件不计入)` ⇒ **"残留不计入判据"这条逻辑第一次被真实执行并通过**。
+
+**教训（写进规矩）**：夹具**自己制造的现场**（播种位置、盒范围）也必须自检——
+否则出现的是"断言写得对、前提摆错了"的假失败，比不写断言更浪费时间。
+
+## B-5 本轮日志事实汇总（供对账）
+
+```
+电池： (22/23) ticks=3312 → FAIL（唯一失败步 = mine_regression，唯一失败用例 = exec_blocked）
+mine_regression：free/wall/blocked/headroom/buried/exec_direct/exec_floating/exec_chain/no_tool_refuses/
+                 scope_reopen_keeps_drops = PASS；exec_blocked=FAIL(foreignOk=false，播种点算错)
+idempotent=false：0 次      entity_tick_missing：0 次      segment_stall：0 次
+异常/崩溃：0 次              K4=OK(真异常 0 / 写入类例外 75)
+```

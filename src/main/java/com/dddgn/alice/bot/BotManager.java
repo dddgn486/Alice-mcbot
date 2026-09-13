@@ -1063,11 +1063,15 @@ public final class BotManager {
             if (session.entityTickMissingStreak == 5 || session.entityTickMissingStreak % 100 == 0) {
                 BlockPos pos = bot.blockPosition();
                 BotLog.warn("[Bot] entity_tick_missing streak={} serverTick={} bot={} pos={}"
-                                + " removed={} levelLoaded={} inLevelPlayers={} inPlayerList={}"
+                                + " removed={} levelLoaded={} entityTicking={} inLevelPlayers={} inPlayerList={}"
                                 + " connection={} task={}",
                         session.entityTickMissingStreak, bot.getServer().getTickCount(),
                         bot.getName().getString(), pos.toShortString(),
                         bot.isRemoved(), bot.serverLevel().isLoaded(pos),
+                        // **首要假设（D-176）**：会话跑在全局 ServerTickEvent 上，而 `BotPlayer.tick()`
+                        // 走的是**实体 tick**（受区块 entity-ticking 影响）⇒ 这一位若为 false 就解释了
+                        // "任务在跑、bot 一格不动"。
+                        bot.serverLevel().isPositionEntityTicking(pos),
                         bot.serverLevel().players().contains(bot),
                         bot.getServer().getPlayerList().getPlayers().contains(bot),
                         bot.connection != null, session.taskKind);

@@ -21,9 +21,6 @@ public interface Task {
     /** 本任务的目标(客户端高亮与服务端校验共用)。 */
     TaskTarget target();
 
-    /** 主线程推进一 tick;返回当前状态。 */
-    Status tick();
-
     /** 失败原因(仅 FAILED 时有意义)。 */
     String failureReason();
 
@@ -59,6 +56,25 @@ public interface Task {
     default boolean safeToCancel() {
         return true;
     }
+
+    /**
+     * **任务生命周期契约（D-178，2026-09-13 服务端崩溃后补写的基层契约）**。
+     *
+     * <p>1. **终态后必须幂等**：`tick()` 一旦返回过 `DONE`/`FAILED`，之后再被调用**必须**返回同一状态、
+     * 不得抛异常、不得再碰任何子任务/世界。本契约在**会话**侧由 `BotSession` 保证（终态即
+     * `complete() → clearTask()`，之后不再 tick），在**测试台**侧由回归电池集中断言
+     * （每个终态步任务补 tick 两次，记 `idempotent=`）。
+     * <p>为什么写进接口：2026-09-13 `MineTask.tickRestore` 在"终态后被多 tick 一次"时 NPE
+     * （`restoreTask` 已置 null 而 `phase` 仍是 RESTORE）**打死服务端 tick 循环**；同型 NPE 在
+     * 2026-09-06 也崩过一次（`MovementSequenceWalkTask.movements`）。凡是**直接 tick 任务**的
+     * 调用方（夹具、诊断任务、Job 内部）都必须自己保证"终态即不再 tick"。
+     * <p>2. **子任务字段置 null 时必须同步推进状态机**（否则"状态仍在指向它、字段已空"就是上面那个 NPE）。
+     *
+     * <p>主线程推进一 tick；返回当前状态。
+     *
+     * @return 当前状态；实现方不得在终态后返回 `RUNNING`
+     */
+    Status tick();
 
     /** 事实型失败报告；未实现领域详情的任务默认返回空报告。 */
     default TaskFailureReport failureReport() {
