@@ -1143,6 +1143,18 @@ public final class BotManager {
     }
 
     /** **熔炼页签自检**（阶段 3-A / A4b，D-198）：菜单型炉子（装升级→烧→取→拆回）。 */
+    /** 阶段 3-B / S2：机器**站点**只读探针（`alice:machine_station_probe`）。 */
+    public static boolean assignMachineStationProbe(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(new com.dddgn.alice.task.MachineStationProbeTask(bot, observer),
+                TaskTarget.block(bot.blockPosition()));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     /** 阶段 3-B / S1：机器配方**只读**探针（`alice:machine_probe`）。 */
     public static boolean assignMachineProbe(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
