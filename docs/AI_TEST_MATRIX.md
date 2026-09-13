@@ -29,14 +29,16 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 
 | 能力 | 零参数入口 | 关键判据 | 等级 |
 |---|---|---|---|
-| **串联回归电池**（26 项，★首选） | `alice:regression_battery` 右键 | `SUMMARY … (26/26) → PASS` + `K4=OK(…)` | `WINDOWS_CLIENT`（`ticks=3507`） |
+| **串联回归电池**（27 项，★首选） | `alice:regression_battery` 右键 | `SUMMARY … (27/27) → PASS` + `K4=OK(…)` | `WINDOWS_CLIENT`（26/26 时 `ticks=3507`；本轮 +`craft_station` 步 ⇒ **待复测**） |
 | 挖掘回归（11 用例） | 电池 `mine_regression` / `alice:mine_regression` | `SUMMARY free=PASS … scope_reopen_keeps_drops=PASS`；`dropsLeft` 只数本用例新增（D-168） | `WINDOWS_CLIENT`（11/11） |
 | **K-4 谓词一致性** | 电池 SUMMARY 的 `K4=` 段；`alice:bot_report` 的"目标准入（K-4 累计）"行 | 真异常 0；写入类例外仅计数 | `WINDOWS_CLIENT`（收口：不引硬拒） |
 | K-1 部分计划 | 电池 `partial_search` / `alice:partial_search_check` | `partial_with_prefix=PASS … verdict=PASS` | `WINDOWS_CLIENT`（电池内 PASS） |
 | 基-8 能力闸门 | 电池 `capability_gate` / `alice:capability_gate_check` | 用例含 `safe_cancel_wiring`、`session_status_no_dead_value`（K-5：状态枚举不得有死值） | `WINDOWS_CLIENT`（电池内 PASS；K-5 新用例待本轮电池） |
-| K-2 legacy 双内核 | 无独立入口（纯删除，回归靠电池） | 电池 `(26/26) → PASS` | `COMPILES`（删除依据 = 按路径分析的零活引用） |
+| K-2 legacy 双内核 | 无独立入口（纯删除，回归靠电池） | 电池 SUMMARY 全 PASS | `COMPILES`（删除依据 = 按路径分析的零活引用） |
 | L2 菜单/容器 | 电池 `transfer` / `alice:transfer_check` | `fixture=PASS end_to_end=PASS … verdict=PASS` | `WINDOWS_CLIENT`（电池内 PASS） |
 | 决策层 6 步 | 电池内 `decision_contract` / `decision_trace` / `permission_gate` / `pickup_gate` / `collect_job` / `recipes_dump` | 各自 `SUMMARY` | `WINDOWS_CLIENT`（电池内 PASS） |
+| 阶段 3-A A1/A2/A3 合成阶梯 | `alice:craft_check` / `alice:craft_action_check` / `alice:craft_table_check`（先 `/function alice_test:craft_table_course`） | 各自 7/7 `verdict=PASS`；A3 含 `no_world_write`（零写入硬断言，夹具自带传送） | `WINDOWS_CLIENT`（三项均实测 7/7，2026-09-13） |
+| **阶段 3-A A3b 自放工作站** | `alice:craft_station_check`（先 `/function alice_test:craft_station_course`）；电池步 `craft_station` | `start_premise no_station_premise holding_station_item station_placed write_accounted placed_table_craft teardown_clean verdict` 全 PASS；`teardown_clean` = **方块回空气 + 账本 pending=0** | `IMPLEMENTED` + `COMPILES`（**待客户端**，D-190） |
 | **K-3 安全点停止** | `alice:k3_stop_check` 右键（DEFER）/ **Shift+右键**（FORCED） | `deferred=1` / `forcedUnsafe=1`；terminal `cancelled:k3_defer:safe_point` / `cancelled:k3_forced:forced_unsafe` | `WINDOWS_CLIENT`（两种模式均实测通过） |
 | 道具资源完整性 | `./tools/check-item-models.sh`（构建前） | `RESULT PASS`（空模型/坏 JSON/死贴图） | 脚本自测通过（D-170） |
 

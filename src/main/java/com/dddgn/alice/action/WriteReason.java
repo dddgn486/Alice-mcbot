@@ -69,6 +69,17 @@ public enum WriteReason {
     //（只有 `policy()`/`temporary()` 被读）⇒ 新增值只会再造一个死值（K-5 同族，已登记）。
     CONTAINER_TRANSFER(Policy.EXPLICIT_TARGET, Action.BOTH, "容器传输：取出/写入容器"),
 
+    // ---- 合成工作站（阶段 3-A / A3b，D-190：**世界写入**，与方块写入同规格登记/受预算约束）----
+
+    /**
+     * **放置合成工作站**（工作台/熔炉这类"用一下就走"的机器）。
+     *
+     * <p>为什么单列：它是**没有上层任务显式请求**的写世界动作（bot 只是想合成），
+     * 因此必须 ① 有专门的 reason（进 A 表、可审计）② 走 `WriteBudget` 的放置预算
+     * ③ 属 {@code TEMP}：**用完即拆**（建拆同权），账本 `remaining` 必须回到 0。
+     */
+    CRAFT_STATION_PLACE(Policy.EXPLICIT_TARGET, Action.PLACE, "放置合成工作站（用完即拆）"),
+
     // ---- 外部触发 ----
 
     /** 玩家命令直接写入（管理/调试入口）。 */
@@ -117,6 +128,7 @@ public enum WriteReason {
      * 走独立授权，不受配对约束——两者不可混（D-081 §12.1 / D-095）。
      */
     public boolean temporary() {
-        return this == STEP_PLACEMENT || this == SUPPORT_PLACEMENT;
+        return this == STEP_PLACEMENT || this == SUPPORT_PLACEMENT
+                || this == CRAFT_STATION_PLACE;
     }
 }

@@ -427,3 +427,15 @@ S-1 因常驻任务而真实化），再开 **②决策层接入** 这条真正�
 **本轮不做**：机器适配器（D-183 排序）、跨模组材料归一。
 A1 判据（零参数 `alice:craft_check`）：正例给工作站+材料清单，缺料给 `missing=`，无配方给 `no_recipe`，
 **纯只读**（不改背包/世界）。
+
+**§6.18 阶段 3-A 阶梯推进（2026-09-13，A3b 落盘）**：
+- **A1 / A2 / A3 客户端 PASS**（`alice:craft_check` 7/7、`alice:craft_action_check` 7/7、
+  `alice:craft_table_check` 7/7，含 `no_world_write` 零写入硬断言）。
+- **A3b 已实施、待客户端**（D-190）：`task/craft/StationPlacement`（授权入口 **A12**，
+  `WriteReason.CRAFT_STATION_PLACE`，账本记 `TEMP` ⇒ 受"建拆同权"约束）+ 夹具
+  `alice:craft_station_check` + 场景 `alice_test:craft_station_course`（**故意没有工作台**）+
+  电池 26 → **27 项**（`craft_station` 步）。
+  判据：`station_placed`（世界事实）/ `write_accounted`（账本 TEMP）/ `placed_table_craft`（用自己放的台合出熔炉）/
+  `teardown_clean`（**方块回空气 + pending=0**）。
+- **未做**（仍在本阶梯上）：A4 熔炉加工（燃料/时间/取出、失败不留半成品）、
+  A5 决策层接线（`GoalAction.Craft` + 缺料多路事实进候选菜单）。

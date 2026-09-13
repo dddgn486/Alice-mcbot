@@ -7303,3 +7303,55 @@ D-185 附注一（"圆石没有配方"—— 装模组后它有机器配方）�
 
 **待用户确认的设计问题**：是否还要一条**通用**规则 —— "**失败终态不自动起 job**"（不仅是自检任务）？
 本轮只做了自检窗口（用户当前痛点），通用规则等用户裁定。
+
+### D-190：阶段 3-A / A3b —— **自放工作站**（合成阶梯上第一次真正写世界）+ "建拆同权"闭环
+
+**为什么 A3b 独立成级**：A3（D-188）验的是"**用现成**工作台且**零世界写入**"；真实场景里
+"附近没有台子"是常态 ⇒ 必须有人自己放。但 A3b **必然写世界**，与 A3 的"零写入"硬断言互斥：
+塞进同一个 SUMMARY 会让"零写入"退化成"某段之前零写入"，读日志的人分不清边界；
+且拆台走 `RestoreScopeTask`（**预算按真实 tick 计**：基础 100 + 每块 450 + 收集 600），
+与 A3 的秒级夹具不是一个量级。⇒ **独立夹具 + 独立场景 + 独立电池步**。
+
+**实现**（`task/craft/StationPlacement.java`，注册为授权入口 **A12**）：
+1. `findSpot(level, center, radius)`（**只读**）：空气 + 下方有碰撞 + `BlockInteraction.hasPlacementFace`
+   ⇒ 取最近的一格。**不猜放置面**：面由 `placeAt` 的支撑面扫描决定，找不到合法面就如实 `no_placement_spot`；
+2. `place(bot, spot)`：`WriteGrant.of("craft-station", WriteReason.CRAFT_STATION_PLACE)`
+   ⇒ `WriteReason` **新增第 13 个结构化理由**（`Policy.EXPLICIT_TARGET` / `Action.PLACE` /
+   `temporary()==true`），于是账本记 **`TEMP`** ⇒ **自动落入"建拆同权"约束**（这是本级的核心不变量）；
+3. `place` 的自断言是**世界事实**：放下后那一格必须 `is(手持方块)` ——
+   不是"发起过放置"。失败码 `place_failed` / `station_not_present_after_place` / `place_budget_exhausted`（`WriteBudget.placeAllowed`）。
+
+**夹具**（`task/CraftStationCheckTask.java` + `alice:craft_station_check`，零参数，分相位跨 tick）：
+PREPARE → PLACE → PLACE_CRAFT → TEARDOWN。判据全部是**世界事实或账本事实**：
+
+| 用例 | 判据（不靠"我说做了"） |
+|---|---|
+| `start_premise` | 夹具**自己** teleport 到场景起点并断言到位（D-187 §6.9.1；独立物品入口没人替你传送） |
+| `no_station_premise` | 出手前范围内**真的没有**工作站（否则测的不是"自己放"这条路）⇒ 如实 FAIL 而不是换个台子用 |
+| `holding_station_item` | 主手确实是工作站物品（没有它不可能放置） |
+| `station_placed` | 放置后那一格**变成**手持那种方块（`outcome.ok() && isStation`） |
+| `write_accounted` | `StationPlacement.pending(...) ≥ 1`（账本里是**我方 TEMP**）—— 记了才必须拆 |
+| `placed_table_craft` | 用**自己放的**台子合出熔炉（`furnace +1`），且菜单必须是 `CraftingMenu`（`craftWithMenu` 自断言） |
+| `teardown_clean` | `RestoreScopeTask` 之后：方块**回到空气** **且** 该格 `pending=0` **且** `pendingForOwner` 全空 |
+
+**交付前自查抓到的一个**必然**缺陷**（值得单记）：`findSpot` 的搜索区间以 **bot 自己所在格为中心**，
+而 bot 那一格**永远是空气**（实体不改方块状态）、下方是实心、放置面也有 ⇒ 距离 = 0 **必然胜出**
+⇒ 第一版会**把工作台放进 bot 自己脚下那一格**（方块落在实体身内：顶起来/窒息，随后"触及与站位"全变）。
+修：`occupied(level,pos)` = **实体包围盒与该格相交即排除**（bot 高 1.8 ⇒ 头位那格被同一条件自动排除，
+别的实体一视同仁），`findSpot` 与 `place` **两处都查**（搜索与执行之间世界可能变）。
+**教训**：这类"自己占着目标格"的缺陷在服务端日志里只会表现为"夹具莫名其妙站起来一格"，
+在客户端第一次实测时极难归因 —— 交付前把"候选集合是否包含我自己"当必答项。
+
+**两个实现细节（都踩过）**：
+- `StationPlacement.pending` **按 owner 查**（`WorldModLedger.pendingForOwner`）而不是按作用域 id 查：
+  自检任务不在生产作用域里时 `currentScope` 会是 `null`，按作用域查会**恒为 0** ⇒ 断言假通过；
+  按 owner + `TEMP` 查才是"这块地是我的临时方块吗"的直接定义。
+- 夹具发料**顺序要紧**：先 `giveHeld(工作站)` 占住选中槽，再 `give(圆石)`；
+  反过来 `give` 先把圆石放进 0 号槽（= 选中槽），`giveHeld` 再覆盖它 ⇒ 圆石凭空消失。
+
+**场景**：新增 `alice_test:craft_station_course`（与 A3 场景**同一块地**、但**故意不放工作台**）——
+A3 之后紧接着跑 A3b 时它顺手把 A3 的台子清掉，"周围没有工作站"这条前提因此必然成立。
+电池 **26 → 27 项**（`craft_station` 步，自带场景 + teleport 起点 + 1600 tick 预算）。
+
+**边界**：只覆盖"**放 + 用 + 拆**"这一条闭环；**尚未**做 ① A4 熔炉加工（燃料/时间/取出）、
+② A5 决策层接线（`GoalAction.Craft` + 缺料多路事实）。**未验证**：客户端。

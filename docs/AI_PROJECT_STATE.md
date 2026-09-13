@@ -406,7 +406,15 @@ legacy 双内核整批删除（19 文件，依据"按路径分析的零活引用
 **D-173 补漏**：`pathing/movement/` 14 文件（外部真引用 0）整包删除 + `.gitignore` 藏住的
 `PathExecutor.java.backup` 删除。
 
-**本轮环境事实**：电池现 **26 项**（`(26/26) ticks=3507 → PASS`）；`k3_stop_check` 等 4 个道具贴图已正常；
+**阶段 3-A 合成阶梯（最新）**：A1（`alice:craft_check`）/ A2（`alice:craft_action_check`）/
+A3（`alice:craft_table_check`，含 `no_world_write` 零写入硬断言）**客户端均 7/7 PASS**（2026-09-13）。
+**A3b 自放工作站已实施、待客户端**（D-190）：`task/craft/StationPlacement`（授权入口 **A12**、
+`WriteReason.CRAFT_STATION_PLACE`、账本记 `TEMP` ⇒ 受"建拆同权"约束）+ 夹具 `alice:craft_station_check`
++ 场景 `alice_test:craft_station_course`（**故意没有工作台**）+ 电池 26 → **27 项**（`craft_station` 步）。
+判据：`station_placed`（世界事实）/ `write_accounted`（账本 TEMP）/ `placed_table_craft` /
+`teardown_clean`（**方块回空气 + pending=0**）。A4（熔炉）、A5（决策层接线）未做。
+
+**本轮环境事实**：电池现 **27 项**（上一轮 26 项时为 `(26/26) ticks=3507 → PASS`，本轮新增 `craft_station` 步）；`k3_stop_check` 等 4 个道具贴图已正常；
 镜像/同步脚本正常；`tools/check-item-models.sh` 已接入构建前清单（`checked=66 … PASS`）。
 
 **环境提醒**：镜像脚本 `tools/mirror-windows-workspace.sh` 现为"默认不备份/不校验"快跑（8.6 秒）；

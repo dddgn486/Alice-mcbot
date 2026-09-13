@@ -31,7 +31,8 @@
 |---|---|---|---|---|
 | **A1 ✅已实施（待客户端）** | **配方查询原语**：`itemId × count` → 可行路线（工作站/材料/候选/缺料） | 新增 1 个只读类 + 1 个夹具任务 + 1 个物品 | `alice:craft_check`（正例 + 负例） | 正例给出路线；缺料给 `missing=`；无配方给 `no_recipe`；**不改任何状态** |
 | A2 ✅已实施（待客户端） | **随身 2×2 合成**（单一原语）：用玩家自带 `InventoryMenu` 的 2×2 网格 + 结果槽，`MenuSession.click` 摆料并取走 | `action/` 新增合成执行器（复用 `MenuSession`） | 同上夹具第二段 | 消耗正确、产物入包、**绝不凭空给物品**；材料不足如实失败 |
-| A3 | **工作台 3×3**：优先用**附近现成**工作台（不写世界）；没有才放置（需 `WriteReason`+预算+授权），且**用完即拆**（建拆同权闭环） | `action/` + 一处授权登记（A 表） | 场景函数造一个工作台 + 夹具 | 现成工作台路径**零写入**；放置路径账本 `remaining=0` |
+| A3 ✅已实施·客户端 PASS（D-188） | **工作台 3×3（用现成）**：找台→走位→开 `CraftingMenu`→合成，**零世界写入** | `task/craft/TableCraft` + 复用 `MenuSession` | `alice:craft_table_check`（D17） | 现成工作台路径**零写入**（硬断言） |
+| **A3b ✅已实施（待客户端）** | **自放工作站**：附近没有时自己放置（`WriteReason.CRAFT_STATION_PLACE` + `WriteBudget` + **A 表 A12**），且**用完即拆**（建拆同权闭环，走 `RestoreScopeTask`） | `task/craft/StationPlacement`（新）+ 1 个夹具 + 1 个场景 | `alice:craft_station_check`（D18）+ 电池步 `craft_station` | `station_placed`（世界事实）/ `write_accounted`（账本 TEMP）/ `teardown_clean`（**方块回空气 + pending=0**） |
 | A4 | **熔炉**（时间/燃料语义）：插料、加燃料、等待、取出 | 同上 + 超时/清理 | 场景函数造熔炉 + 夹具 | 燃料选择有据、超时如实失败、**失败不留半成品** |
 | A5 | **决策层接线**：`GoalAction.Craft`（词汇表 + 严格解析 + 候选菜单给出"可做的合成"） | `decision/` 3 处 + 文档 | 电池 + `/alice ask` 观察 | LLM 只能从菜单选；越界/缺料被 `Refused` 并回读 |
 
