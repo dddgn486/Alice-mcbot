@@ -85,6 +85,23 @@ public final class InventoryCraft {
     }
 
     /**
+     * **产物计数口径**（D-195 附注二）：不同站点的产物**落点不同** ——
+     * 原版随身/工作台进玩家背包，而精妙存储的合成页签**进容器**（实测 `product_in_container=1`）。
+     * 所以"产物有没有出来"这一判断必须由**站点**决定口径，不能写死成"数玩家背包"。
+     */
+    @FunctionalInterface
+    public interface ProductCounter {
+        int count(net.minecraft.world.item.Item item);
+    }
+
+    /**
+     * 默认口径：只数**玩家背包**（原版站点；与历史行为一致）。
+     */
+    public static ProductCounter playerInventoryCounter(BotPlayer bot) {
+        return item -> RecipeQuery.countInInventory(bot, item);
+    }
+
+    /**
      * 合出至少 {@code count} 个 {@code recipe} 的产物 —— **格网规格由发现器现场给出**（S1-5a / D-193）。
      *
      * <p>过去这里写死 `inventorySpec()`（= 记忆下来的 2×2 下标），只要换一个模组菜单就必然错位。
@@ -99,12 +116,23 @@ public final class InventoryCraft {
             BotLog.warn("[InventoryCraft] 认不出合成网格 ⇒ 拒绝（不猜下标）：{}", discovery.describe());
             return new Result(false, Codes.GRID_UNRECOGNIZED, 0, 0, List.of());
         }
-        return craft(bot, menu, recipe, count, discovery.spec());
+        return craft(bot, menu, recipe, count, discovery.spec(), playerInventoryCounter(bot));
     }
 
-    /** 通用入口：显式给出格网规格（2×2 随身 / 3×3 工作台）。 */
+    /** 兼容重载：显式给规格 ⇒ 产物口径按**玩家背包**（原版站点）。 */
     public static Result craft(BotPlayer bot, AbstractContainerMenu menu, Recipe<?> recipe, int count,
                                GridSpec spec) {
+        return craft(bot, menu, recipe, count, spec, playerInventoryCounter(bot));
+    }
+
+    /**
+     * 通用入口：显式给出格网规格**与产物计数口径**（D-195 附注二）。
+     *
+     * <p>为什么要注入口径：实测模组站点会把产物放进**容器**，若仍按"数玩家背包"判断，
+     * 成功会被判成 `result_not_taken`（假失败）。
+     */
+    public static Result craft(BotPlayer bot, AbstractContainerMenu menu, Recipe<?> recipe, int count,
+                               GridSpec spec, ProductCounter counter) {
         if (!(recipe instanceof CraftingRecipe)) {
             return new Result(false, Codes.UNSUPPORTED_RECIPE, 0, 0, List.of());
         }
@@ -124,12 +152,12 @@ public final class InventoryCraft {
                 clearGrid(bot, menu, spec);
                 return new Result(false, placeFailure, round, produced, consumed);
             }
-            int before = RecipeQuery.countInInventory(bot, preview.getItem());
+            int before = counter.count(preview.getItem());
             if (!click(bot, menu, spec.resultSlot(), ClickType.QUICK_MOVE)) {
                 clearGrid(bot, menu, spec);
                 return new Result(false, Codes.CLICK_REJECTED, round, produced, consumed);
             }
-            int after = RecipeQuery.countInInventory(bot, preview.getItem());
+            int after = counter.count(preview.getItem());
             if (after <= before) {
                 clearGrid(bot, menu, spec);
                 return new Result(false, Codes.RESULT_NOT_TAKEN, round, produced, consumed);

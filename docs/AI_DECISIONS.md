@@ -7769,3 +7769,32 @@ deprovision_verified=true  upgrade_returned=true
 今后新增写入原语时，**守卫一律用"发现出来的槽位集合"，不用 `menu.slots.size()`**。
 
 **等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `81fc53ec…`）。**待客户端复测**。
+
+#### D-195 附注二：C **PASS** —— 模组站点真合成打通；并**实测**出两维语义（产物进容器、不自动补料）
+
+**客户端事实（修复后复测）**：
+```
+cobblestone_consumed=8  furnace_produced=1        ← 真消耗、真产物
+product_in_player=0     product_in_container=1    ← **产物落在容器**（不是玩家背包）
+shift_click_into_storage=false                    ← 读到的升级 NBT 开关值
+grid_after_craft=-,-,-,-,-,-,-,-,-                ← 网格清空、**没有自动补料**
+primitive_verdict=FAIL:result_not_taken           ← 原语按"数玩家背包"判定 ⇒ **假失败**
+primitive_assumption_mismatch=true                ← 我预先埋的测量项正好抓到它
+materials_consumed=true product_produced=true deprovision_verified=true upgrade_returned=true
+no_block_writes=true  verdict=PASS                ← 以**世界事实**判定的 PASS
+```
+⇒ **"装一次 → 用 → 拆回"全链路通了**（`alice:craft_station_craft_check`），并且两维语义**是测出来的、不是猜的**。
+
+**修法（把"产物口径"变成可注入的一维）**：
+- `InventoryCraft` 新增 `ProductCounter`（函数式接口）+ 6 参重载；默认口径仍是**玩家背包**（原版站点，行为不变）；
+- `TableCraft.craftWithMenu` 用**站点感知口径**：`玩家背包 + 当前菜单容器`
+  （对原版工作台容器里不会有产物 ⇒ 与历史一致，回归由电池证明）。
+
+**一条待查事实（故意不下结论）**：开关读到 `shiftClickIntoStorage=false`（按源码语义="放进玩家物品栏"），
+**但产物实际进了容器** ⇒ 说明那个升级 NBT 开关**不是（唯一）决定因素**。
+源码里另有一个**玩家侧**设置（`gui.sophisticatedcore.settings.buttons.shift_click_open_tab.on/off`
+= "Shift Click **Open Tab** First" / "Into Inventory First"）⇒ **假设**：产物去向由它（或两者共同）决定。
+**这一条是假设，不是结论** —— 将来若要精确控制去向，先读那个玩家侧设置（或直接**按站点实测**记录去向，这已是当前做法）。
+
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `b028df7d…`）。
+**回归风险**：`TableCraft` 的口径改动只影响"产物计数"，由电池 `craft_table`/`craft_station` 两步复测即可确认。
