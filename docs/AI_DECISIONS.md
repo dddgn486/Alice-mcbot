@@ -8336,3 +8336,19 @@ namespace=mekanism types=26 type_recipes=1171 readable_total=2923 skipped_total=
 （或按 D-197 转成电池步）。换模组只改 `NAMESPACE` 与入口名字——**这就是"实验模板"的可复用性检验**。
 
 **等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（77 项）+ 已同步（jar `8e497003…`）；**待客户端**（一次右键）。
+
+#### D-204 附注一：S1 取证**发现了关键事实**——原版 `Recipe` 接口**取不到**机器配方的输入/输出
+
+探针实跑（23:56，`verdict=PASS`，26 类型条数与 S0 逐类吻合 ✓）里，样例长这样：
+```
+sample id=mekanism:pigment_extracting/carpet/purple  out=minecraft:air x0  in=[]
+```
+⇒ **`getResultItem()` / `getIngredients()` 对机器类型返回空**：Mekanism 用**自己的配方类/访问器**
+（输出可能是物品也可能是**化学品**，输入是它自己的 `ChemicalStack`/多输入结构），
+原版接口在这类配方上**没有表达能力**。这不是探针的缺陷，而是 S1 要回答的核心问题被回答了：
+**"读法"必须问上游自己的访问器（按类型/接口找，绝不按类名猜）**，否则只能如实报 `machine_recipe_unsupported`。
+
+**下一步（无需客户端）**：在 WSL 里直接反编译/检查 `Mekanism-1.20.1-10.4.16.80.jar` 的配方类层次
+（与当初查精妙 Core 同一手法）⇒ 找出"输入/输出访问器"的**接口形态**；据此给 S1 的读法定接口，
+并在探针里补一栏 `unreadable_via_vanilla=N`（把"原版读不出"与"没有输出"分开报，避免歧义）。
+**纪律提醒**：这类"问上游"的做法正是协议 §3 的第一条通用判据（上游自述驱动），不是为 Mekanism 开的特例。
