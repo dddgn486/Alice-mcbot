@@ -12,9 +12,9 @@ import net.minecraft.world.level.Level;
 /**
  * 串联回归电池启动器（{@code alice:regression_battery}，D-122）：普通右键，零参数。
  *
- * <p>一次跑完"改了生产任务必须复跑"的 24 项常用回归（清单见 {@code RegressionBatteryTask} 与
+ * <p>一次跑完"改了生产任务必须复跑"的 25 项常用回归（清单见 {@code RegressionBatteryTask} 与
  * {@code docs/TESTING_GUIDE.md §1.7}），每项自己复位、失败不中断，最后一行
- * {@code [Regression] SUMMARY … (24/24) → PASS|FAIL}。
+ * {@code [Regression] SUMMARY … (25/25) → PASS|FAIL}。
  */
 public class RegressionBatteryItem extends Item {
 
@@ -46,7 +46,7 @@ public class RegressionBatteryItem extends Item {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
-        say(player, "[alice] 串联回归电池已启动（24 项，约 4~5 分钟）。"
+        say(player, "[alice] 串联回归电池已启动（25 项，约 4~5 分钟）。"
                 + "请站远一点别捡掉落物；结果看日志 [Regression] SUMMARY。");
     }
 

@@ -1115,6 +1115,18 @@ public final class BotManager {
     }
 
     /** L2 菜单协议最小验证探针（开真菜单 → 菜单点击搬物品 → 关闭）。 */
+    /** **随身 2×2 合成自检**（阶段 3-A / A2，D-186）：真消耗真产物 + 缺料如实失败 + 网格清理。 */
+    public static boolean assignCraftActionCheck(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(new com.dddgn.alice.task.CraftActionCheckTask(bot, observer),
+                TaskTarget.block(bot.blockPosition()));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     /** **只读配方查询自检**（阶段 3-A / A1，D-185）：正例/负例/边界 + "背包未变"硬断言。 */
     public static boolean assignCraftCheck(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());

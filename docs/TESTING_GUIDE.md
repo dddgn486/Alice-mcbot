@@ -82,14 +82,14 @@
 
 ### 1.7 串联回归清单（改到生产任务后的必跑集）
 
-**★ 首选：一条右键跑完全部 24 项**
+**★ 首选：一条右键跑完全部 25 项**
 
 ```
 /give @s alice:regression_battery          # 一次性
 右键 arbitrary 方块                          # 等约 3~5 分钟
 ```
 判据：`[Regression] SUMMARY clear_retry=… mine_regression=… lumber_job=… decision_contract=… permission_gate=…
-pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=… K4=OK(goal_not_standable=0 final_segment_not_standable=0 写入类例外=N) (24/24) → PASS`，
+pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=… K4=OK(goal_not_standable=0 final_segment_not_standable=0 写入类例外=N) (25/25) → PASS`，
 逐项失败不中断（一趟看全）。期间别启动其它任务、人站远一点别捡掉落物。
 
 > `K4=…` 是**谓词一致性自断言**（K-4 / D-167）：本次电池里"规划期宣布 REACHED 但目标格不可站"
@@ -133,6 +133,7 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
 | D4 | 电池 `collect_job` / 右键 `alice:collect_job` | 自带 | `[CollectJob] … collected=N` | 我方掉落物登记后放行 |
 | D5 | 电池 `recipes_dump` / 命令 `/alice recipes` | 自带 | 导出文件写出（行数 > 0） | `[RecipeDump] written=… recipes=…` |
 | D13 | 电池 `transfer` / 右键 `alice:transfer_check`（R2+R3+L1+L2，约 2 秒；`end_to_end` 默认走**菜单路线**） | 场景函数 `alice_test:transfer_check_terrain`（夹具内部自动调用） | `fixture=PASS end_to_end=PASS selection=PASS selector_events=PASS command_parse=PASS verdict=PASS` | `[Transfer] SUMMARY …`；**`end_to_end`** 跑真实 `TransferTask`（走位→触及校验→容器预算→两段写入），日志里应能看到 `containers=N/M` |
+| D16 | **阶段 3-A / A2 随身 2×2 合成**：右键 `alice:craft_action_check`（约 1 秒）；电池步 `craft_action` | 自带（夹具自己重置背包并发料） | `menu_is_inventory=PASS craft_sticks=PASS craft_table=PASS craft_multi=PASS missing_ingredient_honest=PASS grid_clean=PASS verdict=PASS` | `[CraftActionCheck] SUMMARY …`；判据看**净变化**（产物 +N / 材料 −M）；`missing_ingredient_honest` 同时断言**背包逐槽未变**（不许凭空给、不许吞材料）；`grid_clean` = 网格不留半成品 |
 | D15 | **阶段 3-A / A1 只读配方查询**：右键 `alice:craft_check`（约 1 秒）；电池步 `craft_check` | 自带（夹具自己重置背包） | `craftable_sticks=PASS missing_ingredients=PASS needs_table=PASS machine_only_vanilla=PASS no_recipe=PASS machine_only=PASS/SKIP read_only=PASS verdict=PASS` | `[CraftCheck] SUMMARY …`；`read_only` 是**硬断言**：查询前后背包逐槽一致（只读原语的证据）；`machine_only` 未装 Mekanism 时如实记 `SKIP` |
 | D14 | **K-3 安全点停止**（D-166/D-169）：右键 `alice:k3_stop_check`（DEFER）/ **Shift+右键**（FORCED）；**不在电池里**（会停掉顶层任务=电池自己） | 自带（把 bot 升空） | DEFER：`停止请求延后到安全点：task=K3StopCheckTask` → 请求后仍被 tick → `已到安全点，执行延后的停止`；FORCED：`任务在不安全时刻被强制停止` | `bot_report` → `安全点取消：deferred=1`（DEFER）/ `forcedUnsafe=1`（FORCED）；前提失败报 `fixture_not_airborne`，被嵌套时报 `fixture_not_top_level` |
 | D12 | 电池 `partial_search` / 右键 `alice:partial_search_check`（K-1，约 1 秒，纯规划） | 自带 | `partial_with_prefix=PASS same_goal_reachable_with_budget=PASS no_prefix_for_real_failures=PASS verdict=PASS` | `[PartialSearch] SUMMARY …` |

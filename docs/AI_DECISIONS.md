@@ -7183,3 +7183,26 @@ no_recipe=FAIL          MACHINE_RECIPE_UNSUPPORTED target=minecraft:cobblestone
 
 **同类教训（第三次）**：夹具**自己的前提**必须按"当前世界/当前模组集"写，不能按"原版视角"写死。
 （前两次：D-168 掉落物测量盒、D-179 播种点。）已计入夹具纪律。
+
+### D-186：阶段 3-A / A2 —— **随身 2×2 合成**（真消耗真产物，零世界写入）
+
+**A1 客户端实测通过**（`alice:craft_check` 7/7 PASS）：`craftable_sticks` / `missing_ingredients` /
+`needs_table` / `machine_only_vanilla` / `no_recipe` / `machine_only` / `read_only` 全 PASS，`verdict=PASS`。
+（顺带观察：`missing_ingredients` 那次报的是 `minecraft:bamboo 缺8` —— 因为木棍有"木板"和"竹子"两条路线，
+迭代顺序决定先报哪条 ⇒ **A5 该把"所有路线的缺料"一起给决策层**，不能只报第一条。）
+
+**A2 实施**：
+1. **`task/craft/InventoryCraft`**：只走**菜单协议**（与 L2 传输同源）在**玩家自带 `InventoryMenu`**
+   上合成 —— 槽位口径：`0`=结果、`1..4`=2×2 网格（行优先）、`9..35`=主背包、`36..44`=快捷栏。
+   手势：从背包槽 PICKUP 拿起 → 网格格 **右键放 1 个** → 余量放回原槽 → 摆满 `QUICK_MOVE`(shift-click) 取结果；
+   支持 shaped ≤2×2（按 `getWidth/getHeight` 的**行优先**摆放）与 shapeless ≤4；
+   **失败必清理**（把网格里已摆的材料收回背包），失败码：`not_inventory_menu` / `recipe_not_2x2` /
+   `missing_ingredient` / `click_rejected` / `result_not_taken`。
+   **不直接改背包字段、不凭空生成** —— 真消耗真产物。
+2. **夹具 `CraftActionCheckTask` + 零参数入口 `alice:craft_action_check`**：2 木板→4 木棍（+4/−2）、
+   4 木板→工作台、4 木板→**8** 木棍（两轮）、缺料 ⇒ `missing_ingredient` 且**背包逐槽不变**、
+   网格四格皆空、以及前提断言 `menu_is_inventory`（必须是随身菜单）。
+3. 电池 24 → **25 项**（新增 `craft_action` 步）。
+
+**边界**：A2 **零世界写入**（不放置工作台）；3×3/熔炉仍是 A3/A4；未接决策层（A5）。
+**状态**：`IMPLEMENTED` + `COMPILES` + 资源自检 PASS。**未验证**：客户端（判据：`[CraftActionCheck] SUMMARY … verdict=PASS`）。
