@@ -117,6 +117,7 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("craft_cooking", Profile.MAIN),
             Map.entry("craft_goal", Profile.MAIN),
             Map.entry("machine_route", Profile.MAIN),
+            Map.entry("machine_station", Profile.MAIN),
             // 2026-09-13 D-201 附注一：**回退整理**——撤走后 CORE 三项变红（缺隐含前置），
             // 而这些步骤在 FULL 里是绿的 ⇒ 先恢复绿基线，等"显式自证前提"做完再**逐条**撤（每条复跑一次）
             Map.entry("craft_action", Profile.MAIN),
@@ -372,6 +373,11 @@ public final class RegressionBatteryTask implements Task {
         // 模组不在/该命名空间没有机器类型 ⇒ SKIP（不判红）。零写入。
         steps.add(stepSkippable("machine_route", List.of(), () -> { },
                 () -> new com.dddgn.alice.task.MachineProbeTask(bot, observer), 200,
+                task -> task.failureReason().contains("_absent")));
+        // 阶段 3-B / S2（D-206）：**机器站点只读**（找机器 → 开菜单 → 读槽位表/ContainerData/上游进度方法名）；
+        // 机器不在/模组未装 ⇒ SKIP。夹具**自带传送与结束复位**（PLAYBOOK §5.0d）。零写入。
+        steps.add(stepSkippable("machine_station", List.of("alice_test:machine_course"), () -> { },
+                () -> new com.dddgn.alice.task.MachineStationProbeTask(bot, observer), 400,
                 task -> task.failureReason().contains("_absent")));
         // 基-7：前缀搜索（K-1：预算耗尽交出前缀；真失败不给前缀）
         // R2：传输模块（4 个夹具：主流程/端点选择/选择器事件/命令解析）

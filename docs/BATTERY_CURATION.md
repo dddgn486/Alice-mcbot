@@ -27,10 +27,11 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 `clear_guard` / `clear_retry` / `scaffold`（三条破坏性路径的守卫与建拆同权）、`partial_search`（`SEARCH_LIMIT ≠ UNREACHABLE`）、
 `capability_gate`（闸门）、`tool_supply`（不凭空变工具）、`recoverability`（可回收性等级）
 
-### MAIN（13）—— 阶段 3-A（回退瘦身，保持完整）+ 阶段 3-B / S1（机器只读）
+### MAIN（14）—— 阶段 3-A（回退瘦身，保持完整）+ 阶段 3-B / S1+S2（机器只读）
 `craft_check`、`craft_action`、`craft_table`、`craft_station`、`craft_probe_inventory`、`craft_probe_table`、
 `craft_probe_upgradetab`、`craft_station_provision`、`craft_station_craft`、`craft_furnace`、`craft_cooking`、`craft_goal`、
-`machine_route`（阶段 3-B / S1：机器配方**只读**——问上游自述读输入/输出 + 查询层给 `MACHINE_ROUTE`；模组不在 ⇒ SKIP）
+`machine_route`（S1：机器配方**只读**——问上游自述读输入/输出 + 查询层给 `MACHINE_ROUTE`；模组不在 ⇒ SKIP）、
+`machine_station`（S2：机器**站点**只读——找机器 → 开菜单 → 读槽位表/`ContainerData`/上游进度方法名；机器不在 ⇒ SKIP）
 
 > **为什么退回来了**：2026-09-13 实测——把其中 8 项移出 CORE 后，`craft_furnace`/`craft_cooking`/`transfer`
 > **可复现地变红**（重启客户端后仍红），而它们在 FULL（35 项）里**全绿** ⇒ 撤走的是它们的**隐含前置/清场**。
@@ -60,3 +61,4 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 | 2026-09-13 | **17** | 35 | **3-A 收口整理**（D-201）：MAIN 12 → **4**（只留「只此一步覆盖」的机制：查询／决策端到端／方块炉／菜单炉），8 项退 EXTRA |
 | 2026-09-13 | **25** | 35 | **回退瘦身**（D-201 附注一）：8 项重回 MAIN —— CORE 17 的三项红可复现、FULL 里同三项全绿 ⇒ 撤走的是隐含前置；瘦身前提（显式自证前提）未落地前不减项 |
 | 2026-09-14 | 26 | 36 | 阶段 3-B / S1：新增 `machine_route`（`alice:machine_probe` 临时入口按 S5 **回收**，任务转为电池步）⇒ MAIN 13 |
+| 2026-09-14 | 27 | 37 | 阶段 3-B / S2：新增 `machine_station`（临时入口 `alice:machine_station_probe` 按 S5 **回收**，任务转电池步）⇒ MAIN 14 |

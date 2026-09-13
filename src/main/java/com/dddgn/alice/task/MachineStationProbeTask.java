@@ -139,7 +139,10 @@ public class MachineStationProbeTask implements Task {
         }
         record("machine_found", best != null ? "true" : "false");
         if (best == null) {
-            check("machine_found", false, "半径 " + SCAN_RADIUS + " 内没有 " + NAMESPACE + " 方块（场景没摆？）");
+            // 该命名空间的机器不在（模组未装/场景没摆）⇒ 由电池记 SKIP，不判红
+            failures.add(NAMESPACE + "_machine_absent");
+            BotLog.info("[MachineStation] 半径 {} 内没有 {} 方块 ⇒ 本项 SKIP",
+                    SCAN_RADIUS, NAMESPACE);
             return finish();
         }
         machine = best;
