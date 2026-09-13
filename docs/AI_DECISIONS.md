@@ -6906,3 +6906,26 @@ dropsLeft=1`、`restore_end status=FAILED remaining=1`（拆不动、收不到�
 
 **状态**：`IMPLEMENTED` + `COMPILES`；**未验证**：客户端（判据：电池 `capability_gate` 步出现
 `gain_requires_proximity=PASS`；以及真起一次 region_lumber 后把 bot 传走，应看到 `region_drifted` 而不是搭柱子）。
+
+#### D-179 附注一：客户端复测通过（含一次**自查发现的我方缺陷**）
+
+**客户端事实（12:54–12:56）**：
+```
+[CapabilityGate] SUMMARY … session_status_no_dead_value=PASS gain_requires_proximity=PASS verdict=PASS
+                 case=gain_requires_proximity result=PASS near=true farRefused=true reach=4.5
+[Regression] SUMMARY … pathing=PASS K4=OK(真异常 0 / 写入类例外 70) (23/23) ticks=3257 → PASS
+[Job] region_drifted foot=50, 64, 397 region=x17..37 z203..231 driftTicks=1 ⇒ 挂起作业（不选目标/不写世界…）
+（此后到关服：**没有任何 lumber 作业/写入行**）
+```
+⇒ **漂移守卫在真实场景生效**：bot 在 (50,64,397)（转移场景），Job 作业区在 z203..231 ⇒ Job **挂起**，
+**没有**再选 198 格外的目标、**没有**再搭圆石（对比事故轮：同场景搭了 12 格）。
+
+**但是我在自查里发现了自己刚写的缺陷（已修）**：
+初版把 `driftTicks++` 放在 `patrol()` 里 ⇒ 计的是"**巡查次数**"而不是 tick；
+而 `patrol()` 每 `patrolIntervalTicks`（电池里 20）才跑一次 ⇒ `MAX_DRIFT_TICKS=400` 实际是
+**400×20 = 8000 tick ≈ 6.7 分钟**，与注释/文档声称的"20 秒"**不符**（用户这次 23 秒关服，没等到终态，
+正是这个原因——行为没错，**语义与文档错了**）。
+修：计数移到 `tick()`（真实 tick），`patrol()` 只保留"区外不选新作业"；并新增
+`[Job] region_returned`（回到区内恢复作业，原先没有恢复日志）。
+
+**未验证**：`outside_region` 终态本身（需连续漂移 20 秒；修好后重测一次即可）。

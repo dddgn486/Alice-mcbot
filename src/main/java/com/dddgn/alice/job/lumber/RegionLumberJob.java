@@ -202,6 +202,32 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
             failure = terminalReason;
             return finish(com.dddgn.alice.task.Task.Status.FAILED);
         }
+
+        // D-179 漂移守卫：**按真实 tick 计数**。
+        // ⚠ 自查修正（2026-09-13 晚）：初版把 `driftTicks++` 放在 `patrol()` 里 ⇒ 计的是"巡查次数"
+        // （patrol 每 patrolIntervalTicks 才跑一次，电池里是 20）⇒ `MAX_DRIFT_TICKS=400` 实际是
+        // 400×20=8000 tick ≈ 6.7 分钟，与注释/文档声称的"20 秒"不符（用户实测 23 秒没等到终态即因此）。
+        // 现在每 tick 计数，语义与文档一致。
+        if (!nearRegion()) {
+            if (++driftTicks == 1 || driftTicks % 100 == 0) {
+                BotLog.warn("[Job] region_drifted foot={} region={} driftTicks={} ⇒ 挂起作业"
+                                + "（不选目标/不写世界；连续超过 {} tick 将如实失败 outside_region）",
+                        com.dddgn.alice.pathing.MovementHelper
+                                .footCell(bot.serverLevel(), bot).toShortString(),
+                        region.describe(), driftTicks, MAX_DRIFT_TICKS);
+            }
+            if (driftTicks > MAX_DRIFT_TICKS) {
+                terminalReason = "outside_region";
+                failure = terminalReason;
+                return finish(com.dddgn.alice.task.Task.Status.FAILED);
+            }
+        } else if (driftTicks > 0) {
+            BotLog.info("[Job] region_returned foot={} region={}（已回到作业区，恢复作业）",
+                    com.dddgn.alice.pathing.MovementHelper
+                            .footCell(bot.serverLevel(), bot).toShortString(),
+                    region.describe());
+            driftTicks = 0;
+        }
         if (current != null) {
             return harvest();
         }
@@ -229,24 +255,10 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
     }
 
     private com.dddgn.alice.task.Task.Status patrol() {
-        // D-179：先确认我还在自己的作业区附近，再谈选树/作业。
+        // D-179：区外就**不选新的作业**（计数/告警/终态由 tick() 统一按真实 tick 处理）。
         if (!nearRegion()) {
-            driftTicks++;
-            if (driftTicks == 1 || driftTicks % 100 == 0) {
-                BotLog.warn("[Job] region_drifted foot={} region={} driftTicks={} ⇒ 挂起作业"
-                                + "（不选目标/不写世界；超过 {} tick 将如实失败 outside_region）",
-                        com.dddgn.alice.pathing.MovementHelper
-                                .footCell(bot.serverLevel(), bot).toShortString(),
-                        region.describe(), driftTicks, MAX_DRIFT_TICKS);
-            }
-            if (driftTicks > MAX_DRIFT_TICKS) {
-                terminalReason = "outside_region";
-                failure = terminalReason;
-                return finish(com.dddgn.alice.task.Task.Status.FAILED);
-            }
             return com.dddgn.alice.task.Task.Status.RUNNING;
         }
-        driftTicks = 0;
         var server = bot.serverLevel().getServer();
         LumberRegionState state = LumberRegionState.get(server);
         var spec = GoalSpec.harvestUnits(region.center(), region.coverRadius(), 1, maxTicks);

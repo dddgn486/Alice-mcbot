@@ -377,6 +377,11 @@ S-1 因常驻任务而真实化），再开 **②决策层接入** 这条真正�
 3. ~~两处设计洞~~ → **② 已修（A 项，D-179）**：`MiningTuning.gainHorizontallyReachable` 唯一定义 +
    `MineTask`/`CollectDropsTask` 入口守卫 + `RegionLumberJob` 的 `nearRegion()` 漂移守卫
    （区外挂起、每 100 tick 告警、400 tick 后如实失败 `outside_region`）；
-   断言 `capability_gate → gain_requires_proximity`。**待客户端复测**。
+   断言 `capability_gate → gain_requires_proximity`。**客户端已复测（`WINDOWS_CLIENT`）**：
+   `gain_requires_proximity=PASS(near=true farRefused=true reach=4.5)`；
+   真起 region_lumber 后把 bot 传走 ⇒ `[Job] region_drifted … ⇒ 挂起作业`，其后**无任何作业/写入**。
+   附注一修正了**我方**一处缺陷：`driftTicks` 原按"巡查次数"计（400×20=8000 tick ≈ 6.7 分钟，
+   与文档声称的 20 秒不符）⇒ 已改为真实 tick 计数 + 新增 `region_returned` 恢复日志。
+   **未验证**：`outside_region` 终态（需连续漂移 20 秒）。
    ① 任务驱动与**手动遥控**无互斥（`BotInputPacket` 静默覆盖任务输入）—— **仍未修**（需先定语义）。
 4. `pathing/` 包语义（`MovementHelper`/`FootCellRuleCheck` 是否迁入 `core`）。
