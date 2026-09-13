@@ -7649,3 +7649,25 @@ grid_found=true inactive_slots=0 tab_action=none grid_addressable_without_tab=tr
 **仍未做**：① 点击这些 `#index` 能不能真合成（第二步 S1-5 执行接入）；
 ② **L2 装配层**（bot 用菜单协议把合成升级点进升级槽 + 用完即拆，独立 `WriteReason`/A 表条目）——
 做完之后 `craft_probe_upgradetab` 才升级成 3×3 硬断言。
+
+### D-193：阶段 3-A / S1-5a —— **合成执行接入发现器**（执行层不再看写死的槽位常量）
+
+**用户裁定**：下一步按 **B → A → C** 走（B = 执行接入 / A = L2 装配层 / C = 模组站点真合成）。
+
+**改了什么**（"执行层真的走工作站"的第一步）：
+1. `InventoryCraft.craft(bot, menu, recipe, count)`（4 参入口）：**格网规格改由 {@link GridDiscovery} 现场给出**。
+   过去写死 `inventorySpec()`（= 记住的 2×2 下标：1,2,3,4/结果 0/背包 9..44），只要换菜单就错位；
+   现在认容器得出规格，**认不出就如实返回新码 `grid_unrecognized`，绝不回退常量**。
+2. `TableCraft.craftWithMenu(...)`：**前置断言从 `instanceof CraftingMenu` 改成"菜单里认得出 ≥3×3 网格"**。
+   这条换掉很重要 —— 旧断言等于"站点必须是**原版工作台菜单**"，把"用模组容器里的 3×3 页签"这件事
+   **在断言层就排除掉了**；新断言只要求**能力**（尺寸 ≥3×3），所以对将来的模组站点天然成立。
+3. 删掉 `inventorySpec()` / `tableSpec()`（发现器取代后**没有调用者**，按 K-2/K-5 的死代码纪律删除），
+   两处布局说明留在注释里作为"发现器认出来的东西长什么样"的参照。
+4. `Codes.NOT_INVENTORY_MENU` → **`GRID_UNRECOGNIZED`**（语义从"菜单必须是玩家自带菜单"变成"菜单里必须认得网格"）；
+   `NOT_2X2` 保留代码串但补注释：语义是"配方**放不进**当前网格"（网格可能 >2×2，串名是历史遗留）。
+
+**为什么这不是行为变更而是等价替换**：客户端实测（17:22/17:28 探针）已证明发现器在 `InventoryMenu` 上给出
+`grid=2x2 slots=[1,2,3,4] result=0 inv=[9..44]`、在工作台 `CraftingMenu` 上给出 `3x3 slots=[1..9] result=0`，
+**与两个常量逐项一致**。⇒ 行为等价由 **电池里的 `craft_action` / `craft_table` / `craft_station` 三步 + 两条硬断言探针步**证明。
+
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `34cf8b1b…`）。**待客户端**：30 项电池整轮复测。

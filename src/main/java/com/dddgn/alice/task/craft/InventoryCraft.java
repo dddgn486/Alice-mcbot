@@ -5,7 +5,6 @@ import com.dddgn.alice.log.BotLog;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ClickType;
-import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
@@ -22,7 +21,8 @@ import java.util.List;
  * 拿起材料 → 右键在网格格里放**单个** → 把余量放回原槽 → 全部摆好后 shift-click 结果槽。
  * 不直接改背包字段、不凭空生成物品 —— **真消耗、真产物**。
  *
- * <p>槽位口径（1.20.1 `InventoryMenu`，与 D-163 记录的布局一致）：
+ * <p><b>槽位口径现在**由 {@link GridDiscovery} 现场发现**（S1-5a / D-193）</b>；下面这段是"随身菜单"的
+ * 实际形态（与 D-163 记录一致），用来说明发现器认出来的东西长什么样，**不再是写死的常量**：
  * <pre>
  *   0        = 合成结果
  *   1..4     = 2×2 网格（行优先：1=(0,0) 2=(1,0) 3=(0,1) 4=(1,1)）
@@ -38,8 +38,19 @@ public final class InventoryCraft {
 
     /** 失败码（如实上报，供上层区分"缺料"与"协议没走通"）。 */
     public static final class Codes {
-        public static final String NOT_INVENTORY_MENU = "not_inventory_menu";
+        /**
+         * **发现器认不出当前菜单的合成网格**（S1-5a / D-193）。
+         *
+         * <p>取代原来的 `not_inventory_menu`：过去是"菜单必须**是**玩家自带菜单"，现在改成
+         * "菜单里必须**能认出**一个合成网格" —— 通用发现器给出的 `GridSpec` 才是唯一依据，
+         * 认不出就**如实失败**（不回退到任何写死的下标常量）。
+         */
+        public static final String GRID_UNRECOGNIZED = "grid_unrecognized";
         public static final String UNSUPPORTED_RECIPE = "unsupported_recipe";
+        /**
+         * 配方**放不进**当前认出来的网格（历史上叫 `recipe_not_2x2`；现在网格可能是 3×3 甚至更大，
+         * 所以语义是"放不下"而不是"不是 2×2"——代码串保持不变以免打断既有日志/文档口径）。
+         */
         public static final String NOT_2X2 = "recipe_not_2x2";
         public static final String MISSING_INGREDIENT = "missing_ingredient";
         public static final String CLICK_REJECTED = "click_rejected";
@@ -60,11 +71,6 @@ public final class InventoryCraft {
                            int inventoryFirst, int inventoryLast) {
     }
 
-    /** 玩家自带 2×2 网格规格。 */
-    public static GridSpec inventorySpec() {
-        return new GridSpec(new int[]{1, 2, 3, 4}, 2, 2, 0, 9, 44);
-    }
-
     /** 一次合成尝试的结果。 */
     public record Result(boolean ok, String code, int crafts, int produced, List<String> consumed) {
         public String describe() {
@@ -78,12 +84,21 @@ public final class InventoryCraft {
     }
 
     /**
-     * 合出至少 {@code count} 个 {@code recipe} 的产物（只用随身 2×2）。
+     * 合出至少 {@code count} 个 {@code recipe} 的产物 —— **格网规格由发现器现场给出**（S1-5a / D-193）。
      *
-     * <p>调用方应先用 {@link RecipeQuery} 确认"料齐 + {@code grid=2x2}"，本方法**不再**做选路决策。
+     * <p>过去这里写死 `inventorySpec()`（= 记忆下来的 2×2 下标），只要换一个模组菜单就必然错位。
+     * 现在改走 {@link GridDiscovery}：**认容器**（`CraftingContainer`/`ResultContainer`）得出格子与结果槽，
+     * 认不出就如实返回 {@link Codes#GRID_UNRECOGNIZED}（**不回退**任何常量）。
+     *
+     * <p>调用方应先用 {@link RecipeQuery} 确认"料齐"，本方法**不做**选路决策。
      */
     public static Result craft(BotPlayer bot, AbstractContainerMenu menu, Recipe<?> recipe, int count) {
-        return craft(bot, menu, recipe, count, inventorySpec());
+        GridDiscovery.Result discovery = GridDiscovery.discover(menu, bot);
+        if (!discovery.ok()) {
+            BotLog.warn("[InventoryCraft] 认不出合成网格 ⇒ 拒绝（不猜下标）：{}", discovery.describe());
+            return new Result(false, Codes.GRID_UNRECOGNIZED, 0, 0, List.of());
+        }
+        return craft(bot, menu, recipe, count, discovery.spec());
     }
 
     /** 通用入口：显式给出格网规格（2×2 随身 / 3×3 工作台）。 */

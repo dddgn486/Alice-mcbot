@@ -527,3 +527,12 @@ A1 判据（零参数 `alice:craft_check`）：正例给工作站+材料清单�
 - 电池基础设施：`Step` 增 `skipWhen`（+ `stepSkippable` 工厂）、SUMMARY **SKIP 计入绿**（会写明 `SKIP=n`）、
   `endStep()` **复位站点选择**（自检串联不许把"我选了哪个站"泄漏给下一步）。
 - 探针新增期望断言（`grid_found_expected` / `grid_matches_expected`）供回归用；独立物品入口仍是纯事实探针。
+
+**§6.27 D-193（S1-5a）：执行接入发现器**（2026-09-13，待客户端复测）
+- `InventoryCraft` 4 参入口 = 发现驱动（`grid_unrecognized` 兜底，不回退常量）；`inventorySpec()` 删除。
+- `TableCraft.craftWithMenu` 前置断言 = "菜单里认得出 ≥3×3 网格"（取代 `instanceof CraftingMenu`，
+  为模组站点打开门）；`tableSpec()` 删除。
+- **等价性证据**：探针已证明两种原版菜单的发现结果与旧常量逐项一致 ⇒ 由电池 `craft_action`/`craft_table`/`craft_station` 复测。
+- **下一步 A（L2 装配层）**：bot 用菜单协议装/拆合成升级（独立 `WriteReason.STATION_PROVISION` + A 表 + 复位纪律）
+  ⇒ 之后 `craft_probe_upgradetab` 升级成 3×3 硬断言。再往后的 C：模组站点真合成（摆 `#64..#72`、取 `#73`，
+  并实测"Shift 右击将成品放入容器/玩家物品栏"开关与"材料来源=容器优先"两维）。

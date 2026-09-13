@@ -6,7 +6,6 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.inventory.CraftingMenu;
 import net.minecraft.world.item.crafting.Recipe;
 
 import java.util.ArrayList;
@@ -37,11 +36,6 @@ public final class TableCraft {
 
         private Codes() {
         }
-    }
-
-    /** 工作台菜单（`CraftingMenu`）的格网规格：0=结果，1..9=3×3 网格，10..45=玩家背包+快捷栏。 */
-    public static InventoryCraft.GridSpec tableSpec() {
-        return new InventoryCraft.GridSpec(new int[]{1, 2, 3, 4, 5, 6, 7, 8, 9}, 3, 3, 0, 10, 45);
     }
 
     /** 一次"到工作台合成"的结果。 */
@@ -99,19 +93,23 @@ public final class TableCraft {
     }
 
     /**
-     * **已经开到菜单**之后摆料 + 取产物（3×3）。
+     * **已经开到菜单**之后摆料 + 取产物（≥3×3）。
      *
-     * <p>前置：`bot.containerMenu` 必须是 {@link CraftingMenu}（由本方法**自断言**——
-     * 不是 3×3 菜单就说明"3×3 合成"这件事根本没被测到，必须如实失败而不是照做）。
+     * <p>前置由 {@link GridDiscovery} **自断言**（S1-5a / D-193）：菜单里必须**认得出**一个至少 3×3 的合成网格。
+     * 过去这里断言的是 `instanceof CraftingMenu`（= 写死"站点必须是原版工作台菜单"），
+     * 于是"用模组容器里的 3×3 页签"这件事**在断言层就被排除掉了**。现在改成断言**能力**（网格尺寸 ≥3×3），
+     * 认不出或不够大就如实失败 `table_menu_shape_unexpected`（不照做）。
      */
     public static Outcome craftWithMenu(BotPlayer bot, MenuSession session, BlockPos table,
                                         Recipe<?> recipe, int count) {
-        if (!(bot.containerMenu instanceof CraftingMenu)) {
-            BotLog.warn("[TableCraft] 菜单不是 CraftingMenu：{}", bot.containerMenu.getClass().getSimpleName());
+        GridDiscovery.Result discovery = GridDiscovery.discover(bot.containerMenu, bot);
+        if (!discovery.ok() || discovery.spec().width() < 3 || discovery.spec().height() < 3) {
+            BotLog.warn("[TableCraft] 菜单里没有 ≥3×3 的合成网格：{}", discovery.describe());
             session.close("craft_menu_shape");
             return new Outcome(false, Codes.MENU_SHAPE_UNEXPECTED, 0, table.toShortString());
         }
-        InventoryCraft.Result crafted = InventoryCraft.craft(bot, bot.containerMenu, recipe, count, tableSpec());
+        InventoryCraft.Result crafted = InventoryCraft.craft(bot, bot.containerMenu, recipe, count,
+                discovery.spec());
         session.close("craft_done");
         if (!crafted.ok()) {
             BotLog.warn("[TableCraft] 合成失败 table={} code={} {}", table.toShortString(),
