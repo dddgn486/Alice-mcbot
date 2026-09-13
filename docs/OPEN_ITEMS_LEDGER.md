@@ -567,3 +567,9 @@ A1 判据（零参数 `alice:craft_check`）：正例给工作站+材料清单�
 原语因"数玩家背包"报 `result_not_taken` ⇒ 已把**产物计数口径**做成可注入（默认玩家背包；
 `TableCraft` 用"玩家背包 + 菜单容器"）。**待查（假设非结论）**：开关读到 `false` 但产物仍进容器
 ⇒ 决定因素可能是**玩家侧**设置 `shift_click_open_tab`。**待复测**：32 项电池（确认口径改动无回归）。
+
+**§6.32 32 项电池两个缺陷（已修，待复测）**：① 产物口径把结果槽**预览**算成产物 ⇒ A3/A3b 假失败
+（`product+1 FAIL:result_not_taken`）⇒ 新增 `countLandedProduct`（排除结果槽与网格）；
+② 偶发"服务端没开菜单"（`use_item_on result=SUCCESS` vs 成功时的 `CONSUME` + `menu_open_timeout`）⇒
+失败如实打码（failure code / 当前菜单 / 重试次数）+ **重试一次**（冷却 10 tick、计时归零）。
+jar `4217b7ec…`。

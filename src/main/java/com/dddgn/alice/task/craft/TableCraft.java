@@ -110,8 +110,8 @@ public final class TableCraft {
         }
         // **产物口径 = 玩家背包 + 当前菜单容器**（D-195 附注二实测：模组站点把产物放进容器；
         // 对原版工作台，容器里不会有产物 ⇒ 行为与历史一致，回归由电池证明）
-        InventoryCraft.ProductCounter counter = item -> RecipeQuery.countInInventory(bot, item)
-                + StationProvision.countInContainer(bot.containerMenu, bot, item);
+        InventoryCraft.ProductCounter counter = item ->
+                StationProvision.countLandedProduct(bot.containerMenu, bot, item, discovery.spec());
         InventoryCraft.Result crafted = InventoryCraft.craft(bot, bot.containerMenu, recipe, count,
                 discovery.spec(), counter);
         session.close("craft_done");

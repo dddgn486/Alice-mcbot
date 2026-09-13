@@ -7798,3 +7798,29 @@ no_block_writes=true  verdict=PASS                ← 以**世界事实**判定�
 
 **等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `b028df7d…`）。
 **回归风险**：`TableCraft` 的口径改动只影响"产物计数"，由电池 `craft_table`/`craft_station` 两步复测即可确认。
+
+#### D-195 附注三：32 项电池暴露**两个独立缺陷**（都已修）
+
+**电池事实**：`(30/31 绿)` —— `craft_table=FAIL reason=crafted_furnace`、`craft_station=FAIL reason=placed_table_craft`、
+`craft_station_provision=FAIL reason=menu_open_failed`；其余（含新的 `craft_station_craft`）全绿。
+
+**缺陷 ①（我上一步引入的回归）：产物口径把"结果槽预览"算成了产物**
+```
+[CraftTableCheck] crafted_furnace=FAIL product+1 FAIL:result_not_taken produced=0
+```
+产物明明 +1（夹具自己的计数说 +1），原语却说"没取到"。根因：`TableCraft` 的新口径 = "玩家背包 + 菜单容器"，
+而**结果槽里放的是合成预览**（摆好料它就已经是产物）⇒ `before=1（预览）→ after=1（产物进背包、预览消失）`
+⇒ 差值为 0。**修**：新增 `StationProvision.countLandedProduct(...)` —— 数"玩家背包 + 容器里**除结果槽与合成网格以外**的槽位"
+（结果槽=预览、网格格=材料，都不算产物）。
+
+**缺陷 ②（偶发，但必须留证据）：服务端那次没开菜单**
+```
+[Menu] use_item_on target=46,64,306 result=SUCCESS      ← 历次成功都是 result=CONSUME
+[Menu] failed code=menu_open_timeout ticks=21
+```
+`SUCCESS` 与 `CONSUME` 的差别说明**服务端没消费这次交互**（模组没开菜单）。**修**：
+① 失败时**如实打码**（`session.failure()` + 当前 `containerMenu` 类名 + 已重试次数）——
+   原来只打了 `reason=see log`，白费一次排查；
+② **重试一次**（冷却 10 tick、`phaseTicks` 归零重计时）—— 偶发状态不该把整步判死，`open_retries` 会记进 SUMMARY。
+
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `4217b7ec…`）。**待客户端**：32 项电池复测。

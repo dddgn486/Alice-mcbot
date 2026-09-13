@@ -87,6 +87,44 @@ public final class StationProvision {
         return RecipeQuery.countInInventory(bot, item);
     }
 
+    /**
+     * **"真正落地"的产物数量**：玩家背包 + 容器里**除结果槽与合成网格以外**的槽位。
+     *
+     * <p>为什么必须排除结果槽（2026-09-13 实测回归）：原版工作台/模组页签的**结果槽里放的是合成预览**，
+     * 摆好料之后它就已经是产物了 —— 把预览也算进"产物"会让
+     * `before=1（预览）→ after=1（产物进背包、预览消失）` ⇒ 差值为 0 ⇒ **成功被判成 `result_not_taken`**。
+     * 网格里的东西是**材料**，同理不算产物。
+     */
+    public static int countLandedProduct(AbstractContainerMenu menu, BotPlayer bot,
+                                         net.minecraft.world.item.Item item, InventoryCraft.GridSpec spec) {
+        int total = RecipeQuery.countInInventory(bot, item);
+        if (menu == null) {
+            return total;
+        }
+        for (Slot slot : GridDiscovery.scan(menu).slots()) {
+            if (slot.container == bot.getInventory()) {
+                continue;                       // 玩家背包已数过
+            }
+            if (spec != null && (slot.index == spec.resultSlot() || isGridSlot(spec, slot.index))) {
+                continue;                       // 结果槽 = 预览；网格格 = 材料
+            }
+            ItemStack stack = slot.getItem();
+            if (!stack.isEmpty() && stack.is(item)) {
+                total += stack.getCount();
+            }
+        }
+        return total;
+    }
+
+    private static boolean isGridSlot(InventoryCraft.GridSpec spec, int address) {
+        for (int gridSlot : spec.gridSlots()) {
+            if (gridSlot == address) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** 容器菜单里某物品的数量（只读；"装进去了"的直接证据）。 */
     public static int countInContainer(AbstractContainerMenu menu, BotPlayer bot,
                                        net.minecraft.world.item.Item item) {

@@ -48,6 +48,8 @@ public class CraftStationCraftCheckTask implements Task {
     private static final int SCAN_RADIUS = 6;
     private static final int MAX_TICKS = 1200;
     private static final int OPEN_TICKS = 60;
+    /** 重试前的冷却 tick（等服务端把上一次交互收尾）。 */
+    private static final int RETRY_TICKS = 10;
     /** 与 A3 同一个配方（8 圆石 → 1 熔炉），便于横向比较。 */
     private static final ResourceLocation RECIPE = ResourceLocation.withDefaultNamespace("furnace");
     private static final int COBBLESTONE_COUNT = 8;
@@ -71,6 +73,9 @@ public class CraftStationCraftCheckTask implements Task {
     private BlockPos station;
     private Item upgrade;
     private MenuSession session;
+    /** 开菜单重试计数与冷却（见失败分支：电池里出现过服务端没开菜单的偶发情形）。 */
+    private int openRetries;
+    private int openRetryDelay;
     private InventoryCraft.GridSpec spec;
     private int upgradeBefore;
     private int cobbleBefore;
@@ -162,6 +167,10 @@ public class CraftStationCraftCheckTask implements Task {
     // ==================== 开菜单（四个相位共用） ====================
 
     private Status openPhase(Phase next, boolean viaSelectedStation) {
+        if (openRetryDelay > 0) {
+            openRetryDelay--;   // 重试前的冷却（给服务端把上一次交互收尾）
+            return Status.RUNNING;
+        }
         if (session == null) {
             if (station == null || !CraftStation.inReach(bot, station)) {
                 check("station_in_reach", false, "station=" + (station == null ? "-" : station.toShortString()));
@@ -184,7 +193,18 @@ public class CraftStationCraftCheckTask implements Task {
         }
         MenuSession.State state = session.tick();
         if (state == MenuSession.State.FAILED) {
+            String failure = session.failure();
+            String menu = bot.containerMenu == null ? "-" : bot.containerMenu.getClass().getSimpleName();
+            BotLog.warn("[{}] 开菜单失败 code={} 当前菜单={} 已重试={}", "CraftStationCraft",
+                    failure, menu, openRetries);
             session = null;
+            if (openRetries < 1) {
+                openRetries++;
+                record("open_retries", String.valueOf(openRetries));
+                openRetryDelay = RETRY_TICKS;
+                phaseTicks = 0;      // 重试要从零计时，否则会立刻撞上本相位的超时预算
+                return Status.RUNNING;
+            }
             return failAndFinish("menu_open_failed");
         }
         if (state != MenuSession.State.OPEN) {
