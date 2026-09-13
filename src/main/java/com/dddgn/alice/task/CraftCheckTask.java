@@ -22,17 +22,19 @@ import java.util.Map;
  *   <li>{@code missing_ingredients}：清空背包 → 查 4 木棍 ⇒ 期望 `MISSING_INGREDIENTS` 且 `missing=[…]`；</li>
  *   <li>{@code needs_table}：给 8 圆石 → 查 1 熔炉（3×3 配方）⇒ 期望 `NEEDS_TABLE` + `grid=3x3`；</li>
  *   <li>{@code machine_only_vanilla}：查 `minecraft:cobblestone`（原版只能挖，但装了 Mekanism/Create 后
- *       它们给了 `crushing`/`milling`/`enriching`）⇒ 期望 `MACHINE_RECIPE_UNSUPPORTED`
+ *       它们给了 `crushing`/`milling`/`enriching`）⇒ **S1 起**期望 `MACHINE_ROUTE`（有出处的机器路线）
  *       —— **"只由机器产出"与物品是不是模组物品无关**（2026-09-13 实测教训）；</li>
- *   <li>{@code no_recipe}：查 `minecraft:bedrock`（**任何**配方类型都产不出）⇒ 期望 `NO_RECIPE`；</li>
+ *   <li>{@code no_recipe}：查 {@link #NO_RECIPE_ITEM}（**任何**配方类型都产不出；基岩已不适用——本整合包里它有机器配方）⇒ 期望 `NO_RECIPE`；</li>
  *   <li>{@code machine_only}：查一个**只由机器配方产出**的物品（默认 `mekanism:dust_iron`；
- *       未装 Mekanism 时该用例如实记 `SKIP`）⇒ 期望 `MACHINE_RECIPE_UNSUPPORTED` 且列出类型名；</li>
+ *       未装 Mekanism 时该用例如实记 `SKIP`）⇒ **S1 起**期望 `MACHINE_ROUTE` 且路线带机器类型；</li>
  *   <li>{@code read_only}：上面全部查询跑完，**背包逐槽快照必须与开始时完全一致**（本原语是只读的硬断言）。</li>
  * </ul>
  */
 public class CraftCheckTask implements Task {
 
     /** 机器专属物品（用于"不猜机器语义"的负例；未装该模组时跳过）。 */
+    /** **任何**配方类型都产不出它（创造模式专属）——负例用；换物品时必须在此处改，并说明为什么。 */
+    private static final String NO_RECIPE_ITEM = "minecraft:command_block";
     private static final String MACHINE_ONLY_ITEM = "mekanism:dust_iron";
 
     private final BotPlayer bot;
@@ -106,18 +108,23 @@ public class CraftCheckTask implements Task {
                 r -> r.route() != null && !r.route().inventoryGrid(), 3);
 
         // ④ **"只由机器配方产出"并不限于模组物品**：圆石在原版只能挖，但装了 Mekanism/Create 之后
-        //    它们给了 `mekanism:crushing` / `create:milling` / `mekanism:enriching` ⇒ 正确结论是
-        //    MACHINE_RECIPE_UNSUPPORTED（如实拒绝、不猜语义），**不是** NO_RECIPE。
-        //    2026-09-13 实测：本用例原先按"原版视角"写死期望 NO_RECIPE ⇒ 假失败（夹具前提写错的第三次）。
+        //    它们给了 `mekanism:crushing` / `create:milling` / `mekanism:enriching`。
+        //    **2026-09-14 语义升级（S1 / D-204）**：这类配方现在**读得出路线**（问上游自述：
+        //    `getOutputDefinition()` / `getInput().getRepresentations()`）⇒ 正确结论从
+        //    `MACHINE_RECIPE_UNSUPPORTED`（拒绝）升级为 **`MACHINE_ROUTE`（有出处的机器路线）**。
+        //    ⚠️ 注意口径：**升级的是"读得出"，不是"能做"** —— 执行侧仍如实拒绝（`CraftJob` 报 not_executable）。
         FixtureToolKit.resetInventory(bot);
         RecipeQuery.Result cobble = RecipeQuery.query(server, bot, "minecraft:cobblestone", 1);
-        expect("machine_only_vanilla", cobble, RecipeQuery.Verdict.MACHINE_RECIPE_UNSUPPORTED,
-                r -> !r.machineTypes().isEmpty(), 4);
+        expect("machine_only_vanilla", cobble, RecipeQuery.Verdict.MACHINE_ROUTE,
+                r -> r.route() != null && !r.route().station().isBlank(), 4);
 
-        // ⑤ 负例：**任何**配方类型都产不出它（基岩）：既无原版配方、也无机器配方 ⇒ NO_RECIPE
+        // ⑤ 负例：**任何**配方类型都产不出它 ⇒ NO_RECIPE。
+        //    **2026-09-14 换物品（实测教训）**：原用例用 `minecraft:bedrock`，而本整合包**真有机器配方能产出基岩**
+        //    ⇒ 在 S1 之后它正确地变成 `MACHINE_ROUTE`，旧期望假失败。这正是 §6.9.1 ② 那条纪律：
+        //    **负例必须按"当前模组集"核对**（"原版视角"写死会过期）。改用创造模式专属物品。
         FixtureToolKit.resetInventory(bot);
-        RecipeQuery.Result bedrock = RecipeQuery.query(server, bot, "minecraft:bedrock", 1);
-        expect("no_recipe", bedrock, RecipeQuery.Verdict.NO_RECIPE,
+        RecipeQuery.Result negative = RecipeQuery.query(server, bot, NO_RECIPE_ITEM, 1);
+        expect("no_recipe", negative, RecipeQuery.Verdict.NO_RECIPE,
                 r -> r.machineTypes().isEmpty(), 5);
 
         // ⑥ 负例：只由机器配方产出（**模组物品**）⇒ 如实拒绝、不猜语义（没装该模组就 SKIP）
@@ -125,8 +132,8 @@ public class CraftCheckTask implements Task {
         if (net.minecraft.core.registries.BuiltInRegistries.ITEM
                 .containsKey(net.minecraft.resources.ResourceLocation.tryParse(MACHINE_ONLY_ITEM))) {
             RecipeQuery.Result machine = RecipeQuery.query(server, bot, MACHINE_ONLY_ITEM, 1);
-            expect("machine_only", machine, RecipeQuery.Verdict.MACHINE_RECIPE_UNSUPPORTED,
-                    r -> !r.machineTypes().isEmpty(), 6);
+            expect("machine_only", machine, RecipeQuery.Verdict.MACHINE_ROUTE,
+                    r -> r.route() != null && !r.route().station().isBlank(), 6);
         } else {
             record("machine_only", "SKIP", "未装 " + MACHINE_ONLY_ITEM + " 所属模组");
         }

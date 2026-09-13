@@ -8335,7 +8335,7 @@ namespace=mekanism types=26 type_recipes=1171 readable_total=2923 skipped_total=
 把查询层的 `machine_recipe_unsupported` 升级为**有出处的机器路线**；探针按纪律**验证通过即回收**
 （或按 D-197 转成电池步）。换模组只改 `NAMESPACE` 与入口名字——**这就是"实验模板"的可复用性检验**。
 
-**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（77 项）+ 已同步（jar `e7e17993…`）；**待客户端**（一次右键）。
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（77 项）+ 已同步（jar `c2f68fd2…`）；**待客户端**（一次右键）。
 
 #### D-204 附注一：S1 取证**发现了关键事实**——原版 `Recipe` 接口**取不到**机器配方的输入/输出
 
@@ -8415,7 +8415,7 @@ Mekanism 的具体方法名只出现在**模组专属适配器**里。
 若 `upstream_readable` 接近样例数 ⇒ 先把"物品→物品"接进查询层；若 `machine_output_not_item` 占多数 ⇒
 只做"如实报码"，不碰化学品语义。
 
-**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `e7e17993…`）；**待客户端**（一次右键）。
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `c2f68fd2…`）；**待客户端**（一次右键）。
 
 #### D-205 附注一：**`pause` 对 AI 是单向的**（实测）——所以"到测试点暂停"要靠**你**恢复
 
@@ -8468,7 +8468,7 @@ the user must resume it"）。这**正好符合** D-205 的意图（"恢复只�
 打印 `query item=… verdict=…`（期望 `MACHINE_ROUTE`）并计数 `query_probed` / `query_machine_route` ——
 **自证式验证**：不需要你手输物品 id，也不用我硬编码样例。
 
-**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `e7e17993…`）；**待客户端**（一次右键 `alice:machine_probe`）。
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `c2f68fd2…`）；**待客户端**（一次右键 `alice:machine_probe`）。
 **之后**：探针回收（S5）或按 D-197 转电池步 —— 等这次验证过再动。
 
 #### D-204 附注七：S1 **收口** —— 歧义修掉 + 探针按 S5 回收（转电池步）
@@ -8482,5 +8482,22 @@ the user must resume it"）。这**正好符合** D-205 的意图（"恢复只�
    ⇒ 探针生命周期闭合：**用它取证 → 判定成立 → 回收入口、保留为回归**（D-197 规则 1）。
 3. **电池 25 → 26 项**（MAIN 12 → 13），`docs/BATTERY_CURATION.md` 历史表同步。
 
-**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（76 项，探针物品已回收）+ 已同步（jar `e7e17993…`）；
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（76 项，探针物品已回收）+ 已同步（jar `c2f68fd2…`）；
 **待客户端**：CORE `(26/26) → PASS`（其中 `machine_route=PASS`；若 Mekanism 不在则 `SKIP`）。
+
+#### D-204 附注八：S1 改动让 **A1 夹具**的旧断言过期 —— 按"能力升级"更新，并换掉一个**前提过期**的负例
+
+**实测**（CORE 26 项首跑）：`machine_route=PASS` ✓（新步成立），但 **`craft_check=FAIL reason=machine_only_vanilla,no_recipe,machine_only`**
+—— 三个子用例全部是我这次**语义升级**的必然后果（机器配方从"MACHINE_RECIPE_UNSUPPORTED（拒绝）"
+升级为"**MACHINE_ROUTE（有出处的路线）**"）：
+
+| 用例 | 旧期望 | 新期望 | 为什么不是"放宽" |
+|---|---|---|---|
+| `machine_only_vanilla`（圆石） | `MACHINE_RECIPE_UNSUPPORTED` | `MACHINE_ROUTE` + 路线带机器类型 | 上游自述**确实读得出**输入/输出 ⇒ 拒绝变成了"有出处的事实"；**执行侧仍拒绝**（`CraftJob`：`not_executable`） |
+| `machine_only`（`mekanism:dust_iron`） | 同上 | `MACHINE_ROUTE` + 路线带机器类型 | 同上 |
+| `no_recipe`（**基岩**） | `NO_RECIPE` | **换物品**：`minecraft:command_block` | 实测本整合包**真有机器配方能产出基岩** ⇒ S1 之后它正确变成 `MACHINE_ROUTE`，旧期望假失败（§6.9.1 ② 的教训：负例必须按**当前模组集**核对，"原版视角"会过期） |
+
+**纪律**：能力升级时，**夹具断言要跟着升级，但必须逐个说明"为什么不是放宽判据"**；
+负例则优先换一个**依然不可能**的物品，而不是把负例删掉。
+
+**等级**：IMPLEMENTED + COMPILES + 已同步（jar `c2f68fd2…`）；**待客户端**：CORE 期望回到 `(26/26) → PASS`。
