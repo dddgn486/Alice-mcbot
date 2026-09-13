@@ -589,3 +589,9 @@ jar `2efb2d1e…`；**教训**："重建场景"不等于"状态干净"。
 + 夹具 `CraftFurnaceCheckTask` + 入口 `alice:craft_furnace_check` + 场景 `alice_test:furnace_course`；
 电池 32 → **33 项**。判据=世界事实（stone+1 / cobble-1 / 炉内不留东西 / 零方块写入），超时把输入取回。
 **待客户端**；**A4b（熔炉升级/菜单型炉子）**复用同一发现器。
+
+**§6.36 D-197 电池分档管理**：三档（BASELINE 13 / MAIN 10 / EXTRA 10），默认 CORE=23 项；
+配置唯一入口 `RegressionBatteryTask.CURATION`；说明书 `docs/BATTERY_CURATION.md`（含 6 条维护规则 + 历史表）；
+入口 `alice:regression_battery`（CORE）与 `/alice battery core|full|list`；
+**自校验防漂移**（漏登记/文档不一致直接判红）。顺带修 A4 的 `ContainerData` 下标映射与匿名类名。
+jar `1aef94f3…`；**待客户端**：CORE 23 项跑通。

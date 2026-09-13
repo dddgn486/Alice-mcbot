@@ -116,13 +116,14 @@ public final class FurnaceStation {
                     "有 3 格容器（" + picked.getKey().getClass().getSimpleName()
                             + "）但菜单里没有 ContainerData ⇒ 无法确认它按时间工作");
         }
-        // 原版语义：容器槽 0=输入 1=燃料 2=输出（模组熔炉普遍沿用）；进度与燃烧时间取前两个数据槽
-        int progress = safeGet(data, 0);
-        int maxProgress = safeGet(data, 1);
-        int litTime = safeGet(data, 2);
+        // 原版 `AbstractFurnaceBlockEntity.dataAccess` 的约定：0=剩余燃烧时间 1=本次燃料总时长
+        // 2=烧炼进度 3=本配方总时长（先前我按 0/1/2 读，进度恒为 0/0 —— 纯报告瑕疵，已修）。
+        // **注意**：这只用于"过程证据"；**判成功与否一律看世界事实**（产物/输入/炉内是否清空）。
+        int litTime = safeGet(data, 0);
+        int progress = safeGet(data, 2);
+        int maxProgress = safeGet(data, 3);
         Found found = new Found(slots.get(0).index, slots.get(1).index, slots.get(2).index,
-                picked.getKey().getClass().getSimpleName(), data.getClass().getSimpleName(),
-                progress, maxProgress, litTime);
+                containerName(picked.getKey()), dataName(data), progress, maxProgress, litTime);
         return new Result(found, "", found.describe());
     }
 
@@ -147,6 +148,17 @@ public final class FurnaceStation {
             type = type.getSuperclass();
         }
         return null;
+    }
+
+    /** 匿名类要给 `(anonymous)`，别输出空串让人以为没读到（vanilla 的 `ContainerData` 就是匿名实现）。 */
+    private static String containerName(Container container) {
+        String simple = container.getClass().getSimpleName();
+        return simple == null || simple.isEmpty() ? "(anonymous)" : simple;
+    }
+
+    private static String dataName(ContainerData data) {
+        String simple = data.getClass().getSimpleName();
+        return simple == null || simple.isEmpty() ? "(anonymous)" : simple;
     }
 
     private static int safeGet(ContainerData data, int index) {

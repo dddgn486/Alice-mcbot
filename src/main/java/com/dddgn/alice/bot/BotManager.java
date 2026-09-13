@@ -690,9 +690,21 @@ public final class BotManager {
 
     /** 串联回归电池（D-122）：一次跑完 9 项常用回归，每项独立复位、失败不中断。 */
     public static boolean assignRegressionBattery(BotPlayer bot, ServerPlayer observer) {
+        return assignRegressionBattery(bot, observer, false);
+    }
+
+    /**
+     * 指派回归电池（D-197）。
+     *
+     * @param full false = **CORE**（必要基础 + 当前主线，默认；用户要求"电池不要太长"）；
+     *             true  = **FULL**（额外含已验收/无关/耗时项，`/alice battery full` 用）
+     */
+    public static boolean assignRegressionBattery(BotPlayer bot, ServerPlayer observer, boolean full) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.task.RegressionBatteryTask(bot, observer, session.scope()),
+        session.beginTask(new com.dddgn.alice.task.RegressionBatteryTask(bot, observer, session.scope(),
+                        full ? com.dddgn.alice.task.RegressionBatteryTask.Mode.FULL
+                             : com.dddgn.alice.task.RegressionBatteryTask.Mode.CORE),
                 TaskTarget.block(bot.blockPosition()));
         broadcastTarget(session.target);
         return true;

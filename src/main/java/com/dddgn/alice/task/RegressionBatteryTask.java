@@ -72,12 +72,97 @@ public final class RegressionBatteryTask implements Task {
         return new Step(name, scenes, provision, factory, budgetTicks, null, skipWhen);
     }
 
+    /**
+     * **回归项分档**（D-197，用户 2026-09-13 要求"电池只测必要基础项 + 当前主线项，由 AI 管理"）：
+     * <ul>
+     *   <li>{@link #BASELINE}：**必要基础** —— 坏了就不能信任 bot 的任何动作（移动内核 / 写入闸门 /
+     *       破坏性路径 / 生产 Job 闭环）；</li>
+     *   <li>{@link #MAIN}：**当前主线** —— 这一轮正在做的能力（今天 = 阶段 3-A 工作站/熔炼）；</li>
+     *   <li>{@link #EXTRA}：**已验收、与主线无关、或耗时/需长期观察**的项 —— 默认**不跑**，
+     *       需要时用 `/alice battery full` 全量跑。</li>
+     * </ul>
+     * 维护规则见 {@code docs/BATTERY_CURATION.md}：**每加一个场景/换一次主线，都要同步更新归属表与文档**。
+     */
+    public enum Profile { BASELINE, MAIN, EXTRA }
+
+    /** 运行档位：默认只跑 BASELINE + MAIN。 */
+    public enum Mode { CORE, FULL }
+
+    /**
+     * **归属表（唯一配置入口）**：改电池配置只改这里。
+     *
+     * <p>刻意用"按名字的清单"而不是给每个步骤加参数：① 一处可见、便于 review；
+     * ② 构造时会**自校验**（有步骤没归属 / 有归属没步骤 ⇒ 直接判红），防止"悄悄漏测"。
+     */
+    private static final Map<String, Profile> CURATION = Map.ofEntries(
+            // ---- BASELINE：必要基础（13）----
+            Map.entry("pathing", Profile.BASELINE),
+            Map.entry("write_budget", Profile.BASELINE),
+            Map.entry("mine_regression", Profile.BASELINE),
+            Map.entry("mine_job", Profile.BASELINE),
+            Map.entry("lumber_job", Profile.BASELINE),
+            Map.entry("transfer", Profile.BASELINE),
+            Map.entry("clear_guard", Profile.BASELINE),
+            Map.entry("clear_retry", Profile.BASELINE),
+            Map.entry("scaffold", Profile.BASELINE),
+            Map.entry("partial_search", Profile.BASELINE),
+            Map.entry("capability_gate", Profile.BASELINE),
+            Map.entry("tool_supply", Profile.BASELINE),
+            Map.entry("recoverability", Profile.BASELINE),
+            // ---- MAIN：当前主线 = 阶段 3-A 工作站 + 熔炉（10）----
+            Map.entry("craft_check", Profile.MAIN),
+            Map.entry("craft_action", Profile.MAIN),
+            Map.entry("craft_table", Profile.MAIN),
+            Map.entry("craft_station", Profile.MAIN),
+            Map.entry("craft_probe_inventory", Profile.MAIN),
+            Map.entry("craft_probe_table", Profile.MAIN),
+            Map.entry("craft_probe_upgradetab", Profile.MAIN),
+            Map.entry("craft_station_provision", Profile.MAIN),
+            Map.entry("craft_station_craft", Profile.MAIN),
+            Map.entry("craft_furnace", Profile.MAIN),
+            // ---- EXTRA：已验收/无关/耗时（10）----
+            Map.entry("lumber_failure", Profile.EXTRA),
+            Map.entry("region_maintain", Profile.EXTRA),
+            Map.entry("decision_contract", Profile.EXTRA),
+            Map.entry("decision_trace", Profile.EXTRA),
+            Map.entry("llm_contract", Profile.EXTRA),
+            Map.entry("permission_gate", Profile.EXTRA),
+            Map.entry("pickup_gate", Profile.EXTRA),
+            Map.entry("collect_job", Profile.EXTRA),
+            Map.entry("recipes_dump", Profile.EXTRA),
+            Map.entry("event_thresholds", Profile.EXTRA));
+
+    /** 归属表摘要（`/alice battery list` + 文档用）：按档位分组打印，一眼看清电池里有什么、为什么。 */
+    public static List<String> curationSummary() {
+        List<String> lines = new ArrayList<>();
+        lines.add("回归电池归属表（改配置只改 CURATION；详见 docs/BATTERY_CURATION.md）：");
+        for (Profile profile : Profile.values()) {
+            List<String> names = new ArrayList<>();
+            for (Map.Entry<String, Profile> entry : CURATION.entrySet()) {
+                if (entry.getValue() == profile) {
+                    names.add(entry.getKey());
+                }
+            }
+            names.sort(String::compareTo);
+            lines.add("  " + profile + "（" + names.size() + "）：" + String.join(", ", names));
+        }
+        lines.add("  跑法：/alice battery core（默认，必要基础+当前主线）| /alice battery full（全量）");
+        return lines;
+    }
+
+    /** 运行档位（CORE 默认）。 */
+    private final Mode mode;
+
     private final BotPlayer bot;
     private final ServerPlayer observer;
     private final ScopeBuffer scope;
     private final List<Step> steps = new ArrayList<>();
     private final Map<String, String> results = new LinkedHashMap<>();
     private final Map<String, String> details = new LinkedHashMap<>();
+    /** 归属自校验结果与档位统计（进 SUMMARY，便于"配置漂移"一眼可见）。 */
+    private boolean stepsPrepared;
+    private String curationError = "";
+    private int extraSkipped;
 
     private int index;
     private int ticks;
@@ -87,6 +172,11 @@ public final class RegressionBatteryTask implements Task {
     private final Map<String, Integer> k4Baseline;
 
     public RegressionBatteryTask(BotPlayer bot, ServerPlayer observer, ScopeBuffer scope) {
+        this(bot, observer, scope, Mode.CORE);
+    }
+
+    public RegressionBatteryTask(BotPlayer bot, ServerPlayer observer, ScopeBuffer scope, Mode mode) {
+        this.mode = mode;
         this.bot = bot;
         this.observer = observer;
         this.scope = scope;
@@ -318,8 +408,53 @@ public final class RegressionBatteryTask implements Task {
 
     // ==================== 执行 ====================
 
+    /** 归属自校验 + 按档位裁剪（**第一次 tick 时执行**：那时 `steps` 已经全部登记完）。 */
+    private void prepareSteps() {
+        if (stepsPrepared) {
+            return;
+        }
+        stepsPrepared = true;
+        List<String> unclassified = new ArrayList<>();
+        for (Step step : steps) {
+            if (!CURATION.containsKey(step.name())) {
+                unclassified.add(step.name());
+            }
+        }
+        if (!unclassified.isEmpty()) {
+            BotLog.warn("[Regression] 电池项缺归属（{}）⇒ 必须补进 CURATION 与 docs/BATTERY_CURATION.md：{}",
+                    unclassified.size(), unclassified);
+            curationError = "unclassified=" + unclassified;
+        }
+        int before = steps.size();
+        if (mode == Mode.CORE) {
+            steps.removeIf(step -> profileOf(step.name()) == Profile.EXTRA);
+        }
+        extraSkipped = before - steps.size();
+        BotLog.info("[Regression] PROFILE={} 实跑 {} 项（跳过 EXTRA {} 项）", mode, steps.size(), extraSkipped);
+    }
+
+    private Profile profileOf(String name) {
+        return CURATION.getOrDefault(name, Profile.EXTRA);
+    }
+
+    /** 归属表里登记了、但电池里没有的步骤（也会判红：防止"文档说测了、其实没测"）。 */
+    private List<String> phantomEntries() {
+        List<String> names = new ArrayList<>();
+        for (Step step : steps) {
+            names.add(step.name());
+        }
+        List<String> phantom = new ArrayList<>();
+        for (String name : CURATION.keySet()) {
+            if (!names.contains(name)) {
+                phantom.add(name);
+            }
+        }
+        return phantom;
+    }
+
     @Override
     public Status tick() {
+        prepareSteps();
         if (++ticks > TOTAL_BUDGET_TICKS) {
             BotLog.warn("[Regression] 总预算用尽 step={} ticks={}", currentStepName(), ticks);
             return finish();
@@ -463,7 +598,8 @@ public final class RegressionBatteryTask implements Task {
                     goalBad, finalBad);
         }
         long skipped = results.values().stream().filter("SKIP"::equals).count();
-        boolean allPass = (pass + skipped) == expected && results.size() == expected && k4Ok;
+        boolean allPass = (pass + skipped) == expected && results.size() == expected && k4Ok
+                && curationError.isEmpty() && phantomEntries().isEmpty();
         StringBuilder line = new StringBuilder();
         for (Step step : steps) {
             if (!line.isEmpty()) {
@@ -476,10 +612,27 @@ public final class RegressionBatteryTask implements Task {
                 ? "OK(goal_not_standable=0 final_segment_not_standable=0 写入类例外=" + postWrite + ")"
                 : "VIOLATION(goal_not_standable=" + goalBad
                         + " final_segment_not_standable=" + finalBad + ")");
-        BotLog.info("[Regression] SUMMARY {} ({}/{}{}) ticks={} → {}",
-                line, pass + skipped, expected,
+        BotLog.info("[Regression] SUMMARY {} PROFILE={} baseline={} main={} extra_skipped={}"
+                        + " ({}/{}{}) ticks={} → {}",
+                line, mode, countProfile(Profile.BASELINE), countProfile(Profile.MAIN), extraSkipped,
+                pass + skipped, expected,
                 skipped > 0 ? "，其中 SKIP=" + skipped : "", ticks, allPass ? "PASS" : "FAIL");
+        List<String> phantom = phantomEntries();
+        if (!curationError.isEmpty() || !phantom.isEmpty()) {
+            BotLog.warn("[Regression] 电池归属表与实跑项不一致：{} {}（见 docs/BATTERY_CURATION.md）",
+                    curationError, phantom.isEmpty() ? "" : "phantom=" + phantom);
+        }
         return allPass ? Status.DONE : Status.FAILED;
+    }
+
+    private int countProfile(Profile profile) {
+        int count = 0;
+        for (Step step : steps) {
+            if (profileOf(step.name()) == profile) {
+                count++;
+            }
+        }
+        return count;
     }
 
     /** 本次电池期间的累计计数增量。 */

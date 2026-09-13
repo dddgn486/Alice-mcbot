@@ -275,6 +275,12 @@ public final class BotCommand {
                                         })
                                         .executes(ctx -> craftStationSet(ctx.getSource(),
                                                 StringArgumentType.getString(ctx, "station"))))))
+                // D-197：**回归电池分档管理**（用户要求"只测必要基础项 + 当前主线项"，由 AI 维护归属表）
+                .then(Commands.literal("battery")
+                        .executes(ctx -> batteryCommand(ctx.getSource(), "list"))
+                        .then(Commands.literal("core").executes(ctx -> batteryCommand(ctx.getSource(), "core")))
+                        .then(Commands.literal("full").executes(ctx -> batteryCommand(ctx.getSource(), "full")))
+                        .then(Commands.literal("list").executes(ctx -> batteryCommand(ctx.getSource(), "list"))))
                 .then(Commands.literal("recipes")
                         .executes(ctx -> recipesDump(ctx.getSource(), "alice-recipes.json"))
                         .then(Commands.argument("file", StringArgumentType.word())
@@ -699,6 +705,39 @@ public final class BotCommand {
                 ? "[alice] 可持续伐木区已启动 region=" + region.describe()
                 : "[alice] " + BotManager.busyMessage(bot)), false);
         return ok ? 1 : 0;
+    }
+
+    /**
+     * {@code /alice battery [core|full|list]}（D-197）：跑电池 / 看当前归属表。
+     *
+     * <p>归属表在 `RegressionBatteryTask.CURATION`，配套文档 `docs/BATTERY_CURATION.md`；
+     * 这里把它打印出来，便于"配置漂移"一眼可见（用户要求由 AI 管理，那就得**看得见**）。
+     */
+    private static int batteryCommand(CommandSourceStack source, String action) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] 没有可用 bot"));
+            return 0;
+        }
+        if ("list".equals(action)) {
+            var curation = com.dddgn.alice.task.RegressionBatteryTask.curationSummary();
+            for (String line : curation) {
+                source.sendSuccess(() -> Component.literal("[alice] " + line), false);
+            }
+            return 1;
+        }
+        boolean full = "full".equals(action);
+        if (BotManager.isBusy(bot)) {
+            source.sendFailure(Component.literal("[alice] " + BotManager.busyMessage(bot)));
+            return 0;
+        }
+        if (!BotManager.assignRegressionBattery(bot, null, full)) {
+            source.sendFailure(Component.literal("[alice] " + BotManager.busyMessage(bot)));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("[alice] 回归电池已开始（"
+                + (full ? "FULL：全部项" : "CORE：必要基础 + 当前主线") + "）⇒ 看 [Regression] SUMMARY"), false);
+        return 1;
     }
 
     /** {@code /alice craft station}：**只读**列出候选合成工作站与当前选择（S1-2 / D-192）。 */

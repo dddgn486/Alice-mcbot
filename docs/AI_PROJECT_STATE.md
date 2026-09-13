@@ -406,6 +406,13 @@ legacy 双内核整批删除（19 文件，依据"按路径分析的零活引用
 **D-173 补漏**：`pathing/movement/` 14 文件（外部真引用 0）整包删除 + `.gitignore` 藏住的
 `PathExecutor.java.backup` 删除。
 
+**回归电池分档（最新，D-197）**：CORE = **BASELINE 13 + MAIN 10 = 23 项**（默认，物品
+`alice:regression_battery` 或 `/alice battery core`）；FULL = 33 项（`/alice battery full`）；
+`/alice battery list` 看归属表。配置唯一入口是 `RegressionBatteryTask.CURATION`，说明书
+`docs/BATTERY_CURATION.md`（**AI 负责维护**：新增场景进 MAIN、验收退场移 EXTRA、换主线重写 MAIN）。
+归属表与实跑项不一致 ⇒ **电池判红**（防"文档说测了其实没测"）。
+**A4 熔炉已客户端 PASS**（`smelted=true stone+1` / `cobblestone-1` / `no_half_products=true` / `fuel_burn_ticks=1600`）。
+
 **阶段 3-A「工作站」大块收口（2026-09-13，客户端全绿）**：通用发现（随身 2×2 / 工作台 3×3 /
 精妙存储"合成升级页签"3×3，**零模组专属代码**）、工作站可切换（`/alice craft station`，不自动选优）、
 只读探针（`alice:craft_grid_probe`）、执行接入发现器（B，D-193）、装配层装/拆（A，D-194）、

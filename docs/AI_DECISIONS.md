@@ -7902,3 +7902,35 @@ final_segment_not_standable=0 写入类例外=96)`，无 SKIP、无 FAIL、无�
 按 C 的经验应当复用同一发现器（它同样有 3 格 + `ContainerData`），留作 A4b。
 
 **等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar 见下）。**待客户端**。
+
+### D-197：**回归电池分档管理**（用户要求："只测必要基础项 + 当前主线项，每次新场景/换主线都更新，由 AI 管理"）
+
+**用户原话**："我觉得需要做电池回归管理了，现在电池过程太长了，电池的回归项只测必要基础项和当前主线项，
+每次有新场景，更换主线都要更新，由你来管理。"
+
+**做法（配置一处、说明一处、自校验兜底）**：
+1. **分三档**：`BASELINE`（必要基础 = 坏了就不能信任 bot 的任何动作）/ `MAIN`（当前主线 = 阶段 3-A 工作站+熔炉）/
+   `EXTRA`（已验收、与主线无关或耗时/需长期观察）。默认只跑 BASELINE+MAIN = **CORE**。
+2. **配置唯一入口**：`RegressionBatteryTask.CURATION`（一张**按名字的归属表**，33 项全部登记）。
+   刻意不改成"给每个步骤加参数"：一处可见、便于 review。
+3. **自校验（防漂移）**：构造后首次 tick 检查"有步骤没归属 / 有归属没步骤" ⇒ 直接计入判红条件，
+   SUMMARY 里打印 `PROFILE=core baseline=13 main=10 extra_skipped=10 (23/23) …`；
+   不一致时额外 WARN（"文档说测了、其实没测"这种事不许悄悄发生）。
+4. **入口**：物品 `alice:regression_battery` = CORE；命令 `/alice battery core|full|list`
+   （`list` 打印归属表，用户能一眼看到"电池里有什么、为什么"）。
+5. **说明书**：`docs/BATTERY_CURATION.md` —— 三档含义、当前归属表、**六条维护规则**（新增场景进 MAIN；
+   验收通过且退场则移 EXTRA；新破坏性路径进 BASELINE；换主线重写 MAIN；每次改动在本文档留记录；
+   归属表与代码不一致即判红）、历史表。
+
+**分档结果**（33 → CORE 23）：BASELINE 13（pathing / write_budget / mine_regression / mine_job / lumber_job /
+transfer / clear_guard / clear_retry / scaffold / partial_search / capability_gate / tool_supply / recoverability）、
+MAIN 10（craft_check / craft_action / craft_table / craft_station / craft_probe_inventory / craft_probe_table /
+craft_probe_upgradetab / craft_station_provision / craft_station_craft / craft_furnace）、
+EXTRA 10（lumber_failure / region_maintain / decision_contract / decision_trace / llm_contract / permission_gate /
+pickup_gate / collect_job / recipes_dump / event_thresholds）。
+
+**顺带修**（A4 报告瑕疵）：`FurnaceStation` 读 `ContainerData` 的下标原本写成 0=进度/1=总时长/2=燃烧，
+而原版约定是 **0=剩余燃烧 1=本次燃料总长 2=进度 3=配方总时长** ⇒ 报告恒为 `progress=0/0`；
+匿名 `ContainerData` 也输出空类名。已修（并注明：**这些只是过程证据，判成功一律看世界事实**）。
+
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `1aef94f3…`）。**待客户端**：CORE 电池跑通（23 项）。
