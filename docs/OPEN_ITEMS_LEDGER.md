@@ -349,3 +349,17 @@ S-1 因常驻任务而真实化），再开 **②决策层接入** 这条真正�
 立项目标的核心，而 J1–J8 刚把它的地基（候选源/策略/trace/失败码/账本）铺完。
 **③农耕** 可以作为 ② 的第一个"LLM 可选动作"来落，天然证明决策缝可用；
 **④** 建议穿插着做（每轮收尾顺手清 2–3 条）。
+
+**§6.14 崩溃与冻结（2026-09-13 晚，两件都已有实锤）**
+
+- **服务端崩溃（已修，D-175）**：`crash-2026-09-13_12.07.23` —— `MineTask.tickRestore` NPE
+  （`restoreTask` 已置 null 而 `phase` 仍是 RESTORE），由 `MineRegressionTask` 的 SCOPE_REOPEN
+  用例"终态后又 tick 内层任务"触发，**打死服务端 tick 循环**。
+  修：任务终态闩锁 + 防御守卫 + 夹具不再 tick 终态任务 + **电池 try/catch 隔离**（单步异常 → FAIL + 完整栈）。
+  同类隐患（09-06 崩过一次同型 NPE）：19 处"字段置 null + `.tick()` 无守卫"，待逐个上闩锁。
+- **bot 物理冻结（已定性，D-176）**：`segmentTicks=121 / entityTicksInSegment=0 / travelCallsInSegment=0`
+  ⇒ **假人实体整段没被 tick**（输入 forward=1.00、onGround、空地、速度为 0）。
+  这解释了 `exec_floating` 超时、`exec_chain` 收不到掉落、`restore FAILED remaining=1`、
+  以及此前 transfer `end_to_end` 的间歇一格不动 —— **同一个病因**。
+  已加 `[Bot] entity_tick_missing` 看门狗（含 removed/区块/玩家表/连接/task 现场）；
+  **待复现取现场**后定修法（可能需要在 `BotManager` 侧补漏 tick 兜底驱动）。

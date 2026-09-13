@@ -264,7 +264,20 @@ public final class RegressionBatteryTask implements Task {
             }
             return startStep(steps.get(index));
         }
-        Status status = current.tick();
+        // D-175：**夹具不得把服务端 tick 循环打死**。2026-09-13 实测：mine_regression 的内层
+        // `MineTask` 在终态后被多 tick 一次触发 NPE ⇒ 整个服务端崩溃（客户端直接挂）。
+        // 生产任务不该吞异常（崩溃本身是 bug，要修），但**测试电池**必须把单步故障隔离成
+        // 一条如实上报的 FAIL + 完整栈（否则一次夹具缺陷就毁掉整轮测试与全部证据）。
+        Status status;
+        try {
+            status = current.tick();
+        } catch (Throwable throwable) {
+            BotLog.warn("[Regression] step={} 抛出异常 ⇒ 记 FAIL 并继续（夹具隔离；完整栈如下）",
+                    currentStepName(), throwable);
+            record(currentStepName(), "FAIL", "exception=" + throwable);
+            endStep();
+            return Status.RUNNING;
+        }
         if (steps.get(index).doneWhen() != null && steps.get(index).doneWhen().test(current)) {
             record(steps.get(index).name(), "PASS",
                     "ticks=" + stepTicks + "（常驻任务按达成判过：chopped/planted 已达判据）");

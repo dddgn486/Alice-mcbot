@@ -163,6 +163,8 @@ public final class MineRegressionTask implements Task {
      * 世界历史残留单独报 `foreignDrops=` 不计入（修"不清掉落物就 FAIL"的夹具缺陷）。
      */
     private final Set<java.util.UUID> dropsAtCaseStart = new java.util.HashSet<>();
+    /** 内层任务上一次返回的终态（D-175 幂等断言用）。 */
+    private Status lastInnerTerminal;
 
     public MineRegressionTask(BotPlayer bot, ServerPlayer observer, ScopeBuffer scope) {
         this.bot = bot;
@@ -245,17 +247,11 @@ public final class MineRegressionTask implements Task {
             finishCase();
             return index >= CASES.size() ? finish() : Status.RUNNING;
         }
-        Status status = mineTask.tick();
-        if (status == Status.RUNNING) {
-            return Status.RUNNING;
-        }
-        if (current.kind() == Kind.SCOPE_REOPEN) {
-            // D-124 断言：挖出掉落物（未收集）→ 重开作用域 → 账上仍在。
-            // **先等 pending 确认**（ScopeBuffer 在 tick END 才 flushPending；当 tick 查必为 0），
-            // 等待窗口取 5 tick：≥1（跨过一次 tick END）且 < pickupDelay(~10)（免得被捡走）。
-            if (settleUntilTick == 0) {
-                settleUntilTick = caseTicks + 5;
-            }
+        // D-175：SCOPE_REOPEN 用例在"内层任务已终态"之后还要等 5 tick（等 ScopeBuffer flush），
+        // 但**那段时间绝不能再 tick 内层任务** —— 旧实现在等待期间每 tick 都先 `mineTask.tick()`，
+        // 而 `MineTask` 收尾时已把 `restoreTask = null`（`phase` 仍为 RESTORE）⇒ 第二次 tick 直接
+        // NPE 把服务端 tick 循环打死（2026-09-13 客户端崩溃实证）。
+        if (settleUntilTick > 0) {
             if (caseTicks < settleUntilTick) {
                 return Status.RUNNING;
             }
@@ -265,13 +261,31 @@ public final class MineRegressionTask implements Task {
             int before = scope.liveDrops().size();
             scope.begin(current.target(), 16, bot.getUUID());   // 与 prepare 同一中心/半径
             int after = scope.liveDrops().size();
-            boolean pass = status == Status.DONE && before >= 1 && after >= 1;
-            record(current, pass, "status=" + status
+            // D-175 契约断言：**终态任务再被 tick 必须幂等**（不许崩、不许改状态）
+            Status again = tickTwiceAssertIdempotent();
+            boolean pass = lastInnerTerminal == Status.DONE && before >= 1 && after >= 1
+                    && again == lastInnerTerminal;
+            record(current, pass, "status=" + lastInnerTerminal
+                    + "/idempotent=" + (again == lastInnerTerminal)
                     + "/dropsInWorld=" + inWorld
                     + "/liveDropsBeforeReopen=" + before + "/liveDropsAfterReopen=" + after
                     + "/ticks=" + caseTicks);
             finishCase();
             return index >= CASES.size() ? finish() : Status.RUNNING;
+        }
+        Status status = mineTask.tick();
+        if (status == Status.RUNNING) {
+            return Status.RUNNING;
+        }
+        lastInnerTerminal = status;
+        if (current.kind() == Kind.SCOPE_REOPEN) {
+            // D-124 断言：挖出掉落物（未收集）→ 重开作用域 → 账上仍在。
+            // **先等 pending 确认**（ScopeBuffer 在 tick END 才 flushPending；当 tick 查必为 0），
+            // 等待窗口取 5 tick：≥1（跨过一次 tick END）且 < pickupDelay(~10)（免得被捡走）。
+            if (settleUntilTick == 0) {
+                settleUntilTick = caseTicks + 5;
+            }
+            return Status.RUNNING;   // 等待期间不 tick 内层（见上面的 D-175 注释）
         }
         if (current.kind() == Kind.TOOL_REFUSAL) {
             // D-119 负例断言：如实失败 + 目标未动 + **没有变出工具**
@@ -326,8 +340,10 @@ public final class MineRegressionTask implements Task {
                         ? collected == current.expectedCollected() && delta == current.expectedDelta()
                         : collected >= current.expectedCollected()
                                 && delta >= current.expectedCollected());
+        // D-175 契约断言：内层任务已终态 ⇒ 再 tick 两次必须幂等（不许崩、不许改状态）
+        boolean idempotent = tickTwiceAssertIdempotent() == status;
         boolean pass = status == Status.DONE && targetGone && noDropsLeft && countOk && supportOk
-                && restoredOk;
+                && restoredOk && idempotent;
         record(current, pass, "status=" + status
                 + "/targetGone=" + targetGone
                 + "/collected=" + collected + "/" + current.expectedCollected()
@@ -336,6 +352,7 @@ public final class MineRegressionTask implements Task {
                 + (current.expectedDelta() != current.expectedCollected()
                         ? "(期望" + current.expectedDelta() + ")" : "")
                 + "/dropsLeft=" + dropsLeft
+                + "/idempotent=" + idempotent
                 + (foreignDrops > 0 ? "(另有残留" + foreignDrops + "件不计入)" : "")
                 + (current.expectSupport() ? "/supportRestored=" + supportOk : "")
                 + (current.expectSupport() ? "/ledgerRestored=" + mineTask.restoredBlocks()
@@ -415,6 +432,23 @@ public final class MineRegressionTask implements Task {
     }
 
     /** 结束一个执行用例：恢复连锁档位、清理子任务。 */
+    /**
+     * **D-175 契约断言**：终态任务再被 `tick()` 必须幂等（同状态返回、不崩服务端）。
+     *
+     * <p>为什么要有这条：2026-09-13 客户端崩溃正是"内层任务已终态、又被多 tick 了几次" ——
+     * 当时 `MineTask` 收尾把 `restoreTask = null` 而 `phase` 仍是 RESTORE ⇒ NPE 打死服务端 tick 循环。
+     * 任务侧现在有终态闩锁兜底，这里把**契约本身**钉进夹具：以后谁破坏幂等，这条用例会红。
+     */
+    private Status tickTwiceAssertIdempotent() {
+        Status first = mineTask.tick();
+        Status second = mineTask.tick();
+        if (first != second || (lastInnerTerminal != null && first != lastInnerTerminal)) {
+            BotLog.warn("[MineRegression] 终态幂等被破坏：terminal={} 再 tick → {} / {}",
+                    lastInnerTerminal, first, second);
+        }
+        return second;
+    }
+
     private void finishCase() {
         if (chainModeBefore != null) {
             MiningTuning.setChainMode(chainModeBefore);

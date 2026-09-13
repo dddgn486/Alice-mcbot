@@ -933,6 +933,11 @@ public final class BotManager {
         TransferLedgerData.get(event.getServer()).expireSuspensions(event.getServer().getTickCount(),
                 TRANSFER_MAX_SUSPENSION_TICKS);
         for (BotSession session : BOTS.values()) {
+            // D-176：**实体 tick 看门狗** —— 会话在跑、但 bot 实体整 tick 没被 tick 过 ⇒ 物理冻结。
+            // 2026-09-13 实测：`segmentTicks=121 entityTicksInSegment=0 travelCallsInSegment=0`
+            // （输入 forward=1.00、onGround=true、delta=0、脚下空气/头顶空气/支撑石头）⇒
+            // 表现为"任务在跑、bot 一格不动"，且**没有任何报错**（连带 exec_floating 超时、chain 收不到掉落）。
+            checkEntityTickProgress(session);
             HazardState hazard = SurvivalSystem.tick(session.bot());
             session.tick(hazard);
             // S3：请示超时（按时限把"没答复"落档为默认档 —— 用户裁定：超时=拒绝）
@@ -1042,6 +1047,36 @@ public final class BotManager {
         return session.taskKind;
     }
 
+
+    /**
+     * **实体 tick 看门狗（D-176）**：只在"该 tick 没 tick 过"时告警，用于抓"物理冻结"的第一现场。
+     *
+     * <p>输出的是**区分病因**所需的量：bot 是否已从世界/玩家表移除、所在区块是否还加载、
+     * 连接是否还在、连续缺 tick 多少。**只告警不改行为**（先拿到现场，再定修法）。
+     */
+    private static void checkEntityTickProgress(BotSession session) {
+        BotPlayer bot = session.bot();
+        long now = bot.entityTickCount();
+        if (session.lastEntityTicks == now) {
+            session.entityTickMissingStreak++;
+            // 第 5 次（约 0.25 秒）报第一次，之后每 100 tick（5 秒）报一次，避免刷屏
+            if (session.entityTickMissingStreak == 5 || session.entityTickMissingStreak % 100 == 0) {
+                BlockPos pos = bot.blockPosition();
+                BotLog.warn("[Bot] entity_tick_missing streak={} serverTick={} bot={} pos={}"
+                                + " removed={} levelLoaded={} inLevelPlayers={} inPlayerList={}"
+                                + " connection={} task={}",
+                        session.entityTickMissingStreak, bot.getServer().getTickCount(),
+                        bot.getName().getString(), pos.toShortString(),
+                        bot.isRemoved(), bot.serverLevel().isLoaded(pos),
+                        bot.serverLevel().players().contains(bot),
+                        bot.getServer().getPlayerList().getPlayers().contains(bot),
+                        bot.connection != null, session.taskKind);
+            }
+        } else {
+            session.entityTickMissingStreak = 0;
+        }
+        session.lastEntityTicks = now;
+    }
 
     /** 取 bot 的会话（决策层快照只读用；null = 未注册）。 */
     public static BotSession sessionOf(BotPlayer bot) {
@@ -1340,6 +1375,10 @@ public final class BotManager {
         private BotSession(BotPlayer bot) {
             this.bot = bot;
         }
+
+        /** D-176 看门狗状态：上一次看到的实体 tick 计数与连续缺 tick 次数。 */
+        long lastEntityTicks = -1L;
+        int entityTickMissingStreak;
 
         public BotPlayer bot() {
             return bot;

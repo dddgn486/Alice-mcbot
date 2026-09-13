@@ -6746,3 +6746,81 @@ LLM 选了候选菜单里唯一的 `region:saved`（伐木区 x17..37 z203..231�
 **登记为独立缺陷（J 级，未修）**：**常驻 Job 不感知"bot 被传送离开作业范围"** ——
 它应当先核对"我在不在自己的作业范围内"（或重规划回到区域），而不是就地开搭。
 触发条件正是本项目最常用的操作：**跑测试夹具时后台还挂着常驻 Job**（用户已实测遇到）。
+
+### D-175：**服务端崩溃修复** —— 任务终态后再被 tick 不得崩（`MineTask` 终态闩锁 + 夹具隔离）
+
+#### 崩溃现场（客户端 `crash-reports/crash-2026-09-13_12.07.23-server.txt`）
+
+```
+java.lang.NullPointerException: Cannot invoke "RestoreScopeTask.tick()" because "this.restoreTask" is null
+  at MineTask.tickRestore(MineTask.java:402) ← MineTask.tick(318) ← MineRegressionTask.tick(248)
+  ← RegressionBatteryTask.tick(267) ← BotSession.tick ← onServerTick ← …（服务端 tick 循环被打死）
+```
+日志序列（同一轮电池）：
+```
+12:07:23.101 case=scope_reopen_keeps_drops kind=SCOPE_REOPEN
+12:07:23.447 [MineTask] restore_start target=23, 64, 140 pending=1
+12:07:23.644 [MineTask] restore_end   target=23, 64, 140 status=FAILED restored=0 remaining=1
+12:07:23.78x NPE
+```
+
+#### 根因（两层，缺一不可）
+
+1. **`MineTask.tickRestore()` 收尾不自洽**：把 `restoreTask = null` 并返回终态，却**没推进 `phase`**
+   ⇒ 任何"终态后又 tick 一次"的调用都会 `phase==RESTORE && restoreTask==null` ⇒ NPE。
+2. **夹具主动制造了那次"多 tick"**：`MineRegressionTask` 的 SCOPE_REOPEN 用例为了让 `ScopeBuffer`
+   flush 又要等 5 tick，而旧实现在等待期间**每 tick 都先 `mineTask.tick()`** ⇒ 正好踩中 (1)。
+
+**这不是孤例**：同类"字段置 null + 之后仍被 tick"的 NPE 在 09-06 已经崩过一次
+（`MovementSequenceWalkTask.tick:54`，`movements` is null）。⇒ 这是**一类**缺陷，按类修。
+
+#### 修法
+
+1. **终态闩锁（任务侧，防崩溃）**：`MineTask.tick()` 拆成幂等外壳 + `tickOnce()`；一旦返回过终态
+   （DONE/FAILED），后续 `tick()` **直接返回同一状态、不碰任何子任务**。规矩：
+   **任务终态后再被 tick 不得崩**（调用方多 tick 是调用方的事，任务自己必须稳）。
+2. **防御性守卫**：`tickRestore()` 里 `restoreTask == null` ⇒ 告警 + 按"拆除结束"收尾，绝不 NPE。
+3. **夹具不再 tick 已终态的内层任务**：SCOPE_REOPEN 的等待/断言块重构为"等待期间直接 return"，
+   并把**契约本身**钉进断言：`tickTwiceAssertIdempotent()`（连 tick 两次须同状态）——
+   exec 用例与 SCOPE_REOPEN 用例都纳入判据（`idempotent=`）。
+4. **电池隔离（测试台侧）**：`RegressionBatteryTask` 的 `current.tick()` 包 try/catch ⇒
+   单步异常记 `FAIL(exception=…)` + **完整栈**并继续跑完其余步骤。理由：生产任务不该吞异常
+   （崩溃本身是要修的 bug），但**测试电池不能因一次夹具缺陷就毁掉整轮测试和全部证据**。
+   本次崩溃正是"夹具缺陷 ⇒ 整个服务端崩溃 ⇒ 测试与证据全丢"。
+
+**状态**：`IMPLEMENTED` + `COMPILES`；待客户端复测（电池应能整轮跑完，`mine_regression` 的
+`idempotent=true`）。**同类隐患登记（未逐个改）**：脚本扫出 19 处"Task/Runner 字段被置 null 且
+`.tick()` 无 null 守卫"（`ScaffoldLifecycleTask` 4 处、`MineTask` 3 处、`TransferTask`/`FluidMineCheckTask`/
+`ClearGuardCheckTask`/`PickupGateCheckTask` 等）——目前只因调用方"终态即停"而未爆；
+**待办**：把终态闩锁推广到这些任务（按同一契约改，或统一抽基类）。
+
+### D-176：**"bot 物理冻结"实锤** —— 实体整段没被 tick（不是寻路/输入问题）
+
+`segment_stall` 诊断（D-174）在真实运行中抓到了两次，读数**完全一致**：
+
+```
+[R4 Session] segment_stall session=collect-23_65_190-0 index=0 kind=segment_timeout to=22, 64, 190
+  botFoot=21, 64, 190 pos=21.500,64.000,190.500 onGround=true delta=0.0000,0.0000,0.0000
+  input=BotController[forward=1.00 strafing=0.00 sneaking=false sprinting=false jumping=false jumpTicks=0]
+  toBlock=空气 headBlock=空气 supportBlock=石头 segmentTicks=121 totalTicks=122
+  entityTicksInSegment=0 travelCallsInSegment=0        ← 关键
+```
+另一次 `collect-23_64_172-0`（to=23,64,171）读数相同。
+
+⇒ **会话在 tick（121 次）、输入是"前进 1.0"、脚下/头顶空气、支撑石头、onGround=true、速度为 0**，
+而 **bot 实体这一整段一次都没被 tick**（`entityTickCount` 没涨，`travel()` 没进）。
+所以既不是规划、也不是输入、也不是被挡住 —— 是**假人实体的 tick 停止**（随后又恢复，故表现为间歇冻结）。
+
+**这解释了同一轮里的全部异常**：`exec_floating=FAIL case_timeout`、`exec_chain=FAIL … collected=0/9
+dropsLeft=1`、`restore_end status=FAILED remaining=1`（拆不动、收不到掉落）——都是一个病因：
+"bot 不动"。
+
+**已加看门狗（只诊断、不改行为）**：`BotManager.checkEntityTickProgress` —— 会话在跑但该 server tick
+内实体 tick 计数没涨 ⇒ 每 5 秒告警一次并打出区分病因所需的量：
+`removed / levelLoaded(pos) / inLevelPlayers / inPlayerList / connection!=null / task`。
+下次复现即可直接判定是"实体被移除 / 区块卸载 / 玩家表掉队 / 连接停了 / 单纯没被 tick"。
+
+**未定论**：**谁**本该 tick 这个 `ServerPlayer`（假人连接是 `EmbeddedChannel`，没进
+`ServerConnectionListener` 的连接表；vanilla 中 `ServerPlayer` 的实体 tick 与 `doTick()` 由
+连接/玩家表两条路径驱动）。拿到看门狗数据后再定修法（可能需要在 `BotManager` 侧补一个
+"发现漏 tick 就补一次"的兜底驱动）。

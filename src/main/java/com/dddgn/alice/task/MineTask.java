@@ -70,8 +70,20 @@ public final class MineTask implements Task {
     private boolean clearExhausted;
     /** 建拆同权（D-112）：会话内自上而下拆除本任务放的临时方块。 */
     private RestoreScopeTask restoreTask;
+    /**
+     * **终态闩锁（D-175）**：一旦本任务返回过终态（DONE/FAILED），后续 `tick()` 必须**幂等**
+     * —— 直接返回同一状态，**不碰任何子任务**。
+     *
+     * <p>为什么必须有：2026-09-13 客户端**服务端崩溃**实证 —— `tickRestore()` 收尾时把
+     * `restoreTask = null` 但**没推进 `phase`**；夹具 `MineRegressionTask` 的 SCOPE_REOPEN 用例
+     * 为了让 `ScopeBuffer` flush 又多 tick 了内层任务几 tick ⇒ `phase==RESTORE && restoreTask==null`
+     * ⇒ NPE（`MineTask.tickRestore:402`）把服务端 tick 循环打死。
+     * <p>规矩：**任务终态后再被 tick 不得崩**（调用方是否多 tick 是调用方的事，任务自己必须稳）。
+     */
     private int restoredBlocks;
     private int restorePendingBefore;
+    /** 见字段区注释：终态闩锁（D-175）。 */
+    private Status terminalStatus;
     /** 没拆干净的数量（如实上报，不静默）。 */
     private int scaffoldLeft;
     private com.dddgn.alice.task.mining.GainStepRunner gainRunner;
@@ -285,6 +297,17 @@ public final class MineTask implements Task {
 
     @Override
     public Status tick() {
+        if (terminalStatus != null) {
+            return terminalStatus;   // D-175：终态幂等（见字段注释；这是防服务端崩溃的硬要求）
+        }
+        Status status = tickOnce();
+        if (status != Status.RUNNING) {
+            terminalStatus = status;
+        }
+        return status;
+    }
+
+    private Status tickOnce() {
         // S-3（P1-B，2026-09-12）：**不再自调维生**。`BotManager` 的调度循环每 tick 已经
         // `SurvivalSystem.tick(...)` 并把 `HazardState` 交给 `BotSession.tick(hazard)`；
         // 这里再调一次会造出**两套终态记录**（任务自己 FAILED vs 会话 SURVIVAL_INTERRUPTED），
@@ -399,6 +422,12 @@ public final class MineTask implements Task {
     }
 
     private Status tickRestore() {
+        if (restoreTask == null) {
+            // 第二层防御（第一层是终态闩锁）：万一还有别的调用路径进来，也如实收尾而不是 NPE。
+            BotLog.warn("[MineTask] restoreTask 缺失（不该发生：终态后被再次 tick？）target={} ⇒ 按拆除结束处理",
+                    target.toShortString());
+            return Status.DONE;
+        }
         Status status = restoreTask.tick();
         if (status == Status.RUNNING) {
             return Status.RUNNING;
