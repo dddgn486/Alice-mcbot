@@ -713,3 +713,12 @@ jar `3312608d…`。
   **不受自检暂停影响**（这正是自检窗口内想单独验 LLM 时该用的入口）。
 - **不是触发入口**：`/alice ask`（那是 S3 请示通道）。
 - 因此 A5 的 **LLM 路径**（LLM 是否会从 `craftable` 清单里选 `craft`）**仍未驗**，下一轮用 `goal_director` 物品观察。
+
+**§6.46 测试通路改造（D-200）**：`trigger` 进 LLM 状态 + `/alice instruct <原话>`（**直连测试通道**）+ `/alice region clear`。
+- `trigger` 现在出现在快照顶层（`terminal:…`/`event:…`/`manual`/`operator`）⇒ LLM 能知道"为什么被问"。
+- **直连通道的用法（连通性测试，不看菜单）**：`/alice instruct 用你词汇表里的 craft 动作做一个工作台` ⇒
+  user prompt 就是这句话，解析**放行菜单校验**（包里没材料也会照做，执行层如实报 `missing_ingredients` —— 这本身是通路证据），
+  日志打一行 `[Goal] directed_result raw=… → …`。**自动触发路径仍严格按"只能从菜单选"校验**。
+- **登记为临时裁定**：直连通道放行菜单校验**削弱了 A5 红线**；复核触发 = A5 的 LLM 路径验证通过 ⇒ 二选一：
+  回收 `/alice instruct`，或加 `LlmConfig` 闸门（默认关）并写进红线说明。
+- `/alice region clear`：清掉玩家已选定区域（夹具/测试收尾），菜单里不再出现 `region:saved`。
