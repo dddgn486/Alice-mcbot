@@ -27,18 +27,18 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 `clear_guard` / `clear_retry` / `scaffold`（三条破坏性路径的守卫与建拆同权）、`partial_search`（`SEARCH_LIMIT ≠ UNREACHABLE`）、
 `capability_gate`（闸门）、`tool_supply`（不凭空变工具）、`recoverability`（可回收性等级）
 
-### MAIN（4）—— 阶段 3-A 收口后的最小烟测集（2026-09-13 D-201）
-口径：**每一类「只此一步覆盖」的机制各留一步 + 查询层最便宜的一步**；同机制的夹具退回 FULL。
-`craft_check`（A1 只读配方查询，最便宜）、`craft_goal`（A5 端到端：可做清单 + 严格解析 + 生产路径 `CraftJob`
-—— 顺带覆盖 A2/A3/C 的**同一套**发现器与执行器）、`craft_furnace`（**方块型**熔炉：只此一步覆盖
-`ContainerData` 路径 + 炉子自复位）、`craft_cooking`（**菜单型**炉子：只此一步覆盖「上游自述 3 格」+
-未登记槽位地址 + 按需装配）。
+### MAIN（12）—— 阶段 3-A（**回退瘦身，暂时保持完整**；D-201 附注一）
+`craft_check`、`craft_action`、`craft_table`、`craft_station`、`craft_probe_inventory`、`craft_probe_table`、
+`craft_probe_upgradetab`、`craft_station_provision`、`craft_station_craft`、`craft_furnace`、`craft_cooking`、`craft_goal`
 
-### EXTRA（18）
+> **为什么退回来了**：2026-09-13 实测——把其中 8 项移出 CORE 后，`craft_furnace`/`craft_cooking`/`transfer`
+> **可复现地变红**（重启客户端后仍红），而它们在 FULL（35 项）里**全绿** ⇒ 撤走的是它们的**隐含前置/清场**。
+> **瘦身的前提**是"每个夹具自己显式自证前提、顺序无关"；该前提未落地前不允许再减 CORE 项。
+> 恢复路径：先做"显式自证前提"（菜单身份/位置/方块实体状态/账本与归因时间窗）⇒ 再**逐条**撤，**每条复跑一次**。
+
+### EXTRA（10）
 `lumber_failure`、`region_maintain`（区域常驻 Job，耗时）、`decision_contract`、`decision_trace`、`llm_contract`、
-`permission_gate`、`pickup_gate`、`collect_job`、`recipes_dump`、`event_thresholds`，
-以及 3-A 收口退场（机制已被 MAIN 保留项覆盖，FULL 仍全覆盖）：`craft_action`、`craft_table`、`craft_station`、
-`craft_probe_inventory`、`craft_probe_table`、`craft_probe_upgradetab`、`craft_station_provision`、`craft_station_craft`
+`permission_gate`、`pickup_gate`、`collect_job`、`recipes_dump`、`event_thresholds`
 
 ## 3. 维护规则（我 = AI 负责执行）
 
@@ -57,3 +57,4 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 | 2026-09-13 | 24 | 34 | 新增 A4b 菜单型炉子（`craft_cooking`）⇒ MAIN 11 |
 | 2026-09-13 | 25 | 35 | 新增 A5 决策层接线（`craft_goal`）⇒ MAIN 12 |
 | 2026-09-13 | **17** | 35 | **3-A 收口整理**（D-201）：MAIN 12 → **4**（只留「只此一步覆盖」的机制：查询／决策端到端／方块炉／菜单炉），8 项退 EXTRA |
+| 2026-09-13 | **25** | 35 | **回退瘦身**（D-201 附注一）：8 项重回 MAIN —— CORE 17 的三项红可复现、FULL 里同三项全绿 ⇒ 撤走的是隐含前置；瘦身前提（显式自证前提）未落地前不减项 |

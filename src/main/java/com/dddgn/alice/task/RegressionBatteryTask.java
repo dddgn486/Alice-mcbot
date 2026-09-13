@@ -116,16 +116,17 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("craft_furnace", Profile.MAIN),
             Map.entry("craft_cooking", Profile.MAIN),
             Map.entry("craft_goal", Profile.MAIN),
-            // ---- EXTRA：已验收/无关/耗时（18）----
-            // 阶段 3-A 收口后从 MAIN 退场（2026-09-13 D-201）：机制已被保留项覆盖 ⇒ 只留 FULL 全覆盖
-            Map.entry("craft_action", Profile.EXTRA),
-            Map.entry("craft_table", Profile.EXTRA),
-            Map.entry("craft_station", Profile.EXTRA),
-            Map.entry("craft_probe_inventory", Profile.EXTRA),
-            Map.entry("craft_probe_table", Profile.EXTRA),
-            Map.entry("craft_probe_upgradetab", Profile.EXTRA),
-            Map.entry("craft_station_provision", Profile.EXTRA),
-            Map.entry("craft_station_craft", Profile.EXTRA),
+            // 2026-09-13 D-201 附注一：**回退整理**——撤走后 CORE 三项变红（缺隐含前置），
+            // 而这些步骤在 FULL 里是绿的 ⇒ 先恢复绿基线，等"显式自证前提"做完再**逐条**撤（每条复跑一次）
+            Map.entry("craft_action", Profile.MAIN),
+            Map.entry("craft_table", Profile.MAIN),
+            Map.entry("craft_station", Profile.MAIN),
+            Map.entry("craft_probe_inventory", Profile.MAIN),
+            Map.entry("craft_probe_table", Profile.MAIN),
+            Map.entry("craft_probe_upgradetab", Profile.MAIN),
+            Map.entry("craft_station_provision", Profile.MAIN),
+            Map.entry("craft_station_craft", Profile.MAIN),
+            // ---- EXTRA：已验收/无关/耗时（10）----
             Map.entry("lumber_failure", Profile.EXTRA),
             Map.entry("region_maintain", Profile.EXTRA),
             Map.entry("decision_contract", Profile.EXTRA),

@@ -8136,7 +8136,7 @@ user prompt 的"注意"段也补上"craftable 清单 / `craftable_truncated` 的
 
 #### D-200 附注一：直连指令**被自己的清空语句擦掉**（"让它做工作台，它却发了伐木指令"）—— 已结构性修复
 
-**客户端事实**（20:36，jar `288fc05f…`）：`/alice instruct 用你词汇表里的 craft 动作做一个工作台` 之后
+**客户端事实**（20:36，jar `323a2860…`）：`/alice instruct 用你词汇表里的 craft 动作做一个工作台` 之后
 ```
 [Goal] decision_action trigger=operator latency=4153ms raw={"action":"start_job","kind":"region_lumber","target":"region:saved",…} → StartJob(REGION_LUMBER …)
 [Goal] execute action=start_job ok=true trigger=operator
@@ -8155,7 +8155,7 @@ user prompt 的"注意"段也补上"craftable 清单 / `craftable_truncated` 的
 3. **可见性**：`[Goal] decision_request trigger=… mode=directed|normal model=…` —— 以后"指令到底发出去没有"一眼可判；
 4. `instruct()` 的状态快照也带上 `trigger="operator"`（与 D-200 的 trigger 字段配套）。
 
-**等级**：IMPLEMENTED + COMPILES + 已同步（jar `288fc05f…`）；**待客户端复测**（期望 `mode=directed` + `directed_result` 行）。
+**等级**：IMPLEMENTED + COMPILES + 已同步（jar `323a2860…`）；**待客户端复测**（期望 `mode=directed` + `directed_result` 行）。
 
 #### D-200 附注二：直连通道验证通过 + **临时裁定复核结论**
 
@@ -8225,3 +8225,22 @@ user prompt 的"注意"段也补上"craftable 清单 / `craftable_truncated` 的
 S2（站点/槽位发现）**等 S1 读数出来再定范围**——先看类型形态，再决定认哪些机器，避免一上来就猜。
 
 **等级**：协议 = IMPLEMENTED（文档）；S0/S1 = 未开始（下一轮）。
+
+
+#### D-201 附注一：**回退电池瘦身** —— "隐含前置"必须先变成"显式自证"
+
+**实测**（2026-09-13）：瘦身后 CORE `(14/17) → FAIL`，红项固定为 `craft_furnace`（放料后不燃烧）、
+`craft_cooking`（同形）、`transfer`（按前进但不移动）；**重启客户端后复跑仍红**（可复现 ×2）。
+判别实验 `/alice battery full`（35 项）= `(34/35)`，**这三项全绿** ⇒ **撤走的 8 步在替它们做前置/清场**。
+同一轮还暴露同病第二处：`capability_gate=FAIL reason=foreign_break_attribution`（**ticks=1**）——
+它在 FULL 顺序下**第一 tick** 就断言失败，因为它检查的"外来破坏归因"前提被前面的 `region_maintain`/`transfer`
+污染；而 CORE 17 里它反而是绿的（那时 `transfer` 失败、写得更少）⇒ 那个绿是**假的**。
+
+**决定（不再一次砍一批）**：
+1. **8 项重回 MAIN**（CORE 恢复 25，绿基线先拿回来）；
+2. 瘦身的**前置条件**：每个夹具**显式自证前提**（当前菜单 = 玩家自带菜单 / bot 在起点且 onGround /
+   用到的方块实体状态已复位 / 账本与**归因检查限定在自己的时间窗内**——这条直接修 `capability_gate`）；
+3. 前提落地后**逐条**撤步骤，**每条撤完复跑一次 CORE**，绿灯才继续下一条；
+4. 反模式已写进 `docs/MOD_ADAPTER_PROTOCOL.md`（"不许依赖上一步顺便清场；前置必须显式自证"）。
+
+**等级**：IMPLEMENTED + COMPILES（jar 见交接）；**待客户端**：CORE 复跑应回到 `(25/25) → PASS`。
