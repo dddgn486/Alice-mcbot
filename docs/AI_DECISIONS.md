@@ -6719,3 +6719,30 @@ bot 被移除/重生成（全程只有 11:19:28 一次"假人已生成"）；菜
 **同时登记的潜在设计洞（本次不是病因，但真实存在）**：任务驱动与**手动遥控**之间没有互斥 ——
 `BotInputPacket` 会把玩家输入直接写给 bot 控制器，若有活动任务，任务设的前进会被静默改回 0。
 语义（拒绝 / 暂停任务 / 抢占用并如实上报）需要用户拍板，**未改**。
+
+#### D-174 附注二：用户实测信息的两条结论（其一否证、其一开新账）
+
+**① 遥控器候选否证**（用户：没用过遥控器）⇒ 输入干扰不是病因。
+**② 独立跑 `alice:transfer_check` 约 15 次全 PASS** ⇒ 该间歇失败**只在电池语境**出现过（10:09/11:06 PASS，11:21 FAIL）。
+
+**电池语境已排除的并发驱动**（有日志依据）：
+- 决策层**在电池期间是挂起的**：`[Goal] trigger_skipped reason=suspended trigger=terminal:RegressionBatteryTask`；
+  全程只有一条 `[Goal] execute action=maintain_tool kind=PICKAXE ok=false`（在 transfer 步之后），
+  **没有任何 job 被启动**；
+- 卡死窗口（11:21:35–11:21:45）**没有任何 Job/任务创建/写世界日志**；
+  `region_maintain` 的常驻 Job 在 11:21:34.859 已 `result=DONE reason=quota_met` 收尾；
+- 也没有 `controller_stop_movement`（该方法**每次调用都会打日志**，见 `BotController:178`）
+  ⇒ 期间**没有**任何 `stopMovement()` 把输入清掉。
+
+⇒ 只剩"实体没 tick / `travel()` 没进 / 物理跑了却没位移"三类，正好由 D-174 附注一的计数区分。
+
+**③ 用户观察到的"被布置砍树任务 + 开始搭石头"是另一件事，已定位（新账）**：
+12:00 会话里，一次 `alice:transfer_check` 结束 → 决策层按 `trigger=terminal:TransferCheckTask` 触发 →
+LLM 选了候选菜单里唯一的 `region:saved`（伐木区 x17..37 z203..231）⇒ 起了一个 `RegionLumberJob`。
+随后用户**又跑 transfer_check**，夹具把 bot **传送到转移场景（z≈404）**，而那个常驻 Job **没意识到自己被挪走了**：
+它在 12:00:03–09 于 **45,64,406 一路往上搭了 12 格圆石**（`by=lumber:gain:attempt0:STEP_PLACEMENT`，
+目标树却在 **198 格外** `tree@33,64,208 d=198.5`），12:00:14 起又 `[Restore]` 自上而下拆回（账本闭环 ✓ 无残留）。
+
+**登记为独立缺陷（J 级，未修）**：**常驻 Job 不感知"bot 被传送离开作业范围"** ——
+它应当先核对"我在不在自己的作业范围内"（或重规划回到区域），而不是就地开搭。
+触发条件正是本项目最常用的操作：**跑测试夹具时后台还挂着常驻 Job**（用户已实测遇到）。

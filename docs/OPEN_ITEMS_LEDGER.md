@@ -245,7 +245,12 @@ C 视觉识别；含"兼容性与效率""玩家能看到什么"两项逐维度�
 **遥控器候选已被用户否证**（没用过遥控器）⇒ 改为"链路计数"诊断（D-174 附注一）：
 段卡死时同时打出 `entityTicksInSegment` / `travelCallsInSegment` + 输入串，
 可判定"实体没 tick / tick 了但 travel 没进 / 物理跑了但没位移 / 有人每 tick 清零输入"。
-**待复现**（`alice:transfer_check` 单跑几次，约 2 秒一次）。
+**待复现**：独立跑 `alice:transfer_check` 约 15 次**全 PASS** ⇒ 该失败只在**电池语境**出现；
+电池内已排除并发驱动（决策层 `trigger_skipped reason=suspended`、无 Job 活动、
+无 `controller_stop_movement`）⇒ 待电池复现 + 新诊断读数。
+**新开账（J 级，未修）**：**常驻 Job 不感知"bot 被传送离开作业范围"** ——
+实测 `RegionLumberJob` 在转移场景（z≈404，目标树在 198 格外）一路搭了 12 格圆石再拆回；
+触发条件 = "跑测试夹具时后台挂着常驻 Job"（本项目最常用操作）。
 另登记潜在设计洞（非本次病因）：任务驱动与手动遥控无互斥。
 K-5 新用例 `session_status_no_dead_value=PASS` ✓（能力闸门 11 项全 PASS）。
 另：D-173 补删 `pathing/movement/` 14 文件 + 一个被 `.gitignore` 藏住的 `.backup` 残留。
