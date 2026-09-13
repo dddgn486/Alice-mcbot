@@ -469,3 +469,16 @@ A1 判据（零参数 `alice:craft_check`）：正例给工作站+材料清单�
   （D-192 附注二）⇒ 约定扩展到 `*ProbeTask` + 探针显式 `isSelfCheck()=true`。
 - 📌 **新事实**：精妙菜单服务端槽位坐标全是 `@0,0` ⇒ **x/y 不可作"是否显示"的判据**，只能用容器身份 + `isActive`。
 - ⏳ **仍待证**：装上升级后 `grid_addressable_without_tab` 的真值（L3 是否要发包）。
+
+**§6.21 D-192 第三轮复测（2026-09-13 17:08–17:10，客户端）**：**顺序问题，不是缺陷**。
+- ✅ **自检修复已验证**：本轮 `latest.log` 里 `decision_request trigger=terminal:CraftGridProbeTask` **0 次**
+  （上一轮 2 次、自动起了两次 `region_lumber`）⇒ `*ProbeTask` 约定 + 显式覆写生效。
+- ✅ 崩溃修好（`InventoryMenu(unregistered(…))`）、切换生效（`upgradetab@46,64,306` → `StorageContainerMenu slots=63`）。
+- 🔎 `no_grid` 是**当时状态下的正确答案**：17:09:58 那一轮菜单只有 63 槽
+  （27 存储 + 36 玩家 = **连升级槽都没有**）⇒ 那一刻升级**还没装**。
+  而**关服存档**（17:10:37，`region/r.0.0.mca` chunk 2,19 解析）显示：
+  `upgradeInventory{Size:1, Items:[crafting_upgrade]}`、`numberOfUpgradeSlots:1`、
+  `numberOfInventorySlots:27` ⇒ **升级现在装着**（木头箱子有 1 个升级槽，场景选型没问题）。
+  ⇒ 时序是：**探针 → 装升级 → 关游戏**。
+- ⏭ **只差重跑一次探针**（jar 未变，**不用重启**）：应看到 `slots≈74`（27+1 升级槽+10 合成+36 玩家）+
+  `discover=OK grid=3x3 …` + `grid_addressable_without_tab=true`。
