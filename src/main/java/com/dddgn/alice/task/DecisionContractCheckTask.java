@@ -58,10 +58,29 @@ public class DecisionContractCheckTask implements Task {
         return done ? (failures.isEmpty() ? "passed" : "failed") : "";
     }
 
+    /** 是否已把 bot 挪到场景起点（**夹具自带传送**，不依赖电池的 provision；见 PLAYBOOK §5.0d）。 */
+    private boolean moved;
+
     @Override
     public Status tick() {
         if (done) {
             return failures.isEmpty() ? Status.DONE : Status.FAILED;
+        }
+        if (!moved) {
+            // 本夹具依赖**伐木场景**（附近要有树）⇒ 先自己站到场景起点，**下一 tick 再干活**
+            // （传送后立刻扫描会撞上"区块/实体还没就绪"⇒ 假失败）
+            bot.teleportTo(bot.serverLevel(),
+                    com.dddgn.alice.task.LumberCourseAnchor.START_FOOT.getX() + 0.5D,
+                    com.dddgn.alice.task.LumberCourseAnchor.START_FOOT.getY(),
+                    com.dddgn.alice.task.LumberCourseAnchor.START_FOOT.getZ() + 0.5D,
+                    java.util.Set.of(), bot.getYRot(), bot.getXRot());
+            bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+            bot.controller().stopMovement();
+            moved = true;
+            BotLog.info("[DecisionContract] 已传送 bot 到场景起点 {}（{}）",
+                    com.dddgn.alice.task.LumberCourseAnchor.START_FOOT.toShortString(),
+                    bot.blockPosition().toShortString());
+            return Status.RUNNING;
         }
         done = true;
         CandidateMenu menu = CandidateMenu.build(bot);
@@ -102,6 +121,16 @@ public class DecisionContractCheckTask implements Task {
             observer.sendSystemMessage(Component.literal("[alice] 决策层契约自检 "
                     + (pass ? "PASS" : "FAIL " + failures)));
         }
+        // **结束复位**（PLAYBOOK §5.0d）：停输入 + 回到场景起点，失败路径同样走
+        bot.controller().stopMovement();
+        bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+        bot.teleportTo(bot.serverLevel(),
+                com.dddgn.alice.task.LumberCourseAnchor.START_FOOT.getX() + 0.5D,
+                com.dddgn.alice.task.LumberCourseAnchor.START_FOOT.getY(),
+                com.dddgn.alice.task.LumberCourseAnchor.START_FOOT.getZ() + 0.5D,
+                java.util.Set.of(), bot.getYRot(), bot.getXRot());
+        BotLog.info("[DecisionContract] 结束复位：bot 回到 {}（onGround={}）",
+                bot.blockPosition().toShortString(), bot.onGround());
         return pass ? Status.DONE : Status.FAILED;
     }
 
