@@ -7824,3 +7824,28 @@ no_block_writes=true  verdict=PASS                ← 以**世界事实**判定�
 ② **重试一次**（冷却 10 tick、`phaseTicks` 归零重计时）—— 偶发状态不该把整步判死，`open_retries` 会记进 SUMMARY。
 
 **等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `4217b7ec…`）。**待客户端**：32 项电池复测。
+
+#### D-195 附注四：**前提被污染** —— `setblock` 放同种方块会短路，升级跨场景存活
+
+**电池事实（第二轮 32 项）**：`(31/32)` —— 上一步两个缺陷都修好了（`craft_table=PASS`、`craft_station=PASS`），
+只剩 `craft_station_provision=FAIL reason=premise_not_provisioned`（夹具要求"本来没有合成能力"，
+结果开菜单就看见网格）。
+
+**根因**：场景函数用 `setblock <pos> sophisticatedstorage:chest` 重建箱子 —— 但当那一格**已经是同一种方块**时，
+原版 `setblock` 会**短路**（方块状态相同 ⇒ 直接返回），**方块实体连同升级槽里的合成升级一起留着**。
+⇒ 上一轮/手动装的升级**跨场景存活**，把"本来没有合成能力"这条前提弄脏。
+（这也是夹具第二次因为"世界里的既有状态"而误判 —— D-187 §6.9.1 的原话就是"夹具必须自己摆前提"。）
+
+**修法（两处，互为保险）**：
+1. **场景**：`setblock <pos> minecraft:air` → 再 `setblock … chest`（强制重建方块实体 ⇒ 干净的容器）；
+2. **夹具自摆前提**：
+   - `CraftStationProvisionCheckTask`：开菜单后若发现**已被装配** ⇒ 用同一个协议（`moveOutOfContainer`）
+     **自己拆回干净**再继续，并如实记 `premise_cleaned=true`（清理失败才判红）；
+   - `CraftStationCraftCheckTask`：`installMove` 开头若容器里已有升级 ⇒ 先取回再装，
+     并把数量基线 `upgradeBefore` 重算（否则"装进去的那一颗是不是我们这颗"说不清，数量断言会假失败）。
+
+**教训（值得单记）**：**"重建场景"不等于"状态是干净的"** —— 方块实体的持久数据会跟着方块存活；
+`setblock` 同种方块是**短路**而非重建。夹具的世界前提必须**自己检查并自己摆平**，不能假设场景函数清过场。
+
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `2efb2d1e…`，场景函数已更新到客户端）。
+**待客户端**：32 项电池复测。

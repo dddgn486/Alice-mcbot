@@ -573,3 +573,8 @@ A1 判据（零参数 `alice:craft_check`）：正例给工作站+材料清单�
 ② 偶发"服务端没开菜单"（`use_item_on result=SUCCESS` vs 成功时的 `CONSUME` + `menu_open_timeout`）⇒
 失败如实打码（failure code / 当前菜单 / 重试次数）+ **重试一次**（冷却 10 tick、计时归零）。
 jar `4217b7ec…`。
+
+**§6.33 前提污染（已修，待复测）**：`setblock` 放同种方块**短路** ⇒ 箱子里的升级跨场景存活 ⇒
+`craft_station_provision` 的"本来没有合成能力"前提被弄脏。修：场景先 `setblock … air` 再放箱子；
+两个夹具都**自己清理前提**（provision 记 `premise_cleaned`，craft 重算数量基线）。
+jar `2efb2d1e…`；**教训**："重建场景"不等于"状态干净"。

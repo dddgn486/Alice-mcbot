@@ -5,6 +5,9 @@ fill 39 59 299 53 73 313 minecraft:air
 fill 40 59 300 52 72 312 minecraft:air
 fill 40 63 300 52 63 312 minecraft:stone
 # ↓ 模组方块：模组没装时这一行会报错（前面的平台已经建好，便于分辨"是模组缺失"还是"场景坏了"）
+# **必须先变成空气再放箱子**：`setblock` 放"同一种方块"时原版会**短路**（方块实体连同里面的升级一起留着）
+# ⇒ 上一轮/手动装进升级槽的合成升级会**跨场景存活**，把夹具的前提（"本来没有合成能力"）弄脏（2026-09-13 实测）。
+setblock 46 64 306 minecraft:air
 setblock 46 64 306 sophisticatedstorage:chest
 # 注意：**不再给玩家发升级** —— L2 装配层落地后由 bot 自己装/拆（D-194）；
 # 驱动入口：`alice:craft_station_provision_check`（零参数）或电池步 `craft_station_provision`

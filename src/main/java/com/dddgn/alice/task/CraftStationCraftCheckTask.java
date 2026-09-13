@@ -216,6 +216,19 @@ public class CraftStationCraftCheckTask implements Task {
     // ==================== L2 装配 ====================
 
     private Status installMove() {
+        // **夹具自摆前提**：容器可能已被上一轮装配过（`setblock` 同种方块会短路，升级跨场景存活）
+        // ⇒ 先把已有的取回，保证"装进去的那一颗"确实是**我们这一颗**（后面的数量断言才成立）。
+        if (StationProvision.containerHas(bot.containerMenu, bot, upgrade)) {
+            if (!StationProvision.allowContainerWrite(bot, station)) {
+                return failAndFinish(StationProvision.Codes.BUDGET_REFUSED);
+            }
+            boolean cleaned = StationProvision.moveOutOfContainer(bot, bot.containerMenu, upgrade);
+            record("premise_cleaned", String.valueOf(cleaned));
+            if (!cleaned) {
+                return failAndFinish("premise_cleanup_failed");
+            }
+            upgradeBefore = RecipeQuery.countInInventory(bot, upgrade);
+        }
         if (!StationProvision.allowContainerWrite(bot, station)) {
             return failAndFinish(StationProvision.Codes.BUDGET_REFUSED);
         }

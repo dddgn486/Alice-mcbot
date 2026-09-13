@@ -155,12 +155,34 @@ public class CraftStationProvisionCheckTask implements Task {
         return advance(Phase.PREMISE_OPEN);
     }
 
-    /** 前提：**当前没有**合成能力（否则测的不是"装配"这件事）。打开菜单是异步的 ⇒ 单独两个相位。 */
+    /**
+     * 前提：**当前没有**合成能力（否则测的不是"装配"这件事）。
+     *
+     * <p>**夹具自摆前提**（D-187 §6.9.1）：世界里的容器可能**已经被上一轮/手动装配过**
+     * （实测：`setblock` 放同种方块会短路，升级会跨场景存活）⇒ 这时夹具**自己把它拆回干净**
+     * 再继续，并如实记 `premise_cleaned=true`；清理本身失败才判红。
+     */
     private Status premiseCheck() {
         GridDiscovery.Result before = GridDiscovery.discover(bot.containerMenu, bot);
-        check("premise_not_provisioned", !before.ok(), before.describe());
-        closeSession("premise_checked");
-        return before.ok() ? finish() : advance(Phase.INSTALL_OPEN);
+        if (!before.ok()) {
+            check("premise_not_provisioned", true, before.describe());
+            closeSession("premise_checked");
+            return advance(Phase.INSTALL_OPEN);
+        }
+        // 已被装配过 ⇒ 先拆回来（同一个协议：QUICK_MOVE 取回）
+        if (!StationProvision.allowContainerWrite(bot, station)) {
+            return failAndFinish(StationProvision.Codes.BUDGET_REFUSED);
+        }
+        boolean cleaned = StationProvision.moveOutOfContainer(bot, bot.containerMenu, upgrade);
+        record("premise_cleaned", String.valueOf(cleaned));
+        inventoryBefore = RecipeQuery.countInInventory(bot, upgrade);   // 数量基线跟着更新
+        check("premise_cleanup", cleaned, "from=" + before.describe() + " 取回后背包=" + inventoryBefore);
+        closeSession("premise_cleaned");
+        if (!cleaned) {
+            return finish();
+        }
+        // 清完后的最终状态由 INSTALL 一相证明（重开菜单 + 能力验证）⇒ 这里不重复开一次
+        return advance(Phase.INSTALL_OPEN);
     }
 
     /** 站点方块 = 精妙容器形态（与 {@link CraftStation} 的 upgradetab 同一判据）。 */
