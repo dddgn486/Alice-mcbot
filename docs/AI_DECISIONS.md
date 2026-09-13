@@ -8136,7 +8136,7 @@ user prompt 的"注意"段也补上"craftable 清单 / `craftable_truncated` 的
 
 #### D-200 附注一：直连指令**被自己的清空语句擦掉**（"让它做工作台，它却发了伐木指令"）—— 已结构性修复
 
-**客户端事实**（20:36，jar `13c1262a…`）：`/alice instruct 用你词汇表里的 craft 动作做一个工作台` 之后
+**客户端事实**（20:36，jar `152fb94c…`）：`/alice instruct 用你词汇表里的 craft 动作做一个工作台` 之后
 ```
 [Goal] decision_action trigger=operator latency=4153ms raw={"action":"start_job","kind":"region_lumber","target":"region:saved",…} → StartJob(REGION_LUMBER …)
 [Goal] execute action=start_job ok=true trigger=operator
@@ -8155,7 +8155,7 @@ user prompt 的"注意"段也补上"craftable 清单 / `craftable_truncated` 的
 3. **可见性**：`[Goal] decision_request trigger=… mode=directed|normal model=…` —— 以后"指令到底发出去没有"一眼可判；
 4. `instruct()` 的状态快照也带上 `trigger="operator"`（与 D-200 的 trigger 字段配套）。
 
-**等级**：IMPLEMENTED + COMPILES + 已同步（jar `13c1262a…`）；**待客户端复测**（期望 `mode=directed` + `directed_result` 行）。
+**等级**：IMPLEMENTED + COMPILES + 已同步（jar `152fb94c…`）；**待客户端复测**（期望 `mode=directed` + `directed_result` 行）。
 
 #### D-200 附注二：直连通道验证通过 + **临时裁定复核结论**
 
@@ -8263,5 +8263,22 @@ S2（站点/槽位发现）**等 S1 读数出来再定范围**——先看类型
    原实现会"静默退化成一个必然失败的变体"，让失败原因长得像"归因坏了"。这正是 §6.50/D-201 附注一
    那条纪律的第一个落地：**前置必须显式自证，不许默认契约具备**。
 
-**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `13c1262a…`）；
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `152fb94c…`）；
 **待客户端**：`/alice battery full` 期望 `(35/35) → PASS`（这是"FULL 顺序下也真绿"的第一次验证）。
+
+#### D-203：夹具**前提自证**机制落地（试点 2 处；D-201 附注一的执行）
+
+新增 `task/FixturePremise`（可复用机制，不是散落的 if）：
+- `ownMenu(bot)`：**当前没有别人的容器菜单挂着**（只能是 `InventoryMenu` 或 null）。这条是最容易踩的——
+  上游页签槽位建在 `menu.slots` 之外且**地址会重叠**（64..66 既是合成页签格子、也是熔炼页签格子），
+  在**错误菜单**上点击会"被接受"但东西落到别处，症状=**料进去了却不烧**。
+- `onGround(bot)`：不许在空中开始"放料/点菜单"这类动作。
+- 设计要点：返回 `Fact(name, ok, detail)`，夹具直接 `check(fact.name(), fact.ok(), fact.detail())` ⇒
+  失败时进 SUMMARY 的是**有名字的前提码**（`premise_*`），而不是含糊的 FAIL。
+
+**试点接线**：`CraftFurnaceCheckTask.discover()`（曾经红的两个炉子步在认炉子/放料前自证菜单身份）、
+`CraftGoalCheckTask.prepare()`（只用随身菜单 ⇒ 自证"无别的容器菜单 + 站在地上"）。
+
+**等级**：IMPLEMENTED + COMPILES + 已同步；**待客户端**（随下一次 CORE 一起验，不单独占你的轮次）。
+**继续项**：把其余步骤夹具逐条接上（transfer 的站位/前方方块、各 `craft_*` 的菜单身份），
+然后才按"逐条撤 + 每条复跑"瘦身。

@@ -73,7 +73,7 @@
    站点做不了 `Refused(station_cannot:…)`、`job_terminal=DONE`、`planks_delta=-4 product_count=1`、`durationTicks=8`）；
 2. CORE 电池 **`(25/25) ticks=2737 → PASS`**（含 `craft_goal=PASS`）。
 
-**LLM 路径已验证 ✅**（20:39，jar `13c1262a…`）：`/alice instruct 用你词汇表里的 craft 动作做一个工作台` ⇒
+**LLM 路径已验证 ✅**（20:39，jar `152fb94c…`）：`/alice instruct 用你词汇表里的 craft 动作做一个工作台` ⇒
 `mode=directed` → `directed_result raw={"action":"craft","item":"minecraft:crafting_table","count":1}` →
 `execute action=craft ok=true` → `[CraftJob] … 世界事实 product 0→1 ⇒ 达成`。
 ⇒ **阶段 3-A（A1–A5）全部收口**；下一阶段候选见 §4 待办。

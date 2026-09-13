@@ -98,6 +98,11 @@ public class CraftGoalCheckTask implements Task {
     }
 
     private Status prepare() {
+        // **前提自证**（D-201 附注一）：本夹具只用随身菜单 ⇒ 先证明没有别的容器菜单挂着、且 bot 站在地上
+        FixturePremise.Fact own = FixturePremise.ownMenu(bot);
+        FixturePremise.Fact ground = FixturePremise.onGround(bot);
+        check(own.name(), own.ok(), own.detail());
+        check(ground.name(), ground.ok(), ground.detail());
         FixtureToolKit.resetInventory(bot);
         give(Items.OAK_PLANKS, 4);
         planksBefore = RecipeQuery.countInInventory(bot, Items.OAK_PLANKS);
