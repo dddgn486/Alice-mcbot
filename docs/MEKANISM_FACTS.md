@@ -57,3 +57,24 @@
 - 这些类型中**哪些是"机器专属"、哪些其实可由原版站点点出**（需逐类型看样例）；
 - 配方之间是否存在**跨模组打架**（Mekanism `crushing` vs Thermal `pulverizer`）——阶段 2 已登记为开放项。
 
+
+## 5. S1 实测取证（2026-09-13 23:56，jar `8e497003…`，探针 `alice:machine_probe`）
+
+```
+sample id=mekanism:metallurgic_infusing/alloy/atomic out=mekanism:alloy_atomic x1 in=[]
+sample id=mekanism:metallurgic_infusing/mossy/cobblestone_wall out=minecraft:mossy_cobblestone_wall x1 in=[]
+sample id=mekanism:oxidizing/lithium out=minecraft:air x0 in=[]
+sample id=mekanism:oxidizing/brine out=minecraft:air x0 in=[]
+sample id=mekanism:crushing/dewax/oxidized_copper out=minecraft:oxidized_copper x1 in=[]
+sample id=mekanism:crushing/nether_bricks_to_cracked_nether_bricks out=minecraft:cracked_nether_bricks x1 in=[]
+sample id=mekanism:painting/candle/yellow out=minecraft:yellow_candle x1 in=[]
+sample id=mekanism:painting/bed/white out=minecraft:white_bed x1 in=[]
+sample id=mekanism:pigment_extracting/concrete/lime out=minecraft:air x0 in=[]
+sample id=mekanism:pigment_extracting/carpet/purple out=minecraft:air x0 in=[]
+```
+
+- **26 个类型的条数与 S0 离线表逐类吻合**（例如 `crushing` 210 / `pigment_extracting` 178 / `painting` 176 /
+  `enriching` 142 / `sawing` 124）⇒ S0 的口径可复算、可交叉验证 ✓；
+- **总量会变**：本次实跑 `readable_total=3714 / skipped_total=2354`，而 S0 用的 13:23 导出是 `2923 / 2370`
+  （世界/数据包在那之后有变化）⇒ **文档里的总量一律标注"哪次会话的导出"**，只有"类型×条数"这种结构事实才可长期引用；
+- 样例形态（`id / out / in`）已可用于写 S1 的读法：**输入是物品或标签、输出是物品或化学品**（后者超出原版配方语义 ⇒ 需要明确"只读可表达多少"）。
