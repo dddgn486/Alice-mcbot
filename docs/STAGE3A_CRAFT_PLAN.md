@@ -82,5 +82,5 @@
 修改  AliceItems / BotManager.assignCraftCheck / 电池（23 → 24 项，新增 craft_check 步）
 ```
 判据（一次右键）：`[CraftCheck] SUMMARY craftable_sticks=PASS missing_ingredients=PASS needs_table=PASS
-no_recipe=PASS machine_only=PASS|SKIP read_only=PASS verdict=PASS`。
+machine_only_vanilla=PASS no_recipe=PASS machine_only=PASS|SKIP read_only=PASS verdict=PASS`。
 **未验证**：客户端实测（编译+资源自检已过）。

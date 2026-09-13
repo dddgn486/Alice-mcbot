@@ -21,7 +21,10 @@ import java.util.Map;
  *   <li>{@code craftable_sticks}：给 2 个橡木木板 → 查 4 木棍 ⇒ 期望 `CRAFTABLE` + `grid=2x2`；</li>
  *   <li>{@code missing_ingredients}：清空背包 → 查 4 木棍 ⇒ 期望 `MISSING_INGREDIENTS` 且 `missing=[…]`；</li>
  *   <li>{@code needs_table}：给 8 圆石 → 查 1 熔炉（3×3 配方）⇒ 期望 `NEEDS_TABLE` + `grid=3x3`；</li>
- *   <li>{@code no_recipe}：查 `minecraft:cobblestone`（只能挖，不能合）⇒ 期望 `NO_RECIPE`；</li>
+ *   <li>{@code machine_only_vanilla}：查 `minecraft:cobblestone`（原版只能挖，但装了 Mekanism/Create 后
+ *       它们给了 `crushing`/`milling`/`enriching`）⇒ 期望 `MACHINE_RECIPE_UNSUPPORTED`
+ *       —— **"只由机器产出"与物品是不是模组物品无关**（2026-09-13 实测教训）；</li>
+ *   <li>{@code no_recipe}：查 `minecraft:bedrock`（**任何**配方类型都产不出）⇒ 期望 `NO_RECIPE`；</li>
  *   <li>{@code machine_only}：查一个**只由机器配方产出**的物品（默认 `mekanism:dust_iron`；
  *       未装 Mekanism 时该用例如实记 `SKIP`）⇒ 期望 `MACHINE_RECIPE_UNSUPPORTED` 且列出类型名；</li>
  *   <li>{@code read_only}：上面全部查询跑完，**背包逐槽快照必须与开始时完全一致**（本原语是只读的硬断言）。</li>
@@ -102,23 +105,33 @@ public class CraftCheckTask implements Task {
         expect("needs_table", furnace, RecipeQuery.Verdict.NEEDS_TABLE,
                 r -> r.route() != null && !r.route().inventoryGrid(), 3);
 
-        // ④ 负例：原版体系里没有配方（圆石只能挖）
+        // ④ **"只由机器配方产出"并不限于模组物品**：圆石在原版只能挖，但装了 Mekanism/Create 之后
+        //    它们给了 `mekanism:crushing` / `create:milling` / `mekanism:enriching` ⇒ 正确结论是
+        //    MACHINE_RECIPE_UNSUPPORTED（如实拒绝、不猜语义），**不是** NO_RECIPE。
+        //    2026-09-13 实测：本用例原先按"原版视角"写死期望 NO_RECIPE ⇒ 假失败（夹具前提写错的第三次）。
         FixtureToolKit.resetInventory(bot);
         RecipeQuery.Result cobble = RecipeQuery.query(server, bot, "minecraft:cobblestone", 1);
-        expect("no_recipe", cobble, RecipeQuery.Verdict.NO_RECIPE, r -> true, 4);
+        expect("machine_only_vanilla", cobble, RecipeQuery.Verdict.MACHINE_RECIPE_UNSUPPORTED,
+                r -> !r.machineTypes().isEmpty(), 4);
 
-        // ⑤ 负例：只由机器配方产出 ⇒ 如实拒绝、不猜语义（没装该模组就 SKIP）
+        // ⑤ 负例：**任何**配方类型都产不出它（基岩）：既无原版配方、也无机器配方 ⇒ NO_RECIPE
+        FixtureToolKit.resetInventory(bot);
+        RecipeQuery.Result bedrock = RecipeQuery.query(server, bot, "minecraft:bedrock", 1);
+        expect("no_recipe", bedrock, RecipeQuery.Verdict.NO_RECIPE,
+                r -> r.machineTypes().isEmpty(), 5);
+
+        // ⑥ 负例：只由机器配方产出（**模组物品**）⇒ 如实拒绝、不猜语义（没装该模组就 SKIP）
         FixtureToolKit.resetInventory(bot);
         if (net.minecraft.core.registries.BuiltInRegistries.ITEM
                 .containsKey(net.minecraft.resources.ResourceLocation.tryParse(MACHINE_ONLY_ITEM))) {
             RecipeQuery.Result machine = RecipeQuery.query(server, bot, MACHINE_ONLY_ITEM, 1);
             expect("machine_only", machine, RecipeQuery.Verdict.MACHINE_RECIPE_UNSUPPORTED,
-                    r -> !r.machineTypes().isEmpty(), 5);
+                    r -> !r.machineTypes().isEmpty(), 6);
         } else {
             record("machine_only", "SKIP", "未装 " + MACHINE_ONLY_ITEM + " 所属模组");
         }
 
-        // ⑥ 硬断言：整个夹具期间**背包逐槽未变**（只读原语的证据）
+        // ⑦ 硬断言：整个夹具期间**背包逐槽未变**（只读原语的证据）
         FixtureToolKit.resetInventory(bot);
         List<ItemStack> readOnlyBefore = snapshotInventory();
         runReadOnlyProbe();

@@ -7160,3 +7160,26 @@ Create（506，15 类；cutting/deploying/crushing/milling/splashing）> Extende
   A4 会补 `station` 语义（当前 `station` 字段已如实带出，判据暂只用 grid）。
 
 **状态**：`IMPLEMENTED` + `COMPILES` + 资源自检 PASS。**未验证**：客户端（判据见上）。
+
+#### D-185 附注一：首次客户端实测 —— **只有一条用例失败，且是夹具前提写错**（第三次同类）
+
+**实测结果**（`alice:craft_check`，1 tick 跑完）：
+```
+craftable_sticks=PASS   CRAFTABLE  station=crafting_table grid=2x2 crafts=1 perCraft=4 mats=[12选1(oak_planks…) x2]
+missing_ingredients=PASS MISSING_INGREDIENTS missing=[12选1(oak_planks…) 缺2]
+needs_table=PASS        NEEDS_TABLE station=crafting_table grid=3x3 mats=[3选1(cobblestone…) x8]
+machine_only=PASS       MACHINE_RECIPE_UNSUPPORTED target=mekanism:dust_iron machineTypes=[enriching, crushing]
+read_only=PASS          beforeSlots=0 afterSlots=0
+no_recipe=FAIL          MACHINE_RECIPE_UNSUPPORTED target=minecraft:cobblestone
+                        machineTypes=[mekanism:crushing, create:milling, mekanism:enriching]
+```
+⇒ **代码是对的，用例期望错了**：我以为"圆石只能挖"，但装了 Mekanism/Create 之后它们给了
+`crushing`/`milling`/`enriching` ⇒ 正确结论就是 `MACHINE_RECIPE_UNSUPPORTED`（如实拒绝、不猜语义）。
+**这正是该原语要表达的东西**：判定依据是"**配方类型**是否可读"，与"物品是不是模组物品"无关。
+
+**修法**：把该用例拆成两条，并把教训写进注释与判据：
+- `machine_only_vanilla`：`minecraft:cobblestone` ⇒ `MACHINE_RECIPE_UNSUPPORTED`（且列出机器类型）；
+- `no_recipe`：`minecraft:bedrock` ⇒ `NO_RECIPE`（**任何**类型都产不出）。
+
+**同类教训（第三次）**：夹具**自己的前提**必须按"当前世界/当前模组集"写，不能按"原版视角"写死。
+（前两次：D-168 掉落物测量盒、D-179 播种点。）已计入夹具纪律。
