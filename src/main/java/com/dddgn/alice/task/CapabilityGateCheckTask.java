@@ -190,6 +190,13 @@ public class CapabilityGateCheckTask implements Task {
             check("foreign_break_attribution", false, "no_session_scope");
             return;
         }
+        // **前提自证**（2026-09-13 教训：不能假设环境干净/契约具备）：本用例需要"另一个破坏者"来伪造外来破坏；
+        // 没有 observer 时它只会把 bot 自己伪造两次 ⇒ 必然失败（而失败原因却长得像"归因坏了"）。
+        if (observer == null) {
+            check("foreign_break_attribution", false,
+                    "premise_no_observer（本用例需要另一个破坏者；命令入口必须传玩家 observer）");
+            return;
+        }
         com.dddgn.alice.perception.ScopeBuffer scope = session.scope();
         BlockPos pos = bot.blockPosition();
         scope.begin(pos, 4, bot.getUUID());

@@ -8136,7 +8136,7 @@ user prompt 的"注意"段也补上"craftable 清单 / `craftable_truncated` 的
 
 #### D-200 附注一：直连指令**被自己的清空语句擦掉**（"让它做工作台，它却发了伐木指令"）—— 已结构性修复
 
-**客户端事实**（20:36，jar `323a2860…`）：`/alice instruct 用你词汇表里的 craft 动作做一个工作台` 之后
+**客户端事实**（20:36，jar `13c1262a…`）：`/alice instruct 用你词汇表里的 craft 动作做一个工作台` 之后
 ```
 [Goal] decision_action trigger=operator latency=4153ms raw={"action":"start_job","kind":"region_lumber","target":"region:saved",…} → StartJob(REGION_LUMBER …)
 [Goal] execute action=start_job ok=true trigger=operator
@@ -8155,7 +8155,7 @@ user prompt 的"注意"段也补上"craftable 清单 / `craftable_truncated` 的
 3. **可见性**：`[Goal] decision_request trigger=… mode=directed|normal model=…` —— 以后"指令到底发出去没有"一眼可判；
 4. `instruct()` 的状态快照也带上 `trigger="operator"`（与 D-200 的 trigger 字段配套）。
 
-**等级**：IMPLEMENTED + COMPILES + 已同步（jar `323a2860…`）；**待客户端复测**（期望 `mode=directed` + `directed_result` 行）。
+**等级**：IMPLEMENTED + COMPILES + 已同步（jar `13c1262a…`）；**待客户端复测**（期望 `mode=directed` + `directed_result` 行）。
 
 #### D-200 附注二：直连通道验证通过 + **临时裁定复核结论**
 
@@ -8244,3 +8244,24 @@ S2（站点/槽位发现）**等 S1 读数出来再定范围**——先看类型
 4. 反模式已写进 `docs/MOD_ADAPTER_PROTOCOL.md`（"不许依赖上一步顺便清场；前置必须显式自证"）。
 
 **等级**：IMPLEMENTED + COMPILES（jar 见交接）；**待客户端**：CORE 复跑应回到 `(25/25) → PASS`。
+
+#### D-201 附注二：`capability_gate` 在 FULL 下假红的**根因**（已修）——命令入口 observer 缺失 + 用例不自证前提
+
+**决定性证据**（FULL 那轮的 `[CapabilityGate]` 明细行）：
+```
+[CapabilityGate] case=foreign_break_attribution result=FAIL before=0 afterForeign=0 afterSelf=0 外来破坏=0
+```
+`afterForeign=0` ⇒ 那条"**别人**破坏"的伪造事件**根本没被算成外来**。查代码：该用例用
+`new BreakEvent(level, pos, state, observer == null ? bot : observer)` 伪造"外来破坏"；
+而 **`/alice battery full` 命令把 observer 传成了 `null`**（`BotManager.assignRegressionBattery(bot, null, full)`），
+物品入口 `alice:regression_battery` 传的是玩家 ⇒ 命令路径下两条伪造事件的破坏者**都是 bot**
+⇒ 外来计数恒 0 ⇒ **第一 tick 假红**。（CORE 用物品入口跑，所以一直"绿"。）
+
+**修（两处，且第二处是纪律层面的）**：
+1. **命令入口补 observer**：`/alice battery core|full` 现在把 `source` 的玩家作为 observer 传下去（与物品入口一致）；
+2. **用例自证前提**：`observer == null` 时**先报有名字的前提码**（`premise_no_observer`）再返回 ——
+   原实现会"静默退化成一个必然失败的变体"，让失败原因长得像"归因坏了"。这正是 §6.50/D-201 附注一
+   那条纪律的第一个落地：**前置必须显式自证，不许默认契约具备**。
+
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `13c1262a…`）；
+**待客户端**：`/alice battery full` 期望 `(35/35) → PASS`（这是"FULL 顺序下也真绿"的第一次验证）。

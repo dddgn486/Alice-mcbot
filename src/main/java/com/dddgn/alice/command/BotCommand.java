@@ -769,7 +769,11 @@ public final class BotCommand {
             source.sendFailure(Component.literal("[alice] " + BotManager.busyMessage(bot)));
             return 0;
         }
-        if (!BotManager.assignRegressionBattery(bot, null, full)) {
+        // 2026-09-13 实测：这里原先是 `null` ⇒ `capability_gate` 的"外来破坏归因"前提缺失
+        // （observer==null ⇒ 伪造的两条事件都算 bot 自己 ⇒ afterForeign=0 ⇒ 第一 tick 假红）。
+        // 与物品入口保持一致：**能拿到玩家就传玩家**。
+        ServerPlayer batteryObserver = source.getEntity() instanceof ServerPlayer sp ? sp : null;
+        if (!BotManager.assignRegressionBattery(bot, batteryObserver, full)) {
             source.sendFailure(Component.literal("[alice] " + BotManager.busyMessage(bot)));
             return 0;
         }
