@@ -7877,3 +7877,28 @@ final_segment_not_standable=0 写入类例外=96)`，无 SKIP、无 FAIL、无�
 执行接入发现器（B）、装配层装/拆（A）、模组站点真合成（C）全部客户端验证通过，32 项电池全绿。
 
 **等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `e8082b1b…`）。**待客户端**：32 项电池复测（应仍全绿）。
+
+### D-196：阶段 3-A / **A4 熔炉** —— "按时间工作"的另一种执行形状（认炉子 / 放料 / 等烧 / 不留半成品）
+
+**为什么它是独立一级**：合成是"**点一下就出**"，熔炉是"**放料 → 等 → 取**"：多了**时间**与**燃料**两个维度，
+失败还可能**留半成品**（料在炉里、产物没出来）。所以它需要自己的发现器、自己的执行节奏、自己的清理纪律。
+
+**新增 `task/craft/FurnaceStation`（只读发现 + 动作原语）**，判据与合成网格同一套思路（**零写死下标/类名**）：
+1. 菜单里**恰好占 3 格**的容器 ⇒ 输入/燃料/输出按**该容器自己的槽号 0/1/2**（原版语义，模组普遍沿用）；
+2. 菜单里存在 **`ContainerData` 类型的字段**（**按类型找**，不按名字 —— vanilla 字段名在生产环境是 SRG 名）
+   ⇒ 这是"它**会按时间工作**"的证据，把机器菜单与合成菜单区分开；
+3. 候选**多于一个**就如实拒绝 `ambiguous_furnace`；没有 3 格容器 `no_furnace_slots`；缺 `ContainerData` `no_progress_data`。
+
+**新增夹具** `CraftFurnaceCheckTask` + 零参数入口 `alice:craft_furnace_check` + 场景 `alice_test:furnace_course`：
+认炉子（过程证据：`progress=x/200`）→ 放 1 圆石 + 1 煤 → **真 tick 等它烧**（预算 420 tick，原版 200/个）→
+取石头 → 断言**世界事实**：`stone+1`、`cobblestone-1`、`input_left=0 output_left=0`（**不留半成品**）、`no_block_writes`。
+**超时路径**：把输入**取回背包**（`timeout_input_returned`）并如实报"没烧成"，不假装成功。
+过程事实也如实记录：`fuel_burn_ticks`（`ForgeHooks.getBurnTime` 给的，不猜）、`smelt_recipe`、`smelt_ticks`、
+`progress_at_done`。
+
+**电池 32 → 33 项**（`craft_furnace`，自带场景）。
+
+**边界**：本轮只做**原版熔炉（方块型）**；"熔炉升级"（精妙存储/背包里的熔炼页签）是同一形状的**菜单型**站点，
+按 C 的经验应当复用同一发现器（它同样有 3 格 + `ContainerData`），留作 A4b。
+
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar 见下）。**待客户端**。

@@ -255,6 +255,10 @@ public final class RegressionBatteryTask implements Task {
                 () -> new com.dddgn.alice.task.CraftStationCraftCheckTask(bot, observer), 1200,
                 task -> task.failureReason().contains("mod_present")
                         || task.failureReason().contains("station_found")));
+        // 阶段 3-A / A4（D-196）：**熔炉**（"按时间工作"的另一种执行形状：放料→等烧→取产物→不留半成品）
+        steps.add(step("craft_furnace", List.of("alice_test:furnace_course"),
+                () -> teleportBot(com.dddgn.alice.task.CraftFurnaceCheckTask.START),
+                () -> new com.dddgn.alice.task.CraftFurnaceCheckTask(bot, observer), 1000));
         // 基-7：前缀搜索（K-1：预算耗尽交出前缀；真失败不给前缀）
         // R2：传输模块（4 个夹具：主流程/端点选择/选择器事件/命令解析）
         // K-3 安全点停止（D-169）**故意不进电池**：它的判据是"**顶层任务**被延后停止"，

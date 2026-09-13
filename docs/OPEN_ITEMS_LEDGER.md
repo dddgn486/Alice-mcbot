@@ -584,3 +584,8 @@ jar `2efb2d1e…`；**教训**："重建场景"不等于"状态干净"。
 这解释了上一轮的 `menu_open_timeout`，也解释了本轮夹具为何要清理"残留升级"。
 加固：开菜单前 `clearHeldUpgrade`（把选中槽换成空格）。
 **阶段 3-A 工作站大块收口**。jar `e8082b1b…`。
+
+**§6.35 D-196（A4 熔炉）**：新增 `FurnaceStation`（3 格容器 + `ContainerData` 类型字段 ⇒ 认炉子，零写死下标）
++ 夹具 `CraftFurnaceCheckTask` + 入口 `alice:craft_furnace_check` + 场景 `alice_test:furnace_course`；
+电池 32 → **33 项**。判据=世界事实（stone+1 / cobble-1 / 炉内不留东西 / 零方块写入），超时把输入取回。
+**待客户端**；**A4b（熔炉升级/菜单型炉子）**复用同一发现器。

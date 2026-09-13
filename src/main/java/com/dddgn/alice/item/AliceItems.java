@@ -223,6 +223,10 @@ public final class AliceItems {
             ITEMS.register("craft_station_craft_check",
                     () -> new CraftStationCraftCheckItem(new Item.Properties()));
 
+    /** 阶段 3-A / A4（D-196）**熔炉自检**（零参数）：认炉子→放料→等烧→取产物。 */
+    public static final RegistryObject<Item> CRAFT_FURNACE_CHECK =
+            ITEMS.register("craft_furnace_check", () -> new CraftFurnaceCheckItem(new Item.Properties()));
+
     /** 基-9 工具供给自检（零参数，约 2 秒）：换更好的 / 没得换如实报 / **不能凭空变出工具**。 */
     public static final RegistryObject<Item> TOOL_SUPPLY_CHECK =
             ITEMS.register("tool_supply_check", () -> new ToolSupplyCheckItem(new Item.Properties()));
