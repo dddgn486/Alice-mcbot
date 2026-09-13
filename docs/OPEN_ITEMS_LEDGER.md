@@ -510,3 +510,9 @@ A1 判据（零参数 `alice:craft_check`）：正例给工作站+材料清单�
 - 发现器重写为**四条证据路径**（身份 → 结果槽 `craftSlots` → 上游 `getRecipeSlots` 自述 → 内容镜像唯一性），
   并输出 `matrixBy=` / `gridBy=`；如实拒绝码新增 `grid_slots_unresolved`。
 - **待测**：`gridBy` 取哪条、`grid=3x3 slots=[64..72] result=73`；点击可用性留第二步（S1-5）。
+
+**§6.25 D-192 第七轮：`matrix=-(0)` 真因 = vanilla 成员在生产环境是 SRG 名**
+- 17:26 探针：`menu_slots=74` ✓、结果槽认出 ✓，但按名字反射 `craftSlots` 拿不到矩阵。
+- 修：按**类型**找矩阵（结果槽字段/无参方法），并给 `scan` 增加"按类型收集可达 `CraftingContainer`"兜底；
+  诊断读物品名改**编译期调用**。`note` 增 `matrixCandidates=`。
+- **待测**：`matrixBy=resultSlotFieldByType`、`gridBy=?`、`grid=3x3 slots=[64..72] result=73`。

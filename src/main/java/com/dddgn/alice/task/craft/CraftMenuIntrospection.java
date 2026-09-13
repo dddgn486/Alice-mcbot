@@ -75,8 +75,15 @@ public final class CraftMenuIntrospection {
         if (slots instanceof Integer count && count > 0 && count <= 16) {
             for (int i = 0; i < count; i++) {
                 Object stack = callWith(handler, "getStackInSlot", new Class<?>[]{int.class}, i);
-                String id = stack == null ? "-" : String.valueOf(call(stack, "getItem"));
-                sb.append(' ').append(i).append(':').append(shorten(id));
+                // **编译期调用**而不是字符串反射：vanilla 的方法名（`ItemStack.getItem()`）在 Forge 生产环境里
+                // 是 SRG 名 ⇒ 用 `"getItem"` 反射只会拿到 null（2026-09-13 实测 `0:null` 就是这个原因）。
+                String id = "?";
+                if (stack instanceof net.minecraft.world.item.ItemStack itemStack) {
+                    id = itemStack.isEmpty() ? "empty"
+                            : net.minecraft.core.registries.BuiltInRegistries.ITEM
+                                    .getKey(itemStack.getItem()) + "x" + itemStack.getCount();
+                }
+                sb.append(' ').append(i).append(':').append(id);
             }
         }
         return sb.toString();

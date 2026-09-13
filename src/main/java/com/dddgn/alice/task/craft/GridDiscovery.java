@@ -133,8 +133,12 @@ public final class GridDiscovery {
         }
     }
 
-    /** 扫描结果：菜单里**所有可达**的槽位 + 产出过槽位的"宿主对象"（供路径 ③ 用）。 */
-    public record Scan(List<Slot> slots, List<Object> owners, int slotExceptions, int registered) {
+    /**
+     * 扫描结果：菜单里**所有可达**的槽位 + 产出过槽位的"宿主对象"（供路径 ③ 用）+
+     * **按类型收集到的可达 `CraftingContainer`**（vanilla 字段名在生产环境是 SRG 名 ⇒ 只能认类型）。
+     */
+    public record Scan(List<Slot> slots, List<Object> owners, List<CraftingContainer> matrices,
+                       int slotExceptions, int registered) {
     }
 
     private GridDiscovery() {
@@ -151,9 +155,11 @@ public final class GridDiscovery {
     public static Scan scan(AbstractContainerMenu menu) {
         List<Slot> out = new ArrayList<>();
         List<Object> owners = new ArrayList<>();
+        List<CraftingContainer> matrices = new ArrayList<>();
+        Set<CraftingContainer> seenMatrices = Collections.newSetFromMap(new IdentityHashMap<>());
         Set<Slot> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         if (menu == null) {
-            return new Scan(out, owners, 0, 0);
+            return new Scan(out, owners, matrices, 0, 0);
         }
         int registered = 0;
         for (Slot slot : menu.slots) {
@@ -163,11 +169,12 @@ public final class GridDiscovery {
             }
         }
         int[] exceptions = {0};
-        collectFromFields(menu, out, owners, seen, 0, exceptions);
-        return new Scan(out, owners, exceptions[0], registered);
+        collectFromFields(menu, out, owners, matrices, seenMatrices, seen, 0, exceptions);
+        return new Scan(out, owners, matrices, exceptions[0], registered);
     }
 
     private static void collectFromFields(Object target, List<Slot> out, List<Object> owners,
+                                          List<CraftingContainer> matrices, Set<CraftingContainer> seenMatrices,
                                           Set<Slot> seen, int depth, int[] exceptions) {
         if (target == null || depth > 2) {
             return;
@@ -186,15 +193,22 @@ public final class GridDiscovery {
                     exceptions[0]++;
                     continue;   // 取不到就跳过（未知模组字段可能拒绝访问）
                 }
-                collectValue(value, out, owners, seen, depth, exceptions);
+                collectValue(value, out, owners, matrices, seenMatrices, seen, depth, exceptions);
             }
             type = type.getSuperclass();
         }
     }
 
     private static void collectValue(Object value, List<Slot> out, List<Object> owners,
+                                     List<CraftingContainer> matrices, Set<CraftingContainer> seenMatrices,
                                      Set<Slot> seen, int depth, int[] exceptions) {
         if (value == null) {
+            return;
+        }
+        // **按类型**收矩阵容器：vanilla 的字段名在 Forge 生产环境里是 SRG 名（`f_xxxxx_`），
+        // 写死 "craftSlots"/"getCraftSlots" 只在开发环境成立（2026-09-13 客户端实测 matrix=-(0) 就是这个原因）。
+        if (value instanceof CraftingContainer crafting && seenMatrices.add(crafting)) {
+            matrices.add(crafting);
             return;
         }
         if (value instanceof Slot slot) {
@@ -205,19 +219,19 @@ public final class GridDiscovery {
         }
         if (value instanceof Map<?, ?> map) {
             for (Object entry : map.values()) {
-                collectValue(entry, out, owners, seen, depth + 1, exceptions);
+                collectValue(entry, out, owners, matrices, seenMatrices, seen, depth + 1, exceptions);
             }
             return;
         }
         if (value instanceof Iterable<?> iterable) {
             for (Object entry : iterable) {
-                collectValue(entry, out, owners, seen, depth + 1, exceptions);
+                collectValue(entry, out, owners, matrices, seenMatrices, seen, depth + 1, exceptions);
             }
             return;
         }
         if (value instanceof Object[] array) {
             for (Object entry : array) {
-                collectValue(entry, out, owners, seen, depth + 1, exceptions);
+                collectValue(entry, out, owners, matrices, seenMatrices, seen, depth + 1, exceptions);
             }
             return;
         }
@@ -230,7 +244,7 @@ public final class GridDiscovery {
             if (!owners.contains(value)) {
                 owners.add(value);
             }
-            collectValue(slots, out, owners, seen, depth + 1, exceptions);
+            collectValue(slots, out, owners, matrices, seenMatrices, seen, depth + 1, exceptions);
         }
     }
 
@@ -286,8 +300,18 @@ public final class GridDiscovery {
             Object fromResult = matrixFromResultSlot(resultSlot);
             if (fromResult instanceof CraftingContainer crafting) {
                 matrix = crafting;
-                matrixBy = "resultSlot.craftSlots";
+                matrixBy = "resultSlotFieldByType";
             }
+        }
+        int matrixCandidates = scan.matrices().size();
+        if (matrix == null && matrixCandidates == 1) {
+            // 兜底：菜单里**按类型**可达的 CraftingContainer 只有一个 ⇒ 采用它（并在 note 里标明来源）
+            matrix = scan.matrices().get(0);
+            matrixBy = "reachableCraftingContainer(unique)";
+        } else if (matrix == null && matrixCandidates > 1) {
+            return new Result(null, Codes.AMBIGUOUS_GRID,
+                    "可达的 CraftingContainer 有 " + matrixCandidates + " 个（哪个是目标不由我们猜）",
+                    "-", 0, resultSlotClass, 1);
         }
         String matrixClass = matrix == null ? "-" : className(matrix.getClass());
         if (ambiguousGrid) {
@@ -370,6 +394,7 @@ public final class GridDiscovery {
         InventoryCraft.GridSpec spec = new InventoryCraft.GridSpec(grid, width, height,
                 address(resultSlot), playerSlots.get(0), playerSlots.get(playerSlots.size() - 1));
         String note = "matrixBy=" + matrixBy + " gridBy=" + gridBy
+                + " matrixCandidates=" + matrixCandidates
                 + " registeredSlots=" + scan.registered() + " reachableSlots=" + slots.size()
                 + " playerSlots=" + playerSlots.size()
                 + (resultSlot instanceof ResultSlot ? "" : " resultSlotNotVanillaType")
@@ -388,13 +413,48 @@ public final class GridDiscovery {
         return simple == null || simple.isEmpty() ? "(anonymous)" : simple;
     }
 
-    /** 通用路径：原版 `ResultSlot.craftSlots`（字段）或 `getCraftSlots()`（方法）⇒ 矩阵容器。 */
+    /**
+     * 通用路径：从结果槽拿它的矩阵容器。**按类型找，不按名字找**。
+     *
+     * <p>原版 `ResultSlot` 有一个 `CraftingContainer` 字段（Mojang 名 `craftSlots`），但在 **Forge 生产环境**
+     * 里 vanilla 字段被重映射成 SRG 名（`f_xxxxx_`）⇒ 写死 `"craftSlots"` 只有开发环境能命中
+     * （2026-09-13 客户端实测 `matrix=-(0)` 就是这个原因）。⇒ 遍历类层次，**认字段/无参方法的类型**。
+     */
     private static Object matrixFromResultSlot(Slot resultSlot) {
-        Object value = readFieldByName(resultSlot, "craftSlots");
-        if (value == null) {
-            value = callByName(resultSlot, "getCraftSlots");
+        Class<?> type = resultSlot.getClass();
+        while (type != null && type != Object.class) {
+            for (Field field : type.getDeclaredFields()) {
+                if (!CraftingContainer.class.isAssignableFrom(field.getType())) {
+                    continue;
+                }
+                try {
+                    field.setAccessible(true);
+                    Object value = field.get(resultSlot);
+                    if (value != null) {
+                        return value;
+                    }
+                } catch (Throwable ignored) {
+                    // 读不到就继续找（可能被模块系统拒绝）
+                }
+            }
+            for (Method method : type.getDeclaredMethods()) {
+                if (method.getParameterCount() != 0
+                        || !CraftingContainer.class.isAssignableFrom(method.getReturnType())) {
+                    continue;
+                }
+                try {
+                    method.setAccessible(true);
+                    Object value = method.invoke(resultSlot);
+                    if (value != null) {
+                        return value;
+                    }
+                } catch (Throwable ignored) {
+                    // 同上
+                }
+            }
+            type = type.getSuperclass();
         }
-        return value;
+        return null;
     }
 
     /**
@@ -515,22 +575,6 @@ public final class GridDiscovery {
     }
 
     // ==================== 反射小工具（只读、逐项容错） ====================
-
-    private static Object readFieldByName(Object target, String name) {
-        Class<?> type = target.getClass();
-        while (type != null) {
-            try {
-                Field field = type.getDeclaredField(name);
-                field.setAccessible(true);
-                return field.get(target);
-            } catch (NoSuchFieldException e) {
-                type = type.getSuperclass();
-            } catch (Throwable t) {
-                return null;
-            }
-        }
-        return null;
-    }
 
     private static Object callByName(Object target, String name) {
         if (target == null) {

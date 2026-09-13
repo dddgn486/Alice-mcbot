@@ -7601,3 +7601,24 @@ discover=FAIL:no_grid matrix=-(0) resultSlot=(1)      ← 结果槽认出来了�
 
 **仍未验证**：`gridBy` 实际取哪条、`grid=3x3 slots=[64..72] result=73` 是否成立；
 以及**点击**是否真的能按这些 `index` 走到上游的槽位（探针只读，属第二步 S1-5 的执行验证 —— 那时才谈"页签站点能不能真合成"）。
+
+#### D-192 附注五：`matrix=-(0)` 的真因 —— **vanilla 字段/方法在生产环境是 SRG 名，字符串反射读不到**
+
+**客户端事实（17:26 探针）**：`menu_slots=74` ✓（`collectSlots` 生效）、`resultSlot=(anonymous)(1)` ✓（结果槽认出来了），
+但 `matrix=-(0) note=找不到矩阵容器`。
+
+**根因**：路径 ② 当时是按**名字**反射原版 `ResultSlot` 的矩阵字段（Mojang 名 `craftSlots`）。
+而 **Forge 生产环境里 vanilla 的字段/方法名是 SRG 名**（`f_xxxxx_`/`m_xxxxx_`）——
+`"craftSlots"` 只有**开发环境**能命中。同源证据：诊断里的 `upgradeHandler=[slots=1] 0:null`
+也是同一毛病（`ItemStack.getItem()` 被当成 `"getItem"` 反射 ⇒ 拿到 null）。
+
+**修法（一律"按类型/按编译期调用"，不再靠 vanilla 名字字符串）**：
+1. `matrixFromResultSlot`：遍历结果槽的类层次，**认字段类型 `CraftingContainer`**（其次认"无参且返回 `CraftingContainer` 的方法"）
+   —— 名字无关，跨映射/跨版本都成立；
+2. `scan` 顺带**按类型**收集所有可达的 `CraftingContainer`：唯一时作为矩阵兜底
+   （`matrixBy=reachableCraftingContainer(unique)`），多于一个就 `ambiguous_grid`（不猜）；
+3. 诊断里读物品名改成**编译期调用**（`stack instanceof ItemStack is → is.getItem()`），不再字符串反射。
+   `note` 增 `matrixCandidates=`，`matrixBy=` 会明说是哪条路（`resultSlotFieldByType` 等）。
+
+**通用教训**：**对 vanilla 成员做字符串反射在 Forge 生产环境必然踩空**；要反射就认**类型/签名**，
+能不反射就用编译期调用。
