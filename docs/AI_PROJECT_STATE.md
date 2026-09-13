@@ -406,6 +406,10 @@ legacy 双内核整批删除（19 文件，依据"按路径分析的零活引用
 **D-173 补漏**：`pathing/movement/` 14 文件（外部真引用 0）整包删除 + `.gitignore` 藏住的
 `PathExecutor.java.backup` 删除。
 
+**最新实测（2026-09-13）**：CORE 电池 **`(23/23) ticks=2616 → PASS`**（FULL 33 项 3527 ⇒ 短 26%）；
+A4 熔炉客户端 PASS 且夹具**自复位**（`burnLeft=1398 → 重建方块=true`）。
+**阶段 3-A 剩余**：A4b（菜单型炉子=熔炼升级页签，复用 `FurnaceStation`）、A5（决策层接线 `GoalAction.Craft`）。
+
 **回归电池分档（最新，D-197）**：CORE = **BASELINE 13 + MAIN 10 = 23 项**（默认，物品
 `alice:regression_battery` 或 `/alice battery core`）；FULL = 33 项（`/alice battery full`）；
 `/alice battery list` 看归属表。配置唯一入口是 `RegressionBatteryTask.CURATION`，说明书

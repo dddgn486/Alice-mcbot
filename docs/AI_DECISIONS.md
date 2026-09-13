@@ -7957,3 +7957,22 @@ pickup_gate / collect_job / recipes_dump / event_thresholds）。
    这是**夹具自己的场景管理**（与 A3b 挪动场景工作台同规格），不是生产写入 ⇒ `no_block_writes` 的含义不变。
 
 **等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `3312608d…`）。**待客户端**：CORE 复跑（应 `(23/23) → PASS`）。
+
+#### D-197 附注二：CORE 复跑 **`(23/23) ticks=2616 → PASS`** + 熔炉复位实测生效
+
+**客户端事实**：`PROFILE=CORE baseline=13 main=10 extra_skipped=10`、`(23/23) ticks=2616 → PASS`、
+`K4=OK(真异常 0 / 写入类例外=56)`；熔炉收尾：
+```
+[CraftFurnaceCheck] 复位熔炉 pos=46 64 306 burnLeft=1398 → 重建方块=true
+[CraftFurnaceCheck] no_half_products=true  furnace_reset=true
+```
+`burnLeft=1398` 正好印证用户的观察（煤 1600 − 一次烧炼 200 ≈ 1400 tick 余焰）⇒ **复位是必要的**，现在夹具自己熄灭并清空。
+
+**分档成效**：FULL 33 项 `ticks=3527` → CORE 23 项 **`ticks=2616`（−26%）**，且 CORE 覆盖
+"必要基础 + 当前主线"。A4 熔炉（原版方块型）客户端 PASS。
+
+**下一步候选**（都属阶段 3-A 剩余）：
+- **A4b 菜单型炉子**（精妙容器/背包里的"熔炼升级页签"）：应当**复用** `FurnaceStation`（同样 3 格 + `ContainerData`），
+  顺带把"熔炉升级"这条用户最初提到的兼容形态补齐；
+- **A5 决策层接线**：`GoalAction.Craft`（词汇表 + 严格解析 + 把"可做的合成/熔炼路线与站点"作为**确定性事实**喂给候选菜单，
+  LLM 只选），并按裁定"任务层失败向上传递"接好接口 —— 这是"LLM 只选目标"落地的最后一块。
