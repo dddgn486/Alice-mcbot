@@ -78,6 +78,23 @@
 `execute action=craft ok=true` → `[CraftJob] … 世界事实 product 0→1 ⇒ 达成`。
 ⇒ **阶段 3-A（A1–A5）全部收口**；下一阶段候选见 §4 待办。
 
+## 3c. 阶段 3-B（模组机器适配，实验对象 Mekanism）—— **S1 查询层接线已完成，待客户端验证**
+
+**协议**：`docs/MOD_ADAPTER_PROTOCOL.md`（六步流水线；只读先于执行；"读不懂多少"始终可见；
+进通用骨架须满足"上游自述/两上游共享/纯形态可自校验"）。**S0 事实表**：`docs/MEKANISM_FACTS.md`。
+
+**已完成（离线）**：S0 类型事实表（26 类型 / 1171 条）；S1 读法两侧定稿
+（`getInput().getRepresentations()` / `getOutputDefinition()`，自校验）；`MachineRecipeFacts`（只读适配器）；
+`RecipeQuery` 新增 **`MACHINE_ROUTE`**（有出处的机器路线：机器类型 + 输入 + 输出）；
+`CraftJob` 对 `MACHINE_ROUTE` **如实拒绝**（`not_executable:<机器>`）。
+
+**本轮要测（一次右键，零参数）**：`/give @s alice:machine_probe` → 右键。
+期望日志/聊天栏：`[MachineProbe] SUMMARY … input_readable=N query_probed=3 query_machine_route=3 … verdict=PASS`
+以及 `[MachineProbe] query item=… verdict=MACHINE_ROUTE route=…`（**关键判据**：
+查询层对机器产出给出 `MACHINE_ROUTE` 而不是 `MACHINE_RECIPE_UNSUPPORTED`）。
+
+**之后**：探针回收（S5）或按 D-197 转电池步 → 进 **S2（机器站点只读发现）**。
+
 ## 4. 待办队列
 
 1. **复跑一次 CORE**（回退瘦身后期望 `(25/25) → PASS`）；之后再按 D-201 附注一"先自证前提、再逐条撤"。
