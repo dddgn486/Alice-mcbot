@@ -109,6 +109,38 @@ public class MachineProbeTask implements Task {
         return java.util.List.of();
     }
 
+    /** **问上游自述（输入侧）**：`getInput().getRepresentations()`（`InputIngredient#getRepresentations`），自校验非空。 */
+    private static java.util.List<String> upstreamInputRepresentations(Recipe<?> recipe) {
+        for (String name : new String[]{"getInput", "getItemInput"}) {
+            try {
+                var accessor = recipe.getClass().getMethod(name);
+                Object ingredient = accessor.invoke(recipe);
+                if (ingredient == null) {
+                    continue;
+                }
+                var representations = ingredient.getClass().getMethod("getRepresentations").invoke(ingredient);
+                if (!(representations instanceof java.util.List<?> list)) {
+                    continue;
+                }
+                java.util.List<String> out = new ArrayList<>();
+                for (Object entry : list) {
+                    if (entry instanceof ItemStack stack && !stack.isEmpty()) {
+                        out.add(BuiltInRegistries.ITEM.getKey(stack.getItem()) + "x" + stack.getCount());
+                    }
+                    if (out.size() >= 3) {
+                        break;
+                    }
+                }
+                if (!out.isEmpty()) {
+                    return out;
+                }
+            } catch (Throwable ignored) {
+                // 换下一个名字/形态（不猜语义）
+            }
+        }
+        return java.util.List.of();
+    }
+
     private void run() {
         var server = bot.getServer();
         var access = server.registryAccess();
@@ -130,6 +162,7 @@ public class MachineProbeTask implements Task {
         int unreadableViaVanilla = 0;
         int upstreamReadable = 0;
         int machineOutputNotItem = 0;
+        int inputReadable = 0;
         int types = byType.size();
         int typeTotal = byType.values().stream().mapToInt(List::size).sum();
         BotLog.info("[MachineProbe] 命名空间={} 类型={} 条数={}（全表：可读={} 跳过={}）",
@@ -164,11 +197,16 @@ public class MachineProbeTask implements Task {
                 } else if (!vanillaReadable) {
                     machineOutputNotItem++;   // 原版读不出、上游也没给出物品输出 ⇒ 如实归为"非物品输出"
                 }
-                BotLog.info("[MachineProbe]     sample id={} out={} x{} in={} upstream_item_out={}",
+                java.util.List<String> upstreamIn = upstreamInputRepresentations(recipe);
+                if (!upstreamIn.isEmpty()) {
+                    inputReadable++;
+                }
+                BotLog.info("[MachineProbe]     sample id={} out={} x{} in={} upstream_item_out={} upstream_in={}",
                         recipe.getId(), BuiltInRegistries.ITEM.getKey(out.getItem()), out.getCount(), ins,
                         upstream.isEmpty() ? "-"
                                 : BuiltInRegistries.ITEM.getKey(upstream.get(0).getItem()) + " x"
-                                        + upstream.get(0).getCount());
+                                        + upstream.get(0).getCount(),
+                        upstreamIn.isEmpty() ? "-" : upstreamIn);
             }
         }
         int pending = WorldModLedger.pendingForOwner(server, bot.getUUID()).size();
@@ -186,6 +224,7 @@ public class MachineProbeTask implements Task {
                 .append(" unreadable_via_vanilla=").append(unreadableViaVanilla)
                 .append(" upstream_readable=").append(upstreamReadable)
                 .append(" machine_output_not_item=").append(machineOutputNotItem)
+                .append(" input_readable=").append(inputReadable)
                 .append(" no_writes=").append(pending == 0)
                 .append(" verdict=").append(failed ? "FAIL" : "PASS");
         BotLog.info("[MachineProbe] SUMMARY {}", summary);

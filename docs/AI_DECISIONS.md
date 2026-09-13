@@ -8335,7 +8335,7 @@ namespace=mekanism types=26 type_recipes=1171 readable_total=2923 skipped_total=
 把查询层的 `machine_recipe_unsupported` 升级为**有出处的机器路线**；探针按纪律**验证通过即回收**
 （或按 D-197 转成电池步）。换模组只改 `NAMESPACE` 与入口名字——**这就是"实验模板"的可复用性检验**。
 
-**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（77 项）+ 已同步（jar `f9860c3c…`）；**待客户端**（一次右键）。
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（77 项）+ 已同步（jar `9a8e3b24…`）；**待客户端**（一次右键）。
 
 #### D-204 附注一：S1 取证**发现了关键事实**——原版 `Recipe` 接口**取不到**机器配方的输入/输出
 
@@ -8415,7 +8415,7 @@ Mekanism 的具体方法名只出现在**模组专属适配器**里。
 若 `upstream_readable` 接近样例数 ⇒ 先把"物品→物品"接进查询层；若 `machine_output_not_item` 占多数 ⇒
 只做"如实报码"，不碰化学品语义。
 
-**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `f9860c3c…`）；**待客户端**（一次右键）。
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `9a8e3b24…`）；**待客户端**（一次右键）。
 
 #### D-205 附注一：**`pause` 对 AI 是单向的**（实测）——所以"到测试点暂停"要靠**你**恢复
 
@@ -8429,3 +8429,14 @@ the user must resume it"）。这**正好符合** D-205 的意图（"恢复只�
 且样例 `in=[]` **普遍为空** ⇒ **输入侧必须走上游**（`ItemStackIngredient implements InputIngredient<ItemStack>`，
 枚举方法在 `InputIngredient` 上）。⇒ S1 的覆盖面 = "**物品→物品**"子集（原版 ∪ 上游自述），
 其余（化学品/气体，如 `rotary`）**如实报 `machine_output_not_item`**。
+
+#### D-204 附注五：S1 读法**两侧都定稿**（离线完成，已同步）
+
+- **输入**：`recipe.getInput().getRepresentations()`（`mekanism.api.recipes.ingredients.InputIngredient<TYPE>#getRepresentations`
+  → `List<TYPE>`；物品型即 `List<ItemStack>`，另有 `getNeededAmount(TYPE)` 给数量）——**上游自述，自校验**（非空才采信）；
+- **输出**：`getOutputDefinition()`（`List<ItemStack>`；上一轮实测 `upstream_readable=20/51`），退回原版 `getResultItem`；
+- **非物品输出**（化学品/气体，如 `rotary`）：如实 `machine_output_not_item`（上一轮 31/51），**不硬塞物品语义**；
+- 探针新增计数 `input_readable`（+ 样例行 `upstream_in=[…]`）⇒ 下一轮读数一并决定"物品→物品"子集的实际覆盖。
+
+**至此 S1 的"读法"不再有未知**：两侧都问上游、都自校验；查询层接线（`machine_recipe_unsupported` → 有出处的机器路线）
+与探针回收是接下来的两步。
