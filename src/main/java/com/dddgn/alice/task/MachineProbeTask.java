@@ -37,6 +37,7 @@ public class MachineProbeTask implements Task {
     private final BotPlayer bot;
     private final ServerPlayer observer;
     private int ticks;
+    private int typeCount = -1;
     private boolean finished;
     private boolean failed;
 
@@ -62,6 +63,10 @@ public class MachineProbeTask implements Task {
 
     @Override
     public String failureReason() {
+        // 该命名空间**没有**被跳过的机器类型 ⇒ 模组不在/不适用 ⇒ 由电池记 SKIP（不判红）
+        if (typeCount == 0) {
+            return NAMESPACE + "_absent";
+        }
         return failed ? "probe_failed" : "";
     }
 
@@ -165,6 +170,7 @@ public class MachineProbeTask implements Task {
         int inputReadable = 0;
         java.util.LinkedHashSet<String> machineOutputs = new java.util.LinkedHashSet<>();
         int types = byType.size();
+        typeCount = types;
         int typeTotal = byType.values().stream().mapToInt(List::size).sum();
         BotLog.info("[MachineProbe] 命名空间={} 类型={} 条数={}（全表：可读={} 跳过={}）",
                 NAMESPACE, types, typeTotal, readable, skipped);
@@ -250,7 +256,7 @@ public class MachineProbeTask implements Task {
                 .append(" query_probed=").append(machineOutputs.size())
                 .append(" query_machine_route=").append(machineRouteOk)
                 .append(" no_writes=").append(pending == 0)
-                .append(" verdict=").append(failed ? "FAIL" : "PASS");
+                .append(" verdict=").append(failed ? "FAIL" : (types == 0 ? "SKIP" : "PASS"));
         BotLog.info("[MachineProbe] SUMMARY {}", summary);
         if (observer != null) {
             observer.sendSystemMessage(net.minecraft.network.chat.Component.literal(

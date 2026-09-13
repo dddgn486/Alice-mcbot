@@ -116,6 +116,7 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("craft_furnace", Profile.MAIN),
             Map.entry("craft_cooking", Profile.MAIN),
             Map.entry("craft_goal", Profile.MAIN),
+            Map.entry("machine_route", Profile.MAIN),
             // 2026-09-13 D-201 附注一：**回退整理**——撤走后 CORE 三项变红（缺隐含前置），
             // 而这些步骤在 FULL 里是绿的 ⇒ 先恢复绿基线，等"显式自证前提"做完再**逐条**撤（每条复跑一次）
             Map.entry("craft_action", Profile.MAIN),
@@ -367,6 +368,11 @@ public final class RegressionBatteryTask implements Task {
         // **不需要场景**（随身 2×2 用背包里的 4 块木板做工作台）
         steps.add(step("craft_goal", List.of(), () -> { },
                 () -> new com.dddgn.alice.task.CraftGoalCheckTask(bot, observer), 600));
+        // 阶段 3-B / S1（D-204 / §6.51）：**机器配方只读**（问上游自述读输入/输出 + 查询层给 MACHINE_ROUTE）；
+        // 模组不在/该命名空间没有机器类型 ⇒ SKIP（不判红）。零写入。
+        steps.add(stepSkippable("machine_route", List.of(), () -> { },
+                () -> new com.dddgn.alice.task.MachineProbeTask(bot, observer), 200,
+                task -> task.failureReason().contains("_absent")));
         // 基-7：前缀搜索（K-1：预算耗尽交出前缀；真失败不给前缀）
         // R2：传输模块（4 个夹具：主流程/端点选择/选择器事件/命令解析）
         // K-3 安全点停止（D-169）**故意不进电池**：它的判据是"**顶层任务**被延后停止"，

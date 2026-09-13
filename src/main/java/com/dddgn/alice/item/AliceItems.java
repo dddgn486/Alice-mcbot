@@ -235,10 +235,6 @@ public final class AliceItems {
     public static final RegistryObject<Item> CRAFT_GOAL_CHECK =
             ITEMS.register("craft_goal_check", () -> new CraftGoalCheckItem(new Item.Properties()));
 
-    /** 阶段 3-B / S1（D-204）**机器配方只读探针**：按类型列出"读不懂"的配方样例（零写入）。 */
-    public static final RegistryObject<Item> MACHINE_PROBE =
-            ITEMS.register("machine_probe", () -> new MachineProbeItem(new Item.Properties()));
-
     /** 基-9 工具供给自检（零参数，约 2 秒）：换更好的 / 没得换如实报 / **不能凭空变出工具**。 */
     public static final RegistryObject<Item> TOOL_SUPPLY_CHECK =
             ITEMS.register("tool_supply_check", () -> new ToolSupplyCheckItem(new Item.Properties()));

@@ -24,19 +24,31 @@ import java.util.List;
 public final class MachineRecipeFacts {
 
     /** 读出来的事实（空列表 = 读不出；调用方据此如实报码，不猜）。 */
-    public record Facts(String typeId, String recipeId, List<ItemStack> inputs, List<ItemStack> outputs) {
+    public record Facts(String typeId, String recipeId, List<ItemStack> inputs, List<ItemStack> outputs,
+                        boolean inputIngredientPresent) {
 
         /** 物品语义上**可读**（输入与输出都有物品形态）。 */
         public boolean itemReadable() {
             return !inputs.isEmpty() && !outputs.isEmpty();
         }
 
+        /**
+         * **配方的输入配料存在、但不是物品**（化学品/流体/气体等）。
+         *
+         * <p>为什么要单独这一栏（2026-09-13 实测）：`mekanism:crystallizing` 的路线读出来是 `mats=[]`，
+         * 而它其实**需要化学输入** —— `mats=[]` 会被读成"不需要材料"。**"读不出"与"没有"必须分开报**。
+         */
+        public boolean nonItemInput() {
+            return inputIngredientPresent && inputs.isEmpty();
+        }
+
         public String describe() {
-            return "type=" + typeId + " id=" + recipeId + " in=" + inputs.size() + " out=" + outputs.size();
+            return "type=" + typeId + " id=" + recipeId + " in=" + inputs.size() + " out=" + outputs.size()
+                    + (nonItemInput() ? " input=非物品" : "");
         }
     }
 
-    public static final Facts EMPTY = new Facts("-", "-", List.of(), List.of());
+    public static final Facts EMPTY = new Facts("-", "-", List.of(), List.of(), false);
 
     private MachineRecipeFacts() {
     }
@@ -46,9 +58,11 @@ public final class MachineRecipeFacts {
             return EMPTY;
         }
         String typeId = BuiltInRegistries.RECIPE_TYPE.getKey(recipe.getType()).toString();
+        Object inputIngredient = callFirst(recipe, "getInput", "getItemInput");
         return new Facts(typeId, recipe.getId().toString(),
-                itemStacks(callFirst(recipe, "getInput", "getItemInput")),
-                itemStacks(callFirst(recipe, "getOutputDefinition", "getOutputs")));
+                itemStacks(inputIngredient),
+                itemStacks(callFirst(recipe, "getOutputDefinition", "getOutputs")),
+                inputIngredient != null);
     }
 
     /** 依次尝试若干**无参访问器名**（按返回值形态判断），取第一个"能给出非空列表"的。 */

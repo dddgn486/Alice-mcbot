@@ -46,6 +46,5 @@
   "key.categories.alice": "Alice",
   "key.alice.permission_allow": "Alice: Allow",
   "key.alice.permission_deny": "Alice: Deny",
-  "item.alice.craft_goal_check": "Craft Goal Check",
-  "item.alice.machine_probe": "Machine Recipe Probe"
+  "item.alice.craft_goal_check": "Craft Goal Check"
 }

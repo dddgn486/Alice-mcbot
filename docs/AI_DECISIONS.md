@@ -8335,7 +8335,7 @@ namespace=mekanism types=26 type_recipes=1171 readable_total=2923 skipped_total=
 把查询层的 `machine_recipe_unsupported` 升级为**有出处的机器路线**；探针按纪律**验证通过即回收**
 （或按 D-197 转成电池步）。换模组只改 `NAMESPACE` 与入口名字——**这就是"实验模板"的可复用性检验**。
 
-**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（77 项）+ 已同步（jar `f0c96e23…`）；**待客户端**（一次右键）。
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（77 项）+ 已同步（jar `e7e17993…`）；**待客户端**（一次右键）。
 
 #### D-204 附注一：S1 取证**发现了关键事实**——原版 `Recipe` 接口**取不到**机器配方的输入/输出
 
@@ -8415,7 +8415,7 @@ Mekanism 的具体方法名只出现在**模组专属适配器**里。
 若 `upstream_readable` 接近样例数 ⇒ 先把"物品→物品"接进查询层；若 `machine_output_not_item` 占多数 ⇒
 只做"如实报码"，不碰化学品语义。
 
-**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `f0c96e23…`）；**待客户端**（一次右键）。
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `e7e17993…`）；**待客户端**（一次右键）。
 
 #### D-205 附注一：**`pause` 对 AI 是单向的**（实测）——所以"到测试点暂停"要靠**你**恢复
 
@@ -8468,5 +8468,19 @@ the user must resume it"）。这**正好符合** D-205 的意图（"恢复只�
 打印 `query item=… verdict=…`（期望 `MACHINE_ROUTE`）并计数 `query_probed` / `query_machine_route` ——
 **自证式验证**：不需要你手输物品 id，也不用我硬编码样例。
 
-**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `f0c96e23…`）；**待客户端**（一次右键 `alice:machine_probe`）。
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `e7e17993…`）；**待客户端**（一次右键 `alice:machine_probe`）。
 **之后**：探针回收（S5）或按 D-197 转电池步 —— 等这次验证过再动。
+
+#### D-204 附注七：S1 **收口** —— 歧义修掉 + 探针按 S5 回收（转电池步）
+
+1. **实测发现的歧义已修**（`mekanism:crystallizing` 路线读出 `mats=[]`，会被误读为"不需要材料"）：
+   `MachineRecipeFacts.Facts` 新增 `inputIngredientPresent`/`nonItemInput()` —— **"读不出"与"没有"分开报**；
+   非物品输入时 `RecipeQuery` 给一条占位材料 `非物品输入（化学品/流体等，未由物品语义表达）`，
+   并在 note 里标"输入含非物品形态"。
+2. **S5 回收**：`alice:machine_probe` **临时入口已删除**（物品类 + 注册 + 模型 + 两份 lang），
+   `MachineProbeTask` **转为电池步** `machine_route`（MAIN；该命名空间没有机器类型 ⇒ 报 `<ns>_absent` ⇒ 电池记 **SKIP**，不判红）。
+   ⇒ 探针生命周期闭合：**用它取证 → 判定成立 → 回收入口、保留为回归**（D-197 规则 1）。
+3. **电池 25 → 26 项**（MAIN 12 → 13），`docs/BATTERY_CURATION.md` 历史表同步。
+
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（76 项，探针物品已回收）+ 已同步（jar `e7e17993…`）；
+**待客户端**：CORE `(26/26) → PASS`（其中 `machine_route=PASS`；若 Mekanism 不在则 `SKIP`）。

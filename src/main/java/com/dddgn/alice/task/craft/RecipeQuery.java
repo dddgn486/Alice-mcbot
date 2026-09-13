@@ -152,6 +152,11 @@ public final class RecipeQuery {
                     int per = Math.max(1, machineOut.getCount());
                     int crafts = (int) Math.ceil(count / (double) per);
                     List<Material> materials = machineMaterials(facts.inputs());
+                    if (materials.isEmpty() && facts.nonItemInput()) {
+                        // **"读不出"与"没有"分开报**（D-204 附注七）：输入是化学品/流体等非物品形态
+                        materials = List.of(new Material("非物品输入（化学品/流体等，未由物品语义表达）",
+                                List.of(), 0, 0));
+                    }
                     machineRoutes.add(new Route(recipe.getId().toString(), type, type, false, crafts, per, materials));
                 } else {
                     machineTypes.add(type);   // 读不出物品输出（化学品/气体）⇒ 如实记录，不猜语义
@@ -176,7 +181,10 @@ public final class RecipeQuery {
 
         if (craftable.isEmpty() && firstMissing.isEmpty() && !machineRoutes.isEmpty()) {
             return new Result(Verdict.MACHINE_ROUTE, targetId, count, machineRoutes.get(0),
-                    List.of(), machineTypes, "机器产线（上游自述可读输入/输出；Alice 暂无该机器的执行适配）");
+                    List.of(), machineTypes, "机器产线（上游自述可读输入/输出；Alice 暂无该机器的执行适配"
+                            + (machineRoutes.get(0).materials().stream()
+                                    .anyMatch(material -> material.candidates().isEmpty())
+                                    ? "；输入含非物品形态" : "") + "）");
         }
         if (craftable.isEmpty() && firstMissing.isEmpty()) {
             if (!machineTypes.isEmpty()) {
