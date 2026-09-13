@@ -363,3 +363,17 @@ S-1 因常驻任务而真实化），再开 **②决策层接入** 这条真正�
   以及此前 transfer `end_to_end` 的间歇一格不动 —— **同一个病因**。
   已加 `[Bot] entity_tick_missing` 看门狗（含 removed/区块/玩家表/连接/task 现场）；
   **待复现取现场**后定修法（可能需要在 `BotManager` 侧补漏 tick 兜底驱动）。
+
+**§6.15 2026-09-13 收尾复测（客户端 12:42）**：电池 **(23/23) ticks=3301 → PASS**、
+`K4=OK(真异常 0 / 写入类例外 83)`、**22/22 终态步 `idempotent=true`**、
+四个 exec 用例 `foreignOk=true(另有残留1件不计入)`（D-168 分支首次全量实测通过）、
+`entity_tick_missing` / `segment_stall` / 异常均为 **0**。
+
+**仍未闭环（按优先级）**：
+1. **P0 假人物理冻结**（D-176）：任务/会话跑全局 `ServerTickEvent.END`，而 `BotPlayer.tick()` 是实体 tick
+   （受区块 entity-ticking 影响）⇒ 不同源。看门狗已带 `entityTicking=` 判别位，**待复现取现场**后定修法。
+2. **终态幂等契约推广**：19 处直接 tick 点里 17 处是夹具（已被电池隔离 + `idempotent=` 点名兜住），
+   推广属欠账（同型 NPE 已出现两次：09-06 / 09-13）。
+3. **两处设计洞（用户已实际遇到）**：① 任务驱动与**手动遥控**无互斥（`BotInputPacket` 会静默覆盖任务输入）；
+   ② **常驻 Job 不感知"bot 被传送离开作业范围"**（实测在转移场景搭了 12 格圆石）。
+4. `pathing/` 包语义（`MovementHelper`/`FootCellRuleCheck` 是否迁入 `core`）。
