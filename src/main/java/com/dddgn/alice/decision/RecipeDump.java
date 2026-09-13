@@ -59,9 +59,25 @@ public final class RecipeDump {
     }
 
     /** 导出结果摘要。 */
-    public record Result(int recipes, int skipped, int tags, String path) {
+    public record Result(int recipes, int skipped, int tags, String path,
+                         java.util.Map<String, Integer> skippedByType) {
         public String describe() {
-            return "recipes=" + recipes + " skipped=" + skipped + " tags=" + tags + " → " + path;
+            return "recipes=" + recipes + " skipped=" + skipped + " tags=" + tags
+                    + " skippedTop=" + topSkipped() + " → " + path;
+        }
+
+        /** 被跳过配方**按类型**直方图的前 3 项（阶段 2 判据："读得懂多少 / 适配器候选是谁"）。 */
+        String topSkipped() {
+            if (skippedByType == null || skippedByType.isEmpty()) {
+                return "-";
+            }
+            StringBuilder sb = new StringBuilder();
+            skippedByType.entrySet().stream()
+                    .sorted((a, b) -> Integer.compare(b.getValue(), a.getValue()))
+                    .limit(3)
+                    .forEach(e -> sb.append(sb.isEmpty() ? "" : ",").append(e.getKey())
+                            .append('=').append(e.getValue()));
+            return sb.toString();
         }
     }
 
@@ -102,16 +118,21 @@ public final class RecipeDump {
         // ② 配方表
         JsonArray recipes = new JsonArray();
         int skipped = 0;
+        // 阶段 2 判据（D-148/D-181）：**跳过必须可归类** —— 只报一个总数无法回答
+        // "Alice 读不懂的是哪些模组的哪些配方类型"（= 适配器候选清单的证据）。
+        java.util.Map<String, Integer> skippedByType = new java.util.TreeMap<>();
         var access = server.registryAccess();
         for (Recipe<?> recipe : server.getRecipeManager().getRecipes()) {
             String type = BuiltInRegistries.RECIPE_TYPE.getKey(recipe.getType()).toString();
             if (!STATION_BY_TYPE.containsKey(type)) {
                 skipped++;   // 未知/模组机器配方：如实跳过（不猜语义）
+                skippedByType.merge(type, 1, Integer::sum);
                 continue;
             }
             ItemStack result = recipe.getResultItem(access);
             if (result == null || result.isEmpty()) {
                 skipped++;
+                skippedByType.merge(type + "(空产出)", 1, Integer::sum);
                 continue;
             }
             JsonObject entry = new JsonObject();
@@ -159,14 +180,18 @@ public final class RecipeDump {
         root.addProperty("note", "只含原版配方体系；机器配方（JEI 类别）不在此，见 D-146 的能力边界");
         root.add("itemTags", itemTags);
         root.add("recipes", recipes);
+        // 跳过的类型直方图（只读事实；离线分析据此列"适配器候选"，本仓**不写适配器**）
+        JsonObject skipObj = new JsonObject();
+        skippedByType.forEach(skipObj::addProperty);
+        root.add("skippedTypes", skipObj);
         try {
             Files.createDirectories(path.getParent());
             Files.writeString(path, new GsonBuilder().create().toJson(root), StandardCharsets.UTF_8);
         } catch (Exception ex) {
             BotLog.warn("[Recipes] 导出失败：{}", ex.toString());
-            return new Result(recipes.size(), skipped, tagCount, "失败: " + ex.getMessage());
+            return new Result(recipes.size(), skipped, tagCount, "失败: " + ex.getMessage(), skippedByType);
         }
-        Result result = new Result(recipes.size(), skipped, tagCount, path.toString());
+        Result result = new Result(recipes.size(), skipped, tagCount, path.toString(), skippedByType);
         BotLog.warn("[Recipes] dump {}", result.describe());
         return result;
     }

@@ -392,3 +392,13 @@ S-1 因常驻任务而真实化），再开 **②决策层接入** 这条真正�
    **未验证**：`outside_region` 终态（需连续漂移 20 秒）。
    ① 任务驱动与**手动遥控**无互斥（`BotInputPacket` 静默覆盖任务输入）—— **仍未修**（需先定语义）。
 4. `pathing/` 包语义（`MovementHelper`/`FootCellRuleCheck` 是否迁入 `core`）。
+
+**§6.16 阶段 2（模组浅测）开工（D-181）**：判据与工具链已就位。
+- 客户端现状：`mods/` 275 个 jar，**四个目标模组（Create / Extended Crafting / Mekanism / Thermal）都未安装**
+  （由用户按需安装，符合"开发期依赖清零"的裁定）。
+- 已有链：`/alice recipes [file]` → `config/alice-recipes.json` → `tools/recipe-graph.py`（P1 逆推）。
+- 本轮补：`RecipeDump` 增 `skippedTypes` 直方图（"读不懂的是谁"= 适配器候选证据）+
+  新 `tools/recipe-readability.py`（只读离线审计：读得懂/读不懂、适配器候选、配方打架/跨模组同产出；
+  `--selftest` PASS）。
+- **待用户三步**：① 把四个模组 jar 放进客户端 `mods/`；② 进游戏跑 `/alice recipes`（零参数，写 `config/alice-recipes.json`）；
+  ③ 告诉我一声，我直接从挂载目录读导出文件并出报告（**不写适配器**）。
