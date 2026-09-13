@@ -8362,3 +8362,26 @@ sample id=mekanism:pigment_extracting/carpet/purple  out=minecraft:air x0  in=[]
 `getCookingSlots()` 同一手法）：例如"物品→物品"型有 `getInput()/getOutput()` 这类方法，
 "→化学品"型则涉及 `ChemicalStack`（超出原版表达能力 ⇒ 如实标注，不硬塞进原版语义）。
 **这正是协议 §3 第一条（上游自述驱动）的复用，不是 Mekanism 特例。**
+
+#### D-204 附注三：Mekanism 配方访问器（离线复核，S1 读法的依据）
+
+`javap mekanism/api/recipes/ItemStackToItemStackRecipe`（`crushing`/`enriching`/`sawing`/`compressing` 等的父类）：
+```java
+public abstract class ItemStackToItemStackRecipe extends MekanismRecipe implements Predicate<ItemStack> {
+  public mekanism.api.recipes.ingredients.ItemStackIngredient getInput();
+  public ItemStack getOutput(ItemStack);                 // 按具体输入算输出
+  public List<ItemStack> getOutputDefinition();          // ← **与输入无关的输出定义**（读法首选）
+  public ItemStack m_8043_(RegistryAccess);              // = 原版 getResultItem（对机器类型常常是 AIR）
+  public boolean isSpecial();                            // m_142505_
+}
+```
+⇒ **S1 读法**（只读、自校验、按类型不按类名）：
+1. **输出**：先试 `getOutputDefinition()`（自校验：非空且不含 AIR）→ 失败再退回原版 `getResultItem(access)`；
+2. **输入**：`getInput()` 返回 `mekanism.api.recipes.ingredients.ItemStackIngredient`（下一步核它的枚举方法，
+   预期是"可列出 `ItemStack[]`/`Ingredient`"这类形态）；
+3. **化学品输出的类型**（`ChemicalCrystallizerRecipe` / `ChemicalDissolutionRecipe` / `ItemStackToGasRecipe` 等）
+   **不在原版物品语义里** ⇒ 如实报 `machine_output_not_item`（不硬塞进物品语义，也不假装读懂了）；
+4. 探针补一栏 `unreadable_via_vanilla=N`（把"原版读不出"与"真的没有输出"分开，避免歧义）。
+
+**这一步再次验证协议 §3 的分离判据**：能进通用骨架的是"**问上游自述 + 自校验**"这套**机制**；
+Mekanism 的具体方法名只出现在**模组专属适配器**里。
