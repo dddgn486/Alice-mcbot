@@ -287,7 +287,7 @@ best-so-far 前缀 + `PathRetryRunner` 消费（先走前缀再重规划），�
 **K-3 `safeToCancel` 已完成并客户端验证（D-166，`WINDOWS_CLIENT`）**：运行期安全承诺点
 （`MovementExecution.safeToCancel()` 默认 true + 8 个执行器覆写）+ 延后停止 + L2 开菜单空中门；
 `alice:k3_stop_check` 的 DEFER 用例实测通过（`deferred=1`）。
-**K-4 谓词不统一已完成"统一 + 测量"两步（D-167，`COMPILES`，待客户端）**：
+**K-4 谓词不统一已完成"统一 + 测量 + 收口"三步（D-167 + 附注一，`WINDOWS_CLIENT`）**：
 "可站"谓词原先在 6 处各写一遍、**目标准入一遍没查** ⇒ 现统一为 `MovementHelper.canStandCentered`
 （8 个调用点，纯重构）；目标准入**不硬拒**（"起点即目标"合法 + 挖掘 `ENTER_TARGET` 的 goal 就是矿块），
 改为进程累计遥测（`bot_report` 的"目标准入（K-4 累计）"行）+ 回归电池 SUMMARY 自断言 `K4=OK/VIOLATION`。
