@@ -393,10 +393,16 @@ D-165 附注四），**待客户端复测**。判据与排查入口见 `OPEN_ITE
 legacy 双内核整批删除（19 文件，依据"按路径分析的零活引用"）；`POSTCONDITION_FAILED` 不删值、
 改为给生产者（`PathSessionStatus.classify` 唯一定义）并加"无死值"自检。
 
-**第四次电池结果（22/23）**：K-5 新用例 `session_status_no_dead_value=PASS` ✓、K-2 删除无回归 ✓；
-唯一失败 = `transfer` 步 `end_to_end`（**间歇**：同计划 10:09/11:06 走完 5 tick，这次一格没动磨满 120 tick 段预算）。
-**下一步**：用新增的失败终态诊断 `[R4 Session] segment_stall`（D-174）复现定位；
-最强候选 = **遥控器输入干扰任务**（`BotInputPacket` 每 tick 把玩家输入写给 bot，任务与手动遥控无互斥）。
+**最新复测（客户端 12:42，全绿）**：电池 `(23/23) ticks=3301 → PASS`、`K4=OK(真异常 0 / 写入类例外 83)`、
+**22/22 个终态步 `idempotent=true`**、四个 exec 用例 `foreignOk=true(另有残留1件不计入)`
+⇒ D-168"残留不计入"分支**首次全量实测通过**；`entity_tick_missing` / `segment_stall` / 异常均 **0**。
+
+**未闭环最高优先 = P0 假人物理冻结（D-176）**：任务/会话跑在全局 `ServerTickEvent.END`，而 `BotPlayer.tick()`
+是**实体 tick**（受区块 entity-ticking 影响）⇒ **不同源**，正好解释"任务在跑、bot 一格不动、无报错"
+（`segmentTicks=121 / entityTicksInSegment=0 / travelCallsInSegment=0`）。看门狗已带
+`entityTicking=` 判别位，**待复现取现场**后定修法（不许先加"补 tick"特判）。
+
+**（历史）第四次电池（22/23）**：唯一失败 = `transfer` 步 `end_to_end` 间歇不动的**同一病因**（即上面的冻结）。
 **D-173 补漏**：`pathing/movement/` 14 文件（外部真引用 0）整包删除 + `.gitignore` 藏住的
 `PathExecutor.java.backup` 删除。
 
