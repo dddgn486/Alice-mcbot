@@ -127,6 +127,9 @@ public final class FurnaceStation {
             }
         }
         if (slots == null) {
+            for (String line : diagnose(menu)) {
+                BotLog.info("[FurnaceDiag] {}", line);
+            }
             return new Result(null, Codes.NO_FURNACE,
                     "既没有\"恰好 3 格\"的容器、也没有可识别的 3 格上游自述");
         }
@@ -195,6 +198,54 @@ public final class FurnaceStation {
                 containerName(picked.getKey()), dataName, progress, maxProgress, litTime);
         BotLog.info("[Furnace] 认出炉子 by={} assignBy={} {}", pickedBy, assignBy, found.describe());
         return new Result(found, "", found.describe());
+    }
+
+    /**
+     * **一次性诊断**（认不出炉子时打）：菜单**可达对象**的类名 + 它们身上"像烹饪进度的方法名"，
+     * 以及**全槽位表**（下标/点击地址/槽类/容器类 + `mayPlace` 探针）。
+     *
+     * <p>为什么要它：2026-09-13 实测第二条路径"连对象都没找到" —— 只有把**对象图**与**槽位形态**摊开，
+     * 才能知道该沿 `Supplier` 展开、还是该改用上游访问器（`getSmeltingLogicContainer()` 之类），
+     * 而不是继续加特判。
+     */
+    public static List<String> diagnose(AbstractContainerMenu menu) {
+        List<String> lines = new ArrayList<>();
+        if (menu == null) {
+            return lines;
+        }
+        lines.add("menu=" + menu.getClass().getName() + " menuSlots=" + menu.slots.size());
+        List<Object> reachable = reachableObjects(menu);
+        lines.add("reachableObjects=" + reachable.size());
+        for (Object object : reachable) {
+            List<String> methods = new ArrayList<>();
+            Class<?> type = object.getClass();
+            while (type != null && type != Object.class) {
+                for (java.lang.reflect.Method method : type.getDeclaredMethods()) {
+                    String name = method.getName();
+                    if (name.contains("Cook") || name.contains("Burn") || name.equals("isCooking")
+                            || name.contains("CookingSlot") || name.contains("Logic")) {
+                        methods.add(name);
+                    }
+                }
+                type = type.getSuperclass();
+            }
+            String simple = object.getClass().getSimpleName();
+            lines.add("  obj=" + (simple.isEmpty() ? object.getClass().getName() : simple)
+                    + (methods.isEmpty() ? "" : " methods=" + methods));
+        }
+        for (Slot slot : GridDiscovery.scan(menu).slots()) {
+            String name = slot.getClass().getSimpleName();
+            String container = slot.container.getClass().getSimpleName();
+            lines.add("  slot#" + slot.index + " " + (name.isEmpty() ? "(anon)" : name)
+                    + "/" + (container.isEmpty() ? "(anon)" : container)
+                    + " containerSlot=" + slot.getContainerSlot()
+                    + " mayPlace[coal=" + accepts(slot, net.minecraft.world.item.Items.COAL)
+                    + " cobble=" + accepts(slot, net.minecraft.world.item.Items.COBBLESTONE) + "]"
+                    + " item=" + slot.getItem().getCount() + "x"
+                    + net.minecraft.core.registries.BuiltInRegistries.ITEM
+                            .getKey(slot.getItem().getItem()).getPath());
+        }
+        return lines;
     }
 
     /** 菜单里的 `ContainerData`（**按类型找**，不按名字）。 */

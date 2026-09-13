@@ -451,6 +451,11 @@ A3（`alice:craft_table_check`，含 `no_world_write` 零写入硬断言）**客
 **环境提醒**：镜像脚本 `tools/mirror-windows-workspace.sh` 现为"默认不备份/不校验"快跑（8.6 秒）；
 备份轮转由 `ALICE_BACKUP_KEEP`（默认 2）控制；`ALICE_MIRROR_BACKUP=1` / `ALICE_MIRROR_VERIFY=1` 可按需开启。
 
+## 交接入口（新会话从这里起）
+
+> **** = 当前交接文档（主线、已验证清单、进行中的卡点与下一步、关键入口与环境、纪律提醒）。
+> 新会话先读它，再读 （电池分档）与  末尾几节（最新实测事实）。
+
 ## 开始任何新任务前
 
 1. 读取本文件和 `AI_DEVELOPMENT_PLAYBOOK.md`
