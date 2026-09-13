@@ -23,8 +23,10 @@ import java.util.Map;
  *   <li>{@code craft_sticks}：2 木板 → 4 木棍（shaped 1×2）⇒ 产物 +4、材料 −2；</li>
  *   <li>{@code craft_table}：4 木板 → 1 工作台（shaped 2×2）⇒ 产物 +1、材料 −4；</li>
  *   <li>{@code craft_multi}：4 木板 → **8** 木棍（需要合 2 次）⇒ 产物 +8、材料 −4；</li>
- *   <li>{@code missing_ingredient_honest}：清空背包 → 合木棍 ⇒ **如实失败** `missing_ingredient`
- *       且**背包逐槽无变化**（不许凭空给、不许吞掉材料）；</li>
+ *   <li>{@code query_refuses_when_short}：清空背包 → 合木棍 ⇒ **查询层**如实拒绝
+ *       （`query_MISSING_INGREDIENTS`）且**背包逐槽无变化**（不许凭空给、不许吞掉材料）；</li>
+ *   <li>{@code action_cleanup_on_partial}：只给煤、不给木棍，**直接调动作原语**合火把 ⇒ 摆料摆到一半
+ *       缺料 ⇒ 必须如实失败 `missing_ingredient`，且**已摆进网格的煤被收回背包、网格四格皆空**；</li>
  *   <li>{@code grid_clean}：上面全部跑完后，随身 2×2 网格**四格皆空**（不留半成品）；</li>
  *   <li>{@code menu_is_inventory}：前提断言 —— 当前打开的就是玩家自带菜单（否则本夹具测的不是随身网格）。</li>
  * </ul>
@@ -113,14 +115,39 @@ public class CraftActionCheckTask implements Task {
                         && RecipeQuery.countInInventory(bot, Items.OAK_PLANKS) == 0,
                 "product+" + (s3After - s3Before) + " " + r3.describe());
 
-        // ④ 缺料 ⇒ 如实失败 + 背包逐槽无变化
+        // ④ 缺料 ⇒ **查询层**如实拒绝 + 背包逐槽无变化
+        //    （注意：缺料在 A1 查询就挡住了，动作层根本不会被调用 ⇒ 这里断言的是查询层拒绝码；
+        //     动作层自己的清理路径由 ⑤ 直接调用原语来验。）
         reset();
         List<ItemStack> before = snapshot();
         var r4 = craftFirst("minecraft:stick", 4);
         boolean unchanged = sameInventory(before, snapshot());
-        check("missing_ingredient_honest",
-                !r4.ok() && InventoryCraft.Codes.MISSING_INGREDIENT.equals(r4.code()) && unchanged,
+        boolean refusedHonestly = !r4.ok()
+                && ("query_" + RecipeQuery.Verdict.MISSING_INGREDIENTS).equals(r4.code());
+        check("query_refuses_when_short", refusedHonestly && unchanged,
                 "code=" + r4.code() + " inventoryUnchanged=" + unchanged);
+
+        // ⑤ **动作层的失败清理**（真验）：只给煤、不给木棍 ⇒ 摆料摆到一半必然缺料 ⇒
+        //    已摆进网格的煤**必须被收回背包**（网格不留半成品、材料不丢）。
+        reset();
+        give(Items.COAL, 1);
+        var torchRecipe = bot.getServer().getRecipeManager()
+                .byKey(net.minecraft.resources.ResourceLocation.tryParse("minecraft:torch")).orElse(null);
+        boolean cleanupOk = false;
+        String cleanupDetail = "no_recipe";
+        if (torchRecipe != null) {
+            var r5 = InventoryCraft.craft(bot, bot.containerMenu, torchRecipe, 1);
+            boolean gridEmptyAfter = true;
+            for (int cell = 0; cell < 4; cell++) {
+                gridEmptyAfter &= bot.containerMenu.getSlot(1 + cell).getItem().isEmpty();
+            }
+            int coalLeft = RecipeQuery.countInInventory(bot, Items.COAL);
+            cleanupOk = !r5.ok() && InventoryCraft.Codes.MISSING_INGREDIENT.equals(r5.code())
+                    && gridEmptyAfter && coalLeft == 1;
+            cleanupDetail = "code=" + r5.code() + " gridEmpty=" + gridEmptyAfter
+                    + " coalLeft=" + coalLeft;
+        }
+        check("action_cleanup_on_partial", cleanupOk, cleanupDetail);
 
         // ⑤ 网格清空（不留半成品）
         boolean gridEmpty = true;

@@ -7206,3 +7206,27 @@ no_recipe=FAIL          MACHINE_RECIPE_UNSUPPORTED target=minecraft:cobblestone
 
 **边界**：A2 **零世界写入**（不放置工作台）；3×3/熔炉仍是 A3/A4；未接决策层（A5）。
 **状态**：`IMPLEMENTED` + `COMPILES` + 资源自检 PASS。**未验证**：客户端（判据：`[CraftActionCheck] SUMMARY … verdict=PASS`）。
+
+#### D-186 附注一：首次客户端实测 —— **功能全对，两条用例期望写错**（含"看起来什么都没发生"的解释）
+
+**实测（15:44，1 tick 跑完）**：
+```
+menu_is_inventory=PASS  menu=InventoryMenu
+craft_sticks=PASS       product+4 material-2   OK crafts=1 produced=4  consumed=[stick+4]
+craft_table=PASS        product+1              OK crafts=1 produced=1  consumed=[crafting_table+1]
+craft_multi=PASS        product+8              OK crafts=2 produced=8  consumed=[stick+4, stick+4]   ← 两轮真产出
+missing_ingredient_honest=FAIL  code=query_MISSING_INGREDIENTS inventoryUnchanged=true
+grid_clean=PASS         slots1..4Empty=true
+```
+⇒ **菜单协议的 2×2 合成真的成立了**（真消耗真产物、多轮也对），网格也不留残料。
+
+**失败原因（又是我方期望，不是功能）**：缺料在 **A1 查询层**就被挡住（`query_MISSING_INGREDIENTS`），
+动作层根本没被调用；而我的断言写的是**动作层**的码 `missing_ingredient` ⇒ 假失败。
+**修**：拆成两条 —— `query_refuses_when_short`（断言查询层拒绝 + 背包逐槽不变）与
+**`action_cleanup_on_partial`（真验动作层清理）**：只给煤不给木棍，**直接调原语**合火把 ⇒
+摆料摆到一半缺料 ⇒ 必须 `missing_ingredient`，且**已摆进网格的煤被收回背包、网格四格皆空**。
+
+**"貌似失败了？没有什么事发生"的正确解释（给用户的）**：这套自检**在服务端瞬时完成、且不改变世界**
+（只在 bot 自己的随身网格里点菜单、产物进 bot 背包），所以玩家侧**没有任何可见动作/动画/掉落物**；
+唯一可见证据是**聊天里那行 `[CraftActionCheck] SUMMARY …`** 与日志。
+想"看见"它：用 bot 背包 GUI（`alice:interface_scanner` 那条路线）或看聊天行；`[CraftActionCheck]` 逐条也会打进日志。
