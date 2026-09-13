@@ -59,9 +59,24 @@ public class CraftGridProbeTask implements Task {
     private MenuSession session;
     private AbstractContainerMenu menu;
 
+    /** 期望的网格尺寸（>0 时**硬断言**；供电池做"通用发现器"的回归用）。 */
+    private final int expectedWidth;
+    private final int expectedHeight;
+
     public CraftGridProbeTask(BotPlayer bot, ServerPlayer observer) {
+        this(bot, observer, 0, 0);
+    }
+
+    /**
+     * @param expectedWidth  期望网格宽（>0 ⇒ 加 `grid_found` 与 `grid_matches_expected` 两条**硬断言**）；
+     *                       0 = 纯探针（只报事实、不判对错，独立物品入口用这个）
+     * @param expectedHeight 期望网格高
+     */
+    public CraftGridProbeTask(BotPlayer bot, ServerPlayer observer, int expectedWidth, int expectedHeight) {
         this.bot = bot;
         this.observer = observer;
+        this.expectedWidth = expectedWidth;
+        this.expectedHeight = expectedHeight;
     }
 
     /**
@@ -200,6 +215,14 @@ public class CraftGridProbeTask implements Task {
         record("discover", discovery.describe());
         record("grid_found", String.valueOf(discovery.ok()));
         BotLog.info("[CraftGridProbe] discover={}", discovery.describe());
+        if (expectedWidth > 0) {
+            // 回归用硬断言：通用发现器必须认出**预期尺寸**的网格（认不出或认错都算失败）
+            check("grid_found_expected", discovery.ok(), discovery.describe());
+            check("grid_matches_expected", discovery.ok() && discovery.spec().width() == expectedWidth
+                            && discovery.spec().height() == expectedHeight,
+                    "expected=" + expectedWidth + "x" + expectedHeight + " got="
+                            + (discovery.ok() ? discovery.spec().width() + "x" + discovery.spec().height() : "-"));
+        }
 
         // 全槽位事实表（含 x,y 与 active）——"点开标签页才显示"到底是不是渲染层，看这张表
         List<GridDiscovery.SlotInfo> slots = GridDiscovery.describeSlots(menu);

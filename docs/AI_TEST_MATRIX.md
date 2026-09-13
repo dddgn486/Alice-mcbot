@@ -29,7 +29,7 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 
 | 能力 | 零参数入口 | 关键判据 | 等级 |
 |---|---|---|---|
-| **串联回归电池**（27 项，★首选） | `alice:regression_battery` 右键 | `SUMMARY … (27/27) → PASS` + `K4=OK(…)` | `WINDOWS_CLIENT`（26/26 时 `ticks=3507`；本轮 +`craft_station` 步 ⇒ **待复测**） |
+| **串联回归电池**（30 项，★首选） | `alice:regression_battery` 右键 | `SUMMARY … (30/30) → PASS` + `K4=OK(…)`；SKIP 会写明（例如未装模组时的 `craft_probe_upgradetab=SKIP`） | `WINDOWS_CLIENT`（26/26 时 `ticks=3507`；本轮 +`craft_station`/`craft_probe_*` 四步 ⇒ **待复测**） |
 | 挖掘回归（11 用例） | 电池 `mine_regression` / `alice:mine_regression` | `SUMMARY free=PASS … scope_reopen_keeps_drops=PASS`；`dropsLeft` 只数本用例新增（D-168） | `WINDOWS_CLIENT`（11/11） |
 | **K-4 谓词一致性** | 电池 SUMMARY 的 `K4=` 段；`alice:bot_report` 的"目标准入（K-4 累计）"行 | 真异常 0；写入类例外仅计数 | `WINDOWS_CLIENT`（收口：不引硬拒） |
 | K-1 部分计划 | 电池 `partial_search` / `alice:partial_search_check` | `partial_with_prefix=PASS … verdict=PASS` | `WINDOWS_CLIENT`（电池内 PASS） |

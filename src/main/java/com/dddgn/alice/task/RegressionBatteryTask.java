@@ -38,7 +38,7 @@ import java.util.function.Supplier;
 public final class RegressionBatteryTask implements Task {
 
     /** 总兜底预算（各项预算之和 + 余量）；典型实跑约 5000~7500 tick（4~6 分钟，含决策层事件窗口 300 tick）。 */
-    private static final int TOTAL_BUDGET_TICKS = 20000;
+    private static final int TOTAL_BUDGET_TICKS = 21000;
 
     /** 与 `MineJobItem` 对齐的挖掘 Job 配额。 */
     private static final int MINE_QUOTA = 4;
@@ -50,13 +50,26 @@ public final class RegressionBatteryTask implements Task {
      */
     private record Step(String name, List<String> scenes, Runnable provision,
                         Supplier<Task> factory, int budgetTicks,
-                        java.util.function.Predicate<Task> doneWhen) {
+                        java.util.function.Predicate<Task> doneWhen,
+                        java.util.function.Predicate<Task> skipWhen) {
     }
 
     /** 常规步骤（跑完看终态）。 */
     private static Step step(String name, List<String> scenes, Runnable provision,
                              Supplier<Task> factory, int budgetTicks) {
-        return new Step(name, scenes, provision, factory, budgetTicks, null);
+        return new Step(name, scenes, provision, factory, budgetTicks, null, null);
+    }
+
+    /**
+     * **可跳过**的步骤：任务失败但 `skipWhen` 成立时记 `SKIP`（**不算失败**）。
+     *
+     * <p>用途：**依赖模组**的站点/地形在没装模组的客户端上必然不可用 —— 那种"环境不具备"
+     * 不该把整轮电池判红（同时 `SKIP` 会明写在 SUMMARY 的字段列表里，不是静默放过）。
+     */
+    private static Step stepSkippable(String name, List<String> scenes, Runnable provision,
+                                      Supplier<Task> factory, int budgetTicks,
+                                      java.util.function.Predicate<Task> skipWhen) {
+        return new Step(name, scenes, provision, factory, budgetTicks, null, skipWhen);
     }
 
     private final BotPlayer bot;
@@ -180,7 +193,7 @@ public final class RegressionBatteryTask implements Task {
                 2000,
                 // 常驻任务：砍到 ≥1 棵且补种 ≥1 棵即算本步通过（之后它会继续巡查等苗长大）
                 task -> task instanceof com.dddgn.alice.job.lumber.RegionLumberJob region
-                        && region.treesChopped() >= 1 && region.plantedSomething()));
+                        && region.treesChopped() >= 1 && region.plantedSomething(), null));
         // ==================== 决策层判据（基-2 / D-149）====================
         // 契约类断言：纯逻辑、不改世界、不调 LLM ⇒ 便宜且确定，任何改动都跑得到
         steps.add(step("decision_contract",
@@ -208,6 +221,27 @@ public final class RegressionBatteryTask implements Task {
         steps.add(step("craft_station", List.of("alice_test:craft_station_course"),
                 () -> teleportBot(com.dddgn.alice.task.CraftTableCheckTask.START),
                 () -> new com.dddgn.alice.task.CraftStationCheckTask(bot, observer), 2600));
+        // 阶段 3-A / S1-3（D-192）：**通用网格发现**的回归三连 ——
+        // ① 随身 2×2（Auto⇒inventory）② 原版工作台 3×3（零模组依赖）③ 模组"升级页签"（不可用则 SKIP）
+        steps.add(step("craft_probe_inventory", List.of(),
+                () -> {
+                    teleportBot(com.dddgn.alice.task.CraftGridProbeTask.START);
+                    com.dddgn.alice.task.craft.CraftStation.select(bot, "inventory");
+                },
+                () -> new com.dddgn.alice.task.CraftGridProbeTask(bot, observer, 2, 2), 300));
+        steps.add(step("craft_probe_table", List.of("alice_test:craft_table_course"),
+                () -> {
+                    teleportBot(com.dddgn.alice.task.CraftGridProbeTask.START);
+                    com.dddgn.alice.task.craft.CraftStation.select(bot, "table");
+                },
+                () -> new com.dddgn.alice.task.CraftGridProbeTask(bot, observer, 3, 3), 300));
+        steps.add(stepSkippable("craft_probe_upgradetab", List.of("alice_test:craft_tab_course"),
+                () -> {
+                    teleportBot(com.dddgn.alice.task.CraftGridProbeTask.START);
+                    com.dddgn.alice.task.craft.CraftStation.select(bot, "upgradetab");
+                },
+                () -> new com.dddgn.alice.task.CraftGridProbeTask(bot, observer), 400,
+                task -> task.failureReason().contains("station_opened")));
         // 基-7：前缀搜索（K-1：预算耗尽交出前缀；真失败不给前缀）
         // R2：传输模块（4 个夹具：主流程/端点选择/选择器事件/命令解析）
         // K-3 安全点停止（D-169）**故意不进电池**：它的判据是"**顶层任务**被延后停止"，
@@ -326,9 +360,15 @@ public final class RegressionBatteryTask implements Task {
             idemNote = "（再 tick 抛 " + throwable + "）";
             BotLog.warn("[Regression] step={} 终态幂等被破坏：再 tick 抛异常", currentStepName(), throwable);
         }
-        record(steps.get(index).name(), (status == Status.DONE && idempotent) ? "PASS" : "FAIL",
+        // **可跳过的步骤**：失败但"环境不具备"（例如没装对应模组）⇒ 记 SKIP，不判红
+        var skipWhen = steps.get(index).skipWhen();
+        boolean skipped = status != Status.DONE && idempotent
+                && skipWhen != null && skipWhen.test(current);
+        record(steps.get(index).name(),
+                skipped ? "SKIP" : ((status == Status.DONE && idempotent) ? "PASS" : "FAIL"),
                 "ticks=" + stepTicks
                         + (status == Status.DONE ? "" : " reason=" + safe(current.failureReason()))
+                        + (skipped ? "（环境不具备 ⇒ 跳过，不算失败）" : "")
                         + " idempotent=" + idempotent + idemNote);
         endStep();
         return Status.RUNNING;
@@ -369,6 +409,8 @@ public final class RegressionBatteryTask implements Task {
         var pending = com.dddgn.alice.ledger.WorldModLedger.pendingTemporary(
                 bot.getServer(), closed);
         scope.end();
+        // **站点选择不跨步泄漏**：电池是自检串联，谁设的谁收（下一步回到 auto = 现状顺序）
+        com.dddgn.alice.task.craft.CraftStation.select(bot, "auto");
         if (!pending.isEmpty()) {
             BotLog.warn("[Regression] step={} 收尾仍有 {} 条我方临时放置未拆（建拆同权未闭合）",
                     currentStepName(), pending.size());
@@ -403,7 +445,8 @@ public final class RegressionBatteryTask implements Task {
                             + " final_segment_target_not_standable={}（可站谓词不统一的实测证据）",
                     goalBad, finalBad);
         }
-        boolean allPass = pass == expected && results.size() == expected && k4Ok;
+        long skipped = results.values().stream().filter("SKIP"::equals).count();
+        boolean allPass = (pass + skipped) == expected && results.size() == expected && k4Ok;
         StringBuilder line = new StringBuilder();
         for (Step step : steps) {
             if (!line.isEmpty()) {
@@ -416,8 +459,9 @@ public final class RegressionBatteryTask implements Task {
                 ? "OK(goal_not_standable=0 final_segment_not_standable=0 写入类例外=" + postWrite + ")"
                 : "VIOLATION(goal_not_standable=" + goalBad
                         + " final_segment_not_standable=" + finalBad + ")");
-        BotLog.info("[Regression] SUMMARY {} ({}/{}) ticks={} → {}",
-                line, pass, expected, ticks, allPass ? "PASS" : "FAIL");
+        BotLog.info("[Regression] SUMMARY {} ({}/{}{}) ticks={} → {}",
+                line, pass + skipped, expected,
+                skipped > 0 ? "，其中 SKIP=" + skipped : "", ticks, allPass ? "PASS" : "FAIL");
         return allPass ? Status.DONE : Status.FAILED;
     }
 

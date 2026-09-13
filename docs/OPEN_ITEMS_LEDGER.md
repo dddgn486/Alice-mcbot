@@ -516,3 +516,14 @@ A1 判据（零参数 `alice:craft_check`）：正例给工作站+材料清单�
 - 修：按**类型**找矩阵（结果槽字段/无参方法），并给 `scan` 增加"按类型收集可达 `CraftingContainer`"兜底；
   诊断读物品名改**编译期调用**。`note` 增 `matrixCandidates=`。
 - **待测**：`matrixBy=resultSlotFieldByType`、`gridBy=?`、`grid=3x3 slots=[64..72] result=73`。
+
+**§6.26 D-192 第八轮：探针入电池（串联三连）+ SKIP 语义**（2026-09-13）
+- 电池 27 → **30 项**，新增三步（一步右键全跑）：
+  - `craft_probe_inventory`：`station=inventory` + **期望 2×2 硬断言**（回归：通用发现器在原版随身菜单上不变）；
+  - `craft_probe_table`：`station=table` + **期望 3×3 硬断言**（回归：原版工作台；**零模组依赖**）；
+  - `craft_probe_upgradetab`：模组站点；**模组不在 ⇒ `station_opened=false` ⇒ SKIP（不判红）**；
+    本轮它是"**探测路径**跑通 + 事实如实 + 零写入"的 PASS（升级未装时如实 `grid_found=false`）——
+    **3×3 硬断言要等 L2 装配层落地**（届时换 `new CraftGridProbeTask(bot, observer, 3, 3)`）。
+- 电池基础设施：`Step` 增 `skipWhen`（+ `stepSkippable` 工厂）、SUMMARY **SKIP 计入绿**（会写明 `SKIP=n`）、
+  `endStep()` **复位站点选择**（自检串联不许把"我选了哪个站"泄漏给下一步）。
+- 探针新增期望断言（`grid_found_expected` / `grid_matches_expected`）供回归用；独立物品入口仍是纯事实探针。

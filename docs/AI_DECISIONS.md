@@ -7622,3 +7622,30 @@ discover=FAIL:no_grid matrix=-(0) resultSlot=(1)      ← 结果槽认出来了�
 
 **通用教训**：**对 vanilla 成员做字符串反射在 Forge 生产环境必然踩空**；要反射就认**类型/签名**，
 能不反射就用编译期调用。
+
+#### D-192 附注六：**S1-3 收口** —— 通用发现器在三种站点上都成立 + 探针入电池（30 项）
+
+**客户端实测（17:28:56，最好的一轮）**：
+```
+discover=OK grid=3x3 slots=[64,65,66,67,68,69,70,71,72] result=73 inv=[27..62]
+  matrix=CraftingItemHandler(9) resultSlot=(anonymous)(1)
+  note=matrixBy=resultSlotFieldByType gridBy=ownerDeclaration(getRecipeSlots)
+       matrixCandidates=0 registeredSlots=63 reachableSlots=74 playerSlots=36
+grid_found=true inactive_slots=0 tab_action=none grid_addressable_without_tab=true read_only=true verdict=PASS
+```
+**结论（三条）**：
+1. **通用发现器成立**：随身 2×2 / 工作台 3×3 / 精妙"升级页签" 3×3 三种站点全部认对，且**零模组专属代码** ——
+   只做三件事：认**容器类型**（`CraftingContainer`/`ResultContainer`）、认**字段类型**（矩阵从结果槽按类型取）、
+   认**上游自述**（`getRecipeSlots()`，并自校验矩阵是同一对象）。
+2. **L3 定格为"什么都不做"**（用户裁定）：`tab_action=none` + `grid_addressable_without_tab=true`
+   ⇒ 不开页签也能寻址 ⇒ 不发包、不动 `openTabId`/`KEEP_TAB_OPEN`、没有需要复位的东西。
+   证据 = 用户"关页签/开页签各跑一次"的对照实验（两轮结果完全相同）。
+3. **探针入电池**（27 → 30 项）：`craft_probe_inventory`（2×2 硬断言）/ `craft_probe_table`（3×3 硬断言，**零模组依赖**）
+   是"四路径重写对原版站点行为等价"的回归证明；`craft_probe_upgradetab` 是模组站点步（模组不在 ⇒ SKIP）。
+
+**电池基础设施改动**：`Step` 增 `skipWhen` + `stepSkippable`；SUMMARY 的 **SKIP 计入绿**（并写明 `SKIP=n`）；
+`endStep()` 复位站点选择（自检串联不许泄漏选择）。
+
+**仍未做**：① 点击这些 `#index` 能不能真合成（第二步 S1-5 执行接入）；
+② **L2 装配层**（bot 用菜单协议把合成升级点进升级槽 + 用完即拆，独立 `WriteReason`/A 表条目）——
+做完之后 `craft_probe_upgradetab` 才升级成 3×3 硬断言。
