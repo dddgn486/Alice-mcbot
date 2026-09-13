@@ -8021,3 +8021,60 @@ pickup_gate / collect_job / recipes_dump / event_thresholds）。
 3. 日志新增 `[Furnace] 认出炉子 by=… assignBy=…`（**用了哪条路径、怎么分的格**永远可见）。
 
 **等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `c94a2ee9…`）。**待客户端**复测。
+
+#### D-198 附注二：A4b 真因 = **自述者在宿主"下面一层"**（遍历深度，不是判据形态）
+
+**客户端事实**（19:02 `[FurnaceDiag]`）：`menuSlots=63`、`reachableObjects=167`，其中
+`obj=CookingUpgradeContainer methods=[getSmeltingLogicContainer]` **看得见**；槽位表里 3 格烹饪槽**确实可达**
+（`#64` 收圆石不收煤 = 输入、`#65` 收煤不收圆石 = 燃料、`#66` 两样都不收 = 输出，全部**未登记在 `menu.slots`**）；
+但 `discover=FAIL:no_furnace_slots` 且**没有 `[Furnace] 认出炉子 by=…`**。
+
+**真因（字节码核对，不是推测）**：`CookingUpgradeContainer.<init>` =
+`new CookingLogicContainer<>(player, supplyFromWrapper(w -> w.getCookingLogic()), slots::add)`。
+自述者（`CookingLogicContainer.getCookingSlots()` 恰好 3 格，且自带 `getCookTimeTotal/getBurnTimeTotal/isCooking`）
+是宿主的**私有字段** ⇒ 比"菜单 → 字段 → 字段"的 2 层上限**深一层**：**宿主可见、自述者不可见**。
+⇒ 症状是"连对象都没找到"，而不是"找到但判据不成立"。
+
+**修法（与 D-192 的"到哪一层去问"同一课）**：候选集只对**槽位宿主**（`GridDiscovery.Scan.owners()` = 产出过槽位的上游容器）
+**再展开一层字段**，并**自校验**才采用（`getCookingSlots()` 必须给出恰好 3 个 `Slot`）。
+**不做全局加深**：世界对象（`ServerLevel`/`ServerPlayer`）也在这个图里，加深会把遍历炸开；而宿主是上游容器对象，展开是安全的。
+输入/燃料/输出**照旧由 `mayPlace` 行为判定**，不采信自述顺序。
+
+**顺带补证一条既有事实的机制**（D-192 附注三"点击地址用 `slot.index`"）：上游 `StorageContainerMenuBase`
+重写了 `doClick`：`slotId >= getTotalSlotsNumber()`（= `menu.slots.size()` + **`upgradeSlots.size()`**，页签槽位挂在 `upgradeSlots` 里）
+才丢弃，其余用**被重写的 `getSlot(int)`** 解析（`getSlot(i≥slots.size())` → `upgradeSlots.get(i - slots.size())`）
+⇒ 页签槽位地址（本次 `64..66`；C 那次 `64..73`）**合法**且落到正确槽位上。这就是 C 能用 `menu.clicked` 真合成的原因。
+
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `502ec5f2…`）。**待客户端**：`alice:craft_cooking_check` + CORE（应 24/24）。
+
+#### D-198 附注三：A4b 能力已验证 ✓；**夹具相位函数"要跨 tick 就必须换相位"**（新纪律）
+
+**能力结论（客户端世界事实，19:39:55–19:40:05）**：`provision_verified=true`（路径③ 自述槽位 + `mayPlace` 分格）、
+`input_and_fuel_placed=true`、`smelted=true product+1`、`input_consumed=true input-1`、`no_half_products=true`
+⇒ **精妙"熔炼升级页签"型炉子：能装、能放料、能真烧、能取走、炉内不留东西**。A4b 到此收口。
+
+**新缺陷（夹具控制流，与能力无关；用户报"一直开关箱子开关个不停"）**：
+`cleanupFurnace()` 是**每 tick 被调用的相位处理函数**，而 A4b 收尾要跨多 tick（开菜单 → 等 OPEN → 取回升级）。
+原先它 `closeSession(...)` 后把活交给 `deprovisionAndFinish()` 却**不换相位** ⇒ 下一 tick 又进 `cleanupFurnace()`
+把刚开的菜单关掉 ⇒ `closed(furnace_cleanup)` ↔ `use_item_on` 每 ~50ms 一对，永远收敛不了，SUMMARY 从不打印。
+
+**纪律（本轮教训，写进交接）**：**相位处理函数里凡是要"跨 tick 等状态"的分支，必须 `advance(下一个相位)`；
+在同一相位里做"关菜单 + 再开菜单"＝每 tick 互相抵消的活锁。** 同理：相位函数要么**幂等可重入**（每 tick 跑一次也收敛），
+要么**只跑一次**（换相位）。`provision()` 当初就是这么做的（`provisionAttempted` + `phase = OPEN`），cleanup 漏了。
+
+**顺带修的噪声**：夹具每 tick 调发现器 ⇒ 383 行 `[Furnace] 认出炉子`（改为每 40 tick）；
+cleanup 在菜单已关时对玩家背包菜单跑发现器 + 拿旧地址点击抛 `ReportedException`（加菜单守卫，如实记 `cleanup_station_open=false`）。
+
+**等级**：能力 = **WINDOWS_CLIENT 已验证**；夹具修复 = IMPLEMENTED + COMPILES，**待客户端复测**（jar 见交接文档）。
+
+#### D-198 附注四：A4b **收口**（客户端 PASS + CORE 24/24）
+
+`alice:craft_cooking_check` 单跑 `verdict=PASS`（`smelt_ticks=207`、`product_delta=1`、`cobblestone_delta=-1`、
+`input_left=0 fuel_left=0 output_left=0`、`leftovers_returned` 三项全 true、`deprovision_moved=true`、
+`upgrade_returned=true`、`no_block_writes=true`）；CORE 电池 `(24/24) ticks=2809 → PASS`（含 `craft_cooking=PASS`
+与 `craft_furnace=PASS` 回归）。附注三的死循环在同轮复测中不再出现（`furnace_cleanup` 3 次、`ReportedException` 0 次）。
+
+**A4b 的完整教训（三条，已各自落到代码/文档）**：
+1. **判据别只看形态**：上游把 3 格分挂在**各自的物品处理器**上 ⇒"同一容器恰好 3 格"必然认不出，改问**上游自述**（`getCookingSlots()`）；
+2. **"找不到对象"先怀疑遍历深度**：自述者在宿主的**私有字段**里（比 2 层上限深一层）⇒ 只对**槽位宿主**扩一层，不全局加深；
+3. **相位函数要么幂等、要么换相位**：跨 tick 的分支留在原相位 = 每 tick 互相抵消的活锁（关菜单 ↔ 开菜单）。

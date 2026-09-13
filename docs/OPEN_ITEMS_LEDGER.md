@@ -610,3 +610,61 @@ jar `3312608d…`。
 **§6.39 D-198 附注一（A4b 首测失败→已修）**：装配成功但 `no_furnace_slots` —— 模组烹饪页签的 3 格**不在同一个容器**上。
 修：`FurnaceStation` 加**路径 ③ 上游自述** `getCookingSlots()`（恰好 3 个 Slot）+ **`mayPlace` 行为探针**判定
 输入/燃料/输出（结果槽两样都不收、燃料槽收煤不收圆石、输入槽收圆石），并打印 `by=`/`assignBy=`。jar `c94a2ee9…`。
+
+**§6.40 D-198 附注二（A4b 第二轮实测：真因 = 自述者在宿主"下面一层"，已修）**（2026-09-13，客户端 19:02）
+- **客户端事实**（`[FurnaceDiag]`，装配成功、菜单重开后的那一次发现）：
+  - `menu=…sophisticatedstorage…StorageContainerMenu menuSlots=63`、`reachableObjects=167`；
+  - `obj=CookingUpgradeContainer methods=[getSmeltingLogicContainer]` ⇒ **宿主看得见**；
+  - 槽位表：`#63 (anon)/SimpleContainer containerSlot=0 item=1xsmelting_upgrade`（存储的升级槽，**未登记**）、
+    `#64 SlotSuppliedHandler/… containerSlot=0 mayPlace[coal=false cobble=true]`（=输入）、
+    `#65 SlotSuppliedHandler/… containerSlot=1 mayPlace[coal=true cobble=false]`（=燃料）、
+    `#66 (anon)/… containerSlot=2 mayPlace[coal=false cobble=false]`（=输出）⇒ **3 格烹饪槽确实可达、形态完美**；
+  - `discover=FAIL:no_furnace_slots` 且 **没有 `[Furnace] 认出炉子 by=…`** ⇒ 路径 ③ 的候选里**没有自述者**。
+- **真因（字节码核对）**：`CookingUpgradeContainer.<init>` = `cookingLogicContainer = new CookingLogicContainer<>(player,
+  supplyFromWrapper(w -> w.getCookingLogic()), slots::add)` —— 自述者（`CookingLogicContainer`：`getCookingSlots()` 恰好 3 格 +
+  `getCookTimeTotal/getBurnTimeTotal/isCooking`）是宿主的一个**私有字段**，比 2 层遍历上限**深一层** ⇒
+  **看见宿主、看不见自述者**（不是"没有这个对象"，也不是"格子数不对"）。修：候选集对**槽位宿主**
+  （`GridDiscovery.Scan.owners()`，即产出过槽位的上游容器）**再展开一层字段**，并**自校验**采用
+  （`getCookingSlots()` 必须给出恰好 3 个 `Slot`）；**不做全局加深**（免得把 `ServerLevel` 那类世界对象翻进去）。
+- **判据顺序不变**：路径 ①（同一容器恰好 3 格）→ 路径 ③（自述 3 格）；输入/燃料/输出**仍由 `mayPlace` 行为判定**，
+  不采信自述顺序；进度证据 = `ContainerData`（原版）或自述方法族（模组）。
+- **动作路径补证（为什么 64/65/66 点得动）**：上游 `StorageContainerMenuBase` 重写了 `doClick`：
+  先 `if (slotId >= getTotalSlotsNumber()) return;`（`getTotalSlotsNumber()` = `menu.slots.size()` + **`upgradeSlots.size()`**，
+  页签槽位就挂在 `upgradeSlots` 里），然后用**被重写的 `getSlot(int)`** 解析（`getSlot(i≥slots.size())` → `upgradeSlots.get(i-slots.size())`）。
+  ⇒ 地址 `64..66` 合法且落到那 3 格上 —— 与 C（合成页签）实测能点 `64..73` 真合成是**同一机制**。
+- jar `dcb45b76…`（当时同步的工件；已修，当轮客户端即验证能力通过）；**待客户端**：`alice:craft_cooking_check` + CORE 电池（应 24/24）。
+
+**§6.41 A4b 能力客户端已验证 ✓ + 新缺陷（夹具 CLEANUP 自我重入）已修**（2026-09-13 第二轮：能力证据来自 jar `dcb45b76…` 的那次实测；夹具修复在 jar `502ec5f2…`，已同步）
+- **能力通过（世界事实，19:39:55–19:40:05）**：
+  - `[Furnace] 认出炉子 by=ownerDeclaration(getCookingSlots) assignBy=mayPlaceProbe input=#64 fuel=#65 output=#66
+    container=SimpleContainer data=CookingLogicContainer(selfReported)` ⇒ **路径③ 修好了**（§6.40）；
+  - `provision_verified=true`、`input_and_fuel_placed=true input=true fuel=true` ⇒ 装升级 + 往页签槽放料**都生效**；
+  - `smelted=true product+1`、`input_consumed=true input-1`、`no_half_products=true inputLeft=0 outputLeft=0`
+    ⇒ **沙子真被烧成玻璃、料真被消耗、炉内不留东西**（`litTime=1600` 证明真的在烧）。**A4b 能力 = 客户端已验证**。
+- **新缺陷（夹具，不是能力；用户报"一直开关箱子开关个不停"）**：`[Menu] closed reason=furnace_cleanup type=-` ↔
+  `[Menu] use_item_on … result=CONSUME` **每 ~50ms 一对、无限循环**，SUMMARY 从未打印。
+  **根因（控制流，确定性）**：`cleanupFurnace()` 是**每 tick 都被调用的相位处理函数**；A4b 分支里它
+  `closeSession(...)` 之后把活交给需要**多 tick** 的 `deprovisionAndFinish()`（开菜单→等 OPEN→取回升级），
+  但**相位仍停在 CLEANUP** ⇒ 下一 tick 又跑 `cleanupFurnace()`、把刚开的菜单关掉 ⇒ 永不收敛。
+  （A4 方块炉没这问题：它一 tick 内 `setblock`+`finish()` 就完了。）
+- **修（夹具层，最小）**：① 新增独立相位 `DEPROVISION`（`deprovisionAndFinish` → `deprovision`），
+  `cleanupFurnace()` 一律 `advance(Phase.DEPROVISION)` 换相位，**CLEANUP 只走一次**；
+  ② cleanup 加**菜单守卫**（只剩玩家自带 `InventoryMenu` 时不再跑发现器、不再拿旧地址点击 —— 原先会打 150 行 diag +
+  3 次 `ReportedException`）；③ `waitSmelt()` 里发现器从**每 tick** 改成**每 40 tick**（原来刷了 **383 行**
+  `[Furnace] 认出炉子`，把真正要看的行淹了）。
+- **等级**：IMPLEMENTED + COMPILES；**待客户端**：`alice:craft_cooking_check`（这次应打出 SUMMARY，期望 PASS）+ CORE 电池（应 24/24）。
+
+**§6.42 A4b 收口 ✅（客户端 PASS，jar `502ec5f2…`）**（2026-09-13 第三轮，19:49 + 19:51）
+- **单跑 `alice:craft_cooking_check` = PASS**：
+  `discover=OK input=#64 fuel=#65 output=#66 container=SimpleContainer data=CookingLogicContainer(selfReported)`
+  `provision_verified=true input_placed=true fuel_placed=true input_and_fuel_placed=true smelt_ticks=207 output_taken=true`
+  `product_delta=1 cobblestone_delta=-1 input_left=0 fuel_left=0 output_left=0 smelted=true input_consumed=true`
+  `no_half_products=true burn_left_ticks_before_reset=1600 cleanup_station_open=true`
+  `leftovers_returned=fuel=true input=true output=true deprovision_moved=true upgrade_returned=true`
+  `no_block_writes=true verdict=PASS`（19:49:00→19:49:11，约 11 秒）
+- **死循环已消失**（对照 §6.41）：`reason=furnace_cleanup` 全程 **3 次**（两个 A4b 跑 + 一个 A4 方块炉跑，各一次）、
+  `ReportedException` **0 次**、`[Furnace] 认出炉子` 从 383 行降到 **23 行**（= 24 步电池各一两次）。
+- **CORE 电池 = `(24/24) ticks=2809 → PASS`**，逐项含 **`craft_cooking=PASS`**（与单跑同样的 SUMMARY）、
+  `craft_furnace=PASS`（原版方块炉回归无变化，`input=#0 fuel=#1 output=#2`）；
+  `PROFILE=CORE baseline=13 main=11 extra_skipped=10`、无 SKIP/FAIL、无崩溃。
+- ⇒ **A4b（菜单型炉子 / 精妙"熔炼升级页签"）收口**；阶段 3-A 只剩 **A5 决策层接线**。

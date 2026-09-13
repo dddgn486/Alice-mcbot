@@ -7,7 +7,7 @@
 ## 1. 主线与目标
 
 - **长期目标**：完全参照 Baritone 搭建寻路内核（差异仅三条：可回收性安全策略 / 多层任务失败向上传递 / 未来并行 Bot 接口）。
-- **当前主线（阶段 3-A）**：把"合成/熔炼"接进任务层 —— 已完成 A1–A4b 的大部分；**A4b 卡在最后一步**，之后是 **A5 决策层接线**。
+- **当前主线（阶段 3-A）**：把"合成/熔炼"接进任务层 —— **A1–A4b 全部完成并客户端验证**；**下一步 = A5 决策层接线**。
 - 用户裁定（本阶段）：**不硬编码合成方式**；工作站**由玩家切换、不自动选优**；**装升级=配置行为（独立一层）**；
   **页签层**：实测"开与不开无差别"⇒ **什么都不做**；电池**只测必要基础 + 当前主线，AI 负责维护**。
 
@@ -24,37 +24,46 @@
 | A 装配层（L2） | `alice:craft_station_provision_check`：`provision_verified=true`、`deprovision_verified=true`、`item_returned=true`、`no_block_writes=true` |
 | C 模组站点真合成 | `alice:craft_station_craft_check`：消耗 8 圆石 / 产物 1、**产物进容器**、不自动补料、装→用→拆全绿 |
 | A4 熔炉（方块型） | `alice:craft_furnace_check`：`discover=OK input=#0 fuel=#1 output=#2 container=FurnaceBlockEntity`、`smelted=true`、`no_half_products=true`、**自复位**（`burnLeft=1398 → 重建方块=true`） |
-| 电池分档 | CORE **`(23/23) ticks=2616 → PASS`**（FULL 33 项 3527 ⇒ 短 26%） |
+| **A4b 菜单型炉子（精妙"熔炼升级页签"）** | `alice:craft_cooking_check`：`discover=OK input=#64 fuel=#65 output=#66 container=SimpleContainer data=CookingLogicContainer(selfReported)`、`smelt_ticks=207`、`smelted=true`、`input_consumed=true`、`no_half_products=true`、`leftovers_returned` 三项全 true、`deprovision_moved=true`、`upgrade_returned=true`、`verdict=PASS` |
+| 电池分档 | CORE **`(24/24) ticks=2809 → PASS`**（含 `craft_cooking=PASS`、`craft_furnace=PASS`；FULL 34 项） |
 
-## 3. 进行中：A4b（菜单型炉子 = 精妙"熔炼升级页签"）**卡住**
+## 3. A4b（菜单型炉子 = 精妙"熔炼升级页签"）—— **已收口 ✅**（能力 + 夹具双双客户端 PASS）
 
 **目标**：同一个精妙容器 + `sophisticatedstorage:smelting_upgrade` ⇒ 3 格烹饪槽，能放料/等烧/取产物，用完拆回。
 
-**已实现**：`FurnaceStation` 三条路径（① 同一容器恰好 3 格；② `ContainerData`；③ 可达对象自述 `getCookingSlots()`）、
-`mayPlace` 行为探针分配输入/燃料/输出、`CraftStation.COOKING_TAB`（站点=容器+哪种能力）、
-夹具复用 `CraftFurnaceCheckTask(upgradeTab=true)`、入口 `alice:craft_cooking_check`、电池 `craft_cooking`（MAIN）。
+**真因（19:02 客户端 diag + 字节码核对，已修）**：3 格烹饪槽**可达**（`#64` 输入 / `#65` 燃料 / `#66` 输出，
+`mayPlace` 形态完美，但**未登记在 `menu.slots`**），宿主 `CookingUpgradeContainer` 也**看得见**；
+卡的是**自述者 `CookingLogicContainer` 是宿主的私有字段** ⇒ 比 2 层遍历上限**深一层** ⇒
+"看见宿主、看不见自述者"（症状 = 连对象都没找到，`findCookingLogic` 返回 null）。
+**修**：候选集只对**槽位宿主**（`GridDiscovery.Scan.owners()`）**再展开一层字段** + 自校验
+（`getCookingSlots()` 必须给出恰好 3 个 `Slot`）；**不做全局加深**（`ServerLevel` 那类世界对象会把遍历炸开）。
+输入/燃料/输出仍由 `mayPlace` 行为判定。
 
-**卡点（两次失败）**：
-1. 第一次：`provision_verified=false FAIL:no_furnace_slots`（"恰好 3 格"不成立）；
-2. 第二次（加了路径③后）：**仍然 `no_furnace_slots`**，而且**新日志 `[Furnace] 认出炉子 by=…` 完全没有出现**
-   ⇒ **`findCookingLogic(...)` 返回 null**：那个"自述烹饪进度的对象"**根本没被我的可达对象遍历找到**
-   （不是找到但格子数不对）。装配本身是成功的（`[Provision] QUICK_MOVE 送出 smelting_upgrade fromSlot=56`）。
+**动作路径已补证**（为什么 `64/65/66` 点得动）：上游 `doClick` 只丢弃 `slotId >= getTotalSlotsNumber()`
+（= `menu.slots.size()` + **`upgradeSlots.size()`**），其余经**重写的 `getSlot(int)`** 解析到 `upgradeSlots`；
+与 C 能点 `64..73` 真合成是同一机制。
 
-**下一步（已把诊断代码装上，jar `bb56d945…`）**：
-1. 复测一次 `alice:craft_cooking_check`（会失败，无妨），取 **`[FurnaceDiag]`** 输出：
-   - `reachableObjects=N` 与每个 `obj=类名 methods=[…Cook…/…Burn…/…Logic…]` ⇒ 看对象在**哪一层**、**真实方法名**；
-   - `slot#地址 槽类/容器类 containerSlot=… mayPlace[coal=… cobble=…]` ⇒ 看那 3 格的真实形态。
-2. 同时读用户截图 `screenshots/2026-09-13_18.57.42.png`（熔炼页签的样子）。
-3. 依据这两份事实**一次改对判据**（候选方向：沿 `Supplier` 展开一层；或改用上游访问器
-   `getSmeltingLogicContainer()` / 直接问 `CookingUpgradeContainer`；或按槽位形态直接认 3 格）。
-4. 改完跑 `alice:craft_cooking_check` + CORE 电池（应 24/24）。
+**能力已在客户端跑通**（19:39:55–19:40:05）：`provision_verified=true`（`by=ownerDeclaration(getCookingSlots)`
+`assignBy=mayPlaceProbe input=#64 fuel=#65 output=#66`）、`input_and_fuel_placed=true`、`smelted=true product+1`、
+`input_consumed=true input-1`、`no_half_products=true` ⇒ 沙子→玻璃真的烧成了，炉内不留东西。
+
+**第二轮发现的新缺陷（夹具，与能力无关）**：`cleanupFurnace()` 不换相位就交接给跨 tick 的 `deprovisionAndFinish()`
+⇒ 每 tick 把刚开的菜单关掉 ⇒ **无限开关箱子**、SUMMARY 从不打印。修：独立 `DEPROVISION` 相位 + cleanup 只走一次 +
+菜单守卫 + `waitSmelt` 的发现器降到每 40 tick（原先刷 383 行）。
+
+**本轮要做的复测（jar `待同步` 已进客户端 mods）**：
+1. `alice:craft_cooking_check`（零参数物品/命令）⇒ 期望 `SUMMARY … discover=OK input=#64 fuel=#65 output=#66
+   by=ownerDeclaration(getCookingSlots) assignBy=mayPlaceProbe … provision_verified=true smelted=true
+   no_half_products=true no_block_writes=true verdict=PASS`；
+2. `alice:regression_battery`（CORE）⇒ 期望 `(24/24) → PASS`。
+3. 若第 1 步仍红：**先看 `[FurnaceDiag]` 里的 `slotOwners=` / `owner=… nested=[…] cookingSlots=3 progress=true`**
+   （新加的诊断行），再看是"没认出来"还是"认出来但点击/放料没生效"——**这两种要分开判**。
 
 ## 4. 待办队列
 
-1. **A4b 收口**（见上）。
-2. **A5 决策层接线**：`GoalAction.Craft`（词汇表 + 严格解析 + 把"可做路线/站点/缺料"作为**确定性事实**喂候选菜单，LLM 只选）；
+1. **A5 决策层接线**：`GoalAction.Craft`（词汇表 + 严格解析 + 把"可做路线/站点/缺料"作为**确定性事实**喂候选菜单，LLM 只选）；
    并按裁定接好"任务层失败向上传递"接口。
-3. 已登记未做：菜单型站点/背包型站点（精妙背包）复用同一套；Refined Storage 兼容（用户暂缓）。
+2. 已登记未做：菜单型站点/背包型站点（精妙背包）复用同一套；Refined Storage 兼容（用户暂缓）。
 
 ## 5. 关键入口与环境（复现用）
 
@@ -69,11 +78,14 @@
 - 电池：**CORE = BASELINE 13 + MAIN 11 = 24 项**（FULL 34）；配置唯一入口 `RegressionBatteryTask.CURATION`。
 - 模组（客户端 mods/）：alice、JEI、OreExcavation、JEI-pinyin、WorldEdit、create、extendedcrafting、cucumber、
   mekanism、thermal_*、**精妙存储 1.4.86.2131 + 精妙核心 1.5.1.2335 + 精妙背包 3.26.3.2157**、RefinedStorage 1.12.4。
-- 本轮最后同步的 jar：`bb56d945a261787d91b52e64689f2695aa10109efaf863689c0977cd03ca838d`。
+- 本轮最后同步的 jar：`502ec5f290d6df26798aa839544c92b4006c2c3fc737836a75f34114e6ea17e2`（源码镜像 + 运行工件均已同步）。
 
 ## 6. 纪律提醒（别再踩）
 
 - `menu.slots` **不是**菜单里所有槽位（上游自管槽位只设 `slot.index`）⇒ 守卫用"**发现出来的槽位集合**"，不用 `menu.slots.size()`。
+  但上游 `doClick` 只丢弃 `slotId >= menu.slots.size() + upgradeSlots.size()`，其余经重写的 `getSlot(int)` 落到 `upgradeSlots` ⇒ 页签地址**点得动**。
+- **"找不到对象"先怀疑遍历深度，别急着加判据特例**：上游常把自述者放进宿主的**私有字段**（比 2 层上限深一层）⇒
+  扩容要**只对槽位宿主**展开、并保持自校验；**不做全局加深**。
 - **对 vanilla 成员**绝不用字符串反射（生产环境是 SRG 名）⇒ 按**类型**找字段/方法，或编译期调用。
 - 夹具**自摆前提**：`setblock` 同种方块会**短路**，方块实体状态（含升级、余焰）会跨场景存活。
 - 拿升级右键容器 = **物品自己装进去、GUI 不开**（夹具开菜单前先把主手换空）。

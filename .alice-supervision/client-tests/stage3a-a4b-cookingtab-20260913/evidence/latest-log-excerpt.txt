@@ -1,0 +1,39 @@
+### 19:39:55–19:40:06 A4b 第二轮（jar dcb45b76）关键行（取自 /mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10/logs/latest.log）
+[139月2026 19:37:37.448] 假人已生成(玩家化): name=tango pos=46, 64, 304
+[139月2026 19:37:37.450] 已从世界存档恢复假人: name=tango pos=(46, 64, 304)
+[139月2026 19:39:55.133] [Goal] 决策触发已暂停 1200 tick（自检模式）
+[139月2026 19:39:55.133] [alice] 自检任务 CraftFurnaceCheckTask ⇒ 暂停决策层 1200 tick（自检窗口内不通知 LLM）
+[139月2026 19:39:55.145] controller_stop_movement bot=tango
+[139月2026 19:39:55.145] [CraftFurnaceCheck] start_premise=true foot=46, 64, 304
+[139月2026 19:39:55.146] [CraftFurnaceCheck] station_found=true furnace=46, 64, 306 radius=6
+[139月2026 19:39:55.147] [Render thread/INFO] [net.minecraft.client.gui.components.ChatComponent/]: [System] [CHAT] [alice] 熔炼页签自检：装熔炼升级 → 认炉子 → 烧沙子 → 取玻璃 → 拆回（约 10 秒）。 看 [CraftFurnaceCheck] SUMMARY
+[139月2026 19:39:55.163] [FixtureTool] 已清空 tango 的背包并广播主手
+[139月2026 19:39:55.163] [CraftFurnaceCheck] mod_present=true upgradeId=sophisticatedstorage:smelting_upgrade
+[139月2026 19:39:55.179] [CraftFurnaceCheck] fixture_gave_materials=true cobblestone=3 burnTicks=1600
+[139月2026 19:39:55.252] [Menu] use_item_on target=46, 64, 306 result=CONSUME
+[139月2026 19:39:55.284] [Menu] opened target=46, 64, 306 type=StorageContainerMenu slots=63 ticks=1
+[139月2026 19:39:55.285] [Server thread/WARN] [com.dddgn.alice.log.BotLog/]: [alice] [Events] MENU_OPEN bot=tango 打开容器菜单 StorageContainerMenu（target=46, 64, 306 slots=63）
+[139月2026 19:39:55.296] [Provision] QUICK_MOVE 送出 upgrade=sophisticatedstorage:smelting_upgrade fromSlot=56
+[139月2026 19:39:55.297] [Menu] closed reason=provisioned type=StorageContainerMenu
+[139月2026 19:39:55.338] [Menu] use_item_on target=46, 64, 306 result=CONSUME
+[139月2026 19:39:55.384] [Menu] opened target=46, 64, 306 type=StorageContainerMenu slots=63 ticks=1
+[139月2026 19:39:55.384] [Server thread/WARN] [com.dddgn.alice.log.BotLog/]: [alice] [Events] MENU_OPEN bot=tango 打开容器菜单 StorageContainerMenu（target=46, 64, 306 slots=63）
+[139月2026 19:39:55.459] [Furnace] 认出炉子 by=ownerDeclaration(getCookingSlots) assignBy=mayPlaceProbe input=#64 fuel=#65 output=#66 container=SimpleContainer data=CookingLogicContainer(selfReported) progress=-1/0 litTime=0
+
+### 死循环形态（每 ~50ms 一对）
+[139月2026 19:39:55.252] [Menu] use_item_on target=46, 64, 306 result=CONSUME
+[139月2026 19:39:55.338] [Menu] use_item_on target=46, 64, 306 result=CONSUME
+[139月2026 19:40:05.986] [Menu] closed reason=furnace_cleanup type=StorageContainerMenu
+[139月2026 19:40:05.988] [Menu] use_item_on target=46, 64, 306 result=CONSUME
+[139月2026 19:40:06.037] [Menu] closed reason=furnace_cleanup type=-
+[139月2026 19:40:06.039] [Menu] use_item_on target=46, 64, 306 result=CONSUME
+[139月2026 19:40:06.086] [Menu] closed reason=furnace_cleanup type=-
+[139月2026 19:40:06.088] [Menu] use_item_on target=46, 64, 306 result=CONSUME
+[139月2026 19:40:06.135] [Menu] closed reason=furnace_cleanup type=-
+[139月2026 19:40:06.137] [Menu] use_item_on target=46, 64, 306 result=CONSUME
+[139月2026 19:40:06.194] [Menu] closed reason=furnace_cleanup type=-
+[139月2026 19:40:06.195] [Menu] use_item_on target=46, 64, 306 result=CONSUME
+
+### 噪声计数
+认出炉子行数: 383
+closed 行数: 176
