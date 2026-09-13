@@ -220,35 +220,6 @@ public final class FurnaceStation {
             return lines;
         }
         lines.add("menu=" + menu.getClass().getName() + " menuSlots=" + menu.slots.size());
-        // **槽位宿主 + 它下面一层**：路径 ③ 的候选来源。实测教训（2026-09-13）：自述者
-        // （`CookingLogicContainer`）藏在宿主的私有字段里，只有把这一层也摊开才看得见。
-        GridDiscovery.Scan scan = GridDiscovery.scan(menu);
-        lines.add("slotOwners=" + scan.owners().size() + " reachableSlots=" + scan.slots().size()
-                + " registeredSlots=" + scan.registered());
-        for (Object owner : scan.owners()) {
-            List<String> nested = new ArrayList<>();
-            for (Field field : allFields(owner.getClass())) {
-                if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
-                    continue;
-                }
-                try {
-                    field.setAccessible(true);
-                    Object value = field.get(owner);
-                    if (value != null && !(value instanceof Slot)) {
-                        String simple = value.getClass().getSimpleName();
-                        nested.add(simple.isEmpty() ? value.getClass().getName() : simple);
-                    }
-                } catch (Throwable ignored) {
-                    // 只读诊断：读不到就跳过
-                }
-            }
-            String ownerName = owner.getClass().getSimpleName();
-            lines.add("  owner=" + (ownerName.isEmpty() ? owner.getClass().getName() : ownerName)
-                    + " nested=" + nested
-                    + " cookingSlots=" + (callNoArg(owner, "getCookingSlots") instanceof List<?> list
-                            ? String.valueOf(list.size()) : "-")
-                    + " progress=" + hasCookingProgress(owner));
-        }
         List<Object> reachable = reachableObjects(menu);
         lines.add("reachableObjects=" + reachable.size());
         for (Object object : reachable) {
