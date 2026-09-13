@@ -493,3 +493,12 @@ A1 判据（零参数 `alice:craft_check`）：正例给工作站+材料清单�
   `diag_menu_upgradeContainers=` 三行。
 - **待测**：重启后**不要重跑场景**（否则升级又被清掉）→ `/alice craft station upgradetab` → 右键探针 → 看 `diag_*`。
   另请**自己打开那个箱子**看一眼：右侧有没有"合成"页签（这条客户端事实能立刻分开"模组不给"与"我们开法不同"）。
+
+**§6.23 D-192 第五轮：根因 = 槽位不在 `menu.slots` 里**
+- 用户实验（页签关/开各一次）⇒ 两次结果相同 ⇒ **页签状态不影响菜单内容**（符合"没区别就不用管"）。
+- 反射诊断：`upgradeHandler=[slots=1]`、`upgradeContainers=1 [0]`（容器存在）但 `menu.slots=63`（27+36）⇒
+  上游 `addUpgradeSlot` **只设 `slot.index` 并收进自己的列表，从不 `addSlot`**（字节码核对）。
+- 已修：`collectSlots`（反射收全可达槽位）+ **点击地址改用 `slot.index`**；探针表新增 `#index` 与 `*` 标记。
+  对原版站点行为不变（`index` == 位置）。
+- **待测**：重启后（不要重跑场景）跑探针 ⇒ 期望 `discover=OK grid=3x3 slots=[63…]`、
+  `extra_slots=10`、`grid_addressable_without_tab=true`。

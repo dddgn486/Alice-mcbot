@@ -7541,3 +7541,34 @@ UnsupportedOperationException: Unable to construct this menu by type
 ② `CraftGridProbeTask` **显式覆写 `isSelfCheck()=true`**（将来改名也不会再犯）。
 **教训**：D-189 那条裁定依赖"命名约定"，而**新工具很容易起一个不匹配的名字** ⇒
 约定要么覆盖全部自检形态，要么让工具**显式声明**；本类两者都做了。
+
+#### D-192 附注三：**根因找到** —— 上游把"升级页签"的槽位建在 `menu.slots` **之外**（`slot.index` 才是点击地址）
+
+**用户实验（关键一步）**："我把标签页关着做了次测试，又打开标签页做了一次测试" —— 两次结果**完全相同**，
+⇒ 页签开关状态**不影响**服务端菜单里有什么（与我们"没区别就不用管"的裁定一致）。
+
+**只读反射诊断给出的决定性事实**（两轮一致）：
+```
+diag_menu_wrapper=  upgradeHandler=[slots=1] 0:null inventoryHandler=[slots=27]
+diag_be_wrapper  = upgradeHandler=[slots=1] 0:null inventoryHandler=[slots=27]
+diag_menu_upgradeContainers=1 [0]          ← 合成升级页签容器**建出来了**
+menu=StorageContainerMenu(sophisticatedstorage:storage) slots=63   ← 可 menu.slots 只有 27+36
+```
+⇒ **容器存在、升级槽也存在，但它们不在 `menu.slots` 里** ⇒ 我方"遍历 `menu.slots` 认容器"的发现器**必然看不见**。
+
+**字节码核对（装的那一版 Core 1.5.1.2335）**：
+`StorageContainerMenuBase.addUpgradeSlot(Slot)` = `slot.index = getTotalSlotsNumber()` + 收进它自己的
+`upgradeSlots` 列表，**从不调用 `AbstractContainerMenu.addSlot(...)`**；`instantiateUpgradeSlot` 由子类实现。
+⇒ 上游把"升级槽 + 各升级容器贡献的槽位（含合成 9 格 + 结果槽）"放在 **`menu.slots` 之外**自管，
+**`slot.index` 才是它们的点击地址**。
+
+**修法（通用，不是模组专属）**：
+1. `GridDiscovery.collectSlots(menu)`：以 `menu.slots` 为起点，**反射**把菜单字段里可达的 `Slot` 全部收进来
+   （`Slot` / 集合 / 映射 / "自带 `getSlots()` 的值对象"展开一层；按**对象身份**去重；逐项容错、深度受限）。
+2. **点击地址一律用 `slot.index`**（不再用"在 `menu.slots` 里的位置"）。原版槽位的 `index` 就等于其位置
+   ⇒ 随身 2×2 / 工作台 3×3 的**行为完全不变**（回归由既有夹具证明）。
+3. `describeSlots` 同样用 `collectSlots`，并在表里标出**点击地址**（`#index`）与 **`*` = 不在 `menu.slots` 里**
+   ⇒ "页签里的 9 格"从此在探针表里可见。
+
+**教训**：`menu.slots` **不是**"菜单里所有槽位"的完整集合 —— 上游可以在外面自管槽位并只设 `slot.index`。
+发现器必须问"**菜单里所有可达的槽位**"，而不是"`menu.slots` 里有什么"。

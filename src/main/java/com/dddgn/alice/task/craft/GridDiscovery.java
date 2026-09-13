@@ -74,6 +74,100 @@ public final class GridDiscovery {
         }
     }
 
+    /**
+     * **收集"菜单里所有可达的槽位"**（不只是 `menu.slots`）。
+     *
+     * <p><b>为什么必须这样</b>（2026-09-13 实测事故，D-192 §6.22）：精妙存储/精妙核心的
+     * `StorageContainerMenuBase.addUpgradeSlot(...)` 做的是 ——
+     * `slot.index = getTotalSlotsNumber()` + 加进它**自己的** `upgradeSlots` 列表，
+     * **从不调用 `AbstractContainerMenu.addSlot(...)`**（字节码已核对）。于是"合成升级页签"的
+     * **9 格矩阵 + 结果槽根本不在 `menu.slots` 里**：探针实测 `upgradeContainers=1 [0]`（容器建出来了）
+     * 但 `menu.slots.size()=63`（27 存储 + 36 玩家）⇒ 只遍历 `menu.slots` 的发现器**永远看不见它**。
+     *
+     * <p>做法：以 `menu.slots` 为起点，再**反射**把菜单字段里可达的 {@link Slot} 都收进来
+     * （`Slot` / `Collection<Slot>` / `Map<?,Slot>`，以及"值对象自己带 `getSlots()`"的一层展开），
+     * 按**对象身份**去重。**这些槽位的点击地址是 `slot.index`（不是它在 `menu.slots` 里的位置）** ——
+     * 原版槽位的 `index` 就等于其位置，所以对随身/工作台**行为完全不变**（回归由既有夹具证明）。
+     */
+    public static List<Slot> collectSlots(AbstractContainerMenu menu) {
+        List<Slot> out = new ArrayList<>();
+        java.util.Set<Slot> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        if (menu == null) {
+            return out;
+        }
+        for (Slot slot : menu.slots) {
+            if (seen.add(slot)) {
+                out.add(slot);
+            }
+        }
+        collectFromFields(menu, out, seen, 0);
+        return out;
+    }
+
+    /** 反射遍历（**只读**、逐项容错、深度受限）：`Slot` / 集合 / 映射 / "带 getSlots() 的值对象"。 */
+    private static void collectFromFields(Object target, List<Slot> out, java.util.Set<Slot> seen, int depth) {
+        if (target == null || depth > 2) {
+            return;
+        }
+        Class<?> type = target.getClass();
+        while (type != null && type != Object.class) {
+            for (java.lang.reflect.Field field : type.getDeclaredFields()) {
+                if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+                    continue;
+                }
+                Object value;
+                try {
+                    field.setAccessible(true);
+                    value = field.get(target);
+                } catch (Throwable t) {
+                    continue;   // 取不到就跳过（未知模组字段可能拒绝访问）
+                }
+                collectValue(value, out, seen, depth);
+            }
+            type = type.getSuperclass();
+        }
+    }
+
+    private static void collectValue(Object value, List<Slot> out, java.util.Set<Slot> seen, int depth) {
+        if (value == null) {
+            return;
+        }
+        if (value instanceof Slot slot) {
+            if (seen.add(slot)) {
+                out.add(slot);
+            }
+            return;
+        }
+        if (value instanceof java.util.Map<?, ?> map) {
+            for (Object entry : map.values()) {
+                collectValue(entry, out, seen, depth + 1);
+            }
+            return;
+        }
+        if (value instanceof Iterable<?> iterable) {
+            for (Object entry : iterable) {
+                collectValue(entry, out, seen, depth + 1);
+            }
+            return;
+        }
+        if (value instanceof Object[] array) {
+            for (Object entry : array) {
+                collectValue(entry, out, seen, depth + 1);
+            }
+            return;
+        }
+        // "自带槽位列表的值对象"（例如上游的 UpgradeContainerBase）：展开一层
+        if (depth < 2) {
+            try {
+                java.lang.reflect.Method getSlots = value.getClass().getMethod("getSlots");
+                Object slots = getSlots.invoke(value);
+                collectValue(slots, out, seen, depth + 1);
+            } catch (Throwable ignored) {
+                // 没有 getSlots() 就不是槽位宿主 —— 正常情况
+            }
+        }
+    }
+
     /** 发现结果：`spec != null` 才表示认出网格；否则 `code` 说明为什么认不出。 */
     public record Result(InventoryCraft.GridSpec spec, String code, String note,
                          String matrixClass, int matrixSlots,
@@ -140,14 +234,21 @@ public final class GridDiscovery {
         Container playerInv = player == null ? null : player.getInventory();
         int slotExceptions = 0;
 
-        for (int i = 0; i < menu.slots.size(); i++) {
+        List<Slot> allSlots = collectSlots(menu);
+        int extraSlots = allSlots.size() - menu.slots.size();
+        for (Slot slot : allSlots) {
             // 逐槽保护：这是**报告路径**上的常用入口（`bot_report`、候选列出都调它），
             // 来源未知的槽位对象可能在任何 getter 里抛 ⇒ 一格出事不该崩服务端。
-            Slot slot;
             Container container;
+            int address;
             try {
-                slot = menu.getSlot(i);
                 container = slot.container;
+                // **点击地址 = `slot.index`**（不是它在 menu.slots 里的位置）：
+                // 上游把升级页签的槽位建在 menu.slots 之外，只设了 `slot.index`（见 collectSlots 的说明）。
+                address = slot.index;
+                if (address < 0) {
+                    address = allSlots.indexOf(slot);
+                }
             } catch (RuntimeException e) {
                 slotExceptions++;
                 continue;
@@ -160,17 +261,17 @@ public final class GridDiscovery {
                     ambiguousGrid = true;   // 两个不同的网格容器：不猜谁是目标
                 }
                 if (matrix == crafting) {
-                    gridSlots.add(i);
+                    gridSlots.add(address);
                 }
             } else if (container instanceof ResultContainer) {
-                resultSlots.add(i);
+                resultSlots.add(address);
                 if (resultSlotClass.equals("-")) {
                     resultSlotClass = slot.getClass().getSimpleName();
                     resultIsVanillaResultSlot = slot instanceof ResultSlot;
                 }
             } else if (playerInv != null && container == playerInv && slot.getContainerSlot() < 36) {
                 // 玩家主背包/快捷栏（0..35）；盔甲与副手容器槽号 ≥36 ⇒ 排除
-                playerSlots.add(i);
+                playerSlots.add(address);
             }
         }
 
@@ -217,6 +318,7 @@ public final class GridDiscovery {
                 resultSlots.get(0), playerSlots.get(0), playerSlots.get(playerSlots.size() - 1));
         String note = "resultSlotIsVanillaResultSlot=" + resultIsVanillaResultSlot
                 + " playerSlots=" + playerSlots.size()
+                + " extraSlots=" + extraSlots + "(不在 menu.slots 里的可达槽位)"
                 + (slotExceptions > 0 ? " slotExceptions=" + slotExceptions + "(" + Codes.SLOTS_PARTIAL + ")" : "");
         return new Result(spec, "", note, matrixClass, matrixSlots, resultSlotClass, resultCount);
     }
@@ -227,15 +329,19 @@ public final class GridDiscovery {
         if (menu == null) {
             return out;
         }
-        for (int i = 0; i < menu.slots.size(); i++) {
+        List<Slot> allSlots = collectSlots(menu);
+        int vanilla = menu.slots.size();
+        for (int i = 0; i < allSlots.size(); i++) {
             // **逐槽保护**：来源未知的槽位对象可能在任何 getter 里抛（模组实现千奇百怪）；
             // 一格出事不该让整张表（更不该让服务端）陪葬 —— 如实把异常写进那一格的描述里。
             try {
-                Slot slot = menu.getSlot(i);
+                Slot slot = allSlots.get(i);
                 ItemStack stack = slot.getItem();
                 String item = stack.isEmpty() ? ""
                         : BuiltInRegistries.ITEM.getKey(stack.getItem()) + "x" + stack.getCount();
-                out.add(new SlotInfo(i, slot.getClass().getSimpleName(),
+                // `i` = 槽位表里的序号；`slot.index` = **点击地址**；`*` = 不在 menu.slots 里（上游自管）
+                String marker = i < vanilla ? "" : "*";
+                out.add(new SlotInfo(i, marker + slot.getClass().getSimpleName() + "#" + slot.index,
                         slot.container.getClass().getSimpleName(), slot.x, slot.y, slot.isActive(), item));
             } catch (RuntimeException e) {
                 out.add(new SlotInfo(i, "?", "?", 0, 0, false,
