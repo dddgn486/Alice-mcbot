@@ -6824,3 +6824,31 @@ dropsLeft=1`、`restore_end status=FAILED remaining=1`（拆不动、收不到�
 `ServerConnectionListener` 的连接表；vanilla 中 `ServerPlayer` 的实体 tick 与 `doTick()` 由
 连接/玩家表两条路径驱动）。拿到看门狗数据后再定修法（可能需要在 `BotManager` 侧补一个
 "发现漏 tick 就补一次"的兜底驱动）。
+
+### D-177：审查后续批次 —— 探针降噪（①②）+ 违反断言改成可执行（⑦）+ 终态幂等集中执行（⑤）
+
+按 `REVIEW_2026-09-13_FIX_AUDIT.md` §4 的建议顺序（⑦→①→⑤）落地三件事，另附②：
+
+**① 探针降噪（日志规矩）**：`[MineTask探针] 挖掘状态` 原按 `status` 变化打点，而 `MOVING↔MINING`
+会来回跳 ⇒ **实测最高 6 行/秒**、单轮电池 212 行（违反"验证后删探针"）。改为**只在
+`(phase,status)` 组合首次出现**时打一行，标签去掉"探针"字样（它是**状态转移**日志，不是临时探针），
+典型 3~6 行/用例。终态信息仍由 `[MineRunner] done` / `restore_start/end` 等承担。
+
+**② `pathing/` 包语义**：本轮先不动（迁 `MovementHelper` 会牵 300+ 引用）；改由账本登记，
+待与"终态闩锁推广"一起排期。
+
+**⑦ 让 D-168 的"残留不计入"分支**从"只靠推理"变成**每轮都被执行**：
+`MineRegressionTask.prepare()` 在 EXECUTE/CHAIN 用例里**主动播下**一件外来掉落物
+（`summon minecraft:item … {Item:{id:"minecraft:dirt",Count:1b},PickupDelay:32767s}`，
+位置取 `start+Z1`＝测量盒内、bot 侧后方），随后采基线 ⇒ 它必然落进 `foreignDrops`。
+判据新增 `foreignOk = (未播种 || foreignDrops >= 1)`，并在明细里打 `foreignOk=`。
+意义：判据从"恰好没有残留 ⇒ PASS"升级为"**有残留也必须 PASS**"（真正验证排除逻辑）。
+另加播种失败的告警（`summon` 没生效时如实判 FAIL）。
+
+**⑤ 终态幂等 · 集中执行点**：把"任务终态后再 tick 必须幂等"这条契约放到**电池**里执行 ——
+每个步的终态任务都补 tick 两次（try/catch 包住），明细打 `idempotent=true|false`，
+非幂等即判该步 FAIL。这样**不必逐个类加闩锁**，也能把审查 §2-2 的"19 处同类隐患"
+变成可观测断言：谁违反，下一轮电池就会红并点名到步。
+
+**预期副作用（要主动告知用户）**：加 ⑤ 之后，**首次运行可能出现新的 `idempotent=false` FAIL**——
+那不是回归，而是契约违规被**发现**；日志会给出步名与"再 tick 返回了什么"，据此逐个修。

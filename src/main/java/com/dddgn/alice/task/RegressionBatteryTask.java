@@ -292,9 +292,29 @@ public final class RegressionBatteryTask implements Task {
             }
             return Status.RUNNING;
         }
-        record(steps.get(index).name(), status == Status.DONE ? "PASS" : "FAIL",
+        // D-178（审查结论 ⑤）：**终态幂等契约的集中执行点**。
+        // 契约：任务一旦返回终态（DONE/FAILED），再被 `tick()` 必须**幂等**（同状态返回、不崩）。
+        // 2026-09-13 的服务端崩溃（MineTask.tickRestore NPE）正是这条契约被破坏 ⇒ 这里对**每一个**
+        // 电池步的终态任务都补 tick 两次并如实记录 `idempotent=`：不必逐个类加闩锁，
+        // 也能把"同类隐患 19 处"变成可观测的断言（谁违反，下一轮电池就会红）。
+        boolean idempotent = true;
+        String idemNote = "";
+        try {
+            Status again1 = current.tick();
+            Status again2 = current.tick();
+            if (again1 != status || again2 != status) {
+                idempotent = false;
+                idemNote = "（再 tick 返回 " + again1 + "/" + again2 + "，期望 " + status + "）";
+            }
+        } catch (Throwable throwable) {
+            idempotent = false;
+            idemNote = "（再 tick 抛 " + throwable + "）";
+            BotLog.warn("[Regression] step={} 终态幂等被破坏：再 tick 抛异常", currentStepName(), throwable);
+        }
+        record(steps.get(index).name(), (status == Status.DONE && idempotent) ? "PASS" : "FAIL",
                 "ticks=" + stepTicks
-                        + (status == Status.DONE ? "" : " reason=" + safe(current.failureReason())));
+                        + (status == Status.DONE ? "" : " reason=" + safe(current.failureReason()))
+                        + " idempotent=" + idempotent + idemNote);
         endStep();
         return Status.RUNNING;
     }

@@ -163,6 +163,8 @@ public final class MineRegressionTask implements Task {
      * 世界历史残留单独报 `foreignDrops=` 不计入（修"不清掉落物就 FAIL"的夹具缺陷）。
      */
     private final Set<java.util.UUID> dropsAtCaseStart = new java.util.HashSet<>();
+    /** ⑦ 本用例是否**故意**播下了外来掉落物（D-168 分支的活断言）。 */
+    private boolean expectedForeignDrop;
     /** 内层任务上一次返回的终态（D-175 幂等断言用）。 */
     private Status lastInnerTerminal;
 
@@ -342,8 +344,10 @@ public final class MineRegressionTask implements Task {
                                 && delta >= current.expectedCollected());
         // D-175 契约断言：内层任务已终态 ⇒ 再 tick 两次必须幂等（不许崩、不许改状态）
         boolean idempotent = tickTwiceAssertIdempotent() == status;
+        // ⑦ D-168 活断言：夹具播下的外来掉落物必须**真的被排除**（否则 `noDropsLeft` 是靠"恰好没残留"通过的）
+        boolean foreignOk = !expectedForeignDrop || foreignDrops >= 1;
         boolean pass = status == Status.DONE && targetGone && noDropsLeft && countOk && supportOk
-                && restoredOk && idempotent;
+                && restoredOk && idempotent && foreignOk;
         record(current, pass, "status=" + status
                 + "/targetGone=" + targetGone
                 + "/collected=" + collected + "/" + current.expectedCollected()
@@ -353,6 +357,7 @@ public final class MineRegressionTask implements Task {
                         ? "(期望" + current.expectedDelta() + ")" : "")
                 + "/dropsLeft=" + dropsLeft
                 + "/idempotent=" + idempotent
+                + (expectedForeignDrop ? "/foreignOk=" + foreignOk : "")
                 + (foreignDrops > 0 ? "(另有残留" + foreignDrops + "件不计入)" : "")
                 + (current.expectSupport() ? "/supportRestored=" + supportOk : "")
                 + (current.expectSupport() ? "/ledgerRestored=" + mineTask.restoredBlocks()
@@ -381,10 +386,27 @@ public final class MineRegressionTask implements Task {
         // 于是 `collected=1/1` 也判 FAIL（run1 实测 `dropsLeft=1`，清掉残留后才 PASS）。
         // 修法：用例开始时把该范围内的掉落物 **UUID** 记下来，结束时只数**新增**的
         // （= 本用例自己产生的），残留单独报 `foreignDrops=` 并且**不计入判据**。
+        // **⑦ 让 D-168 的"残留不计入"分支每次都被真实触发**（审查结论）：该分支此前只靠推理成立
+        // （从未有残留时跑过）。这里由夹具**主动播下**一件外来掉落物（模拟"上一轮遗留/玩家丢的"），
+        // 位置在 bot 起点侧后方、测量盒内：被动拾取闸门会把 FOREIGN 拦下 ⇒ 它不会进背包、
+        // 也不会干扰 `inventoryDelta`，只会被当作 `foreignDrops` 排除。EXECUTE/CHAIN 用例断言
+        // `foreignDrops >= 1` ⇒ 断言"残留真的被排除了"，而不是"恰好没有残留"。
+        expectedForeignDrop = false;
+        if (current.kind() == Kind.EXECUTE || current.kind() == Kind.CHAIN) {
+            BlockPos dropAt = current.start().offset(0, 0, 1);
+            server.getCommands().performPrefixedCommand(source, String.format(java.util.Locale.ROOT,
+                    "summon minecraft:item %d %d %d {Item:{id:\"minecraft:dirt\",Count:1b},PickupDelay:32767s}",
+                    dropAt.getX(), dropAt.getY(), dropAt.getZ()));
+            expectedForeignDrop = true;
+        }
         dropsAtCaseStart.clear();
         for (var item : bot.serverLevel().getEntitiesOfClass(
                 net.minecraft.world.entity.item.ItemEntity.class, dropsBox(current.target()))) {
             dropsAtCaseStart.add(item.getUUID());
+        }
+        if (expectedForeignDrop && dropsAtCaseStart.isEmpty()) {
+            BotLog.warn("[MineRegression] case={} 外来掉落物播种失败（summon 没生效？）"
+                    + "⇒ 本用例的 foreignDrops 断言会如实判 FAIL", current.name());
         }
         if (!dropsAtCaseStart.isEmpty()) {
             BotLog.warn("[MineRegression] case={} 起点范围内已有 {} 个掉落物（非本用例产生，"

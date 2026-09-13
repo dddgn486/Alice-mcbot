@@ -114,6 +114,8 @@ public final class MineTask implements Task {
     private RecoveryStage recoveryStage = RecoveryStage.NONE;
     private final List<RecoveryStage> recoveryEvents = new ArrayList<>();
     private MineBlockRunner.Status lastProbeStatus;
+    /** D-177：配合 `lastProbeStatus` 做 (phase,status) 去重，避免 MOVING↔MINING 跳变刷屏。 */
+    private Phase lastProbePhase;
     private BlockPos optimalStandingPoint;
     private boolean standingPointEvaluated;
 
@@ -350,12 +352,17 @@ public final class MineTask implements Task {
         }
 
         MineBlockRunner.Status status = miner.tick();
-        if (status != lastProbeStatus) {
-            BotLog.info("[MineTask探针] 挖掘状态: target={} phase={} status={} botPos={} stand={} failure={}",
+        // D-177（审查结论 · 日志规矩）：原实现按 `status` 变化打点，而 MOVING↔MINING 会来回跳
+        // ⇒ 实测**最高 6 行/秒**、单轮电池 212 行（"验证后应删探针"的规矩）。改成
+        // **只在 (phase,status) 组合首次出现**时打一行（典型 3~6 行/用例），
+        // 保留诊断价值、去掉刷屏；真正的终态信息仍在 `[MineRunner] done` / `restore_*` 等行里。
+        if (status != lastProbeStatus || phase != lastProbePhase) {
+            BotLog.info("[MineTask] 挖掘状态: target={} phase={} status={} botPos={} stand={} failure={}",
                     target.toShortString(), phase, status, bot.blockPosition().toShortString(),
                     optimalStandingPoint == null ? "-" : optimalStandingPoint.toShortString(),
                     miner.failureReason().isEmpty() ? "-" : miner.failureReason());
             lastProbeStatus = status;
+            lastProbePhase = phase;
         }
         if (status == MineBlockRunner.Status.MINING || status == MineBlockRunner.Status.MOVING) {
             return Status.RUNNING;
@@ -856,6 +863,7 @@ public final class MineTask implements Task {
         // useChain=true 时只走到站位（walkOnly），破坏由任务层触发模组连锁
         miner = new MineBlockRunner(botPlayer, currentPlan, useChain && !chainTriggered, grant);
         lastProbeStatus = null;
+        lastProbePhase = null;
         BotLog.info("[MineTask探针] 创建 MineBlockRunner: target={} mode={} stand={} botPos={} attempt={}",
                 target.toShortString(), currentPlan.mode(),
                 currentPlan.standingFoot().toShortString(), bot.blockPosition().toShortString(),
