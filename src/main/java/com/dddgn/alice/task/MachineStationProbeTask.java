@@ -40,14 +40,17 @@ public class MachineStationProbeTask implements Task {
     /** 进度类访问器的**方法名形态**（只认形态 + 只读调用，不认类名）。 */
     private static final String[] PROGRESS_HINTS = {"progress", "scaled", "active", "operating", "duration"};
 
-    private enum Phase { FIND, OPEN, REPORT, DONE }
+    /** 场景起点（`alice_test:machine_course` 的平台起点；机器在它东侧 2 格）。 */
+    public static final BlockPos START = new BlockPos(66, 64, 304);
+
+    private enum Phase { PREPARE, FIND, OPEN, REPORT, RESET, DONE }
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
     private final List<String> failures = new ArrayList<>();
     private final java.util.Map<String, String> facts = new java.util.LinkedHashMap<>();
 
-    private Phase phase = Phase.FIND;
+    private Phase phase = Phase.PREPARE;
     private int ticks;
     private int phaseTicks;
     private BlockPos machine;
@@ -90,11 +93,32 @@ public class MachineStationProbeTask implements Task {
         }
         phaseTicks++;
         return switch (phase) {
+            case PREPARE -> prepare();
             case FIND -> find();
             case OPEN -> open();
             case REPORT -> report();
+            case RESET -> reset();
             case DONE -> finish();
         };
+    }
+
+    /**
+     * **自带传送 + 起点前提**（用户 2026-09-13 纪律：场景夹具不许依赖"电池的 provision 帮我挪过去"，
+     * standalone 右键也必须成立）。失败/成功都在 {@link #reset()} 里复位。
+     */
+    private Status prepare() {
+        bot.teleportTo(bot.serverLevel(), START.getX() + 0.5D, START.getY(), START.getZ() + 0.5D,
+                java.util.Set.of(), bot.getYRot(), bot.getXRot());
+        bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+        bot.controller().stopMovement();
+        var ground = FixturePremise.onGround(bot);
+        var ownMenu = FixturePremise.ownMenu(bot);
+        check("premise_on_ground", ground.ok(), ground.detail());
+        check("premise_own_menu", ownMenu.ok(), ownMenu.detail());
+        record("start_pos", bot.blockPosition().toShortString());
+        BotLog.info("[MachineStation] 已传送 bot 到场景起点 {}（{}）", START.toShortString(),
+                bot.blockPosition().toShortString());
+        return advance(Phase.FIND);
     }
 
     private Status find() {
@@ -184,6 +208,29 @@ public class MachineStationProbeTask implements Task {
             failures.add("no_writes");
         }
         session.close("probe_done");
+        return advance(Phase.RESET);
+    }
+
+    /**
+     * **结束复位**（用户纪律）：关菜单（若还开着）+ 停输入 + **回到场景起点**，
+     * 让"下一次点/下一步"从同一个干净前提开始；失败路径也走这里。
+     */
+    private Status reset() {
+        if (session != null) {
+            session.close("probe_reset");
+            session = null;
+        }
+        if (bot.containerMenu != null && !(bot.containerMenu
+                instanceof net.minecraft.world.inventory.InventoryMenu)) {
+            bot.closeContainer();
+        }
+        bot.controller().stopMovement();
+        bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+        bot.teleportTo(bot.serverLevel(), START.getX() + 0.5D, START.getY(), START.getZ() + 0.5D,
+                java.util.Set.of(), bot.getYRot(), bot.getXRot());
+        record("reset", "true");
+        BotLog.info("[MachineStation] 结束复位：bot 回到 {}（onGround={}）",
+                bot.blockPosition().toShortString(), bot.onGround());
         return advance(Phase.DONE);
     }
 
