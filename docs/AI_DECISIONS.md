@@ -7111,3 +7111,24 @@ Create（506，15 类；cutting/deploying/crushing/milling/splashing）> Extende
 **阶段 2 结论**：① 读得懂多少 = **可量化**（55.2%，且原版已全覆盖）；② 有无打架 = **有清单**；
 ③ 适配器候选已排序（Mekanism 1171/26 类 > Thermal 652/30 类 > Create 506/15 类 > EC 25/4 类），
 **本轮不写任何适配器**。报告：`docs/STAGE2_MODS_READABILITY.md`。
+
+### D-184：**LLM token 用量如实记录**（用户要核对金额；此前只有 chars 无法对账）
+
+**问题**：决策层每次调用都打了 `promptChars` / `reply chars`，但**从没读 API 回包里的 `usage`**
+⇒ 用户要"核对金额"时只能靠字符估算，且日志会轮转（旧数据丢掉）。
+
+**修（只报告，不改行为）**：解析回包 `usage.prompt_tokens` / `completion_tokens` ⇒
+① 一行日志 `[Goal] llm_usage … | 本进程累计 calls=… prompt=… completion=… total=…`；
+② 追加写 `config/alice-llm-usage.jsonl`（**跨日志轮转可对账**，每行含 calls/model/tokens/latency/累计）；
+③ `alice:bot_report` 增 `LLM 用量：…`。取不到 usage 就记 `?`，**绝不因此让调用失败**。
+
+**已能提供的"金额核对"材料（三条腿）**：
+1. **权威**：DeepSeek 平台用量页（按 key 计费，最准）；
+2. **本地估算**（本次从仍在盘上的日志聚合，**不是全量历史**）：`llm_request` **153 次**、
+   prompt **250,677** 字符、reply **14,689** 字符 ⇒ 估算 prompt ≈ **63k~100k** tokens、
+   reply ≈ **3.7k~5.9k** tokens（字符/4 ~ 字符/2.5 区间）。按日：9-12 共 73 次、9-13 共 80 次。
+3. **今后精确**：上面新增的 JSONL 与日志（每行都有真实 tokens）。
+
+**换 key 的位置**：`<client>/config/alice-llm.json` 的 `apiKey` 字段（`model`/`url` 也在同一文件，
+当前 `model=deepseek-flash`、`url=https://api.deepseek.com/chat/completions`）。
+**注意**：key 只在服务端读取；换完需**重启客户端**（配置在启动时载入）。

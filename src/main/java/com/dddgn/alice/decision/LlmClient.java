@@ -107,6 +107,10 @@ public final class LlmClient {
                     return new Reply(false, "", "reply_shape_unexpected", latency);
                 }
                 BotLog.info("[Goal] llm_reply id={} latency={}ms chars={}", id, latency, text.length());
+                // **token 用量如实记录（D-184）**：API 回包里带 usage，但此前没人读它 ⇒
+                // 只能靠 promptChars 估（用户要"核对金额"时不够）。这里解析并同时写：
+                // ① 一行日志（含累计）② 追加到 `config/alice-llm-usage.jsonl`（跨日志轮转可核对）。
+                recordUsage(id, config, response.body(), latency);
                 return new Reply(true, text, "", latency);
             } catch (Exception ex) {
                 long latency = System.currentTimeMillis() - started;
@@ -114,6 +118,91 @@ public final class LlmClient {
                 return new Reply(false, "", "transport:" + ex.getClass().getSimpleName(), latency);
             }
         }, EXECUTOR);
+    }
+
+    /** 累计 token 用量（进程内；`bot_report` 与本类日志共用）。 */
+    private static final java.util.concurrent.atomic.AtomicLong TOTAL_PROMPT_TOKENS =
+            new java.util.concurrent.atomic.AtomicLong();
+    private static final java.util.concurrent.atomic.AtomicLong TOTAL_COMPLETION_TOKENS =
+            new java.util.concurrent.atomic.AtomicLong();
+    private static final java.util.concurrent.atomic.AtomicLong TOTAL_CALLS =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    /** 读一次调用次数（只读）。 */
+    public static long calls() {
+        return TOTAL_CALLS.get();
+    }
+
+    /** 读累计 prompt token（只读）。 */
+    public static long promptTokens() {
+        return TOTAL_PROMPT_TOKENS.get();
+    }
+
+    /** 读累计 completion token（只读）。 */
+    public static long completionTokens() {
+        return TOTAL_COMPLETION_TOKENS.get();
+    }
+
+    /** 人类可读的累计用量摘要（供 `bot_report`）。 */
+    public static String describeUsage() {
+        long calls = TOTAL_CALLS.get();
+        if (calls == 0) {
+            return "本进程 0 次调用";
+        }
+        long pt = TOTAL_PROMPT_TOKENS.get();
+        long ct = TOTAL_COMPLETION_TOKENS.get();
+        return "本进程 " + calls + " 次调用，prompt=" + pt + " completion=" + ct
+                + " total=" + (pt + ct) + " tokens（明细见 config/alice-llm-usage.jsonl）";
+    }
+
+    /**
+     * 解析并记录 API 回包里的 `usage`（D-184）。**只报告，不改任何行为**：
+     * 拿不到 usage 就只记"未知"，绝不因此让调用失败。
+     */
+    private static void recordUsage(long id, LlmConfig config, String body, long latencyMs) {
+        int promptTokens = -1;
+        int completionTokens = -1;
+        try {
+            com.google.gson.JsonObject root =
+                    com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+            if (root.has("usage") && root.get("usage").isJsonObject()) {
+                com.google.gson.JsonObject usage = root.getAsJsonObject("usage");
+                if (usage.has("prompt_tokens")) {
+                    promptTokens = usage.get("prompt_tokens").getAsInt();
+                }
+                if (usage.has("completion_tokens")) {
+                    completionTokens = usage.get("completion_tokens").getAsInt();
+                }
+            }
+        } catch (Exception ignored) {
+            // 解析不了就当未知（不抛、不影响决策）
+        }
+        long calls = TOTAL_CALLS.incrementAndGet();
+        long sumPrompt = promptTokens >= 0 ? TOTAL_PROMPT_TOKENS.addAndGet(promptTokens) : TOTAL_PROMPT_TOKENS.get();
+        long sumCompletion = completionTokens >= 0
+                ? TOTAL_COMPLETION_TOKENS.addAndGet(completionTokens) : TOTAL_COMPLETION_TOKENS.get();
+        BotLog.info("[Goal] llm_usage id={} prompt_tokens={} completion_tokens={} latency={}ms"
+                        + " | 本进程累计 calls={} prompt={} completion={} total={}",
+                id, promptTokens < 0 ? "?" : promptTokens, completionTokens < 0 ? "?" : completionTokens,
+                latencyMs, calls, sumPrompt, sumCompletion, sumPrompt + sumCompletion);
+        try {
+            java.nio.file.Path path = net.minecraftforge.fml.loading.FMLPaths.CONFIGDIR.get()
+                    .resolve("alice-llm-usage.jsonl");
+            com.google.gson.JsonObject line = new com.google.gson.JsonObject();
+            line.addProperty("calls", calls);
+            line.addProperty("id", id);
+            line.addProperty("model", config.model());
+            line.addProperty("prompt_tokens", promptTokens);
+            line.addProperty("completion_tokens", completionTokens);
+            line.addProperty("latency_ms", latencyMs);
+            line.addProperty("cumulative_prompt_tokens", sumPrompt);
+            line.addProperty("cumulative_completion_tokens", sumCompletion);
+            java.nio.file.Files.writeString(path, line + System.lineSeparator(),
+                    java.nio.charset.StandardCharsets.UTF_8,
+                    java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+        } catch (Exception ex) {
+            BotLog.warn("[Goal] llm_usage 写盘失败（不影响决策）：{}", ex.toString());
+        }
     }
 
     /** 记住上一次成功的路径（名字），避免每次都把矩阵试一遍。 */

@@ -164,6 +164,8 @@ public final class BotStateReport {
                     + "（距离 " + String.format(java.util.Locale.ROOT, "%.1f", bot.lastTeleportDistance())
                     + "，tick=" + bot.lastTeleportTick() + "）");
         }
+        // D-184：LLM token 用量（用户要核对金额；此前只记 chars，无法对账）
+        lines.add("LLM 用量：" + com.dddgn.alice.decision.LlmClient.describeUsage());
         if (snapshot.has("tools")) {
             lines.add("工具：" + snapshot.getAsJsonObject("tools").get("summary").getAsString());
         }
