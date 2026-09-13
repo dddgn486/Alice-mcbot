@@ -33,7 +33,7 @@ import java.util.function.Supplier;
  * （D-119 起生产任务不发工具）、把 bot 放到该场景起点，然后 tick 到终态；**任一项失败不中断**
  * （一趟看全），最后一行汇总。
  *
- * <p>输出：`[Regression] SUMMARY clear_retry=PASS … pathing=PASS K4=OK(…) (23/23) ticks=… → PASS`。
+ * <p>输出：`[Regression] SUMMARY clear_retry=PASS … pathing=PASS K4=OK(…) (24/24) ticks=… → PASS`。
  */
 public final class RegressionBatteryTask implements Task {
 
@@ -193,6 +193,9 @@ public final class RegressionBatteryTask implements Task {
         // 基-5：LLM 上抛契约（Job 失败报告 / 产物判定口径 / 结构化拒绝回读）
         // 基-9：工具供给（换更好的 / 没得换如实报 / 不能凭空变出工具）
         // 基-8：能力闸门（MovementCapabilities 真的能拦人：保护区/资源/工具/预算/声明一致性）
+        // 阶段 3-A / A1（D-185）：只读配方查询（正例/缺料/3×3/无配方/机器专属 + 背包未变硬断言）
+        steps.add(step("craft_check", List.of(), null,
+                () -> new CraftCheckTask(bot, observer), 200));
         // 基-7：前缀搜索（K-1：预算耗尽交出前缀；真失败不给前缀）
         // R2：传输模块（4 个夹具：主流程/端点选择/选择器事件/命令解析）
         // K-3 安全点停止（D-169）**故意不进电池**：它的判据是"**顶层任务**被延后停止"，

@@ -29,7 +29,7 @@
 
 | # | 增量 | 触及 | 独立测试入口 | 关键断言 |
 |---|---|---|---|---|
-| **A1** | **配方查询原语**：`itemId × count` → 可行路线（工作站/材料/候选/缺料） | 新增 1 个只读类 + 1 个夹具任务 + 1 个物品 | `alice:craft_check`（正例 + 负例） | 正例给出路线；缺料给 `missing=`；无配方给 `no_recipe`；**不改任何状态** |
+| **A1 ✅已实施（待客户端）** | **配方查询原语**：`itemId × count` → 可行路线（工作站/材料/候选/缺料） | 新增 1 个只读类 + 1 个夹具任务 + 1 个物品 | `alice:craft_check`（正例 + 负例） | 正例给出路线；缺料给 `missing=`；无配方给 `no_recipe`；**不改任何状态** |
 | A2 | **随身 2×2 合成**（单一原语）：用玩家自带 `InventoryMenu` 的 2×2 网格 + 结果槽，`MenuSession.click` 摆料并取走 | `action/` 新增合成执行器（复用 `MenuSession`） | 同上夹具第二段 | 消耗正确、产物入包、**绝不凭空给物品**；材料不足如实失败 |
 | A3 | **工作台 3×3**：优先用**附近现成**工作台（不写世界）；没有才放置（需 `WriteReason`+预算+授权），且**用完即拆**（建拆同权闭环） | `action/` + 一处授权登记（A 表） | 场景函数造一个工作台 + 夹具 | 现成工作台路径**零写入**；放置路径账本 `remaining=0` |
 | A4 | **熔炉**（时间/燃料语义）：插料、加燃料、等待、取出 | 同上 + 超时/清理 | 场景函数造熔炉 + 夹具 | 燃料选择有据、超时如实失败、**失败不留半成品** |
@@ -68,3 +68,19 @@
 - A1 绿 ⇒ 进 **A2（随身 2×2 合成）**；A2 绿 ⇒ 再讨论 A3/A4 的优先级（工作台放置引入世界写入，
   需要先把授权登记与"用完即拆"的账本闭环在夹具里验一遍）。
 - 与 **B（P0 假人冻结）** 的关系：不冲突；B 仍等复现，`connTicks=` 探针已就位。
+
+---
+
+## 附：A1 实施记录（2026-09-13）
+
+```
+新增  task/craft/RecipeQuery.java     只读查询（Verdict: CRAFTABLE / NEEDS_TABLE /
+                                      MISSING_INGREDIENTS / NO_RECIPE / MACHINE_RECIPE_UNSUPPORTED）
+新增  task/CraftCheckTask.java        夹具：正例/缺料/3×3/无配方/机器专属 + **背包逐槽未变**硬断言
+新增  item/CraftCheckItem + 模型 + 中英 lang（零参数入口 alice:craft_check）
+修改  RecipeDump.stationFor()         把"哪些类型算原版可读"暴露成**唯一定义处**（供查询复用）
+修改  AliceItems / BotManager.assignCraftCheck / 电池（23 → 24 项，新增 craft_check 步）
+```
+判据（一次右键）：`[CraftCheck] SUMMARY craftable_sticks=PASS missing_ingredients=PASS needs_table=PASS
+no_recipe=PASS machine_only=PASS|SKIP read_only=PASS verdict=PASS`。
+**未验证**：客户端实测（编译+资源自检已过）。

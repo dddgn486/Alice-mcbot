@@ -181,7 +181,7 @@ C 视觉识别；含"兼容性与效率""玩家能看到什么"两项逐维度�
 
 **本会话完成的**（全部有文档与判据）：
 - **基-1 可回收性不变式**（两条轴：逐步有回程 / 活动无残留）——`WINDOWS_CLIENT`；
-- **基-2 决策层进回归电池**（电池 9 → 23 项）；**基-3 S4 事件层**——`WINDOWS_CLIENT`；
+- **基-2 决策层进回归电池**（电池 9 → 24 项）；**基-3 S4 事件层**——`WINDOWS_CLIENT`；
 - **基-4 决策 trace 落盘 + 跨重启语义**（含一次真实重启验证）——`WINDOWS_CLIENT`；
 - **基-5 LLM 上抛契约**（J-4/J-6/J-7）——`WINDOWS_CLIENT`；
 - **基-8 授权登记缺口**（G8 能力闸门 / A9 登记 / G3 外来破坏留痕 / G5 容器写入留痕）——`WINDOWS_CLIENT`；
@@ -209,7 +209,7 @@ C 视觉识别；含"兼容性与效率""玩家能看到什么"两项逐维度�
 ### §6.12 2026-09-13 下半场收尾（K-3/K-4/D-168/D-169/D-170）
 
 > `end_to_end` 已闭合，两份独立证据：① 单跑 `alice:transfer_check`（10:09，`2026-09-13-7.log.gz`）
-> ② 本轮 23 项电池里的 `transfer` 步（11:06，`2026-09-13-1.log.gz`）——
+> ② 本轮 24 项电池里的 `transfer` 步（11:06，`2026-09-13-1.log.gz`）——
 > 两次都是 `[Transfer] SUMMARY fixture=PASS end_to_end=PASS selection=PASS selector_events=PASS command_parse=PASS verdict=PASS`。
 > §6.11 的"唯一未收口"**已闭合**。
 
@@ -219,7 +219,7 @@ C 视觉识别；含"兼容性与效率""玩家能看到什么"两项逐维度�
 |---|---|---|---|
 | K-4 谓词统一 | 6 处复制 → 唯一定义 `canStandCentered`（8 调用点）；目标准入先测量；真异常 0 ⇒ **不引硬拒**，收口为"唯一定义 + 永久自断言" | 电池 `K4=OK(goal_not_standable=0 final_segment_not_standable=0 写入类例外=88)` | `WINDOWS_CLIENT` |
 | D-168 夹具测量 | `dropsLeft` 改基线 UUID 增量 + 三场景清实体 ⇒ 世界残留不再假失败 | `mine_regression` 11/11 PASS | `WINDOWS_CLIENT` |
-| D-169 电池自杀 | K-3 退出电池（25 → 23）+ `fixture_not_top_level` 前提断言 + 手工入口两模式 | 电池 `(23/23) ticks=3507 → PASS` | `WINDOWS_CLIENT` |
+| D-169 电池自杀 | K-3 退出电池（25 → 23）+ `fixture_not_top_level` 前提断言 + 手工入口两模式 | 电池 `(24/24) ticks=3507 → PASS` | `WINDOWS_CLIENT` |
 | D-170 资源缺陷 | 3 个 0 字节模型 + 1 个死贴图引用补齐；新增 `tools/check-item-models.sh` 并接入构建前清单 | 客户端 `Failed to load model alice` = **0** 条 | `WINDOWS_CLIENT` |
 
 **唯一待测**：**K-3 自检复测**（`alice:k3_stop_check` 右键 DEFER / Shift+右键 FORCED，各 5 秒；
@@ -239,7 +239,7 @@ C 视觉识别；含"兼容性与效率""玩家能看到什么"两项逐维度�
 **仍未动的余项**：Job 细粒度 `safeToCancel` 聚合（待频率数据）、阶段 2 模组浅测（§7）、
 §7 的其他方向候选。
 
-**§6.13 第四次电池（2026-09-13 晚）**：23 项 **22/23**，唯一失败 = `transfer` 步的 `end_to_end`
+**§6.13 第四次电池（2026-09-13 晚）**：24 项 **22/23**，唯一失败 = `transfer` 步的 `end_to_end`
 （间歇：同计划 10:09 / 11:06 两次 5 tick 走完，这次一格没动磨满段预算）。
 已排除夹具/重生成/菜单/强制停；已补**失败终态诊断** `[R4 Session] segment_stall`（D-174），
 **遥控器候选已被用户否证**（没用过遥控器）⇒ 改为"链路计数"诊断（D-174 附注一）：
@@ -364,7 +364,7 @@ S-1 因常驻任务而真实化），再开 **②决策层接入** 这条真正�
   已加 `[Bot] entity_tick_missing` 看门狗（含 removed/区块/玩家表/连接/task 现场）；
   **待复现取现场**后定修法（可能需要在 `BotManager` 侧补漏 tick 兜底驱动）。
 
-**§6.15 2026-09-13 收尾复测（客户端 12:42）**：电池 **(23/23) ticks=3301 → PASS**、
+**§6.15 2026-09-13 收尾复测（客户端 12:42）**：电池 **(24/24) ticks=3301 → PASS**、
 `K4=OK(真异常 0 / 写入类例外 83)`、**22/22 终态步 `idempotent=true`**、
 四个 exec 用例 `foreignOk=true(另有残留1件不计入)`（D-168 分支首次全量实测通过）、
 `entity_tick_missing` / `segment_stall` / 异常均为 **0**。

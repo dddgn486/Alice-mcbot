@@ -72,6 +72,21 @@ public final class RecipeDump {
     private RecipeDump() {
     }
 
+    /**
+     * 类型 id → 工作站；**未支持的类型返回 null**（调用方据此"如实拒绝、不猜语义"）。
+     *
+     * <p>D-185：这是"哪些配方类型算原版可读"的**唯一定义处** —— `RecipeQuery`（阶段 3-A 的只读查询）
+     * 与导出本身共用它，避免两处各写一份白名单而漂移（D-183 的教训：键用错一套 id 就会静默错一整类）。
+     */
+    public static String stationFor(String typeId) {
+        return typeId == null ? null : STATION_BY_TYPE.get(typeId);
+    }
+
+    /** 当前支持的配方类型（只读快照，供诊断/文档）。 */
+    public static java.util.Set<String> supportedTypes() {
+        return STATION_BY_TYPE.keySet();
+    }
+
     /** 导出结果摘要。 */
     public record Result(int recipes, int skipped, int tags, String path,
                          java.util.Map<String, Integer> skippedByType) {

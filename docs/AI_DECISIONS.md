@@ -7132,3 +7132,31 @@ Create（506，15 类；cutting/deploying/crushing/milling/splashing）> Extende
 **换 key 的位置**：`<client>/config/alice-llm.json` 的 `apiKey` 字段（`model`/`url` 也在同一文件，
 当前 `model=deepseek-flash`、`url=https://api.deepseek.com/chat/completions`）。
 **注意**：key 只在服务端读取；换完需**重启客户端**（配置在启动时载入）。
+
+### D-185：阶段 3-A / A1 实施 —— **只读配方查询原语**（+ 零参数夹具与"只读"硬断言）
+
+**做了什么**（按 `STAGE3A_CRAFT_PLAN.md` 的五行任务卡）：
+1. **`task/craft/RecipeQuery`**：按 `itemId × count` 查运行时 `RecipeManager`（与 `/alice recipes`
+   导出、阶段 2 审计**同一份数据**），给出结论五态 ——
+   `CRAFTABLE`（料齐且随身 2×2 能做）/ `NEEDS_TABLE`（料齐但要 3×3）/ `MISSING_INGREDIENTS`（列缺什么缺多少）/
+   `NO_RECIPE` / `MACHINE_RECIPE_UNSUPPORTED`（只由机器类型产出 ⇒ **不猜语义**，如实列出类型名）。
+   材料按 ingredient 的候选物品展开（"任选其一"语义），同 ingredient 多次出现合并为 `perCraft`，
+   需求按 `crafts = ceil(count / 单次产出)` 折算。
+2. **"哪些类型算原版可读"的唯一定义**：抽出 `RecipeDump.stationFor(type)`，查询与导出**共用**
+   （D-183 的教训：两处白名单会漂移，且键用错一套 id 会静默错一整类）。
+3. **夹具 `CraftCheckTask` + 零参数入口 `alice:craft_check`**：正例（2 木板→4 木棍，2×2）、
+   缺料（清空背包 → 如实报 `missing=[…]`）、3×3 边界（8 圆石→熔炉）、无配方（圆石）、
+   机器专属（`mekanism:dust_iron`，未装则如实 `SKIP`），以及**硬断言 `read_only`**：
+   整个查询过程**背包逐槽快照完全一致** ⇒ 用夹具证明"只读"不是口头承诺。
+4. **电池 23 → 24 项**（新增 `craft_check` 步）；`TESTING_GUIDE` 增 D15 条目。
+
+**边界遵守**：本增量**零世界写入、零背包改动**（有断言）；机器配方命中即如实拒绝；
+未接决策层（A5 才进词汇表）。
+
+**已知取舍（诚实记录）**：
+- `NEEDS_TABLE` 只看**配方网格尺寸**（shaped ≤2×2 / shapeless ≤4），不看"附近有没有工作台"——
+  那是 A3 的事；
+- 熔炉/切石/锻造等"非 2×2"类型一律先给 `NEEDS_TABLE`，**不区分**"要工作台"还是"要熔炉"——
+  A4 会补 `station` 语义（当前 `station` 字段已如实带出，判据暂只用 grid）。
+
+**状态**：`IMPLEMENTED` + `COMPILES` + 资源自检 PASS。**未验证**：客户端（判据见上）。

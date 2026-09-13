@@ -145,7 +145,7 @@ public final class AliceItems {
     public static final RegistryObject<Item> REGION_LUMBER =
             ITEMS.register("region_lumber", () -> new RegionLumberItem(new Item.Properties()));
 
-    /** 串联回归电池（零参数）：一次右键跑完 23 项常用回归（含决策层 6 步），末尾一行 SUMMARY。 */
+    /** 串联回归电池（零参数）：一次右键跑完 24 项常用回归（含决策层 6 步），末尾一行 SUMMARY。 */
     public static final RegistryObject<Item> REGRESSION_BATTERY =
             ITEMS.register("regression_battery", () -> new RegressionBatteryItem(new Item.Properties()));
 
@@ -192,6 +192,10 @@ public final class AliceItems {
     /** 基-8 能力闸门自检（零参数，约 1 秒，纯逻辑）：保护区/资源/工具/预算/声明一致性。 */
     public static final RegistryObject<Item> CAPABILITY_GATE_CHECK =
             ITEMS.register("capability_gate_check", () -> new CapabilityGateCheckItem(new Item.Properties()));
+
+    /** 阶段 3-A / A1（D-185）**只读配方查询自检**（零参数，约 1 秒）：正例/缺料/3×3/无配方/机器专属 + 只读断言。 */
+    public static final RegistryObject<Item> CRAFT_CHECK =
+            ITEMS.register("craft_check", () -> new CraftCheckItem(new Item.Properties()));
 
     /** 基-9 工具供给自检（零参数，约 2 秒）：换更好的 / 没得换如实报 / **不能凭空变出工具**。 */
     public static final RegistryObject<Item> TOOL_SUPPLY_CHECK =
