@@ -47,7 +47,7 @@ public class CraftFurnaceCheckTask implements Task {
     private static final int SMELT_BUDGET_TICKS = 420;
     private static final ResourceLocation SMELT_RECIPE = ResourceLocation.withDefaultNamespace("stone");
 
-    private enum Phase { PREPARE, OPEN, DISCOVER, PLACE, WAIT, TAKE, ASSERT, DONE }
+    private enum Phase { PREPARE, OPEN, DISCOVER, PLACE, WAIT, TAKE, ASSERT, CLEANUP, DONE }
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -102,6 +102,7 @@ public class CraftFurnaceCheckTask implements Task {
             case WAIT -> waitSmelt();
             case TAKE -> take();
             case ASSERT -> assertResult();
+            case CLEANUP -> cleanupFurnace();
             case DONE -> finish();
         };
     }
@@ -245,7 +246,44 @@ public class CraftFurnaceCheckTask implements Task {
         check("no_half_products", (input == null || input.isEmpty()) && (output == null || output.isEmpty()),
                 "inputLeft=" + (input == null ? "-" : input.getCount())
                         + " outputLeft=" + (output == null ? "-" : output.getCount()));
-        closeSession("furnace_done");
+        return advance(Phase.CLEANUP);
+    }
+
+    /**
+     * **复位熔炉**（用户 2026-09-13 提醒："熔炉记得重置，不然会一直处于燃烧状态"）。
+     *
+     * <p>两件事：
+     * <ol>
+     *   <li>**把炉内东西取回**（剩下的燃料/输入/产物一起 shift-click 回背包）—— 建拆同权的精神：
+     *       夹具发出去的料，能拿回来的都拿回来；</li>
+     *   <li>**复位方块**：煤能烧 1600 tick，而一次烧炼只用 200 ⇒ 烧完还剩 ~1400 tick 的"余焰"，
+     *       光把燃料取走并不会灭（`litTime` 是方块实体自己的状态）⇒ 夹具用**场景同款做法**
+     *       （`setblock air` → `setblock furnace`）重建方块，**立刻熄灭并清空**，不给世界留"一直亮着的炉子"。
+     *       这是**夹具自己的场景管理**（与 A3b 挪动场景工作台同规格），**不是**生产写入 ⇒
+     *       `no_block_writes` 的含义仍是"我方账本里没有临时方块"。</li>
+     * </ol>
+     */
+    private Status cleanupFurnace() {
+        AbstractContainerMenu menu = bot.containerMenu;
+        FurnaceStation.Result now = FurnaceStation.discover(menu);
+        int burnLeft = now.ok() ? now.found().litTime() : -1;
+        record("burn_left_ticks_before_reset", String.valueOf(burnLeft));
+        boolean fuelBack = found != null && FurnaceStation.takeAll(bot, menu, found.fuel());
+        boolean inputBack = found != null && FurnaceStation.takeAll(bot, menu, found.input());
+        boolean outputBack = found != null && FurnaceStation.takeAll(bot, menu, found.output());
+        record("leftovers_returned", "fuel=" + fuelBack + " input=" + inputBack + " output=" + outputBack);
+        closeSession("furnace_cleanup");
+        // 场景同款复位：先空气再放炉子（重建方块实体 ⇒ 熄灭 + 清空）
+        var server = bot.serverLevel().getServer();
+        var source = server.createCommandSourceStack().withSuppressedOutput();
+        String pos = furnace.getX() + " " + furnace.getY() + " " + furnace.getZ();
+        server.getCommands().performPrefixedCommand(source, "setblock " + pos + " minecraft:air");
+        server.getCommands().performPrefixedCommand(source, "setblock " + pos + " minecraft:furnace");
+        boolean reset = bot.serverLevel().getBlockState(furnace)
+                .is(net.minecraft.world.level.block.Blocks.FURNACE);
+        record("furnace_block_reset", String.valueOf(reset));
+        BotLog.info("[CraftFurnaceCheck] 复位熔炉 pos={} burnLeft={} → 重建方块={}", pos, burnLeft, reset);
+        check("furnace_reset", reset, "burnLeftWas=" + burnLeft);
         return finish();
     }
 

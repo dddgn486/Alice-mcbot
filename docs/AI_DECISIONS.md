@@ -7934,3 +7934,26 @@ pickup_gate / collect_job / recipes_dump / event_thresholds）。
 匿名 `ContainerData` 也输出空类名。已修（并注明：**这些只是过程证据，判成功一律看世界事实**）。
 
 **等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `1aef94f3…`）。**待客户端**：CORE 电池跑通（23 项）。
+
+#### D-197 附注一：CORE 首跑（23 项）**全绿但被自校验误判 FAIL** + 熔炉复位（用户提醒）
+
+**客户端事实**：`(23/23) ticks=2583`、`K4=OK(写入类例外=51)`、`baseline=13 main=10 extra_skipped=10` ——
+**每一步都 PASS**，可整轮却 `→ FAIL`。原因出在我自己的**防漂移自校验**：
+```
+[Regression] 电池归属表与实跑项不一致： phantom=[collect_job, region_maintain, permission_gate, recipes_dump,
+ event_thresholds, decision_trace, decision_contract, lumber_failure, pickup_gate, llm_contract]
+```
+那 10 项正是 CORE **主动跳过的 EXTRA** —— 我却拿"裁剪后的步骤集"去比对归属表，于是把"按档跳过"误判成
+"文档说测了、其实没测"。**修**：自校验一律跟**裁剪前的全量步骤集**比（`allStepNames` 快照）。
+
+**时长对照**：FULL 33 项 `ticks=3527` → CORE 23 项 **`ticks=2583`（−27%）** ⇒ 用户"电池太长"的诉求达成。
+
+**用户提醒（原话）**："熔炉记得重置，不然会一直处于燃烧状态" —— 完全正确：煤能烧 1600 tick，
+而一次烧炼只用 200 ⇒ 烧完还剩 ~1400 tick 的"余焰"；而且**光把燃料取走并不会灭**
+（`litTime` 是方块实体自己的状态）。⇒ 夹具新增 **CLEANUP 相位**：
+1. 把炉内**剩下的东西全取回**（燃料/输入/产物各自 shift-click 回背包）——建拆同权的精神；
+2. **复位方块**：`setblock air` → `setblock furnace`（与场景同款做法，**立刻熄灭并清空**），
+   并如实记 `burn_left_ticks_before_reset`（余焰事实）、`leftovers_returned`、`furnace_block_reset`、`furnace_reset=true`。
+   这是**夹具自己的场景管理**（与 A3b 挪动场景工作台同规格），不是生产写入 ⇒ `no_block_writes` 的含义不变。
+
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `3312608d…`）。**待客户端**：CORE 复跑（应 `(23/23) → PASS`）。

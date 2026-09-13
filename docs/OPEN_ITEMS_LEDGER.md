@@ -595,3 +595,9 @@ jar `2efb2d1e…`；**教训**："重建场景"不等于"状态干净"。
 入口 `alice:regression_battery`（CORE）与 `/alice battery core|full|list`；
 **自校验防漂移**（漏登记/文档不一致直接判红）。顺带修 A4 的 `ContainerData` 下标映射与匿名类名。
 jar `1aef94f3…`；**待客户端**：CORE 23 项跑通。
+
+**§6.37 CORE 首跑 + 熔炉复位（已修，待复测）**：CORE `(23/23) ticks=2583`（FULL 3527 ⇒ −27%），
+但自校验拿"裁剪后的步骤集"比归属表 ⇒ 把 10 个被跳过的 EXTRA 误判成 phantom ⇒ 假 FAIL（已修：比全量快照）。
+用户提醒"熔炉会一直燃烧"属实（煤 1600tick vs 一次 200tick ⇒ ~1400tick 余焰，且取走燃料不会灭）⇒
+夹具加 CLEANUP：取回炉内剩余物 + `setblock air`→`furnace` 复位方块（场景同款做法）。
+jar `3312608d…`。

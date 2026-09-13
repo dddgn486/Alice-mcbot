@@ -163,6 +163,8 @@ public final class RegressionBatteryTask implements Task {
     private boolean stepsPrepared;
     private String curationError = "";
     private int extraSkipped;
+    /** **全量**步骤名（裁剪前快照）：自校验用它，避免"被跳过的档"被误判成 phantom。 */
+    private List<String> allStepNames = new ArrayList<>();
 
     private int index;
     private int ticks;
@@ -425,6 +427,12 @@ public final class RegressionBatteryTask implements Task {
                     unclassified.size(), unclassified);
             curationError = "unclassified=" + unclassified;
         }
+        // **自校验必须跟"全量步骤集"比**（2026-09-13 实测 bug：拿裁剪后的比 ⇒ CORE 模式把 10 个被跳过的
+        // EXTRA 误判成"文档说测了、其实没测"，整轮电池假 FAIL，而其实 23/23 全绿）
+        allStepNames = new ArrayList<>();
+        for (Step step : steps) {
+            allStepNames.add(step.name());
+        }
         int before = steps.size();
         if (mode == Mode.CORE) {
             steps.removeIf(step -> profileOf(step.name()) == Profile.EXTRA);
@@ -439,13 +447,9 @@ public final class RegressionBatteryTask implements Task {
 
     /** 归属表里登记了、但电池里没有的步骤（也会判红：防止"文档说测了、其实没测"）。 */
     private List<String> phantomEntries() {
-        List<String> names = new ArrayList<>();
-        for (Step step : steps) {
-            names.add(step.name());
-        }
         List<String> phantom = new ArrayList<>();
         for (String name : CURATION.keySet()) {
-            if (!names.contains(name)) {
+            if (!allStepNames.contains(name)) {   // ← 用**全量**步骤集（不受档位裁剪影响）
                 phantom.add(name);
             }
         }
