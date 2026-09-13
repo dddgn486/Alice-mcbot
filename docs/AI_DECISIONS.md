@@ -8133,3 +8133,26 @@ user prompt 的"注意"段也补上"craftable 清单 / `craftable_truncated` 的
 **登记为临时裁定**：`（临时）` 直连通道放行菜单校验；
 **复核触发条件 = A5 的 LLM 路径验证通过（或发现它在生产触发里被用到）⇒ 立即二选一**：
 (a) 回收 `/alice instruct`，或 (b) 加配置闸门（如 `LlmConfig.allowDirected`，默认关）并写进红线说明。
+
+#### D-200 附注一：直连指令**被自己的清空语句擦掉**（"让它做工作台，它却发了伐木指令"）—— 已结构性修复
+
+**客户端事实**（20:36，jar `b31727dc…`）：`/alice instruct 用你词汇表里的 craft 动作做一个工作台` 之后
+```
+[Goal] decision_action trigger=operator latency=4153ms raw={"action":"start_job","kind":"region_lumber","target":"region:saved",…} → StartJob(REGION_LUMBER …)
+[Goal] execute action=start_job ok=true trigger=operator
+```
+**没有** `[Goal] directed_result …` 行 ⇒ `trigger=operator`（入口走到了）但**发出去的是普通决策 prompt**，不是操作者指令。
+
+**根因（我的 bug，非 LLM 问题）**：直连指令靠 `State.directedPrompt` 这个**可变"邮箱"**在 `instruct()` 与 `fire()`
+之间传参，而 `fire()` 里写成"**先 `= null` 再使用**"⇒ 指令被自己擦掉；同时 `pollResult` 也靠同一字段判
+"是否直连模式"，于是**模式判定一起失效**（所以连 `directed_result` 都不打）。LLM 收到的就是普通决策请求，
+在"砍树剧情"上下文里选 `region_lumber` 是**正确行为** —— 错的不是它。
+
+**修（按"同类问题第二次 ⇒ 不做补丁，做结构修"的纪律）**：
+1. **prompt 改为显式参数**：`fire(bot, state, trigger, directedPrompt)`；`directed` 由"是否传了 prompt"直接推出，
+   **删掉可变邮箱字段**（`state.directedPrompt` 归零）⇒ 这一类"状态在两次调用之间被踩"的 bug 结构上不再可能；
+2. `state.pendingDirected` 只作为"跨发请求→收回复"的标记（`fire` 里设置，`pollResult` 读）；
+3. **可见性**：`[Goal] decision_request trigger=… mode=directed|normal model=…` —— 以后"指令到底发出去没有"一眼可判；
+4. `instruct()` 的状态快照也带上 `trigger="operator"`（与 D-200 的 trigger 字段配套）。
+
+**等级**：IMPLEMENTED + COMPILES + 已同步（jar `b31727dc…`）；**待客户端复测**（期望 `mode=directed` + `directed_result` 行）。

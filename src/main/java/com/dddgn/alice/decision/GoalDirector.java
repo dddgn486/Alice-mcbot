@@ -82,8 +82,8 @@ public final class GoalDirector {
         String lastRefusalReason = "";
         long lastRefusalTick = -1L;
         int lastRefusalCount;
-        /** 直连指令模式（操作者给了明确指令）：非 null 时用它当 user prompt，且**放行菜单校验**。 */
-        String directedPrompt;
+        /** 直连模式标记（跨"发请求 → 收回复"存活；`pollResult` 据此放行菜单校验并打 `directed_result`）。 */
+        boolean pendingDirected;
     }
 
     private static State state(BotPlayer bot) {
@@ -165,7 +165,7 @@ public final class GoalDirector {
         }
         // 手动触发 = 诊断模式：把 relay/proxy/direct 三条路都试一遍并逐条登记
         LlmClient.forgetChosenPath();
-        fire(bot, state, "manual");
+        fire(bot, state, "manual", null);
         return "sent(诊断模式：三条路径都会试一遍)";
     }
 
@@ -196,7 +196,7 @@ public final class GoalDirector {
             return "指令为空";
         }
         LlmClient.forgetChosenPath();
-        state.directedPrompt = """
+        String prompt = """
                 操作者指令（**直接执行它**；不要做目标选择，不要回 no_op/report_status）：
                 %s
 
@@ -204,8 +204,8 @@ public final class GoalDirector {
                 %s
 
                 请只回**一个** JSON 对象，表示执行该指令所需的动作（从词汇表里选）。
-                """.formatted(instruction, DecisionSnapshot.build(bot, null).toString());
-        fire(bot, state, "operator");
+                """.formatted(instruction, DecisionSnapshot.build(bot, null, "operator").toString());
+        fire(bot, state, "operator", prompt);
         return "sent(直连指令，动作结果见聊天/日志 [Goal] directed_result)";
     }
 
@@ -242,23 +242,34 @@ public final class GoalDirector {
                     trigger, state.minuteRequests);
             return;
         }
-        fire(bot, state, trigger);
+        fire(bot, state, trigger, null);
     }
 
-    private static void fire(BotPlayer bot, State state, String trigger) {
+    /**
+     * 发一次请求。
+     *
+     * <p>**为什么把 user prompt 作为参数传**（2026-09-13 事故教训）：原先直连指令靠 `State.directedPrompt`
+     * 这个**可变"邮箱"**在 `instruct()` 与 `fire()` 之间传参，而 `fire()` 里"先清空再使用"的顺序错误
+     * ⇒ 指令被自己擦掉，LLM 收到普通决策 prompt（"让它做工作台，它却发了伐木指令"）。
+     * 现在 prompt 是**显式参数**，`directed` 由"是否传了 prompt"直接推出，无可变状态可踩。
+     *
+     * @param directedPrompt 非 null = 操作者直连指令（见 {@link #instruct}）；null = 正常决策
+     */
+    private static void fire(BotPlayer bot, State state, String trigger, String directedPrompt) {
         LlmConfig config = LlmConfig.get();
         state.lastRequestTick = bot.getServer().getTickCount();
         state.minuteRequests++;
         state.pendingTrigger = trigger;
-        state.directedPrompt = null;
+        state.pendingDirected = directedPrompt != null;
         String system = VOCABULARY + (config.systemPrompt().isBlank() ? "" : "\n" + config.systemPrompt());
         // S2：决策前先由**确定性层**生成候选菜单（有界），prompt 里带上，LLM 只能引用其中的 id
         state.lastMenu = CandidateMenu.build(bot);
-        String prompt = state.directedPrompt != null
-                ? state.directedPrompt
+        String prompt = directedPrompt != null
+                ? directedPrompt
                 : DecisionSnapshot.buildPrompt(bot, state.lastMenu, trigger);
-        BotLog.info("[Goal] decision_request trigger={} model={} calledAtTick={}",
-                trigger, config.model(), state.lastRequestTick);
+        BotLog.info("[Goal] decision_request trigger={} mode={} model={} calledAtTick={}",
+                trigger, directedPrompt == null ? "normal" : "directed", config.model(),
+                state.lastRequestTick);
         DecisionTrace.request(bot, trigger, state.lastMenu.entries().size());
         state.pending = LlmClient.askAsync(system, prompt);
     }
@@ -307,7 +318,7 @@ public final class GoalDirector {
         String trimmed = reply.text().length() > LlmConfig.get().maxReplyChars()
                 ? reply.text().substring(0, LlmConfig.get().maxReplyChars())
                 : reply.text();
-        boolean directed = state.directedPrompt != null;
+        boolean directed = state.pendingDirected;
         GoalAction action = GoalAction.parse(trimmed, bot, state.lastMenu, directed);
         if (directed) {
             // 直连测试通道：**把 raw 与解析结果打成一行终态日志**（操作者测试连通性用）
