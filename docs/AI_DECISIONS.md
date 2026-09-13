@@ -7012,3 +7012,41 @@ D-179 那轮事故的起点正是"bot 被传送到 198 格外而 Job 毫无察�
 **现状**：`RecipeDump` 直方图 + 审计脚本已 `COMPILES`；
 基线导出（电池那份 partial：313 条、全 minecraft、21 个多路线产出）已被审计脚本正常读取
 （并暴露"旧导出没有 `skippedTypes` 字段"⇒ 需新版导出）。
+
+### D-182：阶段 2 模组**安装完成**（7 个 jar，含前置的真相）+ 一处工具缺陷（备份不轮转）
+
+#### 安装清单（Modrinth，1.20.1 forge，最新 **release**，逐个校验 sha1 = OK）
+
+| modId | 版本 | 文件 | 性质 |
+|---|---|---|---|
+| create | 6.0.8 | `create-1.20.1-6.0.8.jar` | 目标（**jar-in-jar 内嵌 flywheel 1.0.5 + Ponder 1.0.91 + Registrate + MixinExtras，且 `mandatory=true`**） |
+| extendedcrafting | 6.0.10 | `ExtendedCrafting-1.20.1-6.0.10.jar` | 目标（需 cucumber ✓） |
+| cucumber | 7.0.16 | `Cucumber-1.20.1-7.0.16.jar` | 前置 |
+| mekanism | 10.4.16.80 | `Mekanism-1.20.1-10.4.16.80.jar` | 目标（只有 optional 依赖，可忽略） |
+| thermal_expansion | 11.0.1.29 | `thermal_expansion-1.20.1-11.0.1.29.jar` | 目标（需 cofh_core + thermal ✓） |
+| thermal_foundation | 11.0.6.70 | `thermal_foundation-1.20.1-11.0.6.70.jar` | 前置（**JiJ 内嵌 `thermal_core-1.20.1-11.0.6.24`**） |
+| cofh_core | 11.0.2.56 | `cofh_core-1.20.1-11.0.2.56.jar` | 前置 |
+
+**前置的真相（差点被 Modrinth 元数据误导）**：
+- Modrinth 的依赖元数据**没列** Create 的 `flywheel`/`ponder`，但 jar 里 `META-INF/jarjar/metadata.json`
+  显示二者 `mandatory=true` 且**已内嵌** ⇒ 无需额外下载；
+- `thermal`（modId）在 Modrinth 上**没有 1.20.1 forge 版本**（那是 CoFH 的 Thermal Core），
+  但它**内嵌在 `thermal_foundation` 里**（`thermal_core-1.20.1-11.0.6.24`）⇒ 也无需额外下载。
+⇒ **教训**：依赖判定要以 **jar 内 `mods.toml` + `jarjar/metadata.json`** 为准，
+Modrinth/CurseForge 的网页元数据可能不全。
+
+**环境核对**：Forge **47.4.10** 满足全部 `forge versionRange [47.1.0,)`/`[47.1.3,)` ✓；
+已装 JEI `15.58.0.209` 满足 Create 的 optional JEI `[15.19.0,)` ✓；
+客户端真实 jar 只有 **12 个**（alice + JEI + Ore Excavation + 拼音搜索 + WorldEdit + 新装 7 个），
+**没有**重复 modId ⇒ 阶段 2 的"读不懂类型"可**干净归因**到 Create/Mekanism/Thermal。
+
+#### 顺带修掉的工具缺陷：**运行时备份不轮转**（同类问题第二次）
+
+`tools/sync-windows-artifact.sh` 每次同步都在客户端 `mods/` 留一份 `alice-*.jar.bak.<时间戳>`
+且从不清理 ⇒ 实测累积 **271 份、241 MB**（目录总共 287 MB，**84% 是备份**）。
+这与早前"D 盘被 330 份镜像备份写满"是**同一类**缺陷（备份写进使用目录、无轮转）。
+修：同步后按 `ALICE_BACKUP_KEEP`（默认 2）只保留最新若干份，并打印 `runtime_backups_pruned=N`；
+已清理现存 269 份（目录 287 MB → **50 MB**）。
+
+**状态**：安装与校验 = 已完成（sha1 全 OK、依赖闭合、无重复）。
+**未验证**：客户端**启动**与 `/alice recipes` 导出（下一步由用户执行；若启动报缺依赖，日志会点名，我据此补装）。

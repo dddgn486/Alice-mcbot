@@ -57,6 +57,16 @@ if [[ -n "${RUNTIME_MODS}" ]]; then
     echo "source=${source_hash} runtime=${runtime_hash}" >&2
     exit 3
   fi
+  # **运行时备份必须轮转**（2026-09-13 实测教训）：这里原先每次同步都留一份
+  # `<jar>.bak.<时间戳>` 且从不清理 ⇒ 客户端 mods/ 目录累积 **271 份备份、241 MB**
+  # （目录总 287 MB 里 84% 是备份）——与"D 盘被 330 份镜像备份写满"是**同一类**问题，
+  # 只是发生地点不同。只保留最新 ${ALICE_BACKUP_KEEP:-2} 份。
+  keep="${ALICE_BACKUP_KEEP:-2}"
+  mapfile -t stale < <(ls -t "${runtime_target}".bak.* 2>/dev/null | tail -n +$((keep + 1)))
+  if (( ${#stale[@]} > 0 )); then
+    rm -f "${stale[@]}"
+    echo "runtime_backups_pruned=${#stale[@]} (keep=${keep})"
+  fi
 fi
 
 echo "WINDOWS_ARTIFACT_SYNC PASS"

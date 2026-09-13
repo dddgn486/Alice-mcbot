@@ -400,5 +400,10 @@ S-1 因常驻任务而真实化），再开 **②决策层接入** 这条真正�
 - 本轮补：`RecipeDump` 增 `skippedTypes` 直方图（"读不懂的是谁"= 适配器候选证据）+
   新 `tools/recipe-readability.py`（只读离线审计：读得懂/读不懂、适配器候选、配方打架/跨模组同产出；
   `--selftest` PASS）。
-- **待用户三步**：① 把四个模组 jar 放进客户端 `mods/`；② 进游戏跑 `/alice recipes`（零参数，写 `config/alice-recipes.json`）；
-  ③ 告诉我一声，我直接从挂载目录读导出文件并出报告（**不写适配器**）。
+- **模组已由 AI 代装（D-182）**：7 个 jar（create 6.0.8 / extendedcrafting 6.0.10 / cucumber 7.0.16 /
+  mekanism 10.4.16.80 / thermal_expansion 11.0.1.29 / thermal_foundation 11.0.6.70 / cofh_core 11.0.2.56），
+  sha1 全 OK；`flywheel`+`ponder` 内嵌在 create、`thermal_core` 内嵌在 thermal_foundation（均已 `mandatory=true`）
+  ⇒ 依赖闭合；Forge 47.4.10 与已装 JEI 均满足；无重复 modId（客户端真实 jar 12 个）⇒ 读不懂类型可干净归因。
+- **顺带修掉**：同步脚本在客户端 `mods/` 留 271 份 `.bak`（241 MB）不清理 ⇒ 已加轮转（keep=2）并清理（287 MB → 50 MB）。
+- **待用户两步**：① 重启客户端（确认能进世界）；② 进游戏跑 `/alice recipes`（零参数，写 `config/alice-recipes.json`）；
+  然后我直接读导出文件出报告（**不写适配器**）。
