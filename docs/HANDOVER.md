@@ -66,11 +66,14 @@
 执行走唯一入口 `JobRequest.CRAFT` → `job/craft/CraftJob`（开**玩家选中的**站点 → 按需装配 → 网格合成/3 格烧炼 →
 **只看世界事实判成功** → 失败清场；**不自动拆回**升级、**不发料**）。
 
-**复测（零参数、不需要场景）**：
-1. `alice:craft_goal_check` ⇒ 期望 `SUMMARY menu_has_target=true parse_out_of_menu_refused=true
-   parse_in_menu_accepted=true job_done=true planks_delta=-4 product_count=1… verdict=PASS`；
-2. `alice:regression_battery`（CORE）⇒ 期望 `(25/25) → PASS`（新步 `craft_goal`）；
-3. `/alice ask …`（让 LLM 自己选）：**观察点** = 它只能引用清单里的 id；越界时日志里是 `Refused(not_in_menu:…)`。
+**实测（20:07–20:13）= 确定性路径全绿 ✅**：
+1. `alice:craft_goal_check` **PASS**（`menu_craftable_total=27`、越界 `Refused(not_in_menu:…)`、
+   站点做不了 `Refused(station_cannot:…)`、`job_terminal=DONE`、`planks_delta=-4 product_count=1`、`durationTicks=8`）；
+2. CORE 电池 **`(25/25) ticks=2737 → PASS`**（含 `craft_goal=PASS`）。
+
+**LLM 路径还没测**（用户那次 `/alice ask` 走错门了）：`/alice ask` = **S3 权限请示**通道，不发起决策；
+要触发一次真实决策用 **`alice:goal_director`（右键，`GoalDirector.forceOnce`，不受自检暂停影响）**。
+观察点：LLM 是否只从 `menu` 的 `craftable` 里选；越界时 `Refused(not_in_menu:…)` 会写进下一轮的 `task.lastRefusal`。
 
 ## 4. 待办队列
 

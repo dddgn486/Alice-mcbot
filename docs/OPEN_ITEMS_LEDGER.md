@@ -689,3 +689,27 @@ jar `3312608d…`。
   给 4 块橡木木板 ⇒ 断言清单里有 `minecraft:crafting_table` 且 `can_use=true` ⇒ 断言越界被拒、在清单里被接受 ⇒
   用同一个 `CraftJob` 真做一个工作台 ⇒ 断言木板 −4、工作台 +1 ⇒ 清空背包。
 - **等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（76 项）+ 已同步（jar `8497ec11…`）；**待客户端**（`alice:craft_goal_check` + CORE 电池 = 25/25 + `/alice ask` 观察 LLM 只在清单里选）。
+
+**§6.44 A5 客户端实测：确定性路径 PASS + CORE 25/25 ✅**（2026-09-13 20:07–20:13，jar `8497ec11…`）
+- **`alice:craft_goal_check` = PASS**（跑了两遍，`durationTicks=8`）：
+  `materials_given=true menu_craftable_total=27 menu_truncated=false menu_has_target=true`
+  `parse_out_of_menu=Refused(not_in_menu:minecraft:diamond_block（可做清单 27 项…）) parse_out_of_menu_refused=true`
+  `parse_in_menu=Craft(minecraft:crafting_table x1) parse_in_menu_accepted=true`
+  `station_cannot_probe=minecraft:netherite_boots parse_station_cannot_refused=true`
+  `job_terminal=DONE job_terminal_reason=crafted:minecraft:crafting_table x1 job_failure=-`
+  `planks_delta=-4 product_count=1 planks_consumed=true product_produced=true inventory_cleaned=true verdict=PASS`
+  过程证据：`[CraftJob] query item=minecraft:crafting_table x1 → CRAFTABLE … grid=2x2 crafts=1` →
+  `[CraftJob] 站点 OK station=inventory 随身菜单（无需打开）` → `craft OK … produced=1` → `世界事实 product 0→1 ⇒ 达成`。
+  ⇒ **"可做清单 + 严格解析（越界/站点做不了都拒）+ 生产路径 CraftJob + 世界事实判据"整条链在客户端成立**。
+- **CORE 电池 = `(25/25) ticks=2737 → PASS`**（`baseline=13 main=12 extra_skipped=10`），逐项含 **`craft_goal=PASS`**。
+- 自检期间决策层被正确挂起（`[Goal] trigger_skipped reason=suspended trigger=terminal:CraftGoalCheckTask`）⇒ D-192 附注二的约定仍然生效。
+- **LLM 路径（`/alice ask`）本轮没测到**：`/alice ask` 是 **S3 权限请示通道**（列出/答复未决请示），
+  无请示时回 `[alice] 没有未决请示` 是**正确行为**，它**不发起决策**。发起决策的入口见 §6.45。
+
+**§6.45 决策触发入口（澄清，避免下次再走错门）**（2026-09-13）
+- **自动触发**：任务终态（`terminal:<kind>`）、阈值事件（`event:<…>`）、维生中断（`survival:<…>`）、
+  空闲（`idle`，**默认关**，需 `idleDecisionEnabled`）。
+- **手动/强制触发**：`alice:goal_director`（右键）⇒ 打印 LLM 配置 + 权威快照 + `GoalDirector.forceOnce`，
+  **不受自检暂停影响**（这正是自检窗口内想单独验 LLM 时该用的入口）。
+- **不是触发入口**：`/alice ask`（那是 S3 请示通道）。
+- 因此 A5 的 **LLM 路径**（LLM 是否会从 `craftable` 清单里选 `craft`）**仍未驗**，下一轮用 `goal_director` 物品观察。
