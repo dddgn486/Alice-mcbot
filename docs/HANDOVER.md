@@ -90,7 +90,7 @@
 - 电池：**CORE = BASELINE 13 + MAIN 12 = 25 项**（FULL 35）；配置唯一入口 `RegressionBatteryTask.CURATION`。
 - 模组（客户端 mods/）：alice、JEI、OreExcavation、JEI-pinyin、WorldEdit、create、extendedcrafting、cucumber、
   mekanism、thermal_*、**精妙存储 1.4.86.2131 + 精妙核心 1.5.1.2335 + 精妙背包 3.26.3.2157**、RefinedStorage 1.12.4。
-- 本轮最后同步的 jar：`cd3a6816c751f75334fa0a42199d8395b01db7f10b8c9d9c2a6e41f91d5ac610`（源码镜像 + 运行工件均已同步）。
+- 本轮最后同步的 jar：`8497ec11c573ccbde9679546856f4cec79b8d2260b5a0a9e1bf530f456f663b0`（源码镜像 + 运行工件均已同步）。
 
 ## 6. 纪律提醒（别再踩）
 

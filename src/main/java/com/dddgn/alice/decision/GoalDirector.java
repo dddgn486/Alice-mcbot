@@ -47,11 +47,17 @@ public final class GoalDirector {
                                                             // 搬进快捷栏。kind ∈ pickaxe|axe|shovel|sword；
                                                             // **只动背包，不合成、不挖材料**
             4b. {"action":"stop_current","reason":"..."}
-            5. {"action":"report_status","note":"..."}
-            6. {"action":"no_op","note":"..."}
+            5. {"action":"craft","item":"minecraft:crafting_table","count":1}
+                // 合成/烧炼（真消耗真产物）。**item 必须来自状态里 menu 的 craftable 条目**
+                // （那是服务端按"你现在持有的材料 + 当前选中的工作站"算出来的）；
+                // 清单里 can_use=false 的项 = 当前工作站做不了（换工作站由玩家决定，你不能指定站点）；
+                // 缺料/没配方会被**拒绝**并回读原因（例如 missing_ingredients）。
+            6. {"action":"report_status","note":"..."}
+            7. {"action":"no_op","note":"..."}
 
             规则：
             - 未知动作/未知 kind/未在 menu 中的 target 一律被**拒绝**；不要编造坐标。
+            - `craft` 的 item 必须是 menu 里 `kind="craftable"` 且 `can_use=true` 的 id；数量别超过手头材料。
             - 不要要求"挖穿地形/搭桥/放置方块"——那需要显式授权，不在你的词汇表里。
             - 任务刚失败过（lastTerminal.terminal=FAILED）时，优先考虑换目标或 no_op，而不是立刻重跑同一个。
             """;

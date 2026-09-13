@@ -206,7 +206,9 @@ public final class DecisionSnapshot {
                 %s
 
                 注意：`start_job` 的 `target` **只能引用 menu 里出现过的 id**（例如 `tree@20,64,208`）；
-                引用菜单里没有的 target 会被**拒绝**，也不要自己编坐标。
+                `craft` 的 `item` **只能引用 menu 中 `kind="craftable"` 且 `can_use=true` 的 id**
+                （`craftable_truncated=true` 表示清单因上限被截断，**被截断 ≠ 做不到**）；
+                引用菜单里没有的 id 会被**拒绝**，也不要自己编坐标／编物品名。
 
                 请只回**一个** JSON 对象，不要解释、不要 Markdown 围栏。""".formatted(state);
         BotLog.info("[Goal] snapshot chars={} json={}", state.length(),

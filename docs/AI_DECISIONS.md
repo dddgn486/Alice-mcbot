@@ -8099,4 +8099,14 @@ cleanup 在菜单已关时对玩家背包菜单跑发现器 + 拿旧地址点击
 
 **电池 24 → 25 项**（`craft_goal` 进 MAIN ⇒ CORE 25 / FULL 35），`docs/BATTERY_CURATION.md` 同步。
 
-**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `cd3a6816…`）；**待客户端**（`alice:craft_goal_check` + CORE 25/25 + `/alice ask`）。
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `8497ec11…`）；**待客户端**（`alice:craft_goal_check` + CORE 25/25 + `/alice ask`）。
+
+#### D-199 附注一：**词汇表漏登记 `craft`** —— prompt 是能力的一部分（已修）
+
+A5 实现完后自查提示词才发现：动作词汇表（`GoalDirector.VOCABULARY`，system prompt 主体）**没有 `craft`**
+⇒ LLM 根本不知道这个动作存在，`/alice ask` 路径上 A5 **等于没接**（只有确定性夹具能跑）。
+修：词汇表补 `craft` 条目 + 规则行（item 必须来自 `menu` 的 `craftable` 且 `can_use=true`），
+user prompt 的"注意"段也补上"craftable 清单 / `craftable_truncated` 的含义"。
+
+**教训（登记为纪律）**：新增任何动作，**必须同时改三处**：① `GoalAction` 解析；② `VOCABULARY`（system prompt）；
+③ user prompt/状态的说明文字。只做①=能力存在但没人会叫它。
