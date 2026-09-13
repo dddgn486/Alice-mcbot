@@ -7572,3 +7572,32 @@ menu=StorageContainerMenu(sophisticatedstorage:storage) slots=63   ← 可 menu.
 
 **教训**：`menu.slots` **不是**"菜单里所有槽位"的完整集合 —— 上游可以在外面自管槽位并只设 `slot.index`。
 发现器必须问"**菜单里所有可达的槽位**"，而不是"`menu.slots` 里有什么"。
+
+#### D-192 附注四：槽位表露出真身（`74` 槽 / 9 格在 `-100,-100` / 结果槽 `#73`）+ 发现器改成**四条证据路径**
+
+**客户端事实（17:22 探针 + 17:19 截图）**：
+```
+slots(74): 0..62 是登记在 menu.slots 的 63 个；
+           63: *#63/SimpleContainer@-15,0   = crafting_upgrade      ← 升级槽
+           64..72: *#64..72/SimpleContainer@-100,-100                ← **9 个网格格**（在 menu.slots 之外）
+           73: *#73/ResultContainer@-100,-100                        ← 结果槽
+discover=FAIL:no_grid matrix=-(0) resultSlot=(1)      ← 结果槽认出来了，但"矩阵"没认出来
+```
+**为什么矩阵没认出来**：那 9 格的 `container` **不是** `CraftingContainer`（挂在升级自己的物品处理器上）；
+只有**结果槽**挂着 `ResultContainer`。而精妙那版的合成矩阵是 `CraftingItemHandler extends TransientCraftingContainer`，
+它是**升级容器的私有字段**、由结果槽持有（原版 `ResultSlot.craftSlots`）—— 也就是说：
+**"9 格"与"矩阵"之间没有容器身份关系**，只有"内容同物"关系。
+
+**发现器重写（四条证据路径，用了哪条写进 `note`）**：
+| 路径 | 判据 | 强度 |
+|---|---|---|
+| ① 身份 | 槽位的 `container` 就是矩阵容器 | 最强（原版形态） |
+| ② 结果槽字段 | 反射读原版 `ResultSlot.craftSlots`（或 `getCraftSlots()`）拿矩阵 | 通用、零模组知识 |
+| ③ 上游自述 | 可达宿主自己声明 `getRecipeSlots()`/`getCraftMatrix()`，且**矩阵必须是同一个对象** | 上游语义 + 自校验 |
+| ④ 内容镜像 | 某容器与矩阵**逐格同物**、格数 == 宽×高，且这样的容器**唯一** | 最弱；不唯一即拒绝（`grid_slots_unresolved`） |
+
+另外 `describeSlots` 现在标出 **`#index`（点击地址）** 与 **`*`（不在 `menu.slots` 里）**，
+`note` 带 `matrixBy=` / `gridBy=` / `registeredSlots=` / `reachableSlots=` ⇒ **"用了哪条路"永远可见**。
+
+**仍未验证**：`gridBy` 实际取哪条、`grid=3x3 slots=[64..72] result=73` 是否成立；
+以及**点击**是否真的能按这些 `index` 走到上游的槽位（探针只读，属第二步 S1-5 的执行验证 —— 那时才谈"页签站点能不能真合成"）。

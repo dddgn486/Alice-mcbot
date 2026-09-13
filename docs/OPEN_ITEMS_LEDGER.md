@@ -502,3 +502,11 @@ A1 判据（零参数 `alice:craft_check`）：正例给工作站+材料清单�
   对原版站点行为不变（`index` == 位置）。
 - **待测**：重启后（不要重跑场景）跑探针 ⇒ 期望 `discover=OK grid=3x3 slots=[63…]`、
   `extra_slots=10`、`grid_addressable_without_tab=true`。
+
+**§6.24 D-192 第六轮：槽位表露出真身 + 发现器四路径重写**
+- 17:22 探针：`slots(74)`；`*#63` 升级槽、`*#64..72` 九个网格格（**@-100,-100**）、`*#73` 结果槽 ⇒
+  证明"页签槽位在 `menu.slots` 之外"的推断完全正确；但 `matrix=-(0)` ⇒ 9 格并不挂在 `CraftingContainer` 上。
+- 17:19 截图作证：玩家视角该箱子右侧"合成"页签 + 3×3 + 结果槽正常 ⇒ 模组本身没问题。
+- 发现器重写为**四条证据路径**（身份 → 结果槽 `craftSlots` → 上游 `getRecipeSlots` 自述 → 内容镜像唯一性），
+  并输出 `matrixBy=` / `gridBy=`；如实拒绝码新增 `grid_slots_unresolved`。
+- **待测**：`gridBy` 取哪条、`grid=3x3 slots=[64..72] result=73`；点击可用性留第二步（S1-5）。
