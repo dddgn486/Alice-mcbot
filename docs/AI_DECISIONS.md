@@ -7402,3 +7402,41 @@ world_mod_ledger_close … 仍有 1 条我方临时放置未拆除（建拆同�
 **教训（与 D-187 同族，第五条）**：读日志的人一眼就能看出"放了圆石"，
 但**代码里没有任何一处写着圆石** —— 这类缺陷只能靠"**这个原语的语义到底是什么**"这一问拦住。
 ⇒ 调用写入原语前先答：它是"**放某个**"还是"**放这个**"？（已写进 `WORLD_WRITE_AUTHORIZATION.md` §1）。
+
+### D-191：模组兼容范例 —— **"工作站"必须可切换**（不硬编码合成方式）+ 两个"精致存储"的辨识
+
+**用户提出**（原话）："精致存储的每个容器（背包，箱子，潜影盒）都能装合成升级，打开容器后，右侧会有标签，
+点击标签就能打开" + "合成升级的页签" + "合成产物的 QuickMove 可以切换目标"。
+**用户裁定**："现在只是做**兼容范例测试**，先实现**工作站的可切换**，不急着完全适配其他模组。"
+
+**先记一个低级错误**：用户说"我们先简单装一个精致存储吧"，我装成了 **Refined Storage** ——
+中文里 **Refined Storage** 与 **Sophisticated Storage** 都译作"精致存储"，而"每个容器都能装合成升级 +
+右侧标签页 + 页签里 3×3" 是 **Sophisticated Storage（P3pp3rF1y）+ Sophisticated Core** 的形态。
+**教训**：模组需求**不要靠中文译名对齐**；用户给的行为描述（"右侧标签页"/"每个容器"）比名字更可靠，
+先按行为描述去 Modrinth 反查，再动手装。
+
+**已装**（固定客户端）：`sophisticatedstorage-1.20.1-1.4.86.2131`（sha1 `f0159288…`）+
+`sophisticatedcore-1.20.1-1.5.1.2335`（sha1 `24d7f2ee…`，**必需前置**，升级框架与标签页实现都在 Core，
+⇒ **背包（Sophisticated Backpacks）共用同一 Core**，同一适配器将来天然覆盖）。
+`mods.toml`：Storage 要 `forge [47.1,)` + `sophisticatedcore [1.3.82.+,)`；Core 无依赖。
+
+**三条用户描述全部源码取证为真**（详见 `docs/MOD_COMPAT_CRAFT_STATION_PLAN.md` §1）：
+1. `item.sophisticatedstorage.crafting_upgrade.tooltip = "Crafting table in an upgrade tab"`；
+2. 矩阵 9 格内容序列化进**那颗升级物品自身的 NBT**（`CraftingUpgradeWrapper`: `new ItemStackHandler(9)` →
+   `upgrade.addTagElement("craftingInventory", serializeNBT())`）⇒ 关 GUI 不归还；
+3. 结果槽 shift 目标**有设置项**：`CraftingUpgradeWrapper.shouldShiftClickIntoStorage()`（默认 **true** = 进容器），
+   语言文件里就是两个按钮 `Shift Click Result Into Storage` / `Shift Click Result Into Player's Inventory`。
+
+**决定性的工程事实（本轮最有价值的发现）**：标签页是**纯视觉**的 ——
+`CraftingUpgradeContainer` 把 9 个矩阵槽 + 结果槽一律建在 **(-100,-100)**，
+`StorageContainerMenuBase.addUpgradeSettingsContainers` **只要升级装着就把槽加进菜单**；
+`getOpenTabId()/setIsOpen` 只影响"哪个升级是打开的那个"（供配方转移挑选）。
+⇒ **服务端 bot 不需要点标签、不需要发包**就能摆料取产物；且矩阵/结果是**原版类型**
+（`CraftingItemHandler extends TransientCraftingContainer`、原版 `ResultSlot`），
+`slot.container instanceof CraftingContainer/ResultContainer` 即可发现 ⇒ **通用发现器可解，零模组专属代码**。
+
+**结论（回答用户的问题）**：**不该硬编码合成方式**，但改动点集中在四个维度：
+① 槽位靠**发现**（不再用常量下标）；② 结果槽**取法协议**（QUICK_MOVE 在各站点语义不同，含"重复多次"）；
+③ **材料来源**（容器/网络 ≠ 玩家背包，守恒断言口径要跟着变）；④ **持久矩阵 ⇒ 写入授权**
+（矩阵内容存进方块实体/升级物品 NBT，"零世界写入"只在随开随灭的原版网格上成立）。
+第一步只做 ①②③④ 的**只读事实 + 可切换**，执行接入留第二步。设计见 `docs/MOD_COMPAT_CRAFT_STATION_PLAN.md`。

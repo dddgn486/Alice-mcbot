@@ -1,136 +1,132 @@
-# 模组兼容范例 · 第一步：**可切换的合成工作站**（设计，2026-09-13）
+# 模组兼容范例 · 第一步：**可切换的合成工作站**（设计 v2，2026-09-13）
 
+> **v1 更正**：v1 把目标模组认成了 **Refined Storage**（中文也译"精致存储"）。
+> 用户澄清后确认目标是 **Sophisticated Storage（精致存储，P3pp3rF1y）**：
+> *"每个容器（背包，箱子，潜影盒）都能装合成升级，打开容器后，右侧会有标签，点击标签就能打开"* + *"合成升级的页签"*。
+> v1 的 RS 调查保留在 **§4 附录**（它是将来的另一个目标，事实没错，只是不是本轮）。
+>
 > 用户裁定（原话）："现在只是做**兼容范例测试**，先实现**工作站的可切换**，不急着完全适配其他模组。"
-> 本文 = 模组调查（事实 + 证据）+ 第一步设计。**尚未写代码**。
 
-## 0. 先回答那个问题：是不是不该硬编码合成方式
+## 0. 本轮装了什么
 
-**是，不该。** 而且好消息是骨架已经对了一半 —— 真正的硬编码只有 **4 处**，其余已经是数据/协议：
+| 模组 | 版本 | sha1 | 说明 |
+|---|---|---|---|
+| **Sophisticated Storage** | `1.20.1-1.4.86.2131` | `f01592882a63856927de2b5ef90aa0ce9924a41e` | 目标模组（箱子/木桶/潜影盒 + 升级 + 右侧标签页） |
+| **Sophisticated Core** | `1.20.1-1.5.1.2335` | `24d7f2ee72127b7f1148245e57979e87b0b189ec` | **必需前置**（升级框架与"升级标签页"实现都在这里） |
+| （误装）Refined Storage | `1.12.4` | `014bf4de4975f6310d22a6ed06c6a7e1e0805641` | §4；**待用户决定是否撤掉** |
 
-| 层 | 现状 | 模组会不会撞坏 |
-|---|---|---|
-| `InventoryCraft.GridSpec(gridSlots,width,height,resultSlot,invFirst,invLast)` | **数据**；`craft(menu, recipe, count, spec)` 对任意 `AbstractContainerMenu` 生效 | 不用改 |
-| `MenuSession` | **通用菜单协议**（点击/关闭/生命周期） | 不用改 |
-| `RecipeQuery` 只读查询 | 按**配方类型 id** 路由（不是序列化器 id） | 不用改 |
-| ① 槽位下标常量（`inventorySpec()` / `tableSpec()`） | 硬编码"2×2 随身 / 3×3 工作台"的已知布局 | ❌ 模组菜单下标完全不同 |
-| ② 结果槽协议假设 = `QUICK_MOVE`（原版 `ResultSlot` 语义） | 硬编码 | ❌ RS 的 `QUICK_MOVE` 是**完全另一套**（见 §1.3） |
-| ③ 站点获取 = `findTable` + `standPointNear` + `openTable`（世界方块） | 硬编码"站点是世界里的一块方块" | ⚠️ RS 恰好**也是方块**（运气好）；"身上 3×3"那类不是 |
-| ④ `RecipeQuery.inventoryGrid` 是 **boolean**，`verdict = CRAFTABLE : NEEDS_TABLE`（`RecipeQuery.java:176`） | 硬编码"**有没有 3×3**"这个二分 | ❌ 身上 3×3 ⇒ 假阴性；模组网格 ⇒ 无路线 |
-| ⑤ 没有熔炉形状 | A4 未做 | ❌ 熔炉类站点（含背包熔炉升级）是另一种执行形状 |
+`mods.toml` 事实：Storage 要求 `forge [47.1,)` + `sophisticatedcore [1.3.82.+,)`（我们装的是 1.5.1.2335 ✓）；Core 无依赖。
+**背包（Sophisticated Backpacks）共用同一个 Core** ⇒ 同一个适配器将来天然覆盖背包，不用写第二套。
 
-## 1. 模组调查（事实，全部可追溯）
+## 1. 目标模组的关键事实（全部有出处）
 
-### 1.1 装的是哪个
+调查手段：jar 内 `META-INF/mods.toml` + `javap -p` 签名 + 上游 `P3pp3rF1y/SophisticatedCore` **branch `1.20.x`** 源码 + jar 内语言文件。
+证据文件：`upgrades/crafting/CraftingUpgradeContainer.java`、`CraftingUpgradeWrapper.java`、`common/gui/StorageContainerMenuBase.java`、`common/gui/UpgradeContainerBase.java`。
 
-| 项 | 值 |
-|---|---|
-| 文件 | `refinedstorage-1.12.4.jar`（3 300 191 B） |
-| 来源 | Modrinth CDN `https://cdn.modrinth.com/data/KDvYkUg3/versions/ZITLFjjf/refinedstorage-1.12.4.jar` |
-| sha1 | `014bf4de4975f6310d22a6ed06c6a7e1e0805641`（与 Modrinth 元数据一致） |
-| 元数据 | `mods.toml`: `modId=refinedstorage` `version=1.12.4` `loaderVersion="[47,)"`、**无 `[[dependencies]]`** ⇒ 无需附加依赖；与 Forge 47.4.10 兼容 |
-| 1.20.1 现实 | Modrinth 上 1.20.1 只有 **RS1 1.12.x**（`1.12.4` 是 forge+neoforge 双载荷）。RS2 的"网格升级页签"形态在 1.20.1 上不存在 |
-| 已安装 | 已放入固定客户端 `mods/`（sha1 已核对）。**未入库**（仓库不跟踪 mod jar） |
+### 1.1 **"合成升级的标签页"确认存在，而且它就是你说的那样**
 
-调查手段：读 jar 内 `META-INF/mods.toml` + `javap -p` 看类/方法签名 + 从 MIT 许可的上游仓库 `refinedmods/refinedstorage` tag `v1.12.4` 取源文件（`GridContainerMenu` / `ResultCraftingGridSlot` / `CraftingGridSlot` / `CraftingGridBehavior` / `GridNetworkNode` / `BaseContainerMenu` / `TransferManager` / `ServerConfig`）。
+- `item.sophisticatedstorage.crafting_upgrade`，tooltip 原文：**"Crafting table in an upgrade tab"**；
+- `gui.sophisticatedcore.upgrades.crafting = Craft`；`CraftingUpgradeTab` + `ICraftingUIPart`（`onCraftingSlotsDisplayed/Hidden`）就是右侧标签；
+- 容器的升级槽 → `UpgradeContainerRegistry.instantiateContainer` → `CraftingUpgradeContainer`。
 
-### 1.2 关键事实（RS1 的合成网格长什么样）
+### 1.2 **九个格子确实"存东西"，关掉不归还**（你的第 2 条 ✓）
 
-1. **网格与结果容器属于"网格对象"（方块实体），不属于菜单**：
-   `GridNetworkNode.java:114` `private final CraftingContainer matrix = new TransientCraftingContainer(craftingContainer, 3, 3);`
-   `GridNetworkNode.java:79` `private final ResultContainer result = new ResultContainer();`
-   ⇒ 矩阵是**原版 `TransientCraftingContainer` 3×3**、结果是**原版 `ResultContainer`**。
-2. **槽位类是纯原版槽**：`CraftingGridSlot extends net.minecraft.world.inventory.Slot`（容器=矩阵）；
-   `ResultCraftingGridSlot extends net.minecraft.world.inventory.ResultSlot`（容器=结果）。
-3. **菜单槽位下标是"动态拼出来的"，不是固定布局**：`GridContainerMenu.initSlots()` 先 `slots.clear()`，
-   然后 `addFilterSlots()` →（便携网格另加）→ `addCraftingSlots()`（**9 个矩阵槽 + 1 个结果槽**）→ 玩家背包。
-   ⇒ 合成槽在哪个下标取决于过滤器槽数量/是否便携/网格类型（CRAFTING/PATTERN/FLUID）。**硬编码下标必错。**
-4. **`QUICK_MOVE`（shift-click 结果槽）走的是 RS 自己的覆盖实现**：
-   `BaseContainerMenu.quickMoveStack(player, slotIndex)` → `transferManager.transfer(slotIndex)`；
-   `GridContainerMenu` 的 `notFoundHandler`：`if (slot == craftingResultSlot) { grid.onCraftedShift(getPlayer()); }`
-   `CraftingGridBehavior.onCraftedShift`：**do/while 一次合到满堆**，产物 `ItemHandlerHelper.insertItem(new PlayerMainInvWrapper(player.getInventory()), …)`
-   ⇒ **玩家背包优先，溢出进网络，再余量丢地上**；材料从记录下来的 `usedItems` 统一从网络扣除。
-5. **单次取（普通点击）会从网络"补满"矩阵**：
-   `ResultCraftingGridSlot.onTake` 覆盖了原版（源码注释原文：*"Overriding logic from the super onTake method for Grid behaviors like refilling stacks from the network"*）
-   → `grid.onCrafted(player, null, null)` → `CraftingGridBehavior.onCrafted`：某格只剩 1 个且 `network != null && grid.isGridActive()`
-   ⇒ `network.extractItem(slot, 1, PERFORM)` **把这一格补回 1 个**；余数（remainder）去向 = 玩家背包 → 网络 → 掉地上。
-6. **网格类型是方块属性，不是升级给的**：`GridNetworkNode` 的 `type` 在构造时传入（`GridType.CRAFTING`）；
-   方块有独立的 `refinedstorage:crafting_grid`。`Crafting Upgrade` 是给 **Crafter 等机器**插的**能耗升级**
-   （`ServerConfig.Upgrades.craftingUpgradeUsage = 5`），**不给网格加"合成页签"**。
-
-### 1.3 与你描述的三条对照
-
-| 你的描述 | 调查结论 |
-|---|---|
-| "九个格子实际上能**存储东西**，关闭背包不会自动放回" | ✅ **成立**。矩阵属于网格对象（事实 1/2），关 GUI 不归还；摆进去的东西**留在方块里** |
-| "合成产物的 QuickMove **可以切换目标**（背包 / 玩家背包）" | ⚠️ **部分成立，但不是开关**：shift-click 固定是"**玩家背包优先 → 溢出进网络**"（事实 4）；而**普通取**产物落在**光标**上，之后放哪里由取的人决定 —— 也就是说"目标"是由**用哪种点击协议**决定的，不是某个设置项。这条对我们正好：协议可以写进工作站描述符 |
-| "**合成升级**的页签" | ❌ **RS1 里不存在这条链路**：网格类型是方块属性（事实 6），合成升级装在机器上。"升级 → 合成页签"是 RS2 的形态，而 1.20.1 只有 RS1。**待你确认你指的是哪个 GUI**（下一步的只读探针会把它照出来） |
-
-### 1.4 顺带确认的原版事实（发现器可行性）
-
-`javap` 查 Forge 47.4.10 映射 jar：`net.minecraft.world.inventory.CraftingContainer` **有** `getWidth()` / `getHeight()`；
-`TransientCraftingContainer` 实现之；`ResultContainer` 是普通 `Container`。
-⇒ **只用原版 API 就能"发现"网格**：`slot.container instanceof CraftingContainer` ⇒ 网格槽；
-`slot.container instanceof ResultContainer` ⇒ 结果槽；尺寸取 `getWidth()/getHeight()`。
-三种场景各只有**一个** `CraftingContainer`（随身 2×2 / 工作台 3×3 / RS 3×3），**不会歧义**。
-
-## 2. 对 Alice 的影响（现在哪里会坏，以及为什么）
-
-| # | 影响 | 说明 |
-|---|---|---|
-| 2.1 | **槽位必须"发现"** | 见 §1.2 事实 3。`GridSpec` 保留，但**由发现器产出**，不再用常量 |
-| 2.2 | **结果槽协议是第二维** | 同一个 `ClickType.QUICK_MOVE` 在 RS 上 = "合到满堆 + 背包优先"，在原版 = "合 1 次 + 进背包"。⇒ 描述符必须带 `TakeProtocol`，且**实测选定** |
-| 2.3 | **材料来源是第三维** | RS 从**网络**补料；`RecipeQuery.countInInventory` 的"缺料"与"材料 −M / 产物 +1"守恒断言**口径全错**。⇒ 描述符带 `MaterialSource`（`INVENTORY` / `UNKNOWN`→只读），断言按来源分口径 |
-| 2.4 | **"零世界写入"不再成立** | A3 的 `no_world_write` 成立只是因为原版网格**随开随灭**。RS 矩阵**持久在方块实体里** ⇒ 摆料/清理 = **对世界状态的写入**。现有 `consumeContainerWrite` 只被 `TransferTask` 用（`A11`），合成摆料没有登记 ⇒ 需要新 `WriteReason` + A 表条目 |
-| 2.5 | **站点获取恰好同形** | RS 合成网格也是"方块 + 右键" ⇒ 现有 `findTable → 走近 → 右键 → 开菜单` 的形状可复用，只需把"找哪块方块"参数化（按**方块 id** 查，不引编译期依赖） |
-
-## 3. 第一步范围（可切换的工作站，不碰"完整适配"）
-
-**目标**：让"合成工作站"成为**一等、可选、可切换**的对象，并把 RS 作为**第二个范例**验证这条缝；本步**只读优先**，执行接入留给第二步。
-
-### S1-1 发现器（只读，通用，零模组知识）
-`task/craft/GridDiscovery`：
-- 输入 `AbstractContainerMenu`，输出 `Discovered{gridSlots[], width, height, resultSlot, inventoryFirst/Lost, matrixClass, resultSlotClass}`；
-- 拒绝码（如实、不猜）：`no_grid` / `no_result_slot` / `ambiguous_grid` / `grid_shape_mismatch`（`width*height != gridSlots.length`）；
-- **回归证明**：在随身 2×2 / 工作台 3×3 上必须复现 D-163/D-165 记录的布局（这是"发现器没写错"的硬证据）。
-
-### S1-2 工作站描述符 + 玩家可切换（确定性事实 + 人工选择）
-`task/craft/CraftStation`：
+```java
+// CraftingUpgradeWrapper
+inventory = new ItemStackHandler(9) { ... upgrade.addTagElement("craftingInventory", serializeNBT()); ... };
+// CraftingUpgradeContainer
+private final CraftingItemHandler craftMatrix;   // extends TransientCraftingContainer
 ```
-{ kind: INVENTORY | BLOCK,  站点名, 打开方式, 网格能力(width×height),
-  TakeProtocol: SINGLE_TAKE | QUICK_MOVE,  MaterialSource: INVENTORY | UNKNOWN }
+矩阵 9 格的内容**序列化进那颗升级物品自身的 NBT**（`craftingInventory`）⇒ 随容器存档持久化，
+**关闭 GUI 不会放回**（对比原版工作台：随开随灭）。你观察到的现象与实现完全一致。
+
+### 1.3 **合成产物的 QuickMove 目标真的可切换**（你的第 3 条 ✓，而且有按钮名）
+
+```java
+// CraftingUpgradeWrapper
+public boolean shouldShiftClickIntoStorage() { return NBTHelper.getBoolean(upgrade, "shiftClickIntoStorage").orElse(true); }
+public boolean insertIntoStorageOrPlayer(Player p, ItemStack s) {
+    if (shouldShiftClickIntoStorage() && insertIntoInventory(s, storageWrapper.getInventoryHandler(), false).isEmpty()) return true;
+    return p.getInventory().add(s);
+}
 ```
-- 候选 **由代码产出**（每个候选：能不能用 + 为什么不能用），**不做自动选优**；
-- 切换入口（玩家）：`/alice craft station <auto|inventory|table|block>`（或一个物品），默认 `auto` = 今天的顺序（随身 → 工作台）；
-- `bot_report` 多一行：`合成工作站：auto（候选：随身 2×2 ✓ / 工作台（无）/ 方块网格（无））`；
-- **LlmClient/决策层不动**（A5 才谈）；本步的"切换"是**玩家/命令**层的选择。
+语言文件里的两个按钮名（就是你看到的那个切换）：
+```
+gui.sophisticatedstorage.upgrades.buttons.shift_click_into_storage   = Shift Click Result Into Storage
+gui.sophisticatedstorage.upgrades.buttons.shift_click_into_inventory = Shift Click Result Into Player's Inventory
+```
+默认 = **进容器**（`orElse(true)`）。另有 `refill_crafting_grid`（默认 false）与按钮 `Refill Crafting Grid / Do Not Refill Crafting Grid`。
 
-### S1-3 只读探针（零参数，先把 RS 现场事实照出来）
-复用/扩展既有 `alice:menu_probe`（D-163）或新增 `alice:craft_grid_probe`：
-打开最近的可合成菜单 → 打印 `menu 类 / 槽数 / 矩阵类与 3×3 / grid 下标 / 结果槽下标与类 / 玩家背包区间 / 拒绝码`，
-并**只读**报告"矩阵里现在有没有东西"（用来**零写入**地证明"关掉不归还"：你手动放进去的东西，重开还在）。
-**判据**：随身/工作台两行与 §1.4 记录一致；RS 行 = 真实布局（下一步据此定协议）。
+### 1.4 **决定性的工程事实：标签页是"纯视觉"的，槽位一直在菜单里**
 
-### S1-4 RS 范例场景（数据包函数，零参数）
-`alice_test:rs_craft_course`：相邻放 `refinedstorage:creative_controller`（供电）+ `refinedstorage:creative_storage_block`（无限库存）
-+ `refinedstorage:crafting_grid`（站点），把玩家放到旁边。
-**待实测**：RS1 的三块相邻是否就成网（这是"场景能不能跑"的前提，代码不猜）。
+```java
+// CraftingUpgradeContainer 构造：矩阵 9 槽 + 结果槽，全部在 (-100, -100)
+slots.add(new SlotSuppliedHandler(..., slot, -100, -100) { ... });
+craftingResultSlot = new ResultSlot(player, craftMatrix, craftResult, slot, -100, -100) { ... };
+// StorageContainerMenuBase#addUpgradeSettingsContainers：装了升级就加槽
+for (UpgradeContainerBase<?, ?> container : upgradeContainers.values()) { container.getSlots().forEach(this::addUpgradeSlot); container.onInit(); }
+storageWrapper.getOpenTabId().ifPresent(id -> upgradeContainers.get(id).setIsOpen(true));   // 只影响"哪个是打开的"
+```
+⇒ **只要升级装着，槽位就在菜单里（只是坐标 -100,-100 画在屏幕外）**。
+**服务端 bot 不需要"点标签"、不需要发包**就能摆料/取产物 —— 这对我们是天大的好消息。
 
-### S1-5 执行层接入（本步只做"已验证协议"的那一半）
-- A2/A3 改为经 `CraftStation` 取 spec（**对随身/工作台保持行为等价**，用电池回归证明）；
-- **RS 站点本步不接执行**，只在探针里只读 —— 因为 ② 与 ③（协议/来源）必须先由**一次实测**定下来。
+### 1.5 **矩阵/结果都是原版类型** ⇒ 通用发现器直接可用
 
-### 本步**不做**
-机器适配器（D-183 排序）、熔炉类站点（A4）、**LLM 自动选站**、背包类站点（Traveler's Backpack）、RS 网络能力的写入（`C2+`）。
+| 角色 | 实际类型 | 我们的判据（**零模组知识**） |
+|---|---|---|
+| 9 格矩阵 | `CraftingItemHandler extends net.minecraft.world.inventory.TransientCraftingContainer` | `slot.container instanceof CraftingContainer` |
+| 结果槽 | `new ResultSlot(player, craftMatrix, craftResult, …, -100, -100)`（原版类） | `slot.container instanceof ResultContainer` / `instanceof ResultSlot` |
+| 尺寸 | `CraftingContainer.getWidth()/getHeight()`（原版接口，已在 Forge 映射 jar 上 `javap` 验证） | 直接读 |
 
-## 4. 第二步（预告，不在本轮）
+⇒ **§1.1–1.5 合起来**：这个模组的合成标签页是"**原版网格 + 原版结果槽 + 槽位常驻菜单 + 目标可切换**"，
+是"**不硬编码合成方式**"这条缝的**理想第一个范例**。
 
-1. 用实测结果给 RS 站点定 `TakeProtocol` / `MaterialSource`，写进描述符；
-2. 守恒断言按来源分口径（材料在网络上时，改判"网络库存变化"或只判产物）；
-3. 注册 `WriteReason.CRAFT_GRID_WRITE` + A 表条目（持久矩阵的摆料/清理 = 世界写入）；
-4. 夹具：`alice:craft_station_check` 增加"选定 RS 站点 → 合成 → 清理 → 账本对账"。
+## 2. 对 Alice 的影响（四个维度，仍然成立）
 
-## 5. 需要你确认
+| # | 维度 | 结论 |
+|---|---|---|
+| 2.1 | **槽位必须"发现"** | Sophisticated 菜单的槽序由"存储格数 + 升级槽 + 各升级贡献的槽"动态拼成 ⇒ 硬编码下标必错；`CraftingContainer`/`ResultContainer` 判据可解 |
+| 2.2 | **结果槽协议是第二维** | 同一个 `QUICK_MOVE`：原版 = 合 1 次进背包；Sophisticated = **按"Shift Click Result Into…"设置进容器或玩家背包**，且 `StorageContainerMenuBase` 有 `getRepeatedQuickMoveLimit` ⇒ 可能**重复多次**。⇒ 先不猜：第一步只**读**事实，执行协议第二步实测后定 |
+| 2.3 | **材料来源是第三维** | `extractFromStorageOrPlayer` = **先容器、再玩家背包**；`insertIntoStorageOrPlayer` 同理 ⇒ 我们"玩家背包 −M / 产物 +1"的守恒断言口径不适用 |
+| 2.4 | **持久 = 写入** | A3 的 `no_world_write` 只对"随开随灭"的原版网格成立。这里矩阵内容存在**升级物品的 NBT**里 ⇒ 摆料/清理 = **对世界状态的写入**（与 RS 的方块实体同理）⇒ 需要新 `WriteReason` + A 表条目 |
+| 2.5 | **站点获取同形** | 存储容器 = 世界方块（背包类将来是持物品），打开方式仍是"右键 → 菜单" ⇒ 现有"找方块→走近→右键→开菜单"形状可复用 |
 
-1. 你说的"合成升级的页签"具体是**哪个 GUI**？（RS1 里合成是独立的 `Crafting Grid` 方块；升级装在机器上）
-2. 第一步按上面 S1-1..S1-5 走吗？还是先把 **S1-3 只读探针**单独做完看事实？
-3. 场景用 `Creative Controller + Creative Storage Block + Crafting Grid` 三块相邻，可以吗？
+## 3. 第一步范围（可切换的工作站）
+
+**目标**：把"合成工作站"做成**一等、可选、可切换**的对象；以 **Sophisticated 箱子（升级标签页）** 作为第二个范例；**只读优先**，执行接入留给第二步。
+
+- **S1-1 通用发现器** `task/craft/GridDiscovery`（只读、零模组知识）
+  `discover(menu) → {gridSlots[], width, height, resultSlot, inventoryFirst/Last, matrixClass, resultSlotClass}`
+  + 拒绝码 `no_grid / no_result_slot / ambiguous_grid / grid_shape_mismatch`。
+  **回归判据**：随身 2×2 与工作台 3×3 必须复现 D-163/D-165 记录的布局。
+- **S1-2 工作站描述符 + 玩家可切换**（不做自动选优）
+  `{ kind: INVENTORY|BLOCK, 打开方式, 网格能力, TakeProtocol, MaterialSource }`；
+  `/alice craft station <auto|inventory|table|block>`；`bot_report` 增一行候选与原因。
+- **S1-3 只读探针**（零参数）：打开最近的可合成菜单并打印
+  `menu 类 / 槽数 / 矩阵类与尺寸 / grid 下标 / 结果槽下标与类 / 各槽 x,y / 玩家背包区间 / 拒绝码`，
+  并**零写入**报告"矩阵里现在有没有东西"。
+  **预期看点**：Sophisticated 箱子会打印出 **`x=-100,y=-100`** 的隐藏槽 —— 这就是"标签页是纯视觉"的现场证据。
+- **S1-4 场景 + 夹具**（零参数）
+  场景 `/function alice_test:sc_craft_course`：孤立平台 + 一个 Sophisticated 箱子 + 发料（材料 + 一颗合成升级）。
+  **升级怎么装**：让 **bot 自己用菜单协议**把它点进升级槽（不靠猜 NBT），然后**关掉再开一次**菜单（新槽位才进 `slots`），
+  再用发现器找到 3×3 + 结果槽 ⇒ 合成 ⇒ **清理**（矩阵内容要按"持久"口径清）。
+  *（备选：`data merge block` 直写 NBT；但那要猜 `upgradeInventory` 路径，**不做**）*
+- **S1-5 执行接入**：A2/A3 改为经描述符取 spec（**对原版保持行为等价**，电池回归证明）；
+  **Sophisticated 站点本步只在探针里只读** —— 协议/来源两维要先有一次实测。
+
+**本步不做**：机器适配器、熔炉/烹饪类站点（A4）、LLM 自动选站、背包（Sophisticated Backpacks）、RS 网络写入。
+
+## 4. 附录：Refined Storage 1.12.4 调查摘要（非本轮目标，事实保留）
+
+已在固定客户端装了 `refinedstorage-1.12.4.jar`（sha1 `014bf4de…`，无必需依赖，`loaderVersion [47,)`）。
+要点（供将来立项）：合成是**独立方块** `refinedstorage:crafting_grid`（`GridType` 是方块属性，升级不给网格加页签）；
+矩阵/结果是原版 `TransientCraftingContainer` 3×3 / `ResultContainer`，槽位是**原版槽子类**；
+菜单槽序动态拼装；`quickMoveStack` 被 `BaseContainerMenu` 覆盖 → 结果槽 shift = `onCraftedShift`
+（**合到满堆** + 玩家背包优先 + 溢出进网络）；单次取会**从网络补满**矩阵（材料来自网络，不在玩家背包）。
+`Crafting Upgrade` 是给 Crafter 等机器插的**能耗升级**，与合成网格无关。
+
+## 5. 待你确认
+
+1. **Refined Storage 要不要撤掉**？（它不是你说的那个；留着无害但客户端更杂）
+2. 场景用 **Sophisticated 箱子 + bot 自己装升级** 这条路可以吗？（比猜 NBT 稳）
+3. 第一步先做 **S1-3 只读探针**（看现场事实），还是直接 S1-1→S1-5 一起做？
