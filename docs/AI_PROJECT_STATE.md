@@ -406,6 +406,13 @@ legacy 双内核整批删除（19 文件，依据"按路径分析的零活引用
 **D-173 补漏**：`pathing/movement/` 14 文件（外部真引用 0）整包删除 + `.gitignore` 藏住的
 `PathExecutor.java.backup` 删除。
 
+**阶段 3-A / S1 合成工作站可切换（最新，D-192，待客户端）**：新增 `task/craft/GridDiscovery`（通用网格发现，
+只用原版 `CraftingContainer`/`ResultContainer` 判据，零模组知识）、`task/craft/CraftStation`（站点描述符 +
+`/alice craft station` 切换 + 候选事实，`auto` 不含升级页签 ⇒ 不自动选优）、`task/CraftGridProbeTask` +
+`alice:craft_grid_probe`（零参数只读探针）、场景 `alice_test:craft_tab_course` 与诊断
+`alice_test:craft_tab_snapshot`。精妙存储的"合成升级页签"是**第二个站点范例**（take/source 未实测 ⇒ `UNKNOWN` 只读）。
+新登记条件副作用：开/关精妙菜单可能按玩家设置清掉 `openTabId` ⇒ 探针只读断言如实限定。
+
 **阶段 3-A 合成阶梯（最新）**：A1（`alice:craft_check`）/ A2（`alice:craft_action_check`）/
 A3（`alice:craft_table_check`，含 `no_world_write` 零写入硬断言）**客户端均 7/7 PASS**（2026-09-13）。
 **A3b 自放工作站已实施、待客户端**（D-190）：`task/craft/StationPlacement`（授权入口 **A12**、

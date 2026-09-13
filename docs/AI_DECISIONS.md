@@ -7440,3 +7440,43 @@ world_mod_ledger_close … 仍有 1 条我方临时放置未拆除（建拆同�
 ③ **材料来源**（容器/网络 ≠ 玩家背包，守恒断言口径要跟着变）；④ **持久矩阵 ⇒ 写入授权**
 （矩阵内容存进方块实体/升级物品 NBT，"零世界写入"只在随开随灭的原版网格上成立）。
 第一步只做 ①②③④ 的**只读事实 + 可切换**，执行接入留第二步。设计见 `docs/MOD_COMPAT_CRAFT_STATION_PLAN.md`。
+
+### D-192：阶段 3-A / S1 —— **合成工作站可切换**（通用网格发现 + 只读探针），"不硬编码合成方式"落地第一步
+
+**用户裁定（原话汇总）**：*"现在只是做兼容范例测试，先实现工作站的可切换，不急着完全适配其他模组"*、
+*"不要求这些方式能够自动选优，玩家切换也足够了"*、*"装上升级本身算一种配置行为，点开标签页也单独算上一层"*、
+*"如果打开子标签页和不打开子标签页实际没有区别，就不用管"*。
+决策：D1-**B**（S1-1 发现器 + S1-2 工作站切换 + S1-3 探针一起做，执行接入留第二步）、
+D2-**A**（L3 以实测差分为准，无差别就不动状态）、D3-**A**（装升级=独立配置层）、
+D4-**A**（命令切换）、D5-**A**（夹具里 bot 用菜单协议装升级）、D6-**A**（本轮只做方块型站点）。
+
+**实施（3 个新文件 + 接线，全部只读）**：
+1. `task/craft/GridDiscovery`（**S1-1**）：从**活菜单**里认网格 —— 网格槽 = `slot.container instanceof CraftingContainer`
+   （**同一实例**）、结果槽 = `ResultContainer`、玩家背包 = `container == player.getInventory()` 且容器槽号 <36；
+   尺寸取 `CraftingContainer.getWidth()/getHeight()`。**零模组知识**。如实拒绝：
+   `no_grid` / `no_result_slot` / `ambiguous_grid` / `ambiguous_result` / `grid_shape_mismatch` / `no_player_inventory_slots`。
+   另有 `describeSlots(menu)` 打印**全槽位事实表**（下标/槽类/容器类/坐标/`isActive`/物品）。
+2. `task/craft/CraftStation`（**S1-2**）：站点描述符 `{id,label,kind,take,source,note}`；
+   `inventory`（随身 2×2）/ `table`（原版工作台）/ `upgradetab`（精妙存储容器，**按方块 id 形态识别** =
+   `namespace=sophisticatedstorage` 且 path 含 chest/barrel/shulker，不写死版本清单）。
+   **`auto` 只复刻现状（随身→工作台），不含升级页签**（= 不做自动选优）；显式选中的站点不可用就**如实失败**、
+   **不悄悄回退**。升级页签的 `take/source` 如实写 **`UNKNOWN`**（未实测 ⇒ 只读，不执行）。
+   `candidates()` 产出"能不能用 + 为什么"（带方块坐标/菜单描述等**可核对事实**）。
+3. `task/CraftGridProbeTask` + `alice:craft_grid_probe`（**S1-3**，零参数、只读）：自带传送 → 按当前选择打开站点 →
+   `GridDiscovery` → 打印菜单身份/发现结果/全槽位表 → 断言 `read_only`（账本无我方临时方块）。
+   **不发任何页签消息**（`tab_action=none`），因此 `grid_addressable_without_tab=true` 就是
+   "**点开与不点开没区别**"的直接证据（用户裁定的那条规则）。
+4. 接线：`/alice craft station [<id|auto>]`（列候选 / 切换）、`bot_report` 新增"合成工作站："一行、
+   `MenuSession.state()` 只读访问器、电池**不动**（探针需要精妙容器，未入电池）。
+5. 场景：`alice_test:craft_tab_course`（孤立平台 + 精妙箱子 + 给玩家一颗合成升级）+ 诊断函数
+   `alice_test:craft_tab_snapshot`（`data get block`，供"开/关菜单是否改持久状态"的 NBT 差分）。
+
+**顺带查出的条件副作用（必须记）**：`StorageContainerMenuBase` 在**构造**与 `removed(player)` 里都调用
+`removeOpenTabIfKeepOff()`，它只在**该玩家**把 `KEEP_TAB_OPEN` 显式设为 `false` 时才
+`storageWrapper.removeOpenTabId()` ⇒ **"打开菜单=纯读取"在本模组上有一个条件例外**。
+处置：探针的 `read_only` 断言**如实限定**为"账本无我方临时方块 + 不发包 + 不摆料/不改背包"，
+并用场景诊断函数做 NBT 前后差分（**不靠推理下结论**）。
+
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（`checked=71`）+ 已同步客户端（jar `3cb0efcf…`）。
+**未验证**：客户端（探针输出、精妙菜单的真实槽位表、`grid_addressable_without_tab` 的真值）。
+**第二步**（S1-5）：按实测给 `upgradetab` 定 `take/source`，再谈执行接入；L2 装配任务（装升级）与新 `WriteReason`。

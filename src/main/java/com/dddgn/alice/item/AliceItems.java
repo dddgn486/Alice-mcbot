@@ -209,6 +209,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> CRAFT_STATION_CHECK =
             ITEMS.register("craft_station_check", () -> new CraftStationCheckItem(new Item.Properties()));
 
+    /** 阶段 3-A / S1-3（D-192）**合成网格探针**（零参数、只读）：看任一站点菜单里的网格/结果槽事实。 */
+    public static final RegistryObject<Item> CRAFT_GRID_PROBE =
+            ITEMS.register("craft_grid_probe", () -> new CraftGridProbeItem(new Item.Properties()));
+
     /** 基-9 工具供给自检（零参数，约 2 秒）：换更好的 / 没得换如实报 / **不能凭空变出工具**。 */
     public static final RegistryObject<Item> TOOL_SUPPLY_CHECK =
             ITEMS.register("tool_supply_check", () -> new ToolSupplyCheckItem(new Item.Properties()));

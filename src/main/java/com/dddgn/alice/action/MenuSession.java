@@ -299,6 +299,11 @@ public final class MenuSession {
         close("failure:" + code);   // **失败路径也必须收尾**（生命周期由组件自己保证）
     }
 
+    /** 当前状态（只读；日志/探针/报告用——合成网格探针需要知道"菜单是不是已经开着"）。 */
+    public State state() {
+        return state;
+    }
+
     public String failure() {
         return failure;
     }

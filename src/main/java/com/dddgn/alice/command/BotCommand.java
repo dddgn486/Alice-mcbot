@@ -261,6 +261,20 @@ public final class BotCommand {
                                                         StringArgumentType.getString(ctx, "option"),
                                                         StringArgumentType.getString(ctx, "scope")))))))
                 // S5 只读配方图：导出运行时配方表（含整合包魔改）供离线规划器使用
+                // 阶段 3-A / S1-2（D-192）：**合成工作站可切换**（只读展示 + 玩家显式选择，不自动选优）
+                .then(Commands.literal("craft")
+                        .then(Commands.literal("station")
+                                .executes(ctx -> craftStationShow(ctx.getSource()))
+                                .then(Commands.argument("station", StringArgumentType.word())
+                                        .suggests((context, builder) -> {
+                                            for (var station : com.dddgn.alice.task.craft.CraftStation.all()) {
+                                                builder.suggest(station.id());
+                                            }
+                                            builder.suggest("auto");
+                                            return builder.buildFuture();
+                                        })
+                                        .executes(ctx -> craftStationSet(ctx.getSource(),
+                                                StringArgumentType.getString(ctx, "station"))))))
                 .then(Commands.literal("recipes")
                         .executes(ctx -> recipesDump(ctx.getSource(), "alice-recipes.json"))
                         .then(Commands.argument("file", StringArgumentType.word())
@@ -685,6 +699,46 @@ public final class BotCommand {
                 ? "[alice] 可持续伐木区已启动 region=" + region.describe()
                 : "[alice] " + BotManager.busyMessage(bot)), false);
         return ok ? 1 : 0;
+    }
+
+    /** {@code /alice craft station}：**只读**列出候选合成工作站与当前选择（S1-2 / D-192）。 */
+    private static int craftStationShow(CommandSourceStack source) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] 没有可用 bot"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("[alice] 合成工作站 = "
+                + com.dddgn.alice.task.craft.CraftStation.describe(bot, 6)), false);
+        for (var candidate : com.dddgn.alice.task.craft.CraftStation.candidates(bot, 6)) {
+            source.sendSuccess(() -> Component.literal("[alice]   " + candidate.station().id()
+                    + "（" + candidate.station().label() + "）"
+                    + (candidate.available() ? " 可用：" : " 不可用：") + candidate.reason()), false);
+        }
+        source.sendSuccess(() -> Component.literal("[alice] 切换：/alice craft station <auto|"
+                + String.join("|", com.dddgn.alice.task.craft.CraftStation.all().stream()
+                        .map(com.dddgn.alice.task.craft.CraftStation.Descriptor::id).toList())
+                + ">（auto = 现状顺序：随身 → 工作台；**不含**升级页签，不自动选优）"), false);
+        return 1;
+    }
+
+    /** {@code /alice craft station <id|auto>}：设置首选工作站（不认识就如实拒绝，不悄悄改成别的）。 */
+    private static int craftStationSet(CommandSourceStack source, String id) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] 没有可用 bot"));
+            return 0;
+        }
+        if (!com.dddgn.alice.task.craft.CraftStation.select(bot, id)) {
+            source.sendFailure(Component.literal("[alice] 未知工作站 " + id + "（可选：auto + "
+                    + String.join(", ", com.dddgn.alice.task.craft.CraftStation.all().stream()
+                            .map(com.dddgn.alice.task.craft.CraftStation.Descriptor::id).toList()) + "）"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("[alice] 合成工作站已切到 "
+                + com.dddgn.alice.task.craft.CraftStation.selected(bot) + "：" 
+                + com.dddgn.alice.task.craft.CraftStation.describe(bot, 6)), false);
+        return 1;
     }
 
     /** {@code /alice recipes [file]}：导出运行时配方表 + 物品标签（S5 / D-146）。 */

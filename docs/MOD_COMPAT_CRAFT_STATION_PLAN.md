@@ -168,18 +168,31 @@ storageWrapper.getOpenTabId().ifPresent(id -> upgradeContainers.get(id).setIsOpe
 **这句只是预测**：S1-3 探针会打印"**打开前/打开后**的槽位数、坐标与 `isActive()`"，
 用**差分实测**决定 L3 到底要不要发包（不猜）。无论结果如何，L3 都保留（见上）。
 
+### 2.7 一个必须记下的**条件副作用**：开/关这个容器的菜单可能清掉持久状态
+
+源码（`StorageContainerMenuBase`）：构造里第 121 行与 `removed(player)` 末尾第 1481 行**都**调用
+`removeOpenTabIfKeepOff()`，而它是：
+```java
+if (Boolean.FALSE.equals(SettingsManager.getSettingValue(player, KEEP_TAB_OPEN))) storageWrapper.removeOpenTabId();
+```
+⇒ 只有当**当前玩家**（bot 自己）把 `KEEP_TAB_OPEN` **显式设成 false** 时，开/关菜单才会**清掉容器里保存的
+`openTabId`**（未设置 = null 时不删）。也就是说：**"打开菜单=纯读取"这条在本模组上有一个条件例外**。
+**处置**：① 探针的 `read_only` 断言**如实限定**为"我方账本无临时方块 + 不发包 + 不摆料/不改背包"，
+不宣称"世界绝对零变化"；② 用 `/function alice_test:craft_tab_snapshot`（`data get block`）在探针前后各跑一次，
+**用 NBT 差分实测**是否有变化；③ 结果记进 §5 状态表。
+
 ## 3. 第一步范围（可切换的工作站）
 
 **目标**：把"合成工作站"做成**一等、可选、可切换**的对象；以 **Sophisticated 箱子（升级标签页）** 作为第二个范例；**只读优先**，执行接入留给第二步。
 
-- **S1-1 通用发现器** `task/craft/GridDiscovery`（只读、零模组知识）
+- **S1-1 通用发现器** `task/craft/GridDiscovery`（只读、零模组知识）✅**已实施（D-192）**
   `discover(menu) → {gridSlots[], width, height, resultSlot, inventoryFirst/Last, matrixClass, resultSlotClass}`
   + 拒绝码 `no_grid / no_result_slot / ambiguous_grid / grid_shape_mismatch`。
   **回归判据**：随身 2×2 与工作台 3×3 必须复现 D-163/D-165 记录的布局。
-- **S1-2 工作站描述符 + 玩家可切换**（不做自动选优）
+- **S1-2 工作站描述符 + 玩家可切换**（不做自动选优）✅**已实施（D-192）**
   `{ kind: INVENTORY|BLOCK, 打开方式, 网格能力, TakeProtocol, MaterialSource }`；
   `/alice craft station <auto|inventory|table|block>`；`bot_report` 增一行候选与原因。
-- **S1-3 只读探针**（零参数）：打开最近的可合成菜单并打印
+- **S1-3 只读探针**（零参数）✅**已实施（D-192）**：打开**当前选中**的工作站并打印
   `menu 类 / 槽数 / 矩阵类与尺寸 / grid 下标 / 结果槽下标与类 / 各槽 x,y / 玩家背包区间 / 拒绝码`，
   并**零写入**报告"矩阵里现在有没有东西"。
   **预期看点**：Sophisticated 箱子会打印出 **`x=-100,y=-100`** 的隐藏槽 —— 这就是"标签页是纯视觉"的现场证据。

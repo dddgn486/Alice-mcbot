@@ -1130,6 +1130,18 @@ public final class BotManager {
         return true;
     }
 
+    /** **合成网格探针**（阶段 3-A / S1-3，D-192）：只读打开当前工作站并打印网格/槽位事实。 */
+    public static boolean assignCraftGridProbe(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(new com.dddgn.alice.task.CraftGridProbeTask(bot, observer),
+                TaskTarget.block(bot.blockPosition()));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     /** **自放工作站合成自检**（阶段 3-A / A3b，D-190）：放台→合成→**拆回**，验"建拆同权"。 */
     public static boolean assignCraftStationCheck(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());

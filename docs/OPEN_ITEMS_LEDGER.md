@@ -448,3 +448,15 @@ A1 判据（零参数 `alice:craft_check`）：正例给工作站+材料清单�
   将来任何"必须手持某物"的动作（放机器、喂熔炉、装桶）都会撞上这一条 ⇒ 要做就做成一个独立原语。
 - **未做**（仍在本阶梯上）：A4 熔炉加工（燃料/时间/取出、失败不留半成品）、
   A5 决策层接线（`GoalAction.Craft` + 缺料多路事实进候选菜单）。
+
+**§6.19 阶段 3-A / S1 合成工作站可切换（2026-09-13，D-192）**：
+- 已实施（**待客户端**）：`GridDiscovery`（通用网格发现，原版容器判据）+ `CraftStation`（站点描述符 + 玩家切换，
+  `auto` 只复刻现状）+ `alice:craft_grid_probe`（零参数只读探针）+ `/alice craft station` + `bot_report` 一行；
+  场景 `alice_test:craft_tab_course` / 诊断 `alice_test:craft_tab_snapshot`。
+- **已装模组**（固定客户端）：精妙存储 `1.4.86.2131`、精妙背包 `3.26.3.2157`、精妙核心 `1.5.1.2335`、
+  Refined Storage `1.12.4`（用户裁定保留，暂不做兼容）。
+- **待实测**：① 精妙容器菜单的真实槽位表（9 格是否出现在 `-100,-100`、`isActive` 真值）；
+  ② `grid_addressable_without_tab` 是否 `true`（= "点开页签与不点开没区别"，用户裁定的判据）；
+  ③ 开/关菜单是否改动容器 NBT（`craft_tab_snapshot` 前后差分）。
+- **下一步（S1-5 / L2）**：按实测给 `upgradetab` 定 `take/source`；独立"装配"任务把合成升级点进升级槽
+  （新 `WriteReason.STATION_PROVISION` + A 表条目 + 建拆同权的复位纪律）。

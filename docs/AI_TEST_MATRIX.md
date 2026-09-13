@@ -39,6 +39,7 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 | 决策层 6 步 | 电池内 `decision_contract` / `decision_trace` / `permission_gate` / `pickup_gate` / `collect_job` / `recipes_dump` | 各自 `SUMMARY` | `WINDOWS_CLIENT`（电池内 PASS） |
 | 阶段 3-A A1/A2/A3 合成阶梯 | `alice:craft_check` / `alice:craft_action_check` / `alice:craft_table_check`（先 `/function alice_test:craft_table_course`） | 各自 7/7 `verdict=PASS`；A3 含 `no_world_write`（零写入硬断言，夹具自带传送） | `WINDOWS_CLIENT`（三项均实测 7/7，2026-09-13） |
 | **阶段 3-A A3b 自放工作站** | `alice:craft_station_check`（先 `/function alice_test:craft_station_course`）；电池步 `craft_station` | `start_premise no_station_premise holding_station_item station_placed write_accounted placed_table_craft teardown_clean verdict` 全 PASS；`teardown_clean` = **方块回空气 + 账本 pending=0** | `IMPLEMENTED` + `COMPILES`（**待客户端**，D-190） |
+| **阶段 3-A S1 合成工作站可切换 + 网格探针** | `/alice craft station [<id\|auto>]`；`alice:craft_grid_probe` 右键（先 `/function alice_test:craft_tab_course`） | `[CraftGridProbe] SUMMARY … discover=OK grid=NxM … grid_addressable_without_tab=… read_only=true verdict=PASS` | `IMPLEMENTED` + `COMPILES`（**待客户端**，D-192） |
 | **K-3 安全点停止** | `alice:k3_stop_check` 右键（DEFER）/ **Shift+右键**（FORCED） | `deferred=1` / `forcedUnsafe=1`；terminal `cancelled:k3_defer:safe_point` / `cancelled:k3_forced:forced_unsafe` | `WINDOWS_CLIENT`（两种模式均实测通过） |
 | 道具资源完整性 | `./tools/check-item-models.sh`（构建前） | `RESULT PASS`（空模型/坏 JSON/死贴图） | 脚本自测通过（D-170） |
 

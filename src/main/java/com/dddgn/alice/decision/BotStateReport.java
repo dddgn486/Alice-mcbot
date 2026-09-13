@@ -137,6 +137,9 @@ public final class BotStateReport {
                         + " " + event.get("summary").getAsString());
             }
         }
+        // S1-2（D-192）：**合成工作站**（当前选择 + 每个候选能不能用 + 为什么）——
+        // 事实由代码产出，选择由玩家做（不做自动选优）
+        lines.add("合成工作站：" + com.dddgn.alice.task.craft.CraftStation.describe(bot, 6));
         // G5：**容器写入**（物品进出箱子的可审计痕迹；方块有账本，容器此前没有）
         lines.add("容器写入：" + com.dddgn.alice.transfer.TransferLedgerData.get(bot.getServer())
                 .describeMovements());
