@@ -72,6 +72,8 @@ public class BotPlayer extends ServerPlayer {
      * 这里只做**事实记录与上报**：计数 + 最近一次的 from/to/tick，并在决策事件环里留一条（不含任何自动动作）。
      */
     private int teleportCount;
+    /** 其中**真的发生位移**的次数（原地"传送"是夹具复位，不算位移事件）。 */
+    private int teleportDisplacementCount;
     private net.minecraft.core.BlockPos lastTeleportFrom;
     private net.minecraft.core.BlockPos lastTeleportTo;
     private long lastTeleportTick;
@@ -102,26 +104,40 @@ public class BotPlayer extends ServerPlayer {
         return lastTeleportDistance;
     }
 
-    /** 记录一次传送（唯一入口：两个 `teleportTo` 重载都汇到这里）。 */
+    /**
+     * 记录一次传送（唯一入口：两个 `teleportTo` 重载都汇到这里）。
+     *
+     * <p>**区分"位移"与"原地复位"**：夹具常用 `teleportTo` 把 bot 摆回同格（实测 `distance=0.1`、
+     * `from == to`），那种"传送"不是事实上的位移，若照样记日志/入事件环，报告里会出现
+     * "bot 被传送 30,64,209 → 30,64,209" 这种噪声、反而掩盖真正需要解释的漂移。所以：
+     * 全部计数；**只有位移 ≥1 格**才写日志 + 入决策事件环，并更新"最近位移"字段。
+     */
     private void noteTeleport(double toX, double toY, double toZ) {
         net.minecraft.core.BlockPos from = this.blockPosition();
         net.minecraft.core.BlockPos to = net.minecraft.core.BlockPos.containing(toX, toY, toZ);
-        if (from.equals(to) && teleportCount > 0) {
-            // 原地"传送"（夹具有时会用 teleportTo 做复位）不算位移事件，但仍计数
-        }
         teleportCount++;
+        double distance = Math.sqrt(this.distanceToSqr(toX, toY, toZ));
+        if (distance < 1.0D) {
+            return;   // 原地复位：只计数（见上面的理由）
+        }
+        teleportDisplacementCount++;
         lastTeleportFrom = from;
         lastTeleportTo = to;
         lastTeleportTick = getServer() == null ? -1L : getServer().getTickCount();
-        lastTeleportDistance = Math.sqrt(this.distanceToSqr(toX, toY, toZ));
-        BotLog.info("[Bot] teleported from={} to={} distance={} tick={} count={}",
+        lastTeleportDistance = distance;
+        BotLog.info("[Bot] teleported from={} to={} distance={} tick={} count={} (displacement={})",
                 from.toShortString(), to.toShortString(),
-                String.format(java.util.Locale.ROOT, "%.1f", lastTeleportDistance),
-                lastTeleportTick, teleportCount);
+                String.format(java.util.Locale.ROOT, "%.1f", distance),
+                lastTeleportTick, teleportCount, teleportDisplacementCount);
         com.dddgn.alice.decision.DecisionEvents.record(this, "TELEPORT", "info",
                 "bot 被传送 " + from.toShortString() + " → " + to.toShortString(),
-                "distance=" + String.format(java.util.Locale.ROOT, "%.1f", lastTeleportDistance)
+                "distance=" + String.format(java.util.Locale.ROOT, "%.1f", distance)
                         + " tick=" + lastTeleportTick);
+    }
+
+    /** 发生**位移**的传送次数（原地复位不计；只读）。 */
+    public int teleportDisplacementCount() {
+        return teleportDisplacementCount;
     }
 
     @Override

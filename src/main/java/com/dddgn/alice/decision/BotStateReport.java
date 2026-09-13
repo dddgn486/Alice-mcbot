@@ -155,8 +155,9 @@ public final class BotStateReport {
         }
         // D-180：**传送感知**（用户要求：只报告，不改行为）——bot 被 /tp 或夹具传送过就必须能看见，
         // 否则"Job 在 198 格外照常作业"这类现象无从解释（现已由 D-179 拦住，但事实仍需可读）。
-        if (bot.teleportCount() > 0) {
-            lines.add("传送：" + bot.teleportCount() + " 次；最近 "
+        if (bot.teleportDisplacementCount() > 0) {
+            lines.add("传送（位移）：共 " + bot.teleportDisplacementCount()
+                    + " 次（含原地复位共 " + bot.teleportCount() + " 次）；最近 "
                     + (bot.lastTeleportFrom() == null ? "-" : bot.lastTeleportFrom().toShortString())
                     + " → "
                     + (bot.lastTeleportTo() == null ? "-" : bot.lastTeleportTo().toShortString())

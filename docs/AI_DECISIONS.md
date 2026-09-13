@@ -6963,3 +6963,23 @@ D-179 那轮事故的起点正是"bot 被传送到 198 格外而 Job 毫无察�
 看门狗新增 `connTicks=`。冻结复现时：
 - `connTicks` **不动** ⇒ 断在**连接 tick**（这条链是脆点，修复方向 = 让假人 tick 不依赖连接，或保证连接被 tick）；
 - `connTicks` 在涨而 `entityTicksInSegment=0` ⇒ 断在**实体侧**（另一条路要查）。
+
+#### D-180 附注一：客户端实测（13:05）—— 传送**日志**已生效；并修掉"原地复位"噪声
+
+**实测（5 条 `[Bot] teleported`）**：
+```
+13:05:29.030 [Bot] teleported from=30,64,209 to=30,64,209 distance=0.1 tick=0 count=1
+13:05:29.052 [Bot] teleported from=30,64,209 to=30,64,209 distance=0.1 tick=0 count=2
+13:05:58.526 [Bot] teleported from=30,64,209 to=23,64,207 distance=7.3 tick=562 count=3
+13:06:02.370 [Bot] teleported from=18,64,206 to=24,64,192 distance=15.6 tick=639 count=4
+13:06:20.151 [Bot] teleported from=24,64,193 to=24,64,208 distance=15.7 tick=904 count=5
+```
+⇒ 传送**能被 bot 自己捕捉并记录**（含 from/to/距离/tick/累计），符合"只加报告"的要求。
+
+**发现并修正的噪声（我方）**：夹具常用 `teleportTo` 把 bot 摆回**同一格**（实测前两条 `distance=0.1`、
+`from == to`）⇒ 若照样记日志/入事件环，报告里会出现"bot 被传送 30,64,209 → 30,64,209"，
+反而掩盖真正要解释的漂移。现在：**全部计数**，但**只有位移 ≥1 格**才写日志 + 入事件环并更新"最近位移"；
+`bot_report` 行改为 `传送（位移）：共 M 次（含原地复位共 N 次）；最近 A → B（距离 D，tick=T）`。
+
+**仍未验证**：`alice:bot_report` 的"传送（位移）"行本身 —— 本轮**没有跑过 `bot_report`**
+（日志里没有任何 `[Report]` 行），下次顺手右键一次即可闭环。

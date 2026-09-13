@@ -376,7 +376,9 @@ S-1 因常驻任务而真实化），再开 **②决策层接入** 这条真正�
    （`FakeConnection.tick()` 计数）：`connTicks` 不动 ⇒ 断在连接；在涨而实体不动 ⇒ 断在实体侧。
    **待复现取现场**后定修法（候选：让任务侧兜底驱动、或保证假连接进连接表）。
 2. **传送感知**（D-180，用户要求只加报告）：`BotPlayer` 覆写两个 `teleportTo` ⇒ 计数 + from/to/tick +
-   `[Bot] teleported` 日志 + 事件环 `TELEPORT` + `bot_report` 一行。**待客户端复测**。
+   `[Bot] teleported` 日志 + 事件环 `TELEPORT` + `bot_report` 一行。
+   **日志已实测（13:05，5 条）**；附注一修掉"原地复位"噪声（只有位移 ≥1 格才记日志/入环）。
+   **仍待验证**：`bot_report` 的"传送（位移）"行（本轮没跑过 `bot_report`）。
 2. **终态幂等契约推广**：19 处直接 tick 点里 17 处是夹具（已被电池隔离 + `idempotent=` 点名兜住），
    推广属欠账（同型 NPE 已出现两次：09-06 / 09-13）。
 3. ~~两处设计洞~~ → **② 已修（A 项，D-179）**：`MiningTuning.gainHorizontallyReachable` 唯一定义 +
