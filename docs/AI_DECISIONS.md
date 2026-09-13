@@ -7517,3 +7517,27 @@ UnsupportedOperationException: Unable to construct this menu by type
 并把 `settle_ticks=N` 记进 SUMMARY。
 
 **等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `ade7f714…`）。**待客户端复测**。
+
+#### D-192 附注二：复测结果 —— **两项通过、一项回归（探针招来 LLM 自动伐木）、一项待证**
+
+**客户端实测（`latest.log` 17:04:30 / 17:04:51，两轮探针，无新崩溃）**：
+
+| 结论 | 证据（原样） |
+|---|---|
+| ✅ **崩溃已修** | `menu=InventoryMenu(unregistered(UnsupportedOperationException)) slots=46` —— 原来抛异常那一行现在只是一句如实标注 |
+| ✅ **通用发现器在随身菜单上回归通过** | `discover=OK grid=2x2 slots=[1,2,3,4] result=0 inv=[9..44] matrix=TransientCraftingContainer(4) resultSlot=ResultSlot(1) note=resultSlotIsVanillaResultSlot=true playerSlots=36` —— 与 D-163 记录的布局**逐项一致** |
+| ✅ **工作站切换真的生效** | `auto` → `station=inventory`；`/alice craft station upgradetab` → `station=upgradetab@46,64,306`、`menu=StorageContainerMenu(sophisticatedstorage:storage) slots=63`、`menu_opened=true ticks=3` |
+| ✅ **落地等待有效** | `settle_ticks=2`（原来下一 tick 仍 `onGround=false`） |
+| ✅ **没装升级时如实报"没有网格"** | `discover=FAIL:no_grid … note=菜单里没有 CraftingContainer（该站点当前没有合成网格）` + 全 63 槽事实表 |
+| ❌ **回归：探针招来决策层** | `decision_request trigger=terminal:CraftGridProbeTask` → `execute action=start_job ok=true`（`region_lumber`）**连招两次** —— 用户最早的抱怨原样复发 |
+| ⏳ **待证** | 装上升级后的那一轮（本次两轮都没有装升级 ⇒ L3 的关键证据 `grid_addressable_without_tab` 仍未知） |
+
+**新事实（对设计有用）**：精妙菜单里**服务端槽位坐标全是 `@0,0`**（`slots(63): … Slot/Inventory@0,0 …`）——
+⇒ **x/y 不能用来判断"这格有没有显示"**（与"页签是客户端渲染"一致）。判据只能是**容器身份 + `isActive`**，
+这正好是我们发现器的做法（不需要改）。
+
+**回归根因与修法**：`Task.isSelfCheck()` 只认命名 `*CheckTask`，而探针叫 `CraftGridProbeTask`
+⇒ 不被当作自检 ⇒ 终态触发 LLM。修：① 命名约定扩展到 **`*ProbeTask`**（既有 `MenuProbeTask` 一并受益）；
+② `CraftGridProbeTask` **显式覆写 `isSelfCheck()=true`**（将来改名也不会再犯）。
+**教训**：D-189 那条裁定依赖"命名约定"，而**新工具很容易起一个不匹配的名字** ⇒
+约定要么覆盖全部自检形态，要么让工具**显式声明**；本类两者都做了。

@@ -63,6 +63,18 @@ public class CraftGridProbeTask implements Task {
         this.observer = observer;
     }
 
+    /**
+     * **是自检**：探针跑完不许招来决策层（D-189）。
+     *
+     * <p>2026-09-13 实测事故：本类当时只靠命名约定识别自检，而它叫 `…ProbeTask`、约定只认 `…CheckTask`
+     * ⇒ 探针终态触发 LLM、自动起了两次 `region_lumber`（用户最早的抱怨原样复发）。
+     * 现在**约定已扩展到 `*ProbeTask`**，这里再显式覆写一次：即使将来改名，也不会再让探针去招生产任务。
+     */
+    @Override
+    public boolean isSelfCheck() {
+        return true;
+    }
+
     @Override
     public String taskName() {
         return "CraftGridProbe";

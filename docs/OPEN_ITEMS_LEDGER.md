@@ -460,3 +460,12 @@ A1 判据（零参数 `alice:craft_check`）：正例给工作站+材料清单�
   ③ 开/关菜单是否改动容器 NBT（`craft_tab_snapshot` 前后差分）。
 - **下一步（S1-5 / L2）**：按实测给 `upgradetab` 定 `take/source`；独立"装配"任务把合成升级点进升级槽
   （新 `WriteReason.STATION_PROVISION` + A 表条目 + 建拆同权的复位纪律）。
+
+**§6.20 D-192 复测（2026-09-13 17:04，客户端）**：
+- ✅ 崩溃已修（`InventoryMenu(unregistered(…))`）；✅ 通用发现器在随身菜单上**逐项复现 D-163 布局**（2×2@[1,2,3,4]、result=0、inv=[9..44]）；
+  ✅ 站点切换生效（`upgradetab` → `StorageContainerMenu(sophisticatedstorage:storage) slots=63`）；✅ 落地等待 `settle_ticks=2`；
+  ✅ 未装升级时如实 `no_grid`。
+- ❌ **回归已修**：探针不匹配自检命名 ⇒ 终态招来 LLM、自动起了两次 `region_lumber`
+  （D-192 附注二）⇒ 约定扩展到 `*ProbeTask` + 探针显式 `isSelfCheck()=true`。
+- 📌 **新事实**：精妙菜单服务端槽位坐标全是 `@0,0` ⇒ **x/y 不可作"是否显示"的判据**，只能用容器身份 + `isActive`。
+- ⏳ **仍待证**：装上升级后 `grid_addressable_without_tab` 的真值（L3 是否要发包）。

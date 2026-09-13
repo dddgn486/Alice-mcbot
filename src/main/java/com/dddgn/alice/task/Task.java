@@ -87,7 +87,12 @@ public interface Task {
      * <p>默认按命名约定识别（`*CheckTask`）——所有既有夹具都符合；需要例外时覆写本方法。
      */
     default boolean isSelfCheck() {
-        return getClass().getSimpleName().endsWith("CheckTask");
+        // 命名约定：`*CheckTask` 与 `*ProbeTask` 都是**自检/探针**工具。
+        // D-189 的裁定是"自检窗口内只记录不通知"（否则任务终态会招来 LLM，实测就自动起 `region_lumber`）；
+        // 2026-09-13 实测：探针当时只叫 `CraftGridProbeTask` ⇒ 约定没覆盖到 ⇒ **连招两次 LLM、自动伐木两次**
+        // （用户最早的抱怨原样复发）。⇒ 约定扩展到 `*ProbeTask`（既有 `MenuProbeTask` 同时受益）。
+        String name = getClass().getSimpleName();
+        return name.endsWith("CheckTask") || name.endsWith("ProbeTask");
     }
 
     /** 事实型失败报告；未实现领域详情的任务默认返回空报告。 */
