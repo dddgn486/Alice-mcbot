@@ -7074,3 +7074,40 @@ Create（506，15 类；cutting/deploying/crushing/milling/splashing）> Extende
 
 **报告产物**：`docs/STAGE2_MODS_READABILITY.md`（安装集 / 读得懂统计 / 该缺陷 / 冲突然当前不可信 /
 适配器候选 / 待复测）。**未完成**：修复后需重新导出一次以出最终版（可读率与跨模组同产出清单）。
+
+#### D-183 附注一：**修复后复测完成** —— 阶段 2 结论成立（可读 55.2%，打架清单落地）
+
+客户端重新导出后的最终数据（`config/alice-recipes.json`，1125 KB）：
+
+```
+可读 2923 / 总量 ≈5293（55.2%）   被跳过 2370（44.8%）   标签 672
+可读类型 7 种：crafting 2120 / stonecutting 514 / smelting 150 / blasting 88 / smithing 31 /
+              campfire 10 / smoking 10
+原版侧只剩 `minecraft:crafting(空产出) 16`（烟花/地图/旗帜这类无具体产出的特殊配方）⇒ **原版体系已完整覆盖**
+输入形态：直接物品 10738 / 标签(any) 262（修复前 5 —— 工作台配方大量用标签）
+产出（可读）：minecraft 1253 / create 940 / thermal 333 / mekanism 318 / extendedcrafting 79
+```
+
+**配方打架（D-148 核心交付）**：**575 个产出物有多条路线**，其中 **48 个跨模组**。
+典型：`copper_ingot` 11 条、`iron_ingot`/`gold_ingot` 10 条（minecraft/create/mekanism/thermal 各自注册）、
+`netherite_ingot` 7 条、`thermal:nickel_ingot`/`mekanism:ingot_lead` 6 条（create + 本体模组）。
+
+**更深一层（新发现，有数据）**：**同一材料在不同模组是不同 item id**，由 `#forge:*` 标签归一：
+```
+#forge:ingots/tin = [mekanism:ingot_tin, thermal:tin_ingot]
+#forge:ingots/lead = [mekanism:ingot_lead, thermal:lead_ingot]
+#forge:dusts/iron = [mekanism:dust_iron, thermal:iron_dust]
+```
+标签 672 中 **101 个含跨模组成员**，涉及 **1029 个物品** ⇒ 知识层**必须按标签归一**
+（P1 已内建"标签按已知成员展开"），否则"我要锡锭"会被当成两种材料。
+
+**分析工具修正（自身缺陷）**：`recipe-audit` 的"跨模组"归因原按**配方类型命名空间**，
+而模组常用**原版类型**注册配方 ⇒ 会把它们全算成 minecraft（实测 `cross-mod = 0` 的假象）。
+已改为按**配方 id 的命名空间**（= 谁注册了这条路线）归因 ⇒ 48 个跨模组冲突才显形。
+
+**诚实边界**：机器**专属**类型（Mekanism `crushing` vs Thermal `pulverizer` 同台竞争）仍在跳过集里，
+故"机器 vs 机器"的冲突**当前看不到**；48 条跨模组冲突全部来自"模组用原版类型注册"的那部分。
+
+**阶段 2 结论**：① 读得懂多少 = **可量化**（55.2%，且原版已全覆盖）；② 有无打架 = **有清单**；
+③ 适配器候选已排序（Mekanism 1171/26 类 > Thermal 652/30 类 > Create 506/15 类 > EC 25/4 类），
+**本轮不写任何适配器**。报告：`docs/STAGE2_MODS_READABILITY.md`。

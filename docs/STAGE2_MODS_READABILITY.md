@@ -20,67 +20,78 @@
 客户端实际 jar 12 个（alice + JEI + Ore Excavation + 拼音搜索 + WorldEdit + 上述 7），**无重复 modId**
 ⇒ "读不懂"可**干净归因**。启动正常（Create 6.0.8 initializing 已见于日志）。
 
-## 1. 读得懂多少（修复前，本次导出）
+## 1. 读得懂多少（**修复后**，最终导出 2923/5293 = 55.2%）
 
 ```
-运行时配方总量 ≈ 5293     可读 772（14.6%）     被跳过 4521（85.4%）
-可读类型只有 5 种：stonecutting 514 / smelting 150 / blasting 88 / campfire 10 / smoking 10
-输入形态：直接物品 767 / 标签(any) 5 / unknown 0       物品标签 672
+运行时配方总量 ≈ 5293     可读 2923（55.2%）     被跳过 2370（44.8%）
+可读类型 7 种：crafting 2120 / stonecutting 514 / smelting 150 / blasting 88 / smithing 31 /
+              campfire_cooking 10 / smoking 10
+输入形态：直接物品 10738 / 标签(any) 262（修复前只有 5 —— 工作台配方大量引用标签）
+物品标签 672（其中**跨模组成员**的 101）
+仍被跳过的原版类型只剩 `minecraft:crafting(空产出) 16`（烟花/地图/旗帜这类**无具体产出物品**的特殊配方）
+⇒ 原版体系**已完整覆盖**，剩下的 2370 条全部是模组机器配方。
 ```
 
-**被跳过类型第一名不是模组，而是原版工作台**：
+产出命名空间（可读）：`minecraft 1253 / create 940 / thermal 333 / mekanism 318 / extendedcrafting 79`
+⇒ 四个模组**用原版类型注册的配方**（工作台/熔炉/高炉/切石）已经全部进可读集。
 
-| 类型 | 条数 | 归属 |
-|---|---|---|
-| `minecraft:crafting` | **2136** | 原版（工作台） |
-| `minecraft:smithing` | 31 | 原版（锻造台） |
-| `mekanism:*`（26 种） | 1171 | Mekanism |
-| `thermal:*`（30 种） | 652 | Thermal |
-| `create:*`（15 种） | 506 | Create |
-| `extendedcrafting:*`（4 种） | 25 | Extended Crafting |
+## 2. ✅ 修复记录：白名单键错（D-183）
 
-## 2. 🔴 本轮抓到的**真问题**：白名单用了**序列化器 id** 而不是**类型 id**（D-183）
+首轮导出暴露："读不懂第一名"竟是 `minecraft:crafting` 2136 条。根因是
+`RecipeDump.STATION_BY_TYPE` 的键用了**序列化器 id**（`crafting_shaped`/`crafting_shapeless`/
+`smithing_transform`/`smithing_trim`），而运行时 `recipe.getType()` 给的是**类型 id**
+（`minecraft:crafting`/`minecraft:smithing`）⇒ 命不中。**已改用类型 id**（序列化器 id 保留兼容）。
+实测：**772 → 2923**（预测 2939，差值 = 那 16 条无产出特殊配方）。
 
-`RecipeDump.STATION_BY_TYPE` 原先的键是 `minecraft:crafting_shaped` / `crafting_shapeless` /
-`smithing_transform` / `smithing_trim` —— 那些是**配方序列化器（serializer）** 的 id；
-而运行时 `recipe.getType()` 给的是**类型** id：`minecraft:crafting` / `minecraft:smithing`
-⇒ **命中不了白名单**，2136 + 31 条原版配方被"如实跳过"。
-现场证据就是这个直方图本身（"读不懂第一名 = 原版工作台"显然不合理）。
-
-**修法**：白名单改用**类型 id**（`minecraft:crafting` / `minecraft:smithing`），
-并保留序列化器 id 作为兼容入口（不同版本/数据包可能以序列化器 id 注册）。
-**修复后可读率预测**：772 → **2939（55.5%）**（2136+31 直接进可读集）。
-
-> 这正是阶段 2 那条判据（"读得懂多少"）第一次真正抓到东西 —— 而且它抓到的**不是模组适配器问题，
-> 是原版配方体系的读取缺口**（符合"基层优先"的原则）。
-
-## 3. 配方打架（当前导出，受 §2 缺口限制）
+## 3. 配方打架（**最终**，这是 D-148 的核心交付）
 
 ```
-同一产出物 ≥2 条不同路线：48 个产出物
-   （全部是"熏制/营火/熔炉"三件套：cooked_beef / baked_potato / cooked_cod … 各 3 条）
-跨模组同产出（>1 个命名空间都能造）：0 个   ← **不可信**：模组的 crafting 配方还没进可读集
+同一产出物 ≥2 条路线：**575 个产出物**
+其中**跨模组**（路线由 ≥2 个模组注册）：**48 个产出物**
 ```
-⇒ 结论：**冲突检测必须等 §2 修好后再跑**。预期修复后会大量出现跨模组同产出
-（典型：铁/铜/锡的"锭 ↔ 粉 ↔ 矿"链，Mekanism `crushing/enriching` vs Thermal `pulverizer/smelter`
-vs 原版熔炉），那才是 D-148 想看的"配方打架"。
+
+典型（按路线数）：
+
+| 产出 | 路线数 | 注册方 | 说明 |
+|---|---|---|---|
+| `minecraft:copper_ingot` | 11 | minecraft / create / mekanism / thermal | 原矿、粉、碎矿各自都能出锭 |
+| `minecraft:iron_ingot` | 10 | minecraft / create / mekanism / thermal | 同上（`create:crushed_raw_iron` / `thermal:iron_dust` …） |
+| `minecraft:gold_ingot` | 10 | 同上 | |
+| `minecraft:netherite_ingot` | 7 | minecraft / mekanism / thermal | |
+| `thermal:nickel_ingot` / `mekanism:ingot_lead` | 6 | create + 本体模组 | 跨模组同产出 |
+
+**更深一层的"打架"（新发现，有数据证据）**：同一种金属在不同模组里是**不同 item id**，
+靠 `#forge:*` 标签归一 —— 实测：
+
+```
+#forge:ingots/tin          = [mekanism:ingot_tin, thermal:tin_ingot]
+#forge:ingots/lead         = [mekanism:ingot_lead, thermal:lead_ingot]
+#forge:dusts/iron          = [mekanism:dust_iron, thermal:iron_dust]
+#forge:raw_materials/tin   = [mekanism:raw_tin, thermal:raw_tin]
+标签共 672，其中**跨模组成员的 101**，涉及 **1029 个物品**
+```
+⇒ **知识层必须"按标签归一"** 才能回答"我要一个锡锭"（否则同一种材料会被当成两种），
+这正是 P1（`recipe-graph.py`）已经内建的"标签按已知成员展开"（报告里写明"任意其一"）。
+
+**诚实边界**：机器**专属**类型（Mekanism `crushing` vs Thermal `pulverizer` 等同台竞争）仍在跳过集里，
+所以"机器 vs 机器"的冲突**当前看不到**；上面 48 条跨模组冲突全部来自"**模组用原版类型注册**"的那部分
+（已经足够说明问题，也是 D-148 想要的结论）。
 
 ## 4. 适配器候选清单（**只列清单，不写代码**）
 
-按"类型数 × 配方量"排序（模组侧）：
-
-| 优先级 | 模组 | 被跳过条数 | 类型数 | 代表类型（覆盖其主链即可吃下大部分） |
+| 优先级 | 模组 | 被跳过 | 类型数 | 代表类型（覆盖主链即可吃下大部分） |
 |---|---|---|---|---|
-| 1 | **Mekanism** | 1171 | 26 | `crushing` 210 / `enriching` 142 / `injecting` 76 / `purifying` 28 / `combining` 62 |
+| 1 | **Mekanism** | 1171 | 26 | `crushing` 210 / `enriching` 142 / `injecting` 76 / `combining` 62 / `purifying` 28 |
 | 2 | **Thermal** | 652 | 30 | `press` 227 / `pulverizer` 81 / `smelter` 70 / `insolator` 63 / `centrifuge` 59 |
 | 3 | **Create** | 506 | 15 | `cutting` 156 / `deploying` 112 / `crushing` 77 / `milling` 47 / `splashing` 41 |
 | 4 | Extended Crafting | 25 | 4 | `compressor` 19 等（量小，最后做） |
 
-**注意**：这些都不是"配方数据读不懂"，而是"**机器加工语义**不在原版配方体系里"——
-按项目原则（未知能力默认只读、不猜槽位/配方/写入语义），适配它们前需要各自的
-**能力声明 + 授权 + 预算**（对齐 `CapabilityGate`/`WorldModLedger` 的既有形态）。
+这些不是"配方读不懂"，而是**机器加工语义不在原版配方体系里** ⇒ 适配前置 = 能力声明 + 授权 + 预算
+（对齐 `CapabilityGate`/`WorldModLedger`），**本轮不写任何适配器**。
 
-## 5. 待用户一步 → 复测
+## 5. 结论
 
-修好 §2 后需要**重新导出一次**：重启客户端 → `/alice recipes` → 我重跑审计，出**最终版报告**
-（预期：可读 2939/5293、跨模组同产出清单首次非空、`tag(any)` 输入大幅增加——工作台配方大量用标签）。
+1. **原版配方体系已完整可读**（工作台/熔炉/高炉/烟熏/营火/切石/锻造），可读率 **55.2%**；
+   剩余 44.8% 全是模组机器配方 —— 这就是"整合包知识"的边界线，清楚且可量化。
+2. **配方打架结论成立**：575 个多路线产出、48 个跨模组；且**同名材料多 id + 标签归一**是必须处理的一层。
+3. **阶段 2 的目标已达成**（读得懂多少 = 可测；有无打架 = 有清单），且**没写任何适配器**。

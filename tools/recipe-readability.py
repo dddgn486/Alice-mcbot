@@ -49,8 +49,11 @@ def audit(dump):
         by_ns[ns] += 1
         by_type[rtype] += 1
         by_station[station] += 1
-        producers[out].add(ns)
-        routes[out].add((rtype, station, len(recipe.get("inputs", []))))
+        # 提供方归因用**配方 id 的命名空间**（= 谁注册了这条路线）：模组常用原版类型注册配方
+        # （smelting/blasting/crafting），按"类型命名空间"归因会把它们全算成 minecraft（实测踩到过）。
+        provider = recipe.get("id", "?").split(":", 1)[0]
+        producers[out].add(provider)
+        routes[out].add((rtype, station, provider, len(recipe.get("inputs", []))))
         for entry in recipe.get("inputs", []):
             if "any" in entry:
                 input_kinds["tag(any)"] += 1
@@ -62,7 +65,7 @@ def audit(dump):
                     unknown_inputs[entry["key"]] += 1
 
     multi_route = {k: v for k, v in routes.items() if len(v) > 1}
-    cross_mod = {k: v for k, v in producers.items() if len(v) > 1}
+    cross_mod = {k: v for k, v in producers.items() if len(v) > 1 and k in multi_route}
     return {
         "recipes": len(recipes),
         "tags": len(item_tags),
