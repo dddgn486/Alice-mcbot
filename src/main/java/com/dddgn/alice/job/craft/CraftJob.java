@@ -173,6 +173,12 @@ public final class CraftJob implements Job {
         if (query.verdict() == RecipeQuery.Verdict.MACHINE_RECIPE_UNSUPPORTED) {
             return failAndFinish(Codes.MACHINE_RECIPE);
         }
+        if (query.verdict() == RecipeQuery.Verdict.MACHINE_ROUTE) {
+            // S1/D-204：**读得出路线、但 Alice 还没有该机器的执行适配** ⇒ 如实拒绝，不假装能做。
+            // （路线本身有出处：机器类型 + 输入 + 输出，已在 RecipeQuery 里给出；等 S4 单机闭环再谈执行。）
+            String machine = query.route() == null ? "?" : query.route().station();
+            return failAndFinish(Codes.MACHINE_RECIPE + ":not_executable:" + machine);
+        }
         if (query.verdict() == RecipeQuery.Verdict.MISSING_INGREDIENTS) {
             return failAndFinish(Codes.MISSING + ":" + describeMissing());
         }

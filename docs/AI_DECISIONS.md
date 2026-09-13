@@ -8335,7 +8335,7 @@ namespace=mekanism types=26 type_recipes=1171 readable_total=2923 skipped_total=
 把查询层的 `machine_recipe_unsupported` 升级为**有出处的机器路线**；探针按纪律**验证通过即回收**
 （或按 D-197 转成电池步）。换模组只改 `NAMESPACE` 与入口名字——**这就是"实验模板"的可复用性检验**。
 
-**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（77 项）+ 已同步（jar `9a8e3b24…`）；**待客户端**（一次右键）。
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（77 项）+ 已同步（jar `f0c96e23…`）；**待客户端**（一次右键）。
 
 #### D-204 附注一：S1 取证**发现了关键事实**——原版 `Recipe` 接口**取不到**机器配方的输入/输出
 
@@ -8415,7 +8415,7 @@ Mekanism 的具体方法名只出现在**模组专属适配器**里。
 若 `upstream_readable` 接近样例数 ⇒ 先把"物品→物品"接进查询层；若 `machine_output_not_item` 占多数 ⇒
 只做"如实报码"，不碰化学品语义。
 
-**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `9a8e3b24…`）；**待客户端**（一次右键）。
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `f0c96e23…`）；**待客户端**（一次右键）。
 
 #### D-205 附注一：**`pause` 对 AI 是单向的**（实测）——所以"到测试点暂停"要靠**你**恢复
 
@@ -8448,3 +8448,25 @@ the user must resume it"）。这**正好符合** D-205 的意图（"恢复只�
 2. **上下文（重要，我错了）**：窗口 **1,000,000**，**800,000 自动压缩**；实测用量**约 60%**。
    我之前按小得多的窗口估算水位，并因此多次以"预算到头"收尾 ⇒ **方法错误，作废**。
    §5.0c 已改成：**只有接近 800k 压缩阈值时才可作为收尾理由**；在那之前不得以此为由停下、缩小工作量或推迟离线工作。
+
+#### D-204 附注六：S1 **查询层接线完成**（只读；机器路线从"拒绝"升级为"有出处的事实"）
+
+**问题**（读码确认）：`RecipeQuery` 的循环第一行就用**原版** `getResultItem()` 过滤目标物品，
+而机器类型那里返回 AIR ⇒ **机器配方在查询层第一步就被丢掉**，最终只能报 `MACHINE_RECIPE_UNSUPPORTED`。
+
+**实现**（新增 1 类 + 改 2 处，全部只读）：
+1. **`task/craft/MachineRecipeFacts`**：问上游自述取事实 —— 输出 `getOutputDefinition()/getOutputs()`、
+   输入 `getInput()/getItemInput()` → 结果对象的 `getRepresentations()`；**自校验**（非空才采信）、**逐项容错**、
+   **不写死类名**；读不出返回 `EMPTY`，由调用方如实报码。
+2. **`RecipeQuery`**：机器/未知类型先问上游 —— 若读出的**输出里命中目标物品** ⇒ 记一条 **`MACHINE_ROUTE`**
+   （`station` = 机器类型 id，材料 = 上游输入，折算 crafts/perCraft）；否则仍计入 `machineTypes`
+   （化学品/气体等 ⇒ 保留 `MACHINE_RECIPE_UNSUPPORTED`，**不硬塞物品语义**）。
+3. **`CraftJob`**：遇到 `MACHINE_ROUTE` **如实拒绝** `machine_recipe_unsupported:not_executable:<机器>` ——
+   路线有出处 ≠ 能执行（Alice 还没有该机器的执行适配；等 S4 单机闭环再说）。
+
+**探针顺带自证**：`MachineProbeTask` 从**它自己读到的机器产出**里挑最多 3 个物品去问查询层，
+打印 `query item=… verdict=…`（期望 `MACHINE_ROUTE`）并计数 `query_probed` / `query_machine_route` ——
+**自证式验证**：不需要你手输物品 id，也不用我硬编码样例。
+
+**等级**：IMPLEMENTED + COMPILES + 资源自检 PASS + 已同步（jar `f0c96e23…`）；**待客户端**（一次右键 `alice:machine_probe`）。
+**之后**：探针回收（S5）或按 D-197 转电池步 —— 等这次验证过再动。

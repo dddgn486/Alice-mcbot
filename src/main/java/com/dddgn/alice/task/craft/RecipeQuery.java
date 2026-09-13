@@ -46,7 +46,13 @@ public final class RecipeQuery {
         /** 原版配方体系里没有产出该物品的配方。 */
         NO_RECIPE,
         /** 只有机器/未支持类型配方能产出 ⇒ 如实拒绝（不猜语义）。 */
-        MACHINE_RECIPE_UNSUPPORTED
+        MACHINE_RECIPE_UNSUPPORTED,
+        /**
+         * **机器产线**（S1 / D-204）：配方来自由**上游自述**读得出物品输入/输出的机器类型
+         * （`getInput().getRepresentations()` / `getOutputDefinition()`）⇒ 给出**有出处的路线**
+         * （哪台机器、输入什么、产出什么）；但 **Alice 目前不能执行它**（没有该机器的执行适配）⇒ 只报不接。
+         */
+        MACHINE_ROUTE
     }
 
     /**
@@ -130,15 +136,29 @@ public final class RecipeQuery {
         List<Material> firstMissing = new ArrayList<>();
         Set<String> machineTypes = new LinkedHashSet<>();
 
+        List<Route> machineRoutes = new ArrayList<>();
         for (Recipe<?> recipe : server.getRecipeManager().getRecipes()) {
-            ItemStack result = recipe.getResultItem(access);
-            if (result == null || result.isEmpty() || result.getItem() != target) {
-                continue;
-            }
             String type = BuiltInRegistries.RECIPE_TYPE.getKey(recipe.getType()).toString();
             String station = RecipeDump.stationFor(type);
+            ItemStack result = recipe.getResultItem(access);
+            boolean vanillaHits = result != null && !result.isEmpty() && result.getItem() == target;
             if (station == null) {
-                machineTypes.add(type);   // 机器/未知类型：如实记录，不猜语义
+                // **机器/未知类型**（S1/D-204）：原版接口常读不出（`getResultItem()=AIR`、`getIngredients()=[]`）
+                // ⇒ **问上游自述**；能读出物品输入/输出且产出命中目标 ⇒ 记一条**有出处的机器路线**（只报不接）
+                MachineRecipeFacts.Facts facts = MachineRecipeFacts.read(recipe);
+                ItemStack machineOut = facts.outputs().stream()
+                        .filter(stack -> stack.getItem() == target).findFirst().orElse(ItemStack.EMPTY);
+                if (!machineOut.isEmpty()) {
+                    int per = Math.max(1, machineOut.getCount());
+                    int crafts = (int) Math.ceil(count / (double) per);
+                    List<Material> materials = machineMaterials(facts.inputs());
+                    machineRoutes.add(new Route(recipe.getId().toString(), type, type, false, crafts, per, materials));
+                } else {
+                    machineTypes.add(type);   // 读不出物品输出（化学品/气体）⇒ 如实记录，不猜语义
+                }
+                continue;
+            }
+            if (!vanillaHits) {
                 continue;
             }
             int perCraft = Math.max(1, result.getCount());
@@ -154,6 +174,10 @@ public final class RecipeQuery {
             }
         }
 
+        if (craftable.isEmpty() && firstMissing.isEmpty() && !machineRoutes.isEmpty()) {
+            return new Result(Verdict.MACHINE_ROUTE, targetId, count, machineRoutes.get(0),
+                    List.of(), machineTypes, "机器产线（上游自述可读输入/输出；Alice 暂无该机器的执行适配）");
+        }
         if (craftable.isEmpty() && firstMissing.isEmpty()) {
             if (!machineTypes.isEmpty()) {
                 return new Result(Verdict.MACHINE_RECIPE_UNSUPPORTED, targetId, count, null,
@@ -175,6 +199,20 @@ public final class RecipeQuery {
         }
         Verdict verdict = best.inventoryGrid() ? Verdict.CRAFTABLE : Verdict.NEEDS_TABLE;
         return new Result(verdict, targetId, count, best, List.of(), machineTypes, "");
+    }
+
+    /** 机器路线的材料清单（来自上游自述的输入物品；同一物品合并计数）。 */
+    private static List<Material> machineMaterials(List<ItemStack> inputs) {
+        java.util.Map<String, Integer> aggregated = new java.util.LinkedHashMap<>();
+        for (ItemStack stack : inputs) {
+            String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+            aggregated.merge(id, Math.max(1, stack.getCount()), Integer::sum);
+        }
+        List<Material> out = new ArrayList<>();
+        for (var entry : aggregated.entrySet()) {
+            out.add(new Material(entry.getKey(), List.of(entry.getKey()), entry.getValue(), 0));
+        }
+        return out;
     }
 
     /** 该配方能否放进**随身 2×2**（玩家自带网格）。 */

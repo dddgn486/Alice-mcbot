@@ -163,6 +163,7 @@ public class MachineProbeTask implements Task {
         int upstreamReadable = 0;
         int machineOutputNotItem = 0;
         int inputReadable = 0;
+        java.util.LinkedHashSet<String> machineOutputs = new java.util.LinkedHashSet<>();
         int types = byType.size();
         int typeTotal = byType.values().stream().mapToInt(List::size).sum();
         BotLog.info("[MachineProbe] 命名空间={} 类型={} 条数={}（全表：可读={} 跳过={}）",
@@ -194,6 +195,9 @@ public class MachineProbeTask implements Task {
                 }
                 if (!upstream.isEmpty()) {
                     upstreamReadable++;
+                    if (machineOutputs.size() < 3) {
+                        machineOutputs.add(BuiltInRegistries.ITEM.getKey(upstream.get(0).getItem()).toString());
+                    }
                 } else if (!vanillaReadable) {
                     machineOutputNotItem++;   // 原版读不出、上游也没给出物品输出 ⇒ 如实归为"非物品输出"
                 }
@@ -208,6 +212,24 @@ public class MachineProbeTask implements Task {
                                         + upstream.get(0).getCount(),
                         upstreamIn.isEmpty() ? "-" : upstreamIn);
             }
+        }
+        // **自证式查询验证**（S1/D-204）：拿"上游自述读出来的机器产出"去问查询层，
+        // 期望它给出 MACHINE_ROUTE（有出处的路线：机器类型 + 输入），而不是 MACHINE_RECIPE_UNSUPPORTED。
+        int machineRouteOk = 0;
+        for (String itemId : machineOutputs) {
+            net.minecraft.world.item.Item item =
+                    BuiltInRegistries.ITEM.get(net.minecraft.resources.ResourceLocation.tryParse(itemId));
+            if (item == net.minecraft.world.item.Items.AIR) {
+                continue;
+            }
+            var result = com.dddgn.alice.task.craft.RecipeQuery.query(server, bot, item, 1);
+            boolean isMachineRoute = result.verdict()
+                    == com.dddgn.alice.task.craft.RecipeQuery.Verdict.MACHINE_ROUTE;
+            if (isMachineRoute) {
+                machineRouteOk++;
+            }
+            BotLog.info("[MachineProbe] query item={} verdict={} {}", itemId, result.verdict(),
+                    result.describe());
         }
         int pending = WorldModLedger.pendingForOwner(server, bot.getUUID()).size();
         if (pending != 0) {
@@ -225,6 +247,8 @@ public class MachineProbeTask implements Task {
                 .append(" upstream_readable=").append(upstreamReadable)
                 .append(" machine_output_not_item=").append(machineOutputNotItem)
                 .append(" input_readable=").append(inputReadable)
+                .append(" query_probed=").append(machineOutputs.size())
+                .append(" query_machine_route=").append(machineRouteOk)
                 .append(" no_writes=").append(pending == 0)
                 .append(" verdict=").append(failed ? "FAIL" : "PASS");
         BotLog.info("[MachineProbe] SUMMARY {}", summary);
