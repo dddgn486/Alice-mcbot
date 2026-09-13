@@ -8352,3 +8352,13 @@ sample id=mekanism:pigment_extracting/carpet/purple  out=minecraft:air x0  in=[]
 （与当初查精妙 Core 同一手法）⇒ 找出"输入/输出访问器"的**接口形态**；据此给 S1 的读法定接口，
 并在探针里补一栏 `unreadable_via_vanilla=N`（把"原版读不出"与"没有输出"分开报，避免歧义）。
 **纪律提醒**：这类"问上游"的做法正是协议 §3 的第一条通用判据（上游自述驱动），不是为 Mekanism 开的特例。
+
+#### D-204 附注二：S1 的"上游访问器"线索（离线侦察，无需客户端）
+
+`unzip -l Mekanism-1.20.1-10.4.16.80.jar` 显示它**自有配方 API**（不是原版 `Recipe` 语义）：
+`mekanism/api/recipes/*` —— 例如 `ItemStackToItemStackRecipe`、`ChemicalCrystallizerRecipe`、
+`ChemicalDissolutionRecipe`、`CombinerRecipe`、`ChemicalInfuserRecipe`…（另有 `datagen/recipe/builder/*`）。
+⇒ S1 的读法**应当问这些类型自己的访问器**（按**接口/类型**找，不按类名猜；与当初查精妙 Core 的
+`getCookingSlots()` 同一手法）：例如"物品→物品"型有 `getInput()/getOutput()` 这类方法，
+"→化学品"型则涉及 `ChemicalStack`（超出原版表达能力 ⇒ 如实标注，不硬塞进原版语义）。
+**这正是协议 §3 第一条（上游自述驱动）的复用，不是 Mekanism 特例。**
