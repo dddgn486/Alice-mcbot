@@ -746,3 +746,19 @@ jar `3312608d…`。
   `combining` 62、`purifying` 28）。**第一最小闭环 = S0 + S1（全只读）**：`docs/MEKANISM_FACTS.md` +
   查询层机器路线 + 零参数探针 `alice:machine_probe`。S2 的机器范围**等 S1 读数再定**。
 - 等级：协议 IMPLEMENTED；S0/S1 未开始。
+
+**§6.50 电池整理后的红项调查（进行中）**（2026-09-13）
+- **事实**：整理后 CORE 首跑 `(14/17) → FAIL`，红项 = `craft_furnace`（`smelted=false` 超时 421 tick、`input_consumed=false`、
+  `discover=OK input=#0/#1/#2`、`input_placed=true`）、`craft_cooking`（同形，`#64/#65/#66`）、
+  **`transfer`（BASELINE，上一轮 25/25 时 PASS）**：`segment_stall … onGround=true delta=0,0,0 input=forward=1.00 → SEGMENT_TIMEOUT`。
+- **反证**：同一轮里 `pathing`/`mine_job`/`lumber_job`（都要移动+世界推进）PASS ⇒ **不是"服务端不 tick"**。
+- **22:53 单跑复测**：`alice:craft_furnace_check` **PASS**（`smelted=true smelt_ticks=200 product_delta=1 furnace_reset=true`；
+  首次 `furnace_found=false` 是**场景没摆**，不是缺陷）⇒ **in-battery 失败未复现**。
+- **当前假设（未定论）**：① 序列/残留污染（本轮把 8 步从 CORE 挪走 ⇒ 前置清场/场景序列变了）；
+  ② 那一次会话的世界状态（上一轮 `/alice instruct` 起过 `region_lumber`、bot 被反复传送）。
+  首要可检验机制 = **"发现时的菜单 ≠ 点击时的菜单"**（点击被接受但机器里没料 ⇒ 点了错菜单；
+  `craft_cooking` 的 64..66 与精妙**合成页签** 64..73 地址重叠，正好同族）。
+- **下一步（探针先装再测）**：`[Furnace] menu#<identity> slots=<n>`（discover 时 + 每次 placeOne 前）+
+  transfer 侧一行输入/前方方块事实；然后**重跑 CORE**：若复现 ⇒ 用探针定位"菜单身份"；若不复现 ⇒ 记为**偶发/世界状态型**，
+  但仍要补一条"步骤前清场"的守卫（不允许靠"重跑就好了"收口）。
+- **判据纪律**：不因为"单跑绿了"就宣布整理成功；CORE 17/17 未确认前，整理视为**未收口**。
