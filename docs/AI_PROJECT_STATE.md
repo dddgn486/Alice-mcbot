@@ -95,7 +95,7 @@ alice:machine_cycle_check: 3405` + `missing registry entries`（⇒ 不在注册
   **`DEGRADED`**，不再冒充 PASS）+ SKIP 判据去掉 `status != DONE`；`machine-map` Tier B 缺 jar ⇒
   **INCOMPLETE(exit 2)**，不再打印 PASS；`authz-map` 改**递归 glob**（原先漏扫 21 文件）+ 去家族前缀逃生
   （改族集合+计数断言，实测一次抓出 16 个未登记码与过期计数）；`policy-map` 去 `"inv"` 子串豁免（改整词）。
-- **✅ T0-b 已收口**（`6bb26b2`）：`tools/check-all.sh` 串 **8 道门禁**（三态：PASS/WARN/FAIL，WARN=断言**没执行**）
+- **✅ T0-b 已收口**（`6bb26b2`）：`tools/check-all.sh` 串 **9 道门禁**（三态：PASS/WARN/FAIL，WARN=断言**没执行**）
   \+ 接进 `.github/workflows/build.yml`（此前 **CI 一道门禁都不跑**）。
 - **✅ T1 已收口并客户端验证（`8b66572` + 第十七轮 19:09–19:12，jar `abed83d2…`）**：R-1 连锁破坏计入
   `WriteBudget`（**前后对照 `mine_regression breaks` 5→13，差值 8 = 连锁自报 `mined=8`**）；R-2 生产入口
