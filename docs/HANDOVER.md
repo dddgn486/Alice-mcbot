@@ -12,6 +12,7 @@
 | **3-B / S0 机器类型事实表** | ✅ 完成（离线，真数据） | `docs/MEKANISM_FACTS.md`：Mekanism **26 类型 / 1171 条**（`crushing` 210 领跑），总量随会话变、已标出处 |
 | **3-B / S1 机器配方只读** | ✅ 完成（客户端验证） | `MachineRecipeFacts`（问上游 `getOutputDefinition()`/`getInput().getRepresentations()` + 自校验）→ `RecipeQuery.MACHINE_ROUTE`（有出处的路线，含机器类型与材料）；`CraftJob` 如实拒绝 `not_executable` |
 | **3-B / S2 机器站点只读** | ✅ 完成（客户端验证） | `machine_block=mekanism:enrichment_chamber@66,64,306`、`menu=…MekanismTileContainer slots=41`、**进度=上游自述** `getScaledProgress/getOperatingTicks/getActive` |
+| **3-B / S3 机器映射单一出处** | ✅ 实现（`COMPILES`；**离线闸门全绿**，待客户端复跑一轮） | `decision/MachineMap.java`（27 行 = 23 有站点 + 4 无站点）+ 生成视图 `docs/MACHINE_MAP.csv` + 双向防漂移 `tools/check-machine-map.sh`（**Tier B 已实测 PASS**：上游 27 类型 ↔ 表 27 行双向一致）；探针改「按表认机器」，场景加第二台 `mekanism:crusher` |
 
 **方向来源留档**：`docs/reviews/2026-09-14-外部质疑与工作流审查留档.md`（外部质疑三条 + 两轮工作流审查 + 设计讨论的完整来龙去脉、事实核校、裁定表、驳回项与 AI 自身教训；
 想追"为什么现在这么定"就读它）。
@@ -19,27 +20,34 @@
 **协议**：`docs/MOD_ADAPTER_PROTOCOL.md`（六步流水线 S0→S5；**只读先于执行**；"读不懂多少"始终可见；
 进通用骨架须满足"上游自述／两上游共享／纯形态可自校验"；**反模式**：依赖上一步清场、按类名认、为适配放宽红线）。
 
-## 2. 进行中：S3/S4（下一次继续）
+## 2. 进行中：S3 收口 / S4（下一次继续）
 
-- **S3（下一步，只读）**：把"**机器类型 ↔ 机器方块/菜单**"做成**单一出处**的映射表
-  （像 `RecipeDump.stationFor` 那样），让 `MACHINE_ROUTE` 能回答"**去哪台机器**"；
-  **勘察已完成（子代理，只读）**：`docs/reviews/2026-09-14-3B-S3-机器映射勘察.md` ——
-  ① 类型→方块映射**今天不存在**（`RecipeQuery.java:160` 把 `station` 写成配方类型本身）；
-  ② 方块→菜单这一环**没有校验**（`MachineStationProbeTask:157` 传 `containerSlotCount=0`，恰好旁路了
-  `MenuSession:115-119` 的目标不匹配闸；找机器是"半径 6 内最近同命名空间方块" ⇒ 双机器时无法自证点对了哪台）；
-  ③ `crushing` 是 **1:N**（crusher + 4 档工厂），`mekanism:smelting` **注册但零配方** ⇒ 覆盖检查不得当孤儿；
-  ④ 结论：**做不到 100% 只加数据**——仍需两处一次性 Java 改动（`RecipeQuery:160` 接线 + 探针按表认机器）。
-  **待用户拍板**：(a) 是否把 `Route.station` 从"配方类型 id"换成"机器方块 id"（会改 `not_executable:<machine>`
-  与 `CandidateMenu.needs=` 文案）；(b) 表落点（与 `RecipeDump.stationFor` 同包同形态 vs 新建 `MachineCraftMap`）。
+- **S3（已实现，只读）**：`decision/MachineMap.java` = 「**机器类型 ↔ 机器方块/菜单**」的**唯一真源**
+  （D-209）；`Route.station` 由配方类型 id 换成**机器方块 id**（类型仍留在 `Route.type`）；
+  探针 `MachineStationProbeTask` 改「按表认机器」（同类型取最近，每台一组 `m{i}_*`），
+  并断言「菜单类 == 已实测登记值」与「**方块实体自述配方类型 == 表里的类型**」。
+  勘察留档：`docs/reviews/2026-09-14-3B-S3-机器映射勘察.md`（① `RecipeQuery:160` 无类型→方块映射；
+  ② 双机器时「半径内最近同命名空间方块」无法自证点对了哪台；③ `crushing` 1:N / `smelting` 零配方；
+  ④ 结论：做不到 100% 只加数据，需两处一次性 Java 改动——**这两处已做完**）。
+  **用户已拍板**：(a) `Route.station` 换方块 id ✔（若文案不合口味，回退成本 = `RecipeQuery` 一行）；
+  (b) 表落在 `com.dddgn.alice.decision`（与 `RecipeDump.stationFor` 同包）✔。
+  **未覆盖（如实登记）**：只登记基础机，`crushing` 的 1:N 工厂变体在 `note` 里点名但未入表；
+  `menuClass` 目前只有 `enriching` 一行是实测值（其余 `-`，探针只观察不断言）。
 - **S4（之后）**：单机最小闭环（放料→等→取产物）。**需要写入授权与预算**，按 D-076 走显式授权；
 - **S5**：每次收尾都要回收临时探针（今天已按此回收两支：`alice:machine_probe`、
   `alice:machine_station_probe` ⇒ 任务转为电池步 `machine_route` / `machine_station`）。
 
 ## 3. 待客户端验证（不阻塞下一步）
 
-**`alice:regression_battery`（CORE = 27 项）** ⇒ 期望 `(27/27) → PASS`，判据：
-`machine_route=PASS`、`machine_station=PASS`（新步；日志含"已传送…/结束复位…"）、
-`decision_contract=PASS`（上一轮补的自带传送/复位）。
+**`alice:regression_battery`（CORE = 28 项）** ⇒ 期望 `(28/28) → PASS`（上一轮已实测真绿，`latest.log:3817`），
+本轮额外看 S3 的四点（细节见 `docs/TESTING_GUIDE.md` §"下一次客户端轮"）：
+
+1. `[MachineProbe] SUMMARY … mapped=23 … unmapped=[] row_block_missing=[]`；
+2. `[MachineStation] 按表找到 2 台：mekanism:enriching@…,mekanism:crushing@…`；
+3. `m1_binding=true m2_binding=true`（方块实体自述配方类型 == 表里的类型）+ `m2_menu_class=` 首次观察值；
+4. 电池整体 `(28/28) → PASS`。
+
+顺手（仍未验证）：`/alice authz` 的 `L2 规划期策略表：rows=22 …` 行。
 
 ## 4. 今天新增/变更的纪律（都在 PLAYBOOK + AGENTS.md 里）
 
@@ -61,13 +69,16 @@
 - 客户端：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - 同步：`./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`；
   镜像 `./tools/mirror-windows-workspace.sh`；资源自检 `bash tools/check-item-models.sh`（当前 76 项）。
-- **本轮最后同步的 jar**：`3ccb320b0f594366`（完整 sha256 `3ccb320b0f5943661c929c2fa269358c5a759c8fb5ce5d5524b84ca4d0f9251f`；
-  上一版 `1c441fc9b9de98b2`）。变更是**夹具自检 + 终态传播**修正（D-208），不改生产路径。
-- 场景：`/function alice_test:machine_course`（S2 机器场景；已同步进存档 datapack）、
+- **本轮最后同步的 jar**：`a0d29b5835c31dac`（完整 sha256 `a0d29b5835c31dac4ed346df20166bcc19a9ed5e0a2802905fb461d9f9c262dc`；
+  上一版 `3ccb320b0f594366`）。变更是 **S3 机器映射单一出处 + 探针按表认机器**（D-209）：
+  生产路径只改一处（`RecipeQuery` 的机器路线 `station` 文案），其余为只读探针与离线闸门。
+- 场景：仓库 `tools/test-scenes/alice_test/` → 客户端存档
+  `saves/新的世界/datapacks/alice_test/`（**改场景后要手动把改动的 `.mcfunction` 复制过去**，本轮已复制且 `diff -rq` 无差异）；
+  `/function alice_test:machine_course`（S2+S3 机器场景：富集仓 + 粉碎机）、
   `furnace_course`、`craft_tab_course`、`craft_table_course`、`craft_station_course`。
 - 电池：`alice:regression_battery`（CORE=**28**）/ `/alice battery full`（FULL=38）；
   唯一配置入口 `RegressionBatteryTask.CURATION`。
-- 离线闸门（改完顺手跑）：`bash tools/check-authz-registry.sh`、`bash tools/check-policy-matrix.sh`、
+- 离线闸门（改完顺手跑）：`bash tools/check-authz-registry.sh`、`bash tools/check-policy-matrix.sh`、`bash tools/check-machine-map.sh`、
   **`bash tools/check-fixture-hygiene.sh`**（D-208 新增：夹具终态必须能传播失败）。
 
 ## 5b. 断点（2026-09-14 会话中段，上下文 ≈0.9×压缩阈值时收口）

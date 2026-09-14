@@ -8668,3 +8668,23 @@ the user must resume it"）。这**正好符合** D-205 的意图（"恢复只�
   的失败分支缺失形状；R3 信息性）。反向验证：把任一修复回退 ⇒ 立刻报红。
 - **附带的判定纪律**：**禁止聚合布尔式 detail**——旧写法打印 `A||B||C=false`，红了也定位不到是哪一个；
   自检失败行必须逐项打印真实值（本次已改为 `scaffoldRemoval∩放置=… ∩挖穿=…` 形式）。
+
+### D-209：机器类型 ↔ 机器方块/菜单 的**单一出处**（3-B / S3，2026-09-14）
+
+- 状态：稳定
+- **真源** = `decision/MachineMap.java`（27 行 = 上游**全部**类型）；**视图** = 生成的 `docs/MACHINE_MAP.csv`；
+  **防漂移** = `bash tools/check-machine-map.sh`（**Tier A** 表内结构：类型/方块唯一、`EXECUTABLE` 必须有实测
+  `menuClass`；**Tier B** 用 `javap` 读上游 jar 字符串常量，断言 **表 == 上游全部类型**，今天 23 有站点 + 4 无站点 = 27）。
+  反向验证过：删一行、把 `crusher` 改成 `crusher_typo` 都立刻 FAIL。
+- **`station` 语义换血**：机器路线的 `station` 从"配方类型 id"改为**机器方块 id**（`RecipeQuery` 两行；
+  类型 id 仍留在 `Route.type`，不丢信息）⇒ `CraftJob.not_executable:<machine>` / 目标层 `needs=` 的文案变成
+  **可去的地方**。未登记或无站点 ⇒ **如实回落成类型 id**（不猜方块、不静默失败）。
+- **探针改为"按表认机器"**：`MachineStationProbeTask` 只认表里登记过的方块（同类型取最近），每台一组 `m{i}_*`，
+  并断言两条：① 菜单类 == 表里**已实测登记**的值（未登记的行**只观察**——不拿"猜出来的期望"当断言制造假红）；
+  ② **方块实体自述的配方类型 == 表里的类型**（`getRecipeType()`→`getRegistryName()` 只读反射；方块↔方块实体
+  编译期绑定 ⇒ 这是"点对了哪台机器"的硬证据）。事实留痕：`reach_skipped` / `untabled_blocks` / `same_type_extra`。
+- **能力口径**：`Capability.EXECUTABLE` 今天 **0 行**（全表 `READ_ONLY`）；出现它必须同时满足执行适配器 +
+  已实测 `menuClass` + 客户端验证记录（静态检查强制）。**槽位下标一律不入表**——槽位/进度运行时问上游。
+- **加机器的成本**（场景已加第二台 `mekanism:crusher` 作证）：表里已有行 + 场景多一个 `setblock`，**不改 Java**。
+- **已知未覆盖**：只登记基础机；`crushing` 的 1:N 工厂变体（`basic_/advanced_/elite_/ultimate_crushing_factory`）
+  在 `note` 里点名但**未入表**（要入就按数据补行，不许猜）；`menuClass` 今天只有 `enriching` 一行是实测值。

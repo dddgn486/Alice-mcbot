@@ -2,6 +2,7 @@ package com.dddgn.alice.task;
 
 import com.dddgn.alice.action.MenuSession;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.decision.MachineMap;
 import com.dddgn.alice.ledger.WorldModLedger;
 import com.dddgn.alice.log.BotLog;
 import net.minecraft.core.BlockPos;
@@ -29,31 +30,59 @@ import java.util.List;
  * </ol>
  *
  * <p>**只读**：只找方块、开菜单、读事实；不改世界、不发包、不派任务。认不出就**如实报码**。
+ *
+ * <p><b>S3（D-209）起改为「按表认机器」</b>：机器方块 id 全部来自 {@link MachineMap}（单一出处），
+ * 半径内**表里登记过的**方块每类探一台（同类型取最近），于是"开的是哪台"由表决定、**可自证**——
+ * 旧实现是"命名空间里最近的方块"，双机器场景下无法证明点对了哪一台（这是 S3 勘察认定的唯一真缺口）。
+ *
+ * <p><b>§6.9.1 三条前提</b>：① **几何盒** = 以 bot **脚位**为中心的立方盒（半径 {@value #SCAN_RADIUS}，
+ * 含上下），可达上限 {@value #REACH_LIMIT} 格，超出者记 `reach_skipped`（**事实，不判红**：摆位是场景的事）；
+ * ② **世界/模组假设** = 装了对应模组、场景已由 `alice_test:machine_course` 摆好（电池 `stepSkippable`
+ * 会先跑该函数）；一台都够不着 ⇒ `machine_absent` ⇒ 电池记 **SKIP**（模组集可变，不判红）；
+ * ③ **层归属** = 两条断言都落在"这一台机器"的属性上：**方块实体自述的配方类型**（`getRecipeType()`，
+ * 方块↔方块实体是编译期绑定）与**菜单类**，不经任务层、不会被上游短路。
+ *
+ * <p><b>§6.9.3 三问自答</b>：① 层归属见上（不经查询层/任务层）；② 依赖的假设已在上一条写清且**自断言**
+ * （机器不在 ⇒ `_absent` SKIP；够不着 ⇒ `reach_skipped` 进 SUMMARY；表里没登记 ⇒ `untabled_blocks` 留痕）；
+ * ③ 失败时用户侧**看不到任何动作**（只读探针），判据是聊天 `SUMMARY m1_…/m2_… verdict=FAIL`，
+ * 失败码形如 `m1_binding`（方块实体自述类型与表不符）、`m2_menu_class_matches`（菜单类漂移）、
+ * `machine_absent:radius_6`（电池把本步记 SKIP）。
  */
 public class MachineStationProbeTask implements Task {
 
-    /** 目标机器所属命名空间（换模组只改这里 + 场景里的方块）。 */
-    private static final String NAMESPACE = "mekanism";
+    /** 探针扫描半径（**立方盒**，含上下；见 §6.9.1① 的几何盒纪律）。 */
     private static final int SCAN_RADIUS = 6;
-    private static final int MAX_TICKS = 400;
+    /** 交互可达上限（原版 `blockInteractionRange` = 4.5，留余量给眼高换算）。 */
+    private static final double REACH_LIMIT = 4.4;
+    /** 多台机器 ⇒ 预算比单台宽（原 400）；但**必须小于电池步预算 400**，
+     *  否则电池先按 TIMEOUT 记账、夹具自己的 `probe_timeout` 与事实留痕都来不及打出来。 */
+    private static final int MAX_TICKS = 350;
     private static final int OPEN_TICKS = 80;
     /** 进度类访问器的**方法名形态**（只认形态 + 只读调用，不认类名）。 */
     private static final String[] PROGRESS_HINTS = {"progress", "scaled", "active", "operating", "duration"};
 
-    /** 场景起点（`alice_test:machine_course` 的平台起点；机器在它东侧 2 格）。 */
+    /** 场景起点（`alice_test:machine_course` 的平台起点；两台机器在它东侧 z=306 / z=307）。 */
     public static final BlockPos START = new BlockPos(66, 64, 304);
 
-    private enum Phase { PREPARE, FIND, OPEN, REPORT, RESET, DONE }
+    /** 表里登记过的方块所属命名空间（只用于"上游有、表里没有"的**诊断**留痕）。 */
+    private static final String TABLE_NAMESPACE = tableNamespace();
+
+    private enum Phase { PREPARE, FIND, OPEN, REPORT, NEXT, RESET, DONE }
+
+    /** 待探的一台机器：**位置 + 表里的那一行**（判据全从行里来）。 */
+    private record MachineTarget(BlockPos pos, MachineMap.Row row) {
+    }
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
     private final List<String> failures = new ArrayList<>();
     private final java.util.Map<String, String> facts = new java.util.LinkedHashMap<>();
+    private final List<MachineTarget> targets = new ArrayList<>();
 
     private Phase phase = Phase.PREPARE;
     private int ticks;
     private int phaseTicks;
-    private BlockPos machine;
+    private int targetIndex;
     private MenuSession session;
     private boolean finished;
 
@@ -74,7 +103,8 @@ public class MachineStationProbeTask implements Task {
 
     @Override
     public TaskTarget target() {
-        return TaskTarget.block(machine == null ? bot.blockPosition() : machine);
+        return TaskTarget.block(targets.isEmpty() ? bot.blockPosition()
+                : targets.get(Math.min(targetIndex, targets.size() - 1)).pos());
     }
 
     @Override
@@ -97,6 +127,7 @@ public class MachineStationProbeTask implements Task {
             case FIND -> find();
             case OPEN -> open();
             case REPORT -> report();
+            case NEXT -> next();
             case RESET -> reset();
             case DONE -> finish();
         };
@@ -121,65 +152,142 @@ public class MachineStationProbeTask implements Task {
         return advance(Phase.FIND);
     }
 
+    /**
+     * **按表认机器**（S3/D-209）：只认 {@link MachineMap} 里登记过的方块，同类型取**最近**一台。
+     * 旧实现的"命名空间里最近的方块"无法回答"我开的是哪一台"（双机器场景下只能靠距离撞）。
+     */
     private Status find() {
-        var level = bot.serverLevel();
-        BlockPos best = null;
-        double bestDistance = Double.MAX_VALUE;
-        for (BlockPos pos : BlockPos.betweenClosed(bot.blockPosition().offset(-SCAN_RADIUS, -SCAN_RADIUS, -SCAN_RADIUS),
-                bot.blockPosition().offset(SCAN_RADIUS, SCAN_RADIUS, SCAN_RADIUS))) {
-            String id = BuiltInRegistries.BLOCK.getKey(level.getBlockState(pos).getBlock()).toString();
-            if (!id.startsWith(NAMESPACE + ":")) {
-                continue;
-            }
-            double distance = pos.distSqr(bot.blockPosition());
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                best = pos.immutable();
-            }
-        }
-        record("machine_found", best != null ? "true" : "false");
-        if (best == null) {
-            // 该命名空间的机器不在（模组未装/场景没摆）⇒ 由电池记 SKIP，不判红
-            failures.add(NAMESPACE + "_machine_absent");
-            BotLog.info("[MachineStation] 半径 {} 内没有 {} 方块 ⇒ 本项 SKIP",
-                    SCAN_RADIUS, NAMESPACE);
-            return finish();
-        }
-        machine = best;
-        String id = BuiltInRegistries.BLOCK.getKey(level.getBlockState(machine).getBlock()).toString();
-        record("machine_block", id + "@" + machine.toShortString());
-        var blockEntity = level.getBlockEntity(machine);
-        record("machine_block_entity", blockEntity == null ? "-" : blockEntity.getClass().getName());
-        check("machine_found", true, id + "@" + machine.toShortString());
         if (!bot.onGround()) {
             return phaseTicks > OPEN_TICKS ? failAndFinish("not_on_ground") : Status.RUNNING;
         }
-        session = MenuSession.open(bot, machine, 0);
+        var level = bot.serverLevel();
+        record Hit(double distance, BlockPos pos, MachineMap.Row row) {
+        }
+        List<Hit> hits = new ArrayList<>();
+        List<String> untabled = new ArrayList<>();
+        List<String> reachSkipped = new ArrayList<>();
+        for (BlockPos pos : BlockPos.betweenClosed(
+                bot.blockPosition().offset(-SCAN_RADIUS, -SCAN_RADIUS, -SCAN_RADIUS),
+                bot.blockPosition().offset(SCAN_RADIUS, SCAN_RADIUS, SCAN_RADIUS))) {
+            String id = BuiltInRegistries.BLOCK.getKey(level.getBlockState(pos).getBlock()).toString();
+            MachineMap.Row row = MachineMap.forBlock(id);
+            if (row == null) {
+                if (id.startsWith(TABLE_NAMESPACE + ":")) {
+                    // 上游有、表里没有：**诊断留痕**（不判红——模组集可变；运行期覆盖由 machine_route 步报）
+                    untabled.add(id + "@" + pos.toShortString());
+                }
+                continue;
+            }
+            double distance = pos.distSqr(bot.blockPosition());
+            if (distance > REACH_LIMIT * REACH_LIMIT) {
+                reachSkipped.add(id + "@" + pos.toShortString());
+                continue;
+            }
+            hits.add(new Hit(distance, pos.immutable(), row));
+        }
+        hits.sort(java.util.Comparator.comparingDouble(Hit::distance));
+        java.util.LinkedHashSet<String> seenTypes = new java.util.LinkedHashSet<>();
+        for (Hit hit : hits) {
+            if (!seenTypes.add(hit.row().typeId())) {
+                continue;   // 同类型多台（如工厂变体）：只探最近那台，其余由下面的事实记录
+            }
+            targets.add(new MachineTarget(hit.pos(), hit.row()));
+        }
+        List<String> duplicates = new ArrayList<>();
+        for (Hit hit : hits) {
+            if (targets.stream().noneMatch(t -> t.pos().equals(hit.pos()))) {
+                duplicates.add(hit.row().typeId() + "@" + hit.pos().toShortString());
+            }
+        }
+        record("scan_radius", String.valueOf(SCAN_RADIUS));
+        record("reach_limit", String.valueOf(REACH_LIMIT));
+        record("machine_map", MachineMap.describe());
+        record("found_types", String.valueOf(targets.size()));
+        record("reach_skipped", reachSkipped.isEmpty() ? "[]" : reachSkipped.toString());
+        record("untabled_blocks", untabled.isEmpty() ? "[]" : untabled.toString());
+        record("same_type_extra", duplicates.isEmpty() ? "[]" : duplicates.toString());
+        if (!reachSkipped.isEmpty() || !untabled.isEmpty()) {
+            BotLog.warn("[MachineStation] 事实留痕 reach_skipped={} untabled_blocks={}", reachSkipped, untabled);
+        }
+        if (targets.isEmpty()) {
+            // 模组未装 / 场景没摆 ⇒ 由电池按 `_absent` 记 SKIP（**不判红**：环境不具备）
+            failures.add("machine_absent:radius_" + SCAN_RADIUS);
+            BotLog.info("[MachineStation] 半径 {} 内没有表里登记的机器方块 ⇒ 本项 SKIP", SCAN_RADIUS);
+            return finish();
+        }
+        StringBuilder planned = new StringBuilder();
+        for (MachineTarget t : targets) {
+            if (planned.length() > 0) {
+                planned.append(',');
+            }
+            planned.append(t.row().typeId()).append('@').append(t.pos().toShortString());
+        }
+        record("machines", planned.toString());
+        BotLog.info("[MachineStation] 按表找到 {} 台：{}", targets.size(), planned);
         return advance(Phase.OPEN);
     }
 
     private Status open() {
+        MachineTarget target = targets.get(targetIndex);
         if (session == null) {
-            return failAndFinish("menu_session_missing");
+            session = MenuSession.open(bot, target.pos(), 0);
+            return phaseTicks > OPEN_TICKS
+                    ? failAndFinish("menu_open_timeout:" + target.row().typeId()) : Status.RUNNING;
         }
         MenuSession.State state = session.tick();
         if (state == MenuSession.State.FAILED) {
-            return failAndFinish("menu_open_failed:" + session.failure());
+            return failAndFinish("menu_open_failed:" + target.row().typeId() + ":" + session.failure());
         }
         if (state != MenuSession.State.OPEN) {
-            return phaseTicks > OPEN_TICKS ? failAndFinish("menu_open_timeout") : Status.RUNNING;
+            return phaseTicks > OPEN_TICKS
+                    ? failAndFinish("menu_open_timeout:" + target.row().typeId()) : Status.RUNNING;
         }
         return advance(Phase.REPORT);
     }
 
-    /** 读事实：菜单类 / 槽位表 / 进度数据（`ContainerData` 或上游自述）/ 零写入。 */
+    /** 一台探完 → 关菜单 → 下一台；都探完则复位。 */
+    private Status next() {
+        if (session != null) {
+            session.close("probe_next");
+            session = null;
+        }
+        if (bot.containerMenu != null
+                && !(bot.containerMenu instanceof net.minecraft.world.inventory.InventoryMenu)) {
+            bot.closeContainer();
+        }
+        targetIndex++;
+        return targetIndex >= targets.size() ? advance(Phase.RESET) : advance(Phase.OPEN);
+    }
+
+    /**
+     * 读事实（每台一组 `m{i}_*` 键）：方块/方块实体 / 菜单类 / 槽位表 / 进度数据；
+     * 并对**这一台**做两条断言：
+     * <ol>
+     *   <li>`m{i}_menu_class_matches`：菜单类 == 表里登记值（**只对已实测登记过的行断言**；
+     *       未登记的行只观察并记 `menu_class_declared=false` —— 拿"猜出来的期望"当断言就是制造假红）；</li>
+     *   <li>`m{i}_binding`：**方块实体自述的配方类型** == 表里的类型（"点对了哪台"的最强可及证据）。</li>
+     * </ol>
+     */
     private Status report() {
+        MachineTarget target = targets.get(targetIndex);
+        MachineMap.Row row = target.row();
+        String prefix = "m" + (targetIndex + 1) + "_";
         AbstractContainerMenu menu = bot.containerMenu;
         if (menu == null) {
-            return failAndFinish("menu_closed");
+            return failAndFinish("menu_closed:" + row.typeId());
         }
-        record("menu_class", menu.getClass().getName());
-        record("menu_slots", String.valueOf(menu.slots.size()));
+        record(prefix + "type", row.typeId());
+        record(prefix + "block", BuiltInRegistries.BLOCK
+                .getKey(bot.serverLevel().getBlockState(target.pos()).getBlock())
+                + "@" + target.pos().toShortString());
+        record(prefix + "reach", String.format(java.util.Locale.ROOT, "%.2f",
+                Math.sqrt(target.pos().distSqr(bot.blockPosition()))));
+        var blockEntity = bot.serverLevel().getBlockEntity(target.pos());
+        record(prefix + "be", blockEntity == null ? "-" : blockEntity.getClass().getName());
+
+        String menuClass = menu.getClass().getName();
+        record(prefix + "menu_class", menuClass);
+        record(prefix + "menu_slots", String.valueOf(menu.slots.size()));
         StringBuilder slots = new StringBuilder();
         for (Slot slot : menu.slots) {
             if (slots.length() > 0) {
@@ -189,29 +297,44 @@ public class MachineStationProbeTask implements Task {
                     .append('/').append(slot.container.getClass().getSimpleName())
                     .append("(cs=").append(slot.getContainerSlot()).append(')');
         }
-        record("slot_table", slots.length() == 0 ? "-" : slots.toString());
-        BotLog.info("[MachineStation] 菜单 {}", facts.get("menu_class"));
-        BotLog.info("[MachineStation] 槽位表 {}", facts.get("slot_table"));
+        record(prefix + "slot_table", slots.length() == 0 ? "-" : slots.toString());
+        BotLog.info("[MachineStation] {} 菜单 {} 槽位表 {}", row.typeId(), menuClass,
+                facts.get(prefix + "slot_table"));
 
-        // ① 原版路径：菜单里有 `ContainerData` 字段吗（按类型找，不按名字）
+        // ① 菜单类与表一致（未登记的行只观察）
+        if (row.menuDeclared()) {
+            check(prefix + "menu_class_matches", row.menuClass().equals(menuClass),
+                    "表=" + row.menuClass() + " 实际=" + menuClass);
+        } else {
+            record(prefix + "menu_class_declared", "false（未实测登记 ⇒ 只观察，待本轮日志确认后按数据回填）");
+        }
+        // ② 方块实体自述的配方类型 == 表里的类型（方块↔方块实体编译期绑定，故这是"哪台机器"的硬证据）
+        String beType = readRecipeTypeName(blockEntity);
+        record(prefix + "be_recipe_type", beType == null ? "unverified" : beType);
+        if (beType == null) {
+            record(prefix + "binding", "unverified（方块实体没有可读的 getRecipeType/getRegistryName）");
+        } else {
+            check(prefix + "binding", row.typeId().equals(beType),
+                    "表=" + row.typeId() + " 方块实体自述=" + beType);
+        }
+
+        // ③ 原版路径：菜单里有 `ContainerData` 字段吗（按类型找，不按名字）
         ContainerData data = findContainerData(menu);
-        record("container_data", data == null ? "-" : data.getClass().getSimpleName() + "(count=" + data.getCount() + ")");
-        // ② 上游自述：容器/方块实体上的**进度类访问器**（按方法名形态找，只读，不调用写方法）
+        record(prefix + "container_data",
+                data == null ? "-" : data.getClass().getSimpleName() + "(count=" + data.getCount() + ")");
+        // ④ 上游自述：容器/方块实体上的**进度类访问器**（按方法名形态找，只读，不调用写方法）
         Object upstream = callNoArg(menu, "getTileEntity");
-        record("upstream_accessor", upstream == null ? "-" : "getTileEntity→" + upstream.getClass().getName());
+        record(prefix + "upstream_accessor",
+                upstream == null ? "-" : "getTileEntity→" + upstream.getClass().getName());
         if (upstream != null) {
             List<String> hints = new ArrayList<>();
             collectProgressHints(upstream, hints);
-            record("upstream_progress_methods", hints.isEmpty() ? "-" : String.join(",", hints));
-            BotLog.info("[MachineStation] 上游自述进度方法 {}", hints);
-        }
-        int pending = WorldModLedger.pendingForOwner(bot.serverLevel().getServer(), bot.getUUID()).size();
-        record("no_writes", String.valueOf(pending == 0));
-        if (pending != 0) {
-            failures.add("no_writes");
+            record(prefix + "progress_methods", hints.isEmpty() ? "-" : String.join(",", hints));
+            BotLog.info("[MachineStation] {} 上游自述进度方法 {}", row.typeId(), hints);
         }
         session.close("probe_done");
-        return advance(Phase.RESET);
+        session = null;
+        return advance(Phase.NEXT);
     }
 
     /**
@@ -219,6 +342,12 @@ public class MachineStationProbeTask implements Task {
      * 让"下一次点/下一步"从同一个干净前提开始；失败路径也走这里。
      */
     private Status reset() {
+        // **零写入自证**（整轮一次，不在每台里重复）：只读探针不得给账本留任何待回收条目
+        int pending = WorldModLedger.pendingForOwner(bot.serverLevel().getServer(), bot.getUUID()).size();
+        record("no_writes", String.valueOf(pending == 0));
+        if (pending != 0) {
+            failures.add("no_writes");
+        }
         if (session != null) {
             session.close("probe_reset");
             session = null;
@@ -309,6 +438,54 @@ public class MachineStationProbeTask implements Task {
             }
         }
         return null;
+    }
+
+    /**
+     * 调**公有**无参访问器（含接口 `default` 方法）：上游 provider 的 `getRegistryName()` 就是
+     * 一个 `default` 方法，`getDeclaredMethod` 在实现类上找不到它。
+     */
+    private static Object callPublicNoArg(Object target, String name) {
+        try {
+            Method method = target.getClass().getMethod(name);
+            method.setAccessible(true);
+            return method.invoke(target);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * **方块实体自述的配方类型**（只读）：`getRecipeType()` → `getRegistryName()`；
+     * 拿不到就如实返回 null（调用方记 `unverified`，**不判红** —— 别的模组没有这套访问器）。
+     */
+    private static String readRecipeTypeName(Object blockEntity) {
+        if (blockEntity == null) {
+            return null;
+        }
+        Object provider = callPublicNoArg(blockEntity, "getRecipeType");
+        if (provider == null) {
+            return null;
+        }
+        Object name = callPublicNoArg(provider, "getRegistryName");
+        if (name instanceof net.minecraft.resources.ResourceLocation location) {
+            return location.toString();
+        }
+        if (provider instanceof net.minecraft.world.item.crafting.RecipeType<?> type) {
+            var key = BuiltInRegistries.RECIPE_TYPE.getKey(type);
+            return key == null ? null : key.toString();
+        }
+        return null;
+    }
+
+    /** 表里登记过的方块所属命名空间（用于"上游有、表里没有"的诊断留痕）。 */
+    private static String tableNamespace() {
+        for (MachineMap.Row row : MachineMap.rows()) {
+            String block = row.primaryBlock();
+            if (block != null && block.indexOf(':') > 0) {
+                return block.substring(0, block.indexOf(':'));
+            }
+        }
+        return "";
     }
 
     /** 只收集**方法名**（不调用），避免任何副作用；命中形态的记进 `hints`。 */

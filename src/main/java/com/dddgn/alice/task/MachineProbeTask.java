@@ -1,10 +1,12 @@
 package com.dddgn.alice.task;
 
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.decision.MachineMap;
 import com.dddgn.alice.decision.RecipeDump;
 import com.dddgn.alice.ledger.WorldModLedger;
 import com.dddgn.alice.log.BotLog;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
@@ -174,6 +176,50 @@ public class MachineProbeTask implements Task {
         int typeTotal = byType.values().stream().mapToInt(List::size).sum();
         BotLog.info("[MachineProbe] 命名空间={} 类型={} 条数={}（全表：可读={} 跳过={}）",
                 NAMESPACE, types, typeTotal, readable, skipped);
+
+        // ==================== S3（D-209）机器映射覆盖检查 ====================
+        // 判据分三桶，**口径不同、不可混**：
+        //   mapped            = 表里有行且**有单方块站点** ⇒ 查询层能回答"去哪台"
+        //   no_site           = 表里有行但**无站点**（多方块/机器内部）⇒ 如实回落成类型 id
+        //   unmapped          = **运行时有、表里没有** ⇒ 上游新类型或漏登记（**只告警不判红**：模组集可变）
+        //   row_block_missing = 表里写了方块 id、注册表里**没有这个方块** ⇒ **判红**（那是我们自己的错）
+        java.util.List<String> mapped = new ArrayList<>();
+        java.util.List<String> noSite = new ArrayList<>();
+        java.util.List<String> unmapped = new ArrayList<>();
+        java.util.List<String> rowBlockMissing = new ArrayList<>();
+        for (String typeId : byType.keySet()) {
+            MachineMap.Row row = MachineMap.forType(typeId);
+            if (row == null) {
+                unmapped.add(typeId);
+                continue;
+            }
+            if (!row.hasSite()) {
+                noSite.add(typeId);
+                continue;
+            }
+            boolean anyPresent = row.blockIds().stream().anyMatch(
+                    id -> BuiltInRegistries.BLOCK.containsKey(ResourceLocation.tryParse(id)));
+            if (!anyPresent) {
+                rowBlockMissing.add(row.typeId() + "→" + String.join("|", row.blockIds()));
+            } else {
+                mapped.add(typeId);
+            }
+        }
+        java.util.Collections.sort(mapped);
+        java.util.Collections.sort(noSite);
+        java.util.Collections.sort(unmapped);
+        java.util.Collections.sort(rowBlockMissing);
+        if (!rowBlockMissing.isEmpty()) {
+            failed = true;
+            BotLog.warn("[MachineProbe] 机器映射表引用了**不存在的方块** ⇒ 表错（我们自己的 bug）：{}",
+                    rowBlockMissing);
+        }
+        if (!unmapped.isEmpty()) {
+            BotLog.warn("[MachineProbe] 运行时出现但**表里没有**的机器类型（不判红，需登记或入 KNOWN_UNMAPPED）：{}",
+                    unmapped);
+        }
+        BotLog.info("[MachineProbe] 机器映射 {} | mapped={} no_site={} unmapped={}",
+                MachineMap.describe(), mapped, noSite, unmapped);
         for (Map.Entry<String, List<Recipe<?>>> entry : byType.entrySet()) {
             BotLog.info("[MachineProbe]   type={} count={}", entry.getKey(), entry.getValue().size());
             int shown = 0;
@@ -255,6 +301,11 @@ public class MachineProbeTask implements Task {
                 .append(" input_readable=").append(inputReadable)
                 .append(" query_probed=").append(machineOutputs.size())
                 .append(" query_machine_route=").append(machineRouteOk)
+                .append(" machine_map_rows=").append(MachineMap.rows().size())
+                .append(" mapped=").append(mapped.size())
+                .append(" no_site=").append(noSite)
+                .append(" unmapped=").append(unmapped)
+                .append(" row_block_missing=").append(rowBlockMissing)
                 .append(" no_writes=").append(pending == 0)
                 .append(" verdict=").append(failed ? "FAIL" : (types == 0 ? "SKIP" : "PASS"));
         BotLog.info("[MachineProbe] SUMMARY {}", summary);

@@ -1,5 +1,6 @@
 package com.dddgn.alice.task.craft;
 
+import com.dddgn.alice.decision.MachineMap;
 import com.dddgn.alice.decision.RecipeDump;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -157,7 +158,13 @@ public final class RecipeQuery {
                         materials = List.of(new Material("非物品输入（化学品/流体等，未由物品语义表达）",
                                 List.of(), 0, 0));
                     }
-                    machineRoutes.add(new Route(recipe.getId().toString(), type, type, false, crafts, per, materials));
+                    // **S3（D-209）**：机器路线的 `station` 从"配方类型 id"换成**机器方块 id**
+                    // —— 路线要回答的是"**去哪台**"，类型 id 不是一个能去的地方（`mekanism:enriching`
+                    // 不是一个方块）。表里没登记/无单方块站点 ⇒ **如实回落成类型 id**（旧文案），不猜方块。
+                    // 类型 id 本身仍留在 `Route.type` 里，不丢信息。
+                    String site = MachineMap.blockFor(type);
+                    machineRoutes.add(new Route(recipe.getId().toString(), type,
+                            site == null ? type : site, false, crafts, per, materials));
                 } else if (vanillaHits) {
                     // **只在"这条配方确实产出目标物品"时才记类型**（2026-09-14 修 bug）：
                     // 原先我把它放在目标过滤之前 ⇒ 任何一次查询都会把**全表**的机器类型收进来，

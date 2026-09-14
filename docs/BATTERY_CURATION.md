@@ -36,7 +36,8 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 `craft_check`、`craft_action`、`craft_table`、`craft_station`、`craft_probe_inventory`、`craft_probe_table`、
 `craft_probe_upgradetab`、`craft_station_provision`、`craft_station_craft`、`craft_furnace`、`craft_cooking`、`craft_goal`、
 `machine_route`（S1：机器配方**只读**——问上游自述读输入/输出 + 查询层给 `MACHINE_ROUTE`；模组不在 ⇒ SKIP）、
-`machine_station`（S2：机器**站点**只读——找机器 → 开菜单 → 读槽位表/`ContainerData`/上游进度方法名；机器不在 ⇒ SKIP）
+`machine_station`（S2 起为只读站点探针；**S3 起按 `MachineMap` 认机器**——半径内表里登记的方块每类一台（`m1_*`/`m2_*`），
+断言"菜单类 == 已实测登记值"与"方块实体自述配方类型 == 表里的类型"，并读槽位表/`ContainerData`/上游进度方法名；机器不在 ⇒ SKIP）
 
 > **为什么退回来了**：2026-09-13 实测——把其中 8 项移出 CORE 后，`craft_furnace`/`craft_cooking`/`transfer`
 > **可复现地变红**（重启客户端后仍红），而它们在 FULL（35 项）里**全绿** ⇒ 撤走的是它们的**隐含前置/清场**。

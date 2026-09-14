@@ -1,0 +1,28 @@
+kind,type_id,block_ids,menu_class,capability,note
+SITE,mekanism:enriching,mekanism:enrichment_chamber,mekanism.common.inventory.container.tile.MekanismTileContainer,READ_ONLY,S2 客户端实测（machine_station，2026-09-14）
+SITE,mekanism:crushing,mekanism:crusher,-,READ_ONLY,1:N——工厂变体 basic_/advanced_/elite_/ultimate_crushing_factory 同类型不同方块；v1 只登记基础机（工厂 id 已在 jar 中，按需按数据补行）
+SITE,mekanism:smelting,mekanism:energized_smelter,-,READ_ONLY,上游**注册但零配方**（jar 里没有 smelting 配方目录）⇒ 运行期不会出现，不算孤儿行
+SITE,mekanism:combining,mekanism:combiner,-,READ_ONLY,
+SITE,mekanism:compressing,mekanism:osmium_compressor,-,READ_ONLY,
+SITE,mekanism:purifying,mekanism:purification_chamber,-,READ_ONLY,
+SITE,mekanism:injecting,mekanism:chemical_injection_chamber,-,READ_ONLY,
+SITE,mekanism:sawing,mekanism:precision_sawmill,-,READ_ONLY,
+SITE,mekanism:metallurgic_infusing,mekanism:metallurgic_infuser,-,READ_ONLY,
+SITE,mekanism:oxidizing,mekanism:chemical_oxidizer,-,READ_ONLY,
+SITE,mekanism:chemical_infusing,mekanism:chemical_infuser,-,READ_ONLY,
+SITE,mekanism:separating,mekanism:electrolytic_separator,-,READ_ONLY,
+SITE,mekanism:washing,mekanism:chemical_washer,-,READ_ONLY,
+SITE,mekanism:crystallizing,mekanism:chemical_crystallizer,-,READ_ONLY,
+SITE,mekanism:dissolution,mekanism:chemical_dissolution_chamber,-,READ_ONLY,
+SITE,mekanism:reaction,mekanism:pressurized_reaction_chamber,-,READ_ONLY,
+SITE,mekanism:rotary,mekanism:rotary_condensentrator,-,READ_ONLY,
+SITE,mekanism:activating,mekanism:solar_neutron_activator,-,READ_ONLY,
+SITE,mekanism:centrifuging,mekanism:isotopic_centrifuge,-,READ_ONLY,
+SITE,mekanism:nucleosynthesizing,mekanism:antiprotonic_nucleosynthesizer,-,READ_ONLY,
+SITE,mekanism:pigment_extracting,mekanism:pigment_extractor,-,READ_ONLY,
+SITE,mekanism:pigment_mixing,mekanism:pigment_mixer,-,READ_ONLY,
+SITE,mekanism:painting,mekanism:painting_machine,-,READ_ONLY,
+NO_SITE,mekanism:evaporating,,-,READ_ONLY,热蒸发**多方块**（`EvaporationMultiblockData`），无单方块站点
+NO_SITE,mekanism:energy_conversion,,-,READ_ONLY,未定位到单方块机器（电力转换在机器内部/槽位层）
+NO_SITE,mekanism:gas_conversion,,-,READ_ONLY,未定位到单方块机器（气体转换在机器内部/槽位层）
+NO_SITE,mekanism:infusion_conversion,,-,READ_ONLY,未定位到单方块机器（灌注转换在机器内部/槽位层）
