@@ -1044,6 +1044,7 @@ jar `3312608d…`。
 |---|---|---|---|---|
 | **R4-残** | `RegionLumberJob` 补种**仍直接 `level.setBlock`** | 已补 `BlockInteraction.reachable` **触及前提**；其余（朝向/放置面/`gameMode` 交互路径）未走原语 | 选定树苗可能落在**主背包**，而 `BlockInteraction.placeAt` 只认**快捷栏 0–8** ⇒ 改走原语会**同时改变物品消耗路径与放置面语义**，属行为变更、需独立一轮客户端验证 | 下一次动 `RegionLumberJob` 补种路径时一起做 |
 | **R5-残** | `StationProvision.click` / `InventoryCraft.click` **未做编译期强制** | `FurnaceStation` 已做（`WriteGrant` 必传 + `WriteReason.container()` 校验）；这两个仍是"调用方自觉" | 内部调用点共约 **19 处**，属机械重构；且两者在 `CONTAINER_WRITE_SITES.csv` 里**已登记 `gated=no` + 理由**（`StationProvision` 是 `gated=yes`） | 下一次动合成/装配路径时，(临时) 先做这两处 |
+| **R2-残** | **R-2 的运行期路径没被走到** | 门禁 `check-provision-containment.sh` 已断言；客户端第十七轮 `[Job] launch` **0 条**（LLM 全程未被触发 ⇒ 没有 Job 被起） | 需要一个"真的起一次 Job"的动作；自动触发被 R-3 有意挡住了 | 手动右键 `alice:goal_director` 或 `alice:job_launcher`，看是否出现 `[Job] 生产入口只搬运不发料（…）` |
 | **R1-残** | `prod_budget_exhausted`（连锁破坏预算耗尽）分支**无客户端证据** | 代码已接入 `WriteBudget` 并按增量计账；但电池 `exec_chain` 用例是干净 3×3 矿脉（约 9 次破坏 ≪ `DEFAULT_MAX_BREAKS=64`）⇒ **新分支不会被现有场景触发** | 造"连锁破坏数 > 64"的场景是**新夹具工作量**，与 T1 的"修红线"不是一回事 | 接 T3，或专门补一条场景时 |
 
 ## §9 T2/T3 未动（用户拍板前不开）

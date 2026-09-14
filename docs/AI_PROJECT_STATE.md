@@ -97,10 +97,12 @@ alice:machine_cycle_check: 3405` + `missing registry entries`（⇒ 不在注册
   （改族集合+计数断言，实测一次抓出 16 个未登记码与过期计数）；`policy-map` 去 `"inv"` 子串豁免（改整词）。
 - **✅ T0-b 已收口**（`6bb26b2`）：`tools/check-all.sh` 串 **8 道门禁**（三态：PASS/WARN/FAIL，WARN=断言**没执行**）
   \+ 接进 `.github/workflows/build.yml`（此前 **CI 一道门禁都不跑**）。
-- **✅ T1 已收口（代码层，`8b66572`）**：R-1 连锁破坏计入 `WriteBudget`（预算尽即停链）；R-2 生产入口
-  `fixtureProvision` 显式化（生产只搬运不发料）+ 新门禁 `check-provision-containment.sh`；R-3 `isSelfCheck()`
-  唯一真源 + **`setSelfCheckHold` 随任务存续**（1200 tick 窗口盖不住 3400 tick 的电池）；R-4 补种补触及前提；
-  R-5 `FurnaceStation` 写入原语编译期强制 `WriteGrant`。**⇒ 待一轮客户端验证（尚未 `WINDOWS_CLIENT`）。**
+- **✅ T1 已收口并客户端验证（`8b66572` + 第十七轮 19:09–19:12，jar `abed83d2…`）**：R-1 连锁破坏计入
+  `WriteBudget`（**前后对照 `mine_regression breaks` 5→13，差值 8 = 连锁自报 `mined=8`**）；R-2 生产入口
+  `fixtureProvision` 显式化 + 新门禁；R-3 `isSelfCheck()` 唯一真源 + **`setSelfCheckHold` 随任务存续**
+  （实测 `trigger_skipped … until=1287 hold=true` ⇒ 现场证明 1200 tick 窗口**已过期**、是 hold 挡住的，且
+  **全会话 `decision_request` = 0**）；R-4 补种补触及前提；R-5 `FurnaceStation` 编译期强制 `WriteGrant`。
+  `(passed=30/30 skipped=0) → PASS`。**R-2 运行期路径本轮未走到**（无 Job 被起）⇒ 待手动补一次。
 - **未动**：T2（无头回归；已实测本机 `runServer` **`Done (3.675s)!`** 可起）、T3（模组 #3 数据模型）。
   ⚠️ **第 3 个模组已在客户端 `mods/` 里**（`create` / `ExtendedCrafting`）**且静默读不出** —— 推它之前必须先做 T3。
 - **流程尺子已写进 `AGENTS.md`**（"规则准入三问 + 只看一个指标"，净增≈0：同期把 STATE 的 41 行历史压成指针）。
