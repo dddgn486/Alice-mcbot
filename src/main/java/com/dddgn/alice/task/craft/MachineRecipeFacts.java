@@ -29,12 +29,13 @@ import java.util.List;
  *       <td>`getOutputItemChances()` → `List&lt;Float&gt;`</td></tr>
  * </table>
  *
- * <p><b>⚠️ 概率产出（台账⑮，2026-09-14）</b>：Thermal 的产出**可以是有概率的** —— 实测本客户端
- * **65 / 670** 条 Thermal 配方带 `chance &lt; 1.0`（`pulverizer` 32/81、`smelter` 21/70…）。
- * 只读 `getOutputItems()` 会把"5% 的副产物"写成"必然产出"（**过度承诺**）。
- * ⇒ {@link Facts#probabilistic()} **只在真的读到 `chance &lt; 1.0` 时为真**；
- * 读不到概率信息的类型（Mekanism）保持"**无概率证据**"，既有行为不变。
- * **`false` 不等于"保证必然产出"**，只表示"没有概率证据"—— 这一点由调用方按需措辞，别倒过来用。
+ * <p><b>⚠️ 产出概率（台账⑮，2026-09-14 两次取证）</b>：Thermal 的产出**带概率信息** —— 实测
+ * **146 / 670** 条 Thermal 配方声明了 `chance` 字段，取值跨 **0.05 ~ 12.5**（**不在 [0,1]**，
+ * `2.0` 出现 50 次）⇒ **它不是"概率"本身，语义未取证**。
+ * 因此本类**只做两件不越界的事**：① `Facts.outputChances` 原样带出数值；② {@link Facts#chanceDeclared()}
+ * 声明"有概率信息"⇒ 调用方**不得**把该产出当成必然产物。
+ * **不猜**"必然 vs 概率"（原先写成 `chance &lt; 1.0` 是猜语义，已撤掉）。
+ * 读不到概率信息的类型（Mekanism）保持既有行为。
  *
  * <p>**只读**：不调用任何写方法、不碰世界。读不出就返回 {@link #EMPTY}，由调用方**如实报码**。
  */
@@ -60,19 +61,24 @@ public final class MachineRecipeFacts {
         }
 
         /**
-         * **已知至少一条产出不是必然**（读到 `chance &lt; 1.0`）。
+         * **上游给出了产出概率信息**（`getOutputItemChances()` 非空）。
          *
-         * <p>口径严格单向：**只有读到机会值且其中 &lt;1.0 才为真**。读不到机会值的类型保持 `false`
-         * （既有行为不变），但 `false` **不构成**"必然产出"的承诺。
+         * <p><b>⚠️ 只说"有概率信息"，不解释数值（2026-09-14 实测自我纠正）</b>：Thermal 的 `chance`
+         * 取值实测跨 **0.05 ~ 12.5**（还有 `2.0` 出现 50 次），**不在 [0,1] 区间**
+         * ⇒ 它**不是**直接的"概率"，而是**概率/倍率语义未取证**的量。
+         * 所以本方法**不做**"必然 vs 概率"的判定（原先写成 `chance < 1.0` 是**在猜语义**，已撤），
+         * 调用方只能据此**不把该产出当成必然产物**，并用原始值如实呈现。
+         *
+         * <p>反向也不承诺：`false` 只表示"上游没给概率信息"（如 Mekanism），**不等于**"必然产出"。
          */
-        public boolean probabilistic() {
-            return outputChances.stream().anyMatch(chance -> chance != null && chance < 1.0F);
+        public boolean chanceDeclared() {
+            return !outputChances.isEmpty();
         }
 
         public String describe() {
             return "type=" + typeId + " id=" + recipeId + " in=" + inputs.size() + " out=" + outputs.size()
                     + (nonItemInput() ? " input=非物品" : "")
-                    + (probabilistic() ? " chances=" + outputChances + "（概率产出）" : "");
+                    + (chanceDeclared() ? " chances=" + outputChances + "（声明了概率，语义未取证）" : "");
         }
     }
 

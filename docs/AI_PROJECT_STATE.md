@@ -196,11 +196,16 @@ alice:machine_cycle_check: 3405` + `missing registry entries`（⇒ 不在注册
   （`46+3+10+0=59` ⇒ "未观测"回到"真·零配方"本义）**——✅ 第十五轮实测逐项命中**（`latest.log:3007`/`:3177`/`:3178`：
   `类型=56 条数=1823`、`with_site_confirmed=46`、`unobserved` 恰好 3 项、`row_block_missing=[]`、`(30/30) ticks=3353 → PASS`）
   ⇒ "Thermal 32 个类型里哪 30 个真有配方"**第一次有了自动化证据**。
-  **同轮新发现（台账⑮，未修）**：`namespace=thermal … upstream_readable=0 input_readable=0`（57/57 抽样全空，
-  Mekanism 是 20/30）—— 根因**已用 javap 取证**：Thermal 机器配方的访问器是
-  `getInputItems/getOutputItems/getOutputItemChances`，Alice 反射问的是 Mekanism 的名字
-  （`getInput/getOutputDefinition`）⇒ **不是"读不出"，是"名字不同"**。修之前必须先处理它的**概率产出**
-  （实测 **65/670** 条 `chance < 1.0`）⇒ 只读 `getOutputItems()` 会把副产物写成必然产物（过度承诺）。
+  **同轮新发现（台账⑮）→ 第十六轮已修并复核**：根因是 Thermal 的访问器名字不同
+  （`getInputItems/getOutputItems/getOutputItemChances` vs Mekanism 的 `getInput/getOutputDefinition`）
+  ⇒ `MachineRecipeFacts` 扩名族并成为**唯一读取器**（探针的两份私有反射读取器删除）。
+  **第十六轮实测**：`namespace=thermal upstream_readable` **0→26**、`input_readable` **0→34**
+  （`refinery`/`crucible` 流体输出**仍读不出**=如实），`namespace=mekanism` 四个计数 **31/20/31/30 逐字未变**、
+  `row_block_missing=[]`、`(30/30) ticks=3351 → PASS`。**判据一行未动**（`Verdict`/`Route`/能力列/准入）。
+  **⚠️ 同轮自纠**：第一版把概率判据写成 `chance < 1.0`，而 `probabilistic_output=23/57` 与静态 JSON
+  **算不出来**（期望 ~5）⇒ 那是在**猜语义**，已撤，改为只声明"上游给了概率信息"（字段 `chance_declared=`），
+  **数值语义另立台账⑯**（静态实测 146/670 条声明 `chance`，取值 0.05~12.5 ⇒ **不在 [0,1]，不是概率**；
+  **不阻塞**任何当前工作：Thermal 32 行仍全 `READ_ONLY`）。
   另附一条入册的教训：**"没被采样"与"不存在"必须能从日志上区分开**（一个字段混两种含义必被读错）。
   另：`query_machine_route` 1→2 **不是 Thermal 造成的**（被探测物品是随机采样、该计数只报告不断言）。
   附带闭合的一处对账：`[MachineProbe] readable_total=3714 skipped_total=2354` 与导出 `recipes=3689 skipped=2379` 差 25 ——

@@ -294,12 +294,13 @@ Tier B OK（thermal） ：上游类型 32 个，表 32 行（有站点 26 / 无�
 ⇒ **结论：不是"Thermal 配方读不出"，而是"Alice 只会问 Mekanism 的名字"** ——
 这就是 `namespace=thermal … upstream_readable=0` 的**全部**原因。
 
-**⚠️ 修之前必须先处理"概率产出"**（否则构成**过度承诺**，违反"未知语义默认只读、不猜"）：
-实测 **65 / 670** 条 Thermal 配方带 `chance < 1.0` —— `pulverizer` **32/81**（≈40%）、`smelter` **21/70**（30%）、
-`refinery` 4/5、`insolator` 3/63、`pyrolyzer` 2/3、`centrifuge` 2/59、`sawmill` 1/12。
-**只读 `getOutputItems()` 会把"5% 的副产物"写成"必然产出"。**
-⇒ 正确读法 = **`getOutputItems()` 与 `getOutputItemChances()` 配套**：任一条 `chance < 1.0` ⇒ 如实标成**概率产出**，
-查询层按"**非保证产出**"处理（新增字段，**别塞进现有判据**）。
+**⚠️ 修之前必须先处理"产出概率"**（否则构成**过度承诺**，违反"未知语义默认只读、不猜"）：
+实测 **146 / 670** 条 Thermal 配方**声明了 `chance` 字段**，取值跨 **0.05 ~ 12.5**（`2.0` 出现 50 次）
+⇒ **不在 [0,1] 区间，它本身不是"概率"**（按类型的声明条数：`pulverizer` 32/81、`smelter` 21/70、
+`refinery` 4/5、`insolator` 3/63、`pyrolyzer` 2/3、`centrifuge` 2/59、`sawmill` 1/12；其中"至少含一个 `<1` 值"的 65 条）。
+**只读 `getOutputItems()` 会把这类产出写成"必然产出"。**
+⇒ 正确读法 = **`getOutputItems()` 与 `getOutputItemChances()` 配套**，但**只声明"上游给了概率信息"、
+不解释数值**（**不猜**"必然 vs 概率"）。**数值语义本身未取证 ⇒ 台账⑯**。
 
 **输入形态也不同**：Mekanism 是**单一** `InputIngredient`，Thermal 是 **`List<Ingredient>`**
 ⇒ 读取代码要**按形态分支**，不能照抄。
@@ -320,8 +321,9 @@ javap    -classpath "$CP" cofh.thermal.core.util.recipes.machine.PressRecipe | g
   `getOutputItemChances`；`itemStacks()` 学会吃 `List<Ingredient>`（每项取**第一个物品**当代表，
   与 `getRepresentations()` 同口径：**只取代表、不展开标签**）。
 - **纯流体输入**也算"配料存在"（否则会报成 `mats=[]` = "不需要材料"，正是 D-204 那个 bug 类）。
-- `Facts.probabilistic()`：**只有真的读到 `chance<1.0` 才为真**；读不到概率信息的类型（Mekanism）保持 `false`
-  = "无概率证据"，**既有行为不变**（`false` 不构成"必然产出"的承诺 —— 这条口径写在字段 javadoc 里）。
+- `Facts.chanceDeclared()`：**上游给了概率信息就为真**；**明确不解释数值**（`0.05 ~ 12.5` 说明它**不是**概率）。
+  第一版写成 `chance < 1.0` 是**在猜语义**，被运行时数字当场证伪（`probabilistic_output=23/57` 与 JSON 算不出来）
+  ⇒ 已撤，语义未取证见台账⑯。
 - 探针的**两份私有反射读取器删除**，改调同一个 `read()`；新增 `probabilistic_output=` 计数。
 - `RecipeQuery` 只**在 note 末尾如实追加**"⚠️ 概率产出（读到 chance<1 ⇒ 不是必然产物）"：
   `Verdict` / `Route` 字段 / `MachineMap` 能力列 / `CraftJob` 准入**一行未动**。

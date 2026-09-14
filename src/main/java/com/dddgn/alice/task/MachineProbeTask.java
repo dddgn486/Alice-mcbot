@@ -140,7 +140,7 @@ public class MachineProbeTask implements Task {
         int upstreamReadable = 0;
         int machineOutputNotItem = 0;
         int inputReadable = 0;
-        int probabilisticOutput = 0;   // 台账⑮：读到 `chance<1` 的抽样条数（读到才计，不猜）
+        int chanceDeclared = 0;   // 台账⑮：上游声明了产出概率信息的抽样条数（只计"有"，不解释数值）
         java.util.LinkedHashSet<String> machineOutputs = new java.util.LinkedHashSet<>();
         Map<String, int[]> perNamespace = new LinkedHashMap<>();
         int types = byType.size();
@@ -214,7 +214,7 @@ public class MachineProbeTask implements Task {
                 MachineMap.describe(), rowCount, withSiteConfirmed.size(), withSiteUnobserved, noSite, unmapped);
         for (Map.Entry<String, List<Recipe<?>>> entry : byType.entrySet()) {
             BotLog.info("[MachineProbe]   type={} count={}", entry.getKey(), entry.getValue().size());
-            // 每个命名空间各自的桶：types / recipes / samples / unreadable / upstream_readable / not_item / input_readable / probabilistic
+            // 每个命名空间各自的桶：types / recipes / samples / unreadable / upstream_readable / not_item / input_readable  / chance_declared
             int[] namespaceBucket = perNamespace.computeIfAbsent(
                     entry.getKey().substring(0, entry.getKey().indexOf(':')), key -> new int[8]);
             namespaceBucket[0]++;
@@ -260,8 +260,8 @@ public class MachineProbeTask implements Task {
                     inputReadable++;
                     namespaceBucket[6]++;
                 }
-                if (facts.probabilistic()) {
-                    probabilisticOutput++;    // 台账⑮：**读到 chance<1 才计数**（不是猜出来的）
+                if (facts.chanceDeclared()) {
+                    chanceDeclared++;    // 台账⑮：**上游给了概率信息就计数**（数值语义未取证，只声明不解释）
                     namespaceBucket[7]++;
                 }
                 BotLog.info("[MachineProbe]     sample id={} out={} x{} in={} upstream_item_out={} upstream_in={}{}",
@@ -274,7 +274,7 @@ public class MachineProbeTask implements Task {
                                         .map(stack -> BuiltInRegistries.ITEM.getKey(stack.getItem()) + "x"
                                                 + stack.getCount())
                                         .collect(java.util.stream.Collectors.joining(",")),
-                        facts.probabilistic() ? " chances=" + facts.outputChances() : "");
+                        facts.chanceDeclared() ? " chances=" + facts.outputChances() : "");
             }
         }
         // **自证式查询验证**（S1/D-204）：拿"上游自述读出来的机器产出"去问查询层，
@@ -301,7 +301,7 @@ public class MachineProbeTask implements Task {
             int[] value = perNamespace.getOrDefault(namespace, new int[8]);
             BotLog.info("[MachineProbe] namespace={} types={} type_recipes={} samples={}"
                             + " unreadable_via_vanilla={} upstream_readable={} machine_output_not_item={}"
-                            + " input_readable={} probabilistic_output={}",
+                            + " input_readable={} chance_declared={}",
                     namespace, value[0], value[1], value[2], value[3], value[4], value[5], value[6], value[7]);
         }
         int pending = WorldModLedger.pendingForOwner(server, bot.getUUID()).size();
@@ -320,7 +320,7 @@ public class MachineProbeTask implements Task {
                 .append(" upstream_readable=").append(upstreamReadable)
                 .append(" machine_output_not_item=").append(machineOutputNotItem)
                 .append(" input_readable=").append(inputReadable)
-                .append(" probabilistic_output=").append(probabilisticOutput)
+                .append(" chance_declared=").append(chanceDeclared)
                 .append(" query_probed=").append(machineOutputs.size())
                 .append(" query_machine_route=").append(machineRouteOk)
                 .append(" machine_map_rows=").append(rowCount)

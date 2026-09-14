@@ -984,7 +984,7 @@ jar `3312608d…`。
   （`46+3+10+0=59`）、`row_block_missing=[]`、`unmapped=[]`、`(30/30) ticks=3353 → PASS`；
   逐命名空间行与**手算预测逐项相同**（`mekanism 26/1171`、`thermal 30/652`）。
   ⇒ "Thermal 32 个类型里哪 30 个在运行时真有配方"**从此有自动化证据**。
-  ⑮ **Thermal 机器配方的"读法"缺失：不是读不出，是访问器名字不同（第十五轮发现，未修）**：
+  ⑮ **Thermal 机器配方的"读法"缺失：不是读不出，是访问器名字不同（第十五轮发现 → 第十六轮已修）**：
   逐命名空间行里 `namespace=thermal … upstream_readable=0 input_readable=0 machine_output_not_item=57`（57/57 抽样全空），
   而 `namespace=mekanism` 是 `upstream_readable=20 input_readable=30`。**根因已取证（javap，不是猜）**：
   Thermal 的机器配方类（`PressRecipe` / `PulverizerRecipe` / `CentrifugeRecipe` / `CrystallizerRecipe` /
@@ -993,26 +993,42 @@ jar `3312608d…`。
   `getOutputItemChances()`（`List<Float>`）/ `getEnergy()` / `getXp()`**；
   而 Alice 现在反射问的是 `getOutputDefinition`/`getOutputs`（输出）与 `getInput`/`getItemInput`（输入）——
   **Mekanism 的名字**。⇒ 查询层因此给不出 Thermal 的"机器产线（上游自述可读输入/输出）"路线。
-  **⚠️ 修之前必须先想清楚的一条**：**Thermal 的产出是"有概率"的**，实测 **65 / 670** 条配方带 `chance < 1.0`
-  （`pulverizer` 32/81、`smelter` 21/70、`refinery` 4/5…）⇒ **只读 `getOutputItems()` 会把 5% 的副产物写成"必然产出"**，
-  那是**过度承诺**（红线：未知语义默认只读、不猜）。最小修法 = 扩展名族（加 `getOutputItems` 等）+ **必读
-  `getOutputItemChances()`**：有任一 `chance < 1.0` ⇒ 如实标成**概率产出**并在查询层按"非保证产出"处理
-  （而不是当成确定产物）。**验证点**：下一轮电池里 `namespace=thermal upstream_readable>0 input_readable>0`，
-  且概率产出被如实标注（新增字段，不塞进现有判据）。**输入形态也不同**：Mekanism 的输入是单一
-  `InputIngredient#getRepresentations()`，Thermal 是 `List<Ingredient>` ⇒ 读取代码要**按形态分支**，不能照抄。
+  **⚠️ 修之前必须先想清楚的一条**：**Thermal 的产出带概率信息**，实测 **146 / 670** 条配方**声明了 `chance` 字段**，
+  取值跨 **0.05 ~ 12.5**（`2.0` 出现 50 次）⇒ **不在 [0,1]**，**它本身不是"概率"**，语义未取证
+  ⇒ **只读 `getOutputItems()` 会把这类产出写成"必然产出"**，那是**过度承诺**（红线：未知语义默认只读、不猜）。
+  最小修法 = 扩展名族 + **配套读 `getOutputItemChances()`**，但**只声明"有概率信息"、不解释数值**（语义另立 ⑯）。
+  **验证点**：下一轮电池里 `namespace=thermal upstream_readable>0 input_readable>0`，且有概率信息的条数被如实报出。
+  **输入形态也不同**：Mekanism 的输入是单一 `InputIngredient#getRepresentations()`，Thermal 是 `List<Ingredient>`
+  ⇒ 读取代码要**按形态分支**，不能照抄。
   **✅ 已修（第十六轮，2026-09-14）—— 只做"读出来 + 如实标注"，判据一行没动**：
   ① `MachineRecipeFacts` 成为**唯一读取器**：名族扩到 `getInputItems`/`getInputFluids`/`getOutputItems`/`getOutputItemChances`；
   ② `itemStacks()` 新增吃 `List<Ingredient>` 形态（每项取**第一个物品**当代表，与 `getRepresentations()` 同一口径：
-  **只取代表、不展开标签**）；③ 新增 `Facts.probabilistic()`（**只有真的读到 `chance<1.0` 才为真**；
-  读不到概率信息的类型保持 `false` = 无概率证据，**Mekanism 侧行为不变**）；
+  **只取代表、不展开标签**）；③ 新增 `Facts.chanceDeclared()`（**上游给了概率信息就为真**；
+  **明确不解释数值** —— 第一版写成 `chance < 1.0` 是**在猜语义**，被运行时数字当场证伪后撤掉，见下）；
   ④ **纯流体输入**也算"配料存在"（否则会报成 `mats=[]` = "不需要材料"，正是 D-204 那个 bug 类）；
   ⑤ `MachineProbeTask` 的两份私有反射读取器**删除**，改调同一个 `MachineRecipeFacts.read()`
   （"探针读得出、查询层读不出"这种两处口径漂移从此不可能再现），并新增
-  **`probabilistic_output=`** 计数（per-namespace 行 + SUMMARY 都有）；
-  ⑥ `RecipeQuery` 在 `note` 末尾如实追加"⚠️ 概率产出（读到 chance<1 ⇒ 不是必然产物）"，
+  **`chance_declared=`** 计数（per-namespace 行 + SUMMARY 都有）；
+  ⑥ `RecipeQuery` 在 `note` 末尾如实追加"⚠️ 该配方声明了产出概率（chance 语义未取证 ⇒ 不作必然产出）"，
   **`Verdict` 语义、`Route` 记录字段、`MachineMap` 能力列、`CraftJob` 准入全部未动**（`Route` 不加字段 ⇒ 下游构造点零改动）。
-  **第十六轮验证点**（客户端一轮）：`namespace=thermal` 的 `upstream_readable` / `input_readable`
-  从 **0/0 变成非 0**（预期 ~50 出头，流体输出的 `refinery`/`crucible` 仍应读不出 ⇒ 如实留着），
-  且 `probabilistic_output>0`（静态实测 65/670 条带 `chance<1`）；`row_block_missing` 仍须 `[]`。
-  **已知遗留（不影响本轮）**：`craft_check` 的负例物品是**运行时自证挑选**的（"可产出集合"现在多了一批 Thermal 产出
-  ⇒ 它可能挑到**另一个**候选），日志会写明挑了哪个 —— 这是**更准确**而非回归。
+  **第十六轮实测**（`latest.log:3177`/`:3178` 一带）：`namespace=thermal` 的 `upstream_readable` **0 → 26**、
+  `input_readable` **0 → 34**（57 条抽样；流体输出的 `refinery`/`crucible` **仍读不出**，是如实结果），
+  `namespace=mekanism` 四个计数（31/20/31/30）**逐字未变** ⇒ **只读逻辑没有误伤既有行为**。
+  ⚠️ **同时暴露了我第一版的错误**：`probabilistic_output=23/57` 与"JSON 里 `chance<1` 的条数"**算不出来**
+  （按 9.7% 比例、每类抽 2 条，期望只有 ~5）⇒ **`getOutputItemChances()` 返回的很可能不是 JSON 原值**，
+  拿它做 `< 1.0` 判断是**猜语义** ⇒ 已撤，改为只声明"有概率信息"。见 ⑯。
+  ⑯ **Thermal 的 `chance` 到底是什么意思 —— 语义未取证（第十六轮发现，未修；**不阻塞**任何当前工作）**：
+  **已知事实**（三条，都可复算）：① 静态 JSON 里 **146 / 670** 条 Thermal 配方声明了 `chance`，
+  取值跨 **0.05 ~ 12.5**（`2.0` 出现 50 次、`1.0` 出现 14 次、`0.2` 出现 32 次）⇒ **不在 [0,1]**，
+  **不能当概率直接读**；② 每条配方里 `chance` 的个数分布是 1 个（74 条）/ 2 个（45 条）/ 3 个（27 条）
+  ⇒ 常见形态是"主产出 + 1~2 个副产物各带一个数"；③ **运行时的 `getOutputItemChances()` 与 JSON 对不上**：
+  第十六轮实测 `namespace=thermal … probabilistic_output=23 / 57`，而按"JSON 里至少含一个 `<1` 值"的比例
+  （65/670 = 9.7%）与"每类抽 2 条"的抽样设计，期望只有 **~5** ⇒ **访问器返回的很可能不是 JSON 原值**
+  （疑：按机器/增幅折算后的值、或对缺省项填了默认值）。
+  **为什么现在不做**：它的唯一用途是"能不能把某条机器路线的产出当**必然**"，
+  而 **Thermal 全表 32 行都是 `READ_ONLY`**、没有任何执行准入 ⇒ 当前**不影响任何行为**；
+  本轮的处置（只声明"有概率信息"、不解释数值）已经**堵住了过度承诺**这一侧。
+  **要动它时的最小取证路径**：`javap -c` 追 `IMachineRecipe#getOutputItemChances(IMachineInventory)` 的
+  **调用方**（机器方块实体里真正算产出的那处），看它把返回值当**概率**（除/比 100）还是当**倍率**（乘基准）；
+  顺带核 `use_chance`（14 条配方带这个顶层字段）与 `primary_mod`/`secondary_mod`（各 11 条）的含义。
+  **触发条件**：任何"要把 Thermal 机器升 `EXECUTABLE`、或要让概率产出参与 `CraftJob` 判定"的动作之前，**必须先收这一项**。
