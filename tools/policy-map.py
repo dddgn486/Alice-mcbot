@@ -386,6 +386,17 @@ def main() -> int:
             handle.write(expected_csv)
         print(f"已生成 {os.path.relpath(OUT_CSV, ROOT)}（{len(matrix['rows'])} 行）")
 
+    # ⑦（信息性，不判红）死值雷达：只在 WriteReason/WritePolicyMatrix 里出现的理由 = 没有调用点
+    code_corpus = []
+    for dirpath, _dirs, files in os.walk(SRC):
+        for name in files:
+            if name.endswith(".java") and name not in ("WriteReason.java", "WritePolicyMatrix.java"):
+                code_corpus.append(read(os.path.join(dirpath, name)))
+    corpus = "\n".join(code_corpus)
+    unused = [reason for reason in parse_reason_enum() if f"WriteReason.{reason}" not in corpus]
+    if unused:
+        print(f"提示（非失败）：这些理由在 {len(code_corpus)} 个源文件里没有任何调用点 ⇒ 疑似死值：{unused}")
+
     print(f"表：rows={len(matrix['rows'])} zones={len(matrix['zones'])} tasks={len(matrix['tasks'])} "
           f"grant={len(matrix['grants'])} 注册前缀={len(matrix['prefix_rules'])} "
           f"派生标记={matrix['derived_markers']} 族规则={len(matrix['family_rules'])}")
