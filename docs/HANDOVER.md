@@ -12,7 +12,7 @@
 | **3-B / S0 机器类型事实表** | ✅ 完成（离线，真数据） | `docs/MEKANISM_FACTS.md`：Mekanism **26 类型 / 1171 条**（`crushing` 210 领跑），总量随会话变、已标出处 |
 | **3-B / S1 机器配方只读** | ✅ 完成（客户端验证） | `MachineRecipeFacts`（问上游 `getOutputDefinition()`/`getInput().getRepresentations()` + 自校验）→ `RecipeQuery.MACHINE_ROUTE`（有出处的路线，含机器类型与材料）；`CraftJob` 如实拒绝 `not_executable` |
 | **3-B / S2 机器站点只读** | ✅ 完成（客户端验证） | `machine_block=mekanism:enrichment_chamber@66,64,306`、`menu=…MekanismTileContainer slots=41`、**进度=上游自述** `getScaledProgress/getOperatingTicks/getActive` |
-| **3-B / S3 机器映射单一出处** | ✅ 实现（`COMPILES`；**离线闸门全绿**，待客户端复跑一轮） | `decision/MachineMap.java`（27 行 = 23 有站点 + 4 无站点）+ 生成视图 `docs/MACHINE_MAP.csv` + 双向防漂移 `tools/check-machine-map.sh`（**Tier B 已实测 PASS**：上游 27 类型 ↔ 表 27 行双向一致）；探针改「按表认机器」，场景加第二台 `mekanism:crusher` |
+| **3-B / S3 机器映射单一出处** | ✅ 收口（客户端验证，`SERVER_TESTED` + `WINDOWS_CLIENT`） | `machine_map_rows=27 with_site_confirmed=22 with_site_unobserved=[mekanism:smelting] no_site=4 unmapped=[] row_block_missing=[]`；`按表找到 2 台` + `m1_binding=true m2_binding=true`；CORE `(28/28) → PASS`（`latest.log:2941`/`:2953`/`:2971`/`:3680`） |
 
 **方向来源留档**：`docs/reviews/2026-09-14-外部质疑与工作流审查留档.md`（外部质疑三条 + 两轮工作流审查 + 设计讨论的完整来龙去脉、事实核校、裁定表、驳回项与 AI 自身教训；
 想追"为什么现在这么定"就读它）。
@@ -20,34 +20,34 @@
 **协议**：`docs/MOD_ADAPTER_PROTOCOL.md`（六步流水线 S0→S5；**只读先于执行**；"读不懂多少"始终可见；
 进通用骨架须满足"上游自述／两上游共享／纯形态可自校验"；**反模式**：依赖上一步清场、按类名认、为适配放宽红线）。
 
-## 2. 进行中：S3 收口 / S4（下一次继续）
+## 2. 进行中：S3 已收口 / S4（下一次继续）
 
-- **S3（已实现，只读）**：`decision/MachineMap.java` = 「**机器类型 ↔ 机器方块/菜单**」的**唯一真源**
+- **S3（已收口，只读，客户端验证）**：`decision/MachineMap.java` = 「**机器类型 ↔ 机器方块/菜单**」的**唯一真源**
   （D-209）；`Route.station` 由配方类型 id 换成**机器方块 id**（类型仍留在 `Route.type`）；
   探针 `MachineStationProbeTask` 改「按表认机器」（同类型取最近，每台一组 `m{i}_*`），
   并断言「菜单类 == 已实测登记值」与「**方块实体自述配方类型 == 表里的类型**」。
-  勘察留档：`docs/reviews/2026-09-14-3B-S3-机器映射勘察.md`（① `RecipeQuery:160` 无类型→方块映射；
-  ② 双机器时「半径内最近同命名空间方块」无法自证点对了哪台；③ `crushing` 1:N / `smelting` 零配方；
-  ④ 结论：做不到 100% 只加数据，需两处一次性 Java 改动——**这两处已做完**）。
+  勘察留档：`docs/reviews/2026-09-14-3B-S3-机器映射勘察.md`。
   **用户已拍板**：(a) `Route.station` 换方块 id ✔（若文案不合口味，回退成本 = `RecipeQuery` 一行）；
   (b) 表落在 `com.dddgn.alice.decision`（与 `RecipeDump.stationFor` 同包）✔。
-  **未覆盖（如实登记）**：只登记基础机，`crushing` 的 1:N 工厂变体在 `note` 里点名但未入表；
-  `menuClass` 目前只有 `enriching` 一行是实测值（其余 `-`，探针只观察不断言）。
-- **S4（之后）**：单机最小闭环（放料→等→取产物）。**需要写入授权与预算**，按 D-076 走显式授权；
-- **S5**：每次收尾都要回收临时探针（今天已按此回收两支：`alice:machine_probe`、
-  `alice:machine_station_probe` ⇒ 任务转为电池步 `machine_route` / `machine_station`）。
+  **本轮实测纠正了两件事**（都在 D-209）：① 实测类型 26 ≠ 表 27，差的是**零配方的 `mekanism:smelting`**
+  ⇒ 探针改成对表行做**完整划分** + 分桶守恒自检；② **`menuClass` 不是机器身份**（两台机器实测同一个
+  `MekanismTileContainer`、槽位表逐项相同）⇒ 分辨"点对了哪台"只有 `m{i}_binding`，crusher 菜单类已按观察值回填。
+  **未覆盖（如实登记）**：只登记基础机，`crushing` 的 1:N 工厂变体在 `note` 里点名但未入表。
+- **S4（下一步主线）**：单机最小闭环（放料→等→取产物）。**需要写入授权与预算**，按 D-076 走显式授权；
+- **S5**：每次收尾都要回收临时探针（`alice:machine_probe`、`alice:machine_station_probe` 已回收 ⇒
+  转为电池步 `machine_route` / `machine_station`）。
 
-## 3. 待客户端验证（不阻塞下一步）
+## 3. 待客户端验证
 
-**`alice:regression_battery`（CORE = 28 项）** ⇒ 期望 `(28/28) → PASS`（上一轮已实测真绿，`latest.log:3817`），
-本轮额外看 S3 的四点（细节见 `docs/TESTING_GUIDE.md` §"下一次客户端轮"）：
+S3 的四点已在第二轮实测中全部命中（见 §1）。**只剩一条仍未有人在客户端敲过**：
 
-1. `[MachineProbe] SUMMARY … mapped=23 … unmapped=[] row_block_missing=[]`；
-2. `[MachineStation] 按表找到 2 台：mekanism:enriching@…,mekanism:crushing@…`；
-3. `m1_binding=true m2_binding=true`（方块实体自述配方类型 == 表里的类型）+ `m2_menu_class=` 首次观察值；
-4. 电池整体 `(28/28) → PASS`。
+- `/alice authz` 的 `L2 规划期策略表：rows=22 … zoneDiff=0 unregistered=0 undeclared=0` 行
+  （电池里的 `write_policy` 步测得同口径数值，但那条**显示行本身**从未在客户端渲染过）。
+- **另需一轮复跑**才能看到的两处**已改口径**（改动本身已 `COMPILES` + 闸门全绿）：
+  `machine_map_rows=27 with_site_confirmed=22 with_site_unobserved=[mekanism:smelting] no_site=4 …`
+  与 `m2_menu_class_matches=true`（crusher 菜单类回填后由"只观察"变成断言）。
 
-顺手（仍未验证）：`/alice authz` 的 `L2 规划期策略表：rows=22 …` 行。
+以上两条可**并与 S4 的同一次客户端轮**一起做，不必单独开一轮。
 
 ## 4. 今天新增/变更的纪律（都在 PLAYBOOK + AGENTS.md 里）
 

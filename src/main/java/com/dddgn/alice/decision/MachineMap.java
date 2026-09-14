@@ -17,7 +17,10 @@ import java.util.Map;
  *       `mekanism.common.recipe.MekanismRecipeType` 与 `mekanism.common.registries.MekanismBlocks`
  *       的字符串常量；`tools/check-machine-map.sh` 的 Tier B 每次构建前**双向**复核）；</li>
  *   <li>`menuClass`：**只登记客户端实测过的**，没实测过写 {@link #UNKNOWN}（探针会记录观察值、
- *       不拿它当断言，避免"猜出来的期望"制造假红）；</li>
+ *       不拿它当断言，避免"猜出来的期望"制造假红）。**注意它不是机器身份**：Mekanism 所有单方块机器
+ *       共用 `MekanismTileContainer`（enriching 与 crushing 实测同值、槽位表也逐项相同）
+ *       ⇒ 菜单类只能拿来看"菜单形状有没有漂移"，**分辨"点对了哪台"的硬证据是方块↔方块实体绑定**
+ *       （探针的 `m{i}_binding`：BE 自述配方类型 == 表里的类型）；</li>
  *   <li>`capability`：缺省、且今天**所有行**都是 {@link Capability#READ_ONLY}
  *       —— Alice 还没有任何机器的执行适配；`EXECUTABLE` 的出现前提见其 javadoc；</li>
  *   <li>**槽位下标一律不入表**：槽位/进度运行时问上游（本表只管"是哪台方块、点对了没"）。</li>
@@ -83,11 +86,11 @@ public final class MachineMap {
     private static final List<Row> ROWS = List.of(
             // —— 基础加工机（S2 已客户端实测 enriching/enrichment_chamber）——
             row("mekanism:enriching", "mekanism:enrichment_chamber", "mekanism.common.inventory.container.tile.MekanismTileContainer",
-                    "S2 客户端实测（machine_station，2026-09-14）"),
-            row("mekanism:crushing", "mekanism:crusher", null,
-                    "1:N——工厂变体 basic_/advanced_/elite_/ultimate_crushing_factory 同类型不同方块；v1 只登记基础机（工厂 id 已在 jar 中，按需按数据补行）"),
+                    "S2 客户端实测（machine_station，2026-09-14）；菜单类是**通用 tile 容器**，不区分机器（见类注释）"),
+            row("mekanism:crushing", "mekanism:crusher", "mekanism.common.inventory.container.tile.MekanismTileContainer",
+                    "1:N——工厂变体 basic_/advanced_/elite_/ultimate_crushing_factory 同类型不同方块；v1 只登记基础机（工厂 id 已在 jar 中，按需按数据补行）。菜单类 S3 客户端实测（machine_station，2026-09-14），与 enriching **同一个类**"),
             row("mekanism:smelting", "mekanism:energized_smelter", null,
-                    "上游**注册但零配方**（jar 里没有 smelting 配方目录）⇒ 运行期不会出现，不算孤儿行"),
+                    "上游**注册但零配方**（jar 里没有 smelting 配方目录）⇒ 运行期不会出现在配方管理器，探针按 `with_site_unobserved` 如实报出，不算孤儿行"),
             row("mekanism:combining", "mekanism:combiner", null, ""),
             row("mekanism:compressing", "mekanism:osmium_compressor", null, ""),
             row("mekanism:purifying", "mekanism:purification_chamber", null, ""),

@@ -289,6 +289,7 @@ public class MachineStationProbeTask implements Task {
         record(prefix + "menu_class", menuClass);
         record(prefix + "menu_slots", String.valueOf(menu.slots.size()));
         StringBuilder slots = new StringBuilder();
+        StringBuilder roles = new StringBuilder();
         for (Slot slot : menu.slots) {
             if (slots.length() > 0) {
                 slots.append(' ');
@@ -296,10 +297,24 @@ public class MachineStationProbeTask implements Task {
             slots.append('#').append(slot.index).append('=').append(slot.getClass().getSimpleName())
                     .append('/').append(slot.container.getClass().getSimpleName())
                     .append("(cs=").append(slot.getContainerSlot()).append(')');
+            String role = readSlotRole(slot);
+            if (!role.isEmpty()) {
+                if (roles.length() > 0) {
+                    roles.append(' ');
+                }
+                roles.append('#').append(slot.index).append('=').append(role);
+            }
         }
         record(prefix + "slot_table", slots.length() == 0 ? "-" : slots.toString());
+        // 槽位**角色**：机器槽的 `slot.container` 是上游共用的空容器（恒 cs=0），看它没有信息量；
+        // 真正的角色由上游自述 —— `InventoryContainerSlot.getSlotType()`（`ContainerSlotType` 枚举）
+        // 与 `getInventorySlot()`（底下的 `InputInventorySlot`/`OutputInventorySlot`/… 实现类）。
+        // 只读 getter、纯观察：**这是 S4 机器闭环"哪个下标是输入/输出"的数据来源，不靠猜**。
+        record(prefix + "slot_roles", roles.length() == 0 ? "-" : roles.toString());
         BotLog.info("[MachineStation] {} 菜单 {} 槽位表 {}", row.typeId(), menuClass,
                 facts.get(prefix + "slot_table"));
+        BotLog.info("[MachineStation] {} 槽位角色（上游自述） {}", row.typeId(),
+                facts.get(prefix + "slot_roles"));
 
         // ① 菜单类与表一致（未登记的行只观察）
         if (row.menuDeclared()) {
@@ -452,6 +467,23 @@ public class MachineStationProbeTask implements Task {
         } catch (Throwable ignored) {
             return null;
         }
+    }
+
+    /**
+     * **上游自述的槽位角色**（只读，S4 的数据来源）：`ContainerSlotType` 枚举 + 底下的
+     * `IInventorySlot` 实现类（`InputInventorySlot`/`OutputInventorySlot`/`EnergyInventorySlot`/…）。
+     *
+     * <p>为什么不能看 `slot.container`：机器槽的容器字段是上游共用的空容器（实测恒 `SimpleContainer(cs=0)`），
+     * 玩家槽才是有意义的 `Inventory(cs=…)`。角色只能问上游。不是 Mekanism 槽（原版/玩家槽）⇒ 返回空串。
+     */
+    private static String readSlotRole(Slot slot) {
+        Object type = callPublicNoArg(slot, "getSlotType");
+        Object backing = callPublicNoArg(slot, "getInventorySlot");
+        if (type == null && backing == null) {
+            return "";
+        }
+        return (type == null ? "?" : String.valueOf(type))
+                + (backing == null ? "" : "/" + backing.getClass().getSimpleName());
     }
 
     /**

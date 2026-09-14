@@ -1,7 +1,7 @@
 kind,type_id,block_ids,menu_class,capability,note
-SITE,mekanism:enriching,mekanism:enrichment_chamber,mekanism.common.inventory.container.tile.MekanismTileContainer,READ_ONLY,S2 客户端实测（machine_station，2026-09-14）
-SITE,mekanism:crushing,mekanism:crusher,-,READ_ONLY,1:N——工厂变体 basic_/advanced_/elite_/ultimate_crushing_factory 同类型不同方块；v1 只登记基础机（工厂 id 已在 jar 中，按需按数据补行）
-SITE,mekanism:smelting,mekanism:energized_smelter,-,READ_ONLY,上游**注册但零配方**（jar 里没有 smelting 配方目录）⇒ 运行期不会出现，不算孤儿行
+SITE,mekanism:enriching,mekanism:enrichment_chamber,mekanism.common.inventory.container.tile.MekanismTileContainer,READ_ONLY,S2 客户端实测（machine_station，2026-09-14）；菜单类是**通用 tile 容器**，不区分机器（见类注释）
+SITE,mekanism:crushing,mekanism:crusher,mekanism.common.inventory.container.tile.MekanismTileContainer,READ_ONLY,1:N——工厂变体 basic_/advanced_/elite_/ultimate_crushing_factory 同类型不同方块；v1 只登记基础机（工厂 id 已在 jar 中，按需按数据补行）。菜单类 S3 客户端实测（machine_station，2026-09-14），与 enriching **同一个类**
+SITE,mekanism:smelting,mekanism:energized_smelter,-,READ_ONLY,上游**注册但零配方**（jar 里没有 smelting 配方目录）⇒ 运行期不会出现在配方管理器，探针按 `with_site_unobserved` 如实报出，不算孤儿行
 SITE,mekanism:combining,mekanism:combiner,-,READ_ONLY,
 SITE,mekanism:compressing,mekanism:osmium_compressor,-,READ_ONLY,
 SITE,mekanism:purifying,mekanism:purification_chamber,-,READ_ONLY,

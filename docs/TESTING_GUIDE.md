@@ -472,7 +472,7 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
   加机器 = 表里已有行 + 场景多一个 `setblock`，**不改 Java**。
 - **电池步**（零参数、无需你手动点）：
   - `machine_route`（S1）：机器配方**只读**——问上游自述读输入/输出 + 查询层给 `MACHINE_ROUTE`；
-    S3 起多打机器映射覆盖：`machine_map_rows=27 mapped=23 no_site=[…] unmapped=[] row_block_missing=[]`；
+    S3 起多打机器映射覆盖：`machine_map_rows=27 with_site_confirmed=22 with_site_unobserved=[…] no_site=[…] unmapped=[] row_block_missing=[]`；
   - `machine_station`（S3 起是**两台一组**）：**按 `MachineMap` 认机器**（不再按"命名空间里最近的方块"），
     每台一组 `m1_*` / `m2_*`：`m1_type / m1_block / m1_be / m1_reach / m1_menu_class / m1_slots /
     m1_be_recipe_type / m1_binding`；夹具**自带传送与结束复位**；机器不在 ⇒ SKIP。
@@ -482,23 +482,37 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
 ### S3 关键行怎么读（`latest.log`）
 
 ```
-[MachineProbe] 机器映射 machine_rows=27 with_site=23 no_site=4 declared_menu=1 executable=0 source=…
-[MachineProbe] SUMMARY … mapped=23 no_site=[mekanism:evaporating, …] unmapped=[] row_block_missing=[] …
+[MachineProbe] 机器映射 machine_rows=27 with_site=23 no_site=4 declared_menu=2 executable=0 source=…
+[MachineProbe] SUMMARY … machine_map_rows=27 with_site_confirmed=22 with_site_unobserved=[mekanism:smelting] no_site=[…] unmapped=[] row_block_missing=[] …
 [MachineStation] 按表找到 2 台：mekanism:enriching@66, 64, 306,mekanism:crushing@66, 64, 307
-[MachineStation] SUMMARY … m1_binding=true m2_binding=true m2_menu_class=… verdict=PASS
+[MachineStation] SUMMARY … m1_binding=true m2_binding=true m2_menu_class_matches=true verdict=PASS
 ```
 
+- **表 27 行 ↔ 实测 26 个类型的算法**（这一条最容易看错）：探针对**表里的行**做完整划分，
+  `with_site_confirmed` + `with_site_unobserved` + `no_site` + `row_block_missing` **必须等于**
+  `machine_map_rows`（探针内含**分桶守恒自检**，不守恒直接判红 = 探针口径 bug）。
+  实测 `22 + 1 + 4 + 0 = 27`，其中那 1 行就是 **`mekanism:smelting`** ——
+  上游**注册了类型但零配方** ⇒ `RecipeManager` 里没有这个键，所以它**永远不会**出现在实测类型里。
+  `with_site_unobserved` **只报事实不判红**（配方可被数据包/配置增删，把"今天为 0"钉成期望会假红）。
 - `m1_binding=true` / `m2_binding=true`：**方块实体自述的配方类型 == 表里的类型**
-  （`getRecipeType()` → `getRegistryName()`；方块↔方块实体是编译期绑定）——这是"点对了哪台机器"的硬证据；
-- `m2_menu_class=…`：粉碎机的菜单类**本轮首次被观察到**（表里它还是 `-`）；确认后按数据回填，
-  下一轮 `m2_menu_class_declared` 才会变成断言（**不拿"猜出来的期望"当断言**）；
-- `unmapped=[]`：运行期没有"表里没分类"的机器类型；非空 ⇒ 上游加了新类型（表要补行）；
+  （`getRecipeType()` → `getRegistryName()`；方块↔方块实体是编译期绑定）——这是"点对了哪台机器"的**硬证据**；
+- **`m{i}_slot_roles`（本轮新增）**：机器槽的**角色**由上游自述 —— `InventoryContainerSlot.getSlotType()`
+  （`ContainerSlotType{IGNORED,NORMAL,POWER,INPUT,EXTRA,OUTPUT,VALIDITY}`）+ `getInventorySlot()` 的实现类
+  （`InputInventorySlot`/`OutputInventorySlot`/`EnergyInventorySlot`/…）。**为什么必须问上游**：
+  机器槽的 `slot.container` 是上游共用的空容器（实测恒 `SimpleContainer(cs=0)`），
+  所以旧的 `slot_table` 里那一列对机器槽**没有信息量**（只有玩家槽的 `Inventory(cs=…)` 有意义）。
+  这是 S4 机器闭环"哪个下标是输入/输出"的**数据来源，不靠猜**；
+- **`menuClass` 不区分机器**（2026-09-14 实测）：enriching 与 crushing 都是
+  `mekanism.common.inventory.container.tile.MekanismTileContainer`，41 槽位、槽位表**逐项相同**
+  ⇒ 菜单类只用来发现"菜单形状漂移"，别拿它当机器身份；`m2_menu_class_matches=true` 现在也是断言了（已回填）；
+- `unmapped=[]`：运行期没有"表里没分类"的机器类型；非空 ⇒ 上游加了新类型（表要补行，只告警不判红）；
 - `row_block_missing=[]`：表里的方块 id 都真实存在（非空 ⇒ **我们自己的 bug**，会判红）。
 
 ## 授权/审批框架快照（2026-09-14 新增）
 
 - **命令（零参数、只读）**：`/alice authz`
-  - 预期输出 7 行：`=== 授权/审批快照 ===` / **L0** 当前任务 / **L1** 纯通行集合 / **L3** 预算（破坏·放置·容器写入 余量与已拒数 + scope）
+  - 预期输出 **8 行**：标题 / **L0** 当前任务 / **L1** 纯通行集合 / **L2** 规划期策略表（`WritePolicyMatrix`，D-207 ①）
+    / **L3** 预算（破坏·放置·容器写入 余量与已拒数 + scope）
     / **L4** 账本（本 bot pending、未闭合临时块、全局 pending、当前 scope）/ **L4** 保护区（安全区摘要 + bot 脚下判定）/ **最近终态**（任务·状态·code·坐标）；
   - 它打印的是**现场查询到的真实事实**（预算余量、账本 pending、保护区判定、最近失败码），**不抄文档** ⇒ 与 `docs/authz/OVERVIEW.md` 不一致时以它为准并去修文档；
   - 只读性质：不写世界、不分配任务、不清理账本（可随时跑，跑完无需复位）。
@@ -524,24 +538,32 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
 - `alice:regression_battery` CORE → **`(28/28) ticks=2833 → PASS`**（`latest.log:3817`）；
 - 静默绿修复生效：这一步的 FAIL 现在**必然**把电池打红（离线 `tools/check-fixture-hygiene.sh` 守着）。
 
-### 下一次客户端轮（**必做**：复跑一次回归电池 —— 3-B / S3）
+### 第三轮结果（2026-09-14，**已验证 ✅ 真绿**）—— 3-B / S3 收口
 
-第三次要看的是一件事：**机器映射表是不是真的成了"哪台机器"的判据**。重跑后对四点：
+`alice:regression_battery` CORE → **`PROFILE=CORE … (28/28) ticks=2789 → PASS`**（`latest.log:3680`），28 步全 PASS。
 
-1. `[MachineProbe] SUMMARY … mapped=23 no_site=[mekanism:evaporating,…] unmapped=[] row_block_missing=[]`
-   —— `unmapped` 应为空（运行期没有"没分类"的类型）；`row_block_missing` 应为空（非空 = 表写了不存在的方块，判红）。
-2. `[MachineStation] 按表找到 2 台：mekanism:enriching@…,mekanism:crushing@…`
-   —— 两台都由**表里的方块 id**认出来（旧实现只会按"命名空间里最近"撞一台）。
-3. `[MachineStation] SUMMARY … m1_binding=true m2_binding=true m2_menu_class=…  verdict=PASS`
-   —— `binding` = 方块实体自述的配方类型与表一致（"点对了哪台"的硬证据）；
-   **`m2_menu_class` 是粉碎机菜单类的首次观察值**，确认后我按数据回填表，下一轮它才变成断言。
-4. 电池整体仍应 **`(28/28) → PASS`**（S3 没加新步，只改了 `machine_route` / `machine_station` 的内容）。
+- `[MachineProbe]`（`:2941`）：`machine_map_rows=27 mapped=22 no_site=[energy_conversion, evaporating, gas_conversion, infusion_conversion] unmapped=[] row_block_missing=[] no_writes=true verdict=PASS`；
+- `[MachineStation]`（`:2953`）：`按表找到 2 台：mekanism:enriching@66, 64, 306,mekanism:crushing@66, 64, 307`；
+- `m1_binding=true`（`:2959`）、`m2_binding=true`（`:2966`）；`m1_menu_class_matches=true`（`:2958`）；
+- `m1_menu_class` = `m2_menu_class` = `mekanism.common.inventory.container.tile.MekanismTileContainer`，均 41 槽；
+- `verdict=PASS reset=true no_writes=true`（`:2971`）。
 
-另外两条与上一轮相同、仍未验证的（顺手即可）：
+**本轮纠正了两处口径**（D-209，改动已 `COMPILES` + 离线闸门全绿，**待下次复跑确认显示**）：
 
-- `/alice authz` 的 **`L2 规划期策略表：rows=22 … zoneDiff=0`** 行（新增后还没人在客户端敲过一次）；
-- `machine_route` 里 `station=` 的**文案变了**（S3 起机器路线报**方块 id**而不是配方类型 id）——
-  `CraftJob` 的 `not_executable:<machine>` 与目标层菜单的 `needs=` 会跟着变。
+1. 实测类型 **26** ≠ 表 27 行，差的是**零配方的 `mekanism:smelting`**。原 SUMMARY 只有 `mapped=22`，
+   与 `machine_map_rows=27` 并列会被读成"少一行"（我预告 `mapped=23` 就错在这）⇒
+   改为对表行完整划分 `with_site_confirmed / with_site_unobserved / no_site / row_block_missing`，并加分桶守恒自检；
+2. crusher 菜单类按本轮观察值**回填**（`m2_menu_class_declared` → `m2_menu_class_matches` 变断言）。
+
+### 下一次客户端轮（与 S4 合并，不必单独开一轮）
+
+1. 复跑 `alice:regression_battery`（CORE）确认两处新口径：
+   `with_site_confirmed=22 with_site_unobserved=[mekanism:smelting]`（22+1+4+0=27）与 `m2_menu_class_matches=true`；
+2. `/alice authz` 的 **`L2 规划期策略表：rows=22 … zoneDiff=0`** 行（新增后**还没人在客户端敲过一次**）；
+3. S4 的机器闭环夹具（放料→等→取产物）——设计定稿后给出零参数入口。
+
+另外，`machine_route` 里 `station=` 的**文案已变**（S3 起机器路线报**方块 id**而不是配方类型 id）——
+`CraftJob` 的 `not_executable:<machine>` 与目标层菜单的 `needs=` 会跟着变；不合口味就说，回退成本 = `RecipeQuery` 一行。
   若你觉得这个文案不对味，说一声，回退成本是 `RecipeQuery` 里一行。
 
 玩家侧仍然**看不到任何动作**（纯只读探针 + 两次注定被拒的规划尝试，不改世界、不动 bot）——这是正常的。

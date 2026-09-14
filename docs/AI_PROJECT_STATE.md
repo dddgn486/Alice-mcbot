@@ -59,9 +59,13 @@
 **阶段 3-A（合成/熔炼接进任务层）已收口**（A1–A5 客户端验证 + `USER_ACCEPTED`）。
 **当前主线 = 阶段 3-B 模组机器适配**（实验对象 Mekanism，方法见 `docs/MOD_ADAPTER_PROTOCOL.md`）：
 **S0/S1/S2 已完成**（类型事实表 / 机器配方只读 `MACHINE_ROUTE` / 机器站点只读）；
-**S3 已实现**（`decision/MachineMap.java` = "机器类型 ↔ 机器方块/菜单"的**唯一真源** + 生成视图
-`docs/MACHINE_MAP.csv` + 双向防漂移 `tools/check-machine-map.sh`；`Route.station` 改为机器方块 id；
-探针「按表认机器」并断言"方块实体自述配方类型 == 表里的类型"）——**离线闸门全绿，待客户端复跑一轮**。
+**S3 已收口**（`SERVER_TESTED` + `WINDOWS_CLIENT`，2026-09-14 第二轮电池）：`decision/MachineMap.java` =
+"机器类型 ↔ 机器方块/菜单"的**唯一真源** + 生成视图 `docs/MACHINE_MAP.csv` + 双向防漂移
+`tools/check-machine-map.sh`；`Route.station` 改为机器方块 id；探针「按表认机器」并断言
+"方块实体自述配方类型 == 表里的类型"（实测 `按表找到 2 台` + `m1_binding=true m2_binding=true`，
+CORE `(28/28) → PASS`）。**实测纠正两条口径**（D-209）：零配方的 `mekanism:smelting` 解释
+"表 27 行 vs 实测 26 类型" ⇒ 探针改为对表行完整划分 + 守恒自检；`menuClass` 实测**不区分机器**
+（两台共用 `MekanismTileContainer`）⇒ 身份判据只有 `m{i}_binding`。
 **下一步 = S4**（单机最小闭环：放料→等→取产物，需显式写入授权 + 预算，按 D-076/D-082 走）。
 电池 **CORE=28 / FULL=38**。**详细交接见 `docs/HANDOVER.md`**；**方向来源与审查留档见 `docs/reviews/2026-09-14-外部质疑与工作流审查留档.md`**；今天的新纪律见 PLAYBOOK §5.0b/§5.0c/§5.0d。
 

@@ -796,7 +796,7 @@ jar `3312608d…`。
   **进度=上游自述**（`getScaledProgress`/`getOperatingTicks`/`getActive`）。
 - **S5 回收**：两支临时入口（`alice:machine_probe`、`alice:machine_station_probe`）已删除，
   任务转电池步 `machine_route` / `machine_station`（机器不在 ⇒ SKIP）⇒ **CORE 25 → 27**。
-- **S3**（只读，离线全绿 / 待客户端复跑，2026-09-14，D-209，commit `fb979e5`）：
+- **S3**（只读，**客户端验证 ✅**，2026-09-14，D-209，commit `fb979e5` + `edf5643`）：
   ① 真源 `decision/MachineMap.java` **27 行 = 上游全部类型**（23 有站点 + 4 无站点：`evaporating`
   多方块、`energy_conversion`/`gas_conversion`/`infusion_conversion` 无单方块站点）；
   ② `Route.station` 由配方类型 id → **机器方块 id**（`RecipeQuery` 两行，类型仍留在 `Route.type`）；
@@ -805,9 +805,15 @@ jar `3312608d…`。
   ④ 生成视图 `docs/MACHINE_MAP.csv` + 双向闸门 `tools/check-machine-map.sh`
   （Tier A 结构 / Tier B `javap` 读上游 jar：**27 类型 ↔ 27 行双向一致**；反向验证删行、改 `crusher_typo` 均立刻 FAIL）；
   ⑤ 场景加第二台 `mekanism:crusher`（@66,64,307）作"加机器不改 Java"的活证据，已同步进存档 datapack。
-  **未覆盖如实登记**：只登记基础机（`crushing` 的 4 档工厂变体在 `note` 点名未入表）；
-  `menuClass` 今天只有 `enriching` 一行是实测值（`m2_menu_class` 待本轮观察后回填）。
-  **待客户端**：`machine_map mapped=23 unmapped=[] row_block_missing=[]`、`m1_binding=true m2_binding=true`、CORE `(28/28)`。
+  **第二轮实测（`latest.log:2941`/`:2953`/`:2971`/`:3680`）**：`按表找到 2 台`、`m1_binding=true m2_binding=true`、
+  电池 `(28/28) ticks=2789 → PASS` ⇒ 表真的成了"哪台机器"的判据。
+  **实测纠正两条口径**（已改，`COMPILES` + 闸门全绿，待下次复跑确认显示）：
+  ① 实测类型 **26** ≠ 表 27，差的是**零配方的 `mekanism:smelting`** ⇒ 探针改为对表行**完整划分**
+  （`with_site_confirmed` 22 + `with_site_unobserved` 1 + `no_site` 4 + `row_block_missing` 0 = 27）
+  + 分桶守恒自检，`with_site_unobserved` 只报事实不判红；② **`menuClass` 不区分机器**（两机同一个
+  `MekanismTileContainer`、槽位表逐项相同）⇒ 身份只能靠 `m{i}_binding`；crusher 菜单类已按观察值回填。
+  **未覆盖如实登记**：只登记基础机（`crushing` 的 4 档工厂变体在 `note` 点名未入表）。
+  **待客户端**：`/alice authz` 的 L2 行（**仍从未在客户端敲过**）+ 下次复跑看新口径显示。
 - **夹具纪律**（用户要求）：场景夹具**自带传送 + 结束复位**（PLAYBOOK §5.0d）；审计已无缺口。
 
 **§6.52 授权模型与过程开销：修订方向（2026-09-14，D-207 + 两轮工作流审查）**

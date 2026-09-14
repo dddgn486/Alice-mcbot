@@ -8687,4 +8687,27 @@ the user must resume it"）。这**正好符合** D-205 的意图（"恢复只�
   已实测 `menuClass` + 客户端验证记录（静态检查强制）。**槽位下标一律不入表**——槽位/进度运行时问上游。
 - **加机器的成本**（场景已加第二台 `mekanism:crusher` 作证）：表里已有行 + 场景多一个 `setblock`，**不改 Java**。
 - **已知未覆盖**：只登记基础机；`crushing` 的 1:N 工厂变体（`basic_/advanced_/elite_/ultimate_crushing_factory`）
-  在 `note` 里点名但**未入表**（要入就按数据补行，不许猜）；`menuClass` 今天只有 `enriching` 一行是实测值。
+  在 `note` 里点名但**未入表**（要入就按数据补行，不许猜）；`menuClass` 实测值现在有 `enriching` / `crushing` 两行
+  （其余 `-`，探针只观察不断言）。
+- **客户端实测（2026-09-14，第二轮电池，`SERVER_TESTED` + `WINDOWS_CLIENT`）**：`latest.log:2941` / `:2953` / `:2971` / `:3680`
+  - 表 ↔ 运行时**闭合**：`machine_map_rows=27 … unmapped=[] row_block_missing=[]`；两台机器由**表里的方块 id** 认出
+    （`按表找到 2 台：mekanism:enriching@66,64,306,mekanism:crushing@66,64,307`），
+    `m1_binding=true m2_binding=true`，电池 `(28/28) ticks=2789 → PASS`。
+  - **口径纠偏（本轮实测教训）**：实测类型数是 **26**、不是表的 27 —— 差集是 **`mekanism:smelting`**：
+    它在 jar 里注册、但**零配方** ⇒ RecipeManager 里根本没有这个键。原 SUMMARY 只有 `mapped=22`，
+    和 `machine_map_rows=27` 并列像"少了一行"（我预告 `mapped=23` 也正因此错了）。
+    已把探针改成**对表行做完整划分**：`with_site_confirmed`(22) + `with_site_unobserved`(1) + `no_site`(4)
+    + `row_block_missing`(0) == `machine_map_rows`(27)，并加**分桶守恒自检**（不守恒 ⇒ 判红 = 探针口径 bug）；
+    `unmapped` 仍是"运行时有、表里没有"的反向缺口。`with_site_unobserved` **只报事实不判红**：
+    配方可被数据包/配置增删，把"今天为 0"钉成期望，将来加一条配方就假红。
+- **实测事实：`menuClass` 不是机器身份**（enriching 与 crushing 实测**同一个类**
+  `mekanism.common.inventory.container.tile.MekanismTileContainer`，41 槽位、槽位表逐项相同）⇒
+  菜单类只能看"菜单形状有没有漂移"；分辨"点对了哪台"的硬证据**只有方块↔方块实体绑定**（`m{i}_binding`）。
+  crusher 行已按本轮观察值回填 `menuClass`（下一轮起 `m2_menu_class_matches` 变成断言）。
+- **槽位角色也只能问上游**（同轮离线侦察 + 探针新增 `m{i}_slot_roles`）：机器槽的 `slot.container` 是上游
+  **共用的空容器**（实测恒 `SimpleContainer(cs=0)`）⇒ 旧槽位表那一列对机器槽没有信息量。
+  角色来自 `InventoryContainerSlot.getSlotType()`（`ContainerSlotType{IGNORED,NORMAL,POWER,INPUT,EXTRA,OUTPUT,VALIDITY}`）
+  与 `getInventorySlot()` 的实现类（`InputInventorySlot`/`OutputInventorySlot`/`EnergyInventorySlot`/…），
+  均为公有只读 getter ⇒ **S4 闭环"哪个下标是输入/输出"不必猜**（本轮只观察，不起断言）。
+  同时确认 S4 的能量前提可用**真实方块** `mekanism:creative_energy_cube` 提供（`MekanismBlocks.CREATIVE_ENERGY_CUBE`），
+  无需反射塞能量。

@@ -178,48 +178,68 @@ public class MachineProbeTask implements Task {
                 NAMESPACE, types, typeTotal, readable, skipped);
 
         // ==================== S3（D-209）机器映射覆盖检查 ====================
-        // 判据分三桶，**口径不同、不可混**：
-        //   mapped            = 表里有行且**有单方块站点** ⇒ 查询层能回答"去哪台"
-        //   no_site           = 表里有行但**无站点**（多方块/机器内部）⇒ 如实回落成类型 id
-        //   unmapped          = **运行时有、表里没有** ⇒ 上游新类型或漏登记（**只告警不判红**：模组集可变）
-        //   row_block_missing = 表里写了方块 id、注册表里**没有这个方块** ⇒ **判红**（那是我们自己的错）
-        java.util.List<String> mapped = new ArrayList<>();
+        // 口径：**先把表里的行分完桶**（表行数 == 各桶之和，可自校），再反查运行时多出来的类型。
+        // 分桶对表行做**完整划分**，因此"表 27 行、mapped 22"这种看着像缺口的数字不再出现歧义：
+        //   with_site_confirmed  = 有站点，且该类型**在配方管理器里出现** ⇒ 本模组集下已核对
+        //   with_site_unobserved = 有站点，但该类型**没在管理器里出现** ⇒ 上游 0 配方（如 smelting）时
+        //                          管理器里根本没这个键；**只报事实不判红**（配方可被数据包/配置增删，
+        //                          把"今天为 0"钉成期望，将来加一条配方就假红）
+        //   no_site              = 表里**无站点**（多方块/机器内部）⇒ 查询层如实回落成类型 id
+        //   row_block_missing    = 表里写了方块 id、注册表里**没有这个方块** ⇒ **判红**（我们自己的错）
+        //   unmapped             = **运行时有、表里没有** ⇒ 上游新类型或漏登记（**只告警不判红**：模组集可变）
+        java.util.List<String> withSiteConfirmed = new ArrayList<>();
+        java.util.List<String> withSiteUnobserved = new ArrayList<>();
         java.util.List<String> noSite = new ArrayList<>();
-        java.util.List<String> unmapped = new ArrayList<>();
         java.util.List<String> rowBlockMissing = new ArrayList<>();
-        for (String typeId : byType.keySet()) {
-            MachineMap.Row row = MachineMap.forType(typeId);
-            if (row == null) {
-                unmapped.add(typeId);
-                continue;
-            }
+        java.util.List<String> unmapped = new ArrayList<>();
+        for (MachineMap.Row row : MachineMap.rows()) {
             if (!row.hasSite()) {
-                noSite.add(typeId);
+                noSite.add(row.typeId());
                 continue;
             }
             boolean anyPresent = row.blockIds().stream().anyMatch(
                     id -> BuiltInRegistries.BLOCK.containsKey(ResourceLocation.tryParse(id)));
             if (!anyPresent) {
                 rowBlockMissing.add(row.typeId() + "→" + String.join("|", row.blockIds()));
+            } else if (byType.containsKey(row.typeId())) {
+                withSiteConfirmed.add(row.typeId());
             } else {
-                mapped.add(typeId);
+                withSiteUnobserved.add(row.typeId());
             }
         }
-        java.util.Collections.sort(mapped);
+        for (String typeId : byType.keySet()) {
+            if (MachineMap.forType(typeId) == null) {
+                unmapped.add(typeId);
+            }
+        }
+        java.util.Collections.sort(withSiteConfirmed);
+        java.util.Collections.sort(withSiteUnobserved);
         java.util.Collections.sort(noSite);
         java.util.Collections.sort(unmapped);
         java.util.Collections.sort(rowBlockMissing);
+        int rowCount = MachineMap.rows().size();
+        int bucketed = withSiteConfirmed.size() + withSiteUnobserved.size()
+                + noSite.size() + rowBlockMissing.size();
+        if (bucketed != rowCount) {
+            failed = true;
+            BotLog.warn("[MachineProbe] 机器映射分桶不守恒（表 {} 行，桶内 {} 行）⇒ 探针自身口径 bug",
+                    rowCount, bucketed);
+        }
         if (!rowBlockMissing.isEmpty()) {
             failed = true;
             BotLog.warn("[MachineProbe] 机器映射表引用了**不存在的方块** ⇒ 表错（我们自己的 bug）：{}",
                     rowBlockMissing);
         }
         if (!unmapped.isEmpty()) {
-            BotLog.warn("[MachineProbe] 运行时出现但**表里没有**的机器类型（不判红，需登记或入 KNOWN_UNMAPPED）：{}",
+            BotLog.warn("[MachineProbe] 运行时出现但**表里没有**的机器类型（不判红：模组集可变，应登记为行）：{}",
                     unmapped);
         }
-        BotLog.info("[MachineProbe] 机器映射 {} | mapped={} no_site={} unmapped={}",
-                MachineMap.describe(), mapped, noSite, unmapped);
+        if (!withSiteUnobserved.isEmpty()) {
+            BotLog.info("[MachineProbe] 表里有站点但配方管理器里**未出现**的类型（上游 0 配方或模组集差异，只报事实）：{}",
+                    withSiteUnobserved);
+        }
+        BotLog.info("[MachineProbe] 机器映射 {} | 表={}行 with_site_confirmed={} with_site_unobserved={} no_site={} unmapped={}",
+                MachineMap.describe(), rowCount, withSiteConfirmed.size(), withSiteUnobserved, noSite, unmapped);
         for (Map.Entry<String, List<Recipe<?>>> entry : byType.entrySet()) {
             BotLog.info("[MachineProbe]   type={} count={}", entry.getKey(), entry.getValue().size());
             int shown = 0;
@@ -301,8 +321,9 @@ public class MachineProbeTask implements Task {
                 .append(" input_readable=").append(inputReadable)
                 .append(" query_probed=").append(machineOutputs.size())
                 .append(" query_machine_route=").append(machineRouteOk)
-                .append(" machine_map_rows=").append(MachineMap.rows().size())
-                .append(" mapped=").append(mapped.size())
+                .append(" machine_map_rows=").append(rowCount)
+                .append(" with_site_confirmed=").append(withSiteConfirmed.size())
+                .append(" with_site_unobserved=").append(withSiteUnobserved)
                 .append(" no_site=").append(noSite)
                 .append(" unmapped=").append(unmapped)
                 .append(" row_block_missing=").append(rowBlockMissing)
