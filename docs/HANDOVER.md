@@ -91,7 +91,23 @@
 `patch: entry … not found`；移除后 `dsh --profile web --dump-config` 的 stderr **干净**（554 行配置照常）。
 
 **未验证堆积**：~~`CORE 27` 尚未跑过~~ **已跑并全绿**：`PROFILE=CORE … (27/27) ticks=2845 → PASS`
-（`latest.log:3801`，含新步 `machine_route` / `machine_station`）。当前唯一待复验项 = 上面 ③ 的新 L3 文案。
+（`latest.log:3801`，含新步 `machine_route` / `machine_station`）。~~③ 的新 L3 文案待复验~~
+**已复验通过**（`latest.log:191`，2026-09-14 12:11：`L3 …无作用域 ⇒ 闸门未生效（不计数、不拦截，仅 no_scope 留痕）；默认上限（仅作用域内生效）破坏64/放置32/容器32`）
+⇒ **当前无待验证项**。
+
+**R1 勘察（2026-09-14，只读；代码未改）——发现一个必须先解决的语义冲突**：
+- 执行点唯一：`WorldModLedger.recordPlacement` 第 126 行 `Policy policy = grant.reason().temporary() ? TEMP : KEEP`
+  （`TEMP` 必须配对拆除 / `KEEP` 不该拆）；scope 由 `WorldModLedger.openScope` 开（`BotManager:1600`、`RegressionBatteryTask:565` 等）。
+- KEEP 类 reason 的**实际**调用点：`BULK_EDIT` 2 处（`RoadBuildTask:33`、`RoadBuilder:27`）、`REGION_REPLANT` 1 处（`RegionLumberJob:468`）、
+  **`MANUAL` 0 处（当前是死值，"玩家命令"保留位）**。
+- **冲突**：若把 D-207 的"默认 `PROTECTED`"解释成"默认区里 KEEP 类一律降级为 `TEMP`"，会**误伤**道路施工与（将来）玩家手写：
+  它们本是**上层显式授权**（D-082 凭证本来就窄），降级成 `TEMP` 会让 `RestoreScope` 在收尾时**把玩家/道路放的方块拆掉**
+  ——比现状**更危险**，不是更保守。
+- ⇒ 需要你选解释：**(A)** 矩阵只管"**回收义务**"（默认区=任务自用放置必须回收，今天已由 reason 表达；`BULK_EDIT`/`MANUAL` 不受默认区约束）
+  还是 **(B)** 矩阵管"**写世界资格**"（默认区除白名单外一律拒绝，`BULK_EDIT`/`MANUAL` 必须显式列白名单，新增拒绝面）。
+  **我建议 A**：改动面最小、不引入新的拒绝面、与 D-082"凭证保持窄、决定集中成表"一致。
+- 另两个问题仍未决：① `WORKSPACE` 来源（**我建议**：先只认"已保存区域"，不新增命令入口）；③ 执法位置（**我建议**：规划期抛 + 执行期复验）。
+  设计背景见 `docs/authz/POLICY_MATRIX_PROPOSAL.md`。
 
 **会话摘要调查（2026-09-14，用户提问触发）**：结论 = **不必获取会话摘要，也不装第三方插件**
 （摘要已原生自动产生并持久化；且 1% 量级有损 ⇒ 事实来源是原文，而压缩后原文**未丢**：1078/1078 遮蔽事件仍在磁盘、
