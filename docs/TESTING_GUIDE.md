@@ -607,7 +607,8 @@ progress_ticks=199`、`product_after=1 product_landed=true machine_emptied=true 
 
 **只看一个字段**（`[MachineCycle] SUMMARY` 里）：
 
-- `energy_at_open=4000000.0` + `energy_source=cube（场景电源，未补电）` ⇒ **场景真供电成立**，改对了；
+- **`energy_source=cube（场景电源，未补电）`** + `energy_at_open=N（N>0）` ⇒ **场景真供电成立**，改对了
+  （**判据是"方块喂上了"这件事，不是某个具体数字**：缓冲充到多少取决于机器的容量与方块速率，我不预设）；
 - 仍是 `energy_at_open=0.0` + `api_precharge` ⇒ 前提**仍未成立**，把 SUMMARY 整行贴我，回来读方块朝向与相邻面。
 
 两种情况的 `verdict` 都会是 `PASS`（补电兜底仍在，D-210）—— 这正是"补电必然留痕"的价值：
