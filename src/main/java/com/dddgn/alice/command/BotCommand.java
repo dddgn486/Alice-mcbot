@@ -80,6 +80,9 @@ public final class BotCommand {
                 // K-3：**取消当前任务**（`bot-control stop` 只停移动输入，不停任务）
                 .then(Commands.literal("stop-task")
                         .executes(ctx -> stopTaskCommand(ctx.getSource())))
+                // 授权/审批框架的**运行时快照**（零参数、只读；配 docs/authz/OVERVIEW.md）
+                .then(Commands.literal("authz")
+                        .executes(ctx -> authzSnapshot(ctx.getSource())))
                 .then(Commands.literal("bot-control")
                         .then(Commands.literal("forward")
                                 .executes(ctx -> botControlForward(ctx.getSource())))
@@ -599,6 +602,75 @@ public final class BotCommand {
                 + (redefined ? "；区域变了 ⇒ 目标棵数重新推导" : "")
                 + "；用 /alice region start 启动、/alice region stop 停止）"
                 + (running ? " —— 注意：当前有任务在跑，新区域在**下一次 /alice region start** 生效" : "")), false);
+        return 1;
+    }
+
+    /**
+     * {@code /alice authz}：**授权/审批框架的运行时快照**（零参数、只读：不写世界、不分配任务、不清理账本）。
+     *
+     * <p>配套文档：{@code docs/authz/OVERVIEW.md}（单页总览）、{@code docs/authz/AUTHZ_REGISTRY.csv}（单一出处）、
+     * 检查脚本 {@code tools/check-authz-registry.sh}（断言注册表与代码一致）。
+     *
+     * <p><b>为什么要有这条命令</b>：文档会过期，而"当前真实生效的规则"只有服务端知道。
+     * 这里打印的全部是**现场可查询的事实**——预算余量、账本 pending、保护区判定、最近终态/失败码——
+     * 而不是抄文档，所以它**不会过期**：文档与它对不上时，以它为准并去修文档。
+     */
+    private static int authzSnapshot(CommandSourceStack source) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendSuccess(() -> Component.literal("[alice] 没有可用 bot"), false);
+            return 0;
+        }
+        var server = source.getServer();
+        BlockPos foot = bot.blockPosition();
+
+        // L1 请求层：策略集合取**代码常量**（不抄文档）
+        StringBuilder pure = new StringBuilder();
+        for (com.dddgn.alice.pathing.core.MovementType t
+                : com.dddgn.alice.pathing.core.CapabilityGate.PURE_TRAVERSAL_TYPES) {
+            if (pure.length() > 0) {
+                pure.append(", ");
+            }
+            pure.append(t);
+        }
+        final String pureText = pure.toString();
+
+        // L3 执行期：写入预算与拒绝计数（D-106）
+        final String budget = "破坏 余" + com.dddgn.alice.action.WriteBudget.remainingBreaks(bot)
+                + "（已拒 " + com.dddgn.alice.action.WriteBudget.refusedBreaks(bot) + "）"
+                + " / 放置 余" + com.dddgn.alice.action.WriteBudget.remainingPlaces(bot)
+                + "（已拒 " + com.dddgn.alice.action.WriteBudget.refusedPlaces(bot) + "）"
+                + " / 容器写入 余" + com.dddgn.alice.action.WriteBudget.remainingContainerWrites(bot)
+                + "；scope=" + com.dddgn.alice.action.WriteBudget.scopeOf(bot);
+
+        // L4 收尾期：账本 pending（只记放置）+ 保护区判定
+        final int pendingMine = com.dddgn.alice.ledger.WorldModLedger
+                .pendingForOwner(server, bot.getUUID()).size();
+        final int pendingAll = com.dddgn.alice.ledger.WorldModLedger.size(server);
+        final String scopeId = com.dddgn.alice.ledger.WorldModLedger.currentScope(server, bot.getUUID());
+        final int tempOpen = BotManager.pendingTemporaryCount(bot);
+        final String zoneSummary = com.dddgn.alice.protection.SafeZoneData.get(server).summary();
+        final String zoneVerdict = com.dddgn.alice.protection.SafeZoneData.get(server)
+                .protectionReason(source.getLevel(), foot);
+
+        // 最近一次任务的终态（拒绝码/失败码归因）
+        com.dddgn.alice.bot.TaskExecutionRecord rec = BotManager.lastExecutionRecord(bot);
+        final String last = rec == null ? "无记录"
+                : rec.taskKind() + " " + rec.terminalStatus() + " code=" + rec.resultCode()
+                        + " @" + rec.terminalBotPos();
+
+        source.sendSuccess(() -> Component.literal("[alice] === 授权/审批快照（只读；注册表 docs/authz/OVERVIEW.md）==="), false);
+        source.sendSuccess(() -> Component.literal("[alice] L0 目标层：当前任务="
+                + BotManager.currentTaskSummary(bot)), false);
+        source.sendSuccess(() -> Component.literal("[alice] L1 纯通行集合=[" + pureText
+                + "]（挖掘站位/回收用 PathRequest 的命名工厂，含各自禁用集）"), false);
+        source.sendSuccess(() -> Component.literal("[alice] L3 执行期预算：" + budget), false);
+        source.sendSuccess(() -> Component.literal("[alice] L4 账本：本 bot pending=" + pendingMine
+                + "；未闭合临时块=" + tempOpen + "；全局 pending=" + pendingAll
+                + "；当前 scope=" + (scopeId == null ? "无" : scopeId)), false);
+        source.sendSuccess(() -> Component.literal("[alice] L4 保护区：" + zoneSummary
+                + "；bot 脚下=" + (zoneVerdict == null ? "可通过" : zoneVerdict)), false);
+        source.sendSuccess(() -> Component.literal("[alice] 最近终态：" + last), false);
         return 1;
     }
 

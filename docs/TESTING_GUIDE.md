@@ -474,3 +474,17 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
     夹具**自带传送与结束复位**；机器不在 ⇒ SKIP。
 - **注意**：S1/S2 期间用过的两支**临时探针物品已按 S5 回收**
   （`alice:machine_probe`、`alice:machine_station_probe` 不再存在）——它们的能力现在由上面两个电池步覆盖。
+
+## 授权/审批框架快照（2026-09-14 新增）
+
+- **命令（零参数、只读）**：`/alice authz`
+  - 预期输出 7 行：`=== 授权/审批快照 ===` / **L0** 当前任务 / **L1** 纯通行集合 / **L3** 预算（破坏·放置·容器写入 余量与已拒数 + scope）
+    / **L4** 账本（本 bot pending、未闭合临时块、全局 pending、当前 scope）/ **L4** 保护区（安全区摘要 + bot 脚下判定）/ **最近终态**（任务·状态·code·坐标）；
+  - 它打印的是**现场查询到的真实事实**（预算余量、账本 pending、保护区判定、最近失败码），**不抄文档** ⇒ 与 `docs/authz/OVERVIEW.md` 不一致时以它为准并去修文档；
+  - 只读性质：不写世界、不分配任务、不清理账本（可随时跑，跑完无需复位）。
+- **怎么看结果**：`CORE 27` 的 `SUMMARY` 行 + 这条命令的输出一起贴给我即可（一轮覆盖"框架是否自洽"与"策略是否真的生效"）。
+
+## 本轮待你验证（一次跑完，别分两次）
+
+1. `/alice authz`（看上面 7 行是否齐全、数值是否合理）；
+2. `alice:regression_battery`（**CORE**，右键）：预期 `(27/27) PASS`——其中 `machine_route` / `machine_station` / `decision_contract` 是本次新增或改动项。
