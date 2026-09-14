@@ -930,3 +930,9 @@ jar `3312608d…`。
   （已是机器方块 id），化学品/气体输入继续如实拒绝。**最小做法**：把 `MachineCycleCheckTask` 的
   `WALK/OPEN/ENERGY/FEED/WAIT/TAKE/VERIFY` 抽成**可复用执行器**（抽出的执行器里**不含 precharge**，
   夹具那套兜底留在夹具内），`CraftJob` 调它；红线①再加一道**门禁**机械保证（生产目录零命中 precharge）。
+  ⑫ **`[Recover] session=<id> movements=N …` 的标签与载荷不符（观测缺陷，第十一轮踩到，未修）**：
+  该行由 `PathSession:273` 打印，载荷来自 `RecoverabilityReport.describe()` —— 而后者是**自服务器启动累计**
+  的静态计数（`RecoverabilityReport:13` 明确"不随会话清空"，`reset()` 只由 `recoverability` 自检步调用）。
+  ⇒ 第十一轮 `machine-walk-0` 那行的 `movements=167`（含 `PILLAR=13 / DOWNWARD=15 / BREAK_*`）**不是这段路的**，
+  是当时的**全进程累计**；**别拿它给某次寻路定罪**（该步是否真写入，看同一步 `WriteBudget`：实测 `breaks=0 places=0`）。
+  最小修法 = 会话开始记基线、打印**每会话增量**（或至少把措辞改成"累计"）。
