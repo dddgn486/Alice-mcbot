@@ -149,7 +149,9 @@ container_checks=N container_refused=0 verdict=PASS`：
   ⇒ 定义上不会漂移）+ 规划期闸门 `CorePathPlanner.plan:45`（越权抛 `WRITE_POLICY_MOVEMENT_DENIED`，**在规划器入口
   转成如实失败的 plan**——任务 tick 无兜底 try/catch（`BotManager:1809`），异常逃逸会打断服务端 tick）
   + 执行期复验 `WorldModLedger.recordPlacement:126` + 自检 `task/WritePolicyCheckTask`（电池新步 `write_policy`，BASELINE）
-  + 视图 `docs/authz/POLICY_MATRIX.csv`（生成）+ `tools/check-policy-matrix.sh`（**当前 PASS**）+ authz 注册表新行 `L2-5`。
+  + 视图 `docs/authz/POLICY_MATRIX.csv`（生成）+ `tools/check-policy-matrix.sh`（**当前 PASS**）+ authz 注册表新行 `L2-5`；
+  **R1 收口再加两件**（D-211）：`docs/authz/CONTAINER_WRITE_SITES.csv`（容器写入调用点登记表，20 行，**手工维护**）
+  + 同一脚本的**断言⑦**（登记表 ↔ 代码双向一致；负例四条已实测都红）。
 - **本轮不改默认行为**（A+ⓑ 的必然结果）：两区今天**逐条相同**，`zoneDiff=0` 由自检断言守着。
   **真正带上牙齿的是移动授权**：纯通行任务（`walk-to`/`follow`/`PlaceTask`）不能再规划出会写世界的移动 = D-076 红线的可执行版本。
 - 登记表实测补全（接线时逐个 grep 出来的真实 requester）：`mine`（`MineJob.NAME`）、`region_lumber`（`RegionLumberJob.NAME`）、
