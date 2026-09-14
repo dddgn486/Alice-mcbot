@@ -27,6 +27,14 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle', '**/gradle.properties') }}
           restore-keys: ${{ runner.os }}-gradle-
 
+      # T0-b（2026-09-14）：**7 道离线门禁进 CI** —— 在此之前一道都没进过，
+      # 全部依赖"人记得跑"（红了拦不住 push）。放在 build 之前：门禁比编译快，先失败先省时间。
+      # ⚠️ CI 上**没有上游模组 jar** ⇒ `check-machine-map` 的 Tier B（上游双向覆盖）会记
+      # `WARN/INCOMPLETE`，**不计 PASS**（脚本末尾会打 `warning=N` 并醒目提示）。
+      # 真正要复核上游覆盖，需在本地设 `ALICE_MODS_DIR` 指向含模组 jar 的目录。
+      - name: Offline gates (7)
+        run: bash tools/check-all.sh
+
       # JECh 无 maven 发布,本地依赖 libs/jecharacters-*.jar;
       # 编译与打包(runtimeOnly)不需要它,CI 只跑 build,故无需准备 libs/
       - name: Build with Gradle
