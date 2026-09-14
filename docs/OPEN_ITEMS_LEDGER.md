@@ -1047,7 +1047,7 @@ jar `3312608d…`。
 | **R2-残** | **R-2 的运行期路径没被走到** | 门禁 `check-provision-containment.sh` 已断言；客户端第十七轮 `[Job] launch` **0 条**（LLM 全程未被触发 ⇒ 没有 Job 被起） | 需要一个"真的起一次 Job"的动作；自动触发被 R-3 有意挡住了 | 手动右键 `alice:goal_director` 或 `alice:job_launcher`，看是否出现 `[Job] 生产入口只搬运不发料（…）` |
 | **R1-残** | `prod_budget_exhausted`（连锁破坏预算耗尽）分支**无客户端证据** | 代码已接入 `WriteBudget` 并按增量计账；但电池 `exec_chain` 用例是干净 3×3 矿脉（约 9 次破坏 ≪ `DEFAULT_MAX_BREAKS=64`）⇒ **新分支不会被现有场景触发** | 造"连锁破坏数 > 64"的场景是**新夹具工作量**，与 T1 的"修红线"不是一回事 | 接 T3，或专门补一条场景时 |
 
-## §9 T2 已落地 / T3 未动（用户拍板前不开）
+## §9 T2 已落地 / T3 进行中（步骤 1 已落地 · 步骤 B3a 已落地）
 
 - **✅ T2 无头回归已落地（2026-09-14，`4091694`）**：一条命令 `tools/headless-battery.sh core`，
   无真人，判决机器可读、退出码可判红。**闸门通过**：首轮 N=22（≥8），修复根因后 **`(passed=30/30 skipped=0) → PASS`**。
@@ -1059,6 +1059,26 @@ jar `3312608d…`。
     `walk_state=DONE walk_ticks=41`、`energy 20000→19950 progress_ticks=199`。
     同时证实"以前的客户端全绿靠真人补票"（用户亦确认第十七轮全程站在测试区）。
   - **R2-残 已折进 T2**（用户 2026-09-14 裁定）：无头跑通即覆盖生产入口，不再单独开客户端轮次。
+- **✅ T3 步骤 1 已落地（`bc2b1aa`）**：`SiteKind` 五态（`SINGLE`/`SHARED`/`MULTIBLOCK`/`INTERNAL`/`UNLOCATED`）
+  + `hostTypeId` + `siteBlock()`；10 行 `noSite` 重分类（6 → `SHARED`、1 → `MULTIBLOCK`、3 → `UNLOCATED`）；
+  新增两条防漂移断言（**行构造器普查**；`SHARED` 宿主存在且为 `SINGLE`、无自有方块、**恒 `READ_ONLY`**）。
+  读数：`with_site_confirmed 46→52`、`no_site 10→4`、`shared_site=6`、`row_block_missing=[]`，四步 `machine_*` 仍 PASS。
+- **✅ T3 步骤 B3a 已落地（2026-09-14）**：读取器 `MachineRecipeFacts.read(Recipe<?>, RegistryAccess)`
+  **逐字段先原版语义**（`getIngredients()` / `getResultItem(access)`）、读不出再退模组名族；
+  `Facts` 增 `inputOrigin`/`outputOrigin`/`chanceOrigin`/`divergent`/`readNotes`；`catch (Throwable ignored)` 已拆成
+  "**名字不存在**（名族常态，不记）"与"**调用失败**（记异常类型）"。**判据一行未动**。
+  - **实测值不变且被证明**：`vanilla_input=0` + `divergent=0` + `read_notes=0` ⇒ `Facts` 每字段与改动前逐位相同。
+    两个新事实：**机器配方不实现原版 `getIngredients()` 的物品语义**（⇒ 名族对输入不是可选项）；
+    **旧 `catch (Throwable ignored)` 在本模组集下是潜在风险、不是已发生的 bug**（对第 3 个模组才是真闸门）。
+  - **顺带修掉测量通道缺陷（重要）**：`MachineProbe` 抽样**跨轮不稳定**（`RecipeManager.getRecipes()`
+    迭代序不稳；`recipe_order_hash` 5 轮 5 值）⇒ 修前**同 jar 两轮读数就不同**（`input_readable` 65/64、
+    `query_machine_route` 0/2），**旧读数全部不能当基线**。修法 = 两处遍历 + 自检选样全部排序；
+    修后**同 jar 三轮 SUMMARY 逐字相同、108 条抽样 id 顺序逐字相同**。
+  - 报告全文 `docs/reviews/2026-09-14-T3-B3a-读取器vanilla优先与探针确定性.md`。
+- **T3 剩余（第 3 个模组之前必须做）**：**B3b** Port 化 `Facts`（每产出自带 `chance` + 长度断言 ——
+  今天 `outputs`/`chances` 两个独立列表 + 空栈过滤 ⇒ **结构上无法配对**）；**B4** 把
+  `MOD_ADAPTER_PROTOCOL.md:44-51` 的散文判据变成断言或删掉 + `UPSTREAMS[ns]["capabilities"]` 双向对账；
+  **M-4** 实测 EC 对不支持的机器返回 `NO_RECIPE` 还是 `MACHINE_RECIPE_UNSUPPORTED`。
 - **T3 模组 #3 的数据模型**：**`create-1.20.1-6.0.8.jar` 与 `ExtendedCrafting-1.20.1-6.0.10.jar`
   已经在客户端 `mods/` 里**，且按审查 §3.3 会被**静默读错**（读取器把 Mekanism 特例当通则、不试 vanilla 接口；
   `MachineMap` 的 1 方块↔1 类型不变式让 Thermal 6 行**已是错事实**）。

@@ -141,6 +141,12 @@ public class MachineProbeTask implements Task {
         int machineOutputNotItem = 0;
         int inputReadable = 0;
         int chanceDeclared = 0;   // 台账⑮：上游声明了产出概率信息的抽样条数（只计"有"，不解释数值）
+        // **T3/B3a 出处与留痕计数**（只计数、不判红）：用来量"改成 vanilla 优先"到底改变了什么。
+        // 没有这几个数，"读取器改了但结论没变"与"读取器根本没生效"在数据上**完全同形**。
+        int vanillaInput = 0;
+        int vanillaOutput = 0;
+        int divergent = 0;
+        java.util.LinkedHashSet<String> readNotes = new java.util.LinkedHashSet<>();
         java.util.LinkedHashSet<String> machineOutputs = new java.util.LinkedHashSet<>();
         Map<String, int[]> perNamespace = new LinkedHashMap<>();
         int types = byType.size();
@@ -197,6 +203,14 @@ public class MachineProbeTask implements Task {
         java.util.Collections.sort(noSite);
         java.util.Collections.sort(unmapped);
         java.util.Collections.sort(rowBlockMissing);
+        // **上游枚举序的指纹**（只报读数、不判红）：抽样已改成按 id 排序 ⇒ 本探针的读数与它无关，
+        // 但一旦将来基线又"动了"，这个数能立刻区分"**枚举序变了**"与"**读取器变了**"。
+        long recipeOrderHash = 17L;
+        for (List<Recipe<?>> recipes : byType.values()) {
+            for (Recipe<?> recipe : recipes) {
+                recipeOrderHash = recipeOrderHash * 31L + recipe.getId().toString().hashCode();
+            }
+        }
         int rowCount = MachineMap.rows().size();
         int bucketed = withSiteConfirmed.size() + withSiteUnobserved.size()
                 + noSite.size() + rowBlockMissing.size();
@@ -220,15 +234,26 @@ public class MachineProbeTask implements Task {
         }
         BotLog.info("[MachineProbe] 机器映射 {} | 表={}行 with_site_confirmed={} shared_site={} with_site_unobserved={} no_site={} unmapped={}",
                 MachineMap.describe(), rowCount, withSiteConfirmed.size(), sharedSite, withSiteUnobserved, noSite, unmapped);
-        for (Map.Entry<String, List<Recipe<?>>> entry : byType.entrySet()) {
+        // **两处遍历都必须有序**：`getRecipes()` 的迭代序跨轮不稳定 —— 既影响"每类取前 2 条"，
+        // 也影响"类型之间的先后"（实测同一 jar 两轮：`type=thermal:insolator` 先 vs `type=mekanism:pigment_mixing` 先）。
+        // 只排内层会让**聚合计数**稳定、而 `machineOutputs`（取最先见到的 3 个产出 ⇒ 自证式查询）仍漂。
+        List<Map.Entry<String, List<Recipe<?>>>> orderedTypes = new ArrayList<>(byType.entrySet());
+        orderedTypes.sort(Map.Entry.comparingByKey());
+        for (Map.Entry<String, List<Recipe<?>>> entry : orderedTypes) {
             BotLog.info("[MachineProbe]   type={} count={}", entry.getKey(), entry.getValue().size());
             // 每个命名空间各自的桶：types / recipes / samples / unreadable / upstream_readable / not_item / input_readable  / chance_declared
             int[] namespaceBucket = perNamespace.computeIfAbsent(
                     entry.getKey().substring(0, entry.getKey().indexOf(':')), key -> new int[8]);
             namespaceBucket[0]++;
             namespaceBucket[1] += entry.getValue().size();
+            // **抽样必须先按配方 id 排序（2026-09-14 实测教训）**：`RecipeManager.getRecipes()` 的迭代序
+            // **跨轮不稳定**（同一 jar、同一世界、同一模组集，两轮抽到的配方 id 不同）⇒ 直接取"前 N 条"
+            // 会让本探针的读数**看起来变了而其实只是抽到了别的配方**。实测两次同 jar：`input_readable` 65/64、
+            // `query_machine_route` 0/2 —— 与"改了读取器"完全同形。**读数要能当基线，抽样就必须是确定性的。**
+            List<Recipe<?>> typeRecipes = new ArrayList<>(entry.getValue());
+            typeRecipes.sort(java.util.Comparator.comparing((Recipe<?> recipe) -> recipe.getId().toString()));
             int shown = 0;
-            for (Recipe<?> recipe : entry.getValue()) {
+            for (Recipe<?> recipe : typeRecipes) {
                 if (shown++ >= SAMPLES_PER_TYPE) {
                     break;
                 }
@@ -244,9 +269,19 @@ public class MachineProbeTask implements Task {
                         break;
                     }
                 }
-                MachineRecipeFacts.Facts facts = MachineRecipeFacts.read(recipe);
+                MachineRecipeFacts.Facts facts = MachineRecipeFacts.read(recipe, access);
                 samples++;
                 namespaceBucket[2]++;
+                if (facts.inputFromVanilla()) {
+                    vanillaInput++;
+                }
+                if (facts.outputFromVanilla()) {
+                    vanillaOutput++;
+                }
+                if (facts.divergent()) {
+                    divergent++;
+                }
+                readNotes.addAll(facts.readNotes());
                 boolean vanillaReadable = !out.isEmpty() && out.getItem() != net.minecraft.world.item.Items.AIR;
                 if (!vanillaReadable) {
                     unreadableViaVanilla++;
@@ -255,9 +290,9 @@ public class MachineProbeTask implements Task {
                 if (!facts.outputs().isEmpty()) {
                     upstreamReadable++;
                     namespaceBucket[4]++;
-                    if (machineOutputs.size() < 3) {
-                        machineOutputs.add(BuiltInRegistries.ITEM.getKey(facts.outputs().get(0).getItem()).toString());
-                    }
+                    // **收集全部**（不再"边采边取前 3"）：取前 3 的动作必须发生在**全部采样之后**并按 id 排序，
+                    // 否则"自证式查询挑了哪 3 个物品"仍随枚举序漂（实测三轮 2/1/0 就是这么来的）。
+                    machineOutputs.add(BuiltInRegistries.ITEM.getKey(facts.outputs().get(0).getItem()).toString());
                 } else if (!vanillaReadable) {
                     machineOutputNotItem++;   // 原版读不出、上游也没给出物品输出 ⇒ 如实归为"非物品输出"
                     namespaceBucket[5]++;
@@ -283,22 +318,44 @@ public class MachineProbeTask implements Task {
                                                 + stack.getCount())
                                         .collect(java.util.stream.Collectors.joining(",")),
                         facts.chanceDeclared() ? " chances=" + facts.outputChances() : "");
+                // **出处逐条打印（T3/B3a）**：只有把"这个字段是谁给的"摆在样例行里，
+                // "vanilla 兜底生效了多少"才是**读数**而不是推断；`notes` 是"读不懂"的留痕。
+                BotLog.info("[MachineProbe]       origin in={} out={} chance={}{}{}",
+                        facts.inputOrigin(), facts.outputOrigin(), facts.chanceOrigin(),
+                        facts.divergent() ? " ⚠️divergent" : "",
+                        facts.readNotes().isEmpty() ? "" : " notes=" + facts.readNotes());
             }
         }
-        // **自证式查询验证**（S1/D-204）：拿"上游自述读出来的机器产出"去问查询层，
-        // 期望它给出 MACHINE_ROUTE（有出处的路线：机器类型 + 输入），而不是 MACHINE_RECIPE_UNSUPPORTED。
+        // **自证式查询验证**（S1/D-204）：拿"上游自述读出来的机器产出"去问查询层。
+        //
+        // ⚠️ **`query_machine_route` 是读数，不是不变式**（2026-09-14 实测）：抽样到的机器产出里
+        // 很多**同时有原版合成路线**（`cyan_dye` / `light_gray_dye`…）⇒ 查询层按设计先走 `craftable`，
+        // 结论**本来就不该**是 `MACHINE_ROUTE`。这个数只说明"抽到的那几个物品恰巧只走机器线"，
+        // 与读取器是否正确**无关** —— 证据：**只**把采样改成按 id 排序（零语义改动），它就 0/1/2 → 3。
+        // 所以它可以当**本口径下的稳定读数**，但**改采样口径它就会变**，不许升级成判据。
+        //
+        // **真正有意义的不变式是 `query_reachable`**：读取器既然从某条配方读出了产出 X，
+        // 查询层扫同一批配方就**不可能**对 X 报 `NO_RECIPE`（那意味着同一份读取器在两处结论不一致）。
+        // 本轮先**只计数不当断言**（measure first），等它在多轮稳定成立后再升级为判红。
         int machineRouteOk = 0;
-        for (String itemId : machineOutputs) {
+        int queryReachable = 0;
+        int queryProbed = 0;
+        List<String> probedItems = machineOutputs.stream().sorted().limit(SELF_CHECK_ITEMS).toList();
+        for (String itemId : probedItems) {
             net.minecraft.world.item.Item item =
                     BuiltInRegistries.ITEM.get(net.minecraft.resources.ResourceLocation.tryParse(itemId));
             if (item == net.minecraft.world.item.Items.AIR) {
                 continue;
             }
+            queryProbed++;
             var result = com.dddgn.alice.task.craft.RecipeQuery.query(server, bot, item, 1);
             boolean isMachineRoute = result.verdict()
                     == com.dddgn.alice.task.craft.RecipeQuery.Verdict.MACHINE_ROUTE;
             if (isMachineRoute) {
                 machineRouteOk++;
+            }
+            if (result.verdict() != com.dddgn.alice.task.craft.RecipeQuery.Verdict.NO_RECIPE) {
+                queryReachable++;
             }
             BotLog.info("[MachineProbe] query item={} verdict={} {}", itemId, result.verdict(),
                     result.describe());
@@ -325,11 +382,18 @@ public class MachineProbeTask implements Task {
                 .append(" samples_per_type=").append(SAMPLES_PER_TYPE)
                 .append(" samples=").append(samples)
                 .append(" unreadable_via_vanilla=").append(unreadableViaVanilla)
+                .append(" recipe_order_hash=").append(Long.toHexString(recipeOrderHash))
                 .append(" upstream_readable=").append(upstreamReadable)
                 .append(" machine_output_not_item=").append(machineOutputNotItem)
                 .append(" input_readable=").append(inputReadable)
                 .append(" chance_declared=").append(chanceDeclared)
-                .append(" query_probed=").append(machineOutputs.size())
+                .append(" vanilla_input=").append(vanillaInput)
+                .append(" vanilla_output=").append(vanillaOutput)
+                .append(" divergent=").append(divergent)
+                .append(" read_notes=").append(readNotes.size())
+                .append(readNotes.isEmpty() ? "" : " read_notes_sample=" + limitNotes(readNotes))
+                .append(" query_probed=").append(queryProbed)
+                .append(" query_reachable=").append(queryReachable)
                 .append(" query_machine_route=").append(machineRouteOk)
                 .append(" machine_map_rows=").append(rowCount)
                 .append(" with_site_confirmed=").append(withSiteConfirmed.size())
@@ -346,4 +410,19 @@ public class MachineProbeTask implements Task {
                     "[MachineProbe] " + summary));
         }
     }
+
+    /**
+     * 留痕**原样带出但限长**：`read_notes` 是"读不懂"的证据，不是判据 ⇒ 截断到常数条，
+     * 避免一条退化配方（例如某类型全类调用失败）把 SUMMARY 撑爆。
+     */
+    private static String limitNotes(java.util.Collection<String> notes) {
+        return notes.stream().limit(MAX_NOTES_IN_SUMMARY)
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new))
+                .toString();
+    }
+
+    private static final int MAX_NOTES_IN_SUMMARY = 8;
+
+    /** 自证式查询抽查几个物品（`machineOutputs` 按 id 排序后取前 N ⇒ 确定性）。 */
+    private static final int SELF_CHECK_ITEMS = 3;
 }

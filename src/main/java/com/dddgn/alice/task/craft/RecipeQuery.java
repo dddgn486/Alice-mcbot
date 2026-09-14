@@ -152,7 +152,7 @@ public final class RecipeQuery {
             if (station == null) {
                 // **机器/未知类型**（S1/D-204）：原版接口常读不出（`getResultItem()=AIR`、`getIngredients()=[]`）
                 // ⇒ **问上游自述**；能读出物品输入/输出且产出命中目标 ⇒ 记一条**有出处的机器路线**（只报不接）
-                MachineRecipeFacts.Facts facts = MachineRecipeFacts.read(recipe);
+                MachineRecipeFacts.Facts facts = MachineRecipeFacts.read(recipe, access);
                 ItemStack machineOut = facts.outputs().stream()
                         .filter(stack -> stack.getItem() == target).findFirst().orElse(ItemStack.EMPTY);
                 if (!machineOut.isEmpty()) {

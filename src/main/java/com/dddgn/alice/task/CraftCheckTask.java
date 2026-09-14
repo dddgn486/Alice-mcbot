@@ -176,7 +176,7 @@ public class CraftCheckTask implements Task {
                 producible.add(net.minecraft.core.registries.BuiltInRegistries.ITEM
                         .getKey(result.getItem()).toString());
             }
-            for (var item : com.dddgn.alice.task.craft.MachineRecipeFacts.read(recipe).outputs()) {
+            for (var item : com.dddgn.alice.task.craft.MachineRecipeFacts.read(recipe, access).outputs()) {
                 producible.add(net.minecraft.core.registries.BuiltInRegistries.ITEM
                         .getKey(item.getItem()).toString());
             }

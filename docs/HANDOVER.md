@@ -1,4 +1,4 @@
-# 交接断点（HANDOVER）—— 2026-09-14 19:12 收口
+# 交接断点（HANDOVER）—— 2026-09-14 21:20 收口
 
 > **本文件只是"当前断点"，不写历史**（历史在 `git log` 与 `docs/AI_DECISIONS.md`）。
 > 会话恢复时**权威入口仍是 `docs/AI_PROJECT_STATE.md`**（AGENTS.md 的会话协议里列的是它）。
@@ -10,12 +10,15 @@
 
 ## 1. 一句话现状
 
-**`T0-a → T0-b → T1 → T2` 已全部落地。T2（无头回归）已能一条命令跑出 `(passed=30/30 skipped=0) → PASS`，
-并在首轮就抓出并修掉了一个真实缺陷（假人玩家区块票冻结）。当前断点 = 等一轮客户端验证，然后进 T3。**
+**`T0-a → T0-b → T1 → T2` 已全部落地（T2 已客户端验证）。T3 进行中：步骤 1（`SiteKind` + 共享站点）
+与步骤 B3a（读取器「先原版语义」+ 逐字段出处）**已落地并实测**。当前断点 = T3 剩余三步
+（**B3b / B4 / M-4**），它们是**接第 3 个模组之前必须做**的。**
 
-⚠️ **改动落在核心 tick 路径上，尚未做客户端验证**（见 §3）；客户端 jar 已同步，sha256 `f478d9f7…`。
+⚠️ **本轮改动落在配方读取路径上，只做了无头验证（`SERVER_TESTED`）**；读取器不碰渲染/物理/GUI，
+所以**按纪律不冒充 `WINDOWS_CLIENT`**，也**没有**为它开客户端轮次（用户 2026-09-14 裁定：
+无头能覆盖的就不占真人轮次）。客户端 jar 仍是 `f478d9f7…`（第十八轮那个）。
 
-## 2. 刚做完的（全部已推送，HEAD = `4091694`）
+## 2. 刚做完的（全部已推送，HEAD = `bc2b1aa`；本轮 B3a 见 §2b）
 
 | 项 | commit | 状态 |
 |---|---|---|
@@ -36,6 +39,18 @@
 
 证据全文：`docs/reviews/2026-09-14-项目完成度与优先级审查.md` §7/§8。
 
+## 2b. 本轮（T3 步骤 1 + B3a）
+
+| 项 | 状态 | 读数 |
+|---|---|---|
+| **T3 步骤 1** `SiteKind` 五态 + 共享站点（`bc2b1aa`） | `SERVER_TESTED` | `with_site_confirmed 46→52`、`no_site 10→4`、`shared_site=6`、`row_block_missing=[]` |
+| **T3 步骤 B3a** 读取器「先原版、再名族」+ 逐字段出处 | `SERVER_TESTED` | **值不变且被证明**（`vanilla_input=0` + `divergent=0` + `read_notes=0` ⇒ 每字段逐位相同）；判据一行未动 |
+| **顺带修的**：`MachineProbe` 抽样不再是确定性的 | `SERVER_TESTED` | 修前**同 jar 两轮读数就不同**（`input_readable` 65/64、`query_machine_route` 0/2、`recipe_order_hash` 5 轮 5 值）⇒ **旧读数全部作废**；修后**同 jar 三轮 SUMMARY 逐字相同** |
+
+**B3a 全文：`docs/reviews/2026-09-14-T3-B3a-读取器vanilla优先与探针确定性.md`**
+（含两个新事实：**机器配方不实现原版 `getIngredients()` 的物品语义**；**旧 `catch(Throwable ignored)`
+在本模组集下是潜在风险而非已发生的 bug** —— 对第 3 个模组才是真闸门）。
+
 ## 3. ⚠️ 未验证 / 未做（**不要当成做完了**）
 
 台账 **§8 / §9**（`docs/OPEN_ITEMS_LEDGER.md`）逐条有"触发条件"：
@@ -51,17 +66,19 @@
 - **R5-残**：`StationProvision.click` / `InventoryCraft.click` 未做编译期强制（~19 处机械重构）。
 - **`craft_check` 门禁缺口**（T2 新发现）：`machine_only_vanilla` 期望 `MACHINE_ROUTE`（需 Mekanism/Create），
   没装模组时它 `FAIL` 而非 `SKIP` —— 同文件 ⑥ 已有"没装该模组就 SKIP"的写法，④ 漏了前提声明。
-- **T3 模组 #3 数据模型**：**未开始**。`create` / `ExtendedCrafting` **已在客户端 `mods/` 里**且会被**静默读错**。
-  ✅ 但 T2 已给它一条**可复现的无头验证通道**（无头生产服务端装的模组集与客户端同构）。
+- **T3 剩余三步**（`create` / `ExtendedCrafting` **已在客户端 `mods/` 里**，接它们之前必须做完）：
+  **B3b** Port 化 `Facts`（每产出自带 `chance` + 长度断言 —— 今天 `outputs`/`chances` 是两个独立列表 +
+  空栈过滤 ⇒ **结构上无法配对**，A5）；**B4** 把 `MOD_ADAPTER_PROTOCOL.md:44-51` 的**散文判据**变成断言或删掉
+  + `UPSTREAMS[ns]["capabilities"]` 双向对账（反例现成：`MachineCycle` **0 处字面量**却写死 5 个上游访问器名）；
+  **M-4** 实测 EC 对不支持的机器返回 `NO_RECIPE` 还是 `MACHINE_RECIPE_UNSUPPORTED`。
+- **`query_reachable` 尚未升级为断言**（有意：measure first）—— 它是"读取器读出 X ⇒ 查询层不得对 X 报
+  `NO_RECIPE`"这条真不变式，本轮只计数。
 
 ## 4. 待用户拍板（恢复后**先问这个**）
 
-1. **T3**（用户 2026-09-14 已定：客户端验完就进）—— 接第 3 个模组前冻结数据模型。
-   要做三件：`MachineMap` 加 **site-kind**（单方块/共享站点/多方块/真无）并允许 **1 方块↔N 类型**；
-   `Facts` 能表达多输入/流体/化学品/**每产出各自的概率**；判据从"**grep 字面量计数**"改成
-   **显式每模组能力声明 + 响亮失败**。**先走 vanilla 接口兜底再走模组名族**。
-   为什么急：M-1 那批**错事实已经写在唯一真源里**（Thermal 的 6 个"寄生"子类型 site 明明存在却被记
-   `noSite` ⇒ 永远 `not_executable`），且 `create`/`ExtendedCrafting` **已在客户端 `mods/` 里被静默读错**。
+1. **T3 剩余（B3b / B4 / M-4）**：步骤 1 与 B3a 已完成（§2b）。用户已定：**B3a 只改读取器 + 记出处**（已照做），
+   **B3b 等第 3 个模组同期做**（需要真实形状：EC 多输入 / Create 概率）。**B4 与 M-4 可离线推进**，
+   不需要用户拍板 ⇒ 恢复后优先做这两件。
 2. 之后收残留：**R1-残 / R4-残 / R5-残** + `craft_check` 门禁缺口（台账 §8/§9，各有触发条件）。
 
 **上下文/文档纪律（AGENTS.md 已机器化，不用背）**：`AGENTS.md + PLAYBOOK + STATE ≤ 1476 行`
@@ -74,7 +91,8 @@
 - **客户端**：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - **镜像 / 同步**：`./tools/mirror-windows-workspace.sh`；
   `./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`。
-- **本断点已同步的 jar**：`f478d9f75ab8883701064100a728ba0c4af552f0c7c4e984521e7efb3916d13f`（三处一致）。
+- **本断点已同步的 jar**：`f478d9f75ab8883701064100a728ba0c4af552f0c7c4e984521e7efb3916d13f`（三处一致）
+  —— 注意这是**第十八轮客户端那个 jar**（T3 之前）。T3 的两次改动**没换客户端 jar**（按纪律：无头能覆盖的不占真人轮次）。
 - **离线门禁（改完就跑这一条）**：`bash tools/check-all.sh`（**10 道**，三态 PASS/WARN/FAIL；
   `WARN` = 断言**没执行**，不是通过；`ALICE_MODS_DIR` 可指定上游模组目录）。
   ⚠️ 改了 Java/工具后**再跑一次**，别只看编译过。

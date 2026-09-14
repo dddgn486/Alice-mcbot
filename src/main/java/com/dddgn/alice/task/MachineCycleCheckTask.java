@@ -242,12 +242,13 @@ public class MachineCycleCheckTask implements Task, MachineCycle.Sink {
      */
     private MachineRecipeFacts.Facts pickRecipe(MachineMap.Row row) {
         List<Recipe<?>> candidates = new ArrayList<>();
+        var access = bot.serverLevel().registryAccess();
         for (Recipe<?> recipe : bot.serverLevel().getRecipeManager().getRecipes()) {
             ResourceLocation key = BuiltInRegistries.RECIPE_TYPE.getKey(recipe.getType());
             if (key == null || !key.toString().equals(row.typeId())) {
                 continue;
             }
-            MachineRecipeFacts.Facts read = MachineRecipeFacts.read(recipe);
+            MachineRecipeFacts.Facts read = MachineRecipeFacts.read(recipe, access);
             if (read.itemReadable() && !read.inputs().get(0).isEmpty() && !read.outputs().get(0).isEmpty()) {
                 candidates.add(recipe);
             }
@@ -257,7 +258,7 @@ public class MachineCycleCheckTask implements Task, MachineCycle.Sink {
             return null;
         }
         candidates.sort(Comparator.comparing(candidate -> candidate.getId().toString()));
-        return MachineRecipeFacts.read(candidates.get(0));
+        return MachineRecipeFacts.read(candidates.get(0), access);
     }
 
     /** 夹具自备料：背包不够就补进空槽（**报出真正给了多少**）。 */
