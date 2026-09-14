@@ -866,11 +866,21 @@ jar `3312608d…`。
   上游设计里"空变体"就是 power sink、"满变体"靠**放置时读物品 NBT** 灌入（`BlockMekanism:310-314`）。
   证据 = 存档里的对照组（同一次保存）：机器 `EnergyContainers=[{"Container":0,"stored":"3990000"}]`、
   方块 `EnergyContainers=[]`。已修场景加 `data merge block … {EnergyContainers:[{Container:0,stored:"4000000000"}]}`
-  （命令 10→11 条，**纯数据、不重编 jar**），**待下一轮 `/reload` 后重验**
-  （只看 `energy_source=cube` + `energy_at_open>0`）。勘察全文 `docs/reviews/2026-09-14-S4电源根因勘察.md`。
+  （命令 10→11 条，**纯数据、不重编 jar**）。勘察全文 `docs/reviews/2026-09-14-S4电源根因勘察.md`。
+  **✅ 2026-09-14 第七轮已重验通过（`WINDOWS_CLIENT`）**：`/reload` → `/function alice_test:machine_course`
+  （11 条命令，`latest.log:187`）→ 右键 `alice:machine_cycle_check` ⇒ `:213`
+  `energy_at_open=20000.0 energy_source=cube（场景电源，未补电）`（**不再是** `api_precharge` 的 4.0E6）、
+  `progress_ticks=199 product_landed=true machine_emptied=true input_consumed=true container_writes=2 reset=true
+  verdict=PASS` ⇒ **电来自场景本身，D-213 判据成立**（D-212 因果判定确认作废；朝向修正保留）。
+  语义别读强：`energy_source=cube` 证的是"场景把电送上了"（开机 `energy_at_open > 0`），不是"认出了 cube 方块"。
   ④ 旁记：`K4=OK(… 写入类例外=43)`（上轮 56，交替，两次都 `K4=OK`，未取证，暂不动）。
-  ⑤ **S4 是否升级为电池步（D-197，CORE 28→29）**：**建议等 ③ 重验为 `cube` 之后再升** ——
-  否则等于把一个仍靠 `api_precharge` 兜底的夹具固化进 CORE。
-  ⑥ **记账（等下次因功能需要重编 jar 时一并做）**：`MachineCycleCheckTask` 类注释里"给电前提：先等场景电源"
-  那段仍是第四~五轮的说法，要改成"创造方块放下是空的 ⇒ **场景用 `/data merge block` 灌电**，`api_precharge` 只是兜底"。
-  **本轮刻意不改 Java**（哪怕只改注释也会让 jar 哈希与客户端不一致），且运行中的 jar 与新源码会不一致。
+  ⑤ **S4 升级为电池步（D-197）— ✅ 已执行（2026-09-14 第七轮）**：条件（③ 重验为 `cube`）已满足 ⇒
+  新增 `machine_cycle`（MAIN，`stepSkippable`，预算 1600 > 任务自身 `MAX_TICKS` 1400），
+  电池 **CORE 28→29 / FULL 38→39**（`RegressionBatteryTask` CURATION + `docs/BATTERY_CURATION.md` + 历史表已同步）。
+  **该步的客户端绿仍待一轮 CORE 电池确认**（本步会写容器 ⇒ 是 MAIN 里唯一带写入的一步）。
+  ⑥ **✅ 已关闭（2026-09-14 第七轮）**：随本次因功能需要重编 jar 一并改了 `MachineCycleCheckTask` 类注释 ② ——
+  写明"创造方块放下就是 0 J（`BasicEnergyContainer.stored = ZERO` + creative 强制 SIMULATE ⇒ 灌不满也放不出），
+  场景用 `/data merge block …` 把电写进方块实体（`load()` → `setEnergy`，绕过插入守卫；灌进去后 extract 仍 SIMULATE
+  ⇒ 永不为空 = 真无限电源），`api_precharge` 只是兜底"，并新增"能量判据的准确含义"一段。
+  新 jar `sha256=b290b8b3a1276915feee509f6e7203aad7ca16ad2454e742b5f2d14dc3a7984f`（已同步到客户端 `mods/`）；
+  **客户端需重启才会加载新 jar**。

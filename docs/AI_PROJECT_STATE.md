@@ -76,14 +76,18 @@ CORE `(28/28) → PASS`）。**实测纠正两条口径**（D-209）：零配方
 product_landed=true machine_emptied=true input_consumed=true container_writes=2 reset=true verdict=PASS`。
 **不新造授权**：容器写入维度 `WriteBudget` + `WriteReason.CONTAINER_TRANSFER` + requester `machine-cycle`；
 放料 shift-click（菜单自己决定落点）、成不成**只看世界事实**。v1 单机单配方 + 夹具传送（内核寻路 = v2）。
-**但连续两轮都抓到"假前提"（D-212 → D-213）**：`energy_at_open=0.0`、200 tick 只掉 10000 J ⇒ 场景里的创造能量方块
-**流入 0**。第五轮把根因判给"朝向"（D-212，场景已改 `[facing=up]`）；**第六轮带着 `[facing=up]` 重跑仍是 0
-（存档 `r.0.0.mca` 里 `facing:"up"` 已核实生效）⇒ 朝向不是根因**。真因（**D-213**）= **创造能量方块放下时
-自带电量就是 0 J、而且永远充不进电**（`BasicEnergyContainer:52` 初值 ZERO + 创造档 `insert` 强制 SIMULATE；
-`TileComponentEjector:166` 对空容器直接跳过），上游设计里"空变体"就是 power sink。证据 = 存档里的对照组
-（同一次保存）：机器 `EnergyContainers=[{"Container":0,"stored":"3990000"}]`、方块 `EnergyContainers=[]`。
-已修场景加一行 `data merge block … {EnergyContainers:[{Container:0,stored:"4000000000"}]}`
-（**纯数据，不改 Java、jar 不变**），**待 `/reload` 后重验 `energy_source=cube`**。
+**电源前提已自证（D-213，2026-09-14 第七轮客户端实测）**：场景加一行
+`data merge block … {EnergyContainers:[{Container:0,stored:"4000000000"}]}` 后重跑 ⇒
+`energy_at_open=20000.0 energy_source=cube（场景电源，未补电） energy_ready=20000.0`（**不再是** `api_precharge` 的 4.0E6）、
+`progress_ticks=199 product_landed=true machine_emptied=true input_consumed=true container_writes=2 reset=true verdict=PASS`
+（`latest.log:213`，场景 11 条命令见于 `:187`）⇒ **电来自场景本身、没走补电兜底**，D-213 的判据成立、`WINDOWS_CLIENT`。
+真因（**D-213**）= **创造能量方块放下时自带电量就是 0 J、而且永远充不进电**（`BasicEnergyContainer:52` 初值 ZERO +
+创造档 `insert` 强制 SIMULATE；`TileComponentEjector:166` 对空容器直接跳过），上游设计里"空变体"就是 power sink。
+证据 = 存档里的对照组（同一次保存）：机器 `EnergyContainers=[{"Container":0,"stored":"3990000"}]`、方块 `EnergyContainers=[]`。
+⚠️ **判据的准确含义**：`energy_source=cube` 实际证明的是"**场景把电送上了**"（开机时机器已有电），
+不是"程序认出了 cube 方块"（读的是机器自己的能量容器）；场景里只有这一条供电路径 ⇒ 两者等价，注释已写清。
+**S4 已按 D-197 升级为电池步**（第七轮升，准入前提 = 上面这条自证）：`machine_cycle`（MAIN，会写容器）⇒
+电池 **CORE=29 / FULL=39**；`MachineCycleCheckTask` 类注释同步按 D-213 改写（台账 ⑥ 关闭）。**该步的客户端绿仍待一轮 CORE 电池确认**。
 **R1 收口（2026-09-14，D-211）已完成并经客户端验证**：`WritePolicyMatrix` **首次经手容器写入**
 （挂点 `WriteBudget.consumeContainerWrite`；未登记 ⇒ 留痕不拒，**已登记但未声明 ⇒ 硬拒**，
 拒绝权默认武装 + 一行回退开关 `setContainerRefusalArmed`）；`docs/authz/CONTAINER_WRITE_SITES.csv`
@@ -93,9 +97,11 @@ product_landed=true machine_emptied=true input_consumed=true container_writes=2 
 container_checks=13 container_refused=0 verdict=PASS`（`latest.log:3206`）——**13 恰好等于各步
 `containers=N/32` 之和**（2+2+3+4+2）⇒ 闸门覆盖面与预算覆盖面**逐点一致**；`container_refused=0`
 ⇒ 没有生产路径被硬停；D-211 的两条复核触发**都已解除**。
-**下一步 = 客户端一小轮（`/reload` → `/function alice_test:machine_course` → 右键 `alice:machine_cycle_check`，
-只看 `energy_source=cube`），然后按 D-197 决定 S4 是否转电池步（建议电源重验之后再升）；再之后 S5 收口**。
-电池 **CORE=28 / FULL=38**。**详细交接见 `docs/HANDOVER.md`**；**方向来源与审查留档见 `docs/reviews/2026-09-14-外部质疑与工作流审查留档.md`**；今天的新纪律见 PLAYBOOK §5.0b/§5.0c/§5.0d。
+**下一步 = 客户端一小轮：`/alice battery core`（默认档，现已含 `machine_cycle`），确认 `machine_cycle=PASS` 整轮未红；
+之后 S5 收口**（回收临时入口 `alice:machine_cycle_check` 等 S1–S4 探针物品/命令）。
+**上下文窗口已由用户从 256K 改为 512K**（D-214，本会话生效；阈值 409,600 / 保留 81,920）——改的是"何时压缩"，
+不改变事实来源；复核触发 = 手动 `/compact` 频率没降、或我出现"忘记已确认事实/重复问已答过的问题" ⇒ 退回 256K。
+电池 **CORE=29 / FULL=39**。**详细交接见 `docs/HANDOVER.md`**；**方向来源与审查留档见 `docs/reviews/2026-09-14-外部质疑与工作流审查留档.md`**；今天的新纪律见 PLAYBOOK §5.0b/§5.0c/§5.0d。
 
 ## 当前目标
 

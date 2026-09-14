@@ -29,7 +29,7 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 
 | 能力 | 零参数入口 | 关键判据 | 等级 |
 |---|---|---|---|
-| **串联回归电池**（CORE 23 / FULL 33，★首选） | `alice:regression_battery` 右键（CORE）或 `/alice battery full` | `SUMMARY … PROFILE=core … (23/23) → PASS`（分档前实测：(32/32) ticks=3592；分档后待实测） + `K4=OK(…)`；SKIP 会写明（例如未装模组时的 `craft_probe_upgradetab=SKIP`） | `WINDOWS_CLIENT`（26/26 时 `ticks=3507`；本轮 +`craft_station`/`craft_probe_*` 四步 ⇒ **待复测**） |
+| **串联回归电池**（CORE **29** / FULL **39**，★首选） | `alice:regression_battery` 右键（CORE）或 `/alice battery full` | `SUMMARY … PROFILE=core … (29/29) → PASS` + `K4=OK(…)`；SKIP 会写明（例如未装模组时的 `craft_probe_upgradetab=SKIP` / `machine_*=SKIP`） | `WINDOWS_CLIENT`（第五轮 `(28/28) ticks=2765 → PASS`，`latest.log:3737`；**本轮 +`machine_cycle`（MAIN）⇒ `(29/29)` 待复测**） |
 | 挖掘回归（11 用例） | 电池 `mine_regression` / `alice:mine_regression` | `SUMMARY free=PASS … scope_reopen_keeps_drops=PASS`；`dropsLeft` 只数本用例新增（D-168） | `WINDOWS_CLIENT`（11/11） |
 | **K-4 谓词一致性** | 电池 SUMMARY 的 `K4=` 段；`alice:bot_report` 的"目标准入（K-4 累计）"行 | 真异常 0；写入类例外仅计数 | `WINDOWS_CLIENT`（收口：不引硬拒） |
 | K-1 部分计划 | 电池 `partial_search` / `alice:partial_search_check` | `partial_with_prefix=PASS … verdict=PASS` | `WINDOWS_CLIENT`（电池内 PASS） |
@@ -42,6 +42,9 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 | **阶段 3-A C 模组站点真合成** | `alice:craft_station_craft_check`（先 `/function alice_test:craft_tab_course`）；电池步 `craft_station_craft` | `[CraftStationCraft] SUMMARY … materials_consumed=true product_produced=true deprovision_verified=true verdict=PASS`（实测：消耗 8 圆石 / 产物 1；**产物进容器**；不自动补料） | `WINDOWS_CLIENT`（2026-09-13 PASS） |
 | **阶段 3-A L2 工作站装配** | `alice:craft_station_provision_check` 右键（先 `/function alice_test:craft_tab_course`） | `[ProvisionCheck] SUMMARY … provision_verified=true deprovision_verified=true item_returned=true verdict=PASS` | `IMPLEMENTED` + `COMPILES`（**待客户端**，D-194） |
 | **阶段 3-A S1 合成工作站可切换 + 网格探针** | `/alice craft station [<id\|auto>]`；`alice:craft_grid_probe` 右键（先 `/function alice_test:craft_tab_course`） | `[CraftGridProbe] SUMMARY … discover=OK grid=NxM … grid_addressable_without_tab=… read_only=true verdict=PASS` | `IMPLEMENTED` + `COMPILES`（**待客户端**，D-192） |
+| **阶段 3-B S1 机器配方只读** | 电池步 `machine_route`（无需场景；旧临时入口 `alice:machine_probe` 已按 S5 回收） | `[MachineProbe] SUMMARY … verdict=PASS`；模组不在 ⇒ SKIP；零写入 | `WINDOWS_CLIENT`（第五轮 `(28/28) → PASS` 内含；`latest.log:3737`） |
+| **阶段 3-B S2+S3 机器站点只读（按 `MachineMap` 认机器）** | `/function alice_test:machine_course` → 电池步 `machine_station`（旧临时入口 `alice:machine_station_probe` 已回收） | `m1_binding=true m2_binding=true`（**"点对了哪台"只有它认得出** —— `menuClass` 两台机器相同、槽位表逐项相同）、`m2_menu_class_matches=true`、`m{i}_slot_roles`、表行完整划分守恒 `with_site_confirmed + with_site_unobserved + no_site + row_block_missing`；机器不在 ⇒ SKIP；零写入 | `WINDOWS_CLIENT`（第四轮 `(28/28) ticks=2789 → PASS`） |
+| **阶段 3-B S4 单机最小闭环（3-B 第一次容器写入）** | 右键 `alice:machine_cycle_check`（先 `/function alice_test:machine_course`）；电池步 `machine_cycle` | `[MachineCycle] SUMMARY … verdict=PASS` + **`energy_source=cube（场景电源，未补电）`** + `energy_at_open>0`（**这两条=场景电源自证**；退化成 `api_precharge` 就是场景坏了，别放宽断言）+ `input_consumed=true product_landed=true machine_emptied=true container_writes=2 reset=true` | `WINDOWS_CLIENT`（**第七轮 `latest.log:213`：`energy_at_open=20000.0` + `cube` + `verdict=PASS`**，D-213 复核通过）；**电池步的绿待一轮 CORE 确认** |
 | **K-3 安全点停止** | `alice:k3_stop_check` 右键（DEFER）/ **Shift+右键**（FORCED） | `deferred=1` / `forcedUnsafe=1`；terminal `cancelled:k3_defer:safe_point` / `cancelled:k3_forced:forced_unsafe` | `WINDOWS_CLIENT`（两种模式均实测通过） |
 | 道具资源完整性 | `./tools/check-item-models.sh`（构建前） | `RESULT PASS`（空模型/坏 JSON/死贴图） | 脚本自测通过（D-170） |
 

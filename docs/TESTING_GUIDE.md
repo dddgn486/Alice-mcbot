@@ -604,23 +604,33 @@ progress_ticks=199`、`product_after=1 product_landed=true machine_emptied=true 
 
 旁记：`K4=OK(… 写入类例外=43)`（上一轮 56，交替，两次都 `K4=OK`，未取证）。
 
-### 下一次客户端轮（重验场景电源：`/reload` + 2 步，约 1 分钟）
+### ✅ 第七轮（2026-09-14，电源重验**通过**）+ 下一次客户端轮（跑 CORE 电池，约 6–8 分钟）
 
-1. **先 `/reload`** —— 场景文件刚从仓库复制进存档（`saves/新的世界/datapacks/alice_test/`），
-   数据包只在**世界加载或 `/reload`** 时读盘；不 reload 等于没改；
-2. `/function alice_test:machine_course`（**必须**，本轮要的就是新增的 `data merge block` 那行）
-   → 右键 `alice:machine_cycle_check`。
+**第七轮结果（`WINDOWS_CLIENT`）**：`/reload` → `/function alice_test:machine_course`
+（**11 条命令**，含 `data merge block` 灌电，`latest.log:187`）→ 右键 `alice:machine_cycle_check` ⇒ `latest.log:213`：
 
-**只看两个字段**（`[MachineCycle] SUMMARY` 里）：
+- `energy_at_open=20000.0`、**`energy_source=cube（场景电源，未补电）`**、`energy_ready=20000.0`
+  —— **不再是** `api_precharge` 的 4.0E6 ⇒ **场景真供电成立，D-213 判据达成**；
+- `progress_ticks=199 active_seen=true product_after=3 product_landed=true machine_emptied=true
+  input_consumed=true container_writes=2 budget_remaining_after=30 reset=true verdict=PASS`；
+- 用户侧确认：**方块本体运行正常，符合预期**。
+- **判据语义别读强**：`energy_source=cube` 证的是"**场景把电送上了**"（开机时机器已有电），
+  不是"程序认出了 cube 方块"（读的是机器自己的能量容器）；场景里只有这一条供电路径 ⇒ 两者等价。
 
-- **`energy_source=cube（场景电源，未补电）`** + `energy_at_open=N（N>0）` ⇒ **场景真供电成立**，改对了
-  （**判据是"方块喂上了"这件事，不是某个具体数字**：机器容量只有 20 kJ，会被顶满，我不预设具体值）；
-- 仍是 `energy_at_open=0.0` + `api_precharge` ⇒ 回来查 FRONT 的**实际绝对朝向**；这时请**顺带看一眼方块本体**
-  （GUI 能量条是不是还空着、模型内芯有没有转、**顶面是不是那个亮的输出口**）并把看到的说给我。
+**下一次客户端轮 = 跑一轮 CORE 电池确认新步（1 步）**：
 
-两种情况的 `verdict` 都会是 `PASS`（补电兜底仍在，D-210）—— 这正是"补电必然留痕"的价值：
-它没把"电从哪来"瞒过去，所以今天才抓得到这个假前提。
+1. **重启客户端**（本轮重编了 jar，Forge 只在启动时加载 mod；jar 已同步到 `mods/`，
+   `sha256=b290b8b3a1276915feee509f6e7203aad7ca16ad2454e742b5f2d14dc3a7984f`）；
+2. `/alice battery core`（或右键 `alice:regression_battery`）—— **默认档现已含新步 `machine_cycle`**；
+3. 看 SUMMARY：期望 `machine_cycle=PASS`、`(29/29)`、整行末尾 `→ PASS`（`PROFILE=CORE` 那行会打印各档项数）；
+4. 若红 ⇒ 把 `machine_cycle=` 那一项（含 `ticks=`/`reason=`）与 `[MachineCycle] SUMMARY` 整行贴回来。
 
-**一个反直觉点**：兜底补电 4,000,000 J 会把机器顶到 20 kJ 容量**之上**，此后机器
-**拒绝一切外来电**（`BasicEnergyContainer.insert` 的 `needed.isZero()` 分支，按 50 J/t 要 ~79,600 tick 才回落）
-⇒ **"补电之后再观察方块通不通"没有意义，判电源只看补电之前的 `energy_at_open`**。
+`alice:machine_cycle_check` 物品**本轮仍保留**（S1–S4 的临时探针统一到 S5 收口时回收，前提 = 电池步转绿）。
+
+**失败时仍然有用的两个反直觉点（留着备用）**：
+
+- 若某轮又看到 `energy_at_open=0.0` + `api_precharge` ⇒ 说明**场景电源失效**（不是任务坏了），
+  去查场景那行 `data merge block` 有没有跑到（`/function` 的"已执行 N 条命令"应是 **11**）；
+- 兜底补电 4,000,000 J 会把机器顶到 20 kJ 容量**之上**，此后机器
+  **拒绝一切外来电**（`BasicEnergyContainer.insert` 的 `needed.isZero()` 分支，按 50 J/t 要 ~79,600 tick 才回落）
+  ⇒ **"补电之后再观察方块通不通"没有意义，判电源只看补电之前的 `energy_at_open`**。

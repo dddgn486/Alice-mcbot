@@ -34,20 +34,25 @@
   ⇒ 探针改成对表行做**完整划分** + 分桶守恒自检；② **`menuClass` 不是机器身份**（两台机器实测同一个
   `MekanismTileContainer`、槽位表逐项相同）⇒ 分辨"点对了哪台"只有 `m{i}_binding`，crusher 菜单类已按观察值回填。
   **未覆盖（如实登记）**：只登记基础机，`crushing` 的 1:N 工厂变体在 `note` 里点名但未入表。
-- **S4（首次客户端跑通 ✅ `verdict=PASS`，`latest.log:3811`）＝ 3-B 的第一次写入**：`MachineCycleCheckTask`
-  （放料 → 等 → 取产物）由零参数物品 **`alice:machine_cycle_check`** 触发；场景在富集仓下方加**真实电源**
-  `mekanism:creative_energy_cube`（纯数据）。**不新造授权**：容器写入维度 `WriteBudget` +
-  `WriteReason.CONTAINER_TRANSFER` + requester `machine-cycle`（矩阵登记为 `CONTAINER`）；
-  放料走 shift-click（**菜单自己决定落点**）、成不成**只看结果**（机器里有料 / 背包里产物 +N）。
+- **S4（场景电源已自证 ✅ `energy_source=cube` + `verdict=PASS`，`latest.log:213`）＝ 3-B 的第一次写入**：
+  `MachineCycleCheckTask`（放料 → 等 → 取产物）由零参数物品 **`alice:machine_cycle_check`** 触发；
+  场景在富集仓下方加**真实电源** `mekanism:creative_energy_cube`（纯数据）。
+  **不新造授权**：容器写入维度 `WriteBudget` + `WriteReason.CONTAINER_TRANSFER` + requester `machine-cycle`
+  （矩阵登记为 `CONTAINER`）；放料走 shift-click（**菜单自己决定落点**）、成不成**只看结果**（机器里有料 / 背包里产物 +N）。
   能量/进度/菜单全是**上游自述**；补电这种测试前提**必然留痕** `energy_source=…`（D-210）。
-  **但第一轮是"假绿"**：`energy_at_open=0.0` + 200 tick 只掉 10000 J ⇒ 场景电源**流入 0**（D-212；
-  已修场景 `[facing=up]`，**待 `/reload` 后重验**）。
-  **v1 边界**：单机单配方、站位用夹具传送（**内核寻路走到机器旁 = S4 v2**）；
-  **升电池步（D-197，CORE 28→29）建议等电源重验为 `cube` 之后**。
+  **电源真因（D-213，修正 D-212）**：创造能量方块**放下就是 0 J 且永远充不进电** ⇒ 场景改用
+  `data merge block … {EnergyContainers:[{Container:0,stored:"4000000000"}]}` 把电直接写进方块实体（命令 10→11 条）。
+  **第七轮已重验**：`energy_at_open=20000.0`、`energy_source=cube（场景电源，未补电）`、`energy_ready=20000.0`
+  （**不再是** `api_precharge` 的 4.0E6）、`progress_ticks=199 product_landed=true machine_emptied=true
+  input_consumed=true container_writes=2 reset=true verdict=PASS` ⇒ **D-213 判据成立**。
+  **v1 边界**：单机单配方、站位用夹具传送（**内核寻路走到机器旁 = S4 v2**）。
+  **已升电池步（D-197，CORE 28→29 / FULL 38→39）**：`machine_cycle`（MAIN，`stepSkippable`，预算 1600）；
+  该步的客户端绿待一轮 CORE 电池确认。
 - **S5**：每次收尾都要回收临时探针（`alice:machine_probe`、`alice:machine_station_probe` 已回收 ⇒
-  转为电池步 `machine_route` / `machine_station`；S4 的闭环自检**先做成物品**，绿了再按 D-197 转电池步）。
+  转为电池步 `machine_route` / `machine_station`；S4 的闭环自检**已做成物品并转电池步 `machine_cycle`**，
+  临时入口 `alice:machine_cycle_check` **留到 S5 收口时回收**，回收前提 = 该电池步在 CORE 里转绿）。
 
-## 3. 第五轮客户端结果（2026-09-14，**已跑完：真绿 + 抓到一个假前提**）
+## 3. 第五轮 + 第七轮客户端结果（2026-09-14）
 
 **A. `alice:regression_battery` CORE → `(28/28) ticks=2765 → PASS`**（`latest.log:3737`）。
 
@@ -67,18 +72,28 @@
 product_landed=true machine_emptied=true input_consumed=true`、`container_writes=2`（同走闸门+预算，`:3815`）、
 `reset=true reset_pos=66, 64, 304` ⇒ **S4 = `WINDOWS_CLIENT`**。
 
-**C. 但电源是"假绿" —— 第六轮已定真因（D-213，修正 D-212）**：`energy_source=api_precharge`。第五轮把根因判给
-"方块朝向"，第六轮场景已带 `[facing=up]`（存档 `r.0.0.mca` 里 `facing:"up"` 已核实生效）**仍然是 `api_precharge`**
-⇒ **朝向不是根因**。真因 = **创造能量方块放下时自带电量就是 0 J，而且永远充不进电**
-（`BasicEnergyContainer:52` 初值 ZERO + 创造档 `insert` 强制 SIMULATE），而 `TileComponentEjector:166` 对空容器直接跳过
-⇒ 场景"自带电源"这条前提**从来没成立过**。证据是存档里的对照组（同一次保存）：机器
-`EnergyContainers=[{"Container":0,"stored":"3990000"}]`、方块 `EnergyContainers=[]`。
-修法**纯数据**：场景加一行 `data merge block … {EnergyContainers:[{Container:0,stored:"4000000000"}]}`（命令 10→11 条）。
+**C. ✅ 电源前提已自证 —— 第七轮结果（D-213 复核通过，`WINDOWS_CLIENT`）**：`/reload` →
+`/function alice_test:machine_course`（**11 条命令**，含 `data merge` 灌电，`latest.log:187`）→ 右键
+`alice:machine_cycle_check` ⇒ `latest.log:213`：`energy_at_open=20000.0`、
+**`energy_source=cube（场景电源，未补电）`**、`energy_ready=20000.0`（不再是 `api_precharge` 的 4.0E6）、
+`progress_ticks=199 active_seen=true product_after=3 product_landed=true machine_emptied=true
+input_consumed=true container_writes=2 budget_remaining_after=30 reset=true verdict=PASS`
+⇒ **电来自场景本身、没走补电兜底，D-213 判据成立**；D-212 的"朝向"因果判定确认作废（`[facing=up]` 保留）。
+用户侧确认"方块本体运行正常，符合预期"。
+**判据语义别读强**：`energy_source=cube` 证的是"**场景把电送上了**"（开机时机器已有电 `energy_at_open > 0`），
+不是"程序认出了 cube 方块"（读的是机器自己的能量容器）；场景里只有这一条供电路径 ⇒ 两者等价。
 
-**下一次客户端轮（约 1 分钟，`/reload` + 2 步 + 可选 1 眼）**：`/reload` → `/function alice_test:machine_course` →
-右键 `alice:machine_cycle_check`；**先看两个字段**：`energy_source=cube（场景电源，未补电）` + `energy_at_open>0`。
-若仍是 `api_precharge`，**请顺带看一眼方块本体**：GUI 能量条是不是空的、模型内芯有没有转、**顶面是不是那个亮的输出口**
-——这一眼能直接判死"FRONT 实际朝向"，比再推一轮源码便宜。
+**本轮顺带落地的两件事**：① **S4 升为电池步 `machine_cycle`**（D-197）：`RegressionBatteryTask` CURATION 加
+`machine_cycle`（MAIN）、步定义排在 `machine_station` 之后（`stepSkippable`，预算 1600 > 任务自身 1400，
+`machine_absent` ⇒ SKIP）；电池 **CORE=29 / FULL=39**，`docs/BATTERY_CURATION.md` 同步。
+② **台账 ⑥ 关闭**：`MachineCycleCheckTask` 类注释按 D-213 改写（含"能量判据的准确含义"一段）。
+新 jar `sha256=b290b8b3a1276915feee509f6e7203aad7ca16ad2454e742b5f2d14dc3a7984f`
+（已镜像到 `D:\JAVA_projects\alice` 并同步到客户端 `mods/`）⇒ **客户端必须重启才会加载新 jar**。
+
+**下一次客户端轮（1 步，约 6–8 分钟）**：**重启客户端** → `/alice battery core`（默认档，现已含 `machine_cycle`）
+→ 看 SUMMARY 整行：期望 `machine_cycle=PASS`、`(29/29)`、末尾 `→ PASS`（`PROFILE=CORE` 那行会打印各档项数）。
+若 `machine_cycle=TIMEOUT/FAIL` ⇒ 把该步的 `ticks=`/`reason=` 与 `[MachineCycle] SUMMARY` 一行贴回来。
+**S1–S4 的临时探针入口（`alice:machine_cycle_check` 等）留到 S5 收口时统一回收**（回收前提 = 电池步转绿）。
 细节见 `docs/TESTING_GUIDE.md` §"下一次客户端轮"。
 
 ## 4. 今天新增/变更的纪律（都在 PLAYBOOK + AGENTS.md 里）
@@ -86,7 +101,8 @@ product_landed=true machine_emptied=true input_consumed=true`、`container_write
 1. **§5.0b 决策权**：你有最终决策权，但不必把每句话当最终决策；AI **允许并鼓励评价你的决策**；
    临时裁定要标 `（临时）` + 复核触发条件。
 2. **§5.0c 继续/停止判据**：不需要你参与且**离线可做**就继续做，不要为"省你一轮"而停；
-   **上下文量级 1,000,000 / 800,000 自动压缩** ⇒ 在那之前不得以"预算"为由停下。
+   **上下文窗口 512,000（阈值 409,600 = 0.8×W，保留 ≈81,920 = 0.16×W）** ⇒ 不围绕上下文思考、不主动报占比；
+   只有真到 ≈0.9×409,600 才先写 HANDOVER + 提交（D-214；这三个数随窗口变，现算别背）。
 3. **§5.0d 场景夹具两条硬纪律**：夹具**自带传送**到场景起点（不依赖电池 provision）+ **结束复位**
    （关菜单/停输入/回起点，失败路径同走）。
 4. **active goal**：可用；范围设到"两次测试之前"，到测试点 `pause`（恢复只能由你发起）。
@@ -107,10 +123,10 @@ product_landed=true machine_emptied=true input_consumed=true`、`container_write
   **第五轮无 Java 改动 ⇒ jar 不变**（D-212 修的是场景 `.mcfunction`，纯数据）。
 - 场景：仓库 `tools/test-scenes/alice_test/` → 客户端存档
   `saves/新的世界/datapacks/alice_test/`（**改场景后要手动复制改动的 `.mcfunction` 过去 + 游戏里 `/reload`**
-  —— 数据包只在世界加载/`/reload` 时读盘；本轮已复制、`diff -rq` 无差异、**等 `/reload`**）；
+  —— 数据包只在世界加载/`/reload` 时读盘；第七轮已复制、`diff -rq` 无差异、**已 `/reload` 并实测生效**）；
   `/function alice_test:machine_course`（S2+S3 机器场景：富集仓 + 粉碎机）、
   `furnace_course`、`craft_tab_course`、`craft_table_course`、`craft_station_course`。
-- 电池：`alice:regression_battery`（CORE=**28**）/ `/alice battery full`（FULL=38）；
+- 电池：`alice:regression_battery`（CORE=**29**）/ `/alice battery full`（FULL=**39**）；
   唯一配置入口 `RegressionBatteryTask.CURATION`。
 - 离线闸门（改完顺手跑）：`bash tools/check-authz-registry.sh`、`bash tools/check-policy-matrix.sh`、`bash tools/check-machine-map.sh`、
   **`bash tools/check-fixture-hygiene.sh`**（D-208 新增：夹具终态必须能传播失败）。
@@ -209,8 +225,10 @@ profile 叶子上的 `disabled: true` 是"所有权在预设"而非"没启用"�
 ## 6. 未做/已知边界（不假装完成）
 
 - ~~**机器闭环（S4）已实现但未验证**~~ **第五轮已跑通**（`verdict=PASS`，`latest.log:3811`）；
-  **但场景电源前提是假的**（D-212：能量方块只有朝向面出电 + 状态默认 `down` ⇒ 电送地板），
-  已修 `[facing=up]`（纯数据），**待 `/reload` 后重验 `energy_source=cube`**；
+  ~~**但场景电源前提是假的**~~ **第七轮已自证**（D-213：真因是创造方块放下就是 0 J 且充不进电，
+  场景改用 `data merge block … EnergyContainers=[{Container:0,stored:"4000000000"}]` 灌电）⇒
+  `energy_source=cube（场景电源，未补电）` + `energy_at_open=20000.0` + `verdict=PASS`（`latest.log:213`）；
+  **已升电池步 `machine_cycle`**，该步在 CORE 里的绿待下一轮确认；
   机器路线的**通用执行**仍未做——`CraftJob` 对机器配方仍如实拒绝 `not_executable`；
 - **容器写入覆盖的已知边界（D-211）**：`InventoryCraft` 的结果槽 shift-click 在开着容器菜单时会把产物放进容器
   （实测 `product_in_container=1`）而**不过闸**（接它需要给该方法 grant 参数）；`TransferFixture` 在隔离层

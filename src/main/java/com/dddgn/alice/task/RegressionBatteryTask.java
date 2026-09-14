@@ -120,6 +120,9 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("craft_goal", Profile.MAIN),
             Map.entry("machine_route", Profile.MAIN),
             Map.entry("machine_station", Profile.MAIN),
+            // 阶段 3-B / S4（D-213）：单机最小闭环（真的把机器跑起来一次）——它**会写容器**，
+            // 是 MAIN 里唯一带写入的一步；模组不在 ⇒ SKIP（同 machine_route/machine_station）
+            Map.entry("machine_cycle", Profile.MAIN),
             // 2026-09-13 D-201 附注一：**回退整理**——撤走后 CORE 三项变红（缺隐含前置），
             // 而这些步骤在 FULL 里是绿的 ⇒ 先恢复绿基线，等"显式自证前提"做完再**逐条**撤（每条复跑一次）
             Map.entry("craft_action", Profile.MAIN),
@@ -382,6 +385,20 @@ public final class RegressionBatteryTask implements Task {
         // 夹具**自带传送与结束复位**（PLAYBOOK §5.0d），探针预算 350 < 本步预算 400。零写入。
         steps.add(stepSkippable("machine_station", List.of("alice_test:machine_course"), () -> { },
                 () -> new com.dddgn.alice.task.MachineStationProbeTask(bot, observer), 400,
+                task -> task.failureReason().contains("_absent")));
+        // 阶段 3-B / S4（D-213）：**单机最小闭环** —— 真的把一台机器跑起来一次（放料 → 等 → 取产物）。
+        // 这是 3-B 的第一次**容器写入**：写入口径 `WriteBudget.consumeContainerWrite` +
+        // 理由 CONTAINER_TRANSFER + requester `machine-cycle`（矩阵登记为 CONTAINER），
+        // 写入是否成功一律**按结果验证**（机器里出现了料 / 背包里出现了产物），**不猜槽位语义**。
+        // 前提：场景 `machine_course` 已摆好机器**且给了电**。⚠️ 创造方块**放下就是 0 J**
+        // （上游 `BasicEnergyContainer.stored = ZERO` + creative 的 forced-SIMULATE），
+        // ⇒ 场景用 `/data merge block … EnergyContainers=[{Container:0,stored:"4000000000"}]` 灌电，
+        // `api_precharge`（4.0E6 J）只是**兜底**；判据是 SUMMARY 里 `energy_source=cube（场景电源，未补电）`
+        // 且 `energy_at_open>0` —— 若退化成 `api_precharge`，说明场景电源失效，必须查场景而不是放宽断言。
+        // 本步预算 1600 > 任务自身 MAX_TICKS 1400（让任务的守卫先报出**具体**失败原因，而不是电池的通用 TIMEOUT）；
+        // 夹具**自带传送与结束复位**（PLAYBOOK §5.0d）；机器不在/模组未装 ⇒ `machine_absent` ⇒ SKIP。
+        steps.add(stepSkippable("machine_cycle", List.of("alice_test:machine_course"), () -> { },
+                () -> new com.dddgn.alice.task.MachineCycleCheckTask(bot, observer), 1600,
                 task -> task.failureReason().contains("_absent")));
         // 基-7：前缀搜索（K-1：预算耗尽交出前缀；真失败不给前缀）
         // R2：传输模块（4 个夹具：主流程/端点选择/选择器事件/命令解析）

@@ -19,10 +19,10 @@
 SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 **跳过多少、跑多少、各档几项**一眼可见；归属表与实跑项对不上（漏登记 / 文档说测了其实没测）**直接判红**。
 
-## 2. 当前归属表（38 项 → CORE 28 项）
+## 2. 当前归属表（39 项 → CORE 29 项）
 
 > 2026-09-14 校正：本节此前写「34 项 → CORE 24 项」**已过期**（实际 = BASELINE 13 + MAIN 14 + EXTRA 10 = 37，CORE = 13+14 = 27，与客户端实测 `(27/27)` 一致）。
-> 加入 `write_policy`（BASELINE）后为 **38 / CORE 28**。
+> 加入 `write_policy`（BASELINE）后为 **38 / CORE 28**；再加入 `machine_cycle`（MAIN）后为 **39 / CORE 29**。
 
 
 ### BASELINE（14）
@@ -32,12 +32,16 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 `capability_gate`（闸门）、`tool_supply`（不凭空变工具）、`recoverability`（可回收性等级）、
 `write_policy`（D-207 ①：写入集中策略表——表完整性 + **越权必须被拒**的负例 + 未登记 requester 留痕=0）
 
-### MAIN（14）—— 阶段 3-A（回退瘦身，保持完整）+ 阶段 3-B / S1+S2（机器只读）
+### MAIN（15）—— 阶段 3-A（回退瘦身，保持完整）+ 阶段 3-B / S1+S2（机器只读）+ S4（机器写入闭环）
 `craft_check`、`craft_action`、`craft_table`、`craft_station`、`craft_probe_inventory`、`craft_probe_table`、
 `craft_probe_upgradetab`、`craft_station_provision`、`craft_station_craft`、`craft_furnace`、`craft_cooking`、`craft_goal`、
 `machine_route`（S1：机器配方**只读**——问上游自述读输入/输出 + 查询层给 `MACHINE_ROUTE`；模组不在 ⇒ SKIP）、
 `machine_station`（S2 起为只读站点探针；**S3 起按 `MachineMap` 认机器**——半径内表里登记的方块每类一台（`m1_*`/`m2_*`），
-断言"菜单类 == 已实测登记值"与"方块实体自述配方类型 == 表里的类型"，并读槽位表/`ContainerData`/上游进度方法名；机器不在 ⇒ SKIP）
+断言"菜单类 == 已实测登记值"与"方块实体自述配方类型 == 表里的类型"，并读槽位表/`ContainerData`/上游进度方法名；机器不在 ⇒ SKIP）、
+`machine_cycle`（**S4：单机最小闭环**——放料 → 等 → 取产物，是 3-B 的**第一次容器写入**：
+口径 = `WriteBudget.consumeContainerWrite` + 理由 `CONTAINER_TRANSFER` + requester `machine-cycle`，
+按结果验证而不猜槽位；判据看 `verdict=PASS` + `energy_source=cube（场景电源，未补电）`；
+⚠️ 场景必须 `/data merge block` 灌电（创造方块放下是 0 J，D-213）；机器不在 ⇒ SKIP）
 
 > **为什么退回来了**：2026-09-13 实测——把其中 8 项移出 CORE 后，`craft_furnace`/`craft_cooking`/`transfer`
 > **可复现地变红**（重启客户端后仍红），而它们在 FULL（35 项）里**全绿** ⇒ 撤走的是它们的**隐含前置/清场**。
@@ -68,3 +72,5 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 | 2026-09-13 | **25** | 35 | **回退瘦身**（D-201 附注一）：8 项重回 MAIN —— CORE 17 的三项红可复现、FULL 里同三项全绿 ⇒ 撤走的是隐含前置；瘦身前提（显式自证前提）未落地前不减项 |
 | 2026-09-14 | 26 | 36 | 阶段 3-B / S1：新增 `machine_route`（`alice:machine_probe` 临时入口按 S5 **回收**，任务转为电池步）⇒ MAIN 13 |
 | 2026-09-14 | 27 | 37 | 阶段 3-B / S2：新增 `machine_station`（临时入口 `alice:machine_station_probe` 按 S5 **回收**，任务转电池步）⇒ MAIN 14 |
+| 2026-09-14 | 28 | 38 | D-207 ①：新增 `write_policy`（**BASELINE**，写入集中策略表 + 越权负例）⇒ BASELINE 14 |
+| 2026-09-14 | **29** | **39** | 阶段 3-B / S4（D-213）：新增 `machine_cycle`（**MAIN**，单机最小闭环 = 3-B 第一次容器写入）⇒ MAIN 15。准入前提见 D-197：**等场景电源自证为 `cube` 之后才升**（2026-09-14 客户端实测 `energy_source=cube` + `verdict=PASS` ⇒ 前提满足）。临时入口 `alice:machine_cycle_check` 待电池步转绿后按 S5 回收 |

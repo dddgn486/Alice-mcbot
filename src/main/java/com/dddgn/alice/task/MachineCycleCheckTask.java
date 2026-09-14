@@ -42,9 +42,20 @@ import java.util.List;
  *
  * <p><b>§6.9.1 三条前提</b>：① **几何盒** = 以 bot 脚位为中心、半径 {@value #SCAN_RADIUS} 的立方盒，
  * 目标方块由 {@link MachineMap}（单一出处）给；② **世界/模组假设** = 场景 {@code alice_test:machine_course}
- * 已摆好机器**且给了电**（`mekanism:creative_energy_cube`）—— 电不够时**如实报出来**并按前提补电
- * （见 {@link #ENERGY_GRACE_TICKS}）；③ **层归属** = 断言落在"机器容器里到底有没有产物"这一**世界事实**上，
+ * 已摆好机器**且给了电** —— ⚠️ **创造方块放下就是 0 J**（上游 `BasicEnergyContainer.stored = FloatingLong.ZERO`，
+ * 且 creative 侧对 insert/extract 都强制 SIMULATE ⇒ 放下的空方块**永远灌不满、也放不出电**），
+ * 所以场景不是"放个方块就有电"，而是用 `/data merge block … EnergyContainers=[{Container:0,stored:"4000000000"}]`
+ * **把电直接写进方块实体**（走 `load()` → `setEnergy`，绕过 creative 的插入守卫；灌进去之后 extract 仍是
+ * SIMULATE ⇒ 永不耗尽 = 真正的无限电源，2026-09-14 客户端实测确认，见 D-213）。
+ * 电不够时**如实报出来**并按前提补电（{@link #ENERGY_GRACE_TICKS} 后 `api_precharge` {@link #PRECHARGE_JOULES} J，
+ * 那只是**兜底**，不是正常路径）；③ **层归属** = 断言落在"机器容器里到底有没有产物"这一**世界事实**上，
  * 不经查询层、不会被上游短路。
+ *
+ * <p><b>能量判据的准确含义</b>：`energy_source=cube（场景电源，未补电）` 的判据是**开机那一刻机器自己已有电**
+ * （`energy_at_open > 0`）—— 它证明的是"**场景把电送上了**"，**不是**"程序认出了那是个 cube 方块"
+ * （读的是机器自己的能量容器，认不出电源在哪）。场景里只有这一条供电路径 ⇒ 两者等价；
+ * 一旦出现 `energy_source=api_precharge（… 按前提补电 …）`，说明场景电源失效，**要去查场景**，
+ * 不允许放宽断言或删掉这条记录。
  *
  * <p><b>§6.9.3 三问自答</b>：① 层归属见上；② 依赖的假设都**自断言**（机器不在 ⇒ `machine_absent:radius_N`；
  * 够不着 ⇒ `machine_out_of_reach`；配方读不出 ⇒ `no_recipe_with_item_io`；预算拒绝 ⇒ `container_write_refused`；
