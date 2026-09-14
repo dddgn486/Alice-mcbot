@@ -121,6 +121,15 @@ public class MachineProbeTask implements Task {
         List<String> namespaces = adoptedNamespaces();
         java.util.Set<String> adopted = new java.util.LinkedHashSet<>(namespaces);
         Map<String, List<Recipe<?>>> byType = new LinkedHashMap<>();
+        // **（T3 步骤 A）把枚举来源从"表"换成"配方注册表"**：旧实现只把**已登记命名空间**的类型收进
+        // `byType`，而 `unmapped`（"运行时有、表里没有"）又只遍历 `byType` ⇒ **结构上看不见任何
+        // 我们还没登记过的模组**。实测：无头生产服务端里装着 create / ExtendedCrafting /
+        // refinedstorage / sophisticated*，而探针 `namespaces=[mekanism, thermal]`、`unmapped=[]`
+        // —— 一个字都不说。那正是 T3 要接的对象。
+        // 现在：**类型/配方计数覆盖全部非原版命名空间**；**采样范围仍只限已登记命名空间**
+        // （否则每个模组都会撑长一轮的时间，而"能不能接"与"采样多少条"是两件事）。
+        java.util.Set<String> allTypes = new java.util.TreeSet<>();
+        Map<String, Integer> recipesByNamespace = new java.util.TreeMap<>();
         int readable = 0;
         int skipped = 0;
         for (Recipe<?> recipe : server.getRecipeManager().getRecipes()) {
@@ -130,9 +139,23 @@ public class MachineProbeTask implements Task {
                 continue;
             }
             skipped++;
+            allTypes.add(typeId);
             int colon = typeId.indexOf(':');
-            if (colon > 0 && adopted.contains(typeId.substring(0, colon))) {
+            if (colon <= 0) {
+                continue;
+            }
+            String namespace = typeId.substring(0, colon);
+            recipesByNamespace.merge(namespace, 1, Integer::sum);
+            if (adopted.contains(namespace)) {
                 byType.computeIfAbsent(typeId, key -> new ArrayList<>()).add(recipe);
+            }
+        }
+        // 每个命名空间的**去重类型数**（配方条数另算）—— 这一个数就回答"要接的模组有多少个机器类型"。
+        Map<String, Integer> typesByNamespace = new java.util.TreeMap<>();
+        for (String typeId : allTypes) {
+            int colon = typeId.indexOf(':');
+            if (colon > 0) {
+                typesByNamespace.merge(typeId.substring(0, colon), 1, Integer::sum);
             }
         }
         int samples = 0;
@@ -193,7 +216,9 @@ public class MachineProbeTask implements Task {
                 withSiteUnobserved.add(row.typeId());
             }
         }
-        for (String typeId : byType.keySet()) {
+        // **（T3 步骤 A）`unmapped` 的遍历域从 `byType`（已登记命名空间）换成 `allTypes`（全部非原版类型）**：
+        // 否则"某个模组出现了、我们一行都没登记"这件事**永远不会被报出来**（旧实现里它连枚举都进不去）。
+        for (String typeId : allTypes) {
             if (MachineMap.forType(typeId) == null) {
                 unmapped.add(typeId);
             }
@@ -225,15 +250,35 @@ public class MachineProbeTask implements Task {
                     rowBlockMissing);
         }
         if (!unmapped.isEmpty()) {
-            BotLog.warn("[MachineProbe] 运行时出现但**表里没有**的机器类型（不判红：模组集可变，应登记为行）：{}",
-                    unmapped);
+            BotLog.warn("[MachineProbe] 运行时出现但**表里没有**的机器类型共 {} 个（不判红：模组集可变，"
+                            + "要接某个模组就会看到它）：{}", unmapped.size(),
+                    unmapped.size() <= MAX_UNMAPPED_IN_SUMMARY ? unmapped
+                            : unmapped.subList(0, MAX_UNMAPPED_IN_SUMMARY) + " …(共 " + unmapped.size() + ")");
+        }
+        // **（T3 步骤 A）未登记命名空间逐条出声**：这是"接下一个模组"的第一份读数 ——
+        // 它回答"这个模组有几个机器类型、有多少条配方、我们登记了几行（0）"。
+        // 旧实现对此**完全静默**（枚举来源就是表本身）⇒ "表里没有"和"这个模组不存在"不可区分。
+        for (Map.Entry<String, Integer> entry : typesByNamespace.entrySet()) {
+            if (adopted.contains(entry.getKey())) {
+                continue;
+            }
+            List<String> typesOfNamespace = new ArrayList<>();
+            for (String typeId : allTypes) {
+                if (typeId.startsWith(entry.getKey() + ":")) {
+                    typesOfNamespace.add(typeId);
+                }
+            }
+            BotLog.warn("[MachineProbe] 未登记命名空间 ns={} types={} type_recipes={} 表里 0 行 ⇒ 本探针不采样它：{}",
+                    entry.getKey(), entry.getValue(), recipesByNamespace.getOrDefault(entry.getKey(), 0),
+                    typesOfNamespace);
         }
         if (!withSiteUnobserved.isEmpty()) {
             BotLog.info("[MachineProbe] 表里有站点但配方管理器里**未出现**的类型（上游 0 配方或模组集差异，只报事实）：{}",
                     withSiteUnobserved);
         }
         BotLog.info("[MachineProbe] 机器映射 {} | 表={}行 with_site_confirmed={} shared_site={} with_site_unobserved={} no_site={} unmapped={}",
-                MachineMap.describe(), rowCount, withSiteConfirmed.size(), sharedSite, withSiteUnobserved, noSite, unmapped);
+                MachineMap.describe(), rowCount, withSiteConfirmed.size(), sharedSite, withSiteUnobserved, noSite,
+                bounded(unmapped));
         // **两处遍历都必须有序**：`getRecipes()` 的迭代序跨轮不稳定 —— 既影响"每类取前 2 条"，
         // 也影响"类型之间的先后"（实测同一 jar 两轮：`type=thermal:insolator` 先 vs `type=mekanism:pigment_mixing` 先）。
         // 只排内层会让**聚合计数**稳定、而 `machineOutputs`（取最先见到的 3 个产出 ⇒ 自证式查询）仍漂。
@@ -400,7 +445,9 @@ public class MachineProbeTask implements Task {
                 .append(" shared_site=").append(sharedSite)
                 .append(" with_site_unobserved=").append(withSiteUnobserved)
                 .append(" no_site=").append(noSite)
-                .append(" unmapped=").append(unmapped)
+                .append(" unmapped_total=").append(unmapped.size())
+                .append(" unmapped=").append(bounded(unmapped))
+                .append(" unregistered_ns=").append(describeUnregistered(typesByNamespace, adopted, recipesByNamespace))
                 .append(" row_block_missing=").append(rowBlockMissing)
                 .append(" no_writes=").append(pending == 0)
                 .append(" verdict=").append(failed ? "FAIL" : (types == 0 ? "SKIP" : "PASS"));
@@ -425,4 +472,34 @@ public class MachineProbeTask implements Task {
 
     /** 自证式查询抽查几个物品（`machineOutputs` 按 id 排序后取前 N ⇒ 确定性）。 */
     private static final int SELF_CHECK_ITEMS = 3;
+
+    /** `unmapped` 在日志/SUMMARY 里最多原样带出多少个（完整清单由**逐命名空间**的 warn 行承载）。 */
+    private static final int MAX_UNMAPPED_IN_SUMMARY = 24;
+
+    /** 限长但**不隐藏规模**：截断处带上真实总数。 */
+    private static String bounded(List<String> values) {
+        if (values.size() <= MAX_UNMAPPED_IN_SUMMARY) {
+            return values.toString();
+        }
+        return values.subList(0, MAX_UNMAPPED_IN_SUMMARY) + " …(共 " + values.size() + ")";
+    }
+
+    /** `[ns=types,…]`：表里 0 行的命名空间各有多少个机器类型（**接下一个模组的第一份读数**）。 */
+    private static String describeUnregistered(Map<String, Integer> typesByNamespace,
+                                              java.util.Set<String> adopted,
+                                              Map<String, Integer> recipesByNamespace) {
+        StringBuilder sb = new StringBuilder("[");
+        for (Map.Entry<String, Integer> entry : typesByNamespace.entrySet()) {
+            if (adopted.contains(entry.getKey())) {
+                continue;
+            }
+            if (sb.length() > 1) {
+                sb.append(", ");
+            }
+            sb.append(entry.getKey()).append('=').append(entry.getValue())
+                    .append("(rows=0,recipes=").append(recipesByNamespace.getOrDefault(entry.getKey(), 0))
+                    .append(')');
+        }
+        return sb.append(']').toString();
+    }
 }

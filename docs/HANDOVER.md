@@ -46,10 +46,14 @@
 | **T3 步骤 1** `SiteKind` 五态 + 共享站点（`bc2b1aa`） | `SERVER_TESTED` | `with_site_confirmed 46→52`、`no_site 10→4`、`shared_site=6`、`row_block_missing=[]` |
 | **T3 步骤 B3a** 读取器「先原版、再名族」+ 逐字段出处 | `SERVER_TESTED` | **值不变且被证明**（`vanilla_input=0` + `divergent=0` + `read_notes=0` ⇒ 每字段逐位相同）；判据一行未动 |
 | **顺带修的**：`MachineProbe` 抽样不再是确定性的 | `SERVER_TESTED` | 修前**同 jar 两轮读数就不同**（`input_readable` 65/64、`query_machine_route` 0/2、`recipe_order_hash` 5 轮 5 值）⇒ **旧读数全部作废**；修后**同 jar 三轮 SUMMARY 逐字相同** |
+| **T3 步骤 A** 探针可见性：枚举来源 = **配方注册表** | `SERVER_TESTED` | `unmapped_total=19`（`create` **15 类型/506 配方**、`ExtendedCrafting` **4 类型/25 配方**，**表里各 0 行**）；已登记部分读数逐字未变；两轮逐字相同 |
 
 **B3a 全文：`docs/reviews/2026-09-14-T3-B3a-读取器vanilla优先与探针确定性.md`**
 （含两个新事实：**机器配方不实现原版 `getIngredients()` 的物品语义**；**旧 `catch(Throwable ignored)`
 在本模组集下是潜在风险而非已发生的 bug** —— 对第 3 个模组才是真闸门）。
+**步骤 A 全文：`docs/reviews/2026-09-14-T3-步骤A-探针可见性.md`**（核心事实：旧探针的枚举来源就是
+`MachineMap` 本身 ⇒ **未登记命名空间连枚举都进不去**，所以 `unmapped=[]` 是"**看不见**"而不是"没有"；
+现在接 Create 的工作量 = **实测 15 行**、EC = **4 行**）。
 
 ## 3. ⚠️ 未验证 / 未做（**不要当成做完了**）
 
@@ -66,19 +70,24 @@
 - **R5-残**：`StationProvision.click` / `InventoryCraft.click` 未做编译期强制（~19 处机械重构）。
 - **`craft_check` 门禁缺口**（T2 新发现）：`machine_only_vanilla` 期望 `MACHINE_ROUTE`（需 Mekanism/Create），
   没装模组时它 `FAIL` 而非 `SKIP` —— 同文件 ⑥ 已有"没装该模组就 SKIP"的写法，④ 漏了前提声明。
-- **T3 剩余三步**（`create` / `ExtendedCrafting` **已在客户端 `mods/` 里**，接它们之前必须做完）：
-  **B3b** Port 化 `Facts`（每产出自带 `chance` + 长度断言 —— 今天 `outputs`/`chances` 是两个独立列表 +
-  空栈过滤 ⇒ **结构上无法配对**，A5）；**B4** 把 `MOD_ADAPTER_PROTOCOL.md:44-51` 的**散文判据**变成断言或删掉
-  + `UPSTREAMS[ns]["capabilities"]` 双向对账（反例现成：`MachineCycle` **0 处字面量**却写死 5 个上游访问器名）；
-  **M-4** 实测 EC 对不支持的机器返回 `NO_RECIPE` 还是 `MACHINE_RECIPE_UNSUPPORTED`。
+- **T3 剩余**（`create` / `ExtendedCrafting` **已在客户端 `mods/` 里**，接它们之前必须做完）：
+  **B4** 把 `MOD_ADAPTER_PROTOCOL.md:44-51` 的**散文判据**变成断言或删掉 + `UPSTREAMS[ns]["capabilities"]`
+  双向对账（反例现成：`MachineCycle` **0 处字面量**却写死 5 个上游访问器名）；**探针定点采样未登记类型**
+  （步骤 A 只报"有哪些类型"，**不报形状**；M-4 与 B3b 都要形状）；**M-4** 实测 EC 对不支持的机器返回
+  `NO_RECIPE` 还是 `MACHINE_RECIPE_UNSUPPORTED`；**B3b** Port 化 `Facts`（每产出自带 `chance` + 长度断言 ——
+  今天 `outputs`/`chances` 是两个独立列表 + 空栈过滤 ⇒ **结构上无法配对**，A5；等第 3 个模组同期做）。
 - **`query_reachable` 尚未升级为断言**（有意：measure first）—— 它是"读取器读出 X ⇒ 查询层不得对 X 报
   `NO_RECIPE`"这条真不变式，本轮只计数。
 
 ## 4. 待用户拍板（恢复后**先问这个**）
 
-1. **T3 剩余（B3b / B4 / M-4）**：步骤 1 与 B3a 已完成（§2b）。用户已定：**B3a 只改读取器 + 记出处**（已照做），
-   **B3b 等第 3 个模组同期做**（需要真实形状：EC 多输入 / Create 概率）。**B4 与 M-4 可离线推进**，
-   不需要用户拍板 ⇒ 恢复后优先做这两件。
+1. **T3 剩余（B4 / 定点采样 / M-4 / B3b）**：步骤 1、B3a、步骤 A 已完成（§2b）。用户已定：
+   **B3a 只改读取器 + 记出处**（已照做）；**B3b 等第 3 个模组同期做**。
+   **B4 需要你先拍一个设计**：`MOD_ADAPTER_PROTOCOL.md:44-51` 那条散文判据 —— **变成断言**还是**删掉**？
+   **定点采样与 M-4 可离线推进**（M-4 的前置已由步骤 A 解决：EC 机器类型 = `compressor`/`ender_crafter`/`flux_crafter`）。
+
+**下一轮"接第 3 个模组"的真实工作量（实测，不再是估计）**：`create` **15 行** + `ExtendedCrafting` **4 行**
+= **19 行** `MachineMap`（每行含方块/菜单/能力/取证件）+ `tools/machine-map.py` 的 `UPSTREAMS` 一段。
 2. 之后收残留：**R1-残 / R4-残 / R5-残** + `craft_check` 门禁缺口（台账 §8/§9，各有触发条件）。
 
 **上下文/文档纪律（AGENTS.md 已机器化，不用背）**：`AGENTS.md + PLAYBOOK + STATE ≤ 1476 行`

@@ -1075,10 +1075,25 @@ jar `3312608d…`。
     `query_machine_route` 0/2），**旧读数全部不能当基线**。修法 = 两处遍历 + 自检选样全部排序；
     修后**同 jar 三轮 SUMMARY 逐字相同、108 条抽样 id 顺序逐字相同**。
   - 报告全文 `docs/reviews/2026-09-14-T3-B3a-读取器vanilla优先与探针确定性.md`。
+- **✅ T3 步骤 A（探针可见性）已落地（2026-09-14）**：`MachineProbe` 的枚举来源由**表**改为**配方注册表**，
+  `unmapped` 遍历域扩到**全部非原版类型**，并对表里 0 行的命名空间逐条出声。**根因**：旧实现
+  `adoptedNamespaces()` = 遍历表行，而未登记命名空间**连枚举都进不去** ⇒ 「表里一行没有」与
+  「这个模组不存在」**输出完全同形**（`unmapped=[]` 是**看不见**，不是"没有"）。
+  - **实测（新读数，两轮逐字相同）**：`unmapped_total=19`；`create` **15 个类型 / 506 条配方**、
+    `ExtendedCrafting` **4 个类型 / 25 条配方**，**表里各 0 行**。**已登记部分读数逐字未变**。
+  - **买到什么**：①「接第 3 个模组」的工作量第一次是**实测值**（合计 **19 行** `MachineMap` + 每行
+    方块/菜单/能力 + `machine-map.py` 的 `UPSTREAMS`），不再是估计；② M-4 的前置
+    （"怎么摸到 EC 的机器类型"）自动解决 —— EC 的机器类型 = `compressor` / `ender_crafter` / `flux_crafter`
+    （`table` 是工作台）；③ 反面事实：`refinedstorage` / `sophisticated*` / `oreexcavation` / `cofh_core`
+    **没有任何非原版工作站配方类型** ⇒ 不需要表行（**当前模组集下的观测**，非永久断言）。
+  - `unmapped` 仍是 **warn-only**（不判红：模组集可变，"我们 0 行"是待办）。报告
+    `docs/reviews/2026-09-14-T3-步骤A-探针可见性.md`。
 - **T3 剩余（第 3 个模组之前必须做）**：**B3b** Port 化 `Facts`（每产出自带 `chance` + 长度断言 ——
   今天 `outputs`/`chances` 两个独立列表 + 空栈过滤 ⇒ **结构上无法配对**）；**B4** 把
   `MOD_ADAPTER_PROTOCOL.md:44-51` 的散文判据变成断言或删掉 + `UPSTREAMS[ns]["capabilities"]` 双向对账；
-  **M-4** 实测 EC 对不支持的机器返回 `NO_RECIPE` 还是 `MACHINE_RECIPE_UNSUPPORTED`。
+  **M-4** 实测 EC 对不支持的机器返回 `NO_RECIPE` 还是 `MACHINE_RECIPE_UNSUPPORTED`
+  （**前置已由步骤 A 解决**：EC 机器类型 = `compressor`/`ender_crafter`/`flux_crafter`；
+  但探针**仍不采样未登记命名空间** ⇒ 要看它们的输入/输出形状还需一次**定点采样**，是独立增量）。
 - **T3 模组 #3 的数据模型**：**`create-1.20.1-6.0.8.jar` 与 `ExtendedCrafting-1.20.1-6.0.10.jar`
   已经在客户端 `mods/` 里**，且按审查 §3.3 会被**静默读错**（读取器把 Mekanism 特例当通则、不试 vanilla 接口；
   `MachineMap` 的 1 方块↔1 类型不变式让 Thermal 6 行**已是错事实**）。
