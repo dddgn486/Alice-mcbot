@@ -75,11 +75,18 @@ public final class MachineRecipeFacts {
      * @param chanceOrigin  概率由谁给出（`mod:&lt;访问器名&gt;` / {@link #ORIGIN_NONE}；vanilla **没有**概率访问器）
      * @param divergent     vanilla 与模组名族**给出了不同结果**（本次采信 vanilla，差异仅留痕）
      * @param readNotes     **读不懂的留痕**：访问器调用失败、vanilla 与模组名族不一致（**不含"访问器不存在"**）
+     * @param modInputCount **模组名族单独**读出的物品输入条数（0 = 旧读取器——只有名族、不试原版——读不出输入）
+     * @param modOutputCount **模组名族单独**读出的产出条数（0 = 旧读取器读不出产出）
+     *                      <p>这两个数的唯一用途：**量化"原版优先"买到了多少覆盖**。
+     *                      `outputFromVanilla() &amp;&amp; modOutputCount() == 0` ⇒ **这条配方只有靠原版路径才读得出**，
+     *                      旧读取器在它身上会返回空产出（进而在查询层被判 `MACHINE_RECIPE_UNSUPPORTED`）。
+     *                      对接第 3 个模组时这是**承重与否**的判据，不是装饰。
      */
     public record Facts(String typeId, String recipeId, List<ItemStack> inputs, List<ItemStack> outputs,
                         boolean inputIngredientPresent, List<Float> outputChances,
                         String inputOrigin, String outputOrigin, String chanceOrigin,
-                        boolean divergent, List<String> readNotes) {
+                        boolean divergent, List<String> readNotes,
+                        int modInputCount, int modOutputCount) {
 
         /** 物品语义上**可读**（输入与输出都有物品形态）。 */
         public boolean itemReadable() {
@@ -132,7 +139,7 @@ public final class MachineRecipeFacts {
     }
 
     public static final Facts EMPTY = new Facts("-", "-", List.of(), List.of(), false, List.of(),
-            ORIGIN_NONE, ORIGIN_NONE, ORIGIN_NONE, false, List.of());
+            ORIGIN_NONE, ORIGIN_NONE, ORIGIN_NONE, false, List.of(), 0, 0);
 
     private MachineRecipeFacts() {
     }
@@ -217,7 +224,7 @@ public final class MachineRecipeFacts {
                 chances(modChance == null ? null : modChance.value()),
                 inputOrigin, outputOrigin,
                 modChance == null ? ORIGIN_NONE : "mod:" + modChance.name(),
-                divergent, List.copyOf(notes));
+                divergent, List.copyOf(notes), modIns.size(), modOuts.size());
     }
 
     /** 一次成功的访问器命中：**名字**（= 出处）+ 值。 */

@@ -47,6 +47,7 @@
 | **T3 步骤 B3a** 读取器「先原版、再名族」+ 逐字段出处 | `SERVER_TESTED` | **值不变且被证明**（`vanilla_input=0` + `divergent=0` + `read_notes=0` ⇒ 每字段逐位相同）；判据一行未动 |
 | **顺带修的**：`MachineProbe` 抽样不再是确定性的 | `SERVER_TESTED` | 修前**同 jar 两轮读数就不同**（`input_readable` 65/64、`query_machine_route` 0/2、`recipe_order_hash` 5 轮 5 值）⇒ **旧读数全部作废**；修后**同 jar 三轮 SUMMARY 逐字相同** |
 | **T3 步骤 A** 探针可见性：枚举来源 = **配方注册表** | `SERVER_TESTED` | `unmapped_total=19`（`create` **15 类型/506 配方**、`ExtendedCrafting` **4 类型/25 配方**，**表里各 0 行**）；已登记部分读数逐字未变；两轮逐字相同 |
+| **T3 步骤 A2+C** 未登记类型的形状 + M-4 查询层判决 | `SERVER_TESTED`（**两轮同 jar：轮 1 因无关的 `partial_search` 非确定性变红，轮 2 `(30/30) PASS`**） | ⭐ `unregistered_vanilla_only_out=37/37` ⇒ **模组名族对 Create/EC 读不出产出**，是 B3a 的原版路径在读 ⇒ **B3a 对接第 3 个模组是承重的**（改前这批会判 `MACHINE_RECIPE_UNSUPPORTED`）；M-4：`query_no_recipe=0`、`reachable=6/6` ⇒ 查询层对新模组物品诚实 |
 
 **B3a 全文：`docs/reviews/2026-09-14-T3-B3a-读取器vanilla优先与探针确定性.md`**
 （含两个新事实：**机器配方不实现原版 `getIngredients()` 的物品语义**；**旧 `catch(Throwable ignored)`
@@ -71,13 +72,20 @@
 - **`craft_check` 门禁缺口**（T2 新发现）：`machine_only_vanilla` 期望 `MACHINE_ROUTE`（需 Mekanism/Create），
   没装模组时它 `FAIL` 而非 `SKIP` —— 同文件 ⑥ 已有"没装该模组就 SKIP"的写法，④ 漏了前提声明。
 - **T3 剩余**（`create` / `ExtendedCrafting` **已在客户端 `mods/` 里**，接它们之前必须做完）：
-  **B4** 把 `MOD_ADAPTER_PROTOCOL.md:44-51` 的**散文判据**变成断言或删掉 + `UPSTREAMS[ns]["capabilities"]`
-  双向对账（反例现成：`MachineCycle` **0 处字面量**却写死 5 个上游访问器名）；**探针定点采样未登记类型**
-  （步骤 A 只报"有哪些类型"，**不报形状**；M-4 与 B3b 都要形状）；**M-4** 实测 EC 对不支持的机器返回
-  `NO_RECIPE` 还是 `MACHINE_RECIPE_UNSUPPORTED`；**B3b** Port 化 `Facts`（每产出自带 `chance` + 长度断言 ——
-  今天 `outputs`/`chances` 是两个独立列表 + 空栈过滤 ⇒ **结构上无法配对**，A5；等第 3 个模组同期做）。
+  **B4**（**需你先拍**：`MOD_ADAPTER_PROTOCOL.md:44-51` 的散文判据 **变成断言**还是**删掉**？）
+  + `UPSTREAMS[ns]["capabilities"]` 双向对账（反例现成：`MachineCycle` **0 处字面量**却写死 5 个上游访问器名）；
+  **接第 3 个模组本身**：`MachineMap` 加 **19 行**（Create 15 + EC 4）+ 每行方块/菜单/能力 + `machine-map.py`
+  的 `UPSTREAMS` 一段；**B3b** Port 化 `Facts`（每产出自带 `chance` + 长度断言 —— 今天 `outputs`/`chances`
+  是两个独立列表 + 空栈过滤 ⇒ **结构上无法配对**，A5；等第 3 个模组同期做）。
 - **`query_reachable` 尚未升级为断言**（有意：measure first）—— 它是"读取器读出 X ⇒ 查询层不得对 X 报
   `NO_RECIPE`"这条真不变式，本轮只计数。
+- **⚠️ 通道缺陷（新，未修）：`partial_search` 非确定性** —— 同一 jar 两轮 1 FAIL / 1 PASS。
+  失败输入 = 起步时 bot 未落地（`on_ground=false`、`from.z=404` vs `406`）⇒ 该用例的 2 节点预算下
+  规划器**没有前缀可交**（返回 `SEARCH_LIMIT`，**规划器正确、夹具前提不成立**）。
+  根因假设：步骤间**无起点锚定/落地同步**（`partial_search` 起点参数为 `null` 且夹具自称"不移动 bot"；
+  电池对 premise 的 `on_ground` **只打日志不行动**，见 `RegressionBatteryTask.java:684-691`）。
+  **触发条件 = `premise … on_ground=false`** ⇒ grep 这一行即可判断某次红是不是它。
+  **修复方向未实施**（按修复纪律先讨论）：premise 有界等待落地（通用）／夹具自锚固定起点（§3.2）。
 
 ## 4. 待用户拍板（恢复后**先问这个**）
 
@@ -88,6 +96,12 @@
 
 **下一轮"接第 3 个模组"的真实工作量（实测，不再是估计）**：`create` **15 行** + `ExtendedCrafting` **4 行**
 = **19 行** `MachineMap`（每行含方块/菜单/能力/取证件）+ `tools/machine-map.py` 的 `UPSTREAMS` 一段。
+**并且 B3a 已被证明是它的承重前提**（`unregistered_vanilla_only_out=37/37`：名族读不出 Create/EC，
+是原版路径在读）—— 好消息是这一步已经做完并验证过了。
+
+2. **还有一个独立的通道缺陷等你定方向**：`partial_search` 非确定性（§3 末条）。
+   我倾向"premise 有界等待落地"（通用、一处修全部步骤），但它是**电池语义**的改动（会让步骤等待，
+   可能掩盖"某步真的把 bot 留在半空"这类真 bug）⇒ 值得你过一眼再动手。
 2. 之后收残留：**R1-残 / R4-残 / R5-残** + `craft_check` 门禁缺口（台账 §8/§9，各有触发条件）。
 
 **上下文/文档纪律（AGENTS.md 已机器化，不用背）**：`AGENTS.md + PLAYBOOK + STATE ≤ 1476 行`

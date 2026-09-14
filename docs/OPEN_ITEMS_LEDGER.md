@@ -1088,12 +1088,35 @@ jar `3312608d…`。
     **没有任何非原版工作站配方类型** ⇒ 不需要表行（**当前模组集下的观测**，非永久断言）。
   - `unmapped` 仍是 **warn-only**（不判红：模组集可变，"我们 0 行"是待办）。报告
     `docs/reviews/2026-09-14-T3-步骤A-探针可见性.md`。
+- **✅ T3 步骤 A2 + C（形状与查询层判决）已落地（2026-09-14）**：未登记命名空间做**纯只读**形状定点采样
+  （同一份读取器；**只加新键、现有 8 个桶一个不动**），并拿抽样产出物去问生产查询层。
+  - **读数**（两轮同 jar 逐字相同）：`unregistered_sampled=37`；`create` 29/29、`extendedcrafting` 8/8
+    **产出可读**；`unregistered_notes=0`（两个新模组也没有访问器抛异常）。
+  - **⭐ 承重结论**：`unregistered_vanilla_only_in=35/37`、`unregistered_vanilla_only_out=37/37`
+    ⇒ **模组名族对 Create/EC 读出的产出是空的**，是步骤 B3a 的**原版路径**在读它们
+    ⇒ **改前这批会被判 `MACHINE_RECIPE_UNSUPPORTED`**（19 个类型 / 37 条抽样）。
+    **B3a 对接第 3 个模组不是卫生工作，是承重的**；而这个判决差异**在做步骤 A 之前根本无法观测**。
+  - **M-4 已答**：`unregistered_query_no_recipe=0`、`query_reachable=6/6`、
+    `verdicts={MACHINE_ROUTE=2, MISSING_INGREDIENTS=4}` ⇒ 查询层**没有**把"明明做得出来"报成 `NO_RECIPE`
+    （站点如实回落成类型 id，因为表里没有该模组的行 ⇒ 不猜方块）。**边界**：37 条抽样 ≠ 全部 531 条；
+    `MACHINE_ROUTE` 只表示"读得出"，执行侧仍如实拒绝。
+- **⚠️ 【通道缺陷·新】`partial_search` 非确定性（2026-09-14 实测，触发条件已定位）**：
+  **同一 jar 两轮**，轮 1 `partial_search=FAIL`（`(29/30)`）、轮 2 `PASS`（`(30/30)`）。
+  失败用例 `partial_with_prefix`（`SearchBudget.of(2,0L)`）在起步时 bot **未落地**（`on_ground=false`、
+  `from.z=404` vs 正常 `406`）⇒ 规划器只扩 2 节点且无改善（`best=0.0`）⇒ **没有前缀可交**，
+  返回 `SEARCH_LIMIT` —— **规划器行为正确，是夹具前提不成立**（`elapsedMs=0`，非时间问题）。
+  **根因（假设）**：步骤间**无起点锚定/落地同步** —— ① `partial_search` 在电池里注册的起点参数是 `null`
+  且夹具自称"不移动 bot"；② 电池对 premise 的 `on_ground` **只打日志不行动**
+  （`RegressionBatteryTask.java:684-691`，而 `ownMenu` 不 ok 会 `closeContainer()`）。
+  **修复方向（未实施）**：premise 里 `onGround` 不 ok 时**有界等待**（通用、一处修全部步骤）；
+  或 `partial_search` 自锚固定起点 + 结束复位（§3.2 两条硬纪律，需选平地、碰场景）。
+  **触发条件**：起步时 bot 未落地（`premise … on_ground=false`）。
 - **T3 剩余（第 3 个模组之前必须做）**：**B3b** Port 化 `Facts`（每产出自带 `chance` + 长度断言 ——
   今天 `outputs`/`chances` 两个独立列表 + 空栈过滤 ⇒ **结构上无法配对**）；**B4** 把
   `MOD_ADAPTER_PROTOCOL.md:44-51` 的散文判据变成断言或删掉 + `UPSTREAMS[ns]["capabilities"]` 双向对账；
-  **M-4** 实测 EC 对不支持的机器返回 `NO_RECIPE` 还是 `MACHINE_RECIPE_UNSUPPORTED`
-  （**前置已由步骤 A 解决**：EC 机器类型 = `compressor`/`ender_crafter`/`flux_crafter`；
-  但探针**仍不采样未登记命名空间** ⇒ 要看它们的输入/输出形状还需一次**定点采样**，是独立增量）。
+  **M-4 已答**（见上：`query_no_recipe=0`，查询层诚实）；
+  **仍未做**：`MachineMap` 那 **19 行**（Create 15 + EC 4）与该模组的 `UPSTREAMS` 能力声明 ——
+  那才是"接第 3 个模组"本身。
 - **T3 模组 #3 的数据模型**：**`create-1.20.1-6.0.8.jar` 与 `ExtendedCrafting-1.20.1-6.0.10.jar`
   已经在客户端 `mods/` 里**，且按审查 §3.3 会被**静默读错**（读取器把 Mekanism 特例当通则、不试 vanilla 接口；
   `MachineMap` 的 1 方块↔1 类型不变式让 Thermal 6 行**已是错事实**）。

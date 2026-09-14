@@ -130,6 +130,9 @@ public class MachineProbeTask implements Task {
         // （否则每个模组都会撑长一轮的时间，而"能不能接"与"采样多少条"是两件事）。
         java.util.Set<String> allTypes = new java.util.TreeSet<>();
         Map<String, Integer> recipesByNamespace = new java.util.TreeMap<>();
+        // **T3 步骤 A2**：未登记命名空间的配方也留一份（类型 id 有序）⇒ 可以定点采它们的**形状**。
+        // 与 `byType` 完全分开：现有 8 个桶、`samples`、`machineOutputs` **一个都不碰**，基线不移动。
+        Map<String, List<Recipe<?>>> unregisteredByType = new java.util.TreeMap<>();
         int readable = 0;
         int skipped = 0;
         for (Recipe<?> recipe : server.getRecipeManager().getRecipes()) {
@@ -148,6 +151,8 @@ public class MachineProbeTask implements Task {
             recipesByNamespace.merge(namespace, 1, Integer::sum);
             if (adopted.contains(namespace)) {
                 byType.computeIfAbsent(typeId, key -> new ArrayList<>()).add(recipe);
+            } else {
+                unregisteredByType.computeIfAbsent(typeId, key -> new ArrayList<>()).add(recipe);
             }
         }
         // 每个命名空间的**去重类型数**（配方条数另算）—— 这一个数就回答"要接的模组有多少个机器类型"。
@@ -414,6 +419,122 @@ public class MachineProbeTask implements Task {
                             + " input_readable={} chance_declared={}",
                     namespace, value[0], value[1], value[2], value[3], value[4], value[5], value[6], value[7]);
         }
+
+        // ==================== T3 步骤 A2：未登记命名空间的**形状**（纯只读定点采样） ====================
+        // 步骤 A 回答了"要不要接"（有哪些类型、各多少条），但回答不了"**接了要写什么**"：
+        // `MachineMap` 的行内容与 `UPSTREAMS` 的能力声明，输入是**形状** —— 物品输入还是非物品输入？
+        // 产出读得出吗？有概率信息吗？**与已登记命名空间同一份读取器**（不另写一份 ⇒ 不会出现口径漂移）。
+        // **只读**：只读配方对象，不碰世界、不碰方块实体、不写任何东西。
+        int unregisteredTypes = 0;
+        int unregisteredSampled = 0;
+        int unregisteredOutputReadable = 0;
+        int unregisteredItemReadable = 0;
+        int unregisteredNonItemInput = 0;
+        int unregisteredChanceDeclared = 0;
+        // **承重判据**：`vanilla 赢 且 名族读不出` ⇒ 这条配方**只有靠原版路径**才读得出，
+        // 旧读取器（只有名族）在它身上会返回空产出/空输入。见 `Facts#modOutputCount`。
+        int unregisteredVanillaOnlyIn = 0;
+        int unregisteredVanillaOnlyOut = 0;
+        java.util.LinkedHashSet<String> unregisteredNotes = new java.util.LinkedHashSet<>();
+        // 每个未登记命名空间采到的**产出物品**（有序）⇒ 步骤 C/M-4 拿它们去问生产查询层。
+        Map<String, java.util.TreeSet<String>> unregisteredOutputsByNamespace = new java.util.TreeMap<>();
+        // {types, sampled, out_readable, item_readable, non_item_in, chance}
+        Map<String, int[]> shapeByNamespace = new java.util.TreeMap<>();
+        for (Map.Entry<String, List<Recipe<?>>> entry : unregisteredByType.entrySet()) {
+            String typeId = entry.getKey();
+            int[] shape = shapeByNamespace.computeIfAbsent(
+                    typeId.substring(0, typeId.indexOf(':')), key -> new int[6]);
+            shape[0]++;
+            unregisteredTypes++;
+            List<Recipe<?>> typeRecipes = new ArrayList<>(entry.getValue());
+            typeRecipes.sort(java.util.Comparator.comparing((Recipe<?> recipe) -> recipe.getId().toString()));
+            BotLog.info("[MachineProbe]   未登记 type={} count={}", typeId, typeRecipes.size());
+            int shown = 0;
+            for (Recipe<?> recipe : typeRecipes) {
+                if (shown++ >= SAMPLES_PER_TYPE) {
+                    break;
+                }
+                MachineRecipeFacts.Facts facts = MachineRecipeFacts.read(recipe, access);
+                unregisteredSampled++;
+                shape[1]++;
+                if (!facts.outputs().isEmpty()) {
+                    unregisteredOutputReadable++;
+                    shape[2]++;
+                }
+                if (facts.itemReadable()) {
+                    unregisteredItemReadable++;
+                    shape[3]++;
+                }
+                if (facts.nonItemInput()) {
+                    unregisteredNonItemInput++;
+                    shape[4]++;
+                }
+                if (facts.chanceDeclared()) {
+                    unregisteredChanceDeclared++;
+                    shape[5]++;
+                }
+                if (facts.inputFromVanilla() && facts.modInputCount() == 0) {
+                    unregisteredVanillaOnlyIn++;
+                }
+                if (facts.outputFromVanilla() && facts.modOutputCount() == 0) {
+                    unregisteredVanillaOnlyOut++;
+                }
+                for (net.minecraft.world.item.ItemStack stack : facts.outputs()) {
+                    unregisteredOutputsByNamespace
+                            .computeIfAbsent(typeId.substring(0, typeId.indexOf(':')),
+                                    key -> new java.util.TreeSet<>())
+                            .add(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
+                }
+                unregisteredNotes.addAll(facts.readNotes());
+                BotLog.info("[MachineProbe]     未登记 sample id={} out={} in={} non_item_in={} chances={}"
+                                + " origin(in/out)={}/{} mod_family(in/out)={}/{}",
+                        recipe.getId(), summariseStacks(facts.outputs()), summariseStacks(facts.inputs()),
+                        facts.nonItemInput(), facts.chanceDeclared(),
+                        facts.inputOrigin(), facts.outputOrigin(),
+                        facts.modInputCount(), facts.modOutputCount());
+            }
+        }
+        for (Map.Entry<String, int[]> entry : shapeByNamespace.entrySet()) {
+            int[] shape = entry.getValue();
+            BotLog.info("[MachineProbe] 未登记形状 ns={} types={} sampled={} out_readable={} item_readable={}"
+                            + " non_item_input={} chance_declared={}",
+                    entry.getKey(), shape[0], shape[1], shape[2], shape[3], shape[4], shape[5]);
+        }
+        BotLog.info("[MachineProbe] 未登记承重（原版路径**唯一**读得出）in={}/{} out={}/{} ⇒ "
+                        + "旧读取器（只有名族）会读出 {} 条空产出",
+                unregisteredVanillaOnlyIn, unregisteredSampled,
+                unregisteredVanillaOnlyOut, unregisteredSampled, unregisteredVanillaOnlyOut);
+
+        // ==================== T3 步骤 C / M-4：未登记模组产物的**查询层判决** ====================
+        // 问题（勘察 §D M-4）：一个"只有某未登记机器能产出"的物品，查询层报 `NO_RECIPE`（**不诚实**：
+        // 它明明做得出来）还是 `MACHINE_RECIPE_UNSUPPORTED`（诚实：只由我们不支持的机器类型产出）？
+        // 这三条分支的实际判据（`RecipeQuery`）：读出名族/原版产出 ⇒ `MACHINE_ROUTE`；读不出产出但
+        // 原版 `getResultItem` 命中 ⇒ `MACHINE_RECIPE_UNSUPPORTED`；**两者都不命中 ⇒ `NO_RECIPE`**。
+        // 与已登记侧的自检**完全分开计数**（`query_probed`/`query_reachable`/`query_machine_route` 一个不动）。
+        int unregisteredQueryProbed = 0;
+        int unregisteredQueryReachable = 0;
+        int unregisteredQueryNoRecipe = 0;
+        Map<String, Integer> unregisteredVerdicts = new java.util.TreeMap<>();
+        for (Map.Entry<String, java.util.TreeSet<String>> entry : unregisteredOutputsByNamespace.entrySet()) {
+            for (String itemId : entry.getValue().stream().sorted().limit(SELF_CHECK_ITEMS).toList()) {
+                net.minecraft.world.item.Item item =
+                        BuiltInRegistries.ITEM.get(ResourceLocation.tryParse(itemId));
+                if (item == net.minecraft.world.item.Items.AIR) {
+                    continue;
+                }
+                unregisteredQueryProbed++;
+                var result = com.dddgn.alice.task.craft.RecipeQuery.query(server, bot, item, 1);
+                unregisteredVerdicts.merge(result.verdict().name(), 1, Integer::sum);
+                if (result.verdict() == com.dddgn.alice.task.craft.RecipeQuery.Verdict.NO_RECIPE) {
+                    unregisteredQueryNoRecipe++;
+                } else {
+                    unregisteredQueryReachable++;
+                }
+                BotLog.info("[MachineProbe] 未登记查询 ns={} item={} verdict={} {}", entry.getKey(), itemId,
+                        result.verdict(), result.describe());
+            }
+        }
+
         int pending = WorldModLedger.pendingForOwner(server, bot.getUUID()).size();
         if (pending != 0) {
             failed = true;
@@ -448,6 +569,17 @@ public class MachineProbeTask implements Task {
                 .append(" unmapped_total=").append(unmapped.size())
                 .append(" unmapped=").append(bounded(unmapped))
                 .append(" unregistered_ns=").append(describeUnregistered(typesByNamespace, adopted, recipesByNamespace))
+                .append(" unregistered_types=").append(unregisteredTypes)
+                .append(" unregistered_sampled=").append(unregisteredSampled)
+                .append(" unregistered_shape=").append(describeShape(shapeByNamespace))
+                .append(" unregistered_vanilla_only_in=").append(unregisteredVanillaOnlyIn)
+                .append(" unregistered_vanilla_only_out=").append(unregisteredVanillaOnlyOut)
+                .append(" unregistered_query_probed=").append(unregisteredQueryProbed)
+                .append(" unregistered_query_reachable=").append(unregisteredQueryReachable)
+                .append(" unregistered_query_no_recipe=").append(unregisteredQueryNoRecipe)
+                .append(" unregistered_verdicts=").append(unregisteredVerdicts)
+                .append(" unregistered_notes=").append(unregisteredNotes.size())
+                .append(unregisteredNotes.isEmpty() ? "" : " unregistered_notes_sample=" + bounded(unregisteredNotes.stream().toList()))
                 .append(" row_block_missing=").append(rowBlockMissing)
                 .append(" no_writes=").append(pending == 0)
                 .append(" verdict=").append(failed ? "FAIL" : (types == 0 ? "SKIP" : "PASS"));
@@ -482,6 +614,31 @@ public class MachineProbeTask implements Task {
             return values.toString();
         }
         return values.subList(0, MAX_UNMAPPED_IN_SUMMARY) + " …(共 " + values.size() + ")";
+    }
+
+    /** `[ns{t=类型,s=抽样,out=产出可读,item=物品可读,nonitem=非物品输入,chance=声明概率}, …]`。 */
+    private static String describeShape(Map<String, int[]> shapeByNamespace) {
+        StringBuilder sb = new StringBuilder("[");
+        for (Map.Entry<String, int[]> entry : shapeByNamespace.entrySet()) {
+            int[] shape = entry.getValue();
+            if (sb.length() > 1) {
+                sb.append(", ");
+            }
+            sb.append(entry.getKey()).append("{t=").append(shape[0]).append(",s=").append(shape[1])
+                    .append(",out=").append(shape[2]).append(",item=").append(shape[3])
+                    .append(",nonitem=").append(shape[4]).append(",chance=").append(shape[5]).append('}');
+        }
+        return sb.append(']').toString();
+    }
+
+    /** 物品栈列表的紧凑摘要（**只用于留痕，不用于判据**；空列表 ⇒ `-`）。 */
+    private static String summariseStacks(List<net.minecraft.world.item.ItemStack> stacks) {
+        if (stacks.isEmpty()) {
+            return "-";
+        }
+        return stacks.stream().limit(3)
+                .map(stack -> BuiltInRegistries.ITEM.getKey(stack.getItem()) + "x" + stack.getCount())
+                .collect(java.util.stream.Collectors.joining(","));
     }
 
     /** `[ns=types,…]`：表里 0 行的命名空间各有多少个机器类型（**接下一个模组的第一份读数**）。 */
