@@ -24,15 +24,34 @@ import java.util.Map;
  * **不含这些类型的输入/输出样例**（它们本来就不在原版白名单里）⇒ 认机器（S2）之前必须先**取证**：
  * 这些类型长什么样、输入输出是什么形态。
  *
- * <p>口径（与协议 §1 的"只读先于执行"一致）：**只读** `RecipeManager`，按**命名空间**过滤、
+ * <p>口径（与协议 §1 的"只读先于执行"一致）：**只读** `RecipeManager`，按**命名空间**过滤
+ * （命名空间 = {@code MachineMap} 表里出现过的那些，**按表推导、不写死**）、
  * 按**类型**聚合，每类最多打 {@value #SAMPLES_PER_TYPE} 条样例；**不改世界、不发包、不派任务**。
  * S1 的产出 = 用这批事实去写"类型 → 输入/输出 + 机器类型"的读法（只读），并升级查询层的拒绝码。
  */
 public class MachineProbeTask implements Task {
 
-    /** 本轮取证对象（S0 的第一大户；换模组只改这里 + 入口名字）。 */
-    private static final String NAMESPACE = "mekanism";
-    /** 每个类型最多打几条样例（有界：26 类 × 2 条，够定 S2 的范围，又不至于刷屏）。 */
+    /**
+     * 本轮取证对象 = **`MachineMap` 表里出现过的全部命名空间**（S3 起不再写死一个常量，台账⑭）。
+     *
+     * <p>为什么必须按表推导：表加了第二个模组（Thermal）之后，写死 `"mekanism"` 会让
+     * **26 个 Thermal 站点行永远进不了 `with_site_confirmed`** —— 它们全部落进 `with_site_unobserved`，
+     * 而那个桶的日志文案写的是"上游 0 配方或模组集差异" ⇒ 会把"**探针没采样这个命名空间**"
+     * 误读成"该模组没有配方"（第十四轮实测 `22 + 27 + 10 + 0 = 59` 才发现）。
+     * 表是唯一真源 ⇒ 探针跟着表走，加模组**不用改这里**。
+     */
+    private static List<String> adoptedNamespaces() {
+        java.util.LinkedHashSet<String> namespaces = new java.util.LinkedHashSet<>();
+        for (MachineMap.Row row : MachineMap.rows()) {
+            int colon = row.typeId().indexOf(':');
+            if (colon > 0) {
+                namespaces.add(row.typeId().substring(0, colon));
+            }
+        }
+        return List.copyOf(namespaces);
+    }
+
+    /** 每个类型最多打几条样例（有界：够定 S2/S3 的范围，又不至于刷屏）。 */
     private static final int SAMPLES_PER_TYPE = 2;
     private static final int MAX_TICKS = 40;
 
@@ -65,9 +84,10 @@ public class MachineProbeTask implements Task {
 
     @Override
     public String failureReason() {
-        // 该命名空间**没有**被跳过的机器类型 ⇒ 模组不在/不适用 ⇒ 由电池记 SKIP（不判红）
+        // 表里那些命名空间**一个类型都没被跳过** ⇒ 模组不在/不适用 ⇒ 由电池记 SKIP（不判红）。
+        // 电池侧的判据是 `failureReason().contains("_absent")`，所以**后缀必须保留**。
         if (typeCount == 0) {
-            return NAMESPACE + "_absent";
+            return "machine_namespaces_absent";
         }
         return failed ? "probe_failed" : "";
     }
@@ -151,6 +171,8 @@ public class MachineProbeTask implements Task {
     private void run() {
         var server = bot.getServer();
         var access = server.registryAccess();
+        List<String> namespaces = adoptedNamespaces();
+        java.util.Set<String> adopted = new java.util.LinkedHashSet<>(namespaces);
         Map<String, List<Recipe<?>>> byType = new LinkedHashMap<>();
         int readable = 0;
         int skipped = 0;
@@ -161,7 +183,8 @@ public class MachineProbeTask implements Task {
                 continue;
             }
             skipped++;
-            if (typeId.startsWith(NAMESPACE)) {
+            int colon = typeId.indexOf(':');
+            if (colon > 0 && adopted.contains(typeId.substring(0, colon))) {
                 byType.computeIfAbsent(typeId, key -> new ArrayList<>()).add(recipe);
             }
         }
@@ -171,15 +194,16 @@ public class MachineProbeTask implements Task {
         int machineOutputNotItem = 0;
         int inputReadable = 0;
         java.util.LinkedHashSet<String> machineOutputs = new java.util.LinkedHashSet<>();
+        Map<String, int[]> perNamespace = new LinkedHashMap<>();
         int types = byType.size();
         typeCount = types;
         int typeTotal = byType.values().stream().mapToInt(List::size).sum();
-        BotLog.info("[MachineProbe] 命名空间={} 类型={} 条数={}（全表：可读={} 跳过={}）",
-                NAMESPACE, types, typeTotal, readable, skipped);
+        BotLog.info("[MachineProbe] 命名空间={}（按 `MachineMap` 推导，不再写死）类型={} 条数={}（全表：可读={} 跳过={}）",
+                namespaces, types, typeTotal, readable, skipped);
 
         // ==================== S3（D-209）机器映射覆盖检查 ====================
         // 口径：**先把表里的行分完桶**（表行数 == 各桶之和，可自校），再反查运行时多出来的类型。
-        // 分桶对表行做**完整划分**，因此"表 27 行、mapped 22"这种看着像缺口的数字不再出现歧义：
+        // 分桶对表行做**完整划分**，因此"表 59 行、mapped 22"这种看着像缺口的数字不再出现歧义：
         //   with_site_confirmed  = 有站点，且该类型**在配方管理器里出现** ⇒ 本模组集下已核对
         //   with_site_unobserved = 有站点，但该类型**没在管理器里出现** ⇒ 上游 0 配方（如 smelting）时
         //                          管理器里根本没这个键；**只报事实不判红**（配方可被数据包/配置增删，
@@ -242,6 +266,11 @@ public class MachineProbeTask implements Task {
                 MachineMap.describe(), rowCount, withSiteConfirmed.size(), withSiteUnobserved, noSite, unmapped);
         for (Map.Entry<String, List<Recipe<?>>> entry : byType.entrySet()) {
             BotLog.info("[MachineProbe]   type={} count={}", entry.getKey(), entry.getValue().size());
+            // 每个命名空间各自的桶：types / recipes / samples / unreadable / upstream_readable / not_item / input_readable
+            int[] namespaceBucket = perNamespace.computeIfAbsent(
+                    entry.getKey().substring(0, entry.getKey().indexOf(':')), key -> new int[7]);
+            namespaceBucket[0]++;
+            namespaceBucket[1] += entry.getValue().size();
             int shown = 0;
             for (Recipe<?> recipe : entry.getValue()) {
                 if (shown++ >= SAMPLES_PER_TYPE) {
@@ -261,21 +290,26 @@ public class MachineProbeTask implements Task {
                 }
                 java.util.List<ItemStack> upstream = upstreamOutputDefinition(recipe);
                 samples++;
+                namespaceBucket[2]++;
                 boolean vanillaReadable = !out.isEmpty() && out.getItem() != net.minecraft.world.item.Items.AIR;
                 if (!vanillaReadable) {
                     unreadableViaVanilla++;
+                    namespaceBucket[3]++;
                 }
                 if (!upstream.isEmpty()) {
                     upstreamReadable++;
+                    namespaceBucket[4]++;
                     if (machineOutputs.size() < 3) {
                         machineOutputs.add(BuiltInRegistries.ITEM.getKey(upstream.get(0).getItem()).toString());
                     }
                 } else if (!vanillaReadable) {
                     machineOutputNotItem++;   // 原版读不出、上游也没给出物品输出 ⇒ 如实归为"非物品输出"
+                    namespaceBucket[5]++;
                 }
                 java.util.List<String> upstreamIn = upstreamInputRepresentations(recipe);
                 if (!upstreamIn.isEmpty()) {
                     inputReadable++;
+                    namespaceBucket[6]++;
                 }
                 BotLog.info("[MachineProbe]     sample id={} out={} x{} in={} upstream_item_out={} upstream_in={}",
                         recipe.getId(), BuiltInRegistries.ITEM.getKey(out.getItem()), out.getCount(), ins,
@@ -303,12 +337,20 @@ public class MachineProbeTask implements Task {
             BotLog.info("[MachineProbe] query item={} verdict={} {}", itemId, result.verdict(),
                     result.describe());
         }
+        // 逐命名空间各打一行（SUMMARY 里保留全局合计）：这样"哪一族覆盖了多少"不必从总量里反推，
+        // 也避免"26 个 Thermal 行没被采样"被读成"Thermal 没有配方"（台账⑭ 的教训）。
+        for (String namespace : namespaces) {
+            int[] value = perNamespace.getOrDefault(namespace, new int[7]);
+            BotLog.info("[MachineProbe] namespace={} types={} type_recipes={} samples={}"
+                            + " unreadable_via_vanilla={} upstream_readable={} machine_output_not_item={} input_readable={}",
+                    namespace, value[0], value[1], value[2], value[3], value[4], value[5], value[6]);
+        }
         int pending = WorldModLedger.pendingForOwner(server, bot.getUUID()).size();
         if (pending != 0) {
             failed = true;
         }
         StringBuilder summary = new StringBuilder();
-        summary.append("namespace=").append(NAMESPACE)
+        summary.append("namespaces=").append(namespaces)
                 .append(" types=").append(types)
                 .append(" type_recipes=").append(typeTotal)
                 .append(" readable_total=").append(readable)

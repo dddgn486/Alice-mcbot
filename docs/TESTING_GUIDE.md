@@ -472,7 +472,8 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
   加机器 = 表里已有行 + 场景多一个 `setblock`，**不改 Java**。
 - **电池步**（零参数、无需你手动点）：
   - `machine_route`（S1）：机器配方**只读**——问上游自述读输入/输出 + 查询层给 `MACHINE_ROUTE`；
-    S3 起多打机器映射覆盖：`machine_map_rows=27 with_site_confirmed=22 with_site_unobserved=[…] no_site=[…] unmapped=[] row_block_missing=[]`；
+    S3 起多打机器映射覆盖（**采样哪些命名空间按 `MachineMap` 表推导**，所以再加模组不用改探针）：
+    `machine_map_rows=59 with_site_confirmed=46 with_site_unobserved=[mekanism:smelting, thermal:brewer, thermal:hive_extractor] no_site=[…10 个…] unmapped=[] row_block_missing=[]`（**第十五轮起的新基线，待复核**）；
   - `machine_station`（S3 起是**两台一组**）：**按 `MachineMap` 认机器**（不再按"命名空间里最近的方块"），
     每台一组 `m1_*` / `m2_*`：`m1_type / m1_block / m1_be / m1_reach / m1_menu_class / m1_slots /
     m1_be_recipe_type / m1_binding`；夹具**自带传送与结束复位**；机器不在 ⇒ SKIP。
@@ -482,20 +483,24 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
 ### S3 关键行怎么读（`latest.log`）
 
 ```
+[MachineProbe] 命名空间=[mekanism, thermal]（按 `MachineMap` 推导，不再写死）类型=56 条数=1823（全表：可读=3714 跳过=2354）
 [MachineProbe] 机器映射 machine_rows=59 with_site=49 no_site=10 declared_menu=2 executable=1 source=… source_thermal=…
-[MachineProbe] SUMMARY … machine_map_rows=59 with_site_confirmed=22 with_site_unobserved=[mekanism:smelting, thermal:bottler, …, thermal:tree_extractor] no_site=[…10 个…] unmapped=[] row_block_missing=[] …
+[MachineProbe] namespace=mekanism types=26 type_recipes=1171 samples=51 unreadable_via_vanilla=… upstream_readable=… machine_output_not_item=… input_readable=…
+[MachineProbe] namespace=thermal types=30 type_recipes=652 samples=57 unreadable_via_vanilla=… upstream_readable=… machine_output_not_item=… input_readable=…
+[MachineProbe] SUMMARY … namespaces=[mekanism, thermal] types=56 type_recipes=1823 machine_map_rows=59 with_site_confirmed=46 with_site_unobserved=[mekanism:smelting, thermal:brewer, thermal:hive_extractor] no_site=[…10 个…] unmapped=[] row_block_missing=[] …
 [MachineStation] 按表找到 2 台：mekanism:enriching@66, 64, 306,mekanism:crushing@66, 64, 307
 [MachineStation] SUMMARY … m1_binding=true m2_binding=true m2_menu_class_matches=true verdict=PASS
 ```
 
 - **表 59 行 ↔ 实测类型的算法**（这一条最容易看错）：探针对**表里的行**做完整划分，
   `with_site_confirmed` + `with_site_unobserved` + `no_site` + `row_block_missing` **必须等于**
-  `machine_map_rows`（探针内含**分桶守恒自检**，不守恒直接判红 = 探针口径 bug）。实测 `22 + 27 + 10 + 0 = 59`。
-  **为什么 `confirmed` 只有 22**：`MachineProbeTask.NAMESPACE` 是**单个常量**（`"mekanism"`）
-  ⇒ 探针只枚举**一个命名空间**的配方类型 ⇒ **26 个 Thermal 站点行必然全部落进 `with_site_unobserved`**。
-  所以这个桶现在混着两种含义：① 上游注册了类型但**零配方**（`mekanism:smelting`）；
-  ② **探针根本没采样这个命名空间**（全部 Thermal 行，其中 `brewer`/`hive_extractor` 恰好真的零配方）。
-  **只看这一行会把 ② 误读成 ① —— 它不代表 Thermal 零配方。** 多命名空间覆盖见台账⑭。
+  `machine_map_rows`（探针内含**分桶守恒自检**，不守恒直接判红 = 探针口径 bug）。
+  **第十五轮起**应为 `46 + 3 + 10 + 0 = 59`：`with_site_unobserved` 只剩**三个真的零配方**类型
+  （`mekanism:smelting` + Thermal 的 `brewer` / `hive_extractor`）。
+  ⚠️ **第十四轮那个 `22 + 27 + 10 + 0` 是探针的覆盖缺陷，不是模组事实**：当时采样命名空间写死成
+  单个常量 `"mekanism"` ⇒ **26 个 Thermal 站点行必然全部落进 `with_site_unobserved`**，看着像"Thermal 没配方"。
+  已修（命名空间**按表推导** + **逐命名空间**各打一行覆盖计数，台账⑭）——
+  **以后看到 `with_site_unobserved` 里挤着某个命名空间的**大量**类型，先怀疑"探针没采样它"，再怀疑"它没配方"。**
   `with_site_unobserved` **只报事实不判红**（配方可被数据包/配置增删，把"今天为 0"钉成期望会假红）。
 - **`row_block_missing` 是"离线写表"唯一的判红点**：59 行 × 方块 id 逐个查客户端注册表，
   写错一个就非空 ⇒ 判红（**第十四轮实测 `[]`** ⇒ 32 个 Thermal 方块 id 全部正确）。

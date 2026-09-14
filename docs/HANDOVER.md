@@ -14,6 +14,7 @@
 | **3-B / S2 机器站点只读** | ✅ 完成（客户端验证） | `machine_block=mekanism:enrichment_chamber@66,64,306`、`menu=…MekanismTileContainer slots=41`、**进度=上游自述** `getScaledProgress/getOperatingTicks/getActive` |
 | **R1 收口：容器写入进策略表（D-211）** | ✅ 收口（客户端验证：`COMPILES` + 六闸门 PASS + `WINDOWS_CLIENT`） | 矩阵首次**经手**容器写入（挂点 `WriteBudget.consumeContainerWrite`）；`docs/authz/CONTAINER_WRITE_SITES.csv` 20 个调用点逐个命名 + `tools/policy-map.py` 断言⑦（四条负例实测都红）；顶出并补上 **`CraftJob`（生产熔炼）从没记账** 的真缺口 |
 | **3-B / S3 机器映射单一出处** | ✅ 收口（客户端验证，`SERVER_TESTED` + `WINDOWS_CLIENT`） | `machine_map_rows=27 with_site_confirmed=22 with_site_unobserved=[mekanism:smelting] no_site=4 unmapped=[] row_block_missing=[]`；`按表找到 2 台` + `m1_binding=true m2_binding=true`；CORE `(28/28) → PASS`（`latest.log:2941`/`:2953`/`:2971`/`:3680`） |
+| **(a) 下一模组 Thermal：S1 只读侦察 + S2 进表** | ✅ 收口（离线取证 + **客户端复核通过**） | 表 **27 → 59 行**（Thermal **32** 行，**全 `READ_ONLY`**）；`docs/THERMAL_S1_FACTS.md`（22+11 个设备方块、30 类型全分类、红线① dynamo）；**第十四轮** `(30/30) ticks=3279 → PASS`，`row_block_missing=[]` + `unmapped=[]`（⇒ 32 个方块 id 全对），`craft_machine` 逐字未变；闸门 `machine-map.py` 升级为**按命名空间双向断言 + JiJ 内嵌 jar 取证**（`Tier B OK` 两条：27/27、32/32） |
 
 **方向来源留档**：`docs/reviews/2026-09-14-外部质疑与工作流审查留档.md`（外部质疑三条 + 两轮工作流审查 + 设计讨论的完整来龙去脉、事实核校、裁定表、驳回项与 AI 自身教训；
 想追"为什么现在这么定"就读它）。

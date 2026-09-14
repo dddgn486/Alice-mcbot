@@ -87,7 +87,7 @@
 | `task/MachineStationProbeTask`（站点/槽位/进度探针） | **通用** | **0** 处 `mekanism`；全部"问对象自己"（槽位表、`ContainerData`、进度方法名） |
 | `task/craft/StationProvision`（菜单写入协议） | **通用** | **0** 处 `mekanism`；shift-click 让菜单决定落点 + **按结果验证**，不猜槽位语义 —— S4 的写入路径直接复用，一行没新造 |
 | `action/WritePolicyMatrix` + `WriteBudget`（容器写入闸门） | **通用** | 与模组无关；只登记 `requester × 理由 × 区/任务`（`machine-cycle` 一行即接入） |
-| `task/MachineProbeTask`（S1 探针） | **半通用** | 逻辑通用，**命名空间是 1 个常量**（`NAMESPACE = "mekanism"`）⇒ 换模组改这一行 |
+| `task/MachineProbeTask`（S1 探针） | **通用** | **0** 处 `mekanism` 代码字面量（只留 1 处注释说明历史）：采样哪些命名空间**按 `MachineMap` 表推导**，并**逐命名空间**各打一行覆盖计数 ⇒ **加模组不用改它**（台账⑭ 的修法：写死单命名空间时，第二个模组的站点行会被静默归进"上游零配方"） |
 | `task/MachineCycleCheckTask`（S4 夹具，(c) 增量 2 起 = **薄壳**） | **模组专属** | `TARGET_BLOCK = "mekanism:enrichment_chamber"`（1 行）+ 反射上游 `mekanism.api.math.FloatingLong` **补电兜底**；闭环本体已抽到下面那行。换机器 = 换这一行；换模组的能量访问 = 换 `precharge` 那一段 |
 | `task/craft/MachineCycle`（**闭环执行器，夹具与生产同一份**） | **通用**（模组无关） | **0** 处 `mekanism` 字面量：走位用内核 `PathRequest.of`（纯通行）/`PathRetryRunner`、开菜单用 `MenuSession`、写入用 `StationProvision`、能量"读得出就读、读不出就不据此判红"全走**反射问对象**（`getEnergyContainers`/`getEnergy`），**造能量那条通道由调用方注入、只有夹具实现**（门禁 `tools/check-precharge-containment.sh`）。换模组 = 一行都不用改 |
 | 场景电源（`mekanism:creative_energy_cube` + `/data merge block … EnergyContainers`） | **模组专属（且依赖上游语义）** | 创造方块放下是 **0 J**、且 creative 侧 insert/extract 强制 SIMULATE ⇒ 必须用 `/data merge` 直接写方块实体；这是**上游实现细节**，别的模组的"创造电源"未必同构（D-213） |

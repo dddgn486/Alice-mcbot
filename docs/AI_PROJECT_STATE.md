@@ -187,7 +187,15 @@ alice:machine_cycle_check: 3405` + `missing registry entries`（⇒ 不在注册
   **同时纠正我先前写错的预期**：`with_site_confirmed` 实测是 **22**（我原写 48）—— 因为
   `MachineProbeTask.NAMESPACE` 只采样 `mekanism`，26 个 Thermal 站点行必然全落进 `with_site_unobserved`
   （`22+27+10+0=59` 守恒）⇒ **本步对 Thermal 只覆盖到"方块存在性"，没有覆盖"类型↔配方"**。
-  该缺口已登记**台账⑭**（含最小修法与"在把 Thermal 某台机器升 `EXECUTABLE` 之前做"的推荐）。
+  该缺口**同轮登记台账⑭、第十五轮关闭**：探针的采样命名空间**改为按 `MachineMap` 表推导**
+  （加模组不用再改探针 ⇒ `MachineProbeTask` 现在 **0 处 `mekanism` 代码字面量**）
+  + 新增**逐命名空间一行**覆盖计数（`[MachineProbe] namespace=<ns> types=… type_recipes=… samples=…`），
+  SUMMARY 的 `namespace=` 改为 `namespaces=[…]` 且保留全局合计。
+  期望新基线：`namespaces=[mekanism, thermal] types=56 type_recipes=1823`、
+  **`with_site_confirmed=46`**、`with_site_unobserved=[mekanism:smelting, thermal:brewer, thermal:hive_extractor]`
+  （`46+3+10+0=59` ⇒ "未观测"回到"真·零配方"本义）**——待第十五轮客户端复核**（只改采样范围与摘要字段，
+  `row_block_missing` 仍须 `[]`）。
+  另附一条入册的教训：**"没被采样"与"不存在"必须能从日志上区分开**（一个字段混两种含义必被读错）。
   另：`query_machine_route` 1→2 **不是 Thermal 造成的**（被探测物品是随机采样、该计数只报告不断言）。
   附带闭合的一处对账：`[MachineProbe] readable_total=3714 skipped_total=2354` 与导出 `recipes=3689 skipped=2379` 差 25 ——
   导出侧 `skippedTypes` 里正有 `minecraft:crafting(空产出)=25`，两侧**算术精确闭合**（探测把"空产出合成"记为可读、导出记为跳过）
