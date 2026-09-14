@@ -48,12 +48,15 @@ public final class AscendExecutionFactory implements MovementExecutionFactory {
         if (!MovementHelper.canWalkThrough(context.level(), to)
                 || !MovementHelper.canWalkThrough(context.level(), to.above())
                 || !MovementHelper.canWalkOn(context.level(), to)) {
-            return ValidationResult.invalid("ASCEND_INVALID_PRECONDITION");
+            return ValidationResult.invalid(describe("ASCEND_INVALID_PRECONDITION", context.level(),
+                    "to", to, "to.up", to.above(), "to.down", to.below()));
         }
-        
+
         // 验证起点头部空间（跳跃需要）
         if (!MovementHelper.canWalkThrough(context.level(), from.above(2))) {
-            return ValidationResult.invalid("ASCEND_NO_HEADROOM");
+            return ValidationResult.invalid(describe("ASCEND_NO_HEADROOM", context.level(),
+                    "from", from, "from.up", from.above(), "from.up2", from.above(2),
+                    "from.up3", from.above(3)));
         }
 
         // 对照 Baritone MovementAscend:96-108：源头上方 3 格的 FallingBlock 会砸到 bot（可能窒息）
@@ -71,6 +74,33 @@ public final class AscendExecutionFactory implements MovementExecutionFactory {
         }
 
         return ValidationResult.accepted();
+    }
+
+    /**
+     * **失败码 + 可判读几何**（2026-09-14，用户批准的 (甲)）。
+     *
+     * <p>为什么要带几何：`ASCEND_NO_HEADROOM` 在 `place_course+wall` 上**单次**变红（此前 13 轮连续 PASS），
+     * 而日志只有"码 + 起始脚位"，**分不出**三种可能：① 场景没建好（墙/台阶真在那一格）；
+     * ② 我们自己的临时放置挡路（`PLACE_*` 段落留下）；③ 时序相位（同一几何、不同时刻的残留方块）。
+     * 把**挡路的那一格到底是什么方块**写进失败码，这三种就能在**既有那一行日志**里区分。
+     *
+     * <p>**格式契约**：`<稳定码>@<label>=<x,y,z>:<block_id>,…` —— `@` **之前**是稳定码
+     * （grep/比较仍按前缀用），`@` 之后是读数。**没有**任何代码按整串比较（已核对全仓）。
+     * 这是**终态日志**的一部分，不是要回收的临时探针 ⇒ 不留"忘了删的探针"。
+     */
+    private static String describe(String stableCode, net.minecraft.server.level.ServerLevel level,
+                                   Object... labelAndPos) {
+        StringBuilder sb = new StringBuilder(stableCode).append('@');
+        for (int i = 0; i + 1 < labelAndPos.length; i += 2) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            BlockPos pos = (BlockPos) labelAndPos[i + 1];
+            sb.append(labelAndPos[i]).append('=').append(pos.toShortString()).append(':')
+                    .append(net.minecraft.core.registries.BuiltInRegistries.BLOCK
+                            .getKey(level.getBlockState(pos).getBlock()));
+        }
+        return sb.toString();
     }
 
     @Override

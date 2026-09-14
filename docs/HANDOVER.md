@@ -47,6 +47,8 @@
 | **T3 步骤 B3a** 读取器「先原版、再名族」+ 逐字段出处 | `SERVER_TESTED` | **值不变且被证明**（`vanilla_input=0` + `divergent=0` + `read_notes=0` ⇒ 每字段逐位相同）；判据一行未动 |
 | **顺带修的**：`MachineProbe` 抽样不再是确定性的 | `SERVER_TESTED` | 修前**同 jar 两轮读数就不同**（`input_readable` 65/64、`query_machine_route` 0/2、`recipe_order_hash` 5 轮 5 值）⇒ **旧读数全部作废**；修后**同 jar 三轮 SUMMARY 逐字相同** |
 | **T3 步骤 A** 探针可见性：枚举来源 = **配方注册表** | `SERVER_TESTED` | `unmapped_total=19`（`create` **15 类型/506 配方**、`ExtendedCrafting` **4 类型/25 配方**，**表里各 0 行**）；已登记部分读数逐字未变；两轮逐字相同 |
+| **T3 步骤 B4** 能力登记（散文判据的可执行部分） | `PASS`（含**负测试**） | `capabilities=31 组=5 已用=31`；上游已取证 4/5；改一个名字 ⇒ 3 条独立报错。`MOD_ADAPTER_PROTOCOL` §3 的散文判据**保留**，但旧取证方式（`grep` 字面量计数）**作废** |
+| **(甲) `ASCEND_NO_HEADROOM` 可判读读数** | `IMPLEMENTED`+`COMPILES`（**尚未被触发**） | 失败码带几何 `ASCEND_NO_HEADROOM@from.up2=(x,y,z):block_id`；加完 4 轮未再现 ⇒ **不是** `SERVER_TESTED` |
 | **(A) 落地同步（电池）**：步骤起步未落地时有界等待 | `SERVER_TESTED` | 修前同一 jar 两轮 1 FAIL / 1 PASS（`partial_search`）；**临时探针确定性复现触发条件**后 ⇒ 等待生效、`partial_search` PASS、`(30/30)`；删探针后 `(30/30) ticks=3414 → PASS`。step 1 空降是常态（8/8 轮）⇒ 该步记 info |
 | **T3 步骤 A2+C** 未登记类型的形状 + M-4 查询层判决 | `SERVER_TESTED`（**两轮同 jar：轮 1 因无关的 `partial_search` 非确定性变红，轮 2 `(30/30) PASS`**） | ⭐ `unregistered_vanilla_only_out=37/37` ⇒ **模组名族对 Create/EC 读不出产出**，是 B3a 的原版路径在读 ⇒ **B3a 对接第 3 个模组是承重的**（改前这批会判 `MACHINE_RECIPE_UNSUPPORTED`）；M-4：`query_no_recipe=0`、`reachable=6/6` ⇒ 查询层对新模组物品诚实 |
 
@@ -73,8 +75,7 @@
 - **`craft_check` 门禁缺口**（T2 新发现）：`machine_only_vanilla` 期望 `MACHINE_ROUTE`（需 Mekanism/Create），
   没装模组时它 `FAIL` 而非 `SKIP` —— 同文件 ⑥ 已有"没装该模组就 SKIP"的写法，④ 漏了前提声明。
 - **T3 剩余**（`create` / `ExtendedCrafting` **已在客户端 `mods/` 里**，接它们之前必须做完）：
-  **B4**（**需你先拍**：`MOD_ADAPTER_PROTOCOL.md:44-51` 的散文判据 **变成断言**还是**删掉**？）
-  + `UPSTREAMS[ns]["capabilities"]` 双向对账（反例现成：`MachineCycle` **0 处字面量**却写死 5 个上游访问器名）；
+  **B4 已完成**（§2b）；
   **接第 3 个模组本身**：`MachineMap` 加 **19 行**（Create 15 + EC 4）+ 每行方块/菜单/能力 + `machine-map.py`
   的 `UPSTREAMS` 一段；**B3b** Port 化 `Facts`（每产出自带 `chance` + 长度断言 —— 今天 `outputs`/`chances`
   是两个独立列表 + 空栈过滤 ⇒ **结构上无法配对**，A5；等第 3 个模组同期做）。
@@ -87,19 +88,23 @@
   第一版重入分支跳过复检 ⇒ 白等满 40 tick（超时日志里 `onGround=true`）。
   step 1 的空降是**常态**（8/8 轮，出生后第一 tick）⇒ 第一步记 info、第二步起记 warn。
   **grep 触发条件**：`premise step=… 起步时未落地`。
-- **⚠️ 未解释·单次：`place_course+wall`**（`ground2` 轮）`ASCEND_NO_HEADROOM`，此前 **13 轮连续 PASS**，
-  之后一轮又 PASS。**我没有输入级证据** ⇒ 既不归因于 (A) 也不排除（该轮时序相位早了 36 tick）。
-  **不盲修**（Anti-Pattern 1）。下一步：给该子用例加一条可判读读数再跑 N 轮。
-- **⚠️ 系统性假设（未做）**：两例共性 = 步骤起步的**位置/世界状态/时序相位** ⇒ 电池整体不是时序无关的
-  （`partial_search`/`transfer` 的起点参数都是 `null`）。**候选根治**：把"起点"变成 `Step` 的**必填契约**
-  （声明 `startFoot` 或显式声明自带复位，**不声明就响亮失败**）—— **需要你拍**。
+- **⚠️ 通道缺陷**已**定形**（2026-09-14）：**9 轮里 3 轮红，3 轮不同步骤、不同码，
+  共同点却是一个 —— 起步时 bot 不在预期位置**：
+  `partial_search`（空降）/ `place_course+wall`（`ASCEND_NO_HEADROOM`）/
+  `place_course+disturb`（**`STALE`** = `STALE_START`）。后两例在 `pathing` **子用例**内、都 `replans=2`。
+  ⇒ **(A) 只修了电池"步骤"层；`pathing` 子用例层有同一缺口。**
+  **(甲) 的读数已就位但 4 轮未再现**（`IMPLEMENTED`，不是 `SERVER_TESTED`）。
+  **不盲修**（Anti-Pattern 1）。候选根治见下条。
+- **⚠️ 等待你拍的根治方向**：把"起点"变成**必填契约** —— `Step` 与 `pathing` 子用例都必须声明
+  `startFoot` 或显式声明"我自带场景/复位"，**不声明就响亮失败**（这样"依赖上一步残留"在构造上不可能）。
+  它碰全部 30 步 + `pathing` 子用例，是**电池语义**的改动 ⇒ 值得你过一眼再动手。
 
 ## 4. 待用户拍板（恢复后**先问这个**）
 
-1. **T3 剩余（B4 / 定点采样 / M-4 / B3b）**：步骤 1、B3a、步骤 A 已完成（§2b）。用户已定：
-   **B3a 只改读取器 + 记出处**（已照做）；**B3b 等第 3 个模组同期做**。
-   **B4 需要你先拍一个设计**：`MOD_ADAPTER_PROTOCOL.md:44-51` 那条散文判据 —— **变成断言**还是**删掉**？
-   **定点采样与 M-4 可离线推进**（M-4 的前置已由步骤 A 解决：EC 机器类型 = `compressor`/`ender_crafter`/`flux_crafter`）。
+1. **T3 剩余**：步骤 1 / B3a / A / A2 / C / B4 均已完成（§2b）。**只剩"接第 3 个模组本身"**
+   （`MachineMap` 加 **19 行** + 每行方块/菜单/能力 + `machine-map.py` 的 `UPSTREAMS` 一段；
+   **B3a 已被证明是它的承重前提**）与 **B3b**（等第 3 个模组同期做）。
+   下一步若继续推进，**不需要你拍板** —— 但那 19 行要**逐行取证**（方块 id/菜单类/能力），是实打实的工作量。
 
 **下一轮"接第 3 个模组"的真实工作量（实测，不再是估计）**：`create` **15 行** + `ExtendedCrafting` **4 行**
 = **19 行** `MachineMap`（每行含方块/菜单/能力/取证件）+ `tools/machine-map.py` 的 `UPSTREAMS` 一段。

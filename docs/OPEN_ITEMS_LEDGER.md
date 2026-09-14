@@ -1118,6 +1118,21 @@ jar `3312608d…`。
   **② step 1 的空降是常态**：`clear_retry` 在 **8/8 轮**都是 `on_ground=false pos=6,64,67`
   （出生/传送后第一 tick）⇒ 第一步记 **info**、第 2 步起才记 **warn**（否则每轮都在喊狼来了）。
   **触发条件可 grep**：`premise step=… 起步时未落地`。
+- **✅ T3 步骤 B4（能力登记）已落地（2026-09-14）**：`MOD_ADAPTER_PROTOCOL.md` §3 的散文判据**保留**，
+  但它的**可执行部分**落地为 `tools/machine-map.py` 的**上游访问器能力登记双向对账** +
+  （有 jar 时）上游存在性。读数 `capabilities=31 组=5 已用=31`，上游已取证 4/5（`forge` 不随模组目录分发）。
+  **负测试**：改一个名字 ⇒ **3 条独立报错**（正向漏声明 / 反向没用上 / 上游字节找不到）⇒ `FAIL 问题=3`。
+  **判据原有两个洞（实测）**：① `grep` 分不出注释 —— `getCraftSlots` 在 mods 目录 **0 个 jar 命中**、
+  `getItem` **13 个命中**，而两者**只在注释里**；② "0 处模组字面量" ≠ 通用（`MachineCycle` 0 处字面量
+  却写死 5 个上游访问器名）。**归属不靠猜**：由字节扫描上游 jar 反查。
+  顺带修掉工具缺口：`find_jar` 原来把 glob 锚在开头 ⇒ 带中文前缀的 jar（`[矿石挖掘] oreexcavation-…`）
+  **静默匹配不到**（症状是进 `unverified`，容易误读成环境问题）。
+  报告 `docs/reviews/2026-09-14-B4能力登记与起步位置确定性.md`。
+- **⚠️ 【(甲) 未验证】`ASCEND_NO_HEADROOM` 的可判读读数已就位，但尚未被触发**（2026-09-14）：
+  失败码格式改为 `<稳定码>@<label>=<x,y,z>:<block_id>,…`（`to`/`from.up`/`from.up2`/`from.up3` 等），
+  `ASCEND_INVALID_PRECONDITION` 同期加上；已核对全仓**没有**任何代码按整串比较这些码。
+  加完连跑 **4 轮**，`ASCEND_NO_HEADROOM` **没有再现** ⇒ 等级 `IMPLEMENTED`+`COMPILES`，
+  **不是** `SERVER_TESTED`。下次见到它 grep `ASCEND_NO_HEADROOM@`。
 - **⚠️ 【通道缺陷·未解释·单次】`place_course+wall` 在 `ground2` 轮变红（2026-09-14）**：
   `MOVEMENT_FAILED code=ASCEND_NO_HEADROOM index=5 actualFoot=6, 61, 66`（前一段是 `PILLAR`，
   `replans=2/minReplans=1`）。**该子用例此前 13 轮连续 PASS**（det1…ground1），同轮 `cleanup` 干净
@@ -1127,7 +1142,16 @@ jar `3312608d…`。
   第三次失败就停下分析共性，不要继续单点打补丁）。
   **下一步（未做，需先定方向）**：给该子用例加**一条可判读读数**（`ASCEND_NO_HEADROOM` 时 dump
   目标格与其上方两格的方块 id），再跑 N 轮 ⇒ 区分"场景没建好"与"时序相位"。
-- **⚠️ 【通道缺陷·系统性假设】**：上述两例的**共性**是"步骤起步时的**位置/世界状态/时序相位**"，
+- **⚠️ 【通道缺陷·系统性·已定形，2026-09-14】**：**今天 9 轮里 3 轮红，3 轮是不同步骤、不同码，
+  但共同点是同一个 —— 起步时 bot 不在预期位置**：`partial_search`（空降 ⇒ `from.z` 差 2 格）、
+  `place_course+wall`（`ASCEND_NO_HEADROOM`，脚位不在预期格）、
+  `place_course+disturb`（**`STALE`** = `PathSessionStatus.STALE_START`，显式说"起步位置过期"）。
+  后两例都在 `pathing` 子用例内、都 `replans=2`。**⇒ (A) 修的是电池"步骤"层；
+  `pathing` 的"子用例"层有同一个缺口。**
+  **决定：不继续单点打补丁**（Anti-Pattern 1：第三次失败就停下分析共性）。
+  **候选根治（未实施，需你拍）**：`Step` 与 `pathing` 子用例都必须**声明起点**（`startFoot`）或
+  **显式声明"我自带场景/复位"**，**不声明就响亮失败** ⇒ "依赖上一步残留"在构造上不可能。
+- **⚠️ 【通道缺陷·系统性假设】**：上述各例的**共性**是"步骤起步时的**位置/世界状态/时序相位**"，
   即**电池的步骤集合整体不是时序无关的**（每步只依赖上一步留下什么：`partial_search`/`transfer`
   在电池里起点参数都是 `null`）。**候选根治方向（未做，需要你拍）**：把"起点"变成 `Step` 的**必填契约**
   —— 每个步骤要么声明 `startFoot`、要么显式声明"我自带场景/复位"，**不声明就响亮失败**。

@@ -331,8 +331,177 @@ def tier_a(rows: list[dict], unmapped: list[dict], problems: list[str]) -> None:
             problems.append(f"无站点行缺理由: {item['type_id']}（'没行'与'无站点'必须可区分）")
 
 
+# ---------------------------------------------------------------------------
+# B4：**上游访问器能力登记**（把 `MOD_ADAPTER_PROTOCOL.md` §3 的散文判据变成断言）
+#
+# 散文判据说："进通用骨架必须满足其一：① 上游自述驱动；② 至少两个上游共享；③ 纯形态学且可自校验"，
+# 而它给的**取证方式**是"各类里 `mekanism` 字面量出现次数（grep -c）"。那条方式有两个洞：
+#   (a) `grep` **分不出代码与注释** —— 实测：`getCraftSlots` 在 mods 目录里 **0 个 jar 命中**、
+#       `getItem` 命中 13 个，而它们**只出现在注释里**（`GridDiscovery` / `CraftMenuIntrospection`
+#       的"这样写会拿到 null"说明）⇒ 按字面量计数会把**文档**算成**依赖**；
+#   (b) "0 处 `mekanism`" **不等于通用** —— 反例 `MachineCycle`：0 处模组字面量，
+#       却**写死 5 个上游访问器名**（`getOperatingTicks`/`getActive`/`getRecipeType`/
+#       `getRegistryName`/`getEnergy`）。"我反射问对象自己"与"我认类名"是**两件事**，
+#       而字面量计数把前者也算成后者、又把后者漏掉。
+#
+# 所以这里把判据的**可执行部分**建成**双向对账**（不需要 jar 就能跑，能红）：
+#   正向：指定适配文件里出现的**访问器形字面量**（`"getXxx"`/`"isXxx"`/`"hasXxx"`，**已剥注释**）
+#         必须在本登记里**逐条声明**（否则"我们依赖了哪个上游的名字"是隐含的、会漂）；
+#   反向：登记里声明的每个名字**必须真的被用**（否则登记会腐烂成装饰）。
+# 归属（哪个名字出自哪个上游）**不靠猜**：由 `tools/machine-map.py` 对上游 jar 做**字节扫描**
+# 反查（2026-09-14 实测记录见 `docs/reviews/2026-09-14-T3-B4-能力登记.md`）。
+# 有 jar 的组再做第三向：**名字必须真的存在于该上游 jar 里**（缺 jar ⇒ 进 `unverified`，
+# 与 T0-a 的口径一致：**"没复核"绝不等于"复核通过"**）。
+# ---------------------------------------------------------------------------
+
+# 只扫**做上游反射适配**的文件（不是全仓 grep：那会把业务代码里的同名字符串也算进来）
+CAPABILITY_FILES = [
+    "src/main/java/com/dddgn/alice/task/craft/MachineRecipeFacts.java",
+    "src/main/java/com/dddgn/alice/task/craft/MachineCycle.java",
+    "src/main/java/com/dddgn/alice/task/craft/CraftMenuIntrospection.java",
+    "src/main/java/com/dddgn/alice/task/craft/GridDiscovery.java",
+    "src/main/java/com/dddgn/alice/task/craft/FurnaceStation.java",
+    "src/main/java/com/dddgn/alice/task/CraftStationCraftCheckTask.java",
+    "src/main/java/com/dddgn/alice/task/MachineStationProbeTask.java",
+    "src/main/java/com/dddgn/alice/compat/ChainMining.java",
+]
+
+# 访问器形字面量：`getXxx`/`isXxx`/`hasXxx`（**只认这种形状**，避免把 "auto"/"in"/"out" 这类配置串扫进来）
+ACCESSOR_LITERAL = re.compile(r'"((?:get|is|has)[A-Z][A-Za-z0-9_]*)"')
+
+CAPABILITY_GROUPS: dict[str, dict] = {
+    "mekanism": {
+        "jars": ["Mekanism-*.jar"],
+        "names": ["getInput", "getItemInput", "getOutputDefinition", "getOutputs", "getRepresentations",
+                  "getOperatingTicks", "getActive", "getRecipeType", "getRegistryName",
+                  "getEnergy", "getEnergyContainers", "getTileEntity", "getSlotType", "getInventorySlot"],
+        "evidence": "字节扫描 Mekanism-1.20.1-10.4.16.80.jar（2026-09-14）",
+    },
+    "thermal": {
+        "jars": ["thermal_expansion-*.jar", "thermal_foundation-*.jar", "cofh_core-*.jar"],
+        "names": ["getInputItems", "getInputFluids", "getOutputItems", "getOutputItemChances"],
+        "evidence": "字节扫描 thermal_expansion/thermal_foundation（2026-09-14）",
+    },
+    "sophisticated": {
+        "jars": ["sophisticatedcore-*.jar", "sophisticatedstorage-*.jar", "sophisticatedbackpacks-*.jar"],
+        "names": ["getStorageWrapper", "getUpgradeHandler", "getInventoryHandler", "getBlockPosition",
+                  "getCraftMatrix", "getRecipeSlots", "getCookingSlots", "getCookTimeTotal",
+                  "getBurnTimeTotal", "isCooking"],
+        "evidence": "字节扫描 sophisticated{core,storage,backpacks}（2026-09-14）",
+    },
+    "oreexcavation": {
+        "jars": ["oreexcavation-*.jar"],
+        "names": ["getActiveAgent"],
+        "evidence": "字节扫描 oreexcavation-1.13.174.jar（2026-09-14）；调用点另有类名常量 "
+                    "`oreexcavation.handlers.MiningScheduler`（ChainMining:36）",
+    },
+    "forge": {
+        "jars": [],
+        "names": ["getSlots", "getStackInSlot"],
+        "evidence": "Forge `IItemHandler` 接口；**不随模组目录分发** ⇒ 结构上不做 jar 取证（已在报告里写明）",
+    },
+}
+
+
+def strip_java_comments(text: str) -> str:
+    """去掉 `//` 行注释与 `/* */` 块注释 —— **这一步就是 B4 相对 `grep` 的核心修正**。
+
+    不剥注释，"我们依赖了哪些上游名字"就会把**文档里举例的字符串**（`"getItem"` / `"getCraftSlots"`）
+    算成依赖。已知局限：不解析字符串里的 `//`（本项目适配代码里没有这种写法）。
+    """
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
+    return re.sub(r"//[^\n]*", "", text)
+
+
+def capability_census() -> tuple[dict[str, list[str]], list[str]]:
+    """扫描适配文件 → `{名字: [用它的文件…]}` + 问题。"""
+    used: dict[str, list[str]] = {}
+    problems: list[str] = []
+    for relative in CAPABILITY_FILES:
+        path = ROOT / relative
+        if not path.exists():
+            problems.append(f"B4: 能力登记扫描的文件不存在 {relative}（改名了就要同步这张表）")
+            continue
+        for name in ACCESSOR_LITERAL.findall(strip_java_comments(path.read_text(encoding="utf-8"))):
+            used.setdefault(name, [])
+            if relative not in used[name]:
+                used[name].append(relative)
+    return used, problems
+
+
+def jar_has_method_name(jar: Path, name: str) -> bool:
+    """上游 jar 的 class 字节里有没有这个名字（常量池里的方法名就是明文）。
+
+    ⚠️ 口径：这证明"**这个名字在该上游里存在**"，**不**证明"它在哪一个类上"——
+    散文判据的强形式（"问对象自己而不是认类名"）仍由**代码结构**保证（反射 + 返回值形态自校验）。
+    本检查堵的是另一半：**我们声明了一个上游根本没有的名字**（改名/笔误/想当然）。
+    """
+    import zipfile
+    needle = name.encode()
+    try:
+        with zipfile.ZipFile(jar) as archive:
+            for info in archive.infolist():
+                if info.filename.endswith(".class") and needle in archive.read(info):
+                    return True
+    except Exception:
+        return False
+    return False
+
+
+def check_capabilities(mods_dir: Path, problems: list[str], unverified: list[str]) -> str:
+    """B4 主体：双向对账 + （有 jar 时）上游存在性。返回一行读数。"""
+    used, census_problems = capability_census()
+    problems.extend(census_problems)
+
+    declared: dict[str, str] = {}
+    for group, spec in CAPABILITY_GROUPS.items():
+        for name in spec["names"]:
+            if name in declared:
+                problems.append(f"B4: 能力 {name} 同时登记在 {declared[name]} 与 {group}"
+                                f"（要么是共享名族、要么登记错了 ⇒ 显式决定后写清楚）")
+            declared[name] = group
+
+    for name, files in sorted(used.items()):
+        if name not in declared:
+            problems.append(f"B4: 适配代码里用了上游访问器 {name}（{','.join(sorted(files))}），"
+                            f"但**没有在能力登记里声明** ⇒ 我们依赖了哪个上游的名字是隐含的")
+
+    for name, group in sorted(declared.items()):
+        if name not in used:
+            problems.append(f"B4: 能力登记声明了 {name}（{group}），但**没有任何适配代码用它**"
+                            f"⇒ 登记已腐烂成装饰（要么删掉声明、要么补上调用点）")
+
+    # 第三向：上游存在性（缺 jar ⇒ unverified，绝不记成通过）
+    checked_groups: list[str] = []
+    for group, spec in CAPABILITY_GROUPS.items():
+        if not spec["jars"]:
+            continue
+        jars = [jar for pattern in spec["jars"]
+                for jar in [find_jar(mods_dir, pattern)] if jar is not None]
+        if not jars:
+            unverified.append(f"B4: {group} 的能力存在性未复核（{mods_dir} 下找不到 "
+                              f"{'/'.join(spec['jars'])}）⇒ 这些名字**没有**被上游证实")
+            continue
+        checked_groups.append(group)
+        for name in spec["names"]:
+            if not any(jar_has_method_name(jar, name) for jar in jars):
+                problems.append(f"B4: 能力 {name} 声明属于 {group}，但在 "
+                                f"{'/'.join(j.name for j in jars)} 的 class 字节里**找不到这个名字**"
+                                f"⇒ 登记错/上游改名了（{spec['evidence']}）")
+
+    shared = sorted(name for name, group in declared.items() if group == "forge")
+    return (f"capabilities={len(declared)} 组={len(CAPABILITY_GROUPS)} 已用={len(used)}"
+            f" 上游已取证={','.join(checked_groups) if checked_groups else '-'}"
+            f" 共享/基础设施名={shared}")
+
+
 def find_jar(mods_dir: Path, pattern: str) -> Path | None:
-    return next((Path(p) for p in sorted(glob.glob(str(mods_dir / pattern))) if "sources" not in p), None)
+    """按 `pattern` 找上游 jar。**同时尝试带前缀的写法** —— 客户端 `mods/` 里有的 jar 带**人类可读中文前缀**
+    （实测：`[矿石挖掘] oreexcavation-1.13.174.jar`），锚定在开头的 glob 会**静默找不到**它
+    （症状 = 那句断言进 `unverified`，容易被读成"环境问题"而不是"我们匹配错了"）。
+    """
+    candidates = sorted(glob.glob(str(mods_dir / pattern))) + sorted(glob.glob(str(mods_dir / ("*" + pattern))))
+    return next((Path(p) for p in candidates if "sources" not in p), None)
 
 
 def extract_jarjar(outer: Path, pattern: str, into: Path) -> Path | None:
@@ -474,6 +643,7 @@ def main() -> int:
 
     mods_dir = Path(args.mods_dir)
     tier_b_notes = tier_b(rows, mods_dir, Path(args.jar) if args.jar else None, problems, unverified)
+    capability_note = check_capabilities(mods_dir, problems, unverified)
 
     rendered = render_csv(rows)
     if args.write:
@@ -489,6 +659,7 @@ def main() -> int:
             f"↩{row['host_type']}" if row["site_kind"] == "SHARED" else f"({row['site_kind']})")
         print(f"  {row['type_id']:<36} {site:<32} {row['menu_class']}")
     print("取证件: " + (" | ".join(sources) if sources else "-"))
+    print("能力登记（B4）: " + capability_note)
     for note in tier_b_notes:
         print(note)
 
@@ -513,7 +684,7 @@ def main() -> int:
               f"要显式接受请加 --allow-unverified-upstream）")
         return 2
     print(f"MACHINE_MAP_CHECK_RESULT PASS: 行={len(rows)} 未映射={len(unmapped)}"
-          f"（Tier A 表结构 + Tier B 上游双向覆盖均已执行）")
+          f"（Tier A 表结构 + Tier B 上游双向覆盖 + B4 能力登记双向对账均已执行）")
     return 0
 
 
