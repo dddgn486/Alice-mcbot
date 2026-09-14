@@ -559,12 +559,12 @@ public final class BotManager {
      * 现在都走这里，避免"决策层起的 Job 与夹具起的 Job 行为不同"。
      */
     public static boolean assignJob(BotPlayer bot, ServerPlayer observer,
-                                    com.dddgn.alice.job.JobRequest request) {
+                                    com.dddgn.alice.job.JobRequest request, boolean fixtureProvision) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) {
             return false;
         }
-        if (!com.dddgn.alice.job.JobLauncher.provision(bot, request)) {
+        if (!com.dddgn.alice.job.JobLauncher.provision(bot, request, fixtureProvision)) {
             BotLog.warn("[Job] launch 发料失败 ⇒ 不起 Job（{}）", request.describe());
             return false;
         }
@@ -1741,6 +1741,13 @@ public final class BotManager {
         }
 
         private void tick(HazardState hazard) {
+            // T1 / R-3：**自检按住随任务存续**（不是定长窗口）—— 1200 tick 的窗口盖不住 ~3400 tick 的
+            // 电池，终态那一刻照样把 LLM 招来（round-16 实测现场）。
+            // ⚠️ 必须放在 `task == null` 提前返回**之前**：否则任务结束后这一句永远不执行，
+            // hold 会**永久按住**、把决策层彻底锁死（这是本改动的第一个版本就踩到的坑）。
+            // 语义：有任务 ⇒ 按它是不是自检；没任务 ⇒ 放开。
+            com.dddgn.alice.decision.GoalDirector.setSelfCheckHold(bot,
+                    task != null && task.isSelfCheck());
             if (task == null) {
                 return;
             }

@@ -2,6 +2,8 @@ package com.dddgn.alice.task;
 
 import com.dddgn.alice.bot.TaskFailureReport;
 
+import java.util.List;
+
 /**
  * 任务(执行层单元,设计文档 §4 的落地骨架)。
  * <p>
@@ -17,6 +19,13 @@ import com.dddgn.alice.bot.TaskFailureReport;
  * 本阶段测试工具直接创建任务,LLM 决策接入点见 docs/EXECUTION_FRAMEWORK.md。</p>
  */
 public interface Task {
+
+    /**
+     * **自检/夹具的类名标记**（T1 / R-3，2026-09-14）——与 {@link #looksLikeSelfCheck(String)} 配套，
+     * 是"这个任务是不是夹具"的**唯一真源**。`action/WritePolicyMatrix` 也读它，不许再各写一份。
+     */
+    List<String> SELF_CHECK_MARKERS =
+            List.of("check", "probe", "dump", "diagnostic", "regression", "battery", "demo");
 
     /** 本任务的目标(客户端高亮与服务端校验共用)。 */
     TaskTarget target();
@@ -84,15 +93,42 @@ public interface Task {
      * 项目早有同类裁定（`DecisionEvents.record` 注释："自检窗口内只记录不通知 —— 检具不该在生产侧
      * 留下决策痕迹"），但**终态触发**当时没被覆盖，这里补上：自检任务开始即**暂停决策层**。
      *
-     * <p>默认按命名约定识别（`*CheckTask`）——所有既有夹具都符合；需要例外时覆写本方法。
+     * <p>默认按命名约定识别；需要例外时覆写本方法。
+     *
+     * <p><b>⚠️ 2026-09-14（T1 / R-3）：判据改成"唯一真源" {@link #looksLikeSelfCheck(String)}</b>。
+     * 此前这里有**两套互不一致**的约定：本方法只认后缀 `*CheckTask`/`*ProbeTask`，而
+     * `action/WritePolicyMatrix.derivedTask()` 认 `check/probe/dump/diagnostic/regression/battery/demo`
+     * 的**包含**匹配。差集实测 **18 个类**（`RegressionBatteryTask` / `MineRegressionTask` /
+     * `PathingRegressionTask` / `PathingBatteryTask` / `PermissionDemoTask` / 12 个 `*DiagnosticTask`
+     * 等）⇒ **主回归入口自己不在覆盖里** ⇒ 电池跑完终态会招 LLM 去做生产作业、占住测试场地
+     * （`bot/BotManager.java:1590-1593` 是唯一消费点）⇒ **污染后续所有回归**。
      */
     default boolean isSelfCheck() {
-        // 命名约定：`*CheckTask` 与 `*ProbeTask` 都是**自检/探针**工具。
-        // D-189 的裁定是"自检窗口内只记录不通知"（否则任务终态会招来 LLM，实测就自动起 `region_lumber`）；
-        // 2026-09-13 实测：探针当时只叫 `CraftGridProbeTask` ⇒ 约定没覆盖到 ⇒ **连招两次 LLM、自动伐木两次**
-        // （用户最早的抱怨原样复发）。⇒ 约定扩展到 `*ProbeTask`（既有 `MenuProbeTask` 同时受益）。
-        String name = getClass().getSimpleName();
-        return name.endsWith("CheckTask") || name.endsWith("ProbeTask");
+        return looksLikeSelfCheck(getClass().getSimpleName());
+    }
+
+    /**
+     * **自检/夹具的类名标记 —— 唯一真源**（T1 / R-3，2026-09-14）。
+     *
+     * <p>`Task.isSelfCheck()` 与 `action/WritePolicyMatrix.derivedTask()` **都必须**调这里，
+     * 不许再各写一份约定（两份约定必然漂移，历史上就漂了 18 个类）。
+     *
+     * <p>判据是**子串**（不是后缀）：因为夹具命名并不统一 —— `RegressionBatteryTask` 是电池、
+     * `*DiagnosticTask` 是逐 Movement 诊断、`PermissionDemoTask` 是请示演示。加新夹具时**只要名字里
+     * 带这些标记就自动被认出来**；若新夹具一个标记都不带，`tools/check-fixture-hygiene.sh` 与
+     * 这一条会在评审时暴露它（名字不像夹具 = 下一个 `CraftGridProbeTask` 事故）。
+     */
+    static boolean looksLikeSelfCheck(String className) {
+        if (className == null || className.isEmpty()) {
+            return false;
+        }
+        String lower = className.toLowerCase(java.util.Locale.ROOT);
+        for (String marker : SELF_CHECK_MARKERS) {
+            if (lower.contains(marker)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 事实型失败报告；未实现领域详情的任务默认返回空报告。 */

@@ -74,6 +74,7 @@ printf '\n=== Alice 离线门禁总检（%s） ===\n' "$(date '+%Y-%m-%d %H:%M')
 
 run_gate             "check-item-models"        bash tools/check-item-models.sh
 run_gate             "check-precharge-containment" bash tools/check-precharge-containment.sh
+run_gate             "check-provision-containment" bash tools/check-provision-containment.sh
 run_gate             "check-fixture-hygiene"    bash tools/check-fixture-hygiene.sh
 run_gate             "check-policy-matrix"      bash tools/check-policy-matrix.sh
 run_gate             "check-authz-registry"     bash tools/check-authz-registry.sh

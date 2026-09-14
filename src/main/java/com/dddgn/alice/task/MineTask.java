@@ -1,5 +1,6 @@
 package com.dddgn.alice.task;
 
+import com.dddgn.alice.action.WriteBudget;
 import com.dddgn.alice.action.WriteGrant;
 import com.dddgn.alice.action.MineBlockRunner;
 import com.dddgn.alice.compat.ChainMining;
@@ -125,6 +126,12 @@ public final class MineTask implements Task {
     private boolean chainTriggered;
     private int chainTicks;
     private int lastChainMined;
+
+    /**
+     * 连锁因**破坏预算耗尽**被强制停止（T1 / R-1）。一经置真即表示"这次连锁本可以挖更多，
+     * 是 Alice 的闸门把它停住了" —— 用于日志与终态理由，避免把"我们拦住了"混进"模组就是这样"。
+     */
+    private boolean chainRefusedByBudget;
     /** 触发连锁前的目标方块状态（用于判断连锁是否真的把它挖掉了）。 */
     private BlockState chainTargetState;
 
@@ -509,9 +516,29 @@ public final class MineTask implements Task {
         if (ChainMining.isRunning(bot)) {
             int mined = ChainMining.minedCount(bot);
             if (mined != lastChainMined) {
+                int delta = mined - lastChainMined;
                 lastChainMined = mined;
                 BotLog.info("[ChainMine] prod_progress target={} mined={} tick={}",
                         target.toShortString(), mined, chainTicks);
+                // ⚠️ T1 / R-1（2026-09-14）：**模组连锁的破坏必须进 Alice 的破坏预算**。
+                // 为什么必须在这里补：`useChain=true` 时 `MineBlockRunner` 是以 `walkOnly=true` 构造的
+                // （见 `startMining()`）⇒ Alice 自己的破坏原语 `BlockInteraction.beginBreak`（唯一闸门
+                // `WriteBudget.consumeBreak` 的挂点）**一次都不执行**，破坏由模组自己的调度器
+                // （`player.gameMode.destroyBlock`）完成 ⇒ **唯一的模组兼容破坏路径完全无计数上限**
+                // （3×3 连锁发生在 `DEFAULT_MAX_BREAKS=64` 之外；三路审计 §3.1 R-1 实证）。
+                // 这里按 `minedCount` 的**增量**逐次计账；pos 传连锁起点 `target`（`consumeBreak`
+                // 只用它写日志，不做区域判定）—— 预算耗尽就**停止连锁**，把"无界写入"变回"有界写入"。
+                for (int i = 0; i < delta; i++) {
+                    if (WriteBudget.consumeBreak(bot, bot.serverLevel(), target, grant)
+                            == WriteBudget.Verdict.REFUSED) {
+                        chainRefusedByBudget = true;
+                        BotLog.warn("[ChainMine] prod_budget_exhausted target={} mined={} delta={} {}"
+                                        + " → **立即停止连锁**（破坏预算已满，不许继续无界破坏）",
+                                target.toShortString(), mined, delta, WriteBudget.describe(bot));
+                        ChainMining.stop(bot);
+                        break;
+                    }
+                }
             }
             if (chainTicks <= CHAIN_TIMEOUT_TICKS) {
                 return Status.RUNNING;

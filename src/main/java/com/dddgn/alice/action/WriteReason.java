@@ -139,4 +139,17 @@ public enum WriteReason {
         return this == STEP_PLACEMENT || this == SUPPORT_PLACEMENT
                 || this == CRAFT_STATION_PLACE;
     }
+
+    /**
+     * **本理由是否属于"容器写入"**（T1 / R-5，2026-09-14）—— 唯一真源。
+     *
+     * <p>容器写入是写入的**第三个维度**（G5）：它不进保护区/地形破坏那套判据，但必须过
+     * `WriteBudget.consumeContainerWrite` + 在策略表里声明。原先没有任何"哪些理由是容器写入"的
+     * 程序化判据 ⇒ 写入原语**无法自查**自己的调用方有没有记账（三路审计 §3.1 R-5：
+     * 4 处散抄、3 个原语自身无闸门）⇒ 新增模组适配默认无记账。
+     * 给出这条唯一真源后，原语可以做**编译期/运行期强制**（见 `FurnaceStation.click`）。
+     */
+    public boolean container() {
+        return this == CONTAINER_TRANSFER || this == STATION_PROVISION;
+    }
 }

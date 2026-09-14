@@ -519,26 +519,27 @@ public final class FurnaceStation {
 
     /** 把 {@code item} 放 1 个进指定格（从玩家背包取；走菜单协议）。 */
     public static boolean placeOne(BotPlayer bot, AbstractContainerMenu menu, Found found, int address,
-                                   net.minecraft.world.item.Item item) {
+                                   net.minecraft.world.item.Item item, com.dddgn.alice.action.WriteGrant grant) {
         Integer source = findInventoryAddress(bot, menu, item);
         if (source == null) {
             BotLog.warn("[Furnace] 背包里没有 {}", item);
             return false;
         }
-        if (!click(bot, menu, source, net.minecraft.world.inventory.ClickType.PICKUP, 0)) {
+        if (!click(bot, menu, source, net.minecraft.world.inventory.ClickType.PICKUP, 0, grant)) {
             return false;
         }
-        if (!click(bot, menu, address, net.minecraft.world.inventory.ClickType.PICKUP, 1)) {
-            click(bot, menu, source, net.minecraft.world.inventory.ClickType.PICKUP, 0);   // 放回
+        if (!click(bot, menu, address, net.minecraft.world.inventory.ClickType.PICKUP, 1, grant)) {
+            click(bot, menu, source, net.minecraft.world.inventory.ClickType.PICKUP, 0, grant);   // 放回
             return false;
         }
-        click(bot, menu, source, net.minecraft.world.inventory.ClickType.PICKUP, 0);       // 余量归位
+        click(bot, menu, source, net.minecraft.world.inventory.ClickType.PICKUP, 0, grant);       // 余量归位
         return true;
     }
 
     /** 取走某格的产出（shift-click 回背包）。 */
-    public static boolean takeAll(BotPlayer bot, AbstractContainerMenu menu, int address) {
-        return click(bot, menu, address, net.minecraft.world.inventory.ClickType.QUICK_MOVE, 0);
+    public static boolean takeAll(BotPlayer bot, AbstractContainerMenu menu, int address,
+                                  com.dddgn.alice.action.WriteGrant grant) {
+        return click(bot, menu, address, net.minecraft.world.inventory.ClickType.QUICK_MOVE, 0, grant);
     }
 
     /** 某格现在有什么（只读；`null` = 该地址不存在）。 */
@@ -566,8 +567,19 @@ public final class FurnaceStation {
 
     /** 菜单点击（只拒负数；地址合法性由"发现出来的槽位集合"保证 —— 见 D-192 附注一/三）。 */
     private static boolean click(BotPlayer bot, AbstractContainerMenu menu, int address,
-                                 net.minecraft.world.inventory.ClickType type, int button) {
+                                 net.minecraft.world.inventory.ClickType type, int button,
+                                 com.dddgn.alice.action.WriteGrant grant) {
         if (menu == null || address < 0) {
+            return false;
+        }
+        // ⚠️ T1 / R-5（2026-09-14）：**本原语原先整个文件都没有 WriteBudget/WriteGrant 引用**
+        // （三路审计 §3.1 R-5 实证）⇒ "记账靠调用方自觉" ⇒ 任何新增模组适配默认无记账。
+        // 现在做**编译期强制**：调本原语必须显式交出 `WriteGrant`，且理由必须属于"容器写入"家族
+        // （`WriteReason.container()`，唯一真源）；**不在这里计数**（计数归调用方，登记在
+        // `docs/authz/CONTAINER_WRITE_SITES.csv` 的 FurnaceStation 行：原语层本身不决定写谁）。
+        if (grant == null || !grant.reason().container()) {
+            BotLog.warn("[Furnace] clicked(address={}, type={}) 被拒：缺容器写入授权（grant={}）",
+                    address, type, grant == null ? "null" : grant.describe());
             return false;
         }
         try {

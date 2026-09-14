@@ -473,6 +473,19 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
             return null;
         }
         var previous = level.getBlockState(spot);
+        // ⚠️ T1 / R-4（2026-09-14）：**补种的物理前提 = 触及距离**。
+        // 原先这里直接 `level.setBlock`，**没有任何 reach / 朝向 / 放置面校验**（三路审计 §3.1 R-4 实证：
+        // 这是四层里唯一的 job→world 直写越界）⇒ bot 理论上可以隔空在 4.5 格外"补种"。
+        // 现在补上**触及**这条硬前提（判据与 `action/BlockInteraction` 完全同一份，不另写一套）；
+        // 够不着就**不写世界**、保留待补种项，下一轮巡查再说（诚实跳过优于隔空成功）。
+        // 已知残留（**登记在案，不是遗忘**）：本方法仍用直接 `setBlock` 而非 `gameMode` 交互路径，
+        // 因为选定树苗可能落在**主背包**（而 `BlockInteraction.placeAt` 只认快捷栏 0-8）——
+        // 改走原语会同时改变**物品消耗路径**与**放置面语义**，属行为变更，需独立一轮客户端验证。
+        if (!com.dddgn.alice.action.BlockInteraction.reachable(bot, spot)) {
+            BotLog.warn("[Job] maintain 补种够不着 {}（触及校验未过）⇒ 本轮不写世界、保留待补种",
+                    spot.toShortString());
+            return null;
+        }
         var placed = blockItem.getBlock().defaultBlockState();
         level.setBlock(spot, placed, 3);
         // 账本记 KEEP（`REGION_REPLANT.temporary()==false`）⇒ 不受"建拆同权"约束

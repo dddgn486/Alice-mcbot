@@ -77,6 +77,12 @@ public final class GoalDirector {
         ServerPlayer observer;
         /** 暂停触发的截止 tick（自检期间用；见 {@link #suspend}）。 */
         long suspendedUntilTick = Long.MIN_VALUE;
+        /**
+         * **自检任务存续期间持续按住**（T1 / R-3，2026-09-14）：`suspendedUntilTick` 是**定长时限**，
+         * 而电池要跑 ~3400 tick ⇒ 1200 tick 的窗口会在任务结束前就过期，终态照样招 LLM。
+         * 这个标记由会话每 tick 按"当前任务是不是自检"设置，**随任务存续**而不是随计时器。
+         */
+        boolean selfCheckHold;
         boolean suspendLogged;
         // J-7：**结构化拒绝回读** —— 上一轮动作被拒的理由要能被下一轮读到（而不是只躺在日志里）
         String lastRefusalReason = "";
@@ -138,7 +144,28 @@ public final class GoalDirector {
     /** 当前是否处于自检暂停窗口（事件生产者据此决定"只记录不通知"）。 */
     public static boolean isSuspended(BotPlayer bot) {
         State state = STATES.get(bot.getUUID());
-        return state != null && bot.getServer().getTickCount() < state.suspendedUntilTick;
+        return state != null && (state.selfCheckHold
+                || bot.getServer().getTickCount() < state.suspendedUntilTick);
+    }
+
+    /**
+     * **自检按住开关**（T1 / R-3）：会话每 tick 按"当前任务是不是自检"设置。
+     *
+     * <p>为什么需要它（而不是只靠 {@link #suspend(int)} 的定长窗口）：2026-09-14 三路审计实测 ——
+     * 主回归电池跑 **~3400 tick**，而自检暂停窗口是 **1200 tick** ⇒ 窗口在任务结束前就过期，
+     * **终态那一击照样把 LLM 招来**（round-16 日志 `:3951 decision_request trigger=terminal:RegressionBatteryTask`
+     * 就是现场）。而且 `Task.isSelfCheck()` 当时只认 `*CheckTask`/`*ProbeTask` ⇒ `RegressionBatteryTask`
+     * **根本不在覆盖里**（两套约定漂移 18 个类，见 R-3）。
+     * 现在判据统一 + 按住随任务存续 ⇒ 整个自检期间（含终态那一刻）都不会发起决策。
+     */
+    public static void setSelfCheckHold(BotPlayer bot, boolean hold) {
+        State state = state(bot);
+        if (state.selfCheckHold == hold) {
+            return;
+        }
+        state.selfCheckHold = hold;
+        BotLog.info("[Goal] 自检按住（selfCheckHold）={} —— {}决策触发",
+                hold, hold ? "自检期间不发起任何" : "恢复正常");
     }
 
     /** **事件阈值**触发的决策（S4）：工具见底 / 卡住 —— 有节流，重复事件不会连环调用。 */
@@ -220,11 +247,13 @@ public final class GoalDirector {
             return;
         }
         long now = bot.getServer().getTickCount();
-        if (now < state.suspendedUntilTick) {
+        // 口径合一（T1/R-3）：这里不再直接用 `suspendedUntilTick` 比较，而是走 `isSuspended()`，
+        // 否则 `selfCheckHold` 会被漏掉（正是"两处各写一份判据必然漂移"的同一个病）。
+        if (isSuspended(bot)) {
             if (!state.suspendLogged) {
                 state.suspendLogged = true;
-                BotLog.info("[Goal] trigger_skipped reason=suspended trigger={} until={}",
-                        trigger, state.suspendedUntilTick);
+                BotLog.info("[Goal] trigger_skipped reason=suspended trigger={} until={} hold={}",
+                        trigger, state.suspendedUntilTick, state.selfCheckHold);
             }
             return;
         }
@@ -362,7 +391,7 @@ public final class GoalDirector {
     private static void execute(BotPlayer bot, State state, GoalAction action, String trigger) {
         clearRefusal(state);
         if (action instanceof GoalAction.StartJob start) {
-            boolean ok = BotManager.assignJob(bot, state.observer, start.request());
+            boolean ok = BotManager.assignJob(bot, state.observer, start.request(), false);
             BotLog.info("[Goal] execute action=start_job ok={} trigger={}", ok, trigger);
             DecisionTrace.result(bot, trigger, "start_job", ok ? "executed" : "refused",
                     start.request().describe(), 0L);
@@ -385,7 +414,7 @@ public final class GoalDirector {
             // 站点由玩家的选择决定（请求里不带站点）；世界写入（按需装配）在 Job 里走预算闸门。
             var request = com.dddgn.alice.job.JobRequest.craft(bot.blockPosition(),
                     craft.item(), craft.count(), 3600);
-            boolean ok = BotManager.assignJob(bot, state.observer, request);
+            boolean ok = BotManager.assignJob(bot, state.observer, request, false);
             BotLog.info("[Goal] execute action=craft ok={} trigger={} raw={}", ok, trigger, craft.note());
             DecisionTrace.result(bot, trigger, "craft", ok ? "executed" : "refused",
                     request.describe(), 0L);

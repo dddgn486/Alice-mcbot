@@ -257,12 +257,23 @@ def parse_matrix() -> dict:
     prefix_rules = re.findall(r'new String\[\]\{"([^"]+)",\s*"(\w+)"\}', text)
     if not prefix_rules:
         raise ValueError("无法从源码解析 PREFIX_RULES（正则失效）⇒ 拒绝静默放行")
+    # 派生规则标记（T1 / R-3，2026-09-14）：真源从 `WritePolicyMatrix` **挪到了** `task/Task.java` 的
+    # `SELF_CHECK_MARKERS`（原先两处各写一份，与 `Task.isSelfCheck()` 漂移了 18 个类）。
+    # ⇒ 这里改读新真源；**读不到照样响亮失败**，不允许"解析不到就静默放行"
+    #   （旧正则失效时正是本门禁抓到的，说明这道保险是有效的）。
     derived_markers = []
-    marker_block = re.search(r"for \(String marker : List\.of\(([^)]*)\)\)", text)
-    if marker_block:
-        derived_markers = java_strings(marker_block.group(1))
+    task_iface = os.path.join(ROOT, "src/main/java/com/dddgn/alice/task/Task.java")
+    if os.path.exists(task_iface):
+        marker_block = re.search(r"SELF_CHECK_MARKERS\s*=\s*\n?\s*List\.of\(([^)]*)\)",
+                                 read(task_iface))
+        if marker_block:
+            derived_markers = java_strings(marker_block.group(1))
     if not derived_markers:
-        raise ValueError("无法从源码解析派生规则标记（正则失效）⇒ 拒绝静默放行")
+        raise ValueError("无法从 `task/Task.java` 的 `SELF_CHECK_MARKERS` 解析派生规则标记"
+                         "（真源缺失或正则失效）⇒ 拒绝静默放行")
+    if "looksLikeSelfCheck" not in text:
+        raise ValueError("`WritePolicyMatrix` 没有调用 `Task.looksLikeSelfCheck`"
+                         "（T1/R-3 的唯一真源接线断了）⇒ 拒绝静默放行")
     derived_body = text[text.index("private static Task derivedTask"):]
     derived_body = derived_body[:derived_body.index("public static Task taskOf")]
     family_rules = [(keyword, task) for condition, task in

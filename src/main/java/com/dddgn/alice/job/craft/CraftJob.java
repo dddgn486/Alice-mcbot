@@ -458,8 +458,13 @@ public final class CraftJob implements Job {
      * 的调用点覆盖断言顶出来）。requester 用 Job 名（{@code craft} ⇒ 表里 CRAFT 行，
      * 该行已声明 {@code CONTAINER_TRANSFER}）。
      */
+    /** 容器写入的授权对象（与 {@link #allowContainerWrite} **同一份口径**）—— 供写入原语做编译期强制（T1/R-5）。 */
+    private WriteGrant containerGrant() {
+        return WriteGrant.of(NAME, WriteReason.CONTAINER_TRANSFER);
+    }
+
     private boolean allowContainerWrite(String what) {
-        WriteGrant grant = WriteGrant.of(NAME, WriteReason.CONTAINER_TRANSFER);
+        WriteGrant grant = containerGrant();
         BlockPos pos = opened == null ? null : opened.pos();
         if (WriteBudget.consumeContainerWrite(bot, pos, grant) == WriteBudget.Verdict.REFUSED) {
             BotLog.warn("[CraftJob] 容器写入被拒 what={} grant={} ⇒ 停止写入并如实失败", what, grant.describe());
@@ -483,7 +488,7 @@ public final class CraftJob implements Job {
             if (!allowContainerWrite("input")) {
                 return failAndFinish(StationProvision.Codes.BUDGET_REFUSED + ":input");
             }
-            if (!FurnaceStation.placeOne(bot, menu, found, found.input(), input)) {
+            if (!FurnaceStation.placeOne(bot, menu, found, found.input(), input, containerGrant())) {
                 return failAndFinish(Codes.INPUT_PLACE);
             }
             inputPlaced = true;
@@ -496,7 +501,7 @@ public final class CraftJob implements Job {
             if (!allowContainerWrite("fuel")) {
                 return failAndFinish(StationProvision.Codes.BUDGET_REFUSED + ":fuel");
             }
-            if (!FurnaceStation.placeOne(bot, menu, found, found.fuel(), fuel)) {
+            if (!FurnaceStation.placeOne(bot, menu, found, found.fuel(), fuel, containerGrant())) {
                 return failAndFinish(Codes.FUEL_PLACE);
             }
             fuelPlaced = true;
@@ -517,14 +522,14 @@ public final class CraftJob implements Job {
             if (!allowContainerWrite("take_output")) {
                 return failAndFinish(StationProvision.Codes.BUDGET_REFUSED + ":take_output");
             }
-            boolean taken = FurnaceStation.takeAll(bot, menu, found.output());
+            boolean taken = FurnaceStation.takeAll(bot, menu, found.output(), containerGrant());
             BotLog.info("[CraftJob] 出炉 {} x{} taken={}", output.getItem(), output.getCount(), taken);
             return advance(Phase.VERIFY);
         }
         int budget = Math.max(SMELT_TICKS_MIN, SMELT_TICKS_PER_ITEM * count);
         if (phaseTicks > budget) {
             boolean back = allowContainerWrite("timeout_return_input")
-                    && FurnaceStation.takeAll(bot, menu, found.input());
+                    && FurnaceStation.takeAll(bot, menu, found.input(), containerGrant());
             BotLog.warn("[CraftJob] 烧炼超时 {} tick，输入已取回={}", phaseTicks, back);
             return failAndFinish(Codes.SMELT_TIMEOUT + ":inputReturned=" + back);
         }
@@ -553,7 +558,7 @@ public final class CraftJob implements Job {
         if (menu != null && isCooking() && inputPlaced) {
             FurnaceStation.Result station = FurnaceStation.discover(menu);
             if (station.ok() && allowContainerWrite("cleanup_return_input")) {
-                FurnaceStation.takeAll(bot, menu, station.found().input());
+                FurnaceStation.takeAll(bot, menu, station.found().input(), containerGrant());
             }
         }
         if (machine != null) {

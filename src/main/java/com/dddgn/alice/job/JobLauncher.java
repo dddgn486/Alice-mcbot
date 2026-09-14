@@ -25,9 +25,27 @@ public final class JobLauncher {
     /**
      * 按请求**发料**（幂等：有就不重复给）。
      *
+     * <p><b>⚠️ 2026-09-14（T1 / R-2）：必须显式声明"这是夹具入口还是生产入口"。</b>
+     * 此前只有一个无参版本，它调 {@link FixtureToolKit} **凭空造出**钻石镐/钻石斧/12 圆石
+     * （快捷栏满时还会**强制覆盖**已有物品）。而 `BotManager.assignJob` 是**决策层唯一的生产入口**
+     * （`decision/GoalDirector` 起 Job 就走它）⇒ **LLM 起的每个 Job 都白得一套钻石工具**，
+     * 与"不许凭空给物品"直接冲突（`CASE CRAFT` 的注释自己写着这是同族铁律）。
+     *
+     * <p>现在按入口分流：
+     * <ul>
+     *   <li><b>生产（`fixtureProvision=false`）</b>：**只搬运、不创造** —— 走
+     *       {@link com.dddgn.alice.bot.ToolSupply#promoteFromMain}，把**已有**工具从主背包挪进快捷栏；
+     *       没有就**如实不造**，让 Job 自己报 `tool_missing`（诚实失败优于凭空成功）。</li>
+     *   <li><b>夹具（`fixtureProvision=true`）</b>：保留原行为（测试世界是白板，夹具必须能自证前提）。</li>
+     * </ul>
+     *
+     * @param fixtureProvision 本次入口是否为**测试夹具**（只有游戏内测试物品/自检任务可传 true）
      * @return 发料失败（例如区域型缺选定树苗）时返回 false —— 由调用方决定是否还起 Job
      */
-    public static boolean provision(BotPlayer bot, JobRequest request) {
+    public static boolean provision(BotPlayer bot, JobRequest request, boolean fixtureProvision) {
+        if (!fixtureProvision) {
+            return provisionFromExisting(bot, request);
+        }
         switch (request.kind()) {
             case LUMBER -> {
                 FixtureToolKit.ensureAxe(bot);
@@ -62,6 +80,40 @@ public final class JobLauncher {
             }
         }
         return true;
+    }
+
+    /**
+     * **生产入口的"发料" = 只搬运已存在的工具**（T1 / R-2）。
+     *
+     * <p>不做任何创造、不覆盖任何已有物品；缺什么就**如实留缺**，由 Job 报 `tool_missing`
+     * （`LumberJob`/`MineJob` 已有该上抛路径）。这样"LLM 起的 Job"与"真人用手玩"是同一条物质约束。
+     *
+     * <p>区域型还需要**选定树苗**：只在背包里已经有该树苗时把它挪进快捷栏（`ensureHotbarStack` 的
+     * 非创造等价物不存在，所以这里直接查 `countInInventory` 后如实记录"有/没有"）。
+     */
+    private static boolean provisionFromExisting(BotPlayer bot, JobRequest request) {
+        switch (request.kind()) {
+            case LUMBER, REGION_LUMBER -> promote(bot, request, com.dddgn.alice.bot.ToolSupply.Kind.AXE,
+                    com.dddgn.alice.bot.ToolSupply.Kind.PICKAXE);
+            case MINE -> promote(bot, request, com.dddgn.alice.bot.ToolSupply.Kind.PICKAXE);
+            case COLLECT, CRAFT -> {
+                // 与夹具分支同一口径：不发料
+            }
+        }
+        return true;
+    }
+
+    private static void promote(BotPlayer bot, JobRequest request, com.dddgn.alice.bot.ToolSupply.Kind... kinds) {
+        StringBuilder line = new StringBuilder();
+        for (com.dddgn.alice.bot.ToolSupply.Kind kind : kinds) {
+            String result = com.dddgn.alice.bot.ToolSupply.promoteFromMain(bot, kind);
+            if (!line.isEmpty()) {
+                line.append(' ');
+            }
+            line.append(kind.label()).append('=').append(result);
+        }
+        BotLog.info("[Job] 生产入口只搬运不发料（{}）：{} ⇒ 缺工具时由 Job 自己如实报 tool_missing",
+                request.kind(), line);
     }
 
     /** 构造 `Job`（不发料、不登记会话——那是 `BotManager.assignJob` 的事）。 */

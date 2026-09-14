@@ -352,10 +352,11 @@ public final class WritePolicyMatrix {
     /** 派生规则（前缀规则没命中时按名字形态判定；夹具/自检的命名约定：`*Check`/`*Probe`/`*Diagnostic`）。 */
     private static Task derivedTask(String lowerNormalized) {
         // ① 夹具/自检标记**优先**：一个叫 `LumberFailureCheck` 的东西是夹具，不该按"lumber"归到生产任务
-        for (String marker : List.of("check", "probe", "dump", "diagnostic", "regression", "battery", "demo")) {
-            if (lowerNormalized.contains(marker)) {
-                return Task.DIAGNOSTIC;
-            }
+        // ⚠️ T1 / R-3（2026-09-14）：判据改调 `Task.looksLikeSelfCheck`（**唯一真源**）。
+        // 这里此前内联了一份标记表，而 `Task.isSelfCheck()` 用的是**后缀**约定 ⇒ 两套约定漂移了
+        // **18 个类**（主电池 `RegressionBatteryTask` 自己在差集里）⇒ 电池终态会招 LLM、占住测试场地。
+        if (com.dddgn.alice.task.Task.looksLikeSelfCheck(lowerNormalized)) {
+            return Task.DIAGNOSTIC;
         }
         // ② 任务族（`region_lumber` 这类带下划线的名字归一化后也能命中）
         //    注：`Task.taskName()` 的默认值是**类名**（`task/Task.java:42`）⇒ requester 可能是 "PlaceTask"，
@@ -390,10 +391,8 @@ public final class WritePolicyMatrix {
                 || stripped.contains("place")) {
             return Task.TRAVERSAL;
         }
-        for (String marker : List.of("check", "probe", "dump", "diagnostic", "regression", "battery", "demo")) {
-            if (stripped.contains(marker)) {
-                return Task.DIAGNOSTIC;
-            }
+        if (com.dddgn.alice.task.Task.looksLikeSelfCheck(stripped)) {
+            return Task.DIAGNOSTIC;
         }
         return Task.UNREGISTERED;
     }
