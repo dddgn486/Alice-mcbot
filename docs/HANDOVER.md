@@ -78,18 +78,26 @@
 **两个已知小遗留（下次顺手处理）**：① ~~`WriteReason` 检出 14/16~~ **已查清并关闭**：`WriteReason` 真实取值就是 **14 种**（我先前数成 16，多出的 2 个来自嵌套枚举 `Policy`/`Action`）——**是检查脚本抓到我自己文档的错**，CSV 已改；顺带记下一个有用事实：`WriteReason` 每条自带分类 `Policy(EXPLICIT_TARGET/CLEARING)` + `Action(BREAK/PLACE/BOTH)`；
 ② `flow.svg` 无 PNG 版本（本机无 mmdc/inkscape/ImageMagick ⇒ 浏览器查看，或用时再写纯 Python 位图导出）。
 
-**③（新，验证时从日志发现）** `/alice authz` 在**无作用域**时把破坏/放置余量打成 `2147483647`（`Integer.MAX_VALUE`）
-——语义是"无作用域预算限制"，显示成天文数字易被误读；建议改成"无作用域（不受预算约束）"。
-**④（新，验证时从日志发现）** 回归电池结束后的自动决策选了 240 格外的 `region:saved` 做 `region_lumber`，
+**③（验证时从日志发现）** ~~`/alice authz` 在无作用域时把预算打成 `2147483647`~~ **已修（2026-09-14）**：
+根因不是显示，是**口径不一致**——`remainingContainerWrites` 在无作用域时返回默认上限 32，另两桶返回 `MAX_VALUE`，
+于是快照把"未生效的上限"当成真实余量打印。修法：① 该函数无作用域统一返回 `MAX_VALUE`；② 快照改为**按作用域分支**：
+有作用域报三桶余量+已拒数，无作用域报"闸门未生效（不计数、不拦截，仅 `no_scope` 留痕）+ 作用域内默认上限"。
+语义澄清已登记 `AI_DECISIONS.md` D-106 附注。**待客户端复验**（与下一次客户端轮一起）。
+**④（验证时从日志发现，用户裁定推迟）** 回归电池结束后的自动决策选了 240 格外的 `region:saved` 做 `region_lumber`，
 401 tick 后 `FAILED code=failed:outside_region`（`chopped=0 patrols=380`，`latest.log:3828`）——失败优雅且留痕（对的），
-但**目标层菜单项没带可达性/距离信息**，LLM 会据此挑到够不着的活。建议：菜单项附距离或可达性标注（未决）。
+但**目标层菜单项没带可达性/距离信息**，LLM 会据此挑到够不着的活。建议：菜单项附距离或可达性标注（留到目标层菜单改造时做）。
+**⑤（验证时从日志发现）** ~~DSH profile 残留 patch 条目~~ **已清（2026-09-14）**：
+`~/.dsh/profiles/web/cordis.patch.yml` 引用了已不存在的 `dsh-voice-assistant-test`，每次启动都报
+`patch: entry … not found`；移除后 `dsh --profile web --dump-config` 的 stderr **干净**（554 行配置照常）。
 
 **未验证堆积**：~~`CORE 27` 尚未跑过~~ **已跑并全绿**：`PROFILE=CORE … (27/27) ticks=2845 → PASS`
-（`latest.log:3801`，含新步 `machine_route` / `machine_station`）。当前**无待验证项**。
+（`latest.log:3801`，含新步 `machine_route` / `machine_station`）。当前唯一待复验项 = 上面 ③ 的新 L3 文案。
 
 **会话摘要调查（2026-09-14，用户提问触发）**：结论 = **不必获取会话摘要，也不装第三方插件**
 （摘要已原生自动产生并持久化；且 1% 量级有损 ⇒ 事实来源是原文，而压缩后原文**未丢**：1078/1078 遮蔽事件仍在磁盘、
-可按 `seq` 取回）。完整取证 + 第三方生态清单 + 可选只读解码器见 `docs/reviews/2026-09-14-会话摘要调查.md`。
+可按 `seq` 取回）。取证 + 第三方生态清单见 `docs/reviews/2026-09-14-会话摘要调查.md`；
+用户批准把取证脚本落成 **`tools/dsh-session-log.mjs`**（只读：`--list` / 默认压缩表 / `--shadowed` / `--seq a-b` / `--grep`），
+纪律写进 `AGENTS.md` 固定动作⑤：**只在细节被压缩遮蔽时用，不做例行解码**。
 
 ## 6. 未做/已知边界（不假装完成）
 

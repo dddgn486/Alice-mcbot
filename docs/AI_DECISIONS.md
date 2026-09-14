@@ -2613,6 +2613,13 @@ APPROACH 成功（`movements=0`），但 **DESCEND 失败**：
 - **没有任何"计数上限"**（全树 grep `maxBreaks/breakLimit/writeBudget` 为空）。
 ⇒ Alice 加计数上限的理由：服务端权威 + 可审计 + 可归因（同 D-082 的立场），不是"补 Baritone 的缺"。
 
+**附注（2026-09-14，`/alice authz` 暴露的语义澄清）**：**没有作用域 ⇒ 闸门未生效**，不是"上限放宽"：
+`scopeOf()` 为 `null` 时 `consumeBreak/consumePlace/consumeContainerWrite` 一律 `Verdict.ALLOW`
+（仅打 `[WriteBudget] no_scope` 留痕，缺口不静默）。因此三个查询口径必须一致地表达"无限"——
+`remainingBreaks`/`remainingPlaces`/`remainingContainerWrites` 在无作用域时**都返回 `Integer.MAX_VALUE`**
+（此前 `remainingContainerWrites` 返回默认上限 32，导致只读快照把它当成真实余量打印出来，已修）。
+调用方见到 `MAX_VALUE` 的含义是"没有记账单位"，**不得**当成"额度很大"去做规划期判断。
+
 **用户裁定（2026-09-11）**：(a) 破坏与放置**分开计**；(b) 起点 **64 / 32**（先观测再收紧）；
 (c) **只读**：不加运行期覆盖命令（夹具内部构造"预算不足"场景除外）。
 

@@ -635,19 +635,25 @@ public final class BotCommand {
         }
         final String pureText = pure.toString();
 
-        // L3 执行期：写入预算与拒绝计数（D-106）
-        final String budget = "破坏 余" + com.dddgn.alice.action.WriteBudget.remainingBreaks(bot)
-                + "（已拒 " + com.dddgn.alice.action.WriteBudget.refusedBreaks(bot) + "）"
-                + " / 放置 余" + com.dddgn.alice.action.WriteBudget.remainingPlaces(bot)
-                + "（已拒 " + com.dddgn.alice.action.WriteBudget.refusedPlaces(bot) + "）"
-                + " / 容器写入 余" + com.dddgn.alice.action.WriteBudget.remainingContainerWrites(bot)
-                + "；scope=" + com.dddgn.alice.action.WriteBudget.scopeOf(bot);
+        // L3 执行期：写入预算与拒绝计数（D-106）。**无作用域时闸门根本没生效**，
+        // 此时不能打印各桶"余量"（那会把未生效的上限当成真实额度）——只报未生效 + 作用域内默认上限。
+        final String scopeId = com.dddgn.alice.action.WriteBudget.scopeOf(bot);
+        final String budget = scopeId != null
+                ? "scope=" + scopeId
+                        + "；破坏 余" + com.dddgn.alice.action.WriteBudget.remainingBreaks(bot)
+                        + "（已拒 " + com.dddgn.alice.action.WriteBudget.refusedBreaks(bot) + "）"
+                        + " / 放置 余" + com.dddgn.alice.action.WriteBudget.remainingPlaces(bot)
+                        + "（已拒 " + com.dddgn.alice.action.WriteBudget.refusedPlaces(bot) + "）"
+                        + " / 容器写入 余" + com.dddgn.alice.action.WriteBudget.remainingContainerWrites(bot)
+                : "无作用域 ⇒ 闸门未生效（不计数、不拦截，仅 [WriteBudget] no_scope 留痕）；"
+                        + "默认上限（仅作用域内生效）破坏" + com.dddgn.alice.action.WriteBudget.DEFAULT_MAX_BREAKS
+                        + "/放置" + com.dddgn.alice.action.WriteBudget.DEFAULT_MAX_PLACES
+                        + "/容器" + com.dddgn.alice.action.WriteBudget.DEFAULT_MAX_CONTAINER_WRITES;
 
         // L4 收尾期：账本 pending（只记放置）+ 保护区判定
         final int pendingMine = com.dddgn.alice.ledger.WorldModLedger
                 .pendingForOwner(server, bot.getUUID()).size();
         final int pendingAll = com.dddgn.alice.ledger.WorldModLedger.size(server);
-        final String scopeId = com.dddgn.alice.ledger.WorldModLedger.currentScope(server, bot.getUUID());
         final int tempOpen = BotManager.pendingTemporaryCount(bot);
         final String zoneSummary = com.dddgn.alice.protection.SafeZoneData.get(server).summary();
         final String zoneVerdict = com.dddgn.alice.protection.SafeZoneData.get(server)

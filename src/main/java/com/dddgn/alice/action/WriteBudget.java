@@ -226,11 +226,21 @@ public final class WriteBudget {
         return Verdict.ALLOW;
     }
 
-    /** 本作用域还剩多少次容器写入（调用方可在规划期先问）。 */
+    /**
+     * 本作用域还剩多少次容器写入（调用方可在规划期先问）。
+     *
+     * <p><b>无作用域 = 无限</b>（与 {@link #remainingBreaks}/{@link #remainingPlaces} 一致）：
+     * 没有作用域就没有记账单位，{@link #consumeContainerWrite} 也直接放行，因此这里必须返回
+     * {@link Integer#MAX_VALUE}，不能返回默认上限——否则调用方会把"未生效的上限"当成真实余量读出来
+     * （2026-09-14 `/alice authz` 曾据此显示"容器写入 余32"）。
+     */
     public static int remainingContainerWrites(ServerPlayer bot) {
         String scope = scopeOf(bot);
-        Caps caps = scope == null ? Caps.DEFAULT : CAPS.getOrDefault(scope, Caps.DEFAULT);
-        Counters counters = scope == null ? null : SCOPES.get(scope);
+        if (scope == null) {
+            return Integer.MAX_VALUE;
+        }
+        Caps caps = CAPS.getOrDefault(scope, Caps.DEFAULT);
+        Counters counters = SCOPES.get(scope);
         int used = counters == null ? 0 : counters.containerWrites;
         return Math.max(0, caps.maxContainerWrites() - used);
     }
