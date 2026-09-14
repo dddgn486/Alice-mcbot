@@ -69,7 +69,7 @@
 - 客户端：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - 同步：`./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`；
   镜像 `./tools/mirror-windows-workspace.sh`；资源自检 `bash tools/check-item-models.sh`（当前 76 项）。
-- **本轮最后同步的 jar**：`a0d29b5835c31dac`（完整 sha256 `a0d29b5835c31dac4ed346df20166bcc19a9ed5e0a2802905fb461d9f9c262dc`；
+- **本轮最后同步的 jar**：`ca1ec15d7547afbc`（完整 sha256 `ca1ec15d7547afbc90d76202f2f70afa5015ed817f6fc9ba52752ba585cfa55f`；
   上一版 `3ccb320b0f594366`）。变更是 **S3 机器映射单一出处 + 探针按表认机器**（D-209）：
   生产路径只改一处（`RecipeQuery` 的机器路线 `station` 文案），其余为只读探针与离线闸门。
 - 场景：仓库 `tools/test-scenes/alice_test/` → 客户端存档

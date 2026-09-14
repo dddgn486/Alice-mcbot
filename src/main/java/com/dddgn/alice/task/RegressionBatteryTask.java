@@ -376,8 +376,10 @@ public final class RegressionBatteryTask implements Task {
         steps.add(stepSkippable("machine_route", List.of(), () -> { },
                 () -> new com.dddgn.alice.task.MachineProbeTask(bot, observer), 200,
                 task -> task.failureReason().contains("_absent")));
-        // 阶段 3-B / S2（D-206）：**机器站点只读**（找机器 → 开菜单 → 读槽位表/ContainerData/上游进度方法名）；
-        // 机器不在/模组未装 ⇒ SKIP。夹具**自带传送与结束复位**（PLAYBOOK §5.0d）。零写入。
+        // 阶段 3-B / S2+S3（D-206 / D-209）：**机器站点只读**，S3 起**按 `MachineMap` 认机器**
+        // （半径内表里登记的方块每类一台 ⇒ 双机器场景也能自证点对了哪台；不再按"最近同命名空间方块"撞）；
+        // 断言菜单类与"方块实体自述配方类型 == 表里的类型"。机器不在/模组未装 ⇒ `machine_absent` ⇒ SKIP。
+        // 夹具**自带传送与结束复位**（PLAYBOOK §5.0d），探针预算 350 < 本步预算 400。零写入。
         steps.add(stepSkippable("machine_station", List.of("alice_test:machine_course"), () -> { },
                 () -> new com.dddgn.alice.task.MachineStationProbeTask(bot, observer), 400,
                 task -> task.failureReason().contains("_absent")));
