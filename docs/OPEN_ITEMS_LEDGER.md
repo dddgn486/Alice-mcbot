@@ -1100,7 +1100,7 @@ jar `3312608d…`。
     `verdicts={MACHINE_ROUTE=2, MISSING_INGREDIENTS=4}` ⇒ 查询层**没有**把"明明做得出来"报成 `NO_RECIPE`
     （站点如实回落成类型 id，因为表里没有该模组的行 ⇒ 不猜方块）。**边界**：37 条抽样 ≠ 全部 531 条；
     `MACHINE_ROUTE` 只表示"读得出"，执行侧仍如实拒绝。
-- **⚠️ 【通道缺陷·新】`partial_search` 非确定性（2026-09-14 实测，触发条件已定位）**：
+- **✅ 【通道缺陷·已修】`partial_search` 非确定性（2026-09-14 实测并修复，用户批准 (A)）**：
   **同一 jar 两轮**，轮 1 `partial_search=FAIL`（`(29/30)`）、轮 2 `PASS`（`(30/30)`）。
   失败用例 `partial_with_prefix`（`SearchBudget.of(2,0L)`）在起步时 bot **未落地**（`on_ground=false`、
   `from.z=404` vs 正常 `406`）⇒ 规划器只扩 2 节点且无改善（`best=0.0`）⇒ **没有前缀可交**，
@@ -1108,15 +1108,35 @@ jar `3312608d…`。
   **根因（假设）**：步骤间**无起点锚定/落地同步** —— ① `partial_search` 在电池里注册的起点参数是 `null`
   且夹具自称"不移动 bot"；② 电池对 premise 的 `on_ground` **只打日志不行动**
   （`RegressionBatteryTask.java:684-691`，而 `ownMenu` 不 ok 会 `closeContainer()`）。
-  **修复方向（未实施）**：premise 里 `onGround` 不 ok 时**有界等待**（通用、一处修全部步骤）；
-  或 `partial_search` 自锚固定起点 + 结束复位（§3.2 两条硬纪律，需选平地、碰场景）。
-  **触发条件**：起步时 bot 未落地（`premise … on_ground=false`）。
+  **已修（(A) 落地同步）**：`RegressionBatteryTask.startStep` 在 premise 之后加**有界等待**
+  （`awaitGrounding`，上限 40 tick）—— setup（开作用域/建场景/发料）由 `setupDoneForIndex` 保证**只做一次**，
+  落地则**每 tick 复检**；等不到就**如实继续**（不假装成功，也不把非确定性换成假红）。
+  **验证**：临时探针**确定性地**复现触发条件（`transfer` 后把 bot 抬到 Y+3）⇒ 等待生效、
+  `partial_search` **PASS**、整轮 `(30/30)`；删掉探针后 `(30/30) ticks=3414 → PASS`。
+  **两个实测教训**（① 我自己的实现 bug）：第一版把重入分支写成直接 `return awaitGrounding(...)`
+  ⇒ **复检被跳过、白等满 40 tick**（超时日志里 `onGround=`**`true`** 却仍在等 ⇒ 日志自己暴露了自己）；
+  **② step 1 的空降是常态**：`clear_retry` 在 **8/8 轮**都是 `on_ground=false pos=6,64,67`
+  （出生/传送后第一 tick）⇒ 第一步记 **info**、第 2 步起才记 **warn**（否则每轮都在喊狼来了）。
+  **触发条件可 grep**：`premise step=… 起步时未落地`。
+- **⚠️ 【通道缺陷·未解释·单次】`place_course+wall` 在 `ground2` 轮变红（2026-09-14）**：
+  `MOVEMENT_FAILED code=ASCEND_NO_HEADROOM index=5 actualFoot=6, 61, 66`（前一段是 `PILLAR`，
+  `replans=2/minReplans=1`）。**该子用例此前 13 轮连续 PASS**（det1…ground1），同轮 `cleanup` 干净
+  （`回收我方临时方块=2 剩余=0`），其后 `place_course+disturb` PASS。
+  **诚实边界**：我**没有**输入级证据（只有 `ASCEND_NO_HEADROOM` 与起始脚位，没有该处几何/世界状态对照），
+  既不支持也不排除"是 (A) 的时序位移（早 36 tick）引入的"。**不盲修**（失败模式识别 Anti-Pattern 1：
+  第三次失败就停下分析共性，不要继续单点打补丁）。
+  **下一步（未做，需先定方向）**：给该子用例加**一条可判读读数**（`ASCEND_NO_HEADROOM` 时 dump
+  目标格与其上方两格的方块 id），再跑 N 轮 ⇒ 区分"场景没建好"与"时序相位"。
+- **⚠️ 【通道缺陷·系统性假设】**：上述两例的**共性**是"步骤起步时的**位置/世界状态/时序相位**"，
+  即**电池的步骤集合整体不是时序无关的**（每步只依赖上一步留下什么：`partial_search`/`transfer`
+  在电池里起点参数都是 `null`）。**候选根治方向（未做，需要你拍）**：把"起点"变成 `Step` 的**必填契约**
+  —— 每个步骤要么声明 `startFoot`、要么显式声明"我自带场景/复位"，**不声明就响亮失败**。
 - **T3 剩余（第 3 个模组之前必须做）**：**B3b** Port 化 `Facts`（每产出自带 `chance` + 长度断言 ——
   今天 `outputs`/`chances` 两个独立列表 + 空栈过滤 ⇒ **结构上无法配对**）；**B4** 把
   `MOD_ADAPTER_PROTOCOL.md:44-51` 的散文判据变成断言或删掉 + `UPSTREAMS[ns]["capabilities"]` 双向对账；
   **M-4 已答**（见上：`query_no_recipe=0`，查询层诚实）；
   **仍未做**：`MachineMap` 那 **19 行**（Create 15 + EC 4）与该模组的 `UPSTREAMS` 能力声明 ——
-  那才是"接第 3 个模组"本身。
+  那才是"接第 3 个模组"本身（**B3a 已被证明是它的承重前提**）。
 - **T3 模组 #3 的数据模型**：**`create-1.20.1-6.0.8.jar` 与 `ExtendedCrafting-1.20.1-6.0.10.jar`
   已经在客户端 `mods/` 里**，且按审查 §3.3 会被**静默读错**（读取器把 Mekanism 特例当通则、不试 vanilla 接口；
   `MachineMap` 的 1 方块↔1 类型不变式让 Thermal 6 行**已是错事实**）。

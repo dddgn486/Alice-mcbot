@@ -232,6 +232,12 @@ public final class RegressionBatteryTask implements Task {
     private int stepTicks;
     private Task current;
     private boolean stepStarted;
+    /** 已经为哪个 `index` 做过"开作用域/建场景/发料"（等待落地时会**重复进入** `startStep`，不能重做）。 */
+    private int setupDoneForIndex = -1;
+    /** 本步"等落地"已等的 tick 数（0 = 没在等）。 */
+    private int premiseWaitTicks;
+    /** 有界等待上限：bot 落到地面通常几个 tick 内完成；等这么久还不落地就**如实继续**（不再等）。 */
+    private static final int MAX_PREMISE_WAIT_TICKS = 40;
     private final Map<String, Integer> k4Baseline;
 
     public RegressionBatteryTask(BotPlayer bot, ServerPlayer observer, ScopeBuffer scope) {
@@ -660,6 +666,16 @@ public final class RegressionBatteryTask implements Task {
         // **每步一个独立作用域**（镜像 BotSession.beginTask 的那一半）：WriteBudget 的
         // 破坏/放置上限与账本 TEMP 都是"一次任务一个作用域" ⇒ 九项共用一个作用域会串味
         // （后面的项会撞上前面的 64/32 上限、恢复阶段也会互相看见对方的临时方块）。
+        // ⚠️ **`startStep` 会被重复进入**（等落地时本方法每 tick 再进一次，见 `awaitGrounding`）
+        // ⇒ 开作用域/建场景/发料**只能做一次**：重做会**重复发料**、重复执行场景函数。
+        // ⚠️ 但**落地判断必须每 tick 复检** —— 我第一版让重入分支直接 `return awaitGrounding(...)`，
+        // 于是复检被跳过、白等满上限（实测日志：超时行里 `onGround=`**`true`** 却仍在等 ⇒ 自己暴露了自己）。
+        boolean freshStep = setupDoneForIndex != index;
+        if (freshStep) {
+            setupDoneForIndex = index;
+            premiseWaitTicks = 0;
+        }
+        if (freshStep) {
         com.dddgn.alice.ledger.WorldModLedger.openScope(
                 bot.getServer(), bot.getUUID(), "Regression:" + step.name());
         BotLog.info("[Regression] step={} ({}/{}) scenes={} budget={}",
@@ -689,6 +705,64 @@ public final class RegressionBatteryTask implements Task {
             BotLog.warn("[Regression] premise step={} 有残留容器菜单 ⇒ 先关掉再跑（{}）",
                     steps.get(index).name(), premiseOwn.detail());
             bot.closeContainer();
+        }
+        }
+        // **（A）落地同步：每 tick 复检**（不复检 = 白等满上限，且会把"其实已经落地"读成超时）
+        if (!com.dddgn.alice.task.FixturePremise.onGround(bot).ok()) {
+            return awaitGrounding(step);
+        }
+        if (premiseWaitTicks > 0) {
+            BotLog.info("[Regression] premise step={} 已落地（等了 {} tick）⇒ 开始本步",
+                    step.name(), premiseWaitTicks);
+            premiseWaitTicks = 0;
+        }
+        stepTicks = 0;
+        stepStarted = true;
+        current = step.factory().get();
+        return Status.RUNNING;
+    }
+
+    /**
+     * **（A）起步前的"落地同步"**（2026-09-14 实测缺陷的修法）。
+     *
+     * <p>为什么要修：步骤之间**没有起点锚定** ⇒ "起步时 bot 还在半空/还在滑动"会把一个**移动中的起点**
+     * 交给下一步。实测代价：同一 jar 两轮，`partial_search` 的 premise 一次 `on_ground=true`
+     * （`from.z=406` ⇒ `PARTIAL movements=2`，PASS）、一次 `on_ground=false`（`from.z=404` ⇒
+     * `SEARCH_LIMIT movements=0 best=0.0`，**FAIL**）—— 那个用例的预算只有 2 个节点，
+     * 起点差一两格就足以决定"有没有前缀可交"。**规划器行为是对的，是夹具前提不成立。**
+     *
+     * <p>**为什么必须同时打 warn**：等落地会把"**某一步把 bot 留在了半空**"这个**真 bug** 遮住。
+     * 所以每次真的等待都**出声**（`起步时未落地`），并且只报一次、不刷屏 ⇒ 遮不住，只降噪。
+     * 触发条件可 grep：`[Regression] premise step=… 起步时未落地`。
+     *
+     * <p>**有界**：等 {@link #MAX_PREMISE_WAIT_TICKS} tick 仍不落地就**如实继续**（不假装成功、
+     * 也不把非确定性换成假红）——真出问题时会以它本来的样子失败。
+     *
+     * <p>返回 {@code RUNNING} 且**不设 `current`** ⇒ `tick()` 下一 tick 会再进 `startStep`，
+     * 而 `setupDoneForIndex` 保证开作用域/建场景/发料不会被重做。
+     */
+    private Status awaitGrounding(Step step) {
+        if (premiseWaitTicks == 0) {
+            String detail = com.dddgn.alice.task.FixturePremise.onGround(bot).detail();
+            if (index == 0) {
+                // 第一步没有"上一步" ⇒ 空降只可能来自**出生/传送**，这是**每轮都发生**的正常事实
+                // （实测 8/8 轮都是 `on_ground=false pos=6, 64, 67`）⇒ 记 info，避免把常态刷成告警。
+                BotLog.info("[Regression] premise step={} 起步时未落地（出生/传送后尚未落地，正常）"
+                        + "⇒ 等落地再开始：{}", step.name(), detail);
+            } else {
+                BotLog.warn("[Regression] premise step={} 起步时未落地 ⇒ 等待落地（最多 {} tick）。"
+                                + "⚠️ 这通常意味着**上一步把 bot 留在了半空/还在滑动**，值得单独查：{}",
+                        step.name(), MAX_PREMISE_WAIT_TICKS, detail);
+            }
+        }
+        if (++premiseWaitTicks > MAX_PREMISE_WAIT_TICKS) {
+            BotLog.warn("[Regression] premise step={} 等了 {} tick 仍未落地 ⇒ **不再等，如实继续**"
+                            + "（本步可能因此以其本来的样子失败）：{}",
+                    step.name(), MAX_PREMISE_WAIT_TICKS,
+                    com.dddgn.alice.task.FixturePremise.onGround(bot).detail());
+            premiseWaitTicks = 0;
+        } else {
+            return Status.RUNNING;
         }
         stepTicks = 0;
         stepStarted = true;

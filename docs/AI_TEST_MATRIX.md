@@ -200,6 +200,18 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 
 | R2 零进展快速失败（D-105） | 任一卡死场景（如旧版 `clear_guard` 的箱顶弹跳） | 观察日志 | 连续 3 次"起跳后落回同一脚位格"即 `[R4 Session] no_progress … → TIMEOUT/SEGMENT_NO_PROGRESS`，约 40 tick 内退出而不是 161 tick | `待测`（构造性验证：需要能复现"物理上不可能收敛"的场景） |
 
+## 电池自身的"起步前提"（2026-09-14 起）
+
+| 前提 | 现状 | 读数 |
+|---|---|---|
+| 每步起步时 bot **已落地** | ✅ 已由 `RegressionBatteryTask.awaitGrounding` **有界等待**（≤40 tick）保证 | step 1（出生后）**每轮都等 4 tick** ⇒ `已落地（等了 4 tick）`；中段步骤若出现等待 ⇒ **warn** `起步时未落地`（= 上一步把 bot 留在了半空，值得单独查） |
+| 每步起步时**没有别人的容器菜单** | ✅ 已有（`ownMenu` ⇒ 自动 `closeContainer()`） | `premise step=… own_menu=true` |
+| 每步起步**位置固定** | ❌ **没有**（`partial_search`/`transfer` 起点参数为 `null`）⇒ 已知会引起非确定性 | 见台账 §9 末两条 |
+
+⚠️ **注意**：等待本身**不能**当"起作用了"的证据 —— 必须看**等待之后该步是否 PASS**；反过来，
+若某轮出现 `起步时未落地` 的 **warn**（非 step 1），说明**某一步真的把 bot 留在了半空**，
+那是**被测系统的 bug**，不要因为它不再变红就忽略。
+
 ## 性能验证
 
 | 能力 | 测试入口 | 关键观察 | 当前状态 |

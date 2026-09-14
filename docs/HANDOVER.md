@@ -47,6 +47,7 @@
 | **T3 步骤 B3a** 读取器「先原版、再名族」+ 逐字段出处 | `SERVER_TESTED` | **值不变且被证明**（`vanilla_input=0` + `divergent=0` + `read_notes=0` ⇒ 每字段逐位相同）；判据一行未动 |
 | **顺带修的**：`MachineProbe` 抽样不再是确定性的 | `SERVER_TESTED` | 修前**同 jar 两轮读数就不同**（`input_readable` 65/64、`query_machine_route` 0/2、`recipe_order_hash` 5 轮 5 值）⇒ **旧读数全部作废**；修后**同 jar 三轮 SUMMARY 逐字相同** |
 | **T3 步骤 A** 探针可见性：枚举来源 = **配方注册表** | `SERVER_TESTED` | `unmapped_total=19`（`create` **15 类型/506 配方**、`ExtendedCrafting` **4 类型/25 配方**，**表里各 0 行**）；已登记部分读数逐字未变；两轮逐字相同 |
+| **(A) 落地同步（电池）**：步骤起步未落地时有界等待 | `SERVER_TESTED` | 修前同一 jar 两轮 1 FAIL / 1 PASS（`partial_search`）；**临时探针确定性复现触发条件**后 ⇒ 等待生效、`partial_search` PASS、`(30/30)`；删探针后 `(30/30) ticks=3414 → PASS`。step 1 空降是常态（8/8 轮）⇒ 该步记 info |
 | **T3 步骤 A2+C** 未登记类型的形状 + M-4 查询层判决 | `SERVER_TESTED`（**两轮同 jar：轮 1 因无关的 `partial_search` 非确定性变红，轮 2 `(30/30) PASS`**） | ⭐ `unregistered_vanilla_only_out=37/37` ⇒ **模组名族对 Create/EC 读不出产出**，是 B3a 的原版路径在读 ⇒ **B3a 对接第 3 个模组是承重的**（改前这批会判 `MACHINE_RECIPE_UNSUPPORTED`）；M-4：`query_no_recipe=0`、`reachable=6/6` ⇒ 查询层对新模组物品诚实 |
 
 **B3a 全文：`docs/reviews/2026-09-14-T3-B3a-读取器vanilla优先与探针确定性.md`**
@@ -79,13 +80,19 @@
   是两个独立列表 + 空栈过滤 ⇒ **结构上无法配对**，A5；等第 3 个模组同期做）。
 - **`query_reachable` 尚未升级为断言**（有意：measure first）—— 它是"读取器读出 X ⇒ 查询层不得对 X 报
   `NO_RECIPE`"这条真不变式，本轮只计数。
-- **⚠️ 通道缺陷（新，未修）：`partial_search` 非确定性** —— 同一 jar 两轮 1 FAIL / 1 PASS。
-  失败输入 = 起步时 bot 未落地（`on_ground=false`、`from.z=404` vs `406`）⇒ 该用例的 2 节点预算下
-  规划器**没有前缀可交**（返回 `SEARCH_LIMIT`，**规划器正确、夹具前提不成立**）。
-  根因假设：步骤间**无起点锚定/落地同步**（`partial_search` 起点参数为 `null` 且夹具自称"不移动 bot"；
-  电池对 premise 的 `on_ground` **只打日志不行动**，见 `RegressionBatteryTask.java:684-691`）。
-  **触发条件 = `premise … on_ground=false`** ⇒ grep 这一行即可判断某次红是不是它。
-  **修复方向未实施**（按修复纪律先讨论）：premise 有界等待落地（通用）／夹具自锚固定起点（§3.2）。
+- **✅ 通道缺陷已修：(A) 落地同步**（用户 2026-09-14 批准）。`startStep` 在 premise 后**有界等待落地**
+  （`awaitGrounding`，40 tick 上限）；setup 只做一次、落地**每 tick 复检**、等不到就**如实继续**。
+  **验证 = 临时探针确定性复现**（`transfer` 后抬到 Y+3）：等待生效 → `partial_search` PASS；
+  删探针后 `(30/30) ticks=3414 → PASS`。**我自己的实现 bug 被这次验证抓出**：
+  第一版重入分支跳过复检 ⇒ 白等满 40 tick（超时日志里 `onGround=true`）。
+  step 1 的空降是**常态**（8/8 轮，出生后第一 tick）⇒ 第一步记 info、第二步起记 warn。
+  **grep 触发条件**：`premise step=… 起步时未落地`。
+- **⚠️ 未解释·单次：`place_course+wall`**（`ground2` 轮）`ASCEND_NO_HEADROOM`，此前 **13 轮连续 PASS**，
+  之后一轮又 PASS。**我没有输入级证据** ⇒ 既不归因于 (A) 也不排除（该轮时序相位早了 36 tick）。
+  **不盲修**（Anti-Pattern 1）。下一步：给该子用例加一条可判读读数再跑 N 轮。
+- **⚠️ 系统性假设（未做）**：两例共性 = 步骤起步的**位置/世界状态/时序相位** ⇒ 电池整体不是时序无关的
+  （`partial_search`/`transfer` 的起点参数都是 `null`）。**候选根治**：把"起点"变成 `Step` 的**必填契约**
+  （声明 `startFoot` 或显式声明自带复位，**不声明就响亮失败**）—— **需要你拍**。
 
 ## 4. 待用户拍板（恢复后**先问这个**）
 
@@ -99,9 +106,9 @@
 **并且 B3a 已被证明是它的承重前提**（`unregistered_vanilla_only_out=37/37`：名族读不出 Create/EC，
 是原版路径在读）—— 好消息是这一步已经做完并验证过了。
 
-2. **还有一个独立的通道缺陷等你定方向**：`partial_search` 非确定性（§3 末条）。
-   我倾向"premise 有界等待落地"（通用、一处修全部步骤），但它是**电池语义**的改动（会让步骤等待，
-   可能掩盖"某步真的把 bot 留在半空"这类真 bug）⇒ 值得你过一眼再动手。
+2. **通道还剩两件**（§3 末两条）：① `place_course+wall` 单次红、**无输入级证据** ⇒ 建议先加一条
+   可判读读数（失败时 dump 目标格及其上方两格方块 id）再跑 N 轮，**不盲修**；
+   ② 是否把"每步起点"升级成 `Step` 的**必填契约**（不声明就响亮失败）—— 这是根治方向，但会碰全部 30 步。
 2. 之后收残留：**R1-残 / R4-残 / R5-残** + `craft_check` 门禁缺口（台账 §8/§9，各有触发条件）。
 
 **上下文/文档纪律（AGENTS.md 已机器化，不用背）**：`AGENTS.md + PLAYBOOK + STATE ≤ 1476 行`
