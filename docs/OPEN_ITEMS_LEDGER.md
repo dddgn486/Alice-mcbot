@@ -917,9 +917,13 @@ jar `3312608d…`。
   ⑩ **Thermal S1 的两个前置事实（如实登记）**：
   ① **没有上游 sources jar、也没有本地反编译产物** ⇒ 与 Mekanism 不同，S1 要**先解决"去哪拿源码/字节码"**
   （本机可 `unzip` 静态 jar 读 data/ 与 class，但"问上游自述"那套判据仍建议对着源码核，见 D-036 的取证纪律）；
-  ② **`alice-recipes.json` 已过时于当前客户端**（该导出之后又装了 refinedstorage / sophisticatedcore|storage|backpacks）
-  ⇒ 那三个模组的配方不在本次 S0 数据里；Thermal/Mekanism/Create 的数字仍与候选清单吻合，故 Thermal S0 有效，
-  但**要动"当前客户端真实分布"时必须重新导出**（游戏内 `/alice recipes`）。
+  ② **✅ 已关闭（2026-09-14，第十三轮）—— `alice-recipes.json` 已就地重导**：游戏内 `/alice recipes` ⇒
+  `recipes=3689 skipped=2379 tags=693 skippedTop=thermal:press=227,mekanism:crushing=210,mekanism:pigment_extracting=178`
+  （`config/alice-recipes.json` 1527420 字节，mtime 2026-09-14 17:15）⇒ **现在的表就是"当前客户端真实分布"**。
+  重导复核：Thermal 仍 **30 类型 / 652 条**（与 S0 旧导出**逐项一致** ⇒ 结构事实稳定）；可读 2923→3689 的增量来自
+  后装的 refinedstorage / sophisticatedcore|storage|backpacks，而**它们的配方全部落在原版可读类型里
+  （`skippedTypes` 里 0 条）**，跳过量只 +9。新发现见 `docs/THERMAL_FACTS.md` §6（**30 个类型里约一半是
+  燃料/催化/增幅类修饰类型，不是机器** ⇒ S1 枚举不得按类型数建行）。
   ③ 旁记（S1 开放项）：静态 jar 直方图 618 条 vs 运行时 652 条，**净差 +34 算术闭合**
   （`618 +7(numismatic_fuel) +7(tree_extractor) +38(10 个只在运行时出现的类型) −18(smelter_recycle 22→4)`），
   **来源未取证**（疑代码注册/条件禁用），留到 S1。

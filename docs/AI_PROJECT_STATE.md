@@ -146,10 +146,22 @@ alice:machine_cycle_check: 3405` + `missing registry entries`（⇒ 不在注册
 - **(c) 未做**：机器路线的**多输入 / 化学品输入**（如实拒绝）；`CraftJob` 只驱动 `EXECUTABLE` 那一行。
   **✅ 查询层排序已收（D-218，台账⑬ 关闭，2026-09-14）**：`RecipeQuery` 现在**按执行准入优先**挑机器路线
   （**只排不删** + `recipeId` 收尾 ⇒ 结论确定，不随配方管理器迭代序漂；`note` 里写清挑了哪台/共几条有准入）。
-  下一轮电池期望：`craft_machine` 的 **`fallback_used=false` + `target=minecraft:clay_ball`**（首选候选直接可用）。
+  **第十三轮实测（`latest.log`）已复核通过**：`craft_machine=PASS ticks=255` + **`fallback_used=false` + `target=minecraft:clay_ball`**
+  （`route_recipe=mekanism:enriching/clay_ball`、`input=minecraft:clay x1`、`job_reason=crafted:minecraft:clay_ball x4`、`product_after=4`），
+  同轮 `(30/30) ticks=3414 → PASS`（`:3955`）。**"前/后"判决器干净**：同一入口、同一断言，仅排序改变
+  ⇒ `true`+`soul_soil`（第十二轮）→ `false`+`clay_ball`（第十三轮）。
 - **(a) 已完成第 1 份 S0 事实表**：`docs/THERMAL_FACTS.md`（Thermal：652 条 / 30 类型，占本次跳过量 27.5%；
   前 5 = press 227 / pulverizer 81 / smelter 70 / insolator 63 / centrifuge 59 = 500 条 76.7%）。
-  两个前置缺口已登记台账⑩：**无上游 sources jar**、**`alice-recipes.json` 已过时**（那之后又装了 refinedstorage 等三个模组）。
+  **第十三轮已就地重导配方表**（`/alice recipes` ⇒ `recipes=3689 skipped=2379 tags=693`；`config/alice-recipes.json` 1.53 MB）
+  ⇒ 台账⑩ 的"表已过时"缺口**关闭**；重导后 `skippedTypes` 逐条与 S0 数字对得上，**Thermal 仍居首**（`thermal:press=227`）。
+  重导后新增的可验证事实：Thermal 的 30 个类型里**只有约一半是机器配方类型**（press / pulverizer / smelter / insolator /
+  centrifuge / bottler / crucible / sawmill / crystallizer / chiller / refinery / pyrolyzer / rock_gen / tree_extractor / furnace …），
+  另一半是**燃料 / 催化 / 增幅类修饰类型**（`*_fuel` / `*_catalyst` / `*_boost` / `*_recycle`）
+  ⇒ **S1 枚举不得按"类型数"建行**（须按 jar 里的 TileEntity/Block 逐条核实后才落 `MachineMap`）。
+  剩余前置缺口：**无上游 sources jar**（台账⑩）。
+  附带闭合的一处对账：`[MachineProbe] readable_total=3714 skipped_total=2354` 与导出 `recipes=3689 skipped=2379` 差 25 ——
+  导出侧 `skippedTypes` 里正有 `minecraft:crafting(空产出)=25`，两侧**算术精确闭合**（探测把"空产出合成"记为可读、导出记为跳过）
+  ⇒ 不是异常，是两处口径不同。
 **下一步（客户端无待验项）**：(c) 增量 2 已收官 ⇒ 回到 **(a) 下一个模组的 S0/S1**（Thermal 事实表已交付，
 前置缺口见台账⑩：**没有上游 sources jar**、**`alice-recipes.json` 已过时**）。两个可选小尾巴见台账⑬
 （查询层按执行准入挑机器路线）与⑨（`recipe-readability.py` 的 `--target`）。

@@ -98,7 +98,7 @@ python3 -c "import json;d=json.load(open('/mnt/d/JAVA_projects/worldedit-test/ve
 - **执行可行性**（协议要求"执行永远排在只读之后"；本步只回答"读不懂多少 + 形态分布"）。
 
 **发现的数据不一致 / 需要注意的地方**：
-- **这份导出对当前客户端已经过时**：`alice-recipes.json` mtime 为 2026-09-13 13:23，
+- **（✅ 第十三轮已重导，见 §6）这份导出对当前客户端已经过时**：`alice-recipes.json` mtime 为 2026-09-13 13:23，
   而 `mods/` 里在此**之后**还装了 `refinedstorage-1.12.4.jar`（16:30）、
   `sophisticatedcore-1.20.1-1.5.1.2335.jar` / `sophisticatedstorage-1.20.1-1.4.86.2131.jar`（16:35）、
   `sophisticatedbackpacks-1.20.1-3.26.3.2157.jar`（16:50）⇒ **这些模组的配方不在本导出里**；
@@ -181,3 +181,39 @@ print('top5 recipes=%d'%sum(n.values()), dict(sorted(n.items())), dict(k))"
 #    {'result_item': 643, 'result_fluid': 8, 'result_chance': 227, 'result_locked': 14, 'input_tag': 278, 'input_fluid': 0}
 ```
 ⇒ 静态前 5 类型合计 **500** 条，与运行时前 5 类型合计（227+81+70+63+59=500）**相等** ✓。
+
+## 6. 第十三轮就地重导后的复核（2026-09-14 17:15，只读）
+
+**新导出**（同一客户端，游戏内 `/alice recipes`）：
+`recipes=3689 skipped=2379 tags=693 skippedTop=thermal:press=227,mekanism:crushing=210,mekanism:pigment_extracting=178`
+⇒ `config/alice-recipes.json` **1527420 字节**、mtime **2026-09-14 17:15**、`source=alice runtime RecipeManager`
+⇒ **§4 的"已过时"缺口关闭：这份表现在就是"当前客户端真实分布"**（含后装的 refinedstorage / sophisticated\*）。
+
+| 项 | 13:23 旧导出 | 17:15 新导出 | 备注 |
+|---|---|---|---|
+| 可读配方 | 2923 | **3689** | +766 |
+| 跳过配方 | 2370 | **2379** | +9 |
+| 跳过类型 | 76 | **76** | 类别数没变 |
+| itemTags | — | **693** | |
+| **Thermal** | 652 / **30 类型** | **652 / 30 类型** | **逐项一致**（press 227 / pulverizer 81 / smelter 70 / insolator 63 / centrifuge 59）|
+
+⇒ 结论：**"总量"会随装模组变，"类型×条数"这类结构事实稳定**（两次导出逐项吻合）⇒ **S0 的类型结论不因重导而变**。
+另外复核了一条覆盖性事实：新装的 refinedstorage / sophisticated\* 在 `skippedTypes` 里**一条都没有**
+（它们的配方全落在原版可读类型内）⇒ 可读量的增量来自它们，跳过量只 +9。
+
+**新发现（直接约束 S1 的枚举粒度）**：Thermal 的 **30 个类型 ≠ 30 台机器**。
+按新导出 `skippedTypes` 逐条归类，**机器配方类型约 15 个**：
+press 227 / pulverizer 81 / smelter 70 / insolator 63 / centrifuge 59 / bottler 23 / crucible 14 /
+sawmill 12 / crystallizer 9 / tree_extractor 8 / chiller 7 / rock_gen 6 / refinery 5 / pyrolyzer 3 / furnace 1；
+另一半是**燃料 / 催化 / 增幅类修饰类型**（没有对应方块与菜单）：
+`numismatic_fuel` 15、`lapidary_fuel` 8、`gourmand_fuel` 6、`smelter_catalyst` 6、`stirling_fuel` 5、
+`compression_fuel` 3、`insolator_catalyst` 3、`tree_extractor_boost` 3、`fisher_boost` 3、
+`smelter_recycle` 4、`pulverizer_catalyst` 2、`pulverizer_recycle` 2、`potion_diffuser_boost` 2、
+`magmatic_fuel` 1、`disenchantment_fuel` 1。
+⇒ **`MachineMap` 不能按"类型数"建行**：S1 必须按 jar 里的 `Block`/`TileEntity`/容器类**逐条核实**哪些类型真的有站点。
+（"约 15"目前是**按类型名与条数推断的候选**，**尚未对字节码取证** —— 不要当结论用。）
+
+**一处对账闭合（不是异常，是口径不同）**：同轮 `[MachineProbe] SUMMARY … readable_total=3714 skipped_total=2354`（`latest.log:3087`）
+与本次导出 `3689 / 2379` 各差 **25**；而新导出的 `skippedTypes` 里正有 **`minecraft:crafting(空产出) = 25`**
+⇒ `3689 + 25 = 3714`、`2379 − 25 = 2354` **两侧精确闭合**：探测把"空产出的合成配方"记为可读，导出记为跳过。
+解释是"同一个 6068 条配方集合、两处口径不同"，**无需改动任何一侧**。
