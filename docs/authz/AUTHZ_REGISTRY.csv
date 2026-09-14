@@ -5,9 +5,9 @@ L0-3,L0 目标层,审批,未知模组能力 → 权限契约（问用户）,能�
 L1-1,L1 请求层,策略,allowedMovementTypes（每请求显式声明）,每次规划请求,—,pathing/core/search/PathRequest.java:35,纯通行 4 类（TRAVERSE/DIAGONAL/ASCEND/DESCEND）,任务调用点
 L1-2,L1 请求层,策略,miningApproach 显式禁用 PILLAR/FALL/DOWNWARD,挖掘站位请求（D-067㉘）,—,"PathRequest.java:56,91",禁用（待 R3 改按条件放行）,改代码（须 A/B 证据）
 L1-3,L1 请求层,预算,SearchBudget（搜索能烧多少）,搜索节点/时间上限,SEARCH_LIMIT,pathing/core/search/SearchBudget.java,默认 UNLIMITED,调用点
-L1-4,L1 请求层,凭证,"WriteGrant(requester, reason)（D-082）",任何破坏/放置；指向“这一格/这一次”,无凭证不可写,action/WriteGrant.java（16 种 WriteReason；30 个调用点）,无凭证拒写,任务/Job 调用点
+L1-4,L1 请求层,凭证,"WriteGrant(requester, reason)（D-082）",任何破坏/放置；指向“这一格/这一次”,无凭证不可写; WriteReason 16 种=EXPECTED_TARGET SCAFFOLD_RESTORE DESCEND_FOOT BULK_EDIT LINE_OF_SIGHT STANDING_SPACE PATH_ACCESS SUPPORT_PLACEMENT STEP_PLACEMENT REGION_REPLANT CONTAINER_TRANSFER CRAFT_STATION_PLACE STATION_PROVISION MANUAL EXPLICIT_TARGET BREAK,action/WriteGrant.java（16 种 WriteReason；30 个调用点）,无凭证拒写,任务/Job 调用点
 L1-5,L1 请求层,预算,MiningBudget（这次挖掘值得拆多少）,挖掘站位选点,—,mining/MiningBudget,按任务设定,调用点
-L2-1,L2 规划期,硬约束,Movement 校验器（物理前提，planning 期拒绝）,每条候选边构造/执行前,116 码：BREAK20 PLACE18 FALL15 PILLAR11 ASCEND11 DESCEND10 DOWNWARD8 DIAGONAL8 TRAVERSE6,pathing/core/*ExecutionFactory.java,不合格即拒,无（物理事实）
+L2-1,L2 规划期,硬约束,Movement 校验器（物理前提，planning 期拒绝）,每条候选边构造/执行前,116 码：BREAK20 PLACE18 FALL15 PILLAR11 ASCEND11 DESCEND10 DOWNWARD8 DIAGONAL8 TRAVERSE6; MovementType 11 种全由校验器覆盖(BREAK_AND_TRAVERSE/BREAK_AND_ENTER/PLACE_STEP_AND_TRAVERSE),pathing/core/*ExecutionFactory.java,不合格即拒,无（物理事实）
 L2-2,L2 规划期,硬约束,RecoverabilityPolicy：FALL 必须带 fall_return_verified,构造 MovementSpec 时比较“提供 vs 要求”,规划期抛异常（不静默降级）,core/RecoverabilityPolicy.java,不足即炸（唯一真能拒的一条）,无（可逆性）
 L2-3,L2 规划期,硬约束,IntrinsicReversibility 三档,每种 Movement 的固有可逆性,—,core/IntrinsicReversibility.java,REVERSIBLE / CONDITIONALLY / NOT,无
 L2-4,L2 规划期,策略,RiskSwitches（默认全关＝Baritone 高风险）,/alice risk 或未来评估器（未实现）,—,pathing/risk/RiskSwitches.java,全关；当前仅 descend_overshoot,用户 / 评估器（未实现）

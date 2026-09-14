@@ -15,6 +15,7 @@ from __future__ import annotations
 import csv
 import html
 import os
+import re
 import sys
 from datetime import datetime
 
@@ -227,8 +228,45 @@ apply();</script></body></html>""".format(
         f.write(doc)
 
 
+CODE_RE = re.compile(r'"([A-Z][A-Z_]{4,})"')
+FAMILY_OK = set()
+
+
+def enum_values(src):
+    """从枚举源码里取全部取值（按逗号切，兼容同一行多个取值）。"""
+    body = src.split("{", 1)[-1].split(";", 1)[0]
+    body = re.sub(r"//[^\n]*", "", body)
+    return [v.strip() for v in re.findall(r"[A-Z][A-Z_]{2,}", body)]
+
+
+def check(rows):
+    """断言注册表与代码一致（防过期）。返回 (missing_codes, missing_types, missing_reasons)。"""
+    import glob
+    blob = " ".join(open(f, encoding="utf-8").read() for f in glob.glob(os.path.join(ROOT, "src/main/java/com/dddgn/alice/pathing/core/*.java")))
+    code_codes = set(CODE_RE.findall(blob))
+    reg_text = " ".join(r[c] for r in rows for c in r)
+    # ① 每个拒绝码要么精确出现，要么其"家族前缀"出现
+    missing_codes = sorted(c for c in code_codes if c not in reg_text and c.split("_")[0] not in reg_text)
+    # ② MovementType 枚举值全覆盖
+    mt = open(os.path.join(ROOT, "src/main/java/com/dddgn/alice/pathing/core/MovementType.java"), encoding="utf-8").read()
+    types = enum_values(mt)
+    missing_types = [t for t in types if t not in reg_text]
+    # ③ WriteReason 全覆盖
+    wr = open(os.path.join(ROOT, "src/main/java/com/dddgn/alice/action/WriteReason.java"), encoding="utf-8").read()
+    reasons = enum_values(wr)
+    missing_reasons = [x for x in reasons if x not in reg_text]
+    print("AUTHZ_CHECK 拒绝码=%d MovementType=%d WriteReason=%d" % (len(code_codes), len(types), len(reasons)))
+    for label, miss in (("未覆盖的拒绝码", missing_codes), ("未覆盖的 MovementType", missing_types), ("未覆盖的 WriteReason", missing_reasons)):
+        print("  %s: %s" % (label, ", ".join(miss) if miss else "无 ✅"))
+    ok = not (missing_codes or missing_types or missing_reasons)
+    print("AUTHZ_CHECK_RESULT", "PASS" if ok else "FAIL")
+    return 0 if ok else 1
+
+
 def main():
     rows = load_rows()
+    if "--check" in sys.argv:
+        sys.exit(check(rows))
     order, layers = group(rows)  # order=层顺序；layers=层名→闸门列表（dict 保持插入顺序）
     stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     write_overview(rows, layers, stamp)

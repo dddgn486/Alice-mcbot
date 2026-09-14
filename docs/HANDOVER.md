@@ -59,6 +59,23 @@
 - 电池：`alice:regression_battery`（CORE=27）/ `/alice battery full`（FULL=37）；
   唯一配置入口 `RegressionBatteryTask.CURATION`。
 
+## 5b. 断点（2026-09-14 会话中段，上下文 ≈0.9×压缩阈值时收口）
+
+**刚落地（已推送）**：授权/审批框架可视化 v1 —— 单一出处 `docs/authz/AUTHZ_REGISTRY.csv`（**27 道闸门 / 6 层**）
++ 生成器 `tools/authz-map.py`（零依赖，产出 `OVERVIEW.md` / `flow.svg` / 可搜索 `index.html`）
++ **防过期检查** `bash tools/check-authz-registry.sh`（断言注册表 vs 代码：拒绝码 101 / MovementType / WriteReason 全覆盖 ⇒ 当前 **PASS**）。
+用户已确认"满意现在的识图"。
+
+**下一步第一件事（新会话从这里开始）**：
+1. `/alice authz` 运行时命令（零参数）：打印当前生效快照——允许的 Movement 集合、预算余量、账本 pending、
+   区域/保护判定、**最近拒绝码**；需要一次客户端验证 ⇒ **与 `CORE 27` 拼同一轮**（§5.0e 批量验证）。
+2. **R1 集中策略表**（区域×任务类别 → `TEMP/KEEP` + Movement 集合 + 预算；默认 PROTECTED、显式降级），
+   与主线 **3-B S3**（机器类型 ↔ 机器方块/菜单的单一映射）**合并成一轮离线工作**（两者同性质：建"单一出处"表）。
+3. **R2/R3**（野外默认放开 `PILLAR/FALL/DOWNWARD`；`miningApproach` 改按条件放行）——**须先 A/B 客户端证据**。
+4. 待用户拍板：验证等级 5→3、`AI_TEST_MATRIX` 去留、规则日落机制。
+
+**未验证堆积**：`CORE 27`（含新步 `machine_station`）**尚未跑过**——上次绿是 25/26 那轮的 26/26 变体，别当成已验证。
+
 ## 6. 未做/已知边界（不假装完成）
 
 - **机器执行（S4）未做**：`MACHINE_ROUTE` 只报路线，`CraftJob` 明确拒绝 `not_executable`；
