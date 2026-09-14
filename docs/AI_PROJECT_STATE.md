@@ -159,6 +159,20 @@ alice:machine_cycle_check: 3405` + `missing registry entries`（⇒ 不在注册
   另一半是**燃料 / 催化 / 增幅类修饰类型**（`*_fuel` / `*_catalyst` / `*_boost` / `*_recycle`）
   ⇒ **S1 枚举不得按"类型数"建行**（须按 jar 里的 TileEntity/Block 逐条核实后才落 `MachineMap`）。
   剩余前置缺口：**无上游 sources jar**（台账⑩）。
+  **第十四轮已交付 S1 设备事实表** `docs/THERMAL_S1_FACTS.md`（**只读**，全部证据来自 jar 字节码 + 资源）：
+  expansion 的 `blockstates` ∩ `loot_tables` **逐项一致 = 22 个方块**（15 `machine_*` + 7 `dynamo_*`）；
+  30 个配方类型全分类 = **13 机器 + 5 机器修饰 + 7 发电机 + 5 无站点**（合计 652 条逐项对齐）；
+  **设备清单（三个后端）**：`thermal_expansion` 22 个（15 `machine_*` + 7 `dynamo_*`）
+  + **`thermal_foundation` 内嵌的 `META-INF/jarjar/thermal_core-1.20.1-11.0.6.24.jar`（JiJ）里的 11 个 `device_*`** = **33 个机器类方块**。
+  **⚠️ 方法学的坑（留档）**：内嵌 jar 在 `mods/*.jar` 扫描里只显示为**一行** ⇒ **本表第一版据此把 5 个 device 类型误判成
+  "1.20.1 没有这些设备"，已纠正**（`device_rock_gen` 等那串字符串两种解释都自洽，只看外层 jar **判不出来**）。
+  全客户端只有 `create`（4 个内嵌 jar，全是库、recipes=0）与 `thermal_foundation`（是内容）带 JiJ；**Mekanism 没有** ⇒ 既有 Mekanism 结论不受影响。
+  **红线①**：7 台 dynamo 是**发电机**（7 个 `Dynamo*` 类 ↔ 7 个 `*_fuel` 类型 1:1）⇒ 永不进 `EXECUTABLE`。
+  **台账⑩③ 的 `+34` 已完全闭合**：静态 **670** = 运行时 **652** + **18**
+  （`smelter_recycle` 22 条**全部**带 `cofh_core:tag_exists` 条件；运行时只有 4 个条件标签存在 ⇒ 4 条存活，
+  4 = `forge:armor/{gold,iron}` + `forge:tools/{gold,iron}`，用 Alice 自己的 `itemTags`（693 个）交叉验证吻合）。
+  §5 给出 33 个 `Menu` 类名（**是候选，不是准入证据**：准入要实测 `menuClass`）。
+  台账⑨（`recipe-readability.py --target`）同轮关闭（含自证断言）。
   附带闭合的一处对账：`[MachineProbe] readable_total=3714 skipped_total=2354` 与导出 `recipes=3689 skipped=2379` 差 25 ——
   导出侧 `skippedTypes` 里正有 `minecraft:crafting(空产出)=25`，两侧**算术精确闭合**（探测把"空产出合成"记为可读、导出记为跳过）
   ⇒ 不是异常，是两处口径不同。

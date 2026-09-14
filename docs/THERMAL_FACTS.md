@@ -103,7 +103,9 @@ python3 -c "import json;d=json.load(open('/mnt/d/JAVA_projects/worldedit-test/ve
   `sophisticatedcore-1.20.1-1.5.1.2335.jar` / `sophisticatedstorage-1.20.1-1.4.86.2131.jar`（16:35）、
   `sophisticatedbackpacks-1.20.1-3.26.3.2157.jar`（16:50）⇒ **这些模组的配方不在本导出里**；
   Thermal/Mekanism/Create/ExtendedCrafting 的数字仍与候选清单一致（652/30 逐项吻合），故本文有效。
-- **静态 vs 运行时差 34 条，来源未验证**（见 §5 的差值分解）。
+- **静态 vs 运行时差 34 条 —— ✅ 已于第十四轮完全闭合**（两个机制各占一边：**+52 = 一个被漏掉的内嵌 jar（JiJ）
+  `thermal_core`**、**−18 = `cofh_core:tag_exists` 配方条件在加载期筛掉**）；完整证据与复算命令见
+  **`docs/THERMAL_S1_FACTS.md` §6**。本文 §5 的差值分解是**外层 jar 视角**，已被那份取代（留作过程留档）。
 - **总量会变**（先例实测：同一客户端两次会话的导出 `2923/2370` vs `3714/2354`，世界/数据包在那之后有变化
   —— `docs/MEKANISM_FACTS.md` §5）⇒
   本文**总量一律标注"某次会话的导出"**，只有"类型×条数"这种**结构事实**才可长期引用。
@@ -217,3 +219,6 @@ sawmill 12 / crystallizer 9 / tree_extractor 8 / chiller 7 / rock_gen 6 / refine
 与本次导出 `3689 / 2379` 各差 **25**；而新导出的 `skippedTypes` 里正有 **`minecraft:crafting(空产出) = 25`**
 ⇒ `3689 + 25 = 3714`、`2379 − 25 = 2354` **两侧精确闭合**：探测把"空产出的合成配方"记为可读，导出记为跳过。
 解释是"同一个 6068 条配方集合、两处口径不同"，**无需改动任何一侧**。
+
+> **下一步已交付**：设备侧的事实表在 **`docs/THERMAL_S1_FACTS.md`**（22 个方块、30 个类型全分类、
+> `no_site` 5 类、发电机红线①、菜单类候选清单、复算命令）。本文（S0）只回答"读不懂多少 + 形态分布"，不回答"哪台机器"。

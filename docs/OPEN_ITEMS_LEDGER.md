@@ -908,12 +908,16 @@ jar `3312608d…`。
 
 ## 阶段 3-B 后续（2026-09-14，(c) 起步 + (a) Thermal S0 的产出）
 
-  ⑨ **工具功能缺口的记账**：`tools/recipe-readability.py` 顶部 docstring 曾宣传
-  `--target <item> --routes`，**但 `main()` 只注册了 `--recipes/--selftest/--top`** ⇒ 实测
-  `error: unrecognized arguments`（被 Thermal S0 的工作踩到）。**假承诺已从 docstring 删掉**（避免下次再被误导），
-  但"**按产出物反查路线**"这个功能本身**仍待做**（S1/S2 会用：既看单模组配方，也看跨模组打架，
-  例如 `thermal:pulverizer` vs `mekanism:crushing` 谁先命中）。**最小做法** = 在 `audit()` 之外加一个
-  `--target <item>` 分支（dump 里按 `outputs`/`itemTags` 反查 + 打印 `type`/`station`）⇒ 不必新写解析。
+  ⑨ **✅ 已关闭（2026-09-14，第十四轮）—— `--target/--routes` 已真做**：`tools/recipe-readability.py` 现在注册了
+  `--target <item>`（聚焦模式：只打印反查段，不打印完整报告）与 `--routes`（逐条明细 + 输入），
+  `find_routes()` 统一处理 `output` 的字符串/对象/列表三种形态（原版配方实测 **3689/3689 全是字符串**，
+  兼容分支是保险），**自证断言已加**（`--selftest` 现要求铁锭反查得到 **2** 条原版路线且 type 集合正确 ——
+  没有断言的实现等于没实现）。实测验收：`--target minecraft:netherite_ingot --routes` ⇒ **7 条 / 3 个命名空间**
+  （minecraft / mekanism / thermal，含熔炉与高炉）—— 这正是 S1/S2 要的"跨模组打架"视图。
+  **并把口径边界写进输出**（[Target] 段固定打印一行）：机器类型在导出里**只有计数、没有产出字段**
+  ⇒ **机器路线（`thermal:press` / `mekanism:crushing` …）本查询一条也看不到**，要含机器路线必须走运行时
+  `RecipeQuery`。历史：docstring 曾宣传这两个参数但 `main()` 未注册（实测 `error: unrecognized arguments`）；
+  **修的是实现，不是删承诺**。
   ⑩ **Thermal S1 的两个前置事实（如实登记）**：
   ① **没有上游 sources jar、也没有本地反编译产物** ⇒ 与 Mekanism 不同，S1 要**先解决"去哪拿源码/字节码"**
   （本机可 `unzip` 静态 jar 读 data/ 与 class，但"问上游自述"那套判据仍建议对着源码核，见 D-036 的取证纪律）；
@@ -924,9 +928,17 @@ jar `3312608d…`。
   后装的 refinedstorage / sophisticatedcore|storage|backpacks，而**它们的配方全部落在原版可读类型里
   （`skippedTypes` 里 0 条）**，跳过量只 +9。新发现见 `docs/THERMAL_FACTS.md` §6（**30 个类型里约一半是
   燃料/催化/增幅类修饰类型，不是机器** ⇒ S1 枚举不得按类型数建行）。
-  ③ 旁记（S1 开放项）：静态 jar 直方图 618 条 vs 运行时 652 条，**净差 +34 算术闭合**
-  （`618 +7(numismatic_fuel) +7(tree_extractor) +38(10 个只在运行时出现的类型) −18(smelter_recycle 22→4)`），
-  **来源未取证**（疑代码注册/条件禁用），留到 S1。
+  ③ **✅ 已关闭（2026-09-14，第十四轮）—— `+34` 两个机制各占一边，逐项闭合**：
+  **`+52` = 一个被整片漏掉的内嵌 jar（JiJ）**：`thermal_foundation` 里藏着
+  `META-INF/jarjar/thermal_core-1.20.1-11.0.6.24.jar`（4.4 MB，**是内容不是库**：11 个 `device_*` 方块 + 22 条 device/fuel 类型配方全在里面）。
+  `mods/*.jar` 逐个 `unzip` **看不到内嵌 jar**（只显示为一行 `META-INF/jarjar/xxx.jar`）⇒ 这是"按资源枚举设备"最容易踩的坑；
+  全客户端只有 `create`（4 个内嵌 jar，纯库，`data/*/recipes` 各 0 条）与 `thermal_foundation` 带 JiJ，**Mekanism 没有**
+  ⇒ 既有 Mekanism S0/S1 结论不受影响。**`−18` = 配方条件在加载期筛掉**：`smelter_recycle` 22 条**全部**带
+  `conditions:[{type:"cofh_core:tag_exists", tag:"forge:armor/<金属>"|"forge:tools/<金属>"}]`，运行时只有 **4** 条存活 ——
+  而 Alice 自己的 `itemTags`（693 个）里**恰好只有这 4 个标签存在**（`forge:armor/{gold,iron}` + `forge:tools/{gold,iron}`），
+  其余 18 个（9 种金属 × armor/tools）不存在 ⇒ 条件不通过。**两侧独立吻合：`670 − 18 = 652`。**
+  教训入册：**"静态 jar 里有多少条配方" ≠ "运行时有多少条"**（条件会在加载期筛），引用静态计数时必须声明这一点。
+  完整证据与复算命令见 **`docs/THERMAL_S1_FACTS.md`**。
   ⑪ **✅ 已关闭（2026-09-14，D-217）—— (c) 增量 2 施工清单已全部落地**：`CraftJob` 的 `MACHINE_ROUTE`
   不再 `not_executable`，改为**数据驱动的执行准入**（`MachineMap.executable(...)`，只升 `mekanism:enriching`
   一行 ⇒ `CraftJob` 只驱动 `EXECUTABLE` 的行）。闭环本体抽成 `task/craft/MachineCycle`（**夹具与生产同一份**，

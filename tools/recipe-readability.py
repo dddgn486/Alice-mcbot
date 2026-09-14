@@ -12,12 +12,18 @@
 
 用法：
   recipe-readability.py --recipes <alice-recipes.json>            # 完整报告（含 --top N）
+  recipe-readability.py --recipes <...> --target <item>           # 按产出物反查路线（**聚焦模式**，不打印完整报告）
+  recipe-readability.py --recipes <...> --target <item> --routes   # 同上 + 逐条路线明细
   recipe-readability.py --selftest                                # 用本仓内嵌小样本自证
 
-⚠️ **本文件顶部曾宣传 `--target <item> --routes`，但 `main()` 从未注册这两个参数**（2026-09-14 实测
-`error: unrecognized arguments`，被 `docs/THERMAL_FACTS.md` 的 S0 工作踩到）⇒ 已从文档里删掉这句假承诺。
-"按产出物反查路线"目前只能自己写一次性脚本（`tools/recipe-graph.py` 是另一条路线，见其文件头）。
-**要做成正式功能 = 待办**（登记在 `docs/OPEN_ITEMS_LEDGER.md`），别再从本 docstring 推断它存在。
+历史：本文件曾在 docstring 里宣传 `--target/--routes` 但 `main()` 未注册（2026-09-14 实测
+`error: unrecognized arguments`，被 `docs/THERMAL_FACTS.md` 的 S0 工作踩到）⇒ 台账⑨ 要求"要么删承诺、
+要么真做"。**现已真做**（实现 + 自证断言），承诺与实现对得上。
+
+⚠️ **`--target` 的边界（必须连读数一起读）**：本表只含**原版可读配方**；被跳过的机器类型
+（`skippedTypes`）在导出里**只有计数、没有产出字段** ⇒ **机器路线（`thermal:press` / `mekanism:crushing` …）
+本查询一条也看不到**。要判"某产出到底有几条路线（含机器）"，得走运行时的 `RecipeQuery`（游戏内）
+而不是这份静态表。`--target` 的用途是"原版侧反查 + 跨模组原版路线打架"，不是"机器路线清单"。
 """
 from __future__ import annotations
 
@@ -83,6 +89,67 @@ def audit(dump):
     }
 
 
+def _output_id(value):
+    """导出里 `output` 对原版配方是**字符串**；对少数结构可能是对象/列表 ⇒ 统一取出物品 id。
+
+    （实测踩到过：按对象解析会把原版配方的 `output` 全判成"无产出"。）
+    """
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        for key in ("item", "id", "itemId"):
+            if isinstance(value.get(key), str):
+                return value[key]
+    if isinstance(value, list) and value:
+        return _output_id(value[0])
+    return None
+
+
+def find_routes(dump, target):
+    """按产出物反查路线（只读）。返回逐条路线 dict 列表（顺序 = 导出顺序）。"""
+    hits = []
+    for recipe in dump.get("recipes", []):
+        if _output_id(recipe.get("output")) != target:
+            continue
+        inputs = []
+        for entry in recipe.get("inputs", []):
+            if "any" in entry:
+                inputs.append("#{%s} x%s" % ("|".join(entry["any"]), entry.get("count", 1)))
+            else:
+                inputs.append("%s x%s" % (entry.get("key", "unknown"), entry.get("count", 1)))
+        recipe_id = str(recipe.get("id", "?"))
+        hits.append({
+            "id": recipe_id,
+            "type": recipe.get("type", "?"),
+            "station": recipe.get("station", "?"),
+            "provider": recipe_id.split(":", 1)[0],
+            "count": recipe.get("count", "?"),
+            "inputs": inputs,
+        })
+    return hits
+
+
+def print_target(dump, target, show_routes):
+    """聚焦模式：只打印"某产出物有哪些路线"，附口径边界。"""
+    hits = find_routes(dump, target)
+    skipped = dump.get("skippedTypes") or {}
+    providers = sorted({hit["provider"] for hit in hits})
+    stations = sorted({hit["station"] for hit in hits})
+    print("=" * 72)
+    print(f"[Target] item={target} routes={len(hits)} providers={providers} stations={stations}")
+    for index, hit in enumerate(hits, 1):
+        line = (f"[Target]   #{index} type={hit['type']} station={hit['station']} "
+                f"by={hit['provider']} x{hit['count']} id={hit['id']}")
+        if show_routes:
+            line += " inputs=" + ",".join(hit["inputs"])
+        print(line)
+    if not hits:
+        print("[Target]   0 条 —— 该产出物在**原版可读配方**里没有任何来源")
+    print(f"[Target] 口径边界：只有原版可读配方；{len(skipped)} 个跳过类型 / {sum(skipped.values())} 条"
+          f"（机器配方）没有产出字段 ⇒ **机器路线不在本查询内**（要含机器路线请走运行时 RecipeQuery）")
+    print("=" * 72)
+
+
 def print_report(result, top=8):
     print("=" * 72)
     print(f"配方总数 {result['recipes']}    物品标签 {result['tags']}")
@@ -144,6 +211,8 @@ def main():
     parser.add_argument("--recipes", help="alice-recipes.json 路径")
     parser.add_argument("--selftest", action="store_true")
     parser.add_argument("--top", type=int, default=8)
+    parser.add_argument("--target", help="按产出物反查路线（物品 id，如 minecraft:iron_ingot）；聚焦模式")
+    parser.add_argument("--routes", action="store_true", help="与 --target 搭配：逐条打印路线明细（含输入）")
     args = parser.parse_args()
 
     if args.selftest:
@@ -153,14 +222,24 @@ def main():
     else:
         parser.error("需要 --recipes <file> 或 --selftest")
 
+    if args.target:
+        print_target(dump, args.target, args.routes)
+        if not args.selftest:
+            return 0
+
     result = audit(dump)
     print_report(result, args.top)
     if args.selftest:
-        # 自证：self-test 样本必须判出 1 个"配方打架"（铁锭两条路线）与 2 个被跳过的模组类型
+        # 自证：self-test 样本必须判出 1 个"配方打架"（铁锭两条路线）与 2 个被跳过的模组类型；
+        # 反查必须给出铁锭的 **2** 条原版路线（台账⑨ 的 --target 也要有断言，否则等于没实现）。
+        iron = find_routes(dump, "minecraft:iron_ingot")
         ok = (len(result["multiRoute"]) == 1
-              and result["skippedTypes"].get("mekanism:metallurgic_infusing") == 12)
+              and result["skippedTypes"].get("mekanism:metallurgic_infusing") == 12
+              and len(iron) == 2
+              and {hit["type"] for hit in iron} == {"minecraft:crafting_shaped", "minecraft:smelting"})
         print("SELFTEST", "PASS" if ok else "FAIL",
-              f"multiRoute={len(result['multiRoute'])} skipped={result['skippedTypes']}")
+              f"multiRoute={len(result['multiRoute'])} skipped={result['skippedTypes']}"
+              f" target=iron_ingot routes={len(iron)}")
         return 0 if ok else 1
     return 0
 
