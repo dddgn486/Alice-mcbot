@@ -488,3 +488,11 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
 
 1. `/alice authz`（看上面 7 行是否齐全、数值是否合理）；
 2. `alice:regression_battery`（**CORE**，右键）：预期 `(27/27) PASS`——其中 `machine_route` / `machine_station` / `decision_contract` 是本次新增或改动项。
+
+### 结果（2026-09-14，已验证 ✅）
+
+- `/alice authz` → **七行齐全**（`latest.log:202-208`）⇒ `SERVER_TESTED` + `WINDOWS_CLIENT`。
+  已知显示瑕疵：无作用域时预算余量显示 `2147483647`（语义是"无作用域限制"，数字易误读）。
+- `alice:regression_battery` CORE → `PROFILE=CORE … (27/27) ticks=2845 → PASS`（`latest.log:3801`）。
+- **下一轮不需要客户端操作**：主线进入 **R1 集中策略表 + 3-B S3（机器类型 ↔ 机器方块/菜单 唯一映射）** 的离线单一出处工作。
+

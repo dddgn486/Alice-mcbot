@@ -67,9 +67,9 @@
 用户已确认"满意现在的识图"。
 
 **下一步第一件事（新会话从这里开始）**：
-1. ~~`/alice authz` 运行时命令~~ **已实现并同步**（`BotCommand.authzSnapshot`，编译通过、jar 已同步客户端；
-   待你验证）：零参数只读，打印 7 行——L0 当前任务 / L1 纯通行集合 / L3 预算余量与已拒数 / L4 账本 pending 与 scope /
-   L4 保护区判定 / 最近终态码。**验证方式见 `docs/TESTING_GUIDE.md` 末节**（与 `CORE 27` 拼同一轮）。
+1. ~~`/alice authz` 运行时命令~~ **已验证**（`BotCommand.authzSnapshot`；`SERVER_TESTED` + `WINDOWS_CLIENT`
+   2026-09-14：`latest.log:202-208` 七行齐全）。零参数只读，打印 7 行——L0 当前任务 / L1 纯通行集合 /
+   L3 预算余量与已拒数 / L4 账本 pending 与 scope / L4 保护区判定 / 最近终态码。用法见 `docs/TESTING_GUIDE.md` 末节。
 2. **R1 集中策略表**（区域×任务类别 → `TEMP/KEEP` + Movement 集合 + 预算；默认 PROTECTED、显式降级），
    与主线 **3-B S3**（机器类型 ↔ 机器方块/菜单的单一映射）**合并成一轮离线工作**（两者同性质：建"单一出处"表）。
 3. **R2/R3**（野外默认放开 `PILLAR/FALL/DOWNWARD`；`miningApproach` 改按条件放行）——**须先 A/B 客户端证据**。
@@ -78,7 +78,18 @@
 **两个已知小遗留（下次顺手处理）**：① ~~`WriteReason` 检出 14/16~~ **已查清并关闭**：`WriteReason` 真实取值就是 **14 种**（我先前数成 16，多出的 2 个来自嵌套枚举 `Policy`/`Action`）——**是检查脚本抓到我自己文档的错**，CSV 已改；顺带记下一个有用事实：`WriteReason` 每条自带分类 `Policy(EXPLICIT_TARGET/CLEARING)` + `Action(BREAK/PLACE/BOTH)`；
 ② `flow.svg` 无 PNG 版本（本机无 mmdc/inkscape/ImageMagick ⇒ 浏览器查看，或用时再写纯 Python 位图导出）。
 
-**未验证堆积**：`CORE 27`（含新步 `machine_station`）**尚未跑过**——上次绿是 25/26 那轮的 26/26 变体，别当成已验证。
+**③（新，验证时从日志发现）** `/alice authz` 在**无作用域**时把破坏/放置余量打成 `2147483647`（`Integer.MAX_VALUE`）
+——语义是"无作用域预算限制"，显示成天文数字易被误读；建议改成"无作用域（不受预算约束）"。
+**④（新，验证时从日志发现）** 回归电池结束后的自动决策选了 240 格外的 `region:saved` 做 `region_lumber`，
+401 tick 后 `FAILED code=failed:outside_region`（`chopped=0 patrols=380`，`latest.log:3828`）——失败优雅且留痕（对的），
+但**目标层菜单项没带可达性/距离信息**，LLM 会据此挑到够不着的活。建议：菜单项附距离或可达性标注（未决）。
+
+**未验证堆积**：~~`CORE 27` 尚未跑过~~ **已跑并全绿**：`PROFILE=CORE … (27/27) ticks=2845 → PASS`
+（`latest.log:3801`，含新步 `machine_route` / `machine_station`）。当前**无待验证项**。
+
+**会话摘要调查（2026-09-14，用户提问触发）**：结论 = **不必获取会话摘要，也不装第三方插件**
+（摘要已原生自动产生并持久化；且 1% 量级有损 ⇒ 事实来源是原文，而压缩后原文**未丢**：1078/1078 遮蔽事件仍在磁盘、
+可按 `seq` 取回）。完整取证 + 第三方生态清单 + 可选只读解码器见 `docs/reviews/2026-09-14-会话摘要调查.md`。
 
 ## 6. 未做/已知边界（不假装完成）
 
