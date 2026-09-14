@@ -121,14 +121,20 @@ alice:machine_cycle_check: 3405` + `missing registry entries`（另有 stats 一
   静态 jar 618 vs 运行时 652 的 +34 已算术闭合但**来源未取证**，留 S1）。两个前置缺口见台账⑩
   （**无 sources jar**、**`alice-recipes.json` 已过时**）。
 
-**下一次客户端轮（零新入口，约 6–8 分钟）**：重启客户端（新 jar
-`sha256=1606dc62d689534655fd5c3ddc9aaff0660f845867e8385b0cd13fd2df00d966`）→ `/alice battery core`
-⇒ 期望 **`(30/30) ticks≈3900 → PASS`**，两个机器步各有硬判据：
-① `craft_machine`：`job_terminal=DONE` + **`m_walk_state=DONE`** + `product_after=product_before+1`
-（生产**自己走到机器旁**；出现 `unexpected_walk_skipped` ⇒ 起点没生效，要查）；目标物是"只能靠机器做出来"的
-（候选 `minecraft:clay_ball` → `soul_soil` → `glowstone_dust` → `exposed_copper`，逐个用生产查询层现场复核）；
-② `machine_cycle` 仍 `verdict=PASS`（夹具换薄壳后**无回归**）——**两步同红 = 抽执行器把夹具改坏了**。
-③ 顺带**目视**：bot 从平台远角自己走过去（第十一轮没看；这一轮顺手看前两秒即可）。
+**✅ 已执行（第十二轮客户端，2026-09-14 16:58–17:01，`WINDOWS_CLIENT`）**：`[alice] 串联回归电池已启动（**30 项**…）`
+（`:190`，文案现算 ⇒ 30）+ `PROFILE=CORE 实跑 30 项（跳过 EXTRA 10 项）`（`:191`）⇒
+`[Regression] SUMMARY … machine_cycle=PASS **craft_machine=PASS** … (30/30) ticks=3370 → PASS`（`:3899`）。两条硬判据全部拿到：
+① `craft_machine=PASS ticks=255`（`:3185`）：`target=minecraft:soul_soil`（**后备逻辑真的用上了** ——
+`candidates_tried` 显示首选 `clay_ball` 的路线落在 `mekanism:chemical_injection_chamber`，那台**没有执行准入**
+⇒ 生产如实拒绝、夹具换下一个）、`route_station=mekanism:enrichment_chamber`、`job_terminal=DONE`、
+**`m_walk_state=DONE m_walk_ticks=41 m_machine_reach=1.5`**（与夹具第十一轮**逐字同值**）、
+`m_energy_source=present（…）`（**不是 `api_precharge`**）、`product_after=1 product_landed_inventory=true`、
+`WriteBudget … scope=…#1596:Regression:craft_machine breaks=0 places=0 containers=2/32 refusedContainers=0`；
+旁证 `[CraftJob] machine SUMMARY … machine_cleaned_before=skipped（生产路径不动机器里的存量）… verdict=PASS`（`:3178`）；
+② `machine_cycle=PASS ticks=251` ⇒ **夹具换薄壳后无回归**（与第十一轮 251 **逐字相同**）。
+③ **用户目视确认**：bot 从平台远角**自己走过去**（第十一轮缺的那条目视证据补上了）。
+本轮 `api_precharge` **全日志零命中** ⇒ 红线①在客户端也成立。`K4=OK(… 写入类例外=56)`（上轮 58 ⇒ 又一次
+"搜索次数差异"的波动，与台账结案一致）。唯一一条 `ERROR` 字样是 `write_policy` 的**预期负例**（`期望 status=ERROR`+`result=PASS`）。
 
 **✅ 已执行（第九轮客户端，`WINDOWS_CLIENT`）**：新客户端会话（14:34:59 启动 ⇒ 新 jar 已加载 ——
 启动日志 `[Regression] PROFILE=CORE 实跑 29 项（跳过 EXTRA 10 项）`）⇒

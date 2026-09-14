@@ -8967,3 +8967,15 @@ ticks=40 finalFoot=66, 64, 305`，与断言格**逐字一致**）→ 开菜单�
 **复核触发（下一轮 CORE 电池，零新入口）**：`(30/30) → PASS`、`craft_machine` 步内 `job_terminal=DONE` +
 `m_walk_state=DONE` + `product_after=product_before+1`；且 `machine_cycle` 仍绿（夹具换薄壳后无回归）。
 **失败即回退判据**：`craft_machine` 红而 `machine_cycle` 绿 ⇒ 生产接线的问题；两步同红 ⇒ 抽执行器时把夹具改坏了。
+
+**✅ 复核已通过（第十二轮客户端，2026-09-14 16:58–17:01，`(30/30) ticks=3370 → PASS`，`latest.log:3899`）**：
+两条硬判据都拿到，而且**生产那段路与夹具逐字相同** —— `[R4 Session] completed session=craft-machine-walk-0
+segments=8 ticks=40 finalFoot=66, 64, 305`（25 条会话日志 = 零重规划）⇒ `m_walk_state=DONE m_walk_ticks=41
+m_machine_reach=1.5`；`m_energy_source=present（…）` 且 **`api_precharge` 全日志零命中** ⇒ 红线①在客户端成立；
+`m_product_landed=true m_machine_emptied=true m_input_consumed=true m_container_writes=2` + `product_after=1`
+（`[CraftJob] machine SUMMARY … machine_cleaned_before=skipped（生产路径不动机器里的存量）… verdict=PASS`）。
+**"后备候选"这一手被真实用上**：首选 `clay_ball` 的路线落在 `mekanism:chemical_injection_chamber`（**无执行准入**）
+⇒ 生产如实拒绝、夹具换到 `soul_soil`（`mekanism:enriching/conversion/soul_sand_to_soul_soil`）⇒ 说明
+(a) "只驱动 `EXECUTABLE` 的行"这道闸**真的在拦人**；(b) 同一产出可能有多台机器，而查询层取 `machineRoutes.get(0)`
+**不按准入过滤**（已记台账⑬）。**夹具侧无回归**：`machine_cycle=PASS ticks=251` 与第十一轮**逐字相同**。
+用户目视确认 bot 从平台远角**自己走过去**（第十一轮缺的那条目视证据补上了）。

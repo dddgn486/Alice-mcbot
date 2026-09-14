@@ -129,23 +129,28 @@ alice:machine_cycle_check: 3405` + `missing registry entries`（⇒ 不在注册
   places=0/32 refusedBreaks=0 refusedPlaces=0` ⇒ 这段路**零世界写入**（"纯通行"红线在实测里成立，不是靠代码推断）。
   路径本身是 1×TRAVERSE + 6×DIAGONAL + 1×TRAVERSE 的干净斜线，**零重规划**（25 条会话日志 = 8 segment_start +
   8 segment_done + 7 continuous_advance + completed + Recover，无第二次 `plan`）。
-- **✅ (c) 增量 2 已完成（代码侧，D-217）**：机器路线**接进生产路径** —— 闭环本体抽成 `task/craft/MachineCycle`
+- **✅ (c) 增量 2 已完成并客户端验证（D-217，第十二轮）**：机器路线**接进生产路径** —— 闭环本体抽成 `task/craft/MachineCycle`
   （夹具与生产**同一份实现**），夹具 `MachineCycleCheckTask` 变薄壳；`CraftJob.MACHINE_ROUTE` 现在真的驱动机器，
   准入**数据驱动**（`MachineMap` 新增 `executable(...)`，只把 `mekanism:enriching` 升为 `Capability.EXECUTABLE`，
   其余照旧 `not_executable`）。**红线①机械可查**：执行器里没有造能量的代码，唯一通道 `EnergyTopUp` 只有夹具实现、
   生产位置传 `null`；新门禁 `tools/check-precharge-containment.sh` 三条断言（含**反向测试**：注入一次 `precharge(` ⇒ 立刻红）。
-  新增电池步 `craft_machine` ⇒ **CORE 29→30 / FULL 39→40**；新 jar `sha256=1606dc62…` 已同步客户端；
-  六道离线门禁全 PASS（`check-policy-matrix` 还抓到了写入点登记的漂移，已同步 `docs/authz/CONTAINER_WRITE_SITES.csv`）。
-- **(c) 未做**：机器路线的**多输入 / 化学品输入**（本轮如实拒绝）；`CraftJob` 目前只驱动 `EXECUTABLE` 那一行。
+  新增电池步 `craft_machine` ⇒ **CORE 29→30 / FULL 39→40**；六道离线门禁全 PASS（`check-policy-matrix` 还抓到写入点登记漂移，
+  已同步 `docs/authz/CONTAINER_WRITE_SITES.csv`）。
+  **第十二轮实测（`latest.log`）：`(30/30) ticks=3370 → PASS`（`:3899`）**，两个机器步同轮全绿：
+  ① `craft_machine=PASS ticks=255` —— `target=minecraft:soul_soil`（**后备逻辑生效**：首选 `clay_ball` 的路线落在
+  `mekanism:chemical_injection_chamber`，那台**没有执行准入** ⇒ 如实拒绝 ⇒ 换下一个），`route_station=mekanism:enrichment_chamber`、
+  `job_terminal=DONE`、**`m_walk_state=DONE walk_ticks=41 machine_reach=1.5`**（与夹具**逐字同值**）、
+  `m_energy_source=present（…）`（**不是 `api_precharge`**）、`product_after=1`、`WriteBudget … containers=2/32 refusedContainers=0`；
+  ② `machine_cycle=PASS ticks=251`（与第十一轮**逐字相同** ⇒ 薄壳重构无回归）。
+  本轮 `api_precharge` **全日志零命中** ⇒ 红线①在客户端也成立（没电就该如实红）。**用户目视确认** bot 从平台远角自己走过去。
+- **(c) 未做**：机器路线的**多输入 / 化学品输入**（本轮如实拒绝）；`CraftJob` 只驱动 `EXECUTABLE` 那一行，
+  且**查询层不按准入挑路线**（取 `machineRoutes.get(0)`，本轮就是这么撞上 injection chamber 的）—— 见台账⑬。
 - **(a) 已完成第 1 份 S0 事实表**：`docs/THERMAL_FACTS.md`（Thermal：652 条 / 30 类型，占本次跳过量 27.5%；
   前 5 = press 227 / pulverizer 81 / smelter 70 / insolator 63 / centrifuge 59 = 500 条 76.7%）。
   两个前置缺口已登记台账⑩：**无上游 sources jar**、**`alice-recipes.json` 已过时**（那之后又装了 refinedstorage 等三个模组）。
-**下一步 = 客户端一轮（零新入口）**：重启客户端（新 jar `sha256=1606dc62d689534655fd5c3ddc9aaff0660f845867e8385b0cd13fd2df00d966`）
-→ `/alice battery core` ⇒ 期望 **`(30/30) ticks≈3900 → PASS`**，且两个机器步各有硬判据：
-① `craft_machine` 步 `job_terminal=DONE` + `m_walk_state=DONE` + `product_after=product_before+1`（生产**自己走到机器旁**）；
-② `machine_cycle` 仍 `verdict=PASS`（夹具换薄壳后**无回归** —— 两步同红就是抽执行器改坏了）。
-③ 顺带目视：**bot 从平台远角自己走过去**（目标物是 `minecraft:clay_ball` 一类"只能靠机器做出来"的东西，
-截图/录像最好）。判据表见 `docs/AI_TEST_MATRIX.md` 的两行。
+**下一步（客户端无待验项）**：(c) 增量 2 已收官 ⇒ 回到 **(a) 下一个模组的 S0/S1**（Thermal 事实表已交付，
+前置缺口见台账⑩：**没有上游 sources jar**、**`alice-recipes.json` 已过时**）。两个可选小尾巴见台账⑬
+（查询层按执行准入挑机器路线）与⑨（`recipe-readability.py` 的 `--target`）。
 **上下文窗口已由用户从 256K 改为 512K**（D-214，本会话生效；阈值 409,600 / 保留 81,920）——改的是"何时压缩"，
 不改变事实来源；复核触发 = 手动 `/compact` 频率没降、或我出现"忘记已确认事实/重复问已答过的问题" ⇒ 退回 256K。
 电池 **CORE=30 / FULL=40**（(c) 增量 2 加了 `craft_machine`）。**详细交接见 `docs/HANDOVER.md`**；**方向来源与审查留档见 `docs/reviews/2026-09-14-外部质疑与工作流审查留档.md`**；今天的新纪律见 PLAYBOOK §5.0b/§5.0c/§5.0d。

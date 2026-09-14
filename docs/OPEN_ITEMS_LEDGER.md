@@ -938,3 +938,10 @@ jar `3312608d…`。
   ⇒ 第十一轮 `machine-walk-0` 那行的 `movements=167`（含 `PILLAR=13 / DOWNWARD=15 / BREAK_*`）**不是这段路的**，
   是当时的**全进程累计**；**别拿它给某次寻路定罪**（该步是否真写入，看同一步 `WriteBudget`：实测 `breaks=0 places=0`）。
   最小修法 = 会话开始记基线、打印**每会话增量**（或至少把措辞改成"累计"）。
+  ⑬ **查询层不按"执行准入"挑机器路线（第十二轮暴露，未修）**：`RecipeQuery` 对同一产出可能命中多台机器，
+  它取 `machineRoutes.get(0)`（配方管理器**迭代序**），**不看 `MachineMap.Capability`**。第十二轮实测就是这样：
+  `minecraft:clay_ball` 命中 `mekanism:chemical_injection_chamber`（无执行准入）⇒ 生产如实 `not_executable`，
+  是**夹具的后备候选**绕过去的（换成 `soul_soil` ⇒ enrichment chamber ⇒ 绿）。⇒ 生产侧"能不能做"目前
+  **部分取决于配方管理器的迭代序**：同一物品可能因先命中未准入的机器而失败，而换一台就能做。
+  **最小修法** = 收集 `machineRoutes` 时**按准入优先排序**（不删只排，保持"读得出就报得出"的既有语义），
+  并在 `Result` 里留下"为什么挑了这条"。**触发条件**：下次要动机器路线、或要给第二台机器升 `EXECUTABLE` 时。
