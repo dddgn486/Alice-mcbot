@@ -236,7 +236,8 @@ def enum_values(src):
     """从枚举源码里取全部取值（按逗号切，兼容同一行多个取值）。"""
     body = src.split("{", 1)[-1].split(";", 1)[0]
     body = re.sub(r"//[^\n]*", "", body)
-    return [v.strip() for v in re.findall(r"[A-Z][A-Z_]{2,}", body)]
+    # 只取"行首或逗号后、且后面紧跟 ( , ; 或行尾"的标识符 ⇒ 排除构造参数里的标识符（否则会过采）
+    return [m.group(1) for m in re.finditer(r"(?:^\s*|,\s*)([A-Z][A-Z0-9_]*)\s*(?=[,(;]|\s*$)", body, re.M)]
 
 
 def check(rows):

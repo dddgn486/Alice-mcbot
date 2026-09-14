@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1332" viewBox="0 0 1200 1332" font-family="Microsoft YaHei, Noto Sans CJK SC, PingFang SC, sans-serif">
 <rect width="1200" height="1332" fill="#fafafa"/>
 <text x="24" y="42" font-size="24" font-weight="bold" fill="#212121">Alice 授权 / 审批框架（六层）</text>
-<text x="24" y="68" font-size="13" fill="#616161">单一出处 docs/authz/AUTHZ_REGISTRY.csv ｜ 生成 2026-09-14 11:20 ｜ 闸门 27 条 ｜ 硬约束=红 策略=蓝 预算=橙 凭证/审批=紫 账本/闭环=绿 自证=灰</text>
+<text x="24" y="68" font-size="13" fill="#616161">单一出处 docs/authz/AUTHZ_REGISTRY.csv ｜ 生成 2026-09-14 11:21 ｜ 闸门 27 条 ｜ 硬约束=红 策略=蓝 预算=橙 凭证/审批=紫 账本/闭环=绿 自证=灰</text>
 <rect x="20" y="96" width="150" height="136" rx="8" fill="#37474f"/>
 <text x="34" y="120" font-size="15" font-weight="bold" fill="#ffffff">L0 目标层</text>
 <text x="34" y="140" font-size="12" fill="#cfd8dc">3 道闸门</text>
