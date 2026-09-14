@@ -1047,12 +1047,21 @@ jar `3312608d…`。
 | **R2-残** | **R-2 的运行期路径没被走到** | 门禁 `check-provision-containment.sh` 已断言；客户端第十七轮 `[Job] launch` **0 条**（LLM 全程未被触发 ⇒ 没有 Job 被起） | 需要一个"真的起一次 Job"的动作；自动触发被 R-3 有意挡住了 | 手动右键 `alice:goal_director` 或 `alice:job_launcher`，看是否出现 `[Job] 生产入口只搬运不发料（…）` |
 | **R1-残** | `prod_budget_exhausted`（连锁破坏预算耗尽）分支**无客户端证据** | 代码已接入 `WriteBudget` 并按增量计账；但电池 `exec_chain` 用例是干净 3×3 矿脉（约 9 次破坏 ≪ `DEFAULT_MAX_BREAKS=64`）⇒ **新分支不会被现有场景触发** | 造"连锁破坏数 > 64"的场景是**新夹具工作量**，与 T1 的"修红线"不是一回事 | 接 T3，或专门补一条场景时 |
 
-## §9 T2/T3 未动（用户拍板前不开）
+## §9 T2 已落地 / T3 未动（用户拍板前不开）
 
-- **T2 无头回归**：**已实测可用但被拔掉** —— `./gradlew runServer` 在本机 ⇒ `Done (3.675s)!`、
-  `Enabled Gametest Namespaces: [alice]`；而 `BotSelftest` 已于 `cbd177a` 删除、
-  `build.gradle:95-97` **仍在宣传失效指令**。建议先做「1 个样板 + 覆盖度评估」，**N < 8 就不铺开**。
+- **✅ T2 无头回归已落地（2026-09-14，`4091694`）**：一条命令 `tools/headless-battery.sh core`，
+  无真人，判决机器可读、退出码可判红。**闸门通过**：首轮 N=22（≥8），修复根因后 **`(passed=30/30 skipped=0) → PASS`**。
+  报告全文 `docs/reviews/2026-09-14-无头回归通道T2-首轮实测.md`（含两个必须记住的坑：
+  Gradle 吞退出码；服务端线程上 `System.exit` 会与 shutdown hook 互 join 死锁）。
+  - **未验证**：改动落在 `BotPlayer`/`BotManager` 核心 tick 路径（`syncPlayerChunkTicket`）与
+    `restoreFromWorld` 时序上 ⇒ **待一轮客户端验证**（重点：双倍物理 / 回弹 / 传送被拽回 / 起服不再崩）。
+    触发条件：下一次客户端轮次一并做。
+  - **待用户确认的物理事实**：第十七轮 30/30 那 3 分钟里真人**是否全程站在夹具区**
+    （登录坐标 `(62.3,310.7)`=chunk(3,19) 已实证在区内；中途是否走开只能由用户答）。
+  - **R2-残 已折进 T2**（用户 2026-09-14 裁定）：无头跑通即覆盖生产入口，不再单独开客户端轮次。
 - **T3 模组 #3 的数据模型**：**`create-1.20.1-6.0.8.jar` 与 `ExtendedCrafting-1.20.1-6.0.10.jar`
   已经在客户端 `mods/` 里**，且按审查 §3.3 会被**静默读错**（读取器把 Mekanism 特例当通则、不试 vanilla 接口；
   `MachineMap` 的 1 方块↔1 类型不变式让 Thermal 6 行**已是错事实**）。
   ⇒ **推任何新模组前必须先做 T3。**
+  - ⚠️ T2 的新发现与 T3 有关：无头生产服务端**已经装着** create/ExtendedCrafting/refinedstorage/
+    sophisticated* 全套（与客户端同构）⇒ T3 的"静默读错"现在有了一条**可复现的无头验证通道**。
