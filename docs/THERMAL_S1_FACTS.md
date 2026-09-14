@@ -252,14 +252,18 @@ Tier B OK（thermal） ：上游类型 32 个，表 32 行（有站点 26 / 无�
 ⇒ 这是对 §1/§2 的**独立复核**：我手推的 32 类型分类与 `TCoreRecipeTypes` **逐项相同**，
 且 32 个方块 id 全部命中 `TExpBlocks` / `TCoreBlocks`。六道门禁全 PASS。
 
-**⚠️ 还差客户端一环（下一轮）**：`MachineMap` 里的 Thermal 方块 id 是否正确，
-最终由电池步 **`machine_route`**（`MachineProbeTask`）在客户端复核 —— 它会对 59 行逐个查
-`BuiltInRegistries.BLOCK.containsKey(...)`，**任何 id 写错 ⇒ `row_block_missing` 非空 ⇒ 判红**。
-下一轮期望（**新的绿基线**）：
-```
-[MachineProbe] 机器映射 machine_rows=59 with_site=49 no_site=10 declared_menu=2 executable=1 source=… source_thermal=…
-[MachineProbe] SUMMARY … with_site_confirmed=48 with_site_unobserved=[mekanism:smelting, thermal:brewer, thermal:hive_extractor]
-                no_site=[…10 个…] unmapped=[] row_block_missing=[] …
-```
-（`declared_menu=2` = `enriching`+`crushing` 两行有实测菜单类；`executable=1`；`with_site_unobserved` 多出 `brewer`/`hive_extractor`
-是**预期**，因为它们在本次客户端零配方。）
+**✅ 客户端复核已完成（第十四轮，2026-09-14，`latest.log:2908`/`:2989`）**：`row_block_missing=[]` + `unmapped=[]`
+⇒ **32 个 Thermal 方块 id 全部在客户端注册表里存在**（这是"离线写表、客户端复核"的验收点，**通过**）。
+同轮 `(30/30) ticks=3279 → PASS`，`machine_station` 仍精确找到 2 台，`craft_machine` 逐字未变
+（`fallback_used=false` + `mekanism:enriching/clay_ball` + `product_after=4`）⇒ 加 32 行**没有回归**。
+
+**⚠️ 同时纠正我先前写错的一处预期**（原写"`with_site_confirmed=48`"）：实测是 **22**，且 `with_site_unobserved` 有 **27** 项
+（26 个 Thermal 站点行 + `mekanism:smelting`）。原因不是"Thermal 零配方"，而是
+**`MachineProbeTask.NAMESPACE = "mekanism"`** —— 探针只枚举**一个命名空间**的配方类型，
+所以**任何 Thermal 行都不可能被判为 `with_site_confirmed`**。分桶守恒仍成立：`22 + 27 + 10 + 0 = 59`。
+⇒ **本步对 Thermal 的覆盖是"方块存在性"级别，不是"类型↔配方对应"级别**（后者要探针支持多命名空间，台账⑭）。
+探针那句日志文案（"上游 0 配方或模组集差异"）在这种情况下**是误导的**，已登记。
+
+**另一处别误会**：`query_probed=3 query_machine_route=2`（上一轮是 1）**不是** Thermal 造成的 ——
+那 3 个被探测的物品是**从采样里随机取的**（5 份归档日志里 3 个物品每次都不同、`query_machine_route` 在 1~2 之间浮动），
+且该计数**只报告、不是断言**。实测两个 MACHINE_ROUTE 都指向 `mekanism:chemical_injection_chamber`。

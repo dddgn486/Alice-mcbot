@@ -961,3 +961,19 @@ jar `3312608d…`。
   **观测点** = 电池步 `craft_machine` 新增的 `fallback_used`：修好后首选候选应直接可用 ⇒ 期望
   **`fallback_used=false` 且 `target=minecraft:clay_ball`**（第十二轮的 `true` + `target=soul_soil` 即本问题的证据）。
   变回 `true` ⇒ **先查是不是又有"未准入"的机器抢了同一产出**（那是产品问题，不是回归）。
+  ⑭ **`MachineProbeTask` 只采样一个命名空间 ⇒ 表里新加模组的"类型↔配方"覆盖是名义上的（第十四轮发现，未修）**：
+  `MachineProbeTask.NAMESPACE` 是**单个常量**（`"mekanism"`，`MOD_ADAPTER_PROTOCOL` §6 早已把它标成"**半通用**：
+  换模组改这一行"）。加了 32 行 Thermal 后，探针仍只枚举 `mekanism` 的配方类型 ⇒ **26 个 Thermal 站点行
+  全部落进 `with_site_unobserved`**（实测 `22 + 27 + 10 + 0 = 59`，守恒成立、`row_block_missing=[]` 通过）。
+  **危害是"读错"而不是"漏判"**：该桶的日志文案写的是"上游 0 配方或模组集差异"，
+  而实情是"**探针没采样这个命名空间**" ⇒ 只看日志会把 26 行误读成"Thermal 没有配方"。
+  **影响范围**：`row_block_missing`（方块存在性）**不受影响、仍然有效**；
+  但"Thermal 32 个类型里哪些在运行时真有配方"这件事**目前没有任何自动化证据**（只有我在 S1 里用
+  `/alice recipes` 导出 + `skippedTypes` 手工对账的结论：30 个有配方、`brewer`/`hive_extractor` 零配方）。
+  **最小修法** = 把 `NAMESPACE` 换成"**按表里出现过的命名空间逐个采样**"（`MachineMap.rows()` 里取
+  `typeId` 的前缀去重），摘要里 per-namespace 分别计数（`types=`/`type_recipes=` 现在是全局单值，
+  改完要同步 `docs/TESTING_GUIDE.md` 与 `docs/AI_TEST_MATRIX.md` 的示例数字）。
+  **代价**：改动落在既有判红步上 ⇒ 需要再一轮客户端（新基线：`with_site_confirmed` 应从 22 涨到 47 左右，
+  仍留 `mekanism:smelting`/`thermal:brewer`/`thermal:hive_extractor` 三个"真零配方"在 unobserved）。
+  **推荐**：**做**，但在"要升 Thermal 某台机器到 `EXECUTABLE`"之前做 —— 那一档要求"类型↔配方"有运行时证据，
+  没有这条修法就只能靠手工对账。

@@ -180,8 +180,15 @@ alice:machine_cycle_check: 3405` + `missing registry entries`（⇒ 不在注册
   且"表里出现工具没登记取证方式的命名空间"**直接报红**。实测 **`行=59 未映射=10` PASS**，
   Mekanism 27（23+4）/ Thermal 32（26+6）**双向一致**；六道门禁全 PASS。
   **7 台发电机在表里但 `READ_ONLY`** ⇒ 红线① 靠能力列保证（不是"不登记"）。
-  **⚠️ 下一轮客户端唯一验收点**：电池步 `machine_route` 里 `row_block_missing=[]`（59 行方块 id 逐个查客户端注册表，
-  写错即红）；新绿基线见 `docs/AI_TEST_MATRIX.md` 与 `docs/THERMAL_S1_FACTS.md` §9。
+  **✅ 客户端复核已通过（第十四轮，`latest.log:2908`/`:2989`）**：`row_block_missing=[]` + `unmapped=[]`
+  ⇒ **32 个 Thermal 方块 id 全部在客户端注册表里存在**；同轮 `(30/30) ticks=3279 → PASS`，
+  `machine_station` 仍精确找到 2 台、`craft_machine` 逐字未变（`fallback_used=false` + `mekanism:enriching/clay_ball`）
+  ⇒ 加 32 行**零回归**。
+  **同时纠正我先前写错的预期**：`with_site_confirmed` 实测是 **22**（我原写 48）—— 因为
+  `MachineProbeTask.NAMESPACE` 只采样 `mekanism`，26 个 Thermal 站点行必然全落进 `with_site_unobserved`
+  （`22+27+10+0=59` 守恒）⇒ **本步对 Thermal 只覆盖到"方块存在性"，没有覆盖"类型↔配方"**。
+  该缺口已登记**台账⑭**（含最小修法与"在把 Thermal 某台机器升 `EXECUTABLE` 之前做"的推荐）。
+  另：`query_machine_route` 1→2 **不是 Thermal 造成的**（被探测物品是随机采样、该计数只报告不断言）。
   附带闭合的一处对账：`[MachineProbe] readable_total=3714 skipped_total=2354` 与导出 `recipes=3689 skipped=2379` 差 25 ——
   导出侧 `skippedTypes` 里正有 `minecraft:crafting(空产出)=25`，两侧**算术精确闭合**（探测把"空产出合成"记为可读、导出记为跳过）
   ⇒ 不是异常，是两处口径不同。
