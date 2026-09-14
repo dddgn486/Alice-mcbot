@@ -11,7 +11,11 @@
   已实测的 `menu_class`、行不许引用重复方块）；
 * **Tier B（找得到上游 jar 就跑，硬）**：用 `javap` 读上游注册类的**字符串常量**，
   断言 `表 ∪ KNOWN_UNMAPPED == 上游全部类型`（**双向**：表里不许有上游没有的类型；
-  上游不许有表里没分类的类型）。找不到 jar / 没装 `javap` ⇒ Tier B 跳过并**明确说明跳过了什么**。
+  上游不许有表里没分类的类型）。**按命名空间分别跑**（`UPSTREAMS`）：拿 Mekanism 的类去核 `thermal:` 的行必然全错。
+  找不到 jar / 没装 `javap` ⇒ Tier B 跳过并**明确说明跳过了什么**。
+  ⚠️ `UPSTREAMS[...]["jarjar"]`：有的模组把内容藏在**内嵌 jar（JiJ）**里（Thermal 的 `thermal_core`，
+  见 `docs/THERMAL_S1_FACTS.md` §0）。`mods/*.jar` 逐个 `unzip` 看不到内嵌 jar ⇒ 必须显式解出来放进
+  `javap` 的 classpath，否则 Tier B 会得出"上游没有这些类型"的**假结论**。
 
 Tier B 是这套检查真正的牙齿：上游升级加了新机器类型时，**构建前**就会点名，
 而不是等运行期 `unmapped=[…]` 在日志里被忽略。取证方式见
@@ -21,32 +25,60 @@ Tier B 是这套检查真正的牙齿：上游升级加了新机器类型时，*
 
 单向（表里有的都在上游存在）挡不住"上游新增了、我们没分类"；反过来单向挡不住"表里写了
 上游没有的 id"（那是伪造/笔误）。两个方向都要断言，才叫"单一出处 *且* 完整"。
+**多模组后还要加一维**：每个已收录的命名空间都要**全量**（表里出现 `thermal:` 的行，就要求 thermal 全量，
+不允许"只登记 13 行、剩下 19 个类型没人管"——那正是这个闸门存在的理由）。
 
 用法：
-    python3 tools/machine-map.py                 # 打印表 + 跑 Tier A + Tier B
+    python3 tools/machine-map.py                 # 打印表 + 跑 Tier A + Tier B（每个命名空间各一条结论）
     python3 tools/machine-map.py --write         # 重新生成 docs/MACHINE_MAP.csv
     python3 tools/machine-map.py --check         # 断言 CSV 不陈旧 + 两个 Tier（CI/构建前用）
-    python3 tools/machine-map.py --jar <path>    # 指定上游 jar（默认按客户端 mods 目录 glob）
+    python3 tools/machine-map.py --jar <path>    # 覆盖**第一个**声明的上游 jar（缺省按客户端 mods 目录 glob）
+    python3 tools/machine-map.py --mods-dir <dir>  # 换客户端 mods 目录（默认写死在 DEFAULT_MODS_DIR）
 """
 
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import glob
+import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 JAVA = ROOT / "src/main/java/com/dddgn/alice/decision/MachineMap.java"
 CSV = ROOT / "docs/MACHINE_MAP.csv"
 
-# 上游取证：这些类里的字符串常量就是注册名（javap 的 `// String xxx`）
-RECIPE_TYPE_CLASS = "mekanism.common.recipe.MekanismRecipeType"
-BLOCK_CLASS = "mekanism.common.registries.MekanismBlocks"
-DEFAULT_JAR_GLOB = "/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10/mods/Mekanism-*.jar"
+# 上游取证：这些类里的字符串常量就是注册名（javap 的 `// String xxx`）。
+#
+# **每个模组一条**：表是"上游全部类型"的单一出处，覆盖必须**按命名空间分别双向断言** ——
+# 拿 Mekanism 的类去核 `thermal:` 的行必然全错，反过来也一样。
+#
+# ⚠️ `jarjar` 那一栏是 2026-09-14 踩过的坑：Thermal 的 11 个 `device_*` 方块、32 个类型里的
+# device/fuel 那些，全在 `thermal_foundation` 的**内嵌 jar** `META-INF/jarjar/thermal_core-*.jar` 里。
+# `mods/*.jar` 逐个 `unzip` **看不到内嵌 jar**（只显示为一行）⇒ 必须显式解出来放进 `javap` 的 classpath，
+# 否则 Tier B 会得出"上游没有这些类型"的**假结论**（S1 事实表 §0 记了这次误判）。
+UPSTREAMS = {
+    "mekanism": {
+        "jars": ["Mekanism-*.jar"],
+        "jarjar": [],
+        "type_classes": ["mekanism.common.recipe.MekanismRecipeType"],
+        "block_classes": ["mekanism.common.registries.MekanismBlocks"],
+    },
+    "thermal": {
+        "jars": ["thermal_expansion-*.jar", "thermal_foundation-*.jar", "cofh_core-*.jar"],
+        "jarjar": [("thermal_foundation-*.jar", "META-INF/jarjar/thermal_core-*.jar")],
+        "type_classes": ["cofh.thermal.core.init.registries.TCoreRecipeTypes"],
+        "block_classes": ["cofh.thermal.expansion.init.registries.TExpBlocks",
+                          "cofh.thermal.core.init.registries.TCoreBlocks"],
+    },
+}
+
+DEFAULT_MODS_DIR = "/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10/mods"
 
 
 def strip_comments(text: str) -> str:
@@ -86,10 +118,19 @@ def split_top_level(text: str) -> list[str]:
     return [p for p in parts if p]
 
 
+STRING_CONCAT = re.compile(r'^\s*"(?:[^"\\]|\\.)*"(?:\s*\+\s*"(?:[^"\\]|\\.)*")*\s*$')
+
+
 def unquote(token: str) -> str:
+    """取出 # 字面量的值：**单字面量，或 `"a" + "b"` 这种拼接**。
+
+    拼接必须在这里合掉：`split_top_level` 只按顶层逗号切分，`"a"\n + "b"` 会整段留在参数里，
+    而"首尾都是引号"的朴素判断对它不成立 ⇒ 会把 **Java 源码片段**（含换行与 `+`）写进 CSV
+    （实测踩到过：`mekanism:enriching` 的备注在 CSV 里断成两行、还带一个 `+`）。
+    """
     token = token.strip()
-    if token.startswith('"') and token.endswith('"'):
-        return token[1:-1]
+    if STRING_CONCAT.match(token):
+        return "".join(re.findall(r'"((?:[^"\\]|\\.)*)"', token)).replace('\\"', '"')
     return token
 
 
@@ -175,8 +216,12 @@ def parse_rows(source: str) -> tuple[list[dict], list[dict], str]:
             "EXECUTABLE")
 
     unmapped = [{"type_id": r["type_id"], "reason": r["note"]} for r in rows if not r["block_ids"]]
-    source_jar = re.search(r'SOURCE_JAR\s*=\s*"([^"]+)"', code)
-    return rows, unmapped, (source_jar.group(1) if source_jar else "-")
+    # 取证件：常量可能是跨行字符串拼接（`"a" + "b"`）⇒ 按拼接逐段取回，不截断
+    sources: list[str] = []
+    for match in re.finditer(r'(SOURCE_JAR\w*)\s*=\s*((?:"[^"]*"\s*\+?\s*)+)', code):
+        value = "".join(re.findall(r'"([^"]*)"', match.group(2)))
+        sources.append(f"{match.group(1)}={value}")
+    return rows, unmapped, sources
 
 
 def render_csv(rows: list[dict]) -> str:
@@ -221,59 +266,126 @@ def tier_a(rows: list[dict], unmapped: list[dict], problems: list[str]) -> None:
             problems.append(f"无站点行缺理由: {item['type_id']}（'没行'与'无站点'必须可区分）")
 
 
-def javap_strings(jar: Path, class_name: str) -> set[str]:
+def find_jar(mods_dir: Path, pattern: str) -> Path | None:
+    return next((Path(p) for p in sorted(glob.glob(str(mods_dir / pattern))) if "sources" not in p), None)
+
+
+def extract_jarjar(outer: Path, pattern: str, into: Path) -> Path | None:
+    """把外层 jar 里的**内嵌 jar** 解出来 —— `javap` 的 classpath 不能指向"jar 里的 jar"。
+
+    没有这一步，Thermal 的 11 个 `device_*` 方块与 12 个 device/fuel 类型会被 Tier B 判成"上游没有"（假结论）。
+    """
+    import zipfile
+    with zipfile.ZipFile(outer) as archive:
+        names = sorted(n for n in archive.namelist() if fnmatch.fnmatch(n, pattern))
+        if not names:
+            return None
+        target = into / Path(names[-1]).name
+        target.write_bytes(archive.read(names[-1]))
+        return target
+
+
+def javap_strings(classpath: list[Path], class_name: str) -> set[str]:
     if shutil.which("javap") is None:
         raise RuntimeError("没有 javap")
-    out = subprocess.run(["javap", "-p", "-c", "-classpath", str(jar), class_name],
-                         capture_output=True, text=True, timeout=180)
+    out = subprocess.run(
+        ["javap", "-p", "-c", "-classpath", os.pathsep.join(str(p) for p in classpath), class_name],
+        capture_output=True, text=True, timeout=180)
     if out.returncode != 0:
-        raise RuntimeError(f"javap 失败: {out.stderr.strip()[:200]}")
+        raise RuntimeError(f"javap 失败（{class_name}）: {out.stderr.strip()[:160]}")
     return set(re.findall(r"// String ([a-z0-9_]+)", out.stdout))
 
 
-def tier_b(rows: list[dict], unmapped: list[dict], jar: Path | None, problems: list[str]) -> str:
-    if jar is None or not jar.exists():
-        return ("Tier B SKIP（没找到上游 jar）：**上游类型覆盖未复核** —— "
-                f"用 --jar 指定，或把 jar 放到 {DEFAULT_JAR_GLOB}")
-    try:
-        types = javap_strings(jar, RECIPE_TYPE_CLASS)
-        blocks = javap_strings(jar, BLOCK_CLASS)
-    except Exception as error:  # noqa: BLE001 - 任何取证失败都如实降级，不静默通过
-        return f"Tier B SKIP（{error}）：**上游类型覆盖未复核**"
-    if not types or not blocks:
-        return "Tier B SKIP（javap 没读到字符串常量：类名/版本变了）：**上游类型覆盖未复核**"
+def check_namespace(namespace: str, spec: dict, rows: list[dict], mods_dir: Path,
+                    jar_override: Path | None, problems: list[str]) -> str:
+    jars: list[Path] = []
+    for index, pattern in enumerate(spec["jars"]):
+        jar = jar_override if (jar_override is not None and index == 0) else find_jar(mods_dir, pattern)
+        if jar is not None and jar.exists():
+            jars.append(jar)
+    if not jars:
+        return (f"Tier B SKIP（{namespace}）：没找到上游 jar {spec['jars']}（用 --mods-dir 指定目录）"
+                f" ⇒ **该命名空间的上游覆盖未复核**")
 
-    namespace = {t for t in types if "_" in t or t.isalpha()}  # 去掉命名空间常量本身
-    upstream_types = {f"mekanism:{t}" for t in namespace if t != "mekanism"}
-    declared = {row["type_id"] for row in rows}
-    for row in rows:
-        for block in row["block_ids"]:
-            short = block.split(":", 1)[1]
-            if short not in blocks:
-                problems.append(f"Tier B: 表里的方块 {block} 在上游 {BLOCK_CLASS} 中不存在（笔误或版本不符）")
-    for missing in sorted(upstream_types - declared):
-        problems.append(f"Tier B: 上游有类型 {missing}，但表里没有分类（必须显式归类：有站点 / 无站点）")
-    for extra in sorted(declared - upstream_types):
-        problems.append(f"Tier B: 表里的 {extra} 在上游 {RECIPE_TYPE_CLASS} 中不存在")
-    no_site = sum(1 for row in rows if not row["block_ids"])
-    return (f"Tier B OK（{jar.name}）：上游类型 {len(upstream_types)} 个，"
-            f"表 {len(rows)} 行（有站点 {len(rows) - no_site} / 无站点 {no_site}），双向一致")
+    with tempfile.TemporaryDirectory() as tmp:
+        classpath = list(jars)
+        for outer_pattern, inner_pattern in spec.get("jarjar", []):
+            outer = find_jar(mods_dir, outer_pattern)
+            if outer is None:
+                problems.append(f"Tier B: {namespace} 声明了内嵌 jar {inner_pattern}，"
+                                f"但外层 {outer_pattern} 不存在")
+                continue
+            inner = extract_jarjar(outer, inner_pattern, Path(tmp))
+            if inner is None:
+                problems.append(f"Tier B: {outer.name} 里找不到内嵌 {inner_pattern}"
+                                f" —— 上游换了打包方式？Tier B 会因此漏掉一大片类型")
+            else:
+                classpath.append(inner)
+        try:
+            types: set[str] = set()
+            for class_name in spec["type_classes"]:
+                types |= javap_strings(classpath, class_name)
+            blocks: set[str] = set()
+            for class_name in spec["block_classes"]:
+                blocks |= javap_strings(classpath, class_name)
+        except Exception as error:  # noqa: BLE001 - 取证失败如实降级，不静默通过
+            return f"Tier B SKIP（{namespace}: {error}）⇒ **该命名空间的上游覆盖未复核**"
+
+        if not types or not blocks:
+            return (f"Tier B SKIP（{namespace}：javap 没读到字符串常量，类名/版本变了）"
+                    f" ⇒ **该命名空间的上游覆盖未复核**")
+
+        upstream_types = {f"{namespace}:{t}" for t in types
+                          if t != namespace and ("_" in t or t.isalpha())}
+        declared = {row["type_id"] for row in rows if row["type_id"].startswith(namespace + ":")}
+        for row in rows:
+            if not row["type_id"].startswith(namespace + ":"):
+                continue
+            for block in row["block_ids"]:
+                short = block.split(":", 1)[1]
+                if short not in blocks:
+                    problems.append(f"Tier B: 表里的方块 {block} 在上游 {namespace} 的方块类里不存在"
+                                    f"（笔误或版本不符）")
+        for missing in sorted(upstream_types - declared):
+            problems.append(f"Tier B: 上游有类型 {missing}，但表里没有分类（必须显式归类：有站点 / 无站点）")
+        for extra in sorted(declared - upstream_types):
+            problems.append(f"Tier B: 表里的 {extra} 在上游 {namespace} 的配方类型类里不存在")
+
+        namespace_rows = [row for row in rows if row["type_id"].startswith(namespace + ":")]
+        no_site = sum(1 for row in namespace_rows if not row["block_ids"])
+        return (f"Tier B OK（{namespace}）：上游类型 {len(upstream_types)} 个，"
+                f"表 {len(namespace_rows)} 行（有站点 {len(namespace_rows) - no_site} / 无站点 {no_site}），"
+                f"双向一致；classpath={'、'.join(p.name for p in classpath)}")
+
+
+def tier_b(rows: list[dict], mods_dir: Path, jar_override: Path | None, problems: list[str]) -> list[str]:
+    """按命名空间分别双向复核（表的覆盖口径是"**每个已收录模组全量**"）。"""
+    notes: list[str] = []
+    for namespace in sorted({row["type_id"].split(":", 1)[0] for row in rows}):
+        spec = UPSTREAMS.get(namespace)
+        if spec is None:
+            problems.append(f"Tier B: 表里有 `{namespace}:` 的行，但工具里**没登记它的上游取证方式**"
+                            f"（type/block 类）⇒ 这一族永远不会被复核")
+            continue
+        notes.append(check_namespace(namespace, spec, rows, mods_dir, jar_override, problems))
+    return notes
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--write", action="store_true")
-    parser.add_argument("--jar", default=None)
+    parser.add_argument("--jar", default=None,
+                        help="覆盖**第一个**声明的上游 jar（缺省按 --mods-dir glob）")
+    parser.add_argument("--mods-dir", default=DEFAULT_MODS_DIR)
     args = parser.parse_args()
 
-    rows, unmapped, source_jar = parse_rows(JAVA.read_text(encoding="utf-8"))
+    rows, unmapped, sources = parse_rows(JAVA.read_text(encoding="utf-8"))
     problems: list[str] = []
     tier_a(rows, unmapped, problems)
 
-    jar = Path(args.jar) if args.jar else next(
-        (Path(p) for p in sorted(glob.glob(DEFAULT_JAR_GLOB)) if "sources" not in p), None)
-    tier_b_note = tier_b(rows, unmapped, jar, problems)
+    mods_dir = Path(args.mods_dir)
+    tier_b_notes = tier_b(rows, mods_dir, Path(args.jar) if args.jar else None, problems)
 
     rendered = render_csv(rows)
     if args.write:
@@ -286,8 +398,9 @@ def main() -> int:
 
     for row in rows:
         print(f"  {row['type_id']:<36} {('|'.join(row['block_ids']) or '(无站点)'):<32} {row['menu_class']}")
-    print(f"取证件: {source_jar}")
-    print(tier_b_note)
+    print("取证件: " + (" | ".join(sources) if sources else "-"))
+    for note in tier_b_notes:
+        print(note)
 
     if problems:
         for problem in problems:

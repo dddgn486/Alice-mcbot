@@ -21,9 +21,40 @@ SITE,mekanism:nucleosynthesizing,mekanism:antiprotonic_nucleosynthesizer,-,READ_
 SITE,mekanism:pigment_extracting,mekanism:pigment_extractor,-,READ_ONLY,
 SITE,mekanism:pigment_mixing,mekanism:pigment_mixer,-,READ_ONLY,
 SITE,mekanism:painting,mekanism:painting_machine,-,READ_ONLY,
+SITE,thermal:press,thermal:machine_press,-,READ_ONLY,
+SITE,thermal:pulverizer,thermal:machine_pulverizer,-,READ_ONLY,
+SITE,thermal:smelter,thermal:machine_smelter,-,READ_ONLY,
+SITE,thermal:insolator,thermal:machine_insolator,-,READ_ONLY,
+SITE,thermal:centrifuge,thermal:machine_centrifuge,-,READ_ONLY,
+SITE,thermal:bottler,thermal:machine_bottler,-,READ_ONLY,
+SITE,thermal:crucible,thermal:machine_crucible,-,READ_ONLY,
+SITE,thermal:sawmill,thermal:machine_sawmill,-,READ_ONLY,
+SITE,thermal:crystallizer,thermal:machine_crystallizer,-,READ_ONLY,
+SITE,thermal:chiller,thermal:machine_chiller,-,READ_ONLY,
+SITE,thermal:refinery,thermal:machine_refinery,-,READ_ONLY,
+SITE,thermal:pyrolyzer,thermal:machine_pyrolyzer,-,READ_ONLY,
+SITE,thermal:furnace,thermal:machine_furnace,-,READ_ONLY,
+SITE,thermal:brewer,thermal:machine_brewer,-,READ_ONLY,上游有类型但**本次客户端零配方** ⇒ 运行时不出现（`with_site_unobserved`，不是孤儿行）
+SITE,thermal:numismatic_fuel,thermal:dynamo_numismatic,-,READ_ONLY,发电机（7 个 `Dynamo*` 类 ↔ 7 个 `*_fuel` 类型 1:1）⇒ 红线①：不得有执行准入
+SITE,thermal:lapidary_fuel,thermal:dynamo_lapidary,-,READ_ONLY,发电机（红线①）
+SITE,thermal:gourmand_fuel,thermal:dynamo_gourmand,-,READ_ONLY,发电机（红线①）
+SITE,thermal:stirling_fuel,thermal:dynamo_stirling,-,READ_ONLY,发电机（红线①）
+SITE,thermal:compression_fuel,thermal:dynamo_compression,-,READ_ONLY,发电机（红线①）
+SITE,thermal:magmatic_fuel,thermal:dynamo_magmatic,-,READ_ONLY,发电机（红线①）
+SITE,thermal:disenchantment_fuel,thermal:dynamo_disenchantment,-,READ_ONLY,发电机（红线①）
+SITE,thermal:rock_gen,thermal:device_rock_gen,-,READ_ONLY,内嵌 thermal_core；`device_rock_gen` 同时是**特性开关**与方块（只看外层 jar 会误判成「无设备」，S1 事实表 §0）
+SITE,thermal:tree_extractor,thermal:device_tree_extractor,-,READ_ONLY,
+SITE,thermal:fisher_boost,thermal:device_fisher,-,READ_ONLY,
+SITE,thermal:potion_diffuser_boost,thermal:device_potion_diffuser,-,READ_ONLY,
+SITE,thermal:hive_extractor,thermal:device_hive_extractor,-,READ_ONLY,上游有类型但**本次客户端零配方** ⇒ 运行时不出现
 NO_SITE,mekanism:evaporating,,-,READ_ONLY,热蒸发**多方块**（`EvaporationMultiblockData`），无单方块站点
 NO_SITE,mekanism:energy_conversion,,-,READ_ONLY,未定位到单方块机器（电力转换在机器内部/槽位层）
 NO_SITE,mekanism:gas_conversion,,-,READ_ONLY,未定位到单方块机器（气体转换在机器内部/槽位层）
 NO_SITE,mekanism:infusion_conversion,,-,READ_ONLY,未定位到单方块机器（灌注转换在机器内部/槽位层）
-SITE,mekanism:enriching,mekanism:enrichment_chamber,mekanism.common.inventory.container.tile.MekanismTileContainer,EXECUTABLE,"S2 客户端实测（machine_station，2026-09-14）；菜单类是**通用 tile 容器**，不区分机器（见类注释）；""
-                            + ""S4/S4v2 闭环已实测 ⇒ D-217 起有执行准入"
+NO_SITE,thermal:smelter_catalyst,,-,READ_ONLY,增幅子类型：站点即 `thermal:machine_smelter`（该方块已归 `thermal:smelter` 行）
+NO_SITE,thermal:smelter_recycle,,-,READ_ONLY,同上（`smelter` 的回收/副产物规则）
+NO_SITE,thermal:insolator_catalyst,,-,READ_ONLY,增幅子类型：站点即 `thermal:machine_insolator`
+NO_SITE,thermal:pulverizer_catalyst,,-,READ_ONLY,增幅子类型：站点即 `thermal:machine_pulverizer`
+NO_SITE,thermal:pulverizer_recycle,,-,READ_ONLY,同上
+NO_SITE,thermal:tree_extractor_boost,,-,READ_ONLY,增幅子类型：站点即 `thermal:device_tree_extractor`
+SITE,mekanism:enriching,mekanism:enrichment_chamber,mekanism.common.inventory.container.tile.MekanismTileContainer,EXECUTABLE,S2 客户端实测（machine_station，2026-09-14）；菜单类是**通用 tile 容器**，不区分机器（见类注释）；S4/S4v2 闭环已实测 ⇒ D-217 起有执行准入

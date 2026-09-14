@@ -85,10 +85,21 @@
 | `thermal:magmatic_fuel` | 1 | `dynamo_magmatic` | **发电机（只读）** |
 | `thermal:furnace` | 1 | `machine_furnace` | 机器 |
 | `thermal:disenchantment_fuel` | 1 | `dynamo_disenchantment` | **发电机（只读）** |
-| **合计** | **652** ✓ | 33 个机器类方块 | 13 机器 + 5 修饰 + 7 发电机 + 5 device = **30** ✓ |
+| `thermal:brewer` | **0** | `machine_brewer` | 机器（**上游注册了类型，本次客户端零配方** ⇒ 运行时不出现） |
+| `thermal:hive_extractor` | **0** | `device_hive_extractor` | device（**同上，零配方**） |
+| **合计** | **652**（运行时） | 33 个机器类方块 | 13 机器 + 5 修饰 + 7 发电机 + 5 device = **30 有配方** ✓；**上游类型共 32**（另 2 个零配方，见下） |
 
-**两个没有同名配方类型的机器方块**：`machine_brewer`、`machine_crafter`（15 方块 ↔ 13 机器类型）。
-⇒ "它俩吃什么配方"是 **S2 的题目**（JEI 侧确实有 `BrewerRecipeCategory`，且另有 `PotionFluidRecipeManagerPlugin`），本文不猜。
+> **⚠️ "运行时 30 个类型" ≠ "上游 32 个类型"**（这是 S2 落表时被 Tier B 抓出来的）：
+> `cofh.thermal.core.init.registries.TCoreRecipeTypes` 里**共 32 个** `thermal:` 类型，比运行时多出
+> **`brewer`** 与 **`hive_extractor`** —— 它们上游注册了类型、方块、`Menu`、`Screen`，但**本次客户端一条配方都没有**
+> ⇒ 不进入运行时的配方管理器 ⇒ 导出的 `skippedTypes` 里看不见它们。
+> **纪律**：**"类型在运行时没出现" ≠ "上游没有这个类型"**（与 `mekanism:smelting` 同一形态）。
+> `MachineMap` 里这两行如实登记为有站点的行，探针按 `with_site_unobserved` 报出（不是孤儿行）。
+
+**`machine_crafter` 是"有方块、没有同名配方类型"的那一个**（上游 32 个类型里没有 `crafter`）——
+它执行的是**原版合成配方**，所以配方类型侧没有它的位置。**它不进 `MachineMap`**（表是"类型 → 方块"，反向没有条目），
+这一条已在 `MachineMap` 的 Thermal 段注明。`machine_brewer` 则**有**同名类型 `thermal:brewer`（只是零配方）——
+先前本文写的"`brewer` 也没有同名类型"是**错的**，已被 Tier B 纠正。
 
 ## 3. 红线①：7 台 dynamo = 发电机，永不进 `EXECUTABLE`
 
@@ -109,6 +120,13 @@
 - **5 行是 device 增幅/device 自身**（`tree_extractor` 与 `tree_extractor_boost` 同一台机器；`fisher_boost` / `potion_diffuser_boost` 是增幅）。
 
 ⇒ 正确做法：**先按"设备（方块）"归并，再建行**（一行 = 一台机器 + 它认得的配方类型），与既有 `MachineMap` 形态一致。
+
+**S2 落表结果（2026-09-14，见 §9）**：因为 `MachineMap` 是 **1 方块 ↔ 1 类型**（`BY_BLOCK` 唯一，
+探针靠它"按表认机器"），**同一台机器上的第二个配方类型不能复用同一个方块 id** ⇒
+那 6 个"寄居"子类型只能如实登记为**无独立站点**行。最终 **32 行 = 26 有站点 + 6 无站点**：
+- 有站点 26 = 14 机器（含零配方的 `brewer`）+ 7 发电机 + 5 device（含零配方的 `hive_extractor`）；
+- 无站点 6 = `smelter_catalyst` / `smelter_recycle` / `insolator_catalyst` / `pulverizer_catalyst` /
+  `pulverizer_recycle`（站点即各自的父机器）+ `tree_extractor_boost`（站点即 `device_tree_extractor`）。
 
 ## 5. `Menu` 类清单（33 个；**是候选，不是准入证据**）
 
@@ -199,10 +217,49 @@ PY
 
 ## 8. 未做 / 不知道（不假装完成）
 
-- **`machine_brewer` / `machine_crafter` 吃什么配方**：未查（S2 题目）。
+- **`machine_brewer` / `machine_crafter` 吃什么配方**：**部分已答**（§2 末尾）——`brewer` **有**同名类型
+  （零配方）；`crafter` **没有**同名类型（执行原版合成）。**"它们的配方从哪来"** 仍未查（S2/S3 题目）。
 - **`menuClass` 是静态类名、不是实测值**（§5 已标注）；真实容器类名 + 槽位表要在客户端 S2/S3 取。
 - **槽位 / 进度 / 能量接口**：本文完全没有（S2 范围）。
 - **device 类机器的"生产语义"**：`device_rock_gen` / `device_water_gen` / `device_collector` 这类**不吃物品输入就产出**，
   与 `MachineCycle`（喂料 → 等产出 → 取回）的模型不同 ⇒ 即使它们有站点，也**不能直接当成可执行的生产路线**。
   这是 (c) 后续的边界，本文只登记，不设计。
 - **无上游 sources jar**（台账⑩①）⇒ 全部结论来自**字节码 + 资源**，没有读过源码。
+
+## 9. S2 落地：Thermal 进 `MachineMap`（2026-09-14，**全 READ_ONLY**）
+
+**改了什么**（`decision/MachineMap.java`）：新增 **32 行 Thermal**（26 有站点 + 6 无站点），
+**全部 `Capability.READ_ONLY`** —— 没有客户端实测过 `menuClass`，就只能是只读（`EXECUTABLE` 三条件见该类 javadoc）。
+表从"单一模组表"变成**多模组表**：每行带自己的取证件（新增 `SOURCE_JAR_THERMAL` 与 5 参 `row(...)` / 3 参 `noSite(...)` 重载，
+`src` 参数**故意放在最后**，这样 `tools/machine-map.py` 按位置取 `args[0..3]` 的解析不变）。
+
+**红线① 的落法**：7 台发电机**在表里**（不能假装它们不存在），但 `capability=READ_ONLY` ⇒
+`CraftJob`/`RecipeQuery` 只会如实拒绝（`machine_recipe_unsupported:not_executable:thermal:dynamo_*`），
+**不可能被驱动**。"永不进 `EXECUTABLE`" 靠的是能力列，不是"不登记"。
+
+**闸门也跟着升级**（`tools/machine-map.py`）：
+- Tier B 从"Mekanism 单命名空间"改为 **`UPSTREAMS` 按命名空间分别双向断言**；
+- 新增 **内嵌 jar（JiJ）解包**进 `javap` 的 classpath —— 没有这一步，Thermal 的 11 个 device 与 12 个 device/fuel 类型
+  会被判成"上游没有"（**假结论**，正是 §0 那次误判的机器版）；
+- 表里出现"工具没登记取证方式"的命名空间 ⇒ **直接报红**（不允许出现没人复核的一族）。
+
+**实跑结果**（本机）：`MACHINE_MAP_CHECK_RESULT PASS: 行=59 未映射=10`，两条 Tier B 结论：
+```
+Tier B OK（mekanism）：上游类型 27 个，表 27 行（有站点 23 / 无站点 4），双向一致
+Tier B OK（thermal） ：上游类型 32 个，表 32 行（有站点 26 / 无站点 6），双向一致
+        classpath=thermal_expansion-…jar、thermal_foundation-…jar、cofh_core-…jar、thermal_core-1.20.1-11.0.6.24.jar
+```
+⇒ 这是对 §1/§2 的**独立复核**：我手推的 32 类型分类与 `TCoreRecipeTypes` **逐项相同**，
+且 32 个方块 id 全部命中 `TExpBlocks` / `TCoreBlocks`。六道门禁全 PASS。
+
+**⚠️ 还差客户端一环（下一轮）**：`MachineMap` 里的 Thermal 方块 id 是否正确，
+最终由电池步 **`machine_route`**（`MachineProbeTask`）在客户端复核 —— 它会对 59 行逐个查
+`BuiltInRegistries.BLOCK.containsKey(...)`，**任何 id 写错 ⇒ `row_block_missing` 非空 ⇒ 判红**。
+下一轮期望（**新的绿基线**）：
+```
+[MachineProbe] 机器映射 machine_rows=59 with_site=49 no_site=10 declared_menu=2 executable=1 source=… source_thermal=…
+[MachineProbe] SUMMARY … with_site_confirmed=48 with_site_unobserved=[mekanism:smelting, thermal:brewer, thermal:hive_extractor]
+                no_site=[…10 个…] unmapped=[] row_block_missing=[] …
+```
+（`declared_menu=2` = `enriching`+`crushing` 两行有实测菜单类；`executable=1`；`with_site_unobserved` 多出 `brewer`/`hive_extractor`
+是**预期**，因为它们在本次客户端零配方。）

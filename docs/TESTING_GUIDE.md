@@ -482,18 +482,20 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
 ### S3 关键行怎么读（`latest.log`）
 
 ```
-[MachineProbe] 机器映射 machine_rows=27 with_site=23 no_site=4 declared_menu=2 executable=0 source=…
-[MachineProbe] SUMMARY … machine_map_rows=27 with_site_confirmed=22 with_site_unobserved=[mekanism:smelting] no_site=[…] unmapped=[] row_block_missing=[] …
+[MachineProbe] 机器映射 machine_rows=59 with_site=49 no_site=10 declared_menu=2 executable=1 source=… source_thermal=…
+[MachineProbe] SUMMARY … machine_map_rows=59 with_site_confirmed=48 with_site_unobserved=[mekanism:smelting, thermal:brewer, thermal:hive_extractor] no_site=[…] unmapped=[] row_block_missing=[] …
 [MachineStation] 按表找到 2 台：mekanism:enriching@66, 64, 306,mekanism:crushing@66, 64, 307
 [MachineStation] SUMMARY … m1_binding=true m2_binding=true m2_menu_class_matches=true verdict=PASS
 ```
 
-- **表 27 行 ↔ 实测 26 个类型的算法**（这一条最容易看错）：探针对**表里的行**做完整划分，
+- **表 59 行 ↔ 实测类型的算法**（这一条最容易看错）：探针对**表里的行**做完整划分，
   `with_site_confirmed` + `with_site_unobserved` + `no_site` + `row_block_missing` **必须等于**
   `machine_map_rows`（探针内含**分桶守恒自检**，不守恒直接判红 = 探针口径 bug）。
-  实测 `22 + 1 + 4 + 0 = 27`，其中那 1 行就是 **`mekanism:smelting`** ——
-  上游**注册了类型但零配方** ⇒ `RecipeManager` 里没有这个键，所以它**永远不会**出现在实测类型里。
+  加 Thermal 后应是 `48 + 3 + 10 + 0 = 59`，那 3 行是 **`mekanism:smelting`、`thermal:brewer`、`thermal:hive_extractor`** ——
+  上游**注册了类型但零配方** ⇒ `RecipeManager` 里没有这些键，所以它们**永远不会**出现在实测类型里。
   `with_site_unobserved` **只报事实不判红**（配方可被数据包/配置增删，把"今天为 0"钉成期望会假红）。
+  **`row_block_missing` 是 Thermal 这一轮唯一会红的地方**：表里 59 行 × 方块 id 逐个查客户端注册表，
+  写错一个 id 就非空 ⇒ 判红（这是"离线写表、客户端复核"的验收点）。
 - `m1_binding=true` / `m2_binding=true`：**方块实体自述的配方类型 == 表里的类型**
   （`getRecipeType()` → `getRegistryName()`；方块↔方块实体是编译期绑定）——这是"点对了哪台机器"的**硬证据**；
 - **`m{i}_slot_roles`（本轮新增）**：机器槽的**角色**由上游自述 —— `InventoryContainerSlot.getSlotType()`

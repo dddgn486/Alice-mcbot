@@ -173,6 +173,15 @@ alice:machine_cycle_check: 3405` + `missing registry entries`（⇒ 不在注册
   4 = `forge:armor/{gold,iron}` + `forge:tools/{gold,iron}`，用 Alice 自己的 `itemTags`（693 个）交叉验证吻合）。
   §5 给出 33 个 `Menu` 类名（**是候选，不是准入证据**：准入要实测 `menuClass`）。
   台账⑨（`recipe-readability.py --target`）同轮关闭（含自证断言）。
+  **✅ S2 落地（离线，2026-09-14）：Thermal 已进 `MachineMap`（32 行，全 `READ_ONLY`）** ⇒ 表从"单一模组表"变成
+  **多模组表**（每行带自己的取证件；新增 5 参 `row(...)` / 3 参 `noSite(...)` 重载，`src` 放最后以免动
+  `tools/machine-map.py` 的位置解析）。**闸门同步升级**：Tier B 改为 `UPSTREAMS` **按命名空间分别双向断言** +
+  **内嵌 jar 解包**进 `javap` classpath（没这一步，Thermal 的 11 个 device 与 12 个 device/fuel 类型会被判成"上游没有"），
+  且"表里出现工具没登记取证方式的命名空间"**直接报红**。实测 **`行=59 未映射=10` PASS**，
+  Mekanism 27（23+4）/ Thermal 32（26+6）**双向一致**；六道门禁全 PASS。
+  **7 台发电机在表里但 `READ_ONLY`** ⇒ 红线① 靠能力列保证（不是"不登记"）。
+  **⚠️ 下一轮客户端唯一验收点**：电池步 `machine_route` 里 `row_block_missing=[]`（59 行方块 id 逐个查客户端注册表，
+  写错即红）；新绿基线见 `docs/AI_TEST_MATRIX.md` 与 `docs/THERMAL_S1_FACTS.md` §9。
   附带闭合的一处对账：`[MachineProbe] readable_total=3714 skipped_total=2354` 与导出 `recipes=3689 skipped=2379` 差 25 ——
   导出侧 `skippedTypes` 里正有 `minecraft:crafting(空产出)=25`，两侧**算术精确闭合**（探测把"空产出合成"记为可读、导出记为跳过）
   ⇒ 不是异常，是两处口径不同。

@@ -31,7 +31,12 @@ import java.util.Map;
  * <p><b>覆盖口径</b>：表 = 上游**全部**类型，一种表示、不留第二种：
  * 有单方块站点的行写 `blockIds=[方块]`；上游有类型但**没有单方块站点**的写 `blockIds=[]`
  * （`knownUnmapped()` 由这些行派生，**不另设清单**——两处真相必然漂移）。
- * 今天 23 行有站点 + 4 行无站点 = 27 = 上游全部类型（Tier B 双向断言）。
+ * **每个已收录的模组都必须全量**（Tier B 双向断言，按命名空间分别跑）：
+ * Mekanism 23 行有站点 + 4 行无站点 = **27**；Thermal 26 行有站点 + 6 行无站点 = **32**
+ * （上游 `TCoreRecipeTypes` 的全部类型；其中 `brewer` / `hive_extractor` 零配方、
+ * 6 个是借用父机器站点的增幅子类型 ⇒ 如实登记为无独立站点）。
+ * 因为本表 **1 方块 ↔ 1 类型**（`BY_BLOCK` 唯一，探针靠它"按表认机器"），
+ * 同台机器上的第二个配方类型**不能**复用同一个方块 id，只能进无站点行。
  */
 public final class MachineMap {
 
@@ -41,7 +46,19 @@ public final class MachineMap {
     /** 本表取证的上游版本（换版本必须重跑 Tier B 并复核 `source` 列）。 */
     public static final String SOURCE_JAR = "mekanism-1.20.1-10.4.16.80.jar";
 
+    /**
+     * Thermal 的取证出处。**注意它有两个 jar**：`thermal_core` 是 `thermal_foundation` 的**内嵌 jar（JiJ）**
+     * （`META-INF/jarjar/thermal_core-1.20.1-11.0.6.24.jar`）——`mods/*.jar` 逐个 `unzip` 时**只显示为一行**，
+     * 11 个 `device_*` 方块与 22 条 device/fuel 配方类型全在里面（`docs/THERMAL_S1_FACTS.md` §0）。
+     */
+    public static final String SOURCE_JAR_THERMAL =
+            "thermal_expansion-1.20.1-11.0.1.29.jar+thermal_foundation-1.20.1-11.0.6.70.jar"
+                    + "(内嵌 thermal_core-1.20.1-11.0.6.24.jar)";
+
     private static final String SRC = SOURCE_JAR + "#MekanismRecipeType+MekanismBlocks(javap 2026-09-14)";
+
+    private static final String SRC_THERMAL = SOURCE_JAR_THERMAL
+            + "#TCoreRecipeTypes+TExpBlocks+TCoreBlocks(javap 2026-09-14)";
 
     /**
      * 能力口径。**缺省必须是 {@link #READ_ONLY}**（未知模组能力默认只读，协议 §1）。
@@ -123,7 +140,56 @@ public final class MachineMap {
             noSite("mekanism:evaporating", "热蒸发**多方块**（`EvaporationMultiblockData`），无单方块站点"),
             noSite("mekanism:energy_conversion", "未定位到单方块机器（电力转换在机器内部/槽位层）"),
             noSite("mekanism:gas_conversion", "未定位到单方块机器（气体转换在机器内部/槽位层）"),
-            noSite("mekanism:infusion_conversion", "未定位到单方块机器（灌注转换在机器内部/槽位层）"));
+            noSite("mekanism:infusion_conversion", "未定位到单方块机器（灌注转换在机器内部/槽位层）"),
+            // ==================== Thermal（阶段 3-B (a) S2，2026-09-14）====================
+            // 取证：`cofh.thermal.core.init.registries.TCoreRecipeTypes`（**上游 32 个 `thermal:` 类型全在这一个类里**）
+            // + `cofh.thermal.expansion.init.registries.TExpBlocks` + `TCoreBlocks` 的字符串常量（javap，见 SOURCE_JAR_THERMAL）。
+            // **32 ≠ 运行时的 30**：`brewer` 与 `hive_extractor` 上游注册了类型但本次客户端**零配方** ⇒
+            // 运行时的配方管理器里不出现（探针按 `with_site_unobserved` 如实报出，与 `mekanism:smelting` 同构）。
+            // **本段全部 READ_ONLY**：没客户端实测过 `menuClass` 就只能是只读（`EXECUTABLE` 三条件见 Capability）。
+            // 事实来源：`docs/THERMAL_S1_FACTS.md`（设备清单/分类/红线①），本段只落"类型 ↔ 方块"。
+            //
+            // —— 14 台单方块机器（`TExpBlocks`；`machine_crafter` 上游**没有同名类型**（它执行原版合成配方），故不建行）——
+            row("thermal:press", "thermal:machine_press", null, "", SRC_THERMAL),
+            row("thermal:pulverizer", "thermal:machine_pulverizer", null, "", SRC_THERMAL),
+            row("thermal:smelter", "thermal:machine_smelter", null, "", SRC_THERMAL),
+            row("thermal:insolator", "thermal:machine_insolator", null, "", SRC_THERMAL),
+            row("thermal:centrifuge", "thermal:machine_centrifuge", null, "", SRC_THERMAL),
+            row("thermal:bottler", "thermal:machine_bottler", null, "", SRC_THERMAL),
+            row("thermal:crucible", "thermal:machine_crucible", null, "", SRC_THERMAL),
+            row("thermal:sawmill", "thermal:machine_sawmill", null, "", SRC_THERMAL),
+            row("thermal:crystallizer", "thermal:machine_crystallizer", null, "", SRC_THERMAL),
+            row("thermal:chiller", "thermal:machine_chiller", null, "", SRC_THERMAL),
+            row("thermal:refinery", "thermal:machine_refinery", null, "", SRC_THERMAL),
+            row("thermal:pyrolyzer", "thermal:machine_pyrolyzer", null, "", SRC_THERMAL),
+            row("thermal:furnace", "thermal:machine_furnace", null, "", SRC_THERMAL),
+            row("thermal:brewer", "thermal:machine_brewer", null,
+                    "上游有类型但**本次客户端零配方** ⇒ 运行时不出现（`with_site_unobserved`，不是孤儿行）", SRC_THERMAL),
+            // —— 7 台发电机（dynamo）：**红线① —— 烧燃料造能量，永远只能是只读、永不进 EXECUTABLE** ——
+            row("thermal:numismatic_fuel", "thermal:dynamo_numismatic", null,
+                    "发电机（7 个 `Dynamo*` 类 ↔ 7 个 `*_fuel` 类型 1:1）⇒ 红线①：不得有执行准入", SRC_THERMAL),
+            row("thermal:lapidary_fuel", "thermal:dynamo_lapidary", null, "发电机（红线①）", SRC_THERMAL),
+            row("thermal:gourmand_fuel", "thermal:dynamo_gourmand", null, "发电机（红线①）", SRC_THERMAL),
+            row("thermal:stirling_fuel", "thermal:dynamo_stirling", null, "发电机（红线①）", SRC_THERMAL),
+            row("thermal:compression_fuel", "thermal:dynamo_compression", null, "发电机（红线①）", SRC_THERMAL),
+            row("thermal:magmatic_fuel", "thermal:dynamo_magmatic", null, "发电机（红线①）", SRC_THERMAL),
+            row("thermal:disenchantment_fuel", "thermal:dynamo_disenchantment", null, "发电机（红线①）", SRC_THERMAL),
+            // —— 5 个 device 方块：**都在 `thermal_foundation` 的内嵌 `thermal_core` 里**（JiJ，见 SOURCE_JAR_THERMAL）——
+            row("thermal:rock_gen", "thermal:device_rock_gen", null,
+                    "内嵌 thermal_core；`device_rock_gen` 同时是**特性开关**与方块（只看外层 jar 会误判成「无设备」，S1 事实表 §0）", SRC_THERMAL),
+            row("thermal:tree_extractor", "thermal:device_tree_extractor", null, "", SRC_THERMAL),
+            row("thermal:fisher_boost", "thermal:device_fisher", null, "", SRC_THERMAL),
+            row("thermal:potion_diffuser_boost", "thermal:device_potion_diffuser", null, "", SRC_THERMAL),
+            row("thermal:hive_extractor", "thermal:device_hive_extractor", null,
+                    "上游有类型但**本次客户端零配方** ⇒ 运行时不出现", SRC_THERMAL),
+            // —— 6 个"寄居"子类型：站点与菜单**借用父机器**，而本表是 1 方块 ↔ 1 类型（`BY_BLOCK` 唯一，
+            //    否则探针无法"按表认机器"）⇒ 只能如实登记为**无独立站点**（不是"没找到机器"）——
+            noSite("thermal:smelter_catalyst", "增幅子类型：站点即 `thermal:machine_smelter`（该方块已归 `thermal:smelter` 行）", SRC_THERMAL),
+            noSite("thermal:smelter_recycle", "同上（`smelter` 的回收/副产物规则）", SRC_THERMAL),
+            noSite("thermal:insolator_catalyst", "增幅子类型：站点即 `thermal:machine_insolator`", SRC_THERMAL),
+            noSite("thermal:pulverizer_catalyst", "增幅子类型：站点即 `thermal:machine_pulverizer`", SRC_THERMAL),
+            noSite("thermal:pulverizer_recycle", "同上", SRC_THERMAL),
+            noSite("thermal:tree_extractor_boost", "增幅子类型：站点即 `thermal:device_tree_extractor`", SRC_THERMAL));
 
     /** 类型 → 行（含 `blockIds=[]` 的"无站点"行）。 */
     private static final Map<String, Row> BY_TYPE = indexByType();
@@ -138,6 +204,22 @@ public final class MachineMap {
     private static Row row(String typeId, String blockId, String menuClass, String note) {
         return new Row(typeId, List.of(blockId), menuClass == null ? UNKNOWN : menuClass,
                 Capability.READ_ONLY, SRC, note);
+    }
+
+    /**
+     * 同上，但**显式给出取证件**（多模组表必需：一行一条只有一个 `SRC` 会把 Thermal 的出处写成 Mekanism 的）。
+     *
+     * <p>字段顺序**故意把 `src` 放在最后**：`tools/machine-map.py` 按位置取 `args[0..3]`，
+     * 追加第 5 个参数不会改变 CSV 的解析结果。
+     */
+    private static Row row(String typeId, String blockId, String menuClass, String note, String src) {
+        return new Row(typeId, List.of(blockId), menuClass == null ? UNKNOWN : menuClass,
+                Capability.READ_ONLY, src, note);
+    }
+
+    /** 无站点行 + 显式取证件（`src` 同样放最后，理由见上）。 */
+    private static Row noSite(String typeId, String note, String src) {
+        return new Row(typeId, List.of(), UNKNOWN, Capability.READ_ONLY, src, note);
     }
 
     /**
@@ -220,6 +302,6 @@ public final class MachineMap {
                 + " no_site=" + knownUnmapped().size()
                 + " declared_menu=" + ROWS.stream().filter(Row::menuDeclared).count()
                 + " executable=" + ROWS.stream().filter(r -> r.capability() == Capability.EXECUTABLE).count()
-                + " source=" + SOURCE_JAR;
+                + " source=" + SOURCE_JAR + " source_thermal=" + SOURCE_JAR_THERMAL;
     }
 }
