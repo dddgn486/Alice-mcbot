@@ -1032,3 +1032,26 @@ jar `3312608d…`。
   **调用方**（机器方块实体里真正算产出的那处），看它把返回值当**概率**（除/比 100）还是当**倍率**（乘基准）；
   顺带核 `use_chance`（14 条配方带这个顶层字段）与 `primary_mod`/`secondary_mod`（各 11 条）的含义。
   **触发条件**：任何"要把 Thermal 机器升 `EXECUTABLE`、或要让概率产出参与 `CraftJob` 判定"的动作之前，**必须先收这一项**。
+
+---
+
+## §8 T1 审计残留（2026-09-14 登记，来源 = 三路只读审计 R-4/R-5/R-1 的"没做完"部分）
+
+> 全部出自 `docs/reviews/2026-09-14-项目完成度与优先级审查.md` §7.1。
+> **登记的目的是"不是遗忘"，不是"现在要做"** —— 每条都给了触发条件。
+
+| # | 项 | 现状 | 为什么现在不做 | 触发条件 |
+|---|---|---|---|---|
+| **R4-残** | `RegionLumberJob` 补种**仍直接 `level.setBlock`** | 已补 `BlockInteraction.reachable` **触及前提**；其余（朝向/放置面/`gameMode` 交互路径）未走原语 | 选定树苗可能落在**主背包**，而 `BlockInteraction.placeAt` 只认**快捷栏 0–8** ⇒ 改走原语会**同时改变物品消耗路径与放置面语义**，属行为变更、需独立一轮客户端验证 | 下一次动 `RegionLumberJob` 补种路径时一起做 |
+| **R5-残** | `StationProvision.click` / `InventoryCraft.click` **未做编译期强制** | `FurnaceStation` 已做（`WriteGrant` 必传 + `WriteReason.container()` 校验）；这两个仍是"调用方自觉" | 内部调用点共约 **19 处**，属机械重构；且两者在 `CONTAINER_WRITE_SITES.csv` 里**已登记 `gated=no` + 理由**（`StationProvision` 是 `gated=yes`） | 下一次动合成/装配路径时，(临时) 先做这两处 |
+| **R1-残** | `prod_budget_exhausted`（连锁破坏预算耗尽）分支**无客户端证据** | 代码已接入 `WriteBudget` 并按增量计账；但电池 `exec_chain` 用例是干净 3×3 矿脉（约 9 次破坏 ≪ `DEFAULT_MAX_BREAKS=64`）⇒ **新分支不会被现有场景触发** | 造"连锁破坏数 > 64"的场景是**新夹具工作量**，与 T1 的"修红线"不是一回事 | 接 T3，或专门补一条场景时 |
+
+## §9 T2/T3 未动（用户拍板前不开）
+
+- **T2 无头回归**：**已实测可用但被拔掉** —— `./gradlew runServer` 在本机 ⇒ `Done (3.675s)!`、
+  `Enabled Gametest Namespaces: [alice]`；而 `BotSelftest` 已于 `cbd177a` 删除、
+  `build.gradle:95-97` **仍在宣传失效指令**。建议先做「1 个样板 + 覆盖度评估」，**N < 8 就不铺开**。
+- **T3 模组 #3 的数据模型**：**`create-1.20.1-6.0.8.jar` 与 `ExtendedCrafting-1.20.1-6.0.10.jar`
+  已经在客户端 `mods/` 里**，且按审查 §3.3 会被**静默读错**（读取器把 Mekanism 特例当通则、不试 vanilla 接口；
+  `MachineMap` 的 1 方块↔1 类型不变式让 Thermal 6 行**已是错事实**）。
+  ⇒ **推任何新模组前必须先做 T3。**
