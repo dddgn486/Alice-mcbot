@@ -29,7 +29,11 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * **单机最小闭环自检**（阶段 3-B / S4，{@code alice:machine_cycle_check}）：放料 → 等 → 取产物。
+ * **单机最小闭环自检**（阶段 3-B / S4）：放料 → 等 → 取产物。
+ *
+ * <p><b>入口</b>：**电池步 `machine_cycle`**（CORE 默认档内含，`RegressionBatteryTask.CURATION`）——
+ * 临时物品 `alice:machine_cycle_check` 已按 **S5 收口**回收（D-215），不要再复活临时入口；
+ * 本任务**自带传送与结束复位**，可被电池直接复用（PLAYBOOK §5.0d）。
  *
  * <p>要回答的问题：Alice 能不能**真的把一台模组机器跑起来一次**（不是"读得出配方"、也不是"开得出菜单"）。
  * 这是 3-B 的第一次**写入**：S0–S3 全是只读，S4 动的是容器的物品位置（算世界改动 ⇒ 有授权 + 预算）。

@@ -880,10 +880,11 @@ jar `3312608d…`。
   **✅ 该步客户端绿已确认（2026-09-14 第九轮）**：新会话（新 jar）⇒ `machine_cycle=PASS ticks=210 idempotent=true`
   （`latest.log:3130`）、整轮 `(29/29) ticks=3108 → PASS`（`:3842`）；步内仍是 `energy_source=cube（场景电源，未补电）`
   + `containers=2/32 refusedContainers=0` ⇒ **升格闭环完成**。
-  ⑦ **记账（S5 收口重编 jar 时一并做）**：用户可见文案里的项数**写死了**且已过期 ——
-  `RegressionBatteryItem:49` 与类注释 `:15`、`AliceItems:148` 都写"**26 项**"，而本轮实测 SUMMARY 是
-  `(29/29)`、启动日志也是 `实跑 29 项` ⇒ **改成从 `RegressionBatteryTask.CURATION` + 档位推导**（勿再写死数字，
-  否则每加一步就再错一次）。本轮**刻意不改 Java**（改了要重编 jar + 你重启客户端，而 S5 收口必然重编 ⇒ 合并做）。
+  ⑦ **✅ 已关闭（2026-09-14，随 S5 收口的 jar 重编一并做）**：用户可见文案里的项数**不再写死** ——
+  新增 `RegressionBatteryTask.coreStepCount()`（项数唯一出处 = `CURATION`），`RegressionBatteryItem` 的启动文案
+  与类注释、`AliceItems` 注释全部改为**现算**（原写死"26 项"而实测 `(29/29)`）。
+  同一轮还归位了一处**错位注释**（`assignCraftCookingCheck` 的 A4b 说明原本挂在机器探针上方）。
+  新 jar `sha256=d5e49c1b4ec7e8f48b634c97f912f4513c5423ef4952871b569899d44fcfc5ef` ⇒ **客户端需重启加载**。
   ⑥ **✅ 已关闭（2026-09-14 第七轮）**：随本次因功能需要重编 jar 一并改了 `MachineCycleCheckTask` 类注释 ② ——
   写明"创造方块放下就是 0 J（`BasicEnergyContainer.stored = ZERO` + creative 强制 SIMULATE ⇒ 灌不满也放不出），
   场景用 `/data merge block …` 把电写进方块实体（`load()` → `setEnergy`，绕过插入守卫；灌进去后 extract 仍 SIMULATE

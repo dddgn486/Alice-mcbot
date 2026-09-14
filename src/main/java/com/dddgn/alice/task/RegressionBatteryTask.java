@@ -89,6 +89,22 @@ public final class RegressionBatteryTask implements Task {
     public enum Mode { CORE, FULL }
 
     /**
+     * **CORE 档实跑项数**（= BASELINE + MAIN）：用户可见文案一律**现算**，**禁止写死**。
+     *
+     * <p>台账⑦（2026-09-14）：`RegressionBatteryItem` 的启动文案与 `AliceItems` 注释里写死过"26 项"，
+     * 加到 29 项后就变成错话（实测 SUMMARY 打的是 `(29/29)`）。项数的唯一出处 = {@link #CURATION}。
+     */
+    public static int coreStepCount() {
+        int count = 0;
+        for (Profile profile : CURATION.values()) {
+            if (profile != Profile.EXTRA) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
      * **归属表（唯一配置入口）**：改电池配置只改这里。
      *
      * <p>刻意用"按名字的清单"而不是给每个步骤加参数：① 一处可见、便于 review；

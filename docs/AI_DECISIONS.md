@@ -8867,3 +8867,21 @@ untabled_blocks=[mekanism:creative_energy_cube@66, 63, 306]`（`:3002`）——�
 ⇒ **规则改为"先看真实数字再决定提不提"**：只在 `当前 ≥ 0.5 × 阈值`（现 204,800）或"用户明说要长停顿/收工且
 ≥ 0.25 × 阈值"时才提醒，其余不提；`AGENTS.md` ④ 已改写。实测旁证：同一会话干**一轮重活**即 +8 万 token
 ⇒ **"刚干完重活"不能当压缩理由**。
+
+### D-215：S5 收口回收（Mekanism 实验）—— 探针零残留 + "通用 vs 专属"对照表（2026-09-14）
+
+**回收**：`alice:machine_cycle_check` 临时入口删除（物品类 + 注册 + 模型 + 两份 lang）；
+**顺带清掉三支已无调用点的 `assign*`** —— `assignMachineProbe` / `assignMachineStationProbe` 是上一轮回收后
+留下的**死代码**（`grep` 无调用者），`assignMachineCycleCheck` 的唯一调用者就是本次被删的物品。
+⇒ 源码里 `machine_cycle_check` 零命中，`tools/check-item-models.sh` 报 **checked=76**（比上轮 -1）。
+**入口替代**：S4 现在**只有**电池步 `machine_cycle`（CORE 29 / FULL 39；第九轮客户端 `(29/29) ticks=3108 → PASS`，
+`latest.log:3842`）—— "要单跑就用电池档位，不再复活临时物品"（已写进 `BotManager` 该处注释）。
+**顺带修两处陈账**：① `assignCraftCookingCheck` 的 A4b 注释原本**错位**挂在机器探针上方 ⇒ 归位；
+② 台账⑦：项数原本写死"26 项"（实际 29）⇒ 新增 `RegressionBatteryTask.coreStepCount()`，文案/注释一律**现算**。
+**对照表（S5 核心产出）**：`docs/MOD_ADAPTER_PROTOCOL.md` §6，判据 = 各类中 `mekanism` 字面量计数（只读可复算）。
+结论：**执行侧（`StationProvision` 菜单协议 + `WriteBudget`/`WritePolicyMatrix` 闸门）与发现侧
+（`MachineStationProbeTask`/`MachineRecipeFacts` 的"问上游自述"）都是通用的（`mekanism` 命中 0~1 处，且只在注释）；
+真正专属的只有两处半** = `MachineMap` 这一张表 + `MachineCycleCheckTask` 里 1 行目标方块 + 1 段能量反射
+（外加"创造电源怎么造"这种上游语义）。⇒ 下个模组的边际成本 ≈ 填表 + 换 1 行 + 换电源造法，**不需要新内核**。
+**复核触发（下轮客户端，1 步）**：重启后 ① 电池仍 `(29/29) … → PASS`；② `/give alice:machine_cycle_check` **不存在**
+（探针零残留的用户侧证据）。

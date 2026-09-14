@@ -12,9 +12,12 @@ import net.minecraft.world.level.Level;
 /**
  * 串联回归电池启动器（{@code alice:regression_battery}，D-122）：普通右键，零参数。
  *
- * <p>一次跑完"改了生产任务必须复跑"的 26 项常用回归（清单见 {@code RegressionBatteryTask} 与
- * {@code docs/TESTING_GUIDE.md §1.7}），每项自己复位、失败不中断，最后一行
- * {@code [Regression] SUMMARY … (26/26) → PASS|FAIL}。
+ * <p>一次跑完"改了生产任务必须复跑"的 **CORE 档**常用回归（清单见 {@code RegressionBatteryTask.CURATION}
+ * 与 {@code docs/TESTING_GUIDE.md §1.7}），每项自己复位、失败不中断，最后一行
+ * {@code [Regression] SUMMARY … (N/N) → PASS|FAIL}。
+ *
+ * <p>⚠️ **项数一律现算**（{@link RegressionBatteryTask#coreStepCount()}），**不在文案里写死** ——
+ * 写死过一次（"26 项"），加到 29 项后就成了错话（台账⑦）。
  */
 public class RegressionBatteryItem extends Item {
 
@@ -46,7 +49,8 @@ public class RegressionBatteryItem extends Item {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
-        say(player, "[alice] 串联回归电池已启动（26 项，约 4~5 分钟）。"
+        say(player, "[alice] 串联回归电池已启动（" + com.dddgn.alice.task.RegressionBatteryTask.coreStepCount()
+                + " 项，约 2~4 分钟）。"
                 + "请站远一点别捡掉落物；结果看日志 [Regression] SUMMARY。");
     }
 

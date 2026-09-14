@@ -90,10 +90,11 @@ input_consumed=true container_writes=2 budget_remaining_after=30 reset=true verd
 新 jar `sha256=b290b8b3a1276915feee509f6e7203aad7ca16ad2454e742b5f2d14dc3a7984f`
 （已镜像到 `D:\JAVA_projects\alice` 并同步到客户端 `mods/`）⇒ **客户端必须重启才会加载新 jar**。
 
-**下一次客户端轮（1 步，约 6–8 分钟）**：**重启客户端** → `/alice battery core`（默认档，现已含 `machine_cycle`）
-→ 看 SUMMARY 整行：期望 `machine_cycle=PASS`、`(29/29)`、末尾 `→ PASS`（`PROFILE=CORE` 那行会打印各档项数）。
-若 `machine_cycle=TIMEOUT/FAIL` ⇒ 把该步的 `ticks=`/`reason=` 与 `[MachineCycle] SUMMARY` 一行贴回来。
-**S1–S4 的临时探针入口（`alice:machine_cycle_check` 等）留到 S5 收口时统一回收**（回收前提 = 电池步转绿）。
+**下一次客户端轮 = S5 收口复核（1 步，约 6–8 分钟）**：**重启客户端**（本轮重编了 jar：
+`sha256=d5e49c1b4ec7e8f48b634c97f912f4513c5423ef4952871b569899d44fcfc5ef`）→
+① `/alice battery core`：期望仍 `(29/29) … → PASS`（新 jar 的启动文案应打 **29 项**，不再是"26 项"）；
+② `/give alice:machine_cycle_check`：期望**报不存在**（探针零残留的用户侧证据）。
+若 ① 变红 ⇒ 把该步 `ticks=`/`reason=` 与 `[Regression] SUMMARY` 整行贴回来。
 细节见 `docs/TESTING_GUIDE.md` §"下一次客户端轮"。
 
 **✅ 已执行（第九轮客户端，`WINDOWS_CLIENT`）**：新客户端会话（14:34:59 启动 ⇒ 新 jar 已加载 ——

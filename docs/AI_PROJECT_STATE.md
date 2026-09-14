@@ -103,10 +103,14 @@ idempotent=true`（`:3130`），步内 `[MachineCycle] SUMMARY … energy_at_ope
 container_checks=13 container_refused=0 verdict=PASS`（`latest.log:3206`）——**13 恰好等于各步
 `containers=N/32` 之和**（2+2+3+4+2）⇒ 闸门覆盖面与预算覆盖面**逐点一致**；`container_refused=0`
 ⇒ 没有生产路径被硬停；D-211 的两条复核触发**都已解除**。
-**下一步 = S5 收口**：`machine_cycle` 已绿 ⇒ 回收 S1–S4 的临时探针入口（`alice:machine_cycle_check` 等
-物品/命令 + 注册 + 模型 + lang），并把 `docs/MOD_ADAPTER_PROTOCOL.md` 的 S0→S5 流水线走完（含"读不懂多少始终可见"）。
-⚠️ **本次收口必然要重编 jar**（删物品类）⇒ 顺手带上台账 ⑦（`RegressionBatteryItem`/`AliceItems` 里写死的
-"26 项" 应改成从 `CURATION` 推导，勿再写死数字）。
+**✅ S5 收口已完成（D-215，2026-09-14）**：`alice:machine_cycle_check` 临时入口删除（物品类 + 注册 + 模型 + 两份 lang），
+并清掉三支**已无调用点的 `assign*`**（`assignMachineProbe`/`assignMachineStationProbe` 是上轮回收后的死代码，
+`assignMachineCycleCheck` 的唯一调用者是本次被删的物品）⇒ 源码零命中，`check-item-models` **76 项**（-1）；
+台账⑦ 一并修掉（项数改 `coreStepCount()` 现算，不再写死"26 项"）；**"通用 vs 专属"对照表 = `docs/MOD_ADAPTER_PROTOCOL.md` §6**
+（结论：执行侧/发现侧通用，专属只有 `MachineMap` 一张表 + 夹具 1 行目标 + 1 段能量反射）。
+**⇒ 3-B（模组机器适配）S0→S5 全部走完**。新 jar `sha256=d5e49c1b4ec7e8f48b634c97f912f4513c5423ef4952871b569899d44fcfc5ef`（已同步客户端 `mods/`）。
+**下一步 = 客户端一小轮（收口复核，1 步）**：**重启客户端** → ① `/alice battery core` 仍 `(29/29) … → PASS`；
+② `/give alice:machine_cycle_check` **不存在**（探针零残留的用户侧证据）⇒ 之后进入下一个模组实验或 S4 v2（内核寻路走到机器旁）。
 **上下文窗口已由用户从 256K 改为 512K**（D-214，本会话生效；阈值 409,600 / 保留 81,920）——改的是"何时压缩"，
 不改变事实来源；复核触发 = 手动 `/compact` 频率没降、或我出现"忘记已确认事实/重复问已答过的问题" ⇒ 退回 256K。
 电池 **CORE=29 / FULL=39**。**详细交接见 `docs/HANDOVER.md`**；**方向来源与审查留档见 `docs/reviews/2026-09-14-外部质疑与工作流审查留档.md`**；今天的新纪律见 PLAYBOOK §5.0b/§5.0c/§5.0d。

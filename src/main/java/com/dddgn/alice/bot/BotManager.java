@@ -1142,47 +1142,11 @@ public final class BotManager {
         return true;
     }
 
-    /** **熔炼页签自检**（阶段 3-A / A4b，D-198）：菜单型炉子（装升级→烧→取→拆回）。 */
-    /** 阶段 3-B / S2：机器**站点**只读探针（`alice:machine_station_probe`）。 */
-    public static boolean assignMachineStationProbe(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.task.MachineStationProbeTask(bot, observer),
-                TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /**
-     * 阶段 3-B / S4：**单机最小闭环自检**（`alice:machine_cycle_check`）——放料 → 等 → 取产物。
-     *
-     * <p>**会写世界**（容器写入），走 `CONTAINER_TRANSFER` 理由 + `WriteBudget` 容器维度，
-     * requester = `machine-cycle`（`WritePolicyMatrix` 里登记为 `CONTAINER` 类）。
-     */
-    public static boolean assignMachineCycleCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.task.MachineCycleCheckTask(bot, observer),
-                TaskTarget.block(com.dddgn.alice.task.MachineCycleCheckTask.START));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** 阶段 3-B / S1：机器配方**只读**探针（`alice:machine_probe`）。 */
-    public static boolean assignMachineProbe(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.task.MachineProbeTask(bot, observer),
-                TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
+    // 阶段 3-B / S1／S2／S4 的**临时探针入口**（`alice:machine_probe`、`alice:machine_station_probe`、
+    // `alice:machine_cycle_check`）已按 **S5 收口**回收 —— 三支任务全部转为**电池步**
+    // （`machine_route` / `machine_station` / `machine_cycle`，见 `RegressionBatteryTask.CURATION`），
+    // 对应 `assign*` 方法一并删除（`assignMachineProbe` / `assignMachineStationProbe` 在回收后已无调用点
+    // = 死代码，2026-09-14 一并清掉）。要单跑某一步请用电池档位，不要再复活临时物品。
 
     /** A5：决策层合成自检（`alice:craft_goal_check`）。 */
     public static boolean assignCraftGoalCheck(BotPlayer bot, ServerPlayer observer) {
@@ -1196,6 +1160,7 @@ public final class BotManager {
         return true;
     }
 
+    /** **熔炼页签自检**（阶段 3-A / A4b，D-198）：菜单型炉子（装升级→烧→取→拆回）。 */
     public static boolean assignCraftCookingCheck(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) {

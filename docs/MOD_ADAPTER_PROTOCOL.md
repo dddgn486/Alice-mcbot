@@ -21,8 +21,8 @@
 | **S1 只读发现** | 把该模组类型读成 `输入 → 输出 + 机器类型` 的事实；接进查询层（`RecipeQuery` 的 `machine_route`） | 适配器类 + 查询层正/负例 | 探针 `SUMMARY`：类型计数 + 代表类型样例 + 零写入 | 零 |
 | **S2 站点发现** | 用**已有骨架**（"问上游自述"套路）认**机器方块/菜单/槽位/进度数据**；认不出就报码 | 站点描述符 + `SUMMARY` 事实表 | 槽位/容器/进度来源逐项有出处；认不出时**如实拒绝** | 零 |
 | **S3 能力闸门** | 新类型进**单一映射处** = `decision/MachineMap.java`（**唯一真源**：`typeId → 方块/菜单/能力`；`RecipeDump.stationFor` 只判"需不需要机器"，**不回答"哪台"**），让"查询"知道去哪台机器；无站点/未登记**如实回落**、缺料仍如实拒绝 | `MachineMap` + 生成视图 `docs/MACHINE_MAP.csv` + 双向防漂移 `tools/check-machine-map.sh` | 表 == 上游全部类型（27 = 23 有站点 + 4 无站点）；写错 id / 删行 ⇒ 报红（已反向验证）；机器路线 `station` = 方块 id | 零（今天 0 行 `EXECUTABLE`） |
-| **S4 单机最小闭环** | 一台机器 + 一个配方：放料 → 等 → 取产物（**3-B 的第一次写入**） | 夹具 `MachineCycleCheckTask` + 物品 `alice:machine_cycle_check` + 场景加**真实电源**（`mekanism:creative_energy_cube`，纯数据） | **只看世界事实**（产物 +N 进背包、机器里不再有产物、料被消耗） | 容器写入维度 `WriteBudget` + 理由 `CONTAINER_TRANSFER` + requester `machine-cycle`（矩阵登记为 `CONTAINER`） |
-| **S5 收口回收** | 回收临时探针；登记决策/电池（D-197）；写"通用 vs 专属"对照表 | 决策条目 + 对照表 | 探针零残留；`CURATION` 与文档一致 | 零 |
+| **S4 单机最小闭环** | 一台机器 + 一个配方：放料 → 等 → 取产物（**3-B 的第一次写入**） | 夹具 `MachineCycleCheckTask`（**S5 起唯一入口 = 电池步 `machine_cycle`**；临时物品 `alice:machine_cycle_check` 已回收）+ 场景加**真实电源**（`mekanism:creative_energy_cube`，纯数据） | **只看世界事实**（产物 +N 进背包、机器里不再有产物、料被消耗） | 容器写入维度 `WriteBudget` + 理由 `CONTAINER_TRANSFER` + requester `machine-cycle`（矩阵登记为 `CONTAINER`） |
+| **S5 收口回收** ✅ **2026-09-14 已完成（Mekanism）** | 回收临时探针；登记决策/电池（D-197）；写"通用 vs 专属"对照表 | 决策条目 + 对照表（见 §6） | 探针零残留（物品类 + 注册 + 模型 + 两份 lang + 无调用点的 `assign*` 全删，`grep machine_cycle_check` 源码零命中）；`CURATION` 与文档一致（39 项 = 步定义 39 条，CORE 29 / FULL 39） | 零 |
 
 **"读不懂多少"必须一直可见**：每个模组的实验记录都要保留"被跳过的类型/条数"这一栏——它是下一轮的输入，
 不是失败指标（D-182/D-183 的做法）。
@@ -69,3 +69,28 @@
 **第一最小闭环 = S0 + S1（全只读）**：产出 `docs/MEKANISM_FACTS.md` + 查询层"机器路线"事实 +
 零参数探针 `alice:machine_probe`（我自决形态；**验证通过后按 S5 回收或按 D-197 转成电池步**）。
 **S2 站点发现**留到 S1 的读数出来之后再定范围（先看类型形态，再决定认哪些机器）。
+
+**S0→S5 已走完（2026-09-13 ~ 09-14）**：S1/S2/S4 的临时入口全部转为电池步
+（`machine_route` / `machine_station` / `machine_cycle`，见 `docs/BATTERY_CURATION.md`），
+证据链在 `docs/AI_DECISIONS.md`（D-204 S1 / D-206+D-209 S2S3 / D-210+D-213 S4 / D-197 分档）。
+
+## 6. Mekanism 实测：**通用 vs 专属**对照表（S5 产出，2026-09-14）
+
+判据见 §3。证据 = 各类里 `mekanism` 字面量出现次数（`grep -c`，只读、可复算）+ 上表各步判据。
+
+| 部件 | 归属 | 证据 / 为什么 |
+|---|---|---|
+| `decision/MachineMap`（`typeId → 方块/菜单/能力`） | **模组专属**（唯一真源） | 31 处 `mekanism` 字面量；它**就是**这张表。换模组 = 换这一处。防漂移靠 `tools/check-machine-map.sh`（27 = 23 有站点 + 4 无站点，双向一致） |
+| `task/craft/RecipeQuery`（`machine_route` 判定） | **通用** | 只含 1 处 `mekanism`（注释里的实测例子）；判定走"上游自述读得出输入/输出"这一**形态学**判据，不认类名 |
+| `task/craft/MachineRecipeFacts`（配方 I/O 反射读法） | **通用** | 只含 1 处 `mekanism`（注释）；`itemReadable()` 把"读不懂"与"没有"分开报码（D-204 的 `mats=[]` 教训） |
+| `task/MachineStationProbeTask`（站点/槽位/进度探针） | **通用** | **0** 处 `mekanism`；全部"问对象自己"（槽位表、`ContainerData`、进度方法名） |
+| `task/craft/StationProvision`（菜单写入协议） | **通用** | **0** 处 `mekanism`；shift-click 让菜单决定落点 + **按结果验证**，不猜槽位语义 —— S4 的写入路径直接复用，一行没新造 |
+| `action/WritePolicyMatrix` + `WriteBudget`（容器写入闸门） | **通用** | 与模组无关；只登记 `requester × 理由 × 区/任务`（`machine-cycle` 一行即接入） |
+| `task/MachineProbeTask`（S1 探针） | **半通用** | 逻辑通用，**命名空间是 1 个常量**（`NAMESPACE = "mekanism"`）⇒ 换模组改这一行 |
+| `task/MachineCycleCheckTask`（S4 夹具） | **模组专属** | `TARGET_BLOCK = "mekanism:enrichment_chamber"` + 反射上游 `mekanism.api.math.FloatingLong` 读能量；v1 单机单配方，换机器 = 换这一行 |
+| 场景电源（`mekanism:creative_energy_cube` + `/data merge block … EnergyContainers`） | **模组专属（且依赖上游语义）** | 创造方块放下是 **0 J**、且 creative 侧 insert/extract 强制 SIMULATE ⇒ 必须用 `/data merge` 直接写方块实体；这是**上游实现细节**，别的模组的"创造电源"未必同构（D-213） |
+| 机器容量 20 kJ / 耗电 50 J/t | **模组专属数值** | 只用于夹具的**兜底补电**与"别把机器顶过容量"的提醒；不参与任何生产判据 |
+
+**结论（本次实验的核心产出）**：**执行侧（菜单协议 + 写入闸门）与发现侧（问上游自述）都是通用的，
+真正专属的只有两处半** —— ① `MachineMap` 这一张表；② 夹具里的目标方块/能量访问（各 1 行 + 1 段反射）。
+⇒ 下一个模组的边际成本 ≈ "填表 + 换 1 行目标 + 换 1 个电源造法"，**不需要新内核**。

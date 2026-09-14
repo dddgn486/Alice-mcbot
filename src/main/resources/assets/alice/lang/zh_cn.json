@@ -1,5 +1,4 @@
 {
-  "item.alice.machine_cycle_check": "机器闭环自检",
   "item.alice.craft_table_check": "工作台合成自检",
   "item.alice.craft_station_check": "自放工作站合成自检",
   "item.alice.craft_grid_probe": "合成网格探针",

@@ -604,7 +604,7 @@ progress_ticks=199`、`product_after=1 product_landed=true machine_emptied=true 
 
 旁记：`K4=OK(… 写入类例外=43)`（上一轮 56，交替，两次都 `K4=OK`，未取证）。
 
-### ✅ 第七轮（2026-09-14，电源重验**通过**）+ 下一次客户端轮（跑 CORE 电池，约 6–8 分钟）
+### ✅ 第七轮（电源重验通过）／第九轮（电池转绿）／S5 收口 + 下一次客户端轮（复核，约 6–8 分钟）
 
 **第七轮结果（`WINDOWS_CLIENT`）**：`/reload` → `/function alice_test:machine_course`
 （**11 条命令**，含 `data merge block` 灌电，`latest.log:187`）→ 右键 `alice:machine_cycle_check` ⇒ `latest.log:213`：
@@ -617,13 +617,18 @@ progress_ticks=199`、`product_after=1 product_landed=true machine_emptied=true 
 - **判据语义别读强**：`energy_source=cube` 证的是"**场景把电送上了**"（开机时机器已有电），
   不是"程序认出了 cube 方块"（读的是机器自己的能量容器）；场景里只有这一条供电路径 ⇒ 两者等价。
 
-**下一次客户端轮 = 跑一轮 CORE 电池确认新步（1 步）**：
+**下一次客户端轮 = S5 收口复核（1 步，约 6–8 分钟）**：
 
-1. **重启客户端**（本轮重编了 jar，Forge 只在启动时加载 mod；jar 已同步到 `mods/`，
-   `sha256=b290b8b3a1276915feee509f6e7203aad7ca16ad2454e742b5f2d14dc3a7984f`）；
-2. `/alice battery core`（或右键 `alice:regression_battery`）—— **默认档现已含新步 `machine_cycle`**；
-3. 看 SUMMARY：期望 `machine_cycle=PASS`、`(29/29)`、整行末尾 `→ PASS`（`PROFILE=CORE` 那行会打印各档项数）；
-4. 若红 ⇒ 把 `machine_cycle=` 那一项（含 `ticks=`/`reason=`）与 `[MachineCycle] SUMMARY` 整行贴回来。
+1. **重启客户端**（本轮重编了 jar —— 删了 `alice:machine_cycle_check` 物品类 + 改文案；
+   jar 已同步到 `mods/`，`sha256=d5e49c1b4ec7e8f48b634c97f912f4513c5423ef4952871b569899d44fcfc5ef`）；
+2. `/alice battery core`（或右键 `alice:regression_battery`）—— 期望仍 `(29/29) ticks=… → PASS`，
+   且**启动聊天文案这次应打"29 项"**（不再是写死的"26 项"，台账⑦ 已修）；
+3. `/give alice:machine_cycle_check` —— 期望**报"未知物品/不存在"**（探针零残留的用户侧证据，
+   对应 D-215：物品类 + 注册 + 模型 + lang + 三支无调用点的 `assign*` 全删；`check-item-models` 报 **76 项**）；
+4. 若 ① 变红 ⇒ 把该步 `ticks=`/`reason=` 与 `[Regression] SUMMARY` 整行贴回来。
+
+**S4 的正式入口现在只有电池步**（`machine_cycle`，CORE 默认档内含）—— 想单看它就读 SUMMARY 里那一项 + 该步的
+`[MachineCycle] SUMMARY` 行（`energy_at_open>0` + `energy_source=cube（场景电源，未补电）`）。
 
 **✅ 第九轮结果（`WINDOWS_CLIENT`，14:36–14:38）**：新会话（14:34:59 启动 ⇒ 新 jar 生效，日志
 `PROFILE=CORE 实跑 29 项（跳过 EXTRA 10 项）`）⇒ `[Regression] SUMMARY … machine_cycle=PASS … (29/29)
@@ -632,7 +637,10 @@ ticks=3108 → PASS`（`latest.log:3842`）；`machine_cycle=PASS ticks=210 idem
 refusedContainers=0`（`:3131`）⇒ **升格闭环完成**。
 ⚠️ 启动聊天文案仍写"**26 项**"（实测 `(29/29)`）⇒ 已记台账 ⑦，**S5 收口重编 jar 时改成从 `CURATION` 推导**。
 
-`alice:machine_cycle_check` 物品**仍保留**（S1–S4 的临时探针统一到 S5 收口时回收，前提已满足 = 电池步转绿）。
+**✅ S5 收口已执行（2026-09-14，D-215）**：`alice:machine_cycle_check` **已删除**（物品类 + 注册 + 模型 + 两份 lang），
+连同三支**已无调用点的 `assign*`**（`assignMachineProbe` / `assignMachineStationProbe` / `assignMachineCycleCheck`）——
+源码里 `grep machine_cycle_check` **零命中**，`tools/check-item-models.sh` 报 **checked=76**（比上轮 -1）。
+⇒ **旧物品不会再出现在客户端**（上面"仍保留"那句已作废）。
 
 **失败时仍然有用的两个反直觉点（留着备用）**：
 
