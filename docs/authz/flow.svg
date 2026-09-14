@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1332" viewBox="0 0 1200 1332" font-family="Microsoft YaHei, Noto Sans CJK SC, PingFang SC, sans-serif">
-<rect width="1200" height="1332" fill="#fafafa"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1362" viewBox="0 0 1200 1362" font-family="Microsoft YaHei, Noto Sans CJK SC, PingFang SC, sans-serif">
+<rect width="1200" height="1362" fill="#fafafa"/>
 <text x="24" y="42" font-size="24" font-weight="bold" fill="#212121">Alice 授权 / 审批框架（六层）</text>
-<text x="24" y="68" font-size="13" fill="#616161">单一出处 docs/authz/AUTHZ_REGISTRY.csv ｜ 生成 2026-09-14 11:22 ｜ 闸门 27 条 ｜ 硬约束=红 策略=蓝 预算=橙 凭证/审批=紫 账本/闭环=绿 自证=灰</text>
+<text x="24" y="68" font-size="13" fill="#616161">单一出处 docs/authz/AUTHZ_REGISTRY.csv ｜ 生成 2026-09-14 12:25 ｜ 闸门 28 条 ｜ 硬约束=红 策略=蓝 预算=橙 凭证/审批=紫 账本/闭环=绿 自证=灰</text>
 <rect x="20" y="96" width="150" height="136" rx="8" fill="#37474f"/>
 <text x="34" y="120" font-size="15" font-weight="bold" fill="#ffffff">L0 目标层</text>
 <text x="34" y="140" font-size="12" fill="#cfd8dc">3 道闸门</text>
@@ -46,12 +46,12 @@
 <text x="206" y="386" font-size="13.5" fill="#212121">L1-5 <tspan fill="#9e9e9e">预算</tspan> MiningBudget（这次挖掘值得拆多少）</text>
 <text x="620" y="386" font-size="10.5" fill="#757575">—</text>
 <text x="975" y="386" font-size="10" fill="#9e9e9e">mining/MiningBudget</text>
-<rect x="20" y="428" width="150" height="166" rx="8" fill="#546e7a"/>
+<rect x="20" y="428" width="150" height="196" rx="8" fill="#546e7a"/>
 <text x="34" y="452" font-size="15" font-weight="bold" fill="#ffffff">L2 规划期</text>
-<text x="34" y="472" font-size="12" fill="#cfd8dc">4 道闸门</text>
-<rect x="180" y="428" width="996" height="166" rx="8" fill="#ffffff" stroke="#e0e0e0"/>
-<line x1="95" y1="428" x2="95" y2="594" stroke="#90a4ae" stroke-width="2"/>
-<path d="M95 604 l-6 -9 l12 0 z" fill="#90a4ae"/>
+<text x="34" y="472" font-size="12" fill="#cfd8dc">5 道闸门</text>
+<rect x="180" y="428" width="996" height="196" rx="8" fill="#ffffff" stroke="#e0e0e0"/>
+<line x1="95" y1="428" x2="95" y2="624" stroke="#90a4ae" stroke-width="2"/>
+<path d="M95 634 l-6 -9 l12 0 z" fill="#90a4ae"/>
 <rect x="192" y="448" width="4" height="18" rx="2" fill="#c62828"/>
 <text x="206" y="462" font-size="13.5" fill="#212121">L2-1 <tspan fill="#9e9e9e">硬约束</tspan> Movement 校验器（物理前提，plannin…</text>
 <text x="620" y="462" font-size="10.5" fill="#757575">116 码：BREAK20 PLACE18 FALL15 P…</text>
@@ -68,87 +68,91 @@
 <text x="206" y="552" font-size="13.5" fill="#212121">L2-4 <tspan fill="#9e9e9e">策略</tspan> RiskSwitches（默认全关＝Bariton…</text>
 <text x="620" y="552" font-size="10.5" fill="#757575">—</text>
 <text x="975" y="552" font-size="10" fill="#9e9e9e">pathing/risk/RiskSwi…</text>
-<rect x="20" y="594" width="150" height="196" rx="8" fill="#00695c"/>
-<text x="34" y="618" font-size="15" font-weight="bold" fill="#ffffff">L3 执行期</text>
-<text x="34" y="638" font-size="12" fill="#cfd8dc">5 道闸门</text>
-<rect x="180" y="594" width="996" height="196" rx="8" fill="#ffffff" stroke="#e0e0e0"/>
-<line x1="95" y1="594" x2="95" y2="790" stroke="#90a4ae" stroke-width="2"/>
-<path d="M95 800 l-6 -9 l12 0 z" fill="#90a4ae"/>
-<rect x="192" y="614" width="4" height="18" rx="2" fill="#c62828"/>
-<text x="206" y="628" font-size="13.5" fill="#212121">L3-1 <tspan fill="#9e9e9e">硬约束</tspan> CapabilityGate 执行期复验（基-8）</text>
-<text x="620" y="628" font-size="10.5" fill="#757575">CAPABILITY_UNAUTHORIZED / ZONE…</text>
-<text x="975" y="628" font-size="10" fill="#9e9e9e">core/CapabilityGate.…</text>
+<rect x="192" y="568" width="4" height="18" rx="2" fill="#1565c0"/>
+<text x="206" y="582" font-size="13.5" fill="#212121">L2-5 <tspan fill="#9e9e9e">策略</tspan> 写入集中策略表（区域归属×任务类别 → 回收义务 …</text>
+<text x="620" y="582" font-size="10.5" fill="#757575">WRITE_POLICY_MOVEMENT_DENIED（规…</text>
+<text x="975" y="582" font-size="10" fill="#9e9e9e">action/WritePolicyMa…</text>
+<rect x="20" y="624" width="150" height="196" rx="8" fill="#00695c"/>
+<text x="34" y="648" font-size="15" font-weight="bold" fill="#ffffff">L3 执行期</text>
+<text x="34" y="668" font-size="12" fill="#cfd8dc">5 道闸门</text>
+<rect x="180" y="624" width="996" height="196" rx="8" fill="#ffffff" stroke="#e0e0e0"/>
+<line x1="95" y1="624" x2="95" y2="820" stroke="#90a4ae" stroke-width="2"/>
+<path d="M95 830 l-6 -9 l12 0 z" fill="#90a4ae"/>
 <rect x="192" y="644" width="4" height="18" rx="2" fill="#c62828"/>
-<text x="206" y="658" font-size="13.5" fill="#212121">L3-2 <tspan fill="#9e9e9e">硬约束</tspan> MovementCapabilities 12 分…</text>
-<text x="620" y="658" font-size="10.5" fill="#757575">—</text>
-<text x="975" y="658" font-size="10" fill="#9e9e9e">core/MovementCapabil…</text>
-<rect x="192" y="674" width="4" height="18" rx="2" fill="#ef6c00"/>
-<text x="206" y="688" font-size="13.5" fill="#212121">L3-3 <tspan fill="#9e9e9e">预算</tspan> WriteBudget（D-106：作用域内写入次…</text>
-<text x="620" y="688" font-size="10.5" fill="#757575">WRITE_*（5 码）</text>
-<text x="975" y="688" font-size="10" fill="#9e9e9e">action/WriteBudget.j…</text>
-<rect x="192" y="704" width="4" height="18" rx="2" fill="#6a1b9a"/>
-<text x="206" y="718" font-size="13.5" fill="#212121">L3-4 <tspan fill="#9e9e9e">凭证</tspan> WriteAudit（记录“Alice 授权自己做…</text>
-<text x="620" y="718" font-size="10.5" fill="#757575">—</text>
-<text x="975" y="718" font-size="10" fill="#9e9e9e">action/WriteAudit.ja…</text>
-<rect x="192" y="734" width="4" height="18" rx="2" fill="#c62828"/>
-<text x="206" y="748" font-size="13.5" fill="#212121">L3-5 <tspan fill="#9e9e9e">硬约束</tspan> BlockBreakSession / Block…</text>
+<text x="206" y="658" font-size="13.5" fill="#212121">L3-1 <tspan fill="#9e9e9e">硬约束</tspan> CapabilityGate 执行期复验（基-8）</text>
+<text x="620" y="658" font-size="10.5" fill="#757575">CAPABILITY_UNAUTHORIZED / ZONE…</text>
+<text x="975" y="658" font-size="10" fill="#9e9e9e">core/CapabilityGate.…</text>
+<rect x="192" y="674" width="4" height="18" rx="2" fill="#c62828"/>
+<text x="206" y="688" font-size="13.5" fill="#212121">L3-2 <tspan fill="#9e9e9e">硬约束</tspan> MovementCapabilities 12 分…</text>
+<text x="620" y="688" font-size="10.5" fill="#757575">—</text>
+<text x="975" y="688" font-size="10" fill="#9e9e9e">core/MovementCapabil…</text>
+<rect x="192" y="704" width="4" height="18" rx="2" fill="#ef6c00"/>
+<text x="206" y="718" font-size="13.5" fill="#212121">L3-3 <tspan fill="#9e9e9e">预算</tspan> WriteBudget（D-106：作用域内写入次…</text>
+<text x="620" y="718" font-size="10.5" fill="#757575">WRITE_*（5 码）</text>
+<text x="975" y="718" font-size="10" fill="#9e9e9e">action/WriteBudget.j…</text>
+<rect x="192" y="734" width="4" height="18" rx="2" fill="#6a1b9a"/>
+<text x="206" y="748" font-size="13.5" fill="#212121">L3-4 <tspan fill="#9e9e9e">凭证</tspan> WriteAudit（记录“Alice 授权自己做…</text>
 <text x="620" y="748" font-size="10.5" fill="#757575">—</text>
-<text x="975" y="748" font-size="10" fill="#9e9e9e">action/BlockBreakSes…</text>
-<rect x="20" y="790" width="150" height="196" rx="8" fill="#2e7d32"/>
-<text x="34" y="814" font-size="15" font-weight="bold" fill="#ffffff">L4 收尾期</text>
-<text x="34" y="834" font-size="12" fill="#cfd8dc">5 道闸门</text>
-<rect x="180" y="790" width="996" height="196" rx="8" fill="#ffffff" stroke="#e0e0e0"/>
-<line x1="95" y1="790" x2="95" y2="986" stroke="#90a4ae" stroke-width="2"/>
-<path d="M95 996 l-6 -9 l12 0 z" fill="#90a4ae"/>
-<rect x="192" y="810" width="4" height="18" rx="2" fill="#2e7d32"/>
-<text x="206" y="824" font-size="13.5" fill="#212121">L4-1 <tspan fill="#9e9e9e">账本</tspan> WorldModLedger：TEMP 必须配对拆…</text>
-<text x="620" y="824" font-size="10.5" fill="#757575">—</text>
-<text x="975" y="824" font-size="10" fill="#9e9e9e">ledger/WorldModLedge…</text>
-<rect x="192" y="840" width="4" height="18" rx="2" fill="#c62828"/>
-<text x="206" y="854" font-size="13.5" fill="#212121">L4-2 <tspan fill="#9e9e9e">硬约束</tspan> 只拆自己放的（比对账本，不匹配即销账）+ 不许沿途…</text>
-<text x="620" y="854" font-size="10.5" fill="#757575">not_ours</text>
-<text x="975" y="854" font-size="10" fill="#9e9e9e">task/RestoreScopeTas…</text>
-<rect x="192" y="870" width="4" height="18" rx="2" fill="#00838f"/>
-<text x="206" y="884" font-size="13.5" fill="#212121">L4-3 <tspan fill="#9e9e9e">机制</tspan> 两条拆除路径：①站上去向下拆（DOWNWARD）②…</text>
-<text x="620" y="884" font-size="10.5" fill="#757575">restore_done / restore_partial…</text>
+<text x="975" y="748" font-size="10" fill="#9e9e9e">action/WriteAudit.ja…</text>
+<rect x="192" y="764" width="4" height="18" rx="2" fill="#c62828"/>
+<text x="206" y="778" font-size="13.5" fill="#212121">L3-5 <tspan fill="#9e9e9e">硬约束</tspan> BlockBreakSession / Block…</text>
+<text x="620" y="778" font-size="10.5" fill="#757575">—</text>
+<text x="975" y="778" font-size="10" fill="#9e9e9e">action/BlockBreakSes…</text>
+<rect x="20" y="820" width="150" height="196" rx="8" fill="#2e7d32"/>
+<text x="34" y="844" font-size="15" font-weight="bold" fill="#ffffff">L4 收尾期</text>
+<text x="34" y="864" font-size="12" fill="#cfd8dc">5 道闸门</text>
+<rect x="180" y="820" width="996" height="196" rx="8" fill="#ffffff" stroke="#e0e0e0"/>
+<line x1="95" y1="820" x2="95" y2="1016" stroke="#90a4ae" stroke-width="2"/>
+<path d="M95 1026 l-6 -9 l12 0 z" fill="#90a4ae"/>
+<rect x="192" y="840" width="4" height="18" rx="2" fill="#2e7d32"/>
+<text x="206" y="854" font-size="13.5" fill="#212121">L4-1 <tspan fill="#9e9e9e">账本</tspan> WorldModLedger：TEMP 必须配对拆…</text>
+<text x="620" y="854" font-size="10.5" fill="#757575">—</text>
+<text x="975" y="854" font-size="10" fill="#9e9e9e">ledger/WorldModLedge…</text>
+<rect x="192" y="870" width="4" height="18" rx="2" fill="#c62828"/>
+<text x="206" y="884" font-size="13.5" fill="#212121">L4-2 <tspan fill="#9e9e9e">硬约束</tspan> 只拆自己放的（比对账本，不匹配即销账）+ 不许沿途…</text>
+<text x="620" y="884" font-size="10.5" fill="#757575">not_ours</text>
 <text x="975" y="884" font-size="10" fill="#9e9e9e">task/RestoreScopeTas…</text>
-<rect x="192" y="900" width="4" height="18" rx="2" fill="#2e7d32"/>
-<text x="206" y="914" font-size="13.5" fill="#212121">L4-4 <tspan fill="#9e9e9e">闭环</tspan> 物质闭环：拆除掉落物回收（ScopeBuffer …</text>
-<text x="620" y="914" font-size="10.5" fill="#757575">—</text>
+<rect x="192" y="900" width="4" height="18" rx="2" fill="#00838f"/>
+<text x="206" y="914" font-size="13.5" fill="#212121">L4-3 <tspan fill="#9e9e9e">机制</tspan> 两条拆除路径：①站上去向下拆（DOWNWARD）②…</text>
+<text x="620" y="914" font-size="10.5" fill="#757575">restore_done / restore_partial…</text>
 <text x="975" y="914" font-size="10" fill="#9e9e9e">task/RestoreScopeTas…</text>
 <rect x="192" y="930" width="4" height="18" rx="2" fill="#2e7d32"/>
-<text x="206" y="944" font-size="13.5" fill="#212121">L4-5 <tspan fill="#9e9e9e">账本</tspan> ScopeBuffer：世界**实际发生**了什么…</text>
+<text x="206" y="944" font-size="13.5" fill="#212121">L4-4 <tspan fill="#9e9e9e">闭环</tspan> 物质闭环：拆除掉落物回收（ScopeBuffer …</text>
 <text x="620" y="944" font-size="10.5" fill="#757575">—</text>
-<text x="975" y="944" font-size="10" fill="#9e9e9e">ledger/ScopeBuffer</text>
-<rect x="20" y="986" width="150" height="196" rx="8" fill="#5d4037"/>
-<text x="34" y="1010" font-size="15" font-weight="bold" fill="#ffffff">L5 验证层</text>
-<text x="34" y="1030" font-size="12" fill="#cfd8dc">5 道闸门</text>
-<rect x="180" y="986" width="996" height="196" rx="8" fill="#ffffff" stroke="#e0e0e0"/>
-<line x1="95" y1="986" x2="95" y2="1182" stroke="#90a4ae" stroke-width="2"/>
-<rect x="192" y="1006" width="4" height="18" rx="2" fill="#455a64"/>
-<text x="206" y="1020" font-size="13.5" fill="#212121">L5-1 <tspan fill="#9e9e9e">自证</tspan> 电池步（CORE 27 / FULL 37；CUR…</text>
-<text x="620" y="1020" font-size="10.5" fill="#757575">PASS / FAIL / SKIP</text>
-<text x="975" y="1020" font-size="10" fill="#9e9e9e">task/RegressionBatte…</text>
+<text x="975" y="944" font-size="10" fill="#9e9e9e">task/RestoreScopeTas…</text>
+<rect x="192" y="960" width="4" height="18" rx="2" fill="#2e7d32"/>
+<text x="206" y="974" font-size="13.5" fill="#212121">L4-5 <tspan fill="#9e9e9e">账本</tspan> ScopeBuffer：世界**实际发生**了什么…</text>
+<text x="620" y="974" font-size="10.5" fill="#757575">—</text>
+<text x="975" y="974" font-size="10" fill="#9e9e9e">ledger/ScopeBuffer</text>
+<rect x="20" y="1016" width="150" height="196" rx="8" fill="#5d4037"/>
+<text x="34" y="1040" font-size="15" font-weight="bold" fill="#ffffff">L5 验证层</text>
+<text x="34" y="1060" font-size="12" fill="#cfd8dc">5 道闸门</text>
+<rect x="180" y="1016" width="996" height="196" rx="8" fill="#ffffff" stroke="#e0e0e0"/>
+<line x1="95" y1="1016" x2="95" y2="1212" stroke="#90a4ae" stroke-width="2"/>
 <rect x="192" y="1036" width="4" height="18" rx="2" fill="#455a64"/>
-<text x="206" y="1050" font-size="13.5" fill="#212121">L5-2 <tspan fill="#9e9e9e">自证</tspan> FixturePremise 前提断言</text>
-<text x="620" y="1050" font-size="10.5" fill="#757575">premise_own_menu / station_men…</text>
-<text x="975" y="1050" font-size="10" fill="#9e9e9e">task/FixturePremise.…</text>
+<text x="206" y="1050" font-size="13.5" fill="#212121">L5-1 <tspan fill="#9e9e9e">自证</tspan> 电池步（CORE 27 / FULL 37；CUR…</text>
+<text x="620" y="1050" font-size="10.5" fill="#757575">PASS / FAIL / SKIP</text>
+<text x="975" y="1050" font-size="10" fill="#9e9e9e">task/RegressionBatte…</text>
 <rect x="192" y="1066" width="4" height="18" rx="2" fill="#455a64"/>
-<text x="206" y="1080" font-size="13.5" fill="#212121">L5-3 <tspan fill="#9e9e9e">自证</tspan> 夹具自带传送 + 结束复位（§5.0d）</text>
-<text x="620" y="1080" font-size="10.5" fill="#757575">reset=true</text>
-<text x="975" y="1080" font-size="10" fill="#9e9e9e">PLAYBOOK §5.0d</text>
+<text x="206" y="1080" font-size="13.5" fill="#212121">L5-2 <tspan fill="#9e9e9e">自证</tspan> FixturePremise 前提断言</text>
+<text x="620" y="1080" font-size="10.5" fill="#757575">premise_own_menu / station_men…</text>
+<text x="975" y="1080" font-size="10" fill="#9e9e9e">task/FixturePremise.…</text>
 <rect x="192" y="1096" width="4" height="18" rx="2" fill="#455a64"/>
-<text x="206" y="1110" font-size="13.5" fill="#212121">L5-4 <tspan fill="#9e9e9e">自证</tspan> 零写入自证</text>
-<text x="620" y="1110" font-size="10.5" fill="#757575">no_writes=true / 背包逐槽未变</text>
-<text x="975" y="1110" font-size="10" fill="#9e9e9e">task/MachineStationP…</text>
+<text x="206" y="1110" font-size="13.5" fill="#212121">L5-3 <tspan fill="#9e9e9e">自证</tspan> 夹具自带传送 + 结束复位（§5.0d）</text>
+<text x="620" y="1110" font-size="10.5" fill="#757575">reset=true</text>
+<text x="975" y="1110" font-size="10" fill="#9e9e9e">PLAYBOOK §5.0d</text>
 <rect x="192" y="1126" width="4" height="18" rx="2" fill="#455a64"/>
-<text x="206" y="1140" font-size="13.5" fill="#212121">L5-5 <tspan fill="#9e9e9e">自证</tspan> 负例前提运行时自证</text>
-<text x="620" y="1140" font-size="10.5" fill="#757575">no_recipe / firstUnproducibleI…</text>
-<text x="975" y="1140" font-size="10" fill="#9e9e9e">task/CraftCheckTask.…</text>
-<rect x="20" y="1188" width="1156" height="130" rx="8" fill="#fffde7" stroke="#fbc02d"/>
-<text x="36" y="1212" font-size="14" font-weight="bold" fill="#795548">四问速查</text>
-<text x="36" y="1234" font-size="12.5" fill="#4e342e">1. 这一步改世界吗？ 不改 ⇒ 只走 L2（Movement 集合 + 物理前提 + 可逆性）。</text>
-<text x="36" y="1256" font-size="12.5" fill="#4e342e">2. 改世界呢？ L1 谁授权/为什么（WriteGrant）→ L3 还有预算吗（WriteBudget）+ 执行期复验（CapabilityGate）→ L4 记哪种账（TEMP 必拆 / KEEP 不拆…</text>
-<text x="36" y="1278" font-size="12.5" fill="#4e342e">3. 要拆吗？ 只拆自己放的、自上而下、材料回收（RestoreScopeTask；悬空桥面走侧拆兜底）。</text>
-<text x="36" y="1300" font-size="12.5" fill="#4e342e">4. LLM 能自己决定吗？ 不能：只能提目标；拒绝走 Refused；未知模组能力**问用户**（权限契约）。</text>
+<text x="206" y="1140" font-size="13.5" fill="#212121">L5-4 <tspan fill="#9e9e9e">自证</tspan> 零写入自证</text>
+<text x="620" y="1140" font-size="10.5" fill="#757575">no_writes=true / 背包逐槽未变</text>
+<text x="975" y="1140" font-size="10" fill="#9e9e9e">task/MachineStationP…</text>
+<rect x="192" y="1156" width="4" height="18" rx="2" fill="#455a64"/>
+<text x="206" y="1170" font-size="13.5" fill="#212121">L5-5 <tspan fill="#9e9e9e">自证</tspan> 负例前提运行时自证</text>
+<text x="620" y="1170" font-size="10.5" fill="#757575">no_recipe / firstUnproducibleI…</text>
+<text x="975" y="1170" font-size="10" fill="#9e9e9e">task/CraftCheckTask.…</text>
+<rect x="20" y="1218" width="1156" height="130" rx="8" fill="#fffde7" stroke="#fbc02d"/>
+<text x="36" y="1242" font-size="14" font-weight="bold" fill="#795548">四问速查</text>
+<text x="36" y="1264" font-size="12.5" fill="#4e342e">1. 这一步改世界吗？ 不改 ⇒ 只走 L2（Movement 集合 + 物理前提 + 可逆性）。</text>
+<text x="36" y="1286" font-size="12.5" fill="#4e342e">2. 改世界呢？ L1 谁授权/为什么（WriteGrant）→ L3 还有预算吗（WriteBudget）+ 执行期复验（CapabilityGate）→ L4 记哪种账（TEMP 必拆 / KEEP 不拆…</text>
+<text x="36" y="1308" font-size="12.5" fill="#4e342e">3. 要拆吗？ 只拆自己放的、自上而下、材料回收（RestoreScopeTask；悬空桥面走侧拆兜底）。</text>
+<text x="36" y="1330" font-size="12.5" fill="#4e342e">4. LLM 能自己决定吗？ 不能：只能提目标；拒绝走 Refused；未知模组能力**问用户**（权限契约）。</text>
 </svg>

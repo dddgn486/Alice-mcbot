@@ -499,12 +499,19 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
 
 ### 下一次客户端轮（顺手做，低优先）
 
-重启客户端（加载新 jar）后跑一次 `/alice authz`，第 4 行（L3）在**无作用域**时应变成：
+重启客户端（加载新 jar）后，**只需跑一次回归电池**（右键 `alice:regression_battery`，CORE 档）：
 
-```
-[alice] L3 执行期预算：无作用域 ⇒ 闸门未生效（不计数、不拦截，仅 [WriteBudget] no_scope 留痕）；默认上限（仅作用域内生效）破坏64/放置32/容器32
-```
+1. **新步 `write_policy`**（D-207 ① 集中策略表自检）应出现且为 `PASS`：
+   ```
+   [WritePolicy] SUMMARY table_total=PASS table_shape=PASS guard_is_live=PASS guard_does_not_overreach=PASS
+   grants_semantics=PASS requester_registry=PASS zone_equiv=PASS obligation=PASS
+   unregistered=0 undeclared=0 verdict=PASS
+   ```
+   其中 **`guard_is_live=PASS` 是"闸门不是恒假"的证据**（负例：`walk-to` + `withWorldModification` 必须被拒）；
+   `unregistered` / `undeclared` **应为 0**——非 0 就是"有调用点没登记"的 bug，日志里会点名。
+2. 电池总数从 `(27/27)` 变成 **`(28/28)`**（新增的这一步），其余步骤不得变红。
+3. `/alice authz` 多一行 **`L2 规划期策略表：rows=22 … zoneDiff=0 unregistered=0 undeclared=0`**。
 
-有作用域时仍报三桶余量 + 已拒数（`scope=… ；破坏 余…/放置 余…/容器写入 余…`）。这条不阻塞任何后续工作，
-可以在任意一次你已经开着客户端的时候顺带看。
+这条不阻塞任何后续工作，可以在任意一次你已经开着客户端的时候顺带看。跑完把 `latest.log` 里
+`[WritePolicy]` / `[Regression] SUMMARY` 两处贴给我即可（我会自己读日志）。
 

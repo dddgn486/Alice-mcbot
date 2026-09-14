@@ -1,6 +1,7 @@
 package com.dddgn.alice.ledger;
 
 import com.dddgn.alice.action.WriteGrant;
+import com.dddgn.alice.action.WritePolicyMatrix;
 import com.dddgn.alice.log.BotLog;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -123,7 +124,10 @@ public final class WorldModLedger extends SavedData {
             return;
         }
         WorldModLedger ledger = get(server);
-        Policy policy = grant.reason().temporary() ? Policy.TEMP : Policy.KEEP;
+        // D-207 ①：回收义务由**集中策略表**（区域归属 × 任务类别）解析，不再在此处直接问理由。
+        // 这是**执行期复验**：规划期已由 `CorePathPlanner.plan` 拦过一道，这里是"真的要在世界里动手"那一刻的第二次判定
+        // （与 CapabilityGate 的复验理由相同：计划可能比产生它的请求活得久）。
+        Policy policy = WritePolicyMatrix.ledgerPolicy(level, owner, grant, pos);
         Entry entry = new Entry(pos.immutable(), blockId(placed), blockId(previous),
                 grant.reason().name(), policy, scopeOf(ledger, owner), owner, level.getGameTime());
         ledger.entries.put(key(pos), entry);

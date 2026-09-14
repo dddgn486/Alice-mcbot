@@ -8629,3 +8629,23 @@ the user must resume it"）。这**正好符合** D-205 的意图（"恢复只�
 | **纠正（AI 自身）** | 上轮把"禁止挖穿脚下/搭柱须支撑"说成硬约束**不准确**：前者根本不存在（`DOWNWARD` 只要求"挖完能站住"），后者是**游戏物理前提**而非安全政策；"任务级一次授权"提案**撤回** |
 
 **依据**：`DownwardExecutionFactory` / `PillarExecutionFactory` / `RecoverabilityPolicy` / `WriteGrant` / `WorldModLedger` / `RestoreScopeTask`（两条拆除路径、自上而下、只拆自己放的、材料回收）。
+
+**附注（2026-09-14，R1 接线时的拍板与术语纠正）**
+
+- **解释 A（用户选定）**：矩阵只管**回收义务**，上层显式授权（`BULK_EDIT`/`MANUAL`）**不受默认区约束**；
+  明确**不做**"默认区除白名单外一律拒写"——那会让道路施工/玩家命令在默认区被拒，误拆风险比现状更大。
+- **区域只有两层归属**：`EXTERNAL`（默认，不是 Alice 的地）/ `WORKSPACE`（Alice 的地，来源 = 已划区域）；
+  **保护区不是第三层**，它是优先级更高的**独立闸门**（`SafeZoneData` 命中即禁止破坏），与"归属"正交。
+  早前提案的三处术语错误已纠正：`PROTECTED` 与既有"保护区"**同名反义**（默认区允许破坏）；
+  `TRANSIT` 把"通行"（`PathRequest` 的属性，D-076）当成了"地块的属性"；`WILD` 把"场合"当成了"能力"。
+- **移动集词表 = `PathRequest` 的工厂名**（`of`/`pureTraversal`/`miningApproach`/`scaffoldRemoval`/
+  `climbApproach`/`withWorldModification`），不新造形容词 ⇒ 每个名字都能 grep 到实现与登记条目。
+  ② 要给采集/伐木放开 `PILLAR/FALL/DOWNWARD`，正确做法是**新增显式工厂**并在 `WORLD_WRITE_AUTHORIZATION.md` 登记。
+- **工作区语义取 ⓑ**：工作区只是"**允许** KEEP 类理由"，不改变其余理由的回收义务；今天两区解析**逐条相同**
+  （`zoneDiff=0` 由自检断言，谁让它不同就必须补一条决策记录）；工作区来源（已划区域）的接线留到 R1b。
+- **接线范围**：`action/WritePolicyMatrix.java`（唯一真源，22 行）+ **规划期**闸门（`CorePathPlanner.plan`：
+  越权抛 `WRITE_POLICY_MOVEMENT_DENIED`，在规划器入口转成"如实失败的 plan"，**不让异常逃逸**打断服务端 tick）
+  + **执行期**复验（`WorldModLedger.recordPlacement:126`）+ 自检 `write_policy`（含"越权必须被拒"的负例）
+  + 视图 `docs/authz/POLICY_MATRIX.csv` + 断言脚本 `tools/check-policy-matrix.sh`；authz 注册表加 `L2-5`。
+- **本轮不改变任何默认行为**（A + ⓑ 的必然结果）；真正带上牙齿的是**移动授权**：
+  纯通行任务（`walk-to` 等）今天起不能再规划出会写世界的移动——这是 D-076 红线的可执行版本。

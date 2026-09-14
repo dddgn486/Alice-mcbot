@@ -23,6 +23,14 @@
 
 - **S3（下一步，只读）**：把"**机器类型 ↔ 机器方块/菜单**"做成**单一出处**的映射表
   （像 `RecipeDump.stationFor` 那样），让 `MACHINE_ROUTE` 能回答"**去哪台机器**"；
+  **勘察已完成（子代理，只读）**：`docs/reviews/2026-09-14-3B-S3-机器映射勘察.md` ——
+  ① 类型→方块映射**今天不存在**（`RecipeQuery.java:160` 把 `station` 写成配方类型本身）；
+  ② 方块→菜单这一环**没有校验**（`MachineStationProbeTask:157` 传 `containerSlotCount=0`，恰好旁路了
+  `MenuSession:115-119` 的目标不匹配闸；找机器是"半径 6 内最近同命名空间方块" ⇒ 双机器时无法自证点对了哪台）；
+  ③ `crushing` 是 **1:N**（crusher + 4 档工厂），`mekanism:smelting` **注册但零配方** ⇒ 覆盖检查不得当孤儿；
+  ④ 结论：**做不到 100% 只加数据**——仍需两处一次性 Java 改动（`RecipeQuery:160` 接线 + 探针按表认机器）。
+  **待用户拍板**：(a) 是否把 `Route.station` 从"配方类型 id"换成"机器方块 id"（会改 `not_executable:<machine>`
+  与 `CandidateMenu.needs=` 文案）；(b) 表落点（与 `RecipeDump.stationFor` 同包同形态 vs 新建 `MachineCraftMap`）。
 - **S4（之后）**：单机最小闭环（放料→等→取产物）。**需要写入授权与预算**，按 D-076 走显式授权；
 - **S5**：每次收尾都要回收临时探针（今天已按此回收两支：`alice:machine_probe`、
   `alice:machine_station_probe` ⇒ 任务转为电池步 `machine_route` / `machine_station`）。
@@ -95,19 +103,22 @@
 **已复验通过**（`latest.log:191`，2026-09-14 12:11：`L3 …无作用域 ⇒ 闸门未生效（不计数、不拦截，仅 no_scope 留痕）；默认上限（仅作用域内生效）破坏64/放置32/容器32`）
 ⇒ **当前无待验证项**。
 
-**R1 勘察（2026-09-14，只读；代码未改）——发现一个必须先解决的语义冲突**：
-- 执行点唯一：`WorldModLedger.recordPlacement` 第 126 行 `Policy policy = grant.reason().temporary() ? TEMP : KEEP`
-  （`TEMP` 必须配对拆除 / `KEEP` 不该拆）；scope 由 `WorldModLedger.openScope` 开（`BotManager:1600`、`RegressionBatteryTask:565` 等）。
-- KEEP 类 reason 的**实际**调用点：`BULK_EDIT` 2 处（`RoadBuildTask:33`、`RoadBuilder:27`）、`REGION_REPLANT` 1 处（`RegionLumberJob:468`）、
-  **`MANUAL` 0 处（当前是死值，"玩家命令"保留位）**。
-- **冲突**：若把 D-207 的"默认 `PROTECTED`"解释成"默认区里 KEEP 类一律降级为 `TEMP`"，会**误伤**道路施工与（将来）玩家手写：
-  它们本是**上层显式授权**（D-082 凭证本来就窄），降级成 `TEMP` 会让 `RestoreScope` 在收尾时**把玩家/道路放的方块拆掉**
-  ——比现状**更危险**，不是更保守。
-- ⇒ 需要你选解释：**(A)** 矩阵只管"**回收义务**"（默认区=任务自用放置必须回收，今天已由 reason 表达；`BULK_EDIT`/`MANUAL` 不受默认区约束）
-  还是 **(B)** 矩阵管"**写世界资格**"（默认区除白名单外一律拒绝，`BULK_EDIT`/`MANUAL` 必须显式列白名单，新增拒绝面）。
-  **我建议 A**：改动面最小、不引入新的拒绝面、与 D-082"凭证保持窄、决定集中成表"一致。
-- 另两个问题仍未决：① `WORKSPACE` 来源（**我建议**：先只认"已保存区域"，不新增命令入口）；③ 执法位置（**我建议**：规划期抛 + 执行期复验）。
-  设计背景见 `docs/authz/POLICY_MATRIX_PROPOSAL.md`。
+**R1 集中策略表（2026-09-14 接线完成；A 解释 / `COMPILES`，等电池复跑）**：
+- **用户拍板**：**(A)** 矩阵只管**回收义务**（`BULK_EDIT`/`MANUAL` 这类上层显式授权不受默认区约束）+
+  `WORKSPACE` 来源**只认已划区域** + **规划期抛 + 执行期复验**。三项都在接线时落地。
+- **术语纠正（用户质疑触发）**：区域**只有两层归属**（`EXTERNAL` / `WORKSPACE`），**保护区是独立闸门**不是第三层
+  ——旧提案的 `PROTECTED` 与既有"保护区"同名反义（默认区允许破坏：`BlockBreakSafety:47` 等才拦）；
+  `TRANSIT` 是维度混淆（通行是 `PathRequest` 的属性）；移动集词表改为**直接用 `PathRequest` 工厂名**（`WILD` 废弃）。
+- **落地物**：`action/WritePolicyMatrix.java`（唯一真源，22 行 = 2 区 × 11 任务；`movements` 的集合**直接问工厂要**
+  ⇒ 定义上不会漂移）+ 规划期闸门 `CorePathPlanner.plan:45`（越权抛 `WRITE_POLICY_MOVEMENT_DENIED`，**在规划器入口
+  转成如实失败的 plan**——任务 tick 无兜底 try/catch（`BotManager:1809`），异常逃逸会打断服务端 tick）
+  + 执行期复验 `WorldModLedger.recordPlacement:126` + 自检 `task/WritePolicyCheckTask`（电池新步 `write_policy`，BASELINE）
+  + 视图 `docs/authz/POLICY_MATRIX.csv`（生成）+ `tools/check-policy-matrix.sh`（**当前 PASS**）+ authz 注册表新行 `L2-5`。
+- **本轮不改默认行为**（A+ⓑ 的必然结果）：两区今天**逐条相同**，`zoneDiff=0` 由自检断言守着。
+  **真正带上牙齿的是移动授权**：纯通行任务（`walk-to`/`follow`/`PlaceTask`）不能再规划出会写世界的移动 = D-076 红线的可执行版本。
+- 登记表实测补全（接线时逐个 grep 出来的真实 requester）：`mine`（`MineJob.NAME`）、`region_lumber`（`RegionLumberJob.NAME`）、
+  `PlaceTask`（`Task.taskName()` 默认 = **类名**）、`scaffold-lifecycle`、`partial_*`、`ToolMaintenance`。
+- 设计背景与三处术语纠错的完整来龙去脉：`docs/authz/POLICY_MATRIX_PROPOSAL.md` §5；决策记录：`AI_DECISIONS.md` D-207 附注。
 
 **会话摘要调查（2026-09-14，用户提问触发）**：结论 = **不必获取会话摘要，也不装第三方插件**
 （摘要已原生自动产生并持久化；且 1% 量级有损 ⇒ 事实来源是原文，而压缩后原文**未丢**：1078/1078 遮蔽事件仍在磁盘、

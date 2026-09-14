@@ -1,7 +1,7 @@
 # 授权 / 审批框架总览（**自动生成**，勿手改）
 
 > **单一出处**：`docs/authz/AUTHZ_REGISTRY.csv`（Excel 可直接打开、批注；改它再跑 `bash tools/authz-map.sh`）
-> 生成时间：2026-09-14 11:22 ｜ 闸门 27 条
+> 生成时间：2026-09-14 12:25 ｜ 闸门 28 条
 
 ## 四问速查（唯一需要背的东西）
 
@@ -16,7 +16,7 @@
 |---|---|---|
 | L0 目标层 | 3 | LLM 能提什么目标、谁能越权直连、能力未知时问谁 |
 | L1 请求层 | 5 | 这次请求带什么策略/预算/凭证（**策略选择层**） |
-| L2 规划期 | 4 | 这条边在物理与可逆性上**合不合法**（硬校验，不合格直接拒） |
+| L2 规划期 | 5 | 这条边在物理与可逆性上**合不合法**（硬校验，不合格直接拒） |
 | L3 执行期 | 5 | **用当前世界事实复验** + 记下授权写入（事实可能已变） |
 | L4 收尾期 | 5 | 记什么账、拆什么、材料回不回收（闭环） |
 | L5 验证层 | 5 | 怎么**自证**夹具/探针的前提与零写入 |
@@ -49,6 +49,7 @@
 | `L2-2` | 硬约束 | RecoverabilityPolicy：FALL 必须带 fall_return_verified | 构造 MovementSpec 时比较“提供 vs 要求” | 规划期抛异常（不静默降级） | `core/RecoverabilityPolicy.java` | 不足即炸（唯一真能拒的一条） | 无（可逆性） |
 | `L2-3` | 硬约束 | IntrinsicReversibility 三档 | 每种 Movement 的固有可逆性 | — | `core/IntrinsicReversibility.java` | REVERSIBLE / CONDITIONALLY / NOT | 无 |
 | `L2-4` | 策略 | RiskSwitches（默认全关＝Baritone 高风险） | /alice risk 或未来评估器（未实现） | — | `pathing/risk/RiskSwitches.java` | 全关；当前仅 descend_overshoot | 用户 / 评估器（未实现） |
+| `L2-5` | 策略 | 写入集中策略表（区域归属×任务类别 → 回收义务 + Movement 授权） | requester 决定任务类别；区域决定归属；越权移动集 | WRITE_POLICY_MOVEMENT_DENIED（规划期拒）；未登记 requester=留痕不拦 | `action/WritePolicyMatrix.java; pathing/core/search/CorePathPlanner.java:45; ledger/WorldModLedger.java:126` | EXTERNAL（默认识别为外部世界）；表见 docs/authz/POLICY_MATRIX.csv（生成视图，真源=代码） | 无（D-207 ①；区域来源 R1b 接线，今天恒 EXTERNAL） |
 
 ### L3 执行期
 

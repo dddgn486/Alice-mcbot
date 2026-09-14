@@ -3,7 +3,8 @@
 > 依据：`AI_DECISIONS.md` D-207 ①（区域×任务类别 → `TEMP/KEEP` + 允许 Movement 集合 + 预算上限；默认 `PROTECTED`、
 > 显式降级到工作区；**不新增任务级授权开关，`WriteGrant` 一行不改**）与 `docs/reviews/2026-09-14-外部质疑与工作流审查留档.md` §3
 > （"工作区免 RESTORE、保护区必须回收 ＝ 策略表的 `TEMP/KEEP`"）。
-> 状态：**只有本文档**；代码未改。请先回答 §4 的三个问题，我再接线（接线后方可验证）。
+> 状态：**已拍板并接线**（2026-09-14）。§1–§3 是**当时的**勘察与设计（保留原样作为来龙去脉），
+> §4 的三个问题已答复，**§5 记录接线时纠正的三处术语错误与最终形态**——以 §5 为准。
 
 ## 1. 现状清点（今天各维度由谁决定；行号取自当前 master）
 
@@ -60,3 +61,49 @@
 
 另外 D-207 ① 里还有一条独立小项：**`UNKNOWN` requester 记为错误**——今天 `WriteGrant` 的 `requester` 是自由字符串，
 需要确认"未知"的判定口径（空/`unknown`/未注册前缀），可以在接线时一并做，请一并确认。
+
+## 5. 接线结果（2026-09-14）——§1–§4 里的三处术语错误已纠正
+
+### 5.1 用户答复
+
+| §4 问题 | 答复 |
+|---|---|
+| 语义冲突：矩阵管"回收义务"(A) 还是"写世界资格"(B) | **A** —— 上层显式授权（`BULK_EDIT`/`MANUAL`）不受默认区约束；不新增拒绝面、不误拆玩家/道路方块 |
+| ① `WORKSPACE` 来源 | **只认玩家已划定的区域**（今天 = `LumberRegionState`），不新增命令入口 |
+| ③ 执法位置 | **规划期抛异常 + 执行期复验**（两层） |
+
+（§4 里的第 2 个问题"工作区里 `TEMP→KEEP` 的边界"取 ⓑ：工作区只是**允许** KEEP 类理由，
+不改其余理由的回收义务——因此**今天两区解析逐条相同**，`zoneDiff=0` 由自检断言守着。）
+
+### 5.2 接线时纠正的三处术语错误（用户质疑触发，2026-09-14）
+
+1. **`PROTECTED` 不能当默认区类的名字**：项目里"保护区"= `SafeZoneData` 命中 ⇒ **禁止破坏**
+   （`protection/BlockBreakSafety.java:47`、`action/BlockInteraction.java:462`、`pathing/core/CapabilityGate.java:71`、
+   `road/RoadObstaclePolicy.java:42`）；而默认区**允许**破坏（挖矿/清障/脚手架都在里面）。**同名反义**必致误读。
+   ⇒ 默认区改名 **`EXTERNAL`**（不是 Alice 的地）。
+2. **`TRANSIT` 是维度混淆**：通行是 **`PathRequest` 的属性**（D-076 默认纯通行；`of:35` vs 降级 `pureTraversal():119`），
+   不是**地块的属性**；塞进区域分层等于给同一概念造第三个同义词。
+   ⇒ **保护区不占"归属"这一列**：它是优先级更高的**独立闸门**（与归属正交）。区域归属**只剩两层**：
+   `EXTERNAL` / `WORKSPACE`。
+3. **`WILD` 是拿"场合"冒充"能力"**：移动集的本质是 `PathRequest.java:110-118` 写清的那条轴——**允不允许写世界的原语**。
+   ⇒ 词表**直接用工厂名**（`of`/`pureTraversal`/`miningApproach`/`scaffoldRemoval`/`climbApproach`/`withWorldModification`），
+   且 `MovementGrant.types()` **直接调用工厂**取集合 ⇒ 表与工厂**在定义上不会漂移**。
+   R2 要给野外采集/伐木放开 `PILLAR/FALL/DOWNWARD`：**新增显式工厂 + 在 `WORLD_WRITE_AUTHORIZATION.md` 登记**，
+   不造 `WILD` 这种词（名字 = 授权面）。
+
+### 5.3 最终形态
+
+- **真源**：`src/main/java/com/dddgn/alice/action/WritePolicyMatrix.java`（22 行 = 2 区 × 11 任务；含 `movements`/`reasons`/义务/出处）
+  ——**代码是唯一的表**（Forge 模组运行期读不到仓库 docs，这一点决定了方向与 `AUTHZ_REGISTRY.csv` 相反）。
+- **视图**：`docs/authz/POLICY_MATRIX.csv`（由 `tools/policy-map.py` **从源码生成**，不要手改）；
+  **断言**：`bash tools/check-policy-matrix.sh` ⇒ `POLICY_MATRIX_CHECK_RESULT PASS`
+  （全枚举 / 无孤儿理由 / 无孤儿授权 / 工厂词表完整 / 24 个 requester 字面量可归类 / 视图不过期）。
+- **两层执法**：规划期 `CorePathPlanner.plan`（越权抛 `WRITE_POLICY_MOVEMENT_DENIED`，在规划器入口转成如实失败的 plan）、
+  执行期 `WorldModLedger.recordPlacement:126`（回收义务）。
+- **自检**：`task/WritePolicyCheckTask`（电池步 `write_policy`，BASELINE）——含**负例**（`walk-to` + `withWorldModification`
+  必须被拒）与 `zone_equiv`（两区今天必须逐条相同）。
+- **登记表实测补全**（接线时逐个 grep 出来的真实 requester，都会掉进 `UNREGISTERED` 的）：
+  `mine`（`MineJob.NAME`）、`region_lumber`（`RegionLumberJob.NAME`）、`PlaceTask`（`Task.taskName()` 默认 = **类名**，
+  `task/Task.java:42`）、`scaffold-lifecycle`、`partial_*`、`ToolMaintenance`。
+- **R1b（未做）**：把 `WORKSPACE` 来源接到已划区域（`installZoneSource` 挂点已留，今天恒 `EXTERNAL`）；
+  预算档位列本**未**引入（今天没有"按行不同"的证据，`WriteBudget.Caps.DEFAULT` 仍是唯一真源）。

@@ -670,6 +670,16 @@ public final class BotCommand {
                 + BotManager.currentTaskSummary(bot)), false);
         source.sendSuccess(() -> Component.literal("[alice] L1 纯通行集合=[" + pureText
                 + "]（挖掘站位/回收用 PathRequest 的命名工厂，含各自禁用集）"), false);
+        // L2 规划期：写入集中策略表（D-207 ①）。表是**唯一出处**，视图 docs/authz/POLICY_MATRIX.csv；
+        // 未登记 requester / 未登记组合是"记为错误"的留痕计数（不据此拒绝，但必须可见）。
+        final java.util.Map<String, Integer> policyUnregistered =
+                com.dddgn.alice.action.WritePolicyMatrix.unregisteredSeen();
+        final java.util.Map<String, Integer> policyUndeclared =
+                com.dddgn.alice.action.WritePolicyMatrix.undeclaredSeen();
+        final String policy = com.dddgn.alice.action.WritePolicyMatrix.describe()
+                + (policyUnregistered.isEmpty() ? "" : "；**未登记 requester**=" + policyUnregistered)
+                + (policyUndeclared.isEmpty() ? "" : "；**未登记组合**=" + policyUndeclared);
+        source.sendSuccess(() -> Component.literal("[alice] L2 规划期策略表：" + policy), false);
         source.sendSuccess(() -> Component.literal("[alice] L3 执行期预算：" + budget), false);
         source.sendSuccess(() -> Component.literal("[alice] L4 账本：本 bot pending=" + pendingMine
                 + "；未闭合临时块=" + tempOpen + "；全局 pending=" + pendingAll
