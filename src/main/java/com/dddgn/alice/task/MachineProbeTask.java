@@ -5,6 +5,7 @@ import com.dddgn.alice.decision.MachineMap;
 import com.dddgn.alice.decision.RecipeDump;
 import com.dddgn.alice.ledger.WorldModLedger;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.task.craft.MachineRecipeFacts;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -108,66 +109,12 @@ public class MachineProbeTask implements Task {
     }
 
     /**
-     * **问上游自述**（协议 §3 第一条：上游自述 + 自校验）：机器类型不认原版语义，但常常**自己声明**了
-     * 与输入无关的输出定义（实测 `ItemStackToItemStackRecipe.getOutputDefinition() → List&lt;ItemStack&gt;`）。
-     * 这里**按返回值形态**取（不写死具体类名），并**自校验**（非空、不含 AIR）。
+     * **配方读取**走 {@link MachineRecipeFacts#read}（**与生产查询层同一份实现**）。
+     *
+     * <p>这里原先有两份各自反射的私有读取器（`upstreamOutputDefinition` / `upstreamInputRepresentations`），
+     * 于是"探针读得出来、查询层读不出来"这类**两处口径漂移**只能靠人眼发现 —— 台账⑮ 就是这种漂移的产物
+     * （探针报 `upstream_readable=0` 而真正的原因是名族只认 Mekanism）。**现在只有一个读取器**。
      */
-    private static java.util.List<ItemStack> upstreamOutputDefinition(Recipe<?> recipe) {
-        for (String name : new String[]{"getOutputDefinition", "getOutputs"}) {
-            try {
-                var method = recipe.getClass().getMethod(name);
-                Object value = method.invoke(recipe);
-                if (!(value instanceof java.util.List<?> list)) {
-                    continue;
-                }
-                java.util.List<ItemStack> out = new ArrayList<>();
-                for (Object entry : list) {
-                    if (entry instanceof ItemStack stack && !stack.isEmpty()) {
-                        out.add(stack);
-                    }
-                }
-                if (!out.isEmpty()) {
-                    return out;   // 自校验通过才采信
-                }
-            } catch (Throwable ignored) {
-                // 没有这个方法/取不到就换下一个（不猜语义）
-            }
-        }
-        return java.util.List.of();
-    }
-
-    /** **问上游自述（输入侧）**：`getInput().getRepresentations()`（`InputIngredient#getRepresentations`），自校验非空。 */
-    private static java.util.List<String> upstreamInputRepresentations(Recipe<?> recipe) {
-        for (String name : new String[]{"getInput", "getItemInput"}) {
-            try {
-                var accessor = recipe.getClass().getMethod(name);
-                Object ingredient = accessor.invoke(recipe);
-                if (ingredient == null) {
-                    continue;
-                }
-                var representations = ingredient.getClass().getMethod("getRepresentations").invoke(ingredient);
-                if (!(representations instanceof java.util.List<?> list)) {
-                    continue;
-                }
-                java.util.List<String> out = new ArrayList<>();
-                for (Object entry : list) {
-                    if (entry instanceof ItemStack stack && !stack.isEmpty()) {
-                        out.add(BuiltInRegistries.ITEM.getKey(stack.getItem()) + "x" + stack.getCount());
-                    }
-                    if (out.size() >= 3) {
-                        break;
-                    }
-                }
-                if (!out.isEmpty()) {
-                    return out;
-                }
-            } catch (Throwable ignored) {
-                // 换下一个名字/形态（不猜语义）
-            }
-        }
-        return java.util.List.of();
-    }
-
     private void run() {
         var server = bot.getServer();
         var access = server.registryAccess();
@@ -193,6 +140,7 @@ public class MachineProbeTask implements Task {
         int upstreamReadable = 0;
         int machineOutputNotItem = 0;
         int inputReadable = 0;
+        int probabilisticOutput = 0;   // 台账⑮：读到 `chance<1` 的抽样条数（读到才计，不猜）
         java.util.LinkedHashSet<String> machineOutputs = new java.util.LinkedHashSet<>();
         Map<String, int[]> perNamespace = new LinkedHashMap<>();
         int types = byType.size();
@@ -266,9 +214,9 @@ public class MachineProbeTask implements Task {
                 MachineMap.describe(), rowCount, withSiteConfirmed.size(), withSiteUnobserved, noSite, unmapped);
         for (Map.Entry<String, List<Recipe<?>>> entry : byType.entrySet()) {
             BotLog.info("[MachineProbe]   type={} count={}", entry.getKey(), entry.getValue().size());
-            // 每个命名空间各自的桶：types / recipes / samples / unreadable / upstream_readable / not_item / input_readable
+            // 每个命名空间各自的桶：types / recipes / samples / unreadable / upstream_readable / not_item / input_readable / probabilistic
             int[] namespaceBucket = perNamespace.computeIfAbsent(
-                    entry.getKey().substring(0, entry.getKey().indexOf(':')), key -> new int[7]);
+                    entry.getKey().substring(0, entry.getKey().indexOf(':')), key -> new int[8]);
             namespaceBucket[0]++;
             namespaceBucket[1] += entry.getValue().size();
             int shown = 0;
@@ -288,7 +236,7 @@ public class MachineProbeTask implements Task {
                         break;
                     }
                 }
-                java.util.List<ItemStack> upstream = upstreamOutputDefinition(recipe);
+                MachineRecipeFacts.Facts facts = MachineRecipeFacts.read(recipe);
                 samples++;
                 namespaceBucket[2]++;
                 boolean vanillaReadable = !out.isEmpty() && out.getItem() != net.minecraft.world.item.Items.AIR;
@@ -296,27 +244,37 @@ public class MachineProbeTask implements Task {
                     unreadableViaVanilla++;
                     namespaceBucket[3]++;
                 }
-                if (!upstream.isEmpty()) {
+                if (!facts.outputs().isEmpty()) {
                     upstreamReadable++;
                     namespaceBucket[4]++;
                     if (machineOutputs.size() < 3) {
-                        machineOutputs.add(BuiltInRegistries.ITEM.getKey(upstream.get(0).getItem()).toString());
+                        machineOutputs.add(BuiltInRegistries.ITEM.getKey(facts.outputs().get(0).getItem()).toString());
                     }
                 } else if (!vanillaReadable) {
                     machineOutputNotItem++;   // 原版读不出、上游也没给出物品输出 ⇒ 如实归为"非物品输出"
                     namespaceBucket[5]++;
                 }
-                java.util.List<String> upstreamIn = upstreamInputRepresentations(recipe);
-                if (!upstreamIn.isEmpty()) {
+                // 口径与旧实现一致：只数"上游自述读出了**输入物品**"（化学品/流体输入不混进来，
+                // 否则会和"读不出"混成一个数）；非物品输入由 `RecipeQuery` 的 note 单独如实标注。
+                if (!facts.inputs().isEmpty()) {
                     inputReadable++;
                     namespaceBucket[6]++;
                 }
-                BotLog.info("[MachineProbe]     sample id={} out={} x{} in={} upstream_item_out={} upstream_in={}",
+                if (facts.probabilistic()) {
+                    probabilisticOutput++;    // 台账⑮：**读到 chance<1 才计数**（不是猜出来的）
+                    namespaceBucket[7]++;
+                }
+                BotLog.info("[MachineProbe]     sample id={} out={} x{} in={} upstream_item_out={} upstream_in={}{}",
                         recipe.getId(), BuiltInRegistries.ITEM.getKey(out.getItem()), out.getCount(), ins,
-                        upstream.isEmpty() ? "-"
-                                : BuiltInRegistries.ITEM.getKey(upstream.get(0).getItem()) + " x"
-                                        + upstream.get(0).getCount(),
-                        upstreamIn.isEmpty() ? "-" : upstreamIn);
+                        facts.outputs().isEmpty() ? "-"
+                                : BuiltInRegistries.ITEM.getKey(facts.outputs().get(0).getItem()) + " x"
+                                        + facts.outputs().get(0).getCount(),
+                        facts.inputs().isEmpty() ? (facts.nonItemInput() ? "非物品输入" : "-")
+                                : facts.inputs().stream().limit(3)
+                                        .map(stack -> BuiltInRegistries.ITEM.getKey(stack.getItem()) + "x"
+                                                + stack.getCount())
+                                        .collect(java.util.stream.Collectors.joining(",")),
+                        facts.probabilistic() ? " chances=" + facts.outputChances() : "");
             }
         }
         // **自证式查询验证**（S1/D-204）：拿"上游自述读出来的机器产出"去问查询层，
@@ -340,10 +298,11 @@ public class MachineProbeTask implements Task {
         // 逐命名空间各打一行（SUMMARY 里保留全局合计）：这样"哪一族覆盖了多少"不必从总量里反推，
         // 也避免"26 个 Thermal 行没被采样"被读成"Thermal 没有配方"（台账⑭ 的教训）。
         for (String namespace : namespaces) {
-            int[] value = perNamespace.getOrDefault(namespace, new int[7]);
+            int[] value = perNamespace.getOrDefault(namespace, new int[8]);
             BotLog.info("[MachineProbe] namespace={} types={} type_recipes={} samples={}"
-                            + " unreadable_via_vanilla={} upstream_readable={} machine_output_not_item={} input_readable={}",
-                    namespace, value[0], value[1], value[2], value[3], value[4], value[5], value[6]);
+                            + " unreadable_via_vanilla={} upstream_readable={} machine_output_not_item={}"
+                            + " input_readable={} probabilistic_output={}",
+                    namespace, value[0], value[1], value[2], value[3], value[4], value[5], value[6], value[7]);
         }
         int pending = WorldModLedger.pendingForOwner(server, bot.getUUID()).size();
         if (pending != 0) {
@@ -361,6 +320,7 @@ public class MachineProbeTask implements Task {
                 .append(" upstream_readable=").append(upstreamReadable)
                 .append(" machine_output_not_item=").append(machineOutputNotItem)
                 .append(" input_readable=").append(inputReadable)
+                .append(" probabilistic_output=").append(probabilisticOutput)
                 .append(" query_probed=").append(machineOutputs.size())
                 .append(" query_machine_route=").append(machineRouteOk)
                 .append(" machine_map_rows=").append(rowCount)

@@ -83,7 +83,7 @@
 |---|---|---|
 | `decision/MachineMap`（`typeId → 方块/菜单/能力`） | **多模组**（每个命名空间全量；唯一真源） | 它**就是**这张表，**每行带自己的取证件**（`SRC` / `SRC_THERMAL`），所以加一个模组 = 加一段行 + `tools/machine-map.py` 的 `UPSTREAMS` 一条。防漂移靠 `tools/check-machine-map.sh`：**按命名空间分别双向断言**（Mekanism 27 = 23 有站点 + 4 无站点；Thermal 32 = 26 + 6）。**多模组后不允许"只登记几行"** —— 表里出现 `thermal:` 就要求 thermal 全量，否则这一族永远不被复核。⚠️ 有的模组把内容藏在**内嵌 jar（JiJ）**里（Thermal 的 `thermal_core`）⇒ 工具必须显式解出来放进 `javap` 的 classpath |
 | `task/craft/RecipeQuery`（`machine_route` 判定） | **通用** | 只含 1 处 `mekanism`（注释里的实测例子）；判定走"上游自述读得出输入/输出"这一**形态学**判据，不认类名 |
-| `task/craft/MachineRecipeFacts`（配方 I/O 反射读法） | **通用** | 只含 1 处 `mekanism`（注释）；`itemReadable()` 把"读不懂"与"没有"分开报码（D-204 的 `mats=[]` 教训） |
+| `task/craft/MachineRecipeFacts`（配方 I/O 反射读法） | **通用** | **0** 处 `mekanism` 代码字面量：名族覆盖 **两族访问器**（Mekanism `getInput`/`getOutputDefinition` + Thermal `getInputItems`/`getOutputItems`），按**返回值形态**自校验；`itemReadable()` 把"读不懂"与"没有"分开报码（D-204 的 `mats=[]` 教训）；`probabilistic()` 只在**读到 `chance<1.0`** 时为真（Thermal 实测 65/670 条带概率产出 ⇒ 不许把副产物写成必然产物）。**S1 探针的私有反射读取器已删除，改调本类**⇒ 只有一个读取器，"探针读得出 / 生产读不出"的口径漂移不可能再现 |
 | `task/MachineStationProbeTask`（站点/槽位/进度探针） | **通用** | **0** 处 `mekanism`；全部"问对象自己"（槽位表、`ContainerData`、进度方法名） |
 | `task/craft/StationProvision`（菜单写入协议） | **通用** | **0** 处 `mekanism`；shift-click 让菜单决定落点 + **按结果验证**，不猜槽位语义 —— S4 的写入路径直接复用，一行没新造 |
 | `action/WritePolicyMatrix` + `WriteBudget`（容器写入闸门） | **通用** | 与模组无关；只登记 `requester × 理由 × 区/任务`（`machine-cycle` 一行即接入） |

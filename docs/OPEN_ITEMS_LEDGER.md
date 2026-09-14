@@ -1000,3 +1000,19 @@ jar `3312608d…`。
   （而不是当成确定产物）。**验证点**：下一轮电池里 `namespace=thermal upstream_readable>0 input_readable>0`，
   且概率产出被如实标注（新增字段，不塞进现有判据）。**输入形态也不同**：Mekanism 的输入是单一
   `InputIngredient#getRepresentations()`，Thermal 是 `List<Ingredient>` ⇒ 读取代码要**按形态分支**，不能照抄。
+  **✅ 已修（第十六轮，2026-09-14）—— 只做"读出来 + 如实标注"，判据一行没动**：
+  ① `MachineRecipeFacts` 成为**唯一读取器**：名族扩到 `getInputItems`/`getInputFluids`/`getOutputItems`/`getOutputItemChances`；
+  ② `itemStacks()` 新增吃 `List<Ingredient>` 形态（每项取**第一个物品**当代表，与 `getRepresentations()` 同一口径：
+  **只取代表、不展开标签**）；③ 新增 `Facts.probabilistic()`（**只有真的读到 `chance<1.0` 才为真**；
+  读不到概率信息的类型保持 `false` = 无概率证据，**Mekanism 侧行为不变**）；
+  ④ **纯流体输入**也算"配料存在"（否则会报成 `mats=[]` = "不需要材料"，正是 D-204 那个 bug 类）；
+  ⑤ `MachineProbeTask` 的两份私有反射读取器**删除**，改调同一个 `MachineRecipeFacts.read()`
+  （"探针读得出、查询层读不出"这种两处口径漂移从此不可能再现），并新增
+  **`probabilistic_output=`** 计数（per-namespace 行 + SUMMARY 都有）；
+  ⑥ `RecipeQuery` 在 `note` 末尾如实追加"⚠️ 概率产出（读到 chance<1 ⇒ 不是必然产物）"，
+  **`Verdict` 语义、`Route` 记录字段、`MachineMap` 能力列、`CraftJob` 准入全部未动**（`Route` 不加字段 ⇒ 下游构造点零改动）。
+  **第十六轮验证点**（客户端一轮）：`namespace=thermal` 的 `upstream_readable` / `input_readable`
+  从 **0/0 变成非 0**（预期 ~50 出头，流体输出的 `refinery`/`crucible` 仍应读不出 ⇒ 如实留着），
+  且 `probabilistic_output>0`（静态实测 65/670 条带 `chance<1`）；`row_block_missing` 仍须 `[]`。
+  **已知遗留（不影响本轮）**：`craft_check` 的负例物品是**运行时自证挑选**的（"可产出集合"现在多了一批 Thermal 产出
+  ⇒ 它可能挑到**另一个**候选），日志会写明挑了哪个 —— 这是**更准确**而非回归。

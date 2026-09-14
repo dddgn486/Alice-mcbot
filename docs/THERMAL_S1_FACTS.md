@@ -313,3 +313,18 @@ javap -p -classpath "$CP" cofh.thermal.lib.util.recipes.ThermalRecipe | grep -E 
 javap    -classpath "$CP" cofh.thermal.core.util.recipes.machine.PressRecipe | grep extends
 # 概率产出统计：扫三个后端的 data/thermal/recipes/**，按每条的 result[].chance < 1.0 计数（见台账⑮）
 ```
+
+### 10.1 修法（第十六轮，**只读 + 如实标注，判据未动**）
+
+- `MachineRecipeFacts` 成为**唯一读取器**：名族加上 `getInputItems` / `getInputFluids` / `getOutputItems` /
+  `getOutputItemChances`；`itemStacks()` 学会吃 `List<Ingredient>`（每项取**第一个物品**当代表，
+  与 `getRepresentations()` 同口径：**只取代表、不展开标签**）。
+- **纯流体输入**也算"配料存在"（否则会报成 `mats=[]` = "不需要材料"，正是 D-204 那个 bug 类）。
+- `Facts.probabilistic()`：**只有真的读到 `chance<1.0` 才为真**；读不到概率信息的类型（Mekanism）保持 `false`
+  = "无概率证据"，**既有行为不变**（`false` 不构成"必然产出"的承诺 —— 这条口径写在字段 javadoc 里）。
+- 探针的**两份私有反射读取器删除**，改调同一个 `read()`；新增 `probabilistic_output=` 计数。
+- `RecipeQuery` 只**在 note 末尾如实追加**"⚠️ 概率产出（读到 chance<1 ⇒ 不是必然产物）"：
+  `Verdict` / `Route` 字段 / `MachineMap` 能力列 / `CraftJob` 准入**一行未动**。
+- **待客户端复核**：`namespace=thermal upstream_readable` / `input_readable` 应从 **0/0 变为非 0**
+  （预期 50 出头；流体输出的 `refinery` / `crucible` **仍应读不出** ⇒ 那是如实结果，不是回归），
+  且 `probabilistic_output>0`。

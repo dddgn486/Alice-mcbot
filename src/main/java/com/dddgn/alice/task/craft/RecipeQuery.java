@@ -141,6 +141,9 @@ public final class RecipeQuery {
         Set<String> machineTypes = new LinkedHashSet<>();
 
         List<Route> machineRoutes = new ArrayList<>();
+        // **台账⑮（2026-09-14）**：本配方**读到 chance<1**（Thermal 实测 65/670 条带概率产出）。
+        // 只用来**在 note 里如实标注**，**不改任何判据**（`Route` 记录不加字段 ⇒ 不动下游构造点）。
+        Set<String> probabilisticRecipeIds = new LinkedHashSet<>();
         for (Recipe<?> recipe : server.getRecipeManager().getRecipes()) {
             String type = BuiltInRegistries.RECIPE_TYPE.getKey(recipe.getType()).toString();
             String station = RecipeDump.stationFor(type);
@@ -166,6 +169,9 @@ public final class RecipeQuery {
                     // 不是一个方块）。表里没登记/无单方块站点 ⇒ **如实回落成类型 id**（旧文案），不猜方块。
                     // 类型 id 本身仍留在 `Route.type` 里，不丢信息。
                     String site = MachineMap.blockFor(type);
+                    if (facts.probabilistic()) {
+                        probabilisticRecipeIds.add(recipe.getId().toString());
+                    }
                     machineRoutes.add(new Route(recipe.getId().toString(), type,
                             site == null ? type : site, false, crafts, per, materials));
                 } else if (vanillaHits) {
@@ -212,7 +218,9 @@ public final class RecipeQuery {
                             + "（按准入优先选取）"
                             + (chosen.materials().stream()
                                     .anyMatch(material -> material.candidates().isEmpty())
-                                    ? "；输入含非物品形态" : "") + "）");
+                                    ? "；输入含非物品形态" : "")
+                            + (probabilisticRecipeIds.contains(chosen.recipeId())
+                                    ? "；⚠️ 概率产出（读到 chance<1 ⇒ 不是必然产物）" : "") + "）");
         }
         if (craftable.isEmpty() && firstMissing.isEmpty()) {
             if (!machineTypes.isEmpty()) {
