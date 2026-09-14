@@ -12,47 +12,12 @@
 > ④ **架构决策 `D-001–`**（`AI_DECISIONS.md`，单调递增）。
 > 2026-09-11 盘点时我曾临时用 `R1–R7` 记"风险项"，与①**撞车**，现已改称 **`T1–T7`**（见 D-124 末段）。
 
-> **2026-09-09 晚（批次 5：模组兼容）**：首测发现模组连锁会取消原版逐格掉落物生成（缓冲后聚合生成），
-> 我们的作用域把"从未进入世界"的幻影实体登记成掉落物 → 收集阶段空转 ~11 s。
-> 已修（`ScopeBuffer` 延迟登记 + `inWorld()` 判定）并**按用户裁定把 `CollectDropsTask` 改为簇级收集**
-> （背包增量计数 + 守恒交叉校验 `MISMATCH`）。**客户端验收通过（2026-09-09 21:06）**：
-> `drops=1`、`collected=9/9`、`mismatch=0`、收集 `ticks=8`（修复前 220）、任务 `COMPLETED` 32 tick；
-> 自家挖矿路径同日复测通过（`scene_a`：`collected=1/1 mismatch=0 ticks=14`，`MineTask COMPLETED` 37 tick）。
-> **连锁生产开关已实施（D-077）**：默认 `OFF`、`/alice chain off|auto|force` 游戏内切换、AUTO 仅矿石/原木、
-> 失败如实回落单格挖掘。首测暴露收集判据缺陷（"看着到位却不捡"：用了到方块中心距离而非原版包围盒相交，
-> 且提前取消寻路），已修（D-076 修正）；随后发现重写时误删"创建寻路"段导致直接放弃，
-> 已补回并加退休坐标探针；**客户端验收通过（2026-09-09 22:34）**：
-> 单格两次 `collected=1/1 mismatch=0 ticks=12`（一次盒内直接吸走、一次走下台阶吸走），与用户观察一致。
-> **D-077 三档全部验收**（off 无 `prod_*`；force/auto 各 `collected=9/9 mismatch=0`）。
-> **批次 5 `mine_regression` 已实施（D-078）**：一键覆盖规划 5 项 + 执行 2 项 + 模组连锁 1 项，
-> **客户端验收通过（2026-09-09 22:48）**：8/8 PASS、`ticks=99`、任务 `COMPLETED`
-> （`exec_chain collected=9/9`、`exec_blocked collected=1/1+ delta=2` 通道副产品）。
-> 同日补入 **floating 支撑放置**（`floating_course` + `floating_plan`/`exec_floating`，共 10 用例）；
-> 首测暴露规划器缺口：`CURRENT` 短路早于悬空判定 → 不放支撑块（掉落物掉走），
-> 已按用户裁定修（`CURRENT+悬空+不在正下方+有一次性方块` → 附带支撑放置）；
-> 复测 `exec_floating=PASS supportPlaced=true`，仅 `floating_plan` 因期望模式写窄（应含 CURRENT）判 FAIL，
-> 已修；**客户端验收通过（2026-09-09 23:13）**：10/10 PASS、`ticks=117`、`COMPLETED`。
-> bot 专属连锁配置映射归入"框架完成后的模组兼容适配"阶段（只登记）。
->
-> **2026-09-10 仓库整理 + 远程归档**：清理旧监督工作流（删除 182 个纯流程文件、归档 47 份历史文档）、
-> 重写 `docs/README.md` 与首页 `README.md`、删除 JEI/JECh 构建依赖（D-079）并**修复长期失败的 CI**
-> （首次 success）；本地与 `github/master` 同步（110+ 提交已推送）。
->
-> **2026-09-09 晚（批次 5：模组兼容，诊断路径已实施）**：`alice:chain_test_runner` + `alice_test:chain_course`
-> ——反射调用 Ore Excavation 1.13.174 的服务端入口触发连锁，验证"连锁掉落物捕获 + 收集"；
-> 同步加固 `ScopeBuffer`（跳过被取消的生成事件 + 破坏点位置回退配对，应对模组缓冲掉落物）。
-> jar `38fc2bd5…` 已同步固定客户端，**待客户端实测**（`WINDOWS_CLIENT` 未取得）。
-> 策略见 **D-075**：连锁全局默认 `OFF`（原版），玩家游戏内手动启用，默认只连锁**矿石与原木**；
-> bot 专属连锁配置映射、范围/批量建筑等能力留待后续（联动其他模组）。
+> **更早的收口历史（2026-09-09 ~ 09-10：批次 5 模组兼容 / 仓库整理 / L3 立项 J1）**：**不在本文件复述**——
+> 原始证据在 `docs/AI_DECISIONS.md`（D-075/D-076/D-077/D-078/D-079/D-080/D-081）与 `git log`。
+> **为什么删掉**：本文件第一行自己写着"只记录当前，不记录完整历史"，而这段 41 行是**完整历史** ——
+> 它在 2026-09-14 的文档盘点里被点名为"STATE 违反自己的规则"（`docs/reviews/2026-09-14-项目完成度与优先级审查.md` §4.1）。
+> 指针口径：**只放路径/commit/决策号，不抄原文**（AGENTS.md「规则准入尺子」第 3 条）。
 
-> **2026-09-10 L3 立项（D-080）**：目标级任务层 `Job`（决策缝 + 配额 + 终止）设计定稿，
-> 伐木为第一消费者（`docs/JOB_LAYER_DESIGN.md`）；用户裁定 `Job implements Task`、
-> LOS 限次清障 ≤8 格/棵、高树 v1 拒绝但攀爬登记为未来能力。
-> **二次裁定（D-081）**：接受"建拆同权"（放置与拆除同一授权）、持久化 `WorldModLedger`、
-> 可持续伐木区做成 `MAINTAIN` 持续型 Job；**切片顺序 J1–J5 → J6 账本+恢复 → J7 攀爬 → J8 区域型**。
-> **J1 已实施（2026-09-10）**：`job/` 契约七件 + `job/lumber/`（TreeScanner/LumberCandidateSource/LumberJob）
-> + `job/policy/`（Nearest / NearestExposed）+ 入口 `alice:lumber_job` + 场景 `lumber_course` + `BotSession` 子目标跟随。
-> jar `已同步`，**待客户端验证**。
 
 ## 最新（2026-09-14）—— 先读这里
 
@@ -123,20 +88,22 @@ alice:machine_cycle_check: 3405` + `missing registry entries`（⇒ 不在注册
 审查**不是"内核 vs 适配"二选一**，先摆全问题面再定优先级。
 ⇒ 结论未定，**在用户拍板前不要自行开新线**，尤其**不要**往下推 Thermal 的 `EXECUTABLE`。
 
-**📌 项目完成度与优先级审查（2026-09-14，用户要求"审视整个项目的已完成度"）**：
-产出在 **`docs/reviews/2026-09-14-项目完成度与优先级审查.md`**（**先读它 §4.1**）。
-用户追加口径（该文 §0，**优先**）：**除寻路内核外大部分是原创脚手架 ⇒ 不要过度自信**，
-"编译过/电池绿"只证明没崩、不证明对。三路只读审计的硬结论：
-① **5 条红线"实际失效"**（连锁挖掘整条绕过 `WriteBudget`；生产 LLM 入口经 `JobLauncher`→`FixtureToolKit` **凭空发钻石工具**；
-`isSelfCheck()` 两套约定不一致 ⇒ **17 个夹具（含主电池）跑完会招 LLM 占场地**；`RegionLumberJob` 直写 `setBlock`；
-容器写入闸门散抄 4 处、3 个原语无闸门）；
-② **证据层自己会假绿**（8/30 步可 SKIP 仍判 PASS；`machine-map` Tier B 缺 jar 时 **exit 0**；
-`authz-map` 非递归 glob 漏 21 文件 + 家族前缀逃生；`policy-map` 的 `"inv"` 子串静默豁免；**CI 不跑任何门禁**）；
-③ **第 3 个模组已在客户端 `mods/` 里**（`create` / `ExtendedCrafting`）**且静默读不出**——
-读取器把 Mekanism 特例当通则、不试 vanilla 接口；`MachineMap` 的 1 方块↔1 类型不变式让 Thermal 6 行**已是错事实**。
-**已实测**：无头服务端在本机 **`Done (3.675s)!`** 可起（`BotSelftest` 已于 `cbd177a` 删除、
-`build.gradle:95-97` 仍在宣传失效指令）；第 16 轮 `(30/30) → PASS` **经复核未被 SKIP 稀释**（30 PASS / 0 SKIP）。
-**建议次序 T0-a → T0-b → T1 → T2 → T3**（详见该文 §4.1）；**用户拍板前不开新线。**
+**📌 项目完成度与优先级审查 + T0/T1 已落地（2026-09-14）**：全文在
+**`docs/reviews/2026-09-14-项目完成度与优先级审查.md`**（**先读 §3.1 红线表 + §4.1 优先级表**）。
+口径（该文 §0，**优先**）：除寻路内核外多为**原创脚手架**⇒**不要过度自信**，"编译过/电池绿"只证明没崩、不证明对。
+- **✅ T0-a 已收口**（`75c1d23`）：电池终局改**三态**（`PASS` 要求 `pass==expected`；有步因环境不具备被跳过 ⇒
+  **`DEGRADED`**，不再冒充 PASS）+ SKIP 判据去掉 `status != DONE`；`machine-map` Tier B 缺 jar ⇒
+  **INCOMPLETE(exit 2)**，不再打印 PASS；`authz-map` 改**递归 glob**（原先漏扫 21 文件）+ 去家族前缀逃生
+  （改族集合+计数断言，实测一次抓出 16 个未登记码与过期计数）；`policy-map` 去 `"inv"` 子串豁免（改整词）。
+- **✅ T0-b 已收口**（`6bb26b2`）：`tools/check-all.sh` 串 **8 道门禁**（三态：PASS/WARN/FAIL，WARN=断言**没执行**）
+  \+ 接进 `.github/workflows/build.yml`（此前 **CI 一道门禁都不跑**）。
+- **✅ T1 已收口（代码层，`8b66572`）**：R-1 连锁破坏计入 `WriteBudget`（预算尽即停链）；R-2 生产入口
+  `fixtureProvision` 显式化（生产只搬运不发料）+ 新门禁 `check-provision-containment.sh`；R-3 `isSelfCheck()`
+  唯一真源 + **`setSelfCheckHold` 随任务存续**（1200 tick 窗口盖不住 3400 tick 的电池）；R-4 补种补触及前提；
+  R-5 `FurnaceStation` 写入原语编译期强制 `WriteGrant`。**⇒ 待一轮客户端验证（尚未 `WINDOWS_CLIENT`）。**
+- **未动**：T2（无头回归；已实测本机 `runServer` **`Done (3.675s)!`** 可起）、T3（模组 #3 数据模型）。
+  ⚠️ **第 3 个模组已在客户端 `mods/` 里**（`create` / `ExtendedCrafting`）**且静默读不出** —— 推它之前必须先做 T3。
+- **流程尺子已写进 `AGENTS.md`**（"规则准入三问 + 只看一个指标"，净增≈0：同期把 STATE 的 41 行历史压成指针）。
 
 **当前弧（用户 2026-09-14 裁定：(c) 起步 + (a) 并行只读）—— 3-B 之后是"让 S4 真能生产用"**：
 - **✅ (c) 第 1 步已完成并客户端验证（D-216 / S4 v2，第十一轮）**：闭环自检**自己走到机器旁** —— 起点挪到平台远角

@@ -43,7 +43,23 @@ run_gate() {
   fi
 }
 
-# `machine-map` 专属：exit 2 = INCOMPLETE（缺上游 jar ⇒ 上游覆盖断言**没执行**）⇒ WARN，不是 PASS。
+# 文档预算（`AGENTS.md` 的「规则准入尺子」）：三项总行数**冻结**，新增必须删旧的（净增 ≤ 0）。
+# 为什么把它做成机器断言：否则"冻结在 1,476 行"本身又只是一条**散文规则** ——
+# 而本项目的问题恰恰是"规则≈95% 靠人记得"。这一条让"规则膨胀"变成**会失败**的事。
+run_doc_budget() {
+  local budget=1476 total
+  total=$(cat AGENTS.md docs/AI_DEVELOPMENT_PLAYBOOK.md docs/AI_PROJECT_STATE.md | wc -l)
+  if [ "$total" -le "$budget" ]; then
+    PASSED=$((PASSED + 1))
+    printf '  [PASS] %-30s %s\n' "check-doc-budget" \
+      "AGENTS+PLAYBOOK+STATE = $total 行 ≤ $budget（余额 $((budget - total))）"
+  else
+    FAILED=$((FAILED + 1))
+    printf '  [FAIL] %-30s 超预算 %d 行（实际 %d / 上限 %d）\n' "check-doc-budget" "$((total - budget))" "$total" "$budget"
+    printf '         ⇒ 按 AGENTS.md「规则准入尺子」：新增一条散文规则必须同时删掉一条旧的。\n'
+    printf '         若要**有理由地**上调预算，请改本函数的 budget 并在 commit message 写明为什么。\n'
+  fi
+}
 run_machine_map() {
   local out rc
   local args=(--check)
@@ -80,6 +96,7 @@ run_gate             "check-policy-matrix"      bash tools/check-policy-matrix.s
 run_gate             "check-authz-registry"     bash tools/check-authz-registry.sh
 run_machine_map
 run_gate             "check-scene-connectivity" python3 tools/check-scene-connectivity.py --all
+run_doc_budget
 
 hr
 if [ "$FAILED" -eq 0 ]; then
