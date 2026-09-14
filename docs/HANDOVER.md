@@ -13,6 +13,9 @@
 | **3-B / S1 机器配方只读** | ✅ 完成（客户端验证） | `MachineRecipeFacts`（问上游 `getOutputDefinition()`/`getInput().getRepresentations()` + 自校验）→ `RecipeQuery.MACHINE_ROUTE`（有出处的路线，含机器类型与材料）；`CraftJob` 如实拒绝 `not_executable` |
 | **3-B / S2 机器站点只读** | ✅ 完成（客户端验证） | `machine_block=mekanism:enrichment_chamber@66,64,306`、`menu=…MekanismTileContainer slots=41`、**进度=上游自述** `getScaledProgress/getOperatingTicks/getActive` |
 
+**方向来源留档**：`docs/reviews/2026-09-14-外部质疑与工作流审查留档.md`（外部质疑三条 + 两轮工作流审查 + 设计讨论的完整来龙去脉、事实核校、裁定表、驳回项与 AI 自身教训；
+想追"为什么现在这么定"就读它）。
+
 **协议**：`docs/MOD_ADAPTER_PROTOCOL.md`（六步流水线 S0→S5；**只读先于执行**；"读不懂多少"始终可见；
 进通用骨架须满足"上游自述／两上游共享／纯形态可自校验"；**反模式**：依赖上一步清场、按类名认、为适配放宽红线）。
 

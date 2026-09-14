@@ -60,7 +60,7 @@
 **当前主线 = 阶段 3-B 模组机器适配**（实验对象 Mekanism，方法见 `docs/MOD_ADAPTER_PROTOCOL.md`）：
 **S0/S1/S2 已完成**（类型事实表 / 机器配方只读 `MACHINE_ROUTE` / 机器站点只读），**下一步 = S3**
 （"机器类型 ↔ 机器方块/菜单"的单一映射，让路线能回答"去哪台机器"）。
-电池 **CORE=27 / FULL=37**。**详细交接见 `docs/HANDOVER.md`**；今天的新纪律见 PLAYBOOK §5.0b/§5.0c/§5.0d。
+电池 **CORE=27 / FULL=37**。**详细交接见 `docs/HANDOVER.md`**；**方向来源与审查留档见 `docs/reviews/2026-09-14-外部质疑与工作流审查留档.md`**；今天的新纪律见 PLAYBOOK §5.0b/§5.0c/§5.0d。
 
 ## 当前目标
 
