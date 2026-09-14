@@ -229,7 +229,43 @@ apply();</script></body></html>""".format(
 
 
 CODE_RE = re.compile(r'"([A-Z][A-Z_]{4,})"')
-FAMILY_OK = set()
+# **显式的家族豁免表**（T0-a，2026-09-14）：`拒绝码 -> 注册表里已登记的等价条目文本`。
+# 默认**空** ⇒ 每个拒绝码都必须**精确**出现在注册表里。
+# 为什么要有这张表而不是"前缀包含"：原判据 `c.split("_")[0] in reg_text` 让**任意**以已出现词开头的新码
+# 自动通过（实测 `BUDGET_TOTALLY_NEW_CODE` / `SEARCH_LIMIT_V9` / `PATH_NEW_THING` 全部通过）。
+# 要豁免必须**逐条写在这里**，写明它等价于注册表里的哪一格 —— 可审计、写一个才放一个。
+# 这张表此前是 `set()`（定义了但从未使用）；现在改成 dict 并真正生效。
+FAMILY_OK: dict[str, str] = {}
+
+DECLARED_RE = re.compile(r"(\d+)\s*码[：:]")
+# 族名 ≥2 个大写字母/下划线，紧跟计数：`BREAK20` / `NO2`。
+# ⚠️ 早先写成 `[A-Z][A-Z_]{2,}?`（要求 ≥3 个字母）⇒ **两字母族 `NO2` 解析不到**，
+# 于是"已声明"的 `NO` 会被当成"新族"而误报（本轮实测踩到）。
+FAMILY_RE = re.compile(r"([A-Z][A-Z_]+?)(\d+)")
+
+
+def declared_code_families(rows):
+    """从注册表 `codes` 列解析"**总数 + 每族计数**"（形如 `116 码：BREAK20 PLACE18 …`）。
+
+    返回 `(总数, {族: 计数})`；找不到声明就返回 `(0, {})`（此时跳过族断言并由调用方提示）。
+    """
+    for row in rows:
+        cell = row.get("codes", "") or ""
+        found = DECLARED_RE.search(cell)
+        if not found:
+            continue
+        return int(found.group(1)), {name: int(count) for name, count in FAMILY_RE.findall(cell)}
+    return 0, {}
+
+
+def render_families(actual, total):
+    """把实际族分布渲染成可直接粘回注册表 `codes` 列的一行（机械生成，不靠人算）。
+
+    **每族一律带计数**（`BREAK20 … NO2 BLOCKED1 …`）：早先写成"单码族 N 个：A B C"的简写，
+    解析器读不到那些族名 ⇒ 会被当成"新族"。统一格式后生成与解析对称，不必人工维护两种写法。
+    """
+    ordered = sorted(actual.items(), key=lambda item: (-item[1], item[0]))
+    return "%d 码：%s" % (total, " ".join("%s%d" % (f, n) for f, n in ordered))
 
 
 def enum_values(src):
@@ -241,13 +277,51 @@ def enum_values(src):
 
 
 def check(rows):
-    """断言注册表与代码一致（防过期）。返回 (missing_codes, missing_types, missing_reasons)。"""
+    """断言注册表与代码一致（防过期）。返回 (missing_codes, missing_types, missing_reasons)。
+
+    ⚠️ 2026-09-14（T0-a 堵假绿）两处修正（三路审计 E-5 实证）：
+    ① **递归**扫描 `pathing/core/**`。原 glob `pathing/core/*.java` **非递归** ⇒ `core/search/` 与
+       `core/session/` 共 **21 个文件从不被扫描**，其中的拒绝码永远不会被断言；
+    ② **去掉"家族前缀逃生"**（`c.split("_")[0] in reg_text`）⇒ 改为精确匹配，豁免只能写进 `FAMILY_OK`。
+    """
     import glob
-    blob = " ".join(open(f, encoding="utf-8").read() for f in glob.glob(os.path.join(ROOT, "src/main/java/com/dddgn/alice/pathing/core/*.java")))
+    pattern = os.path.join(ROOT, "src/main/java/com/dddgn/alice/pathing/core/**/*.java")
+    files = glob.glob(pattern, recursive=True)
+    blob = " ".join(open(f, encoding="utf-8").read() for f in files)
     code_codes = set(CODE_RE.findall(blob))
     reg_text = " ".join(r[c] for r in rows for c in r)
-    # ① 每个拒绝码要么精确出现，要么其"家族前缀"出现
-    missing_codes = sorted(c for c in code_codes if c not in reg_text and c.split("_")[0] not in reg_text)
+    # ① 拒绝码：注册表**按族登记**（`codes` 列里 `116 码：BREAK20 PLACE18 …`）——保留这个既定粒度，
+    #    但把旧的"**前缀碰巧出现在任意列**就放行"（`c.split("_")[0] in reg_text`）换成**族集合 + 计数**断言：
+    #      · 出现**新族** ⇒ 注册表从没登记过 ⇒ FAIL（旧判据下 `BUDGET_TOTALLY_NEW_CODE` /
+    #        `SEARCH_LIMIT_V9` / `PATH_NEW_THING` 全部静默通过，三路审计 E-5b 实证）；
+    #      · 已登记的族**计数对不上** ⇒ 有人加了码却没更新注册表 ⇒ FAIL（旧判据完全看不见这一种）。
+    #    刻意**不做**逐码登记：那会新增 ~118 行散文，与本项目"不增散文"的约定冲突（见
+    #    `docs/reviews/2026-09-14-项目完成度与优先级审查.md` §4）。
+    declared_total, declared_families = declared_code_families(rows)
+    # 排除**拼接前缀**：`CapabilityGate.java:73` 是 `"ZONE_" + reason.toUpperCase(...)`，
+    # `CODE_RE` 会把 `"ZONE_"` 当成一个"码"（长度 5 恰好命中 `[A-Z][A-Z_]{4,}`）。
+    # 判据：**以 `_` 结尾的字面量是片段、不是完整的码**（拼出来的真码在本轮仍不会被断言到，
+    # 这一条如实记在 `docs/authz/OVERVIEW.md` 的已知边界里，不假装覆盖）。
+    counted = sorted(c for c in code_codes if c not in FAMILY_OK and not c.endswith("_"))
+    actual_families = {}
+    for code in counted:
+        family = code.split("_")[0]
+        actual_families[family] = actual_families.get(family, 0) + 1
+    code_problems = []
+    for family in sorted(actual_families):
+        if family not in declared_families:
+            examples = ", ".join(sorted(c for c in counted if c.split("_")[0] == family)[:4])
+            code_problems.append("新族 `%s`（%d 码：%s）未在注册表 codes 列登记"
+                                 % (family, actual_families[family], examples))
+    for family in sorted(declared_families):
+        if family not in actual_families:
+            code_problems.append("注册表登记了族 `%s`（声明 %d）但代码里一个都没有"
+                                 % (family, declared_families[family]))
+        elif declared_families[family] != actual_families[family]:
+            code_problems.append("族 `%s` 计数不符：注册表声明 %d / 实际 %d"
+                                 % (family, declared_families[family], actual_families[family]))
+    if declared_total and declared_total != len(counted):
+        code_problems.append("拒绝码**总数**不符：注册表声明 %d / 实际 %d" % (declared_total, len(counted)))
     # ② MovementType 枚举值全覆盖
     mt = open(os.path.join(ROOT, "src/main/java/com/dddgn/alice/pathing/core/MovementType.java"), encoding="utf-8").read()
     types = enum_values(mt)
@@ -256,10 +330,15 @@ def check(rows):
     wr = open(os.path.join(ROOT, "src/main/java/com/dddgn/alice/action/WriteReason.java"), encoding="utf-8").read()
     reasons = enum_values(wr)
     missing_reasons = [x for x in reasons if x not in reg_text]
-    print("AUTHZ_CHECK 拒绝码=%d MovementType=%d WriteReason=%d" % (len(code_codes), len(types), len(reasons)))
-    for label, miss in (("未覆盖的拒绝码", missing_codes), ("未覆盖的 MovementType", missing_types), ("未覆盖的 WriteReason", missing_reasons)):
-        print("  %s: %s" % (label, ", ".join(miss) if miss else "无 ✅"))
-    ok = not (missing_codes or missing_types or missing_reasons)
+    print("AUTHZ_CHECK 扫描文件=%d 拒绝码=%d（族=%d）MovementType=%d WriteReason=%d 显式豁免=%d"
+          % (len(files), len(counted), len(actual_families), len(types), len(reasons), len(FAMILY_OK)))
+    for label, items in (("拒绝码族/计数", code_problems),
+                         ("未覆盖的 MovementType", missing_types),
+                         ("未覆盖的 WriteReason", missing_reasons)):
+        print("  %s: %s" % (label, "；".join(items) if items else "无 ✅"))
+    if code_problems:
+        print("  [FIX] 注册表 codes 列可机械改为：" + render_families(actual_families, len(counted)))
+    ok = not (code_problems or missing_types or missing_reasons)
     print("AUTHZ_CHECK_RESULT", "PASS" if ok else "FAIL")
     return 0 if ok else 1
 

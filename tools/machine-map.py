@@ -297,15 +297,27 @@ def javap_strings(classpath: list[Path], class_name: str) -> set[str]:
 
 
 def check_namespace(namespace: str, spec: dict, rows: list[dict], mods_dir: Path,
-                    jar_override: Path | None, problems: list[str]) -> str:
+                    jar_override: Path | None, problems: list[str],
+                    unverified: list[str]) -> str:
+    """复核一个命名空间。
+
+    ⚠️ 2026-09-14（T0-a 堵假绿）：**"没复核"必须与"复核通过"分开**。
+    原实现把"缺 jar / javap 读不到 / 取证异常"三种情况都 `return "Tier B SKIP…"` 作为**普通注记**，
+    而 `main()` 只看 `problems` ⇒ **缺 jar 时仍打印 `PASS` 且 `exit 0`**（三路审计 E-4 已实跑复现：
+    `--mods-dir /nonexistent-dir`）。这等于"这句断言根本没执行"被记成"断言通过"。
+    现在这些情况一律进 `unverified`，由 `main()` 判决为 `INCOMPLETE`（退出码 2）；
+    只有在显式接受（`--allow-unverified-upstream`，例如 CI 上没有上游 jar）时才降级为
+    `INCOMPLETE_ACCEPTED` —— **任何路径都不会再打印 `PASS`**。
+    """
     jars: list[Path] = []
     for index, pattern in enumerate(spec["jars"]):
         jar = jar_override if (jar_override is not None and index == 0) else find_jar(mods_dir, pattern)
         if jar is not None and jar.exists():
             jars.append(jar)
     if not jars:
+        unverified.append(f"{namespace}：没找到上游 jar {spec['jars']}")
         return (f"Tier B SKIP（{namespace}）：没找到上游 jar {spec['jars']}（用 --mods-dir 指定目录）"
-                f" ⇒ **该命名空间的上游覆盖未复核**")
+                f" ⇒ **该命名空间的上游覆盖未复核**（INCOMPLETE，不是 PASS）")
 
     with tempfile.TemporaryDirectory() as tmp:
         classpath = list(jars)
@@ -328,12 +340,15 @@ def check_namespace(namespace: str, spec: dict, rows: list[dict], mods_dir: Path
             blocks: set[str] = set()
             for class_name in spec["block_classes"]:
                 blocks |= javap_strings(classpath, class_name)
-        except Exception as error:  # noqa: BLE001 - 取证失败如实降级，不静默通过
-            return f"Tier B SKIP（{namespace}: {error}）⇒ **该命名空间的上游覆盖未复核**"
+        except Exception as error:  # noqa: BLE001 - 取证失败如实降级，但不许静默通过
+            unverified.append(f"{namespace}：javap 取证失败（{error}）")
+            return (f"Tier B SKIP（{namespace}: {error}）⇒ **该命名空间的上游覆盖未复核**"
+                    f"（INCOMPLETE，不是 PASS）")
 
         if not types or not blocks:
+            unverified.append(f"{namespace}：javap 未读到字符串常量（类名/版本变了）")
             return (f"Tier B SKIP（{namespace}：javap 没读到字符串常量，类名/版本变了）"
-                    f" ⇒ **该命名空间的上游覆盖未复核**")
+                    f" ⇒ **该命名空间的上游覆盖未复核**（INCOMPLETE，不是 PASS）")
 
         upstream_types = {f"{namespace}:{t}" for t in types
                           if t != namespace and ("_" in t or t.isalpha())}
@@ -358,7 +373,8 @@ def check_namespace(namespace: str, spec: dict, rows: list[dict], mods_dir: Path
                 f"双向一致；classpath={'、'.join(p.name for p in classpath)}")
 
 
-def tier_b(rows: list[dict], mods_dir: Path, jar_override: Path | None, problems: list[str]) -> list[str]:
+def tier_b(rows: list[dict], mods_dir: Path, jar_override: Path | None, problems: list[str],
+           unverified: list[str]) -> list[str]:
     """按命名空间分别双向复核（表的覆盖口径是"**每个已收录模组全量**"）。"""
     notes: list[str] = []
     for namespace in sorted({row["type_id"].split(":", 1)[0] for row in rows}):
@@ -367,7 +383,7 @@ def tier_b(rows: list[dict], mods_dir: Path, jar_override: Path | None, problems
             problems.append(f"Tier B: 表里有 `{namespace}:` 的行，但工具里**没登记它的上游取证方式**"
                             f"（type/block 类）⇒ 这一族永远不会被复核")
             continue
-        notes.append(check_namespace(namespace, spec, rows, mods_dir, jar_override, problems))
+        notes.append(check_namespace(namespace, spec, rows, mods_dir, jar_override, problems, unverified))
     return notes
 
 
@@ -378,14 +394,18 @@ def main() -> int:
     parser.add_argument("--jar", default=None,
                         help="覆盖**第一个**声明的上游 jar（缺省按 --mods-dir glob）")
     parser.add_argument("--mods-dir", default=DEFAULT_MODS_DIR)
+    parser.add_argument("--allow-unverified-upstream", action="store_true",
+                        help="显式接受「Tier B 上游覆盖未复核」（例如 CI 上没有上游 jar）。"
+                             "此时判决为 INCOMPLETE_ACCEPTED（退出码 0），**仍不打印 PASS**")
     args = parser.parse_args()
 
     rows, unmapped, sources = parse_rows(JAVA.read_text(encoding="utf-8"))
     problems: list[str] = []
+    unverified: list[str] = []
     tier_a(rows, unmapped, problems)
 
     mods_dir = Path(args.mods_dir)
-    tier_b_notes = tier_b(rows, mods_dir, Path(args.jar) if args.jar else None, problems)
+    tier_b_notes = tier_b(rows, mods_dir, Path(args.jar) if args.jar else None, problems, unverified)
 
     rendered = render_csv(rows)
     if args.write:
@@ -407,7 +427,23 @@ def main() -> int:
             print(f"[PROBLEM] {problem}")
         print(f"MACHINE_MAP_CHECK_RESULT FAIL: 行={len(rows)} 未映射={len(unmapped)} 问题={len(problems)}")
         return 1
-    print(f"MACHINE_MAP_CHECK_RESULT PASS: 行={len(rows)} 未映射={len(unmapped)}")
+    if unverified:
+        # ⚠️ T0-a：**"没复核"绝不等于"复核通过"**。缺上游 jar / javap 读不到 ⇒ 这句断言根本没执行。
+        # 默认判 INCOMPLETE（退出码 2，与"真失败"=1 区分开，调用方可分别处理）；
+        # 只有显式 `--allow-unverified-upstream` 才降级为 INCOMPLETE_ACCEPTED（退出码 0）——
+        # **两种都不会打印 `PASS`**，所以日志里再也不会出现"缺 jar 却说 PASS"。
+        for item in unverified:
+            print(f"[UNVERIFIED] {item}")
+        if args.allow_unverified_upstream:
+            print(f"MACHINE_MAP_CHECK_RESULT INCOMPLETE_ACCEPTED: 行={len(rows)} 未映射={len(unmapped)}"
+                  f" 未复核={len(unverified)}（已显式接受：环境缺上游 jar ⇒ **上游覆盖断言本轮未执行**）")
+            return 0
+        print(f"MACHINE_MAP_CHECK_RESULT INCOMPLETE: 行={len(rows)} 未映射={len(unmapped)}"
+              f" 未复核={len(unverified)}（缺上游 jar ⇒ 上层覆盖断言未执行；"
+              f"要显式接受请加 --allow-unverified-upstream）")
+        return 2
+    print(f"MACHINE_MAP_CHECK_RESULT PASS: 行={len(rows)} 未映射={len(unmapped)}"
+          f"（Tier A 表结构 + Tier B 上游双向覆盖均已执行）")
     return 0
 
 

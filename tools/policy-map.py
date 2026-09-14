@@ -292,7 +292,26 @@ def container_write_sites() -> set[str]:
     判据是"文件级"而不是"行级"：行级正则必然漏（多行调用、包装函数），
     而文件级漏不掉——只要文件里出现过任一模，就必须在登记表里被**命名**一次。
     """
-    own_inventory = ("getInventory()", "inventory", "botInv", "playerInv", "inv")
+    # ⚠️ 2026-09-14（T0-a 堵假绿）：**自查判据从"子串"改成"精确形态 + 整词"**（fail-closed）。
+    # 旧判据 `any(hint in receiver for hint in ("getInventory()","inventory","botInv","playerInv","inv"))`
+    # 里的 `"inv"` 是**子串匹配** ⇒ 接收者只要叫 `chest_inv` / `source_inventory` / `my_inv` /
+    # `staging_inventory`，全部被判成"bot 自己背包" ⇒ **静默豁免、无需登记**（三路审计 E-6 已实测）。
+    # 现在只豁免**无歧义**的自身背包形态；**认不出一律按"要登记"处理**（未知 ⇒ 视为外部容器）：
+    #   · `X.getInventory(...)`（原版 Player/Entity 的自身背包 API）；
+    #   · **整词**（接收者的最后一个标识符）∈ `{botInv, playerInv, inventory, inv}` ——
+    #     `gui/BotInventoryService.java:215` 与 `gui/BotInventoryFixture.java:36` 实测都是
+    #     `Inventory inv = bot.getInventory()`，即 bot 自身背包。
+    # ⚠️ 已知边界（如实记录，不假装覆盖）：若将来有人把**外部容器**存进名叫 `inv`/`inventory` 的局部变量，
+    # 本判据仍会漏。这是"无法做数据流分析"的代价；换成完全 fail-closed 会立刻误报 13 个
+    # bot 自身背包的写入点（实测），把信号淹掉。⇒ 选"整词匹配 + 记录边界"，而不是"子串匹配 + 沉默"。
+    own_inventory_exact = ("botInv", "playerInv", "inventory", "inv")
+
+    def is_own_inventory(receiver: str) -> bool:
+        if "getInventory(" in receiver:
+            return True
+        tail = re.split(r"[.\s(\[]", receiver.strip())[-1] if receiver.strip() else ""
+        return tail in own_inventory_exact
+
     sites: set[str] = set()
     for dirpath, _dirs, files in os.walk(SRC):
         for name in files:
@@ -305,7 +324,7 @@ def container_write_sites() -> set[str]:
                 continue
             for match in FOREIGN_SETITEM.finditer(body):
                 receiver = match.group(1).strip()
-                if any(hint in receiver for hint in own_inventory):
+                if is_own_inventory(receiver):
                     continue
                 sites.add(os.path.relpath(path, SRC))
                 break

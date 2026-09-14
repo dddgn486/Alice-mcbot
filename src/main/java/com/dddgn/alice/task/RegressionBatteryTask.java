@@ -601,10 +601,15 @@ public final class RegressionBatteryTask implements Task {
             idemNote = "（再 tick 抛 " + throwable + "）";
             BotLog.warn("[Regression] step={} 终态幂等被破坏：再 tick 抛异常", currentStepName(), throwable);
         }
-        // **可跳过的步骤**：失败但"环境不具备"（例如没装对应模组）⇒ 记 SKIP，不判红
+        // **可跳过的步骤**：**环境不具备**（例如没装对应模组）⇒ 记 SKIP，不判红。
+        // ⚠️ 2026-09-14（T0-a 堵假绿）：判据**不再要求 `status != Status.DONE`**。
+        // 原判据的漏洞（三路审计实证）：`MachineProbeTask` 在模组缺失时**如实**返回
+        // `DONE` + `failureReason()="machine_namespaces_absent"`，却因为"终态是 DONE"而永远进不了
+        // SKIP 分支 ⇒ 被记成 **PASS** —— 即"这一步什么都没断言"被记成了绿。
+        // 现在：只要任务**自述环境不具备**，无论终态是 DONE 还是 FAILED，一律记 SKIP。
+        // 而 SKIP **不再计入 PASS**（见 `finish()` 的 `DEGRADED`）⇒ 假绿在两端都被堵住。
         var skipWhen = steps.get(index).skipWhen();
-        boolean skipped = status != Status.DONE && idempotent
-                && skipWhen != null && skipWhen.test(current);
+        boolean skipped = idempotent && skipWhen != null && skipWhen.test(current);
         record(steps.get(index).name(),
                 skipped ? "SKIP" : ((status == Status.DONE && idempotent) ? "PASS" : "FAIL"),
                 "ticks=" + stepTicks
@@ -702,8 +707,24 @@ public final class RegressionBatteryTask implements Task {
                     goalBad, finalBad);
         }
         long skipped = results.values().stream().filter("SKIP"::equals).count();
-        boolean allPass = (pass + skipped) == expected && results.size() == expected && k4Ok
+        long failed = results.values().stream().filter("FAIL"::equals).count();
+        // **结构完整性**（步数齐、K4 无矛盾、归属表无漂移）——三种判决共用的前提。
+        boolean wellFormed = results.size() == expected && k4Ok
                 && curationError.isEmpty() && phantomEntries().isEmpty();
+        // ⚠️ 2026-09-14（T0-a 堵假绿）：**SKIP 不再计入 PASS**。
+        // 旧判据 `(pass + skipped) == expected` 让 8 个"环境不具备就跳过"的步（`craft_probe_upgradetab`
+        // / `craft_station_provision` / `craft_station_craft` / `craft_cooking` / `machine_route` /
+        // `machine_station` / `machine_cycle` / `craft_machine`）在**没装模组的客户端**上
+        // 一键右键打出 `→ PASS`，而其中 ~27% 什么都没断言（三路审计 E-1 实证）。
+        // 现在三态判决：
+        //   · **PASS**     = 每一步都真的**跑过并通过**（`pass == expected`）；
+        //   · **DEGRADED** = 没有真失败，但有步因**环境不具备**被跳过 ⇒ **不是绿**，不可作为验收证据；
+        //   · **FAIL**     = 存在真失败，或有步根本没出结果。
+        boolean allPass = pass == expected && wellFormed;
+        boolean degraded = !allPass && failed == 0 && (pass + skipped) == expected && wellFormed;
+        String verdict = allPass ? "PASS"
+                : degraded ? "DEGRADED(SKIP=" + skipped + "：" + skippedNames()
+                        + " —— 环境不具备，本轮**不是全绿**)" : "FAIL";
         StringBuilder line = new StringBuilder();
         for (Step step : steps) {
             if (!line.isEmpty()) {
@@ -717,16 +738,29 @@ public final class RegressionBatteryTask implements Task {
                 : "VIOLATION(goal_not_standable=" + goalBad
                         + " final_segment_not_standable=" + finalBad + ")");
         BotLog.info("[Regression] SUMMARY {} PROFILE={} baseline={} main={} extra_skipped={}"
-                        + " ({}/{}{}) ticks={} → {}",
+                        + " (passed={}/{} skipped={}) ticks={} → {}",
                 line, mode, countProfile(Profile.BASELINE), countProfile(Profile.MAIN), extraSkipped,
-                pass + skipped, expected,
-                skipped > 0 ? "，其中 SKIP=" + skipped : "", ticks, allPass ? "PASS" : "FAIL");
+                pass, expected, skipped, ticks, verdict);
+        if (degraded) {
+            BotLog.warn("[Regression] 本轮**不是全绿**：{} 步因环境不具备被跳过（{}）"
+                            + " ⇒ passed={}/{}，**不可作为验收证据**（补齐模组/场景后重跑）",
+                    skipped, skippedNames(), pass, expected);
+        }
         List<String> phantom = phantomEntries();
         if (!curationError.isEmpty() || !phantom.isEmpty()) {
             BotLog.warn("[Regression] 电池归属表与实跑项不一致：{} {}（见 docs/BATTERY_CURATION.md）",
                     curationError, phantom.isEmpty() ? "" : "phantom=" + phantom);
         }
-        return allPass ? Status.DONE : Status.FAILED;
+        // DEGRADED 仍返回 DONE：**运行本身完成了**（"环境不具备"不是电池的失败）；
+        // 判决的严重性由那一行 `→ DEGRADED(...)` 承载，绝不冒充 PASS。
+        return allPass || degraded ? Status.DONE : Status.FAILED;
+    }
+
+    /** 被跳过的步名（声明序，逗号分隔）——让 `DEGRADED` 那一行**自解释**，不必翻日志找哪几步没跑。 */
+    private String skippedNames() {
+        return steps.stream().map(Step::name)
+                .filter(name -> "SKIP".equals(results.get(name)))
+                .collect(java.util.stream.Collectors.joining(","));
     }
 
     private int countProfile(Profile profile) {

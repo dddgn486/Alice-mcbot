@@ -171,6 +171,19 @@ public class MachineCycleCheckTask implements Task, MachineCycle.Sink {
         if (row == null) {
             return failAndFinish("table_has_no_block:" + TARGET_BLOCK);
         }
+        // **先判"模组在不在"**（T0-a，2026-09-14 堵假绿）。
+        // 为什么必须先判：`MachineMap` 是**编译期常量表**，模组没装时 `forBlock` 照样返回那一行，
+        // 于是会一路走到"一条配方都读不到"，而那条出口（`no_recipe_with_item_io`）**不含 `_absent`**
+        // ⇒ 电池把它记成 **FAIL（红）** ⇒ **"环境不具备"被误报成"功能坏了"**（三路审计 E-3 实证）。
+        // 判据 = **上游自述**：该配方类型有没有被注册（模组不在 ⇒ 类型不在注册表里）——
+        // 不认类名、不猜语义。注册表里有类型、却仍挑不到"物品进/物品出"的配方 ⇒ 那才是**真失败**
+        // （上游配方集变了），走下面的 `no_recipe_with_item_io` 如实报红。
+        net.minecraft.resources.ResourceLocation typeRes =
+                net.minecraft.resources.ResourceLocation.tryParse(row.typeId());
+        if (typeRes == null
+                || !net.minecraft.core.registries.BuiltInRegistries.RECIPE_TYPE.containsKey(typeRes)) {
+            return failAndFinish("machine_mod_absent:recipe_type_" + row.typeId());
+        }
         MachineRecipeFacts.Facts chosen = pickRecipe(row);
         if (chosen == null) {
             return failAndFinish("no_recipe_with_item_io:" + row.typeId());
