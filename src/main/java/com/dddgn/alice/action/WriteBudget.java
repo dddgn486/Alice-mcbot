@@ -202,8 +202,26 @@ public final class WriteBudget {
      *
      * <p>与方块写入同一套语义：超限即 **REFUSED**（调用方必须停止写入并如实失败），
      * 走同一作用域（一个任务一个作用域）与同一份 SUMMARY。
+     *
+     * <p><b>R1 收口（2026-09-14）：策略判定先行。</b>容器写入**不产生账本条目**，所以放置类那条
+     * "执行期复验"（{@code WorldModLedger.record} → {@code WritePolicyMatrix.ledgerPolicy}）在容器侧
+     * 没有对应物——本函数就是它的对应物，也是**唯一**一处（与"移动授权挂在 {@code CorePathPlanner.plan}"
+     * 同一个理由：一处管住全部）。顺序是**先策略、后预算**：
+     * <ol>
+     *   <li>策略拒（已登记任务写了它没声明的理由，且拒绝权武装）⇒ 直接 REFUSED，
+     *       **不进预算计数**（两层账各自归因，不互相冒充）；</li>
+     *   <li>策略放行（含"未登记 requester"这一**登记缺口**口径：留痕但不拒）⇒ 继续走预算数量闸门。</li>
+     * </ol>
      */
     public static Verdict consumeContainerWrite(ServerPlayer bot, BlockPos pos, WriteGrant grant) {
+        WritePolicyMatrix.Decision decision = WritePolicyMatrix.noteContainerWrite(
+                bot == null ? null : bot.serverLevel(), bot == null ? null : bot.getUUID(), pos, grant);
+        if (WritePolicyMatrix.refuses(decision)) {
+            BotLog.warn("[WriteBudget] denied action=container pos={} by={} policy={}"
+                            + " ⇒ 该任务类别未声明这个理由（补 WritePolicyMatrix 行，或改调用点）",
+                    pos == null ? "-" : pos.toShortString(), grant == null ? "-" : grant.describe(), decision);
+            return Verdict.REFUSED;
+        }
         String scope = scopeOf(bot);
         if (scope == null) {
             logNoScope(bot, "container", pos);

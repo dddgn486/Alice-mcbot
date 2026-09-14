@@ -213,6 +213,16 @@ public class MenuProbeTask implements Task {
             failures.add("no_source_stack_in_menu");
             return finish("no_source_stack_in_menu");
         }
+        // 容器写入授权（R1 收口，2026-09-14）：本探针**真的把物品从箱子里搬出来**，
+        // 属于世界写入 ⇒ 过 `WriteBudget` 容器维度 + 策略表判定（requester=本探针 ⇒ DIAGNOSTIC 行，
+        // 该行声明全集 ⇒ 只有预算耗尽才可能拒绝，那必须如实上报）。
+        var containerGrant = com.dddgn.alice.action.WriteGrant.of(taskName(),
+                com.dddgn.alice.action.WriteReason.CONTAINER_TRANSFER);
+        if (com.dddgn.alice.action.WriteBudget.consumeContainerWrite(bot, chestPos, containerGrant)
+                == com.dddgn.alice.action.WriteBudget.Verdict.REFUSED) {
+            failures.add("container_write_refused");
+            return finish("container_write_refused");
+        }
         if (!session.click(pickedSlot, ClickType.PICKUP)) {
             failures.add("click_pick_failed:" + session.failure());
             return finish("click_pick_failed");

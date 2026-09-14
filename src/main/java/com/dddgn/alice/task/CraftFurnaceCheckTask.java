@@ -245,8 +245,35 @@ public class CraftFurnaceCheckTask implements Task {
         return advance(Phase.PLACE);
     }
 
+    /**
+     * **容器写入授权**（R1 收口，2026-09-14）：往炉子里放料 / 取回，与 G5/A11 同源，走 `WriteBudget`
+     * 的**容器写入维度**（+ 策略表 `P-06/P-10` 的声明判定）。
+     *
+     * <p>为什么按**相位**计而不是每次点击一次：预算单位是"这一次写入"，而本夹具的一个相位
+     * （放料 = 输入+燃料两次点击；回收 = 燃料/输入/产物三次点击）在语义上是**一次**场景动作，
+     * 粒度过细只会把预算噪音化。归因 requester = 本夹具（{@code CraftFurnaceCheck} ⇒ 派生规则
+     * 命中 "check" ⇒ {@code DIAGNOSTIC} 行，该行声明全集）⇒ **不会**因"未声明理由"被策略拒；
+     * 能拒它的只有预算耗尽，那必须如实上报（不许绕过）。
+     */
+    private boolean allowContainerWrite(String what) {
+        com.dddgn.alice.action.WriteGrant grant = com.dddgn.alice.action.WriteGrant.of(
+                taskName(), com.dddgn.alice.action.WriteReason.CONTAINER_TRANSFER);
+        com.dddgn.alice.action.WriteBudget.Verdict verdict =
+                com.dddgn.alice.action.WriteBudget.consumeContainerWrite(bot, furnace, grant);
+        if (verdict == com.dddgn.alice.action.WriteBudget.Verdict.REFUSED) {
+            record("container_write_refused", what);
+            check("container_write_allowed", false,
+                    what + " 被策略/预算拒绝（grant=" + grant.describe() + "）");
+            return false;
+        }
+        return true;
+    }
+
     private Status place() {
         AbstractContainerMenu menu = bot.containerMenu;
+        if (!allowContainerWrite("place")) {
+            return advance(Phase.ASSERT);
+        }
         boolean input = FurnaceStation.placeOne(bot, menu, found, found.input(),
                 upgradeTab ? Items.SAND : Items.COBBLESTONE);
         boolean fuel = FurnaceStation.placeOne(bot, menu, found, found.fuel(), Items.COAL);
@@ -277,7 +304,8 @@ public class CraftFurnaceCheckTask implements Task {
         }
         if (phaseTicks > SMELT_BUDGET_TICKS) {
             // **失败不留半成品**：把输入取回背包（燃料烧掉就烧掉，如实记）
-            boolean back = FurnaceStation.takeAll(bot, bot.containerMenu, found.input());
+            boolean back = allowContainerWrite("timeout_return_input")
+                    && FurnaceStation.takeAll(bot, bot.containerMenu, found.input());
             record("timeout_input_returned", String.valueOf(back));
             check("smelted", false, "超时 " + phaseTicks + " tick，输入已取回=" + back);
             return advance(Phase.ASSERT);
@@ -286,7 +314,8 @@ public class CraftFurnaceCheckTask implements Task {
     }
 
     private Status take() {
-        boolean taken = FurnaceStation.takeAll(bot, bot.containerMenu, found.output());
+        boolean taken = allowContainerWrite("take_output")
+                && FurnaceStation.takeAll(bot, bot.containerMenu, found.output());
         record("output_taken", String.valueOf(taken));
         return advance(Phase.ASSERT);
     }
@@ -342,9 +371,10 @@ public class CraftFurnaceCheckTask implements Task {
         int burnLeft = now != null && now.ok() ? now.found().litTime() : -1;
         record("burn_left_ticks_before_reset", String.valueOf(burnLeft));
         record("cleanup_station_open", String.valueOf(stationOpen));
-        boolean fuelBack = stationOpen && found != null && FurnaceStation.takeAll(bot, menu, found.fuel());
-        boolean inputBack = stationOpen && found != null && FurnaceStation.takeAll(bot, menu, found.input());
-        boolean outputBack = stationOpen && found != null && FurnaceStation.takeAll(bot, menu, found.output());
+        boolean canWrite = stationOpen && found != null && allowContainerWrite("cleanup_return_leftovers");
+        boolean fuelBack = canWrite && FurnaceStation.takeAll(bot, menu, found.fuel());
+        boolean inputBack = canWrite && FurnaceStation.takeAll(bot, menu, found.input());
+        boolean outputBack = canWrite && FurnaceStation.takeAll(bot, menu, found.output());
         record("leftovers_returned", "fuel=" + fuelBack + " input=" + inputBack + " output=" + outputBack);
         if (upgradeTab && upgradeItem != null) {
             // A4b：**拆回升级**（建拆同权）——烧炼状态跟着升级物品走，拆掉即等于熄灭。

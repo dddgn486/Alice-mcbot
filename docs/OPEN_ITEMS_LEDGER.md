@@ -825,7 +825,22 @@ jar `3312608d…`。
   ④ 失败码全是可归因的：`machine_absent`/`machine_out_of_reach`/`no_recipe_with_item_io`/
   `container_write_refused`/`feed_*`/`take_*`/`no_product_in_600ticks:no_energy|progress_stalled`。
   **v1 边界**：单机单配方 + 站位用夹具传送；**内核寻路走到机器旁 = S4 v2**。
-  **已知边界（待用户裁定）**：矩阵对容器写入**只声明/审计、不拒绝**，强制闸门是预算（R1 设计如此，不擅改）。
+  **客户端状态（第四轮实测）**：S4 物品**没跑**（日志里 `MachineCycle` 0 次）⇒ 待下一轮。
+- **R1 收口：容器写入进策略表**（2026-09-14，D-211，`COMPILES` + 六闸门 PASS / 待客户端）：
+  ① **矩阵首次经手容器写入**：挂点 = `WriteBudget.consumeContainerWrite`（所有已接线容器写入的必经之处，
+  容器写入**不产生账本条目** ⇒ 放置类的执行期复验在容器侧没有对应物，这就是它的对应物）；
+  顺序**先策略后预算**；口径与移动授权对齐（**未登记 ⇒ 留痕不拒**；**已登记但未声明 ⇒ 硬拒**）；
+  拒绝权默认**武装**，留一行开关 `setContainerRefusalArmed` 作回退把手 + 给夹具断言两种模式。
+  ② **可执行覆盖**：`docs/authz/CONTAINER_WRITE_SITES.csv`（**20 个调用点**，每行 `category`+`why`，
+  `gated=no` 必须写理由）+ `tools/policy-map.py` **断言⑦**（未登记点 / 谎报 `gated=yes` /
+  陈旧登记行 / `enforced_by` 指向不存在或没真调用 `consumeContainerWrite` ⇒ 全 FAIL；四条负例已实测都红）。
+  ③ **覆盖审查顶出的两个真缺口（已补）**：`CraftJob`（**生产**熔炼：往炉子放料/取产物**从没记过账**）、
+  `MenuProbeTask`；表随之在 **CRAFT 行（P-05/P-16）声明 `CONTAINER_TRANSFER`**。
+  ④ **已知边界（未做，如实登记）**：`InventoryCraft` 结果槽 shift-click 在开着容器菜单时会把产物放进容器
+  （实测 `product_in_container=1`）而不过闸——接它需要给该方法 grant 参数；`TransferFixture` 在隔离层
+  直接驱动搬运原语，**有意**不过闸。
+  ⑤ **复核触发**（下一轮电池）：`container_checks=N`（恒 0 ⇒ 挂点没接上）、`container_refused=0`
+  （>0 ⇒ 有生产路径被硬停，先读归因）。
 - **夹具纪律**（用户要求）：场景夹具**自带传送 + 结束复位**（PLAYBOOK §5.0d）；审计已无缺口。
 
 **§6.52 授权模型与过程开销：修订方向（2026-09-14，D-207 + 两轮工作流审查）**

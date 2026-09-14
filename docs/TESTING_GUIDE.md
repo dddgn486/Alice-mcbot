@@ -511,7 +511,8 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
 ## 授权/审批框架快照（2026-09-14 新增）
 
 - **命令（零参数、只读）**：`/alice authz`
-  - 预期输出 **8 行**：标题 / **L0** 当前任务 / **L1** 纯通行集合 / **L2** 规划期策略表（`WritePolicyMatrix`，D-207 ①）
+  - 预期输出 **8 行**：标题 / **L0** 当前任务 / **L1** 纯通行集合 / **L2** 规划期策略表（`WritePolicyMatrix`，D-207 ①，
+    行尾带 `containerGate=armed|observe containerChecks=N containerRefused=M`——**容器写入闸门的现场状态**，D-211）
     / **L3** 预算（破坏·放置·容器写入 余量与已拒数 + scope）
     / **L4** 账本（本 bot pending、未闭合临时块、全局 pending、当前 scope）/ **L4** 保护区（安全区摘要 + bot 脚下判定）/ **最近终态**（任务·状态·code·坐标）；
   - 它打印的是**现场查询到的真实事实**（预算余量、账本 pending、保护区判定、最近失败码），**不抄文档** ⇒ 与 `docs/authz/OVERVIEW.md` 不一致时以它为准并去修文档；
@@ -555,14 +556,31 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
    改为对表行完整划分 `with_site_confirmed / with_site_unobserved / no_site / row_block_missing`，并加分桶守恒自检；
 2. crusher 菜单类按本轮观察值**回填**（`m2_menu_class_declared` → `m2_menu_class_matches` 变断言）。
 
-### 下一次客户端轮（与 S4 合并，不必单独开一轮）
+### 第四轮结果（2026-09-14，**已验证 ✅ 真绿**）—— S3 口径纠正 + `/alice authz` 首次
 
-**A. 复跑 `alice:regression_battery`（CORE）**确认两处新口径：
-`with_site_confirmed=22 with_site_unobserved=[mekanism:smelting]`（22+1+4+0=27）、
-`m2_menu_class_matches=true`，以及新增的 `m{i}_slot_roles` 首次观察值；
-顺带 `/alice authz` 的 **`L2 规划期策略表：rows=22 … zoneDiff=0`** 行（新增后**还没人在客户端敲过一次**）。
+`alice:regression_battery` CORE → **`PROFILE=CORE … (28/28) ticks=2845 → PASS`**（`latest.log:3811`），28 步全 PASS。
 
-**B. 新增：机器闭环 `alice:machine_cycle_check`（S4，**会写容器**）**
+- `[MachineProbe]`（`:3068`）：`machine_map_rows=27 with_site_confirmed=22 with_site_unobserved=[mekanism:smelting]
+  no_site=[mekanism:energy_conversion, mekanism:evaporating, mekanism:gas_conversion, mekanism:infusion_conversion]
+  unmapped=[] row_block_missing=[] no_writes=true verdict=PASS` ⇒ **22+1+4+0=27**，分桶守恒成立；
+- `[MachineStation]`（`:3081`）：`按表找到 2 台：mekanism:enriching@66, 64, 306,mekanism:crushing@66, 64, 307`；
+- `m1_menu_class_matches=true`（`:3087`）、**`m2_menu_class_matches=true`（`:3096`，本轮起是断言）**；
+- `m{i}_slot_roles`（`:3086`/`:3095`，首次观察上游自述角色）：
+  `#0=IGNORED/UpgradeInventorySlot #1=IGNORED/UpgradeInventorySlot #2=INPUT/InputInventorySlot
+  #3=OUTPUT/OutputInventorySlot #4=POWER/EnergyInventorySlot`；
+- `/alice authz` **首次在客户端敲**：`L2 规划期策略表：rows=22 zones=2 tasks=11 reasons=14 grants=6
+  zoneDiff=0 unregistered=0 undeclared=0`（`:3836`）⇒ 该项关闭。
+- 旁记：`K4=OK(… 写入类例外=56)`——上一轮是 43，两轮都 `K4=OK`（交替原因未取到证据，已如实登记，暂不动）。
+
+### 下一次客户端轮（S4 + 容器写入闸门，合并成一轮）
+
+**A. `alice:regression_battery`（CORE）** —— 本轮要看的新键（`write_policy` 步）：
+`container_gate_live=PASS container_gate_armed=PASS containerGate=armed container_checks=N container_refused=0 verdict=PASS`
+（`container_checks` = 真过了闸门的容器写入次数：装了闸门却恒 0 ⇒ 挂点没接上；`container_refused` 必须 0）。
+自检会**故意**打两条 WARN（`undeclared_reason` / `unregistered_requester`）——那是 B4 负例真的触发了一次策略拒绝，
+G 段已快照/还原样本，`unregistered=0 undeclared=0` 仍应为绿。
+
+**B. 机器闭环 `alice:machine_cycle_check`（S4，**会写容器**；上一轮没跑，`MachineCycle` 在日志里 0 次）**
 
 零参数、游戏内右键。**先**确保场景已生成（电池 `machine_station` 步会跑它；单独测时先
 `/function alice_test:machine_course`），然后右键 `alice:machine_cycle_check`：

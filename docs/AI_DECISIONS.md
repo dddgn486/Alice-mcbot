@@ -8734,3 +8734,30 @@ the user must resume it"）。这**正好符合** D-205 的意图（"恢复只�
   "矩阵是否应该对容器写入也有拒绝权"是 R1 的开放设计问题，**本轮不擅自改**。
 - **v1 边界**：只跑一台（`mekanism:enrichment_chamber`，表里已实测菜单类的那台）；站位用**夹具传送**
   （与只读探针同规格），**走到机器旁的内核寻路是 S4 v2**——不与闭环失败模式纠缠（一次只动一个变量）。
+
+### D-211：容器写入进策略表 —— **声明权 + 可武装的拒绝权**（R1 收口，2026-09-14）
+
+- 状态：已实施（离线圈闭；客户端证据待下一轮电池）
+- **审计发现的真事实**（不是猜测）：`WritePolicyMatrix` 到今天**从没经手过容器写入** ——
+  `noteUnregistered` 只在 `requireMovementsGranted`（寻路）与 `ledgerPolicy`（放置）里被调；
+  而容器写入**不产生账本条目** ⇒ 放置类的"执行期复验"在容器侧**没有对应物**，
+  `P-06/P-17` 登记的 `CONTAINER_TRANSFER`/`STATION_PROVISION` **零读者**（表在，牙齿不在）。
+- **决定**：挂点 = `WriteBudget.consumeContainerWrite`（所有已接线的容器写入的必经之处，一处管住全部），
+  顺序**先策略、后预算**（策略拒 ⇒ 不进预算计数：两层账各自归因，不互相冒充）。口径与移动授权**对齐**：
+  requester 未登记 ⇒ **留痕不拒**（那是登记缺口）；已登记但该行**没声明**这个理由 ⇒ **硬拒**。
+  拒绝权**默认武装**，保留一行开关（`setContainerRefusalArmed`）作为回退把手 + 给夹具断言两种模式。
+- **有意的**不对称（别照抄）：放置类的未声明理由只留痕（回收义务由 `obligation()` 兜底，那是**后果**决定）；
+  容器写入没有后果维度（取出来的东西不会自己回去）⇒ "能不能写"是它唯一的门，门必须是硬的。
+- **可执行覆盖**（否则"拒绝权"是半个闸门）：新增 `docs/authz/CONTAINER_WRITE_SITES.csv`
+  （20 个容器写入调用点，每行必须有 `category` + `why`；`gated=no` 必须写理由，禁止静默豁免）
+  + `tools/policy-map.py` 断言⑦：未登记的写入点 / 谎报 `gated=yes` / 陈旧登记行 / `enforced_by` 指向不存在的文件
+  或没真调用 `consumeContainerWrite` ⇒ **一律 FAIL**（负例实测四条都红）。
+- **覆盖审查顶出来的两个真缺口**（都补上了）：① `CraftJob`（**生产**熔炼路径）往炉子放料/取产物
+  **从没记过账** —— 缺口里唯一的生产路径；② `MenuProbeTask`（把物品从箱子真搬出来）不过闸。
+  `FurnaceStation` 的执法在其调用方（`CraftJob` / `CraftFurnaceCheckTask` 已按相位/分支过闸）。
+  表随之补声明：**CRAFT 行（P-05/P-16）登记 `CONTAINER_TRANSFER`**（熔炼合法写容器）。
+- **已知边界（如实登记，未做）**：`InventoryCraft` 的结果槽 shift-click 在**开着容器菜单**时会把产物放进容器
+  （`CraftStationCraftCheck` 实测 `product_in_container=1`）——那一下不过闸；接它需要给该方法一个 grant 参数。
+  `TransferFixture` 在隔离层直接驱动搬运原语，**有意**不过闸（它验的就是原语自身）。
+- **复核触发**：客户端一轮电池后看 `[WritePolicy] SUMMARY … container_checks=N container_refused=M`
+  —— `N=0` 而世界里确有容器写入 ⇒ 挂点没接上；`M>0` ⇒ 有生产路径被硬停（先看归因行，再决定补表还是退回观察模式）。

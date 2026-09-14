@@ -3,6 +3,9 @@ package com.dddgn.alice.job.craft;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.job.Job;
 import com.dddgn.alice.action.MenuSession;
+import com.dddgn.alice.action.WriteBudget;
+import com.dddgn.alice.action.WriteGrant;
+import com.dddgn.alice.action.WriteReason;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.task.TaskTarget;
 import com.dddgn.alice.task.craft.CraftStation;
@@ -294,6 +297,26 @@ public final class CraftJob implements Job {
         return advance(Phase.VERIFY);
     }
 
+    /**
+     * **容器写入授权**（R1 收口，2026-09-14）：烧炼这条路真的在改容器内容（输入格/燃料格/输出格），
+     * 因此过 `WriteBudget` 的**容器维度** + 策略表的声明判定。
+     *
+     * <p>为什么以前没有：容器写入 2026-09-14 才纳入策略表；本 Job 的装配阶段借用了
+     * `StationProvision.allowContainerWrite`（那次计数归 `station-provision`），而**放料/取产物这几下
+     * 谁也没记账**——它是"容器写入覆盖面"缺口里唯一的**生产**路径（由 {@code tools/policy-map.py}
+     * 的调用点覆盖断言顶出来）。requester 用 Job 名（{@code craft} ⇒ 表里 CRAFT 行，
+     * 该行已声明 {@code CONTAINER_TRANSFER}）。
+     */
+    private boolean allowContainerWrite(String what) {
+        WriteGrant grant = WriteGrant.of(NAME, WriteReason.CONTAINER_TRANSFER);
+        BlockPos pos = opened == null ? null : opened.pos();
+        if (WriteBudget.consumeContainerWrite(bot, pos, grant) == WriteBudget.Verdict.REFUSED) {
+            BotLog.warn("[CraftJob] 容器写入被拒 what={} grant={} ⇒ 停止写入并如实失败", what, grant.describe());
+            return false;
+        }
+        return true;
+    }
+
     /** 烧炼：放输入 + 放燃料（燃料由 `ForgeHooks.getBurnTime` 给事实，不写死煤）。 */
     private Status doCooking(AbstractContainerMenu menu) {
         FurnaceStation.Result station = FurnaceStation.discover(menu);
@@ -306,6 +329,9 @@ public final class CraftJob implements Job {
             return failAndFinish(Codes.MISSING + ":input_not_held");
         }
         if (!inputPlaced) {
+            if (!allowContainerWrite("input")) {
+                return failAndFinish(StationProvision.Codes.BUDGET_REFUSED + ":input");
+            }
             if (!FurnaceStation.placeOne(bot, menu, found, found.input(), input)) {
                 return failAndFinish(Codes.INPUT_PLACE);
             }
@@ -315,6 +341,9 @@ public final class CraftJob implements Job {
             Item fuel = firstHeldFuel();
             if (fuel == null) {
                 return failAndFinish(Codes.MISSING + ":fuel_not_held");
+            }
+            if (!allowContainerWrite("fuel")) {
+                return failAndFinish(StationProvision.Codes.BUDGET_REFUSED + ":fuel");
             }
             if (!FurnaceStation.placeOne(bot, menu, found, found.fuel(), fuel)) {
                 return failAndFinish(Codes.FUEL_PLACE);
@@ -334,13 +363,17 @@ public final class CraftJob implements Job {
         FurnaceStation.Found found = station.found();
         ItemStack output = FurnaceStation.stackAt(menu, found.output());
         if (output != null && !output.isEmpty()) {
+            if (!allowContainerWrite("take_output")) {
+                return failAndFinish(StationProvision.Codes.BUDGET_REFUSED + ":take_output");
+            }
             boolean taken = FurnaceStation.takeAll(bot, menu, found.output());
             BotLog.info("[CraftJob] 出炉 {} x{} taken={}", output.getItem(), output.getCount(), taken);
             return advance(Phase.VERIFY);
         }
         int budget = Math.max(SMELT_TICKS_MIN, SMELT_TICKS_PER_ITEM * count);
         if (phaseTicks > budget) {
-            boolean back = FurnaceStation.takeAll(bot, menu, found.input());
+            boolean back = allowContainerWrite("timeout_return_input")
+                    && FurnaceStation.takeAll(bot, menu, found.input());
             BotLog.warn("[CraftJob] 烧炼超时 {} tick，输入已取回={}", phaseTicks, back);
             return failAndFinish(Codes.SMELT_TIMEOUT + ":inputReturned=" + back);
         }
@@ -368,7 +401,7 @@ public final class CraftJob implements Job {
         AbstractContainerMenu menu = currentMenu();
         if (menu != null && isCooking() && inputPlaced) {
             FurnaceStation.Result station = FurnaceStation.discover(menu);
-            if (station.ok()) {
+            if (station.ok() && allowContainerWrite("cleanup_return_input")) {
                 FurnaceStation.takeAll(bot, menu, station.found().input());
             }
         }

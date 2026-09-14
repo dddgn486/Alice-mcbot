@@ -31,6 +31,37 @@ MATRIX_JAVA = os.path.join(SRC, "action", "WritePolicyMatrix.java")
 REASON_JAVA = os.path.join(SRC, "action", "WriteReason.java")
 REQUEST_JAVA = os.path.join(SRC, "pathing", "core", "search", "PathRequest.java")
 OUT_CSV = os.path.join(ROOT, "docs", "authz", "POLICY_MATRIX.csv")
+SITES_CSV = os.path.join(ROOT, "docs", "authz", "CONTAINER_WRITE_SITES.csv")
+
+#: 容器写入调用点的三种模式（文件级；见 ``container_write_sites``）。
+HANDLER_MUTATION = re.compile(r"\.(insertItem|extractItem)\(")
+MENU_CLICK = re.compile(r"\.clicked\(|\.click\(|MenuSession\.open\(")
+FOREIGN_SETITEM = re.compile(r"([A-Za-z_][\w.()\[\]\"]{0,60}?)\.setItem\(")
+
+#: **已登记的写入原语入口**：调用它们的文件也是容器写入点（转义层：`FurnaceStation` 那一层
+#: 自己点不动任何东西，真正动手的是调用方）。新加写入原语时要把它加到这里——
+#: 这是本工具里唯一一份"必须手维护"的清单，加它的理由与 `PREFIX_RULES` 相同：
+#: 不做传递闭包推断（猜错会静默漏点），宁可显式列。
+WRITER_HELPERS = re.compile(
+    r"(FurnaceStation\.(placeOne|takeAll)"
+    r"|StationProvision\.(moveIntoContainer|moveOutOfContainer)"
+    r"|ChestBotTransferPrimitive\.(sourceChestToBot|botToDestinationChest)"
+    r"|InventoryCraft\.craft\()")
+
+#: **故意未登记**的 requester 字面量：自检用它断言"登记缺口 ⇒ 留痕但不拒"这条口径
+#: （`WritePolicyCheckTask.container_gate_live`）。**只放自检用的名字**，且必须是源码里真实存在的字面量
+#: （下面的检查会验证，防陈旧条目）。生产 requester 一律不许进这里。
+INTENTIONAL_UNREGISTERED = {"no-such-requester-xyz"}
+
+#: 调用点分类（登记表里只能填这几个；加新类别=改这里，**不许随手写形容词**）。
+SITE_CATEGORIES = {
+    "gated",              # bot 经闸门写容器（调用 consumeContainerWrite）
+    "menu-protocol",      # 菜单协议层本身（点在 bot 菜单上；执法在调用方）
+    "own-inventory",      # bot 自己的背包/合成格：不是世界写入
+    "scenario-seeding",   # 夹具搭场景（测试前把箱子摆好）
+    "primitive-isolation",# 夹具在隔离层直接驱动搬运原语（**已知边界**：不过闸门）
+    "probe",              # 探针/诊断用途的临时写入
+}
 
 CSV_HEADER = ["id", "zone", "task", "obligation", "movements", "movement_types",
               "reasons_count", "reasons", "code_ref", "note"]
@@ -247,8 +278,60 @@ def parse_matrix() -> dict:
     }
 
 
+def container_write_sites() -> set[str]:
+    """**疑似写容器**的源文件（相对 ``SRC``）——"疑似"宁可宽：漏一个 = 闸门外的洞。
+
+    三条模式（都先剥注释，否则文档里提到 ``menu.clicked(...)`` 会被当成调用点）：
+
+    1. capability 直写：``.insertItem(`` / ``.extractItem(``（真正会改容器的那两个 false 调用都在其中）；
+    2. 菜单层直点：``.clicked(``（``MenuSession`` 内部）与 ``.click(``（``MenuSession.click`` 的调用者）；
+    3. 容器对象直写：``X.setItem(``，其中 ``X`` **不是** bot 自己的背包（``getInventory()`` 那一类）；
+    4. 打开容器菜单：``MenuSession.open(``（**开菜单本身不是写入**，但它是"接下来会点它"的前置，
+       真实缺口往往只在调用方 ⇒ 必须被登记表命名一次）。
+
+    判据是"文件级"而不是"行级"：行级正则必然漏（多行调用、包装函数），
+    而文件级漏不掉——只要文件里出现过任一模，就必须在登记表里被**命名**一次。
+    """
+    own_inventory = ("getInventory()", "inventory", "botInv", "playerInv", "inv")
+    sites: set[str] = set()
+    for dirpath, _dirs, files in os.walk(SRC):
+        for name in files:
+            if not name.endswith(".java"):
+                continue
+            path = os.path.join(dirpath, name)
+            body = strip_comments(read(path))
+            if HANDLER_MUTATION.search(body) or MENU_CLICK.search(body) or WRITER_HELPERS.search(body):
+                sites.add(os.path.relpath(path, SRC))
+                continue
+            for match in FOREIGN_SETITEM.finditer(body):
+                receiver = match.group(1).strip()
+                if any(hint in receiver for hint in own_inventory):
+                    continue
+                sites.add(os.path.relpath(path, SRC))
+                break
+    return sites
+
+
+def read_container_site_registry() -> dict[str, dict[str, str]]:
+    """读 ``docs/authz/CONTAINER_WRITE_SITES.csv``（``site,category,gated,why``）。"""
+    if not os.path.exists(SITES_CSV):
+        return {}
+    rows: dict[str, dict[str, str]] = {}
+    with open(SITES_CSV, "r", encoding="utf-8") as handle:
+        for raw in csv.DictReader(handle):
+            site = (raw.get("site") or "").strip()
+            if not site or site.startswith("#"):
+                continue
+            rows[site] = {
+                "category": (raw.get("category") or "").strip(),
+                "gated": (raw.get("gated") or "").strip(),
+                "enforced_by": (raw.get("enforced_by") or "").strip(),
+                "why": (raw.get("why") or "").strip(),
+            }
+    return rows
+
+
 def requester_literals() -> list[tuple[str, str]]:
-    """代码里所有 ``requester`` 字面量（文件:行 + 值）。"""
     found: dict[str, str] = {}
     patterns = [
         re.compile(r"WriteGrant\.of\(\s*\"([^\"]+)\""),
@@ -368,9 +451,15 @@ def main() -> int:
 
     # ⑤ requester 字面量可归类
     unmatched = []
-    for requester, where in requester_literals():
+    literals = requester_literals()
+    for requester, where in literals:
+        if requester in INTENTIONAL_UNREGISTERED:
+            continue
         if classify(requester, matrix) is None:
             unmatched.append(f"{requester}（{where}）")
+    seen_literals = {value for value, _where in literals}
+    for intentional in sorted(INTENTIONAL_UNREGISTERED - seen_literals):
+        problems.append(f"INTENTIONAL_UNREGISTERED 里的 {intentional} 在源码里已不存在（陈旧条目 ⇒ 删）")
     if unmatched:
         problems.append("未登记的 requester 字面量：" + "; ".join(unmatched))
 
@@ -386,7 +475,43 @@ def main() -> int:
             handle.write(expected_csv)
         print(f"已生成 {os.path.relpath(OUT_CSV, ROOT)}（{len(matrix['rows'])} 行）")
 
-    # ⑦（信息性，不判红）死值雷达：只在 WriteReason/WritePolicyMatrix 里出现的理由 = 没有调用点
+    # ⑦ 容器写入调用点覆盖（R1 收口，2026-09-14）：**模型在表里声明了容器写入这一维，就必须知道
+    #    谁真的在写容器** —— 否则"矩阵有没有拒绝权"这个问题无从回答（闸门装在半数调用点之外 =
+    #    没有闸门）。判据三条：
+    #      a) 代码里每个"疑似写容器的文件"都必须登记在 CONTAINER_WRITE_SITES.csv（新写入点 ⇒ 逼一次决策）；
+    #      b) 每个 `gated=yes` 的文件必须真的调用 `consumeContainerWrite`（防"声明已接线"的谎）；
+    #      c) 每个 `gated=no` 的行必须写明 `why`（禁止静默豁免）。
+    sites = container_write_sites()
+    registered = read_container_site_registry()
+    for site in sorted(sites):
+        if site not in registered:
+            problems.append(f"未登记的容器写入调用点 {site}"
+                            f"（新写入点必须进 {os.path.relpath(SITES_CSV, ROOT)}："
+                            f"要么接 consumeContainerWrite，要么写明豁免理由）")
+    for site, row in sorted(registered.items()):
+        if site not in sites:
+            problems.append(f"{os.path.relpath(SITES_CSV, ROOT)} 里的 {site} 已不存在或不再写容器"
+                            f"（陈旧登记 ⇒ 删行）")
+            continue
+        source = read(os.path.join(SRC, site))
+        if row["gated"] == "yes" and "consumeContainerWrite" not in source:
+            problems.append(f"{site} 登记为 gated=yes，但源码里没有 consumeContainerWrite 调用")
+        if row["gated"] not in ("yes", "no"):
+            problems.append(f"{site} 的 gated 取值非法：{row['gated']}（只能是 yes/no）")
+        if row["gated"] == "no" and len(row["why"]) < 8:
+            problems.append(f"{site} 豁免了容器写入闸门但没写理由（why 太短）")
+        if row["category"] not in SITE_CATEGORIES:
+            problems.append(f"{site} 的 category 非法：{row['category']}（合法值 {sorted(SITE_CATEGORIES)}）")
+        # `enforced_by` = "这一层的写入由谁过闸门"——把散文理由变成**可机器验证的链**：
+        # 点名的文件必须存在、且真的调用 consumeContainerWrite（否则就是"登记已接线"的谎）。
+        for enforcer in [e.strip() for e in row["enforced_by"].split(";") if e.strip()]:
+            enforcer_path = os.path.join(SRC, enforcer)
+            if not os.path.exists(enforcer_path):
+                problems.append(f"{site} 的 enforced_by 指向不存在的文件：{enforcer}")
+            elif "consumeContainerWrite" not in read(enforcer_path):
+                problems.append(f"{site} 的 enforced_by={enforcer} 并没有调用 consumeContainerWrite")
+
+    # ⑧（信息性，不判红）死值雷达：只在 WriteReason/WritePolicyMatrix 里出现的理由 = 没有调用点
     code_corpus = []
     for dirpath, _dirs, files in os.walk(SRC):
         for name in files:
@@ -405,9 +530,11 @@ def main() -> int:
         for problem in problems:
             print(f"  - {problem}")
         return 1
+    gated_sites = [s for s, row in registered.items() if row["gated"] == "yes"]
     print(f"POLICY_MATRIX_CHECK_RESULT PASS: {len(matrix['rows'])} 行 / "
           f"{len(parse_reason_enum())} 理由 / {len(factories)} 工厂 / "
-          f"{len(requester_literals())} requester 字面量")
+          f"{len(requester_literals())} requester 字面量 / "
+          f"容器写入调用点 {len(registered)} 个（过闸门 {len(gated_sites)}）")
     return 0
 
 

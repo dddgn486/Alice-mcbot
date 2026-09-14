@@ -55,6 +55,11 @@ import java.util.Set;
  *       一旦有人让两区不同，这里会红并逼出决策记录；</li>
  *   <li>F <b>义务解析与今天的口径一致</b>：{@code REASON_DEFAULT} 行 == {@code WriteReason.temporary()}，
  *       显式行（{@code BUILD}/{@code MANUAL}=KEEP、{@code TRAVERSAL}=TEMP）如声明。</li>
+ *   <li>B3/B4 <b>容器写入闸门</b>（R1 收口，2026-09-14）：{@code walk-to}+{@code CONTAINER_TRANSFER}
+ *       ⇒ {@code UNDECLARED_REASON}（纯通行任务不许写容器）、{@code transfer}+同理由 ⇒ {@code DECLARED}、
+ *       未登记 requester ⇒ {@code UNREGISTERED}（缺口不拒）；B4 再把武装开关**真开了**跑一次
+ *       {@code WriteBudget.consumeContainerWrite}，要求**真的被拒**，并断言观察模式放行
+ *       （开关不是死值）——探针前后**快照/还原**观察样本，绝不污染 G 段。</li>
  * </ol>
  */
 public class WritePolicyCheckTask implements Task {
@@ -283,6 +288,54 @@ public class WritePolicyCheckTask implements Task {
                         + " craft+station=" + WritePolicyMatrix.obligation(WritePolicyMatrix.Zone.EXTERNAL,
                         WritePolicyMatrix.Task.CRAFT, WriteReason.CRAFT_STATION_PLACE));
 
+        // B3 容器写入闸门（R1 收口，2026-09-14）：**已登记但未声明 ⇒ 拒**；登记缺口 ⇒ 不拒（只留痕）。
+        // 层的归属：判定（B3）走**纯函数**（零副作用）；端到端（B4）走**真函数**（必须真的被拒），
+        // 但做**样本快照/还原**——否则本自检会把电池样本弄脏（G 段要求 未登记=0/未声明=0）。
+        java.util.UUID owner = bot.getUUID();
+        com.dddgn.alice.action.WriteGrant undeclaredGrant =
+                com.dddgn.alice.action.WriteGrant.of("walk-to", WriteReason.CONTAINER_TRANSFER);
+        com.dddgn.alice.action.WriteGrant declaredGrant =
+                com.dddgn.alice.action.WriteGrant.of("transfer", WriteReason.CONTAINER_TRANSFER);
+        com.dddgn.alice.action.WriteGrant unknownGrant =
+                com.dddgn.alice.action.WriteGrant.of("no-such-requester-xyz", WriteReason.CONTAINER_TRANSFER);
+        WritePolicyMatrix.Decision decisionUndeclared =
+                WritePolicyMatrix.decideContainerWrite(bot.serverLevel(), owner, from, undeclaredGrant);
+        WritePolicyMatrix.Decision decisionDeclared =
+                WritePolicyMatrix.decideContainerWrite(bot.serverLevel(), owner, from, declaredGrant);
+        WritePolicyMatrix.Decision decisionUnknown =
+                WritePolicyMatrix.decideContainerWrite(bot.serverLevel(), owner, from, unknownGrant);
+        check("container_gate_live",
+                decisionUndeclared == WritePolicyMatrix.Decision.UNDECLARED_REASON
+                        && decisionDeclared == WritePolicyMatrix.Decision.DECLARED
+                        && decisionUnknown == WritePolicyMatrix.Decision.UNREGISTERED,
+                "walk-to+CONTAINER_TRANSFER=" + decisionUndeclared + "（期望 UNDECLARED_REASON：纯通行任务不许写容器）"
+                        + " transfer+CONTAINER_TRANSFER=" + decisionDeclared + "（期望 DECLARED）"
+                        + " 未登记 requester=" + decisionUnknown + "（期望 UNREGISTERED：登记缺口不拒）");
+
+        boolean armedByDefault = WritePolicyMatrix.containerRefusalArmed();
+        WritePolicyMatrix.Observations sample = WritePolicyMatrix.snapshotObservations();
+        boolean armedDenies;
+        boolean observeAllows;
+        try {
+            WritePolicyMatrix.setContainerRefusalArmed(false);
+            observeAllows = !WritePolicyMatrix.refuses(WritePolicyMatrix.Decision.UNDECLARED_REASON);
+            WritePolicyMatrix.setContainerRefusalArmed(true);
+            armedDenies = com.dddgn.alice.action.WriteBudget.consumeContainerWrite(bot, from, undeclaredGrant)
+                    == com.dddgn.alice.action.WriteBudget.Verdict.REFUSED;
+        } finally {
+            WritePolicyMatrix.setContainerRefusalArmed(armedByDefault);
+            WritePolicyMatrix.restoreObservations(sample);
+        }
+        check("container_gate_armed",
+                armedByDefault && armedDenies && observeAllows
+                        && !WritePolicyMatrix.refuses(WritePolicyMatrix.Decision.DECLARED)
+                        && !WritePolicyMatrix.refuses(WritePolicyMatrix.Decision.UNREGISTERED),
+                "默认武装=" + armedByDefault + " 武装时未声明被**真拒**=" + armedDenies
+                        + " 观察模式放行=" + observeAllows + "（开关不是死值）"
+                        + " 已声明/未登记在武装下也不拒="
+                        + (!WritePolicyMatrix.refuses(WritePolicyMatrix.Decision.DECLARED)
+                        && !WritePolicyMatrix.refuses(WritePolicyMatrix.Decision.UNREGISTERED)));
+
         // G 运行期留痕（本次电池之前的所有写入都在样本里）
         Map<String, Integer> unregistered = WritePolicyMatrix.unregisteredSeen();
         Map<String, Integer> undeclared = WritePolicyMatrix.undeclaredSeen();
@@ -307,8 +360,13 @@ public class WritePolicyCheckTask implements Task {
                 + " requester_registry=" + verdict("requester_registry")
                 + " zone_equiv=" + verdict("zone_equiv")
                 + " obligation=" + verdict("obligation")
+                + " container_gate_live=" + verdict("container_gate_live")
+                + " container_gate_armed=" + verdict("container_gate_armed")
                 + " unregistered=" + unregistered.size()
                 + " undeclared=" + undeclared.size()
+                + " containerGate=" + (WritePolicyMatrix.containerRefusalArmed() ? "armed" : "observe")
+                + " container_checks=" + WritePolicyMatrix.containerChecks()
+                + " container_refused=" + WritePolicyMatrix.containerRefused()
                 + " verdict=" + (failures.isEmpty() ? "PASS" : "FAIL");
         notes.add(WritePolicyMatrix.describe());
         BotLog.info("[WritePolicy] SUMMARY {} {}", summary, String.join(" ", notes));

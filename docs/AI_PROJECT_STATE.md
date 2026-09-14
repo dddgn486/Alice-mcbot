@@ -66,12 +66,21 @@
 CORE `(28/28) → PASS`）。**实测纠正两条口径**（D-209）：零配方的 `mekanism:smelting` 解释
 "表 27 行 vs 实测 26 类型" ⇒ 探针改为对表行完整划分 + 守恒自检；`menuClass` 实测**不区分机器**
 （两台共用 `MekanismTileContainer`）⇒ 身份判据只有 `m{i}_binding`。
-**S4 已实现**（**3-B 的第一次写入**，`COMPILES` + 闸门全绿，**待客户端验证**）：零参数物品
-`alice:machine_cycle_check` → `MachineCycleCheckTask`（放料 → 等 → 取产物）。**不新造授权**：
-容器写入维度 `WriteBudget` + `WriteReason.CONTAINER_TRANSFER` + requester `machine-cycle`；
+**S3 客户端实测复验通过**（2026-09-14 第四轮电池，`latest.log:3068`/`:3081`/`:3096`/`:3811`）：
+`with_site_confirmed=22 with_site_unobserved=[mekanism:smelting] no_site=4 row_block_missing=0`（守恒 22+1+4+0=27）、
+`m2_menu_class_matches=true`、`m{i}_slot_roles` 首次观察、`(28/28) ticks=2845 → PASS`；
+`/alice authz` 的 L2 行**首次在客户端敲过**（`:3836`）⇒ 该待验证项关闭。
+**S4 已实现**（**3-B 的第一次写入**，`COMPILES` + 闸门全绿，**客户端还没跑过**——上一轮漏跑，日志里 `MachineCycle` 0 次）：
+零参数物品 `alice:machine_cycle_check` → `MachineCycleCheckTask`（放料 → 等 → 取产物）。
+**不新造授权**：容器写入维度 `WriteBudget` + `WriteReason.CONTAINER_TRANSFER` + requester `machine-cycle`；
 放料 shift-click（菜单自己决定落点）、成不成**只看世界事实**；场景加**真实电源**
 `mekanism:creative_energy_cube`（纯数据）。v1 单机单配方 + 夹具传送（内核寻路 = v2）。
-**下一步 = 客户端验证 S4，然后按 D-197 决定是否转电池步；再之后 S5 收口**。
+**R1 收口（2026-09-14，D-211，`COMPILES` + 六闸门 PASS / 待客户端）**：`WritePolicyMatrix` **首次经手容器写入**
+（挂点 `WriteBudget.consumeContainerWrite`；未登记 ⇒ 留痕不拒，**已登记但未声明 ⇒ 硬拒**，拒绝权默认武装 + 一行回退开关）；
+新增 `docs/authz/CONTAINER_WRITE_SITES.csv`（20 个调用点）+ `tools/policy-map.py` 断言⑦（负例实测都红），
+并顶出/补上 **`CraftJob`（生产熔炼）从没记账** 的真缺口 + CRAFT 行补声明 `CONTAINER_TRANSFER`。
+**下一步 = 客户端一轮（电池看 `container_checks/container_refused` + 跑 `alice:machine_cycle_check`），
+然后按 D-197 决定 S4 是否转电池步；再之后 S5 收口**。
 电池 **CORE=28 / FULL=38**。**详细交接见 `docs/HANDOVER.md`**；**方向来源与审查留档见 `docs/reviews/2026-09-14-外部质疑与工作流审查留档.md`**；今天的新纪律见 PLAYBOOK §5.0b/§5.0c/§5.0d。
 
 ## 当前目标

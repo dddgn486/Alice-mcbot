@@ -53,7 +53,11 @@ import java.util.Set;
  *       {@code temporary()} **不矛盾**（防止"显式 KEEP"把本该回收的东西放过）；</li>
  *   <li>负例：未授权组合（纯通行任务 + 会写世界的移动集）**必须抛异常**；</li>
  *   <li>EXTERNAL ≡ WORKSPACE（今天）；</li>
- *   <li>未登记 requester 的写入**必须留痕**（{@code UNREGISTERED} 计数 + 一次 WARN），不静默。</li>
+ *   <li>未登记 requester 的写入**必须留痕**（{@code UNREGISTERED} 计数 + 一次 WARN），不静默；</li>
+ *   <li>（R1 收口，2026-09-14）**容器写入也过表**：判定挂点 = {@code WriteBudget.consumeContainerWrite}
+ *       （容器写入没有账本条目，这是它的唯一必经之处）；已登记任务写了未声明的理由 ⇒ **硬拒**
+ *       （{@link #refuses}），登记缺口仍只留痕。覆盖面的活体证据 = {@code containerChecks}：
+ *       装了闸门却恒为 0 ⇒ 挂点没接上。</li>
  * </ol>
  */
 public final class WritePolicyMatrix {
@@ -204,9 +208,10 @@ public final class WritePolicyMatrix {
                     "补种 = 计划内永久（KEEP 来自理由自身）；脚手架仍 TEMP"),
             new Row("P-05", Zone.EXTERNAL, Task.CRAFT, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.WITH_WORLD_MODIFICATION),
-                    with(WORLD_MOD_REASONS, WriteReason.CRAFT_STATION_PLACE),
-                    "task/craft/StationPlacement.java:116",
-                    "合成工作站用完即拆（TEMP，建拆同权）"),
+                    with(WORLD_MOD_REASONS, WriteReason.CRAFT_STATION_PLACE, WriteReason.CONTAINER_TRANSFER),
+                    "task/craft/StationPlacement.java:116、job/craft/CraftJob.java:310",
+                    "合成工作站用完即拆（TEMP，建拆同权）；**熔炼路线要写容器**（放料/取产物）"
+                            + "——2026-09-14 覆盖面审查发现 CraftJob 这几下没记账 ⇒ 补声明 + 过容器闸门"),
             new Row("P-06", Zone.EXTERNAL, Task.CONTAINER, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.WITH_WORLD_MODIFICATION),
                     with(WORLD_MOD_REASONS, WriteReason.CONTAINER_TRANSFER, WriteReason.STATION_PROVISION),
@@ -268,7 +273,7 @@ public final class WritePolicyMatrix {
                     "job/lumber/LumberRegionState.java:32", "工作区的**唯一来源**就是这里的已划区域"),
             new Row("P-16", Zone.WORKSPACE, Task.CRAFT, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.WITH_WORLD_MODIFICATION),
-                    with(WORLD_MOD_REASONS, WriteReason.CRAFT_STATION_PLACE),
+                    with(WORLD_MOD_REASONS, WriteReason.CRAFT_STATION_PLACE, WriteReason.CONTAINER_TRANSFER),
                     "同 P-05", "同 P-05（今天两区解析相同）"),
             new Row("P-17", Zone.WORKSPACE, Task.CONTAINER, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.WITH_WORLD_MODIFICATION),
@@ -569,12 +574,160 @@ public final class WritePolicyMatrix {
                 : com.dddgn.alice.ledger.WorldModLedger.Policy.KEEP;
     }
 
+    // ==================== 容器写入（执行期复验的容器对应物）====================
+
+    /**
+     * 容器写入的策略判定。
+     *
+     * <p><b>为什么容器写入要有自己的判定</b>：放置类写入的"执行期复验"挂在账本
+     * （{@link #ledgerPolicy}，由 {@code WorldModLedger.record} 调用）；而**容器写入不产生账本条目**
+     * （它改的是容器内容，不是方块）⇒ 到今天为止 {@code P-06/P-17} 行登记的
+     * {@code CONTAINER_TRANSFER}/{@code STATION_PROVISION} **没有任何读者**：表在，牙齿不在。
+     * 本方法的挂点是 {@link WriteBudget#consumeContainerWrite} —— **所有**已接线的容器写入的必经之处
+     * （与"移动授权挂在 {@code CorePathPlanner.plan}"同一个理由：一处管住全部）。
+     *
+     * <p><b>判定口径与移动授权**对齐**（不是新口径）</b>：
+     * <ul>
+     *   <li>requester 未登记（{@code UNREGISTERED}）⇒ **不拒**，只留痕 —— 那是我们的登记缺口，
+     *       拿它拒绝会误伤生产任务（同 {@link #requireMovementsGranted}）；</li>
+     *   <li>requester 已登记、但该 (区域, 任务) 行**没声明**这个理由 ⇒ {@link Decision#UNDECLARED_REASON}，
+     *       {@link #refuses} 在武装时返回 true ⇒ **硬拒**。这是"纯通行任务不许写容器"的可执行版本；</li>
+     *   <li>已声明的组合 ⇒ 放行；**预算维度照旧是数量闸门**，两者互不替代（策略管"能不能"，
+     *       预算管"还能几次"）。</li>
+     * </ul>
+     *
+     * <p><b>为什么这里拒绝、而放置类的"未声明理由"只留痕</b>（**有意的不对称，别照抄**）：
+     * 放置类的未声明理由仍能安全落地——回收义务由 {@link #obligation} 兜底（决定"要不要拆回来"），
+     * 那是一个**后果**决定；容器写入没有后果维度（取出来的东西不会自己回去），
+     * 所以"这一格能不能写"是它唯一的门 ⇒ 门必须是硬的，否则等于没有门。
+     */
+    public enum Decision {
+        /** requester 已登记，且该行声明了这个理由：允许。 */
+        DECLARED,
+        /** requester 未登记（登记缺口）：留痕、**不拒**。 */
+        UNREGISTERED,
+        /** 已登记的任务写了它**没声明**的理由：武装时拒绝。 */
+        UNDECLARED_REASON
+    }
+
+    /**
+     * 容器写入的策略判定（**纯函数**：不留痕、不动计数、不看武装开关）。
+     *
+     * <p>夹具用它做负例断言（{@code WritePolicyCheckTask.container_gate_live}），
+     * 因此它必须**零副作用**——否则自检会污染电池样本（G 段断言"未登记=0/未声明=0"）。
+     */
+    public static Decision decideContainerWrite(ServerLevel level, java.util.UUID owner,
+                                                BlockPos pos, WriteGrant grant) {
+        Task task = taskOf(grant == null ? null : grant.requester());
+        if (task == Task.UNREGISTERED) {
+            return Decision.UNREGISTERED;
+        }
+        Row row = row(zoneAt(level, pos, owner), task);
+        if (row.movements() == null) {
+            return Decision.UNREGISTERED;   // 该行没声明任何能力 ⇒ 不拦（与 allowedMovementTypes==null 同口径）
+        }
+        WriteReason reason = grant == null ? null : grant.reason();
+        return reason != null && row.reasons().contains(reason)
+                ? Decision.DECLARED : Decision.UNDECLARED_REASON;
+    }
+
+    /** 判定 + 留痕 + 计数（**执行期入口**；由 {@link WriteBudget#consumeContainerWrite} 调用）。 */
+    public static Decision noteContainerWrite(ServerLevel level, java.util.UUID owner,
+                                              BlockPos pos, WriteGrant grant) {
+        Decision decision = decideContainerWrite(level, owner, pos, grant);
+        CONTAINER_CHECKS++;
+        if (refuses(decision)) {
+            CONTAINER_REFUSED++;
+        }
+        switch (decision) {
+            case UNREGISTERED -> noteUnregistered(grant == null ? null : grant.requester(), "container");
+            case UNDECLARED_REASON -> {
+                WriteReason reason = grant == null ? null : grant.reason();
+                if (reason == null) {
+                    // 到不了这里（UNDECLARED 的前提是 requester 已登记、grant 必非空）；响亮记一笔而不是 NPE
+                    BotLog.warn("[WritePolicy] container_write 判定 UNDECLARED_REASON 但 reason 为空（调用点 bug）");
+                } else {
+                    noteUndeclared(row(zoneAt(level, pos, owner), taskOf(grant.requester())), reason);
+                }
+            }
+            case DECLARED -> {
+            }
+        }
+        return decision;
+    }
+
+    /**
+     * 该判定在**当前模式**下是否真的拒绝。
+     *
+     * <p>武装开关（{@link #setContainerRefusalArmed}）的存在理由：它是**一线回退把手**——
+     * 若某条已登记任务因表缺口被硬停，退回"观察模式"（留痕但不拒）只需一行，不必改代码逻辑。
+     * 默认**武装**（与移动授权"规划期就该炸"同一口径：闸门要能真的拦住东西）。
+     */
+    public static boolean refuses(Decision decision) {
+        return decision == Decision.UNDECLARED_REASON && containerGateArmed;
+    }
+
+    /** 容器写入的拒绝权是否武装（默认 true）。 */
+    public static boolean containerRefusalArmed() {
+        return containerGateArmed;
+    }
+
+    /** 开关拒绝权（**夹具专用**：负例要断言两种模式都活着；也用作生产回退把手）。 */
+    public static void setContainerRefusalArmed(boolean armed) {
+        containerGateArmed = armed;
+    }
+
     // ==================== 留痕（"缺口不静默"）====================
 
     private static final Map<String, Integer> UNREGISTERED_SEEN = new LinkedHashMap<>();
     private static final Set<String> UNREGISTERED_LOGGED = new LinkedHashSet<>();
     private static final Map<String, Integer> UNDECLARED_SEEN = new LinkedHashMap<>();
     private static final Set<String> UNDECLARED_LOGGED = new LinkedHashSet<>();
+
+    /** 容器写入闸门是否**真的**拒绝（默认武装；见 {@link #refuses}）。 */
+    private static volatile boolean containerGateArmed = true;
+    /** 经过容器写入闸门的调用次数（**覆盖面的活体证据**：装了闸门却恒为 0 ⇒ 接线断了）。 */
+    private static int CONTAINER_CHECKS;
+    /** 其中被拒的次数（武装模式下 = 未声明理由的容器写入次数）。 */
+    private static int CONTAINER_REFUSED;
+
+    /** 已过闸门的容器写入次数（0 而世界里确实有容器写入 ⇒ 挂点没接上）。 */
+    public static int containerChecks() {
+        return CONTAINER_CHECKS;
+    }
+
+    /** 被策略拒绝的容器写入次数。 */
+    public static int containerRefused() {
+        return CONTAINER_REFUSED;
+    }
+
+    /** 观察样本快照（**夹具专用**：做负例断言后原样还原，不污染电池样本）。 */
+    public record Observations(Map<String, Integer> unregistered, Map<String, Integer> undeclared,
+                               Set<String> unregisteredLogged, Set<String> undeclaredLogged,
+                               int containerChecks, int containerRefused) {
+    }
+
+    public static Observations snapshotObservations() {
+        return new Observations(Map.copyOf(UNREGISTERED_SEEN), Map.copyOf(UNDECLARED_SEEN),
+                Set.copyOf(UNREGISTERED_LOGGED), Set.copyOf(UNDECLARED_LOGGED),
+                CONTAINER_CHECKS, CONTAINER_REFUSED);
+    }
+
+    public static void restoreObservations(Observations snapshot) {
+        if (snapshot == null) {
+            return;
+        }
+        UNREGISTERED_SEEN.clear();
+        UNREGISTERED_SEEN.putAll(snapshot.unregistered());
+        UNDECLARED_SEEN.clear();
+        UNDECLARED_SEEN.putAll(snapshot.undeclared());
+        UNREGISTERED_LOGGED.clear();
+        UNREGISTERED_LOGGED.addAll(snapshot.unregisteredLogged());
+        UNDECLARED_LOGGED.clear();
+        UNDECLARED_LOGGED.addAll(snapshot.undeclaredLogged());
+        CONTAINER_CHECKS = snapshot.containerChecks();
+        CONTAINER_REFUSED = snapshot.containerRefused();
+    }
 
     /** 该 requester 未登记：计数 + 首次 WARN（**记为错误**，但不据此拒绝）。 */
     public static void noteUnregistered(String requester, String where) {
@@ -617,6 +770,8 @@ public final class WritePolicyMatrix {
         UNDECLARED_SEEN.clear();
         UNREGISTERED_LOGGED.clear();
         UNDECLARED_LOGGED.clear();
+        CONTAINER_CHECKS = 0;
+        CONTAINER_REFUSED = 0;
     }
 
     // ==================== 审计（覆盖检查）====================
@@ -710,6 +865,9 @@ public final class WritePolicyMatrix {
                 + " reasons=" + WriteReason.values().length + " grants=" + MovementGrant.values().length
                 + " zoneDiff=" + zoneDiffCount()
                 + " unregistered=" + UNREGISTERED_SEEN.size()
-                + " undeclared=" + UNDECLARED_SEEN.size();
+                + " undeclared=" + UNDECLARED_SEEN.size()
+                + " containerGate=" + (containerGateArmed ? "armed" : "observe")
+                + " containerChecks=" + CONTAINER_CHECKS
+                + " containerRefused=" + CONTAINER_REFUSED;
     }
 }

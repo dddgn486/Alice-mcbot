@@ -1,0 +1,21 @@
+site,category,gated,enforced_by,why
+action/MenuSession.java,menu-protocol,no,task/TransferTask.java;task/craft/StationProvision.java;task/MachineCycleCheckTask.java;task/CraftFurnaceCheckTask.java;task/MenuProbeTask.java;job/craft/CraftJob.java,菜单点击原语层：本身不决定写谁。执法在**开着外来容器菜单**的每个调用方（所列文件都先过 consumeContainerWrite 才点）
+fixture/transfer/TransferFixture.java,primitive-isolation,no,,边界：夹具在隔离层直接驱动搬运原语（ChestBotTransferPrimitive），有意不过闸门——它的目的是验原语自身；生产路径见 TransferTask
+fixture/transfer/TransferSelectionFixture.java,primitive-isolation,no,,边界：同上（选择/参数校验夹具：摆箱子 + 驱动原语）
+gui/BotInventoryMenu.java,own-inventory,no,,bot 自己的背包菜单（不是世界容器，改它不算世界写入）
+job/craft/CraftJob.java,gated,yes,,熔炼路线的放料/取产物（2026-09-14 补：调用点覆盖审查发现这几下**从没记过账**，是缺口里唯一的生产路径）
+task/CraftActionCheckTask.java,own-inventory,no,,合成动作夹具：网格+随身背包（InventoryCraft.craft 的随身形态），不回写方块容器
+task/CraftFurnaceCheckTask.java,gated,yes,,熔炉夹具：按相位过闸门（放料/取产物/超时取回输入/复位取回余料）
+task/CraftStationCraftCheckTask.java,menu-protocol,no,task/craft/StationProvision.java,装配/取回阶段经 StationProvision 过闸；**边界**：结果槽 shift-click 若落进方块容器（product_in_container）这一下不过闸（InventoryCraft 没有 grant 上下文）
+task/CraftStationProvisionCheckTask.java,menu-protocol,no,task/craft/StationProvision.java,装配夹具：所有容器写入都走 StationProvision（它内部过闸），本文件自己不点菜单
+task/MachineCycleCheckTask.java,gated,yes,,S4 机器最小闭环：往机器容器放料、把产物取回来
+task/MachineStationProbeTask.java,probe,no,,只读探针：开菜单读槽位事实后关闭，SUMMARY 自证 no_writes=true（S3 轮已机器验证）
+task/MenuProbeTask.java,gated,yes,,手动菜单探针（alice:menu_probe）：把物品从箱子里真搬出来这一下过闸门
+task/TransferCheckTask.java,scenario-seeding,no,,夹具搭场景（把两个箱子清空填好、清空 bot 背包）；真搬运走 TransferTask（已过闸）
+task/TransferTask.java,gated,yes,,生产传输：源箱→bot 与 bot→目标箱两条腿各消费一次容器写入
+task/craft/CraftStation.java,menu-protocol,no,job/craft/CraftJob.java,只负责**开站点菜单**（MenuSession.open 在这里）；写不写由调用方决定：熔炼路径 CraftJob 已过闸，网格填充见 InventoryCraft 的边界条目
+task/craft/FurnaceStation.java,menu-protocol,no,task/CraftFurnaceCheckTask.java;job/craft/CraftJob.java,炉子写入原语（placeOne/takeAll，直接 menu.clicked）；执法在两个调用方——那里各相位/各分支过闸门
+task/craft/InventoryCraft.java,menu-protocol,no,,边界：网格/结果槽点击。合成格与随身背包不是方块容器；但结果槽 shift-click 在**开着容器菜单**时会把产物放进容器（CraftStationCraftCheck 实测 product_in_container=1）——这一下不过闸，接它需要给本方法一个 grant 参数（未做）
+task/craft/StationProvision.java,gated,yes,,装配/取回升级：容器写入的原始挂点（G5/A11 同源维度）
+task/craft/TableCraft.java,menu-protocol,no,,只开工作台菜单（合成格在菜单里，不是方块容器）
+transfer/ChestBotTransferPrimitive.java,primitive-isolation,no,task/TransferTask.java,capability 直写原语（insertItem/extractItem）；生产路径 TransferTask 过闸后才调它，夹具路径见 TransferFixture 的边界条目
