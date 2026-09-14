@@ -116,13 +116,13 @@ alice:machine_cycle_check: 3405` + `missing registry entries`（另有 stats 一
   **红线①机械可查**：执行器里没有造能量的代码，`EnergyTopUp` 只有夹具实现、生产位置传 `null`；
   新门禁 `tools/check-precharge-containment.sh`（**已做反向测试**：注入一次 `precharge(` ⇒ 立刻红）。
   新增电池步 `craft_machine` ⇒ **CORE 29→30 / FULL 39→40**；六道离线门禁 PASS；jar
-  `sha256=42b81048…` 已同步客户端 `mods/`。
+  `sha256=1606dc62…` 已同步客户端 `mods/`。
 - **(a) 第 1 份 S0 事实表已交付**：`docs/THERMAL_FACTS.md`（Thermal 652 条 / 30 类型；前 5 = 500 条 76.7%；
   静态 jar 618 vs 运行时 652 的 +34 已算术闭合但**来源未取证**，留 S1）。两个前置缺口见台账⑩
   （**无 sources jar**、**`alice-recipes.json` 已过时**）。
 
 **下一次客户端轮（零新入口，约 6–8 分钟）**：重启客户端（新 jar
-`sha256=42b810485bf3716c6ad2d42f8cb506f70c8128da7f9c7e498055987cee58f31b`）→ `/alice battery core`
+`sha256=1606dc62d689534655fd5c3ddc9aaff0660f845867e8385b0cd13fd2df00d966`）→ `/alice battery core`
 ⇒ 期望 **`(30/30) ticks≈3900 → PASS`**，两个机器步各有硬判据：
 ① `craft_machine`：`job_terminal=DONE` + **`m_walk_state=DONE`** + `product_after=product_before+1`
 （生产**自己走到机器旁**；出现 `unexpected_walk_skipped` ⇒ 起点没生效，要查）；目标物是"只能靠机器做出来"的

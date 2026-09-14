@@ -134,13 +134,13 @@ alice:machine_cycle_check: 3405` + `missing registry entries`（⇒ 不在注册
   准入**数据驱动**（`MachineMap` 新增 `executable(...)`，只把 `mekanism:enriching` 升为 `Capability.EXECUTABLE`，
   其余照旧 `not_executable`）。**红线①机械可查**：执行器里没有造能量的代码，唯一通道 `EnergyTopUp` 只有夹具实现、
   生产位置传 `null`；新门禁 `tools/check-precharge-containment.sh` 三条断言（含**反向测试**：注入一次 `precharge(` ⇒ 立刻红）。
-  新增电池步 `craft_machine` ⇒ **CORE 29→30 / FULL 39→40**；新 jar `sha256=42b81048…` 已同步客户端；
+  新增电池步 `craft_machine` ⇒ **CORE 29→30 / FULL 39→40**；新 jar `sha256=1606dc62…` 已同步客户端；
   六道离线门禁全 PASS（`check-policy-matrix` 还抓到了写入点登记的漂移，已同步 `docs/authz/CONTAINER_WRITE_SITES.csv`）。
 - **(c) 未做**：机器路线的**多输入 / 化学品输入**（本轮如实拒绝）；`CraftJob` 目前只驱动 `EXECUTABLE` 那一行。
 - **(a) 已完成第 1 份 S0 事实表**：`docs/THERMAL_FACTS.md`（Thermal：652 条 / 30 类型，占本次跳过量 27.5%；
   前 5 = press 227 / pulverizer 81 / smelter 70 / insolator 63 / centrifuge 59 = 500 条 76.7%）。
   两个前置缺口已登记台账⑩：**无上游 sources jar**、**`alice-recipes.json` 已过时**（那之后又装了 refinedstorage 等三个模组）。
-**下一步 = 客户端一轮（零新入口）**：重启客户端（新 jar `sha256=42b810485bf3716c6ad2d42f8cb506f70c8128da7f9c7e498055987cee58f31b`）
+**下一步 = 客户端一轮（零新入口）**：重启客户端（新 jar `sha256=1606dc62d689534655fd5c3ddc9aaff0660f845867e8385b0cd13fd2df00d966`）
 → `/alice battery core` ⇒ 期望 **`(30/30) ticks≈3900 → PASS`**，且两个机器步各有硬判据：
 ① `craft_machine` 步 `job_terminal=DONE` + `m_walk_state=DONE` + `product_after=product_before+1`（生产**自己走到机器旁**）；
 ② `machine_cycle` 仍 `verdict=PASS`（夹具换薄壳后**无回归** —— 两步同红就是抽执行器改坏了）。

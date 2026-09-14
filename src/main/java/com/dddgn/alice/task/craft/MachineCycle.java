@@ -317,7 +317,7 @@ public final class MachineCycle {
         boolean ok = topUp.apply(blockEntity);
         double after = readEnergy(blockEntity);
         sink.record("energy_source", ok
-                ? "api_precharge（场景电源没喂上 ⇒ 按前提补电）"
+                ? "api_precharge（场景电源没喂上 ⇒ 按前提补电；补后 " + fmt(after) + " J）"
                 : "none（既没电源也补不上电）");
         sink.record("energy_ready", fmt(after));
         if (after <= 0) {
