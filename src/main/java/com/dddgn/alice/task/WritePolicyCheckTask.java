@@ -22,7 +22,18 @@ import java.util.Set;
  * "声明了但没人读"的抽象会长期伪装成通过。所以这里不只验"表里有几行"，而是**构造一次越权请求**，
  * 要求它**必须被拒**——否则说明闸门恒假。
  *
- * <p>六条例（全部纯计算 + 一次失败规划尝试，不动世界）：
+ * <p><b>§6.9.3 三问自答</b>：① **层的归属** —— A/C/D/E/F 断言在**策略表层**（直接调下层原语
+ * {@code WritePolicyMatrix}，不经会先短路的调用点），B **额外**断言在**接线后的规划器层**
+ *（{@code CorePathPlanner.plan} 必须把它转成 {@code ERROR} plan + 可归因 diagnostics——
+ * 这是"异常不会逃逸打断服务端 tick"的证据）；② **世界/模组/几何假设** —— 无：本自检不读地形、
+ * 不依赖任何模组、也不依赖夹具场景（`zoneAt` 今天恒 `EXTERNAL`），唯一的前提是表内容本身（由 A 断言）；
+ * ③ **失败时用户看到什么** —— 玩家侧**没有可见动作**，判据是聊天 `SUMMARY <key>=FAIL` 与
+ * `[WritePolicy] case=… result=FAIL` 行（G 失败会在日志里点名未登记 requester）。
+ *
+ * <p>另外两条例：G 未登记留痕（D-207 ①：`UNKNOWN` requester **记为错误**）、H **零写入自证**
+ *（本步不得向账本新增任何条目——夹具自己不能弄脏世界）。
+ *
+ * <p>八条例（全部纯计算 + 两次注定被拒的规划尝试，不动世界）：
  * <ol>
  *   <li>A <b>表是全的</b>：{@code Zone × Task} 全枚举、每个 {@code WriteReason} 都有行登记、
  *       显式义务与该行理由不矛盾；</li>
@@ -132,6 +143,20 @@ public class WritePolicyCheckTask implements Task {
             legalPassed = false;
             legalDetail = violation.getMessage();
         }
+        // B2 接线后的**规划器层**：越权请求必须被转成 ERROR plan（而不是抛异常打断 tick）
+        int ledgerBefore = com.dddgn.alice.ledger.WorldModLedger.size(bot.getServer());
+        com.dddgn.alice.pathing.core.search.PathPlan refused =
+                new com.dddgn.alice.pathing.core.search.CorePathPlanner()
+                        .plan(bot, bot.serverLevel(), illegal);
+        boolean plannerRefused = refused.status()
+                == com.dddgn.alice.pathing.core.search.PlanningStatus.ERROR
+                && refused.diagnostics().contains("WRITE_POLICY_MOVEMENT_DENIED")
+                && refused.movements().isEmpty();
+        check("planner_refuses_and_reports", plannerRefused,
+                "期望 status=ERROR + diagnostics 含 WRITE_POLICY_MOVEMENT_DENIED + 无 movements；实际 status="
+                        + refused.status() + " diagnostics=" + refused.diagnostics()
+                        + " movements=" + refused.movements().size());
+
         check("guard_does_not_overreach", legalPassed,
                 "walk-to + of / pathing-regression + withWorldModification ⇒ 期望放行；实际 "
                         + (legalPassed ? "放行" : "**被拒**：" + legalDetail));
@@ -233,10 +258,17 @@ public class WritePolicyCheckTask implements Task {
         check("no_undeclared_combination", undeclared.isEmpty(),
                 "未登记 (行,理由)=" + undeclared + "（表与调用点不一致 ⇒ 补行或改调用点）");
 
+        // H 零写入自证：本步不得向账本新增条目（夹具自己不能弄脏世界；与 D-207 驳回项⑤同口径）
+        int ledgerAfter = com.dddgn.alice.ledger.WorldModLedger.size(bot.getServer());
+        check("self_write_free", ledgerAfter == ledgerBefore,
+                "账本 pending " + ledgerBefore + " → " + ledgerAfter + "（本自检必须零写入）");
+
         String summary = "table_total=" + verdict("table_total")
                 + " table_shape=" + verdict("table_shape")
                 + " guard_is_live=" + verdict("guard_is_live")
                 + " guard_does_not_overreach=" + verdict("guard_does_not_overreach")
+                + " planner_refuses_and_reports=" + verdict("planner_refuses_and_reports")
+                + " self_write_free=" + verdict("self_write_free")
                 + " grants_semantics=" + verdict("grants_semantics")
                 + " requester_registry=" + verdict("requester_registry")
                 + " zone_equiv=" + verdict("zone_equiv")

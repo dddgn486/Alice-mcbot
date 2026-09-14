@@ -504,11 +504,14 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
 1. **新步 `write_policy`**（D-207 ① 集中策略表自检）应出现且为 `PASS`：
    ```
    [WritePolicy] SUMMARY table_total=PASS table_shape=PASS guard_is_live=PASS guard_does_not_overreach=PASS
-   grants_semantics=PASS requester_registry=PASS zone_equiv=PASS obligation=PASS
-   unregistered=0 undeclared=0 verdict=PASS
+   planner_refuses_and_reports=PASS self_write_free=PASS grants_semantics=PASS requester_registry=PASS
+   zone_equiv=PASS obligation=PASS unregistered=0 undeclared=0 verdict=PASS
    ```
    其中 **`guard_is_live=PASS` 是"闸门不是恒假"的证据**（负例：`walk-to` + `withWorldModification` 必须被拒）；
+   **`planner_refuses_and_reports=PASS`** 证明接线后的规划器把它转成 `ERROR` plan（异常没逃逸、不会打断 tick）；
+   **`self_write_free=PASS`** 是"这条自检自己零写入"的自证；
    `unregistered` / `undeclared` **应为 0**——非 0 就是"有调用点没登记"的 bug，日志里会点名。
+   **玩家侧看不到任何动作**（纯计算 + 两次注定被拒的规划尝试，不改世界、不动 bot）——这就是正常的。
 2. 电池总数从 `(27/27)` 变成 **`(28/28)`**（新增的这一步），其余步骤不得变红。
 3. `/alice authz` 多一行 **`L2 规划期策略表：rows=22 … zoneDiff=0 unregistered=0 undeclared=0`**。
 
