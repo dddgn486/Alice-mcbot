@@ -96,6 +96,18 @@ input_consumed=true container_writes=2 budget_remaining_after=30 reset=true verd
 **S1–S4 的临时探针入口（`alice:machine_cycle_check` 等）留到 S5 收口时统一回收**（回收前提 = 电池步转绿）。
 细节见 `docs/TESTING_GUIDE.md` §"下一次客户端轮"。
 
+**✅ 已执行（第九轮客户端，`WINDOWS_CLIENT`）**：新客户端会话（14:34:59 启动 ⇒ 新 jar 已加载 ——
+启动日志 `[Regression] PROFILE=CORE 实跑 29 项（跳过 EXTRA 10 项）`）⇒
+`[Regression] SUMMARY … machine_route=PASS machine_station=PASS **machine_cycle=PASS** … K4=OK(goal_not_standable=0
+final_segment_not_standable=0 写入类例外=56) PROFILE=CORE baseline=14 main=15 extra_skipped=10 **(29/29) ticks=3108 → PASS**`
+（`latest.log:3842`）。该步明细：`machine_cycle=PASS ticks=210 idempotent=true`（`:3130`）、
+`[MachineCycle] SUMMARY … energy_at_open=20000.0 energy_source=cube（场景电源，未补电） energy_ready=20000.0
+… product_landed=true machine_emptied=true input_consumed=true container_writes=2 reset=true verdict=PASS`（`:3129`）、
+`[WriteBudget] … scope=…#1503:Regression:machine_cycle … containers=2/32 refusedContainers=0`（`:3131`）
+⇒ **电池内走的也是场景电源，升格闭环完成，S4 收口**。
+旁记：`K4 写入类例外=56`（第八轮 43 ⇒ **第三次观察，仍在 43/56 交替**，两次都 `K4=OK`，仍未取证）。
+⚠️ 启动聊天文案仍写"**26 项**"（实测 `(29/29)`）⇒ 台账 ⑦：**S5 收口重编 jar 时改成从 `CURATION` 推导**。
+
 ## 4. 今天新增/变更的纪律（都在 PLAYBOOK + AGENTS.md 里）
 
 1. **§5.0b 决策权**：你有最终决策权，但不必把每句话当最终决策；AI **允许并鼓励评价你的决策**；

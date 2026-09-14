@@ -87,7 +87,13 @@ product_landed=true machine_emptied=true input_consumed=true container_writes=2 
 ⚠️ **判据的准确含义**：`energy_source=cube` 实际证明的是"**场景把电送上了**"（开机时机器已有电），
 不是"程序认出了 cube 方块"（读的是机器自己的能量容器）；场景里只有这一条供电路径 ⇒ 两者等价，注释已写清。
 **S4 已按 D-197 升级为电池步**（第七轮升，准入前提 = 上面这条自证）：`machine_cycle`（MAIN，会写容器）⇒
-电池 **CORE=29 / FULL=39**；`MachineCycleCheckTask` 类注释同步按 D-213 改写（台账 ⑥ 关闭）。**该步的客户端绿仍待一轮 CORE 电池确认**。
+电池 **CORE=29 / FULL=39**；`MachineCycleCheckTask` 类注释同步按 D-213 改写（台账 ⑥ 关闭）。
+**✅ 电池步已转绿（第九轮，`WINDOWS_CLIENT`）**：新客户端会话（14:34:59 启动 ⇒ 新 jar 已加载，
+日志里 `PROFILE=CORE 实跑 29 项（跳过 EXTRA 10 项）`）⇒ `[Regression] SUMMARY … machine_station=PASS
+machine_cycle=PASS … (29/29) ticks=3108 → PASS`（`latest.log:3842`）；该步 `machine_cycle=PASS ticks=210
+idempotent=true`（`:3130`），步内 `[MachineCycle] SUMMARY … energy_at_open=20000.0 energy_source=cube（场景电源，未补电）
+… product_landed=true machine_emptied=true container_writes=2 reset=true verdict=PASS`（`:3129`）、
+写预算 `containers=2/32 refusedContainers=0`（`:3131`）⇒ **电池内也走的是场景电源，不是补电兜底**。
 **R1 收口（2026-09-14，D-211）已完成并经客户端验证**：`WritePolicyMatrix` **首次经手容器写入**
 （挂点 `WriteBudget.consumeContainerWrite`；未登记 ⇒ 留痕不拒，**已登记但未声明 ⇒ 硬拒**，
 拒绝权默认武装 + 一行回退开关 `setContainerRefusalArmed`）；`docs/authz/CONTAINER_WRITE_SITES.csv`
@@ -97,8 +103,10 @@ product_landed=true machine_emptied=true input_consumed=true container_writes=2 
 container_checks=13 container_refused=0 verdict=PASS`（`latest.log:3206`）——**13 恰好等于各步
 `containers=N/32` 之和**（2+2+3+4+2）⇒ 闸门覆盖面与预算覆盖面**逐点一致**；`container_refused=0`
 ⇒ 没有生产路径被硬停；D-211 的两条复核触发**都已解除**。
-**下一步 = 客户端一小轮：`/alice battery core`（默认档，现已含 `machine_cycle`），确认 `machine_cycle=PASS` 整轮未红；
-之后 S5 收口**（回收临时入口 `alice:machine_cycle_check` 等 S1–S4 探针物品/命令）。
+**下一步 = S5 收口**：`machine_cycle` 已绿 ⇒ 回收 S1–S4 的临时探针入口（`alice:machine_cycle_check` 等
+物品/命令 + 注册 + 模型 + lang），并把 `docs/MOD_ADAPTER_PROTOCOL.md` 的 S0→S5 流水线走完（含"读不懂多少始终可见"）。
+⚠️ **本次收口必然要重编 jar**（删物品类）⇒ 顺手带上台账 ⑦（`RegressionBatteryItem`/`AliceItems` 里写死的
+"26 项" 应改成从 `CURATION` 推导，勿再写死数字）。
 **上下文窗口已由用户从 256K 改为 512K**（D-214，本会话生效；阈值 409,600 / 保留 81,920）——改的是"何时压缩"，
 不改变事实来源；复核触发 = 手动 `/compact` 频率没降、或我出现"忘记已确认事实/重复问已答过的问题" ⇒ 退回 256K。
 电池 **CORE=29 / FULL=39**。**详细交接见 `docs/HANDOVER.md`**；**方向来源与审查留档见 `docs/reviews/2026-09-14-外部质疑与工作流审查留档.md`**；今天的新纪律见 PLAYBOOK §5.0b/§5.0c/§5.0d。

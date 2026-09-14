@@ -877,7 +877,13 @@ jar `3312608d…`。
   ⑤ **S4 升级为电池步（D-197）— ✅ 已执行（2026-09-14 第七轮）**：条件（③ 重验为 `cube`）已满足 ⇒
   新增 `machine_cycle`（MAIN，`stepSkippable`，预算 1600 > 任务自身 `MAX_TICKS` 1400），
   电池 **CORE 28→29 / FULL 38→39**（`RegressionBatteryTask` CURATION + `docs/BATTERY_CURATION.md` + 历史表已同步）。
-  **该步的客户端绿仍待一轮 CORE 电池确认**（本步会写容器 ⇒ 是 MAIN 里唯一带写入的一步）。
+  **✅ 该步客户端绿已确认（2026-09-14 第九轮）**：新会话（新 jar）⇒ `machine_cycle=PASS ticks=210 idempotent=true`
+  （`latest.log:3130`）、整轮 `(29/29) ticks=3108 → PASS`（`:3842`）；步内仍是 `energy_source=cube（场景电源，未补电）`
+  + `containers=2/32 refusedContainers=0` ⇒ **升格闭环完成**。
+  ⑦ **记账（S5 收口重编 jar 时一并做）**：用户可见文案里的项数**写死了**且已过期 ——
+  `RegressionBatteryItem:49` 与类注释 `:15`、`AliceItems:148` 都写"**26 项**"，而本轮实测 SUMMARY 是
+  `(29/29)`、启动日志也是 `实跑 29 项` ⇒ **改成从 `RegressionBatteryTask.CURATION` + 档位推导**（勿再写死数字，
+  否则每加一步就再错一次）。本轮**刻意不改 Java**（改了要重编 jar + 你重启客户端，而 S5 收口必然重编 ⇒ 合并做）。
   ⑥ **✅ 已关闭（2026-09-14 第七轮）**：随本次因功能需要重编 jar 一并改了 `MachineCycleCheckTask` 类注释 ② ——
   写明"创造方块放下就是 0 J（`BasicEnergyContainer.stored = ZERO` + creative 强制 SIMULATE ⇒ 灌不满也放不出），
   场景用 `/data merge block …` 把电写进方块实体（`load()` → `setEnergy`，绕过插入守卫；灌进去后 extract 仍 SIMULATE

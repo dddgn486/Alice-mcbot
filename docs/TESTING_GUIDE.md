@@ -625,7 +625,14 @@ progress_ticks=199`、`product_after=1 product_landed=true machine_emptied=true 
 3. 看 SUMMARY：期望 `machine_cycle=PASS`、`(29/29)`、整行末尾 `→ PASS`（`PROFILE=CORE` 那行会打印各档项数）；
 4. 若红 ⇒ 把 `machine_cycle=` 那一项（含 `ticks=`/`reason=`）与 `[MachineCycle] SUMMARY` 整行贴回来。
 
-`alice:machine_cycle_check` 物品**本轮仍保留**（S1–S4 的临时探针统一到 S5 收口时回收，前提 = 电池步转绿）。
+**✅ 第九轮结果（`WINDOWS_CLIENT`，14:36–14:38）**：新会话（14:34:59 启动 ⇒ 新 jar 生效，日志
+`PROFILE=CORE 实跑 29 项（跳过 EXTRA 10 项）`）⇒ `[Regression] SUMMARY … machine_cycle=PASS … (29/29)
+ticks=3108 → PASS`（`latest.log:3842`）；`machine_cycle=PASS ticks=210 idempotent=true`（`:3130`）；
+步内 `energy_at_open=20000.0 energy_source=cube（场景电源，未补电）`（`:3129`）+ `containers=2/32
+refusedContainers=0`（`:3131`）⇒ **升格闭环完成**。
+⚠️ 启动聊天文案仍写"**26 项**"（实测 `(29/29)`）⇒ 已记台账 ⑦，**S5 收口重编 jar 时改成从 `CURATION` 推导**。
+
+`alice:machine_cycle_check` 物品**仍保留**（S1–S4 的临时探针统一到 S5 收口时回收，前提已满足 = 电池步转绿）。
 
 **失败时仍然有用的两个反直觉点（留着备用）**：
 
