@@ -8761,3 +8761,26 @@ the user must resume it"）。这**正好符合** D-205 的意图（"恢复只�
   `TransferFixture` 在隔离层直接驱动搬运原语，**有意**不过闸（它验的就是原语自身）。
 - **复核触发**：客户端一轮电池后看 `[WritePolicy] SUMMARY … container_checks=N container_refused=M`
   —— `N=0` 而世界里确有容器写入 ⇒ 挂点没接上；`M>0` ⇒ 有生产路径被硬停（先看归因行，再决定补表还是退回观察模式）。
+
+### D-212：S4 场景电源前提是"假绿" —— 能量方块只有**朝向面**出电（2026-09-14 第五轮实测 + 上游源码）
+
+**实测**：S4 首次客户端跑通（`verdict=PASS`，`latest.log:3811`），但 `energy_at_open=0.0`、
+`energy_source=api_precharge`。算术定罪：补 4000000 J 后 200 tick 只掉 10000 J = **纯消耗、流入 0**
+（若方块在送电，缓冲会被顶满）。**排除"方块没放上"**：同一轮 `[MachineStation] 事实留痕
+untabled_blocks=[mekanism:creative_energy_cube@66, 63, 306]`（`:3002`）——方块扫描看见了它。
+
+**根因（两侧都落在上游源码上）**：
+① 方块侧 `TileEntityEnergyCube` 用 `setupIOConfig(ENERGY, energyContainer, RelativeSide.FRONT).setEjecting(true)`，
+   而 `TileComponentConfig` 这个重载做的是 `fill(DataType.INPUT)` + `setDataType(DataType.OUTPUT, outputSide)`
+   ⇒ **除朝向面外，面面只进不出**（对照：同类的物品配置才额外 `.setCanEject(false)`）；
+② 机器侧 `TileEntityElectricMachine:65` 用 `setupInputConfig(ENERGY, energyContainer)`（= `fill(INPUT)`）
+   ⇒ **所有面都收电** ⇒ 唯一的约束就是**方块朝向**；
+③ 方块状态朝向是 **6 向**（`facing=up/down/north/south/west/east`）、`Direction` 枚举序 ⇒ **默认 `down`**；
+   场景 `setblock` 没写朝向 ⇒ 电朝地板送，机器在正上方，一格都收不到。
+
+**决定**：改**场景**（`machine_course.mcfunction` 里写 `[facing=up]`），**不改 Java、不重编 jar**（纯数据）；
+"喂不上就按前提补电 + 必然留痕"的兜底（D-210）**不变** —— 它不是问题，它正是这次能发现问题的原因。
+**复核触发**：下一轮 S4 ⇒ 应为 `energy_at_open>0` + `energy_source=cube（场景电源，未补电）`；
+若仍是 `api_precharge` ⇒ 前提仍未成立，回来读方块朝向与相邻面（**不要再加补电**）。
+**教训**：写在注释/决策里的"前提"必须有**活体证据**才算前提 —— 这条前提写进了场景注释也写进了决策，
+直到"如实留痕"的 `energy_source` 把真相打出来，才发现它一直是假的。

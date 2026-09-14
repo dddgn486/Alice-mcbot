@@ -848,3 +848,21 @@ jar `3312608d…`。
 - **过程侧待办**：记账 ≤15 行/条；收口集中更新文档；验证批量化；`tools/check-fixture-hygiene.sh`；`docs/WORKFLOW_RULES.md` 索引；"待验证"单一队列。
 - **待用户拍板**：验证等级 5→3；`AI_TEST_MATRIX` 去留；规则日落机制。
 - **审查量化留档**：09-14 当日 19 提交（6 纯文档/13 含代码）、`docs +436` vs `src +864`；场景函数 102 个、电池仅引用 8 个；决策文档 62 处"待客户端"。
+- **第五轮：R1 容器闸门活了 + S4 首次跑通 + 抓到一个"假前提"**（2026-09-14，客户端验证）：
+  ① **R1**：`container_gate_live=PASS container_gate_armed=PASS containerGate=armed container_checks=13
+  container_refused=0`（`latest.log:3206`）。**13 = 各步 `containers=N/32` 之和**（provision 2 + craft 2 +
+  furnace 3 + cooking 4 + transfer 2)⇒ 闸门覆盖面与预算覆盖面**逐点一致**，不是恒 0 的死开关；
+  每步 `refusedContainers=0` ⇒ 无生产路径被硬停。日志里唯一那条 `denied action=container`（`:3201`，
+  `by=walk-to:CONTAINER_TRANSFER`）是 `container_gate_armed` 负例故意打的（故 WARN 与 `container_refused=0`
+  不矛盾：负例跑完 `finally` 还原开关 + 快照还原观察样本）。⇒ **D-211 的两条复核触发都已解除**。
+  ② **S4**：`[MachineCycle] SUMMARY … binding=true feed_verified=true in_machine=1 active_seen=true
+  progress_ticks=199 product_after=1 product_landed=true machine_emptied=true input_consumed=true
+  container_writes=2 reset=true verdict=PASS`（`:3811`）；两次写容器走同一套闸门+预算
+  （`scope=…#1478:MachineCycleCheckTask … containers=2/32 refusedContainers=0`，`:3815`）。⇒ S4 = `WINDOWS_CLIENT`。
+  ③ **场景电源前提是假的**（D-212）：`energy_at_open=0.0` + 200 tick 只掉 10000 J ⇒ 方块**流入 0**；
+  根因 = 能量方块只有**朝向面**出电（`TileComponentConfig` 的 `fill(INPUT)`+`setDataType(OUTPUT, side)`）
+  + 方块状态默认 `down` ⇒ 电送地板。已修场景 `[facing=up]`（**纯数据，不重编 jar**），
+  **待下一轮 `/reload` 后重验**（只看 `energy_source=cube` 一个字段）。
+  ④ 旁记：`K4=OK(… 写入类例外=43)`（上轮 56，交替，两次都 `K4=OK`，未取证，暂不动）。
+  ⑤ **S4 是否升级为电池步（D-197，CORE 28→29）**：**建议等 ③ 重验为 `cube` 之后再升** ——
+  否则等于把一个仍靠 `api_precharge` 兜底的夹具固化进 CORE。

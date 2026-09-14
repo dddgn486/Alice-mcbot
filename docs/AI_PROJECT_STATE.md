@@ -70,17 +70,26 @@ CORE `(28/28) → PASS`）。**实测纠正两条口径**（D-209）：零配方
 `with_site_confirmed=22 with_site_unobserved=[mekanism:smelting] no_site=4 row_block_missing=0`（守恒 22+1+4+0=27）、
 `m2_menu_class_matches=true`、`m{i}_slot_roles` 首次观察、`(28/28) ticks=2845 → PASS`；
 `/alice authz` 的 L2 行**首次在客户端敲过**（`:3836`）⇒ 该待验证项关闭。
-**S4 已实现**（**3-B 的第一次写入**，`COMPILES` + 闸门全绿，**客户端还没跑过**——上一轮漏跑，日志里 `MachineCycle` 0 次）：
-零参数物品 `alice:machine_cycle_check` → `MachineCycleCheckTask`（放料 → 等 → 取产物）。
+**S4 已跑通**（**3-B 的第一次写入**，`WINDOWS_CLIENT`，第五轮 `latest.log:3811`）：零参数物品
+`alice:machine_cycle_check` → `MachineCycleCheckTask`（放料 → 等 → 取产物）：
+`binding=true feed_verified=true in_machine=1 active_seen=true progress_ticks=199 product_after=1
+product_landed=true machine_emptied=true input_consumed=true container_writes=2 reset=true verdict=PASS`。
 **不新造授权**：容器写入维度 `WriteBudget` + `WriteReason.CONTAINER_TRANSFER` + requester `machine-cycle`；
-放料 shift-click（菜单自己决定落点）、成不成**只看世界事实**；场景加**真实电源**
-`mekanism:creative_energy_cube`（纯数据）。v1 单机单配方 + 夹具传送（内核寻路 = v2）。
-**R1 收口（2026-09-14，D-211，`COMPILES` + 六闸门 PASS / 待客户端）**：`WritePolicyMatrix` **首次经手容器写入**
-（挂点 `WriteBudget.consumeContainerWrite`；未登记 ⇒ 留痕不拒，**已登记但未声明 ⇒ 硬拒**，拒绝权默认武装 + 一行回退开关）；
-新增 `docs/authz/CONTAINER_WRITE_SITES.csv`（20 个调用点）+ `tools/policy-map.py` 断言⑦（负例实测都红），
-并顶出/补上 **`CraftJob`（生产熔炼）从没记账** 的真缺口 + CRAFT 行补声明 `CONTAINER_TRANSFER`。
-**下一步 = 客户端一轮（电池看 `container_checks/container_refused` + 跑 `alice:machine_cycle_check`），
-然后按 D-197 决定 S4 是否转电池步；再之后 S5 收口**。
+放料 shift-click（菜单自己决定落点）、成不成**只看世界事实**。v1 单机单配方 + 夹具传送（内核寻路 = v2）。
+**但首轮就抓到一个"假前提"（D-212）**：`energy_at_open=0.0`、200 tick 只掉 10000 J ⇒ 场景里的创造能量方块
+**流入 0**（根因：能量方块只有**朝向面**出电 + 方块状态默认 `down` ⇒ 电送地板；机器侧是全接收）。
+已修场景 `[facing=up]`（**纯数据，不改 Java、jar 不变**），**待 `/reload` 后重验 `energy_source=cube`**。
+**R1 收口（2026-09-14，D-211）已完成并经客户端验证**：`WritePolicyMatrix` **首次经手容器写入**
+（挂点 `WriteBudget.consumeContainerWrite`；未登记 ⇒ 留痕不拒，**已登记但未声明 ⇒ 硬拒**，
+拒绝权默认武装 + 一行回退开关 `setContainerRefusalArmed`）；`docs/authz/CONTAINER_WRITE_SITES.csv`
+（20 个调用点）+ `tools/policy-map.py` 断言⑦（负例实测都红），并顶出/补上
+**`CraftJob`（生产熔炼）从没记账** 的真缺口 + CRAFT 行补声明 `CONTAINER_TRANSFER`。
+**第五轮证据**：`container_gate_live=PASS container_gate_armed=PASS containerGate=armed
+container_checks=13 container_refused=0 verdict=PASS`（`latest.log:3206`）——**13 恰好等于各步
+`containers=N/32` 之和**（2+2+3+4+2）⇒ 闸门覆盖面与预算覆盖面**逐点一致**；`container_refused=0`
+⇒ 没有生产路径被硬停；D-211 的两条复核触发**都已解除**。
+**下一步 = 客户端一小轮（`/reload` → `/function alice_test:machine_course` → 右键 `alice:machine_cycle_check`，
+只看 `energy_source=cube`），然后按 D-197 决定 S4 是否转电池步（建议电源重验之后再升）；再之后 S5 收口**。
 电池 **CORE=28 / FULL=38**。**详细交接见 `docs/HANDOVER.md`**；**方向来源与审查留档见 `docs/reviews/2026-09-14-外部质疑与工作流审查留档.md`**；今天的新纪律见 PLAYBOOK §5.0b/§5.0c/§5.0d。
 
 ## 当前目标

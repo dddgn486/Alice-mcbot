@@ -572,42 +572,43 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
   zoneDiff=0 unregistered=0 undeclared=0`（`:3836`）⇒ 该项关闭。
 - 旁记：`K4=OK(… 写入类例外=56)`——上一轮是 43，两轮都 `K4=OK`（交替原因未取到证据，已如实登记，暂不动）。
 
-### 下一次客户端轮（S4 + 容器写入闸门，合并成一轮）
+### 第五轮结果（2026-09-14，**已验证 ✅ 真绿**）—— R1 容器闸门 + S4 首次跑通
 
-**A. `alice:regression_battery`（CORE）** —— 本轮要看的新键（`write_policy` 步）：
-`container_gate_live=PASS container_gate_armed=PASS containerGate=armed container_checks=N container_refused=0 verdict=PASS`
-（`container_checks` = 真过了闸门的容器写入次数：装了闸门却恒 0 ⇒ 挂点没接上；`container_refused` 必须 0）。
-自检会**故意**打两条 WARN（`undeclared_reason` / `unregistered_requester`）——那是 B4 负例真的触发了一次策略拒绝，
-G 段已快照/还原样本，`unregistered=0 undeclared=0` 仍应为绿。
+**A. `alice:regression_battery` CORE → `PROFILE=CORE … (28/28) ticks=2765 → PASS`**（`latest.log:3737`）。
 
-**B. 机器闭环 `alice:machine_cycle_check`（S4，**会写容器**；上一轮没跑，`MachineCycle` 在日志里 0 次）**
+- **R1 容器写入闸门（D-211）真的活了**（`:3206`）：`table_total=PASS … container_gate_live=PASS
+  container_gate_armed=PASS unregistered=0 undeclared=0 containerGate=armed container_checks=13
+  container_refused=0 verdict=PASS`；
+- **13 能对上账**：`container_checks=13` = 各步 `[WriteBudget] SUMMARY … containers=N/32` 之和
+  （`craft_station_provision` 2 + `craft_station_craft` 2 + `craft_furnace` 3 + `craft_cooking` 4 +
+  `transfer` 2）⇒ 闸门覆盖面与预算覆盖面**逐点一致**（"挂点真接上了"的硬证据，不是恒 0 的死开关）；
+- `container_refused=0` 且每步 `refusedContainers=0` ⇒ **没有生产路径被硬停**；
+- 日志里唯一一条 `denied action=container`（`:3201`，`by=walk-to:CONTAINER_TRANSFER policy=UNDECLARED_REASON`）
+  就是 `container_gate_armed` 负例**故意**打的那条：它断言"真开开关 ⇒ 真被拒"，随后 `finally` 还原开关 +
+  快照还原观察样本 ⇒ 所以 **WARN 出现而 `container_refused=0`，两者不矛盾**（夹具不污染 G 段口径）。
 
-零参数、游戏内右键。**先**确保场景已生成（电池 `machine_station` 步会跑它；单独测时先
-`/function alice_test:machine_course`），然后右键 `alice:machine_cycle_check`：
+**B. `alice:machine_cycle_check`（S4，会写容器）→ `verdict=PASS`**（`:3811`）：`binding=true`
+（表 `mekanism:enriching` == 方块实体自述）、`menu_slots=41`、`recipes_considered=142`、
+`recipe_id=mekanism:enriching/charcoal`、`feed_verified=true in_machine=1`、`active_seen=true
+progress_ticks=199`、`product_after=1 product_landed=true machine_emptied=true input_consumed=true`、
+`reset=true reset_pos=66, 64, 304`、`container_writes=2`（走同一套闸门+预算，`:3815`）、
+`residue=…minecraft:charcoalx1`（**如实报**：产物就是本轮的证据）。
 
-```
-[MachineCycle] 已传送 bot 到场景起点 66, 64, 304（66, 64, 304）
-[MachineCycle] SUMMARY machine=mekanism:enrichment_chamber@66, 64, 306 machine_reach=2.0 binding=true
-  menu_class=mekanism.common.inventory.container.tile.MekanismTileContainer menu_slots=41
-  machine_cleaned_before=already_empty energy_at_open=… energy_source=cube（场景电源，未补电）
-  recipes_considered=… recipe_id=mekanism:… input=minecraft:… x1 output=mekanism:… x1
-  product_before=0 feed_grant=ALLOW feed_verified=true in_machine=1 wait_ticks=…
-  progress_ticks=… active_seen=true product_after=1 product_landed=true machine_emptied=true
-  input_consumed=true container_writes=… verdict=PASS
-```
+**C. 但电源是"假绿"**：`energy_at_open=0.0` + `energy_source=api_precharge（场景电源没喂上 ⇒ 补电 4000000.0 J）`
+⇒ 场景里的创造能量方块**一格电都没送**（200 tick 只掉正好 10000 J = 纯消耗）。根因已查明并修场景（D-212）。
 
-- 看什么（游戏内）：bot 站到机器旁 → **菜单打开** → 料进机器 → **机器进度条动起来** → 产物进背包 → 回起点；
-- `energy_source`：`cube` = 场景电源真喂上了；`api_precharge` = **场景电源没喂上、夹具按前提补的电**
-  （**照样是绿，但这条事实会写在 SUMMARY 里**，不当没发生）；`unreadable` = 上游没这套访问器（不判红）；
-- `progress_ticks` / `active_seen`：机器**自己报的**进度（`-1` = 读不出，不等于"没在跑"）；
-- 失败码怎么读：`machine_absent:radius_6`（场景没生成/机器不在）、`machine_out_of_reach`（站位太远）、
-  `no_recipe_with_item_io`（这台机器没有"物品进出"的配方 ⇒ v1 不做）、`container_write_refused`（预算拒绝，
-  **必须停手**）、`feed_*`/`take_*`（点击被上游拒 / 点了没效果）、
-  `no_product_in_600ticks:no_energy|progress_stalled`（没电 vs 有电但不推进——**带着当时的能量与进度报出来**）。
+旁记：`K4=OK(… 写入类例外=43)`（上一轮 56，交替，两次都 `K4=OK`，未取证）。
 
-另外，`machine_route` 里 `station=` 的**文案已变**（S3 起机器路线报**方块 id**而不是配方类型 id）——
-`CraftJob` 的 `not_executable:<machine>` 与目标层菜单的 `needs=` 会跟着变；不合口味就说，回退成本 = `RecipeQuery` 一行。
-  若你觉得这个文案不对味，说一声，回退成本是 `RecipeQuery` 里一行。
+### 下一次客户端轮（重验场景电源：`/reload` + 2 步，约 1 分钟）
 
-玩家侧仍然**看不到任何动作**（纯只读探针 + 两次注定被拒的规划尝试，不改世界、不动 bot）——这是正常的。
+1. **先 `/reload`** —— 场景文件刚从仓库复制进存档（`saves/新的世界/datapacks/alice_test/`），
+   数据包只在**世界加载或 `/reload`** 时读盘；不 reload 等于没改；
+2. `/function alice_test:machine_course`（**必须**，本轮要的就是新朝向那行）→ 右键 `alice:machine_cycle_check`。
 
+**只看一个字段**（`[MachineCycle] SUMMARY` 里）：
+
+- `energy_at_open=4000000.0` + `energy_source=cube（场景电源，未补电）` ⇒ **场景真供电成立**，改对了；
+- 仍是 `energy_at_open=0.0` + `api_precharge` ⇒ 前提**仍未成立**，把 SUMMARY 整行贴我，回来读方块朝向与相邻面。
+
+两种情况的 `verdict` 都会是 `PASS`（补电兜底仍在，D-210）—— 这正是"补电必然留痕"的价值：
+它没把"电从哪来"瞒过去，所以今天才抓得到这个假前提。

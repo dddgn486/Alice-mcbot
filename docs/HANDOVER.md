@@ -12,7 +12,7 @@
 | **3-B / S0 机器类型事实表** | ✅ 完成（离线，真数据） | `docs/MEKANISM_FACTS.md`：Mekanism **26 类型 / 1171 条**（`crushing` 210 领跑），总量随会话变、已标出处 |
 | **3-B / S1 机器配方只读** | ✅ 完成（客户端验证） | `MachineRecipeFacts`（问上游 `getOutputDefinition()`/`getInput().getRepresentations()` + 自校验）→ `RecipeQuery.MACHINE_ROUTE`（有出处的路线，含机器类型与材料）；`CraftJob` 如实拒绝 `not_executable` |
 | **3-B / S2 机器站点只读** | ✅ 完成（客户端验证） | `machine_block=mekanism:enrichment_chamber@66,64,306`、`menu=…MekanismTileContainer slots=41`、**进度=上游自述** `getScaledProgress/getOperatingTicks/getActive` |
-| **R1 收口：容器写入进策略表（D-211）** | ✅ 离线圈闭（`COMPILES` + 六闸门 PASS；客户端证据待下一轮） | 矩阵首次**经手**容器写入（挂点 `WriteBudget.consumeContainerWrite`）；`docs/authz/CONTAINER_WRITE_SITES.csv` 20 个调用点逐个命名 + `tools/policy-map.py` 断言⑦（四条负例实测都红）；顶出并补上 **`CraftJob`（生产熔炼）从没记账** 的真缺口 |
+| **R1 收口：容器写入进策略表（D-211）** | ✅ 收口（客户端验证：`COMPILES` + 六闸门 PASS + `WINDOWS_CLIENT`） | 矩阵首次**经手**容器写入（挂点 `WriteBudget.consumeContainerWrite`）；`docs/authz/CONTAINER_WRITE_SITES.csv` 20 个调用点逐个命名 + `tools/policy-map.py` 断言⑦（四条负例实测都红）；顶出并补上 **`CraftJob`（生产熔炼）从没记账** 的真缺口 |
 | **3-B / S3 机器映射单一出处** | ✅ 收口（客户端验证，`SERVER_TESTED` + `WINDOWS_CLIENT`） | `machine_map_rows=27 with_site_confirmed=22 with_site_unobserved=[mekanism:smelting] no_site=4 unmapped=[] row_block_missing=[]`；`按表找到 2 台` + `m1_binding=true m2_binding=true`；CORE `(28/28) → PASS`（`latest.log:2941`/`:2953`/`:2971`/`:3680`） |
 
 **方向来源留档**：`docs/reviews/2026-09-14-外部质疑与工作流审查留档.md`（外部质疑三条 + 两轮工作流审查 + 设计讨论的完整来龙去脉、事实核校、裁定表、驳回项与 AI 自身教训；
@@ -34,42 +34,45 @@
   ⇒ 探针改成对表行做**完整划分** + 分桶守恒自检；② **`menuClass` 不是机器身份**（两台机器实测同一个
   `MekanismTileContainer`、槽位表逐项相同）⇒ 分辨"点对了哪台"只有 `m{i}_binding`，crusher 菜单类已按观察值回填。
   **未覆盖（如实登记）**：只登记基础机，`crushing` 的 1:N 工厂变体在 `note` 里点名但未入表。
-- **S4（已实现，`COMPILES` + 闸门全绿，待客户端验证）＝ 3-B 的第一次写入**：`MachineCycleCheckTask`
+- **S4（首次客户端跑通 ✅ `verdict=PASS`，`latest.log:3811`）＝ 3-B 的第一次写入**：`MachineCycleCheckTask`
   （放料 → 等 → 取产物）由零参数物品 **`alice:machine_cycle_check`** 触发；场景在富集仓下方加**真实电源**
   `mekanism:creative_energy_cube`（纯数据）。**不新造授权**：容器写入维度 `WriteBudget` +
   `WriteReason.CONTAINER_TRANSFER` + requester `machine-cycle`（矩阵登记为 `CONTAINER`）；
   放料走 shift-click（**菜单自己决定落点**）、成不成**只看结果**（机器里有料 / 背包里产物 +N）。
   能量/进度/菜单全是**上游自述**；补电这种测试前提**必然留痕** `energy_source=…`（D-210）。
-  **v1 边界**：单机单配方、站位用夹具传送（**内核寻路走到机器旁 = S4 v2**）。
+  **但第一轮是"假绿"**：`energy_at_open=0.0` + 200 tick 只掉 10000 J ⇒ 场景电源**流入 0**（D-212；
+  已修场景 `[facing=up]`，**待 `/reload` 后重验**）。
+  **v1 边界**：单机单配方、站位用夹具传送（**内核寻路走到机器旁 = S4 v2**）；
+  **升电池步（D-197，CORE 28→29）建议等电源重验为 `cube` 之后**。
 - **S5**：每次收尾都要回收临时探针（`alice:machine_probe`、`alice:machine_station_probe` 已回收 ⇒
   转为电池步 `machine_route` / `machine_station`；S4 的闭环自检**先做成物品**，绿了再按 D-197 转电池步）。
 
-## 3. 待客户端验证（一轮跑完）
+## 3. 第五轮客户端结果（2026-09-14，**已跑完：真绿 + 抓到一个假前提**）
 
-**A. `alice:regression_battery`（CORE = 28 项）—— ✅ 上一轮已**全绿**（`latest.log:3811`）**：
-`(28/28) ticks=2845 → PASS`。本轮（第四轮）确认了 S3 两处口径纠正**真的在客户端显示**：
-`machine_map_rows=27 with_site_confirmed=22 with_site_unobserved=[mekanism:smelting] no_site=[energy_conversion,
-evaporating, gas_conversion, infusion_conversion] unmapped=[] row_block_missing=[]`（`:3068`）、
-`按表找到 2 台`（`:3081`）、`m1_menu_class_matches=true`（`:3087`）、`m2_menu_class_matches=true`（`:3096`）、
-`m1_binding=true m2_binding=true`、首次观察 `m{i}_slot_roles=#0=IGNORED/UpgradeInventorySlot … #2=INPUT/InputInventorySlot
-#3=OUTPUT/OutputInventorySlot #4=POWER/EnergyInventorySlot`（`:3086`/`:3095`）。
-**`/alice authz` 也终于敲了**：`L2 规划期策略表：rows=22 zones=2 tasks=11 reasons=14 grants=6 zoneDiff=0
-unregistered=0 undeclared=0`（`:3836`）⇒ 该项关闭。
-（旁记：`K4=OK(… 写入类例外=56)` —— 与上一轮 43 交替，两次都 `K4=OK`，见 §6 遗留。）
+**A. `alice:regression_battery` CORE → `(28/28) ticks=2765 → PASS`**（`latest.log:3737`）。
 
-**B. `alice:machine_cycle_check`（S4，新，**会写容器**）—— 上一轮**没有跑**（`latest.log`/`debug.log` 里
-`MachineCycle` 出现 0 次；客户端 `mods/` 里当时已是含该物品的 jar `36d6f3e2…`，所以不是工件问题）。
-   仍待验证：零参数右键（场景先 `/function alice_test:machine_course`，电池步 `machine_station` 也会生成它），
-   看 `[MachineCycle] SUMMARY … product_after=1 machine_emptied=true input_consumed=true verdict=PASS`；
-   细节与失败码见 `docs/TESTING_GUIDE.md` §"下一次客户端轮"。
+- **R1 容器写入闸门（D-211）真的活了**（`:3206`）：`container_gate_live=PASS container_gate_armed=PASS
+  containerGate=armed unregistered=0 undeclared=0 container_checks=13 container_refused=0 verdict=PASS`；
+- **13 对得上账**：= 各步 `[WriteBudget] SUMMARY … containers=N/32` 之和
+  （provision 2 + craft 2 + furnace 3 + cooking 4 + transfer 2）⇒ 闸门覆盖面与预算覆盖面**逐点一致**
+  （"挂点真接上了"的硬证据，不是恒 0 的死开关）；
+- `container_refused=0`、每步 `refusedContainers=0` ⇒ **没有生产路径被硬停**；
+- 日志里唯一那条 `denied action=container`（`:3201`，`by=walk-to:CONTAINER_TRANSFER`）是
+  `container_gate_armed` 负例**故意**打的 ⇒ **WARN 出现而 `container_refused=0` 不矛盾**
+  （负例跑完 `finally` 还原开关 + 快照还原观察样本）；⇒ **D-211 的两条复核触发都已解除**；
+- 旁记：`K4=OK(… 写入类例外=43)`（上轮 56，交替，两次都 `K4=OK`，未取证）。
 
-**C. 本轮新增（D-211，容器写入闸门）—— 随下一轮电池一起看两行**：
-`[WritePolicy] SUMMARY … container_gate_live=PASS container_gate_armed=PASS containerGate=armed
-container_checks=N container_refused=0 verdict=PASS`：
-`container_checks` 是**覆盖面的活体证据**（装了闸门却恒 0 ⇒ 挂点没接上）；
-`container_refused` 必须为 0（>0 ⇒ 有生产路径被硬停，先读归因行）。
-自检会**故意**打两条 `[WritePolicy] undeclared_reason …` / `unregistered_requester …` WARN
-（B4 负例真的触发了一次策略拒绝）——G 段已快照/还原样本，`unregistered=0 undeclared=0` 仍是绿的。
+**B. `alice:machine_cycle_check`（S4）→ `verdict=PASS`**（`:3811`）：`binding=true`（表 == 方块实体自述）、
+`feed_verified=true in_machine=1`、`active_seen=true progress_ticks=199`、`product_after=1
+product_landed=true machine_emptied=true input_consumed=true`、`container_writes=2`（同走闸门+预算，`:3815`）、
+`reset=true reset_pos=66, 64, 304` ⇒ **S4 = `WINDOWS_CLIENT`**。
+
+**C. 但电源是"假绿"**：`energy_source=api_precharge`（D-212：能量方块只有朝向面出电 + 状态默认 `down`
+⇒ 电送地板）。已修场景，**不改 Java**。
+
+**下一次客户端轮（约 1 分钟，`/reload` + 2 步）**：`/reload` → `/function alice_test:machine_course` →
+右键 `alice:machine_cycle_check`，**只看两个字段**：`energy_at_open>0` + `energy_source=cube（场景电源，未补电）`。
+细节见 `docs/TESTING_GUIDE.md` §"下一次客户端轮"。
 
 ## 4. 今天新增/变更的纪律（都在 PLAYBOOK + AGENTS.md 里）
 
@@ -94,8 +97,10 @@ container_checks=N container_refused=0 verdict=PASS`：
 - **本轮最后同步的 jar**：`ca42c32f4bd2e54c`（完整 sha256 `ca42c32f4bd2e54c1d86947b82ba93485f32cc605cb2cdf34af49e08a40b1b81`；
   上一版 `36d6f3e28c3eaaa8`，再上版 `ca1ec15d7547afbc`）。变更是 **R1 收口：容器写入进策略表（D-211）**
   —— 矩阵首次经手容器写入 + 调用点覆盖登记表 + 补上 `CraftJob`/`MenuProbeTask` 两个真缺口。
+  **第五轮无 Java 改动 ⇒ jar 不变**（D-212 修的是场景 `.mcfunction`，纯数据）。
 - 场景：仓库 `tools/test-scenes/alice_test/` → 客户端存档
-  `saves/新的世界/datapacks/alice_test/`（**改场景后要手动把改动的 `.mcfunction` 复制过去**，本轮已复制且 `diff -rq` 无差异）；
+  `saves/新的世界/datapacks/alice_test/`（**改场景后要手动复制改动的 `.mcfunction` 过去 + 游戏里 `/reload`**
+  —— 数据包只在世界加载/`/reload` 时读盘；本轮已复制、`diff -rq` 无差异、**等 `/reload`**）；
   `/function alice_test:machine_course`（S2+S3 机器场景：富集仓 + 粉碎机）、
   `furnace_course`、`craft_tab_course`、`craft_table_course`、`craft_station_course`。
 - 电池：`alice:regression_battery`（CORE=**28**）/ `/alice battery full`（FULL=38）；
@@ -196,8 +201,10 @@ profile 叶子上的 `disabled: true` 是"所有权在预设"而非"没启用"�
 
 ## 6. 未做/已知边界（不假装完成）
 
-- **机器闭环（S4）已实现但未验证**：`alice:machine_cycle_check`（D-210）还没在客户端跑过
-  （上一轮漏跑，见 §3 B）；机器路线的**通用执行**仍未做——`CraftJob` 对机器配方仍如实拒绝 `not_executable`；
+- ~~**机器闭环（S4）已实现但未验证**~~ **第五轮已跑通**（`verdict=PASS`，`latest.log:3811`）；
+  **但场景电源前提是假的**（D-212：能量方块只有朝向面出电 + 状态默认 `down` ⇒ 电送地板），
+  已修 `[facing=up]`（纯数据），**待 `/reload` 后重验 `energy_source=cube`**；
+  机器路线的**通用执行**仍未做——`CraftJob` 对机器配方仍如实拒绝 `not_executable`；
 - **容器写入覆盖的已知边界（D-211）**：`InventoryCraft` 的结果槽 shift-click 在开着容器菜单时会把产物放进容器
   （实测 `product_in_container=1`）而**不过闸**（接它需要给该方法 grant 参数）；`TransferFixture` 在隔离层
   直接驱动搬运原语，**有意**不过闸（它验的就是原语自身）；
