@@ -10,7 +10,7 @@ set -euo pipefail
 SID="${1:-${DSH_SESSION_ID:-}}"
 [ -n "$SID" ] || { echo "需要会话 id（或设置 DSH_SESSION_ID）"; exit 2; }
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
-node - "$SID" "$DIR" <<'JS'
+node - "$SID" "$DIR" "${2:-}" <<'JS'
 const fs=require("fs"),zlib=require("zlib"),path=require("path");
 const sid=process.argv[2], root=process.argv[3];
 const base=path.join(process.env.HOME||"", ".dsh","sessions");
@@ -37,9 +37,11 @@ if(last){
   console.log(`current      ${last.totalTokens}  (${(100*last.totalTokens/win).toFixed(1)}% of window)   turn ${um[um.length-1].data.turn} step ${um[um.length-1].data.step}`);
   console.log(`  breakdown  input=${last.inputTokens} output=${last.outputTokens} cacheRead=${last.cacheReadTokens} reasoning=${last.reasoningTokens}`);
 }
-console.log(`peak         ${peak}  (${win?(100*peak/win).toFixed(1):"?"}% of window)`);
-console.log(`compactions  ${prunes.length} events, shadowed tokens total=${pruned}`);
-console.log(`steps        ${um.length} steps with usage`);
+if(process.argv[4]==="--full"){
+  console.log(`peak         ${peak}  (${win?(100*peak/win).toFixed(1):"?"}% of window; 注意跨窗口改动)`.replace("(245","(245"));
+  console.log(`compactions  ${prunes.length} events, shadowed tokens total=${pruned}`);
+  console.log(`steps        ${um.length} steps with usage`);
+}
 if(win){
   const trig=Math.floor(win*0.8), keep=Math.floor(win*0.16);
   console.log(`threshold    ${trig} (0.8 × window) ⇒ 还差 ${Math.max(0,trig-(last?last.totalTokens:0))} tokens 触发自动压缩`);
