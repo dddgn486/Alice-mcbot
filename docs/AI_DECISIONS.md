@@ -8764,6 +8764,11 @@ the user must resume it"）。这**正好符合** D-205 的意图（"恢复只�
 
 ### D-212：S4 场景电源前提是"假绿" —— 能量方块只有**朝向面**出电（2026-09-14 第五轮实测 + 上游源码）
 
+> ⚠️ **本条已被 D-213 修正（2026-09-14 第六轮，客户端实测）**：`[facing=up]` 已落进世界（存档 `r.0.0.mca`
+> 里 `facing:"up"`），机器**仍是** `energy_at_open=0.0` ⇒ **朝向不是"流入 0"的根因**。
+> 下面 ①②③ 的源码事实**依然成立**（朝向决定从哪个面出电，`[facing=up]` 保留），但"唯一的约束就是方块朝向"
+> 这句**作废**：真正的根因是**方块自身电量为 0 且永远充不进电**，见 D-213。
+
 **实测**：S4 首次客户端跑通（`verdict=PASS`，`latest.log:3811`），但 `energy_at_open=0.0`、
 `energy_source=api_precharge`。算术定罪：补 4000000 J 后 200 tick 只掉 10000 J = **纯消耗、流入 0**
 （若方块在送电，缓冲会被顶满）。**排除"方块没放上"**：同一轮 `[MachineStation] 事实留痕
@@ -8780,7 +8785,42 @@ untabled_blocks=[mekanism:creative_energy_cube@66, 63, 306]`（`:3002`）——�
 
 **决定**：改**场景**（`machine_course.mcfunction` 里写 `[facing=up]`），**不改 Java、不重编 jar**（纯数据）；
 "喂不上就按前提补电 + 必然留痕"的兜底（D-210）**不变** —— 它不是问题，它正是这次能发现问题的原因。
-**复核触发**：下一轮 S4 ⇒ 应为 `energy_at_open>0` + `energy_source=cube（场景电源，未补电）`；
-若仍是 `api_precharge` ⇒ 前提仍未成立，回来读方块朝向与相邻面（**不要再加补电**）。
+**复核触发**（第五轮写，**第六轮已触发并推翻**）：下一轮 S4 ⇒ 应为 `energy_at_open>0` + `energy_source=cube`；
+实测仍 `api_precharge`（`latest.log:281`）⇒ 前提**仍未成立**，且原因不是朝向 ⇒ 见 **D-213**。
 **教训**：写在注释/决策里的"前提"必须有**活体证据**才算前提 —— 这条前提写进了场景注释也写进了决策，
 直到"如实留痕"的 `energy_source` 把真相打出来，才发现它一直是假的。
+
+### D-213：创造能量方块**放下就是 0 J、且永远充不进电** ⇒ 场景必须自己灌电（2026-09-14 第六轮；修正 D-212）
+
+**实测（第六轮，场景已带 `[facing=up]`）**：`energy_at_open=0.0` + `energy_source=api_precharge`（`latest.log:281`）
+⇒ **朝向不是"流入 0"的原因**，D-212 的因果判定作废（朝向修正保留：它决定从哪个面出电）。
+
+**决定性证据 = 存档里的天然对照组**（世界在场景跑完后 14:05:51 保存，`latest.log:301-308`；区块 4,19 → `r.0.0.mca`）。
+`BasicEnergyContainer.serializeNBT` **只在非空时**写 `stored` ⇒ "空"是可判定的：
+
+- `enrichment_chamber @(66,64,306)` → `EnergyContainers=[{"Container":0,"stored":"3990000"}]`（夹具灌的 4,000,000 − 消耗 10,000）
+- `creative_energy_cube @(66,63,306)` → **`EnergyContainers=[]`** ⇒ 方块 0 J
+
+**根因（上游源码）**：① `BasicEnergyContainer:52` 初值 `stored = FloatingLong.ZERO` ⇒ 放下的方块就是空的；
+② `EnergyCubeEnergyContainer:37-45` 创造档 `insert`/`extract` 都 `action.combine(!isCreative)` ⇒ **强制 SIMULATE**
+⇒ 永远充不进（也抽不干）；③ `TileComponentEjector:166 if (!container.isEmpty())` + `CableUtils:27-31` ⇒ **空方块一滴不发**。
+④ 上游设计（独立核实 + `mekanism#7352` 维护者原话）：创造方块有"空/满"两个变体，"空"的是 **power sink**，
+"满"的靠**物品 NBT `mekanism:data → EnergyContainers`** 在**放置时**灌进方块实体（`BlockMekanism:310-314`）；
+`/setblock` 只能造出"空"那个。
+
+**决定（纯数据、零 Java）**：场景在 `setblock` 后复刻"满变体"载荷 ——
+`data merge block 66 63 306 {EnergyContainers:[{Container:0,stored:"4000000000"}]}`
+（`/data merge` → `load()` → `readContainers` → `setEnergy`，**直接 setter 不走 insert 守卫**）。
+`[facing=up]` 保留。场景命令 10 → 11 条。完整证据链：`docs/reviews/2026-09-14-S4电源根因勘察.md`。
+
+**反直觉点（写下来免得下次误判）**：机器容量只有 **20,000 J**（`StorageConfig:53-54`），兜底补电 4,000,000 会把机器顶到
+**容量之上**，此时 `BasicEnergyContainer.insert:105-109` **拒绝一切外来电**（~79,600 tick 才回落）⇒
+**"补电之后再观察方块通不通"无意义，判电源只看补电之前的 `energy_at_open`**。
+
+**复核触发**：下一轮 S4 ⇒ `energy_source=cube（场景电源，未补电）` + `energy_at_open>0`（20 kJ 容量会被顶满）；
+若仍 `api_precharge` ⇒ 回来查 FRONT 的实际绝对朝向（本轮 NBT 侧键是 RelativeSide，看不出绝对方向），
+并向用户要"方块顶面是不是亮的输出口"这一眼。
+
+**教训**：D-212 在**排除法没做完**时就定了根因（漏掉"方块自身是否非空"这一层）。
+正解不是打补丁，而是**换一个能证伪的证据源** —— 存档里"同一次保存、一块非空一块空"的对照组，
+比任何单向推理都硬。

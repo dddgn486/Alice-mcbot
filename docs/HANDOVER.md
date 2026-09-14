@@ -67,11 +67,18 @@
 product_landed=true machine_emptied=true input_consumed=true`、`container_writes=2`（同走闸门+预算，`:3815`）、
 `reset=true reset_pos=66, 64, 304` ⇒ **S4 = `WINDOWS_CLIENT`**。
 
-**C. 但电源是"假绿"**：`energy_source=api_precharge`（D-212：能量方块只有朝向面出电 + 状态默认 `down`
-⇒ 电送地板）。已修场景，**不改 Java**。
+**C. 但电源是"假绿" —— 第六轮已定真因（D-213，修正 D-212）**：`energy_source=api_precharge`。第五轮把根因判给
+"方块朝向"，第六轮场景已带 `[facing=up]`（存档 `r.0.0.mca` 里 `facing:"up"` 已核实生效）**仍然是 `api_precharge`**
+⇒ **朝向不是根因**。真因 = **创造能量方块放下时自带电量就是 0 J，而且永远充不进电**
+（`BasicEnergyContainer:52` 初值 ZERO + 创造档 `insert` 强制 SIMULATE），而 `TileComponentEjector:166` 对空容器直接跳过
+⇒ 场景"自带电源"这条前提**从来没成立过**。证据是存档里的对照组（同一次保存）：机器
+`EnergyContainers=[{"Container":0,"stored":"3990000"}]`、方块 `EnergyContainers=[]`。
+修法**纯数据**：场景加一行 `data merge block … {EnergyContainers:[{Container:0,stored:"4000000000"}]}`（命令 10→11 条）。
 
-**下一次客户端轮（约 1 分钟，`/reload` + 2 步）**：`/reload` → `/function alice_test:machine_course` →
-右键 `alice:machine_cycle_check`，**只看两个字段**：`energy_at_open>0` + `energy_source=cube（场景电源，未补电）`。
+**下一次客户端轮（约 1 分钟，`/reload` + 2 步 + 可选 1 眼）**：`/reload` → `/function alice_test:machine_course` →
+右键 `alice:machine_cycle_check`；**先看两个字段**：`energy_source=cube（场景电源，未补电）` + `energy_at_open>0`。
+若仍是 `api_precharge`，**请顺带看一眼方块本体**：GUI 能量条是不是空的、模型内芯有没有转、**顶面是不是那个亮的输出口**
+——这一眼能直接判死"FRONT 实际朝向"，比再推一轮源码便宜。
 细节见 `docs/TESTING_GUIDE.md` §"下一次客户端轮"。
 
 ## 4. 今天新增/变更的纪律（都在 PLAYBOOK + AGENTS.md 里）

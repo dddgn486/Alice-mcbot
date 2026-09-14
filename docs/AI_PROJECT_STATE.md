@@ -76,9 +76,14 @@ CORE `(28/28) → PASS`）。**实测纠正两条口径**（D-209）：零配方
 product_landed=true machine_emptied=true input_consumed=true container_writes=2 reset=true verdict=PASS`。
 **不新造授权**：容器写入维度 `WriteBudget` + `WriteReason.CONTAINER_TRANSFER` + requester `machine-cycle`；
 放料 shift-click（菜单自己决定落点）、成不成**只看世界事实**。v1 单机单配方 + 夹具传送（内核寻路 = v2）。
-**但首轮就抓到一个"假前提"（D-212）**：`energy_at_open=0.0`、200 tick 只掉 10000 J ⇒ 场景里的创造能量方块
-**流入 0**（根因：能量方块只有**朝向面**出电 + 方块状态默认 `down` ⇒ 电送地板；机器侧是全接收）。
-已修场景 `[facing=up]`（**纯数据，不改 Java、jar 不变**），**待 `/reload` 后重验 `energy_source=cube`**。
+**但连续两轮都抓到"假前提"（D-212 → D-213）**：`energy_at_open=0.0`、200 tick 只掉 10000 J ⇒ 场景里的创造能量方块
+**流入 0**。第五轮把根因判给"朝向"（D-212，场景已改 `[facing=up]`）；**第六轮带着 `[facing=up]` 重跑仍是 0
+（存档 `r.0.0.mca` 里 `facing:"up"` 已核实生效）⇒ 朝向不是根因**。真因（**D-213**）= **创造能量方块放下时
+自带电量就是 0 J、而且永远充不进电**（`BasicEnergyContainer:52` 初值 ZERO + 创造档 `insert` 强制 SIMULATE；
+`TileComponentEjector:166` 对空容器直接跳过），上游设计里"空变体"就是 power sink。证据 = 存档里的对照组
+（同一次保存）：机器 `EnergyContainers=[{"Container":0,"stored":"3990000"}]`、方块 `EnergyContainers=[]`。
+已修场景加一行 `data merge block … {EnergyContainers:[{Container:0,stored:"4000000000"}]}`
+（**纯数据，不改 Java、jar 不变**），**待 `/reload` 后重验 `energy_source=cube`**。
 **R1 收口（2026-09-14，D-211）已完成并经客户端验证**：`WritePolicyMatrix` **首次经手容器写入**
 （挂点 `WriteBudget.consumeContainerWrite`；未登记 ⇒ 留痕不拒，**已登记但未声明 ⇒ 硬拒**，
 拒绝权默认武装 + 一行回退开关 `setContainerRefusalArmed`）；`docs/authz/CONTAINER_WRITE_SITES.csv`

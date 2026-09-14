@@ -859,10 +859,18 @@ jar `3312608d…`。
   progress_ticks=199 product_after=1 product_landed=true machine_emptied=true input_consumed=true
   container_writes=2 reset=true verdict=PASS`（`:3811`）；两次写容器走同一套闸门+预算
   （`scope=…#1478:MachineCycleCheckTask … containers=2/32 refusedContainers=0`，`:3815`）。⇒ S4 = `WINDOWS_CLIENT`。
-  ③ **场景电源前提是假的**（D-212）：`energy_at_open=0.0` + 200 tick 只掉 10000 J ⇒ 方块**流入 0**；
-  根因 = 能量方块只有**朝向面**出电（`TileComponentConfig` 的 `fill(INPUT)`+`setDataType(OUTPUT, side)`）
-  + 方块状态默认 `down` ⇒ 电送地板。已修场景 `[facing=up]`（**纯数据，不重编 jar**），
-  **待下一轮 `/reload` 后重验**（只看 `energy_source=cube` 一个字段）。
+  ③ **场景电源前提是假的**：第五轮判为"朝向"并改 `[facing=up]`（D-212）；**第六轮带着 `[facing=up]` 重跑仍是
+  `energy_at_open=0.0` + `api_precharge`（`latest.log:281`；存档 `r.0.0.mca` 里 `facing:"up"` 已核实生效）
+  ⇒ 朝向不是根因（D-213）**。真因 = **创造能量方块放下时自带电量 0 J、且永远充不进电**
+  （`BasicEnergyContainer:52` 初值 ZERO + 创造档 `insert`/`extract` 强制模拟；`TileComponentEjector:166` 跳过空容器），
+  上游设计里"空变体"就是 power sink、"满变体"靠**放置时读物品 NBT** 灌入（`BlockMekanism:310-314`）。
+  证据 = 存档里的对照组（同一次保存）：机器 `EnergyContainers=[{"Container":0,"stored":"3990000"}]`、
+  方块 `EnergyContainers=[]`。已修场景加 `data merge block … {EnergyContainers:[{Container:0,stored:"4000000000"}]}`
+  （命令 10→11 条，**纯数据、不重编 jar**），**待下一轮 `/reload` 后重验**
+  （只看 `energy_source=cube` + `energy_at_open>0`）。勘察全文 `docs/reviews/2026-09-14-S4电源根因勘察.md`。
   ④ 旁记：`K4=OK(… 写入类例外=43)`（上轮 56，交替，两次都 `K4=OK`，未取证，暂不动）。
   ⑤ **S4 是否升级为电池步（D-197，CORE 28→29）**：**建议等 ③ 重验为 `cube` 之后再升** ——
   否则等于把一个仍靠 `api_precharge` 兜底的夹具固化进 CORE。
+  ⑥ **记账（等下次因功能需要重编 jar 时一并做）**：`MachineCycleCheckTask` 类注释里"给电前提：先等场景电源"
+  那段仍是第四~五轮的说法，要改成"创造方块放下是空的 ⇒ **场景用 `/data merge block` 灌电**，`api_precharge` 只是兜底"。
+  **本轮刻意不改 Java**（哪怕只改注释也会让 jar 哈希与客户端不一致），且运行中的 jar 与新源码会不一致。

@@ -594,8 +594,13 @@ progress_ticks=199`、`product_after=1 product_landed=true machine_emptied=true 
 `reset=true reset_pos=66, 64, 304`、`container_writes=2`（走同一套闸门+预算，`:3815`）、
 `residue=…minecraft:charcoalx1`（**如实报**：产物就是本轮的证据）。
 
-**C. 但电源是"假绿"**：`energy_at_open=0.0` + `energy_source=api_precharge（场景电源没喂上 ⇒ 补电 4000000.0 J）`
-⇒ 场景里的创造能量方块**一格电都没送**（200 tick 只掉正好 10000 J = 纯消耗）。根因已查明并修场景（D-212）。
+**C. 但电源是"假绿"（第六轮定真因，D-213 修正 D-212）**：第六轮带着 `[facing=up]` 重跑，仍是
+`energy_at_open=0.0` + `energy_source=api_precharge（场景电源没喂上 ⇒ 补电 4000000.0 J）`（`latest.log:281`）
+⇒ **朝向不是根因**。真因 = **创造能量方块放下时自带电量就是 0 J、而且永远充不进电**
+（`BasicEnergyContainer:52` 初值 ZERO + 创造档 `insert` 强制模拟；`TileComponentEjector:166` 对空容器直接跳过）。
+证据 = 存档里的对照组（同一次保存，区块 4,19）：机器 `EnergyContainers=[{"Container":0,"stored":"3990000"}]`、
+方块 `EnergyContainers=[]`。修法**纯数据**：场景加
+`data merge block … {EnergyContainers:[{Container:0,stored:"4000000000"}]}`（命令 10 → 11 条）。
 
 旁记：`K4=OK(… 写入类例外=43)`（上一轮 56，交替，两次都 `K4=OK`，未取证）。
 
@@ -603,13 +608,19 @@ progress_ticks=199`、`product_after=1 product_landed=true machine_emptied=true 
 
 1. **先 `/reload`** —— 场景文件刚从仓库复制进存档（`saves/新的世界/datapacks/alice_test/`），
    数据包只在**世界加载或 `/reload`** 时读盘；不 reload 等于没改；
-2. `/function alice_test:machine_course`（**必须**，本轮要的就是新朝向那行）→ 右键 `alice:machine_cycle_check`。
+2. `/function alice_test:machine_course`（**必须**，本轮要的就是新增的 `data merge block` 那行）
+   → 右键 `alice:machine_cycle_check`。
 
-**只看一个字段**（`[MachineCycle] SUMMARY` 里）：
+**只看两个字段**（`[MachineCycle] SUMMARY` 里）：
 
 - **`energy_source=cube（场景电源，未补电）`** + `energy_at_open=N（N>0）` ⇒ **场景真供电成立**，改对了
-  （**判据是"方块喂上了"这件事，不是某个具体数字**：缓冲充到多少取决于机器的容量与方块速率，我不预设）；
-- 仍是 `energy_at_open=0.0` + `api_precharge` ⇒ 前提**仍未成立**，把 SUMMARY 整行贴我，回来读方块朝向与相邻面。
+  （**判据是"方块喂上了"这件事，不是某个具体数字**：机器容量只有 20 kJ，会被顶满，我不预设具体值）；
+- 仍是 `energy_at_open=0.0` + `api_precharge` ⇒ 回来查 FRONT 的**实际绝对朝向**；这时请**顺带看一眼方块本体**
+  （GUI 能量条是不是还空着、模型内芯有没有转、**顶面是不是那个亮的输出口**）并把看到的说给我。
 
 两种情况的 `verdict` 都会是 `PASS`（补电兜底仍在，D-210）—— 这正是"补电必然留痕"的价值：
 它没把"电从哪来"瞒过去，所以今天才抓得到这个假前提。
+
+**一个反直觉点**：兜底补电 4,000,000 J 会把机器顶到 20 kJ 容量**之上**，此后机器
+**拒绝一切外来电**（`BasicEnergyContainer.insert` 的 `needed.isZero()` 分支，按 50 J/t 要 ~79,600 tick 才回落）
+⇒ **"补电之后再观察方块通不通"没有意义，判电源只看补电之前的 `energy_at_open`**。
