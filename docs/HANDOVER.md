@@ -262,13 +262,16 @@ profile 叶子上的 `disabled: true` 是"所有权在预设"而非"没启用"�
   ~~**但场景电源前提是假的**~~ **第七轮已自证**（D-213：真因是创造方块放下就是 0 J 且充不进电，
   场景改用 `data merge block … EnergyContainers=[{Container:0,stored:"4000000000"}]` 灌电）⇒
   `energy_source=cube（场景电源，未补电）` + `energy_at_open=20000.0` + `verdict=PASS`（`latest.log:213`）；
-  **已升电池步 `machine_cycle`**，该步在 CORE 里的绿待下一轮确认；
-  机器路线的**通用执行**仍未做——`CraftJob` 对机器配方仍如实拒绝 `not_executable`；
+  **已升电池步 `machine_cycle`**，第九/十/十一轮 CORE **连续三次绿**（最近 `(29/29) ticks=3116 → PASS`，`latest.log:3924`）；
+  **S4 v2（D-216）第十一轮已验证"闭环自己走到机器旁"**（`walk_state=DONE walk_ticks=41`，内核自述 `finalFoot` 逐字一致，
+  该段零写入）⇒ **增量 2 = 把这条闭环接进 `CraftJob` 的 `MACHINE_ROUTE`**（两条红线：`api_precharge` 不进生产 +
+  目标机器取路由的 `station`，见 `docs/AI_PROJECT_STATE.md` 当前弧）；
 - **容器写入覆盖的已知边界（D-211）**：`InventoryCraft` 的结果槽 shift-click 在开着容器菜单时会把产物放进容器
   （实测 `product_in_container=1`）而**不过闸**（接它需要给该方法 grant 参数）；`TransferFixture` 在隔离层
   直接驱动搬运原语，**有意**不过闸（它验的就是原语自身）；
-- **`K4 写入类例外` 在 43 ↔ 56 之间交替**（两轮各一次，`K4=OK` 两次）：像是"上一轮遗留的脚手架/方块状态
-  影响下一轮路径内容"，**未取到直接证据**，先如实登记（不动它）；
+- ~~**`K4 写入类例外` 在 43 ↔ 56 之间交替**~~ **第十一轮已定性结案**：它是 `PathingStats` 的**全局搜索事件计数**
+  （"经写入边到达目标格但格不可站"，见 `AStarMovementSearch:112-122`），**按构造不参与 `k4Ok` 判定**，
+  43/56/56/58 的波动 = 每轮搜索次数差异 ⇒ 详见台账第四轮那条旁记（不是"脚手架遗留"）；
   化学品/气体类输出如实 `machine_output_not_item` / `MACHINE_RECIPE_UNSUPPORTED`；
 - **电池瘦身**：已**回退**（D-201 附注一）——撤走 8 步会暴露隐含前置；瘦身前置=**夹具自证前提**，
   目前只落地了 `FixturePremise`（ownMenu/stationMenuOpen/onGround）+ 电池级每步自证与清场，

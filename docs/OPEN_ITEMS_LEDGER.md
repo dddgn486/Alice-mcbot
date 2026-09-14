@@ -898,7 +898,13 @@ jar `3312608d…`。
   ⚠️ **这两条是"删注册物品"的一次性自愈警告，不是回归**（已用**磁盘状态**证实，不靠日志措辞）：退出后
   `level.dat` 里 `grep machine_cycle_check` = **0**、`stats/<uuid>.json` 里该键已消失 ⇒ 详见 D-215 附注一，
   **下次回收物品时别在复核轮里把它误判成"回收搞坏了什么"**。
-  旁记：`K4 写入类例外=56`（第九、十轮**连续两次 56** ⇒ "43↔56 交替"这个观察被削弱）；两次都 `K4=OK`。
+  旁记（第十一轮**已取证定性 ⇒ 结案，不再是开放项**）：`K4 写入类例外` = **`PathingStats` 的全局事件计数**
+  （`RegressionBatteryTask.k4Delta` 用 `totalsSnapshot()` 减去电池开始时的基线），计的是
+  "A* 到达目标格但 `canStandCentered=false`、**且进入边是写入类**（`plannedBreaks/plannedPlaces>0`）"的
+  **搜索事件次数** —— 见 `AStarMovementSearch:112-122`（**纯通行边**走进来的那种才是真异常 `goal_not_standable`）。
+  **它按构造就不参与判定**：`k4Ok = goalBad==0 && finalBad==0`，`postWrite` 只被打印。
+  实测 43 / 56 / 56 / **58**（第十一轮 `latest.log:3924`）⇒ 波动 = 每轮**搜索次数**差异
+  （挖掘/掉落收集类步骤的规划次数本来就不稳定），**不是语义变化**，也不再指示"上一轮遗留脚手架"。
 
 ## 阶段 3-B 后续（2026-09-14，(c) 起步 + (a) Thermal S0 的产出）
 
@@ -917,3 +923,10 @@ jar `3312608d…`。
   ③ 旁记（S1 开放项）：静态 jar 直方图 618 条 vs 运行时 652 条，**净差 +34 算术闭合**
   （`618 +7(numismatic_fuel) +7(tree_extractor) +38(10 个只在运行时出现的类型) −18(smelter_recycle 22→4)`），
   **来源未取证**（疑代码注册/条件禁用），留到 S1。
+  ⑪ **(c) 增量 2 的施工清单（下一步，WSL 离线可做）**：`CraftJob` 的 `MACHINE_ROUTE` 分支现在
+  `failAndFinish("machine_recipe_unsupported:not_executable:" + route.station())`（`CraftJob.java:183`）。
+  要接的就是 S4 v2 已实测的那条闭环（走 → 开 → 能量自证 → 投料 → 等 → 取 → 世界事实复核）。**两条红线**：
+  ① **`api_precharge` 不进生产**（没电 ⇒ `machine_no_energy` 如实失败）；② 目标机器取 `route.station()`
+  （已是机器方块 id），化学品/气体输入继续如实拒绝。**最小做法**：把 `MachineCycleCheckTask` 的
+  `WALK/OPEN/ENERGY/FEED/WAIT/TAKE/VERIFY` 抽成**可复用执行器**（抽出的执行器里**不含 precharge**，
+  夹具那套兜底留在夹具内），`CraftJob` 调它；红线①再加一道**门禁**机械保证（生产目录零命中 precharge）。

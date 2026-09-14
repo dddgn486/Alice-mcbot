@@ -8922,3 +8922,16 @@ untabled_blocks=[mekanism:creative_energy_cube@66, 63, 306]`（`:3002`）——�
 
 **复核触发（下一轮 CORE 电池，零新入口）**：`machine_cycle=PASS` 且日志出现 `walk_state=DONE` + `walk_ticks>0`；
 若出现 `walk_skipped=already_in_reach` ⇒ **起点没生效**（要查，别当通过）。
+
+**✅ 复核已通过（第十一轮，`latest.log:3209`／整轮 `:3924`）**：`machine_distance_at_locate=8.5`（定位时**够不着**）
+→ `stand_point=66, 64, 305` → **内核自己走完 8 段**（`[R4 Session] completed session=machine-walk-0 segments=8
+ticks=40 finalFoot=66, 64, 305`，与断言格**逐字一致**）→ 开菜单那一刻 `machine_reach=1.5`
+⇒ `walk_state=DONE walk_ticks=41`（**无 `walk_skipped`**）、`machine_cycle=PASS ticks=251`、
+`(29/29) ticks=3116 → PASS`。
+**"纯通行"由预算自证、不靠代码推断**：该步 `WriteBudget … breaks=0/64 places=0/32 refusedBreaks=0 refusedPlaces=0`
+⇒ 零世界写入；会话**零重规划**（25 条日志 = 8 `segment_start` + 8 `segment_done` + 7 `continuous_advance`
++ `completed` + `Recover`）。**路径形状**：1×TRAVERSE + 6×DIAGONAL + 1×TRAVERSE
+（`(72,64,312)→(72,64,311)→…→(67,64,305)→(66,64,305)`；8 段 39 tick + 1 = `walk_ticks=41`，算术闭合），
+末段落点在机器**旁格**、**没有**踩进机器自身那一格。
+**⇒ S4 v2 达 `WINDOWS_CLIENT`。下一道复核触发 = 增量 2 接线**：生产路径里 `api_precharge` **零命中**（机械可查），
+且没电时终态必须是 `machine_no_energy`（如实失败，不许凭空造能量）。

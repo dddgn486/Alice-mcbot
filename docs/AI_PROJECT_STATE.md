@@ -116,20 +116,29 @@ alice:machine_cycle_check: 3405` + `missing registry entries`（⇒ 不在注册
 ⚠️ 那种 missing-registry/stats 警告是**删注册物品的一次性自愈副作用**（`level.dat` 已归零、stats 键已消失），
 **不是回归** —— 见 D-215 附注一，下次回收物品别误判。
 **当前弧（用户 2026-09-14 裁定：(c) 起步 + (a) 并行只读）—— 3-B 之后是"让 S4 真能生产用"**：
-- **(c) 第 1 步已完成（代码侧，D-216 / S4 v2）**：闭环自检**自己走到机器旁** —— 起点挪到平台远角
+- **✅ (c) 第 1 步已完成并客户端验证（D-216 / S4 v2，第十一轮）**：闭环自检**自己走到机器旁** —— 起点挪到平台远角
   `CYCLE_START=(72,64,312)`（到机器 ≈8.49 格，远超交互距离）、新 `WALK` 相位
   （`TableCraft.standPointNear` + `PathRequest.of` **纯通行** + `PathRetryRunner`，到位用 `inReach` 断言）、
   删掉 v1"够不着直接判红"、扫描半径 6→12、新留痕 `machine_distance_at_locate`/`stand_point`/`walk_state`/
   `walk_ticks`/`foot_after_walk`/`machine_reach`（= 开菜单前的眼距）。**同一条电池步 `machine_cycle` 就是测试入口（零新入口）**。
-- **(c) 未做（下一增量）**：把这条闭环**接进 `CraftJob` 的 `MACHINE_ROUTE`**（现在仍 `not_executable` 如实拒绝）。
-  接线时必须守住两条：**① `api_precharge` 兜底绝不能进生产**（没电 ⇒ 如实失败）；**② 目标机器来自路由的 `station`**，
+  **第十一轮实测（`latest.log:3209`；jar `sha256=5dfd3c57…`）**：`machine_distance_at_locate=8.5`（定位时**确实够不着**，
+  v1 那条隐式前提已被拆掉）→ 内核自己走完 **8 段、`[R4 Session] completed session=machine-walk-0 segments=8 ticks=40
+  finalFoot=66, 64, 305`**（与断言格**逐字一致**）→ 开菜单那一刻 `machine_reach=1.5`
+  ⇒ `walk_state=DONE walk_ticks=41`（**无 `walk_skipped`**，起点真的生效了）、`machine_cycle=PASS ticks=251`、
+  `(29/29) ticks=3116 → PASS`（`:3924`）；`WriteBudget … scope=…#1564:Regression:machine_cycle breaks=0/64
+  places=0/32 refusedBreaks=0 refusedPlaces=0` ⇒ 这段路**零世界写入**（"纯通行"红线在实测里成立，不是靠代码推断）。
+  路径本身是 1×TRAVERSE + 6×DIAGONAL + 1×TRAVERSE 的干净斜线，**零重规划**（25 条会话日志 = 8 segment_start +
+  8 segment_done + 7 continuous_advance + completed + Recover，无第二次 `plan`）。
+- **(c) 未做（下一增量 = 增量 2）**：把这条闭环**接进 `CraftJob` 的 `MACHINE_ROUTE`**（现在仍 `not_executable` 如实拒绝）。
+  接线时必须守住两条：**① `api_precharge` 兜底绝不能进生产**（没电 ⇒ 如实失败）；**② 目标机器来自路由的 `station`**
+  （S3/D-209 起 `station` 已是**机器方块 id**，表里没有单方块站点才回落成类型 id；类型 id 仍留在 `Route.type`），
   化学品/气体 I/O 继续如实拒绝。
 - **(a) 已完成第 1 份 S0 事实表**：`docs/THERMAL_FACTS.md`（Thermal：652 条 / 30 类型，占本次跳过量 27.5%；
   前 5 = press 227 / pulverizer 81 / smelter 70 / insolator 63 / centrifuge 59 = 500 条 76.7%）。
   两个前置缺口已登记台账⑩：**无上游 sources jar**、**`alice-recipes.json` 已过时**（那之后又装了 refinedstorage 等三个模组）。
-**下一步 = 客户端一小轮（零新入口）**：重启客户端（新 jar `sha256=5dfd3c57e4132fb0bc04760f6df5ac46a0f2fbb83d92f1445ba56e3748a1cec0`）
-→ `/alice battery core` ⇒ 期望仍 `(29/29) → PASS`，且 `machine_cycle` 步内出现 **`walk_state=DONE` + `walk_ticks>0`**
-（若 `walk_skipped=already_in_reach` ⇒ 起点没生效，要查，别当通过）。
+**下一步 = (c) 增量 2（WSL 离线可做，不需要用户输入，也不需要客户端）**：把上面这条闭环接进
+`CraftJob` 的 `MACHINE_ROUTE`（见上一条 bullet 的两条红线）。**客户端当前无待验项** —— 第十一轮已把
+S4 v2 的全部复跑要求走完（`walk_state`/`walk_ticks`/整轮 29/29）。
 **上下文窗口已由用户从 256K 改为 512K**（D-214，本会话生效；阈值 409,600 / 保留 81,920）——改的是"何时压缩"，
 不改变事实来源；复核触发 = 手动 `/compact` 频率没降、或我出现"忘记已确认事实/重复问已答过的问题" ⇒ 退回 256K。
 电池 **CORE=29 / FULL=39**。**详细交接见 `docs/HANDOVER.md`**；**方向来源与审查留档见 `docs/reviews/2026-09-14-外部质疑与工作流审查留档.md`**；今天的新纪律见 PLAYBOOK §5.0b/§5.0c/§5.0d。
