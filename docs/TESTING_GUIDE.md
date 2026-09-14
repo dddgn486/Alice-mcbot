@@ -617,15 +617,21 @@ progress_ticks=199`、`product_after=1 product_landed=true machine_emptied=true 
 - **判据语义别读强**：`energy_source=cube` 证的是"**场景把电送上了**"（开机时机器已有电），
   不是"程序认出了 cube 方块"（读的是机器自己的能量容器）；场景里只有这一条供电路径 ⇒ 两者等价。
 
-**下一次客户端轮 = S5 收口复核（1 步，约 6–8 分钟）**：
+**✅ S5 收口复核已通过（第十轮客户端，16:20–16:23，`WINDOWS_CLIENT`）**：
 
-1. **重启客户端**（本轮重编了 jar —— 删了 `alice:machine_cycle_check` 物品类 + 改文案；
-   jar 已同步到 `mods/`，`sha256=d5e49c1b4ec7e8f48b634c97f912f4513c5423ef4952871b569899d44fcfc5ef`）；
-2. `/alice battery core`（或右键 `alice:regression_battery`）—— 期望仍 `(29/29) ticks=… → PASS`，
-   且**启动聊天文案这次应打"29 项"**（不再是写死的"26 项"，台账⑦ 已修）；
-3. `/give alice:machine_cycle_check` —— 期望**报"未知物品/不存在"**（探针零残留的用户侧证据，
-   对应 D-215：物品类 + 注册 + 模型 + lang + 三支无调用点的 `assign*` 全删；`check-item-models` 报 **76 项**）；
-4. 若 ① 变红 ⇒ 把该步 `ticks=`/`reason=` 与 `[Regression] SUMMARY` 整行贴回来。
+- `[alice] 串联回归电池已启动（**29 项**，约 2~4 分钟）`（`latest.log:199`）—— **文案不再写死 26**，台账⑦ 修复生效；
+- `PROFILE=CORE 实跑 29 项（跳过 EXTRA 10 项）`（`:200`）；
+- `[Regression] SUMMARY … machine_cycle=PASS … K4=OK(… 写入类例外=56) … (29/29) ticks=3083 → PASS`（`:3849`）；
+- **"探针零残留"的判据由 Forge 自己给出**：进世界时报
+  `[ERROR] Unidentified mapping from registry minecraft:item  alice:machine_cycle_check: 3405` +
+  `missing registry entries … There are 1 missing entries in this save`（另有 stats 一条非法统计警告，`:125`）
+  ⇒ 该物品**已不在注册表里**。
+
+⚠️ **这一类警告是"删注册物品"的必然副作用、一次性且自愈，不是回归**（已用**磁盘状态**证实，不是靠日志措辞）：
+退出后 `level.dat` 里 `grep machine_cycle_check` = **0**、`stats/<uuid>.json` 里该键已消失（16:23 重写）。
+**它恰好只会出现在"回收后的第一轮"**，所以最容易在复核轮里被误判成"回收搞坏了什么" —— 记住判据 = `level.dat` 归零。
+（另注：Forge 文案说会自动建世界备份，但 `saves/` 下今天没有新备份目录，只有 9/12 的 `新的世界 (1)`；实际改动只是删掉一个
+没人用的注册表条目，**世界内容零变化**。）
 
 **S4 的正式入口现在只有电池步**（`machine_cycle`，CORE 默认档内含）—— 想单看它就读 SUMMARY 里那一项 + 该步的
 `[MachineCycle] SUMMARY` 行（`energy_at_open>0` + `energy_source=cube（场景电源，未补电）`）。

@@ -891,3 +891,11 @@ jar `3312608d…`。
   ⇒ 永不为空 = 真无限电源），`api_precharge` 只是兜底"，并新增"能量判据的准确含义"一段。
   新 jar `sha256=b290b8b3a1276915feee509f6e7203aad7ca16ad2454e742b5f2d14dc3a7984f`（已同步到客户端 `mods/`）；
   **客户端需重启才会加载新 jar**。
+  ⑧ **✅ 已关闭（2026-09-14 第十轮复核，全绿）**：启动文案打 **"29 项，约 2~4 分钟"**（不再写死 26 ⇒ 台账⑦ 修复生效）、
+  `[Regression] SUMMARY … machine_cycle=PASS … (29/29) ticks=3083 → PASS`（`latest.log:3849`）。
+  **"探针零残留"的判据由 Forge 自己给出**：进世界时报 `[ERROR] Unidentified mapping from registry minecraft:item
+  alice:machine_cycle_check: 3405` + `missing registry entries`（另有 stats 一条非法统计警告）⇒ 该物品**已不在注册表**。
+  ⚠️ **这两条是"删注册物品"的一次性自愈警告，不是回归**（已用**磁盘状态**证实，不靠日志措辞）：退出后
+  `level.dat` 里 `grep machine_cycle_check` = **0**、`stats/<uuid>.json` 里该键已消失 ⇒ 详见 D-215 附注一，
+  **下次回收物品时别在复核轮里把它误判成"回收搞坏了什么"**。
+  旁记：`K4 写入类例外=56`（第九、十轮**连续两次 56** ⇒ "43↔56 交替"这个观察被削弱）；两次都 `K4=OK`。

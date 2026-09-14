@@ -109,8 +109,14 @@ container_checks=13 container_refused=0 verdict=PASS`（`latest.log:3206`）—�
 台账⑦ 一并修掉（项数改 `coreStepCount()` 现算，不再写死"26 项"）；**"通用 vs 专属"对照表 = `docs/MOD_ADAPTER_PROTOCOL.md` §6**
 （结论：执行侧/发现侧通用，专属只有 `MachineMap` 一张表 + 夹具 1 行目标 + 1 段能量反射）。
 **⇒ 3-B（模组机器适配）S0→S5 全部走完**。新 jar `sha256=d5e49c1b4ec7e8f48b634c97f912f4513c5423ef4952871b569899d44fcfc5ef`（已同步客户端 `mods/`）。
-**下一步 = 客户端一小轮（收口复核，1 步）**：**重启客户端** → ① `/alice battery core` 仍 `(29/29) … → PASS`；
-② `/give alice:machine_cycle_check` **不存在**（探针零残留的用户侧证据）⇒ 之后进入下一个模组实验或 S4 v2（内核寻路走到机器旁）。
+**✅ 收口复核已通过（第十轮客户端，2026-09-14）**：启动文案打 **"29 项，约 2~4 分钟"**（台账⑦ 修复生效）、
+`[Regression] SUMMARY … machine_cycle=PASS … (29/29) ticks=3083 → PASS`（`latest.log:3849`）；
+**"探针零残留"由 Forge 自己证明**：进世界报 `Unidentified mapping from registry minecraft:item
+alice:machine_cycle_check: 3405` + `missing registry entries`（⇒ 不在注册表里了）。
+⚠️ 那种 missing-registry/stats 警告是**删注册物品的一次性自愈副作用**（`level.dat` 已归零、stats 键已消失），
+**不是回归** —— 见 D-215 附注一，下次回收物品别误判。
+**下一步（无待验项，由你选方向）**：**(a) 下一个模组的 S0 枚举**（协议 §1 六步流水线，按 `docs/STAGE2_MODS_READABILITY.md` 的跳过量排序）
+或 **(b) S4 v2**（把夹具传送换成内核寻路走到机器旁，D-036 Baritone 对齐）。两者都能在 WSL 离线起头。
 **上下文窗口已由用户从 256K 改为 512K**（D-214，本会话生效；阈值 409,600 / 保留 81,920）——改的是"何时压缩"，
 不改变事实来源；复核触发 = 手动 `/compact` 频率没降、或我出现"忘记已确认事实/重复问已答过的问题" ⇒ 退回 256K。
 电池 **CORE=29 / FULL=39**。**详细交接见 `docs/HANDOVER.md`**；**方向来源与审查留档见 `docs/reviews/2026-09-14-外部质疑与工作流审查留档.md`**；今天的新纪律见 PLAYBOOK §5.0b/§5.0c/§5.0d。

@@ -8885,3 +8885,19 @@ untabled_blocks=[mekanism:creative_energy_cube@66, 63, 306]`（`:3002`）——�
 （外加"创造电源怎么造"这种上游语义）。⇒ 下个模组的边际成本 ≈ 填表 + 换 1 行 + 换电源造法，**不需要新内核**。
 **复核触发（下轮客户端，1 步）**：重启后 ① 电池仍 `(29/29) … → PASS`；② `/give alice:machine_cycle_check` **不存在**
 （探针零残留的用户侧证据）。
+
+**附注一（第十轮实测，2026-09-14）—— 回收注册物品的"一次性自愈警告"（下次别误判成 bug）**：
+删掉 `alice:machine_cycle_check` 后**首次进入那个客户端世界**时，Forge 会打：
+
+```
+[ERROR] Unidentified mapping from registry minecraft:item   alice:machine_cycle_check: 3405
+[WARN]  Forge Mod Loader detected missing registry entries. There are 1 missing entries in this save.
+        If you continue the missing entries will get removed.
+[WARN]  Invalid statistic in …/stats/<uuid>.json: Don't know what alice:machine_cycle_check is
+```
+
+**两条都是一次性且自愈的**（都已用磁盘状态证实，不靠日志措辞）：
+① 退出后 `level.dat` 里 `grep machine_cycle_check` = **0** ⇒ 悬挂的注册表条目已被移除并落盘；
+② `stats/<uuid>.json` 保存后同样**不再含**该键 ⇒ 非法统计被丢弃。
+⇒ **这是"删注册物品"的必然副作用，不是回归**；它会出现在**下一次进世界**的那一轮日志里，
+而**恰好就是复核轮**（所以很容易被当成"回收搞坏了什么"）。判据：`level.dat` 归零 = 已自愈。

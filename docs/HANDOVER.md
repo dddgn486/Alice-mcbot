@@ -90,12 +90,17 @@ input_consumed=true container_writes=2 budget_remaining_after=30 reset=true verd
 新 jar `sha256=b290b8b3a1276915feee509f6e7203aad7ca16ad2454e742b5f2d14dc3a7984f`
 （已镜像到 `D:\JAVA_projects\alice` 并同步到客户端 `mods/`）⇒ **客户端必须重启才会加载新 jar**。
 
-**下一次客户端轮 = S5 收口复核（1 步，约 6–8 分钟）**：**重启客户端**（本轮重编了 jar：
-`sha256=d5e49c1b4ec7e8f48b634c97f912f4513c5423ef4952871b569899d44fcfc5ef`）→
-① `/alice battery core`：期望仍 `(29/29) … → PASS`（新 jar 的启动文案应打 **29 项**，不再是"26 项"）；
-② `/give alice:machine_cycle_check`：期望**报不存在**（探针零残留的用户侧证据）。
-若 ① 变红 ⇒ 把该步 `ticks=`/`reason=` 与 `[Regression] SUMMARY` 整行贴回来。
-细节见 `docs/TESTING_GUIDE.md` §"下一次客户端轮"。
+**✅ 收口复核已通过（第十轮客户端，16:20–16:23）**：`[alice] 串联回归电池已启动（**29 项**，约 2~4 分钟）`
+（`latest.log:199`，文案不再写死 26 ⇒ 台账⑦ 修复生效）+ `PROFILE=CORE 实跑 29 项（跳过 EXTRA 10 项）`（`:200`）
++ `[Regression] SUMMARY … machine_route=PASS machine_station=PASS machine_cycle=PASS … (29/29) ticks=3083 → PASS`（`:3849`）。
+**"探针零残留"由 Forge 自己证明**：进世界报 `[ERROR] Unidentified mapping from registry minecraft:item
+alice:machine_cycle_check: 3405` + `missing registry entries`（另有 stats 一条非法统计警告）⇒ 物品已不在注册表。
+⚠️ 这类警告是**删注册物品的一次性自愈副作用**（退出后 `level.dat` 里 `grep machine_cycle_check` = **0**、
+`stats/<uuid>.json` 里该键已消失），**不是回归** —— 见 D-215 附注一。
+旁记：`K4 写入类例外=56`（第九、十轮**连续两次 56**，"43↔56 交替"被削弱；两次都 `K4=OK`）。
+
+**下一步（没有待验项了，方向由你定）**：**(a) 下一个模组的 S0 枚举**（协议 §1；按 `docs/STAGE2_MODS_READABILITY.md`
+的跳过量排序，Mekanism 已走完 S0→S5）或 **(b) S4 v2**（夹具传送 → 内核寻路走到机器旁，D-036 Baritone 对齐）。
 
 **✅ 已执行（第九轮客户端，`WINDOWS_CLIENT`）**：新客户端会话（14:34:59 启动 ⇒ 新 jar 已加载 ——
 启动日志 `[Regression] PROFILE=CORE 实跑 29 项（跳过 EXTRA 10 项）`）⇒
