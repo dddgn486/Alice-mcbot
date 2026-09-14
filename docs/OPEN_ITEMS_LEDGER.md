@@ -797,3 +797,9 @@ jar `3312608d…`。
 - **S5 回收**：两支临时入口（`alice:machine_probe`、`alice:machine_station_probe`）已删除，
   任务转电池步 `machine_route` / `machine_station`（机器不在 ⇒ SKIP）⇒ **CORE 25 → 27**。
 - **夹具纪律**（用户要求）：场景夹具**自带传送 + 结束复位**（PLAYBOOK §5.0d）；审计已无缺口。
+
+**§6.52 授权模型与过程开销：修订方向（2026-09-14，D-207 + 两轮工作流审查）**
+- **代码侧待办**：① 集中策略表（区域×任务类别 → TEMP/KEEP + Movement 集合 + 预算；默认 PROTECTED）；② 野外默认放开 `PILLAR/FALL/DOWNWARD`；③ `miningApproach` 改"按条件放行"（**先 A/B 客户端证据**）。
+- **过程侧待办**：记账 ≤15 行/条；收口集中更新文档；验证批量化；`tools/check-fixture-hygiene.sh`；`docs/WORKFLOW_RULES.md` 索引；"待验证"单一队列。
+- **待用户拍板**：验证等级 5→3；`AI_TEST_MATRIX` 去留；规则日落机制。
+- **审查量化留档**：09-14 当日 19 提交（6 纯文档/13 含代码）、`docs +436` vs `src +864`；场景函数 102 个、电池仅引用 8 个；决策文档 62 处"待客户端"。

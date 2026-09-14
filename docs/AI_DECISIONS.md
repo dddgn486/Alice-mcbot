@@ -8606,3 +8606,19 @@ the user must resume it"）。这**正好符合** D-205 的意图（"恢复只�
 
 **等级**：IMPLEMENTED + COMPILES + 资源自检 PASS（76 项）+ 已同步（jar `1c441fc9…`）；
 **待客户端**：CORE `(27/27) → PASS`（含 `machine_route=PASS`、`machine_station=PASS`）。
+
+### D-207：授权模型定为「硬校验 + 集中策略表」，**不做任务级授权开关**（2026-09-14 用户拍板）
+
+**背景**：外部质疑（服务端位移/防贼式审批/无菌温室）+ 两轮工作流审查。取证的现行事实：
+`WriteGrant(requester, reason)`（D-082，唯一写入凭证，**明确反对任务级开关**：许可会泄漏到子请求、预算无法归因）；
+`WorldModLedger` **只记放置**（无 `recordBreak`）带 `Policy.TEMP`（必须配对拆除）/`Policy.KEEP`（不该拆）；
+`RecoverabilityPolicy`：`FALL` 必须带 `fall_return_verified`，否则**规划期抛异常**；`RiskSwitches` 默认全关、评估器未实现。
+
+| 决定 | 内容 |
+|---|---|
+| **① 授权模型** | **安全 = 硬校验（落点可站 / PILLAR 支撑 / FALL 返回验证）+ 集中策略表**（区域×任务类别 → `TEMP/KEEP` + 允许 Movement 集合 + 预算上限）；**不新增任务级授权开关**，`WriteGrant` **一行不改**；默认 `PROTECTED`，显式降级到工作区；`UNKNOWN` requester 记为错误 |
+| **② Movement 放开** | 野外采集/伐木默认集合**加入 `PILLAR/FALL/DOWNWARD`**；`miningApproach` 的"整类禁用"改为**按条件放行**——**须先给 A/B 客户端证据**（可达性/耗时/坠落等风险事件）再改 |
+| **驳回（记录以免翻案）** | 取消 Tasks 层只留 InputController（丢掉可回收性/账本，D-034/D-035）；把账本交给基岩=不记账（丢掉"服务端是真相"的证据链与夹具零写入自证）；任务级授权开关（违反 D-082） |
+| **纠正（AI 自身）** | 上轮把"禁止挖穿脚下/搭柱须支撑"说成硬约束**不准确**：前者根本不存在（`DOWNWARD` 只要求"挖完能站住"），后者是**游戏物理前提**而非安全政策；"任务级一次授权"提案**撤回** |
+
+**依据**：`DownwardExecutionFactory` / `PillarExecutionFactory` / `RecoverabilityPolicy` / `WriteGrant` / `WorldModLedger` / `RestoreScopeTask`（两条拆除路径、自上而下、只拆自己放的、材料回收）。
