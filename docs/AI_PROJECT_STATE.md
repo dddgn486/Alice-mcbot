@@ -143,8 +143,10 @@ alice:machine_cycle_check: 3405` + `missing registry entries`（⇒ 不在注册
   `m_energy_source=present（…）`（**不是 `api_precharge`**）、`product_after=1`、`WriteBudget … containers=2/32 refusedContainers=0`；
   ② `machine_cycle=PASS ticks=251`（与第十一轮**逐字相同** ⇒ 薄壳重构无回归）。
   本轮 `api_precharge` **全日志零命中** ⇒ 红线①在客户端也成立（没电就该如实红）。**用户目视确认** bot 从平台远角自己走过去。
-- **(c) 未做**：机器路线的**多输入 / 化学品输入**（本轮如实拒绝）；`CraftJob` 只驱动 `EXECUTABLE` 那一行，
-  且**查询层不按准入挑路线**（取 `machineRoutes.get(0)`，本轮就是这么撞上 injection chamber 的）—— 见台账⑬。
+- **(c) 未做**：机器路线的**多输入 / 化学品输入**（如实拒绝）；`CraftJob` 只驱动 `EXECUTABLE` 那一行。
+  **✅ 查询层排序已收（D-218，台账⑬ 关闭，2026-09-14）**：`RecipeQuery` 现在**按执行准入优先**挑机器路线
+  （**只排不删** + `recipeId` 收尾 ⇒ 结论确定，不随配方管理器迭代序漂；`note` 里写清挑了哪台/共几条有准入）。
+  下一轮电池期望：`craft_machine` 的 **`fallback_used=false` + `target=minecraft:clay_ball`**（首选候选直接可用）。
 - **(a) 已完成第 1 份 S0 事实表**：`docs/THERMAL_FACTS.md`（Thermal：652 条 / 30 类型，占本次跳过量 27.5%；
   前 5 = press 227 / pulverizer 81 / smelter 70 / insolator 63 / centrifuge 59 = 500 条 76.7%）。
   两个前置缺口已登记台账⑩：**无上游 sources jar**、**`alice-recipes.json` 已过时**（那之后又装了 refinedstorage 等三个模组）。

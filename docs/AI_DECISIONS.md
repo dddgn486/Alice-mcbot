@@ -8979,3 +8979,21 @@ m_machine_reach=1.5`；`m_energy_source=present（…）` 且 **`api_precharge` 
 (a) "只驱动 `EXECUTABLE` 的行"这道闸**真的在拦人**；(b) 同一产出可能有多台机器，而查询层取 `machineRoutes.get(0)`
 **不按准入过滤**（已记台账⑬）。**夹具侧无回归**：`machine_cycle=PASS ticks=251` 与第十一轮**逐字相同**。
 用户目视确认 bot 从平台远角**自己走过去**（第十一轮缺的那条目视证据补上了）。
+
+### D-218：机器路线**按执行准入优先排序**（只排不删；台账⑬ 收口）（2026-09-14）
+
+**问题（第十二轮实测暴露）**：同一产出可能有多台机器能做，而 `RecipeQuery` 取 `machineRoutes.get(0)`
+= **配方管理器迭代序**，**不看 `MachineMap.Capability`** ⇒ 生产侧"能不能做"部分取决于迭代序：
+`minecraft:clay_ball` 先命中 `mekanism:chemical_injection_chamber`（无执行准入）⇒ `CraftJob` 如实拒绝，
+其实富集仓也能做它（`mekanism:enriching/clay_ball`）。
+
+**改法（最小）**：`RecipeQuery` 返回 `MACHINE_ROUTE` 前把候选路线**只排不删** —— 主序 = `hasExecutor(station)`
+（有准入的在前），次序 = `recipeId`（⇒ 同一次查询的结论**确定**，不随迭代序漂）。`Result.note` 里写清
+"挑了哪台 / 有没有准入 / 同类路线共几条、其中几条有准入"。**不删**是为了保住既有语义："读得出路线就报得出"
+（S1 的只读承诺），拒绝仍由 `CraftJob` 那侧按 `EXECUTABLE` 如实做。
+
+**这不是能力扩张**：准入档（谁能被执行）**仍然只有 `MachineMap` 一个出口**；本次只改"多条里先给哪一条"。
+
+**观测点**：电池步 `craft_machine` 新增 `fallback_used`。修好后首选候选应**直接可用** ⇒ 期望 `fallback_used=false`
+且 `target=minecraft:clay_ball`（第十二轮的 `true` + `target=soul_soil` 就是本问题的证据）。
+**若又变 `true`** ⇒ 要么排序没生效，要么同一产出又多了台**未准入**的机器（先查后者，那是产品问题不是回归）。

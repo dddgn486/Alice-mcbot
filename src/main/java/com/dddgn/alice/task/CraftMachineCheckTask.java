@@ -167,6 +167,9 @@ public class CraftMachineCheckTask implements Task {
             targetId = candidate;
             query = result;
             record("candidates_tried", String.join(" ", tried));
+            // **后备是否被用到**（D-218 / 台账⑬ 的观测点）：查询层现在按**执行准入优先**排机器路线 ⇒
+            // 首选候选应当**直接可用**；若这里又变 `true`，说明排序没生效、或同一产出又多了台未准入的机器。
+            record("fallback_used", String.valueOf(tried.size() > 1));
             record("target", candidate);
             record("route_station", result.route().station());
             record("route_type", result.route().type());

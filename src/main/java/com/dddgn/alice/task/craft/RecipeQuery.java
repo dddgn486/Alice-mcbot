@@ -16,6 +16,7 @@ import net.minecraft.world.item.crafting.ShapedRecipe;
 import net.minecraft.world.item.crafting.ShapelessRecipe;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -51,7 +52,9 @@ public final class RecipeQuery {
         /**
          * **机器产线**（S1 / D-204）：配方来自由**上游自述**读得出物品输入/输出的机器类型
          * （`getInput().getRepresentations()` / `getOutputDefinition()`）⇒ 给出**有出处的路线**
-         * （哪台机器、输入什么、产出什么）；但 **Alice 目前不能执行它**（没有该机器的执行适配）⇒ 只报不接。
+         * （哪台机器、输入什么、产出什么）。**能不能执行取决于那台机器的执行准入**
+         * （`MachineMap.Capability.EXECUTABLE`；D-217 起 `CraftJob` 只驱动有准入的行）——
+         * 本查询层**只排不删**：多条机器路线时按准入优先排列，并在 `note` 里写清挑了哪条、为什么（D-218）。
          */
         MACHINE_ROUTE
     }
@@ -191,9 +194,23 @@ public final class RecipeQuery {
         }
 
         if (craftable.isEmpty() && firstMissing.isEmpty() && !machineRoutes.isEmpty()) {
-            return new Result(Verdict.MACHINE_ROUTE, targetId, count, machineRoutes.get(0),
-                    List.of(), machineTypes, "机器产线（上游自述可读输入/输出；Alice 暂无该机器的执行适配"
-                            + (machineRoutes.get(0).materials().stream()
+            // **(c) 增量 2 收尾（D-218 / 台账⑬）**：同一个产出可能有多台机器能做，而配方管理器给的是
+            // **迭代序** ⇒ 生产侧"能不能做"就会碰运气：第十二轮实测 `minecraft:clay_ball` 先命中
+            // `mekanism:chemical_injection_chamber`（**没有执行准入**）⇒ 生产如实拒绝，其实富集仓也能做它。
+            // 这里**只排不删**：有执行准入的排前面，其余仍留在表里（"读得出就报得出"的语义不变），
+            // 并以 `recipeId` 收尾 ⇒ **同一次查询的结论是确定的**（不随迭代序漂）。
+            List<Route> ordered = new ArrayList<>(machineRoutes);
+            ordered.sort(Comparator
+                    .comparingInt((Route route) -> hasExecutor(route.station()) ? 0 : 1)
+                    .thenComparing(Route::recipeId));
+            Route chosen = ordered.get(0);
+            long executable = ordered.stream().filter(route -> hasExecutor(route.station())).count();
+            return new Result(Verdict.MACHINE_ROUTE, targetId, count, chosen,
+                    List.of(), machineTypes, "机器产线（上游自述可读输入/输出；" + chosen.station()
+                            + (hasExecutor(chosen.station()) ? " 已有执行准入" : " 暂无该机器的执行适配")
+                            + "；同类机器路线 " + ordered.size() + " 条，其中 " + executable + " 条有执行准入"
+                            + "（按准入优先选取）"
+                            + (chosen.materials().stream()
                                     .anyMatch(material -> material.candidates().isEmpty())
                                     ? "；输入含非物品形态" : "") + "）");
         }
@@ -305,6 +322,15 @@ public final class RecipeQuery {
             }
         }
         return missing;
+    }
+
+    /**
+     * 这台机器（按**方块 id**）有没有**执行准入**（`MachineMap` 是唯一出处；D-217 起生产只驱动这一档）。
+     * `false` 的语义是"读得出路线、但 Alice 还没有它的执行适配" ⇒ 调用方应**如实拒绝**，不是"做不到"。
+     */
+    public static boolean hasExecutor(String machineBlockId) {
+        MachineMap.Row row = MachineMap.forBlock(machineBlockId);
+        return row != null && row.capability() == MachineMap.Capability.EXECUTABLE;
     }
 
     /** 背包里该物品的总数（只读）。 */
