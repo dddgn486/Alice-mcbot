@@ -8901,3 +8901,24 @@ untabled_blocks=[mekanism:creative_energy_cube@66, 63, 306]`（`:3002`）——�
 ② `stats/<uuid>.json` 保存后同样**不再含**该键 ⇒ 非法统计被丢弃。
 ⇒ **这是"删注册物品"的必然副作用，不是回归**；它会出现在**下一次进世界**的那一轮日志里，
 而**恰好就是复核轮**（所以很容易被当成"回收搞坏了什么"）。判据：`level.dat` 归零 = 已自愈。
+
+### D-216：S4 v2 —— 闭环自检**自己走到机器旁**（拆掉"传送点恰好够得着"这条隐式前提）（2026-09-14）
+
+**动机**：v1 的起点在机器东侧 2 格 ⇒ `locate()` 用 `REACH_LIMIT=4.4` 判通过，**"走到机器旁"从来没被验证过**
+（那是一条隐式前提）。而要把这台机器的闭环**接进生产路径**（`CraftJob` 的 `MACHINE_ROUTE`），bot 必须真的走过去。
+
+**改法（全部复用已验证原语，零新造）**：① 起点挪到平台远角 `CYCLE_START=(72,64,312)`
+（到机器 `dx=dz=6` ≈ 8.49 格，远超交互距离；夹具**仍然自己传送**，纪律不变 —— 拆的是"够得着"而不是"确定性"）；
+② 新相位 `WALK`：`TableCraft.standPointNear`（与内核 `canStandCentered` 同口径的"现在就能站"格）+
+`PathRequest.of`（**纯通行**，D-076 不挖不搭）+ `PathRetryRunner`（2 次重规划、400 tick 上限）；
+③ 判据落在**开菜单那一刻**：`TableCraft.inReach`（眼位→方块中心）不成立就 `machine_out_of_reach`；
+④ 删掉 `locate()` 里 v1 的"够不着直接判红"（够不着 = 该走路，不是失败），扫描半径 6→12（远角是压线，半径 6 会让机器
+恰好落在立方盒角上）；⑤ 新留痕 `machine_distance_at_locate` / `stand_point` / `walk_state` / `walk_ticks` /
+`foot_after_walk` / `machine_reach`（= 开菜单前的眼距）。
+
+**未做（如实）**：**生产接线还没做** —— 本轮只拆前提。接线那一轮必须处理两件红线相关的语义：
+(a) **`api_precharge` 兜底绝不能带进生产**（那是测试前提；生产要"没电 ⇒ 如实失败"）；
+(b) 目标机器从**路由的 `station`** 来（不是夹具里写死的那一台），化学品/气体 I/O 继续如实拒绝。
+
+**复核触发（下一轮 CORE 电池，零新入口）**：`machine_cycle=PASS` 且日志出现 `walk_state=DONE` + `walk_ticks>0`；
+若出现 `walk_skipped=already_in_reach` ⇒ **起点没生效**（要查，别当通过）。

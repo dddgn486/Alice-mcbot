@@ -7,9 +7,11 @@ import com.dddgn.alice.action.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.decision.MachineMap;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.task.craft.MachineRecipeFacts;
 import com.dddgn.alice.task.craft.RecipeQuery;
 import com.dddgn.alice.task.craft.StationProvision;
+import com.dddgn.alice.task.craft.TableCraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -45,7 +47,11 @@ import java.util.List;
  * 槽位角色另有上游自述（`MachineStationProbeTask` 的 `slot_roles`）作为旁证。
  *
  * <p><b>§6.9.1 三条前提</b>：① **几何盒** = 以 bot 脚位为中心、半径 {@value #SCAN_RADIUS} 的立方盒，
- * 目标方块由 {@link MachineMap}（单一出处）给；② **世界/模组假设** = 场景 {@code alice_test:machine_course}
+ * 目标方块由 {@link MachineMap}（单一出处）给，**找见之后要自己走过去**（起点 {@link #CYCLE_START} 是平台远角 ⇒
+ * 内核寻路 `PathRequest.of` **纯通行**送到机器旁的可站格，再用 `inReach` 断言够得着）。
+ * ⚠️ **S4 v2 改的正是这一条**：v1 把起点放在机器东侧 2 格、"传送完就够得着" ⇒
+ * **"走到机器旁"这件事从来没被验证过**；v2 把这条隐式前提拆掉，为"接进生产路径（CraftJob）"铺路。
+ * ② **世界/模组假设** = 场景 {@code alice_test:machine_course}
  * 已摆好机器**且给了电** —— ⚠️ **创造方块放下就是 0 J**（上游 `BasicEnergyContainer.stored = FloatingLong.ZERO`，
  * 且 creative 侧对 insert/extract 都强制 SIMULATE ⇒ 放下的空方块**永远灌不满、也放不出电**），
  * 所以场景不是"放个方块就有电"，而是用 `/data merge block … EnergyContainers=[{Container:0,stored:"4000000000"}]`
@@ -70,11 +76,18 @@ public class MachineCycleCheckTask implements Task {
 
     /** v1 只跑**一台**：表里已实测菜单类的那台；换机器 = 换这一行（表里的其它行同构）。 */
     private static final String TARGET_BLOCK = "mekanism:enrichment_chamber";
-    private static final int SCAN_RADIUS = 6;
-    /** 交互可达上限（原版 `blockInteractionRange` = 4.5，留余量给眼高换算）。 */
-    private static final double REACH_LIMIT = 4.4;
+    /**
+     * 找机器的立方盒半径。
+     *
+     * <p>**S4 v2 起 = 12**（原 6）：起点挪到平台远角后必须"先看见、再走过去"，
+     * 半径 6 会让机器恰好落在立方盒角上（起点到机器 dx=dz=6）—— 那是**压线**，不是判据。
+     * 平台是 13×13 孤立区（边界外一圈空气）⇒ 放大半径不会误认别的场景的机器。
+     */
+    private static final int SCAN_RADIUS = 12;
     private static final int MAX_TICKS = 1400;
     private static final int OPEN_TICKS = 80;
+    /** 走过去的上限（tick；平台对角 ~9.9 格，实测几十 tick 级，留足余量）。 */
+    private static final int WALK_TICKS = 400;
     /** 等产物上限（★**不缩短**：这是真实机器进度，缩短只会把真绿变成假红）。 */
     private static final int WAIT_TICKS = 600;
     /** 一次点击后等"结果出现"的上限。 */
@@ -83,10 +96,17 @@ public class MachineCycleCheckTask implements Task {
     private static final int ENERGY_GRACE_TICKS = 60;
     private static final double PRECHARGE_JOULES = 4.0E6D;
 
-    /** 场景起点（与只读探针同一个起点；机器在它东侧）。 */
-    public static final BlockPos START = MachineStationProbeTask.START;
+    /**
+     * **S4 v2 起点 = 平台远角**（x/z 60..72, 300..312，地板 y=63）。
+     *
+     * <p>为什么改：v1 把起点放在机器东侧 2 格 ⇒ "传送完就够得着"，**闭环从没验过"走过去"**。
+     * v2 起点到机器 `dx=dz=6`（≈8.49 格，远超交互距离）⇒ 夹具**仍然自己传送**（纪律不变：
+     * 不依赖电池 provision、起点确定），但传送之后**必须走一段**才能开菜单 ⇒ 到机器旁这件事
+     * 由**内核寻路**负责（`PathRequest.of` 纯通行，D-076；不挖不搭）。
+     */
+    public static final BlockPos CYCLE_START = new BlockPos(72, 64, 312);
 
-    private enum Phase { PREPARE, LOCATE, OPEN, ENERGY, RECIPE, FEED, WAIT, TAKE, VERIFY, RESET, DONE }
+    private enum Phase { PREPARE, LOCATE, WALK, OPEN, ENERGY, RECIPE, FEED, WAIT, TAKE, VERIFY, RESET, DONE }
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -110,6 +130,9 @@ public class MachineCycleCheckTask implements Task {
     private int containerWrites;
     private int maxOperatingTicks = -1;
     private boolean activeSeen;
+    /** S4 v2：走过去的目标格（机器旁边的可站格）与寻路器。 */
+    private BlockPos standPoint;
+    private PathRetryRunner runner;
 
     public MachineCycleCheckTask(BotPlayer bot, ServerPlayer observer) {
         this.bot = bot;
@@ -128,7 +151,7 @@ public class MachineCycleCheckTask implements Task {
 
     @Override
     public TaskTarget target() {
-        return TaskTarget.block(machinePos == null ? START : machinePos);
+        return TaskTarget.block(machinePos == null ? CYCLE_START : machinePos);
     }
 
     @Override
@@ -149,6 +172,7 @@ public class MachineCycleCheckTask implements Task {
         return switch (phase) {
             case PREPARE -> prepare();
             case LOCATE -> locate();
+            case WALK -> walk();
             case OPEN -> open();
             case ENERGY -> ensureEnergy();
             case RECIPE -> pickRecipe();
@@ -163,8 +187,8 @@ public class MachineCycleCheckTask implements Task {
 
     /** 自带传送 + 起点前提（夹具纪律：不依赖电池 provision，standalone 右键也成立）。 */
     private Status prepare() {
-        bot.teleportTo(bot.serverLevel(), START.getX() + 0.5D, START.getY(), START.getZ() + 0.5D,
-                java.util.Set.of(), bot.getYRot(), bot.getXRot());
+        bot.teleportTo(bot.serverLevel(), CYCLE_START.getX() + 0.5D, CYCLE_START.getY(),
+                CYCLE_START.getZ() + 0.5D, java.util.Set.of(), bot.getYRot(), bot.getXRot());
         bot.setDeltaMovement(Vec3.ZERO);
         bot.controller().stopMovement();
         var ground = FixturePremise.onGround(bot);
@@ -172,8 +196,8 @@ public class MachineCycleCheckTask implements Task {
         check("premise_on_ground", ground.ok(), ground.detail());
         check("premise_own_menu", ownMenu.ok(), ownMenu.detail());
         record("start_pos", bot.blockPosition().toShortString());
-        BotLog.info("[MachineCycle] 已传送 bot 到场景起点 {}（{}）", START.toShortString(),
-                bot.blockPosition().toShortString());
+        BotLog.info("[MachineCycle] 已传送 bot 到**远角起点** {}（{}）—— 本步要**走过去**",
+                CYCLE_START.toShortString(), bot.blockPosition().toShortString());
         return advance(Phase.LOCATE);
     }
 
@@ -204,7 +228,7 @@ public class MachineCycleCheckTask implements Task {
         }
         machinePos = found;
         record("machine", TARGET_BLOCK + "@" + found.toShortString());
-        record("machine_reach", fmt(best));
+        record("machine_distance_at_locate", fmt(best));
         record("machine_type", row.typeId());
         blockEntity = bot.serverLevel().getBlockEntity(found);
         record("machine_be", blockEntity == null ? "-" : blockEntity.getClass().getName());
@@ -214,8 +238,46 @@ public class MachineCycleCheckTask implements Task {
         } else {
             check("binding", row.typeId().equals(beType), "表=" + row.typeId() + " 方块实体自述=" + beType);
         }
-        if (best > REACH_LIMIT) {
-            return failAndFinish("machine_out_of_reach:" + fmt(best));
+        // **S4 v2**：够不着**不再是失败** —— 那是"要走路"的信号，交给 WALK 相位（v1 在这里直接判红，
+        // 因为 v1 依赖"传送点恰好落在交互距离内"，那条隐式前提正是 v2 要拆掉的）。
+        return advance(Phase.WALK);
+    }
+
+    /**
+     * **S4 v2：走到机器旁**（内核寻路，纯通行 —— `PathRequest.of` 默认不改世界，D-076）。
+     *
+     * <p>三件事必须都在**世界事实**上成立才算过：① 找到**现在就能站**的格子（与内核
+     * `canStandCentered` 同口径，用的是 A3 工作台那条已验证的走位路径 {@link TableCraft}）；
+     * ② 寻路器真的把 bot 送到那格（`PathRetryRunner`，带重规划）；③ 站定后**眼位到方块中心**
+     * 够得着（{@code inReach}）。已经站在旁边时如实记 `walk_skipped`，不假装走过。
+     */
+    private Status walk() {
+        if (standPoint == null) {
+            standPoint = TableCraft.standPointNear(bot.serverLevel(), machinePos);
+            if (standPoint == null) {
+                return failAndFinish("machine_no_standing_point@" + machinePos.toShortString());
+            }
+            record("stand_point", standPoint.toShortString());
+            if (TableCraft.inReach(bot, machinePos) && bot.blockPosition().equals(standPoint)) {
+                record("walk_skipped", "already_in_reach");
+                return advance(Phase.OPEN);
+            }
+            PathRequest request = PathRequest.of(bot.getUUID().toString(), bot.blockPosition(),
+                    standPoint, "machine-cycle-walk");
+            runner = new PathRetryRunner(bot, request, PathRetryRunner.DEFAULT_MAX_REPLANS, "machine-walk");
+            return Status.RUNNING;
+        }
+        PathRetryRunner.State state = runner.tick();
+        if (state == PathRetryRunner.State.RUNNING) {
+            return phaseTicks > WALK_TICKS
+                    ? failAndFinish("walk_timeout:" + phaseTicks + "ticks") : Status.RUNNING;
+        }
+        runner = null;
+        record("walk_state", state.name());
+        record("walk_ticks", String.valueOf(phaseTicks));
+        record("foot_after_walk", bot.blockPosition().toShortString());
+        if (state != PathRetryRunner.State.DONE) {
+            return failAndFinish("walk_failed:" + state);
         }
         return advance(Phase.OPEN);
     }
@@ -223,6 +285,14 @@ public class MachineCycleCheckTask implements Task {
     /** 开菜单（`MenuSession`：与只读探针同一条路）；开之前先把手腾空，避免"拿着东西右键不打开 GUI"。 */
     private Status open() {
         if (session == null) {
+            // **S4 v2 的判据落点**：菜单能开 = "走到了机器旁"这件事真的成立（够不着时上游会失败，
+            // 而 v1 是靠传送保证的）。所以先在世界事实上断言够得着，再谈开菜单。
+            double eyeDistance = bot.getEyePosition().distanceTo(machinePos.getCenter());
+            record("machine_reach", fmt(eyeDistance));
+            if (!TableCraft.inReach(bot, machinePos)) {
+                return failAndFinish("machine_out_of_reach:" + fmt(eyeDistance)
+                        + "@" + bot.blockPosition().toShortString());
+            }
             record("hand_cleared", String.valueOf(clearHand()));
             session = MenuSession.open(bot, machinePos, 0);
             return phaseTicks > OPEN_TICKS ? failAndFinish("menu_open_timeout") : Status.RUNNING;
@@ -414,7 +484,8 @@ public class MachineCycleCheckTask implements Task {
         if (bot.containerMenu != null && !(bot.containerMenu instanceof InventoryMenu)) {
             bot.closeContainer();
         }
-        bot.teleportTo(bot.serverLevel(), START.getX() + 0.5D, START.getY(), START.getZ() + 0.5D,
+        bot.teleportTo(bot.serverLevel(), CYCLE_START.getX() + 0.5D, CYCLE_START.getY(),
+                CYCLE_START.getZ() + 0.5D,
                 java.util.Set.of(), bot.getYRot(), bot.getXRot());
         bot.setDeltaMovement(Vec3.ZERO);
         bot.controller().stopMovement();

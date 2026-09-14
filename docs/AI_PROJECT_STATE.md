@@ -115,8 +115,21 @@ container_checks=13 container_refused=0 verdict=PASS`（`latest.log:3206`）—�
 alice:machine_cycle_check: 3405` + `missing registry entries`（⇒ 不在注册表里了）。
 ⚠️ 那种 missing-registry/stats 警告是**删注册物品的一次性自愈副作用**（`level.dat` 已归零、stats 键已消失），
 **不是回归** —— 见 D-215 附注一，下次回收物品别误判。
-**下一步（无待验项，由你选方向）**：**(a) 下一个模组的 S0 枚举**（协议 §1 六步流水线，按 `docs/STAGE2_MODS_READABILITY.md` 的跳过量排序）
-或 **(b) S4 v2**（把夹具传送换成内核寻路走到机器旁，D-036 Baritone 对齐）。两者都能在 WSL 离线起头。
+**当前弧（用户 2026-09-14 裁定：(c) 起步 + (a) 并行只读）—— 3-B 之后是"让 S4 真能生产用"**：
+- **(c) 第 1 步已完成（代码侧，D-216 / S4 v2）**：闭环自检**自己走到机器旁** —— 起点挪到平台远角
+  `CYCLE_START=(72,64,312)`（到机器 ≈8.49 格，远超交互距离）、新 `WALK` 相位
+  （`TableCraft.standPointNear` + `PathRequest.of` **纯通行** + `PathRetryRunner`，到位用 `inReach` 断言）、
+  删掉 v1"够不着直接判红"、扫描半径 6→12、新留痕 `machine_distance_at_locate`/`stand_point`/`walk_state`/
+  `walk_ticks`/`foot_after_walk`/`machine_reach`（= 开菜单前的眼距）。**同一条电池步 `machine_cycle` 就是测试入口（零新入口）**。
+- **(c) 未做（下一增量）**：把这条闭环**接进 `CraftJob` 的 `MACHINE_ROUTE`**（现在仍 `not_executable` 如实拒绝）。
+  接线时必须守住两条：**① `api_precharge` 兜底绝不能进生产**（没电 ⇒ 如实失败）；**② 目标机器来自路由的 `station`**，
+  化学品/气体 I/O 继续如实拒绝。
+- **(a) 已完成第 1 份 S0 事实表**：`docs/THERMAL_FACTS.md`（Thermal：652 条 / 30 类型，占本次跳过量 27.5%；
+  前 5 = press 227 / pulverizer 81 / smelter 70 / insolator 63 / centrifuge 59 = 500 条 76.7%）。
+  两个前置缺口已登记台账⑩：**无上游 sources jar**、**`alice-recipes.json` 已过时**（那之后又装了 refinedstorage 等三个模组）。
+**下一步 = 客户端一小轮（零新入口）**：重启客户端（新 jar `sha256=5dfd3c57e4132fb0bc04760f6df5ac46a0f2fbb83d92f1445ba56e3748a1cec0`）
+→ `/alice battery core` ⇒ 期望仍 `(29/29) → PASS`，且 `machine_cycle` 步内出现 **`walk_state=DONE` + `walk_ticks>0`**
+（若 `walk_skipped=already_in_reach` ⇒ 起点没生效，要查，别当通过）。
 **上下文窗口已由用户从 256K 改为 512K**（D-214，本会话生效；阈值 409,600 / 保留 81,920）——改的是"何时压缩"，
 不改变事实来源；复核触发 = 手动 `/compact` 频率没降、或我出现"忘记已确认事实/重复问已答过的问题" ⇒ 退回 256K。
 电池 **CORE=29 / FULL=39**。**详细交接见 `docs/HANDOVER.md`**；**方向来源与审查留档见 `docs/reviews/2026-09-14-外部质疑与工作流审查留档.md`**；今天的新纪律见 PLAYBOOK §5.0b/§5.0c/§5.0d。

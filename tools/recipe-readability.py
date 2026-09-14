@@ -11,9 +11,13 @@
 **只读、离线**：不启动游戏、不改世界、不写任何游戏文件；只读 JSON 打印报告。
 
 用法：
-  recipe-readability.py --recipes <alice-recipes.json>            # 完整报告
-  recipe-readability.py --recipes <...> --target minecraft:iron_ingot --routes   # 只看某物品的路线
+  recipe-readability.py --recipes <alice-recipes.json>            # 完整报告（含 --top N）
   recipe-readability.py --selftest                                # 用本仓内嵌小样本自证
+
+⚠️ **本文件顶部曾宣传 `--target <item> --routes`，但 `main()` 从未注册这两个参数**（2026-09-14 实测
+`error: unrecognized arguments`，被 `docs/THERMAL_FACTS.md` 的 S0 工作踩到）⇒ 已从文档里删掉这句假承诺。
+"按产出物反查路线"目前只能自己写一次性脚本（`tools/recipe-graph.py` 是另一条路线，见其文件头）。
+**要做成正式功能 = 待办**（登记在 `docs/OPEN_ITEMS_LEDGER.md`），别再从本 docstring 推断它存在。
 """
 from __future__ import annotations
 

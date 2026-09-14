@@ -899,3 +899,21 @@ jar `3312608d…`。
   `level.dat` 里 `grep machine_cycle_check` = **0**、`stats/<uuid>.json` 里该键已消失 ⇒ 详见 D-215 附注一，
   **下次回收物品时别在复核轮里把它误判成"回收搞坏了什么"**。
   旁记：`K4 写入类例外=56`（第九、十轮**连续两次 56** ⇒ "43↔56 交替"这个观察被削弱）；两次都 `K4=OK`。
+
+## 阶段 3-B 后续（2026-09-14，(c) 起步 + (a) Thermal S0 的产出）
+
+  ⑨ **工具功能缺口的记账**：`tools/recipe-readability.py` 顶部 docstring 曾宣传
+  `--target <item> --routes`，**但 `main()` 只注册了 `--recipes/--selftest/--top`** ⇒ 实测
+  `error: unrecognized arguments`（被 Thermal S0 的工作踩到）。**假承诺已从 docstring 删掉**（避免下次再被误导），
+  但"**按产出物反查路线**"这个功能本身**仍待做**（S1/S2 会用：既看单模组配方，也看跨模组打架，
+  例如 `thermal:pulverizer` vs `mekanism:crushing` 谁先命中）。**最小做法** = 在 `audit()` 之外加一个
+  `--target <item>` 分支（dump 里按 `outputs`/`itemTags` 反查 + 打印 `type`/`station`）⇒ 不必新写解析。
+  ⑩ **Thermal S1 的两个前置事实（如实登记）**：
+  ① **没有上游 sources jar、也没有本地反编译产物** ⇒ 与 Mekanism 不同，S1 要**先解决"去哪拿源码/字节码"**
+  （本机可 `unzip` 静态 jar 读 data/ 与 class，但"问上游自述"那套判据仍建议对着源码核，见 D-036 的取证纪律）；
+  ② **`alice-recipes.json` 已过时于当前客户端**（该导出之后又装了 refinedstorage / sophisticatedcore|storage|backpacks）
+  ⇒ 那三个模组的配方不在本次 S0 数据里；Thermal/Mekanism/Create 的数字仍与候选清单吻合，故 Thermal S0 有效，
+  但**要动"当前客户端真实分布"时必须重新导出**（游戏内 `/alice recipes`）。
+  ③ 旁记（S1 开放项）：静态 jar 直方图 618 条 vs 运行时 652 条，**净差 +34 算术闭合**
+  （`618 +7(numismatic_fuel) +7(tree_extractor) +38(10 个只在运行时出现的类型) −18(smelter_recycle 22→4)`），
+  **来源未取证**（疑代码注册/条件禁用），留到 S1。

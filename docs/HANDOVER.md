@@ -99,8 +99,24 @@ alice:machine_cycle_check: 3405` + `missing registry entries`（另有 stats 一
 `stats/<uuid>.json` 里该键已消失），**不是回归** —— 见 D-215 附注一。
 旁记：`K4 写入类例外=56`（第九、十轮**连续两次 56**，"43↔56 交替"被削弱；两次都 `K4=OK`）。
 
-**下一步（没有待验项了，方向由你定）**：**(a) 下一个模组的 S0 枚举**（协议 §1；按 `docs/STAGE2_MODS_READABILITY.md`
-的跳过量排序，Mekanism 已走完 S0→S5）或 **(b) S4 v2**（夹具传送 → 内核寻路走到机器旁，D-036 Baritone 对齐）。
+**当前弧（用户 2026-09-14 裁定：(c) 起步 + (a) 并行只读）**：
+
+- **(c) 第 1 步 = S4 v2（D-216，已 IMPLEMENTED + COMPILES）**：闭环自检**自己走到机器旁**。
+  `CYCLE_START=(72,64,312)`（平台远角，到机器 ≈8.49 格）+ 新 `WALK` 相位
+  （`TableCraft.standPointNear` → `PathRequest.of` **纯通行** → `PathRetryRunner` → `inReach` 断言）；
+  v1 的"够不着直接判红"删掉（够不着 = 该走路）；扫描半径 6→12。**夹具仍然自己传送**（纪律不变）。
+  场景文件只改了**注释**（命令一条没动）⇒ **客户端不需要 `/reload`**。
+- **(c) 下一增量（没做）**：把它接进 `CraftJob` 的 `MACHINE_ROUTE`（现在仍 `not_executable`）。
+  接线红线：**①`api_precharge` 兜底绝不能进生产**（没电 ⇒ 如实失败）；**②目标机器来自路由 `station`**；
+  化学品/气体 I/O 继续如实拒绝。
+- **(a) 第 1 份 S0 事实表已交付**：`docs/THERMAL_FACTS.md`（Thermal 652 条 / 30 类型；前 5 = 500 条 76.7%；
+  静态 jar 618 vs 运行时 652 的 +34 已算术闭合但**来源未取证**，留 S1）。两个前置缺口见台账⑩
+  （**无 sources jar**、**`alice-recipes.json` 已过时**）。
+
+**下一次客户端轮（零新入口，约 6–8 分钟）**：重启客户端（新 jar
+`sha256=5dfd3c57e4132fb0bc04760f6df5ac46a0f2fbb83d92f1445ba56e3748a1cec0`）→ `/alice battery core`
+⇒ 期望仍 `(29/29) … → PASS`，且 `machine_cycle` 步内出现 **`walk_state=DONE` + `walk_ticks>0`**；
+若出现 `walk_skipped=already_in_reach` ⇒ **起点没生效，要查**（别当通过）。
 
 **✅ 已执行（第九轮客户端，`WINDOWS_CLIENT`）**：新客户端会话（14:34:59 启动 ⇒ 新 jar 已加载 ——
 启动日志 `[Regression] PROFILE=CORE 实跑 29 项（跳过 EXTRA 10 项）`）⇒

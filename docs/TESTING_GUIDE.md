@@ -636,6 +636,19 @@ progress_ticks=199`、`product_after=1 product_landed=true machine_emptied=true 
 **S4 的正式入口现在只有电池步**（`machine_cycle`，CORE 默认档内含）—— 想单看它就读 SUMMARY 里那一项 + 该步的
 `[MachineCycle] SUMMARY` 行（`energy_at_open>0` + `energy_source=cube（场景电源，未补电）`）。
 
+**⚠️ S4 v2 起（D-216）多了"走过去"这一段 —— 复核时看这几个新字段**（都在 `[MachineCycle] SUMMARY` 里）：
+
+| 字段 | 期望 | 含义 / 不通过时怎么读 |
+|---|---|---|
+| `machine_distance_at_locate` | ≈**8.49** | 找到机器时它离起点多远（远角起点 ⇒ 远超交互距离，说明**后面必须真的走**） |
+| `stand_point` | `66, 64, 305` | 机器旁边"现在就能站"的格（与内核 `canStandCentered` 同口径） |
+| `walk_state` | **`DONE`** | 内核寻路（**纯通行**，不挖不搭）到位；`FAILED` ⇒ 真没走通 |
+| `walk_ticks` | **>0** | 走了多少 tick |
+| `machine_reach` | 1~3 格 | **开菜单前**眼位→方块中心的距离（"够得着"的判据落点） |
+| `walk_skipped` | **不应出现** | 若出现 `=already_in_reach` ⇒ **起点没生效**（等于没测走路），要查，别当通过 |
+
+场景这边**不用 `/reload`**（本轮只改注释、命令一条没动）；起点是 Java 常量，不在场景里摆标记方块。
+
 **✅ 第九轮结果（`WINDOWS_CLIENT`，14:36–14:38）**：新会话（14:34:59 启动 ⇒ 新 jar 生效，日志
 `PROFILE=CORE 实跑 29 项（跳过 EXTRA 10 项）`）⇒ `[Regression] SUMMARY … machine_cycle=PASS … (29/29)
 ticks=3108 → PASS`（`latest.log:3842`）；`machine_cycle=PASS ticks=210 idempotent=true`（`:3130`）；
