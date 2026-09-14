@@ -267,3 +267,49 @@ Tier B OK（thermal） ：上游类型 32 个，表 32 行（有站点 26 / 无�
 **另一处别误会**：`query_probed=3 query_machine_route=2`（上一轮是 1）**不是** Thermal 造成的 ——
 那 3 个被探测的物品是**从采样里随机取的**（5 份归档日志里 3 个物品每次都不同、`query_machine_route` 在 1~2 之间浮动），
 且该计数**只报告、不是断言**。实测两个 MACHINE_ROUTE 都指向 `mekanism:chemical_injection_chamber`。
+
+## 10. 第十五轮新发现：Thermal 机器配方的"读法"（**已取证，未修**）
+
+**现象**（第十五轮逐命名空间行，`latest.log:3177`/`:3178`）：
+
+```
+[MachineProbe] namespace=mekanism types=26 type_recipes=1171 samples=51 unreadable_via_vanilla=31 upstream_readable=20 machine_output_not_item=31 input_readable=30
+[MachineProbe] namespace=thermal  types=30 type_recipes=652  samples=57 unreadable_via_vanilla=57 upstream_readable=0  machine_output_not_item=57 input_readable=0
+```
+
+⇒ Thermal 的 57 条抽样**两条通道全空**：原版侧 `getResultItem()` 给 AIR，Alice 的反射侧也什么都取不到。
+
+**根因（javap 取证，不是猜）**：Thermal 的机器配方类**全都 `extends cofh.thermal.lib.util.recipes.ThermalRecipe`**
+（实测 `PressRecipe` / `PulverizerRecipe` / `CentrifugeRecipe` / `CrystallizerRecipe` / `RefineryRecipe` /
+`PyrolyzerRecipe` / `CrucibleRecipe` / `PulverizerRecycleRecipe` …），访问器是：
+
+| 用途 | Thermal（实测签名） | Alice 现在问的名字（Mekanism 的形状） |
+|---|---|---|
+| 物品输入 | `getInputItems() : List<Ingredient>` | `getInput()` → `getRepresentations()` |
+| 流体输入 | `getInputFluids() : List<FluidIngredient>` | —（当前不支持） |
+| 物品输出 | `getOutputItems() : List<ItemStack>` | `getOutputDefinition()` / `getOutputs()` |
+| **产出概率** | **`getOutputItemChances() : List<Float>`** | （Mekanism 侧没有对应物） |
+| 能量 / 经验 | `getEnergy()` / `getXp()` | — |
+
+⇒ **结论：不是"Thermal 配方读不出"，而是"Alice 只会问 Mekanism 的名字"** ——
+这就是 `namespace=thermal … upstream_readable=0` 的**全部**原因。
+
+**⚠️ 修之前必须先处理"概率产出"**（否则构成**过度承诺**，违反"未知语义默认只读、不猜"）：
+实测 **65 / 670** 条 Thermal 配方带 `chance < 1.0` —— `pulverizer` **32/81**（≈40%）、`smelter` **21/70**（30%）、
+`refinery` 4/5、`insolator` 3/63、`pyrolyzer` 2/3、`centrifuge` 2/59、`sawmill` 1/12。
+**只读 `getOutputItems()` 会把"5% 的副产物"写成"必然产出"。**
+⇒ 正确读法 = **`getOutputItems()` 与 `getOutputItemChances()` 配套**：任一条 `chance < 1.0` ⇒ 如实标成**概率产出**，
+查询层按"**非保证产出**"处理（新增字段，**别塞进现有判据**）。
+
+**输入形态也不同**：Mekanism 是**单一** `InputIngredient`，Thermal 是 **`List<Ingredient>`**
+⇒ 读取代码要**按形态分支**，不能照抄。
+
+**复算命令**（只读）：
+
+```bash
+cd /tmp/tf_recon
+CP="tc_core:thermal_expansion-1.20.1-11.0.1.29:core"
+javap -p -classpath "$CP" cofh.thermal.lib.util.recipes.ThermalRecipe | grep -E "get(Input|Output|Energy|Xp)"
+javap    -classpath "$CP" cofh.thermal.core.util.recipes.machine.PressRecipe | grep extends
+# 概率产出统计：扫三个后端的 data/thermal/recipes/**，按每条的 result[].chance < 1.0 计数（见台账⑮）
+```

@@ -979,3 +979,24 @@ jar `3312608d…`。
   算术来源：有站点 49 行 − 零配方 3 行（`smelting`；Thermal 侧 `brewer`/`hive_extractor` 上游有类型但本次零配方）。
   **顺带入册的教训**：**"没被采样"与"不存在"必须能从日志上区分开** —— 一个统计字段混着两种含义，
   迟早会被读成错的那一种。
+  **✅ 第十五轮实测复核通过**（`latest.log:3007`/`:3177`/`:3178`）：`命名空间=[mekanism, thermal] 类型=56 条数=1823`、
+  `with_site_confirmed=**46**`、`with_site_unobserved=[mekanism:smelting, thermal:brewer, thermal:hive_extractor]`
+  （`46+3+10+0=59`）、`row_block_missing=[]`、`unmapped=[]`、`(30/30) ticks=3353 → PASS`；
+  逐命名空间行与**手算预测逐项相同**（`mekanism 26/1171`、`thermal 30/652`）。
+  ⇒ "Thermal 32 个类型里哪 30 个在运行时真有配方"**从此有自动化证据**。
+  ⑮ **Thermal 机器配方的"读法"缺失：不是读不出，是访问器名字不同（第十五轮发现，未修）**：
+  逐命名空间行里 `namespace=thermal … upstream_readable=0 input_readable=0 machine_output_not_item=57`（57/57 抽样全空），
+  而 `namespace=mekanism` 是 `upstream_readable=20 input_readable=30`。**根因已取证（javap，不是猜）**：
+  Thermal 的机器配方类（`PressRecipe` / `PulverizerRecipe` / `CentrifugeRecipe` / `CrystallizerRecipe` /
+  `RefineryRecipe` / `PyrolyzerRecipe` / `CrucibleRecipe` / `PulverizerRecycleRecipe` …）**都 `extends ThermalRecipe`**，
+  访问器是 **`getInputItems()`（`List<Ingredient>`）/ `getInputFluids()` / `getOutputItems()`（`List<ItemStack>`）/
+  `getOutputItemChances()`（`List<Float>`）/ `getEnergy()` / `getXp()`**；
+  而 Alice 现在反射问的是 `getOutputDefinition`/`getOutputs`（输出）与 `getInput`/`getItemInput`（输入）——
+  **Mekanism 的名字**。⇒ 查询层因此给不出 Thermal 的"机器产线（上游自述可读输入/输出）"路线。
+  **⚠️ 修之前必须先想清楚的一条**：**Thermal 的产出是"有概率"的**，实测 **65 / 670** 条配方带 `chance < 1.0`
+  （`pulverizer` 32/81、`smelter` 21/70、`refinery` 4/5…）⇒ **只读 `getOutputItems()` 会把 5% 的副产物写成"必然产出"**，
+  那是**过度承诺**（红线：未知语义默认只读、不猜）。最小修法 = 扩展名族（加 `getOutputItems` 等）+ **必读
+  `getOutputItemChances()`**：有任一 `chance < 1.0` ⇒ 如实标成**概率产出**并在查询层按"非保证产出"处理
+  （而不是当成确定产物）。**验证点**：下一轮电池里 `namespace=thermal upstream_readable>0 input_readable>0`，
+  且概率产出被如实标注（新增字段，不塞进现有判据）。**输入形态也不同**：Mekanism 的输入是单一
+  `InputIngredient#getRepresentations()`，Thermal 是 `List<Ingredient>` ⇒ 读取代码要**按形态分支**，不能照抄。

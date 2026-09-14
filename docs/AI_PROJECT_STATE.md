@@ -193,8 +193,14 @@ alice:machine_cycle_check: 3405` + `missing registry entries`（⇒ 不在注册
   SUMMARY 的 `namespace=` 改为 `namespaces=[…]` 且保留全局合计。
   期望新基线：`namespaces=[mekanism, thermal] types=56 type_recipes=1823`、
   **`with_site_confirmed=46`**、`with_site_unobserved=[mekanism:smelting, thermal:brewer, thermal:hive_extractor]`
-  （`46+3+10+0=59` ⇒ "未观测"回到"真·零配方"本义）**——待第十五轮客户端复核**（只改采样范围与摘要字段，
-  `row_block_missing` 仍须 `[]`）。
+  （`46+3+10+0=59` ⇒ "未观测"回到"真·零配方"本义）**——✅ 第十五轮实测逐项命中**（`latest.log:3007`/`:3177`/`:3178`：
+  `类型=56 条数=1823`、`with_site_confirmed=46`、`unobserved` 恰好 3 项、`row_block_missing=[]`、`(30/30) ticks=3353 → PASS`）
+  ⇒ "Thermal 32 个类型里哪 30 个真有配方"**第一次有了自动化证据**。
+  **同轮新发现（台账⑮，未修）**：`namespace=thermal … upstream_readable=0 input_readable=0`（57/57 抽样全空，
+  Mekanism 是 20/30）—— 根因**已用 javap 取证**：Thermal 机器配方的访问器是
+  `getInputItems/getOutputItems/getOutputItemChances`，Alice 反射问的是 Mekanism 的名字
+  （`getInput/getOutputDefinition`）⇒ **不是"读不出"，是"名字不同"**。修之前必须先处理它的**概率产出**
+  （实测 **65/670** 条 `chance < 1.0`）⇒ 只读 `getOutputItems()` 会把副产物写成必然产物（过度承诺）。
   另附一条入册的教训：**"没被采样"与"不存在"必须能从日志上区分开**（一个字段混两种含义必被读错）。
   另：`query_machine_route` 1→2 **不是 Thermal 造成的**（被探测物品是随机采样、该计数只报告不断言）。
   附带闭合的一处对账：`[MachineProbe] readable_total=3714 skipped_total=2354` 与导出 `recipes=3689 skipped=2379` 差 25 ——

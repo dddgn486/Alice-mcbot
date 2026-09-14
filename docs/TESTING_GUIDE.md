@@ -473,7 +473,7 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
 - **电池步**（零参数、无需你手动点）：
   - `machine_route`（S1）：机器配方**只读**——问上游自述读输入/输出 + 查询层给 `MACHINE_ROUTE`；
     S3 起多打机器映射覆盖（**采样哪些命名空间按 `MachineMap` 表推导**，所以再加模组不用改探针）：
-    `machine_map_rows=59 with_site_confirmed=46 with_site_unobserved=[mekanism:smelting, thermal:brewer, thermal:hive_extractor] no_site=[…10 个…] unmapped=[] row_block_missing=[]`（**第十五轮起的新基线，待复核**）；
+    `machine_map_rows=59 with_site_confirmed=46 with_site_unobserved=[mekanism:smelting, thermal:brewer, thermal:hive_extractor] no_site=[…10 个…] unmapped=[] row_block_missing=[]`（**第十五轮实测确认**）；
   - `machine_station`（S3 起是**两台一组**）：**按 `MachineMap` 认机器**（不再按"命名空间里最近的方块"），
     每台一组 `m1_*` / `m2_*`：`m1_type / m1_block / m1_be / m1_reach / m1_menu_class / m1_slots /
     m1_be_recipe_type / m1_binding`；夹具**自带传送与结束复位**；机器不在 ⇒ SKIP。
