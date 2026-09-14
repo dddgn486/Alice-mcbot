@@ -74,6 +74,9 @@
 3. **R2/R3**（野外默认放开 `PILLAR/FALL/DOWNWARD`；`miningApproach` 改按条件放行）——**须先 A/B 客户端证据**。
 4. 待用户拍板：验证等级 5→3、`AI_TEST_MATRIX` 去留、规则日落机制。
 
+**两个已知小遗留（下次顺手处理）**：① `check-authz-registry.sh` 对 `WriteReason` 检出 14/16（枚举解析偏保守 ⇒ 偏"漏检"而非误报，结论不受影响；修法：解析 `WriteReason.java` 的常量块，取行首/逗号后标识符并允许 `)` 结尾）；
+② `flow.svg` 无 PNG 版本（本机无 mmdc/inkscape/ImageMagick ⇒ 浏览器查看，或用时再写纯 Python 位图导出）。
+
 **未验证堆积**：`CORE 27`（含新步 `machine_station`）**尚未跑过**——上次绿是 25/26 那轮的 26/26 变体，别当成已验证。
 
 ## 6. 未做/已知边界（不假装完成）
