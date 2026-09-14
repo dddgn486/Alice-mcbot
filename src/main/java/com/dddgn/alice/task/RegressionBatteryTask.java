@@ -182,6 +182,35 @@ public final class RegressionBatteryTask implements Task {
         return lines;
     }
 
+    /**
+     * **定向模式**（T2 无头通道用）：非 null 时只跑名单里的步。
+     *
+     * <p>用途：无头首次接入要一个"秒级样板"来验证通道本身（起服 → 生成假人 → 跑一步 → 出判决 → 非零退出），
+     * 跑整轮 CORE（~3,350 tick）调试太慢。**只裁剪实跑集，不影响归属自校验** ——
+     * {@code allStepNames} 在裁剪前已快照，所以 `phantomEntries()` 仍按全量比对。
+     * 默认 null = 不裁剪（游戏内入口永不走这条路）。
+     */
+    private static volatile java.util.Set<String> onlySteps;
+
+    /**
+     * 最近一次跑完的电池判决（`PASS` / `DEGRADED` / `FAIL`）；null = 本进程还没跑完过一轮。
+     *
+     * <p>**唯一消费者是无头入口**（{@code com.dddgn.alice.headless.HeadlessBattery}）：它靠这个值把
+     * "电池判决"翻译成**进程退出码**，从而让 `./gradlew runServer -Dalice.headless.battery=core`
+     * 能被 CI 判红。游戏内路径不读它。
+     */
+    private static volatile String lastVerdict;
+
+    /** 无头入口：设定定向步名单（null / 空 = 恢复不裁剪）。 */
+    public static void setOnlySteps(java.util.Collection<String> names) {
+        onlySteps = (names == null || names.isEmpty()) ? null : java.util.Set.copyOf(names);
+    }
+
+    /** 最近一次电池判决（见 {@link #lastVerdict}）。 */
+    public static String lastVerdict() {
+        return lastVerdict;
+    }
+
     /** 运行档位（CORE 默认）。 */
     private final Mode mode;
 
@@ -519,7 +548,14 @@ public final class RegressionBatteryTask implements Task {
             allStepNames.add(step.name());
         }
         int before = steps.size();
-        if (mode == Mode.CORE) {
+        var only = onlySteps;
+        if (only != null) {
+            // 定向模式（无头样板）：按名字裁剪。**按名字点名时不再受 CORE/FULL 档位影响**
+            // —— 否则 `single:<EXTRA 步>` 会被下面的 CORE 裁剪二次抹掉，症状是"0 项实跑"。
+            steps.removeIf(step -> !only.contains(step.name()));
+            BotLog.info("[Regression] 定向模式：只跑 {} 项 {}", steps.size(),
+                    steps.stream().map(Step::name).toList());
+        } else if (mode == Mode.CORE) {
             steps.removeIf(step -> profileOf(step.name()) == Profile.EXTRA);
         }
         extraSkipped = before - steps.size();
@@ -725,6 +761,8 @@ public final class RegressionBatteryTask implements Task {
         String verdict = allPass ? "PASS"
                 : degraded ? "DEGRADED(SKIP=" + skipped + "：" + skippedNames()
                         + " —— 环境不具备，本轮**不是全绿**)" : "FAIL";
+        // 无头入口据此决定进程退出码（见 lastVerdict）：**只认规范三态词**，不解析给人看的那行。
+        lastVerdict = allPass ? "PASS" : degraded ? "DEGRADED" : "FAIL";
         StringBuilder line = new StringBuilder();
         for (Step step : steps) {
             if (!line.isEmpty()) {

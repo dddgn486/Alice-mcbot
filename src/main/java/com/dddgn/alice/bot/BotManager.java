@@ -944,7 +944,18 @@ public final class BotManager {
         }
         TransferLedgerData.get(event.getServer()).expireSuspensions(event.getServer().getTickCount(),
                 TRANSFER_MAX_SUSPENSION_TICKS);
+        // 存档假人的恢复延到**这里**（首个 tick）执行，而不是 ServerStartedEvent 里 ——
+        // 那时其它模组（典型：WorldEdit）的启动 handler 已经跑完并完成了自己的初始化。
+        if (pendingRestore != null) {
+            MinecraftServer server = pendingRestore;
+            pendingRestore = null;
+            restoreFromWorld(server);
+        }
         for (BotSession session : BOTS.values()) {
+            // T2 根因修复（2026-09-14）：**让假人的玩家区块票跟随它自己**。
+            // 放在最前 —— 票不跟随 ⇒ 下一 tick 实体就不在 entity-ticking 区块里，
+            // 下面所有"设输入/跑任务"都会落空（D-176 冻结症状的真正成因，见 BotPlayer#syncPlayerChunkTicket）。
+            session.bot().syncPlayerChunkTicket();
             // D-176：**实体 tick 看门狗** —— 会话在跑、但 bot 实体整 tick 没被 tick 过 ⇒ 物理冻结。
             // 2026-09-13 实测：`segmentTicks=121 entityTicksInSegment=0 travelCallsInSegment=0`
             // （输入 forward=1.00、onGround=true、delta=0、脚下空气/头顶空气/支撑石头）⇒
@@ -1076,7 +1087,7 @@ public final class BotManager {
                 BlockPos pos = bot.blockPosition();
                 BotLog.warn("[Bot] entity_tick_missing streak={} serverTick={} bot={} pos={}"
                                 + " removed={} levelLoaded={} entityTicking={} inLevelPlayers={} inPlayerList={}"
-                                + " connection={} connTicks={} task={}",
+                                + " connection={} connTicks={} task={} ticketSyncs={}",
                         session.entityTickMissingStreak, bot.getServer().getTickCount(),
                         bot.getName().getString(), pos.toShortString(),
                         bot.isRemoved(), bot.serverLevel().isLoaded(pos),
@@ -1087,13 +1098,16 @@ public final class BotManager {
                         bot.serverLevel().players().contains(bot),
                         bot.getServer().getPlayerList().getPlayers().contains(bot),
                         bot.connection != null,
-                        // D-176 附注：字节码事实 —— 假人物理挂在"连接被 tick"这条链上
-                        // （doTick 的唯一调用者 = ServerGamePacketListenerImpl，其内部调父类 tick）。
-                        // 冻结时用它对照 entityTickCount：connTicks 不动 ⇒ 断在连接；动了而实体不动 ⇒ 断在实体侧。
+                        // D-176 附注（**2026-09-14 修正**）：原文写"假人物理挂在连接被 tick 这条链上"，
+                        // 但字节码事实是 `ServerPlayer.doTick()` 用 **invokespecial** 调父类 `Player.tick()`，
+                        // **不会派发回 `BotPlayer.tick()`**；驱动假人物理的是**实体 tick 表**（虚拟派发）。
+                        // ⇒ 真正的门槛是"所在区块是否 entity-ticking"。connTicks 保留作对照量：
+                        // 它恒为 0 是**正常**的（FakeConnection 不在 ServerConnectionListener 的连接表里），
+                        // 不要再据此判定"断在连接"。
                         (bot.connection != null && bot.connection.connection
                                 instanceof com.dddgn.alice.bot.FakeConnection fake)
                                 ? fake.tickCount() : -1L,
-                        session.taskKind);
+                        session.taskKind, bot.chunkTicketSyncs());
             }
         } else {
             session.entityTickMissingStreak = 0;
@@ -1460,12 +1474,26 @@ public final class BotManager {
         return true;
     }
 
-    /** 服务器启动完成:恢复存档假人(若有)。 */
+    /**
+     * **待恢复的存档假人**（延到首个 server tick 再生成，见 {@link #onServerStarted}）。
+     *
+     * <p>为什么必须延后（2026-09-14 专用服务端实测崩溃）：在 `ServerStartedEvent` 里**同步**生成玩家
+     * 会经 `PlayerList.placeNewPlayer → sendCommands → 逐命令节点 canUse → ForgeAdapter.adaptPlayer
+     * → WorldEdit ForgePlayer.<init>`，而该构造器执行
+     * `ThreadSafeCache.getInstance().getOnlineIds().add(uuid)`（字节码 line 69）——
+     * **WorldEdit 自己的 `ServerStartedEvent` handler 还没跑**（缓存未初始化 ⇒ 不可变集合）
+     * ⇒ `UnsupportedOperationException` 直接**打死服务端 tick 循环**（crash-report 实证）。
+     * 根因是"在别人的 handler 之前假定它已完成初始化"，不是 WorldEdit 的锅也不是 Alice 的锅，
+     * 但**只有 Alice 能在启动期生成玩家**，所以由 Alice 让开这一个 tick。
+     */
+    private static MinecraftServer pendingRestore;
+
+    /** 服务器启动完成:登记"恢复存档假人(若有)"（**延到首个 tick**，见 {@link #pendingRestore}）。 */
     @SubscribeEvent
     public static void onServerStarted(ServerStartedEvent event) {
         TransferLedgerData.get(event.getServer()).suspendUnfinished(TransferCodes.SERVER_RESTART,
                 event.getServer().getTickCount());
-        restoreFromWorld(event.getServer());
+        pendingRestore = event.getServer();
         // J7 Step 3（D-127）：启动就报出"上次没拆完的脚手架"（0 条时不出声，避免噪声）
         var openScopes = com.dddgn.alice.ledger.WorldModLedger.openScopes(event.getServer());
         int residual = 0;

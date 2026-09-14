@@ -92,9 +92,11 @@ minecraft {
         server {
             property 'forge.enabledGameTestNamespaces', mod_id
             args '--nogui'
-            // headless 验收: ./gradlew runServer -Dalice.selftest.auto=true
-            // 转发 JVM 系统属性给 runServer, BotSelftest 读取后自动跑并关服(默认关)
-            property 'alice.selftest.auto', System.getProperty('alice.selftest.auto', 'false')
+            // headless 验收（T2）：./gradlew runServer -Dalice.headless.battery=core|full|single:<step>
+            // 转发 JVM 系统属性给 runServer；HeadlessBattery 读取后自动生成假人跑电池并按判决退出
+            // （0=PASS / 1=FAIL / 2=DEGRADED / 3=超时 / 4=起不来）。默认空 = 不启用。
+            // 原 `alice.selftest.auto` 钩子随 BotSelftest（cbd177a 删除）失效，2026-09-14 由本钩子接管。
+            property 'alice.headless.battery', System.getProperty('alice.headless.battery', '')
         }
 
         // This run config launches GameTestServer and runs all registered gametests, then exits.

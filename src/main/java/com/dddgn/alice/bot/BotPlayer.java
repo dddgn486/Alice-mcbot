@@ -64,6 +64,51 @@ public class BotPlayer extends ServerPlayer {
         return travelInvocationCount;
     }
 
+    /** 上一次同步"玩家区块票"时所在的 {@link net.minecraft.core.SectionPos}；null = 还没同步过。 */
+    private net.minecraft.core.SectionPos lastTicketSection;
+    /** 玩家票同步次数（只读诊断量；用于区分"没同步过"与"同步了但依然冻结"）。 */
+    private long chunkTicketSyncs;
+
+    /** 玩家票同步次数（只读诊断量）。 */
+    public long chunkTicketSyncs() {
+        return chunkTicketSyncs;
+    }
+
+    /**
+     * **让假人的玩家区块票跟随它自己**（T2 根因修复，2026-09-14）。
+     *
+     * <p><b>为什么必须有这个方法</b>：1.20.1 里玩家票（{@code TicketType.PLAYER}）**只由客户端上行移动包推进** ——
+     * {@code ServerGamePacketListenerImpl.handleMovePlayer → ServerChunkCache.move → ChunkMap.move →
+     * DistanceManager.removePlayer/addPlayer}。假人的连接是 {@link FakeConnection}（netty {@code EmbeddedChannel}）：
+     * 既收不到移动包，也**不在 {@code ServerConnectionListener} 的连接表里**（{@code tick()} 永不被调用）。
+     * ⇒ 票**冻结在"假人第一次被 track 时的位置"**，假人也就不再被实体 tick 表驱动
+     * （{@code serverLevel().isPositionEntityTicking(foot) == false}），表现为
+     * **"任务在跑、输入设了、bot 一格不动、且没有任何报错"**（{@code entityTicksInSegment=0}）。
+     *
+     * <p><b>证据</b>（无头 CORE 实测，2026-09-14）：47 条 {@code [Bot] entity_tick_missing … entityTicking=false
+     * connTicks=0}；失败步骤与"距出生点 Chebyshev 距离"一一对应（出生点 {@code TicketType.START}
+     * 只覆盖 d≤9），z≈300–420 的步骤全灭、≤8 格的全绿。客户端之所以一直没暴露：真人站在夹具区，
+     * 他的 PLAYER 票把加载与 entity-ticking 都补上了 —— **绿是被真人掩盖的**。
+     *
+     * <p><b>为什么是这条链</b>：{@code ServerChunkCache.move(ServerPlayer)} 是 {@code public}，正是真人
+     * {@code handleMovePlayer} 走的那一条 ⇒ 假人与真人在"持票"这件事上等价，而不是给无头开小灶。
+     *
+     * <p>只在 {@code SectionPos} 变化时调用：{@code ChunkMap.move} 会遍历被 track 的实体并走区块下发路径
+     * （对假人而言包会被 {@link FakeConnection} 丢弃，但仍有序列化成本），每 tick 都调没有意义。
+     *
+     * @return 本次是否真的同步了（跨越了 16 格边界）
+     */
+    public boolean syncPlayerChunkTicket() {
+        net.minecraft.core.SectionPos now = net.minecraft.core.SectionPos.of(blockPosition());
+        if (now.equals(lastTicketSection)) {
+            return false;
+        }
+        lastTicketSection = now;
+        chunkTicketSyncs++;
+        serverLevel().getChunkSource().move(this);
+        return true;
+    }
+
     /**
      * **传送感知（D-180，用户要求：只加报告，不改行为）**。
      *

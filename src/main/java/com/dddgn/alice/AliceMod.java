@@ -38,5 +38,8 @@ public class AliceMod {
 
         // Bot 遥控器输入处理
         MinecraftForge.EVENT_BUS.register(new com.dddgn.alice.item.BotRemoteControlHandler());
+
+        // 无头电池入口（T2）：只有 `-Dalice.headless.battery=...` 时才动作，默认零开销
+        MinecraftForge.EVENT_BUS.register(com.dddgn.alice.headless.HeadlessBattery.class);
     }
 }

@@ -43,6 +43,31 @@ run_gate() {
   fi
 }
 
+# 无头回归电池（T2）：**默认不跑**（要 4 分钟 + 需要一次性装好的生产服务端）。
+# 为什么做成"可选门禁"而不是"另一个脚本"：AGENTS.md 的尺子要求**任何新验证手段必须挂在已有命令上**
+# —— 挂在旁边的验证 = 下一个 `BotSelftest`（被删了都没人发现）。不跑时**记为 WARN（断言没执行）**，
+# 绝不写成 PASS。跑法：`ALICE_HEADLESS=1 bash tools/check-all.sh`
+run_headless_battery() {
+  if [ "${ALICE_HEADLESS:-0}" != "1" ]; then
+    WARNED=$((WARNED + 1))
+    printf '  [WARN] %-30s %s\n' "check-headless-battery" \
+      "未执行（设 ALICE_HEADLESS=1 才跑；需 tools/headless-battery.sh --install 一次）"
+    return
+  fi
+  local out rc
+  out="$(bash tools/headless-battery.sh core 2>&1)"; rc=$?
+  if [ "$rc" -eq 0 ]; then
+    PASSED=$((PASSED + 1))
+    printf '  [PASS] %-30s %s\n' "check-headless-battery" \
+      "$(printf '%s' "$out" | grep -E '^\[headless\] verdict' | tail -1 | cut -c1-110)"
+  else
+    FAILED=$((FAILED + 1))
+    printf '  [FAIL] %-30s exit=%d（0=PASS 1=FAIL 2=DEGRADED 3=无判决 4=起不来 5=环境/脚本）\n' \
+      "check-headless-battery" "$rc"
+    printf '%s\n' "$out" | tail -n 12 | sed 's/^/         /'
+  fi
+}
+
 # 文档预算（`AGENTS.md` 的「规则准入尺子」）：三项总行数**冻结**，新增必须删旧的（净增 ≤ 0）。
 # 为什么把它做成机器断言：否则"冻结在 1,476 行"本身又只是一条**散文规则** ——
 # 而本项目的问题恰恰是"规则≈95% 靠人记得"。这一条让"规则膨胀"变成**会失败**的事。
@@ -96,6 +121,7 @@ run_gate             "check-policy-matrix"      bash tools/check-policy-matrix.s
 run_gate             "check-authz-registry"     bash tools/check-authz-registry.sh
 run_machine_map
 run_gate             "check-scene-connectivity" python3 tools/check-scene-connectivity.py --all
+run_headless_battery
 run_doc_budget
 
 hr
