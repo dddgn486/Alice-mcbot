@@ -30,6 +30,11 @@ import java.util.Set;
  * ③ **失败时用户看到什么** —— 玩家侧**没有可见动作**，判据是聊天 `SUMMARY <key>=FAIL` 与
  * `[WritePolicy] case=… result=FAIL` 行（G 失败会在日志里点名未登记 requester）。
  *
+ * <p><b>终态契约（2026-09-14 实测踩坑）</b>：{@code failures} 非空 ⇒ {@code tick()} 必须返回
+ * {@code FAILED}。电池只按 {@code status == DONE && idempotent} 记账，**不看夹具自己打印的 verdict**
+ * ——写死 {@code DONE} 会让内部 FAIL 被吞成 `(28/28) PASS` 的静默绿。同类规则见
+ * {@code tools/check-fixture-hygiene.sh}；全仓另有 {@code RecoverabilityCheckTask} 曾同病（已修）。
+ *
  * <p>另外两条例：G 未登记留痕（D-207 ①：`UNKNOWN` requester **记为错误**）、H **零写入自证**
  *（本步不得向账本新增任何条目——夹具自己不能弄脏世界）。
  *
@@ -40,8 +45,10 @@ import java.util.Set;
  *   <li>B <b>闸门是活的</b>（负例）：纯通行任务（{@code walk-to}）要求
  *       {@code withWorldModification} 的移动集 ⇒ **必须抛 {@code WRITE_POLICY_MOVEMENT_DENIED}**；
  *       同一集合在 {@code DIAGNOSTIC}（夹具）下必须通过；</li>
- *   <li>C <b>授权集合语义没被改坏</b>：{@code of} 不含任何写世界原语、{@code scaffoldRemoval}
- *       只拆不建、{@code miningApproach} 不含 {@code PILLAR/FALL/DOWNWARD}（D-067 ㉘）；</li>
+ *   <li>C <b>授权集合语义没被改坏</b>（逐条对着 {@code PathRequest} 工厂的 javadoc 断言）：{@code of}/
+ *       {@code pureTraversal} 不含任何写世界原语且后者是严格超集；{@code scaffoldRemoval}
+ *       <b>只拆不建、也不挖穿</b>（∩放置=∅ ∧ ∩挖穿=∅ ∧ 含 {@code DOWNWARD+FALL}）；
+ *       {@code miningApproach} 禁用 {@code PILLAR/FALL/DOWNWARD} 但必须保留破坏进入（D-067 ㉘）；</li>
  *   <li>D <b>登记表能认出各任务</b>：12 个真实 requester 归到预期类别，
  *       含 {@code :attemptN} 派生形态；空/{@code unknown} ⇒ {@code UNREGISTERED}（**记为错误**）；</li>
  *   <li>E <b>两区今天等价</b>（{@code zoneDiff=0}）：这是"R1 不改变默认行为"的**可执行**证据，
@@ -90,7 +97,12 @@ public class WritePolicyCheckTask implements Task {
             return finish("timeout");
         }
         if (ticks > 1) {
-            return done ? Status.DONE : Status.RUNNING;   // 留 1 tick 让聊天/日志刷出
+            // **终态必须传播自检结论**（2026-09-14 实测修正）：上一版（照抄 RecoverabilityCheckTask）
+            // 写死 `done ? Status.DONE : …` ⇒ 即使 `grants_semantics` 红了，电池只按 `status==DONE`
+            // 记账，SUMMARY 里仍是 `write_policy=PASS (28/28) → PASS`——**假红被吞成静默绿**，
+            // 比假红本身更危险。全仓其余 20 个 *CheckTask 都是 `failures.isEmpty() ? DONE : FAILED`，
+            // 照此对齐；`tools/check-fixture-hygiene.sh` 已把这条变成静态规则。
+            return done ? (failures.isEmpty() ? Status.DONE : Status.FAILED) : Status.RUNNING;
         }
         runChecks();
         done = true;
@@ -161,29 +173,51 @@ public class WritePolicyCheckTask implements Task {
                 "walk-to + of / pathing-regression + withWorldModification ⇒ 期望放行；实际 "
                         + (legalPassed ? "放行" : "**被拒**：" + legalDetail));
 
-        // C 授权集合语义
+        // C 授权集合语义——**逐条对着 `PathRequest` 各工厂的 javadoc 契约断言**，不是对着直觉：
+        //   of              = 通行四件套（**不含 FALL**、不含任何写原语）
+        //   pureTraversal   = of + FALL（严格超集；同样不含写原语）
+        //   miningApproach  = 通行 + BREAK_AND_TRAVERSE/BREAK_AND_ENTER/PLACE_STEP_AND_TRAVERSE，
+        //                     **显式禁用 PILLAR/FALL/DOWNWARD**（D-067 ㉘）
+        //   scaffoldRemoval = 通行 + FALL + DOWNWARD（**只拆不建**：不含 PILLAR/PLACE_STEP_AND_TRAVERSE，
+        //                     也不含 BREAK_*——拆脚手架不许沿途挖穿地形）
+        //
+        // 2026-09-14 实测修正：上一版断言 `scaffoldRemoval ∩ 写原语 = ∅`，**同一条件列表里**又要求
+        // `removal.contains(DOWNWARD)`——而 DOWNWARD 本身就在 `writePrimitives()` 里 ⇒ **断言集自相矛盾、
+        // 恒 FAIL、零信号**（它红了整整一轮，却没说明任何事实）。正解：把"写原语"拆成**放置**与**挖穿**
+        // 两类，分别断"回收阶段不许再建 / 不许挖穿"，并把详情改成**逐集合打印**（旧写法打印的是
+        // `A||B||C` 的聚合布尔，红了也定位不到是哪一个）。
         Set<MovementType> of = WritePolicyMatrix.MovementGrant.OF.types();
         Set<MovementType> pure = WritePolicyMatrix.MovementGrant.PURE_TRAVERSAL.types();
         Set<MovementType> removal = WritePolicyMatrix.MovementGrant.SCAFFOLD_REMOVAL.types();
         Set<MovementType> mining = WritePolicyMatrix.MovementGrant.MINING_APPROACH.types();
         Set<MovementType> writers = writePrimitives();
-        Set<MovementType> ofWriters = new java.util.LinkedHashSet<>(of);
-        ofWriters.retainAll(writers);
-        Set<MovementType> removalWriters = new java.util.LinkedHashSet<>(removal);
-        removalWriters.retainAll(writers);
+        Set<MovementType> ofWriters = intersect(of, writers);
+        Set<MovementType> pureWriters = intersect(pure, writers);
+        Set<MovementType> removalPlacement = intersect(removal, PLACEMENT_PRIMITIVES);
+        Set<MovementType> removalTunnel = intersect(removal, TUNNEL_PRIMITIVES);
+        Set<MovementType> miningForbidden = intersect(mining, MINING_FORBIDDEN);
+        boolean removalRemoves = removal.contains(MovementType.DOWNWARD)
+                && removal.contains(MovementType.FALL);
+        boolean miningBreaks = mining.contains(MovementType.BREAK_AND_TRAVERSE)
+                && mining.contains(MovementType.BREAK_AND_ENTER)
+                && mining.contains(MovementType.PLACE_STEP_AND_TRAVERSE);
+        boolean strictSubset = pure.containsAll(of) && !of.containsAll(pure);
         boolean semantic = ofWriters.isEmpty()
-                && removalWriters.isEmpty()
-                && removal.contains(MovementType.DOWNWARD)
-                && of.containsAll(pure) == false && pure.containsAll(of)
-                && !mining.contains(MovementType.PILLAR)
-                && !mining.contains(MovementType.FALL)
-                && !mining.contains(MovementType.DOWNWARD);
+                && pureWriters.isEmpty()
+                && strictSubset
+                && removalPlacement.isEmpty()
+                && removalTunnel.isEmpty()
+                && removalRemoves
+                && miningForbidden.isEmpty()
+                && miningBreaks;
         check("grants_semantics", semantic,
-                "of∩写原语=" + ofWriters + " scaffoldRemoval∩写原语=" + removalWriters
-                        + " of⊆pureTraversal=" + pure.containsAll(of)
-                        + " miningApproach含PILLAR/FALL/DOWNWARD="
-                        + (mining.contains(MovementType.PILLAR) || mining.contains(MovementType.FALL)
-                        || mining.contains(MovementType.DOWNWARD)));
+                "of∩写原语=" + ofWriters + " pureTraversal∩写原语=" + pureWriters
+                        + " of⊊pureTraversal=" + strictSubset
+                        + " scaffoldRemoval∩放置=" + removalPlacement
+                        + " scaffoldRemoval∩挖穿=" + removalTunnel
+                        + " scaffoldRemoval含DOWNWARD+FALL=" + removalRemoves
+                        + " miningApproach∩[PILLAR,FALL,DOWNWARD]=" + miningForbidden
+                        + " miningApproach含BREAK_*/PLACE_STEP=" + miningBreaks);
 
         // D 登记表
         Map<String, WritePolicyMatrix.Task> expected = new LinkedHashMap<>();
@@ -294,6 +328,24 @@ public class WritePolicyCheckTask implements Task {
     private static Set<MovementType> writePrimitives() {
         return Set.of(MovementType.PILLAR, MovementType.DOWNWARD, MovementType.BREAK_AND_TRAVERSE,
                 MovementType.BREAK_AND_ENTER, MovementType.PLACE_STEP_AND_TRAVERSE);
+    }
+
+    /** 写原语里的**放置**类（"不许再建"要断的那一半）。 */
+    private static final Set<MovementType> PLACEMENT_PRIMITIVES =
+            Set.of(MovementType.PILLAR, MovementType.PLACE_STEP_AND_TRAVERSE);
+
+    /** 写原语里的**挖穿地形**类（"不许沿途挖穿"要断的那一半）。 */
+    private static final Set<MovementType> TUNNEL_PRIMITIVES =
+            Set.of(MovementType.BREAK_AND_TRAVERSE, MovementType.BREAK_AND_ENTER);
+
+    /** `miningApproach` javadoc 显式禁用的三件（D-067 ㉘：挖矿不许搭柱子/跳下来）。 */
+    private static final Set<MovementType> MINING_FORBIDDEN =
+            Set.of(MovementType.PILLAR, MovementType.FALL, MovementType.DOWNWARD);
+
+    private static Set<MovementType> intersect(Set<MovementType> left, Set<MovementType> right) {
+        Set<MovementType> result = new java.util.TreeSet<>(left);
+        result.retainAll(right);
+        return result;
     }
 
     private void check(String name, boolean ok, String detail) {

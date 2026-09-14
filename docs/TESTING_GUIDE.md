@@ -497,24 +497,28 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
 - `alice:regression_battery` CORE → `PROFILE=CORE … (27/27) ticks=2845 → PASS`（`latest.log:3801`）。
 - **下一轮不需要跑电池**：主线进入 **R1 集中策略表 + 3-B S3（机器类型 ↔ 机器方块/菜单 唯一映射）** 的离线单一出处工作。
 
-### 下一次客户端轮（顺手做，低优先）
+### 下一次客户端轮（**必做**：复跑一次回归电池）
 
-重启客户端（加载新 jar）后，**只需跑一次回归电池**（右键 `alice:regression_battery`，CORE 档）：
+第二轮要看的就一件事：`write_policy` 那两处修正之后，**电池的绿是不是真的**。
 
-1. **新步 `write_policy`**（D-207 ① 集中策略表自检）应出现且为 `PASS`：
+重跑后在 `latest.log` 里对三点：
+
+1. **新增断言**：`[WritePolicy]` 的 `grants_semantics` 行现在逐项打印真实值，应全部如契约：
    ```
-   [WritePolicy] SUMMARY table_total=PASS table_shape=PASS guard_is_live=PASS guard_does_not_overreach=PASS
-   planner_refuses_and_reports=PASS self_write_free=PASS grants_semantics=PASS requester_registry=PASS
-   zone_equiv=PASS obligation=PASS unregistered=0 undeclared=0 verdict=PASS
+   case=grants_semantics result=PASS of∩写原语=[] pureTraversal∩写原语=[] of⊊pureTraversal=true
+   scaffoldRemoval∩放置=[] scaffoldRemoval∩挖穿=[] scaffoldRemoval含DOWNWARD+FALL=true
+   miningApproach∩[PILLAR,FALL,DOWNWARD]=[] miningApproach含BREAK_*/PLACE_STEP=true
    ```
-   其中 **`guard_is_live=PASS` 是"闸门不是恒假"的证据**（负例：`walk-to` + `withWorldModification` 必须被拒）；
-   **`planner_refuses_and_reports=PASS`** 证明接线后的规划器把它转成 `ERROR` plan（异常没逃逸、不会打断 tick）；
-   **`self_write_free=PASS`** 是"这条自检自己零写入"的自证；
-   `unregistered` / `undeclared` **应为 0**——非 0 就是"有调用点没登记"的 bug，日志里会点名。
-   **玩家侧看不到任何动作**（纯计算 + 两次注定被拒的规划尝试，不改世界、不动 bot）——这就是正常的。
-2. 电池总数从 `(27/27)` 变成 **`(28/28)`**（新增的这一步），其余步骤不得变红。
-3. `/alice authz` 多一行 **`L2 规划期策略表：rows=22 … zoneDiff=0 unregistered=0 undeclared=0`**。
+   上一轮这条红的原因是**断言集自相矛盾**：`scaffoldRemoval ∩ 写原语 = ∅` 与"必须含 `DOWNWARD`"
+   不可能同时成立（`DOWNWARD` 本身就在 `writePrimitives()` 里）⇒ 恒 FAIL、**零信号**。
+   修复 = 拆成"放置 / 挖穿"两类分别断言，逐项打印（见 D-208）。
+2. **`[WritePolicy] SUMMARY … verdict=PASS`**，电池整体 **`(28/28) → PASS`**。
+3. **静默绿已关闭**（D-208）：夹具内部一旦有 FAIL，电池里那一步**必须**变红（`write_policy=FAIL`）。
+   上一轮是 `[WritePolicy] … verdict=FAIL` 却打 `(28/28) PASS` —— 那种"绿"从此不允许再出现；
+   离线由 `bash tools/check-fixture-hygiene.sh` 守着。
 
-这条不阻塞任何后续工作，可以在任意一次你已经开着客户端的时候顺带看。跑完把 `latest.log` 里
-`[WritePolicy]` / `[Regression] SUMMARY` 两处贴给我即可（我会自己读日志）。
+顺手（可选）：`/alice authz` 应多一行 **`L2 规划期策略表：rows=22 … zoneDiff=0 unregistered=0 undeclared=0`**
+—— 这一行**至今未经客户端验证**（本轮日志里没有 `/alice authz` 的调用痕迹）。
+
+玩家侧仍然**看不到任何动作**（纯计算 + 两次注定被拒的规划尝试，不改世界、不动 bot）——这是正常的。
 

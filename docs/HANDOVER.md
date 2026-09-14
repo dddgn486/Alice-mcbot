@@ -61,11 +61,14 @@
 - 客户端：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - 同步：`./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`；
   镜像 `./tools/mirror-windows-workspace.sh`；资源自检 `bash tools/check-item-models.sh`（当前 76 项）。
-- **本轮最后同步的 jar**：`1c441fc9b9de98b2`（完整 sha256 见 `git log -1` 与 `AI_DECISIONS` 最新条目）。
+- **本轮最后同步的 jar**：`3ccb320b0f594366`（完整 sha256 `3ccb320b0f5943661c929c2fa269358c5a759c8fb5ce5d5524b84ca4d0f9251f`；
+  上一版 `1c441fc9b9de98b2`）。变更是**夹具自检 + 终态传播**修正（D-208），不改生产路径。
 - 场景：`/function alice_test:machine_course`（S2 机器场景；已同步进存档 datapack）、
   `furnace_course`、`craft_tab_course`、`craft_table_course`、`craft_station_course`。
-- 电池：`alice:regression_battery`（CORE=27）/ `/alice battery full`（FULL=37）；
+- 电池：`alice:regression_battery`（CORE=**28**）/ `/alice battery full`（FULL=38）；
   唯一配置入口 `RegressionBatteryTask.CURATION`。
+- 离线闸门（改完顺手跑）：`bash tools/check-authz-registry.sh`、`bash tools/check-policy-matrix.sh`、
+  **`bash tools/check-fixture-hygiene.sh`**（D-208 新增：夹具终态必须能传播失败）。
 
 ## 5b. 断点（2026-09-14 会话中段，上下文 ≈0.9×压缩阈值时收口）
 
@@ -119,6 +122,28 @@
 - 登记表实测补全（接线时逐个 grep 出来的真实 requester）：`mine`（`MineJob.NAME`）、`region_lumber`（`RegionLumberJob.NAME`）、
   `PlaceTask`（`Task.taskName()` 默认 = **类名**）、`scaffold-lifecycle`、`partial_*`、`ToolMaintenance`。
 - 设计背景与三处术语纠错的完整来龙去脉：`docs/authz/POLICY_MATRIX_PROPOSAL.md` §5；决策记录：`AI_DECISIONS.md` D-207 附注。
+
+**R1 首轮客户端电池结果（2026-09-14，用户实测；AI 读 `latest.log`）—— 结果不是绿，是"两层缺陷叠出来的假绿"**：
+- **表面**：`[Regression] SUMMARY … write_policy=PASS … PROFILE=CORE baseline=14 main=14 (28/28) ticks=2827 → PASS`（`latest.log:3738`）。
+- **实际**：`[WritePolicy] case=grants_semantics result=FAIL … verdict=FAIL`（`:3199`,`:3206`）⇒ **电池把一步的内部 FAIL 记成了 PASS**。
+1. **缺陷① 断言自相矛盾**（夹具的错，不是表的错）：`scaffoldRemoval ∩ 写原语 = ∅` 与"必须含 `DOWNWARD`"在**同一条件
+   列表**里不可能同时成立（`DOWNWARD` ∈ `writePrimitives()`）⇒ **恒 FAIL、零信号**。表与工厂本身是对的：
+   `PathRequest.scaffoldRemoval` 契约就是"通行 + `FALL` + `DOWNWARD`，不含 `PILLAR`/`PLACE_STEP`/`BREAK_*`"
+   （`search/PathRequest.java:80-85` 注释）。修法：拆成**放置 / 挖穿**两类分别断言，并**逐项打印真实集合**
+   （旧写法打印 `A||B||C` 聚合布尔，红了也定位不到是哪一个）。顺带补强：`pureTraversal` 也断言"无写原语"、
+   `miningApproach` 断言"必须保留破坏进入"。
+2. **缺陷② 终态不传播（静默绿）**：`WritePolicyCheckTask` 照抄 `RecoverabilityCheckTask` 的
+   `return done ? Status.DONE : Status.RUNNING`，而电池**只按 `status == DONE && idempotent` 记账**
+   （`RegressionBatteryTask:558`），**从不读夹具的 `verdict=`** ⇒ 假红被吞。全仓 32 个夹具里**唯二**这两处这样写，已修
+   （两个夹具只被电池实例化：`RegressionBatteryTask:436,441`，无生产影响面）。
+   **新静态规则** `bash tools/check-fixture-hygiene.sh`（R1 终态能表达失败 / R2 禁止"return 行 `DONE`+`RUNNING` 而无 `FAILED`"）；
+   反向验证：把任一修复回退 ⇒ 立刻报红。决策登记：**D-208**。
+- **其余都真绿**：27 个其余步骤全 PASS（含 `pathing` 18 课程、`recoverability`、`machine_*`、`craft_*`、`capability_gate`）、
+  `guard_is_live`/`planner_refuses_and_reports`/`self_write_free`/`zone_equiv(zoneDiff=0)` 全 PASS、`K4=OK(写入类例外=43)`。
+- **待复跑验证**（唯一在飞项）：重跑电池 ⇒ `grants_semantics=PASS` 且 `(28/28) → PASS`；
+  顺带可选 `/alice authz` 看新 `L2` 行（**至今未经客户端验证**——本轮日志无 `/alice authz` 调用痕迹）。
+- 另：`④` 旧问题在本轮日志**复现**（电池完事后自动 `start_job region_lumber`，bot 在 `8,62,66`、
+  区域中心 `27,58,217` ⇒ `reason=outside_region → FAILED`，`chopped=0 patrols=380`，`:3765`）——与已记录现象一致，非新问题。
 
 **会话摘要调查（2026-09-14，用户提问触发）**：结论 = **不必获取会话摘要，也不装第三方插件**
 （摘要已原生自动产生并持久化；且 1% 量级有损 ⇒ 事实来源是原文，而压缩后原文**未丢**：1078/1078 遮蔽事件仍在磁盘、

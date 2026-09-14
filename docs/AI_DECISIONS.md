@@ -8649,3 +8649,22 @@ the user must resume it"）。这**正好符合** D-205 的意图（"恢复只�
   + 视图 `docs/authz/POLICY_MATRIX.csv` + 断言脚本 `tools/check-policy-matrix.sh`；authz 注册表加 `L2-5`。
 - **本轮不改变任何默认行为**（A + ⓑ 的必然结果）；真正带上牙齿的是**移动授权**：
   纯通行任务（`walk-to` 等）今天起不能再规划出会写世界的移动——这是 D-076 红线的可执行版本。
+
+### D-208：自检夹具的终态必须传播 verdict —— **禁止静默绿**（2026-09-14 实测确立）
+
+- 状态：稳定
+- **事实**（R1 接线后首轮客户端电池，`latest.log:3193-3230` 与 `:3738`）：`WritePolicyCheckTask`
+  自报 `verdict=FAIL`，电池却打出 `write_policy=PASS … (28/28) → PASS`。两层独立缺陷：
+  ① **断言集自相矛盾**：`scaffoldRemoval ∩ 写原语 = ∅` 与"同一条件列表里要求含 `DOWNWARD`"不可能同时成立
+  （`DOWNWARD` 本身就在 `writePrimitives()` 里）⇒ 恒 FAIL、**零信号**；
+  ② **终态不传播**：该夹具照抄 `RecoverabilityCheckTask` 的 `done ? Status.DONE : Status.RUNNING`，
+  而电池**只按 `status == DONE && idempotent` 记账**（`RegressionBatteryTask:558`），从不读夹具的 `verdict=`
+  ⇒ 假红被吞成**静默绿**（比假红更危险：整轮测试因此失去判据）。
+- **契约**：自检夹具 `failures` 非空 ⇒ `tick()` 必须返回 `Status.FAILED`；`SUMMARY` 必须带 `verdict=`。
+  全仓其余 20 个 `*CheckTask` 早已如此，唯二例外（`WritePolicyCheckTask` / `RecoverabilityCheckTask`）已修；
+  两个夹具仅被电池实例化（`RegressionBatteryTask:436,441`），无生产影响面。
+- **执行**：静态规则 `bash tools/check-fixture-hygiene.sh`
+  （R1 = 返回 `DONE` 的方法必须存在能返回 `FAILED` 的路径；R2 = 禁止"一行 return 里 `DONE`+`RUNNING` 而无 `FAILED`"
+  的失败分支缺失形状；R3 信息性）。反向验证：把任一修复回退 ⇒ 立刻报红。
+- **附带的判定纪律**：**禁止聚合布尔式 detail**——旧写法打印 `A||B||C=false`，红了也定位不到是哪一个；
+  自检失败行必须逐项打印真实值（本次已改为 `scaffoldRemoval∩放置=… ∩挖穿=…` 形式）。

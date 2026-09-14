@@ -76,7 +76,9 @@ public class RecoverabilityCheckTask implements Task {
             return finish("timeout");
         }
         if (ticks > 1) {
-            return done ? Status.DONE : Status.RUNNING;   // 留 1 tick 让聊天/日志刷出
+            // 留 1 tick 让聊天/日志刷出；**且终态传播 self-check 结论**（2026-09-14 修正：
+            // 原写死 DONE ⇒ 内部 FAIL 对电池不可见。全仓唯二两处，另一处是 WritePolicyCheckTask。）
+            return done ? (failures.isEmpty() ? Status.DONE : Status.FAILED) : Status.RUNNING;
         }
         runChecks();
         done = true;
