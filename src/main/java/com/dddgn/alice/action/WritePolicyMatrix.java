@@ -310,6 +310,9 @@ public final class WritePolicyMatrix {
             new String[]{"road-builder", "BUILD"},
             new String[]{"transfer", "CONTAINER"},
             new String[]{"station-provision", "CONTAINER"},
+            // 3-B / S4 机器闭环（`MachineCycleCheckTask`）：往机器容器放料、把产物取回来
+            // ⇒ 与传输/装配同一类（容器写入维度 + CONTAINER_TRANSFER），不新造类别。
+            new String[]{"machine-cycle", "CONTAINER"},
             new String[]{"craft-station", "CRAFT"},
             new String[]{"craft", "CRAFT"},
             new String[]{"mine-plan", "MINING"},

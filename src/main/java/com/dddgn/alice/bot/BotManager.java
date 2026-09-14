@@ -1155,6 +1155,23 @@ public final class BotManager {
         return true;
     }
 
+    /**
+     * 阶段 3-B / S4：**单机最小闭环自检**（`alice:machine_cycle_check`）——放料 → 等 → 取产物。
+     *
+     * <p>**会写世界**（容器写入），走 `CONTAINER_TRANSFER` 理由 + `WriteBudget` 容器维度，
+     * requester = `machine-cycle`（`WritePolicyMatrix` 里登记为 `CONTAINER` 类）。
+     */
+    public static boolean assignMachineCycleCheck(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(new com.dddgn.alice.task.MachineCycleCheckTask(bot, observer),
+                TaskTarget.block(com.dddgn.alice.task.MachineCycleCheckTask.START));
+        broadcastTarget(session.target);
+        return true;
+    }
+
     /** 阶段 3-B / S1：机器配方**只读**探针（`alice:machine_probe`）。 */
     public static boolean assignMachineProbe(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());

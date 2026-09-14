@@ -557,10 +557,35 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
 
 ### 下一次客户端轮（与 S4 合并，不必单独开一轮）
 
-1. 复跑 `alice:regression_battery`（CORE）确认两处新口径：
-   `with_site_confirmed=22 with_site_unobserved=[mekanism:smelting]`（22+1+4+0=27）与 `m2_menu_class_matches=true`；
-2. `/alice authz` 的 **`L2 规划期策略表：rows=22 … zoneDiff=0`** 行（新增后**还没人在客户端敲过一次**）；
-3. S4 的机器闭环夹具（放料→等→取产物）——设计定稿后给出零参数入口。
+**A. 复跑 `alice:regression_battery`（CORE）**确认两处新口径：
+`with_site_confirmed=22 with_site_unobserved=[mekanism:smelting]`（22+1+4+0=27）、
+`m2_menu_class_matches=true`，以及新增的 `m{i}_slot_roles` 首次观察值；
+顺带 `/alice authz` 的 **`L2 规划期策略表：rows=22 … zoneDiff=0`** 行（新增后**还没人在客户端敲过一次**）。
+
+**B. 新增：机器闭环 `alice:machine_cycle_check`（S4，**会写容器**）**
+
+零参数、游戏内右键。**先**确保场景已生成（电池 `machine_station` 步会跑它；单独测时先
+`/function alice_test:machine_course`），然后右键 `alice:machine_cycle_check`：
+
+```
+[MachineCycle] 已传送 bot 到场景起点 66, 64, 304（66, 64, 304）
+[MachineCycle] SUMMARY machine=mekanism:enrichment_chamber@66, 64, 306 machine_reach=2.0 binding=true
+  menu_class=mekanism.common.inventory.container.tile.MekanismTileContainer menu_slots=41
+  machine_cleaned_before=already_empty energy_at_open=… energy_source=cube（场景电源，未补电）
+  recipes_considered=… recipe_id=mekanism:… input=minecraft:… x1 output=mekanism:… x1
+  product_before=0 feed_grant=ALLOW feed_verified=true in_machine=1 wait_ticks=…
+  progress_ticks=… active_seen=true product_after=1 product_landed=true machine_emptied=true
+  input_consumed=true container_writes=… verdict=PASS
+```
+
+- 看什么（游戏内）：bot 站到机器旁 → **菜单打开** → 料进机器 → **机器进度条动起来** → 产物进背包 → 回起点；
+- `energy_source`：`cube` = 场景电源真喂上了；`api_precharge` = **场景电源没喂上、夹具按前提补的电**
+  （**照样是绿，但这条事实会写在 SUMMARY 里**，不当没发生）；`unreadable` = 上游没这套访问器（不判红）；
+- `progress_ticks` / `active_seen`：机器**自己报的**进度（`-1` = 读不出，不等于"没在跑"）；
+- 失败码怎么读：`machine_absent:radius_6`（场景没生成/机器不在）、`machine_out_of_reach`（站位太远）、
+  `no_recipe_with_item_io`（这台机器没有"物品进出"的配方 ⇒ v1 不做）、`container_write_refused`（预算拒绝，
+  **必须停手**）、`feed_*`/`take_*`（点击被上游拒 / 点了没效果）、
+  `no_product_in_600ticks:no_energy|progress_stalled`（没电 vs 有电但不推进——**带着当时的能量与进度报出来**）。
 
 另外，`machine_route` 里 `station=` 的**文案已变**（S3 起机器路线报**方块 id**而不是配方类型 id）——
 `CraftJob` 的 `not_executable:<machine>` 与目标层菜单的 `needs=` 会跟着变；不合口味就说，回退成本 = `RecipeQuery` 一行。

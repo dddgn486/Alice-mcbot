@@ -814,6 +814,18 @@ jar `3312608d…`。
   `MekanismTileContainer`、槽位表逐项相同）⇒ 身份只能靠 `m{i}_binding`；crusher 菜单类已按观察值回填。
   **未覆盖如实登记**：只登记基础机（`crushing` 的 4 档工厂变体在 `note` 点名未入表）。
   **待客户端**：`/alice authz` 的 L2 行（**仍从未在客户端敲过**）+ 下次复跑看新口径显示。
+- **S4**（**3-B 的第一次写入**，`COMPILES` + 闸门全绿 / **待客户端验证**，2026-09-14，D-210）：
+  ① 夹具 `MachineCycleCheckTask` + 零参数物品 `alice:machine_cycle_check`：认机器（表）→ 开菜单 →
+  挑一道**物品进出**的配方（按 id 排序取第一道，不写死）→ shift-click 放料 → 等**真实进度** → shift-click 取产物
+  → 断言 `product_before/product_after`、`machine_emptied`、`input_consumed`；
+  ② **不新造授权**：容器写入维度 `WriteBudget` + 理由 `CONTAINER_TRANSFER` + requester `machine-cycle`
+  （矩阵前缀规则登记为 `CONTAINER`）；**不猜槽位**：QUICK_MOVE 让菜单决定落点，成不成**只看结果**；
+  ③ 场景 `machine_course` 在富集仓下方加**真实电源** `mekanism:creative_energy_cube`（纯数据 ⇒ 不改 Java）；
+  夹具先等场景电源，真喂不上才**前提补电**并**必然留痕** `energy_source=…`（D-210）；
+  ④ 失败码全是可归因的：`machine_absent`/`machine_out_of_reach`/`no_recipe_with_item_io`/
+  `container_write_refused`/`feed_*`/`take_*`/`no_product_in_600ticks:no_energy|progress_stalled`。
+  **v1 边界**：单机单配方 + 站位用夹具传送；**内核寻路走到机器旁 = S4 v2**。
+  **已知边界（待用户裁定）**：矩阵对容器写入**只声明/审计、不拒绝**，强制闸门是预算（R1 设计如此，不擅改）。
 - **夹具纪律**（用户要求）：场景夹具**自带传送 + 结束复位**（PLAYBOOK §5.0d）；审计已无缺口。
 
 **§6.52 授权模型与过程开销：修订方向（2026-09-14，D-207 + 两轮工作流审查）**

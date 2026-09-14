@@ -33,21 +33,29 @@
   ⇒ 探针改成对表行做**完整划分** + 分桶守恒自检；② **`menuClass` 不是机器身份**（两台机器实测同一个
   `MekanismTileContainer`、槽位表逐项相同）⇒ 分辨"点对了哪台"只有 `m{i}_binding`，crusher 菜单类已按观察值回填。
   **未覆盖（如实登记）**：只登记基础机，`crushing` 的 1:N 工厂变体在 `note` 里点名但未入表。
-- **S4（下一步主线）**：单机最小闭环（放料→等→取产物）。**需要写入授权与预算**，按 D-076 走显式授权；
+- **S4（已实现，`COMPILES` + 闸门全绿，待客户端验证）＝ 3-B 的第一次写入**：`MachineCycleCheckTask`
+  （放料 → 等 → 取产物）由零参数物品 **`alice:machine_cycle_check`** 触发；场景在富集仓下方加**真实电源**
+  `mekanism:creative_energy_cube`（纯数据）。**不新造授权**：容器写入维度 `WriteBudget` +
+  `WriteReason.CONTAINER_TRANSFER` + requester `machine-cycle`（矩阵登记为 `CONTAINER`）；
+  放料走 shift-click（**菜单自己决定落点**）、成不成**只看结果**（机器里有料 / 背包里产物 +N）。
+  能量/进度/菜单全是**上游自述**；补电这种测试前提**必然留痕** `energy_source=…`（D-210）。
+  **v1 边界**：单机单配方、站位用夹具传送（**内核寻路走到机器旁 = S4 v2**）。
 - **S5**：每次收尾都要回收临时探针（`alice:machine_probe`、`alice:machine_station_probe` 已回收 ⇒
-  转为电池步 `machine_route` / `machine_station`）。
+  转为电池步 `machine_route` / `machine_station`；S4 的闭环自检**先做成物品**，绿了再按 D-197 转电池步）。
 
-## 3. 待客户端验证
+## 3. 待客户端验证（一轮跑完）
 
-S3 的四点已在第二轮实测中全部命中（见 §1）。**只剩一条仍未有人在客户端敲过**：
+**A. `alice:regression_battery`（CORE = 28 项）** —— 上次已真绿 `(28/28) ticks=2789 → PASS`（`latest.log:3680`）；
+本轮确认 S3 的两处**口径纠正**（在客户端**还没显示过**）：
+`with_site_confirmed=22 with_site_unobserved=[mekanism:smelting] no_site=[…]`（22+1+4+0=27）、
+`m2_menu_class_matches=true`、以及新增 `m{i}_slot_roles`（上游自述的槽位角色，首次观察）。
 
-- `/alice authz` 的 `L2 规划期策略表：rows=22 … zoneDiff=0 unregistered=0 undeclared=0` 行
-  （电池里的 `write_policy` 步测得同口径数值，但那条**显示行本身**从未在客户端渲染过）。
-- **另需一轮复跑**才能看到的两处**已改口径**（改动本身已 `COMPILES` + 闸门全绿）：
-  `machine_map_rows=27 with_site_confirmed=22 with_site_unobserved=[mekanism:smelting] no_site=4 …`
-  与 `m2_menu_class_matches=true`（crusher 菜单类回填后由"只观察"变成断言）。
+**B. `alice:machine_cycle_check`（S4，新，**会写容器**）** —— 零参数右键；场景先
+`/function alice_test:machine_course`（电池步 `machine_station` 也会生成它）。看
+`[MachineCycle] SUMMARY … product_after=1 machine_emptied=true input_consumed=true verdict=PASS`；
+细节与失败码见 `docs/TESTING_GUIDE.md` §"下一次客户端轮"。
 
-以上两条可**并与 S4 的同一次客户端轮**一起做，不必单独开一轮。
+顺手（仍未验证）：`/alice authz` 的 `L2 规划期策略表：rows=22 …` 行（**至今没人在客户端敲过**）。
 
 ## 4. 今天新增/变更的纪律（都在 PLAYBOOK + AGENTS.md 里）
 
@@ -69,9 +77,9 @@ S3 的四点已在第二轮实测中全部命中（见 §1）。**只剩一条�
 - 客户端：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - 同步：`./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`；
   镜像 `./tools/mirror-windows-workspace.sh`；资源自检 `bash tools/check-item-models.sh`（当前 76 项）。
-- **本轮最后同步的 jar**：`ca1ec15d7547afbc`（完整 sha256 `ca1ec15d7547afbc90d76202f2f70afa5015ed817f6fc9ba52752ba585cfa55f`；
-  上一版 `3ccb320b0f594366`）。变更是 **S3 机器映射单一出处 + 探针按表认机器**（D-209）：
-  生产路径只改一处（`RecipeQuery` 的机器路线 `station` 文案），其余为只读探针与离线闸门。
+- **本轮最后同步的 jar**：`36d6f3e28c3eaaa8`（完整 sha256 `36d6f3e28c3eaaa84aa7471255023b28f10d44b162afd95ecb59697ca2f67a2c`；
+  上一版 `ca1ec15d7547afbc`，再上一版 `3ccb320b0f594366`）。变更是 **S3 口径纠正（分桶守恒 + 槽位角色）
+  + S4 机器闭环（新物品 `alice:machine_cycle_check`，3-B 第一次写入）**。
 - 场景：仓库 `tools/test-scenes/alice_test/` → 客户端存档
   `saves/新的世界/datapacks/alice_test/`（**改场景后要手动把改动的 `.mcfunction` 复制过去**，本轮已复制且 `diff -rq` 无差异）；
   `/function alice_test:machine_course`（S2+S3 机器场景：富集仓 + 粉碎机）、

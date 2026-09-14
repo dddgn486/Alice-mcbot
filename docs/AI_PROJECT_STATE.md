@@ -66,7 +66,12 @@
 CORE `(28/28) → PASS`）。**实测纠正两条口径**（D-209）：零配方的 `mekanism:smelting` 解释
 "表 27 行 vs 实测 26 类型" ⇒ 探针改为对表行完整划分 + 守恒自检；`menuClass` 实测**不区分机器**
 （两台共用 `MekanismTileContainer`）⇒ 身份判据只有 `m{i}_binding`。
-**下一步 = S4**（单机最小闭环：放料→等→取产物，需显式写入授权 + 预算，按 D-076/D-082 走）。
+**S4 已实现**（**3-B 的第一次写入**，`COMPILES` + 闸门全绿，**待客户端验证**）：零参数物品
+`alice:machine_cycle_check` → `MachineCycleCheckTask`（放料 → 等 → 取产物）。**不新造授权**：
+容器写入维度 `WriteBudget` + `WriteReason.CONTAINER_TRANSFER` + requester `machine-cycle`；
+放料 shift-click（菜单自己决定落点）、成不成**只看世界事实**；场景加**真实电源**
+`mekanism:creative_energy_cube`（纯数据）。v1 单机单配方 + 夹具传送（内核寻路 = v2）。
+**下一步 = 客户端验证 S4，然后按 D-197 决定是否转电池步；再之后 S5 收口**。
 电池 **CORE=28 / FULL=38**。**详细交接见 `docs/HANDOVER.md`**；**方向来源与审查留档见 `docs/reviews/2026-09-14-外部质疑与工作流审查留档.md`**；今天的新纪律见 PLAYBOOK §5.0b/§5.0c/§5.0d。
 
 ## 当前目标

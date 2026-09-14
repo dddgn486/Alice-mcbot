@@ -8711,3 +8711,26 @@ the user must resume it"）。这**正好符合** D-205 的意图（"恢复只�
   均为公有只读 getter ⇒ **S4 闭环"哪个下标是输入/输出"不必猜**（本轮只观察，不起断言）。
   同时确认 S4 的能量前提可用**真实方块** `mekanism:creative_energy_cube` 提供（`MekanismBlocks.CREATIVE_ENERGY_CUBE`），
   无需反射塞能量。
+
+### D-210：机器闭环用**既有**容器写入通道，不新造授权（3-B / S4，2026-09-14）
+
+- 状态：试行（**待客户端验证**——这是 3-B 的第一次写入）
+- **写法 = 组合既有骨架**：`MenuSession`（开菜单）+ `StationProvision`（shift-click 搬运、结果验证、回滚）
+  + `WriteBudget.consumeContainerWrite`（预算）+ `WriteReason.CONTAINER_TRANSFER`（理由）
+  + `StationProvision.moveIntoContainer/moveOutOfContainer`。**没有新增授权机制、没有新增 reason、没有新动作层**。
+- **不猜槽位语义**：放料用 `QUICK_MOVE`（**让菜单自己决定落点**），成不成**一律用结果验证**
+  （机器里出现了料 → 喂进去；背包里产物变多 → 取回来）。槽位角色另有上游自述（`slot_roles`）作旁证，
+  **但闭环不依赖它**——这是"结果验证优先于语义推断"的第二次落地。
+- **能量是场景前提，不是 Java 改动**：机器要电才跑；场景 `machine_course` 在富集仓下方放**真实方块**
+  `mekanism:creative_energy_cube`（纯数据）。夹具先等场景电源（{@code ENERGY_GRACE_TICKS}），
+  真喂不上才走**前提补电**（`getEnergyContainers` → `setEnergy(FloatingLong)`），且**必然留痕**
+  `energy_source=cube|api_precharge|unreadable|none` ⇒ 不会把"电从哪来"瞒过去。
+  能量**读不出**（别的模组没有这套访问器）记 `unreadable` 并**不判红**。
+- **判据只看世界事实**：`product_before/product_after`、`machine_emptied`、`input_consumed`；
+  超时不猜原因，如实报 `no_product_in_600ticks:no_energy|progress_stalled` + 当时的能量与进度。
+- **已知边界（如实登记，待用户裁定）**：`WritePolicyMatrix` 对容器写入**只做声明与审计**
+  （未登记 requester/组合会被记下并显示，R1 设计：**可见但不据此拒绝**），容器写入真正的强制闸门是
+  `WriteBudget` 的容器维度。requester `machine-cycle` 已按 `CONTAINER` 登记（前缀规则）。
+  "矩阵是否应该对容器写入也有拒绝权"是 R1 的开放设计问题，**本轮不擅自改**。
+- **v1 边界**：只跑一台（`mekanism:enrichment_chamber`，表里已实测菜单类的那台）；站位用**夹具传送**
+  （与只读探针同规格），**走到机器旁的内核寻路是 S4 v2**——不与闭环失败模式纠缠（一次只动一个变量）。

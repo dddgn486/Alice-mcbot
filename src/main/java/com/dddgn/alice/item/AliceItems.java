@@ -177,6 +177,15 @@ public final class AliceItems {
     public static final RegistryObject<Item> MENU_PROBE =
             ITEMS.register("menu_probe", () -> new MenuProbeItem(new Item.Properties()));
 
+    /**
+     * 3-B / S4 **单机最小闭环自检**（零参数，**会写容器**）：放料 → 等 → 取产物。
+     *
+     * <p>这是 3-B 的第一次写入 —— 走容器写入授权（`CONTAINER_TRANSFER` + `WriteBudget` 容器维度），
+     * requester = `machine-cycle`。场景 `alice_test:machine_course`（机器 + 创造能量方块）。
+     */
+    public static final RegistryObject<Item> MACHINE_CYCLE_CHECK =
+            ITEMS.register("machine_cycle_check", () -> new MachineCycleCheckItem(new Item.Properties()));
+
     /** K-3 安全点停止自检（零参数，约 5 秒）：升空后请求停止 ⇒ 延后到安全点 / 超时强停。 */
     public static final RegistryObject<Item> K3_STOP_CHECK =
             ITEMS.register("k3_stop_check", () -> new K3StopCheckItem(new Item.Properties()));
