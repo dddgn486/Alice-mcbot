@@ -211,9 +211,17 @@ alice:machine_cycle_check: 3405` + `missing registry entries`（⇒ 不在注册
   附带闭合的一处对账：`[MachineProbe] readable_total=3714 skipped_total=2354` 与导出 `recipes=3689 skipped=2379` 差 25 ——
   导出侧 `skippedTypes` 里正有 `minecraft:crafting(空产出)=25`，两侧**算术精确闭合**（探测把"空产出合成"记为可读、导出记为跳过）
   ⇒ 不是异常，是两处口径不同。
-**下一步（客户端无待验项）**：(c) 增量 2 已收官 ⇒ 回到 **(a) 下一个模组的 S0/S1**（Thermal 事实表已交付，
-前置缺口见台账⑩：**没有上游 sources jar**、**`alice-recipes.json` 已过时**）。两个可选小尾巴见台账⑬
-（查询层按执行准入挑机器路线）与⑨（`recipe-readability.py` 的 `--target`）。
+**下一步（客户端无待验项）—— (a) Thermal 线现在的位置（2026-09-14 第十六轮更新）**：
+S0 事实表 ✅ → S1 设备事实表 ✅ → **S2 进表 ✅（`MachineMap` 32 行全 `READ_ONLY`，第十四轮客户端复核
+`row_block_missing=[]`）** → 工具与闸门 ✅（台账⑨ `--target`、⑭ 多命名空间探针、`machine-map.py` 按命名空间双向 + JiJ 取证、
+⑮ 读取器扩 Thermal 名族）。
+**尚未开始的下一格 = S3/S4 级别"某台 Thermal 机器真的开一次"**，前置三件：
+① **台账⑯**（Thermal `chance` 语义未取证 —— 要让概率产出参与任何判定，必须先收它）；
+② 一个 **Thermal 场景 + 夹具**（走 `alice-scene-based-testing`：孤立区域 + 一键函数 + 自带传送/复位）；
+③ 客户端实测该机器的 `menuClass` / 槽位表。
+三件齐了才谈得上把某一行从 `READ_ONLY` 升 `EXECUTABLE`（那一步同时就是 **(a) 线与 (c) 线的交汇点**）。
+**仍然开着的账**：**⑯**（新，未修，不阻塞）、**⑫**（`[Recover] session=` 标签与载荷不符，观测缺陷）、
+**⑩①**（没有上游 sources jar，不可控）。**⑬ / ⑨ / ⑭ / ⑮ 均已关闭并复核。**
 **上下文窗口已由用户从 256K 改为 512K**（D-214，本会话生效；阈值 409,600 / 保留 81,920）——改的是"何时压缩"，
 不改变事实来源；复核触发 = 手动 `/compact` 频率没降、或我出现"忘记已确认事实/重复问已答过的问题" ⇒ 退回 256K。
 电池 **CORE=30 / FULL=40**（(c) 增量 2 加了 `craft_machine`）。**详细交接见 `docs/HANDOVER.md`**；**方向来源与审查留档见 `docs/reviews/2026-09-14-外部质疑与工作流审查留档.md`**；今天的新纪律见 PLAYBOOK §5.0b/§5.0c/§5.0d。

@@ -984,7 +984,7 @@ jar `3312608d…`。
   （`46+3+10+0=59`）、`row_block_missing=[]`、`unmapped=[]`、`(30/30) ticks=3353 → PASS`；
   逐命名空间行与**手算预测逐项相同**（`mekanism 26/1171`、`thermal 30/652`）。
   ⇒ "Thermal 32 个类型里哪 30 个在运行时真有配方"**从此有自动化证据**。
-  ⑮ **Thermal 机器配方的"读法"缺失：不是读不出，是访问器名字不同（第十五轮发现 → 第十六轮已修）**：
+  ⑮ **✅ 已关闭（第十五轮发现 → 第十六轮修复并客户端复核）—— Thermal 机器配方的"读法"缺失：不是读不出，是访问器名字不同**：
   逐命名空间行里 `namespace=thermal … upstream_readable=0 input_readable=0 machine_output_not_item=57`（57/57 抽样全空），
   而 `namespace=mekanism` 是 `upstream_readable=20 input_readable=30`。**根因已取证（javap，不是猜）**：
   Thermal 的机器配方类（`PressRecipe` / `PulverizerRecipe` / `CentrifugeRecipe` / `CrystallizerRecipe` /
