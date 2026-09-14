@@ -1,7 +1,7 @@
 # 授权 / 审批框架总览（**自动生成**，勿手改）
 
 > **单一出处**：`docs/authz/AUTHZ_REGISTRY.csv`（Excel 可直接打开、批注；改它再跑 `bash tools/authz-map.sh`）
-> 生成时间：2026-09-14 11:21 ｜ 闸门 27 条
+> 生成时间：2026-09-14 11:22 ｜ 闸门 27 条
 
 ## 四问速查（唯一需要背的东西）
 
@@ -38,7 +38,7 @@
 | `L1-1` | 策略 | allowedMovementTypes（每请求显式声明） | 每次规划请求 | — | `pathing/core/search/PathRequest.java:35` | 纯通行 4 类（TRAVERSE/DIAGONAL/ASCEND/DESCEND） | 任务调用点 |
 | `L1-2` | 策略 | miningApproach 显式禁用 PILLAR/FALL/DOWNWARD | 挖掘站位请求（D-067㉘） | — | `PathRequest.java:56,91` | 禁用（待 R3 改按条件放行） | 改代码（须 A/B 证据） |
 | `L1-3` | 预算 | SearchBudget（搜索能烧多少） | 搜索节点/时间上限 | SEARCH_LIMIT | `pathing/core/search/SearchBudget.java` | 默认 UNLIMITED | 调用点 |
-| `L1-4` | 凭证 | WriteGrant(requester, reason)（D-082） | 任何破坏/放置；指向“这一格/这一次” | 无凭证不可写; WriteReason 16 种=EXPECTED_TARGET SCAFFOLD_RESTORE DESCEND_FOOT BULK_EDIT LINE_OF_SIGHT STANDING_SPACE PATH_ACCESS SUPPORT_PLACEMENT STEP_PLACEMENT REGION_REPLANT CONTAINER_TRANSFER CRAFT_STATION_PLACE STATION_PROVISION MANUAL EXPLICIT_TARGET BREAK | `action/WriteGrant.java（16 种 WriteReason；30 个调用点）` | 无凭证拒写 | 任务/Job 调用点 |
+| `L1-4` | 凭证 | WriteGrant(requester, reason)（D-082） | 任何破坏/放置；指向“这一格/这一次” | 无凭证不可写; WriteReason 14 种=EXPECTED_TARGET SCAFFOLD_RESTORE DESCEND_FOOT BULK_EDIT LINE_OF_SIGHT STANDING_SPACE PATH_ACCESS SUPPORT_PLACEMENT STEP_PLACEMENT REGION_REPLANT CONTAINER_TRANSFER CRAFT_STATION_PLACE STATION_PROVISION MANUAL（每条自带 分类：Policy=EXPLICIT_TARGET/CLEARING，Action=BREAK/PLACE/BOTH） | `action/WriteGrant.java（16 种 WriteReason；30 个调用点）` | 无凭证拒写 | 任务/Job 调用点 |
 | `L1-5` | 预算 | MiningBudget（这次挖掘值得拆多少） | 挖掘站位选点 | — | `mining/MiningBudget` | 按任务设定 | 调用点 |
 
 ### L2 规划期
