@@ -165,20 +165,29 @@ def call_args(code: str, name: str) -> list[list[str]]:
 
 
 def parse_rows(source: str) -> tuple[list[dict], list[dict], str]:
-    """解析 `row(...)` / `noSite(...)`；"上游有、无站点"= `blockIds=[]` 的行（**派生**，不另设清单）。"""
+    """解析表本体的行构造调用（T3 起共 6 个名字）。
+
+    行的"有无站点"**不再由 `block_ids` 是否为空派生**，而是由 `site_kind` 决定：
+    `SINGLE`（自己拥有方块）/ `SHARED`（站点是 `host_type` 那一行的方块）/ `MULTIBLOCK` / `INTERNAL` / `UNLOCATED`。
+    后三者才是"上游有类型、表里如实登记为无单方块站点"。
+    """
     code = strip_comments(source)
     rows: list[dict] = []
 
     def add(type_id: str, blocks: list[str], menu: str, note: str,
-            capability: str = "READ_ONLY") -> None:
+            capability: str = "READ_ONLY", site_kind: str = "SINGLE",
+            host_type: str = "-") -> None:
         rows.append({
             "type_id": type_id,
             "block_ids": blocks,
+            "site_kind": site_kind,
+            "host_type": host_type,
             "menu_class": menu,
             "capability": capability,
             "note": note,
         })
 
+    # **构造器普查**：表本体里的行调用只允许用已知的 6 个名字（见 `constructor_census`）。
     for args in call_args(code, "row"):
         if len(args) < 4 or not args[0].strip().startswith('"'):
             continue                      # 跳过 `private static Row row(String typeId, …)` 这种**声明**
@@ -193,10 +202,19 @@ def parse_rows(source: str) -> tuple[list[dict], list[dict], str]:
         add(unquote(args[0]), blocks,
             "-" if args[2].strip() == "null" else unquote(args[2]), unquote(args[3]))
 
-    for args in call_args(code, "noSite"):
-        if len(args) < 2 or not args[0].strip().startswith('"'):
-            continue                      # 同上：跳过声明
-        add(unquote(args[0]), [], "-", unquote(args[1]))
+    # T3：`noSite` 已拆成四个**有意义**的构造器（旧的那个布尔把"站点是别人的/多方块/没查清"混成一句，
+    # 实测造出过 M-1 那批错事实）。形状：
+    #   sharedSite(typeId, hostTypeId, note[, src]) —— 共享站点，站点方块问宿主行
+    #   multiblock / internal / unlocated(typeId, note[, src])
+    for args in call_args(code, "sharedSite"):
+        if len(args) < 3 or not args[0].strip().startswith('"'):
+            continue                      # 跳过 `private static Row sharedSite(…)` 声明
+        add(unquote(args[0]), [], "-", unquote(args[2]), "READ_ONLY", "SHARED", unquote(args[1]))
+    for name, kind in (("multiblock", "MULTIBLOCK"), ("unlocated", "UNLOCATED")):
+        for args in call_args(code, name):
+            if len(args) < 2 or not args[0].strip().startswith('"'):
+                continue                  # 跳过声明
+            add(unquote(args[0]), [], "-", unquote(args[1]), "READ_ONLY", kind)
 
     # `executable(...)` = 有**执行准入**的行（形状与 `row(...)` 相同，只差 capability）。
     # CSV 里必须如实区分，否则人读视图会把"能驱动"写成"只读"（D-217 起 enriching 是唯一一行）。
@@ -215,7 +233,10 @@ def parse_rows(source: str) -> tuple[list[dict], list[dict], str]:
             "-" if args[2].strip() == "null" else unquote(args[2]), unquote(args[3]),
             "EXECUTABLE")
 
-    unmapped = [{"type_id": r["type_id"], "reason": r["note"]} for r in rows if not r["block_ids"]]
+    # "上游有类型、表里如实登记为**无单方块站点**"（派生，不另设清单）：T3 起按 `site_kind` 判，
+    # 不再按 `block_ids` 是否为空 —— `SHARED` 行也没有自己的方块，但它**有站点**（是宿主那一行的）。
+    unmapped = [{"type_id": r["type_id"], "site_kind": r["site_kind"], "reason": r["note"]}
+                for r in rows if r["site_kind"] not in ("SINGLE", "SHARED")]
     # 取证件：常量可能是跨行字符串拼接（`"a" + "b"`）⇒ 按拼接逐段取回，不截断
     sources: list[str] = []
     for match in re.finditer(r'(SOURCE_JAR\w*)\s*=\s*((?:"[^"]*"\s*\+?\s*)+)', code):
@@ -225,11 +246,13 @@ def parse_rows(source: str) -> tuple[list[dict], list[dict], str]:
 
 
 def render_csv(rows: list[dict]) -> str:
-    lines = ["kind,type_id,block_ids,menu_class,capability,note"]
+    lines = ["kind,site_kind,type_id,block_ids,host_type,menu_class,capability,note"]
     for row in rows:
-        kind = "SITE" if row["block_ids"] else "NO_SITE"
+        # `kind` 保留人读的二分（SITE / NO_SITE），`site_kind` 是 T3 的五态真值。
+        kind = "SITE" if row["site_kind"] in ("SINGLE", "SHARED") else "NO_SITE"
         lines.append(",".join([
-            kind, row["type_id"], "|".join(row["block_ids"]), row["menu_class"],
+            kind, row["site_kind"], row["type_id"], "|".join(row["block_ids"]),
+            row["host_type"], row["menu_class"],
             row["capability"], csv_escape(row["note"]),
         ]))
     return "\n".join(lines) + "\n"
@@ -241,8 +264,32 @@ def csv_escape(text: str) -> str:
     return text
 
 
+def constructor_census(source: str, problems: list[str]) -> None:
+    """**构造器普查**：表本体里的行调用只允许用已知的 6 个名字。
+
+    为什么必须有这条：`parse_rows` 是**按名字**抓调用的 —— 往表里加第 7 个构造器而忘了改本文件，
+    那些行会**静默消失**：Java 表变多、生成的 CSV 也同步变少 ⇒ `--check` 与磁盘上的旧 CSV 一比
+    反而"一致"，**不红**。这正是本项目"挂在一旁的验证会烂掉"的同一族问题（`BotSelftest` 的下场），
+    所以让它在构建期响。
+    """
+    known = ("row", "executable", "sharedSite", "multiblock", "unlocated")
+    start = source.find("ROWS = List.of(")
+    body = source[start:] if start >= 0 else ""
+    end = body.find("\n    );")
+    if end >= 0:
+        body = body[:end]
+    used = set(re.findall(r"^\s*([a-z][A-Za-z0-9_]*)\(", body, re.M))
+    for name in sorted(used - set(known)):
+        problems.append(f"表本体里出现了解析器不认识的构造器 `{name}(` —— "
+                        f"请同步 tools/machine-map.py（否则这些行会静默消失）")
+    for name in sorted(set(known) - used):
+        problems.append(f"解析器登记的构造器 `{name}(` 在表本体里**一次都没用** —— "
+                        f"要么删掉它，要么删掉解析器里的这段（避免留下死构造器）")
+
+
 def tier_a(rows: list[dict], unmapped: list[dict], problems: list[str]) -> None:
     seen_types, seen_blocks = set(), {}
+    by_type = {r["type_id"]: r for r in rows}     # T3：SHARED 要按 typeId 反查宿主行
     for row in rows:
         type_id = row["type_id"]
         if not re.fullmatch(r"[a-z0-9_.-]+:[a-z0-9_/.-]+", type_id):
@@ -261,6 +308,24 @@ def tier_a(rows: list[dict], unmapped: list[dict], problems: list[str]) -> None:
                 problems.append(f"EXECUTABLE 行没有方块站点: {type_id}")
             if row["menu_class"] == "-":
                 problems.append(f"EXECUTABLE 行没有实测 menu_class: {type_id}")
+        # ---- T3 不变式（与 `MachineMap.indexByType()` 的类初始化期断言**同源**，这里是构建期版本）----
+        kind = row["site_kind"]
+        if kind not in ("SINGLE", "SHARED", "MULTIBLOCK", "INTERNAL", "UNLOCATED"):
+            problems.append(f"未知 site_kind: {kind}（行 {type_id}）")
+        if kind == "SINGLE" and not row["block_ids"]:
+            problems.append(f"SINGLE 行必须自带方块站点: {type_id}")
+        if kind != "SINGLE" and row["block_ids"]:
+            problems.append(f"只有 SINGLE 行能自带方块（共享写在 host_type）: {type_id}")
+        if kind == "SHARED":
+            if row["host_type"] in ("", "-"):
+                problems.append(f"SHARED 行缺 host_type: {type_id}")
+            elif row["host_type"] not in by_type:
+                problems.append(f"SHARED 行的宿主类型未登记: {type_id} → {row['host_type']}")
+            elif by_type[row["host_type"]]["site_kind"] != "SINGLE":
+                problems.append(f"SHARED 行的宿主必须自己是 SINGLE: {type_id} → "
+                                f"{row['host_type']}（实为 {by_type[row['host_type']]['site_kind']}）")
+            if row["capability"] != "READ_ONLY":
+                problems.append(f"SHARED 行必须恒 READ_ONLY（不继承宿主准入）: {type_id}")
     for item in unmapped:
         if not item["reason"].strip():
             problems.append(f"无站点行缺理由: {item['type_id']}（'没行'与'无站点'必须可区分）")
@@ -367,7 +432,8 @@ def check_namespace(namespace: str, spec: dict, rows: list[dict], mods_dir: Path
             problems.append(f"Tier B: 表里的 {extra} 在上游 {namespace} 的配方类型类里不存在")
 
         namespace_rows = [row for row in rows if row["type_id"].startswith(namespace + ":")]
-        no_site = sum(1 for row in namespace_rows if not row["block_ids"])
+        no_site = sum(1 for row in namespace_rows
+                     if row["site_kind"] not in ("SINGLE", "SHARED"))
         return (f"Tier B OK（{namespace}）：上游类型 {len(upstream_types)} 个，"
                 f"表 {len(namespace_rows)} 行（有站点 {len(namespace_rows) - no_site} / 无站点 {no_site}），"
                 f"双向一致；classpath={'、'.join(p.name for p in classpath)}")
@@ -399,9 +465,11 @@ def main() -> int:
                              "此时判决为 INCOMPLETE_ACCEPTED（退出码 0），**仍不打印 PASS**")
     args = parser.parse_args()
 
-    rows, unmapped, sources = parse_rows(JAVA.read_text(encoding="utf-8"))
+    table_source = JAVA.read_text(encoding="utf-8")
+    rows, unmapped, sources = parse_rows(table_source)
     problems: list[str] = []
     unverified: list[str] = []
+    constructor_census(table_source, problems)
     tier_a(rows, unmapped, problems)
 
     mods_dir = Path(args.mods_dir)
@@ -417,7 +485,9 @@ def main() -> int:
         problems.append("docs/MACHINE_MAP.csv 与 Java 表不一致（陈旧；跑 --write 重新生成）")
 
     for row in rows:
-        print(f"  {row['type_id']:<36} {('|'.join(row['block_ids']) or '(无站点)'):<32} {row['menu_class']}")
+        site = "|".join(row["block_ids"]) or (
+            f"↩{row['host_type']}" if row["site_kind"] == "SHARED" else f"({row['site_kind']})")
+        print(f"  {row['type_id']:<36} {site:<32} {row['menu_class']}")
     print("取证件: " + (" | ".join(sources) if sources else "-"))
     for note in tier_b_notes:
         print(note)

@@ -71,25 +71,78 @@ public final class MachineMap {
     public enum Capability { READ_ONLY, EXECUTABLE }
 
     /**
+     * **站点种类**（T3 / 2026-09-14，用户拍板）。
+     *
+     * <p><b>为什么必须分开</b>：旧的 `blockIds=[]` 一个布尔把三件**性质完全不同**的事混成了一句 ——
+     * "站点是别人的方块"（Thermal 6 个增幅/回收子类型）、"站点是多方块"、"**我们没查清**"。
+     * 后果是实测过的错事实：那 6 行被记进 `noSite` ⇒ 永远 `not_executable`，
+     * 而它们的宿主方块**都在注册表里**（无头基线 `MachineProbe` SUMMARY：
+     * `46+10=56=types` 且 `row_block_missing=[]`）。
+     *
+     * <p>尤其：{@link #INTERNAL}（"确定在机器内部"）与 {@link #UNLOCATED}（"没查清"）**必须分开** ——
+     * 把"没查清"写成"确定没有"就是同一族的错事实。
+     */
+    public enum SiteKind {
+        /** 本类型**拥有**自己的单方块站点（`blockIds` 非空）。 */
+        SINGLE,
+        /** **共享站点**：站点就是 {@code hostTypeId} 那行的方块（本行 `blockIds` 必须为空）。 */
+        SHARED,
+        /** 上游用**多方块结构**（`*MultiblockData` 那类），没有单方块站点。 */
+        MULTIBLOCK,
+        /**
+         * 站点在机器**内部**（槽位层），不是世界里的方块。
+         *
+         * <p>⚠️ **今天没有任何一行用它**（`energy_conversion` / `gas_conversion` / `infusion_conversion`
+         * 三条按 {@link #UNLOCATED} 记 —— 因为"在机器内部"只是注释里的**猜测**，没有取证）。
+         * 用它的第一条行出现时，**同时**加 `internal(...)` 构造器；`tools/machine-map.py` 的构造器普查
+         * 会在两边不同步时报错，所以不会漏。
+         */
+        INTERNAL,
+        /** **我们没查清**（不等于"确定没有"）。 */
+        UNLOCATED
+    }
+
+    /**
      * 一行机器映射。
      *
      * @param typeId     配方类型 id（上游注册名，如 `mekanism:enriching`）
-     * @param blockIds   该类型对应的机器方块 id，**按优先序**（首个 = 主方块）；空 = 上游有类型但无单方块站点
+     * @param blockIds   该类型**自己拥有**的机器方块 id，**按优先序**（首个 = 主方块）；
+     *                   `SINGLE` 之外一律为空（共享站点写在 {@code hostTypeId}，不写这里 —— 见 T3 设计：
+     *                   `BY_BLOCK` 保持 1 方块↔1 宿主行，索引与门禁都不必放宽）
+     * @param siteKind   站点种类（见 {@link SiteKind}）
+     * @param hostTypeId `SHARED` 时指向宿主行的 typeId；其余为 null
      * @param menuClass  实测的菜单类名，或 {@link #UNKNOWN}
-     * @param capability 能力（今天全为 {@code READ_ONLY}）
+     * @param capability 能力（今天只有 `mekanism:enriching` 是 EXECUTABLE）
      * @param source     取证出处
      * @param note       备注（1:N、多方块、零配方等）
      */
-    public record Row(String typeId, List<String> blockIds, String menuClass, Capability capability,
-                      String source, String note) {
+    public record Row(String typeId, List<String> blockIds, SiteKind siteKind, String hostTypeId,
+                      String menuClass, Capability capability, String source, String note) {
 
+        /** **有站点** = 自己能解析出站点方块（`SINGLE` 自己拥有；`SHARED` 借宿主）。 */
         public boolean hasSite() {
-            return !blockIds.isEmpty();
+            return siteKind == SiteKind.SINGLE || siteKind == SiteKind.SHARED;
         }
 
-        /** 主方块 id（无站点则 null）。 */
+        /** 本行**自己拥有**的主方块 id（`SINGLE` 之外一律 null）。 */
         public String primaryBlock() {
             return blockIds.isEmpty() ? null : blockIds.get(0);
+        }
+
+        /**
+         * **站点方块 id**：`SINGLE` 用本行的；`SHARED` 用**宿主行**的；其余 **null（不猜）**。
+         *
+         * <p>只有它才该被当作"这台机器在世界里的哪个方块"——`primaryBlock()` 对 `SHARED` 行永远是 null。
+         */
+        public String siteBlock() {
+            if (siteKind == SiteKind.SINGLE) {
+                return primaryBlock();
+            }
+            if (siteKind == SiteKind.SHARED) {
+                Row host = MachineMap.forType(hostTypeId);
+                return host == null ? null : host.primaryBlock();
+            }
+            return null;
         }
 
         public boolean menuDeclared() {
@@ -97,7 +150,7 @@ public final class MachineMap {
         }
     }
 
-    /** 上游有、但**没有单方块机器站点**的类型（由 `blockIds=[]` 的行派生）。 */
+    /** 上游有、但**没有单方块机器站点**的类型（`MULTIBLOCK` / `INTERNAL` / `UNLOCATED` 派生）。 */
     public record Unmapped(String typeId, String reason) {
     }
 
@@ -136,11 +189,12 @@ public final class MachineMap {
             row("mekanism:pigment_extracting", "mekanism:pigment_extractor", null, ""),
             row("mekanism:pigment_mixing", "mekanism:pigment_mixer", null, ""),
             row("mekanism:painting", "mekanism:painting_machine", null, ""),
-            // —— 上游有类型、无单方块机器站点（`blockIds=[]`；"没行"与"无站点"必须可区分）——
-            noSite("mekanism:evaporating", "热蒸发**多方块**（`EvaporationMultiblockData`），无单方块站点"),
-            noSite("mekanism:energy_conversion", "未定位到单方块机器（电力转换在机器内部/槽位层）"),
-            noSite("mekanism:gas_conversion", "未定位到单方块机器（气体转换在机器内部/槽位层）"),
-            noSite("mekanism:infusion_conversion", "未定位到单方块机器（灌注转换在机器内部/槽位层）"),
+            // —— 上游有类型但**没有单方块站点**：T3 起按 `SiteKind` **分类**登记，不再一律 `noSite`
+            //    （旧的单一布尔把"站点是别人的""多方块""没查清"混成一句 ⇒ 造出过 M-1 那批错事实）——
+            multiblock("mekanism:evaporating", "热蒸发**多方块**（`EvaporationMultiblockData`），无单方块站点"),
+            unlocated("mekanism:energy_conversion", "未定位到单方块机器（电力转换在机器内部/槽位层）"),
+            unlocated("mekanism:gas_conversion", "未定位到单方块机器（气体转换在机器内部/槽位层）"),
+            unlocated("mekanism:infusion_conversion", "未定位到单方块机器（灌注转换在机器内部/槽位层）"),
             // ==================== Thermal（阶段 3-B (a) S2，2026-09-14）====================
             // 取证：`cofh.thermal.core.init.registries.TCoreRecipeTypes`（**上游 32 个 `thermal:` 类型全在这一个类里**）
             // + `cofh.thermal.expansion.init.registries.TExpBlocks` + `TCoreBlocks` 的字符串常量（javap，见 SOURCE_JAR_THERMAL）。
@@ -182,14 +236,25 @@ public final class MachineMap {
             row("thermal:potion_diffuser_boost", "thermal:device_potion_diffuser", null, "", SRC_THERMAL),
             row("thermal:hive_extractor", "thermal:device_hive_extractor", null,
                     "上游有类型但**本次客户端零配方** ⇒ 运行时不出现", SRC_THERMAL),
-            // —— 6 个"寄居"子类型：站点与菜单**借用父机器**，而本表是 1 方块 ↔ 1 类型（`BY_BLOCK` 唯一，
-            //    否则探针无法"按表认机器"）⇒ 只能如实登记为**无独立站点**（不是"没找到机器"）——
-            noSite("thermal:smelter_catalyst", "增幅子类型：站点即 `thermal:machine_smelter`（该方块已归 `thermal:smelter` 行）", SRC_THERMAL),
-            noSite("thermal:smelter_recycle", "同上（`smelter` 的回收/副产物规则）", SRC_THERMAL),
-            noSite("thermal:insolator_catalyst", "增幅子类型：站点即 `thermal:machine_insolator`", SRC_THERMAL),
-            noSite("thermal:pulverizer_catalyst", "增幅子类型：站点即 `thermal:machine_pulverizer`", SRC_THERMAL),
-            noSite("thermal:pulverizer_recycle", "同上", SRC_THERMAL),
-            noSite("thermal:tree_extractor_boost", "增幅子类型：站点即 `thermal:device_tree_extractor`", SRC_THERMAL));
+            // —— 6 个"寄居"子类型：站点与菜单**借用父机器** ——
+            //    **T3（2026-09-14）修正了这里的错事实**：旧模型是"1 方块 ↔ 1 类型 + `blockIds` 唯一"，
+            //    表达不了"共享站点"，于是这 6 行被如实登记成**无站点** ⇒ `not_executable` 永远成立，
+            //    而它们的宿主方块**都在注册表里**（无头基线 `MachineProbe`：`46+10=56=types`、
+            //    `row_block_missing=[]`）。现在用 `SiteKind.SHARED + hostTypeId` 显式表达，
+            //    **不再动 `BY_BLOCK` 索引**（仍 1 方块 ↔ 1 宿主行）。
+            //    ⚠️ **共享行恒 READ_ONLY**（用户 2026-09-14 裁定）：宿主行以后升 EXECUTABLE **也不继承** ——
+            //    `indexByType()` 里有类初始化期断言强制这一条。
+            sharedSite("thermal:smelter_catalyst", "thermal:smelter",
+                    "增幅子类型：站点即 `thermal:machine_smelter`（该方块归 `thermal:smelter` 行）", SRC_THERMAL),
+            sharedSite("thermal:smelter_recycle", "thermal:smelter",
+                    "同上（`smelter` 的回收/副产物规则）", SRC_THERMAL),
+            sharedSite("thermal:insolator_catalyst", "thermal:insolator",
+                    "增幅子类型：站点即 `thermal:machine_insolator`", SRC_THERMAL),
+            sharedSite("thermal:pulverizer_catalyst", "thermal:pulverizer",
+                    "增幅子类型：站点即 `thermal:machine_pulverizer`", SRC_THERMAL),
+            sharedSite("thermal:pulverizer_recycle", "thermal:pulverizer", "同上", SRC_THERMAL),
+            sharedSite("thermal:tree_extractor_boost", "thermal:tree_extractor",
+                    "增幅子类型：站点即 `thermal:device_tree_extractor`", SRC_THERMAL));
 
     /** 类型 → 行（含 `blockIds=[]` 的"无站点"行）。 */
     private static final Map<String, Row> BY_TYPE = indexByType();
@@ -202,8 +267,8 @@ public final class MachineMap {
 
     // 行构造：**每行一条单行调用**，字段顺序固定 ⇒ `tools/machine-map.py` 可静态解析并与 CSV 对账。
     private static Row row(String typeId, String blockId, String menuClass, String note) {
-        return new Row(typeId, List.of(blockId), menuClass == null ? UNKNOWN : menuClass,
-                Capability.READ_ONLY, SRC, note);
+        return new Row(typeId, List.of(blockId), SiteKind.SINGLE, null,
+                menuClass == null ? UNKNOWN : menuClass, Capability.READ_ONLY, SRC, note);
     }
 
     /**
@@ -213,13 +278,38 @@ public final class MachineMap {
      * 追加第 5 个参数不会改变 CSV 的解析结果。
      */
     private static Row row(String typeId, String blockId, String menuClass, String note, String src) {
-        return new Row(typeId, List.of(blockId), menuClass == null ? UNKNOWN : menuClass,
-                Capability.READ_ONLY, src, note);
+        return new Row(typeId, List.of(blockId), SiteKind.SINGLE, null,
+                menuClass == null ? UNKNOWN : menuClass, Capability.READ_ONLY, src, note);
     }
 
-    /** 无站点行 + 显式取证件（`src` 同样放最后，理由见上）。 */
-    private static Row noSite(String typeId, String note, String src) {
-        return new Row(typeId, List.of(), UNKNOWN, Capability.READ_ONLY, src, note);
+    /**
+     * **共享站点行**（T3）：站点就是 `hostTypeId` 那行的方块；本行 `blockIds` **必须为空**。
+     *
+     * <p>**恒 `READ_ONLY`**（用户 2026-09-14 裁定）：宿主行以后升 `EXECUTABLE` **也不继承**准入 ——
+     * "未知模组能力默认只读"的边界不因为别人的改动被扩大。`indexByType()` 有类初始化期断言强制。
+     */
+    private static Row sharedSite(String typeId, String hostTypeId, String note, String src) {
+        return new Row(typeId, List.of(), SiteKind.SHARED, hostTypeId,
+                UNKNOWN, Capability.READ_ONLY, src, note);
+    }
+
+    /** 多方块站点（无单方块站点）。 */
+    private static Row multiblock(String typeId, String note, String src) {
+        return new Row(typeId, List.of(), SiteKind.MULTIBLOCK, null, UNKNOWN, Capability.READ_ONLY, src, note);
+    }
+
+    /** **未查清**（不等于"确定没有"）。与 {@link #internal} 分开是 T3 的要点之一。 */
+    private static Row unlocated(String typeId, String note, String src) {
+        return new Row(typeId, List.of(), SiteKind.UNLOCATED, null, UNKNOWN, Capability.READ_ONLY, src, note);
+    }
+
+    // —— 上面三个的"用默认 SRC"重载（与 `row`/`noSite` 的旧风格一致：单模组段的行不必重复写出处）——
+    private static Row multiblock(String typeId, String note) {
+        return multiblock(typeId, note, SRC);
+    }
+
+    private static Row unlocated(String typeId, String note) {
+        return unlocated(typeId, note, SRC);
     }
 
     /**
@@ -228,12 +318,8 @@ public final class MachineMap {
      * 第三条由决策条目与测试矩阵留痕。
      */
     private static Row executable(String typeId, String blockId, String menuClass, String note) {
-        return new Row(typeId, List.of(blockId), menuClass == null ? UNKNOWN : menuClass,
-                Capability.EXECUTABLE, SRC, note);
-    }
-
-    private static Row noSite(String typeId, String note) {
-        return new Row(typeId, List.of(), UNKNOWN, Capability.READ_ONLY, SRC, note);
+        return new Row(typeId, List.of(blockId), SiteKind.SINGLE, null,
+                menuClass == null ? UNKNOWN : menuClass, Capability.EXECUTABLE, SRC, note);
     }
 
     private static Map<String, Row> indexByType() {
@@ -242,6 +328,29 @@ public final class MachineMap {
             Row previous = map.put(r.typeId(), r);
             if (previous != null) {
                 throw new IllegalStateException("MachineMap 类型重复：" + r.typeId());
+            }
+        }
+        // **T3 结构不变式**：类初始化期就响，不等跑起来才发现（与 `BY_BLOCK` 的重复断言同一风格）。
+        // 这三条对应"共享站点"最容易出错的地方：宿主没登记 / 宿主自己没站点 / 共享行偷偷带了准入。
+        for (Row r : ROWS) {
+            if (r.siteKind() != SiteKind.SHARED) {
+                continue;
+            }
+            Row host = map.get(r.hostTypeId());
+            if (host == null) {
+                throw new IllegalStateException("SHARED 行的宿主类型未登记："
+                        + r.typeId() + " → " + r.hostTypeId());
+            }
+            if (host.siteKind() != SiteKind.SINGLE) {
+                throw new IllegalStateException("SHARED 行的宿主必须自己是 SINGLE："
+                        + r.typeId() + " → " + r.hostTypeId() + "（实为 " + host.siteKind() + "）");
+            }
+            if (!r.blockIds().isEmpty()) {
+                throw new IllegalStateException("SHARED 行不得自带方块（共享写在 hostTypeId）：" + r.typeId());
+            }
+            if (r.capability() != Capability.READ_ONLY) {
+                throw new IllegalStateException("SHARED 行必须恒 READ_ONLY（用户 2026-09-14 裁定，不继承宿主准入）："
+                        + r.typeId());
             }
         }
         return Map.copyOf(map);
@@ -280,10 +389,10 @@ public final class MachineMap {
         return typeId == null ? null : BY_TYPE.get(typeId);
     }
 
-    /** 类型 id → 主方块 id；无行/无站点返回 null。 */
+    /** 类型 id → 主方块 id；无行/无站点返回 null。**`SHARED` 行返回宿主行的方块**（T3）。 */
     public static String blockFor(String typeId) {
         Row r = forType(typeId);
-        return r == null ? null : r.primaryBlock();
+        return r == null ? null : r.siteBlock();
     }
 
     /** 方块 id → 行；**不是表里的机器就返回 null**（探针据此按表认机器）。 */
@@ -291,15 +400,11 @@ public final class MachineMap {
         return blockId == null ? null : BY_BLOCK.get(blockId);
     }
 
-    public static boolean covers(String typeId) {
-        Row r = forType(typeId);
-        return r != null && r.hasSite();
-    }
-
     public static String describe() {
         long withSite = ROWS.stream().filter(Row::hasSite).count();
         return "machine_rows=" + ROWS.size() + " with_site=" + withSite
                 + " no_site=" + knownUnmapped().size()
+                + " shared_site=" + ROWS.stream().filter(r -> r.siteKind() == SiteKind.SHARED).count()
                 + " declared_menu=" + ROWS.stream().filter(Row::menuDeclared).count()
                 + " executable=" + ROWS.stream().filter(r -> r.capability() == Capability.EXECUTABLE).count()
                 + " source=" + SOURCE_JAR + " source_thermal=" + SOURCE_JAR_THERMAL;

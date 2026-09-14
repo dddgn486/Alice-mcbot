@@ -162,6 +162,7 @@ public class MachineProbeTask implements Task {
         java.util.List<String> withSiteConfirmed = new ArrayList<>();
         java.util.List<String> withSiteUnobserved = new ArrayList<>();
         java.util.List<String> noSite = new ArrayList<>();
+        java.util.List<String> sharedSite = new ArrayList<>();
         java.util.List<String> rowBlockMissing = new ArrayList<>();
         java.util.List<String> unmapped = new ArrayList<>();
         for (MachineMap.Row row : MachineMap.rows()) {
@@ -169,10 +170,17 @@ public class MachineProbeTask implements Task {
                 noSite.add(row.typeId());
                 continue;
             }
-            boolean anyPresent = row.blockIds().stream().anyMatch(
-                    id -> BuiltInRegistries.BLOCK.containsKey(ResourceLocation.tryParse(id)));
-            if (!anyPresent) {
-                rowBlockMissing.add(row.typeId() + "→" + String.join("|", row.blockIds()));
+            // **T3：必须走 `siteBlock()`，不能读 `blockIds()`** —— `SiteKind.SHARED` 行的 `blockIds` 是空的
+            // （共享写在 `hostTypeId`），站点要问宿主行。读 `blockIds()` 会把 6 个 Thermal 子类型
+            // 判成"表引用了不存在的方块" ⇒ **假红**。
+            String site = row.siteBlock();
+            if (row.siteKind() == MachineMap.SiteKind.SHARED) {
+                sharedSite.add(row.typeId() + "→" + row.hostTypeId());
+            }
+            boolean present = site != null
+                    && BuiltInRegistries.BLOCK.containsKey(ResourceLocation.tryParse(site));
+            if (!present) {
+                rowBlockMissing.add(row.typeId() + "→" + (site == null ? "<宿主解析失败>" : site));
             } else if (byType.containsKey(row.typeId())) {
                 withSiteConfirmed.add(row.typeId());
             } else {
@@ -210,8 +218,8 @@ public class MachineProbeTask implements Task {
             BotLog.info("[MachineProbe] 表里有站点但配方管理器里**未出现**的类型（上游 0 配方或模组集差异，只报事实）：{}",
                     withSiteUnobserved);
         }
-        BotLog.info("[MachineProbe] 机器映射 {} | 表={}行 with_site_confirmed={} with_site_unobserved={} no_site={} unmapped={}",
-                MachineMap.describe(), rowCount, withSiteConfirmed.size(), withSiteUnobserved, noSite, unmapped);
+        BotLog.info("[MachineProbe] 机器映射 {} | 表={}行 with_site_confirmed={} shared_site={} with_site_unobserved={} no_site={} unmapped={}",
+                MachineMap.describe(), rowCount, withSiteConfirmed.size(), sharedSite, withSiteUnobserved, noSite, unmapped);
         for (Map.Entry<String, List<Recipe<?>>> entry : byType.entrySet()) {
             BotLog.info("[MachineProbe]   type={} count={}", entry.getKey(), entry.getValue().size());
             // 每个命名空间各自的桶：types / recipes / samples / unreadable / upstream_readable / not_item / input_readable  / chance_declared
@@ -325,6 +333,7 @@ public class MachineProbeTask implements Task {
                 .append(" query_machine_route=").append(machineRouteOk)
                 .append(" machine_map_rows=").append(rowCount)
                 .append(" with_site_confirmed=").append(withSiteConfirmed.size())
+                .append(" shared_site=").append(sharedSite)
                 .append(" with_site_unobserved=").append(withSiteUnobserved)
                 .append(" no_site=").append(noSite)
                 .append(" unmapped=").append(unmapped)
