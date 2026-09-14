@@ -923,13 +923,15 @@ jar `3312608d…`。
   ③ 旁记（S1 开放项）：静态 jar 直方图 618 条 vs 运行时 652 条，**净差 +34 算术闭合**
   （`618 +7(numismatic_fuel) +7(tree_extractor) +38(10 个只在运行时出现的类型) −18(smelter_recycle 22→4)`），
   **来源未取证**（疑代码注册/条件禁用），留到 S1。
-  ⑪ **(c) 增量 2 的施工清单（下一步，WSL 离线可做）**：`CraftJob` 的 `MACHINE_ROUTE` 分支现在
-  `failAndFinish("machine_recipe_unsupported:not_executable:" + route.station())`（`CraftJob.java:183`）。
-  要接的就是 S4 v2 已实测的那条闭环（走 → 开 → 能量自证 → 投料 → 等 → 取 → 世界事实复核）。**两条红线**：
-  ① **`api_precharge` 不进生产**（没电 ⇒ `machine_no_energy` 如实失败）；② 目标机器取 `route.station()`
-  （已是机器方块 id），化学品/气体输入继续如实拒绝。**最小做法**：把 `MachineCycleCheckTask` 的
-  `WALK/OPEN/ENERGY/FEED/WAIT/TAKE/VERIFY` 抽成**可复用执行器**（抽出的执行器里**不含 precharge**，
-  夹具那套兜底留在夹具内），`CraftJob` 调它；红线①再加一道**门禁**机械保证（生产目录零命中 precharge）。
+  ⑪ **✅ 已关闭（2026-09-14，D-217）—— (c) 增量 2 施工清单已全部落地**：`CraftJob` 的 `MACHINE_ROUTE`
+  不再 `not_executable`，改为**数据驱动的执行准入**（`MachineMap.executable(...)`，只升 `mekanism:enriching`
+  一行 ⇒ `CraftJob` 只驱动 `EXECUTABLE` 的行）。闭环本体抽成 `task/craft/MachineCycle`（**夹具与生产同一份**，
+  夹具变薄壳），两条红线都落地：① **不补电**（执行器里没有造能量的代码；`EnergyTopUp` 只有夹具实现、
+  生产位置传 `null`）+ **门禁 `tools/check-precharge-containment.sh`** 三条断言（含反向测试：注入一次
+  `precharge(` ⇒ 立刻红）；② 目标机器取 `route.station()`，多输入/化学品输入如实拒绝。新电池步
+  `craft_machine` ⇒ **CORE 29→30 / FULL 39→40**；六道门禁 PASS（`check-policy-matrix` 顺带抓到写入点登记的
+  漂移：`docs/authz/CONTAINER_WRITE_SITES.csv` 已从夹具改登记 `task/craft/MachineCycle`）。
+  **剩余如实边界**（不是台账项，是范围）：机器路线目前只支持**单物品输入**的机器。
   ⑫ **`[Recover] session=<id> movements=N …` 的标签与载荷不符（观测缺陷，第十一轮踩到，未修）**：
   该行由 `PathSession:273` 打印，载荷来自 `RecoverabilityReport.describe()` —— 而后者是**自服务器启动累计**
   的静态计数（`RecoverabilityReport:13` 明确"不随会话清空"，`reset()` 只由 `recoverability` 自检步调用）。

@@ -8935,3 +8935,35 @@ ticks=40 finalFoot=66, 64, 305`，与断言格**逐字一致**）→ 开菜单�
 末段落点在机器**旁格**、**没有**踩进机器自身那一格。
 **⇒ S4 v2 达 `WINDOWS_CLIENT`。下一道复核触发 = 增量 2 接线**：生产路径里 `api_precharge` **零命中**（机械可查），
 且没电时终态必须是 `machine_no_energy`（如实失败，不许凭空造能量）。
+
+### D-217：(c) 增量 2 —— 机器路线的**生产接线**：一份闭环两处用 + 数据驱动的执行准入 + 补电不许进生产（2026-09-14）
+
+**动机**：S4 v2 已验证"闭环能自己走到机器旁"，但 `CraftJob` 对 `MACHINE_ROUTE` 仍 `not_executable` 如实拒绝 ⇒
+"读得出路线"与"真的能做"之间还差这一层。用户 2026-09-14 裁定：**抽公共执行器**（不是生产侧另写一份）+ **新增生产电池步**。
+
+1. **一份实现两处用**：闭环本体抽到 `task/craft/MachineCycle`（走 → 开 → 电 → 放料 → 等 → 取 → 复核）。
+   夹具 `MachineCycleCheckTask` 变**薄壳**（只留：传送/复位、按类型挑配方、按前提备料、**补电兜底**、SUMMARY）；
+   生产 `CraftJob.MACHINE_ROUTE` 调**同一份**。事实出口走 `Sink`（夹具接进自己的 SUMMARY，生产收成一段
+   `[CraftJob] machine SUMMARY`），日志标签由调用方给 ⇒ 两边的留痕键**同源**，可用同一张判据表对账。
+2. **执行准入是数据驱动的**：`MachineMap` 新增 `executable(...)` 行构造，把 `mekanism:enriching` 升为
+   `Capability.EXECUTABLE`（三条件：① 有执行适配器 ② `menuClass` 已客户端实测 ③ 有客户端验证记录 —— 后者的
+   证据是 D-213/D-216 的 S4 闭环 + 第十一轮 `latest.log:3209`）。`CraftJob` **只驱动 EXECUTABLE 的行**，
+   其余照旧 `not_executable:<station>`。`tools/machine-map.py` 现在解析 `executable(...)` 并把 capability
+   如实写进 `docs/MACHINE_MAP.csv`（此前 CSV 只写 READ_ONLY ⇒ 人读视图会把"能驱动"说成"只读"）。
+3. **红线①变成机械可查**：执行器里**没有任何造能量的代码**；唯一通道是调用方注入的 `EnergyTopUp`，
+   **只有夹具实现它**，生产**位置传 `null`**（生产文件里连类型名都不出现）。门禁
+   `tools/check-precharge-containment.sh` 三条断言：造能量的**调用**只命中夹具文件 / 注入点命中面 = {定义, 夹具} /
+   **反向断言**夹具里那些符号还在（防一次重命名让门禁静默变绿）。**已做反向测试**：往 `CraftJob` 注入一次
+   `precharge(…)` ⇒ 门禁立刻报红并点名文件:行。
+
+**范围（如实）**：本轮只支持**单物品输入**的机器（与 S4 实测同形）；多输入、化学品/流体输入如实拒绝
+（`multi_input_not_supported` / `non_item_input`）。缺料在**出发前**判掉 —— 不走到机器旁才发现喂不进去。
+
+**新测试入口**：电池步 `craft_machine`（MAIN）⇒ **CORE 29→30 / FULL 39→40**。夹具**不碰闭环任何一步**，
+只做测试专属三件事：传送平台远角 / 挑"只能靠机器做出来"的目标物（用**生产查询层**现场复核，
+候选是离线对撞 jar×配方表得来的，见夹具注释）/ 按前提备料；判据要求**生产真的走了机器路线**
+（`machineFacts` 非空 + `walk_state=DONE` + `product_landed`/`machine_emptied`）—— 否则可能是合成/熔炼路线，那就是假绿。
+
+**复核触发（下一轮 CORE 电池，零新入口）**：`(30/30) → PASS`、`craft_machine` 步内 `job_terminal=DONE` +
+`m_walk_state=DONE` + `product_after=product_before+1`；且 `machine_cycle` 仍绿（夹具换薄壳后无回归）。
+**失败即回退判据**：`craft_machine` 红而 `machine_cycle` 绿 ⇒ 生产接线的问题；两步同红 ⇒ 抽执行器时把夹具改坏了。

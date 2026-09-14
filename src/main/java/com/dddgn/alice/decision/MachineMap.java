@@ -21,8 +21,10 @@ import java.util.Map;
  *       共用 `MekanismTileContainer`（enriching 与 crushing 实测同值、槽位表也逐项相同）
  *       ⇒ 菜单类只能拿来看"菜单形状有没有漂移"，**分辨"点对了哪台"的硬证据是方块↔方块实体绑定**
  *       （探针的 `m{i}_binding`：BE 自述配方类型 == 表里的类型）；</li>
- *   <li>`capability`：缺省、且今天**所有行**都是 {@link Capability#READ_ONLY}
- *       —— Alice 还没有任何机器的执行适配；`EXECUTABLE` 的出现前提见其 javadoc；</li>
+ *   <li>`capability`：缺省 {@link Capability#READ_ONLY}（未知模组能力默认只读，协议 §1）。
+ *       **今天只有一行是 {@link Capability#EXECUTABLE}**（`mekanism:enriching`，2026-09-14 D-217 起）——
+ *       它同时满足 `EXECUTABLE` 的三条件；其余行哪怕 `menuClass` 已实测也**仍是只读**。
+ *       行构造用 {@code executable(...)} 而不是 {@code row(...)}，静态检查与 CSV 都认这个区别；</li>
  *   <li>**槽位下标一律不入表**：槽位/进度运行时问上游（本表只管"是哪台方块、点对了没"）。</li>
  * </ul>
  *
@@ -44,9 +46,10 @@ public final class MachineMap {
     /**
      * 能力口径。**缺省必须是 {@link #READ_ONLY}**（未知模组能力默认只读，协议 §1）。
      *
-     * <p>{@link #EXECUTABLE} 今天**没有任何一行**使用，它的出现条件（三者同时满足，静态检查强制）：
-     * ① 有执行适配器（能派发"放料/取产物/等进度"）；② `menuClass` 已客户端实测登记；
-     * ③ 有对应的客户端验证记录。在那之前，`MACHINE_ROUTE` 一律只报路线、执行侧如实拒绝。
+     * <p>{@link #EXECUTABLE} 的出现条件（三者同时满足；前两条由 `tools/machine-map.py` 静态强制，
+     * 第三条靠决策条目/测试矩阵留痕）：① 有执行适配器（能派发"放料/取产物/等进度"）；
+     * ② `menuClass` 已客户端实测登记；③ 有对应的客户端验证记录。
+     * **今天只有 `mekanism:enriching` 一行**（D-217）；没验过的机器，`MACHINE_ROUTE` 只报路线、执行侧如实拒绝。
      */
     public enum Capability { READ_ONLY, EXECUTABLE }
 
@@ -85,8 +88,13 @@ public final class MachineMap {
 
     private static final List<Row> ROWS = List.of(
             // —— 基础加工机（S2 已客户端实测 enriching/enrichment_chamber）——
-            row("mekanism:enriching", "mekanism:enrichment_chamber", "mekanism.common.inventory.container.tile.MekanismTileContainer",
-                    "S2 客户端实测（machine_station，2026-09-14）；菜单类是**通用 tile 容器**，不区分机器（见类注释）"),
+            // **(c) 增量 2 / D-217 起 = EXECUTABLE**：三条件齐了 —— ① 执行适配器
+            // `task/craft/MachineCycle`（走→开→电→放料→等→取，夹具与生产同一份）；② `menuClass` 客户端实测
+            // （S2 `machine_station` 第四轮）；③ 客户端验证记录：S4 单机闭环第七/九/十/十一轮 +
+            // 第十一轮 S4 v2 自走到机器旁（`latest.log:3209`）。**其余行仍 READ_ONLY**（没验过就是没验过）。
+            executable("mekanism:enriching", "mekanism:enrichment_chamber", "mekanism.common.inventory.container.tile.MekanismTileContainer",
+                    "S2 客户端实测（machine_station，2026-09-14）；菜单类是**通用 tile 容器**，不区分机器（见类注释）；"
+                            + "S4/S4v2 闭环已实测 ⇒ D-217 起有执行准入"),
             row("mekanism:crushing", "mekanism:crusher", "mekanism.common.inventory.container.tile.MekanismTileContainer",
                     "1:N——工厂变体 basic_/advanced_/elite_/ultimate_crushing_factory 同类型不同方块；v1 只登记基础机（工厂 id 已在 jar 中，按需按数据补行）。菜单类 S3 客户端实测（machine_station，2026-09-14），与 enriching **同一个类**"),
             row("mekanism:smelting", "mekanism:energized_smelter", null,
@@ -130,6 +138,16 @@ public final class MachineMap {
     private static Row row(String typeId, String blockId, String menuClass, String note) {
         return new Row(typeId, List.of(blockId), menuClass == null ? UNKNOWN : menuClass,
                 Capability.READ_ONLY, SRC, note);
+    }
+
+    /**
+     * 有**执行准入**的行（能派发"放料/取产物/等进度"）。用它的那一行必须同时满足 `Capability.EXECUTABLE`
+     * 的三条件（见其 javadoc）；`tools/machine-map.py` 静态断言前两条（有站点 + 有实测 `menuClass`），
+     * 第三条由决策条目与测试矩阵留痕。
+     */
+    private static Row executable(String typeId, String blockId, String menuClass, String note) {
+        return new Row(typeId, List.of(blockId), menuClass == null ? UNKNOWN : menuClass,
+                Capability.EXECUTABLE, SRC, note);
     }
 
     private static Row noSite(String typeId, String note) {

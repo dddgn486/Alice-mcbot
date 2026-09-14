@@ -1,5 +1,5 @@
 site,category,gated,enforced_by,why
-action/MenuSession.java,menu-protocol,no,task/TransferTask.java;task/craft/StationProvision.java;task/MachineCycleCheckTask.java;task/CraftFurnaceCheckTask.java;task/MenuProbeTask.java;job/craft/CraftJob.java,菜单点击原语层：本身不决定写谁。执法在**开着外来容器菜单**的每个调用方（所列文件都先过 consumeContainerWrite 才点）
+action/MenuSession.java,menu-protocol,no,task/TransferTask.java;task/craft/StationProvision.java;task/craft/MachineCycle.java;task/CraftFurnaceCheckTask.java;task/MenuProbeTask.java;job/craft/CraftJob.java,菜单点击原语层：本身不决定写谁。执法在**开着外来容器菜单**的每个调用方（所列文件都先过 consumeContainerWrite 才点）
 fixture/transfer/TransferFixture.java,primitive-isolation,no,,边界：夹具在隔离层直接驱动搬运原语（ChestBotTransferPrimitive），有意不过闸门——它的目的是验原语自身；生产路径见 TransferTask
 fixture/transfer/TransferSelectionFixture.java,primitive-isolation,no,,边界：同上（选择/参数校验夹具：摆箱子 + 驱动原语）
 gui/BotInventoryMenu.java,own-inventory,no,,bot 自己的背包菜单（不是世界容器，改它不算世界写入）
@@ -8,7 +8,7 @@ task/CraftActionCheckTask.java,own-inventory,no,,合成动作夹具：网格+随
 task/CraftFurnaceCheckTask.java,gated,yes,,熔炉夹具：按相位过闸门（放料/取产物/超时取回输入/复位取回余料）
 task/CraftStationCraftCheckTask.java,menu-protocol,no,task/craft/StationProvision.java,装配/取回阶段经 StationProvision 过闸；**边界**：结果槽 shift-click 若落进方块容器（product_in_container）这一下不过闸（InventoryCraft 没有 grant 上下文）
 task/CraftStationProvisionCheckTask.java,menu-protocol,no,task/craft/StationProvision.java,装配夹具：所有容器写入都走 StationProvision（它内部过闸），本文件自己不点菜单
-task/MachineCycleCheckTask.java,gated,yes,,S4 机器最小闭环：往机器容器放料、把产物取回来
+task/craft/MachineCycle.java,gated,yes,,机器闭环执行器（(c) 增量 2 / D-217 起**夹具与生产共用同一份**）：往机器容器放料、把产物取回来；写前过 consumeContainerWrite，**requester 由调用方给**（夹具 `machine-cycle` / 生产 `craft`，两者都已在策略矩阵登记）
 task/MachineStationProbeTask.java,probe,no,,只读探针：开菜单读槽位事实后关闭，SUMMARY 自证 no_writes=true（S3 轮已机器验证）
 task/MenuProbeTask.java,gated,yes,,手动菜单探针（alice:menu_probe）：把物品从箱子里真搬出来这一下过闸门
 task/TransferCheckTask.java,scenario-seeding,no,,夹具搭场景（把两个箱子清空填好、清空 bot 背包）；真搬运走 TransferTask（已过闸）

@@ -1,6 +1,7 @@
 package com.dddgn.alice.job.craft;
 
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.decision.MachineMap;
 import com.dddgn.alice.job.Job;
 import com.dddgn.alice.action.MenuSession;
 import com.dddgn.alice.action.WriteBudget;
@@ -12,6 +13,7 @@ import com.dddgn.alice.task.craft.CraftStation;
 import com.dddgn.alice.task.craft.FurnaceStation;
 import com.dddgn.alice.task.craft.GridDiscovery;
 import com.dddgn.alice.task.craft.InventoryCraft;
+import com.dddgn.alice.task.craft.MachineCycle;
 import com.dddgn.alice.task.craft.RecipeQuery;
 import com.dddgn.alice.task.craft.StationProvision;
 import net.minecraft.core.BlockPos;
@@ -23,6 +25,11 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.AbstractCookingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * **合成 / 熔炼 Job**（阶段 3-A / A5，D-199）：把"要什么"接进决策层之后的那条**生产**路径。
@@ -50,6 +57,13 @@ public final class CraftJob implements Job {
 
     public static final String NAME = "craft";
 
+    /** 开机找机器的立方盒半径（与 S4 夹具同值：起点在平台远角时半径 6 不够）。 */
+    private static final int MACHINE_SCAN_RADIUS = 12;
+    /** 走到机器旁的上限（tick）。 */
+    private static final int MACHINE_WALK_TICKS = 400;
+    /** 等机器出产物的上限（tick；★不缩短：真实机器进度，缩短只会把真绿变假红）。 */
+    private static final int MACHINE_WAIT_TICKS = 600;
+
     /** 站点探测/开菜单半径。 */
     private static final int STATION_RADIUS = 6;
     /** 开菜单等待上限（tick）。 */
@@ -59,7 +73,7 @@ public final class CraftJob implements Job {
     /** 烧炼预算下限（tick）。 */
     private static final int SMELT_TICKS_MIN = 400;
 
-    private enum Phase { PREPARE, OPEN, WAIT_OPEN, PROVISION, DO_CRAFT, WAIT, VERIFY, CLEANUP, DONE }
+    private enum Phase { PREPARE, OPEN, WAIT_OPEN, PROVISION, DO_CRAFT, MACHINE, WAIT, VERIFY, CLEANUP, DONE }
 
     public static final class Codes {
         public static final String NO_RECIPE = "no_recipe";
@@ -96,6 +110,15 @@ public final class CraftJob implements Job {
     private boolean inputPlaced;
     private boolean fuelPlaced;
 
+    /** 机器路线（(c) 增量 2 / D-217）：闭环执行器 + 它报出的事实（生产侧只留一段 SUMMARY）。 */
+    private MachineCycle machine;
+    private final Map<String, String> machineFacts = new LinkedHashMap<>();
+    private final List<String> machineFailedChecks = new ArrayList<>();
+    private Item machineInput;
+    private int machineInputCount;
+    private Item machineOutput;
+    private int machineOutputCount;
+
     private String terminalReason = "";
     private String failure = "";
 
@@ -118,7 +141,8 @@ public final class CraftJob implements Job {
 
     @Override
     public TaskTarget target() {
-        BlockPos anchor = opened != null && opened.pos() != null ? opened.pos() : bot.blockPosition();
+        BlockPos anchor = opened != null && opened.pos() != null ? opened.pos()
+                : (machine != null && machine.machinePos() != null ? machine.machinePos() : bot.blockPosition());
         return TaskTarget.block(anchor);
     }
 
@@ -132,10 +156,21 @@ public final class CraftJob implements Job {
         return terminalReason;
     }
 
+    /**
+     * **机器路线的事实出口**（(c) 增量 2 / D-217）：只在走了机器路线时非空。
+     * 生产调用方用不到它；电池自检 `craft_machine` 靠它断言"**真的走了机器路线**"（否则可能是合成/熔炼路线，
+     * 那就成了假绿）。键与夹具 `[MachineCycle] SUMMARY` 同源（同一份执行器出口）。
+     */
+    public Map<String, String> machineFacts() {
+        return Map.copyOf(machineFacts);
+    }
+
     @Override
     public String progressSummary() {
         return "craft " + itemId + " x" + count + " phase=" + phase + " produced=" + produced
-                + (opened == null ? "" : " station=" + opened.station().id());
+                + (opened == null ? "" : " station=" + opened.station().id())
+                + (machineFacts.isEmpty() ? "" : " machine=" + machineFacts.getOrDefault("machine", "-")
+                        + " walk=" + machineFacts.getOrDefault("walk_state", "-"));
     }
 
     @Override
@@ -153,6 +188,7 @@ public final class CraftJob implements Job {
             case WAIT_OPEN -> waitOpen();
             case PROVISION -> provision();
             case DO_CRAFT -> doCraft();
+            case MACHINE -> runMachine();
             case WAIT -> waitSmelt();
             case VERIFY -> verify();
             case CLEANUP -> cleanup();
@@ -177,10 +213,7 @@ public final class CraftJob implements Job {
             return failAndFinish(Codes.MACHINE_RECIPE);
         }
         if (query.verdict() == RecipeQuery.Verdict.MACHINE_ROUTE) {
-            // S1/D-204：**读得出路线、但 Alice 还没有该机器的执行适配** ⇒ 如实拒绝，不假装能做。
-            // （路线本身有出处：机器类型 + 输入 + 输出，已在 RecipeQuery 里给出；等 S4 单机闭环再谈执行。）
-            String machine = query.route() == null ? "?" : query.route().station();
-            return failAndFinish(Codes.MACHINE_RECIPE + ":not_executable:" + machine);
+            return prepareMachineRoute();
         }
         if (query.verdict() == RecipeQuery.Verdict.MISSING_INGREDIENTS) {
             return failAndFinish(Codes.MISSING + ":" + describeMissing());
@@ -195,6 +228,124 @@ public final class CraftJob implements Job {
         }
         productBefore = productCount();
         return advance(Phase.OPEN);
+    }
+
+    /**
+     * **机器路线**（(c) 增量 2 / D-217）：把 S4 已客户端实测过的那条闭环接进生产路径。
+     *
+     * <p><b>准入是数据驱动的</b>：`route.station()` 是**机器方块 id**（S3/D-209 起），拿它查
+     * {@link MachineMap}；只有 {@link MachineMap.Capability#EXECUTABLE} 的行才允许驱动 —— 那一档的门槛是
+     * "① 有执行适配器 ② `menuClass` 已客户端实测 ③ 有客户端验证记录"（前两条由 `tools/machine-map.py` 静态强制）。
+     * 其余一律如实拒绝 `not_executable:<station>`（与 S1 的文案同源，便于对账）。
+     *
+     * <p><b>本轮只支持单物品输入</b>（与 S4 实测同形：一台机器 + 一道配方）：多输入、或化学品/流体输入，
+     * **如实拒绝**（不猜语义）。缺料也在**出发前**判掉 —— 别走到机器旁才发现喂不进去。
+     *
+     * <p><b>不补电</b>（D-216 红线①）：交给执行器的**补电回调是 `null`**（生产路径里连那个类型名都不出现 ——
+     * 门禁 `tools/check-precharge-containment.sh` 机械断言），机器没电就是
+     * `machine_no_energy` 如实失败 —— 生产不许凭空造能量。
+     */
+    private Status prepareMachineRoute() {
+        RecipeQuery.Route route = query.route();
+        if (route == null) {
+            return failAndFinish(Codes.MACHINE_RECIPE + ":no_route");
+        }
+        String station = route.station();
+        MachineMap.Row row = MachineMap.forBlock(station);
+        if (row == null || row.capability() != MachineMap.Capability.EXECUTABLE) {
+            // 读得出路线、但这一台**没有执行准入** ⇒ 如实拒绝，不假装能做
+            return failAndFinish(Codes.MACHINE_RECIPE + ":not_executable:" + station);
+        }
+        if (route.materials().size() != 1) {
+            return failAndFinish(Codes.MACHINE_RECIPE + ":multi_input_not_supported:"
+                    + route.materials().size());
+        }
+        RecipeQuery.Material material = route.materials().get(0);
+        if (material.candidates().size() != 1) {
+            // 非物品输入（化学品/流体）在 RecipeQuery 里是 `candidates=[]` 的占位材料 ⇒ 如实拒绝
+            return failAndFinish(Codes.MACHINE_RECIPE + ":non_item_input:" + material.describe());
+        }
+        Item input = BuiltInRegistries.ITEM.get(ResourceLocation.tryParse(material.candidates().get(0)));
+        if (input == net.minecraft.world.item.Items.AIR) {
+            return failAndFinish(Codes.MACHINE_RECIPE + ":unknown_input:"
+                    + material.candidates().get(0));
+        }
+        int need = Math.max(1, material.perCraft()) * Math.max(1, route.crafts());
+        int have = RecipeQuery.countInInventory(bot, input);
+        if (have < need) {
+            return failAndFinish(Codes.MISSING + ":" + material.describe() + "x" + (need - have));
+        }
+        machineInput = input;
+        machineInputCount = need;
+        machineOutput = target;
+        machineOutputCount = Math.max(1, route.outputPerCraft()) * Math.max(1, route.crafts());
+        productBefore = productCount();
+        BotLog.info("[CraftJob] 机器路线 machine={} type={} recipe={} in={}x{} out={}x{}"
+                        + "（走 → 开 → 电 → 放料 → 等 → 取）",
+                station, row.typeId(), route.recipeId(),
+                BuiltInRegistries.ITEM.getKey(input), machineInputCount,
+                BuiltInRegistries.ITEM.getKey(machineOutput), machineOutputCount);
+        machine = new MachineCycle(bot, machineSink(), NAME,
+                new MachineCycle.Spec(station, row.typeId(), MACHINE_SCAN_RADIUS,
+                        "craft-machine-walk", "craft-machine-walk",
+                        MACHINE_WALK_TICKS, MACHINE_WAIT_TICKS,
+                        machineInput, machineInputCount, machineOutput, machineOutputCount, productBefore,
+                        NAME, "present（开机时机器自己已有电；来源不由本层判定）", false),
+                null);
+        return advance(Phase.MACHINE);
+    }
+
+    /**
+     * 驱动闭环执行器（与电池步 `machine_cycle` **同一份实现**）。
+     *
+     * <p>失败码**原样透传**执行器的码（`machine_absent:*` / `machine_out_of_reach:*` / `machine_no_energy` /
+     * `walk_failed:*` / `container_write_refused` / `no_product_in_Nticks:*` …）—— 夹具与生产说同一种话，
+     * 便于拿同一张判据表对账。
+     */
+    private Status runMachine() {
+        MachineCycle.State state = machine.tick();
+        if (state == MachineCycle.State.RUNNING) {
+            return Status.RUNNING;
+        }
+        logMachineSummary(state == MachineCycle.State.DONE);
+        if (state == MachineCycle.State.FAILED) {
+            return failAndFinish(machine.failure());
+        }
+        machine.closeMenu("machine_done");     // 先关菜单，再让 `verify` 只看背包这一处世界事实
+        return advance(Phase.VERIFY);
+    }
+
+    /** 生产侧只留一段 SUMMARY（不把每条事实都当独立日志刷屏）。 */
+    private void logMachineSummary(boolean ok) {
+        StringBuilder sb = new StringBuilder();
+        for (var entry : machineFacts.entrySet()) {
+            if (sb.length() > 0) {
+                sb.append(' ');
+            }
+            sb.append(entry.getKey()).append('=').append(entry.getValue());
+        }
+        if (!machineFailedChecks.isEmpty()) {
+            sb.append(" failedChecks=").append(machineFailedChecks);
+        }
+        BotLog.info("[CraftJob] machine SUMMARY {} verdict={}", sb, ok ? "PASS" : "FAIL");
+    }
+
+    /** 执行器的事实出口：收进 job 自己的表；判据失败**不吞**，记进 `failedChecks`。 */
+    private MachineCycle.Sink machineSink() {
+        return new MachineCycle.Sink() {
+            @Override
+            public void record(String key, String value) {
+                machineFacts.put(key, value);
+            }
+
+            @Override
+            public void check(String name, boolean ok, String detail) {
+                machineFacts.put(name, ok ? "true" : "false");
+                if (!ok) {
+                    machineFailedChecks.add(name + "(" + detail + ")");
+                }
+            }
+        };
     }
 
     /** 开**玩家当前选中的**工作站（不自动选优）；需要能力没装就先装配。 */
@@ -405,6 +556,10 @@ public final class CraftJob implements Job {
                 FurnaceStation.takeAll(bot, menu, station.found().input());
             }
         }
+        if (machine != null) {
+            machine.closeMenu("craft_failed");
+            machine = null;
+        }
         closeSession("craft_failed");
         return finish();
     }
@@ -423,6 +578,10 @@ public final class CraftJob implements Job {
 
     private Status finish() {
         phase = Phase.DONE;
+        if (machine != null) {
+            machine.closeMenu("craft_job_done");
+            machine = null;
+        }
         closeSession("craft_job_done");
         return failure.isEmpty() ? Status.DONE : Status.FAILED;
     }

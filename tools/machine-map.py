@@ -128,12 +128,13 @@ def parse_rows(source: str) -> tuple[list[dict], list[dict], str]:
     code = strip_comments(source)
     rows: list[dict] = []
 
-    def add(type_id: str, blocks: list[str], menu: str, note: str) -> None:
+    def add(type_id: str, blocks: list[str], menu: str, note: str,
+            capability: str = "READ_ONLY") -> None:
         rows.append({
             "type_id": type_id,
             "block_ids": blocks,
             "menu_class": menu,
-            "capability": "READ_ONLY",
+            "capability": capability,
             "note": note,
         })
 
@@ -155,6 +156,23 @@ def parse_rows(source: str) -> tuple[list[dict], list[dict], str]:
         if len(args) < 2 or not args[0].strip().startswith('"'):
             continue                      # 同上：跳过声明
         add(unquote(args[0]), [], "-", unquote(args[1]))
+
+    # `executable(...)` = 有**执行准入**的行（形状与 `row(...)` 相同，只差 capability）。
+    # CSV 里必须如实区分，否则人读视图会把"能驱动"写成"只读"（D-217 起 enriching 是唯一一行）。
+    for args in call_args(code, "executable"):
+        if len(args) < 4 or not args[0].strip().startswith('"'):
+            continue                      # 跳过 `private static Row executable(…)` 声明
+        block_arg = args[1].strip()
+        if block_arg == "null":
+            blocks = []
+        elif "(" in block_arg:            # List.of(...)
+            inner = block_arg[block_arg.find("(") + 1:block_arg.rfind(")")]
+            blocks = [unquote(a) for a in split_top_level(inner)]
+        else:
+            blocks = [unquote(block_arg)]
+        add(unquote(args[0]), blocks,
+            "-" if args[2].strip() == "null" else unquote(args[2]), unquote(args[3]),
+            "EXECUTABLE")
 
     unmapped = [{"type_id": r["type_id"], "reason": r["note"]} for r in rows if not r["block_ids"]]
     source_jar = re.search(r'SOURCE_JAR\s*=\s*"([^"]+)"', code)

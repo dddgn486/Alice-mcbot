@@ -139,6 +139,9 @@ public final class RegressionBatteryTask implements Task {
             // 阶段 3-B / S4（D-213）：单机最小闭环（真的把机器跑起来一次）——它**会写容器**，
             // 是 MAIN 里唯一带写入的一步；模组不在 ⇒ SKIP（同 machine_route/machine_station）
             Map.entry("machine_cycle", Profile.MAIN),
+            // 阶段 3-B / (c) 增量 2（D-217）：**机器路线的生产路径**（CraftJob 真的驱动一台机器）。
+            // 与 machine_cycle 同一份闭环实现、不同入口；也会写容器 ⇒ 模组不在 ⇒ SKIP。
+            Map.entry("craft_machine", Profile.MAIN),
             // 2026-09-13 D-201 附注一：**回退整理**——撤走后 CORE 三项变红（缺隐含前置），
             // 而这些步骤在 FULL 里是绿的 ⇒ 先恢复绿基线，等"显式自证前提"做完再**逐条**撤（每条复跑一次）
             Map.entry("craft_action", Profile.MAIN),
@@ -415,6 +418,18 @@ public final class RegressionBatteryTask implements Task {
         // 夹具**自带传送与结束复位**（PLAYBOOK §5.0d）；机器不在/模组未装 ⇒ `machine_absent` ⇒ SKIP。
         steps.add(stepSkippable("machine_cycle", List.of("alice_test:machine_course"), () -> { },
                 () -> new com.dddgn.alice.task.MachineCycleCheckTask(bot, observer), 1600,
+                task -> task.failureReason().contains("_absent")));
+        // 阶段 3-B / (c) 增量 2（D-217）：**机器路线的生产路径** —— `CraftJob` 真的把一台机器跑起来一次。
+        // 与上一步是**同一份闭环实现**（`task/craft/MachineCycle`），区别只在入口：
+        // `machine_cycle` = 夹具入口（按机器类型挑配方 + 自带传送/备料/补电兜底）；
+        // 本步 = **生产入口**（查询层判 MACHINE_ROUTE → `MachineMap` 的**数据驱动执行准入** EXECUTABLE →
+        // 起真 `CraftJob`）。夹具只做三件测试专属的事：传送到平台远角、挑"只能靠机器做出来"的目标物
+        // （用生产查询层现场复核）、按前提备料；走/开/电/放料/等/取全由 CraftJob 完成
+        // ⇒ **不补电**：没电就是 `machine_no_energy` 如实失败（D-216 红线①）。
+        // 预算 1800 > 夹具 MAX_TICKS 1600 > CraftJob 预算 1400（让任务先报**具体**失败原因）。
+        // 机器不在/模组未装 ⇒ `machine_absent` ⇒ SKIP。本步会写容器（同 `machine_cycle`，requester=`craft`）。
+        steps.add(stepSkippable("craft_machine", List.of("alice_test:machine_course"), () -> { },
+                () -> new com.dddgn.alice.task.CraftMachineCheckTask(bot, observer), 1800,
                 task -> task.failureReason().contains("_absent")));
         // 基-7：前缀搜索（K-1：预算耗尽交出前缀；真失败不给前缀）
         // R2：传输模块（4 个夹具：主流程/端点选择/选择器事件/命令解析）

@@ -109,14 +109,26 @@ alice:machine_cycle_check: 3405` + `missing registry entries`（另有 stats 一
 - **(c) 下一增量（没做）**：把它接进 `CraftJob` 的 `MACHINE_ROUTE`（现在仍 `not_executable`）。
   接线红线：**①`api_precharge` 兜底绝不能进生产**（没电 ⇒ 如实失败）；**②目标机器来自路由 `station`**；
   化学品/气体 I/O 继续如实拒绝。
+- **(c) 增量 2 已完成（代码侧，D-217，2026-09-14）**：上面那条红线**已经落地成机制** ——
+  闭环本体抽到 `task/craft/MachineCycle`（**夹具与生产同一份实现**），夹具 `MachineCycleCheckTask` 变薄壳；
+  `CraftJob.MACHINE_ROUTE` 现在真的驱动机器，准入**数据驱动**（`MachineMap.executable(...)`：只有
+  `mekanism:enriching` 一行是 `Capability.EXECUTABLE`，其余照旧 `not_executable`）。
+  **红线①机械可查**：执行器里没有造能量的代码，`EnergyTopUp` 只有夹具实现、生产位置传 `null`；
+  新门禁 `tools/check-precharge-containment.sh`（**已做反向测试**：注入一次 `precharge(` ⇒ 立刻红）。
+  新增电池步 `craft_machine` ⇒ **CORE 29→30 / FULL 39→40**；六道离线门禁 PASS；jar
+  `sha256=42b81048…` 已同步客户端 `mods/`。
 - **(a) 第 1 份 S0 事实表已交付**：`docs/THERMAL_FACTS.md`（Thermal 652 条 / 30 类型；前 5 = 500 条 76.7%；
   静态 jar 618 vs 运行时 652 的 +34 已算术闭合但**来源未取证**，留 S1）。两个前置缺口见台账⑩
   （**无 sources jar**、**`alice-recipes.json` 已过时**）。
 
 **下一次客户端轮（零新入口，约 6–8 分钟）**：重启客户端（新 jar
-`sha256=5dfd3c57e4132fb0bc04760f6df5ac46a0f2fbb83d92f1445ba56e3748a1cec0`）→ `/alice battery core`
-⇒ 期望仍 `(29/29) … → PASS`，且 `machine_cycle` 步内出现 **`walk_state=DONE` + `walk_ticks>0`**；
-若出现 `walk_skipped=already_in_reach` ⇒ **起点没生效，要查**（别当通过）。
+`sha256=42b810485bf3716c6ad2d42f8cb506f70c8128da7f9c7e498055987cee58f31b`）→ `/alice battery core`
+⇒ 期望 **`(30/30) ticks≈3900 → PASS`**，两个机器步各有硬判据：
+① `craft_machine`：`job_terminal=DONE` + **`m_walk_state=DONE`** + `product_after=product_before+1`
+（生产**自己走到机器旁**；出现 `unexpected_walk_skipped` ⇒ 起点没生效，要查）；目标物是"只能靠机器做出来"的
+（候选 `minecraft:clay_ball` → `soul_soil` → `glowstone_dust` → `exposed_copper`，逐个用生产查询层现场复核）；
+② `machine_cycle` 仍 `verdict=PASS`（夹具换薄壳后**无回归**）——**两步同红 = 抽执行器把夹具改坏了**。
+③ 顺带**目视**：bot 从平台远角自己走过去（第十一轮没看；这一轮顺手看前两秒即可）。
 
 **✅ 已执行（第九轮客户端，`WINDOWS_CLIENT`）**：新客户端会话（14:34:59 启动 ⇒ 新 jar 已加载 ——
 启动日志 `[Regression] PROFILE=CORE 实跑 29 项（跳过 EXTRA 10 项）`）⇒
@@ -160,10 +172,12 @@ final_segment_not_standable=0 写入类例外=56) PROFILE=CORE baseline=14 main=
   —— 数据包只在世界加载/`/reload` 时读盘；第七轮已复制、`diff -rq` 无差异、**已 `/reload` 并实测生效**）；
   `/function alice_test:machine_course`（S2+S3 机器场景：富集仓 + 粉碎机）、
   `furnace_course`、`craft_tab_course`、`craft_table_course`、`craft_station_course`。
-- 电池：`alice:regression_battery`（CORE=**29**）/ `/alice battery full`（FULL=**39**）；
+- 电池：`alice:regression_battery`（CORE=**30**）/ `/alice battery full`（FULL=**40**）；
   唯一配置入口 `RegressionBatteryTask.CURATION`。
-- 离线闸门（改完顺手跑）：`bash tools/check-authz-registry.sh`、`bash tools/check-policy-matrix.sh`、`bash tools/check-machine-map.sh`、
-  **`bash tools/check-fixture-hygiene.sh`**（D-208 新增：夹具终态必须能传播失败）。
+- 离线闸门（改完顺手跑，**六道**）：`bash tools/check-authz-registry.sh`、`bash tools/check-policy-matrix.sh`、
+  `bash tools/check-machine-map.sh`、**`bash tools/check-fixture-hygiene.sh`**（D-208：夹具终态必须能传播失败）、
+  **`bash tools/check-precharge-containment.sh`**（D-217：红线①"补电不许进生产"—— 造能量的调用只许命中夹具，
+  注入点只有一个实现者，且反向断言夹具里符号还在；**改过 CraftJob/MachineCycle 就跑它**）。
 
 ## 5b. 断点（2026-09-14 会话中段，上下文 ≈0.9×压缩阈值时收口）
 

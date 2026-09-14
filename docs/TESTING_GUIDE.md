@@ -67,7 +67,7 @@
 | 写入预算自检 | `alice:write_budget_check` | `break_course_terrain` |
 | 伐木失败语义 | `alice:lumber_failure_check` | `lumber_course_terrain` + `lumber_course_trees` |
 | 清障换候选（R2） | `alice:clear_retry_check` | 运行时复用 `break_course_terrain` + 脚本搭石头壳 |
-| **串联回归电池（★推荐）** | `alice:regression_battery` | 内部逐项复位（各步自带的 + lumber/ore 场景函数） |
+| **串联回归电池（★推荐）** | `alice:regression_battery` | 内部逐项复位（各步自带的 + lumber/ore 场景函数）。**CORE 30 / FULL 40**；含**两个机器步**：`machine_cycle`（夹具验闭环 + 场景电源）与 `craft_machine`（**生产路径** —— `CraftJob` 真的驱动机器；会走/开/放料/等/取，并断言自己走到了机器旁） |
 
 **不自带复位**（物品只负责"传送 + 发料"，**必须先跑场景函数**，否则会消耗上一轮剩下的矿/树）：
 

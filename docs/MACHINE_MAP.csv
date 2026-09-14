@@ -1,5 +1,4 @@
 kind,type_id,block_ids,menu_class,capability,note
-SITE,mekanism:enriching,mekanism:enrichment_chamber,mekanism.common.inventory.container.tile.MekanismTileContainer,READ_ONLY,S2 客户端实测（machine_station，2026-09-14）；菜单类是**通用 tile 容器**，不区分机器（见类注释）
 SITE,mekanism:crushing,mekanism:crusher,mekanism.common.inventory.container.tile.MekanismTileContainer,READ_ONLY,1:N——工厂变体 basic_/advanced_/elite_/ultimate_crushing_factory 同类型不同方块；v1 只登记基础机（工厂 id 已在 jar 中，按需按数据补行）。菜单类 S3 客户端实测（machine_station，2026-09-14），与 enriching **同一个类**
 SITE,mekanism:smelting,mekanism:energized_smelter,-,READ_ONLY,上游**注册但零配方**（jar 里没有 smelting 配方目录）⇒ 运行期不会出现在配方管理器，探针按 `with_site_unobserved` 如实报出，不算孤儿行
 SITE,mekanism:combining,mekanism:combiner,-,READ_ONLY,
@@ -26,3 +25,5 @@ NO_SITE,mekanism:evaporating,,-,READ_ONLY,热蒸发**多方块**（`EvaporationM
 NO_SITE,mekanism:energy_conversion,,-,READ_ONLY,未定位到单方块机器（电力转换在机器内部/槽位层）
 NO_SITE,mekanism:gas_conversion,,-,READ_ONLY,未定位到单方块机器（气体转换在机器内部/槽位层）
 NO_SITE,mekanism:infusion_conversion,,-,READ_ONLY,未定位到单方块机器（灌注转换在机器内部/槽位层）
+SITE,mekanism:enriching,mekanism:enrichment_chamber,mekanism.common.inventory.container.tile.MekanismTileContainer,EXECUTABLE,"S2 客户端实测（machine_station，2026-09-14）；菜单类是**通用 tile 容器**，不区分机器（见类注释）；""
+                            + ""S4/S4v2 闭环已实测 ⇒ D-217 起有执行准入"

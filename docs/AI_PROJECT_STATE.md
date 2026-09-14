@@ -129,19 +129,26 @@ alice:machine_cycle_check: 3405` + `missing registry entries`（⇒ 不在注册
   places=0/32 refusedBreaks=0 refusedPlaces=0` ⇒ 这段路**零世界写入**（"纯通行"红线在实测里成立，不是靠代码推断）。
   路径本身是 1×TRAVERSE + 6×DIAGONAL + 1×TRAVERSE 的干净斜线，**零重规划**（25 条会话日志 = 8 segment_start +
   8 segment_done + 7 continuous_advance + completed + Recover，无第二次 `plan`）。
-- **(c) 未做（下一增量 = 增量 2）**：把这条闭环**接进 `CraftJob` 的 `MACHINE_ROUTE`**（现在仍 `not_executable` 如实拒绝）。
-  接线时必须守住两条：**① `api_precharge` 兜底绝不能进生产**（没电 ⇒ 如实失败）；**② 目标机器来自路由的 `station`**
-  （S3/D-209 起 `station` 已是**机器方块 id**，表里没有单方块站点才回落成类型 id；类型 id 仍留在 `Route.type`），
-  化学品/气体 I/O 继续如实拒绝。
+- **✅ (c) 增量 2 已完成（代码侧，D-217）**：机器路线**接进生产路径** —— 闭环本体抽成 `task/craft/MachineCycle`
+  （夹具与生产**同一份实现**），夹具 `MachineCycleCheckTask` 变薄壳；`CraftJob.MACHINE_ROUTE` 现在真的驱动机器，
+  准入**数据驱动**（`MachineMap` 新增 `executable(...)`，只把 `mekanism:enriching` 升为 `Capability.EXECUTABLE`，
+  其余照旧 `not_executable`）。**红线①机械可查**：执行器里没有造能量的代码，唯一通道 `EnergyTopUp` 只有夹具实现、
+  生产位置传 `null`；新门禁 `tools/check-precharge-containment.sh` 三条断言（含**反向测试**：注入一次 `precharge(` ⇒ 立刻红）。
+  新增电池步 `craft_machine` ⇒ **CORE 29→30 / FULL 39→40**；新 jar `sha256=42b81048…` 已同步客户端；
+  六道离线门禁全 PASS（`check-policy-matrix` 还抓到了写入点登记的漂移，已同步 `docs/authz/CONTAINER_WRITE_SITES.csv`）。
+- **(c) 未做**：机器路线的**多输入 / 化学品输入**（本轮如实拒绝）；`CraftJob` 目前只驱动 `EXECUTABLE` 那一行。
 - **(a) 已完成第 1 份 S0 事实表**：`docs/THERMAL_FACTS.md`（Thermal：652 条 / 30 类型，占本次跳过量 27.5%；
   前 5 = press 227 / pulverizer 81 / smelter 70 / insolator 63 / centrifuge 59 = 500 条 76.7%）。
   两个前置缺口已登记台账⑩：**无上游 sources jar**、**`alice-recipes.json` 已过时**（那之后又装了 refinedstorage 等三个模组）。
-**下一步 = (c) 增量 2（WSL 离线可做，不需要用户输入，也不需要客户端）**：把上面这条闭环接进
-`CraftJob` 的 `MACHINE_ROUTE`（见上一条 bullet 的两条红线）。**客户端当前无待验项** —— 第十一轮已把
-S4 v2 的全部复跑要求走完（`walk_state`/`walk_ticks`/整轮 29/29）。
+**下一步 = 客户端一轮（零新入口）**：重启客户端（新 jar `sha256=42b810485bf3716c6ad2d42f8cb506f70c8128da7f9c7e498055987cee58f31b`）
+→ `/alice battery core` ⇒ 期望 **`(30/30) ticks≈3900 → PASS`**，且两个机器步各有硬判据：
+① `craft_machine` 步 `job_terminal=DONE` + `m_walk_state=DONE` + `product_after=product_before+1`（生产**自己走到机器旁**）；
+② `machine_cycle` 仍 `verdict=PASS`（夹具换薄壳后**无回归** —— 两步同红就是抽执行器改坏了）。
+③ 顺带目视：**bot 从平台远角自己走过去**（目标物是 `minecraft:clay_ball` 一类"只能靠机器做出来"的东西，
+截图/录像最好）。判据表见 `docs/AI_TEST_MATRIX.md` 的两行。
 **上下文窗口已由用户从 256K 改为 512K**（D-214，本会话生效；阈值 409,600 / 保留 81,920）——改的是"何时压缩"，
 不改变事实来源；复核触发 = 手动 `/compact` 频率没降、或我出现"忘记已确认事实/重复问已答过的问题" ⇒ 退回 256K。
-电池 **CORE=29 / FULL=39**。**详细交接见 `docs/HANDOVER.md`**；**方向来源与审查留档见 `docs/reviews/2026-09-14-外部质疑与工作流审查留档.md`**；今天的新纪律见 PLAYBOOK §5.0b/§5.0c/§5.0d。
+电池 **CORE=30 / FULL=40**（(c) 增量 2 加了 `craft_machine`）。**详细交接见 `docs/HANDOVER.md`**；**方向来源与审查留档见 `docs/reviews/2026-09-14-外部质疑与工作流审查留档.md`**；今天的新纪律见 PLAYBOOK §5.0b/§5.0c/§5.0d。
 
 ## 当前目标
 
