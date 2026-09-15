@@ -1441,3 +1441,47 @@ jar `3312608d…`。
 
 **M 线/维生的挂账（不在本轮）**：`write_budget_exhausted`/`stale_target` 映射仍**未被观测**（M3b）；
 `decision_contract` 档位（EXTRA vs 类文档承诺）仍待策展裁定；`tree[].lastFailure`（M4b）。
+
+---
+
+## §5.9 【真缺陷·待裁定】挂起的传输把 bot 的 `assign*` 通路**永久堵死**，而且**完全静默**（2026-09-15 客户端实测发现）
+
+**发现路径**：用户在客户端点 `alice:survival_exit_check`（硬危险 = 窒息）后"**bot 没反应**"，
+怀疑"窒息机制到底存不存在"。读客户端日志 + 解析存档账本后定位（**不是维生逻辑的问题**）。
+
+**事实（逐条有证据）**：
+
+| # | 事实 | 证据 |
+|---|---|---|
+| 1 | **窒息机制存在且工作** | `logs/latest.log`：`维生监测: bot=tango hazard=SUFFOCATING duration=1/21/…/181 air=300 health=20.0 pos=66, 64, 104`（每 20 tick 一行，持续 9 秒+），并**真的掉血**：`[Threshold] 掉血 DANGER … total=1.0 health=19.0` |
+| 2 | **否决分支一次都没执行** | 全日志**没有** `任务因维生危险中断`、**没有** `[Survival] 逃生出口`、**没有** `walkto-68_64_106` 的 `[PathingStats]`/`[PathRetry]`（连规划都没发生） |
+| 3 | **根因：该 bot 被存档账本永久阻塞** | `saves/新的世界/data/alice_transfer_ledger.dat`（NBT 解析）：bot `1ae26630-…`（tango）共 72 条传输记录，其中 **11 条 `SUSPENDED`**（`code=server_restart`、`manualTakeover=1`、**`location=NOT_MOVED`**、`count=3 minecraft:iron_ingot`，最近一次 `suspensionStartedTick=614073`）⇒ `TransferLedgerData.blocksBot(tango) == true` |
+| 4 | **阻塞链（静默三层）** | `blocksBot` ⇒ `BotSession.replaceTaskIfRunning()` 返回 `false` ⇒ `BotSession.assignWalkTo(BlockPos)` 是 **void、什么都不做、不留痕** ⇒ `BotManager.assignSurvivalExitCheck` **无条件返回 true** ⇒ 物品仍打印 `[SurvivalExitCheck] 就位 …` ⇒ 夹具的**前提**（"bot 手上有个活"，维生否决只在 `task != null` 时检查）**从未被证明** |
+| 5 | **`BotSession.tick` 因此提前返回** | `if (task == null) return;` 在否决判据**之前** ⇒ 危险照旧被检测（第 1 条）但**永不否决** ⇒ 用户看到"bot 站在压顶格里不动、也不救自己" |
+| 6 | **电池/Job/真实逃生不受影响** | 它们走 `session.beginTask(...)` **直连**（`RegressionBatteryTask` 入口 `BotManager:710`；`assignJob` `BotManager:578`；`startSurvivalExit` 也是 `beginTask`）⇒ 所以 19:0x 那轮客户端电池仍能 35/35 全绿，而 `assign*` 家族（walk/follow/place/transfer/road/**维生自检**）静默失效 |
+| 7 | **没有任何现成解除手段** | `expireSuspensions` 超时后**仍然**写成 `SUSPENDED`（只改 code 为 `manual_takeover_required`）；`/alice transfer-abort <id>` → `abort()` 对 `SUSPENDED`/`BOT_INVENTORY` 条目**也仍然**是 `SUSPENDED`；唯一的终态写入者 `TransferTask.transition(...)` 需要**同 requestId 再跑一次传输**，而那条路先被 `blocksBot` 挡住（先有鸡还是先有蛋） |
+| 8 | **来源是"客户端中途重启"** | 11 条全是 `code=server_restart`、`location=NOT_MOVED`（**从未进过 bot 背包**，源箱 → 终点箱，铁锭 ×3）；`TransferFixture.ledgerPolicies` 用的是 `new TransferLedgerData()`（**内存临时实例**）⇒ **不是夹具污染**，而是真实传输被重启打断 |
+
+**结论**：这不是"窒息机制不存在"，而是**存档账本把 tango 的 `assign*` 通路永久堵死 + 夹具不验前提**两件事叠加。
+**它同时暴露一个更一般的问题**：`blocksBot` 拦的是"**任何**任务替换"，连纯通行 `WalkToTask` 都拦
+（本意是"别在有未决传输时动这个 bot 的物品"）。
+
+**✅ 零代码立即绕开（本轮就能继续验维生）**：关闭游戏后把 `saves/新的世界/data/alice_transfer_ledger.dat`
+**改名/删除**——该文件按设计"**只存证据、不存物品状态**"（`TransferLedgerData` javadoc）⇒ 删掉不动物品，
+tango 立刻解除阻塞。代价：丢 61 条 `VERIFIED` 传输审计记录（其中 11 条挂起记录本来就无法解除）。
+
+**修复选项（**待用户拍板**，未动代码）**：
+
+- **A（小·必做）前提自证 + 拒绝可见**：`BotSession.assignWalkTo` 改返回 `boolean`；
+  `assignSurvivalExitCheck` 在"没派上活"时如实返回 false 并说清原因；物品侧改为显示真实原因。
+  ⇒ 与电池步 `survival_exit` 的"前提自证"同一条纪律，把"**静默成功**"这一类堵死。
+- **B（小）**：`blocksBot` 拦截时打一行 warn（现在完全静默，用户与日志都毫无线索）。
+- **C3（推荐，直击本症状）**：`suspendUnfinished` / `expireSuspensions` 对 **`location == NOT_MOVED`**
+  （从未进过 bot 背包）的条目直接落 `ABORTED`，不再要求人工接管；只有 `BOT_INVENTORY`/`IN_TRANSIT_BOT`
+  才挂起阻塞。理由：本次 11 条挂起**全是 `NOT_MOVED`**，没有任何"需要人工接管"的东西，
+  却把 bot 的 `assign*` 永久堵死。
+- **C1（可选兜底）**：给一条显式人工接管通道（如 `/alice transfer-resolve <id> confirm` ⇒ `ABORTED`）。
+- **C2（可选，设计取舍）**：`blocksBot` 只拦"**会写物品**的任务"（transfer/craft/collect），
+  不拦纯移动/逃生/诊断 —— "任何任务替换"这个口径太粗。
+
+**AI 推荐**：**C3 + A + B**（最小且直击），C1 作为兜底；C2 需要你定（它放宽的是安全口径）。
