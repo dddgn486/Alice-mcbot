@@ -19,11 +19,10 @@
 > 指针口径：**只放路径/commit/决策号，不抄原文**（AGENTS.md「规则准入尺子」第 3 条）。
 
 
-## 最新（2026-09-14）—— 先读这里
+## 最新（2026-09-15）—— 先读这里
 
-**T3（模组 #3 数据模型）进行中**：步骤 1（`SiteKind` 五态 + 共享站点，修 Thermal 6 行错事实）与
-步骤 1 / B3a / A / A2 / C / (A) / B4 **均已落地**（`SERVER_TESTED`）；剩余**"接第 3 个模组本身"**（`MachineMap` 加 **19 行** = Create 15 + EC 4）+ **B3b**（等第 3 个模组同期做）。
-读数与两条新事实见 `docs/reviews/2026-09-14-T3-B3a-读取器vanilla优先与探针确定性.md`；台账 §9。
+**T3 已收口**（步骤 1 / B3a / A / A2 / C / (A) / B4 均 `SERVER_TESTED`）；第八步"接第 3 个模组本身"（`MachineMap` 19 行 = Create 15 + EC 4）+ **B3b** 按 **D-219** 推迟（买不到功能，按需再加）；读数 `docs/reviews/2026-09-14-T3-B3a-读取器vanilla优先与探针确定性.md`、台账 §9。
+**2026-09-15（D-220）：验证通道"声明必须为真"** —— 夹具时机参数从未生效（`wallTick/disturbTick=30` 实际是"第一个执行 tick"）、`DIAGONAL` 覆盖靠偶发绕行凑、**无头通道被敌对生物杀 bot**（`exit=3` 无判决，bot 先被推离预期格）三处已修；`core` ×3 = PASS 3/3、怪物命中 0、场景行逐字相同。全文 `docs/reviews/2026-09-15-夹具时机基准与DIAGONAL覆盖.md`。
 
 **阶段 3-A（合成/熔炼接进任务层）已收口**（A1–A5 客户端验证 + `USER_ACCEPTED`）。
 **当前主线 = 阶段 3-B 模组机器适配**（实验对象 Mekanism，方法见 `docs/MOD_ADAPTER_PROTOCOL.md`）：

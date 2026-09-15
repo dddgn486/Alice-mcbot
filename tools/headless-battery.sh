@@ -173,6 +173,26 @@ else
 fi
 say "  $MODS: $(ls "$MODS" | tr '\n' ' ')"
 
+# ---------------------------------------------------------------- 夹具洁净度（敌对生物清零）
+# **为什么**（2026-09-15 实测）：`core` 跑出过一次
+# `[alice] 假人死亡: Alice was blown up by Creeper → 直接清除` ⇒ 电池**没有判决**（exit=3）。
+# 同轮更早的日志还显示 bot 被**推离预期格**（`PLACE_NO_VALID_FACE` + `feet=1,64,68`，起点 z=66）
+# ⇒ 会话假红（`ASCEND_NO_HEADROOM` / `*_STALE_START` 这类"位置不对"的码都能由它造成）。
+# 电池测的是**寻路/任务的确定性**，不是"能不能在怪物手里活下来"⇒ 敌对生物是**噪声源**，必须清零。
+# 做法：让**无头服务端**跑 `peaceful`（改它自己的 `server.properties`；不碰客户端存档，
+# 且 `peaceful` 会把**存档里已经有的**敌对生物一起清掉，不只是停止新生成）。
+# ⚠️ 与客户端**有意不同构**：客户端电池仍可能被怪物干扰 —— 见
+# `docs/reviews/2026-09-15-夹具时机基准与DIAGONAL覆盖.md` §遗留。
+if [ "$BACKEND" = "prod" ] && [ -f "$SERVER_DIR/server.properties" ]; then
+    PROPS="$SERVER_DIR/server.properties"
+    if grep -qE '^difficulty=' "$PROPS"; then
+        sed -i 's/^difficulty=.*/difficulty=peaceful/' "$PROPS"
+    else
+        printf 'difficulty=peaceful\n' >> "$PROPS"
+    fi
+    say "夹具洁净度：difficulty=$(grep -E '^difficulty=' "$PROPS" | head -1 | cut -d= -f2)"
+fi
+
 # ---------------------------------------------------------------- 跑
 rm -f "$RESULT" "$LOG"
 say "启动无头服务端（$BACKEND）：mode=$MODE timeout=${TIMEOUT_SEC}s"

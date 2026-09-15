@@ -9028,3 +9028,41 @@ Mekanism（S0→S5）/ Thermal（S0→S2）。单模组**边际成本很便宜**
 MACHINE_ROUTE station=create:item_application`，note 明写"暂无该机器的执行适配"）——
 因为 B3a 让它走**原版语义**读得出产出。**加表行只把 `station` 从"类型 id"换成"方块 id"**，
 而**执行准入仍然全部 `READ_ONLY`**（Create/EC 没有执行器）⇒ **判决与能力都不变，只是显示更好看**。
+
+### D-220：验证通道的"声明必须为真"——夹具时机按场景复位 + 声明了夹具就必须断言它真的动手 + 无头通道清怪物（2026-09-15）
+
+**背景（一次实测同时暴露三处"声明/环境与事实不符"）**：本轮原计划做"`pathing` 子用例起点契约"，
+实测**否掉了**那个假设（改前 `single:pathing` 3/3、`core` 3/3 全绿且场景行逐字相同 ⇒ 抖动不复现），
+转而在同一区域查出三处**可证**缺陷。全文与证据：`docs/reviews/2026-09-15-夹具时机基准与DIAGONAL覆盖.md`。
+
+1. **夹具时机基准失效**（`PathingRegressionTask`）：`wallTick`/`disturbTick` 写 `30`，比较的却是
+   **任务级** `ticks`（从不按场景复位，进第 15 个场景时已 ≈300）⇒ `>=30` 恒真 ⇒ 夹具在**第一个执行 tick**
+   动手（日志 `wall_placed … tick=346`）。两个自愈场景**从未测过"中途"**；扰动找不到落点时还
+   `disturbed = true` **假装做过**。**对照**：手机流（`PathSessionDiagnosticTask`/`PathingDisturberItem`）
+   的 `DISTURB_TICK=30` 是"本次运行第 30 tick"，且 `docs/AI_TEST_MATRIX.md` 写的就是"第 30 tick 封路" ⇒ 常量搬来了、基准没搬。
+2. **覆盖断言此前靠运气过**：`REQUIRED_COVERAGE` 里的 `DIAGONAL` **没有**任何"真的会执行对角线"的场景
+   （`dip_course`/`lava_course` 都只规划不执行）——它只来自 `+disturb` 修前那条偶发绕行。① 修好后
+   电池**如实变红**（`coverage=FAIL([DIAGONAL])`）。
+3. **无头通道并非无噪声**：实测 `假人死亡: Alice was blown up by Creeper → 直接清除` ⇒ 电池**无判决 exit=3**；
+   同轮更早 bot 已被**推离预期格**（`feet=1,64,68`，起点 `z=66`）⇒ `PLACE_NO_VALID_FACE`/`*_STALE_START`
+   这类"位置不对"的码都能由它造成。夹具**不生成**敌对生物（场景只 summon marker）⇒ 噪声来自环境。
+
+**决定（即时生效，三条都挂在已有命令上，不新增散文规则）**：
+- **① 夹具时机一律用"场景局部"基准**：`PathingRegressionTask` 加 `sceneTicks`（runner 建好那刻置 0），
+  `ticks` **只**留给总预算并加注释禁止再做场景内时机判断。
+- **② 声明了夹具就必须断言它真的动手**：场景判据加 `wallTick>0 ⇒ walled`、`disturbTick>0 ⇒ disturbed`，
+  否则该场景 FAIL（detail 带 `/FIXTURE_NOT_FIRED=…`）；**删除静默降级**分支（改为 warn + FAIL）。
+- **③ 无头电池跑 `peaceful`**：`tools/headless-battery.sh` 启动前把**无头服务端自己**的
+  `server.properties` 设成 `difficulty=peaceful` 并打印 `夹具洁净度：difficulty=…`。
+  脚本本来就拥有该目录（`--install`/拷世界/装数据包/清 `alice_*.dat`）⇒ 环境是它的职责；
+  `peaceful` 连**存档里已有的**敌对生物一起清（`spawn-monsters=false` 做不到）。
+  ⇒ 与客户端**有意不同构**（客户端仍 `easy` 有怪物），待用户拍板是否也在夹具层清场（评审 §6.4）。
+- 附带：`dip_course+run`（复用 `dip_course_terrain`，`+` 后缀取地形）把 `DIAGONAL` 变成**确定性**覆盖。
+
+**验证**（`SERVER_TESTED`，无头生产服务端）：修①②③ 后 `core` ×3 = **PASS 3/3**、`coverage=PASS`、
+`30/30`、`grep -ci 'creeper|假人死亡'` = 0、**三轮 pathing 场景行逐字相同**；
+夹具位置与 2026-09-09 **客户端验证过的**记录一致（`wall_placed at=5,64,66`，见 `AI_DECISIONS.md:569`），
+而修前电池打的是 `at=2,64,66` —— **不是同一个场景**。
+
+**复核触发**：① 再出现"位置不对"类红且日志里有怪物/击退痕迹 ⇒ 客户端侧也要清场；
+② `FIXTURE_NOT_FIRED` 出现 ⇒ 说明某个场景的课时长已短于夹具时机，要重定标（而不是把断言删掉）。

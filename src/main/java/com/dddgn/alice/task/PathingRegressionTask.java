@@ -47,6 +47,18 @@ public final class PathingRegressionTask implements Task {
      * <p>{@code required}（D-061）：本场景**必须实际执行到**的 Movement 类型——
      * Movement 变多后路线会漂移（实测 `place_course` 尾部由 DESCEND×2 变成 FALL），
      * 覆盖断言保证"场景仍然在测它该测的东西"，否则该场景直接判 FAIL。
+     *
+     * <p><b>{@code wallTick}/{@code disturbTick} 是"本场景开始执行后的第 N tick"</b>（场景局部基准，
+     * 与 {@link PathSessionDiagnosticTask} / `PathingDisturberItem` 的 {@code DISTURB_TICK} 同一语义：
+     * 走到一半再扰动）。⚠️ 2026-09-15 实测缺陷：这里原本用的是**任务级** {@code ticks}（从不按场景复位），
+     * 而进入第 15/16 个场景时它早已 ≈300 ⇒ `>= 30` 恒真 ⇒ 夹具在**第一个执行 tick**就动手
+     * （日志 `wall_placed … tick=346` / `disturbed … tick=422`），两个场景**从来没有测过"中途"**
+     * （`place_course+disturb` 实测只走到 `TRAVERSE_INVALID_PRECONDITION` + 起点重规划，
+     * 从未触发它声称的 `*_STALE_START` 段内自愈）。
+     *
+     * <p><b>声明了夹具就必须真的动手</b>：场景结束时 {@code wallTick>0} 而未放下石头、
+     * 或 {@code disturbTick>0} 而未传送过 ⇒ 该场景判 FAIL（`FIXTURE_NOT_FIRED`），
+     * 不允许"夹具没生效"被 PASS 掩盖。
      */
     private record SceneCheck(String scene, BlockPos start, BlockPos goal,
                               boolean worldModification, Kind kind,
@@ -103,11 +115,18 @@ public final class PathingRegressionTask implements Task {
             refused("fence_course", new BlockPos(0, 64, 48), new BlockPos(0, 64, 44), false),
             new SceneCheck("dip_course", new BlockPos(0, 64, 66), new BlockPos(-1, 64, 63),
                     false, Kind.PLAN_FIRST_TRAVERSE, 0, 0, 0, 0, 0, List.of()),
-            // 世界变化 → 任务层重规划（计划前方封路，要求至少 1 次 replan）
+            // **DIAGONAL 的唯一确定性执行来源**（2026-09-15 补）：`dip_course_terrain` 的标定路线就是
+            // `TRAVERSE + DIAGONAL + DIAGONAL + TRAVERSE`（西侧绕路），但上面那行是**只规划**，
+            // 不执行 ⇒ 不进 `executedUnion`。在此之前 DIAGONAL 是靠 `place_course+disturb` 的
+            // **偶发绕行**凑出来的（夹具时机修好后它就没了 ⇒ 全局覆盖断言如实报
+            // `coverage=FAIL([DIAGONAL])`）。复用同一份地形（`+` 后缀取 `dip_course_terrain`）。
+            execute("dip_course+run", new BlockPos(0, 64, 66), new BlockPos(-1, 64, 63), false,
+                    MovementType.TRAVERSE, MovementType.DIAGONAL),
+            // 世界变化 → 任务层重规划（走到一半时在计划前方第 2 格封路，要求至少 1 次 replan）
             new SceneCheck("place_course+wall", new BlockPos(0, 64, 66), new BlockPos(8, 62, 66),
                     true, Kind.EXECUTE_COMPLETE, 30, 0, 0, 0, 1,
                     List.of(MovementType.PLACE_STEP_AND_TRAVERSE)),
-            // 位置漂移 → 段内重同步 / 重规划
+            // 位置漂移 → 段内重同步 / 重规划（走到一半平移 1 格 ⇒ 段内漂移 ⇒ *_STALE_START 自愈）
             new SceneCheck("place_course+disturb", new BlockPos(0, 64, 66), new BlockPos(8, 62, 66),
                     true, Kind.EXECUTE_COMPLETE, 0, 30, 0, 1, 0,
                     List.of(MovementType.PLACE_STEP_AND_TRAVERSE)));
@@ -128,10 +147,20 @@ public final class PathingRegressionTask implements Task {
     private final Map<String, String> details = new LinkedHashMap<>();
     private final java.util.Set<MovementType> executedUnion = new java.util.LinkedHashSet<>();
     private int index;
+    /** 任务级 tick（只用于总预算）。⚠️ **不要**拿它做场景内时机判断——见 {@link #sceneTicks}。 */
     private int ticks;
+    /**
+     * **本场景"开始执行"后的 tick 数**（场景局部基准）：`prepare()` 建完地形、runner 建好那一刻起算。
+     * 夹具的 {@code wallTick}/{@code disturbTick} 以它为准 —— 否则"第 30 tick"会退化成"立刻"。
+     */
+    private int sceneTicks;
     private boolean prepared;
+    /** 已真正放下封路石头（声明了 wallTick 的场景必须为 true，否则判 FAIL）。 */
     private boolean walled;
+    /** 已真正把 bot 平移过（声明了 disturbTick 的场景必须为 true，否则判 FAIL）。 */
     private boolean disturbed;
+    /** 扰动找不到合法落点 ⇒ 放弃；**响亮失败**，不静默降级成"没扰动也算过"。 */
+    private boolean disturbGaveUp;
     private PathRetryRunner runner;
     private String failure = "";
 
@@ -169,6 +198,7 @@ public final class PathingRegressionTask implements Task {
             return Status.RUNNING;
         }
         tickFixtures(scene);
+        sceneTicks++;
         PathRetryRunner.State state = runner.tick();
         if (state == PathRetryRunner.State.RUNNING) {
             return Status.RUNNING;
@@ -178,13 +208,24 @@ public final class PathingRegressionTask implements Task {
         executedUnion.addAll(executed);
         java.util.List<MovementType> missing = scene.required().stream()
                 .filter(type -> !executed.contains(type)).toList();
+        // **声明了夹具就必须真的动手**：否则"夹具没生效"会被路线/覆盖断言掩盖成 PASS
+        //（实测 2026-09-15：两个自愈场景的夹具时机参数从未生效，见 SceneCheck 注释）。
+        java.util.List<String> fixtureMissing = new java.util.ArrayList<>();
+        if (scene.wallTick() > 0 && !walled) {
+            fixtureMissing.add("wall");
+        }
+        if (scene.disturbTick() > 0 && !disturbed) {
+            fixtureMissing.add(disturbGaveUp ? "disturb(no_valid_cell)" : "disturb");
+        }
         boolean pass = state == PathRetryRunner.State.DONE && runner.replans() >= scene.minReplans()
-                && missing.isEmpty();
+                && missing.isEmpty() && fixtureMissing.isEmpty();
         record(scene, pass, result.status()
                 + (runner.replans() > 0 ? "/replans=" + runner.replans() : "")
                 + (scene.minReplans() > 0 ? "/minReplans=" + scene.minReplans() : "")
                 + "/route=" + routeOf(executed)
-                + (missing.isEmpty() ? "" : "/MISSING=" + missing));
+                + (sceneTicks > 0 ? "/sceneTicks=" + sceneTicks : "")
+                + (missing.isEmpty() ? "" : "/MISSING=" + missing)
+                + (fixtureMissing.isEmpty() ? "" : "/FIXTURE_NOT_FIRED=" + fixtureMissing));
         runner = null;
         advance();
         return index >= SCENES.size() ? finish() : Status.RUNNING;
@@ -267,9 +308,13 @@ public final class PathingRegressionTask implements Task {
         ensureStonePickaxe(bot);
         walled = false;
         disturbed = false;
-        BotLog.info("[Regression] scene={} start={} goal={} expect={} worldMod={}",
+        disturbGaveUp = false;
+        // **场景局部基准从这里起算**（每个场景都跑 `prepare()`；只规划的场景不会自增，
+        //   但必须归零 —— 否则会带着上一个场景的读数被误读成"本场景时长"）
+        sceneTicks = 0;
+        BotLog.info("[Regression] scene={} start={} goal={} expect={} worldMod={} wallTick={} disturbTick={}",
                 scene.scene(), scene.start().toShortString(), scene.goal().toShortString(),
-                scene.kind(), scene.worldModification());
+                scene.kind(), scene.worldModification(), scene.wallTick(), scene.disturbTick());
     }
 
     private PathRequest request(SceneCheck scene) {
@@ -279,12 +324,17 @@ public final class PathingRegressionTask implements Task {
                 : PathRequest.of(botId, scene.start(), scene.goal(), "pathing-regression");
     }
 
-    /** 场景夹具：计划前方封路 / 位置漂移（与 alice:pathing_waller / pathing_disturber 等价）。 */
+    /**
+     * 场景夹具：计划前方封路 / 位置漂移（与 `alice:pathing_waller` / `pathing_disturber` 等价）。
+     *
+     * <p>⚠️ **时机基准是 {@link #sceneTicks}（场景局部），不是任务级 {@code ticks}** —— 用后者会让
+     * "第 30 tick"退化成"第一个执行 tick"（实测 `wall_placed … tick=346`），两个自愈场景就等于没测"中途"。
+     */
     private void tickFixtures(SceneCheck scene) {
         if (runner == null || runner.session() == null) {
             return;
         }
-        if (scene.wallTick() > 0 && !walled && ticks >= scene.wallTick()) {
+        if (scene.wallTick() > 0 && !walled && sceneTicks >= scene.wallTick()) {
             List<BlockPos> path = runner.session().projectedFootPath();
             int position = path.indexOf(MovementHelper.footCell(bot.serverLevel(), bot));
             int target = position >= 0 ? position + 2 : -1;
@@ -294,12 +344,13 @@ public final class PathingRegressionTask implements Task {
                     bot.serverLevel().setBlock(wall,
                             net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(), 3);
                     walled = true;
-                    BotLog.info("[Regression] wall_placed scene={} at={} tick={}",
-                            scene.scene(), wall.toShortString(), ticks);
+                    BotLog.info("[Regression] wall_placed scene={} at={} sceneTick={} pathIndex={}/{}",
+                            scene.scene(), wall.toShortString(), sceneTicks, position, path.size());
                 }
             }
         }
-        if (scene.disturbTick() > 0 && !disturbed && ticks >= scene.disturbTick()) {
+        if (scene.disturbTick() > 0 && !disturbed && !disturbGaveUp
+                && sceneTicks >= scene.disturbTick()) {
             BlockPos from = MovementHelper.footCell(bot.serverLevel(), bot);
             BlockPos to = from.offset(scene.disturbDx(), 0, scene.disturbDz());
             if (com.dddgn.alice.pathing.MovementHelper.canWalkOn(bot.serverLevel(), to)
@@ -309,10 +360,15 @@ public final class PathingRegressionTask implements Task {
                 bot.teleportTo(bot.serverLevel(), to.getX() + 0.5D, to.getY(), to.getZ() + 0.5D,
                         Set.of(), bot.getYRot(), bot.getXRot());
                 bot.setDeltaMovement(Vec3.ZERO);
-                BotLog.info("[Regression] disturbed scene={} from={} to={} tick={}",
-                        scene.scene(), from.toShortString(), to.toShortString(), ticks);
-            } else if (ticks >= scene.disturbTick() + 40) {
-                disturbed = true;
+                BotLog.info("[Regression] disturbed scene={} from={} to={} sceneTick={}",
+                        scene.scene(), from.toShortString(), to.toShortString(), sceneTicks);
+            } else if (sceneTicks >= scene.disturbTick() + 40) {
+                // **不静默降级**（旧行为：`disturbed = true` 却不传送 ⇒ 场景退化成普通 place_course
+                //   却照样报 PASS）。这里如实记下，并在本场景判据里判 FAIL。
+                disturbGaveUp = true;
+                BotLog.warn("[Regression] disturb_not_applicable scene={} at={} sceneTick={}"
+                                + "（找不到可站立落点 ⇒ 本场景判 FAIL，不掩盖）",
+                        scene.scene(), to.toShortString(), sceneTicks);
             }
         }
     }
