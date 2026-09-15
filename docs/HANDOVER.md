@@ -10,36 +10,20 @@
 
 ## 1. 一句话现状（2026-09-15 上午）
 
-> **2026-09-15 晚（压缩断点后第一轮）：S-5「维生最小件」已落地并全绿**（D-226）。
-> ① 溺水/着火纳入否决（宽限 10 tick + **必须有出口**，无出口 ⇒ `HOLD_NO_EXIT` **不否决**）；
-> ② 掉血可见（`HazardState.previousHealth` 的第一个读者 ⇒ `DANGER` + `delta=`，冷却 40 tick 合并）；
-> ③ "否决了却没出口"变可判读（`exit=none decision=stop`）；④ **维生进电池**：新步 `survival_exit`
-> （**BASELINE**）⇒ **44 项 / CORE 35**。
-> 顺带由新电池步**实测抓到并修掉**一条真缺陷：`startSurvivalExit` 拿 `blockPosition()` 当"排除自己"，
-> 站在**半砖**上时会把 bot **自己那格**当出口（逃生 0 步 COMPLETED、bot 原地不动）⇒ 改用
-> `SurvivalSystem.footCell`（D-105 唯一口径），并有半砖对照断言。
-> **门槛**：`compileJava` ✅、`check-all.sh` 9 PASS + 1 预期 WARN ✅、
-> 无头 `single:survival_exit` `checks=38 failures=0` ✅、无头 **CORE `(35/35) ticks=3686 → PASS`** ✅。
-> ⚠️ **全是 `SERVER_TESTED`**；"真被否决"那半**只能真人验**（见 §3）。
-
-> **2026-09-15 晚 ✅ 真人验证通过**：`alice:survival_exit_check` 硬×2 + 软×1 全部「否决 → 逃生出口 1 格 →
-> `SurvivalExitTask COMPLETED`」；**火焰看得见**、着火每 20 tick 掉 1 血、走动/放置/挖掘照旧、无崩溃
-> ⇒ **S-5（D-226）与 D-228 双双升 `WINDOWS_CLIENT`**。§5.9（D-227）的启动结清也在真人存档上生效（`启动结清：11 条`）。
-> **下一步候选（见台账 §5.10 末尾）**：① bot 的血只减不增（自然回血在 `Player.tick` 那半，仍缺）⇒ 值得排期补 `doTick()`；
-> ② ~~细雪冻结没有危险档~~ ✅ **已修（D-229，同日）**：`HazardType.FREEZING`（软危险，`ticksFrozen ≥ 60`）+ 电池判据
-> （checks 45 → 55，含"全冻后真的掉血"）+ 真人入口 `alice:survival_exit_check` **疾跑+右键**；
-> ③ CORE 里的"治疗来源"未定位。
-
-> **2026-09-15 晚（同一轮追加）：客户端实测暴露 §5.9 真缺陷并已修**（D-227）。
-> 用户点 `alice:survival_exit_check` 后"bot 没反应"——**不是窒息机制缺失**（日志里 `hazard=SUFFOCATING`
-> 持续 181 tick 且真的掉血），而是**存档账本**里该 bot 有 **11 条 `SUSPENDED` 传输**（`NOT_MOVED`、
-> `server_restart`）⇒ `blocksBot` 把它的 **`assign*` 通路永久堵死**，加上 `assignWalkTo` 是 void
-> **静默什么都不做**、夹具又**不验前提**（照样打印"就位"）⇒ 看起来像"没反应"。
-> **修法（用户裁定 C3+A+B，不放宽 C2）**：`suspendUnfinished`/`expireSuspensions` 对
-> `location != BOT_INVENTORY` 的条目**直接落 `ABORTED`**（旧存档**启动即自愈**）+ 派活拒绝**可见**
-> + `blocksBot` 拦截打 warn。判据挂在既有 BASELINE 步 `transfer` 里（含**反向对照**）。
-> **门槛**：`single:transfer` 反向 `FAIL` → 正向 `PASS`；CORE `(35/35) ticks=3576 → PASS`；
-> 自愈实测 `启动结清：11 条…` ✅（同一份污染账本，临时关掉无头"清账本"跑的）。
+> **2026-09-15 晚（本日收尾快照）** —— S-5 维生线一整天推进，全部走"判据必须可红 + 反向对照"：
+> - **D-236 溺水不再静默**（`WINDOWS_CLIENT`）：溺水 + 无出口 ⇒ `ABANDON_NO_EXIT`（干净收尾 + 大声登记）；
+>   封闭水牢判据（真建 17³ 水牢实测）。**"水里逃生"整条缺口如实登记**（台账 §5.11）。
+> - **D-237「乙」= 溺水先上浮自救**：新判决 `FLOAT_UP` + `SurvivalFloatTask`（按住跳跃，头出水即松手；
+>   纯输入，**不新增 Movement**）；实测 `上浮自救成功（tick=44 air=102 y=102.81）`。
+>   ⚠️ **接线只观测到一次**：真维生判决会 `complete()` 掉**电池本体**（电池=会话任务）⇒ 那半只能真人验。
+> - **D-238 出口必须是"可规划"的**：出逃生之前跑一次真规划预检（`UNREACHABLE` 才算没出口，`SEARCH_LIMIT` 按未知放行）；
+>   软危险不再为"去不了的落点"杀任务，登记 `exit=unreachable`（区别于 `exit=none`）。
+> - 同日另三件：D-233（`decision_contract` 提档 MAIN）/ D-234（四 Job 统一子阶段失败口径）/ D-235（挂起传输结清落盘）。
+> - **门槛**：`compileJava` ✅ / `single:survival_exit` **checks=87 failures=0**（反向对照各一次精确变红）✅ /
+>   **CORE `(38/38) ticks=3901 → PASS`** ✅ / `check-all.sh` **9 PASS + 1 预期 WARN** ✅。
+> - **下一步候选**（台账 §5.11 四条，均未开工、各留一行）：水面专用理由码 / 出口列表 / **B 维生写授权（待用户拍板：
+>   搭桥/垫柱子出水的受限写授权）** / **丙（内核水位位置 + 垂直水位移动 + 成本模型，最贵）**。
+> - **客户端可验（可选）**：`alice:survival_full_check` 一次右键 ⇒ 跑完全部 87 条判据，含新的深水/露天水池/石盒三相。
 
 **`T0-a → T0-b → T1 → T2` 已全部落地（T2 已客户端验证）。
 T3 八步已走完七步：步骤 1 / B3a / A / A2 / C / (A) / **B4** 全部落地并实测；

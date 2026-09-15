@@ -234,16 +234,21 @@ S0 事实表 ✅ → S1 设备事实表 ✅ → **S2 进表 ✅（`MachineMap` 3
 - **M 线（旗舰挖掘的框架补齐）全部完成**：M1 候选菜单（LLM 不许猜位置）/ M2 可观测进度 `NO_PROGRESS` /
   M4 失败事实字段 + `llm_contract` 门禁 / M3 终态归因 + **M4b**（任务树带"哪个子阶段失败"，D-231）+
   **M3b**（`stale_target` / `write_budget_exhausted` 两条归因映射首次被观测，D-232）。
-- **S-5 维生线收口**：D-226（决策表 + 出口可达 + 掉血可见）/ **D-228**（假人此前只跑半个原版 tick：
-  火焰渲染、火焰伤害、空气耗损全缺 ⇒ 补 `baseTick`）/ D-229（细雪冻结危险档）三项均 `WINDOWS_CLIENT`。
-  零参数测试入口：`alice:survival_exit_check`（右键 = 窒息硬危险 / Shift+右键 = 着火软危险）、
-  `alice:survival_full_check`（一次右键跑完全部 55 条判据 ⇒ 聊天里看 `SUMMARY checks=55 failures=0 → PASS`）。
+- **S-5 维生线（2026-09-15 一整天）**：D-226（决策表 + 出口可达 + 掉血可见）/ D-228（假人只跑半个原版 tick
+  ⇒ 补 `baseTick`：火焰渲染/伤害、空气耗损）/ D-229（细雪冻结危险档）/ **D-236**（溺水不再静默：`ABANDON_NO_EXIT`
+  + 封闭水牢判据 + "水里逃生"缺口登记）/ **D-237**（"乙"：溺水先**上浮自救**，纯输入不新增 Movement）/
+  **D-238**（出口从"几何存在"升级为**可规划**：别再为一个走不到的落点杀任务）。D-226/228/229/236 已 `WINDOWS_CLIENT`。
+  零参数入口：`alice:survival_exit_check`（右键窒息 / Shift+右键着火）、
+  `alice:survival_full_check`（一次右键跑完全部 **87** 条判据 ⇒ 聊天里看 `SUMMARY checks=87 failures=0 → PASS`）。
+- **决策/快照线（同日）**：D-233（`decision_contract` 提档 MAIN + 本文件过时段落重写）、D-234（四个 Job 统一
+  "子阶段失败"口径）、D-235（挂起传输"结清落盘"：持久化成立 + 跨重启幂等）。
 - **D-230 的自我修正**：我一度判断"bot 的血只减不增、必须补 `doTick()`"，实测**推翻**了它（`Player.aiStep()`
   本来就有自然回血）⇒ `doTick()` 默认**不启用**，开关 `alice.bot.vanillaTick` 保留为有记录的实验开关。
 - **离线门槛**（"改一行到知道对不对"）：`tools/headless-battery.sh core` = **CORE 38 步**
-  （当前 `(38/38) ticks=3847 → PASS`）；`bash tools/check-all.sh` = **9 PASS + 1 预期 WARN**（无头断言"未执行"）。
+  （当前 `(38/38) ticks=3901 → PASS`）；`bash tools/check-all.sh` = **9 PASS + 1 预期 WARN**（无头断言"未执行"）。
 - **断点与待办**：`docs/HANDOVER.md`（§1 下一步 / jar hash）、`docs/OPEN_ITEMS_LEDGER.md`
-  （§5.6 风险等级层仍挂账、§5.9 挂起传输的持久化、§5.10 客户端可验项、其余 Job 的 `lastFailure`）。
+  （**§5.11**：水里逃生四条挂账 —— 水面理由码 / 出口列表 / **B 维生写授权（待用户拍板）** / **丙 内核水位移动**；
+  §5.6 风险等级层、§5.10 客户端可验项、其余 Job 的 `lastFailure`）。
 
 项目：Minecraft Forge 1.20.1 / Forge 47.4.10 / Java 17  
 开发目录：`/home/fb486/projects/alice`  
