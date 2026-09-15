@@ -95,7 +95,7 @@ T3 八步已走完七步：步骤 1 / B3a / A / A2 / C / (A) / **B4** 全部落�
 | **独立对照** | 修后 `wall_placed at=5,64,66 sceneTick=30`，与 `AI_DECISIONS.md:569` 的 **2026-09-09 客户端验证记录一致**；修前电池打的 `at=2,64,66` **不是同一个场景** |
 | **② `DIAGONAL` 覆盖靠运气** | 修① 后 `core` **2/2 FAIL `coverage=FAIL([DIAGONAL])`** —— 对角线只来自 `+disturb` 修前那条偶发绕行；`dip_course`/`lava_course` 都只规划不执行。补 `dip_course+run`（复用同一地形）⇒ 确定性覆盖 |
 | **③ 无头通道的噪声源 = 敌对生物** | 实测 `假人死亡: Alice was blown up by Creeper → 直接清除` ⇒ **无判决 `exit=3`**；同轮更早 `PLACE_NO_VALID_FACE` + `feet=1,64,68`（起点 `z=66`）⇒ **bot 被推离预期格**。修法：`headless-battery.sh` 把无头服务端设 `difficulty=peaceful`（**零生产代码改动**） |
-| **修后判据** | `core` ×3 = **PASS 3/3**、`30/30`、`coverage=PASS`、怪物/死亡命中 **0**、**三轮 pathing 场景行逐字相同**（唯一差异 = `写入类例外`/总 `ticks` 计数） |
+| **修后判据** | `core` **8 轮全绿**（`30/30`、`coverage=PASS`、怪物/死亡命中 **0**、**8 轮场景行逐字相同**）；对照改前 **9 轮 3 红**（诚实边界：8/8 绿证不了"根除"，只证三个缺陷被修掉且没再出现） |
 | **证据位改动** | `/tmp` 里上一会话的证据**已被清空**（历史 3 红因此无法复算）⇒ 本轮起证据放 `/home/fb486/alice-evidence/<日期>-<主题>/`（含 `README.md`） |
 
 ## 3. ⚠️ 未验证 / 未做（**不要当成做完了**）
