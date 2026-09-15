@@ -9090,3 +9090,17 @@ D-220 的三条修完之后发现：真正的病因不是"某个常量算错了"
 **同轮 T3 探针读数复核**：42 字段中 **41 个与无头逐字相同**，唯一差异 `recipe_order_hash`（已登记为非确定值）
 ⇒ **T3 探针读数亦升 `WINDOWS_CLIENT`**。⚠️ **R4 夹具物品本轮未跑**（全会话 `[R4 Fixture]` 命中 0）⇒
 物品侧"未生效 ⇒ FAILED"仍是 `COMPILES`。证据 `.alice-supervision/client-tests/d220-t3-20260915/evidence/`。
+
+**附注三（2026-09-15 同日补测：R4 物品侧，jar 未变）**：两件夹具物品在客户端各右键一次 ——
+`pathing_disturber`：`[R4 Fixture] disturbed from=4,64,66 to=4,64,67 tick=33` + `result … COMPLETED segments=8/8 ticks=69 replans=0`；
+`pathing_waller`：`[R4 Fixture] wall_placed at=5,64,66 tick=30 pathIndex=3/9` → `replan reason=BLOCKED code=SEGMENT_FUTURE_BLOCKED`
+→ 新计划首段 `BREAK_AND_TRAVERSE`（**用户观察"把石头挖掉"与日志逐字对上**）→ `result … COMPLETED segments=3/3 replans=1`。
+`FIXTURE_NOT_FIRED` / `not_fired` / `disturb_not_applicable` 命中 **0**、全会话零 WARN/FAILED ⇒ 物品侧新接线走的是
+**"夹具已生效"的正常分支** ⇒ 该分支升 `WINDOWS_CLIENT`。**⚠️ 负例分支（夹具未生效 ⇒ FAILED）仍未跑**
+（两件物品的起终点硬编码同一场景，必然放得下 ⇒ 要跑负例得再做一个"注定放不下"的场景）。
+另注：disturber 的 1 格横向位移**既不触发漂移检测也不触发 resync**（`driftedOutOfSegment` 要求离两端 >3 格），
+正确结果由**控制器把 bot 拉回目标格**达成 ⇒ 用户"看不出来"是预期，已登记为按 Baritone
+`getValidPositions().contains(feet)` 对齐的独立议题。
+**同轮记录一个议题（用户 2026-09-15 提出，只记录不展开）**：风险管控体系现状 ——
+"统一可调的风险层"确实接近空白（`RiskSwitches` 仅 1 个开关、评估体系自述未实现），
+但风险在**授权/预算/策略/安全四层**都有可执行闸门 ⇒ 详见台账 **§5.6**（含三个候选方向与复核触发）。

@@ -1,0 +1,27 @@
+# R4 夹具物品补测 关键行（2026-09-15 第二段会话，jar 462b10b5…）
+# 来源: /mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10/logs/latest.log（61989 字节，11:10）
+
+## 夹具是否真的动手 + 终态
+[R4 Fixture] disturbed session=r4-session-fa6ddadf-edb7-47bc-ac9d-97e0b64862ac from=4, 64, 66 to=4, 64, 67 tick=33
+[R4 Session] result session=r4-session-fa6ddadf-edb7-47bc-ac9d-97e0b64862ac status=COMPLETED segments=8/8 ticks=69 finalFoot=8, 62, 66 replans=0 planner=alice.astar.movement.v1 plannedGoal=8, 62, 66
+[R4 Fixture] wall_placed session=r4-session-bcaf10d5-f59f-41b5-aca8-450c0075a654 at=5, 64, 66 tick=30 pathIndex=3/9
+[R4 Session] result session=r4-session-bcaf10d5-f59f-41b5-aca8-450c0075a654 status=COMPLETED segments=3/3 ticks=40 finalFoot=8, 62, 66 replans=1 planner=alice.astar.movement.v1 plannedGoal=8, 62, 66
+
+## waller 那次：封路 → 段失败 → 重规划 → BREAK 掉石头
+[R4 Session] segment_done session=r4-session-bcaf10d5-f59f-41b5-aca8-450c0075a654-0 index=0 type=TRAVERSE ticks=5 actualFoot=1, 64, 66
+[R4 Session] segment_start session=r4-session-bcaf10d5-f59f-41b5-aca8-450c0075a654-0 index=1/8 type=PLACE_STEP_AND_TRAVERSE from=1, 64, 66 to=2, 64, 66 tolerance=COLUMN actualFoot=1, 64, 66
+[R4 Session] segment_done session=r4-session-bcaf10d5-f59f-41b5-aca8-450c0075a654-0 index=1 type=PLACE_STEP_AND_TRAVERSE ticks=7 actualFoot=2, 64, 66
+[R4 Session] segment_start session=r4-session-bcaf10d5-f59f-41b5-aca8-450c0075a654-0 index=2/8 type=PLACE_STEP_AND_TRAVERSE from=2, 64, 66 to=3, 64, 66 tolerance=COLUMN actualFoot=2, 64, 66
+[R4 Session] segment_done session=r4-session-bcaf10d5-f59f-41b5-aca8-450c0075a654-0 index=2 type=PLACE_STEP_AND_TRAVERSE ticks=6 actualFoot=3, 64, 66
+[R4 Session] segment_start session=r4-session-bcaf10d5-f59f-41b5-aca8-450c0075a654-0 index=3/8 type=TRAVERSE from=3, 64, 66 to=4, 64, 66 tolerance=COLUMN actualFoot=3, 64, 66
+[PathRetry] replan attempt=1 replans=1 reason=BLOCKED code=SEGMENT_FUTURE_BLOCKED feet=4, 64, 66
+[PathRetry] planned attempt=1 status=REACHED movements=3 cost=7.30 writes>=1/0 from=4, 64, 66 to=8, 62, 66
+[R4 Session] segment_start session=r4-session-bcaf10d5-f59f-41b5-aca8-450c0075a654-1 index=0/3 type=BREAK_AND_TRAVERSE from=4, 64, 66 to=6, 64, 66 tolerance=COLUMN actualFoot=4, 64, 66
+[R4 Session] segment_done session=r4-session-bcaf10d5-f59f-41b5-aca8-450c0075a654-1 index=0 type=BREAK_AND_TRAVERSE ticks=16 actualFoot=6, 64, 66
+[R4 Session] segment_start session=r4-session-bcaf10d5-f59f-41b5-aca8-450c0075a654-1 index=1/3 type=FALL from=6, 64, 66 to=7, 62, 66 tolerance=COLUMN actualFoot=6, 64, 66
+[R4 Session] segment_done session=r4-session-bcaf10d5-f59f-41b5-aca8-450c0075a654-1 index=1 type=FALL ticks=14 actualFoot=7, 62, 66
+[R4 Session] segment_start session=r4-session-bcaf10d5-f59f-41b5-aca8-450c0075a654-1 index=2/3 type=TRAVERSE from=7, 62, 66 to=8, 62, 66 tolerance=EXACT actualFoot=7, 62, 66
+[R4 Session] segment_done session=r4-session-bcaf10d5-f59f-41b5-aca8-450c0075a654-1 index=2 type=TRAVERSE ticks=4 actualFoot=8, 62, 66
+
+## 新断言是否触发（应为 0）
+0

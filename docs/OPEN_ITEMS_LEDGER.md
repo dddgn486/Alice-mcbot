@@ -181,6 +181,50 @@ git log --all --oneline -S '"TRAVERSE_INVALID_GEOMETRY"'     # 空 ⇒ 该码从
 
 ---
 
+## §5.6 议题：风险管控体系的现状（用户 2026-09-15 提出，**只记录不展开**）
+
+**用户的问题**：`PathRequest.miningApproach` 禁用 `PILLAR/FALL/DOWNWARD` 本该是"**可选的风险控制**"，
+现在是**硬禁**，会让挖矿麻烦很多。用户的判断：① 现在的风险管控**几乎一片空白、只留草案**；
+② 或者风险是**在别处以别的方式**降低的；③ **先完成当前主线，不适合马上展开修复**。
+
+**AI 核实结论：①②都对，但要说清是"哪一层空白"**：
+
+- **① 成立（指"统一的风险系统"）**：`pathing/risk/RiskSwitches` 全仓只有 **1 个开关**（`DESCEND_OVERSHOOT_GUARD`），
+  其 javadoc 自述"**评估体系（任务层/维度/群系/现实条件/局部场景）只做讨论与预留，尚未实现**"；
+  D-046/D-059 定的模型是"**默认全部关闭 = Baritone 原样高风险**，开关把某些部分换成低风险"。
+  ⇒ **"可按场景/维度调节的风险等级"这一层确实接近空白**，而且它的**极性**与 `miningApproach` 相反
+  （后者默认就不许）—— 这正是用户"本来该是可选的"这一直觉的来源。
+- **② 成立：风险不是没人管，而是分散在四层**（每层都有可执行的闸门/断言）：
+
+| 层 | 机制（符号/命令） | 今天的状态 |
+|---|---|---|
+| **授权层** | D-076：寻路默认纯通行；写能力必须走**显式登记的入口**（`PathRequest.of` / `miningApproach` / `climbApproach` / `scaffoldRemoval` …）；门禁 `tools/check-authz-registry.sh` | **在管**。`miningApproach` 的三件禁用**属于这一层** —— 它是**二元授权决定**，不是风险等级 |
+| **预算/闸门层** | `WriteBudget`（每作用域 64 破坏/32 放置/32 容器写）、`MiningBudget`、`MiningProfile`（`maxGainSteps` ≤12 方块 / `clearBudget` / `restoreOwnPlacements`）、段超时、`safeToCancel` | **在管** |
+| **策略/归因层** | `action/WritePolicyMatrix`（区域 × 任务 → 回收义务 / 移动授权）+ 电池 `write_policy` 步的**负例**断言 | **在管**（2026-09-15 客户端实测命中 `WRITE_POLICY_MOVEMENT_DENIED … 该行只授权 [PURE_TRAVERSAL, OF]`） |
+| **安全/环境层** | `SafeZoneData` 保护理由；`PLAN_SAFE_ROUTE` 的岩浆接触断言（`lava_contacts` 必须 0）；未知模组能力默认只读（`CapabilityGate`） | **在管** |
+
+⇒ **准确说法**：今天是"**默认不许 + 显式登记 + 预算闸门**"三件事分散在各层，
+**空白的是"可调的风险等级与评估器"**（`RiskSwitches` 那一层）。所以"把三件禁用改成开关"**不是翻一个标志**，
+而是要**先建那个空白的层**（或者退一步：加一个**已登记的兄弟入口** `miningApproachHighRisk` + 默认关的开关）。
+
+**三个候选方向（2026-09-15 讨论，未采纳）**：
+- **A（便宜，不动授权面）**：痛点若是"目标在上面够不到"，给 `MineJob` 的信封加 `withGain(...)` ——
+  机制现成（`MiningProfile.withGain`，归因 `WriteReason.STANDING_SPACE`），伐木已在用（`LumberJob` 的 `withGain`）；
+  而 `MineJob` 今天是 `TUNNEL_ALLOWED.withRestore()` ⇒ **gain = 0**。
+- **B（真要那三个 movement 时）**：新增**已登记**的 `miningApproachHighRisk` + `RiskSwitches` 开关（默认关 = 今天行为），
+  并把 `write_policy` 的断言扩成"两个入口都存在且集合不同"，登记进 `docs/WORLD_WRITE_AUTHORIZATION.md`。
+- **C**：维持现状。
+
+**用户裁定（2026-09-15）**：**先完成当前主线，本议题只记录、不展开修复。**
+**复核触发**：① 真实挖矿出现"明明有办法却够不到"的**具体案例**（目标 + bot 坐标 + 失败行）；
+② 开始做决策层 / 蓝图 §1.2「玩家登记自己的流水线」而需要一个**可调风险等级**时；
+③ `RiskSwitches` 需要第 2 个开关时（那时顺手把它做成真正的"风险配置面"）。
+
+**同议题的负例缺口**：物品侧"夹具未生效 ⇒ `FIXTURE_NOT_FIRED` + FAILED"分支**尚未跑过** ——
+两件 R4 物品的起终点是硬编码的同一场景（必然放得下），要跑负例得再做一个"注定放不下"的场景（按需再做）。
+
+---
+
 ## §6 文档债
 
 | # | 项 | 说明 |

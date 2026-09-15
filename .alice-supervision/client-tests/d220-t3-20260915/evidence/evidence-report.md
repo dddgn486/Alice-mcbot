@@ -39,10 +39,31 @@ machine_map_rows=59 with_site_confirmed=52 shared_site=6`（与无头 `shared-co
 
 ## 待确认
 
-1. **R4 物品侧未覆盖**：D-220 的"夹具未生效 ⇒ `FIXTURE_NOT_FIRED` + 任务 FAILED"这条**只在右键
-   `alice:pathing_disturber` / `alice:pathing_waller` 时才会执行** ⇒ 本轮仍停在 `COMPILES`。
-   与用户确认：是**有意没跑**（那就不用管），还是**漏了**（下一轮补右键即可，两件物品各一次）。
+1. **R4 物品侧** —— ✅ **同日补测完成**（见文末"补测"一节）。
 2. **怪物是否干扰客户端**：本轮 0 命中，样本 1 ⇒ 维持用户 2026-09-15 裁定"先观察，有证据再改"。
 3. 日志里的 `[MiningPlanner] standable_only … no_reachable_standing_point`（6 次，目标 `6,64,64`）
    **不是**用户挖矿：那是电池 `clear_retry` 夹具**按设计**用 `standableOnly=true` 制造的场景
    （同轮 `clear_retry=PASS`）。**不要**把它读成"挖矿够不到"的证据。
+
+---
+
+## 补测：R4 夹具物品（同日第二段会话，jar 未变）
+
+**入口**：`/function alice_test:place_course` → 分别右键 `alice:pathing_disturber` / `alice:pathing_waller`
+（零参数；物品自己把 bot 传回起点 `(0,64,66)`，不依赖玩家站位）。
+**关键行**：`r4-items-key-lines.log`
+
+| 物品 | 夹具行 | 终态 | 用户观察 | 结论 |
+|---|---|---|---|---|
+| `pathing_disturber` | `disturbed from=4,64,66 to=4,64,67 tick=33` | `COMPLETED segments=8/8 ticks=69 finalFoot=8,62,66 **replans=0**` | "看不出来什么问题" | ✅ 夹具**真的动手了**（旧行为下这里可能是静默跳过）。**"看不出来"是预期**：1 格横向位移被**移动控制器自己走回目标格**吸收（无 resync、无 replan）⇒ 与无头实测同形 |
+| `pathing_waller` | `wall_placed at=5,64,66 tick=30 pathIndex=3/9` | `COMPLETED segments=3/3 ticks=40 finalFoot=8,62,66 **replans=1**` | "**挖掉石头的**" | ✅ **日志逐字对上**：`replan attempt=1 replans=1 reason=BLOCKED code=SEGMENT_FUTURE_BLOCKED feet=4,64,66` → 新计划首段 `type=BREAK_AND_TRAVERSE from=4,64,66 to=6,64,66`（**就是挖掉那块石头**）→ `FALL` → `TRAVERSE` 到目标 |
+
+**新判据（D-220 物品侧）**：`FIXTURE_NOT_FIRED` / `not_fired` / `disturb_not_applicable` 命中 **0**，
+全会话**零 WARN / 零 FAILED** ⇒ 物品侧走的是"夹具已生效"的**正常分支** ⇒ 该分支升 **`WINDOWS_CLIENT`**。
+⚠️ **负例分支仍未覆盖**：`FIXTURE_NOT_FIRED ⇒ Status.FAILED` 只在"夹具放不下 / 找不到落点"时触发，
+而两件物品的起点/终点是**硬编码的同一场景**（必然放得下）⇒ 要跑负例得再做一个"注定放不下"的场景
+（属新测试入口，按需再做，已记台账）。
+
+**顺带确认（与 D-035 的偏离登记呼应）**：disturber 的 1 格横向位移**既不触发漂移检测、也不触发 resync**
+（`driftedOutOfSegment` 要求离两端 >3 格）⇒ 结果正确，但机制是"控制器把 bot 拉回目标格"。
+已登记为独立议题（评审 §6.1：建议按 Baritone `getValidPositions().contains(feet)` 对齐）。
