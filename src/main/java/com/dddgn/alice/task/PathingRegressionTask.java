@@ -225,7 +225,7 @@ public final class PathingRegressionTask implements Task {
                 + "/route=" + routeOf(executed)
                 + (sceneTicks > 0 ? "/sceneTicks=" + sceneTicks : "")
                 + (missing.isEmpty() ? "" : "/MISSING=" + missing)
-                + (fixtureMissing.isEmpty() ? "" : "/FIXTURE_NOT_FIRED=" + fixtureMissing));
+                + FixtureScript.notFired(fixtureMissing));
         runner = null;
         advance();
         return index >= SCENES.size() ? finish() : Status.RUNNING;
@@ -335,18 +335,16 @@ public final class PathingRegressionTask implements Task {
             return;
         }
         if (scene.wallTick() > 0 && !walled && sceneTicks >= scene.wallTick()) {
-            List<BlockPos> path = runner.session().projectedFootPath();
-            int position = path.indexOf(MovementHelper.footCell(bot.serverLevel(), bot));
-            int target = position >= 0 ? position + 2 : -1;
-            if (target > 0 && target < path.size()) {
-                BlockPos wall = path.get(target);
-                if (bot.serverLevel().getBlockState(wall).isAir()) {
-                    bot.serverLevel().setBlock(wall,
-                            net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(), 3);
-                    walled = true;
-                    BotLog.info("[Regression] wall_placed scene={} at={} sceneTick={} pathIndex={}/{}",
-                            scene.scene(), wall.toShortString(), sceneTicks, position, path.size());
-                }
+            // 目标格计算**与物品侧共用**（`FixtureScript`）—— 这两份实现分叉过一次（footCell vs blockPosition）
+            FixtureScript.WallPlan plan = FixtureScript.wallPlan(bot,
+                    runner.session().projectedFootPath());
+            if (plan != null) {
+                bot.serverLevel().setBlock(plan.target(),
+                        net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(), 3);
+                walled = true;
+                BotLog.info("[Regression] wall_placed scene={} at={} sceneTick={} pathIndex={}/{}",
+                        scene.scene(), plan.target().toShortString(), sceneTicks,
+                        plan.pathIndex(), plan.pathLength());
             }
         }
         if (scene.disturbTick() > 0 && !disturbed && !disturbGaveUp

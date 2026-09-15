@@ -387,10 +387,17 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
 
 **场景**：`/function alice_test:place_course`（目标 `(8,62,66)`）
 
-**操作**（两件物品都要测）：
+**操作**（三件物品都要测）：
 1. 手持 `alice:pathing_placer` 右键任意方块 → 正常放置通行（应干净完成）；
 2. 手持 `alice:pathing_disturber` 右键任意方块 → **第 30 tick 会被平移 1 格**（模拟被推开），
-   观察是否自动恢复（`snipsnap` / `replanned`）。
+   观察是否自动恢复（`snipsnap` / `replanned`）；
+3. 手持 `alice:pathing_waller` 右键任意方块 → **第 30 tick 在计划前方第 2 格封路**，应看到一次重规划。
+
+⚠️ **D-220（2026-09-15）：两件夹具物品都"必须看到它真的动手"**
+- 生效时必须出现 `[R4 Fixture] disturbed …` / `[R4 Fixture] wall_placed … at=… pathIndex=…/…`；
+- **没生效就是如实失败，不是 bug**：结果行会带 `/FIXTURE_NOT_FIRED=[wall]`（或 `[disturb…]`），
+  任务终态 `FAILED`（理由 `FIXTURE_NOT_FIRED:…`），含义是"**这一趟没有测到该夹具，结论无效**"。
+  常见原因：起点离目标太近（路径不足 3 格 ⇒ 封路没地方放）、或扰动目标格站不住。
 
 **预期日志**（自愈生效）：
 ```

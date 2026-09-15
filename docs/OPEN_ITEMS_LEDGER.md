@@ -1190,6 +1190,13 @@ jar `3312608d…`。
   - **客户端不清怪物（用户 2026-09-15 裁定：先不动）**：客户端存档仍 `easy` 有怪物，**先观察**
     下一次客户端电池是否真被怪物干扰（判据：日志出现击退/位移 + 判决异常），**有证据再改**；
     届时候选 = `RegressionBatteryTask` 起始处 `kill @e[type=#minecraft:hostile, distance=…]`（要占一轮客户端验证）。
+  - **✅ 物品侧的同类静默降级也已修（同日追加，D-220 附注）**：新增共用原语 `task/FixtureScript`
+    （`wallPlan` 用 `MovementHelper.footCell` + 前方第 2 格；`notFired` 共用字段串）——
+    因为**同一份夹具被写了两遍**且已分叉（时机基准、脚位算法、放弃策略），**分叉没有编译期信号**。
+    物品侧现在：扰动放弃 ⇒ warn + `disturbGaveUp`；封路/扰动未生效 ⇒ 结果行带 `/FIXTURE_NOT_FIRED=…`
+    且**任务 FAILED**（不再"干净地报 DONE"）。
+    **验证分级**：共用原语 = `SERVER_TESTED`（电池侧调用它，`single:pathing` 场景行**重构前后逐字相同**、
+    `core` ×2 PASS `30/30`）；**物品侧接线 = `COMPILES`**（客户端入口，验收点 = 下一次 R4 客户端轮次）。
 
 - **T3 剩余（第 3 个模组之前必须做）**：**B3b** Port 化 `Facts`（每产出自带 `chance` + 长度断言 ——
   今天 `outputs`/`chances` 两个独立列表 + 空栈过滤 ⇒ **结构上无法配对**）；**B4** 把

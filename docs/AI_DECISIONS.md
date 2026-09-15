@@ -9066,3 +9066,18 @@ MACHINE_ROUTE station=create:item_application`，note 明写"暂无该机器的�
 
 **复核触发**：① 再出现"位置不对"类红且日志里有怪物/击退痕迹 ⇒ 客户端侧也要清场；
 ② `FIXTURE_NOT_FIRED` 出现 ⇒ 说明某个场景的课时长已短于夹具时机，要重定标（而不是把断言删掉）。
+
+**附注（同日追加）：把"同一份夹具两处实现"合并 —— 消掉这一类，而不是再打一个补丁。**
+D-220 的三条修完之后发现：真正的病因不是"某个常量算错了"，而是**「计划前方封路 / 定向平移」这两个夹具
+在电池侧与物品侧各写了一遍**，且已分叉三处、**没有任何编译期信号**：① 时机基准（任务级 tick vs 本趟运行 tick）；
+② 封路目标格（`MovementHelper.footCell` vs `bot.blockPosition()` —— 非满高支撑上取到不同格）；
+③ 放弃策略（两边都静默）。
+⇒ 新增 **`task/FixtureScript`** 收拢**能共用的部分**：`wallPlan(bot, projectedPath)`（脚位一律 `footCell`）
+与 `notFired(missing)`（两侧同一字段串 `/FIXTURE_NOT_FIRED=[…]`，`grep` 一处通吃）；
+**不共用**的是各自主持有的时机计数器与终态策略 —— 但按本条，**两边都必须响亮**。
+物品侧（`PathSessionDiagnosticTask`）随之补掉两处静默降级：扰动找不到落点不再 `disturbed = true` 假装做过
+（改 `disturbGaveUp` + warn），封路/扰动**未生效** ⇒ 结果行带 `/FIXTURE_NOT_FIRED=…` 且**任务 `FAILED`**
+（旧行为：扰动静默跳过、封路**连一行日志都没有**，两者都可能"干净地报 DONE"）。
+**验证分级**：共用原语 `SERVER_TESTED`（电池侧调用它 ⇒ `single:pathing` 场景行**重构前后逐字相同**、
+`core` ×2 `30/30`、累计 **core 10/10**）；**物品侧接线 `COMPILES`**（客户端入口，验收点 = 下一次 R4 客户端轮次，
+见 `docs/TESTING_GUIDE.md` §4.7 的新预期）。

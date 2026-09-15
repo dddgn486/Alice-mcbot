@@ -10,7 +10,6 @@ import com.dddgn.alice.pathing.core.session.PathSession;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -40,6 +39,8 @@ public final class PathSessionDiagnosticTask implements Task {
     private int ticks;
     private boolean disturbed;
     private boolean walled;
+    /** 扰动找不到合法落点 ⇒ 放弃（**响亮失败**；旧行为是静默把 `disturbed` 置 true 假装做过）。 */
+    private boolean disturbGaveUp;
     /** 任务级安全上限：防止会话/重试循环导致任务永不结束。 */
     private static final int MAX_TASK_TICKS = 600;
     private final String sessionId = "r4-session-" + UUID.randomUUID();
@@ -107,10 +108,28 @@ public final class PathSessionDiagnosticTask implements Task {
             return Status.RUNNING;
         }
         PathExecutionResult result = runner.result();
-        BotLog.info("[R4 Session] result session={} {} replans={} planner={} plannedGoal={}",
+        // **声明了夹具就必须真的动手**（D-220）：否则"夹具没生效"会被一个干净的 `result …` 行读成"测过了"。
+        // ⚠️ 与电池侧（`PathingRegressionTask`）**同一套判据与同一串字段名**（`FixtureScript`）。
+        java.util.List<String> fixtureMissing = new java.util.ArrayList<>();
+        if (disturbTick > 0 && !disturbed) {
+            fixtureMissing.add(disturbGaveUp ? "disturb(no_valid_cell)" : "disturb");
+        }
+        if (wallTick > 0 && !walled) {
+            fixtureMissing.add("wall");
+        }
+        BotLog.info("[R4 Session] result session={} {} replans={} planner={} plannedGoal={}{}",
                 sessionId, result.summary(), runner.replans(), "alice.astar.movement.v1",
-                goalFoot.toShortString());
+                goalFoot.toShortString(), FixtureScript.notFired(fixtureMissing));
+        if (!fixtureMissing.isEmpty()) {
+            BotLog.warn("[R4 Fixture] not_fired session={} missing={} ⇒ 本趟**没有**测到该夹具{}",
+                    sessionId, fixtureMissing,
+                    state == PathRetryRunner.State.DONE ? "（路径本身走完了，但结论无效）" : "（路径另有失败，一并记下）");
+        }
         if (state == PathRetryRunner.State.DONE) {
+            if (!fixtureMissing.isEmpty()) {
+                failure = FixtureScript.NOT_FIRED_FIELD + ":" + fixtureMissing;
+                return Status.FAILED;
+            }
             return Status.DONE;
         }
         failure = result.status() + ":" + result.failureCode();
@@ -122,9 +141,15 @@ public final class PathSessionDiagnosticTask implements Task {
         return failure;
     }
 
-    /** 定向扰动夹具：把 bot 平移到相邻可站立格（验证重同步；不会把 bot 推进坑里）。 */
+    /**
+     * 定向扰动夹具：把 bot 平移到相邻可站立格（验证重同步；不会把 bot 推进坑里）。
+     *
+     * <p>⚠️ **不许静默降级**（D-220）：等不到合法落点时如实记 `disturbGaveUp` 并 warn，
+     * 由终态判据把它变成 FAILED —— 旧行为是 `disturbed = true` 却不传送，于是这一趟**什么都没测到**
+     * 却报 DONE。
+     */
     private void tickDisturbFixture() {
-        if (disturbed || ticks < disturbTick) {
+        if (disturbed || disturbGaveUp || ticks < disturbTick) {
             return;
         }
         BlockPos from = MovementHelper.footCell(bot.serverLevel(), bot);
@@ -138,14 +163,15 @@ public final class PathSessionDiagnosticTask implements Task {
             bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
             BotLog.info("[R4 Fixture] disturbed session={} from={} to={} tick={}",
                     sessionId, from.toShortString(), to.toShortString(), ticks);
-        } else if (ticks >= disturbTick + 40) {
-            disturbed = true;
-            BotLog.info("[R4 Fixture] disturb_skipped session={} at={} tick={}",
-                    sessionId, to.toShortString(), ticks);
+        } else if (ticks >= disturbTick + FixtureScript.GIVE_UP_GRACE_TICKS) {
+            disturbGaveUp = true;
+            BotLog.warn("[R4 Fixture] disturb_not_applicable session={} at={} tick={}"
+                            + "（{} tick 内没有合法落点 ⇒ 本趟没有测到扰动自愈，任务判 FAILED）",
+                    sessionId, to.toShortString(), ticks, FixtureScript.GIVE_UP_GRACE_TICKS);
         }
     }
 
-    /** 前方封路夹具：在计划路径前方第 2 段放置石头（验证任务层重规划）。 */
+    /** 前方封路夹具：在计划路径前方第 2 段放置石头（验证任务层重规划）。目标格算法与电池侧共用。 */
     private void tickWallFixture() {
         if (walled || ticks < wallTick) {
             return;
@@ -154,20 +180,14 @@ public final class PathSessionDiagnosticTask implements Task {
         if (session == null) {
             return;
         }
-        List<BlockPos> path = session.projectedFootPath();
-        int position = path.indexOf(bot.blockPosition());
-        int target = position >= 0 ? position + 2 : -1;
-        if (target <= 0 || target >= path.size()) {
-            return;
+        FixtureScript.WallPlan plan = FixtureScript.wallPlan(bot, session.projectedFootPath());
+        if (plan == null) {
+            return;   // 本 tick 还不适用 ⇒ 下一 tick 重试；始终不适用由终态判据判 FAILED
         }
-        BlockPos wall = path.get(target);
-        if (!bot.serverLevel().getBlockState(wall).isAir()) {
-            return;
-        }
-        bot.serverLevel().setBlock(wall, Blocks.STONE.defaultBlockState(), 3);
+        bot.serverLevel().setBlock(plan.target(), Blocks.STONE.defaultBlockState(), 3);
         walled = true;
-        BotLog.info("[R4 Fixture] wall_placed session={} at={} tick={}",
-                sessionId, wall.toShortString(), ticks);
+        BotLog.info("[R4 Fixture] wall_placed session={} at={} tick={} pathIndex={}/{}",
+                sessionId, plan.target().toShortString(), ticks, plan.pathIndex(), plan.pathLength());
     }
 
     private void initialize() {
