@@ -111,7 +111,7 @@ public final class RegressionBatteryTask implements Task {
      * ② 构造时会**自校验**（有步骤没归属 / 有归属没步骤 ⇒ 直接判红），防止"悄悄漏测"。
      */
     private static final Map<String, Profile> CURATION = Map.ofEntries(
-            // ---- BASELINE：必要基础（14）----
+            // ---- BASELINE：必要基础（15）----
             Map.entry("pathing", Profile.BASELINE),
             Map.entry("write_budget", Profile.BASELINE),
             Map.entry("mine_regression", Profile.BASELINE),
@@ -127,6 +127,9 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("recoverability", Profile.BASELINE),
             // D-207 ①：写入集中策略表（区域×任务 → 回收义务/移动授权）——含**负例**（越权必须被拒）
             Map.entry("write_policy", Profile.BASELINE),
+            // S-5（2026-09-15）：**维生决策表 + 出口可达 + 掉血可见** —— 维生是"长作业能活着回来"的底线件，
+            // 而且此前**零电池步**（只能真人验）。放 BASELINE（CORE 跑），每次改动都跑得到。
+            Map.entry("survival_exit", Profile.BASELINE),
             // ---- MAIN：阶段 3-A 收口后的最小烟测集（4）----
             // 口径（D-201）：每一类"只此一步覆盖"的机制各留一步 + 查询层最便宜一步；
             // A2/A3/A3b/C/装配/发现器探针等同机制夹具退 FULL（机制不丢，默认时长下降）
@@ -568,6 +571,13 @@ public final class RegressionBatteryTask implements Task {
                 () -> new WritePolicyCheckTask(bot, observer), 300));
         steps.add(step("pathing", List.of(), null,
                 () -> new PathingRegressionTask(bot, observer), 5000));
+        // S-5（2026-09-15）：**维生决策自检** —— 维生此前是唯一零电池步的子系统（只能真人验）。
+        // `survival_course`（有出口）作场景；**封闭场景（无出口）由夹具自己在 bot 到位后建造**
+        // （不能在 `scenes` 里建：那时区块还没加载，`/fill` 会不落地 ⇒ 判据在虚空里假绿，见任务 javadoc）。
+        steps.add(step("survival_exit",
+                List.of("alice_test:survival_course"),
+                () -> teleportBot(SurvivalCourseAnchor.PLATFORM_FOOT),
+                () -> new SurvivalExitCheckTask(bot, observer), 900));
     }
 
     // ==================== 执行 ====================

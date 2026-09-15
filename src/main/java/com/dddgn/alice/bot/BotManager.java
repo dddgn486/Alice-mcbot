@@ -1813,8 +1813,24 @@ public final class BotManager {
             // S-1（P1-C，2026-09-12）：**逃生任务本身豁免否决** —— 否则"中断 ⇒ 起逃生 ⇒ 下一 tick
             // 又被中断"会变成每 tick 自杀循环，逃生一步都走不出去。只豁免逃生动作；
             // 挖矿/伐木/放置这类会把 bot 送进危险的任务照旧被否决。
-            if (!(task instanceof com.dddgn.alice.task.SurvivalExit)
-                    && SurvivalSystem.shouldInterrupt(hazard)) {
+            boolean escapeTask = task instanceof com.dddgn.alice.task.SurvivalExit;
+            SurvivalSystem.Verdict verdict = SurvivalSystem.decide(bot, hazard);
+            // S-5（2026-09-15）③：**软危险 + 无出口 ⇒ 不否决**（`HOLD_NO_EXIT`）——但必须**如实登记一次**，
+            // 否则日志看不出"判据生效了，但判断是继续跑"。登记点取 `durationTicks == 宽限期` 这**唯一 tick**
+            // （同一次危险里 duration 逐 tick 单调 +1）⇒ 天然"每 episode 一次"，不需要额外闩锁。
+            if (!escapeTask && verdict == SurvivalSystem.Verdict.HOLD_NO_EXIT
+                    && hazard.durationTicks() == SurvivalSystem.SOFT_HAZARD_GRACE_TICKS) {
+                String where = SurvivalSystem.footCell(bot).toShortString();
+                BotLog.warn("[Survival] 软危险 hazard={} 已持续 {} tick，半径 {} 格内**无安全落点** ⇒"
+                                + " 不否决（让任务继续：停在原地只会更糟）hazard={} exit=none"
+                                + " decision=continue pos={}",
+                        hazard.type(), hazard.durationTicks(), SurvivalSystem.REFUGE_RADIUS,
+                        hazard.type(), where);
+                com.dddgn.alice.decision.DecisionEvents.emit(bot, "DANGER", "warn",
+                        "软危险无出口：" + hazard.type() + " ⇒ 不否决（任务继续）",
+                        "hazard=" + hazard.type() + " exit=none decision=continue pos=" + where);
+            }
+            if (!escapeTask && verdict == SurvivalSystem.Verdict.INTERRUPT) {
                 if (task instanceof TransferTask transfer) {
                     transfer.survivalInterrupted(SurvivalSystem.interruptionReason(hazard));
                 }
@@ -1871,16 +1887,26 @@ public final class BotManager {
          * 找不到落点就**如实登记"无出口"**（不假装成功、不造一个必失败的任务）。
          */
         private void startSurvivalExit() {
-            BlockPos refuge = SurvivalSystem.nearestSafeRefuge(bot, SurvivalSystem.REFUGE_RADIUS,
-                    bot.blockPosition());
+            // ⚠️ 排除格必须用**脚位格**（`SurvivalSystem.footCell`），不能用 `bot.blockPosition()`：
+            // 贴地时后者会退回**支撑格**（实体方块）⇒ "排除自己"失效 ⇒ bot 自己那格被当成出口，
+            // 逃生任务走到原地、0 步完成而 bot 一格没动（S-5 / 2026-09-15 由电池步实测抓到）。
+            BlockPos foot = SurvivalSystem.footCell(bot);
+            BlockPos refuge = SurvivalSystem.nearestSafeRefuge(bot, SurvivalSystem.REFUGE_RADIUS, foot);
             if (refuge == null) {
-                BotLog.warn("[Survival] 维生中断 ⇒ 半径 {} 格内**找不到安全落点**：无出口"
-                                + "（如实登记，等玩家/决策层干预；bot 停在 {}）",
-                        SurvivalSystem.REFUGE_RADIUS, bot.blockPosition().toShortString());
+                // S-5（2026-09-15）④：**"否决了却没出口"本身必须是可判读的事实**（此前只有一行 warn，
+                // 无键值、不进事件环 ⇒ 电池/决策层都看不见）。现在补 `exit=none` 机器可读键 + DANGER 事件。
+                BotLog.warn("[Survival] 维生中断 ⇒ 半径 {} 格内**找不到安全落点**：无出口 exit=none"
+                                + " hazard={} decision=stop（如实登记，等玩家/决策层干预；bot 停在 {}）",
+                        SurvivalSystem.REFUGE_RADIUS, SurvivalSystem.current(bot).type(),
+                        bot.blockPosition().toShortString());
+                com.dddgn.alice.decision.DecisionEvents.emit(bot, "DANGER", "warn",
+                        "维生否决但无出口：bot 停在原地等干预",
+                        "hazard=" + SurvivalSystem.current(bot).type() + " exit=none decision=stop"
+                                + " pos=" + foot.toShortString());
                 return;
             }
-            BotLog.warn("[Survival] 维生中断 ⇒ 逃生出口 refuge={}（距 {} 格）——启动 SurvivalExitTask",
-                    refuge.toShortString(), fmt3(Math.sqrt(refuge.distSqr(bot.blockPosition()))));
+            BotLog.warn("[Survival] 维生中断 ⇒ 逃生出口 refuge={}（距 {} 格，从脚位 {}）——启动 SurvivalExitTask",
+                    refuge.toShortString(), fmt3(Math.sqrt(refuge.distSqr(foot))), foot.toShortString());
             TaskTarget exitTarget = TaskTarget.block(refuge);
             beginTask(new com.dddgn.alice.task.SurvivalExitTask(bot, refuge), exitTarget);
             broadcastTarget(this.target);

@@ -9336,3 +9336,65 @@ M4 补上后半截 —— "覆写了之后**决策层真的看得到**"）**：�
 ⇒ **两个机制互补**：前者 = "给了它时间仍找不到落点"，后者 = "这趟根本没生效，与计时无关"。
 证据 `.alice-supervision/client-tests/d220-t3-20260915/evidence/r4-negative-key-lines.log`
 + 截图 `screenshots/2026-09-15_18.37.13.png`。
+
+---
+
+### D-226：S-5 维生最小件 —— 溺水/着火纳入否决、无出口不否决、掉血可见、维生进电池（2026-09-15）
+
+**动因**（压缩断点后用户选定的路线，HANDOVER §6 推荐、用户 2026-09-15 认可"继续"）：
+维生是**唯一零电池步的子系统**（`RegressionBatteryTask` 里 `Survival` 命中 0 ⇒ 只能真人验），
+而审计到的缺口是**真实的**：① `HazardType` 五类里只有 `LAVA_CONTACT`/`SUFFOCATING` 会中断，
+`LOW_AIR`/`ON_FIRE` **只报不拦**（溺水/着火不救）；② `HazardState.previousHealth` 自 S-1 起
+**只写不读**（掉血对上层完全不可见）；③ `EventThresholds` 的类注释自称"三档可行动病症含 `DANGER`"，
+而**代码里根本没有 `DANGER` 判据**（文档与代码不符，属"错话"）。
+
+**改法（四项，全部离线可验证）**：
+
+1. **软危险纳入否决，但必须有出口 + 过宽限期**（`SurvivalSystem.decide` 成为**唯一决策入口**）：
+   `Verdict = IGNORE | INTERRUPT | HOLD_NO_EXIT`。硬危险（岩浆/窒息）**无条件**否决（与 S-1 完全一致）；
+   软危险（溺水/着火）需 ① 持续 ≥ `SOFT_HAZARD_GRACE_TICKS = 10` ② `hasRefuge`。
+   - **为什么"没出口就不否决"**（本轮新增判据）：否决的动作是"中断 + 走去落点"，没落点时
+     `startSurvivalExit` 只能登记"无出口"并把 bot 留在原地 —— 对溺水/着火，**停在原地严格劣于**
+     让任务继续（任务至少在往水面/安全处走）。硬危险不适用：岩浆里停不停都在烧，且那是已实测的既有行为。
+   - **为什么是 10 tick**：溺水伤害发生在 air 归零**之后 20 tick**（原版压到 −20 才结算）⇒ 10 tick
+     仍赶在第一次掉血前；着火伤害每 20 tick 一次，晚 0.5 秒同样安全。同时它避免"单 tick 抖动触发否决"
+     和"每 tick 跑 17³ 落点查询"。
+   - `HOLD_NO_EXIT` 要求**如实登记一次**（`durationTicks == 宽限期` 是唯一 tick ⇒ 天然每 episode 一次），
+     事实进 `DecisionEvents.emit`（统一出口：环 + 日志 + 通知决策层，自检期只记录）。
+2. **给 `previousHealth` 找第一个读者**（`EventThresholds.checkHealthLoss`）：掉血 ⇒ `DANGER` 事件
+   （`delta=` 累计掉血量 + `health=`/`hazard=`/`pos=`）。判据两条滞回：**只在真的掉了那一 tick** 才可能上报
+   （静止在 19/20 血不会每 40 tick 重复报一次），两次上报间隔 ≥ `HEALTH_LOSS_COOLDOWN_TICKS = 40`
+   （火里连续烧伤合并成一条）。⇒ 顺手把 `EventThresholds` 那句"三档"的**错话**变成真的。
+3. **"否决了却没出口"变成可判读事实**：`startSurvivalExit` 的 no-exit 分支补 `exit=none decision=stop`
+   机器可读键 + `DANGER` 事件（此前只有一行无键值 warn，电池与决策层都看不见）。
+4. **维生进电池**：新电池步 `survival_exit`（`Profile.BASELINE` ⇒ CORE 跑）：`Baseline 15 / MAIN 20 / EXTRA 9 = 44，CORE 35`。
+
+**顺带修掉一条真缺陷（由新电池步**首轮实测**逼出来，不是设想）**：
+"哪个格算 bot 站着的格"仓里有**两个口径** —— 原版 `blockPosition()` = "脚**所在**格"，
+`MovementHelper.footCell` = "支撑格的上一格"（D-105 定的唯一口径）。整格平地一致，站在**半砖/箱子/台阶**
+这类非整格支撑上**必然不同**（实测：脚在 slab 顶面 ⇒ `blockPosition=206,63,306`、`footCell=206,64,306`）。
+`startSurvivalExit` 原来拿 `blockPosition()` 当"排除自己"⇒ 排除的是 **slab 那一格**（永远不是落点）
+⇒ **bot 自己站的那格被当成出口** ⇒ 逃生任务走到原地、0 步 `COMPLETED`，而 bot 一格没动、**还在危险里**。
+现在 `SurvivalSystem.footCell(bot)` 是全类唯一口径，落点搜索的**原点与排除格**都用它。
+
+**判据（`survival_exit` 38 项断言，全部进 SUMMARY `checks=/failures=`）**：
+① 决策表（硬危险无条件否决 + 理由码 `survival_lava_contact/suffocating/low_air/on_fire`、
+涉水/无危险不否决、软危险宽限期内不抖动、过宽限**且有出口**才否决、过宽限很久仍否决）；
+② **封闭场景**（`survival_sealed_course`：17³ 实心石壳里唯一 1×2 空腔）+ 四层前提自证
+（真的站在空腔里 / 脚下有真支撑 / 头位可穿 / 半径内确实没有落点）⇒ 软危险 `HOLD_NO_EXIT`、硬危险仍 `INTERRUPT`；
+③ **真实软危险端到端**：在封闭场景**真的点着** bot（`setSecondsOnFire(6)`）⇒ 真的没被否决
+（否则会话任务=电池早被 `complete`，代码走不到下一行）+ 事件环里确实有 `exit=none decision=continue`；
+④ **脚位格口径回归**：把脚下换成半砖 ⇒ 断言两口径**不同**、脚位格仍是"支撑格的上一格"、
+排除脚位格后无落点、**对照**（排除 `blockPosition`）会把自己那格当出口；
+⑤ **出口真的能走到**：拿维生给的真实落点起真实 `SurvivalExitTask`，必须 `COMPLETED` 且脚位等于落点；
+⑥ **掉血可见**：真的扣 2 点血 ⇒ 一条带 `delta=` 的 `DANGER`，且冷却窗口内**恰好 1 条**（不刷屏）。
+
+**⚠️ 结构性限制（必须如实记住，别以为这条步覆盖了整条否决链）**：电池步的**会话任务就是电池自己**，
+而维生否决会 `complete()` 掉会话任务 ⇒ 电池里**不可能**跑"真危险 ⇒ 真被否决 ⇒ 起逃生"这条端到端路径
+（那会**打死整轮电池**，连 SUMMARY 都没有）。因此"**否决真的发生了**"那半**只能真人验**：
+入口 `alice:survival_exit_check` 右键 = 窒息（硬危险，有出口）、**潜行右键 = 着火（软危险，有出口）**。
+
+**验证**：`./gradlew compileJava` ✅；`bash tools/check-all.sh` 9 PASS + 1 预期 WARN ✅；
+无头 `single:survival_exit` = **`checks=38 failures=0 → PASS`** ✅；无头 `core` = 见 HANDOVER（本条落地时同步）。
+⚠️ **本节全部证据是 `SERVER_TESTED`**：没有一条碰渲染/物理/GUI（`survival_exit` 的"真点火"也只在服务端逻辑层），
+按纪律**不冒充** `WINDOWS_CLIENT`；`alice:survival_exit_check` 的两个模式**待真人轮次**。

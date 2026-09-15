@@ -2,6 +2,7 @@ package com.dddgn.alice.decision;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.survival.HazardState;
 import com.dddgn.alice.log.BotLog;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.AxeItem;
@@ -22,10 +23,14 @@ import java.util.UUID;
  * <p>纪律（对齐项目"噪声=隐患"）：
  * <ul>
  *   <li>只报**三档之内**的可行动病症：{@code TOOL_LOW}（工具耐久见底）、{@code STUCK}（有任务但长时间不动）、
- *       {@code DANGER}（维生中断，沿用 S-1 已有事件）；</li>
+ *       {@code DANGER}（维生中断 / **掉血**，见 {@link #HEALTH_LOSS_COOLDOWN_TICKS}）；</li>
  *   <li>树叶清障、单次失败重试这类**噪声**不上报；</li>
  *   <li>每种病症**跨越阈值只报一次**，复位阈值更高（滞回），避免抖动刷屏。</li>
  * </ul>
+ *
+ * <p>⚠️ 2026-09-15（S-5）更正一处**文档与代码不符**：上面"三档"里的 {@code DANGER} 此前**只有 `S-1`
+ * 在维生中断时记事件**，本类里根本没有对应判据（"三档"是一句空话）。现在补上真正属于本层的第三档：
+ * {@link #checkHealthLoss} —— **掉血**（读 {@code HazardState.previousHealth}）。
  */
 public final class EventThresholds {
 
@@ -55,6 +60,15 @@ public final class EventThresholds {
      */
     public static volatile int NO_PROGRESS_WINDOW_TICKS = 0;
 
+    /**
+     * **掉血上报的最小间隔**（tick，S-5 / 2026-09-15）：连续受伤**合并**成一条 {@code DANGER} 事件。
+     *
+     * <p>为什么要它：掉血的事实来自 {@code HazardState.previousHealth}（此前**只写不读** ⇒ "bot 在掉血"
+     * 对决策层完全不可见）。但直接"每 tick 掉血就报"会把 32 槽的事件环刷满（火里烧伤每 20 tick 一次、
+     * 岩浆里每次 1 点）⇒ 用**冷却 + 累计**：一条事件说清"这段时间一共掉了多少"。
+     */
+    public static final int HEALTH_LOSS_COOLDOWN_TICKS = 40;
+
     private static final class State {
         boolean toolReported;
         BlockPos lastFoot;
@@ -67,6 +81,9 @@ public final class EventThresholds {
         long progressSinceTick = -1L;
         boolean noProgressReported;
         int noProgressEmits;
+        /** S-5：掉血上报的基准血量（回血则跟随，"上一段伤"就此结账）与上次上报时刻（-1 = 还没报过）。 */
+        float healthBaseline = Float.NaN;
+        long healthLossReportedAt = -1L;
     }
 
     private static final Map<UUID, State> STATES = new HashMap<>();
@@ -82,6 +99,59 @@ public final class EventThresholds {
         checkToolDurability(bot, state);
         checkStuck(bot, state, now);
         checkNoProgress(bot, state, now);
+        checkHealthLoss(bot, state, now);
+    }
+
+    /**
+     * **掉血 ⇒ `DANGER` 事件**（S-5，2026-09-15）—— `HazardState.previousHealth` 的**第一个读者**。
+     *
+     * <p>为什么放在阈值层而不是维生层：维生层只回答"危险是什么、要不要否决"；"**这件事要不要上报**"是
+     * 本层的职责（同样的信号在烧 20 秒和蹭掉 1 点血时的处理强度不同）。也正因如此，它**不要求有任务**
+     * —— 空手站在火里的掉血和跑任务时的掉血一样要可见。
+     *
+     * <p>判据（滞回 + 冷却，两条都是"抗噪声"）：
+     * <ol>
+     *   <li>**只在真的掉了的那一 tick 才可能上报**（{@link HazardState#healthLost()}）—— 否则"停在
+     *       19/20 血"这种静止状态会每 40 tick 被重复报一次"掉血"；</li>
+     *   <li>两次上报至少间隔 {@link #HEALTH_LOSS_COOLDOWN_TICKS}；血量回到基准以上（回血）⇒ 基准跟随，
+     *       把"下一段伤"当成新的一笔。</li>
+     * </ol>
+     */
+    private static void checkHealthLoss(BotPlayer bot, State state, long now) {
+        HazardState hazard = com.dddgn.alice.survival.SurvivalSystem.current(bot);
+        float health = hazard.health();
+        if (Float.isNaN(state.healthBaseline)) {
+            state.healthBaseline = health;   // 首次观察：只立基准，不报（避免"上线即报掉血"）
+            return;
+        }
+        if (health >= state.healthBaseline) {
+            state.healthBaseline = health;   // 满血/回血 ⇒ 结账前一段伤
+            return;
+        }
+        if (!hazard.healthLost()) {
+            return;                          // 本 tick 没掉血（只是还没回满）⇒ 不重复报
+        }
+        if (state.healthLossReportedAt >= 0L
+                && now - state.healthLossReportedAt < HEALTH_LOSS_COOLDOWN_TICKS) {
+            return;                          // 冷却中：把这段伤**累计**到下一条里
+        }
+        float lost = hazard.healthLostAmount();
+        float total = state.healthBaseline - health;
+        state.healthLossReportedAt = now;
+        state.healthBaseline = health;
+        BotLog.warn("[Threshold] 掉血 DANGER bot={} tickLoss={} total={} health={}/{} hazard={} pos={}",
+                bot.getName().getString(), fmt(lost), fmt(total), fmt(health), fmt(bot.getMaxHealth()),
+                hazard.type(), bot.blockPosition().toShortString());
+        // ⚠️ 用统一出口 `emit`（环 + 日志 + **通知决策层**）：掉血是**可行动病症**（该逃/该打/该吃），
+        // 与 TOOL_LOW/STUCK 同级。通知由 `GoalDirector.maybeTrigger` 节流 + 自检暂停兜底，不会刷屏。
+        emit(bot, "DANGER", "warn",
+                "掉血 -" + fmt(total) + "（剩余 " + fmt(health) + "/" + fmt(bot.getMaxHealth()) + "）",
+                "delta=" + fmt(total) + " health=" + fmt(health) + " max=" + fmt(bot.getMaxHealth())
+                        + " hazard=" + hazard.type() + " pos=" + bot.blockPosition().toShortString());
+    }
+
+    private static String fmt(float value) {
+        return String.format(java.util.Locale.ROOT, "%.1f", value);
     }
 
     /** 工具耐久：取背包里**剩余耐久最低**的斧/镐（"最可能先坏的那把"）。 */
@@ -265,6 +335,18 @@ public final class EventThresholds {
     public static int noProgressEmits(BotPlayer bot) {
         State state = STATES.get(bot.getUUID());
         return state == null ? 0 : state.noProgressEmits;
+    }
+
+    /**
+     * **测试/夹具用**（S-5）：把掉血基准拨到当前血量、清掉冷却。
+     *
+     * <p>理由与 {@link #resetNoProgressTracking} 相同：夹具无法保证"进入用例前 40 tick 内没报过掉血"
+     * （前面的电池步骤可能已经让 bot 受过伤、冷却还在走）⇒ 不拨时钟的话，用例会**偶发**看不到事件。
+     */
+    public static void resetHealthTracking(BotPlayer bot) {
+        State state = STATES.computeIfAbsent(bot.getUUID(), ignored -> new State());
+        state.healthBaseline = bot.getHealth();
+        state.healthLossReportedAt = -1L;
     }
 
     /** **测试用**：当前是否处于"已报未复位"档。 */

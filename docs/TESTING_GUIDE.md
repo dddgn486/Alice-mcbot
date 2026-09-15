@@ -193,7 +193,9 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
 
 | 入口 | 场景 | 期望（一行判据） |
 |---|---|---|
-| 右键 `alice:survival_exit_check` | `alice_test:survival_course`（自动生成） | `维生监测 hazard=SUFFOCATING` → `任务因维生危险中断 … survival_suffocating` → `[Survival] 维生中断 ⇒ 逃生出口 refuge=…——启动 SurvivalExitTask` → `task_execution_terminal kind=SurvivalExitTask terminal=COMPLETED`；**肉眼：bot 从压顶那格走出一步** |
+| 右键 `alice:survival_exit_check`（**硬危险**：窒息） | `alice_test:survival_course`（自动生成） | `维生监测 hazard=SUFFOCATING` → `任务因维生危险中断 … survival_suffocating` → `[Survival] 维生中断 ⇒ 逃生出口 refuge=…——启动 SurvivalExitTask` → `task_execution_terminal kind=SurvivalExitTask terminal=COMPLETED`；**肉眼：bot 从压顶那格走出一步** |
+| **潜行+右键** `alice:survival_exit_check`（**软危险**：着火，S-5 新增） | 同上（站在平台**安全角格**上，`setSecondsOnFire(8)`） | `维生监测 hazard=ON_FIRE`（**先出现**）→ 过 `SOFT_HAZARD_GRACE_TICKS=10` tick 后 `任务因维生危险中断 … survival_on_fire` → `[Survival] …逃生出口 refuge=…` → `kind=SurvivalExitTask terminal=COMPLETED`；**肉眼：bot 从火里走开一步**（着火本身不会被走灭） |
+| ⚠️ 对照：**软危险 + 无出口**（不该否决） | `alice_test:survival_sealed_course`（17³ 实心体） | 电池步 `survival_exit` **已离线覆盖**（真点着 bot ⇒ 不否决 + `exit=none decision=continue`）；真人侧暂无入口（要的话得再造一个潜行二段手势） |
 | 右键 `alice:chunk_guard_check` | 无（就地无头规划） | `[ChunkGuard] SUMMARY far_goal=GOAL_NOT_LOADED no_sync_load=true PASS near_goal=REACHED PASS border_goal=… skipped_border=true PASS → PASS` |
 | 右键 `alice:fluid_mine_check` | `alice_test:fluid_mine_course`（自动生成） | `[FluidMineCheck] SUMMARY plan_refuse=fluid_risk_lava run_refuse=FAILED_fluid_risk_lava no_clear_gain=true control=DONE → PASS`，且日志里**没有** `tryClear`/加高相位 |
 

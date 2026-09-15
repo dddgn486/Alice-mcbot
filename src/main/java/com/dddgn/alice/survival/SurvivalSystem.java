@@ -43,15 +43,113 @@ public final class SurvivalSystem {
                 bot.getHealth(), bot.getHealth(), bot.blockPosition()) : monitor.lastState;
     }
 
-    public static boolean shouldInterrupt(HazardState state) {
-        return state.type() == HazardType.LAVA_CONTACT
-                || state.type() == HazardType.SUFFOCATING;
+    // ==================== 维生决策（S-5，2026-09-15）====================
+
+    /**
+     * **软危险的宽限期**（tick）：溺水/着火必须**先持续这么久**才可能行使否决权。
+     *
+     * <p>为什么需要它（两个独立理由，都不是凭感觉定的数）：
+     * <ol>
+     *   <li>**不抖动**：`ON_FIRE`/`LOW_AIR` 可以是单 tick 的现象（一脚踩进火里、头刚没入水面）。
+     *       否决一次 = **中断一整个长作业**，代价远大于等 0.5 秒看它是否自解；</li>
+     *   <li>**查询成本**：软危险的判据要问"有没有出口"（{@link #nearestSafeRefuge} 是 17³ 体积查询），
+     *       不该每个 tick 都跑。</li>
+     * </ol>
+     *
+     * <p>为什么是 **10**：溺水伤害发生在 `airSupply` 归零后**再 20 tick**（原版把 air 压到 −20 才结算），
+     * 所以 10 tick 的宽限**仍然赶在第一次掉血之前**；着火伤害每 20 tick 一次，晚 0.5 秒同样安全。
+     */
+    public static final int SOFT_HAZARD_GRACE_TICKS = 10;
+
+    /**
+     * **维生决策**（纯查询，无副作用）：调用方（`BotSession`）据此决定"否决 / 不否决 / 如实登记不否决"。
+     *
+     * <p>为什么要有第三个值而不是布尔：**软危险"没有出口"时正确答案是"不否决"**（见
+     * {@link #decide}），而这件事**必须留下痕迹** —— 否则日志上只看到"bot 在淹死/在烧，什么都没发生"，
+     * 无法区分"判据没生效"和"判据生效了、判断是继续跑"。{@code HOLD_NO_EXIT} 就是"生效了但选择不动手"。
+     */
+    public enum Verdict {
+        /** 不是危险，或还没到该动手的程度（宽限期内）——什么都不做。 */
+        IGNORE,
+        /** 行使否决权：中断当前任务，并由 `SurvivalExitTask` 走去逃生落点。 */
+        INTERRUPT,
+        /** **软危险 + 半径内无出口 ⇒ 不否决**（登记一次后让任务继续）。 */
+        HOLD_NO_EXIT
     }
 
+    /** **硬危险**：继续做任何事都只会更糟 ⇒ 无条件否决（不要求有出口）。 */
+    public static boolean hardHazard(HazardType type) {
+        return type == HazardType.LAVA_CONTACT || type == HazardType.SUFFOCATING;
+    }
+
+    /** **软危险**：溺水 / 着火 —— 需要"出口 + 宽限"才值得否决（见 {@link #decide}）。 */
+    public static boolean softHazard(HazardType type) {
+        return type == HazardType.LOW_AIR || type == HazardType.ON_FIRE;
+    }
+
+    /**
+     * **唯一的维生决策入口**（S-5，2026-09-15）。
+     *
+     * <p>判据（按顺序）：
+     * <ol>
+     *   <li>硬危险（岩浆/窒息）⇒ {@link Verdict#INTERRUPT} —— 与 S-1 的行为完全一致，**本轮没改**；</li>
+     *   <li>软危险（溺水/着火）且已过 {@link #SOFT_HAZARD_GRACE_TICKS}：**有出口才否决**；
+     *       没出口 ⇒ {@link Verdict#HOLD_NO_EXIT}（**不否决**）。</li>
+     * </ol>
+     *
+     * <p>为什么软危险"没出口就不否决"（本轮新增的判据，S-5）：否决的动作是"中断任务 + 走去落点"，
+     * 而没落点时 `startSurvivalExit` 只能**如实登记"无出口"**并把 bot 留在原地 —— 对溺水/着火来说，
+     * "停在原地挨着"**严格劣于**"让任务继续"（任务至少可能在往水面/安全处走）。硬危险不适用这条：
+     * 岩浆里停不停都在烧，中断不会更糟（而且这是已实测过的既有行为，不在这轮改）。
+     *
+     * <p>配置读取：判据只读当前状态；结果由调用方决定**怎么登记**（软危险无出口的登记要求"一次"，
+     * 见 `BotSession.tick(HazardState)` 的 `durationTicks == SOFT_HAZARD_GRACE_TICKS`）。
+     */
+    public static Verdict decide(ServerPlayer bot, HazardState state) {
+        if (hardHazard(state.type())) {
+            return Verdict.INTERRUPT;
+        }
+        if (!softHazard(state.type())) {
+            return Verdict.IGNORE;
+        }
+        if (state.durationTicks() < SOFT_HAZARD_GRACE_TICKS) {
+            return Verdict.IGNORE;
+        }
+        return hasRefuge(bot) ? Verdict.INTERRUPT : Verdict.HOLD_NO_EXIT;
+    }
+
+    /** 否决是否成立（保留旧名，语义 = {@link #decide} 是否给出 `INTERRUPT`）。 */
+    public static boolean shouldInterrupt(ServerPlayer bot, HazardState state) {
+        return decide(bot, state) == Verdict.INTERRUPT;
+    }
+
+    /** 半径 {@link #REFUGE_RADIUS} 内**有没有**出口（**排除 bot 当前格**：站在原地不算出口）。 */
+    public static boolean hasRefuge(ServerPlayer bot) {
+        return nearestSafeRefuge(bot, REFUGE_RADIUS, footCell(bot)) != null;
+    }
+
+    /**
+     * **bot 真正站着的那一格**（S-5 修正，2026-09-15）—— 全类只此一份定义。
+     *
+     * <p>为什么不能用 `bot.blockPosition()`：那是"脚**所在**格"，而本类的落点判据
+     * （{@code isRefuge} → `canWalkOn`）用的是**规划层口径**"支撑格的上一格"（`MovementHelper.footCell`，
+     * D-105）。贴地时实体的 y 会落在方块顶面**略下方**，于是 `blockPosition()` 退回**支撑格**
+     * —— 那一格是实体方块、永远不会是落点。用它当"排除自己"等于**没排除**：
+     * bot 自己站的那格会被算成"有出口"，否决完 `SurvivalExitTask` 走到原地、0 步 COMPLETED，
+     * 而 bot **一格没动**（2026-09-15 由新电池步 `survival_exit` 实测抓到：同 tick 里
+     * `nearestSafeRefuge(bot, 8, blockPosition())` 非空、`nearestSafeRefuge(bot, 8, footCell())` 为空）。
+     */
+    public static BlockPos footCell(ServerPlayer bot) {
+        return com.dddgn.alice.pathing.MovementHelper.footCell(bot.serverLevel(), bot);
+    }
+
+    /** 否决理由码（落进 `task_execution_terminal` 的 `code=` 词汇表，供台账引用）。 */
     public static String interruptionReason(HazardState state) {
         return switch (state.type()) {
             case LAVA_CONTACT -> "survival_lava_contact";
             case SUFFOCATING -> "survival_suffocating";
+            case LOW_AIR -> "survival_low_air";
+            case ON_FIRE -> "survival_on_fire";
             default -> "";
         };
     }
@@ -88,7 +186,8 @@ public final class SurvivalSystem {
         if (!(bot.level() instanceof net.minecraft.server.level.ServerLevel level)) {
             return null;
         }
-        BlockPos origin = bot.blockPosition();
+        // 搜索原点/距离基准 = **脚位格**（见 {@link #footCell}）：与 isRefuge 的规划层口径一致。
+        BlockPos origin = footCell(bot);
         int r = Math.max(1, radius);
         BlockPos best = null;
         double bestDistance = Double.MAX_VALUE;

@@ -1410,3 +1410,34 @@ jar `3312608d…`。
 **M 线顺序**：**M1 → M2 → M4 → M3**（采纳勘测员 §8.2 的 M4/M3 对调），其后 M6。
 **⚠️ M5 撤销**：核查发现 `BotManager.tryRecoverUnfinishedTeardown` **已在假人生成时被调用**（紧接
 `reportRestartState`）⇒ 本审计 §1.3 与 `survey/08` §8.2 的"全仓 0 调用者"**均不成立**（D-221 附注一）。
+
+---
+
+## §5.8 S-5「维生最小件」落地记录（2026-09-15，D-226）
+
+**动因**：压缩断点后的推荐路线（HANDOVER §6，用户 2026-09-15 认可"继续"）。维生是**唯一零电池步的子系统**，
+而三处缺口都是真的：溺水/着火**只报不拦**、`HazardState.previousHealth` **只写不读**（掉血不可见）、
+`EventThresholds` 类注释自称的"第三档 `DANGER`"**代码里不存在**。全文见 `docs/AI_DECISIONS.md` D-226。
+
+| 子项 | 状态 | 判据 / 证据 |
+|---|---|---|
+| ① 软危险（`LOW_AIR`/`ON_FIRE`）纳入否决（宽限 10 tick + **必须有出口**） | **`SERVER_TESTED`** | 决策表 15 项 + 封闭场景 7 项断言；无头 `single:survival_exit` `checks=38 failures=0 → PASS` |
+| ② 掉血可见（`previousHealth` 的第一个读者 ⇒ `DANGER` + `delta=`，冷却 40 tick 合并） | **`SERVER_TESTED`** | 真实扣 2 点血 ⇒ `[Threshold] 掉血 DANGER … total=2.0` + `[Events] DANGER … delta=2.0`；冷却窗口内**恰好 1 条** |
+| ③ "否决了却没出口"变成可判读事实（`exit=none decision=stop` + DANGER） | **`COMPILES`**（该分支要**真否决**才会走到 ⇒ 电池里不可达，见下） | 代码路径 + 客户端日志可读；真人侧未观测 |
+| ④ 维生进电池：新步 `survival_exit`（**BASELINE**） | **`SERVER_TESTED`** | `PROFILE=CORE baseline=15 main=20 extra_skipped=9 (passed=35/35 skipped=0) ticks=3686 → PASS` |
+| ⑤ 顺带修：`startSurvivalExit` 的"排除自己"改用**脚位格**（`SurvivalSystem.footCell`） | **`SERVER_TESTED`**（半砖对照断言） | 半砖上实测 `foot=206,64,306 / blockPosition=206,63,306`；排除脚位格 ⇒ 无落点；**对照**（排除 `blockPosition`）⇒ 非空 |
+
+**⚠️ 结构性限制（记住它，别把它读成"整条否决链已验证"）**：电池步的**会话任务就是电池自己**，
+维生否决会 `complete()` 掉会话任务 ⇒ 电池里**不可能**跑"真危险 ⇒ 真被否决 ⇒ 起逃生"这条端到端路径
+（会**打死整轮电池**，连 SUMMARY 都没有）。**能**离线验的是决策 + 落点 + 逃生任务能走到 + 事实登记；
+**只能真人验**的是"否决真的发生了"（`BotSession` 那一侧的接线）与 no-exit 分支：
+入口 `alice:survival_exit_check`（右键 = 窒息硬危险；**潜行右键 = 着火软危险**），**待客户端轮次**。
+
+**教训（新的一类：判据的"前提"必须自证，否则会因错误的理由变绿）**：本节 `survival_exit` 首轮实测
+`/fill` 在**区块未加载**的坐标上一格都没落下（bot 直落 64 → 50），而"半径内没有落点"这句判据
+在**虚空**里**照样成立** ⇒ 假绿。修法两层：① 场景改为 **bot 到位后由夹具自己建造**（玩家票先把区块拉起来）；
+② 几何**四层前提自证**（站在空腔里 / 脚下有真支撑 / 头位可穿 / 半径内确实无落点）。
+第二次实测又暴露"边站边建"会把 bot **埋进方块**（`y=63` 那种假分歧）⇒ 建完**再传送一次**。
+
+**M 线/维生的挂账（不在本轮）**：`write_budget_exhausted`/`stale_target` 映射仍**未被观测**（M3b）；
+`decision_contract` 档位（EXTRA vs 类文档承诺）仍待策展裁定；`tree[].lastFailure`（M4b）。

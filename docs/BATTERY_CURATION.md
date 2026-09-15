@@ -19,7 +19,7 @@
 SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 **跳过多少、跑多少、各档几项**一眼可见；归属表与实跑项对不上（漏登记 / 文档说测了其实没测）**直接判红**。
 
-## 2. 当前归属表（43 项 → CORE 34 项）
+## 2. 当前归属表（44 项 → CORE 35 项）
 
 > 2026-09-14 校正：本节此前写「34 项 → CORE 24 项」**已过期**（实际 = BASELINE 13 + MAIN 14 + EXTRA 10 = 37，CORE = 13+14 = 27，与客户端实测 `(27/27)` 一致）。
 > 加入 `write_policy`（BASELINE）后为 **38 / CORE 28**；加入 `machine_cycle`（MAIN）后为 **39 / CORE 29**；
@@ -28,14 +28,19 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 > 2026-09-15 校正（2）：加入 `no_progress`（MAIN，M2 / G2：长作业周期复评）后为 **42 / CORE 32**。
 > 2026-09-15 校正（3）：`llm_contract` **EXTRA → MAIN**（M4：它现在含"失败事实必须是字段"的门禁）后为 **42 / CORE 33**。
 > 2026-09-15 校正（4）：加入 `mine_no_tool`（MAIN，M3 / G3 归因：缺工具必须报 `tool_missing`）后为 **43 / CORE 34**。
+> 2026-09-15 校正（5）：加入 `survival_exit`（**BASELINE**，S-5 / D-226：维生决策表 + 出口可达 + 脚位口径 + 掉血可见）
+> 后为 **44 / CORE 35**。**这是维生的第一个电池步** —— 此前 `Survival` 在电池里命中 0（只能真人验）。
 
 
-### BASELINE（14）
+### BASELINE（15）
 `pathing`（移动内核聚合 + 覆盖断言）、`write_budget`（写入预算/授权闸门）、`mine_regression`（挖掘闭环 11 用例）、
 `mine_job`、`lumber_job`（两个生产 Job 的最小闭环）、`transfer`（L2 容器传输——破坏性最强）、
 `clear_guard` / `clear_retry` / `scaffold`（三条破坏性路径的守卫与建拆同权）、`partial_search`（`SEARCH_LIMIT ≠ UNREACHABLE`）、
 `capability_gate`（闸门）、`tool_supply`（不凭空变工具）、`recoverability`（可回收性等级）、
 `write_policy`（D-207 ①：写入集中策略表——表完整性 + **越权必须被拒**的负例 + 未登记 requester 留痕=0）
+`survival_exit`（S-5 / D-226：维生决策表（软危险 = 溺水/着火 需"宽限 + 有出口"才否决、无出口**不否决**）、
+封闭场景四层前提自证、**真实着火** ⇒ 不否决 + `exit=none decision=continue`、脚位格口径回归（半砖）、
+出口真能走到、掉血 ⇒ `DANGER`（`delta=`）且不刷屏）
 
 ### MAIN（20）—— 阶段 3-A（回退瘦身，保持完整）+ 阶段 3-B / S1+S2（机器只读）+ S4 + (c) 增量 2（机器写入：夹具 + 生产）
 `craft_check`、`craft_action`、`craft_table`、`craft_station`、`craft_probe_inventory`、`craft_probe_table`、
@@ -91,3 +96,4 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 | 2026-09-15 | **32** | 42 | M2（G2）：新增 `no_progress`（MAIN）—— 长作业周期复评（无进度 ⇒ 报一次 `NO_PROGRESS`；夹具自造停滞与重新武装，**收尾把窗口复位回 0**）|
 | 2026-09-15 | **33** | 42 | M4（G3）：`llm_contract` **EXTRA → MAIN** —— 新增 `snapshot_failure_fields` 判据（终态失败事实必须是**字段**：phase + 有界 details；无失败不许留 stale）。理由同 M1/M2：门禁必须默认跑得到 |
 | 2026-09-15 | **34** | 43 | M3（G3 归因）：新增 `mine_no_tool`（MAIN）—— 与 `mine_job` 同场景同 Job，**唯一差别是不发镐**；判据挂在 `doneWhen`（终态理由成为 `tool_missing` 即 PASS，Job 本身 FAILED 是预期的）|
+| 2026-09-15 | **35** | **44** | S-5（D-226）：新增 `survival_exit`（**BASELINE**）—— 维生决策自检。维生此前是**唯一零电池步的子系统**；本步顺带实测抓到并修掉一条真缺陷（`startSurvivalExit` 拿 `blockPosition()` 当"排除自己" ⇒ 站在半砖上时**把自己那格当出口**、逃生 0 步完成而 bot 原地不动）。⚠️ 只覆盖"决策 + 出口可达 + 事实登记"；**"真被否决"那半只能真人验**（真否决会 `complete` 掉会话任务=电池本身） |
