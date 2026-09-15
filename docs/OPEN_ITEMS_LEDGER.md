@@ -220,8 +220,19 @@ git log --all --oneline -S '"TRAVERSE_INVALID_GEOMETRY"'     # 空 ⇒ 该码从
 ② 开始做决策层 / 蓝图 §1.2「玩家登记自己的流水线」而需要一个**可调风险等级**时；
 ③ `RiskSwitches` 需要第 2 个开关时（那时顺手把它做成真正的"风险配置面"）。
 
-**同议题的负例缺口**：物品侧"夹具未生效 ⇒ `FIXTURE_NOT_FIRED` + FAILED"分支**尚未跑过** ——
-两件 R4 物品的起终点是硬编码的同一场景（必然放得下），要跑负例得再做一个"注定放不下"的场景（按需再做）。
+**同议题的负例缺口**：物品侧"夹具未生效 ⇒ `FIXTURE_NOT_FIRED` + FAILED"分支 ——
+**✅ 2026-09-15 已造出可一键执行的负例场景**（`survey/08` §9#4 的落地）：
+- 新场景函数 **`alice_test:r4_negative_disturb`**（`tools/test-scenes/.../functions/`，已在
+  `tools/check-scene-connectivity.py` 的 `SCENES` 登记；`--all` 23 个场景全过）。
+- **做法是确定性的**：扰动是**单格判定**（`to = foot + (dx,0,dz)`，`dz=+1` ⇒ 落在 **z=67**），
+  把该列脚位层（y=64）填成石头 ⇒ `canWalkThrough(to)` 为假 ⇒ 40 tick 宽限内无合法落点
+  ⇒ `disturb_not_applicable` ⇒ 任务带 `/FIXTURE_NOT_FIRED=[disturb]` **如实 FAILED**。
+  **不影响 bot 自己的通路**（`place_course` 走廊全程在 z=66，实测分段日志确认）。
+- **一键入口**：`/reload` 一次（新函数要重载数据包）→ `/function alice_test:r4_negative_disturb`
+  → 右键 `alice:pathing_disturber` 一次。**看到 FAILED 才是对的**（旧行为会静默当成功）。
+  **恢复**：`/function alice_test:place_course_reset`。
+- ⚠️ **仍未验证**：这一趟**必须由人右键**（物品入口在客户端）⇒ 现在只是 `IMPLEMENTED`+隔离开检查通过，
+  **不是** `SERVER_TESTED`/`WINDOWS_CLIENT`。
 
 ---
 

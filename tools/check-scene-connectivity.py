@@ -85,6 +85,13 @@ SCENES = {
     "pathing_course":    dict(scenes=["pathing_course_terrain"], start=(0, 64, 46), goals=[(0, 62, 44)]),
     "place_course":      dict(scenes=["place_course_terrain"], start=(0, 64, 66),
                               goals=[(8, 62, 66)], needs_world_mod=True),
+    # R4 负例（survey/08 §9#4）：与 place_course 同起点/目标，但**封死扰动落点**（z=67 脚位层）
+    # ⇒ 夹具注定放不下 ⇒ 走 `FIXTURE_NOT_FIRED` 的负例分支。地形 = reset + place_course_terrain + 一道石头带。
+    # ⚠️ 这里列的是 `place_course_terrain`：本检查器**不展开函数内的 function 调用**，
+    # 所以它验证的是"底座地形隔离性"；`r4_negative_disturb` 自己那 `fill` 的一道石头带
+    # 在区域**内部**，不影响隔离性。
+    "r4_negative_disturb": dict(scenes=["place_course_terrain"], start=(0, 64, 66),
+                              goals=[(8, 62, 66)], needs_world_mod=True),
     "vertical_course":   dict(scenes=["vertical_course_terrain"], start=(0, 64, 45),
                               goals=[(0, 63, 45)], needs_world_mod=True),
     "pillar_course":     dict(scenes=["pillar_course_terrain"], start=(24, 64, 44),
