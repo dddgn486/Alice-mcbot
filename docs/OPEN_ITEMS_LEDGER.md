@@ -1391,8 +1391,11 @@ jar `3312608d…`。
       判据进 `llm_contract`（基-5 / J-4 同一个契约）：新增 `snapshot_failure_fields`，断言
       ① 字段齐（code/phase/details）② 超长 details **必须截断**且长度 = 上限+1 ③ **无失败时不许留 stale 字段**。
       **`llm_contract` 由 EXTRA 提到 MAIN**（同 M1/M2 的理由：门禁必须默认跑得到）。
-- ⚠️ **M4b 明确推迟**：`tree[].lastFailure` 仍为空 —— Job 的 `subTasks()` 没填（`MineJob` 甚至没有覆写），
-      要填得**逐 Job 定义"哪个子阶段失败"**（语义工作，不是接线）。它与 **M3**（专有终态理由）同域，放一起做更省。
+- ✅ **M4b 已完成（MineJob 一条最小闭环，D-231，2026-09-15）**：`TaskFailureReport.oneLine()`（`code@phase`，有界 120）
+      + `TaskNode.leaf(..., lastFailure)` 重载 + `MineJob` 记录子阶段失败（并在子任务置空后仍把该子阶段摊进树里）。
+      判据挂在既有 `mine_no_tool` 步的 `doneWhen`（归因对 **且** 树里有 `lastFailure` 才判过 ⇒ 否则预算耗尽判红）；
+      **反向对照**已做（短路那支 ⇒ `mine_no_tool=FAIL`）。CORE `(35/35) ticks=3832 → PASS`。
+      ⚠️ **其余 Job 仍挂账**：`LumberJob`/`CollectJob`/`RegionLumberJob` 的子节点 `lastFailure` 仍为空。
 - ✅ **M3 已完成**（2026-09-15）：`MineJob.attemptFailures` 结构化（`record AttemptFailure(pos, code)`），
       新增 `deriveTopLevelReason(base)` —— **逐码精确比较**（不再 `contains()` 拼接串）：
       全 `no_suitable_tool` ⇒ **`tool_missing`**、全预算码 ⇒ **`write_budget_exhausted`**、

@@ -9610,3 +9610,30 @@ A/B 数据即本节表格。
 
 **修正记录**：D-228 后续项 ①「血只减不增」**作废**；台账 §5.10 里"治疗来源未定位"**结案**
 （= `Player.aiStep()` 的自然回血 + 夹具相位前的 `normalizeVitals()`）。
+
+---
+
+### D-231：M4b —— 任务树带上"哪个子阶段失败"（`tree[].lastFailure` 不再恒为空，2026-09-15）
+
+**缺口（台账 §5.7 记的 M4b）**：`DecisionSnapshot` 的任务树里，**只有子节点**会序列化 `lastFailure`
+（根节点根本不带这个字段），而四个 Job 的 `subTasks()` 全用 `TaskNode.leaf(...)`（**把 `lastFailure`
+硬编码成 `""`**）⇒ 决策层/汇报只能看到"挖矿没挖到"，看不到**哪个子阶段、以什么理由**失败
+（`MineJob.mine()` 还会立刻把 `miner` 置空 ⇒ 失败的子节点连**节点本身**都消失了）。
+
+**改法（最小闭环，只做 MineJob）**：
+1. `TaskFailureReport.oneLine()`：`code@phase`，**有界**（`ONE_LINE_MAX=120`，超长截断标 `…`）——
+   `lastFailure` 的**唯一**口径，不放推导、不放建议。
+2. `TaskNode.leaf(..., lastFailure)` 重载（旧 5 参重载保持不动 ⇒ 其它 Job 行为零变化）。
+3. `MineJob`：新增 `minerFailure` + `finishedMinerNode`；`mine()` 里**在置空之前**取子任务的
+   `failureReport().oneLine()`（成功则清空）；`select()` 新建子任务时清空；
+   `subTasks()` 在子任务已置空时**仍把刚结束的那个子阶段摊出来**（否则节点的失败事实看不见）。
+4. **判据（零新增电池项）**：挂在既有 `mine_no_tool`（**必然失败**）步的 `doneWhen` 上 ——
+   归因对了**且**树里出现非空 `lastFailure` 才判过；树里没有那行 ⇒ `doneWhen` 永不成立 ⇒ 预算耗尽判红。
+   **反向对照已做**：把"结束的子节点仍摊出来"那支短路 ⇒ 立刻 `mine_no_tool=FAIL`
+   （`M4b 判据：… 没有任何子阶段的 lastFailure ⇒ 判红`）。
+
+**验证**：`single:mine_no_tool` 正向 `PASS`（日志 `M4b 判据通过：任务树带子阶段失败事实
+lastFailure=no_suitable_tool@EVALUATING`）/ 反向 `FAIL` ✅；CORE `(35/35) ticks=3832 → PASS` ✅。
+
+**明确没做（挂账）**：`LumberJob` / `CollectJob` / `RegionLumberJob` 的子节点**仍是空 `lastFailure`**
+（同一个接法，但各自要判定"哪个子阶段失败"的语义；本轮只做 MineJob 这条最小闭环，避免一次改 4 个 Job）。

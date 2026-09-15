@@ -12,6 +12,14 @@ public record TaskFailureReport(
         RecoveryStage recoveryStage,
         List<RecoveryStage> recoveryEvents) {
 
+    /** `lastFailure` 里放的一行事实（有界）：`code@phase`，超长截断并如实标 `…`。 */
+    public static final int ONE_LINE_MAX = 120;
+
+    public String oneLine() {
+        String line = code + "@" + phase;
+        return line.length() <= ONE_LINE_MAX ? line : line.substring(0, ONE_LINE_MAX - 1) + "…";
+    }
+
     public TaskFailureReport {
         code = code == null || code.isBlank() ? "unknown_failure" : code;
         phase = phase == null || phase.isBlank() ? "unknown" : phase;

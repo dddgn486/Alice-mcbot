@@ -58,4 +58,16 @@ public record TaskNode(
     public static TaskNode leaf(String kind, String target, String phase, int ticks, String progress) {
         return new TaskNode(kind, target, phase, ticks, progress, "", List.of());
     }
+
+    /**
+     * 同上，但带**该子阶段最近一次失败**（M4b）。
+     *
+     * <p>口径（唯一）：`lastFailure` 只放**该子任务自己**的一行事实
+     * （{@link com.dddgn.alice.bot.TaskFailureReport#oneLine()}，形如 `no_suitable_tool@SCAN`），
+     * 不放 Job 的推导、不放建议；子任务成功或被重建时**清空**（不留 stale）。
+     */
+    public static TaskNode leaf(String kind, String target, String phase, int ticks, String progress,
+                                String lastFailure) {
+        return new TaskNode(kind, target, phase, ticks, progress, lastFailure, List.of());
+    }
 }

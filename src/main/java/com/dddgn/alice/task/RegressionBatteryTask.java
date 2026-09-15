@@ -364,8 +364,28 @@ public final class RegressionBatteryTask implements Task {
                                 MineCandidateSource.SCAN_RADIUS),
                         new NearestPolicy()),
                 600,
-                // 归因对了就判过；一直是总括码 ⇒ doneWhen 永不成立 ⇒ 预算耗尽记 TIMEOUT（判红）
-                task -> task instanceof MineJob job && "tool_missing".equals(job.terminalReason()),
+                // 归因对了就判过；一直是总括码 ⇒ doneWhen 永不成立 ⇒ 预算耗尽记 TIMEOUT（判红）。
+                // M4b（2026-09-15）：**顺带把"任务树里必须带子阶段的失败事实"变成判据** ——
+                // 这是"必然失败"的步骤，正好用来断言 `tree[].lastFailure` 不再永远是空
+                // （此前 `subTasks()` 全用 `TaskNode.leaf(...)`，lastFailure 硬编码为 ""）。
+                // 树里没有那行 ⇒ 这里返回 false ⇒ doneWhen 永不成立 ⇒ 预算耗尽 ⇒ 判红。
+                task -> {
+                    if (!(task instanceof MineJob job) || !"tool_missing".equals(job.terminalReason())) {
+                        return false;
+                    }
+                    String line = job.subTasks().stream()
+                            .map(com.dddgn.alice.task.TaskNode::lastFailure)
+                            .filter(failure -> !failure.isBlank())
+                            .findFirst().orElse("");
+                    if (line.isBlank()) {
+                        BotLog.warn("[Regression] M4b 判据：mine_no_tool 已 tool_missing，但任务树里"
+                                + "**没有**任何子阶段的 lastFailure ⇒ 判红（树={}）",
+                                job.subTasks().stream().map(com.dddgn.alice.task.TaskNode::describe).toList());
+                        return false;
+                    }
+                    BotLog.info("[Regression] M4b 判据通过：任务树带子阶段失败事实 lastFailure={}", line);
+                    return true;
+                },
                 null));
         // J8 可持续伐木区（MAINTAIN）：同一个伐木场景，但走"巡查 → 砍 → 继续巡查"的区域型 Job
         steps.add(new Step("region_maintain",
