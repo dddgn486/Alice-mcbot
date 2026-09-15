@@ -180,8 +180,10 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
    **给勘测员的提示**：该文 §0 已声明**全部为静态审计、未实测**；其中一条可在无头通道 5 分钟内证伪/证实
    （"`MineJob` 缺镐 ⇒ 终态报 `no_reachable_candidate`"）⇒ 若要把这份审计当决策依据，**建议先跑它**。
    **用户 2026-09-15 已拍板**：确认 **A1–A3**（见 `AI_DECISIONS.md` **D-221**）、**启动 M 线**、§9 待实测按 AI 推荐先做 **#4**。
-   **M 线进度**：✅ **M1 已完成并无头验证**（`mine_menu` 步，`core` **`(31/31) ticks=3404 → PASS`**）；
-   ⏭️ 下一步 **M2**；⚠️ **M5 已撤销**（`tryRecoverUnfinishedTeardown` 其实已有调用点 —— 本审计与 `survey/08` §8.2 都写错了，见 D-221 附注一）。
+   **M 线进度**：✅ **M1 完成**（`mine_menu`，D-222）、✅ **M2 完成**（`no_progress`，D-223）、
+   ✅ **M4 完成**（`snapshot_failure_fields` + `llm_contract` 提到 MAIN，D-224）；⏭️ 下一步 **M3**（可与 M4b 合批）；
+   ⚠️ **M5 已撤销**（`tryRecoverUnfinishedTeardown` 其实已有调用点 —— 本审计与 `survey/08` §8.2 都写错了，见 D-221 附注一）。
+   **CORE 电池项数 30 → 33**（`mine_menu` / `no_progress` 新增，`llm_contract` 从 EXTRA 提到 MAIN）⇒ 客户端跑电池应看到 **`(33/33)`**。
 4. 之后收残留：**R1-残 / R4-残 / R5-残** + `craft_check` 门禁缺口（台账 §8/§9，各有触发条件）。
 
 **上下文/文档纪律（AGENTS.md 已机器化，不用背）**：`AGENTS.md + PLAYBOOK + STATE ≤ 1476 行`

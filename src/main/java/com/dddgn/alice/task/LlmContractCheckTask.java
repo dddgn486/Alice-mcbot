@@ -1,6 +1,10 @@
 package com.dddgn.alice.task;
 
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.bot.RecoveryStage;
+import com.dddgn.alice.bot.TaskExecutionRecord;
+import com.dddgn.alice.bot.TaskFailureReport;
+import com.dddgn.alice.bot.TaskOutcome;
 import com.dddgn.alice.decision.CandidateMenu;
 import com.dddgn.alice.decision.DecisionSnapshot;
 import com.dddgn.alice.decision.GoalDirector;
@@ -10,6 +14,8 @@ import com.dddgn.alice.job.lumber.RegionLumberJob;
 import com.dddgn.alice.job.mine.MineJob;
 import com.dddgn.alice.job.mine.MineProductFilter;
 import com.dddgn.alice.log.BotLog;
+import com.google.gson.JsonObject;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -81,6 +87,7 @@ public class LlmContractCheckTask implements Task {
 
     private void runChecks() {
         checkJobFailureReports();
+        checkSnapshotFailureFields();
         checkProductFilter();
         checkRefusalReadback();
 
@@ -112,6 +119,56 @@ public class LlmContractCheckTask implements Task {
             }
         }
         check("job_failure_reports", ok, detail.toString().trim());
+    }
+
+    /**
+     * **M4**：终态的失败事实必须是**字段**（相位 + 有界细节），而不是只留一段无结构文字。
+     *
+     * <p>为什么单独断言：`survey/08` §5.7 审计 G3 —— 真因**已经在**（`MineJob` 把逐候选的
+     * `rejected()` 拼进 `lastResult`），但 LLM 只能读**一段文字**、难以可靠分支。
+     * 判据 = ① 字段齐（code/phase/details）；② 细节**有界**（超长必须截断并如实标 `…`）；
+     * ③ **没有失败就不许留 stale 字段**（否则 LLM 会照着上一轮的旧失败做决定）。
+     */
+    private void checkSnapshotFailureFields() {
+        TaskFailureReport report = new TaskFailureReport("no_suitable_tool", "mine:select",
+                "block@5,65,67:no_suitable_tool", RecoveryStage.NONE, List.of());
+        JsonObject json = DecisionSnapshot.lastTerminalJson(
+                syntheticRecord(TaskExecutionRecord.TerminalStatus.FAILED, report));
+        boolean fields = "no_suitable_tool".equals(text(json, "failureCode"))
+                && "mine:select".equals(text(json, "failurePhase"))
+                && text(json, "failureDetails").contains("no_suitable_tool");
+
+        String longDetails = "x".repeat(DecisionSnapshot.MAX_FAILURE_DETAILS + 50);
+        JsonObject capped = DecisionSnapshot.lastTerminalJson(
+                syntheticRecord(TaskExecutionRecord.TerminalStatus.FAILED,
+                        new TaskFailureReport("boom", "phase", longDetails, RecoveryStage.NONE, List.of())));
+        String cappedDetails = text(capped, "failureDetails");
+        boolean bounded = cappedDetails.endsWith("…")
+                && cappedDetails.length() == DecisionSnapshot.MAX_FAILURE_DETAILS + 1;
+
+        JsonObject clean = DecisionSnapshot.lastTerminalJson(
+                syntheticRecord(TaskExecutionRecord.TerminalStatus.COMPLETED, null));
+        boolean noStale = !clean.has("failureCode") && !clean.has("failurePhase")
+                && !clean.has("failureDetails");
+
+        check("snapshot_failure_fields", fields && bounded && noStale,
+                "fields=" + fields + " bounded=" + bounded + "(" + cappedDetails.length() + "/"
+                        + DecisionSnapshot.MAX_FAILURE_DETAILS + ") noStale=" + noStale);
+    }
+
+    /** 构造一条终态记录（M4 自检用：不必真把任务跑失败一次）。 */
+    private TaskExecutionRecord syntheticRecord(TaskExecutionRecord.TerminalStatus status,
+                                               TaskFailureReport failure) {
+        String botId = bot.getUUID().toString();
+        TaskOutcome outcome = new TaskOutcome("MineJob", "block@5,65,67", status, "failed:selfcheck",
+                BlockPos.ZERO, failure, botId, "no_reachable_candidate");
+        return new TaskExecutionRecord("MineJob", "block@5,65,67", 0L, 10L, status, "failed:selfcheck",
+                BlockPos.ZERO, "idle_after_cleanup", RecoveryStage.NONE, List.of(), outcome, botId,
+                "no_reachable_candidate");
+    }
+
+    private String text(JsonObject json, String key) {
+        return json.has(key) ? json.get(key).getAsString() : "";
     }
 
     /** J-6：产物判定（目标驱动 + 标签族）。 */

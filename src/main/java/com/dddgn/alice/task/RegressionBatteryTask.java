@@ -163,7 +163,8 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("region_maintain", Profile.EXTRA),
             Map.entry("decision_contract", Profile.EXTRA),
             Map.entry("decision_trace", Profile.EXTRA),
-            Map.entry("llm_contract", Profile.EXTRA),
+            // 2026-09-15（M4）：从 EXTRA 提到 MAIN —— 它现在含"失败事实必须是字段"的门禁
+            Map.entry("llm_contract", Profile.MAIN),
             Map.entry("permission_gate", Profile.EXTRA),
             Map.entry("pickup_gate", Profile.EXTRA),
             Map.entry("collect_job", Profile.EXTRA),

@@ -19,13 +19,14 @@
 SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 **跳过多少、跑多少、各档几项**一眼可见；归属表与实跑项对不上（漏登记 / 文档说测了其实没测）**直接判红**。
 
-## 2. 当前归属表（42 项 → CORE 32 项）
+## 2. 当前归属表（42 项 → CORE 33 项）
 
 > 2026-09-14 校正：本节此前写「34 项 → CORE 24 项」**已过期**（实际 = BASELINE 13 + MAIN 14 + EXTRA 10 = 37，CORE = 13+14 = 27，与客户端实测 `(27/27)` 一致）。
 > 加入 `write_policy`（BASELINE）后为 **38 / CORE 28**；加入 `machine_cycle`（MAIN）后为 **39 / CORE 29**；
 > 加入 `craft_machine`（MAIN，(c) 增量 2 / D-217）后为 **40 / CORE 30**。
 > 2026-09-15 校正：加入 `mine_menu`（MAIN，M1 / G1：挖矿候选菜单契约）后为 **41 / CORE 31**。
 > 2026-09-15 校正（2）：加入 `no_progress`（MAIN，M2 / G2：长作业周期复评）后为 **42 / CORE 32**。
+> 2026-09-15 校正（3）：`llm_contract` **EXTRA → MAIN**（M4：它现在含"失败事实必须是字段"的门禁）后为 **42 / CORE 33**。
 
 
 ### BASELINE（14）
@@ -35,7 +36,7 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 `capability_gate`（闸门）、`tool_supply`（不凭空变工具）、`recoverability`（可回收性等级）、
 `write_policy`（D-207 ①：写入集中策略表——表完整性 + **越权必须被拒**的负例 + 未登记 requester 留痕=0）
 
-### MAIN（18）—— 阶段 3-A（回退瘦身，保持完整）+ 阶段 3-B / S1+S2（机器只读）+ S4 + (c) 增量 2（机器写入：夹具 + 生产）
+### MAIN（19）—— 阶段 3-A（回退瘦身，保持完整）+ 阶段 3-B / S1+S2（机器只读）+ S4 + (c) 增量 2（机器写入：夹具 + 生产）
 `craft_check`、`craft_action`、`craft_table`、`craft_station`、`craft_probe_inventory`、`craft_probe_table`、
 `craft_probe_upgradetab`、`craft_station_provision`、`craft_station_craft`、`craft_furnace`、`craft_cooking`、`craft_goal`、
 `machine_route`（S1：机器配方**只读**——问上游自述读输入/输出 + 查询层给 `MACHINE_ROUTE`；模组不在 ⇒ SKIP）、
@@ -57,8 +58,8 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 > **瘦身的前提**是"每个夹具自己显式自证前提、顺序无关"；该前提未落地前不允许再减 CORE 项。
 > 恢复路径：先做"显式自证前提"（菜单身份/位置/方块实体状态/账本与归因时间窗）⇒ 再**逐条**撤，**每条复跑一次**。
 
-### EXTRA（10）
-`lumber_failure`、`region_maintain`（区域常驻 Job，耗时）、`decision_contract`、`decision_trace`、`llm_contract`、
+### EXTRA（9）
+`lumber_failure`、`region_maintain`（区域常驻 Job，耗时）、`decision_contract`、`decision_trace`、
 `permission_gate`、`pickup_gate`、`collect_job`、`recipes_dump`、`event_thresholds`
 
 ## 3. 维护规则（我 = AI 负责执行）
@@ -87,3 +88,4 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 | 2026-09-15 | **30** | **40** | **项数不变**（D-220，改的是"通道本身可不可信"，不是覆盖）：① `pathing` 步内 `+wall`/`+disturb` 的夹具时机改为**场景局部基准**（原来比的 `ticks` 是任务级 ⇒ `30` 从未生效）；② 场景判据加「**声明了夹具就必须真的动手**」（`FIXTURE_NOT_FIRED`）+ 删扰动静默降级；③ 新增场景 `dip_course+run`（复用 `dip_course_terrain`）把 `DIAGONAL` 变成**确定性**覆盖（此前靠偶发绕行）；④ 无头服务端设 `difficulty=peaceful`（清敌对生物噪声 ⇒ 修掉 `exit=3` 无判决） |
 | 2026-09-15 | **31** | 41 | M1（G1）：新增 `mine_menu`（MAIN）—— 挖矿候选菜单契约（`mine` 不许猜位置；矿石场景复用 `MineCandidateSource`）。**刻意不进 EXTRA**：它是"不猜语义"红线的门禁，必须每次改动都跑得到 |
 | 2026-09-15 | **32** | 42 | M2（G2）：新增 `no_progress`（MAIN）—— 长作业周期复评（无进度 ⇒ 报一次 `NO_PROGRESS`；夹具自造停滞与重新武装，**收尾把窗口复位回 0**）|
+| 2026-09-15 | **33** | 42 | M4（G3）：`llm_contract` **EXTRA → MAIN** —— 新增 `snapshot_failure_fields` 判据（终态失败事实必须是**字段**：phase + 有界 details；无失败不许留 stale）。理由同 M1/M2：门禁必须默认跑得到 |

@@ -1,6 +1,7 @@
 package com.dddgn.alice.decision;
 
 import com.dddgn.alice.bot.BotManager;
+import com.dddgn.alice.bot.TaskFailureReport;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.bot.TaskExecutionRecord;
 import com.dddgn.alice.log.BotLog;
@@ -83,19 +84,9 @@ public final class DecisionSnapshot {
         task.addProperty("lastResult", session == null ? "-" : session.lastTaskResult());
         TaskExecutionRecord record = session == null ? null : session.lastExecutionRecord();
         if (record != null) {
-            JsonObject last = new JsonObject();
-            last.addProperty("kind", record.taskKind());
-            last.addProperty("terminal", String.valueOf(record.terminalStatus()));
-            last.addProperty("code", record.resultCode());
-            last.addProperty("terminalReason", record.terminalReason());
-            last.addProperty("botId", record.botId());
-            last.addProperty("durationTicks", record.durationTicks());
-            last.addProperty("botPos", record.terminalBotPos().toShortString());
-            if (record.outcome() != null && record.outcome().failure() != null) {
-                last.addProperty("failureCode", record.outcome().failure().code());
-            }
-            task.add("lastTerminal", last);
+            task.add("lastTerminal", lastTerminalJson(record));
         }
+
         // J-7：**结构化拒绝回读** —— LLM 必须能看到"上一轮动作为什么被拒"，
         // 否则它会反复给出同一个非法动作。
         String refusal = GoalDirector.lastRefusal(bot);
@@ -232,4 +223,44 @@ public final class DecisionSnapshot {
                 state.length() > 1500 ? state.substring(0, 1500) + "…" : state);
         return prompt;
     }
+
+    /**
+     * **终态的 JSON 形态**（M4）：把"上一轮为什么失败"从**一段文字**变成**字段**。
+     *
+     * <p>为什么需要：`survey/08` §5.7 审计 G3 —— 真因（缺镐 / 预算耗尽）**已经存在**，
+     * 但只以"无结构文字"的形式落在 `lastResult` 里（`MineJob` 会把逐候选的 `rejected()` 拼进去）
+     * ⇒ LLM **看得到、难以可靠分支**。M3/M4 的价值是"**把文字变成字段**"，不是"补回丢失的信息"。
+     *
+     * <p>**有界**：`details` 可能很长（例如 60 个候选的拒绝理由串）⇒ 截到 {@link #MAX_FAILURE_DETAILS}
+     * 并**如实标 `…`**（截断 ≠ 没有更多）。其余字段都是短串，不需要再设预算。
+     *
+     * <p>`public static` 是**自检接缝**（与 `EventThresholds.resetStuckTracking` 同类）：
+     * 夹具可以用一条**构造出来的**终态记录直接断言 JSON 形态，不必先真的把任务跑失败一次。
+     */
+    public static JsonObject lastTerminalJson(TaskExecutionRecord record) {
+        JsonObject last = new JsonObject();
+        last.addProperty("kind", record.taskKind());
+        last.addProperty("terminal", String.valueOf(record.terminalStatus()));
+        last.addProperty("code", record.resultCode());
+        last.addProperty("terminalReason", record.terminalReason());
+        last.addProperty("botId", record.botId());
+        last.addProperty("durationTicks", record.durationTicks());
+        last.addProperty("botPos", record.terminalBotPos().toShortString());
+        if (record.outcome() != null && record.outcome().failure() != null) {
+            TaskFailureReport failure = record.outcome().failure();
+            last.addProperty("failureCode", failure.code());
+            last.addProperty("failurePhase", failure.phase());   // M4：相位（原来只有 code）
+            String details = failure.details() == null ? "" : failure.details();
+            if (details.length() > MAX_FAILURE_DETAILS) {
+                details = details.substring(0, MAX_FAILURE_DETAILS) + "…";
+            }
+            if (!details.isBlank()) {
+                last.addProperty("failureDetails", details);      // M4：细节（有界）
+            }
+        }
+        return last;
+    }
+
+    /** `failureDetails` 的字符上限（有界预算：细节可能是一长串逐候选拒绝理由）。 */
+    public static final int MAX_FAILURE_DETAILS = 240;
 }

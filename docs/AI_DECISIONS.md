@@ -9226,3 +9226,40 @@ lumber/collect/region/craftable 四类，**`mine` 没有菜单条目**；而 `Go
 **策展**：`BATTERY_CURATION` 更新为 **42 项 → CORE 32**（`no_progress` 记 MAIN）。
 **⚠️ 未做（诚实标注）**：窗口目前**只能由代码/夹具设置**（`setNoProgressWindow`），**没有**接进
 `config/alice-llm.json`；"生产默认开启 + 窗口值可配"是**后续一次决策**（与 M6 的常驻维度同批更合适）。
+
+### D-224：M4 —— 终态失败事实必须是「字段」（phase + 有界 details）（2026-09-15）
+
+**动因**：`survey/08` §5.7 审计的 **G3**（第三承重缺口）与 `survey/08` §7 的**措辞更正**：
+真因**并没有丢** —— `MineJob` 早已把逐候选的 `rejected()` 拼进 failure 串
+（`failure = terminalReason + " " + String.join(",", set.rejected())`），它一路进
+`BotManager.lastTaskResult` 与 `DecisionSnapshot.task.lastResult`。**问题是形态**：
+LLM 拿到的是一段**无结构文字**（"看得到、难以可靠分支"）。
+⇒ **M3/M4 的价值是"把文字变成字段"，不是"补回丢失的信息"**（这条更正由勘测员提出，主工作流已复核确认）。
+
+**改法**：
+1. `DecisionSnapshot` 抽出 **`lastTerminalJson(TaskExecutionRecord)`**（`public static` = **自检接缝**，
+   与 `EventThresholds.resetStuckTracking` 同类），`lastTerminal` 新增两个字段：
+   - `failurePhase`（相位；此前只有 `failureCode`）；
+   - `failureDetails`（细节，**有界**：截到 `MAX_FAILURE_DETAILS = 240` 字符并**如实标 `…`**）。
+     ⚠️ **为什么必须有界**：`MineJob` 的 details 是"逐候选拒绝理由串"，60 个候选就能到几百字符 ⇒
+     不设上限会**灌爆 prompt**（`survey/08` §8.2 的判据原文即含"快照字符数仍受有界预算约束"）。
+2. 没失败时**不写**这几个字段（避免 LLM 照着上一轮的 stale 失败做决定）。
+
+**判据（进 `llm_contract`，基-5 / **J-4 同一个契约**：J-4 已断言"四个 Job 真的覆写了 `failureReport()`"，
+M4 补上后半截 —— "覆写了之后**决策层真的看得到**"）**：新增 `snapshot_failure_fields`：
+① 字段齐（`failureCode`/`failurePhase`/`failureDetails` 且 phase 逐字等于报告）；
+② 超长 details **必须截断**，长度**恰好** = 上限 + 1（含 `…`）；
+③ **无失败时不许留 stale 字段**。判据用**构造出来的**终态记录（`syntheticRecord`），
+不必先真把任务跑失败一次 —— 这正是把 JSON 构造抽成自检接缝的收益。
+
+**策展**：`llm_contract` **EXTRA → MAIN**（理由同 M1/M2：**门禁必须默认跑得到**）。
+`BATTERY_CURATION` 更新为 **42 项 → CORE 33**（BASELINE 14 + MAIN 19 + EXTRA 9）。
+
+**验证**：`./gradlew compileJava` ✅；`bash tools/check-all.sh` 9 PASS + 1 预期 WARN ✅；
+**无头 `core`：`(passed=33/33 skipped=0) ticks=3528 → PASS`**（`baseline=14 main=19 extra_skipped=9`），
+`case=snapshot_failure_fields result=PASS fields=true bounded=true(241/240) noStale=true` ⇒
+**`SERVER_TESTED`**（客户端未跑过这一版）。
+
+**⚠️ M4b 未做（明确推迟，不是漏）**：`tree[].lastFailure` 仍为空 —— Job 的 `subTasks()` 没填
+（`MineJob` 甚至没有覆写），要填得**逐 Job 定义"哪个子阶段失败"**（语义工作，不是接线）。
+它与 **M3**（专有终态理由）同域 ⇒ 合并到 M3 那一轮更省。**登记在台账 §5.7**。

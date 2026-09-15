@@ -1362,7 +1362,15 @@ jar `3312608d…`。
   `assignJob` 冒到调用方）、并删掉 `mineTargetFor` 的"**静默回落 IRON_ORE**"。
   **新电池步 `mine_menu`（MAIN ⇒ CORE 跑）**：`checks=11 failures=0`；无头 `core` **`(31/31) ticks=3404 → PASS`**。
 - ✅ **M2 已完成**（2026-09-15）：`EventThresholds` 新增 `NO_PROGRESS` —— **可观测进度**的定义 = 任务 `Job.progressSummary()` + bot 脚位 + 背包指纹（三者任一变化即有进度 ⇒ **走路中的任务不会误报**）；**等容器交互时跳过**（等待态不是病症，同 `STUCK` 纪律）；**默认窗口 0 = 关**（对齐 `idleDecisionEnabled` 默认关），`setNoProgressWindow` 供配置/夹具；同 episode 只报一次，进度恢复即**重新武装**。新电池步 `no_progress`（MAIN ⇒ CORE 跑）+ `NoProgressCheckTask`（夹具用**自己的停滞**当被观察对象，不造假 Job；断言"关着不报 / 恰好一次 / 重新武装 / 只记录不通知 / 收尾复位窗口"）。
-- ⏭️ 下一步 **M4**（失败事实结构化），其后 M3。
+- ✅ **M4 已完成**（2026-09-15）：`DecisionSnapshot` 抽出可测的 `lastTerminalJson(record)`，
+      `lastTerminal` 新增 **`failurePhase`** 与 **`failureDetails`**（后者**有界**：截到 `MAX_FAILURE_DETAILS=240`
+      并如实标 `…` —— 因为 `MineJob` 会把逐候选 `rejected()` 拼进 details，不设上限会灌爆 prompt）。
+      判据进 `llm_contract`（基-5 / J-4 同一个契约）：新增 `snapshot_failure_fields`，断言
+      ① 字段齐（code/phase/details）② 超长 details **必须截断**且长度 = 上限+1 ③ **无失败时不许留 stale 字段**。
+      **`llm_contract` 由 EXTRA 提到 MAIN**（同 M1/M2 的理由：门禁必须默认跑得到）。
+- ⚠️ **M4b 明确推迟**：`tree[].lastFailure` 仍为空 —— Job 的 `subTasks()` 没填（`MineJob` 甚至没有覆写），
+      要填得**逐 Job 定义"哪个子阶段失败"**（语义工作，不是接线）。它与 **M3**（专有终态理由）同域，放一起做更省。
+- ⏭️ 下一步 **M3**（专有终态理由：`partial_quota` 掩盖 `WRITE_BUDGET_EXHAUSTED` 等），可与 M4b 合批。
 - ⚠️ **顺带发现（事实）**：`decision_contract` 步的归属是 **EXTRA**（`RegressionBatteryTask.CURATION`）⇒
   **CORE 不跑它**，但它自己的类文档写着"这样它们能进串联回归电池，**任何改动都跑得到**" ⇒ **两者矛盾**
   （D-149 当时的判据承诺 vs 后来的瘦身档位）。要不要把它提到 MAIN/BASELINE 需**用户/策展裁定**，本轮不动。
