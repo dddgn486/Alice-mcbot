@@ -113,6 +113,11 @@ T3 八步已走完七步：步骤 1 / B3a / A / A2 / C / (A) / **B4** 全部落�
 - **R1-残**：`prod_budget_exhausted` 分支无场景能触发（干净 3×3 只挖 8 块 ≪ 64）。
 - **R4-残**：`RegionLumberJob` 补种仍直接 `setBlock`（已补触及校验）；改走 `placeAt` 会同时改**物品消耗路径**，需独立验证。
 - **R5-残**：`StationProvision.click` / `InventoryCraft.click` 未做编译期强制（~19 处机械重构）。
+- **代码结构债 TD-1（2026-09-15 用户复盘发现，AI 已核实）**：`*ExecutionFactory.validate()` 与
+  `*Execution.preconditionsHold()` **各写一遍同一组前置谓词（8/10 个动作）**，且已分叉一处 ——
+  `Traverse` 是唯一 `validate` 里**没有**几何检查的（其余 9 个都有 `<动作>_INVALID_GEOMETRY`）⇒
+  越距 spec 到运行期第一帧才失败（码退化成 `TRAVERSE_INVALID_PRECONDITION`）。**优先级低、无已知故障**，
+  且**不是有意移除**（自 `5d63cdf` 起就漏）。全文 + 复算命令：台账 **§5.5 / TD-1**。
 - **`craft_check` 门禁缺口**（T2 新发现）：`machine_only_vanilla` 期望 `MACHINE_ROUTE`（需 Mekanism/Create），
   没装模组时它 `FAIL` 而非 `SKIP` —— 同文件 ⑥ 已有"没装该模组就 SKIP"的写法，④ 漏了前提声明。
 - **T3 状态 = 已收口**（八步走完七步；第八步"接第 3 个模组本身"由 **D-219 判定为按需再做**）；

@@ -116,6 +116,71 @@
 
 ---
 
+## §5.5 代码结构债（**2026-09-15 用户复盘源码时发现**，AI 已逐条核实）
+
+| # | 项 | 说明 |
+|---|---|---|
+| **TD-1** | **前置谓词被写两遍：`*ExecutionFactory.validate()` 与 `*Execution.preconditionsHold()`** | 见下（**用户看到 1 处，实测 8 处**） |
+
+### TD-1 详录
+
+**位置（符号名，不用行号）**：`pathing/core/*ExecutionFactory.validate()` 对 `pathing/core/*Execution.preconditionsHold()`。
+两者各自实现同一组"可走"谓词（`canWalkThrough(to)` + `canWalkThrough(to.above())` + `canWalkOn(to)`）。
+
+**实测重复范围**（计数命令见文末；用户只看到 Traverse 一处，实际 **8/10**）：
+
+| 动作 | `validate` 里 | `preconditionsHold` 里 |
+|---|---|---|
+| Traverse / Diagonal / Ascend / Descend / Downward / BreakAndTraverse / BreakAndEnter | 1 | 1 |
+| PlaceStepAndTraverse | 1 | 2 |
+| Fall | 1 | 0（换成自己的谓词） |
+| Pillar | 0 | 0（换成自己的谓词） |
+
+**已经分叉的那一处（用户发现的，已核实为真）**：
+`TraverseExecutionFactory.validate` 里**没有几何检查**，而 `TraverseExecution.preconditionsHold` 里**有**
+（`from.y == to.y && 曼哈顿距离 == 1`）。**Traverse 是 10 个动作里唯一没有 `<动作>_INVALID_GEOMETRY` 的**：
+其余 9 个工厂全都有（`grep -n INVALID_GEOMETRY src/main/java/com/dddgn/alice/pathing/core/*ExecutionFactory.java` ⇒ 9 行，无 Traverse）。
+⇒ **越距的 `MovementSpec` 能通过 `validate`**，直到运行期第一帧 `TraverseExecution.tick()` 的 `PRECONDITION_CHECK`
+才失败，错误码从"派发前拦截的几何码"退化成 `TRAVERSE_INVALID_PRECONDITION`。
+**派发前拦截点确实存在**：`PathSession.java:345` 与 `PathingBatteryTask` / `Ascend|Descend|Traverse|Diagonal|ChainDiagnosticTask`
+都是**先 `factory.validate(spec, ctx)` 再 `create`**。
+
+**是自始缺失，不是有意移除（AI 核实，含一条自我纠错）**：
+- `preconditionsHold` 与 9 个 `*_INVALID_GEOMETRY` 都出自**同一个提交 `5d63cdf`**（Movement core R1/R2）；
+  看该提交里的 `TraverseExecutionFactory.validate` **本来就没有几何检查** ⇒ 从第一天就是漏的。
+- ⚠️ **方法学坑（差点让我写错）**：`git log -S "TRAVERSE_INVALID_GEOMETRY"`（**不带前引号**）会**因子串命中**
+  `BREAK_AND_TRAVERSE_INVALID_GEOMETRY` / `PLACE_STEP_AND_TRAVERSE_INVALID_GEOMETRY` 而报"历史上存在过"
+  —— 我据此一度准备写"该码曾被有意移除"。**精确检索必须带前引号**：
+  `git log --all -S '"TRAVERSE_INVALID_GEOMETRY"'` ⇒ **空**（对照：`'"DIAGONAL_INVALID_GEOMETRY"'` 能搜到 `5d63cdf`）。
+
+**优先级：低**（用户判定，AI 同意）：**无已知故障** —— 规划器构造的 TRAVERSE 天然相邻，
+所以运行期那份检查一直兜住了；这条属**防御性不变式的位置不对**，不是活 bug。
+
+**建议修法（未实施，分两步、各自可独立落地）**：
+1. **Traverse 对齐兄弟**：`TraverseExecutionFactory.validate` 补几何检查，沿用兄弟的命名形状
+   `TRAVERSE_INVALID_GEOMETRY`（已证该码从未存在 ⇒ 不是推翻旧决定）。
+2. **单一定义（较大）**：让每个 `*Execution` 复用其工厂的谓词（或把共享谓词提到 `MovementHelper`），
+   8 个动作的机械重构。**必须独立一轮做**，判据 = `tools/headless-battery.sh single:pathing` +
+   `core` 的**场景行逐字不变**（这套判据今天刚建好，见 D-220）。
+
+**不得顺手改的地方**：`TRAVERSE_INVALID_PRECONDITION` 这个码**不能回收改名** ——
+`task/CapabilityGateCheckTask.java:280` 把它映射进 `INVALID_PRECONDITION` 状态表（是有断言的契约）。
+
+**复算命令**：
+```bash
+cd /home/fb486/projects/alice
+grep -n INVALID_GEOMETRY src/main/java/com/dddgn/alice/pathing/core/*ExecutionFactory.java   # 9 行，无 TRAVERSE
+grep -rn "private boolean preconditionsHold" src/main/java/com/dddgn/alice/pathing/core/     # 10 处
+for f in Traverse Diagonal Ascend Descend Fall Downward Pillar BreakAndTraverse BreakAndEnter PlaceStepAndTraverse; do
+  printf "%-24s validate=%s execution=%s\n" "$f" \
+    "$(grep -c 'canWalkOn(context.level(), to)' src/main/java/com/dddgn/alice/pathing/core/${f}ExecutionFactory.java)" \
+    "$(grep -c 'canWalkOn(level, to)' src/main/java/com/dddgn/alice/pathing/core/${f}Execution.java)"
+done
+git log --all --oneline -S '"TRAVERSE_INVALID_GEOMETRY"'     # 空 ⇒ 该码从未存在
+```
+
+---
+
 ## §6 文档债
 
 | # | 项 | 说明 |
