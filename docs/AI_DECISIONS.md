@@ -9559,3 +9559,17 @@ CORE `(35/35) ticks=3830 → PASS` ✅；`check-all.sh` ✅。
   `SurvivalExitCheckTask` 名字带 `Check` ⇒ `isSelfCheck()` 为真 ⇒ 跑夹具时**自动暂停决策层**（LLM 不会插一脚）。
 - ⚠️ **一般化教训（写进技能库）**：给真人做的测试入口，触发键必须是**静止可表达**的输入
   （右键 / 潜行+右键 / 物品 / 命令）。**疾跑、跳跃、移动中**这类状态在静止时表达不出来，不能当模式选择器。
+
+**✅ 客户端验证（2026-09-15 晚，用户真人实测 ⇒ `WINDOWS_CLIENT`）**：
+`alice:survival_full_check` 右键一次跑通整套（聊天里 `[Survival] SUMMARY checks=55 failures=0 [] → PASS`）：
+- `[SurvivalFullCheck] 就位 bot=tango（平台角 64, 64, 102）` → 夹具各相位依次跑完；
+- **冻结**：`把 bot 放进细雪（起始 ticksFrozen=1，全冻阈值 140）` → `维生监测 hazard=FREEZING duration=1…121`
+  → `软危险 hazard=FREEZING 已持续 10 tick，半径 8 格内**无安全落点** ⇒ 不否决` + 事件 `exit=none decision=continue`
+  → `已全冻（ticksFrozen=140）` → `[Threshold] 掉血 … hazard=FREEZING health=19.0/20.0`（两次，间隔 40 tick = 2 秒，
+  **正是原版节奏**）→ `拆掉细雪并清零（拆前 140，清零后 0）`（夹具自己收尾 ✅）。
+- **新发现（未定位，已登记）**：同一段里血量出现 `19.0 → 20.0` 的**回血**（`duration=121` 那次采样是 20.0，
+  而 40 tick 前刚掉到 19.0）。Alice 侧没有任何治疗代码（`heal(`/`setHealth(` 全仓为零），
+  而夹具在相位前刚 `removeAllEffects()` ⇒ 说明**有东西在持续重新施加效果/治疗效果**。
+  与 CORE 里那次"伤被治回去（18→20）"是**同一个现象**，现在确认它在**真人客户端**也存在。
+  最可能：**Regeneration 类效果**（补了 `baseTick` 之后药水效果开始真的 tick ⇒ 才开始生效）。
+  待用户一条命令核实：`/data get entity tango active_effects`。
