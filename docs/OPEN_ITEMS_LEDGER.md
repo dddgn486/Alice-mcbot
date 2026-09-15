@@ -1584,3 +1584,22 @@ C3 之后它对 `NOT_MOVED` 已无影响，故只登记。
 `remainingFireTicks` 会递减 + 溺水：让 bot 入水后 `airSupply` 真的下降。
 本轮的临时断言已按纪律**降级为信息行**（`[Survival] 已知限制：着火时 sharedFlag0=false …`），
 避免让 CORE 门槛常红；修复落地后它必须变回 `check(...)`。
+
+
+**§5.10 的修复与验证（2026-09-15 同日，D-228，用户裁定 B）**：
+- **改法**：`BotPlayer.tick()` 在 `super.tick()` 与手动 `aiStep()` 之间插 `this.baseTick()`
+  （顺序与原版一致：`LivingEntity.tick()` 里 baseTick 在 offset 9、aiStep 在 179；且经字节码核对**不会跑两遍**）。
+- **判据（4 条进 CORE，挂既有 BASELINE 步 `survival_exit`，checks 38 → 45）**：
+  ① 着火后 `sharedFlagOnFire()` 为真（客户端画火焰的唯一输入）；② `remainingFireTicks` 递减；
+  ③ 相位期间**最低血量**低于点火前；④ 出现带 `hazard=ON_FIRE` 的掉血事件；
+  ⑤（另一相位）入水后 `airSupply` 真的被消耗 ⇒ 溺水产线可达。
+- **反向对照**：注掉 `this.baseTick()` ⇒ 恰好 ①~⑤ 全红（`120→120`、`20.0→20.0`、空气 `20→20`）⇒ 判据真能红。
+- **门槛**：`single:survival_exit` PASS（45/0）；CORE `(35/35) ticks=3701 → PASS`；`check-all.sh` ✅。
+- **期间踩到并修掉的假绿**：`fillBlocks(...)`（断言 `/fill` 改动方块数）立刻抓到
+  `desc()` = `BlockPos.toShortString()`（**带逗号**）被拼进命令 ⇒ 非法坐标 ⇒ `/fill` 静默 0 改动
+  （新增 `xyz()` 专供命令）；另"`/fill` 必须先传送后执行（未加载区块静默无操作）"也被再证实一次。
+- **待查**：CORE 里出现"伤被治回去（18→20）"的**治疗来源未定位**（疑似前序机器/药剂步骤的残留效果；
+  补 `baseTick` 后**药水效果开始真的 tick**）。判据已改为"期间最低血量 + 掉血事件"并在相位前归一化生命基线。
+- **新待办（本修复带出的真实风险）**：细雪**冻结**（`freeze` 伤害）现在会真的发生，但 `HazardType` 里
+  **没有冻结档** ⇒ 否决链覆盖不到。另有：药水效果现在会**正常到期**（此前永不失效）—— 这是原版语义，
+  但值得知会（若有人依赖"给 bot 的效果永久有效"，行为已变）。

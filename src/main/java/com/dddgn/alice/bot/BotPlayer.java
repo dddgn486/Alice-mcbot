@@ -276,6 +276,28 @@ public class BotPlayer extends ServerPlayer {
                     physicsProbeTicks, fmt(position()), fmt(getDeltaMovement()), onGround());
         }
 
+        // 2.5 **补上原版 baseTick**（D-228，2026-09-15 客户端实测逼出）
+        //
+        // 为什么必须手动补：真玩家的 `Player.tick() → LivingEntity.tick() → Entity.tick() → baseTick()`
+        // **不在**实体 tick 链上 —— 它在 `ServerPlayer.doTick()` 里，而 `doTick()` 由**网络层**
+        // `ServerGamePacketListenerImpl.tick()` 驱动。假人的连接是 `FakeConnection`（见本类 javadoc：
+        // 「不在 ServerConnectionListener 的连接表里（tick() 永不被调用）」）⇒ 那条链**从未执行**，
+        // 而 `super.tick()`（= `ServerPlayer.tick()`）只做记账，**不含** baseTick/aiStep（已用字节码核对）。
+        //
+        // 缺它的后果（全是实测）：`remainingFireTicks` 不递减、`setSharedFlagOnFire` 不置位
+        // ⇒ **客户端画不出火焰**（客户端 `isOnFire()` 读的就是这个共享标志，`remainingFireTicks` 不同步）、
+        // **不受火焰伤害**（与标志同段代码）、**空气不消耗 ⇒ 溺水/`LOW_AIR` 产线不可达**、
+        // 传送门冷却/冻结/脚步声/药水效果计时（`tickEffects()` 也在 baseTick 里）同样缺失。
+        //
+        // 调用位置与原版顺序一致：原版 `LivingEntity.tick()` 里 baseTick 在 offset 9、`aiStep()` 在
+        // offset 179 ⇒ baseTick **先**、物理**后**。这里也**不会跑两遍**：`ServerPlayer.tick()` 内
+        // 没有任何 baseTick 调用（字节码核对），`LivingEntity.baseTick()` 内也没有 `aiStep()`。
+        this.baseTick();
+        if (probe) {
+            BotLog.info("[PhysicsProbe] tick={} stage=after_baseTick air={} fireTicks={} onFire={} pos={}",
+                    physicsProbeTicks, getAirSupply(), getRemainingFireTicks(), isOnFire(), fmt(position()));
+        }
+
         // 3. Bot 专用服务端物理推进
         this.aiStep();
         if (probe) {

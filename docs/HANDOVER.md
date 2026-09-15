@@ -231,7 +231,8 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 - **客户端**：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - **镜像 / 同步**：`./tools/mirror-windows-workspace.sh`；
   `./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`。
-- **本断点已同步的 jar**：`ed30f04a9356d10fdb2acb2673a82569b0d24e33cf4dd395fbae2ce28a4ebd51`（源 = `build/libs`，2026-09-15 19:52 同步到客户端 `mods/`；**含 S-5/D-226 + §5.9/D-227**）
+- **本断点已同步的 jar**：`51e5719dc6e6ef11b489e66dd4915886db1bbd81209d7b072179254136f7d942`（源 = `build/libs`，2026-09-15 20:35 同步到客户端 `mods/`；**含 S-5/D-226 + §5.9/D-227 + §5.10/D-228**）
+- 上一个 jar（19:51，含 §5.9）：`ed30f04a9356d10fdb2acb2673a82569b0d24e33cf4dd395fbae2ce28a4ebd51`
 - 上一轮 jar（19:03，仅 S-5）：`b918d7b201c792d6f453c247b92e58783b0a4896baaf5021c0e3be4a3628e1af`
 - 上一轮 jar（2026-09-15 16:18，M 线 + R4 负例）：`35fa4580dfd8040e27490a8cd219df4c81f7011a94acf3e65c644f8538439814`
   —— 在 `462b10b5…` 之上**新增 M 线四项：M1（挖矿候选菜单）/ M2（长作业周期复评）/ M4（失败事实字段化）/ M3（专有终态理由）**。
@@ -267,6 +268,11 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 
 **推荐下一步（二选一，都由 AI 先推、用户最后拍板）**：
 
+0. **【立刻可做·真人必做】复测 D-228（补 `baseTick`）**：新建/重启世界后点 `alice:survival_exit_check`：
+   **右键**（窒息）与**潜行右键**（着火 8 秒）各一次，看 ①**bot 身上有没有火焰**（这是本次修复的核心可见结果）、
+   ② 着火期间**血量会掉**（`维生监测` 行 `health=19.0` / `[Threshold] 掉血 … hazard=ON_FIRE`），
+   ③ 走动/放置/挖掘是否照常（`baseTick` 动了物理前置，已过 CORE 35/35，但真人观感最重要）。
+   顺便留意：**药水效果现在会正常到期**（此前永不失效）、**空气会消耗**（可以试着让 bot 头浸水看 `air=` 掉）。
 0. **【立刻可做·零成本】客户端重启一次世界**：§5.9 的 11 条挂起会在启动时被结清
    （日志 `[Transfer] 启动结清：11 条…`），随后点 `alice:survival_exit_check`（右键 = 窒息；
    **潜行右键 = 着火软危险**）就能看到 `任务因维生危险中断 …` → `[Survival] 逃生出口 …` →

@@ -59,8 +59,11 @@ public class SurvivalExitCheckTask implements Task {
     /** 冷却窗口内不该出现第二条掉血事件的观察时长（< {@link EventThresholds#HEALTH_LOSS_COOLDOWN_TICKS}）。 */
     private static final int HEALTH_QUIET_TICKS = 20;
     private static final float HURT_AMOUNT = 2.0F;
+    /** 入水前把空气设成这个值：够掉、又**不会掉到 0**（0 ⇒ `LOW_AIR` 会真的否决 ⇒ 打死整轮电池）。 */
+    private static final int AIR_START = 20;
+    private static final int AIR_POLL_TICKS = 8;
 
-    private enum Phase { SETUP, TABLE, WALK, SEALED_BUILD, SEALED_CHECK, FOOT_CELL, SEALED_REAL, HEALTH, DONE }
+    private enum Phase { SETUP, TABLE, WALK, SEALED_BUILD, SEALED_CHECK, FOOT_CELL, SEALED_REAL, HEALTH, AIR, DONE }
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -74,6 +77,10 @@ public class SurvivalExitCheckTask implements Task {
     private Task subTask;
     private long fireTick;
     private long hurtTick;
+    private int fireStartTicks;
+    private float healthBeforeFire;
+    private float minHealthDuringFire;
+    private int airStart;
 
     public SurvivalExitCheckTask(BotPlayer bot, ServerPlayer observer) {
         this.bot = bot;
@@ -115,6 +122,7 @@ public class SurvivalExitCheckTask implements Task {
             case FOOT_CELL -> footCellPhase();
             case SEALED_REAL -> sealedRealPhase();
             case HEALTH -> healthPhase();
+            case AIR -> airPhase();
             case DONE -> finish();
             default -> {
             }
@@ -365,28 +373,34 @@ public class SurvivalExitCheckTask implements Task {
                 advance(Phase.HEALTH);
                 return;
             }
+            normalizeVitals();      // 判据要确定性：清掉上一步可能残留的效果（会掩盖/治疗伤害）
             bot.setSecondsOnFire(6);
             fireTick = bot.getServer().getTickCount();
+            fireStartTicks = bot.getRemainingFireTicks();
+            healthBeforeFire = bot.getHealth();
+            minHealthDuringFire = healthBeforeFire;
             BotLog.info("[Survival] 夹具在封闭场景**真的点着** bot（6 秒）；期望：不否决（任务继续）"
                     + "+ 一条 exit=none decision=continue 事件");
             return;
         }
         if (phaseTicks < SETTLE_TICKS + REAL_FIRE_TICKS) {
+            // 持续采样**最低**血量：净血量可能被治疗/回血掩盖（CORE 实测），"期间掉过"才是事实。
+            minHealthDuringFire = Math.min(minHealthDuringFire, bot.getHealth());
             return;
         }
         HazardState real = SurvivalSystem.current(bot);
         check("真实状态被判为 ON_FIRE（实际 " + real.type() + "）", real.type() == HazardType.ON_FIRE);
-        // ⚠️ **已知限制（D-228 / 台账 §5.10，2026-09-15 用户实测逼出）**：这里本该断言
-        // "喂给客户端的火焰渲染输入立起来了"，实测 sharedFlag0=false —— 根因不是渲染，是
-        // **假人拿不到原版 tick**：真实玩家的 `Player.tick()→LivingEntity.tick()→baseTick()`
-        // 由网络层 `ServerGamePacketListenerImpl.tick()→ServerPlayer.doTick()` 驱动，
-        // 而假人的 `FakeConnection.tick()` **永不被调用**（BotPlayer javadoc 自己写着这条），
-        // 所以 `remainingFireTicks` 不递减、共享标志不置位、身上**不着火、也不受火焰伤害**，
-        // 空气也永不减少（⇒ LOW_AIR 在产线不可达）。
-        // 修复（补 tick）落地后，这一行应当变回 `check(...)` —— 那时它就是修复的判据。
-        BotLog.info("[Survival] 已知限制：着火时 sharedFlag0={}（客户端渲染火焰的输入）—— 假人无原版 tick，"
-                        + "火焰渲染/火焰伤害/空气消耗均缺失（D-228 / 台账 §5.10）",
+        // 以下三条是 **D-228 的判据**（2026-09-15 用户实测"看不到燃烧/受伤"逼出）：
+        // 假人原本拿不到原版 tick ⇒ 火焰渲染输入不置位、着火 tick 不递减、火焰伤害不发生。
+        // 修好之后它们必须一直绿；任何一条变红都说明 tick 链又断了（回归）。
+        check("着火时必须立起实体共享标志 0（客户端渲染火焰的**唯一**输入；客户端 `isOnFire()` 读它，"
+                        + "`remainingFireTicks` 根本不同步）",
                 bot.sharedFlagOnFire());
+        check("着火 tick 必须真的递减（点火时 " + fireStartTicks + " → 现在 " + bot.getRemainingFireTicks()
+                        + "）", bot.getRemainingFireTicks() < fireStartTicks);
+        check("着火必须真的造成伤害（点火前 " + healthBeforeFire + "，期间最低 " + minHealthDuringFire
+                        + "，现在 " + bot.getHealth() + "）", minHealthDuringFire < healthBeforeFire);
+        check("火焰伤害必须被读成可判读的掉血事件（hazard=ON_FIRE）", hasFireDamageEvent(fireTick));
         check("真实状态过真实决策 ⇒ HOLD_NO_EXIT（实际 " + SurvivalSystem.decide(bot, real) + "）",
                 SurvivalSystem.decide(bot, real) == SurvivalSystem.Verdict.HOLD_NO_EXIT);
         check("已如实登记「软危险无出口 ⇒ 不否决」（exit=none decision=continue）",
@@ -396,6 +410,47 @@ public class SurvivalExitCheckTask implements Task {
                 phaseTicks - SETTLE_TICKS);
         bot.clearFire();
         advance(Phase.HEALTH);
+    }
+
+    /**
+     * **空气/溺水可达**（D-228 第四条判据）：补上原版 tick 之前 `airSupply` 永不下降 ⇒
+     * `LOW_AIR`（溺水）只能靠夹具硬改字段才测得到、**产线不可达**。这里让假人真的进水里，
+     * 断言空气**自己会掉**（= 溺水这条路在真实 tick 循环里成立）。
+     *
+     * <p>⚠️ 空气只降到 {@link #AIR_START} 以上：掉到 0 就变成真的 `LOW_AIR` 软危险，
+     * 宽限 10 tick 后会**否决整轮电池**（夹具的会话任务就是电池本身）。
+     * `WATER_CONTACT` 本身**不是**否决档（`SurvivalSystem.softHazard` 只含 LOW_AIR/ON_FIRE）⇒ 进水是安全的。
+     */
+    private void airPhase() {
+        if (phaseTicks == 1) {
+            // ⚠️ **必须先传送、后放水**：`/fill` 在**未加载的区块**里会静默什么都不做
+            //（2026-09-15 踩过一次：水没放上，空气反而回涨 20→52）。传送会让玩家区块票据把区块加载起来。
+            teleport(SurvivalCourseAnchor.SEALED_FOOT);
+            return;
+        }
+        if (phaseTicks == SETTLE_TICKS) {
+            fillBlocks(SurvivalCourseAnchor.SEALED_FOOT, SurvivalCourseAnchor.SEALED_FOOT.above(), "water", 2,
+                    "封闭口袋里放水（溺水前提）");
+            return;
+        }
+        if (phaseTicks == SETTLE_TICKS + 2) {
+            normalizeVitals();      // 防"水下呼吸"类效果让空气不掉（判据要测的是原版空气消耗）
+            bot.setAirSupply(AIR_START);
+            airStart = bot.getAirSupply();
+            BotLog.info("[Survival] 把 bot 放进水里（眼睛在水里={}），空气设为 {}；期望：原版 tick 真的在消耗空气",
+                    bot.isEyeInFluid(net.minecraft.tags.FluidTags.WATER), airStart);
+            return;
+        }
+        if (phaseTicks >= SETTLE_TICKS + 2 + AIR_POLL_TICKS) {
+            int now = bot.getAirSupply();
+            boolean eyeInWater = bot.isEyeInFluid(net.minecraft.tags.FluidTags.WATER);
+            check("入水后空气必须真的被消耗（" + airStart + " → " + now + "，眼睛在水里=" + eyeInWater
+                            + "）—— 这是 LOW_AIR/溺水在产线可达的前提", now < airStart && now > 0);
+            teleport(SurvivalCourseAnchor.PLATFORM_FOOT);     // 先出来，再复原（顺序无关，但保持"有人看时场景是干净的"）
+            fillBlocks(SurvivalCourseAnchor.SEALED_FOOT, SurvivalCourseAnchor.SEALED_FOOT.above(), "air", 2,
+                    "复原封闭口袋（拆水）");
+            advance(Phase.DONE);
+        }
     }
 
     /** 掉血可见（`previousHealth` 的第一个读者）+ 冷却期内不刷屏。 */
@@ -432,7 +487,7 @@ public class SurvivalExitCheckTask implements Task {
         List<BotEventLog.BotEvent> quiet = healthEventsSince(hurtTick);
         check("冷却窗口（" + HEALTH_QUIET_TICKS + " tick < " + EventThresholds.HEALTH_LOSS_COOLDOWN_TICKS
                 + "）内不刷屏：掉血事件恰好 1 条（实际 " + quiet.size() + " 条）", quiet.size() == 1);
-        advance(Phase.DONE);
+        advance(Phase.AIR);
     }
 
     // ==================== 工具 ====================
@@ -470,10 +525,51 @@ public class SurvivalExitCheckTask implements Task {
     }
 
     /** 跑一条服务端命令（夹具自建/复原场景用；输出抑制，避免噪声）。 */
-    private void runCommand(String command) {
+    /**
+     * 跑一条服务端命令（夹具自建/复原场景用）。
+     *
+     * <p>@return 命令的返回值（`/fill` = 实际改动的方块数）。**必须看它**：2026-09-15 实测过一次
+     * "`/fill` 跑在未加载的区块里 ⇒ 什么都没放"，而当轮判据照样绿（假绿）⇒ 现在把结果返回出来，
+     * 由调用方断言（`fillBlocks(...)`）。
+     */
+    /** 自 `sinceTick` 起，是否有**带着 `hazard=ON_FIRE`** 的掉血事件（= 火焰伤害被读成了事实）。 */
+    private boolean hasFireDamageEvent(long sinceTick) {
+        return healthEventsSince(sinceTick).stream().anyMatch(event -> event.data().contains("hazard=ON_FIRE"));
+    }
+
+    private int runCommand(String command) {
         var server = bot.getServer();
         var source = server.createCommandSourceStack().withSuppressedOutput();
-        server.getCommands().performPrefixedCommand(source, command);
+        return server.getCommands().performPrefixedCommand(source, command);
+    }
+
+    /**
+     * **把生命/空气/效果归到已知基线** —— 判据必须确定性，不能被上一步的残留掩盖。
+     *
+     * <p>2026-09-15 CORE 实测踩到：单步跑时"着火掉血"稳定可见，跑全量 CORE 时 bot 的伤被**治了回去**
+     * （18→20，疑似前序机器/药剂类步骤残留的效果 —— 补上 `baseTick` 后药水效果**开始真的 tick** 了）。
+     * 判据因此改成"**相位期间的最低血量** + 掉血事件"，并在相位前清效果/满血/满空气。
+     */
+    private void normalizeVitals() {
+        bot.removeAllEffects();
+        bot.setHealth(bot.getMaxHealth());
+        bot.setAirSupply(300);
+    }
+
+    /** `/fill` 并**断言真的改动了方块**（防"未加载区块里静默无操作"的假绿）。 */
+    private void fillBlocks(BlockPos from, BlockPos to, String block, int expectedBlocks, String what) {
+        int changed = runCommand("fill " + xyz(from) + " " + xyz(to) + " " + block);
+        check("场景自建生效：" + what + "（fill 改动方块数 " + changed + "，期望 ≥ " + expectedBlocks + "）",
+                changed >= expectedBlocks);
+    }
+
+    /**
+     * **给命令用的坐标**（空格分隔）。⚠️ 别用 {@link #desc} —— 它是 `BlockPos.toShortString()`
+     * 格式（`"206, 64, 306"`，**带逗号**），拼进命令就是非法坐标 ⇒ `/fill` 会**静默 0 改动**
+     * （2026-09-15 实测踩到：水没放上，空气反而回涨）。`fillBlocks(...)` 的返回值断言正是为此加的。
+     */
+    private static String xyz(BlockPos pos) {
+        return pos.getX() + " " + pos.getY() + " " + pos.getZ();
     }
 
     private static String desc(BlockPos pos) {

@@ -9444,3 +9444,56 @@ M4 补上后半截 —— "覆写了之后**决策层真的看得到**"）**：�
 三处**跑动中**的 `NOT_MOVED` 挂起保持原样 —— `taskInterruptPolicies` **明确断言**了
 `SUSPENDED + NOT_MOVED + manualTakeover=true`。后果（如实记）：一次"传输中被维生打断"仍会让该 bot
 在**本会话内**被挡住 `assign*`（现在至少有 warn 可查，不再静默），跨会话由 C3 在启动时结清。
+
+---
+
+### D-228：假人只跑了**半个原版 tick** —— 补 `baseTick()`（用户裁定 **B**，2026-09-15）
+
+**动因**：用户实测反馈「bot 有反应了，但**看不到燃烧/窒息/受伤的效果**」。取证（台账 §5.10 有全部证据）：
+- 客户端日志：硬×3/软×2 全部跑通否决+逃生；但整段着火 `health=20.0` 不变、`掉血` 事件一次都没有。
+- 无头探针：`setSecondsOnFire(6)` 后 `remainingFireTicks=120`，16 tick 后**仍是 120**，`sharedFlag0=false`。
+- 字节码：真玩家的 `Player.tick()→LivingEntity.tick()→Entity.tick()→baseTick()` **不在**实体 tick 链上，
+  它在 `ServerPlayer.doTick()` 里，由**网络层** `ServerGamePacketListenerImpl.tick()` 驱动；
+  假人的 `FakeConnection.tick()` **永不被调用**（Alice 自己的 `BotPlayer` javadoc 就写着这条）
+  ⇒ 假人只有 `ServerPlayer.tick()`（记账）+ Alice 手动补的 `aiStep()`（物理），`baseTick` 从未执行。
+
+**改法（用户选 B：最小补丁）**：`BotPlayer.tick()` 在 `super.tick()` 与手动 `aiStep()` **之间**插入
+`this.baseTick()`（= `LivingEntity.baseTick()` → `Entity.baseTick()`）。
+- **顺序与原版一致**：原版 `LivingEntity.tick()` 里 baseTick 在 offset 9、`aiStep()` 在 offset 179。
+- **不会跑两遍**（字节码核对）：`ServerPlayer.tick()` 内没有任何 baseTick/aiStep 调用；
+  `LivingEntity.baseTick()` 内**没有** `aiStep()`（但**有** `tickEffects()` ⇒ 药水效果计时一并回来了）。
+- **不动物理管线**：`aiStep()` 调用点没动（D-174 那套实测基线保持）。
+
+**恢复的能力**：火焰（渲染共享标志 + 每 20 tick 火焰伤害 + 递减）、空气/溺水、传送门冷却、冻结（细雪）、
+`walkDistO`（脚步声）、药水效果计时。**仍未恢复**：`Player.tick()` 那半（食物/饥饿、自然回血、
+`updateIsUnderwater`）—— 需要时再评估选项 A（补 `doTick()`，但会改变物理推进次数/顺序，风险更高）。
+
+**判据（4 条，进 CORE，挂既有 BASELINE 步 `survival_exit`）**：
+① 着火后 `sharedFlagOnFire()` 必须为真（客户端渲染火焰的唯一输入）；② `remainingFireTicks` 必须递减；
+③ 着火必须真的掉血；④ 入水后 `airSupply` 必须真的被消耗（`LOW_AIR`/溺水在产线可达的前提）。
+**反向对照已做**：注掉 `this.baseTick()` ⇒ 恰好这 4 条全红
+（`120→120` / `20.0→20.0` / 空气 `20→20` / 标志 false）⇒ 判据真的挂在修复上，且在无头里复现了用户现象。
+
+**顺带修掉的假绿隐患**：新加的 `fillBlocks(...)` 会断言 `/fill` 的改动方块数 —— 它立刻抓到
+「`desc()`（= `BlockPos.toShortString()`，**带逗号**）被拼进命令 ⇒ 非法坐标 ⇒ `/fill` 静默 0 改动」
+（新增 `xyz()` 专门给命令用）。以及"`/fill` 必须**先传送后执行**（区块未加载时静默无操作）"再次被踩到并记录在案。
+
+**验证**：`compileJava` ✅；`single:survival_exit` 正向 `PASS`（checks=44 failures=0）/
+反向 `FAIL`（4 条精确变红）✅；无头 CORE ✅；`check-all.sh` ✅。
+**待真人验**：客户端**看得见火焰**、着火时**看得见掉血**（`/alice` 事件或日志），
+以及"走路/水流是否正常"（`baseTick` 动了物理前置）—— 见 HANDOVER §6。
+
+**B 落地后的补充（同日）**：
+- 判据数 38 → **45**（① 火焰共享标志 ② 着火 tick 递减 ③ 期间最低血量 ④ 掉血事件带 `hazard=ON_FIRE`
+  + 入水空气消耗 + 2 条 `fill` 生效断言 + 场景自建断言）。
+- **CORE 第一跑就红了一次**，但**不是 `baseTick` 的错**：日志显示火焰伤害**确实发生**（`掉血 health=19.0 hazard=ON_FIRE`），
+  可 16 tick 后血量被**治回 20**（单步跑不会）。后来把判据改成"**相位期间最低血量** + 掉血事件"，
+  并在判据相位前 `normalizeVitals()`（清效果/满血/满空气）⇒ 不再依赖"某个时刻的净血量"。
+  ⚠️ **治疗来源未定位**（疑似前序机器/药剂类步骤给 bot 上的残留效果 —— 补上 `baseTick` 后
+  **药水效果开始真的 tick** 了）。已登记为待查项，但它不影响判据语义。
+- **判据自证有效**：把 `this.baseTick()` 注掉 ⇒ 恰好那 4 条全红（`120→120`、`20.0→20.0`、空气 `20→20`、标志 false）
+  ⇒ 在无头里**复现了用户看到的"没反应"**。
+- **全量门槛**：`single:survival_exit` 正向 `PASS` / 反向 `FAIL`；CORE `(35/35) ticks=3701 → PASS`（含全部移动/挖掘/机器步骤）。
+- **连带行为变化（生产可见，需知）**：药水效果**现在会真的计时并到期**（此前永不失效）；
+  空气会消耗 ⇒ `LOW_AIR`（溺水）产线可达；火焰/冻结/传送门冷却生效。
+  ⚠️ **新增未覆盖的危险类**：细雪冻结（`freeze`）**不在** `HazardType` 里 ⇒ 现在会真的掉血却无否决档，已记为待办。
