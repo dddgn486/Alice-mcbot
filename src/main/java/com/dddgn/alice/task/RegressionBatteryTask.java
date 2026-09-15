@@ -145,6 +145,8 @@ public final class RegressionBatteryTask implements Task {
             // M2（G2）：长作业周期复评 —— "自主"的物理载体（无进度 ⇒ 报一次 NO_PROGRESS）。
             // 放 MAIN（CORE 跑）：它是停止条件 A1「中途自己发现问题」的必要条件。
             Map.entry("no_progress", Profile.MAIN),
+            // M3（G3 归因）：缺工具必须报 `tool_missing`，不许被总括码 `no_reachable_candidate` 盖掉。
+            Map.entry("mine_no_tool", Profile.MAIN),
             // 阶段 3-B / (c) 增量 2（D-217）：**机器路线的生产路径**（CraftJob 真的驱动一台机器）。
             // 与 machine_cycle 同一份闭环实现、不同入口；也会写容器 ⇒ 模组不在 ⇒ SKIP。
             Map.entry("craft_machine", Profile.MAIN),
@@ -339,6 +341,29 @@ public final class RegressionBatteryTask implements Task {
                                 MineCandidateSource.SCAN_RADIUS),
                         new NearestPolicy()),
                 2200));
+        // M3（G3 归因）：**缺工具**必须如实报 `tool_missing`，不许被总括码 `no_reachable_candidate` 盖掉。
+        // 与上一歩**同一场景、同一 Job**，唯一差别 = **不发镐**（`resetInventory` 后刻意不 `ensurePickaxe`）
+        // ⇒ 每个候选都 `no_suitable_tool`。判据挂在 `doneWhen` 上：终态理由一旦成为 `tool_missing` 即记 PASS
+        // （`MineJob` 会 FAILED，这是**预期**的失败 —— 该步验的是**归因**，不是"挖到了"）。
+        steps.add(new Step("mine_no_tool",
+                List.of("alice_test:ore_course_terrain"),
+                () -> {
+                    teleportBot(OreCourseAnchor.START_FOOT);
+                    FixtureToolKit.resetInventory(bot);   // 有意不发任何工具
+                    BotLog.info("[Regression] mine_no_tool 夹具：已清空背包且**不发镐**（验归因，不是验挖掘）");
+                },
+                () -> new MineJob(bot,
+                        GoalSpec.mineBlocks(OreCourseAnchor.START_FOOT,
+                                MineCandidateSource.SCAN_RADIUS, 2, 1200),
+                        scope,
+                        new MineCandidateSource(MineCandidateSource.Target.ofBlock(
+                                net.minecraft.world.level.block.Blocks.IRON_ORE),
+                                MineCandidateSource.SCAN_RADIUS),
+                        new NearestPolicy()),
+                600,
+                // 归因对了就判过；一直是总括码 ⇒ doneWhen 永不成立 ⇒ 预算耗尽记 TIMEOUT（判红）
+                task -> task instanceof MineJob job && "tool_missing".equals(job.terminalReason()),
+                null));
         // J8 可持续伐木区（MAINTAIN）：同一个伐木场景，但走"巡查 → 砍 → 继续巡查"的区域型 Job
         steps.add(new Step("region_maintain",
                 List.of("alice_test:lumber_course_terrain", "alice_test:lumber_course_trees"),
@@ -628,8 +653,13 @@ public final class RegressionBatteryTask implements Task {
             return Status.RUNNING;
         }
         if (steps.get(index).doneWhen() != null && steps.get(index).doneWhen().test(current)) {
+            // 详情**通用化**并把任务自报的终态理由带出来（M3：`mine_no_tool` 的判据就是
+            // "terminalReason == tool_missing"，写在日志里才看得见；旧文案是给 region_maintain
+            // 写的"chopped/planted"，放到别的 doneWhen 步骤上就是错话）。
             record(steps.get(index).name(), "PASS",
-                    "ticks=" + stepTicks + "（常驻任务按达成判过：chopped/planted 已达判据）");
+                    "ticks=" + stepTicks + "（doneWhen 判据成立 ⇒ 本步按**达成**判过；task="
+                            + current.getClass().getSimpleName()
+                            + " terminalReason=" + current.terminalReason() + "）");
             endStep();
             return Status.RUNNING;
         }

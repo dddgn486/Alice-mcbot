@@ -1381,7 +1381,15 @@ jar `3312608d…`。
       **`llm_contract` 由 EXTRA 提到 MAIN**（同 M1/M2 的理由：门禁必须默认跑得到）。
 - ⚠️ **M4b 明确推迟**：`tree[].lastFailure` 仍为空 —— Job 的 `subTasks()` 没填（`MineJob` 甚至没有覆写），
       要填得**逐 Job 定义"哪个子阶段失败"**（语义工作，不是接线）。它与 **M3**（专有终态理由）同域，放一起做更省。
-- ⏭️ 下一步 **M3**（专有终态理由：`partial_quota` 掩盖 `WRITE_BUDGET_EXHAUSTED` 等），可与 M4b 合批。
+- ✅ **M3 已完成**（2026-09-15）：`MineJob.attemptFailures` 结构化（`record AttemptFailure(pos, code)`），
+      新增 `deriveTopLevelReason(base)` —— **逐码精确比较**（不再 `contains()` 拼接串）：
+      全 `no_suitable_tool` ⇒ **`tool_missing`**、全预算码 ⇒ **`write_budget_exhausted`**、
+      只剩 `target_replaced` ⇒ **`stale_target`**；只对"目标被尝试过却没一个成功"的总括码归因。
+      新电池步 `mine_no_tool`（MAIN ⇒ CORE）：与 `mine_job` 同场景同 Job，**唯一差别是不发镐**，
+      判据 = `terminalReason == tool_missing`（Job 自身 FAILED 是预期的）。
+      ⚠️ **未观测**：`write_budget_exhausted` / `stale_target` 两条映射是**照既有词表写的**，缺夹具 ⇒ 属 **M3b**。
+- ⏭️ **M 线四项（M1/M2/M4/M3）全部完成**。剩下的：**M4b**（`tree[].lastFailure`，需逐 Job 定义"哪个子阶段失败"）、
+      **M3b**（预算耗尽/stale 的实测夹具）、以及**客户端验证**（用户侧）。
 - ⚠️ **顺带发现（事实）**：`decision_contract` 步的归属是 **EXTRA**（`RegressionBatteryTask.CURATION`）⇒
   **CORE 不跑它**，但它自己的类文档写着"这样它们能进串联回归电池，**任何改动都跑得到**" ⇒ **两者矛盾**
   （D-149 当时的判据承诺 vs 后来的瘦身档位）。要不要把它提到 MAIN/BASELINE 需**用户/策展裁定**，本轮不动。

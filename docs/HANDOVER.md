@@ -180,11 +180,11 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
    **给勘测员的提示**：该文 §0 已声明**全部为静态审计、未实测**；其中一条可在无头通道 5 分钟内证伪/证实
    （"`MineJob` 缺镐 ⇒ 终态报 `no_reachable_candidate`"）⇒ 若要把这份审计当决策依据，**建议先跑它**。
    **用户 2026-09-15 已拍板**：确认 **A1–A3**（见 `AI_DECISIONS.md` **D-221**）、**启动 M 线**、§9 待实测按 AI 推荐先做 **#4**。
-   **M 线进度**：✅ **M1 完成**（`mine_menu`，D-222）、✅ **M2 完成**（`no_progress`，D-223）、
-   ✅ **M4 完成**（`snapshot_failure_fields` + `llm_contract` 提到 MAIN，D-224）；⏭️ 下一步 **M3**（可与 M4b 合批）；
-   ⚠️ **M5 已撤销**（`tryRecoverUnfinishedTeardown` 其实已有调用点 —— 本审计与 `survey/08` §8.2 都写错了，见 D-221 附注一）。
-   **CORE 电池项数 30 → 33**（`mine_menu` / `no_progress` 新增，`llm_contract` 从 EXTRA 提到 MAIN）⇒ 客户端跑电池应看到 **`(33/33)`**。
-   **下一轮客户端只需两件事**：① 跑一次电池（预期 **`(33/33) ticks≈3530 → PASS`**）；
+   **M 线进度**：✅ **M1**（D-222）、✅ **M2**（D-223）、✅ **M4**（D-224）、✅ **M3**（D-225）**四项全部完成并无头验证**；
+   ⏭️ 剩下 **M4b**（`tree[].lastFailure`）与 **M3b**（预算耗尽/stale 的实测夹具）—— 都**不是** M 线的承重件；
+   ⚠️ 但 **M5 已撤销**（见下）；
+   **CORE 电池项数 30 → 34**（`mine_menu` / `no_progress` / `mine_no_tool` 新增，`llm_contract` 从 EXTRA 提到 MAIN）⇒ 客户端跑电池应看到 **`(34/34)`**。
+   **下一轮客户端只需两件事**：① 跑一次电池（预期 **`(34/34) ticks≈3560 → PASS`**）；
    ② 跑 **R4 负例**（`/reload` → `/function alice_test:r4_negative_disturb` → 右键 `alice:pathing_disturber` 一次，
    **预期 `disturb_not_applicable` + `FIXTURE_NOT_FIRED=[disturb]` + FAILED** —— 那是如实回报）。
    ⚠️ 场景函数已复制进客户端存档，但**要先 `/reload`** 才认得新函数。

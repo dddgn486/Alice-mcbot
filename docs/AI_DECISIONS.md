@@ -9263,3 +9263,48 @@ M4 补上后半截 —— "覆写了之后**决策层真的看得到**"）**：�
 **⚠️ M4b 未做（明确推迟，不是漏）**：`tree[].lastFailure` 仍为空 —— Job 的 `subTasks()` 没填
 （`MineJob` 甚至没有覆写），要填得**逐 Job 定义"哪个子阶段失败"**（语义工作，不是接线）。
 它与 **M3**（专有终态理由）同域 ⇒ 合并到 M3 那一轮更省。**登记在台账 §5.7**。
+
+### D-225：M3 —— 专有终态理由（缺工具不许被说成"没矿"）（2026-09-15）
+
+**动因**：`survey/08` §5.7 审计的 **G3** 后半截 —— 总括码会把真因盖掉：
+`MineJob` 在"配额未达成"时只报 `minedCount > 0 ? "partial_quota" : "no_reachable_candidate"`，
+于是**缺镐**（每个候选都 `no_suitable_tool`）被报成"**没矿**" ⇒ 决策层据此选的下一步**必然错**
+（它该去弄工具，而不是换个地方挖）。`LumberJob` 早有归因先例（`tool_missing` / `climb_incomplete`），
+但它用 `f.contains("no_suitable_tool")` 在**拼接串**上做子串匹配 —— 既会误伤位置串，也禁不起词表演化。
+
+**改法**：
+1. **结构化**：`MineJob.attemptFailures` 由 `List<String>`（"位置:码"拼好的串）改为
+   `List<AttemptFailure>`，`record AttemptFailure(BlockPos pos, String code)` + `describe()` 供日志。
+   ⇒ 归因**逐码精确比较**，这是 M4"把失败事实变成字段"的直接收益。
+2. 新增 `deriveTopLevelReason(base)`：**只**对"目标被尝试过、但一个都没成功"这个总括码归因
+   （`no_reachable_candidate`；`partial_quota` 与其它终态**不许被逐目标理由盖掉** —— 与 `LumberJob` 同纪律）：
+   - 全部码 ∈ `TOOL_CODES` ⇒ **`tool_missing`**；
+   - 全部码 ∈ `BUDGET_CODES` ⇒ **`write_budget_exhausted`**；
+   - 只剩 `target_replaced` ⇒ **`stale_target`**（世界在决策后被改动，诚实说法）。
+3. 两张码表都取自**既有词表**（不是新造）：`TOOL_CODES = {no_suitable_tool, tool_missing}`（`MineTask.toolRefusal`）；
+   `BUDGET_CODES = {WRITE_BUDGET_EXHAUSTED, write_budget_exhausted, prod_budget_exhausted}`
+   （分别来自 `BreakAndEnterExecution` / `PlaceStepAndTraverseExecution` / `DownwardExecution` / `PlaceTask` / 连锁挖掘）。
+4. 顺带修一处**错话**：电池里 `doneWhen` 判过时的详情文案是给 `region_maintain` 写的
+   （"常驻任务按达成判过：chopped/planted 已达判据"）⇒ 放到别的 `doneWhen` 步骤上就是**错话**，
+   且**看不见判据是什么**。改为通用文案并**带出任务自报的终态理由**。
+
+**判据（新电池步 `mine_no_tool`，`Profile.MAIN` ⇒ CORE 跑）**：与 `mine_job` **同场景、同 Job**，
+**唯一差别 = 不发镐**（`FixtureToolKit.resetInventory` 后刻意不 `ensurePickaxe`）⇒ 每个候选都 `no_suitable_tool`。
+判据挂在 `doneWhen`：`task instanceof MineJob job && "tool_missing".equals(job.terminalReason())` ——
+**Job 自身 FAILED 是预期的**（该步验的是**归因**，不是"挖到了"）；归因不对 ⇒ `doneWhen` 永不成立 ⇒
+预算耗尽记 `TIMEOUT` 判红。同时 `mine_job`（发镐）仍报 `quota_met` ⇒ 两条合起来证明归因**不误报**。
+
+**验证**：`./gradlew compileJava` ✅；`bash tools/check-all.sh` 9 PASS + 1 预期 WARN ✅；
+**无头 `core`：`(passed=34/34 skipped=0) ticks=3553 → PASS`**（`baseline=14 main=20 extra_skipped=9`），
+日志逐字：
+`[Regression] mine_no_tool=PASS ticks=12（doneWhen 判据成立 ⇒ 本步按达成判过；task=MineJob terminalReason=tool_missing）`
+与 `[Job] mine 未能完成的目标: 56, 62, 128:no_suitable_tool | 56, 62, 136:no_suitable_tool | …` ⇒ **`SERVER_TESTED`**。
+
+**策展**：`BATTERY_CURATION` 更新为 **43 项 → CORE 34**（`mine_no_tool` 记 MAIN）。
+
+**⚠️ 诚实标注（未观测）**：`write_budget_exhausted` 与 `stale_target` 两条映射是**照既有词表写的**，
+本轮**没有**被观测到（缺"预算耗尽/身份失效"的夹具）⇒ 它们是**按词表实现**，不是已实测行为。
+要观测需另造夹具（例如把 `WriteBudget` 上限调极小后跑一次挖掘）—— 属 **M3b**，未做。
+
+**附注一**：`region_maintain`（EXTRA）的详情文案随本条改动一起变了，但**没重跑它**（本轮只跑 CORE）；
+改的是**纯文案**且与 `mine_no_tool` **走同一条代码路径**（`doneWhen` 判过分支）⇒ 风险为零，如实记录在此。

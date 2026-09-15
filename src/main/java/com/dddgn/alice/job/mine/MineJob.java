@@ -60,7 +60,20 @@ public final class MineJob implements Job {
 
     /** 已尝试过的目标格（挖成与挖不动都算）——保证不重复选同一格。 */
     private final Set<BlockPos> attempted = new HashSet<>();
-    private final List<String> attemptFailures = new ArrayList<>();
+    /**
+     * **逐目标的尝试失败**（M3：存**结构化**的"位置 + 理由码"，不再存"拼好的字符串"）。
+     *
+     * <p>为什么：`LumberJob.deriveTopLevelReason` 用 `f.contains("no_suitable_tool")` 在**拼接串**上做子串
+     * 匹配 —— 那既会把位置串误伤，也禁不起词表演化。M4 把"失败事实"变成字段之后，归因应当**逐码精确比较**。
+     */
+    private final List<AttemptFailure> attemptFailures = new ArrayList<>();
+
+    /** 一次尝试失败：`pos` 是目标格，`code` 是失败理由码（取自既有词表，见 `toolRefusal` / `MineTask.failureReason`）。 */
+    private record AttemptFailure(BlockPos pos, String code) {
+        String describe() {
+            return pos.toShortString() + ":" + code;
+        }
+    }
 
     private Phase phase = Phase.SELECT;
     private int ticks;
@@ -187,7 +200,7 @@ public final class MineJob implements Job {
         // 执行期世界可能已变——若该格已不是目标方块，挖它就是拿别人的东西。
         if (!source.matchesTarget(level, current)) {
             attempted.add(current);
-            attemptFailures.add(current.toShortString() + ":target_replaced");
+            attemptFailures.add(new AttemptFailure(current, "target_replaced"));
             DecisionTrace.step(jobName(), "SKIP", current.toShortString(),
                     "该格已不是目标方块（决策后被改动）");
             current = null;
@@ -222,8 +235,8 @@ public final class MineJob implements Job {
                 firstMined = mined;
             }
         } else {
-            attemptFailures.add(mined.toShortString() + ":"
-                    + (reason == null || reason.isBlank() ? "mining_failed" : reason));
+            attemptFailures.add(new AttemptFailure(mined,
+                    reason == null || reason.isBlank() ? "mining_failed" : reason));
         }
         if (minedCount >= spec.quota()) {
             startCollect();
@@ -256,12 +269,56 @@ public final class MineJob implements Job {
         return finish(Task.Status.FAILED);
     }
 
+    /**
+     * **把"总括码"归因成"专有码"**（M3 / `survey/08` §8.2 第 4 条）。
+     *
+     * <p>为什么需要：总括码会把真因盖掉 —— **缺镐**被报成 `no_reachable_candidate`（"没矿"），
+     * 决策层据此选的下一步必然错（它应该去弄工具，而不是换个地方挖）。
+     * `LumberJob` 早有这个先例（`tool_missing` / `climb_incomplete`），但它是用
+     * `f.contains("no_suitable_tool")` 在**拼接串**上做子串匹配 ⇒ 这里改成**逐码精确比较**
+     * （M4 把失败事实变成字段的直接收益）。
+     *
+     * <p>只对"**目标被尝试过、但一个都没成功**"这个总括码做归因；其它终态（超时 / 装不下 / 缺工具）
+     * 本身就是明确原因，**不许被逐目标理由盖掉**（与 `LumberJob` 同一条纪律）。
+     */
+    private String deriveTopLevelReason(String base) {
+        if (!"no_reachable_candidate".equals(base) || attemptFailures.isEmpty()) {
+            return base;
+        }
+        java.util.Set<String> codes = attemptFailures.stream()
+                .map(AttemptFailure::code)
+                .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
+        if (codes.stream().allMatch(TOOL_CODES::contains)) {
+            return "tool_missing";
+        }
+        if (codes.stream().allMatch(BUDGET_CODES::contains)) {
+            return "write_budget_exhausted";
+        }
+        if (codes.size() == 1 && codes.contains("target_replaced")) {
+            return "stale_target";
+        }
+        return base;
+    }
+
+    /** **缺工具类**理由码：目标必须某种工具才掉落，而身上没有（`MineTask.toolRefusal`）。 */
+    private static final java.util.Set<String> TOOL_CODES = java.util.Set.of(
+            "no_suitable_tool", "tool_missing");
+
+    /**
+     * **写入预算耗尽类**理由码：这些码来自既有词表（`BreakAndEnterExecution` / `PlaceStepAndTraverseExecution` /
+     * `DownwardExecution` / `PlaceTask` / 连锁挖掘），不是新造的。
+     */
+    private static final java.util.Set<String> BUDGET_CODES = java.util.Set.of(
+            "WRITE_BUDGET_EXHAUSTED", "write_budget_exhausted", "prod_budget_exhausted");
+
     /** 配额未达成：有产出 → `partial_quota`，一个没挖成 → `no_reachable_candidate`。 */
     private Task.Status shortfall(CandidateSet set) {
         if (!attemptFailures.isEmpty()) {
-            BotLog.warn("[Job] mine 未能完成的目标: {}", String.join(" | ", attemptFailures));
+            BotLog.warn("[Job] mine 未能完成的目标: {}", attemptFailures.stream()
+                    .map(AttemptFailure::describe).collect(java.util.stream.Collectors.joining(" | ")));
         }
-        terminalReason = minedCount > 0 ? "partial_quota" : "no_reachable_candidate";
+        terminalReason = deriveTopLevelReason(
+                minedCount > 0 ? "partial_quota" : "no_reachable_candidate");
         failure = terminalReason + (set.rejected().isEmpty() ? "" : " " + String.join(",", set.rejected()));
         return finish(Task.Status.FAILED);
     }
