@@ -9661,3 +9661,25 @@ lastFailure=no_suitable_tool@EVALUATING`）/ 反向 `FAIL` ✅；CORE `(35/35) t
 
 **验证**：`single:mine_stale` / `single:mine_budget` 均 `PASS`；CORE 由 35 步变 **37 步**
 （`(37/37) → PASS`）；`docs/BATTERY_CURATION.md` 归属表与历史行同步（44/35 → 46/37）。
+
+---
+
+### D-233：③ `decision_contract` 提档 + ④ `AI_PROJECT_STATE.md` 过时段落重写（2026-09-15）
+
+**③ `decision_contract`：EXTRA → MAIN**（用户队列第 3 项，按既定先例执行）
+- **事实（矛盾）**：该步的类注释写着"契约类断言：纯逻辑、不改世界、不调 LLM ⇒ **任何改动都跑得到**"，
+  而 `RegressionBatteryTask.CURATION` 把它放在 **EXTRA** ⇒ **CORE 根本跑不到**（承诺与档位打架）。
+- **代价**：`DecisionContractCheckTask(bot, observer)`，预算 **200 tick**、确定性、不调 LLM、不改世界。
+- **决定**：提到 **MAIN**（⇒ CORE 跑得到）。依据是**同一个项目里已发生三次的同型先例**：
+  M1 `mine_menu`、M2 `no_progress`、M4 `llm_contract` 都从 EXTRA 提档，理由都是"**门禁必须默认跑得到**"
+  （D-201 的策展口径：机制不丢、默认时长下降）。若用户要的是"改文档承诺"而不是"提档位"，改回一行即可。
+- **验证**：CORE **37 → 38 步**，`decision_contract=PASS`，`(38/38) ticks=3847 → PASS`；归属表与历史行已同步。
+
+**④ `AI_PROJECT_STATE.md`：把停在上古的两节重写成现状（**净增 −8 行**，符合"净增 ≤ 0"硬约束）**
+- **问题**：`## 当前目标` 下的「当前进度」与「下一步（2026-09-09）」是 **R2–R4 / D-024…D-068 时代**的逐条流水
+  （含一段上千字的单行段落），而项目已到 D-232 ⇒ 新会话照它读会**读到错误现状**。
+- **改法**：① 在"最新（2026-09-15）"节顶部加一行指针（声明本节及以下多为历史存档，"现在在哪"看下面两节 + `HANDOVER` §1）；
+  ② 把 09-08/09 时代的「当前进度 / 下一步」整段换成**当前快照**（内核 R1–R5 收口 → 3-A → 3-B S0–S4 → M 线全完成
+  （含 M4b/M3b）→ S-5 维生线三项 `WINDOWS_CLIENT` → D-230 的自我修正 → 离线门槛 CORE 38 步 / check-all 9+1 →
+  断点指向 `HANDOVER` 与台账）。逐条历史本来就在 `AI_DECISIONS.md`/git 里，**不再抄进 STATE**。
+- **验证**：`check-doc-budget` = **1467 ≤ 1476**（余额 9）✅；`check-all.sh` 9 PASS + 1 预期 WARN ✅。

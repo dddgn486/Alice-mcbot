@@ -169,7 +169,10 @@ public final class RegressionBatteryTask implements Task {
             // ---- EXTRA：已验收/无关/耗时（10）----
             Map.entry("lumber_failure", Profile.EXTRA),
             Map.entry("region_maintain", Profile.EXTRA),
-            Map.entry("decision_contract", Profile.EXTRA),
+            // 2026-09-15（③/策展）：从 EXTRA 提到 MAIN —— 它自己的类注释写着"任何改动都跑得到"，
+            // 而 CURATION 把它放 EXTRA ⇒ CORE 根本跑不到（承诺与档位矛盾）。与 M1/M2/M4 三次提档同一理由：
+            // **门禁必须默认跑得到**。代价 = 200 tick、纯逻辑、不调 LLM、不改世界（确定性）。
+            Map.entry("decision_contract", Profile.MAIN),
             Map.entry("decision_trace", Profile.EXTRA),
             // 2026-09-15（M4）：从 EXTRA 提到 MAIN —— 它现在含"失败事实必须是字段"的门禁
             Map.entry("llm_contract", Profile.MAIN),
