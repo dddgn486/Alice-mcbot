@@ -288,6 +288,13 @@ public final class AliceItems {
     public static final RegistryObject<Item> SURVIVAL_EXIT_CHECK =
             ITEMS.register("survival_exit_check", () -> new SurvivalExitCheckItem(new Item.Properties()));
 
+    /**
+     * **维生全套自检**（D-229）：把 `SurvivalExitCheckTask` 整套夹具跑一遍并在聊天里打 SUMMARY
+     * —— 决策表 / 无出口不乱否决 / 真实着火 / 掉血 / 入水空气消耗 / **细雪冻结（全冻后掉血）**。
+     */
+    public static final RegistryObject<Item> SURVIVAL_FULL_CHECK =
+            ITEMS.register("survival_full_check", () -> new SurvivalFullCheckItem(new Item.Properties()));
+
     /** 挖掘专项串联回归（批次 5，场景专属）。 */
     public static final RegistryObject<Item> MINE_REGRESSION =
             ITEMS.register("mine_regression", () -> new MineRegressionItem(new Item.Properties()));

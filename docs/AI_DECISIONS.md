@@ -9544,3 +9544,18 @@ M4 补上后半截 —— "覆写了之后**决策层真的看得到**"）**：�
 **验证**：`single:survival_exit` 正向 `PASS`（checks=55 failures=0）/ 反向 `FAIL` ✅；
 CORE `(35/35) ticks=3830 → PASS` ✅；`check-all.sh` ✅。
 **待真人验**：疾跑右键看到 `hazard=FREEZING` + 全冻后掉血（`WINDOWS_CLIENT` 待升）。
+
+**入口设计教训 + 替代入口（同日，用户实测发现）**：
+- 细雪那条一开始挂在 `alice:survival_exit_check` 的"**疾跑 + 右键**"上 ⇒ 用户按了两次**全落到"硬：窒息"分支**，
+  客户端日志里 `FREEZING` **0 次**。根因是**原版站着不动进不了疾跑状态**（疾跑需要向前移动）⇒
+  **这个触发键在静止时根本点不到**（我的设计错误，与用户操作无关）。该分支**已撤掉**。
+- 替代入口（零参数、点得到）：**新物品 `alice:survival_full_check`** —— 普通右键，
+  把 `SurvivalExitCheckTask` **整套夹具**挂成会话任务：决策表 / 封闭场景（无出口不乱否决）/ 真实着火 /
+  掉血可判读 / 入水空气消耗 / **细雪冻结（累积 → FREEZING → 全冻后掉血）**，
+  跑完在聊天里打一行 `[Survival] SUMMARY checks=55 failures=N → PASS/FAIL`。
+  夹具**自己收尾**：拆水/拆雪、归零 `ticksFrozen`、清效果、把人送回平台。
+- 落地要点：`BotSession.assignFixtureTask(...)`（走 §5.9 的可见拒绝路径，被未结清传输挡住时**如实返回 false**）
+  + `BotManager.assignSurvivalFixtureCheck(bot, observer)`；物品先**传送再建场景**（未加载区块里 `/fill` 静默无操作）；
+  `SurvivalExitCheckTask` 名字带 `Check` ⇒ `isSelfCheck()` 为真 ⇒ 跑夹具时**自动暂停决策层**（LLM 不会插一脚）。
+- ⚠️ **一般化教训（写进技能库）**：给真人做的测试入口，触发键必须是**静止可表达**的输入
+  （右键 / 潜行+右键 / 物品 / 命令）。**疾跑、跳跃、移动中**这类状态在静止时表达不出来，不能当模式选择器。

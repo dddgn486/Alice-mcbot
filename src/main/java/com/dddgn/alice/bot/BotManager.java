@@ -1491,6 +1491,25 @@ public final class BotManager {
         return true;
     }
 
+    /**
+     * **维生全套夹具自检**（`alice:survival_full_check`，D-229 新增）：把
+     * {@link com.dddgn.alice.task.SurvivalExitCheckTask} 挂成会话任务 —— 它会把 S-5 决策表、
+     * 封闭场景（无出口）、真实着火、入水空气消耗、**细雪冻结**全跑一遍，并在聊天里打一行 SUMMARY。
+     *
+     * <p>为什么要有这个入口：D-229 的冻结相位此前只能靠"疾跑+右键"触发，而**原版站着不动进不了疾跑**
+     * ⇒ 那个入口根本点不到（设计错误，2026-09-15 实测发现）。
+     *
+     * @return 真的派上了活（false ⇒ 调用方必须如实上报，别打印"就位"）
+     */
+    public static boolean assignSurvivalFixtureCheck(BotPlayer bot, ServerPlayer observer) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) {
+            return false;
+        }
+        return session.assignFixtureTask(new com.dddgn.alice.task.SurvivalExitCheckTask(bot, observer),
+                TaskTarget.block(bot.blockPosition()));
+    }
+
     /** **派不上活的原因**（空串 = 没被挡住；§5.9：给命令/物品入口用，把静默失效变成可读的话）。 */
     public static String assignmentBlockReason(BotPlayer bot) {
         return TransferLedgerData.get(bot.getServer()).blockingSummary(bot.getUUID());
@@ -1704,6 +1723,24 @@ public final class BotManager {
             if (!replaceTaskIfRunning()) return false;
             TaskTarget assignedTarget = TaskTarget.block(targetPos);
             beginTask(new PlaceTask(bot, targetPos), assignedTarget);
+            broadcastTarget(this.target);
+            return true;
+        }
+
+        /**
+         * 把**任意夹具任务**挂成会话任务（用户入口用）。
+         *
+         * <p>与 `beginTask` 直连的"系统内派活"（电池 / Jobs / 维生逃生）不同，这里走
+         * {@link #replaceTaskIfRunning()} ⇒ 被未结清传输挡住时会**如实返回 false 并打 warn**（§5.9），
+         * 调用方必须据此上报，不许默认成功。
+         *
+         * @return 真的派上了活
+         */
+        public boolean assignFixtureTask(Task fixtureTask, TaskTarget fixtureTarget) {
+            if (!replaceTaskIfRunning()) {
+                return false;
+            }
+            beginTask(fixtureTask, fixtureTarget);
             broadcastTarget(this.target);
             return true;
         }
