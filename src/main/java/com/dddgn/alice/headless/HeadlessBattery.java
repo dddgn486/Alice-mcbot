@@ -197,6 +197,20 @@ public final class HeadlessBattery {
         // （症状 = 判决行已打出、进程却一直挂着，像"还在跑"）。
         // `halt` 不跑 shutdown hook ⇒ 立刻终止、退出码原样带出。代价是**不存档**，这正是我们要的：
         // 每轮都从"原始世界母本"重新拷贝，夹具残留不该跨轮次累积（见 tools/headless-battery.sh）。
+        //
+        // **例外（`ALICE_SAVE_ON_HALT=1`）**：给"**持久化**"类实验用（D-235）—— 结清/账本这类写进
+        // `SavedData` 的状态，**只有存档才看得见**（`halt` 不存档 ⇒ 磁盘上永远是母本那份）。
+        // 打开它会在停机前同步存一次（`saveEverything(flush=true)`），于是可以解压 `world/data/alice_*.dat`
+        // 读回真实落盘状态。默认关闭 ⇒ 平时行为一字不变。
+        if (Boolean.getBoolean("alice.headless.saveOnHalt")) {
+            BotLog.info("[Headless] ALICE_SAVE_ON_HALT ⇒ 停机前同步存档（持久化实验用）");
+            try {
+                server.saveEverything(true, true, false);
+                BotLog.info("[Headless] 已存档 ⇒ 磁盘上的 alice_*.dat 反映本轮终态");
+            } catch (Throwable t) {
+                BotLog.warn("[Headless] 存档失败（不影响判决）：{}", t.toString());
+            }
+        }
         Runtime.getRuntime().halt(code);
     }
 }

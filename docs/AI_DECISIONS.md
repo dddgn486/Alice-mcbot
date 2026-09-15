@@ -9712,3 +9712,31 @@ lastFailure=no_suitable_tool@EVALUATING`）/ 反向 `FAIL` ✅；CORE `(35/35) t
 要补它需要一个"内层 `MineTask` 真的失败"的确定性用例（例如够不到/超出 `MAX_GAIN_PER_TREE` 的树干），已登记台账 §5.7。
 
 **验证**：`single:decision_contract` 正向 `PASS checks=10` / 反向 `FAIL` ✅；CORE（38 步）见提交信息。
+
+---
+
+### D-235：§5.9 挂起传输"结清落盘"验证 —— **持久化成立、跨重启幂等**（2026-09-15）
+
+**待办（台账 §5.9 尾部）**：C3 把那 11 条 `NOT_MOVED` 挂起直接落 `ABORTED`，但**无头停机是 `Runtime.halt`
+（故意不存档）** ⇒ "结清到底有没有落盘"此前**无法观测**（磁盘上永远只有母本那份）。
+
+**新增两个**持久化实验**开关（都挂在既有命令上，默认关 ⇒ 平时行为一字不变）**：
+- `ALICE_KEEP_ALICE_DATA=1 tools/headless-battery.sh …` ⇒ 保留世界里的 `alice_*.dat`（默认被删是为了干净起点）；
+- `ALICE_EXTRA_JVM_ARGS="-Dalice.headless.saveOnHalt=true"` ⇒ `HeadlessBattery.exit` 在 `halt` 前
+  `saveEverything(true,true,false)`（javadoc 写明：`SavedData` 的状态只有存档才看得见）。
+
+**实验与结果**：
+1. 第一轮（世界带母本的账本 + 保留 + 存档）：启动日志 `启动结清：11 条…落 ABORTED（code=aborted_no_bot_inventory）`
+   ⇒ `transfer` 步 `PASS`；解压 `world/data/alice_transfer_ledger.dat`（gzip → 5.0 MB）
+   **读到** `code=aborted_no_bot_inventory` + `state=ABORTED` + `manualTakeover=false` 的条目
+   ⇒ **结清确实落盘**（`suspendUnfinished` 的 `setDirty()` 生效）✅
+2. 第二轮（把上轮存档当作母本再启动一次）：启动结清变成 **1 条**（不是 11 条）⇒ 上轮那 11 条已
+   **terminal（ABORTED）**、不再被结清 ⇒ **跨重启幂等** ✅；`transfer` 步再次 `PASS`（**账本满载时
+   bot 的 `assign*` 通路可用**）✅
+
+**⚠️ 方法教训（差点自己造出一个假发现）**：我第一版统计解压后的 NBT，得到"`state=SUSPENDED` 1938 条"
+⇒ 看起来像"结清只做了一小部分"。**错的**：`Entry` 里既有**当前状态**字段、也有 `transitions[]` **历史**，
+两者字段名都叫 `state` ⇒ **按字符串计数 ≠ 数活状态**。正确的量法是让系统自己报
+（结清行的 `released` 计数、或再启动一次的对比）。这与今天前几次是同一族病：**证据口径不当时，数字会骗人**。
+（台账 §5.9 的"持久化"待办据此关闭；DB 里要不要真的区分 `transitions[].state` 与 `entry.state` 的观测便利性
+不属本轮，未动代码。）

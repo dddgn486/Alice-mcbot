@@ -38,6 +38,12 @@
 #  ⇒ 从 `ALICE_CLIENT_SAVE` 拷一份 `run/world-pristine` 作母本，每轮从母本复制、跑完丢弃
 #    （所以无头跑**不存档**，见 `HeadlessBattery.exit` 的 halt）。
 #
+# ============================ 环境变量 ============================
+#   ALICE_EXTRA_JVM_ARGS="…"     额外 JVM 属性（A/B 对照用；例：-Dalice.bot.vanillaTick=true）
+#   ALICE_KEEP_ALICE_DATA=1      保留世界里的 `alice_*.dat`（默认清掉 = 干净起点）
+#   ALICE_SAVE_ON_HALT=1         停机前同步存档（配 `-Dalice.headless.saveOnHalt=true`，见 HeadlessBattery）
+#   —— 后两个是**持久化实验**专用（D-235）：`SavedData` 里的状态只有存档才看得见。
+#
 set -uo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -139,7 +145,14 @@ cp -r tools/test-scenes/alice_test "$WORLD/datapacks/alice_test" || die "装场�
 #     而此刻 WorldEdit 自己的 `ServerStartedEvent` handler 还没跑（缓存未初始化 ⇒ 不可变集合）
 #     ⇒ `UnsupportedOperationException` ⇒ **服务端 tick 循环崩**（实测 crash-report 实证）。
 #  ② 跨轮次残留（尤其 51 KB 的转移账本）会污染判决，无头基线必须是干净起点。
-rm -f "$WORLD"/data/alice_*.dat
+if [ "${ALICE_KEEP_ALICE_DATA:-0}" = "1" ]; then
+    # **持久化实验用**（D-235）：保留世界里的 `alice_*.dat`（默认清掉是为了"干净起点"，
+    # 但那也让"结清是否落盘"永远看不见）。配合 `ALICE_EXTRA_JVM_ARGS=-Dalice.headless.saveOnHalt=true`
+    # 使用：跑完后解压 `$WORLD/data/alice_*.dat` 读回真实落盘状态。
+    say "ALICE_KEEP_ALICE_DATA=1 ⇒ 保留 $WORLD/data/alice_*.dat（持久化实验）"
+else
+    rm -f "$WORLD"/data/alice_*.dat
+fi
 
 # ---------------------------------------------------------------- 模组
 say "装模组 → $MODS"

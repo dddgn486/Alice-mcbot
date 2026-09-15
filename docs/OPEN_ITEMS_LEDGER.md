@@ -1529,6 +1529,14 @@ tango 立刻解除阻塞。代价：丢 61 条 `VERIFIED` 传输审计记录（�
    `ABORTED` + `code=aborted_no_bot_inventory` + `manualTakeover=false`。
    **反向对照已做**：把该断言取反 ⇒ `single:transfer` 立刻 `FAIL`（证明判据真的能红，不是摆设）。
 
+**✅ 持久化待办关闭（D-235，2026-09-15 深夜）**：新增两个**持久化实验开关**（默认关、挂在既有命令上）——
+`ALICE_KEEP_ALICE_DATA=1`（保留世界里的 `alice_*.dat`）+ `-Dalice.headless.saveOnHalt=true`
+（停机前同步存档）。实测：① 启动 `结清：11 条 → ABORTED`，存档后解压 `world/data/alice_transfer_ledger.dat`
+**读到** `state=ABORTED` + `code=aborted_no_bot_inventory` + `manualTakeover=false` ⇒ **结清落盘** ✅；
+② 以上轮存档为母本再启动 ⇒ 结清**只剩 1 条**（那 11 条已 terminal）⇒ **跨重启幂等** ✅；两轮 `transfer` 均 `PASS`。
+⚠️ **方法教训**：按 NBT 字符串计 `state=SUSPENDED` 得 1938 条，看着像"只结清了一小部分" ——
+**是假的**（`transitions[]` 历史与当前状态同名字段）⇒ **字符串计数 ≠ 数活状态**，要用系统自报的 `released` 计数。
+
 **⚠️ 明确没做（越界会被现有断言挡住）**：`TransferTask.survivalInterrupted` / `menuFailed` / `suspend`
 这三处**仍在跑动中**写入 `NOT_MOVED` 挂起 —— 那是**有意设计**且**已被夹具断言**
 （`taskInterruptPolicies`：`SUSPENDED` + `NOT_MOVED` + `manualTakeover=true`）⇒ 本轮**不动**。
