@@ -36,6 +36,11 @@
 3. **`PathRequest.requester` 三个工厂方法全部硬编码 `"unknown"`，全仓无一处真正填充。**
    系统里**现在没有「谁在请求」这个概念**。这在阶段 G（LLM 接入）会立刻变成硬缺口，而它是**签名级**的。
 
+   > ⚠️ **2026-09-14 事后核实（AI）：本条已过时。** 全仓**已有 10+ 处传真实 requester**
+   > （`follow` / `walk-to` / `place` / `pathing-battery` / `pathing-regression` / `path-session-diagnostic` …），
+   > `PathRequest.java:29` 只剩 null 兜底。核实见 `docs/reviews/2026-09-14-survey07-可行动条目核实.md`。
+   > （**§2.2 的架构结论经核实仍然成立且已被遵守**：实建的是 `action/WritePolicyMatrix` 按域实现。）
+
 4. **整合包独占内容不进通用识别**（用户 2026-09-10 裁定）。
    例：ATM9 的 Allthemodium / Vibranium / Unobtainium 属整合包独占，
    应作为**特定整合包适配工作的一环**（蓝图阶段 E / `PackProfile`），
