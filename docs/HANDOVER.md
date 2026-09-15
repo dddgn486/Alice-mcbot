@@ -22,12 +22,13 @@ T3 八步已走完七步：步骤 1 / B3a / A / A2 / C / (A) / **B4** 全部落�
 怪物/死亡命中 0、三轮场景行逐字相同。
 全文：`docs/reviews/2026-09-15-夹具时机基准与DIAGONAL覆盖.md`。
 
-**今天 1 个提交**：`D-220`（夹具时机 + 夹具必动手断言 + `dip_course+run` + 无头 `peaceful`）。
+**今天 2 个提交**：`ce3fac7`（D-220：夹具时机 + 夹具必动手断言 + `dip_course+run` + 无头 `peaceful`）、
+`1aa948c`（D-220 附注：`FixtureScript` 共用原语 + 物品侧静默降级）；另有 `4a3bada`/`fe37f8e` 两条文档。
 
 ⚠️ **今天所有改动都只做了无头验证（`SERVER_TESTED`）**；没有一条碰渲染/物理/GUI，
 所以**按纪律不冒充 `WINDOWS_CLIENT`**，也**没有**开客户端轮次（用户 2026-09-14 裁定：
-无头能覆盖的就不占真人轮次）。**客户端 jar 仍是 `f478d9f7…`（第十八轮那个，即 T3 之前）**
-⇒ 若下次要真人测 T3，**必须先 `./tools/sync-windows-artifact.sh` 换 jar**。
+无头能覆盖的就不占真人轮次）。**客户端 jar 已同步成 `462b10b5…`**（含 T3 七步 + D-220），
+但**上一次真人验收的是 `f478d9f7…`（第十八轮）** ⇒ 真做客户端轮次时按"新工件"对待（见 §5 末）。
 
 **待你拍板的问题**（§4）：① **客户端电池要不要也在夹具层清怪物**（无头侧已 `peaceful`）；
 ② 夹具分离要不要做（**只做包移动**，不要"移出发布 jar" —— 见 §2c 的范围修正）；
@@ -173,8 +174,10 @@ T3 八步已走完七步：步骤 1 / B3a / A / A2 / C / (A) / **B4** 全部落�
 - **客户端**：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - **镜像 / 同步**：`./tools/mirror-windows-workspace.sh`；
   `./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`。
-- **本断点已同步的 jar**：`f478d9f75ab8883701064100a728ba0c4af552f0c7c4e984521e7efb3916d13f`（三处一致）
-  —— 注意这是**第十八轮客户端那个 jar**（T3 之前）。T3 的两次改动**没换客户端 jar**（按纪律：无头能覆盖的不占真人轮次）。
+- **本断点已同步的 jar**：`462b10b5af178cb8ed223b8cce949fc8b76be56e55d6535ea6fe7362219c7780`（三处一致，2026-09-15 10:47）
+  —— **含 T3 全部七步 + D-220（夹具时机/自愈场景/无头 peaceful/FixtureScript）**。
+  ⚠️ **上一次真人客户端验证通过的是 `f478d9f7…`（第十八轮，T3 之前）** ⇒ 这次同步的 jar 里
+  T3 与 D-220 的效果**客户端尚未验收过**：要验收就跑一次电池 + R4 两件夹具物品（预期见 `TESTING_GUIDE.md` §4.7）。
 - **离线门禁（改完就跑这一条）**：`bash tools/check-all.sh`（**10 道**，三态 PASS/WARN/FAIL；
   `WARN` = 断言**没执行**，不是通过；`ALICE_MODS_DIR` 可指定上游模组目录）。
   ⚠️ 改了 Java/工具后**再跑一次**，别只看编译过。
