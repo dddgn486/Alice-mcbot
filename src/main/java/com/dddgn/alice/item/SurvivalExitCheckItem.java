@@ -101,7 +101,13 @@ public class SurvivalExitCheckItem extends Item {
         }
         if (!BotManager.assignSurvivalExitCheck(bot, player instanceof ServerPlayer sp ? sp : null,
                 com.dddgn.alice.task.SurvivalCourseAnchor.DUMMY_GOAL)) {
-            say(player, "[alice] " + BotManager.busyMessage(bot));
+            // A（§5.9）：**不许静默成功** —— 说清是"忙"还是"被未结清传输挡住"（后者以前会打印"就位"骗人）
+            String blocked = BotManager.assignmentBlockReason(bot);
+            say(player, blocked.isEmpty()
+                    ? "[alice] " + BotManager.busyMessage(bot)
+                    : "[alice] 自检**没有起效**：bot 手上有未结清传输 ⇒ " + blocked
+                            + "。它挡住了这个 bot 的所有 assign* 通路（walk/维生自检…）。"
+                            + "换一个假人，或重开一次世界让启动时的结清把它落成终态");
             return;
         }
         BotLog.info("[SurvivalExitCheck] 就位 bot={} hazard_foot={} mode={}；期望：维生中断 →"

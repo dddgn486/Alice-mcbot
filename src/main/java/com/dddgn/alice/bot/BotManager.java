@@ -378,8 +378,7 @@ public final class BotManager {
     public static boolean assignWalkTo(BotPlayer bot, BlockPos goalFoot) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null) return false;
-        session.assignWalkTo(goalFoot);
-        return true;
+        return session.assignWalkTo(goalFoot);   // A（§5.9）：拒绝必须**向外可见**，不许吞掉
     }
 
     public static boolean assignWalkToDiagnostic(BotPlayer bot, ServerPlayer observer) {
@@ -1480,9 +1479,21 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
-        session.assignWalkTo(dummyGoal);
+        // A（§5.9 / 2026-09-15）：**前提自证** —— 维生否决只在"手上有活"时才会被检查，
+        // 所以"派活失败"必须让调用方知道（此前无条件 return true，夹具于是打印"就位"却什么都没发生）。
+        if (!session.assignWalkTo(dummyGoal)) {
+            BotLog.warn("[SurvivalExitCheck] 派活失败：bot={} 被未结清传输挡住（{}）⇒ 维生自检**无法进行**"
+                            + "（否决链只在有任务时生效）",
+                    bot.getName().getString(), assignmentBlockReason(bot));
+            return false;
+        }
         broadcastTarget(session.target);
         return true;
+    }
+
+    /** **派不上活的原因**（空串 = 没被挡住；§5.9：给命令/物品入口用，把静默失效变成可读的话）。 */
+    public static String assignmentBlockReason(BotPlayer bot) {
+        return TransferLedgerData.get(bot.getServer()).blockingSummary(bot.getUUID());
     }
 
     /**
@@ -1644,7 +1655,14 @@ public final class BotManager {
         }
 
         private boolean replaceTaskIfRunning() {
-            if (TransferLedgerData.get(bot.getServer()).blocksBot(bot.getUUID())) {
+            // B（§5.9 / 2026-09-15）：**拦截必须可见**。此前这里静默 return false ⇒
+            // `assignWalkTo`（void）什么都不做、调用方却以为成功（客户端实测：维生自检打印"就位"、
+            // 实际连任务都没建 ⇒ 用户看到"bot 没反应"）。现在如实打一行，说明**为什么**。
+            String blocked = TransferLedgerData.get(bot.getServer()).blockingSummary(bot.getUUID());
+            if (!blocked.isEmpty()) {
+                BotLog.warn("[alice] 派活被拒：bot={} 有 {}={} ⇒ 不替换任务（未结清传输会保护物品；"
+                                + "见台账 §5.9）",
+                        bot.getName().getString(), "未结清传输", blocked);
                 return false;
             }
             if (task instanceof TransferTask transfer && transferInTransitOrSuspended(transfer)) {
@@ -1690,11 +1708,13 @@ public final class BotManager {
             return true;
         }
 
-        public void assignWalkTo(BlockPos goalFoot) {
-            if (!replaceTaskIfRunning()) return;
+        /** @return 真的派上了活（false = 被未结清传输挡住 ⇒ 调用方**必须**如实上报，不许当成功） */
+        public boolean assignWalkTo(BlockPos goalFoot) {
+            if (!replaceTaskIfRunning()) return false;
             TaskTarget assignedTarget = TaskTarget.block(goalFoot);
             beginTask(new com.dddgn.alice.task.WalkToTask(bot, goalFoot), assignedTarget);
             broadcastTarget(this.target);
+            return true;
         }
 
         public void assignRoadBuild(com.dddgn.alice.road.RoadPlan plan) {

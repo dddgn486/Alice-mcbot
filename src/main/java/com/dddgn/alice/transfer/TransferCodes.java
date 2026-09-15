@@ -42,6 +42,14 @@ public final class TransferCodes {
     public static final String DESTINATION_FULL = "destination_full";
     public static final String SERVER_RESTART = "server_restart";
     public static final String MANUAL_TAKEOVER_REQUIRED = "manual_takeover_required";
+    /**
+     * **挂起结清：物品从未进过 bot 背包**（§5.9 / 2026-09-15）。
+     *
+     * <p>重启时把"没动过物品"的未完成请求落成这个终态，而不是 `SUSPENDED` —— 挂起会让该 bot 的
+     * `assign*` 通路（walk/follow/place/transfer/维生自检）**永久**被 `blocksBot` 挡住，
+     * 而这类条目**没有任何"人工接管"的语义**（物品还在源容器，或压根没动）。
+     */
+    public static final String ABORTED_NO_BOT_INVENTORY = "aborted_no_bot_inventory";
     public static final String UNKNOWN_DISCREPANCY = "unknown_discrepancy";
     public static final String TRANSFER_VERIFIED = "transfer_verified";
     public static final String DEFAULT_ITEM_UNAVAILABLE = "default_item_unavailable";

@@ -9398,3 +9398,49 @@ M4 补上后半截 —— "覆写了之后**决策层真的看得到**"）**：�
 无头 `single:survival_exit` = **`checks=38 failures=0 → PASS`** ✅；无头 `core` = 见 HANDOVER（本条落地时同步）。
 ⚠️ **本节全部证据是 `SERVER_TESTED`**：没有一条碰渲染/物理/GUI（`survival_exit` 的"真点火"也只在服务端逻辑层），
 按纪律**不冒充** `WINDOWS_CLIENT`；`alice:survival_exit_check` 的两个模式**待真人轮次**。
+
+---
+
+### D-227：§5.9 挂起传输永久堵死 `assign*`（C3 + A + B，用户裁定 2026-09-15）
+
+**动因（客户端实测发现，非审计推测）**：用户点 `alice:survival_exit_check` 后"bot 没反应"。
+读日志 + 解析存档账本定位到**与维生无关**的一条真缺陷（台账 §5.9 有逐条证据）：
+`saves/新的世界/data/alice_transfer_ledger.dat` 里该 bot 有 **11 条 `SUSPENDED`**（`code=server_restart`、
+`location=NOT_MOVED`、`manualTakeover=1`）⇒ `blocksBot` 为真 ⇒ `replaceTaskIfRunning()` 返回 false
+⇒ `assignWalkTo`（**void**）静默什么都不做 ⇒ 夹具的 dummy 任务从未建立 ⇒ 维生否决**永不执行**
+（日志里窒息被正常检测、也真的掉血，但一次否决都没有）。**用户看到的"没反应"是这条链，不是窒息机制缺失。**
+
+**用户裁定**：采纳 **C3 + A + B**，**不放宽 C2**（`blocksBot` 的拦截口径保持"任何任务替换"）。
+
+**改法**：
+
+1. **C3（`TransferLedgerData`）**：`suspendUnfinished` / `expireSuspensions` 里
+   **`location != BOT_INVENTORY` 的条目直接落 `ABORTED`**（新终态码 `aborted_no_bot_inventory`、
+   `manualTakeover=false`），只有 `BOT_INVENTORY`（物品确实在 bot 身上）才挂起。
+   理由：这类条目**没有任何"人工接管"的语义**（物品还在源容器 / 压根没动），挂起只是纯阻塞；
+   而且这让**已被旧版本堵死的存档自然自愈**（每次启动重跑本方法即结清 —— 不依赖"必须存盘"）。
+   结清时**出声**（`启动结清：N 条…`）：这条日志正是"用户没反应"时**唯一**能给出线索的东西。
+2. **A（前提自证 + 拒绝可见）**：`BotSession.assignWalkTo` 由 `void` 改**返回 boolean**；
+   静态 `BotManager.assignWalkTo` 透传；`assignSurvivalExitCheck` 派活失败**返回 false + 打日志**；
+   物品侧显示**真实原因**（"bot 手上有未结清传输 … ⇒ 换假人 / 重开世界自动结清"），不再打印骗人的"就位"。
+   新增只读 `BotManager.assignmentBlockReason(bot)` + `TransferLedgerData.blockingSummary(UUID)`。
+3. **B（拦截必须可见）**：`replaceTaskIfRunning` 被拦时打一行 warn（含条数与首个
+   `requestId/state/code/location/manualTakeover`）。
+
+**判据（零新增电池项 —— 挂在既有 BASELINE 步 `transfer` 的 `ledgerPolicies` 夹具里）**：
+`suspendUnfinished` 后，`location != BOT_INVENTORY` 的条目必须 `ABORTED` + `code=aborted_no_bot_inventory`
++ `manualTakeover=false`。**反向对照已做**：把该断言取反 ⇒ `single:transfer` 立刻 `FAIL`（判据真能红）。
+
+**验证**：`compileJava` ✅；`check-all.sh` 9 PASS + 1 预期 WARN ✅；
+无头 `single:transfer` `FAIL`(反向) → `PASS`(正向) ✅；无头 **CORE `(35/35) ticks=3576 → PASS`** ✅；
+**自愈实测**（无头默认会清 `alice_*.dat`，我**临时**关掉清账本跑一次，用与客户端同形的污染账本）：
+`[Transfer] 启动结清：11 条**未进过 bot 背包**的未完成传输直接落 ABORTED（code=aborted_no_bot_inventory…）` ✅
+（脚本已还原；清账本是**有意的**确定性设计）。
+⚠️ **未验证的两点**（如实登记）：① 结清结果的**落盘**（无头 halt 不存档 ⇒ 观测不到；客户端正常退出会存，
+且**即使不存盘，每次启动都会重新结清** ⇒ 症状仍被修掉）；② `assignWalkTo` 返回 false 这条**接线**只有
+编译级 + 真人侧可见（缺一个"live 会话被挡"的电池判据，见台账 §5.9 末尾的提案）。
+
+**明确没做（会被现有断言挡住，属有意设计）**：`TransferTask.survivalInterrupted` / `menuFailed` / `suspend`
+三处**跑动中**的 `NOT_MOVED` 挂起保持原样 —— `taskInterruptPolicies` **明确断言**了
+`SUSPENDED + NOT_MOVED + manualTakeover=true`。后果（如实记）：一次"传输中被维生打断"仍会让该 bot
+在**本会话内**被挡住 `assign*`（现在至少有 warn 可查，不再静默），跨会话由 C3 在启动时结清。

@@ -1485,3 +1485,42 @@ tango 立刻解除阻塞。代价：丢 61 条 `VERIFIED` 传输审计记录（�
   不拦纯移动/逃生/诊断 —— "任何任务替换"这个口径太粗。
 
 **AI 推荐**：**C3 + A + B**（最小且直击），C1 作为兜底；C2 需要你定（它放宽的是安全口径）。
+
+**✅ 用户裁定（2026-09-15 晚）：采纳 `C3 + A + B`，C2 不放宽（保守）。**
+
+**已落地（D-227）**：
+1. **C3**：`TransferLedgerData.suspendUnfinished` / `expireSuspensions` ——
+   `location != BOT_INVENTORY` 的条目**直接落 `ABORTED`**（新码 `aborted_no_bot_inventory`，`manualTakeover=false`），
+   只有 `BOT_INVENTORY`（= 物品确实在 bot 身上）才挂起。**已被旧版本堵死的存档会自动自愈**：
+   启动时重跑 `suspendUnfinished` 即把这 11 条 `NOT_MOVED` 挂起结清成终态。
+2. **A（前提自证 + 拒绝可见）**：`BotSession.assignWalkTo` 由 `void` 改 **返回 boolean**；
+   静态 `BotManager.assignWalkTo` 透传；`assignSurvivalExitCheck` 派活失败时 **返回 false 并打日志**；
+   物品侧改为显示**真实原因**（"bot 手上有未结清传输 ⇒ 换假人 / 重开世界自动结清"），不再打印骗人的"就位"。
+3. **B**：`replaceTaskIfRunning` 被 `blocksBot` 拦住时**打一行 warn**（带条数与首个 requestId/state/code/location）。
+   新增只读 `TransferLedgerData.blockingSummary(UUID)` 供命令/物品入口复用。
+4. **判据（零新增电池项）**：挂到**既有 BASELINE 步 `transfer`** 的 `ledgerPolicies` 夹具里
+   （`TransferFixture`）：`suspendUnfinished` 后 `location != BOT_INVENTORY` 的条目必须
+   `ABORTED` + `code=aborted_no_bot_inventory` + `manualTakeover=false`。
+   **反向对照已做**：把该断言取反 ⇒ `single:transfer` 立刻 `FAIL`（证明判据真的能红，不是摆设）。
+
+**⚠️ 明确没做（越界会被现有断言挡住）**：`TransferTask.survivalInterrupted` / `menuFailed` / `suspend`
+这三处**仍在跑动中**写入 `NOT_MOVED` 挂起 —— 那是**有意设计**且**已被夹具断言**
+（`taskInterruptPolicies`：`SUSPENDED` + `NOT_MOVED` + `manualTakeover=true`）⇒ 本轮**不动**。
+后果（如实记下）：一次"传输中被维生打断"仍会让该 bot 在**本次会话内**被挡住 `assign*`
+（现在至少**有 warn 可查**，不再是静默）；跨会话则由 C3 在启动时结清。
+**另一处已发现但未修**：`expireSuspensions(tick=getTickCount, …)` 与 `suspensionStartedTick`
+（可能来自上一次会话的大数值 gameTime/tick）**混用时钟** ⇒ 重启后"超时结清"可能永不到期（负差值）。
+C3 之后它对 `NOT_MOVED` 已无影响，故只登记。
+
+**§5.9 验证（本条的所有证据）**：
+- `single:transfer` **正向 `PASS`**；把新判据取反 ⇒ **反向 `FAIL`**（`verdict=FAIL exit=1`）⇒ 判据真能红；
+- 无头 **CORE `(35/35) ticks=3633 → PASS`**；`check-all.sh` = 9 PASS + 1 预期 WARN；
+- **自愈实测**：无头默认 `rm -f world/data/alice_*.dat`（**有意的**确定性设计）会把账本清掉、掩盖这条路径 ⇒
+  我**临时**关掉那一行跑了一次（跑完立即还原，脚本无 diff），用**与客户端同形**的污染账本 ⇒
+  `[Transfer] 启动结清：11 条**未进过 bot 背包**的未完成传输直接落 ABORTED（code=aborted_no_bot_inventory，不再挂起阻塞）` ✅
+- ⚠️ **未验证两点**：① 结清结果的**落盘**（无头 `halt` 不存档 ⇒ 观测不到；客户端正常退出会存，
+  且**即使不存盘，每次启动都会重新结清** ⇒ 症状仍被修掉）；② `assignWalkTo` 返回 false 这条**接线**
+  目前只有编译级 + 真人侧可见。
+  **提案（未做，待点头）**：在 `transfer` 步里用**世界账本**临时造一条 `SUSPENDED/BOT_INVENTORY` 条目 ⇒
+  `BotManager.assignWalkTo(bot, …)` 必须返回 **false**（被挡时不会动会话任务 ⇒ 安全）⇒ 随后结清它。
+  价值 = 把 A 的接线也变成可红判据；成本 = 在 BASELINE 步里操作 live 账本（需谨慎）。

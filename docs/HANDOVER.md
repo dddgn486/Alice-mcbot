@@ -22,6 +22,17 @@
 > 无头 `single:survival_exit` `checks=38 failures=0` ✅、无头 **CORE `(35/35) ticks=3686 → PASS`** ✅。
 > ⚠️ **全是 `SERVER_TESTED`**；"真被否决"那半**只能真人验**（见 §3）。
 
+> **2026-09-15 晚（同一轮追加）：客户端实测暴露 §5.9 真缺陷并已修**（D-227）。
+> 用户点 `alice:survival_exit_check` 后"bot 没反应"——**不是窒息机制缺失**（日志里 `hazard=SUFFOCATING`
+> 持续 181 tick 且真的掉血），而是**存档账本**里该 bot 有 **11 条 `SUSPENDED` 传输**（`NOT_MOVED`、
+> `server_restart`）⇒ `blocksBot` 把它的 **`assign*` 通路永久堵死**，加上 `assignWalkTo` 是 void
+> **静默什么都不做**、夹具又**不验前提**（照样打印"就位"）⇒ 看起来像"没反应"。
+> **修法（用户裁定 C3+A+B，不放宽 C2）**：`suspendUnfinished`/`expireSuspensions` 对
+> `location != BOT_INVENTORY` 的条目**直接落 `ABORTED`**（旧存档**启动即自愈**）+ 派活拒绝**可见**
+> + `blocksBot` 拦截打 warn。判据挂在既有 BASELINE 步 `transfer` 里（含**反向对照**）。
+> **门槛**：`single:transfer` 反向 `FAIL` → 正向 `PASS`；CORE `(35/35) ticks=3576 → PASS`；
+> 自愈实测 `启动结清：11 条…` ✅（同一份污染账本，临时关掉无头"清账本"跑的）。
+
 **`T0-a → T0-b → T1 → T2` 已全部落地（T2 已客户端验证）。
 T3 八步已走完七步：步骤 1 / B3a / A / A2 / C / (A) / **B4** 全部落地并实测；
 **只剩"接第 3 个模组本身"（`MachineMap` 加 19 行）与 B3b —— 两者**均已被 D-219 推迟**（等真实存档需要）。
@@ -119,6 +130,9 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 
 台账 **§8 / §9**（`docs/OPEN_ITEMS_LEDGER.md`）逐条有"触发条件"：
 
+- **§5.9 / D-227 两点未验证**：① 结清结果的**落盘**（无头 halt 不存档；客户端正常退出会存，
+  且**不存盘也会每次启动重新结清** ⇒ 症状已修）；② `assignWalkTo` 返回 false 这条**接线**缺一个
+  "live 会话被挡"的电池判据（提案见台账 §5.9 末尾）。
 - **S-5 / D-226（2026-09-15）只到 `SERVER_TESTED`**，两条**故意**没做客户端轮次（无渲染/物理/GUI 改动）：
   ① `alice:survival_exit_check` 的**两个模式**（右键=窒息硬危险；**潜行右键=着火软危险**，新增）
   ② "软危险 + 无出口 ⇒ **不否决**"与 no-exit 分支的**真人可见行为**。
@@ -217,7 +231,8 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 - **客户端**：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - **镜像 / 同步**：`./tools/mirror-windows-workspace.sh`；
   `./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`。
-- **本断点已同步的 jar**：`b918d7b201c792d6f453c247b92e58783b0a4896baaf5021c0e3be4a3628e1af`（源 = `build/libs`，2026-09-15 19:03 同步到客户端 `mods/`；**含 S-5/D-226**）
+- **本断点已同步的 jar**：`ed30f04a9356d10fdb2acb2673a82569b0d24e33cf4dd395fbae2ce28a4ebd51`（源 = `build/libs`，2026-09-15 19:52 同步到客户端 `mods/`；**含 S-5/D-226 + §5.9/D-227**）
+- 上一轮 jar（19:03，仅 S-5）：`b918d7b201c792d6f453c247b92e58783b0a4896baaf5021c0e3be4a3628e1af`
 - 上一轮 jar（2026-09-15 16:18，M 线 + R4 负例）：`35fa4580dfd8040e27490a8cd219df4c81f7011a94acf3e65c644f8538439814`
   —— 在 `462b10b5…` 之上**新增 M 线四项：M1（挖矿候选菜单）/ M2（长作业周期复评）/ M4（失败事实字段化）/ M3（专有终态理由）**。
   **已完成真人验收（2026-09-15 第十九轮）**：电池 `(30/30) ticks=3337 → PASS`、pathing 场景行与无头逐字相同、
@@ -252,6 +267,10 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 
 **推荐下一步（二选一，都由 AI 先推、用户最后拍板）**：
 
+0. **【立刻可做·零成本】客户端重启一次世界**：§5.9 的 11 条挂起会在启动时被结清
+   （日志 `[Transfer] 启动结清：11 条…`），随后点 `alice:survival_exit_check`（右键 = 窒息；
+   **潜行右键 = 着火软危险**）就能看到 `任务因维生危险中断 …` → `[Survival] 逃生出口 …` →
+   `kind=SurvivalExitTask terminal=COMPLETED`。**这一步同时把 S-5 从 `SERVER_TESTED` 升 `WINDOWS_CLIENT`。**
 1. **【离线可推】`SurvivalExitTask` 的"选了落点却没走到"变可判读 + 真实否决链的真人入口收口**
    （台账 §5.8 的剩余两格）：① 现成的 `alice:survival_exit_check` 两模式**各点一次**（零参数，30 秒）
    就能把 S-5 从 `SERVER_TESTED` 升到 `WINDOWS_CLIENT`；② 若懒得分开点，可把它合并进一次客户端电池轮次

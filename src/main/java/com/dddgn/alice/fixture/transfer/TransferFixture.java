@@ -196,8 +196,21 @@ public final class TransferFixture {
         TransferRequest untouched = request(level, source, destination, 1);
         ledger.admit(untouched);
         boolean abortUnmoved = ledger.abort(untouched.requestId(), level.getGameTime()) == TransferLedgerData.State.ABORTED;
+        // §5.9（2026-09-15，客户端实测逼出）：**"没动过物品"的未完成请求不许挂起** ——
+        // 挂起会让该 bot 的 assign* 通路（walk/follow/place/transfer/维生自检）被 blocksBot **永久**挡住，
+        // 而 location != BOT_INVENTORY 的条目根本没有"人工接管"的语义（物品还在源容器 / 压根没动）。
+        TransferRequest neverMoved = request(level, source, destination, 1);
+        ledger.admit(neverMoved);
+        ledger.suspendUnfinished(TransferCodes.SERVER_RESTART, level.getGameTime());
+        TransferLedgerData.Entry released = ledger.find(neverMoved.requestId()).orElse(null);
+        boolean noInventorySuspensionReleased = released != null
+                && released.state() == TransferLedgerData.State.ABORTED
+                && released.location() != TransferLedgerData.Location.BOT_INVENTORY
+                && !released.manualTakeoverRequired()
+                && TransferCodes.ABORTED_NO_BOT_INVENTORY.equals(released.code());
         boolean pass = firstAdmission && duplicateRejected && replacementBlocked && timeoutSuspended
-                && restartSuspended && suspensionExpired && abortProtected && abortUnmoved;
+                && restartSuspended && suspensionExpired && abortProtected && abortUnmoved
+                && noInventorySuspensionReleased;
         return report("duplicate_timeout_restart_abort_replacement_suspension_expiry", request, pass,
                 pass ? TransferCodes.MANUAL_TAKEOVER_REQUIRED : TransferCodes.UNKNOWN_DISCREPANCY,
                 TransferLedgerData.Location.BOT_INVENTORY, 0, 0, 0);

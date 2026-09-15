@@ -167,24 +167,56 @@ public final class TransferLedgerData extends SavedData {
         setDirty();
     }
 
-    /** Marks every unfinished request as manual-only after a server lifecycle boundary. */
+    /**
+     * Marks every unfinished request at a server lifecycle boundary.
+     *
+     * <p>⚠️ §5.9（2026-09-15，客户端实测）：**只有"物品确实在 bot 身上"的条目才挂起**。
+     * 此前一律挂起，于是"重启时刚好有一段没跑完的传输"会把这个 bot 的 `assign*` 通路
+     * （walk/follow/place/transfer/**维生自检**）**永久**堵死 —— 而 `location != BOT_INVENTORY`
+     * 的条目（物品还在源容器 / 压根没动）**没有可接管的东西**，挂起只是纯阻塞。
+     * 现在这类直接落 `ABORTED`（终态、不要求人工接管）；这也让**已被旧版本堵死的存档自然自愈**
+     * （启动时重跑本方法即结清）。
+     */
     public void suspendUnfinished(String code, long tick) {
+        int released = 0;
         for (Entry entry : entries.values()) {
             if (isTerminal(entry.state())) {
                 continue;
             }
-            Location location = entry.location() == Location.BOT_INVENTORY
-                    ? Location.BOT_INVENTORY : Location.NOT_MOVED;
-            entry.transition(State.SUSPENDED, location, code, tick,
+            if (entry.location() != Location.BOT_INVENTORY) {
+                entry.transition(State.ABORTED, entry.location(), TransferCodes.ABORTED_NO_BOT_INVENTORY, tick,
+                        "lifecycle_no_bot_inventory:" + code + ":" + entry.evidenceDigest(), false);
+                released++;
+                continue;
+            }
+            entry.transition(State.SUSPENDED, Location.BOT_INVENTORY, code, tick,
                     "lifecycle:" + code + ":" + entry.evidenceDigest(), true);
         }
         setDirty();
+        if (released > 0) {
+            // **必须出声**：这条结清把某个 bot 的 assign* 通路（walk/follow/place/transfer/维生自检）
+            // 从"永久失效"里放开 —— 2026-09-15 客户端实测的症状就是"用户点了自检物品、bot 没反应"，
+            // 而当时的日志里**一个字都没有**（台账 §5.9）。
+            com.dddgn.alice.log.BotLog.warn("[Transfer] 启动结清：{} 条**未进过 bot 背包**的未完成传输"
+                    + "直接落 ABORTED（code={}，不再挂起阻塞）", released,
+                    TransferCodes.ABORTED_NO_BOT_INVENTORY);
+        }
     }
 
-    /** Converts overlong suspension into an explicit manual-takeover requirement without inventory writes. */
+    /**
+     * Converts overlong suspension into an explicit manual-takeover requirement without inventory writes.
+     *
+     * <p>§5.9：同上 —— 只有 `BOT_INVENTORY` 的挂起才需要人工接管；其余（含旧版本留下的
+     * `NOT_MOVED` 挂起）复用最大挂起时长后直接结清为 `ABORTED`，把 bot 的 `assign*` 通路放开。
+     */
     public void expireSuspensions(long tick, long maximumSuspensionTicks) {
         for (Entry entry : entries.values()) {
             if (entry.state() != State.SUSPENDED || tick - entry.suspensionStartedTick() <= maximumSuspensionTicks) {
+                continue;
+            }
+            if (entry.location() != Location.BOT_INVENTORY) {
+                entry.transition(State.ABORTED, entry.location(), TransferCodes.ABORTED_NO_BOT_INVENTORY, tick,
+                        "suspension_released_no_bot_inventory:" + entry.evidenceDigest(), false);
                 continue;
             }
             entry.transition(State.SUSPENDED, entry.location(), TransferCodes.MANUAL_TAKEOVER_REQUIRED, tick,
@@ -214,6 +246,26 @@ public final class TransferLedgerData extends SavedData {
     public boolean blocksBot(UUID botId) {
         return entries.values().stream().anyMatch(entry -> entry.request().botId().equals(botId)
                 && (entry.state() == State.IN_TRANSIT_BOT || entry.state() == State.SUSPENDED));
+    }
+
+    /**
+     * **为什么这个 bot 派不上活**（§5.9：把"静默失效"变成可读的话）—— 只读，空串 = 没被挡住。
+     *
+     * <p>为什么要它：`blocksBot` 一旦为真，`assignWalkTo`/`assignJob` 家族会**静默什么都不做**
+     * （2026-09-15 客户端实测：维生自检打印了"就位"，实际连任务都没建 ⇒ 用户看到"bot 没反应"）。
+     */
+    public String blockingSummary(UUID botId) {
+        java.util.List<Entry> hits = entries.values().stream()
+                .filter(entry -> entry.request().botId().equals(botId)
+                        && (entry.state() == State.IN_TRANSIT_BOT || entry.state() == State.SUSPENDED))
+                .toList();
+        if (hits.isEmpty()) {
+            return "";
+        }
+        Entry first = hits.get(0);
+        return hits.size() + " 条未结清传输（首个 requestId=" + first.request().requestId()
+                + " state=" + first.state() + " code=" + first.code()
+                + " location=" + first.location() + " manualTakeover=" + first.manualTakeoverRequired() + "）";
     }
 
     /**
