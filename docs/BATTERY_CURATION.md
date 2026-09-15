@@ -98,3 +98,4 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 | 2026-09-15 | **34** | 43 | M3（G3 归因）：新增 `mine_no_tool`（MAIN）—— 与 `mine_job` 同场景同 Job，**唯一差别是不发镐**；判据挂在 `doneWhen`（终态理由成为 `tool_missing` 即 PASS，Job 本身 FAILED 是预期的）|
 | 2026-09-15 | **35** | **44** | S-5（D-226）：新增 `survival_exit`（**BASELINE**）—— 维生决策自检。维生此前是**唯一零电池步的子系统**；本步顺带实测抓到并修掉一条真缺陷（`startSurvivalExit` 拿 `blockPosition()` 当"排除自己" ⇒ 站在半砖上时**把自己那格当出口**、逃生 0 步完成而 bot 原地不动）。⚠️ 只覆盖"决策 + 出口可达 + 事实登记"；**"真被否决"那半只能真人验**（真否决会 `complete` 掉会话任务=电池本身） |
 | 2026-09-15 | **35** | **44** | D-228（同日追加）：`survival_exit` 判据 38 → **45**（火焰共享标志/着火递减/最低血量/掉血事件/入水空气消耗 + 2 条 `fill` 生效断言）；步数不变（仍挂既有 BASELINE 步），CORE `(35/35) ticks=3701 → PASS`。修因：假人缺 `baseTick`。 |
+| 2026-09-15 | **35** | **44** | D-229（同日追加）：`survival_exit` 判据 45 → **55**（冻结决策表 + 细雪机理/分类/HOLD_NO_EXIT/全冻掉血）；步数不变，CORE `(35/35) ticks=3830 → PASS`。修因：细雪冻结伤害在补 `baseTick` 后变成真实危险，但没有危险档。 |

@@ -62,8 +62,10 @@ public class SurvivalExitCheckTask implements Task {
     /** 入水前把空气设成这个值：够掉、又**不会掉到 0**（0 ⇒ `LOW_AIR` 会真的否决 ⇒ 打死整轮电池）。 */
     private static final int AIR_START = 20;
     private static final int AIR_POLL_TICKS = 8;
+    /** 全冻（140 tick）之后再等这么久，保证"每 40 tick 1 点"的冻结伤害至少来过一次。 */
+    private static final int FREEZE_DAMAGE_WAIT_TICKS = 45;
 
-    private enum Phase { SETUP, TABLE, WALK, SEALED_BUILD, SEALED_CHECK, FOOT_CELL, SEALED_REAL, HEALTH, AIR, DONE }
+    private enum Phase { SETUP, TABLE, WALK, SEALED_BUILD, SEALED_CHECK, FOOT_CELL, SEALED_REAL, HEALTH, AIR, SNOW, DONE }
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -81,6 +83,10 @@ public class SurvivalExitCheckTask implements Task {
     private float healthBeforeFire;
     private float minHealthDuringFire;
     private int airStart;
+    private int snowStartFrozen;
+    private int fullyFrozenAt;
+    private float healthBeforeSnow;
+    private float minHealthDuringSnow;
 
     public SurvivalExitCheckTask(BotPlayer bot, ServerPlayer observer) {
         this.bot = bot;
@@ -123,6 +129,7 @@ public class SurvivalExitCheckTask implements Task {
             case SEALED_REAL -> sealedRealPhase();
             case HEALTH -> healthPhase();
             case AIR -> airPhase();
+            case SNOW -> snowPhase();
             case DONE -> finish();
             default -> {
             }
@@ -185,6 +192,15 @@ public class SurvivalExitCheckTask implements Task {
                 SurvivalSystem.decide(bot, burning) == SurvivalSystem.Verdict.INTERRUPT);
         check("着火的理由码 = survival_on_fire",
                 "survival_on_fire".equals(SurvivalSystem.interruptionReason(burning)));
+        check("冻结第 1 tick ⇒ 不否决（宽限期内不抖动）",
+                SurvivalSystem.decide(bot, synthetic(HazardType.FREEZING, 1)) == SurvivalSystem.Verdict.IGNORE);
+        HazardState freezing = synthetic(HazardType.FREEZING, SurvivalSystem.SOFT_HAZARD_GRACE_TICKS);
+        check("冻结过宽限 + 有出口 ⇒ 否决（D-229 新增）",
+                SurvivalSystem.decide(bot, freezing) == SurvivalSystem.Verdict.INTERRUPT);
+        check("冻结的理由码 = survival_freezing",
+                "survival_freezing".equals(SurvivalSystem.interruptionReason(freezing)));
+        // ⚠️ 别在这张表里断言"冻结无出口 ⇒ 不否决"：**这里（平台）有出口** ⇒ `decide` 正确返回 INTERRUPT。
+        // "无出口 ⇒ HOLD_NO_EXIT" 由**真实无出口**的封闭石壳相位覆盖（下面的细雪相位 + S-5 的闭合相位）。
         check("宽限不是「只报一次」：过了宽限很久仍在 ⇒ 仍然否决",
                 SurvivalSystem.decide(bot, synthetic(HazardType.LOW_AIR,
                         SurvivalSystem.SOFT_HAZARD_GRACE_TICKS + 40)) == SurvivalSystem.Verdict.INTERRUPT);
@@ -449,8 +465,94 @@ public class SurvivalExitCheckTask implements Task {
             teleport(SurvivalCourseAnchor.PLATFORM_FOOT);     // 先出来，再复原（顺序无关，但保持"有人看时场景是干净的"）
             fillBlocks(SurvivalCourseAnchor.SEALED_FOOT, SurvivalCourseAnchor.SEALED_FOOT.above(), "air", 2,
                     "复原封闭口袋（拆水）");
-            advance(Phase.DONE);
+            advance(Phase.SNOW);
         }
+    }
+
+    /**
+     * **冻结可达 + 决策安全**（D-229，2026-09-15）：`ticksFrozen` 是**假人真的会累积**的量
+     * （累积在 `LivingEntity.aiStep()`，假人手动调得到），补了 `baseTick` 之后**冻结伤害也真的会发生**
+     * （`LivingEntity.baseTick()`：全冻 140 tick 后每 40 tick 1 点）。
+     *
+     * <p>本相位在**封闭石壳**里做，出于安全：那里**没有任何出口**（几何自证过）
+     * ⇒ 判决必然是 `HOLD_NO_EXIT` ⇒ **不会否决**（否决会把夹具的会话任务，也就是整轮电池，`complete` 掉）。
+     * 因此这里断言的重点是"机理活着 + 危险被判出来 + 无出口时不乱否决"，而不是"被否决"。
+     * （"有出口 ⇒ 否决"由决策表的合成行覆盖；真人侧的可见入口见 `alice:survival_exit_check` 的冻结模式。）
+     */
+    private void snowPhase() {
+        if (phaseTicks == 1) {
+            teleport(SurvivalCourseAnchor.SEALED_FOOT);      // 先传送：区块加载是 /fill 生效的前提
+            return;
+        }
+        if (phaseTicks == SETTLE_TICKS) {
+            BlockPos found = SurvivalSystem.nearestSafeRefuge(bot, SurvivalSystem.REFUGE_RADIUS,
+                    SurvivalSystem.footCell(bot));
+            boolean premise = SurvivalSystem.current(bot).type() == HazardType.NONE && found == null;
+            check("细雪相位前提自证（当前无危险=" + (SurvivalSystem.current(bot).type() == HazardType.NONE)
+                    + " 无出口=" + (found == null) + "）—— 有出口的话这里会被否决、打死整轮电池", premise);
+            if (!premise) {
+                advance(Phase.DONE);
+                return;
+            }
+            fillBlocks(SurvivalCourseAnchor.SEALED_FOOT, SurvivalCourseAnchor.SEALED_FOOT.above(),
+                    "powder_snow", 2, "封闭口袋里放细雪（冻结前提）");
+            return;
+        }
+        if (phaseTicks == SETTLE_TICKS + 1) {
+            normalizeVitals();      // 清零基线：冻结伤害是 1 点/40 tick，别被残留效果/血量掩盖
+            healthBeforeSnow = bot.getHealth();
+            minHealthDuringSnow = healthBeforeSnow;
+            snowStartFrozen = bot.getTicksFrozen();
+            BotLog.info("[Survival] 把 bot 放进细雪（起始 ticksFrozen={}，全冻阈值 {}，血量 {}）；"
+                            + "期望：累积 ≥ {} 后判成 FREEZING，且在无出口壳里不否决、全冻后真的掉血",
+                    snowStartFrozen, bot.getTicksRequiredToFreeze(), healthBeforeSnow,
+                    SurvivalSystem.FREEZE_WARN_TICKS);
+            return;
+        }
+        // 等"真的全冻"（`ticksFrozen >= getTicksRequiredToFreeze()`，原版 = 140）——
+        // **别用算数估**：累积速率会随实现变（第一次写成 60+10+45 只到 116，没到全冻，白等）。
+        if (!bot.isFullyFrozen()) {
+            minHealthDuringSnow = Math.min(minHealthDuringSnow, bot.getHealth());
+            if (phaseTicks > SETTLE_TICKS + 1 + 400) {     // 兜底：真冻不上就如实报，别把相位挂死
+                check("细雪里必须在合理时间内全冻（ticksFrozen=" + bot.getTicksFrozen()
+                        + "，阈值 " + bot.getTicksRequiredToFreeze() + "）", false);
+                advance(Phase.DONE);
+                return;
+            }
+            return;
+        }
+        if (fullyFrozenAt == 0) {
+            fullyFrozenAt = phaseTicks;
+            BotLog.info("[Survival] 已全冻（ticksFrozen={}，第 {} tick 起）；再等 {} tick 让"
+                            + "「每 40 tick 1 点」的冻结伤害至少来过一次",
+                    bot.getTicksFrozen(), phaseTicks, FREEZE_DAMAGE_WAIT_TICKS);
+        }
+        if (phaseTicks < fullyFrozenAt + FREEZE_DAMAGE_WAIT_TICKS) {
+            // 持续采最低血量：冻结伤害每 40 tick 才来一次，且可能被治疗掩盖 ⇒ 看"期间掉过"。
+            minHealthDuringSnow = Math.min(minHealthDuringSnow, bot.getHealth());
+            return;
+        }
+        int frozen = bot.getTicksFrozen();
+        HazardState state = SurvivalSystem.current(bot);
+        check("细雪里 ticksFrozen 必须真的累积（" + snowStartFrozen + " → " + frozen
+                        + "，期望 ≥ " + SurvivalSystem.FREEZE_WARN_TICKS + "）—— 这是冻结伤害的前提",
+                frozen >= SurvivalSystem.FREEZE_WARN_TICKS);
+        check("累积到阈值后必须被判成 FREEZING（实际 " + state.type() + "，已持续 "
+                        + state.durationTicks() + " tick）", state.type() == HazardType.FREEZING);
+        check("无出口 + 危险持续超过宽限 ⇒ 冻结走 HOLD_NO_EXIT、不乱否决（实际 "
+                        + SurvivalSystem.decide(bot, state) + "）",
+                SurvivalSystem.decide(bot, state) == SurvivalSystem.Verdict.HOLD_NO_EXIT);
+        check("全冻（≥ " + bot.getTicksRequiredToFreeze() + " tick）后必须真的掉血"
+                        + "（起始 " + healthBeforeSnow + "，期间最低 " + minHealthDuringSnow
+                        + "，现在 " + bot.getHealth() + "）",
+                minHealthDuringSnow < healthBeforeSnow);
+        int before = frozen;
+        fillBlocks(SurvivalCourseAnchor.SEALED_FOOT, SurvivalCourseAnchor.SEALED_FOOT.above(), "air", 2,
+                "复原封闭口袋（拆细雪）");
+        bot.setTicksFrozen(0);
+        BotLog.info("[Survival] 拆掉细雪并清零（拆前 ticksFrozen={}，清零后={}）；本相位完", before,
+                bot.getTicksFrozen());
+        advance(Phase.DONE);
     }
 
     /** 掉血可见（`previousHealth` 的第一个读者）+ 冷却期内不刷屏。 */
@@ -494,6 +596,8 @@ public class SurvivalExitCheckTask implements Task {
 
     private void finish() {
         bot.clearFire();
+        bot.setTicksFrozen(0);      // 别把"半冻"状态留给下一步（判据要确定性）
+        bot.removeAllEffects();
         bot.controller().stopMovement();
         bot.setDeltaMovement(Vec3.ZERO);
         teleport(SurvivalCourseAnchor.PLATFORM_FOOT);

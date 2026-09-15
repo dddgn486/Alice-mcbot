@@ -5,6 +5,8 @@ public enum HazardType {
     NONE,
     WATER_CONTACT,
     ON_FIRE,
+    /** **冻结**（细雪）：`ticksFrozen` 累积到 {@link SurvivalSystem#FREEZE_WARN_TICKS} 即算危险（软危险）。 */
+    FREEZING,
     LOW_AIR,
     SUFFOCATING,
     LAVA_CONTACT

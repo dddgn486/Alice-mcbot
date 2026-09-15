@@ -82,10 +82,25 @@ public final class SurvivalSystem {
         return type == HazardType.LAVA_CONTACT || type == HazardType.SUFFOCATING;
     }
 
-    /** **软危险**：溺水 / 着火 —— 需要"出口 + 宽限"才值得否决（见 {@link #decide}）。 */
+    /** **软危险**：溺水 / 着火 / 冻结 —— 需要"出口 + 宽限"才值得否决（见 {@link #decide}）。 */
     public static boolean softHazard(HazardType type) {
-        return type == HazardType.LOW_AIR || type == HazardType.ON_FIRE;
+        return type == HazardType.LOW_AIR || type == HazardType.ON_FIRE || type == HazardType.FREEZING;
     }
+
+    /**
+     * **冻结警示阈值**（`ticksFrozen`，D-229，2026-09-15）。
+     *
+     * <p>原版事实（字节码核对）：`isFullyFrozen()` = `ticksFrozen >= getTicksRequiredToFreeze()`（**140**），
+     * 完全冻住后才开始掉血（`LivingEntity.baseTick()`：`tickCount % 40 == 0 && isFullyFrozen() && canFreeze()`
+     * ⇒ **每 2 秒 1 点**）；而 `ticksFrozen` 的累积在 **`LivingEntity.aiStep()`** 里
+     * （假人由 Alice 手动调 `aiStep()` ⇒ **会累积**），皮靴等 `FREEZE_IMMUNE_WEARABLES` 免疫也在那条路上
+     * ⇒ 用 `ticksFrozen` 当信号天然尊重免疫，不用自己判靴子。
+     *
+     * <p>取 **60**（≈ 全冻前 4 秒）的原因：给"走出细雪"留够余量（细雪里移动很慢），
+     * 又能让"只是路过一小片细雪"（通常 &lt; 1 秒）不触发否决。**可调**，调它要连带看
+     * 电池步 `survival_exit` 的细雪相位（它按这个常量等累积）。
+     */
+    public static final int FREEZE_WARN_TICKS = 60;
 
     /**
      * **唯一的维生决策入口**（S-5，2026-09-15）。
@@ -150,6 +165,7 @@ public final class SurvivalSystem {
             case SUFFOCATING -> "survival_suffocating";
             case LOW_AIR -> "survival_low_air";
             case ON_FIRE -> "survival_on_fire";
+            case FREEZING -> "survival_freezing";
             default -> "";
         };
     }
@@ -264,6 +280,11 @@ public final class SurvivalSystem {
             }
             if (bot.isOnFire()) {
                 return HazardType.ON_FIRE;
+            }
+            // 冻结排在着火之后、涉水之前：全冻（140 tick）后每 40 tick 掉 1 点，是**真的会致死**的
+            // 慢危险；`ticksFrozen` 的累积在 `LivingEntity.aiStep()`（假人手动调得到 ⇒ 会累积）。
+            if (bot.getTicksFrozen() >= FREEZE_WARN_TICKS) {
+                return HazardType.FREEZING;
             }
             if (bot.isInWater() || containsWater(bot)) {
                 return HazardType.WATER_CONTACT;

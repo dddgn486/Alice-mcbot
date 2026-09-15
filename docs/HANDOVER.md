@@ -26,7 +26,9 @@
 > `SurvivalExitTask COMPLETED`」；**火焰看得见**、着火每 20 tick 掉 1 血、走动/放置/挖掘照旧、无崩溃
 > ⇒ **S-5（D-226）与 D-228 双双升 `WINDOWS_CLIENT`**。§5.9（D-227）的启动结清也在真人存档上生效（`启动结清：11 条`）。
 > **下一步候选（见台账 §5.10 末尾）**：① bot 的血只减不增（自然回血在 `Player.tick` 那半，仍缺）⇒ 值得排期补 `doTick()`；
-> ② 细雪冻结没有危险档（`freeze` 伤害现在真的会发生）；③ CORE 里的"治疗来源"未定位。
+> ② ~~细雪冻结没有危险档~~ ✅ **已修（D-229，同日）**：`HazardType.FREEZING`（软危险，`ticksFrozen ≥ 60`）+ 电池判据
+> （checks 45 → 55，含"全冻后真的掉血"）+ 真人入口 `alice:survival_exit_check` **疾跑+右键**；
+> ③ CORE 里的"治疗来源"未定位。
 
 > **2026-09-15 晚（同一轮追加）：客户端实测暴露 §5.9 真缺陷并已修**（D-227）。
 > 用户点 `alice:survival_exit_check` 后"bot 没反应"——**不是窒息机制缺失**（日志里 `hazard=SUFFOCATING`
@@ -237,7 +239,8 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 - **客户端**：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - **镜像 / 同步**：`./tools/mirror-windows-workspace.sh`；
   `./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`。
-- **本断点已同步的 jar**：`51e5719dc6e6ef11b489e66dd4915886db1bbd81209d7b072179254136f7d942`（源 = `build/libs`，2026-09-15 20:35 同步到客户端 `mods/`；**含 S-5/D-226 + §5.9/D-227 + §5.10/D-228**）
+- **本断点已同步的 jar**：`9bca1224aa8f36b13f3e0ff0fe73fcaf1e70c807aa4b93b321f9fd98b1044dba`（源 = `build/libs`，2026-09-15 21:32 同步到客户端 `mods/`；**含 S-5/D-226 + §5.9/D-227 + D-228 + D-229**）
+- 上一个 jar（20:33，含 D-228）：`51e5719dc6e6ef11b489e66dd4915886db1bbd81209d7b072179254136f7d942`
 - 上一个 jar（19:51，含 §5.9）：`ed30f04a9356d10fdb2acb2673a82569b0d24e33cf4dd395fbae2ce28a4ebd51`
 - 上一轮 jar（19:03，仅 S-5）：`b918d7b201c792d6f453c247b92e58783b0a4896baaf5021c0e3be4a3628e1af`
 - 上一轮 jar（2026-09-15 16:18，M 线 + R4 负例）：`35fa4580dfd8040e27490a8cd219df4c81f7011a94acf3e65c644f8538439814`

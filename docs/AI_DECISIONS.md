@@ -9506,3 +9506,41 @@ M4 补上后半截 —— "覆写了之后**决策层真的看得到**"）**：�
   决策层也照常被触发（`[Goal] decision_action … note=当前 ON_FIRE…`）。
 - **走动/放置/挖掘与以前一致**（用户确认）⇒ 补 `baseTick()` 没有引入观感/物理回归。
 - 无新崩溃报告。
+
+---
+
+### D-229：新增 **冻结（FREEZING）** 危险档 —— 细雪不再是"静默致死"（用户裁定按推荐①，2026-09-15）
+
+**动因（D-228 带出的真实风险）**：补上 `baseTick()` 之后，**细雪冻结伤害开始真的发生**
+（`LivingEntity.baseTick()`：`tickCount % 40 == 0 && isFullyFrozen() && canFreeze()` ⇒ 全冻后**每 2 秒 1 点**），
+而 `HazardType` 里**没有冻结档** ⇒ 否决链覆盖不到：bot 可以安静地冻死。
+
+**原版事实（字节码核对）**：
+- `isFullyFrozen()` = `ticksFrozen >= getTicksRequiredToFreeze()`（**140** ≈ 7 秒）；伤害在全冻之后 **1 点 / 40 tick**。
+- `ticksFrozen` 的**累积在 `LivingEntity.aiStep()`** 里 —— 假人由 Alice **手动调 `aiStep()`** ⇒ 会累积；
+  皮靴等 `FREEZE_IMMUNE_WEARABLES` 免疫也在那条路上 ⇒ **用 `ticksFrozen` 当信号天然尊重免疫**，不用自己判靴子。
+- 这也解释了为什么"冻结"是 D-228 **之后**才会致死：伤害在 `baseTick()`，而 `baseTick()` 以前根本没跑。
+
+**改法**：
+- `HazardType.FREEZING`（枚举里放在 `ON_FIRE` 之后、`WATER_CONTACT` 之前）；
+- `SurvivalSystem.classify`：`bot.getTicksFrozen() >= FREEZE_WARN_TICKS` ⇒ FREEZING；
+- **软危险**（`softHazard` 加上它）⇒ 走"宽限 + 有出口才否决"的既有口径；
+- `interruptionReason` ⇒ `survival_freezing`；
+- 阈值 `FREEZE_WARN_TICKS = 60`（≈ 全冻前 4 秒，留够"走出细雪"的余量；路过一小片细雪通常 < 1 秒 ⇒ 不误否决）。
+  **可调**：调它要连带看电池步 `survival_exit` 的细雪相位（它按这个常量等累积）。
+
+**判据（挂既有 BASELINE 步 `survival_exit`，checks 45 → 55）**：
+① 决策表：冻结第 1 tick ⇒ 不否决；过宽限 + 有出口 ⇒ 否决（`INTERRUPT`）；理由码 = `survival_freezing`；
+② 真实相位（**封闭石壳 = 无出口**，为保证不触发否决）：`ticksFrozen` 必须**真的累积** ≥ 阈值；
+③ 累积到阈值必须被判成 `FREEZING`；④ 无出口 + 过宽限 ⇒ `HOLD_NO_EXIT`（不乱否决）；
+⑤ **全冻（140）后必须真的掉血**（"期间最低血量"口径，抗治疗掩盖）；
+⑥ 相位前 `normalizeVitals()`（清效果/满血/满空气）⇒ 判据确定性。
+**反向对照已做**：把 `FREEZE_WARN_TICKS` 改成 2000 ⇒ ②③④ 精确变红（`实际 NONE`）⇒ 分类判据真的挂在阈值上。
+
+**真人入口（零新物品）**：`alice:survival_exit_check` **疾跑 + 右键** = 冻结演示
+（封闭石壳 + 1×2 细雪；无出口 ⇒ 不否决，全冻后每 2 秒掉 1 血）。**否决 + 逃生**那条路仍由
+潜行右键（着火，软危险 + 有出口）演示。⚠️ 顺序：**先传送再 `fill`**（未加载区块里 `/fill` 静默无操作，踩过两次）。
+
+**验证**：`single:survival_exit` 正向 `PASS`（checks=55 failures=0）/ 反向 `FAIL` ✅；
+CORE `(35/35) ticks=3830 → PASS` ✅；`check-all.sh` ✅。
+**待真人验**：疾跑右键看到 `hazard=FREEZING` + 全冻后掉血（`WINDOWS_CLIENT` 待升）。
