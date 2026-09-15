@@ -227,6 +227,10 @@ public class SurvivalExitCheckTask implements Task {
      * </ul>
      * 现在：传送（拉区块）→ 等落地 → 跑场景函数 → **再传送一次**（站到已建好的地面上）→ 再等落地
      * → 交给 {@link #sealedCheckPhase()} 做几何自证。
+     *
+     * <p>⚠️ **客户端轮次前必须先在游戏里 `/reload`**：`survival_sealed_course` 是**后加**的场景文件，
+     * 只在数据包重载时才进内存。没 reload 时这里跑的就是一条不存在的函数（输出被抑制 ⇒ 看不出来），
+     * 但随后的几何自证会**如实判红**（"脚下必须有真支撑"等），不会假绿。
      */
     private void sealedBuildPhase() {
         if (phaseTicks == 1) {
