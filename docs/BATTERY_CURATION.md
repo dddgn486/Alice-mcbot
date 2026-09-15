@@ -19,11 +19,12 @@
 SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 **跳过多少、跑多少、各档几项**一眼可见；归属表与实跑项对不上（漏登记 / 文档说测了其实没测）**直接判红**。
 
-## 2. 当前归属表（40 项 → CORE 30 项）
+## 2. 当前归属表（41 项 → CORE 31 项）
 
 > 2026-09-14 校正：本节此前写「34 项 → CORE 24 项」**已过期**（实际 = BASELINE 13 + MAIN 14 + EXTRA 10 = 37，CORE = 13+14 = 27，与客户端实测 `(27/27)` 一致）。
 > 加入 `write_policy`（BASELINE）后为 **38 / CORE 28**；加入 `machine_cycle`（MAIN）后为 **39 / CORE 29**；
 > 加入 `craft_machine`（MAIN，(c) 增量 2 / D-217）后为 **40 / CORE 30**。
+> 2026-09-15 校正：加入 `mine_menu`（MAIN，M1 / G1：挖矿候选菜单契约）后为 **41 / CORE 31**。
 
 
 ### BASELINE（14）
@@ -33,7 +34,7 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 `capability_gate`（闸门）、`tool_supply`（不凭空变工具）、`recoverability`（可回收性等级）、
 `write_policy`（D-207 ①：写入集中策略表——表完整性 + **越权必须被拒**的负例 + 未登记 requester 留痕=0）
 
-### MAIN（16）—— 阶段 3-A（回退瘦身，保持完整）+ 阶段 3-B / S1+S2（机器只读）+ S4 + (c) 增量 2（机器写入：夹具 + 生产）
+### MAIN（17）—— 阶段 3-A（回退瘦身，保持完整）+ 阶段 3-B / S1+S2（机器只读）+ S4 + (c) 增量 2（机器写入：夹具 + 生产）
 `craft_check`、`craft_action`、`craft_table`、`craft_station`、`craft_probe_inventory`、`craft_probe_table`、
 `craft_probe_upgradetab`、`craft_station_provision`、`craft_station_craft`、`craft_furnace`、`craft_cooking`、`craft_goal`、
 `machine_route`（S1：机器配方**只读**——问上游自述读输入/输出 + 查询层给 `MACHINE_ROUTE`；模组不在 ⇒ SKIP）、
@@ -83,3 +84,4 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 | 2026-09-14 | **29** | **39** | 阶段 3-B / S4（D-213）：新增 `machine_cycle`（**MAIN**，单机最小闭环 = 3-B 第一次容器写入）⇒ MAIN 15。准入前提见 D-197：**等场景电源自证为 `cube` 之后才升**（2026-09-14 客户端实测 `energy_source=cube` + `verdict=PASS` ⇒ 前提满足）。临时入口 `alice:machine_cycle_check` 待电池步转绿后按 S5 回收 |
 | 2026-09-14 | **30** | **40** | 阶段 3-B / **(c) 增量 2**（D-217）：新增 `craft_machine`（**MAIN**，机器路线的**生产**入口 —— `CraftJob` 真的驱动一台机器；与 `machine_cycle` 共用 `task/craft/MachineCycle`）⇒ MAIN 16。夹具入口与生产入口**各留一步**：前者验"场景 + 闭环"，后者验"生产接线"；两条都写容器（requester 分别是 `machine-cycle` / `craft`） |
 | 2026-09-15 | **30** | **40** | **项数不变**（D-220，改的是"通道本身可不可信"，不是覆盖）：① `pathing` 步内 `+wall`/`+disturb` 的夹具时机改为**场景局部基准**（原来比的 `ticks` 是任务级 ⇒ `30` 从未生效）；② 场景判据加「**声明了夹具就必须真的动手**」（`FIXTURE_NOT_FIRED`）+ 删扰动静默降级；③ 新增场景 `dip_course+run`（复用 `dip_course_terrain`）把 `DIAGONAL` 变成**确定性**覆盖（此前靠偶发绕行）；④ 无头服务端设 `difficulty=peaceful`（清敌对生物噪声 ⇒ 修掉 `exit=3` 无判决） |
+| 2026-09-15 | **31** | 41 | M1（G1）：新增 `mine_menu`（MAIN）—— 挖矿候选菜单契约（`mine` 不许猜位置；矿石场景复用 `MineCandidateSource`）。**刻意不进 EXTRA**：它是"不猜语义"红线的门禁，必须每次改动都跑得到 |

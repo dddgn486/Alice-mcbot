@@ -1354,6 +1354,18 @@ jar `3312608d…`。
 **待用户拍板**：走 (a) 只出审计 / (b) 审计+M1–M3 / (c) 审计+维生最小件 / (d) 回绝。
 **AI 推荐 (b) + (c)①②** —— 它同时补掉 §5.6 那个"缺失的可调风险层"的一半。
 
+**M 线进度**：
+- ✅ **M1 已完成**（2026-09-15）：`CandidateMenu` 加 mine 条目（复用 `MineCandidateSource`；矿石清单来自
+  `MiningBudget.COMMON_ORE_TAGS` / `RARE_ORES` 这**唯一一份**定义，J-6）、`GoalAction.parseStartJob` 把
+  `mine` 与 lumber/collect 同列为"**必须引用菜单 id**"且 `productTag` **只取菜单条目的 `block=`**（不采信 LLM 自写）、
+  `radius` 自动覆盖目标距离、`JobLauncher.refusalReason` **前置拒绝**（用返回值，不抛异常 —— 异常会穿过
+  `assignJob` 冒到调用方）、并删掉 `mineTargetFor` 的"**静默回落 IRON_ORE**"。
+  **新电池步 `mine_menu`（MAIN ⇒ CORE 跑）**：`checks=11 failures=0`；无头 `core` **`(31/31) ticks=3404 → PASS`**。
+- ⏭️ 下一步 **M2**（长作业周期复评），其后 M4 → M3。
+- ⚠️ **顺带发现（事实）**：`decision_contract` 步的归属是 **EXTRA**（`RegressionBatteryTask.CURATION`）⇒
+  **CORE 不跑它**，但它自己的类文档写着"这样它们能进串联回归电池，**任何改动都跑得到**" ⇒ **两者矛盾**
+  （D-149 当时的判据承诺 vs 后来的瘦身档位）。要不要把它提到 MAIN/BASELINE 需**用户/策展裁定**，本轮不动。
+
 **用户裁定（2026-09-15，第二次）**：**确认 A1–A3、启动 M 线、§9 待实测按 AI 推荐（先 #4）** ⇒ 已落 **D-221**。
 **M 线顺序**：**M1 → M2 → M4 → M3**（采纳勘测员 §8.2 的 M4/M3 对调），其后 M6。
 **⚠️ M5 撤销**：核查发现 `BotManager.tryRecoverUnfinishedTeardown` **已在假人生成时被调用**（紧接

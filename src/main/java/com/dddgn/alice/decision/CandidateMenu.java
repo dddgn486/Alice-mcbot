@@ -34,6 +34,11 @@ public final class CandidateMenu {
     public static final int MAX_TOTAL = 12;
     /** 树/掉落物的扫描半径。 */
     public static final int SCAN_RADIUS = 24;
+    /**
+     * **矿物候选的扫描半径**（比 {@link #SCAN_RADIUS} 小）：菜单是"**有界感知**"，不是作业搜索。
+     * 11 个矿石目标 × (2r+1)³ ⇒ r=12 时约 17 万次方块读取，与树的 24 格扫描（≈12 万）同量级。
+     */
+    public static final int MINE_SCAN_RADIUS = 12;
     /** **可做清单**最多列几项（超出**如实标 truncated**，不静默隐藏）。 */
     public static final int MAX_CRAFTABLE = 40;
     /** 配方扫描上限（整合包配方表很大；超限**如实标 truncated**）。 */
@@ -169,7 +174,31 @@ public final class CandidateMenu {
                             e.getKey(), e.getValue(), "provenance=OURS_DIRECT")));
         }
 
-        // ③ 已保存的可持续伐木区 —— 区域型候选（**只能用已存在的区域**，LLM 不能发明）
+        // ③ 矿物 —— 挖掘候选（**M1 / G1**）。与①**同一纪律**：复用 Job 自己的候选源
+        //    （`MineCandidateSource`），所以菜单里出现的矿 Job 一定选得中
+        //    （`block@x,y,z` 就是 `MineJob` 决策日志的 id 口径）。
+        //    矿石清单**只能**来自 `MiningBudget.COMMON_ORE_TAGS` / `RARE_ORES`（J-6：不许长出第二份）。
+        //    扫描半径比树小（`MINE_SCAN_RADIUS`）：菜单是**有界感知**，不是作业搜索；
+        //    条目里的 `block=` 是**确定性层算出的方块 id**，动作解析只许用它，不许 LLM 自己写。
+        var mineProbe = com.dddgn.alice.job.GoalSpec.mineBlocks(botPos, MINE_SCAN_RADIUS, 1, 3600);
+        List<com.dddgn.alice.job.Candidate> mineCandidates = new ArrayList<>();
+        for (var mineTarget : mineScanTargets()) {
+            mineCandidates.addAll(new com.dddgn.alice.job.mine.MineCandidateSource(
+                            mineTarget, MINE_SCAN_RADIUS)
+                    .candidates(bot, mineProbe).viable());
+        }
+        mineCandidates.stream()
+                .sorted(java.util.Comparator.comparingDouble(c -> c.anchor().distSqr(botPos)))
+                .limit(MAX_PER_KIND)
+                .forEach(c -> entries.add(new Entry(
+                        c.id(),
+                        "mine", "可挖 " + shortId(c.feature("block")) + " 距离" + c.feature("d"),
+                        c.anchor(), 1,
+                        "block=" + c.feature("block") + " y=" + c.feature("y"))));
+        BotLog.info("[Goal] candidate_menu mine={} (扫描半径={} 目标集={})",
+                mineCandidates.size(), MINE_SCAN_RADIUS, mineScanTargets().size());
+
+        // ④ 已保存的可持续伐木区 —— 区域型候选（**只能用已存在的区域**，LLM 不能发明）
         LumberRegionState regionState = LumberRegionState.get(bot.getServer());
         var region = regionState.region(bot.getUUID());
         if (region != null) {
@@ -179,7 +208,7 @@ public final class CandidateMenu {
                             + " mySaplings=" + regionState.mySaplingCount(bot.getUUID())));
         }
 
-        // ④ **可做清单**（A5 / D-199）：以"当前背包里**实际持有**的材料"为准，用**只读**配方扫描
+        // ⑤ **可做清单**（A5 / D-199）：以"当前背包里**实际持有**的材料"为准，用**只读**配方扫描
         //    算出"现在就能做出来的东西"。事实口径（**不猜**）：产物 id + 配方类型映射出的工作站 +
         //    **当前玩家选中的站点能不能做**（`can_use=`）。扫描/列示都有上限，超限写 `truncated`。
         //    为什么单独一组：它在语义上不是"位置候选"，不该挤掉树/掉落物的 12 项预算
@@ -205,6 +234,44 @@ public final class CandidateMenu {
                 menu.entries().size(), menu.craftable().size(),
                 menu.craftableTruncated() ? "(truncated)" : "", menu.describe());
         return menu;
+    }
+
+    /** 从 `extra`（空格分隔的 `k=v`）里取一个键；没有 ⇒ null。条目字段都由**确定性层**算出。 */
+    public static String extraValue(Entry entry, String key) {
+        if (entry == null || entry.extra() == null) {
+            return null;
+        }
+        for (String token : entry.extra().split("\\s+")) {
+            int eq = token.indexOf('=');
+            if (eq > 0 && token.substring(0, eq).equals(key)) {
+                return token.substring(eq + 1);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 菜单的**矿物扫描目标集**：由 `MiningBudget` 的**唯一两份**矿石定义派生（J-6 不许第二份清单）。
+     * 常见矿石按**标签**扫（覆盖模组同类矿石），稀有矿石按**具体方块**扫（口径精确）。
+     */
+    private static List<com.dddgn.alice.job.mine.MineCandidateSource.Target> mineScanTargets() {
+        List<com.dddgn.alice.job.mine.MineCandidateSource.Target> targets = new ArrayList<>();
+        for (var tag : com.dddgn.alice.task.mining.MiningBudget.COMMON_ORE_TAGS) {
+            targets.add(com.dddgn.alice.job.mine.MineCandidateSource.Target.ofTag(tag));
+        }
+        for (var block : com.dddgn.alice.task.mining.MiningBudget.RARE_ORES) {
+            targets.add(com.dddgn.alice.job.mine.MineCandidateSource.Target.ofBlock(block));
+        }
+        return targets;
+    }
+
+    /** 标签里显示用的短 id（去掉 `minecraft:` 前缀；只影响可读性，不参与任何判定）。 */
+    private static String shortId(String blockId) {
+        if (blockId == null) {
+            return "?";
+        }
+        int colon = blockId.indexOf(':');
+        return colon < 0 ? blockId : blockId.substring(colon + 1);
     }
 
     /**

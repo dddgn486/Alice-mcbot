@@ -155,7 +155,8 @@ public sealed interface GoalAction {
         CandidateMenu.Entry target = menu == null ? null : menu.find(targetId);
         var botPos = bot == null ? net.minecraft.core.BlockPos.ZERO : bot.blockPosition().immutable();
         var center = target != null && target.pos() != null ? target.pos() : botPos;
-        boolean needsTarget = "lumber".equals(kind) || "collect".equals(kind);
+        // **M1（G1）**：`mine` 与 lumber/collect 同列 —— 没有菜单候选就**不许起挖掘 Job**（不猜位置）。
+        boolean needsTarget = "lumber".equals(kind) || "collect".equals(kind) || "mine".equals(kind);
         if (needsTarget && target == null) {
             return new Refused("missing_or_unknown_target:" + (targetId.isBlank() ? "(未给)" : targetId)
                     + "（start_job kind=" + kind + " 必须引用菜单里的候选 id）");
@@ -165,9 +166,29 @@ public sealed interface GoalAction {
             return new Refused("target_kind_mismatch:" + targetId + " is " + target.kind()
                     + " but kind=" + kind);
         }
+        // **M1（G1）**：挖掘目标**只能来自菜单**。方块 id 由菜单条目给出（确定性层算的 `block=`），
+        // **不采信** LLM 自己写的 `productTag` —— 它只用来提示"与菜单不一致"（不猜语义）。
+        String mineProduct = null;
+        int jobRadius = radius;
+        if ("mine".equals(kind)) {
+            mineProduct = CandidateMenu.extraValue(target, "block");
+            if (mineProduct == null || mineProduct.isBlank()) {
+                return new Refused("mine_target_without_block:" + targetId);
+            }
+            if (productTag != null && !productTag.isBlank() && !productTag.equals(mineProduct)) {
+                clamps.add("productTag=" + productTag + "→" + mineProduct + "(以菜单为准)");
+            }
+            // 半径必须**覆盖被选中的目标**，否则 Job 会在半径外找不到它（"可规划即可执行"）
+            if (bot != null && target != null && target.pos() != null) {
+                int need = (int) Math.ceil(Math.sqrt(target.pos().distSqr(botPos))) + 1;
+                if (need > jobRadius) {
+                    jobRadius = clamp(need, 1, MAX_RADIUS, "radius", clamps);
+                }
+            }
+        }
         return switch (kind) {
             case "lumber" -> new StartJob(JobRequest.lumber(center, radius, quota, maxTicks), note, clamps);
-            case "mine" -> new StartJob(JobRequest.mine(center, radius, quota, maxTicks, productTag),
+            case "mine" -> new StartJob(JobRequest.mine(center, jobRadius, quota, maxTicks, mineProduct),
                     note, clamps);
             case "collect" -> new StartJob(JobRequest.collect(center, radius,
                     target != null && target.amount() > 0 ? Math.min(quota, target.amount()) : quota,

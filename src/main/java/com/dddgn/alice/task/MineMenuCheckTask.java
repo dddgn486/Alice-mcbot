@@ -1,0 +1,183 @@
+package com.dddgn.alice.task;
+
+import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.decision.CandidateMenu;
+import com.dddgn.alice.decision.GoalAction;
+import com.dddgn.alice.job.JobLauncher;
+import com.dddgn.alice.job.JobRequest;
+import com.dddgn.alice.log.BotLog;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * **挖矿候选菜单的契约自检**（M1 / G1）：把"`mine` 不许猜位置"做成**纯逻辑断言**
+ * （不改世界、不调 LLM）⇒ 能进串联回归电池，任何改动都跑得到。
+ *
+ * <p>背景（`survey/08` §5.7 审计 G1）：在此之前 `CandidateMenu` 只产 lumber/collect/region/craftable
+ * 四类，`mine` **没有菜单条目**，而 `GoalAction.parseStartJob` 对 `mine` 也不校验 `target`
+ * ⇒ `center` 只能是 `botPos` ⇒ **LLM 事实上在猜位置**（`[Job] launch kind=MINE` 后大概率
+ * `no_reachable_candidate`）。本夹具把修法钉住：
+ *
+ * <pre>
+ * 1 矿石场景里菜单**必须**含 mine 候选（正例；条目 id = `block@x,y,z`，与 MineJob 决策日志同口径）
+ * 2 条目必须带 `block=`（方块 id 由**确定性层**算出）
+ * 3 缺 target：{"kind":"mine"} ⇒ 必须 Refused（不猜坐标）
+ * 4 未知 target：target="block@0,0,0"（不在菜单里）⇒ 必须 Refused
+ * 5 命中菜单：target=<菜单里的 id> ⇒ StartJob 且 **productTag 逐字等于条目的 block=**
+ * 6 半径自洽：报的 radius **必须覆盖**该目标到 bot 的距离（否则 Job 在半径外找不到它）
+ * 7 冲突以菜单为准：LLM 自写一个不同的 productTag ⇒ 不采信它，且**有 clamp 记录**
+ * 8 前置拒绝：空/未知 productTag 的 mine 请求由 `JobLauncher.refusalReason` **如实拒绝**
+ *   （**不抛异常** —— 异常会穿过 assignJob 冒到调用方，可能打崩服务端 tick）
+ * </pre>
+ */
+public class MineMenuCheckTask implements Task {
+
+    private final BotPlayer bot;
+    private final ServerPlayer observer;
+    private final List<String> failures = new ArrayList<>();
+
+    private boolean done;
+    /** 是否已把 bot 挪到场景起点（**夹具自带传送**，不依赖电池的 provision；见 PLAYBOOK §5.0d）。 */
+    private boolean moved;
+
+    public MineMenuCheckTask(BotPlayer bot, ServerPlayer observer) {
+        this.bot = bot;
+        this.observer = observer;
+    }
+
+    @Override
+    public String taskName() {
+        return "MineMenuCheck";
+    }
+
+    @Override
+    public TaskTarget target() {
+        return TaskTarget.block(bot.blockPosition());
+    }
+
+    @Override
+    public String failureReason() {
+        return failures.isEmpty() ? "" : String.join(" | ", failures);
+    }
+
+    @Override
+    public String terminalReason() {
+        return done ? (failures.isEmpty() ? "passed" : "failed") : "";
+    }
+
+    @Override
+    public Status tick() {
+        if (done) {
+            return failures.isEmpty() ? Status.DONE : Status.FAILED;
+        }
+        if (!moved) {
+            // 本夹具依赖**矿石场景**（附近必须有矿）⇒ 先自己站到场景起点，**下一 tick 再干活**
+            // （传送后立刻扫描会撞上"区块/实体还没就绪"⇒ 假失败）
+            teleportToStart();
+            moved = true;
+            BotLog.info("[MineMenu] 已传送 bot 到矿石场景起点 {}（{}）",
+                    OreCourseAnchor.START_FOOT.toShortString(), bot.blockPosition().toShortString());
+            return Status.RUNNING;
+        }
+        done = true;
+
+        CandidateMenu menu = CandidateMenu.build(bot);
+        var mine = menu.entries().stream()
+                .filter(e -> "mine".equals(e.kind())).findFirst().orElse(null);
+        check("矿石场景里菜单必须含 mine 候选", mine != null);
+
+        String block = CandidateMenu.extraValue(mine, "block");
+        check("mine 条目必须带 block=（方块 id 由确定性层给出）", block != null && !block.isBlank());
+
+        // 3/4：**没有菜单条目就不许起挖掘 Job**（这正是 M1 的核心）
+        checkRefused(menu, "缺 target 的 mine", "{\"action\":\"start_job\",\"kind\":\"mine\"}");
+        checkRefused(menu, "不在菜单里的 mine target",
+                "{\"action\":\"start_job\",\"kind\":\"mine\",\"target\":\"block@0,0,0\"}");
+
+        if (mine != null) {
+            GoalAction action = GoalAction.parse(
+                    "{\"action\":\"start_job\",\"kind\":\"mine\",\"target\":\"" + mine.id()
+                            + "\",\"quota\":2}", bot, menu);
+            if (action instanceof GoalAction.StartJob start) {
+                check("命中菜单 ⇒ center 取候选位置",
+                        start.request().center().equals(mine.pos()));
+                check("productTag 逐字等于条目的 block=",
+                        block != null && block.equals(start.request().productTag()));
+                double distance = Math.sqrt(
+                        mine.pos().distSqr(bot.blockPosition().immutable()));
+                check("radius 覆盖目标距离（" + start.request().radius() + " >= "
+                                + String.format(java.util.Locale.ROOT, "%.1f", distance) + "）",
+                        start.request().radius() >= distance);
+                check("该请求通过前置拒绝检查",
+                        JobLauncher.refusalReason(bot, start.request()) == null);
+            } else {
+                failures.add("命中 mine 菜单却未 StartJob：" + action);
+            }
+
+            // 7：LLM 自写 productTag 与菜单冲突 ⇒ **以菜单为准**（不猜语义）
+            GoalAction conflicted = GoalAction.parse(
+                    "{\"action\":\"start_job\",\"kind\":\"mine\",\"target\":\"" + mine.id()
+                            + "\",\"productTag\":\"minecraft:diamond_ore\"}", bot, menu);
+            if (conflicted instanceof GoalAction.StartJob start) {
+                check("冲突时以菜单为准",
+                        block != null && block.equals(start.request().productTag()));
+                check("冲突有 clamp 记录", !start.clamps().isEmpty());
+            } else {
+                failures.add("productTag 冲突却未 StartJob：" + conflicted);
+            }
+        }
+
+        // 8：前置拒绝（**返回值**表达失败，不抛异常）
+        check("空 productTag 被前置拒绝",
+                JobLauncher.refusalReason(bot,
+                        JobRequest.mine(bot.blockPosition(), 4, 1, 200, null)) != null);
+        check("未知 productTag 被前置拒绝",
+                JobLauncher.refusalReason(bot,
+                        JobRequest.mine(bot.blockPosition(), 4, 1, 200, "alice:not_a_block")) != null);
+        // 正例对照：合法的 mine 请求**不许**被拒（否则前置检查太宽会挡住正常挖掘）
+        check("合法 mine 请求不被拒",
+                JobLauncher.refusalReason(bot,
+                        JobRequest.mine(bot.blockPosition(), 4, 1, 200, "minecraft:iron_ore")) == null);
+
+        boolean pass = failures.isEmpty();
+        BotLog.info("[MineMenu] SUMMARY checks=11 failures={} mineEntries={} {} → {}",
+                failures.size(), mine == null ? 0 : 1, failures, pass ? "PASS" : "FAIL");
+        if (observer != null && !observer.hasDisconnected() && !observer.isRemoved()) {
+            observer.sendSystemMessage(Component.literal("[alice] 挖矿菜单契约自检 "
+                    + (pass ? "PASS" : "FAIL " + failures)));
+        }
+        // **结束复位**（PLAYBOOK §5.0d）：停输入 + 回到场景起点，失败路径同样走
+        bot.controller().stopMovement();
+        teleportToStart();
+        BotLog.info("[MineMenu] 结束复位：bot 回到 {}（onGround={}）",
+                bot.blockPosition().toShortString(), bot.onGround());
+        return pass ? Status.DONE : Status.FAILED;
+    }
+
+    private void teleportToStart() {
+        bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+        bot.controller().stopMovement();
+        bot.teleportTo(bot.serverLevel(),
+                OreCourseAnchor.START_FOOT.getX() + 0.5D,
+                OreCourseAnchor.START_FOOT.getY(),
+                OreCourseAnchor.START_FOOT.getZ() + 0.5D,
+                java.util.Set.of(), bot.getYRot(), bot.getXRot());
+    }
+
+    private void check(String what, boolean ok) {
+        if (!ok) {
+            failures.add(what);
+        }
+    }
+
+    /** 用**同一份**菜单断言拒绝（菜单构建含 11 个矿石目标的全扫，重复构建会在一个 tick 里白烧掉百万次读）。 */
+    private void checkRefused(CandidateMenu menu, String what, String json) {
+        GoalAction action = GoalAction.parse(json, bot, menu);
+        if (!(action instanceof GoalAction.Refused)) {
+            failures.add(what + " 应 Refused，实际 " + action);
+        }
+    }
+}

@@ -564,6 +564,11 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
+        String refusal = com.dddgn.alice.job.JobLauncher.refusalReason(bot, request);
+        if (refusal != null) {
+            BotLog.warn("[Job] launch 拒绝 {}（{}）—— 不起 Job", request.describe(), refusal);
+            return false;
+        }
         if (!com.dddgn.alice.job.JobLauncher.provision(bot, request, fixtureProvision)) {
             BotLog.warn("[Job] launch 发料失败 ⇒ 不起 Job（{}）", request.describe());
             return false;

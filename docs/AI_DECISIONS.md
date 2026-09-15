@@ -9143,3 +9143,48 @@ D-220 的三条修完之后发现：真正的病因不是"某个常量算错了"
 **教训**：`grep -n <符号>` 找调用点时必须排除定义行并看**同文件内的调用** ——
 本次三路审计都在 `BotManager` 之外的包内搜调用点，漏掉了同类内的那次调用；
 **"0 调用者"这类否定性结论要求"含定义文件的完整 grep + 人工确认"**，不能只靠 `-l` 的文件计数。
+
+### D-222：M1 —— 挖矿不许猜位置（候选菜单 + 菜单 id 强制 + 取消 IRON_ORE 静默回落）（2026-09-15）
+
+**动因**：`survey/08` §5.7 审计的 **G1**（最承重缺口）：`CandidateMenu.build` 只产
+lumber/collect/region/craftable 四类，**`mine` 没有菜单条目**；而 `GoalAction.parseStartJob` 对 `mine`
+**不校验 `target`** ⇒ `center` 只能是 `botPos` ⇒ **LLM 事实上在猜位置**（类注释自己记着"没给菜单 ⇒
+实测 1 tick `no_reachable_candidate`"，那条教训只修到 lumber/collect）。
+
+**改法（五处，均为最小面）**：
+1. `MiningBudget`：把散在 `tierOf` 里的两处矿石判定收成**唯一两份定义** ——
+   `COMMON_ORE_TAGS`（常见矿石标签，2× 档）与 `RARE_ORES`（稀有矿石方块，4× 档）。
+   **行为不变**（稀有先判、常见后判，顺序与集合逐条等价）；J-6 的"不许长出第二份矿物清单"由此可执行。
+2. `CandidateMenu`：新增 **③ 矿物**一节，**复用 Job 自己的候选源** `MineCandidateSource`
+   （与 lumber 复用 `LumberCandidateSource` 同一纪律）⇒ 菜单里出现的矿 Job 一定选得中
+   （`block@x,y,z` 就是 `MineJob` 决策日志的 id 口径）。条目 `extra` 带**确定性层算出的** `block=` / `y=`；
+   扫描半径单列 `MINE_SCAN_RADIUS=12`（菜单是**有界感知**，不是作业搜索；11 个目标 × 25³ ≈ 17 万次读取，
+   与树的 24 格扫描同量级）。新增 `CandidateMenu.extraValue` 供动作层取值。
+3. `GoalAction.parseStartJob`：`mine` 与 lumber/collect **同列**进 `needsTarget`；
+   挖掘的 `productTag` **只取菜单条目的 `block=`**（LLM 自写的只作"与菜单不一致"的提示 ⇒ 记 clamp，**不采信**）；
+   `radius` 自动放大到**覆盖被选目标**（否则 Job 会在半径外找不到它）；菜单里没有 mine 条目且未给 target ⇒
+   专有拒绝码 `no_mine_candidate`（比笼统的 `missing_or_unknown_target` 更诚实）。
+4. `JobLauncher`：新增 `refusalReason(bot, request)` —— **请求级前置拒绝**。为什么不能用异常：
+   `create` 抛出的异常会**穿过 `assignJob` 冒到调用方**（`GoalDirector` 的 `catch` 只包 LLM 回复、不包动作执行）
+   ⇒ 有把服务端 tick 打崩的风险；而 `assignJob` 本来就返回 `boolean` ⇒ 用"拒绝 + 如实记日志"表达。
+   `mineTargetFor` 的两处"**静默回落到 IRON_ORE**"删除（那是在**猜语义**：LLM 写错方块 id 会去挖铁矿石），
+   改为防御性 `IllegalArgumentException`（生产路径已被前置拒绝挡住）。
+5. `BotManager.assignJob`：在发料/构造**之前**调用 `refusalReason`，非 null ⇒ `warn` + 返回 false。
+
+**判据（新电池步 `mine_menu`，`Profile.MAIN` ⇒ **CORE 跑**）**：`src/main/java/com/dddgn/alice/task/MineMenuCheckTask.java`
+（纯逻辑、不改世界、不调 LLM；矿石场景 `alice_test:ore_course_terrain` + 自带传送 + 结束复位）：
+菜单含 mine 候选且带 `block=`；缺 target / 未知 target ⇒ 必须 `Refused`；命中 ⇒ `center` 取候选位置、
+`productTag` **逐字等于** `block=`、`radius` 覆盖目标距离、该请求通过前置检查；LLM 自写冲突 ⇒ 以菜单为准 + clamp；
+空/未知 `productTag` 前置拒绝非 null、合法请求必须为 null（防止前置检查过宽挡住正常挖掘）。
+
+**验证**：`./gradlew compileJava` ✅；`bash tools/check-all.sh` 9 PASS + 1 预期 WARN ✅；
+**无头 `core`：`(passed=31/31 skipped=0) ticks=3404 → PASS`**，`K4=OK(goal_not_standable=0 …)`，
+`[Goal] candidate_menu mine=6`、`[MineMenu] SUMMARY checks=11 failures=0 [] → PASS` ⇒
+**`SERVER_TESTED`**（客户端未跑过这一版）。
+
+**策展**：`BATTERY_CURATION` 更新为 **41 项 → CORE 31**（新增 `mine_menu` 记 MAIN）。
+**刻意不进 EXTRA**：它是"不猜语义"红线的门禁，必须每次改动都跑得到。
+
+**附注一（顺带发现，未处置）**：`decision_contract` 步的归属是 **EXTRA** ⇒ **CORE 不跑它**，
+但其类文档写着"这样它们能进串联回归电池，**任何改动都跑得到**" ⇒ **两者矛盾**（D-149 的判据承诺 vs
+后来的瘦身档位）。要不要把它提到 MAIN/BASELINE 属**策展裁定**，本轮不动，已记台账 §5.7。

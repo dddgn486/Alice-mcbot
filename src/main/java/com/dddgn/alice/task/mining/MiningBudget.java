@@ -42,16 +42,28 @@ public record MiningBudget(boolean collectDrops, double maxExtraBreakTicks, doub
         return forTarget(bot, level, target, true);
     }
 
+    /**
+     * **常见矿石标签**（分档 2×）—— **"哪些算常见矿石"的唯一一份定义**。
+     *
+     * <p>J-6 的规矩是"不许长出第二份矿物清单"：决策层候选菜单（`CandidateMenu` 的 `mine` 条目）
+     * **必须**从这里取，不得自己写一份。与 {@link #RARE_ORES} 一起构成菜单的扫描目标集。
+     */
+    public static final java.util.List<net.minecraft.tags.TagKey<net.minecraft.world.level.block.Block>>
+            COMMON_ORE_TAGS = java.util.List.of(BlockTags.COAL_ORES, BlockTags.IRON_ORES,
+                    BlockTags.COPPER_ORES, BlockTags.GOLD_ORES, BlockTags.REDSTONE_ORES,
+                    BlockTags.LAPIS_ORES);
+
+    /** **稀有矿石方块**（分档 4×）—— "哪些算稀有矿石"的唯一一份定义（含深板岩变体与远古残骸）。 */
+    public static final java.util.List<net.minecraft.world.level.block.Block> RARE_ORES =
+            java.util.List.of(Blocks.DIAMOND_ORE, Blocks.DEEPSLATE_DIAMOND_ORE,
+                    Blocks.EMERALD_ORE, Blocks.DEEPSLATE_EMERALD_ORE, Blocks.ANCIENT_DEBRIS);
+
     /** 目标珍贵程度分档：稀有 4× / 普通矿石 2× / 其它 1×。 */
     private static double tierOf(BlockState state) {
-        if (state.is(Blocks.DIAMOND_ORE) || state.is(Blocks.DEEPSLATE_DIAMOND_ORE)
-                || state.is(Blocks.ANCIENT_DEBRIS) || state.is(Blocks.EMERALD_ORE)
-                || state.is(Blocks.DEEPSLATE_EMERALD_ORE)) {
+        if (RARE_ORES.stream().anyMatch(state::is)) {
             return 4.0D;
         }
-        if (state.is(BlockTags.COAL_ORES) || state.is(BlockTags.IRON_ORES)
-                || state.is(BlockTags.COPPER_ORES) || state.is(BlockTags.GOLD_ORES)
-                || state.is(BlockTags.REDSTONE_ORES) || state.is(BlockTags.LAPIS_ORES)) {
+        if (COMMON_ORE_TAGS.stream().anyMatch(state::is)) {
             return 2.0D;
         }
         return 1.0D;

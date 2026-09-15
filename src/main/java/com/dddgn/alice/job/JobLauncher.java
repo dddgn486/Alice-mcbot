@@ -152,24 +152,47 @@ public final class JobLauncher {
     public static final int REGION_PATROL_INTERVAL_TICKS = 40;
 
     /**
-     * 挖掘目标：`productTag` 为方块/标签 id 时用它，否则回落到"最近的可挖方块"（夹具默认）。
+     * **请求级前置拒绝**（M1）：在**构造 Job 之前**判定"这个请求根本不该起"，用**返回值**表达失败。
+     *
+     * <p>为什么不能用异常：`create` 抛出的异常会**穿过 `assignJob` 冒到调用方**
+     * （`GoalDirector` 的 `catch` 只包 LLM 回复、不包动作执行）⇒ 有把服务端 tick 打崩的风险。
+     * 而 `assignJob` 本来就返回 `boolean` ⇒ 用"拒绝 + 如实记日志"表达，既响亮又安全。
+     *
+     * @return null = 可以起；非 null = 拒绝理由（机器可读，进日志）
+     */
+    public static String refusalReason(BotPlayer bot, JobRequest request) {
+        if (request.kind() != JobRequest.Kind.MINE || bot == null) {
+            return null;
+        }
+        String tag = request.productTag();
+        if (tag == null || tag.isBlank()) {
+            return "mine_request_without_target";   // 决策层必须给菜单里的 block=，不许留空
+        }
+        var id = net.minecraft.resources.ResourceLocation.tryParse(tag);
+        if (id == null || com.dddgn.alice.job.mine.MineCandidateSource.Target
+                .parse(bot.serverLevel(), id) == null) {
+            return "mine_target_unparseable:" + tag;
+        }
+        return null;
+    }
+
+    /**
+     * 挖掘目标：`productTag` 为方块/标签 id 时用它（**唯一来源 = 决策层菜单里的 `block=`**）。
      * 判据口径沿用 `MineJob` 既有行为，避免这里变成第二个"矿物清单"（见总账 §3 J-6）。
      */
     private static com.dddgn.alice.job.mine.MineCandidateSource.Target mineTargetFor(BotPlayer bot,
                                                                                    JobRequest request) {
         String tag = request.productTag();
+        // **M1**：不再"回落到默认矿物" —— 那是在**猜语义**（LLM 写错方块 id 时会静默去挖铁矿石）。
+        // 生产路径（决策层）已由 `assignJob` 用 `refusalReason` 在构造前拒绝，所以这里抛异常属防御性。
         if (tag == null || tag.isBlank()) {
-            // 与既有夹具入口（alice:mine_job）保持同一默认，避免这里长出第二份"默认矿物"
-            return com.dddgn.alice.job.mine.MineCandidateSource.Target
-                    .ofBlock(net.minecraft.world.level.block.Blocks.IRON_ORE);
+            throw new IllegalArgumentException("MINE 请求缺少 productTag（应由决策层菜单给出方块 id）");
         }
         var id = net.minecraft.resources.ResourceLocation.tryParse(tag);
         var parsed = id == null ? null
                 : com.dddgn.alice.job.mine.MineCandidateSource.Target.parse(bot.serverLevel(), id);
         if (parsed == null) {
-            BotLog.warn("[Job] launch 未知挖掘目标 {} ⇒ 回落到默认（不猜语义）", tag);
-            return com.dddgn.alice.job.mine.MineCandidateSource.Target
-                    .ofBlock(net.minecraft.world.level.block.Blocks.IRON_ORE);
+            throw new IllegalArgumentException("MINE 请求的 productTag 无法解析为方块/标签：" + tag);
         }
         return parsed;
     }
