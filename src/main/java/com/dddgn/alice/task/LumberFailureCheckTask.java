@@ -239,7 +239,13 @@ public final class LumberFailureCheckTask implements Task {
             case TOOL_MISSING -> record(current,
                     status == Task.Status.FAILED && "tool_missing".equals(terminal),
                     "status=" + status + " reason=" + terminal
-                            + "（前置检查：快捷栏无斧 ⇒ 不去徒手撞预算）");
+                            + "（前置检查：快捷栏无斧 ⇒ 不去徒手撞预算）"
+                            // M4b（D-234）：本夹具六个用例**没有一个**以"子任务结束且失败"收场
+                            // （无候选/全被拒 = 没建子任务；背包满/换块 = DONE；超时 = 子任务还在跑；
+                            //  缺斧 = 前置检查在建子任务之前就拒）⇒ 这里**不断言**树里的 lastFailure，
+                            // 免得把合法行为判成失败。端到端覆盖缺口已登记（台账 §5.7 M4b 尾注）。
+                            + " tree=" + job.subTasks().stream()
+                                    .map(com.dddgn.alice.task.TaskNode::describe).toList());
             case LOG_REPLACED -> {
                 BlockState now = replacedPos == null
                         ? null : bot.serverLevel().getBlockState(replacedPos);

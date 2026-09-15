@@ -31,6 +31,26 @@ public record TaskNode(
         children = children == null ? List.of() : List.copyOf(children);
     }
 
+    /**
+     * **子任务刚结束时**的那个节点（M4b 口径，四个 Job 共用一处）：成功 ⇒ `lastFailure` 为空；
+     * 失败 ⇒ 带该子任务**自己**的一行事实（{@link com.dddgn.alice.bot.TaskFailureReport#oneLine()}）。
+     *
+     * <p>为什么要共用：四个 Job 都在子任务结束后**立刻把引用置空**（避免用到过期状态），
+     * 于是失败的子阶段在树里整个消失 —— 各写各的必然漂移，所以口径只留这一处。
+     */
+    public static TaskNode finished(String kind, String target, String phase, int ticks, String progress,
+                                    Task child, Task.Status status) {
+        return finished(kind, target, phase, ticks, progress, child, status, List.of());
+    }
+
+    /** 同上，外加该子任务自己的子节点（区域伐木的内层 Job 用）。 */
+    public static TaskNode finished(String kind, String target, String phase, int ticks, String progress,
+                                    Task child, Task.Status status, List<TaskNode> children) {
+        boolean ok = status == Task.Status.DONE || child == null;
+        String failure = ok ? "" : child.failureReport().oneLine();
+        return new TaskNode(kind, target, phase, ticks, progress, failure, children);
+    }
+
     /** 一行摘要（`kind@target[phase] ticks=..`），子节点缩进跟随。 */
     public String describe() {
         StringBuilder builder = new StringBuilder();

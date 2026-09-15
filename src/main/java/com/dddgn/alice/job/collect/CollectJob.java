@@ -89,7 +89,7 @@ public final class CollectJob implements Job {
     @Override
     public List<TaskNode> subTasks() {
         if (current == null) {
-            return List.of();
+            return finishedChildNode == null ? List.of() : List.of(finishedChildNode);
         }
         return List.of(TaskNode.leaf("CollectDropsTask", current.target().describe(), phase.name(),
                 ticks, "collected=" + current.collected()));
@@ -201,6 +201,8 @@ public final class CollectJob implements Job {
                 current.target().blockPos().toShortString(), status, gained, collectedItems);
         boolean innerFailed = status == Task.Status.FAILED;
         String innerReason = current.failureReason();
+        finishedChildNode = TaskNode.finished("CollectDropsTask", current.target().describe(),
+                phase.name(), ticks, "collected=" + current.collected(), current, status);
         current = null;
         phase = Phase.SCAN;
         if (innerFailed && collectedItems < spec.quota()) {
@@ -212,6 +214,9 @@ public final class CollectJob implements Job {
         }
         return Task.Status.RUNNING;
     }
+
+    /** **刚结束的子任务节点**（M4b）：`current` 置空后仍让树里看得见"哪个子阶段失败"。 */
+    private TaskNode finishedChildNode;
 
     private Task.Status finish(Task.Status status, String reason) {
         terminated = true;

@@ -114,8 +114,20 @@ public class DecisionContractCheckTask implements Task {
             checkRefused("无区域时 region_lumber", "{\"action\":\"start_job\",\"kind\":\"region_lumber\"}");
         }
 
+        // M4b（D-234）：**任务树"子阶段失败"的口径**（纯逻辑、零世界改动）—— 四个 Job 共用
+        // `TaskNode.finished(...)`，把它钉在这里等于一次钉住全部四个（lumber 侧端到端覆盖缺口已登记）。
+        check("finished：成功子任务不留失败行",
+                TaskNode.finished("T", "x", "P", 1, "", new StubTask("", "SCAN"), Status.DONE)
+                        .lastFailure().isEmpty());
+        check("finished：失败子任务带 code@phase",
+                "boom@SCAN".equals(TaskNode.finished("T", "x", "P", 1, "",
+                        new StubTask("boom", "SCAN"), Status.FAILED).lastFailure()));
+        check("finished：一行事实有界（≤ ONE_LINE_MAX）",
+                TaskNode.finished("T", "x", "P", 1, "", new StubTask("x".repeat(400), "P"), Status.FAILED)
+                        .lastFailure().length() <= com.dddgn.alice.bot.TaskFailureReport.ONE_LINE_MAX);
+
         boolean pass = failures.isEmpty();
-        BotLog.info("[DecisionContract] SUMMARY checks=7 failures={} {} → {}",
+        BotLog.info("[DecisionContract] SUMMARY checks=10 failures={} {} → {}",
                 failures.size(), failures, pass ? "PASS" : "FAIL");
         if (observer != null && !observer.hasDisconnected() && !observer.isRemoved()) {
             observer.sendSystemMessage(Component.literal("[alice] 决策层契约自检 "
@@ -132,6 +144,29 @@ public class DecisionContractCheckTask implements Task {
         BotLog.info("[DecisionContract] 结束复位：bot 回到 {}（onGround={}）",
                 bot.blockPosition().toShortString(), bot.onGround());
         return pass ? Status.DONE : Status.FAILED;
+    }
+
+    /** M4b 口径判据用的最小子任务替身：只回答"失败理由与阶段是什么"。 */
+    private record StubTask(String reason, String phase) implements Task {
+        @Override
+        public TaskTarget target() {
+            return TaskTarget.block(net.minecraft.core.BlockPos.ZERO);
+        }
+
+        @Override
+        public String failureReason() {
+            return reason;
+        }
+
+        @Override
+        public com.dddgn.alice.bot.TaskFailureReport failureReport() {
+            return new com.dddgn.alice.bot.TaskFailureReport(reason, phase, "", null, null);
+        }
+
+        @Override
+        public Status tick() {
+            return Status.DONE;
+        }
     }
 
     private void check(String what, boolean ok) {

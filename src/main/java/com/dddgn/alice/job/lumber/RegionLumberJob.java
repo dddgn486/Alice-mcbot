@@ -155,6 +155,8 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
             children.add(new com.dddgn.alice.task.TaskNode("LumberJob(inner)",
                     current.target().describe(), "HARVEST", ticks, current.progressSummary(),
                     "", current.subTasks()));
+        } else if (finishedChildNode != null) {
+            children.add(finishedChildNode);
         }
         return children;
     }
@@ -542,9 +544,15 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
             BotLog.warn("[Job] maintain tree@{} 未完成 reason={}（记入逐树理由，本轮不再挑它）",
                     base.toShortString(), reason);
         }
+        finishedChildNode = com.dddgn.alice.task.TaskNode.finished("LumberJob(inner)",
+                base.toShortString(), "HARVEST", ticks, current.progressSummary(), current, status,
+                current.subTasks());
         current = null;
         return com.dddgn.alice.task.Task.Status.RUNNING;
     }
+
+    /** **刚结束的子任务节点**（M4b）：内层 Job 置空后仍让树里看得见"哪个子阶段失败"。 */
+    private com.dddgn.alice.task.TaskNode finishedChildNode;
 
     private com.dddgn.alice.task.Task.Status finish(com.dddgn.alice.task.Task.Status status) {
         terminated = true;

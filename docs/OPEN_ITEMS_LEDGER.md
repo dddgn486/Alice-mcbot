@@ -1407,7 +1407,13 @@ jar `3312608d…`。
       + `TaskNode.leaf(..., lastFailure)` 重载 + `MineJob` 记录子阶段失败（并在子任务置空后仍把该子阶段摊进树里）。
       判据挂在既有 `mine_no_tool` 步的 `doneWhen`（归因对 **且** 树里有 `lastFailure` 才判过 ⇒ 否则预算耗尽判红）；
       **反向对照**已做（短路那支 ⇒ `mine_no_tool=FAIL`）。CORE `(35/35) ticks=3832 → PASS`。
-      ⚠️ **其余 Job 仍挂账**：`LumberJob`/`CollectJob`/`RegionLumberJob` 的子节点 `lastFailure` 仍为空。
+      ✅ **其余三个 Job 也已接上（D-234）**：口径统一为 `TaskNode.finished(...)`（成功不留行 / 失败带 `code@phase`），
+      四个 Job 共用；判据 = `decision_contract`（MAIN ⇒ CORE 跑）里的三条纯逻辑断言，反向对照会红。
+      ⚠️ **端到端覆盖缺口（如实登记）**：`lumber_failure` 的六个用例**没有一个**以"子任务结束且失败"收场
+      （无候选/全被拒 = 没建子任务；背包满/换块 = DONE；超时 = 子任务还在跑；缺斧 = 前置检查先拒）
+      ⇒ 我第一版给它们加的"Job FAILED ⇒ 树里必有失败行"判据**是错的**、被夹具打回、**已撤回**
+      （错的判据比没判据坏）。lumber/collect/region 三条端到端口径目前只到 `IMPLEMENTED`。
+      **补法**：加一个"内层 `MineTask` 真的失败"的确定性用例（够不到 / 超出 `MAX_GAIN_PER_TREE` 的树干）。
 - ✅ **M3 已完成**（2026-09-15）：`MineJob.attemptFailures` 结构化（`record AttemptFailure(pos, code)`），
       新增 `deriveTopLevelReason(base)` —— **逐码精确比较**（不再 `contains()` 拼接串）：
       全 `no_suitable_tool` ⇒ **`tool_missing`**、全预算码 ⇒ **`write_budget_exhausted`**、

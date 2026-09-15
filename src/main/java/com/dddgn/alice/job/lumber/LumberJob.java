@@ -197,6 +197,9 @@ public final class LumberJob implements Job {
         return failure;
     }
 
+    /** **刚结束的子任务节点**（M4b）：三个子阶段共用一格 —— 树里没有活着的子任务时把它摊出来。 */
+    private com.dddgn.alice.task.TaskNode finishedChildNode;
+
     @Override
     public java.util.List<com.dddgn.alice.task.TaskNode> subTasks() {
         java.util.List<com.dddgn.alice.task.TaskNode> children = new java.util.ArrayList<>();
@@ -212,6 +215,9 @@ public final class LumberJob implements Job {
         if (restore != null) {
             children.add(com.dddgn.alice.task.TaskNode.leaf("RestoreScopeTask",
                     restore.target().describe(), phase.name(), ticks, ""));
+        }
+        if (children.isEmpty() && finishedChildNode != null) {
+            children.add(finishedChildNode);
         }
         return children;
     }
@@ -357,6 +363,9 @@ public final class LumberJob implements Job {
             choppedLogs++;
             recordClear(miner);
             recordGain(miner);
+            finishedChildNode = com.dddgn.alice.task.TaskNode.finished("MineTask",
+                    miner.target().describe(), phase.name(), ticks,
+                    "cleared=" + miner.clearedBlocks() + " gained=" + miner.gainedSteps(), miner, status);
             miner = null;
             queueIndex++;
             return Task.Status.RUNNING;
@@ -366,6 +375,9 @@ public final class LumberJob implements Job {
         recordClear(miner);
         recordGain(miner);
         failedLogs.add(log.toShortString() + ":" + reason);
+        finishedChildNode = com.dddgn.alice.task.TaskNode.finished("MineTask",
+                miner.target().describe(), phase.name(), ticks,
+                "cleared=" + miner.clearedBlocks() + " gained=" + miner.gainedSteps(), miner, status);
         miner = null;
         queueIndex++;
         return Task.Status.RUNNING;
@@ -463,6 +475,9 @@ public final class LumberJob implements Job {
         }
         BotLog.info("[Job] lumber sweep_up_end swept={} live_drops={}",
                 collector.collected(), scope.liveDrops().size());
+        finishedChildNode = com.dddgn.alice.task.TaskNode.finished("CollectDropsTask",
+                collector.target().describe(), phase.name(), ticks,
+                "collected=" + collector.collected(), collector, status);
         collector = null;
         sweptUpThisTree = true;
         return advanceAfterChop();
@@ -487,6 +502,8 @@ public final class LumberJob implements Job {
             scaffoldLeft = left;
             BotLog.warn("[Job] lumber scaffold_left pending={}（建拆同权未闭合，如实报告）", left);
         }
+        finishedChildNode = com.dddgn.alice.task.TaskNode.finished("RestoreScopeTask",
+                restore.target().describe(), phase.name(), ticks, "", restore, status);
         restore = null;
         restoredThisTree = true;
         return advanceAfterChop();
@@ -497,6 +514,9 @@ public final class LumberJob implements Job {
         if (status == Task.Status.RUNNING) {
             return Task.Status.RUNNING;
         }
+        finishedChildNode = com.dddgn.alice.task.TaskNode.finished("CollectDropsTask",
+                collector.target().describe(), phase.name(), ticks,
+                "collected=" + collector.collected(), collector, status);
         collector = null;   // ③ 收完即弃：留着会让下一棵树的 ① 误判"已经在扫尾"（D-116 修正）
         int gained = countLogs() - logsBeforeThisTree;
         boolean allChopped = failedLogs.isEmpty() && choppedLogs == queue.size() && !queue.isEmpty();

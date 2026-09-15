@@ -9683,3 +9683,32 @@ lastFailure=no_suitable_tool@EVALUATING`）/ 反向 `FAIL` ✅；CORE `(35/35) t
   （含 M4b/M3b）→ S-5 维生线三项 `WINDOWS_CLIENT` → D-230 的自我修正 → 离线门槛 CORE 38 步 / check-all 9+1 →
   断点指向 `HANDOVER` 与台账）。逐条历史本来就在 `AI_DECISIONS.md`/git 里，**不再抄进 STATE**。
 - **验证**：`check-doc-budget` = **1467 ≤ 1476**（余额 9）✅；`check-all.sh` 9 PASS + 1 预期 WARN ✅。
+
+---
+
+### D-234：M4b 收尾 —— 四个 Job 统一"子阶段失败"口径（判据挂在共享口径上，lumber 侧覆盖缺口如实登记）（2026-09-15）
+
+**做了什么**：
+- 新增**唯一口径** `TaskNode.finished(kind, target, phase, ticks, progress, child, status[, children])`：
+  子任务 `DONE` ⇒ `lastFailure` 为空；失败 ⇒ 取该子任务自己的 `failureReport().oneLine()`（`code@phase`，有界 120）。
+- `MineJob` 改为调用它（删掉自造的 `minerFailure` 字段）；`LumberJob`（miner/collector×2/restore 四个结束点）、
+  `CollectJob`、`RegionLumberJob`（内层 Job，带它自己的 `subTasks()`）全部接上 —— 每个 Job 保留"刚结束的那个子节点"，
+  在**没有活着的子任务**时把它摊进 `subTasks()`（否则子阶段置空后失败事实又看不见了）。
+
+**判据（CORE 可跑，零新增电池步）**：挂在既有 `decision_contract`（MAIN）里做**纯逻辑**断言 ——
+`finished` 三条：成功不留行 / 失败带 `code@phase` / 一行有界（≤ `ONE_LINE_MAX`）。
+四个 Job 共用这个口径 ⇒ 钉住它等于一次钉住四个。
+**反向对照已做**：把 `finished` 的失败行短路成 `""` ⇒ `decision_contract` 立刻 `FAIL`
+（`checks=10 failures=1 [finished：失败子任务带 code@phase]`）✅
+
+**⚠️ 如实登记的覆盖缺口（本轮最有价值的发现）**：`LumberFailureCheckTask`（`lumber_failure`，EXTRA）六个用例
+**没有一个**以"子任务结束且失败"收场 —— 我第一版给它们加的"Job FAILED ⇒ 树里必有失败行"判据**是错的**，
+被夹具当场打回：
+- `GOAL_TIMEOUT`：Job 因**自己的**超时失败时子任务**还在跑**（`tree=[MineTask… ticks=41 cleared=1 gained=0]` 无失败行）⇒ 合法；
+- `TOOL_MISSING`：斧头前置检查在**建子任务之前**就拒绝 ⇒ `tree=[]` ⇒ 没有子阶段可点名 ⇒ 合法；
+- `NO_CANDIDATES`/`ALL_REJECTED`：压根没建子任务；`INVENTORY_FULL`/`LOG_REPLACED`：DONE。
+⇒ 错的判据比没判据更坏（会把合法行为判成失败），**已撤回**，只保留可读的 `tree=…` 明细。
+**lumber / collect / region 三条端到端因此只到 `IMPLEMENTED`**（不是 `SERVER_TESTED`）；
+要补它需要一个"内层 `MineTask` 真的失败"的确定性用例（例如够不到/超出 `MAX_GAIN_PER_TREE` 的树干），已登记台账 §5.7。
+
+**验证**：`single:decision_contract` 正向 `PASS checks=10` / 反向 `FAIL` ✅；CORE（38 步）见提交信息。

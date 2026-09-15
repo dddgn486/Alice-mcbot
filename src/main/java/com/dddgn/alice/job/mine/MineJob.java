@@ -97,15 +97,12 @@ public final class MineJob implements Job {
     private String terminalReason = "";
 
     /**
-     * **该子阶段（MineTask）最近一次失败**的一行事实（M4b）——子任务成功或被重建时清空，不留 stale。
+     * **刚结束的子任务节点**（M4b；快照用，含它自己的 `lastFailure`）。
      *
-     * <p>为什么要单独留一份：`mine()` 结束时会立刻把 `miner` 置空（避免用到过期状态），
-     * 于是失败的子节点在任务树里**整个消失**，`tree[].lastFailure` 永远是空的 —— 决策层/汇报
-     * 只能看到"挖矿没挖到"，看不到"哪个子阶段、以什么理由失败"。
+     * <p>为什么必须有它：`mine()` 结束时会立刻把 `miner` 置空（避免用过期状态），
+     * 于是失败的子节点在任务树里**整个消失**，`tree[].lastFailure` 永远是空的 ——
+     * 决策层只能看到"挖矿没挖到"，看不到"哪个子阶段、以什么理由失败"。
      */
-    private String minerFailure = "";
-
-    /** 已结束的子任务节点（快照用；含它自己的 lastFailure）。 */
     private com.dddgn.alice.task.TaskNode finishedMinerNode;
     private String failure = "";
     private boolean terminated;
@@ -154,7 +151,7 @@ public final class MineJob implements Job {
         if (miner != null) {
             children.add(com.dddgn.alice.task.TaskNode.leaf("MineTask",
                     miner.target().describe(), phase.name(), ticks,
-                    "cleared=" + miner.clearedBlocks(), minerFailure));
+                    "cleared=" + miner.clearedBlocks(), ""));
         } else if (finishedMinerNode != null) {
             // 子任务已结束：仍把**刚结束的那个子阶段**（含它的 lastFailure）摊在树里，
             // 否则"哪个子阶段失败"在快照里根本不存在（M4b 的原缺口）。
@@ -248,7 +245,6 @@ public final class MineJob implements Job {
                         + " d=" + selection.picked().feature("d")
                         + " target " + (minedCount + 1) + "/" + spec.quota());
         // D-112 建拆同权：本 Job 是"会话所有者"，每个目标用完就把它自己放的临时方块拆掉
-        minerFailure = "";      // 新子任务开始 ⇒ 清掉上一次的失败（不留 stale）
         miner = new MineTask(bot, current, scope,
                 MiningBudget.forTarget(bot, level, current, true),
                 com.dddgn.alice.task.mining.MiningProfile.TUNNEL_ALLOWED.withRestore(),
@@ -265,10 +261,9 @@ public final class MineJob implements Job {
         BlockPos mined = current;
         String reason = miner.failureReason();   // **必须在置空之前取**——否则理由永远为空
         // M4b：把子阶段自己的失败事实留下来（成功则清空）——必须在置空之前取。
-        minerFailure = status == Task.Status.DONE ? "" : miner.failureReport().oneLine();
-        finishedMinerNode = com.dddgn.alice.task.TaskNode.leaf("MineTask",
+        finishedMinerNode = com.dddgn.alice.task.TaskNode.finished("MineTask",
                 miner.target().describe(), phase.name(), ticks,
-                "cleared=" + miner.clearedBlocks(), minerFailure);
+                "cleared=" + miner.clearedBlocks(), miner, status);
         miner = null;
         current = null;
         attempted.add(mined);
