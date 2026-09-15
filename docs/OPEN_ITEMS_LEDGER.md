@@ -231,7 +231,14 @@ git log --all --oneline -S '"TRAVERSE_INVALID_GEOMETRY"'     # 空 ⇒ 该码从
 - **一键入口**：`/reload` 一次（新函数要重载数据包）→ `/function alice_test:r4_negative_disturb`
   → 右键 `alice:pathing_disturber` 一次。**看到 FAILED 才是对的**（旧行为会静默当成功）。
   **恢复**：`/function alice_test:place_course_reset`。
-- ⚠️ **仍未验证**：这一趟**必须由人右键**（物品入口在客户端）⇒ 现在只是 `IMPLEMENTED`+隔离开检查通过，
+- ⚠️ **第一次实测失败（2026-09-15 18:33，用户客户端）**：场景确实跑起来了
+  （`已执行函数 alice_test:r4_negative_disturb 中的 22 条命令` + tellraw 出现），但夹具**仍然动手了**：
+  `[R4 Fixture] disturbed from=7,65,66 to=7,65,67 tick=48` + `COMPLETED segments=10/10` ⇒
+  **负例分支没被走到**。根因（日志可判读）：`place_course` 地板在 y=63 ⇒ 脚位本应 y=64，
+  但**扰动是"先等 `disturbTick=30`、失败则每 tick 重试到 +40 宽限"**，bot 中途踩自己放的台阶升到
+  **y=65**，而第一版只填了 **y=64 一层** ⇒ tick 48 拿到 `to=(7,65,67)` 那个没被填的格子 ⇒ 照样动手。
+  ⇒ **修法：填整列（y=60..67）**，已改 + 已重新复制到客户端存档。
+- ⚠️ **仍未验证**：这一趟**必须由人右键**（物品入口在客户端）⇒ 现在只是 `IMPLEMENTED` + 隔离检查通过，
   **不是** `SERVER_TESTED`/`WINDOWS_CLIENT`。
 
 ---

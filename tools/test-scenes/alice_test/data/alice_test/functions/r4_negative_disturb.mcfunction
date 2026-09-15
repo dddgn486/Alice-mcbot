@@ -6,8 +6,13 @@
 #
 # 做法（**确定性**，不依赖时序运气）：
 #   `PathSessionDiagnosticTask` 的扰动是**单格判定** —— `to = foot + (dx, 0, dz)`，没有候选搜索；
-#   `dz = +1` ⇒ `to` 落在 **z=67** 那一列。把该列脚位层（y=64）填成石头，
+#   `dz = +1` ⇒ `to` 落在 **z=67** 那一列。把该列**整列**（y=60..67，不是只填一层）填成石头，
 #   `canWalkThrough(to)` 即为假 ⇒ 40 tick 宽限内**没有合法落点** ⇒ `disturb_not_applicable`
+#   ⚠️ **2026-09-15 实测教训（第一版只填 y=64 那层 ⇒ 负例没生效）**：bot 中途会踩自己放的
+#   台阶升到 **y=65**，而扰动是"**先等 `disturbTick`、失败就每 tick 重试到 +40 宽限**"
+#   ⇒ 它在 tick 48 拿到 `to=(7,65,67)` 那个**没被填的**格子，照样动手了
+#   （实测 `[R4 Fixture] disturbed from=7,65,66 to=7,65,67 tick=48` + 任务 COMPLETED）。
+#   ⇒ **必须填整列**：脚位会在 64/65 之间变，只堵一层等于没堵。
 #   ⇒ 任务带 `/FIXTURE_NOT_FIRED=[disturb]` **如实 FAILED**。
 #
 # ⚠️ 不影响 bot 自己的通路：`place_course` 的走廊全程在 **z=66**（实测分段日志
@@ -20,7 +25,7 @@
 # 先 reset 再建地形：本函数可**重复执行**，且跑完想恢复原场景只需 place_course_reset
 function alice_test:place_course_reset
 function alice_test:place_course_terrain
-fill 0 64 67 9 64 67 minecraft:stone
+fill 0 60 67 9 67 67 minecraft:stone
 tp @s -1.5 64.0 72.5
 give @s alice:pathing_disturber
 give @s alice:pathing_waller
