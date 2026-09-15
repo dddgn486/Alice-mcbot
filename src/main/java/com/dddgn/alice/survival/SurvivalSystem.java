@@ -150,7 +150,8 @@ public final class SurvivalSystem {
         if (state.durationTicks() < SOFT_HAZARD_GRACE_TICKS) {
             return Verdict.IGNORE;
         }
-        if (hasRefuge(bot)) {
+        // D-238：出口必须是**可规划**的（几何存在 ⇒ 规划不可达时按"没有出口"处理）。
+        if (plannableRefuge(bot, state.type()) != null) {
             return Verdict.INTERRUPT;
         }
         // 无出口：着火/冻结仍可能自愈 ⇒ 不否决（让任务继续）。
@@ -172,6 +173,53 @@ public final class SurvivalSystem {
     /** 半径 {@link #REFUGE_RADIUS} 内**有没有**出口（**排除 bot 当前格**：站在原地不算出口）。 */
     public static boolean hasRefuge(ServerPlayer bot) {
         return nearestSafeRefuge(bot, REFUGE_RADIUS, footCell(bot)) != null;
+    }
+
+    /** 出口预检的搜索预算：小空间能在预算内穷尽（判 `UNREACHABLE`），又不至于在正常场景里拖慢 tick。 */
+    private static final int PRECHECK_MAX_NODES = 600;
+    private static final long PRECHECK_MAX_MILLIS = 20L;
+
+    /**
+     * **可规划的出口**（D-238，2026-09-15）：几何上"有落点"还不够 —— **出逃生之前先跑一次真规划预检**。
+     *
+     * <p>为什么必须补这一层：2026-09-15 实测到一个真实案例 —— 几何落点成立（`refuge=240,105,306`，干、可站、
+     * 距 4 格），但**规划不可达**（`WalkToTask … PLAN_UNREACHABLE … walk_no_path`）⇒ 结果是"为一个走不到的落点
+     * 把当前任务杀掉、再起一个 1 tick 就失败的逃生"。判据不该只看"有没有那个格子"，要看"**去不去得了**"。
+     *
+     * <p>口径（沿用既有 `SEARCH_LIMIT ≠ UNREACHABLE`）：只有 `UNREACHABLE`（搜索空间穷尽）才算"没有出口"；
+     * `SEARCH_LIMIT`（预算耗尽、可达性未知）按"未知 ⇒ 允许尝试"处理，避免因为预算太紧而误判。
+     *
+     * <p>**成本**：预检要跑一次规划 ⇒ 结果按"危险类型 + 脚位"缓存在 monitor 里（一场危险最多一次）。
+     */
+    public static BlockPos plannableRefuge(ServerPlayer bot, HazardType hazardType) {
+        Monitor monitor = monitor(bot);
+        BlockPos foot = footCell(bot);
+        if (monitor.refugeCacheValid && monitor.refugeCheckedFor == hazardType
+                && foot.equals(monitor.refugeCheckedAt)) {
+            return monitor.cachedRefuge;
+        }
+        BlockPos refuge = nearestSafeRefuge(bot, REFUGE_RADIUS, foot);
+        BlockPos result = null;
+        if (refuge != null) {
+            var request = com.dddgn.alice.pathing.core.search.PathRequest
+                    .of(bot.getUUID().toString(), foot, refuge, "survival-precheck")
+                    .withBudget(com.dddgn.alice.pathing.core.search.SearchBudget
+                            .of(PRECHECK_MAX_NODES, PRECHECK_MAX_MILLIS));
+            var plan = new com.dddgn.alice.pathing.core.search.CorePathPlanner()
+                    .plan(bot, bot.serverLevel(), request);
+            if (plan.status() == com.dddgn.alice.pathing.core.search.PlanningStatus.UNREACHABLE) {
+                BotLog.warn("[Survival] 落点 {} 几何上成立，但**规划不可达**（status={}）⇒ 按"
+                                + "「没有出口」处理（别为一个走不到的落点杀任务）",
+                        refuge.toShortString(), plan.status());
+            } else {
+                result = refuge;
+            }
+        }
+        monitor.refugeCacheValid = true;
+        monitor.refugeCheckedFor = hazardType;
+        monitor.refugeCheckedAt = foot.immutable();
+        monitor.cachedRefuge = result;
+        return result;
     }
 
     /**
@@ -336,6 +384,11 @@ public final class SurvivalSystem {
         private long lastTick = Long.MIN_VALUE;
         /** D-237：在这个 gameTime 之前，同一场溺水不再尝试上浮（浮过了但没成功）。 */
         private long floatBlockedUntil;
+        /** D-238：出口预检的缓存（按"危险类型 + 脚位"键）——预检跑一次真规划，不能每 tick 都跑。 */
+        private boolean refugeCacheValid;
+        private HazardType refugeCheckedFor;
+        private BlockPos refugeCheckedAt;
+        private BlockPos cachedRefuge;
 
         private HazardState observe(ServerPlayer bot) {
             HazardType current = classify(bot);

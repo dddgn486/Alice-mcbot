@@ -9842,3 +9842,34 @@ monitor 真的走到了 `LOW_AIR` ⇒ `BotManager` 走了 `FLOAT_UP` 分支：�
    ⇒ 逃生目标是 `refuge=240,105,306`（**我的池顶**）⇒ `WalkToTask … PLAN_UNREACHABLE … walk_no_path` 失败。
    ⇒ 这是 **"`isRefuge` 只查'干+可站+在半径内'、不查可达性"的第一个真实案例**（D-236 只是推理），
    已记进台账 §5.11 作为候选改进项。
+
+---
+
+### D-238：出口从"几何存在"升级为"**可规划**"—— 别再为一个走不到的落点杀任务（2026-09-15）
+
+**唯一闭环**（用户 2026-09-15 明确要求"别开太多支线"）：只做这一件，不碰水面专用理由码、不碰"维生写授权"提案（B）、不碰丙。
+
+**证据（真实案例，D-237 期间实测）**：水池第一版忘了拆天花板 ⇒ 几何落点成立
+（`refuge=240,105,306`，干、可站、距 4 格）⇒ `decide` 判 `INTERRUPT` ⇒ **当前任务被杀** ⇒
+`SurvivalExitTask` 1 tick 就 `PLAN_UNREACHABLE … walk_no_path` 失败。两次都发生了，只是"派了一个走不到的活"。
+
+**改法（三处，都是一行级）**：
+1. `PathRequest.withBudget(...)`（沿用 `pureTraversal()` 的"复制一处改动"模式）。
+2. `SurvivalSystem.plannableRefuge(bot, hazardType)`：先取几何落点，再跑一次**真规划预检**
+   （`CorePathPlanner` + 小预算 `600 节点 / 20 ms`）。**只有 `UNREACHABLE`（搜索空间穷尽）才算"没有出口"**；
+   `SEARCH_LIMIT`（预算耗尽、可达性未知）沿用既有口径按"未知 ⇒ 允许尝试"处理。
+   预检成本按"危险类型 + 脚位"缓存在 monitor 里（一场危险最多一次）。
+   **`hasRefuge` 保持几何语义不变**（夹具与其它调用点不受影响）。
+3. `decide()` 改用 `plannableRefuge`；`BotManager.startSurvivalExit` 同样用它，并把
+   "几何有、规划无"如实登记为 **`exit=unreachable`**（与"压根没有落点"的 `exit=none` 区分开）。
+
+**判据（零新增电池步，挂既有 BASELINE `survival_exit`）**：新相位 `UNREACHABLE_REFUGE` ——
+5³ 实心石盒里，隔着石墙留一个 1×2 空气袋（**几何上是落点、规划去不了**）。断言：
+① 前提自证"几何上确实有落点"；② `plannableRefuge == null`；③ **行为：软危险 ⇒ `HOLD_NO_EXIT`（不再 INTERRUPT）**；
+④ 对照：硬危险仍无条件 `INTERRUPT`；⑤ 正对照：回到平台后同一危险类型**能**规划到落点。
+`checks 78 → 87`。**反向对照**：把 `decide` 退回"只看几何" ⇒ 判据③精确变红 ✅
+实测日志：`落点 272,100,308 几何上成立，但**规划不可达**（status=UNREACHABLE）⇒ 按「没有出口」处理`。
+
+**没做（明确留给台账，不建支线）**：① "被水挡住"的水面专用理由码 —— 现有 `UNREACHABLE` + 失败理由已足够
+决策层行动；② 出口**列表**（现在只验最近那个；最近不可达就如实说不可达，不去找更远的 —— 那是策略层的事）；
+③ B（维生写授权）；④ 丙。三条都在台账 §5.11 各记一行，触发条件不变。

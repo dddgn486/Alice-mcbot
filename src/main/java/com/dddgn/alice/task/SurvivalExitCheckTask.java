@@ -66,7 +66,7 @@ public class SurvivalExitCheckTask implements Task {
     /** 全冻（140 tick）之后再等这么久，保证"每 40 tick 1 点"的冻结伤害至少来过一次。 */
     private static final int FREEZE_DAMAGE_WAIT_TICKS = 45;
 
-    private enum Phase { SETUP, TABLE, WALK, SEALED_BUILD, SEALED_CHECK, FOOT_CELL, SEALED_REAL, HEALTH, AIR, SNOW, DEEP_WATER, OPEN_WATER, DONE }
+    private enum Phase { SETUP, TABLE, WALK, SEALED_BUILD, SEALED_CHECK, FOOT_CELL, SEALED_REAL, HEALTH, AIR, SNOW, DEEP_WATER, OPEN_WATER, UNREACHABLE_REFUGE, DONE }
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -133,6 +133,7 @@ public class SurvivalExitCheckTask implements Task {
             case SNOW -> snowPhase();
             case DEEP_WATER -> deepWaterPhase();
             case OPEN_WATER -> openWaterPhase();
+            case UNREACHABLE_REFUGE -> unreachableRefugePhase();
             case DONE -> finish();
             default -> {
             }
@@ -650,10 +651,69 @@ public class SurvivalExitCheckTask implements Task {
                     "minecraft:air", 2500, "水池拆除（底+壁+水全部清掉）");
             normalizeVitals();
             BotLog.info("[Survival] 水池已拆、bot 回平台；本相位完");
+            advance(Phase.UNREACHABLE_REFUGE);
+            return;
+        }
+    }
+
+    /**
+     * **几何落点存在、但规划不可达**（D-238，2026-09-15）：一个封闭石盒里，隔着石墙有一个 1×2 空气袋
+     * ——它满足 `isRefuge`（干、可站、头位可穿、距 4 格），**但规划器去不了**（石墙挡着、又没有写授权）。
+     *
+     * <p>为什么要立这一相：2026-09-15 实测到真实案例 —— 几何落点成立，`WalkToTask` 却
+     * `PLAN_UNREACHABLE … walk_no_path`（1 tick 失败），而**当前任务已经被杀了**（为救一个去不了的落点）。
+     * 修法 = 出逃生之前先跑一次**真规划预检**：`UNREACHABLE` ⇒ 按"没有出口"处理。
+     */
+    private void unreachableRefugePhase() {
+        if (phaseTicks == 1) {
+            normalizeVitals();
+            BotLog.info("[Survival] 自建「去不了的落点」场景（{} 为心，5³ 实心石盒 + 两个 1×2 空气袋，"
+                    + "相隔石墙）；期望：几何有落点、规划不可达 ⇒ 软危险**不再被否决**",
+                    desc(UNREACHABLE_CENTER));
+            fillBlocks(UNREACHABLE_CENTER.offset(-2, -1, -2), UNREACHABLE_CENTER.offset(2, 3, 2),
+                    "minecraft:stone", 100, "石盒（5×5×5 实心）");
+            fillBlocks(UNREACHABLE_CENTER, UNREACHABLE_CENTER.above(), "minecraft:air", 2, "bot 的封闭小间");
+            fillBlocks(UNREACHABLE_CENTER.offset(2, 0, 2), UNREACHABLE_CENTER.offset(2, 1, 2),
+                    "minecraft:air", 2, "隔着石墙的空气袋（几何上是落点）");
+            return;
+        }
+        if (phaseTicks == 2) {
+            teleport(UNREACHABLE_CENTER);
+            BotLog.info("[Survival] 已把 bot 关进石盒 {}（foot={}）⇒ 落点只有隔壁那个空气袋",
+                    desc(UNREACHABLE_CENTER), desc(foot()));
+            return;
+        }
+        if (phaseTicks == 4) {
+            BlockPos geometric = SurvivalSystem.nearestSafeRefuge(bot, SurvivalSystem.REFUGE_RADIUS,
+                    SurvivalSystem.footCell(bot));
+            check("前提自证：几何上**确实**有一个落点（" + desc(geometric) + "，否则本相位在验空气）",
+                    geometric != null);
+            check("新判据：那个落点**规划不可达** ⇒ 视为没有出口（plannableRefuge=null）",
+                    SurvivalSystem.plannableRefuge(bot, HazardType.ON_FIRE) == null);
+            check("行为：软危险 + 只有去不了的落点 ⇒ **不否决**（HOLD_NO_EXIT，别再为它杀任务）",
+                    SurvivalSystem.decide(bot, synthetic(HazardType.ON_FIRE, 99))
+                            == SurvivalSystem.Verdict.HOLD_NO_EXIT);
+            check("对照：硬危险仍然无条件否决（不受落点可达性影响）",
+                    SurvivalSystem.decide(bot, synthetic(HazardType.SUFFOCATING, 99))
+                            == SurvivalSystem.Verdict.INTERRUPT);
+            // 正对照 + 收尾：回平台后同一个危险类型必须能plan到落点（缓存按"类型+脚位"键，换位置会重算）
+            teleport(SurvivalCourseAnchor.PLATFORM_FOOT);
+            check("正对照：回到平台后**能**规划到落点（plannableRefuge != null）",
+                    SurvivalSystem.plannableRefuge(bot, HazardType.ON_FIRE) != null);
+            return;
+        }
+        if (phaseTicks >= 5) {
+            fillBlocks(UNREACHABLE_CENTER.offset(-2, -1, -2), UNREACHABLE_CENTER.offset(2, 3, 2),
+                    "minecraft:air", 120, "石盒拆除");
+            normalizeVitals();
+            BotLog.info("[Survival] 石盒已拆、bot 在平台；本相位完");
             advance(Phase.DONE);
             return;
         }
     }
+
+    /** 石盒中心（bot 站这里；隔壁空气袋在 +2,+2）。 */
+    private static final BlockPos UNREACHABLE_CENTER = new BlockPos(270, 100, 306);
 
     /** 开阔水池的中心（池底所在层；bot 站其上一格）。 */
     private static final BlockPos OPEN_CENTER = new BlockPos(240, 99, 306);

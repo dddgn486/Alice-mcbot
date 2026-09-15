@@ -1998,17 +1998,21 @@ public final class BotManager {
             // 贴地时后者会退回**支撑格**（实体方块）⇒ "排除自己"失效 ⇒ bot 自己那格被当成出口，
             // 逃生任务走到原地、0 步完成而 bot 一格没动（S-5 / 2026-09-15 由电池步实测抓到）。
             BlockPos foot = SurvivalSystem.footCell(bot);
-            BlockPos refuge = SurvivalSystem.nearestSafeRefuge(bot, SurvivalSystem.REFUGE_RADIUS, foot);
+            // D-238：出逃生之前先做一次**可规划**预检（几何落点存在 ≠ 去得了）。
+            BlockPos refuge = SurvivalSystem.plannableRefuge(bot, SurvivalSystem.current(bot).type());
             if (refuge == null) {
+                boolean geometricOnly = SurvivalSystem.nearestSafeRefuge(
+                        bot, SurvivalSystem.REFUGE_RADIUS, foot) != null;
+                String exitKey = geometricOnly ? "exit=unreachable" : "exit=none";
                 // S-5（2026-09-15）④：**"否决了却没出口"本身必须是可判读的事实**（此前只有一行 warn，
                 // 无键值、不进事件环 ⇒ 电池/决策层都看不见）。现在补 `exit=none` 机器可读键 + DANGER 事件。
-                BotLog.warn("[Survival] 维生中断 ⇒ 半径 {} 格内**找不到安全落点**：无出口 exit=none"
+                BotLog.warn("[Survival] 维生中断 ⇒ 半径 {} 格内**没有可用落点**：{}"
                                 + " hazard={} decision=stop（如实登记，等玩家/决策层干预；bot 停在 {}）",
-                        SurvivalSystem.REFUGE_RADIUS, SurvivalSystem.current(bot).type(),
+                        SurvivalSystem.REFUGE_RADIUS, exitKey, SurvivalSystem.current(bot).type(),
                         bot.blockPosition().toShortString());
                 com.dddgn.alice.decision.DecisionEvents.emit(bot, "DANGER", "warn",
                         "维生否决但无出口：bot 停在原地等干预",
-                        "hazard=" + SurvivalSystem.current(bot).type() + " exit=none decision=stop"
+                        "hazard=" + SurvivalSystem.current(bot).type() + " " + exitKey + " decision=stop"
                                 + " pos=" + foot.toShortString());
                 return;
             }

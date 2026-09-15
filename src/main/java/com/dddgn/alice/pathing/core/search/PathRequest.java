@@ -116,6 +116,11 @@ public record PathRequest(
      *
      * <p>目标、预算、归因不变：降级只改"允许的动作集合"，不改"要去哪"。
      */
+    /** 只换搜索预算（D-238：维生出口预检用一个**小**预算跑一次真规划，别用无限预算）。 */
+    public PathRequest withBudget(SearchBudget newBudget) {
+        return new PathRequest(botId, startFoot, goal, allowedMovementTypes, newBudget, requester);
+    }
+
     public PathRequest pureTraversal() {
         return new PathRequest(botId, startFoot, goal,
                 Set.of(MovementType.TRAVERSE, MovementType.DIAGONAL,
