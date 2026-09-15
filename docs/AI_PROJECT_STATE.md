@@ -311,17 +311,18 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
   `/alice region info|start|stop|set|sapling|idle-stop`（D-129/D-130/D-131）。
 
 ### 决策缝现状（**距离"LLM 决策层"还差什么**）
-- **已有**：候选从哪来（`CandidateSource`）、选哪个且**带理由**（`SelectionPolicy` + `[Job] pick … reason=`）、
-  可判读 trace、失败/终止码（`failureReason()` / `terminalReason` / `TaskExecutionRecord` /
-  `TaskOutcome` 的 `terminal` + `code` + `failureCode`）。
-- **没有**：真正的 LLM 调用、**给 LLM 的权威状态快照契约**、**动作词汇表**（"起哪个 Job + 什么 spec"）、
-  **触发节奏**（LLM 不能每 tick 调）。设计文档 §10 明确把这四项登记为"本设计不解决"。
+- **已有**（**2026-09-15 按代码复核，旧版此处写"没有"是过期的**）：`GoalDirector`（四触发 + 三闸节流 + 单飞 + 看门狗）、`LlmClient`（真 HTTP）、`DecisionSnapshot` ↔ `BotStateReport`（同一份事实）、`CandidateMenu`（有界候选 + id 白名单）、`GoalAction`（严格解析、未知即 `Refused`）、`JobRequest`/`JobLauncher`/`BotManager.assignJob`（唯一执行入口）、`PermissionGate`（超时=拒绝 + `once|session|always`）、终态码贯通（`TaskExecutionRecord`/`TaskOutcome`）。
+- **还差**（**2026-09-15 三路只读审计**，全文 `docs/reviews/2026-09-15-挖矿高级任务作为框架验收范例-完成度审计与规划.md`）：
+  ① **挖矿没有候选菜单**（`CandidateMenu` 只产 lumber/collect/region/craftable）⇒ LLM 在猜位置；
+  ② **长作业中段静音**（触发只有终态/维生/四事件，无周期复评；节流丢弃不补发）；
+  ③ **父子额度零传递** ⇒ 失败归因在 Job 边界失真（缺镐/预算耗尽被聚合成"没矿"）；
+  ④ **动作集只有起/停，无"转向"**，任务树不持久化 ⇒ 中断/重启后无目标引用。
 
 ### 项目立项目标的"三条与 Baritone 的差异"现状
 | # | 差异 | 现状 |
 |---|---|---|
-| ① | Bot **可回收性安全策略** | 概念已定义（`RecoverabilityLevel`/`IntrinsicReversibility`、PILLAR 返回守卫 D-058），但**全仓库 0 处读取** ⇒ 仍是空实现（风险清单 P0-B，2026-09-12 复核实测确认） |
-| ② | **多层失败上抛 → LLM 决策层** | 数据面齐（见上"决策缝"），**没有消费者**；上抛只到 `BotLog` + `TaskExecutionRecord` |
+| ① | Bot **可回收性安全策略** | **已闭合**（`RecoverabilityEvaluator` → `RecoverabilityPolicy.requiredFor` → `MovementSpec` 构造器**抛异常**校验 + 逐边事实穿到执行期；D-151/152/153 `WINDOWS_CLIENT`）。⚠️ 旧版此处"**全仓库 0 处读取**"是**过期**结论（台账 §6.11/§7 已改口）。真死值只剩 `SAFE_EXIT_REQUIRED`/`EMERGENCY_EXIT_REQUIRED`/`NOT_REVERSIBLE` |
+| ② | **多层失败上抛 → LLM 决策层** | 数据面齐**且消费者已存在**（`GoalDirector.onTaskTerminal`），但**输入被截断**：`TaskFailureReport.details`/`failurePhase` 不进快照 ⇒ LLM 看不到"为什么输"；且触发点不含任务内部事实（收益率/停滞/背包将满） |
 | ③ | 未来 **bot 并行**接口 | 仅 `docs/MULTI_BOT_INTERFACE_RESERVATION.md` 预留 |
 
 ### 历史证据（不再逐条列举）
