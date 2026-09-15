@@ -22,6 +22,12 @@
 > 无头 `single:survival_exit` `checks=38 failures=0` ✅、无头 **CORE `(35/35) ticks=3686 → PASS`** ✅。
 > ⚠️ **全是 `SERVER_TESTED`**；"真被否决"那半**只能真人验**（见 §3）。
 
+> **2026-09-15 晚 ✅ 真人验证通过**：`alice:survival_exit_check` 硬×2 + 软×1 全部「否决 → 逃生出口 1 格 →
+> `SurvivalExitTask COMPLETED`」；**火焰看得见**、着火每 20 tick 掉 1 血、走动/放置/挖掘照旧、无崩溃
+> ⇒ **S-5（D-226）与 D-228 双双升 `WINDOWS_CLIENT`**。§5.9（D-227）的启动结清也在真人存档上生效（`启动结清：11 条`）。
+> **下一步候选（见台账 §5.10 末尾）**：① bot 的血只减不增（自然回血在 `Player.tick` 那半，仍缺）⇒ 值得排期补 `doTick()`；
+> ② 细雪冻结没有危险档（`freeze` 伤害现在真的会发生）；③ CORE 里的"治疗来源"未定位。
+
 > **2026-09-15 晚（同一轮追加）：客户端实测暴露 §5.9 真缺陷并已修**（D-227）。
 > 用户点 `alice:survival_exit_check` 后"bot 没反应"——**不是窒息机制缺失**（日志里 `hazard=SUFFOCATING`
 > 持续 181 tick 且真的掉血），而是**存档账本**里该 bot 有 **11 条 `SUSPENDED` 传输**（`NOT_MOVED`、
