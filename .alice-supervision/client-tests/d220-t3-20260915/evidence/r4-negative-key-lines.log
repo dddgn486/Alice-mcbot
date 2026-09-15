@@ -1,0 +1,19 @@
+# R4 负例分支 实测（2026-09-15 18:36，jar 35fa4580…）
+# 第二次（修正场景后）：负例**走到了**
+
+## 场景执行
+[159月2026 18:36:52.306] [Render thread/INFO] [net.minecraft.client.gui.components.ChatComponent/]: [System] [CHAT] 已执行函数alice_test:r4_negative_disturb中的22条命令
+
+## 路径走完但夹具没动手（关键三行）
+[R4 Session] result session=r4-session-ad9d1838-acd8-46cd-9c9f-d0dbf5adf321 status=COMPLETED segments=8/8 ticks=65 finalFoot=8, 62, 66 replans=0 planner=alice.astar.movement.v1 plannedGoal=8, 62, 66/FIXTURE_NOT_FIRED=[disturb]
+[R4 Fixture] not_fired session=r4-session-ad9d1838-acd8-46cd-9c9f-d0dbf5adf321 missing=[disturb] ⇒ 本趟**没有**测到该夹具（路径本身走完了，但结论无效）
+task_execution_terminal kind=PathSessionDiagnosticTask target=方块@8, 62, 66 startTick=251 endTick=316 durationTicks=65 terminal=FAILED code=failed:FIXTURE_NOT_FIRED:[disturb]
+
+## 对照：第一版（只填一层）夹具**照样动手**
+（见 2026-09-15 18:33/18:34 那段日志：[R4 Fixture] disturbed from=7,65,66 to=7,65,67 tick=48 + COMPLETED）
+
+## 无静默成功（应为 0）
+0
+
+## 截图
+-rwxrwxrwx 1 fb486 fb486 1565481 18:37 /mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10/screenshots/2026-09-15_18.37.13.png

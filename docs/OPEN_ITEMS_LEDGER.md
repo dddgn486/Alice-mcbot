@@ -238,8 +238,13 @@ git log --all --oneline -S '"TRAVERSE_INVALID_GEOMETRY"'     # 空 ⇒ 该码从
   但**扰动是"先等 `disturbTick=30`、失败则每 tick 重试到 +40 宽限"**，bot 中途踩自己放的台阶升到
   **y=65**，而第一版只填了 **y=64 一层** ⇒ tick 48 拿到 `to=(7,65,67)` 那个没被填的格子 ⇒ 照样动手。
   ⇒ **修法：填整列（y=60..67）**，已改 + 已重新复制到客户端存档。
-- ⚠️ **仍未验证**：这一趟**必须由人右键**（物品入口在客户端）⇒ 现在只是 `IMPLEMENTED` + 隔离检查通过，
-  **不是** `SERVER_TESTED`/`WINDOWS_CLIENT`。
+- ✅ **第二次实测通过（2026-09-15 18:36，用户客户端）**：`[R4 Fixture] not_fired … missing=[disturb]` +
+  `task_execution_terminal … terminal=FAILED code=failed:FIXTURE_NOT_FIRED:[disturb]`，且 `[R4 Fixture] disturbed`
+  计数 = **0**（无静默成功）⇒ **负例分支升 `WINDOWS_CLIENT`**。证据
+  `.alice-supervision/client-tests/d220-t3-20260915/evidence/r4-negative-key-lines.log` +
+  截图 `screenshots/2026-09-15_18.37.13.png`。
+  ⚠️ **预期更正**：`disturb_not_applicable` 只在整趟跑过 tick 70 时才出现；本次 65 tick 走完 ⇒ 抓到它的是
+  **终态断言**（`FixtureScript.notFired`），与计时无关 —— 两个机制互补，别混为一谈。
 
 ---
 

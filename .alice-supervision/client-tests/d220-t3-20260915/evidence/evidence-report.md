@@ -67,3 +67,31 @@ machine_map_rows=59 with_site_confirmed=52 shared_site=6`（与无头 `shared-co
 **顺带确认（与 D-035 的偏离登记呼应）**：disturber 的 1 格横向位移**既不触发漂移检测、也不触发 resync**
 （`driftedOutOfSegment` 要求离两端 >3 格）⇒ 结果正确，但机制是"控制器把 bot 拉回目标格"。
 已登记为独立议题（评审 §6.1：建议按 Baritone `getValidPositions().contains(feet)` 对齐）。
+
+---
+
+## R4 负例分支：客户端实测（2026-09-15 18:36，jar `35fa4580…`）
+
+**目的**：跑通"**夹具未生效 ⇒ `FIXTURE_NOT_FIRED` + 任务 FAILED**"这条负例（`survey/08` §9#4、台账 §5.6）。
+**入口**：`/reload` → `/function alice_test:r4_negative_disturb` → 右键 `alice:pathing_disturber` 一次。
+**关键行**：`r4-negative-key-lines.log`｜**截图**：`screenshots/2026-09-15_18.37.13.png`（sha256 `a9f92d2a1cdf2f752e3aedd2…`）
+
+### 两次尝试（第一次**没走到**，根因可判读）
+
+| 次 | 时间 | 实测 | 结论 |
+|---|---|---|---|
+| 1 | 18:33–18:34 | `[R4 Fixture] disturbed from=7,65,66 to=7,65,67 tick=48` + `COMPLETED segments=10/10` | ❌ **夹具照常动手**（负例没走到）。根因：`place_course` 地板 y=63 ⇒ 脚位本应 y=64，我第一版**只填 z=67 的 y=64 一层**；但扰动夹具"等 tick 30、失败则每 tick 重试到 +40 宽限"，bot 中途踩台阶升到 **y=65** ⇒ tick 48 拿到没被填的 `(7,65,67)` |
+| 2 | 18:36 | `[R4 Session] result … status=COMPLETED segments=8/8 ticks=65` + `[R4 Fixture] not_fired … missing=[disturb]` + `task_execution_terminal … terminal=FAILED code=failed:FIXTURE_NOT_FIRED:[disturb]` | ✅ **负例走到**：路径本身走完，但声明的夹具没动手 ⇒ **如实 FAILED** |
+
+### ⚠️ 一处对我先前预期的更正（重要）
+
+我在 `TESTING_GUIDE` / 台账里写过"预期 `disturb_not_applicable … tick=70` + `FIXTURE_NOT_FIRED` + FAILED"。
+**实测证明这半句是有条件的**：`disturb_not_applicable`（放弃宽限）**只在整趟跑过 tick 70 时才出现** ——
+本次路径在 **65 tick** 就走完了（< 70）⇒ 夹具还在重试窗口内、来不及"放弃"，**日志里只有 `not_fired` + FAILED**。
+
+⇒ **两个机制是互补的，别当成一个**：
+1. **放弃宽限**（`disturb_not_applicable`）："**给了它时间**，它仍然找不到落点"；
+2. **终态断言**（`FixtureScript.notFired` ⇒ `FIXTURE_NOT_FIRED` ⇒ FAILED）："**这趟根本没收效**"，与计时无关 ——
+   本次抓到它的是**第 2 条**（这也说明 D-220 的终态断言是更硬的那一道网）。
+
+**判定**：物品侧负例分支 = **`WINDOWS_CLIENT`**（`[R4 Fixture] disturbed` 计数 = **0** ⇒ 无静默成功）。

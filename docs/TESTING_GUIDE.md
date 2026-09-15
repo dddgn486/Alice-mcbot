@@ -391,8 +391,10 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
 > —— 验证"**夹具没生效时任务会如实 FAILED**"这条分支（上面那两件在 `place_course` 里**必然生效**，
 > 所以负例从没被跑过）。
 > **一键**：`/reload` → `/function alice_test:r4_negative_disturb` → 右键 `alice:pathing_disturber` 一次。
-> **预期 = 失败**：`[R4 Fixture] disturb_not_applicable … tick=70` +
-> `[R4 Session] result … FAILED … /FIXTURE_NOT_FIRED=[disturb]`。
+> **预期 = 失败**（**2026-09-15 实测确认**）：`[R4 Fixture] not_fired … missing=[disturb]` +
+> `[R4 Session] result … COMPLETED` **但** `task_execution_terminal … terminal=FAILED code=failed:FIXTURE_NOT_FIRED:[disturb]`。
+> ⚠️ **注意别把两条机制混为一谈**：`disturb_not_applicable`（放弃宽限）**只在整趟跑过 tick 70 时才出现**；
+> 本次路径 65 tick 就走完 ⇒ 日志里**没有**那一行，抓到它的是**终态断言**。
 > **看到 FAILED 才是对的** —— 它正是"这趟没测到扰动"的如实回报（旧行为会静默当成功）。
 > **恢复**：`/function alice_test:place_course_reset`。该场景只封了扰动的落点（z=67 列），
 > `pathing_placer` / `pathing_waller` 在其中照常工作。

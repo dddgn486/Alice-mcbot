@@ -9319,3 +9319,20 @@ M4 补上后半截 —— "覆写了之后**决策层真的看得到**"）**：�
 ⇒ 已改为**填整列 y=60..67** 并重新复制到客户端存档，**待再点一次**。
 **教训（新的一类）**：**"堵住某个判定"这类夹具，必须堵住"判定会取值的整个域"，不能只堵当时观测到的那一个值** ——
 第一次我只按"日志里出现过 y=64"填了一层，而该夹具的重试机制会把取值域扫描到 y=65。
+
+**附注二（2026-09-15 R4 负例分支客户端实测通过）**：`survey/08` §9#4 的负例**走到了** ——
+`/reload` → `/function alice_test:r4_negative_disturb` → 右键 `alice:pathing_disturber` 一次
+（jar `35fa4580…`）：`[R4 Fixture] not_fired session=… missing=[disturb]` +
+`task_execution_terminal kind=PathSessionDiagnosticTask … terminal=FAILED code=failed:FIXTURE_NOT_FIRED:[disturb]`，
+`[R4 Fixture] disturbed` 计数 **0**（无静默成功）⇒ **D-220 的物品侧"声明了夹具就必须断言它真的动手"升 `WINDOWS_CLIENT`**。
+**第一次没走到（18:33）及其根因**：场景跑起来了但夹具**照常动手**（`disturbed … tick=48` + `COMPLETED`）——
+`place_course` 地板 y=63 ⇒ 脚位本应 y=64，而我只填了 z=67 的 **y=64 一层**；扰动夹具"等 tick 30、失败则
+**每 tick 重试到 +40 宽限**"，bot 中途踩台阶升到 **y=65** ⇒ tick 48 拿到没被填的 `(7,65,67)`。
+⇒ 改成填**整列**（y=60..67）。
+**教训（新的一类，已入册）**：**"堵住某个判定"的夹具，必须堵住该判定会取值的整个域**，
+不能只堵当时观测到的那一个值 —— 该夹具的重试机制会遍历取值域。
+**更正确期**：`disturb_not_applicable`（放弃宽限）**只在整趟跑过 tick 70 时才出现**；
+本次路径 65 tick 就走完 ⇒ 日志里没有那一行，抓到它的是**终态断言**（`FixtureScript.notFired`）。
+⇒ **两个机制互补**：前者 = "给了它时间仍找不到落点"，后者 = "这趟根本没生效，与计时无关"。
+证据 `.alice-supervision/client-tests/d220-t3-20260915/evidence/r4-negative-key-lines.log`
++ 截图 `screenshots/2026-09-15_18.37.13.png`。
