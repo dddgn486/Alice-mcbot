@@ -142,6 +142,9 @@ public final class RegressionBatteryTask implements Task {
             // M1（G1）：挖矿候选菜单契约 —— `mine` 不许猜位置（矿石场景 + 复用 MineCandidateSource）。
             // 放 MAIN（CORE 跑）而不是 EXTRA：它是"**不猜语义**"这条红线的门禁，必须每次改动都跑得到。
             Map.entry("mine_menu", Profile.MAIN),
+            // M2（G2）：长作业周期复评 —— "自主"的物理载体（无进度 ⇒ 报一次 NO_PROGRESS）。
+            // 放 MAIN（CORE 跑）：它是停止条件 A1「中途自己发现问题」的必要条件。
+            Map.entry("no_progress", Profile.MAIN),
             // 阶段 3-B / (c) 增量 2（D-217）：**机器路线的生产路径**（CraftJob 真的驱动一台机器）。
             // 与 machine_cycle 同一份闭环实现、不同入口；也会写容器 ⇒ 模组不在 ⇒ SKIP。
             Map.entry("craft_machine", Profile.MAIN),
@@ -308,6 +311,11 @@ public final class RegressionBatteryTask implements Task {
                         GoalSpec.harvestUnits(LumberCourseAnchor.START_FOOT, 16, 4, 3600),
                         scope, new LumberCandidateSource(), new NearestPolicy()),
                 1500));
+        // M2（G2）：长作业周期复评（窗口 40 tick，夹具自己造停滞与"重新武装"）
+        steps.add(step("no_progress",
+                List.of("alice_test:ore_course_terrain"),
+                () -> teleportBot(OreCourseAnchor.START_FOOT),
+                () -> new NoProgressCheckTask(bot, observer), 400));
         // M1（G1）：挖矿候选菜单契约自检（纯逻辑，不改世界、不调 LLM）—— 矿石场景保证"附近有矿"
         steps.add(step("mine_menu",
                 List.of("alice_test:ore_course_terrain"),

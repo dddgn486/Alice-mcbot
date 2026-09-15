@@ -1361,7 +1361,8 @@ jar `3312608d…`。
   `radius` 自动覆盖目标距离、`JobLauncher.refusalReason` **前置拒绝**（用返回值，不抛异常 —— 异常会穿过
   `assignJob` 冒到调用方）、并删掉 `mineTargetFor` 的"**静默回落 IRON_ORE**"。
   **新电池步 `mine_menu`（MAIN ⇒ CORE 跑）**：`checks=11 failures=0`；无头 `core` **`(31/31) ticks=3404 → PASS`**。
-- ⏭️ 下一步 **M2**（长作业周期复评），其后 M4 → M3。
+- ✅ **M2 已完成**（2026-09-15）：`EventThresholds` 新增 `NO_PROGRESS` —— **可观测进度**的定义 = 任务 `Job.progressSummary()` + bot 脚位 + 背包指纹（三者任一变化即有进度 ⇒ **走路中的任务不会误报**）；**等容器交互时跳过**（等待态不是病症，同 `STUCK` 纪律）；**默认窗口 0 = 关**（对齐 `idleDecisionEnabled` 默认关），`setNoProgressWindow` 供配置/夹具；同 episode 只报一次，进度恢复即**重新武装**。新电池步 `no_progress`（MAIN ⇒ CORE 跑）+ `NoProgressCheckTask`（夹具用**自己的停滞**当被观察对象，不造假 Job；断言"关着不报 / 恰好一次 / 重新武装 / 只记录不通知 / 收尾复位窗口"）。
+- ⏭️ 下一步 **M4**（失败事实结构化），其后 M3。
 - ⚠️ **顺带发现（事实）**：`decision_contract` 步的归属是 **EXTRA**（`RegressionBatteryTask.CURATION`）⇒
   **CORE 不跑它**，但它自己的类文档写着"这样它们能进串联回归电池，**任何改动都跑得到**" ⇒ **两者矛盾**
   （D-149 当时的判据承诺 vs 后来的瘦身档位）。要不要把它提到 MAIN/BASELINE 需**用户/策展裁定**，本轮不动。

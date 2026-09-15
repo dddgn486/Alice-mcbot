@@ -921,6 +921,12 @@ public final class BotManager {
         return session == null ? null : session.currentTaskSummary();
     }
 
+    /** **M2**：当前任务的进度摘要（Job 才有；见 `EventThresholds.NO_PROGRESS_WINDOW_TICKS`）。 */
+    public static String currentTaskProgressSummary(BotPlayer bot) {
+        BotSession session = BOTS.get(bot.getUUID());
+        return session == null ? null : session.currentTaskProgressSummary();
+    }
+
     /** 只读获取当前 MineTask 计划，供开发期测试夹具观察，不修改任务。 */
     public static com.dddgn.alice.task.mining.MiningPlan currentMiningPlan(BotPlayer bot) {
         BotSession session = BOTS.get(bot.getUUID());
@@ -1600,6 +1606,11 @@ public final class BotManager {
         public String currentTaskSummary() {
             return task == null ? null : taskKind + " target=" + taskTargetDescription
                     + " startedTick=" + taskStartTick;
+        }
+
+        /** **M2（G2）进度指纹**：Job 自报的进度摘要；非 Job 任务 ⇒ null（没有"进度"这个概念）。 */
+        public String currentTaskProgressSummary() {
+            return task instanceof com.dddgn.alice.job.Job job ? job.progressSummary() : null;
         }
 
         public com.dddgn.alice.task.mining.MiningPlan currentMiningPlan() {

@@ -9188,3 +9188,41 @@ lumber/collect/region/craftable 四类，**`mine` 没有菜单条目**；而 `Go
 **附注一（顺带发现，未处置）**：`decision_contract` 步的归属是 **EXTRA** ⇒ **CORE 不跑它**，
 但其类文档写着"这样它们能进串联回归电池，**任何改动都跑得到**" ⇒ **两者矛盾**（D-149 的判据承诺 vs
 后来的瘦身档位）。要不要把它提到 MAIN/BASELINE 属**策展裁定**，本轮不动，已记台账 §5.7。
+
+### D-223：M2 —— 长作业周期复评（无进度 ⇒ 一次 `NO_PROGRESS`）（2026-09-15）
+
+**动因**：`survey/08` §5.7 审计的 **G2**（第二承重缺口）：触发源只有"终态 / 空闲（默认关）/ 维生中断 /
+四个事件阈值"，**没有任何周期进度复评** ⇒ 一个 `maxTicks` 很长的 Job **开始响一次、结束响一次**，中段对决策层是黑箱。
+`survey/08` §7 的判据把 M2 定为**停止条件 A1 的必要条件**："**M2 是'自主'这个词的物理载体。
+没有它，'自主长作业'在物理上不存在，只有'一次长动作'**"。
+
+**改法**：`EventThresholds` 新增第三类病症 `NO_PROGRESS`。
+1. **可观测进度的定义**（三者任一变化即算有进度）：① 任务的 `Job.progressSummary()`；
+   ② bot 脚位；③ 背包指纹（物品 id + 数量 + 耐久）。⇒ **走路中的任务不会误报**（脚位在变）。
+   ⚠️ **为什么不能用 `currentTaskSummary()` 当指纹**：它是 `taskKind + target + startedTick`，
+   **整个任务期间恒定**（实测代码），拿它当"没进度"会**每个长任务都误报**。
+2. **等容器交互时跳过**（`containerMenu != inventoryMenu`）：等待态不是病症 —— 与 `STUCK` 判据
+   "必须**有移动意图**"同一条纪律（否则等菜单/等请示会被报成卡住）。
+3. **默认窗口 `NO_PROGRESS_WINDOW_TICKS = 0` = 关**（对齐 `LlmConfig.idleDecisionEnabled` 同为默认关的既有取舍）；
+   打开它 = 增加决策调用频率 ⇒ 由使用者显式开启。`setNoProgressWindow(int)` 供配置/夹具。
+4. **同 episode 只报一次**；进度一恢复即**重新武装**（滞回的自然形式，不需要第二个比例阈值 ——
+   对照 `TOOL_LOW` 需要 `TOOL_REARM_RATIO` 是因为耐久会来回抖，而"有没有进度"本身是二元事实）。
+5. 夹具接缝沿用既有纪律（`resetStuckTracking` 的先例）：`resetNoProgressTracking` / `noProgressEmits` /
+   `noProgressReported`。
+
+**判据（新电池步 `no_progress`，`Profile.MAIN` ⇒ CORE 跑）+ `task/NoProgressCheckTask`**：
+用**本夹具自己的停滞**当被观察对象（**不造假 Job** —— 被断言的是真实的 `EventThresholds` 判据链）：
+① 窗口关着时**不许**报；② 开窗 40 tick + 有任务在跑 + 无可观测进度 ⇒ 报**恰好一次**且标记已报；
+③ 出现进度（脚位变化）⇒ **重新武装**，再停滞 ⇒ 报**第二次**（证明滞回是活的）；
+④ 自检窗口内 `GoalDirector.isSuspended=true`（**只记录不通知**决策层）；⑤ **收尾把窗口复位回 0**
+（它是 `static volatile` 全局量，不复位会让后面的电池步骤在"开着监控"的状态下跑）。
+
+**验证**：`./gradlew compileJava` ✅；`bash tools/check-all.sh` 9 PASS + 1 预期 WARN ✅；
+**无头 `core`：`(passed=32/32 skipped=0) ticks=3511 → PASS`**（`baseline=14 main=18 extra_skipped=10`），
+实测两行 `[Events] NO_PROGRESS … progress=…|56, 63, 132|…` 与 `…|57, 63, 132|…`（脚位变化 ⇒ 重新武装生效），
+每行后面紧跟 `[Events] NO_PROGRESS 已记录（自检暂停：不通知决策层）`，`SUMMARY emits=2 failures=0 → PASS`，
+`结束复位：窗口已关=true` ⇒ **`SERVER_TESTED`**（客户端未跑过这一版）。
+
+**策展**：`BATTERY_CURATION` 更新为 **42 项 → CORE 32**（`no_progress` 记 MAIN）。
+**⚠️ 未做（诚实标注）**：窗口目前**只能由代码/夹具设置**（`setNoProgressWindow`），**没有**接进
+`config/alice-llm.json`；"生产默认开启 + 窗口值可配"是**后续一次决策**（与 M6 的常驻维度同批更合适）。

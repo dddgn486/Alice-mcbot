@@ -41,6 +41,20 @@ public final class EventThresholds {
      */
     public static final int STUCK_WINDOW_TICKS = 200;
 
+    /**
+     * **长作业周期复评的窗口**（M2 / G2）：有任务在跑、却连续这么多 tick **没有任何可观测进度**
+     * ⇒ 报一次 {@code NO_PROGRESS}。
+     *
+     * <p>**默认 0 = 关**。为什么默认关：这是"**自主**"的物理载体（没有它，长作业对决策层是黑箱：
+     * 开始响一次、结束响一次），但打开它 = 增加决策调用频率 ⇒ **由使用者显式开启**（对齐
+     * `LlmConfig.idleDecisionEnabled` 同为默认关的既有取舍）。夹具/测试用 {@link #setNoProgressWindow}。
+     *
+     * <p>**可观测进度的定义**（三者任一变化即算有进度）：① 任务的 `Job.progressSummary()`；
+     * ② bot 脚位；③ 背包指纹。⇒ 走路中的任务**不会**误报（脚位在变），真停滞的才会。
+     * **例外**：开着容器菜单时不算（等交互是**等待态**，不是病症 —— 同 `STUCK` 的判据纪律）。
+     */
+    public static volatile int NO_PROGRESS_WINDOW_TICKS = 0;
+
     private static final class State {
         boolean toolReported;
         BlockPos lastFoot;
@@ -48,6 +62,11 @@ public final class EventThresholds {
         /** 上一次上报 STUCK 的（脚位, 任务）—— 同一 episode 只报一次，避免"意图闪烁"反复刷屏。 */
         BlockPos lastReportedFoot;
         String lastReportedTask = "";
+        /** M2：上一次"有进度"的指纹与其时刻；同 episode 只报一次 NO_PROGRESS。 */
+        String lastProgress = null;
+        long progressSinceTick = -1L;
+        boolean noProgressReported;
+        int noProgressEmits;
     }
 
     private static final Map<UUID, State> STATES = new HashMap<>();
@@ -62,6 +81,7 @@ public final class EventThresholds {
 
         checkToolDurability(bot, state);
         checkStuck(bot, state, now);
+        checkNoProgress(bot, state, now);
     }
 
     /** 工具耐久：取背包里**剩余耐久最低**的斧/镐（"最可能先坏的那把"）。 */
@@ -151,6 +171,106 @@ public final class EventThresholds {
         state.lastReportedTask = task;
         emit(bot, "STUCK", "warn", "有移动意图但 " + still + " tick 没挪过格：" + task,
                 "foot=" + foot.toShortString());
+    }
+
+    /**
+     * **长作业周期复评**（M2 / G2）：有任务在跑却没有**可观测进度** ⇒ 报一次 {@code NO_PROGRESS}。
+     *
+     * <p>为什么它不是 `STUCK` 的重复：`STUCK` 要求"**正在走**却不动"（有移动意图），
+     * 而"**在干活却什么都没产出**"（挖不动、目标一直是同一个、背包没变）它**完全看不见**。
+     * 长作业里静音的是后者 —— 一个 `maxTicks` 很长的 Job 只会**开始响一次、结束响一次**。
+     */
+    private static void checkNoProgress(BotPlayer bot, State state, long now) {
+        int window = NO_PROGRESS_WINDOW_TICKS;
+        String progress = window <= 0 ? null : progressFingerprint(bot);
+        if (progress == null) {
+            // 关着 / 没任务 / 正在等容器交互 ⇒ 复位基线（下次真正开始跑时从头计时）
+            state.lastProgress = null;
+            state.progressSinceTick = now;
+            state.noProgressReported = false;
+            return;
+        }
+        if (!progress.equals(state.lastProgress)) {
+            // 有进度 ⇒ 重新武装（滞回的自然形式：不需要第二个比例阈值）
+            state.lastProgress = progress;
+            state.progressSinceTick = now;
+            state.noProgressReported = false;
+            return;
+        }
+        if (state.progressSinceTick < 0) {
+            state.progressSinceTick = now;
+            return;
+        }
+        long still = now - state.progressSinceTick;
+        if (still < window || state.noProgressReported) {
+            return;
+        }
+        state.noProgressReported = true;
+        state.noProgressEmits++;
+        emit(bot, "NO_PROGRESS", "warn",
+                "有任务在跑但 " + still + " tick 无可观测进度：" + BotManager.currentTaskSummary(bot),
+                "window=" + window + " progress=" + progress);
+    }
+
+    /** 进度指纹：任务进度 + 脚位 + 背包。三者都不变 ⇒ 这段时间**什么都没发生**。 */
+    private static String progressFingerprint(BotPlayer bot) {
+        String task = BotManager.currentTaskSummary(bot);
+        if (task == null) {
+            return null;   // idle：没有"进度"可言
+        }
+        // 等容器交互是**等待态**（不是病症）：`STUCK` 的判据纪律同样适用（别把等待报成卡住）
+        if (bot.containerMenu != null && bot.containerMenu != bot.inventoryMenu) {
+            return null;
+        }
+        String job = BotManager.currentTaskProgressSummary(bot);
+        BlockPos foot = com.dddgn.alice.pathing.MovementHelper.footCell(bot.serverLevel(), bot);
+        return task + "|" + (job == null ? "-" : job) + "|" + foot.toShortString()
+                + "|" + inventoryFingerprint(bot);
+    }
+
+    /** 背包指纹：物品 id + 数量的滚动和（只判"变没变"，不做语义）。 */
+    private static long inventoryFingerprint(BotPlayer bot) {
+        long hash = 17L;
+        var inventory = bot.getInventory();
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            var stack = inventory.getItem(slot);
+            if (stack.isEmpty()) {
+                continue;
+            }
+            hash = hash * 31L + net.minecraftforge.registries.ForgeRegistries.ITEMS
+                    .getKey(stack.getItem()).hashCode();
+            hash = hash * 31L + stack.getCount();
+            hash = hash * 31L + stack.getDamageValue();
+        }
+        return hash;
+    }
+
+    /** **测试/夹具用**：设置 NO_PROGRESS 窗口（0 = 关）。生产默认关，见字段文档。 */
+    public static void setNoProgressWindow(int ticks) {
+        NO_PROGRESS_WINDOW_TICKS = Math.max(0, ticks);
+    }
+
+    /**
+     * **测试/夹具用**：把"无进度"时钟拨到当前 tick 并清掉已报标记（不改窗口）。
+     * 理由与 {@link #resetStuckTracking} 相同：夹具无法保证进入用例时 bot 恰好刚开始这一段。
+     */
+    public static void resetNoProgressTracking(BotPlayer bot) {
+        State state = STATES.computeIfAbsent(bot.getUUID(), ignored -> new State());
+        state.lastProgress = null;
+        state.progressSinceTick = bot.getServer().getTickCount();
+        state.noProgressReported = false;
+    }
+
+    /** **测试/汇报用**：本 bot 累计报过几次 NO_PROGRESS。 */
+    public static int noProgressEmits(BotPlayer bot) {
+        State state = STATES.get(bot.getUUID());
+        return state == null ? 0 : state.noProgressEmits;
+    }
+
+    /** **测试用**：当前是否处于"已报未复位"档。 */
+    public static boolean noProgressReported(BotPlayer bot) {
+        State state = STATES.get(bot.getUUID());
+        return state != null && state.noProgressReported;
     }
 
     private static void emit(BotPlayer bot, String type, String severity, String summary, String data) {
