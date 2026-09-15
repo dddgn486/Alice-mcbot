@@ -219,7 +219,7 @@ public class BotPlayer extends ServerPlayer {
 | 空气消耗 | `airSupply` 永远 300 ⇒ **溺水判据在产线不可达** | `LivingEntity.baseTick` |
 | `tickEffects()` | 药水效果**永不到期**（给了就永久有效） | `LivingEntity.baseTick` |
 | 传送门冷却 / `ticksFrozen` / `walkDistO` | 传送门计时错、细雪不冻、无脚步声 | `Entity.baseTick` |
-| `Player.tick()` 那半 | **没有饥饿、没有自然回血**、`updateIsUnderwater` 不更新 | `doTick()`（仍未补） |
+| `Player.tick()` 那半 | 没**饥饿/饱和度回血**、`updateIsUnderwater` 不更新 —— ⚠️ **但"自然回血"不缺**：`Player.aiStep()` 里就有 `health < max && tickCount % 20 == 0 ⇒ heal(1)`（不吃饱和度），而 `aiStep()` 是被手动调用的 ⇒ 回血一直在跑（**别据此误判"bot 的血只减不增"**，D-230） | `doTick()` |
 
 **正确顺序**（与原版 `LivingEntity.tick()` 一致：baseTick 在 offset 9、`aiStep()` 在 offset 179）：
 `super.tick()` → **`this.baseTick()`** → `this.aiStep()`。

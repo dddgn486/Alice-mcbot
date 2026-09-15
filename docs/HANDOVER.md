@@ -239,7 +239,8 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 - **客户端**：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - **镜像 / 同步**：`./tools/mirror-windows-workspace.sh`；
   `./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`。
-- **本断点已同步的 jar**：`9bca1224aa8f36b13f3e0ff0fe73fcaf1e70c807aa4b93b321f9fd98b1044dba`（源 = `build/libs`，2026-09-15 21:32 同步到客户端 `mods/`；**含 S-5/D-226 + §5.9/D-227 + D-228 + D-229**）
+- **本断点已同步的 jar**：`be8a353f7db914b7bdf5d205e718c50f49641f133120a0b8e3e822b62eefb14a`（源 = `build/libs`，2026-09-15 22:06 同步到客户端 `mods/`；**含 S-5/D-226 + §5.9/D-227 + D-228 + D-229 + D-230 开关**）
+- 上一个 jar（21:36，含 D-229 与 survival_full_check）：`c251caf2d99e53c769c069a0559be7b7ac557a08cd04270315c0698dae0cf671`
 - 上一个 jar（20:33，含 D-228）：`51e5719dc6e6ef11b489e66dd4915886db1bbd81209d7b072179254136f7d942`
 - 上一个 jar（19:51，含 §5.9）：`ed30f04a9356d10fdb2acb2673a82569b0d24e33cf4dd395fbae2ce28a4ebd51`
 - 上一轮 jar（19:03，仅 S-5）：`b918d7b201c792d6f453c247b92e58783b0a4896baaf5021c0e3be4a3628e1af`
@@ -277,7 +278,14 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 
 **推荐下一步（二选一，都由 AI 先推、用户最后拍板）**：
 
-0. **【立刻可做·真人必做】点 `alice:survival_full_check`（新物品，D-229）**：普通右键 ⇒ 整套维生夹具
+> **2026-09-15 深夜 ✅ 维生这条线收口**：D-228（补 `baseTick`）→ S-5/D-226 与 D-228 已 `WINDOWS_CLIENT`；
+> D-229（冻结档）已 `WINDOWS_CLIENT`（`alice:survival_full_check` 右键 = `SUMMARY checks=55 failures=0 → PASS`）；
+> D-230 结论 = **不启用** `doTick()`（实测推翻了我自己"血只减不增"的判断：`Player.aiStep()` 本来就有自然回血）。
+> **下一步候选**：① 台账里排队的 M4b（`tree[].lastFailure`）/ M3b（`write_budget_exhausted`/`stale_target` 未观测）；
+> ② `decision_contract` EXTRA-vs-doc 的口径裁定；③ 台账 §5.6/§5.8 的风险选项；
+> ④ `AI_PROJECT_STATE.md` 的"当前目标/当前进度"仍停在 R2–R4 时代（要在冻结预算里做等行替换，等你裁定）。
+
+0. **【可做】点 `alice:survival_full_check`（D-229 物品）**：普通右键 ⇒ 整套维生夹具
    （含细雪冻结）跑一遍，约 15~20 秒后在聊天里打 `[Survival] SUMMARY checks=55 failures=N → PASS/FAIL`。
    顺带把 D-228（火焰/掉血）与 S-5（否决/逃生）一起复核。⚠️ 细雪那条**旧的"疾跑+右键"入口已撤**
    （原版站着不动进不了疾跑 ⇒ 点不到，用户实测踩到）。

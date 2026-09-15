@@ -528,7 +528,6 @@ public class SurvivalExitCheckTask implements Task {
                     bot.getTicksFrozen(), phaseTicks, FREEZE_DAMAGE_WAIT_TICKS);
         }
         if (phaseTicks < fullyFrozenAt + FREEZE_DAMAGE_WAIT_TICKS) {
-            // 持续采最低血量：冻结伤害每 40 tick 才来一次，且可能被治疗掩盖 ⇒ 看"期间掉过"。
             minHealthDuringSnow = Math.min(minHealthDuringSnow, bot.getHealth());
             return;
         }

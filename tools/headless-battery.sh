@@ -200,7 +200,10 @@ START=$(date +%s)
 if [ "$BACKEND" = "prod" ]; then
     # ⚠️ `-D` 必须放在 `@args` **之前**：`unix_args.txt` 里含 main class，放在它后面会被
     # 当成**程序参数**而不是 JVM 属性（那样 HeadlessBattery 读不到开关，服务端会一直空跑）。
-    ( cd "$SERVER_DIR" && exec java -Xmx3G "-Dalice.headless.battery=$MODE" \
+    # `ALICE_EXTRA_JVM_ARGS`（可选）：额外 JVM 属性，用于 A/B 对照（例如
+    #   `ALICE_EXTRA_JVM_ARGS="-Dalice.bot.vanillaTick=true" tools/headless-battery.sh core`
+    # 验 D-230 的"完整原版 tick"模式）。留空 = 与平时完全一致。
+    ( cd "$SERVER_DIR" && exec java -Xmx3G "-Dalice.headless.battery=$MODE" ${ALICE_EXTRA_JVM_ARGS:-} \
         "@user_jvm_args.txt" "@libraries/net/minecraftforge/forge/$FORGE_VERSION/unix_args.txt" nogui ) \
         > /tmp/alice-headless-server.log 2>&1 &
 else

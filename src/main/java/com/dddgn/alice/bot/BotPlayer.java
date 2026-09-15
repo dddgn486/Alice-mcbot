@@ -37,6 +37,14 @@ import net.minecraft.world.phys.Vec3;
  */
 public class BotPlayer extends ServerPlayer {
 
+    /**
+     * **完整原版 tick 模式**（D-230 试验开关，默认关）：`-Dalice.bot.vanillaTick=true`。
+     *
+     * <p>默认关的原因：它把物理推进换成"真玩家那一整套"（`doTick()` → `Player.tick()` ⇒ baseTick + aiStep），
+     * 顺序/次数与 D-174 实测基线不同 ⇒ 需要整套 CORE + 真人复测才敢设成默认。开关只改这一处行为。
+     */
+    private static final boolean VANILLA_FULL_TICK = Boolean.getBoolean("alice.bot.vanillaTick");
+
     private BotController controller;
     
     // ✅ 击退修复：保存击退速度，下一个 tick 恢复
@@ -269,11 +277,28 @@ public class BotPlayer extends ServerPlayer {
                     physicsProbeTicks, controller.getInputStateString(), fmt(beforePos), fmt(beforeVelocity), beforeOnGround);
         }
 
-        // 2. Forge ServerPlayer 原版实体更新
+        // 2. Forge ServerPlayer 原版实体更新（记账 tick —— 真玩家在实体 tick 表上也跑这个）
         super.tick();
         if (probe) {
             BotLog.info("[PhysicsProbe] tick={} stage=after_super pos={} velocity={} onGround={}",
                     physicsProbeTicks, fmt(position()), fmt(getDeltaMovement()), onGround());
+        }
+
+        if (VANILLA_FULL_TICK) {
+            // **完整原版 tick 模式**（D-230，试验开关，默认关）：`-Dalice.bot.vanillaTick=true`。
+            // 真玩家一个 tick 跑的是**两半**：实体 tick 表 ⇒ `ServerPlayer.tick()`（上面那行，记账），
+            // 网络层 `ServerGamePacketListenerImpl.tick()` ⇒ `ServerPlayer.doTick()`
+            // ⇒ `Player.tick()` ⇒ `LivingEntity.tick()` ⇒ `Entity.tick()→baseTick()` + `aiStep()`。
+            // 假人没有网络层 ⇒ 这里**显式补上第二半**，于是 baseTick/aiStep **各只跑一次**（不能再用下面的手动补丁）。
+            // 换来的能力：食物/饥饿、**自然回血**、`updateIsUnderwater`、以及 `Player.tick()` 那一整半语义。
+            // ⚠️ 代价：物理推进的顺序/次数与"手动 aiStep"路径不同 ⇒ 必须整套 CORE + 真人复测（见 D-230）。
+            this.doTick();
+            if (probe) {
+                BotLog.info("[PhysicsProbe] tick={} stage=after_doTick pos={} velocity={} onGround={} air={}",
+                        physicsProbeTicks, fmt(position()), fmt(getDeltaMovement()), onGround(), getAirSupply());
+                physicsProbeTicks--;
+            }
+            return;
         }
 
         // 2.5 **补上原版 baseTick**（D-228，2026-09-15 客户端实测逼出）
