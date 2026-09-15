@@ -1524,3 +1524,63 @@ C3 之后它对 `NOT_MOVED` 已无影响，故只登记。
   **提案（未做，待点头）**：在 `transfer` 步里用**世界账本**临时造一条 `SUSPENDED/BOT_INVENTORY` 条目 ⇒
   `BotManager.assignWalkTo(bot, …)` 必须返回 **false**（被挡时不会动会话任务 ⇒ 安全）⇒ 随后结清它。
   价值 = 把 A 的接线也变成可红判据；成本 = 在 BASELINE 步里操作 live 账本（需谨慎）。
+
+---
+
+## §5.10 假人只跑了**半个原版 tick** —— 火焰渲染/火焰伤害/空气（溺水）全缺失（2026-09-15，客户端实测逼出）
+
+**用户现场反馈**：「bot 有反应了，但看不到任何窒息/燃烧的效果，也看不到受伤的效果。」
+
+**已确认事实（逐条可查）**：
+1. **客户端日志（服务器权威）**：两种模式都真的跑通了 —— 硬（窒息）×3、软（着火）×2，每次都
+   `任务因维生危险中断 → [Survival] 逃生出口 refuge=… 距 1.000 格 → SurvivalExitTask terminal=COMPLETED`，
+   起飞点 `66,64,104 → 66,64,103`（硬）/ `64,64,102 → 65,64,102`（软）。**维生否决链本身没问题。**
+2. 整个着火实验里 `health=20.0` 一路不变，`[Threshold] 掉血` **一次都没出现**。
+3. **无头探针（临时，已删）**：`setSecondsOnFire(6)` 后 `remainingFireTicks=120 / isOnFire=true`，
+   **16 tick 后仍是 120**，且 `sharedFlag0=false`（= 客户端渲染火焰的唯一输入没立起来）。
+4. **字节码取证**：
+   - `Entity.baseTick()`：`remainingFireTicks--`、每 20 tick `hurt(onFire,1)`、**并在服务端按
+     `remainingFireTicks>0` 调 `setSharedFlagOnFire`**；`Entity.isOnFire()` 客户端分支读的正是这个共享标志
+     （`remainingFireTicks` **不同步**）⇒ 标志不置位 ⇒ **客户端画不出火焰**，且**同段代码里的火焰伤害也不发生**。
+   - `LivingEntity.baseTick()`：`super.baseTick()` + 火焰免疫/`clearFire` + **`getAirSupply/decreaseAirSupply/
+     increaseAirSupply`（溺水/空气）**。
+   - **`ServerPlayer.tick()`（记账 tick）里没有任何 `Player.tick()`/`baseTick()`/`aiStep()` 调用**；
+     真正的 `Player.tick()→LivingEntity.tick()→Entity.tick()→baseTick()` 在 **`doTick()`** 里
+     （`Player.tick()` 那句 `invokespecial` 落在 934 行起的 `doTick()` 内），而 `doTick()` 由
+     **`ServerGamePacketListenerImpl.tick()`（字节码 78）** 驱动。
+   - Alice 自己的 `BotPlayer` javadoc（第 82-83 行）写着：假人的连接是 `FakeConnection`，
+     「**不在 `ServerConnectionListener` 的连接表里（`tick()` 永不被调用）**」。
+   ⇒ **结论**：假人只跑 `ServerPlayer.tick()`（记账）+ Alice **手动补的 `aiStep()`**（物理），
+   **原版的 `baseTick` 那条链从未执行**。
+5. **所以三件事全部解释清楚**（并且修正我先前的错误假设）：
+   - **看不到燃烧**：不是渲染问题，是"身上根本没着火"（服务端字段为真但共享标志不置位 ⇒ 客户端无火焰），
+     而且**火焰伤害也不发生**（和标志在同一段代码里）。
+   - **看不到受伤**：着火实验里**确实一点伤害都没有**。⚠️ 我先前说"peaceful 回血抵消了火焰伤害"是**错的** ——
+     实测是"根本没有伤害"。窒息那次看到的 `20 → 19` 之所以发生，是因为窒息伤害在
+     **`Entity.move()`（`checkInsideBlocks`）**里，而 `move()` 由 Alice 手动补的 `aiStep()` 走到 ⇒ 那条路是通的；
+     且它**只在移动时判定**，所以速率很低（站着不动就不再掉）。
+   - **看不到窒息效果**：原版对**第三方视角**没有任何窒息视觉（"脸埋方块"的贴脸遮罩只画给本地玩家镜头），
+     第三方能看到的只有掉血红闪 + 音效，而伤害本身既稀有又小。
+6. **连带缺失（同一根因，尚未逐条实测）**：空气不消耗 ⇒ **`LOW_AIR`（溺水）在产线不可达**
+   （S-5 刚加进否决链的那一档，目前只能靠夹具直接改 `airSupply=0` 才测得到）；
+   传送门冷却、冻结（细雪）、`walkDistO`（脚步声）、`Player.tick()` 那半（食物/饥饿、自然回血、
+   药水效果计时、`updateIsUnderwater`）同样不会跑。
+
+**修复选项（待用户裁定，本轮未改代码）**：
+- **A. 忠实补全**：`BotPlayer.tick()` 改为调 `this.doTick()`（真玩家由网络层驱动的"真身 tick"），
+  并**删掉手动 `aiStep()`**（否则 `aiStep` 跑两遍 ⇒ 双推进）。
+  覆盖最全（含 `Player.tick()` 那半：食物/回血/效果计时）。**风险**：物理推进顺序/次数变了，
+  直接冲击 D-174 那套实测基线 ⇒ 必须重跑 physics/pathing 相关电池 + 真人复测。
+- **B. 最小补丁（推荐先做）**：在 `BotPlayer.tick()` 的 `super.tick()` 与手动 `aiStep()` **之间**插入
+  `this.baseTick()`（= `LivingEntity.baseTick()` → `Entity.baseTick()`）。
+  **顺序与原版一致**（原版 `LivingEntity.tick()`：baseTick 在 offset 9、aiStep 在 offset 179），
+  且 `ServerPlayer.tick()` 里确认没有 baseTick 调用 ⇒ **不会跑两遍**。
+  恢复：火焰（渲染标志 + 伤害）、空气/溺水、传送门、冻结、脚步声等。
+  不恢复：`Player.tick()` 那半（食物/自然回血/药水效果计时/水下判定）。
+- **C. 只登记不修**：把"假人没有原版 tick"写进台账/技能库，S-5 的 `LOW_AIR` 档标注"产线不可达"。
+
+**判据（修复轮一并落地）**：`SurvivalExitCheckItem` 软模式（着火）后断言
+`bot.sharedFlagOnFire() == true`（访问器已就位：`BotPlayer.sharedFlagOnFire()`）+ 断言
+`remainingFireTicks` 会递减 + 溺水：让 bot 入水后 `airSupply` 真的下降。
+本轮的临时断言已按纪律**降级为信息行**（`[Survival] 已知限制：着火时 sharedFlag0=false …`），
+避免让 CORE 门槛常红；修复落地后它必须变回 `check(...)`。

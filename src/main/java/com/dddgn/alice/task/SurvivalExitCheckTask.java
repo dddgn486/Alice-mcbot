@@ -376,6 +376,17 @@ public class SurvivalExitCheckTask implements Task {
         }
         HazardState real = SurvivalSystem.current(bot);
         check("真实状态被判为 ON_FIRE（实际 " + real.type() + "）", real.type() == HazardType.ON_FIRE);
+        // ⚠️ **已知限制（D-228 / 台账 §5.10，2026-09-15 用户实测逼出）**：这里本该断言
+        // "喂给客户端的火焰渲染输入立起来了"，实测 sharedFlag0=false —— 根因不是渲染，是
+        // **假人拿不到原版 tick**：真实玩家的 `Player.tick()→LivingEntity.tick()→baseTick()`
+        // 由网络层 `ServerGamePacketListenerImpl.tick()→ServerPlayer.doTick()` 驱动，
+        // 而假人的 `FakeConnection.tick()` **永不被调用**（BotPlayer javadoc 自己写着这条），
+        // 所以 `remainingFireTicks` 不递减、共享标志不置位、身上**不着火、也不受火焰伤害**，
+        // 空气也永不减少（⇒ LOW_AIR 在产线不可达）。
+        // 修复（补 tick）落地后，这一行应当变回 `check(...)` —— 那时它就是修复的判据。
+        BotLog.info("[Survival] 已知限制：着火时 sharedFlag0={}（客户端渲染火焰的输入）—— 假人无原版 tick，"
+                        + "火焰渲染/火焰伤害/空气消耗均缺失（D-228 / 台账 §5.10）",
+                bot.sharedFlagOnFire());
         check("真实状态过真实决策 ⇒ HOLD_NO_EXIT（实际 " + SurvivalSystem.decide(bot, real) + "）",
                 SurvivalSystem.decide(bot, real) == SurvivalSystem.Verdict.HOLD_NO_EXIT);
         check("已如实登记「软危险无出口 ⇒ 不否决」（exit=none decision=continue）",

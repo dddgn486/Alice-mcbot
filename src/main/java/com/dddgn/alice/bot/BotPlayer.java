@@ -302,6 +302,19 @@ public class BotPlayer extends ServerPlayer {
         return String.format("(%.3f,%.3f,%.3f)", v.x, v.y, v.z);
     }
     
+    /**
+     * **实体共享标志 0（= OnFire）**（夹具/诊断用，2026-09-15）。
+     *
+     * <p>为什么需要这个访问器：客户端**渲染火焰**的唯一输入就是客户端侧的共享标志 ——
+     * `Entity.isOnFire()` 的客户端分支读 `remainingFireTicks > 0 || getSharedFlag(0)`，而
+     * `remainingFireTicks` **不同步**，服务端是在 `Entity.baseTick` 里按它调 `setSharedFlagOnFire`。
+     * 而 `Entity.getSharedFlag` 是 `protected` ⇒ 夹具从外部断言不了"喂给客户端的那个输入立起来了"。
+     * 用户实测反馈"看不到燃烧效果"时，正是这条断言把"渲染前置没建立"与"人没看见"分开。
+     */
+    public boolean sharedFlagOnFire() {
+        return getSharedFlag(0);
+    }
+
     @Override
     public boolean hurt(net.minecraft.world.damagesource.DamageSource source, float amount) {
         return super.hurt(source, amount);
