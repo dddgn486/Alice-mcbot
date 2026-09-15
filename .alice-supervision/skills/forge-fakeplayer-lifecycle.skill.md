@@ -176,16 +176,17 @@ public void tick() {
 - 真实玩家由客户端驱动（客户端计算物理 → 发网络包 → 服务端接收）
 - 服务端不主动计算玩家物理
 
-**解决方案**：
+**解决方案**（**2026-09-15 修正：不只 `aiStep()`，还必须手动补 `baseTick()`** —— 见下节 D-228）：
 ```java
 public class BotPlayer extends ServerPlayer {
     
     @Override
     public void tick() {
-        // Bot 没有客户端，必须在服务端手动调用物理
-        controller.onUpdate();  // 设置输入（xxa, zza, jumping）
-        this.aiStep();          // 手动调用物理计算
-        super.tick();           // 其他逻辑
+        controller.onUpdate();  // 1. 设置输入（xxa, zza, jumping）
+        super.tick();           // 2. ServerPlayer 的**记账** tick（不含实体语义！）
+        this.baseTick();        // 3. **必须补**：Entity.baseTick + LivingEntity.baseTick
+                                //    （火焰/空气/传送门/冻结/共享标志/药水效果计时）
+        this.aiStep();          // 4. 服务端物理计算
     }
     
     @Override
@@ -195,6 +196,44 @@ public class BotPlayer extends ServerPlayer {
     }
 }
 ```
+
+### ⚠️ **陷阱（D-228，2026-09-15 客户端实测逼出）：只补 `aiStep()` 会让假人"少半个原版 tick"**
+
+**字节码事实**（Forge 1.20.1 / `javap -c` 可复验）：
+- 真玩家的 `Player.tick() → LivingEntity.tick() → Entity.tick() → baseTick()` **不在实体 tick 链上**：
+  `ServerPlayer.tick()`（记账：`gameMode.tick()`、`containerMenu.broadcastChanges()`…）里**没有**
+  `Player.tick()`/`baseTick()`/`aiStep()` 调用；
+- 那段真正的实体 tick 在 **`ServerPlayer.doTick()`** 里，而 `doTick()` 的**唯一调用者**是
+  **`ServerGamePacketListenerImpl.tick()`**（网络层）；
+- 假人的 `FakeConnection` 不在 `ServerConnectionListener` 的连接表里 ⇒ **`tick()` 永不被调用**
+  （`connTicks` 恒为 0 是**正常**的，别据此判断"断在连接"）；
+- ⇒ 假人默认只有"记账 tick"，**`baseTick` 从来没跑过**。补了 `aiStep()` 只恢复了物理，
+  实体语义（下面这一串）全是哑的。
+
+**症状清单（全是"静默"的，日志里一个字都不会说）**：
+
+| 缺失的能力 | 现象 | 出处 |
+|---|---|---|
+| `setSharedFlagOnFire` | **客户端画不出火焰**（客户端 `isOnFire()` 读的是**同步过来的共享标志**，而 `remainingFireTicks` 根本不同步） | `Entity.baseTick` |
+| 每 20 tick 火焰伤害 | 身上着火却**不掉血** | 同上（与置标志同段代码） |
+| 空气消耗 | `airSupply` 永远 300 ⇒ **溺水判据在产线不可达** | `LivingEntity.baseTick` |
+| `tickEffects()` | 药水效果**永不到期**（给了就永久有效） | `LivingEntity.baseTick` |
+| 传送门冷却 / `ticksFrozen` / `walkDistO` | 传送门计时错、细雪不冻、无脚步声 | `Entity.baseTick` |
+| `Player.tick()` 那半 | **没有饥饿、没有自然回血**、`updateIsUnderwater` 不更新 | `doTick()`（仍未补） |
+
+**正确顺序**（与原版 `LivingEntity.tick()` 一致：baseTick 在 offset 9、`aiStep()` 在 offset 179）：
+`super.tick()` → **`this.baseTick()`** → `this.aiStep()`。
+
+**不会跑两遍**（改动前必须自己核对这两条，别凭感觉）：
+`ServerPlayer.tick()` 内无 `baseTick`/`aiStep`；`LivingEntity.baseTick()` 内**没有** `aiStep()`（但**有** `tickEffects()`）。
+
+**判据（可红的电池断言，别再靠眼睛）**：
+① 着火后 `bot.getSharedFlag(0)`（可封装成 `sharedFlagOnFire()`）必须为真；
+② `getRemainingFireTicks()` 必须在若干 tick 后**递减**；
+③ 着火期间**最低血量**必须低于点火前（别只看某个时刻的净血量：治疗/回血会掩盖——CORE 实测踩过）；
+④ 必须出现带 `hazard=ON_FIRE` 的掉血事件；
+⑤ 入水后 `getAirSupply()` 必须真的下降（把空气设成一个**不会掉到 0** 的值，否则会触发 `LOW_AIR` 否决把整轮电池结束）。
+**反向对照**：把 `this.baseTick()` 注掉 ⇒ 这 5 条必须**同时全红**（红不了就说明判据没挂在修复上）。
 
 ---
 
@@ -276,6 +315,7 @@ server.getPlayerList().remove(bot);  // 不是 level.removeEntity()
 - [ ] 是否创建了 FakeConnection？
 - [ ] 是否重写 isEffectiveAi() 返回 true？
 - [ ] 是否在 tick() 中手动调用 aiStep()？
+- [ ] 是否**同时**手动调用了 `this.baseTick()`？（否则火焰/空气/共享标志/效果计时全哑 —— D-228）
 - [ ] 移除时是否用 PlayerList.remove()？
 
 全部勾选 = **PASS**，任一未勾选 = 重新检查实现。
