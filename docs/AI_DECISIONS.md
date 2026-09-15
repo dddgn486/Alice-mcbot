@@ -9787,3 +9787,49 @@ lastFailure=no_suitable_tool@EVALUATING`）/ 反向 `FAIL` ✅；CORE `(35/35) t
 水牢压根没建。修法是整体后移一位；`/forceload` 返回 0（区块本来就在）⇒ **已删除**，
 不留"给误诊兜底"的代码。教训：`fill=0` 有两种成因（区块未加载 / **命令压根没执行**），
 **先把"命令有没有执行"读出来再动手**。
+
+---
+
+### D-237：水里"乙"—— 溺水时先**上浮自救**（纯输入，不新增 Movement）（2026-09-15）
+
+**用户批准的范围**：D-236 里列的"乙"——溺水时抬头/上浮到水面，**不做**内核水位 Movement（那是"丙"，单独排期）。
+
+**做法（三层，都是最小件）**：
+1. `SurvivalSystem.canFloatUp(bot)`：**纯几何判据** —— 从脚位往上找，先撞到"能穿过的非流体格"⇒ 浮得上去；
+   先撞到实体方块 ⇒ 浮到顶也还在水里（封闭水牢就是这种）⇒ 浮不上去；顺带排除**头顶是岩浆**。
+2. 新判决 **`Verdict.FLOAT_UP`**：`decide()` 里 溺水 + 无落点 时，`canFloatUp && 不在封禁期` ⇒ `FLOAT_UP`，
+   否则 `ABANDON_NO_EXIT`（D-236 语义保留）。**封禁期**：`SurvivalFloatTask` 失败时
+   `markFloatFailed`（1200 tick）⇒ 同一场溺水不再反复试，直接放弃任务。
+3. `SurvivalFloatTask`（新，实现 `SurvivalExit` 标记 ⇒ 自救期间不会被维生二次否决）：
+   头在水里就 `controller.setJumping(true)`（原版水里按跳跃 = 上浮），**头一出水立刻松手**
+   （长按在地面/水面会变兔子跳，`BotController` 既有注释点名过）；头出水且空气 ≥100 ⇒ `DONE`；
+   240 tick 预算用尽 ⇒ `FAILED` + 封禁。`BotManager` 新增 `FLOAT_UP` 分支：
+   结束当前任务（`SURVIVAL_INTERRUPTED`）+ `DANGER` 事件（`decision=float_up`）+ 起自救任务。
+
+**判据（零新增电池项，挂既有 BASELINE `survival_exit`）**：新相位 `OPEN_WATER` —— 21×21 露天水池
+（水 4 深、**天花板必须拆掉**），半径 8 内无干燥落点（池壁在 ±11 之外）；断言：
+`canFloatUp=true` / `!hasRefuge` / `decide(LOW_AIR,99) == FLOAT_UP`；**并端到端**驱动真 `SurvivalFloatTask`：
+到达 `DONE`、**眼睛离开水面**、**空气回到 100+**。`checks 65 → 78`。
+**反向对照**：把 `canFloatUp` 恒置 false ⇒ 两条新判据精确变红 ✅
+**实测证据**：`上浮自救成功：头已出水且空气复原（tick=44 air=102 y=102.81）` ⇒ bot 从 y=100 浮到 102.81 ✅
+
+**⚠️ 接线只观测到一次（如实记，且这是本项目最有价值的一次"结构限制"实证）**：中途一次运行里，
+monitor 真的走到了 `LOW_AIR` ⇒ `BotManager` 走了 `FLOAT_UP` 分支：日志
+`[Events] DANGER … 溺水无落点 ⇒ 上浮自救（survival_low_air）（… decision=float_up …）` +
+`task_execution_terminal kind=SurvivalFloatTask … COMPLETED code=done` ✅。
+但那一轮最终 `verdict=no_verdict exit=3`：**被打断的是电池本体**
+（`task_execution_terminal kind=RegressionBatteryTask … SURVIVAL_INTERRUPTED code=failed:survival_low_air`）
+—— 因为**电池就是会话任务**，任何"真维生判决"都会 `complete()` 掉它 ⇒ 这条接线**不可能**做成绿色的电池步。
+⇒ 所以本轮把它拆成：**可复现的判据**（判决 + 物理：水池里真浮上去）+ **一次性的接线观测**（上面两条日志）。
+
+**⚠️ 三个坑（都是同一族：夹具的状态机/前提假设不成立）**：
+1. **"air=5 就不会触发溺水判决"是错的**：monitor 在 **tick 开头**读数，而原版在同一 tick 里再扣 1
+   ⇒ 钳 `max(1, air)` 会被扣成 0 ⇒ 下一 tick 判 `LOW_AIR` ⇒ **真的行使否决权、打死电池**。
+   修法：钳到 **≥2**（注释写清"为什么不是 1"）。
+2. **断言后必须让相位真的前进**：端到端那段忘了 `floatTask = null` ⇒ 每 tick 重复断言、永不进收尾 ⇒
+   `survival_exit=TIMEOUT ticks=901`。这是今天**同一族的第三次**（前两次：`phaseTicks == 0` 永不命中、
+   探针分支重入）⇒ 已写进 `alice-scene-based-testing` 技能。
+3. **`hollow` 的上盖会成为"半径 4 内可站的落点"**：水池第一版没拆天花板 ⇒ 判决变成 `INTERRUPT`
+   ⇒ 逃生目标是 `refuge=240,105,306`（**我的池顶**）⇒ `WalkToTask … PLAN_UNREACHABLE … walk_no_path` 失败。
+   ⇒ 这是 **"`isRefuge` 只查'干+可站+在半径内'、不查可达性"的第一个真实案例**（D-236 只是推理），
+   已记进台账 §5.11 作为候选改进项。

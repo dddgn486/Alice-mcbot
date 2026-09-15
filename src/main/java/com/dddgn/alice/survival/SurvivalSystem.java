@@ -2,6 +2,7 @@ package com.dddgn.alice.survival;
 
 import com.dddgn.alice.log.BotLog;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.Blocks;
 
@@ -84,7 +85,16 @@ public final class SurvivalSystem {
          * 20 tick 开始每 20 tick 掉血）⇒ 继续跑 = 死在作业中途（任务半途而废、现场留着临时方块/账面）。
          * **放弃 = 干净收尾 + 大声登记**，不是"救活"（Alice 今天没有游泳/上浮能力，见台账 §5.10 的登记）。
          */
-        ABANDON_NO_EXIT
+        ABANDON_NO_EXIT,
+        /**
+         * **溺水 + 无落点，但"浮得上去" ⇒ 先自救：按住跳跃把头露出水面**（D-237，2026-09-15，用户批准的"乙"）。
+         *
+         * <p>为什么值得单独一档：`ABANDON_NO_EXIT` 是"连自救都免谈"的终局；而开阔水面里 bot 只是**没按跳跃键**
+         * 才下沉（原版：水里按住跳跃即上浮）⇒ 一次**纯输入**的自救就能把"必死"变成"能呼吸、能被救"，
+         * 不需要任何新 Movement（内核今天规划不出含水路线，见 D-236）。
+         * 浮不上去（头顶被实体方块封住，如封闭水牢）或**已经浮过一次仍失败** ⇒ 回到 `ABANDON_NO_EXIT`。
+         */
+        FLOAT_UP
     }
 
     /** **硬危险**：继续做任何事都只会更糟 ⇒ 无条件否决（不要求有出口）。 */
@@ -143,8 +153,15 @@ public final class SurvivalSystem {
         if (hasRefuge(bot)) {
             return Verdict.INTERRUPT;
         }
-        // 无出口：溺水必死 ⇒ 放弃；着火/冻结仍可能自愈 ⇒ 不否决（让任务继续）。
-        return state.type() == HazardType.LOW_AIR ? Verdict.ABANDON_NO_EXIT : Verdict.HOLD_NO_EXIT;
+        // 无出口：着火/冻结仍可能自愈 ⇒ 不否决（让任务继续）。
+        if (state.type() != HazardType.LOW_AIR) {
+            return Verdict.HOLD_NO_EXIT;
+        }
+        // 溺水：先看能不能自救（浮上去呼吸）；浮不了 / 已经浮败过一次 ⇒ 放弃任务（D-236/D-237）。
+        long now = bot.level().getGameTime();
+        return canFloatUp(bot) && now >= monitor(bot).floatBlockedUntil
+                ? Verdict.FLOAT_UP
+                : Verdict.ABANDON_NO_EXIT;
     }
 
     /** 否决是否成立（保留旧名，语义 = {@link #decide} 是否给出 `INTERRUPT`）。 */
@@ -182,6 +199,52 @@ public final class SurvivalSystem {
             case FREEZING -> "survival_freezing";
             default -> "";
         };
+    }
+
+    /** 上浮扫描的上限（水柱再深也不该扫全高）。 */
+    private static final int FLOAT_SCAN_MAX = 48;
+
+    /** "浮过一次仍失败"的封禁时长（D-237）：这段时间内同一场溺水不再反复试，直接放弃任务。 */
+    private static final int FLOAT_RETRY_BLOCK_TICKS = 1200;
+
+    /**
+     * **浮得上去吗**（D-237）：从脚位往上找，先撞到"能穿过的非流体格"（空气等）⇒ 能浮上去；
+     * 先撞到实体方块 ⇒ 浮到顶也还在水里 ⇒ 浮不上去（封闭水牢就是这一种）。
+     * 顺带排除**上方是岩浆**的情形：那不是上浮，是把自己送进岩浆。
+     */
+    public static boolean canFloatUp(ServerPlayer bot) {
+        ServerLevel level = bot.serverLevel();
+        BlockPos foot = footCell(bot);
+        if (!bot.isInWater() && !level.getFluidState(foot).is(net.minecraft.tags.FluidTags.WATER)) {
+            return false;
+        }
+        for (int dy = 0; dy <= FLOAT_SCAN_MAX; dy++) {
+            BlockPos pos = foot.above(dy);
+            if (!level.hasChunkAt(pos)) {
+                return false;
+            }
+            if (level.getFluidState(pos).is(net.minecraft.tags.FluidTags.LAVA)) {
+                return false;                       // 头顶是岩浆：别浮
+            }
+            if (!level.getFluidState(pos).isEmpty()) {
+                continue;                           // 还在水里，继续往上找水面
+            }
+            return com.dddgn.alice.pathing.MovementHelper.canWalkThrough(level, pos);
+        }
+        return false;
+    }
+
+    /** **上浮自救失败**的登记（D-237）：由 {@code SurvivalFloatTask} 在失败时调用。 */
+    public static void markFloatFailed(ServerPlayer bot) {
+        Monitor monitor = monitor(bot);
+        monitor.floatBlockedUntil = bot.level().getGameTime() + FLOAT_RETRY_BLOCK_TICKS;
+        BotLog.warn("[Survival] 上浮自救失败 ⇒ 接下来 {} tick 内同一场溺水不再尝试上浮（改为放弃任务）",
+                FLOAT_RETRY_BLOCK_TICKS);
+    }
+
+    /** 清掉"上浮失败"的封禁（夹具收尾用：别把封禁留给后续步骤）。 */
+    public static void clearFloatFailures(ServerPlayer bot) {
+        monitor(bot).floatBlockedUntil = 0L;
     }
 
     /**
@@ -260,6 +323,10 @@ public final class SurvivalSystem {
         return com.dddgn.alice.pathing.MovementHelper.canWalkOn(level, foot);
     }
 
+    private static Monitor monitor(ServerPlayer bot) {
+        return MONITORS.computeIfAbsent(bot.getUUID(), ignored -> new Monitor());
+    }
+
     private static final class Monitor {
         private HazardType previous = HazardType.NONE;
         private int duration;
@@ -267,6 +334,8 @@ public final class SurvivalSystem {
         private int logCooldown;
         private HazardState lastState;
         private long lastTick = Long.MIN_VALUE;
+        /** D-237：在这个 gameTime 之前，同一场溺水不再尝试上浮（浮过了但没成功）。 */
+        private long floatBlockedUntil;
 
         private HazardState observe(ServerPlayer bot) {
             HazardType current = classify(bot);

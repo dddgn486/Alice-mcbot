@@ -66,7 +66,7 @@ public class SurvivalExitCheckTask implements Task {
     /** 全冻（140 tick）之后再等这么久，保证"每 40 tick 1 点"的冻结伤害至少来过一次。 */
     private static final int FREEZE_DAMAGE_WAIT_TICKS = 45;
 
-    private enum Phase { SETUP, TABLE, WALK, SEALED_BUILD, SEALED_CHECK, FOOT_CELL, SEALED_REAL, HEALTH, AIR, SNOW, DEEP_WATER, DONE }
+    private enum Phase { SETUP, TABLE, WALK, SEALED_BUILD, SEALED_CHECK, FOOT_CELL, SEALED_REAL, HEALTH, AIR, SNOW, DEEP_WATER, OPEN_WATER, DONE }
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -132,6 +132,7 @@ public class SurvivalExitCheckTask implements Task {
             case AIR -> airPhase();
             case SNOW -> snowPhase();
             case DEEP_WATER -> deepWaterPhase();
+            case OPEN_WATER -> openWaterPhase();
             case DONE -> finish();
             default -> {
             }
@@ -530,6 +531,8 @@ public class SurvivalExitCheckTask implements Task {
             check("对照：涉水仍不否决（走过水面是正常动作）",
                     SurvivalSystem.decide(bot, synthetic(HazardType.WATER_CONTACT, 99))
                             == SurvivalSystem.Verdict.IGNORE);
+            check("封闭水牢里**浮不上去**（canFloatUp=false ⇒ 走不了自救那条路）",
+                    !SurvivalSystem.canFloatUp(bot));
             BotLog.info("[Survival] 水牢判定：hazard={} exit_none=true drowning_verdict={}",
                     inWater.type(), SurvivalSystem.decide(bot, synthetic(HazardType.LOW_AIR, 99)));
             return;
@@ -555,10 +558,111 @@ public class SurvivalExitCheckTask implements Task {
                     "minecraft:air", 4900, "水牢拆除（石壳+水全部清掉）");
             normalizeVitals();
             BotLog.info("[Survival] 水牢已拆、bot 回平台；本相位完");
+            advance(Phase.OPEN_WATER);
+            return;
+        }
+    }
+
+    /**
+     * **开阔水面 + 无落点 ⇒ 上浮自救**（D-237，用户批准的"乙"）：21×21 水池（水面之上是天空），
+     * 于是"浮得上去"成立、而半径 8 内**没有干燥落点**（池壁在 ±9 之外）⇒ 判决应是 `FLOAT_UP`，
+     * 而不是"放弃任务"。
+     *
+     * <p>**端到端**：夹具**真的驱动** {@link com.dddgn.alice.task.SurvivalFloatTask}（按住跳跃上浮），
+     * 断言它到 `DONE`、眼睛离开水面、空气回到安全线。空气刻意设成 **5（>0）** 而不是 0：
+     * 这样 monitor 看到的仍是 `WATER_CONTACT`（IGNORE）⇒ 不会从旁边插一手打死电池
+     * （真溺水 ≤0 的判决只做**纯判据**断言，见 D-236/D-237 的结构性限制）。
+     */
+    private void openWaterPhase() {
+        if (phaseTicks == 1) {
+            normalizeVitals();
+            BotLog.info("[Survival] 自建开阔水池（{} 为心，21×21、水 4 深、上方露天）；期望："
+                    + "浮得上去 + 半径 8 无干燥落点 ⇒ 判决 FLOAT_UP，并真的浮上去", desc(OPEN_CENTER));
+            fillBlocks(OPEN_CENTER.offset(-10, 0, -10), OPEN_CENTER.offset(10, 0, 10),
+                    "minecraft:stone", 400, "水池底（21×21）");
+            fillBlocks(OPEN_CENTER.offset(-11, 1, -11), OPEN_CENTER.offset(11, 5, 11),
+                    "minecraft:stone", 1200, "水池外壁（hollow，把水兜住）");
+            fillBlocks(OPEN_CENTER.offset(-10, 1, -10), OPEN_CENTER.offset(10, 4, 10),
+                    "minecraft:water", 1700, "水池注水（21×21×4）");
+            // **必须把天花板拆掉**：hollow 的上盖会让"池顶那一格"成为半径 4 内可站的落点
+            // ⇒ 判决变成 INTERRUPT（而不是 FLOAT_UP），而那条逃生又**走不到**（实测：2026-09-15
+            // `refuge=240,105,306` ⇒ `WalkToTask … PLAN_UNREACHABLE` ⇒ 真否决打死电池）。
+            // 顺带这也是"`isRefuge` 不查可达性"的第一个实证案例（台账 §5.11）。
+            fillBlocks(OPEN_CENTER.offset(-10, 5, -10), OPEN_CENTER.offset(10, 5, 10),
+                    "minecraft:air", 400, "打开池顶（去掉天花板 ⇒ 露天水面）");
+            return;
+        }
+        if (phaseTicks == 2) {
+            bot.setAirSupply(300);
+            teleport(OPEN_CENTER.above());
+            BotLog.info("[Survival] 已把 bot 放进开阔水池 {}（inWater={} 眼睛在水里={}）",
+                    desc(OPEN_CENTER.above()), bot.isInWater(), bot.isEyeInFluid(net.minecraft.tags.FluidTags.WATER));
+            return;
+        }
+        if (phaseTicks == 4) {
+            check("开阔水面：浮得上去（canFloatUp=true）", SurvivalSystem.canFloatUp(bot));
+            check("开阔水面：半径 8 内**无**干燥落点（前提自证 ⇒ 走的是自救分支而非 WalkTo）",
+                    !SurvivalSystem.hasRefuge(bot));
+            check("溺水 + 无落点 + 浮得上去 ⇒ FLOAT_UP（先自救，不是放弃任务）",
+                    SurvivalSystem.decide(bot, synthetic(HazardType.LOW_AIR, 99))
+                            == SurvivalSystem.Verdict.FLOAT_UP);
+            // 端到端：把空气压到 5（>0 ⇒ monitor 仍判 WATER_CONTACT ⇒ 不会插手），真驱动自救任务。
+            bot.setAirSupply(5);
+            eyeUnderWaterBefore = bot.isEyeInFluid(net.minecraft.tags.FluidTags.WATER);
+            floatTask = new com.dddgn.alice.task.SurvivalFloatTask(bot);
+            BotLog.info("[Survival] 端到端上浮自救：air=5 眼睛在水里={} ⇒ 驱动 SurvivalFloatTask",
+                    eyeUnderWaterBefore);
+            return;
+        }
+        if (phaseTicks >= 5 && floatTask != null) {
+            // ⚠️ **头还在水里时把空气钉在 ≥1**：否则它每 tick 掉 1，几 tick 就到 0 ⇒ monitor 判 `LOW_AIR`
+            // ⇒ 真的行使否决权（实测 2026-09-15：整轮电池被 `SURVIVAL_INTERRUPTED` 打死、`verdict=no_verdict`）。
+            // 头一出水就交给原版自然回升（4/tick）⇒ 自救任务的 DONE 判据（air ≥ 100）才有意义。
+            if (bot.isEyeInFluid(net.minecraft.tags.FluidTags.WATER)) {
+                // 钳到 **≥2**：monitor 在 tick 开头读数，而原版在同一 tick 里再扣 1 ⇒ 钳 1 会被扣成 0
+                // ⇒ 下一 tick monitor 判 LOW_AIR ⇒ 真的行使否决权（实测：电池本体被打成 SURVIVAL_INTERRUPTED）。
+                bot.setAirSupply(Math.max(2, bot.getAirSupply()));
+            }
+            com.dddgn.alice.task.Task.Status status = floatTask.tick();
+            if (status == com.dddgn.alice.task.Task.Status.RUNNING && phaseTicks - 4 < FLOAT_E2E_BUDGET) {
+                return;
+            }
+            boolean finished = status != com.dddgn.alice.task.Task.Status.RUNNING;
+            check("端到端上浮自救在预算内跑完（" + (phaseTicks - 4) + " tick / 预算 " + FLOAT_E2E_BUDGET + "）",
+                    finished);
+            check("端到端上浮自救：任务到达 DONE（空气复原；实际 " + status + " " + floatTask.terminalReason() + "）",
+                    status == com.dddgn.alice.task.Task.Status.DONE);
+            check("端到端上浮自救：眼睛真的离开了水面（自救前在水里=" + eyeUnderWaterBefore + "，现在="
+                            + bot.isEyeInFluid(net.minecraft.tags.FluidTags.WATER) + "）",
+                    !bot.isEyeInFluid(net.minecraft.tags.FluidTags.WATER));
+            check("端到端上浮自救：空气回到安全线（实际 " + bot.getAirSupply() + "）",
+                    bot.getAirSupply() >= com.dddgn.alice.task.SurvivalFloatTask.AIR_SAFE);
+            // ⚠️ **必须置空**：否则下一 tick 会再次进这个分支、重复断言、永不进收尾
+            // （2026-09-15 实测：`TIMEOUT ticks=901`，同一族坑的第三次 —— 断言后相位必须真的前进）。
+            floatTask = null;
+            return;
+        }
+        if (phaseTicks >= 5) {
+            // 收尾：**先**传送回平台（否则池子一拆就从高空摔下去），再拆池子 + 复位。
+            teleport(SurvivalCourseAnchor.PLATFORM_FOOT);
+            SurvivalSystem.clearFloatFailures(bot);
+            fillBlocks(OPEN_CENTER.offset(-11, 0, -11), OPEN_CENTER.offset(11, 5, 11),
+                    "minecraft:air", 2500, "水池拆除（底+壁+水全部清掉）");
+            normalizeVitals();
+            BotLog.info("[Survival] 水池已拆、bot 回平台；本相位完");
             advance(Phase.DONE);
             return;
         }
     }
+
+    /** 开阔水池的中心（池底所在层；bot 站其上一格）。 */
+    private static final BlockPos OPEN_CENTER = new BlockPos(240, 99, 306);
+
+    /** 端到端上浮自救的预算（tick）。 */
+    private static final int FLOAT_E2E_BUDGET = 150;
+
+    private com.dddgn.alice.task.SurvivalFloatTask floatTask;
+    private boolean eyeUnderWaterBefore;
 
     /** 封闭水牢的几何中心（高空，不与任何场景/地形相交）。 */
     private static final BlockPos DEEP_CENTER = new BlockPos(206, 100, 306);
