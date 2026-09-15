@@ -239,7 +239,8 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 - **客户端**：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - **镜像 / 同步**：`./tools/mirror-windows-workspace.sh`；
   `./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`。
-- **本断点已同步的 jar**：`8e8ae5a3f5ac941a6daf03626a03fc246827d4631a1473d2c7868f6ad0681947`（源 = `build/libs`，2026-09-15 23:2x 同步到客户端 `mods/`；**含 D-226…D-234 + D-235（持久化实验开关）**）
+- **本断点已同步的 jar**：`63f84e7719b8ab0bd2ad556a4222aed27aa7e04996359d1f624b29be9aba8ef0`（源 = `build/libs`，2026-09-15 23:4x 同步到客户端 `mods/`；**含 D-226…D-235 + D-236（溺水 `ABANDON_NO_EXIT` + 深水判据）**）
+- 上一个 jar（23:2x，含 D-235）：`8e8ae5a3f5ac941a6daf03626a03fc246827d4631a1473d2c7868f6ad0681947`
 - 上一个 jar（23:1x，含 D-234）：`30ff9b8712f9525945d3e383209dd059b8370a2e0b9b58a8837e42a5951c7fb6`
 - 上一个 jar（22:4x）：`cd9dab70db40a248cd30885edd89dc2f90b194b7f4a52aae947e8772d5382b87`
 - 上一个 jar（22:33，含 M3b）：`eefbea3a2f18d271c34d69c2d6fa993458c037b3075abda7348036c817a586d9`

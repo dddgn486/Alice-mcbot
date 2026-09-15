@@ -1671,3 +1671,28 @@ C3 之后它对 `NOT_MOVED` 已无影响，故只登记。
    给 bot 一瓶短时效果，看它是否按时消失）。
 6. 本次实测日志里有**几条 LLM 请求超时**（`HttpTimeoutException`/`Connection reset`）⇒ 那几次决策请求没拿到回复；
    与本次改动无关，但会影响真人测试时"bot 反应慢/不反应"的观感，建议网络侧留意。
+
+---
+
+## §5.11 水里逃生：**不支持**（2026-09-15 用户提问逼出的三重缺口；D-236 已登记）
+
+**用户问题**：没有游泳 Movement，水里逃生是怎么处理的？**答（事实 + 代码位置见 D-236）**：
+
+1. **内核连"进水"都规划不出**：`MovementHelper.java:52/62/179/196`（流体源格不算支撑 ⇒ 水里那格永不是合法脚位）、
+   `FallExecution.java:186`（落点及上一格必须无流体）⇒ **没有任何含水路线**。相对 Baritone 是**两处偏离**
+   （Baritone `MovementTraverse.java:88-96` 有 `waterWalkSpeed` 水走分支、`MovementFall.java:102` 认得出落水），
+   已补登记进 `alice-baritone-kernel-alignment` 的偏离表；`MovementCapabilities.canEnterFluid` 全库无读者。
+2. **维生侧原本"静默淹死"**：`LOW_AIR` 与着火/冻结同档 ⇒ 无落点 ⇒ `HOLD_NO_EXIT`（不否决、继续干活）。
+   **已修（D-236）**：新增 `ABANDON_NO_EXIT` —— 溺水 + 无落点 ⇒ **放弃任务**（干净收尾 + 大声登记 +
+   `GoalDirector.onSurvivalInterrupt`），不再静默跑到死；着火/冻结仍 `HOLD_NO_EXIT`（可能自愈）。
+3. **判据**：既有 BASELINE 步 `survival_exit` 新增 `DEEP_WATER` 相位（自建封闭水牢 ⇒ 半径 8 无干燥落点）：
+   `WATER_CONTACT`（空气够）→ **`LOW_AIR`（空气点 0 的 1 tick，真水里被认出来）** → `ABANDON_NO_EXIT` + 判定码 →
+   对照（着火/涉水语义不变）。**checks 55 → 65**；反向对照两条新判据精确变红。
+   ⚠️ `BotManager` 那条"放弃任务"的**接线在电池里追不到**（放弃 = 结束会话任务 = 打死电池）⇒ 纯判据 + 编译级；
+   端到端要真人（与 §5.9 ③ 同款结构性限制）。
+
+**已知限制（如实登记，属"丁"）**：**水里逃生 = 不支持**。真实行为：浅水/岸边 8 格内有干燥落点 ⇒ 走过去
+（`isRefuge` **不检查可达性**，所以可能"派了活但走不到"）；**深水浮着 ⇒ 放弃任务**；只涉水 ⇒ 不动作。
+
+**复核触发（要不要做"乙"上浮 / "丙"按 Baritone 补内核）**：① 真实出现水下作业/水下目标；
+② 出现"bot 掉进深水后放弃任务"的真实案例；③ 真要补时，先做 Baritone 两处水位分支的逐行对照 + 成本模型评估。

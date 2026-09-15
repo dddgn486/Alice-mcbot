@@ -42,6 +42,7 @@ description: Alice 是 Baritone 兼容内核——非 Alice 目标差异部分�
 | `maxUpStep = 0.6` | 物理对齐 | D-025；改物理对齐，而非给 Baritone 逻辑打补丁 |
 | 多段容差 COLUMN / EXACT（D-027） | 目标差异 | Alice 分段验收需要；最终段必须精确 |
 | 任务级 600 tick 兜底 | 安全网 | 段超时为主，兜底仅防会话异常 |
+| **水位处理缺失**（D-236，2026-09-15 登记） | **能力缺口** | Baritone **有**两条水位分支：`MovementTraverse.java:88-96`（水里走用 `waterWalkSpeed`/`walkOnWaterOnePenalty`，能穿水）、`MovementFall.java:102`（落点是水 ⇒ 水不摔伤，:103-109 还能放水桶 MLG）。**Alice 两处都没有**：`MovementHelper.java:52/62/179/196`（流体源不算支撑 ⇒ 进水格不是脚位）、`FallExecution.java:186`（落点必须无流体）⇒ **规划不出任何含水路线**，也就没有"从水里出来"的能力（只有"溺水+无落点 ⇒ 放弃任务"，D-236）。另：`MovementCapabilities.canEnterFluid` 全仓无读者。**复核触发**：真出现水下作业/掉进深水的真实案例时，先做这两处逐行对照 + 成本模型评估 |
 
 ## 验证要求
 

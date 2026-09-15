@@ -25,7 +25,8 @@ import java.util.List;
  * <ol>
  *   <li>**决策表**（{@link SurvivalSystem#decide}）：硬危险无条件否决；涉水/无危险不否决；
  *       软危险**宽限期内**不否决、过宽限**且有出口**才否决；理由码进 `survival_*` 词汇表；</li>
- *   <li>**封闭场景（无出口）**：软危险 ⇒ {@code HOLD_NO_EXIT}（**不否决**）而硬危险**仍然**否决；</li>
+ *   <li>**封闭场景（无出口）**：着火/冻结 ⇒ {@code HOLD_NO_EXIT}（**不否决**，可能自愈）、
+ *       **溺水 ⇒ {@code ABANDON_NO_EXIT}（放弃任务，D-236：无出口时不动手必死）**，而硬危险**仍然**否决；</li>
  *   <li>**真实软危险端到端**：在封闭场景里真的点着 bot ⇒ 真的不否决（否则整轮电池会被维生打断，
  *       代码根本走不到下一行）+ 事件环里确实有 `exit=none decision=continue` 这条事实；</li>
  *   <li>**出口能用**：拿维生给的真实落点起一个真实 {@link SurvivalExitTask}，必须**走到**
@@ -65,7 +66,7 @@ public class SurvivalExitCheckTask implements Task {
     /** 全冻（140 tick）之后再等这么久，保证"每 40 tick 1 点"的冻结伤害至少来过一次。 */
     private static final int FREEZE_DAMAGE_WAIT_TICKS = 45;
 
-    private enum Phase { SETUP, TABLE, WALK, SEALED_BUILD, SEALED_CHECK, FOOT_CELL, SEALED_REAL, HEALTH, AIR, SNOW, DONE }
+    private enum Phase { SETUP, TABLE, WALK, SEALED_BUILD, SEALED_CHECK, FOOT_CELL, SEALED_REAL, HEALTH, AIR, SNOW, DEEP_WATER, DONE }
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -130,6 +131,7 @@ public class SurvivalExitCheckTask implements Task {
             case HEALTH -> healthPhase();
             case AIR -> airPhase();
             case SNOW -> snowPhase();
+            case DEEP_WATER -> deepWaterPhase();
             case DONE -> finish();
             default -> {
             }
@@ -302,11 +304,13 @@ public class SurvivalExitCheckTask implements Task {
                 SurvivalSystem.current(bot).type() == HazardType.NONE);
         check("封闭场景必须真的没有落点（前提自证；实际 "
                 + (foundHere == null ? "无" : foundHere.toShortString()) + "）", foundHere == null);
-        check("软危险 + 无出口 ⇒ HOLD_NO_EXIT（不否决）· 溺水（实际 "
+        // D-236（2026-09-15）：**溺水单独一档** —— 无出口时它不是"不否决"，而是"放弃任务"
+        // （着火/冻结无出口仍可能自愈 ⇒ 保持 HOLD_NO_EXIT，见下两条）。
+        check("溺水 + 无出口 ⇒ ABANDON_NO_EXIT（放弃任务，不是不否决）· 溺水（实际 "
                         + SurvivalSystem.decide(bot, synthetic(HazardType.LOW_AIR,
                         SurvivalSystem.SOFT_HAZARD_GRACE_TICKS)) + "）",
                 SurvivalSystem.decide(bot, synthetic(HazardType.LOW_AIR, SurvivalSystem.SOFT_HAZARD_GRACE_TICKS))
-                        == SurvivalSystem.Verdict.HOLD_NO_EXIT);
+                        == SurvivalSystem.Verdict.ABANDON_NO_EXIT);
         check("软危险 + 无出口 ⇒ HOLD_NO_EXIT（不否决）· 着火（实际 "
                         + SurvivalSystem.decide(bot, synthetic(HazardType.ON_FIRE,
                         SurvivalSystem.SOFT_HAZARD_GRACE_TICKS)) + "）",
@@ -479,6 +483,86 @@ public class SurvivalExitCheckTask implements Task {
      * 因此这里断言的重点是"机理活着 + 危险被判出来 + 无出口时不乱否决"，而不是"被否决"。
      * （"有出口 ⇒ 否决"由决策表的合成行覆盖；真人侧的可见入口见 `alice:survival_exit_check` 的冻结模式。）
      */
+    /**
+     * **深水 + 无落点**（D-236，2026-09-15）：把 bot 放进一座**封闭水牢**（17³ 石壳 + 内部全为水），
+     * 于是半径 8 格内**没有任何干燥可站的格子** ⇒ 这是"溺水且无处可逃"的确定性构造。
+     *
+     * <p>为什么必须做这一相位：`LOW_AIR`（溺水）此前和 `ON_FIRE`/`FREEZING` 一样走"无出口 ⇒ 不否决"，
+     * 但**溺水不动手就一定死**（原版不按跳跃键只缓慢下沉）⇒ 继续跑 = 死在作业中途。
+     * 现在 `decide` 对它返回新判决 `ABANDON_NO_EXIT`（放弃任务、干净收尾）⇒ 这里把这条钉住。
+     *
+     * <p>⚠️ 两条纪律：① **先建场景、再传送**（D-229 的教训）；② **拆场景前先把 bot 传送回平台** ——
+     * 否则水牢一拆，bot 从 y≈100 直落 64 摔死。③ 空气只**点一下** 0（1 tick，宽限期 10 tick 内立刻恢复），
+     * 免得 monitor 真的走到"放弃任务" ⇒ 打死整轮电池。
+     */
+    private void deepWaterPhase() {
+        if (phaseTicks == 1) {
+            normalizeVitals();
+            BotLog.info("[Survival] 自建封闭水牢（{} 为心，17³ 石壳 hollow + 内部水）；期望："
+                    + "半径 8 内无干燥落点 ⇒ 溺水判决 = ABANDON_NO_EXIT（放弃任务）", desc(DEEP_CENTER));
+            fillBlocks(DEEP_CENTER.offset(-8, -8, -8), DEEP_CENTER.offset(8, 8, 8),
+                    "minecraft:stone", 1500, "水牢石壳（17³ 实心；内部随后注水）");
+            fillBlocks(DEEP_CENTER.offset(-7, -7, -7), DEEP_CENTER.offset(7, 7, 7),
+                    "minecraft:water", 3300, "水牢内部注水");
+            return;
+        }
+        if (phaseTicks == 2) {
+            bot.setAirSupply(300);      // 先把空气归到基线，后面才好"点一下 0"
+            teleport(DEEP_CENTER);
+            BotLog.info("[Survival] 已把 bot 放进水牢中心 {}（inWater={}）", desc(DEEP_CENTER), bot.isInWater());
+            return;
+        }
+        if (phaseTicks == 4) {
+            HazardState inWater = SurvivalSystem.tick(bot);
+            check("深水里 hazard 分类 = WATER_CONTACT（空气还够）",
+                    inWater.type() == HazardType.WATER_CONTACT);
+            check("水牢几何自证：半径 8 格内**无**干燥可站落点",
+                    !SurvivalSystem.hasRefuge(bot));
+            check("溺水 + 无落点 ⇒ 放弃任务（ABANDON_NO_EXIT，不是「不否决」）",
+                    SurvivalSystem.decide(bot, synthetic(HazardType.LOW_AIR, 99))
+                            == SurvivalSystem.Verdict.ABANDON_NO_EXIT);
+            check("放弃判决带自己的判定码（survival_drowning_no_exit）",
+                    "survival_drowning_no_exit".equals(
+                            SurvivalSystem.abandonReason(synthetic(HazardType.LOW_AIR, 99))));
+            check("对照：着火 + 无落点仍是「不否决」（可能自愈，D-226 语义不变）",
+                    SurvivalSystem.decide(bot, synthetic(HazardType.ON_FIRE, 99))
+                            == SurvivalSystem.Verdict.HOLD_NO_EXIT);
+            check("对照：涉水仍不否决（走过水面是正常动作）",
+                    SurvivalSystem.decide(bot, synthetic(HazardType.WATER_CONTACT, 99))
+                            == SurvivalSystem.Verdict.IGNORE);
+            BotLog.info("[Survival] 水牢判定：hazard={} exit_none=true drowning_verdict={}",
+                    inWater.type(), SurvivalSystem.decide(bot, synthetic(HazardType.LOW_AIR, 99)));
+            return;
+        }
+        if (phaseTicks == 5) {
+            bot.setAirSupply(0);        // 只点一下：下一个 tick 断言完立刻恢复（宽限 10 tick 内）
+            BotLog.info("[Survival] 把空气点成 0（1 tick）⇒ 期望 monitor 把**溺水**认出来（不是涉水）");
+            return;
+        }
+        if (phaseTicks == 6) {
+            HazardState drowning = SurvivalSystem.tick(bot);
+            bot.setAirSupply(300);      // **立刻恢复**：别让 duration 走到宽限期（那会真的放弃任务、打死电池）
+            check("空气 0 ⇒ hazard 分类 = LOW_AIR（溺水排在涉水之前，没被 WATER_CONTACT 盖掉）",
+                    drowning.type() == HazardType.LOW_AIR);
+            BotLog.info("[Survival] 溺水分类实测：hazard={} duration={} air={}（随后立即把空气恢复）",
+                    drowning.type(), drowning.durationTicks(), drowning.airSupply());
+            return;
+        }
+        if (phaseTicks >= 7) {
+            // ⚠️ 顺序：**先**传送回平台，**再**拆水牢（否则从 y≈100 直落 64）。
+            teleport(SurvivalCourseAnchor.PLATFORM_FOOT);
+            fillBlocks(DEEP_CENTER.offset(-8, -8, -8), DEEP_CENTER.offset(8, 8, 8),
+                    "minecraft:air", 4900, "水牢拆除（石壳+水全部清掉）");
+            normalizeVitals();
+            BotLog.info("[Survival] 水牢已拆、bot 回平台；本相位完");
+            advance(Phase.DONE);
+            return;
+        }
+    }
+
+    /** 封闭水牢的几何中心（高空，不与任何场景/地形相交）。 */
+    private static final BlockPos DEEP_CENTER = new BlockPos(206, 100, 306);
+
     private void snowPhase() {
         if (phaseTicks == 1) {
             teleport(SurvivalCourseAnchor.SEALED_FOOT);      // 先传送：区块加载是 /fill 生效的前提
@@ -551,7 +635,7 @@ public class SurvivalExitCheckTask implements Task {
         bot.setTicksFrozen(0);
         BotLog.info("[Survival] 拆掉细雪并清零（拆前 ticksFrozen={}，清零后={}）；本相位完", before,
                 bot.getTicksFrozen());
-        advance(Phase.DONE);
+        advance(Phase.DEEP_WATER);
     }
 
     /** 掉血可见（`previousHealth` 的第一个读者）+ 冷却期内不刷屏。 */

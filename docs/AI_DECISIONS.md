@@ -9740,3 +9740,50 @@ lastFailure=no_suitable_tool@EVALUATING`）/ 反向 `FAIL` ✅；CORE `(35/35) t
 （结清行的 `released` 计数、或再启动一次的对比）。这与今天前几次是同一族病：**证据口径不当时，数字会骗人**。
 （台账 §5.9 的"持久化"待办据此关闭；DB 里要不要真的区分 `transitions[].state` 与 `entry.state` 的观测便利性
 不属本轮，未动代码。）
+
+---
+
+### D-236：溺水不能"静默继续"—— `ABANDON_NO_EXIT` + 封闭水牢判据；水里逃生能力缺口**登记**（2026-09-15）
+
+**用户提问逼出来的事实**（"没有游泳 Movement，水里逃生怎么处理？"）：查完是**三重缺口**，不是少一个 Movement：
+
+**① 内核连"进水"都规划不出来**（Alice 相对 Baritone 的**两处偏离**，此前**未登记** ⇒ 本节补登记）：
+| | Baritone | Alice |
+|---|---|---|
+| 走水 | `MovementTraverse.java:88-96`：水里走有专门成本 `context.waterWalkSpeed`（+ `walkOnWaterOnePenalty`）⇒ **能穿水** | `pathing/MovementHelper.java:52/62/179/196`：**流体源格不算支撑** ⇒ 水里那格永不是合法脚位 ⇒ `TRAVERSE` 进不了水 |
+| 落水 | `MovementFall.java:102`：`isWater = destState.getFluidState().getType() instanceof WaterFluid` ⇒ **认得出落点是水**（水不摔伤，:103-109 还有放水桶 MLG） | `pathing/core/FallExecution.java:186`：落点及上一格**必须无流体** ⇒ 计划里不会有"跳进水里" |
+| 附带 | —— | `pathing/core/MovementCapabilities.java:17` 的 `canEnterFluid` **全仓无读者**（装饰字段，`pureTraversal` 还把它设成 false） |
+⇒ 结论：**今天没有任何"从水里出来"的能力**（没有上浮/swim，也规划不出一条含水路线）。
+
+**② 维生侧：溺水此前与"着火/冻结"同档 ⇒ 无出口时不否决 ⇒ 静默淹死**。修法（本轮做的，用户批准"甲+丁"）：
+- `SurvivalSystem.Verdict` 新增 **`ABANDON_NO_EXIT`**；`decide()`：软危险无落点时
+  **`LOW_AIR` ⇒ `ABANDON_NO_EXIT`**（不动手必死），`ON_FIRE`/`FREEZING` **仍 `HOLD_NO_EXIT`**（可能自愈，D-226/D-229 语义不变）。
+- 新增 `abandonReason(...)` = `survival_drowning_no_exit`（与 `interruptionReason` 分开：一个是"起了逃生任务"，一个是"连逃都没地方逃"）。
+- `BotManager`：`ABANDON_NO_EXIT` ⇒ **结束当前任务**（`SURVIVAL_INTERRUPTED` + 大声 warn + `DANGER` 事件 + `GoalDirector.onSurvivalInterrupt`），
+  **不起逃生任务**（维生刚说过半径内没有落点）。
+- **判据（零新增电池项，挂既有 BASELINE 步 `survival_exit`）**：新增相位 `DEEP_WATER` 自建**封闭水牢**
+  （17³ 实心石壳 + 内部注水，中心 `206,100,306`）⇒ 半径 8 内**无干燥可站落点**（几何自证）
+  ⇒ 断言：① 空气够时 `hazard=WATER_CONTACT`；② **空气点成 0 ⇒ `hazard=LOW_AIR`**（溺水排在涉水之前，
+  真水里被认出来 ⇒ 顺带回答"溺水会不会被涉水盖掉"）；③ `decide(LOW_AIR,99) == ABANDON_NO_EXIT` + 判定码；
+  ④ 对照：`ON_FIRE` 无落点仍 `HOLD_NO_EXIT`、`WATER_CONTACT` 仍 `IGNORE`。**checks 55 → 65**。
+  **反向对照已做**：把溺水那一档改回 `HOLD_NO_EXIT` ⇒ 两条新判据精确变红（`… 实际 HOLD_NO_EXIT`）✅
+- ⚠️ **结构性限制（如实记）**：`BotManager` 那条"放弃任务"的**接线**在电池里**不可能端到端触发**
+  （放弃 = 结束会话任务 = 打死整轮电池）⇒ 它只有**纯判据 + 编译级**验证，端到端要真人（与 §5.9 ③ 同款限制）。
+
+**③ 登记为已知限制（丁）**：**水里逃生 = 不支持**。真实行为矩阵：
+| 情形 | 今天的行为 |
+|---|---|
+| 浅水/岸边 8 格内有干燥可站落点 | 溺水过宽限 ⇒ `INTERRUPT` ⇒ `SurvivalExitTask`（= 普通 `WalkToTask`）**走过去**（能否走到取决于寻路；`isRefuge` **不检查可达性**） |
+| **深水里浮着（脚下无支撑）** | 溺水过宽限 ⇒ **`ABANDON_NO_EXIT` ⇒ 放弃任务**（D-236 前是"静默继续到淹死"） |
+| 只是涉水（空气没耗尽） | `WATER_CONTACT` ⇒ `IGNORE`（D-226 已验收语义：不打断长作业） |
+
+**复核触发（将来要不要做"乙/丙"）**：① 真实存档里出现水下作业/水下目标（采矿、沉船、海底神殿）；
+② 出现"bot 掉进深水后放弃任务"的真实案例；③ 决定补 `MovementTraverse` 水分支时 —— 那时先做 Baritone
+`MovementTraverse`/`MovementFall` 的**逐行对照 + 成本模型影响评估**，再决定是否补（**不**先做上浮补丁）。
+
+**⚠️ 本轮的方法教训（差点给误诊留 workaround）**：新相位第一版跑出 `fill=0`、水牢里 `hazard=NONE`，
+**现象完全是"D-229 同款：`/fill` 落在未加载区块"** ⇒ 我顺手加了 `/forceload`。真因其实是
+**`phaseTicks++` 发生在 tick 开头**（首 tick = 1）⇒ 我的 `if (phaseTicks == 0)` 建场景分支**从来没跑**，
+水牢压根没建。修法是整体后移一位；`/forceload` 返回 0（区块本来就在）⇒ **已删除**，
+不留"给误诊兜底"的代码。教训：`fill=0` 有两种成因（区块未加载 / **命令压根没执行**），
+**先把"命令有没有执行"读出来再动手**。

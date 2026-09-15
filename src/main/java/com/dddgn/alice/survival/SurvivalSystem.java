@@ -74,7 +74,17 @@ public final class SurvivalSystem {
         /** 行使否决权：中断当前任务，并由 `SurvivalExitTask` 走去逃生落点。 */
         INTERRUPT,
         /** **软危险 + 半径内无出口 ⇒ 不否决**（登记一次后让任务继续）。 */
-        HOLD_NO_EXIT
+        HOLD_NO_EXIT,
+        /**
+         * **溺水 + 半径内无出口 ⇒ 放弃当前任务**（D-236，2026-09-15）。
+         *
+         * <p>为什么溺水单独一档：`ON_FIRE`（会自己烧完）与 `FREEZING`（离开细雪就恢复）在没有出口时
+         * **仍可能自愈** ⇒ "不否决、让任务继续"是合理的取舍（D-226/D-229 已验收）。而
+         * **`LOW_AIR` 在水里没有出口时不动手就一定死**（原版：不按跳跃键只会缓慢下沉，空气归零后
+         * 20 tick 开始每 20 tick 掉血）⇒ 继续跑 = 死在作业中途（任务半途而废、现场留着临时方块/账面）。
+         * **放弃 = 干净收尾 + 大声登记**，不是"救活"（Alice 今天没有游泳/上浮能力，见台账 §5.10 的登记）。
+         */
+        ABANDON_NO_EXIT
     }
 
     /** **硬危险**：继续做任何事都只会更糟 ⇒ 无条件否决（不要求有出口）。 */
@@ -130,7 +140,11 @@ public final class SurvivalSystem {
         if (state.durationTicks() < SOFT_HAZARD_GRACE_TICKS) {
             return Verdict.IGNORE;
         }
-        return hasRefuge(bot) ? Verdict.INTERRUPT : Verdict.HOLD_NO_EXIT;
+        if (hasRefuge(bot)) {
+            return Verdict.INTERRUPT;
+        }
+        // 无出口：溺水必死 ⇒ 放弃；着火/冻结仍可能自愈 ⇒ 不否决（让任务继续）。
+        return state.type() == HazardType.LOW_AIR ? Verdict.ABANDON_NO_EXIT : Verdict.HOLD_NO_EXIT;
     }
 
     /** 否决是否成立（保留旧名，语义 = {@link #decide} 是否给出 `INTERRUPT`）。 */
@@ -168,6 +182,14 @@ public final class SurvivalSystem {
             case FREEZING -> "survival_freezing";
             default -> "";
         };
+    }
+
+    /**
+     * **放弃任务**时用的判定码（D-236）：与 {@link #interruptionReason} 分开 —— 后者是"起了逃生任务"的
+     * 理由（有出口），这里是"连逃都没地方逃、只好收手"的理由，读日志时不该混为一谈。
+     */
+    public static String abandonReason(HazardState state) {
+        return state.type() == HazardType.LOW_AIR ? "survival_drowning_no_exit" : "";
     }
 
     public static void forget(ServerPlayer bot) {

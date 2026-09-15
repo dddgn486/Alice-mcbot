@@ -1887,6 +1887,31 @@ public final class BotManager {
                         "软危险无出口：" + hazard.type() + " ⇒ 不否决（任务继续）",
                         "hazard=" + hazard.type() + " exit=none decision=continue pos=" + where);
             }
+            // D-236（2026-09-15）：**溺水 + 无出口 ⇒ 放弃当前任务**。
+            // 与上面的 `HOLD_NO_EXIT` 分开：那一档是"继续跑还有活路"，这一档是"继续跑必死"
+            // （原版不按跳跃键只会下沉，空气归零 20 tick 后开始掉血）⇒ 干净收尾 + 大声登记，
+            // 而不是让它死在作业中途。**注意：这里不起逃生任务**（维生刚说过半径内没有落点）。
+            if (!escapeTask && verdict == SurvivalSystem.Verdict.ABANDON_NO_EXIT) {
+                String reason = SurvivalSystem.abandonReason(hazard);
+                if (task instanceof TransferTask transfer) {
+                    transfer.survivalInterrupted(reason);
+                }
+                lastTaskResult = "failed:" + reason;
+                String where = SurvivalSystem.footCell(bot).toShortString();
+                BotLog.warn("[Survival] 溺水 hazard={} 已持续 {} tick，半径 {} 格内**无安全落点** ⇒"
+                                + " **放弃当前任务**（继续跑必死；这里不起逃生任务）reason={} pos={} task={}",
+                        hazard.type(), hazard.durationTicks(), SurvivalSystem.REFUGE_RADIUS, reason, where,
+                        taskKind);
+                com.dddgn.alice.decision.DecisionEvents.emit(bot, "DANGER", "warn",
+                        "溺水且无出口 ⇒ 放弃任务（" + reason + "）",
+                        "hazard=" + hazard.type() + " exit=none decision=abandon pos=" + where);
+                com.dddgn.alice.decision.BotEventLog.record(bot, "DANGER", "warn",
+                        "维生放弃任务 " + reason, "pos=" + where);
+                complete(lastTaskResult, TaskExecutionRecord.TerminalStatus.SURVIVAL_INTERRUPTED);
+                // D-135：让决策层知道"任务因维生被放弃了"（逃生之后干什么由它决定）
+                com.dddgn.alice.decision.GoalDirector.onSurvivalInterrupt(bot, reason);
+                return;
+            }
             if (!escapeTask && verdict == SurvivalSystem.Verdict.INTERRUPT) {
                 if (task instanceof TransferTask transfer) {
                     transfer.survivalInterrupted(SurvivalSystem.interruptionReason(hazard));
