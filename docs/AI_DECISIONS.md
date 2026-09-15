@@ -9747,7 +9747,16 @@ lastFailure=no_suitable_tool@EVALUATING`）/ 反向 `FAIL` ✅；CORE `(35/35) t
 
 **用户提问逼出来的事实**（"没有游泳 Movement，水里逃生怎么处理？"）：查完是**三重缺口**，不是少一个 Movement：
 
-**① 内核连"进水"都规划不出来**（Alice 相对 Baritone 的**两处偏离**，此前**未登记** ⇒ 本节补登记）：
+**① 内核连"进水"都规划不出来**（Alice 相对 Baritone 的偏离）：
+> **⚠️ 更正（2026-09-15 深夜，丙 的可行性讨论中查实）**：
+> ① **"FALL 无水落地"不是漏登记** —— 它是 **D-058 的用户决策**（"只做无水落地 ≤3 格；不移植 Baritone 的落水/水桶救落分支"）。
+> ② "不进水"的**精确机制**在 `core/search/SurfaceMovementProvider.java:127-130`：生成 TRAVERSE/DIAGONAL/ASCEND 边时
+> **明确跳过"目的格或头格是流体"的目的地**（注释：不往危险里"脱困"），再叠上 `MovementHelper.canWalkOn` 拒绝流体源当支撑。
+> ⇒ 本文下面那张表里"两处未登记"的说法**只对一半**（水走那半），FALL 那半早有 D-058。老实说：这是我引用代码注释时没回溯决定条目。
+> ③ 另外 Baritone 的垂直水位能力在 **`MovementPillar` 的水分支**（`movements/MovementPillar.java:77-82`：
+> "允许上升水柱，**但只在我们已经在水中时**" ⇒ 按跳跃上浮），不是 `MovementAscend`（后者对水无分支）——
+> 这条决定了"丙"若要做，必须包含**垂直**水位移动，而不只是水平水走。
+
 | | Baritone | Alice |
 |---|---|---|
 | 走水 | `MovementTraverse.java:88-96`：水里走有专门成本 `context.waterWalkSpeed`（+ `walkOnWaterOnePenalty`）⇒ **能穿水** | `pathing/MovementHelper.java:52/62/179/196`：**流体源格不算支撑** ⇒ 水里那格永不是合法脚位 ⇒ `TRAVERSE` 进不了水 |
