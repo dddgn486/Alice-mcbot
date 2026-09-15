@@ -200,8 +200,8 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 - **客户端**：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - **镜像 / 同步**：`./tools/mirror-windows-workspace.sh`；
   `./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`。
-- **本断点已同步的 jar**：`462b10b5af178cb8ed223b8cce949fc8b76be56e55d6535ea6fe7362219c7780`（三处一致，2026-09-15 10:47）
-  —— **含 T3 全部七步 + D-220（夹具时机/自愈场景/无头 peaceful/FixtureScript）**。
+- **本断点已同步的 jar**：`62c1cd75d3f65f11ddee044cad155c92441c6b13f46896d08882475dfd3f4183`（三处一致，2026-09-15 16:05）
+  —— 在上一份 `462b10b5…` 之上**新增 M1 / M2 / M4**（挖矿候选菜单 + 长作业周期复评 + 失败事实字段化）。
   **已完成真人验收（2026-09-15 第十九轮）**：电池 `(30/30) ticks=3337 → PASS`、pathing 场景行与无头逐字相同、
   T3 探针与无头逐字相同（仅 `recipe_order_hash` 不同，已登记为非确定值）。
   ⚠️ **唯一没覆盖**：R4 夹具物品（`pathing_disturber` / `pathing_waller`）—— 想覆盖就各右键一次
