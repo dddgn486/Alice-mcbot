@@ -9637,3 +9637,27 @@ lastFailure=no_suitable_tool@EVALUATING`）/ 反向 `FAIL` ✅；CORE `(35/35) t
 
 **明确没做（挂账）**：`LumberJob` / `CollectJob` / `RegionLumberJob` 的子节点**仍是空 `lastFailure`**
 （同一个接法，但各自要判定"哪个子阶段失败"的语义；本轮只做 MineJob 这条最小闭环，避免一次改 4 个 Job）。
+
+---
+
+### D-232：M3b —— 两条"写了却从没被观测过"的归因映射，现在各有一个确定性夹具（2026-09-15）
+
+**缺口（台账 §5.7 M3 的 ⚠️）**：`MineJob.deriveTopLevelReason` 里 `write_budget_exhausted` / `stale_target`
+两条映射是**照既有词表写的**，但**从来没有一次真实运行产生过**它们 ⇒ "写了等于没写"（红不了也证明不了）。
+
+**两个夹具（都挂在既有电池入口上，各 400 tick）**：
+1. **`mine_stale`**（`stale_target`）：`stale_target` 要求"每个候选的身份复检都失败"，而扫描与复检在
+   **同一次 `select()`** 里 ⇒ 外部无法确定性插入改动（电池里会话任务就是 Job，夹具进不来）。
+   ⇒ 给 `MineJob` 加**夹具专用构造**：注入 `identityCheck`（生产路径恒 `null`，走 `source.matchesTarget`），
+   夹具传 `pos -> false`。产生的理由码与真实竞态**完全一样**（`target_replaced`）⇒ 映射被真的走到。
+   实测：`56,62,128:target_replaced | …` ⇒ `terminal reason=stale_target` ✅
+2. **`mine_budget`**（`write_budget_exhausted`）：用**既有**夹具缝 `WriteBudget.setCaps(scopeOf(bot), Caps(0,0))`
+   （javadoc 自述"夹具专用，不接玩家命令"）把本步作用域的破坏预算压到 0 ⇒ 每次破坏被拒。
+   实测：`56,62,128:WRITE_BUDGET_EXHAUSTED` ⇒ `terminal reason=write_budget_exhausted` ✅
+   —— 这条**顺带证实了词表是对的**：真实路径产的就是 `BUDGET_CODES` 里的大写码。
+
+**判据**：两步各自 `doneWhen = terminalReason == <期望码>`；理由不对 ⇒ `doneWhen` 永不成立 ⇒ 400 tick
+预算耗尽判红。**反向对照已做**：把 `deriveTopLevelReason` 短路成 `return base` ⇒ **两步各判红**（~30 s）。
+
+**验证**：`single:mine_stale` / `single:mine_budget` 均 `PASS`；CORE 由 35 步变 **37 步**
+（`(37/37) → PASS`）；`docs/BATTERY_CURATION.md` 归属表与历史行同步（44/35 → 46/37）。

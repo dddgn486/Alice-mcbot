@@ -54,6 +54,17 @@ public final class MineJob implements Job {
     private final ScopeBuffer scope;
     private final MineCandidateSource source;
     private final SelectionPolicy policy;
+
+    /**
+     * **夹具专用**：把"身份复检"注入进来（`null` = 走生产路径的 {@link MineCandidateSource#matchesTarget}）。
+     *
+     * <p>为什么需要它：`stale_target`（决策后被改动）这条归因要求"每个候选的身份复检都失败"，
+     * 而扫描与复检发生在**同一次 `select()` 调用**里 ⇒ 外部没有确定性手段在两者之间改世界
+     * （夹具也进不来：电池里会话任务就是 Job 本身）。所以夹具只**替掉那一次判定**，
+     * 让它稳定返回 false —— 产生的理由码与真实竞态**完全一样**（`target_replaced`），
+     * 于是 `deriveTopLevelReason` 的映射被真的走到（M3b）。生产路径不受影响（本字段恒 null）。
+     */
+    private final java.util.function.Predicate<BlockPos> identityCheckOverride;
     private final int itemsBefore;
     /** 产物判定口径（J-6）：由 `GoalSpec.productTag` 决定，见 {@link MineProductFilter}。 */
     private final MineProductFilter productFilter;
@@ -101,6 +112,13 @@ public final class MineJob implements Job {
 
     public MineJob(BotPlayer bot, GoalSpec spec, ScopeBuffer scope,
                    MineCandidateSource source, SelectionPolicy policy) {
+        this(bot, spec, scope, source, policy, null);
+    }
+
+    /** **夹具专用构造**（M3b）：`identityCheck` 恒 false ⇒ 每个候选都被判成"决策后已被改动"。 */
+    public MineJob(BotPlayer bot, GoalSpec spec, ScopeBuffer scope, MineCandidateSource source,
+                   SelectionPolicy policy, java.util.function.Predicate<BlockPos> identityCheck) {
+        this.identityCheckOverride = identityCheck;
         this.bot = bot;
         this.spec = spec;
         this.scope = scope;
@@ -214,7 +232,10 @@ public final class MineJob implements Job {
         ServerLevel level = bot.serverLevel();
         // 身份复检（§6.2c⑤，与伐木同一条纪律）：`candidates` 是**决策时刻的扫描结果**，
         // 执行期世界可能已变——若该格已不是目标方块，挖它就是拿别人的东西。
-        if (!source.matchesTarget(level, current)) {
+        boolean stillTarget = identityCheckOverride == null
+                ? source.matchesTarget(level, current)
+                : identityCheckOverride.test(current);
+        if (!stillTarget) {
             attempted.add(current);
             attemptFailures.add(new AttemptFailure(current, "target_replaced"));
             DecisionTrace.step(jobName(), "SKIP", current.toShortString(),

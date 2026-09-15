@@ -150,6 +150,9 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("no_progress", Profile.MAIN),
             // M3（G3 归因）：缺工具必须报 `tool_missing`，不许被总括码 `no_reachable_candidate` 盖掉。
             Map.entry("mine_no_tool", Profile.MAIN),
+            // M3b（2026-09-15）：两条"照词表写了、但从来没被观测过"的归因映射各配一个确定性夹具。
+            Map.entry("mine_stale", Profile.MAIN),
+            Map.entry("mine_budget", Profile.MAIN),
             // 阶段 3-B / (c) 增量 2（D-217）：**机器路线的生产路径**（CraftJob 真的驱动一台机器）。
             // 与 machine_cycle 同一份闭环实现、不同入口；也会写容器 ⇒ 模组不在 ⇒ SKIP。
             Map.entry("craft_machine", Profile.MAIN),
@@ -386,6 +389,54 @@ public final class RegressionBatteryTask implements Task {
                     BotLog.info("[Regression] M4b 判据通过：任务树带子阶段失败事实 lastFailure={}", line);
                     return true;
                 },
+                null));
+        // M3b ①（G3 归因）：`stale_target` —— 每个候选的身份复检都失败（决策后被改动）。
+        // 夹具只替掉**那一次判定**（恒 false），理由码与真实竞态完全一样（`target_replaced`）；
+        // 判据 = 终态理由真的成为 `stale_target`（否则 doneWhen 不成立 ⇒ 预算耗尽判红）。
+        steps.add(new Step("mine_stale",
+                List.of("alice_test:ore_course_terrain"),
+                () -> {
+                    teleportBot(OreCourseAnchor.START_FOOT);
+                    FixtureToolKit.resetInventory(bot);
+                    FixtureToolKit.ensurePickaxe(bot);
+                    BotLog.info("[Regression] mine_stale 夹具：身份复检恒 false（构造 target_replaced 竞态）");
+                },
+                () -> new MineJob(bot,
+                        GoalSpec.mineBlocks(OreCourseAnchor.START_FOOT,
+                                MineCandidateSource.SCAN_RADIUS, 1, 600),
+                        scope,
+                        new MineCandidateSource(MineCandidateSource.Target.ofBlock(
+                                net.minecraft.world.level.block.Blocks.IRON_ORE),
+                                MineCandidateSource.SCAN_RADIUS),
+                        new NearestPolicy(),
+                        pos -> false),
+                400,
+                task -> task instanceof MineJob job && "stale_target".equals(job.terminalReason()),
+                null));
+        // M3b ②（G3 归因）：`write_budget_exhausted` —— **本步作用域**的破坏预算压到 0
+        // （`WriteBudget.setCaps` 是既有夹具专用缝，不接玩家命令）⇒ 每次破坏都被拒 ⇒ 全预算码。
+        steps.add(new Step("mine_budget",
+                List.of("alice_test:ore_course_terrain"),
+                () -> {
+                    teleportBot(OreCourseAnchor.START_FOOT);
+                    FixtureToolKit.resetInventory(bot);
+                    FixtureToolKit.ensurePickaxe(bot);
+                    com.dddgn.alice.action.WriteBudget.setCaps(
+                            com.dddgn.alice.action.WriteBudget.scopeOf(bot),
+                            new com.dddgn.alice.action.WriteBudget.Caps(0, 0));
+                    BotLog.info("[Regression] mine_budget 夹具：本作用域写入预算压到 0 破坏 / 0 放置"
+                            + "（scope={}）", com.dddgn.alice.action.WriteBudget.scopeOf(bot));
+                },
+                () -> new MineJob(bot,
+                        GoalSpec.mineBlocks(OreCourseAnchor.START_FOOT,
+                                MineCandidateSource.SCAN_RADIUS, 1, 600),
+                        scope,
+                        new MineCandidateSource(MineCandidateSource.Target.ofBlock(
+                                net.minecraft.world.level.block.Blocks.IRON_ORE),
+                                MineCandidateSource.SCAN_RADIUS),
+                        new NearestPolicy()),
+                400,
+                task -> task instanceof MineJob job && "write_budget_exhausted".equals(job.terminalReason()),
                 null));
         // J8 可持续伐木区（MAINTAIN）：同一个伐木场景，但走"巡查 → 砍 → 继续巡查"的区域型 Job
         steps.add(new Step("region_maintain",

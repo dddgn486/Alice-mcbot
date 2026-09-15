@@ -19,7 +19,7 @@
 SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 **跳过多少、跑多少、各档几项**一眼可见；归属表与实跑项对不上（漏登记 / 文档说测了其实没测）**直接判红**。
 
-## 2. 当前归属表（44 项 → CORE 35 项）
+## 2. 当前归属表（46 项 → CORE 37 项）
 
 > 2026-09-14 校正：本节此前写「34 项 → CORE 24 项」**已过期**（实际 = BASELINE 13 + MAIN 14 + EXTRA 10 = 37，CORE = 13+14 = 27，与客户端实测 `(27/27)` 一致）。
 > 加入 `write_policy`（BASELINE）后为 **38 / CORE 28**；加入 `machine_cycle`（MAIN）后为 **39 / CORE 29**；
@@ -42,7 +42,10 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 封闭场景四层前提自证、**真实着火** ⇒ 不否决 + `exit=none decision=continue`、脚位格口径回归（半砖）、
 出口真能走到、掉血 ⇒ `DANGER`（`delta=`）且不刷屏）
 
-### MAIN（20）—— 阶段 3-A（回退瘦身，保持完整）+ 阶段 3-B / S1+S2（机器只读）+ S4 + (c) 增量 2（机器写入：夹具 + 生产）
+### MAIN（22）—— 阶段 3-A（回退瘦身，保持完整）+ 阶段 3-B / S1+S2（机器只读）+ S4 + (c) 增量 2（机器写入：夹具 + 生产）
+`mine_no_tool`（M3：缺工具必须报 `tool_missing`，不许被总括码盖掉）、
+`mine_stale` / `mine_budget`（**M3b / D-232**：两条"照词表写了却从没被观测过"的归因映射各配一个确定性夹具——
+身份复检恒假 ⇒ 全 `target_replaced` ⇒ `stale_target`；本作用域预算压 0 ⇒ 全 `WRITE_BUDGET_EXHAUSTED` ⇒ `write_budget_exhausted`）、
 `craft_check`、`craft_action`、`craft_table`、`craft_station`、`craft_probe_inventory`、`craft_probe_table`、
 `craft_probe_upgradetab`、`craft_station_provision`、`craft_station_craft`、`craft_furnace`、`craft_cooking`、`craft_goal`、
 `machine_route`（S1：机器配方**只读**——问上游自述读输入/输出 + 查询层给 `MACHINE_ROUTE`；模组不在 ⇒ SKIP）、
@@ -98,4 +101,5 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 | 2026-09-15 | **34** | 43 | M3（G3 归因）：新增 `mine_no_tool`（MAIN）—— 与 `mine_job` 同场景同 Job，**唯一差别是不发镐**；判据挂在 `doneWhen`（终态理由成为 `tool_missing` 即 PASS，Job 本身 FAILED 是预期的）|
 | 2026-09-15 | **35** | **44** | S-5（D-226）：新增 `survival_exit`（**BASELINE**）—— 维生决策自检。维生此前是**唯一零电池步的子系统**；本步顺带实测抓到并修掉一条真缺陷（`startSurvivalExit` 拿 `blockPosition()` 当"排除自己" ⇒ 站在半砖上时**把自己那格当出口**、逃生 0 步完成而 bot 原地不动）。⚠️ 只覆盖"决策 + 出口可达 + 事实登记"；**"真被否决"那半只能真人验**（真否决会 `complete` 掉会话任务=电池本身） |
 | 2026-09-15 | **35** | **44** | D-228（同日追加）：`survival_exit` 判据 38 → **45**（火焰共享标志/着火递减/最低血量/掉血事件/入水空气消耗 + 2 条 `fill` 生效断言）；步数不变（仍挂既有 BASELINE 步），CORE `(35/35) ticks=3701 → PASS`。修因：假人缺 `baseTick`。 |
+| 2026-09-15 | **37** | **46** | **M4b / D-231 + M3b / D-232**（同日追加）：新增 `mine_stale` / `mine_budget`（MAIN，各 400 tick 预算）⇒ 归因映射 `stale_target` / `write_budget_exhausted` **首次被观测**；M4b 不新增步（判据挂在既有 `mine_no_tool`）。CORE `(37/37) → PASS`。反向对照：映射短路 ⇒ 两步各判红 |
 | 2026-09-15 | **35** | **44** | D-229（同日追加）：`survival_exit` 判据 45 → **55**（冻结决策表 + 细雪机理/分类/HOLD_NO_EXIT/全冻掉血）；步数不变，CORE `(35/35) ticks=3830 → PASS`。修因：细雪冻结伤害在补 `baseTick` 后变成真实危险，但没有危险档。 |

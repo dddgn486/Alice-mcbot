@@ -1402,9 +1402,13 @@ jar `3312608d…`。
       只剩 `target_replaced` ⇒ **`stale_target`**；只对"目标被尝试过却没一个成功"的总括码归因。
       新电池步 `mine_no_tool`（MAIN ⇒ CORE）：与 `mine_job` 同场景同 Job，**唯一差别是不发镐**，
       判据 = `terminalReason == tool_missing`（Job 自身 FAILED 是预期的）。
-      ⚠️ **未观测**：`write_budget_exhausted` / `stale_target` 两条映射是**照既有词表写的**，缺夹具 ⇒ 属 **M3b**。
-- ⏭️ **M 线四项（M1/M2/M4/M3）全部完成**。剩下的：**M4b**（`tree[].lastFailure`，需逐 Job 定义"哪个子阶段失败"）、
-      **M3b**（预算耗尽/stale 的实测夹具）、以及**客户端验证**（用户侧）。
+      ✅ **M3b 已完成（D-232，2026-09-15）**：两条映射各配确定性夹具并**首次被观测** ——
+      新电池步 `mine_stale`（夹具注入身份复检恒假 ⇒ 全 `target_replaced` ⇒ `stale_target`）与
+      `mine_budget`（`WriteBudget.setCaps` 把本步作用域预算压 0 ⇒ 全 `WRITE_BUDGET_EXHAUSTED` ⇒ `write_budget_exhausted`）；
+      实测确认**词表是对的**（真实路径产的就是 `BUDGET_CODES` 里的大写码）。反向对照：映射短路 ⇒ **两步各判红**。
+      CORE 35 → **37 步**（`(37/37) ticks=3916 → PASS`），归属表已同步。
+- ✅ **M 线全部完成**（M1/M2/M4/M3 + **M4b**/D-231 + **M3b**/D-232）。剩下的只有**客户端验证**（用户侧）
+      与**其余 Job 的 `lastFailure`**（`LumberJob`/`CollectJob`/`RegionLumberJob`，同一接法）。
 - ⚠️ **顺带发现（事实）**：`decision_contract` 步的归属是 **EXTRA**（`RegressionBatteryTask.CURATION`）⇒
   **CORE 不跑它**，但它自己的类文档写着"这样它们能进串联回归电池，**任何改动都跑得到**" ⇒ **两者矛盾**
   （D-149 当时的判据承诺 vs 后来的瘦身档位）。要不要把它提到 MAIN/BASELINE 需**用户/策展裁定**，本轮不动。
