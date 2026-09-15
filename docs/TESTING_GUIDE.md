@@ -387,6 +387,16 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
 
 **场景**：`/function alice_test:place_course`（目标 `(8,62,66)`）
 
+> **新增（2026-09-15）：负例场景 `alice_test:r4_negative_disturb`**（`survey/08` §9#4）
+> —— 验证"**夹具没生效时任务会如实 FAILED**"这条分支（上面那两件在 `place_course` 里**必然生效**，
+> 所以负例从没被跑过）。
+> **一键**：`/reload` → `/function alice_test:r4_negative_disturb` → 右键 `alice:pathing_disturber` 一次。
+> **预期 = 失败**：`[R4 Fixture] disturb_not_applicable … tick=70` +
+> `[R4 Session] result … FAILED … /FIXTURE_NOT_FIRED=[disturb]`。
+> **看到 FAILED 才是对的** —— 它正是"这趟没测到扰动"的如实回报（旧行为会静默当成功）。
+> **恢复**：`/function alice_test:place_course_reset`。该场景只封了扰动的落点（z=67 列），
+> `pathing_placer` / `pathing_waller` 在其中照常工作。
+
 **操作**（三件物品都要测）：
 1. 手持 `alice:pathing_placer` 右键任意方块 → 正常放置通行（应干净完成）；
 2. 手持 `alice:pathing_disturber` 右键任意方块 → **第 30 tick 会被平移 1 格**（模拟被推开），
