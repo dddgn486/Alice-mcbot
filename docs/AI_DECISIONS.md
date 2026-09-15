@@ -9081,3 +9081,12 @@ D-220 的三条修完之后发现：真正的病因不是"某个常量算错了"
 **验证分级**：共用原语 `SERVER_TESTED`（电池侧调用它 ⇒ `single:pathing` 场景行**重构前后逐字相同**、
 `core` ×2 `30/30`、累计 **core 10/10**）；**物品侧接线 `COMPILES`**（客户端入口，验收点 = 下一次 R4 客户端轮次，
 见 `docs/TESTING_GUIDE.md` §4.7 的新预期）。
+
+**附注二（2026-09-15 第十九轮客户端验收，jar `462b10b5…`）**：D-220 的**电池侧**升 `WINDOWS_CLIENT` ——
+客户端右键一次电池：`(30/30) ticks=3337 → PASS`、`K4=OK(0/0)`，`wall_placed at=5,64,66 sceneTick=30 pathIndex=3/9`、
+`disturbed … sceneTick=32`、`coverage=PASS`（9 种 Movement 全到）、`FIXTURE_NOT_FIRED` 命中 0；
+**pathing 步 54 行场景日志与无头 `core` 逐字相同**（跨通道等价 —— 这条本身是新增证据：客户端与无头在
+整段寻路回归上**逐 tick 一致**）。比对方法有坑：Windows 日志是 **CRLF**，直接 `diff` 会把 54 行全报成不同 ⇒ 先 `tr -d '\r'`。
+**同轮 T3 探针读数复核**：42 字段中 **41 个与无头逐字相同**，唯一差异 `recipe_order_hash`（已登记为非确定值）
+⇒ **T3 探针读数亦升 `WINDOWS_CLIENT`**。⚠️ **R4 夹具物品本轮未跑**（全会话 `[R4 Fixture]` 命中 0）⇒
+物品侧"未生效 ⇒ FAILED"仍是 `COMPILES`。证据 `.alice-supervision/client-tests/d220-t3-20260915/evidence/`。

@@ -1262,6 +1262,13 @@ jar `3312608d…`。
     且**任务 FAILED**（不再"干净地报 DONE"）。
     **验证分级**：共用原语 = `SERVER_TESTED`（电池侧调用它，`single:pathing` 场景行**重构前后逐字相同**、
     `core` ×2 PASS `30/30`）；**物品侧接线 = `COMPILES`**（客户端入口，验收点 = 下一次 R4 客户端轮次）。
+  - **✅ 2026-09-15 第十九轮客户端实测（jar `462b10b5…`）**：电池 **`(30/30) ticks=3337 → PASS`**，
+    `wall_placed at=5,64,66 sceneTick=30 pathIndex=3/9`、`disturbed sceneTick=32`、`coverage=PASS`、
+    `FIXTURE_NOT_FIRED` 命中 **0**；**pathing 步 54 行场景日志与无头 `core` 逐字相同** ⇒
+    **D-220 电池侧升 `WINDOWS_CLIENT`**（跨通道等价）。**T3 探针读数同轮复核**：42 字段中 41 个与无头逐字相同
+    （唯一差异 `recipe_order_hash`，已登记为非确定值）⇒ **T3 升 `WINDOWS_CLIENT`**。
+    ⚠️ **R4 夹具物品本轮没跑**（全会话 `[R4 Fixture]` 命中 0）⇒ 物品侧那条仍停在 `COMPILES`。
+    证据 `.alice-supervision/client-tests/d220-t3-20260915/evidence/`。
 
 - **T3 剩余（第 3 个模组之前必须做）**：**B3b** Port 化 `Facts`（每产出自带 `chance` + 长度断言 ——
   今天 `outputs`/`chances` 两个独立列表 + 空栈过滤 ⇒ **结构上无法配对**）；**B4** 把

@@ -28,7 +28,9 @@ T3 八步已走完七步：步骤 1 / B3a / A / A2 / C / (A) / **B4** 全部落�
 ⚠️ **今天所有改动都只做了无头验证（`SERVER_TESTED`）**；没有一条碰渲染/物理/GUI，
 所以**按纪律不冒充 `WINDOWS_CLIENT`**，也**没有**开客户端轮次（用户 2026-09-14 裁定：
 无头能覆盖的就不占真人轮次）。**客户端 jar 已同步成 `462b10b5…`**（含 T3 七步 + D-220），
-但**上一次真人验收的是 `f478d9f7…`（第十八轮）** ⇒ 真做客户端轮次时按"新工件"对待（见 §5 末）。
+**且已由用户 2026-09-15 第十九轮实测验收**（见 §2d）：电池 `(30/30) ticks=3337 → PASS`、
+pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无头逐字相同 ⇒ **T3 与 D-220 电池侧升 `WINDOWS_CLIENT`**。
+**唯一没覆盖的**：R4 夹具物品（`pathing_disturber`/`pathing_waller`）本轮没跑 ⇒ 物品侧"未生效 ⇒ FAILED"仍是 `COMPILES`。
 
 **待你拍板的问题**（§4）：① **客户端电池要不要也在夹具层清怪物**（无头侧已 `peaceful`）；
 ② 夹具分离要不要做（**只做包移动**，不要"移出发布 jar" —— 见 §2c 的范围修正）；
@@ -99,6 +101,7 @@ T3 八步已走完七步：步骤 1 / B3a / A / A2 / C / (A) / **B4** 全部落�
 | **修后判据** | `core` **8 轮全绿**（`30/30`、`coverage=PASS`、怪物/死亡命中 **0**、**8 轮场景行逐字相同**）；对照改前 **9 轮 3 红**（诚实边界：8/8 绿证不了"根除"，只证三个缺陷被修掉且没再出现） |
 | **证据位改动** | `/tmp` 里上一会话的证据**已被清空**（历史 3 红因此无法复算）⇒ 本轮起证据放 `/home/fb486/alice-evidence/<日期>-<主题>/`（含 `README.md`） |
 | **追加：消掉"同一份夹具两处实现"这一类** | 新增 `task/FixtureScript`（`wallPlan` 用 `footCell` + 前方第 2 格；`notFired` 共用字段串）—— §5 的教训不只是"时机算错"，而是**同一份语义写了两遍且已分叉**（时机基准 / 脚位算法 / 放弃策略），**没有编译期信号**。物品侧同时补掉两处静默降级：扰动放弃 ⇒ warn；夹具未生效 ⇒ 结果行带 `/FIXTURE_NOT_FIRED=…` 且**任务 FAILED**。**验证**：共用原语 `SERVER_TESTED`（`single:pathing` 场景行**重构前后逐字相同**、`core` ×2 PASS、累计 **core 10/10**）；**物品侧接线 `COMPILES`**（验收点 = 下一次 R4 客户端轮次） |
+| **第十九轮客户端验收（用户 2026-09-15）** | ✅ 电池 **`(30/30) ticks=3337 → PASS`**、`K4=OK(0/0)`；**pathing 步 54 行场景日志与无头 `core` 逐字相同**（跨通道等价；⚠️ 比对前必须 `tr -d '\r'`——Windows 日志是 CRLF，直接 `diff` 会把 54 行全报成"不同"，我第一次就踩了）；`wall_placed at=5,64,66 sceneTick=30 pathIndex=3/9`、`disturbed sceneTick=32`、`coverage=PASS`（9 种 Movement 全到）、`FIXTURE_NOT_FIRED` **0**；**T3 探针 42 字段中 41 个与无头逐字相同**（唯一差异 `recipe_order_hash`，已登记为非确定值）⇒ **T3 与 D-220 电池侧升 `WINDOWS_CLIENT`**。怪物/死亡命中 **0**。证据 `.alice-supervision/client-tests/d220-t3-20260915/evidence/` |
 
 ## 3. ⚠️ 未验证 / 未做（**不要当成做完了**）
 
@@ -181,8 +184,10 @@ T3 八步已走完七步：步骤 1 / B3a / A / A2 / C / (A) / **B4** 全部落�
   `./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`。
 - **本断点已同步的 jar**：`462b10b5af178cb8ed223b8cce949fc8b76be56e55d6535ea6fe7362219c7780`（三处一致，2026-09-15 10:47）
   —— **含 T3 全部七步 + D-220（夹具时机/自愈场景/无头 peaceful/FixtureScript）**。
-  ⚠️ **上一次真人客户端验证通过的是 `f478d9f7…`（第十八轮，T3 之前）** ⇒ 这次同步的 jar 里
-  T3 与 D-220 的效果**客户端尚未验收过**：要验收就跑一次电池 + R4 两件夹具物品（预期见 `TESTING_GUIDE.md` §4.7）。
+  **已完成真人验收（2026-09-15 第十九轮）**：电池 `(30/30) ticks=3337 → PASS`、pathing 场景行与无头逐字相同、
+  T3 探针与无头逐字相同（仅 `recipe_order_hash` 不同，已登记为非确定值）。
+  ⚠️ **唯一没覆盖**：R4 夹具物品（`pathing_disturber` / `pathing_waller`）—— 想覆盖就各右键一次
+  （预期见 `TESTING_GUIDE.md` §4.7；**没看到 `[R4 Fixture] disturbed|wall_placed` 就是如实 FAILED，不是 bug**）。
 - **离线门禁（改完就跑这一条）**：`bash tools/check-all.sh`（**10 道**，三态 PASS/WARN/FAIL；
   `WARN` = 断言**没执行**，不是通过；`ALICE_MODS_DIR` 可指定上游模组目录）。
   ⚠️ 改了 Java/工具后**再跑一次**，别只看编译过。
