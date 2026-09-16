@@ -48,6 +48,7 @@ description: Alice 是 Baritone 兼容内核——非 Alice 目标差异部分�
 **水柱那支（起点/目的地都是水）连方块都不放**（D-244，对齐 `MovementPillar.java:150-161` + `:77-82` 的
 `LADDER_UP_ONE_COST`），完成口径随之改成 Baritone 的"脚位到格即成功"（水里没有 `onGround`/支撑）。
 判据 `survival_exit` 的 `FLOODED_SHAFT` 相位（实测整段**零放置**：水柱上浮 + `ASCEND` 跳上干地板）。
+**⚠️ 现成方案对照已完成（2026-09-16，用户要求"先查现成方案"）**：Baritone **没有 `MovementSwim`** —— `movements/` 只有 8 个类，水位 = ①`MovementHelper.canWalkOnPosition:432-448`「**下面是水且我这一格也是水 ⇒ 算支撑**」（jesus 关时"上面也是水"才算）+ ②`CalculationContext:135-152 waterWalkSpeed ≈ 2.0× 陆地走`（`WALK_ONE_IN_WATER_COST = 20/2.2`）+ ③**复用 `MovementTraverse`**（`updateState` 里按需 `JUMP`/`SPRINT`，浮着时禁止背放 = `:160-162 COST_INF`）⇒ Alice 的"丙"其实就这三处，**不要新造游泳 Movement**；全文（含外部实现与上游 issue）见 `docs/reviews/2026-09-16-水位处理现成方案对照.md`。
 **仍未补**：水柱的**成本模型**（Baritone 给 `LADDER_UP_ONE_COST`，Alice 仍算 `PILLAR_COST`）、
 **浮在水面（无可站支撑）时起不来**（合法位置集问题，属"丙"其余部分）、水平游/蹚水、落水（D-058 定案不做）。另：`MovementCapabilities.canEnterFluid` 全仓无读者。（**更正**：其中"FALL 无水落地"实为 **D-058 的用户决策**，不是漏登记；"不进水"的精确机制是 `SurfaceMovementProvider.java:127-130` 跳过流体目的格；Baritone 的**垂直**水位能力在 `MovementPillar.java:77-82` 的水柱分支，不是 `MovementAscend`）。**复核触发**：真出现水下作业/掉进深水的真实案例时，先做逐行对照 + **合法位置集/成本模型**影响评估 |
 

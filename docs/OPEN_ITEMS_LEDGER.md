@@ -1737,7 +1737,7 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 ⇒ **D-242 的结论落地验证**：水里自救**不是授权问题**（准备金只是让"写类 Movement"能被规划出来，额度一分没花）。
 **仍未做**：① 成本模型没跟（Baritone 水柱给 `LADDER_UP_ONE_COST`，Alice 仍算 `PILLAR_COST`，只影响选路）；
 ② `PILLAR` 仍属写类 Movement ⇒ 纯通行档连"不写世界的水柱上浮"都生成不出来（过严但安全，不碰 D-076/P-01）；
-③ **浮在水面时起不来**（合法位置集问题，仍是丙的其余部分）、水平游/蹚水、落水（D-058 定案不做）。
+③ **浮在水面时起不来** / 水平游/蹚水 —— **2026-09-16 已查清现成方案**（用户要求）：Baritone **没有 `MovementSwim`**，水位 = `canWalkOnPosition:432-448`「下面也是水且上面也是水 ⇒ 算支撑」+ `waterWalkSpeed ≈ 2.0×` + 复用 `MovementTraverse`（按需 `JUMP`/`SPRINT`），⇒ 拆成**切片 A（蹚水：只放宽目的地生成 + 水速成本）**与**切片 B（深水浮着：那条 `canWalkOn` 例外 + 完成口径）**；对照全文 `docs/reviews/2026-09-16-水位处理现成方案对照.md`；落水仍按 D-058 不做。
 
 **✅ ④ 回收时机已定案（D-245，2026-09-16 用户裁定）**：逃生放置**不做自动回收** —— 自动拆会把 bot
 **重新关回坑里**（危险再触发 ⇒ **逃生循环**）。回收交**玩家许可**：`/alice restore` / `alice:restore_check`
