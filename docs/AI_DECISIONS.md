@@ -10769,3 +10769,34 @@ V-4（`contrast_fall`/`contrast_pillar` **从未跑过**：全仓只有登记与
 **如实边界**：① 改判依据是**历史已记录的证据**（客户端轮次/决策条目），**本轮没有重跑客户端**；
 ② `212` 的「字面命令未单独敲」如实标注（能力经同一条 `RestoreScopeTask` 已验）；
 ③ 剩下的 105/107 若要做，必须同时标注「Alice 侧多开两个守卫」（见 D-258/S-7），否则对照结论失真。
+
+### D-263：J-10 的 `policy_blocked` —— 仪器化已接，但**判据到不了**（2026-09-16，诚实边界）
+
+**缺口原话（台账 J-10 遗留项）**：`CollectDropsTask.policy_blocked` **grep 0 命中** ⇒ "被 `DropPolicy` 拦下"
+与"够不着/超时"在终态里**长得一样**（该任务是 best-effort，永不 FAILED）。
+
+**做了什么（保留）**：`CollectDropsTask.retire(...)` 里对每件退场的掉落物算
+`DropPolicy.effectiveProvenance` + `mayCollect`；不放行则 `policyBlockedCount++` 并**单独告警**
+`[CollectDrops] policy_blocked item=… provenance=… policy=…`；`SUMMARY` 增加 `policy_blocked=N`；
+并覆写 `terminalReason()` = `policy_blocked:N`（落进 D-134 的 `task_terminal_reason` 日志与决策快照）。
+
+**判据尝试与实测结果（为什么没做成）**：在 `PickupGateCheckTask`（该夹具场上**故意**留了一件
+`FOREIGN` 掉落物）里加了一个相位，真起一个 `CollectDropsTask` 去收它，期望 `terminalReason` 报
+`policy_blocked:1`。实测（**FULL 档**，因为该步是 EXTRA）：
+- 夹具主断言全过（`a_picked=4 b_remaining=1 c_picked=4 c_remaining=0` ✓ 与 D-144 客户端证据同形），
+- 但那个收集任务 `SUMMARY reason=done **collected=0/0 entities=0/0 clusters=0 ticks=1**`
+  ⇒ **它压根没把这件外来掉落物纳入成员**（成员发现按**作用域**过滤，FOREIGN 掉落物天然不在集合里）
+  ⇒ 期望的 `retire(…, "policy_blocked")` **不可达**。
+⇒ 该相位**已撤销**（留一个永远红的相位比没有更糟）。
+
+**顺带发现的真问题（新登记）**：`single:pickup_gate` **单跑本就不成立** —— 基线（把本轮两处改动
+`git stash` 掉）同样 `FAIL`：`a_picked=0 b_remaining=3 c_picked=4 c_remaining=1 reason=failed`。
+即 **EXTRA 步的"单步入口"不可靠**（它依赖 FULL 档里前序步骤留下的场景状态）⇒ 记为验证债，
+已写进台账（不许再把 `single:<extra>` 的结果当成该步的判决）。
+
+**如实边界（未做，登记）**：
+1. 仪器化的**可达场景**其实只剩一种：**被跟踪中的掉落物其归属/授权在收集中途变化**（作用域关闭、
+   授权过期、玩家改策略）⇒ 那时 `mayCollect` 变假、`retire` 才会计入 `policy_blocked`。
+   要给它做判据，需要一个"收集中途撤销授权"的场景/夹具（**新夹具工作量**，本轮不做）。
+2. 因此本轮的 `policy_blocked` **只有正面价值（可观测性）而没有判据**：它不是"测试过的行为"，
+   只是"若真发生则如实上报"。台账 J-10 行按此如实标注（**不标"已判据"**）。

@@ -123,6 +123,8 @@ public final class CollectDropsTask implements Task {
     private int unreachableCount;
     private int pickupTimeoutCount;
     private int mismatchCount;
+    /** 被 `DropPolicy` 拒绝而留下的掉落物数（J-10：与 unreachable/timeout 分开记）。 */
+    private int policyBlockedCount;
 
     // ---- 当前簇扫描状态 ----
     private List<UUID> clusterIds;
@@ -166,6 +168,15 @@ public final class CollectDropsTask implements Task {
     @Override
     public TaskTarget target() {
         return TaskTarget.block(origin);
+    }
+
+    /**
+     * **J-10（2026-09-16）**：有掉落物被策略拒绝时必须**如实上报**（否则"收干净了"与"有几件不许捡"
+     * 在决策层眼里一样）。落进 D-134 的 `task_terminal_reason` 日志与决策快照。
+     */
+    @Override
+    public String terminalReason() {
+        return policyBlockedCount > 0 ? "policy_blocked:" + policyBlockedCount : "";
     }
 
     @Override
@@ -613,6 +624,18 @@ public final class CollectDropsTask implements Task {
             unreachableCount++;
         }
         ItemEntity item = liveById.get(id);
+        // **J-10 遗留项收口（2026-09-16）**：本任务是 best-effort（永不 FAILED）⇒ 若不把"**策略拒绝**"
+        // 单独记一笔，"被 `DropPolicy` 拦下"与"够不着/超时"在下游**长得一模一样**。
+        if (item != null) {
+            com.dddgn.alice.decision.DropPolicy.Provenance provenance =
+                    com.dddgn.alice.decision.DropPolicy.effectiveProvenance(bot, item);
+            if (!com.dddgn.alice.decision.DropPolicy.mayCollect(bot, provenance)) {
+                policyBlockedCount++;
+                BotLog.warn("[CollectDrops] policy_blocked item={} provenance={} policy={}"
+                                + "（策略不放行 ⇒ 如实计入 policy_blocked，别混进 unreachable）",
+                        id, provenance, com.dddgn.alice.decision.DropPolicy.policy(bot, provenance));
+            }
+        }
         BotLog.warn("[CollectDrops] retire item={} reason={} itemPos={} itemY={} stack={}"
                         + " botFeet={} botBox={} inRange={}",
                 id, reason,
@@ -656,6 +679,7 @@ public final class CollectDropsTask implements Task {
                 + " unreachable=" + unreachableCount
                 + " pickup_timeout=" + pickupTimeoutCount
                 + " mismatch=" + mismatchCount
+                + " policy_blocked=" + policyBlockedCount
                 + " ticks=" + ticks;
         BotLog.info("[CollectDrops] SUMMARY {}", summary);
         return Status.DONE;
