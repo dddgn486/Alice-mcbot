@@ -10491,3 +10491,38 @@ PREMISE_FAILED/TERRAIN_NOT_BUILT 命中数 = 0（D-252 新增的两条前提在�
 **仍未做（需要用户拍板，见 §5.9 的 C1）**：`BOT_INVENTORY` 挂起的**解除通道**。现状是"状态现在会如实显示
 `manual_takeover_required`，但仍然只能靠删账本文件解除"。给一条 `/alice transfer-*` 的显式确认通道 =
 **承认放弃对可能仍在 bot 背包里的物品的追踪**（不动物品，只停止阻塞）⇒ 这是口径放宽，必须用户点头。
+
+### D-255：§5.9 的 C1 **人工确认解除通道**（2026-09-16 用户裁定「甲」；epic 收口）
+
+**用户裁定**：加一条**显式确认**通道来解除 `BOT_INVENTORY` 挂起（物品可能在 bot 背包里 ⇒ 现状是
+"会如实显示需要人工接管，但**没有任何解除手段**，只能手删 `alice_transfer_ledger.dat`"）。
+
+**实现**：
+1. `TransferLedgerData.resolveManual(requestId, tick, evidence)`：把**阻塞态**（`SUSPENDED`/`IN_TRANSIT_BOT`）
+   落成 `ABORTED`（新码 `resolved_by_operator`、`manualTakeover=false`）—— **不移动任何物品**，只停止阻塞；
+   终态条目调用它会 `IllegalStateException("terminal_request")`。
+2. 命令 `/alice transfer-resolve <request> confirm`：**必须打全 `confirm` 字面量**（手滑不能解除）；
+   执行前做**只读对账**并把结果写进证据 —— `botHeld=<n>/<expected> item=<id>`（bot 不在线写 `offline`），
+   证据里还记下**谁**解除的（`source.getTextName()`）⇒ 审计可区分真人与夹具；同时打一行 warn。
+3. **与 `abort()` 的口径区别（刻意保留）**：`transfer-abort` 是**账本级**中止，只要物品可能在 bot 身上就
+   **继续挂起保护**（保守口径不变）；`transfer-resolve … confirm` 是**人明确点头**的放弃追踪。
+
+**判据（零新增电池项，全挂在既有 BASELINE 步 `transfer`）**：
+- 内存账本：`resolveManual` 语义三条 —— 阻塞 ⇒ `ABORTED` + 门禁放开 + 位置如实保留；终态 ⇒ 拒绝；
+  与 `abort()` 的差别（abort 仍保护）由既有 `abortProtected` 断言对照。
+- **端到端走真实命令通道**（`resolveChannelCommand`）：在世界账本上造一条**`NOT_MOVED`** 探针条目
+  （万一夹具中断，下次启动 C3 会自愈 ⇒ 不会永久堵死）⇒ ① **不打 `confirm`**：命令必须不生效、条目仍在阻塞态；
+  ② 打全 `confirm`：真解除 + 门禁放开。实测日志：`人工解除阻塞：request=af7528f3… botHeld=1/1 item=minecraft:iron_ingot`。
+- 结构规则 **R3**（`tools/check-transfer-clock.sh`）：`transfer-resolve` 必须要求 `confirm` 字面量（双保险）。
+
+**反向对照（判据必须真能红）**：翻转 `resolveReleases` ⇒ `single:transfer` **FAIL**；删掉命令里的
+`confirm` 字面量 ⇒ **端到端判据 FAIL**（因为"没打 confirm 也能解除"被抓住了）+ R3 红；还原 ⇒ PASS。
+⚠️ **方法教训**：反向对照的**注入本身**也必须能编译/让夹具真的跑起来 —— 有一次我的注入括号不平衡，
+battery 直接 `exit=5`（=环境/脚本错误，**没有判决行**）；那是**注入坏了**，不是判据红了，不能当证据
+（battery 的退出码字典：0=PASS 1=FAIL 2=DEGRADED 3=无判决 4=起不来 5=环境/脚本）。
+
+**门槛**：`single:transfer` PASS（含全部反向对照）；CORE 见下；`check-all.sh` 见下。
+
+**明确边界**：① 没人确认时 `BOT_INVENTORY` 挂起**仍然永久阻塞**（保守口径，用户未放宽）；
+② 端到端探针会在世界账本留下**一条终态** `resolved_by_operator` 记录/轮（证据串带 `fixture:`/actor ⇒ 可辨识）；
+③ 命令是**运维入口**，不是测试入口 ⇒ 不需要用户做客户端验证（用户 2026-09-16 明确：不要让客户端做不必要的测试）。

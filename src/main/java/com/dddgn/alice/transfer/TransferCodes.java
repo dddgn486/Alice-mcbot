@@ -53,6 +53,8 @@ public final class TransferCodes {
     public static final String UNKNOWN_DISCREPANCY = "unknown_discrepancy";
     public static final String TRANSFER_VERIFIED = "transfer_verified";
     public static final String DEFAULT_ITEM_UNAVAILABLE = "default_item_unavailable";
+    /** §5.9 C1（2026-09-16 用户裁定「甲」）：操作者**显式确认**后解除阻塞（放弃追踪，**不动物品**）。 */
+    public static final String RESOLVED_BY_OPERATOR = "resolved_by_operator";
 
     private TransferCodes() {
     }

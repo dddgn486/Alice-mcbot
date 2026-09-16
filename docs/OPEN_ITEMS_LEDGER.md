@@ -1548,8 +1548,11 @@ tango 立刻解除阻塞。代价：丢 61 条 `VERIFIED` 传输审计记录（�
 永远不过期**（`manual_takeover_required` 降级是死代码）。现在统一走 `TransferLedgerData.clockNow`
 （世界时间）+ 只能传服务端的重载 ⇒ 调用方**没法**再自带时钟；并有可执行规则
 （`tools/check-transfer-clock.sh` R1，时钟混用即构建红）。
-**仍未做（待裁定，见下）**：`BOT_INVENTORY` 挂起的**解除通道**（状态现在会如实显示需要人工接管，
-但仍然只能靠删账本文件解除 ⇒ 给显式确认通道属于口径放宽，需用户拍板）。
+**✅ 解除通道已落地（D-255，2026-09-16 用户裁定「甲」）**：`/alice transfer-resolve <request> confirm`
+（必须打全 `confirm`）⇒ `resolveManual` 落 `ABORTED`（码 `resolved_by_operator`），证据里带**只读对账**
+（`botHeld=<n>/<expected> item=<id>`）与**谁解除的**；**不移动任何物品**。`transfer-abort` 那条路保持保守
+（继续挂起保护）。判据：既有 `transfer` 步的内存账本语义 + **端到端走真实命令通道**（含"没打 confirm 不许解除"），
+另有结构规则 R3 双保险。**§5.9 至此收口**（唯一剩余项 = 没人确认时仍永久阻塞，这是**有意保留**的保守口径）。
 
 **§5.9 验证（本条的所有证据）**：
 - `single:transfer` **正向 `PASS`**；把新判据取反 ⇒ **反向 `FAIL`**（`verdict=FAIL exit=1`）⇒ 判据真能红；

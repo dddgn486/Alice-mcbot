@@ -264,6 +264,29 @@ public final class TransferLedgerData extends SavedData {
         return entry.state();
     }
 
+    /**
+     * **人工确认解除**（§5.9 的 C1，2026-09-16 用户裁定「甲」）：把**阻塞态**（`SUSPENDED` / `IN_TRANSIT_BOT`）
+     * 的条目落成 `ABORTED` —— **不动物品、只停止阻塞**。
+     *
+     * <p>为什么要与 {@link #abort(UUID, long)} 分开：`abort` 是**账本级**中止，只要物品可能在 bot 身上
+     * （`BOT_INVENTORY` / `IN_TRANSIT_BOT` / `SUSPENDED`）它**继续挂起保护**（那条保守口径**不变**）；
+     * 本方法只由"人明确点头"的通道调用（命令层要求字面量 `confirm`）⇒ 承认**放弃对这批物品的追踪**，
+     * 但**不移动任何物品**，并把只读对账结果（bot 背包里还有几件）写进证据。
+     */
+    public State resolveManual(UUID requestId, long tick, String evidenceDigest) {
+        Entry entry = entries.get(requestId);
+        if (entry == null) {
+            throw new IllegalArgumentException("unknown_request");
+        }
+        if (isTerminal(entry.state())) {
+            throw new IllegalStateException("terminal_request");
+        }
+        entry.transition(State.ABORTED, entry.location(), TransferCodes.RESOLVED_BY_OPERATOR, tick,
+                evidenceDigest, false);
+        setDirty();
+        return entry.state();
+    }
+
     /** A suspended or in-transit request prevents unrelated task replacement for its bot. */
     public boolean blocksBot(UUID botId) {
         return entries.values().stream().anyMatch(entry -> entry.request().botId().equals(botId)

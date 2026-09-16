@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""传输账本的两条**可执行**规则（挂在 `tools/check-all.sh` 上；失败即构建红）。
+"""传输账本的三条**可执行**规则（挂在 `tools/check-all.sh` 上；失败即构建红）。
 
 出处：台账 §5.9（2026-09-15 客户端实测的"静默永久阻塞"）与 2026-09-16 的代码级复核。
 
@@ -122,17 +122,33 @@ def rule_gate():
     return violations
 
 
+def rule_confirm():
+    """R3：`/alice transfer-resolve` 必须要求**字面量 `confirm`**（解除 = 放弃追踪，不许手滑触发）。"""
+    path = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "command" / "BotCommand.java"
+    text = path.read_text(encoding="utf-8")
+    idx = text.find('literal("transfer-resolve")')
+    if idx < 0:
+        return ["BotCommand.java 找不到 `transfer-resolve` 子命令（改名？同步本规则）"]
+    window = text[idx:idx + 600]
+    if 'literal("confirm")' not in window:
+        return ["BotCommand.java `transfer-resolve` 没有要求字面量 `confirm`（人工解除必须显式确认）"]
+    return []
+
+
 def main() -> int:
     clock = rule_clock()
     gate = rule_gate()
+    confirm = rule_confirm()
     for line in clock:
         print(f"[R1·时钟] {line}")
     for line in gate:
         print(f"[R2·门禁] {line}")
-    ok = not clock and not gate
+    for line in confirm:
+        print(f"[R3·确认] {line}")
+    ok = not clock and not gate and not confirm
     print(f"TRANSFER_CLOCK_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
-          f"时钟混用={len(clock)} / 门禁断线={len(gate)}"
-          f"（R1 = 账本只用一个时钟；R2 = 替换型派活必须过门禁）")
+          f"时钟混用={len(clock)} / 门禁断线={len(gate)} / 解除缺确认={len(confirm)}"
+          f"（R1 = 账本只用一个时钟；R2 = 替换型派活必须过门禁；R3 = 人工解除必须显式 confirm）")
     return 0 if ok else 1
 
 

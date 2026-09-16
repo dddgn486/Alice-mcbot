@@ -227,6 +227,14 @@ public final class BotCommand {
                 .then(Commands.literal("transfer-abort")
                         .then(Commands.argument("request", StringArgumentType.word())
                                 .executes(ctx -> transferAbort(ctx.getSource(), StringArgumentType.getString(ctx, "request")))))
+                // §5.9 C1（2026-09-16 用户裁定「甲」）：**显式确认**解除永久阻塞的挂起传输。
+                // 必须打全 `confirm` 这个字面量 —— 解除 = 放弃对"可能还在 bot 背包里"的物品的追踪，
+                // 不能靠手滑触发（`transfer-abort` 那条路保持保守：继续挂起保护）。
+                .then(Commands.literal("transfer-resolve")
+                        .then(Commands.argument("request", StringArgumentType.word())
+                                .then(Commands.literal("confirm")
+                                        .executes(ctx -> transferResolve(ctx.getSource(),
+                                                StringArgumentType.getString(ctx, "request"))))))
                 .then(Commands.literal("restore")
                         .executes(ctx -> restore(ctx.getSource(), true)))
                 .then(Commands.literal("region")
@@ -455,6 +463,59 @@ public final class BotCommand {
                     + " manualTakeover=" + updated.manualTakeoverRequired()), false);
             return 1;
         } catch (IllegalArgumentException exception) { return failure(source, "invalid_request_id"); }
+    }
+
+    /** §5.9 C1：人工确认解除（**不动物品**，只放开"这个 bot 不许派活"这道门）。 */
+    private static int transferResolve(CommandSourceStack source, String rawId) {
+        try {
+            UUID id = UUID.fromString(rawId);
+            TransferLedgerData ledger = TransferLedgerData.get(source.getServer());
+            TransferLedgerData.Entry entry = ledger.find(id).orElse(null);
+            if (entry == null) {
+                return failure(source, "unknown_request");
+            }
+            if (entry.state() != TransferLedgerData.State.SUSPENDED
+                    && entry.state() != TransferLedgerData.State.IN_TRANSIT_BOT) {
+                return failure(source, "not_blocking");   // 只对**阻塞态**有意义；终态无需解除
+            }
+            String reconciliation = reconciliation(source.getServer(), entry);
+            TransferLedgerData.State state = ledger.resolveManual(id,
+                    TransferLedgerData.clockNow(source.getServer()),
+                    "resolve:" + source.getTextName() + ":" + reconciliation);
+            source.sendSuccess(() -> Component.literal("[alice] transfer-resolve request=" + id + " state=" + state
+                    + " code=" + TransferCodes.RESOLVED_BY_OPERATOR + " " + reconciliation
+                    + " / 「物品**没有被移动**」：只解开了「该 bot 不许派活」，请自行核对物品去向"), false);
+            com.dddgn.alice.log.BotLog.warn("[Transfer] 人工解除阻塞：request={} {} ⇒ 该 bot 的 assign* 通路已放开"
+                    + "（放弃追踪，不动物品）", id, reconciliation);
+            return 1;
+        } catch (IllegalArgumentException exception) {
+            return failure(source, "invalid_request_id");
+        } catch (IllegalStateException exception) {
+            return failure(source, "terminal_request");
+        }
+    }
+
+    /** 只读对账：该请求的物品在 bot 背包（主手栏 + 副手）里还有几件；bot 不在线就如实写 offline。 */
+    private static String reconciliation(net.minecraft.server.MinecraftServer server, TransferLedgerData.Entry entry) {
+        var request = entry.request();
+        ServerPlayer bot = server.getPlayerList().getPlayer(request.botId());
+        if (bot == null) {
+            return "botHeld=offline expected=" + request.count() + " item=" + request.itemId();
+        }
+        net.minecraft.world.item.Item item =
+                net.minecraftforge.registries.ForgeRegistries.ITEMS.getValue(request.itemId());
+        int held = 0;
+        if (item != null) {
+            for (net.minecraft.world.item.ItemStack stack : bot.getInventory().items) {
+                if (stack.is(item)) {
+                    held += stack.getCount();
+                }
+            }
+            if (bot.getOffhandItem().is(item)) {
+                held += bot.getOffhandItem().getCount();
+            }
+        }
+        return "botHeld=" + held + "/" + request.count() + " item=" + request.itemId();
     }
 
     private static int failure(CommandSourceStack source, String code) { source.sendFailure(Component.literal("[alice] transfer code=" + code)); return 0; }

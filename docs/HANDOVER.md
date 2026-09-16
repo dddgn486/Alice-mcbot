@@ -21,6 +21,7 @@
 > 水里自救**不是授权问题**（准备金只是让"写类 Movement"能被规划出来，额度一分没花）。
 > 顺带修掉夹具缺陷：`fillBlocks` 在区块未加载时 `/fill` **静默 0 改动**（本轮真踩到一次，一次红了 8 条判据）
 > ⇒ 现在先 `areaLoaded` 检查、未加载就把 bot 传到区域中心。
+> **D-255（同日，§5.9 的 C1：人工确认解除通道，用户裁定「甲」）**：`/alice transfer-resolve <request> confirm`（必须打全 `confirm`）⇒ `resolveManual` 落 `ABORTED`/`resolved_by_operator`，证据带**只读对账**（实测 `botHeld=1/1 item=minecraft:iron_ingot`）与**谁解除的**；**物品零移动**。`transfer-abort` 那条路保持保守（继续挂起保护）。判据全在离线层：既有 `transfer` 步的内存账本语义 + **端到端真实命令通道**（世界账本 `NOT_MOVED` 探针 + 负向对照「没打 `confirm` 不许解除」）+ 结构规则 R3；反向对照两类实测能红（翻转 `resolveReleases` ⇒ FAIL；删 `confirm` ⇒ 端到端 FAIL + R3 红）。**⚠️ 反向对照的注入本身也必须能编译**（有一次括号不平衡 ⇒ battery `exit=5`＝环境/脚本错误、**没有判决行** ⇒ 不能当「判据红了」的证据）。门槛：`single:transfer` PASS、**CORE `(38/38) ticks=4277 → PASS`**、`check-all.sh` **10 PASS + 1 预期 WARN**。**§5.9 epic 至此收口**（唯一保留项：没人确认时 `BOT_INVENTORY` 挂起仍永久阻塞 = 有意保守口径）。**不需要客户端验证**（用户 2026-09-16：不要让客户端做不必要的测试）。
 > **D-254（同日，§5.9 收口：传输挂起的时钟与门禁）**：① **唯一时钟** —— 落章用世界时间而超时判定用 `getTickCount()`（进程内计数、重启归零）⇒ 差值恒为负 ⇒ **运行中产生的挂起永不过期**（`manual_takeover_required` 降级是死代码，`BOT_INVENTORY` 挂起 = 没有解除手段的永久阻塞）。现在统一 `TransferLedgerData.clockNow` + 只能传服务端的重载（4 处调用点 + `TransferTask` 落章）。② **门禁接线判据**：`refusal(ledger, botId)` 纯函数（生产与夹具共用）；⚠️ 台账原提案（在 `transfer` 步里真调 `assignWalkTo`）**不能照抄** —— 那会 `clearTask()` 掉**正在跑的电池步自己**；改为内存账本判据。③ 新门禁 `tools/check-transfer-clock.sh`（R1 时钟混用 / R2 替换型派活过门禁），**反向对照两类都实测能红**（并因此抓出两个假绿：参数表按第一个 `)` 截断、方法体按固定缩进切分把签名行当证据）。门槛：`single:transfer` PASS、**CORE `(38/38) ticks=4260 → PASS`**、`check-all.sh` **10 PASS + 1 预期 WARN**。**未做（待用户裁定）**：`BOT_INVENTORY` 挂起的解除通道（口径放宽）。
 > **D-253（同日，水位 epic 收口）**：真人复核通过（用户「符合我的预期」）—— 客户端日志佐证：`[Survival] checks=122 failures=0 → PASS`、`[Regression] pathing… 0 条 FAIL`、`deep_pond_course=COMPLETED`、`water_course+cost=17.50/expected=17.50`、`PREMISE_FAILED=0`。⇒ **D-241/242/243/244/245/247/250/251/252 升级为 `WINDOWS_CLIENT` + `USER_ACCEPTED`**（矩阵已同步）；**§5.11 水位 epic 关闭**（IN 四条全达成；OUT：游泳/落水免伤/水柱成本/水面理由码；已知边界：池底出发 `UNREACHABLE`、入水物理、水面以下水平潜游）。下一步按「同时 1 个活跃 epic」只挑一件。
 > **D-252（同日，客户端 `pathing_regression` 失败 → 是数据包陈旧，不是 mod 回归）**：客户端存档里的场景数据包是 **09-15 的手工拷贝**，缺 D-247/D-248 新增的 `water_course_terrain` / `deep_pond_course_terrain` ⇒ 那三条判据（`water_course` / `deep_pond_course` / `water_course+cost`）**根本没有地形** ⇒ `MISSING=[TRAVERSE]` / `cost=Infinity`。无头电池每轮 `cp -r` 刷新数据包所以全绿；夹具又用了抑制输出 ⇒ `/function` 失败**一字不打**。**两条修法**：① 夹具看 `/function` 返回值 + 加「起点可站」几何前提（`PathingRegressionTask.prepare`、`SurvivalExitCheckTask` 的 `survival_sealed_course`）⇒ `checks 120 → 122`；② `tools/sync-windows-artifact.sh` 新增数据包刷新（第 4 参数 / `ALICE_CLIENT_WORLD`，备份 + 函数份数校验 + 提示 `/reload`）。客户端数据包已刷成 111 个函数。**⏳ 仍需用户重跑一次**才算 `WINDOWS_CLIENT`。
@@ -294,7 +295,9 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 - **客户端**：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - **镜像 / 同步**：`./tools/mirror-windows-workspace.sh`；
   `./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`。
-- **本断点已同步的 jar**：`7b06d63303bca995b61a6bf8df6992e4631ef2817376606d27b9989ef6529fc8`（2026-09-16 20:3x；**含 D-226…D-254**，客户端与 Windows 仓库同哈希；场景数据包 111 个函数同轮已刷）
+- **本断点已同步的 jar**：`e7f6692eaafab297aecab80e1a772b5aa239e859dfb8202c6a76f7084cd62631`（2026-09-16 20:5x；**含 D-226…D-255**，客户端与 Windows 仓库同哈希；场景数据包 111 个函数已刷）
+- 上一版（D-226…D-254）：`7b06d63303bca995b61a6bf8df6992e4631ef2817376606d27b9989ef6529fc8`
+- 上一版（D-226…D-252）：客户端与 Windows 仓库同哈希；场景数据包 111 个函数同轮已刷）
 - 上一版（D-226…D-252）：`6cc5e7e0b218a231038635be86dc3c287f4e27078bee8ecd3f33298f4bd1c486`
 - 上一版（D-226…D-252，19:5x 之前）：客户端与 Windows 仓库同哈希；**场景数据包同轮已刷成 111 个函数**）
 - 上一版（D-226…D-251）：`935cf6ed5b1d293e776d682aec0e0dae718b067069332912b348c58ef4a039b6`

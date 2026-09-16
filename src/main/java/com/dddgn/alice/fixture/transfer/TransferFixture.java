@@ -43,6 +43,7 @@ public final class TransferFixture {
         pass &= postMismatches(level, inventory, source, destination, sourceChest, destinationChest);
         pass &= ledgerPolicies(level, source, destination);
         pass &= taskInterruptPolicies(level, bot, source, destination);
+        pass &= resolveChannelCommand(level, bot, source, destination);
         pass &= hardPathMappings(level, bot, source, destination);
         pass &= taskBudgetMappings(level, bot, source, destination);
         BotLog.info("TRANSFER_FIXTURE_SUITE {} request/state/code/location/source-bot-destination-delta asserted",
@@ -241,7 +242,30 @@ public final class TransferFixture {
         gateLedger.transition(gateRequest.requestId(), TransferLedgerData.State.ABORTED,
                 TransferLedgerData.Location.NOT_MOVED, "fixture_gate_cleared", clock, "fixture:gate_cleared", false);
         boolean gateReopens = TransferLedgerData.refusal(gateLedger, gateRequest.botId()).isEmpty();
-        boolean pass = firstAdmission && duplicateRejected && replacementBlocked && timeoutSuspended
+        // §5.9 C1（2026-09-16 用户裁定「甲」）：**人工确认解除**必须真能放开阻塞；而 `abort()`（无确认那条路）
+        // 仍然保持保护 —— 两条口径的**差别**本身也要判（否则"解除"可能悄悄退化成"什么都不做"）。
+        TransferRequest blockedRequest = request(level, source, destination, 3);
+        ledger.admit(blockedRequest);
+        ledger.transition(blockedRequest.requestId(), TransferLedgerData.State.SUSPENDED,
+                TransferLedgerData.Location.BOT_INVENTORY, "fixture_blocked", clock, "fixture:blocked", true);
+        boolean blockedBeforeResolve = !TransferLedgerData.refusal(ledger, blockedRequest.botId()).isEmpty();
+        TransferLedgerData.State resolvedState =
+                ledger.resolveManual(blockedRequest.requestId(), clock, "fixture:resolve:operator");
+        TransferLedgerData.Entry resolved = ledger.find(blockedRequest.requestId()).orElse(null);
+        boolean resolveReleases = resolvedState == TransferLedgerData.State.ABORTED && resolved != null
+                && resolved.state() == TransferLedgerData.State.ABORTED
+                && !resolved.manualTakeoverRequired()
+                && TransferCodes.RESOLVED_BY_OPERATOR.equals(resolved.code())
+                && resolved.location() == TransferLedgerData.Location.BOT_INVENTORY   // 位置如实保留
+                && TransferLedgerData.refusal(ledger, blockedRequest.botId()).isEmpty();
+        boolean resolveRefusesTerminal = false;
+        try {
+            ledger.resolveManual(blockedRequest.requestId(), clock, "fixture:resolve:again");
+        } catch (IllegalStateException expected) {
+            resolveRefusesTerminal = true;
+        }
+        boolean pass = blockedBeforeResolve && resolveReleases && resolveRefusesTerminal
+                && firstAdmission && duplicateRejected && replacementBlocked && timeoutSuspended
                 && restartSuspended && suspensionExpired && abortProtected && abortUnmoved
                 && noInventorySuspensionReleased && freshNotExpired && staleDowngraded
                 && gateClearWhenIdle && gateRefuses && gateReopens;
@@ -335,6 +359,55 @@ public final class TransferFixture {
         return report("survival_interrupt_death_removal", removalRequest, pass,
                 pass ? TransferCodes.UNKNOWN_DISCREPANCY : TransferCodes.MANUAL_TAKEOVER_REQUIRED,
                 removalPass ? TransferLedgerData.Location.UNKNOWN : TransferLedgerData.Location.NOT_MOVED, 0, 0, 0);
+    }
+
+    /**
+     * **§5.9 C1 的端到端判据**：走**真实命令通道**（Brigadier 解析 ⇒ `confirm` 字面量 ⇒ 只读对账 ⇒
+     * `resolveManual`）解除一条真的挂在**世界账本**上的阻塞条目，并判"没打 `confirm` 不许解除"。
+     *
+     * <p>为什么敢写世界账本：探针条目用 `NOT_MOVED` —— 万一夹具中途中断，下次启动的 C3 会把它**自愈**成
+     * 终态（不会像 `BOT_INVENTORY` 那样永久堵死）；而且它在本子夹具里就被解除掉。
+     * 前提不成立（这个 bot 已有真的未结清传输）时**不写入**，直接如实报红 —— 那本身就是缺陷症状。
+     */
+    private static boolean resolveChannelCommand(ServerLevel level, BotPlayer bot, BlockPos source,
+                                                BlockPos destination) {
+        TransferLedgerData live = TransferLedgerData.get(level.getServer());
+        String preexisting = live.blockingSummary(bot.getUUID());
+        if (!preexisting.isEmpty()) {
+            BotLog.warn("[TransferFixtures] resolve_channel 前提不成立（已有未结清传输，不写入）：{}", preexisting);
+            return report("resolve_channel_command", null, false, TransferCodes.MANUAL_TAKEOVER_REQUIRED,
+                    TransferLedgerData.Location.NOT_MOVED, 0, 0, 0);
+        }
+        long clock = TransferLedgerData.clockNow(level.getServer());
+        TransferRequest probe = requestForBot(level, bot, source, destination, 1);
+        if (!live.admit(probe)) {
+            return report("resolve_channel_command", probe, false, TransferCodes.DUPLICATE_REQUEST,
+                    TransferLedgerData.Location.NOT_MOVED, 0, 0, 0);
+        }
+        live.transition(probe.requestId(), TransferLedgerData.State.SUSPENDED,
+                TransferLedgerData.Location.NOT_MOVED, "fixture_resolve_probe", clock,
+                "fixture:resolve_probe", true);
+        boolean blocked = !TransferLedgerData.refusal(live, bot.getUUID()).isEmpty();
+        var source_ = level.getServer().createCommandSourceStack().withSuppressedOutput();
+        // 负向对照：**没打 confirm** ⇒ 命令必须不生效、条目必须还挂在阻塞态
+        int withoutConfirm = level.getServer().getCommands()
+                .performPrefixedCommand(source_, "alice transfer-resolve " + probe.requestId());
+        TransferLedgerData.Entry stillBlocked = live.find(probe.requestId()).orElse(null);
+        boolean unconfirmedRefused = withoutConfirm == 0 && stillBlocked != null
+                && stillBlocked.state() == TransferLedgerData.State.SUSPENDED;
+        // 正向：打全 confirm ⇒ 真解除，且门禁随之放开
+        int withConfirm = level.getServer().getCommands()
+                .performPrefixedCommand(source_, "alice transfer-resolve " + probe.requestId() + " confirm");
+        TransferLedgerData.Entry resolved = live.find(probe.requestId()).orElse(null);
+        boolean released = withConfirm >= 1 && resolved != null
+                && resolved.state() == TransferLedgerData.State.ABORTED
+                && TransferCodes.RESOLVED_BY_OPERATOR.equals(resolved.code())
+                && !resolved.manualTakeoverRequired()
+                && TransferLedgerData.refusal(live, bot.getUUID()).isEmpty();
+        boolean pass = blocked && unconfirmedRefused && released;
+        return report("resolve_channel_command", probe, pass,
+                pass ? TransferCodes.RESOLVED_BY_OPERATOR : TransferCodes.MANUAL_TAKEOVER_REQUIRED,
+                TransferLedgerData.Location.NOT_MOVED, 0, 0, 0);
     }
 
     private static TransferRequest requestForBot(ServerLevel level, BotPlayer bot, BlockPos source,
