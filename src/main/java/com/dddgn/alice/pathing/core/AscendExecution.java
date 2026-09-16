@@ -80,7 +80,12 @@ public final class AscendExecution implements MovementExecution {
                 return;
             }
             driveTowardTarget();
-            if (shouldJump()) {
+            // D-243：**水里按住跳跃**（与 `PillarExecution` 同一档、同一理由）：原版水里按住跳跃即上浮，
+            // 而一次性 `jumpOnce` 在水里抬不到 1 格 ⇒ 落回同一格 ⇒ 实测 `wastedJumpLandings=3`
+            // ⇒ `SEGMENT_NO_PROGRESS`。水里也不需要陆地那套"先对准再跳"的门控（那是防斜跳落回原地的）。
+            if (level.getFluidState(MovementHelper.footCell(level, bot)).is(net.minecraft.tags.FluidTags.WATER)) {
+                bot.controller().setJumping(MovementHelper.footCell(level, bot).getY() < spec.toFoot().getY());
+            } else if (shouldJump()) {
                 bot.controller().jumpOnce();
             }
             return;

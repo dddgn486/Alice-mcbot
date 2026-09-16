@@ -42,7 +42,11 @@ description: Alice 是 Baritone 兼容内核——非 Alice 目标差异部分�
 | `maxUpStep = 0.6` | 物理对齐 | D-025；改物理对齐，而非给 Baritone 逻辑打补丁 |
 | 多段容差 COLUMN / EXACT（D-027） | 目标差异 | Alice 分段验收需要；最终段必须精确 |
 | 任务级 600 tick 兜底 | 安全网 | 段超时为主，兜底仅防会话异常 |
-| **水位处理缺失**（D-236，2026-09-15 登记） | **能力缺口** | Baritone **有**两条水位分支：`MovementTraverse.java:88-96`（水里走用 `waterWalkSpeed`/`walkOnWaterOnePenalty`，能穿水）、`MovementFall.java:102`（落点是水 ⇒ 水不摔伤，:103-109 还能放水桶 MLG）。**Alice 两处都没有**：`MovementHelper.java:52/62/179/196`（流体源不算支撑 ⇒ 进水格不是脚位）、`FallExecution.java:186`（落点必须无流体）⇒ **规划不出任何含水路线**，也就没有"从水里出来"的能力（只有"溺水+无落点 ⇒ 放弃任务"，D-236）。另：`MovementCapabilities.canEnterFluid` 全仓无读者。（**更正**：其中"FALL 无水落地"实为 **D-058 的用户决策**，不是漏登记；"不进水"的精确机制是 `SurfaceMovementProvider.java:127-130` 跳过流体目的格；Baritone 的**垂直**水位能力在 `MovementPillar.java:77-82` 的水柱分支，不是 `MovementAscend`）。**复核触发**：真出现水下作业/掉进深水的真实案例时，先做逐行对照 + **合法位置集/成本模型**影响评估 |
+| **水位处理缺失**（D-236，2026-09-15 登记） | **能力缺口** | Baritone **有**两条水位分支：`MovementTraverse.java:88-96`（水里走用 `waterWalkSpeed`/`walkOnWaterOnePenalty`，能穿水）、`MovementFall.java:102`（落点是水 ⇒ 水不摔伤，:103-109 还能放水桶 MLG）。**Alice 两处都没有**：`MovementHelper.java:52/62/179/196`（流体源不算支撑 ⇒ 进水格不是脚位）、`FallExecution.java:186`（落点必须无流体）⇒ **规划不出任何含水路线**（水平）。
+**部分已补（D-243，2026-09-16）**：水里**垂直**移动已可用 —— `PillarExecution`/`AscendExecution` 在水里改为
+**按住跳跃上浮**（陆地那套一次性 `jumpOnce` 在水里抬不到 1 格 ⇒ 实测 `wastedJumpLandings` ⇒ `SEGMENT_NO_PROGRESS`）；
+判据 `survival_exit` 的 `FLOODED_SHAFT` 相位。**仍未补**：整列是水时不放方块的省料分支（Baritone `LADDER_UP_ONE_COST` 那支）、
+**浮在水面（无可站支撑）时起不来**（合法位置集问题，属"丙"其余部分）、水平游/蹚水、落水（D-058 定案不做）。另：`MovementCapabilities.canEnterFluid` 全仓无读者。（**更正**：其中"FALL 无水落地"实为 **D-058 的用户决策**，不是漏登记；"不进水"的精确机制是 `SurfaceMovementProvider.java:127-130` 跳过流体目的格；Baritone 的**垂直**水位能力在 `MovementPillar.java:77-82` 的水柱分支，不是 `MovementAscend`）。**复核触发**：真出现水下作业/掉进深水的真实案例时，先做逐行对照 + **合法位置集/成本模型**影响评估 |
 
 ## 验证要求
 

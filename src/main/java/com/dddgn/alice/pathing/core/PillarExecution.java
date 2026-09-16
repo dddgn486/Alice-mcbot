@@ -132,7 +132,20 @@ public final class PillarExecution implements MovementExecution {
         bot.controller().setForward(0.0F);
 
         // 2) 起跳（水平已静止）
-        if (!jumped) {
+        // D-243：**水里改为持续按住跳跃**（原版：水里按住跳跃即上浮；本仓 D-237 的 `SurvivalFloatTask` 已实测有效）。
+        // 为什么不能沿用一次性 `jumpOnce`：水里抬升只有 ~0.5 格，永远到不了放置高度
+        // ⇒ 落地回同一格 ⇒ 实测 `wastedJumpLandings=3` ⇒ `SEGMENT_NO_PROGRESS`（灌水竖坑那一档）。
+        // 对照 Baritone `MovementPillar.java:150-161` 的水柱分支（居中 + 游上去、靠"朝上看 + 前进"耦合）：
+        // 服务端假人没有那个耦合，所以这里**显式**按住跳跃；"整列都是水时不放方块"的省料分支属后续切片（D-243）。
+        boolean inWater = level.getFluidState(com.dddgn.alice.pathing.MovementHelper.footCell(level, bot))
+                .is(net.minecraft.tags.FluidTags.WATER);
+        if (inWater) {
+            bot.controller().setJumping(true);
+            jumped = true;
+            if (!placed && bot.getY() < to.getY() + PLACE_HEIGHT_MARGIN) {
+                return;                              // 还没浮到放置高度：继续按着跳跃
+            }
+        } else if (!jumped) {
             if (bot.onGround()) {
                 bot.controller().jumpOnce();
                 jumped = true;

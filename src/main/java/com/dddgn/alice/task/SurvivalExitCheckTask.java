@@ -878,21 +878,19 @@ public class SurvivalExitCheckTask implements Task {
                 floodedTask = new com.dddgn.alice.task.SurvivalExitTask(bot, floodedPick, true);
             }
             var status = floodedTask.tick();
-            if (status == com.dddgn.alice.task.Task.Status.RUNNING && phaseTicks - 4 < SHAFT_BUDGET) {
+            if (status == com.dddgn.alice.task.Task.Status.RUNNING && phaseTicks - 4 < FLOOD_BUDGET) {
                 return;
             }
             floodedDone = true;
-            // ⚠️ **已知缺口（D-242，如实记成 tripwire）**：计划**能生成**（上面 `status=REACHED`），
-            // 但**执行不了** —— `PILLAR` 执行器靠"跳起-落地"循环，水里的 `wastedJumpLandings=3`
-            // ⇒ `SEGMENT_NO_PROGRESS` ⇒ 超时。正解是 Baritone 的**水柱**分支（`MovementPillar.java:77-82`
-            // 及其执行段"swimming up a water column"= **纯输入上浮、不放置**）⇒ 属"丙"的一个**明确子集**，
-            // 而不是写授权问题。本断言故意"断言当前的失败"：一旦有人把水里那档做出来，它会翻红，提醒改这里。
-            BotLog.warn("[Survival] 水里逃生：计划 REACHED 但执行 {} —— 已知缺口 D-242（PILLAR 执行器需要水柱分支）",
-                    status);
-            check("已知缺口（D-242）：水里垫不出来 —— 逃生任务终态 FAILED（PILLAR 执行器 wastedJumpLandings）",
-                    status == com.dddgn.alice.task.Task.Status.FAILED);
-            check("已知缺口对照：此时 bot 仍在原地水里（脚位 " + desc(foot()) + "，inWater=" + bot.isInWater() + "）",
-                    foot().getY() < FLOOD_PIT_BOTTOM.getY() + 2 && bot.isInWater());
+            // ✅ **D-243 已修**：`PILLAR` 执行器在水里改为**持续按住跳跃**（原版水里按跳跃即上浮；对照
+            // Baritone `MovementPillar.java:150-161` 的水柱分支）⇒ 原来那条 tripwire（断言"执行失败"）
+            // 已按设计翻红并**翻成正断言**：水下垫柱子真的把 bot 送出来了。
+            BotLog.info("[Survival] 水里逃生：终态={}（D-243：PILLAR 水里上浮已生效）", status);
+            check("端到端：水里逃生任务到达终态（" + status + " " + floodedTask.terminalReason() + "）",
+                    status == com.dddgn.alice.task.Task.Status.DONE);
+            check("端到端：bot **从水里出来了**（脚位 y=" + foot().getY() + " ≥ 101，inWater="
+                            + bot.isInWater() + "）",
+                    foot().getY() >= FLOOD_PIT_BOTTOM.getY() + 2 && !bot.isInWater());
             return;
         }
         if (phaseTicks >= 5) {
@@ -928,6 +926,9 @@ public class SurvivalExitCheckTask implements Task {
     private static final BlockPos SHAFT_PIT_BOTTOM = SHAFT_CENTER.below();
 
     private static final int SHAFT_BUDGET = 240;
+
+    /** 灌水竖坑那档的路更长（先上浮再爬出），预算给足。 */
+    private static final int FLOOD_BUDGET = 400;
 
     private com.dddgn.alice.task.SurvivalExitTask shaftEscapeTask;
     private BlockPos escapePick;

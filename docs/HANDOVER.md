@@ -10,6 +10,17 @@
 
 ## 1. 一句话现状（2026-09-15 上午）
 
+> **2026-09-16（本日进展，最新）** —— **D-243 水里垂直移动已落地**（"丙"的第一个子集）：
+> `PillarExecution`/`AscendExecution` 在水里改为**按住跳跃上浮**（陆地那套一次性 `jumpOnce` 在水里抬不到 1 格
+> ⇒ 实测 `wastedJumpLandings` ⇒ `SEGMENT_NO_PROGRESS`）⇒ **只动执行器那一支，不动合法位置集/成本模型**。
+> 判据：`FLOODED_SHAFT` 的 tripwire（D-242 当时**故意断言"水里执行失败"**）按设计翻红后**翻成正断言** ——
+> `水里逃生：终态=DONE` + bot 脚位 y ≥ 101 且 `inWater=false`（真的从灌水竖坑里出来了）。
+> 门槛：`single:survival_exit` **checks=112 failures=0** ✅ / **CORE `(38/38) ticks=4033 → PASS`**（陆地 PILLAR/ASCEND 无回归）✅ /
+> `check-all.sh` **9 PASS + 1 预期 WARN** ✅。
+> **仍未做（下一步候选）**：① 整列是水时**不放方块**的省料分支（Baritone 水柱 `LADDER_UP_ONE_COST` 那支）；
+> ② **浮在水面（无可站支撑）时起不来** —— 那是**合法位置集**问题，属"丙"的其余部分；③ 逃生放置的自动回收；
+> ④ 水平游/蹚水（`SurfaceMovementProvider:127-130` 仍跳过流体目的格）；⑤ 落水（D-058 定案不做）。
+
 > **2026-09-16（本日进展，最新）** —— 落地 **D-241 逃生准备金**（提案 B 第一步：信封轴 + `survivalEscape`
 > + 策略表 P-23/P-24 + 阶梯用法 + 上限 8/8；判据 `SHAFT_ESCAPE` 竖坑真垫出来）与 **D-242 水里那档**。
 > **D-242 改变了水里工作的排期（重要）**：灌水竖坑场景逼出——写准备金在水里**规划得到、执行不了**
@@ -247,7 +258,8 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 - **客户端**：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - **镜像 / 同步**：`./tools/mirror-windows-workspace.sh`；
   `./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`。
-- **本断点已同步的 jar**：`9738e6fca2b07ede8b985b29a6199372b205ede61bb08071b1cba6b997eaa594`（2026-09-16；**含 D-226…D-242**）
+- **本断点已同步的 jar**：`2d2735af1517c23502545c9e4e7d868802d15b1b4d0d8b744479ce8645e1ebbb`（2026-09-16；**含 D-226…D-243**）
+- 上一批 jar（含 D-242）：`9738e6fca2b07ede8b985b29a6199372b205ede61bb08071b1cba6b997eaa594`
 - 上一批 jar（含 D-241）：`872c30fdedc1a2b74ae921f741c38f4607f0114dc572d5813ad3c50548aa1dcd`
 - 上一批 jar（含 D-238）：`a5f758902b4160be3b69af3ea7d57ff5bd581aeaaedd62b99e6cfdd89a65c600`
 - 上一批 jar（含 D-236）：`e05b3492eeee7edf289260204a70e11b4f1dd52bf1b29929989c3ac9a1548d0f`
