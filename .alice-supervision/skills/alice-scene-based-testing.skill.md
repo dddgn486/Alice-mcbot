@@ -251,3 +251,15 @@ tools/check-scene-connectivity.py --selftest # 工具自检（封死通道必须
    bot 被传进空气、8 格内没有落点 ⇒ 8 条判据一起红（且**下一轮可能自己变绿** = 间歇性）。
    **治法**：`fillBlocks` 这类原语先 `hasChunkAt` 扫一遍区域，未加载就把 bot 传到区域中心
    （玩家 ticket 会**同步**加载区块），**原有的 `changed >= expected` 断言不要删**（真失败仍要红）。
+
+## 陷阱 #5（D-252 实测）：`/function` 在抑制输出的命令源下**静默失败**；客户端存档里的数据包会陈旧
+
+- 夹具普遍用 `createCommandSourceStack().withSuppressedOutput()` 跑 `/function alice_test:<scene>_terrain`
+  ⇒ **数据包缺失/陈旧时一个字都不会打**：场景拿"没有地形"的世界去规划，判据静默变成另一回事
+  （客户端实测：`pathing_regression` 三条红 `MISSING=[TRAVERSE]`/`cost=Infinity`，看着像 mod 回归，其实是场景没建）。
+- **纪律**：夹具必须**看返回值**（`performPrefixedCommand` 返回执行到的命令数；`<= 0` ⇒ 报 `TERRAIN_NOT_BUILT`），
+  并加一条"**起点可站**"（`canStandCentered`）这类**几何前提**断言 —— 已落在 `PathingRegressionTask.prepare`
+  与 `SurvivalExitCheckTask` 的 `survival_sealed_course` 两处。
+- **客户端数据包不是自动同步的**：无头电池每轮 `cp -r tools/test-scenes/alice_test`，客户端存档里那份是**手工拷贝**
+  ⇒ 用 `tools/sync-windows-artifact.sh <jar> <repo> <mods> <world>`（或 `ALICE_CLIENT_WORLD`）刷新；
+  **改完必须 `/reload` 或重进存档**（数据包是存档级资源）。

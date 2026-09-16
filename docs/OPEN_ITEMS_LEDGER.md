@@ -1760,7 +1760,7 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 - **OUT（明确不做，不再挂账）**：游泳 Movement（Baritone 也没有 `/projects/reference/baritone` 只有 8 个 Movement 类）；
   落水免伤（D-058 用户定案）；水柱成本模型 `LADDER_UP_ONE_COST`（只影响选路，不影响能力）；水面专用理由码（`UNREACHABLE` 够用）。
 - **✅ 收口检验（必须有一次真人检查，否则不算完）**：客户端**一次右键**跑 `alice:survival_full_check`
-  （零参数，120 条判据）⇒ 聊天里应看到 `SUMMARY checks=120 failures=0 → PASS`；**外加**对"溺水逃生闭环"的肉眼确认：
+  （零参数，122 条判据）⇒ 聊天里应看到 `SUMMARY checks=122 failures=0 → PASS`；**外加**对"溺水逃生闭环"的肉眼确认：
   水里能出来（不静默等死）、干地竖坑仍靠**放置**上来、水里那两段**不放方块**。
   **AI 在此之前不得声明"溺水逃生已闭环"**；客户端现象以用户观察为准（日志只作佐证）。
 

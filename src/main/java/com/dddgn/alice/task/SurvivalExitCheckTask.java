@@ -271,7 +271,13 @@ public class SurvivalExitCheckTask implements Task {
         if (phaseTicks == SETTLE_TICKS) {
             var server = bot.getServer();
             var source = server.createCommandSourceStack().withSuppressedOutput();
-            server.getCommands().performPrefixedCommand(source, "function alice_test:survival_sealed_course");
+            // ⚠️ **看返回值**（D-252，与 `PathingRegressionTask.prepare` 同一教训）：命令源是
+            // `withSuppressedOutput()` ⇒ 数据包缺失/陈旧时 `/function` **一字不打**就失败，
+            // 后面的"封闭/溺水"判据会拿着**没有几何**的世界跑（客户端实测过：存档里的场景数据包是旧拷贝）。
+            int sealedCmds = server.getCommands().performPrefixedCommand(source,
+                    "function alice_test:survival_sealed_course");
+            check("场景前提：封闭场景函数真的跑了（alice_test:survival_sealed_course ⇒ " + sealedCmds
+                            + " 条命令；0 = 数据包缺失/陈旧）", sealedCmds > 0);
             BotLog.info("[Survival] 封闭场景已建造（bot 到位后，区块已加载）：scene={} foot={}",
                     "alice_test:survival_sealed_course", SurvivalCourseAnchor.SEALED_FOOT.toShortString());
             return;

@@ -191,6 +191,13 @@ public final class PathingRegressionTask implements Task {
     private int sceneTicks;
     private boolean prepared;
     /** 已真正放下封路石头（声明了 wallTick 的场景必须为 true，否则判 FAIL）。 */
+    /**
+     * **场景前提失败原因**（D-251）：数据包缺失/陈旧 ⇒ `/function` 因 `withSuppressedOutput()` **静默失败**，
+     * 场景会拿"没有地形"的世界去规划（客户端实测：09-15 的旧数据包缺新场景函数 ⇒ 两条红且日志无报错）。
+     * 只在此处赋值、在每个场景收口时并入 PASS 判定。
+     */
+    private String preconditionFailure;
+
     private boolean walled;
     /** 已真正把 bot 平移过（声明了 disturbTick 的场景必须为 true，否则判 FAIL）。 */
     private boolean disturbed;
@@ -252,7 +259,8 @@ public final class PathingRegressionTask implements Task {
         if (scene.disturbTick() > 0 && !disturbed) {
             fixtureMissing.add(disturbGaveUp ? "disturb(no_valid_cell)" : "disturb");
         }
-        boolean pass = state == PathRetryRunner.State.DONE && runner.replans() >= scene.minReplans()
+        boolean pass = preconditionFailure == null
+                && state == PathRetryRunner.State.DONE && runner.replans() >= scene.minReplans()
                 && missing.isEmpty() && fixtureMissing.isEmpty();
         record(scene, pass, result.status()
                 + (runner.replans() > 0 ? "/replans=" + runner.replans() : "")
@@ -260,7 +268,8 @@ public final class PathingRegressionTask implements Task {
                 + "/route=" + routeOf(executed)
                 + (sceneTicks > 0 ? "/sceneTicks=" + sceneTicks : "")
                 + (missing.isEmpty() ? "" : "/MISSING=" + missing)
-                + FixtureScript.notFired(fixtureMissing));
+                + FixtureScript.notFired(fixtureMissing)
+                + (preconditionFailure == null ? "" : "/PREMISE_FAILED=" + preconditionFailure));
         runner = null;
         advance();
         return index >= SCENES.size() ? finish() : Status.RUNNING;
@@ -333,7 +342,11 @@ public final class PathingRegressionTask implements Task {
         var source = server.createCommandSourceStack().withSuppressedOutput();
         // 场景标签允许带后缀（如 place_course+wall），地形函数取 '+' 之前的部分
         String terrain = scene.scene().split("\\+")[0];
-        server.getCommands().performPrefixedCommand(source,
+        // ⚠️ **必须看返回值**（D-251 教训）：命令源是 `withSuppressedOutput()` ⇒ `/function` 失败
+        // （函数不存在 / 数据包陈旧）**一个字都不会打**，场景会拿着"没有地形"的世界去规划 ⇒ 判据静默变成
+        // 另一回事。客户端实测：世界数据包是 09-15 的旧拷贝、缺 `water_course`/`deep_pond_course` 两个新函数
+        // ⇒ 无地形 ⇒ `UNREACHABLE` ⇒ 两条红，而服务端无头电池每轮 `cp -r` 刷新数据包所以全绿。
+        int terrainCommands = server.getCommands().performPrefixedCommand(source,
                 "function alice_test:" + terrain + "_terrain");
         bot.teleportTo(bot.serverLevel(), scene.start().getX() + 0.5D, scene.start().getY(),
                 scene.start().getZ() + 0.5D, Set.of(), bot.getYRot(), bot.getXRot());
@@ -341,6 +354,17 @@ public final class PathingRegressionTask implements Task {
         bot.controller().stopMovement();
         ensureCobblestone(bot, 8);
         ensureStonePickaxe(bot);
+        preconditionFailure = null;
+        if (terrainCommands <= 0) {
+            preconditionFailure = "TERRAIN_NOT_BUILT(cmd=" + terrainCommands + ")";
+            BotLog.warn("[Regression] scene={} 地形函数一条命令都没跑 ⇒ 数据包缺失/陈旧？"
+                    + "（客户端需刷新 <world>/datapacks/alice_test；见 tools/sync-windows-artifact.sh）",
+                    scene.scene());
+        } else if (!MovementHelper.canStandCentered(bot.serverLevel(), scene.start())) {
+            preconditionFailure = "START_NOT_STANDABLE";
+            BotLog.warn("[Regression] scene={} 起点不可站（{}）⇒ 地形没建出来或建错",
+                    scene.scene(), scene.start().toShortString());
+        }
         walled = false;
         disturbed = false;
         disturbGaveUp = false;
@@ -407,6 +431,10 @@ public final class PathingRegressionTask implements Task {
     }
 
     private void runPlanCheck(SceneCheck scene) {
+        if (preconditionFailure != null) {
+            record(scene, false, "PREMISE_FAILED=" + preconditionFailure);
+            return;
+        }
         PathRequest request = request(scene);
         PathPlan plan = new CorePathPlanner().plan(bot, bot.serverLevel(), request);
         String first = plan.movements().isEmpty()

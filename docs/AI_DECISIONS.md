@@ -10380,6 +10380,42 @@ Alice 的差异：`PathSession.futureTargetBlocked():629-659` **用真实世界�
 没有专做的"入水物理"；③ 水平潜游（水面以下）仍不支持；④ **真人客户端复核未做**（见下）。
 
 **⚠️ 收口纪律（用户 2026-09-16 明确）**：本次到"**需要用户检查**"为止 —— 溺水逃生闭环**不算完成**，
-等用户在固定客户端上做一次零参数复核（`alice:survival_full_check` 右键 ⇒ `checks=120 failures=0`；
+等用户在固定客户端上做一次零参数复核（`alice:survival_full_check` 右键 ⇒ `checks=122 failures=0`；
 `alice:pathing_regression` 右键 ⇒ 深水池场景 PASS），并按用户观察判定是否 `USER_ACCEPTED`。
 **不得凭服务端日志宣称客户端可用**（`SERVER_TESTED` ≠ `WINDOWS_CLIENT`）。
+
+### D-252：客户端 `pathing_regression` 失败 —— **是场景数据包陈旧**，不是 mod 回归（2026-09-16；两个夹具同步焊死）
+
+**用户实测**：客户端 `alice:pathing_regression` 右键 ⇒ FAIL。日志（`<client>/logs/latest.log` 19:45-19:46）：
+```
+scene=water_course       result=FAIL detail=MOVEMENT_FAILED/route=-/sceneTicks=1/MISSING=[TRAVERSE]
+scene=deep_pond_course   result=FAIL detail=MOVEMENT_FAILED/route=-/sceneTicks=1/MISSING=[TRAVERSE]
+scene=water_course+cost  result=FAIL detail=UNREACHABLE/…/cost=Infinity/expected=0.00
+其余全部 PASS（含 coverage=PASS、executed=… 10 类齐全）
+```
+失败的三条**恰好是只用"新场景地形函数"的那三条**（`water_course_terrain` / `deep_pond_course_terrain`）。
+
+**根因（测试夹具的同步缺口，与 mod 无关）**：客户端存档里的那份数据包
+`saves/新的世界/datapacks/alice_test/` 是 **09-15 的手工拷贝**，**缺 D-247/D-248 新增的两个场景函数**
+（仓库里 111 个 `.mcfunction`，客户端那份没有这两个）⇒ 夹具的
+`/function alice_test:water_course_terrain` **一条命令都没跑** ⇒ 场景**根本没有水沟/水池**，拿"没有地形"的世界去规划
+⇒ `UNREACHABLE` ⇒ FAIL。**无头电池每轮 `cp -r tools/test-scenes/alice_test` 刷新数据包**（`headless-battery.sh:137-138`）
+⇒ 服务端全绿；客户端那份**没有任何工具刷新**，而且夹具用了 `withSuppressedOutput()` 的命令源，
+`/function` 失败**一字不打** ⇒ 表面上看像"mod 回归"。（⇒ 这也是为什么 D-247/D-248 的 `water_course` 在客户端
+**从来没真正跑过**：它一诞生，客户端数据包就已经缺它了。）
+
+**两条修法（都已落地）**：
+1. **夹具：地形前提必须响亮失败**（不再静默）：
+   - `PathingRegressionTask.prepare`：读 `/function …_terrain` 的**返回值**，`<= 0` ⇒ 该场景记
+     `PREMISE_FAILED=TERRAIN_NOT_BUILT(cmd=0)`；并加"**起点可站**"（`canStandCentered`）前提 ⇒ 地形没建出来/建错都会红；
+   - `SurvivalExitCheckTask` 的 `alice_test:survival_sealed_course` 同样看返回值（封闭/溺水判据依赖那套几何）。
+   ⇒ 判据数 `checks 120 → 122`（另 1 条来自 D-251 把"第一段必须是 PILLAR"改成"计划自洽 + 从坑底起步"两条）。
+2. **工具：数据包刷新挂到既有同步命令上**（AGENTS.md：新验证手段必须挂在已有命令上）：
+   `tools/sync-windows-artifact.sh` 新增第 4 参数 / `ALICE_CLIENT_WORLD`（不给则按 `mods/` 的兄弟目录 `saves/*/datapacks/alice_test`
+   自动探测，唯一才用）⇒ 备份旧的 `alice_test.bak.<时间戳>`（保留 `ALICE_BACKUP_KEEP`，默认 2）后整体刷成仓库版本，
+   并**校验 `.mcfunction` 份数一致**（111=111），最后提示"游戏内 `/reload`（或重进存档）后再跑测试物品"。
+   本次已执行：客户端数据包 105 → **111** 个函数，`water_course_terrain` / `deep_pond_course_terrain` 已就位。
+
+**边界**：**这不能证明 mod 侧的深水能力在客户端可用** —— 数据包刷新后要**用户重跑一次**才算数
+（`SERVER_TESTED` ≠ `WINDOWS_CLIENT`）。另外**数据包是存档级资源**：游戏已加载存档时改文件不会自动生效，
+必须 `/reload` 或重进存档（脚本已打印这条提示）。

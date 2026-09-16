@@ -6,8 +6,11 @@ ARTIFACT="${1:-${ROOT_DIR}/build/libs/alice-1.0.0-1.20.1.jar}"
 WINDOWS_REPO="${2:-/mnt/d/JAVA_projects/alice}"
 RUNTIME_MODS="${3:-}"
 
-# 用法：sync-windows-artifact.sh [artifact.jar] [windows-repo] [runtime-mods-dir]
+# 用法：sync-windows-artifact.sh [artifact.jar] [windows-repo] [runtime-mods-dir] [client-world-dir]
 # 第三个参数显式给出实际客户端 mods 目录后，脚本才会同步运行工件。
+# 第四个参数（或 `ALICE_CLIENT_WORLD`）给出客户端存档目录 ⇒ 顺带刷新场景数据包
+# `<world>/datapacks/alice_test`（**D-251 实测的坑**：客户端那份是手工拷贝，没人刷新 ⇒ 新场景
+# 的 `/function` 静默失败、场景拿没有地形的世界去规划，看着像 mod 回归）。
 
 if [[ ! -f "${ARTIFACT}" ]]; then
   echo "ERROR: artifact not found: ${ARTIFACT}" >&2
@@ -67,6 +70,49 @@ if [[ -n "${RUNTIME_MODS}" ]]; then
     rm -f "${stale[@]}"
     echo "runtime_backups_pruned=${#stale[@]} (keep=${keep})"
   fi
+fi
+
+# ==================== 场景数据包（客户端存档里那一份） ====================
+# D-251 实测教训：无头电池每轮 `cp -r tools/test-scenes/alice_test`，而**客户端存档里的那份是手工拷贝**
+# ⇒ 新场景函数（`water_course_terrain` / `deep_pond_course_terrain`）缺失，`/function` 又因夹具
+# `withSuppressedOutput()` 静默失败 ⇒ 场景拿"没有地形"的世界去规划，看起来像 mod 回归。所以挂到这里一起刷。
+CLIENT_WORLD="${4:-${ALICE_CLIENT_WORLD:-}}"
+datapack_src="${ROOT_DIR}/tools/test-scenes/alice_test"
+if [[ -z "${CLIENT_WORLD}" && -n "${RUNTIME_MODS}" ]]; then
+  client_root="$(dirname "${RUNTIME_MODS}")"
+  mapfile -t candidates < <(ls -d "${client_root}"/saves/*/ 2>/dev/null || true)
+  found=()
+  for w in "${candidates[@]:-}"; do
+    [[ -d "${w}/datapacks/alice_test" ]] && found+=("${w%/}")
+  done
+  if (( ${#found[@]} == 1 )); then
+    CLIENT_WORLD="${found[0]}"
+  elif (( ${#found[@]} > 1 )); then
+    echo "client_datapack=skipped（自动探测到 ${#found[@]} 个存档都带 alice_test，请显式给第 4 个参数）"
+  fi
+fi
+if [[ -n "${CLIENT_WORLD}" && -d "${CLIENT_WORLD}" && -d "${datapack_src}" ]]; then
+  dp_target="${CLIENT_WORLD}/datapacks/alice_test"
+  if [[ -d "${dp_target}" ]]; then
+    dp_backup="${dp_target}.bak.$(date +%Y%m%d-%H%M%S)"
+    cp -r "${dp_target}" "${dp_backup}"
+    keep_dp="${ALICE_BACKUP_KEEP:-2}"
+    mapfile -t stale_dp < <(ls -dt "${dp_target}".bak.* 2>/dev/null | tail -n +$((keep_dp + 1)))
+    (( ${#stale_dp[@]} > 0 )) && rm -rf "${stale_dp[@]}"
+  fi
+  rm -rf "${dp_target}"
+  cp -r "${datapack_src}" "${dp_target}"
+  src_fns="$(find "${datapack_src}/data" -name '*.mcfunction' | wc -l)"
+  dst_fns="$(find "${dp_target}/data" -name '*.mcfunction' | wc -l)"
+  echo "client_datapack=${dp_target}"
+  echo "client_datapack_functions=${dst_fns} (repo=${src_fns})"
+  if [[ "${src_fns}" != "${dst_fns}" ]]; then
+    echo "ERROR: datapack function count mismatch after copy" >&2
+    exit 3
+  fi
+  echo "client_datapack_note=请在游戏内执行 /reload（或重进存档）后再跑测试物品"
+else
+  echo "client_datapack=skipped（未给客户端存档目录；传第 4 个参数或设 ALICE_CLIENT_WORLD）"
 fi
 
 echo "WINDOWS_ARTIFACT_SYNC PASS"

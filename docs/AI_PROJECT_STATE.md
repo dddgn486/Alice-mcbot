@@ -239,7 +239,7 @@ S0 事实表 ✅ → S1 设备事实表 ✅ → **S2 进表 ✅（`MachineMap` 3
   D-242 水里"规划得到、执行不了"的结论 / **D-243 水里垂直移动**（`PILLAR`/`ASCEND` 水里按住跳跃上浮）/ **D-244 水柱省料分支**（起点/目的地都是水 ⇒ 上浮**不放方块**，完成口径改"脚位到格即成功"；实测整段逃生零放置）/ **D-245 逃生放置不自动回收**（回收时机交玩家 `/alice restore`，负向门禁防逃生循环）/ **D-246「出口列表」判定基本为空 ⇒ 关闭**（纯通行档「最近不可达」⇔「没有出口」，证明在决策里）。 / **D-248 水位切片 B 勘查完成、规划那半回退**（水位例外在 CORE 引出未解释回归：逃生改走更便宜的"破墙+升到水面格"路线、最终段支撑被读成 `Air` ⇒ `SEGMENT_FUTURE_BLOCKED`；证据与三个候选解释在决策里） / **D-247 水位切片 A**（实测：蹚水本来就能走 ← 新场景 `water_course`；补 `WATER_TRAVERSE_MULTIPLIER=7.25`让水里步子按水速计价；判据期望值走独立第二来源，防自指）。
   D-226/228/229/236 已 `WINDOWS_CLIENT`。
   零参数入口：`alice:survival_exit_check`（右键窒息 / Shift+右键着火）、
-  `alice:survival_full_check`（一次右键跑完全部 **120** 条判据 ⇒ 聊天里看 `SUMMARY checks=120 failures=0 → PASS`）。
+  `alice:survival_full_check`（一次右键跑完全部 **122** 条判据 ⇒ 聊天里看 `SUMMARY checks=120 failures=0 → PASS`）。
 - **决策/快照线（同日）**：D-233（`decision_contract` 提档 MAIN + 本文件过时段落重写）、D-234（四个 Job 统一
   "子阶段失败"口径）、D-235（挂起传输"结清落盘"：持久化成立 + 跨重启幂等）。
 - **D-230 的自我修正**：我一度判断"bot 的血只减不增、必须补 `doTick()`"，实测**推翻**了它（`Player.aiStep()`
