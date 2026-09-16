@@ -132,6 +132,25 @@ public final class MineTask implements Task {
      * 是 Alice 的闸门把它停住了" —— 用于日志与终态理由，避免把"我们拦住了"混进"模组就是这样"。
      */
     private boolean chainRefusedByBudget;
+
+    /**
+     * **连锁破坏是否被写入预算截断**（G3，2026-09-16）。
+     *
+     * <p>为什么要有消费者：这个字段原先**只写不读**（审计 G3 的"死哨兵"），于是"预算把 3×3 连锁砍短"
+     * 与"矿脉本来就挖完了"在下游**长得一模一样**（任务照样走到收集阶段、照样报成功）。
+     * 现在它同时进 {@link #terminalReason()} ⇒ 落进 D-134 的 `task_terminal_reason` 日志与决策快照。
+     */
+    public boolean chainRefusedByBudget() {
+        return chainRefusedByBudget;
+    }
+
+    /**
+     * 终态理由（D-134 通路）：预算截断必须**如实上报**，不许被泛化成"正常完成"。
+     */
+    @Override
+    public String terminalReason() {
+        return chainRefusedByBudget ? "chain_budget_refused" : "";
+    }
     /** 触发连锁前的目标方块状态（用于判断连锁是否真的把它挖掉了）。 */
     private BlockState chainTargetState;
 

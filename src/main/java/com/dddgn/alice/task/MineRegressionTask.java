@@ -59,7 +59,13 @@ public final class MineRegressionTask implements Task {
          * 先不收集）→ **重开作用域**（同样的中心/半径）→ 断言掉落物**仍在账上**
          * （`liveDrops() ≥ 1`）。修前 `begin()` 会清空登记 ⇒ 这里必然是 0。
          */
-        SCOPE_REOPEN
+        SCOPE_REOPEN,
+
+        /**
+         * **G3/R1-残（2026-09-16）**：把破坏预算压低后跑同一条连锁矿脉 —— 断言"预算把连锁截断"
+         * 这件事**如实上报**（`chainRefusedByBudget` 原先只写不读，下游分不清"砍短"与"挖完"）。
+         */
+        CHAIN_STARVED
     }
 
     /**
@@ -121,6 +127,9 @@ public final class MineRegressionTask implements Task {
                     Kind.EXECUTE, List.of(), 1, Items.COBBLESTONE, true, true, 1),
             new CaseDef("exec_chain", "chain_mine_course", CHAIN_START, CHAIN_TARGET,
                     Kind.CHAIN, List.of(), 9, Items.RAW_IRON, true, false, 9),
+            // G3：同一场景、**预算压到 1 次破坏** ⇒ 连锁必须当场停 + 如实报 `chain_budget_refused`
+            new CaseDef("exec_chain_budget_refused", "chain_mine_course", CHAIN_START, CHAIN_TARGET,
+                    Kind.CHAIN_STARVED, List.of(), 0, Items.RAW_IRON, false, false, 0),
             // D-119 负例：同一格圆石，但**清空背包**后开工 —— 必须如实失败、不破坏方块、不变出工具
             new CaseDef("no_tool_refuses", "mine_course", MINE_START, new BlockPos(23, 64, 140),
                     Kind.TOOL_REFUSAL, List.of(), 0, Items.COBBLESTONE, true, false, 0),
@@ -205,7 +214,7 @@ public final class MineRegressionTask implements Task {
                 advance();
                 return index >= CASES.size() ? finish() : Status.RUNNING;
             }
-            if (current.kind() == Kind.CHAIN) {
+            if (current.kind() == Kind.CHAIN || current.kind() == Kind.CHAIN_STARVED) {
                 if (!ChainMining.available()) {
                     results.put(current.name(), "SKIP");
                     details.put(current.name(), "chain_mod=absent");
@@ -217,6 +226,14 @@ public final class MineRegressionTask implements Task {
                 MiningTuning.setChainMode("auto");
                 BotLog.info("[MineRegression] {} 临时启用 chain=AUTO（原 {}）",
                         current.name(), chainModeBefore);
+                if (current.kind() == Kind.CHAIN_STARVED) {
+                    // **确定性**触发：3×3 矿脉 ≫ 1 次破坏 ⇒ 第二次增量必被拒（不必造 65 格的场景）
+                    com.dddgn.alice.action.WriteBudget.setCaps(
+                            com.dddgn.alice.action.WriteBudget.scopeOf(bot),
+                            new com.dddgn.alice.action.WriteBudget.Caps(1, 0, 0));
+                    BotLog.info("[MineRegression] {} 破坏预算压到 1（夹具专用 setCaps）remaining={}",
+                            current.name(), com.dddgn.alice.action.WriteBudget.remainingBreaks(bot));
+                }
             }
             scope.begin(current.target(), 16, bot.getUUID());
             expectedItem = current.expectedItem();
@@ -288,6 +305,24 @@ public final class MineRegressionTask implements Task {
                 settleUntilTick = caseTicks + 5;
             }
             return Status.RUNNING;   // 等待期间不 tick 内层（见上面的 D-175 注释）
+        }
+        if (current.kind() == Kind.CHAIN_STARVED) {
+            // G3 断言四条：① 拒绝被记下（字段终于有读者）② 终态理由如实上报（D-134 通路）
+            // ③ 连锁真的停了 ④ 预算确实被打满（证明这个"拒绝"来自预算，不是别的原因）
+            boolean flagged = mineTask.chainRefusedByBudget();
+            boolean reported = "chain_budget_refused".equals(mineTask.terminalReason());
+            boolean stopped = !ChainMining.isRunning(bot);
+            int remaining = com.dddgn.alice.action.WriteBudget.remainingBreaks(bot);
+            record(current, flagged && reported && stopped && remaining == 0,
+                    "refused=" + flagged + "/terminalReason=" + mineTask.terminalReason()
+                            + "/chainStopped=" + stopped + "/remainingBreaks=" + remaining
+                            + "/status=" + status);
+            // 复原上限，**不许污染后续用例/后续电池步**
+            com.dddgn.alice.action.WriteBudget.setCaps(
+                    com.dddgn.alice.action.WriteBudget.scopeOf(bot),
+                    com.dddgn.alice.action.WriteBudget.Caps.DEFAULT);
+            finishCase();
+            return index >= CASES.size() ? finish() : Status.RUNNING;
         }
         if (current.kind() == Kind.TOOL_REFUSAL) {
             // D-119 负例断言：如实失败 + 目标未动 + **没有变出工具**
@@ -499,6 +534,10 @@ public final class MineRegressionTask implements Task {
     }
 
     private void finishCase() {
+        // G3 兜底：即使 CHAIN_STARVED 用例超时/异常提前收尾，也不许把 bot 的破坏预算留在 1
+        com.dddgn.alice.action.WriteBudget.setCaps(
+                com.dddgn.alice.action.WriteBudget.scopeOf(bot),
+                com.dddgn.alice.action.WriteBudget.Caps.DEFAULT);
         if (chainModeBefore != null) {
             MiningTuning.setChainMode(chainModeBefore);
             BotLog.info("[MineRegression] 恢复 chain={}", chainModeBefore);

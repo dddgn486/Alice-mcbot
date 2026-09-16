@@ -10671,3 +10671,33 @@ V-4（`contrast_fall`/`contrast_pillar` **从未跑过**：全仓只有登记与
 **如实边界**：① 本修改**不改变**任何预算计数（合成网格仍不记容器预算），只把"理由"从隐式变显式；
 ② `CRAFT_GRID` 是**分类标记**，`WritePolicyMatrix` 不参与它（因此矩阵行数不变，仍是 24 行）；
 ③ 5 个调用点的 requester 字面量（`craft-job`/`table-craft`/…）目前**无人读取**，只是给日志与未来冻结留锚点。
+
+### D-260：G3 / R1-残 收口 —— 连锁破坏预算的**拒绝必须可上报**（2026-09-16）
+
+**缺口（审计 G3 + 台账 R1-残）**：`MineTask` 的连锁破坏按 `ChainMining.minedCount` 增量逐次 `WriteBudget.consumeBreak`，
+预算拒绝时**只**设了一个**永不读取**的字段 `chainRefusedByBudget`（G3 称之为死哨兵）⇒ "3×3 连锁被预算砍短"
+与"矿脉本来就挖完了"在下游**长得一模一样**；且现有电池 `exec_chain` 用例只挖 ~9 格（≪ 64）⇒ 拒绝分支**从没被走到**。
+
+**修法（两处，都用既有机制，不新造）**：
+1. **让死哨兵有读者**：`MineTask.chainRefusedByBudget()` 访问器 + 覆写 `terminalReason()` ——
+   被截断时返回 `chain_budget_refused`。它直接落进 **D-134 的既有通路**：
+   `task.terminalReason()` → `TaskOutcome`/`TaskExecutionRecord` → `task_terminal_reason kind=… terminalReason=…` 日志
+   → 决策快照（`DecisionSnapshot`）。**没有新增任何机制/字段/码**。
+2. **确定性判据（不必造 65 格场景）**：`WriteBudget.setCaps` 是**登记为"夹具专用"**的钩子 ⇒
+   `MineRegressionTask` 新增用例 `exec_chain_budget_refused`：把 bot 作用域的破坏上限压到 **1**，
+   跑**同一条** `chain_mine_course` 矿脉（9 格 ≫ 1）⇒ 第二次增量必被拒。
+   断言四条：`chainRefusedByBudget()==true`、`terminalReason()=="chain_budget_refused"`、
+   `!ChainMining.isRunning(bot)`、`remainingBreaks(bot)==0`（证明拒绝**来自预算**而不是别的失败）。
+   用完即把上限恢复 `Caps.DEFAULT`，并在 `finishCase()` 加兜底恢复（用例超时也不许把 bot 的预算留在 1）。
+
+**证据**：
+- `single:mine_regression` **PASS**，日志原文：`exec_chain_budget_refused=PASS refused=true/terminalReason=chain_budget_refused/chainStopped=true/remainingBreaks=0/status=DONE`。
+- **反向对照**：把 `terminalReason()` 的返回改回 `""`（拆掉消费者）⇒ `mine_regression=FAIL`（verdict=FAIL, exit=1）✓。
+- CORE 全绿（含本步与其后所有步 ⇒ 预算恢复没污染别人）。
+
+**如实边界（重要）**：
+1. **没有改变任务结局语义** —— 实测 `status=DONE`：目标方块确实被挖掉了，只是连锁被砍短，所以本任务仍然算成功；
+   我们只让"被砍短"这件事**可上报**。要不要把"连锁被砍短"升级为失败/半成功，是**产品口径**决定（未做，等裁定）。
+2. 该分支**没有物理/视觉语义差异**（只影响计数与上报）⇒ **不需要客户端测试**；若日后要升级结局语义，
+   那时才需要客户端确认"玩家看到的现场是否合理"。
+3. 用 `setCaps` 压预算属于**夹具专用**用法（该方法注释里已声明不接玩家命令入口），没有给生产路径开口子。
