@@ -91,6 +91,9 @@ public enum WriteReason {
      * 与 A11 的 `CONTAINER_TRANSFER` 同源），并且**建拆同权**：装进去的东西必须能原样取回。
      */
     STATION_PROVISION(Policy.EXPLICIT_TARGET, Action.BOTH, "装配/拆除工作站升级（用完即拆）"),
+    /** 合成网格/结果槽：菜单内搬运（非世界容器）；见 {@link #menuWrite()}。 */
+    CRAFT_GRID(Policy.EXPLICIT_TARGET, Action.BOTH, "合成网格/结果槽（菜单内，非世界容器）"),
+
     MANUAL(Policy.EXPLICIT_TARGET, Action.BOTH, "玩家命令");
 
     /** 判定策略：决定走 {@code BlockBreakSafety} 的哪一套拒绝规则。 */
@@ -151,5 +154,16 @@ public enum WriteReason {
      */
     public boolean container() {
         return this == CONTAINER_TRANSFER || this == STATION_PROVISION;
+    }
+
+    /**
+     * **菜单写入家族**（R5-残，2026-09-16）：{@link #container()} 之外，还允许 {@link #CRAFT_GRID}。
+     *
+     * <p>为什么分开：合成网格与结果槽是**菜单内**的搬运（随身 2×2／工作台／站点菜单），
+     * **不是世界容器写入** —— 既不该吃容器写入预算，也不能被当成"地形写入"理由放行。
+     * 但它同样必须**显式交出理由**（不许调用方自觉），否则新增模组适配又会默认无记账。
+     */
+    public boolean menuWrite() {
+        return container() || this == CRAFT_GRID;
     }
 }

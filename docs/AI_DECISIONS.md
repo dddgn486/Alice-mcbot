@@ -10639,3 +10639,35 @@ V-4（`contrast_fall`/`contrast_pillar` **从未跑过**：全仓只有登记与
 **如实边界**：① 全部判决来自**代码/文档文本**（grep + read），**没有**运行期新实验；「某符号无消费者」类结论
 以 grep 命中数为证；② §1 表后那段（工具耐久 / bot 清除后 SavedData 残留）只核到 V-5 的粒度；
 ③ 三份历史审计报告**原文不改**（只改台账状态 + 一处会误导的常量）。
+
+### D-259：R5-残 收口 —— 菜单写入原语的**编译期强制**（2026-09-16）
+
+**缺口（三路审计 §3.1 R-5 / 台账 R5-残）**：`FurnaceStation.click` 早已做「调原语必须显式交出 `WriteGrant`」，
+但 `InventoryCraft.click` 与 `StationProvision.click` 仍是**调用方自觉** ⇒ 任何新增模组适配默认无记账。
+
+**修法（一处不新造，照 `FurnaceStation` 样板）**：
+1. **新理由 + 新家族**：`WriteReason.CRAFT_GRID`（合成网格/结果槽，**菜单内**搬运）；
+   `WriteReason.menuWrite()` = `container()` ∪ `{CRAFT_GRID}` —— 为什么**不并进 `container()`**：
+   合成网格/随身背包**不是世界容器**，不该吃容器写入预算，但也不能用"地形写入"理由蒙混 ⇒ 单独一族、显式交理由。
+2. **原语层编译期强制**：`InventoryCraft.click`（两个重载）与 `StationProvision.click` 都新增 `WriteGrant` 形参，
+   内部校验 `grant != null && grant.reason().menuWrite()`，不满足即**拒绝点击并响亮告警**（不再静默）。
+3. **调用点显式交理由**：`InventoryCraft.craft` 三个公开入口 + 5 个调用点（`CraftJob`／`TableCraft`／
+   `CraftActionCheckTask`×2／`CraftStationCraftCheckTask`）全部改写为交出 `CRAFT_GRID`；
+   `StationProvision` 两个 `move*` 方法内部构造 `STATION_PROVISION` 授权并贯穿到每次点击。
+4. **注册表**：`docs/authz/CONTAINER_WRITE_SITES.csv` 三行 why 更新（gated 取值不变：合成网格**不吃预算**，
+   所以不是 `gated=yes`；豁免理由现在写明"必须显式交理由"这一层强制）。
+
+**判据（可红，均实测）**：
+| # | 判据 | 反向对照 |
+|---|---|---|
+| ① | **编译期**：调用点不给 grant ⇒ 编译不过（最强的一档，不靠运行时） | 去掉 `TableCraft` 的 grant 实参 ⇒ `错误: 不兼容的类型` ✓ |
+| ② | **门禁** `check-policy-matrix.sh` ⑨：三处原语的**每个** `click` 重载必须带 `WriteGrant` | 把 `InventoryCraft` 五参重载改成 `Object grant` ⇒ 门禁红 ✓ |
+| ③ | **行为**：合成/装配各步不被误杀、预算语义不变 | CORE 全绿（见下方证据）|
+
+⚠️ **规则太弱的教训（当场实测）**：⑨ 第一版只查"文件里存在一处带 `WriteGrant` 的 `click`"⇒ 把五参重载改成 `Object`
+时**仍然 PASS**（被四参重载顶绿）。改为**逐重载 + 平衡括号解析形参表**后才真正能红 ⇒ 与 `check-transfer-clock.sh`
+当年"参数表截断 / 方法体切分"是同一类假绿，故一律用平衡括号扫描。
+
+**如实边界**：① 本修改**不改变**任何预算计数（合成网格仍不记容器预算），只把"理由"从隐式变显式；
+② `CRAFT_GRID` 是**分类标记**，`WritePolicyMatrix` 不参与它（因此矩阵行数不变，仍是 24 行）；
+③ 5 个调用点的 requester 字面量（`craft-job`/`table-craft`/…）目前**无人读取**，只是给日志与未来冻结留锚点。

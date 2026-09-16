@@ -267,7 +267,8 @@ public class CraftStationCraftCheckTask implements Task {
         int cobbleBeforeCraft = totalCount(Items.COBBLESTONE);
         int furnaceBeforeCraft = totalCount(Items.FURNACE);
 
-        InventoryCraft.Result primitive = InventoryCraft.craft(bot, menu, recipe, 1, spec);
+        InventoryCraft.Result primitive = InventoryCraft.craft(bot, menu, recipe, 1, spec,
+                com.dddgn.alice.action.WriteGrant.of("station-craft-check", com.dddgn.alice.action.WriteReason.CRAFT_GRID));
         primitiveVerdict = primitive.describe();
         record("primitive_verdict", primitiveVerdict);
 

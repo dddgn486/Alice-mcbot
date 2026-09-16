@@ -136,7 +136,8 @@ public class CraftActionCheckTask implements Task {
         boolean cleanupOk = false;
         String cleanupDetail = "no_recipe";
         if (torchRecipe != null) {
-            var r5 = InventoryCraft.craft(bot, bot.containerMenu, torchRecipe, 1);
+            var r5 = InventoryCraft.craft(bot, bot.containerMenu, torchRecipe, 1,
+                    com.dddgn.alice.action.WriteGrant.of("craft-action-check", com.dddgn.alice.action.WriteReason.CRAFT_GRID));
             boolean gridEmptyAfter = true;
             for (int cell = 0; cell < 4; cell++) {
                 gridEmptyAfter &= bot.containerMenu.getSlot(1 + cell).getItem().isEmpty();
@@ -169,7 +170,8 @@ public class CraftActionCheckTask implements Task {
         if (recipe == null) {
             return new InventoryCraft.Result(false, "recipe_lookup_failed", 0, 0, List.of());
         }
-        return InventoryCraft.craft(bot, bot.containerMenu, recipe, count);
+        return InventoryCraft.craft(bot, bot.containerMenu, recipe, count,
+                com.dddgn.alice.action.WriteGrant.of("craft-action-check", com.dddgn.alice.action.WriteReason.CRAFT_GRID));
     }
 
     // ==================== 工具 ====================

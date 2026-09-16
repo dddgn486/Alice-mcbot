@@ -437,7 +437,8 @@ public final class CraftJob implements Job {
         }
         InventoryCraft.ProductCounter counter =
                 item -> StationProvision.countLandedProduct(menu, bot, item, grid.spec());
-        InventoryCraft.Result crafted = InventoryCraft.craft(bot, menu, recipe, count, grid.spec(), counter);
+        InventoryCraft.Result crafted = InventoryCraft.craft(bot, menu, recipe, count, grid.spec(), counter,
+                com.dddgn.alice.action.WriteGrant.of("craft-job", com.dddgn.alice.action.WriteReason.CRAFT_GRID));
         BotLog.info("[CraftJob] craft {} → {}", grid.describe().substring(0, Math.min(60,
                 grid.describe().length())), crafted.describe());
         if (!crafted.ok()) {

@@ -179,9 +179,11 @@ public final class StationProvision {
      */
     public static boolean moveIntoContainer(BotPlayer bot, AbstractContainerMenu menu,
                                             net.minecraft.world.item.Item item, BlockPos pos) {
+        // **R5-残 收口（2026-09-16）**：本文件的原语层改为**编译期强制** —— 每次点击都要显式带理由。
+        com.dddgn.alice.action.WriteGrant grant = com.dddgn.alice.action.WriteGrant.of("station-provision", com.dddgn.alice.action.WriteReason.STATION_PROVISION);
         int source = findInventorySlot(bot, menu, item);
-        if (source >= 0 && click(bot, menu, source, ClickType.QUICK_MOVE)) {
-            BotLog.info("[Provision] QUICK_MOVE 送出 upgrade={} fromSlot={}", id(item), source);
+        if (source >= 0 && click(bot, menu, source, ClickType.QUICK_MOVE, grant)) {
+            BotLog.info("[Provision] QUICK_MOVE 送出 upgrade={} fromSlot={}", id(item), source, grant);
             return true;
         }
         // 兜底：直接放进容器的升级槽（读上游自己的 `upgradeSlots` 字段；模组字段名不重映射 ⇒ 稳定）
@@ -194,15 +196,15 @@ public final class StationProvision {
             return false;
         }
         // 先拿起，再放进目标槽（两步都是菜单协议）
-        if (!click(bot, menu, source, ClickType.PICKUP)) {
+        if (!click(bot, menu, source, ClickType.PICKUP, grant)) {
             return false;
         }
-        if (!click(bot, menu, target, ClickType.PICKUP)) {
-            click(bot, menu, source, ClickType.PICKUP);   // 放回去，别把物品留在光标上
+        if (!click(bot, menu, target, ClickType.PICKUP, grant)) {
+            click(bot, menu, source, ClickType.PICKUP, grant);   // 放回去，别把物品留在光标上
             return false;
         }
         if (!menu.getCarried().isEmpty()) {
-            click(bot, menu, source, ClickType.PICKUP);   // 目标槽没吃下 ⇒ 回滚
+            click(bot, menu, source, ClickType.PICKUP, grant);   // 目标槽没吃下 ⇒ 回滚
             return false;
         }
         BotLog.info("[Provision] 直接放入升级槽 upgrade={} address={}", id(item), target);
@@ -212,22 +214,24 @@ public final class StationProvision {
     /** 把升级**从容器取回**：找到容器里拿着该物品的槽位 → shift-click 回玩家背包。 */
     public static boolean moveOutOfContainer(BotPlayer bot, AbstractContainerMenu menu,
                                              net.minecraft.world.item.Item item) {
+        // **R5-残 收口（2026-09-16）**：同 `moveIntoContainer`，原语层编译期强制。
+        com.dddgn.alice.action.WriteGrant grant = com.dddgn.alice.action.WriteGrant.of("station-provision", com.dddgn.alice.action.WriteReason.STATION_PROVISION);
         Integer address = containerSlotHolding(menu, bot, item);
         if (address == null) {
             BotLog.warn("[Provision] 容器里没有 {}", id(item));
             return false;
         }
-        if (click(bot, menu, address, ClickType.QUICK_MOVE)) {
-            BotLog.info("[Provision] QUICK_MOVE 取回 upgrade={} fromAddress={}", id(item), address);
+        if (click(bot, menu, address, ClickType.QUICK_MOVE, grant)) {
+            BotLog.info("[Provision] QUICK_MOVE 取回 upgrade={} fromAddress={}", id(item), address, grant);
             return true;
         }
         // 兜底：拿起到光标再放进玩家背包第一个空槽
-        if (!click(bot, menu, address, ClickType.PICKUP)) {
+        if (!click(bot, menu, address, ClickType.PICKUP, grant)) {
             return false;
         }
         int destination = firstEmptyInventorySlot(bot, menu);
-        if (destination < 0 || !click(bot, menu, destination, ClickType.PICKUP)) {
-            click(bot, menu, address, ClickType.PICKUP);   // 回滚
+        if (destination < 0 || !click(bot, menu, destination, ClickType.PICKUP, grant)) {
+            click(bot, menu, address, ClickType.PICKUP, grant);   // 回滚
             return false;
         }
         return true;
@@ -254,7 +258,15 @@ public final class StationProvision {
 
     /** 菜单点击：**直接用 `menu.clicked`**（`MenuSession.click` 会拒绝超出 `menu.slots` 的地址，而
      *  上游自管的槽位恰恰在那里 —— 见 {@link GridDiscovery} 的说明）。 */
-    private static boolean click(BotPlayer bot, AbstractContainerMenu menu, int address, ClickType type) {
+    private static boolean click(BotPlayer bot, AbstractContainerMenu menu, int address, ClickType type,
+                                 com.dddgn.alice.action.WriteGrant grant) {
+        // ⚠️ **R5-残 收口（2026-09-16）**：与 `FurnaceStation.click` 同一套编译期强制 ——
+        // 理由必须属于**菜单写入家族**（`WriteReason.menuWrite()`）。原先"记账靠调用方自觉"。
+        if (grant == null || !grant.reason().menuWrite()) {
+            BotLog.warn("[Provision] clicked(address={}, type={}) 被拒：缺菜单写入授权（grant={}）",
+                    address, type, grant == null ? "null" : grant.describe());
+            return false;
+        }
         if (menu == null || address < 0) {
             return false;
         }
