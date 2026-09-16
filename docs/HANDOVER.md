@@ -10,7 +10,26 @@
 
 ## 1. 一句话现状（2026-09-15 上午）
 
-> **2026-09-16（本日进展，最新）** —— **D-243 水里垂直移动已落地**（"丙"的第一个子集）：
+> **2026-09-16（本日进展，最新）** —— **D-244 水柱省料分支已落地**：`PILLAR` 在"起点格与目的地格**都是水**"
+> 时改为**上浮、不放方块**（对齐 Baritone `MovementPillar.java:150-161` + `:77-82` 的 `LADDER_UP_ONE_COST`），
+> 完成口径随之改成 Baritone 的"**脚位到格即成功**"（水里没有 `onGround`/支撑 ⇒ D-026 的"已落地"永不成立 ——
+> 这是 D-242「规划得到、执行不了」的另一半根因）。另新增**唯一**水谓词 `MovementHelper.isWater(Level,BlockPos)`
+> 并收口 `AscendExecution`/`SurvivalSystem` 的 4 处内联副本。
+> 判据（既有 `FLOODED_SHAFT`，**零新增电池步**，checks 112 → **118**）：脚位在水里时**一次都没放方块**
+> + **干地反向对照**（干燥竖坑仍靠放置上来）+ 前提自证三条。**实测比预期更强：整段逃生零放置**
+> （`PILLAR` 水柱上浮 11 tick + `ASCEND` 从水里跳上干地板 14 tick）⇒ **D-242 的结论落地验证**：
+> 水里自救**不是授权问题**（准备金只是让"写类 Movement"能被规划出来，额度一分没花）。
+> 顺带修掉夹具缺陷：`fillBlocks` 在区块未加载时 `/fill` **静默 0 改动**（本轮真踩到一次，一次红了 8 条判据）
+> ⇒ 现在先 `areaLoaded` 检查、未加载就把 bot 传到区域中心。
+> 门槛：`single:survival_exit` **checks=118 failures=0** ✅ / **CORE `(38/38) ticks=4021 → PASS`**（干地 PILLAR/ASCEND 无回归；
+> 电池上下文里同一相位同样 `checks=118 failures=0`）✅ / `check-all.sh` **9 PASS + 1 预期 WARN** ✅ / 文档预算 **1472/1476** ✅。
+> 客户端 jar 已同步：`dffd3f22…`（可选真人验：`alice:survival_full_check` 一次右键跑完全部 118 条判据）。
+> **仍未做（下一步候选）**：① 水柱的**成本模型**（Baritone 给 `LADDER_UP_ONE_COST`，Alice 仍算 `PILLAR_COST`，只影响选路）；
+> ② `PILLAR` 仍属**写类 Movement** ⇒ 纯通行档连"不写世界的水柱上浮"都生成不出来（过严但安全，要动就得碰 D-076/P-01）；
+> ③ **浮在水面（无可站支撑）时起不来**（合法位置集问题，属"丙"的其余部分，最贵）；④ 逃生放置的自动回收（TEMP 已声明）；
+> ⑤ 水平游/蹚水（`SurfaceMovementProvider:127-130` 仍跳过流体目的格）；⑥ 落水（D-058 定案不做）。
+
+> **2026-09-16（本日进展）** —— **D-243 水里垂直移动已落地**（"丙"的第一个子集）：
 > `PillarExecution`/`AscendExecution` 在水里改为**按住跳跃上浮**（陆地那套一次性 `jumpOnce` 在水里抬不到 1 格
 > ⇒ 实测 `wastedJumpLandings` ⇒ `SEGMENT_NO_PROGRESS`）⇒ **只动执行器那一支，不动合法位置集/成本模型**。
 > 判据：`FLOODED_SHAFT` 的 tripwire（D-242 当时**故意断言"水里执行失败"**）按设计翻红后**翻成正断言** ——
@@ -258,7 +277,8 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 - **客户端**：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - **镜像 / 同步**：`./tools/mirror-windows-workspace.sh`；
   `./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`。
-- **本断点已同步的 jar**：`2d2735af1517c23502545c9e4e7d868802d15b1b4d0d8b744479ce8645e1ebbb`（2026-09-16；**含 D-226…D-243**）
+- **本断点已同步的 jar**：`dffd3f226825603e81fb85f1609425f284b049c3f8f0e564c59cd76a48d01401`（2026-09-16；**含 D-226…D-244**）
+- 上一批 jar（含 D-243）：`2d2735af1517c23502545c9e4e7d868802d15b1b4d0d8b744479ce8645e1ebbb`
 - 上一批 jar（含 D-242）：`9738e6fca2b07ede8b985b29a6199372b205ede61bb08071b1cba6b997eaa594`
 - 上一批 jar（含 D-241）：`872c30fdedc1a2b74ae921f741c38f4607f0114dc572d5813ad3c50548aa1dcd`
 - 上一批 jar（含 D-238）：`a5f758902b4160be3b69af3ea7d57ff5bd581aeaaedd62b99e6cfdd89a65c600`

@@ -26,8 +26,14 @@ import java.util.Objects;
  *   <li>放好方块后自然落回，稳定在 {@code dest} 完成。</li>
  * </ol>
  *
+ * <p><b>水柱例外（D-244，对照 {@code MovementPillar.java:77-82 / :150-161}）</b>：起点格与目的地格
+ * **都是水**时，本段是"**水柱里上浮**"——按住跳跃上浮、**不放方块**，完成口径是 Baritone 的
+ * "脚位到格即成功"（水里没有 `onGround`、也没有支撑 ⇒ D-026 的"已落地"口径永不成立）。
+ *
  * <p>Alice 差异：放置走服务端 {@link BlockInteraction#placeAt}（服务端构造 BlockHitResult，
  * 等价于客户端上报的命中包），因此不需要潜行姿态与视线射线；其余阈值与 Baritone 一致。
+ * 水柱那支还有第二处已知差异：Baritone 靠"朝上看 + 前进"的原版游泳耦合上升（`setTarget` + MOVE_FORWARD），
+ * 服务端假人没有这个耦合 ⇒ Alice 显式按住跳跃（D-243 起）。
  */
 public final class PillarExecution implements MovementExecution {
 
@@ -52,6 +58,19 @@ public final class PillarExecution implements MovementExecution {
     private int tickCount;
     private boolean jumped;
     private boolean placed;
+
+    /**
+     * D-244：本段是不是"**水柱里的上浮**"（起点格与目的地格**都是水**）。
+     *
+     * <p>对照 Baritone {@code MovementPillar.java:150}（执行）与 {@code :77-82}（成本）：
+     * 水柱里上升**不放方块**（`LADDER_UP_ONE_COST`，"allow ascending pillars of water, but only if we're
+     * already in one"）；完成口径也随之变成 Baritone 的"脚位到格即成功"（{@code :157}），
+     * 因为水里既没有 `onGround` 也没有支撑，D-026 那套"已落地"永远不成立。
+     *
+     * <p>只在**进入执行**时读一次世界（`from`/`to` 来自 spec，不随执行漂移）：读早了会被上一段的放置改掉。
+     */
+    private boolean swimColumn;
+    private boolean swimLogged;
 
     PillarExecution(MovementSpec spec, LiveExecutionContext context) {
         this.grant = WriteGrant.of(context.requester(), WriteReason.STEP_PLACEMENT);
@@ -95,6 +114,12 @@ public final class PillarExecution implements MovementExecution {
         }
         if (phase == Phase.NOT_STARTED) {
             phase = Phase.PRECONDITION_CHECK;
+            // D-244：水柱判定必须在这里（进入执行时）读世界，不能放进构造函数 —— 构造与执行之间，
+            // 上一段可能刚往 from 那一格放过方块（那就不再是水柱了）。
+            // 前置（放置资源/放置面）**故意不放开**：规划期 `appendPillar` 用的就是同一组前提
+            // （"可规划即可执行"，K-4）—— 水柱省的是**方块本身**，不是"要不要带方块"。
+            swimColumn = MovementHelper.isWater(level, spec.fromFoot())
+                    && MovementHelper.isWater(level, spec.toFoot());
             if (!preconditionsHold()) {
                 fail("PILLAR_INVALID_PRECONDITION");
                 return;
@@ -136,12 +161,22 @@ public final class PillarExecution implements MovementExecution {
         // 为什么不能沿用一次性 `jumpOnce`：水里抬升只有 ~0.5 格，永远到不了放置高度
         // ⇒ 落地回同一格 ⇒ 实测 `wastedJumpLandings=3` ⇒ `SEGMENT_NO_PROGRESS`（灌水竖坑那一档）。
         // 对照 Baritone `MovementPillar.java:150-161` 的水柱分支（居中 + 游上去、靠"朝上看 + 前进"耦合）：
-        // 服务端假人没有那个耦合，所以这里**显式**按住跳跃；"整列都是水时不放方块"的省料分支属后续切片（D-243）。
-        boolean inWater = level.getFluidState(com.dddgn.alice.pathing.MovementHelper.footCell(level, bot))
-                .is(net.minecraft.tags.FluidTags.WATER);
+        // 服务端假人没有那个耦合，所以这里**显式**按住跳跃；"整列都是水时不放方块"的省料分支见 D-244。
+        boolean inWater = MovementHelper.isWater(level, MovementHelper.footCell(level, bot));
         if (inWater) {
             bot.controller().setJumping(true);
             jumped = true;
+            if (swimColumn) {
+                // D-244：**水柱上浮不放方块**（Baritone `MovementPillar.java:77-82` 的 `LADDER_UP_ONE_COST`）。
+                // 水平居中复用上面第 1 步（from 与 to 同列，`CENTER_TOLERANCE=0.17` 比 Baritone 水柱那支的
+                // 0.2 更严）；完成判定走 `postconditionHolds()` 的水柱一支（Baritone：`playerFeet().equals(dest)`）。
+                if (!swimLogged) {
+                    swimLogged = true;
+                    BotLog.info("[Pillar] swim from={} to={} feetY={}（水柱上浮：不放方块，D-244）",
+                            from.toShortString(), to.toShortString(), String.format("%.3f", bot.getY()));
+                }
+                return;
+            }
             if (!placed && bot.getY() < to.getY() + PLACE_HEIGHT_MARGIN) {
                 return;                              // 还没浮到放置高度：继续按着跳跃
             }
@@ -247,6 +282,15 @@ public final class PillarExecution implements MovementExecution {
 
     private boolean postconditionHolds() {
         BlockPos to = spec.toFoot();
+        if (swimColumn) {
+            // D-244（Baritone `MovementPillar.java:157`：`playerFeet().equals(dest)` → SUCCESS）：
+            // 水柱里**没有落地这回事** —— `onGround` 恒假且脚下没有支撑 ⇒ D-026 的"已落地/居中"两套
+            // 完成口径都永远不会成立（这就是 D-242 里"规划得到、执行不了"的另一半根因）。
+            // 代价（如实登记）：水柱段结束时 bot 是"浮着"的、没有支撑 —— 它必须由**下一段**接着往上走
+            // （水柱里每一段都这样接），或由后续落点提供支撑；"浮在水面起不来"（无可站支撑的落点）
+            // 仍是**合法位置集**那一档的事（D-243/D-244 未覆盖）。
+            return MovementHelper.footCell(level, bot).equals(to);
+        }
         return tolerance == CompletionTolerance.COLUMN
                 ? MovementHelper.isAtFootColumn(level, bot, to)
                 : MovementHelper.isSettledAtFootPos(level, bot, to, 0.3D);

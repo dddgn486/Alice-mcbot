@@ -325,7 +325,7 @@ public final class SurvivalSystem {
     public static boolean canFloatUp(ServerPlayer bot) {
         ServerLevel level = bot.serverLevel();
         BlockPos foot = footCell(bot);
-        if (!bot.isInWater() && !level.getFluidState(foot).is(net.minecraft.tags.FluidTags.WATER)) {
+        if (!bot.isInWater() && !com.dddgn.alice.pathing.MovementHelper.isWater(level, foot)) {
             return false;
         }
         for (int dy = 0; dy <= FLOAT_SCAN_MAX; dy++) {
@@ -503,8 +503,8 @@ public final class SurvivalSystem {
         }
 
         private static boolean containsWater(ServerPlayer bot) {
-            return bot.level().getFluidState(bot.blockPosition()).is(net.minecraft.tags.FluidTags.WATER)
-                    || bot.level().getFluidState(bot.blockPosition().above()).is(net.minecraft.tags.FluidTags.WATER);
+            return com.dddgn.alice.pathing.MovementHelper.isWater(bot.level(), bot.blockPosition())
+                    || com.dddgn.alice.pathing.MovementHelper.isWater(bot.level(), bot.blockPosition().above());
         }
 
         private static boolean containsFluid(ServerPlayer bot, net.minecraft.world.level.block.Block block) {

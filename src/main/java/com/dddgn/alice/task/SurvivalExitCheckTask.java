@@ -781,7 +781,9 @@ public class SurvivalExitCheckTask implements Task {
             if (shaftEscapeTask == null) {
                 shaftEscapeTask = new com.dddgn.alice.task.SurvivalExitTask(bot, escapePick, true);
             }
+            int shaftPlacesBefore = com.dddgn.alice.action.WriteBudget.places(bot);
             var status = shaftEscapeTask.tick();
+            shaftPlaces += Math.max(0, com.dddgn.alice.action.WriteBudget.places(bot) - shaftPlacesBefore);
             if (status == com.dddgn.alice.task.Task.Status.RUNNING && phaseTicks - 4 < SHAFT_BUDGET) {
                 return;
             }
@@ -790,6 +792,10 @@ public class SurvivalExitCheckTask implements Task {
                     status == com.dddgn.alice.task.Task.Status.DONE);
             check("端到端：bot **真的从坑里出来了**（脚位 y=" + foot().getY() + " ≥ 101）",
                     foot().getY() >= SHAFT_PIT_BOTTOM.getY() + 2);
+            // D-244 反向对照（干地侧）：干燥竖坑**必须**仍然靠放置上来 —— 证明"水柱不放方块"没有
+            // 串到陆地上（那会让 dry PILLAR 直接不写、只靠跳，本判据就会红）。
+            check("对照（干地）：干燥竖坑仍然靠**放置**上来（逃生期间放置=" + shaftPlaces + " ≥ 1）",
+                    shaftPlaces >= 1);
             return;
         }
         if (phaseTicks >= 5) {
@@ -855,7 +861,8 @@ public class SurvivalExitCheckTask implements Task {
                             bot.getUUID().toString(), SurvivalSystem.footCell(bot), floodedPick, "survival-escape"));
             long writeMoves = escapePlan.movements().stream()
                     .filter(move -> move.movementType().changesWorld()).count();
-            check("额度守卫①：逃生计划里**确实含写动作**（实际 " + writeMoves + " 个），不是白走一趟",
+            check("额度守卫①：逃生计划里**确实含写类 Movement**（实际 " + writeMoves
+                            + " 个，`PILLAR` 属写类）⇒ 这条出口在纯通行档根本不会生成，不是白走一趟",
                     writeMoves >= 1);
             check("额度守卫②：写动作数 ≤ 逃生额度 8（实际 " + writeMoves + "）", writeMoves <= 8);
             var allowed = com.dddgn.alice.pathing.core.search.PathRequest
@@ -868,6 +875,24 @@ public class SurvivalExitCheckTask implements Task {
                             && !allowed.contains(com.dddgn.alice.pathing.core.MovementType.DOWNWARD)
                             && !allowed.contains(com.dddgn.alice.pathing.core.MovementType.FALL));
             check("恢复准备金（8/8）后可达 ⇒ 能从水里垫出来：" + desc(floodedPick), floodedPick != null);
+            // D-244 前提自证：**水柱**就这么两格 —— 下两格是水（⇒ 那两段 PILLAR 走上浮免放置），
+            // 第三格不是水（⇒ 出水那一格仍然只能靠放置站上去）。两条一起读才说明"省料"省的是哪一段。
+            var lvl = bot.serverLevel();
+            check("前提自证：坑里 2 格**都是水**（" + desc(FLOOD_PIT_BOTTOM) + " / "
+                            + desc(FLOOD_PIT_BOTTOM.above()) + "）⇒ 那两段是水柱上浮",
+                    com.dddgn.alice.pathing.MovementHelper.isWater(lvl, FLOOD_PIT_BOTTOM)
+                            && com.dddgn.alice.pathing.MovementHelper.isWater(lvl, FLOOD_PIT_BOTTOM.above()));
+            check("前提自证：水柱上面那一格**不是水**（" + desc(FLOOD_PIT_BOTTOM.above(2))
+                            + "）⇒ 出水那一段仍得靠放置",
+                    !com.dddgn.alice.pathing.MovementHelper.isWater(lvl, FLOOD_PIT_BOTTOM.above(2)));
+            var firstMove = escapePlan.movements().isEmpty() ? null : escapePlan.movements().get(0);
+            check("前提自证：计划第一段就是**水柱里的 PILLAR**（"
+                            + (firstMove == null ? "无" : firstMove.movementType() + " " + desc(firstMove.fromFoot())
+                            + "→" + desc(firstMove.toFoot())) + "）⇒ 省料分支真的在这条路上",
+                    firstMove != null
+                            && firstMove.movementType() == com.dddgn.alice.pathing.core.MovementType.PILLAR
+                            && com.dddgn.alice.pathing.MovementHelper.isWater(lvl, firstMove.fromFoot())
+                            && com.dddgn.alice.pathing.MovementHelper.isWater(lvl, firstMove.toFoot()));
             return;
         }
         if (phaseTicks >= 5 && floodedPick != null && !floodedDone) {
@@ -877,7 +902,19 @@ public class SurvivalExitCheckTask implements Task {
             if (floodedTask == null) {
                 floodedTask = new com.dddgn.alice.task.SurvivalExitTask(bot, floodedPick, true);
             }
+            // D-244 量法：**逐 tick 取放置计数的增量，并按"那一刻脚位是否在水里"归因**（比解析日志可靠：
+            // 日志只有"放了"这一行，判据要的是"水里那几格到底放没放"）。
+            boolean waterBefore = com.dddgn.alice.pathing.MovementHelper.isWater(
+                    bot.serverLevel(), SurvivalSystem.footCell(bot));
+            int placesBefore = com.dddgn.alice.action.WriteBudget.places(bot);
             var status = floodedTask.tick();
+            int placedNow = Math.max(0, com.dddgn.alice.action.WriteBudget.places(bot) - placesBefore);
+            if (placedNow > 0) {
+                floodedPlaces += placedNow;
+                if (waterBefore) {
+                    floodedInWaterPlaces += placedNow;
+                }
+            }
             if (status == com.dddgn.alice.task.Task.Status.RUNNING && phaseTicks - 4 < FLOOD_BUDGET) {
                 return;
             }
@@ -891,6 +928,17 @@ public class SurvivalExitCheckTask implements Task {
             check("端到端：bot **从水里出来了**（脚位 y=" + foot().getY() + " ≥ 101，inWater="
                             + bot.isInWater() + "）",
                     foot().getY() >= FLOOD_PIT_BOTTOM.getY() + 2 && !bot.isInWater());
+            // D-244 主判据（红/绿分界）：整段逃生 **脚位在水里时一次都没放方块**（Baritone 水柱那支）。
+            // 反向对照就是 D-243 之前的实测：水里那一段会 `[Pillar] placed`（脚位 100 那格是水）⇒ 这里会变 1。
+            check("省料（D-244）：**脚位在水里时一次都没放方块**（水里放置=" + floodedInWaterPlaces + "）",
+                    floodedInWaterPlaces == 0);
+            // ✅ 实测（D-244，2026-09-16）：这条出口的**整段逃生一个方块都没放** —— 计划就两段
+            // （`PILLAR` 水柱上浮 1 格 + `ASCEND` 从水里跳上干地板），两段都不写世界。
+            // 这正是 D-242 的结论落地后的样子：**水里自救不是授权问题**（逃生准备金的作用只是让
+            // "写类 Movement"（PILLAR）能被规划出来 —— 纯通行档这一格都不会生成 —— 实际额度一分没花）。
+            check("省料（D-244）：整段逃生**一个方块都没放**（放置=" + floodedPlaces
+                            + "）⇒ 水里自救零世界写入：上浮 + 从水里跳上干地板，全靠 Movement",
+                    floodedPlaces == 0);
             return;
         }
         if (phaseTicks >= 5) {
@@ -918,6 +966,17 @@ public class SurvivalExitCheckTask implements Task {
     private com.dddgn.alice.task.SurvivalExitTask floodedTask;
     private BlockPos floodedPick;
     private boolean floodedDone;
+
+    // ==================== D-244 省料量法（逐 tick 取放置增量） ====================
+
+    /** 干燥竖坑逃生期间的**实际放置数**（反向对照：干地必须仍然靠放置上来）。 */
+    private int shaftPlaces;
+
+    /** 灌水竖坑逃生期间的**实际放置数**（含出水那一格）。 */
+    private int floodedPlaces;
+
+    /** 其中**脚位还在水里**时发生的那部分（D-244 主判据要求 = 0）。 */
+    private int floodedInWaterPlaces;
 
     /** 竖坑所在实心石块的中心（房间地板层）。 */
     private static final BlockPos SHAFT_CENTER = new BlockPos(330, 100, 306);
@@ -1131,9 +1190,29 @@ public class SurvivalExitCheckTask implements Task {
 
     /** `/fill` 并**断言真的改动了方块**（防"未加载区块里静默无操作"的假绿）。 */
     private void fillBlocks(BlockPos from, BlockPos to, String block, int expectedBlocks, String what) {
+        // ⚠️ **区块没加载时 `/fill` 会静默 0 改动**（2026-09-16 实测踩到一次：330 那一档三个 fill 全 0
+        // ⇒ bot 被传进空气、8 格内没有落点 ⇒ 一次红了 8 条判据，看起来像"改动坏了"）。
+        // 治本：动手前先确认整块区域已加载；没加载就把 bot 传到区块中心（玩家 ticket 同步加载区块）。
+        // 下面那条 `changed >= expected` 断言保持不动 —— 它仍然会在真失败时红。
+        if (!areaLoaded(from, to)) {
+            BlockPos center = new BlockPos((from.getX() + to.getX()) / 2, (from.getY() + to.getY()) / 2,
+                    (from.getZ() + to.getZ()) / 2);
+            BotLog.warn("[Survival] fill 前区块未加载 ⇒ 先把 bot 传到 {} 加载区块（{}）", desc(center), what);
+            teleport(center);
+        }
         int changed = runCommand("fill " + xyz(from) + " " + xyz(to) + " " + block);
         check("场景自建生效：" + what + "（fill 改动方块数 " + changed + "，期望 ≥ " + expectedBlocks + "）",
                 changed >= expectedBlocks);
+    }
+
+    /** 整块区域是否都已加载（`/fill` 的硬前提）。 */
+    private boolean areaLoaded(BlockPos from, BlockPos to) {
+        for (BlockPos pos : BlockPos.betweenClosed(from, to)) {
+            if (!bot.serverLevel().hasChunkAt(pos)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

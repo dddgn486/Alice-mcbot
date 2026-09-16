@@ -115,6 +115,19 @@ public final class MovementHelper {
                 || block instanceof TwistingVinesBlock;
     }
 
+    /**
+     * **这格是不是水**（唯一定义，K-4 口径）：对照 Baritone {@code MovementHelper.isWater:698-712}。
+     *
+     * <p>口径是**流体状态**（含流动水、含水方块里的水），不是 Baritone 的"方块是 `LiquidBlock` 且流体为水"：
+     * 差别只在**含水方块**（水半砖/水楼梯）那一档——那种格子在 Alice 里本来就被 `canWalkThrough` 判为不可穿，
+     * 所有调用点都会先被挡下，所以两者在这里等价（D-244 已登记）。
+     *
+     * <p>用 {@code Level} 而不是 {@code ServerLevel}：`SurvivalSystem` 手上有的是 `bot.level()`。
+     */
+    public static boolean isWater(net.minecraft.world.level.Level level, BlockPos pos) {
+        return level.getFluidState(pos).is(net.minecraft.tags.FluidTags.WATER);
+    }
+
     /** 该格能否穿过(身体格):空气或可穿过方块,且非危险。 */
     public static boolean canWalkThrough(ServerLevel level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
