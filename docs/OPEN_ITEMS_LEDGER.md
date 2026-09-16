@@ -1679,9 +1679,12 @@ C3 之后它对 `NOT_MOVED` 已无影响，故只登记。
 **用户问题**：没有游泳 Movement，水里逃生是怎么处理的？**答（事实 + 代码位置见 D-236）**：
 
 1. **内核连"进水"都规划不出**：`MovementHelper.java:52/62/179/196`（流体源格不算支撑 ⇒ 水里那格永不是合法脚位）、
-   `FallExecution.java:186`（落点及上一格必须无流体）⇒ **没有任何含水路线**。相对 Baritone 是**两处偏离**
-   （Baritone `MovementTraverse.java:88-96` 有 `waterWalkSpeed` 水走分支、`MovementFall.java:102` 认得出落水），
-   已补登记进 `alice-baritone-kernel-alignment` 的偏离表；`MovementCapabilities.canEnterFluid` 全库无读者。
+   `FallExecution.java:186`（落点及上一格必须无流体）⇒ **没有任何含水路线**。⚠️ **按 D-236 更正后的准确说法**：
+   ① "不进水"的精确机制在 `core/search/SurfaceMovementProvider.java:127-130`（TRAVERSE/DIAGONAL/ASCEND **刻意跳过**
+   "目的格或头格是流体"）；② Baritone 有 `MovementTraverse.java:88-96`（水走成本）与 `MovementFall.java:102`（落水），
+   其中"FALL 不做落水"**不是漏登记**——它是 **D-058 的用户决策**；③ Baritone 的**垂直**水位能力在
+   `MovementPillar.java:77-82`（水柱分支，且要求"已经在水中"），不是 `MovementAscend`；
+   ④ `MovementCapabilities.canEnterFluid` 全库无读者。
 2. **维生侧原本"静默淹死"**：`LOW_AIR` 与着火/冻结同档 ⇒ 无落点 ⇒ `HOLD_NO_EXIT`（不否决、继续干活）。
    **已修（D-236）**：新增 `ABANDON_NO_EXIT` —— 溺水 + 无落点 ⇒ **放弃任务**（干净收尾 + 大声登记 +
    `GoalDirector.onSurvivalInterrupt`），不再静默跑到死；着火/冻结仍 `HOLD_NO_EXIT`（可能自愈）。
@@ -1707,7 +1710,9 @@ C3 之后它对 `NOT_MOVED` 已无影响，故只登记。
 
 **仍挂账（各一行，触发条件不变）**：① 水面专用理由码（现有 `UNREACHABLE` + 失败理由够用）；
 ② 出口**列表**（现在只验最近那个，最近不可达就说不可达，不找更远的）；③ **B：维生自救的受限写授权**
-（搭桥/垫柱子出水；机制现成但需放宽 D-076，**待用户拍板**）；④ **丙**（内核水位位置 + 垂直水位移动 + 成本模型）。
+（搭桥/垫柱子出水；机制现成但需放宽 D-076，**待用户拍板**）⇒ **一页决策稿已出（2026-09-16）**：
+`docs/authz/PROPOSAL_B_survival_write_authorization.md`（含 5 个待拍板问题、可红判据、上限守卫、反向对照、
+边界声明：**不解决深水浮着**、**不替代丙**）；未批准前代码与 `AUTHZ_REGISTRY.csv` 都不动；④ **丙**（内核水位位置 + 垂直水位移动 + 成本模型）。
 
 **已知限制（如实登记，属"丁"）**：**水里逃生 = 不支持**。真实行为：浅水/岸边 8 格内有干燥落点 ⇒ 走过去
 （`isRefuge` **不检查可达性**，所以可能"派了活但走不到"）；**深水浮着 ⇒ 放弃任务**；只涉水 ⇒ 不动作。
