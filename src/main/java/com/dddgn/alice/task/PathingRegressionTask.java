@@ -133,6 +133,13 @@ public final class PathingRegressionTask implements Task {
             // 到得了目标就**只能**是走水里。纯通行（`worldMod=false`）⇒ 顺带断言"不靠放方块搭桥"。
             execute("water_course", new BlockPos(0, 64, 66), new BlockPos(5, 64, 66), false,
                     MovementType.TRAVERSE),
+            // **深水（切片 B）现状登记（D-248，2026-09-16）**：3 格深水池**纯通行过不去**
+            // —— 水面格要成为合法位置需要 `canWalkOn` 的水位例外（Baritone `canWalkOnPosition:432-448`），
+            // 那一半**实测在电池上下文里引出未解释的回归**（见 D-248：更便宜的"破墙 + 升到水面格"路线，
+            // 其最终段在健康检查时刻读到的支撑是 Air ⇒ `SEGMENT_FUTURE_BLOCKED` ⇒ 逃生 FAIL；单跑不复现）
+            // ⇒ **已回退，未落地**。这两条断言的是**今天的事实**：谁把那一半做对，它们会变红提醒改文档。
+            refused("deep_pond_course", new BlockPos(0, 64, 66), new BlockPos(7, 64, 66), false),
+            refused("deep_pond_course+floor", new BlockPos(3, 61, 66), new BlockPos(7, 64, 66), false),
             // 同一份地形，**只规划**：水里的步子必须按水速计价（D-247）。`+cost` 后缀复用 `water_course_terrain`。
             new SceneCheck("water_course+cost", new BlockPos(0, 64, 66), new BlockPos(5, 64, 66),
                     false, Kind.PLAN_WATER_COST, 0, 0, 0, 0, 0, List.of()),

@@ -21,6 +21,7 @@
 > 水里自救**不是授权问题**（准备金只是让"写类 Movement"能被规划出来，额度一分没花）。
 > 顺带修掉夹具缺陷：`fillBlocks` 在区块未加载时 `/fill` **静默 0 改动**（本轮真踩到一次，一次红了 8 条判据）
 > ⇒ 现在先 `areaLoaded` 检查、未加载就把 bot 传到区域中心。
+> **D-248（同日，水位切片 B）：勘查做完、规划那半回退**——`canWalkOn` 水位例外（只认水面格）+ 三个执行器的浮着完成口径写完并在**单跑**全绿，但 **CORE 红**：逃生换走更便宜的"破墙 + 升到水面格"路线（6.55 < 6.67），其最终段在健康检查时刻读到的支撑是 **`Air`**（几 tick 前的落点自证还是石质 ⇒ 未解释）⇒ `SEGMENT_FUTURE_BLOCKED` ⇒ FAIL。按纪律**回退**（只留 D-247 + 两条现状登记判据 `refused(deep_pond_course[+floor])`）；下一步：先证实/证伪"未加载区块"，再做工作版/失败版对照；落地时必须连**会话健康检查的谓词一致性**一起改。
 > **D-247（同日，水位切片 A 完成）**：先做**判别性实测**才动代码 —— 新夹具场景 `water_course`（1 格深水沟**横跨全场** ⇒ 绕不过去）证明**蹚水今天就能走**（纯通行 `REACHED` + 5 段全 `COMPLETED` + 零写入），但实测**耗时与成本脱节**：陆地 5/7 tick vs 水里 **45/42** tick，而计划只按 1.0 计价 ⇒ ① 选路偏爱穿水 ② 段预算只有实际的 ~1/7。改法：`CostModel.WATER_TRAVERSE_MULTIPLIER = 7.25`（结构抄 Baritone `MovementTraverse:87-90`，**数值代入 Alice 实测**；照抄 Baritone 的 1.96 是给客户端游泳标定的）。判据 `water_course`（执行 COMPLETED + 零写入）+ `water_course+cost`（期望值**从计划自身推导**），**反向对照精确变红**；⚠️ 第一版期望值引用了同一个常量 ⇒ **自指**、反向对照不会红（已改成判据侧独立来源，与 D-241「重复来源要用门禁消」同源）。门槛：`single:pathing` PASS / CORE `(38/38) ticks=4068 → PASS`。
 > **D-246（同日）**：§5.11 ②「出口列表」**判定基本为空 ⇒ 关闭不建** —— 纯通行档下「最近那个不可达」
 > **等价于**「根本没有纯通行出口」（证明：路线的第一步目的地本身就是落点 ⇒ 距离 1 处必有可规划落点），
@@ -287,7 +288,8 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 - **客户端**：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - **镜像 / 同步**：`./tools/mirror-windows-workspace.sh`；
   `./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`。
-- **本断点已同步的 jar**：`c6cb9c72041a3fb1b67e5ba82f6c5307eeca33915ec68341d0b18fc640c76c51`（2026-09-16；**含 D-226…D-247**）
+- **本断点已同步的 jar**：`4522a0eb23d32c6bc9d99e7b009bd0566894d4076b9ee4c9149927fde12bbbef`（2026-09-16；**含 D-226…D-248**）
+- 上一批 jar（含 D-247）：`c6cb9c72041a3fb1b67e5ba82f6c5307eeca33915ec68341d0b18fc640c76c51`
 - 上一批 jar（含 D-245）：`496b3cd3e92dea945bdb9b7360bf43fdfd68bc6ec67b2228e501a2b5117eaa8f`
 - 上一批 jar（含 D-244）：`dffd3f226825603e81fb85f1609425f284b049c3f8f0e564c59cd76a48d01401`
 - 上一批 jar（含 D-243）：`2d2735af1517c23502545c9e4e7d868802d15b1b4d0d8b744479ce8645e1ebbb`
