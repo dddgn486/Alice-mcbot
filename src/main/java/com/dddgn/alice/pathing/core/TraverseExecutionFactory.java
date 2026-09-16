@@ -31,9 +31,10 @@ public final class TraverseExecutionFactory implements MovementExecutionFactory 
         if (!feet.equals(from) && !feet.equals(to)) {
             return ValidationResult.invalid("TRAVERSE_STALE_START");
         }
-        if (!MovementHelper.canWalkThrough(context.level(), to)
-                || !MovementHelper.canWalkThrough(context.level(), to.above())
-                || !MovementHelper.canWalkOn(context.level(), to)) {
+        // **K-4（2026-09-16）**：与规划侧**同一谓词**（`canTraverse` = `canStandCentered(to)` + 对角线两侧格
+        // + **`canSweepPlayer` 连续扫掠**）。原先这里手搓"目标格 + 头格 + 支撑"⇒ 少了扫掠那一半
+        // ⇒ 执行侧比内核**宽松**（可能接受内核永不会生成的边）。方向必须是"执行接受 ⊆ 规划接受"。
+        if (!MovementHelper.canTraverse(context.level(), from, to)) {
             return ValidationResult.invalid("TRAVERSE_INVALID_PRECONDITION");
         }
         return ValidationResult.accepted();

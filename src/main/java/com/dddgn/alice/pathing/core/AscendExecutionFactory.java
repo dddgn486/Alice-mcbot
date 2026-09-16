@@ -45,7 +45,10 @@ public final class AscendExecutionFactory implements MovementExecutionFactory {
         }
         
         // 验证目标方块可通行
-        if (!MovementHelper.canWalkThrough(context.level(), to)
+        // **K-4（2026-09-16）**：规划侧 ASCEND 的准入就是 `MovementHelper.canAscend`（provider 也用它）
+        // ⇒ 执行侧加同一谓词（下面工厂原有的额外检查全部保留）。
+        if (!MovementHelper.canAscend(context.level(), from, to)
+                || !MovementHelper.canWalkThrough(context.level(), to)
                 || !MovementHelper.canWalkThrough(context.level(), to.above())
                 || !MovementHelper.canWalkOn(context.level(), to)) {
             return ValidationResult.invalid(describe("ASCEND_INVALID_PRECONDITION", context.level(),

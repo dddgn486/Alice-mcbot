@@ -120,6 +120,8 @@ run_gate             "check-fixture-hygiene"    bash tools/check-fixture-hygiene
 # §5.9（2026-09-16）：传输账本**只用一个时钟**（混用 `getTickCount()` 会让挂起永不过期 = 永久阻塞）
 # + 替换型派活必须过 `replaceTaskIfRunning()` 门禁。
 run_gate             "check-transfer-clock"    bash tools/check-transfer-clock.sh
+# 内核 §2（2026-09-16 复核）：K-4 执行工厂必须用规划侧同一谓词 / K-5 声明了的状态必须有生产者。
+run_gate             "check-kernel-predicates" bash tools/check-kernel-predicates.sh
 run_gate             "check-policy-matrix"      bash tools/check-policy-matrix.sh
 run_gate             "check-authz-registry"     bash tools/check-authz-registry.sh
 run_machine_map

@@ -42,9 +42,9 @@ public final class DiagonalExecutionFactory implements MovementExecutionFactory 
         }
         
         // 验证目标方块可通行
-        if (!MovementHelper.canWalkThrough(context.level(), to)
-                || !MovementHelper.canWalkThrough(context.level(), to.above())
-                || !MovementHelper.canWalkOn(context.level(), to)) {
+        // **K-4（2026-09-16）**：改用规划侧的 `canTraverse`（含两侧格 + **扫掠**，见 `MovementHelper:332-348`），
+        // 不再手搓一份"看起来一样"的判定 —— 两份判据迟早会漂移（审计 K-4 的原话）。
+        if (!MovementHelper.canTraverse(context.level(), from, to)) {
             return ValidationResult.invalid("DIAGONAL_INVALID_PRECONDITION");
         }
         

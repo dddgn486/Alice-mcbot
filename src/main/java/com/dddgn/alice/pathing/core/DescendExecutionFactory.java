@@ -44,7 +44,10 @@ public final class DescendExecutionFactory implements MovementExecutionFactory {
         }
 
         // 验证目标方块可通行（唯一允许的一格落差）
-        if (!MovementHelper.canWalkThrough(context.level(), to)
+        // **K-4（2026-09-16）**：规划侧 DESCEND 的准入就是 `MovementHelper.canDescend`（provider 也用它）
+        // ⇒ 执行侧加同一谓词（工厂原有的落点检查全部保留）。
+        if (!MovementHelper.canDescend(context.level(), from, to)
+                || !MovementHelper.canWalkThrough(context.level(), to)
                 || !MovementHelper.canWalkThrough(context.level(), to.above())
                 || !MovementHelper.canWalkOn(context.level(), to)) {
             return ValidationResult.invalid("DESCEND_INVALID_PRECONDITION");

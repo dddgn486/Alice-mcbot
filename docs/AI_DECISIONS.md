@@ -10568,3 +10568,31 @@ battery 直接 `exit=5`（=环境/脚本错误，**没有判决行**）；那是
 这条**不变式**守着（当前场景里前缀无冲突 ⇒ 本夹具内不可红）；校验器本身的判别力由 D-250 的实测证据支撑
 （CORE `自写入冲突=3` 真开火 + `survival_exit` 的「计划自洽」判据）。② `PathSession.toleranceFor` 的**决策**是单测过的，
 它被 `startSegment` **调用**这件事是源码级（编译期）事实，没有独立运行时判据。
+
+### D-257：内核审计 §2 收口 —— K-3/K-5 是过期行，K-4 是真缺口（2026-09-16）
+
+**复核方法**（沿用本 session 抓出 K-1/K-2 过期的那套）：每条审计行先核**代码 + 运行时**，再决定"修"还是"改行"。
+
+| 行 | 审计原话 | 复核（代码/运行时事实） | 处置 |
+|---|---|---|---|
+| **K-3** | 全仓 `safeToCancel` **0 命中**，`MovementExecution` 接口无该字段 | **全链已实现**：`Task.safeToCancel()` 默认（`Task.java:56-65`）、`MovementExecution.safeToCancel()` 默认（`:25-35`）、9 个执行器实现、`PathSession:277`/`PathRetryRunner:187`/多任务透传、`BotManager:1821` 用 `safeToCancel && onGround` **延后取消**、`MenuSession:74` 的 K-3 门；判据 = 电池步 `k3_stop` + `capability_gate.safe_cancel_wiring` | **改行**（原状态作废） |
+| **K-5** | `POSTCONDITION_FAILED` 全仓无生产者 | **有生产者**：`PathSessionStatus:51-53` 把 `SETTLING_TIMEOUT`/`OVERSHOT`/`POSTCONDITION` 映射过去；`capability_gate` 有映射表判据 | **改行** |
+| **K-6** | 世界变化检测/不推进硬失败/… 均无实现 | **部分已实现**：`PathSession:206-210` 周期健康检查 + `:702` 前瞻段封死（注释即对照 `costVerificationLookahead`）；D-105 无效跳跃计数 + 段超时 + K-1 跳数上限 = "不推进就硬失败"。其余（`closestPathPos`/`ticksAway`/`isReplaceable`/favoring/双阶段预算）确无实现，但属性能档，PARKOUR 已按 D-044 排除 | **改行**（半实现 + 其余记为**有意省略**，不再挂待办） |
+| **K-7** | 「未加载区块门控」「best-so-far」**未见 D-0xx 登记** | 前者在 `PlanningStatus` javadoc + 本表登记；后者由 **D-256** 登记（含 Baritone 实地核对） | **补登记** |
+| **K-4** | 规划侧含 `canSweepPlayer`，执行工厂只用 `canWalkThrough` | **真缺口成立**：`DiagonalExecutionFactory` 早已查两侧格（原话部分过期），但 **TRAVERSE/DIAGONAL 工厂都缺 `canSweepPlayer` 连续扫掠** ⇒ 执行侧比内核**宽松** | **修**（见下） |
+
+**K-4 修法（方向：执行接受 ⊆ 规划接受）**：四个"干净族"的 `validate` 改为引用**规划侧同一谓词** ——
+`MovementHelper.canTraverse`（TRAVERSE/DIAGONAL）、`canAscend`、`canDescend`（provider 侧本来就用它们）。
+**有意不并** DOWNWARD / BREAK_* / PLACE_STEP 家族：它们的准入**故意**比 `canStandCentered` 宽
+（`SurfaceMovementProvider:163/306` 写了原因：那些移动本来就要先破坏/放置目的地），并进来等于禁用它们。
+
+**判据（新门禁 `tools/check-kernel-predicates.sh`，已挂 `check-all.sh`）**：
+- **K4-P1**：四个工厂的 `validate` 必须引用共享谓词（漏了就构建红）。**反向对照**：删掉 `canTraverse` 调用 ⇒ 门禁红 ✓
+- **K5-P1**：`POSTCONDITION_FAILED` 必须有映射表生产者（死状态即红）。**反向对照**：删掉全部三条映射 ⇒ 门禁红 ✓
+- **行为证据（CORE）**：收紧谓词后 **CORE `(38/38) ticks=4300 → PASS`** ⇒ 没有任何真实计划被判死
+  （即"执行更严"没有误伤内核自己生成的边）。
+
+**如实边界（未做，写清楚不装作做了）**：
+1. **没有运行时判别性场景**证明"越界边必须被拒"（要构造"目标格可站但侧面/扫掠被挡"的对角场景 ⇒ 需要专用场景 + 直接调工厂的夹具；本轮只做了**结构规则 + CORE 不误伤**两半）。
+2. K-6 里被记为"有意省略"的那些（favoring/双阶段预算/`closestPathPos`/`ticksAway`/`isReplaceable`/开门与直放分支）**没有判据**，靠"不做"保持为真 —— 谁要做，先给出"从改一行到知道对不对"的判据。
+3. 三条审计行的原话（K-3/K-5/K-6）**保留在 `R4_AUDIT.md`**：那份报告是历史文档，本轮只改台账状态（不重写历史报告）。
