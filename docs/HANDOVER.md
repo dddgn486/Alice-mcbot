@@ -21,12 +21,16 @@
 > 水里自救**不是授权问题**（准备金只是让"写类 Movement"能被规划出来，额度一分没花）。
 > 顺带修掉夹具缺陷：`fillBlocks` 在区块未加载时 `/fill` **静默 0 改动**（本轮真踩到一次，一次红了 8 条判据）
 > ⇒ 现在先 `areaLoaded` 检查、未加载就把 bot 传到区域中心。
-> 门槛：`single:survival_exit` **checks=118 failures=0** ✅ / **CORE `(38/38) ticks=4021 → PASS`**（干地 PILLAR/ASCEND 无回归；
+> **D-245（同日，用户裁定）**：逃生放置**不自动回收** —— 回收时机交玩家（`/alice restore`）；
+> 补偿 = 负向门禁（`SHAFT_ESCAPE` 断言"逃生结束后方块仍在 + 账本仍 `TEMP`"，取反恰好两条变红）⇒ checks 118 → **120**。
+> 门槛：`single:survival_exit` **checks=120 failures=0** ✅ / **CORE `(38/38) ticks=4024 → PASS`**（干地 PILLAR/ASCEND 无回归；
 > 电池上下文里同一相位同样 `checks=118 failures=0`）✅ / `check-all.sh` **9 PASS + 1 预期 WARN** ✅ / 文档预算 **1472/1476** ✅。
 > 客户端 jar 已同步：`dffd3f22…`（可选真人验：`alice:survival_full_check` 一次右键跑完全部 118 条判据）。
 > **仍未做（下一步候选）**：① 水柱的**成本模型**（Baritone 给 `LADDER_UP_ONE_COST`，Alice 仍算 `PILLAR_COST`，只影响选路）；
 > ② `PILLAR` 仍属**写类 Movement** ⇒ 纯通行档连"不写世界的水柱上浮"都生成不出来（过严但安全，要动就得碰 D-076/P-01）；
-> ③ **浮在水面（无可站支撑）时起不来**（合法位置集问题，属"丙"的其余部分，最贵）；④ 逃生放置的自动回收（TEMP 已声明）；
+> ③ **浮在水面（无可站支撑）时起不来**（合法位置集问题，属"丙"的其余部分，最贵）；
+> ④ ~~逃生放置的自动回收~~ ⇒ **已定案不做自动档（D-245：自动拆会把 bot 关回坑里 ⇒ 逃生循环）**，
+> 回收交玩家许可（`/alice restore` / `alice:restore_check`），并已加**负向门禁**（逃生结束后方块仍在 + 账本仍 TEMP）；
 > ⑤ 水平游/蹚水（`SurfaceMovementProvider:127-130` 仍跳过流体目的格）；⑥ 落水（D-058 定案不做）。
 
 > **2026-09-16（本日进展）** —— **D-243 水里垂直移动已落地**（"丙"的第一个子集）：
@@ -277,7 +281,8 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 - **客户端**：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - **镜像 / 同步**：`./tools/mirror-windows-workspace.sh`；
   `./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`。
-- **本断点已同步的 jar**：`dffd3f226825603e81fb85f1609425f284b049c3f8f0e564c59cd76a48d01401`（2026-09-16；**含 D-226…D-244**）
+- **本断点已同步的 jar**：`496b3cd3e92dea945bdb9b7360bf43fdfd68bc6ec67b2228e501a2b5117eaa8f`（2026-09-16；**含 D-226…D-245**）
+- 上一批 jar（含 D-244）：`dffd3f226825603e81fb85f1609425f284b049c3f8f0e564c59cd76a48d01401`
 - 上一批 jar（含 D-243）：`2d2735af1517c23502545c9e4e7d868802d15b1b4d0d8b744479ce8645e1ebbb`
 - 上一批 jar（含 D-242）：`9738e6fca2b07ede8b985b29a6199372b205ede61bb08071b1cba6b997eaa594`
 - 上一批 jar（含 D-241）：`872c30fdedc1a2b74ae921f741c38f4607f0114dc572d5813ad3c50548aa1dcd`

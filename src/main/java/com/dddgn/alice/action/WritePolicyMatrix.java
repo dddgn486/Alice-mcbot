@@ -323,11 +323,14 @@ public final class WritePolicyMatrix {
                     ESCAPE_REASONS,
                     "action/PathRequest.java:53（survivalEscape）",
                     "逃生准备金（Q2/Q3/Q4 定案）：**放置 TEMP 必拆**（复用 scaffoldRemoval）+ 破坏按 KEEP 登记；"
-                            + "预算上限 8 破坏/8 放置、每次危险事件最多升档 1 次；信封无写权 ⇒ 根本不发这张凭证"),
+                            + "预算上限 8 破坏/8 放置、每次危险事件最多升档 1 次；信封无写权 ⇒ 根本不发这张凭证；"
+                            + "**回收时机由玩家定（D-245）：逃生任务自己不拆**（自动拆会把 bot 关回坑里 ⇒ 逃生循环）"
+                            + "⇒ 拆走玩家入口 `/alice restore` / `alice:restore_check`（同一条 RestoreScopeTask 路径）"),
             new Row("P-24", Zone.WORKSPACE, Task.SURVIVAL, Obligation.TEMP,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.SURVIVAL_ESCAPE),
                     ESCAPE_REASONS,
-                    "同 P-23", "同 P-23（今天两区解析相同：逃生留下的桥**照样要拆**，不因为在自己地上就免回收）"));
+                    "同 P-23", "同 P-23（今天两区解析相同：逃生留下的桥**照样要拆**，不因为在自己地上就免回收；"
+                            + "**拆的时机由玩家说了算** —— 见 D-245）"));
 
     // ==================== requester 登记表（前缀 → 任务类别）====================
 

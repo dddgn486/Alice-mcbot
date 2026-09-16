@@ -796,6 +796,23 @@ public class SurvivalExitCheckTask implements Task {
             // 串到陆地上（那会让 dry PILLAR 直接不写、只靠跳，本判据就会红）。
             check("对照（干地）：干燥竖坑仍然靠**放置**上来（逃生期间放置=" + shaftPlaces + " ≥ 1）",
                     shaftPlaces >= 1);
+            // ==================== D-245：逃生**不得**自动回收自己垫的方块（用户 2026-09-16 裁定） ====================
+            // 理由（用户的）：自动回收会**把 bot 重新关回坑里** ⇒ 危险再触发 ⇒ 再逃生 = **逃生循环**。
+            // 回收只能由**玩家入口**触发（`/alice restore` / `alice:restore_check` ⇒ `RestoreScopeTask`，
+            // "建拆同权"的那条生产路径，权限没变、只是**时机**交给玩家）。
+            // 下面两条是**负向门禁**：谁把自动回收接进逃生路径，它们立刻变红。
+            var server = bot.serverLevel().getServer();
+            var pillar = SHAFT_PIT_BOTTOM;
+            var ledgerEntry = com.dddgn.alice.ledger.WorldModLedger.at(server, pillar);
+            String pillarBlock = bot.serverLevel().getBlockState(pillar).getBlock().getName().getString();
+            check("逃生不自动回收（D-245）：垫脚方块**仍在世界里**（" + desc(pillar) + " = " + pillarBlock
+                            + "）⇒ 逃生任务没有拆自己垫的路（防逃生循环）",
+                    !bot.serverLevel().getBlockState(pillar).isAir());
+            check("逃生不自动回收（D-245）：账本里**仍记着这笔待拆**（policy="
+                            + (ledgerEntry == null ? "无条目" : ledgerEntry.policy())
+                            + "）⇒ 回收时机交玩家（`/alice restore`），不是静默丢弃",
+                    ledgerEntry != null
+                            && ledgerEntry.policy() == com.dddgn.alice.ledger.WorldModLedger.Policy.TEMP);
             return;
         }
         if (phaseTicks >= 5) {
