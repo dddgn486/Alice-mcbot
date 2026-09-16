@@ -126,6 +126,15 @@ Confirmed root cause: [The hypothesis that passed all tests]
 ❌ **Symptom chasing**: Fix each symptom without finding the root cause (leads to whack-a-mole)
 ❌ **Confirmation bias**: Only look for evidence that supports your initial guess
 ❌ **Skipping verification**: Assume a fix works without testing the exact failure scenario
+❌ **把「自己造成的世界变化」当成「世界自己变了」**（Alice 实测，D-249）：执行器**会**改世界 ——
+   某个方块"计划期是石质、几 tick 后读成空气"时，**先 grep 自己这一轮的 `[WRITE] break/place` 与
+   `[BreakEnter] cleared` 行**，再怀疑未加载区块/外部来源。踩过的坑：`BREAK_AND_ENTER` 清
+   **脚位 + 头位两格**，于是"计划最后一段的支撑"被**同一条计划自己**挖掉 ⇒ 现象长得像"未加载区块读成空气"，
+   照着这个假因追下去会白跑一轮（甚至误回退一个正确改动）。
+
+**取证：失败轮的日志可以回溯**（不必重跑）—— 无头电池每轮**覆盖** `/tmp/alice-headless-server.log`，
+但 `[fixed-server]/logs/debug-N.log.gz` **按服务端启动顺序保留历轮**：
+`zcat debug-*.log.gz | grep -n "SUMMARY\|<你的探针前缀>"` 就能把当时的失败判据原文取回（D-249 就是这样取回的）。
 
 ---
 
