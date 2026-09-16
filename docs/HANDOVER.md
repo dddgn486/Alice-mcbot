@@ -21,6 +21,7 @@
 > 水里自救**不是授权问题**（准备金只是让"写类 Movement"能被规划出来，额度一分没花）。
 > 顺带修掉夹具缺陷：`fillBlocks` 在区块未加载时 `/fill` **静默 0 改动**（本轮真踩到一次，一次红了 8 条判据）
 > ⇒ 现在先 `areaLoaded` 检查、未加载就把 bot 传到区域中心。
+> **D-247（同日，水位切片 A 完成）**：先做**判别性实测**才动代码 —— 新夹具场景 `water_course`（1 格深水沟**横跨全场** ⇒ 绕不过去）证明**蹚水今天就能走**（纯通行 `REACHED` + 5 段全 `COMPLETED` + 零写入），但实测**耗时与成本脱节**：陆地 5/7 tick vs 水里 **45/42** tick，而计划只按 1.0 计价 ⇒ ① 选路偏爱穿水 ② 段预算只有实际的 ~1/7。改法：`CostModel.WATER_TRAVERSE_MULTIPLIER = 7.25`（结构抄 Baritone `MovementTraverse:87-90`，**数值代入 Alice 实测**；照抄 Baritone 的 1.96 是给客户端游泳标定的）。判据 `water_course`（执行 COMPLETED + 零写入）+ `water_course+cost`（期望值**从计划自身推导**），**反向对照精确变红**；⚠️ 第一版期望值引用了同一个常量 ⇒ **自指**、反向对照不会红（已改成判据侧独立来源，与 D-241「重复来源要用门禁消」同源）。门槛：`single:pathing` PASS / CORE `(38/38) ticks=4068 → PASS`。
 > **D-246（同日）**：§5.11 ②「出口列表」**判定基本为空 ⇒ 关闭不建** —— 纯通行档下「最近那个不可达」
 > **等价于**「根本没有纯通行出口」（证明：路线的第一步目的地本身就是落点 ⇒ 距离 1 处必有可规划落点），
 > 残留只有「等距并列 + 人为不可破几何」这一档，正常游玩构造不出来（尺子同 D-240）。
@@ -34,7 +35,7 @@
 > ③ **浮在水面（无可站支撑）时起不来**（合法位置集问题，属"丙"的其余部分，最贵）；
 > ④ ~~逃生放置的自动回收~~ ⇒ **已定案不做自动档（D-245：自动拆会把 bot 关回坑里 ⇒ 逃生循环）**，
 > 回收交玩家许可（`/alice restore` / `alice:restore_check`），并已加**负向门禁**（逃生结束后方块仍在 + 账本仍 TEMP）；
-> ⑤ **水平蹚水/游泳**（`SurfaceMovementProvider:127-130` 仍跳过流体目的格）—— **下一个候选**：
+> ⑤ **深水浮着（切片的 B 半；水平蹚水已由 D-247 做完）**—— **下一个候选**：
 > 浅水（脚位是水但**底下是实心** ⇒ `canStandCentered` 本来就算过）今天被那一条硬排除挡掉，
 > 放宽它就能蹚过水沟；深水（底下也是水）会被 `canWalkOn` 自动排除，不需要额外判据（对照 Baritone `MovementTraverse` 水支）；⑥ 落水（D-058 定案不做）。
 
@@ -286,7 +287,8 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 - **客户端**：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - **镜像 / 同步**：`./tools/mirror-windows-workspace.sh`；
   `./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`。
-- **本断点已同步的 jar**：`496b3cd3e92dea945bdb9b7360bf43fdfd68bc6ec67b2228e501a2b5117eaa8f`（2026-09-16；**含 D-226…D-245**）
+- **本断点已同步的 jar**：`c6cb9c72041a3fb1b67e5ba82f6c5307eeca33915ec68341d0b18fc640c76c51`（2026-09-16；**含 D-226…D-247**）
+- 上一批 jar（含 D-245）：`496b3cd3e92dea945bdb9b7360bf43fdfd68bc6ec67b2228e501a2b5117eaa8f`
 - 上一批 jar（含 D-244）：`dffd3f226825603e81fb85f1609425f284b049c3f8f0e564c59cd76a48d01401`
 - 上一批 jar（含 D-243）：`2d2735af1517c23502545c9e4e7d868802d15b1b4d0d8b744479ce8645e1ebbb`
 - 上一批 jar（含 D-242）：`9738e6fca2b07ede8b985b29a6199372b205ede61bb08071b1cba6b997eaa594`

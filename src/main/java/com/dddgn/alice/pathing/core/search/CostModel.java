@@ -75,9 +75,33 @@ public interface CostModel {
 
     double cost(MovementType type, ServerLevel level, BlockPos from, BlockPos to);
 
+    /**
+     * **水里走一格相对陆地的倍数**（D-247 = 水位切片 A，2026-09-16）。
+     *
+     * <p>**公式结构**抄 Baritone `MovementTraverse.cost:87-90`（脚位或头位是水 ⇒ 用 `context.waterWalkSpeed`
+     * 而不是 `WALK_ONE_BLOCK_COST`；`isWater(pb0) || isWater(pb1)` 就是这个口径）；
+     * Baritone 那边 `waterWalkSpeed = WALK_ONE_IN_WATER_COST*(1-m) + WALK_ONE_BLOCK_COST*m`，
+     * `m` = 深海探索者的 `WATER_MOVEMENT_EFFICIENCY`（无附魔 m=0 ⇒ ≈**1.96×**，见
+     * `docs/reviews/2026-09-16-水位处理现成方案对照.md`）。
+     *
+     * <p>**数值不抄**（D-036 规则 3：抄结构、代入 Alice 自己的实测值）：Alice 的假人在水里**不是客户端游泳**，
+     * 实测（夹具 `water_course`，2026-09-16）**陆地一格 5~7 tick、水里一格 42~45 tick ⇒ 7.25×**
+     * —— 照抄 1.96 会让"水里那一格"的预算只有实际的一半以下（`PathSession` 的段超时是按成本放宽的）。
+     */
+    double WATER_TRAVERSE_MULTIPLIER = 7.25D;
+
+    /** 目的地（脚位或头位）是水 ⇒ 这一格按水速计价（与 Baritone `isWater(pb0) || isWater(pb1)` 同一口径）。 */
+    static double waterMultiplier(ServerLevel level, BlockPos to) {
+        return com.dddgn.alice.pathing.MovementHelper.isWater(level, to)
+                || com.dddgn.alice.pathing.MovementHelper.isWater(level, to.above())
+                ? WATER_TRAVERSE_MULTIPLIER : 1.0D;
+    }
+
     CostModel TRAVERSAL = (type, level, from, to) -> switch (type) {
-        case TRAVERSE -> TRAVERSE_COST;
-        case DIAGONAL -> DIAGONAL_COST;
+        // D-247：水里那几格按水速计价（1 步 ≈ 7.25 格陆地）—— 只影响**选路**与**段预算**，
+        // 不改任何合法性（水里能不能走由 `canWalkOn`/`canStandCentered` 决定）。
+        case TRAVERSE -> TRAVERSE_COST * waterMultiplier(level, to);
+        case DIAGONAL -> DIAGONAL_COST * waterMultiplier(level, to);
         case ASCEND -> ASCEND_COST;
         case DESCEND -> DESCEND_COST;
         case DOWNWARD -> DOWNWARD_COST;

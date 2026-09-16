@@ -38,7 +38,15 @@ public final class PathingRegressionTask implements Task {
         /** 只规划，要求 REACHED 且首步为 TRAVERSE（路线偏好）。 */
         PLAN_FIRST_TRAVERSE,
         /** 只规划：允许 REACHED / UNREACHABLE，但路线不得把身体放进岩浆或站在岩浆上（D-057）。 */
-        PLAN_SAFE_ROUTE
+        PLAN_SAFE_ROUTE,
+        /**
+         * 只规划：**水里的步子必须按水速计价**（D-247 切片 A）。
+         *
+         * <p>判据**从计划自身推导期望值**（不手抄阈值）：数出终点格含水的步数与陆地步数，
+         * 期望 = 陆地步×1.0 + 水步×{@link CostModel#WATER_TRAVERSE_MULTIPLIER}，实际成本必须 ≥ 期望×0.9。
+         * 反向对照（把水位乘数改回 1.0）会让 `cost` 掉到期望的 ~29% ⇒ 本判据精确变红。
+         */
+        PLAN_WATER_COST
     }
 
     /**
@@ -60,6 +68,16 @@ public final class PathingRegressionTask implements Task {
      * 或 {@code disturbTick>0} 而未传送过 ⇒ 该场景判 FAIL（`FIXTURE_NOT_FIRED`），
      * 不允许"夹具没生效"被 PASS 掩盖。
      */
+    /**
+     * **水里一格相对陆地的倍数 —— 判据侧的独立来源**（D-247 漂移门禁）。
+     *
+     * <p>刻意**不引用** {@link com.dddgn.alice.pathing.core.search.CostModel#WATER_TRAVERSE_MULTIPLIER}：
+     * 引用同一个常量会让判据变成自指（实测踩到：把常量改成 1.0，期望值跟着变成 5.00 ⇒ 判据照样 PASS）。
+     * 这里是**第二次独立标定**（夹具 `water_course` 实测：陆地一格 5~7 tick、水里一格 42~45 tick
+     * ⇒ 7.25×，2026-09-16）；两处不一致 ⇒ 本判据红（要改就一起改，属有意识动作）。
+     */
+    private static final double MEASURED_WATER_MULTIPLIER = 7.25D;
+
     private record SceneCheck(String scene, BlockPos start, BlockPos goal,
                               boolean worldModification, Kind kind,
                               int wallTick, int disturbTick, int disturbDx, int disturbDz,
@@ -111,6 +129,13 @@ public final class PathingRegressionTask implements Task {
             execute("slab_step_course", new BlockPos(4, 64, 145), new BlockPos(8, 64, 145), false,
                     MovementType.TRAVERSE),
             refused("fluid_course", new BlockPos(0, 64, 66), new BlockPos(4, 64, 66), true),
+            // 蹚水（切片 A 的判别性判据，2026-09-16）：水沟 x=2..3 **横跨整个场景宽度** ⇒ 绕不过去，
+            // 到得了目标就**只能**是走水里。纯通行（`worldMod=false`）⇒ 顺带断言"不靠放方块搭桥"。
+            execute("water_course", new BlockPos(0, 64, 66), new BlockPos(5, 64, 66), false,
+                    MovementType.TRAVERSE),
+            // 同一份地形，**只规划**：水里的步子必须按水速计价（D-247）。`+cost` 后缀复用 `water_course_terrain`。
+            new SceneCheck("water_course+cost", new BlockPos(0, 64, 66), new BlockPos(5, 64, 66),
+                    false, Kind.PLAN_WATER_COST, 0, 0, 0, 0, 0, List.of()),
             safeRoute("lava_course", new BlockPos(0, 64, 66), new BlockPos(4, 64, 66), true),
             refused("fence_course", new BlockPos(0, 64, 48), new BlockPos(0, 64, 44), false),
             new SceneCheck("dip_course", new BlockPos(0, 64, 66), new BlockPos(-1, 64, 63),
@@ -387,6 +412,27 @@ public final class PathingRegressionTask implements Task {
                 record(scene, contacts.isEmpty(),
                         shape + "/lava_contacts=" + contacts.size()
                                 + (contacts.isEmpty() ? "" : "/at=" + contacts.get(0).toShortString()));
+            }
+            case PLAN_WATER_COST -> {
+                // D-247：水步按水速计价 —— 期望值**从计划自身推导**（陆地步×1.0 + 水步×WATER_TRAVERSE_MULTIPLIER）。
+                var level = bot.serverLevel();
+                int waterSteps = 0;
+                int landSteps = 0;
+                for (var move : plan.movements()) {
+                    if (com.dddgn.alice.pathing.MovementHelper.isWater(level, move.toFoot())
+                            || com.dddgn.alice.pathing.MovementHelper.isWater(level, move.toFoot().above())) {
+                        waterSteps++;
+                    } else {
+                        landSteps++;
+                    }
+                }
+                double expected = landSteps * com.dddgn.alice.pathing.core.search.CostModel.TRAVERSE_COST
+                        + waterSteps * com.dddgn.alice.pathing.core.search.CostModel.TRAVERSE_COST
+                        * MEASURED_WATER_MULTIPLIER;
+                record(scene, plan.reached() && waterSteps > 0 && plan.totalCost() >= expected * 0.9D,
+                        shape + "/water_steps=" + waterSteps + "/land_steps=" + landSteps
+                                + "/cost=" + String.format("%.2f", plan.totalCost())
+                                + "/expected=" + String.format("%.2f", expected));
             }
             default -> record(scene, false, "KIND_MISMATCH");
         }

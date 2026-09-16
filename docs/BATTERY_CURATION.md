@@ -112,3 +112,4 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 | 2026-09-15 | **38** | **46** | **③/策展**：`decision_contract` EXTRA → MAIN（承诺与档位矛盾；200 tick 纯逻辑），步数不变 |
 | 2026-09-15 | **37** | **46** | **M4b / D-231 + M3b / D-232**（同日追加）：新增 `mine_stale` / `mine_budget`（MAIN，各 400 tick 预算）⇒ 归因映射 `stale_target` / `write_budget_exhausted` **首次被观测**；M4b 不新增步（判据挂在既有 `mine_no_tool`）。CORE `(37/37) → PASS`。反向对照：映射短路 ⇒ 两步各判红 |
 | 2026-09-15 | **35** | **44** | D-229（同日追加）：`survival_exit` 判据 45 → **55**（冻结决策表 + 细雪机理/分类/HOLD_NO_EXIT/全冻掉血）；步数不变，CORE `(35/35) ticks=3830 → PASS`。修因：细雪冻结伤害在补 `baseTick` 后变成真实危险，但没有危险档。 |
+| 2026-09-16 | **38** | **41** | **项数不变**（D-247 水位切片 A）：`pathing` 步新增场景 `water_course`（执行：1 格深水沟横跨全场 ⇒ 绕不过去，纯通行 COMPLETED + 零写入）与 `water_course+cost`（只规划：水里步子必须按 `WATER_TRAVERSE_MULTIPLIER=7.25` 计价，期望值从计划自身推导；反向对照把常量改 1.0 ⇒ 恰好这一条红）|
