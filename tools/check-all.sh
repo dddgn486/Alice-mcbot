@@ -122,6 +122,8 @@ run_gate             "check-fixture-hygiene"    bash tools/check-fixture-hygiene
 run_gate             "check-transfer-clock"    bash tools/check-transfer-clock.sh
 # 内核 §2（2026-09-16 复核）：K-4 执行工厂必须用规划侧同一谓词 / K-5 声明了的状态必须有生产者。
 run_gate             "check-kernel-predicates" bash tools/check-kernel-predicates.sh
+# 终态执行记录接线（D-258 复核发现的 J-1/J-3）：taskKind 必须用 taskName()；terminalReason/botId 必须进快照。
+run_gate             "check-exec-record"      bash tools/check-exec-record.sh
 run_gate             "check-policy-matrix"      bash tools/check-policy-matrix.sh
 run_gate             "check-authz-registry"     bash tools/check-authz-registry.sh
 run_machine_map

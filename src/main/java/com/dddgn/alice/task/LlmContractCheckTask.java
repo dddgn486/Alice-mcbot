@@ -87,6 +87,7 @@ public class LlmContractCheckTask implements Task {
 
     private void runChecks() {
         checkJobFailureReports();
+        checkSnapshotTerminalIdentity();
         checkSnapshotFailureFields();
         checkProductFilter();
         checkRefusalReadback();
@@ -154,6 +155,22 @@ public class LlmContractCheckTask implements Task {
         check("snapshot_failure_fields", fields && bounded && noStale,
                 "fields=" + fields + " bounded=" + bounded + "(" + cappedDetails.length() + "/"
                         + DecisionSnapshot.MAX_FAILURE_DETAILS + ") noStale=" + noStale);
+    }
+
+    /**
+     * **J-1 判据缺口（2026-09-16 全表复核发现）**：`terminalReason` 与 `botId` 是 D-134 加的字段，
+     * 但 `llm_contract` 只断言了 failure* 三项 ⇒ 「字段进了 prompt」这件事**没有判据**。
+     * 这里补上：终态理由与 bot 身份必须原样出现在快照 JSON 里（多 bot 归因 + "为什么结束" 都靠它）。
+     */
+    private void checkSnapshotTerminalIdentity() {
+        TaskExecutionRecord record = syntheticRecord(TaskExecutionRecord.TerminalStatus.COMPLETED, null);
+        JsonObject json = DecisionSnapshot.lastTerminalJson(record);
+        boolean reason = "no_reachable_candidate".equals(text(json, "terminalReason"));
+        boolean identity = record.botId().equals(text(json, "botId"));
+        boolean kind = record.taskKind().equals(text(json, "kind"));
+        check("snapshot_terminal_identity", reason && identity && kind,
+                "terminalReason=" + text(json, "terminalReason") + " botId=" + text(json, "botId")
+                        + " kind=" + text(json, "kind"));
     }
 
     /** 构造一条终态记录（M4 自检用：不必真把任务跑失败一次）。 */

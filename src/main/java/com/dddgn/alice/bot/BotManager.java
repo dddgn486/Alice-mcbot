@@ -1591,7 +1591,20 @@ public final class BotManager {
         private final ScopeBuffer scope = new ScopeBuffer();
         private String lastTaskResult = "";
         private BlockPos lastMineStartPos;
-        private String taskKind = "";
+    
+    /**
+     * **J-3（2026-09-16 复核）**：终态记录里的**稳定任务标识** —— 任务自己声明的 {@link Task#taskName()}
+     * （默认就是类名，Job/夹具覆写成 `lumber`/`region_lumber` 这类与实现类解耦的名字）；空则退回类名。
+     *
+     * <p>为什么不能让调用点直接写 `getClass().getSimpleName()`：换实现类就换名字 ⇒ 多 bot 归因、
+     * 按 kind 分派的 LLM 提示、以及 `tools/exec-record.py` 的 R1 都会跟着漂。
+     */
+    private static String stableTaskKind(com.dddgn.alice.task.Task task) {
+        String declared = task.taskName();
+        return (declared == null || declared.isBlank()) ? task.getClass().getSimpleName() : declared;
+    }
+
+    private String taskKind = "";
         private String taskTargetDescription = "";
         private long taskStartTick;
         private TaskExecutionRecord lastExecutionRecord;
@@ -1663,7 +1676,10 @@ public final class BotManager {
             com.dddgn.alice.pathing.core.WriteEnvelopes.clear(bot.getUUID().toString());
             task = assignedTask;
             target = assignedTarget;
-            taskKind = assignedTask.getClass().getSimpleName();
+            // **J-3（2026-09-16 复核）**：终态记录的 `taskKind` 改用任务**自己声明的稳定名字**
+            // （`Task.taskName()`：默认=类名，Job/夹具可覆写成 `lumber`/`region_lumber` 这类稳定标识）。
+            // 原先取 `getClass().getSimpleName()` ⇒ 换实现类就换名字 ⇒ 多 bot 归因与 LLM 侧按 kind 分派不可靠。
+            taskKind = stableTaskKind(assignedTask);
             // D-189：**自检任务开始即暂停决策层** —— 否则任务终态会触发 LLM，常选 start_job（实测
             // region_lumber）⇒ 每次测试（尤其失败后）bot 就跑去做生产作业，把测试场地占住。
             // 窗口取 1200 tick（60 秒，与 EventThresholdCheckTask 同口径）：覆盖夹具本身 + 一段冷却。
