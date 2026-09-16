@@ -18,7 +18,8 @@ Baritone 为 LGPL-3.0。若复制源文件，保留许可证头、改动说明�
 ## 保留约束映射
 
 - `allowDownward = false`：不破坏当前脚位正下方方块。
-- `maxFallHeightNoWater = 1`，禁用水桶/多格自由落体：任何下行边最多一格高差。
+- ~~`maxFallHeightNoWater = 1`，禁用水桶/多格自由落体：任何下行边最多一格高差。~~
+  **⚠️ 2026-09-16 更正（D-258 全表复核发现）**：本行**与今日代码不符、且会污染对照结论** —— Alice 现行 `FALL` 支持**落差 2~3 格**（`SurfaceMovementProvider:137 FALL_DROPS = {2, 3}`，对照 Baritone `maxFallHeightNoWater = 3`，无水落地见 D-058）；只有**水桶**仍属禁用项（D-044 暂不采纳）。
 - 安全区、负硬度、流体风险和清障高代价方块：break cost = INF 或直接拒绝。
 - 明确用户目标与自动清障使用不同 break policy：明确黑曜石目标允许，清障黑曜石回避。
 - 物品目标使用整数脚位格 + 执行层中心校验，未到格心不得 `playerTouch`。

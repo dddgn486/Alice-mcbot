@@ -17,10 +17,10 @@
 
 | 组 | 项数 | 影响业务？ | 备注 |
 |---|---|---|---|
-| §1 安全底座（风险 / 维生 / 写入准入） | 8 | ✅ 3 项（S-1/S-2/S-4），常驻任务后上升 | 风险清单 9 条断言**至今全部成立**，P0/P1/P2 **无一实施**，切片 S1–S6 **0/6** |
-| §2 内核搜索正确性 | 7 | ✅ 2 项（K-1/K-2） | 审计 64 项里剩的最硬的两条；S-2 与 K（未加载区块）是**同一件事** |
-| §3 Job 层与决策缝契约 | 9 | ✅ 4 项（J-1/J-2/J-3/J-9） | 直接决定"能不能接 LLM 决策层"（项目立项差异②） |
-| §4 世界写入授权登记缺口 | 8 | ⚠️ 登记债 | G1/G2/G9 已修；其余 + 新发现 1 项 |
+| §1 安全底座（风险 / 维生 / 写入准入） | 8 | ✅ 4 项（S-1/S-2/S-3/S-4），常驻任务后上升 | 风险清单 9 条断言**至今全部成立**；**2026-09-16 全表复核**：S-1…S-5 已落地（S-5 的基-1 接线+判据已就位，仅两个最高等级无产出者=有意保留）；**真缺口剩 S-6/S-7/S-8**（RiskSwitches 全局静态、两守卫无开关、`policyVersion` 恒 0 且零读者）—— 前两条等 S1 冻结点裁口径，第三条优先级低；另新发现一项（`FluidRiskPolicy` 只覆盖目标格 6 邻格）见 S-4 行–S6 **0/6** |
+| §2 内核搜索正确性 | 8 | ✅ 8 项（K-1…K-8 **全部收口**） | 2026-09-16 复核：K-1/K-2/K-3/K-5/K-6 **五行原状态过期**（已实现），K-4 是真缺口（规划/执行谓词差一半，已修），K-7 补登记，K-8 自写一致（D-249/D-250）|
+| §3 Job 层与决策缝契约 | 10（表内实际 10 行，原写 9） | ✅ 8 项（J-1/J-2/J-4/J-6/J-7/J-9/J-10 主 claim + J-3 的 botId 部分） | 2026-09-16 复核：4 条「未实现」作废（J-1/J-2/J-7/J-9）；**真缺口剩 J-5**（`UNTIL_FULL`/`stopWhenFull`/collect `productTag` 无消费者 ⇒ 有意不做 v1）、**J-3 剩 taskKind 用类名**、**J-8 物种过滤**、**J-10 遗留 `policy_blocked`** |
+| §4 世界写入授权登记缺口 | 7（表内实际 7 行，原写 8） | ⚠️ 登记债；**含一条新发现** | 2026-09-16 复核：G3/G6/G7 + G-新(A9) **已收口**；G5 原「完全不覆盖」作废（已接多处，但**菜单合成路径 `InventoryCraft:300`/`MenuSession:256` 绕过容器写入预算与策略矩阵** = 新发现真缺口）；G4 口径缩小到只剩 tick 预算；G8 行准确（4 字段未读）|
 | §5 验证债 | 5 | ⚠️ 证据可信度 | `AI_TEST_MATRIX.md` 里有 **16 处「待测」**，其中若干已被后续 D-0xx 取代（需逐条核对） |
 | §6 文档债 | 6 | ⚠️ 误导风险 | 三份审计报告的**包路径/常量/禁令**都已过期 |
 
@@ -35,13 +35,13 @@
 | # | 项 | 来源 | 现状（复核证据） | 验证判据 |
 |---|---|---|---|---|
 | **S-1** | **维生否决后没有出口**（P1-C） | `ISSUE_LIST.md:297-348` | **✅ `WINDOWS_CLIENT`（D-132 附注二：14:47 两次复现：逃生出口 → `start_escape` → `SurvivalExitTask COMPLETED`，`segment_done ticks=5` 真的走出方块）**：`SurvivalSystem.nearestSafeRefuge`（纯查询）+ `SurvivalExitTask`（复用已验收 WalkTo）+ `SurvivalExit` 豁免（防每 tick 自杀循环）；入口 `alice:survival_exit_check` + 场景 `alice_test:survival_course` | 被岩浆/火包围 ⇒ 中断后应有一次"到最近安全点"的动作（`WalkToTask`），而不是停在原地被烧。**J8 常驻后优先级上升最多** |
-| **S-2** | **执行期没有"未加载区块/世界边界"准入**（P1-A + 审计 §3.A:181） | `ISSUE_LIST.md:202-252`、`R4_AUDIT.md:181` | **已实施（D-132；A/B `WINDOWS_CLIENT`：`GOAL_NOT_LOADED`+`no_sync_load=true` / `near_goal=REACHED`；C 待复测）**：`MovementContext.chunkLoaded/withinWorldBorder` + 新状态 `GOAL_NOT_LOADED` + 跨区块节点门控（照 Baritone `AStarPathFinder:105-112`）；入口 `alice:chunk_guard_check` | 目标落在未加载区块 ⇒ **硬拒**（复核 §2：`getBlockState` 会**同步加载/生成区块并阻塞主线程**，不是 void air）。这也是 D-004/D-076「`SEARCH_LIMIT ≠ UNREACHABLE`」判据的前提 |
+| **S-2** | **执行期没有"未加载区块/世界边界"准入**（P1-A + 审计 §3.A:181） | `ISSUE_LIST.md:202-252`、`R4_AUDIT.md:181` | **已实施（D-132；A/B `WINDOWS_CLIENT`：`GOAL_NOT_LOADED`+`no_sync_load=true` / `near_goal=REACHED`；C 也已有夹具（`alice:chunk_guard_check`，2026-09-16 复核确认 `plan.status()==GOAL_NOT_LOADED` 与 `no_sync_load` 两条判据都在））**：`MovementContext.chunkLoaded/withinWorldBorder` + 新状态 `GOAL_NOT_LOADED` + 跨区块节点门控（照 Baritone `AStarPathFinder:105-112`）；入口 `alice:chunk_guard_check` | 目标落在未加载区块 ⇒ **硬拒**（复核 §2：`getBlockState` 会**同步加载/生成区块并阻塞主线程**，不是 void air）。这也是 D-004/D-076「`SEARCH_LIMIT ≠ UNREACHABLE`」判据的前提 ｜ **复核建议**：`chunk_guard` 是**唯一没有电池步**的安全底座项之一，建议挂进 BASELINE（否则只能靠真人复测维持）|
 | **S-3** | `MineTask` **重复调用** `SurvivalSystem.tick`（P1-B） | `ISSUE_LIST.md:254-296` | **已实施（D-132，客户端间接确认：维生终态只由会话记一次）**：删掉 `MineTask.tick` 里那次调用（含 import），维生一律由会话统一记 `SURVIVAL_INTERRUPTED` | 删掉 `MineTask` 里那次（对齐 `FollowTask`/`Job`）；`lastTaskResult = "failed:"+reason` 已带原因码，信息不丢 |
-| **S-4** | `FluidRiskPolicy` **零调用**（P0-C） | `ISSUE_LIST.md:151-200` | **✅ `WINDOWS_CLIENT`（D-132 附注：`[FluidMineCheck] SUMMARY … → PASS`）**：`MiningPlanner.plan` 目标确认接线 + `MineTask` 硬拒优先（不许再加高/清障）；入口 `alice:fluid_mine_check` + 场景 `alice_test:fluid_mine_course` | 探针已写好，只差接线；伐木/挖矿循环持续"挖穿未知方块"⇒ 邻格岩浆流入场景被反复暴露 |
-| **S-5** | **可回收性 = 空实现**（P0-B）＝项目差异① | `ISSUE_LIST.md:94-150`、`REVIEW:73-90` | **未实现**（复核）：`SAFE_EXIT_REQUIRED`/`EMERGENCY_EXIT_REQUIRED`/`NOT_REVERSIBLE` 三个值 **0 处读取**；唯一校验 `MovementSpec.java:42` 恒假；唯一转换点 `PlannedMovementSpecs.java:32-49` **两边都写死 `LOCAL_STEP`** ⇒ `0<0` 恒假 | 让"不是可回收步骤"真的能**改变搜索/准入结果**。⚠ 复核 §3 明确：接线必须**先 (a) 填真实等级，后 (b) 打开校验**，顺序反了会崩规划器 |
-| **S-6** | `RiskSwitches` 是**全局静态状态**（P0-A） | `ISSUE_LIST.md:46-93` | **未实现**（复核）：`pathing/risk/RiskSwitches.java:20`（static volatile）+ 消费者直读全局（`SurfaceMovementProvider.java:401`、`DescendExecutionFactory.java:58`） | 按 D-046「先有消费者再建类型」：`RiskProfile` 冻结点（S1）的第一个真实消费者是 **Job 候选筛选**（`JOB_LAYER_DESIGN.md:374`）——需先裁定字段口径 |
-| **S-7** | 三个守卫默认值**互不一致**（P2-C） | `ISSUE_LIST.md:349-...` | **未实现**（复核）：`descend_overshoot` 默认 `false`（`RiskSwitches.java:20`），而 FALL 的 `fallRecoverable`（`SurfaceMovementProvider.java:193/202-213`）与 ASCEND 的 FallingBlock 前置（`AscendExecutionFactory.java:59-64`）**无条件执行** | 登记为过渡态即可；但**Baritone 对照记录必须标注 Alice 侧多开了 2 个 Baritone 没有的守卫**，否则对照结论不可信 |
-| **S-8** | `LiveExecutionContext.policyVersion` **恒为 0**（P2-A） | `ISSUE_LIST.md:349-370` | **未实现**（复核）：`pathing/core/session/PathSession.java:290` 写死 `0L, 0L`，无其它写入点 | 接上后 S1 的"随请求冻结"才**可观测** |
+| **S-4** | `FluidRiskPolicy` **零调用**（P0-C） | `ISSUE_LIST.md:151-200` | **✅ `WINDOWS_CLIENT`（D-132 附注：`[FluidMineCheck] SUMMARY … → PASS`）**：`MiningPlanner.plan` 目标确认接线 + `MineTask` 硬拒优先（不许再加高/清障）；入口 `alice:fluid_mine_check` + 场景 `alice_test:fluid_mine_course` | 探针已写好，只差接线；伐木/挖矿循环持续"挖穿未知方块"⇒ 邻格岩浆流入场景被反复暴露 ｜ **2026-09-16 复核（新发现，未被单列）**：`FluidRiskPolicy` 只查**目标格自身 + 6 邻格**（`FluidRiskPolicy.java:26-30`）⇒ 「**挖穿未知方块后邻格岩浆流入**」这一档仍未被覆盖（伐木/挖矿循环会反复暴露）⇒ 记为**真缺口**（未做：破块后的**暴露面**风险判定）|
+| **S-5** | **可回收性 = 空实现**（P0-B）＝项目差异① | `ISSUE_LIST.md:94-150`、`REVIEW:73-90` | **✅ 基-1 已实施（2026-09-16 复核，原状态行作废）**：`PlannedMovementSpecs.toSpec` 的 `required` 来自**策略表** `RecoverabilityPolicy.requiredFor`（不是散落写死），`evaluatedRecoverability` 来自`RecoverabilityEvaluator.evaluate`（唯一裁决点），`MovementSpec:42` 的 `ordinal` 比较因此**非恒假** —— `FALL` 要求 `PATH_REVERSIBLE`，缺 `fall_return_verified` 事实的 FALL 边**构造即抛**（不变量代码注释原文）。另有电池步 `recoverability`（`RecoverabilityCheckTask`）+ 运行期日志 `[Recover] … PATH_REVERSIBLE/…` 可观测。**仍然为真的残余**：`SAFE_EXIT_REQUIRED`/`EMERGENCY_EXIT_REQUIRED` 两个**最高等级无生产者**（`RecoverabilityPolicy:21` 明确记为「尚未使用的等级」）⇒ 属**有意保留**，不再是「空实现」|
+| **S-6** | `RiskSwitches` 是**全局静态状态**（P0-A） | `ISSUE_LIST.md:46-93` | **属实（2026-09-16 复核）**：`pathing/risk/RiskSwitches.java:20` 仍是 `static volatile`，消费者直读全局。**这是设计债、不是遗漏**：按 D-046「先有消费者再建类型」，`RiskProfile` 冻结点（S1）的第一个真实消费者是**Job 候选筛选**（`JOB_LAYER_DESIGN.md:374`）⇒ **需先裁定字段口径**（§5.6 的议题）。⇒ 保持为**待裁定**（用户拍板项），不要自行开工 |
+| **S-7** | 三个守卫默认值**互不一致**（P2-C） | `ISSUE_LIST.md:349-…` | **⚪ 实质成立、措辞需改（2026-09-16 复核）**：三个守卫确实不一致 —— `descend_overshoot` 是**开关**且默认 `false`（`RiskSwitches.java:20`），而 FALL 的 `fallRecoverable`（`SurfaceMovementProvider.java:234` `continue` 逐边守卫）与 ASCEND 的 FallingBlock 前置（`AscendExecutionFactory:68-72` `ASCEND_FALLING_BLOCK_ABOVE`）**没有开关、无条件执行**。⇒ 结论成立；**残余动作（已补登记）**：Alice 比 Baritone **多开两个守卫**，必须在对照记录里标注（否则对照结论失真）——已在 `alice-baritone-kernel-alignment.skill.md` 与 D-258 登记 |
+| **S-8** | `LiveExecutionContext.policyVersion` **恒为 0**（P2-A） | `ISSUE_LIST.md:349-370` | **属实，且比原话更死（2026-09-16 复核）**：生产路径构造点 `PathSession.java:379` 写死 `0L, 0L`（夹具侧同样写死，`PathingBatteryTask:265`/`ChainDiagnosticTask:129`），而 `grep -rn \"policyVersion()\"` **0 命中** ⇒ **该字段连一个读取者都没有**（只有构造器的非负校验）⇒ 「随请求冻结」既**不可观测**也**无人消费**。**处置**：优先级低；要么删字段（真删死码），要么先定「谁会读它」再接线 —— 二选一需先裁定 |
 
 **未核实（需实测，不属于上述清单）**：① 工具耐久（全仓仅 `InterfaceScanner` 提及，Job 层无判定）；
 ② `bot` 被清除（`BotManager.remove` 不重生）后 `LumberRegionState`（按 UUID 的 SavedData）残留是否可观测
@@ -76,16 +76,16 @@
 
 | # | 项 | 出处 | 现状（复核证据） |
 |---|---|---|---|
-| **J-1** | ✅ **已实施（D-134，客户端待测）**：两个记录类各加 `botId` + `terminalReason`，并有 `task_terminal_reason` 证据行 | `TaskExecutionRecord.java:8-19`、`BotManager.java:1225-1234` | **未实现**：终态只记死串 `"done"` / `"failed:"+failureReason()` ⇒ `quota_met` / `idle_no_work` / `no_reachable_candidate` 等**只能从日志读**。这是差异②（上抛 LLM）的**最关键缺口** |
-| **J-2** | ✅ **已实施（D-134，客户端待测）**：`JobRequest` + `JobLauncher` + `BotManager.assignJob`（入口发料也收在这一处） | `BotManager.java:487/528/579` | **未实现**：逐域硬编码 `assignLumberJob`/`assignMineJob`/`assignRegionLumber`；通用 `assignTask(:791)` 需要调用方自己持有 `Job` 类 ⇒ LLM 无法"用一个动作起任意 Job" |
-| **J-3** | ✅ **已实施（D-134）**：终态记录/TaskOutcome 均有 `botId`（UUID 字符串） | `TaskExecutionRecord.java:8-19` vs `MULTI_BOT_INTERFACE_RESERVATION.md:7` | **未实现**：与多 bot 预留的期望直接冲突（`taskKind` 现为类名，如 `RegionLumberJob`） |
-| **J-4** | `job/` 包**未覆写 `failureReport()`** | 复核 | **未实现**：`LumberJob` 上抛的 `tool_missing`/`climb_incomplete` 进不了 `TaskOutcome.failure` ⇒ 失败码在 Job 层"半途而废" |
-| **J-5** | `UNTIL_FULL` 声明了**没实现** | `JOB_LAYER_DESIGN.md:383/435-439` | **未实现**：`GoalSpec.Kind.UNTIL_FULL`（`GoalSpec.java:28`）与 `stopWhenFull`（`:20`）全仓**无读取点**；`COLLECT_ITEMS`（`:24/62-65`）同样无消费者 |
-| **J-6** | `MineJob.countTargetItems` 硬编码矿物清单、忽略 `productTag` | `job/mine/MineJob.java:278-302` | **未实现**：与 `GoalSpec` 的"产物"口径脱节 |
-| **J-7** | 决策结果/拒绝理由**无结构化回读** | `DecisionTrace` | **未实现**：`policy.select(...)` 的 `reason` 与 `rejected()` 只进 `BotLog`；没有读回通道（LLM 拿不到"为什么没选它"） |
-| **J-8** | 树种过滤未做 / 非区域补种未做 | `JOB_LAYER_DESIGN.md:441-444` | **部分实现**：区域补种已做（`REGION_REPLANT` + 账本 `KEEP`，J8 Slice B）；`Tree.species` 仅记录、**未过滤** |
+| **J-1** | ✅ **已实施（D-134，客户端待测）**：两个记录类各加 `botId` + `terminalReason`，并有 `task_terminal_reason` 证据行 | `TaskExecutionRecord.java:8-19`、`BotManager.java:1225-1234` | **✅ 已实施（D-134；2026-09-16 复核，原「未实现」作废）**：`TaskExecutionRecord:25-27` 有 `terminalReason`/`botId`；生产者 `BotManager:2101-2107`、日志 `:2119 task_terminal_reason`；回读 `DecisionSnapshot:245` 进 prompt。**判据缺口**：`llm_contract` 未断言这两个键，建议补 |
+| **J-2** | ✅ **已实施（D-134，客户端待测）**：`JobRequest` + `JobLauncher` + `BotManager.assignJob`（入口发料也收在这一处） | `BotManager.java:487/528/579` | **✅ 已实施（2026-09-16 复核，原「未实现」作废）**：`JobRequest:17/58-81` 五种 Job 工厂 + `JobLauncher:120` 唯一构造点 + `BotManager:560-576` 唯一入口；`assignLumberJob`/`assignMineJob`(`:512/:582`) 已是薄包装。判据：`decision_contract`／`collect_job`／`mine_menu`（原引 `:487/528/579` 已过期） |
+| **J-3** | ✅ **已实施（D-134）**：终态记录/TaskOutcome 均有 `botId`（UUID 字符串） | `TaskExecutionRecord.java:8-19` vs `MULTI_BOT_INTERFACE_RESERVATION.md:7` | **⚠️ PARTIAL（2026-09-16 复核）**：`botId` 已落地（`TaskExecutionRecord:23`、`TaskOutcome:16`）；**真缺口**：`BotManager:1666 taskKind = getClass().getSimpleName()` ⇒ 多 bot／跨版本稳定标识仍缺（建议用 `taskName()`；无判据） |
+| **J-4** | `job/` 包**未覆写 `failureReport()`** | 复核 | **✅ 已实施（2026-09-16 复核）**：四处覆写 —— `LumberJob:235`、`RegionLumberJob:181`、`MineJob:174`、`CollectJob:76`。判据：`llm_contract.checkJobFailureReports()`（反射断言 declaringClass==自身，4/4） |
+| **J-5** | `UNTIL_FULL` 声明了**没实现** | `JOB_LAYER_DESIGN.md:383/435-439` | **❌ REAL-GAP（行准确）**：`GoalSpec:16` `UNTIL_FULL` 仅 2 命中（枚举+javadoc 自称未实现）、`:20` `stopWhenFull` 仅 1 命中；`CollectJob:60/113/208` 从不读 `productTag`。**代码已自认 §11-②** ⇒ 记为**有意不做 v1**（要做先给判据） |
+| **J-6** | `MineJob.countTargetItems` 硬编码矿物清单、忽略 `productTag` | `job/mine/MineJob.java:278-302` | **✅ 已实施（2026-09-16 复核）**：`MineJob:411-418` 走 `productFilter.matches(stack)`；口径在 `job/mine/MineProductFilter.java:22`。判据：`llm_contract.checkProductFilter()`（target／default） |
+| **J-7** | 决策结果/拒绝理由**无结构化回读** | `DecisionTrace` | **✅ 已实施（2026-09-16 复核）**：`GoalDirector:463-489` 写入/清除 `lastRefusal`、`:484` 读回；`DecisionSnapshot:90-95` 进 prompt；`decision/DecisionTrace` JSONL 落盘（`BotStateReport:184` 消费）；`job/DecisionTrace:30-38` 结构化 select/rejected。判据：`llm_contract.checkRefusalReadback()` + `decision_trace` |
+| **J-8** | 树种过滤未做 / 非区域补种未做 | `JOB_LAYER_DESIGN.md:441-444` | **⚠️ PARTIAL（行准确）**：区域补种已做（`RegionLumberJob:470`）；**真缺口**：`species` 8 命中全是记录/日志/feature（`Tree:19`、`TreeScanner:73/127`、`LumberCandidateSource:197`、`CandidateMenu:145`）⇒ 无过滤消费者。判据：`region_maintain` 覆盖补种，物种过滤无判据 |
 | **J-10 掉落物归属与收集授权** | ✅ **已实施并 `WINDOWS_CLIENT`**（D-143/D-144）：`DropProvenance`（我方直接/间接 60tick·4格松窗 / `GRANTED_AREA` / `FOREIGN`）+ `DropPolicy` 唯一判定入口 + **被动拾取闸门**（`EntityItemPickupEvent`，节流+计数）+ `CollectGrant` 选区授权（ONCE/SESSION/ALWAYS，`always` 报告显式标记）+ 收集按策略过滤（`anyDrops` 退役）。**遗留登记**：`CollectDropsTask` 的 `policy_blocked` 终态区分、"我方放置/拆除点"并入松窗。（原提案： 现在只认"我方破坏事件配对"⇒ 漏掉**我方行为的间接后果**（树叶衰减掉树苗/木棍、仙人掌/甘蔗被移除支撑后弹出）与**玩家派活**（捡玩家授权区里的东西）） |
-| **J-9** | **LLM 接入本体**（差异②）✅ **已实施（D-135，客户端待测）**：快照契约 + 动作词汇表 + 事件驱动/节流 + 严格拒绝 + 决策 trace；配置从当前部署复制（`config/alice-llm.json`） | `JOB_LAYER_DESIGN.md:390-396`、`:21/:244-247` | **未实现**，四件套都缺：① LLM 调用；② **给 LLM 的权威状态快照契约**；③ **动作词汇表**（"起哪个 Job + 什么 spec"）；④ **触发节奏**（不能每 tick 调）。可注入点已就位：`SelectionPolicy.java:15`、`CandidateSource.java:16` |
+| **J-9** | **LLM 接入本体**（差异②）✅ **已实施（D-135，客户端待测）**：快照契约 + 动作词汇表 + 事件驱动/节流 + 严格拒绝 + 决策 trace；配置从当前部署复制（`config/alice-llm.json`） | `JOB_LAYER_DESIGN.md:390-396`、`:21/:244-247` | **✅ 已实施（D-135；2026-09-16 复核，原「未实现」作废）**：① `LlmClient:52 askAsync` 真 HTTP ② `DecisionSnapshot.buildPrompt` ③ `GoalAction:21` sealed 词汇表 ④ `GoalDirector:24/260` 节奏。判据：`decision_contract`／`decision_trace`／`llm_contract` + `alice:goal_director`；`WINDOWS_CLIENT` 历史证据见 §6.47 |
 
 ---
 
@@ -95,13 +95,13 @@
 
 | # | 项 | 现状 |
 |---|---|---|
-| **G3** | 模组连锁破坏**无凭证**（`MineTask.beginChain` 反射调模组 `MiningScheduler`） | 破坏量不受 Alice 预算约束；需与"模组能力层"一起做 |
-| **G4** | Slice B2：**尝试级 tick 预算** | Slice A 已落地（`WriteBudget`，D-106）；B2 未做 |
-| **G5** | **容器写入是第三个维度**（`TransferTask`/`ChestBotTransferPrimitive`） | 现有授权面完全不覆盖 |
-| **G6** | legacy `pathing/movement` **裸写入** | `DescendMovement.java:142`、`PillarMovement.java:146` 裸 `setBlock`（当前无生产调用，与 K-2 同源） |
-| **G7** | **死闸门**：`FluidRiskPolicy.miningRefusal` 无调用者，而 `MineTask` 保留 `fluid_risk_lava` 硬拒绝分支 | 一个**永远为假**的分支（与 S-4 同源） |
-| **G8** | ✅ **已接线（D-157 + 附注一：含"保护区字段又变装饰"的真问题修复）**：`CapabilityGate` 让 **10 个死字段中的 6 个**真的拦人（`changesWorld`/`canBreakBlocks`/`canPlaceBlocks`/`requiresZoneAuthorization`/`consumesResources`/`requiresTool`）+ 声明一致性断言；**仍未读**：`maxNaturalDrop`/`supportsMidExecutionRevalidation`/`mutationIntents`/`intrinsicReversibility` |
-| **G-新** | ✅ **已补登记（D-157）**：`WORLD_WRITE_AUTHORIZATION.md` 新增 **A9 = 区域补种放置**（`REGION_REPLANT`/KEEP/过放置预算），A9 断档消除。原状：J8 区域补种放置未进登记表且 A9 编号断档 |
+| **G3** | 模组连锁破坏**无凭证**（`MineTask.beginChain` 反射调模组 `MiningScheduler`） | **✅ 已接线（2026-09-16 复核）**：`MineTask:532-538` 逐次 `WriteBudget.consumeBreak`，REFUSED 即 `ChainMining.stop`。**缺判据 + 死哨兵**：`chainRefusedByBudget`(`:134/534`) **只写不读**，且无 chain 电池步 ⇒ 建议补 `chain_budget` 步（全表唯一「接了线没判据」项） |
+| **G4** | Slice B2：**尝试级 tick 预算** | **❌ REAL-GAP，口径已缩小（2026-09-16 复核）**：计数侧已落地（`WriteBudget.plannedWritesAllowed:311`、`MovementContext:98`、`PathSession:757`、`PathRetryRunner:104-115`）；**只剩 tick 预算**（`AI_DECISIONS.md:2671-2674`：`MiningBudget.maxExtraBreakTicks`）。`write_budget` 判次数非 tick |
+| **G5** | **容器写入是第三个维度**（`TransferTask`/`ChestBotTransferPrimitive`） | **⚠️ PARTIAL（2026-09-16 复核，原「完全不覆盖」作废）**：已接 `WriteBudget.consumeContainerWrite:234` → `TransferTask:220/290/427/449`、`MachineCycle:427`、`StationProvision:243`、`CraftJob:469`；策略层 `WritePolicyMatrix:616/664`；A11 登记 `WORLD_WRITE_AUTHORIZATION.md:50`。**新发现真缺口（本次扫出）**：`InventoryCraft:300`／`MenuSession:256` 直调 `menu.clicked(...)`（该文件 WriteBudget 命中 0）⇒ **菜单合成绕过容器写入预算与策略矩阵**，本次复核最该排期 |
+| **G6** | legacy `pathing/movement` **裸写入** | **✅ 已收口（2026-09-16 复核）**：`DescendMovement`/`PillarMovement` 源码已不存在（只留在 archive）；`MovementHelper.generateMovements` 0 命中。与 K-2 同一条 |
+| **G7** | **死闸门**：`FluidRiskPolicy.miningRefusal` 无调用者，而 `MineTask` 保留 `fluid_risk_lava` 硬拒绝分支 | **✅ 已收口（2026-09-16 复核）**：`MiningPlanner:71` 已调 `FluidRiskPolicy.miningRefusal` → `:74-76` 硬拒码，消费者 `MineTask:605/850`。判据：`FluidMineCheckTask:133/174-175`。与 S-4 同一件事 |
+| **G8** | **✅ 行准确（2026-09-16 复核）**：6 字段确在读（`CapabilityGate:62/70/77/81/85/88`）；4 字段确未读（`mutationIntents` 仅 toString+自洽断言；`maxNaturalDrop`／`supportsMidExecutionRevalidation`／`intrinsicReversibility` 无行为消费者）。判据：`capability_gate` |
+| **G-新** | **✅ 已补登记（D-157；2026-09-16 复核）**：`WORLD_WRITE_AUTHORIZATION.md:53` A9 已登记；生产链 `RegionLumberJob:470-472` grant+consumePlace + `:492` setBlock + `:493` 触及校验 + `:494` 账本 KEEP。判据：`region_maintain`（`:473-474`） |
 
 ---
 
@@ -109,11 +109,11 @@
 
 | # | 项 | 说明 |
 |---|---|---|
-| **V-1** | `AI_TEST_MATRIX.md` 里 **16 处「待测」** | 其中若干**疑似已被后续 D-0xx 取代**（例：垂直下落 D-048/D-050、流体屏障 D-037、D-061 覆盖断言、R2 零进展 D-105、FALL/PILLAR 的 Baritone 对照）⇒ 需逐条核对后改判，否则矩阵不可信 |
-| **V-2** | **未覆盖行为分支** | 几何不可达「首候选失败、次候选成功」、清障子任务**加高**行为、`trunkHeight+1>12` 截断、① 扫尾**超时**分支、`climb_incomplete` 场景、恢复 `too_far` 分支、**真实崩溃重启**路径 |
-| **V-3** | **T6 盲区** | `19/24` 那种「本来就看不见目标、必须清障」的目标只给软提示；其"清障是否可行"归 `analyze-lumber-scene.py`（且不计可达性）—— 两项合一才算完整 |
-| **V-4** | **Baritone 对照实验未跑** | `contrast_fall` / `contrast_pillar`（含"Alice 侧多开 2 个守卫"的标注要求，见 S-7） |
-| **V-5** | **未核实项** | 工具耐久；死亡/bot 清除后区域态残留；`MovementSpec`/`MovementCapabilities` 内部一致性；Diagonal 绕角执行细节 |
+| **V-1** | `AI_TEST_MATRIX.md` 里 **16 处「待测」** | **⚠️ PARTIAL（2026-09-16 实测）**：`AI_TEST_MATRIX.md` 里含「待测」字样的行**实际 22 行**（不是 16；`TODO`／`未测` 各 0）。**权威口径**：矩阵**顶部**「当前主线入口与等级」表才是等级来源，下方历史行的「待测」不可信。抽查 5 条：**4 条已被取代**（矩阵`:95` D-061 覆盖断言／`:108` 垂直下落／`:112` 流体屏障 由 D-0xx 取代；`:229` R2 零进展 由 **D-242** 取代，见 `AI_DECISIONS.md:9965`），**2 条仍待测**（`:105` 对照 FALL／`:107` 对照 PILLAR ⇒ 并入 V-4） |
+| **V-2** | **未覆盖行为分支** | **⚠️ PARTIAL（2026-09-16 复核）**：矩阵 `:171`「未覆盖：`climb_incomplete` 的场景」与 `:172`「未覆盖：`too_far` 分支…**真实崩溃重启路径**」**今天仍在**；`AI_DECISIONS.md:5679` 的真实重启只覆盖 D-154 决策 trace ⇒ **两个真缺口**：`too_far`／`climb_incomplete` 缺带入口的判据（其余几个分支已被后续步覆盖） |
+| **V-3** | **T6 盲区** | **✅ 大部分收口（2026-09-16 复核）**：`AI_DECISIONS.md:3866-3867`（D-125）原文成立，但 `:3325` 已定根因（**夹具几何**）、`:3389` 已记「F4（夹具通道）—— 修好」⇒ 改写为「F4 已修好；剩余是工具分工问题」，不再是验证债 |
+| **V-4** | **Baritone 对照实验未跑** | **❌ REAL-GAP（2026-09-16 复核，全表唯一未动的验证债）**：全仓只有**登记与操作手册**（`AI_TEST_MATRIX.md:105/107` 仍待测、`BARITONE_CONTRAST_TESTING.md` 只是说明、`AI_DECISIONS.md:829/914` 只有「将做」）⇒ `contrast_fall`／`contrast_pillar` **从未跑过**。注意其中一条**必须标注**：Alice 侧比 Baritone **多开两个守卫**（FALL 可回收性 / ASCEND 落方块前置，见 S-7） |
+| **V-5** | **未核实项** | **⚠️ PARTIAL（2026-09-16 复核）**：4 项里 **3 项已收口** —— 工具耐久（`AI_DECISIONS.md:5785/5799` 基-9 客户端全绿）、`MovementSpec`/`MovementCapabilities` 一致性（`:5806` D-157）、Diagonal（`:614` D-044⑨）；**仍真的 1 项**：bot 被清除后 `LumberRegionState`（按 UUID 的 SavedData）残留是否可观测（本文件 §1 表后那段） |
 
 ---
 
@@ -265,12 +265,12 @@ git log --all --oneline -S '"TRAVERSE_INVALID_GEOMETRY"'     # 空 ⇒ 该码从
 
 | # | 项 | 说明 |
 |---|---|---|
-| **D-1** | 三份审计报告的**包路径全部过期** | 报告写 `com/alice/pathing/...`，现状是 `com/dddgn/alice/pathing/...`；`core/WorldView.java` 已删（D-044）⇒ 引用行号前必须先重定位 |
-| **D-2** | `reference/BARITONE_PORTING_CHECKLIST.md:39` 的**禁令已被推翻** | "明确关闭 DOWNWARD / 多格 FALL / PILLAR" 已被 D-048/D-050、D-055、D-058 **客户端验收**取代 |
-| **D-3** | `JOB_LAYER_DESIGN.md` §11 状态过期 | ① 攀爬（已由 J7 实现）、③ 补种（区域补种已由 J8 实现）仍写"本轮不做"；§10 的"风险画像未做"需与 §1 联动更新 |
-| **D-4** | `AI_PROJECT_STATE.md` 中段已重写 | 原文是 2026-09-07 的 R2 快照（称 R2-D/R3 未启动）⇒ 本轮已改为能力现状 + 三条差异现状（commit `e7f1a87`） |
-| **D-5** | `ALIGNMENT_OPEN_QUESTIONS.md` **Q1/Q4/Q7 仍未裁定** | Q2/Q3 已撤回（`:135-140`）；Q1（1 格红线 → 可回收性不变式）、Q4（replan 下沉任务层）、Q7（成本模型偏好）待用户裁定 |
-| **D-6** | `RISK_MODES_DISCUSSION.md`（H/G/S 风险模式） | 用户明确"只讨论不实现"（D-046），保持现状 |
+| **D-1** | 三份审计报告的**包路径全部过期** | **⚠️ 措辞需改（2026-09-16 复核：原断言一半不成立）**：`grep -rn "com/alice/"` 那三份报告 ⇒ **0 命中**（报告用的是相对路径），所以「包路径全部过期」**不成立**；**真正过期的是常量**：`docs/reference/BARITONE_PORTING_CHECKLIST.md:21` 写 `maxFallHeightNoWater = 1`，而今日代码是 **`FALL_DROPS = {2, 3}`**（`SurfaceMovementProvider:137`，D-058）⇒ 已在 2026-09-16 就地修正（这类过期会**污染对照结论**）。另：`WorldView` 确已删（D-044）但报告里仍有悬空引用（历史文档不改，仅登记） |
+| **D-2** | `reference/BARITONE_PORTING_CHECKLIST.md:39` 的**禁令已被推翻** | **⚠️ PARTIAL（2026-09-16 复核：3/5 已被取代）**：`checklist:39` 原文未改，但 `MovementType.java:5-14` 的 10 个枚举**已含** DOWNWARD／FALL／PILLAR（`R4_BARITONE_ALIGNMENT_AUDIT.md:252` 记 `WINDOWS_CLIENT`）⇒ 3 条禁令已被 D-048/D-050/D-055 取代；**PARKOUR 与水桶仍关闭**（`AI_DECISIONS.md:615` D-044 Q1③ 暂不采纳） |
+| **D-3** | `JOB_LAYER_DESIGN.md` §11 状态过期 | **✅ 已就地更新（2026-09-16 复核）**：`JOB_LAYER_DESIGN.md:410`（攀爬已由 J7 实现）、`:449`（补种 WINDOWS_CLIENT）、`:394`（§10 已更新）⇒ 仅 `:27`「❌ 攀爬超高的树」一行未同步（可删该行） |
+| **D-4** | `AI_PROJECT_STATE.md` 中段已重写 | **✅ 已完成（2026-09-16 复核）**：`git log -1 e7f1a87` = 「docs(state): 重写 09-07 的过时中段…」；仅 `AI_PROJECT_STATE.md:5` 的「更新时间」字样未跟着改 ⇒ 本行删除即可 |
+| **D-5** | `ALIGNMENT_OPEN_QUESTIONS.md` **Q1/Q4/Q7 仍未裁定** | **✅ 已全部裁定（2026-09-16 复核）**：Q7→D-040（`ALIGNMENT_OPEN_QUESTIONS.md:176`）、Q4→D-043（`AI_DECISIONS.md:567`）、Q1→基-1（`:5459/5471/5477`，客户端全绿）；Q2/Q3 早已撤回（`:110` D-038）⇒ 本行删除 |
+| **D-6** | `RISK_MODES_DISCUSSION.md`（H/G/S 风险模式） | **⚪ 不是债（2026-09-16 复核）**：`RISK_MODES_DISCUSSION.md` 与 D-046「已决策、预留」一致；`RiskSwitches` 仍 1 开关（见 S-6）⇒ 从「文档债」移出，保留为**有意保留** |
 
 ---
 
