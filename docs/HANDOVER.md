@@ -299,7 +299,9 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 - **客户端**：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - **镜像 / 同步**：`./tools/mirror-windows-workspace.sh`；
   `./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`。
-- **本断点已同步的 jar**：`62422f495cfff5eca2af9efa87b5bf3fc81310082dbba7781129db76890e530f`（2026-09-16 21:3x；**含 D-226…D-257**，客户端与 Windows 仓库同哈希；场景数据包 113 个函数已刷）
+- **本断点已同步的 jar**：`8608d18796ea226f5f32ac57a2a1c77598d43cdfc0e184e4817faa04cfbd1f6b`（2026-09-16 21:5x；**含 D-226…D-259**，客户端与 Windows 仓库同哈希；场景数据包 113 个函数已刷）
+- 上一版（D-226…D-258）：`62422f495cfff5eca2af9efa87b5bf3fc81310082dbba7781129db76890e530f`
+- 上一版（D-226…D-257）：客户端与 Windows 仓库同哈希；场景数据包 113 个函数已刷）
 - 上一版（D-226…D-256）：`af2ad53c64f09f11758fcf0311a322bc7f2ce57cf97c9a6f0c9403c77a2636eb`
 - 上一版（D-226…D-255）：客户端与 Windows 仓库同哈希；场景数据包 113 个函数已刷）
 - 上一版（D-226…D-255）：`e7f6692eaafab297aecab80e1a772b5aa239e859dfb8202c6a76f7084cd62631`
