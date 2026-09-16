@@ -291,7 +291,8 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 - **客户端**：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - **镜像 / 同步**：`./tools/mirror-windows-workspace.sh`；
   `./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`。
-- **本断点已同步的 jar**：`6593ff729f9dde800c062ee950049ce7c69959ba027082bc4b5be9608ca6d56b`（2026-09-16 18:08；**含 D-226…D-250**，客户端与 Windows 仓库同哈希）
+- **本断点已同步的 jar**：`935cf6ed5b1d293e776d682aec0e0dae718b067069332912b348c58ef4a039b6`（2026-09-16 18:5x；**含 D-226…D-251**，客户端与 Windows 仓库同哈希）
+- 上一版（D-226…D-250）：`6593ff729f9dde800c062ee950049ce7c69959ba027082bc4b5be9608ca6d56b`
 - 上一版（D-226…D-248）：`4522a0eb23d32c6bc9d99e7b009bd0566894d4076b9ee4c9149927fde12bbbef`
 - 上一批 jar（含 D-247）：`c6cb9c72041a3fb1b67e5ba82f6c5307eeca33915ec68341d0b18fc640c76c51`
 - 上一批 jar（含 D-245）：`496b3cd3e92dea945bdb9b7360bf43fdfd68bc6ec67b2228e501a2b5117eaa8f`
