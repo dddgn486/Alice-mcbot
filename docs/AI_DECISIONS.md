@@ -10419,3 +10419,30 @@ scene=water_course+cost  result=FAIL detail=UNREACHABLE/…/cost=Infinity/expect
 **边界**：**这不能证明 mod 侧的深水能力在客户端可用** —— 数据包刷新后要**用户重跑一次**才算数
 （`SERVER_TESTED` ≠ `WINDOWS_CLIENT`）。另外**数据包是存档级资源**：游戏已加载存档时改文件不会自动生效，
 必须 `/reload` 或重进存档（脚本已打印这条提示）。
+
+### D-253：水位 epic **收口** —— 真人复核通过，升级 `WINDOWS_CLIENT` + `USER_ACCEPTED`（2026-09-16）
+
+**用户复核**（原话：「跑完了，符合我的预期」）。**AI 自己核过的日志证据**（`<client>/logs/latest.log`，20:01–20:03）：
+```
+20:01:54  [Survival] SUMMARY checks=122 failures=0 [] → PASS
+20:03:11  [Regression] SUMMARY pathing_course=PASS … deep_pond_course=PASS …            （0 条 FAIL）
+20:03:11  task_execution_terminal kind=PathingRegressionTask … terminal=COMPLETED
+          scene=deep_pond_course result=PASS detail=COMPLETED/replans=1/route=TRAVERSE,DIAGONAL,ASCEND,DESCEND
+          scene=water_course     result=PASS detail=COMPLETED/route=TRAVERSE/sceneTicks=112
+          scene=water_course+cost result=PASS detail=REACHED/…/cost=17.50/expected=17.50
+PREMISE_FAILED/TERRAIN_NOT_BUILT 命中数 = 0（D-252 新增的两条前提在客户端真的跑到了地形）
+```
+
+**升级的验证等级**（覆盖 `docs/AI_TEST_MATRIX.md` 的 D-241…D-252 行）：
+- `WINDOWS_CLIENT` + `USER_ACCEPTED`：**D-241**（逃生准备金）、**D-242**（水里那档的诚实结论）、**D-243**（水里垂直移动）、
+  **D-244**（水柱省料）、**D-245**（不自动回收）、**D-247**（蹚水 + 水速成本）、**D-250**（计划自洽守卫：夹具那条
+  「计划自洽」判据在客户端 0 失败）、**D-251**（切片 B）、**D-252**（地形前提 + 数据包刷新）。
+- 仍只有 `SERVER_TESTED`：**D-246**（判定"不建机制"——无运行时判据可言）、**D-249**（只读调查结论）。
+
+**水位 epic 关闭**（`docs/OPEN_ITEMS_LEDGER.md` §5.11 的 IN 四条全部达成）：
+① 蹚水 ✅ ② 水柱上浮/出水零放置 ✅ ③ 深水浮着（能规划 + 能执行跨段）✅ ④ 逃生准备金 ✅；真人复核 ✅。
+**明确不做（OUT）**：游泳 Movement（Baritone 也没有）· 落水免伤（D-058）· 水柱成本模型（只影响选路）· 水面专用理由码。
+**仍未做（如实留档，不再是"待办"而是"已知边界"）**：① **池底出发**（`deep_pond_course+floor`）`UNREACHABLE`
+—— 规划期没有"从池底浮上去"那种边；② **入水物理**专做（今天靠"落下去 → 浮着段完成 → 浮回来"，`replans=1`）；
+③ **水面以下水平潜游**。
+**过程**：按用户 2026-09-16 的裁定，**同时只保留一个活跃 epic** ⇒ 下一步只挑一件（见 HANDOVER §1 的候选）。
