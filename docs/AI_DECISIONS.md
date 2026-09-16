@@ -10526,3 +10526,45 @@ battery 直接 `exit=5`（=环境/脚本错误，**没有判决行**）；那是
 **明确边界**：① 没人确认时 `BOT_INVENTORY` 挂起**仍然永久阻塞**（保守口径，用户未放宽）；
 ② 端到端探针会在世界账本留下**一条终态** `resolved_by_operator` 记录/轮（证据串带 `fixture:`/actor ⇒ 可辨识）；
 ③ 命令是**运维入口**，不是测试入口 ⇒ 不需要用户做客户端验证（用户 2026-09-16 明确：不要让客户端做不必要的测试）。
+
+### D-256：K-1 收口 —— best-so-far 前缀的**两个"被当成完整计划"的漏洞**（2026-09-16）
+
+**先纠正一条过期台账**：`docs/OPEN_ITEMS_LEDGER.md` 的 K 行把 K-1 记为"**未实现**"（引 `AStarMovementSearch.java:117-124`），
+但**代码事实**是：`AStarMovementSearch:213-227` 早就在预算耗尽时交 `PathPlan.partial(...)`（best-so-far 前缀），
+`PathRetryRunner:65-80` 在消费它（`MAX_PARTIAL_HOPS=4`、`PLAN_PARTIAL_*`），并且电池 BASELINE 步
+`partial_search`（`PartialSearchCheckTask`）在 CORE 里 `PASS`。⇒ K 行那条**已作废**（历史段记的 `WINDOWS_CLIENT` 才是对的）。
+
+**本轮真正补的两个洞（都是"前缀被当成完整计划"）**：
+1. **PARTIAL 前缀绕过了 D-250 计划自洽校验**：`CorePathPlanner` 的自洽校验循环对 `!plan.reached()` **直接早退**
+   （注释写"前缀不在本范围"），可是**前缀会被执行**（`PathRetryRunner` 先走前缀再重规划）
+   ⇒ "踩在自己挖掉的格子上"会在前缀里复发（D-248/D-251 那类：执行期健康检查当场 BLOCKED/STALE）。
+   **修**：`PARTIAL` 也吃同一份校验；发现冲突时**不重搜、也不判死** —— 用
+   `SelfWriteConsistency.safePrefixBefore(...)` 把前缀**裁到冲突之前**（保留可安全执行的那段；冲突在第一条边 ⇒
+   交出 `SEARCH_LIMIT` + `partial_prefix_unsafe`，绝不交出会执行非法边的计划）。REACHED 计划仍走原来的"按边禁 + 重搜"。
+2. **前缀的最后一段被当成目标段**：`PathSession.startSegment` 一律把最后一段按 `EXACT`（脚位 + 落地 + 距中心 ≤0.3）
+   处理，并对它施加 K-4"目标格必须可站居中"的拒绝 —— 而 `PARTIAL` 前缀的最后一段**只是路过的中间格**。
+   **修**：容差决策收敛到唯一入口 `PathSession.toleranceFor(finalSegment, planReachesGoal)`
+   （只有"最后一段 **且** 计划真的到达目标"才 `EXACT`），K-4 那条统计也只对目标段生效
+   （顺带消掉一个假异常来源：前缀尾格会被误记成 `final_segment_target_not_standable`）。
+
+**夹具侧修一个真违规（顺带）**：`PartialSearchCheckTask` 原先从 `bot.blockPosition()` 规划，**依赖电池前面步骤把 bot
+摆到好地形** ⇒ 单跑 `single:partial_search` 时整组判据红（实测 `calibration_reachable_goal=FAIL`；改前改后一致 ⇒
+不是本轮改出来的）。现在它**自己传送**到专用场景起点 `(16,64,245)` 并等区块加载，符合"夹具自己传送 bot 到场景起点"。
+**新建场景** `partial_search_terrain` / `_reset`（孤立长方体 x -2..42 / y 58..74 / z 236..254，一条向东 40 格的平坦走廊）。
+⚠️ **场景坑（实测，已写进场景文件）**：走廊横跨 **3 个区块**，最东那块没加载时**整条 `/fill` 会失败**
+（`setblock` 与单区块标记柱都生效、大 `fill` 改 0 格 ⇒ 规划期只看到"没有地板"、报 UNREACHABLE）。
+定位靠临时探针（已删）：`dim=overworld loaded(start)=true setblock_rc=1 after_setblock below=Stone floor0=Air floor32=Air`。
+
+**判据（零新增电池项，全在既有 BASELINE 步 `partial_search`）**：
+`partial_prefix_self_consistent`（交出的前缀必须不含自写冲突边）· `prefix_truncated_before_conflict`（裁剪助手单测，
+含"违规边在第一条 ⇒ 空"）· `prefix_tail_uses_column_tolerance`（`toleranceFor` 三分支）·
+`scene_chunks_loaded` / `scene_terrain_built` / `scene_floor_present`（场景前提，含"地板真的在、两端都在"）。
+**反向对照**：四条判据分别翻转 ⇒ `single:partial_search` **全部 FAIL**；还原 ⇒ PASS。
+
+**门槛**：`single:partial_search` PASS（含反向对照）· CORE 见下 · `check-all.sh` 见下。
+
+**对照 Baritone（2026-09-16 实地核对 `reference/baritone`）**：`AbstractNodeCostSearch:57 bestSoFar[]`（按启发式系数各存一份）、`:185-188 bestPathSoFar()`、`:190-216 bestSoFar(...)` 组 `Path`；`AStarPathFinder:196`**收尾时仍返回 best-so-far 路径** —— Baritone **没有** `PARTIAL` 状态枚举，「部分」是隐含语义（终点 ≠ 目标，执行器走完再重算）。Alice 是**有意偏离**：用**显式** `PlanningStatus.PARTIAL`，因为本仓契约要求「预算不够 / 真不可达 / 未加载」三者严格分开（D-076 / `GOAL_NOT_LOADED`），消费侧是**有界跳数**。
+**如实边界**：① "前缀被裁" 的**规划器接线**（`CorePathPlanner` 里真的调用了那份校验）只有"交出的计划必自洽"
+这条**不变式**守着（当前场景里前缀无冲突 ⇒ 本夹具内不可红）；校验器本身的判别力由 D-250 的实测证据支撑
+（CORE `自写入冲突=3` 真开火 + `survival_exit` 的「计划自洽」判据）。② `PathSession.toleranceFor` 的**决策**是单测过的，
+它被 `startSegment` **调用**这件事是源码级（编译期）事实，没有独立运行时判据。

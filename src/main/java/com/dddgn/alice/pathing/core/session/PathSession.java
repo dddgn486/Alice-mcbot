@@ -60,6 +60,8 @@ public final class PathSession {
     private final PathRequest request;
     private List<PlannedMovement> movements;
     private List<BlockPos> projected;
+    /** **K-1**：本计划是否真的到达目标（`PARTIAL` 前缀 = false ⇒ 最后一段**不是**目标段）。 */
+    private final boolean reachesGoal;
 
     private PathSessionStatus status = PathSessionStatus.RUNNING;
     private final java.util.List<MovementType> executedTypes = new java.util.ArrayList<>();
@@ -90,11 +92,22 @@ public final class PathSession {
         this.request = Objects.requireNonNull(request, "request");
         this.movements = Objects.requireNonNull(plan, "plan").movements();
         this.projected = plan.projectedFootPath();
+        this.reachesGoal = plan.reached();
         if (movements.isEmpty()) {
             // 空计划：起点即目标 → 视为已完成；否则计划本身失败，直接上报
             this.status = plan.reached() ? PathSessionStatus.COMPLETED : PathSessionStatus.MOVEMENT_FAILED;
             this.failureCode = plan.reached() ? "" : plan.status().name();
         }
+    }
+
+    /**
+     * **段容差决策的唯一入口**（K-1 判据用）：只有"**最后一段且计划真的到达目标**"才用 `EXACT`；
+     * `PARTIAL` 前缀的最后一段按中间段口径（`COLUMN`）。
+     */
+    public static CompletionTolerance toleranceFor(boolean finalSegment, boolean planReachesGoal) {
+        return finalSegment && planReachesGoal
+                ? CompletionTolerance.EXACT
+                : CompletionTolerance.COLUMN;
     }
 
     public PathSessionStatus status() {
@@ -316,10 +329,12 @@ public final class PathSession {
         MovementSpec spec = PlannedMovementSpecs.toSpec(movement,
                 List.of("session_segment", "target_support", "target_body_clear", "target_head_clear"));
         boolean finalSegment = index == movements.size() - 1;
-        CompletionTolerance tolerance = finalSegment
-                ? CompletionTolerance.EXACT
-                : CompletionTolerance.COLUMN;
-        if (finalSegment && !MovementHelper.canStandCentered(level, movement.toFoot())) {
+        // **K-1 收口（2026-09-16）**：`PARTIAL` 前缀的最后一段**只是路过的中间格**，不是目标段 ——
+        // 对它要 `EXACT`（脚位 + 落地 + 距中心 ≤0.3）比需要的严，而且 K-4 那条"目标格必须可站居中"
+        // 的拒绝会**误伤中间格**（前缀的最后一格本来只是路过）⇒ 目标口径只在"计划真的到达目标"时生效。
+        boolean goalSegment = finalSegment && reachesGoal;
+        CompletionTolerance tolerance = toleranceFor(finalSegment, reachesGoal);
+        if (goalSegment && !MovementHelper.canStandCentered(level, movement.toFoot())) {
             // K-4 / D-167：最终段要求 EXACT（脚位 + 落地 + 距中心 ≤0.3），而它的目标格
             // 连**规划期可查的世界前提**都不成立 ⇒ 该段只能在运行期撞 EXACT 判定。
             // **只计数、不改行为**，并按最后一条边是不是写入类分档：

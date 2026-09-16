@@ -44,6 +44,27 @@ public final class SelfWriteConsistency {
      * 一处冲突：{@code clearer} 清掉的 {@code supportCell}，被后面的 {@code violatingType} 当成了支撑。
      * 修复动作 = 禁掉 {@code clearer} 这条边后重搜。
      */
+    /**
+     * **K-1 收口（2026-09-16）**：把 **PARTIAL 前缀**裁到冲突那条边**之前** —— 保留"能安全执行"的那一段。
+     *
+     * <p>为什么要裁而不是重搜：`PathRetryRunner` 会**先走前缀再重规划** ⇒ 前缀里出现"踩在自己挖掉的格子上"
+     * 时，执行期健康检查会当场 BLOCKED/STALE（D-248/D-251 实测那类）。裁掉冲突边之后的尾巴，
+     * 既不交出会执行非法边的计划，又保住了"先走一段"的进展（随后从更近的位置重规划）。
+     *
+     * @return 可安全执行的前缀；**冲突就在第一条边**时返回空表（= 没有安全前缀）
+     */
+    public static java.util.List<PlannedMovement> safePrefixBefore(java.util.List<PlannedMovement> movements,
+                                                                  Conflict conflict) {
+        for (int i = 0; i < movements.size(); i++) {
+            PlannedMovement movement = movements.get(i);
+            if (movement.movementType() == conflict.violatingType()
+                    && movement.toFoot().equals(conflict.violatingTo())) {
+                return java.util.List.copyOf(movements.subList(0, i));
+            }
+        }
+        return java.util.List.of();
+    }
+
     public record Conflict(EdgeKey clearer, MovementType violatingType, BlockPos violatingTo,
                            BlockPos supportCell) {
     }

@@ -75,11 +75,16 @@ public final class CorePathPlanner {
         // 目标节点，干净前缀因更贵永不重挂 ⇒ 一旦按路径拒绝，那个节点上所有后继边全被掐死 ⇒ 实测把
         // 灌水坑逃生从"可解"变成 UNREACHABLE（`own_write_support=245`）。**按具体边禁是路径无关的**。
         for (int attempt = 0; attempt <= MAX_SELF_WRITE_RETRIES; attempt++) {
-            if (!plan.reached()) {
-                // 只校验"整条计划"（REACHED）。失败/前缀计划（K-1 PARTIAL）不在本范围：前缀的语义是
-                // "先走这段、后面再说"，把它判死反而丢掉已有的进展。
+            if (!plan.reached() && !plan.partial()) {
+                // 真失败（UNREACHABLE / 无前缀的 SEARCH_LIMIT / GOAL_NOT_LOADED / …）：没有可执行的边 ⇒ 直接交出去。
                 return plan;
             }
+            if (plan.movements().isEmpty()) {
+                return plan;   // 带状态但没有边（防御）
+            }
+            // **K-1 收口（2026-09-16）**：`PARTIAL` 前缀**也会被执行**（`PathRetryRunner` 先走前缀再重规划）
+            // ⇒ 它必须和整条计划吃**同一份**自洽校验；否则"踩在自己挖掉的格子上"会在前缀里复发，
+            // 执行期健康检查当场 BLOCKED/STALE（D-248/D-251 那类）。
             SelfWriteConsistency.Conflict conflict = SelfWriteConsistency.firstConflict(level, plan.movements());
             if (conflict == null) {
                 if (attempt > 0) {
@@ -89,6 +94,31 @@ public final class CorePathPlanner {
                 return plan;
             }
             PathingStats.recordTotal("selfwrite_conflict");
+            if (!plan.reached()) {
+                // **PARTIAL**：不重搜、也不判死 —— 把前缀**裁到冲突之前**（干净的那一段交出去，随后重规划）。
+                java.util.List<PlannedMovement> safe =
+                        SelfWriteConsistency.safePrefixBefore(plan.movements(), conflict);
+                PathingStats.recordTotal("selfwrite_partial_truncated");
+                com.dddgn.alice.log.BotLog.warn("[SelfWrite] 前缀不自洽：{} 清掉 {}，后面的 {} 要踩在它上面"
+                                + " ⇒ 前缀裁到 {} 步（保留可安全执行的那段，随后重规划；D-250/D-251 同类）",
+                        conflict.clearer().type(), conflict.supportCell().toShortString(),
+                        conflict.violatingType(), safe.size());
+                if (safe.isEmpty()) {
+                    return PathPlan.failure(PlanningStatus.SEARCH_LIMIT, plan.startFoot(), plan.goalFoot(),
+                            plan.nodesExpanded(), plan.movementsConsidered(), plan.elapsedMillis(),
+                            plan.plannerName(), plan.diagnostics() + " partial_prefix_unsafe");
+                }
+                java.util.List<BlockPos> projected = new java.util.ArrayList<>();
+                projected.add(plan.startFoot());
+                double cost = 0.0D;
+                for (PlannedMovement movement : safe) {
+                    projected.add(movement.toFoot());
+                    cost += movement.cost();
+                }
+                return PathPlan.partial(plan.startFoot(), plan.goalFoot(), safe, projected, cost,
+                        plan.nodesExpanded(), plan.movementsConsidered(), plan.elapsedMillis(),
+                        plan.plannerName(), plan.diagnostics() + " truncated=" + safe.size());
+            }
             if (attempt == MAX_SELF_WRITE_RETRIES) {
                 break;   // 次数用完：下面按"仍不自洽"交出去并计数
             }
