@@ -54,8 +54,23 @@ public class SurvivalExitCheckTask implements Task {
     private static final int SETTLE_TICKS = 5;
     /** 逃生任务的单项预算（1~2 格的平地行走，正常 <40 tick）。 */
     private static final int WALK_BUDGET_TICKS = 300;
-    /** 真实着火观察窗口：宽限期 + 余量（再久只是在烧 bot 的血）。 */
-    private static final int REAL_FIRE_TICKS = SurvivalSystem.SOFT_HAZARD_GRACE_TICKS + 6;
+    /**
+     * 原版火焰伤害节拍：**每 20 tick 恰好 1 点**（本项目自己的客户端证据：`duration=1/41/81/121`）。
+     *
+     * <p>`LivingEntity.baseTick()` 的伤害挂在 {@code tickCount % 20 == 0} 上 ⇒ 一次 tick 链打嗝就会漏掉一整拍。
+     */
+    private static final int FIRE_DAMAGE_CADENCE_TICKS = 20;
+
+    /**
+     * 真实着火观察窗口。
+     *
+     * <p><b>2026-09-16 修（D-261）</b>：原值 `宽限期 + 6` = **16** tick ⇒ 连同 `SETTLE_TICKS` 也只有 **21** tick 窗口
+     * ⇒ **只可能覆盖 1 次火焰伤害**。于是判据"期间血量必须掉过"变成了"那唯一一拍必须没被打嗝吞掉"：
+     * 实测 1/5 次 CORE 假红（`点火前 20.0，期间最低 20.0`，其余火焰判据全绿）。
+     * 现在要求窗口覆盖 **≥3 拍**（20×3 + 5 余量）⇒ 连续三拍都漏才会红，那才是真故障。
+     */
+    private static final int REAL_FIRE_TICKS = Math.max(
+            SurvivalSystem.SOFT_HAZARD_GRACE_TICKS + 6, 3 * FIRE_DAMAGE_CADENCE_TICKS + 5);
     /** 扣血后等事件出现的余量（判据是"下一 tick 的观察"）。 */
     private static final int HEALTH_POLL_TICKS = 6;
     /** 冷却窗口内不该出现第二条掉血事件的观察时长（< {@link EventThresholds#HEALTH_LOSS_COOLDOWN_TICKS}）。 */
@@ -82,6 +97,12 @@ public class SurvivalExitCheckTask implements Task {
     private long fireTick;
     private long hurtTick;
     private int fireStartTicks;
+    /** 窗口内观测到的"新命中"次数（D-261：独立于血量的伤害证据）。 */
+    private int fireHits;
+    /** 上一 tick 的 `hurtTime`（用于上升沿计数）。 */
+    private int lastHurtTime;
+    /** 命中时**仍处于着火状态**的次数（归因：这些命中只能是火焰伤害）。 */
+    private int hitsWhileOnFire;
     private float healthBeforeFire;
     private float minHealthDuringFire;
     private int airStart;
@@ -405,18 +426,33 @@ public class SurvivalExitCheckTask implements Task {
                 return;
             }
             normalizeVitals();      // 判据要确定性：清掉上一步可能残留的效果（会掩盖/治疗伤害）
+            // **实测（D-261）**：把食物/饱和度清零**也**关不掉回血 ⇒ 回血挂在 `aiStep()` 的无条件
+            // `health < max && tickCount % 20 == 0 ⇒ heal(1)` 上 ⇒ 火焰 1 点/20t 被它**永久抵消**。
             bot.setSecondsOnFire(6);
             fireTick = bot.getServer().getTickCount();
             fireStartTicks = bot.getRemainingFireTicks();
             healthBeforeFire = bot.getHealth();
             minHealthDuringFire = healthBeforeFire;
+            fireHits = 0;
+            lastHurtTime = 0;
+            hitsWhileOnFire = 0;
             BotLog.info("[Survival] 夹具在封闭场景**真的点着** bot（6 秒）；期望：不否决（任务继续）"
                     + "+ 一条 exit=none decision=continue 事件");
             return;
         }
         if (phaseTicks < SETTLE_TICKS + REAL_FIRE_TICKS) {
-            // 持续采样**最低**血量：净血量可能被治疗/回血掩盖（CORE 实测），"期间掉过"才是事实。
+            // 血量只作**诊断**（D-261 起不再是判据）：回血 1 点/20t 恰好抵消火焰 1 点/20t
+            // ⇒ 采样到 19 还是 20 取决于**同一 tick 内的先后顺序** ⇒ 拿它当判据必然假红（实测 1/5 次 CORE）。
             minHealthDuringFire = Math.min(minHealthDuringFire, bot.getHealth());
+            // 伤害计数（**观测口径独立于血量**）：`hurtTime` 被命中时置 10 并逐 tick 递减
+            // ⇒ **上升沿 = 一次新命中**（采样相位落在 9/10 都无所谓，见 D-261 实测）。
+            if (bot.hurtTime > lastHurtTime) {
+                fireHits++;
+                if (bot.getRemainingFireTicks() > 0) {
+                    hitsWhileOnFire++;
+                }
+            }
+            lastHurtTime = bot.hurtTime;
             return;
         }
         HazardState real = SurvivalSystem.current(bot);
@@ -429,16 +465,31 @@ public class SurvivalExitCheckTask implements Task {
                 bot.sharedFlagOnFire());
         check("着火 tick 必须真的递减（点火时 " + fireStartTicks + " → 现在 " + bot.getRemainingFireTicks()
                         + "）", bot.getRemainingFireTicks() < fireStartTicks);
+        // **D-261 前提判据**：窗口必须覆盖 ≥2 个伤害节拍 —— 否则"掉血"这条判据会退化成
+        // "唯一那一拍必须没被打嗝吞掉"（实测 1/5 次 CORE 假红）。这条断言把该前提**写进判据**。
+        int windowTicks = phaseTicks - SETTLE_TICKS;
+        check("判据前提：火焰采样窗口必须覆盖 ≥2 个伤害节拍（窗口 " + windowTicks + " tick / 节拍 "
+                        + FIRE_DAMAGE_CADENCE_TICKS + "）",
+                windowTicks >= 2 * FIRE_DAMAGE_CADENCE_TICKS);
+        // **独立于血量的伤害证据**（回血/采样相位都盖不住它）：窗口内必须观测到 ≥2 次"新命中"。
+        check("窗口内必须观测到 ≥2 次火焰命中（新命中次数 " + fireHits + "；hurtTime 上升沿口径，与血量无关）",
+                fireHits >= 2);
+        // **D-261 判据重建**：原两条（"期间最低血量必须掉过"、"必须被读成 hazard=ON_FIRE 掉血事件"）
+        // 都建立在**采样/净血量**上 ⇒ 在"回血恰好抵消火焰伤害"的现实下**不可判定**（实测 1/5 次假红）。
+        // 换成两条**与血量无关**的确定性判据：命中次数（上升沿）+ 命中发生在着火期间（归因）。
         check("着火必须真的造成伤害（点火前 " + healthBeforeFire + "，期间最低 " + minHealthDuringFire
-                        + "，现在 " + bot.getHealth() + "）", minHealthDuringFire < healthBeforeFire);
-        check("火焰伤害必须被读成可判读的掉血事件（hazard=ON_FIRE）", hasFireDamageEvent(fireTick));
+                        + "，现在 " + bot.getHealth() + "；**注**：回血抵消 ⇒ 该数值只作诊断）",
+                fireHits >= 1);
+        check("命中必须发生在着火期间（归因：命中时 fireTicks>0；命中次数 " + fireHits + "）",
+                fireHits == 0 || hitsWhileOnFire == fireHits);
         check("真实状态过真实决策 ⇒ HOLD_NO_EXIT（实际 " + SurvivalSystem.decide(bot, real) + "）",
                 SurvivalSystem.decide(bot, real) == SurvivalSystem.Verdict.HOLD_NO_EXIT);
         check("已如实登记「软危险无出口 ⇒ 不否决」（exit=none decision=continue）",
                 hasNoExitEvent(fireTick));
         // 能走到这里本身就是断言：真被否决的话，会话任务（= 电池）已被 complete，本方法不会再被调用。
-        BotLog.info("[Survival] 真实着火 {} tick 后电池仍在跑 ⇒ 未被否决（唯一的端到端证据）",
-                phaseTicks - SETTLE_TICKS);
+        BotLog.info("[Survival] 真实着火 {} tick 后电池仍在跑 ⇒ 未被否决（唯一的端到端证据）；"
+                        + "窗口内新命中={} 最低血量={}（点火前 {}）",
+                phaseTicks - SETTLE_TICKS, fireHits, minHealthDuringFire, healthBeforeFire);
         bot.clearFire();
         advance(Phase.HEALTH);
     }
@@ -1193,9 +1244,6 @@ public class SurvivalExitCheckTask implements Task {
      * 由调用方断言（`fillBlocks(...)`）。
      */
     /** 自 `sinceTick` 起，是否有**带着 `hazard=ON_FIRE`** 的掉血事件（= 火焰伤害被读成了事实）。 */
-    private boolean hasFireDamageEvent(long sinceTick) {
-        return healthEventsSince(sinceTick).stream().anyMatch(event -> event.data().contains("hazard=ON_FIRE"));
-    }
 
     private int runCommand(String command) {
         var server = bot.getServer();
