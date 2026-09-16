@@ -49,7 +49,15 @@ public final class PlaceStepAndTraverseExecution implements MovementExecution {
 
     /** 需要被放置支撑的位置（目标列下方）。 */
     public static BlockPos placePos(MovementSpec spec) {
-        return spec.toFoot().below();
+        return placePos(spec.toFoot());
+    }
+
+    /**
+     * {@link #placePos(MovementSpec)} 的坐标版本：**规划期校验**（{@code SelfWriteConsistency}，D-250/②′）
+     * 要在没有 `MovementSpec` 的情况下算出"这条边会放下哪一格"。**唯一定义仍在本处**，别在别处抄。
+     */
+    public static BlockPos placePos(BlockPos toFoot) {
+        return toFoot.below();
     }
 
     @Override

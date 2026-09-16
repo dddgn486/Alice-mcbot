@@ -14,6 +14,9 @@ public final class CorePathPlanner {
     public static final int DEFAULT_MAX_NODES = 20_000;
     public static final long DEFAULT_MAX_MILLIS = 3_000L;
 
+    /** D-250/②′：计划自洽性重搜上限（每次禁掉一条"清空者"边）。 */
+    private static final int MAX_SELF_WRITE_RETRIES = 3;
+
     private final MovementProvider provider;
 
     public CorePathPlanner() {
@@ -61,7 +64,57 @@ public final class CorePathPlanner {
                     violation.code() + " " + violation.getMessage());
         }
         MovementContext context = MovementContext.live(bot, level, request);
-        PathPlan plan = new AStarMovementSearch(provider).search(context);
+        AStarMovementSearch search = new AStarMovementSearch(provider);
+        java.util.Set<SelfWriteConsistency.EdgeKey> forbiddenEdges = new java.util.LinkedHashSet<>();
+        PathPlan plan = reportStats(search.search(context, forbiddenEdges), request);
+        // ================= D-250/②′：计划自我写入自洽性（校验 + 有界重搜） =================
+        // 搜完**回放计划自己的写入**，检查有没有"后面的边踩在前面挖掉的格子上"。发现冲突就
+        // **禁掉那条"清空者"边**（按具体边禁，不按 Movement 类禁）重搜，最多 K 次。
+        //
+        // 为什么不在搜索里按路径过滤（D-250 实测）：A* 用位置做节点键，带挖掘前缀的**更便宜**的路会占住
+        // 目标节点，干净前缀因更贵永不重挂 ⇒ 一旦按路径拒绝，那个节点上所有后继边全被掐死 ⇒ 实测把
+        // 灌水坑逃生从"可解"变成 UNREACHABLE（`own_write_support=245`）。**按具体边禁是路径无关的**。
+        for (int attempt = 0; attempt <= MAX_SELF_WRITE_RETRIES; attempt++) {
+            if (!plan.reached()) {
+                // 只校验"整条计划"（REACHED）。失败/前缀计划（K-1 PARTIAL）不在本范围：前缀的语义是
+                // "先走这段、后面再说"，把它判死反而丢掉已有的进展。
+                return plan;
+            }
+            SelfWriteConsistency.Conflict conflict = SelfWriteConsistency.firstConflict(level, plan.movements());
+            if (conflict == null) {
+                if (attempt > 0) {
+                    com.dddgn.alice.log.BotLog.info("[SelfWrite] 重搜 {} 次后计划自洽 goal={} movements={}",
+                            attempt, request.goal().goalFoot().toShortString(), plan.movements().size());
+                }
+                return plan;
+            }
+            PathingStats.recordTotal("selfwrite_conflict");
+            if (attempt == MAX_SELF_WRITE_RETRIES) {
+                break;   // 次数用完：下面按"仍不自洽"交出去并计数
+            }
+            com.dddgn.alice.log.BotLog.warn("[SelfWrite] 计划不自洽（第 {} 次）：{} 清掉 {}，"
+                            + "后面的 {} 却要踩在它上面 ⇒ 禁掉那条边重搜（D-250/②′）",
+                    attempt + 1, conflict.clearer().type(), conflict.supportCell().toShortString(),
+                    conflict.violatingType());
+            forbiddenEdges.add(conflict.clearer());
+            PathPlan retry = reportStats(search.search(context, forbiddenEdges), request);
+            if (!retry.reached()) {
+                // 禁掉之后搜不到（含真 UNREACHABLE）：**如实交出去**。原计划已被证明不可执行
+                // （执行期健康检查会当场判 BLOCKED，重规划又会重算出同一形状），不能拿它冒充 REACHED。
+                PathingStats.recordTotal("selfwrite_unresolved");
+                return retry;
+            }
+            plan = retry;
+        }
+        PathingStats.recordTotal("selfwrite_unresolved");
+        com.dddgn.alice.log.BotLog.warn("[SelfWrite] {} 次重搜后仍不自洽 ⇒ 交出当前计划"
+                + "（执行期 `futureTargetBlocked` 仍是兜底）goal={}",
+                MAX_SELF_WRITE_RETRIES, request.goal().goalFoot().toShortString());
+        return plan;
+    }
+
+    /** 每次搜索后输出单次规划摘要（D-044）。 */
+    private static PathPlan reportStats(PathPlan plan, PathRequest request) {
         String stats = PathingStats.snapshotAndReset();
         if (!stats.isEmpty()) {
             com.dddgn.alice.log.BotLog.info("[PathingStats] {} status={} goal={}",

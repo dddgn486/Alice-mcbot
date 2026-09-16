@@ -38,6 +38,18 @@ public final class AStarMovementSearch {
     }
 
     public PathPlan search(MovementContext context) {
+        return search(context, java.util.Set.of());
+    }
+
+    /**
+     * D-250/②′：{@code forbiddenEdges} 是**路径无关**的"禁用具体边"集合（由 {@link SelfWriteConsistency}
+     * 校验出冲突后逐次加入，见 {@code CorePathPlanner} 的有界重搜）。
+     *
+     * <p>**为什么按路径过滤不行**：A\* 用位置做节点键 ⇒ 到达同一格的两条路只留更便宜那条；带挖掘前缀的
+     * 便宜路会把干净前缀挤掉，于是"干净前缀才成立的那条边"永远看不到 ⇒ 实测把灌水坑逃生从可解变成
+     * `UNREACHABLE`（D-250：`own_write_support=245`）。禁用**具体边**是路径无关的，不受节点合并影响。
+     */
+    public PathPlan search(MovementContext context, java.util.Set<SelfWriteConsistency.EdgeKey> forbiddenEdges) {
         long startMillis = System.currentTimeMillis();
         PathRequest request = context.request();
         BlockPos startFoot = request.startFoot();
@@ -79,6 +91,8 @@ public final class AStarMovementSearch {
         int skippedUnloaded = 0;
         int skippedBorder = 0;
         int startEscape = 0;
+        // D-250/②′：被"禁用具体边"挡掉的候选数（只在校验冲突后的重搜里非 0）
+        int skippedForbidden = 0;
         boolean budgetExhausted = false;
 
         while (!openSet.isEmpty()) {
@@ -144,6 +158,13 @@ public final class AStarMovementSearch {
             }
             for (PlannedMovement movement : candidates) {
                 BlockPos toFoot = movement.toFoot();
+                // D-250/②′：**路径无关**的"禁用具体边"过滤（只在校验出冲突后的重搜里非空）
+                if (!forbiddenEdges.isEmpty() && forbiddenEdges.contains(
+                        new SelfWriteConsistency.EdgeKey(movement.movementType(),
+                                movement.fromFoot(), toFoot))) {
+                    skippedForbidden++;
+                    continue;
+                }
                 // S-2 节点级门控（对照 Baritone `AStarPathFinder:105-112`）：
                 // **只在跨越区块边界时**才查一次"目的地区块是否已加载"，未加载 ⇒ 跳过这条边
                 // （`continue`，不是把整条路径判死）。这样搜索**永远不会去读未加载区块的方块**，
@@ -192,7 +213,8 @@ public final class AStarMovementSearch {
         if (budgetExhausted) {
             String budgetNote = "budget exhausted (maxNodes=" + budget.maxNodes() + ", maxMillis="
                     + budget.maxMillis() + ", openSet=" + openSet.size() + ", best=" + bestSoFar[0].cost
-                    + ", skipped_unloaded=" + skippedUnloaded + " skipped_border=" + skippedBorder + ")";
+                    + ", skipped_unloaded=" + skippedUnloaded + " skipped_border=" + skippedBorder
+                    + " skipped_forbidden=" + skippedForbidden + ")";
             // K-1：**预算耗尽可能只是"没算完"** —— 若 best-so-far 已经走出过一段（有前驱），
             // 就把那段前缀交出来（PARTIAL），而不是报"一无所获"。注意：
             //  · 只有**预算类**耗尽才给前缀；搜索空间真穷尽（下面的 UNREACHABLE）**不给**（那是证明到不了）；
@@ -211,6 +233,7 @@ public final class AStarMovementSearch {
                 expandedNodes, movementsConsidered, elapsed, PLANNER_NAME,
                 "open set exhausted; best=" + bestSoFar[0].cost
                         + "; skipped_unloaded=" + skippedUnloaded + " skipped_border=" + skippedBorder
+                        + " skipped_forbidden=" + skippedForbidden
                         + " start_escape=" + startEscape);
     }
 

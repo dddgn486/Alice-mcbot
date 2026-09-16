@@ -941,7 +941,18 @@ public final class RegressionBatteryTask implements Task {
         int finalBad = k4Delta("final_segment_target_not_standable");
         int postWrite = k4Delta("goal_post_write_not_standable")
                 + k4Delta("final_segment_target_post_write");
-        boolean k4Ok = goalBad == 0 && finalBad == 0;
+        // D-250/②′ 自断言：**有界重搜没修好的自写入冲突必须为 0**。
+        //   · `selfwrite_conflict`：规划期发现"后面的边踩在前面挖掉的格子上"的次数（发现即已修，信息码）；
+        //   · `selfwrite_unresolved`：重搜 K 次后仍不自洽的次数（**真异常** ⇒ 红）。
+        // 这条断言正是 D-248 那个 bug 的常绿守卫：切片 B 那次如果没有它，就只能靠人去读日志。
+        int selfWriteConflicts = k4Delta("selfwrite_conflict");
+        int selfWriteUnresolved = k4Delta("selfwrite_unresolved");
+        boolean k4Ok = goalBad == 0 && finalBad == 0 && selfWriteUnresolved == 0;
+        if (selfWriteUnresolved > 0) {
+            BotLog.warn("[SelfWrite] VIOLATION 本次电池出现**找不到自洽计划**的规划："
+                            + "selfwrite_conflict={} selfwrite_unresolved={}（D-250/②′ 有界重搜没修好）",
+                    selfWriteConflicts, selfWriteUnresolved);
+        }
         if (!k4Ok) {
             BotLog.warn("[K4] VIOLATION 本次电池出现谓词矛盾：goal_not_standable={}"
                             + " final_segment_target_not_standable={}（可站谓词不统一的实测证据）",
@@ -977,9 +988,11 @@ public final class RegressionBatteryTask implements Task {
                     .append(results.getOrDefault(step.name(), "SKIPPED"));
         }
         line.append(" K4=").append(k4Ok
-                ? "OK(goal_not_standable=0 final_segment_not_standable=0 写入类例外=" + postWrite + ")"
+                ? "OK(goal_not_standable=0 final_segment_not_standable=0 写入类例外=" + postWrite
+                        + " 自写入冲突=" + selfWriteConflicts + ")"
                 : "VIOLATION(goal_not_standable=" + goalBad
-                        + " final_segment_not_standable=" + finalBad + ")");
+                        + " final_segment_not_standable=" + finalBad
+                        + " selfwrite_unresolved=" + selfWriteUnresolved + ")");
         BotLog.info("[Regression] SUMMARY {} PROFILE={} baseline={} main={} extra_skipped={}"
                         + " (passed={}/{} skipped={}) ticks={} → {}",
                 line, mode, countProfile(Profile.BASELINE), countProfile(Profile.MAIN), extraSkipped,
