@@ -1543,9 +1543,13 @@ tango 立刻解除阻塞。代价：丢 61 条 `VERIFIED` 传输审计记录（�
 （`taskInterruptPolicies`：`SUSPENDED` + `NOT_MOVED` + `manualTakeover=true`）⇒ 本轮**不动**。
 后果（如实记下）：一次"传输中被维生打断"仍会让该 bot 在**本次会话内**被挡住 `assign*`
 （现在至少**有 warn 可查**，不再是静默）；跨会话则由 C3 在启动时结清。
-**另一处已发现但未修**：`expireSuspensions(tick=getTickCount, …)` 与 `suspensionStartedTick`
-（可能来自上一次会话的大数值 gameTime/tick）**混用时钟** ⇒ 重启后"超时结清"可能永不到期（负差值）。
-C3 之后它对 `NOT_MOVED` 已无影响，故只登记。
+**✅ 已修（D-254，2026-09-16）**：`expireSuspensions`/`suspendUnfinished`/`abortTransfer` 原先用
+`server.getTickCount()`（**进程内**计数、重启归零）而落章用世界时间 ⇒ **差值恒为负 ⇒ 运行中产生的挂起
+永远不过期**（`manual_takeover_required` 降级是死代码）。现在统一走 `TransferLedgerData.clockNow`
+（世界时间）+ 只能传服务端的重载 ⇒ 调用方**没法**再自带时钟；并有可执行规则
+（`tools/check-transfer-clock.sh` R1，时钟混用即构建红）。
+**仍未做（待裁定，见下）**：`BOT_INVENTORY` 挂起的**解除通道**（状态现在会如实显示需要人工接管，
+但仍然只能靠删账本文件解除 ⇒ 给显式确认通道属于口径放宽，需用户拍板）。
 
 **§5.9 验证（本条的所有证据）**：
 - `single:transfer` **正向 `PASS`**；把新判据取反 ⇒ **反向 `FAIL`**（`verdict=FAIL exit=1`）⇒ 判据真能红；
@@ -1556,9 +1560,10 @@ C3 之后它对 `NOT_MOVED` 已无影响，故只登记。
 - ⚠️ **未验证两点**：① 结清结果的**落盘**（无头 `halt` 不存档 ⇒ 观测不到；客户端正常退出会存，
   且**即使不存盘，每次启动都会重新结清** ⇒ 症状仍被修掉）；② `assignWalkTo` 返回 false 这条**接线**
   目前只有编译级 + 真人侧可见。
-  **提案（未做，待点头）**：在 `transfer` 步里用**世界账本**临时造一条 `SUSPENDED/BOT_INVENTORY` 条目 ⇒
-  `BotManager.assignWalkTo(bot, …)` 必须返回 **false**（被挡时不会动会话任务 ⇒ 安全）⇒ 随后结清它。
-  价值 = 把 A 的接线也变成可红判据；成本 = 在 BASELINE 步里操作 live 账本（需谨慎）。
+  **✅ 已落地（D-254，2026-09-16）**，但**原提案不能照抄**：从电池步内部真调 `assignWalkTo` 会触发
+  `replaceTaskIfRunning()` 的 `clearTask()` ⇒ **把正在跑的电池步任务自己替换掉**（步以 `CANCELLED_REPLACED` 收场）。
+  改为：门禁判据提成纯函数 `TransferLedgerData.refusal(ledger, botId)`，夹具用**内存账本**判它（零世界写入）；
+  "每个替换型派活都过门禁"做成可执行规则 R2。反向对照：翻转判据 ⇒ `single:transfer` FAIL；删掉门禁调用 ⇒ R2 红。
 
 ---
 

@@ -834,7 +834,8 @@ public final class BotManager {
 
     /** Ledger-only administrator abort used by the command and focused server fixture. */
     public static TransferLedgerData.State abortTransfer(MinecraftServer server, java.util.UUID requestId) {
-        return TransferLedgerData.get(server).abort(requestId, server.getTickCount());
+        // §5.9-③：账本里的 tick 一律世界时间（`getTickCount()` 是进程内计数 ⇒ 审计行会写成另一个尺度）
+        return TransferLedgerData.get(server).abort(requestId, TransferLedgerData.clockNow(server));
     }
 
     /** 给假人分配「挖掘指定方块」任务(命令/selftest 兼容入口)。 */
@@ -952,7 +953,9 @@ public final class BotManager {
         if (event.phase != TickEvent.Phase.END) {
             return;
         }
-        TransferLedgerData.get(event.getServer()).expireSuspensions(event.getServer().getTickCount(),
+        // §5.9-③：**不能用 `getTickCount()`**（进程内计数，重启后归零 ⇒ 与落章的世界时间差恒为负
+        // ⇒ 运行中产生的挂起永不过期）。统一走 `TransferLedgerData.clockNow`。
+        TransferLedgerData.get(event.getServer()).expireSuspensions(event.getServer(),
                 TRANSFER_MAX_SUSPENSION_TICKS);
         // 存档假人的恢复延到**这里**（首个 tick）执行，而不是 ServerStartedEvent 里 ——
         // 那时其它模组（典型：WorldEdit）的启动 handler 已经跑完并完成了自己的初始化。
@@ -1532,8 +1535,8 @@ public final class BotManager {
     /** 服务器启动完成:登记"恢复存档假人(若有)"（**延到首个 tick**，见 {@link #pendingRestore}）。 */
     @SubscribeEvent
     public static void onServerStarted(ServerStartedEvent event) {
-        TransferLedgerData.get(event.getServer()).suspendUnfinished(TransferCodes.SERVER_RESTART,
-                event.getServer().getTickCount());
+        TransferLedgerData.get(event.getServer()).suspendUnfinished(event.getServer(),
+                TransferCodes.SERVER_RESTART);
         pendingRestore = event.getServer();
         // J7 Step 3（D-127）：启动就报出"上次没拆完的脚手架"（0 条时不出声，避免噪声）
         var openScopes = com.dddgn.alice.ledger.WorldModLedger.openScopes(event.getServer());
@@ -1553,8 +1556,8 @@ public final class BotManager {
     /** 关服前:冗余写一次档(平时 spawn/remove 已维护,这里兜底防崩溃丢档)。 */
     @SubscribeEvent
     public static void onServerStopping(ServerStoppingEvent event) {
-        TransferLedgerData.get(event.getServer()).suspendUnfinished(TransferCodes.SERVER_RESTART,
-                event.getServer().getTickCount());
+        TransferLedgerData.get(event.getServer()).suspendUnfinished(event.getServer(),
+                TransferCodes.SERVER_RESTART);
         for (BotSession session : BOTS.values()) {
             if (session.bot().getHealth() > 0.0f) {
                 saveToWorld(session.bot());

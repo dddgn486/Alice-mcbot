@@ -60,7 +60,8 @@ public final class TransferTask implements Task {
     @Override public Status tick() {
         TransferLedgerData.Entry entry = ledger.find(request.requestId()).orElse(null);
         if (entry != null && entry.state() == TransferLedgerData.State.ABORTED) { failure = "aborted"; return Status.FAILED; }
-        long now = level.getGameTime();
+        // §5.9-③：与落章、与 `BotManager` 的超时判定**同一时钟**（世界时间；`getTickCount()` 进程内计数会归零）
+        long now = TransferLedgerData.clockNow(level.getServer());
         if (entry != null && entry.state() == TransferLedgerData.State.SUSPENDED) {
             if (entry.suspensionStartedTick() >= 0 && now - entry.suspensionStartedTick() > MAX_SUSPENSION) {
                 ledger.expireSuspensions(now, MAX_SUSPENSION);
@@ -476,7 +477,7 @@ public final class TransferTask implements Task {
     public void survivalInterrupted(String code) { if (!completed) transition(TransferLedgerData.State.SUSPENDED, phase == Phase.TO_DESTINATION || phase == Phase.DESTINATION_WRITE ? TransferLedgerData.Location.BOT_INVENTORY : TransferLedgerData.Location.NOT_MOVED, code, true); }
     public void botRemoved() { if (!completed) transition(TransferLedgerData.State.UNKNOWN_DISCREPANCY, TransferLedgerData.Location.UNKNOWN, TransferCodes.UNKNOWN_DISCREPANCY, true); }
     public TransferRequest request() { return request; }
-    private void transition(TransferLedgerData.State state, TransferLedgerData.Location location, String code, boolean manual) { ledger.transition(request.requestId(), state, location, code, level.getGameTime(), state + ":" + location + ":" + level.getGameTime(), manual); }
+    private void transition(TransferLedgerData.State state, TransferLedgerData.Location location, String code, boolean manual) { long now = TransferLedgerData.clockNow(level.getServer()); ledger.transition(request.requestId(), state, location, code, now, state + ":" + location + ":" + now, manual); }
     private static String evidence(ChestBotTransferPrimitive.Result r) { return " source=" + r.sourceDelta() + " bot=" + r.botDelta() + " destination=" + r.destinationDelta(); }
 
     /** K-3：把"当前寻路段是否安全"透传给取消方（`/alice stop` 会据此延后到安全点）。 */

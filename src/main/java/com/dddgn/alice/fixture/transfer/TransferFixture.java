@@ -208,9 +208,43 @@ public final class TransferFixture {
                 && released.location() != TransferLedgerData.Location.BOT_INVENTORY
                 && !released.manualTakeoverRequired()
                 && TransferCodes.ABORTED_NO_BOT_INVENTORY.equals(released.code());
+        // §5.9-③：**用生产时钟**（`TransferLedgerData.clockNow`）判过期语义 —— 而不是自造一个数字。
+        // 为什么：超时判定曾经用 `server.getTickCount()`（进程内计数、重启归零）而落章用世界时间
+        // ⇒ 差值为负 ⇒ **永远不过期**。这两条断言把"新鲜挂起不许误判过期 / 陈旧挂起必须降级成
+        // 需要人工接管"钉在**生产时钟**上（陈旧用 `clock - 12_001` 造，等价于"上一次会话的落章"）。
+        long clock = TransferLedgerData.clockNow(level.getServer());
+        TransferRequest freshRequest = request(level, source, destination, 1);
+        ledger.admit(freshRequest);
+        ledger.transition(freshRequest.requestId(), TransferLedgerData.State.SUSPENDED,
+                TransferLedgerData.Location.BOT_INVENTORY, "fixture_fresh", clock, "fixture:fresh", true);
+        ledger.expireSuspensions(clock, 12_000L);
+        TransferLedgerData.Entry fresh = ledger.find(freshRequest.requestId()).orElse(null);
+        boolean freshNotExpired = fresh != null && fresh.state() == TransferLedgerData.State.SUSPENDED
+                && "fixture_fresh".equals(fresh.code());
+        TransferRequest staleRequest = request(level, source, destination, 1);
+        ledger.admit(staleRequest);
+        ledger.transition(staleRequest.requestId(), TransferLedgerData.State.SUSPENDED,
+                TransferLedgerData.Location.BOT_INVENTORY, "fixture_stale", clock - 12_001L, "fixture:stale", true);
+        ledger.expireSuspensions(clock, 12_000L);
+        TransferLedgerData.Entry stale = ledger.find(staleRequest.requestId()).orElse(null);
+        boolean staleDowngraded = stale != null && stale.state() == TransferLedgerData.State.SUSPENDED
+                && TransferCodes.MANUAL_TAKEOVER_REQUIRED.equals(stale.code())
+                && stale.manualTakeoverRequired() && ledger.blocksBot(staleRequest.botId());
+        // §5.9-②：门禁判据（**生产用的同一个纯函数**）—— 干净 ⇒ 可派活；有挂起 ⇒ 说清为什么；结清 ⇒ 放开
+        TransferLedgerData gateLedger = new TransferLedgerData();
+        TransferRequest gateRequest = request(level, source, destination, 1);
+        gateLedger.admit(gateRequest);
+        boolean gateClearWhenIdle = TransferLedgerData.refusal(gateLedger, gateRequest.botId()).isEmpty();
+        gateLedger.transition(gateRequest.requestId(), TransferLedgerData.State.SUSPENDED,
+                TransferLedgerData.Location.NOT_MOVED, "fixture_gate_probe", clock, "fixture:gate", true);
+        boolean gateRefuses = !TransferLedgerData.refusal(gateLedger, gateRequest.botId()).isEmpty();
+        gateLedger.transition(gateRequest.requestId(), TransferLedgerData.State.ABORTED,
+                TransferLedgerData.Location.NOT_MOVED, "fixture_gate_cleared", clock, "fixture:gate_cleared", false);
+        boolean gateReopens = TransferLedgerData.refusal(gateLedger, gateRequest.botId()).isEmpty();
         boolean pass = firstAdmission && duplicateRejected && replacementBlocked && timeoutSuspended
                 && restartSuspended && suspensionExpired && abortProtected && abortUnmoved
-                && noInventorySuspensionReleased;
+                && noInventorySuspensionReleased && freshNotExpired && staleDowngraded
+                && gateClearWhenIdle && gateRefuses && gateReopens;
         return report("duplicate_timeout_restart_abort_replacement_suspension_expiry", request, pass,
                 pass ? TransferCodes.MANUAL_TAKEOVER_REQUIRED : TransferCodes.UNKNOWN_DISCREPANCY,
                 TransferLedgerData.Location.BOT_INVENTORY, 0, 0, 0);

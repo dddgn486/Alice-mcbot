@@ -10446,3 +10446,48 @@ PREMISE_FAILED/TERRAIN_NOT_BUILT 命中数 = 0（D-252 新增的两条前提在�
 —— 规划期没有"从池底浮上去"那种边；② **入水物理**专做（今天靠"落下去 → 浮着段完成 → 浮回来"，`replans=1`）；
 ③ **水面以下水平潜游**。
 **过程**：按用户 2026-09-16 的裁定，**同时只保留一个活跃 epic** ⇒ 下一步只挑一件（见 HANDOVER §1 的候选）。
+
+### D-254：§5.9 收口 —— 挂起传输的**唯一时钟** + 门禁接线判据（2026-09-16，全部无头判据）
+
+**背景**：§5.9（"挂起的传输把 bot 的 `assign*` 通路永久堵死且完全静默"）的 C3+A+B 已落地（D-227），
+持久化/幂等已验（D-235）。剩下两件**可无头判据**的事：A 的接线没有判据；以及一个更硬的洞 —— **超时判定
+永远不会触发**。
+
+**① 唯一时钟（真 bug，代码级事实）**：挂起落章用 `level.getGameTime()`（**世界时间**，跨重启连续），
+而 `BotManager.onServerTick` 的超时判定用 `server.getTickCount()`（**进程内**计数，重启后从 0 开始）
+⇒ 差值恒为负 ⇒ **运行中产生的挂起永远不过期**（`manual_takeover_required` 降级是死代码），
+`BOT_INVENTORY` 挂起于是成为"**没有解除手段的永久阻塞**"（`abort()` 对 SUSPENDED 也只是再写一次 SUSPENDED）。
+**修**：新增 `TransferLedgerData.clockNow(server)`（= `overworld().getGameTime()`）作为**唯一时钟**，
+并加**只能在服务端取时间**的重载 `suspendUnfinished(server, code)` / `expireSuspensions(server, max)`
+⇒ 调用方**没法**再自带一个时钟；四处调用点（`onServerTick` / `onServerStarted` / `onServerStopping` /
+`abortTransfer`）全部改用它；`TransferTask` 的落章与过期检查也改用它（原先用 `level.getGameTime()`，等价但分散）。
+
+**② 门禁接线判据（A 的接线）**：把"为什么这个 bot 派不上活"提成**纯函数**
+`TransferLedgerData.refusal(ledger, botId)`（生产与夹具共用同一段判据）。
+⚠️ **台账原来那条提案（在 `transfer` 步里造一条挂起条目 + 真调 `assignWalkTo`）不能照抄** ——
+实施期发现：从电池步内部调 `assignWalkTo` 会触发 `replaceTaskIfRunning()` 的
+`clearTask()` ⇒ **把正在跑的电池步任务自己替换掉**（步会以 `CANCELLED_REPLACED` 收场）。
+改为：夹具用**内存账本**判同一段判据（干净⇒空 / 有挂起⇒说清原因 / 结清⇒放开），**零世界写入**；
+"每个替换型派活都过门禁"这条则做成**可执行规则**（见 ③）。
+
+**③ 两条可执行规则**（新门禁 `tools/check-transfer-clock.sh`，已挂进 `tools/check-all.sh`）：
+- **R1**：生产路径不许把 `getTickCount()` 喂给 `expireSuspensions` / `suspendUnfinished`（时钟混用即构建红）；
+- **R2**：替换型派活（`assignTransfer`/`assignFollow`/`assignPlace`/`assignFixtureTask`/`assignWalkTo`
+  及其静态透传、`assignSurvivalExitCheck`）必须过 `replaceTaskIfRunning()`（或走已过门禁的 `assignWalkTo`）。
+  为什么只锁这一族：电池 / Jobs / 夹具诊断那族**有意**走 `beginTask` 直连（§5.9 事实 6：用户必须始终能跑测试），
+  锁上会把有意设计判成违例。
+- ⚠️ **反向对照抓到两个"假绿"**（判据自己先被验过才算数）：① 参数表按第一个 `)` 截断 ⇒ `expireSuspensions(server.getServer()…)`
+  的实参只看到 `event.getServer(` ⇒ 永远绿；② 方法体按 `split("\n    }")` 截断 ⇒ 嵌套类 8 空格缩进的方法会吃到
+  下一个 4 空格缩进的方法（里面正好有 `replaceTaskIfRunning(`）⇒ 永远绿。修法：配对括号计数 + 按签名行缩进找方法体结束，
+  并且**签名行本身不算证据**（`assignWalkTo(` 就写在签名里）。两条规则现在都实测能红。
+
+**④ 夹具判据（挂在既有 BASELINE 步 `transfer` 的 `ledgerPolicies`，零新增电池项）**：
+用**生产时钟** `clockNow` 判过期语义 —— 新鲜挂起不许被误判过期、陈旧挂起（`clock - 12_001`）必须降级成
+`manual_takeover_required`；再加上 ② 的门禁判据三条（干净/挡住/放开）。
+**反向对照已做**：分别翻转 `gateRefuses`、`staleDowngraded` ⇒ `single:transfer` **立刻 FAIL**；还原 ⇒ PASS。
+
+**门槛**：`single:transfer` PASS（含反向对照）· CORE 见下 · `check-all.sh` 见下。
+
+**仍未做（需要用户拍板，见 §5.9 的 C1）**：`BOT_INVENTORY` 挂起的**解除通道**。现状是"状态现在会如实显示
+`manual_takeover_required`，但仍然只能靠删账本文件解除"。给一条 `/alice transfer-*` 的显式确认通道 =
+**承认放弃对可能仍在 bot 背包里的物品的追踪**（不动物品，只停止阻塞）⇒ 这是口径放宽，必须用户点头。

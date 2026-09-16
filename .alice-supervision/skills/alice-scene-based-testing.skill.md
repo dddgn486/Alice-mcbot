@@ -263,3 +263,15 @@ tools/check-scene-connectivity.py --selftest # 工具自检（封死通道必须
 - **客户端数据包不是自动同步的**：无头电池每轮 `cp -r tools/test-scenes/alice_test`，客户端存档里那份是**手工拷贝**
   ⇒ 用 `tools/sync-windows-artifact.sh <jar> <repo> <mods> <world>`（或 `ALICE_CLIENT_WORLD`）刷新；
   **改完必须 `/reload` 或重进存档**（数据包是存档级资源）。
+
+## 陷阱 #6（D-254 实测）：**判据自己必须先被反向对照**，且"夹具不许替换正在跑的步"
+
+写一条新判据（尤其静态/文本类门禁）后，**立刻注入一次违例看它会不会红**。D-254 抓出两个"永远绿"：
+1. **参数表按第一个 `)` 截断**：`expireSuspensions(event.getServer().getTickCount(), …)` 的实参文本
+   只取到 `event.getServer(` ⇒ `getTickCount` 看不见 ⇒ 规则永远绿。**修**：配对括号计数取完整实参。
+2. **方法体按固定缩进切分**：`body.split("\n    }")[0]` 对**嵌套类里 8 空格缩进**的方法会一直吃到下一个
+   4 空格缩进的方法（里面往往正好有你要找的调用）⇒ 永远绿。**修**：按签名行缩进找本方法结束，
+   并且**签名行本身不算证据**（`assignWalkTo(` 就写在签名里）。
+另外一条更硬的教训：**夹具不能从电池步内部去调 `assign*`/`beginTask` 类入口** —— `replaceTaskIfRunning()`
+会 `clearTask()`，把**正在跑的这个电池步自己**替换掉（步以 `CANCELLED_REPLACED` 收场）。
+要判"派活门禁"，把判据提成**纯函数**（生产与夹具共用），夹具用**内存账本**判它 ⇒ 零世界写入、零副作用。

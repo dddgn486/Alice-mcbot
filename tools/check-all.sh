@@ -117,6 +117,9 @@ run_gate             "check-item-models"        bash tools/check-item-models.sh
 run_gate             "check-precharge-containment" bash tools/check-precharge-containment.sh
 run_gate             "check-provision-containment" bash tools/check-provision-containment.sh
 run_gate             "check-fixture-hygiene"    bash tools/check-fixture-hygiene.sh
+# §5.9（2026-09-16）：传输账本**只用一个时钟**（混用 `getTickCount()` 会让挂起永不过期 = 永久阻塞）
+# + 替换型派活必须过 `replaceTaskIfRunning()` 门禁。
+run_gate             "check-transfer-clock"    bash tools/check-transfer-clock.sh
 run_gate             "check-policy-matrix"      bash tools/check-policy-matrix.sh
 run_gate             "check-authz-registry"     bash tools/check-authz-registry.sh
 run_machine_map

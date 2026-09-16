@@ -84,6 +84,28 @@ public final class TransferLedgerData extends SavedData {
                 : "容器写入=" + movementCount + " 次 / " + movementItems + " 件（最后 " + lastMovement + "）";
     }
 
+    /**
+     * **§5.9-③：挂起落章与超时判定的唯一时钟**（2026-09-16 复核，代码级事实）。
+     *
+     * <p>此前落章用 `level.getGameTime()`（世界时间，跨重启连续），而 `BotManager` 的超时判定用
+     * `server.getTickCount()`（**进程内**计数，重启后从 0 开始）⇒ 运行中产生的挂起差值恒为负
+     * ⇒ **永远不过期**（`manual_takeover_required` 降级是死代码），`BOT_INVENTORY` 挂起于是成为
+     * "没有解除手段的永久阻塞"。现在生产路径一律经本方法取时间。
+     */
+    public static long clockNow(MinecraftServer server) {
+        return server.overworld().getGameTime();
+    }
+
+    /** 生产路径用：时间戳由 {@link #clockNow} 统一给出（调用方**不许**自带时钟，§5.9）。 */
+    public void suspendUnfinished(MinecraftServer server, String code) {
+        suspendUnfinished(code, clockNow(server));
+    }
+
+    /** 生产路径用：同上。 */
+    public void expireSuspensions(MinecraftServer server, long maximumSuspensionTicks) {
+        expireSuspensions(clockNow(server), maximumSuspensionTicks);
+    }
+
     public static TransferLedgerData get(MinecraftServer server) {
         return server.overworld().getDataStorage()
                 .computeIfAbsent(TransferLedgerData::load, TransferLedgerData::new, DATA_KEY);
@@ -246,6 +268,17 @@ public final class TransferLedgerData extends SavedData {
     public boolean blocksBot(UUID botId) {
         return entries.values().stream().anyMatch(entry -> entry.request().botId().equals(botId)
                 && (entry.state() == State.IN_TRANSIT_BOT || entry.state() == State.SUSPENDED));
+    }
+
+    /**
+     * **派活门禁的唯一判据**（§5.9-②）：空串 = 可以派活；非空 = 为什么不能（给人看的话）。
+     *
+     * <p>为什么要提成纯函数：夹具要判"被挡住时不许派活"这条**接线**，而从电池步内部真去调
+     * `assignWalkTo` 会把**正在跑的电池步任务自己替换掉**（`replaceTaskIfRunning` 会 `clearTask()`）
+     * ⇒ 夹具不能那样判。提成纯函数后，夹具用**内存账本**就能判同一段判据，且**零世界写入**。
+     */
+    public static String refusal(TransferLedgerData ledger, UUID botId) {
+        return ledger == null ? "" : ledger.blockingSummary(botId);
     }
 
     /**
