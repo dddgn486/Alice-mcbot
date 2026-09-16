@@ -33,6 +33,16 @@ public class WalkToTask implements Task {   // 非 final：S-1 的逃生任务 S
         this.goalFoot = goalFoot.immutable();
     }
 
+    /**
+     * **本次走路用哪个规划请求**（D-241 加的钩子）。默认 = 纯通行（`PathRequest.of`，D-076 红线）；
+     * 只有逃生这类**显式登记过**的入口才覆写它（见 {@code SurvivalExitTask}），
+     * 且必须给出自己的理由码 + 预算上限（不许把"允许改世界"泄漏到普通通行的所有子请求上）。
+     */
+    protected PathRequest buildRequest(BotPlayer walker, BlockPos goal) {
+        return PathRequest.of(walker.getUUID().toString(),
+                MovementHelper.footCell(walker.serverLevel(), walker), goal, "walk-to");
+    }
+
     @Override
     public TaskTarget target() {
         return TaskTarget.block(goalFoot);
@@ -50,7 +60,7 @@ public class WalkToTask implements Task {   // 非 final：S-1 的逃生任务 S
                         bot.getName().getString(), goalFoot.toShortString());
                 return Status.FAILED;
             }
-            PathRequest request = PathRequest.of(bot.getUUID().toString(), MovementHelper.footCell(bot.serverLevel(), bot), goalFoot, "walk-to");
+            PathRequest request = buildRequest(bot, goalFoot);
             runner = new PathRetryRunner(bot, request, PathRetryRunner.DEFAULT_MAX_REPLANS,
                     "walkto-" + goalFoot.getX() + "_" + goalFoot.getY() + "_" + goalFoot.getZ());
         }

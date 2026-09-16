@@ -22,6 +22,8 @@ public record PathRequest(
 ) {
     public PathRequest {
         botId = Objects.requireNonNull(botId, "botId");
+        // D-241：唯一构造点 ⇒ 顺手记下"本任务的信封里有没有写世界的权利"（推导事实，不维护名单）。
+        com.dddgn.alice.pathing.core.WriteEnvelopes.note(botId, allowedMovementTypes);
         startFoot = Objects.requireNonNull(startFoot, "startFoot").immutable();
         goal = Objects.requireNonNull(goal, "goal");
         allowedMovementTypes = Set.copyOf(Objects.requireNonNull(allowedMovementTypes, "allowedMovementTypes"));
@@ -30,6 +32,30 @@ public record PathRequest(
         if (allowedMovementTypes.isEmpty()) {
             throw new IllegalArgumentException("allowedMovementTypes must not be empty");
         }
+    }
+
+    /** 逃生请求的搜索预算：**刻意有界**（慌乱中不许烧满整个搜索空间）。 */
+    private static final int ESCAPE_MAX_NODES = 4_000;
+    private static final long ESCAPE_MAX_MILLIS = 100L;
+
+    /**
+     * **维生自救的受限写授权**（D-241；用户 2026-09-16 定案 Q1–Q4）。
+     *
+     * <p>允许：纯通行 + `PLACE_STEP_AND_TRAVERSE`（搭桥/放台阶）+ `PILLAR`（垫柱子/爬竖井）
+     * + `BREAK_AND_TRAVERSE`/`BREAK_AND_ENTER`（朝侧壁破开一条路）。
+     * **刻意不允许** `DOWNWARD`（向下挖会把自己送进更深的坑或岩浆 —— 逃生的目的是离开危险）
+     * 与 `FALL`（本入口不负责下落；跌落另有 D-058 的无水落地口径）。
+     *
+     * <p>**调用点必须持有写信封**：上层用 `WriteEnvelopes.had(botId)` 判断"这个任务本来就改世界吗"，
+     * 只有"是"才允许用本入口（这就是 D-076 红线的**受控口子**：显式登记 + 专属理由码 + 预算上限 + 账本）。
+     */
+    public static PathRequest survivalEscape(String botId, BlockPos startFoot, BlockPos goalFoot,
+                                             String requester) {
+        return new PathRequest(botId, startFoot, new GoalFoot(goalFoot),
+                Set.of(MovementType.TRAVERSE, MovementType.DIAGONAL, MovementType.ASCEND,
+                        MovementType.DESCEND, MovementType.PLACE_STEP_AND_TRAVERSE, MovementType.PILLAR,
+                        MovementType.BREAK_AND_TRAVERSE, MovementType.BREAK_AND_ENTER),
+                SearchBudget.of(ESCAPE_MAX_NODES, ESCAPE_MAX_MILLIS), requester);
     }
 
     public static PathRequest of(String botId, BlockPos startFoot, BlockPos goalFoot, String requester) {
@@ -122,6 +148,9 @@ public record PathRequest(
     }
 
     public PathRequest pureTraversal() {
+        // **故意写成字面集合**（而不是从 `MovementType.changesWorld()` 过滤派生）：集合的迭代顺序未定义，
+        // 派生会悄悄改掉顺序 ⇒ 规划/成本选择可能随之变化（实测：CORE 里一条与它无关的火焰伤害判据因此翻红）。
+        // "两份名单会漂移"由**门禁**兜住：`WritePolicyCheckTask` 断言两边一致（写错就红，见 D-241）。
         return new PathRequest(botId, startFoot, goal,
                 Set.of(MovementType.TRAVERSE, MovementType.DIAGONAL,
                         MovementType.ASCEND, MovementType.DESCEND, MovementType.FALL),

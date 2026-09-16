@@ -9910,3 +9910,44 @@ monitor 真的走到了 `LOW_AIR` ⇒ `BotManager` 走了 `FLOAT_UP` 分支：�
 5. 同理 `survey09` §9.2 的 **B3（逃生路径岩浆检查）**价值也有限：`PlanRouteSafety.lavaContacts` 只查
    "bot 身体占据/站立的格子"（注释明确"站在自建方块上、方块下面才是岩浆 = 安全"），而 **Movement 校验器本就拒绝岩浆格**
    ⇒ 它已是**构造性满足**（价值在回归断言）；残余风险是"贴着岩浆边缘走" = §5.6 风险层（仍挂账）。
+
+---
+
+### D-241：逃生准备金落地（用户批准的提案 B，第一步）—— 2026-09-16
+
+按 D-239 的五条定案实现"**路径规划器可以在什么条件下写世界**"的受控口子（`survey09` §3/§7 的合并拍板）。
+
+**实现的五件（都带 file:line 可 grep）**：
+1. **轴 = 任务信封**：新类 `pathing/core/WriteEnvelopes.java` —— "本任务期间出现过写请求吗"。
+   **推导事实，不维护任务名单**：`PathRequest` 的唯一构造点记一笔（按 `MovementType.changesWorld()`，新加的唯一静态口径：
+   `MovementType.java` 的 `changesWorld()`，`pureTraversal()` 也改成从它派生，消除两份名单）；
+   `BotSession.beginTask` 清空 ⇒ 信封不会跨任务泄漏。闸门用在 `BotManager`（`decide(bot, hazard, escapeWrites)`）。
+2. **受限请求工厂**：`PathRequest.survivalEscape(...)`（`:53`）= 纯通行 + `PLACE_STEP_AND_TRAVERSE` + `PILLAR`
+   + `BREAK_AND_TRAVERSE`/`BREAK_AND_ENTER`；**刻意不含** `DOWNWARD`/`FALL`（向下挖/下落不是"离开危险"）；
+   搜索预算**有界**（4000 节点 / 100 ms）。
+3. **登记**：`WritePolicyMatrix` 新增 `Task.SURVIVAL` + `MovementGrant.SURVIVAL_ESCAPE` + 前缀 `survival-escape`
+   + 两行 **P-23/P-24**（EXTERNAL/WORKSPACE × SURVIVAL，`Obligation.TEMP`，理由 = 执行器真正会发的那两个）；
+   电池步 `write_policy`（CORE）审计通过。
+4. **阶梯用法（写权不滥用）**：`decide` 只有"纯通行确实 `UNREACHABLE`"才升档；升档时装 `WriteBudget.Caps(8, 8, 0)`；
+   `SurvivalExitTask(bot, refuge, withReserve)` 覆写新的 `WalkToTask.buildRequest(...)` 钩子用受限请求。
+5. **判据**（挂既有 BASELINE `survival_exit` 新相位 `SHAFT_ESCAPE`，**零新增电池步**）：2 格深 1×1 竖坑
+   （`survey09` §4.4 那个"上不去、挖不动、退路被切"的杀手）—— 纯通行 `exit=none`、带准备金可达、
+   信封闸门三连（false ⇒ 写请求 ⇒ true ⇒ clear ⇒ false）、**端到端真的垫出来**
+   （`segment_start type=PILLAR from=330,99,306 to=330,100,306` ⇒ `[WalkToTask] completed … actualFoot=330,101,305`）。
+   **checks 87 → 99**；**反向对照**（关掉准备金档）三条判据精确变红。
+
+**如实登记的偏差/未做（不要当成已完成）**：
+- **没有新造"逃生专用理由码"**（提案文本里曾写 `ESCAPE_*`）：执行器实际发 `STEP_PLACEMENT`/`PATH_ACCESS`
+  （`PillarExecution:57`、`PlaceStepAndTraverseExecution:41`、`BreakAndTraverseExecution:52`），
+  归因由 **`requester="survival-escape"`** 承担 ⇒ 新造词只会再造一个没人发的死值（K-5 同族）。策略表行按实际声明。
+- **准备金是"逃生作用域的独立上限 8/8"，不是从任务 64 里做减法**（未实现减法；总量上限因此是 64+8 而非 64）。
+- **自动回收未接线**：矩阵行已声明 `Obligation.TEMP`（放置必拆），但"过桥后沿桥回收"仍要复用 `scaffoldRemoval` ⇒ **未做**。
+- 判据只覆盖竖坑一档；提案里的水渠搭桥、预算上限守卫、水/深水档尚未建场景（水档本就属 B/C1）。
+
+**⚠️ 期间抓到并修掉的一个真陷阱（值得单独记）**：我一度把 `PathRequest.pureTraversal()` 从**字面集合**改成
+"从 `MovementType.changesWorld()` 过滤派生"（想消除两份名单的漂移）。结果 **CORE 里一条与它毫不相干的判据翻红**：
+`survival_exit` 的「着火必须真的造成伤害」——因为 `Set.of(...)`/`Collectors.toSet()` 的**迭代顺序未定义**，
+派生会悄悄改掉顺序 ⇒ 规划/成本选择随之变化 ⇒ 火焰伤害与自然回血的 tick 对齐错开 ⇒ 血量不再下降。
+**修法**：① `pureTraversal()` 恢复字面集合（注释写明"为什么故意不派生"）；
+② 漂移改由**门禁**兜住 —— `WritePolicyCheckTask` 新增一条断言"纯通行名单与 `changesWorld()` 互为补集"（写错就红）。
+教训：**"消除重复来源"要用门禁，不要用会在运行期改变行为顺序的派生**。

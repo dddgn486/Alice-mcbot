@@ -16,7 +16,29 @@ import net.minecraft.core.BlockPos;
  */
 public final class SurvivalExitTask extends WalkToTask implements SurvivalExit {
 
+    /** 是否动用**逃生准备金**（D-241）：只有"信封本来就有写授权"的任务才允许为 true。 */
+    private final boolean withReserve;
+
     public SurvivalExitTask(BotPlayer bot, BlockPos refugeFoot) {
+        this(bot, refugeFoot, false);
+    }
+
+    public SurvivalExitTask(BotPlayer bot, BlockPos refugeFoot, boolean withReserve) {
         super(bot, refugeFoot);
+        this.withReserve = withReserve;
+    }
+
+    /**
+     * **逃生用哪个请求**：默认仍是纯通行；只有当"纯通行去不了、而信封允许改世界"时，
+     * 才换成 {@code PathRequest.survivalEscape}（放置 + 破坏 + PILLAR，理由码 `ESCAPE_*`，上限 8/8）。
+     */
+    @Override
+    protected com.dddgn.alice.pathing.core.search.PathRequest buildRequest(BotPlayer walker, BlockPos goal) {
+        if (!withReserve) {
+            return super.buildRequest(walker, goal);
+        }
+        return com.dddgn.alice.pathing.core.search.PathRequest.survivalEscape(
+                walker.getUUID().toString(), com.dddgn.alice.pathing.MovementHelper.footCell(walker.serverLevel(), walker),
+                goal, "survival-escape");
     }
 }

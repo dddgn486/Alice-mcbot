@@ -141,6 +141,11 @@ public final class SurvivalSystem {
      * 见 `BotSession.tick(HazardState)` 的 `durationTicks == SOFT_HAZARD_GRACE_TICKS`）。
      */
     public static Verdict decide(ServerPlayer bot, HazardState state) {
+        return decide(bot, state, false);
+    }
+
+    /** 带"逃生准备金是否可用"的判决（D-241：只有拿到写信封的任务才允许它为 true）。 */
+    public static Verdict decide(ServerPlayer bot, HazardState state, boolean allowWrites) {
         if (hardHazard(state.type())) {
             return Verdict.INTERRUPT;
         }
@@ -151,7 +156,7 @@ public final class SurvivalSystem {
             return Verdict.IGNORE;
         }
         // D-238：出口必须是**可规划**的（几何存在 ⇒ 规划不可达时按"没有出口"处理）。
-        if (plannableRefuge(bot, state.type()) != null) {
+        if (plannableRefuge(bot, state.type(), allowWrites) != null) {
             return Verdict.INTERRUPT;
         }
         // 无出口：着火/冻结仍可能自愈 ⇒ 不否决（让任务继续）。
@@ -175,6 +180,10 @@ public final class SurvivalSystem {
         return nearestSafeRefuge(bot, REFUGE_RADIUS, footCell(bot)) != null;
     }
 
+    /** 逃生准备金的预算上限（D-241，用户 Q3 定案）：8 破坏 / 8 放置 / 0 容器写入。 */
+    private static final int ESCAPE_MAX_BREAKS = 8;
+    private static final int ESCAPE_MAX_PLACES = 8;
+
     /** 出口预检的搜索预算：小空间能在预算内穷尽（判 `UNREACHABLE`），又不至于在正常场景里拖慢 tick。 */
     private static final int PRECHECK_MAX_NODES = 600;
     private static final long PRECHECK_MAX_MILLIS = 20L;
@@ -192,32 +201,85 @@ public final class SurvivalSystem {
      * <p>**成本**：预检要跑一次规划 ⇒ 结果按"危险类型 + 脚位"缓存在 monitor 里（一场危险最多一次）。
      */
     public static BlockPos plannableRefuge(ServerPlayer bot, HazardType hazardType) {
+        return plannableRefuge(bot, hazardType, false);
+    }
+
+    /**
+     * **出口预检（带逃生准备金那一档）**（D-241）：`allowWrites=true` 时，纯通行规划不可达的落点会再用
+     * `PathRequest.survivalEscape`（放置 + 破坏 + PILLAR）试一次；成功则**顺手把逃生准备金的预算上限**
+     * （8 破坏 / 8 放置，用户 Q3 定案）装到本 bot 的作用域上 —— 规划期的写边闸门看的就是它。
+     * 预算上限在**下一个任务开始时**由 `BotSession.beginTask` 清掉（不会泄漏到后续任务）。
+     */
+    public static BlockPos plannableRefuge(ServerPlayer bot, HazardType hazardType, boolean allowWrites) {
         Monitor monitor = monitor(bot);
         BlockPos foot = footCell(bot);
         if (monitor.refugeCacheValid && monitor.refugeCheckedFor == hazardType
-                && foot.equals(monitor.refugeCheckedAt)) {
+                && monitor.refugeCheckedAt != null && foot.equals(monitor.refugeCheckedAt)
+                && monitor.refugeCacheWrites == allowWrites) {
             return monitor.cachedRefuge;
         }
         BlockPos refuge = nearestSafeRefuge(bot, REFUGE_RADIUS, foot);
         BlockPos result = null;
         if (refuge != null) {
-            var request = com.dddgn.alice.pathing.core.search.PathRequest
-                    .of(bot.getUUID().toString(), foot, refuge, "survival-precheck")
-                    .withBudget(com.dddgn.alice.pathing.core.search.SearchBudget
-                            .of(PRECHECK_MAX_NODES, PRECHECK_MAX_MILLIS));
-            var plan = new com.dddgn.alice.pathing.core.search.CorePathPlanner()
-                    .plan(bot, bot.serverLevel(), request);
-            if (plan.status() == com.dddgn.alice.pathing.core.search.PlanningStatus.UNREACHABLE) {
-                BotLog.warn("[Survival] 落点 {} 几何上成立，但**规划不可达**（status={}）⇒ 按"
-                                + "「没有出口」处理（别为一个走不到的落点杀任务）",
-                        refuge.toShortString(), plan.status());
-            } else {
+            if (isPlannable(bot, refuge)) {
+                result = refuge;                       // 第一档：纯通行（今天的行为，不改世界）
+            } else if (allowWrites && escapeWithReserve(bot, foot, refuge)) {
+                monitor.escapeNeedsWrites = true;      // 第二档：只对**信封里有写权**的任务开放
                 result = refuge;
             }
         }
+        return finishRefugeCheck(monitor, hazardType, foot, result, allowWrites);
+    }
+
+    /**
+     * **动用逃生准备金再试一次**（D-241，用户 Q2/Q3 定案）：装上限（8 破坏 / 8 放置）后，用
+     * `PathRequest.survivalEscape`（放置 + 破坏 + PILLAR，不含 `DOWNWARD`/`FALL`）规划到同一个落点。
+     *
+     * <p>只有 `UNREACHABLE` 才算失败（与 D-238 同一口径）。装上限的副作用**不回收**：
+     * 下一个任务开始时由 `BotSession.beginTask` 清掉（逃生本身会把当前任务结束掉）。
+     */
+    private static boolean escapeWithReserve(ServerPlayer bot, BlockPos foot, BlockPos refuge) {
+        com.dddgn.alice.action.WriteBudget.setCaps(com.dddgn.alice.action.WriteBudget.scopeOf(bot),
+                new com.dddgn.alice.action.WriteBudget.Caps(ESCAPE_MAX_BREAKS, ESCAPE_MAX_PLACES, 0));
+        var request = com.dddgn.alice.pathing.core.search.PathRequest
+                .survivalEscape(bot.getUUID().toString(), foot, refuge, "survival-escape");
+        var plan = new com.dddgn.alice.pathing.core.search.CorePathPlanner()
+                .plan(bot, bot.serverLevel(), request);
+        BotLog.warn("[Survival] 纯通行去不了 {} ⇒ 改用**逃生准备金**（放置+破坏+PILLAR，上限 {} 破坏/{} 放置）"
+                        + "重试：status={}", refuge.toShortString(), ESCAPE_MAX_BREAKS, ESCAPE_MAX_PLACES,
+                plan.status());
+        return plan.status() != com.dddgn.alice.pathing.core.search.PlanningStatus.UNREACHABLE;
+    }
+
+    /** 纯通行预检：这个落点**规划得到**吗（只有 `UNREACHABLE` 才算不可达）。 */
+    private static boolean isPlannable(ServerPlayer bot, BlockPos refuge) {
+        var request = com.dddgn.alice.pathing.core.search.PathRequest
+                .of(bot.getUUID().toString(), footCell(bot), refuge, "survival-precheck")
+                .withBudget(com.dddgn.alice.pathing.core.search.SearchBudget
+                        .of(PRECHECK_MAX_NODES, PRECHECK_MAX_MILLIS));
+        var plan = new com.dddgn.alice.pathing.core.search.CorePathPlanner()
+                .plan(bot, bot.serverLevel(), request);
+        if (plan.status() == com.dddgn.alice.pathing.core.search.PlanningStatus.UNREACHABLE) {
+            BotLog.warn("[Survival] 落点 {} 几何上成立，但**规划不可达**（status={}）⇒ 按"
+                            + "「没有出口」处理（别为一个走不到的落点杀任务）",
+                    refuge.toShortString(), plan.status());
+            return false;
+        }
+        return true;
+    }
+
+    /** 上一次预检的落点是否**只有动用逃生准备金才到得了**（D-241；逃生任务据此选受限请求）。 */
+    public static boolean escapeNeedsWrites(ServerPlayer bot) {
+        return monitor(bot).escapeNeedsWrites;
+    }
+
+    /** 预检结果入缓存（键 = 危险类型 + 脚位 + 是否允许写）。 */
+    private static BlockPos finishRefugeCheck(Monitor monitor, HazardType hazardType, BlockPos foot,
+                                              BlockPos result, boolean allowWrites) {
         monitor.refugeCacheValid = true;
         monitor.refugeCheckedFor = hazardType;
         monitor.refugeCheckedAt = foot.immutable();
+        monitor.refugeCacheWrites = allowWrites;
         monitor.cachedRefuge = result;
         return result;
     }
@@ -389,6 +451,10 @@ public final class SurvivalSystem {
         private HazardType refugeCheckedFor;
         private BlockPos refugeCheckedAt;
         private BlockPos cachedRefuge;
+        /** D-241：缓存键要带上"是否允许写"（否则纯通行的结论会顶掉带准备金的结论）。 */
+        private boolean refugeCacheWrites;
+        /** D-241：本次预检的落点**只有动用逃生准备金才到得了**（逃生任务据此选受限请求）。 */
+        private boolean escapeNeedsWrites;
 
         private HazardState observe(ServerPlayer bot) {
             HazardType current = classify(bot);

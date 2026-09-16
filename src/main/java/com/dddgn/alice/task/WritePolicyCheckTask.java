@@ -115,6 +115,19 @@ public class WritePolicyCheckTask implements Task {
     }
 
     private void runChecks() {
+        // D-241：**纯通行名单不许漂移** —— `PathRequest.pureTraversal()` 是字面集合，
+        // `MovementType.changesWorld()` 是规划期唯一口径；两者必须互为补集（写错就红，不靠 review 眼睛）。
+        java.util.Set<com.dddgn.alice.pathing.core.MovementType> pureTraversalSet = com.dddgn.alice.pathing.core.search
+                .PathRequest.of("probe", net.minecraft.core.BlockPos.ZERO,
+                        net.minecraft.core.BlockPos.ZERO, "probe").pureTraversal()
+                .allowedMovementTypes();
+        java.util.Set<com.dddgn.alice.pathing.core.MovementType> pureExpected = java.util.Arrays
+                .stream(com.dddgn.alice.pathing.core.MovementType.values())
+                .filter(type -> !type.changesWorld())
+                .collect(java.util.stream.Collectors.toSet());
+        check("纯通行名单与 changesWorld() 互为补集（不许漂移）", pureTraversalSet.equals(pureExpected),
+                "pure=" + pureTraversalSet + " expected=" + pureExpected);
+
         // A 表是全的
         List<String> structural = new ArrayList<>();
         for (String problem : WritePolicyMatrix.audit()) {

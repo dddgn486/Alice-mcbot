@@ -1708,6 +1708,12 @@ C3 之后它对 `NOT_MOVED` 已无影响，故只登记。
 `startSurvivalExit` 把这种情况如实登记成 **`exit=unreachable`**（区别于 `exit=none`）。判据挂既有 `survival_exit`
 （新相位 `UNREACHABLE_REFUGE`，checks 78 → 87），反向对照精确变红。
 
+**✅ ③ B：逃生准备金已落地（D-241，2026-09-16，用户批准的提案 B 第一步）**：轴=任务信封（`WriteEnvelopes`，推导事实非名单）
++ `PathRequest.survivalEscape`（放置+破坏+PILLAR，不含 DOWNWARD/FALL）+ 策略表 P-23/P-24 + 阶梯用法（只在纯通行
+`UNREACHABLE` 时升档）+ 上限 8/8。判据挂既有 `survival_exit`（新相位 `SHAFT_ESCAPE`：2 格深竖坑 ⇒ 真垫出来），
+**checks 87 → 99**，反向对照三条判据精确变红。**未做**：自动回收（TEMP 已声明但未接 `scaffoldRemoval`）、
+水渠搭桥与预算守卫场景、准备金"从 64 里做减法"。
+
 **仍挂账（各一行，触发条件不变）**：① 水面专用理由码（现有 `UNREACHABLE` + 失败理由够用）；
 ② 出口**列表**（现在只验最近那个，最近不可达就说不可达，不找更远的）；③ **B：维生自救的受限写授权**
 （搭桥/垫柱子出水；机制现成但需放宽 D-076，**待用户拍板**）⇒ **一页决策稿已出（2026-09-16）**：

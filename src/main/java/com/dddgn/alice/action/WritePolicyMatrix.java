@@ -83,6 +83,8 @@ public final class WritePolicyMatrix {
     /** **任务类别**：由 {@code requester} 经登记表（{@link #taskOf}）推导，不由调用点自报。 */
     public enum Task {
         TRAVERSAL, MINING, GATHERING, LUMBER, CRAFT, CONTAINER, BUILD, RESTORE, MANUAL, DIAGNOSTIC,
+        /** **维生自救**（D-241）：只有拿到写信封的任务才允许用逃生准备金（用户 2026-09-16 Q1 定案）。 */
+        SURVIVAL,
         /** 未登记的 requester：**记为错误**（计数 + WARN），但不据此拒绝（那是我们的登记缺口，不是任务的错）。 */
         UNREGISTERED
     }
@@ -108,7 +110,9 @@ public final class WritePolicyMatrix {
         MINING_APPROACH("miningApproach"),
         SCAFFOLD_REMOVAL("scaffoldRemoval"),
         CLIMB_APPROACH("climbApproach"),
-        WITH_WORLD_MODIFICATION("withWorldModification");
+        WITH_WORLD_MODIFICATION("withWorldModification"),
+        /** 逃生准备金（D-241）：放置 + 破坏 + PILLAR，**不含** `DOWNWARD`/`FALL`。 */
+        SURVIVAL_ESCAPE("survivalEscape");
 
         private final String factory;
 
@@ -131,6 +135,7 @@ public final class WritePolicyMatrix {
                 case SCAFFOLD_REMOVAL -> PathRequest.scaffoldRemoval(PROBE, zero, zero);
                 case CLIMB_APPROACH -> PathRequest.climbApproach(PROBE, zero, zero, PROBE);
                 case WITH_WORLD_MODIFICATION -> PathRequest.withWorldModification(PROBE, zero, zero, PROBE);
+                case SURVIVAL_ESCAPE -> PathRequest.survivalEscape(PROBE, zero, zero, PROBE);
             };
             return probe.allowedMovementTypes();
         }
@@ -153,6 +158,15 @@ public final class WritePolicyMatrix {
 
     private static final Set<WriteReason> TEMP_PLACEMENTS = Set.of(
             WriteReason.STEP_PLACEMENT, WriteReason.SUPPORT_PLACEMENT, WriteReason.CRAFT_STATION_PLACE);
+
+    /**
+     * **逃生准备金能带出的理由**（D-241）—— 取**执行器真正会发出**的那两个（实测：`PillarExecution:57`
+     * 与 `PlaceStepAndTraverseExecution:41` 用 `STEP_PLACEMENT`、`BreakAndTraverseExecution:52` 用 `PATH_ACCESS`），
+     * **刻意不新造"逃生专用理由码"**：归因由 `requester="survival-escape"`（已登记前缀 → `Task.SURVIVAL`）承担，
+     * 新造词只会再造一个没人发的死值（K-5 同族）。
+     */
+    private static final Set<WriteReason> ESCAPE_REASONS = Set.of(
+            WriteReason.STEP_PLACEMENT, WriteReason.PATH_ACCESS);
 
     private static final Set<WriteReason> PATHING_REASONS = Set.of(
             WriteReason.PATH_ACCESS, WriteReason.DESCEND_FOOT, WriteReason.STEP_PLACEMENT,
@@ -300,7 +314,20 @@ public final class WritePolicyMatrix {
                     "同 P-10", "同 P-10（今天两区解析相同）"),
             new Row("P-22", Zone.WORKSPACE, Task.UNREGISTERED, Obligation.REASON_DEFAULT,
                     null, Set.of(WriteReason.values()),
-                    "action/WriteGrant.java:26（UNKNOWN）", "同 P-11"));
+                    "action/WriteGrant.java:26（UNKNOWN）", "同 P-11"),
+            // ---- 维生自救（D-241，2026-09-16 用户批准的提案 B）----
+            // 轴 = "这个任务改不改世界"（`MovementCapabilities.changesWorld()`）：只有信封里本就有写授权的任务，
+            // 才允许在危急时用 `survivalEscape`（放置 + 破坏 + PILLAR，不含 DOWNWARD/FALL）。
+            new Row("P-23", Zone.EXTERNAL, Task.SURVIVAL, Obligation.TEMP,
+                    Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.SURVIVAL_ESCAPE),
+                    ESCAPE_REASONS,
+                    "action/PathRequest.java:53（survivalEscape）",
+                    "逃生准备金（Q2/Q3/Q4 定案）：**放置 TEMP 必拆**（复用 scaffoldRemoval）+ 破坏按 KEEP 登记；"
+                            + "预算上限 8 破坏/8 放置、每次危险事件最多升档 1 次；信封无写权 ⇒ 根本不发这张凭证"),
+            new Row("P-24", Zone.WORKSPACE, Task.SURVIVAL, Obligation.TEMP,
+                    Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.SURVIVAL_ESCAPE),
+                    ESCAPE_REASONS,
+                    "同 P-23", "同 P-23（今天两区解析相同：逃生留下的桥**照样要拆**，不因为在自己地上就免回收）"));
 
     // ==================== requester 登记表（前缀 → 任务类别）====================
 
@@ -311,6 +338,7 @@ public final class WritePolicyMatrix {
      * 任务类 requester 又常等于 {@code taskName()}（如 `ClearRetryCheck`）——精确串维护不住。
      */
     private static final List<String[]> PREFIX_RULES = List.of(
+            new String[]{"survival-escape", "SURVIVAL"},
             new String[]{"road-build", "BUILD"},
             new String[]{"road-builder", "BUILD"},
             new String[]{"transfer", "CONTAINER"},

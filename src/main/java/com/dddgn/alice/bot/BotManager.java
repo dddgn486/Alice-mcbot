@@ -1655,6 +1655,9 @@ public final class BotManager {
             // 一次任务 = 一个世界修改授权作用域（J6-a）：账本按 scope 聚合，恢复以 scope 为单位
             com.dddgn.alice.ledger.WorldModLedger.openScope(bot.getServer(), bot.getUUID(),
                     assignedTask.getClass().getSimpleName());
+            // D-241：**每个任务重新确立自己的信封**（"本任务期间有没有出现过写请求"）⇒
+            // 逃生的写权不会从上一个任务泄漏过来。
+            com.dddgn.alice.pathing.core.WriteEnvelopes.clear(bot.getUUID().toString());
             task = assignedTask;
             target = assignedTarget;
             taskKind = assignedTask.getClass().getSimpleName();
@@ -1871,7 +1874,10 @@ public final class BotManager {
             // 又被中断"会变成每 tick 自杀循环，逃生一步都走不出去。只豁免逃生动作；
             // 挖矿/伐木/放置这类会把 bot 送进危险的任务照旧被否决。
             boolean escapeTask = task instanceof com.dddgn.alice.task.SurvivalExit;
-            SurvivalSystem.Verdict verdict = SurvivalSystem.decide(bot, hazard);
+            // D-241：**"这个任务改不改世界"是逃生写权的唯一闸门**（用户 Q1 定案）——
+            // 信封里出现过写请求（挖掘站位/掉落物收集/脚手架…）才允许动用逃生准备金。
+            boolean escapeWrites = com.dddgn.alice.pathing.core.WriteEnvelopes.had(bot.getUUID().toString());
+            SurvivalSystem.Verdict verdict = SurvivalSystem.decide(bot, hazard, escapeWrites);
             // S-5（2026-09-15）③：**软危险 + 无出口 ⇒ 不否决**（`HOLD_NO_EXIT`）——但必须**如实登记一次**，
             // 否则日志看不出"判据生效了，但判断是继续跑"。登记点取 `durationTicks == 宽限期` 这**唯一 tick**
             // （同一次危险里 duration 逐 tick 单调 +1）⇒ 天然"每 episode 一次"，不需要额外闩锁。
@@ -1998,8 +2004,11 @@ public final class BotManager {
             // 贴地时后者会退回**支撑格**（实体方块）⇒ "排除自己"失效 ⇒ bot 自己那格被当成出口，
             // 逃生任务走到原地、0 步完成而 bot 一格没动（S-5 / 2026-09-15 由电池步实测抓到）。
             BlockPos foot = SurvivalSystem.footCell(bot);
+            // D-241：信封闸门（与 hazard 分支同一口径；这里单独取一次，因为本方法作用域不同）。
+            boolean escapeWrites = com.dddgn.alice.pathing.core.WriteEnvelopes.had(bot.getUUID().toString());
             // D-238：出逃生之前先做一次**可规划**预检（几何落点存在 ≠ 去得了）。
-            BlockPos refuge = SurvivalSystem.plannableRefuge(bot, SurvivalSystem.current(bot).type());
+            BlockPos refuge = SurvivalSystem.plannableRefuge(bot, SurvivalSystem.current(bot).type(),
+                    escapeWrites);
             if (refuge == null) {
                 boolean geometricOnly = SurvivalSystem.nearestSafeRefuge(
                         bot, SurvivalSystem.REFUGE_RADIUS, foot) != null;
@@ -2019,7 +2028,9 @@ public final class BotManager {
             BotLog.warn("[Survival] 维生中断 ⇒ 逃生出口 refuge={}（距 {} 格，从脚位 {}）——启动 SurvivalExitTask",
                     refuge.toShortString(), fmt3(Math.sqrt(refuge.distSqr(foot))), foot.toShortString());
             TaskTarget exitTarget = TaskTarget.block(refuge);
-            beginTask(new com.dddgn.alice.task.SurvivalExitTask(bot, refuge), exitTarget);
+            // 落点是"只有动用准备金才到得了"时，逃生任务自己也要用受限请求（否则它又走纯通行、必失败）。
+            boolean reserve = escapeWrites && com.dddgn.alice.survival.SurvivalSystem.escapeNeedsWrites(bot);
+            beginTask(new com.dddgn.alice.task.SurvivalExitTask(bot, refuge, reserve), exitTarget);
             broadcastTarget(this.target);
         }
 

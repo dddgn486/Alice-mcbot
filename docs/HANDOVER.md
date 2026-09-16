@@ -10,6 +10,20 @@
 
 ## 1. 一句话现状（2026-09-15 上午）
 
+> **2026-09-16（本日进展）** —— 用户批准了提案 B 的五条（**D-239**），并落地第一步 **D-241「逃生准备金」**：
+> 轴 = **任务信封**（`pathing/core/WriteEnvelopes`，推导事实不维护名单）+ `PathRequest.survivalEscape`
+> （放置 + 破坏 + `PILLAR`，**不含** `DOWNWARD`/`FALL`）+ 策略表 **P-23/P-24** + 阶梯用法（只在纯通行
+> `UNREACHABLE` 时升档）+ 上限 **8 破坏/8 放置**。判据挂既有 `survival_exit` 新相位 **`SHAFT_ESCAPE`**
+> （2 格深竖坑 ⇒ 纯通行 `exit=none`；带准备金**真的垫出来**：`PILLAR 330,99,306 → 330,100,306` ⇒
+> `WalkToTask completed actualFoot=330,101,305`）⇒ **checks 87 → 99**，反向对照三条判据精确变红。
+> 同日还判定 **B1「原路返回」无可测量收益、不落地**（D-240：`isRefuge` 与 `TRAVERSE/ASCEND` 目的地生成
+> 共用同一组谓词 ⇒ "可通行且可规划"的格就是落点 ⇒ bot 的上一格永远是最近且可达的落点）。
+> **未做（下一步候选）**：① 逃生放置的**自动回收**（TEMP 已声明、未接 `scaffoldRemoval`）；
+> ② 水渠搭桥场景 + 预算上限守卫（竖坑一档已覆盖）；③ 准备金"从 64 里做减法"；
+> ④ 台账 §5.11 ②（出口列表）/④（丙 内核水位）。
+> **门槛**：`single:survival_exit` **checks=99 failures=0**（反向对照一次精确变红）✅ /
+> **CORE `(38/38) ticks=3955 → PASS`** ✅ / `check-all.sh` **9 PASS + 1 预期 WARN** ✅。
+
 > **2026-09-15 晚（本日收尾快照）** —— S-5 维生线一整天推进，全部走"判据必须可红 + 反向对照"：
 > - **D-236 溺水不再静默**（`WINDOWS_CLIENT`）：溺水 + 无出口 ⇒ `ABANDON_NO_EXIT`（干净收尾 + 大声登记）；
 >   封闭水牢判据（真建 17³ 水牢实测）。**"水里逃生"整条缺口如实登记**（台账 §5.11）。
@@ -223,7 +237,8 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 - **客户端**：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - **镜像 / 同步**：`./tools/mirror-windows-workspace.sh`；
   `./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`。
-- **本断点已同步的 jar**：`a5f758902b4160be3b69af3ea7d57ff5bd581aeaaedd62b99e6cfdd89a65c600`（2026-09-16 00:2x；**含 D-226…D-238**：溺水不再静默 / 上浮自救"乙" / 出口可规划预检）
+- **本断点已同步的 jar**：`872c30fdedc1a2b74ae921f741c38f4607f0114dc572d5813ad3c50548aa1dcd`（2026-09-16；**含 D-226…D-241**）
+- 上一批 jar（含 D-238）：`a5f758902b4160be3b69af3ea7d57ff5bd581aeaaedd62b99e6cfdd89a65c600`
 - 上一批 jar（含 D-236）：`e05b3492eeee7edf289260204a70e11b4f1dd52bf1b29929989c3ac9a1548d0f`
 - 上一个 jar（23:4x，含 D-236）：`63f84e7719b8ab0bd2ad556a4222aed27aa7e04996359d1f624b29be9aba8ef0`
 - 上一个 jar（23:2x，含 D-235）：`8e8ae5a3f5ac941a6daf03626a03fc246827d4631a1473d2c7868f6ad0681947`

@@ -7,6 +7,7 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.survival.HazardState;
 import com.dddgn.alice.survival.HazardType;
 import com.dddgn.alice.survival.SurvivalSystem;
+import com.dddgn.alice.pathing.core.WriteEnvelopes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -66,7 +67,7 @@ public class SurvivalExitCheckTask implements Task {
     /** 全冻（140 tick）之后再等这么久，保证"每 40 tick 1 点"的冻结伤害至少来过一次。 */
     private static final int FREEZE_DAMAGE_WAIT_TICKS = 45;
 
-    private enum Phase { SETUP, TABLE, WALK, SEALED_BUILD, SEALED_CHECK, FOOT_CELL, SEALED_REAL, HEALTH, AIR, SNOW, DEEP_WATER, OPEN_WATER, UNREACHABLE_REFUGE, DONE }
+    private enum Phase { SETUP, TABLE, WALK, SEALED_BUILD, SEALED_CHECK, FOOT_CELL, SEALED_REAL, HEALTH, AIR, SNOW, DEEP_WATER, OPEN_WATER, UNREACHABLE_REFUGE, SHAFT_ESCAPE, DONE }
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -134,6 +135,7 @@ public class SurvivalExitCheckTask implements Task {
             case DEEP_WATER -> deepWaterPhase();
             case OPEN_WATER -> openWaterPhase();
             case UNREACHABLE_REFUGE -> unreachableRefugePhase();
+            case SHAFT_ESCAPE -> shaftEscapePhase();
             case DONE -> finish();
             default -> {
             }
@@ -696,7 +698,7 @@ public class SurvivalExitCheckTask implements Task {
             check("对照：硬危险仍然无条件否决（不受落点可达性影响）",
                     SurvivalSystem.decide(bot, synthetic(HazardType.SUFFOCATING, 99))
                             == SurvivalSystem.Verdict.INTERRUPT);
-            // 正对照 + 收尾：回平台后同一个危险类型必须能plan到落点（缓存按"类型+脚位"键，换位置会重算）
+            // 正对照 + 收尾：回平台后同一个危险类型必须能规划到落点（缓存按"类型+脚位"键，换位置会重算）
             teleport(SurvivalCourseAnchor.PLATFORM_FOOT);
             check("正对照：回到平台后**能**规划到落点（plannableRefuge != null）",
                     SurvivalSystem.plannableRefuge(bot, HazardType.ON_FIRE) != null);
@@ -707,10 +709,112 @@ public class SurvivalExitCheckTask implements Task {
                     "minecraft:air", 120, "石盒拆除");
             normalizeVitals();
             BotLog.info("[Survival] 石盒已拆、bot 在平台；本相位完");
+            advance(Phase.SHAFT_ESCAPE);
+            return;
+        }
+    }
+
+    /**
+     * **逃生准备金**（D-241，用户 2026-09-16 批准的提案 B / `survey09` §4.4 那个杀手）：
+     * bot 站在一个 **2 格深的 1×1 竖坑**底（房间地板在 y+2），四周是石头。
+     *
+     * <p>几何落点存在（2 格外的房间地板），但：纯通行**上不去**（`ASCEND` 只能上 1 格、且 y+1 那格是石头）
+     * ⇒ 今天只能 `exit=none` 停在原地等干预。带**逃生准备金**（放置 + 破坏 + `PILLAR`，上限 8/8）时可以
+     * 垫柱子/破开侧壁出来 —— 这就是"维生自救的受限写授权"要换的东西。
+     *
+     * <p>三道断言：① 纯通行去不了（前提自证）；② **信封闸门**（没写过的任务 `had==false`、写过之后 `true`、
+     * 清空之后又 `false`）；③ 带准备金到得了 + **真的走出来**（驱动真 `SurvivalExitTask` 到 DONE）。
+     */
+    private void shaftEscapePhase() {
+        if (phaseTicks == 1) {
+            normalizeVitals();
+            BotLog.info("[Survival] 自建 2 格深竖坑（{} 为心，房间地板在 y+2，四周石头）；期望：纯通行 "
+                    + "exit=none、带逃生准备金能垫出来", desc(SHAFT_PIT_BOTTOM));
+            fillBlocks(SHAFT_CENTER.offset(-5, -5, -4), SHAFT_CENTER.offset(5, 4, 4),
+                    "minecraft:stone", 990, "竖坑所在的实心石块");
+            fillBlocks(SHAFT_CENTER.offset(-4, 1, -3), SHAFT_CENTER.offset(4, 2, 3),
+                    "minecraft:air", 126, "房间（地板 y+2，即坑口所在层）");
+            fillBlocks(SHAFT_PIT_BOTTOM, SHAFT_PIT_BOTTOM.above(), "minecraft:air", 2, "1×1×2 竖坑");
+            return;
+        }
+        if (phaseTicks == 2) {
+            com.dddgn.alice.item.FixtureToolKit.ensureHotbarStack(bot,
+                    () -> new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.COBBLESTONE),
+                    stack -> stack.is(net.minecraft.world.item.Items.COBBLESTONE), 64, "cobblestone");
+            com.dddgn.alice.item.FixtureToolKit.ensureHotbarTool(bot,
+                    () -> new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.STONE_PICKAXE),
+                    stack -> stack.is(net.minecraft.tags.ItemTags.PICKAXES), "stone_pickaxe");
+            teleport(SHAFT_PIT_BOTTOM);
+            BotLog.info("[Survival] 已把 bot 放进坑底 {}（脚位 {}，头顶 {}）", desc(SHAFT_PIT_BOTTOM),
+                    desc(foot()), desc(foot().above()));
+            return;
+        }
+        if (phaseTicks == 4) {
+            BlockPos geometric = SurvivalSystem.nearestSafeRefuge(bot, SurvivalSystem.REFUGE_RADIUS,
+                    SurvivalSystem.footCell(bot));
+            check("前提自证：坑口外 8 格内**确实**有几何落点（" + desc(geometric) + "）", geometric != null);
+            check("纯通行去不了那个落点（ASCEND 上不了 2 格、y+1 是石头）⇒ 今天只能 exit=none",
+                    SurvivalSystem.plannableRefuge(bot, HazardType.ON_FIRE, false) == null);
+            String id = bot.getUUID().toString();
+            // ⚠️ **不假设"初始是干净的"**：在 CORE 里整台电池是**同一个任务**，前面的 mine_*/scaffold 等步骤
+            // 早写过世界 ⇒ 这个标志本就是 true（`single:survival_exit` 单跑时才是 false）。
+            // 夹具要断的是**转移**（写请求 ⇒ true；任务边界 clear ⇒ false），不是初始状态。
+            BotLog.info("[Survival] 信封初始值 had={}（电池上下文里可能已被前面的步骤置真，故不当判据）",
+                    WriteEnvelopes.had(id));
+            com.dddgn.alice.pathing.core.search.PathRequest mining =
+                    com.dddgn.alice.pathing.core.search.PathRequest.miningApproach(id,
+                            SurvivalSystem.footCell(bot), SurvivalSystem.footCell(bot).offset(1, 0, 0), "mine-plan");
+            check("信封闸门②：出现写请求（miningApproach）⇒ had=true（推导事实，非手抄名单）",
+                    WriteEnvelopes.had(id));
+            WriteEnvelopes.clear(id);
+            check("信封闸门③：任务边界清空（beginTask 做的就是这件事）⇒ had=false 回到起点",
+                    !WriteEnvelopes.had(id));
+            escapePick = SurvivalSystem.plannableRefuge(bot, HazardType.ON_FIRE, true);
+            check("带逃生准备金就到得了（放置+破坏+PILLAR，上限 8/8）：" + desc(escapePick),
+                    escapePick != null);
+            check("并且预检据实标记「只有动用准备金才到得了」（逃生任务据此选受限请求）",
+                    SurvivalSystem.escapeNeedsWrites(bot));
+            return;
+        }
+        if (phaseTicks >= 5 && escapePick != null && !shaftDone) {
+            if (shaftEscapeTask == null) {
+                shaftEscapeTask = new com.dddgn.alice.task.SurvivalExitTask(bot, escapePick, true);
+            }
+            var status = shaftEscapeTask.tick();
+            if (status == com.dddgn.alice.task.Task.Status.RUNNING && phaseTicks - 4 < SHAFT_BUDGET) {
+                return;
+            }
+            shaftDone = true;
+            check("端到端：逃生任务到达终态（" + status + " " + shaftEscapeTask.terminalReason() + "）",
+                    status == com.dddgn.alice.task.Task.Status.DONE);
+            check("端到端：bot **真的从坑里出来了**（脚位 y=" + foot().getY() + " ≥ 101）",
+                    foot().getY() >= SHAFT_PIT_BOTTOM.getY() + 2);
+            return;
+        }
+        if (phaseTicks >= 5) {
+            bot.controller().stopMovement();
+            teleport(SurvivalCourseAnchor.PLATFORM_FOOT);
+            WriteEnvelopes.clear(bot.getUUID().toString());
+            fillBlocks(SHAFT_CENTER.offset(-5, -5, -4), SHAFT_CENTER.offset(5, 4, 4),
+                    "minecraft:air", 863, "竖坑拆除");
+            normalizeVitals();
+            BotLog.info("[Survival] 竖坑已拆、bot 回平台；本相位完");
             advance(Phase.DONE);
             return;
         }
     }
+
+    /** 竖坑所在实心石块的中心（房间地板层）。 */
+    private static final BlockPos SHAFT_CENTER = new BlockPos(330, 100, 306);
+
+    /** 坑底（bot 站这里；房间地板 = 它的 y+2）。 */
+    private static final BlockPos SHAFT_PIT_BOTTOM = SHAFT_CENTER.below();
+
+    private static final int SHAFT_BUDGET = 240;
+
+    private com.dddgn.alice.task.SurvivalExitTask shaftEscapeTask;
+    private BlockPos escapePick;
+    private boolean shaftDone;
 
     /** 石盒中心（bot 站这里；隔壁空气袋在 +2,+2）。 */
     private static final BlockPos UNREACHABLE_CENTER = new BlockPos(270, 100, 306);
