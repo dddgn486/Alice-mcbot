@@ -263,7 +263,7 @@ public final class PathingBatteryTask implements Task {
                 ? CompletionTolerance.EXACT
                 : CompletionTolerance.COLUMN;
         LiveExecutionContext context = new LiveExecutionContext(bot, bot.serverLevel(), sessionId,
-                0L, 0L, tolerance, "pathing-battery");
+                0L, tolerance, "pathing-battery");
         MovementExecutionFactory.ValidationResult validation = factory.validate(spec, context);
         if (!validation.valid()) {
             record(currentLabel, validation.failureCode());

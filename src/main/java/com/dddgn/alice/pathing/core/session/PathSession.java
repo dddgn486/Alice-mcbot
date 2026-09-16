@@ -376,7 +376,7 @@ public final class PathSession {
             mapFailure(capabilityDenied.get());
             return;
         }
-        LiveExecutionContext context = new LiveExecutionContext(bot, level, sessionId, 0L, 0L,
+        LiveExecutionContext context = new LiveExecutionContext(bot, level, sessionId, 0L,
                 tolerance, request.requester());
         MovementExecutionFactory factory = PlannedMovementSpecs.factoryFor(movement.movementType());
         MovementExecutionFactory.ValidationResult validation = factory.validate(spec, context);

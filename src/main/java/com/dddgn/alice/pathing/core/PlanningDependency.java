@@ -13,8 +13,7 @@ public record PlanningDependency(
         List<BlockPos> fluidPositions,
         List<BlockPos> hazardPositions,
         List<BlockPos> protectedPositions,
-        long worldRevision,
-        long policyVersion
+        long worldRevision
 ) {
     public PlanningDependency {
         checkedPositions = immutable(checkedPositions);
@@ -23,8 +22,8 @@ public record PlanningDependency(
         fluidPositions = immutable(fluidPositions);
         hazardPositions = immutable(hazardPositions);
         protectedPositions = immutable(protectedPositions);
-        if (worldRevision < 0 || policyVersion < 0) {
-            throw new IllegalArgumentException("revisions must be non-negative");
+        if (worldRevision < 0) {
+            throw new IllegalArgumentException("revision must be non-negative");
         }
     }
 

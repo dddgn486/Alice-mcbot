@@ -10800,3 +10800,21 @@ V-4（`contrast_fall`/`contrast_pillar` **从未跑过**：全仓只有登记与
    要给它做判据，需要一个"收集中途撤销授权"的场景/夹具（**新夹具工作量**，本轮不做）。
 2. 因此本轮的 `policy_blocked` **只有正面价值（可观测性）而没有判据**：它不是"测试过的行为"，
    只是"若真发生则如实上报"。台账 J-10 行按此如实标注（**不标"已判据"**）。
+
+### D-264：S-8 收口 —— 删掉零读者的 `policyVersion`（2026-09-16，用户已拍板）
+
+**裁定**：用户选「**删字段**」（`policyVersion` 恒 0 且**全仓零读取者** = 纯装饰；留着只会让"冻结/版本"
+这类语义看起来已经实现）。
+
+**改动**：
+1. `LiveExecutionContext` 去掉 `policyVersion` 分量与对应非负校验（7 个构造点同步去掉该实参）。
+2. `PlanningDependency` 去掉同名分量与校验（5 个夹具构造点 + `PlannedMovementSpecs` 的生产构造点同步）。
+3. **验证**：`grep -rn policyVersion src/main/java` = **0**；`compileJava` 通过；CORE PASS（纯删字段 ⇒ 行为不变，
+   CORE 全绿就是"没有隐藏读者"的行为侧证据 —— 若有读者，编译期就会报错）。
+
+**新增门禁规则 S8-P1**（`check-kernel-predicates.py`，挂 `check-all.sh`）：`policyVersion` **不得无声复活** ——
+要重新引入，**先得有一个读取者**并在决策里说明它决定什么。（可红：把字段加回去即 FAIL。）
+
+**顺带发现（已登记，未动）**：`PlanningDependency` 的**全部 6 个列表分量 + `worldRevision` 也没有任何读取者** ——
+它们被构造、被塞进 `MovementSpec`，然后**没人读**（与 S-8 同类"填了没人读"）。本轮按用户裁定的范围**只删
+`policyVersion`**；整条 `PlanningDependency` 是"删掉"还是"接上真实依赖追踪"，属**新的裁定项**（已写进台账 S-10）。

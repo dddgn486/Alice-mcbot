@@ -75,17 +75,35 @@ def rule_k5():
     return []
 
 
+def rule_s8():
+    """S8-P1（D-264）：`policyVersion` 已按 S-8 裁定**删除**（恒 0 + 全仓零读者 ⇒ 纯装饰）。
+
+    ⇒ 它不得无声复活：要重新引入，**先得有一个读取者**（并在 `AI_DECISIONS` 里说明它决定什么）。
+    """
+    hits = []
+    for path in sorted((ROOT / "src" / "main" / "java").rglob("*.java")):
+        text = path.read_text(encoding="utf-8")
+        if "policyVersion" in text:
+            rel = path.relative_to(ROOT / "src" / "main" / "java")
+            hits.append(f"{rel} 又出现 policyVersion（S-8 已删：先给读取者，再谈重新引入）")
+    return hits
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
+    s8 = rule_s8()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
         print(f"[K5·状态生产] {line}")
-    ok = not k4 and not k5
+    for line in s8:
+        print(f"[S8·死字段] {line}")
+    ok = not k4 and not k5 and not s8
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
-          f"工厂谓词漂移={len(k4)} / 死状态={len(k5)}"
-          f"（K4-P1 = 执行工厂必须用规划侧同一谓词；K5-P1 = 声明了的状态必须有生产者）")
+          f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)}"
+          f"（K4-P1 = 执行工厂必须用规划侧同一谓词；K5-P1 = 声明了的状态必须有生产者；"
+          f"S8-P1 = policyVersion 不得无声复活）")
     return 0 if ok else 1
 
 

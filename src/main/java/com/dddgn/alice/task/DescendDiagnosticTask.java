@@ -77,7 +77,7 @@ public final class DescendDiagnosticTask implements Task {
             bot.controller().stopMovement();
             return false;
         }
-        LiveExecutionContext context = new LiveExecutionContext(bot, bot.serverLevel(), sessionId, 0L, 0L,
+        LiveExecutionContext context = new LiveExecutionContext(bot, bot.serverLevel(), sessionId, 0L,
                 CompletionTolerance.EXACT, "descend-diagnostic");
         DescendExecutionFactory factory = new DescendExecutionFactory();
         DescendExecutionFactory.ValidationResult validation = factory.validate(spec, context);
@@ -102,7 +102,7 @@ public final class DescendDiagnosticTask implements Task {
                 List.of(fromFoot, toFoot, toFoot.above(), toFoot.below()),
                 List.of(toFoot, toFoot.above()), List.of(toFoot.below()),
                 List.of(toFoot, toFoot.below()), List.of(toFoot, toFoot.below()),
-                List.of(), 0L, 0L);
+                List.of(), 0L);
         return new MovementSpec(MovementType.DESCEND, fromFoot, toFoot, 1.2D, capabilities,
                 List.of(), List.of(),
                 List.of("descend_one_level", "target_support", "target_body_clear", "target_head_clear",

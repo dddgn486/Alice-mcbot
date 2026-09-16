@@ -21,6 +21,9 @@
 > 水里自救**不是授权问题**（准备金只是让"写类 Movement"能被规划出来，额度一分没花）。
 > 顺带修掉夹具缺陷：`fillBlocks` 在区块未加载时 `/fill` **静默 0 改动**（本轮真踩到一次，一次红了 8 条判据）
 > ⇒ 现在先 `areaLoaded` 检查、未加载就把 bot 传到区域中心。
+> **D-264（同日，S-8 收口：删掉零读者的 `policyVersion`）**：按用户裁定「删字段」—— `LiveExecutionContext` 与 `PlanningDependency` 的同名位一起删除（12 个构造点同步），`grep` 归零、编译通过、CORE PASS；新门禁 **S8-P1**（不得无声复活，反向对照实测可红）。顺带发现并登记 **S-10**：`PlanningDependency` 的分量（6 个列表 + `worldRevision`）**没有任何读取者**（未修，二选一需裁定）。
+>
+> **⏭ 明日/下次开工（用户已裁定、尚未动手）**：① **S-6** —— `RiskSwitches` 全局静态 → **按 bot 冻结的 `RiskProfile` 容器**（字段先只放现有 1 个开关，消费者逐步迁移；**不做** Job 候选筛选）；② **S-9** —— 危险伤害改由**伤害事件**观测（Forge `LivingHurtEvent`/`LivingDamageEvent`），**先出方案再做**、配可红判据。尚未裁定：**S-10**（`PlanningDependency` 删或接）。等用户客户端轮次：**105/107** Baritone 对照（唯一真验证债，须标注 Alice 多开两个守卫）、**142** 一次零参数右键 `alice:job_launcher`（看 `[Job] launch` 是否出现）。
 > **D-263（同日，J-10 `policy_blocked`：仪器化已接、判据到不了 —— 诚实边界）**：`CollectDropsTask` 的 `retire` 现在把「策略不放行」单独计数/告警/进 `SUMMARY policy_blocked=N` 与 `terminalReason()`（D-134 通路）；但**判据未成** —— 夹具里让主动收集去收 FOREIGN 掉落物时任务 `entities=0/0 ticks=1`（成员按作用域发现 ⇒ 外来不入集合）⇒ 期望分支不可达（相位已撤）；可达场景只剩「跟踪中的掉落物中途被撤授权」（需新夹具）。⚠️ 另发现 **`single:pickup_gate` 单跑本就不成立**（基线同样 FAIL ⇒ EXTRA 步入口不可靠）。
 > **D-262（同日，矩阵 22 行「待测」逐条核证）**：16 行改判（含 6 行 `USER_ACCEPTED`）、5 行仍待测（Baritone 对照 105/107 = 唯一真债）、2 行失效（138 条目已废、211 机制已删）、1 行 `SERVER_TESTED`；并把 **4 处自相矛盾**（顶部权威表 vs 历史行）写进矩阵注记。另：**J-1/J-3 收口** —— `taskKind` 改用 `Task.taskName()`（`stableTaskKind` helper）+ 新门禁 `check-exec-record`（R1 taskKind 必须可追溯到 `taskName()`、R2/R3 `terminalReason`+`botId` 必须进快照与记录，两类注入实测都能红）；`llm_contract` 补判据 `snapshot_terminal_identity`。
 > **D-261（同日，`survival_exit` 火焰判据重建 = 天生易红 → 确定性）**：CORE 偶发红（1/5）根因 = **窗口只覆盖 1 个伤害节拍**（21 tick 窗口 vs 20 tick 节拍）+ **回血恰好抵消火焰伤害** ⇒ 「采样净血量」这条观测**本质上不可判定**（食物清零也关不掉回血 = `aiStep()` 无条件 heal）。修：窗口 ≥3 拍（`max(GRACE+6, 3×20+5)`）+ 前提判据「窗口必须覆盖 ≥2 拍」+ 换用 `hurtTime` **上升沿**命中计数与「命中时 fireTicks>0」归因判据（都与血量无关）；删死代码 `hasFireDamageEvent`。**证据**：单步 PASS ×4（`checks=124 failures=0`，`新命中=4`）、**反向对照**（窗口改回 21t ⇒ 双红）、CORE PASS。**新登记 S-9**：生产侧危险事件按血量差记录 ⇒ 被回血抹平的伤害不可见（未修，需立项）。
@@ -303,7 +306,11 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 - **客户端**：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - **镜像 / 同步**：`./tools/mirror-windows-workspace.sh`；
   `./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`。
-- **本断点已同步的 jar**：`141f7d5a3685399e6885cf3300ad044d6145679a424e2cf858d172c66afad91a`（2026-09-16 23:1x；**含 D-226…D-263**，客户端与 Windows 仓库同哈希；场景数据包 113 个函数）
+- **本断点已同步的 jar**：`af1224ae8ee972f695ffce988213e3572075a6d6dc3e5f965c66d017355b7826`（2026-09-16 23:5x；**含 D-226…D-264**（今日收工版），客户端与 Windows 仓库同哈希；场景数据包 113 个函数）
+- 上一版（D-226…D-263）：`141f7d5a3685399e6885cf3300ad044d6145679a424e2cf858d172c66afad91a`
+- 上一版（D-226…D-261）：`b5d0fe0fca98681dd00f74d9c224fddfa8a67652fa4cfabad3293db8b6d407cd`
+- 上一版（D-226…D-259）：`8608d18796ea226f5f32ac57a2a1c77598d43cdfc0e184e4817faa04cfbd1f6b`
+- 上一版（D-226…D-258）：客户端与 Windows 仓库同哈希；场景数据包 113 个函数）
 - 上一版（D-226…D-261）：`b5d0fe0fca98681dd00f74d9c224fddfa8a67652fa4cfabad3293db8b6d407cd`
 - 上一版（D-226…D-259）：`8608d18796ea226f5f32ac57a2a1c77598d43cdfc0e184e4817faa04cfbd1f6b`
 - 上一版（D-226…D-258）：客户端与 Windows 仓库同哈希；场景数据包 113 个函数）

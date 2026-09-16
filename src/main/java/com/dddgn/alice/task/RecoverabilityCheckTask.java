@@ -184,7 +184,7 @@ public class RecoverabilityCheckTask implements Task {
                 List.of(from, to, to.above(), to.below()),
                 List.of(to, to.above()), List.of(to.below()),
                 List.of(to, to.below()), List.of(to, to.below()),
-                List.of(), 0L, 0L);
+                List.of(), 0L);
         return new MovementSpec(MovementType.TRAVERSE, from, to, 1.0D,
                 MovementCapabilities.pureTraversal(RecoverabilityLevel.PATH_REVERSIBLE,
                         IntrinsicReversibility.REVERSIBLE),

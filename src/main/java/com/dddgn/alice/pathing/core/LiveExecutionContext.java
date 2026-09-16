@@ -12,7 +12,6 @@ public record LiveExecutionContext(
         ServerLevel level,
         String sessionId,
         long currentWorldRevision,
-        long policyVersion,
         CompletionTolerance tolerance,
         String requester
 ) {
@@ -23,7 +22,7 @@ public record LiveExecutionContext(
         if (sessionId.isBlank()) {
             throw new IllegalArgumentException("sessionId must not be blank");
         }
-        if (currentWorldRevision < 0 || policyVersion < 0) {
+        if (currentWorldRevision < 0) {
             throw new IllegalArgumentException("revisions must be non-negative");
         }
         tolerance = tolerance == null ? CompletionTolerance.EXACT : tolerance;

@@ -57,7 +57,7 @@ public final class PlannedMovementSpecs {
                 List.of(movement.fromFoot(), to, to.above(), to.below()),
                 List.of(to, to.above()), List.of(to.below()),
                 List.of(to, to.below()), List.of(to, to.below()),
-                List.of(), 0L, 0L);
+                List.of(), 0L);
         return new MovementSpec(movement.movementType(), movement.fromFoot(), to,
                 movement.cost(), capabilities, List.of(), List.of(), planningFacts,
                 dependency, assessment.level(), factoryKey(movement.movementType()));

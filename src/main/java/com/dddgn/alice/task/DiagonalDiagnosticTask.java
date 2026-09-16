@@ -77,7 +77,7 @@ public final class DiagonalDiagnosticTask implements Task {
             bot.controller().stopMovement();
             return false;
         }
-        LiveExecutionContext context = new LiveExecutionContext(bot, bot.serverLevel(), sessionId, 0L, 0L,
+        LiveExecutionContext context = new LiveExecutionContext(bot, bot.serverLevel(), sessionId, 0L,
                 CompletionTolerance.EXACT, "diagonal-diagnostic");
         DiagonalExecutionFactory factory = new DiagonalExecutionFactory();
         DiagonalExecutionFactory.ValidationResult validation = factory.validate(spec, context);
@@ -102,7 +102,7 @@ public final class DiagonalDiagnosticTask implements Task {
                 List.of(fromFoot, toFoot, toFoot.above(), toFoot.below()),
                 List.of(toFoot, toFoot.above()), List.of(toFoot.below()),
                 List.of(toFoot, toFoot.below()), List.of(toFoot, toFoot.below()),
-                List.of(), 0L, 0L);
+                List.of(), 0L);
         return new MovementSpec(MovementType.DIAGONAL, fromFoot, toFoot, 1.414D, capabilities,
                 List.of(), List.of(),
                 List.of("same_level_diagonal_step", "target_support", "target_body_clear", "target_head_clear", "side_clear"),
