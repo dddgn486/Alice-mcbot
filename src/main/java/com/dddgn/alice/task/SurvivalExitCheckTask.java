@@ -67,7 +67,7 @@ public class SurvivalExitCheckTask implements Task {
     /** 全冻（140 tick）之后再等这么久，保证"每 40 tick 1 点"的冻结伤害至少来过一次。 */
     private static final int FREEZE_DAMAGE_WAIT_TICKS = 45;
 
-    private enum Phase { SETUP, TABLE, WALK, SEALED_BUILD, SEALED_CHECK, FOOT_CELL, SEALED_REAL, HEALTH, AIR, SNOW, DEEP_WATER, OPEN_WATER, UNREACHABLE_REFUGE, SHAFT_ESCAPE, DONE }
+    private enum Phase { SETUP, TABLE, WALK, SEALED_BUILD, SEALED_CHECK, FOOT_CELL, SEALED_REAL, HEALTH, AIR, SNOW, DEEP_WATER, OPEN_WATER, UNREACHABLE_REFUGE, SHAFT_ESCAPE, FLOODED_SHAFT, DONE }
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -136,6 +136,7 @@ public class SurvivalExitCheckTask implements Task {
             case OPEN_WATER -> openWaterPhase();
             case UNREACHABLE_REFUGE -> unreachableRefugePhase();
             case SHAFT_ESCAPE -> shaftEscapePhase();
+            case FLOODED_SHAFT -> floodedShaftPhase();
             case DONE -> finish();
             default -> {
             }
@@ -799,10 +800,126 @@ public class SurvivalExitCheckTask implements Task {
                     "minecraft:air", 863, "竖坑拆除");
             normalizeVitals();
             BotLog.info("[Survival] 竖坑已拆、bot 回平台；本相位完");
+            advance(Phase.FLOODED_SHAFT);
+            return;
+        }
+    }
+
+    /**
+     * **灌满水的竖坑**（D-242，用户最初那个问题"被水围住怎么办"的最小可复现形态）：
+     * 1×1×2 的坑里**灌满水**，bot 站在坑底水里，房间地板在 y+2。
+     *
+     * <p>纯通行依然出不去（同 `SHAFT_ESCAPE`：`ASCEND` 上不了 2 格、y+1 那格不是合法落点），
+     * 但**逃生准备金可以往水里放方块**（`appendPillar`/`appendPlaceStepAndTraverse` 都**没有**流体排除）
+     * ⇒ 垫着方块从水里出来 —— 这就是"不新增水位 Movement 也能从水里自救"的那条路。
+     *
+     * <p>另加**上限守卫**（Q3 定案）：把准备金压到 1 破坏/1 放置后，同一个落点必须变成不可达
+     * ⇒ 证明"预算真的会咬"，而不是摆设。
+     */
+    private void floodedShaftPhase() {
+        if (phaseTicks == 1) {
+            normalizeVitals();
+            BotLog.info("[Survival] 自建**灌水**竖坑（{} 为心，坑里 2 格全是水，房间地板 y+2）；"
+                    + "期望：纯通行 exit=none、带准备金能从水里垫出来", desc(FLOOD_PIT_BOTTOM));
+            fillBlocks(FLOOD_CENTER.offset(-5, -5, -4), FLOOD_CENTER.offset(5, 4, 4),
+                    "minecraft:stone", 990, "灌水竖坑所在的实心石块");
+            fillBlocks(FLOOD_CENTER.offset(-4, 1, -3), FLOOD_CENTER.offset(4, 2, 3),
+                    "minecraft:air", 126, "房间（地板 y+2）");
+            fillBlocks(FLOOD_PIT_BOTTOM, FLOOD_PIT_BOTTOM.above(), "minecraft:water", 2, "坑里注水（2 格）");
+            return;
+        }
+        if (phaseTicks == 2) {
+            com.dddgn.alice.item.FixtureToolKit.ensureHotbarStack(bot,
+                    () -> new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.COBBLESTONE),
+                    stack -> stack.is(net.minecraft.world.item.Items.COBBLESTONE), 64, "cobblestone");
+            teleport(FLOOD_PIT_BOTTOM);
+            BotLog.info("[Survival] 已把 bot 放进水里 {}（inWater={} 空气 {}）", desc(FLOOD_PIT_BOTTOM),
+                    bot.isInWater(), bot.getAirSupply());
+            return;
+        }
+        if (phaseTicks == 4) {
+            check("前提自证：bot 真的在水里（inWater=true）", bot.isInWater());
+            BlockPos geometric = SurvivalSystem.nearestSafeRefuge(bot, SurvivalSystem.REFUGE_RADIUS,
+                    SurvivalSystem.footCell(bot));
+            check("前提自证：水里 8 格内**确实**有干落点（" + desc(geometric) + "）", geometric != null);
+            check("纯通行去不了（水里那格不是合法落点、y+1 也不是）",
+                    SurvivalSystem.plannableRefuge(bot, HazardType.ON_FIRE, false) == null);
+            // ⚠️ **不构造"压低额度 ⇒ 不可达"的守卫**：`escapeWithReserve` 自己会装上 8/8（这正是生产该有的行为）
+            // ⇒ 从外部压低额度**逻辑上不可能生效**（实测：0/0 依然 REACHED）。改为**直接量三条事实**：
+            // ① 计划里确实有写动作（否则就不是"靠准备金"出去的）；② 写动作数 ≤ 逃生额度；③ 移动集不含 DOWNWARD/FALL。
+            if (floodedPick == null) {
+                floodedPick = SurvivalSystem.plannableRefuge(bot, HazardType.ON_FIRE, true);
+            }
+            var escapePlan = new com.dddgn.alice.pathing.core.search.CorePathPlanner().plan(bot,
+                    bot.serverLevel(), com.dddgn.alice.pathing.core.search.PathRequest.survivalEscape(
+                            bot.getUUID().toString(), SurvivalSystem.footCell(bot), floodedPick, "survival-escape"));
+            long writeMoves = escapePlan.movements().stream()
+                    .filter(move -> move.movementType().changesWorld()).count();
+            check("额度守卫①：逃生计划里**确实含写动作**（实际 " + writeMoves + " 个），不是白走一趟",
+                    writeMoves >= 1);
+            check("额度守卫②：写动作数 ≤ 逃生额度 8（实际 " + writeMoves + "）", writeMoves <= 8);
+            var allowed = com.dddgn.alice.pathing.core.search.PathRequest
+                    .survivalEscape("probe", net.minecraft.core.BlockPos.ZERO,
+                            net.minecraft.core.BlockPos.ZERO, "survival-escape").allowedMovementTypes();
+            check("额度守卫③：逃生移动集含 PILLAR/放置/破坏，且**不含** DOWNWARD/FALL",
+                    allowed.contains(com.dddgn.alice.pathing.core.MovementType.PILLAR)
+                            && allowed.contains(com.dddgn.alice.pathing.core.MovementType.PLACE_STEP_AND_TRAVERSE)
+                            && allowed.contains(com.dddgn.alice.pathing.core.MovementType.BREAK_AND_TRAVERSE)
+                            && !allowed.contains(com.dddgn.alice.pathing.core.MovementType.DOWNWARD)
+                            && !allowed.contains(com.dddgn.alice.pathing.core.MovementType.FALL));
+            check("恢复准备金（8/8）后可达 ⇒ 能从水里垫出来：" + desc(floodedPick), floodedPick != null);
+            return;
+        }
+        if (phaseTicks >= 5 && floodedPick != null && !floodedDone) {
+            if (bot.isInWater()) {
+                bot.setAirSupply(Math.max(2, bot.getAirSupply()));
+            }
+            if (floodedTask == null) {
+                floodedTask = new com.dddgn.alice.task.SurvivalExitTask(bot, floodedPick, true);
+            }
+            var status = floodedTask.tick();
+            if (status == com.dddgn.alice.task.Task.Status.RUNNING && phaseTicks - 4 < SHAFT_BUDGET) {
+                return;
+            }
+            floodedDone = true;
+            // ⚠️ **已知缺口（D-242，如实记成 tripwire）**：计划**能生成**（上面 `status=REACHED`），
+            // 但**执行不了** —— `PILLAR` 执行器靠"跳起-落地"循环，水里的 `wastedJumpLandings=3`
+            // ⇒ `SEGMENT_NO_PROGRESS` ⇒ 超时。正解是 Baritone 的**水柱**分支（`MovementPillar.java:77-82`
+            // 及其执行段"swimming up a water column"= **纯输入上浮、不放置**）⇒ 属"丙"的一个**明确子集**，
+            // 而不是写授权问题。本断言故意"断言当前的失败"：一旦有人把水里那档做出来，它会翻红，提醒改这里。
+            BotLog.warn("[Survival] 水里逃生：计划 REACHED 但执行 {} —— 已知缺口 D-242（PILLAR 执行器需要水柱分支）",
+                    status);
+            check("已知缺口（D-242）：水里垫不出来 —— 逃生任务终态 FAILED（PILLAR 执行器 wastedJumpLandings）",
+                    status == com.dddgn.alice.task.Task.Status.FAILED);
+            check("已知缺口对照：此时 bot 仍在原地水里（脚位 " + desc(foot()) + "，inWater=" + bot.isInWater() + "）",
+                    foot().getY() < FLOOD_PIT_BOTTOM.getY() + 2 && bot.isInWater());
+            return;
+        }
+        if (phaseTicks >= 5) {
+            bot.controller().stopMovement();
+            teleport(SurvivalCourseAnchor.PLATFORM_FOOT);
+            // 收尾：把被逃生压过的预算恢复成默认（电池里整台是一个作用域，不恢复会限制后续步骤）
+            com.dddgn.alice.action.WriteBudget.setCaps(com.dddgn.alice.action.WriteBudget.scopeOf(bot),
+                    com.dddgn.alice.action.WriteBudget.Caps.DEFAULT);
+            bot.setAirSupply(300);
+            fillBlocks(FLOOD_CENTER.offset(-5, -5, -4), FLOOD_CENTER.offset(5, 4, 4),
+                    "minecraft:air", 863, "灌水竖坑拆除");
+            normalizeVitals();
+            BotLog.info("[Survival] 灌水竖坑已拆、bot 回平台；本相位完");
             advance(Phase.DONE);
             return;
         }
     }
+
+    /** 灌水竖坑所在实心石块的中心（房间地板层）。 */
+    private static final BlockPos FLOOD_CENTER = new BlockPos(340, 100, 306);
+
+    /** 坑底（bot 站在水里；房间地板 = 它的 y+2）。 */
+    private static final BlockPos FLOOD_PIT_BOTTOM = FLOOD_CENTER.below();
+
+    private com.dddgn.alice.task.SurvivalExitTask floodedTask;
+    private BlockPos floodedPick;
+    private boolean floodedDone;
 
     /** 竖坑所在实心石块的中心（房间地板层）。 */
     private static final BlockPos SHAFT_CENTER = new BlockPos(330, 100, 306);

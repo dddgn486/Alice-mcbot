@@ -239,7 +239,7 @@ S0 事实表 ✅ → S1 设备事实表 ✅ → **S2 进表 ✅（`MachineMap` 3
   + 封闭水牢判据 + "水里逃生"缺口登记）/ **D-237**（"乙"：溺水先**上浮自救**，纯输入不新增 Movement）/
   **D-238**（出口从"几何存在"升级为**可规划**：别再为一个走不到的落点杀任务）。D-226/228/229/236 已 `WINDOWS_CLIENT`。
   零参数入口：`alice:survival_exit_check`（右键窒息 / Shift+右键着火）、
-  `alice:survival_full_check`（一次右键跑完全部 **99** 条判据 ⇒ 聊天里看 `SUMMARY checks=99 failures=0 → PASS`）。
+  `alice:survival_full_check`（一次右键跑完全部 **112** 条判据 ⇒ 聊天里看 `SUMMARY checks=112 failures=0 → PASS`）。
 - **决策/快照线（同日）**：D-233（`decision_contract` 提档 MAIN + 本文件过时段落重写）、D-234（四个 Job 统一
   "子阶段失败"口径）、D-235（挂起传输"结清落盘"：持久化成立 + 跨重启幂等）。
 - **D-230 的自我修正**：我一度判断"bot 的血只减不增、必须补 `doTick()`"，实测**推翻**了它（`Player.aiStep()`

@@ -105,6 +105,24 @@ public final class WriteBudget {
         return com.dddgn.alice.ledger.WorldModLedger.currentScope(bot.getServer(), bot.getUUID());
     }
 
+    /**
+     * **逃生准备金**（D-241/D-242，**生产入口**）：把当前作用域的写入上限**压到**准备金额度上。
+     *
+     * <p>与下面那个"夹具专用 `setCaps`"**刻意分开命名**：逃生是**已登记**的显式写授权入口
+     * （策略表 P-23/P-24 + 理由码 + 账本），它必须走一个自己名字的生产 API，而不是借夹具的后门。
+     *
+     * <p>生命周期：逃生会**替换掉**当前任务 ⇒ 任务边界之后是新作用域（`WorldModLedger.openScope`），
+     * 所以这个上限不会泄漏到后续任务；作用域收尾时由 `closeScope` 清账。
+     */
+    public static void capForEscape(String scopeId, int maxBreaks, int maxPlaces) {
+        if (scopeId == null) {
+            return;
+        }
+        CAPS.put(scopeId, new Caps(maxBreaks, maxPlaces, 0));
+        BotLog.warn("[WriteBudget] 逃生准备金已装上：scope={} 上限 破坏={} 放置={}（逃生专用，作用域收尾即清）",
+                scopeId, maxBreaks, maxPlaces);
+    }
+
     /** 覆写某个作用域的上限（**夹具专用**：构造"预算不足"自检，不接玩家命令入口）。 */
     public static void setCaps(String scopeId, Caps caps) {
         if (scopeId == null) {

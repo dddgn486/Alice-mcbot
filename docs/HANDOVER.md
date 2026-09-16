@@ -10,6 +10,16 @@
 
 ## 1. 一句话现状（2026-09-15 上午）
 
+> **2026-09-16（本日进展，最新）** —— 落地 **D-241 逃生准备金**（提案 B 第一步：信封轴 + `survivalEscape`
+> + 策略表 P-23/P-24 + 阶梯用法 + 上限 8/8；判据 `SHAFT_ESCAPE` 竖坑真垫出来）与 **D-242 水里那档**。
+> **D-242 改变了水里工作的排期（重要）**：灌水竖坑场景逼出——写准备金在水里**规划得到、执行不了**
+> （`PILLAR` 执行器是跳起-落地式 ⇒ `wastedJumpLandings` ⇒ `SEGMENT_NO_PROGRESS`）⇒ 水里自救的正解不是写授权，
+> 而是**"水柱"这一小块内核**：对齐 Baritone `MovementPillar.java:77-82` + 执行段"swimming up a water column"
+> = **纯输入上浮、不放置**；**不需要**动合法位置集/成本模型（坑底"水+实心底"本就是合法脚位）⇒ 比整个"丙"小得多，
+> 且**夹具已就位**（`FLOODED_SHAFT`，当前以 tripwire 记录"水里执行失败"）。
+> **门槛**：`single:survival_exit` **checks=112 failures=0** ✅ / **CORE `(38/38) → PASS`** ✅ /
+> `check-all.sh` **9 PASS + 1 预期 WARN** ✅。**下一步首选**：把 `PILLAR`/`ASCEND` 执行器在水里改成"上浮"（上句那一小块）。
+
 > **2026-09-16（本日进展）** —— 用户批准了提案 B 的五条（**D-239**），并落地第一步 **D-241「逃生准备金」**：
 > 轴 = **任务信封**（`pathing/core/WriteEnvelopes`，推导事实不维护名单）+ `PathRequest.survivalEscape`
 > （放置 + 破坏 + `PILLAR`，**不含** `DOWNWARD`/`FALL`）+ 策略表 **P-23/P-24** + 阶梯用法（只在纯通行
@@ -237,7 +247,8 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 - **客户端**：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - **镜像 / 同步**：`./tools/mirror-windows-workspace.sh`；
   `./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`。
-- **本断点已同步的 jar**：`872c30fdedc1a2b74ae921f741c38f4607f0114dc572d5813ad3c50548aa1dcd`（2026-09-16；**含 D-226…D-241**）
+- **本断点已同步的 jar**：`9738e6fca2b07ede8b985b29a6199372b205ede61bb08071b1cba6b997eaa594`（2026-09-16；**含 D-226…D-242**）
+- 上一批 jar（含 D-241）：`872c30fdedc1a2b74ae921f741c38f4607f0114dc572d5813ad3c50548aa1dcd`
 - 上一批 jar（含 D-238）：`a5f758902b4160be3b69af3ea7d57ff5bd581aeaaedd62b99e6cfdd89a65c600`
 - 上一批 jar（含 D-236）：`e05b3492eeee7edf289260204a70e11b4f1dd52bf1b29929989c3ac9a1548d0f`
 - 上一个 jar（23:4x，含 D-236）：`63f84e7719b8ab0bd2ad556a4222aed27aa7e04996359d1f624b29be9aba8ef0`

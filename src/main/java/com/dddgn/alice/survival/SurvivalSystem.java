@@ -239,8 +239,8 @@ public final class SurvivalSystem {
      * 下一个任务开始时由 `BotSession.beginTask` 清掉（逃生本身会把当前任务结束掉）。
      */
     private static boolean escapeWithReserve(ServerPlayer bot, BlockPos foot, BlockPos refuge) {
-        com.dddgn.alice.action.WriteBudget.setCaps(com.dddgn.alice.action.WriteBudget.scopeOf(bot),
-                new com.dddgn.alice.action.WriteBudget.Caps(ESCAPE_MAX_BREAKS, ESCAPE_MAX_PLACES, 0));
+        com.dddgn.alice.action.WriteBudget.capForEscape(
+                com.dddgn.alice.action.WriteBudget.scopeOf(bot), ESCAPE_MAX_BREAKS, ESCAPE_MAX_PLACES);
         var request = com.dddgn.alice.pathing.core.search.PathRequest
                 .survivalEscape(bot.getUUID().toString(), foot, refuge, "survival-escape");
         var plan = new com.dddgn.alice.pathing.core.search.CorePathPlanner()
