@@ -16,6 +16,8 @@ public final class AscendExecution implements MovementExecution {
     private final String botId;
     private final String sessionId;
     private final CompletionTolerance tolerance;
+    /** 浮着段（目的格与下面都是水）：完成口径改为"脚位到格"（水里没有 `onGround`，D-251）。 */
+    private final boolean floatingDestination;
     private Phase phase = Phase.NOT_STARTED;
     private String failureCode;
     private int settlingTicks = 0;
@@ -28,6 +30,7 @@ public final class AscendExecution implements MovementExecution {
         this.botId = bot.getUUID().toString();
         this.sessionId = context.sessionId();
         this.tolerance = context.tolerance();
+        this.floatingDestination = MovementHelper.isFloatingDestination(level, spec.toFoot());
     }
 
     @Override
@@ -83,8 +86,10 @@ public final class AscendExecution implements MovementExecution {
             // D-243：**水里按住跳跃**（与 `PillarExecution` 同一档、同一理由）：原版水里按住跳跃即上浮，
             // 而一次性 `jumpOnce` 在水里抬不到 1 格 ⇒ 落回同一格 ⇒ 实测 `wastedJumpLandings=3`
             // ⇒ `SEGMENT_NO_PROGRESS`。水里也不需要陆地那套"先对准再跳"的门控（那是防斜跳落回原地的）。
-            if (MovementHelper.isWater(level, MovementHelper.footCell(level, bot))) {
-                bot.controller().setJumping(MovementHelper.footCell(level, bot).getY() < spec.toFoot().getY());
+            if (MovementHelper.shouldHoldJumpInWater(level, bot, spec.toFoot())) {
+                bot.controller().setJumping(true);   // D-251：口径收进 MovementHelper（唯一定义）
+            } else if (MovementHelper.isWater(level, MovementHelper.footCell(level, bot))) {
+                bot.controller().setJumping(false);
             } else if (shouldJump()) {
                 bot.controller().jumpOnce();
             }
@@ -171,6 +176,9 @@ public final class AscendExecution implements MovementExecution {
     }
 
     private boolean postconditionHolds() {
+        if (floatingDestination && MovementHelper.isAtFootCell(level, bot, spec.toFoot())) {
+            return true;   // 浮着段：脚位到格即成功（水里没有 onGround，D-251）
+        }
         // D-027：容差由会话指定（中间段 COLUMN、最终段 EXACT），执行器不得自行硬编码
         return tolerance == CompletionTolerance.COLUMN
                 ? MovementHelper.isAtFootColumn(level, bot, spec.toFoot())

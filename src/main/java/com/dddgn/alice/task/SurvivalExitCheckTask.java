@@ -902,14 +902,19 @@ public class SurvivalExitCheckTask implements Task {
             check("前提自证：水柱上面那一格**不是水**（" + desc(FLOOD_PIT_BOTTOM.above(2))
                             + "）⇒ 出水那一段仍得靠放置",
                     !com.dddgn.alice.pathing.MovementHelper.isWater(lvl, FLOOD_PIT_BOTTOM.above(2)));
+            // 路线形状**不作断言**（D-251 更正）：切片 B 落地后，同一场景里"水柱 `PILLAR`"（D-244）与
+            // "破开侧壁 + 升到水面格"两条路**都自洽**，选哪条由成本决定（CORE 上下文里挖掘那条更便宜）。
+            // 需求是"**从水里出来且不靠放置**"（下面的端到端 + 省料判据），不是某一条具体路线。
+            // 这里改为两条**与路线无关**的前提：① 计划**自洽**（D-250 的口径在同一现场的第二处独立见证 ——
+            // D-248 那次它就是红的）；② 计划从坑底起步。
+            check("前提自证：逃生计划**自洽**（没有\u201C后面的段踩在自己挖掉的格子上\u201D，D-250/D-251）",
+                    com.dddgn.alice.pathing.core.search.SelfWriteConsistency
+                            .firstConflict(lvl, escapePlan.movements()) == null);
             var firstMove = escapePlan.movements().isEmpty() ? null : escapePlan.movements().get(0);
-            check("前提自证：计划第一段就是**水柱里的 PILLAR**（"
+            check("前提自证：计划从**坑底**起步（"
                             + (firstMove == null ? "无" : firstMove.movementType() + " " + desc(firstMove.fromFoot())
-                            + "→" + desc(firstMove.toFoot())) + "）⇒ 省料分支真的在这条路上",
-                    firstMove != null
-                            && firstMove.movementType() == com.dddgn.alice.pathing.core.MovementType.PILLAR
-                            && com.dddgn.alice.pathing.MovementHelper.isWater(lvl, firstMove.fromFoot())
-                            && com.dddgn.alice.pathing.MovementHelper.isWater(lvl, firstMove.toFoot()));
+                            + "→" + desc(firstMove.toFoot())) + "）",
+                    firstMove != null && firstMove.fromFoot().equals(FLOOD_PIT_BOTTOM));
             return;
         }
         if (phaseTicks >= 5 && floodedPick != null && !floodedDone) {

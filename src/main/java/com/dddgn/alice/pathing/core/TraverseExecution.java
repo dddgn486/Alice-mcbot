@@ -16,6 +16,8 @@ public final class TraverseExecution implements MovementExecution {
     private final String botId;
     private final String sessionId;
     private final CompletionTolerance tolerance;
+    /** 浮着段（目的格与下面都是水）：完成口径改为"脚位到格"（水里没有 `onGround`，D-251）。 */
+    private final boolean floatingDestination;
     private Phase phase = Phase.NOT_STARTED;
     private String failureCode;
 
@@ -26,6 +28,7 @@ public final class TraverseExecution implements MovementExecution {
         this.botId = bot.getUUID().toString();
         this.sessionId = context.sessionId();
         this.tolerance = context.tolerance();
+        this.floatingDestination = MovementHelper.isFloatingDestination(level, spec.toFoot());
     }
 
     @Override
@@ -117,6 +120,9 @@ public final class TraverseExecution implements MovementExecution {
     }
 
     private boolean postconditionHolds() {
+        if (floatingDestination && MovementHelper.isAtFootCell(level, bot, spec.toFoot())) {
+            return true;   // 浮着段：脚位到格即成功（水里没有 onGround，D-251）
+        }
         // D-026 统一完成契约：脚位正确 + 落地 + 水平到位
         // D-027：容差由会话指定（中间段 COLUMN、最终段 EXACT），执行器不得自行硬编码
         return tolerance == CompletionTolerance.COLUMN
@@ -144,6 +150,9 @@ public final class TraverseExecution implements MovementExecution {
         bot.setYBodyRot(yaw);
         bot.controller().setForward(1.0F);
         bot.controller().setStrafing(0.0F);
+        // D-251：**水里按住跳跃**（横渡水面格时脚位会低于目的格 ⇒ 原版上浮；对照 Baritone
+        // `MovementTraverse:243-248`）。不加这条时 bot 在水面格里下沉 ⇒ 完成口径永远不成立。
+        bot.controller().setJumping(MovementHelper.shouldHoldJumpInWater(level, bot, spec.toFoot()));
     }
 
     private void fail(String reason) {

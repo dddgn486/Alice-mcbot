@@ -49,6 +49,12 @@ public final class MovementHelper {
     public static boolean canWalkOn(ServerLevel level, BlockPos footPos) {
         BlockPos belowPos = footPos.below();
         BlockState below = level.getBlockState(belowPos);
+        // **水位例外**（切片 B，D-251；对照 Baritone `canWalkOnPosition:432-448`）：下面是水时，
+        // **"我这一格也是水"才算支撑** —— 假人靠按住跳跃浮在水面（D-243），所以**有意收窄到只认"水面格"**
+        // （`!isWater(footPos.above())`）：潜不到水里 ⇒ 合法位置集只放执行器真到得了的格子（K-4 可规划即可执行）。
+        if (below.getFluidState().is(net.minecraft.tags.FluidTags.WATER)) {
+            return isWater(level, footPos) && !isWater(level, footPos.above());
+        }
         if (below.isAir() || below.getFluidState().isSource() || avoidWalkingInto(below)) {
             return false;
         }
@@ -126,6 +132,33 @@ public final class MovementHelper {
      */
     public static boolean isWater(net.minecraft.world.level.Level level, BlockPos pos) {
         return level.getFluidState(pos).is(net.minecraft.tags.FluidTags.WATER);
+    }
+
+    /** **浮着段**（切片 B）：目的格与它下面那格都是水 ⇒ 执行期拿不到 `onGround`（水里永远为假）。 */
+    public static boolean isFloatingDestination(ServerLevel level, BlockPos footPos) {
+        return isWater(level, footPos) && isWater(level, footPos.below());
+    }
+
+    /**
+     * **浮着段的完成口径**（D-244 的 `PILLAR` 水柱口径推广到 TRAVERSE/DESCEND/ASCEND）：脚位到格即成功。
+     *
+     * <p>⚠️ **只对 {@link #isFloatingDestination} 生效**：蹚水（下面实心）时 bot 站在水底、`onGround` 成立，
+     * 套上它会在格边界提前宣布完成 ⇒ 被水推回上一格 ⇒ 平白多出 STALE 重规划（D-248 实测踩到）。
+     */
+    public static boolean isAtFootCell(ServerLevel level, net.minecraft.world.entity.Entity entity,
+                                       BlockPos footPos) {
+        return footCell(level, entity).equals(footPos);
+    }
+
+    /**
+     * **水里要不要按住跳跃**（D-243/D-251，唯一定义；对照 Baritone `MovementTraverse:243-248`：
+     * `feet.getY() < dest.getY()` ⇒ `Input.JUMP`）。原版水里按住跳跃＝上浮；到高度就松开 ⇒ 不连跳。
+     * 陆地那套"先对准再跳"的门控不适用于水（那是防斜跳落回原地的）。
+     */
+    public static boolean shouldHoldJumpInWater(ServerLevel level, net.minecraft.world.entity.Entity entity,
+                                                BlockPos targetFoot) {
+        BlockPos foot = footCell(level, entity);
+        return isWater(level, foot) && foot.getY() < targetFoot.getY();
     }
 
     /** 该格能否穿过(身体格):空气或可穿过方块,且非危险。 */

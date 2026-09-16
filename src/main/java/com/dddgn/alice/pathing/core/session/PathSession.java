@@ -114,6 +114,21 @@ public final class PathSession {
         // 段间稳定：松输入并等待落地/减速，避免上一段动量把下一段起点带偏（Baritone settle 语义）
         if (settleTicks > 0) {
             settleTicks--;
+            // **D-251 段间浮着**：settle 原本一律 `stopMovement()`（那会**清掉跳跃输入**）。在**水里浮着**的
+            // 段之间这等于松开跳跃 ⇒ bot 下沉/被邻格流过来的水推走 ⇒ 下一段判 `STALE_START`（实测：切片 B 的
+            // 灌水坑路线，段末停在浮着的水面格，settle 的 10 tick 里被水推到 `341,100,306` 再沉到 `341,99,306`）。
+            // 水里改成"零水平输入 + 按需要继续按住跳跃"，口径与执行器同源（`shouldHoldJumpInWater`）；
+            // 已经在下一段起点格上就提前结束 settle（水里没有"落地"可等）。
+            if (nextSegmentStartsFloating()) {
+                BlockPos nextFrom = movements.get(index).fromFoot();
+                bot.controller().setForward(0.0F);
+                bot.controller().setStrafing(0.0F);
+                bot.controller().setJumping(MovementHelper.shouldHoldJumpInWater(level, bot, nextFrom));
+                if (MovementHelper.footCell(level, bot).equals(nextFrom)) {
+                    settleTicks = 0;
+                }
+                return status;
+            }
             bot.controller().stopMovement();
             double horizontalSpeed = bot.getDeltaMovement().horizontalDistance();
             if (settleTicks == 0 || (bot.onGround() && horizontalSpeed < 0.05D)) {
@@ -130,11 +145,18 @@ public final class PathSession {
                 logRecoverability();
                 return status;
             }
+            // **D-251：等起步时也要浮着**。下一段的起点是"浮着的水面格"、而 bot 已经沉到水下时，
+            // 按住跳跃把它浮上来再起步（settle 只有 10 tick，浮 2~3 格需要更多 ⇒ 只靠 settle 会卡在
+            // "起点不符"的空转里，实测深水池 3 格深：`TRAVERSE_STALE_START` + 空转 57 tick）。
+            boolean floatingUp = floatUpToSegmentStart();
             if (++startSlotTicks > segmentTimeoutTicks()) {
                 BotLog.warn("[R4 Session] segment_stall session={} index={} kind=start_timeout {}",
                         sessionId, index, describeStall(index));
                 fail(PathSessionStatus.TIMEOUT, "SEGMENT_START_TIMEOUT");
                 return status;
+            }
+            if (floatingUp) {
+                return status;   // 还在浮上去的路上：本 tick 不起步（超时仍照常累计 ⇒ 不会无限等）
             }
             startSegment();
             return status;
@@ -501,8 +523,12 @@ public final class PathSession {
      */
     private void handleFailure(String code) {
         String failure = code == null ? "MOVEMENT_FAILED" : code;
-        // 空中不处理：等落地再判定，避免从下落中的位置产生失真判断
-        if (!bot.onGround() && !failure.contains("TIMEOUT") && !failure.contains("CANCELLED")) {
+        // 空中不处理：等落地再判定，避免从下落中的位置产生失真判断。
+        // ⚠️ **水里没有"落地"**（D-251 实测）：`onGround()` 在浮着时永远为假 ⇒ 原判据会把水里的段失败
+        // **静默吞掉** —— 会话既不能失败也不能前进，空转到 bot 沉底踩到地面才报错（实测深水池：空转 ~57 tick）。
+        boolean inWater = MovementHelper.isWater(level, MovementHelper.footCell(level, bot));
+        if (!bot.onGround() && !inWater
+                && !failure.contains("TIMEOUT") && !failure.contains("CANCELLED")) {
             return;
         }
         mapFailure(failure);
@@ -616,6 +642,39 @@ public final class PathSession {
         }
         wasOnGround = onGround;
         return false;
+    }
+
+    /**
+     * **D-251**：下一段的起点是"浮着的水面格"、而 bot 还在水下 ⇒ 按住跳跃把 bot 浮上来，返回 {@code true}
+     * （表示"本 tick 先别起步"）。到格、或不在水里、或下一段不起步于水面格 ⇒ 返回 {@code false}，交回正常流程。
+     */
+    private boolean floatUpToSegmentStart() {
+        if (index >= movements.size()) {
+            return false;
+        }
+        BlockPos nextFrom = movements.get(index).fromFoot();
+        if (!MovementHelper.isFloatingDestination(level, nextFrom)) {
+            return false;
+        }
+        BlockPos foot = MovementHelper.footCell(level, bot);
+        if (foot.equals(nextFrom) || !MovementHelper.isWater(level, foot)) {
+            return false;
+        }
+        bot.controller().setForward(0.0F);
+        bot.controller().setStrafing(0.0F);
+        bot.controller().setJumping(true);
+        return true;
+    }
+
+    /**
+     * **D-251**：下一段的起点是不是"**浮着的水面格**"（目的格与它下面那格都是水）—— 是则段间 settle
+     * 不能松跳跃输入（否则 bot 下沉/被水推走 ⇒ 下一段 `STALE_START`）。见 `settleTicks` 分支。
+     */
+    private boolean nextSegmentStartsFloating() {
+        if (index >= movements.size()) {
+            return false;
+        }
+        return MovementHelper.isFloatingDestination(level, movements.get(index).fromFoot());
     }
 
     /** 段切换/重同步后清零零进展计数（换段即重新计时）。 */

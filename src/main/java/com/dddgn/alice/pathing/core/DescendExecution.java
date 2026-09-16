@@ -23,6 +23,8 @@ public final class DescendExecution implements MovementExecution {
     private final String botId;
     private final String sessionId;
     private final CompletionTolerance tolerance;
+    /** 浮着段（目的格与下面都是水）：完成口径改为"脚位到格"（水里没有 `onGround`，D-251）。 */
+    private final boolean floatingDestination;
     private Phase phase = Phase.NOT_STARTED;
     private String failureCode;
     private int tickCount = 0;
@@ -38,6 +40,7 @@ public final class DescendExecution implements MovementExecution {
         this.botId = bot.getUUID().toString();
         this.sessionId = context.sessionId();
         this.tolerance = context.tolerance();
+        this.floatingDestination = MovementHelper.isFloatingDestination(level, spec.toFoot());
     }
 
     @Override
@@ -75,9 +78,10 @@ public final class DescendExecution implements MovementExecution {
         // --- 完成判定：容差由上下文指定（D-027） ---
         // COLUMN：脚位方块正确 + Y 达标即完成（对齐 Baritone MovementDescend:235，链式中间段用）；
         // EXACT ：脚位正确 + 落地 + 水平 ≤0.3（安全关键站位用）。
-        boolean arrived = tolerance == CompletionTolerance.COLUMN
+        boolean arrived = (floatingDestination && MovementHelper.isAtFootCell(level, bot, to))
+                || (tolerance == CompletionTolerance.COLUMN
                 ? MovementHelper.isAtFootColumn(level, bot, to)
-                : MovementHelper.isSettledAtFootPos(level, bot, to, 0.3D);
+                : MovementHelper.isSettledAtFootPos(level, bot, to, 0.3D));
         if (arrived) {
             bot.controller().stopMovement();
             phase = Phase.POSTCONDITION_CHECK;
