@@ -589,44 +589,11 @@ public final class RegressionBatteryTask implements Task {
         // 逐字段等价搬迁（步名/顺序/预算/工厂/跳过条件完全一致 ✓）；**场景与发料都由模块自带** ✓
         // ⇒ `module:craft` 单跑必须绿 —— 这段正是历史上「`single:craft_table` 单跑必红」的那个坑 ✓
         steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.CraftModule().steps(checkContext())));
-        // 阶段 3-B / S1（D-204 / §6.51）：**机器配方只读**（问上游自述读输入/输出 + 查询层给 MACHINE_ROUTE）；
-        // 模组不在/该命名空间没有机器类型 ⇒ SKIP（不判红）。零写入。
-        steps.add(stepSkippable("machine_route", List.of(), () -> { },
-                () -> new com.dddgn.alice.task.MachineProbeTask(bot, observer), 200,
-                task -> task.failureReason().contains("_absent")));
-        // 阶段 3-B / S2+S3（D-206 / D-209）：**机器站点只读**，S3 起**按 `MachineMap` 认机器**
-        // （半径内表里登记的方块每类一台 ⇒ 双机器场景也能自证点对了哪台；不再按"最近同命名空间方块"撞）；
-        // 断言菜单类与"方块实体自述配方类型 == 表里的类型"。机器不在/模组未装 ⇒ `machine_absent` ⇒ SKIP。
-        // 夹具**自带传送与结束复位**（PLAYBOOK §5.0d），探针预算 350 < 本步预算 400。零写入。
-        steps.add(stepSkippable("machine_station", List.of("alice_test:machine_course"), () -> { },
-                () -> new com.dddgn.alice.task.MachineStationProbeTask(bot, observer), 400,
-                task -> task.failureReason().contains("_absent")));
-        // 阶段 3-B / S4（D-213）：**单机最小闭环** —— 真的把一台机器跑起来一次（放料 → 等 → 取产物）。
-        // 这是 3-B 的第一次**容器写入**：写入口径 `WriteBudget.consumeContainerWrite` +
-        // 理由 CONTAINER_TRANSFER + requester `machine-cycle`（矩阵登记为 CONTAINER），
-        // 写入是否成功一律**按结果验证**（机器里出现了料 / 背包里出现了产物），**不猜槽位语义**。
-        // 前提：场景 `machine_course` 已摆好机器**且给了电**。⚠️ 创造方块**放下就是 0 J**
-        // （上游 `BasicEnergyContainer.stored = ZERO` + creative 的 forced-SIMULATE），
-        // ⇒ 场景用 `/data merge block … EnergyContainers=[{Container:0,stored:"4000000000"}]` 灌电，
-        // `api_precharge`（4.0E6 J）只是**兜底**；判据是 SUMMARY 里 `energy_source=cube（场景电源，未补电）`
-        // 且 `energy_at_open>0` —— 若退化成 `api_precharge`，说明场景电源失效，必须查场景而不是放宽断言。
-        // 本步预算 1600 > 任务自身 MAX_TICKS 1400（让任务的守卫先报出**具体**失败原因，而不是电池的通用 TIMEOUT）；
-        // 夹具**自带传送与结束复位**（PLAYBOOK §5.0d）；机器不在/模组未装 ⇒ `machine_absent` ⇒ SKIP。
-        steps.add(stepSkippable("machine_cycle", List.of("alice_test:machine_course"), () -> { },
-                () -> new com.dddgn.alice.task.MachineCycleCheckTask(bot, observer), 1600,
-                task -> task.failureReason().contains("_absent")));
-        // 阶段 3-B / (c) 增量 2（D-217）：**机器路线的生产路径** —— `CraftJob` 真的把一台机器跑起来一次。
-        // 与上一步是**同一份闭环实现**（`task/craft/MachineCycle`），区别只在入口：
-        // `machine_cycle` = 夹具入口（按机器类型挑配方 + 自带传送/备料/补电兜底）；
-        // 本步 = **生产入口**（查询层判 MACHINE_ROUTE → `MachineMap` 的**数据驱动执行准入** EXECUTABLE →
-        // 起真 `CraftJob`）。夹具只做三件测试专属的事：传送到平台远角、挑"只能靠机器做出来"的目标物
-        // （用生产查询层现场复核）、按前提备料；走/开/电/放料/等/取全由 CraftJob 完成
-        // ⇒ **不补电**：没电就是 `machine_no_energy` 如实失败（D-216 红线①）。
-        // 预算 1800 > 夹具 MAX_TICKS 1600 > CraftJob 预算 1400（让任务先报**具体**失败原因）。
-        // 机器不在/模组未装 ⇒ `machine_absent` ⇒ SKIP。本步会写容器（同 `machine_cycle`，requester=`craft`）。
-        steps.add(stepSkippable("craft_machine", List.of("alice_test:machine_course"), () -> { },
-                () -> new com.dddgn.alice.task.CraftMachineCheckTask(bot, observer), 1800,
-                task -> task.failureReason().contains("_absent")));
+        // ---- 模块化（R-2）：**机器路线模块**（4 步）从 `MachineModule` 取 ----
+        // 逐字段等价搬迁（步名/场景/工厂/预算/跳过条件一致 ✓）；**场景由模块自带**（并且先传送热区块 ✓）
+        // ⚠️ 搬它时先修掉了一个**夹具前提假绿**：`machine_station` 单跑必红（`menu_not_settled`）——
+        // 因为 teleport 那一 tick 的 `onGround` 是**上一处的陈旧读数** ⇒ 见 MachineStationProbeTask（2026-09-17）
+        steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.MachineModule().steps(checkContext())));
         // 基-7：前缀搜索（K-1：预算耗尽交出前缀；真失败不给前缀）
         // R2：传输模块（4 个夹具：主流程/端点选择/选择器事件/命令解析）
         // K-3 安全点停止（D-169）**故意不进电池**：它的判据是"**顶层任务**被延后停止"，

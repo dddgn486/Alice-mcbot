@@ -4,6 +4,7 @@ import com.dddgn.alice.task.check.modules.CraftModule;
 import com.dddgn.alice.task.check.modules.HarnessSelfModule;
 import com.dddgn.alice.task.check.modules.DecisionModule;
 import com.dddgn.alice.task.check.modules.LedgerModule;
+import com.dddgn.alice.task.check.modules.MachineModule;
 import com.dddgn.alice.task.check.modules.PathingModule;
 
 import java.util.List;
@@ -22,7 +23,8 @@ public final class CheckModules {
             new HarnessSelfModule(),
             new PathingModule(),
             new DecisionModule(),
-            new CraftModule()
+            new CraftModule(),
+            new MachineModule()
     );
 
     private CheckModules() {

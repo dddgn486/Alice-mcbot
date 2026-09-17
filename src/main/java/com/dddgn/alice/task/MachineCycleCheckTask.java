@@ -155,17 +155,32 @@ public class MachineCycleCheckTask implements Task, MachineCycle.Sink {
 
     /** 自带传送 + 起点前提（夹具纪律：不依赖电池 provision，standalone 右键也成立）。 */
     private Status prepare() {
-        bot.teleportTo(bot.serverLevel(), CYCLE_START.getX() + 0.5D, CYCLE_START.getY(),
-                CYCLE_START.getZ() + 0.5D, java.util.Set.of(), bot.getYRot(), bot.getXRot());
-        bot.setDeltaMovement(Vec3.ZERO);
-        bot.controller().stopMovement();
+        if (phaseTicks == 1) {
+            // **传送与判据分到两个 tick**（2026-09-17 CORE 实测的假红）：`teleportTo` 那一 tick 读
+            // `onGround` 得到的是**上一处**的陈旧值 ⇒ 上一处若在空中/刚被传送，这里就会把
+            // "bot 明明站得好好的"判成 `premise_on_ground` 失败 ✗（模块化之后才暴露：
+            // 旧电池恰好让上一步把 bot 留成站姿，纯属运气 ✓）。⇒ 细则见 `FixturePremise.SETTLE_TICKS`。
+            bot.teleportTo(bot.serverLevel(), CYCLE_START.getX() + 0.5D, CYCLE_START.getY(),
+                    CYCLE_START.getZ() + 0.5D, java.util.Set.of(), bot.getYRot(), bot.getXRot());
+            bot.setDeltaMovement(Vec3.ZERO);
+            bot.controller().stopMovement();
+            record("on_ground_immediately_after_teleport", FixturePremise.onGround(bot).detail());
+            BotLog.info("[MachineCycle] 已传送 bot 到**远角起点** {}（{}）—— 等物理结算后再判落地 ✓",
+                    CYCLE_START.toShortString(), bot.blockPosition().toShortString());
+            return Status.RUNNING;
+        }
+        if (!FixturePremise.settledOnGround(bot, phaseTicks)) {
+            if (phaseTicks > FixturePremise.SETTLE_TICKS + 60) {
+                return failAndFinish("not_on_ground");
+            }
+            return Status.RUNNING;
+        }
         var ground = FixturePremise.onGround(bot);
         var ownMenu = FixturePremise.ownMenu(bot);
-        check("premise_on_ground", ground.ok(), ground.detail());
+        check("premise_on_ground", ground.ok(), ground.detail()
+                + "（传送后第 " + phaseTicks + " tick 复核 ⇒ 不是传送那一 tick 的陈旧读数 ✓）");
         check("premise_own_menu", ownMenu.ok(), ownMenu.detail());
         record("start_pos", bot.blockPosition().toShortString());
-        BotLog.info("[MachineCycle] 已传送 bot 到**远角起点** {}（{}）—— 本步要**走过去**",
-                CYCLE_START.toShortString(), bot.blockPosition().toShortString());
         // 按表认机器（`MachineMap` 是唯一出处）+ 按类型挑一道配方（都在**读表**，不动世界）
         MachineMap.Row row = MachineMap.forBlock(TARGET_BLOCK);
         if (row == null) {

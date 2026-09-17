@@ -40,6 +40,10 @@ public final class CheckHarness {
     private final String moduleId;
     private final List<CheckStep> steps;
     private final List<String> failures = new ArrayList<>();
+    /** **被跳过的步**（环境不具备）—— 与电池同口径：**不算失败，但也不算绿**（判决 `DEGRADED` ✓）。 */
+    private final List<String> skipped = new ArrayList<>();
+    /** 当前步的任务实例（`doneWhen`/`skipWhen` 都要拿它做判据 ⇒ 必须留引用 ✓）。 */
+    private Task current;
     private int index;
     private int phase;          // 0=等空闲 1=起任务 2=等终态
     private int stepStartTick;
@@ -154,6 +158,7 @@ public final class CheckHarness {
                 pendingBefore = WorldModLedger.pendingForOwner(server, bot.getUUID()).size();
                 Driver.set(bot, Driver.FIXTURE);
                 Task task = step.factory().get();
+                current = task;
                 if (task == null) {
                     failures.add("step=" + step.name() + "：任务工厂返回 null ✗");
                     endStep();
@@ -169,6 +174,21 @@ public final class CheckHarness {
             }
             case 2 -> {
                 if (BotManager.isBusy(bot)) {
+                    // **`doneWhen`（常驻任务）**：与电池逐字同口径 —— 判据成立即**按达成判过**并停任务
+                    // （电池那边是"不再 tick 它"；这边是普通会话任务 ⇒ 必须显式停 ✓）。
+                    // 为什么必须有：区域型 Job（如 `lumber_job`/`region_maintain`）**本来就会一直巡查**
+                    // ⇒ 只按"跑完看终态"会把"本来就该常驻"误报成超时 ✗（电池注释里写明的那条）。
+                    if (step.doneWhen() != null && current != null && step.doneWhen().test(current)) {
+                        String detail = "ticks=" + (ticks - stepStartTick) + "（doneWhen 判据成立 ⇒ 按达成判过；task="
+                                + current.getClass().getSimpleName() + " terminalReason="
+                                + current.terminalReason() + "）";
+                        BotManager.stopTask(bot, "harness_done_when");
+                        currentResultDetail = detail;
+                        BotLog.info("[Harness] step={} PASS ticks={} detail={}", step.name(),
+                                ticks - stepStartTick, detail);
+                        endStep();
+                        return;
+                    }
                     if (ticks - stepStartTick > step.budgetTicks()) {
                         failures.add("step=" + step.name() + "：超预算 " + step.budgetTicks() + " tick ✗");
                         BotManager.stopTask(bot, "harness_budget");
@@ -184,9 +204,24 @@ public final class CheckHarness {
                 currentResultDetail = result == null ? "(no_result)" : result;
                 // **B 方案（D-283）**：留下我方临时方块且未声明 KEEP ⇒ 本步判红（错误当场出现 ✓）
                 int pendingAfter = WorldModLedger.pendingForOwner(server, bot.getUUID()).size();
-                if (pendingAfter > pendingBefore && !step.keepWorldState()) {
+                boolean leakFailed = pendingAfter > pendingBefore && !step.keepWorldState();
+                if (leakFailed) {
                     pass = false;
                     currentResultDetail = "leaked_temporary_blocks=" + (pendingAfter - pendingBefore) + "（未声明 KEEP ✗）";
+                }
+                // **`skipWhen`（环境不具备）**：与电池同口径 —— **不看终态是 DONE 还是 FAILED**
+                // （T0-a 堵假绿的教训：`MachineProbeTask` 缺模组时**如实**返回 DONE + `machine_namespaces_absent`，
+                //  旧判据"终态不是 DONE 才 SKIP"会把它记成 **PASS** ⇒ "什么都没断言"被记成绿 ✗）。
+                // 但**泄漏我方方块仍然是失败**（电池的 endStep 卫生对 SKIP 步同样生效 ✓）⇒ 先判泄漏。
+                boolean skippedStep = !leakFailed && step.skipWhen() != null && current != null
+                        && step.skipWhen().test(current);
+                if (skippedStep) {
+                    skipped.add(step.name());
+                    BotLog.info("[Harness] step={} SKIP ticks={} detail={}（环境不具备 ⇒ 不算失败，"
+                                    + "但**也不算绿**：整轮判决降为 DEGRADED ✗ 不许冒充 PASS）",
+                            step.name(), ticks - stepStartTick, currentResultDetail);
+                    endStep();
+                    return;
                 }
                 if (!pass) {
                     failures.add("step=" + step.name() + "：" + currentResultDetail);
@@ -231,15 +266,20 @@ public final class CheckHarness {
 
     private void verdict() {
         boolean pass = failures.isEmpty();
-        lastVerdict = pass ? "PASS" : "FAIL";
+        // **三态判决与电池一致**（`PASS` / `DEGRADED` / `FAIL`）：
+        // `DEGRADED` = 没有真失败，但有步因**环境不具备**被跳过 ⇒ **不是绿**，不可作为验收证据 ✓
+        //（无头入口把 DEGRADED 翻成退出码 **2**，与电池同约定 ✓）。
+        lastVerdict = !pass ? "FAIL" : skipped.isEmpty() ? "PASS" : "DEGRADED";
         finished = true;
         RUNNING = null;
-        BotLog.info("[Harness] SUMMARY module={} steps={} failures={} {} → {}",
-                moduleId, steps.size(), failures.size(), failures, lastVerdict);
+        BotLog.info("[Harness] SUMMARY module={} steps={} failures={} {} skipped={} {} → {}",
+                moduleId, steps.size(), failures.size(), failures, skipped.size(), skipped, lastVerdict);
         if (observer != null && !observer.isRemoved()) {
             observer.sendSystemMessage(net.minecraft.network.chat.Component.literal(
                     "[alice] 模块 " + moduleId + " 单跑 " + lastVerdict
-                            + (pass ? "（" + steps.size() + " 步）" : " " + failures)));
+                            + (pass ? "（" + steps.size() + " 步"
+                                    + (skipped.isEmpty() ? "" : "，跳过 " + skipped) + "）"
+                                    : " " + failures)));
         }
     }
 

@@ -66,4 +66,27 @@ public final class FixturePremise {
         return new Fact("premise_on_ground", bot.onGround(),
                 "onGround=" + bot.onGround() + " pos=" + bot.blockPosition().toShortString());
     }
+
+    /**
+     * **传送之后至少经过的物理结算 tick 数**（D-187 §6.9；2026-09-17 三个夹具实测）。
+     *
+     * <p>为什么是常量、而且必须共享：`teleportTo` 的**那一 tick**，`bot.onGround()` 读到的仍是
+     * **上一处**的状态（物理要到下一 tick 才重算）⇒ 同一个错误读法会给出**两种相反的假判决**：
+     * <ul>
+     *   <li>**假绿**：上一处站在地上 ⇒ 读到 true ⇒ "前提自证"通过，可下一步真开菜单时
+     *       `MenuSession` 的 K-3 门硬拒（`menu_not_settled`，`machine_station` 单跑就是这个 ✗）；</li>
+     *   <li>**假红**：上一处在空中/刚被传送 ⇒ 读到 false ⇒ 前提当场判红，而 bot 其实好好站在地上
+     *       （`machine_cycle` / `craft_machine` 在 CORE 里就是这个 ✗，且**只在模块化之后**才出现 ——
+     *       旧电池恰好让"上一步"把 bot 留成了站姿，纯属运气 ✓）。</li>
+     * </ul>
+     *
+     * <p>⇒ **夹具纪律**：传送的那一 tick 只 `record` 原始读数（可 grep 留痕），**不作为通过判据**；
+     * 落地前提一律用 {@link #settledOnGround} 在后续 tick 复核。
+     */
+    public static final int SETTLE_TICKS = 2;
+
+    /** **传送后的落地前提**：必须"过了 {@link #SETTLE_TICKS} tick"**且**真的站在地上（事故记录见那里）。 */
+    public static boolean settledOnGround(BotPlayer bot, int ticksSinceTeleport) {
+        return ticksSinceTeleport > SETTLE_TICKS && bot.onGround();
+    }
 }

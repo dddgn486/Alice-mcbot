@@ -11681,3 +11681,65 @@ CORE 曾经全绿，只是因为**电池那边**有那句话 ✓。
 
 **过程教训（花掉了一条证据）**：CORE run1 的服务端日志被随后的 `single:` 轮次**覆盖** ✗
 ⇒ 纪律加强：**每轮跑完立刻把 `/tmp/alice-headless-server.log` 复制留档**（本轮起照此做 ✓）。
+
+### D-299：R-2 第四个分类模块 **`machine`（4 步）** + 三个夹具的「**传送那一 tick 读 `onGround`**」缺陷（2026-09-17）
+
+**搬了哪 4 步**（内联定义已从电池删除 ✓，相对顺序不变 ✓）：`machine_route` · `machine_station`
+· `machine_cycle` · `craft_machine`（步名/场景/工厂/预算/**跳过条件**逐字段等价 ✓）。
+四步的深度是递进的：自述只读 → 站点只读 → **真跑一次**（第一次容器写入）→ **生产入口**（`CraftJob`）。
+
+**为什么本片有额外产出**：入口里有一条**已登记的坑** ——「`single:machine_station` 单跑必红
+（`menu_open_failed:…:menu_not_settled`）而 FULL 里 PASS」（策展表 2026-09-17 行）。
+模块化**要求**模块自带前提 ⇒ 这条必须先修，否则只是把坑搬进新框架。
+
+**⭐ 根因（一个错误读法，两种相反的假判决）**：`teleportTo` 的**那一 tick**，`bot.onGround()`
+读到的仍是**上一处**的状态（物理下一 tick 才重算）。三个夹具都在传送 tick 就把它当判据：
+- `machine_station`：上一处正站着 ⇒ 读到 `true` ⇒ **前提"通过"（假绿）**，下一步真开菜单时
+  `MenuSession` 的 K-3 门硬拒 → `menu_not_settled` ✗；
+- `machine_cycle` / `craft_machine`：上一处刚被传送/在空中 ⇒ 读到 `false` ⇒ **前提当场判红（假红）**，
+  而 bot 明明好好站在地上 ✗ —— 而且这两个**只在模块化之后**才红：旧电池恰好让"上一步"把 bot
+  留成了站姿，**纯属运气** ✓（这正是 R-2 要消灭的那类隐含前提 ✓）。
+
+**修法（两处，同一口径）**：
+1. `FixturePremise.SETTLE_TICKS = 2` + `FixturePremise.settledOnGround(bot, ticksSinceTeleport)`
+   —— **单一出处**，把"传送后判落地"这件事写成一个地方 ✓；三个夹具全部改用它（`machine_station`
+   原本自己写了一个局部常量 ⇒ 已收敛掉 ✓）；
+2. 夹具纪律：**传送那一 tick 只 `record` 原始读数**（`on_ground_immediately_after_teleport=…`，可 grep 留痕），
+   **落地前提延后复核**（SUMMARY 里现在能看到 `premise_on_ground=true …（传送后第 N tick 复核 ⇒ 不是陈旧读数 ✓）`）。
+
+**门禁 `R4`（新，挂在既有 `check-fixture-hygiene` 上）**：同一方法里既 `teleportTo(...)`
+又 `check("premise_on_ground", ...)`、**却没有 `settledOnGround(...)`** ⇒ 构建红 ✓。
+反向对照实测：把 `machine_cycle` 的复核换回裸 `bot.onGround()` ⇒ `R4 违例=1` + 门禁 FAIL ✓。
+
+**验收（逐条）**：
+- `single:machine_station`：修前 **FAIL**（`menu_not_settled`）→ 修后 **PASS**（13 tick）—— `SERVER_TESTED`；
+- `module:machine` 单跑 **4/4 PASS**（47 秒）；`module-selftest` **6/6** ✓（craft decision harness_self
+  ledger machine pathing）—— `SERVER_TESTED`；
+- **CORE 48/48 PASS**（含 4 步 machine 全部逐步 PASS）—— `SERVER_TESTED`；
+- `check-all.sh`：**16 PASS + 1 WARN + 0 FAIL** ✓。
+
+**⚠️ 本片第一次 CORE 是红的（46/48）**，红在 `machine_cycle` / `craft_machine`（`premise_on_ground`）
+⇒ 那份「模块化后旧电池的隐含前提被移除」的证据是真金：**模块化确实抓出了两个夹具缺陷**，
+不是搬迁本身出错 ✓。
+
+### D-300：编排器补 **`doneWhen` / `skipWhen` / 三态判决**（`PASS` / `DEGRADED` / `FAIL`）（2026-09-17）
+
+**动因（读代码时发现的框架缺口，不是客户端反馈）**：`CheckStep` 有 `doneWhen`/`skipWhen` 两个字段，
+电池对它们有完整语义，而 `CheckHarness` **一个都没读** ⇒ 后果会分两类：
+① 常驻型任务（`lumber_job`/`region_maintain` —— "本来就会一直巡查"）在编排器里只能靠**预算耗尽**收场 ⇒
+**把"本来就该常驻"误报成超时** ✗；② 环境不具备的步（模组没装）在电池里是 `SKIP`，在编排器里会变成 **FAIL** ✗
+⇒ 迁移 `lumber`/`mining` 时必然踩。**现在补齐，而不是等它咬人** ✓。
+
+**实现（与电池逐字同口径）**：
+1. `doneWhen`：任务仍 `RUNNING` 时每 tick 判；成立 ⇒ **按达成判过**并 `stopTask`（电池那边是"不再 tick 它"，
+   这边是普通会话任务 ⇒ 必须显式停 ✓）；
+2. `skipWhen`：在**终态**判，**不看终态是 DONE 还是 FAILED** —— 照抄电池 T0-a 堵假绿的教训
+   （`MachineProbeTask` 缺模组时**如实**返回 `DONE` + `machine_namespaces_absent`，旧判据会记成 PASS ✗）；
+   **但"留下我方临时方块"仍然是失败**（电池的 `endStep` 卫生对 SKIP 步同样生效 ✓）；
+3. 判决**三态**：`PASS` / `DEGRADED`（有 SKIP ⇒ **不是绿，不可作为验收证据** ✓）/ `FAIL`，
+   SUMMARY 打印 `skipped=N [步名]`，无头入口把 `DEGRADED` 翻成**退出码 2**（与电池同约定 ✓）。
+
+**反向对照（一次注入覆盖两条新路径）**：临时给 `machine_route` 挂恒真 `skipWhen`、给 `machine_station`
+挂恒真 `doneWhen` ⇒ 实测：`step=machine_route SKIP` + `step=machine_station PASS ticks=1
+detail=…（doneWhen 判据成立 ⇒ 按达成判过…）` + `SUMMARY … skipped=1 [machine_route] → DEGRADED`
++ **退出码 2** ✓；还原后 `skipped=0 → PASS`、退出码 0 ✓。

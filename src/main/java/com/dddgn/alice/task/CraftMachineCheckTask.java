@@ -124,13 +124,28 @@ public class CraftMachineCheckTask implements Task {
 
     /** 传送 + 起点前提（夹具纪律：起点确定，且离机器足够远 ⇒ 生产必须自己走过去）。 */
     private Status prepare() {
-        bot.teleportTo(bot.serverLevel(), START.getX() + 0.5D, START.getY(), START.getZ() + 0.5D,
-                java.util.Set.of(), bot.getYRot(), bot.getXRot());
-        bot.setDeltaMovement(Vec3.ZERO);
-        bot.controller().stopMovement();
+        if (phaseTicks == 1) {
+            // **传送与落地判据分到两个 tick** —— 同 `MachineCycleCheckTask` 的注释（陈旧 `onGround` 假红）；
+            // 细则见 `FixturePremise.SETTLE_TICKS` ✓
+            bot.teleportTo(bot.serverLevel(), START.getX() + 0.5D, START.getY(), START.getZ() + 0.5D,
+                    java.util.Set.of(), bot.getYRot(), bot.getXRot());
+            bot.setDeltaMovement(Vec3.ZERO);
+            bot.controller().stopMovement();
+            record("on_ground_immediately_after_teleport", FixturePremise.onGround(bot).detail());
+            BotLog.info("[CraftMachine] 已传送到远角起点 {}（{}）—— 等物理结算后再判落地 ✓",
+                    START.toShortString(), bot.blockPosition().toShortString());
+            return Status.RUNNING;
+        }
+        if (!FixturePremise.settledOnGround(bot, phaseTicks)) {
+            if (phaseTicks > FixturePremise.SETTLE_TICKS + 60) {
+                return failAndFinish("not_on_ground");
+            }
+            return Status.RUNNING;
+        }
         var ground = FixturePremise.onGround(bot);
         var ownMenu = FixturePremise.ownMenu(bot);
-        check("premise_on_ground", ground.ok(), ground.detail());
+        check("premise_on_ground", ground.ok(), ground.detail()
+                + "（传送后第 " + phaseTicks + " tick 复核 ⇒ 不是传送那一 tick 的陈旧读数 ✓）");
         check("premise_own_menu", ownMenu.ok(), ownMenu.detail());
         record("start_pos", bot.blockPosition().toShortString());
         // 机器在不在：不在就 `machine_absent`（电池按 SKIP 处理，与其它 machine_* 步一致）

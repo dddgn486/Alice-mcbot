@@ -51,8 +51,9 @@
 > ⇒ 需补 plan-only 夹具：场景 = 一条「贴着熔岩的短路 + 安全绕行长路」，开/关两次规划断言 `cost`/`nodes` 不同（反向对照：去掉加价 ⇒ 两次相同 ⇒ 红）。可用面：`CorePathPlanner` + `SearchBudget`（各诊断任务已这样用 ✓）。
 > **R-2 进度（2026-09-17）**：**Phase 1a 完成**（`task/check/` 框架 + `LedgerModule` 接入，CORE 判"行为等价"✓）；**Phase 1b 首片完成**（`CheckHarness` 编排器脱离会话任务 ✓ · `module:<id>` 单跑 ✓ · `module-selftest.sh` 验收 ✓ · `harness_self` 自检模块证明"命令顶不掉编排器" ✓ —— D-293/294/295）。
 > **R-2 余下**：① v1「模块自带场景/发料/前提」⇒ 才能搬 `pathing`/`mining`/`lumber`/`craft`/`machine`/`transfer`/`survival`/`decision`/`death`/`tools`；② 搬完一类即在 `module-selftest.sh` 里多一个"可单独跑通"的模块 ✓。
-> **R-2 已搬模块（2026-09-17）**：`ledger`(4) → `harness_self`(3) → `pathing`(3，D-296) → `decision`(5，D-297) → **`craft`(12，D-298)**；`module-selftest` 现 **5/5** ✓。
-> **R-2 下一步（按列表顺序）**：`machine`（machine_route/machine_station/machine_cycle/craft_machine —— ⚠️ **`machine_station` 单跑已知缺 FULL 隐含前置**（`menu_open_failed:menu_not_settled`，见策展表 2026-09-17 行）⇒ 搬它时**必须**先让该模块自带前提，否则会把这条坑搬进新框架）→ `mining` → `lumber` → `transfer` → `survival` → `death` → `tools`。
+> **R-2 已搬模块（2026-09-17）**：`ledger`(4) → `harness_self`(3) → `pathing`(3，D-296) → `decision`(5，D-297) → `craft`(12，D-298) → **`machine`(4，D-299)**；`module-selftest` 现 **6/6** ✓。
+> **R-2 下一步（按列表顺序）**：`mining` → `lumber` → `transfer` → `survival` → `death` → `tools`。
+> **`machine` 片的两条产出（D-299/300）**：① 入口里那条已登记的坑已修 —— 「`single:machine_station` 必红」的根因是**三个夹具在 `teleportTo` 那一 tick 读 `onGround`**（陈旧值 ⇒ 一个读法两种相反假判决：`machine_station` 假绿、`machine_cycle`/`craft_machine` 假红）⇒ `FixturePremise.settledOnGround` + 门禁 **R4**（现策展表 2026-09-17 行的「这类步不要用 `single:`」**已作废**：它现在能单独跑 ✓）；② 编排器补 `doneWhen`/`skipWhen`/三态判决（**DEGRADED**）——这是 `lumber`（常驻 Job）与任何缺模组场景的前置件 ✓。
 > **⭐ R-2 的口径（D-297/298 两次确认）**：验收单位是**模块**（模块内允许步间依赖 ✓）；**编排器的步边界必须与电池 `endStep` 同口径** —— D-298 实测：缺一句站点还原就让 `craft_goal` 单跑假红，而**电池那边有、编排器没有** ⇒ 门禁 `R2-P1` 钉住"两侧都要有" ✓。
 > **R-2（电池模块化）**：用户 2026-09-17 定为"下一条主线"，**开工后按用户要求暂停** ✗（"等会，决策还没做完"）⇒ 已放下的样板：`task/check/{CheckStep,CheckProfile,CheckContext,CheckModule}.java` + `modules/LedgerModule.java`（未接入电池）⇒ 决策走完后继续 ✓。
 

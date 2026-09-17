@@ -144,22 +144,41 @@ public class MachineStationProbeTask implements Task {
         bot.controller().stopMovement();
         var ground = FixturePremise.onGround(bot);
         var ownMenu = FixturePremise.ownMenu(bot);
-        check("premise_on_ground", ground.ok(), ground.detail());
+        // ⚠️ **不要在这里 `check(premise_on_ground, ground.ok())`**（2026-09-17 单跑实测的坑）：
+        // teleport 的**那一 tick**，`onGround` 读到的可能仍是**上一处**的状态 ⇒ 这里恒为 true，
+        // 于是"前提自证"变成假绿，真正的落地复核被推迟到下一 tick（`MenuSession` 的 K-3 门在那里硬拒
+        // `menu_not_settled`）⇒ 判据错位。⇒ 落地前提改在 `find()` 里**等物理结算之后**复核。
+        // 原始读数仍然留痕（可 grep），只是**不作为通过判据**。
+        record("on_ground_immediately_after_teleport", ground.detail());
         check("premise_own_menu", ownMenu.ok(), ownMenu.detail());
         record("start_pos", bot.blockPosition().toShortString());
-        BotLog.info("[MachineStation] 已传送 bot 到场景起点 {}（{}）", START.toShortString(),
-                bot.blockPosition().toShortString());
+        BotLog.info("[MachineStation] 已传送 bot 到场景起点 {}（{}）；落地前提留到下一相位复核 ✓",
+                START.toShortString(), bot.blockPosition().toShortString());
         return advance(Phase.FIND);
     }
 
     /**
      * **按表认机器**（S3/D-209）：只认 {@link MachineMap} 里登记过的方块，同类型取**最近**一台。
      * 旧实现的"命名空间里最近的方块"无法回答"我开的是哪一台"（双机器场景下只能靠距离撞）。
+     *
+     * <p>**先等物理结算**（{@link com.dddgn.alice.task.FixturePremise#SETTLE_TICKS}）：见 {@link #prepare()} 的注释 —— 不这样做，
+     * `MenuSession.open` 会在传送后**第一 tick** 就撞 K-3 门（`menu_not_settled`），
+     * 而 CORE 里因为 bot 恰好本来就站在起点上 ⇒ **看不出来**（模块化单跑才暴露 ✗）。
      */
     private Status find() {
-        if (!bot.onGround()) {
-            return phaseTicks > OPEN_TICKS ? failAndFinish("not_on_ground") : Status.RUNNING;
+        if (!FixturePremise.settledOnGround(bot, phaseTicks)) {
+            if (phaseTicks > OPEN_TICKS) {
+                return failAndFinish("not_on_ground");
+            }
+            if (phaseTicks == FixturePremise.SETTLE_TICKS + 1) {
+                BotLog.info("[MachineStation] 等物理结算：传送后第 {} tick onGround={}", phaseTicks,
+                        bot.onGround());
+            }
+            return Status.RUNNING;
         }
+        // 到这里 = **传送之后过了 SETTLE_TICKS tick** 且真的站在地上 ⇒ 落地前提**当场自证** ✓
+        check("premise_on_ground", true, FixturePremise.onGround(bot).detail()
+                + "（传送后第 " + phaseTicks + " tick 复核 ⇒ 不是传送那一 tick 的陈旧读数 ✓）");
         var level = bot.serverLevel();
         record Hit(double distance, BlockPos pos, MachineMap.Row row) {
         }

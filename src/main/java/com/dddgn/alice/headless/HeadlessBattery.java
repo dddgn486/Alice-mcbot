@@ -185,7 +185,12 @@ public final class HeadlessBattery {
                     exit(server, 3, "harness_no_verdict");
                     return;
                 }
-                exit(server, "PASS".equals(harnessVerdict) ? 0 : 1, harnessVerdict);
+                // 与电池同约定：0=PASS / 1=FAIL / 2=DEGRADED（SKIP 存在 ⇒ **不是绿**，不可作为验收证据 ✓）
+                exit(server, switch (harnessVerdict) {
+                    case "PASS" -> 0;
+                    case "DEGRADED" -> 2;
+                    default -> 1;
+                }, harnessVerdict);
             } else if (ticks > WATCHDOG_TICKS) {
                 exit(server, 3, "harness_watchdog");
             }
