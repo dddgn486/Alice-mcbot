@@ -273,7 +273,7 @@ case "$VERDICT" in
     DEGRADED) CODE=2 ;;
     FAIL)     CODE=1 ;;
     "")       CODE=3 ;;
-    list_modules) say "模块清单：$(grep -aoE 'MODULES ids=[a-z0-9_,]*' /tmp/alice-headless-server.log 2>/dev/null | tail -1)"
+    list_modules) say "模块清单：$(grep -aoE 'MODULES (ids|expected)=[a-zA-Z0-9_,:]*' /tmp/alice-headless-server.log 2>/dev/null | tail -2)"
                   CODE=0 ;;
     unknown_step) say "步名不存在（服务端已给出已知步数与相近候选，见上方 [Headless] 未知步名 一行）"; CODE=6 ;;
     *)        say "无法识别的判决：$VERDICT"; CODE=5 ;;

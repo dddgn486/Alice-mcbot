@@ -19,4 +19,12 @@ public interface CheckModule {
 
     /** 本模块的步（顺序即运行顺序；构建时不能有副作用 ✗）。 */
     List<CheckStep> steps(CheckContext ctx);
+
+    /**
+     * **期望判决**（默认 `PASS` ✓）。只有"自检/反例"类模块才声明别的值（如 `harness_self` 声明 `FAIL` ✓）
+     * ⇒ `tools/module-selftest.sh` 按声明断言 ✓，**不会把"故意失败"当成回归** ✗。
+     */
+    default String expectedVerdict() {
+        return "PASS";
+    }
 }

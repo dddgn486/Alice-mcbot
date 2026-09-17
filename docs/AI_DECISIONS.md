@@ -11556,3 +11556,30 @@ Caused by: java.nio.file.FileSystemException:
 
 **定位（诚实）**：它是**重验证**（每个模块一轮无头 ≈1 分钟 ⇒ 与 CORE/FULL 同级，**不进快速门禁** ✗），
 放**发布前/大改后**的清单里（见 `docs/HANDOVER.md` 的验证清单 ✓）。
+
+### D-295：**"外部命令顶不掉编排器"的行为判据**（R-2 Phase 1b —— 本次重构的核心主张，已可红可验 ✓）
+
+**判据形态**：新模块 **`harness_self`**（编排器自检，3 步）+ 模块**期望判决声明** `CheckModule.expectedVerdict()` ✓：
+1. `harness_bait_cancel`：步任务在第 5 tick 派发 `/alice stop-task` ⇒ **取消自己** ⇒ 该步**预期 FAIL** ✓；
+2. `harness_bait_replace`：以**观察者身份**派发 `/alice follow on` ⇒ 会话任务被**替换** ⇒ 该步**预期 FAIL** ✓；
+3. `harness_survived`：平凡任务（`NoopCheckTask`，3 tick 即 `DONE` ✓）⇒ **必须 PASS** ✓✓
+   —— **它跑得完，本身就证明编排器活过了前两次打断** ✓。
+模块声明 `expectedVerdict() = "FAIL"` ✓ ⇒ `tools/module-selftest.sh` **按声明断言** ✓（不会把"故意失败"当回归 ✗）。
+
+**实测（2026-09-17）**：
+```
+module=harness_self
+  step=harness_bait_cancel  FAIL ticks=5
+  step=harness_bait_replace FAIL ticks=61 detail=failed:被外部命令打断（预期行为 ✓）
+  step=harness_survived     PASS ticks=3 detail=done
+  SUMMARY module=harness_self steps=3 failures=2 → FAIL（期望 FAIL ✓）
+module=ledger → PASS（期望 PASS ✓）
+[module-selftest] PASS 2/2 ✓
+```
+
+**⭐ 对照价值（这就是为什么要做 R-2）**：同一对打断（`stop-task` / `follow on`）打在**旧电池**上是
+**整轮 `no_verdict`** ✗（2026-09-17 实测两次，害我重跑并与端口冲突纠缠 ✗）；打在**新编排器**上则
+**如实记录被打断的步 + 继续跑完并给出判决** ✓✓。
+
+**验收脚本升级**：`list-modules` 现在同时输出 `MODULES expected=ledger:PASS,harness_self:FAIL` ✓；
+`module-selftest.sh` 解析并**按声明断言** ✓（期望 != 实得 才计 FAIL ✓）。

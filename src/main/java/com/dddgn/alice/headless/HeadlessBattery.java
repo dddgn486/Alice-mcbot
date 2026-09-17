@@ -72,6 +72,8 @@ public final class HeadlessBattery {
             // **R-2 验收入口**：模块 id 的**唯一出处**在 `CheckModules` ✓ —— 脚本据此逐个单跑，不靠手抄 ✗
             String ids = String.join(",", com.dddgn.alice.task.check.CheckModules.knownIds());
             System.out.println("[Headless] MODULES ids=" + ids);
+            System.out.println("[Headless] MODULES expected="
+                    + com.dddgn.alice.task.check.CheckModules.expectedVerdicts());
             System.out.flush();
             BotLog.info("[Headless] MODULES ids={}", ids);
             exit(event.getServer(), 0, "list_modules");

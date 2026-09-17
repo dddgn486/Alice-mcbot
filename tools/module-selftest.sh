@@ -26,6 +26,15 @@ done
 LIST_LOG="$(mktemp)"
 ALICE_HEADLESS=1 timeout 300 tools/headless-battery.sh list-modules "${EXTRA_ARGS[@]}" > "$LIST_LOG" 2>&1
 IDS="$(grep -aoE 'MODULES ids=[a-z0-9_,]*' "$LIST_LOG" | tail -1 | cut -d= -f2)"
+# 期望判决（模块自己声明 ✓：默认 PASS；自检/反例模块声明 FAIL ⇒ 不把"故意失败"当回归 ✗）
+EXPECTED_RAW="$(grep -aoE 'MODULES expected=[a-zA-Z0-9_,:]*' "$LIST_LOG" | tail -1 | cut -d= -f2)"
+declare -A EXPECTED
+if [ -n "$EXPECTED_RAW" ]; then
+    IFS=',' read -r -a PAIRS <<< "$EXPECTED_RAW"
+    for pair in "${PAIRS[@]}"; do
+        EXPECTED["${pair%%:*}"]="${pair##*:}"
+    done
+fi
 if [ -z "$IDS" ]; then
     echo "[module-selftest] 拿不到模块清单 ✗（list-modules 没输出）—— 基础设施坏了，不许当通过" >&2
     tail -5 "$LIST_LOG" >&2
@@ -43,8 +52,9 @@ for id in "${ALL_IDS[@]}"; do
     VERDICT="$(printf '%s\n' "$OUT" | grep -aoE 'verdict=[A-Za-z_]*' | tail -1 | cut -d= -f2)"
     # 每步明细在服务端 stdout 文件里（harness 脚本只把判决行回显到 stdout ✓）
     grep -a '\[Harness\]' /tmp/alice-headless-server.log 2>/dev/null | sed 's/^.*\[Harness\]/  [Harness]/' | tail -12
-    echo "  ⇒ module:$id verdict=${VERDICT:-<无>}"
-    if [ "$VERDICT" = "PASS" ]; then PASSED+=("$id"); else FAILED+=("$id"); fi
+    WANT="${EXPECTED[$id]:-PASS}"
+    echo "  ⇒ module:$id verdict=${VERDICT:-<无>}（期望 $WANT）"
+    if [ "$VERDICT" = "$WANT" ]; then PASSED+=("$id"); else FAILED+=("$id(期望 $WANT 实得 ${VERDICT:-<无>})"); fi
 done
 
 echo "════════════════════════════════"

@@ -1,5 +1,6 @@
 package com.dddgn.alice.task.check;
 
+import com.dddgn.alice.task.check.modules.HarnessSelfModule;
 import com.dddgn.alice.task.check.modules.LedgerModule;
 
 import java.util.List;
@@ -14,7 +15,8 @@ import java.util.Set;
 public final class CheckModules {
 
     private static final List<CheckModule> ALL = List.of(
-            new LedgerModule()
+            new LedgerModule(),
+            new HarnessSelfModule()
     );
 
     private CheckModules() {
@@ -32,6 +34,12 @@ public final class CheckModules {
             }
         }
         return null;
+    }
+
+    /** `id:EXPECTED` 形式的期望判决表（供 `list-modules` 与验收脚本 ✓）。 */
+    public static String expectedVerdicts() {
+        return ALL.stream().map(m -> m.id() + ":" + m.expectedVerdict())
+                .collect(java.util.stream.Collectors.joining(","));
     }
 
     public static Set<String> knownIds() {
