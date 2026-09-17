@@ -22,13 +22,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>⚠️ **字段口径（本步只搬现有 1 个开关）**：将来 D-046 的评估器要"哪些字段进画像"定了之后，
  * 再往这个 record 里加分量 —— 这一步**不做** Job 候选筛选，也不新增任何开关。
  */
-public record RiskProfile(boolean descendOvershootGuard) {
+public record RiskProfile(boolean descendOvershootGuard, boolean containerAccess) {
 
     private static final Map<UUID, RiskProfile> FROZEN = new ConcurrentHashMap<>();
 
     /** 按当前全局开关取一份**新**画像（不冻结）。 */
     public static RiskProfile fromSwitches() {
-        return new RiskProfile(RiskSwitches.descendOvershootGuard());
+        return new RiskProfile(RiskSwitches.descendOvershootGuard(), RiskSwitches.containerAccess());
     }
 
     /** 该 bot 的**冻结**画像（第一次读取时冻结）。 */

@@ -11437,3 +11437,29 @@ Caused by: java.nio.file.FileSystemException:
 **⭐ 顺带发现（同类，未动，待你一句话）**：`GoalSpec` 的 **`boolean stopWhenFull`** 分量**全仓只出现 1 次**
 （= 它自己的声明 ✗）⇒ 也是「声明了没人用」✗。按同一标准应当**删**（约 10 分钟 + 门禁）；
 但它是**新发现**、不在本轮 9 条清单内 ⇒ 我**没有擅自删** ✗，等你一句话 ✓。
+
+### D-291：`stopWhenFull` 删除 + `containerAccess` 画像字段（含消费者与判据）（2026-09-17 用户裁定）
+
+**① `GoalSpec.stopWhenFull` 裁定「删」**（同类死字段，用户 2026-09-17 追加裁定）：
+- 依据：全仓**只出现 1 次**（它自己的声明 ✗）⇒ 与 S-8/S-10/`UNTIL_FULL` 同类：**声明了没人用**。
+- 做了什么：删掉该分量 + 3 个构造点同步（全在 `GoalSpec` 自身工厂里 ✓）；门禁 **J5-P1 扩展**为同时盯
+  `UNTIL_FULL` 与 `stopWhenFull` ⇒ **注入（把分量加回）红** ✓。
+
+**② `containerAccess` 画像字段落地（决策 8-1 的首批字段之一；用户「按你的建议来」= 现在做 ✓）**：
+- **开关**：`RiskSwitches.CONTAINER_ACCESS = "container_access"`，**默认 `true` = 允许开箱** ⇒ **零行为变化** ✓
+  （这是能安全进 CORE 的前提 ✓）；`describe()` 已带上它 ✓。
+- **画像**：`RiskProfile` 增加 `boolean containerAccess` 分量（沿用 `fromSwitches()`/`freeze(bot)` 的冻结语义 ✓）。
+- **消费者（⭐ 纪律：字段必须与消费者同时落地，否则就是 S-8/S-10 那种死字段 ✗）**：
+  `MenuSession.open(...)` **在碰世界之前**检查 `RiskProfile.of(bot).containerAccess()`
+  ⇒ 拒绝时**不发右键、不动世界**，直接以可读码 **`profile_denies_container`** 收尾并留 WARN 日志 ✓。
+- **判据**：新电池步 **`container_access_profile`**（MAIN，3 checks）：① 默认允许 ⇒ 拒绝理由**不是**该码；
+  ② 关开关 + **重新冻结画像** ⇒ **必须是** `profile_denies_container`；③ 收尾复位后不再以画像理由拒绝。
+  实测：`allow=opened/OPENING deny=profile_denies_container restored=opened/OPENING` ⇒ **PASS** ✓。
+- **门禁 S6-P1 同步泛化**：① 目标文件新增 `MenuSession.java`；② 规则从"只盯 `descendOvershootGuard()`"
+  **泛化为"任何 `RiskSwitches.<getter>()` 直读都违规"** ⇒ 注入（让 `MenuSession` 直读全局开关）**红** ✓，
+  还原 PASS ✓。
+
+**③ 记录一次我自己的操作事故（流程教训）**：我在 CORE 还在跑时又起了单步 ⇒ **端口冲突**（`bind(..) failed`
+⇒ 服务端根本没起来 ⇒ 那次 `verdict=FAIL` 是**假红** ✗）；更糟的是，随后那次单步把 `latest.log` **覆盖**掉了，
+导致前一次 CORE 的失败细节**丢失** ✗ ⇒ 只能重跑。
+**纪律**：**同一时刻只跑一个服务端**；**读完成绩/日志再做下一件事**（否则证据会被自己覆盖 ✗）。

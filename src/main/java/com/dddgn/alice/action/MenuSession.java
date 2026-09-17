@@ -77,6 +77,15 @@ public final class MenuSession {
      */
     public static MenuSession open(BotPlayer bot, BlockPos target, int containerSlotCount) {
         MenuSession session = new MenuSession(bot, target, containerSlotCount);
+        // **画像硬门（D-291，2026-09-17 用户裁定加入首批画像字段）**：容器访问策略按 bot **冻结**后读取
+        // （`RiskProfile.of(bot)`）—— 不许直接读全局开关（门禁 S6-P1 已把本文件纳入监督 ✓）。
+        // 默认 true = 允许 ⇒ 零行为变化 ✓；关掉后**不碰世界**，直接以可读理由拒绝 ✓。
+        if (!com.dddgn.alice.pathing.risk.RiskProfile.of(bot).containerAccess()) {
+            BotLog.warn("[Menu] 画像拒绝开箱（container_access=false）target={} bot={}",
+                    target.toShortString(), bot.blockPosition().toShortString());
+            session.fail(MenuCodes.PROFILE_DENIES_CONTAINER);
+            return session;
+        }
         if (!bot.onGround()) {
             blockedAirborne++;
             BotLog.warn("[Menu] 拒绝在空中开菜单（累计 {}）target={} bot={}",

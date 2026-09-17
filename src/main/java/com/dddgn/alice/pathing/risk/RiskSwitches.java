@@ -15,9 +15,18 @@ public final class RiskSwitches {
     /** DESCEND 过冲红线（D-024）：默认关闭（对齐 Baritone）；低风险模式可打开。 */
     public static final String DESCEND_OVERSHOOT_GUARD = "descend_overshoot";
 
-    private static final java.util.Set<String> KNOWN = java.util.Set.of(DESCEND_OVERSHOOT_GUARD);
+    public static final String CONTAINER_ACCESS = "container_access";
+
+    private static final java.util.Set<String> KNOWN =
+            java.util.Set.of(DESCEND_OVERSHOOT_GUARD, CONTAINER_ACCESS);
 
     private static volatile boolean descendOvershootGuard = false;
+    /**
+     * **容器访问策略（D-291，2026-09-17 用户裁定加入首批画像字段）**：默认 **true = 允许开箱**
+     * （= 现状行为，零行为变化 ✓）。关掉它 ⇒ `MenuSession.open` 以
+     * `profile_denies_container` 拒绝并留日志 ✓（消费点在 `MenuSession`，门禁 S6-P1 已把该文件纳入监督 ✓）。
+     */
+    private static volatile boolean containerAccess = true;
 
     private RiskSwitches() {
     }
@@ -36,6 +45,11 @@ public final class RiskSwitches {
         return descendOvershootGuard;
     }
 
+    /** 容器访问策略（见字段注释）。 */
+    public static boolean containerAccess() {
+        return containerAccess;
+    }
+
     /** 按名设置开关；返回是否命中已知开关。 */
     public static boolean set(String name, boolean value) {
         if (!isKnown(name)) {
@@ -43,12 +57,15 @@ public final class RiskSwitches {
         }
         if (DESCEND_OVERSHOOT_GUARD.equals(name)) {
             descendOvershootGuard = value;
+        } else if (CONTAINER_ACCESS.equals(name)) {
+            containerAccess = value;
         }
         return true;
     }
 
     /** 当前开关状态快照（日志/命令用）。 */
     public static String describe() {
-        return DESCEND_OVERSHOOT_GUARD + "=" + descendOvershootGuard;
+        return DESCEND_OVERSHOOT_GUARD + "=" + descendOvershootGuard
+                + " " + CONTAINER_ACCESS + "=" + containerAccess;
     }
 }

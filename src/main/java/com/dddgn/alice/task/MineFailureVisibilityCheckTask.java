@@ -110,9 +110,12 @@ public class MineFailureVisibilityCheckTask implements Task {
                     new MineCandidateSource(MineCandidateSource.Target.ofBlock(Blocks.IRON_ORE), SCAN_RADIUS),
                     new NearestPolicy(),
                     pos -> ++overrideCalls > FAIL_FIRST);   // 前 FAIL_FIRST 个候选"已被替换"
-            // **队列第④项的前提**：进度事件**生产默认必须是关的**（否则它就是个常开噪声源）
-            check("前提：低频进度事件生产默认关（间隔=0）",
-                    EventThresholds.PROGRESS_EVENT_INTERVAL_TICKS == 0);
+            // **前提（2026-09-17 D-289 更新）**：进度事件的**生产默认值**已由用户裁定改为 **200**（默认打开、粗粒度 ✓）。
+            // 本步原先断言"默认关（=0）"✗ —— 那是**编码了旧默认值**的断言，被裁定改动打红；
+            // 现在改为断言**当前裁定的默认值**，这样它仍然能守住"默认值被谁偷偷改掉"这件事 ✓。
+            check("前提：低频进度事件生产默认 = D-289 裁定的 200（实测 "
+                            + EventThresholds.PROGRESS_EVENT_INTERVAL_TICKS + "）",
+                    EventThresholds.PROGRESS_EVENT_INTERVAL_TICKS == 200);
             EventThresholds.setProgressEventInterval(PROGRESS_INTERVAL);
             progressBaseline = EventThresholds.progressEmits(bot);
             BotLog.info("[MineFailure] 夹具：前 {} 个候选判为 target_replaced，之后放行（构造"

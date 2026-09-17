@@ -137,15 +137,21 @@ def rule_risk_profile():
     targets = {
         CORE / "DescendExecutionFactory.java": "执行侧（DESCEND 过冲）",
         CORE / "search" / "SurfaceMovementProvider.java": "搜索侧（过冲列安全）",
+        # D-291（2026-09-17）：容器访问策略的消费点 ⇒ 必须读**冻结画像**，不许直读全局开关
+        (ROOT / "src/main/java/com/dddgn/alice/action/MenuSession.java"): "执行侧（容器访问策略）",
     }
     problems = []
     for path, label in targets.items():
         if not path.exists():
             continue
         text = path.read_text(encoding="utf-8")
-        if "RiskSwitches." + "descendOvershootGuard()" in text:
-            problems.append(f"{path.name}（{label}）又直接读全局开关 RiskSwitches.descendOvershootGuard()"
-                            f"（S-6：必须读 RiskProfile.of(bot).descendOvershootGuard()）")
+        # 泛化（D-291）：**任何** RiskSwitches 的 getter 直读都算违规（不再只盯 descendOvershootGuard 一个）
+        for _m in re.finditer(r"RiskSwitches\.([a-zA-Z]+)\(\)", text):
+            _getter = _m.group(1)
+            if _getter in {"isKnown", "knownSwitches", "describe", "set"}:
+                continue
+            problems.append(f"{path.name}（{label}）直接读全局开关 RiskSwitches.{_getter}()"
+                            f"（S-6：必须读 RiskProfile.of(bot).{_getter}()）")
         if "RiskProfile" not in text:
             problems.append(f"{path.name}（{label}）里找不到 RiskProfile —— 消费者没接冻结画像？")
     return problems
@@ -355,6 +361,8 @@ def rule_no_until_full():
         code = re.sub(r"/\*.*?\*/", "", path.read_text(encoding="utf-8"), flags=re.S)
         if "UNTIL_FULL" in code:
             problems.append(f"`UNTIL_FULL` 又出现了：{path.relative_to(alice)}（已按 D-290 删除；要重启请先改本规则并说明消费者）")
+        if "stopWhenFull" in code:
+            problems.append(f"`stopWhenFull` 又出现了：{path.relative_to(alice)}（已按 D-291 删除：全仓只出现它自己的声明 ✗；要重启请先给消费者）")
     return problems
 
 

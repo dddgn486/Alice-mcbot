@@ -20,7 +20,7 @@ import java.util.Objects;
  * </ul>
  */
 public record GoalSpec(Kind kind, int quota, BlockPos center, int radius, int maxTicks,
-                       boolean stopWhenFull, TagKey<Item> productTag) {
+                       TagKey<Item> productTag) {
 
     public enum Kind {
         /** 产物入包数量达到配额（按 `productTag` 统计背包增量）。 */
@@ -46,7 +46,7 @@ public record GoalSpec(Kind kind, int quota, BlockPos center, int radius, int ma
 
     /** 伐木：在 center 半径内砍完 quota 棵。 */
     public static GoalSpec harvestUnits(BlockPos center, int radius, int units, int maxTicks) {
-        return new GoalSpec(Kind.HARVEST_UNITS, units, center, radius, maxTicks, false, null);
+        return new GoalSpec(Kind.HARVEST_UNITS, units, center, radius, maxTicks, null);
     }
 
     /**
@@ -56,13 +56,13 @@ public record GoalSpec(Kind kind, int quota, BlockPos center, int radius, int ma
      * 于是挖掘与伐木共用同一套配额/终止语义（J5 的"同一套 Job/Trace 复用"）。
      */
     public static GoalSpec mineBlocks(BlockPos center, int radius, int blocks, int maxTicks) {
-        return new GoalSpec(Kind.HARVEST_UNITS, blocks, center, radius, maxTicks, false, null);
+        return new GoalSpec(Kind.HARVEST_UNITS, blocks, center, radius, maxTicks, null);
     }
 
     /** 采集：在 center 半径内收集 quota 个匹配 `tag` 的产物。 */
     public static GoalSpec collectItems(BlockPos center, int radius, int items,
                                         TagKey<Item> tag, int maxTicks) {
-        return new GoalSpec(Kind.COLLECT_ITEMS, items, center, radius, maxTicks, false, tag);
+        return new GoalSpec(Kind.COLLECT_ITEMS, items, center, radius, maxTicks, tag);
     }
 
     public String describe() {

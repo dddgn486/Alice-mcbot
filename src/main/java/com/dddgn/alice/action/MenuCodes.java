@@ -21,6 +21,8 @@ public final class MenuCodes {
     public static final String MENU_SLOT_MISMATCH = "menu_slot_mismatch";
     /** K-3 门：此刻（空中/未站定）**不允许**打开菜单。 */
     public static final String MENU_NOT_SETTLED = "menu_not_settled";
+    /** **画像拒绝开箱**（D-291）：`RiskProfile.of(bot).containerAccess()==false` ⇒ 策略性拒绝（不是失败）✓。 */
+    public static final String PROFILE_DENIES_CONTAINER = "profile_denies_container";
     /** 容器已满，放不下。 */
     public static final String MENU_CONTAINER_FULL = "menu_container_full";
 

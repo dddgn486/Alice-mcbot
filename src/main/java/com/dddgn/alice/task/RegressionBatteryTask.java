@@ -184,6 +184,7 @@ public final class RegressionBatteryTask implements Task {
             // 只在 FULL 跑（`single:contrast_timer` 仍可随时单独跑）。判据本身不变。
             Map.entry("contrast_timer", Profile.EXTRA),
             Map.entry("driver_label", Profile.MAIN),
+            Map.entry("container_access_profile", Profile.MAIN),
             // D-276 端到端（第 1 半）：**真弄死一个探针 bot**，验证数据落成倒下态。
             // 放 EXTRA：它会写"倒下态"存档（会覆盖 botTag）⇒ 只适合 `single:` 单独跑。
             Map.entry("death_kill_bot", Profile.EXTRA),
@@ -339,16 +340,46 @@ public final class RegressionBatteryTask implements Task {
 
     // ==================== 清单 ====================
 
+    /** R-2：模块构建自检步时用的上下文（模块**只**通过它拿 bot/观察者/作用域 ⇒ 模块不持有编排状态 ✓）。 */
+    private com.dddgn.alice.task.check.CheckContext checkContext() {
+        return new com.dddgn.alice.task.check.CheckContext() {
+            @Override
+            public com.dddgn.alice.bot.BotPlayer bot() {
+                return bot;
+            }
+
+            @Override
+            public net.minecraft.server.level.ServerPlayer observer() {
+                return observer;
+            }
+
+            @Override
+            public com.dddgn.alice.perception.ScopeBuffer scope() {
+                return scope;
+            }
+        };
+    }
+
+    /** R-2：把模块的 {@code CheckStep} 适配成电池内部步（Phase 1a 保留双类型；Phase 1b 合并）。 */
+    private List<Step> fromCheckSteps(List<com.dddgn.alice.task.check.CheckStep> checks) {
+        List<Step> out = new ArrayList<>(checks.size());
+        for (com.dddgn.alice.task.check.CheckStep c : checks) {
+            if (c.doneWhen() != null || c.skipWhen() != null || c.keepWorldState()) {
+                out.add(new Step(c.name(), c.scenes(), c.provision(), c.factory(), c.budgetTicks(),
+                        c.doneWhen(), c.skipWhen(), c.keepWorldState()));
+            } else {
+                out.add(new Step(c.name(), c.scenes(), c.provision(), c.factory(), c.budgetTicks(),
+                        null, null, false));
+            }
+        }
+        return out;
+    }
+
     private void buildSteps() {
         // 由轻到重：先跑秒级自检，再跑 Job / 长回归，便于"早失败早知道"
-        steps.add(step("clear_retry", List.of(), null,
-                () -> new ClearRetryCheckTask(bot, scope), 900));
-        steps.add(step("write_budget", List.of(), null,
-                () -> new WriteBudgetCheckTask(bot, scope), 900));
-        steps.add(step("scaffold", List.of(), null,
-                () -> new ScaffoldLifecycleTask(bot, scope), 900));
-        steps.add(step("clear_guard", List.of(), null,
-                () -> new ClearGuardCheckTask(bot, scope), 900));
+        // ---- 模块化（R-2 Phase 1a）：**账本模块**从 `task/check/modules/LedgerModule` 取 ----
+        // 逐字段等价搬迁（步名/顺序/预算/工厂完全一致 ✓）；档位仍由上面的 CURATION 表决定（Phase 1b 会把档位搬进模块）
+        steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.LedgerModule().steps(checkContext())));
         steps.add(step("lumber_failure", List.of(), null,
                 () -> new LumberFailureCheckTask(bot, scope), 1800));
         steps.add(step("mine_regression", List.of(), null,
@@ -446,6 +477,11 @@ public final class RegressionBatteryTask implements Task {
                 () -> teleportBot(OreCourseAnchor.START_FOOT),
                 () -> new DeathKillBotCheckTask(bot, observer),
                 80));
+        steps.add(step("container_access_profile",
+                List.of("alice_test:ore_course_terrain"),
+                () -> teleportBot(OreCourseAnchor.START_FOOT),
+                () -> new ContainerAccessProfileCheckTask(bot),
+                120));
         steps.add(step("driver_label",
                 List.of("alice_test:ore_course_terrain"),
                 () -> teleportBot(OreCourseAnchor.START_FOOT),
