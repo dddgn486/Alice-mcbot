@@ -1584,6 +1584,26 @@ public final class BotManager {
         }
     }
 
+    /**
+     * **S-9（2026-09-17）**：伤害按**事件**观测 —— 记进 {@link com.dddgn.alice.survival.DamageLedger}。
+     *
+     * <p>为什么不能只靠"采样血量差"：Alice 手动调 `aiStep()` ⇒ 无条件 +1 HP / 20 tick 回血，
+     * 而原版火焰伤害恰好 1 HP / 20 tick ⇒ **互相抵消** ⇒ 血量差恒为 0 ⇒ 火焰伤害**看不见**
+     * （D-261 实测；`SurvivalSystem` 的采样路径因此报不出这类伤害）。
+     * 这里只记 `LivingDamageEvent`（**已结算的真实扣血**），不记可被取消的 `LivingHurtEvent`。
+     */
+    @SubscribeEvent
+    public static void onBotDamage(net.minecraftforge.event.entity.living.LivingDamageEvent event) {
+        if (event.getEntity().level().isClientSide) {
+            return;
+        }
+        if (!(event.getEntity() instanceof BotPlayer bot)) {
+            return;
+        }
+        com.dddgn.alice.survival.DamageLedger.record(bot, event.getAmount(), event.getSource(),
+                bot.getServer().getTickCount());
+    }
+
     /** 假人死亡:打印死亡原因(死亡反馈) → 直接清除(暂时策略,后续可改为重生)。 */
     @SubscribeEvent
     public static void onLivingDeath(LivingDeathEvent event) {
