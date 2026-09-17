@@ -131,6 +131,8 @@ run_gate             "check-station-mapping"   bash tools/check-station-mapping.
 # 引用完整性（队列第⑦项）：文档里的 `文件:行` 不得过期（行号超界 = 必然过期；
 # "文件不存在"只提示不失败 —— 历史记录/提案会合法引用已删文档与未实现文件）
 run_gate             "check-ref-integrity"     bash tools/check-ref-integrity.sh
+# SH-P1（2026-09-17）：文档/脚本里的 `single:<步名>` 必须真的存在（本轮实测：写错步名会白跑 200 tick）。
+run_gate             "check-step-names"       bash tools/check-step-names.sh
 # 终态执行记录接线（D-258 复核发现的 J-1/J-3）：taskKind 必须用 taskName()；terminalReason/botId 必须进快照。
 run_gate             "check-exec-record"      bash tools/check-exec-record.sh
 run_gate             "check-policy-matrix"      bash tools/check-policy-matrix.sh

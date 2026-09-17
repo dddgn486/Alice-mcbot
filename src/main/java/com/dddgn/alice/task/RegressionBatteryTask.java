@@ -231,6 +231,17 @@ public final class RegressionBatteryTask implements Task {
     private static volatile String lastVerdict;
 
     /** 无头入口：设定定向步名单（null / 空 = 恢复不裁剪）。 */
+    /**
+     * **已知步名**（= 归属表 {@link #CURATION} 的键）。
+     *
+     * <p>为什么可以直接用 CURATION：它的文档注释写明「构造时会**自校验**（有步骤没归属 / 有归属没步骤 ⇒ 直接判红）」
+     * ⇒ 归属表与实际步骤表**一一对应**，于是"这个步名存不存在"在**起服务端之前**就能回答。
+     * 用于 `single:<step>` 的**快速失败**（2026-09-17：写错步名原先会白跑 200 tick 才报 `battery_never_ran`）。
+     */
+    public static java.util.Set<String> knownStepNames() {
+        return CURATION.keySet();
+    }
+
     public static void setOnlySteps(java.util.Collection<String> names) {
         onlySteps = (names == null || names.isEmpty()) ? null : java.util.Set.copyOf(names);
     }

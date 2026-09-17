@@ -119,3 +119,9 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 | 2026-09-17 | **42** | **50** | **F4 地基（D-267）**：新增 `speech_channel`（**MAIN**）—— 说话通道只出不进（说话不改决策态；判别性判据 = 门禁 F4-P1 双向源码断言 + 夹具①；夹具②三条实测恒真 ⇒ 已标注为「非判据」）。注入（say 变空操作 / 说话接进决策）⇒ 均可红 ✓ |
 | 2026-09-17 | **43** | **51** | **死亡机制第 1 步（D-276）**：新增 `death_persistence`（**MAIN**）—— 死亡不删数据（倒下态 FALLEN 含位置/死因/时刻；旧行为是 `clearBot()` 清存档）。9 checks；反向对照（改回旧逻辑）⇒ FAIL ✓ |
 | 2026-09-17 | 43 | 51 | **S-9 消费（D-277）**：`damage_event_visible` 由 5 条 check ✅ 扩到 **9 条** —— 决策快照必须带 `damage` 节点且与台账一致（窗口口径 200 tick）。门禁 **S9-P1**（快照须读 `DamageLedger` 且带 `damage`）；注入 ⇒ 门禁与夹具**都红** ✓ |
+
+### 2026-09-17　　按步跑电池：**步名写错不再白跑**（两层）
+
+- **背景（实测踩到）**：把步名写成 `permission_contract`（真名是 `permission_gate`；⚠️ 本文档**故意不复述错误的 `single:` 写法**，否则本门禁会拦自己）⇒ 服务端起跑、白跑 200 tick、最后只有 `battery_never_ran` ⇒ 看起来像电池坏了。
+- **① 运行时快速失败**：`HeadlessBattery` 起跑前用 `RegressionBatteryTask.knownStepNames()`（= 归属表 `CURATION`，构造期自校验与步骤表一一对应）判名字；未知 ⇒ `未知步名 single:X（已知 N 步；相近候选：[…]）` + `verdict=unknown_step exit=6`，脚本会明说「步名不存在」。实测 17 s 结束、候选精准命中 `permission_gate`。
+- **② 静态门禁 SH-P1**（`tools/check-step-names.sh`，挂在 `check-all.sh`）：扫描 docs / skills / tools / AGENTS 里的 `single:<步名>` 引用（当前 **105 处**）与电池步表比对 ⇒ 打错字**在门禁阶段就红**，连服务端都不用起。反向对照（文档塞假步名）⇒ 红 ✓。

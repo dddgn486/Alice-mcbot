@@ -74,6 +74,19 @@ public final class HeadlessBattery {
                 BotLog.warn("[Headless] 属性 {}={} 的步名为空 ⇒ 不启用", PROP, mode);
                 return;
             }
+            // **快速失败（2026-09-17）**：写错步名原先要**白跑 200 tick** 才报 `battery_never_ran`（本轮实测踩到）。
+            // 步名唯一出处 = `CURATION`（构造期自校验与步骤表一一对应）⇒ 起跑前就能判。
+            java.util.Set<String> known = com.dddgn.alice.task.RegressionBatteryTask.knownStepNames();
+            if (!known.contains(name)) {
+                java.util.List<String> close = known.stream()
+                        .filter(k -> k.contains(name) || name.contains(k)
+                                || k.startsWith(name.substring(0, Math.min(4, name.length()))))
+                        .sorted().limit(6).toList();
+                BotLog.warn("[Headless] 未知步名 single:{}（已知 {} 步{}）⇒ 立即失败，不白跑",
+                        name, known.size(), close.isEmpty() ? "" : "；相近候选：" + close);
+                exit(event.getServer(), 6, "unknown_step");
+                return;
+            }
             com.dddgn.alice.task.RegressionBatteryTask.setOnlySteps(java.util.List.of(name));
             BotLog.info("[Headless] 定向模式：只跑 1 步 {}", name);
         } else {

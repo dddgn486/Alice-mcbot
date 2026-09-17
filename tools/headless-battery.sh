@@ -228,9 +228,9 @@ SRV=$!
 VERDICT=""
 for _ in $(seq 1 "$TIMEOUT_SEC"); do
     if [ -f "$RESULT" ]; then
-        VERDICT="$(grep -ao 'verdict=[A-Za-z]*' "$RESULT" | head -1 | cut -d= -f2)"
+        VERDICT="$(grep -ao 'verdict=[A-Za-z_]*' "$RESULT" | head -1 | cut -d= -f2)"
     elif [ -f "$LOG" ]; then
-        VERDICT="$(grep -ao 'Headless\] RESULT verdict=[A-Za-z]*' "$LOG" | head -1 | sed 's/.*verdict=//')"
+        VERDICT="$(grep -ao 'Headless\] RESULT verdict=[A-Za-z_]*' "$LOG" | head -1 | sed 's/.*verdict=//')"
     fi
     if [ -n "$VERDICT" ]; then
         say "判决行已出现：verdict=$VERDICT（+$(( $(date +%s) - START ))s）"
@@ -266,6 +266,7 @@ case "$VERDICT" in
     DEGRADED) CODE=2 ;;
     FAIL)     CODE=1 ;;
     "")       CODE=3 ;;
+    unknown_step) say "步名不存在（服务端已给出已知步数与相近候选，见上方 [Headless] 未知步名 一行）"; CODE=6 ;;
     *)        say "无法识别的判决：$VERDICT"; CODE=5 ;;
 esac
 
