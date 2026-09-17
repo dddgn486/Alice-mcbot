@@ -11583,3 +11583,29 @@ module=ledger → PASS（期望 PASS ✓）
 
 **验收脚本升级**：`list-modules` 现在同时输出 `MODULES expected=ledger:PASS,harness_self:FAIL` ✓；
 `module-selftest.sh` 解析并**按声明断言** ✓（期望 != 实得 才计 FAIL ✓）。
+
+### D-296：R-2 **v1（模块自带场景/发料/前提）** + 第一个"带场景"模块 `pathing`（2026-09-17）
+
+**v1 做了什么（编排器的备场相位，`CheckHarness`）**：
+```
+相位 0 等空闲 → 相位 1 备场：停移动输入 → **provision（发料/传送）** → **scenes（跑场景函数）**
+                → 相位 2 前提：残留容器菜单先关掉 → 每 tick 复检"落地"（超时 200 tick 如实失败 ✗）
+                → 起任务（`beginSelfCheckTask` ✓）→ 相位 3 等终态 → 泄漏检查（D-283 ✓）
+```
+**⭐ 关键修正：顺序反过来（provision → scenes）**。旧电池是"**场景 → provision**"✗ ⇒ 区块**冷**时 `/fill`
+不落地 ⇒ 判据在虚空里**假绿** ✗（`single:craft_table` 单跑必红就是这个坑 ✓；电池源码里也记过这条 ✗）。
+新顺序先让 bot 站到位把区块**热起来**再建场景 ⇒ **模块自足** ✓ —— 这是"模块能单独测"的技术前提 ✓。
+
+**第一个带场景模块 `pathing`**：`fall_execute`（落差场景）+ `pillar_execute`（竖井场景）+ `contrast_timer`（停表场景）
+⇒ 三步的**内联定义已从电池删除**，改由模块提供（**行为等价** ✓，判据=CORE 48 步不变 ✓）。
+
+**实测 `module:pathing`（单独跑，34 秒）**：
+```
+[H] step=fall_execute   PASS ticks=27 detail=done
+[H] premise step=pillar_execute 已落地（等了 1 tick）
+[H] step=pillar_execute PASS ticks=44 detail=done
+[H] step=contrast_timer PASS ticks=50 detail=done
+[H] SUMMARY module=pathing steps=3 failures=0 [] → PASS
+```
+**验收脚本全绿**：`[module-selftest] PASS 3/3：harness_self ledger pathing` ✓
+（`harness_self` 按其声明期望 `FAIL` ✓；`ledger`/`pathing` 期望 `PASS` ✓）。

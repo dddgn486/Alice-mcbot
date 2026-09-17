@@ -493,21 +493,8 @@ public final class RegressionBatteryTask implements Task {
                 () -> teleportBot(OreCourseAnchor.START_FOOT),
                 () -> new DriverLabelCheckTask(bot, observer),
                 120));
-        steps.add(step("contrast_timer",
-                List.of("alice_test:ore_course_terrain"),
-                () -> teleportBot(OreCourseAnchor.START_FOOT),
-                () -> new ContrastTimerCheckTask(bot, observer),
-                200));
-        steps.add(step("fall_execute",
-                List.of("alice_test:fall_course_terrain"),
-                null,
-                () -> new CleanupWrappedTask(new FallDiagnosticTask(bot, observer), bot),
-                600));
-        steps.add(step("pillar_execute",
-                List.of("alice_test:pillar_course_terrain"),
-                null,
-                () -> new CleanupWrappedTask(new PillarDiagnosticTask(bot, observer), bot),
-                900));
+        // ---- 模块化（R-2 Phase 1b）：**移动模块**（fall/pillar/contrast 三步）从 `PathingModule` 取 ----
+        steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.PathingModule().steps(checkContext())));
         steps.add(step("death_persistence",
                 List.of("alice_test:ore_course_terrain"),
                 () -> teleportBot(OreCourseAnchor.START_FOOT),

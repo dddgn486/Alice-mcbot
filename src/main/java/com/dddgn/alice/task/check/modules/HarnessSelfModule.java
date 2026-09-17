@@ -42,7 +42,9 @@ public final class HarnessSelfModule implements CheckModule {
                 CheckStep.of("harness_bait_replace", CheckProfile.EXTRA, List.of(), null,
                         () -> new ExternalInterferenceBaitTask(ctx.bot(), ctx.observer(),
                                 ExternalInterferenceBaitTask.Mode.REPLACE), 400),
+                // 第三步的断言有实质内容 ✓：**外部打断（尤其是 REPLACE）留下的任务必须已被清理干净** ✗
                 CheckStep.of("harness_survived", CheckProfile.EXTRA, List.of(), null,
-                        () -> new NoopCheckTask(ctx.bot(), "harness_survived"), 60));
+                        () -> new NoopCheckTask(ctx.bot(), "harness_survived",
+                                () -> com.dddgn.alice.bot.BotManager.currentTaskSummary(ctx.bot()) == null), 60));
     }
 }

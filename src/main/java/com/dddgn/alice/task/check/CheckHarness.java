@@ -44,6 +44,7 @@ public final class CheckHarness {
     private int phase;          // 0=等空闲 1=起任务 2=等终态
     private int stepStartTick;
     private int pendingBefore;
+    private int premiseStartTick;
     private int ticks;
     private String currentResultDetail = "";
 
@@ -113,19 +114,62 @@ public final class CheckHarness {
                     }
                     return;
                 }
+                BotLog.info("[Harness] step={} ({}/{}) scenes={} budget={}", step.name(), index + 1,
+                        steps.size(), step.scenes(), step.budgetTicks());
+                bot.controller().stopMovement();
+                // **顺序（v1 的关键修正）**：先**发料/传送**（把区块热起来 ✓）**再**跑场景函数。
+                // 旧电池是"场景→provision"✗ ⇒ 区块冷时 `/fill` 不落地 ⇒ 判据在虚空里假绿 ✗
+                // （`single:craft_table` 单跑必红就是这个坑 ✓）。这里顺序反过来 ⇒ 模块**自足** ✓。
+                if (step.provision() != null) {
+                    step.provision().run();
+                }
+                if (!step.scenes().isEmpty()) {
+                    var source = server.createCommandSourceStack().withSuppressedOutput();
+                    for (String fn : step.scenes()) {
+                        server.getCommands().performPrefixedCommand(source, "function " + fn);
+                    }
+                }
+                premiseStartTick = ticks;
+                phase = 1;
+            }
+            case 1 -> {
+                // **前提自证**：残留容器菜单先关掉；等落地（每 tick 复检 ✓ 不复检会白等满上限 ✗）
+                var own = com.dddgn.alice.task.FixturePremise.ownMenu(bot);
+                if (!own.ok()) {
+                    BotLog.warn("[Harness] step={} 有残留容器菜单 ⇒ 先关掉再跑（{}）", step.name(), own.detail());
+                    bot.closeContainer();
+                }
+                if (!com.dddgn.alice.task.FixturePremise.onGround(bot).ok()) {
+                    if (ticks - premiseStartTick > PREMISE_TIMEOUT_TICKS) {
+                        failures.add("step=" + step.name() + "：等落地超时 " + PREMISE_TIMEOUT_TICKS + " tick ✗");
+                        index++;
+                        phase = 0;
+                    }
+                    return;
+                }
+                if (ticks - premiseStartTick > 0) {
+                    BotLog.info("[Harness] premise step={} 已落地（等了 {} tick）⇒ 开始本步",
+                            step.name(), ticks - premiseStartTick);
+                }
                 pendingBefore = WorldModLedger.pendingForOwner(server, bot.getUUID()).size();
                 Driver.set(bot, Driver.FIXTURE);
                 Task task = step.factory().get();
                 if (task == null) {
                     failures.add("step=" + step.name() + "：任务工厂返回 null ✗");
                     index++;
+                    phase = 0;
                     return;
                 }
-                BotManager.beginSelfCheckTask(bot, task);
+                if (!BotManager.beginSelfCheckTask(bot, task)) {
+                    failures.add("step=" + step.name() + "：起任务失败（会话忙或不存在 ✗）");
+                    index++;
+                    phase = 0;
+                    return;
+                }
                 stepStartTick = ticks;
-                phase = 1;
+                phase = 2;
             }
-            case 1 -> {
+            case 2 -> {
                 if (BotManager.isBusy(bot)) {
                     if (ticks - stepStartTick > step.budgetTicks()) {
                         failures.add("step=" + step.name() + "：超预算 " + step.budgetTicks() + " tick ✗");
@@ -176,6 +220,8 @@ public final class CheckHarness {
     }
 
     private static final int WATCHDOG_TICKS = 20 * 600;
+    /** 等落地的上限（与电池同口径 ✓：超时如实失败 ✗ 不静默跳过 ✗）。 */
+    private static final int PREMISE_TIMEOUT_TICKS = 200;
 
     /** 模块构建步时能看到的**只读**上下文（模块不持有编排状态 ✓）。 */
     private record SimpleContext(BotPlayer bot, ServerPlayer observer) implements CheckContext {
