@@ -58,7 +58,7 @@ TIMEOUT_SEC="${ALICE_HEADLESS_TIMEOUT:-1200}"
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        core|full|single:*) MODE="$1" ;;
+        core|full|single:*|module:*) MODE="$1" ;;
         --dev)              BACKEND="dev" ;;
         --prod)             BACKEND="prod" ;;
         --keep-world)       KEEP_WORLD=yes ;;

@@ -983,6 +983,28 @@ public final class BotManager {
     }
 
     /** 当前任务的只读摘要；空闲时返回 null。 */
+    /**
+     * **公开桥（R-2 Phase 1b）**：把一个任务按**普通任务**起在会话上（供 {@code CheckHarness} 使用）。
+     *
+     * <p>与 {@code assign*} 系列的区别：这里**不做**能力/资源前提校验（那些由自检步自己负责 ✓），
+     * 但**走完全相同的生命周期**（开账本作用域、清写信封、稳定 taskKind、终态记录、自检暂停决策层 ✓）
+     * ⇒ 所以外部命令/`stopTask` 与它互动的行为和普通任务一致 ✓。
+     */
+    /** **公开桥（R-2）**：会话的账本作用域缓冲（自检模块的步需要它 ✓，与玩家任务共用同一个 ✓）。 */
+    public static com.dddgn.alice.perception.ScopeBuffer scopeOf(BotPlayer bot) {
+        BotSession session = BOTS.get(bot.getUUID());
+        return session == null ? null : session.scope();
+    }
+
+    public static boolean beginSelfCheckTask(BotPlayer bot, com.dddgn.alice.task.Task task) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || task == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(task, task.target());
+        return true;
+    }
+
     public static String currentTaskSummary(BotPlayer bot) {
         BotSession session = BOTS.get(bot.getUUID());
         return session == null ? null : session.currentTaskSummary();
@@ -1039,6 +1061,9 @@ public final class BotManager {
         if (event.phase != TickEvent.Phase.END) {
             return;
         }
+        // **R-2 Phase 1b**：自检编排器由**服务器 tick** 驱动（不在任何会话任务里 ✓）
+        // ⇒ 外部命令/`stopTask` 再也不会把它顶掉或杀掉 ✓（这是"电池脱离任务管理束缚"的那一步）。
+        com.dddgn.alice.task.check.CheckHarness.tickAll(event.getServer());
         // §5.9-③：**不能用 `getTickCount()`**（进程内计数，重启后归零 ⇒ 与落章的世界时间差恒为负
         // ⇒ 运行中产生的挂起永不过期）。统一走 `TransferLedgerData.clockNow`。
         TransferLedgerData.get(event.getServer()).expireSuspensions(event.getServer(),

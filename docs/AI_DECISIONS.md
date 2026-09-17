@@ -11501,3 +11501,35 @@ Caused by: java.nio.file.FileSystemException:
 **调试过程实录（值得记）**：第一版场景地板"太宽"（x60..76）⇒ 规划器只需**侧移一格**（20.00→20.66）⇒ 我的判据预期错了 ✗（**代码是对的** ✗）。
 改成"一格外宽 + 唯一绕行"后仍不绕 ⇒ 真因是**我漏了连接段地板**（绕行道走不通 ✗）；补上后即成 ✓。
 ⇒ 教训：**判据失败先怀疑场景/前提，再怀疑被测代码**（本次两次都是场景 ✗，代码一直正确 ✓）。
+
+### D-293：R-2 Phase 1b 第一片 —— **`CheckHarness`：自检编排器脱离会话任务**（2026-09-17 用户裁定开工）
+
+**用户原话（本轮主线）**：「让电池本身**脱离任务管理的束缚**，每个电池步按分类模块化，**一个模块保证可以单独测**」。
+
+**做了什么**：
+1. **`task/check/CheckModules`**：模块注册表（id 的**唯一出处**；未知 id **如实拒绝** ✗ 不静默降级 ✓）。
+2. **`task/check/CheckHarness`**：编排器 —— **不在任何会话任务里** ✓，由**服务器 tick** 驱动
+   （挂在 `BotManager.onServerTick` ✓）；每一步改为**按普通任务**起（`BotManager.beginSelfCheckTask` ⇒ `session.beginTask` ✓）
+   ⇒ 走**与玩家任务完全相同**的生命周期（开账本作用域 ✓、清写信封 ✓、稳定 `taskKind` ✓、终态记录 ✓、自检暂停决策层 ✓）。
+   - 通过判据 **fail-closed**：只有会话终态文本恰好 `"done"` 才算过 ✓（`"failed:…"` 或任何别的值一律 FAIL ✓）；
+   - **B 方案（D-283）内建**：步结束时"我方临时方块变多且未声明 KEEP" ⇒ **本步当场红** ✓；
+   - 预算超时 ⇒ `stopTask` + 本步 FAIL ✓（附 `busyMessage` ✓）。
+3. **无头验收入口**：`tools/headless-battery.sh module:<id>` ✓（脚本参数解析 + 驱动分支都已认它 ✓；
+   未知模块**起跑前即失败** ⇒ `unknown_module` ✓，与 `single:` 的快速失败一致 ✓）。
+4. **两条公开桥**（都是最小面）：`BotManager.beginSelfCheckTask(bot, task)` ✓、`BotManager.scopeOf(bot)` ✓。
+
+**实测（第一次满足你的硬要求）**：
+```
+[Harness] 启动模块单跑 module=ledger「账本 / 写入预算 / 场景清理」步数=4（不在会话任务里 ✓ 每步按普通任务起 ✓）
+[Harness] step=clear_retry PASS ticks=60 detail=done
+[Harness] step=write_budget PASS ticks=24 detail=done
+[Harness] step=scaffold PASS ticks=322 detail=done
+[Harness] step=clear_guard PASS ticks=91 detail=done
+[Harness] SUMMARY module=ledger steps=4 failures=0 [] → PASS
+```
+**过程中修掉的两个自己的 bug（如实记）**：① v0 的 `CheckContext.scope()` 返回 `null` ⇒ 账本模块第一步就
+`ScopeBuffer.begin` **NPE 崩服**（看门狗关服 ✗）⇒ 改为与玩家任务**共用同一会话作用域缓冲** ✓；
+② 通过判据误写 `startsWith("passed")` ✗ ⇒ 4 步全被判 FAIL（实际都是 `done` ✓）⇒ 已按源码注释改成严格 `"done"` ✓。
+
+**v0 的诚实边界（登记在案）**：只支持**不需要场景/发料**的模块（账本模块 ✓）；场景/发料/前提等待在 v1 补齐；
+`module-selftest.sh`（逐模块全跑）与"命令顶不掉编排器"的行为判据 = 下一片 ✓。

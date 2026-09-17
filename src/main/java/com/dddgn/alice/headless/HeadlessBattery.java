@@ -51,6 +51,8 @@ public final class HeadlessBattery {
 
     private static boolean enabled;
     private static boolean fullProfile;
+    /** 模块单跑模式下的模块 id（null = 不是模块模式 ✓）。 */
+    private static String moduleId;
     private static boolean spawnRequested;
     private static boolean assigned;
     private static boolean sawRunningTask;
@@ -89,8 +91,19 @@ public final class HeadlessBattery {
             }
             com.dddgn.alice.task.RegressionBatteryTask.setOnlySteps(java.util.List.of(name));
             BotLog.info("[Headless] 定向模式：只跑 1 步 {}", name);
+        } else if (mode.startsWith("module:")) {
+            // **R-2（Phase 1b）**：模块单跑 —— 这是"一个模块保证可以单独测"的验收入口 ✓
+            String id = mode.substring("module:".length()).trim();
+            java.util.Set<String> known = com.dddgn.alice.task.check.CheckModules.knownIds();
+            if (!known.contains(id)) {
+                BotLog.warn("[Headless] 未知模块 module:{}（已知 {}）⇒ 立即失败", id, known);
+                exit(event.getServer(), 6, "unknown_module");
+                return;
+            }
+            moduleId = id;
         } else {
-            BotLog.warn("[Headless] 无法识别的 {}={}（可用：core | full | single:<step>）⇒ 不启用", PROP, mode);
+            BotLog.warn("[Headless] 无法识别的 {}={}（可用：core | full | single:<step> | module:<id>）⇒ 不启用",
+                    PROP, mode);
             return;
         }
         enabled = true;
@@ -125,6 +138,15 @@ public final class HeadlessBattery {
         if (!assigned) {
             ServerPlayer observer = syntheticObserver(server.overworld());
             com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
+            if (moduleId != null) {
+                if (com.dddgn.alice.task.check.CheckHarness.start(server, bot, observer, moduleId)) {
+                    assigned = true;
+                    BotLog.info("[Headless] 模块单跑已启动 module={}（编排器不在会话任务里 ✓）", moduleId);
+                } else {
+                    exit(server, 4, "harness_start_failed:" + moduleId);
+                }
+                return;
+            }
             if (BotManager.assignRegressionBattery(bot, observer, fullProfile)) {
                 assigned = true;
                 BotLog.info("[Headless] 电池已指派（入口与游戏内物品完全相同；observer={}）",
@@ -141,6 +163,20 @@ public final class HeadlessBattery {
             sawRunningTask = BotManager.isBusy(bot);
             if (!sawRunningTask && ticks > SPAWN_DELAY_TICKS + 200) {
                 exit(server, 4, "battery_never_ran");
+            }
+            return;
+        }
+
+        if (moduleId != null) {
+            if (com.dddgn.alice.task.check.CheckHarness.isFinished()) {
+                String harnessVerdict = com.dddgn.alice.task.check.CheckHarness.lastVerdict();
+                if (harnessVerdict == null) {
+                    exit(server, 3, "harness_no_verdict");
+                    return;
+                }
+                exit(server, "PASS".equals(harnessVerdict) ? 0 : 1, harnessVerdict);
+            } else if (ticks > WATCHDOG_TICKS) {
+                exit(server, 3, "harness_watchdog");
             }
             return;
         }
