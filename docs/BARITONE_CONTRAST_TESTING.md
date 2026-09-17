@@ -87,6 +87,14 @@ Alice 侧与 Baritone 侧使用**同一个场景函数、同一个目标**：
 3. **到达判定不同**：Baritone 的 `#goto` 有自己的到达容差；我们用的是"进入 marker 1.5 格"。
 4. **版本差异**：对照实例是 v1.10.5（1.20.1），源码主参考树同为 v1.10.5；
    旧 1.21.4 树只用于交叉核对。
+6. **⚠️ Alice 侧在 FALL 场景有两条额外守卫（Baritone 没有，V-4 要求必须标注）**：
+   `no_deep_fall`（深落差距绝：超过阈值的落差**不做**）与 `fall_recover_guard`（落差恢复守卫）。
+   ⇒ 跑 3 格落差对照时，**若 Baritone 直接往下跳而 Alice 先判定/绕行，那不是「Alice 更慢」**，
+   而是**策略不同**；只有在**两者都选择走同一条下落路线**的那一段，tick 才可比。
+   （守卫名字与判据见 `FallDiagnosticTask`：`[Fall] no_deep_fall=… fall_recover_guard=…`。）
+   **⚠️ 另注**：D-024 的「下降过冲红线」（`RiskSwitches.DESCEND_OVERSHOOT_GUARD`）**默认关闭**，
+   与 Baritone 原样一致 ⇒ 对照时**不要**去开它，否则又多一条不可比因素。
+
 5. **不可比场景**：`fluid_course` / `lava_course` / `fence_course` 测的是**拒绝行为**
    （不走进/不挖流体、不把栅栏当支撑面），Baritone 侧的等价观察是"玩家是否被卡住/是否绕开"，
    不做 tick 对比，只看行为是否一致。
