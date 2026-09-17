@@ -128,6 +128,9 @@ run_gate             "check-goal-vocabulary"   bash tools/check-goal-vocabulary.
 # 站点映射单一出处（队列第①项，survey 14 §11-1 / survey 15 §3.6）：
 # `RecipeDump.STATION_BY_TYPE`（运行时类型 id）与 `tools/recipe-graph.py`（数据包序列化器 id）必须一致
 run_gate             "check-station-mapping"   bash tools/check-station-mapping.sh
+# 引用完整性（队列第⑦项）：文档里的 `文件:行` 不得过期（行号超界 = 必然过期；
+# "文件不存在"只提示不失败 —— 历史记录/提案会合法引用已删文档与未实现文件）
+run_gate             "check-ref-integrity"     bash tools/check-ref-integrity.sh
 # 终态执行记录接线（D-258 复核发现的 J-1/J-3）：taskKind 必须用 taskName()；terminalReason/botId 必须进快照。
 run_gate             "check-exec-record"      bash tools/check-exec-record.sh
 run_gate             "check-policy-matrix"      bash tools/check-policy-matrix.sh
