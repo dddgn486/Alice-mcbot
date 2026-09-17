@@ -127,12 +127,37 @@ def rule_progress_signal():
     return []
 
 
+def rule_risk_profile():
+    """S6-P1（2026-09-17 用户裁定「按 bot 冻结」）：**风险开关的消费者必须读冻结画像**。
+
+    背景：`RiskSwitches` 是进程一份的全局静态（D-046/D-059 的痕迹）⇒ 一个 bot 的任务跑到一半、
+    别人改了开关，同一份计划的两段就会用两套风险口径。S-6 的容器是 `RiskProfile`（按 bot 冻结，
+    冻结点 = `BotManager.assignTask`）。本规则保证**消费者不会偷偷读回全局开关**。
+    """
+    targets = {
+        CORE / "DescendExecutionFactory.java": "执行侧（DESCEND 过冲）",
+        CORE / "search" / "SurfaceMovementProvider.java": "搜索侧（过冲列安全）",
+    }
+    problems = []
+    for path, label in targets.items():
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "RiskSwitches." + "descendOvershootGuard()" in text:
+            problems.append(f"{path.name}（{label}）又直接读全局开关 RiskSwitches.descendOvershootGuard()"
+                            f"（S-6：必须读 RiskProfile.of(bot).descendOvershootGuard()）")
+        if "RiskProfile" not in text:
+            problems.append(f"{path.name}（{label}）里找不到 RiskProfile —— 消费者没接冻结画像？")
+    return problems
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
     s8 = rule_s8()
     walk = rule_walk_budget()
     prog = rule_progress_signal()
+    risk = rule_risk_profile()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -143,9 +168,11 @@ def main() -> int:
         print(f"[W·行走预算] {line}")
     for line in prog:
         print(f"[NP·进度信号] {line}")
-    ok = not k4 and not k5 and not s8 and not walk and not prog
+    for line in risk:
+        print(f"[S6·风险画像] {line}")
+    ok = not k4 and not k5 and not s8 and not walk and not prog and not risk
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
-          f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(prog)}"
+          f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(prog)} / 风险画像未接={len(risk)}"
           f"（K4-P1 谓词统一；K5-P1 状态有生产者；S8-P1 policyVersion 不得复活；W-P1 行走必须有界；NP-P1 失败计数不得当进度）")
     return 0 if ok else 1
 

@@ -11011,3 +11011,27 @@ cat >> docs/AI_DECISIONS.md <<'EOF'
 决策快照）尚未做 —— 它属于死亡/复活与保险道具那条线（`DEATH_AND_REVIVAL_DESIGN_DRAFT` §4.5 起）。
 `SurvivalSystem` 原来的 `previousHealth` 采样路径**保留**（净变化仍有信息价值，只是不足以观测伤害）；
 ⚠️ 实测它**没有任何生产消费者**（`grep previousHealth()` 只有夹具一行日志）。
+
+### D-272：S-6 落地 —— 风险开关**按 bot 冻结**（2026-09-17，用户裁定「先做冻结容器」）
+
+**问题**：`RiskSwitches` 是**进程一份**的全局静态（D-046/D-059 的痕迹）⇒ 一个 bot 的任务跑到一半、
+别人改了开关，**同一份计划的两段就会用两套风险口径**（`survey/12 §4.3` 也点到消费者只有 2 处）。
+
+**做了什么（只搬现有 1 个开关，不加字段、不做 Job 候选筛选）**：
+1. 新增 `pathing/risk/RiskProfile`（record，**按 bot 冻结**；`ServerPlayer` 的 UUID 为键）：
+   `of(player)` 首次读取即冻结、`freeze(player)` 重新冻结、`freezeAll(...)`、`unfreeze/reset`（夹具）、`frozenCount`。
+2. **冻结点 = `BotManager.assignTask`**（唯一任务指派收口处）⇒ **一个任务内口径不变**。
+3. **消费者迁移**（2 处）：`DescendExecutionFactory`（执行侧，用 `context.bot()`）、
+   `SurfaceMovementProvider.overshootColumnSafe`（搜索侧，新增 `bot` 形参并由调用方 `context.bot()` 传入）。
+4. `/alice risk` 命令改开关后**重新冻结所有在跑的 bot** ⇒ **A/B 对比这个既有用途不退化**（否则"改了没反应"）。
+
+**判据（两套，都可红）**：
+- **夹具** `RiskProfileCheckTask` + 电池步 **`risk_profile_frozen`**（MAIN，9 条 check）：前提默认关 →
+  冻结后=全局值 → **全局改成 true 后已冻结画像**仍是 false（①核心）→ 对照全局确实是 true →
+  重新冻结后跟上新值（②）→ `freezeAll` 后立刻生效（③，即命令的真实入口）→ 收尾复位。
+  实测 `checks=9 failures=0`；**反向对照**（`of()` 改成实时读全局、不冻结）⇒ 该步 **FAIL** ✓。
+- **门禁 S6-P1**（`check-kernel-predicates.sh`）：两个消费者**不得**再直接读 `RiskSwitches.descendOvershootGuard()`，
+  且必须出现 `RiskProfile`。**注入**（执行侧读回全局开关）⇒ 红 ✓。
+
+**未做（如实登记）**：D-046 的"哪些字段进画像"仍未定（`RiskProfile` 目前只有 1 个分量）；
+Job 候选筛选不做；**风险等级枚举**依旧不做（D-059 已裁定否）。

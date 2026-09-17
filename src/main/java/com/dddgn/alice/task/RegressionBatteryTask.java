@@ -158,6 +158,8 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("mine_failure_visible", Profile.MAIN),
             // S-9（2026-09-17 用户裁定）：伤害改用**事件**观测 —— 证明"靠采样血量差看不见的伤害"能被看见。
             Map.entry("damage_event_visible", Profile.MAIN),
+            // S-6（2026-09-17 用户裁定）：风险开关按 bot **冻结**（同一任务内口径不变；命令改开关后重新冻结）。
+            Map.entry("risk_profile_frozen", Profile.MAIN),
             // 阶段 3-B / (c) 增量 2（D-217）：**机器路线的生产路径**（CraftJob 真的驱动一台机器）。
             // 与 machine_cycle 同一份闭环实现、不同入口；也会写容器 ⇒ 模组不在 ⇒ SKIP。
             Map.entry("craft_machine", Profile.MAIN),
@@ -401,6 +403,11 @@ public final class RegressionBatteryTask implements Task {
         // M3b ①（G3 归因）：`stale_target` —— 每个候选的身份复检都失败（决策后被改动）。
         // 夹具只替掉**那一次判定**（恒 false），理由码与真实竞态完全一样（`target_replaced`）；
         // 判据 = 终态理由真的成为 `stale_target`（否则 doneWhen 不成立 ⇒ 预算耗尽判红）。
+        steps.add(step("risk_profile_frozen",
+                List.of("alice_test:ore_course_terrain"),
+                () -> teleportBot(OreCourseAnchor.START_FOOT),
+                () -> new RiskProfileCheckTask(bot, observer),
+                60));
         steps.add(step("damage_event_visible",
                 List.of("alice_test:ore_course_terrain"),
                 () -> teleportBot(OreCourseAnchor.START_FOOT),

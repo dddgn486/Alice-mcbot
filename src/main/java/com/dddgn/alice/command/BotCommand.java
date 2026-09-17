@@ -1668,6 +1668,10 @@ public final class BotCommand {
             source.sendSystemMessage(Component.literal("[alice] 未知风险开关: " + name));
             return 0;
         }
+        // **S-6**：开关是全局默认值，而消费者读的是**按 bot 冻结的画像** ⇒
+        // 命令改完必须**重新冻结所有在跑的 bot**，否则"A/B 对比"这个用途会立刻失效（实测要求）。
+        com.dddgn.alice.pathing.risk.RiskProfile.freezeAll(
+                com.dddgn.alice.bot.BotManager.getAllBots());
         source.sendSystemMessage(Component.literal("[alice] 风险开关已更新: "
                 + com.dddgn.alice.pathing.risk.RiskSwitches.describe()));
         com.dddgn.alice.log.BotLog.info("[Risk] switch {}={} all={}", name, value,

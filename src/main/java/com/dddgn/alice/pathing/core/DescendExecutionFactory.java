@@ -58,7 +58,8 @@ public final class DescendExecutionFactory implements MovementExecutionFactory {
         // **D-059：默认关闭（对齐 Baritone 原样）；低风险模式由风险评估打开该开关。**
         // 仅当过冲列在落点高度可穿越（存在坠落通道）时才需要检查：
         // 实心墙会挡住过冲（撞停或踩上），不存在坠落风险。
-        if (!com.dddgn.alice.pathing.risk.RiskSwitches.descendOvershootGuard()) {
+        // S-6：读**该 bot 的冻结画像**，不读全局静态开关
+        if (!com.dddgn.alice.pathing.risk.RiskProfile.of(context.bot()).descendOvershootGuard()) {
             return ValidationResult.accepted();
         }
         int signDx = Integer.signum(to.getX() - from.getX());

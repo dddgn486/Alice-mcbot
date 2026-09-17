@@ -865,6 +865,9 @@ public final class BotManager {
             return;
         }
         session.beginTask(task, task.target());
+        // **S-6 冻结点**：任务指派时冻结该 bot 的风险画像 ⇒ 同一任务内口径不变
+        // （全局开关中途被改，也不会让同一份计划的两段用两套口径）。
+        com.dddgn.alice.pathing.risk.RiskProfile.freeze(bot);
         BotLog.info("assignTask: bot={} task={}", bot.getName().getString(), task.getClass().getSimpleName());
     }
 

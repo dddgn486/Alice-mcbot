@@ -83,7 +83,7 @@ public final class SurfaceMovementProvider implements MovementProvider {
                     continue;
                 }
                 if (MovementHelper.canDescend(level, from, to)) {
-                    if (overshootColumnSafe(level, to, d[0], d[1])) {
+                    if (overshootColumnSafe(context.bot(), level, to, d[0], d[1])) {
                         append(context, from, to, MovementType.DESCEND, out);
                     } else {
                         PathingStats.record("descend_overshoot_unsafe");
@@ -443,8 +443,10 @@ public final class SurfaceMovementProvider implements MovementProvider {
      * ③ 为下一级台阶（比目标低 1 格）可站立；
      * 且上述任一情况都不得含即死危害。
      */
-    static boolean overshootColumnSafe(ServerLevel level, BlockPos to, int dx, int dz) {
-        if (!com.dddgn.alice.pathing.risk.RiskSwitches.descendOvershootGuard()) {
+    static boolean overshootColumnSafe(net.minecraft.server.level.ServerPlayer bot, ServerLevel level, BlockPos to, int dx, int dz) {
+        // S-6：读**该 bot 的冻结画像**（不读全局静态开关）
+        if (bot == null
+                || !com.dddgn.alice.pathing.risk.RiskProfile.of(bot).descendOvershootGuard()) {
             return true;   // D-059：默认关闭（Baritone 原样），低风险模式再打开
         }
         int signX = Integer.signum(dx);
