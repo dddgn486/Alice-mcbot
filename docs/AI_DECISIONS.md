@@ -11627,3 +11627,57 @@ module=ledger → PASS（期望 PASS ✓）
 **⭐ 一条重要的迁移口径（本片确认，写进纪律）**：**验收单位是"模块"，不是"单步"** ✓
 —— 用户原话是「**一个模块**保证可以单独测」✓，所以模块**内部**允许"第 N 步依赖第 N−1 步留下的现场" ✓
 （如 craft 链的工作站 ✓），只要**整个模块**不依赖其它模块 ✓。这让搬运不必把每条依赖都拆平 ✓。
+
+### D-298：R-2 第三个分类模块 **`craft`（合成 / 工作站，12 步）** + 编排器步边界缺陷（2026-09-17）
+
+**搬了哪 12 步**（内联定义已从电池删除 ✓，相对顺序不变 ✓）：`craft_check` · `craft_action` · `craft_table`
+· `craft_station` · `craft_probe_inventory` · `craft_probe_table` · `craft_probe_upgradetab`
+· `craft_station_provision` · `craft_station_craft` · `craft_furnace` · `craft_cooking` · `craft_goal`
+（步名/场景/发料/工厂/预算/**跳过条件**逐字段等价 ✓）。
+`machine_route` / `machine_station` / `machine_cycle` / `craft_machine` **不在本片**：它们在 `craft_goal`
+**之后**且属 3-B 机器线 ⇒ 留给下一个 `machine` 模块，这样**相对顺序一个都没动** ✓。
+
+**⭐ 本片最大的产出不是搬迁，而是第一次单跑就抓到编排器缺陷**：`module:craft` 首跑 **11/12**，
+`craft_goal` 红。根因**不是合成**：
+```
+[CraftJob] 失败 code=upgrade_item_absent craft minecraft:crafting_table x1 phase=PROVISION produced=0 station=upgradetab
+```
+`craft_cooking` 的 provision 把 `CraftStation` 选择设成 `upgradetab`，编排器**没有还原**它 ⇒
+下一步 `craft_goal`（随身 2×2 路径）被泄漏的选择**改道** ✗。旧电池 `endStep` 里本来就有这一句
+（注释原话「**站点选择不跨步泄漏**：谁设的谁收」）⇒ **编排器缺它 = "行为等价"是假的**：
+CORE 曾经全绿，只是因为**电池那边**有那句话 ✓。
+
+**修法**：`CheckHarness` 把所有结束路径收成唯一出口 `endStep()`，其中调 `endStepHygiene()`
+（与电池 `endStep` 同口径，只补**会话生命周期不管**的跨步全局态 ✓）。修后同一步 **12/12 PASS**
+⇒ 「修前红 / 修后绿，同工件唯一步不同」本身就是反向对照 ✓。
+
+**门禁 `R2-P1`（新）**：电池 `endStep` 与编排器 `endStepHygiene` **两侧都必须有**
+`CraftStation.select(bot, "auto")`。反向对照实测：两侧同时删 ⇒ `编排器步边界=2` + 退出码 1 ✓。
+为什么钉"两侧"：将来任何人删掉任一侧，**当场构建红**，而不是等某一步在某个上下文里偶发假红 ✓。
+
+**顺带修掉一条"死规则"（同轮发现，与本片无关但同属"判断必须能变红"）**：`tools/kernel-predicates.py`
+里 `NP-P1`（"失败计数不得被当成进度"）的结果变量 `prog` 被后面的 `PG-P1` **静默覆盖** ⇒
+该规则**既不打印也不进 `ok`**。**注入验证**：去掉 `EventThresholds` 里剔除 `failed=` 的调用后，
+门禁**仍然 PASS**（还打印 `失败当进度=0`）⇒ 规则是死的 ✗。已改用独立变量 `np`；同一注入现在
+`[NP·进度信号]` 命中 1 条 + 退出码 1 ✓。
+
+**验证等级（逐条）**：
+- `module:craft` 单跑 **12/12 PASS**（53 秒）；**修前 11/12**（同一工件、只有那一步不同）——
+  `SERVER_TESTED`；
+- `tools/module-selftest.sh --no-build` **5/5**：`craft decision harness_self ledger pathing` ——
+  `SERVER_TESTED`；
+- **CORE**：run1 = **47/48**（唯一红 `survival_exit`）、run2（**同一工件**）= **48/48 PASS**
+  ⇒ 12 步 craft 在电池里逐步 PASS（**行为等价** ✓）——`SERVER_TESTED`；
+- `tools/check-all.sh`：**16 PASS + 1 WARN（headless 未执行，非通过）+ 0 FAIL** ——`COMPILES`+门禁。
+
+**⚠️ 登记（不是本片引入，不在本片盲修）**：`survival_exit` **第 2 次偶发假红**（第 1 次见台账
+2026-09-17 登记）。同工件 `single:survival_exit` **2/2 PASS**、CORE run2 PASS ⇒ 与 craft 搬迁**无关**。
+本轮**推翻了第 1 次登记的假设**（"该轮场景没真的产生掉血"）：注入那一步血量**确实掉了**
+（`[Survival] 夹具对 bot 造成 2.0 点伤害（现有血量 18.0）`），但**紧跟其后的**
+`[Threshold] 掉血 DANGER … hazard=NONE` 事件**缺失**（PASS 轮里它必然出现）⇒
+问题在**掉血事件的产生/采样**，不在"没掉血" ✓。⇒ 按台账规则（同问题 2 次**升级调查**）列队；
+**判别手段已定**：在夹具 tick5 处临时打印 `bot.hurt(...)` 的**返回值** + 追踪器采样
+（baseline / health / cooldown）——一次 CORE 即可判定"伤害被 i-frame 吃掉"还是"事件被冷却吞掉"。
+
+**过程教训（花掉了一条证据）**：CORE run1 的服务端日志被随后的 `single:` 轮次**覆盖** ✗
+⇒ 纪律加强：**每轮跑完立刻把 `/tmp/alice-headless-server.log` 复制留档**（本轮起照此做 ✓）。

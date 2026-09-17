@@ -585,69 +585,10 @@ public final class RegressionBatteryTask implements Task {
         // 基-5：LLM 上抛契约（Job 失败报告 / 产物判定口径 / 结构化拒绝回读）
         // 基-9：工具供给（换更好的 / 没得换如实报 / 不能凭空变出工具）
         // 基-8：能力闸门（MovementCapabilities 真的能拦人：保护区/资源/工具/预算/声明一致性）
-        // 阶段 3-A / A1（D-185）：只读配方查询（正例/缺料/3×3/无配方/机器专属 + 背包未变硬断言）
-        steps.add(step("craft_check", List.of(), null,
-                () -> new CraftCheckTask(bot, observer), 200));
-        // 阶段 3-A / A2（D-186）：随身 2×2 合成（真消耗真产物 + 缺料如实失败 + 网格清理）
-        steps.add(step("craft_action", List.of(), null,
-                () -> new CraftActionCheckTask(bot, observer), 200));
-        // 阶段 3-A / A3（D-188）：现成工作台 3×3 合成（找台→走位→开菜单→合成 + 零写入断言）
-        steps.add(step("craft_table", List.of("alice_test:craft_table_course"),
-                () -> teleportBot(com.dddgn.alice.task.CraftTableCheckTask.START),
-                () -> new CraftTableCheckTask(bot, observer), 900));
-        // 阶段 3-A / A3b（D-190）：**自放工作站**（第一次真正写世界的合成路径）+ 建拆同权
-        // 单独一步：它必须写世界（放置）并走恢复任务拆回，与 A3 的"零写入"断言分开可读
-        steps.add(step("craft_station", List.of("alice_test:craft_station_course"),
-                () -> teleportBot(com.dddgn.alice.task.CraftTableCheckTask.START),
-                () -> new com.dddgn.alice.task.CraftStationCheckTask(bot, observer), 2600));
-        // 阶段 3-A / S1-3（D-192）：**通用网格发现**的回归三连 ——
-        // ① 随身 2×2（Auto⇒inventory）② 原版工作台 3×3（零模组依赖）③ 模组"升级页签"（不可用则 SKIP）
-        steps.add(step("craft_probe_inventory", List.of(),
-                () -> {
-                    teleportBot(com.dddgn.alice.task.CraftGridProbeTask.START);
-                    com.dddgn.alice.task.craft.CraftStation.select(bot, "inventory");
-                },
-                () -> new com.dddgn.alice.task.CraftGridProbeTask(bot, observer, 2, 2), 300));
-        steps.add(step("craft_probe_table", List.of("alice_test:craft_table_course"),
-                () -> {
-                    teleportBot(com.dddgn.alice.task.CraftGridProbeTask.START);
-                    com.dddgn.alice.task.craft.CraftStation.select(bot, "table");
-                },
-                () -> new com.dddgn.alice.task.CraftGridProbeTask(bot, observer, 3, 3), 300));
-        steps.add(stepSkippable("craft_probe_upgradetab", List.of("alice_test:craft_tab_course"),
-                () -> {
-                    teleportBot(com.dddgn.alice.task.CraftGridProbeTask.START);
-                    com.dddgn.alice.task.craft.CraftStation.select(bot, "upgradetab");
-                },
-                () -> new com.dddgn.alice.task.CraftGridProbeTask(bot, observer), 400,
-                task -> task.failureReason().contains("station_opened")));
-        // 阶段 3-A / L2（D-194）：**工作站装配**（装升级 → 能力验证 3×3 → 取回复原）
-        // 依赖精妙存储：模组不在或站点不在 ⇒ SKIP（环境不具备，不判红）
-        steps.add(stepSkippable("craft_station_provision", List.of("alice_test:craft_tab_course"),
-                () -> teleportBot(com.dddgn.alice.task.CraftGridProbeTask.START),
-                () -> new com.dddgn.alice.task.CraftStationProvisionCheckTask(bot, observer), 900,
-                task -> task.failureReason().contains("mod_present")
-                        || task.failureReason().contains("station_found")));
-        // 阶段 3-A / C（D-195）：**模组站点真合成**（装升级 → 用页签 3×3 合成 → 拆回）
-        steps.add(stepSkippable("craft_station_craft", List.of("alice_test:craft_tab_course"),
-                () -> teleportBot(com.dddgn.alice.task.CraftGridProbeTask.START),
-                () -> new com.dddgn.alice.task.CraftStationCraftCheckTask(bot, observer), 1200,
-                task -> task.failureReason().contains("mod_present")
-                        || task.failureReason().contains("station_found")));
-        // 阶段 3-A / A4（D-196）：**熔炉**（"按时间工作"的另一种执行形状：放料→等烧→取产物→不留半成品）
-        steps.add(step("craft_furnace", List.of("alice_test:furnace_course"),
-                () -> teleportBot(com.dddgn.alice.task.CraftFurnaceCheckTask.START),
-                () -> new com.dddgn.alice.task.CraftFurnaceCheckTask(bot, observer), 1000));
-        // 阶段 3-A / A4b（D-198）：**菜单型炉子**（"熔炼升级页签"）—— 复用同一发现器，装升级→烧→取→拆回
-        steps.add(stepSkippable("craft_cooking", List.of("alice_test:craft_tab_course"),
-                () -> teleportBot(com.dddgn.alice.task.CraftFurnaceCheckTask.START),
-                () -> new com.dddgn.alice.task.CraftFurnaceCheckTask(bot, observer, true), 1600,
-                task -> task.failureReason().contains("mod_present")
-                        || task.failureReason().contains("station_found")));
-        // 阶段 3-A / A5（D-199）：**决策层合成自检**（可做清单 + 严格解析 + 生产路径 CraftJob）；
-        // **不需要场景**（随身 2×2 用背包里的 4 块木板做工作台）
-        steps.add(step("craft_goal", List.of(), () -> { },
-                () -> new com.dddgn.alice.task.CraftGoalCheckTask(bot, observer), 600));
+        // ---- 模块化（R-2）：**合成 / 工作站模块**（12 步）从 `CraftModule` 取 ----
+        // 逐字段等价搬迁（步名/顺序/预算/工厂/跳过条件完全一致 ✓）；**场景与发料都由模块自带** ✓
+        // ⇒ `module:craft` 单跑必须绿 —— 这段正是历史上「`single:craft_table` 单跑必红」的那个坑 ✓
+        steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.CraftModule().steps(checkContext())));
         // 阶段 3-B / S1（D-204 / §6.51）：**机器配方只读**（问上游自述读输入/输出 + 查询层给 MACHINE_ROUTE）；
         // 模组不在/该命名空间没有机器类型 ⇒ SKIP（不判红）。零写入。
         steps.add(stepSkippable("machine_route", List.of(), () -> { },

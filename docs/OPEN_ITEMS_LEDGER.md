@@ -51,6 +51,9 @@
 > ⇒ 需补 plan-only 夹具：场景 = 一条「贴着熔岩的短路 + 安全绕行长路」，开/关两次规划断言 `cost`/`nodes` 不同（反向对照：去掉加价 ⇒ 两次相同 ⇒ 红）。可用面：`CorePathPlanner` + `SearchBudget`（各诊断任务已这样用 ✓）。
 > **R-2 进度（2026-09-17）**：**Phase 1a 完成**（`task/check/` 框架 + `LedgerModule` 接入，CORE 判"行为等价"✓）；**Phase 1b 首片完成**（`CheckHarness` 编排器脱离会话任务 ✓ · `module:<id>` 单跑 ✓ · `module-selftest.sh` 验收 ✓ · `harness_self` 自检模块证明"命令顶不掉编排器" ✓ —— D-293/294/295）。
 > **R-2 余下**：① v1「模块自带场景/发料/前提」⇒ 才能搬 `pathing`/`mining`/`lumber`/`craft`/`machine`/`transfer`/`survival`/`decision`/`death`/`tools`；② 搬完一类即在 `module-selftest.sh` 里多一个"可单独跑通"的模块 ✓。
+> **R-2 已搬模块（2026-09-17）**：`ledger`(4) → `harness_self`(3) → `pathing`(3，D-296) → `decision`(5，D-297) → **`craft`(12，D-298)**；`module-selftest` 现 **5/5** ✓。
+> **R-2 下一步（按列表顺序）**：`machine`（machine_route/machine_station/machine_cycle/craft_machine —— ⚠️ **`machine_station` 单跑已知缺 FULL 隐含前置**（`menu_open_failed:menu_not_settled`，见策展表 2026-09-17 行）⇒ 搬它时**必须**先让该模块自带前提，否则会把这条坑搬进新框架）→ `mining` → `lumber` → `transfer` → `survival` → `death` → `tools`。
+> **⭐ R-2 的口径（D-297/298 两次确认）**：验收单位是**模块**（模块内允许步间依赖 ✓）；**编排器的步边界必须与电池 `endStep` 同口径** —— D-298 实测：缺一句站点还原就让 `craft_goal` 单跑假红，而**电池那边有、编排器没有** ⇒ 门禁 `R2-P1` 钉住"两侧都要有" ✓。
 > **R-2（电池模块化）**：用户 2026-09-17 定为"下一条主线"，**开工后按用户要求暂停** ✗（"等会，决策还没做完"）⇒ 已放下的样板：`task/check/{CheckStep,CheckProfile,CheckContext,CheckModule}.java` + `modules/LedgerModule.java`（未接入电池）⇒ 决策走完后继续 ✓。
 
 ## §0 一览
@@ -73,7 +76,16 @@
 > `[Survival] SUMMARY checks=123 failures=2`，两条都是「掉血必须变成可判读的事实（DANGER 事件含 delta=…；**实际命中 0**）」。
 > 同一天的前后两轮同一步均 **PASS** ⇒ 按「同问题 2+ 次才升级调查」的规矩**只登记、不追查**。
 > 假设（未验证）：该轮场景没真的产生掉血事实（时序/RNG）。⚠️ 与 S-9 改动**无关**：`onBotDamage`/`DecisionSnapshot.damage` 对 DANGER 事件路径是**只读**的。
-> 若再次出现 ⇒ 按 `debugging-root-cause-analysis` 追（先固定 123 条判据里到底哪两条、以及那次 bot 的实际掉血序列）。
+> **⇒ 第 2 次出现（2026-09-17 晚，D-298 的 CORE run1）⇒ 按本行自己的规矩升级调查**（不再"只登记"）：
+> 同一工件下 `single:survival_exit` **2/2 PASS**、CORE run2 **48/48 PASS** ⇒ 确认偶发、且**与 craft 模块搬迁无关** ✓。
+> **本轮新增判别性证据（推翻了上面那条假设）**：注入的那一步血量**确实掉了**
+> （`[Survival] 夹具对 bot 造成 2.0 点伤害（现有血量 18.0）`），但**紧跟其后的** `[Threshold] 掉血 DANGER … hazard=NONE`
+> 事件**缺失**（PASS 轮里它必然出现在同一位置，如 `health=18.0/20.0 hazard=NONE pos=64, 64, 102`）
+> ⇒ 问题在**掉血事件的产生/冷却/采样**，**不是"没掉血"** ✓。相关代码：`SurvivalExitCheckTask.healthPhase()`
+> （tick5 `resetHealthTracking`+`bot.hurt(2.0)`；tick11 查事件；tick31 查"恰好 1 条"）+ `EventThresholds` 的掉血阈值/冷却。
+> **下一步（判别手段已定，一次 CORE 就能定案）**：在夹具 tick5 处临时打印 **`bot.hurt(...)` 的返回值** +
+> 追踪器采样（baseline / health / cooldown 剩余）⇒ 分辨 ① 伤害被 `invulnerableTime` 吃掉（前一相位着火伤害的余波）
+> 还是 ② 事件被 `HEALTH_LOSS_COOLDOWN_TICKS` 吞掉。**在拿到这个判别证据前不改代码** ✓。
 > **S-12（2026-09-17 新登记，队列⑤-1 的产物）**：『JEI 显示的催化剂』与『我们认的站点』之间**没有断言**。
 > 事实：我方**零 JEI 引用**（`grep mezz.jei src/main/java` = 0）；站点来自自维护的 `RecipeDump.STATION_BY_TYPE`
 > 与 `MachineMap` CSV（D-219 需求驱动）。⇒ 若某模组配方在 JEI 里有催化剂而我们没映射，

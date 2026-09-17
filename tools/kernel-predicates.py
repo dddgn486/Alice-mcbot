@@ -368,12 +368,45 @@ def rule_no_until_full():
     return problems
 
 
+def rule_harness_step_hygiene():
+    """R2-P1（2026-09-17 实测缺陷，R-2 迁移 `craft` 时抓到）：**编排器的步边界必须与电池 `endStep` 同口径**。
+
+    事实（怎么抓到的）：把 12 步合成链搬进 `CraftModule` 后第一次单跑 `module:craft` ⇒ **11/12**，
+    `craft_goal` 红。根因**不是合成**，而是**站点选择跨步泄漏**：
+    `craft_cooking` 的 provision 把 `CraftStation` 选择设成 `upgradetab`，编排器没还原 ⇒
+    下一步 `CraftJob` 走升级页签路线 ⇒ `[CraftJob] 失败 code=upgrade_item_absent … station=upgradetab`。
+    旧电池 `endStep` 里本来就有这一句（注释原话：「**站点选择不跨步泄漏**：谁设的谁收」）⇒
+    **编排器缺它 = "行为等价"是假的**（CORE 曾经全绿，只是因为电池那边有那句话 ✓）。
+
+    本规则钉住**两侧都要有**：电池 `endStep` 与编排器 `endStepHygiene` 各出现一次
+    `CraftStation.select(bot, "auto")`。少任何一侧 ⇒ 构建红（这一条的价值就在于"哪一侧被删掉都当场知道"）。
+    """
+    targets = {
+        ROOT / "src/main/java/com/dddgn/alice/task/RegressionBatteryTask.java": "电池 endStep",
+        ROOT / "src/main/java/com/dddgn/alice/task/check/CheckHarness.java": "编排器 endStepHygiene",
+    }
+    needle = 'CraftStation.select(bot, "auto")'
+    problems = []
+    for path, label in targets.items():
+        if not path.exists():
+            problems.append(f"{path.name} 不存在（{label} —— 改名？同步本规则）")
+            continue
+        text = re.sub(r"//[^\n]*", "", path.read_text(encoding="utf-8"))
+        if needle not in text:
+            problems.append(f"{label}（{path.name}）里找不到 `{needle}`"
+                            "（跨步全局态没还原 ⇒ 下一步的行为会取决于上一步设了什么）")
+    return problems
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
     s8 = rule_s8()
     walk = rule_walk_budget()
-    prog = rule_progress_signal()
+    # ⚠️ NP-P1 与 PG-P1 **必须分开两个变量**（2026-09-17 实测缺陷：两者都叫 `prog` ⇒
+    # 下面 `prog = rule_progress_switch()` 把 NP-P1 的结果**静默顶掉** ⇒ 该规则连打印和 `ok` 都不进
+    # ⇒ 一次真实注入（去掉剔除 `failed=` 的调用）后门禁**仍然 PASS** ✗ 已修）
+    np = rule_progress_signal()
     risk = rule_risk_profile()
     speech = rule_speech_channel()
     perm = rule_permission_service()
@@ -388,6 +421,7 @@ def main() -> int:
     s10 = rule_no_planning_dependency()
     f1 = rule_driver_attribution()
     j5 = rule_no_until_full()
+    r2 = rule_harness_step_hygiene()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -396,7 +430,7 @@ def main() -> int:
         print(f"[S8·死字段] {line}")
     for line in walk:
         print(f"[W·行走预算] {line}")
-    for line in prog:
+    for line in np:
         print(f"[NP·进度信号] {line}")
     for line in risk:
         print(f"[S6·风险画像] {line}")
@@ -418,10 +452,15 @@ def main() -> int:
         print(f"[S10·依赖管道] {line}")
     for line in f1:
         print(f"[F1·归因] {line}")
-    ok = not k4 and not k5 and not s8 and not walk and not prog and not risk and not speech and not perm and not death and not dmg and not prog and not s10 and not f1 and not prog_default and not j5
+    for line in r2:
+        print(f"[R2·编排器步边界] {line}")
+    ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
+          and not perm and not death and not dmg and not prog and not s10 and not f1
+          and not prog_default and not j5 and not r2)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
-          f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(prog)} / 风险画像未接={len(risk)}"
-          f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1 —— 见各规则头部的注释）")
+          f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
+          f" / 编排器步边界={len(r2)}"
+          f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 
 

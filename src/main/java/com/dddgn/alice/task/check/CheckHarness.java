@@ -110,6 +110,7 @@ public final class CheckHarness {
                 if (BotManager.isBusy(bot)) {
                     if (ticks > WATCHDOG_TICKS) {
                         failures.add("step=" + step.name() + "：等空闲超时（" + BotManager.busyMessage(bot) + "）");
+                        endStepHygiene();
                         index = steps.size();
                     }
                     return;
@@ -142,8 +143,7 @@ public final class CheckHarness {
                 if (!com.dddgn.alice.task.FixturePremise.onGround(bot).ok()) {
                     if (ticks - premiseStartTick > PREMISE_TIMEOUT_TICKS) {
                         failures.add("step=" + step.name() + "：等落地超时 " + PREMISE_TIMEOUT_TICKS + " tick ✗");
-                        index++;
-                        phase = 0;
+                        endStep();
                     }
                     return;
                 }
@@ -156,14 +156,12 @@ public final class CheckHarness {
                 Task task = step.factory().get();
                 if (task == null) {
                     failures.add("step=" + step.name() + "：任务工厂返回 null ✗");
-                    index++;
-                    phase = 0;
+                    endStep();
                     return;
                 }
                 if (!BotManager.beginSelfCheckTask(bot, task)) {
                     failures.add("step=" + step.name() + "：起任务失败（会话忙或不存在 ✗）");
-                    index++;
-                    phase = 0;
+                    endStep();
                     return;
                 }
                 stepStartTick = ticks;
@@ -174,8 +172,7 @@ public final class CheckHarness {
                     if (ticks - stepStartTick > step.budgetTicks()) {
                         failures.add("step=" + step.name() + "：超预算 " + step.budgetTicks() + " tick ✗");
                         BotManager.stopTask(bot, "harness_budget");
-                        index++;
-                        phase = 0;
+                        endStep();
                     }
                     return;
                 }
@@ -196,13 +193,40 @@ public final class CheckHarness {
                 }
                 BotLog.info("[Harness] step={} {} ticks={} detail={}", step.name(), pass ? "PASS" : "FAIL",
                         ticks - stepStartTick, currentResultDetail);
-                index++;
-                phase = 0;
+                endStep();
             }
             default -> {
                 phase = 0;
             }
         }
+    }
+
+    /**
+     * **步边界（所有结束路径的唯一出口）**：`endStepHygiene()` + 前进一格。
+     *
+     * <p>为什么要收敛到一个出口：实测（2026-09-17，`module:craft` 第一次单跑）发现
+     * **`craft_goal` 单跑红**，根因不是合成而是**站点选择跨步泄漏** ——
+     * `craft_cooking` 的 provision 把选择设成 `upgradetab`，而编排器没有还原它 ⇒
+     * `CraftJob` 走升级页签路线 ⇒ `[CraftJob] 失败 code=upgrade_item_absent … station=upgradetab`。
+     * 旧电池本来就在 `endStep` 里写了这一句（「**站点选择不跨步泄漏**：谁设的谁收 ✓」）⇒
+     * 编排器缺它 = **"行为等价"是假的**（CORE 曾经是绿的，只是因为电池那边有那句话 ✓）。
+     */
+    private void endStep() {
+        endStepHygiene();
+        index++;
+        phase = 0;
+    }
+
+    /**
+     * **步边界卫生（与电池 `endStep` 逐条对齐 ✓）**。
+     *
+     * <p>编排器靠会话任务生命周期拿到的部分（账本作用域 / 写入预算 / 终态记录）**不在这里** ——
+     * 那些由 `BotManager.beginSelfCheckTask` 与 `clearTask` 负责 ✓。这里只补**会话生命周期不管**的
+     * **跨步全局态**：`CraftStation` 的按 bot 选择（内存态、每步读一次）⇒ 不还原就会让"下一步"
+     * 的行为取决于"上一步设了什么"✗（正是模块独立性最怕的隐含前提 ✗）。
+     */
+    private void endStepHygiene() {
+        com.dddgn.alice.task.craft.CraftStation.select(bot, "auto");
     }
 
     private void verdict() {
