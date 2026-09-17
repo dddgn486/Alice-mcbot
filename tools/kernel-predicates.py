@@ -139,6 +139,8 @@ def rule_risk_profile():
         CORE / "search" / "SurfaceMovementProvider.java": "搜索侧（过冲列安全）",
         # D-291（2026-09-17）：容器访问策略的消费点 ⇒ 必须读**冻结画像**，不许直读全局开关
         (ROOT / "src/main/java/com/dddgn/alice/action/MenuSession.java"): "执行侧（容器访问策略）",
+        # D-292（2026-09-17）：危险厌恶的消费点 ⇒ 必须读冻结画像
+        (ROOT / "src/main/java/com/dddgn/alice/pathing/core/search/MovementContext.java"): "搜索侧（危险邻接加价）",
     }
     problems = []
     for path, label in targets.items():

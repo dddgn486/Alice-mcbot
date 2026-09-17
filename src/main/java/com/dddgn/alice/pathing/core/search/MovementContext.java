@@ -56,8 +56,37 @@ public record MovementContext(
         return level.getWorldBorder().isWithinBounds(pos);
     }
 
+    /** **邻接危险方块的加价**（D-292）：够大以至于规划器倾向绕开，但不至于把路封死 ✗（≈20 格走路）。 */
+    public static final double HAZARD_ADJACENCY_PENALTY = 20.0D;
+
     public double cost(MovementType type, BlockPos from, BlockPos to) {
-        return costModel.cost(type, level, from, to);
+        return costModel.cost(type, level, from, to) + hazardAdjacencyPenalty(to);
+    }
+
+    /**
+     * **危险地带厌恶的消费点（D-292，2026-09-17 用户裁定"先加 hazardTolerance"）**。
+     *
+     * <p>口径：落点**自己**是危险方块由既有安全层管 ✗（不在这里重复）；这里只管"**贴着**危险走"这件事 ——
+     * 脚位/头位/支撑的四个水平邻格里有危险方块 ⇒ 加价 ✓（**只是不划算，不是禁止** ✓）。
+     * 读的是**按 bot 冻结的画像**（`RiskProfile.of(bot)`）⇒ 一个任务跑到一半别人改开关也不影响本任务 ✓（S-6 语义）。
+     * 默认（画像里 `hazardAversion=false`）⇒ **恒返回 0 ⇒ 与今天完全一致** ✓。
+     */
+    private double hazardAdjacencyPenalty(BlockPos to) {
+        var bot = bot();   // ServerPlayer（BotPlayer 是它的子类 ✓）
+        if (bot == null || !com.dddgn.alice.pathing.risk.RiskProfile.of(bot).hazardAversion()) {
+            return 0.0D;
+        }
+        for (net.minecraft.core.Direction dir : net.minecraft.core.Direction.Plane.HORIZONTAL) {
+            if (com.dddgn.alice.pathing.MovementHelper.avoidWalkingInto(
+                    level.getBlockState(to.relative(dir)))) {
+                return HAZARD_ADJACENCY_PENALTY;
+            }
+            if (com.dddgn.alice.pathing.MovementHelper.avoidWalkingInto(
+                    level.getBlockState(to.above().relative(dir)))) {
+                return HAZARD_ADJACENCY_PENALTY;
+            }
+        }
+        return 0.0D;
     }
 
     /**
