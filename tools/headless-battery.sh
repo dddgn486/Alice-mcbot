@@ -58,7 +58,7 @@ TIMEOUT_SEC="${ALICE_HEADLESS_TIMEOUT:-1200}"
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        core|full|single:*|module:*) MODE="$1" ;;
+        core|full|single:*|module:*|list-modules) MODE="$1" ;;
         --dev)              BACKEND="dev" ;;
         --prod)             BACKEND="prod" ;;
         --keep-world)       KEEP_WORLD=yes ;;
@@ -273,6 +273,8 @@ case "$VERDICT" in
     DEGRADED) CODE=2 ;;
     FAIL)     CODE=1 ;;
     "")       CODE=3 ;;
+    list_modules) say "模块清单：$(grep -aoE 'MODULES ids=[a-z0-9_,]*' /tmp/alice-headless-server.log 2>/dev/null | tail -1)"
+                  CODE=0 ;;
     unknown_step) say "步名不存在（服务端已给出已知步数与相近候选，见上方 [Headless] 未知步名 一行）"; CODE=6 ;;
     *)        say "无法识别的判决：$VERDICT"; CODE=5 ;;
 esac
@@ -280,6 +282,7 @@ esac
 say "──── 结果 ────"
 say "verdict=${VERDICT:-<无>} exit=$CODE 用时=${ELAPSED}s 进程退出码=$SRV_EXIT${SRV_HUNG:+  进程_hung=yes}"
 grep -a 'Regression\] SUMMARY' "$LOG" 2>/dev/null | tail -1 | cut -c1-600
+grep -aoE 'MODULES ids=[a-z0-9_,]*' /tmp/alice-headless-server.log 2>/dev/null | tail -1
 say "日志：$LOG（服务端 stdout：/tmp/alice-headless-server.log）"
 [ "$KEEP_WORLD" = "no" ] || say "（--keep-world：$WORLD 已保留）"
 exit "$CODE"

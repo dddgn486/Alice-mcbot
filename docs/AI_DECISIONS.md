@@ -11533,3 +11533,26 @@ Caused by: java.nio.file.FileSystemException:
 
 **v0 的诚实边界（登记在案）**：只支持**不需要场景/发料**的模块（账本模块 ✓）；场景/发料/前提等待在 v1 补齐；
 `module-selftest.sh`（逐模块全跑）与"命令顶不掉编排器"的行为判据 = 下一片 ✓。
+
+### D-294：R-2 验收工具 **`tools/module-selftest.sh`**（"一个模块保证可以单独测"的可执行判据）
+
+**做了什么**：
+1. 无头驱动新增 **`list-modules`** 模式 ⇒ 打印 `MODULES ids=…`（**id 的唯一出处**是 `CheckModules` ✓ ⇒ 脚本不手抄 ✗ 不会与代码漂移 ✓）。
+   `tools/headless-battery.sh` 同步认这个判决（并把 `MODULES` 行回显给调用方 ✓）。
+2. **`tools/module-selftest.sh`**：运行时取模块清单 ⇒ **逐个模块单独跑**（`module:<id>` ✓）⇒ 打印每步明细与判决 ⇒
+   **全 PASS 才退 0** ✓；拿不到清单 ⇒ 退 2（**基础设施坏了不许当通过** ✗）；任一模块 FAIL ⇒ 退 1 ✓。
+   支持 `--no-build` 与"只跑指定模块"（`tools/module-selftest.sh ledger` ✓）。
+
+**实测**：
+```
+[module-selftest] 模块清单：ledger（共 1 个）
+  [Harness] step=clear_retry PASS ticks=60 detail=done
+  [Harness] step=write_budget PASS ticks=24 detail=done
+  [Harness] step=scaffold PASS ticks=322 detail=done
+  [Harness] step=clear_guard PASS ticks=97 detail=done
+[module-selftest] PASS 1/1：ledger
+[module-selftest] 全部模块可单独跑通 ✓
+```
+
+**定位（诚实）**：它是**重验证**（每个模块一轮无头 ≈1 分钟 ⇒ 与 CORE/FULL 同级，**不进快速门禁** ✗），
+放**发布前/大改后**的清单里（见 `docs/HANDOVER.md` 的验证清单 ✓）。
