@@ -1,0 +1,180 @@
+package com.dddgn.alice.task.check.modules;
+
+import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.item.FixtureToolKit;
+import com.dddgn.alice.job.GoalSpec;
+import com.dddgn.alice.job.mine.MineCandidateSource;
+import com.dddgn.alice.job.mine.MineJob;
+import com.dddgn.alice.job.policy.NearestPolicy;
+import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.task.MineCourseDiagnosticTask;
+import com.dddgn.alice.task.MineMenuCheckTask;
+import com.dddgn.alice.task.MineRegressionTask;
+import com.dddgn.alice.task.NoProgressCheckTask;
+import com.dddgn.alice.task.OreCourseAnchor;
+import com.dddgn.alice.task.check.CheckContext;
+import com.dddgn.alice.task.check.CheckModule;
+import com.dddgn.alice.task.check.CheckProfile;
+import com.dddgn.alice.task.check.CheckStep;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.Blocks;
+
+import java.util.List;
+import java.util.Set;
+
+/**
+ * **挖掘模块（R-2 第五片，7 步）**：`mine_regression` · `no_progress` · `mine_menu` · `mine_job`
+ * · `mine_no_tool` · `mine_stale` · `mine_budget`。
+ *
+ * <p>为什么这七步归一类：它们是**同一条挖掘链路的不同环节**，而且**共享同一个场景**（`ore_course_terrain`）
+ * 与同一批"必须不猜"的红线：
+ * <ul>
+ *   <li>`mine_regression`：挖掘执行器全量回归（它**自带地形**：逐个用例跑 `alice_test:<terrain>_terrain` ✓）；</li>
+ *   <li>`no_progress`：长作业周期复评（停滞 ⇒ 报一次 `NO_PROGRESS`）；</li>
+ *   <li>`mine_menu`：候选菜单契约（**`mine` 不许猜位置**）；</li>
+ *   <li>`mine_job`：生产入口真挖（`MineJob` + 配额）；</li>
+ *   <li>`mine_no_tool`：缺工具必须报 `tool_missing`，**不许被总括码盖掉**；</li>
+ *   <li>`mine_stale`：身份复检失败必须报 `stale_target`；</li>
+ *   <li>`mine_budget`：预算耗尽必须报 `write_budget_exhausted`。</li>
+ * </ul>
+ *
+ * <p>**后三步是"归因"判据**（G3）：它们都用 `doneWhen` 把"终态理由码恰好是那一个"变成判据
+ * ⇒ 归因一旦退化成总括码，`doneWhen` 永不成立 ⇒ 预算耗尽 ⇒ 判红 ✓（不是"看起来跑通了"）。
+ * ⚠️ 它们同时是**编排器必须支持 `doneWhen` 的动因**（见 D-300）✓。
+ *
+ * <p>**本模块自带的前提**：`mine_regression` 由模块**先传送到课程起点热区块**（它自己再跑地形函数 ——
+ * 顺序反了就会让 `/fill` 落在冷区块上 ✗，D-296 记过这个坑）；其余六步各自传送到 `ore_course` 起点发料。
+ */
+public final class MiningModule implements CheckModule {
+
+    /** 与 `MineJobItem` 对齐的挖掘 Job 配额（原电池私有常量，搬过来时**逐字保留** ✓）。 */
+    private static final int MINE_QUOTA = 4;
+
+    @Override
+    public String id() {
+        return "mining";
+    }
+
+    @Override
+    public String title() {
+        return "挖掘（执行器回归 / 周期复评 / 候选契约 / 生产入口 / 归因三连）";
+    }
+
+    @Override
+    public List<CheckStep> steps(CheckContext ctx) {
+        BotPlayer bot = ctx.bot();
+        var observer = ctx.observer();
+        var scope = ctx.scope();
+        List<String> ore = List.of("alice_test:ore_course_terrain");
+        Runnable toOre = () -> to(bot, OreCourseAnchor.START_FOOT);
+        Runnable staged = () -> {          // 传送到起点 + 清背包 + 发镐（`mine_job`/`mine_stale`/`mine_budget` 共用）
+            toOre.run();
+            FixtureToolKit.resetInventory(bot);
+            FixtureToolKit.ensurePickaxe(bot);
+        };
+        return List.of(
+                // 挖掘执行器**全量回归**：自带地形（逐个用例跑 `alice_test:<terrain>_terrain`）⇒ 本模块只负责
+                // **先把区块热起来**（模块自身的传送在前，夹具的地形函数在后 ⇒ 顺序正确 ✓）
+                CheckStep.of("mine_regression", CheckProfile.BASELINE, List.of(),
+                        () -> to(bot, MineCourseDiagnosticTask.START_FOOT),
+                        () -> new MineRegressionTask(bot, observer, scope), 3200),
+                // M2（G2）：长作业周期复评（窗口 40 tick，夹具自己造停滞与"重新武装"）
+                CheckStep.of("no_progress", CheckProfile.MAIN, ore, toOre,
+                        () -> new NoProgressCheckTask(bot, observer), 400),
+                // M1（G1）：挖矿候选菜单契约自检（纯逻辑，不改世界、不调 LLM）—— 矿石场景保证"附近有矿"
+                CheckStep.of("mine_menu", CheckProfile.MAIN, ore, toOre,
+                        () -> new MineMenuCheckTask(bot, observer), 300),
+                // 挖掘 Job：同上（ore_course + 复刻 MineJobItem 的发料）
+                CheckStep.of("mine_job", CheckProfile.BASELINE, ore, staged,
+                        () -> new MineJob(bot,
+                                GoalSpec.mineBlocks(OreCourseAnchor.START_FOOT,
+                                        MineCandidateSource.SCAN_RADIUS, MINE_QUOTA, 3600),
+                                scope,
+                                new MineCandidateSource(MineCandidateSource.Target.ofBlock(Blocks.IRON_ORE),
+                                        MineCandidateSource.SCAN_RADIUS),
+                                new NearestPolicy()),
+                        2200),
+                // M3（G3 归因）：**缺工具**必须如实报 `tool_missing`，不许被总括码 `no_reachable_candidate` 盖掉。
+                // 与上一步**同一场景、同一 Job**，唯一差别 = **不发镐** ⇒ 每个候选都 `no_suitable_tool`。
+                // 判据挂在 `doneWhen`：终态理由一旦成为 `tool_missing` 即记 PASS（`MineJob` 会 FAILED，
+                // 这是**预期**的失败 —— 该步验的是**归因**，不是"挖到了"）。
+                CheckStep.of("mine_no_tool", CheckProfile.MAIN, ore, () -> {
+                    toOre.run();
+                    FixtureToolKit.resetInventory(bot);   // 有意不发任何工具
+                    BotLog.info("[Mining] mine_no_tool 夹具：已清空背包且**不发镐**（验归因，不是验挖掘）");
+                }, () -> new MineJob(bot,
+                        GoalSpec.mineBlocks(OreCourseAnchor.START_FOOT,
+                                MineCandidateSource.SCAN_RADIUS, 2, 1200),
+                        scope,
+                        new MineCandidateSource(MineCandidateSource.Target.ofBlock(Blocks.IRON_ORE),
+                                MineCandidateSource.SCAN_RADIUS),
+                        new NearestPolicy()),
+                        600)
+                        // 归因对了就判过；一直是总括码 ⇒ doneWhen 永不成立 ⇒ 预算耗尽记 TIMEOUT（判红）。
+                        // M4b：**顺带把"任务树里必须带子阶段的失败事实"变成判据** —— 这是"必然失败"的步骤，
+                        // 正好用来断言 `tree[].lastFailure` 不再永远是空。
+                        .withDoneWhen(task -> {
+                            if (!(task instanceof MineJob job) || !"tool_missing".equals(job.terminalReason())) {
+                                return false;
+                            }
+                            String line = job.subTasks().stream()
+                                    .map(com.dddgn.alice.task.TaskNode::lastFailure)
+                                    .filter(failure -> !failure.isBlank())
+                                    .findFirst().orElse("");
+                            if (line.isBlank()) {
+                                BotLog.warn("[Mining] M4b 判据：mine_no_tool 已 tool_missing，但任务树里"
+                                        + "**没有**任何子阶段的 lastFailure ⇒ 判红（树={}）",
+                                        job.subTasks().stream()
+                                                .map(com.dddgn.alice.task.TaskNode::describe).toList());
+                                return false;
+                            }
+                            BotLog.info("[Mining] M4b 判据通过：任务树带子阶段失败事实 lastFailure={}", line);
+                            return true;
+                        }),
+                // M3b ①（G3 归因）：`stale_target` —— 每个候选的身份复检都失败（决策后被改动）。
+                // 夹具只替掉**那一次判定**（恒 false），理由码与真实竞态完全一样（`target_replaced`）。
+                CheckStep.of("mine_stale", CheckProfile.MAIN, ore, () -> {
+                    staged.run();
+                    BotLog.info("[Mining] mine_stale 夹具：身份复检恒 false（构造 target_replaced 竞态）");
+                }, () -> new MineJob(bot,
+                        GoalSpec.mineBlocks(OreCourseAnchor.START_FOOT,
+                                MineCandidateSource.SCAN_RADIUS, 1, 600),
+                        scope,
+                        new MineCandidateSource(MineCandidateSource.Target.ofBlock(Blocks.IRON_ORE),
+                                MineCandidateSource.SCAN_RADIUS),
+                        new NearestPolicy(),
+                        pos -> false),
+                        400)
+                        .withDoneWhen(task -> task instanceof MineJob job
+                                && "stale_target".equals(job.terminalReason())),
+                // M3b ②（G3 归因）：`write_budget_exhausted` —— **本步作用域**的破坏预算压到 0
+                // （`WriteBudget.setCaps` 是既有夹具专用缝，不接玩家命令）⇒ 每次破坏都被拒 ⇒ 全预算码。
+                // ⚠️ 这条**依赖"编排器在 provision 之前就把本步作用域开好"**（与电池 `setup` 同序 ✓）：
+                // 否则 `WriteBudget.scopeOf(bot)` 会指到孤儿作用域 ⇒ 预算没生效 ⇒ 本步以超时红 ✗（D-301）。
+                CheckStep.of("mine_budget", CheckProfile.MAIN, ore, () -> {
+                    staged.run();
+                    com.dddgn.alice.action.WriteBudget.setCaps(
+                            com.dddgn.alice.action.WriteBudget.scopeOf(bot),
+                            new com.dddgn.alice.action.WriteBudget.Caps(0, 0));
+                    BotLog.info("[Mining] mine_budget 夹具：本作用域写入预算压到 0 破坏 / 0 放置（scope={}）",
+                            com.dddgn.alice.action.WriteBudget.scopeOf(bot));
+                }, () -> new MineJob(bot,
+                        GoalSpec.mineBlocks(OreCourseAnchor.START_FOOT,
+                                MineCandidateSource.SCAN_RADIUS, 1, 600),
+                        scope,
+                        new MineCandidateSource(MineCandidateSource.Target.ofBlock(Blocks.IRON_ORE),
+                                MineCandidateSource.SCAN_RADIUS),
+                        new NearestPolicy()),
+                        400)
+                        .withDoneWhen(task -> task instanceof MineJob job
+                                && "write_budget_exhausted".equals(job.terminalReason())));
+    }
+
+    /** 传送到统一起点（与电池 `teleportBot` 逐字段一致 ✓；顺带起"先热区块再 fill"的作用 ✓）。 */
+    private static void to(BotPlayer bot, BlockPos foot) {
+        bot.teleportTo(bot.serverLevel(), foot.getX() + 0.5D, foot.getY(), foot.getZ() + 0.5D,
+                Set.of(), bot.getYRot(), bot.getXRot());
+        bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+        bot.controller().stopMovement();
+    }
+}

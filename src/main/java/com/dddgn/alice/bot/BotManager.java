@@ -1005,6 +1005,20 @@ public final class BotManager {
         return true;
     }
 
+    /**
+     * **公开桥（R-2）**：与 {@link #beginSelfCheckTask} 同，但**账本作用域已由编排器开好**
+     * —— 编排器的步边界与电池 `setup` 同序（**openScope → 场景 → provision → 起任务** ✓），
+     * 因此这里**不再开新作用域**（`openScope` 非幂等；详见 {@code BotSession#beginTask} 的注释）。
+     */
+    public static boolean beginSelfCheckTaskInOpenScope(BotPlayer bot, com.dddgn.alice.task.Task task) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || task == null || session.task != null) {
+            return false;
+        }
+        session.beginTask(task, task.target(), false);
+        return true;
+    }
+
     public static String currentTaskSummary(BotPlayer bot) {
         BotSession session = BOTS.get(bot.getUUID());
         return session == null ? null : session.currentTaskSummary();
@@ -1805,9 +1819,20 @@ public final class BotManager {
         }
 
         private void beginTask(Task assignedTask, TaskTarget assignedTarget) {
+            beginTask(assignedTask, assignedTarget, true);
+        }
+
+        private void beginTask(Task assignedTask, TaskTarget assignedTarget, boolean openScope) {
             // 一次任务 = 一个世界修改授权作用域（J6-a）：账本按 scope 聚合，恢复以 scope 为单位
-            com.dddgn.alice.ledger.WorldModLedger.openScope(bot.getServer(), bot.getUUID(),
-                    assignedTask.getClass().getSimpleName());
+            // `openScope=false` 只给**自检编排器**用：它必须与电池 `setup` 同序
+            //（**openScope → 跑场景 → 发料/provision → 起任务** ✓）—— 因为 `provision` 里可能有
+            // "把**本步作用域**的写入预算压到 0" 这类**测试前提**（`mine_budget`），
+            // 而 `WorldModLedger.openScope` **不是幂等的** ⇒ 编排器开过之后这里绝不能再开一个
+            //（否则前提会挂到孤儿作用域上，症状是"预算没生效"✗）。
+            if (openScope) {
+                com.dddgn.alice.ledger.WorldModLedger.openScope(bot.getServer(), bot.getUUID(),
+                        assignedTask.getClass().getSimpleName());
+            }
             // D-241：**每个任务重新确立自己的信封**（"本任务期间有没有出现过写请求"）⇒
             // 逃生的写权不会从上一个任务泄漏过来。
             com.dddgn.alice.pathing.core.WriteEnvelopes.clear(bot.getUUID().toString());

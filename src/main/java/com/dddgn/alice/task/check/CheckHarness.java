@@ -44,6 +44,8 @@ public final class CheckHarness {
     private final List<String> skipped = new ArrayList<>();
     /** 当前步的任务实例（`doneWhen`/`skipWhen` 都要拿它做判据 ⇒ 必须留引用 ✓）。 */
     private Task current;
+    /** 本步的账本作用域 id（编排器开、由会话的 `clearTask` 收；早期退出路径由本类兜底收 ✓）。 */
+    private String stepScope;
     private int index;
     private int phase;          // 0=等空闲 1=起任务 2=等终态
     private int stepStartTick;
@@ -121,6 +123,12 @@ public final class CheckHarness {
                 }
                 BotLog.info("[Harness] step={} ({}/{}) scenes={} budget={}", step.name(), index + 1,
                         steps.size(), step.scenes(), step.budgetTicks());
+                // **账本作用域先开**（与电池 `setup` 同序：**openScope → 场景 → provision → 起任务** ✓）。
+                // 为什么顺序要紧：`provision` 里可能有"把**本步作用域**的预算/权限压到 0"这类测试前提
+                //（`mine_budget`：`WriteBudget.setCaps(WriteBudget.scopeOf(bot), Caps(0,0))`）——
+                // 作用域还没开时它会挂到**孤儿/implicit** 作用域上 ⇒ 前提静默失效 ✗（步骤会以超时红）。
+                stepScope = WorldModLedger.openScope(server, bot.getUUID(),
+                        "Harness:" + moduleId + ":" + step.name());
                 bot.controller().stopMovement();
                 // **顺序（v1 的关键修正）**：先**发料/传送**（把区块热起来 ✓）**再**跑场景函数。
                 // 旧电池是"场景→provision"✗ ⇒ 区块冷时 `/fill` 不落地 ⇒ 判据在虚空里假绿 ✗
@@ -164,7 +172,7 @@ public final class CheckHarness {
                     endStep();
                     return;
                 }
-                if (!BotManager.beginSelfCheckTask(bot, task)) {
+                if (!BotManager.beginSelfCheckTaskInOpenScope(bot, task)) {
                     failures.add("step=" + step.name() + "：起任务失败（会话忙或不存在 ✗）");
                     endStep();
                     return;
@@ -200,8 +208,19 @@ public final class CheckHarness {
                 // 会话的终态文本只有两态：**"done"** / **"failed:原因"**（见 BotManager:973 的注释 ✓）
                 // ⇒ **fail-closed**：只有恰好 "done" 才算过 ✓（别的值一律当失败并原样展示 ✗ 不许静默降级 ✓）
                 String result = BotManager.lastTaskResult(bot);
-                boolean pass = "done".equals(result);
-                currentResultDetail = result == null ? "(no_result)" : result;
+                // **`doneWhen` 也要在终态判一次**（2026-09-17 `module:mining` 单跑实测的缺口）：
+                // 电池把 `doneWhen` 判在"看终态**之前**"，而且它拿着任务实例 ⇒ 任务跑得再快都判得到 ✓；
+                // 编排器原先只在 `isBusy` 分支里判 ⇒ **"预期失败但归因正确"的步**（`mine_no_tool` 的
+                // `tool_missing`、`mine_stale` 的 `stale_target`、`mine_budget` 的 `write_budget_exhausted`）
+                // 常常在 10 来个 tick 内就终态了 ⇒ 编排器从没来得及判 `doneWhen` ⇒ **把"达成"误判成 FAIL** ✗
+                // （实测：三步的终态理由**恰好就是**期望的那个，却被记了红 ✓）。
+                boolean doneMatched = step.doneWhen() != null && current != null && step.doneWhen().test(current);
+                boolean pass = doneMatched || "done".equals(result);
+                currentResultDetail = doneMatched
+                        ? "doneWhen 判据成立 ⇒ 按**达成**判过（task=" + current.getClass().getSimpleName()
+                                + " terminalReason=" + current.terminalReason()
+                                + "；会话终态=" + (result == null ? "(no_result)" : result) + "）"
+                        : (result == null ? "(no_result)" : result);
                 // **B 方案（D-283）**：留下我方临时方块且未声明 KEEP ⇒ 本步判红（错误当场出现 ✓）
                 int pendingAfter = WorldModLedger.pendingForOwner(server, bot.getUUID()).size();
                 boolean leakFailed = pendingAfter > pendingBefore && !step.keepWorldState();
@@ -262,6 +281,15 @@ public final class CheckHarness {
      */
     private void endStepHygiene() {
         com.dddgn.alice.task.craft.CraftStation.select(bot, "auto");
+        // **兜底收作用域**：正常路径由会话的 `clearTask` 收（那时 scope 已经不在），这里只处理
+        // **任务根本没起来**的早期退出路径（前提超时 / 工厂返回 null / 起任务失败 / 看门狗）
+        // —— 作用域由编排器开，不收就变成**残留作用域**（`BotManager` 有残留检查 ⇒ 后续判据会红 ✗）。
+        // ⚠️ 任务仍在跑时**不能收**（`stopTask` 有 K-3 安全点，可能延后）⇒ 只在空闲时收 ✓。
+        if (stepScope != null && !BotManager.isBusy(bot)) {
+            com.dddgn.alice.action.WriteBudget.closeScope(
+                    WorldModLedger.closeScope(server, bot.getUUID()));
+            stepScope = null;
+        }
     }
 
     private void verdict() {

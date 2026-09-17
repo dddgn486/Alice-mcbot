@@ -11743,3 +11743,55 @@ CORE 曾经全绿，只是因为**电池那边**有那句话 ✓。
 挂恒真 `doneWhen` ⇒ 实测：`step=machine_route SKIP` + `step=machine_station PASS ticks=1
 detail=…（doneWhen 判据成立 ⇒ 按达成判过…）` + `SUMMARY … skipped=1 [machine_route] → DEGRADED`
 + **退出码 2** ✓；还原后 `skipped=0 → PASS`、退出码 0 ✓。
+
+### D-301：R-2 第五个分类模块 **`mining`（7 步）** + 编排器两个语义缺口（作用域时序 / 终态 `doneWhen`）（2026-09-17）
+
+**搬了哪 7 步**（内联定义已从电池删除 ✓，相对顺序不变 ✓）：`mine_regression` · `no_progress` ·
+`mine_menu` · `mine_job` · `mine_no_tool` · `mine_stale` · `mine_budget`
+（步名/场景/发料/工厂/预算/`doneWhen` 逐字段等价 ✓）。
+**归因三连**（`mine_no_tool`→`tool_missing` · `mine_stale`→`stale_target` · `mine_budget`→`write_budget_exhausted`）
+的判据都挂在 `doneWhen` 上 —— 它们正是"**预期失败但归因必须正确**"的判据：归因退化成总括码 ⇒
+`doneWhen` 永不成立 ⇒ 预算耗尽 ⇒ 判红 ✓。
+
+**本片抓出编排器两个语义缺口（都不是搬迁本身出错，而是"电池有、编排器没有"）**：
+
+**① 步作用域必须**在 `provision` **之前**开好**（与电池 `setup` 同序）。事实：电池的顺序是
+**openScope → 场景函数 → provision → 起任务**；编排器原先是 **provision → 场景 → 起任务（这时才开作用域）**。
+为什么这会让一步静默失效：`mine_budget` 的 provision 要执行
+`WriteBudget.setCaps(WriteBudget.scopeOf(bot), Caps(0,0))`（**把本步作用域的破坏预算压到 0**）——
+作用域还没开时，`scopeOf` 会指向**孤儿/implicit** 作用域 ⇒ 预算没压上 ⇒ `MineJob` 会**真的挖矿** ⇒
+`write_budget_exhausted` 永不出现 ⇒ 本步以预算耗尽红 ✗。
+修法：新增 `BotManager.beginSelfCheckTaskInOpenScope(...)`（+ `BotSession.beginTask(task, target, openScope)`
+重载）—— 编排器自己 `openScope("Harness:<module>:<step>")` 之后再起任务（**`openScope` 非幂等** ⇒
+绝不能开两次，否则前提挂到孤儿作用域上 ✓）；任务没起来的早期退出路径由 `endStepHygiene()` 兜底收
+（且只在 `!isBusy` 时收，因为 `stopTask` 有 K-3 安全点可能延后 ✓）。
+**独立证据**：修后 `module:mining` 的 `mine_budget` 终态理由**恰好**是 `write_budget_exhausted`
+⇒ 预算确实压在了本步作用域上 ✓（若挂到孤儿作用域，这一步会挖到东西而不是报预算码 ✓）。
+
+**② `doneWhen` 必须在终态也判一次**。事实：电池把 `doneWhen` 判在"**看终态之前**"、且它一直握着任务实例
+⇒ 任务跑得再快都判得到；编排器原先只在 `isBusy` 分支里判 ⇒ 上面那三个"预期失败"的步常常在
+**7~13 tick** 内就终态了 ⇒ 编排器**从没来得及**判 `doneWhen` ⇒ **把"达成"误判成 FAIL** ✗。
+实测（`module:mining` 第一次单跑 4/7）：三步的详情**正好**印着期望的终态理由（`failed:tool_missing` /
+`failed:stale_target` / `failed:write_budget_exhausted`），却全被记成红 ✓ —— 这是**判据位置错了**，
+不是功能坏了。修法：终态分支先判 `doneWhen`（成立即"按达成判过"，并把 `terminalReason` 与会话终态一并印出 ✓）。
+修后同样三步 **7/7 PASS**，详情形如
+`doneWhen 判据成立 ⇒ 按达成判过（task=MineJob terminalReason=tool_missing；会话终态=failed:tool_missing …）` ✓。
+⇒ 这两个缺口正是"**迁移一个模块就发现两条'等价'其实不等价**"的实例，与 D-298 的步边界卫生、D-300 的
+`skipWhen` 同类 ✓。
+
+**验收**：`module:mining` 单跑 **7/7 PASS**（第一次 4/7 = 上面的缺口）· **CORE 48/48 PASS** ·
+`module-selftest` **7/7** ✓ · `check-all.sh` 16 PASS + 1 WARN + 0 FAIL ✓（全部 `SERVER_TESTED`）。
+
+### D-302：R-2 迁移纪律 —— **"行为等价"要按"判据位置"对齐，不只按"步定义"对齐**（2026-09-17）
+
+本片与 D-298/D-300 合并出一条可复用的纪律（写给后来搬模块的人）：
+
+> 搬迁时**逐字段抄步定义**只保证"**输入**等价"；**判据在哪里被求值**同样属于行为 ——
+> 电池与编排器在这四处曾经不同，且**每一处都靠一次真实红才被发现**：
+> ① **步边界卫生**（`CraftStation` 选择还原，D-298）；
+> ② **`skipWhen` / 三态判决**（D-300）；
+> ③ **步作用域相对 `provision` 的时序**（D-301 ①）；
+> ④ **`doneWhen` 的求值位置**（`isBusy` 分支 vs 终态之后，D-301 ②）。
+>
+> ⇒ 因此**每搬一个模块都必须单跑一次**（`module:<id>` + `module-selftest.sh`）：这四处缺口
+> **全都是在"单跑"里暴露的、在 CORE 里看不见**（CORE 用的是电池，天然带着电池的正确语义 ✓）。
