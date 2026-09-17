@@ -191,7 +191,11 @@ public final class BotManager {
     }
 
     /** 移除假人(实体 + PlayerList + 世界存档记录)。 */
-    public static void remove(BotPlayer bot) {
+    /**
+     * **死亡机制第 1 步（D-276，2026-09-17 用户裁定「不能直接删除数据」）**：只拆**实体与会话**，
+     * **不动存档**。死亡走这条；`/alice remove`（显式删除）才连存档一起清（见 `remove`）。
+     */
+    private static void detach(BotPlayer bot) {
         SurvivalSystem.forget(bot);
         com.dddgn.alice.decision.PermissionGate.forget(bot.getUUID());
         com.dddgn.alice.decision.EventThresholds.forget(bot.getUUID());
@@ -208,7 +212,55 @@ public final class BotManager {
             bot.getServer().getPlayerList().remove(bot);
             bot.discard();
         }
+    }
+
+    /** **显式删除**（`/alice remove`）：拆实体 + **清存档**（与"死亡"区分开）。 */
+    public static void remove(BotPlayer bot) {
+        detach(bot);
         BotWorldData.get(bot.getServer()).clearBot();
+    }
+
+    /** 倒下态标记（写进 bot 存档 NBT）。 */
+    public static final String NBT_FALLEN = "AliceFallen";
+    public static final String NBT_FALLEN_CAUSE = "AliceFallenCause";
+    public static final String NBT_FALLEN_AT = "AliceFallenAt";
+    public static final String NBT_FALLEN_TICK = "AliceFallenTick";
+
+    /** 存档恢复决策：**正常复活** / **倒下态（数据保留，等复活机制）** / **无可恢复数据**。 */
+    public enum RestoreDecision { RESPAWN, FALLEN, DISCARD }
+
+    /**
+     * **D-276**：这个存档 tag 该怎么处理。
+     *
+     * <p>旧行为（被本决策取代）是「`Health <= 0` ⇒ 跳过恢复并**清除存档**」——
+     * 那正是用户说的"直接删数据"，死亡 ⇒ 进度归零。
+     * 现在：血量为 0 或带 {@link #NBT_FALLEN} 标记 ⇒ **FALLEN（数据保留）**。
+     */
+    public static RestoreDecision restoreDecisionFor(net.minecraft.nbt.CompoundTag tag) {
+        if (tag == null) {
+            return RestoreDecision.DISCARD;
+        }
+        boolean fallen = tag.getBoolean(NBT_FALLEN)
+                || (tag.contains("Health") && tag.getFloat("Health") <= 0.0F);
+        return fallen ? RestoreDecision.FALLEN : RestoreDecision.RESPAWN;
+    }
+
+    /**
+     * **D-276**：把"倒下态"写进存档 —— **不删数据**，并留下**位置 / 死因 / 时刻**。
+     *
+     * <p>做法是先按正常形状存一遍（`saveToWorld`：UUID / Name / Pos / Rotation / GameMode / 主手），
+     * 再补上倒下标记与 0 血 —— 于是重启后这条记录**仍在**，只是被读成 FALLEN。
+     */
+    public static net.minecraft.nbt.CompoundTag saveFallenState(BotPlayer bot, String cause) {
+        saveToWorld(bot);
+        net.minecraft.nbt.CompoundTag tag = BotWorldData.get(bot.getServer()).botTag();
+        tag.putBoolean(NBT_FALLEN, true);
+        tag.putString(NBT_FALLEN_CAUSE, cause == null ? "unknown" : cause);
+        tag.putLong(NBT_FALLEN_AT, bot.blockPosition().asLong());
+        tag.putLong(NBT_FALLEN_TICK, bot.getServer().getTickCount());
+        tag.putFloat("Health", 0.0F);
+        BotWorldData.get(bot.getServer()).setBot(tag);
+        return tag;
     }
 
     /** 把假人主手物品同步给客户端(Inventory.setItem 不会自动发包,玩家侧看不到)。 */
@@ -274,10 +326,22 @@ public final class BotManager {
             return;
         }
         float savedHealth = tag.contains("Health") ? tag.getFloat("Health") : 20.0f;
-        if (savedHealth <= 0.0f) {
-            BotLog.info("存档假人已死亡 (health={}),跳过恢复并清除存档", savedHealth);
-            BotWorldData.get(server).clearBot();
-            return;
+        switch (restoreDecisionFor(tag)) {
+            case DISCARD -> {
+                BotLog.info("存档无可恢复数据,清除");
+                BotWorldData.get(server).clearBot();
+                return;
+            }
+            case FALLEN -> {
+                // **D-276**：倒下态 —— **不清数据**、不生成实体，等复活机制（第 2 步）。
+                BotLog.info("存档假人处于**倒下态**（数据保留，等待复活机制）：health={} cause={} pos={} tick={}",
+                        savedHealth, tag.getString(NBT_FALLEN_CAUSE),
+                        net.minecraft.core.BlockPos.of(tag.getLong(NBT_FALLEN_AT)).toShortString(),
+                        tag.getLong(NBT_FALLEN_TICK));
+                return;
+            }
+            default -> {
+            }
         }
         UUID uuid = tag.getUUID("UUID");
         String name = tag.getString("Name");
@@ -1621,8 +1685,14 @@ public final class BotManager {
         Component msg = Component.literal("[alice] 假人 " + bot.getName().getString()
                 + " 死亡: " + reason + " → 已清除");
         bot.getServer().getPlayerList().broadcastSystemMessage(msg, false);
+        // **D-276（死亡机制第 1 步）**：死亡**不再删数据** —— 先把"倒下态"（位置/死因/时刻）写进存档，
+        // 再只拆实体与会话。复活流程（成本 + 惩罚）是第 2 步，按用户裁定暂缓。
+        net.minecraft.nbt.CompoundTag fallen = saveFallenState(bot, reason);
+        BotLog.info("假人死亡: {} → **倒下态**（存档保留：pos={} tick={}）",
+                reason, net.minecraft.core.BlockPos.of(fallen.getLong(NBT_FALLEN_AT)).toShortString(),
+                fallen.getLong(NBT_FALLEN_TICK));
         event.setCanceled(true); // 阻止原版死亡流程(掉落物/死亡动画),直接消失
-        remove(bot);
+        detach(bot);
     }
 
     /** 单个假人的会话:持有当前任务与感知作用域。 */

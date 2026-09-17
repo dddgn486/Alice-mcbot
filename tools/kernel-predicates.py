@@ -213,6 +213,38 @@ def rule_permission_service():
     return problems
 
 
+def rule_death_keeps_data():
+    """D1-P1（死亡机制第 1 步，D-276，2026-09-17 用户裁定「不能直接删除数据」）。
+
+    背景：旧行为是死亡 ⇒ 存档被清（`remove(bot)` 里 `BotWorldData.clearBot()`；
+    `restoreFromWorld` 对 `Health<=0` 也直接 `clearBot()`）⇒ 死了进度归零。
+    第 1 步把两条路都改掉：死亡**先写倒下态**（位置/死因/时刻）再只拆实体；
+    恢复路径改用 `restoreDecisionFor`（FALLEN ⇒ 保留数据、不生成实体）。
+    本规则防止它被无声改回去。
+    """
+    path = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "bot" / "BotManager.java"
+    if not path.exists():
+        return ["BotManager.java 不存在（同步本规则）"]
+    text = path.read_text(encoding="utf-8")
+    problems = []
+    marker = "public static void onLivingDeath("
+    if marker not in text:
+        problems.append("找不到 onLivingDeath（改名？同步本规则）")
+    else:
+        start = text.index(marker)
+        end = text.index("\n    }", start)
+        body = re.sub(r"//[^\n]*", "", text[start:end])
+        if "saveFallenState(" not in body:
+            problems.append("死亡路径没有 `saveFallenState(...)` —— 死亡必须先把倒下态写进存档（D-276）")
+        if re.search(r"\bremove\(bot\)", body):
+            problems.append("死亡路径又调了 `remove(bot)` —— 那会 `clearBot()` 删数据（D-276）")
+        if "clearBot(" in body:
+            problems.append("死亡路径直接 clearBot() —— 删数据（D-276）")
+    if "restoreDecisionFor(" not in text:
+        problems.append("找不到 `restoreDecisionFor(...)` —— 恢复路径必须用它判 FALLEN/RESPAWN/DISCARD（D-276）")
+    return problems
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
@@ -222,6 +254,7 @@ def main() -> int:
     risk = rule_risk_profile()
     speech = rule_speech_channel()
     perm = rule_permission_service()
+    death = rule_death_keeps_data()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -238,7 +271,9 @@ def main() -> int:
         print(f"[F4·说话通道] {line}")
     for line in perm:
         print(f"[F3·请示答复] {line}")
-    ok = not k4 and not k5 and not s8 and not walk and not prog and not risk and not speech and not perm
+    for line in death:
+        print(f"[D1·死亡保留数据] {line}")
+    ok = not k4 and not k5 and not s8 and not walk and not prog and not risk and not speech and not perm and not death
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(prog)} / 风险画像未接={len(risk)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1 —— 见各规则头部的注释）")

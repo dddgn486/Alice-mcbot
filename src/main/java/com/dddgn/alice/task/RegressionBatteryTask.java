@@ -162,6 +162,8 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("risk_profile_frozen", Profile.MAIN),
             // F4 地基（D-267）：说话通道**只出不进** —— 说话不改变决策态（否则文本绕过 GoalAction 白名单）。
             Map.entry("speech_channel", Profile.MAIN),
+            // 死亡机制第 1 步（D-276）：死亡**不删数据**（倒下态 = FALLEN，含位置/死因/时刻）。
+            Map.entry("death_persistence", Profile.MAIN),
             // 阶段 3-B / (c) 增量 2（D-217）：**机器路线的生产路径**（CraftJob 真的驱动一台机器）。
             // 与 machine_cycle 同一份闭环实现、不同入口；也会写容器 ⇒ 模组不在 ⇒ SKIP。
             Map.entry("craft_machine", Profile.MAIN),
@@ -405,6 +407,11 @@ public final class RegressionBatteryTask implements Task {
         // M3b ①（G3 归因）：`stale_target` —— 每个候选的身份复检都失败（决策后被改动）。
         // 夹具只替掉**那一次判定**（恒 false），理由码与真实竞态完全一样（`target_replaced`）；
         // 判据 = 终态理由真的成为 `stale_target`（否则 doneWhen 不成立 ⇒ 预算耗尽判红）。
+        steps.add(step("death_persistence",
+                List.of("alice_test:ore_course_terrain"),
+                () -> teleportBot(OreCourseAnchor.START_FOOT),
+                () -> new DeathPersistenceCheckTask(bot, observer),
+                60));
         steps.add(step("speech_channel",
                 List.of("alice_test:ore_course_terrain"),
                 () -> teleportBot(OreCourseAnchor.START_FOOT),

@@ -11107,3 +11107,37 @@ Job 候选筛选不做；**风险等级枚举**依旧不做（D-059 已裁定否
 **F3-残（如实登记，未做）**：只收口了**答复**这一侧；**"看"这一侧没有做** ——
 非游戏内主体今天**读不到**待答复请示（`PermissionGate.pending(bot)` 只在服务端进程内可取，没有对外通道）。
 ⇒ 真要让桌面 AI 参与，还需要一条**只读的请示查询通道**（属"外部驱动者"那条线，等有第二个驱动者时再做）。
+
+### D-276：死亡机制**第 1 步**落地 —— 死亡不再删数据（FALLEN 态）（2026-09-17，用户裁定「不能直接删除数据」）
+
+**旧行为（实测，就是用户说的"直接删数据"）**：
+- `BotManager.remove(bot)` 末尾 `BotWorldData.get(server).clearBot()` ⇒ **整条存档被清**，而死亡路径直接调 `remove(bot)`；
+- `restoreFromWorld`：`Health <= 0` ⇒ 日志原话「跳过恢复并**清除存档**」⇒ 死了进度归零。
+
+**做了什么（只做第 1 步：数据保留；成本/惩罚按用户裁定暂缓）**：
+1. `remove(bot)` 拆成 **`detach(bot)`**（只拆实体与会话：`SurvivalSystem.forget` / `PermissionGate.forget` /
+   `EventThresholds.forget` / `MenuLifecycle` / 会话与任务收尾 / 退玩家列表 / `discard`）
+   + **`remove(bot) = detach + clearBot()`**（**显式删除**才清存档，与"死亡"区分开）。
+2. 死亡路径改为：`saveFallenState(bot, 死因)` → **再** `detach(bot)`。
+3. 新增 `saveFallenState(bot, cause)`：先按正常形状存一遍（`saveToWorld`：UUID/Name/Pos/Rotation/GameMode/主手），
+   再补 `AliceFallen=true` / `AliceFallenCause` / `AliceFallenAt`（位置）/ `AliceFallenTick`（时刻）/ `Health=0`
+   ⇒ **身份与其余数据都还在**，只是被读成"倒下态"。
+4. 新增 `restoreDecisionFor(tag)` → `RESPAWN` / **`FALLEN`（数据保留、不生成实体）** / `DISCARD`（真无数据）；
+   `restoreFromWorld` 改用它：FALLEN ⇒ 只打一条带**位置/死因/时刻**的日志，**不清存档、不生成实体**，等第 2 步的复活流程。
+
+**判据（都可红，已实测）**：
+- **夹具** `DeathPersistenceCheckTask` + 电池步 **`death_persistence`**（MAIN，9 条 check）：
+  ① 无数据 ⇒ DISCARD；② 正常存档 ⇒ RESPAWN；③ **倒下态 ⇒ FALLEN（不许是 DISCARD）**；
+  ④ 倒下态留有死因/位置/时刻/0 血，且 **UUID 与 Name 未丢**；⑤ 存档**仍在**（未被 `clearBot`）；
+  收尾把世界数据还原（不污染电池）。实测 `decision=FALLEN cause=fixture_death pos=56, 63, 132 tick=24 tagStillThere=true` ✓。
+  **反向对照**（把 `restoreDecisionFor` 改回旧逻辑 `health<=0 ⇒ DISCARD`）⇒ 该步 **FAIL** ✓。
+- **门禁 D1-P1**（`check-kernel-predicates.sh`）：`onLivingDeath` 必须有 `saveFallenState(`、
+  **不得**出现 `remove(bot)` / `clearBot(`；`restoreDecisionFor` 必须存在。**注入**（死亡改回 `remove(bot)`）⇒ 红 ✓。
+  ⚠️ 记一笔：第一次注入因为我 `replace(..., 1)` 命中的是 `remove()` 体内的 `detach`（造成自递归、死亡路径其实没改），
+  门禁**正确地没红** —— **是注入错了，不是判据错**；用唯一上下文重做后即红 ✓。
+
+**未做（如实登记）**：
+- **第 2 步**（复活流程：复活设施方块 + 成本；惩罚档位 c1/c2/c3 已按用户裁定**留档、以后讨论**）未开工；
+- **端到端验证缺口**：本夹具**不杀 bot**（只验证"恢复决策 + 倒下态内容"这两件导致删数据的事）⇒
+  "真杀一次 + 重启服务端 + 记录仍在（且带倒下标记）"仍是**未验证项**，需要一次真机/重启轮次（步骤已想好：
+  `/alice spawn` → 用伤害源杀死 → 重启 → 看日志「存档假人处于**倒下态**」+ 存档未被清）。
