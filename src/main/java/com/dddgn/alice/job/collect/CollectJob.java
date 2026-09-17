@@ -35,6 +35,16 @@ public final class CollectJob implements Job {
 
     public static final String NAME = "collect";
 
+    /**
+     * 稳定任务标识（J-3/D-265）：Job 一律用自己声明的 `NAME`（不用实现类名）——
+     * 换实现类/换版本时，终态记录与决策提示里的 `kind` 不漂（客户端 2026-09-17 实测暴露：
+     * `task_execution_terminal kind=LumberJob` 就是"没覆写"的直接后果）。
+     */
+    @Override
+    public String taskName() {
+        return NAME;
+    }
+
     private enum Phase { SCAN, COLLECT, DONE }
 
     private final BotPlayer bot;

@@ -15,6 +15,11 @@
 
 ## §0 一览
 
+> **勘测分诊（2026-09-17，D-265）**：`survey/` 的 10/11/12/14/15/16 **六份此前从未被主线分诊**，本轮已逐条分诊：
+> 现在可做 12 / 需拍板 19（归并成 6 个裁定）/ 需客户端 9 / 仅登记未来 26 / **勘测侧更正 12**。
+> **唯一队列与全部证据**：`docs/reviews/2026-09-17-勘测分诊与任务队列.md`（本台账不复制该表，避免两处漂移）。
+
+
 | 组 | 项数 | 影响业务？ | 备注 |
 |---|---|---|---|
 | §1 安全底座（风险 / 维生 / 写入准入） | 10（新增 S-9/S-10） | ✅ 4 项（S-1/S-2/S-3/S-4），常驻任务后上升 | 风险清单 9 条断言**至今全部成立**；**2026-09-16 全表复核**：S-1…S-5 已落地（S-5 的基-1 接线+判据已就位，仅两个最高等级无产出者=有意保留）；**真缺口剩 S-6/S-7/S-8**（RiskSwitches 全局静态、两守卫无开关、`policyVersion` 恒 0 且零读者）—— 前两条等 S1 冻结点裁口径，第三条优先级低；另新发现一项（`FluidRiskPolicy` 只覆盖目标格 6 邻格）见 S-4 行–S6 **0/6** |
@@ -1191,7 +1196,7 @@ jar `3312608d…`。
 |---|---|---|---|---|
 | **R4-残** | `RegionLumberJob` 补种**仍直接 `level.setBlock`** | 已补 `BlockInteraction.reachable` **触及前提**；其余（朝向/放置面/`gameMode` 交互路径）未走原语 | 选定树苗可能落在**主背包**，而 `BlockInteraction.placeAt` 只认**快捷栏 0–8** ⇒ 改走原语会**同时改变物品消耗路径与放置面语义**，属行为变更、需独立一轮客户端验证 | 下一次动 `RegionLumberJob` 补种路径时一起做 |
 | **R5-残** | `StationProvision.click` / `InventoryCraft.click` **未做编译期强制** | `FurnaceStation` 已做（`WriteGrant` 必传 + `WriteReason.container()` 校验）；这两个仍是「调用方自觉」（内部调用点共约 19 处） | **✅ 已收口（2026-09-16）**：新增**菜单写入家族** `WriteReason.menuWrite()` = `container()` ∪ `CRAFT_GRID`（新理由：合成网格/结果槽，**不吃容器写入预算**，但必须显式交理由）；两处 `click` 原语的**每个重载**都强制 `WriteGrant` 形参并校验 `menuWrite()`（对齐 `FurnaceStation` 样板），`InventoryCraft` 的 3 个公开入口与 5 个调用点（`CraftJob`／`TableCraft`／`CraftActionCheckTask`×2／`CraftStationCraftCheckTask`）全部显式交出 `CRAFT_GRID`；注册表三行 why 已改。 **判据（两条，均实测）**：① **编译期** —— 去掉任一调用点的 grant 实参 ⇒ **编译失败**；② **门禁** `check-policy-matrix.sh` 新增 ⑨「每个 `click` 重载必须带 `WriteGrant`」（平衡括号解析）—— 把一个重载改成 `Object` ⇒ 门禁红（⚠️ 旧写法只查一处会被另一个重载顶绿，已实测修正）；③ 行为证据 = CORE 全绿（合成/装配各步未被误杀）|
-| **R2-残** | **R-2 的运行期路径没被走到** | 门禁 `check-provision-containment.sh` 已断言；客户端第十七轮 `[Job] launch` **0 条**（LLM 全程未被触发 ⇒ 没有 Job 被起） | 需要一个"真的起一次 Job"的动作；自动触发被 R-3 有意挡住了 | 手动右键 `alice:goal_director` 或 `alice:job_launcher`，看是否出现 `[Job] 生产入口只搬运不发料（…）` |
+| **R2-残** | **R-2 的运行期路径没被走到**（`[Job] launch` 客户端 0 条） | 门禁 `check-provision-containment.sh` 已断言；客户端第十七轮 `[Job] launch` **0 条**（LLM 全程未被触发 ⇒ 没有 Job 被起） | **✅ 已收口（2026-09-17 客户端实测）**：用户右键 `alice:job_launcher` ⇒ 客户端日志 `[Job] launch bot=tango kind=LUMBER center=23,64,207 radius=16 quota=2 maxTicks=3600` ✓，并看到 `[Job] 生产入口只搬运不发料（LUMBER）：斧=already_in_hotbar 镐=already_in_hotbar`（正是本行要的那条运行期证据）+ `task_execution_terminal … terminal=… quota_met` 与 `task_terminal_reason … terminalReason=quota_met` ⇒ **统一 Job 入口在真机上确实被走到**（等级 `WINDOWS_CLIENT`）|
 | **R1-残** | `prod_budget_exhausted`（连锁破坏预算耗尽）分支**无客户端证据** | 代码已接入 `WriteBudget` 并按增量计账；但电池 `exec_chain` 用例只挖干净 3×3 矿脉（约 9 次破坏 ≪ `DEFAULT_MAX_BREAKS=64`）⇒ 新分支不会被现有场景触发 | **✅ 离线判据已补（2026-09-16，D-260）**：不再需要「造 65 格场景」—— 夹具用 `WriteBudget.setCaps(scope, Caps(1,0,0))`（**夹具专用**钩子）把预算压到 1，跑同一条矿脉 ⇒ `exec_chain_budget_refused` 断言「连锁当场停 + 拒绝如实上报 + 预算确实打满」；`single:mine_regression` PASS。**仍缺**：客户端目视（按现状**不必要** —— 本分支只有计数与上报语义，无物理/视觉差异）|
 
 ## §8.5 `survey/07` 方向审查的核实结果（2026-09-14）

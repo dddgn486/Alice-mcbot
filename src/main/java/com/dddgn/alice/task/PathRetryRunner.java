@@ -60,6 +60,17 @@ public final class PathRetryRunner {
                     base.allowedMovementTypes(), base.budget(),
                     base.requester() + ":attempt" + attempts);
             PathPlan plan = new CorePathPlanner().plan(bot, bot.serverLevel(), request);
+            // **survey/10 #37（2026-09-17 勘测分诊采纳）**：把搜索**规模与耗时**的真实分布落成一行日志 ——
+            // 这是"行走类要不要有界预算"（survey/10 §2.3「真正无界的是行走类」+ 悬崖1/3）**唯一的判据来源**。
+            // 三个字段早就在 `PathPlan` 里（`nodesExpanded`/`movementsConsidered`/`elapsedMillis`），
+            // 但此前**没有任何调用点读它们** ⇒ 量级只能靠推算（勘测报告自称"未运行验证"）。
+            // 采集口径：`ALICE_HEADLESS=1 tools/headless-battery.sh single:pathing`，grep `[PathRetry] plan`。
+            BotLog.info("[PathRetry] plan attempt={} status={} cost={} nodes={} moved={} ms={} partial={}"
+                            + " feet={} goal={}",
+                    attempts, plan.status(),
+                    String.format(java.util.Locale.ROOT, "%.2f", plan.totalCost()),
+                    plan.nodesExpanded(), plan.movementsConsidered(), plan.elapsedMillis(),
+                    plan.partial(), feet.toShortString(), template.goal().goalFoot().toShortString());
             // K-1：**PARTIAL = 只找到前缀**（预算耗尽但有得走）⇒ 先执行前缀、再重规划；
             // 其余非 REACHED（UNREACHABLE / GOAL_NOT_LOADED / CANCELLED）仍如实失败。
             if (!plan.reached() && plan.partial()) {
