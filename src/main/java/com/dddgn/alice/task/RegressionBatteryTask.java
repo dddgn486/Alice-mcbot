@@ -153,6 +153,9 @@ public final class RegressionBatteryTask implements Task {
             // M3b（2026-09-15）：两条"照词表写了、但从来没被观测过"的归因映射各配一个确定性夹具。
             Map.entry("mine_stale", Profile.MAIN),
             Map.entry("mine_budget", Profile.MAIN),
+            // 队列第③项（2026-09-17）：`MineJob` 新尝试上场时必须保留上一轮失败事实。
+            // ⚠️ 判据必须在**运行中**采样（结束态走 finishedMinerNode 分支，天然有 failure ⇒ 判别不了）。
+            Map.entry("mine_failure_visible", Profile.MAIN),
             // 阶段 3-B / (c) 增量 2（D-217）：**机器路线的生产路径**（CraftJob 真的驱动一台机器）。
             // 与 machine_cycle 同一份闭环实现、不同入口；也会写容器 ⇒ 模组不在 ⇒ SKIP。
             Map.entry("craft_machine", Profile.MAIN),
@@ -396,6 +399,11 @@ public final class RegressionBatteryTask implements Task {
         // M3b ①（G3 归因）：`stale_target` —— 每个候选的身份复检都失败（决策后被改动）。
         // 夹具只替掉**那一次判定**（恒 false），理由码与真实竞态完全一样（`target_replaced`）；
         // 判据 = 终态理由真的成为 `stale_target`（否则 doneWhen 不成立 ⇒ 预算耗尽判红）。
+        steps.add(step("mine_failure_visible",
+                List.of("alice_test:ore_course_terrain"),
+                () -> teleportBot(OreCourseAnchor.START_FOOT),
+                () -> new MineFailureVisibilityCheckTask(bot, observer),
+                700));
         steps.add(new Step("mine_stale",
                 List.of("alice_test:ore_course_terrain"),
                 () -> {

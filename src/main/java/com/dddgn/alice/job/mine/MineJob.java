@@ -159,9 +159,12 @@ public final class MineJob implements Job {
     public java.util.List<com.dddgn.alice.task.TaskNode> subTasks() {
         java.util.List<com.dddgn.alice.task.TaskNode> children = new java.util.ArrayList<>();
         if (miner != null) {
+            // **队列第③项（2026-09-17）**：新尝试上场时**也要**带上"上一轮尝试的失败"。
+            // 原先这里传空串 ⇒ 一到重试，`tree[].children[].lastFailure` 就空了，
+            // 决策层恰好在"最需要知道上次为什么失败"的时刻看不见它（M4b 只修好了 `miner == null` 那一支）。
             children.add(com.dddgn.alice.task.TaskNode.leaf("MineTask",
                     miner.target().describe(), phase.name(), ticks,
-                    "cleared=" + miner.clearedBlocks(), ""));
+                    "cleared=" + miner.clearedBlocks(), lastAttemptFailure()));
         } else if (finishedMinerNode != null) {
             // 子任务已结束：仍把**刚结束的那个子阶段**（含它的 lastFailure）摊在树里，
             // 否则"哪个子阶段失败"在快照里根本不存在（M4b 的原缺口）。
@@ -172,6 +175,23 @@ public final class MineJob implements Job {
                     collector.target().describe(), phase.name(), ticks, ""));
         }
         return children;
+    }
+
+    /** 上一轮尝试的失败事实（`pos:code`）；没有则空串。`TaskNode.lastFailure` 的唯一口径。 */
+    private String lastAttemptFailure() {
+        return attemptFailures.isEmpty()
+                ? ""
+                : attemptFailures.get(attemptFailures.size() - 1).describe();
+    }
+
+    /** **夹具只读**（队列第③项判据）：当前是否有**进行中**的尝试（= `subTasks()` 走的是活动分支）。 */
+    public boolean hasActiveAttempt() {
+        return miner != null;
+    }
+
+    /** **夹具只读**：已记录的失败尝试数（上一条 `pos:code` 见 `subTasks()` 的 failure 字段）。 */
+    public int attemptFailureCount() {
+        return attemptFailures.size();
     }
 
     @Override
