@@ -283,6 +283,15 @@ say "──── 结果 ────"
 say "verdict=${VERDICT:-<无>} exit=$CODE 用时=${ELAPSED}s 进程退出码=$SRV_EXIT${SRV_HUNG:+  进程_hung=yes}"
 grep -a 'Regression\] SUMMARY' "$LOG" 2>/dev/null | tail -1 | cut -c1-600
 grep -aoE 'MODULES ids=[a-z0-9_,]*' /tmp/alice-headless-server.log 2>/dev/null | tail -1
-say "日志：$LOG（服务端 stdout：/tmp/alice-headless-server.log）"
+# **每轮自动留档服务端 stdout**（2026-09-17 两次实测教训：起下一轮会**覆盖** /tmp/alice-headless-server.log
+# ⇒ 上一轮的证据（夹具逐行事实、失败理由、SUMMARY）会**无声消失**，事后无法复核 ✗）。
+# 这条纪律不写在散文里 —— 直接做成脚本行为：**跑完就复制一份**，并把归档路径打在结果块里 ✓。
+ARCHIVE_DIR="${REPO}/run/headless-logs"
+mkdir -p "$ARCHIVE_DIR"
+ARCHIVE="${ARCHIVE_DIR}/$(date +%Y%m%d-%H%M%S)-$(printf '%s' "$MODE" | tr ':/' '__').log"
+if [ -f /tmp/alice-headless-server.log ]; then
+    cp /tmp/alice-headless-server.log "$ARCHIVE"
+fi
+say "日志：$LOG（服务端 stdout：/tmp/alice-headless-server.log ⇒ **已归档** $ARCHIVE）"
 [ "$KEEP_WORLD" = "no" ] || say "（--keep-world：$WORLD 已保留）"
 exit "$CODE"

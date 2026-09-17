@@ -11795,3 +11795,62 @@ detail=…（doneWhen 判据成立 ⇒ 按达成判过…）` + `SUMMARY … ski
 >
 > ⇒ 因此**每搬一个模块都必须单跑一次**（`module:<id>` + `module-selftest.sh`）：这四处缺口
 > **全都是在"单跑"里暴露的、在 CORE 里看不见**（CORE 用的是电池，天然带着电池的正确语义 ✓）。
+
+### D-303：R-2 第六个分类模块 **`lumber`（3 步）**（2026-09-17）
+
+**搬了哪 3 步**（内联定义已从电池删除 ✓，相对顺序不变 ✓）：`lumber_failure`（**EXTRA**）·
+`lumber_job`（**BASELINE**）· `region_maintain`（**EXTRA**）。步名/场景/发料/工厂/预算/`doneWhen`
+逐字段等价 ✓。三态覆盖伐木链：**失败归因五连**（没候选/背包满/目标超时/原木被换掉/缺工具）
+→ **生产闭环**（`LumberJob` 真砍）→ **可持续巡查 + 补种**（`RegionLumberJob`）。
+
+**本片是"框架缺口已补齐"的正面验证（与 D-301 呼应）**：`region_maintain` 是**常驻**区域作业
+（砍到 ≥1 棵且补种 ≥1 棵即算达成，之后继续巡查是**设计如此** ✓）⇒ 它必须靠 `doneWhen` 判过。
+在 D-301 之前（编排器只在 `isBusy` 分支判 `doneWhen`）这类步会被误判 ✗；补齐后实测：
+```
+step=region_maintain PASS ticks=163 detail=ticks=163（doneWhen 判据成立 ⇒ 按达成判过；task=RegionLumberJob …）
+```
+⇒ **同一处框架改动在第二个模块上再次被验证**（不是只有 `mining` 那三连能用）✓。
+
+**本模块自带的前提**：三步都先传送到课程起点。`lumber_failure` 的 provision **只做这一件事** ——
+它**自带地形函数**（两步 `function alice_test:lumber_course_*`），但夹具内部的顺序是"**先跑函数、后传送**"
+⇒ 若区块是冷的，`/fill` 不落地；所以由模块**先把区块热起来**（D-296 那个坑的通用解法 ✓）。
+
+**验收**：`module:lumber` 单跑 **3/3 PASS**（84 秒，**首次即绿** —— 本片没有新缺口）·
+`module-selftest` **8/8** ✓ · CORE **48/48 PASS** ✓（CORE 只含 `lumber_job`；另两步是 EXTRA）·
+`check-all.sh` 16 PASS + 1 WARN + 0 FAIL ✓（全部 `SERVER_TESTED`）。
+
+### D-304：R-2 验收节奏改为 **"分批验收"**（用户 2026-09-17 选 A+B）+ 工具 `module-selftest.sh --changed`
+
+**用户观察**：「今天自测感觉花了很多时间」—— 属实。机器时间账（本轮实测）：
+`./gradlew build` + 无头起服 ≈ **40 s** · `module:<id>` 单跑 ≈ **50–90 s** ·
+**CORE 48 步 ≈ 6 min** · **`module-selftest` 逐模块各起一次服：8 个模块 ≈ 15 min**
+⇒ 一个模块"全量验收"≈ **8–10 分钟机器时间**；今天 4 个模块 + 6 处框架修复 ⇒ 时间主要花在**重复起服**上。
+
+**用户裁定（A+B）**：
+1. **每个模块迁移只跑** `module:<id>`（分钟级，缺陷当场就见）；
+2. **CORE + `module-selftest` 攒到 2–3 个模块后集中跑一次**；
+3. **`module-selftest` 默认只跑本轮碰过的模块**，全量留到**里程碑/提交前**。
+
+**落地为可执行工具（不靠人记 ✓）**：`tools/module-selftest.sh --changed [--list]`
+（`--list` 是**静态**解析、不起服务端、秒回 ✓）。选法**失败安全**（判不出来就跑全部 ✗ 绝不静默跑 0 个）：
+- 框架文件（`CheckHarness`/`CheckStep`/`CheckModule`/`CheckContext`/`BotManager`/`FixturePremise`）变了
+  ⇒ **跑全部** ✓（框架语义变了，每个模块都可能受影响 —— 这正是今天 6 个缺陷的类型 ✓）；
+- `modules/XxxModule.java` 变了 ⇒ 从**文件里**读 `return "id";` 得到 id（唯一出处 ✓）；
+- `CheckModules.java` 变了 ⇒ 只看 diff 里**新增**且**HEAD 里还没有**的 `new XxxModule()`
+  （自查时实测踩到两个假阳性：① 给上一行补逗号会让旧模块也出现在 `+` 行里 ② `MODDIR` 定义位置不对
+  ⇒ 普通 `--list` 得 0 个 —— 两处都已修 ✓）。
+
+**代价与回收条件**（按 PLAYBOOK §5.0b：临时裁定要写复核触发条件）：
+- 代价：**跨模块回归晚 2–3 个模块才跑**（单跑仍即时）；
+- **回收条件**：① 出现"改 A 模块弄坏 B 模块、而 B 不在 `--changed` 里"的实例 ⇒ 立刻回全量；
+  ② 里程碑（每个提交前）仍跑一次全量 selftest + CORE ✓（今天 lumber 这一片就是这么收口的）。
+
+**⚠️ 本轮踩到的一个工具坑（已记，别再犯）**：**不要在被执行的脚本运行期间编辑它** ——
+bash 是**按需读文件**的 ⇒ 我一边让 `module-selftest.sh` 跑着（8 个模块、约 15 分钟），一边改了这个脚本
+（加 `--changed`），结果那一轮在收尾处炸出 `syntax error near unexpected token 'fi'` ✗：
+**逐模块判决仍然全部印出来了（8/8 可见），但整轮退出码作废**（不能作为验收证据 ✓）。
+⇒ 纪律：**脚本类工件要在两轮之间改**；改完先 `bash -n` + 一次干净重跑（本轮已按此重跑 ✓）。
+
+**已做成结构（不靠记）**：`module-selftest.sh` 加**自完整性守卫** —— 跑前记自己的 sha256，跑完再比；被改过 ⇒ 打 ⚠️ 并 **exit 4**（"逐模块判决可见"≠"这轮是绿的"）；**失败关闭**：取不到摘要也按不可信处理 （第一版取不到摘要时两边都是空 ⇒ **恒绿**，自查时实测踩到 ⇒ 已修 ✓）。验证：① 未改动 ⇒ `INTACT_OK`；② **运行期间**追加一行 ⇒ `GUARD_RED` + ⚠️ 两行（用守卫**原文**做的对照 ✓）。
+
+**同轮第二条结构化的教训**：`headless-battery.sh` **每轮自动归档服务端 stdout** 到 `run/headless-logs/<时间>-<mode>.log` 并把路径打进结果块 —— 今天两次因"起下一轮覆盖 latest.log"丢掉上一轮证据（一次是 CORE 的 `survival_exit` 现场 ✗），现在**不可能丢**（实测已生成 341 KB 归档 ✓）。

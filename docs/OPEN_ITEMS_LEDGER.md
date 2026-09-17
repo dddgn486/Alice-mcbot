@@ -51,8 +51,11 @@
 > ⇒ 需补 plan-only 夹具：场景 = 一条「贴着熔岩的短路 + 安全绕行长路」，开/关两次规划断言 `cost`/`nodes` 不同（反向对照：去掉加价 ⇒ 两次相同 ⇒ 红）。可用面：`CorePathPlanner` + `SearchBudget`（各诊断任务已这样用 ✓）。
 > **R-2 进度（2026-09-17）**：**Phase 1a 完成**（`task/check/` 框架 + `LedgerModule` 接入，CORE 判"行为等价"✓）；**Phase 1b 首片完成**（`CheckHarness` 编排器脱离会话任务 ✓ · `module:<id>` 单跑 ✓ · `module-selftest.sh` 验收 ✓ · `harness_self` 自检模块证明"命令顶不掉编排器" ✓ —— D-293/294/295）。
 > **R-2 余下**：① v1「模块自带场景/发料/前提」⇒ 才能搬 `pathing`/`mining`/`lumber`/`craft`/`machine`/`transfer`/`survival`/`decision`/`death`/`tools`；② 搬完一类即在 `module-selftest.sh` 里多一个"可单独跑通"的模块 ✓。
-> **R-2 已搬模块（2026-09-17）**：`ledger`(4) → `harness_self`(3) → `pathing`(3，D-296) → `decision`(5，D-297) → `craft`(12，D-298) → `machine`(4，D-299) → **`mining`(7，D-301)**；`module-selftest` 现 **7/7** ✓。
-> **R-2 下一步（按列表顺序）**：`lumber` → `transfer` → `survival` → `death` → `tools`。
+> **R-2 已搬模块（2026-09-17）**：`ledger`(4) → `harness_self`(3) → `pathing`(3，D-296) → `decision`(5，D-297) → `craft`(12，D-298) → `machine`(4，D-299) → `mining`(7，D-301) → **`lumber`(3，D-303)**；`module-selftest` 现 **8/8** ✓。
+> **新增门禁（D-304 收口）**：`R2-P2` **步清单完整性**（CURATION 的每一步必须**恰好**有一个提供者 —— 电池内联或某个模块；电池未组合的模块如 `harness_self` 正当豁免）· `R2-P3` **步边界对齐**（电池 `endStep` 里的跨步还原，编排器 `endStepHygiene` 必须都有）—— 两条都用注入验证过可红 ✓。
+> **工具自守卫（D-304）**：`module-selftest.sh` 自完整性守卫（运行期间被改 ⇒ exit 4，失败关闭）· `headless-battery.sh` 每轮自动归档服务端 stdout 到 `run/headless-logs/`（两次丢证据的教训 ⇒ 结构化 ✓）。
+> **R-2 下一步（按列表顺序）**：`transfer` → `survival` → `death` → `tools`（+ 未归类步：`pickup_gate`/`decision_*`/`event_thresholds`/`recipes_dump`/`collect_job`/`recoverability` 等 —— 按分类就近归入既有模块或新建模块）。
+> **验收节奏（D-304，用户 2026-09-17 选 A+B）**：每模块只跑 `module:<id>`；**CORE + selftest 攒到 2–3 个模块集中跑**；`selftest` 默认只跑本轮碰过的模块（`tools/module-selftest.sh --changed`，`--list` 可静态自查、秒回）；**框架文件一改就自动回全量**；里程碑（提交前）跑一次全量 ✓。
 > **⭐ 迁移纪律（D-302，四次真实红换来的）**：抄步定义只保证**输入**等价；**判据在哪里被求值**同样是行为。编排器与电池曾在四处不同：① 步边界卫生（D-298）② `skipWhen`/三态判决（D-300）③ 步作用域相对 `provision` 的时序（D-301①）④ `doneWhen` 的求值位置（D-301②）—— **四处全都只在 `module:<id>` 单跑里暴露、CORE 里看不见**（CORE 跑电池，天然带正确语义）⇒ **每搬一个模块必须单跑一次** ✓。
 > **`machine` 片的两条产出（D-299/300）**：① 入口里那条已登记的坑已修 —— 「`single:machine_station` 必红」的根因是**三个夹具在 `teleportTo` 那一 tick 读 `onGround`**（陈旧值 ⇒ 一个读法两种相反假判决：`machine_station` 假绿、`machine_cycle`/`craft_machine` 假红）⇒ `FixturePremise.settledOnGround` + 门禁 **R4**（现策展表 2026-09-17 行的「这类步不要用 `single:`」**已作废**：它现在能单独跑 ✓）；② 编排器补 `doneWhen`/`skipWhen`/三态判决（**DEGRADED**）——这是 `lumber`（常驻 Job）与任何缺模组场景的前置件 ✓。
 > **⭐ R-2 的口径（D-297/298 两次确认）**：验收单位是**模块**（模块内允许步间依赖 ✓）；**编排器的步边界必须与电池 `endStep` 同口径** —— D-298 实测：缺一句站点还原就让 `craft_goal` 单跑假红，而**电池那边有、编排器没有** ⇒ 门禁 `R2-P1` 钉住"两侧都要有" ✓。

@@ -381,28 +381,14 @@ public final class RegressionBatteryTask implements Task {
         // ---- 模块化（R-2 Phase 1a）：**账本模块**从 `task/check/modules/LedgerModule` 取 ----
         // 逐字段等价搬迁（步名/顺序/预算/工厂完全一致 ✓）；档位仍由上面的 CURATION 表决定（Phase 1b 会把档位搬进模块）
         steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.LedgerModule().steps(checkContext())));
-        steps.add(step("lumber_failure", List.of(), null,
-                () -> new LumberFailureCheckTask(bot, scope), 1800));
+        // ---- 模块化（R-2）：**伐木模块**（3 步）从 `LumberModule` 取 ----
+        // 逐字段等价搬迁（步名/场景/发料/工厂/预算/doneWhen 一致 ✓）；三步的分工见模块头注释
+        steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.LumberModule().steps(checkContext())));
         // ---- 模块化（R-2）：**挖掘模块**（7 步）从 `MiningModule` 取 ----
         // 逐字段等价搬迁（步名/场景/发料/工厂/预算/doneWhen 一致 ✓）；七步的分工见模块头注释
         // ⚠️ 归因三连（mine_no_tool / mine_stale / mine_budget）的判据挂在 `doneWhen` 上 ⇒ 编排器必须
         // 支持 `doneWhen`（D-300），且**本步作用域要在 provision 之前开好**（`mine_budget` 要压本作用域预算，D-301）
         steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.MiningModule().steps(checkContext())));
-        // 伐木 Job：手动场景（terrain + 手写树）⇒ 电池自己跑场景函数 + 复刻 LumberJobItem 的发料
-        steps.add(step("lumber_job",
-                List.of("alice_test:lumber_course_terrain", "alice_test:lumber_course_trees"),
-                () -> {
-                    teleportBot(LumberCourseAnchor.START_FOOT);
-                    FixtureToolKit.resetInventory(bot);
-                    FixtureToolKit.ensureAxe(bot);
-                    FixtureToolKit.ensurePickaxe(bot);
-                    FixtureToolKit.ensureHotbarStack(bot, () -> new ItemStack(Items.COBBLESTONE),
-                            stack -> stack.is(Items.COBBLESTONE), 12, "cobblestone");
-                },
-                () -> new LumberJob(bot,
-                        GoalSpec.harvestUnits(LumberCourseAnchor.START_FOOT, 16, 4, 3600),
-                        scope, new LumberCandidateSource(), new NearestPolicy()),
-                1500));
         steps.add(step("death_kill_bot",
                 List.of("alice_test:ore_course_terrain"),
                 () -> teleportBot(OreCourseAnchor.START_FOOT),
@@ -427,37 +413,6 @@ public final class RegressionBatteryTask implements Task {
                 () -> teleportBot(OreCourseAnchor.START_FOOT),
                 () -> new SpeechChannelCheckTask(bot, observer),
                 60));
-        // J8 可持续伐木区（MAINTAIN）：同一个伐木场景，但走"巡查 → 砍 → 继续巡查"的区域型 Job
-        steps.add(new Step("region_maintain",
-                List.of("alice_test:lumber_course_terrain", "alice_test:lumber_course_trees"),
-                () -> {
-                    teleportBot(LumberCourseAnchor.START_FOOT);
-                    FixtureToolKit.resetInventory(bot);
-                    FixtureToolKit.ensureAxe(bot);
-                    FixtureToolKit.ensurePickaxe(bot);
-                    FixtureToolKit.ensureHotbarStack(bot, () -> new ItemStack(Items.COBBLESTONE),
-                            stack -> stack.is(Items.COBBLESTONE), 12, "cobblestone");
-                    // Slice B：区域欠树要补种 ⇒ 夹具发**选定的那种**树苗（未选则默认橡树苗）
-                    var state = com.dddgn.alice.job.lumber.LumberRegionState.get(bot.getServer());
-                    if (state.saplingItem(bot.getUUID()) == null) {
-                        state.setSaplingItem(bot.getUUID(), "minecraft:oak_sapling");
-                    }
-                    var saplingId = net.minecraft.resources.ResourceLocation
-                            .tryParse(state.saplingItem(bot.getUUID()));
-                    var sapling = saplingId == null ? null
-                            : net.minecraft.core.registries.BuiltInRegistries.ITEM.get(saplingId);
-                    if (sapling != null && sapling != Items.AIR) {
-                        FixtureToolKit.ensureHotbarStack(bot, () -> new ItemStack(sapling),
-                                stack -> stack.is(sapling), 8, "sapling");
-                    }
-                },
-                () -> new com.dddgn.alice.job.lumber.RegionLumberJob(bot,
-                        LumberCourseAnchor.region(),
-                        scope, new LumberCandidateSource(), new NearestPolicy(), 20, 8000),
-                2000,
-                // 常驻任务：砍到 ≥1 棵且补种 ≥1 棵即算本步通过（之后它会继续巡查等苗长大）
-                task -> task instanceof com.dddgn.alice.job.lumber.RegionLumberJob region
-                        && region.treesChopped() >= 1 && region.plantedSomething(), null, false));
         // ==================== 决策层判据（基-2 / D-149）====================
         // 契约类断言：纯逻辑、不改世界、不调 LLM ⇒ 便宜且确定，任何改动都跑得到
         steps.add(step("decision_contract",

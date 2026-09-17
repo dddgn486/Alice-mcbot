@@ -4,6 +4,7 @@ import com.dddgn.alice.task.check.modules.CraftModule;
 import com.dddgn.alice.task.check.modules.HarnessSelfModule;
 import com.dddgn.alice.task.check.modules.DecisionModule;
 import com.dddgn.alice.task.check.modules.LedgerModule;
+import com.dddgn.alice.task.check.modules.LumberModule;
 import com.dddgn.alice.task.check.modules.MachineModule;
 import com.dddgn.alice.task.check.modules.MiningModule;
 import com.dddgn.alice.task.check.modules.PathingModule;
@@ -26,7 +27,8 @@ public final class CheckModules {
             new DecisionModule(),
             new CraftModule(),
             new MachineModule(),
-            new MiningModule()
+            new MiningModule(),
+            new LumberModule()
     );
 
     private CheckModules() {

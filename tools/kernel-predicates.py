@@ -398,6 +398,102 @@ def rule_harness_step_hygiene():
     return problems
 
 
+def rule_module_step_inventory():
+    """R2-P2（2026-09-17，R-2 迁移期）：**每个自检步必须恰好有一个提供者**（电池内联 or 某个模块）。
+
+    为什么需要（迁移期的真实风险）：把步从电池搬进模块时，**删了旧的、忘了加新的**（或反过来）
+    只有等那一天真的跑到那一步才会暴露；而"某步悄悄消失"在 SUMMARY 里看不出来（它只是不在列表里 ✗）。
+    判据 = 静态清点三方：① `CURATION` 的步名（它构造期会与实际步表一一自校验 ✓）②电池内联的
+    `step("X")`/`stepSkippable("X")`/`stepKeeping("X")`/`new Step("X"` ③各模块里的
+    `CheckStep.of("X")`/`CheckStep.skippable("X")`/`CheckStep.keeping("X")` ⇒ 三者必须**逐一对应**。
+    """
+    import re as _re
+    battery = (ROOT / "src/main/java/com/dddgn/alice/task/RegressionBatteryTask.java")
+    modules_dir = (ROOT / "src/main/java/com/dddgn/alice/task/check/modules")
+    text = battery.read_text(encoding="utf-8")
+    start = text.index("private static final Map<String, Profile> CURATION")
+    # 归属表可能以**单独一行的 `);`** 结束，也可能最后一行就是 `Map.entry(...));`
+    # （照抄 `tools/step-names.py` 的稳健写法：找不到就吃到文件尾 ✓）
+    end = text.index("\n    );", start) if "\n    );" in text[start:] else len(text)
+    curated = set(_re.findall(r'Map\.entry\("([A-Za-z0-9_]+)",\s*Profile\.', text[start:end]))
+    if not curated:
+        return ["没能从 CURATION 解析出步名（规则需同步）"]
+
+    inline = set(_re.findall(r'steps\.add\(\s*(?:new Step|step|stepSkippable|stepKeeping)\(\s*"([A-Za-z0-9_]+)"', text))
+    provided: dict[str, list[str]] = {}
+    for name in inline:
+        provided.setdefault(name, []).append("RegressionBatteryTask")
+    for path in sorted(modules_dir.glob("*Module.java")):
+        body = path.read_text(encoding="utf-8")
+        names = _re.findall(r'CheckStep\.(?:of|skippable|keeping)\(\s*"([A-Za-z0-9_]+)"', body)
+        names += _re.findall(r'new CheckStep\(\s*"([A-Za-z0-9_]+)"', body)
+        # **例外（正当的）**：**电池没有组合进来的模块**（如 `harness_self` —— 它是"编排器自检"，
+        # 故意不进电池、只走 `module:harness_self`）⇒ 它的步本来就不该在 CURATION 里 ✓。
+        # 判据用**唯一出处**：电池里出现 `new XxxModule().steps(` 才算"被电池组合" ✓。
+        # 电池里用的是**全限定名**（new com.dddgn...modules.XxxModule().steps(...)）
+        # ⇒ 必须用正则容忍前缀（第一版写成字面量匹配 ⇒ 全部模块被判成「未组合」⇒ 38 条假违规）
+        if not _re.search(rf'new\s+[\w.]*{path.stem}\(\)\.steps\(', text):
+            continue
+        for name in names:
+            provided.setdefault(name, []).append(path.name)
+
+    problems = []
+    for name in sorted(curated - set(provided)):
+        problems.append(f"步 `{name}` 在 CURATION 里，但**没有任何提供者**（搬迁时搬丢了？）")
+    for name in sorted(set(provided) - curated):
+        problems.append(f"步 `{name}` 有提供者 {provided[name]}，但**不在 CURATION 里**（漏登记档位？）")
+    for name in sorted(set(provided) & curated):
+        if len(provided[name]) > 1:
+            problems.append(f"步 `{name}` 被**提供了 {len(provided[name])} 次**：{provided[name]}"
+                            "（搬迁时「新的加了、旧的没删」⇒ 会跑两遍）")
+    return problems
+
+
+def rule_step_boundary_parity():
+    """R2-P3（2026-09-17，把 D-298 的 R2-P1 泛化）：**电池 `endStep` 里的跨步全局态还原，
+    编排器 `endStepHygiene` 必须都有**。
+
+    今天实测的坑（D-298）：电池 `endStep` 有一句 `CraftStation.select(bot, "auto")`（"站点选择不跨步泄漏"），
+    而编排器没有 ⇒ 模块单跑时 `craft_goal` 被上一步泄漏的站点选择改道，假红 ✗。
+    R2-P1 当初只钉了 `CraftStation` 这一个符号；本规则把它泛化：凡电池 `endStep` 里形如
+    `Xxx.select/clear/reset(bot…)` 的**跨步重置**，编排器 `endStepHygiene` 里都要有同一句 ✓
+    （账本/写入预算的 `close*` 不在此列 —— 那些由会话任务生命周期负责 ✓）。
+    """
+    import re as _re
+    battery = ROOT / "src/main/java/com/dddgn/alice/task/RegressionBatteryTask.java"
+    harness = ROOT / "src/main/java/com/dddgn/alice/task/check/CheckHarness.java"
+    if not battery.exists() or not harness.exists():
+        return ["电池或编排器文件不存在（改名？同步本规则）"]
+
+    def body_of(text: str, signature: str) -> str:
+        idx = text.find(signature)
+        if idx < 0:
+            return ""
+        line_start = text.rfind("\n", 0, idx) + 1
+        indent = len(text[line_start:idx]) - len(text[line_start:idx].lstrip())
+        out = []
+        for line in text[idx:].split("\n")[1:]:
+            if line.strip().startswith("}") and (len(line) - len(line.lstrip())) <= indent:
+                break
+            out.append(line)
+        return "\n".join(out)
+
+    b_body = body_of(_re.sub(r"//[^\n]*", "", battery.read_text(encoding="utf-8")), "private void endStep()")
+    h_body = body_of(_re.sub(r"//[^\n]*", "", harness.read_text(encoding="utf-8")),
+                     "private void endStepHygiene()")
+    if not b_body or not h_body:
+        return ["找不到电池 `endStep()` 或编排器 `endStepHygiene()`（改名？同步本规则）"]
+    pattern = _re.compile(r'([A-Za-z_][\w.]*)\.(?:select|clear|reset)\(\s*bot[^;]*\);')
+    battery_calls = sorted({_re.sub(r"\s+", "", m.group(0)) for m in pattern.finditer(b_body)})
+    harness_calls = {_re.sub(r"\s+", "", m.group(0)) for m in pattern.finditer(h_body)}
+    problems = []
+    for call in battery_calls:
+        if call not in harness_calls:
+            problems.append(f"电池 `endStep` 有跨步还原 `{call}`，**编排器 `endStepHygiene` 没有**"
+                            "（模块单跑会因上一步残留的全局态假红/假绿 ✗ —— D-298 就是这么红过一次）")
+    return problems
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
@@ -422,6 +518,8 @@ def main() -> int:
     f1 = rule_driver_attribution()
     j5 = rule_no_until_full()
     r2 = rule_harness_step_hygiene()
+    r2p2 = rule_module_step_inventory()
+    r2p3 = rule_step_boundary_parity()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -454,13 +552,17 @@ def main() -> int:
         print(f"[F1·归因] {line}")
     for line in r2:
         print(f"[R2·编排器步边界] {line}")
+    for line in r2p2:
+        print(f"[R2·步清单完整性] {line}")
+    for line in r2p3:
+        print(f"[R2·步边界对齐] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
-          and not prog_default and not j5 and not r2)
+          and not prog_default and not j5 and not r2 and not r2p2 and not r2p3)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)}"
-          f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1 —— 见各规则头部的注释）")
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)}"
+          f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3 —— 见各规则头部的注释）")
     return 0 if ok else 1
 
 
