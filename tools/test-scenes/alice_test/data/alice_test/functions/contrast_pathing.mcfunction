@@ -4,6 +4,6 @@ function alice_test:pathing_course_terrain
 clear @s
 kill @e[type=minecraft:marker]
 tp @s 0.5 64.0 46.5
-summon minecraft:marker 0.5 62.0 44.5
+summon minecraft:marker 0.5 62.0 44.5 {Tags:["sw_goal"]}
 function alice_test:sw_start
 tellraw @s [{"text":"[对照] 场景=pathing_course 目标=(0,62,44)","color":"gold"},{"text":"请输入 ","color":"white"},{"text":"#goto 0 62 44","color":"aqua"}]

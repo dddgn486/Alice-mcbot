@@ -11218,3 +11218,54 @@ Caused by: java.nio.file.FileSystemException:
    （代价：丢失该 mod 的"启用物品清单"，会重新生成）。
 
 **与我们的 jar 无关**（我们的代码从不读写该配置）✓；但**更新 jar 后第一次进世界**会触发它，容易被误判成本次改动引入的 bug ✗。
+
+### D-280：V-4 对照的**计时口径修正** + Alice 侧数据无头化（2026-09-17）
+
+**问题（用户实测反馈）**："我没办法启动场景后瞬间输入 `#goto`" ⇒ Baritone 侧的 tick 里混进了**打字时间**。
+**核实**（读函数体）：`contrast_*` 在 tellraw 提示**之前**就调 `sw_start` ⇒ 计时**从函数执行那一刻**开始 ✗
+⇒ 与 Alice 侧的纯移动 tick **不可比**（实测 Alice FALL `exec_ticks=17` vs Baritone 最小 43：主要差在打字，不是移动速度）。
+
+**修正（数据包 `sw_*`）**：`sw_start` 改为**待发**（清分 + `alice_sw_pending` + 在玩家脚下放
+`sw_origin` marker）⇒ `sw_tick` 在"玩家**离开起点**"时才调新的 `sw_begin` 正式计时；停表只认**打了
+`sw_goal` 标签**的目标 marker（10 个 `contrast_*` 的目标 marker 已全部打标）。
+⇒ 打字延迟**完全不计入**，两侧口径对齐。
+
+**判据（可红，已实测）**：新夹具 `ContrastTimerCheckTask` + 电池步 **`contrast_timer`**（11 条 check）：
+① `sw_start` 后**静置 40 tick**（模拟打字）⇒ 分数必须**仍是 0** 且**无** running 标签（旧 `sw_start` ⇒ 分数≈40 ⇒ 红 ✓）；
+② 离开起点后正式计时（分数 1~3）✓；③ 脚下放**不带标签**的 marker ⇒ 计时**继续**（旧停表条件认"任意 marker" ⇒ 立刻停 ⇒ 红 ✓）；
+④ 换成 `sw_goal` marker ⇒ 停表且分数**很小**（实测 6 ⇒ 只算了真实移动）。实测 `checks=11 failures=0` ✓。
+
+**踩到的坑（值得记）**：`sw_tick` 第一版写成 `execute as @a[...] unless entity @e[...distance=..0.05]` ——
+**`as` 只换执行者、不换执行位置** ⇒ `distance` 是相对**命令源(0,0,0)**算的 ⇒ 条件恒真 ⇒ 一调用就正式计时（等于没修）。
+加 `at @s` 后正确。**夹具当场把它抓出来了**（这就是"可红判据"的价值）。
+
+**Alice 侧数据无头化**：两个诊断新增 `exec_ticks`（移动执行相位的 tick 数 = 与 Baritone `#goto` 同口径的纯移动量）
++ 两个电池步 **`fall_execute`** / **`pillar_execute`** ⇒ Alice 侧数字以后**不用客户端**就能取 ✓
+（实测 FALL `exec_ticks=17`、PILLAR `exec_ticks=36`，两侧判据全 PASS）。
+
+**⚠️ 旧 Baritone 数字作废**：修复前用户跑的 43/44/64/100（FALL）与 45/45/48/76（PILLAR）**含打字时间**，
+只能当**上界**；要用新停表重跑（两个客户端世界的数据包已更新，进世界先 `/reload`）。
+
+### D-281：在电池里驱动"会动世界"的诊断，必须自己收尾（`CleanupWrappedTask`）
+
+**事故（2026-09-17，CORE 实测）**：把 `fall_execute` / `pillar_execute`（V-4 数据步）加进 CORE 后，
+**craft/machine 一批步集体变红**：`craft_table=FAIL reason=no_world_write`、`craft_station*`、`craft_probe_*`、
+`machine_route=probe_failed`、`machine_station=no_writes` …（此前一直是绿的）。
+
+**根因（读判据源码得到，不是猜）**：
+- `CraftTableCheckTask:183` 的 `no_world_write` 判的是
+  `WorldModLedger.pendingForOwner(server, bot.getUUID()).isEmpty()` ⇒ **只要该 bot 名下还有任何"我方临时方块"就红**；
+- 同一步的 `crafted_furnace` 还判 `countInInventory(COBBLESTONE) == 0`；
+- 而 `PILLAR` 诊断**真的垫方块爬竖井**（`pillar_execute`）且给 bot 发圆石 ⇒ **方块留在账本、圆石留在背包** ✗；
+- 电池的 `endStep()` 只**关作用域**、**不拆**（源码里自己写着"建拆同权未闭合"）⇒ 遗留跨步污染 ✓。
+
+**修法**：新增 `CleanupWrappedTask`（**诊断任务的收尾包装**）：
+① 拆掉 `pendingForOwner` 里的我方临时方块（`setblock air` + `WorldModLedger.forget`，跳过 bot 所在/头位格）；
+② `FixtureToolKit.resetInventory(bot)` 复位库存；③ 抬一格 + 清零速度，避免下一步起步踩空。
+`fall_execute` / `pillar_execute` 两步已套上。
+
+**判据（间接但硬）**：CORE 里紧随其后的 `craft_table` / `craft_station*` / `machine_*` 判据就是它的守门人 ——
+**收尾失效 ⇒ 它们立刻红**（本次事故正是这样被抓出来的）。
+
+**纪律（写进本次教训）**：往 CORE 里加**任何会动世界**的步之前，先问三句：
+① 它放/拆方块吗？② 它改 bot 背包吗？③ 电池只关账本不拆，我这步谁来收尾？—— 答不上就别加。

@@ -164,6 +164,10 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("speech_channel", Profile.MAIN),
             // 死亡机制第 1 步（D-276）：死亡**不删数据**（倒下态 = FALLEN，含位置/死因/时刻）。
             Map.entry("death_persistence", Profile.MAIN),
+            // V-4 对照的 **Alice 侧**（2026-09-17）：把 FALL / PILLAR 的移动执行 tick 变成无头可取的数
+            Map.entry("fall_execute", Profile.MAIN),
+            Map.entry("pillar_execute", Profile.MAIN),
+            Map.entry("contrast_timer", Profile.MAIN),
             // D-276 端到端（第 1 半）：**真弄死一个探针 bot**，验证数据落成倒下态。
             // 放 EXTRA：它会写"倒下态"存档（会覆盖 botTag）⇒ 只适合 `single:` 单独跑。
             Map.entry("death_kill_bot", Profile.EXTRA),
@@ -426,6 +430,21 @@ public final class RegressionBatteryTask implements Task {
                 () -> teleportBot(OreCourseAnchor.START_FOOT),
                 () -> new DeathKillBotCheckTask(bot, observer),
                 80));
+        steps.add(step("contrast_timer",
+                List.of("alice_test:ore_course_terrain"),
+                () -> teleportBot(OreCourseAnchor.START_FOOT),
+                () -> new ContrastTimerCheckTask(bot, observer),
+                200));
+        steps.add(step("fall_execute",
+                List.of("alice_test:fall_course_terrain"),
+                null,
+                () -> new CleanupWrappedTask(new FallDiagnosticTask(bot, observer), bot),
+                600));
+        steps.add(step("pillar_execute",
+                List.of("alice_test:pillar_course_terrain"),
+                null,
+                () -> new CleanupWrappedTask(new PillarDiagnosticTask(bot, observer), bot),
+                900));
         steps.add(step("death_persistence",
                 List.of("alice_test:ore_course_terrain"),
                 () -> teleportBot(OreCourseAnchor.START_FOOT),

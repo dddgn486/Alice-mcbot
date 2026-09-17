@@ -44,6 +44,9 @@ public final class PillarDiagnosticTask implements Task {
 
     private int phase;
     private int ticks;
+    /** **V-4 对照用**：移动执行相位（runner 相位）的 tick 数。 */
+    private int execStartTicks = -1;
+    private int execTicks = -1;
     private PathRetryRunner runner;
     private String failure = "";
     private boolean planPass;
@@ -100,6 +103,7 @@ public final class PillarDiagnosticTask implements Task {
             case 3 -> {
                 teleport(SHAFT_START);
                 ensureCobblestone(8);
+                execStartTicks = ticks;   // V-4：从这里开始量移动
                 runner = new PathRetryRunner(bot, request(), PathRetryRunner.DEFAULT_MAX_REPLANS,
                         "pillar-execute");
                 phase = 4;
@@ -112,10 +116,11 @@ public final class PillarDiagnosticTask implements Task {
                 }
                 executePass = state == PathRetryRunner.State.DONE
                         && MovementHelper.footCell(bot.serverLevel(), bot).equals(RIM_GOAL);
-                BotLog.info("[Pillar] execute={} detail={} replans={} foot={}",
+                execTicks = execStartTicks < 0 ? -1 : ticks - execStartTicks;
+                BotLog.info("[Pillar] execute={} detail={} replans={} exec_ticks={} foot={}",
                         executePass ? "PASS" : "FAIL",
                         runner.result() == null ? "-" : runner.result().status().name(),
-                        runner.replans(), bot.blockPosition().toShortString());
+                        runner.replans(), execTicks, bot.blockPosition().toShortString());
                 phase = 5;
                 return finish();
             }
@@ -187,7 +192,8 @@ public final class PillarDiagnosticTask implements Task {
         String summary = "pillar_plan=" + (planPass ? "PASS" : "FAIL")
                 + " resource_guard=" + (guardPass ? "PASS" : "FAIL")
                 + " pillar_execute=" + (executePass ? "PASS" : "FAIL")
-                + " detail=" + planDetail;
+                + " detail=" + planDetail
+                + " exec_ticks=" + execTicks;   // V-4：与 Baritone 对照的"纯移动 tick"
         BotLog.info("[Pillar] SUMMARY {}", summary);
         if (observer != null) {
             observer.sendSystemMessage(Component.literal("[alice] PILLAR 自检 " + summary)

@@ -46,6 +46,9 @@ public final class FallDiagnosticTask implements Task {
 
     private int phase;
     private int ticks;
+    /** **V-4 对照用**：移动执行相位（runner 相位）的 tick 数 —— 与 Baritone `#goto` 的"纯移动"可比量。 */
+    private int execStartTicks = -1;
+    private int execTicks = -1;
     private PathRetryRunner runner;
     private String failure = "";
     private boolean plan2Pass;
@@ -100,6 +103,7 @@ public final class FallDiagnosticTask implements Task {
                 teleport(DROP3_START);
                 runner = new PathRetryRunner(bot, request(DROP3_START, DROP3_GOAL),
                         PathRetryRunner.DEFAULT_MAX_REPLANS, "fall-execute");
+                execStartTicks = ticks;   // V-4：从这里开始量移动
                 phase = 6;
                 return Status.RUNNING;
             }
@@ -110,10 +114,11 @@ public final class FallDiagnosticTask implements Task {
                 }
                 executePass = state == PathRetryRunner.State.DONE
                         && MovementHelper.footCell(bot.serverLevel(), bot).equals(DROP3_GOAL);
-                BotLog.info("[Fall] execute={} detail={} replans={} foot={}",
+                execTicks = execStartTicks < 0 ? -1 : ticks - execStartTicks;
+                BotLog.info("[Fall] execute={} detail={} replans={} exec_ticks={} foot={}",
                         executePass ? "PASS" : "FAIL",
                         runner.result() == null ? "-" : runner.result().status().name(),
-                        runner.replans(), bot.blockPosition().toShortString());
+                        runner.replans(), execTicks, bot.blockPosition().toShortString());
                 phase = 7;
                 return finish();
             }
@@ -210,7 +215,8 @@ public final class FallDiagnosticTask implements Task {
                 + " fall_plan_3=" + (plan3Pass ? "PASS" : "FAIL")
                 + " no_deep_fall=" + (drop4GuardPass ? "PASS" : "FAIL")
                 + " fall_recover_guard=" + (recoverGuardPass ? "PASS" : "FAIL")
-                + " fall_execute=" + (executePass ? "PASS" : "FAIL");
+                + " fall_execute=" + (executePass ? "PASS" : "FAIL")
+                + " exec_ticks=" + execTicks;   // V-4：与 Baritone 对照的"纯移动 tick"
         BotLog.info("[Fall] SUMMARY {}", summary);
         if (observer != null) {
             observer.sendSystemMessage(Component.literal("[alice] FALL 自检 " + summary)

@@ -76,6 +76,13 @@ Alice 侧与 Baritone 侧使用**同一个场景函数、同一个目标**：
 | place_course | | | | |
 | break_course | | | | |
 | dip_course | | | | |
+| **fall_course**（3 格落差） | **17**（`exec_ticks`，无头 `single:fall_execute`） | ~~43/44/64/100~~ ⇒ **待用新停表重跑** | 待你目视 | 旧数字**含打字时间** ⇒ 只能当上界（D-280） |
+| **pillar_course**（上升 3 格） | **36**（`exec_ticks`，无头 `single:pillar_execute`） | ~~45/45/48/76~~ ⇒ **待用新停表重跑** | 待你目视 | 同上 |
+
+> **⚠️ 2026-09-17 计时口径已修（D-280）**：`sw_start` 现在只**待发**，玩家**离开起点**才正式计时
+> ⇒ **打字延迟不计入**。两个客户端世界的数据包已更新 ⇒ **进世界先 `/reload`** 再跑。
+> **Alice 侧数字不用客户端**：`tools/headless-battery.sh single:fall_execute` / `single:pillar_execute`
+> 会打出 `exec_ticks=N`（与 Baritone 的"纯移动"同口径）。
 
 ## 六、已知不可比因素（读数时必须在心里扣掉）
 
