@@ -27,7 +27,7 @@ public record PathRequest(
         startFoot = Objects.requireNonNull(startFoot, "startFoot").immutable();
         goal = Objects.requireNonNull(goal, "goal");
         allowedMovementTypes = Set.copyOf(Objects.requireNonNull(allowedMovementTypes, "allowedMovementTypes"));
-        budget = budget == null ? SearchBudget.UNLIMITED : budget;
+        budget = budget == null ? WALK_BUDGET : budget;
         requester = requester == null ? "unknown" : requester;
         if (allowedMovementTypes.isEmpty()) {
             throw new IllegalArgumentException("allowedMovementTypes must not be empty");
@@ -37,6 +37,20 @@ public record PathRequest(
     /** 逃生请求的搜索预算：**刻意有界**（慌乱中不许烧满整个搜索空间）。 */
     private static final int ESCAPE_MAX_NODES = 4_000;
     private static final long ESCAPE_MAX_MILLIS = 100L;
+
+    /**
+     * **行走类请求的搜索预算（D-268④，2026-09-17 用户裁定）**：**不再是无界**。
+     *
+     * <p>现状问题：`PathRequest.of` 的五个调用点原先一律传 {@link SearchBudget#UNLIMITED}
+     * ⇒ **规划器自己的天花板被绕过** ⇒ 行走可以烧满整个搜索空间（勘测 10 §2.3 的"真正无界的是行走类"）。
+     * 裁定 = 撞限**如实报 `SEARCH_LIMIT`**（不静默、不假装不可达），初值取**保守**
+     * （= {@link CorePathPlanner#DEFAULT_MAX_NODES} / {@link CorePathPlanner#DEFAULT_MAX_MILLIS}），
+     * 并靠 `[PathRetry] plan … nodes/moved/ms` 这行日志**先观测真实分布再收紧**。
+     *
+     * <p>⚠️ 逃生仍用更紧的 {@code ESCAPE_*}（4000 节点 / 100 ms）—— 刻意更小。
+     */
+    public static final SearchBudget WALK_BUDGET = SearchBudget.of(
+            CorePathPlanner.DEFAULT_MAX_NODES, CorePathPlanner.DEFAULT_MAX_MILLIS);
 
     /**
      * **维生自救的受限写授权**（D-241；用户 2026-09-16 定案 Q1–Q4）。
@@ -62,7 +76,7 @@ public record PathRequest(
         return new PathRequest(botId, startFoot, new GoalFoot(goalFoot),
                 Set.of(MovementType.TRAVERSE, MovementType.DIAGONAL,
                         MovementType.ASCEND, MovementType.DESCEND),
-                SearchBudget.UNLIMITED, requester);
+                WALK_BUDGET, requester);
     }
 
     /** 纯通行 + 世界修改（PATH_ACCESS 破坏 + TEMPORARY_SUPPORT 放置，R5-2/R5-3）。 */
@@ -75,7 +89,7 @@ public record PathRequest(
                         MovementType.BREAK_AND_TRAVERSE,
                         MovementType.BREAK_AND_ENTER,
                         MovementType.PLACE_STEP_AND_TRAVERSE),
-                SearchBudget.UNLIMITED, requester);
+                WALK_BUDGET, requester);
     }
 
     /**
@@ -88,7 +102,7 @@ public record PathRequest(
                 Set.of(MovementType.TRAVERSE, MovementType.DIAGONAL, MovementType.ASCEND,
                         MovementType.DESCEND, MovementType.BREAK_AND_TRAVERSE,
                         MovementType.BREAK_AND_ENTER, MovementType.PLACE_STEP_AND_TRAVERSE),
-                SearchBudget.UNLIMITED, requester);
+                WALK_BUDGET, requester);
     }
 
     /**
@@ -107,7 +121,7 @@ public record PathRequest(
         return new PathRequest(botId, startFoot, new GoalFoot(goalFoot),
                 Set.of(MovementType.TRAVERSE, MovementType.DIAGONAL, MovementType.ASCEND,
                         MovementType.DESCEND, MovementType.DOWNWARD, MovementType.FALL),
-                SearchBudget.UNLIMITED, "restore");
+                WALK_BUDGET, "restore");
     }
 
     /**
@@ -126,7 +140,7 @@ public record PathRequest(
         return new PathRequest(botId, startFoot, new GoalFoot(goalFoot),
                 Set.of(MovementType.TRAVERSE, MovementType.DIAGONAL, MovementType.ASCEND,
                         MovementType.DESCEND, MovementType.PILLAR),
-                SearchBudget.UNLIMITED, requester);
+                WALK_BUDGET, requester);
     }
 
     public boolean allows(MovementType type) {

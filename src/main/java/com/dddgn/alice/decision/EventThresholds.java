@@ -79,6 +79,10 @@ public final class EventThresholds {
         /** M2：上一次"有进度"的指纹与其时刻；同 episode 只报一次 NO_PROGRESS。 */
         String lastProgress = null;
         long progressSinceTick = -1L;
+        /** D-268⑤：**本 episode 内**达到过的最近目标距离（格）。
+         *  只在"比本段更近"时更新，并在每次真正进展时重新取基线 ⇒ 撞到 0 也不会永久卡死；
+         *  走远/绕圈都不算推进（旧口径把"脚位变了"当进度 ⇒ 走远也算"有进度"，是错的）。 */
+        double episodeMinDistance = Double.MAX_VALUE;
         boolean noProgressReported;
         int noProgressEmits;
         /** S-5：掉血上报的基准血量（回血则跟随，"上一段伤"就此结账）与上次上报时刻（-1 = 还没报过）。 */
@@ -258,13 +262,27 @@ public final class EventThresholds {
             state.lastProgress = null;
             state.progressSinceTick = now;
             state.noProgressReported = false;
+            state.episodeMinDistance = Double.MAX_VALUE;   // 新 episode：重新开始算"最近到过多近"
             return;
         }
-        if (!progress.equals(state.lastProgress)) {
+        // **D-268⑤**：第 4 项进度 = **目标被推进**（本 episode 内比之前更近）——
+        // 独立于"任务/进度/背包"指纹：走远、原地绕圈、来回踱步都**不算**推进。
+        boolean distanceProgress = false;
+        double d = goalDistance(bot);
+        if (d >= 0) {
+            if (state.episodeMinDistance == Double.MAX_VALUE) {
+                state.episodeMinDistance = d;                      // 本段基线
+            } else if (d < state.episodeMinDistance - 0.5D) {
+                distanceProgress = true;
+                state.episodeMinDistance = d;
+            }
+        }
+        if (!progress.equals(state.lastProgress) || distanceProgress) {
             // 有进度 ⇒ 重新武装（滞回的自然形式：不需要第二个比例阈值）
             state.lastProgress = progress;
             state.progressSinceTick = now;
             state.noProgressReported = false;
+            state.episodeMinDistance = d >= 0 ? d : Double.MAX_VALUE;   // 新一段的基线就是"现在"
             return;
         }
         if (state.progressSinceTick < 0) {
@@ -282,7 +300,22 @@ public final class EventThresholds {
                 "window=" + window + " progress=" + progress);
     }
 
-    /** 进度指纹：任务进度 + 脚位 + 背包。三者都不变 ⇒ 这段时间**什么都没发生**。 */
+    /** 距**当前任务目标**的格数；没有方块目标（实体/区域/无任务）⇒ **-1**（= 不判几何进展）。 */
+    private static double goalDistance(BotPlayer bot) {
+        BlockPos goalPos = BotManager.currentTaskTargetPos(bot);
+        if (goalPos == null) {
+            return -1D;
+        }
+        BlockPos foot = com.dddgn.alice.pathing.MovementHelper.footCell(bot.serverLevel(), bot);
+        return Math.sqrt(foot.distSqr(goalPos));
+    }
+
+    /**
+     * 进度指纹（**不含**"目标距离"）：任务 + Job 进度 + 背包。
+     *
+     * <p>"目标是否被推进"由 {@link #goalDistance} 在 {@code checkNoProgress} 里单独判（D-268⑤）；
+     * 只有**没有方块目标**的任务（实体/区域）才把脚位放进指纹 —— 否则那类任务永远算"没进度"。
+     */
     private static String progressFingerprint(BotPlayer bot) {
         String task = BotManager.currentTaskSummary(bot);
         if (task == null) {
@@ -294,7 +327,13 @@ public final class EventThresholds {
         }
         String job = BotManager.currentTaskProgressSummary(bot);
         BlockPos foot = com.dddgn.alice.pathing.MovementHelper.footCell(bot.serverLevel(), bot);
-        return task + "|" + (job == null ? "-" : job) + "|" + foot.toShortString()
+        // **D-268⑤（2026-09-17 用户裁定：语义 = "白忙一场"）**：进度**不是**"脚位变了"。
+        // 原指纹含 `foot.toShortString()` ⇒ 只要脚一动就算有进度 ⇒ "原地绕圈/走远走回"永远不报
+        // NO_PROGRESS（长作业里最典型的"白忙一场"被漏掉）。
+        // 现在：**有方块目标**的任务不看脚位（看"有没有更近"，见 `goalDistance`）；
+        // 只有没有方块目标（实体/区域）的任务才退回脚位。
+        String where = goalDistance(bot) >= 0 ? "-" : foot.toShortString();
+        return task + "|" + (job == null ? "-" : job) + "|" + where
                 + "|" + inventoryFingerprint(bot);
     }
 
@@ -328,6 +367,7 @@ public final class EventThresholds {
         State state = STATES.computeIfAbsent(bot.getUUID(), ignored -> new State());
         state.lastProgress = null;
         state.progressSinceTick = bot.getServer().getTickCount();
+        state.episodeMinDistance = Double.MAX_VALUE;
         state.noProgressReported = false;
     }
 

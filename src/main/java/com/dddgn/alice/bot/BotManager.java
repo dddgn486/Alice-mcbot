@@ -921,6 +921,25 @@ public final class BotManager {
         return session == null ? null : session.currentTaskSummary();
     }
 
+    /**
+     * **D-268⑤（2026-09-17）**：当前任务的**目标方块位**（无方块目标 ⇒ null）。
+     *
+     * <p>用途：`NO_PROGRESS` 的语义从「脚位有没有变」改成「**目标有没有被推进**」——
+     * 走近目标才算进度；原地绕圈/走远走回都不算（"白忙一场"）。
+     */
+    public static BlockPos currentTaskTargetPos(BotPlayer bot) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null) {
+            return null;
+        }
+        Task task = session.currentTask();
+        if (task == null) {
+            return null;
+        }
+        com.dddgn.alice.task.TaskTarget target = task.target();
+        return target == null ? null : target.blockPos();
+    }
+
     /** **M2**：当前任务的进度摘要（Job 才有；见 `EventThresholds.NO_PROGRESS_WINDOW_TICKS`）。 */
     public static String currentTaskProgressSummary(BotPlayer bot) {
         BotSession session = BOTS.get(bot.getUUID());

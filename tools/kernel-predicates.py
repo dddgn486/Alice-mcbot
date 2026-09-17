@@ -89,21 +89,42 @@ def rule_s8():
     return hits
 
 
+def rule_walk_budget():
+    """W-P1（D-268④，2026-09-17 用户裁定）：**行走类请求必须有界**。
+
+    现状问题：`PathRequest` 原先把五个 `of(...)` 调用点全传 `SearchBudget.UNLIMITED`
+    ⇒ 规划器自己的天花板（`CorePathPlanner.DEFAULT_MAX_NODES/MILLIS`）被绕过，行走可以烧满整个搜索空间。
+    裁定 = 有界 + 撞限如实报 `SEARCH_LIMIT`。本规则防止"无声改回无界"。
+    """
+    path = CORE / "search" / "PathRequest.java"
+    if not path.exists():
+        return ["PathRequest.java 不存在（改名？同步本规则）"]
+    text = path.read_text(encoding="utf-8")
+    problems = []
+    if "SearchBudget.UNLIMITED" in text:
+        problems.append("PathRequest 又出现 SearchBudget.UNLIMITED（行走类必须走 WALK_BUDGET：撞限要报 SEARCH_LIMIT）")
+    if "WALK_BUDGET" not in text:
+        problems.append("PathRequest 里找不到 WALK_BUDGET（有界预算被移除？）")
+    return problems
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
     s8 = rule_s8()
+    walk = rule_walk_budget()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
         print(f"[K5·状态生产] {line}")
     for line in s8:
         print(f"[S8·死字段] {line}")
-    ok = not k4 and not k5 and not s8
+    for line in walk:
+        print(f"[W·行走预算] {line}")
+    ok = not k4 and not k5 and not s8 and not walk
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
-          f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)}"
-          f"（K4-P1 = 执行工厂必须用规划侧同一谓词；K5-P1 = 声明了的状态必须有生产者；"
-          f"S8-P1 = policyVersion 不得无声复活）")
+          f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)}"
+          f"（K4-P1 谓词统一；K5-P1 状态有生产者；S8-P1 policyVersion 不得复活；W-P1 行走必须有界）")
     return 0 if ok else 1
 
 
