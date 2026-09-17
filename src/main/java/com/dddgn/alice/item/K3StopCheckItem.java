@@ -65,6 +65,7 @@ public class K3StopCheckItem extends Item {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
         if (!BotManager.assignK3StopCheck(bot, player instanceof ServerPlayer sp ? sp : null, mode)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;

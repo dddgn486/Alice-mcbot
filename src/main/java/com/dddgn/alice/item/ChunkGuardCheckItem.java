@@ -67,6 +67,7 @@ public class ChunkGuardCheckItem extends Item {
             bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
             bot.controller().stopMovement();
         }
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
         if (!BotManager.assignChunkGuardCheck(bot, player instanceof ServerPlayer sp ? sp : null)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;

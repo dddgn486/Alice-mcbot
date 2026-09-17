@@ -6,7 +6,6 @@ import com.dddgn.alice.pathing.core.IntrinsicReversibility;
 import com.dddgn.alice.pathing.core.MovementCapabilities;
 import com.dddgn.alice.pathing.core.MovementSpec;
 import com.dddgn.alice.pathing.core.MovementType;
-import com.dddgn.alice.pathing.core.PlanningDependency;
 import com.dddgn.alice.pathing.core.RecoverabilityAssessment;
 import com.dddgn.alice.pathing.core.RecoverabilityEvaluator;
 import com.dddgn.alice.pathing.core.RecoverabilityLevel;
@@ -180,15 +179,10 @@ public class RecoverabilityCheckTask implements Task {
 
     /** 构造一条**故意违规**的 spec：required=PATH_REVERSIBLE 而 evaluated=LOCAL_STEP。 */
     private static MovementSpec violatingSpec(BlockPos from, BlockPos to) {
-        PlanningDependency dependency = new PlanningDependency(
-                List.of(from, to, to.above(), to.below()),
-                List.of(to, to.above()), List.of(to.below()),
-                List.of(to, to.below()), List.of(to, to.below()),
-                List.of(), 0L);
         return new MovementSpec(MovementType.TRAVERSE, from, to, 1.0D,
                 MovementCapabilities.pureTraversal(RecoverabilityLevel.PATH_REVERSIBLE,
                         IntrinsicReversibility.REVERSIBLE),
-                List.of(), List.of(), List.of(), dependency,
+                List.of(), List.of(), List.of(),
                 RecoverabilityLevel.LOCAL_STEP, PlannedMovementSpecs.factoryKey(MovementType.TRAVERSE));
     }
 

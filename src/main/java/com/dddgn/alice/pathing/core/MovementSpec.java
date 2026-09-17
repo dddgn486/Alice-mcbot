@@ -15,7 +15,6 @@ public record MovementSpec(
         List<String> requiredResources,
         List<String> expectedWorldEffects,
         List<String> planningPreconditionFacts,
-        PlanningDependency planningDependency,
         RecoverabilityLevel evaluatedRecoverability,
         String executionFactoryKey
 ) {
@@ -27,7 +26,6 @@ public record MovementSpec(
         requiredResources = immutableStrings(requiredResources, "requiredResources");
         expectedWorldEffects = immutableStrings(expectedWorldEffects, "expectedWorldEffects");
         planningPreconditionFacts = immutableStrings(planningPreconditionFacts, "planningPreconditionFacts");
-        planningDependency = Objects.requireNonNull(planningDependency, "planningDependency");
         evaluatedRecoverability = Objects.requireNonNull(evaluatedRecoverability, "evaluatedRecoverability");
         executionFactoryKey = Objects.requireNonNull(executionFactoryKey, "executionFactoryKey");
         if (executionFactoryKey.isBlank()) {

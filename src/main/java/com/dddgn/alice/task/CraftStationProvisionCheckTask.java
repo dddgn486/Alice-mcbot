@@ -360,7 +360,8 @@ public class CraftStationProvisionCheckTask implements Task {
     private Status finish() {
         phase = Phase.DONE;
         closeSession("fixture_done");
-        int pending = WorldModLedger.pendingForOwner(bot.serverLevel().getServer(), bot.getUUID()).size();
+        // B 方案（2026-09-17）：**只看本步 scope**
+        int pending = WorldModLedger.pendingTemporaryInCurrentScope(bot.serverLevel().getServer(), bot.getUUID()).size();
         record("no_block_writes", String.valueOf(pending == 0));
         if (pending != 0) {
             failures.add("no_block_writes");

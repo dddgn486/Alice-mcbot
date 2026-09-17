@@ -68,6 +68,7 @@ public class PathingDisturberItem extends Item {
         bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
         bot.controller().stopMovement();
         ensureCobblestone(bot, 8);
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
         if (!BotManager.assignPathSessionDiagnostic(bot, COURSE_GOAL_FOOT, true,
                 DISTURB_TICK, 0, DISTURB_DZ)) {
             if (player != null) {

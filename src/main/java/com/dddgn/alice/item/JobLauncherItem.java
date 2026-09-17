@@ -75,6 +75,7 @@ public class JobLauncherItem extends Item {
         bot.setDeltaMovement(Vec3.ZERO);
         bot.controller().stopMovement();
         JobRequest request = JobRequest.lumber(LumberCourseAnchor.START_FOOT, 16, CHECK_QUOTA, 3600);
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
         if (!BotManager.assignJob(bot, player instanceof ServerPlayer sp ? sp : null, request, true)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;

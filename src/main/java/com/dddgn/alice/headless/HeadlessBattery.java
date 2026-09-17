@@ -124,6 +124,7 @@ public final class HeadlessBattery {
 
         if (!assigned) {
             ServerPlayer observer = syntheticObserver(server.overworld());
+            com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
             if (BotManager.assignRegressionBattery(bot, observer, fullProfile)) {
                 assigned = true;
                 BotLog.info("[Headless] 电池已指派（入口与游戏内物品完全相同；observer={}）",

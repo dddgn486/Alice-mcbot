@@ -87,6 +87,7 @@ public class RestoreCheckItem extends Item {
                 pending.size(), first.toShortString(), stand.toShortString());
 
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
         if (!BotManager.assignRestore(bot, observer, true)) {
             say(player, "[alice] 恢复启动失败");
             return;

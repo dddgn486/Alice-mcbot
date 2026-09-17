@@ -372,6 +372,7 @@ public final class BotCommand {
                     new ChestEndpointRef(source.getLevel().dimension().location(), sourcePos),
                     new ChestEndpointRef(source.getLevel().dimension().location(), destinationPos), itemId, count,
                     source.getLevel().getGameTime());
+            com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.IN_GAME_PLAYER);
             String result = BotManager.assignTransfer(bot, request);
             if (!"accepted".equals(result)) return failure(source, result);
             source.sendSuccess(() -> Component.literal("[alice] transfer request=" + request.requestId()
@@ -433,7 +434,11 @@ public final class BotCommand {
         if (bot == null) return failure(source, TransferCodes.BOT_UNAVAILABLE);
         TransferSelectionSubmission.Submission submitted = TransferSelectionSubmission.submit(actor.getUUID(), bot.getUUID(),
                 draft.source(), draft.destination(), resolved, source.getLevel().getGameTime(),
-                request -> BotManager.assignTransfer(bot, request));
+                request -> {
+                    // F1（D-285）：这条请求由**玩家**发起的选择流触发 ⇒ 归因玩家
+                    com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.IN_GAME_PLAYER);
+                    return BotManager.assignTransfer(bot, request);
+                });
         if (!submitted.accepted()) return failure(source, submitted.code());
         TransferSelectionData.clear(source.getServer(), actor.getUUID());
         source.sendSuccess(() -> Component.literal("[alice] transfer request=" + submitted.request().requestId()
@@ -615,6 +620,7 @@ public final class BotCommand {
         // 半径取 Job 规格半径：命令语义是"以我为中心扫描"，故用来源默认半径
         int radius = com.dddgn.alice.job.mine.MineCandidateSource.SCAN_RADIUS;
         String targetName = targetSpec.describe();
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.IN_GAME_PLAYER);
         if (!BotManager.assignMineJob(bot, source.getPlayer(), targetSpec, quota, radius)) {
             source.sendFailure(Component.literal("[alice] " + BotManager.busyMessage(bot)));
             return 0;
@@ -632,6 +638,7 @@ public final class BotCommand {
             source.sendFailure(Component.literal("[alice] 没有可用 bot"));
             return 0;
         }
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.IN_GAME_PLAYER);
         if (!BotManager.assignRestore(bot, source.getPlayer(), all)) {
             source.sendFailure(Component.literal("[alice] 无可恢复项，或 bot 正忙"));
             return 0;
@@ -893,6 +900,7 @@ public final class BotCommand {
                     + "物品在场景里设定，或用命令另行设定）"), false);
             return 0;
         }
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.IN_GAME_PLAYER);
         boolean ok = com.dddgn.alice.bot.BotManager.assignRegionLumber(bot,
                 source.getEntity() instanceof net.minecraft.server.level.ServerPlayer sp ? sp : null,
                 region);
@@ -930,6 +938,7 @@ public final class BotCommand {
         // （observer==null ⇒ 伪造的两条事件都算 bot 自己 ⇒ afterForeign=0 ⇒ 第一 tick 假红）。
         // 与物品入口保持一致：**能拿到玩家就传玩家**。
         ServerPlayer batteryObserver = source.getEntity() instanceof ServerPlayer sp ? sp : null;
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.IN_GAME_PLAYER);
         if (!BotManager.assignRegressionBattery(bot, batteryObserver, full)) {
             source.sendFailure(Component.literal("[alice] " + BotManager.busyMessage(bot)));
             return 0;
@@ -1192,6 +1201,7 @@ public final class BotCommand {
         }
         BlockPos from = bot.blockPosition().immutable();
         BlockPos to = from.relative(direction);
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.IN_GAME_PLAYER);
         if (!BotManager.assignTraverseDiagnostic(bot, to)) {
             source.sendFailure(Component.literal("[alice] bot_busy"));
             return 0;
@@ -1222,6 +1232,7 @@ public final class BotCommand {
         }
         BlockPos from = bot.blockPosition().immutable();
         BlockPos to = from.offset(dx, 0, dz);
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.IN_GAME_PLAYER);
         if (!BotManager.assignDiagonalDiagnostic(bot, to)) {
             source.sendFailure(Component.literal("[alice] bot_busy"));
             return 0;
@@ -1252,6 +1263,7 @@ public final class BotCommand {
         }
         BlockPos from = bot.blockPosition().immutable();
         BlockPos to = from.relative(direction).above();
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.IN_GAME_PLAYER);
         if (!BotManager.assignAscendDiagnostic(bot, to)) {
             source.sendFailure(Component.literal("[alice] bot_busy"));
             return 0;
@@ -1279,6 +1291,7 @@ public final class BotCommand {
         }
         final BlockPos goal = player.blockPosition().immutable();
         final String botName = bot.getName().getString();
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.IN_GAME_PLAYER);
         if (!BotManager.assignPathSessionDiagnostic(bot, goal)) {
             source.sendFailure(Component.literal("[alice] bot_busy"));
             return 0;
@@ -1328,6 +1341,7 @@ public final class BotCommand {
         final BlockPos anchor = player == null ? bot.blockPosition().immutable()
                 : player.blockPosition().immutable();
         final String botName = bot.getName().getString();
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.IN_GAME_PLAYER);
         if (!BotManager.assignPathingBattery(bot, anchor)) {
             source.sendFailure(Component.literal("[alice] bot_busy"));
             return 0;
@@ -1404,6 +1418,7 @@ public final class BotCommand {
             cursor = cursor.relative(direction).below();
             planned.add(cursor);
         }
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.IN_GAME_PLAYER);
         if (!BotManager.assignChainDiagnostic(bot, planned)) {
             source.sendFailure(Component.literal("[alice] bot_busy"));
             return 0;
@@ -1435,6 +1450,7 @@ public final class BotCommand {
         }
         BlockPos from = bot.blockPosition().immutable();
         BlockPos to = from.relative(direction).below();
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.IN_GAME_PLAYER);
         if (!BotManager.assignDescendDiagnostic(bot, to)) {
             source.sendFailure(Component.literal("[alice] bot_busy"));
             return 0;
@@ -1482,6 +1498,7 @@ public final class BotCommand {
             source.sendFailure(Component.literal("[alice] 假人当前正在执行其他任务"));
             return 0;
         }
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.IN_GAME_PLAYER);
         BotManager.assignRoadBuild(bot, plan);
         source.sendSuccess(() -> Component.literal("[alice] 已让 " + bot.getName().getString()
                 + " 按道路蓝图逐单元施工并前往目标"), false);
@@ -1561,6 +1578,7 @@ public final class BotCommand {
             return 0;
         }
         BotPlayer bot = BotManager.firstOrSpawn(level, target);
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.IN_GAME_PLAYER);
         BotManager.assignMine(bot, target);
         source.sendSuccess(() -> Component.literal(
                 "[alice] " + bot.getName().getString() + " 开始挖掘 " + target.toShortString()), false);
@@ -1585,6 +1603,7 @@ public final class BotCommand {
             source.sendFailure(Component.literal("[alice] bot 当前有任务，未开启跟随"));
             return 0;
         }
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.IN_GAME_PLAYER);
         BotManager.assignFollow(bot, player);
         source.sendSuccess(() -> Component.literal("[alice] " + bot.getName().getString()
                 + " 开始跟随你（/alice follow off 关闭）"), false);

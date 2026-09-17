@@ -51,13 +51,26 @@ public final class RegressionBatteryTask implements Task {
     private record Step(String name, List<String> scenes, Runnable provision,
                         Supplier<Task> factory, int budgetTicks,
                         java.util.function.Predicate<Task> doneWhen,
-                        java.util.function.Predicate<Task> skipWhen) {
+                        java.util.function.Predicate<Task> skipWhen,
+                        /**
+                         * **B 方案（2026-09-17 用户裁定）**：本步**故意**在世界里留下我方临时方块。
+                         *
+                         * <p>不声明 ⇒ `endStep` 发现 `pendingTemporary(本步 scope)` 非空就**把本步判红**
+                         * （错误当场出现在出错那一步，而不是十几步后某个名字不相干的 craft 步）。
+                         */
+                        boolean keepWorldState) {
     }
 
     /** 常规步骤（跑完看终态）。 */
+    /** **故意留世界状态**的步（B 方案）：声明后 `endStep` 不再因遗留而判红。 */
+    private static Step stepKeeping(String name, List<String> scenes, Runnable provision,
+                                    Supplier<Task> factory, int budgetTicks) {
+        return new Step(name, scenes, provision, factory, budgetTicks, null, null, true);
+    }
+
     private static Step step(String name, List<String> scenes, Runnable provision,
                              Supplier<Task> factory, int budgetTicks) {
-        return new Step(name, scenes, provision, factory, budgetTicks, null, null);
+        return new Step(name, scenes, provision, factory, budgetTicks, null, null, false);
     }
 
     /**
@@ -69,7 +82,7 @@ public final class RegressionBatteryTask implements Task {
     private static Step stepSkippable(String name, List<String> scenes, Runnable provision,
                                       Supplier<Task> factory, int budgetTicks,
                                       java.util.function.Predicate<Task> skipWhen) {
-        return new Step(name, scenes, provision, factory, budgetTicks, null, skipWhen);
+        return new Step(name, scenes, provision, factory, budgetTicks, null, skipWhen, false);
     }
 
     /**
@@ -167,7 +180,10 @@ public final class RegressionBatteryTask implements Task {
             // V-4 对照的 **Alice 侧**（2026-09-17）：把 FALL / PILLAR 的移动执行 tick 变成无头可取的数
             Map.entry("fall_execute", Profile.MAIN),
             Map.entry("pillar_execute", Profile.MAIN),
-            Map.entry("contrast_timer", Profile.MAIN),
+            // **CORE 修剪（2026-09-17）**：它是 V-4 停表的**工具检查**（V-4 已裁定不阻塞）⇒ 移出 CORE，
+            // 只在 FULL 跑（`single:contrast_timer` 仍可随时单独跑）。判据本身不变。
+            Map.entry("contrast_timer", Profile.EXTRA),
+            Map.entry("driver_label", Profile.MAIN),
             // D-276 端到端（第 1 半）：**真弄死一个探针 bot**，验证数据落成倒下态。
             // 放 EXTRA：它会写"倒下态"存档（会覆盖 botTag）⇒ 只适合 `single:` 单独跑。
             Map.entry("death_kill_bot", Profile.EXTRA),
@@ -421,7 +437,7 @@ public final class RegressionBatteryTask implements Task {
                     BotLog.info("[Regression] M4b 判据通过：任务树带子阶段失败事实 lastFailure={}", line);
                     return true;
                 },
-                null));
+                null, false));
         // M3b ①（G3 归因）：`stale_target` —— 每个候选的身份复检都失败（决策后被改动）。
         // 夹具只替掉**那一次判定**（恒 false），理由码与真实竞态完全一样（`target_replaced`）；
         // 判据 = 终态理由真的成为 `stale_target`（否则 doneWhen 不成立 ⇒ 预算耗尽判红）。
@@ -430,6 +446,11 @@ public final class RegressionBatteryTask implements Task {
                 () -> teleportBot(OreCourseAnchor.START_FOOT),
                 () -> new DeathKillBotCheckTask(bot, observer),
                 80));
+        steps.add(step("driver_label",
+                List.of("alice_test:ore_course_terrain"),
+                () -> teleportBot(OreCourseAnchor.START_FOOT),
+                () -> new DriverLabelCheckTask(bot, observer),
+                120));
         steps.add(step("contrast_timer",
                 List.of("alice_test:ore_course_terrain"),
                 () -> teleportBot(OreCourseAnchor.START_FOOT),
@@ -489,7 +510,7 @@ public final class RegressionBatteryTask implements Task {
                         pos -> false),
                 400,
                 task -> task instanceof MineJob job && "stale_target".equals(job.terminalReason()),
-                null));
+                null, false));
         // M3b ②（G3 归因）：`write_budget_exhausted` —— **本步作用域**的破坏预算压到 0
         // （`WriteBudget.setCaps` 是既有夹具专用缝，不接玩家命令）⇒ 每次破坏都被拒 ⇒ 全预算码。
         steps.add(new Step("mine_budget",
@@ -514,7 +535,7 @@ public final class RegressionBatteryTask implements Task {
                         new NearestPolicy()),
                 400,
                 task -> task instanceof MineJob job && "write_budget_exhausted".equals(job.terminalReason()),
-                null));
+                null, false));
         // J8 可持续伐木区（MAINTAIN）：同一个伐木场景，但走"巡查 → 砍 → 继续巡查"的区域型 Job
         steps.add(new Step("region_maintain",
                 List.of("alice_test:lumber_course_terrain", "alice_test:lumber_course_trees"),
@@ -545,7 +566,7 @@ public final class RegressionBatteryTask implements Task {
                 2000,
                 // 常驻任务：砍到 ≥1 棵且补种 ≥1 棵即算本步通过（之后它会继续巡查等苗长大）
                 task -> task instanceof com.dddgn.alice.job.lumber.RegionLumberJob region
-                        && region.treesChopped() >= 1 && region.plantedSomething(), null));
+                        && region.treesChopped() >= 1 && region.plantedSomething(), null, false));
         // ==================== 决策层判据（基-2 / D-149）====================
         // 契约类断言：纯逻辑、不改世界、不调 LLM ⇒ 便宜且确定，任何改动都跑得到
         steps.add(step("decision_contract",
@@ -993,9 +1014,22 @@ public final class RegressionBatteryTask implements Task {
         scope.end();
         // **站点选择不跨步泄漏**：电池是自检串联，谁设的谁收（下一步回到 auto = 现状顺序）
         com.dddgn.alice.task.craft.CraftStation.select(bot, "auto");
-        if (!pending.isEmpty()) {
-            BotLog.warn("[Regression] step={} 收尾仍有 {} 条我方临时放置未拆（建拆同权未闭合）",
-                    currentStepName(), pending.size());
+        // **B 方案（2026-09-17 用户裁定「按 B 做」）**：留下我方临时方块且**未声明 KEEP** ⇒ **本步直接判红**。
+        // 为什么：2026-09-17 实测过一次事故 —— `pillar_execute` 漏收尾 ⇒ 15 步之后 `craft_table` 的
+        // `no_world_write`（跨 scope 的 `pendingForOwner`）红，理由与现场毫不相干 ✗。
+        // 现在错误**当场**出现在漏收尾的那一步；真需要留东西的步用 `stepKeeping(...)` 显式声明。
+        var ownPending = com.dddgn.alice.ledger.WorldModLedger.pendingTemporary(bot.getServer(), closed);
+        if (!ownPending.isEmpty()) {
+            boolean keep = currentStep() != null && currentStep().keepWorldState();
+            if (keep) {
+                BotLog.info("[Regression] step={} 声明 KEEP：留下 {} 条我方临时方块（放行）",
+                        currentStepName(), ownPending.size());
+            } else {
+                record(currentStepName(), "FAIL",
+                        "leaked_temporary_blocks=" + ownPending.size()
+                                + "（本步留下我方临时方块却未收尾；要么收尾，要么用 stepKeeping 声明 KEEP）"
+                                + " ticks=" + stepTicks);
+            }
         }
         current = null;
         stepStarted = false;
@@ -1113,6 +1147,11 @@ public final class RegressionBatteryTask implements Task {
     private int k4Delta(String code) {
         Map<String, Integer> now = com.dddgn.alice.pathing.core.search.PathingStats.totalsSnapshot();
         return now.getOrDefault(code, 0) - k4Baseline.getOrDefault(code, 0);
+    }
+
+    /** 当前正在跑的步（`endStep` 里 `index++` 之前它仍指向刚跑完的那一步）。 */
+    private Step currentStep() {
+        return index >= 0 && index < steps.size() ? steps.get(index) : null;
     }
 
     private String currentStepName() {

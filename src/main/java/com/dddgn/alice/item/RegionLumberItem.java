@@ -54,6 +54,7 @@ public class RegionLumberItem extends Item {
         bot.setDeltaMovement(Vec3.ZERO);
         bot.controller().stopMovement();
         var region = LumberCourseAnchor.region();
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
         if (!BotManager.assignRegionLumber(bot, player instanceof ServerPlayer sp ? sp : null, region)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;

@@ -10,7 +10,6 @@ import com.dddgn.alice.pathing.core.MovementCapabilities;
 import com.dddgn.alice.pathing.core.MovementExecutionFactory;
 import com.dddgn.alice.pathing.core.MovementSpec;
 import com.dddgn.alice.pathing.core.MovementType;
-import com.dddgn.alice.pathing.core.PlanningDependency;
 import com.dddgn.alice.pathing.core.RecoverabilityAssessment;
 import com.dddgn.alice.pathing.core.RecoverabilityLevel;
 import com.dddgn.alice.pathing.core.TraverseExecutionFactory;
@@ -53,14 +52,9 @@ public final class PlannedMovementSpecs {
                     movement.movementType(), movement.recoverability(), assessment.level());
         }
         com.dddgn.alice.pathing.core.RecoverabilityReport.record(movement.movementType(), assessment);
-        PlanningDependency dependency = new PlanningDependency(
-                List.of(movement.fromFoot(), to, to.above(), to.below()),
-                List.of(to, to.above()), List.of(to.below()),
-                List.of(to, to.below()), List.of(to, to.below()),
-                List.of(), 0L);
         return new MovementSpec(movement.movementType(), movement.fromFoot(), to,
                 movement.cost(), capabilities, List.of(), List.of(), planningFacts,
-                dependency, assessment.level(), factoryKey(movement.movementType()));
+                assessment.level(), factoryKey(movement.movementType()));
     }
 
     public static String factoryKey(MovementType type) {

@@ -66,6 +66,7 @@ public class LumberFailureCheckItem extends Item {
         com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
 
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
         if (!BotManager.assignLumberFailureCheck(bot, observer)) {
             say(player, "[alice] 自检启动失败（bot 忙）");
             return;

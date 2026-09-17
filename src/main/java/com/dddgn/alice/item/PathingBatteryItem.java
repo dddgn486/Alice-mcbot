@@ -64,6 +64,7 @@ public class PathingBatteryItem extends Item {
             }
             return InteractionResult.SUCCESS;
         }
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
         if (!BotManager.assignPathingBattery(bot, anchor)) {
             if (player != null) {
                 player.sendSystemMessage(Component.literal("[alice] " + BotManager.busyMessage(bot)));

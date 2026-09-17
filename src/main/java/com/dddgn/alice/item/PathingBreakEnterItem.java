@@ -52,6 +52,7 @@ public class PathingBreakEnterItem extends Item {
             return InteractionResult.SUCCESS;
         }
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
         if (!BotManager.assignBreakEnterDiagnostic(bot, observer)) {
             if (player != null) {
                 player.sendSystemMessage(Component.literal("[alice] " + BotManager.busyMessage(bot)));

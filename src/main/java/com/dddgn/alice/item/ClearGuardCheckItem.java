@@ -58,6 +58,7 @@ public class ClearGuardCheckItem extends Item {
         bot.setDeltaMovement(Vec3.ZERO);
         bot.controller().stopMovement();
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
         if (!BotManager.assignClearGuardCheck(bot, observer)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;

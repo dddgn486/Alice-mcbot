@@ -13,6 +13,17 @@
 
 ---
 
+### 复活线（**已登记，暂不实现** —— D-284，2026-09-17 用户裁定）
+
+| 步 | 内容 | 状态 |
+|---|---|---|
+| 1 | 死亡**不删数据**（detach/remove 分离 + 倒下态落盘 + 重启读回） | **✅ 完成**（D-276；判据 `death_persistence` 9 checks + 门禁 D1-P1 + `tools/death-persistence-e2e.sh` 两轮 e2e 可红）|
+| 2 | **复活流程**：亡骸方块 + 魂匣（可携带）+ 神龛方块 + 成本 | **已登记，未开工**（形态见 D-284 / 草案 §4.5）|
+| 3 | **保险道具**：一次性保命 + 召回符（须**比复活便宜**、**不得成为依赖**） | 已登记 |
+| 4 | **死亡惩罚档** c1/c2/c3 | 留档（草案 §4.7 原裁定：以后讨论）|
+
+> 触发条件：用户说"复活线开工"。在此之前不占当前任务层。
+
 ## §0 一览
 
 > **死亡机制状态（2026-09-17，D-276）**：**第 1 步已完成** —— 死亡不再删数据
@@ -21,12 +32,19 @@
 > **端到端已闭合（2026-09-17）**：`tools/death-persistence-e2e.sh` 两轮（真杀探针 bot ⇒ `alice_bot.dat` 带 `AliceFallen` ⇒ 重启读回「倒下态」），反向对照可红。
 > **F3 地基状态（2026-09-17，D-275）**：请示答复入口**唯一化**（`PermissionService.answer(transport, …)`；
 > `PermissionGate.answer` 降为包内可见 ⇒ 跨包直调**编译不过**；transport = command/client_packet/fixture/external）。
-> **F3-残**：『看』这一侧未做 —— 非游戏内主体读不到待答复请示（无对外查询通道）⇒ 等外部驱动者线开工时补。
+> **F3-残**：『看』这一侧未做 —— 非游戏内主体读不到待答复请示（无对外查询通道）⇒ 等外部驱动者线开工时补。 **✅ 结案（D-285）**：实测已有读路径（`BotStateReport`/报告物品/`[Report] json=` 日志）；只差"非游戏内实时查询通道"⇒ 属外部驱动者线形态问题|
+
 > **F1 地基状态（2026-09-17，D-274）**：驱动者身份位**已端到端落地**（`Driver` + `TaskOutcome`/`TaskExecutionRecord`
 > + `task_terminal_reason` 日志 + `DecisionSnapshot`；入口标注 = `llm`/`fixture`）。
-> **F1-残**：`BotCommand` 的 16 处指派点与物品入口**尚未标注**（现报 `system`=未归因）——
+> **F1-残**：`BotCommand` 的 16 处指派点与物品入口**尚未标注**（现报 `system`=未归因）—— **✅ 已收口（D-285）**：73 处指派点标归因 + 门禁 F1-P1 + 夹具 `driver_label`（均可红）；⚠️ 玩家命令入口的行为验证需专用无头模式（后续）|
+
 > 机械可做，但无强判据 ⇒ 与『外部驱动者』那条线一起做（那时归因才有观察价值）。
 > **F2** 已完成（门禁 G-P1）；**F4** 已完成（D-273）；**F3**（请示答复通道抽象）排队中。
+> **偶发假红登记（2026-09-17）**：`survival_exit`（BASELINE，537 tick）出现 **1 次** FAIL ——
+> `[Survival] SUMMARY checks=123 failures=2`，两条都是「掉血必须变成可判读的事实（DANGER 事件含 delta=…；**实际命中 0**）」。
+> 同一天的前后两轮同一步均 **PASS** ⇒ 按「同问题 2+ 次才升级调查」的规矩**只登记、不追查**。
+> 假设（未验证）：该轮场景没真的产生掉血事实（时序/RNG）。⚠️ 与 S-9 改动**无关**：`onBotDamage`/`DecisionSnapshot.damage` 对 DANGER 事件路径是**只读**的。
+> 若再次出现 ⇒ 按 `debugging-root-cause-analysis` 追（先固定 123 条判据里到底哪两条、以及那次 bot 的实际掉血序列）。
 > **S-12（2026-09-17 新登记，队列⑤-1 的产物）**：『JEI 显示的催化剂』与『我们认的站点』之间**没有断言**。
 > 事实：我方**零 JEI 引用**（`grep mezz.jei src/main/java` = 0）；站点来自自维护的 `RecipeDump.STATION_BY_TYPE`
 > 与 `MachineMap` CSV（D-219 需求驱动）。⇒ 若某模组配方在 JEI 里有催化剂而我们没映射，
@@ -69,7 +87,7 @@
 | **S-7** | 三个守卫默认值**互不一致**（P2-C） | `ISSUE_LIST.md:349-…` | **⚪ 实质成立、措辞需改（2026-09-16 复核）**：三个守卫确实不一致 —— `descend_overshoot` 是**开关**且默认 `false`（`RiskSwitches.java:20`），而 FALL 的 `fallRecoverable`（`SurfaceMovementProvider.java:234` `continue` 逐边守卫）与 ASCEND 的 FallingBlock 前置（`AscendExecutionFactory:68-72` `ASCEND_FALLING_BLOCK_ABOVE`）**没有开关、无条件执行**。⇒ 结论成立；**残余动作（已补登记）**：Alice 比 Baritone **多开两个守卫**，必须在对照记录里标注（否则对照结论失真）——已在 `alice-baritone-kernel-alignment.skill.md` 与 D-258 登记 |
 | **S-8** | `LiveExecutionContext.policyVersion` **恒为 0**（P2-A） | `ISSUE_LIST.md:349-370` | **✅ 已收口（2026-09-16，D-264，用户裁定「删字段」）**：该字段**连一个读取者都没有**（`grep policyVersion()` = 0）⇒ 与 `PlanningDependency` 的同名位一起**删除**（7 + 6 个构造点同步）；`grep -rn policyVersion src/main/java` = **0**，编译通过、CORE PASS（若有隐藏读者，编译期即报错）| 新门禁 **S8-P1**（`check-kernel-predicates.sh`）：`policyVersion` 不得无声复活 —— 先给读取者再谈引入 |
 | **S-9** | 危险伤害**按采样血量差记录** ⇒ 被回血抹平的伤害不可见 | D-261 实测；`previousHealth()` **零生产消费者** | **✅ 观测（D-271）+ 消费（D-277）均已落地**：`DamageLedger`（有界命中环 + `hitsSince`/`totalSince` 窗口查询）→ `DecisionSnapshot.damage`（窗口 200 tick）⇒ **决策层看得见挨打**。判据：夹具 `damage_event_visible`（9 checks，反向对照可红）+ 门禁 **S9-P1**。**仍未被行为消费**：维生升级与保险触发属复活线（第 2 步之后），届时直接读这本台账 |
-| **S-10** | **`PlanningDependency` 的分量没有任何读取者**（D-264 顺带发现，2026-09-16 新登记） | D-264 复核 | **属实、未修**：6 个列表分量 + `worldRevision` 被构造、被塞进 `MovementSpec`，但`grep worldRevision()` **0 命中**、"`.dependency()`" 也无人调用 ⇒ 与 S-8 同类「填了没人读」。**二选一需裁定**：整条删掉，或接上真实的依赖追踪（决定"世界变了要不要重规划"）。⚠️ 注意：**先删 `policyVersion` 已做**（它恒 0），剩下的分量若将来要接，语义得逐个定 |
+| **S-10** | `PlanningDependency` 的分量没有任何读取者 | D-264 复核 | **✅ 已收口（2026-09-17 用户裁定「删」，D-282）**：整条移除（`PlanningDependency.java` 删除 + `MovementSpec` 分量 + 6 个构造点 + 3 处遗留 import），门禁 **S10-P1** 防复活（注入可红）。裁定依据：零读取者 + 生产侧占位数据 + `worldRevision` 恒 0。⚠️ 4 个诊断无电池覆盖（改动仅参数移除，编译即可保证）|
 
 **未核实（需实测，不属于上述清单）**：① 工具耐久（全仓仅 `InterfaceScanner` 提及，Job 层无判定）；
 ② `bot` 被清除（`BotManager.remove` 不重生）后 `LumberRegionState`（按 UUID 的 SavedData）残留是否可观测

@@ -54,6 +54,7 @@ public class CraftFurnaceCheckItem extends Item {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
         if (!BotManager.assignCraftFurnaceCheck(bot, player instanceof ServerPlayer sp ? sp : null)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;

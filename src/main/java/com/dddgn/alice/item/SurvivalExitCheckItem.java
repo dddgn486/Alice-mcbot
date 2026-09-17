@@ -101,6 +101,7 @@ public class SurvivalExitCheckItem extends Item {
         if (onFire) {
             bot.setSecondsOnFire(ON_FIRE_SECONDS);
         }
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
         if (!BotManager.assignSurvivalExitCheck(bot, player instanceof ServerPlayer sp ? sp : null,
                 com.dddgn.alice.task.SurvivalCourseAnchor.DUMMY_GOAL)) {
             // A（§5.9）：**不许静默成功** —— 说清是"忙"还是"被未结清传输挡住"（后者以前会打印"就位"骗人）

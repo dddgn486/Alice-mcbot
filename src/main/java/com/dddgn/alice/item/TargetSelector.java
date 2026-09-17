@@ -44,6 +44,7 @@ public class TargetSelector extends Item {
             BotPlayer bot = BotManager.firstOrSpawn(serverLevel, placeTarget);
             // 夹具：放置走统一路径（BlockInteraction.placeAt），需要快捷栏有一次性方块（D-063）
             ensureCobblestone(bot, 8);
+            com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
             boolean assigned = BotManager.assignPlace(bot, placeTarget);
             if (player != null) player.sendSystemMessage(Component.literal(assigned
                     ? "[alice] 已指定放置方块 " + placeTarget.toShortString() + " → " + bot.getName().getString()
@@ -53,6 +54,7 @@ public class TargetSelector extends Item {
         if (level.getBlockState(clicked).isAir()) return InteractionResult.PASS;
         ServerLevel serverLevel = (ServerLevel) level;
         BotPlayer bot = BotManager.firstOrSpawn(serverLevel, clicked);
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
         BotManager.assignTarget(bot, TaskTarget.block(clicked));
         if (player != null) {
             player.sendSystemMessage(Component.literal(

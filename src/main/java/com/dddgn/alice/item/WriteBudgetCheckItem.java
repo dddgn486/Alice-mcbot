@@ -60,6 +60,7 @@ public class WriteBudgetCheckItem extends Item {
         bot.setDeltaMovement(Vec3.ZERO);
         bot.controller().stopMovement();
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
         if (!BotManager.assignWriteBudgetCheck(bot, observer)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;

@@ -76,6 +76,7 @@ public class FollowRunnerItem extends Item {
             BotLog.info("[Follow] fixture_teleport bot={} to={}", bot.getName().getString(),
                     foot.toShortString());
         }
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
         if (!BotManager.assignFollow(bot, target)) {
             player.sendSystemMessage(Component.literal("[alice] " + BotManager.busyMessage(bot)));
             return InteractionResult.SUCCESS;

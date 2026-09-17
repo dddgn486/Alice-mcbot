@@ -11269,3 +11269,87 @@ Caused by: java.nio.file.FileSystemException:
 
 **纪律（写进本次教训）**：往 CORE 里加**任何会动世界**的步之前，先问三句：
 ① 它放/拆方块吗？② 它改 bot 背包吗？③ 电池只关账本不拆，我这步谁来收尾？—— 答不上就别加。
+
+### D-282：S-10 裁定「**删**」—— `PlanningDependency` 整条移除（2026-09-17，用户裁定；本轮 9 条决策的第 1 条）
+
+**裁定依据（我提交给用户的事实，可复算）**：
+- `PlanningDependency` = 6 个 `List<BlockPos>` + `worldRevision`（`PlanningDependency.java:9-20`），是 `MovementSpec` 的分量（`MovementSpec.java:18`）；
+- **零读取者**：`worldRevision()`、6 个列表访问器、`planningDependency()` 全仓 grep **均为 0**；
+- **生产侧是占位数据**：`PlannedMovementSpecs:56-60` 填的是"这条移动自己的格子"，且 **`worldRevision` 硬编码 `0L`** ⇒ 连"世界变了没有"的意图都没实现；
+- 与已删的 `LiveExecutionContext.policyVersion`（S-8 / D-264）**同类**："填了没人读"。
+
+**做了什么**：
+1. 删除 `pathing/core/PlanningDependency.java`；
+2. `MovementSpec` 去掉 `planningDependency` 分量（含构造器里的 `requireNonNull` 校验）；
+3. **6 个构造点**全部清理（5 个诊断：`Ascend/Descend/Traverse/Diagonal` + `RecoverabilityCheckTask`；生产侧 `PlannedMovementSpecs`），并去掉 3 个文件里遗留的 import（`PathingBatteryTask` / `ChainDiagnosticTask` 只 import 未使用）；
+4. 新增门禁 **S10-P1**（`check-kernel-predicates.sh`）：`PlanningDependency.java` **不得再出现**、全仓不得有 `PlanningDependency`/`planningDependency` 残留 ⇒ **注入**（把类加回来）**红** ✓。
+
+**验证**：编译 ✓；门禁 **16 PASS + 1 预期 WARN** ✓；CORE 复核（本轮运行）。
+
+**⚠️ 诚实边界**：4 个诊断（`Ascend/Descend/Traverse/Diagonal`）**没有电池步覆盖** ⇒ "客户端物品还能不能用"无法无头证明；
+但 ① 零读取者 ⇒ 删除**不可能改变行为**（编译器即可保证签名一致），② 这 4 处的改动只是**参数移除**。
+将来若要"世界变了要不要重规划"：**先从消费者设计**（谁需要知道、什么时候触发、判据是什么），**不要**先把字段加回来。
+
+### D-283：B 方案 —— "留了东西要么收尾、要么声明 KEEP"（2026-09-17 用户裁定「按 B 做」）
+
+**背景（决策 2／9）**：电池步骤之间的**世界状态契约**原先只有"各步自律 + `endStep` 事后 warn"。
+2026-09-17 实测事故：我新加的 `pillar_execute` 漏收尾 ⇒ **15 步之后** `craft_table` 的 `no_world_write` 红，
+理由与现场毫不相干 ✗（真因见 D-281）。
+
+**用户裁定的形态（B）**：**不强制拆**（"全部主动回收太麻烦了"），改为**强制声明或收尾**。
+
+**数据（我提交给用户的实测，可复算）**：翻遍历史所有轮次日志，
+`收尾仍有…未拆` 只出现过 **1 次**：`step=pillar_execute`（2 块）—— 其余 45 步**全部 0**
+⇒ 不需要"全部主动回收"（收益≈0，且拆方块会改世界），也**不需要**现在给任何步标 KEEP（今天 KEEP 数 = **0**）。
+
+**改了什么**：
+1. 电池 `Step` 记录新增分量 **`keepWorldState`**（+ 工厂 `stepKeeping(...)` 供"故意留世界状态"的步声明）；
+2. `endStep()`：`pendingTemporary(本步 scope)` **非空**时 —— 声明 KEEP ⇒ 放行并记一行；**未声明 ⇒ 本步直接判红**
+   （理由 `leaked_temporary_blocks=N（…要么收尾，要么用 stepKeeping 声明 KEEP）`）⇒ 错误**当场出现在漏收尾的那一步** ✓；
+3. 配套修正（治"假红根源"）：三处 `no_block_writes`/`no_world_write` 断言由 **跨 scope** 的 `pendingForOwner`
+   改为只看**本步 scope** 的新查询 `WorldModLedger.pendingTemporaryInCurrentScope(...)`
+   （`CraftTableCheckTask` / `CraftStationCraftCheckTask` / `CraftStationProvisionCheckTask`）
+   —— 否则别的步的遗留会误伤它们（今天正是如此）。
+
+**判据（反向对照）**：把 `pillar_execute` 的收尾包装临时去掉 ⇒ 该步**必须自己红**（`leaked_temporary_blocks`），
+而不是 15 步后某个 craft 步红；还原后 ⇒ PASS ✓。
+
+### D-284：复活线**先登记、不进当前任务层**（2026-09-17 用户裁定：「先登记复活功能，这不是当前任务层所急需的模块，形态按之前说的来」）
+
+**裁定**：复活功能**只登记**（形态沿用草案 §四 的既定倾向），**不排进当前任务层**；第 1 步（死亡不删数据）已完成并端到端验证（D-276）⇒ **干线不阻塞** ✓。
+
+**登记的形态（按"之前说的"＝草案 §4.5 倾向 + §二 你的 6 条裁定）**：
+- **锚点**：死亡处留**亡骸方块**（看得见死在哪）+ **可携带魂匣**（P3"两者都有"）；
+- **设施**：**新建专用方块（神龛类）**用于复活仪式（P5 倾向；非复用工作台）；
+- **成本**：复活**有成本**；**保险道具成本必须低于复活**（你的裁定 ③）；
+- **物品**：P1 倾向**新物品**（魂匣/胶片类）；**P6 已选**：先做「一次性保命 + 召回符」两条；
+- **惩罚**：复活后有**较大惩罚**；档位 c1（60 s 冷却）／c2（5 min + 最大生命 −2）／c3（15 min + −4、−10% 移速）**继续留档**（草案 §4.7 原裁定："以后讨论，现在不实现"）；
+- **红线**：**保险不得成为依赖**（第一道防线仍是确定性维生层）；以后可持续提交新保险物品给你审核（你的裁定 ⑤⑥）。
+
+**顺序（登记在案）**：复活流程（第 2 步）→ 保险道具（第 3 步）→ 惩罚档（第 4 步，待定档）。
+**触发条件**：你说"复活线开工"时再启动；在此之前**不动**（不进 CORE、不占当前任务层）。
+
+### D-285：F1-残「现在补」+ F3-残 结案（2026-09-17 用户裁定）
+
+**F1（归因）做了什么**：
+1. **73 处指派点插入归因**：`command/BotCommand.java` ⇒ `Driver.IN_GAME_PLAYER`（16 处）；`item/*Item.java`（57 处）
+   与 `task/*Fixture*.java`、`headless/HeadlessBattery.java` ⇒ `Driver.FIXTURE`；
+   1 处 lambda（`BotCommand:436` 转移请求回调）手工包块并加注（请求由玩家选择流发起 ⇒ 归因玩家）；
+   `GoalDirector`（LLM）与电池原有归因保持不变。
+2. **门禁 F1-P1**：`command/` 与 `item/` 里每个 `assignXxx(` 之前 8 行内必须有 `Driver.set` ⇒ **注入（删掉一处归因）红** ✓
+   （实测点名 `item/CraftTableCheckItem.java:57`）。
+3. **夹具步 `driver_label`**（MAIN）：断言电池步内 `Driver.of(bot) == "fixture"` 且不是默认 `system`
+   ⇒ **注入（把电池归因改成 SYSTEM）红** ✓，还原 PASS ✓。
+
+**⚠️ 顺带修掉一个真 bug（本次实测撞出来的）**：夹具原先想用"玩家命令"验证，结果 `/alice follow on` 会**顶掉当前会话任务**
+（= 把**电池自己**踢掉，日志 `已显式停止任务 RegressionBattery（command）`）⇒ 更糟的是，命令在 **tick 内部**同步走
+`stopTask → immediateStop → task = null` ⇒ 回到 `BotSession.tick()` 的 `task.target()` **空指针** ⇒ 服务器看门狗**强制关服** ✗。
+已加**重入守卫**：`task.tick()` 之后若 `task == null` 立即返回（不再碰 `task.*`）。
+
+**诚实边界（写进台账）**：**在电池步内部无法行为化验证"玩家命令入口"的归因**（任何指派命令都会顶掉电池）。
+⇒ 玩家/物品入口由**门禁**锁死；要行为化验证，需要一个**专用无头模式**（起一个 bot + 观察者下一条指派命令 + 断言 driver，
+不跑电池）⇒ 已登记为后续小项（≈1–2 h），不急。
+
+**F3-残 结案**：台账原写"请示无读路径"，**实测不成立** —— `BotStateReport:105-108` 已解析快照里的 `pendingRequests`，
+并由**报告物品** `BotReportItem` 渲染成聊天 + `[Report] json=…` 落日志（外部主体可读日志 ✓）。
+⇒ 真正的缺口只是"**非游戏内主体的实时查询通道**"，属**外部驱动者线的形态问题**，不在本轮范围。

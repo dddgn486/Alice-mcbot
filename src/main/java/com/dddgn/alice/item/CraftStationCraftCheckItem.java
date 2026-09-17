@@ -56,6 +56,7 @@ public class CraftStationCraftCheckItem extends Item {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
         if (!BotManager.assignCraftStationCraftCheck(bot, player instanceof ServerPlayer sp ? sp : null)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;

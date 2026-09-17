@@ -45,6 +45,7 @@ public class RegressionBatteryItem extends Item {
             return;
         }
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
         if (!BotManager.assignRegressionBattery(bot, observer)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;

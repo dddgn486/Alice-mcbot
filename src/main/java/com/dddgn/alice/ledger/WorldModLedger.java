@@ -219,6 +219,18 @@ public final class WorldModLedger extends SavedData {
         return result;
     }
 
+    /**
+     * **只看"本步自己的 scope"**的临时放置（B 方案配套，2026-09-17）。
+     *
+     * <p>为什么要有它：断言"我没写世界"的夹具原先用 {@link #pendingForOwner}（**跨 scope**）⇒
+     * 会被**别的步**的遗留误伤（2026-09-17 实测事故正是如此）。本方法把口径收回到当前作用域。
+     * 没有打开的作用域时返回空表（此时"本步没写"这一判断无从谈起，由 B 方案的泄漏判红兜底）。
+     */
+    public static List<Entry> pendingTemporaryInCurrentScope(MinecraftServer server, java.util.UUID owner) {
+        String scope = currentScope(server, owner);
+        return scope == null ? List.of() : pendingTemporary(server, scope);
+    }
+
     public static List<Entry> pendingTemporary(MinecraftServer server, String scopeId) {
         List<Entry> result = new ArrayList<>();
         for (Entry entry : get(server).entries.values()) {

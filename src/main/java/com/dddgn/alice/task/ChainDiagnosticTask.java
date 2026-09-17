@@ -14,7 +14,6 @@ import com.dddgn.alice.pathing.core.MovementExecution;
 import com.dddgn.alice.pathing.core.MovementExecutionFactory;
 import com.dddgn.alice.pathing.core.MovementSpec;
 import com.dddgn.alice.pathing.core.MovementType;
-import com.dddgn.alice.pathing.core.PlanningDependency;
 import com.dddgn.alice.pathing.core.RecoverabilityLevel;
 import com.dddgn.alice.pathing.core.TraverseExecutionFactory;
 import com.dddgn.alice.pathing.core.search.PlannedMovement;

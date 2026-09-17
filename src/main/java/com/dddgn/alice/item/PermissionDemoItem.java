@@ -61,6 +61,7 @@ public class PermissionDemoItem extends Item {
             say(player, bot == null ? "[alice] bot 生成失败" : "[alice] " + BotManager.busyMessage(bot));
             return;
         }
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
         if (!BotManager.assignPermissionDemo(bot,
                 player instanceof ServerPlayer sp ? sp : null, 1200)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));

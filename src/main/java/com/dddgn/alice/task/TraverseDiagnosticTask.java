@@ -10,7 +10,6 @@ import com.dddgn.alice.pathing.core.MovementCapabilities;
 import com.dddgn.alice.pathing.core.MovementExecution;
 import com.dddgn.alice.pathing.core.MovementSpec;
 import com.dddgn.alice.pathing.core.MovementType;
-import com.dddgn.alice.pathing.core.PlanningDependency;
 import com.dddgn.alice.pathing.core.RecoverabilityLevel;
 import com.dddgn.alice.pathing.core.TraverseExecutionFactory;
 import net.minecraft.core.BlockPos;
@@ -98,15 +97,10 @@ public final class TraverseDiagnosticTask implements Task {
     private MovementSpec createSpec() {
         MovementCapabilities capabilities = MovementCapabilities.pureTraversal(
                 RecoverabilityLevel.PATH_REVERSIBLE, IntrinsicReversibility.REVERSIBLE);
-        PlanningDependency dependency = new PlanningDependency(
-                List.of(fromFoot, toFoot, toFoot.above(), toFoot.below()),
-                List.of(toFoot, toFoot.above()), List.of(toFoot.below()),
-                List.of(toFoot, toFoot.below()), List.of(toFoot, toFoot.below()),
-                List.of(), 0L);
         return new MovementSpec(MovementType.TRAVERSE, fromFoot, toFoot, 1.0D, capabilities,
                 List.of(), List.of(),
                 List.of("same_level_cardinal_step", "target_support", "target_body_clear", "target_head_clear"),
-                dependency, RecoverabilityLevel.PATH_REVERSIBLE, TraverseExecutionFactory.KEY);
+                RecoverabilityLevel.PATH_REVERSIBLE, TraverseExecutionFactory.KEY);
     }
 
     private void logTerminal(String result, String reason) {

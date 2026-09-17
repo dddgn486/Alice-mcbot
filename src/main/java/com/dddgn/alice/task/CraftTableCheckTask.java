@@ -179,7 +179,8 @@ public class CraftTableCheckTask implements Task {
                 && RecipeQuery.countInInventory(bot, Items.COBBLESTONE) == 0;
         check("crafted_furnace", ok, "product+" + (after - furnaceBefore) + " " + outcome.describe());
         // 零写入硬断言：账本里不该有我方临时方块（A3 只"用现成"，不放置）
-        var pending = WorldModLedger.pendingForOwner(bot.serverLevel().getServer(), bot.getUUID());
+        // B 方案（2026-09-17）：**只看本步 scope**，别再被别的步的遗留误伤
+        var pending = WorldModLedger.pendingTemporaryInCurrentScope(bot.serverLevel().getServer(), bot.getUUID());
         check("no_world_write", pending.isEmpty(), "temporaryBlocks=" + pending.size());
         session = null;
         return advance(Phase.NO_TABLE_CASE);

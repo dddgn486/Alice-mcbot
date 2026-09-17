@@ -293,6 +293,55 @@ def rule_progress_switch():
     return problems
 
 
+def rule_no_planning_dependency():
+    """S10-P1（2026-09-17 用户裁定「删」）：**`PlanningDependency` 不得复活**。
+
+    事实（裁定依据，可复算）：6 个 `List<BlockPos>` + `worldRevision` **零读取者**
+    （`worldRevision()`/6 个列表访问器/`planningDependency()` 全仓 grep 均为 **0**），
+    且生产侧填的是"这条移动自己的格子"的**占位拷贝**、`worldRevision` **硬编码 0L**
+    ⇒ 它不是"依赖追踪"，只是死管道（与已删的 `LiveExecutionContext.policyVersion` 同类，S-8/D-264）。
+    将来若要"世界变了要不要重规划"，**先从消费者设计**，不要靠把字段加回来。
+    """
+    alice = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
+    problems = []
+    doomed = alice / "pathing" / "core" / "PlanningDependency.java"
+    if doomed.exists():
+        problems.append("`PlanningDependency.java` 又出现了 —— 该类已按 S-10 裁定删除（要重启这条线请先改本规则并说明消费者）")
+    hits = []
+    for path in alice.rglob("*.java"):
+        code = re.sub(r"/\*.*?\*/", "", path.read_text(encoding="utf-8"), flags=re.S)
+        code = re.sub(r"//[^\n]*", "", code)
+        if "PlanningDependency" in code or "planningDependency" in code:
+            hits.append(str(path.relative_to(alice)))
+    if hits:
+        problems.append("仍有 `PlanningDependency`/`planningDependency` 残留：" + ", ".join(sorted(hits)[:5]))
+    return problems
+
+
+def rule_driver_attribution():
+    """F1-P1（2026-09-17 用户裁定「F1 现在补」）：**玩家/物品入口的指派点必须标归因**。
+
+    事实（裁定依据）：`Driver` 有 4 个取值（`in_game_player`/`llm`/`fixture`/`system`），但原先只有 3 处在设它
+    （`GoalDirector`=LLM、电池=FIXTURE）⇒ **玩家命令入口**指派的任务在终态日志里一律写成 `driver=system` ✗。
+    2026-09-17 已在 73 处指派点前插入归因（`command/`=IN_GAME_PLAYER，`item/`+夹具=FIXTURE）。
+    本规则防止**新写的入口**忘记标：每个 `assignXxx(` 调用点之前 8 行内必须出现 `Driver.set`。
+    """
+    alice = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
+    problems = []
+    import re as _re
+    assign = _re.compile(r"\.assign[A-Z]\w*\(")
+    for sub in ("command", "item"):
+        for path in sorted((alice / sub).glob("*.java")):
+            lines = path.read_text(encoding="utf-8").split("\n")
+            for i, line in enumerate(lines):
+                if not assign.search(line):
+                    continue
+                recent = "\n".join(lines[max(0, i - 8):i])
+                if "Driver.set" not in recent:
+                    problems.append(f"{sub}/{path.name}:{i + 1} 指派点未标归因（前面 8 行没有 Driver.set）")
+    return problems
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
@@ -305,6 +354,8 @@ def main() -> int:
     death = rule_death_keeps_data()
     dmg = rule_damage_observed()
     prog = rule_progress_switch()
+    s10 = rule_no_planning_dependency()
+    f1 = rule_driver_attribution()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -327,7 +378,11 @@ def main() -> int:
         print(f"[S9·伤害可见] {line}")
     for line in prog:
         print(f"[PG·进度开关] {line}")
-    ok = not k4 and not k5 and not s8 and not walk and not prog and not risk and not speech and not perm and not death and not dmg and not prog
+    for line in s10:
+        print(f"[S10·依赖管道] {line}")
+    for line in f1:
+        print(f"[F1·归因] {line}")
+    ok = not k4 and not k5 and not s8 and not walk and not prog and not risk and not speech and not perm and not death and not dmg and not prog and not s10 and not f1
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(prog)} / 风险画像未接={len(risk)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1 —— 见各规则头部的注释）")

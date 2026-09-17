@@ -2100,6 +2100,13 @@ public final class BotManager {
                 return;
             }
             Task.Status status = task.tick();
+            // **重入守卫（2026-09-17 实测 NPE ⇒ 看门狗关服）**：`task.tick()` 内部可能**同步收尾本任务**
+            // —— 例如夹具/命令在 tick 里派发了 `/alice stop-task` ⇒ `stopTask → immediateStop → task = null`
+            // ⇒ 回到这里 `task.target()` 就 NPE（第 2105 行那句，实测复现）。
+            // 任务已被收尾 ⇒ 本 tick 直接结束（后续 task.* 一律不再碰）。
+            if (task == null) {
+                return;
+            }
             // L3（D-080）：子目标高亮跟随——Job 的目标随内部阶段变化（树 → 当前原木 → 收集点），
             // 其他任务的目标恒定，比较后只在变化时广播。
             TaskTarget liveTarget = task.target();
