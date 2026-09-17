@@ -85,6 +85,9 @@ public final class EventThresholds {
         double episodeMinDistance = Double.MAX_VALUE;
         boolean noProgressReported;
         int noProgressEmits;
+        /** 队列第④项：上一次低频进度事件的 tick（-1 = 还没报过）。 */
+        long lastProgressEventTick = -1L;
+        int progressEmits;
         /** S-5：掉血上报的基准血量（回血则跟随，"上一段伤"就此结账）与上次上报时刻（-1 = 还没报过）。 */
         float healthBaseline = Float.NaN;
         long healthLossReportedAt = -1L;
@@ -103,6 +106,7 @@ public final class EventThresholds {
         checkToolDurability(bot, state);
         checkStuck(bot, state, now);
         checkNoProgress(bot, state, now);
+        maybeEmitProgress(bot, state, now);
         checkHealthLoss(bot, state, now);
     }
 
@@ -254,6 +258,32 @@ public final class EventThresholds {
      * 而"**在干活却什么都没产出**"（挖不动、目标一直是同一个、背包没变）它**完全看不见**。
      * 长作业里静音的是后者 —— 一个 `maxTicks` 很长的 Job 只会**开始响一次、结束响一次**。
      */
+    /**
+     * **低频进度事件**（队列第④项）：有任务在跑 ⇒ 每 {@link #PROGRESS_EVENT_INTERVAL_TICKS} tick 报一次
+     * 「当前任务 + 它的进度摘要」。默认关（0）⇒ 生产行为**不变**；夹具/自检开窗后才生效。
+     */
+    private static void maybeEmitProgress(BotPlayer bot, State state, long now) {
+        int interval = PROGRESS_EVENT_INTERVAL_TICKS;
+        if (interval <= 0) {
+            state.lastProgressEventTick = -1L;
+            return;
+        }
+        String task = BotManager.currentTaskSummary(bot);
+        if (task == null) {
+            state.lastProgressEventTick = -1L;   // idle：没有"进度"可报
+            return;
+        }
+        if (state.lastProgressEventTick >= 0 && now - state.lastProgressEventTick < interval) {
+            return;
+        }
+        String job = BotManager.currentTaskProgressSummary(bot);
+        state.lastProgressEventTick = now;
+        state.progressEmits++;
+        emit(bot, "PROGRESS", "info",
+                "进度：任务=" + task + " 进度=" + (job == null ? "-" : job),
+                "interval=" + interval + " tick=" + now);
+    }
+
     private static void checkNoProgress(BotPlayer bot, State state, long now) {
         int window = NO_PROGRESS_WINDOW_TICKS;
         String progress = window <= 0 ? null : progressFingerprint(bot);
@@ -359,6 +389,28 @@ public final class EventThresholds {
     }
 
     /** **测试/夹具用**：设置 NO_PROGRESS 窗口（0 = 关）。生产默认关，见字段文档。 */
+    /**
+     * **低频进度事件（队列第④项 / `survey/16 §1`，2026-09-17）**：间隔 tick 数，**0 = 关（生产默认关）**。
+     *
+     * <p>为什么需要：长作业里 `progressSummary()`（`mined 3/16 failed=2 …`）**只在决策时刻被顺带看到**，
+     * 于是"它在动还是在种土豆"这件事，决策层与玩家都只能等到出问题才知道。本事件把进度**按固定低频**
+     * 送进既有事件环（`DecisionEvents`：环 + 日志 + 通知决策层），**不新增任何 S2C/协议面**。
+     *
+     * <p>⚠️ 按需/低频是硬要求：一次可视化识别比一次文本决策贵得多，进度上报同理（`survey/17 §1.7b`）。
+     */
+    public static volatile int PROGRESS_EVENT_INTERVAL_TICKS = 0;
+
+    /** **测试/夹具用**：设置进度事件间隔（0 = 关）。 */
+    public static void setProgressEventInterval(int ticks) {
+        PROGRESS_EVENT_INTERVAL_TICKS = Math.max(0, ticks);
+    }
+
+    /** **测试/汇报用**：本 bot 累计报过几次低频进度事件。 */
+    public static int progressEmits(BotPlayer bot) {
+        State state = STATES.get(bot.getUUID());
+        return state == null ? 0 : state.progressEmits;
+    }
+
     public static void setNoProgressWindow(int ticks) {
         NO_PROGRESS_WINDOW_TICKS = Math.max(0, ticks);
     }

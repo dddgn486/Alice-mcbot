@@ -1,6 +1,7 @@
 package com.dddgn.alice.task;
 
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.decision.EventThresholds;
 import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.job.GoalSpec;
 import com.dddgn.alice.job.policy.NearestPolicy;
@@ -44,6 +45,10 @@ public class MineFailureVisibilityCheckTask implements Task {
     private static final int SCAN_RADIUS = 12;
     /** 采样之后再跑几 tick 让日志落盘。 */
     private static final int TAIL_TICKS = 5;
+    /** **队列第④项**：低频进度事件间隔（tick）。 */
+    private static final int PROGRESS_INTERVAL = 20;
+    /** 观测进度事件需要的 tick 数（≥ 3 个间隔才说明"低频但持续"）。 */
+    private static final int PROGRESS_OBSERVE_TICKS = 70;
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -105,8 +110,14 @@ public class MineFailureVisibilityCheckTask implements Task {
                     new MineCandidateSource(MineCandidateSource.Target.ofBlock(Blocks.IRON_ORE), SCAN_RADIUS),
                     new NearestPolicy(),
                     pos -> ++overrideCalls > FAIL_FIRST);   // 前 FAIL_FIRST 个候选"已被替换"
+            // **队列第④项的前提**：进度事件**生产默认必须是关的**（否则它就是个常开噪声源）
+            check("前提：低频进度事件生产默认关（间隔=0）",
+                    EventThresholds.PROGRESS_EVENT_INTERVAL_TICKS == 0);
+            EventThresholds.setProgressEventInterval(PROGRESS_INTERVAL);
+            progressBaseline = EventThresholds.progressEmits(bot);
             BotLog.info("[MineFailure] 夹具：前 {} 个候选判为 target_replaced，之后放行（构造"
-                    + "『活动尝试 + 已有失败』的组合）", FAIL_FIRST);
+                    + "『活动尝试 + 已有失败』的组合）；同时开低频进度事件 interval={}",
+                    FAIL_FIRST, PROGRESS_INTERVAL);
             return Status.RUNNING;
         }
         job.tick();
@@ -124,7 +135,15 @@ public class MineFailureVisibilityCheckTask implements Task {
                     job.hasActiveAttempt(), job.attemptFailureCount(),
                     node == null ? "-" : node.kind(), fail);
         }
-        if (sampled && ticks > 0 && !finishScheduled) {
+        // **队列第④项判据**：低频进度事件必须**按间隔持续**进来（且默认关，见上面的前提 check）
+        if (!progressChecked && ticks >= PROGRESS_OBSERVE_TICKS) {
+            progressChecked = true;
+            int emitted = EventThresholds.progressEmits(bot) - progressBaseline;
+            check("低频进度事件按间隔持续上报（间隔=" + PROGRESS_INTERVAL + " tick，"
+                            + PROGRESS_OBSERVE_TICKS + " tick 内至少 2 次，实测 " + emitted + " 次）",
+                    emitted >= 2);
+        }
+        if (sampled && progressChecked && ticks > 0 && !finishScheduled) {
             finishScheduled = true;
             finishAtTick = ticks + TAIL_TICKS;
         }
@@ -136,6 +155,8 @@ public class MineFailureVisibilityCheckTask implements Task {
 
     private boolean finishScheduled;
     private int finishAtTick;
+    private int progressBaseline;
+    private boolean progressChecked;
 
     private void check(String what, boolean ok) {
         checksRun++;
@@ -152,6 +173,11 @@ public class MineFailureVisibilityCheckTask implements Task {
         if (scope != null) {
             scope.end();   // 别把作用域留着影响后续电池步骤
         }
+        if (EventThresholds.PROGRESS_EVENT_INTERVAL_TICKS != 0) {
+            EventThresholds.setProgressEventInterval(0);   // 全局开关必须复位（同 no_progress 的窗口纪律）
+        }
+        check("收尾必须把进度事件间隔复位为 0",
+                EventThresholds.PROGRESS_EVENT_INTERVAL_TICKS == 0);
         bot.controller().stopMovement();
         bot.setDeltaMovement(Vec3.ZERO);
         bot.teleportTo(bot.serverLevel(),
