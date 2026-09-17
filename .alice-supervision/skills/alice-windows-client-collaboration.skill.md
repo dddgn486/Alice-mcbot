@@ -129,3 +129,25 @@ USER_ACCEPTED     用户明确确认符合预期
 换成**一个新物品 + 普通右键**（`alice:survival_full_check`，一次跑完整套夹具并打 SUMMARY）后即可用。
 
 **自查**：把这个入口写进文档前先问一句 —— "用户**站着不动**，怎么按下这个键？"说不出就别用。
+
+## ⚠️ 假象：「数据包错误」大多是别的东西（2026-09-17 实测）
+
+进世界时报 **「当前选中的数据包中出现了错误，导致世界无法加载」** —— 这是**原版通用文案**，
+它会在**任何**加载失败时出现（不限于数据包）。**先读 `logs/latest.log` 的 `Caused by` 再动手**。
+
+已知实例（实测堆栈）：`sophisticatedcore` 在**配方重载期**把新物品写进 `config/sophisticatedcore-common.toml`，
+写盘被 Windows 文件锁挡下 ⇒ `WritingException` ⇒ 加载 future 抛异常 ⇒ 显示成"数据包错误"：
+
+```
+Caused by: java.nio.file.FileSystemException:
+  ...\config\sophisticatedcore-common.toml: 另一个程序正在使用此文件，进程无法访问。
+```
+
+**触发时机**：**更新过 jar（尤其是新增物品/方块）后第一次进世界** —— 新物品让该 mod 需要追加写配置。
+
+**纪律**：
+1. **一个游戏目录同时只跑一个实例**；需要两个实例（如 Baritone 对照）就**串行**，或让第二个用**独立游戏目录**
+   （`versions/<名字>` 若**没有自己的 `config/`**，就高度疑似共用 ⇒ 必查）。
+2. 诊断顺序：`latest.log` → 找 `Failed to load level` → 顺着 `Caused by` 走到**文件系统/网络**那一层。
+3. 恢复：全部实例退出 → 只开一个 → 仍失败则把该 `config/*.toml` **改名让其重建**（代价：丢该 mod 的配置内容）。
+4. 别把它记成本轮代码改动引入的 bug（本次差点误判）。

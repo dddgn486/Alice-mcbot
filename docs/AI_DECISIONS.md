@@ -11191,3 +11191,30 @@ Job 候选筛选不做；**风险等级枚举**依旧不做（D-059 已裁定否
 - **复活锚点**（`survey/17 §3.4 建议 1`）："它**不改变 bot 的行为策略，只改变失败的代价**" ⇒ 合规 ✓；
 - **临时权限凭证**（`§3.4 建议 5`：按次购买"危险动作授权"）：合规**仅当**它仍是**单次、显式、有成本**的
   —— 若变成"长期解除 D-076/`SEARCH_LIMIT` 限制"，那就降低了概率 ⇒ **违规**（且违反 `SEARCH_LIMIT ≠ UNREACHABLE`）。
+
+### D-279：客户端「数据包错误」≠ 数据包问题 —— 配置写锁（2026-09-17 实测）
+
+**症状**：进入世界时报 **「当前选中的数据包中出现了错误，导致世界无法加载」**（原版通用文案）。
+
+**实测真因**（客户端 `logs/latest.log` 堆栈）：
+```
+Failed to load level data or datapacks, can't proceed with server load
+java.util.concurrent.ExecutionException: com.electronwill.nightconfig.core.io.WritingException: An I/O error occured
+  ... ForgeConfigSpec$ConfigValue.set → sophisticatedcore Config$Common$EnabledItems.addEnabledItemToConfig
+Caused by: java.nio.file.FileSystemException:
+  D:\...\1.20.1-Forge_47.4.10\config\sophisticatedcore-common.toml: 另一个程序正在使用此文件，进程无法访问。
+```
+⇒ **`sophisticatedcore` 在配方重载期把"新见到的物品"写进自己的配置**；写盘被 Windows 文件锁挡住 ⇒
+整个加载 future 抛异常 ⇒ **原版把任何加载失败都显示成"数据包错误"**（与数据包无关）。
+
+**为什么"偏偏这时候"**（**假设**，未逐一验证）：本轮同步了**新增物品的 alice jar** ⇒ 首次加载时
+`sophisticatedcore` 见到新物品 ⇒ 需要**追加写**配置 ⇒ 恰好撞上锁。即"更新 jar 后第一次进世界"是高风险时刻。
+
+**纪律（写进技能）**：
+1. **一个游戏目录同时只跑一个实例**；跑 Baritone 对照要**串行**，或确认对照实例使用**独立游戏目录**
+   （实测 `versions/Bariton_contrast` **没有自己的 `config/`** ⇒ 高度疑似共用固定客户端的配置目录）。
+2. 遇到"数据包错误"**先读堆栈找 `Caused by`**，不要按数据包语法去查（本次差点走错方向）。
+3. 恢复手段：全部实例退出 → 重开一个 → 仍失败则把 `config/sophisticatedcore-common.toml` 改名让其重建
+   （代价：丢失该 mod 的"启用物品清单"，会重新生成）。
+
+**与我们的 jar 无关**（我们的代码从不读写该配置）✓；但**更新 jar 后第一次进世界**会触发它，容易被误判成本次改动引入的 bug ✗。

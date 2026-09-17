@@ -146,6 +146,14 @@ public final class BotCommand {
                                         .executes(ctx -> riskSwitch(ctx.getSource(), "descend_overshoot", true)))
                                 .then(Commands.literal("off")
                                         .executes(ctx -> riskSwitch(ctx.getSource(), "descend_overshoot", false)))))
+               // **队列第④项 / survey/16 §1.3**：低频进度事件（`PROGRESS`）的开关。
+               // 此前**只有夹具能打开**（`EventThresholds.setProgressEventInterval` 的唯一调用者在夹具里）
+               // ⇒ 游戏内根本没法观测"推送频率够不够"（2026-09-17 核实发现）。
+               .then(Commands.literal("progress")
+                        .executes(ctx -> progressInterval(ctx.getSource(), null))
+                        .then(Commands.argument("ticks", IntegerArgumentType.integer(0))
+                                .executes(ctx -> progressInterval(ctx.getSource(),
+                                        IntegerArgumentType.getInteger(ctx, "ticks")))))
                .then(Commands.literal("pathing")
                         .then(Commands.literal("traverse")
                                 .then(Commands.argument("direction", StringArgumentType.word())
@@ -1664,6 +1672,26 @@ public final class BotCommand {
     }
 
     /** D-059：切换风险开关（默认全关 = Baritone 原样高风险）。 */
+    /**
+     * `/alice progress [<ticks>]` —— 查看/设置**低频进度事件**间隔（0 = 关，默认关）。
+     *
+     * <p>为什么要有这个入口（2026-09-17）：`EventThresholds.setProgressEventInterval` 原先**只有夹具在调**
+     * ⇒ 游戏内无法打开 `PROGRESS` 事件 ⇒ "推送频率够不够 / 桌面 AI 的 RTT"（`survey/16 §1.3/§12.1`）
+     * **根本没有观测手段**。设成 N ⇒ 有任务在跑时每 N tick 报一次「任务 + 进度摘要」（进事件环与日志 `[Events] PROGRESS`）。
+     */
+    private static int progressInterval(net.minecraft.commands.CommandSourceStack source, Integer ticks) {
+        if (ticks == null) {
+            source.sendSystemMessage(Component.literal("[alice] 进度事件间隔 = "
+                    + com.dddgn.alice.decision.EventThresholds.PROGRESS_EVENT_INTERVAL_TICKS
+                    + " tick（0 = 关）。用法：/alice progress <ticks>（建议 200 = 10 秒一次）"));
+            return 1;
+        }
+        com.dddgn.alice.decision.EventThresholds.setProgressEventInterval(ticks);
+        source.sendSystemMessage(Component.literal("[alice] 进度事件间隔 = " + ticks
+                + " tick" + (ticks == 0 ? "（已关闭）" : "（有任务时每 " + ticks + " tick 报一次 PROGRESS）")));
+        return 1;
+    }
+
     private static int riskSwitch(net.minecraft.commands.CommandSourceStack source, String name, boolean value) {
         if (!com.dddgn.alice.pathing.risk.RiskSwitches.set(name, value)) {
             source.sendSystemMessage(Component.literal("[alice] 未知风险开关: " + name));

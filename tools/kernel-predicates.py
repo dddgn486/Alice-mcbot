@@ -273,6 +273,26 @@ def rule_damage_observed():
     return problems
 
 
+def rule_progress_switch():
+    """PG-P1（2026-09-17）：**进度事件必须在游戏内可开关**。
+
+    背景：`EventThresholds.setProgressEventInterval(...)` 原先**只有夹具在调** ⇒ 游戏内打不开 `PROGRESS`
+    ⇒ `survey/16 §1.3/§12.1` 的"推送频率够不够 / 桌面 AI RTT"**没有观测手段**（本轮核实发现）。
+    本规则钉住：命令层必须提供 `/alice progress [<ticks>]` 且真的接到那个 setter 上。
+    """
+    cmd = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "command" / "BotCommand.java"
+    if not cmd.exists():
+        return ["找不到 BotCommand.java（同步本规则）"]
+    code = re.sub(r"/\*.*?\*/", "", cmd.read_text(encoding="utf-8"), flags=re.S)
+    code = re.sub(r"//[^\n]*", "", code)
+    problems = []
+    if 'Commands.literal("progress")' not in code:
+        problems.append("命令层没有 `/alice progress`（游戏内无法开关进度事件 ⇒ 推送频率无从观测）")
+    if "setProgressEventInterval(" not in code:
+        problems.append("`/alice progress` 没有接到 `EventThresholds.setProgressEventInterval`（开关是空壳）")
+    return problems
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
@@ -284,6 +304,7 @@ def main() -> int:
     perm = rule_permission_service()
     death = rule_death_keeps_data()
     dmg = rule_damage_observed()
+    prog = rule_progress_switch()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -304,7 +325,9 @@ def main() -> int:
         print(f"[D1·死亡保留数据] {line}")
     for line in dmg:
         print(f"[S9·伤害可见] {line}")
-    ok = not k4 and not k5 and not s8 and not walk and not prog and not risk and not speech and not perm and not death and not dmg
+    for line in prog:
+        print(f"[PG·进度开关] {line}")
+    ok = not k4 and not k5 and not s8 and not walk and not prog and not risk and not speech and not perm and not death and not dmg and not prog
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(prog)} / 风险画像未接={len(risk)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1 —— 见各规则头部的注释）")
