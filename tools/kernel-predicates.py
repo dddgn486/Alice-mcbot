@@ -342,6 +342,22 @@ def rule_driver_attribution():
     return problems
 
 
+def rule_no_until_full():
+    """J5-P1（2026-09-17 用户裁定「删」）：**`GoalSpec.Kind.UNTIL_FULL` 不得复活**。
+
+    事实（裁定依据）：该常量全仓**只有声明、没有任何调用方**（grep 仅命中 `GoalSpec` 自身）⇒
+    与 S-8（`policyVersion`）、S-10（`PlanningDependency`）同类：**声明了没人用** ⇒ 删。
+    将来要做「采集到背包满」：**从消费者设计**（谁请求、判据是什么、怎么断言），不要先把常量加回来。
+    """
+    alice = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
+    problems = []
+    for path in alice.rglob("*.java"):
+        code = re.sub(r"/\*.*?\*/", "", path.read_text(encoding="utf-8"), flags=re.S)
+        if "UNTIL_FULL" in code:
+            problems.append(f"`UNTIL_FULL` 又出现了：{path.relative_to(alice)}（已按 D-290 删除；要重启请先改本规则并说明消费者）")
+    return problems
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
@@ -353,9 +369,15 @@ def main() -> int:
     perm = rule_permission_service()
     death = rule_death_keeps_data()
     dmg = rule_damage_observed()
+    prog_default = []
+    _et = (ROOT / "src/main/java/com/dddgn/alice/decision/EventThresholds.java")
+    _m = re.search(r"PROGRESS_EVENT_INTERVAL_TICKS\s*=\s*(\d+)", _et.read_text(encoding="utf-8"))
+    if not _m or _m.group(1) != "200":
+        prog_default.append("`PROGRESS_EVENT_INTERVAL_TICKS` 默认值不是 200（D-289 裁定 8-3(i)：默认打开、粗粒度）")
     prog = rule_progress_switch()
     s10 = rule_no_planning_dependency()
     f1 = rule_driver_attribution()
+    j5 = rule_no_until_full()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -378,11 +400,15 @@ def main() -> int:
         print(f"[S9·伤害可见] {line}")
     for line in prog:
         print(f"[PG·进度开关] {line}")
+    for line in j5:
+        print(f"[J5·完成判据] {line}")
+    for line in prog_default:
+        print(f"[PG·进度默认] {line}")
     for line in s10:
         print(f"[S10·依赖管道] {line}")
     for line in f1:
         print(f"[F1·归因] {line}")
-    ok = not k4 and not k5 and not s8 and not walk and not prog and not risk and not speech and not perm and not death and not dmg and not prog and not s10 and not f1
+    ok = not k4 and not k5 and not s8 and not walk and not prog and not risk and not speech and not perm and not death and not dmg and not prog and not s10 and not f1 and not prog_default and not j5
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(prog)} / 风险画像未接={len(risk)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1 —— 见各规则头部的注释）")

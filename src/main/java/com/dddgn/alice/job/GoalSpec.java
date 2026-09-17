@@ -13,7 +13,10 @@ import java.util.Objects;
  * <ul>
  *   <li>**完成判据 = 产物入包**（原始设计 §4.2 标准 3），故配额以"物品数/单位数"表达，不用"动作发生过"；</li>
  *   <li>`maxTicks` **必须存在**：禁止长任务空转（终止语义是 L3 的验收项之一）；</li>
- *   <li>v1 支持 {@link Kind#COLLECT_ITEMS} 与 {@link Kind#HARVEST_UNITS}；{@link Kind#UNTIL_FULL} 已定义但未实现（§11-②）。</li>
+ *   <li>v1 支持 {@link Kind#COLLECT_ITEMS} 与 {@link Kind#HARVEST_UNITS} 两种完成判据；
+ *       **曾经的 `UNTIL_FULL`（采集到背包满）已按 D-290 裁定删除** ✗ —— 它定义了却**没有任何调用方**，
+ *       属「声明了没人用」（同 S-8/S-10）。将来真要做「采集到满」，**从消费者（谁请求、判据是什么）开始设计**，
+ *       不要先把常量加回来（门禁 **J5-P1** 会红 ✓）。</li>
  * </ul>
  */
 public record GoalSpec(Kind kind, int quota, BlockPos center, int radius, int maxTicks,
@@ -23,9 +26,7 @@ public record GoalSpec(Kind kind, int quota, BlockPos center, int radius, int ma
         /** 产物入包数量达到配额（按 `productTag` 统计背包增量）。 */
         COLLECT_ITEMS,
         /** 完成的"单位"数达到配额（伐木：整棵砍完才算 1 个单位）。 */
-        HARVEST_UNITS,
-        /** 砍到背包满（已定义，v1 未实现）。 */
-        UNTIL_FULL
+        HARVEST_UNITS
     }
 
     public GoalSpec {

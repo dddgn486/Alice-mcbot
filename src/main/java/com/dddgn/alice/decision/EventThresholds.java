@@ -398,7 +398,12 @@ public final class EventThresholds {
      *
      * <p>⚠️ 按需/低频是硬要求：一次可视化识别比一次文本决策贵得多，进度上报同理（`survey/17 §1.7b`）。
      */
-    public static volatile int PROGRESS_EVENT_INTERVAL_TICKS = 0;
+    /**
+     * **默认打开、粗粒度（D-289，2026-09-17 用户裁定 8-3 (i)）**：200 tick = 10 秒一条进度事件。
+     * 为什么默认开：长任务没有进度就"看不见"✗；10 秒一条的代价极低 ✓，`/alice progress [<ticks>]` 可随时改/关 ✓。
+     * 想回到"默认静默"就把这里改回 0（判据见门禁 PG-P1）。
+     */
+    public static volatile int PROGRESS_EVENT_INTERVAL_TICKS = 200;
 
     /** **测试/夹具用**：设置进度事件间隔（0 = 关）。 */
     public static void setProgressEventInterval(int ticks) {
