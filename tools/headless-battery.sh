@@ -62,6 +62,7 @@ while [ $# -gt 0 ]; do
         --dev)              BACKEND="dev" ;;
         --prod)             BACKEND="prod" ;;
         --keep-world)       KEEP_WORLD=yes ;;
+        --reuse-world)      REUSE_WORLD=yes ;;   # 不重置世界（持久化/两轮实验用，如 death-persistence-e2e）
         --no-build)         NO_BUILD=yes ;;
         --install)          DO_INSTALL=yes ;;
         --timeout)          shift; TIMEOUT_SEC="$1" ;;
@@ -129,10 +130,16 @@ else
     LOG="$REPO/run/logs/latest.log"; RESULT="$REPO/headless-result.txt"
 fi
 
-say "重置世界：$PRISTINE → $WORLD"
 mkdir -p "$RUN_DIR" "$MODS" "$(dirname "$WORLD")"
-rm -rf "$WORLD"
-cp -r "$PRISTINE" "$WORLD" || die "复制世界失败"
+if [ "${REUSE_WORLD:-no}" = "yes" ]; then
+    # `--reuse-world`：**不重置世界** —— 给"两轮"实验用（第一轮留下落盘状态，第二轮读回来验证）
+    say "保留上一轮世界（--reuse-world）：$WORLD"
+    [ -d "$WORLD" ] || die "--reuse-world 但世界目录不存在：$WORLD（先跑一轮）"
+else
+    say "重置世界：$PRISTINE → $WORLD"
+    rm -rf "$WORLD"
+    cp -r "$PRISTINE" "$WORLD" || die "复制世界失败"
+fi
 # 场景数据包**每轮以仓库版为准**（母本里那份可能过期；HANDOVER 里原本是"手动复制 + /reload"）
 rm -rf "$WORLD/datapacks/alice_test"
 cp -r tools/test-scenes/alice_test "$WORLD/datapacks/alice_test" || die "装场景数据包失败"

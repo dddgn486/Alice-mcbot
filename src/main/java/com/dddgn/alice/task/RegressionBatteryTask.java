@@ -164,6 +164,9 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("speech_channel", Profile.MAIN),
             // 死亡机制第 1 步（D-276）：死亡**不删数据**（倒下态 = FALLEN，含位置/死因/时刻）。
             Map.entry("death_persistence", Profile.MAIN),
+            // D-276 端到端（第 1 半）：**真弄死一个探针 bot**，验证数据落成倒下态。
+            // 放 EXTRA：它会写"倒下态"存档（会覆盖 botTag）⇒ 只适合 `single:` 单独跑。
+            Map.entry("death_kill_bot", Profile.EXTRA),
             // 阶段 3-B / (c) 增量 2（D-217）：**机器路线的生产路径**（CraftJob 真的驱动一台机器）。
             // 与 machine_cycle 同一份闭环实现、不同入口；也会写容器 ⇒ 模组不在 ⇒ SKIP。
             Map.entry("craft_machine", Profile.MAIN),
@@ -418,6 +421,11 @@ public final class RegressionBatteryTask implements Task {
         // M3b ①（G3 归因）：`stale_target` —— 每个候选的身份复检都失败（决策后被改动）。
         // 夹具只替掉**那一次判定**（恒 false），理由码与真实竞态完全一样（`target_replaced`）；
         // 判据 = 终态理由真的成为 `stale_target`（否则 doneWhen 不成立 ⇒ 预算耗尽判红）。
+        steps.add(step("death_kill_bot",
+                List.of("alice_test:ore_course_terrain"),
+                () -> teleportBot(OreCourseAnchor.START_FOOT),
+                () -> new DeathKillBotCheckTask(bot, observer),
+                80));
         steps.add(step("death_persistence",
                 List.of("alice_test:ore_course_terrain"),
                 () -> teleportBot(OreCourseAnchor.START_FOOT),

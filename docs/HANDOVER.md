@@ -307,9 +307,11 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 - **客户端**：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - **镜像 / 同步**：`./tools/mirror-windows-workspace.sh`；
   `./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`。
-- **本断点已同步的 jar**：`3ac006f9c791d689fd28ee46101be77a55419788c601fbba719ea76c74d9b666`（2026-09-17；**含 D-226…D-277 + 队列①②③④⑤⑦ + S-6/S-9(观测+消费) + F1/F2/F3/F4 + 死亡第 1 步 + 步名门禁 SH-P1**，客户端与 Windows 仓库同哈希；门禁 **16 PASS + 1 预期 WARN**（新增 SH-P1）；CORE **43 步** / FULL 51 项）
+- **本断点已同步的 jar**：`eaf99f17fd1b283d1bd5218e9b4b0b3a7d02c84a885979692685e680b9bd3c11`（2026-09-17；**含 D-226…D-277 + 队列①②③④⑤⑦ + S-6/S-9(观测+消费) + F1/F2/F3/F4 + 死亡第 1 步(端到端已验)**，客户端与 Windows 仓库同哈希；门禁 **16 PASS + 1 预期 WARN**；CORE **43 步** / FULL **52** 项）
+- 上一版（含步名门禁 SH-P1）：`3ac006f9c791d689fd28ee46101be77a55419788c601fbba719ea76c74d9b666`
+**含 D-226…D-277 + 队列①②③④⑤⑦ + S-6/S-9(观测+消费) + F1/F2/F3/F4 + 死亡第 1 步 + 步名门禁 SH-P1**，客户端与 Windows 仓库同哈希；门禁 **16 PASS + 1 预期 WARN**（新增 SH-P1）；CORE **43 步** / FULL 51 项）
 - 上一版（含 S-9 消费）：`8b966e9c759bd392221afceaf4c227fbd5339327165e52d8e6558c8db5af4fdf`
-**含 D-226…D-277 + 队列①②③④⑤⑦ + S-6/S-9(观测+消费) + F1/F2/F3/F4 + 死亡第 1 步**，客户端与 Windows 仓库同哈希；门禁 **16 PASS + 1 预期 WARN**（新增 SH-P1）；CORE **43 步** / FULL 51 项）
+**含 D-226…D-277 + 队列①②③④⑤⑦ + S-6/S-9(观测+消费) + F1/F2/F3/F4 + 死亡第 1 步**，客户端与 Windows 仓库同哈希；门禁 **15 PASS + 1 预期 WARN**；CORE **43 步** / FULL 51 项）
 - 上一版（含死亡第 1 步）：`6cb519fe432734e8762ef115e8a2a707471acb41e76e7e614b5afc4d8ed75527`
 - 上一版（含 F3）：`c26a0e23401400cfd083f3da80705c2514bb57dc80239fbb08e136993f4f4cc7`
 - 上一版（含 F1）：`048623a9cd226b3d99e6b1b630088581eb9df6718432709e72c8086c62a4e992`

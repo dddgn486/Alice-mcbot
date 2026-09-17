@@ -18,7 +18,7 @@
 > **死亡机制状态（2026-09-17，D-276）**：**第 1 步已完成** —— 死亡不再删数据
 > （`detach`/`remove` 分离 + `saveFallenState` 倒下态 + `restoreDecisionFor`；判据 `death_persistence` + 门禁 D1-P1）。
 > **第 2 步（复活流程 + 成本）未开工**；惩罚档位 c1/c2/c3 留档、以后讨论。
-> **待补**：端到端「真杀一次 + 重启 ⇒ 记录仍在」尚未验证（夹具不杀 bot，属诚实缺口）。
+> **端到端已闭合（2026-09-17）**：`tools/death-persistence-e2e.sh` 两轮（真杀探针 bot ⇒ `alice_bot.dat` 带 `AliceFallen` ⇒ 重启读回「倒下态」），反向对照可红。
 > **F3 地基状态（2026-09-17，D-275）**：请示答复入口**唯一化**（`PermissionService.answer(transport, …)`；
 > `PermissionGate.answer` 降为包内可见 ⇒ 跨包直调**编译不过**；transport = command/client_packet/fixture/external）。
 > **F3-残**：『看』这一侧未做 —— 非游戏内主体读不到待答复请示（无对外查询通道）⇒ 等外部驱动者线开工时补。

@@ -125,3 +125,4 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 - **背景（实测踩到）**：把步名写成 `permission_contract`（真名是 `permission_gate`；⚠️ 本文档**故意不复述错误的 `single:` 写法**，否则本门禁会拦自己）⇒ 服务端起跑、白跑 200 tick、最后只有 `battery_never_ran` ⇒ 看起来像电池坏了。
 - **① 运行时快速失败**：`HeadlessBattery` 起跑前用 `RegressionBatteryTask.knownStepNames()`（= 归属表 `CURATION`，构造期自校验与步骤表一一对应）判名字；未知 ⇒ `未知步名 single:X（已知 N 步；相近候选：[…]）` + `verdict=unknown_step exit=6`，脚本会明说「步名不存在」。实测 17 s 结束、候选精准命中 `permission_gate`。
 - **② 静态门禁 SH-P1**（`tools/check-step-names.sh`，挂在 `check-all.sh`）：扫描 docs / skills / tools / AGENTS 里的 `single:<步名>` 引用（当前 **105 处**）与电池步表比对 ⇒ 打错字**在门禁阶段就红**，连服务端都不用起。反向对照（文档塞假步名）⇒ 红 ✓。
+| 2026-09-17 | 43 | **52** | **D-276 端到端**：新增 `death_kill_bot`（**EXTRA**，只适合 `single:` 单跑：它另开探针 bot 并弄死它，会覆盖 `botTag`）。配套两轮脚本 `tools/death-persistence-e2e.sh`（saveOnHalt + `--keep-world` ⇒ 查 `world/data/alice_bot.dat` ⇒ `--reuse-world` 重启读回倒下态）；反向对照可红 ✓ |
