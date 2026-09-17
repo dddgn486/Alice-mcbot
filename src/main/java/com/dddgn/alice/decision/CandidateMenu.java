@@ -182,11 +182,20 @@ public final class CandidateMenu {
         //    条目里的 `block=` 是**确定性层算出的方块 id**，动作解析只许用它，不许 LLM 自己写。
         var mineProbe = com.dddgn.alice.job.GoalSpec.mineBlocks(botPos, MINE_SCAN_RADIUS, 1, 3600);
         List<com.dddgn.alice.job.Candidate> mineCandidates = new ArrayList<>();
-        for (var mineTarget : mineScanTargets()) {
-            mineCandidates.addAll(new com.dddgn.alice.job.mine.MineCandidateSource(
-                            mineTarget, MINE_SCAN_RADIUS)
-                    .candidates(bot, mineProbe).viable());
+        // **队列第②项（2026-09-17）**：原先对 11 个目标**各扫一整遍世界**（11 × (2r+1)³ 次读取；
+        // 勘测 11 实测"菜单 30~90ms"的来源）⇒ 现在**一遍扫描、结果分发**，候选集逐字不变。
+        List<com.dddgn.alice.job.mine.MineCandidateSource.Target> mineTargets = mineScanTargets();
+        com.dddgn.alice.job.mine.MineCandidateSource.resetBlockReads();   // 判据：数**真实**读取
+        var mineScan = com.dddgn.alice.job.mine.MineCandidateSource.candidatesForTargets(
+                bot, mineProbe, mineTargets, MINE_SCAN_RADIUS);
+        for (var set : mineScan.sets()) {
+            mineCandidates.addAll(set.viable());
         }
+        // 读取计数单独一行：**不碰**上面那行既有日志（`mine=N` 是夹具逐字断言的口径）
+        BotLog.info("[Goal] candidate_menu_scan one_pass=true targets={} block_reads={}",
+                mineTargets.size(), mineScan.blockReads());
+        CandidateMenu.lastMineScanBlockReads = (int) com.dddgn.alice.job.mine.MineCandidateSource.blockReads();
+        CandidateMenu.lastMineScanTargets = mineTargets.size();
         mineCandidates.stream()
                 .sorted(java.util.Comparator.comparingDouble(c -> c.anchor().distSqr(botPos)))
                 .limit(MAX_PER_KIND)
@@ -196,7 +205,7 @@ public final class CandidateMenu {
                         c.anchor(), 1,
                         "block=" + c.feature("block") + " y=" + c.feature("y"))));
         BotLog.info("[Goal] candidate_menu mine={} (扫描半径={} 目标集={})",
-                mineCandidates.size(), MINE_SCAN_RADIUS, mineScanTargets().size());
+                mineCandidates.size(), MINE_SCAN_RADIUS, mineTargets.size());
 
         // ④ 已保存的可持续伐木区 —— 区域型候选（**只能用已存在的区域**，LLM 不能发明）
         LumberRegionState regionState = LumberRegionState.get(bot.getServer());
@@ -254,6 +263,25 @@ public final class CandidateMenu {
      * 菜单的**矿物扫描目标集**：由 `MiningBudget` 的**唯一两份**矿石定义派生（J-6 不许第二份清单）。
      * 常见矿石按**标签**扫（覆盖模组同类矿石），稀有矿石按**具体方块**扫（口径精确）。
      */
+    /** **夹具只读**（队列第②项的判据）：上一次建菜单时，矿扫描实际发生的方块读取次数与目标数。 */
+    private static volatile int lastMineScanBlockReads = -1;
+    private static volatile int lastMineScanTargets = -1;
+
+    /** **夹具只读**：上一次矿扫描的方块读取次数（未建过菜单 ⇒ -1）。 */
+    public static int lastMineScanBlockReads() {
+        return lastMineScanBlockReads;
+    }
+
+    /** **夹具只读**：上一次矿扫描的目标数。 */
+    public static int lastMineScanTargets() {
+        return lastMineScanTargets;
+    }
+
+    /** **夹具只读**：矿扫描半径（判据要算"单遍体积"）。 */
+    public static int mineScanRadius() {
+        return MINE_SCAN_RADIUS;
+    }
+
     private static List<com.dddgn.alice.job.mine.MineCandidateSource.Target> mineScanTargets() {
         List<com.dddgn.alice.job.mine.MineCandidateSource.Target> targets = new ArrayList<>();
         for (var tag : com.dddgn.alice.task.mining.MiningBudget.COMMON_ORE_TAGS) {

@@ -125,6 +125,9 @@ run_gate             "check-kernel-predicates" bash tools/check-kernel-predicate
 # 动作词汇单一出处（D-267 F2，survey/16 §5.4 + survey/17 复核）：prompt 列出的动作
 # 必须与 `GoalAction.parse` 的白名单**集合相等**（加动作要同时改两处，漂了就必须响）
 run_gate             "check-goal-vocabulary"   bash tools/check-goal-vocabulary.sh
+# 站点映射单一出处（队列第①项，survey 14 §11-1 / survey 15 §3.6）：
+# `RecipeDump.STATION_BY_TYPE`（运行时类型 id）与 `tools/recipe-graph.py`（数据包序列化器 id）必须一致
+run_gate             "check-station-mapping"   bash tools/check-station-mapping.sh
 # 终态执行记录接线（D-258 复核发现的 J-1/J-3）：taskKind 必须用 taskName()；terminalReason/botId 必须进快照。
 run_gate             "check-exec-record"      bash tools/check-exec-record.sh
 run_gate             "check-policy-matrix"      bash tools/check-policy-matrix.sh

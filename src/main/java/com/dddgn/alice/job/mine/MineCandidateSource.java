@@ -103,48 +103,91 @@ public final class MineCandidateSource implements CandidateSource {
         return target.matches(level.getBlockState(pos));
     }
 
-    @Override
-    public CandidateSet candidates(ServerPlayer bot, GoalSpec spec) {
+    /**
+     * **一次扫描 · 多目标**（队列第②项，2026-09-17）：合并"每个目标扫一遍"的冗余。
+     *
+     * <p>现状问题：`CandidateMenu` 对 11 个目标各 `new MineCandidateSource(...).candidates(...)` 一次，
+     * 每次都是**一整遍三重循环**（(2r+1)³ 次 `getBlockState`）⇒ 11 × 4913 ≈ 5.4 万次读取/建菜单
+     * （勘测 11 实测"菜单 30~90ms"的来源之一）。
+     * 合并后：**一遍**扫描，命中的方块分发到各自目标的候选集 —— **结果集逐字不变**（只是不再重复扫世界）。
+     *
+     * @param blockReads 本次扫描实际发生的 `getBlockState` 次数（判据用：必须 ≈ (2r+1)³，不是它的 N 倍）
+     */
+    public record MultiScan(List<CandidateSet> sets, int blockReads) {
+    }
+
+    /** **诊断计数**（队列第②项判据）：自上次 `resetBlockReads()` 起，扫描真实发生的 `getBlockState` 次数。
+     *  放在底层是为了**无论走单目标还是多目标路径都记真值** —— 判据才不会被我自己的实现骗过去。 */
+    private static final java.util.concurrent.atomic.AtomicLong BLOCK_READS =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    public static void resetBlockReads() {
+        BLOCK_READS.set(0L);
+    }
+
+    public static long blockReads() {
+        return BLOCK_READS.get();
+    }
+
+    /** 一次扫描多目标：`sets` 顺序与传入 `targets` 一致。 */
+    public static MultiScan candidatesForTargets(ServerPlayer bot, GoalSpec spec,
+                                                 List<Target> targets, int sourceRadius) {
         ServerLevel level = (ServerLevel) bot.level();
-        // 扫描范围取"来源半径"与"目标规格半径"的较小者：Job 的 GoalSpec 是权威约束
-        int scan = Math.min(radius, Math.max(1, spec.radius()));
+        // 扫描范围口径与单目标路径**逐字相同**：来源半径与 GoalSpec 半径取小
+        int scan = Math.min(sourceRadius, Math.max(1, spec.radius()));
         BlockPos center = spec.center();
         var safeZones = SafeZoneData.get(level.getServer());
-
-        List<Candidate> viable = new ArrayList<>();
-        List<String> rejected = new ArrayList<>();
-        int considered = 0;
+        List<List<Candidate>> viable = new ArrayList<>();
+        List<List<String>> rejected = new ArrayList<>();
+        int[] considered = new int[targets.size()];
+        for (int i = 0; i < targets.size(); i++) {
+            viable.add(new ArrayList<>());
+            rejected.add(new ArrayList<>());
+        }
+        int reads = 0;
         for (int dx = -scan; dx <= scan; dx++) {
             for (int dy = -scan; dy <= scan; dy++) {
                 for (int dz = -scan; dz <= scan; dz++) {
                     BlockPos pos = center.offset(dx, dy, dz);
                     BlockState state = level.getBlockState(pos);
-                    if (!target.matches(state)) {
-                        continue;   // 不匹配的方块不是"被拒候选"，只是背景——不刷理由码
+                    reads++;
+                    BLOCK_READS.incrementAndGet();
+                    for (int i = 0; i < targets.size(); i++) {
+                        if (!targets.get(i).matches(state)) {
+                            continue;   // 不匹配的方块不是"被拒候选"，只是背景——不刷理由码
+                        }
+                        considered[i]++;
+                        String reason = safeZones.protectionReason(level, pos);
+                        if (reason != null) {
+                            rejected.get(i).add(id(pos) + ":" + reason);
+                            continue;
+                        }
+                        if (!BlockInteraction.breakable(bot, level, pos,
+                                WriteGrant.of("mine-plan", WriteReason.EXPECTED_TARGET))) {
+                            rejected.get(i).add(id(pos) + ":unbreakable");
+                            continue;
+                        }
+                        viable.get(i).add(new Candidate(pos, "block", features(bot, pos, state)));
                     }
-                    considered++;
-                    String reason = safeZones.protectionReason(level, pos);
-                    if (reason != null) {
-                        rejected.add(id(pos) + ":" + reason);
-                        continue;
-                    }
-                    // 破坏判定按**声明的理由**派生策略（D-082）：挖掘目标 = EXPECTED_TARGET。
-                    // 注意 `breakableExplicit` 已在 D-082 删除——策略不再由"调哪个方法"隐式决定。
-                    if (!BlockInteraction.breakable(bot, level, pos,
-                            WriteGrant.of("mine-plan", WriteReason.EXPECTED_TARGET))) {
-                        rejected.add(id(pos) + ":unbreakable");
-                        continue;
-                    }
-                    viable.add(new Candidate(pos, "block", features(bot, pos, state)));
                 }
             }
         }
-        if (considered == 0) {
-            rejected.add("scan(radius=" + scan + " @" + center.toShortString() + "):not_found");
+        List<CandidateSet> sets = new ArrayList<>();
+        for (int i = 0; i < targets.size(); i++) {
+            if (considered[i] == 0) {
+                rejected.get(i).add("scan(radius=" + scan + " @" + center.toShortString() + "):not_found");
+            }
+            sets.add(new CandidateSet(viable.get(i), rejected.get(i)));
         }
-        return new CandidateSet(viable, rejected);
+        return new MultiScan(sets, reads);
     }
 
+    /** 单目标路径（Job 用）：与多目标共用同一份扫描逻辑。 */
+    @Override
+    public CandidateSet candidates(ServerPlayer bot, GoalSpec spec) {
+        MultiScan res = candidatesForTargets(bot, spec, List.of(target), radius);
+        return res.sets().get(0);
+    }
     private static Map<String, String> features(ServerPlayer bot, BlockPos pos, BlockState state) {
         Map<String, String> features = new LinkedHashMap<>();
         features.put("d", String.format(java.util.Locale.ROOT, "%.1f",

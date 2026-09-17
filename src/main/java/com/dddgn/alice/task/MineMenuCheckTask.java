@@ -38,6 +38,9 @@ public class MineMenuCheckTask implements Task {
     private final BotPlayer bot;
     private final ServerPlayer observer;
     private final List<String> failures = new ArrayList<>();
+    /** **真实执行过的 check 数**（2026-09-17 修：原先 SUMMARY 里是写死的字面量 `checks=11`，
+     *  于是新增的 check **不会**被计入 ⇒ 那个数字在骗人）。 */
+    private int checksRun;
 
     private boolean done;
     /** 是否已把 bot 挪到场景起点（**夹具自带传送**，不依赖电池的 provision；见 PLAYBOOK §5.0d）。 */
@@ -87,6 +90,16 @@ public class MineMenuCheckTask implements Task {
         CandidateMenu menu = CandidateMenu.build(bot);
         var mine = menu.entries().stream()
                 .filter(e -> "mine".equals(e.kind())).findFirst().orElse(null);
+        // **队列第②项判据（2026-09-17）**：矿扫描必须**一遍**完成 ——
+        // 读取次数 ≈ 单遍体积 (2r+1)³，而**不是**「目标数 × 单遍」（原来 11 个目标各扫一整遍）。
+        // 反向对照：改回"每目标扫一遍" ⇒ 本 check 必红。
+        int reads = CandidateMenu.lastMineScanBlockReads();
+        int targets = CandidateMenu.lastMineScanTargets();
+        int r = CandidateMenu.mineScanRadius();
+        long perScan = (long) (2 * r + 1) * (2 * r + 1) * (2 * r + 1);
+        check("矿扫描一遍完成（读取=" + reads + " ≈ 单遍" + perScan + "，目标数=" + targets
+                        + "；不许是 目标数×单遍=" + (perScan * Math.max(1, targets)) + "）",
+                reads > 0 && reads <= perScan * 2);
         check("矿石场景里菜单必须含 mine 候选", mine != null);
 
         String block = CandidateMenu.extraValue(mine, "block");
@@ -143,7 +156,8 @@ public class MineMenuCheckTask implements Task {
                         JobRequest.mine(bot.blockPosition(), 4, 1, 200, "minecraft:iron_ore")) == null);
 
         boolean pass = failures.isEmpty();
-        BotLog.info("[MineMenu] SUMMARY checks=11 failures={} mineEntries={} {} → {}",
+        BotLog.info("[MineMenu] SUMMARY checks={} failures={} mineEntries={} {} → {}",
+                checksRun,
                 failures.size(), mine == null ? 0 : 1, failures, pass ? "PASS" : "FAIL");
         if (observer != null && !observer.hasDisconnected() && !observer.isRemoved()) {
             observer.sendSystemMessage(Component.literal("[alice] 挖矿菜单契约自检 "
@@ -168,6 +182,7 @@ public class MineMenuCheckTask implements Task {
     }
 
     private void check(String what, boolean ok) {
+        checksRun++;
         if (!ok) {
             failures.add(what);
         }
