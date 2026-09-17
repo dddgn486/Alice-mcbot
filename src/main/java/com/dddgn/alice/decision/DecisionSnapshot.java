@@ -244,6 +244,8 @@ public final class DecisionSnapshot {
         last.addProperty("code", record.resultCode());
         last.addProperty("terminalReason", record.terminalReason());
         last.addProperty("botId", record.botId());
+        // **F1 地基**：驱动者（llm / fixture / in_game_player / system=未归因）
+        last.addProperty("driver", record.driver());
         last.addProperty("durationTicks", record.durationTicks());
         last.addProperty("botPos", record.terminalBotPos().toShortString());
         if (record.outcome() != null && record.outcome().failure() != null) {

@@ -15,6 +15,11 @@
 
 ## §0 一览
 
+> **F1 地基状态（2026-09-17，D-274）**：驱动者身份位**已端到端落地**（`Driver` + `TaskOutcome`/`TaskExecutionRecord`
+> + `task_terminal_reason` 日志 + `DecisionSnapshot`；入口标注 = `llm`/`fixture`）。
+> **F1-残**：`BotCommand` 的 16 处指派点与物品入口**尚未标注**（现报 `system`=未归因）——
+> 机械可做，但无强判据 ⇒ 与『外部驱动者』那条线一起做（那时归因才有观察价值）。
+> **F2** 已完成（门禁 G-P1）；**F4** 已完成（D-273）；**F3**（请示答复通道抽象）排队中。
 > **S-12（2026-09-17 新登记，队列⑤-1 的产物）**：『JEI 显示的催化剂』与『我们认的站点』之间**没有断言**。
 > 事实：我方**零 JEI 引用**（`grep mezz.jei src/main/java` = 0）；站点来自自维护的 `RecipeDump.STATION_BY_TYPE`
 > 与 `MachineMap` CSV（D-219 需求驱动）。⇒ 若某模组配方在 JEI 里有催化剂而我们没映射，

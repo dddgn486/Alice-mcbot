@@ -307,7 +307,19 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 - **客户端**：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - **镜像 / 同步**：`./tools/mirror-windows-workspace.sh`；
   `./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`。
-- **本断点已同步的 jar**：`43c0d764caa79299804ce384dcfabb651f80491ee90ea529d6217bdd507afc9e`（2026-09-17；**含 D-226…D-273 + 队列①②③④⑤⑦ + S-6/S-9 + F4 地基**，客户端与 Windows 仓库同哈希；门禁 **15 PASS + 1 预期 WARN**；CORE **42 步** / FULL 50 项）
+- **本断点已同步的 jar**：`048623a9cd226b3d99e6b1b630088581eb9df6718432709e72c8086c62a4e992`（2026-09-17；**含 D-226…D-274 + 队列①②③④⑤⑦ + S-6/S-9 + F1/F2/F4 地基**，客户端与 Windows 仓库同哈希；门禁 **15 PASS + 1 预期 WARN**；CORE **42 步** / FULL 50 项）
+- 上一版（含 F4）：`43c0d764caa79299804ce384dcfabb651f80491ee90ea529d6217bdd507afc9e`
+- 上一版（含 S-6）：`a086e5de456315f4e42570c3c1a1381fe4a28869f1a869031612625c96817f81`
+- 上一版（含 S-9 观测）：`c8ed987936afb1accd2574a7d124332e09beb1fe7188ad9aa837984c879c2f0f`
+- 上一版（含队列①②③④⑦）：`fd2ef7e288758e964c9eb0d8c62b577bb8a88ac6a9d953c610fca0959d2c6b9f`
+- 上一版（含 D-270）：`19b97017bba09123209b7f7364a1fa0185343eacb8d745ef48f4766602d3ceaa`
+- 上一版（含 D-269）：`500347b8b98edfcaaaec7ab4df1ee4f24bf3ebea84fbb9f7c4e103996e8a9956`
+- 上一版（D-226…D-265）：`25a58041cc0410c3fe82eba4f499f280297f42d63eb2b983353e4e160b44b0c4`
+- 上一版（D-226…D-264）：`af1224ae8ee972f695ffce988213e3572075a6d6dc3e5f965c66d017355b7826`
+- 上一版（D-226…D-263）：`141f7d5a3685399e6885cf3300ad044d6145679a424e2cf858d172c66afad91a`
+- 上一版（D-226…D-261）：`b5d0fe0fca98681dd00f74d9c224fddfa8a67652fa4cfabad3293db8b6d407cd`
+- 上一版（D-226…D-259）：`8608d18796ea226f5f32ac57a2a1c77598d43cdfc0e184e4817faa04cfbd1f6b`
+- 上一版（D-226…D-258）：**含 D-226…D-273 + 队列①②③④⑤⑦ + S-6/S-9 + F4 地基**，客户端与 Windows 仓库同哈希；门禁 **15 PASS + 1 预期 WARN**；CORE **42 步** / FULL 50 项）
 - 上一版（含 S-6）：`a086e5de456315f4e42570c3c1a1381fe4a28869f1a869031612625c96817f81`
 - 上一版（含 S-9 观测）：`c8ed987936afb1accd2574a7d124332e09beb1fe7188ad9aa837984c879c2f0f`
 - 上一版（含队列①②③④⑦）：`fd2ef7e288758e964c9eb0d8c62b577bb8a88ac6a9d953c610fca0959d2c6b9f`

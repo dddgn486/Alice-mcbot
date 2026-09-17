@@ -11057,3 +11057,28 @@ Job 候选筛选不做；**风险等级枚举**依旧不做（D-059 已裁定否
 
 **未做（如实登记）**：对话线的**产品形态**（何时说、说什么、是否要授权）仍是待裁定项（`survey/16 §3–§6`）；
 视觉/陪伴只作为 `kind` 预留（`vision_report`/`companion`），**不新增任何 S2C/协议面**。
+
+### D-274：F1 地基落地 —— **驱动者身份位**（2026-09-17，用户裁定「先做地基」）
+
+**做了什么（端到端一条线）**：
+1. 新增 `decision/Driver`：4 个取值 —— `in_game_player`（玩家发起）/ `llm`（模型决定）/ `fixture`（自检夹具）/
+   **`system` = 未归因（默认）**。
+2. **记录**：`TaskOutcome` 与 `TaskExecutionRecord` 各加 `driver` 分量（含 5 个便捷构造器的补齐）。
+3. **日志**：`task_terminal_reason kind=… botId=… **driver=…** terminalReason=…`。
+4. **快照**：`DecisionSnapshot.lastTerminalJson` 写入 `driver` ⇒ 决策层（LLM）也能看到归因。
+5. **发起入口标注**（今天真实存在的两个）：`GoalDirector` 应用模型回复处 ⇒ `llm`；
+   电池每个步骤起任务处 ⇒ `fixture`。实测真机日志：`task_terminal_reason … driver=fixture …` ✓。
+
+**判据（都可红，已实测）**：
+- **门禁 R5**（`tools/exec-record.py`，挂 `check-all.sh`）：三处断言 —— 记录有 `driver` 分量、
+  终态日志含 `driver=`、快照写入 `"driver"`。**注入**（日志去掉 `driver=`）⇒ 红 ✓。
+- **契约判据**（`llm_contract` 的 `snapshot_terminal_identity`）：`driver` 必须进快照且**非空**（`PASS` ✓）。
+
+**⚠️ 一条诚实更正（对本决策最初的判断）**：D-267 表格里我写的是"默认 `in_game_player`" ——
+**实现时否掉了它**：夹具（以及一切还没标注的入口）会被**误标成"玩家驱动"**，
+那是**审计字段在说谎**，比空着更糟。⇒ 默认改为 **`system`（未归因）**，玩家侧等真正标注到位再改口径。
+
+**F1-残（如实登记，未做）**：`BotCommand` 里 **16 处** `BotManager.assign*` 调用点（以及物品右键入口）
+尚未标注 ⇒ 它们现在报 `system`。做法是机械的（在这些入口前插 `Driver.set(bot, IN_GAME_PLAYER)`），
+但没有门禁能证明"每处都标了"（只能靠结构性断言"命令层必须出现 Driver.set"这类弱规则）⇒
+**等外部驱动者那条线真正开工时一起做**（那时会有第二个驱动者，归因才有观察价值）。

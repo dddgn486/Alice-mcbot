@@ -26,20 +26,22 @@ public record TaskExecutionRecord(
          * 于是"配额达成"与"背包满提前收工"在上层看起来一样 —— 决策层（LLM）拿不到
          * "为什么结束"，只能去翻日志（D-134）。非 Job 任务为空串。
          */
-        String terminalReason) {
+        String terminalReason,
+        /** **F1 地基**：谁驱动的（见 `Driver`；`system` = 未归因）。 */
+        String driver) {
 
     public TaskExecutionRecord(String taskKind, String targetDescription, long startServerTick,
                                long endServerTick, TerminalStatus terminalStatus, String resultCode,
                                BlockPos terminalBotPos, String recoveryState) {
         this(taskKind, targetDescription, startServerTick, endServerTick, terminalStatus, resultCode,
-                terminalBotPos, recoveryState, RecoveryStage.NONE, List.of(), null, null, null);
+                terminalBotPos, recoveryState, RecoveryStage.NONE, List.of(), null, null, null, null);
     }
 
     public TaskExecutionRecord(String taskKind, String targetDescription, long startServerTick,
                                long endServerTick, TerminalStatus terminalStatus, String resultCode,
                                BlockPos terminalBotPos, String recoveryState, RecoveryStage recoveryStage) {
         this(taskKind, targetDescription, startServerTick, endServerTick, terminalStatus, resultCode,
-                terminalBotPos, recoveryState, recoveryStage, List.of(), null, null, null);
+                terminalBotPos, recoveryState, recoveryStage, List.of(), null, null, null, null);
     }
 
     public TaskExecutionRecord(String taskKind, String targetDescription, long startServerTick,
@@ -47,7 +49,7 @@ public record TaskExecutionRecord(
                                BlockPos terminalBotPos, String recoveryState, RecoveryStage recoveryStage,
                                List<RecoveryStage> recoveryEvents) {
         this(taskKind, targetDescription, startServerTick, endServerTick, terminalStatus, resultCode,
-                terminalBotPos, recoveryState, recoveryStage, recoveryEvents, null, null, null);
+                terminalBotPos, recoveryState, recoveryStage, recoveryEvents, null, null, null, null);
     }
 
     public TaskExecutionRecord {
@@ -60,8 +62,9 @@ public record TaskExecutionRecord(
         recoveryEvents = recoveryEvents == null ? List.of() : List.copyOf(recoveryEvents);
         botId = botId == null ? "" : botId;
         terminalReason = terminalReason == null ? "" : terminalReason;
+        driver = driver == null || driver.isBlank() ? "system" : driver;
         outcome = outcome == null ? new TaskOutcome(taskKind, targetDescription, terminalStatus,
-                resultCode, terminalBotPos, null, botId, terminalReason) : outcome;
+                resultCode, terminalBotPos, null, botId, terminalReason, driver) : outcome;
     }
 
     public long durationTicks() {

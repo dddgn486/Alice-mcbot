@@ -15,7 +15,9 @@ public record TaskOutcome(
         /** 所有者（多 bot 预留）：bot 的 UUID 字符串。 */
         String botId,
         /** 任务自己报的终止理由（Job 层；非 Job 为空串）—— 决策层据此区分"达成"与"提前收工"。 */
-        String terminalReason) {
+        String terminalReason,
+        /** **F1 地基**：谁驱动的（`llm` / `fixture` / `in_game_player` / `system`=未归因）。 */
+        String driver) {
 
     public TaskOutcome {
         taskKind = taskKind == null ? "unknown" : taskKind;
@@ -26,6 +28,7 @@ public record TaskOutcome(
         terminalBotPos = terminalBotPos == null ? BlockPos.ZERO : terminalBotPos.immutable();
         botId = botId == null ? "" : botId;
         terminalReason = terminalReason == null ? "" : terminalReason;
+        driver = driver == null || driver.isBlank() ? "system" : driver;
     }
 
     public boolean succeeded() {

@@ -348,6 +348,8 @@ public final class GoalDirector {
                 ? reply.text().substring(0, LlmConfig.get().maxReplyChars())
                 : reply.text();
         boolean directed = state.pendingDirected;
+        // **F1**：这一条决定来自模型 ⇒ 标注驱动者（供终态/快照归因）
+        Driver.set(bot, Driver.LLM);
         GoalAction action = GoalAction.parse(trimmed, bot, state.lastMenu, directed);
         if (directed) {
             // 直连测试通道：**把 raw 与解析结果打成一行终态日志**（操作者测试连通性用）

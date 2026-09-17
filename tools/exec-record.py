@@ -113,17 +113,44 @@ def rule_r3():
     return problems
 
 
+def rule_r5():
+    """R5（F1 地基，2026-09-17 用户裁定「先做地基」）：**驱动者身份位必须端到端在位**。
+
+    背景（`survey/16 §3`）：今天的终态记录/快照/日志里只有 `botId`，没有"谁驱动的"这一维 ⇒
+    "玩家让做的 / LLM 自己决定的 / 夹具跑的"在事后**无法区分**，而外部驱动者/陪伴/桌面 AI 那条线
+    全都要先有这一维。本规则锁住三处：记录分量、终态日志、决策快照。
+    """
+    problems = []
+    record = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "bot" / "TaskExecutionRecord.java"
+    manager = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "bot" / "BotManager.java"
+    snapshot = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "decision" / "DecisionSnapshot.java"
+    if record.exists() and "String driver" not in record.read_text(encoding="utf-8"):
+        problems.append("TaskExecutionRecord 没有 `driver` 分量（F1：终态记录必须能归因到驱动者）")
+    if manager.exists():
+        text = manager.read_text(encoding="utf-8")
+        if "driver={}" not in text and "driver=" not in text:
+            problems.append("BotManager 的终态日志里找不到 `driver=`（F1：日志必须能归因）")
+        if "Driver.of(" not in text:
+            problems.append("BotManager 没有读 Driver.of(...)（F1：记录的 driver 从哪来？）")
+    if snapshot.exists() and '"driver"' not in snapshot.read_text(encoding="utf-8"):
+        problems.append("DecisionSnapshot 没把 `driver` 写进快照（F1：决策层看不到就白做）")
+    return problems
+
+
 def main() -> int:
-    r1, r2, r3, r4 = rule_r1(), rule_r2(), rule_r3(), rule_r4()
+    r1, r2, r3, r4, r5 = rule_r1(), rule_r2(), rule_r3(), rule_r4(), rule_r5()
     for line in r1:
         print(f"[R1·J-3 稳定标识] {line}")
     for line in r2 + r3:
         print(f"[R2/R3·J-1 终态事实] {line}")
     for line in r4:
         print(f"[R4·J-3 Job 稳定标识] {line}")
-    ok = not (r1 or r2 or r3 or r4)
+    for line in r5:
+        print(f"[R5·F1 驱动者身份] {line}")
+    ok = not (r1 or r2 or r3 or r4 or r5)
     print(f"EXEC_RECORD_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"taskKind 接线={len(r1)} / 快照字段={len(r2)} / 记录字段={len(r3)} / Job 稳定标识={len(r4)}"
+          f" / 驱动者身份={len(r5)}"
           f"（R1 = taskKind 必须用 taskName()；R2/R3 = terminalReason+botId 必须进快照与记录；"
           f"R4 = 声明 NAME 的 Job 必须覆写 taskName()）")
     return 0 if ok else 1

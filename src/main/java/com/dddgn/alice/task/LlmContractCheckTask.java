@@ -168,20 +168,25 @@ public class LlmContractCheckTask implements Task {
         boolean reason = "no_reachable_candidate".equals(text(json, "terminalReason"));
         boolean identity = record.botId().equals(text(json, "botId"));
         boolean kind = record.taskKind().equals(text(json, "kind"));
-        check("snapshot_terminal_identity", reason && identity && kind,
+        // **F1 地基**：驱动者必须进快照且**非空**（`system` = 未归因，但绝不许是空/缺字段）
+        String driver = text(json, "driver");
+        boolean driverOk = driver != null && !driver.isBlank();
+        check("snapshot_terminal_identity", reason && identity && kind && driverOk,
                 "terminalReason=" + text(json, "terminalReason") + " botId=" + text(json, "botId")
-                        + " kind=" + text(json, "kind"));
+                        + " kind=" + text(json, "kind") + " driver=" + driver);
     }
 
     /** 构造一条终态记录（M4 自检用：不必真把任务跑失败一次）。 */
     private TaskExecutionRecord syntheticRecord(TaskExecutionRecord.TerminalStatus status,
                                                TaskFailureReport failure) {
         String botId = bot.getUUID().toString();
+        // F1：夹具合成的终态记录必须**带上驱动者**（且用夹具自己的身份，别谎称玩家/LLM）
+        String driver = com.dddgn.alice.decision.Driver.FIXTURE;
         TaskOutcome outcome = new TaskOutcome("MineJob", "block@5,65,67", status, "failed:selfcheck",
-                BlockPos.ZERO, failure, botId, "no_reachable_candidate");
+                BlockPos.ZERO, failure, botId, "no_reachable_candidate", driver);
         return new TaskExecutionRecord("MineJob", "block@5,65,67", 0L, 10L, status, "failed:selfcheck",
                 BlockPos.ZERO, "idle_after_cleanup", RecoveryStage.NONE, List.of(), outcome, botId,
-                "no_reachable_candidate");
+                "no_reachable_candidate", driver);
     }
 
     private String text(JsonObject json, String key) {

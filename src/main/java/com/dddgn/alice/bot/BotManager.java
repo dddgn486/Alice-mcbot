@@ -2158,11 +2158,14 @@ public final class BotManager {
             // 否则 `resultCode` 只会有 `done`/`failed:…`，决策层分不清"配额达成"与"背包满提前收工"。
             String terminalReason = task == null ? "" : String.valueOf(task.terminalReason());
             String botId = bot.getUUID().toString();
+            // **F1 地基（D-267）**：驱动者也一起落进终态记录 —— 只有 `botId` 时无法区分
+            // "玩家让做的 / LLM 自己决定的 / 夹具跑的"（`survey/16 §3` 的整条线都要这一维）。
+            String driver = com.dddgn.alice.decision.Driver.of(bot);
             TaskOutcome outcome = new TaskOutcome(kind, targetDescription, terminalStatus, resultCode,
-                    terminalPos, failureReport, botId, terminalReason);
+                    terminalPos, failureReport, botId, terminalReason, driver);
             lastExecutionRecord = new TaskExecutionRecord(kind, targetDescription, startTick, serverTick(),
                     terminalStatus, resultCode, terminalPos, recoveryState, recoveryStage, recoveryEvents, outcome,
-                    botId, terminalReason);
+                    botId, terminalReason, driver);
             TaskFailureReport failure = outcome.failure();
             BotLog.info("task_execution_terminal kind={} target={} startTick={} endTick={} durationTicks={}"
                             + " terminal={} code={} pos={} recovery={} recoveryStage={} recoveryEvents={}"
@@ -2174,9 +2177,9 @@ public final class BotManager {
                     lastExecutionRecord.recoveryState(), lastExecutionRecord.recoveryStage(),
                     lastExecutionRecord.recoveryEvents(), failure == null ? "-" : failure.code(),
                     failure == null ? "-" : failure.phase(), failure == null ? "-" : failure.details());
-            BotLog.info("task_terminal_reason kind={} botId={} terminalReason={}",
+            BotLog.info("task_terminal_reason kind={} botId={} driver={} terminalReason={}",
                     lastExecutionRecord.taskKind(), lastExecutionRecord.botId(),
-                    lastExecutionRecord.terminalReason());
+                    lastExecutionRecord.driver(), lastExecutionRecord.terminalReason());
         }
 
         /** 任务收尾:清任务、清作用域、广播清除高亮、**输入归零**。 */

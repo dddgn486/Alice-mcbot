@@ -878,6 +878,9 @@ public final class RegressionBatteryTask implements Task {
         }
         stepTicks = 0;
         stepStarted = true;
+        // **F1 地基**：本步由**自检夹具**驱动（与"玩家让做的/LLM 决定的"区分开）——
+        // 终态记录与决策快照据此归因（`Driver`）。
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
         current = step.factory().get();
         return Status.RUNNING;
     }
@@ -926,6 +929,9 @@ public final class RegressionBatteryTask implements Task {
         }
         stepTicks = 0;
         stepStarted = true;
+        // **F1 地基**：本步由**自检夹具**驱动（与"玩家让做的/LLM 决定的"区分开）——
+        // 终态记录与决策快照据此归因（`Driver`）。
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
         current = step.factory().get();
         return Status.RUNNING;
     }
