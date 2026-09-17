@@ -120,6 +120,12 @@ echo "artifact=${artifact_name}"
 echo "source=${ARTIFACT}"
 echo "source_size=${source_size}"
 echo "source_sha256=${source_hash}"
+# **内容摘要**（2026-09-17 补）：Gradle 打的 jar **不可字节复现**（同一源码两次构建 sha256 不同）
+# ⇒ 文件 sha256 只能证明"当时同步的是同一个文件"；要回答"客户端是不是现在这版代码"必须用内容摘要。
+if [ -x "$(dirname "$0")/jar-content-hash.sh" ]; then
+    src_content="$("$(dirname "$0")/jar-content-hash.sh" "${ARTIFACT}" 2>/dev/null | grep -o 'JAR_CONTENT_SHA256=.*' | cut -d= -f2)"
+    [ -n "$src_content" ] && echo "content_sha256=${src_content}"
+fi
 echo "repository_target=${target}"
 echo "repository_sha256=${target_hash}"
 if [[ -n "${backup}" ]]; then
