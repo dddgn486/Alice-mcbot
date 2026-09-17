@@ -47,7 +47,7 @@
 | 8 | `RiskProfile` 字段 + 行走预算 + `PROGRESS` 默认 | **首批两字段（待消费者）/ 行走预算不动 / PROGRESS 默认 200** | ✅ 已登记（D-289）；`PROGRESS` 默认已落地 + 门禁断言 ✓；`containerAccess` 消费面=`MenuSession`（**等测试数据**再定）；`hazardTolerance` **无处可接**（规划器无危险代价 ✗）|
 | 9 | `J-5` `UNTIL_FULL` | **删** | ✅ 已落地（D-290；门禁 J5-P1 注入可红；顺带发现同类死字段 `GoalSpec.stopWhenFull` 待你一句话）|
 
-> **D-292 遗留（下一步第一件事）**：`hazardAversion` 字段已落地且有消费者（`MovementContext.cost`），但**尚无判据** ✗
+> **D-292 已闭环（2026-09-17）**：`hazardAversion` 字段 + 消费者（`MovementContext.cost`）+ **plan-only 判据**（电池步 `hazard_aversion_plan`）全部落地 ✓：厌恶开 ⇒ **贴危险格数 3 → 0**、代价 20.00 → 26.66（改走绕行）✓；反向对照（去掉加价）**红** ✓。⚠️ 原遗留说明（判据待补）已作废 ✗
 > ⇒ 需补 plan-only 夹具：场景 = 一条「贴着熔岩的短路 + 安全绕行长路」，开/关两次规划断言 `cost`/`nodes` 不同（反向对照：去掉加价 ⇒ 两次相同 ⇒ 红）。可用面：`CorePathPlanner` + `SearchBudget`（各诊断任务已这样用 ✓）。
 > **R-2（电池模块化）**：用户 2026-09-17 定为"下一条主线"，**开工后按用户要求暂停** ✗（"等会，决策还没做完"）⇒ 已放下的样板：`task/check/{CheckStep,CheckProfile,CheckContext,CheckModule}.java` + `modules/LedgerModule.java`（未接入电池）⇒ 决策走完后继续 ✓。
 

@@ -132,3 +132,4 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 | 2026-09-17 | **45** | **55** | **CORE 修剪**：`contrast_timer` 由 MAIN 移入 **EXTRA**（V-4 已裁定不阻塞；工具检查不必占 CORE）。另记一条**偶发假红**：`survival_exit` 1 次 FAIL（DANGER 命中 0；前后两轮 PASS）⇒ 只登记不追查（台账有登记）。|
 | 2026-09-17 | **46** | **56** | **F1 归因（D-285）**：新增 `driver_label`（MAIN，断言电池归因=fixture；注入 SYSTEM 可红）+ 73 处指派点标归因 + 门禁 **F1-P1**（删一处归因即红）。⚠️ 顺带修 `BotSession.tick` 重入空指针（曾致看门狗关服）|
 | 2026-09-17 | **47** | **57** | **D-291 + R-2 Phase 1a**：新增 `container_access_profile`（MAIN，画像硬门判据，3 checks PASS）；账本 4 步改由 `task/check/modules/LedgerModule` 提供（**行为等价**，判据=CORE 47/47 ✓）；`stopWhenFull` 删除 + 门禁 J5-P1 扩展；S6-P1 泛化为任何 `RiskSwitches.<getter>()` 直读即违规；修 `mine_failure_visible` 编码旧默认值（0→200）的前提 |
+| 2026-09-17 | **48** | **58** | **D-292 判据闭环**：`hazard_aversion_plan`（MAIN，plan-only；厌恶开⇒贴危险格 3→0、代价 20→26.66 改走绕行）+ 场景 `hazard_route_course_terrain`（一格外宽 + 嵌熔岩 + 唯一绕行；**场景由夹具自装**=先热区块再 fill，不依赖前序模块 ✓）；反向对照（去掉 `MovementContext` 加价）红 ✓ |

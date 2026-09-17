@@ -58,7 +58,6 @@ public record MovementContext(
 
     /** **邻接危险方块的加价**（D-292）：够大以至于规划器倾向绕开，但不至于把路封死 ✗（≈20 格走路）。 */
     public static final double HAZARD_ADJACENCY_PENALTY = 20.0D;
-
     public double cost(MovementType type, BlockPos from, BlockPos to) {
         return costModel.cost(type, level, from, to) + hazardAdjacencyPenalty(to);
     }

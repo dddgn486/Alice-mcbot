@@ -185,6 +185,7 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("contrast_timer", Profile.EXTRA),
             Map.entry("driver_label", Profile.MAIN),
             Map.entry("container_access_profile", Profile.MAIN),
+            Map.entry("hazard_aversion_plan", Profile.MAIN),
             // D-276 端到端（第 1 半）：**真弄死一个探针 bot**，验证数据落成倒下态。
             // 放 EXTRA：它会写"倒下态"存档（会覆盖 botTag）⇒ 只适合 `single:` 单独跑。
             Map.entry("death_kill_bot", Profile.EXTRA),
@@ -477,6 +478,11 @@ public final class RegressionBatteryTask implements Task {
                 () -> teleportBot(OreCourseAnchor.START_FOOT),
                 () -> new DeathKillBotCheckTask(bot, observer),
                 80));
+        steps.add(step("hazard_aversion_plan",
+                List.of(),   // 场景由夹具自己装（先热区块再 fill ✓），不依赖前序模块 ✓
+                () -> teleportBot(HazardAversionCheckTask.START),
+                () -> new HazardAversionCheckTask(bot),
+                200));
         steps.add(step("container_access_profile",
                 List.of("alice_test:ore_course_terrain"),
                 () -> teleportBot(OreCourseAnchor.START_FOOT),
