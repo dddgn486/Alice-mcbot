@@ -108,11 +108,31 @@ def rule_walk_budget():
     return problems
 
 
+def rule_progress_signal():
+    """NP-P1（survey/17 §4.2(c)，2026-09-17）：**失败计数不得被当成进度**。
+
+    背景：`NO_PROGRESS` 的进度指纹里若整串塞进 Job 的 `progressSummary()`（形如 `mined 3/16 failed=2`），
+    那么"**一直在失败**"（`failed` 涨、`mined` 不动 —— 外部 141 小时实测里的"种土豆"失效模式）
+    会被当作"有进度"从而**反武装**判据 ⇒ 越失败越显得在动。本规则要求那串先剔除 `failed=`。
+    """
+    path = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "decision" / "EventThresholds.java"
+    if not path.exists():
+        return []
+    text = path.read_text(encoding="utf-8")
+    # ⚠️ 必须断言**调用**本身，不能只搜 `failed=` —— 注释里也写了 `failed=`，
+    # 第一版就这么被**顶绿**过一次（2026-09-17 反向对照实测）。
+    strip_call = 'replaceAll("\\\\s*failed=\\\\d+"'
+    if strip_call not in text:
+        return ["EventThresholds 里找不到剔除 `failed=` 的**调用**（进度信号又把失败当进度了？）"]
+    return []
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
     s8 = rule_s8()
     walk = rule_walk_budget()
+    prog = rule_progress_signal()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -121,10 +141,12 @@ def main() -> int:
         print(f"[S8·死字段] {line}")
     for line in walk:
         print(f"[W·行走预算] {line}")
-    ok = not k4 and not k5 and not s8 and not walk
+    for line in prog:
+        print(f"[NP·进度信号] {line}")
+    ok = not k4 and not k5 and not s8 and not walk and not prog
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
-          f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)}"
-          f"（K4-P1 谓词统一；K5-P1 状态有生产者；S8-P1 policyVersion 不得复活；W-P1 行走必须有界）")
+          f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(prog)}"
+          f"（K4-P1 谓词统一；K5-P1 状态有生产者；S8-P1 policyVersion 不得复活；W-P1 行走必须有界；NP-P1 失败计数不得当进度）")
     return 0 if ok else 1
 
 

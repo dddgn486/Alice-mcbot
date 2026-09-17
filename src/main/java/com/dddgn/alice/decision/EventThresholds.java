@@ -325,7 +325,11 @@ public final class EventThresholds {
         if (bot.containerMenu != null && bot.containerMenu != bot.inventoryMenu) {
             return null;
         }
-        String job = BotManager.currentTaskProgressSummary(bot);
+        String jobRaw = BotManager.currentTaskProgressSummary(bot);
+        // **survey/17 §4.2(c)（2026-09-17）**：**失败计数不是进度**。
+        // 外部 141 小时实测的"种土豆"失效模式（`failed` 一直涨、`mined` 不动）若把 `failed=N` 当进度，
+        // 会**反武装**本判据（越失败越显得"在动"）⇒ 从进度信号里剔除它。产出（`mined x/y`）与背包照旧算进度。
+        String job = jobRaw == null ? null : jobRaw.replaceAll("\\s*failed=\\d+", "");
         BlockPos foot = com.dddgn.alice.pathing.MovementHelper.footCell(bot.serverLevel(), bot);
         // **D-268⑤（2026-09-17 用户裁定：语义 = "白忙一场"）**：进度**不是**"脚位变了"。
         // 原指纹含 `foot.toShortString()` ⇒ 只要脚一动就算有进度 ⇒ "原地绕圈/走远走回"永远不报
