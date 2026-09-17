@@ -151,6 +151,38 @@ def rule_risk_profile():
     return problems
 
 
+def rule_speech_channel():
+    """F4-P1（D-267 地基 F4，2026-09-17 用户裁定「先做地基」）：**说话通道与决策通道双向分离**。
+
+    背景：项目今天没有"不碰世界的输出通道"；最省事的错误写法是把说话文本塞进决策输入
+    （`GoalDirector` 的 prompt / `instruct`）⇒ 等于让自然语言**绕过 `GoalAction` 白名单**。
+    本规则把"分离"这件事变成机器可查的：两个方向都不许互相引用。
+    """
+    problems = []
+
+    def code_only(text: str) -> str:
+        """剥掉注释再判 —— ⚠️ 否则**注释里提到**被禁符号会造成误红（2026-09-17 实测踩到）。"""
+        text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+        return re.sub(r"//[^\n]*", "", text)
+
+    decision = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "decision"
+    speech = decision / "SpeechChannel.java"
+    director = decision / "GoalDirector.java"
+    if speech.exists():
+        text = code_only(speech.read_text(encoding="utf-8"))
+        for banned in ("GoalAction", "GoalDirector", "parse("):
+            if banned in text:
+                problems.append(f"SpeechChannel 引用了 `{banned}` —— 说话通道必须**只出不进**"
+                                f"（否则文本可以流进动作解析/决策输入）")
+    else:
+        problems.append("找不到 SpeechChannel.java（F4 地基被移除？同步本规则）")
+    if director.exists():
+        if "SpeechChannel" in code_only(director.read_text(encoding="utf-8")):
+            problems.append("GoalDirector 引用了 SpeechChannel —— 决策侧不许读说话通道"
+                            "（那会让说话内容变成决策输入）")
+    return problems
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
@@ -158,6 +190,7 @@ def main() -> int:
     walk = rule_walk_budget()
     prog = rule_progress_signal()
     risk = rule_risk_profile()
+    speech = rule_speech_channel()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -170,10 +203,12 @@ def main() -> int:
         print(f"[NP·进度信号] {line}")
     for line in risk:
         print(f"[S6·风险画像] {line}")
-    ok = not k4 and not k5 and not s8 and not walk and not prog and not risk
+    for line in speech:
+        print(f"[F4·说话通道] {line}")
+    ok = not k4 and not k5 and not s8 and not walk and not prog and not risk and not speech
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(prog)} / 风险画像未接={len(risk)}"
-          f"（K4-P1 谓词统一；K5-P1 状态有生产者；S8-P1 policyVersion 不得复活；W-P1 行走必须有界；NP-P1 失败计数不得当进度）")
+          f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 
 

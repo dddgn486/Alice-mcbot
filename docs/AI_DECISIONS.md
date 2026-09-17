@@ -11035,3 +11035,25 @@ cat >> docs/AI_DECISIONS.md <<'EOF'
 
 **未做（如实登记）**：D-046 的"哪些字段进画像"仍未定（`RiskProfile` 目前只有 1 个分量）；
 Job 候选筛选不做；**风险等级枚举**依旧不做（D-059 已裁定否）。
+
+### D-273：F4 地基落地 —— **说话通道**与决策通道分离（2026-09-17，用户裁定「先做地基」）
+
+**做了什么**：新增 `decision/SpeechChannel`（`Utterance` record + `say(bot, utterance)` ⇒ **聊天 + 日志**；`saidCount`/`reset` 供夹具）。
+它**只出不进**：不提供任何"把文本喂回决策"的方法，且**不引用** `GoalAction`/`GoalDirector`。
+
+**判据（两条，均可红，已实测）**：
+1. **门禁 F4-P1**（`check-kernel-predicates.sh`，**双向源码断言**）：`SpeechChannel` **不得**引用
+   `GoalAction`/`GoalDirector`/`parse(`；`GoalDirector` **不得**引用 `SpeechChannel`。
+   ⚠️ 规则**必须先剥注释**再判 —— 第一版因把类头注释里提到的被禁符号算进去而**误红**（2026-09-17 实测）。
+   **注入**（在 `say()` 里加 `GoalDirector.onEvent(...)`）⇒ 门禁 **FAIL** ✓。
+2. **夹具** `SpeechChannelCheckTask` + 电池步 **`speech_channel`**（MAIN）：① 说话真的出去了（`said == 2`）；
+   **注入**（`say()` 改成空操作）⇒ 该步 **FAIL** ✓。
+
+**⚠️ 一次"假绿"的如实记录（本决策最该记住的一条）**：夹具里还有三条"② 说话不改变决策态"
+（`describe`/`isSuspended`/`lastRefusal` 前后一致）—— **实测它们恒真、无法反向对照变红**：
+电池/自检期间 `GoalDirector` 处于**挂起态**，即使把 `say()` 接到 `onEvent(...)`，这三个量也不变。
+⇒ 按项目纪律**它们不是判据**，已在夹具里显式标注为「非判据·意图记录」；F4 的判别性判据是上面的门禁 + ①。
+（同类教训本会话已出现 4 次：判据必须先用反向对照证明能红。）
+
+**未做（如实登记）**：对话线的**产品形态**（何时说、说什么、是否要授权）仍是待裁定项（`survey/16 §3–§6`）；
+视觉/陪伴只作为 `kind` 预留（`vision_report`/`companion`），**不新增任何 S2C/协议面**。

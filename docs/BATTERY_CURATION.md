@@ -116,3 +116,4 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 | 2026-09-17 | **39** | **47** | **队列第③项**：新增 `mine_failure_visible`（**MAIN**，场景 `ore_course`）—— `MineJob` 新尝试上场时必须**保留上一轮失败事实**（夹具自持并手动 tick 一个 `MineJob`，用 `identityCheck` 覆盖器"前 2 个候选判为 replaced"构造「活动尝试+已有失败」；⚠️ 结束态采样判别不了 ⇒ 会假绿）。反向对照（failure 传空串）⇒ FAIL ✓ |
 | 2026-09-17 | **40** | **48** | **S-9**：新增 `damage_event_visible`（**MAIN**）—— 伤害改用**事件**观测（`DamageLedger` ← `LivingDamageEvent`）：精确计数 4 次/4.0 点，而采样路径净变化仅 1.0。⚠️ 点火造伤害**不可行**：会触发维生中断（`survival_on_fire`）⇒ 任务被中断、电池无判决（exit=3）。反向对照（关掉观测）⇒ FAIL ✓ |
 | 2026-09-17 | **41** | **49** | **S-6**：新增 `risk_profile_frozen`（**MAIN**）—— 风险开关按 bot **冻结**（冻结点=`assignTask`；命令改开关后 `freezeAll` 保 A/B）。9 条 check：冻结后全局变更不影响画像、重新冻结才跟进、freezeAll 立刻生效、收尾复位。反向对照（不冻结）⇒ FAIL ✓ |
+| 2026-09-17 | **42** | **50** | **F4 地基（D-267）**：新增 `speech_channel`（**MAIN**）—— 说话通道只出不进（说话不改决策态；判别性判据 = 门禁 F4-P1 双向源码断言 + 夹具①；夹具②三条实测恒真 ⇒ 已标注为「非判据」）。注入（say 变空操作 / 说话接进决策）⇒ 均可红 ✓ |
