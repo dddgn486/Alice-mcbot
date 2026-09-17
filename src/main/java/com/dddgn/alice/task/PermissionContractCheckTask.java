@@ -89,8 +89,16 @@ public class PermissionContractCheckTask implements Task {
                             .filter(r -> r.capability().equals(CAP_A)).findFirst()
                             .map(PermissionGate.Request::id).orElse(null);
                     if (id != null) {
-                        PermissionGate.answer(bot.getServer(), id, "allow",
+                        com.dddgn.alice.decision.PermissionService.answer(
+                                com.dddgn.alice.decision.PermissionService.TRANSPORT_FIXTURE,
+                                bot.getServer(), id, "allow",
                                 PermissionGate.Scope.ONCE, "fixture:auto");
+                        // **F3 判据**：答复入口必须把 transport（谁在答复）记下来 ——
+                        // 这是"以后接非游戏内主体时答复来源可归因"的最小可验证事实。
+                        String transport = com.dddgn.alice.decision.PermissionService.lastTransport(bot);
+                        if (!com.dddgn.alice.decision.PermissionService.TRANSPORT_FIXTURE.equals(transport)) {
+                            failures.add("F3：答复后 transport 应记成 fixture，实际 " + transport);
+                        }
                     }
                     phase = Phase.POLL_ALLOW;
                 } else {

@@ -178,9 +178,15 @@ public final class PermissionGate {
         return null;
     }
 
-    /** 玩家答复（命令/弹窗都走这里）。 */
-    public static boolean answer(MinecraftServer server, String id, String option, Scope scope,
-                                 String by) {
+    /**
+     * **内部实现**：真正动状态机的答复。
+     *
+     * <p>⚠️ **只允许 {@link PermissionService} 调用**（2026-09-17 F3 收口）：本方法已从 `public` 降为
+     * **包内可见** ⇒ 跨包直调**编译不过** —— 这是"答复入口唯一"这条约束的**结构性**保证
+     * （不是靠人记得）。新增传输方式请走 `PermissionService.answer(transport, ...)`。
+     */
+    static boolean answer(MinecraftServer server, String id, String option, Scope scope,
+                          String by) {
         for (Map.Entry<UUID, List<Request>> entry : PENDING.entrySet()) {
             for (Request request : entry.getValue()) {
                 if (!request.id().equals(id)) {

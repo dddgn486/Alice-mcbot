@@ -11082,3 +11082,28 @@ Job 候选筛选不做；**风险等级枚举**依旧不做（D-059 已裁定否
 尚未标注 ⇒ 它们现在报 `system`。做法是机械的（在这些入口前插 `Driver.set(bot, IN_GAME_PLAYER)`），
 但没有门禁能证明"每处都标了"（只能靠结构性断言"命令层必须出现 Driver.set"这类弱规则）⇒
 **等外部驱动者那条线真正开工时一起做**（那时会有第二个驱动者，归因才有观察价值）。
+
+### D-275：F3 地基落地 —— 请示答复入口**唯一化**（2026-09-17，用户裁定「先做地基」）
+
+**问题**（`survey/16 §11`）：`PermissionGate.answer(...)` 是个 `public static`，今天有**三类调用者各调各的**
+（命令 / 客户端弹窗包 / 夹具）⇒ 要接"非游戏内主体"（桌面 AI、外部驱动者）时**没有地方落**：
+再写一个直调分支 = 状态机被绕过；改签名 = 牵动所有调用点。而**看不到请示** ⇒ 桌面 AI 只会永远停在 `ASK=拒绝`（硬闸）。
+
+**做了什么**：
+1. 新增 `decision/PermissionService`：`answer(transport, server, id, option, scope, by)` 为**唯一答复入口**，
+   transport 常量 = `command` / `client_packet` / `fixture` / **`external`（预留：非游戏内主体）**；
+   记录 `lastTransport(bot)` 供归因与夹具断言。
+2. `PermissionGate.answer(...)` 从 `public` **降为包内可见** ⇒ **跨包直调编译不过**
+   —— 这是"答复入口唯一"的**结构性**保证（不是靠人记得）。
+3. 三个调用点全部迁移到服务层并带上自己的 transport。
+
+**判据（三条，全部实测）**：
+- **结构性**：在 `task/` 里直接调 `PermissionGate.answer(...)` ⇒ **编译失败** ✓（最强的一条：不靠门禁也拦得住）。
+- **门禁 F3-P1**（`check-kernel-predicates.sh`，源码侧兜底）：`decision/` 之外不得出现 `PermissionGate.answer(` 调用；
+  且 `PermissionService` 必须给出三个 transport 标识。**注入** ⇒ 红 ✓。
+- **夹具**（`permission_gate`，EXTRA）：答复后 `lastTransport(bot)` 必须等于 `fixture`。**注入**（服务不记录 transport）⇒
+  该步 **FAIL** ✓。实测 `[PermCheck] SUMMARY … failures=[] → PASS` ✓。
+
+**F3-残（如实登记，未做）**：只收口了**答复**这一侧；**"看"这一侧没有做** ——
+非游戏内主体今天**读不到**待答复请示（`PermissionGate.pending(bot)` 只在服务端进程内可取，没有对外通道）。
+⇒ 真要让桌面 AI 参与，还需要一条**只读的请示查询通道**（属"外部驱动者"那条线，等有第二个驱动者时再做）。

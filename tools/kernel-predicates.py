@@ -183,6 +183,36 @@ def rule_speech_channel():
     return problems
 
 
+def rule_permission_service():
+    """F3-P1（D-267 地基 F3，2026-09-17 用户裁定「先做地基」）：**请示答复入口唯一**。
+
+    背景：`PermissionGate.answer(...)` 今天只有命令/客户端弹窗/夹具三类调用者各调各的 ⇒
+    接"非游戏内主体"（桌面 AI）时无处可落。F3 把答复收口到 `PermissionService.answer(transport, ...)`，
+    并把 `PermissionGate.answer` 降为**包内可见**（跨包直调编译不过 = 结构性保证）。
+    本规则是它的**源码侧**兜底：`decision/` 之外不许出现对 `PermissionGate.answer` 的调用。
+    """
+    alice = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
+    decision = alice / "decision"
+    problems = []
+    service = decision / "PermissionService.java"
+    if not service.exists():
+        problems.append("找不到 PermissionService.java（F3 收口被移除？同步本规则）")
+    else:
+        text = service.read_text(encoding="utf-8")
+        for transport in ("TRANSPORT_COMMAND", "TRANSPORT_CLIENT_PACKET", "TRANSPORT_FIXTURE"):
+            if transport not in text:
+                problems.append(f"PermissionService 缺少 {transport}（transport 标识是归因的基础）")
+    for path in alice.rglob("*.java"):
+        if decision in path.parents:
+            continue
+        code = re.sub(r"/\*.*?\*/", "", path.read_text(encoding="utf-8"), flags=re.S)
+        code = re.sub(r"//[^\n]*", "", code)
+        if "PermissionGate.answer(" in code:
+            problems.append(f"{path.relative_to(alice)} 直接调了 PermissionGate.answer —— "
+                            f"必须走 PermissionService.answer(transport, ...)（F3：答复入口唯一）")
+    return problems
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
@@ -191,6 +221,7 @@ def main() -> int:
     prog = rule_progress_signal()
     risk = rule_risk_profile()
     speech = rule_speech_channel()
+    perm = rule_permission_service()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -205,7 +236,9 @@ def main() -> int:
         print(f"[S6·风险画像] {line}")
     for line in speech:
         print(f"[F4·说话通道] {line}")
-    ok = not k4 and not k5 and not s8 and not walk and not prog and not risk and not speech
+    for line in perm:
+        print(f"[F3·请示答复] {line}")
+    ok = not k4 and not k5 and not s8 and not walk and not prog and not risk and not speech and not perm
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(prog)} / 风险画像未接={len(risk)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1 —— 见各规则头部的注释）")

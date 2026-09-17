@@ -1052,7 +1052,8 @@ public final class BotCommand {
         }
         String by = source.getEntity() instanceof net.minecraft.server.level.ServerPlayer player
                 ? "player:" + player.getName().getString() : "console";
-        boolean ok = com.dddgn.alice.decision.PermissionGate.answer(source.getServer(), id, option, parsed, by);
+        boolean ok = com.dddgn.alice.decision.PermissionService.answer(
+                com.dddgn.alice.decision.PermissionService.TRANSPORT_COMMAND, source.getServer(), id, option, parsed, by);
         source.sendSuccess(() -> Component.literal(ok
                 ? "[alice] 已答复 " + id + " = " + option + "（" + parsed + "，by=" + by + "）"
                 : "[alice] 没有这条待答复请示：" + id), false);

@@ -41,7 +41,8 @@ public record PermissionAnswerPacket(String id, String option, String scope) {
             } catch (IllegalArgumentException ex) {
                 scope = com.dddgn.alice.decision.PermissionGate.Scope.ONCE;
             }
-            com.dddgn.alice.decision.PermissionGate.answer(server, packet.id(), packet.option(), scope,
+            com.dddgn.alice.decision.PermissionService.answer(
+                    com.dddgn.alice.decision.PermissionService.TRANSPORT_CLIENT_PACKET, server, packet.id(), packet.option(), scope,
                     "player:" + (player == null ? "?" : player.getName().getString()));
         });
         context.setPacketHandled(true);

@@ -15,6 +15,9 @@
 
 ## §0 一览
 
+> **F3 地基状态（2026-09-17，D-275）**：请示答复入口**唯一化**（`PermissionService.answer(transport, …)`；
+> `PermissionGate.answer` 降为包内可见 ⇒ 跨包直调**编译不过**；transport = command/client_packet/fixture/external）。
+> **F3-残**：『看』这一侧未做 —— 非游戏内主体读不到待答复请示（无对外查询通道）⇒ 等外部驱动者线开工时补。
 > **F1 地基状态（2026-09-17，D-274）**：驱动者身份位**已端到端落地**（`Driver` + `TaskOutcome`/`TaskExecutionRecord`
 > + `task_terminal_reason` 日志 + `DecisionSnapshot`；入口标注 = `llm`/`fixture`）。
 > **F1-残**：`BotCommand` 的 16 处指派点与物品入口**尚未标注**（现报 `system`=未归因）——
