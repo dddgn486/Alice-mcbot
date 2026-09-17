@@ -24,6 +24,13 @@ import java.util.UUID;
  */
 public final class DamageLedger {
 
+    /** 一次命中（供**窗口查询**用；环有界，不会无限增长）。 */
+    public record Hit(long tick, double amount, String source) {
+    }
+
+    /** 保留的命中条数上限（决策层只需要"最近几下"，不需要全史）。 */
+    private static final int RECENT_CAP = 8;
+
     /** 单个 bot 的伤害台账。 */
     public static final class Entry {
         private long hits;
@@ -31,6 +38,7 @@ public final class DamageLedger {
         private long lastTick = -1L;
         private String lastSource = "-";
         private double lastAmount;
+        private final java.util.ArrayDeque<Hit> recent = new java.util.ArrayDeque<>();
 
         public long hits() {
             return hits;
@@ -69,6 +77,32 @@ public final class DamageLedger {
         entry.lastTick = tick;
         entry.lastAmount = amount;
         entry.lastSource = source == null ? "-" : source.getMsgId();
+        entry.recent.addLast(new Hit(tick, amount, entry.lastSource));
+        while (entry.recent.size() > RECENT_CAP) {
+            entry.recent.removeFirst();
+        }
+    }
+
+    /** **窗口查询**：`sinceTick` 之后（含）发生的命中条数 —— "最近挨了几下"的事实来源。 */
+    public static int hitsSince(BotPlayer bot, long sinceTick) {
+        int count = 0;
+        for (Hit hit : of(bot).recent) {
+            if (hit.tick() >= sinceTick) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /** **窗口查询**：`sinceTick` 之后的累计扣血量。 */
+    public static double totalSince(BotPlayer bot, long sinceTick) {
+        double sum = 0.0D;
+        for (Hit hit : of(bot).recent) {
+            if (hit.tick() >= sinceTick) {
+                sum += hit.amount();
+            }
+        }
+        return sum;
     }
 
     /** 该 bot 的台账（没有记录时返回空表）。 */

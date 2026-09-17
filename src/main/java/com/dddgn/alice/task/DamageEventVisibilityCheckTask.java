@@ -120,6 +120,24 @@ public class DamageEventVisibilityCheckTask implements Task {
         check("来源归因可用（lastSource=" + entry.lastSource() + "）",
                 entry.lastSource() != null && !entry.lastSource().isBlank() && !"-".equals(entry.lastSource()));
         check("最后命中时刻已被记录（lastTick=" + entry.lastTick() + "）", entry.lastTick() >= 0);
+        // ③ **S-9 消费**：这些伤害事实必须**进得了决策快照**（LLM 能看见），且与台账一致。
+        // 旧世界里"挨打"在快照里没有任何位置（只有血量），本条把它钉住。
+        com.google.gson.JsonObject snapshot =
+                com.dddgn.alice.decision.DecisionSnapshot.build(bot, null, "fixture");
+        com.google.gson.JsonObject dmg = snapshot.has("damage")
+                ? snapshot.getAsJsonObject("damage") : null;
+        check("③ 快照里有 `damage` 节点（伤害事实对决策层可见）", dmg != null);
+        if (dmg != null) {
+            int snapHits = dmg.has("hits") ? dmg.get("hits").getAsInt() : -1;
+            double snapTotal = dmg.has("total") ? dmg.get("total").getAsDouble() : -1.0D;
+            int snapWindow = dmg.has("windowTicks") ? dmg.get("windowTicks").getAsInt() : -1;
+            check("③ 快照伤害次数与台账一致（" + snapHits + " == " + entry.hits() + "）", snapHits == entry.hits());
+            check("③ 快照伤害总量与台账一致（" + snapTotal + "）",
+                    Math.abs(snapTotal - entry.totalDamage()) < 0.001D);
+            check("③ 快照给出窗口口径（windowTicks=" + snapWindow + " > 0）", snapWindow > 0);
+            BotLog.info("[DamageEvent] 快照 damage 节点：{}", dmg);
+        }
+
         // ② 采样路径**读不出总量**：净变化被回血抹平（≤1），尽管期间挨了 PLANNED_HITS 点伤害
         check("采样路径净血量变化 ≤1（" + sampledDelta + "）——即『靠净血量读不出挨了几下』",
                 sampledDelta <= 1.0F);

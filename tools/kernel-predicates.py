@@ -245,6 +245,34 @@ def rule_death_keeps_data():
     return problems
 
 
+def rule_damage_observed():
+    """S9-P1（S-9 消费，D-277）：**伤害事实必须对决策层可见**。
+
+    背景：Alice 的 `aiStep()` 无条件回血（+1HP/20t）与原版火焰伤害（1HP/20t）**互相抵消**
+    ⇒ 靠"采样血量差"读不出"挨了几下、多重"（D-261/D-271 实测）。S-9 的台账来自 `LivingDamageEvent`。
+    本规则锁两处：台账存在且提供**窗口查询**；决策快照必须带 `damage` 节点（否则 LLM 依旧看不见挨打）。
+    """
+    problems = []
+    ledger = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "survival" / "DamageLedger.java"
+    snapshot = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "decision" / "DecisionSnapshot.java"
+    if not ledger.exists():
+        problems.append("找不到 DamageLedger.java（S-9 台账被移除？同步本规则）")
+    else:
+        text = ledger.read_text(encoding="utf-8")
+        if "hitsSince(" not in text:
+            problems.append("DamageLedger 没有 `hitsSince(...)` 窗口查询（窗口口径是它的意义）")
+    if not snapshot.exists():
+        problems.append("找不到 DecisionSnapshot.java")
+    else:
+        code = re.sub(r"/\*.*?\*/", "", snapshot.read_text(encoding="utf-8"), flags=re.S)
+        code = re.sub(r"//[^\n]*", "", code)
+        if "DamageLedger" not in code:
+            problems.append("DecisionSnapshot 没有读 DamageLedger —— 伤害事实进不了决策层（S-9 消费未接）")
+        elif '"damage"' not in code:
+            problems.append("DecisionSnapshot 没有 `\"damage\"` 节点 —— LLM 依旧看不见挨打")
+    return problems
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
@@ -255,6 +283,7 @@ def main() -> int:
     speech = rule_speech_channel()
     perm = rule_permission_service()
     death = rule_death_keeps_data()
+    dmg = rule_damage_observed()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -273,7 +302,9 @@ def main() -> int:
         print(f"[F3·请示答复] {line}")
     for line in death:
         print(f"[D1·死亡保留数据] {line}")
-    ok = not k4 and not k5 and not s8 and not walk and not prog and not risk and not speech and not perm and not death
+    for line in dmg:
+        print(f"[S9·伤害可见] {line}")
+    ok = not k4 and not k5 and not s8 and not walk and not prog and not risk and not speech and not perm and not death and not dmg
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(prog)} / 风险画像未接={len(risk)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1 —— 见各规则头部的注释）")

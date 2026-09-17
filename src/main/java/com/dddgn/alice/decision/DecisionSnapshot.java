@@ -196,6 +196,21 @@ public final class DecisionSnapshot {
         JsonObject world = new JsonObject();
         world.addProperty("pendingTemporaryBlocks", pendingTemp);
         root.add("worldMod", world);
+
+        // **S-9 消费（D-277）**：**伤害按事件观测**的实事交给决策层。
+        // 为什么必须这样：`getHealth()` 的净变化会被 Alice 的无条件回血（+1HP/20t）抹平
+        // ⇒ "这段时间挨了几下、多重"从血量里读不出来（D-261/D-271 实测）；台账来自 `LivingDamageEvent`，仍然准。
+        // 口径：`windowTicks` 窗口内（不是全程累计），只读遥测 —— **不改任何维生/任务行为**。
+        int window = 200;
+        JsonObject damage = new JsonObject();
+        damage.addProperty("windowTicks", window);
+        damage.addProperty("hits", com.dddgn.alice.survival.DamageLedger
+                .hitsSince(bot, bot.getServer().getTickCount() - window));
+        damage.addProperty("total", com.dddgn.alice.survival.DamageLedger
+                .totalSince(bot, bot.getServer().getTickCount() - window));
+        damage.addProperty("lastSource", com.dddgn.alice.survival.DamageLedger.of(bot).lastSource());
+        damage.addProperty("lastTick", com.dddgn.alice.survival.DamageLedger.of(bot).lastTick());
+        root.add("damage", damage);
         return root;
     }
 
