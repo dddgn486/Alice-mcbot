@@ -19,3 +19,4 @@ task/craft/InventoryCraft.java,menu-protocol,no,,边界：网格/结果槽点击
 task/craft/StationProvision.java,gated,yes,,装配/取回升级：容器写入的原始挂点（G5/A11 同源维度）；**原语层亦已编译期强制**（R5-残 收口 2026-09-16：`click` 形参必带 `WriteGrant`，本文件内统一用 `STATION_PROVISION`）
 task/craft/TableCraft.java,menu-protocol,no,,只开工作台菜单（合成格在菜单里，不是方块容器）；调用 `InventoryCraft.craft` 时已交出 `CRAFT_GRID` 授权（编译期强制，R5-残 收口）
 transfer/ChestBotTransferPrimitive.java,primitive-isolation,no,task/TransferTask.java,capability 直写原语（insertItem/extractItem）；生产路径 TransferTask 过闸后才调它，夹具路径见 TransferFixture 的边界条目
+task/ContainerAccessProfileCheckTask.java,menu-protocol,no,,画像判据夹具：**只发一次开箱请求并立刻收尾**（不搬物品）；默认允许时可能真的打开菜单，但本步不读/写任何槽位（D-291）
