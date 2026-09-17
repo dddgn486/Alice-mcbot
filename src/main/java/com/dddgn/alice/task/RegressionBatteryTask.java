@@ -483,16 +483,8 @@ public final class RegressionBatteryTask implements Task {
                 () -> teleportBot(HazardAversionCheckTask.START),
                 () -> new HazardAversionCheckTask(bot),
                 200));
-        steps.add(step("container_access_profile",
-                List.of("alice_test:ore_course_terrain"),
-                () -> teleportBot(OreCourseAnchor.START_FOOT),
-                () -> new ContainerAccessProfileCheckTask(bot),
-                120));
-        steps.add(step("driver_label",
-                List.of("alice_test:ore_course_terrain"),
-                () -> teleportBot(OreCourseAnchor.START_FOOT),
-                () -> new DriverLabelCheckTask(bot, observer),
-                120));
+        // ---- 模块化（R-2 Phase 1b）：**决策/观测/归因模块**从 `DecisionModule` 取 ----
+        steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.DecisionModule().steps(checkContext())));
         // ---- 模块化（R-2 Phase 1b）：**移动模块**（fall/pillar/contrast 三步）从 `PathingModule` 取 ----
         steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.PathingModule().steps(checkContext())));
         steps.add(step("death_persistence",
@@ -505,21 +497,6 @@ public final class RegressionBatteryTask implements Task {
                 () -> teleportBot(OreCourseAnchor.START_FOOT),
                 () -> new SpeechChannelCheckTask(bot, observer),
                 60));
-        steps.add(step("risk_profile_frozen",
-                List.of("alice_test:ore_course_terrain"),
-                () -> teleportBot(OreCourseAnchor.START_FOOT),
-                () -> new RiskProfileCheckTask(bot, observer),
-                60));
-        steps.add(step("damage_event_visible",
-                List.of("alice_test:ore_course_terrain"),
-                () -> teleportBot(OreCourseAnchor.START_FOOT),
-                () -> new DamageEventVisibilityCheckTask(bot, observer),
-                200));
-        steps.add(step("mine_failure_visible",
-                List.of("alice_test:ore_course_terrain"),
-                () -> teleportBot(OreCourseAnchor.START_FOOT),
-                () -> new MineFailureVisibilityCheckTask(bot, observer),
-                700));
         steps.add(new Step("mine_stale",
                 List.of("alice_test:ore_course_terrain"),
                 () -> {

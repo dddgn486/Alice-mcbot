@@ -307,7 +307,7 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 - **客户端**：`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（日志 `logs/latest.log`）。
 - **镜像 / 同步**：`./tools/mirror-windows-workspace.sh`；
   `./tools/sync-windows-artifact.sh build/libs/alice-1.0.0-1.20.1.jar /mnt/d/JAVA_projects/alice "<客户端>/mods"`。
-- **本断点已同步的 jar**：文件 `eaf99f17fd1b283d1bd5218e9b4b0b3a7d02c84a885979692685e680b9bd3c11`、**内容摘要 `c7d705a1e74a7493d8dbdcc76263192822f970aef287b17fa631a11e3bb50db3`（761 条目，含 R-2 v1 + pathing 模块）**（2026-09-17；⚠️ **jar 不可字节复现** ⇒ 判「客户端是不是这版」只能用内容摘要：`tools/jar-content-hash.sh --compare <构建产物> <客户端 mods 里的 jar>`；文件哈希只表示「当时同步的是这个文件」）（**含 D-226…D-277 + 队列①②③④⑤⑦ + S-6/S-9(观测+消费) + F1/F2/F3/F4 + 死亡第 1 步(端到端已验)**，客户端与 Windows 仓库内容一致；门禁 **16 PASS + 1 预期 WARN**；CORE **48 步** / FULL **58** 项
+- **本断点已同步的 jar**：文件 `eaf99f17fd1b283d1bd5218e9b4b0b3a7d02c84a885979692685e680b9bd3c11`、**内容摘要 `659dd6cfd57300133fe5d7d03dea6137fb5c3d8be72b371368615669e754ac05`（761 条目，含 R-2 第 2 个分类模块）**（2026-09-17；⚠️ **jar 不可字节复现** ⇒ 判「客户端是不是这版」只能用内容摘要：`tools/jar-content-hash.sh --compare <构建产物> <客户端 mods 里的 jar>`；文件哈希只表示「当时同步的是这个文件」）（**含 D-226…D-277 + 队列①②③④⑤⑦ + S-6/S-9(观测+消费) + F1/F2/F3/F4 + 死亡第 1 步(端到端已验)**，客户端与 Windows 仓库内容一致；门禁 **16 PASS + 1 预期 WARN**；CORE **48 步** / FULL **58** 项
 - **重验证（发布前/大改后）**：`tools/module-selftest.sh` —— 逐模块**单独跑**，全 PASS 才算过（R-2 验收，D-294 ✓））**含 D-226…D-277 + 队列①②③④⑤⑦ + S-6/S-9(观测+消费) + F1/F2/F3/F4 + 死亡第 1 步(端到端已验)**，客户端与 Windows 仓库同哈希；门禁 **16 PASS + 1 预期 WARN**；CORE **43 步** / FULL **52** 项）
 - 上一版（含步名门禁 SH-P1）：`3ac006f9c791d689fd28ee46101be77a55419788c601fbba719ea76c74d9b666`
 **含 D-226…D-277 + 队列①②③④⑤⑦ + S-6/S-9(观测+消费) + F1/F2/F3/F4 + 死亡第 1 步 + 步名门禁 SH-P1**，客户端与 Windows 仓库同哈希；门禁 **16 PASS + 1 预期 WARN**（新增 SH-P1）；CORE **43 步** / FULL 51 项）

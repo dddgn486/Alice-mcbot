@@ -1,6 +1,7 @@
 package com.dddgn.alice.task.check;
 
 import com.dddgn.alice.task.check.modules.HarnessSelfModule;
+import com.dddgn.alice.task.check.modules.DecisionModule;
 import com.dddgn.alice.task.check.modules.LedgerModule;
 import com.dddgn.alice.task.check.modules.PathingModule;
 
@@ -18,7 +19,8 @@ public final class CheckModules {
     private static final List<CheckModule> ALL = List.of(
             new LedgerModule(),
             new HarnessSelfModule(),
-            new PathingModule()
+            new PathingModule(),
+            new DecisionModule()
     );
 
     private CheckModules() {

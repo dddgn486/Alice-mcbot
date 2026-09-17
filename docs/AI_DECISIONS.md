@@ -11609,3 +11609,21 @@ module=ledger → PASS（期望 PASS ✓）
 ```
 **验收脚本全绿**：`[module-selftest] PASS 3/3：harness_self ledger pathing` ✓
 （`harness_self` 按其声明期望 `FAIL` ✓；`ledger`/`pathing` 期望 `PASS` ✓）。
+
+### D-297：R-2 第二个分类模块 **`decision`（决策 / 观测 / 归因）**（2026-09-17）
+
+**搬了哪 5 步**（原内联定义已从电池删除 ✓，相对顺序保持不变 ✓）：
+`container_access_profile`（容器访问画像硬门 ✓）· `driver_label`（F1 归因 ✓）· `risk_profile_frozen`（S-6 画像冻结 ✓）
+· `damage_event_visible`（D-277 掉血可读 ✓）· `mine_failure_visible`（失败进事件环 ✓）。
+共同点：都是「**事实能不能被读到**」的判据 ⇒ 归一类 ✓；共用 `ore_course_terrain` 场景与同一起点 ✓。
+
+**实测 `module:decision` 单独跑（41 秒）**：5/5 PASS ✓
+```
+[H] step=damage_event_visible PASS ticks=131 detail=done
+[H] step=mine_failure_visible  PASS ticks=76  detail=done
+[H] SUMMARY module=decision steps=5 failures=0 [] → PASS
+```
+
+**⭐ 一条重要的迁移口径（本片确认，写进纪律）**：**验收单位是"模块"，不是"单步"** ✓
+—— 用户原话是「**一个模块**保证可以单独测」✓，所以模块**内部**允许"第 N 步依赖第 N−1 步留下的现场" ✓
+（如 craft 链的工作站 ✓），只要**整个模块**不依赖其它模块 ✓。这让搬运不必把每条依赖都拆平 ✓。
