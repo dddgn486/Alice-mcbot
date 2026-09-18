@@ -499,8 +499,20 @@ public final class BlockInteraction {
                     pos.toShortString(), grant.describe(), refusal);
             return false;
         }
-        WriteAudit.breakWrite(level, pos, level.getBlockState(pos), grant);
-        level.destroyBlock(pos, dropItems, bot);
+        BlockState before = level.getBlockState(pos);
+        boolean destroyed = level.destroyBlock(pos, dropItems, bot);
+        BlockState after = level.getBlockState(pos);
+        // ⭐ D-323：与单方块破坏会话同一条判据 —— **世界没变就不算破坏过**（同样不许谎报成功）。
+        // 边界：`before` 本来就是空气（道路施工重复扫到空格）时 `destroyBlock` 返回 false 但**不算拒绝**
+        // （幂等成功）——那是"无事可做"，不是"被拦下"。
+        if (after == before && !before.isAir()) {
+            BotLog.warn("[WRITE-REFUSED] bulk_break pos={} by={} reason=world_unchanged"
+                            + "（destroyBlock={} 方块仍是 {}）",
+                    pos.toShortString(), grant == null ? "-" : grant.describe(), destroyed,
+                    before.getBlock().getName().getString());
+            return false;
+        }
+        WriteAudit.breakWrite(level, pos, before, grant);
         return true;
     }
 }

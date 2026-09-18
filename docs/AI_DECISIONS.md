@@ -12579,3 +12579,48 @@ HashMap 的迭代器只在 `nextNode()` 里查 `modCount` ⇒ 新增的键落进
   （候选：注入那一 tick 里**另有一次采样**把 `previousHealth` 直接写成 18 ⇒ 边缘从未存在）。
 - ⚠️ 与 `D-322` 的因果关系**未证实也未排除**：`D-322` 的快照改动最多能移动 tick 对齐
   （`survival_exit` 在步序上早于 `bot_ownership`，FTB 代码不在它的路径上）。
+
+### D-323：被拒绝的破坏**不许记成成功** —— 真机发现（FTB 拦下而我们全绿）+ 世界事实判定 + 先红后绿的离线门 2026-09-18
+
+**现象（用户，权威）**：`/alice ftb bind` 之后「**在一个队伍可以挖领地内的方块，脱离队伍就不行**」。
+
+**日志与存档冲突 ⇒ 以**存档**为准（我没有拿日志当结论，也没有拿"按代码应该"当结论）**：
+- 客户端会话（`latest.log` 22:13:44–22:16:51）：22:15:40 `bind`（FTB 自己的回话 `dddgn has joined your party!` /
+  `Invited tango` / `tango has joined your party!`）→ 用户 22:16:21–22 **认领 4 个区块**（`(1,13)(1,14)(2,13)(2,14)`）
+  → 22:16:24–25 **在队时**挖掉 2 格 → 22:16:33 `unbind`（`Player tango left your party!` /
+  `Player dddgn left your party!` + `Team dddgn#902b9056 had 0 claimed chunks, now has 4` ⇒ FTB 把认领**还回个人队**，
+  `ftbteams/party/*.snbt` 进 `deleted/`）→ 22:16:34–40 **退队后**又"挖掉" 4 格。
+- **存档事实**（我直接读 region 文件核实，脚本 `/tmp/probe_region.py`）：在队那 2 格 `31,63,220`/`30,63,220` 是 **`air`**；
+  退队那 4 格 `31,63,217`/`30,63,218`/`30,63,219`/`28,63,220` **全是 `minecraft:dirt`**。
+- 而我们对那 4 格打了 `block_break_done` + `task_execution_terminal … terminal=COMPLETED` + `WriteBudget breaks=1/64`。
+⇒ **用户看到的才是指标；我们的完成条件根本没读世界**。
+
+**根因**：`action/BlockBreakSession.java:106` 调 `bot.gameMode.destroyBlock(pos)` 时**丢弃返回值**，随后**不验证方块是否真的变了**
+就 `status = DONE` + 打 `block_break_done`；`action/MineBlockRunner.java:239-243` 只信这个 DONE ⇒ 一路传到任务终态。
+任何"取消破坏"的来源（FTB 认领 / 别的保护模组 / 事件层取消 / 冒险模式限制）都会被记成成功；
+决策层因此**拿不到失败码**（`D-318` 当时问的"bot 被拦时日志长什么样"，答案是：**什么都没记**），写预算也记了一笔假账。
+
+**修（最小语义变更：把"完成"交回世界事实）**：
+- `BlockBreakSession`：破坏前后各取一次状态，**按方块对象身份**比较（`BlockState` 每个状态只有一个实例；破坏后留下水 /
+  另一半高草这类"换成了别的状态"仍算成功 ✓）；没变 ⇒ `fail("REFUSED")`（上游组合成 `BREAK_REFUSED`），
+  并按**既有**口径留痕：`[WRITE-REFUSED] break pos=… by=BlockBreakSession reason=world_unchanged（destroyBlock=… 方块仍是 …）`
+  —— 这样"我们自己拦的"与"别人拦的"在同一处、同一形状出现，"一眼分清"这件事不用再猜。
+- `BlockInteraction.breakForBulkEdit`（道路施工的批量破坏）：同一条判据；边界 = `before` 本来就是空气 ⇒ **不算拒绝**（幂等成功），
+  审计记录移到"确实写了"之后。
+
+**离线门（`break_refused`，MAIN 进 CORE；判据读**方块**不读日志）**：
+① **对照**：生存模式挖掉自己放的泥土 ⇒ 必须 `DONE` 且方块**真的变空气**（防"永远红"）；
+② **冒险模式**（空手 ⇒ 原版 `blockActionRestricted` 拦下）⇒ 必须 `FAILED`/`REFUSED` 且方块**原地不动**（不依赖任何模组）；
+③ **FTB 认领**（另一队的假人 `/ftbchunks claim`）⇒ 同样必须 `FAILED`/`REFUSED` 且方块不动（**用户真机同因**）；
+   FTB 不在场 ⇒ 整组 `ftb=skip`；④ 自清理（目标格还原 / 模式还原 / 撤认领 / 拆探针 / 会话 bot 记录写回）。
+**实测（先红后绿）**：修前 `verdict=FAIL` —— ②③ 都报 `status=DONE 失败码=`（**假成功**），而"方块仍在"两条判据**过了**
+（正是"方块没动却被记成成功"）；修后 `PASS`（`checks=14 failures=0`，`对照=- 冒险=REFUSED FTB=REFUSED ftb=ran`），
+日志里两条 `[WRITE-REFUSED] … reason=world_unchanged（destroyBlock=false 方块仍是 Dirt）`；CORE **51/51（ticks=4800）**。
+
+**验证等级**：`COMPILES` ✅ · `SERVER_TESTED` ✅（先红后绿 + CORE 51/51）。⚠️ **`WINDOWS_CLIENT` 待做**：
+在客户端里再被 FTB 拦一次 ⇒ 日志应出现 `[WRITE-REFUSED] … reason=world_unchanged`，任务应报 `BREAK_REFUSED` 失败（**而不是** done）。
+
+**边界**：① 修的是"**报告**够不够诚实"，不是"能不能挖"（权限仍由 FTB 决定）；② 被拒绝仍按既有口径标 `retryable=true`
+⇒ 会在预算内重试几次再失败（保守：不擅自改重试语义；若要"被保护就不重试"另开一条）；③ **镜像问题已登记未修**：
+`BlockInteraction.placeForBulkEdit` 与 `RegionLumberJob:502` 走**裸 `setBlock`** ⇒ FTB 的 `BlockEvent.PLACE` 根本看不到
+（我们自己的保护区闸门仍在）。

@@ -1,5 +1,6 @@
 package com.dddgn.alice.task.check;
 
+import com.dddgn.alice.task.check.modules.BreakRefusedModule;
 import com.dddgn.alice.task.check.modules.ContractsModule;
 import com.dddgn.alice.task.check.modules.GatesModule;
 import com.dddgn.alice.task.check.modules.LlmModule;
@@ -52,7 +53,8 @@ public final class CheckModules {
             new WriteModule(),
             new ContractsModule(),
             new ProtectionModule(),
-            new OwnershipModule()
+            new OwnershipModule(),
+            new BreakRefusedModule()
     );
 
     private CheckModules() {

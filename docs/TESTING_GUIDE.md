@@ -400,7 +400,13 @@ claim 上限默认按"最大成员"算 ⇒ 不变）。所以它**不在 spawn �
 4. `/alice ftb status` 再看 ⇒ 每只假人 `与你的关系=**同队**`；
 5. `/alice ftb unbind` ⇒ `假人 … 退伙 ✓` + `你自己退队 ✓` ⇒ 再 `status` ⇒ 回到 `不同队`（FTB GUI 里那个队也没了）；
 6. ⚠️ **眼睛看的才算**（日志证明不了）：FTB 的队伍 GUI / 地图上**看到什么**、假人到底能不能在你的领地里放/破方块。
+   **本轮结论（用户 2026-09-18 实测 ✓）**：`bind` 之后**在队里能挖领地内的方块、退队就不行** ⇒ `D-321` 的
+   队伍/权限那半成立（`WINDOWS_CLIENT` + `USER_ACCEPTED`）。
 7. 未登记的假人 ⇒ `bind` 会**拒绝**并让你先 `/alice adopt <名字>`（不静默补主）。
+8. ⭐ **同一轮实测暴露的缺陷（`D-323`，已修）**：退队后那 4 次"挖不动"，**我们当时全记成了成功**
+   （`block_break_done` + `COMPLETED`，而存档里那 4 格还是泥土）。现在**被拦下的破坏必须留下**：
+   日志 `[WRITE-REFUSED] break pos=… reason=world_unchanged（destroyBlock=false 方块仍是 …）`、
+   任务终态 `BREAK_REFUSED`。⇒ 复测时**别再只看"有没有 done"**，要同时看这两行在不在。
 
 ---
 

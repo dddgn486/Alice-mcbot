@@ -1,0 +1,381 @@
+package com.dddgn.alice.task;
+
+import com.dddgn.alice.action.BlockBreakSession;
+import com.dddgn.alice.bot.BotManager;
+import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.compat.ftbteams.FtbCommandRunner;
+import com.dddgn.alice.compat.ftbteams.FtbTeamsBridge;
+import com.dddgn.alice.log.BotLog;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * **被拒绝的破坏不许被记成成功**自检（`D-323`）—— 电池步 `break_refused`。
+ *
+ * <p><b>为什么有这一步（真机发现，2026-09-18）</b>：用户第一次用 FTB 队伍联动实测时看到
+ * "在队里能挖领地内的方块、退队就不行"——**观感是对的，而我们的日志是错的**：退队后 4 次破坏
+ * （`31,63,217` / `30,63,218` / `30,63,219` / `28,63,220`，全在玩家的认领区块内）都打了
+ * `block_break_done` + `MineTask terminal=COMPLETED` + `WriteBudget breaks=1/64`，
+ * 而**存档里那 4 格仍是 `minecraft:dirt`**。根因 = `BlockBreakSession` 在 `gameMode.destroyBlock(...)`
+ * 之后**不验证世界事实**就宣布 DONE（返回值也丢了）⇒ 任何"取消破坏"的来源（FTB 认领、别的保护模组、
+ * 事件层取消）都会被记成成功，决策层连一个失败码都拿不到。
+ *
+ * <p><b>这一步钉住的四条事实</b>（世界是唯一真相，全部读方块而不是读日志）：
+ * <ol>
+ *   <li><b>对照（防"永远红"）</b>：普通生存模式挖一块自己放的泥土 ⇒ 必须 `DONE` 且方块**真的变空气**；</li>
+ *   <li><b>确定性负例（不依赖任何模组）</b>：切到**冒险模式**（空手 ⇒ 原版 `blockActionRestricted` 拦下）
+ *       ⇒ 必须 `FAILED` + 失败码 `REFUSED` + 方块**原地不动**；</li>
+ *   <li><b>真机同因（FTB 在場时）</b>：让一只**别的队伍**的假人认领这一区块（`/ftbchunks claim`），
+ *       会话假人再去挖 ⇒ 同样必须 `FAILED` + `REFUSED` + 方块不动。⚠️ 这条**自带前提校验**：
+ *       若认领没生效，方块就会被挖掉 ⇒ 判据自己变红（不会假绿）；FTB 不在场 ⇒ 整组 `ftb=skip`；</li>
+ *   <li><b>自清理</b>：目标格还原、游戏模式还原成生存、认领撤销、探针拆掉。</li>
+ * </ol>
+ *
+ * <p>目标格是**现场选的**（同区块的邻格 + 空气 + 可触及），进入前记下原状、结束时精确还原
+ * ——夹具自己摆起点与收尾，不依赖前序步骤把哪块地留成什么样。
+ */
+public final class BreakRefusedCheckTask implements Task {
+
+    /** 三个用例各约 50 tick（手挖泥土）+ 余量。 */
+    private static final int BUDGET_TICKS = 600;
+
+    /** 单个用例的破坏上限：手挖泥土实测 ≈50 tick，给到 120 足够（超时也能区分"挖不动"与"被拒绝"）。 */
+    private static final int CASE_BREAK_TICKS = 120;
+
+    private static final String PROBE_NAME = "ClaimProbe";
+
+    /** 固定 UUID ⇒ 每轮复用同一个 FTB 身份（不堆个人队文件）。 */
+    private static final UUID PROBE_UUID =
+            UUID.nameUUIDFromBytes("alice-claim-probe".getBytes(StandardCharsets.UTF_8));
+
+    private enum Phase { GUARD, CONTROL, ADVENTURE, FTB_CLAIM, CLEANUP, DONE }
+
+    private final BotPlayer bot;
+    private final ServerPlayer observer;
+    private final List<String> failures = new ArrayList<>();
+
+    private Phase phase = Phase.GUARD;
+    private int ticks;
+    private int checks;
+    private boolean done;
+
+    /** 现场选定的目标格 + 它进入前的样子（收尾精确还原）。 */
+    private BlockPos target;
+    private BlockState targetBefore;
+
+    private BlockBreakSession session;
+    private int caseTicks;
+    private String caseLabel = "";
+
+    private BotPlayer probe;
+    private boolean probeClaimed;
+    private String ftbSkipReason = "";
+    private String controlCode = "";
+    private String adventureCode = "";
+    private String ftbCode = "";
+
+    public BreakRefusedCheckTask(BotPlayer bot, ServerPlayer observer) {
+        this.bot = bot;
+        this.observer = observer;
+    }
+
+    @Override
+    public String taskName() {
+        return "BreakRefusedCheck";
+    }
+
+    @Override
+    public TaskTarget target() {
+        return bot == null ? TaskTarget.block(BlockPos.ZERO) : TaskTarget.block(bot.blockPosition());
+    }
+
+    @Override
+    public String failureReason() {
+        return String.join(" | ", failures);
+    }
+
+    @Override
+    public String terminalReason() {
+        return done ? (failures.isEmpty() ? "passed" : "failed") : "";
+    }
+
+    @Override
+    public Task.Status tick() {
+        if (done) {
+            return failures.isEmpty() ? Task.Status.DONE : Task.Status.FAILED;
+        }
+        if (++ticks > BUDGET_TICKS) {
+            check("自检必须在预算内跑完（" + BUDGET_TICKS + " tick）", false);
+            return finish();
+        }
+        switch (phase) {
+            case GUARD -> guardPhase();
+            case CONTROL -> controlPhase();
+            case ADVENTURE -> adventurePhase();
+            case FTB_CLAIM -> ftbClaimPhase();
+            case CLEANUP -> cleanupPhase();
+            case DONE -> {
+                return finish();
+            }
+            default -> {
+            }
+        }
+        return Task.Status.RUNNING;
+    }
+
+    // ==================== 阶段 ====================
+
+    /** 前提 + 现场选目标格（同区块、空气、可触及），并记下原状用于还原。 */
+    private void guardPhase() {
+        check("前提：本步需要一只会话假人", bot != null);
+        check("前提：本步需要观察者玩家（报告要发给一个人看）", observer != null);
+        if (bot == null || observer == null) {
+            advance(Phase.DONE);
+            return;
+        }
+        ServerLevel level = bot.serverLevel();
+        bot.controller().stopMovement();
+        bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+
+        target = pickTarget();
+        check("前提：找到一格可用的目标（同区块 / 当前是空气 / 够得着）（实际 "
+                        + (target == null ? "无" : target.toShortString()) + "）",
+                target != null);
+        if (target == null) {
+            advance(Phase.CLEANUP);
+            return;
+        }
+        targetBefore = level.getBlockState(target);
+        check("前提：目标格起点是空气（下面每例都自己放方块，不影响现场）（实际 "
+                + targetBefore.getBlock().getName().getString() + "）", targetBefore.isAir());
+        advance(Phase.CONTROL);
+    }
+
+    /** ① 对照：普通生存模式挖掉自己放的泥土 ⇒ 必须真成功（否则后面的"被拒绝"判据没有意义）。 */
+    private void controlPhase() {
+        if (caseTicks == 0) {
+            caseLabel = "对照（生存模式）";
+            placeTarget();
+            session = BlockBreakSession.begin(bot, bot.serverLevel(), target);
+            caseTicks = 1;
+            return;
+        }
+        if (!tickCase()) {
+            return;
+        }
+        BlockState now = bot.serverLevel().getBlockState(target);
+        controlCode = codeOf(session);
+        check("① 对照：生存模式必须**真挖掉**（status=" + statusOf(session) + " 失败码=" + controlCode
+                        + " 方块现在=" + now.getBlock().getName().getString() + "）",
+                session.status() == BlockBreakSession.Status.DONE && now.isAir());
+        advance(Phase.ADVENTURE);
+    }
+
+    /** ② 确定性负例：冒险模式（空手 ⇒ 原版限制）⇒ 必须明确失败且方块原地不动。 */
+    private void adventurePhase() {
+        if (caseTicks == 0) {
+            caseLabel = "负例（冒险模式）";
+            clearTarget();
+            placeTarget();
+            bot.gameMode.changeGameModeForPlayer(GameType.ADVENTURE);
+            session = BlockBreakSession.begin(bot, bot.serverLevel(), target);
+            caseTicks = 1;
+            return;
+        }
+        if (!tickCase()) {
+            return;
+        }
+        BlockState now = bot.serverLevel().getBlockState(target);
+        adventureCode = codeOf(session);
+        check("② ⭐ 冒险模式必须**被拒绝**：status=" + statusOf(session) + " 失败码=" + adventureCode
+                        + "（期望 FAILED/REFUSED）",
+                session.status() == BlockBreakSession.Status.FAILED && "REFUSED".equals(adventureCode));
+        check("② ⭐ 被拒绝时**方块必须原地不动**（这就是「不许把没发生的事记成成功」的世界事实）"
+                        + "（实际 " + now.getBlock().getName().getString() + "）", !now.isAir());
+        bot.gameMode.changeGameModeForPlayer(GameType.SURVIVAL);
+        advance(Phase.FTB_CLAIM);
+    }
+
+    /** ③ 真机同因：别人认领的区块（FTB）——同一个判据，但由模组来拦。 */
+    private void ftbClaimPhase() {
+        if (caseTicks == 0) {
+            caseLabel = "负例（FTB 认领）";
+            if (!FtbTeamsBridge.available() || !FtbCommandRunner.hasCommandRoot(bot, "ftbchunks")) {
+                ftbSkipReason = FtbTeamsBridge.available() ? "ftbchunks_absent" : FtbTeamsBridge.unavailableReason();
+                BotLog.warn("[BreakRefused] FTB 认领用例跳过：{}（本组判据不成立，不假绿也不假红）", ftbSkipReason);
+                advance(Phase.CLEANUP);
+                return;
+            }
+            probe = findOrSpawnProbe();
+            check("③ 前提：另一只假人已就位（它来当「认领者」）（实际 "
+                    + (probe == null ? "null" : probe.getName().getString()) + "）", probe != null);
+            if (probe == null) {
+                ftbSkipReason = "probe_spawn_failed";
+                advance(Phase.CLEANUP);
+                return;
+            }
+            FtbCommandRunner.Outcome claim = FtbCommandRunner.runAs(probe, "ftbchunks claim");
+            probeClaimed = claim.ok();
+            BotLog.info("[BreakRefused] 探针 {} 认领所在区块：ok={} {}", probe.getName().getString(),
+                    probeClaimed, claim.text());
+            check("③ 前提：探针所在区块认领成功（这格正是我们的目标格所在区块）", probeClaimed);
+            if (!probeClaimed) {
+                advance(Phase.CLEANUP);
+                return;
+            }
+            clearTarget();
+            placeTarget();
+            session = BlockBreakSession.begin(bot, bot.serverLevel(), target);
+            caseTicks = 1;
+            return;
+        }
+        if (!tickCase()) {
+            return;
+        }
+        BlockState now = bot.serverLevel().getBlockState(target);
+        ftbCode = codeOf(session);
+        boolean sameTeam = probe != null && FtbTeamsBridge.sameTeam(bot, probe);
+        check("③ 前提：会话假人与认领者**不同队**（否则这条判据是假绿）（实际 sameTeam=" + sameTeam + "）",
+                !sameTeam);
+        check("③ ⭐ FTB 拦下的破坏必须**被拒绝**：status=" + statusOf(session) + " 失败码=" + ftbCode
+                        + "（期望 FAILED/REFUSED）",
+                session.status() == BlockBreakSession.Status.FAILED && "REFUSED".equals(ftbCode));
+        check("③ ⭐ 被 FTB 拒绝时方块必须原地不动（真机实测：退队后 4 格全是 dirt 而我们记了 done）"
+                        + "（实际 " + now.getBlock().getName().getString() + "）", !now.isAir());
+        advance(Phase.CLEANUP);
+    }
+
+    /** 自清理：目标格还原、模式还原、认领撤销、探针拆掉。 */
+    private void cleanupPhase() {
+        if (bot != null) {
+            ServerLevel level = bot.serverLevel();
+            if (target != null && targetBefore != null) {
+                level.setBlock(target, targetBefore, 3);
+                check("自清理：目标格还原成进入前的样子（" + targetBefore.getBlock().getName().getString() + "）",
+                        level.getBlockState(target).equals(targetBefore));
+            }
+            bot.gameMode.changeGameModeForPlayer(GameType.SURVIVAL);
+            bot.controller().stopMovement();
+        }
+        if (probe != null) {
+            if (probeClaimed) {
+                FtbCommandRunner.Outcome unclaim = FtbCommandRunner.runAs(probe, "ftbchunks unclaim");
+                BotLog.info("[BreakRefused] 探针撤销认领：ok={} {}", unclaim.ok(), unclaim.text());
+            }
+            BotManager.remove(probe);
+            check("自清理：认领探针已从玩家列表移除",
+                    bot == null || bot.getServer().getPlayerList().getPlayer(probe.getUUID()) == null);
+            // `remove` 会清掉世界存档里的 botTag ⇒ 把**会话 bot** 的记录写回去（否则会污染后续步/重启恢复）
+            BotManager.saveToWorld(bot);
+        }
+        advance(Phase.DONE);
+        finish();
+    }
+
+    // ==================== 工具 ====================
+
+    /** 推进当前用例的破坏会话；true = 该用例已结束。 */
+    private boolean tickCase() {
+        caseTicks++;
+        if (session == null) {
+            return true;
+        }
+        BlockBreakSession.Status status = session.tick();
+        if (status != BlockBreakSession.Status.IN_PROGRESS) {
+            return true;
+        }
+        if (caseTicks > CASE_BREAK_TICKS) {
+            BotLog.warn("[BreakRefused] 用例「{}」在 {} tick 内没有终态 ⇒ 计为失败", caseLabel, CASE_BREAK_TICKS);
+            return true;
+        }
+        return false;
+    }
+
+    /** 现场选目标：同区块的四个邻格里第一个"空气 + 够得着"的（保证 FTB 认领区块覆盖它）。 */
+    private BlockPos pickTarget() {
+        BlockPos foot = bot.blockPosition();
+        int chunkX = foot.getX() >> 4;
+        int chunkZ = foot.getZ() >> 4;
+        List<BlockPos> candidates = List.of(
+                foot.offset(1, 0, 0), foot.offset(-1, 0, 0), foot.offset(0, 0, 1), foot.offset(0, 0, -1));
+        for (BlockPos candidate : candidates) {
+            if ((candidate.getX() >> 4) != chunkX || (candidate.getZ() >> 4) != chunkZ) {
+                continue;   // 跨区块 ⇒ FTB 认领用例会失去前提
+            }
+            if (bot.serverLevel().getBlockState(candidate).isAir()
+                    && com.dddgn.alice.action.BlockInteraction.reachable(bot, candidate)) {
+                return candidate.immutable();
+            }
+        }
+        return null;
+    }
+
+    private void placeTarget() {
+        bot.serverLevel().setBlock(target, Blocks.DIRT.defaultBlockState(), 3);
+    }
+
+    private void clearTarget() {
+        bot.serverLevel().setBlock(target, Blocks.AIR.defaultBlockState(), 3);
+    }
+
+    /** 复用同名残留探针，否则新建（固定 UUID ⇒ 每轮同一个 FTB 身份）。 */
+    private BotPlayer findOrSpawnProbe() {
+        for (BotPlayer candidate : BotManager.getAllBots()) {
+            if (PROBE_NAME.equals(candidate.getName().getString())) {
+                return candidate;
+            }
+        }
+        return BotManager.spawn(bot.serverLevel(), bot.blockPosition(), PROBE_NAME, PROBE_UUID, null);
+    }
+
+    private static String statusOf(BlockBreakSession session) {
+        return session == null ? "无会话" : session.status().toString();
+    }
+
+    private static String codeOf(BlockBreakSession session) {
+        return session == null ? "" : session.failureCode();
+    }
+
+    private Task.Status finish() {
+        if (done) {
+            return failures.isEmpty() ? Task.Status.DONE : Task.Status.FAILED;
+        }
+        done = true;
+        boolean pass = failures.isEmpty();
+        BotLog.info("[BreakRefused] SUMMARY checks={} failures={} {} → {}（对照={} 冒险={} FTB={} ftb={}）",
+                checks, failures.size(), failures, pass ? "PASS" : "FAIL",
+                controlCode.isEmpty() ? "-" : controlCode,
+                adventureCode.isEmpty() ? "-" : adventureCode,
+                ftbCode.isEmpty() ? "-" : ftbCode,
+                ftbSkipReason.isEmpty() ? "ran" : "skip(" + ftbSkipReason + ")");
+        if (observer != null && !observer.hasDisconnected() && !observer.isRemoved()) {
+            observer.sendSystemMessage(Component.literal(
+                    "[alice] 破坏被拒自检 " + (pass ? "PASS" : "FAIL " + failures)));
+        }
+        return pass ? Task.Status.DONE : Task.Status.FAILED;
+    }
+
+    /** 进任何阶段都把用例计时清零（`caseTicks == 0` 是"本用例第一 tick"的信号）。 */
+    private void advance(Phase next) {
+        phase = next;
+        caseTicks = 0;
+        session = null;
+    }
+
+    private void check(String what, boolean ok) {
+        checks++;
+        if (!ok) {
+            failures.add(what);
+        }
+    }
+}

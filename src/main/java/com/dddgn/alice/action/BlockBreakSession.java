@@ -103,9 +103,21 @@ public final class BlockBreakSession {
 
         if (progress >= 1.0F) {
             BlockState before = level.getBlockState(pos);
-            bot.gameMode.destroyBlock(pos);
+            boolean destroyed = bot.gameMode.destroyBlock(pos);
             level.destroyBlockProgress(bot.getId(), pos, -1);
             BlockState after = level.getBlockState(pos);
+            // ⭐ D-323（2026-09-18 真机发现）：**世界没变 ⇒ 这次破坏没有发生**。
+            // 真机实测：FTB 认领拦下的 4 次破坏，我们全打了 `block_break_done` + `COMPLETED`，
+            // 而存档里那 4 格仍是 `minecraft:dirt` ⇒ 决策层拿不到任何失败码、写预算也记了一笔假账。
+            // 任何"取消破坏"的来源（FTB 认领 / 别的保护模组 / 事件层取消 / 冒险模式限制）都在这里现形。
+            // 判据用**方块对象身份**（`BlockState` 每个状态只有一个实例）：只要不是原来那个状态就算破坏发生
+            // （破坏后留下水/另一半高草这类"换了别的状态"也算成功 ✓）。
+            if (after == before) {
+                BotLog.warn("[WRITE-REFUSED] break pos={} by=BlockBreakSession reason=world_unchanged"
+                                + "（destroyBlock={} 方块仍是 {} —— 被保护层取消 / 未生效）",
+                        pos.toShortString(), destroyed, before.getBlock().getName().getString());
+                return fail("REFUSED");
+            }
             level.sendBlockUpdated(pos, before, after, 3);
             status = Status.DONE;
             BotLog.info("block_break_done bot={} pos={} ticks={}", bot.getName().getString(),

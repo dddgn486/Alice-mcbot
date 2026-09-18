@@ -225,7 +225,9 @@ public final class RegressionBatteryTask implements Task {
             // "权限看起来生效了其实没有"的形式出现在很远的地方；判据纯数据、约 5 tick（规则 1：新能力进 MAIN）。
             Map.entry("bot_ownership", Profile.MAIN),
             // **D-320**：双假人转发（EXTRA —— 会写世界存档、且失败形态是"服务端崩" ⇒ 不进 CORE）。
-            Map.entry("bot_pair_no_recurse", Profile.EXTRA));
+            Map.entry("bot_pair_no_recurse", Profile.EXTRA),
+            // D-323：破坏被拒（谎报成功）—— 真机发现 ⇒ 进 MAIN（每次 CORE 都验"不许把没发生的破坏记成成功"）
+            Map.entry("break_refused", Profile.MAIN));
 
     /** 归属表摘要（`/alice battery list` + 文档用）：按档位分组打印，一眼看清电池里有什么、为什么。 */
     public static List<String> curationSummary() {
@@ -487,6 +489,11 @@ public final class RegressionBatteryTask implements Task {
         // 只适合 `single:bot_pair_no_recurse` 单独跑；收尾会把会话 bot 的记录写回去。
         steps.add(step("bot_pair_no_recurse", List.of(), null,
                 () -> new BotPairNoRecurseCheckTask(bot, observer), 200));
+        // ---- D-323：**破坏被拒**门（1 步，MAIN：进 CORE）----
+        // 起因 = 真机实测：FTB 拦下的破坏被我们记成 `block_break_done` + `COMPLETED`，而存档里方块还在。
+        // 判据全部读**方块**而不是读日志（对照真成功 / 冒险模式被拒 / FTB 认领被拒 / 自清理）。
+        // ⚠️ 与 `bot_pair_no_recurse` 同类：会 spawn/remove 探针 ⇒ 收尾必须把会话 bot 的记录写回去。
+        steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.BreakRefusedModule().steps(checkContext())));
     }
 
     // ==================== 执行 ====================
