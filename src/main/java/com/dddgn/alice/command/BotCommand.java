@@ -349,6 +349,18 @@ public final class BotCommand {
                                 .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                         .executes(ctx -> removeArea(ctx.getSource(),
                                                 BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
+                        .then(Commands.literal("claim")
+                                .then(Commands.argument("chunkX", IntegerArgumentType.integer(-30000000, 30000000))
+                                        .then(Commands.argument("chunkZ", IntegerArgumentType.integer(-30000000, 30000000))
+                                                .executes(ctx -> claimChunk(ctx.getSource(),
+                                                        IntegerArgumentType.getInteger(ctx, "chunkX"),
+                                                        IntegerArgumentType.getInteger(ctx, "chunkZ"))))))
+                        .then(Commands.literal("unclaim")
+                                .then(Commands.argument("chunkX", IntegerArgumentType.integer(-30000000, 30000000))
+                                        .then(Commands.argument("chunkZ", IntegerArgumentType.integer(-30000000, 30000000))
+                                                .executes(ctx -> unclaimChunk(ctx.getSource(),
+                                                        IntegerArgumentType.getInteger(ctx, "chunkX"),
+                                                        IntegerArgumentType.getInteger(ctx, "chunkZ"))))))
                         .then(Commands.literal("add-block")
                                 .then(Commands.argument("id", StringArgumentType.string())
                                         .executes(ctx -> changeBlockRule(ctx.getSource(),
@@ -533,21 +545,52 @@ public final class BotCommand {
 
     private static int failure(CommandSourceStack source, String code) { source.sendFailure(Component.literal("[alice] transfer code=" + code)); return 0; }
 
+    /**
+     * 认领"该圆**所及**的全部区块"（2026-09-18 起形状 = 区块级 2D 认领，忽略 Y ⇒ 全高度；D-313）。
+     *
+     * <p>保留这条命令是为了兼容既有用法与"精确复现"；**面向用户的主入口是地图式勾选界面**（D-307 ①-入口）。
+     */
     private static int addArea(CommandSourceStack source, BlockPos center, int radius) {
-        SafeZoneData.get(source.getServer()).addArea(source.getLevel(), center, radius);
-        source.sendSuccess(() -> Component.literal("[alice] 已保护区域 " + center.toShortString()
-                + " 半径 " + radius + " (当前维度全高度)"), false);
+        SafeZoneData data = SafeZoneData.get(source.getServer());
+        int added = data.claimCircle(source.getLevel(), center, radius);
+        source.sendSuccess(() -> Component.literal("[alice] 已认领 " + added + " 个区块（" + center.toShortString()
+                + " 半径 " + radius + " 所及区块；忽略 Y ⇒ 全高度）；当前共 " + data.claimedChunkCount() + " 个区块"), false);
         return 1;
     }
 
+    /** 取消**包含该坐标的那个区块**的认领（区块级认领下"移除"必定是整块移除）。 */
     private static int removeArea(CommandSourceStack source, BlockPos center) {
-        int removed = SafeZoneData.get(source.getServer()).removeAreasAt(source.getLevel(), center);
-        if (removed == 0) {
-            source.sendFailure(Component.literal("[alice] 该坐标没有保护区域"));
+        SafeZoneData data = SafeZoneData.get(source.getServer());
+        int chunkX = center.getX() >> 4;
+        int chunkZ = center.getZ() >> 4;
+        if (!data.unclaimAt(source.getLevel(), center)) {
+            source.sendFailure(Component.literal("[alice] 该坐标所在区块未被认领: chunk " + chunkX + ", " + chunkZ));
             return 0;
         }
-        source.sendSuccess(() -> Component.literal("[alice] 已移除 " + removed + " 个保护区域: "
-                + center.toShortString()), false);
+        source.sendSuccess(() -> Component.literal("[alice] 已取消认领区块 " + chunkX + ", " + chunkZ
+                + "（当前共 " + data.claimedChunkCount() + " 个区块）"), false);
+        return 1;
+    }
+
+    /** 精确认领一个区块（管理员诊断 / 精确复现用；用户主入口是勾选界面）。 */
+    private static int claimChunk(CommandSourceStack source, int chunkX, int chunkZ) {
+        SafeZoneData data = SafeZoneData.get(source.getServer());
+        boolean changed = data.claim(source.getLevel(), chunkX, chunkZ);
+        source.sendSuccess(() -> Component.literal("[alice] " + (changed ? "已认领" : "本就已认领")
+                + " 区块 " + chunkX + ", " + chunkZ + "（忽略 Y ⇒ 全高度；当前共 "
+                + data.claimedChunkCount() + " 个区块）"), false);
+        return 1;
+    }
+
+    /** 精确取消一个区块的认领。 */
+    private static int unclaimChunk(CommandSourceStack source, int chunkX, int chunkZ) {
+        SafeZoneData data = SafeZoneData.get(source.getServer());
+        if (!data.unclaim(source.getLevel(), chunkX, chunkZ)) {
+            source.sendFailure(Component.literal("[alice] 区块未被认领: " + chunkX + ", " + chunkZ));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("[alice] 已取消认领区块 " + chunkX + ", " + chunkZ
+                + "（当前共 " + data.claimedChunkCount() + " 个区块）"), false);
         return 1;
     }
 

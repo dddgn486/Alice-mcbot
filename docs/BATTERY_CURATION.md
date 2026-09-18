@@ -19,7 +19,10 @@
 SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 **跳过多少、跑多少、各档几项**一眼可见；归属表与实跑项对不上（漏登记 / 文档说测了其实没测）**直接判红**。
 
-## 2. 当前归属表（46 项 → CORE 38 项）
+## 2. 当前归属表（59 项 → CORE 49 项）
+
+> 2026-09-18 校正：本节标题里的计数长期漂移（原写 46/38）⇒ 本次按 `RegressionBatteryTask.CURATION`
+> **逐条数了一遍**：BASELINE 15 + MAIN 34 + EXTRA 10 = **59**，CORE = **49**。
 
 > 2026-09-14 校正：本节此前写「34 项 → CORE 24 项」**已过期**（实际 = BASELINE 13 + MAIN 14 + EXTRA 10 = 37，CORE = 13+14 = 27，与客户端实测 `(27/27)` 一致）。
 > 加入 `write_policy`（BASELINE）后为 **38 / CORE 28**；加入 `machine_cycle`（MAIN）后为 **39 / CORE 29**；
@@ -42,7 +45,7 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 封闭场景四层前提自证、**真实着火** ⇒ 不否决 + `exit=none decision=continue`、脚位格口径回归（半砖）、
 出口真能走到、掉血 ⇒ `DANGER`（`delta=`）且不刷屏）
 
-### MAIN（23）—— 阶段 3-A（回退瘦身，保持完整）+ 阶段 3-B / S1+S2（机器只读）+ S4 + (c) 增量 2（机器写入：夹具 + 生产）
+### MAIN（34）—— 阶段 3-A（回退瘦身，保持完整）+ 阶段 3-B / S1+S2（机器只读）+ S4 + (c) 增量 2（机器写入：夹具 + 生产）
 `decision_contract`（③/策展：从 EXTRA 提到 MAIN —— 它自己的类注释写着"任何改动都跑得到"，
 而档位在 EXTRA ⇒ CORE 跑不到；200 tick、纯逻辑、不调 LLM、不改世界 ⇒ 与 M1/M2/M4 三次提档同一理由）、
 `mine_no_tool`（M3：缺工具必须报 `tool_missing`，不许被总括码盖掉）、
@@ -64,12 +67,18 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 判据 = `CraftJob` 终态 COMPLETED + 背包里目标物真的 +1 + 机器路线事实里 `walk_state=DONE`/`product_landed=true`/
 `machine_emptied=true`。**不补电**（没电 ⇒ `machine_no_energy`，D-216 红线①，门禁机械保证）；机器不在 ⇒ SKIP）
 
+`protection_zones`（**设计线 · 保护区（D-313，2026-09-18）**：`SafeZoneData` 从"水平圆形半径"改成 ⭐ **区块级 2D 认领**
+（忽略 Y ⇒ 覆盖全高度；旧格式自动迁移 + 计数可查，不静默丢）⇒ 断言"认领的区块**全高度**拒绝 / 取消即时生效 /
+单一安全入口 `BlockBreakSafety` 两条策略都看得到 / `save→load` 往返 / 迁移换算 = **与该圆相交即认领**（期望值在夹具里独立算）/
+黑名单回归 + **自清理**（认领与规则都会持久化 ⇒ 收尾必须复原并断言）"。纯查询、不写方块、不传送、不生成区块 ⇒ 成本≈0
+（约 10 tick）；**追加在步表末尾** ⇒ 既有 48 步次序一个格子都不动 ✓）
+
 > **为什么退回来了**：2026-09-13 实测——把其中 8 项移出 CORE 后，`craft_furnace`/`craft_cooking`/`transfer`
 > **可复现地变红**（重启客户端后仍红），而它们在 FULL（35 项）里**全绿** ⇒ 撤走的是它们的**隐含前置/清场**。
 > **瘦身的前提**是"每个夹具自己显式自证前提、顺序无关"；该前提未落地前不允许再减 CORE 项。
 > 恢复路径：先做"显式自证前提"（菜单身份/位置/方块实体状态/账本与归因时间窗）⇒ 再**逐条**撤，**每条复跑一次**。
 
-### EXTRA（9）
+### EXTRA（10）
 `lumber_failure`、`region_maintain`（区域常驻 Job，耗时）、`decision_contract`、`decision_trace`、
 `permission_gate`、`pickup_gate`、`collect_job`、`recipes_dump`、`event_thresholds`
 
@@ -146,3 +155,4 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 | 2026-09-18 | **48** | **58** | **R-2 第九个模块 `death`（D-309，2 步）**：`death_persistence`(MAIN) + `death_kill_bot`(EXTRA) 内联定义已删；`module:death` 单跑 **2/2**（`DeathPersistence checks=9` + `DeathE2E checks=6`，均 `failures=0`）、CORE **48/48** ✓、`module-selftest` **3/3**（本批 death+transfer+survival）✓。⭐⭐ **本片的新形状：模块落点必须选"保住 CORE 步序"的那一侧** —— 原电池里 `death_persistence`（MAIN，CORE 跑）在第 **8** 位、`death_kill_bot`（EXTRA，CORE 不跑）在第 **4** 位，**中间隔着 `hazard_aversion_plan` + 整个 `decision` 模块 + `pathing` 模块** ⇒ 一个模块只能落一个位置，"两边都原位"做不到 ⇒ 取代价最小侧：**模块插在 `death_persistence` 原位**（CORE 步序**逐字不变** ✓），只把 `death_kill_bot` 挪过去（EXTRA ⇒ CORE 不跑，且其注释写明"只适合 `single:` 单独跑"）。⚠️ 反过来（"先杀后验"插在第 4 位）会让 `death_persistence` 在 CORE 里**提前 3 个模块** = 未证明的顺序变更（D-302：顺序也是行为，且 CORE 会**蒙对**）|
 | 2026-09-18 | **48** | **58** | **R-2 第十个模块 `tools`（D-310，1 步）**：`tool_supply`(BASELINE) 内联定义已删、顺序不变；`module:tools` 单跑 **1/1**（三例真判据：`tool_swap terminal=promoted_from_main` / `worn_no_spare` / `no_tool`，10 tick）；CORE **48/48** ✓。⚠️ 本片**无场景、无 provision**（`ToolSupplyCheckTask` **只动背包**，用 `FixtureToolKit` 摆 A/B/C 三种背包状态 ⇒ 不依赖地形、不写世界、不做传送）⇒ 也**不受"区块冷热"影响**，是"模块自足"的最简形态 ✓|
 | 2026-09-18 | **48** | **58** | **R-2 第十一批～第十六片（D-311，六个模块 / 13 步）**：剩余内联步按「**保住 CORE 次序的连续段**」分成六片 —— `gates`(partial_search + capability_gate) · `write`(recoverability + write_policy) · `llm`(llm_contract + permission_gate) · `contracts`(speech_channel + decision_contract + decision_trace) · `pickup`(pickup_gate + collect_job) · `telemetry`(recipes_dump + event_thresholds)。**六片全部原序落位（0 位移）** ✓ ⇒ CORE 步序应逐字不变（与上一轮 CORE 做 diff 作证）。`module:<id>` 逐片单跑全 PASS；CORE **48/48**；模块注册表 **18** 个。⭐ **本批的真实收益：6 个 EXTRA 步第一次有了"单独跑"通道**（`decision_trace`/`permission_gate`/`pickup_gate`/`collect_job`/`recipes_dump`/`event_thresholds` —— 它们此前**只有 FULL 才跑**，进模块后 `module:<id>` 会跑它们）。⚠️ 仍留在电池内联的只剩 2 步：`hazard_aversion_plan`（语义属 `decision`，但并入会让它在 CORE 挪位）· `pathing`（聚合 5000 tick，并入 `PathingModule` 会把它从 CORE 47 挪到 7）|
+| 2026-09-18 | **49** | **59** | **设计线 · 保护区（D-313）**：新能力（不是 R-2 搬迁片）—— `SafeZoneData` 形状从「水平圆形半径」改为 ⭐ **区块级 2D 认领**（忽略 Y、覆盖全高度；D-305 ①′）+ **旧格式自动迁移**（相交即认领，计数进 `summary()`，不静默丢）。新模块 `ProtectionModule`（注册表 **19** 个）+ 新步 `protection_zones`（**MAIN**，按本档规则 1「新能力默认进 MAIN」）。`module:protection` 单跑 **1/1**（`checks=32 failures=0`，约 10 tick）✓；CORE **49/49** ✓（**追加在末尾** ⇒ 与上一轮 CORE 做步序 diff 应为 0 处位移）。本行同时**校正了本节计数**（46/38 → **59/49**，按 CURATION 逐条数）|

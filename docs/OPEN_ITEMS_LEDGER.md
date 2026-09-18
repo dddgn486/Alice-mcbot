@@ -79,7 +79,7 @@
 | **勘测侧两处待回写**（主线只登记，不改 `survey/`） | ① `survey/20 §2.1` 把逃生常量写成 `PathRequest.java:34-35`，**实为 `:38-39`**（`survey/18`/`19` 是对的）—— ⚠️ 这类"行号在范围内但内容错位"**R-P1 结构上抓不到**（门禁只抓越界）；② `survey/03-ATM9-勘测报告.md` 的 InterfaceScanner.java:167 **越界**（该文件仅 **162** 行）—— R-P1 **刻意不扫 `survey/`**（只增不改 ⇒ 红它无法修复）⇒ 由勘测员回写 | 登记 |
 | **门禁 R-P1 补一处实测盲区**（2026-09-18） | 旧正则要求引用带扩展名 ⇒ **`Class.method:行` 这种写法结构上看不见**。实测 `docs` 范围内该类引用 **310 处**（补前），其中 **1 处必然过期**（本仓自己的 GoalAction.parse:351，而 `GoalAction.java` 只有 313 行）。补齐后：校验量 **299 → 564 处**（其中类限定 262 处）/ 越界 **0**；注入两类各一次 ⇒ 均红 ✓ | ✅ 已落地 |
 | **⭐ 新增 `D-306` / `D-307`** | `D-306` = **`survey/20 §2.3` 的实质性遗漏**（保护区/黑名单/区域两层**早已存在**：`protection/SafeZoneData` + `BlockBreakSafety` 的 `hasBlockEntity` 不可清障 + `WritePolicyMatrix.Zone` 两层 + `CapabilityGate.ZONE_*`）；`D-307` = **①-入口**：地图式勾选（**实际 clone 并读 FTB Chunks 1.20.1 源码**：地形**客户端**自绘 · 服务端只发认领元数据 · 勾选 = 一个 C2S 批量包）⇒ **复用原版地图渲染器 = 否决**（连它自己都不用） | ✅ 已登记 |
-| **⭐ 新工作项（独立于 R-2）** | **保护区区块化 + 地图式勾选界面**（客户端 UI 子系统，带协议）⇒ 结构见 `D-305` ①′ + `D-307`；⚠️ 需要一个**客户端轮次**验证 | 未开工 ✗ |
+| **⭐ 新工作项（独立于 R-2）** | **保护区区块化 + 地图式勾选界面**（客户端 UI 子系统，带协议）⇒ 结构见 `D-305` ①′ + `D-307`；⚠️ 需要一个**客户端轮次**验证 | **1/2 已开工 ✓**（2026-09-18，`D-313`）：`SafeZoneData` 已改成 ⭐ **区块级 2D 认领**（忽略 Y、全高度）+ **旧格式自动迁移**（相交即认领、计数可查、不静默丢）+ `claim/unclaim` 诊断命令；新夹具/新模块 `module:protection` **1/1 PASS**（`checks=32 failures=0`）、新步 `protection_zones`（MAIN）进 CORE **49/49** ✓。**2/2 未开工**：零参数物品 + 地图式勾选 Screen + S2C 认领元数据/C2S 批量包 ⇒ **需要一个客户端轮次** |
 
 > **`survey/20` 的承重事实**（主线已逐条复算，全部成立）：`WorldModLedger` 原文自证"只记放置"（`ledger/WorldModLedger.java:20-26`）·
 > `Policy` 只有 `TEMP`/`KEEP` 两值（`:41-46`）· `Entry.previous` 字段已存在（`:49`）· `survivalEscape` 今天**已含** `BREAK_AND_TRAVERSE`/`BREAK_AND_ENTER`（`pathing/core/search/PathRequest.java:69-71`，只禁 `DOWNWARD`/`FALL`）·

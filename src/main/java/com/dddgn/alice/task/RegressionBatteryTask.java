@@ -186,6 +186,10 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("driver_label", Profile.MAIN),
             Map.entry("container_access_profile", Profile.MAIN),
             Map.entry("hazard_aversion_plan", Profile.MAIN),
+            // **设计线 · 保护区（D-313）**：`SafeZoneData` 改成区块级 2D 认领（忽略 Y / 全高度）+
+            // 旧圆形迁移 ⇒ "认领的区块不许动、没认领放行、旧数据不静默丢"必须每轮 CORE 都成立。
+            // 按 `BATTERY_CURATION.md` 规则 1（新能力默认进 MAIN）；成本≈0（纯查询、不写世界）。
+            Map.entry("protection_zones", Profile.MAIN),
             // D-276 端到端（第 1 半）：**真弄死一个探针 bot**，验证数据落成倒下态。
             // 放 EXTRA：它会写"倒下态"存档（会覆盖 botTag）⇒ 只适合 `single:` 单独跑。
             Map.entry("death_kill_bot", Profile.EXTRA),
@@ -465,6 +469,9 @@ public final class RegressionBatteryTask implements Task {
         // 编排器顺序 = provision → scenes ⇒ 区块先热再 `/fill` 才真的落地（旧电池是"场景 → provision"✗，D-296 记过）
         // ⚠️ 封闭场景（无出口）仍由夹具自己在到位后建造 —— 它进不了 `scenes`（见模块 javadoc）✓
         steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.SurvivalModule().steps(checkContext())));
+        // ---- 设计线：**保护区模块**（1 步，EXTRA：CORE 不跑 ⇒ 上面 48 步的次序一个格子都不动）----
+        // 新能力（`SafeZoneData` 改成区块级 2D 认领 + 旧格式迁移）的第一个离线门禁；见 D-313
+        steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.ProtectionModule().steps(checkContext())));
     }
 
     // ==================== 执行 ====================
