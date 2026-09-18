@@ -12396,3 +12396,52 @@ ArrayIndexOutOfBoundsException: Index 2484 out of bounds for length 289
 
 **明确不做**：归属**不参与任何权限判定**（"谁都能指挥 bot"**没变**）；不做任何 FTB 写语义（入队/结盟/绕过）——
 下一步做，且**动作点（谁来执行）需用户拍板**。
+
+### D-320：两只假人挨着 ⇒ 旋转包 A⇄B 互相转发到爆栈（真实客户端崩溃：定根因 + 闸 + 离线门）2026-09-18
+
+**现象（用户）**：`/alice spawn` **和预期一样**；接着 `/alice bots` **好像没有反应**；试图退出存档**一直卡住**。
+用户初判"是不是我不小心开了两个[实例]" ⇒ **日志否定**：只有一个集成服务端，玩家 = 真人 `dddgn` + **两只假人**
+（`demo` 18:26:02 从存档恢复、`tango` 18:27:14 生成），**两只相隔 1 格**（`29,64,218` / `28,63,218`）。
+
+**证据（客户端崩溃报告 + `latest.log`，不是我推的）**：`crash-2026-09-18_18.24.49-server.txt` =
+`java.lang.StackOverflowError: Sending packet`，栈是**完全重复的四段**：
+```
+ServerGamePacketListenerImpl.send → FakeConnection.send(packet, cb)   FakeConnection.java:111
+  → FakeConnection.broadcastToTracking                                FakeConnection.java:133
+    → ServerChunkCache.broadcast → ChunkMap → TrackedEntity → 另一只假人的 connection.send
+      → FakeConnection.send …（回到第一段）
+```
+`latest.log` 里这段重复 **84,892 帧**（18:27:16 开始 = `tango` 生成后 **2 秒**）⇒ 服务端线程陷在
+「抛栈 → 写崩溃报告 → 再抛」的循环里 ⇒ **命令处理不到**（`/alice bots` 没反应）、**退出保存不了**（卡住）。
+⇒ 两个症状与崩溃是**同一个原因**，不是命令坏了、也不是两个客户端。
+
+**根因**：`FakeConnection.send()` 把**服务端发给这只假人**的旋转包，当成"这只假人自己的包"再广播给
+**追踪它的玩家** —— 而**别的假人也在追踪者名单里**，它收到后又转发一次 ⇒ A⇄B 无限递归。
+
+**历史（这是回归，不是新 bug）**：`git show 5d63cdf`（2026-09-08，pathing R1/R2）把
+`broadcastToRealPlayers`（**排除假人** ⇒ 结构上不可能递归）换成了 `broadcastToTracking`（trackers 含假人）
+⇒ 从那天起，**两只假人挨着就必崩**。CORE 一直没抓到：**没有任何 CORE 步会同时摆两只挨着的假人**
+（唯一会的是 `death_kill_bot`，它在 EXTRA）—— 这正是"真机一次就崩、门禁全绿"的典型形状。
+
+**修法（最小语义变更）**：`relayRotation` 加一道**转发中闸**（`ThreadLocal<Boolean> RELAYING`）：
+置位期间再进来的旋转包**丢弃**（那正是"另一只假人"收到的那一份）。**投递集合一个都没改** ⇒
+"转给真人的行为"与之前完全一致（不回归 P1 客户端同步）；再加两个只读计数（`relayCount` / `suppressedCount`）。
+
+**离线门（先证明它会红，再修）**：新 EXTRA 步 `bot_pair_no_recurse`（`BotPairNoRecurseCheckTask`）——
+把第二只假人生成在**同一格**、连转 40 tick（每 tick 显式注入一个 `ClientboundRotateHeadPacket`，与生产同一类包），断言
+① 确实转发过（防假绿）② 转发**有界** ③ ⭐ **闸生效**（`suppressed ≥ 1`，抓机制而不是症状）④ 不放大（下游副本 ≤ 每份一次）。
+- **旧码实测 `verdict=<无> exit=3`**：服务端**直接死**（日志 `StackOverflowError` + 375 帧 `broadcastToTracking`，
+  连 SUMMARY 都没跑到）⇒ **这条门把线上那次崩溃在无头环境里复现了**；
+- **修后实测 `PASS`**：`checks=9 failures=0`，`relay=235 suppressed=235 rotateTicks=40`。
+
+⭐ **标定教训（我自己的第一版判据就错，记下来）**：我按"每 tick 恰好 1 次转发"把上界写成 `40+8=48`
+⇒ 修后仍报 `relay=245 > 48` 而**假红**。实际每 tick ≈6 次（两只假人各自的 `ServerEntity` 每 tick 也推旋转包）
+⇒ 上界改成"每 tick 16 次 + 32"，并**在代码注释里写清为什么**：递归的签名不是"多一点"，
+而是**几十 tick 内上万次 / 先把服务端弄死**（旧码实测正是后者）。
+
+**验证**：`single:bot_pair_no_recurse` **前红后绿**；CORE **50/50**（本步 EXTRA ⇒ 不进 CORE、步序零位移）；
+`ALICE_HEADLESS=1 check-all.sh` = **17 PASS + 0 WARN + 0 FAIL**（doc 预算已压回 1475/1476）。
+
+**边界 / 未验证**：① 闸只挡"转发中"的副本 ⇒ 真人收到的旋转包**来源与数量保持原样**（由 `relay ≥ 1` 间接证明），
+**但"真人在客户端看到的 bot 转头/移动是否依旧正常"仍待 `WINDOWS_CLIENT`**；② 用户原先的绕行办法
+（两只假人隔开 ≥48 格）**已不再需要**。

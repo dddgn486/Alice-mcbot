@@ -206,7 +206,7 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("craft_probe_upgradetab", Profile.MAIN),
             Map.entry("craft_station_provision", Profile.MAIN),
             Map.entry("craft_station_craft", Profile.MAIN),
-            // ---- EXTRA：已验收/无关/耗时（10）----
+            // ---- EXTRA：已验收/无关/耗时（11）----
             Map.entry("lumber_failure", Profile.EXTRA),
             Map.entry("region_maintain", Profile.EXTRA),
             // 2026-09-15（③/策展）：从 EXTRA 提到 MAIN —— 它自己的类注释写着"任何改动都跑得到"，
@@ -223,7 +223,9 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("event_thresholds", Profile.EXTRA),
             // **D-319**：假人归属（创建者登记）—— 它是将来"继承创建者身份/权限"的地基，错了会以
             // "权限看起来生效了其实没有"的形式出现在很远的地方；判据纯数据、约 5 tick（规则 1：新能力进 MAIN）。
-            Map.entry("bot_ownership", Profile.MAIN));
+            Map.entry("bot_ownership", Profile.MAIN),
+            // **D-320**：双假人转发（EXTRA —— 会写世界存档、且失败形态是"服务端崩" ⇒ 不进 CORE）。
+            Map.entry("bot_pair_no_recurse", Profile.EXTRA));
 
     /** 归属表摘要（`/alice battery list` + 文档用）：按档位分组打印，一眼看清电池里有什么、为什么。 */
     public static List<String> curationSummary() {
@@ -479,6 +481,12 @@ public final class RegressionBatteryTask implements Task {
         // 新能力（创建者登记，D-319）；**追加在步表末尾** ⇒ 上面 49 步的次序一个格子都不动。
         // ⚠️ 归属表（CURATION）与**实跑步骤**必须同时登记：只加 CURATION 会被自校验抓成 `phantom=[…]`（本轮实测过）。
         steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.OwnershipModule().steps(checkContext())));
+        // ---- D-320：**双假人转发**回归门（1 步，EXTRA）----
+        // 起因 = 一次真实客户端崩溃（两只假人相隔 1 格 ⇒ 旋转包 A⇄B 互相转发 ⇒ StackOverflowError）。
+        // ⚠️ 它会**写世界存档**（spawn 生成即写 / remove 清 botTag）⇒ 与 `death_kill_bot` 同类，
+        // 只适合 `single:bot_pair_no_recurse` 单独跑；收尾会把会话 bot 的记录写回去。
+        steps.add(step("bot_pair_no_recurse", List.of(), null,
+                () -> new BotPairNoRecurseCheckTask(bot, observer), 200));
     }
 
     // ==================== 执行 ====================

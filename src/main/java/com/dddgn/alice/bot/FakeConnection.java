@@ -54,6 +54,34 @@ public class FakeConnection extends Connection {
     }
 
     private static final boolean PACKET_OBSERVER = Boolean.getBoolean("alice.packet.observer");
+
+    /**
+     * **旋转包转发计数**（D-320 诊断量，只计数、不改变行为）。
+     *
+     * <p>为什么要它：`send()` 会把服务端**发给这只假人**的旋转包再广播给"追踪它的玩家" ——
+     * 而**别的假人也在追踪者名单里** ⇒ 两只假人挨着时会 A⇄B 互相喂到 `StackOverflowError`。
+     * 判据（`BotPairNoRecurseCheckTask`）就靠这两个计数把"有界"和"被闸住"钉住。
+     */
+    private static final java.util.concurrent.atomic.AtomicLong RELAY_COUNT =
+            new java.util.concurrent.atomic.AtomicLong();
+    private static final java.util.concurrent.atomic.AtomicLong SUPPRESSED_COUNT =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    /** 累计转发次数（单调递增，诊断用）。 */
+    public static long relayCount() {
+        return RELAY_COUNT.get();
+    }
+
+    /** 累计"转发过程中收到、于是被丢弃"的旋转包次数（D-320 的闸生效证据）。 */
+    public static long suppressedCount() {
+        return SUPPRESSED_COUNT.get();
+    }
+
+    /**
+     * **转发中**标记（D-320 的闸）：整条转发链路都在服务端线程上 ⇒ `ThreadLocal` 足够；
+     * 置位期间再进来的旋转包一律丢弃（那正是"另一只假人"收到的那一份）。
+     */
+    private static final ThreadLocal<Boolean> RELAYING = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private static final Map<String, Integer> PACKET_DUPLICATES = new HashMap<>();
 
     private final BotPlayer bot;
@@ -87,9 +115,8 @@ public class FakeConnection extends Connection {
         // 原因：装备包会被客户端误认为是玩家自己的，导致快捷栏选择混乱
         
         // 需要广播的包类型（只有旋转包）
-        if (packet instanceof net.minecraft.network.protocol.game.ClientboundRotateHeadPacket ||
-            (packet instanceof ClientboundMoveEntityPacket.Rot)) {
-            broadcastToTracking(packet);
+        if (isRotationPacket(packet)) {
+            relayRotation(packet);
             return;
         }
         
@@ -106,9 +133,8 @@ public class FakeConnection extends Connection {
     @Override
     public void send(Packet<?> packet, PacketSendListener callback) {
         // ✅ 修复：只广播头部/身体旋转包，不广播装备包
-        if (packet instanceof net.minecraft.network.protocol.game.ClientboundRotateHeadPacket ||
-            (packet instanceof ClientboundMoveEntityPacket.Rot)) {
-            broadcastToTracking(packet);
+        if (isRotationPacket(packet)) {
+            relayRotation(packet);
             if (callback != null) {
                 callback.onSuccess();
             }
@@ -127,6 +153,37 @@ public class FakeConnection extends Connection {
         }
     }
     
+    /** 只有这两类是"要转给真人看"的旋转包（装备包会污染真人快捷栏 ⇒ 刻意不转，D-… 见 5d63cdf）。 */
+    private static boolean isRotationPacket(Packet<?> packet) {
+        return packet instanceof net.minecraft.network.protocol.game.ClientboundRotateHeadPacket
+                || packet instanceof ClientboundMoveEntityPacket.Rot;
+    }
+
+    /**
+     * 转发一个旋转包给"追踪这只假人的玩家"。
+     *
+     * <p>⚠️ **D-320**：这里曾经是"两只假人互相喂到爆栈"的入口 —— 追踪者名单里**包含别的假人**，
+     * 而它们的 `send()` 又会转发一次 ⇒ `A.send → broadcast → B.send → broadcast → A.send …`
+     * ⇒ `StackOverflowError`（2026-09-18 客户端实测：两假人相隔 1 格，生成后 2 秒开始爆栈）。
+     *
+     * <p>修法 = **转发中再收到旋转包就丢弃**：整条转发链路都跑在服务端线程上 ⇒ 一个
+     * {@link ThreadLocal} 闸就够；**投递集合一个都没改**（转给真人的行为与之前完全一致）。
+     */
+    private void relayRotation(Packet<?> packet) {
+        if (Boolean.TRUE.equals(RELAYING.get())) {
+            // 转发过程中收到的副本 ⇒ 它属于"另一只假人"，不再转发（否则就是那次的无限递归）
+            SUPPRESSED_COUNT.incrementAndGet();
+            return;
+        }
+        RELAYING.set(Boolean.TRUE);
+        try {
+            RELAY_COUNT.incrementAndGet();
+            broadcastToTracking(packet);
+        } finally {
+            RELAYING.set(Boolean.FALSE);
+        }
+    }
+
     /** 广播包给所有追踪 bot 的玩家 */
     private void broadcastToTracking(Packet<?> packet) {
         if (bot != null && bot.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
