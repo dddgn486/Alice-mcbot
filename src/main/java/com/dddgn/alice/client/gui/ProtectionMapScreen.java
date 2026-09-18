@@ -214,12 +214,12 @@ public class ProtectionMapScreen extends Screen {
     }
 
     private void renderGrid(GuiGraphics graphics, int mouseX, int mouseY) {
-        Long hovered = geometry.keyAt(mouseX, mouseY);
+        Long hovered = geometry.keyAtPixel(mouseX, mouseY);
         int grid = geometry.grid();
         int reference = referenceY();
         for (int row = 0; row < grid; row++) {
             for (int column = 0; column < grid; column++) {
-                long key = geometry.keyAt(column, row);
+                long key = geometry.keyAtCell(column, row);
                 Boolean pending = ClientProtectionState.pending(key);
                 boolean claimed = ClientProtectionState.isClaimed(key);
                 boolean external = !claimed && ClientProtectionState.isExternallyClaimed(key);
@@ -295,7 +295,7 @@ public class ProtectionMapScreen extends Screen {
 
     private void renderFooter(GuiGraphics graphics, int mouseX, int mouseY) {
         String cursor = "光标：网格外";
-        Long hovered = geometry.keyAt(mouseX, mouseY);
+        Long hovered = geometry.keyAtPixel(mouseX, mouseY);
         if (hovered != null) {
             int column = geometry.columnOf(ChunkPos.getX(hovered));
             int row = geometry.rowOf(ChunkPos.getZ(hovered));
@@ -341,7 +341,7 @@ public class ProtectionMapScreen extends Screen {
         if (!editable()) {
             return true;        // 没有服务端数据时明确吞掉点击，避免误落到别处
         }
-        Long key = geometry.keyAt(mouseX, mouseY);
+        Long key = geometry.keyAtPixel(mouseX, mouseY);
         if (key == null) {
             return super.mouseClicked(mouseX, mouseY, button);
         }
@@ -356,7 +356,7 @@ public class ProtectionMapScreen extends Screen {
         if (!dragging || button != draggingButton || geometry == null) {
             return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
         }
-        Long key = geometry.keyAt(mouseX, mouseY);
+        Long key = geometry.keyAtPixel(mouseX, mouseY);
         if (key != null) {
             applyEdit(key, draggingButton == 0);
         }

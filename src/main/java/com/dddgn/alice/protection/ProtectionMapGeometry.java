@@ -177,8 +177,15 @@ public record ProtectionMapGeometry(int centerChunkX, int centerChunkZ,
         return top + row * cell;
     }
 
-    /** 列/行 → 区块键（{@link ChunkPos#asLong(int, int)}）。 */
-    public long keyAt(int column, int row) {
+    /**
+     * **格索引**（列/行，0..grid-1）→ 区块键。
+     *
+     * <p>⚠️ 名字里必须带 `Cell`、且**不许**再出现"同名不同坐标空间"的重载：本项目实测过一次
+     * 客户端崩溃（`D-317`）—— `keyAt(mouseX, mouseY)` 里鼠标是 `int`，Java 重载解析挑了
+     * {@code keyAt(int column,int row)}，把**像素当格号**用 ⇒ 索引越界崩在渲染线程。
+     * 两个空间用两个名字，编译器就会强制写代码的人选。
+     */
+    public long keyAtCell(int column, int row) {
         return ChunkPos.asLong(chunkXAt(column), chunkZAt(row));
     }
 
@@ -202,15 +209,18 @@ public record ProtectionMapGeometry(int centerChunkX, int centerChunkZ,
     }
 
     /**
-     * 鼠标坐标 → 区块键；落在网格外返回 {@code null}（调用方据此把事件交还给其它控件）。
+     * **鼠标像素** → 区块键；落在网格外返回 {@code null}（调用方据此把事件交还给其它控件）。
+     *
+     * <p>⚠️ 参数刻意是 {@code double} + 名字带 `Pixel`（见 {@link #keyAtCell} 的说明）：
+     * 传 {@code int} 也不会被别的重载悄悄接走。
      *
      * <p>注意用 {@code floor} 而不是整数除法：鼠标在网格左侧/上侧时差值可能为负，
      * 整数除法会把它算成第 0 格（"点到外面却改了第一格"）。
      */
-    public Long keyAt(double mouseX, double mouseY) {
+    public Long keyAtPixel(double mouseX, double mouseY) {
         int column = (int) Math.floor((mouseX - left) / (double) cell);
         int row = (int) Math.floor((mouseY - top) / (double) cell);
-        return containsCell(column, row) ? keyAt(column, row) : null;
+        return containsCell(column, row) ? keyAtCell(column, row) : null;
     }
 
     public String describe() {

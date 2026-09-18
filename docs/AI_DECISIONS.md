@@ -12322,3 +12322,41 @@ bash 是**按需读文件**的 ⇒ 我一边让 `module-selftest.sh` 跑着（8 
 - ⚠️ **"FTB 的保护会不会拦住我们的假人"仍未定性**：我们的 bot 是**玩家化的真 `ServerPlayer`**（不是 Forge `FakePlayer`），
   所以它走"假人白名单"还是"普通玩家（`isAlly`/队伍 rank）"分支**只能实测**（见 TESTING_GUIDE §2.5 的验收脚本）；
 - ❌ 不做写回（`claimAsPlayer`），不做任务区→FTB 同步，不集成 FTB 的地图渲染（无公开 API，要 mixin ⇒ 已否决）。
+
+### D-317：客户端崩溃定根因 —— Java **重载解析**把"鼠标像素"喂给了"格索引"（保护区 3/3 的回归修复）2026-09-18
+
+**现象（用户一句话）**：「启动区块地图直接崩溃了」。**证据（客户端日志，不是我推的）**：
+```
+ArrayIndexOutOfBoundsException: Index 2484 out of bounds for length 289
+    at ProtectionMapScreen.renderFooter(ProtectionMapScreen.java:307)   ← cellSurface[row * grid + column]
+  Caused by: net.minecraft.ReportedException: Rendering screen
+```
+`2484 / 17 = 146` ⇒ `row` 是 146（网格只有 17 行）⇒ 鼠标像素被当成了**格号**。
+
+**根因（一句话）**：`ProtectionMapGeometry` 里当时有两个**同名**方法 —— `keyAt(int column, int row)`（格索引 → 区块键）
+与 `keyAt(double mouseX, double mouseY)`（像素 → 区块键或 null）。界面里写的是 `geometry.keyAt(mouseX, mouseY)`，
+而 `render(GL, int mouseX, int mouseY, float)` 的鼠标参数是 **`int`** ⇒ Java **重载解析**挑了 `int` 那个
+（`int→int` 比 `int→double` 更精确）⇒ 像素当格号 ⇒ 越界崩在渲染线程。`mouseClicked(double,double,...)` 那两处
+恰好是 `double` ⇒ 走对了；**所以只在渲染路径崩**。
+
+**为什么离线判据没拦住**（这一条最值得记）：夹具全部用**字面量 double**（`99.0` / `-50.0` / `rect+5.0`）
+测 `keyAt(double,double)` ⇒ 测的是**方法本身**，而 bug 在**调用点**——**离线判据看不见"编译器选了哪个重载"**。
+⇒ 现有那 75 条判据全绿、CORE 全绿、门禁全绿，客户端**第一帧就崩**。
+
+**修法（不是加 `(double)` 了事，而是让陷阱不可能存在）**
+1. **改名字**：`keyAtCell(int column, int row)` / `keyAtPixel(double mouseX, double mouseY)` ⇒ 没有重载 ⇒ 编译器强制写代码的人选空间；
+2. 所有调用点同步（界面 4 处：格循环用 `keyAtCell`，鼠标那几处用 `keyAtPixel`）；
+3. **加判据**（几何组 75 → 76）：① 像素空间**自己夹边界**（把 400,300 这种像素数字喂进去必须返回 null，不许当格号）；
+   ② 同一对数字 `(100,40)` 在两套空间里含义不同（`keyAtCell` = 远处区块 / `keyAtPixel` = 左上第一格）；
+4. ⭐ **加门禁**：反射检查 `ProtectionMapGeometry` **不许有同名重载** ⇒ 反向对照（把当年那两个 `keyAt` 原样放回）
+   实测**立刻红**（`重名=[keyAt]`）。
+
+**顺带**：这条判据的第一版我自己写错了（断言"`keyAtPixel(左边界,上边界)` 必须是 null"——而像素空间**本来就包含**左/上边界，
+那是第一格）⇒ 离线跑一次就红、当场改正。**"判据自己先被反向对照"再一次证明是廉价且必要的**。
+
+**验证**：`module:protection` **1/1 PASS**（`checks=76 failures=0`）；新增门禁注入 ⇒ 红；CORE 见下；
+⚠️ **客户端观感/可用性仍需用户复跑一次**（崩溃已定位并修掉，但"第一帧能不能正常画出来"只有客户端能说）。
+
+**写给后来人的判据**：**"同名不同坐标空间"的重载 = 请当成禁用写法**（本项目已用一次客户端崩溃换来）。
+需要两套空间时**给两个名字**；离线判据只能测方法本身，**调用点选错重载它照不到** ⇒ 要靠**命名 + 反射门禁**，
+不能靠"我小心一点"。

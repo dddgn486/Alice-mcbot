@@ -594,16 +594,16 @@ public final class ProtectionZoneCheckTask implements Task {
         ProtectionMapGeometry geometry = new ProtectionMapGeometry(hereChunkX, hereChunkZ, 17, 12, 100, 40);
         long centerKey = ChunkPos.asLong(hereChunkX, hereChunkZ);
         check("中心格 = 玩家所在区块（期望 " + ChunkPos.getX(centerKey) + "," + ChunkPos.getZ(centerKey)
-                        + "，实际 " + describeKey(geometry.keyAt(8, 8)) + "）",
-                geometry.keyAt(8, 8) == centerKey);
-        check("左上角格 = 中心 - half（实际 " + describeKey(geometry.keyAt(0, 0)) + "）",
-                geometry.keyAt(0, 0) == ChunkPos.asLong(hereChunkX - 8, hereChunkZ - 8));
+                        + "，实际 " + describeKey(geometry.keyAtCell(8, 8)) + "）",
+                geometry.keyAtCell(8, 8) == centerKey);
+        check("左上角格 = 中心 - half（实际 " + describeKey(geometry.keyAtCell(0, 0)) + "）",
+                geometry.keyAtCell(0, 0) == ChunkPos.asLong(hereChunkX - 8, hereChunkZ - 8));
 
         Set<Long> keys = new LinkedHashSet<>();
         boolean invertible = true;
         for (int row = 0; row < 17; row++) {
             for (int column = 0; column < 17; column++) {
-                long key = geometry.keyAt(column, row);
+                long key = geometry.keyAtCell(column, row);
                 keys.add(key);
                 if (geometry.columnOf(ChunkPos.getX(key)) != column
                         || geometry.rowOf(ChunkPos.getZ(key)) != row) {
@@ -615,12 +615,33 @@ public final class ProtectionZoneCheckTask implements Task {
                 keys.size() == 289);
         check("格 ⇄ 区块**可逆**（columnOf/rowOf 与 keyAt 互为逆运算）", invertible);
         check("鼠标落在中心格正中 ⇒ 玩家所在区块",
-                geometry.keyAt(geometry.cellLeft(8) + 6.0, geometry.cellTop(8) + 6.0) == centerKey);
+                geometry.keyAtPixel(geometry.cellLeft(8) + 6.0, geometry.cellTop(8) + 6.0) == centerKey);
         check("网格外点击一律返回 null（左/上/右下三个方向都不误伤别的控件）",
-                geometry.keyAt(99.0, 39.0) == null && geometry.keyAt(-50.0, -50.0) == null
-                        && geometry.keyAt(geometry.right() + 5.0, geometry.bottom() + 5.0) == null);
+                geometry.keyAtPixel(99.0, 39.0) == null && geometry.keyAtPixel(-50.0, -50.0) == null
+                        && geometry.keyAtPixel(geometry.right() + 5.0, geometry.bottom() + 5.0) == null);
         check("网格右下角**最后一个像素**仍命中最后一格",
-                geometry.keyAt(geometry.right() - 2.0, geometry.bottom() - 2.0) == geometry.keyAt(16, 16));
+                geometry.keyAtPixel(geometry.right() - 2.0, geometry.bottom() - 2.0) == geometry.keyAtCell(16, 16));
+
+        // ⭐ D-317：**两个坐标空间不许混淆**。客户端实测崩过一次：`keyAt(mouseX, mouseY)` 里鼠标是 int，
+        // Java 重载解析把"像素"喂给了"格索引"那个重载 ⇒ 索引越界崩在渲染线程。现在两个空间两个名字，
+        // 并且这条判据钉住"像素空间必须自己夹边界"（喂像素级数字不许当格号用）。
+        check("**像素空间自己夹边界**：把像素级数字（400,300）喂进去必须返回 null，而不是当成格号",
+                geometry.keyAtPixel(400.0, 300.0) == null && geometry.keyAtPixel(0.0, 0.0) == null);
+        check("两个坐标空间含义**不同**（同一对数字 100,40）：keyAtCell 是**远处区块**、keyAtPixel 是**左上第一格**",
+                geometry.keyAtCell(100, 40) == ChunkPos.asLong(hereChunkX - 8 + 100, hereChunkZ - 8 + 40)
+                        && geometry.keyAtPixel(100.0, 40.0) == ChunkPos.asLong(hereChunkX - 8, hereChunkZ - 8));
+
+        // ⭐ 门禁（D-317）：**同名重载不许复活**。这一类的代价是一次客户端崩溃（渲染线程越界），
+        // 离线判据照不到"调用点选错重载" ⇒ 用反射把"两套坐标空间必须两个名字"钉成判据。
+        Set<String> methodNames = new LinkedHashSet<>();
+        List<String> duplicated = new ArrayList<>();
+        for (java.lang.reflect.Method method : ProtectionMapGeometry.class.getDeclaredMethods()) {
+            if (!methodNames.add(method.getName())) {
+                duplicated.add(method.getName());
+            }
+        }
+        check("几何类**不许有同名重载**（像素空间与格索引空间必须两个名字；实际 " + methodNames.size()
+                + " 个方法，重名=" + duplicated + "）", duplicated.isEmpty());
 
         // ============ D-315：地形细化的纯逻辑（子格平铺 / 采样点 / 中心向外采样序）============
         check("子格数按格子大小定档：cell≥12 ⇒ 3，否则 2（实际 cell=" + geometry.cell() + " ⇒ sub="
