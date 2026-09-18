@@ -441,8 +441,12 @@ public final class RegressionBatteryTask implements Task {
         // （实测：`停止请求延后到安全点：task=RegressionBatteryTask` → 电池在第 12 步自杀、无 SUMMARY）。
         // ⇒ 走独立入口 `alice:k3_stop_check`（右键 DEFER / Shift+右键 FORCED），
         // 任务侧另有 `fixture_not_top_level` 前提断言兜底。
-        steps.add(step("transfer", List.of(), null,
-                () -> new TransferCheckTask(bot, observer), 400));
+        // ---- 模块化（R-2）：**传输模块**（1 步）从 `TransferModule` 取 ----
+        // 逐字段等价搬迁（步名/档位/预算/工厂一致 ✓）；**模块自带"先传送"这一条前提** ——
+        // 夹具自己会调场景函数，但顺序是"**先跑函数、再传送**" ⇒ 冷区块上那一发 `/fill` 会静默不落地
+        // （D-296 同一个坑）⇒ 模块把"传送到课程起点"放进 `provision`
+        //（编排器顺序 = openScope → provision → scenes ✓，所以传送顺便把区块热了 ✓）
+        steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.TransferModule().steps(checkContext())));
         steps.add(step("partial_search", List.of(), null,
                 () -> new PartialSearchCheckTask(bot, observer), 200));
         steps.add(step("capability_gate", List.of(), null,
@@ -494,13 +498,11 @@ public final class RegressionBatteryTask implements Task {
                 () -> new WritePolicyCheckTask(bot, observer), 300));
         steps.add(step("pathing", List.of(), null,
                 () -> new PathingRegressionTask(bot, observer), 5000));
-        // S-5（2026-09-15）：**维生决策自检** —— 维生此前是唯一零电池步的子系统（只能真人验）。
-        // `survival_course`（有出口）作场景；**封闭场景（无出口）由夹具自己在 bot 到位后建造**
-        // （不能在 `scenes` 里建：那时区块还没加载，`/fill` 会不落地 ⇒ 判据在虚空里假绿，见任务 javadoc）。
-        steps.add(step("survival_exit",
-                List.of("alice_test:survival_course"),
-                () -> teleportBot(SurvivalCourseAnchor.PLATFORM_FOOT),
-                () -> new SurvivalExitCheckTask(bot, observer), 900));
+        // ---- 模块化（R-2）：**维生模块**（1 步）从 `SurvivalModule` 取 ----
+        // 逐字段等价搬迁（步名/档位/场景/预算/工厂一致 ✓）；**模块自带"先传送"的前提** ⇒
+        // 编排器顺序 = provision → scenes ⇒ 区块先热再 `/fill` 才真的落地（旧电池是"场景 → provision"✗，D-296 记过）
+        // ⚠️ 封闭场景（无出口）仍由夹具自己在到位后建造 —— 它进不了 `scenes`（见模块 javadoc）✓
+        steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.SurvivalModule().steps(checkContext())));
     }
 
     // ==================== 执行 ====================

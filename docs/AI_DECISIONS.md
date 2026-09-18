@@ -11924,3 +11924,27 @@ bash 是**按需读文件**的 ⇒ 我一边让 `module-selftest.sh` 跑着（8 
 **建议的最小闭环（两步，先做第一步）**：
 1. **第一步**：新物品右键 → Screen 显示**以玩家为中心的 N×N 区块网格**（左键认领 / 右键取消），底部可选铺**低分辨率地形色**（每区块从 `ClientLevel` 采样几列的 `MapColor`）；提交走**一次性批量包**。
 2. **第二步（可选，后议）**：可拖动/缩放的大地图 + 客户端磁盘缓存（照 `MapIOUtils` 的压缩缓存做法）。
+
+### D-308：R-2 第七/八片 —— `transfer`（1 步）+ `survival`（1 步）2026-09-18
+
+**动因**：主线（R-2 电池模块化）继续搬剩余分类。本批两片都是**单步模块**，用户选择"批量验收"口径（每片只跑 `module:<id>`，CORE + selftest 攒批跑）。
+
+| 片 | 步 | 档位 | 搬迁口径 | 实测 |
+|---|---|---|---|---|
+| **`transfer`**（第七片） | `transfer`（= `TransferCheckTask`，内部 4 同步夹具 + 1 端到端） | BASELINE | 步名/档位/预算(400)/工厂**逐字段等价**；内联定义已删、顺序不变（仍在 `partial_search` 之前） | `module:transfer` 单跑 **1/1 首次即绿**（`fixture`/`end_to_end`/`selection`/`selector_events`/`command_parse` **5 个子判决全 PASS** · 27 tick · `failures=0 skipped=0`）；CORE **48/48** |
+| **`survival`**（第八片） | `survival_exit`（`SurvivalExitCheckTask`） | BASELINE | 同上（场景 `alice_test:survival_course` + 传送 provision + 预算 900）；内联定义已删、顺序不变（仍是 CORE 最后一步 48/48） | `module:survival` 单跑 **1/1**（`checks=124 failures=0` · 461/900 tick · `skipped=0`）；CORE **48/48** |
+
+**⇒ 验收**：`module-selftest --changed` = **2/2 PASS**（干净退出码 0）；模块注册表现 **10** 个（`ledger harness_self pathing decision craft machine mining lumber transfer survival`）。
+
+⭐ **本批唯一的新增（值得记的形状）**：两个模块都**自带"先传送"的前提**，原因是同一个 ——
+**夹具/场景函数自己会建地形，但"建地形"与"传送"的相对顺序决定了区块热不热**：
+- `transfer`：夹具的顺序是"**先跑场景函数、再传送**"⇒ 冷区块上那一发 `/fill` **静默不落地**（D-296 同一个坑）；
+- `survival`：**有出口**的平台可以进 `scenes`（编排器在 `provision` **之后**才跑场景 ⇒ 区块已热 ✓），
+  而**封闭场景（无出口）**由夹具自己在到位后建造 —— **不能**进 `scenes`（否则会在传送之前建）。
+
+⇒ 编排器的 **provision → scenes** 顺序（D-296 修的那个坑）在这两片上**再次被正面验证**：
+把"传送"放进 `provision` 就**顺带把区块热了**，且**不重复跑场景函数**
+（`transfer` 刻意**不声明** `scenes` —— 声明了就会跑两遍，那属于"行为不等价"的搬迁，D-302 ✗）。
+
+⚠️ **搬迁纪律再次生效**：两片都是"**内联定义删除 + 顺序不变 + 逐字段等价**"，并且**每片都必须单跑**
+（D-302：`module:<id>` 单跑是唯一能暴露"电池有、编排器没有"的通道；本轮两片都没有新缺口，属正面结果）。

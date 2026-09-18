@@ -8,6 +8,8 @@ import com.dddgn.alice.task.check.modules.LumberModule;
 import com.dddgn.alice.task.check.modules.MachineModule;
 import com.dddgn.alice.task.check.modules.MiningModule;
 import com.dddgn.alice.task.check.modules.PathingModule;
+import com.dddgn.alice.task.check.modules.SurvivalModule;
+import com.dddgn.alice.task.check.modules.TransferModule;
 
 import java.util.List;
 import java.util.Set;
@@ -28,7 +30,9 @@ public final class CheckModules {
             new CraftModule(),
             new MachineModule(),
             new MiningModule(),
-            new LumberModule()
+            new LumberModule(),
+            new TransferModule(),
+            new SurvivalModule()
     );
 
     private CheckModules() {
