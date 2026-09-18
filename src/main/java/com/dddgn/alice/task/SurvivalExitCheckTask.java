@@ -33,7 +33,9 @@ import java.util.List;
  *   <li>**出口能用**：拿维生给的真实落点起一个真实 {@link SurvivalExitTask}，必须**走到**
  *       （"选了落点却没走到"是 S-1 留下的观察盲区）；</li>
  *   <li>**掉血可见**（{@code HazardState.previousHealth} 的第一个读者）：真的扣血 ⇒ 一条带 `delta=` 的
- *       `DANGER` 事件，且冷却期内**不刷屏**。</li>
+ *       `DANGER` 事件，且冷却期内**不刷屏**。⚠️ **2026-09-18 起（D-312）**：注入前先**等 i-frame 过期**
+ *       并**自证净掉 ≥ {@code HURT_AMOUNT}** —— 否则原版「伤害叠加」会把 2.0 削成 1.0，而 1.0 的净掉
+ *       可被一次回血在采样上抹平 ⇒ 判据会偶发假红（3 次实测，见 {@code healthPhase}）。</li>
  * </ol>
  *
  * <p>⚠️ **结构性限制（必须如实说明，不要误以为这条步覆盖了整条否决链）**：
@@ -82,6 +84,16 @@ public class SurvivalExitCheckTask implements Task {
     /** 全冻（140 tick）之后再等这么久，保证"每 40 tick 1 点"的冻结伤害至少来过一次。 */
     private static final int FREEZE_DAMAGE_WAIT_TICKS = 45;
 
+    /**
+     * 掉血相位**注入前**最多等多少 tick 让 i-frame 过期（D-312）。
+     *
+     * <p>为什么需要等：上一相位是着火相位（每 20 tick 1 点火焰伤害）⇒ 注入时 `invulnerableTime` 通常还在
+     * 11 左右，而原版 `LivingEntity.hurt` 的冷却分支对"冷却未过"的情况**只打增量**
+     * （`actuallyHurt(amount - lastHurt)`）⇒ 2.0 只落地 1.0，而 1.0 的净掉可被一次回血在采样上抹平
+     * ⇒ 判据偶发假红。20 tick 足够让 `invulnerableTime` 从 20 掉到 ≤10；多留 10 做余量。
+     */
+    private static final int HEALTH_INJECT_MAX_WAIT_TICKS = 30;
+
     private enum Phase { SETUP, TABLE, WALK, SEALED_BUILD, SEALED_CHECK, FOOT_CELL, SEALED_REAL, HEALTH, AIR, SNOW, DEEP_WATER, OPEN_WATER, UNREACHABLE_REFUGE, SHAFT_ESCAPE, FLOODED_SHAFT, DONE }
 
     private final BotPlayer bot;
@@ -96,6 +108,8 @@ public class SurvivalExitCheckTask implements Task {
     private Task subTask;
     private long fireTick;
     private long hurtTick;
+    /** 掉血相位里**实际注入**发生在哪个 `phaseTicks`（0 = 还没注入；D-312 起注入要等 i-frame 过期）。 */
+    private int injectPhaseTick;
     private int fireStartTicks;
     /** 窗口内观测到的"新命中"次数（D-261：独立于血量的伤害证据）。 */
     private int fireHits;
@@ -1162,22 +1176,63 @@ public class SurvivalExitCheckTask implements Task {
         advance(Phase.DEEP_WATER);
     }
 
-    /** 掉血可见（`previousHealth` 的第一个读者）+ 冷却期内不刷屏。 */
+    /**
+     * **掉血可见**（`previousHealth` 的第一个读者）+ 冷却期内不刷屏。
+     *
+     * <p><b>2026-09-18 修（D-312）</b>：本条判据曾**偶发假红 3 次**（都在 CORE 轮次）。根因**不在**
+     * "没掉血"，也不在冷却/吸收/护甲，而是**注入时机撞上了原版「伤害叠加」规则**：
+     * <ol>
+     *   <li>本相位紧跟着**着火相位**（每 20 tick 打 1 点火焰伤害）⇒ 注入那一刻上一发的 i-frame 还在
+     *       （实测 `invulnerableTime=11`）；</li>
+     *   <li>原版 `LivingEntity.hurt` 的冷却分支对这种情况**只打「增量」**：`actuallyHurt(amount - lastHurt)`
+     *       且**不刷新** `invulnerableTime/hurtTime` ⇒ 注入 2.0 实际只落地 **1.0**
+     *       （实测：`ledger lastAmount=1.0`、`invuln 11→11`、`hurtTime 0→0`；分支见 Forge mapped jar
+     *       `LivingEntity.hurt` 字节码偏移 249–331）；</li>
+     *   <li>而本项目的回血是**无条件 +1 点 / 20 tick**（D-261/D-271 实测）⇒ **恰好 1.0 的净掉会被一次
+     *       回血在采样上抹平**；掉血检测读的是**单 tick 边缘**（`HazardState.previousHealth > health`）⇒
+     *       回血拍只要落进"注入 → 下一次观察"那 1 tick 缝里，这次掉血就**永远不会被上报**（边缘被消耗掉）
+     *       ⇒ 两条判据同时红（"掉血必须变成可判读的事实" + "恰好 1 条"），且 `checks` 少 1（子判据被跳过）。</li>
+     * </ol>
+     * **修法（2026-09-18 用户批准「只修夹具前提」，不动产线语义）**：① 注入前**等 i-frame 过期**
+     * （走 else 分支打满 {@link #HURT_AMOUNT}）；② {@link #normalizeVitals()} 满血作基准；
+     * ③ 把前提**写成判据**（`hurt` 返回值 + 净掉 ≥ {@link #HURT_AMOUNT}）—— 将来环境再削伤害，会
+     * **响亮地红在前提上**，而不是神秘地丢事件。
+     *
+     * <p>为什么这样就**结构上不再偶发**：+1 的回血永远填不平 ≥2 点的采样缺口（确定性对照实验见 D-312）。
+     */
     private void healthPhase() {
         if (phaseTicks == 1) {
             bot.clearFire();
             teleport(SurvivalCourseAnchor.PLATFORM_FOOT);
             return;
         }
-        if (phaseTicks == SETTLE_TICKS) {
+        if (injectPhaseTick == 0) {
+            // ① 等 i-frame 过期（着火相位的余波）。上限内等不到也照注入 —— 那时前提判据会如实判红，
+            //    比"静默丢事件"好定位得多。
+            if (bot.invulnerableTime > 10 && phaseTicks < HEALTH_INJECT_MAX_WAIT_TICKS) {
+                return;
+            }
+            int invulnBefore = bot.invulnerableTime;
+            normalizeVitals();      // ② 满血作基准：净掉 = 完整的 HURT_AMOUNT
             EventThresholds.resetHealthTracking(bot);
             hurtTick = bot.getServer().getTickCount();
-            bot.hurt(bot.damageSources().generic(), HURT_AMOUNT);
-            BotLog.info("[Survival] 夹具对 bot 造成 {} 点伤害（现有血量 {}），期望：掉血 ⇒ 一条 DANGER 事件",
-                    HURT_AMOUNT, bot.getHealth());
+            injectPhaseTick = phaseTicks;
+            float before = bot.getHealth();
+            boolean applied = bot.hurt(bot.damageSources().generic(), HURT_AMOUNT);
+            float after = bot.getHealth();
+            // ③ 前提自证：净掉必须 > 一次回血的 1 点，否则检测器的单 tick 边缘会被回血抹平（D-312）
+            check("前提自证：注入的 " + HURT_AMOUNT + " 点伤害必须真的落地并造成 ≥" + HURT_AMOUNT
+                            + " 点净掉（i-frame 未过期时原版只打「增量」、吸收/护甲也会削；净掉被削到 ≤1 点时，"
+                            + "一次回血就能在采样上把这次掉血抹平 ⇒ 判据偶发假红，见 D-312）"
+                            + "（hurt=" + applied + " 血量 " + before + "→" + after
+                            + " 净掉=" + (before - after) + " 注入前 i-frame=" + invulnBefore + "）",
+                    applied && before - after >= HURT_AMOUNT - 0.01F);
+            BotLog.info("[Survival] 夹具对 bot 造成 {} 点伤害（血量 {}→{}，净掉 {}，注入前 i-frame {}），"
+                            + "期望：掉血 ⇒ 一条 DANGER 事件",
+                    HURT_AMOUNT, before, after, before - after, invulnBefore);
             return;
         }
-        if (phaseTicks == SETTLE_TICKS + HEALTH_POLL_TICKS) {
+        if (phaseTicks == injectPhaseTick + HEALTH_POLL_TICKS) {
             List<BotEventLog.BotEvent> hits = healthEventsSince(hurtTick);
             HazardState state = SurvivalSystem.current(bot);
             check("掉血必须变成可判读的事实（DANGER 事件含 delta=…；实际命中 " + hits.size()
@@ -1190,7 +1245,7 @@ public class SurvivalExitCheckTask implements Task {
             }
             return;
         }
-        if (phaseTicks < SETTLE_TICKS + HEALTH_POLL_TICKS + HEALTH_QUIET_TICKS) {
+        if (phaseTicks < injectPhaseTick + HEALTH_POLL_TICKS + HEALTH_QUIET_TICKS) {
             return;
         }
         List<BotEventLog.BotEvent> quiet = healthEventsSince(hurtTick);

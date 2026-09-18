@@ -12024,8 +12024,67 @@ bash 是**按需读文件**的 ⇒ 我一边让 `module-selftest.sh` 跑着（8 
 ⚠️ **CORE run1 = FAIL**，红的是 `survival_exit`（BASELINE，最后一步 48/48）：`checks=123 failures=2`，
 两条都是「掉血 DANGER 实际命中 0 条」⇒ **这是台账已登记的偶发假红**（**第 3 次**出现；同工件 run2 **48/48 PASS**、
 `checks=124 failures=0`）⇒ **与本次搬迁无关**（本批改的 13 步全是纯逻辑或 EXTRA；且步序 diff = 0）。
-本次新取的判别对照已登记进台账（PASS/FAIL 两轮逐项对照），**仍按台账的规矩不补丁、等判别探针**。
+本次新取的判别对照已登记进台账（PASS/FAIL 两轮逐项对照），**仍按台账的规矩不补丁、等判别探针**
+⇒ **已定案并修复（见 D-312）**：判别探针次日跑出根因（原版「伤害叠加」把注入削成 1.0 + 回血拍落进单 tick 观察缝）。
 
 ⚠️ **一个工具陷阱（本轮踩到，写给后来人）**：`tools/headless-battery.sh <mode> --no-build` 会跑**上一次构建的工件**
 ⇒ 新增模块后若不加 `--no-build` 之外的重建，六个 `module:<id>` 会**全部**返回 `unknown_module`（exit 5）——
 **这不代表模块有问题，只代表工件是旧的**。正确姿势：先 `./gradlew build`，再带 `--no-build` 连跑多片。
+
+### D-312：`survival_exit` 偶发假红定根因 —— 原版「伤害叠加」+ 回血拍落进单 tick 观察缝；只修夹具前提 2026-09-18
+
+**背景**：`survival_exit`（BASELINE）那条「掉血必须变成可判读的事实（DANGER 事件含 delta=…）」判据**偶发红 3 次**
+（2026-09-17 ×2、2026-09-18 ×1；每次都是**同工件重跑即绿**、签名逐字相同）。台账按「同问题 2+ 次升级调查」的规矩挂着，
+并明确写了"**在拿到判别证据前不改代码**"⇒ 本次先取证、再决定（用户 2026-09-18 批准「只修夹具前提」）。
+
+**决定性实测（判别探针第一次运行，`single:survival_exit` 12:00:56）**：
+```
+自然注入：hurt 返回=true  血量 19.0→18.0  净掉=1.0  absorption=0.0 armor=0
+          invulnerableTime 11→11   hurtTime 0→0
+          ｜事件路径 ledger hits 4→5  lastAmount=1.0
+```
+⇒ 注入的 **2.0 点实际只落地 1.0 点**，且 `invulnerableTime`/`hurtTime` **都没被刷新**。
+
+**机理（三步，缺一不成）**：
+1. **原版「伤害叠加」分支**：`LivingEntity.hurt` 里 `invulnerableTime > 10` 时只打**增量**
+   —— `actuallyHurt(amount - lastHurt)`、`lastHurt = amount`，**不刷新** `invulnerableTime/hurtTime`
+   （Forge mapped jar `LivingEntity.hurt` 字节码偏移 249–331 实测：`getfield invulnerableTime` → `ldc 10.0f` → `fcmpl`
+   → 增量分支 `getfield lastHurt` → `actuallyHurt`；else 分支才 `invulnerableTime=20 / hurtTime=hurtDuration`）。
+   夹具的掉血相位**紧跟着火相位**（每 20 tick 1 点火焰伤害）注入 ⇒ 上一发的 `lastHurt=1.0` 还在 ⇒ 2.0 只落地 1.0。
+2. **本项目回血是无条件 +1 点 / 20 tick**（D-261/D-271 实测，食物/饱和度清零也关不掉）
+   ⇒ **恰好 1.0 的净掉可以被一次回血在采样上抹平**。
+3. **掉血检测读的是单 tick 边缘**（`EventThresholds.checkHealthLoss` 要求 `HazardState.previousHealth > health`）
+   ⇒ 回血拍只要落进"注入 → 下一次观察"那 **1 tick 缝**里，这次掉血就**永远不会被上报**（边缘被消耗、基准被结账）
+   ⇒ 判据红（两条同时红：「掉血…实际命中 0 条」+「冷却窗口内恰好 1 条（实际 0 条）」，且 `checks` 少 1 = 子判据被跳过）。
+
+**排除项（都是实测，不是推断）**：① **不是**"伤害被 i-frame 吞掉"（净掉不是 0，且 `hurt` 返回 true）；
+② **不是** `HEALTH_LOSS_COOLDOWN_TICKS` 冷却（`resetHealthTracking` 在同一 tick 已清零）；
+③ **不是**吸收/护甲（实测 `absorption=0.0 armor=0`）—— 这三条正是台账原先并列的两个候选，**全部被证伪**。
+
+**为什么"偶发"（必要 × 充分）**：
+- **必要**：存档日志 n=9 里，唯一 FAIL 的那一轮是**唯一**满足 `(hurtTick+1) % 20 == 0`（= 注入后下一 tick 就是回血拍）的，
+  其余 8 轮残差 3/16/3/6/12…（100% 分离）。
+- **不充分**：确定性探针（**自标定回血拍**：先压到 19 观测下一次 +1 的 tick H，再在 `H+19` 注入 = 注入后 1 tick 即回血拍）
+  证明：**净掉 2.0 时即使对齐也照样出事件**（module 与 CORE 各一次；+1 回血填不平 2 点缺口）。
+  ⇒ 必须"**净掉被削到 ≤1 点**"**且**"**回血拍落在 1 tick 缝里**"两件事同时成立才红 ⇒ 这解释了同工件偶发、以及
+  为什么 `module:survival`（残余 12）从没见过。
+
+**修法（用户批准范围：只修夹具前提，产线语义不动）** —— `SurvivalExitCheckTask.healthPhase()`：
+① 注入前**等 i-frame 过期**（`bot.invulnerableTime <= 10`，上限 `HEALTH_INJECT_MAX_WAIT_TICKS = 30`；等不到也照注入）；
+② `normalizeVitals()` 满血作基准（净掉 = 完整的 2 点）；③ **把前提写成判据**（`hurt` 返回值 + 净掉 ≥ `HURT_AMOUNT`）
+—— 将来环境再削伤害（i-frame/吸收/护甲都算），会**响亮地红在前提上**，而不是神秘地丢事件。
+**为什么结构上不再偶发**：判据的前提变成"采样缺口 ≥ 2 点"，而一次回血只有 +1 ⇒ 缺口不可能被抹平（与对齐无关）。
+
+**验证**：`single:survival_exit`、`module:survival`、CORE **均 PASS**；日志出现
+`血量 20.0→18.0，净掉 2.0，注入前 i-frame 10` 与 `total=2.0`（修前是 `净掉 1.0` / `total=1.0`），
+`[Survival] SUMMARY checks=125 failures=0`（多出来的那一条 = 前提自证）；CORE 48/48。
+
+**明确不做 + 保留边界（登记，不修）**：产线的 DANGER 掉血事件**仍**走血采样边缘 ⇒「真实 1 点小伤恰好被同 tick 回血抹平」
+这一类**不会上报**。决策层不受影响：`DamageLedger` 按 `LivingDamageEvent` 精确记账（D-271），
+`DecisionSnapshot.damage` 读的是台账。⇒ 若要连这条也消掉，选项是把掉血事件改读 `DamageLedger`（会改 DANGER 语义），
+本次**不做**（用户裁定范围）。
+
+**方法学（可复用，写给后来人）**：① **存档日志就是证据**——`run/headless-logs/*.log` 让"偶发"变成"可统计"（n=9 分离）；
+② **把偶发变成确定性实验**：不要靠"多跑几轮碰运气"，而是**自己标定节拍**（这里 = 回血拍）后在**预测的失败点**注入，
+一次实验拿结论；③ **探针必须临时**：本次探针（自标定 + A/C 两组对照）取证后**已整块删除**，只留终态日志与前提判据；
+④ 夹具的前提若不写成判据，就会以"神秘丢事件"的形式回归 ⇒ 前提自证（D-252 同族纪律）。
