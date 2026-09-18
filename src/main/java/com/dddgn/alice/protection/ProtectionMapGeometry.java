@@ -73,6 +73,86 @@ public record ProtectionMapGeometry(int centerChunkX, int centerChunkZ,
         return grid * cell;
     }
 
+    // ==================== 子格（D-315：一格不再是"一个色块"）====================
+
+    /** 每格每条边最少切成几块。 */
+    public static final int MIN_SUB = 2;
+    /** 每格每条边最多切成几块（再多屏幕上看不清 ⇒ 按"不用太细，能分辨就行"定档）。 */
+    public static final int MAX_SUB = 3;
+
+    /** 按单格像素选子格数：格子够大就 3×3，否则 2×2。 */
+    public static int fitSub(int cell) {
+        return cell >= 12 ? MAX_SUB : MIN_SUB;
+    }
+
+    /** 本几何下每格每条边的子格数（{@value #MIN_SUB}..{@value #MAX_SUB}）。 */
+    public int sub() {
+        return fitSub(cell);
+    }
+
+    /**
+     * 子格左边界（{@code subColumn} ∈ [0, sub]）。
+     *
+     * <p>⚠️ 用「第 n 条分割线」写法（{@code n * cell / sub}）而不是「块宽 × n」：
+     * cell 不能整除 sub 时（如 cell=9、sub=2），块宽自然变成 4/5 交替，**平铺仍然精确无缝无重叠**；
+     * 用固定块宽会留下一条缝 —— 那正是「格子对不齐」的来源。
+     */
+    public int subLeft(int column, int subColumn) {
+        return left + column * cell + subColumn * cell / sub();
+    }
+
+    /** 子格右边界（= 下一条分割线）。 */
+    public int subRight(int column, int subColumn) {
+        return left + column * cell + (subColumn + 1) * cell / sub();
+    }
+
+    public int subTop(int row, int subRow) {
+        return top + row * cell + subRow * cell / sub();
+    }
+
+    public int subBottom(int row, int subRow) {
+        return top + row * cell + (subRow + 1) * cell / sub();
+    }
+
+    /**
+     * 第 {@code index} 个子格在**区块内**的采样坐标（0..15）：取子格正中。
+     *
+     * <p>sub=2 ⇒ 4, 12（与本项目第一版的两个采样点一致）；sub=3 ⇒ 2, 8, 13。
+     */
+    public static int sampleLocal(int sub, int index) {
+        return 16 * (2 * index + 1) / (2 * sub);
+    }
+
+    /**
+     * **由中心向外的环序**格索引（{@code row * grid + column}），给渐进采样用：
+     * 先算玩家周围，远处慢慢补 ⇒ 打开界面立刻有中心区可看，不必等整屏算完。
+     *
+     * <p>可离线断言的性质：长度 = grid²、互不相同、首元素 = 正中心格、
+     * 相邻两个的**切比雪夫距离单调不减**（真的按环推进，不会先跳到远处再回头）。
+     */
+    public static int[] centreOutOrder(int grid) {
+        if (grid < 1 || grid % 2 == 0) {
+            throw new IllegalArgumentException("grid 必须是正奇数: " + grid);
+        }
+        int half = grid / 2;
+        int[] order = new int[grid * grid];
+        int n = 0;
+        for (int radius = 0; radius <= half; radius++) {
+            for (int row = half - radius; row <= half + radius; row++) {
+                for (int column = half - radius; column <= half + radius; column++) {
+                    if (Math.max(Math.abs(row - half), Math.abs(column - half)) != radius) {
+                        continue;       // 只取正好落在本环上的格
+                    }
+                    order[n++] = row * grid + column;
+                }
+            }
+        }
+        if (n != grid * grid) {
+            throw new IllegalStateException("环序没覆盖满: " + n + " != " + (grid * grid));
+        }
+        return order;
+    }
+
     public int right() {
         return left + size();
     }

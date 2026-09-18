@@ -501,8 +501,79 @@ public final class ProtectionZoneCheckTask implements Task {
         check("网格右下角**最后一个像素**仍命中最后一格",
                 geometry.keyAt(geometry.right() - 2.0, geometry.bottom() - 2.0) == geometry.keyAt(16, 16));
 
-        BotLog.info("[Protection] 界面几何 ✓：{}（中心格=玩家区块；289 格双射；网格外返回 null）",
-                geometry.describe());
+        // ============ D-315：地形细化的纯逻辑（子格平铺 / 采样点 / 中心向外采样序）============
+        check("子格数按格子大小定档：cell≥12 ⇒ 3，否则 2（实际 cell=" + geometry.cell() + " ⇒ sub="
+                        + geometry.sub() + "；另测 12/11：" + ProtectionMapGeometry.fitSub(12) + "/"
+                        + ProtectionMapGeometry.fitSub(11) + "）",
+                geometry.sub() == ProtectionMapGeometry.fitSub(geometry.cell())
+                        && ProtectionMapGeometry.fitSub(12) == ProtectionMapGeometry.MAX_SUB
+                        && ProtectionMapGeometry.fitSub(11) == ProtectionMapGeometry.MIN_SUB);
+
+        ProtectionMapGeometry tile = new ProtectionMapGeometry(0, 0, 17, 12, 100, 40);
+        boolean tiledExactly = tile.sub() == 3;
+        for (int column = 0; column < 17 && tiledExactly; column++) {
+            for (int s = 0; s < tile.sub(); s++) {
+                int expectLeft = 100 + column * 12 + s * 4;
+                if (tile.subLeft(column, s) != expectLeft || tile.subRight(column, s) != expectLeft + 4) {
+                    tiledExactly = false;
+                }
+                if (s < tile.sub() - 1 && tile.subRight(column, s) != tile.subLeft(column, s + 1)) {
+                    tiledExactly = false;       // 相邻子格必须**首尾相接**（无缝、无重叠）
+                }
+            }
+            if (tile.subRight(column, tile.sub() - 1) != tile.subLeft(column, 0) + 12) {
+                tiledExactly = false;           // 最后一个子格必须正好落在格子右边界
+            }
+        }
+        check("cell=12/sub=3 ⇒ 子格边界 0/4/8/12 且首尾相接、末块正好到格边（整格精确平铺）", tiledExactly);
+
+        ProtectionMapGeometry odd = new ProtectionMapGeometry(0, 0, 17, 9, 0, 0);
+        boolean oddTiled = odd.sub() == 2 && odd.subLeft(0, 0) == 0 && odd.subLeft(0, 1) == 4
+                && odd.subRight(0, 1) == 9 && odd.subRight(0, 0) == odd.subLeft(0, 1);
+        check("cell=9 不能被 sub=2 整除时**也不留缝**（0/4/9 ⇒ 块宽 4/5 交替）", oddTiled);
+
+        boolean samplesOk = true;
+        for (int s = ProtectionMapGeometry.MIN_SUB; s <= ProtectionMapGeometry.MAX_SUB; s++) {
+            int previous = -1;
+            for (int i = 0; i < s; i++) {
+                int local = ProtectionMapGeometry.sampleLocal(s, i);
+                // 判据 = **属于自己那个子块**（i 号子块覆盖本区块第 i 段 16/s 列）+ 严格递增 + 落在 0..15。
+                // ⚠️ 不照抄"正中"那个公式（那是实现细节、抄了就是自指）；"列必须落在画它的那一格里"
+                // 才是**会出错**的那条：用固定步长（如 i*8）在 sub=3 时会采到第 16 列 ⇒ 立刻红。
+                if (local < i * 16 / s || local >= (i + 1) * 16 / s || local <= previous) {
+                    samplesOk = false;
+                }
+                previous = local;
+            }
+        }
+        check("子格采样列**落在自己那一格内**且严格递增（sub=2 ⇒ 4,12；sub=3 ⇒ 2,8,13；实际 "
+                        + ProtectionMapGeometry.sampleLocal(2, 0) + "," + ProtectionMapGeometry.sampleLocal(2, 1) + " | "
+                        + ProtectionMapGeometry.sampleLocal(3, 0) + "," + ProtectionMapGeometry.sampleLocal(3, 1) + ","
+                        + ProtectionMapGeometry.sampleLocal(3, 2) + "）",
+                samplesOk);
+
+        int[] order = ProtectionMapGeometry.centreOutOrder(17);
+        Set<Integer> seenCells = new LinkedHashSet<>();
+        boolean ringsMonotonic = true;
+        int previousRadius = -1;
+        for (int cellIndex : order) {
+            seenCells.add(cellIndex);
+            int column = cellIndex % 17;
+            int row = cellIndex / 17;
+            int radius = Math.max(Math.abs(row - 8), Math.abs(column - 8));
+            if (radius < previousRadius) {
+                ringsMonotonic = false;         // 必须真的按环推进：不许先跳到远处再回头
+            }
+            previousRadius = radius;
+        }
+        check("中心向外采样序：长度 = grid²（" + order.length + "）、互不相同（" + seenCells.size()
+                        + "）、首元素 = 正中心格（实际 " + order[0] + " vs " + (8 * 17 + 8) + "）",
+                order.length == 289 && seenCells.size() == 289 && order[0] == 8 * 17 + 8);
+        check("采样序的**切比雪夫距离单调不减**（先算玩家周围、远处才补）", ringsMonotonic);
+
+        BotLog.info("[Protection] 界面几何 ✓：{}（中心格=玩家区块；289 格双射；网格外返回 null；"
+                        + "子格 sub={} 精确平铺；采样序 289 格由中心向外）",
+                geometry.describe(), tile.sub());
         advance(Phase.BLACKLIST);
     }
 
