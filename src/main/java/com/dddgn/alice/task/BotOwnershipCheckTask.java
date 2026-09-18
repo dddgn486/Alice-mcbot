@@ -4,12 +4,15 @@ import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotOwnership;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.bot.BotWorldData;
+import com.dddgn.alice.compat.ftbteams.FtbPartyBinder;
+import com.dddgn.alice.compat.ftbteams.FtbTeamsBridge;
 import com.dddgn.alice.log.BotLog;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -32,13 +35,27 @@ import java.util.UUID;
  *
  * <p>夹具**自带起点与复位**：进入前记下当前归属、结束时精确写回（失败路径同样走收尾），
  * 并把新学的门禁也带上：`BotOwnership` **不许有同名方法重载**（`D-317` 用一次客户端崩溃换来的那条）。
+ *
+ * <p><b>`D-321` 追加的 FTB 组</b>（同一只步里，不新开电池步）：用**第二只假人**当"继承者"
+ * （FTB 的 `playerLoggedIn` 会给每只真玩家身份的假人建个人队 ⇒ 两只假人各自有队，正好能验"并队"）：
+ * 归一化起点 → `bind` → **同队 + 身份 ≥ MEMBER**（FTB Chunks 的 `canPlayerUse` 就是按这个放行）
+ * → **幂等**（第二次 bind 不多建队，靠 party **计数**判，不靠文案）→ `leave` 回到各自队伍。
+ * FTB 不在场时**不假绿也不假红**：整组跳过并在 SUMMARY 里写 `ftb=skip(<原因>)`。
  */
 public final class BotOwnershipCheckTask implements Task {
 
-    /** 六个阶段各一 tick + 余量：本步**不碰世界**，所以预算可以很小。 */
-    private static final int BUDGET_TICKS = 60;
+    /** 六个阶段各一 tick + FTB 四段（每段一条命令 + 复核）+ 余量。 */
+    private static final int BUDGET_TICKS = 90;
 
-    private enum Phase { GUARD, REGISTER, REFUSE, PERSIST, LEGACY, CLEANUP, DONE }
+    private static final String FTB_PROBE_NAME = "FtProbe";
+
+    /** 固定 UUID ⇒ 每轮复用同一个 FTB 身份，不在无头世界里堆个人队文件。 */
+    private static final UUID FTB_PROBE_UUID =
+            UUID.nameUUIDFromBytes("alice-ftb-probe".getBytes(StandardCharsets.UTF_8));
+
+    private enum Phase {
+        GUARD, REGISTER, REFUSE, PERSIST, LEGACY, FTB_NORMALIZE, FTB_BIND, FTB_REPEAT, FTB_UNBIND, CLEANUP, DONE
+    }
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -51,6 +68,13 @@ public final class BotOwnershipCheckTask implements Task {
 
     /** 进入前的归属（用于精确复原 + 断言复原成功）。 */
     private BotOwnership.Creator creatorBefore = BotOwnership.NONE;
+
+    /** FTB 组的现场（第二只假人 / 跳过原因 / 建队前 party 计数）。 */
+    private BotPlayer ftbProbe;
+    private String ftbSkipReason = "";
+    private int partiesBefore = -1;
+    private int partiesAfterFirstBind = -1;
+    private String ftbPartyName = "";
 
     public BotOwnershipCheckTask(BotPlayer bot, ServerPlayer observer) {
         this.bot = bot;
@@ -92,6 +116,10 @@ public final class BotOwnershipCheckTask implements Task {
             case REFUSE -> refusePhase();
             case PERSIST -> persistPhase();
             case LEGACY -> legacyPhase();
+            case FTB_NORMALIZE -> ftbNormalizePhase();
+            case FTB_BIND -> ftbBindPhase();
+            case FTB_REPEAT -> ftbRepeatPhase();
+            case FTB_UNBIND -> ftbUnbindPhase();
             case CLEANUP -> cleanupPhase();
             case DONE -> {
                 return finish();
@@ -198,11 +226,121 @@ public final class BotOwnershipCheckTask implements Task {
         check("门禁：`BotOwnership` 不许有**同名方法重载**（D-317：离线判据看不见调用点选错重载）"
                 + "（实际 " + BotOwnership.class.getDeclaredMethods().length + " 个方法，重名=" + duplicated + "）",
                 duplicated.isEmpty());
+        advance(Phase.FTB_NORMALIZE);
+    }
+
+    // ==================== FTB 组（D-321） ====================
+
+    /**
+     * 归一化起点：上一轮若崩在中途，这里先把残留的队退掉 —— **夹具自己摆起点**（不依赖上轮跑干净）。
+     * 然后把判据的前提断言出来：两只假人各自有队、且**当前不同队**（防假绿）。
+     */
+    private void ftbNormalizePhase() {
+        if (!FtbTeamsBridge.available()) {
+            ftbSkipReason = FtbTeamsBridge.unavailableReason();
+            BotLog.warn("[Ownership] FTB 组整组跳过：{}（不假绿也不假红，SUMMARY 里写 ftb=skip）", ftbSkipReason);
+            advance(Phase.CLEANUP);
+            return;
+        }
+        ftbProbe = findOrSpawnProbe();
+        check("前提：FTB 组需要第二只假人当'继承者'（实际 "
+                        + (ftbProbe == null ? "null" : ftbProbe.getName().getString()) + "）",
+                ftbProbe != null);
+        if (ftbProbe == null) {
+            ftbSkipReason = "probe_spawn_failed";
+            advance(Phase.CLEANUP);
+            return;
+        }
+        // 身份闸的前提：这只探针必须"由会话假人创建"（bind 只允许创建者本人操作）
+        BotOwnership.applyTo(ftbProbe, BotOwnership.creatorOfPlayer(bot));
+        FtbPartyBinder.leave(bot, List.of(ftbProbe));   // 归一化（结果不判：下面才是判据）
+
+        boolean botHasTeam = FtbTeamsBridge.teamOf(bot).isPresent();
+        boolean probeHasTeam = FtbTeamsBridge.teamOf(ftbProbe).isPresent();
+        check("前提：两只假人都有自己的 FTB 队伍（FTB 会给每个真玩家身份建个人队）（bot="
+                        + FtbTeamsBridge.describeTeamOf(bot) + "；probe="
+                        + FtbTeamsBridge.describeTeamOf(ftbProbe) + "）",
+                botHasTeam && probeHasTeam);
+        check("前提：探针的创建者 = 会话假人（bind 的身份闸要求）（实际 "
+                        + BotOwnership.describe(BotOwnership.creatorOfBot(ftbProbe)) + "）",
+                bot.getUUID().equals(BotOwnership.creatorOfBot(ftbProbe).uuid()));
+        check("起点：归一化之后两者**不同队**（否则下面的'同队'判据是假绿）",
+                !FtbTeamsBridge.sameTeam(bot, ftbProbe));
+        advance(Phase.FTB_BIND);
+    }
+
+    /** ⭐ 主判据：bind 之后同队，且假人在队里的身份 ≥ MEMBER（FTB Chunks 放行领地编辑就是按这个）。 */
+    private void ftbBindPhase() {
+        partiesBefore = FtbTeamsBridge.partyCount();
+        FtbPartyBinder.Result result = FtbPartyBinder.bind(bot, List.of(ftbProbe));
+        ftbPartyName = result.partyName();
+        partiesAfterFirstBind = FtbTeamsBridge.partyCount();
+        check("bind 成功（create→invite→join 三步都过）（实际 " + result.summary() + "）", result.ok());
+        check("bind 之后队伍数 +1（建队真的发生了）（before=" + partiesBefore
+                + " after=" + partiesAfterFirstBind + "）",
+                partiesBefore >= 0 && partiesAfterFirstBind == partiesBefore + 1);
+
+        boolean same = FtbTeamsBridge.sameTeam(bot, ftbProbe);
+        check("⭐ bind 之后两只必须在**同一 FTB 队伍**（实际 bot=" + FtbTeamsBridge.describeTeamOf(bot)
+                + "；probe=" + FtbTeamsBridge.describeTeamOf(ftbProbe) + "）", same);
+
+        String rank = FtbTeamsBridge.rankInTeamOf(bot, ftbProbe).orElse("NONE");
+        check("⭐ 假人在队里的身份 ≥ MEMBER（= `getRankForPlayer().isMemberOrBetter()`，"
+                + "`ChunkTeamDataImpl.canPlayerUse` 的准入）（实际 rank=" + rank + "）", memberOrBetter(rank));
+        advance(Phase.FTB_REPEAT);
+    }
+
+    /** ⭐ 幂等 + 不重复建队：第二次 bind 必须认出"已在同一队伍"，且 party **计数**不变（不看文案判）。 */
+    private void ftbRepeatPhase() {
+        FtbPartyBinder.Result again = FtbPartyBinder.bind(bot, List.of(ftbProbe));
+        int partiesAfter = FtbTeamsBridge.partyCount();
+        boolean recognised = again.steps().stream().anyMatch(step -> step.what().contains("已在同一队伍"));
+        check("幂等：第二次 bind 仍成功（不抛、不改状态）（实际 " + again.summary() + "）", again.ok());
+        check("幂等：第二次 bind 认出「已在同一队伍」（不是又拉一条命令链）", recognised);
+        // ⚠️ 口径（我第一版就写错过、被这条门抓住）：比的是**第一次 bind 之后**的队数，
+        // 不是进入本组之前的队数 —— bind 本来就要建一个队，拿 before 去比必然假红。
+        check("幂等：party 总数没变（第一次 bind 后=" + partiesAfterFirstBind + " 现在=" + partiesAfter + "）",
+                partiesAfterFirstBind >= 0 && partiesAfterFirstBind == partiesAfter);
+        check("幂等：同队关系不变", FtbTeamsBridge.sameTeam(bot, ftbProbe));
+        advance(Phase.FTB_UNBIND);
+    }
+
+    /** 反向：退伙路径可用，且 FTB 把空队伍删掉（party 计数回到进入前）—— 也是本步的自清理。 */
+    private void ftbUnbindPhase() {
+        FtbPartyBinder.Result left = FtbPartyBinder.leave(bot, List.of(ftbProbe));
+        boolean different = !FtbTeamsBridge.sameTeam(bot, ftbProbe);
+        int partiesAfter = FtbTeamsBridge.partyCount();
+        check("unbind 成功（退伙路径可用）（实际 " + left.summary() + "）", left.ok());
+        check("⭐ unbind 之后两者回到**各自的队伍**（实际 bot=" + FtbTeamsBridge.describeTeamOf(bot)
+                + "；probe=" + FtbTeamsBridge.describeTeamOf(ftbProbe) + "）", different);
+        check("unbind 之后 party 计数回到进入前（进入前=" + partiesBefore + " 现在=" + partiesAfter
+                + "；FTB 在最后一名成员退队时删掉队伍）",
+                partiesBefore >= 0 && partiesBefore == partiesAfter);
         advance(Phase.CLEANUP);
     }
 
-    /** 复位：归属写回进入前的值，并断言**内存与存档**都回去了。 */
+    /** MEMBER 或更好的身份（常量名取自装好的 jar 的 `TeamRank.values()`，不用它的 power 数值）。 */
+    private static boolean memberOrBetter(String rank) {
+        return "MEMBER".equals(rank) || "OFFICER".equals(rank) || "OWNER".equals(rank);
+    }
+
+    /** 复用同名的残留探针，否则新建（**固定 UUID** ⇒ 每轮同一个 FTB 身份）。 */
+    private BotPlayer findOrSpawnProbe() {
+        for (BotPlayer candidate : BotManager.getAllBots()) {
+            if (FTB_PROBE_NAME.equals(candidate.getName().getString())) {
+                return candidate;
+            }
+        }
+        return BotManager.spawn(bot.serverLevel(), bot.blockPosition(), FTB_PROBE_NAME, FTB_PROBE_UUID, bot);
+    }
+
+    /** 复位：归属写回进入前的值，并断言**内存与存档**都回去了；FTB 探针也在这里拆掉。 */
     private void cleanupPhase() {
+        if (ftbProbe != null) {
+            BotManager.remove(ftbProbe);   // 拆实体 + 清 botTag
+            check("自清理：FTB 探针已从玩家列表移除",
+                    bot.getServer().getPlayerList().getPlayer(ftbProbe.getUUID()) == null);
+        }
         BotOwnership.applyTo(bot, creatorBefore);
         BotManager.saveToWorld(bot);
 
@@ -226,9 +364,10 @@ public final class BotOwnershipCheckTask implements Task {
         }
         done = true;
         boolean pass = failures.isEmpty();
-        BotLog.info("[Ownership] SUMMARY checks={} failures={} {} → {}（进入前归属={}，结算后={}）",
+        BotLog.info("[Ownership] SUMMARY checks={} failures={} {} → {}（进入前归属={}，结算后={}，ftb={}）",
                 checks, failures.size(), failures, pass ? "PASS" : "FAIL",
-                BotOwnership.describe(creatorBefore), BotOwnership.describe(BotOwnership.creatorOfBot(bot)));
+                BotOwnership.describe(creatorBefore), BotOwnership.describe(BotOwnership.creatorOfBot(bot)),
+                ftbOutcome());
         if (observer != null && !observer.hasDisconnected() && !observer.isRemoved()) {
             observer.sendSystemMessage(Component.literal(
                     "[alice] 假人归属自检 " + (pass ? "PASS" : "FAIL " + failures)));
@@ -249,5 +388,16 @@ public final class BotOwnershipCheckTask implements Task {
 
     private static String desc(Object value) {
         return value == null ? "无" : value.toString();
+    }
+
+    /** FTB 组的结论（`skip(原因)` = 模组不在场，整组判据不成立；不是"过了"）。 */
+    private String ftbOutcome() {
+        if (!ftbSkipReason.isEmpty()) {
+            return "skip(" + ftbSkipReason + ")";
+        }
+        if (ftbProbe == null) {
+            return "n/a";
+        }
+        return "ok(party「" + ftbPartyName + "」建→并→退 全程可复核)";
     }
 }

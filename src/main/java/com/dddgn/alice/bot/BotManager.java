@@ -1106,7 +1106,16 @@ public final class BotManager {
             pendingRestore = null;
             restoreFromWorld(server);
         }
-        for (BotSession session : BOTS.values()) {
+        // ⚠️ D-321（2026-09-18 无头实测）：**必须遍历快照**。自检/夹具步是在**这个循环里**跑的
+        //（`session.tick` → 步任务），而它们会在 tick 中途 `spawn`/`remove` 假人（双假人转发自检、
+        // FTB 继承自检都这样）⇒ 直接迭代 `BOTS.values()` 会 `ConcurrentModificationException`。
+        // 这个坑是**看 HashMap 顺序的**：实测双假人转发自检侥幸没炸、FTB 自检炸了（服务端崩 + 看门狗）。
+        // 快照的语义变化只有一个：本 tick 内新生成的假人从**下一 tick** 才开始被 tick（更确定，不是更少）；
+        // 本 tick 内被拆掉的假人**跳过**（不许再 tick 一个已经 detach 的会话）。
+        for (BotSession session : java.util.List.copyOf(BOTS.values())) {
+            if (session.bot().isRemoved()) {
+                continue;
+            }
             // T2 根因修复（2026-09-14）：**让假人的玩家区块票跟随它自己**。
             // 放在最前 —— 票不跟随 ⇒ 下一 tick 实体就不在 entity-ticking 区块里，
             // 下面所有"设输入/跑任务"都会落空（D-176 冻结症状的真正成因，见 BotPlayer#syncPlayerChunkTicket）。

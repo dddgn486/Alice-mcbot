@@ -12475,3 +12475,107 @@ ServerGamePacketListenerImpl.send → FakeConnection.send(packet, cb)   FakeConn
 `/alice bots` 把两只都列出来（`:287`/`:288`）⇒ `WINDOWS_CLIENT`；用户判「符合预期」⇒ `USER_ACCEPTED`。
 ⚠️ 注意口径：这一轮 `/alice bots` 是在 20:51:33 **重新 spawn** 之后敲的 ⇒ 它证明的是"命令能显示创建者"，
 **不**证明"创建者能从存档读回来"（后者由离线步 `bot_ownership` 的 `saveToWorld`/`read` 往返判据覆盖，20 条）。
+### D-321：假人**继承创建者的 FTB 身份** —— 只读状态 + 显式 `/alice ftb bind`（不在 spawn 自动建队）2026-09-18
+
+**需求（用户）**：bot 需要有 team 的身份和权限；**最好是继承 bot 创建者的身份与权限**；给 bot 建**自己的**队伍只当
+备用方案（用户原话：「我不希望用创建自己的队伍的方式」）。
+
+**先核实的事实（1.20.1 源码 + 装好的 jar，逐条可查）**：
+1. `ChunkTeamDataImpl.canPlayerUse:291-305`：`PUBLIC`⇒放行；**非假人**+`ALLIES`⇒`isAlly(uuid)`；否则
+   `getRankForPlayer(uuid).isMemberOrBetter()`。而 `FTBChunksWorldConfig.DEF_BLOCK_EDIT` 默认就是 `PrivacyMode.ALLIES`。
+2. 我们的 bot **不是** FTB 意义上的假人（`PlayerHooksImpl.isFake` = `instanceof Forge FakePlayer`；
+   `BotPlayer extends ServerPlayer`）⇒ 走的就是上面这条**普通玩家**逻辑（所以 FTB 的"假人白名单"开关从来管不到我们）。
+3. ⭐ **"加盟友"和"入队"两条路都挂在 `/ftbteams party` 下面**（`FTBTeamsCommands.register`：
+   `party → allies add|remove`、`party → invite`、`party → join`）⇒ **创建者自己没有 party 时，假人没有任何合法途径
+   在他的领地里动手**。这是"必须建队"的真实原因（不是我们图省事）。
+4. ⭐ `party join` **必须有邀请**：join 分支先 `partyTeam.getRankForPlayer(uuid).isAtLeast(TeamRank.INVITED)`，
+   否则抛 `TeamArgument.NOT_INVITED`；`PartyTeam.join` 自己只检查"当前不是 party"。⇒ 顺序固定为 **create → invite → join**。
+5. ⭐ 建队的**副作用**（`FTBChunks.playerJoinedParty`，1.20.1 `FTBChunks.java:450-470`）：创建者**已有的认领区块会被
+   `transferClaims` 转入该 party**，同时记下"原始认领"（`getOriginalClaims`），退队时还回
+   （源码注释明说这是防"邀请再踢人抢地"）。claim 上限默认 `PARTY_LIMIT_MODE = LARGEST`（`PartyLimitMode.NAME_MAP`
+   的默认值）⇒ 加一个成员**不会**改变上限。
+6. 队长退队：`PartyTeam.leave` 只在 `isOwner && getMembers().size() > 1` 时抛 `OWNER_CANT_LEAVE` ⇒
+   **先让成员退、队长最后退**；最后一名成员退队会 `deleteTeam` + 删队伍文件（清理是干净的）。
+7. `FTBTUtils.canPlayerUseCommand(player, "ftbteams.party.create")` = `dispatcher.findNode([...]).canUse(player.createCommandSourceStack())`
+   ⇒ 权限判定就是命令节点自己的 `requires`；`party create` 的 `requires` 只是 `hasNoParty`（**没有 OP 门槛**）
+   ⇒ 权限级 0 的假人也能跑。
+
+**决定（用户 2026-09-18 选项 A）**：写入**只由显式命令触发**；`/alice spawn` 期间**一律不碰**玩家的 FTB 数据。
+理由：建队会**改动玩家自己的队伍与认领归属**（见事实 5）——这种"替玩家改身份"的动作必须由玩家亲手发起。
+- `/alice ftb status` —— 只看不写：你的队伍 + 每只假人的队伍 + 与你的关系（同队/不同队）。
+- `/alice ftb bind` —— 建队（没有时）→ 邀请 → 入队，逐条回话，只在"执行者 = 该假人的创建者"时生效。
+- `/alice ftb unbind` —— 反向：假人先退、你再退（FTB 删掉空队伍）。
+
+**实现（三件，职责单一）**：
+- `compat/ftbteams/FtbCommandRunner` —— **写入路径 = 代打 FTB 自己的命令**
+  （`MinecraftServer.getCommands().performPrefixedCommand(player.createCommandSourceStack().withSource(...))`）：
+  权限、事件、认领转移、落盘全由 FTB 走完，Alice 不反射它的**写入** API（不猜写入语义）。回话同时转发给玩家并抄一份
+  进报告（`EchoSource`：只换消息出口，位置/维度/权限位/实体照抄 ⇒ "代打"不会变成"换个身份"）。
+- `compat/ftbteams/FtbTeamsBridge` —— **只读**反射桥（`FTBTeamsAPI.api() → API.isManagerLoaded()/getManager() →
+  TeamManager.getTeamForPlayer(ServerPlayer)/getTeams() → Team.get{Id,ShortName,isPartyTeam,RankForPlayer,Owner}`），
+  逐条对着 `ftb-teams-forge-2001.3.2.jar` 核过；缺类 ⇒ `ftb_teams_absent`；类在但签名不符 ⇒
+  `signature_mismatch:<成员>` + warn（**不猜、不降级** —— `D-318` 就是"猜了个不存在的方法 ⇒ 整个兼容层从未生效"）。
+- `compat/ftbteams/FtbPartyBinder` —— 顺序与复核（create→invite→join；退伙反序），每步都读回**现场状态**再下结论。
+  party 名用队伍读回的 `getShortName()`（实测 FTB 自己会把显示名变成 `Alice___#49700006` 这种短名），
+  失败再退回"队长名字"写法（两种都记进证据）。
+
+**离线门（追加在既有步 `bot_ownership` 内，不新开电池步 ⇒ 不动两张电池清单）**：第二只假人（固定 UUID 的 `FtProbe`）
+当"继承者"、会话假人当"创建者"（FTB 会给每个真玩家身份建个人队 ⇒ 两只各自有队，正好能验"并队"）。
+判据（`checks` 从 20 → **36**）：归一化起点（上轮残留先退掉）→ 两只各有队 → 起点**不同队** → `bind` 成功 →
+⭐ **同队** → ⭐ 假人身份 **≥ MEMBER**（`isMemberOrBetter`，正是 `canPlayerUse` 的准入）→ 幂等（第二次 bind 认出
+"已在同一队伍"，且 **party 计数**不变 —— 用计数判，不用文案判）→ `leave` 回到各自队伍 + 计数回到进入前。
+FTB 不在场 ⇒ 整组 `ftb=skip(<原因>)`（**不假绿也不假红**）。
+
+**⭐ 这步立刻抓到一个真 bug（不是 FTB 的，见 D-322）**：`BotManager.onServerTick` 直接迭代 `BOTS.values()`，
+而自检步**是在这个循环里**跑的（`session.tick`）⇒ 步内 `spawn`/`remove` 假人会 `ConcurrentModificationException`：
+实测双假人转发自检**侥幸没炸**、FTB 自检**炸了**（服务端崩 + 看门狗 60s，`verdict=<无> exit=3`）。已修。
+
+**验证**：
+- `module:ownership` **PASS**：`checks=36 failures=0 … ftb=ok(party「Alice___#d7e9d241」建→并→退 全程可复核)`；
+  日志里可见 FTB 自己的认领转移过程（`FTB Chunks: attempting to transfer 0 chunks …`，本轮场景无认领故为 0）。
+- 单步 `single:bot_pair_no_recurse` **PASS**（`D-322` 改动的回归面）；`core` = **50/50 PASS（ticks=4759）**、
+  `ALICE_HEADLESS=1 check-all.sh` = **17 PASS + 0 WARN + 0 FAIL**；三件套仍 **1475/1476**。
+- ⚠️ 未验（`WINDOWS_CLIENT` 待做）：你亲自敲 `/alice ftb bind` 之后 **FTB GUI/地图上看到什么**、
+  假人在你的领地里到底能不能动手。日志只能证明"FTB 的 API 说同队了"，证明不了"你看到/做到了"。
+
+**边界（没变的东西）**：① Alice 侧"谁能指挥这只假人"的语义**不受影响**（`bind` 只动 FTB 侧身份；D-319 的
+创建者登记仍是显示/持久化，没有权限语义）；② 不替玩家做任何 FTB 写入 —— 除非玩家敲命令；
+③ 认领区**转移**是 FTB 自己的行为，Alice 不复制、不改写（`D-318` 回撤后我们没有任何外部认领的写入口）。
+
+### D-322：`BotManager.onServerTick` 迭代**活的** `BOTS` ⇒ 步内 `spawn`/`remove` 假人必崩（无头实测抓出）2026-09-18
+
+**现象（`D-321` 新门第一次跑就崩）**：`module:ownership` 跑到最后一段时服务端抛
+`java.util.ConcurrentModificationException`，位置 `BotManager.onServerTick(BotManager.java:1109)`
+（`HashMap$ValueIterator.nextNode`）⇒ 事件总线异常当作"服务器意外异常" ⇒ 写崩溃报告 + 看门狗 60 s
+⇒ `verdict=<无> exit=3`（无判决）。**FTB 那一组判据本身全是绿的**（`bind`/幂等/`leave` 都成功），
+炸的是"跑完之后"。
+
+**根因**：`for (BotSession session : BOTS.values())` 直接迭代活 map，而**自检步就这个循环里跑**
+（`session.tick(hazard)` → 步任务），步里 `BotManager.spawn`（`BOTS.put`）/`BotManager.remove`
+（`BOTS.remove`）会**在迭代中途**改 map。**判据不是"能不能"，而是"今天轮到谁"**：
+HashMap 的迭代器只在 `nextNode()` 里查 `modCount` ⇒ 新增的键落进"已经走过的桶"时循环照样正常结束。
+实测对照：**双假人转发自检（`single:bot_pair_no_recurse`）侥幸没炸、FTB 自检炸了** —— 同一类动作、
+两种结果，纯看哈希顺序。
+
+**修（最小语义变更）**：遍历**快照**（`List.copyOf(BOTS.values())`）+ **跳过已 detach 的会话**
+（`session.bot().isRemoved()`）。语义变化只有一个方向：本 tick 内新生成的假人从**下一 tick** 才开始被 tick
+（原来是**不确定**的：有时同 tick、有时下一 tick），本 tick 内被拆掉的假人**不再**被 tick 一个已经
+`discard()` 的实体。⇒ 更确定，不是更少。
+
+**验证**：修前 `module:ownership` = `verdict=<无> exit=3`（服务端崩）；修后 = **PASS（`checks=36 failures=0`）**；
+`single:bot_pair_no_recurse` = **PASS**（`passed=1/1 ticks=50`）；`core` = **50/50 PASS**。
+
+**⭐ 附注一（同日观察，未定根因，登记不猜测）：CORE 出现一次 `survival_exit` 偶发假红**
+- 2026-09-18 21:45 的 CORE 轮：`survival_exit=FAIL`，两条判据正是 `D-312` 记录过的那两条
+  （「掉血必须变成可判读的事实…实际命中 0 条，state health=19.0 prev=19.0」+「冷却窗口内恰好 1 条」），
+  而 **D-312 的前提自证判据这次是过的**（`夹具对 bot 造成 2.0 点伤害（血量 20.0→18.0，净掉 2.0，注入前 i-frame 10）`）
+  ⇒ **"净掉被一次回血抹平"这条解释这次不成立**，D-312 结尾那句"结构上不再偶发"**不成立**。
+- 已排除的方向（读码核过）：事件与过滤用的是**同一个时钟**（`BotEventLog` 与 `healthEventsSince` 都用
+  `server.getTickCount()`，且过滤是 `>=`）；夹具注入前 `resetHealthTracking` **确实清了冷却**并把基准拨到当前血量。
+- 现状统计（同一份工件）：`single:survival_exit` 单跑 **PASS ×2**、随后 CORE **PASS（50/50）**；
+  CORE 4 轮里 1 红 3 绿 ⇒ **约 1/4 的偶发**，无法在单步复现 ⇒ **不能用"再跑一遍"当结论**。
+- 下一次要做的**最小**诊断（还没做）：在注入前后 40 tick 里把 `hazard.healthLost()`
+  与 `SurvivalSystem.current(bot).previousHealth/health` 每 tick 打一行，看边缘是被谁吃掉的
+  （候选：注入那一 tick 里**另有一次采样**把 `previousHealth` 直接写成 18 ⇒ 边缘从未存在）。
+- ⚠️ 与 `D-322` 的因果关系**未证实也未排除**：`D-322` 的快照改动最多能移动 tick 对齐
+  （`survival_exit` 在步序上早于 `bot_ownership`，FTB 代码不在它的路径上）。

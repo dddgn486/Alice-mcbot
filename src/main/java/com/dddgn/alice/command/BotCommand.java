@@ -4,6 +4,8 @@ import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotOwnership;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.compat.ftbteams.FtbPartyBinder;
+import com.dddgn.alice.compat.ftbteams.FtbTeamsBridge;
 import com.dddgn.alice.gui.BotInventoryService;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.PerceptionProfile;
@@ -69,6 +71,15 @@ public final class BotCommand {
                         .then(Commands.argument("name", StringArgumentType.string())
                                 .executes(ctx -> adoptBot(ctx.getSource(),
                                         StringArgumentType.getString(ctx, "name")))))
+                // D-321：FTB 身份 —— `status` 只看不写；`bind` **显式**让你的假人继承你的 FTB 队伍
+                //（会以你的名义建队 ⇒ 你已有的认领区按 FTB 规则转入该队）；`unbind` 退回。
+                .then(Commands.literal("ftb")
+                        .then(Commands.literal("status")
+                                .executes(ctx -> ftbStatus(ctx.getSource())))
+                        .then(Commands.literal("bind")
+                                .executes(ctx -> ftbBind(ctx.getSource())))
+                        .then(Commands.literal("unbind")
+                                .executes(ctx -> ftbUnbind(ctx.getSource()))))
                 .then(Commands.literal("come")
                         .executes(ctx -> come(ctx.getSource())))
                 .then(Commands.literal("mine")
@@ -1640,6 +1651,106 @@ public final class BotCommand {
             source.sendSuccess(() -> Component.literal(line), false);
         }
         return bots.size();
+    }
+
+    /**
+     * `/alice ftb status`（D-321）：**只看不写** —— 你的 FTB 队伍 + 每只假人的队伍与它跟你的关系。
+     *
+     * <p>为什么先有这个：让"现在到底是什么状态"变成一句可以核对的话，再谈要不要写。
+     */
+    private static int ftbStatus(CommandSourceStack source) {
+        ServerPlayer player = source.getPlayer();
+        if (!FtbTeamsBridge.available()) {
+            source.sendFailure(Component.literal("[alice] 未检测到 FTB Teams（"
+                    + FtbTeamsBridge.unavailableReason() + "）⇒ 队伍相关功能不可用"));
+            return 0;
+        }
+        if (player != null) {
+            source.sendSuccess(() -> Component.literal("[alice] FTB 只读：你="
+                    + FtbTeamsBridge.describeTeamOf(player)), false);
+        } else {
+            source.sendSuccess(() -> Component.literal(
+                    "[alice] FTB 只读：命令方块/控制台没有 FTB 身份，只能列假人的队伍"), false);
+        }
+        java.util.Collection<BotPlayer> bots = BotManager.getAllBots();
+        if (bots.isEmpty()) {
+            source.sendSuccess(() -> Component.literal("[alice] FTB 只读：当前没有假人"), false);
+            return 1;
+        }
+        for (BotPlayer bot : bots) {
+            String relation = player == null ? "-"
+                    : (FtbTeamsBridge.sameTeam(player, bot) ? "**同队**" : "不同队");
+            String line = "[alice] FTB 只读：" + bot.getName().getString()
+                    + " 创建者=" + BotOwnership.describe(BotOwnership.creatorOfBot(bot))
+                    + " 队伍=" + FtbTeamsBridge.describeTeamOf(bot)
+                    + " 与你的关系=" + relation;
+            source.sendSuccess(() -> Component.literal(line), false);
+        }
+        return bots.size();
+    }
+
+    /**
+     * `/alice ftb bind`（D-321）：把**由你创建**的假人拉进你的 FTB 队伍，让它继承你的身份与权限。
+     *
+     * <p>⚠️ 副作用（有意为之、且只在你敲这条命令时发生）：你还没有队伍时，Alice 会**以你的名义**建一个
+     * party —— FTB Chunks 会把**你已有的认领区块转入该队**（FTB 自己留了原始认领记录，退队时还回）。
+     * 因此它**不在 spawn 时自动做**（用户 2026-09-18 裁定）。
+     */
+    private static int ftbBind(CommandSourceStack source) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) {
+            source.sendFailure(Component.literal("[alice] 必须由游戏内玩家执行（命令方块/控制台没有 FTB 身份）"));
+            return 0;
+        }
+        List<BotPlayer> mine = botsCreatedBy(player);
+        if (mine.isEmpty()) {
+            source.sendFailure(Component.literal(
+                    "[alice] 你名下还没有假人（先 /alice spawn <名字>；老假人用 /alice adopt <名字> 补登记）"));
+            return 0;
+        }
+        FtbPartyBinder.Result result = FtbPartyBinder.bind(player, mine);
+        for (FtbPartyBinder.Step step : result.steps()) {
+            source.sendSuccess(() -> Component.literal("[alice] FTB " + step.line()), false);
+        }
+        if (!result.ok()) {
+            source.sendFailure(Component.literal("[alice] FTB 绑定未完全成功："
+                    + result.summary()));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("[alice] FTB 绑定完成："
+                + mine.size() + " 只假人已与你要在同一个队伍（party=「" + result.partyName() + "」）"), true);
+        return mine.size();
+    }
+
+    /** `/alice ftb unbind`（D-321）：反向操作 —— 让假人先退伙、你再退队（FTB 会删掉空队伍）。 */
+    private static int ftbUnbind(CommandSourceStack source) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) {
+            source.sendFailure(Component.literal("[alice] 必须由游戏内玩家执行（命令方块/控制台没有 FTB 身份）"));
+            return 0;
+        }
+        FtbPartyBinder.Result result = FtbPartyBinder.leave(player, botsCreatedBy(player));
+        for (FtbPartyBinder.Step step : result.steps()) {
+            source.sendSuccess(() -> Component.literal("[alice] FTB " + step.line()), false);
+        }
+        if (!result.ok()) {
+            source.sendFailure(Component.literal("[alice] FTB 解绑未完全成功：" + result.summary()));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("[alice] FTB 解绑完成（假人已回到自己的队伍）"), true);
+        return 1;
+    }
+
+    /** **由 `player` 创建**的假人（未登记的假人不算任何人的 —— 与 D-319 同一条口径）。 */
+    private static List<BotPlayer> botsCreatedBy(ServerPlayer player) {
+        List<BotPlayer> mine = new java.util.ArrayList<>();
+        for (BotPlayer bot : BotManager.getAllBots()) {
+            BotOwnership.Creator owner = BotOwnership.creatorOfBot(bot);
+            if (owner.registered() && player.getUUID().equals(owner.uuid())) {
+                mine.add(bot);
+            }
+        }
+        return mine;
     }
 
     /**
