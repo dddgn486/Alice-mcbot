@@ -51,7 +51,8 @@
 > ⇒ 需补 plan-only 夹具：场景 = 一条「贴着熔岩的短路 + 安全绕行长路」，开/关两次规划断言 `cost`/`nodes` 不同（反向对照：去掉加价 ⇒ 两次相同 ⇒ 红）。可用面：`CorePathPlanner` + `SearchBudget`（各诊断任务已这样用 ✓）。
 > **R-2 进度（2026-09-17）**：**Phase 1a 完成**（`task/check/` 框架 + `LedgerModule` 接入，CORE 判"行为等价"✓）；**Phase 1b 首片完成**（`CheckHarness` 编排器脱离会话任务 ✓ · `module:<id>` 单跑 ✓ · `module-selftest.sh` 验收 ✓ · `harness_self` 自检模块证明"命令顶不掉编排器" ✓ —— D-293/294/295）。
 > **R-2 余下**：① v1「模块自带场景/发料/前提」⇒ 才能搬 `pathing`/`mining`/`lumber`/`craft`/`machine`/`transfer`/`survival`/`decision`/`death`/`tools`；② 搬完一类即在 `module-selftest.sh` 里多一个"可单独跑通"的模块 ✓。
-> **R-2 已搬模块（2026-09-18）**：`ledger`(4) → `harness_self`(3) → `pathing`(3，D-296) → `decision`(5，D-297) → `craft`(12，D-298) → `machine`(4，D-299) → `mining`(7，D-301) → `lumber`(3，D-303) → **`transfer`(1，D-308)** → **`survival`(1，D-308)** → **`death`(2，D-309)** → **`tools`(1，D-310)**；模块注册表现 **12** 个（共 **46 步**）；`module-selftest` 逐片全绿；CORE **48/48**（每片都与上一轮做步序 diff = **0 处差异** ✓）。
+> **R-2 已搬模块（2026-09-18）**：`ledger`(4) → `harness_self`(3) → `pathing`(3，D-296) → `decision`(5，D-297) → `craft`(12，D-298) → `machine`(4，D-299) → `mining`(7，D-301) → `lumber`(3，D-303) → **`transfer`(1，D-308)** → **`survival`(1，D-308)** → **`death`(2，D-309)** → **`tools`(1，D-310)**；模块注册表现 **18** 个（电池内 **56/58 步**由模块提供）；**全量 `module-selftest` = 18/18 PASS**（干净退出码 ✓，2026-09-18 里程碑）；CORE **48/48**（每片都与上一轮做步序 diff = **0 处差异** ✓）。
+> **⇒ R-2 主体完成**：电池已成**纯组合表**（17 个模块 + 2 个内联步）；「每个电池步按分类模块化、一个模块保证可以单独测」两条都已成立 ✓。
 > **新增门禁（D-304 收口）**：`R2-P2` **步清单完整性**（CURATION 的每一步必须**恰好**有一个提供者 —— 电池内联或某个模块；电池未组合的模块如 `harness_self` 正当豁免）· `R2-P3` **步边界对齐**（电池 `endStep` 里的跨步还原，编排器 `endStepHygiene` 必须都有）—— 两条都用注入验证过可红 ✓。
 > **工具自守卫（D-304）**：`module-selftest.sh` 自完整性守卫（运行期间被改 ⇒ exit 4，失败关闭）· `headless-battery.sh` 每轮自动归档服务端 stdout 到 `run/headless-logs/`（两次丢证据的教训 ⇒ 结构化 ✓）。
 > **R-2 下一步**：十个**分类片**全部搬完 ✓（`transfer`/`survival`/`death`/`tools` 收尾）。**电池内只剩 15 个内联步**：
