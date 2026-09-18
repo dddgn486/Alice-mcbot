@@ -158,6 +158,16 @@ public final class BreakRefusedCheckTask implements Task {
         targetBefore = level.getBlockState(target);
         check("前提：目标格起点是空气（下面每例都自己放方块，不影响现场）（实际 "
                 + targetBefore.getBlock().getName().getString() + "）", targetBefore.isAir());
+        // ⭐ D-323 附注一：被拒绝**不该白花重试预算**（用户实测：原来同一目标要试 3 次才失败）。
+        // 判据直接钉"硬拒绝名单"的形状：命中 ⇒ 任务层立刻升级失败（不重规划）；可重试码**不许**混进去。
+        check("⑤ 策略：`BREAK_REFUSED` 必须算「硬拒绝」（重试这个目标没有意义 ⇒ 不再白花 "
+                        + "MAX_RECOVERY_ATTEMPTS 次重规划）（实际 hardRefusal="
+                        + MineTask.isHardTargetRefusal("BREAK_REFUSED") + "）",
+                MineTask.isHardTargetRefusal("BREAK_REFUSED"));
+        check("⑤ 反向对照：可重试的失败码（`BREAK_PROGRESS_TIMEOUT` / `OUT_OF_REACH`）**不许**被算成硬拒绝"
+                        + "（否则这条谓词退化成「永远 true」）",
+                !MineTask.isHardTargetRefusal("BREAK_PROGRESS_TIMEOUT")
+                        && !MineTask.isHardTargetRefusal("OUT_OF_REACH"));
         advance(Phase.CONTROL);
     }
 

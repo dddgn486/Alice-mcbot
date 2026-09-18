@@ -619,10 +619,23 @@ public final class MineTask implements Task {
         return Status.FAILED;
     }
 
-    private static boolean isHardTargetRefusal(String reason) {
+    /**
+     * **"重试这个目标没有意义"的失败码**（`D-115` 起的既有语义）：命中即直接 {@link #escalateFailure}，
+     * **不花** {@link #MAX_RECOVERY_ATTEMPTS} 那两次重规划。
+     *
+     * <p>`D-323` 附注一（2026-09-18 用户实测）：`BREAK_REFUSED`（破坏被保护层拦下：FTB 认领 / 别的保护模组 /
+     * 冒险模式限制）原本不在这张名单里 ⇒ 客户端里**同一个目标白重试 2 次**（`attempt=1..3`、
+     * `recoveryAttempts=2/2`，每次都要重新规划 + 走位 + 挖到进度满再被拒）才失败。被"拒"这件事
+     * **不会因为换站位而改变** ⇒ 与 `unbreakable_block` / `protected_*` 同类，进名单。
+     *
+     * <p>包可见（不是 private）：`BreakRefusedCheckTask` 直接断言这张名单的形状
+     * （含"可重试码不许被算成硬拒绝"的反向对照），免得它被悄悄改回可重试。
+     */
+    static boolean isHardTargetRefusal(String reason) {
         return "unbreakable_block".equals(reason)
                 || "fluid_risk_lava".equals(reason)
                 || "TARGET_NOT_BREAKABLE".equals(reason)
+                || "BREAK_REFUSED".equals(reason)
                 || reason.startsWith("protected_");
     }
 

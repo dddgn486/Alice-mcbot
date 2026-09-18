@@ -12624,3 +12624,60 @@ HashMap 的迭代器只在 `nextNode()` 里查 `modCount` ⇒ 新增的键落进
 ⇒ 会在预算内重试几次再失败（保守：不擅自改重试语义；若要"被保护就不重试"另开一条）；③ **镜像问题已登记未修**：
 `BlockInteraction.placeForBulkEdit` 与 `RegionLumberJob:502` 走**裸 `setBlock`** ⇒ FTB 的 `BlockEvent.PLACE` 根本看不到
 （我们自己的保护区闸门仍在）。
+
+**附注一（同日：被拒绝不再白花重试预算）2026-09-18**
+
+用户复测（`latest.log` 22:39）确认 `D-323` 生效（`[WRITE-REFUSED] break … reason=world_unchanged` +
+`reason=BREAK_REFUSED` 终态），但同时指出**同一个目标被重试了两次**：日志里 `attempt=1` / `attempt=2` / `attempt=3`
+配 `recoveryAttempts=2/2`，每次都要**重新规划 + 重新走位 + 挖到进度满**才再次被拒（一个目标白花 ≈3 秒、三次 `[WRITE-REFUSED]` 噪声）。
+
+**这是哪条预算**：`MineTask.MAX_RECOVERY_ATTEMPTS = 2`（`task/MineTask.java:46`，`D-067 Q5` 的语义 =
+"**换站位/换模式重新规划**再试"，不是"重新破坏同一格"）；命中上限后才 `escalateFailure` ⇒ 共 3 次尝试。
+
+**为什么它没走"硬拒绝"分支**：`MineTask` 里**本来就有**这条语义 —— `isHardTargetRefusal(reason)`
+（`task/MineTask.java:622`）覆盖 `unbreakable_block` / `fluid_risk_lava` / `TARGET_NOT_BREAKABLE` / `protected_*`，
+命中即直接升级失败、**不花**那两次重规划；我们的新码 `BREAK_REFUSED` **不在这张名单里** ⇒ 掉进了可重试分支。
+
+**修（一行 + 把政策钉进判据）**：`BREAK_REFUSED` 加进 `isHardTargetRefusal`；该谓词由 `private` 改**包可见**
+（同一 package 的门禁要断言它的形状）。理由：被"拒"这件事**不会因为换站位而改变**（认领/权限/模式都是如此），
+与 `unbreakable_block` 同类；而**失败照样上报**（`escalateFailure` ⇒ `terminal=FAILED` + `code=failed:BREAK_REFUSED`
++ 终态计划证据 `recoveryAttempts=0`），不是静默吞掉。
+**代价（诚实说）**：若拒绝是**暂时性**的（第三方模组的临时锁），少了 2 次白试就只能失败；那种情况该由
+**目标层重新下任务**，而不是执行层硬撞。
+
+**门禁**（仍读方块不读日志）：`break_refused` 判据 14 → **16**，新增两条纯策略断言 ——
+⑤ `BREAK_REFUSED` 必须算硬拒绝；⑤ **反向对照**：可重试码（`BREAK_PROGRESS_TIMEOUT` / `OUT_OF_REACH`）
+**不许**被算成硬拒绝（防这条谓词退化成「永远 true」）。
+**实测**：`single:break_refused` = `PASS（checks=16 failures=0）`；`core` = **51/51 PASS（ticks=4845）**；
+`ALICE_HEADLESS=1 check-all.sh` = **17 PASS + 0 WARN + 0 FAIL**。
+⚠️ `WINDOWS_CLIENT` 待你复测：同一目标现在应**只出现一次** `[WRITE-REFUSED]`，终态证据里 `recoveryAttempts=0`。
+
+### D-324：Xaero 世界地图联动（三项）—— 先测"假人本来是否就可见"，再决定自绘头像 2026-09-18
+
+**用户裁定（2026-09-18）**：三项都要做 —— ② 假人**头像**出现在地图上 → ③ 右键地图上的假人 ⇒ 交互/管理菜单 →
+① 保护区/认领叠加到地图。可行性依据全部来自静态字节码调查
+（`docs/reviews/2026-09-18-Xaero地图联动可行性调查.md`，目标版本 `xaeroworldmap-forge-1.20.1-1.46.0`，370 类）。
+
+**先装、先看（本条的要点：不先写代码）**：已把 `xaeroworldmap-forge-1.20.1-1.46.0.jar`
+（Modrinth CDN，`sha256=e00bd87a…`）装进固定客户端的 `mods/`，并在 `tools/headless-battery.sh`
+的 `CLIENT_ONLY_DEFAULT` 里登记为**纯客户端模组**（专用服务端不该加载它 ⇒ 无头电池保持同构且不引入新噪声）。
+**为什么先测**：Xaero 的玩家标记是**它自己**画的（`PlayerTrackerMapElementRenderer.renderElement`），
+唯一前提（SEEN 字节码）= 客户端连接里**存在该 UUID 的 `PlayerInfo`**（`ClientPacketListener.getPlayerInfo`），
+否则整段图标渲染被 `ifnull` 跳过；而我们的假人**是真玩家**（`PlayerList.placeNewPlayer` 注册 ⇒ 服务端会广播
+`ClientboundPlayerInfoUpdatePacket`）⇒ **它很可能本来就在地图上**，不需要 Alice 写一行代码。
+**反面成本（也是先测的理由）**：自绘头像这条路**没有官方注册点** ——
+① Xaero 自己的 tracker 路线**不支持自定义图标**（`TrackedPlayerIconManager.getPlayerSkin` 只认皮肤贴图，
+无 hook/registry/supplier）；② 要么 mixin（`TrackedPlayerIconManager.getIcon` / `TrackedPlayerIconPrerenderer.prerender`），
+要么走 Route 2B（`WorldMap.mapElementRenderHandler.add(...)` 公开、无 `end()` 冻结，但要自己实现
+`MapElementRenderer/Provider/Reader/Drawer` 五个抽象类）。**在没量出"本来就看得见吗"之前，这些都不该动手。**
+
+**后续路线（按用户排序）**：
+- ② 若"本来就可见" ⇒ 核心目标已达成；**是否要专属图标**（一眼区分 bot 与真人）再定 —— 若要，优先 Route 2B
+  （公开 API、无 mixin），mixin 只留给①；
+- ③ 右键菜单：挂在**我们自己的元素**上时用 `ElementReader.getRightClickOptions`（公开、无需 mixin）；
+  挂"通用菜单"才需要 mixin `GuiMap.getRightClickOptions`；
+- ① 认领叠加：唯一必须有 mixin 的一项（继承 `ChunkHighlighter` 并注册进 `HighlighterRegistry`；
+  注意 `HighlighterRegistry.<init>` TAIL 后会 `unmodifiableList` 冻结 ⇒ 注册必须在冻结前）。
+
+**边界**：本项是 **Alice 的第一个客户端渲染功能**（此前全是服务端权威）⇒ 它**不得**成为任何服务端行为的依赖；
+渲染失败必须退化成"看不见元素"，不许影响 bot 的存在/任务/权限。验收等级只能是 `WINDOWS_CLIENT`（我看不到画面）。

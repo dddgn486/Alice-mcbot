@@ -403,10 +403,40 @@ claim 上限默认按"最大成员"算 ⇒ 不变）。所以它**不在 spawn �
    **本轮结论（用户 2026-09-18 实测 ✓）**：`bind` 之后**在队里能挖领地内的方块、退队就不行** ⇒ `D-321` 的
    队伍/权限那半成立（`WINDOWS_CLIENT` + `USER_ACCEPTED`）。
 7. 未登记的假人 ⇒ `bind` 会**拒绝**并让你先 `/alice adopt <名字>`（不静默补主）。
-8. ⭐ **同一轮实测暴露的缺陷（`D-323`，已修）**：退队后那 4 次"挖不动"，**我们当时全记成了成功**
+8. ⭐ **同一轮实测暴露的缺陷（`D-323`，已修 + 你已复验 ✓）**：退队后那 4 次"挖不动"，**我们当时全记成了成功**
    （`block_break_done` + `COMPLETED`，而存档里那 4 格还是泥土）。现在**被拦下的破坏必须留下**：
    日志 `[WRITE-REFUSED] break pos=… reason=world_unchanged（destroyBlock=false 方块仍是 …）`、
    任务终态 `BREAK_REFUSED`。⇒ 复测时**别再只看"有没有 done"**，要同时看这两行在不在。
+9. ⭐ **"被拒不再白试"（`D-323` 附注一）**：以前同一个被保护的目标会**重试 2 次**
+   （`attempt=1..3`、`recoveryAttempts=2/2`，每次重规划+走位+挖满再被拒）。现在 `BREAK_REFUSED` 属**硬拒绝**
+   ⇒ 立刻失败。复测要点：同一目标只出现**一次** `[WRITE-REFUSED]`，终态证据里 `recoveryAttempts=0`。
+
+---
+
+## 2.8 ★ Xaero 世界地图（`D-324`）—— 先"看得见"，再谈头像和菜单
+
+**为什么先做这一步**：Xaero 的**玩家标记是它自己画的**（`PlayerTrackerMapElementRenderer`），
+前提只有一条：**客户端连接里得有这只玩家的 `PlayerInfo`**（即它得出现在 TAB 列表里）。
+我们的假人是真玩家（经过 `placeList.placeNewPlayer`）⇒ **它可能本来就出现在地图上**，
+不需要 Alice 写任何代码。**先测，再决定要不要自绘头像**（自绘要么 mixin、要么实现 Route 2B 那套
+`MapElementRenderer/Provider/Reader/Drawer` —— 成本高得多）。
+
+**已做**：`mods/` 里装好 `xaeroworldmap-forge-1.20.1-1.46.0.jar`（Modrinth CDN，目标版本与
+`docs/reviews/2026-09-18-Xaero地图联动可行性调查.md` 逐类核对过的**同一个版本**）。
+
+**你要做的（一次按键级操作）**：
+1. 进游戏后按 **M**（Xaero 世界地图默认键）打开地图；
+2. 看地图上**有没有** `demo` / `tango` 的玩家标记（头像/名字/箭头），和普通玩家（你自己）长什么样；
+3. 顺手确认：地图能正常打开、不崩、Create 启动时那两条 `@Mixin target xaero.map.gui.GuiMap was not found`
+   警告应该消失（那是 Create 的 Xaero 兼容层在等这个模组）。
+
+**告诉我三件事即可**（我不猜）：① 假人有没有出现在地图上；② 有的话长什么样（和真人玩家一样吗）；
+③ 有没有卡顿/紫黑块/崩。
+
+**然后的路线**（按你之前的裁定：三项都要做）：
+- 若**已经能看见** ⇒ "bot 头像"这一项的核心目标已达成；要不要**专属图标**（区分 bot 与真人）再定；
+- ③ 右键地图上的 bot 弹菜单（挂在**我们自己的元素**上时无需 mixin）—— 需要先有"我们的元素"（≈ 2B）；
+- ① 认领区叠加到 Xaero 地图（唯一需要 mixin 的一项，`ChunkHighlighter` + `HighlighterRegistry`）。
 
 ---
 

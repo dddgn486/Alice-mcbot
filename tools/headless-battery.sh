@@ -83,7 +83,8 @@ ARTIFACT="$REPO/build/libs/alice-1.0.0-1.20.1.jar"
 
 # 客户端模组里**只在客户端有意义**的（生产服务端装了要么无意义、要么崩）：默认排除
 CLIENT_ONLY_DEFAULT="[通用拼音搜索] jecharacters-1.20.1-forge-4.6.11.jar
-[JEI物品管理器] jei-1.20.1-forge-15.58.0.209.jar"
+[JEI物品管理器] jei-1.20.1-forge-15.58.0.209.jar
+xaeroworldmap-forge-1.20.1-1.46.0.jar"   # D-324：Xaero 世界地图是纯客户端模组（专用服务端不该加载）
 
 say() { printf '[headless] %s\n' "$*"; }
 die() { printf '[headless] 错误：%s\n' "$*" >&2; exit 5; }

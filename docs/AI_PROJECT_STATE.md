@@ -244,11 +244,11 @@ S0 事实表 ✅ → S1 设备事实表 ✅ → **S2 进表 ✅（`MachineMap` 3
   "子阶段失败"口径）、D-235（挂起传输"结清落盘"：持久化成立 + 跨重启幂等）。
 - **保护区线（2026-09-18，D-313…D-317）**：区块级认领（忽略 Y / 全高度 / 旧格式迁移不静默丢）+ 零参数物品 `alice:protection_selector`
   （网格勾选 + 3×3 子格地形/明暗）+ `D-317` 崩溃修复（**用户实测地图正常打开 ✓ `WINDOWS_CLIENT`**；「不许同名重载」门禁）。
-  FTB 只读兼容**已整体回撤**（`D-318`）；`D-319` 假人归属（创建者登记 + `/alice bots`/`adopt`，**客户端已验 ✓**）；`D-320` 两假人挨着爆栈崩已加闸 + 新 EXTRA 门先红后绿 + **同配置客户端复验 ✓**；`D-321` FTB 身份继承（`/alice ftb status|bind|unbind`：写入**只由显式命令**触发、代打 FTB 自己的命令）**客户端已验 ✓**（在队能挖领地内 / 退队不能）；`D-322` 步内 spawn/remove 假人崩（迭代活 map 的 CME，已修）；`D-323` ⭐ **破坏被拒不再谎报成功**（真机发现：FTB 拦下的破坏我们记成 `done`+`COMPLETED`，存档里方块还在 ⇒ 改为**世界事实判定** + 新码 `BREAK_REFUSED`，新门 `break_refused` 先红后绿）；Xaero 联动三项**已登记**。
+  FTB 只读兼容**已整体回撤**（`D-318`）；`D-319` 假人归属（创建者登记 + `/alice bots`/`adopt`，**客户端已验 ✓**）；`D-320` 两假人挨着爆栈崩已加闸 + 新 EXTRA 门先红后绿 + **同配置客户端复验 ✓**；`D-321` FTB 身份继承（`/alice ftb status|bind|unbind`：写入**只由显式命令**触发、代打 FTB 自己的命令）**客户端已验 ✓**（在队能挖领地内 / 退队不能）；`D-322` 步内 spawn/remove 假人崩（迭代活 map 的 CME，已修）；`D-323` ⭐ **破坏被拒不再谎报成功**（真机发现：FTB 拦下的破坏我们记成 `done`+`COMPLETED`，存档里方块还在 ⇒ 改为**世界事实判定** + 新码 `BREAK_REFUSED`，新门 `break_refused` 先红后绿，**客户端已验 ✓**，并且被拒不再白花 2 次重试预算）；Xaero 联动三项**在做**（世界地图 jar 已装进客户端，见 §2.8）。
 - **D-230 的自我修正**：我一度判断"bot 的血只减不增、必须补 `doTick()`"，实测**推翻**了它（`Player.aiStep()`
   本来就有自然回血）⇒ `doTick()` 默认**不启用**，开关 `alice.bot.vanillaTick` 保留为有记录的实验开关。
 - **离线门槛**（"改一行到知道对不对"）：`tools/headless-battery.sh core` = **CORE 51 步**
-  （当前 `passed=51/51 ticks=4800 → PASS`）；`check-all.sh` = **17 PASS + 0 WARN + 0 FAIL**；`module-selftest.sh` = **21 个模块**。
+  （当前 `passed=51/51 ticks=4845 → PASS`）；`check-all.sh` = **17 PASS + 0 WARN + 0 FAIL**；`module-selftest.sh` = **21 个模块**。
 - **断点与待办**：`docs/HANDOVER.md`（§1 下一步 / jar hash）、`docs/OPEN_ITEMS_LEDGER.md`
   （**§5.11**：水里逃生四条挂账 —— 水面理由码 / 出口列表 / **B 维生写授权（待用户拍板）** / **丙 内核水位移动**；
   §5.6 风险等级层、§5.10 客户端可验项、其余 Job 的 `lastFailure`）。
