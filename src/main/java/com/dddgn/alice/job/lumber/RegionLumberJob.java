@@ -498,6 +498,14 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
                     spot.toShortString());
             return null;
         }
+        // D-326：第三方保护层（补种也是世界底层写入 ⇒ FTB 认领看不见它）—— 被拒就**不写世界**、
+        // 把待补种项留着（与"够不着"同一个诚实语义：宁可不做，也不越过别人的闸门）。
+        String thirdParty = com.dddgn.alice.protection.ThirdPartyProtection.refusalReason(bot, spot);
+        if (thirdParty != null) {
+            BotLog.warn("[WRITE-REFUSED] plant pos={} by={} reason={}（本轮不写世界、保留待补种）",
+                    spot.toShortString(), grant.describe(), thirdParty);
+            return null;
+        }
         var placed = blockItem.getBlock().defaultBlockState();
         level.setBlock(spot, placed, 3);
         // 账本记 KEEP（`REGION_REPLANT.temporary()==false`）⇒ 不受"建拆同权"约束

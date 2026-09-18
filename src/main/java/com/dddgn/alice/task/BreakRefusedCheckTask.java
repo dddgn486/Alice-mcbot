@@ -1,6 +1,8 @@
 package com.dddgn.alice.task;
 
 import com.dddgn.alice.action.BlockBreakSession;
+import com.dddgn.alice.action.WriteGrant;
+import com.dddgn.alice.action.WriteReason;
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.compat.ftbteams.FtbCommandRunner;
@@ -11,6 +13,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -54,11 +57,14 @@ public final class BreakRefusedCheckTask implements Task {
 
     private static final String PROBE_NAME = "ClaimProbe";
 
+    /** 目标方块类型（对照判据用对象比较，不用 `isDirt()` 的间接语义）。 */
+    private static final Block DIRT_BLOCK = Blocks.DIRT;
+
     /** 固定 UUID ⇒ 每轮复用同一个 FTB 身份（不堆个人队文件）。 */
     private static final UUID PROBE_UUID =
             UUID.nameUUIDFromBytes("alice-claim-probe".getBytes(StandardCharsets.UTF_8));
 
-    private enum Phase { GUARD, CONTROL, ADVENTURE, FTB_CLAIM, CLEANUP, DONE }
+    private enum Phase { GUARD, CONTROL, ADVENTURE, FTB_CLAIM, BULK_CONTROL, CLEANUP, DONE }
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -123,6 +129,7 @@ public final class BreakRefusedCheckTask implements Task {
             case CONTROL -> controlPhase();
             case ADVENTURE -> adventurePhase();
             case FTB_CLAIM -> ftbClaimPhase();
+            case BULK_CONTROL -> bulkControlPhase();
             case CLEANUP -> cleanupPhase();
             case DONE -> {
                 return finish();
@@ -262,6 +269,55 @@ public final class BreakRefusedCheckTask implements Task {
                 session.status() == BlockBreakSession.Status.FAILED && "REFUSED".equals(ftbCode));
         check("③ ⭐ 被 FTB 拒绝时方块必须原地不动（真机实测：退队后 4 格全是 dirt 而我们记了 done）"
                         + "（实际 " + now.getBlock().getName().getString() + "）", !now.isAir());
+        // ④（D-326）**批量写路径**：道路施工/清障走 `placeBulkEdit` / `breakForBulkEdit`，
+        // 而它们**不触发 Forge 的放置/破坏事件**（`Level.destroyBlock` 已反汇编核实无 BreakEvent 引用）
+        // ⇒ FTB 的认领对它们本来完全不可见（自方闸门仍在）。收口后必须**如实拒绝**。
+        ServerLevel lvl = bot.serverLevel();
+        // ⚠️ 判据写成「**与尝试前一致**」而不是「仍是空气」：③ 那一例被拒后目标格本来就可能留有方块
+        //    （第一版就是在这里假红：断言 isAir 而实际是上一例留下的 Dirt）。
+        BlockState beforeBulk = lvl.getBlockState(target);
+        boolean bulkPlaced = com.dddgn.alice.action.BlockInteraction.placeBulkEdit(bot, lvl, target,
+                Blocks.DIRT.defaultBlockState(), WriteGrant.of(taskName(), WriteReason.BULK_EDIT));
+        check("④ ⭐ FTB 认领内**批量放置**必须被拒（道路施工走的正是这条路，它对 Forge 事件不可见）"
+                        + "（返回=" + bulkPlaced + " 尝试前=" + beforeBulk.getBlock().getName().getString()
+                        + " 尝试后=" + lvl.getBlockState(target).getBlock().getName().getString() + "）",
+                !bulkPlaced && lvl.getBlockState(target).equals(beforeBulk));
+        lvl.setBlock(target, Blocks.DIRT.defaultBlockState(), 3);   // 夹具直接摆一块，用来试批量破坏
+        boolean bulkBroke = com.dddgn.alice.action.BlockInteraction.breakForBulkEdit(bot, lvl, target, false,
+                WriteGrant.of(taskName(), WriteReason.BULK_EDIT));
+        check("④ ⭐ FTB 认领内**批量破坏**必须被拒（走 `Level.destroyBlock` ⇒ 不触发 Forge 破坏事件）"
+                        + "（返回=" + bulkBroke + " 方块现在=" + lvl.getBlockState(target).getBlock().getName().getString()
+                        + "）",
+                !bulkBroke && !lvl.getBlockState(target).isAir());
+        advance(Phase.BULK_CONTROL);
+    }
+
+    /** ⑤ 对照（防"永远拒"）：**撤销认领之后**同一组批量路径必须真的能写、且世界真的变了。 */
+    private void bulkControlPhase() {
+        if (caseTicks == 0) {
+            caseLabel = "对照（撤销认领后批量写）";
+            caseTicks = 1;
+            if (probe != null && probeClaimed) {
+                FtbCommandRunner.Outcome unclaim = FtbCommandRunner.runAs(probe, "ftbchunks unclaim");
+                probeClaimed = !unclaim.ok();
+                check("⑤ 前提：探针撤销认领成功（否则下面的「能写」可能只是没认领过）", !probeClaimed);
+                BotLog.info("[BreakRefused] 探针撤销认领：ok={} {}", unclaim.ok(), unclaim.text());
+            }
+            ServerLevel lvl = bot.serverLevel();
+            clearTarget();
+            boolean bulkPlaced = com.dddgn.alice.action.BlockInteraction.placeBulkEdit(bot, lvl, target,
+                    Blocks.DIRT.defaultBlockState(), WriteGrant.of(taskName(), WriteReason.BULK_EDIT));
+            check("⑤ 对照：**无认领**时批量放置必须真的落地（返回=" + bulkPlaced + " 方块现在="
+                            + lvl.getBlockState(target).getBlock().getName().getString() + "）",
+                    bulkPlaced && lvl.getBlockState(target).is(DIRT_BLOCK));
+            boolean bulkBroke = com.dddgn.alice.action.BlockInteraction.breakForBulkEdit(bot, lvl, target, false,
+                    WriteGrant.of(taskName(), WriteReason.BULK_EDIT));
+            check("⑤ 对照：**无认领**时批量破坏必须真的生效（返回=" + bulkBroke + " 方块现在="
+                            + lvl.getBlockState(target).getBlock().getName().getString() + "）",
+                    bulkBroke && lvl.getBlockState(target).isAir());
+            advance(Phase.CLEANUP);
+            return;
+        }
         advance(Phase.CLEANUP);
     }
 

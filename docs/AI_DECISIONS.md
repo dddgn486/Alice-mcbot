@@ -12715,3 +12715,44 @@ HashMap 的迭代器只在 `nextNode()` 里查 `modCount` ⇒ 新增的键落进
 **⚠️ 为什么这次不靠"多跑几轮 CORE"当证据**：偶发率 ≈1/4 ⇒ 3 轮全绿只能把"还在"的概率压到 ~42%，
 **统计上毫无说服力**。真正的证据是那条**确定性前提判据**（它直接钉住基准这个因果量）。
 CORE 多轮只作为辅助回归。
+
+### D-326：批量写路径的**第三方保护收口**（FTB 认领只读预检）2026-09-18
+
+**用户裁定**（2026-09-18，本会话）：选 **A = 收口，用只读预检**（不选"改走原语"：那会让修路变成
+"得先揣一背包石头"、补种还要改物品消耗路径与放置面语义，属行为变更 + 需独立客户端轮次；也不选"只登记"）。
+
+**事实（收口前，全部已核实）**：
+- 三条**批量写**路径走世界底层写入 —— 道路施工 `RoadBuilder.java:111/117/157`：`placeBulkEdit`（裸 `setBlock`）+
+  `breakForBulkEdit`（`Level.destroyBlock`）；伐木补种 `RegionLumberJob.java:502`（裸 `setBlock`）。
+- **Forge 的破坏/放置事件由 `ServerPlayerGameMode`/交互路径触发**：`Level.destroyBlock` **不**触发
+  `BlockEvent.BreakEvent`（对 `forge-1.20.1-47.4.10_mapped_*.jar` 的 `net/minecraft/world/level/Level.class`
+  反汇编核实：无 `BreakEvent`/`onBlockBreakEvent` 引用）⇒ **FTB 认领与任何"靠 Forge 事件做保护"的模组，
+  对这三条路径完全不可见**。
+- 门禁**实测**（`break_refused` 步，FTB 认领内、非同队假人）：收口前 `placeBulkEdit` 返回 `true` 且方块**真的变成 Dirt**、
+  `breakForBulkEdit` 返回 `true` 且方块**真的被清成 Air** ⇒ 别人的地确实被改了（这就是**先红**证据）。
+- 自方闸门当时是有效的（`WriteBudget` + `SafeZoneData` + 账本）—— 缺的只是**第三方的**那一层。
+
+**收口做法（问 FTB 它自己那条裁决，不自己发明规则）**：
+- 新增 `compat/ftbchunks/FtbChunksBridge`（**只读**反射桥）：`FTBChunksAPI.api()` → `API.isManagerLoaded()/getManager()` →
+  `ClaimedChunkManager.shouldPreventInteraction(Entity, InteractionHand, BlockPos, Protection, Entity)` +
+  `Protection.EDIT_BLOCK`。**每个成员都核对签名**，缺类 ⇒ `ftbchunks_absent`、签名不符 ⇒ `signature_mismatch:<成员>` + warn
+  （`D-318` 教训：绝不猜、绝不静默降级）。核实来源：装好的 `ftb-chunks-forge-2001.3.8.jar` 反汇编 +
+  1.20.1 源码 `ClaimedChunkManagerImpl:200-232`（裁决语义）与 `forge/.../FTBChunksExpectedImpl.java:23-33`
+  （Forge 平台把破坏/放置**都**映射到 `EDIT_BLOCK`）；FTB 自己的钩子 `FTBChunks.java:276/321/331` 用的就是这一对
+  ⇒ **我们问的问题与 FTB 自己问的逐字一致**（含隐私设置/白名单标签/`bypass_protection`/旁观者/全局 `disable_protection`/荒野策略）。
+- 新增 `protection/ThirdPartyProtection.refusalReason(bot, pos)`：被拒 ⇒ `ftb_claim_denied`（沿用既有
+  `[WRITE-REFUSED] … reason=` 口径）；**桥不可用/调用异常 ⇒ 不拦但留 warn**（fail-open：自方闸门仍是权威，
+  且不许"我们自己的反射失配"把荒野修路也锁死；每进程只 warn 一次）。
+- 三个调用点接线：`BlockInteraction.placeBulkEdit`、`BlockInteraction.breakForBulkEdit`、`RegionLumberJob` 补种
+  （补种被拒 ⇒ 与"够不着"同一诚实语义：**不写世界、保留待补种**）。
+
+**门禁（先红后绿，判据读世界不读日志）**：`break_refused` 从 16 → **21** 条判据，新增
+④ FTB 认领内**批量放置/批量破坏必须被拒**（且方块与尝试前一致）+ ⑤ **对照**：撤销认领后同一路径必须**真的能写**
+（防"永远拒"）。**实测**：修前 `verdict=FAIL`，两条 ④ 判据红（`返回=true 方块现在=Dirt` / `返回=true 方块现在=Air`）
+→ 修后 `PASS（checks=21 failures=0）`，日志留下 `[WRITE-REFUSED] place/break … reason=ftb_claim_denied`。
+
+**验证**：`single:break_refused` 先红后绿 · CORE **51/51（ticks=4845）** · `ALICE_HEADLESS=1 check-all.sh` = **17 PASS + 0 WARN + 0 FAIL** · 三件套 1475/1476。
+
+**已知边界（未做，登记在案）**：① 收口只覆盖**批量**三条路；单方块路径本来就触发 FTB 自己的事件（它自己会拦）⇒
+不需要再问一遍；② 桥只认 FTB Chunks；别的保护模组若只挂 Forge 事件，仍看不见这三条路（要覆盖得走"改原语"那条更大的路，
+已被本次裁定排除）；③ 玩家侧的**未 bind**情形是有意行为：认领内修路会被拒 ⇒ 先 `/alice ftb bind`（与 `D-321` 一致）。

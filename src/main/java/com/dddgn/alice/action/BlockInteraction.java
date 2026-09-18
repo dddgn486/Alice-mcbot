@@ -466,6 +466,14 @@ public final class BlockInteraction {
                     pos.toShortString(), grant.describe(), protectedReason);
             return false;
         }
+        // D-326：**第三方保护层**。本方法是世界底层写入（不触发 Forge 放置事件）⇒ FTB 认领看不见它
+        // （门禁实测：别人队伍的认领内批量放置会成功且世界真的被改）⇒ 写之前得**主动问一句**。
+        String thirdParty = com.dddgn.alice.protection.ThirdPartyProtection.refusalReason(bot, pos);
+        if (thirdParty != null) {
+            BotLog.warn("[WRITE-REFUSED] place pos={} by={} reason={}",
+                    pos.toShortString(), grant.describe(), thirdParty);
+            return false;
+        }
         BlockState previousState = level.getBlockState(pos);
         WriteAudit.placeWrite(level, pos, state, grant);
         level.setBlock(pos, state, 3);
@@ -497,6 +505,13 @@ public final class BlockInteraction {
         if (refusal != null) {
             BotLog.warn("[WRITE-REFUSED] break pos={} by={} reason={}",
                     pos.toShortString(), grant.describe(), refusal);
+            return false;
+        }
+        // D-326：第三方保护层（`Level.destroyBlock` 不触发 Forge 破坏事件 ⇒ FTB 认领看不见这里）
+        String thirdParty = com.dddgn.alice.protection.ThirdPartyProtection.refusalReason(bot, pos);
+        if (thirdParty != null) {
+            BotLog.warn("[WRITE-REFUSED] break pos={} by={} reason={}",
+                    pos.toShortString(), grant.describe(), thirdParty);
             return false;
         }
         BlockState before = level.getBlockState(pos);
