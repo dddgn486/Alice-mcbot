@@ -19,8 +19,12 @@
 SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 **跳过多少、跑多少、各档几项**一眼可见；归属表与实跑项对不上（漏登记 / 文档说测了其实没测）**直接判红**。
 
-## 2. 当前归属表（62 项 → CORE 51 项）
+## 2. 当前归属表（64 项 → CORE 51 项）
 
+> **2026-09-19 校正**：`far_path_bench` + `path_retry_bench` 进 EXTRA（**测量用基准，不是判据**）
+> ⇒ BASELINE 15 + MAIN 36 + EXTRA 13 = **64**，CORE 仍 **51**（`core` 实跑 SUMMARY 佐证：`baseline=15 main=36 extra_skipped=13 passed=51/51`）。
+> 这两步会**改世界**（走廊 + forceload 40+ 区块 / 一个封死房间），所以**只适合 `single:` 单独跑**，CORE 与全量档都会跳过。
+>
 > 2026-09-18 校正：本节标题里的计数长期漂移（原写 46/38）⇒ 本次按 `RegressionBatteryTask.CURATION`
 > **逐条数了一遍**：BASELINE 15 + MAIN 36 + EXTRA 11 = **62**，CORE = **51**（2026-09-18：`bot_ownership` 进 MAIN、`bot_pair_no_recurse` 进 EXTRA、`break_refused` 进 MAIN）。
 
@@ -79,9 +83,14 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 > **瘦身的前提**是"每个夹具自己显式自证前提、顺序无关"；该前提未落地前不允许再减 CORE 项。
 > 恢复路径：先做"显式自证前提"（菜单身份/位置/方块实体状态/账本与归因时间窗）⇒ 再**逐条**撤，**每条复跑一次**。
 
-### EXTRA（10）
+### EXTRA（13）
 `lumber_failure`、`region_maintain`（区域常驻 Job，耗时）、`decision_contract`、`decision_trace`、
-`permission_gate`、`pickup_gate`、`collect_job`、`recipes_dump`、`event_thresholds`
+`permission_gate`、`pickup_gate`、`collect_job`、`recipes_dump`、`event_thresholds`、
+`bot_pair_no_recurse`（2026-09-18，D-320：两假人相邻不爆栈）、
+`far_path_bench`（**测量基准**，D-328：距离→节点/毫秒曲线 + 加载边界 + 执行器行走；
+会 forceload 40+ 区块并写/清走廊 ⇒ 只 `single:far_path_bench`）、
+`path_retry_bench`（**测量基准**，D-328 附注 + D-331 门禁：失败重试节奏 + "未加载目标不许被同步加载"；
+会造/拆一个封死房间 ⇒ 只 `single:path_retry_bench`）
 
 ## 3. 维护规则（我 = AI 负责执行）
 
