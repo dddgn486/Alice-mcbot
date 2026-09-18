@@ -1227,6 +1227,15 @@ public class SurvivalExitCheckTask implements Task {
                             + "（hurt=" + applied + " 血量 " + before + "→" + after
                             + " 净掉=" + (before - after) + " 注入前 i-frame=" + invulnBefore + "）",
                     applied && before - after >= HURT_AMOUNT - 0.01F);
+            // ④ 前提自证（D-325）：掉血检测的**边缘基准**（监视器的「上一拍血量」）必须等于抬血后的满血。
+            //    D-312 只证了"缺口够大"，**没证基准对不对**：监视器每 tick 至多观察一次，而本夹具在同 tick 内
+            //    先抬血再打血 ⇒ 监视器那一拍看到的还是**改血前**的值（实测 19.0）⇒ 基准停在 19，下一拍
+            //    回血 +1 把血量也带到 19 ⇒ `19 < 19` 为假 ⇒ 边缘被自家抬血吃掉、事件静默丢失（2026-09-18
+            //    CORE 假红的实证：注入后没有任何 `[Threshold] 掉血` 行）。把基准写成判据 ⇒ 环境再变也响亮红在这里。
+            check("前提自证：掉血检测的边缘基准必须 = 抬血后的满血 " + before
+                            + "（监视器的「上一拍血量」比的是它；基准停在旧值 19 时，一次回血就能让 19<19 为假 ⇒"
+                            + " 事件静默丢失，见 D-325）（实际基准=" + SurvivalSystem.healthBaseline(bot) + "）",
+                    Math.abs(SurvivalSystem.healthBaseline(bot) - before) < 0.01F);
             BotLog.info("[Survival] 夹具对 bot 造成 {} 点伤害（血量 {}→{}，净掉 {}，注入前 i-frame {}），"
                             + "期望：掉血 ⇒ 一条 DANGER 事件",
                     HURT_AMOUNT, before, after, before - after, invulnBefore);

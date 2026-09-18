@@ -448,6 +448,12 @@ public final class EventThresholds {
         State state = STATES.computeIfAbsent(bot.getUUID(), ignored -> new State());
         state.healthBaseline = bot.getHealth();
         state.healthLossReportedAt = -1L;
+        // ⭐ D-325：**监视器的边缘基准也要拨**（不只是阈值层的基准）。
+        // 只拨阈值基准不够：`HazardState.healthLost()` 比的是监视器自己的「上一拍血量」，
+        // 而监视器每 tick 至多观察一次、夹具却在同 tick 内先抬血再打血 ⇒ 那一拍观察到的是**改血前**的值
+        // （实测 19.0）⇒ 基准停在 19；下一拍回血 +1 把血量也带到 19 ⇒ `19 < 19` 为假 ⇒ 边缘被自家抬血吃掉、
+        // 事件静默丢失（2026-09-18 CORE 假红的存档日志实证：注入后完全没有 `[Threshold] 掉血` 行）。
+        com.dddgn.alice.survival.SurvivalSystem.resetHealthBaseline(bot);
     }
 
     /** **测试用**：当前是否处于"已报未复位"档。 */

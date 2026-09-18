@@ -44,6 +44,30 @@ public final class SurvivalSystem {
                 bot.getHealth(), bot.getHealth(), bot.blockPosition()) : monitor.lastState;
     }
 
+    /**
+     * **测试/夹具用**（`D-325`）：把监视器的「上一拍血量」拨到**当前血量** —— 也就是掉血检测
+     * （{@code HazardState.healthLost()}）下次比较用的那一边。
+     *
+     * <p><b>为什么非要有这个接缝</b>（2026-09-18 CORE 假红的根因，存档日志实证）：`tick()` 每 tick
+     * **至多观察一次**，而夹具是**在同一 tick 内**改血量的（`normalizeVitals()` 抬到满血 → `hurt()` 打掉）
+     * ⇒ 那一拍的观察看到的还是**改血前**的值（实测 `health=19.0`，着火相位余波），于是监视器的
+     * `previousHealth` 停留在 **19**；下一拍回血 +1 把血量也带到 **19** ⇒ `19 < 19` 为假 ⇒
+     * **掉血边缘被"夹具自己抬血那一步"吃掉**，一条事件都不发（旧日志：注入后完全没有
+     * `[Threshold] 掉血 DANGER` 行，11 秒后才出现 FREEZING 的另一笔）⇒ `D-312` 的两条判据同时红。
+     *
+     * <p>⚠️ 所以 `D-312` 的"净掉 ≥2 就结构上不再偶发"**不成立**：决定成败的不是缺口大小，而是
+     * **比较基准**（旧值 19 ≠ 抬血后的 20）。夹具在 `normalizeVitals()` 之后调用本方法即可让
+     * 边缘基准 = 满血 ⇒ `hurt()` 之后的任何拍（18 或回血后的 19）都严格小于基准 ⇒ **确定性**。
+     */
+    public static void resetHealthBaseline(ServerPlayer bot) {
+        monitor(bot).previousHealth = bot.getHealth();
+    }
+
+    /** **测试/夹具用**：当前边缘基准（下次比较用的 `previousHealth`），供夹具把前提写成判据。 */
+    public static float healthBaseline(ServerPlayer bot) {
+        return monitor(bot).previousHealth;
+    }
+
     // ==================== 维生决策（S-5，2026-09-15）====================
 
     /**
