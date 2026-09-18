@@ -52,6 +52,21 @@ public class WalkToTask implements Task {   // 非 final：S-1 的逃生任务 S
     public Status tick() {
         ServerLevel level = bot.serverLevel();
         if (runner == null) {
+            // ⚠️ D-331（2026-09-19 实测）：**必须先问加载状态，再读方块**。
+            // `Level.getBlockState` 对未加载区块会**同步加载**（`getChunkAt`）—— 于是"目标安全预检"会在
+            // 服务端 tick 线程上、在**任何预算/超时之外**把几百格外的区块拉进来，把内核
+            // `AStarMovementSearch:64` 的 `GOAL_NOT_LOADED` 守卫**整个绕过**
+            //（实测：规划前 `hasChunkAt(goal)=false` → 首 tick（含一次 plan）之后 = `true`；
+            //  表现为"远距离一规划就卡"，而搜索本身只要 1~16 ms）。
+            // 语义与内核保持一致：未加载 ≠ 不安全 ≠ 不可达 ⇒ 复用既有 `walk_goal_unloaded`
+            //（`failureCode()` 里 `PLAN_GOAL_NOT_LOADED` 映射的就是它），调用方可稍后重试/先靠近。
+            if (!level.hasChunkAt(goalFoot)) {
+                failure = "walk_goal_unloaded:" + goalFoot.toShortString();
+                BotLog.warn("[WalkToTask] goal_chunk_not_loaded bot={} goal={} code=walk_goal_unloaded"
+                                + "（D-331：不读方块 ⇒ 不触发同步加载；由上层粗目标/分段接近后再走）",
+                        bot.getName().getString(), goalFoot.toShortString());
+                return Status.FAILED;
+            }
             if (!MovementHelper.canWalkOn(level, goalFoot)
                     || !MovementHelper.canWalkThrough(level, goalFoot)
                     || !MovementHelper.canWalkThrough(level, goalFoot.above())) {

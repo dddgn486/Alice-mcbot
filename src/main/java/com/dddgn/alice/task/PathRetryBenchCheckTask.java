@@ -231,6 +231,16 @@ public final class PathRetryBenchCheckTask implements Task {
             check("案例 " + caseName() + " 必须在 " + CASE_TICK_CAP + " tick 内终结（无休止重试 = 「卡」的形态）",
                     false);
         }
+        if (phase == Phase.UNLOADED) {
+            // D-331 门禁：修好之后，指向未加载目标必须**如实拒绝**，且**不许**把目标区块同步加载进来
+            check("D-331：指向未加载目标必须如实拒绝（status=" + status + " reason=" + walkTask.failureReason()
+                            + "，期望 FAILED + walk_goal_unloaded）",
+                    status == Task.Status.FAILED
+                            && walkTask.failureReason().startsWith("walk_goal_unloaded"));
+            check("D-331：拒绝路径**不许同步加载目标区块**（goal=" + caseGoal.toShortString()
+                            + " loaded=" + level.hasChunkAt(caseGoal) + "）",
+                    !level.hasChunkAt(caseGoal));
+        }
         String line = "case=" + caseName() + " goal=" + caseGoal.toShortString()
                 + " status=" + status + " ticks=" + used
                 + " wallMs=" + (caseWallNanos / 1_000_000L)
