@@ -10,6 +10,7 @@
   "item.alice.craft_check": "Craft Query Check (read-only)",
   "item.alice.interface_scanner": "Interface Scanner",
   "item.alice.target_selector": "Target Selector",
+  "item.alice.protection_selector": "Protection Zone Map",
   "item.alice.soft_move_selector": "Soft Move Selector",
   "item.alice.road_planner": "Road Planner",
   "item.alice.transfer_endpoint_selector": "Transfer Endpoint Selector",

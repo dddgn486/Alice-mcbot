@@ -21,6 +21,14 @@ public final class AliceItems {
     public static final RegistryObject<Item> TARGET_SELECTOR =
             ITEMS.register("target_selector", () -> new TargetSelector(new Item.Properties()));
 
+    /**
+     * **保护区地图**（D-314）：右键打开以玩家为中心的 N×N **区块**网格 ——
+     * 左键认领 / 右键取消 / 拖动连选 / 关闭即一次性提交（服务端权威落库）。
+     * 认领清单永远来自服务端快照（S2C），地形色由客户端自己从 `ClientLevel` 采样。
+     */
+    public static final RegistryObject<Item> PROTECTION_SELECTOR =
+            ITEMS.register("protection_selector", () -> new ProtectionSelectorItem(new Item.Properties()));
+
     /** 道路规划工具：贴图使用原版钻石锄。 */
     public static final RegistryObject<Item> ROAD_PLANNER =
             ITEMS.register("road_planner", () -> new RoadPlannerItem(new Item.Properties()));

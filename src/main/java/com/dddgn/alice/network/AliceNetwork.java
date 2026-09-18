@@ -50,5 +50,15 @@ public final class AliceNetwork {
         CHANNEL.registerMessage(nextId++, PermissionAnswerPacket.class,
                 PermissionAnswerPacket::encode, PermissionAnswerPacket::decode,
                 PermissionAnswerPacket::handle, java.util.Optional.of(NetworkDirection.PLAY_TO_SERVER));
+        // 保护区勾选界面（D-314）：认领元数据快照(S2C) + 批量动作(C2S) + 空请求自愈(C2S)
+        CHANNEL.registerMessage(nextId++, ProtectionClaimsPacket.class,
+                ProtectionClaimsPacket::encode, ProtectionClaimsPacket::decode,
+                ProtectionClaimsPacket::handle, java.util.Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(nextId++, ProtectionActionPacket.class,
+                ProtectionActionPacket::encode, ProtectionActionPacket::decode,
+                ProtectionActionPacket::handle, java.util.Optional.of(NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(nextId++, ProtectionSyncRequestPacket.class,
+                ProtectionSyncRequestPacket::encode, ProtectionSyncRequestPacket::decode,
+                ProtectionSyncRequestPacket::handle, java.util.Optional.of(NetworkDirection.PLAY_TO_SERVER));
     }
 }

@@ -242,10 +242,12 @@ S0 事实表 ✅ → S1 设备事实表 ✅ → **S2 进表 ✅（`MachineMap` 3
   `alice:survival_full_check`（一次右键跑完全部 **122** 条判据 ⇒ 聊天里看 `SUMMARY checks=120 failures=0 → PASS`）。
 - **决策/快照线（同日）**：D-233（`decision_contract` 提档 MAIN + 本文件过时段落重写）、D-234（四个 Job 统一
   "子阶段失败"口径）、D-235（挂起传输"结清落盘"：持久化成立 + 跨重启幂等）。
+- **保护区线（2026-09-18，D-313 + D-314）**：区块级认领（忽略 Y / 全高度 / 旧格式自动迁移不静默丢）+ **零参数物品
+  `alice:protection_selector` ⇒ 17×17 区块网格勾选界面**（左键认领 / 右键取消 / 拖动连选 / 关闭即批量提交，协议 3 包）。
 - **D-230 的自我修正**：我一度判断"bot 的血只减不增、必须补 `doTick()`"，实测**推翻**了它（`Player.aiStep()`
   本来就有自然回血）⇒ `doTick()` 默认**不启用**，开关 `alice.bot.vanillaTick` 保留为有记录的实验开关。
-- **离线门槛**（"改一行到知道对不对"）：`tools/headless-battery.sh core` = **CORE 43 步**
-  （当前 `(38/38) ticks=3955 → PASS`）；`bash tools/check-all.sh` = **9 PASS + 1 预期 WARN**（无头断言"未执行"）。
+- **离线门槛**（"改一行到知道对不对"）：`tools/headless-battery.sh core` = **CORE 49 步**
+  （当前 `passed=49/49 ticks=4725 → PASS`）；`check-all.sh` = **16 PASS + 1 预期 WARN**；`module-selftest.sh` = 19 个模块。
 - **断点与待办**：`docs/HANDOVER.md`（§1 下一步 / jar hash）、`docs/OPEN_ITEMS_LEDGER.md`
   （**§5.11**：水里逃生四条挂账 —— 水面理由码 / 出口列表 / **B 维生写授权（待用户拍板）** / **丙 内核水位移动**；
   §5.6 风险等级层、§5.10 客户端可验项、其余 Job 的 `lastFailure`）。

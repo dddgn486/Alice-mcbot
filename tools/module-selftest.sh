@@ -69,7 +69,7 @@ if [ "$CHANGED" = 1 ]; then
                "src/main/java/com/dddgn/alice/task/check/CheckContext.java"
                "src/main/java/com/dddgn/alice/bot/BotManager.java"
                "src/main/java/com/dddgn/alice/task/FixturePremise.java")
-    DIRTY="$(git status --porcelain | awk '{print $NF}'; git diff --name-only HEAD)"
+    DIRTY="$( { git status --porcelain | awk '{print $NF}'; git diff --name-only HEAD; } | sort -u )"
     ALL_OF_THEM=0
     for f in "${FRAMEWORK[@]}"; do
         if printf '%s\n' "$DIRTY" | grep -qx "$f"; then ALL_OF_THEM=1; echo "[module-selftest] --changed：框架文件变了（$f）⇒ 跑全部 ✓"; fi
@@ -102,6 +102,33 @@ if [ "$CHANGED" = 1 ]; then
             done < <(git diff HEAD -- src/main/java/com/dddgn/alice/task/check/CheckModules.java \
                      | grep -E '^\+.*new [A-Za-z]+Module\(\)' | grep -oE 'new [A-Za-z]+Module' | sed 's/new //')
         fi
+        # ⚠️ **失败安全补丁（2026-09-18 实测假阴性）**：改动落在别的 Java 源（**夹具本体** / 生产类）时，
+        # 上面两条规则一条都不命中 ⇒ 会打印「没有检测到受影响的模块 ⇒ 无事可做 ✓」并**静默跑 0 个**。
+        # 实测：改了 `task/ProtectionZoneCheckTask.java`（保护区夹具本体）后正是这个结果 ——
+        # 而"这个模块会跑这个夹具"⇒ 必须跑它。判不出来就跑全部（文件头承诺：绝不静默跑 0 个 ✗）。
+        #
+        # ⚠️⚠️ 归属判据必须是**强引用**（`new X(` / `X::` / `X.class`），不能是"文件里出现过这个名字"：
+        # 反向对照实测 —— `log/BotLog.java` 被每个模块**顺带**提到（`BotLog.info`）⇒ 弱判据会把它
+        # 归给**恰好第一个命中的模块**（实测选了 `mining`），那比"跑 0 个"更危险（看着像跑对了）。
+        while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            case "$f" in src/main/java/*) ;; *) continue ;; esac
+            case "$f" in "$MODDIR"/*.java) continue ;; esac      # 上面已处理（可能已解析出 id）
+            cls="$(basename "$f" .java)"
+            hit=0
+            for m in "$MODDIR"/*Module.java; do
+                if grep -qE "(new $cls\(|$cls::|$cls\.class)" "$m"; then
+                    id="$(grep -oE 'return "[a-z0-9_]+";' "$m" | head -1 | sed 's/return "//; s/";//')"
+                    if [ -n "$id" ]; then CHANGED_IDS+=("$id"); hit=1; fi
+                fi
+            done
+            if [ "$hit" = 0 ]; then
+                echo "[module-selftest] --changed：$f 归属不明（没有模块**构造/引用**它）⇒ 跑全部 ✓"
+                ALL_OF_THEM=1
+                break
+            fi
+            echo "[module-selftest] --changed：$f 由构造它的模块覆盖 ⇒ 已选定 ✓"
+        done <<< "$DIRTY"
     fi
     if [ "$ALL_OF_THEM" = 1 ]; then
         CHANGED_IDS=("__ALL__")

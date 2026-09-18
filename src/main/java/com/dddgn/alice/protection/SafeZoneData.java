@@ -154,9 +154,15 @@ public final class SafeZoneData extends SavedData {
 
     /** 取消认领一个区块。返回是否发生了变化。 */
     public boolean unclaim(ServerLevel level, int chunkX, int chunkZ) {
-        Set<Long> chunks = claimedChunks.get(level.dimension().location());
+        ResourceLocation dimension = level.dimension().location();
+        Set<Long> chunks = claimedChunks.get(dimension);
         if (chunks == null || !chunks.remove(ChunkPos.asLong(chunkX, chunkZ))) {
             return false;
+        }
+        if (chunks.isEmpty()) {
+            // 空集合不留档：否则 summary() 会报「dims=2、chunks=0」这种把人看糊涂的计数
+            // （诊断字符串是给人读的 ⇒ 它自己必须是诚实的；save() 本来就会跳过空维度）
+            claimedChunks.remove(dimension);
         }
         setDirty();
         return true;
