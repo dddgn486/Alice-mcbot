@@ -1,5 +1,11 @@
 package com.dddgn.alice.task.check;
 
+import com.dddgn.alice.task.check.modules.ContractsModule;
+import com.dddgn.alice.task.check.modules.GatesModule;
+import com.dddgn.alice.task.check.modules.LlmModule;
+import com.dddgn.alice.task.check.modules.PickupModule;
+import com.dddgn.alice.task.check.modules.TelemetryModule;
+import com.dddgn.alice.task.check.modules.WriteModule;
 import com.dddgn.alice.task.check.modules.CraftModule;
 import com.dddgn.alice.task.check.modules.DeathModule;
 import com.dddgn.alice.task.check.modules.HarnessSelfModule;
@@ -36,7 +42,13 @@ public final class CheckModules {
             new TransferModule(),
             new SurvivalModule(),
             new DeathModule(),
-            new ToolsModule()
+            new ToolsModule(),
+            new GatesModule(),
+            new LlmModule(),
+            new PickupModule(),
+            new TelemetryModule(),
+            new WriteModule(),
+            new ContractsModule()
     );
 
     private CheckModules() {

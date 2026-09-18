@@ -11992,3 +11992,40 @@ bash 是**按需读文件**的 ⇒ 我一边让 `module-selftest.sh` 跑着（8 
 **⇒ R-2 已搬模块（十个分类片 + 两个框架片）**：`ledger`(4) `harness_self`(3) `pathing`(3) `decision`(5) `craft`(12)
 `machine`(4) `mining`(7) `lumber`(3) `transfer`(1) `survival`(1) `death`(2) `tools`(1) = **46 步**；
 电池内**剩余 15 步**待归类（见台账「R-2 下一步」）。
+
+### D-311：R-2 第十一～十六片（六个模块 / 13 步）+ 剩余内联步只剩 2 个 2026-09-18
+
+**用户裁定（分组口径）**：剩余内联步按「**保住 CORE 次序的连续段**」分成 **6 个语义模块**（方案 A）。
+
+| 新模块 | 步 | 档位 | CORE 位置 |
+|---|---|---|---|
+| `gates` | `partial_search` + `capability_gate` | BASELINE ×2 | 41-42 |
+| `write` | `recoverability` + `write_policy` | BASELINE ×2 | 45-46 |
+| `llm` | `llm_contract`(MAIN) + `permission_gate`(EXTRA) | — | 44 |
+| `contracts` | `speech_channel`(MAIN) + `decision_contract`(MAIN) + `decision_trace`(EXTRA) | — | 22-23 |
+| `pickup` | `pickup_gate` + `collect_job` | EXTRA ×2 | （FULL） |
+| `telemetry` | `recipes_dump` + `event_thresholds` | EXTRA ×2 | （FULL） |
+
+⭐ **六片全部"原序落位"（0 位移）** —— 因为分组是从**连续段**里切的 ⇒ CORE 步序应逐字不变，且**已用 diff 证明**：
+搬迁前后两份 CORE 归档日志的步序**逐行比对 = 0 处差异** ✓（与 D-309 的口径同一把尺子）。
+
+**实测**：六个模块 `module:<id>` **逐片单跑全 PASS**（gates 2/2 · write 2/2 · llm 2/2 · contracts 3/3 · pickup 2/2 · telemetry 2/2，
+`failures=0 skipped=0`）；`module-selftest`（6 片）**6/6 PASS**；CORE **48/48** ✓（run2；run1 见下）；
+模块注册表现 **18** 个；电池内**只剩 2 个内联步**（`hazard_aversion_plan`、`pathing`）。
+
+⭐ **本批的真实收益：6 个 EXTRA 步第一次有了"单独跑"通道** —— `decision_trace` / `permission_gate` / `pickup_gate` /
+`collect_job` / `recipes_dump` / `event_thresholds` 此前**只有 FULL 才跑**（CORE 不跑它们），
+进模块后 `module:<id>` **会跑它们**（编排器不按档位裁剪模块内容）⇒ 这 6 步从"只在全量里被顺带覆盖"变成"可单独复现" ✓。
+
+⚠️ **仍留内联的 2 步及理由**（按 D-309 口径的刻意选择）：
+`hazard_aversion_plan`（语义属 `decision`，与 `risk_profile_frozen` 同族，但并入会让它在 CORE 挪位）·
+`pathing`（聚合 5000 tick；并入 `PathingModule` 会把它从 CORE 47 挪到 7 ⇒ 明显更差）。
+
+⚠️ **CORE run1 = FAIL**，红的是 `survival_exit`（BASELINE，最后一步 48/48）：`checks=123 failures=2`，
+两条都是「掉血 DANGER 实际命中 0 条」⇒ **这是台账已登记的偶发假红**（**第 3 次**出现；同工件 run2 **48/48 PASS**、
+`checks=124 failures=0`）⇒ **与本次搬迁无关**（本批改的 13 步全是纯逻辑或 EXTRA；且步序 diff = 0）。
+本次新取的判别对照已登记进台账（PASS/FAIL 两轮逐项对照），**仍按台账的规矩不补丁、等判别探针**。
+
+⚠️ **一个工具陷阱（本轮踩到，写给后来人）**：`tools/headless-battery.sh <mode> --no-build` 会跑**上一次构建的工件**
+⇒ 新增模块后若不加 `--no-build` 之外的重建，六个 `module:<id>` 会**全部**返回 `unknown_module`（exit 5）——
+**这不代表模块有问题，只代表工件是旧的**。正确姿势：先 `./gradlew build`，再带 `--no-build` 连跑多片。

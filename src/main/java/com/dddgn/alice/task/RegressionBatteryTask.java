@@ -408,20 +408,10 @@ public final class RegressionBatteryTask implements Task {
         // 被挪动的只有 `death_kill_bot`（EXTRA ⇒ CORE 不跑；它的注释写明"只适合 `single:` 单独跑"）
         // ⚠️ 反过来放（"先杀后验"）会让 `death_persistence` 在 CORE 里提前 3 个模块 = 未证明的顺序变更 ✗
         steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.DeathModule().steps(checkContext())));
-        steps.add(step("speech_channel",
-                List.of("alice_test:ore_course_terrain"),
-                () -> teleportBot(OreCourseAnchor.START_FOOT),
-                () -> new SpeechChannelCheckTask(bot, observer),
-                60));
-        // ==================== 决策层判据（基-2 / D-149）====================
-        // 契约类断言：纯逻辑、不改世界、不调 LLM ⇒ 便宜且确定，任何改动都跑得到
-        steps.add(step("decision_contract",
-                List.of("alice_test:lumber_course_terrain", "alice_test:lumber_course_trees"),
-                () -> teleportBot(LumberCourseAnchor.START_FOOT),
-                () -> new DecisionContractCheckTask(bot, observer), 200));
-        // 基-4：决策 trace 落盘 + 跨重启语义（NBT 往返 / 只报一次）
-        steps.add(step("decision_trace", List.of(), null,
-                () -> new DecisionTraceCheckTask(bot, observer), 200));
+        // ---- 模块化（R-2）：**决策契约模块**（3 步：speech_channel / decision_contract / decision_trace）----
+        // 逐字段等价搬迁（步名/档位/场景/预算/工厂一致 ✓）；三步在电池里**本来就是连续的** ⇒ 原序落位 ✓
+        // ⚠️ 其中 speech_channel 与 decision_contract 带场景（各自 pre-provision 传送 ⇒ 先热区块再 fill ✓）
+        steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.ContractsModule().steps(checkContext())));
         // 基-5：LLM 上抛契约（Job 失败报告 / 产物判定口径 / 结构化拒绝回读）
         // 基-9：工具供给（换更好的 / 没得换如实报 / 不能凭空变出工具）
         // 基-8：能力闸门（MovementCapabilities 真的能拦人：保护区/资源/工具/预算/声明一致性）
@@ -447,56 +437,27 @@ public final class RegressionBatteryTask implements Task {
         // （D-296 同一个坑）⇒ 模块把"传送到课程起点"放进 `provision`
         //（编排器顺序 = openScope → provision → scenes ✓，所以传送顺便把区块热了 ✓）
         steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.TransferModule().steps(checkContext())));
-        steps.add(step("partial_search", List.of(), null,
-                () -> new PartialSearchCheckTask(bot, observer), 200));
-        steps.add(step("capability_gate", List.of(), null,
-                () -> new CapabilityGateCheckTask(bot, observer), 200));
+        // ---- 模块化（R-2）：**闸门模块**（2 步：partial_search / capability_gate）----
+        // 逐字段等价搬迁；两步连续 ⇒ 原序落位 ✓；都纯逻辑（无场景、不写世界）⇒ 不需要前提 ✓
+        steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.GatesModule().steps(checkContext())));
         // ---- 模块化（R-2）：**工具模块**（1 步）从 `ToolsModule` 取 ----
         // 逐字段等价搬迁（步名/档位/预算/工厂一致 ✓）；无场景、无 provision（夹具**只动背包**，不依赖地形 ✓）
         steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.ToolsModule().steps(checkContext())));
-        steps.add(step("llm_contract", List.of(), null,
-                () -> new LlmContractCheckTask(bot, observer), 200));
-        steps.add(step("permission_gate", List.of(), null,
-                () -> new PermissionContractCheckTask(bot, observer), 400));
-        steps.add(step("pickup_gate",
-                List.of("alice_test:lumber_course_terrain"),
-                () -> teleportBot(LumberCourseAnchor.START_FOOT),
-                () -> new PickupGateCheckTask(bot, observer), 600));
-        steps.add(step("collect_job",
-                List.of("alice_test:lumber_course_terrain"),
-                () -> {
-                    teleportBot(LumberCourseAnchor.START_FOOT);
-                    // 夹具造掉落物并**登记为我方**（走安全默认那条路：我方 AUTO 放行）
-                    for (int i = 0; i < 3; i++) {
-                        var drop = new net.minecraft.world.entity.item.ItemEntity(bot.serverLevel(),
-                                com.dddgn.alice.item.CollectJobItem.DROP_CENTER.getX() + 0.5D + i * 0.4D,
-                                com.dddgn.alice.item.CollectJobItem.DROP_CENTER.getY() + 0.5D,
-                                com.dddgn.alice.item.CollectJobItem.DROP_CENTER.getZ() + 0.5D,
-                                new net.minecraft.world.item.ItemStack(
-                                        net.minecraft.world.item.Items.COBBLESTONE, 8));
-                        drop.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
-                        bot.serverLevel().addFreshEntity(drop);
-                    }
-                    scope.begin(com.dddgn.alice.item.CollectJobItem.DROP_CENTER, 12, bot.getUUID());
-                    scope.adoptExistingDrops(bot.serverLevel(), com.dddgn.alice.item.CollectJobItem.DROP_CENTER, 12);
-                },
-                // **走统一入口**（JobRequest → JobLauncher）：顺带覆盖 D-134 的"起任意 Job"路径
-                () -> com.dddgn.alice.job.JobLauncher.create(bot, scope,
-                        com.dddgn.alice.job.JobRequest.collect(com.dddgn.alice.item.CollectJobItem.DROP_CENTER, 16, 24, 600)),
-                800));
-        steps.add(step("recipes_dump", List.of(), null,
-                () -> new RecipesDumpCheckTask(bot, observer), 200));
-        // S4 事件层：工具见底 / 卡住 两类可行动病症，各验"报到"和"只报一次"（自带夹具前提断言）
-        steps.add(step("event_thresholds", List.of(), null,
-                () -> new EventThresholdCheckTask(bot, observer), 800));
-        // 基-1：可回收性真的被评估（P0-B：不再是"两边写死 LOCAL_STEP、校验恒假"）
-        steps.add(step("recoverability", List.of(), null,
-                () -> new RecoverabilityCheckTask(bot, observer), 200));
-        // D-207 ①：写入集中策略表自检（纯计算 + 一次**注定失败**的规划尝试）。
-        // 放在这里（而不是开头）是**有意的**：它要审计"本次电池此前所有写入"的归因样本
-        //（未登记 requester / 表外 (行,理由)），样本越多越有意义。
-        steps.add(step("write_policy", List.of(), null,
-                () -> new WritePolicyCheckTask(bot, observer), 300));
+        // ---- 模块化（R-2）：**LLM 与权限契约模块**（2 步：llm_contract / permission_gate）----
+        // 逐字段等价搬迁；两步连续 ⇒ 原序落位 ✓；`permission_gate` 是 EXTRA ⇒ 进模块后首次有单独跑通道 ✓
+        steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.LlmModule().steps(checkContext())));
+        // ---- 模块化（R-2）：**掉落物模块**（2 步：pickup_gate / collect_job）----
+        // 逐字段等价搬迁（步名/档位/场景/预算/工厂/provision 一致 ✓）；两步连续 ⇒ 原序落位 ✓
+        // ⚠️ `collect_job` 的 provision 里"造 3 个掉落物 + scope.begin + adoptExistingDrops"必须保留
+        // （否则收集 Job 起来时没有可收的东西 ⇒ 假绿）
+        steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.PickupModule().steps(checkContext())));
+        // ---- 模块化（R-2）：**观测/转储模块**（2 步：recipes_dump / event_thresholds）----
+        // 逐字段等价搬迁；两步连续 ⇒ 原序落位 ✓；都是 EXTRA ⇒ 进模块后首次有单独跑通道 ✓
+        steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.TelemetryModule().steps(checkContext())));
+        // ---- 模块化（R-2）：**写入与可回收性模块**（2 步：recoverability / write_policy）----
+        // 逐字段等价搬迁；两步连续 ⇒ 原序落位 ✓
+        // ⚠️ `write_policy` **必须留在电池后段**：它审计"本次电池此前所有写入"的归因样本 ⇒ 越靠后样本越多 ✓
+        steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.WriteModule().steps(checkContext())));
         steps.add(step("pathing", List.of(), null,
                 () -> new PathingRegressionTask(bot, observer), 5000));
         // ---- 模块化（R-2）：**维生模块**（1 步）从 `SurvivalModule` 取 ----
