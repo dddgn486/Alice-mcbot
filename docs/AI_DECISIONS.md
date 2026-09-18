@@ -11977,3 +11977,18 @@ bash 是**按需读文件**的 ⇒ 我一边让 `module-selftest.sh` 跑着（8 
 **⇒ 可复用口径（写给后来搬片的人）**：搬一个多步模块前，先列出各步的**原位置**与**档位**；
 若它们的原位不连续，**优先保住 CORE（BASELINE/MAIN）那几步的相对次序**，
 把位移限制在 EXTRA 步上（EXTRA 不进 CORE ⇒ 代价 = FULL 一轮），并**用两次 CORE 日志的步序 diff 作证**。
+
+### D-310：R-2 第十片 —— `tools`（1 步）2026-09-18
+
+**片内容**：`tool_supply`（BASELINE，基-9）内联定义已删、改由 `ToolsModule` 提供；顺序不变。
+
+**实测**：`module:tools` 单跑 **1/1**（三例真判据：`tool_swap terminal=promoted_from_main` · `worn_no_spare` · `no_tool`；10 tick · `failures=0`）；
+`module-selftest`（tools）**1/1 PASS**；CORE **48/48** ✓（与上一轮 CORE 步序 **diff = 0 处差异**）；模块注册表现 **12** 个。
+
+⭐ **本片是"模块自足"的最简形态**：`ToolSupplyCheckTask` **只动背包**（用 `FixtureToolKit` 摆 A/B/C 三种背包状态），
+**不依赖地形、不做传送、不写世界** ⇒ 原电池就是 `scenes=[] provision=null`，搬迁保持原样
+⇒ 它**不受"区块冷热"影响**，也不需要在模块里补任何前提（与前两片"必须自带先传送"形成对照 —— 前提要不要补，取决于夹具**自己动什么**）。
+
+**⇒ R-2 已搬模块（十个分类片 + 两个框架片）**：`ledger`(4) `harness_self`(3) `pathing`(3) `decision`(5) `craft`(12)
+`machine`(4) `mining`(7) `lumber`(3) `transfer`(1) `survival`(1) `death`(2) `tools`(1) = **46 步**；
+电池内**剩余 15 步**待归类（见台账「R-2 下一步」）。

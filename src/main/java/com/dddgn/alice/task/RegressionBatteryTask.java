@@ -451,8 +451,9 @@ public final class RegressionBatteryTask implements Task {
                 () -> new PartialSearchCheckTask(bot, observer), 200));
         steps.add(step("capability_gate", List.of(), null,
                 () -> new CapabilityGateCheckTask(bot, observer), 200));
-        steps.add(step("tool_supply", List.of(), null,
-                () -> new ToolSupplyCheckTask(bot, observer), 400));
+        // ---- 模块化（R-2）：**工具模块**（1 步）从 `ToolsModule` 取 ----
+        // 逐字段等价搬迁（步名/档位/预算/工厂一致 ✓）；无场景、无 provision（夹具**只动背包**，不依赖地形 ✓）
+        steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.ToolsModule().steps(checkContext())));
         steps.add(step("llm_contract", List.of(), null,
                 () -> new LlmContractCheckTask(bot, observer), 200));
         steps.add(step("permission_gate", List.of(), null,
