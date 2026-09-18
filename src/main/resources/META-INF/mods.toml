@@ -23,3 +23,12 @@ description='''${mod_description}'''
     versionRange="${minecraft_version_range}"
     ordering="NONE"
     side="BOTH"
+
+# 软依赖（D-316）：FTB Chunks 在场时，它的认领会被当成保护区（**只读**，我们不写回）。
+# mandatory=false ⇒ 不在场照常启动；真正的适配是反射做的，构造期不加载对方任何类。
+[[dependencies.${mod_id}]]
+    modId="ftbchunks"
+    mandatory=false
+    versionRange="[2001.3.0,)"
+    ordering="AFTER"
+    side="BOTH"

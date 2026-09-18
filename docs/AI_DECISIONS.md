@@ -12269,3 +12269,56 @@ bash 是**按需读文件**的 ⇒ 我一边让 `module-selftest.sh` 跑着（8 
   这一轮的**全部**价值都要你看一眼才算数（`G` 可关明暗；不合意我改参数，不必重开界面）。
 - ❌ 不做大地图拖动/缩放、不做客户端磁盘缓存（`D-307` 第二步）；不做 bot 位置/任务范围热力（要新 S2C）。
 - ⚠️ 已知边界：采样窗口是**玩家脚位 ±40**，站在深洞/高塔上时超出窗口的列会显示"深灰=无地表"（如实，不猜）。
+
+### D-316：FTB Chunks **只读**兼容（保护区 4/4）—— "别人的地盘"接进闸门，但不复制、不写回 2026-09-18
+
+**用户裁定**：① **只做 FTB → 我们**这个方向（把 FTB 认领的地盘直接划为保护区）；② **不写回**
+（"任务区自动同步到 FTB"暂缓）；③ 顺序 = 地图细化之后、**与细化同批验收**；④ 子类语义 = **门禁只有 SAFE 一档、
+其余纯标注**。
+
+**动手前查实的模组事实**（实测 clone FTB-Chunks `2001.3.8` 1.20.1 源码，不是转述）：
+| # | 事实 | 出处 |
+|---|---|---|
+| 1 | 读认领的公开入口 = `FTBChunksAPI.api().getManager().getChunk(ChunkDimPos)`（未认领返回 `null`）；`ChunkDimPos` 在 **FTB Library**（`dev.ftb.mods.ftblibrary.math`），构造 `(ResourceKey<Level>, ChunkPos)` | `api/ClaimedChunkManager.java`、`FTBChunksAPIImpl.java` |
+| 2 | 它自己的保护生效点读的是**同一个** `getChunk` ⇒ 我们的预检与它的执法**同源同判**，不会出现"我们说能挖、它拦下"的分叉 | `data/ClaimedChunkManagerImpl.java`（`shouldPreventInteraction`） |
+| 3 | 它的保护判据里有 `PlayerHooks.isFake(player)` 分支：全局 `fake_players=CHECK/DENY/ALLOW`、队伍级 `allow_fake_players`/`allow_fake_player_ids`/`allow_named_fake_players`（**按名字或 UUID**）；另有全绕过公开 API `getBypassProtection`/`setBypassProtection(uuid, …)`（落点 = 该玩家队伍的 extraData） | 同上 + `FTBChunksWorldConfig.java`、`api/ChunkTeamDataImpl.java` |
+| 4 | ⚠️ 写回方向的坑：`claimAsPlayer(player, …)` 实现 = `getOrCreateData(player).claim(player.createCommandSourceStack(), …)` ⇒ **以那个玩家自己的队伍认领**。拿 bot 当 claimant 会把地认到 **Alice 队**头上（额度/可见性/保护对象都不是玩家的队伍）⇒ 真要做写回，claimant 必须是**真人玩家** | `FTBChunksAPIImpl.java` |
+
+**做了什么（4 层，全部只读）**
+| 层 | 落点 | 关键口径 |
+|---|---|---|
+| 缝 | 新 `protection/ClaimSources`（`Source` 接口 + 注册表） | 外部来源**每次现问**，`SafeZoneData` 仍只装自己的认领 ⇒ **不复制 = 不会有第二套真相** |
+| 入口 | `SafeZoneData.protectionReason`：本地认领 → **外部来源** → 方块规则 → 标签规则 | 挂在**唯一入口**上 ⇒ `BlockBreakSafety`/`BlockInteraction`/候选源/`CapabilityGate` **一个调用点都不用改**；理由码 `protected_ftb_claim`（与 `protected_area` 同族） |
+| 适配器 | 新 `compat/ftbchunks/FtbChunksClaims` | **反射 + 软依赖**（与本项目既有 `compat/ChainMining` 同一形状）：解析不到就 `available()=false` **空转**；`mods.toml` 里加 `mandatory=false` 的 `ftbchunks` 声明（AFTER/BOTH） |
+| 界面 | 快照分两列（`ProtectionClaimsPacket.externalChunkKeys`）+ 客户端**紫框**=FTB 认领 | "这块地是谁的"要看得出来；本地认领红色优先 ⇒ 同格同时被两边认领时显示本地 |
+
+**⚠️ 失败方向：跳过 + 响亮告警，不是"一律拒绝"**（`ClaimSources` 里 `catch (RuntimeException | LinkageError)`）——
+第三方小版本升级导致查询炸掉时，若 fail-closed 会让 bot 在**全世界**都不能动（比少一层外部保护糟得多）。
+夹具用"**每次查询都抛异常**的假源"把这条钉住（断言"异常不许冒泡"，且它单独注入时确实能红）。
+
+**判据 +10 条（63 → 73，零世界写入；真模组不在场也能验 —— 这就是"缝 + 假源"的价值）**
+① 注册来源 ⇒ 表 +1；② 外部认领 ⇒ `protected_fake_claim`；③ **唯一入口**：`BlockBreakSafety` 两条策略都看得到；
+④ 没被认领的区块**不受影响**（不许过度拦截）；⑤ ⭐ **不复制**：`claimedChunkCount()` 不变、本地集合不命中；
+⑥ 快照把它放进**外部**那一列且**本地列不放**；⑦ 异常源不许打死服务端；⑧ 前提：无头服务端没装 FTB ⇒
+适配器 `available()=false`；⑨ 适配器恒 false（**行为与没有兼容时完全一致**）；⑩ 自清理：摘掉假源后理由码复原、
+来源表回到原值。
+
+**反向对照（三注入 ⇒ 3 条红；补一组单注入 ⇒ 第 4 条红）**
+注入①外部源异常不兜住、②唯一入口不再咨询外部源、③快照不收集外部列 ⇒ 红 ②③（`protected_fake_claim`、
+唯一入口、快照分列）。⭐ **但 ① 被 ② 遮蔽了**（入口都不查了，异常源自然不会被调用）⇒ 单独跑 ① 才看到
+"异常不许冒泡"红（`survived=false`）。**可复用纪律**：多个注入相互耦合时，"某个判据没红"不等于它没牙 ——
+**要单独跑一次**才能下结论。
+
+**验证**
+- `module:protection` **1/1 PASS**：`SUMMARY checks=73 failures=0`（日志含
+  `外部认领源 ✓：唯一入口生效 / 不复制进存档 / 快照分列 / 异常不冒泡 / 缺模组空转`）；
+- **CORE 49/49 PASS**（`ticks=4748`），步序 **diff = 0**；CORE 日志里出现
+  `[Protection] 未检测到 FTB Chunks（软依赖）⇒ 保护区只认本地认领` ⇒ **降级路径**在生产环境里也被走了一遍；
+- `check-all.sh` = **17 PASS + 0 FAIL**。
+
+**明确不做 / 未验证（必须由客户端轮次拍板）**
+- ❌ **`available()=true` 那条路从未跑过**（本环境拿不到 FTB 工件：CurseForge 有 Cloudflare 拦、官方 FTB 不在 Modrinth、
+  GitHub release 无 jar）⇒ 反射签名对不对、`ChunkDimPos` 构造对不对，**第一次真跑才知道**；
+- ⚠️ **"FTB 的保护会不会拦住我们的假人"仍未定性**：我们的 bot 是**玩家化的真 `ServerPlayer`**（不是 Forge `FakePlayer`），
+  所以它走"假人白名单"还是"普通玩家（`isAlly`/队伍 rank）"分支**只能实测**（见 TESTING_GUIDE §2.5 的验收脚本）；
+- ❌ 不做写回（`claimAsPlayer`），不做任务区→FTB 同步，不集成 FTB 的地图渲染（无公开 API，要 mixin ⇒ 已否决）。

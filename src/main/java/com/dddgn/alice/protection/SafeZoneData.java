@@ -284,6 +284,12 @@ public final class SafeZoneData extends SavedData {
         if (claims(level.dimension().location()).contains(ChunkPos.asLong(pos.getX() >> 4, pos.getZ() >> 4))) {
             return "protected_area";
         }
+        // 外部认领源（D-316，例如 FTB Chunks）：**只读现问、不复制进本存档**。
+        // 位置规则（本地认领 / 外部认领）排在方块规则之前 ⇒ 理由码优先说明"是地盘问题"。
+        String external = ClaimSources.reasonFor(level, pos);
+        if (external != null) {
+            return external;
+        }
         BlockState state = level.getBlockState(pos);
         ResourceLocation blockId = ForgeRegistries.BLOCKS.getKey(state.getBlock());
         if (blockId != null && protectedBlocks.contains(blockId)) {

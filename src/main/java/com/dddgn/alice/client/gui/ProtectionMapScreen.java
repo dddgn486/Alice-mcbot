@@ -69,6 +69,9 @@ public class ProtectionMapScreen extends Screen {
     private static final int CLAIMED_TINT = 0x33FF4040;
     private static final int PENDING_CLAIM_TINT = 0x60FFC000;
     private static final int PENDING_UNCLAIM_TINT = 0x6080C0FF;
+    /** 外部认领（D-316，例如 FTB Chunks）：**来源不同就要看得出来** —— 紫色系。 */
+    private static final int EXTERNAL_TINT = 0x30B060FF;
+    private static final int EXTERNAL_BORDER = 0xFFB060FF;
     private static final int GRID_LINE = 0x28FFFFFF;
     private static final int REGION_LINE = 0x60FFFFFF;
     private static final int OUTER_BORDER = 0xFF909090;
@@ -219,6 +222,7 @@ public class ProtectionMapScreen extends Screen {
                 long key = geometry.keyAt(column, row);
                 Boolean pending = ClientProtectionState.pending(key);
                 boolean claimed = ClientProtectionState.isClaimed(key);
+                boolean external = !claimed && ClientProtectionState.isExternallyClaimed(key);
 
                 for (int sx = 0; sx < sub; sx++) {
                     for (int sz = 0; sz < sub; sz++) {
@@ -241,10 +245,14 @@ public class ProtectionMapScreen extends Screen {
                     graphics.fill(x1, y1, x2, y2, pending ? PENDING_CLAIM_TINT : PENDING_UNCLAIM_TINT);
                 } else if (claimed) {
                     graphics.fill(x1, y1, x2, y2, CLAIMED_TINT);
+                } else if (external) {
+                    graphics.fill(x1, y1, x2, y2, EXTERNAL_TINT);
                 }
                 if (claimed || (pending != null && pending)) {
                     graphics.renderOutline(x1, y1, geometry.cell(), geometry.cell(),
                             pending != null ? TEXT_WARN : 0xFFFF6060);
+                } else if (external) {
+                    graphics.renderOutline(x1, y1, geometry.cell(), geometry.cell(), EXTERNAL_BORDER);
                 }
                 if (hovered != null && hovered.longValue() == key) {
                     graphics.renderOutline(x1, y1, geometry.cell(), geometry.cell(), TEXT);
@@ -293,22 +301,34 @@ public class ProtectionMapScreen extends Screen {
             int row = geometry.rowOf(ChunkPos.getZ(hovered));
             boolean claimed = ClientProtectionState.isClaimed(hovered);
             Boolean pending = ClientProtectionState.pending(hovered);
-            String state = pending != null ? (pending ? "待认领" : "待取消") : (claimed ? "已认领" : "未认领");
+            String state = pending != null ? (pending ? "待认领" : "待取消")
+                    : claimed ? "本地认领"
+                    : ClientProtectionState.isExternallyClaimed(hovered) ? "FTB 认领" : "未认领";
             String surface = cellSurface[row * geometry.grid() + column];
             int topY = subTopY[subIndex(column, row, sub / 2, sub / 2)];
             cursor = "光标：区块 " + ChunkPos.getX(hovered) + ", " + ChunkPos.getZ(hovered) + " · " + state
                     + (surface == null || topY == NO_TOP ? "" : " · 地表 " + surface + " y=" + topY);
         }
+        int externalCount = ClientProtectionState.externalClaimed().size();
+        boolean wide = width >= 420;
+        String counts = "本视图：本地 " + ClientProtectionState.claimed().size() + " 格"
+                + (externalCount > 0 ? " · FTB " + externalCount + " 格" : "")
+                + (ClientProtectionState.truncated() ? " · ⚠ 本地快照被截断" : "");
+        String legend = wide
+                ? "图例：红=本地认领 · 紫=FTB 认领 · 琥珀=待认领 · 蓝=待取消 · 浅灰=未加载 · 深灰=无地表"
+                : "图例：红=本地 · 紫=FTB · 琥珀=待认领 · 蓝=待取消 · 灰=未加载";
+        String hints = wide
+                ? "左键=认领 · 右键=取消 · 拖动=连选 · R=回到玩家 · G=明暗(" + (shade ? "开" : "关")
+                        + ") · 关闭即提交（待提交 " + ClientProtectionState.pendingCount() + "）"
+                : "左键认领 · 右键取消 · 拖动连选 · R=回中心 · G=明暗 · 关闭提交（待提交 "
+                        + ClientProtectionState.pendingCount() + "）";
+
         int y = geometry.bottom() + 4;
         graphics.drawString(font, cursor, MARGIN, y, TEXT);
-        graphics.drawString(font, "本视图已认领 " + ClientProtectionState.claimed().size() + " 格"
-                        + (ClientProtectionState.truncated() ? " · ⚠ 快照被截断（远端未显示）" : ""),
-                MARGIN, y + 11, ClientProtectionState.truncated() ? TEXT_WARN : TEXT_DIM);
-        graphics.drawString(font, "图例：红框=已认领 · 琥珀=待认领 · 蓝=待取消 · 浅灰=未加载 · 深灰=无地表 · 亮暗=高低",
-                MARGIN, y + 22, TEXT_DIM);
-        graphics.drawString(font, "左键=认领 · 右键=取消 · 拖动=连选 · R=回到玩家 · G=明暗(" + (shade ? "开" : "关")
-                        + ") · 关闭即提交（待提交 " + ClientProtectionState.pendingCount() + "）",
-                MARGIN, y + 33, TEXT_DIM);
+        graphics.drawString(font, counts, MARGIN, y + 11,
+                ClientProtectionState.truncated() ? TEXT_WARN : TEXT_DIM);
+        graphics.drawString(font, legend, MARGIN, y + 22, TEXT_DIM);
+        graphics.drawString(font, hints, MARGIN, y + 33, TEXT_DIM);
     }
 
     // ==================== 输入 ====================
