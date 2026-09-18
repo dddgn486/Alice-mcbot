@@ -12356,3 +12356,43 @@ ArrayIndexOutOfBoundsException: Index 2484 out of bounds for length 289
 `FTBUXaeroCompat`(exLi-wai)、`XaeroPlus`(rfresh2)；**已核实** Xaero 1.46.0 与 FTB Chunks 2001.3.8 **双方都不自带**
 "FTB 认领 → Xaero 地图"的显示（Xaero 只自带 FTB **Teams** 的玩家追踪 + OPAC 认领；FTB 侧只有 `hasOtherMinimapMod()`
 用来关掉自己的小地图）。
+
+### D-319：假人归属「创建者登记」—— bot 要有自己的一套身份，第一步先把它记下来 2026-09-18
+
+**用户裁定（本轮范围）**：① FTB 那边**只保留 bot 的 FTB 身份与权限**；② **不希望**用"给 bot 建自己的队伍"的方式
+（那只能当**备用**），最好是**继承 bot 创建者的身份和权限**；③ 而"创建者的登记"**今天根本没有** ⇒ 先做**登记与显示**
+（明确**不接入权限判定** —— "只有创建者能指挥该 bot"是另一次裁定）；④ FTB 继承机制选 **① 入队 party**（可自动化）。
+
+**动手前核实的 FTB 机制**（真工件，非推测；`ftb-chunks-forge-2001.3.8` + `ftb-teams-forge-2001.3.2`）：
+"非假人玩家在别人领地能否编辑" = `ChunkTeamDataImpl.canPlayerUse:291-305`（`PUBLIC`⇒true · `ALLIES`⇒`isAlly(uuid)` ·
+否则 `getRankForPlayer(uuid).isMemberOrBetter()`），而 `isAlly:280-288` = `ALLY_MODE=FORCED_ALL` 或 `isMemberOrBetter()`
+或 `== TeamRank.ALLY` ⇒ **"继承创建者身份与权限"的可执行定义只有两条**：把 bot 变成创建者队的 **MEMBER**（入队 party）
+或在创建者队里给它 **ALLY** 级（结盟）。入队**可自动化**（FTB 自带命令 `party create/invite/join`）；
+结盟**公开 API 没有**（只有 GUI「Ally」按钮 + 内部 `AbstractTeam.addAlly(CommandSourceStack, Collection<GameProfile>)`）。
+⇒ 本轮**一个 FTB 写语义都不碰**，先把归属地基做好。
+
+**做了什么（纯 Alice 侧，零模组依赖）**
+| 层 | 落点 | 口径 |
+|---|---|---|
+| 唯一出入口 | 新 `bot/BotOwnership`（`NONE` / `Creator(uuid,name)` / `adopt` / `describe` / `write` / `read`） | **未登记 = `NONE`（uuid==null）**；展示文案 `未登记`（**刻意不是空串** —— 空串会被读成"有主但没名字"） |
+| 状态 | `BotPlayer.creatorUuid/creatorName` + `setCreator` | 名字是**登记当时**的快照（事后改名不改变已登记的事实） |
+| 生成 | `BotManager.spawn(..., ServerPlayer creator)` 新过载（旧签名委托 null） | 身份在**注册进 `PlayerList` 之前**写好 ⇒ 登录事件（别的模组会听）看到的就是完整状态 |
+| 落盘 | `saveToWorld` / `restoreFromWorld` | **未登记就不写键** ⇒ 老存档形状不变、可回退；恢复读不到键 ⇒ 保持未登记（**不猜、不静默补**） |
+| 命令 | `/alice bots`（列表带创建者）· `/alice adopt <名字>` | 认领**单向**：已有创建者 ⇒ 失败且**一个字都不改** |
+
+**判据 20 条**（新模块 `ownership` + 新步 `bot_ownership`，MAIN）：`module:ownership` **1/1 PASS**（`checks=20 failures=0`）。
+⭐ **三个注入各自单独跑 ⇒ 各自如期红**（互补注入会互相遮蔽 —— `D-316` 的教训）：① 拆掉 `adopt` 的"有主就拒"守卫
+⇒ 3 条红（单调性）；② 拆掉 `saveToWorld` 的接线 ⇒ 1 条红（**生产落盘** —— 只测辅助函数抓不到的那类）；
+③ 让 `read` 从 `Name` 键静默补主 ⇒ 3 条红（老存档被猜）。
+**CORE 50/50**（`bot_ownership=PASS`），**步序 diff = `49a50`** ⇒ 既有 49 步**零位移**（新步追加在末尾）。
+⚠️ **本轮的坑（省下一次）**：**CURATION 与 `RegressionBatteryTask.prepareSteps()` 是两个出处** —— 只登记 CURATION
+会被自带的自校验抓成 `phantom=[bot_ownership]`（实测 CORE FAIL）⇒ 新步必须**两处同时登记**。
+**同一轮 `WINDOWS_CLIENT` 确认**：用户实测 **地图正常打开** ⇒ `D-317` 的崩溃修复从"已修"升为**已确认**。
+
+**Xaero 参考件（用户提供，存档备用）**：`SathLabs/FTB-Xaero-Compat` 有 **1.20.1 分支**（另一个是 1.21.1），
+结构 = 客户端 + **4 个 Xaero mixin**（`WorldMapSessionMixin`/`MapWorldMixin`/`MapChunkMixin`/`GuiMapMixin`）+
+`ClaimsHighlighter` + `FTBClaimMenu` ⇒ 与本文档 `D-318` 的静态结论**互相印证**（认领叠加必须 mixin；
+通用右键菜单也是 mixin；挂在自有元素上的菜单才免 mixin）。源码副本留在 `/tmp/ftbxaero/`（不入库）。
+
+**明确不做**：归属**不参与任何权限判定**（"谁都能指挥 bot"**没变**）；不做任何 FTB 写语义（入队/结盟/绕过）——
+下一步做，且**动作点（谁来执行）需用户拍板**。

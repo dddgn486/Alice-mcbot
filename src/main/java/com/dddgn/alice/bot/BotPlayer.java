@@ -46,6 +46,28 @@ public class BotPlayer extends ServerPlayer {
     private static final boolean VANILLA_FULL_TICK = Boolean.getBoolean("alice.bot.vanillaTick");
 
     private BotController controller;
+
+    /**
+     * **创建者**（D-319）：谁 spawn 的 —— UUID + **登记当时**的名字快照。
+     * 老存档 / 夹具探针 / 命令方块生成的 bot ⇒ 都是 null（「未登记」）。
+     * 登记 / 展示 / 认领 / 存档的所有口径都在 {@link BotOwnership}（**别在别处**自己判 null 语义）。
+     */
+    private java.util.UUID creatorUuid;
+    private String creatorName;
+
+    public java.util.UUID creatorUuid() {
+        return creatorUuid;
+    }
+
+    public String creatorName() {
+        return creatorName;
+    }
+
+    /** 只由 {@link BotOwnership} 调用（它负责「未登记 = null」这唯一口径）。 */
+    public void setCreator(java.util.UUID uuid, String name) {
+        this.creatorUuid = uuid;
+        this.creatorName = name;
+    }
     
     // ✅ 击退修复：保存击退速度，下一个 tick 恢复
     private Vec3 savedKnockbackVelocity = Vec3.ZERO;

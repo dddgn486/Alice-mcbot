@@ -220,7 +220,10 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("pickup_gate", Profile.EXTRA),
             Map.entry("collect_job", Profile.EXTRA),
             Map.entry("recipes_dump", Profile.EXTRA),
-            Map.entry("event_thresholds", Profile.EXTRA));
+            Map.entry("event_thresholds", Profile.EXTRA),
+            // **D-319**：假人归属（创建者登记）—— 它是将来"继承创建者身份/权限"的地基，错了会以
+            // "权限看起来生效了其实没有"的形式出现在很远的地方；判据纯数据、约 5 tick（规则 1：新能力进 MAIN）。
+            Map.entry("bot_ownership", Profile.MAIN));
 
     /** 归属表摘要（`/alice battery list` + 文档用）：按档位分组打印，一眼看清电池里有什么、为什么。 */
     public static List<String> curationSummary() {
@@ -472,6 +475,10 @@ public final class RegressionBatteryTask implements Task {
         // ---- 设计线：**保护区模块**（1 步，EXTRA：CORE 不跑 ⇒ 上面 48 步的次序一个格子都不动）----
         // 新能力（`SafeZoneData` 改成区块级 2D 认领 + 旧格式迁移）的第一个离线门禁；见 D-313
         steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.ProtectionModule().steps(checkContext())));
+        // ---- 设计线：**假人归属模块**（1 步，MAIN：进 CORE）----
+        // 新能力（创建者登记，D-319）；**追加在步表末尾** ⇒ 上面 49 步的次序一个格子都不动。
+        // ⚠️ 归属表（CURATION）与**实跑步骤**必须同时登记：只加 CURATION 会被自校验抓成 `phantom=[…]`（本轮实测过）。
+        steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.OwnershipModule().steps(checkContext())));
     }
 
     // ==================== 执行 ====================

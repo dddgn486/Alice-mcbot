@@ -2,6 +2,7 @@ package com.dddgn.alice.command;
 
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.bot.BotManager;
+import com.dddgn.alice.bot.BotOwnership;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.gui.BotInventoryService;
 import com.dddgn.alice.log.BotLog;
@@ -60,6 +61,13 @@ public final class BotCommand {
                 .then(Commands.literal("spawn")
                         .then(Commands.argument("name", StringArgumentType.string())
                                 .executes(ctx -> spawn(ctx.getSource(),
+                                        StringArgumentType.getString(ctx, "name")))))
+                // D-319：假人归属 —— `bots` 看列表（含创建者），`adopt` 给**未登记**的假人补创建者
+                .then(Commands.literal("bots")
+                        .executes(ctx -> listBots(ctx.getSource())))
+                .then(Commands.literal("adopt")
+                        .then(Commands.argument("name", StringArgumentType.string())
+                                .executes(ctx -> adoptBot(ctx.getSource(),
                                         StringArgumentType.getString(ctx, "name")))))
                 .then(Commands.literal("come")
                         .executes(ctx -> come(ctx.getSource())))
@@ -1608,9 +1616,65 @@ public final class BotCommand {
         BlockPos pos = source.getEntity() != null
                 ? source.getEntity().blockPosition()
                 : new BlockPos(level.getSharedSpawnPos());
-        BotPlayer bot = BotManager.spawn(level, pos, name);
+        BotPlayer bot = BotManager.spawn(level, pos, name, UUID.randomUUID(), source.getPlayer());
         source.sendSuccess(() -> Component.literal(
-                "[alice] 假人 " + name + " 已生成于 " + pos.toShortString()), false);
+                "[alice] 假人 " + name + " 已生成于 " + pos.toShortString()
+                        + "（创建者=" + BotOwnership.describe(BotOwnership.creatorOfBot(bot)) + "）"), false);
+        return 1;
+    }
+
+    /** `/alice bots`（D-319）：列出假人 + **创建者**（未登记就写「未登记」，不猜）。 */
+    private static int listBots(CommandSourceStack source) {
+        java.util.Collection<BotPlayer> bots = BotManager.getAllBots();
+        if (bots.isEmpty()) {
+            source.sendFailure(Component.literal("[alice] 当前没有假人（/alice spawn <名字>）"));
+            return 0;
+        }
+        for (BotPlayer bot : bots) {
+            String line = "[alice] " + bot.getName().getString()
+                    + " uuid=" + BotOwnership.shortId(bot.getUUID())
+                    + " 创建者=" + BotOwnership.describe(BotOwnership.creatorOfBot(bot))
+                    + " dim=" + bot.level().dimension().location()
+                    + " @" + bot.blockPosition().toShortString()
+                    + (BotManager.isBusy(bot) ? " 忙" : " 闲");
+            source.sendSuccess(() -> Component.literal(line), false);
+        }
+        return bots.size();
+    }
+
+    /**
+     * `/alice adopt <名字>`（D-319）：把**执行者**登记为这只假人的创建者。
+     * **只在未登记时生效**（已有创建者 ⇒ 失败且一个字都不改 —— 认领是单向的）。
+     */
+    private static int adoptBot(CommandSourceStack source, String name) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) {
+            source.sendFailure(Component.literal("[alice] 认领必须由游戏内玩家执行（命令方块没有身份）"));
+            return 0;
+        }
+        BotPlayer found = null;
+        for (BotPlayer candidate : BotManager.getAllBots()) {
+            if (candidate.getName().getString().equalsIgnoreCase(name)) {
+                found = candidate;
+                break;
+            }
+        }
+        if (found == null) {
+            source.sendFailure(Component.literal("[alice] 没有叫 " + name + " 的假人（/alice bots 看列表）"));
+            return 0;
+        }
+        final BotPlayer target = found;   // 下面有 lambda ⇒ 必须 effectively final
+        if (!BotOwnership.adopt(target, player)) {
+            source.sendFailure(Component.literal("[alice] " + name + " 的创建者已经是 "
+                    + BotOwnership.describe(BotOwnership.creatorOfBot(target))
+                    + " ⇒ 不改写（认领是单向的）"));
+            return 0;
+        }
+        BotManager.saveToWorld(target);
+        BotLog.info("[Bot] creator 认领 bot={} creator={} creatorUuid={}",
+                name, player.getGameProfile().getName(), player.getUUID());
+        source.sendSuccess(() -> Component.literal("[alice] 认领成功：" + name + " 的创建者 = "
+                + BotOwnership.describe(BotOwnership.creatorOfBot(target))), false);
         return 1;
     }
 

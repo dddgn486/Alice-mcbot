@@ -128,14 +128,27 @@ public final class BotManager {
 
     /** 在指定位置生成假人:玩家化注册(PlayerList) + 传送 + 强制生存。 */
     public static BotPlayer spawn(ServerLevel level, BlockPos pos, String name) {
-        return spawn(level, pos, name, UUID.randomUUID());
+        return spawn(level, pos, name, UUID.randomUUID(), null);
     }
 
     /** 生成假人(可指定 UUID,用于从存档恢复)。生成即写世界存档。 */
     public static BotPlayer spawn(ServerLevel level, BlockPos pos, String name, UUID uuid) {
+        return spawn(level, pos, name, uuid, null);
+    }
+
+    /**
+     * 生成假人（**D-319**：把创建者一并登记）。生成即写世界存档。
+     *
+     * <p>`creator` 可空：夹具探针、命令方块、以及**从存档恢复**时都没有"人"在场
+     * （恢复路径改用 {@link BotOwnership#read} 把存档里的创建者写回，见 {@link #restoreFromWorld}）。
+     */
+    public static BotPlayer spawn(ServerLevel level, BlockPos pos, String name, UUID uuid,
+                                  net.minecraft.server.level.ServerPlayer creator) {
         MinecraftServer server = level.getServer();
         GameProfile profile = new GameProfile(uuid, name);
         BotPlayer bot = new BotPlayer(server, level, profile);
+        // D-319：身份在**注册进 PlayerList 之前**写好 —— 登录事件（别的模组会听）看到的就是完整状态
+        BotOwnership.applyTo(bot, BotOwnership.creatorOfPlayer(creator));
 
         // 伪造客户端连接 → PlayerList.placeNewPlayer 注册(填充 connection + 广播给玩家)
         // P1 客户端同步修复：传入 bot 引用以便广播位置/速度包
@@ -309,6 +322,8 @@ public final class BotManager {
         tag.put("Pos", pos);
         tag.put("Rotation", rot);
         tag.putString("GameMode", bot.gameMode.getGameModeForPlayer().getName());
+        // D-319：创建者（**未登记就不写键** ⇒ 老存档形状不变、可回退）
+        BotOwnership.write(tag, BotOwnership.creatorOfBot(bot));
         tag.putFloat("Health", bot.getHealth());
         // 主手物品(行为替换的工具也存进去,退出重进手里保持原样)
         ItemStack mainHand = bot.getInventory().getItem(bot.getInventory().selected);
@@ -354,6 +369,8 @@ public final class BotManager {
         bot.teleportTo(pos.getDouble(0), pos.getDouble(1), pos.getDouble(2));
         bot.setYRot(rot.getFloat(0));
         bot.setXRot(rot.getFloat(1));
+        // D-319：归属从存档写回（老存档没有这两个键 ⇒ 保持「未登记」，不猜、不补）
+        BotOwnership.applyTo(bot, BotOwnership.read(tag));
         switch (tag.getString("GameMode")) {
             case "creative" -> bot.gameMode.changeGameModeForPlayer(GameType.CREATIVE);
             case "adventure" -> bot.gameMode.changeGameModeForPlayer(GameType.ADVENTURE);

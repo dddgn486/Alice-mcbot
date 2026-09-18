@@ -19,10 +19,10 @@
 SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 **跳过多少、跑多少、各档几项**一眼可见；归属表与实跑项对不上（漏登记 / 文档说测了其实没测）**直接判红**。
 
-## 2. 当前归属表（59 项 → CORE 49 项）
+## 2. 当前归属表（60 项 → CORE 50 项）
 
 > 2026-09-18 校正：本节标题里的计数长期漂移（原写 46/38）⇒ 本次按 `RegressionBatteryTask.CURATION`
-> **逐条数了一遍**：BASELINE 15 + MAIN 34 + EXTRA 10 = **59**，CORE = **49**。
+> **逐条数了一遍**：BASELINE 15 + MAIN 35 + EXTRA 10 = **60**，CORE = **50**（2026-09-18 二次校正：`bot_ownership` 进 MAIN）。
 
 > 2026-09-14 校正：本节此前写「34 项 → CORE 24 项」**已过期**（实际 = BASELINE 13 + MAIN 14 + EXTRA 10 = 37，CORE = 13+14 = 27，与客户端实测 `(27/27)` 一致）。
 > 加入 `write_policy`（BASELINE）后为 **38 / CORE 28**；加入 `machine_cycle`（MAIN）后为 **39 / CORE 29**；
@@ -45,7 +45,8 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 封闭场景四层前提自证、**真实着火** ⇒ 不否决 + `exit=none decision=continue`、脚位格口径回归（半砖）、
 出口真能走到、掉血 ⇒ `DANGER`（`delta=`）且不刷屏）
 
-### MAIN（34）—— 阶段 3-A（回退瘦身，保持完整）+ 阶段 3-B / S1+S2（机器只读）+ S4 + (c) 增量 2（机器写入：夹具 + 生产）
+### MAIN（35）—— 阶段 3-A（回退瘦身，保持完整）+ 阶段 3-B / S1+S2（机器只读）+ S4 + (c) 增量 2（机器写入：夹具 + 生产）
+> 2026-09-18 起含 `bot_ownership`（**D-319** 假人归属：创建者登记 / 认领单向 / 存档往返 / 老存档不猜；判据 20 条、约 5 tick、不写世界）
 `decision_contract`（③/策展：从 EXTRA 提到 MAIN —— 它自己的类注释写着"任何改动都跑得到"，
 而档位在 EXTRA ⇒ CORE 跑不到；200 tick、纯逻辑、不调 LLM、不改世界 ⇒ 与 M1/M2/M4 三次提档同一理由）、
 `mine_no_tool`（M3：缺工具必须报 `tool_missing`，不许被总括码盖掉）、
@@ -155,4 +156,5 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 | 2026-09-18 | **48** | **58** | **R-2 第九个模块 `death`（D-309，2 步）**：`death_persistence`(MAIN) + `death_kill_bot`(EXTRA) 内联定义已删；`module:death` 单跑 **2/2**（`DeathPersistence checks=9` + `DeathE2E checks=6`，均 `failures=0`）、CORE **48/48** ✓、`module-selftest` **3/3**（本批 death+transfer+survival）✓。⭐⭐ **本片的新形状：模块落点必须选"保住 CORE 步序"的那一侧** —— 原电池里 `death_persistence`（MAIN，CORE 跑）在第 **8** 位、`death_kill_bot`（EXTRA，CORE 不跑）在第 **4** 位，**中间隔着 `hazard_aversion_plan` + 整个 `decision` 模块 + `pathing` 模块** ⇒ 一个模块只能落一个位置，"两边都原位"做不到 ⇒ 取代价最小侧：**模块插在 `death_persistence` 原位**（CORE 步序**逐字不变** ✓），只把 `death_kill_bot` 挪过去（EXTRA ⇒ CORE 不跑，且其注释写明"只适合 `single:` 单独跑"）。⚠️ 反过来（"先杀后验"插在第 4 位）会让 `death_persistence` 在 CORE 里**提前 3 个模块** = 未证明的顺序变更（D-302：顺序也是行为，且 CORE 会**蒙对**）|
 | 2026-09-18 | **48** | **58** | **R-2 第十个模块 `tools`（D-310，1 步）**：`tool_supply`(BASELINE) 内联定义已删、顺序不变；`module:tools` 单跑 **1/1**（三例真判据：`tool_swap terminal=promoted_from_main` / `worn_no_spare` / `no_tool`，10 tick）；CORE **48/48** ✓。⚠️ 本片**无场景、无 provision**（`ToolSupplyCheckTask` **只动背包**，用 `FixtureToolKit` 摆 A/B/C 三种背包状态 ⇒ 不依赖地形、不写世界、不做传送）⇒ 也**不受"区块冷热"影响**，是"模块自足"的最简形态 ✓|
 | 2026-09-18 | **48** | **58** | **R-2 第十一批～第十六片（D-311，六个模块 / 13 步）**：剩余内联步按「**保住 CORE 次序的连续段**」分成六片 —— `gates`(partial_search + capability_gate) · `write`(recoverability + write_policy) · `llm`(llm_contract + permission_gate) · `contracts`(speech_channel + decision_contract + decision_trace) · `pickup`(pickup_gate + collect_job) · `telemetry`(recipes_dump + event_thresholds)。**六片全部原序落位（0 位移）** ✓ ⇒ CORE 步序应逐字不变（与上一轮 CORE 做 diff 作证）。`module:<id>` 逐片单跑全 PASS；CORE **48/48**；模块注册表 **18** 个。⭐ **本批的真实收益：6 个 EXTRA 步第一次有了"单独跑"通道**（`decision_trace`/`permission_gate`/`pickup_gate`/`collect_job`/`recipes_dump`/`event_thresholds` —— 它们此前**只有 FULL 才跑**，进模块后 `module:<id>` 会跑它们）。⚠️ 仍留在电池内联的只剩 2 步：`hazard_aversion_plan`（语义属 `decision`，但并入会让它在 CORE 挪位）· `pathing`（聚合 5000 tick，并入 `PathingModule` 会把它从 CORE 47 挪到 7）|
+| 2026-09-18 | **50** | **60** | **设计线 · 假人归属（D-319）**：新能力 —— **创建者登记**（`/alice spawn` 记执行者；`/alice bots` 列表可见；`/alice adopt` 给未登记的补，且**单向**：有主就拒且不改写）。新模块 `OwnershipModule`（注册表 **20** 个）+ 新步 `bot_ownership`（**MAIN**，规则 1）。`module:ownership` 单跑 **1/1**（`checks=20 failures=0`，约 5 tick）；CORE **50/50** ✓（**追加在步表末尾** ⇒ 与上一轮 49 步做步序 diff = **0 处位移**，实测 `49a50`）。三个注入各自单独跑 ⇒ 各自如期红（拆单调性守卫 / 拆 `saveToWorld` 接线 / 让 `read` 静默补主）。⚠️ 本片抓到的坑：**CURATION 与 `prepareSteps()` 的实跑列表是两个出处** —— 只登记 CURATION 会被自校验抓成 `phantom=[bot_ownership]`（实测 CORE FAIL）⇒ 新步必须**两处同时登记** |
 | 2026-09-18 | **49** | **59** | **设计线 · 保护区（D-313）**：新能力（不是 R-2 搬迁片）—— `SafeZoneData` 形状从「水平圆形半径」改为 ⭐ **区块级 2D 认领**（忽略 Y、覆盖全高度；D-305 ①′）+ **旧格式自动迁移**（相交即认领，计数进 `summary()`，不静默丢）。新模块 `ProtectionModule`（注册表 **19** 个）+ 新步 `protection_zones`（**MAIN**，按本档规则 1「新能力默认进 MAIN」）。`module:protection` 单跑 **1/1**（`checks=32 failures=0`，约 10 tick）✓；CORE **49/49** ✓（**追加在末尾** ⇒ 与上一轮 CORE 做步序 diff 应为 0 处位移）。本行同时**校正了本节计数**（46/38 → **59/49**，按 CURATION 逐条数）|

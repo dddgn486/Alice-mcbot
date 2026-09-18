@@ -15,6 +15,7 @@ import com.dddgn.alice.task.check.modules.LumberModule;
 import com.dddgn.alice.task.check.modules.MachineModule;
 import com.dddgn.alice.task.check.modules.MiningModule;
 import com.dddgn.alice.task.check.modules.PathingModule;
+import com.dddgn.alice.task.check.modules.OwnershipModule;
 import com.dddgn.alice.task.check.modules.ProtectionModule;
 import com.dddgn.alice.task.check.modules.SurvivalModule;
 import com.dddgn.alice.task.check.modules.ToolsModule;
@@ -50,7 +51,8 @@ public final class CheckModules {
             new TelemetryModule(),
             new WriteModule(),
             new ContractsModule(),
-            new ProtectionModule()
+            new ProtectionModule(),
+            new OwnershipModule()
     );
 
     private CheckModules() {
