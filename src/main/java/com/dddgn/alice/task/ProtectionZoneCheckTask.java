@@ -2,12 +2,10 @@ package com.dddgn.alice.task;
 
 import com.dddgn.alice.action.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
-import com.dddgn.alice.compat.ftbchunks.FtbChunksClaims;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.network.ProtectionActionPacket;
 import com.dddgn.alice.network.ProtectionClaimsPacket;
 import com.dddgn.alice.protection.BlockBreakSafety;
-import com.dddgn.alice.protection.ClaimSources;
 import com.dddgn.alice.protection.ProtectionClaimService;
 import com.dddgn.alice.protection.ProtectionMapGeometry;
 import com.dddgn.alice.protection.SafeZoneData;
@@ -70,7 +68,7 @@ public final class ProtectionZoneCheckTask implements Task {
     /** 单次加载的自定义 `SavedData` 上做往返，不需要世界 tick；留一点余量给日志。 */
     private static final int BUDGET_TICKS = 150;
 
-    private enum Phase { ZONE, RELEASE, PERSIST, MIGRATE, PROTOCOL, EXTERNAL, GEOMETRY, BLACKLIST, CLEANUP, DONE }
+    private enum Phase { ZONE, RELEASE, PERSIST, MIGRATE, PROTOCOL, GEOMETRY, BLACKLIST, CLEANUP, DONE }
 
     private final BotPlayer bot;
     private final net.minecraft.server.level.ServerPlayer observer;
@@ -92,8 +90,6 @@ public final class ProtectionZoneCheckTask implements Task {
     private int probeChunkX = Integer.MIN_VALUE;
     private boolean addedBlockRule;
     private boolean addedTagRule;
-    /** 本夹具注册的假外部认领源（收尾必须摘掉：它会**影响后续步骤**的判据）。 */
-    private ClaimSources.Source fakeSource;
 
     public ProtectionZoneCheckTask(BotPlayer bot, net.minecraft.server.level.ServerPlayer observer) {
         this.bot = bot;
@@ -135,7 +131,6 @@ public final class ProtectionZoneCheckTask implements Task {
             case PERSIST -> persistPhase();
             case MIGRATE -> migratePhase();
             case PROTOCOL -> protocolPhase();
-            case EXTERNAL -> externalPhase();
             case GEOMETRY -> geometryPhase();
             case BLACKLIST -> blacklistPhase();
             case CLEANUP -> finish();
@@ -417,14 +412,13 @@ public final class ProtectionZoneCheckTask implements Task {
             FriendlyByteBuf lying = new FriendlyByteBuf(Unpooled.buffer());
             lying.writeResourceLocation(dimension);
             lying.writeBoolean(false);
-            lying.writeVarInt(-1);      // 本地列：撒谎
-            lying.writeVarInt(-1);      // 外部列：同样撒谎（D-316 起快照有两列）
+            lying.writeVarInt(-1);
             clamped = ProtectionClaimsPacket.decode(lying);
         } catch (RuntimeException unexpected) {
             BotLog.warn("[Protection] 快照夹住失败: {}", unexpected.toString());
         }
-        check("S2C 数量撒谎（两列都 -1）必须**夹住**（都读成 0 个），而不是把客户端踢下线",
-                clamped != null && clamped.chunkKeys().length == 0 && clamped.externalChunkKeys().length == 0);
+        check("S2C 数量撒谎（-1）必须**夹住**（读成 0 个），而不是把客户端踢下线",
+                clamped != null && clamped.chunkKeys().length == 0);
 
         // ⑥ 快照有界：按「离玩家最近」截断 + truncated 如实置位（纯函数，无世界写入）
         Set<Long> synthetic = new LinkedHashSet<>();
@@ -446,122 +440,7 @@ public final class ProtectionZoneCheckTask implements Task {
 
         BotLog.info("[Protection] 协议契约 ✓：动作包(无维度字段/超量拒收) · 落库({}) · 快照(往返/夹住/截断)",
                 first.summary());
-        advance(Phase.EXTERNAL);
-    }
-
-    /**
-     * **外部认领源**（D-316）：FTB Chunks 这类"别人的地盘"怎么接进我们的闸门。
-     *
-     * <p>这一组**完全离线可判**：真模组不在场也能验（这就是"缝 + 假源"的价值）——
-     * 服务端只按 {@link ClaimSources.Source} 问，夹具注册一个假源即可。
-     * 真适配器（反射调 FTB API）只在这里断言"**缺模组时必须空转**"，它的真实行为留给客户端轮次。
-     */
-    private void externalPhase() {
-        ServerLevel level = bot.serverLevel();
-        SafeZoneData data = SafeZoneData.get(level.getServer());
-        ResourceLocation dimension = level.dimension().location();
-        BlockPos here = bot.blockPosition();
-        long fakeKey = ChunkPos.asLong(hereChunkX, hereChunkZ);
-        int sourcesBefore = ClaimSources.size();
-
-        fakeSource = new FakeClaimSource("fake_claim", hereChunkX, hereChunkZ);
-        ClaimSources.register(fakeSource);
-        check("注册一个外部认领源 ⇒ 来源表 +1（" + sourcesBefore + " → " + ClaimSources.size() + "）",
-                ClaimSources.size() == sourcesBefore + 1);
-        check("外部认领的区块 ⇒ 理由码 protected_fake_claim（实际 "
-                        + desc(data.protectionReason(level, here)) + "）",
-                "protected_fake_claim".equals(data.protectionReason(level, here)));
-        check("外部认领在**唯一入口**上生效：BlockBreakSafety 两条策略都看得到（实际 "
-                        + desc(BlockBreakSafety.explicitTargetRefusal(bot, here)) + " / "
-                        + desc(BlockBreakSafety.refusal(bot, here, WriteReason.PATH_ACCESS)) + "）",
-                "protected_fake_claim".equals(BlockBreakSafety.explicitTargetRefusal(bot, here))
-                        && "protected_fake_claim".equals(
-                        BlockBreakSafety.refusal(bot, here, WriteReason.PATH_ACCESS)));
-
-        BlockPos outside = new BlockPos(here.getX() + 32, here.getY(), here.getZ() + 32);
-        check("没被外部认领的区块**不受影响**（不许过度拦截；该点在 chunk "
-                        + (outside.getX() >> 4) + "," + (outside.getZ() >> 4) + "，实际 "
-                        + desc(data.protectionReason(level, outside)) + "）",
-                data.protectionReason(level, outside) == null);
-        check("⭐ **不复制**：外部认领**没有**进我们的存档（claimedChunkCount=" + data.claimedChunkCount()
-                        + " = " + chunksBefore + "；本地集合命中="
-                        + data.claims(dimension).contains(fakeKey) + "）",
-                data.claimedChunkCount() == chunksBefore && !data.claims(dimension).contains(fakeKey));
-
-        ProtectionClaimsPacket snapshot = ProtectionClaimService.snapshot(bot);
-        check("S2C 快照把它放进**外部**那一列（本地列不放 ⇒ 客户端才能标出来源；实际 external="
-                        + snapshot.externalChunkKeys().length + " local=" + snapshot.chunkKeys().length + "）",
-                containsKey(snapshot.externalChunkKeys(), fakeKey)
-                        && !containsKey(snapshot.chunkKeys(), fakeKey));
-
-        // ⚠️ 失败方向：第三方升级导致查询抛异常时**跳过 + 告警**，不许冒泡（否则 bot 会在全世界都不能动）
-        ClaimSources.register(THROWING_SOURCE);
-        boolean survived = true;
-        try {
-            survived = data.protectionReason(level, outside) == null;
-        } catch (RuntimeException | LinkageError blown) {
-            survived = false;
-            BotLog.warn("[Protection] 异常源把异常冒泡出来了: {}", blown.toString());
-        }
-        check("抛异常的外部源不许打死服务端（跳过它，其余照常；实际 survived=" + survived + "）", survived);
-        ClaimSources.unregister(THROWING_SOURCE);
-
-        check("前提：无头服务端**没有**装 FTB Chunks ⇒ 适配器自认 available=false（实际 "
-                        + FtbChunksClaims.available() + "）",
-                !FtbChunksClaims.available());
-        check("模组不在场时适配器恒返回 false（行为与没有兼容时**完全一致**）",
-                !FtbChunksClaims.INSTANCE.isClaimed(level, new ChunkPos(hereChunkX, hereChunkZ)));
-
-        ClaimSources.unregister(fakeSource);
-        fakeSource = null;
-        check("自清理：摘掉外部源后理由码复原（实际 " + desc(data.protectionReason(level, here))
-                        + "），来源表回到 " + sourcesBefore + "（实际 " + ClaimSources.size() + "）",
-                data.protectionReason(level, here) == null && ClaimSources.size() == sourcesBefore);
-        BotLog.info("[Protection] 外部认领源 ✓：唯一入口生效 / 不复制进存档 / 快照分列 / 异常不冒泡 / 缺模组空转");
         advance(Phase.GEOMETRY);
-    }
-
-    /** 假的外部认领源（夹具用：只认一个区块）。 */
-    private static final class FakeClaimSource implements ClaimSources.Source {
-        private final String id;
-        private final long only;
-
-        FakeClaimSource(String id, int chunkX, int chunkZ) {
-            this.id = id;
-            this.only = ChunkPos.asLong(chunkX, chunkZ);
-        }
-
-        @Override
-        public String id() {
-            return id;
-        }
-
-        @Override
-        public boolean isClaimed(ServerLevel level, ChunkPos pos) {
-            return ChunkPos.asLong(pos.x, pos.z) == only;
-        }
-    }
-
-    /** 每次查询都抛异常的源（钉住"异常不许冒泡"这条）。 */
-    private static final ClaimSources.Source THROWING_SOURCE = new ClaimSources.Source() {
-        @Override
-        public String id() {
-            return "throwing_probe";
-        }
-
-        @Override
-        public boolean isClaimed(ServerLevel level, ChunkPos pos) {
-            throw new IllegalStateException("夹具故意抛出的外部源故障");
-        }
-    };
-
-    private static boolean containsKey(long[] keys, long wanted) {
-        for (long key : keys) {
-            if (key == wanted) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
@@ -778,10 +657,6 @@ public final class ProtectionZoneCheckTask implements Task {
         if (addedTagRule && supportTag != null) {
             data.removeTag(supportTag.location());
             addedTagRule = false;
-        }
-        if (fakeSource != null) {
-            ClaimSources.unregister(fakeSource);      // 假外部源绝不能留给后面的步骤
-            fakeSource = null;
         }
         if (hereWasClaimed) {
             data.claim(level, hereChunkX, hereChunkZ);      // 进入前就有 ⇒ 复原（精确复原，不是"清空"）

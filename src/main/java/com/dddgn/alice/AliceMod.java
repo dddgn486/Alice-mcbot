@@ -29,11 +29,6 @@ public class AliceMod {
         // 网络通道(S2C 任务目标同步 + bot inventory 快照/action)
         AliceNetwork.register();
 
-        // 外部认领源（D-316）：FTB Chunks 只读兼容。**软依赖**：模组不在场时它自己空转，
-        // 保护区行为与没有兼容时完全一致（首次查询才做反射解析，构造期不加载对方任何类）。
-        com.dddgn.alice.protection.ClaimSources.register(
-                com.dddgn.alice.compat.ftbchunks.FtbChunksClaims.INSTANCE);
-
         // FORGE 总线:任务 tick / 感知事件 / 自检
         MinecraftForge.EVENT_BUS.register(BotManager.class);
         MinecraftForge.EVENT_BUS.register(ScopeBuffer.class);

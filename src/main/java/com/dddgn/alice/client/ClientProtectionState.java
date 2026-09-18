@@ -33,8 +33,6 @@ public final class ClientProtectionState {
     /** 快照所属维度（null = 还没有快照）。 */
     private static volatile ResourceLocation snapshotDimension;
     private static volatile Set<Long> claimed = Set.of();
-    /** 外部认领源（D-316，例如 FTB Chunks）在窗口内的认领：只用于**显示来源**，门禁在服务端。 */
-    private static volatile Set<Long> externalClaimed = Set.of();
     private static volatile boolean truncated;
 
     /** 待提交：区块键 → 目标状态（true = 认领 / false = 取消认领）。只在客户端主线程访问。 */
@@ -51,13 +49,8 @@ public final class ClientProtectionState {
         for (long key : packet.chunkKeys()) {
             next.add(key);
         }
-        Set<Long> nextExternal = new HashSet<>();
-        for (long key : packet.externalChunkKeys()) {
-            nextExternal.add(key);
-        }
         snapshotDimension = packet.dimension();
         claimed = Set.copyOf(next);
-        externalClaimed = Set.copyOf(nextExternal);
         truncated = packet.truncated();
         // 目标状态已与服务端一致 ⇒ 这条不必再提交（也用于界面上"已生效"的显示）
         if (pendingDimension != null && pendingDimension.equals(packet.dimension())) {
@@ -87,15 +80,6 @@ public final class ClientProtectionState {
 
     public static boolean isClaimed(long chunkKey) {
         return claimed.contains(chunkKey);
-    }
-
-    /** 该区块是否被**外部来源**（FTB Chunks 等）认领 —— 只用于界面标注来源。 */
-    public static boolean isExternallyClaimed(long chunkKey) {
-        return externalClaimed.contains(chunkKey);
-    }
-
-    public static Set<Long> externalClaimed() {
-        return externalClaimed;
     }
 
     /** 玩家当前所在维度（拿不到时返回 null）。 */

@@ -323,27 +323,28 @@ pickup_gate=… collect_job=… recipes_dump=… event_thresholds=… pathing=�
 - 命令行等价入口（诊断用）：`/alice protect claim <chunkX> <chunkZ>` / `unclaim …` / `list`。
 
 **已知边界**：只做了本地小地图式勾选 + 地形细化；没有拖动 / 缩放大地图，没有客户端磁盘缓存，
-不集成任何地图 mod 的渲染（FTB Chunks 只做**只读**兼容，见下）。采样窗口是玩家脚位 ±40 ⇒ 站得比窗口更远离地表时
-那一列是深灰（如实显示，不猜）。
+不集成任何地图 mod（Xaero 联动的**登记项**见 `docs/OPEN_ITEMS_LEDGER.md`；FTB 的只读兼容已回撤，见 §2.5.1）。
+采样窗口是玩家脚位 ±40 ⇒ 站得比窗口更远离地表时那一列是深灰（如实显示，不猜）。
 
-### 2.5.1 FTB Chunks **只读**兼容（D-316）—— 与地图细化**同一轮**验收
+### 2.5.1 ⚠️ FTB 在场时的**真实风险**（`D-318`）—— 不是验收脚本，是**警告**
 
-**装什么**（装到**同一个实例** `versions/1.20.1-Forge_47.4.10`，⚠️ **别**装到 `Bariton_contrast` 那个对比实例）：
-`FTB Chunks` + `FTB Teams` + `FTB Library` + `Architectury API`（**全部 Forge 1.20.1 版**；启动器一般会自动带上依赖）。
-装完**重启客户端**（我们的 jar 本轮协议有变，必须两边同版本）。
+你的客户端现已装 `FTB Chunks` + `FTB Teams` + `FTB Library`（+ architectury）。
 
-**要看的（4 步，一次跑完）**
-1. 在 **FTB 自己的界面**里认领一块地（例如你脚下那格 + 旁边一格）；
-2. 用 `alice:protection_selector` 打开我们的地图 ⇒ 那几格应是**紫框**（图例里写的是「紫=FTB 认领」），
-   悬停那格应显示 **`FTB 认领`**；
-3. **反证（关键）**：用 `alice:target_selector` 让 bot 去挖那块地里的方块 ⇒ 应被拒；请把**拒绝理由的原文**发我：
-   - 若是 `protected_ftb_claim` ⇒ 是**我们**读 FTB 认领后拦下的（本轮的预期）；
-   - 若是 FTB 自己的提示 ⇒ 说明 **FTB 的保护也作用于我们的假人**，这是另一件重要事实（同样有价值）；
-4. 回 FTB 界面把那块地**取消认领** ⇒ 重开我们的地图 ⇒ 紫框应**消失**（我们只读，它变我们就变）。
-   若紫框还在 ⇒ 记下来（快照没刷新）。
+**已定（字节码/存档级证据，不是推测）**：bot **不是** Forge 假人（architectury `PlayerHooksImpl.isFake`
+= `instanceof FakePlayer`，而 `BotPlayer extends ServerPlayer`）⇒ FTB 的**假人白名单对它永不适用**；
+bot 走**普通玩家**分支，且 FTB Teams **已自动给 bot 建了自己的队伍**（`world/ftbteams/player/<uuid>.snbt` 里
+`player_name: "Alice"`、rank=owner）。⇒ **它不是"借用玩家身份"**，它有自己的一套。
 
-**顺手帮我回答一句**（决定"任务区→FTB"这条以后能不能做）：bot 在 FTB 认领区里**被 FTB 拦过吗**？
-若想再进一步，可试一次 `/ftbchunks admin bypass_protection`（看点 bot 是否放行）。
+**机制级结论（客户端未实测）**：FTB 拦的是 `InteractionEvent.LEFT_CLICK_BLOCK` / `RIGHT_CLICK_BLOCK` /
+`INTERACT_ENTITY` 与 `BlockEvent.BREAK` / `PLACE`（`FTBChunks.java:104-111`），而 bot 的破坏两条路**正好都触发**
+（`BlockBreakSession` → `handleBlockBreakAction` → `ForgeHooks.onLeftClickBlock`；
+`ChainMining` → `gameMode.destroyBlock` → `ForgeHooks.onBlockBreakEvent`）⇒ **在玩家认领的地盘上，bot 很可能被 FTB 拦**。
+
+**三条出路都在 FTB 侧**（不是我们的代码）：① 把 bot 的队与你的队**结盟**；② 把你的队
+`block_edit_mode` 改成 `public`；③ 给 bot 的队伍开 bypass（`/ftbchunks admin bypass_protection Alice`）。
+
+**下一轮要看清的一件事**：bot 被拦时**日志长什么样** —— FTB 的拒绝提示是发给玩家的（bot 没有客户端），
+我们要能一眼分清"**FTB 拦的**"和"**我们自己的保护区闸门拦的**"，否则以后误判成本很高。
 
 ---
 

@@ -46,14 +46,6 @@ public final class ProtectionClaimService {
     /** 单次 S2C 快照最多下发的区块数（超出按"离玩家最近的先发"截断，并在包里置 truncated）。 */
     public static final int MAX_SNAPSHOT_CHUNKS = 16384;
 
-    /**
-     * 快照里**外部认领**（FTB Chunks 等，D-316）的收集半径（区块）。
-     *
-     * <p>界面最大 {@code MAX_GRID=25} ⇒ 只看得到中心 ±12，取 ±16 留余量；外部集合因此天然有界
-     * （最多 33×33 = 1089 个）⇒ 不需要再截断。
-     */
-    public static final int EXTERNAL_WINDOW_CHUNKS = 16;
-
     /** 每维度认领上限（内存有界；一个基地用不到这个数）。 */
     public static final int MAX_CHUNKS_PER_DIMENSION = 32768;
 
@@ -184,16 +176,7 @@ public final class ProtectionClaimService {
         ResourceLocation dimension = level.dimension().location();
         SafeZoneData data = SafeZoneData.get(viewer.server);
         ChunkPos center = viewer.chunkPosition();
-        ProtectionClaimsPacket own = selectNearest(dimension, data.claims(dimension),
-                center.x, center.z, MAX_SNAPSHOT_CHUNKS);
-        // 外部认领（D-316）：只读现问、只发窗口内 ⇒ 界面能给它们单独标记，而门禁那一侧同样算保护区
-        Set<Long> external = ClaimSources.collect(level, center.x, center.z, EXTERNAL_WINDOW_CHUNKS);
-        long[] externalKeys = new long[external.size()];
-        int index = 0;
-        for (long key : external) {
-            externalKeys[index++] = key;
-        }
-        return own.withExternal(externalKeys);
+        return selectNearest(dimension, data.claims(dimension), center.x, center.z, MAX_SNAPSHOT_CHUNKS);
     }
 
     /**
