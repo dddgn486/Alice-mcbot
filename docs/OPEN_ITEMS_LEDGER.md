@@ -61,6 +61,23 @@
 > **⭐ R-2 的口径（D-297/298 两次确认）**：验收单位是**模块**（模块内允许步间依赖 ✓）；**编排器的步边界必须与电池 `endStep` 同口径** —— D-298 实测：缺一句站点还原就让 `craft_goal` 单跑假红，而**电池那边有、编排器没有** ⇒ 门禁 `R2-P1` 钉住"两侧都要有" ✓。
 > **R-2（电池模块化）**：用户 2026-09-17 定为"下一条主线"，**开工后按用户要求暂停** ✗（"等会，决策还没做完"）⇒ 已放下的样板：`task/check/{CheckStep,CheckProfile,CheckContext,CheckModule}.java` + `modules/LedgerModule.java`（未接入电池）⇒ 决策走完后继续 ✓。
 
+### 2026-09-18 拉取登记：`survey/19` + `survey/20`（保护区 / 紧急提权线）
+
+| 项 | 内容 | 状态 |
+|---|---|---|
+| **来源** | `survey/19-勘测侧复核回写-第二次-20260917.md`、`survey/20-保护区与紧急提权-20260917.md`（同批 `22562ec`；勘测侧基线 `cddc90c`） | 已入库 ✓ |
+| **待拍板 7 项** | 指针 = **`survey/20 §8`**（B-1 区域=上限/任务=需求 · B-2 区外=走路+显式申请 · B-3 提权只放搭路+是否收紧今天已含的 `BREAK_*` · B-4 提权默认档 `NOTIFY` · B-5 恢复延后队列 · D-1 方案 α/β · D-2 保护区收拢语义） | **等用户**（未开工 ✗） |
+| **⚠️ 主线对 §0 分层表的一处异议** | `survey/20 §0` 把 A 层（`RegionCap` 查询 / 越界降级挂点 / 区外 `PermissionGate` 通道）列为"可立刻做"。**但三条的前提都是"保护区/安全区"的定义，而那正是 §D-2（报告自评"风险极大"）待拍板的内容** ⇒ 无定义时 `RegionCap` 是**无调用者的死代码**（不失败、不拦不可逆动作、不做指针 ⇒ 过不了准入尺子）⇒ **正确顺序是 D-2 定义 → 才谈 A 层** | 异议已提（见主线回复） |
+| **⚠️ `survey/20 §B-1` 三处自相矛盾** | 标题「**不取交集**」／公式「实际权限 = 需求 **∩** 上限」／理由行（"取交集 ⇒ 一出区权限归零 ⇒ 被迫待在区内"）**三者不一致** ⇒ 照做会做错，**需勘测员或作者澄清** | 待澄清 |
+| **勘测侧两处待回写**（主线只登记，不改 `survey/`） | ① `survey/20 §2.1` 把逃生常量写成 `PathRequest.java:34-35`，**实为 `:38-39`**（`survey/18`/`19` 是对的）—— ⚠️ 这类"行号在范围内但内容错位"**R-P1 结构上抓不到**（门禁只抓越界）；② `survey/03-ATM9-勘测报告.md` 的 InterfaceScanner.java:167 **越界**（该文件仅 **162** 行）—— R-P1 **刻意不扫 `survey/`**（只增不改 ⇒ 红它无法修复）⇒ 由勘测员回写 | 登记 |
+| **门禁 R-P1 补一处实测盲区**（2026-09-18） | 旧正则要求引用带扩展名 ⇒ **`Class.method:行` 这种写法结构上看不见**。实测 `docs` 范围内该类引用 **310 处**（补前），其中 **1 处必然过期**（本仓自己的 GoalAction.parse:351，而 `GoalAction.java` 只有 313 行）。补齐后：校验量 **299 → 564 处**（其中类限定 262 处）/ 越界 **0**；注入两类各一次 ⇒ 均红 ✓ | ✅ 已落地 |
+
+> **`survey/20` 的承重事实**（主线已逐条复算，全部成立）：`WorldModLedger` 原文自证"只记放置"（`ledger/WorldModLedger.java:20-26`）·
+> `Policy` 只有 `TEMP`/`KEEP` 两值（`:41-46`）· `Entry.previous` 字段已存在（`:49`）· `survivalEscape` 今天**已含** `BREAK_AND_TRAVERSE`/`BREAK_AND_ENTER`（`pathing/core/search/PathRequest.java:69-71`，只禁 `DOWNWARD`/`FALL`）·
+> `ESCAPE_MAX_NODES/_MILLIS` = `:38-39` · `isRefuge` 判据=流体/可通行/可站立，**不看怪、不看距离、不看是不是基地**（`survival/SurvivalSystem.java:422-432`）· `REFUGE_RADIUS = 8`（`:375`，`SurvivalExitTask` = `WalkToTask` 到半径 8 内落点）·
+> `PermissionGate.Policy.NOTIFY` 已存在（`decision/PermissionGate.java:39`）· `RestoreScopeTask` 的 `drops_left` **只告警不判失败**（`:288-291`）· `CollectDropsTask` 第 4/5 参是 `List<UUID> expectedIds` **不是物品过滤**（`:141`、`:470`）·
+> `CollectGrants.covering(server, pos)` 是无状态坐标查询（`decision/DropPolicy.java:74`）· **②"放弃任务后回家"确实无归属**（`SurvivalSystem.abandonReason` 只给判定码，`task/` 里没有任何"回基地/回安全区"任务）。
+
 ## §0 一览
 
 > **死亡机制状态（2026-09-17，D-276）**：**第 1 步已完成** —— 死亡不再删数据

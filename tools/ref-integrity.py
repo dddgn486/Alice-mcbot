@@ -10,6 +10,14 @@
   已删除/已移动的文档（`docs/SUPERVISION_PROTOCOL.md` 等 21 类），而 `survey/` 属于勘测员，
   指向未实现文件（提案）也是常态。所以只打印计数与前几例，供分诊时人工核对。
 
+**扫描范围**：`docs/**/*.md` + `AGENTS.md`（**不含 `survey/`** —— 勘测目录「只增不改」，红它无法修复）。
+
+**两类引用都查**（2026-09-18 补第二类）：
+1. `文件.java:行`（带扩展名）；
+2. ⚠️ `Class.method:行`（**不带扩展名**）—— 旧版正则**结构上匹配不到**它，所以是一处**已实测的盲区**：
+   补上前 `docs` 范围内 **310 处**类限定引用里藏着 **1 处必然过期**（`GoalAction.parse:351` 而该文件只有 313 行）。
+   解析口径与裸文件名一致：`Class.java` **基名唯一**才认，歧义/找不到一律跳过。
+
 解析根：仓库根、`src/main/java`、`docs`、`tools`，以及 Baritone 参照仓
 （`/home/fb486/projects/reference/baritone`，见 `AGENTS.md` 的内核路线）。
 """
@@ -23,6 +31,9 @@ ROOT = Path(__file__).resolve().parents[1]
 ROOTS = [ROOT, ROOT / "src" / "main" / "java", ROOT / "docs", ROOT / "tools",
          Path("/home/fb486/projects/reference/baritone")]
 REF = re.compile(r'`([A-Za-z0-9_./+-]+\.(?:java|py|sh|md|csv|json|mcfunction))(?::(\d+)(?:-(\d+))?)?`')
+# 类限定引用（`Class.method:123`）：**没有扩展名** ⇒ 上面的正则看不到（旧版的实测盲区）。
+# 只在 `` ` `` 包裹内匹配，且必须紧跟 `:数字`，避免把正文里的 `foo.bar` 当引用。
+REF_METHOD = re.compile(r'`([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*):(\d+)(?:-(\d+))?`')
 
 
 SUFFIXES = (".java", ".py", ".sh", ".md", ".csv", ".json", ".mcfunction")
@@ -70,14 +81,18 @@ def main() -> int:
     hard: list[str] = []
     missing: list[str] = []
     checked = 0
+    checked_method = 0
 
-    for target in list((ROOT / "docs").rglob("*.md")) + [ROOT / "AGENTS.md"]:
-        for m in REF.finditer(target.read_text(encoding="utf-8", errors="ignore")):
+    targets = list((ROOT / "docs").rglob("*.md")) + [ROOT / "AGENTS.md"]
+    for target in targets:
+        rel = target.relative_to(ROOT)
+        text = target.read_text(encoding="utf-8", errors="ignore")
+        for m in REF.finditer(text):
             path, ln, ln2 = m.group(1), m.group(2), m.group(3)
             hit = resolve(path)
             if hit is None:
                 if path.startswith(("src/", "tools/", "docs/")) or "/" not in path:
-                    missing.append(f"{target.relative_to(ROOT)} → 找不到/歧义 `{path}`")
+                    missing.append(f"{rel} → 找不到/歧义 `{path}`")
                 continue
             if not ln:
                 continue
@@ -85,7 +100,20 @@ def main() -> int:
             worst = max(int(ln), int(ln2) if ln2 else 0)
             total = line_count(hit)
             if worst > total:
-                hard.append(f"{target.relative_to(ROOT)} → `{path}:{worst}` 超界（该文件只有 {total} 行）")
+                hard.append(f"{rel} → `{path}:{worst}` 超界（该文件只有 {total} 行）")
+
+        # 第二类：`Class.method:行`（见文件头 §两类引用）。基名唯一才认，歧义/找不到一律跳过。
+        for m in REF_METHOD.finditer(text):
+            cls, ln, ln2 = m.group(1), m.group(3), m.group(4)
+            hits = _index_by_name().get(cls + ".java", [])
+            if len(hits) != 1:
+                continue
+            checked += 1
+            checked_method += 1
+            worst = max(int(ln), int(ln2) if ln2 else 0)
+            total = line_count(hits[0])
+            if worst > total:
+                hard.append(f"{rel} → `{cls}.{m.group(2)}:{worst}` 超界（{cls}.java 只有 {total} 行）")
 
     for line in hard:
         print(f"[R·引用过期] {line}")
@@ -96,7 +124,8 @@ def main() -> int:
 
     ok = not hard
     print(f"REF_INTEGRITY_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
-          f"校验了 {checked} 处带行号的引用 / 行号超界={len(hard)} / 文件不存在={len(missing)}（仅提示）"
+          f"校验了 {checked} 处带行号的引用（其中类限定 `Class.method:行` {checked_method} 处）/ "
+          f"行号超界={len(hard)} / 文件不存在={len(missing)}（仅提示）"
           f"（R-P1 = 指向存在文件的 `文件:行` 不得超出该文件长度）")
     return 0 if ok else 1
 
