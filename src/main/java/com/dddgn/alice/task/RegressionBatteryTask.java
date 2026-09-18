@@ -229,7 +229,9 @@ public final class RegressionBatteryTask implements Task {
             // D-323：破坏被拒（谎报成功）—— 真机发现 ⇒ 进 MAIN（每次 CORE 都验"不许把没发生的破坏记成成功"）
             Map.entry("break_refused", Profile.MAIN),
             // D-328：远距离寻路基准（**测量**，不是判据）—— EXTRA：跑一次要 forceload 40+ 区块并写/清走一条走廊
-            Map.entry("far_path_bench", Profile.EXTRA));
+            Map.entry("far_path_bench", Profile.EXTRA),
+            // D-328 附注：失败重试节奏基准（**测量**）—— EXTRA：要造一个封死的房间并驱动真的 WalkToTask 去撞
+            Map.entry("path_retry_bench", Profile.EXTRA));
 
     /** 归属表摘要（`/alice battery list` + 文档用）：按档位分组打印，一眼看清电池里有什么、为什么。 */
     public static List<String> curationSummary() {
@@ -502,6 +504,11 @@ public final class RegressionBatteryTask implements Task {
         // 收尾会撤销 forceload 并把走廊清回空气 ⇒ 只适合 `single:far_path_bench` 单独跑。
         steps.add(step("far_path_bench", List.of(), null,
                 () -> new FarPathBenchCheckTask(bot, observer), 6000));
+        // ---- D-328 附注：**失败重试节奏**（EXTRA，测量用）----
+        // 为什么要它：D-328 已证明"已加载范围内规划是毫秒级"、越过加载边界是 `GOAL_NOT_LOADED`（0 ms）硬拒
+        // ⇒ "A* 太慢"不成立；"卡"的最后嫌疑是**任务层在失败上反复重试**（贵失败 = 每次跑满 20k 节点）。
+        steps.add(step("path_retry_bench", List.of(), null,
+                () -> new PathRetryBenchCheckTask(bot, observer), 4000));
     }
 
     // ==================== 执行 ====================

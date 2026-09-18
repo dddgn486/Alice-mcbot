@@ -398,6 +398,13 @@ public final class FarPathBenchCheckTask implements Task {
                     level.setChunkForced(cx, cz, false);
                 }
             }
+            // ⚠️ 地形那遍也 forceload 过（z=TERRAIN_ORIGIN 那一行 ±1）—— 第一版忘了撤 ⇒ **泄漏到后续步骤**
+            // （forceload 是全局世界状态；泄漏会让后面"不加载"的测量失真）。
+            for (int cx = TERRAIN_ORIGIN.getX() >> 4; cx <= (TERRAIN_ORIGIN.getX() + length) >> 4; cx++) {
+                for (int cz = (TERRAIN_ORIGIN.getZ() >> 4) - 1; cz <= (TERRAIN_ORIGIN.getZ() >> 4) + 1; cz++) {
+                    level.setChunkForced(cx, cz, false);
+                }
+            }
             built = false;
             BotLog.info("[FarBench] 走廊已清回空气、forceload 已撤销");
         }

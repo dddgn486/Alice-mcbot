@@ -12950,3 +12950,48 @@ Alice 若上加权 A\*，必须带 **`suboptimal` 标记 + 事后段耗时校验
 - ⭐ **任务层的失败重试节奏**（新怀疑对象）：`GOAL_NOT_LOADED` 虽然 0 ms，但**任务层可能反复重试**
   （`PathRetryRunner`/候选重扫/每 tick 重规划）⇒ 这才是"看起来卡"的可能来源；要量"一次失败后多久重试、每次多少 ms、一秒几次"。
 - **障碍场景**（地形分叉）—— 仍未做；超平坦世界量不出，需自建墙/迷宫。
+
+### D-331：⚠️ **`WalkToTask` 会在规划前同步加载目标区块**，把内核的 `GOAL_NOT_LOADED` 守卫整个绕过（2026-09-19，基准测量中发现，**未修**）
+
+**发现方式**：为回答"远距离为什么慢"做 `path_retry_bench`（EXTRA）两案例测量时，出现**无法用现有认知解释的现象**：
+目标是 400 格外的未加载区块，规划却 `REACHED`（796 节点 / 82 ms）。于是加两侧探针（**规划调用前后各问一次**）：
+
+```
+[RetryBench] case=unloaded **规划前** hasChunkAt(goal)=false goal=3428,-60,3600
+[RetryBench] case=unloaded **首 tick（含一次 plan）之后** hasChunkAt(goal)=true      ← ★★ 区块被加载了
+```
+
+**根因（代码级，已确证）**：`WalkToTask.tick():54-63` 在**规划之前**做目标安全预检，
+
+```java
+if (!MovementHelper.canWalkOn(level, goalFoot)        // ← 读 goalFoot.below() 的方块
+        || !MovementHelper.canWalkThrough(level, goalFoot)
+        || !MovementHelper.canWalkThrough(level, goalFoot.above())) {
+```
+
+而 `MovementHelper.canWalkOn(ServerLevel, BlockPos):49-51` 直接 `level.getBlockState(belowPos)`；
+`Level.getBlockState` 对**未加载区块会同步加载**（`getChunkAt`）⇒ **400 格外的区块在服务端 tick 线程里被同步拉进来**。
+
+**为什么这条重要（三条后果）**：
+1. **与红线直接冲突**：`D-132`/`D-076` 的口径是"**内核从不加载区块**、未加载 ⇒ `GOAL_NOT_LOADED`"，
+   而内核实现在 `AStarMovementSearch:64` **确实**有守卫（`context.chunkLoaded(goal.goalFoot())` ⇒ 返回 `GOAL_NOT_LOADED`）——
+   **但这个守卫在 `WalkToTask` 这条生产路径上永远轮不到执行**：目标区块在它之前就已经被加载了。
+2. **这才是"远距离慢"的最合理解释**：用户世界里目标几百格 ⇒ 目标区块是**磁盘 + 世界生成**级的同步加载，
+   发生在 tick 线程上、且在**任何预算/超时之外**（`DEFAULT_MAX_MILLIS` 管不到它）⇒ 表现为"一规划就卡一下"。
+   `D-328` 量到的"规划本身 1~16 ms"与此不矛盾：**慢的不是搜索，是搜索之前那次同步加载**。
+3. **`GOAL_NOT_LOADED` 的语义被破坏**：同一件事（远的未加载目标）在**两个入口**给出不同结果 ——
+   `CorePathPlanner.planTo`（直接调用）⇒ `GOAL_NOT_LOADED`（`far_path_bench` 的 no_load 遍已实测：320/640 格 = 0 节点 0 ms）；
+   `WalkToTask` ⇒ 静默加载 + 真的走 400 格（`path_retry_bench` 案例 B：`status=DONE ticks=1531`）。
+
+**同类写法审计（同一缺陷类）**：`PlaceTask:70`（`level.getBlockState(target).canBeReplaced()`）**同样是"规划前读目标格"**，
+风险较低（放置目标总在身边）；`MineTask` 的 `getBlockState(target)` 一律在**扫描半径 24 内**（已加载）⇒ 低风险；
+`MovementHelper` 本身**不该加守卫**（它是通用谓词，"未加载"≠"不可走"，在那里返回 false 会把 `walk_target_not_safe` 变成误报）。
+
+**建议的最小修法（待用户拍板，未实施）**：
+1. `WalkToTask.tick()` 的目标预检**先问 `level.hasChunkAt(goalFoot)`**，未加载 ⇒ **不去读方块**，
+   直接以**独立失败码**（如 `walk_goal_not_loaded`）失败/等待 —— 与 `GOAL_NOT_LOADED` 保持同一语义；
+2. **配套门禁**（可立刻加，属确定性层）：夹具断言"`WalkToTask` 指向未加载目标时 ①失败码正确 ②**该区块仍未被加载**"
+   （`path_retry_bench` 已有两案例骨架，把案例 B 的期望从"DONE"改成"拒绝且不再加载"即可）；
+3. `PlaceTask` 同款收口（低优先）。
+⚠️ **需要用户先定的语义**：远目标此后是"**如实拒绝**（由上层粗目标/分段走），还是"**任务层自己小步接近**"？
+按架构（`D-132`/`D-330` ①）答案是**前者**，但这条会改变现有行为（以前"能走"其实是被隐藏加载喂出来的）。
