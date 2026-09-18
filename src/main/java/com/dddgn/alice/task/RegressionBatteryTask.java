@@ -227,7 +227,9 @@ public final class RegressionBatteryTask implements Task {
             // **D-320**：双假人转发（EXTRA —— 会写世界存档、且失败形态是"服务端崩" ⇒ 不进 CORE）。
             Map.entry("bot_pair_no_recurse", Profile.EXTRA),
             // D-323：破坏被拒（谎报成功）—— 真机发现 ⇒ 进 MAIN（每次 CORE 都验"不许把没发生的破坏记成成功"）
-            Map.entry("break_refused", Profile.MAIN));
+            Map.entry("break_refused", Profile.MAIN),
+            // D-328：远距离寻路基准（**测量**，不是判据）—— EXTRA：跑一次要 forceload 40+ 区块并写/清走一条走廊
+            Map.entry("far_path_bench", Profile.EXTRA));
 
     /** 归属表摘要（`/alice battery list` + 文档用）：按档位分组打印，一眼看清电池里有什么、为什么。 */
     public static List<String> curationSummary() {
@@ -494,6 +496,12 @@ public final class RegressionBatteryTask implements Task {
         // 判据全部读**方块**而不是读日志（对照真成功 / 冒险模式被拒 / FTB 认领被拒 / 自清理）。
         // ⚠️ 与 `bot_pair_no_recurse` 同类：会 spawn/remove 探针 ⇒ 收尾必须把会话 bot 的记录写回去。
         steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.BreakRefusedModule().steps(checkContext())));
+        // ---- D-328：**远距离寻路代价曲线**（EXTRA，测量用）----
+        // 为什么要它：用户 2026-09-18 提"远距离（300~1000 格）太慢"，而优化必须先有"距离⇒节点/毫秒"的实测曲线。
+        // ⚠️ 它会 forceload 走廊沿途 40+ 区块（否则 >160 格必然 GOAL_NOT_LOADED，量不到真实搜索代价），
+        // 收尾会撤销 forceload 并把走廊清回空气 ⇒ 只适合 `single:far_path_bench` 单独跑。
+        steps.add(step("far_path_bench", List.of(), null,
+                () -> new FarPathBenchCheckTask(bot, observer), 400));
     }
 
     // ==================== 执行 ====================
