@@ -48,15 +48,27 @@ public final class FarPathBenchCheckTask implements Task {
     /** 走廊半宽（z 方向 ±2 ⇒ 5 格宽，够容纳绕行与对角线）。 */
     private static final int LANE_HALF_WIDTH = 2;
 
+    /** 第三片区域：**绝不 forceload** —— 量"内核真实能规划多远"（这才是用户世界里远距离的头号嫌疑）。 */
+    private static final BlockPos NO_LOAD_ORIGIN = new BlockPos(3000, -59, 3400);
+
+    /** 走廊里让 bot **真的走**多远（执行器整段行走测量；320 格 ≈ 1900+ tick ≈ 19 个 100-tick 分段）。 */
+    private static final int WALK_DISTANCE = 320;
+
+    /**
+     * 传送到不加载区时的**粗略落点 Y**（只用来把 bot 丢到地表附近，让它自己落地）。
+     * ⚠️ 它**不是**脚位 —— 脚位必须从 `bot.blockPosition()` 取（第一版把它当脚位用，差 1 格就量出假象，见 D-328 附注）。
+     */
+    private static final int FLAT_DROP_Y = -59;
+
     /** 真实地形那一遍的原点（与走廊**不同位置**：走廊那片已经被改过）。 */
     private static final BlockPos TERRAIN_ORIGIN = new BlockPos(3000, 100, 3200);
 
     /** 平台上方的空气层数（2 格够走，给 4 格避免"贴天花板"影响 canStandCentered）。 */
     private static final int HEADROOM = 4;
 
-    private static final int BUDGET_TICKS = 400;
+    private static final int BUDGET_TICKS = 6000;   // 走路那遍要 ~1900+ tick（每 tick 驱动子任务一 tick）
 
-    private enum Phase { GUARD, BUILD, MEASURE, MEASURE_TERRAIN, CLEANUP, DONE }
+    private enum Phase { GUARD, BUILD, MEASURE, MEASURE_TERRAIN, WALK, NO_LOAD, CLEANUP, DONE }
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -70,6 +82,19 @@ public final class FarPathBenchCheckTask implements Task {
     private boolean done;
     private int index;
     private boolean built;
+    /** 执行器行走那遍：子任务 + 起走 tick（夹具每 tick 驱动它一 tick）。 */
+    private Task walkTask;
+    private BlockPos walkGoal;
+    private int walkStartTick;
+    /** 不 forceload 那遍：teleport 之后等 ticket 生效的 tick 数。 */
+    private static final int NO_LOAD_SETTLE_TICKS = 40;
+    /** 不 forceload 那遍的步进（**独立计数器**：第一版复用 `index` 算出负下标 ⇒ `Index -36` 崩）。 */
+    private int noLoadStep;
+    private int corridorMeasured;
+    private int terrainMeasured;
+    private int noLoadMeasured;
+    /** 不 forceload 那遍的起点（settle 之后从 bot 实际位置取；见该遍的前提判据）。 */
+    private BlockPos noLoadStart;
     /** 走廊**覆盖掉的原方块**（收尾必须还原 —— 第一版直接清成空气，等于把这片自然地形挖了个洞）。 */
     private final java.util.Map<BlockPos, net.minecraft.world.level.block.state.BlockState> overwritten =
             new java.util.LinkedHashMap<>();
@@ -113,6 +138,8 @@ public final class FarPathBenchCheckTask implements Task {
             case BUILD -> buildPhase();
             case MEASURE -> measurePhase();
             case MEASURE_TERRAIN -> terrainPhase();
+            case WALK -> walkPhase();
+            case NO_LOAD -> noLoadPhase();
             case CLEANUP -> cleanupPhase();
             case DONE -> {
                 return finish();
@@ -176,7 +203,8 @@ public final class FarPathBenchCheckTask implements Task {
      */
     private void terrainPhase() {
         if (index >= DISTANCES.length * 2) {
-            phase = Phase.CLEANUP;
+            phase = Phase.WALK;   // 走廊还在 ⇒ 接着让 bot 真的走一段（执行器测量）
+            index = 0;            // 复用 index 给后面的 no_load 遍
             return;
         }
         int distance = DISTANCES[index++ - DISTANCES.length];
@@ -207,7 +235,113 @@ public final class FarPathBenchCheckTask implements Task {
                 + " moves=" + plan.movementsConsidered() + " ms=" + plan.elapsedMillis()
                 + " reached=" + plan.reached() + " partial=" + plan.partial();
         curve.add(line);
+        terrainMeasured++;
         BotLog.info("[FarBench] {}", line);
+    }
+
+    /**
+     * **执行器整段行走**（`D-328` 下一步测量 ②）：走廊还在的时候，让 bot 沿走廊真走 {@link #WALK_DISTANCE} 格。
+     * 量的是**走路**而不是规划：总 tick 数（用户"看到"的慢就是它）、是否走完、以及日志里能数出来的
+     * 分段/重规划次数（`PathSession` 每 `MAX_TICKS_PER_SEGMENT=100` tick 重规划一次）。
+     */
+    private void walkPhase() {
+        if (walkTask == null) {
+            // ⚠️ 必须先站回**走廊起点**：地形那遍把 bot 留在了地面上（z=3200, y=-59），
+            // 第一版漏了这一步 ⇒ bot 从地面往 160 格高的平台上走 ⇒ 到不了 ⇒ walk_search_limit（假失败）。
+            teleport(bot, ORIGIN.above());
+            walkGoal = ORIGIN.above().offset(WALK_DISTANCE, 0, 0);
+            walkStartTick = ticks;
+            walkTask = new WalkToTask(bot, walkGoal);
+            BotLog.info("[FarBench] walk 起走 goal={}（走廊内 {} 格）", walkGoal.toShortString(), WALK_DISTANCE);
+            return;
+        }
+        Task.Status status = walkTask.tick();
+        if (status == Task.Status.RUNNING) {
+            return;
+        }
+        int used = ticks - walkStartTick;
+        boolean arrived = bot.blockPosition().distManhattan(walkGoal) <= 3;
+        curve.add("walk d=" + WALK_DISTANCE + " status=" + status + " ticks=" + used
+                + " arrived=" + arrived + " bot=" + bot.blockPosition().toShortString()
+                + " reason=" + walkTask.failureReason());
+        BotLog.info("[FarBench] walk d={} status={} ticks={} arrived={} bot={} reason={}",
+                WALK_DISTANCE, status, used, arrived, bot.blockPosition().toShortString(),
+                walkTask.failureReason());
+        check("执行器：沿走廊走 " + WALK_DISTANCE + " 格必须走完（status=" + status + " 到达=" + arrived
+                        + "）——" + "不设" + "速度判据，只记录 tick 数",
+                status == Task.Status.DONE && arrived);
+        walkTask = null;
+        phase = Phase.NO_LOAD;
+    }
+
+    /**
+     * **不 forceload** 时内核能规划多远（`D-328` 下一步测量 ①）—— 用户世界里"远距离看起来卡住"的头号嫌疑。
+     * 做法：换一片**从未 forceload** 的区域，teleport 过去（玩家 ticket 只加载视距内），等落地稳定后
+     * ① 直接问"多大距离外的区块已加载"（`hasChunkAt`，逐 16 格扫），② 再用生产入口规划同一批距离。
+     */
+    private void noLoadPhase() {
+        ServerLevel level = bot.serverLevel();
+        noLoadStep++;
+        if (noLoadStep == 1) {
+            BlockPos to = new BlockPos(NO_LOAD_ORIGIN.getX(), FLAT_DROP_Y, NO_LOAD_ORIGIN.getZ());
+            teleport(bot, to);
+            BotLog.info("[FarBench] no_load 起点 {}（**本区不做 forceload**；等 {} tick 让 ticket 生效、让 bot 落地）",
+                    to.toShortString(), NO_LOAD_SETTLE_TICKS);
+            return;
+        }
+        if (noLoadStep <= NO_LOAD_SETTLE_TICKS) {
+            return;
+        }
+        if (noLoadStep == NO_LOAD_SETTLE_TICKS + 1) {
+            // ★ 起点脚位**从 bot 实际位置取**（第一版写死 `FLAT_FOOT_Y`，实际脚位差 1 格 ⇒
+            //   `start(Air/Air/Air)`、`goal(Air/Air/Air)`：从空中出发走到空中 ⇒ 目标永不可达 ⇒
+            //   量出"20 格平地撞满 20k 节点"的**假象**。这条前提判据就是为了让这种错当场红）。
+            noLoadStart = bot.blockPosition();
+            check("no_load 前提：起点脚下必须有支撑（否则量到的是「从空中出发」，不是内核的代价）"
+                            + "（脚下=" + level.getBlockState(noLoadStart.below()).getBlock().getName().getString()
+                            + " 脚位=" + noLoadStart.toShortString() + "）",
+                    !level.getBlockState(noLoadStart.below()).isAir());
+            // ① 已加载半径：逐 16 格问一次（第一个 false 就是墙）
+            int lastLoaded = 0;
+            for (int d = 16; d <= 512; d += 16) {
+                if (level.hasChunkAt(noLoadStart.offset(d, 0, 0))) {
+                    lastLoaded = d;
+                } else {
+                    break;
+                }
+            }
+            curve.add("no_load loadedRadius=" + lastLoaded + "（hasChunkAt 逐 16 格扫，server view-distance 决定）");
+            BotLog.info("[FarBench] no_load 已加载半径≈{} 格（不 forceload）", lastLoaded);
+            return;
+        }
+        int idx = noLoadStep - (NO_LOAD_SETTLE_TICKS + 2);
+        if (idx >= DISTANCES.length) {
+            phase = Phase.CLEANUP;
+            return;
+        }
+        int distance = DISTANCES[idx];
+        BlockPos start = noLoadStart;
+        BlockPos goal = start.offset(distance, 0, 0);
+        boolean loaded = level.hasChunkAt(goal);
+        PathPlan plan = new CorePathPlanner().planTo(bot, bot.serverLevel(), bot.getUUID().toString(),
+                start, goal, "pathing");
+        // 诊断：起点/终点三格 + 规划器自己的 diagnostics（第一版只打状态，看不出"为什么走不到"）
+        String at = "start(" + desc(level, start) + ") goal(" + desc(level, goal) + ")";
+        curve.add("no_load d=" + distance + " goalLoaded=" + loaded + " status=" + plan.status()
+                + " nodes=" + plan.nodesExpanded() + " moves=" + plan.movementsConsidered()
+                + " ms=" + plan.elapsedMillis() + " reached=" + plan.reached() + " partial=" + plan.partial()
+                + " " + at + " diag=" + plan.diagnostics());
+        noLoadMeasured++;
+        BotLog.info("[FarBench] no_load d={} goalLoaded={} status={} nodes={} moves={} ms={} reached={}"
+                        + " partial={} {}", distance, loaded, plan.status(), plan.nodesExpanded(),
+                plan.movementsConsidered(), plan.elapsedMillis(), plan.reached(), plan.partial(), at);
+    }
+
+    /** 一格及其上下的方块（诊断用：看不出"为什么走不到"时，先看端点长什么样）。 */
+    private static String desc(ServerLevel level, BlockPos pos) {
+        return level.getBlockState(pos.below()).getBlock().getName().getString() + "/"
+                + level.getBlockState(pos).getBlock().getName().getString() + "/"
+                + level.getBlockState(pos.above()).getBlock().getName().getString();
     }
 
     /** 写方块前先记原状（仅走廊那一遍用）。 */
@@ -235,6 +369,7 @@ public final class FarPathBenchCheckTask implements Task {
                 + " reached=" + plan.reached() + " partial=" + plan.partial()
                 + " pathLen=" + plan.projectedFootPath().size();
         curve.add(line);
+        corridorMeasured++;
         BotLog.info("[FarBench] {}", line);
         if (distance == DISTANCES[0]) {
             check("基准对照：最近的一档（d=" + DISTANCES[0] + "）必须真的规划出来（否则说明测量装置本身坏了，"
@@ -246,9 +381,11 @@ public final class FarPathBenchCheckTask implements Task {
     /** 撤销 forceload + 走廊清回空气。 */
     private void cleanupPhase() {
         ServerLevel level = bot.serverLevel();
-        check("曲线完整性：走廊 6 档 + 真实地形 6 档都要量到（实际 " + curve.size() + "/"
-                        + (DISTANCES.length * 2) + "）",
-                curve.size() == DISTANCES.length * 2);
+        check("曲线完整性：走廊 / 平地 / 不加载 三遍各 " + DISTANCES.length + " 档都要量到"
+                        + "（实际 走廊=" + corridorMeasured + " 平地=" + terrainMeasured
+                        + " 不加载=" + noLoadMeasured + "）",
+                corridorMeasured == DISTANCES.length && terrainMeasured == DISTANCES.length
+                        && noLoadMeasured == DISTANCES.length);
         if (built) {
             int length = DISTANCES[DISTANCES.length - 1] + 32;
             int minZ = ORIGIN.getZ() - LANE_HALF_WIDTH;

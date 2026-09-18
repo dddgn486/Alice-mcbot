@@ -501,7 +501,7 @@ public final class RegressionBatteryTask implements Task {
         // ⚠️ 它会 forceload 走廊沿途 40+ 区块（否则 >160 格必然 GOAL_NOT_LOADED，量不到真实搜索代价），
         // 收尾会撤销 forceload 并把走廊清回空气 ⇒ 只适合 `single:far_path_bench` 单独跑。
         steps.add(step("far_path_bench", List.of(), null,
-                () -> new FarPathBenchCheckTask(bot, observer), 400));
+                () -> new FarPathBenchCheckTask(bot, observer), 6000));
     }
 
     // ==================== 执行 ====================
