@@ -11854,3 +11854,73 @@ bash 是**按需读文件**的 ⇒ 我一边让 `module-selftest.sh` 跑着（8 
 **已做成结构（不靠记）**：`module-selftest.sh` 加**自完整性守卫** —— 跑前记自己的 sha256，跑完再比；被改过 ⇒ 打 ⚠️ 并 **exit 4**（"逐模块判决可见"≠"这轮是绿的"）；**失败关闭**：取不到摘要也按不可信处理 （第一版取不到摘要时两边都是空 ⇒ **恒绿**，自查时实测踩到 ⇒ 已修 ✓）。验证：① 未改动 ⇒ `INTACT_OK`；② **运行期间**追加一行 ⇒ `GUARD_RED` + ⚠️ 两行（用守卫**原文**做的对照 ✓）。
 
 **同轮第二条结构化的教训**：`headless-battery.sh` **每轮自动归档服务端 stdout** 到 `run/headless-logs/<时间>-<mode>.log` 并把路径打进结果块 —— 今天两次因"起下一轮覆盖 latest.log"丢掉上一轮证据（一次是 CORE 的 `survival_exit` 现场 ✗），现在**不可能丢**（实测已生成 341 KB 归档 ✓）。
+
+### D-305：保护区线逐条裁定（2026-09-18，用户逐条走）
+
+**来源**：`survey/19` + `survey/20`（同批 `22562ec`）⇒ 7 项待拍板（`survey/20 §8`）。**本线只登记裁定，不实现**（主线 = R-2 电池模块化）。
+
+| # | 条 | 用户裁定 | 依据 / 备注 |
+|---|---|---|---|
+| 1 | **D-2-a 保护区/安全区建在什么形态上** | **A**：复用**已存在的**显式区域表（`decision/CollectGrants.java:34` 的 `Grant`）+ 加 **Y 范围（可选，缺省=全列）** + **两个标记位**（保护财产 / 保护人身）+ **可选「安全终点」锚点** | ⭐ 关键事实（主线复算）：报告 §2.3 说"今天没有统一区域概念"**只在语义上成立** —— **机制上已存在**一个可声明（`item/CollectGrantItem.java:26-27` 两点选角）、可持久化（`CollectGrants.java:159-190`，`/alice grant always`）、可查询（`covering()`）的区域表。⚠️ 但几何是 **XZ 矩形、`contains()` 忽略 Y**（`:45-47`）⇒ 站**房顶**也算区内（正是用户点名的失败模式"在房顶蹦跶"），且**地下 60 格也算**（垂向放大）。Y 缺省全列 ⇒ **既有掉落物授权行为逐字不变**。"父/子 = 标记位 + 可选字段，**不是类型层级**"是**主线归纳**（非用户原话） |
+| | | | ⚠️ **两件被"安全区"混在一起的事**：① **上限**（这个位置允不允许改世界/记账）⇒ 需要**几何**；② **终点**（回家回哪，`SurvivalExitTask` 要一个**点**）⇒ 需要**锚点**。**锚点治"房顶"，几何治"地下"**，互不替代 |
+| 2 | **D-2-b 无主地三处语义**（报告标"风险极大"） | **三条都按主线推荐**：① `WorldModLedger` **继续记账、不分区域**；② `RestoreScopeTask` **照常按任务触发、不加区域门**；③ `RecoverabilityReport` **不重定义、只分名** | ⭐ **②-1 的关键区分（主线复算）**：作者原话"自由采集区…**绝对不需要归因到方块**"针对的是**别人的痕迹**（`WriteAudit`/`ForeignBreak` = 只读记账）**的天花板**，**不是"我方放置要不要记账"**。`WorldModLedger` 记的是**我方放置**，是**配对拆除的唯一依据**（`Policy.TEMP` 不变量；电池 `endStep` 靠 `pendingTemporary(scope)` 判红）⇒ 无主地关账本 = bot 学到"出区可以把活干脏"，**降的是我们自己的可观测性**。<br>**②-2 的核实**：`RestoreScopeTask` 今天**按任务显式触发，区域零参与** —— `task/MineTask.java:452`、`job/lumber/LumberJob.java:503`、`task/ScaffoldLifecycleTask.java:343`、`task/CraftStationCheckTask.java:222`、`bot/BotManager.java:687`、`:1172`。"无主地是否启动" = "要不要给这 6 处加区域门" ⇒ **不加**：D-245 是**逃生档专属**（自动回收会把 bot 关回坑里），推广会把**位置维度**混进**任务维度**；野外 KEEP 建造已由 `Policy.KEEP` 管。<br>⚠️ **②-3 报告没说全**：`pathing/core/RecoverabilityReport.java` **自己内部就是两条轴**（第一条 = 逐 Movement 的等级 `record()`，转换点 `PlannedMovementSpecs.toSpec`；第二条 = 残留 `recordResidue()`），且文件头把"可回收性"定义为"bot 干完活能干净地离开" ⇒ **"一词两义"比报告所述更严重（类自己的定义里就混着）**。⇒ 解法 = **分名而非重定义**（今天两轴叫回程/残留，语义一字不改）；作者要的"bot 能否回来"是**第三个、今天不存在的东西**（= 缺口②"回家"）⇒ 独立命名，**不塞进本类**。⚠️ 若重定义，`task/RestoreScopeTask.java:440` 与电池 `pendingTemporary` 的语义会被**偷偷改掉** |
+| 3 | **B-1 形状 + B-2 区外通道** | **采用「两个区域 + 换档」模型**：世界上每一点**恰好属于一个区域**（已声明的保护区 / **默认的无主地**）；**实际权限 = 需求 ∩ 上限**；**出区 = 上限换档**（既不归零、也不用申请）；**申请只在"上限不允许但任务必须做"时用**；无主地默认档 = 挖**受既有预算 + 谓词（D-095）**、放**必须记账**、掉落物**不自动捡**（今天即如此） | ⭐ 报告 B-1 **自身三处不一致**（标题"不取交集" / 公式"= 需求 ∩ 上限" / 理由行"取交集 ⇒ 出区归零"）⇒ 主线读法：**交集是必需且正确**；"不取交集"指的是**别把区域当笼子**。⭐ 该模型正对应用户原话"**除了未声明的自由采集区**，其他应该都以保护区为统一基地"（⇒ 无主地 = 默认区域，不是"无区域"）。<br>**今天代码实况**：`pathing/core/WriteEnvelopes.java:41` 是**任务级布尔、与位置无关** ⇒ "出区归零"今天不会发生，但也意味着**"保护区"今天对写入权限零影响**。<br>**挂点只有两个**（A-2，同意）：`WriteEnvelopes.had(botId)`（`:41`）与 `decision/DropPolicy.java:65` 的 `effectiveProvenance` ⇒ ⚠️ **只在已有判定点挂、不新增判定点**（否则长成"到处是红线"= `survey/02` 病灶）。<br>**B-2 顺手补的缺口**：`PermissionGate.request(..., defaultOption=deny, timeoutTicks)` 已现成 + 拒绝走"如实失败 + 待机" ⇒ 正好补报告缺口②"回家"：8 格脱险 → **走路回去（长距离、无紧预算）**→ 走不动 ⇒ **显式申请搭路** |
+
+| 4 | **B-3 紧急提权的"挖"**（搭路上限**已有** = 8 放置，`survival/SurvivalSystem.java:184-185`） | **不做"挖掘黑名单"**（⚠️ **已经有了**，见 `D-306`）· **挖保留** + **小预算** + **套既有闸门**（`BlockBreakSafety.refusal` → `SafeZoneData.protectionReason` + `hasBlockEntity` 不可清障） | ⚠️ **修正报告 B-3 的论证**：它说"挖**不可记账** ⇒ 只放不挖才安全"，但**真实的安全来源不是记账、是既有闸门** —— 记账管不到挖，**闸门能拦住挖** ⇒ 给"挖"提权的风险**比报告所述低**。<br>⚠️ **现状与用户心智模型相反（本轮复算）**：`bot/BotManager.java:2198` 是 `escapeWrites = WriteEnvelopes.had(...)`，而 `pathing/core/WriteEnvelopes.java:32-37` 的 `note()` **只在本任务移动集含"改世界"动作时**才置真 ⇒ **准备金只发给"本来就有写权"的任务**（挖掘/收集）；**纯走路任务 `had=false` ⇒ 连 8/8 都不发 ⇒ 被埋时只能纯通行，做不到就 `exit=none` 停下等干预** ⇒ 用户要的"**保护区内被埋要有提权通道**"正是**今天真缺的那一块**，且**已由第 3 条（③）的裁定覆盖** ✓ |
+| **1′** | **⚠️ ①重开：保护区的载体与形状**（第 1 行的裁定**作废**） | **载体改为 `protection/SafeZoneData`**（不是 `CollectGrants`）；形状 = ⭐ **按区块划分**（FTB Chunks 那种：**忽略 Y、全高度、区块级 2D 认领**），**不用圆形半径**；`CollectGrants` **保持独立**（它是"授权区"，语义方向与"保护区"相反 —— 既符合 `D-207 ①`"两个概念不该挤在同一列"，也守住 `survey/18` 的"同一语义不要两份副本"） | ⚠️ **作废理由**：第 1 行的裁定建立在 `survey/20 §2.3` 的遗漏之上（复算证据见 `D-306`）。⚠️ 环境核实：客户端 **18 个 mod 里没有 FTB Chunks**（Create / Mekanism / RefinedStorage / Sophisticated / Thermal / ExtendedCrafting / JEI / worldedit…）⇒ "按区块划分"是**形状**（区块级认领），**不涉及与 FTB 的数据对接**（`D-219` 需求驱动：不为未装的模组适配）<br>⚠️ **形状变更的代价（待定，见下条）**：`SafeZoneData.Area` 今天是 `record Area(dimension, center, radius)`（圆形 + `contains` 内积比较）⇒ 改成区块集合 = **持久化格式变** + `/alice` 加区域命令的参数变 + 需要一个**零参数游戏内物品**（今天只有命令）|
+| 5 | **B-4 紧急提权默认档** | **同意 = `Policy.NOTIFY`**（免批准 + 事后一行提醒），并把触发条件**钉死在"必须放弃任务、立刻保活"**；**暂不加次数硬上限**（先观察） | ✅ **护栏已有三条**：`Policy.NOTIFY`（`decision/PermissionGate.java:39`）· "每次危险事件最多升档 1 次"（落地形状 = 预检缓存按『危险类型 + 脚位』，`survival/SurvivalSystem.java:211-231`、`:275-284`）· 逃生放置 `TEMP` 必拆（`WritePolicyMatrix` P-23）+ 逃生不自动回收（D-245 负向门禁）。⚠️ **缺口**：今天的触发条件是"纯通行不可达 + 信封有写权"，**没有**"必须放弃任务"这一层显式限定 ⇒ 需补 |
+| 6 | **B-5 恢复延后队列** | **A**：**队列 = 账本查询（不新建表）** + **三档触发**（① 任务正常结束 = 已有 ② **玩家在场且 bot 空闲** = 新增 ③ 玩家命令 = 已有）+ **三条前提同时成立**（玩家在场 · bot 无紧急状态 · 目标点**无危险且已加载**）；**逃生档仍只走玩家入口**（D-245 不变） | ⭐ **关键架构判断**：**队列不需要新建数据结构** —— `ledger/WorldModLedger.java:38` **本身就是 `SavedData`**（`entries` + `openScopes` 都有 NBT 读写）⇒ 欠账**跨重启保留**，`pendingTemporary(server, scopeId)`（`:234`，`scopeId=null` ⇒ 全部）就是那张表；新建 `RestoreQueue` = **同一语义的第二份副本**（`survey/18` 病灶）。<br>⚠️ **必须点出的风险**：加"空闲期自动回收"等于**把 D-245 刚禁掉的"自动回收"从后门放回来** —— 区别只在判据；D-245 的循环成因是"回收把 bot 关回危险里"⇒ 故前提里必须钉住"**目标点无危险**"。<br>现状：恢复按任务结束时触发（`task/MineTask.java:452`、`job/lumber/LumberJob.java:503`、`task/ScaffoldLifecycleTask.java:343`、`task/CraftStationCheckTask.java:222`、`bot/BotManager.java:687`、`:1172`）+ 玩家入口 `/alice restore`；**"延后"今天不存在**，但 D-245 已证明它必需 |
+| 7 | **D-1 非挖掘目标要恢复** | **β = 确实不做，登记将来形态** —— 但 ⭐ **使用场景必须写清**（用户 2026-09-18 原话，逐字留档）：<br>「一些**任务区域（由任务划分的保护区子区域）**，会**默认提权到任务需要的等级**，但**保护区一定要记账**。按区域伐木任务来理解：**树和树叶之类的，是挖掘目标，不记账或者直接记成破坏 `KEEP`**；而这个区域的**泥土、围栏之类的，不是任务目标，是区域本身的地形**，某些情况需要放置方块或者挖掘方块，**垫柱子就是一种表现，这种必须记账，并且恢复**」 | ⭐ **映射到既有概念（全部已核实）**：<br>① **目标破坏**（树/树叶 = 挖掘目标）⇒ 今天走 `WriteReason.Policy.EXPLICIT_TARGET`（`action/WriteReason.java:20-30`：`EXPECTED_TARGET`/`DESCEND_FOOT`/`BULK_EDIT`）⇒ **今天就不记账** ✓ 与用户"不记账或记 `KEEP`"**一致**<br>② **非目标放置**（垫柱子 = `SUPPORT_PLACEMENT`/`STEP_PLACEMENT`）⇒ 今天**已记账 `TEMP` + 必拆** ✓ 与用户"必须记账并恢复"**一致**<br>③ ⚠️ **非目标破坏**（`LINE_OF_SIGHT`/`STANDING_SPACE`/`PATH_ACCESS` = `Policy.CLEARING`）⇒ **今天不记账** ✗ ⇒ **这就是将来形态要补的那一块**<br>④ ⭐ **作者要的"区分目标 vs 非目标"已存在**：`action/WriteReason.java:100-104` 的 `Policy{.EXPLICIT_TARGET, .CLEARING}`，分派点 = `protection/BlockBreakSafety.refusal:32-37`（**D-082**）⇒ 不需要新机制，只需要给 `CLEARING` 那一路加记账<br>⑤ ⚠️ **触发面今天为零**：`SafeZoneData.protectionReason` 对保护区内**任何**方块都返回 `protected_area` ⇒ `BlockBreakSafety.explicitTargetRefusal:47-50` 直接拒绝；候选源阶段也过滤（`job/mine/MineCandidateSource.java:139`）⇒ 保护区内**挖不动**（与用户自评"现在的设计几乎没什么能让他挖掘保护区方块"吻合 ✓）<br>⚠️ **与今天的语义差异（将来实现时必须注意）**：今天保护区 = **禁止**（拒绝一切破坏）；用户模型 = **保护区子区域可"提权到任务需要的等级"** ⇒ 即"**允许但必须记账 + 恢复**"这一档**今天不存在**，需要新增一档策略分派。✓ 好消息：`ledger/WorldModLedger.java:49` 的 `Entry.previous` 字段**已存在**（只是只有放置才写）⇒ 改动面比想象小<br>⚠️ **与 `D-207 ①` 的关系**："保护区不是第三层"说的是**归属**（`Zone.EXTERNAL/WORKSPACE`）与**保护闸门**正交；此处是**保护区内部**的父子层级（保护区 → 任务子区域），**两者不冲突**（主线判定，非用户原话）|
+
+### D-306：⚠️ `survey/20 §2.3` 的实质性遗漏 —— 保护区/黑名单/区域两层**早已存在**（2026-09-18 复算）
+
+**背景**：`survey/20 §2.3` 断言"项目今天**没有**「保护区」这个统一概念，有的是三个互不相干的东西（`CollectGrants` / `ScopeBuffer` / `WriteEnvelopes`）"。**主线复算后发现这是实质性遗漏**（不是行号错，而是**漏了一整个包 + 两条已拍板的设计**）：
+
+| 已有的东西 | 内容（逐条复算） | 位置 |
+|---|---|---|
+| `protection/SafeZoneData` | `SavedData`（key `alice_safe_zones`）：**区域**（按维度隔离 · 水平圆形半径 · **覆盖该维度所有高度**）+ ⭐ **方块 ID 黑名单** + ⭐ **标签黑名单**（全世界通用） | `protection/SafeZoneData.java:22-24`、`:137-153` |
+| 保护区声明入口 | `/alice` 命令：加区域 `BotCommand.java:537` · 移除 `:544` · **增删方块/标签黑名单** `:572`（`changeBlockRule`）· 汇报 `:585` | `command/BotCommand.java` |
+| 已接在**破坏闸门**上（非装饰） | `BlockInteraction.java:462`（读 `protectionReason`）· `protection/BlockBreakSafety.java:47` · `pathing/core/CapabilityGate.java:69-74`（② 保护区分支 → `ZONE_*` 拒绝码）· `pathing/core/MovementCapabilities.java:51-53`（`requiresZoneAuthorization=true`，2026-09-12 修，注释写明"此前 false ⇒ 分支**永不触发**、字段退化成装饰"） | 多处 |
+| 已接在**候选源**上 | `job/mine/MineCandidateSource.java:139` · `job/lumber/LumberCandidateSource.java:68` · `road/RoadObstaclePolicy.java:42` · `pathing/core/session/PathSession.java:746` | 多处 |
+| ⭐ **模组机器已有专门保护** | `BlockBreakSafety.clearingRefusal:73-82`：`state.hasBlockEntity() → "block_entity"`，注释原文（**D-095**）"含方块实体的方块（箱子/熔炉/漏斗/告示牌/刷怪笼/**模组机器**）不得作为清障对象…**模组机器可能内容物直接蒸发**"，且"剔除之后**规划器会自动绕开**"（绕不开就如实 `found_but_unminable`，不需要新机制） | `protection/BlockBreakSafety.java` |
+| 另加高代价方块 | `isExpensiveToClear` = 黑曜石 / 哭泣黑曜石 / 强化深板岩 | `protection/BlockBreakSafety.java:104-108` |
+
+⚠️ **范围限制**：`hasBlockEntity` 那条**只作用于清障策略**（`LINE_OF_SIGHT`/`STANDING_SPACE`/`PATH_ACCESS`）；**玩家明确指定的目标**（`EXPECTED_TARGET`）不受它限制。逃生 `BREAK_*` 走的正是 `PATH_ACCESS` ⇒ **自动受管**。
+
+⭐ **`WritePolicyMatrix.Zone` 已在 2026-09-14 拍过"区域两层"**（`action/WritePolicyMatrix.java:30-35` 原文）：
+> **区域归属只有两层**：`Zone#EXTERNAL`（默认，不是 Alice 的地）与 `Zone#WORKSPACE`（Alice 的地，来源 = 玩家已划定的区域）。**保护区不是第三层**：它是**优先级更高的独立闸门**（`SafeZoneData` 命中即禁止破坏），与"归属"**正交**，两个概念不该挤在同一列（旧提案的 `PROTECTED` 与既有"保护区"同名反义）。
+
+⇒ ⚠️ **与报告 B-1 有张力**：B-1 想把区域收成一个父类并把保护区塞进去；D-207 ① 明确说"**保护区不是第三层**、两个概念**不该挤在同一列**"。**报告没读到 `WritePolicyMatrix`。**
+
+### D-307：①-入口 —— 地图式勾选（FTB Chunks 调查 + 选定分工）2026-09-18
+
+**用户裁定**：①-入口 = **学习 FTB Chunks 的"地图式勾选"**（而不是物品两点/命令）；①-迁移 = **旧圆形区域转成区块集合 + 响亮提示**（不静默丢）。
+
+**调查方法**：`git clone --depth 1 --branch 1.20.1/main https://github.com/FTBTeam/FTB-Chunks`（**实际读源码**，非二手转述；`mod_version=2001.3.8` / `minecraft_version=1.20.1`）。
+
+**⚠️ 四条已核实的架构事实**（这决定了"能不能复用原版地图渲染器"）：
+
+| # | 事实 | 证据 |
+|---|---|---|
+| 1 | ⭐ **地形渲染 100% 在客户端，且完全不碰原版地图渲染器** —— 全仓 `grep MapRenderer\|MapItemSavedData\|ClientboundMapItemDataPacket` = **0 命中** | `common/src/main/java/dev/ftb/mods/ftbchunks/client/map/` |
+| 2 | 客户端地形色来自**客户端自己的区块数据**：`chunkAccess.getBlockState(blockPos)`；并**不读原版区域文件**（`grep RegionFileStorage\|chunk.storage` = 0），而是把地图数据**用自己的压缩格式写到客户端磁盘**（`MapIOUtils` 用 `Deflater/Inflater`） | `client/map/ChunkUpdateTask.java:108`、`client/map/MapIOUtils.java:1-40` |
+| 3 | ⭐ **服务端只发"认领元数据"，不发任何地形/颜色**：`SendChunkPacket.SingleChunk` = `{x, z, 认领时间, 强制加载标志, 过期}`（批量走 `SendManyChunksPacket`） | `net/SendChunkPacket.java:52-80` |
+| 4 | ⭐ **勾选 = 一个 C2S 批量包**：`RequestChunkChangePacket(ChunkChangeOp action, Set<XZ> chunks)` —— **一次提交一批区块 + 一个动作枚举**，服务端回 `ChunkChangeResponsePacket`；GUI 侧在 `client/gui/ChunkScreen.java` 构造并 `sendToServer()` | `net/RequestChunkChangePacket.java:20-45`、`client/gui/ChunkScreen.java:14,42` |
+
+**⇒ 选定分工（与 FTB Chunks 同构，也与 Alice 既有形状一致）**：
+- **服务端**：只维护**认领清单**（= `SafeZoneData` 区块集合）+ 下发小包 + 收**批量动作包**（`Set<chunkXZ> + action`）⇒ ⭐ **属主由服务端裁定**（server-authoritative：不接受客户端"这块地是谁的"的说法）
+- **客户端**：自绘 Screen（区块网格 + 可点选）+ 地形色从 `ClientLevel` 采（第一版可只画**已加载区块**，未加载区留空/灰）；**不引入任何新模组依赖**
+- **落点**：Alice 已有现成的客户端形状可套 —— `client/gui/{ClientMenuScreens,BotInventoryScreen,BotInventoryMenuScreen}` + `client/render/*` + `network/` 9 个包（S2C 状态 → 客户端状态类 → Screen；C2S 动作包）
+
+**⇒ 为什么不复用"原版地图渲染器"（回答用户的问题）**：
+1. **连最成熟的地图 mod 都不复用它**（事实 1：零命中）
+2. 原版地图色是**服务端**算的（`MapItemSavedData` 由 `MapItem.update` 围绕**手持地图的实体**采样并打补丁）⇒ 复用要先解决"谁是持有者"，等于引入一条物品依赖
+3. 原版尺度决定分辨率：scale 4 时 **1 像素 = 1 区块** ⇒ 正好对应区块，但**看不清建筑**（而"认出自己的基地"正是勾选界面要的）⇒ 尺度与用途不匹配
+
+**⇒ 为什么不集成别家地图**：客户端 18 个 mod 清单已核实**没有** FTB Chunks / JourneyMap / Xaero；且 `D-219`（模组适配需求驱动）⇒ 不为未装的模组适配。
+
+**⇒ 性质与边界**：这是一个**新的客户端 UI 子系统（带协议）** ⇒ ① **不混进 R-2 主线**；② 要**零参数游戏内物品**打开（测试入口纪律）；③ 客户端渲染**不进执行路径**（符合"视觉不进执行路径"红线）；④ 第一次交付需要一个**客户端轮次**。
+
+**建议的最小闭环（两步，先做第一步）**：
+1. **第一步**：新物品右键 → Screen 显示**以玩家为中心的 N×N 区块网格**（左键认领 / 右键取消），底部可选铺**低分辨率地形色**（每区块从 `ClientLevel` 采样几列的 `MapColor`）；提交走**一次性批量包**。
+2. **第二步（可选，后议）**：可拖动/缩放的大地图 + 客户端磁盘缓存（照 `MapIOUtils` 的压缩缓存做法）。
