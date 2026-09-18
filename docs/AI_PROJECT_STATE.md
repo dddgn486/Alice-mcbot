@@ -244,11 +244,11 @@ S0 事实表 ✅ → S1 设备事实表 ✅ → **S2 进表 ✅（`MachineMap` 3
   "子阶段失败"口径）、D-235（挂起传输"结清落盘"：持久化成立 + 跨重启幂等）。
 - **保护区线（2026-09-18，D-313…D-317）**：区块级认领（忽略 Y / 全高度 / 旧格式迁移不静默丢）+ 零参数物品 `alice:protection_selector`
   （网格勾选 + 3×3 子格地形/明暗）+ `D-317` 崩溃修复（**用户实测地图正常打开 ✓ `WINDOWS_CLIENT`**；「不许同名重载」门禁）。
-  FTB 只读兼容**已整体回撤**（`D-318`）；**新增** `D-319` 假人归属（创建者登记 + `/alice bots`/`adopt`）；Xaero 联动三项**已登记**；`D-320` 两假人挨着爆栈崩（`5d63cdf` 回归）已加闸 + 新 EXTRA 门先红后绿。
+  FTB 只读兼容**已整体回撤**（`D-318`）；**新增** `D-319` 假人归属（创建者登记 + `/alice bots`/`adopt`，**客户端已验 ✓**：回显创建者 + 名单两行）；Xaero 联动三项**已登记**；`D-320` 两假人挨着爆栈崩（`5d63cdf` 回归）已加闸 + 新 EXTRA 门先红后绿，**同配置客户端复验 ✓**（旧 jar 133 处爆栈 / 新 jar 两假人隔 2 格共处 87 秒零异常 + 退档 2.1 秒，`AI_DECISIONS.md` D-320 附注一）。
 - **D-230 的自我修正**：我一度判断"bot 的血只减不增、必须补 `doTick()`"，实测**推翻**了它（`Player.aiStep()`
   本来就有自然回血）⇒ `doTick()` 默认**不启用**，开关 `alice.bot.vanillaTick` 保留为有记录的实验开关。
-- **离线门槛**（"改一行到知道对不对"）：`tools/headless-battery.sh core` = **CORE 49 步**
-  （当前 `passed=49/49 ticks=4725 → PASS`）；`check-all.sh` = **16 PASS + 1 预期 WARN**；`module-selftest.sh` = 19 个模块。
+- **离线门槛**（"改一行到知道对不对"）：`tools/headless-battery.sh core` = **CORE 50 步**
+  （当前 `passed=50/50 ticks=4684 → PASS`）；`check-all.sh` = **17 PASS + 0 WARN + 0 FAIL**；`module-selftest.sh` = 20 个模块。
 - **断点与待办**：`docs/HANDOVER.md`（§1 下一步 / jar hash）、`docs/OPEN_ITEMS_LEDGER.md`
   （**§5.11**：水里逃生四条挂账 —— 水面理由码 / 出口列表 / **B 维生写授权（待用户拍板）** / **丙 内核水位移动**；
   §5.6 风险等级层、§5.10 客户端可验项、其余 Job 的 `lastFailure`）。

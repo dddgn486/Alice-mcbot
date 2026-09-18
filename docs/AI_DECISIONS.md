@@ -12443,5 +12443,35 @@ ServerGamePacketListenerImpl.send → FakeConnection.send(packet, cb)   FakeConn
 `ALICE_HEADLESS=1 check-all.sh` = **17 PASS + 0 WARN + 0 FAIL**（doc 预算已压回 1475/1476）。
 
 **边界 / 未验证**：① 闸只挡"转发中"的副本 ⇒ 真人收到的旋转包**来源与数量保持原样**（由 `relay ≥ 1` 间接证明），
-**但"真人在客户端看到的 bot 转头/移动是否依旧正常"仍待 `WINDOWS_CLIENT`**；② 用户原先的绕行办法
+**但"真人在客户端看到的 bot 转头/移动是否依旧正常"仍待 `WINDOWS_CLIENT`**（⇒ 见附注一，已复验）；② 用户原先的绕行办法
 （两只假人隔开 ≥48 格）**已不再需要**。
+
+**附注一（2026-09-18 客户端复验：三个症状全部消失；并补上「同配置前后对照」）2026-09-18**
+
+**先锁定"这一轮跑的是哪个 jar"**（否则对照不成立）：`mods/alice-1.0.0-1.20.1.jar`（mtime **18:52:17** = 修复后）与两个备份
+`…bak.20260918-171735`（16:39 内容）/`…bak.20260918-185217`（17:17:35 内容）**逐类比对**：只有 18:52 那份的
+`com/dddgn/alice/bot/FakeConnection.class` 有 `relayRotation` + `ThreadLocal RELAYING` + `relayCount`/`suppressedCount`。
+
+**修后那一轮（`latest.log`，20:49:33 启动 → 20:53:02 停）**：
+- 三个症状全消 —— ① `/alice spawn` 正常；② **`/alice bots` 有反应**（`:287`/`:288` 两行带 `uuid`/`创建者`/`dim`/坐标/`闲`）；
+  ③ **退档不卡**：20:53:00.281 `dddgn lost connection` → 20:53:00.369 `Stopping server` → 20:53:00.738 `All chunks are saved`
+  → 20:53:02.412 `Stopping!` = **2.1 秒**。
+- **触发条件本身在场**：`tango` 20:51:30 → `30,64,221`，`demo` 20:51:33 → `31,64,223`（**相隔 ≈2 格**），两只**同在追踪距离内**
+  直到 20:53:00（**≈87 秒**），其间 `demo` 走完 10 个 `MineTask`（`:302`…`:1240` 都在两格范围内，含 `32,63,222`、`30,63,221` 这些
+  **就贴在 tango 脚边**的目标）⇒ 旋转/移动包一直在互相投递。
+- `grep -c StackOverflowError latest.log` = **0**；`crash-reports/` 无新文件（最新仍是 18:24:49 那份）。
+- 附带覆盖（不是本轮目标，但同轮拿到）：`MineTask` 全流程 `terminal=COMPLETED` + 拾取 `collected=1/1`（`:1330` 一带）。
+
+**对照：同一物理配置、修前一次会话**（`logs/2026-09-18-1.log.gz`，18:25:35 → 18:28:15，跑的正是 17:17:35 那份**无闸**的 jar）：
+`demo` 18:26:03、`tango` 18:27:14 生成（`29,64,218` / `28,63,218`，相隔 1 格）⇒ **2 秒后**开始爆栈，全文 **133 处**
+`StackOverflowError`，栈里逐帧就是 `FakeConnection.broadcastToTracking(FakeConnection.java:133)`
+`⇄ ServerGamePacketListenerImpl.m_243119_`，且**全程没有任何 `/alice bots` 输出行**（= "没反应" 的日志形状）。
+⇒ **旧码必崩 / 新码 87 秒零异常**，这就是"修在客户端成立"的证据。
+
+⚠️ **诚实边界**：客户端日志里**读不到** `relayCount`/`suppressedCount`（那两个计数只被离线门 `bot_pair_no_recurse` 读）
+⇒ "闸到底挡下多少份副本"仍是**离线门**的产物（`relay=235 suppressed=235`）；客户端这一轮证明的是**结果**
+（不崩、不卡、命令有反应）。**仍未验**：真人肉眼看到的两只 bot 转头/移动是否与修前一致（本轮的 `relay ≥ 1` 只是服务端侧证据）。
+`D-319`（创建者登记）同轮一并取得客户端证据：`/alice spawn` 回显 `创建者=dddgn (902b9056)`（`:252`/`:259`）、
+`/alice bots` 把两只都列出来（`:287`/`:288`）⇒ `WINDOWS_CLIENT`；用户判「符合预期」⇒ `USER_ACCEPTED`。
+⚠️ 注意口径：这一轮 `/alice bots` 是在 20:51:33 **重新 spawn** 之后敲的 ⇒ 它证明的是"命令能显示创建者"，
+**不**证明"创建者能从存档读回来"（后者由离线步 `bot_ownership` 的 `saveToWorld`/`read` 往返判据覆盖，20 条）。
