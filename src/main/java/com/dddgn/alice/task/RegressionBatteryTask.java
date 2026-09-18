@@ -389,11 +389,10 @@ public final class RegressionBatteryTask implements Task {
         // ⚠️ 归因三连（mine_no_tool / mine_stale / mine_budget）的判据挂在 `doneWhen` 上 ⇒ 编排器必须
         // 支持 `doneWhen`（D-300），且**本步作用域要在 provision 之前开好**（`mine_budget` 要压本作用域预算，D-301）
         steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.MiningModule().steps(checkContext())));
-        steps.add(step("death_kill_bot",
-                List.of("alice_test:ore_course_terrain"),
-                () -> teleportBot(OreCourseAnchor.START_FOOT),
-                () -> new DeathKillBotCheckTask(bot, observer),
-                80));
+        // ---- 模块化（R-2）：`death_kill_bot` 已由 `DeathModule` 提供 ----
+        // ⚠️ 它**不再在这里**：`DeathModule` 必须整块落在一个位置上，而"保持 CORE 步序逐字不变"优先
+        // ⇒ 模块落在 `death_persistence` 的原位（下面），`death_kill_bot`（EXTRA，CORE 不跑）随之挪到那里。
+        // 理由与代价写在 `DeathModule` 的 javadoc（含"反过来做会让 CORE 提前 3 个模块"的对照）✓
         steps.add(step("hazard_aversion_plan",
                 List.of(),   // 场景由夹具自己装（先热区块再 fill ✓），不依赖前序模块 ✓
                 () -> teleportBot(HazardAversionCheckTask.START),
@@ -403,11 +402,12 @@ public final class RegressionBatteryTask implements Task {
         steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.DecisionModule().steps(checkContext())));
         // ---- 模块化（R-2 Phase 1b）：**移动模块**（fall/pillar/contrast 三步）从 `PathingModule` 取 ----
         steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.PathingModule().steps(checkContext())));
-        steps.add(step("death_persistence",
-                List.of("alice_test:ore_course_terrain"),
-                () -> teleportBot(OreCourseAnchor.START_FOOT),
-                () -> new DeathPersistenceCheckTask(bot, observer),
-                60));
+        // ---- 模块化（R-2）：**死亡模块**（2 步）从 `DeathModule` 取 ----
+        // 逐字段等价搬迁（步名/档位/场景/预算/工厂一致 ✓）；⭐ **模块落在这里是刻意的** ——
+        // `death_persistence`（MAIN）保持**原位** ⇒ CORE 步序逐字不变 ✓；
+        // 被挪动的只有 `death_kill_bot`（EXTRA ⇒ CORE 不跑；它的注释写明"只适合 `single:` 单独跑"）
+        // ⚠️ 反过来放（"先杀后验"）会让 `death_persistence` 在 CORE 里提前 3 个模块 = 未证明的顺序变更 ✗
+        steps.addAll(fromCheckSteps(new com.dddgn.alice.task.check.modules.DeathModule().steps(checkContext())));
         steps.add(step("speech_channel",
                 List.of("alice_test:ore_course_terrain"),
                 () -> teleportBot(OreCourseAnchor.START_FOOT),

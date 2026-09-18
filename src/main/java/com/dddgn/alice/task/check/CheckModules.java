@@ -1,6 +1,7 @@
 package com.dddgn.alice.task.check;
 
 import com.dddgn.alice.task.check.modules.CraftModule;
+import com.dddgn.alice.task.check.modules.DeathModule;
 import com.dddgn.alice.task.check.modules.HarnessSelfModule;
 import com.dddgn.alice.task.check.modules.DecisionModule;
 import com.dddgn.alice.task.check.modules.LedgerModule;
@@ -32,7 +33,8 @@ public final class CheckModules {
             new MiningModule(),
             new LumberModule(),
             new TransferModule(),
-            new SurvivalModule()
+            new SurvivalModule(),
+            new DeathModule()
     );
 
     private CheckModules() {

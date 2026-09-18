@@ -11948,3 +11948,32 @@ bash 是**按需读文件**的 ⇒ 我一边让 `module-selftest.sh` 跑着（8 
 
 ⚠️ **搬迁纪律再次生效**：两片都是"**内联定义删除 + 顺序不变 + 逐字段等价**"，并且**每片都必须单跑**
 （D-302：`module:<id>` 单跑是唯一能暴露"电池有、编排器没有"的通道；本轮两片都没有新缺口，属正面结果）。
+
+### D-309：R-2 第九片 —— `death`（2 步）+ ⭐「模块落点」的新形状 2026-09-18
+
+**片内容**：`death_persistence`（MAIN）+ `death_kill_bot`（EXTRA）内联定义已删、改由 `DeathModule` 提供。
+两步合起来才构成 D-276「死亡**不删数据**」的完整证据链（判据步**不杀 bot**；端到端那半真死一个**探针 bot** `AliceE2E`，
+落盘由 `ALICE_SAVE_ON_HALT=1` 那一轮 + `tools/death-persistence-e2e.sh` 重启读回完成）。
+
+**实测**：`module:death` 单跑 **2/2**（`DeathPersistence checks=9` + `DeathE2E checks=6`，均 `failures=0`）；
+`module-selftest`（本批 death+transfer+survival）**3/3 PASS**（干净退出码）；CORE **48/48** ✓；
+模块注册表现 **11** 个。
+
+⭐⭐ **本片带来的新形状（值得记）：一个模块只能落在一个位置上 ⇒ 落点要选"保住 CORE 步序"的那一侧。**
+
+| | 位置（原电池） | CORE 跑？ |
+|---|---|---|
+| `death_persistence` | 第 **8** 位 | ✅ MAIN |
+| `death_kill_bot` | 第 **4** 位 | ❌ EXTRA |
+
+两者**中间隔着** `hazard_aversion_plan` + 整个 `decision` 模块 + `pathing` 模块 ⇒ "两边都原位"**做不到**。
+⇒ 取**代价最小的那一侧**：**模块插在 `death_persistence` 的原位**，只把 `death_kill_bot` 挪过去。
+- ✅ **CORE 步序逐字不变** —— 而且这一条**不是靠推理**，是**当场 diff 证明的**：
+  搬迁前/后两次 CORE 归档日志的步序逐行比对 = **48 步、0 处差异** ✓
+- ✅ 被挪动的那一步是 **EXTRA**（CORE 根本不跑），且它自己的注释写明"它会写倒下态存档 ⇒ **只适合 `single:` 单独跑**"
+- ⚠️ 反过来做（按"先杀后验"的直觉把模块插在第 4 位）会让 `death_persistence` 在 CORE 里**提前 3 个模块**
+  = **未证明的顺序变更** —— D-302 的教训正是"**顺序也是行为**，且 **CORE 会蒙对**"（machine 片：旧电池靠"上一步恰好留成站姿"蒙对）
+
+**⇒ 可复用口径（写给后来搬片的人）**：搬一个多步模块前，先列出各步的**原位置**与**档位**；
+若它们的原位不连续，**优先保住 CORE（BASELINE/MAIN）那几步的相对次序**，
+把位移限制在 EXTRA 步上（EXTRA 不进 CORE ⇒ 代价 = FULL 一轮），并**用两次 CORE 日志的步序 diff 作证**。
