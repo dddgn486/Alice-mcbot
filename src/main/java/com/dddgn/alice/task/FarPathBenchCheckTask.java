@@ -477,6 +477,25 @@ public final class FarPathBenchCheckTask implements Task {
                 plan != null && plan.nodesExpanded() <= linearBound);
         check("分段 hop：一跳也不许把未加载区块读进来（实际 newlyLoaded=" + newlyLoaded + "）",
                 newlyLoaded == 0);
+
+        // ⭐ **同类病理的任务层收口**（`D-331` → `D-337` 同宗）：任务层也必须"**先问加载状态，再读方块**"。
+        // `PlaceTask` 每 tick 的第一件事就是 `level.getBlockState(target)`，而 `/alice place` 允许玩家给
+        // **任意坐标** ⇒ 远处目标会把区块**同步加载**进来（主线程生成/磁盘 I/O）。
+        // 判据：未加载目标必须**干净失败**（`place_target_unloaded`）且**不加载**。
+        boolean[] placeBefore = sampleProbes(level, start);
+        PlaceTask place = new PlaceTask(bot, target);
+        Task.Status placeStatus = place.tick();
+        int placeNewly = newlyLoadedCount(placeBefore, sampleProbes(level, start));
+        curve.add("place_far target=" + target.toShortString() + " status=" + placeStatus
+                + " reason=" + place.failureReason() + " newlyLoaded=" + placeNewly);
+        BotLog.info("[FarBench] place_far target={} status={} reason={} newlyLoaded={}",
+                target.toShortString(), placeStatus, place.failureReason(), placeNewly);
+        check("同类病理（任务层）：远目标的 `PlaceTask` 必须**先问加载状态** —— 干净失败"
+                        + "`place_target_unloaded` 且不加载区块（实际 status=" + placeStatus
+                        + " reason=" + place.failureReason() + " newlyLoaded=" + placeNewly + "）",
+                placeStatus == Task.Status.FAILED
+                        && place.failureReason().startsWith("place_target_unloaded")
+                        && placeNewly == 0);
         phase = Phase.FAR_WALK;
     }
 

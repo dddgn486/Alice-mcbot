@@ -66,6 +66,18 @@ public final class PlaceTask implements Task {
     @Override
     public Status tick() {
         ServerLevel level = bot.serverLevel();
+        // ⚠️ `D-331`/`D-337` 同一病理（**任务层**）：必须先问加载状态，再读方块。
+        // `Level.getBlockState` 对未加载区块会 `getChunkAt` **同步加载/生成**（主线程阻塞 + 世界副作用），
+        // 而 `/alice place` 允许玩家给**任意坐标** ⇒ 远处的目标会在第一 tick 就把区块拉进来，
+        // 还会把失败报成 `place_no_path`（"规划不到"）——**实测红证据**：远目标一次 tick
+        // `newlyLoaded=1`、`reason=place_no_path`（见 `far_path_bench` 的 `place_far` 判据）。
+        // 语义与 `WalkToTask.walk_goal_unloaded` 一致：未加载 ≠ 不可达 ≠ 不能放 ⇒ 独立码，调用方可先靠近/稍后重试。
+        if (!level.hasChunkAt(target)) {
+            failure = "place_target_unloaded:" + target.toShortString();
+            BotLog.warn("[PlaceTask] target_chunk_not_loaded target={} code=place_target_unloaded"
+                            + "（D-331 同宗：不读方块 ⇒ 不触发同步加载）", target.toShortString());
+            return Status.FAILED;
+        }
         // 目标已被放置（或不再可替换）→ 任务达成
         if (!level.getBlockState(target).canBeReplaced()) {
             return Status.DONE;
@@ -154,6 +166,12 @@ public final class PlaceTask implements Task {
                 for (int dz = -4; dz <= 4; dz++) {
                     BlockPos standPos = target.offset(dx, dy, dz);
                     if (standPos.equals(target) || standPos.above().equals(target)) {
+                        continue;
+                    }
+                    // ⚠️ 同一病理的**第二处**：候选扫描是 target ±4 ⇒ 可能跨到**相邻区块**。
+                    // `canWalkOn/canWalkThrough` 只读同一列（x/z 不变，只差 y），所以按**列**问一次
+                    // `hasChunkAt` 就能保证下面所有读都不落在未加载区块上。
+                    if (!level.hasChunkAt(standPos)) {
                         continue;
                     }
                     if (!MovementHelper.canWalkOn(level, standPos)

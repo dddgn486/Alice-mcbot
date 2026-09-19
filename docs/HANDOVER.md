@@ -30,6 +30,9 @@
 >    护栏 = 跳数/tick/单调性；到达口径粗 ⇒ 精确落脚接 `WalkToTask` = Baritone `GoalNear`→`GoalBlock`）。
 >    **A/B（同一轮）**：粗目标 `20000 节点 / 142~186 ms / PARTIAL` vs **一跳 `161 节点 / 1 ms / REACHED`**；
 >    **执行侧**：300 格 = **hops=2 / 1111 tick / DONE** + 精确落脚 30 tick ✓。判据 19 项 / 0 失败。
+> ✅ **同一病理的最后一处（任务层）也收口了**：`PlaceTask` 先问 `hasChunkAt` 再读目标方块 ⇒ 未加载报
+>    `place_target_unloaded`（红：`newlyLoaded=1` + 误导性 `place_no_path` → 绿：`newlyLoaded=0`）；候选站位扫描也按列
+>    问一次（`target ±4` 可能跨区块）。⇒ **内核 / 走 / 扫描 / 放置四处全部收口**（`D-337` 附注三）。
 > ⚠️ **④ 唯一剩余**：`FarWalkTask` **还没有生产调用方**（预期先给 `D-327` 机制 B「返回安全区」或决策层
 >    「去坐标」目标；后者要改闭集动词表，属另一件事）—— 已登记台账。
 > ⚠️ 自测档位按 `D-332`：小改动只跑 `single:`，CORE/全量留到收口。

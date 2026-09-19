@@ -13277,4 +13277,16 @@ CORE/全量独有、别的档给不了的东西只有一件 = **跨模块回归*
    随后 `WalkToTask` 精确落脚 **30 tick 到 (3300,-60,3400)** ✓（`D-331` 的 `walk_goal_unloaded` 未触发 ——
    目标区块已被自己的移动加载）。判据：**跳数 ≥2**（证明真分段）+ 每跳必须更近 + 组合能否落脚。
 5. **状态**：`FarWalkTask` **仍无生产调用方**（第一个真实调用方应是 `D-327` 机制 B「任务失败后返回安全区」
+
+### D-337 附注三：任务层"先问加载状态再读方块"的同类收口（`PlaceTask`）2026-09-19
+
+`D-331`（`WalkToTask`）/`D-337`（内核搜索）是同一个病理，**任务层还剩一处**：`PlaceTask.tick()` 每 tick 的
+第一件事就是 `level.getBlockState(target).canBeReplaced()`，而 `/alice place`（`BotManager.assignPlace`）
+允许玩家给**任意坐标** ⇒ 远处目标在第一 tick 就把区块**同步加载**进来，还把失败报成 `place_no_path`
+（"规划不到"，误导性）。**红证据（`far_path_bench` 的 `place_far` 判据）**：`status=FAILED`、
+`reason=place_no_path`、`newlyLoaded=1`。**修法**：① 读目标方块**之前**问 `hasChunkAt`，未加载 ⇒
+独立码 `place_target_unloaded`（与 `walk_goal_unloaded` 同语义：未加载 ≠ 不可达 ≠ 不能放）；
+② 候选站位扫描是 `target ±4` ⇒ 可能跨到相邻区块，按**列**问一次 `hasChunkAt` 再读
+（`canWalkOn/canWalkThrough` 只读同一列，所以一列一次就够）。**绿**：`reason=place_target_unloaded`、
+`newlyLoaded=0`、判据 20 项 / 0 失败。⇒ 至此 `D-331` 那条病理在**内核 / 走 / 扫描 / 放置**四处全部收口。
    或决策层的"去某坐标"目标）⇒ 已登记台账；**卡顿时长仍未测**（超平坦下同步加载很便宜，真实世界要用户侧测）。
