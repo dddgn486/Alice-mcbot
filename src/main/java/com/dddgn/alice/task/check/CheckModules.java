@@ -15,7 +15,6 @@ import com.dddgn.alice.task.check.modules.LedgerModule;
 import com.dddgn.alice.task.check.modules.LumberModule;
 import com.dddgn.alice.task.check.modules.MachineModule;
 import com.dddgn.alice.task.check.modules.MiningModule;
-import com.dddgn.alice.task.check.modules.MineDropRangeModule;
 import com.dddgn.alice.task.check.modules.PathingModule;
 import com.dddgn.alice.task.check.modules.OwnershipModule;
 import com.dddgn.alice.task.check.modules.ProtectionModule;
@@ -55,10 +54,7 @@ public final class CheckModules {
             new ContractsModule(),
             new ProtectionModule(),
             new OwnershipModule(),
-            new BreakRefusedModule(),
-            // ⭐ `survey/22 §1.5①` 的缺陷取证（**故意红**：声明 `expectedVerdict()=FAIL`，且不进电池）
-            // —— 为什么它单独成模块、且必须不被电池组合：见 `MineDropRangeModule` 类头「双向绊线」。
-            new MineDropRangeModule()
+            new BreakRefusedModule()
     );
 
     private CheckModules() {

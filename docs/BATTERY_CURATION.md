@@ -19,7 +19,7 @@
 SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 **跳过多少、跑多少、各档几项**一眼可见；归属表与实跑项对不上（漏登记 / 文档说测了其实没测）**直接判红**。
 
-## 2. 当前归属表（68 项 → CORE 51 项）
+## 2. 当前归属表（71 项 → CORE 51 项）
 
 > **2026-09-19 校正（5）**：`task_zone` 进 EXTRA（`§5.12` 第 4 件的**几何 + 锁定**层，`D-338` 附注六：
 > 工作区域（方块级）⇒ 任务区（区块级**最小覆盖**）+ 可覆盖保护区父类 / **不得**覆盖安全区（报错，不裁剪）
@@ -137,7 +137,7 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 | 模块 | 为什么不在电池里 | 怎么跑 |
 |---|---|---|
 | `harness_self` | 编排器自检（**故意**被外部命令打断两次）⇒ 期望判决 = **FAIL** | `module:harness_self` |
-| ⭐ `mine_drop_range` | **缺陷取证**（`survey/22 §1.5①`，`D-345`）：判据断言的是"缺陷的反面" ⇒ 修好之前**必然红**；进电池/CORE 会把收口闸门永久染红，后续真回归就被淹没了。期望判决 = **FAIL**（`expectedVerdict()`）；**修好那天**判据变绿 ⇒ 与声明不符 ⇒ `module-selftest` **当场判红** ⇒ 强迫翻面（去掉声明 + 升级成链路级判据或搬进 `mining`）—— 双向绊线，见 `MineDropRangeModule` 类头 | `module:mine_drop_range`（⚠️ **定向模式不可用**：`single:` 只认 CURATION 里的步名，而该步刻意**不在** CURATION 里） |
+| ⭐ **翻面示例（已完成，别照抄"临时模块"这一步）**：`mine_drop_range` **曾经**是这样一个"故意红"的临时模块（`D-345`：缺陷取证，`expectedVerdict=FAIL`、不进电池）；修好（`D-346`）当天按双向绊线**搬进 `MiningModule`（EXTRA）+ CURATION 登记**（步名 `mine_far_drop`），临时模块与注册表项已删除 ⇒ 现在它就是一个**正常回归步** | 教训：临时红模块**只该活到修复那一刻**；`expectedVerdict` 的声明与本文的那一行都必须在同一次提交里改掉，否则下一个人会把它当成"已知坏掉的测试" | `single:mine_far_drop` / `module:mining` |
 
 ⚠️ 纪律：**"故意红"的模块必须显式声明 `expectedVerdict()`，并在本文 + `AI_DECISIONS.md` 写明翻面条件** ——
 否则下一个人会把它当成"电池漏登记"或"已知坏掉但没人管的测试"。
@@ -146,6 +146,7 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 
 | 日期 | CORE | FULL | 说明 |
 |---|---|---|---|
+| 2026-09-20 | **51** | **71** | ⭐ **`D-346` 收集追取上限改为由作用域派生**（`survey/22 §1.5①` 的修复）：`CollectDropsTask.MAX_CHASE_DISTANCE=32` 写死 ⇒ 小于 `MineJob` 自己的作用域直径（`2×SCAN_RADIUS(24)=48`）⇒ 自己挖的产物被自己**永久**退休 ⇒ `product_not_collected`（`D-345` 取证：`retire reason=too_far` + `collected=1/2`）。修 = `ScopeBuffer.currentRadius()`（只读）+ `chaseLimit()=max(32, 2×半径)`。新步 `mine_far_drop`（**EXTRA**，由 `MiningModule` 提供：8 步）—— **A/B 同一夹具**：修复前 `clusters=1/collected=1/地上剩 1/FAIL` → 修复后 `clusters=2（远件 3240 也被捡）/collected=2/地上 0/PASS`。`single:mine_far_drop` PASS · `module:mining` PASS(8 步) · **CORE 51/51**（271 s，`extra_skipped=20`，步序未变）· `check-all` 16 PASS/0 FAIL（`D-074` 裁定 2 的 N 由实现定 ⇒ 本次把 N 从 32 改成作用域直径，口径不变） |
 | 2026-09-13 | 23 | 33 | 建立分档：BASELINE 13 / MAIN 10（3-A 工作站+熔炉）/ EXTRA 10 |
 | 2026-09-13 | 24 | 34 | 新增 A4b 菜单型炉子（`craft_cooking`）⇒ MAIN 11 |
 | 2026-09-13 | 25 | 35 | 新增 A5 决策层接线（`craft_goal`）⇒ MAIN 12 |

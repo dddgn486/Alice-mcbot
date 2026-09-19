@@ -14442,3 +14442,54 @@ pickup_timeout=1 policy_blocked=0` → 夹具 `checks=10 failures=2`（**恰好�
 `getEntitiesOfClass` 也查得到。生产里落物都生成在 bot 身边（区块本来就在 tick）⇒ **夹具人为场景**，
 故只记录、不立项。⇒ 夹具因此走 `D-344` 的 `liveDropsSource` 钩子递候选（**换来源不放松授权**，
 归属仍是 `OURS_DIRECT`）。
+
+---
+
+### D-346：⭐ 收集的**追取上限改为由作用域派生** —— `survey/22 §1.5①` 的修复（`D-345` 取证 → 同日转绿）2026-09-20
+
+**用户裁定**：`D-345` 取证后，用户选「**最小修：不永久退休**」这一族，并在听完代价分析后确认
+「**只做 A**」（上限由作用域半径派生）—— 不选 B（改 `too_far` 的重扫语义），也不选 C（挖一段捡一段）。
+
+**⚠️ 与 `D-074` 裁定的关系（必须留档，因为这是"动了一条用户裁定的边界"）**：
+`MAX_CHASE_DISTANCE` 出自 `D-074` 用户裁定 2「**超过 N 格放弃**追踪」（`AI_DECISIONS.md:1259`）——
+但**裁定里 N 从未被指定**，`32` 是实现当初选的。本次把 N 从"拍一个常量"改成
+"**本作业自己的作用域直径**（下限 32 兜底）"，**裁定口径不变**（"不追世界另一头"仍成立，
+理由见下），逐条记录在此以免后人误读为"AI 自己放宽了用户红线"。
+
+**⭐ 为什么 32 是错的（不是"该不该设上限"，而是"这个上限比它自己的作用域还小"）**：
+能进 `liveDrops()` 的落物**只可能是本作业作用域球内登记的**（`ScopeBuffer.onEntityJoin` → `inScope(pos)`）
+⇒ 它到 bot 的距离**本来就不会超过 ~2×半径**。而 `MineJob` 的作用域半径 = `MineCandidateSource.SCAN_RADIUS`
+= 24 ⇒ 直径 **48** > 32 ⇒ **自己挖出来的产物被自己的上限退休**。⇒ 上限的正确形状是
+**`max(32, 2 × 当前作用域半径)`**：它既不放松"不追世界另一头"（登记在册 ⇒ 就在本作用域内），
+又保证"本作业自己的落物一律够得着"。
+
+**改动（三处，全部可失败/可复核）**：
+1. `perception/ScopeBuffer.currentRadius()`：只读读数（无活动作用域 ⇒ `0`）—— **零行为改动**；
+2. `task/CollectDropsTask.chaseLimit()`：`max(MAX_CHASE_DISTANCE, 2 × scope.currentRadius())`，
+   `refreshCandidates()` 用派生值取代写死的 32（`scope == null` ⇒ 退回 32）；
+3. 夹具**翻面**（按 `D-345` 写下的双向绊线，一步不省）：`mine_far_drop` 从"故意红模块"
+   (`mine_drop_range`, `expectedVerdict=FAIL`) 搬进 **`MiningModule`（EXTRA）** +
+   `RegressionBatteryTask.CURATION` 登记 ⇒ 临时模块 `MineDropRangeModule` 与注册表项**已删除**、
+   `BATTERY_CURATION §3.1` 的那一行改为"这条纪律的完整例子"。
+
+**A/B 实测（同一夹具、同一场景，只差这一个派生值）**：
+
+| | 修复前（`D-345` 红证据） | 修复后（`D-346`） |
+|---|---|---|
+| 收集器第一 tick | `[CollectDrops] retire item=… reason=too_far itemPos=3240` ⇒ **永久丢弃** | **没有 `too_far`**（40 格 < 派生上限 48） |
+| 簇 | `clusters=1`（只近件 3208） | `clusters=2`（近件 3208 → **远件 3240**） |
+| 结果 | `SUMMARY collected=1/2` · 地上剩 1 件 | `SUMMARY collected=2/2` · 地上剩 **0** 件 |
+| 链路 | `gained(1) < minedCount(2)` ⇒ `FAILED product_not_collected` | `gained(2)` ⇒ **`quota_met`** |
+| 夹具 | `checks=10 failures=2` → **FAIL** | `checks=10 failures=0` → **PASS** |
+
+**验证**：`single:mine_far_drop` = **PASS**（55 s；`checks=10 failures=0`）· `module:mining` = **PASS**
+（8 步，95 s，含 `mine_regression` 12 子判决全 PASS）· ⭐ **CORE = PASS（51/51，271 s，声明 71 项 =
+BASELINE 15 / MAIN 36 / EXTRA 20）** ⇒ `mine_far_drop` 正确落在 EXTRA（CORE 步序与执行**未变**）·
+`check-all` = **16 PASS / 1 WARN（headless 未跑）/ 0 FAIL** · 反向对照 = **`D-345` 那轮红证据本身就是
+"去掉派生 ⇒ 红"的对照**（同一夹具同一场景），无需再造。
+
+**顺带观察（⚠️ 未定性、**非本次改动引入**、不立项）**：修复后两个簇各打了一次
+`[CollectDrops] MISMATCH … delta=1 remaining=1` + `retire reason=pickup_timeout/cluster_budget`，
+而世界事实是"两件都进了背包、地上 0 件"（`inRange=true`）⇒ 那是**守恒交叉校验的取样口径**
+（`remaining` 用的是本 tick 刷新时的快照）与"物品被拾取"之间的时间差造成的**报告噪声**，
+不影响 `collected`（背包增量口径）与 `MineJob` 的 `gained`。**记在这里，不追**（不属于本缺陷弧）。

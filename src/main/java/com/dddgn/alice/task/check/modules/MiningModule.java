@@ -13,6 +13,7 @@ import com.dddgn.alice.task.MineRegressionTask;
 import com.dddgn.alice.task.NoProgressCheckTask;
 import com.dddgn.alice.task.OreCourseAnchor;
 import com.dddgn.alice.task.check.CheckContext;
+import com.dddgn.alice.task.MineDropRangeCheckTask;
 import com.dddgn.alice.task.MineInventoryCheckTask;
 import com.dddgn.alice.task.check.CheckModule;
 import com.dddgn.alice.task.check.CheckProfile;
@@ -25,7 +26,8 @@ import java.util.Set;
 
 /**
  * **挖掘模块（R-2 第五片，8 步）**：`mine_regression` · `no_progress` · `mine_menu` · `mine_job`
- * · `mine_inventory` · `mine_no_tool` · `mine_stale` · `mine_budget`。
+ * · `mine_inventory` · `mine_no_tool` · `mine_stale` · `mine_budget` · ⭐ `mine_far_drop`（`D-346`：
+ * 收集的追取上限必须覆盖本作业自己的作用域 —— 旧上限 32 < `MineJob` 作用域直径 48）。
  *
  * <p>为什么这七步归一类：它们是**同一条挖掘链路的不同环节**，而且**共享同一个场景**（`ore_course_terrain`）
  * 与同一批"必须不猜"的红线：
@@ -172,7 +174,15 @@ public final class MiningModule implements CheckModule {
                         new NearestPolicy()),
                         400)
                         .withDoneWhen(task -> task instanceof MineJob job
-                                && "write_budget_exhausted".equals(job.terminalReason())));
+                                && "write_budget_exhausted".equals(job.terminalReason())),
+                // ⭐ `D-346`（2026-09-20）：**收集的追取上限必须覆盖本作业自己的作用域** —— 旧实现把
+                // `MAX_CHASE_DISTANCE` 写死 32，比 `MineJob` 自己的作用域直径（`2 × SCAN_RADIUS(24)` = 48）
+                // 还小 ⇒ **自己挖出来的产物被自己的上限永久退休**（`retire reason=too_far`）⇒
+                // `gained < minedCount` ⇒ `FAILED product_not_collected`。
+                // 夹具自带孤立空中走廊（原点 3200,100,2000）+ 近件 8 格 / 远件 40 格 + 两件登记成
+                // `OURS_DIRECT` ⇒ 判据 = "两件都进背包 + 地上不许剩"（**修复前是红的**，取证过程见 `D-345`）。
+                CheckStep.of("mine_far_drop", CheckProfile.EXTRA, List.of(), null,
+                        () -> new MineDropRangeCheckTask(bot, observer, scope), 900));
     }
 
     /** 传送到统一起点（与电池 `teleportBot` 逐字段一致 ✓；顺带起"先热区块再 fill"的作用 ✓）。 */

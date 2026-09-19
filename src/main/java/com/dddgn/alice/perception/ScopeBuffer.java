@@ -167,6 +167,19 @@ public final class ScopeBuffer {
     }
 
     /**
+     * **当前作用域半径**（只读；无活动作用域 ⇒ `0`）。
+     *
+     * <p>为什么需要暴露它（`D-346`）：`CollectDropsTask` 的**追取上限**必须 ≥ 本作业作用域的直径
+     * —— 能进 `liveDrops()` 的落物**只可能是本作用域内登记的**（{@link #onEntityJoin} 的
+     * {@link #inScope}）⇒ 上限比作用域还小，就等于"**自己挖出来的产物被自己的上限退休**"
+     * （实测：`MineJob` 作用域半径 24（直径 48）> 旧上限 32 ⇒ `retire reason=too_far`）。
+     * 这里只给读数，不改任何行为。
+     */
+    public int currentRadius() {
+        return active ? radius : 0;
+    }
+
+    /**
      * **收养**当前已经躺在世界里的掉落物（D-108）：把它们纳入本作用域的登记表，使其重新成为
      * `liveDrops()` 的候选。
      *

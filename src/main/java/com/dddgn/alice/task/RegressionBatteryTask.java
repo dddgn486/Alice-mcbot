@@ -166,6 +166,10 @@ public final class RegressionBatteryTask implements Task {
             // M3b（2026-09-15）：两条"照词表写了、但从来没被观测过"的归因映射各配一个确定性夹具。
             Map.entry("mine_stale", Profile.MAIN),
             Map.entry("mine_budget", Profile.MAIN),
+            // `D-346`（2026-09-20）：收集的追取上限必须覆盖本作业自己的作用域（旧上限 32 < 作用域直径 48
+            // ⇒ 自己挖的产物被自己永久退休）。夹具自建空中走廊、两件产物（近 8 / 远 40）都必须进包；
+            // EXTRA（自建地形 + 约 190 tick）⇒ 不进 CORE，`single:mine_far_drop`/`module:mining` 可跑。
+            Map.entry("mine_far_drop", Profile.EXTRA),
             // D-335：挖矿容量守卫（前置满包不许动世界 / 作业中满包恰好只少 1 格）—— 对際 lumber_failure
             Map.entry("mine_inventory", Profile.EXTRA),
             // D-336：斜向上升那一格（规划级：能力 + 信封）

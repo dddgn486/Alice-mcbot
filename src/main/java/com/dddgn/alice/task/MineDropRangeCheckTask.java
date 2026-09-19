@@ -23,10 +23,14 @@ import java.util.UUID;
 /**
  * ⭐ **挖矿产物的「收集距离窗口」取证夹具**（电池步 `mine_far_drop`；`survey/22 §1.5①` 的落地判据）。
  *
- * <h2>它取证的是什么（一句话）</h2>
- * <b>我方登记在册、路上无遮拦、完全可达的产物，只要离 bot 超过 32 格，就会被收集器<b>永久</b>丢弃。</b>
+ * <h2>它钉住的是什么（一句话）</h2>
+ * <b>我方登记在册、路上无遮拦、完全可达的产物，**不许**因为"离 bot 远"被收集器丢弃。</b>
  *
- * <h2>代码链（三条一起才构成"真缺陷"，别只看其中一条）</h2>
+ * <p><b>状态</b>：`D-345`（2026-09-20）<b>取证</b>（当时实测红）⇒ `D-346`（同日）<b>修复</b>：
+ * 追取上限从写死的 `32` 改成 `max(32, 2 × 当前作用域半径)`（`MineJob` 下 = **48**）⇒ 本夹具**已转绿**，
+ * 现在它是**回归判据**（谁把上限改回"小于作用域直径"、或改成"永久退休"，这里就红）。
+ *
+ * <h2>当时那条缺陷链（三条一起才成立，留档以免后人重犯）</h2>
  * <ol>
  *   <li><b>距离硬墙 + 永久退休</b>：{@code CollectDropsTask.refreshCandidates()}（`:504-505`）在**每 tick**
  *       刷新候选时，凡"离 bot 距离 &gt; {@code MAX_CHASE_DISTANCE = 32.0}`（`:90`）"的落物立刻
@@ -39,17 +43,17 @@ import java.util.UUID;
  *       ⇒ 被退休的产物让整个 Job 如实报 {@code FAILED product_not_collected}。</li>
  * </ol>
  *
- * <p>⚠️ <b>为什么这不是"只有通道挖掘才咬到"</b>：{@code MAX_CHASE_DISTANCE(32) &lt;
- * 2 × MineCandidateSource.SCAN_RADIUS(24) = 48} —— <b>单次</b> {@code MineJob} 的扫描窗口
- * （半径 24 的球）里就可以放下两颗相隔 &gt;32 格的产物 ⇒ 今天的挖矿配额作业就能咬到，
- * 不需要等通道能力（`D-329` 路线图 2.5）落地。这两个常量的关系就是本缺陷的不变量：
- * <b>"配额后集中收集"要成立，收集半径必须 ≥ 扫描直径</b>（今天 32 &lt; 48 ⇒ 不成立）。
+ * <p>⭐ <b>这条不等关系就是本夹具的不变量</b>：{@code MAX_CHASE_DISTANCE} 与
+ * {@code 2 × MineCandidateSource.SCAN_RADIUS(24) = 48} —— 修复前 `32 &lt; 48`（不成立 ⇒ 红），
+ * 修复后上限**由作用域半径派生**（`48 ≥ 48` ⇒ 绿）。它必须成立的理由不是"通道能力"（`D-329`
+ * 路线图 2.5），而是**今天的配额作业**：单次 `MineJob` 的扫描球（半径 24）里就能放下两颗相隔 &gt;32
+ * 格的产物 ⇒ <b>"配额后集中收集"要成立，收集半径必须 ≥ 扫描直径</b>。
  *
  * <h2>它断言哪一层（技能 §6.9.1 ③）</h2>
  * <b>动作层</b>——真世界里一个真的 {@code CollectDropsTask}，被本夹具**每 tick 驱动一 tick**
  * （与 `region_sweep_e2e` 驱动 `RegionLumberJob` 同一个手法）。它<b>不</b>经由 {@code MineJob}：
- * 本夹具要的是"**可复现、零物理抖动**"的证据（挖矿的走位/掉落时机有随机性 ⇒ 那属于
- * "链路级证据"，见下面「修好之后」。）
+ * 本夹具要的是"**可复现、零物理抖动**"的判据（挖矿的走位/掉落时机有随机性 ⇒ 那属于链路级证据，
+ * 留给 `MineJob` 那条线的其它步）。
  *
  * <h2>几何前提（§6.9.1 ①：盒子以谁为中心、多大，全部写下来并自断言）</h2>
  * <ul>
@@ -58,7 +62,8 @@ import java.util.UUID;
  *       ⇒ 平台顶面 y = 100、脚位 y = 101；周围是空 ⇒ 与其它场景**不相连**（技能 §2 孤立长方体）；</li>
  *   <li>bot 起点 = 走廊起点（x 偏移 0）；<b>近件</b> = 偏移 {@link #NEAR_OFFSET}=8（<b>故意放在 8 格外</b>：
  *       收集器必须**真的走过去**才捡得到 ⇒ 它是"装置可用"的对照，而不是"脚下白捡"）；
- *       <b>远件</b> = 偏移 {@link #FAR_OFFSET}=40（&gt; 32 格窗口）；</li>
+ *       <b>远件</b> = 偏移 {@link #FAR_OFFSET}=40（**刻意放在旧硬墙 32 之外、但仍在本作业作用域
+ *       直径 48 之内** —— 这正是"旧实现丢、正确实现必须捡"的那个区间）；</li>
  *   <li>作用域 = {@code scope.begin(center, 24)}，center = 偏移 {@link #SCOPE_CENTER_OFFSET}=24
  *       ⇒ 两件落物都在窗口内（±16）—— <b>与 {@code MineJob} 的 `spec.center()/spec.radius()`
  *       （半径 = `SCAN_RADIUS` = 24）同形</b>，不是为夹具量身定做的怪形状。</li>
@@ -93,21 +98,21 @@ import java.util.UUID;
  * 一个 {@code CollectDropsTask}；自己造的平台**收尾清回空气 + 撤销 forceload**，
  * 造出来的落物**全部 discard**（含失败路径），bot 回传送前的位置。
  *
- * <h2>判据（红 = 缺陷在场）</h2>
+ * <h2>判据（全部必须绿）</h2>
  * <table border="1">
- *   <tr><th>判据</th><th>期望</th><th>今天</th></tr>
- *   <tr><td>前提：平台建成 / 盒内起始无落物 / 两件被登记为 OURS / 近件 ≤32 / 远件 &gt;32</td>
- *       <td>全真</td><td>✅ 真（前提，红了说明夹具坏）</td></tr>
+ *   <tr><th>判据</th><th>期望</th><th>`D-346` 修复前</th></tr>
+ *   <tr><td>前提：平台建成 / 盒内起始无落物 / 背包无产物 / 两件被登记成 `OURS_DIRECT` /
+ *       近件 ≤32 / 远件 &gt;32（旧硬墙）</td><td>全真</td><td>✅ 真（前提，红了说明夹具坏）</td></tr>
  *   <tr><td>前提：近件真的进了背包（装置可用）</td><td>真</td><td>✅ 真</td></tr>
- *   <tr><td>⭐ 期望：**两件**都进背包（`collected == 2`）</td><td>真</td><td>❌ <b>红</b>（只有 1）</td></tr>
- *   <tr><td>⭐ 期望：收集结束后**地上不许剩我方产物**（世界事实）</td><td>真</td><td>❌ <b>红</b>（还剩 1）</td></tr>
+ *   <tr><td>⭐ **两件**都进背包（`collected == 2`）</td><td>真</td><td>❌ 红（只有 1）</td></tr>
+ *   <tr><td>⭐ 收集结束后**地上不许剩我方产物**（世界事实）</td><td>真</td><td>❌ 红（还剩 1）</td></tr>
+ *   <tr><td>收尾：造出来的落物全部收回</td><td>真</td><td>✅ 真</td></tr>
  * </table>
  *
- * <h2>修好之后（本夹具的翻面条件）</h2>
- * 修法有两族：① <b>抬高/可重扫</b>（32 格硬墙改成相对判据，或退休不是永久的）；
- * ② <b>不让缺口出现</b>（挖一段捡一段 ⇒ 上面的 `MineJob:309-311` 那条前提不再成立）。
- * 走 ② 时本夹具要**改成链路级**（真跑 `MineJob`，断言"地上不留产物"），而不是简单删掉它 ——
- * 它今天钉住的是"**静默丢弃**"这件事：无论哪一族修法，产物都不许无声无息地留在原地还报成功。
+ * <h2>为什么它不断言"必须一次搜到底"</h2>
+ * 判据只要求"**产物进包、地上不剩**" —— 收集器怎么排簇、走几段、要不要分次，**不在判据里**
+ * （那是实现自由）。所以将来若改成"挖一段捡一段"（另一族修法），本夹具**仍然有效**：
+ * 它钉住的是"**静默丢弃**"，不是"某一种收集顺序"。
  */
 public final class MineDropRangeCheckTask implements Task {
 
@@ -136,8 +141,11 @@ public final class MineDropRangeCheckTask implements Task {
     private static final int SCOPE_RADIUS = 24;
 
     /**
-     * 收集器的距离窗口：**必须与 {@code CollectDropsTask.MAX_CHASE_DISTANCE}（`:90` = 32.0）一致**。
-     * 夹具自己留一份常量（那个字段是私有的），并在前提里**实测**两件的距离 ⇒ 两边漂了就当场红。
+     * **旧硬墙**（`D-346` 修复前的追取上限 = `CollectDropsTask.MAX_CHASE_DISTANCE` 的 32.0）。
+     *
+     * <p>它现在**不是**收集器的实际上限（修复后 = `max(32, 2 × 作用域半径)` = 48），本夹具只拿它来
+     * 刻画**场景形状**：远件刻意放在"旧实现会丢、正确实现必须捡"的那一段区间里（32 &lt; 40 &lt; 48）。
+     * ⚠️ 若哪天把远件挪进 32 以内，本夹具就**测不到**旧缺陷了 ⇒ 前提判据会红（保护夹具自己）。
      */
     private static final double FAR_WINDOW = 32.0D;
 
@@ -436,14 +444,14 @@ public final class MineDropRangeCheckTask implements Task {
                 + "）—— 否则收集器的背包增量口径（`collected`）被污染", inventoryBefore == 0);
         check("前提：两件落物都被登记成我方（`registerAsOurs` 成功=" + adopted + "，归属可解析="
                 + bothRegistered + "）—— 否则可能是被策略拦住而不是被距离退休", adopted == 2 && bothRegistered);
-        check("前提：近件在窗口内（实测 " + fmt(nearDistance) + " ≤ " + FAR_WINDOW + "）",
+        check("前提：近件在**旧硬墙**之内（实测 " + fmt(nearDistance) + " ≤ " + FAR_WINDOW + "）—— 装置可用性的对照",
                 nearDistance > 0 && nearDistance <= FAR_WINDOW);
-        check("前提：远件在窗口外（实测 " + fmt(farDistance) + " > " + FAR_WINDOW + "）—— 这是本夹具的唯一自变量",
-                farDistance > FAR_WINDOW);
+        check("前提：远件在**旧硬墙**之外（实测 " + fmt(farDistance) + " > " + FAR_WINDOW + "）—— "
+                + "这是本夹具的场景形状（旧实现会丢、正确实现必须捡的那一段）", farDistance > FAR_WINDOW);
         check("前提：近件**真的被捡起来了**（`collected=" + collected + " ≥ 1`）—— 否则"
                 + "「远件没被捡」无法解读（可能压根是装置坏了）", collected >= 1);
 
-        // ---- ⭐ 缺陷判据（今天必然红）----
+        // ---- ⭐ 回归判据（`D-346` 修复前红、现在必须绿）----
         check("⭐ 期望：**两件产物都进背包**（`collected == 2`，实际 " + collected
                 + "；被丢在地上的 = " + groundLeft + "）", collected == 2);
         check("⭐ 期望：收集结束后**地上不许剩我方产物**（世界事实：地上 " + groundLeft

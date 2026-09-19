@@ -86,7 +86,11 @@ public final class CollectDropsTask implements Task {
     private static final int CLUSTER_LINK_DY = 1;
     /** 一个簇内最多换几次锚点扫尾（覆盖簇边缘够不到的物品）。 */
     private static final int MAX_REANCHORS = 2;
-    /** 超过该距离（格）放弃追踪（D-074 用户裁定）。 */
+    /**
+     * **追取上限的下限兜底**（格）：`D-074` 用户裁定 2「**超过 N 格放弃**追踪」—— ⚠️ 裁定里
+     * **N 从未被指定**，`32` 是实现当初选的。实际用的上限见 {@link #chaseLimit()}：它是
+     * `max(本常量, 2 × 当前作用域半径)`。
+     */
     private static final double MAX_CHASE_DISTANCE = 32.0D;
     /** 等待"仍在空中下落的掉落物"落地的最大 tick 数（2026-09-10 修正）。 */
     private static final int MAX_SETTLE_TICKS = 40;
@@ -485,6 +489,7 @@ public final class CollectDropsTask implements Task {
     private List<ItemEntity> refreshCandidates() {
         liveById.clear();
         List<ItemEntity> result = new ArrayList<>();
+        double limit = chaseLimit();
         // `D-344`：候选来源可换（默认仍是"我方登记在册"的 `scope.liveDrops()`）
         List<ItemEntity> source = liveDropsSource == null ? scope.liveDrops() : liveDropsSource.get();
         for (ItemEntity item : source == null ? List.<ItemEntity>of() : source) {
@@ -501,7 +506,7 @@ public final class CollectDropsTask implements Task {
             if (!expectedIds.isEmpty() && !expectedIds.contains(id)) {
                 continue;
             }
-            if (bot.distanceToSqr(item) > MAX_CHASE_DISTANCE * MAX_CHASE_DISTANCE) {
+            if (bot.distanceToSqr(item) > limit * limit) {
                 retire(id, "too_far");
                 liveById.remove(id);
                 continue;
@@ -509,6 +514,24 @@ public final class CollectDropsTask implements Task {
             result.add(item);
         }
         return result;
+    }
+
+    /**
+     * ⭐ **追取上限**（`D-346`，2026-09-20）：`max(MAX_CHASE_DISTANCE, 2 × 当前作用域半径)`。
+     *
+     * <p><b>为什么必须由作用域派生</b>：能进 `liveDrops()` 的落物**只可能是本作业作用域内登记的**
+     * （{@link com.dddgn.alice.perception.ScopeBuffer} 的 `inScope` 检查）⇒ 它到 bot 的距离本来就不会
+     * 超过 ~`2 × 半径`。而旧实现把 N 写死成 `32`，比 `MineJob` 自己的作用域直径（`2 × SCAN_RADIUS(24)`
+     * = **48**）还小 ⇒ **自己挖出来的产物被自己的上限退休**（取证夹具 `mine_far_drop` 实测
+     * `[CollectDrops] retire … reason=too_far itemPos=3240`，40 格外的那件产物在第一 tick 就被永久丢弃
+     * ⇒ `gained < minedCount` ⇒ `FAILED product_not_collected`）。
+     *
+     * <p><b>裁定口径不变</b>：`D-074` 裁定 2 是"超过 N 格放弃"，**N 由实现定**；本次把 N 从"拍一个 32"
+     * 改成"本作业作用域直径（下限 32 兜底）"—— "不追世界另一头"仍然成立：**登记在册 ⇒ 本来就在
+     * 本作业作用域里**。无活动作用域（`0`）⇒ 退回 32。
+     */
+    private double chaseLimit() {
+        return Math.max(MAX_CHASE_DISTANCE, 2.0D * (scope == null ? 0 : scope.currentRadius()));
     }
 
     /** 记录"从已知集合里消失"的实体（被拾取、被合并、或离开世界）。计数不在这里，在簇结束时按背包增量统计。 */

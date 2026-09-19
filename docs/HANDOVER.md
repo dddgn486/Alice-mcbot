@@ -53,6 +53,20 @@
 > ⇒ 只能走 `module:mine_drop_range`；这也是为什么本文不写它的「`single:` + 步名」形式 —— 写了会被
 > `step-names` 门禁判成「未知步」，而那条门禁是**对的**）。
 
+> ⭐ **四、同一轮已修复（`D-346`，用户选「只做 A」）**：追取上限从写死的 `32` 改成
+> `max(32, 2 × scope.currentRadius())` —— 理由 ⭐ **不是「该不该设上限」，而是「这个上限比它自己的作用域还小」**
+> （`MineJob` 作用域半径 = `SCAN_RADIUS` 24 ⇒ 直径 **48** > 32；能进 `liveDrops()` 的落物**只可能是
+> 本作用域内登记的** ⇒ 32 必然丢自己人）。`D-074` 裁定的 N 由实现定 ⇒ 口径不变（"不追世界另一头"仍成立）。
+> **A/B（同一夹具同一场景）**：修复前 `clusters=1 / collected=1 / 地上剩 1 / FAIL` → 修复后
+> **`clusters=2`（第二个簇锚点正是远件 `3240`）/ `collected=2` / 地上 0 / PASS**，收集器里**再无
+> `reason=too_far`**。**夹具已翻面**：`mine_far_drop` 搬进 `MiningModule`（EXTRA）+ CURATION，
+> 临时模块 `mine_drop_range` 与注册表项已删（`BATTERY_CURATION §3.1` 改成"翻面示例"）。
+> **验证**：`single:mine_far_drop` PASS · `module:mining` PASS（8 步，95 s）· ⭐ **CORE 51/51 PASS**（271 s，
+> 声明 71 项 = BASELINE 15 / MAIN 36 / EXTRA 20，`mine_far_drop` 正确落在 EXTRA ⇒ CORE 步序未变）·
+> `check-all` 16 PASS / 0 FAIL · 反向对照 = `D-345` 那轮红证据本身（同夹具去派生 ⇒ 红）。
+> ⚠️ **仍然不需要你复测**（无客户端可见行为）；改动面 = `CollectDropsTask`（收集追取上限，被挖矿/伐木/
+> 区域/恢复多处共用）+ `ScopeBuffer.currentRadius()`（只读）。
+
 > ⭐ **当前状态（2026-09-19 夜，最新）**：本弧（保护区反向测试 → 夹具血脉闸门 → 循环闸）**已收口**：
 > · `D-339` 夹具**终态**不交 LLM（`fixture_terminal_silent`）—— 客户端已验证"符合预期"
 > · `D-340` 夹具**事件**不交 LLM（`fixture_event_silent`）—— 客户端 ×23 留痕、全会话零多余 LLM 调用
@@ -67,7 +81,7 @@
 > `module:{llm,lumber,protection}` · **CORE 51/51（`ticks=4777`）** · 内核规则
 > （`rule_stop_event_ring` / `rule_no_permitted_candidate` / `rule_loop_admission` / `rule_bulk_write_zone_gate`）PASS ·
 > 反向对照**每条机制都做过**（明细见各 `D-3xx`，含"注入被弱规则放过 ⇒ 改结构断言"两次教训）。
-> **jar 已同步**：`alice-1.0.0-1.20.1.jar` **`JAR_CONTENT_SHA256=34dcc219…`**（换 jar ⇒ **重启客户端**）。
+> **jar 已同步**：`alice-1.0.0-1.20.1.jar` **`JAR_CONTENT_SHA256=7c41ae43…`**（`D-346` 后重新同步；⚠️ 这次**没有客户端可见行为改动** ⇒ 换不换 jar 都不影响你上次的观察，换 jar 仍旧要**重启客户端**）。
 > ⚠️ `642e388b → 80eab57f` 那一次**不是行为变化**（只加注释 ⇒ 只动了 `LineNumberTable`，已用 `javap -c`
 > 逐指令比对确认）；而 **`80eab57f → eea49c93` 是真实行为变化**（`D-344` 片 A：区域"扫地面"阶段）——
 > 但**没有需要你复测的客户端可见行为**（判定/配置层已由无头夹具 `region_sweep` 19 判据覆盖）。
