@@ -1,5 +1,6 @@
 package com.dddgn.alice.action;
 
+import com.dddgn.alice.bot.TaskMetrics;
 import com.dddgn.alice.log.BotLog;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -166,10 +167,13 @@ public final class WriteBudget {
         if (grant != null && grant.reason() == WriteReason.SCAFFOLD_RESTORE) {
             // 建拆同权：回收我方临时放置不受破坏上限约束（否则恢复会被自己的预算卡死）
             counters.exemptBreaks++;
+            // ⭐ `D-347`：运行账的世界改动数**在这里**（真的扣了一次预算的那一刻）—— 不是"打算改"。
+            TaskMetrics.noteBreak(true);
             return Verdict.ALLOW_EXEMPT;
         }
         if (counters.breaks >= caps.maxBreaks()) {
             counters.refusedBreaks++;
+            TaskMetrics.noteRefusedBreak();
             if (!counters.breakExhausted) {
                 counters.breakExhausted = true;
                 BotLog.warn("[WriteBudget] exhausted scope={} action=break pos={} by={} breaks={}/{}"
@@ -180,6 +184,7 @@ public final class WriteBudget {
             return Verdict.REFUSED;
         }
         counters.breaks++;
+        TaskMetrics.noteBreak(false);
         return Verdict.ALLOW;
     }
 
@@ -194,6 +199,7 @@ public final class WriteBudget {
         Caps caps = CAPS.getOrDefault(scope, Caps.DEFAULT);
         if (counters.places >= caps.maxPlaces()) {
             counters.refusedPlaces++;
+            TaskMetrics.noteRefusedPlace();
             if (!counters.placeExhausted) {
                 counters.placeExhausted = true;
                 BotLog.warn("[WriteBudget] exhausted scope={} action=place pos={} by={} places={}/{}"
@@ -204,6 +210,7 @@ public final class WriteBudget {
             return Verdict.REFUSED;
         }
         counters.places++;
+        TaskMetrics.notePlace();
         return Verdict.ALLOW;
     }
 
@@ -249,6 +256,7 @@ public final class WriteBudget {
         Caps caps = CAPS.getOrDefault(scope, Caps.DEFAULT);
         if (counters.containerWrites >= caps.maxContainerWrites()) {
             counters.refusedContainerWrites++;
+            TaskMetrics.noteRefusedContainerWrite();
             if (!counters.containerExhausted) {
                 counters.containerExhausted = true;
                 BotLog.warn("[WriteBudget] exhausted scope={} action=container pos={} by={} writes={}/{}"
@@ -259,6 +267,7 @@ public final class WriteBudget {
             return Verdict.REFUSED;
         }
         counters.containerWrites++;
+        TaskMetrics.noteContainerWrite();
         return Verdict.ALLOW;
     }
 
@@ -289,6 +298,7 @@ public final class WriteBudget {
         Counters counters = SCOPES.computeIfAbsent(scope, key -> new Counters());
         Caps caps = CAPS.getOrDefault(scope, Caps.DEFAULT);
         counters.refusedPlaces++;
+        TaskMetrics.noteRefusedPlace();
         if (!counters.placeExhausted) {
             counters.placeExhausted = true;
             BotLog.warn("[WriteBudget] exhausted scope={} action=place pos={} by={} places={}/{}"

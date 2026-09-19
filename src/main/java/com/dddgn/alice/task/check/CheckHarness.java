@@ -53,6 +53,16 @@ public final class CheckHarness {
     private int premiseStartTick;
     private int ticks;
     private String currentResultDetail = "";
+    /**
+     * ⭐ `D-347`（运行账）**基线 + 起过几步** —— 用来断言"会话侧的运行账真的在动"。
+     *
+     * <p>为什么必须由编排器来断言：本编排器**不在会话任务里**（见类注释），步任务是它**直接 tick** 的，
+     * 而运行账那几格只能由会话写（`beginTask` / `recordTerminal`）⇒ 如果接线断了，
+     * **每一步都会静默少记一条**，而所有步的判据仍然全绿（没人读那个账）。
+     * 这里把它变成结构判据：**每起过一步，就必须有一条对应的启动与终态记录**。
+     */
+    private final com.dddgn.alice.bot.TaskMetrics.Snapshot metricsBaseline;
+    private int sessionTasksStarted;
 
     private CheckHarness(MinecraftServer server, BotPlayer bot, ServerPlayer observer,
                          String moduleId, List<CheckStep> steps) {
@@ -61,6 +71,7 @@ public final class CheckHarness {
         this.observer = observer;
         this.moduleId = moduleId;
         this.steps = steps;
+        this.metricsBaseline = com.dddgn.alice.bot.TaskMetrics.snapshot();
     }
 
     /** 起一个模块单跑；返回 false 表示起不来（未知模块 / 已有别的编排器 / bot 忙 ✗ 均如实拒绝 ✓）。 */
@@ -177,6 +188,7 @@ public final class CheckHarness {
                     endStep();
                     return;
                 }
+                sessionTasksStarted++;   // `D-347`：这一步真的起了会话任务 ⇒ 运行账必须多一条
                 stepStartTick = ticks;
                 phase = 2;
             }
@@ -293,6 +305,21 @@ public final class CheckHarness {
     }
 
     private void verdict() {
+        // ⭐ `D-347`（运行账）：**"账活着"的结构判据** —— 起过几步，账上就必须有几条启动/终态记录。
+        // 反向可控：拆掉 `beginTask` 里的 `noteStart`（或 `recordTerminal` 里的 `noteTerminal`）
+        // ⇒ 本判据立刻红 ⇒ 整个 `module:` 轮次不再绿（否则那种断线**没有任何判据会发现**）。
+        com.dddgn.alice.bot.TaskMetrics.Snapshot delta =
+                com.dddgn.alice.bot.TaskMetrics.snapshot().delta(metricsBaseline);
+        int inFlight = BotManager.isBusy(bot) ? 1 : 0;
+        BotLog.info("[Harness] 运行账（D-347）：started=+{} finished=+{} ticks=+{} arrived=+{} 世界改动 breaks=+{}"
+                        + " places=+{} ｜起过 {} 步 inFlight={}",
+                delta.started(), delta.finished(), delta.ticks(), delta.arrived(), delta.breaks(),
+                delta.places(), sessionTasksStarted, inFlight);
+        if (delta.started() < sessionTasksStarted || delta.finished() + inFlight < delta.started()) {
+            failures.add("运行账（D-347）没跟上：本模块起过 " + sessionTasksStarted + " 步，账上却是 started="
+                    + delta.started() + " finished=" + delta.finished() + " ticks=" + delta.ticks()
+                    + " ⇒ 会话侧（`beginTask`/`recordTerminal`）的接线断了，本轮其它判据不能当证据");
+        }
         boolean pass = failures.isEmpty();
         // **三态判决与电池一致**（`PASS` / `DEGRADED` / `FAIL`）：
         // `DEGRADED` = 没有真失败，但有步因**环境不具备**被跳过 ⇒ **不是绿**，不可作为验收证据 ✓

@@ -1884,6 +1884,10 @@ public final class BotManager {
             }
             taskTargetDescription = assignedTarget.describe();
             taskStartTick = serverTick();
+            // ⭐ `D-347`（运行账）：**任务的唯一收发口就是本方法** ⇒ 启动数/状态桶/耗时/返程率都不许
+            // 另找地方记（散着记必然漏）。`arrived` 是**唯一**不由本类写的格子 —— 它必须由**任务自己**
+            // 在"真的到了目标"那一行声明（框架猜会把"路过"记成"到达"⇒ 那条判据就废了）。
+            TaskMetrics.noteStart(bot, taskKind);
             // 基-4：登记"当前任务"⇒ 重启后能如实报"重启前正在跑 X（未续做）"，而不是装作无事发生
             com.dddgn.alice.decision.DecisionState.get(bot.getServer())
                     .recordTask(bot.getUUID(), taskKind + " target=" + taskTargetDescription);
@@ -2397,6 +2401,17 @@ public final class BotManager {
             BotLog.info("task_terminal_reason kind={} botId={} driver={} terminalReason={}",
                     lastExecutionRecord.taskKind(), lastExecutionRecord.botId(),
                     lastExecutionRecord.driver(), lastExecutionRecord.terminalReason());
+            // ⭐ `D-347`（运行账）：**终态记账就钉在这里**（`TaskExecutionRecord` 的唯一构造点），
+            // 因为"终态"有**两条**路径而它们**不共用** `complete()`：`immediateStop`（玩家 `/alice stop-task`、
+            // `stop_current`、`doneWhen` 步、延后到安全点）自己 `recordTerminal + clearTask` 就返回了
+            // （见 `D-338` 附注十五的注释）⇒ 挂在 `complete()` 上的账会**整类漏掉"被显式停止"的运行**。
+            // 排除 `REJECTED_BEFORE_START`：那不是"跑过又结束"，它**从来没有开始**（`beginTask` 未调用，
+            // 没有对应的 `noteStart`）⇒ 计进完成桶会凭空多出运行。
+            if (terminalStatus != TaskExecutionRecord.TerminalStatus.REJECTED_BEFORE_START) {
+                TaskMetrics.noteTerminal(bot, kind, terminalStatus,
+                        Math.max(0L, serverTick() - startTick),
+                        task instanceof com.dddgn.alice.task.SafeReturnTask);
+            }
         }
 
         /** 任务收尾:清任务、清作用域、广播清除高亮、**输入归零**。 */

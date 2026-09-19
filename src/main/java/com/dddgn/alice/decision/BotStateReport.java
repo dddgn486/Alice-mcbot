@@ -180,6 +180,10 @@ public final class BotStateReport {
         if (!refusal.isBlank()) {
             lines.add("⚠ 上次决策被拒（LLM 下一轮 prompt 也会看到）：" + refusal);
         }
+        // ⭐ `D-347`（`survey/22 §5.2③`）：**可测量判据**的只读出口 —— 到达率 / 返回率 / 平均 tick /
+        // 世界改动数。为什么放在这条只读报告里：它是零参、玩家不装 mod 也能看的既有面，
+        // 而且"这四个数是估的还是量的"必须**随时可核对**（否则又变成推断）。
+        lines.add(com.dddgn.alice.bot.TaskMetrics.describe());
         // 基-4：决策 trace 的**内存尾**（完整历史在 <config>/alice-decisions.jsonl）
         List<String> trace = DecisionTrace.recent(8);
         if (trace.isEmpty()) {

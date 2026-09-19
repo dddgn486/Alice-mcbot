@@ -14493,3 +14493,116 @@ BASELINE 15 / MAIN 36 / EXTRA 20）** ⇒ `mine_far_drop` 正确落在 EXTRA（C
 而世界事实是"两件都进了背包、地上 0 件"（`inRange=true`）⇒ 那是**守恒交叉校验的取样口径**
 （`remaining` 用的是本 tick 刷新时的快照）与"物品被拾取"之间的时间差造成的**报告噪声**，
 不影响 `collected`（背包增量口径）与 `MineJob` 的 `gained`。**记在这里，不追**（不属于本缺陷弧）。
+
+### D-347：⭐ **运行账**（`survey/22 §5.2③` 的"可测量判据"）—— 到达率/返回率/平均 tick/世界改动数变成**盘上可读的事实** 2026-09-20
+
+**用户裁定（本轮开工前）**：复读 `survey/22`+`21` 后从剩余可做项里选 **④ 可测量判据**，
+范围选 **A**＝`累计出口 + 任务自报「到达」+ 先红后绿夹具`。
+
+**背景（勘测原话）**：§5.2③「**缺可测量判据** —— 到达率 / 返回率 / 平均 tick / 世界改动数
+**没人测过** ⇒ "几乎能保证到达并返回"目前是**推断**，不是**事实**」，验收口径 =「连续 N 次任务：
+到达率 = ? 返回率 = ? 平均 tick = ? 世界改动数 = ?」。
+
+**复读时的代码事实（决定了这不是"从零建仪表盘"）**：
+
+| 勘测要的数 | 代码里的现状 |
+|---|---|
+| 世界改动数 | ✅ `WriteBudget.closeScope` **每任务末已经打** `[WriteBudget] SUMMARY … breaks/places/refused`（生产路径 `BotManager:2410-2413`）—— 只散在日志里 |
+| 平均 tick | 🟡 `TaskExecutionRecord.durationTicks()` 算好了，但 `lastExecutionRecord` **每次覆盖**（只留最后一条） |
+| 返回率 | 🟡 `SafeReturnTask` 终态已进 `BotManager.complete()`（`wasReturnTask`），只是没人计数 |
+| 到达率 | ❌ **唯一真空白**：全仓没有任何"到达目标"事件 |
+
+**落地（`bot/TaskMetrics`，逐格只有一个写入点）**：
+
+| 格 | 写入点 | 为什么在那里 |
+|---|---|---|
+| `started` | `BotSession.beginTask` | 任务的**唯一启动口**（生产与自检步都走它）⇒ 分母不漏 |
+| `finished/状态桶/ticks` | `BotSession.recordTerminal` | 终态记录的**唯一构造点**。⚠️ **不能挂在 `complete()`**：`immediateStop`（玩家 `/alice stop-task`、`doneWhen` 步、延后到安全点）**不走它**（`D-338` 附注十五）⇒ 挂错会**整类漏记"被显式停止"的运行** |
+| `arrived` | **任务自己**（`MineJob` 第一格目标被真的挖掉 / `LumberJob` 第一根原木 / `WalkToTask` 路径执行器报 DONE） | 只有任务知道"到了"；框架层猜会把"路过"记成"到达"（那就是假判据） |
+| `breaks/places/containerWrites/refused*` | `WriteBudget.consumeBreak/consumePlace/consumeContainerWrite/notePlaceRefusal` | 那里才是"真的扣了预算 / 真的被拒"的一刻（搜索谓词不算，与既有口径一致） |
+| `returns/returnFails` | 同上（终态时 `wasReturnTask`） | 返程兜底（`D-327` 机制 B）自己也是会话任务 ⇒ 复用同一收口 |
+
+**只读出口**：`alice:bot_report` 加一行（零参、只读、玩家可见面）。
+
+**两道"账活着"的门禁（否则接线断了没有任何判据会发现）**：
+① `CheckHarness.verdict()`：**起过 N 步 ⇒ 账上必须有 N 条启动、且终态数跟得上**（`module:` 档）；
+② `HeadlessBattery` 判决前：电池**自身**就是一次真实会话任务 ⇒ `started/finished/ticks` 三格都必须动
+（`core`/`full`/`single:` 档）。
+
+**现场取证夹具**：`task/MineRunMetricsCheckTask`（步 `mine_run_metrics`，`MiningModule` **10 步**之一，EXTRA）。
+孤立空中走廊（原点 3400,100,2000；**双层地板** = 垫层 + 行走层；8 块铁矿嵌在行走层里、顶面已暴露、
+与地面齐平 ⇒ 不需要搭方块）＋ 连跑 **3 次真 `MineJob`**（每次配额 2）＋ **1 次反向对照**
+（目标类型 `diamond_ore` 场景里不存在）。
+
+**实测（`single:mine_run_metrics`，PASS，`checks=27 failures=0`）**：
+
+| | run#1 | run#2 | run#3 | 反向对照 |
+|---|---|---|---|---|
+| 终态 | `DONE quota_met` | `DONE quota_met` | `DONE quota_met` | `FAILED no_reachable_candidate` |
+| ticks | 101 | 142 | 154 | 1 |
+| **到达增量** | 1 | 1 | 1 | **0** |
+| **世界改动（账 / `WriteBudget` 独立读数）** | 3 / 3 | 4 / 4 | 4 / 4 | 0 / 0 |
+
+⇒ **到达率 3/4**（**真的小于 1**）、**平均 tick 99**、**世界改动 11**（两个独立读数逐位一致）。
+
+**⭐ 首跑推翻了我自己的一条夹具假设（写下来，别再假设一次）**：我按"挖 2 格配额 ⇒ 世界改动 2 格"写了判据，
+**实测不成立**：真实改动 3~4 格 —— 矿嵌在行走层里，挖掉就留一个 1 格深的坑，bot 下一步**站进坑里**，
+出来时清掉坑壁 1 格（日志 `block_break_done` 多打在两矿之间的行走层）。⇒ 判据改成
+**账与 `WriteBudget` 独立读数逐位一致**（计数器诚实）+ **配额 ≤ 改动数 ≤ 配额 + 走位清障上界**（场景形状声明）。
+
+**反向对照（4 次注入，每次都**真的**红了）**：
+
+| 注入 | 结果 |
+|---|---|
+| 删掉 `MineJob` 的 `arrived(...)` 调用 | FAIL，4 条失败：三次"到达增量=0" + 汇总"到达合计 0 ≠ 3" |
+| 把 `arrived(...)` 挪到 `tick()` 开头（"没到也算到"） | FAIL，5 条失败：三次"到达增量=102/138/158" + 汇总 + ⭐**反向对照那次的到达增量变成 1** |
+| 删掉 `WriteBudget` 的 `noteBreak` | FAIL，4 条失败：`账=0` 而 `WriteBudget=3/4` ⇒ **交叉校验咬住** |
+| 删掉 `beginTask` 的 `noteStart`（会话侧接线断） | `HeadlessBattery` 门禁红：`verdict=FAIL` + `⛔ 运行账门禁未通过 started=+0 …`（夹具本身仍绿 ⇒ 证明**两套断言互不冒充**） |
+
+**验证等级**：`IMPLEMENTED` + `COMPILES` + `SERVER_TESTED`（无头）。
+`single:mine_run_metrics` **PASS**（27 判据 0 失败）· `module:mining` **PASS**（10 步；编排器门禁行
+`started=+10 finished=+10 ticks=+1575 arrived=+4` —— 其中 `mine_no_tool/stale/budget` 三次**如实 0 到达**）。
+⚠️ **无客户端可见行为变化 ⇒ 不需要你复测**（唯一可见面 = `bot_report` 多一行只读文本）。
+
+**已知边界（不假装完整）**：
+① 只统计"**走写入预算闸门**"的世界改动（无作用域时 `WriteBudget` 直接放行且不计数，日志 `no_scope`）——
+任务运行一律有作用域，所以"任务运行的世界改动数"是准的，玩家手驱的无作用域写入不在内；
+② **进程内累计、不落盘**（要回答的是"这一段跑得怎么样"，夹具/电池用**增量**读）；
+③ **到达率的分母只算"自报过到达的 kind"**（夹具/自检任务没有"目标"语义），且**到达数 > 启动数**
+时报告**明确标"比率不可算"**而不是输出一个 400% 的假数（实测 `module:mining` 一轮 到达 4 / 启动 1：
+夹具**直接 tick** 子任务 ⇒ 子任务不经过会话 ⇒ 只有任务内部的 `arrived` 会写）。
+④ 本项交付的是「**仪器 + 仪器自己的可证伪性**」——**真实存档里连跑 N 次挖矿的数字**是另一轮场景的事。
+⑤ ⚠️ **`arrived` 不去重是刻意的**（首跑实测的修正）：原先按 bot 去重（"一次运行只算第一次"），
+而**运行边界只对会话可见** ⇒ 夹具直驱的子任务边界对账本不可见 ⇒ 连跑 3 次只记到 1 次。
+现在改为"**照数**"：调用点用"第一格"这种**结构性唯一**的位置保证一次一报，而"每次运行恰好一次"
+由夹具 `mine_run_metrics` **逐次断言** ⇒ 违规当场红，不会被静默吸收。
+
+#### D-347 附注一（同日夜间，收尾时实测到的两件事）2026-09-20
+
+**一、夹具判据边界收紧：只判运行账，不判收集闭环（把"假红"挡掉）**。首版夹具要求每次运行
+`DONE + quota_met`，但随即在**同一条命令**上出现间歇：`single:mine_run_metrics` 一次红
+（`run#1 FAILED product_not_collected`）、紧接着 `module:mining` 绿 —— 而收集闭环**另有判据**
+（`mine_job`(BASELINE) · `mine_far_drop` · `mine_inventory`）。**判据改成**：每次运行
+**到达增量恰好 1** + **世界改动数与 `WriteBudget` 独立读数逐位一致**（≥ 配额）+ 耗时 > 0
++ 反向对照两次增量都为 0；每次运行的 `quota_met` 结果改成一个 **SUMMARY 事实字段
+`quota_met次数=N/3`**（实测 single **2/3**、module **3/3** ⇒ 间歇性），并配一条 WARN 行说明
+"这不是本夹具的判据"。判据数 27 → **24**。⭐ **理由**：一次与判据无关的路径抖动让整条电池随机变红
+= **假红**，与假绿一样有害（这条与本项目"失败必须诚实"并不矛盾：失败**照样被完整打印**，只是不由
+本夹具定罪）。
+
+**二、⭐ 抓到一条**新的**现场事实（未定性，明天第一件事）**：那次红的第一手证据是
+`作用域忽略未进入世界的掉落物(生成被取消/缓冲): raw_iron x3405 y101 z2000` —— 第一格矿的**真实挖掘
+掉落物**被 `ScopeBuffer.flushPending` 的 `inWorld()`（`level.getEntity(id) != null`）判否并丢弃
+⇒ 收集器**从未看见**它（那一轮没有 3405 的 `cluster_start`）⇒ `gained=1 < minedCount=2`
+⇒ `product_not_collected`。**这与 `D-345` 记过的是同一现象**，但当时我把它归因为"夹具把落物 summon
+到刚 forceload 的远处区块"（人为触发）；**今天它出现在 bot 脚边 5 格、区块显然在 tick 的真实掉落物上**
+⇒ **触发条件未定性**（可能是生成事件与 flush 的时序竞态，也可能是"实体表在那一 tick 还没收录"的别的原因）。
+**不推测、不立项，先查**：判据 = 能否用探针把"生成事件已发但 `getEntity` 为 null"的窗口稳定复现
+（`debugging-root-cause-analysis`：先做工作版/失败版对照，别先加 epsilon 或重试）。
+
+**三、今晚的验证范围（临时收尾，用户裁定「只跑模块」）**：`single:mine_run_metrics` PASS（24 判据 0 失败）
+· `module:mining` PASS（10 步 / 106 s；编排器门禁 `started=+10 finished=+10 ticks=+1552 arrived=+4`）
+· 四条**静态**门禁 PASS（`step-names` 172 引用/72 步 · `ref-integrity` 634 引用/0 越界 ·
+`fixture-hygiene` 62 夹具/R1R2R4=0 · `kernel-predicates` 九类规则全 0）。
+⏳ **未跑（明天补）**：⭐ **CORE**（本轮改了 `BotManager`/`WriteBudget` = 生产共用路径 ⇒ **必须跑**）、
+`check-all` 全量档、`list-modules` 的模块/步清单核对。⚠️ 因此今晚**不宣告收口**，只宣告"定向 + 模块级已验证"。

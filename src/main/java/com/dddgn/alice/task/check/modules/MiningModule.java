@@ -10,6 +10,7 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.task.MineCourseDiagnosticTask;
 import com.dddgn.alice.task.MineMenuCheckTask;
 import com.dddgn.alice.task.MineRegressionTask;
+import com.dddgn.alice.task.MineRunMetricsCheckTask;
 import com.dddgn.alice.task.NoProgressCheckTask;
 import com.dddgn.alice.task.OreCourseAnchor;
 import com.dddgn.alice.task.check.CheckContext;
@@ -25,9 +26,10 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * **挖掘模块（R-2 第五片，8 步）**：`mine_regression` · `no_progress` · `mine_menu` · `mine_job`
+ * **挖掘模块（R-2 第五片，10 步）**：`mine_regression` · `no_progress` · `mine_menu` · `mine_job`
  * · `mine_inventory` · `mine_no_tool` · `mine_stale` · `mine_budget` · ⭐ `mine_far_drop`（`D-346`：
- * 收集的追取上限必须覆盖本作业自己的作用域 —— 旧上限 32 < `MineJob` 作用域直径 48）。
+ * 收集的追取上限必须覆盖本作业自己的作用域 —— 旧上限 32 < `MineJob` 作用域直径 48）· ⭐ `mine_run_metrics`
+ * （`D-347`：运行账的现场取证 —— 连续 3 次真作业 + 1 次反向对照 ⇒ 到达率/世界改动数是量出来的）。
  *
  * <p>为什么这七步归一类：它们是**同一条挖掘链路的不同环节**，而且**共享同一个场景**（`ore_course_terrain`）
  * 与同一批"必须不猜"的红线：
@@ -182,7 +184,13 @@ public final class MiningModule implements CheckModule {
                 // 夹具自带孤立空中走廊（原点 3200,100,2000）+ 近件 8 格 / 远件 40 格 + 两件登记成
                 // `OURS_DIRECT` ⇒ 判据 = "两件都进背包 + 地上不许剩"（**修复前是红的**，取证过程见 `D-345`）。
                 CheckStep.of("mine_far_drop", CheckProfile.EXTRA, List.of(), null,
-                        () -> new MineDropRangeCheckTask(bot, observer, scope), 900));
+                        () -> new MineDropRangeCheckTask(bot, observer, scope), 900),
+                // ⭐ `D-347`（2026-09-20）：**运行账取证**（`survey/22 §5.2③` 的"可测量判据"）——
+                // 孤立空中矿道里连跑 3 次真 `MineJob`（配额 2）＋ 1 次**反向对照**（目标类型不存在），
+                // 断言：每次到达都自报 1 次、每次世界改动恰好 2、反向对照那两次增量都是 0
+                // ⇒ **到达率 3/4 是"量出来的"而不是恒等式**。EXTRA（自建地形 + 4 次运行）⇒ 不进 CORE。
+                CheckStep.of("mine_run_metrics", CheckProfile.EXTRA, List.of(), null,
+                        () -> new MineRunMetricsCheckTask(bot, observer, scope), 4800));
     }
 
     /** 传送到统一起点（与电池 `teleportBot` 逐字段一致 ✓；顺带起"先热区块再 fill"的作用 ✓）。 */

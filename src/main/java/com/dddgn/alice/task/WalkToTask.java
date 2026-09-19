@@ -87,6 +87,9 @@ public class WalkToTask implements Task {   // 非 final：S-1 的逃生任务 S
             BotLog.info("[WalkToTask] completed bot={} goalFoot={} actualFoot={} replans={}",
                     bot.getName().getString(), goalFoot.toShortString(),
                     bot.blockPosition().toShortString(), runner.replans());
+            // ⭐ `D-347`（运行账）：走路任务的"到达"就是它**自己的到达**（路径执行器报 DONE）
+            // —— 这是唯一能证明"到位"的那一刻（不是"发出了请求"）。
+            com.dddgn.alice.bot.TaskMetrics.arrived(taskName());
             return Status.DONE;
         }
         PathExecutionResult result = runner.result();

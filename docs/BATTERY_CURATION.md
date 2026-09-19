@@ -19,8 +19,14 @@
 SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 **跳过多少、跑多少、各档几项**一眼可见；归属表与实跑项对不上（漏登记 / 文档说测了其实没测）**直接判红**。
 
-## 2. 当前归属表（71 项 → CORE 51 项）
+## 2. 当前归属表（72 项 → CORE 51 项）
 
+> **2026-09-20 校正**：`mine_run_metrics` 进 EXTRA（`D-347`：**运行账的现场取证** —— 孤立矿道里连跑 3 次
+> 真 `MineJob`（每次配额 2）＋ 1 次**反向对照**（目标类型不在场景里）⇒ 断言"到达率 / 世界改动数"是
+> **量出来的**、且**到达率真的会小于 1**（3/4）。它自建地形（垫层 + 行走层 + 8 块矿）⇒ 只适合
+> `single:mine_run_metrics` / `module:mining`，CORE 跳过）
+> ⇒ BASELINE 15 + MAIN 36 + EXTRA 18 = **69**，CORE 仍 **51**。
+>
 > **2026-09-19 校正（5）**：`task_zone` 进 EXTRA（`§5.12` 第 4 件的**几何 + 锁定**层，`D-338` 附注六：
 > 工作区域（方块级）⇒ 任务区（区块级**最小覆盖**）+ 可覆盖保护区父类 / **不得**覆盖安全区（报错，不裁剪）
 > + 随 `scopeId` 生灭 + **真跑一次 `RegionLumberJob`** 的两条路径；收尾按增量还原临时认领）
@@ -146,6 +152,7 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 
 | 日期 | CORE | FULL | 说明 |
 |---|---|---|---|
+| 2026-09-20 | **51** | **72** | ⭐ **`D-347` 运行账（`survey/22 §5.2③` 的可测量判据）**：新增 `bot/TaskMetrics`（累计：启动/完成/状态桶/耗时/到达/返程/世界改动/被拒）+ 接线四处（`BotSession.beginTask`、`BotSession.recordTerminal`、`WriteBudget.consumeBreak/Place/ContainerWrite`、任务自报到达）+ 只读出口（`alice:bot_report` 一行）+ 两道**会话侧门禁**（`CheckHarness.verdict` / `HeadlessBattery` 判决前：账必须真的动过）。新步 `mine_run_metrics`（**EXTRA**，由 `MiningModule` 提供：9 步）⇒ **24 条判据** 全绿：每次**到达增量恰好 1**、账与 `WriteBudget` 独立读数逐位一致（3/4/4，含走位清障）、耗时 > 0、反向对照 `no_reachable_candidate` 且到达/改动增量都是 0 ⇒ 到达率 **3/4**、平均 tick **98**、世界改动 **11**。⚠️ 本夹具**只判运行账、不判收集闭环**（收集另有 `mine_job`/`mine_far_drop`/`mine_inventory` 判）⇒ 每次运行的 `quota_met` 结果进 SUMMARY 的 `quota_met次数` **事实字段**（实测 single=2/3、module=3/3 ⇒ 间歇性，附注一见 `D-347`）。⭐ 首跑实测推翻了我自己的假设"世界改动数 = 配额"（详见 `D-347`）。 |
 | 2026-09-20 | **51** | **71** | ⭐ **`D-346` 收集追取上限改为由作用域派生**（`survey/22 §1.5①` 的修复）：`CollectDropsTask.MAX_CHASE_DISTANCE=32` 写死 ⇒ 小于 `MineJob` 自己的作用域直径（`2×SCAN_RADIUS(24)=48`）⇒ 自己挖的产物被自己**永久**退休 ⇒ `product_not_collected`（`D-345` 取证：`retire reason=too_far` + `collected=1/2`）。修 = `ScopeBuffer.currentRadius()`（只读）+ `chaseLimit()=max(32, 2×半径)`。新步 `mine_far_drop`（**EXTRA**，由 `MiningModule` 提供：8 步）—— **A/B 同一夹具**：修复前 `clusters=1/collected=1/地上剩 1/FAIL` → 修复后 `clusters=2（远件 3240 也被捡）/collected=2/地上 0/PASS`。`single:mine_far_drop` PASS · `module:mining` PASS(8 步) · **CORE 51/51**（271 s，`extra_skipped=20`，步序未变）· `check-all` 16 PASS/0 FAIL（`D-074` 裁定 2 的 N 由实现定 ⇒ 本次把 N 从 32 改成作用域直径，口径不变） |
 | 2026-09-13 | 23 | 33 | 建立分档：BASELINE 13 / MAIN 10（3-A 工作站+熔炉）/ EXTRA 10 |
 | 2026-09-13 | 24 | 34 | 新增 A4b 菜单型炉子（`craft_cooking`）⇒ MAIN 11 |

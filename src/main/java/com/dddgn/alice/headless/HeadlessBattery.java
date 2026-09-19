@@ -57,6 +57,16 @@ public final class HeadlessBattery {
     private static boolean assigned;
     private static boolean sawRunningTask;
     private static int ticks;
+    /**
+     * ⭐ `D-347`（运行账）**基线**：本类在"电池起来之前"取一份，判决时比对。
+     *
+     * <p>为什么这条门禁必须由**无头驱动**来断（而不是电池自己）：`core`/`full`/`single:` 的步任务是
+     * 电池**直接 tick** 的（不走会话），能证明"会话侧运行账还活着"的唯一东西是**电池任务自身**
+     * （它由 `assignRegressionBattery` ⇒ `beginTask` 起、跑完 ⇒ `recordTerminal`）。
+     * 于是三格必须都动：`started`（起过）、`finished`（终态记过）、`ticks`（耗时真算过）。
+     * 接线一断，三种模式**全都会红**（`module:` 那侧由 `CheckHarness` 断同样的事）。
+     */
+    private static com.dddgn.alice.bot.TaskMetrics.Snapshot metricsBaseline;
     private static BotPlayer bot;
 
     private HeadlessBattery() {
@@ -118,6 +128,7 @@ public final class HeadlessBattery {
             return;
         }
         enabled = true;
+        metricsBaseline = com.dddgn.alice.bot.TaskMetrics.snapshot();   // `D-347`：判决时比对的基线
         BotLog.info("[Headless] 无头电池已启用 mode={} dim={}", mode,
                 event.getServer().overworld().dimension().location());
     }
@@ -201,6 +212,24 @@ public final class HeadlessBattery {
             String verdict = com.dddgn.alice.task.RegressionBatteryTask.lastVerdict();
             if (verdict == null) {
                 exit(server, 3, "no_verdict");
+                return;
+            }
+            // ⭐ `D-347`（运行账）门禁：**电池自身**就是一次真实会话任务 ⇒ 起过 / 记过终态 / 算过耗时
+            // 三格都必须动。反向可控：拆掉 `beginTask` 的 `noteStart`（或 `recordTerminal` 的
+            // `noteTerminal`）⇒ 这里立刻红 ⇒ **三种模式（core/full/single）全红**，而不再是"没人读那个账"。
+            com.dddgn.alice.bot.TaskMetrics.Snapshot delta =
+                    com.dddgn.alice.bot.TaskMetrics.snapshot().delta(metricsBaseline);
+            BotLog.info("[Headless] 运行账（D-347）：started=+{} finished=+{} ticks=+{} arrived=+{} 世界改动"
+                            + " breaks=+{} places=+{}", delta.started(), delta.finished(), delta.ticks(),
+                    delta.arrived(), delta.breaks(), delta.places());
+            if (delta.started() < 1 || delta.finished() < 1 || delta.ticks() < 1) {
+                // 判决词表只有 PASS/FAIL/DEGRADED（脚本按词表映射退出码）⇒ 原因单独打一行，
+                // 判决本身仍用 `FAIL`（否则会被脚本归到"环境/脚本"那一档，读起来像脚本坏了）。
+                BotLog.warn("[Headless] ⛔ 运行账（D-347）门禁未通过：started=+{} finished=+{} ticks=+{}"
+                                + " ⇒ 电池自身（一次真实会话任务）都没被记上 ⇒ `beginTask`/`recordTerminal`"
+                                + " 的运行账接线断了；本轮的 verdict **不可作为证据**",
+                        delta.started(), delta.finished(), delta.ticks());
+                exit(server, 1, "FAIL");
                 return;
             }
             exit(server, switch (verdict) {

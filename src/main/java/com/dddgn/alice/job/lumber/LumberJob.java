@@ -371,6 +371,11 @@ public final class LumberJob implements Job {
         }
         if (status == Task.Status.DONE) {
             choppedLogs++;
+            // ⭐ `D-347`（运行账）：**"到达"由任务自己声明** —— 判据 = "第一根原木**真的被砍下来**"
+            // （与 `MineJob` 同口径：到达与"作业已开始"同时被证明）。幂等，放"第一根"最准。
+            if (choppedLogs == 1) {
+                com.dddgn.alice.bot.TaskMetrics.arrived(taskName());
+            }
             recordClear(miner);
             recordGain(miner);
             finishedChildNode = com.dddgn.alice.task.TaskNode.finished("MineTask",

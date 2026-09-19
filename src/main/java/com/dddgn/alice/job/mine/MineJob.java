@@ -301,6 +301,10 @@ public final class MineJob implements Job {
             minedCount++;
             if (firstMined == null) {
                 firstMined = mined;
+                // ⭐ `D-347`（运行账）：**"到达"由任务自己声明** —— 判据是"第一格目标方块**真的被挖掉**"
+                // （不是"选出了候选"、更不是"开始跑了"）：到达与作业已开始**同时被证明**。
+                // 幂等（一次运行只算一次），所以放在"第一个"这里最准确。
+                com.dddgn.alice.bot.TaskMetrics.arrived(taskName());
             }
         } else {
             attemptFailures.add(new AttemptFailure(mined,

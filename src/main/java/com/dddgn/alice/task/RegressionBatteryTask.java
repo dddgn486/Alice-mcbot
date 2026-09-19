@@ -170,6 +170,10 @@ public final class RegressionBatteryTask implements Task {
             // ⇒ 自己挖的产物被自己永久退休）。夹具自建空中走廊、两件产物（近 8 / 远 40）都必须进包；
             // EXTRA（自建地形 + 约 190 tick）⇒ 不进 CORE，`single:mine_far_drop`/`module:mining` 可跑。
             Map.entry("mine_far_drop", Profile.EXTRA),
+            // `D-347`（2026-09-20）：**运行账取证**（`survey/22 §5.2③` 的可测量判据）—— 孤立矿道里
+            // 连跑 3 次真 `MineJob`（每次配额 2）＋ 1 次反向对照（目标不存在）⇒ 断言"到达率/世界改动数"
+            // 是量出来的、且**到达率真的会小于 1**。EXTRA（自建地形 + 4 次运行）⇒ 不进 CORE。
+            Map.entry("mine_run_metrics", Profile.EXTRA),
             // D-335：挖矿容量守卫（前置满包不许动世界 / 作业中满包恰好只少 1 格）—— 对際 lumber_failure
             Map.entry("mine_inventory", Profile.EXTRA),
             // D-336：斜向上升那一格（规划级：能力 + 信封）
