@@ -132,6 +132,16 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 5. 每次改动都要在 `docs/AI_DECISIONS.md` 留一条记录（为什么进/出哪一档），并给出**当轮的 CORE 项数**。
 6. 归属表与代码不一致时电池会判红 —— 那是**设计如此**（防止"文档说测了、其实没测"）。
 
+### 3.1 两类**不组进电池**的模块（不是漏登记，是设计）
+
+| 模块 | 为什么不在电池里 | 怎么跑 |
+|---|---|---|
+| `harness_self` | 编排器自检（**故意**被外部命令打断两次）⇒ 期望判决 = **FAIL** | `module:harness_self` |
+| ⭐ `mine_drop_range` | **缺陷取证**（`survey/22 §1.5①`，`D-345`）：判据断言的是"缺陷的反面" ⇒ 修好之前**必然红**；进电池/CORE 会把收口闸门永久染红，后续真回归就被淹没了。期望判决 = **FAIL**（`expectedVerdict()`）；**修好那天**判据变绿 ⇒ 与声明不符 ⇒ `module-selftest` **当场判红** ⇒ 强迫翻面（去掉声明 + 升级成链路级判据或搬进 `mining`）—— 双向绊线，见 `MineDropRangeModule` 类头 | `module:mine_drop_range`（⚠️ **定向模式不可用**：`single:` 只认 CURATION 里的步名，而该步刻意**不在** CURATION 里） |
+
+⚠️ 纪律：**"故意红"的模块必须显式声明 `expectedVerdict()`，并在本文 + `AI_DECISIONS.md` 写明翻面条件** ——
+否则下一个人会把它当成"电池漏登记"或"已知坏掉但没人管的测试"。
+
 ## 4. 历史
 
 | 日期 | CORE | FULL | 说明 |

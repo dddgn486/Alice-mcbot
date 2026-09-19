@@ -14375,3 +14375,70 @@ cross_spelling_accounting=false`，其余五条仍 true = 归因精确）+ 内�
    ⭐ **CORE PASS（51 步，270 s）**。
 5. **未做（明确）**：退避豁免**没有专门的端到端夹具**（现有覆盖 = 内核结构断言 + 三条反向对照 +
    CORE 无回归）；要更强的证据需造"退避到顶后出现新活"的场景，属可选加固。
+
+---
+
+### D-345：⭐ `survey/22 §1.5①` 的**真机制找到了**：产物 >32 格被**永久退休** ⇒ `product_not_collected`（取证夹具已落地，**故意红**）2026-09-20
+
+**背景**：`survey/22` 复读（第二次）时，勘测侧的原话是"① 挖 8 捡 5 ⇒ 整个 Job 判 `FAILED(product_not_collected)`"
+（`MineJob.java:333-337`）。它当时只描述了**现象**，没给机制；本轮**逐行核代码**补上了机制，并做成了可复跑的取证夹具。
+
+**⚠️ 同时更正勘测侧§1.3 的一处判断（勘测报告当假设，代码为准）**：`survey/22 §1.3` 说
+"真正该拆的是**归属耦合**（`startCollect()` 的 `origin = firstMined` ⇒ 收集要横穿整条通道走回去）"。
+**核实不成立**：`origin` 在 `CollectDropsTask` 里的**唯一用途是 `target()` 上报**（`:199`
+`TaskTarget.block(origin)`）；真正的簇锚点来自**种子落物的当前位置**（`:554` `anchor = seed.blockPosition()`），
+追取以 **bot 为心 ≤ `MAX_CHASE_DISTANCE`**（`:504`）。⇒ 那条待办**作废**，换成下面这条真机制。
+
+**真机制（三条一起才成立）**：
+1. `CollectDropsTask.refreshCandidates()`（`:485-512`）**每 tick** 刷新候选，凡"离 bot 距离 >
+   `MAX_CHASE_DISTANCE = 32.0`（`:90`）"的落物**立刻** `retire(id, "too_far")`；而 `retired` 集合
+   **从不清空**（`:492`/`:521`/`:649`）⇒ 本次收集内**永久**不再考虑（"够不着/超时"那条路还能靠
+   加高（D-116）挽回，这条连走都不走）；
+2. `MineJob` **挖满 quota 才起收集**（`:309-311`）⇒ 收集的**第一 tick**，bot 站在**最后挖的那一格**
+   ⇒ 更早挖出的产物已经落在 32 格外 ⇒ 第一 tick 就被退休；
+3. `MineJob.collectPhase()`（`:331-337`）算 `gained = countTargetItems() - itemsBefore`，要求
+   `gained >= minedCount` ⇒ 被退休的产物让整个 Job 如实报 `FAILED product_not_collected`。
+
+**⭐ 今天就能咬到（不必等通道能力）**：`MAX_CHASE_DISTANCE(32) < 2 × MineCandidateSource.SCAN_RADIUS(24) = 48`
+—— 单次 `MineJob` 的扫描球（半径 24）里就能放下两颗相隔 >32 格的产物。**这条不等关系就是缺陷的不变量**：
+"配额后集中收集"要成立，收集半径必须 ≥ 扫描直径。
+
+**取证夹具（本轮落地）**：`task/MineDropRangeCheckTask`（步 `mine_far_drop`）+ 模块 `MineDropRangeModule`。
+- 自带**孤立空中走廊**（原点 `(3200,100,2000)`，48×3，forceload 建、收尾清回空气 + 撤 forceload）；
+- bot 在起点，**近件 8 格**（必须真的走过去 ⇒ 证明装置可用）、**远件 40 格**（> 32 窗口），
+  两件都用 `ScopeBuilder.registerAsOurs(…, OURS_DIRECT, …)` 登记（与生产"破坏事件配对"同一状态）
+  ⇒ **不可能**以"策略拒绝"为由不捡（自断言 `adopted == 2`）；
+- 直接 tick 一个真的 `CollectDropsTask`（**不调 `assign*`/`beginTask`**，技能 §6.9.2）；
+- 判据：近件必须进包（前提，绿）· ⭐ **两件都进包**（`collected == 2`，**今天红**）· ⭐ **地上不许剩产物**
+  （世界事实，**今天红**）；收尾断言"造出来的落物全收回"。
+
+**实测证据（`run/headless-logs/20260920-002625-module_mine_drop_range.log`）**：
+`落物就位 可见=2 adopted=2 登记=true 近件距离=8.00 远件距离=40.00` →
+⭐ `[CollectDrops] retire item=1e936d53… reason=too_far itemPos=3240, 101, 2000 … inRange=false`
+（**第一 tick 就退休**）→ `cluster_start anchor=3208`（近件）→ `SUMMARY collected=1/2 unreachable=1
+pickup_timeout=1 policy_blocked=0` → 夹具 `checks=10 failures=2`（**恰好只有那两条 ⭐ 判据红**，
+8 条前提/边界全绿）· `地上剩余=1 远件留在地上=true 近件还在=false` ·
+链路算术 `minedCount(2) gained(1) ⇒ product_not_collected`。`verdict=FAIL`（**预期**，见下）。
+
+**为什么它必须"故意红"**：`MineDropRangeModule.expectedVerdict() = "FAIL"`（与 `harness_self` 同一机制），
+且**不被电池组合**（只走 `module:mine_drop_range`）⇒ CORE/FULL/收口闸门**不受影响**；
+`module-selftest` 按声明断言 ⇒ 不把故意失败当回归。**双向绊线**：修好那天判据变绿 ⇒ 与声明不符 ⇒
+`module-selftest` 当场红 ⇒ 强迫翻面（去掉声明 + 升级成链路级判据或搬进 `mining` 的 CORE 档）。
+（判据与理由同时写进 `docs/BATTERY_CURATION.md §3.1`，免得后来人当成"漏登记"。）
+
+**验证**：`module:mine_drop_range` = **FAIL（预期）**，红的就是那两条；反向对照 = 前提判据（近件必须先被捡到、
+两件必须先被登记）在**首跑就把夹具自己的两个 bug 抓红**（forceload 同 tick summon ⇒ 落物没进世界；
+`adoptExistingDrops` 对"已捕捉未配对"的落物计 0）⇒ 前提自证有效 ✓；
+`check-all` = **16 PASS / 1 WARN（headless 未跑）/ 0 FAIL**（含 `check-fixture-hygiene` 61 夹具 R1/R2/R4 全 0）。
+
+**修法两族（未裁定，**不动生产代码**）**：① **抬高/可重扫**（32 格硬墙改成相对判据，或退休不是永久的）；
+② **不让缺口出现**（挖一段捡一段 ⇒ 上面第 2 条前提不再成立）。走 ② 时本夹具要**改成链路级**
+（真跑 `MineJob`，断言"地上不留产物"），**不许简单删掉** —— 它钉住的是"**静默丢弃**"：
+无论哪一族，产物都不许无声无息留在原地还报成功。
+
+**顺带观察（⚠️ 未定性，触发条件人为，不当作缺陷）**：在**远处 forceload 区块**里生成的落物，
+生成当 tick 会被 `ScopeBuffer.flushPending` 当成"幻影"丢弃（`作用域忽略未进入世界的掉落物 … x3208`，
+判据是 `inWorld()` → `level.getEntity(id) != null`），而 19 tick 后同样的实体 `getEntity(id)=true`、
+`getEntitiesOfClass` 也查得到。生产里落物都生成在 bot 身边（区块本来就在 tick）⇒ **夹具人为场景**，
+故只记录、不立项。⇒ 夹具因此走 `D-344` 的 `liveDropsSource` 钩子递候选（**换来源不放松授权**，
+归属仍是 `OURS_DIRECT`）。
