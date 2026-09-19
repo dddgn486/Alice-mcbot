@@ -373,11 +373,12 @@ public final class FarPathBenchCheckTask implements Task {
         curve.add("coarse goal=" + goal.describe() + " regionLoadedBefore=" + loadedBefore
                 + " status=" + coarse.status() + " nodes=" + coarse.nodesExpanded()
                 + " prefixLen=" + coarse.projectedFootPath().size() + " progress=" + bestProgress
-                + " ms=" + coarse.elapsedMillis() + " regionLoadedAfter=" + level.hasChunkAt(center));
+                + " ms=" + coarse.elapsedMillis() + " regionLoadedAfter=" + level.hasChunkAt(center)
+                + " diag=" + coarse.diagnostics());
         BotLog.info("[FarBench] coarse status={} nodes={} prefixLen={} progress={} ms={} "
-                        + "regionLoadedBefore={} regionLoadedAfter={}",
+                        + "regionLoadedBefore={} regionLoadedAfter={} diag={}",
                 coarse.status(), coarse.nodesExpanded(), coarse.projectedFootPath().size(), bestProgress,
-                coarse.elapsedMillis(), loadedBefore, level.hasChunkAt(center));
+                coarse.elapsedMillis(), loadedBefore, level.hasChunkAt(center), coarse.diagnostics());
         check("粗目标：目标区在加载半径外时**不许**被 `GOAL_NOT_LOADED` 拒（实际 status=" + coarse.status() + "）",
                 coarse.status() != com.dddgn.alice.pathing.core.search.PlanningStatus.GOAL_NOT_LOADED);
         check("粗目标：必须给出朝目标推进的前缀（progress=" + bestProgress + " > 0，prefixLen="
@@ -395,14 +396,17 @@ public final class FarPathBenchCheckTask implements Task {
         BotLog.info("[FarBench] coarse 采样前：{}｜采样后：{}｜新被加载的采样点={}", beforeStr, afterStr, newlyLoaded);
         curve.add("coarse_loadProbe before=[" + beforeStr.toString().trim() + "] after=["
                 + afterStr.toString().trim() + "] newlyLoaded=" + newlyLoaded);
-        // ⚠️ **2026-09-19 实测：这一条现在是红的**（`newlyLoaded=6`）—— 搜索在扩展时读了未加载方块，
-        // 把 224→384 的区块**同步加载**了进来（`D-331` 同类，但在**内核搜索**里）。
-        // 按"先红后绿"，它**修好之前不留在电池里当常红**（常红会变成噪声、并掩盖新红）
-        // ⇒ 暂时降为**响亮 WARN**，缺陷登记在 `D-337`；修好后把这里改回 `check(...)`。
-        if (newlyLoaded != 0) {
-            BotLog.warn("[FarBench] ⚠️ D-337 未修：搜索把 {} 个未加载区块读了进来（采样 {}）⇒ 红线 D-132 被违反",
-                    newlyLoaded, afterStr);
-        }
+        // ⭐ **红线判据（`D-337` 收口，2026-09-19）**：内核**从不加载区块**（`D-132`）。
+        // 修好之前这里暂时是响亮 WARN（红证据见 `D-337`：`newlyLoaded=6`，224→384 被同步加载）；
+        // 修好之后**必须恒为 0** —— 判据回到 `check(...)` 才是"能失败的规则"。
+        check("红线 D-132：粗目标搜索**不许**把任何未加载区块读进来（实际 newlyLoaded="
+                        + newlyLoaded + "，采样 " + afterStr.toString().trim() + "）",
+                newlyLoaded == 0);
+        // ⭐ 语义判据（`D-337` 附注）：搜索因"前面没加载"而停手时**不许报 `UNREACHABLE`**
+        // —— 那是"搜索空间穷尽、证明确实到不了"，而这里是"未知"（`D-076`：`SEARCH_LIMIT ≠ UNREACHABLE`）。
+        check("粗目标：被加载边界挡住时不许报 UNREACHABLE（实际 status=" + coarse.status()
+                        + "，期望 PARTIAL 前缀或 SEARCH_LIMIT）",
+                coarse.status() != com.dddgn.alice.pathing.core.search.PlanningStatus.UNREACHABLE);
 
         // 对照组：**同一位置用精确脚位目标** ⇒ 必须仍是硬拒（0 节点）
         PathPlan exact = new CorePathPlanner().planTo(bot, level, bot.getUUID().toString(), start, center, "pathing");

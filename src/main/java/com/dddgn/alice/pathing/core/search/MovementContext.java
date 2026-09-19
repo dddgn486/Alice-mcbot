@@ -51,6 +51,55 @@ public record MovementContext(
         return level.hasChunkAt(pos);
     }
 
+    /**
+     * **读脚印半径**（`D-337` 附注一）：一次节点扩展可能读到的方块，最远偏离节点脚位**几格**（水平）。
+     *
+     * <p>为什么要这个数：候选生成/成本计算会读节点周围几格，而这些读**跨过区块边界**时会触发
+     * `getChunkAt` 同步加载（红线 `D-132` 禁止）。既然"读的半径"是有限且可枚举的，就把它写下来，
+     * 让搜索在**扩展之前**就能判断"这一扩展会不会读到未加载区块"。
+     *
+     * <p>代码级枚举（当前最大值 = **2**，2026-09-19 查证）：
+     * <ul>
+     *   <li>`SurfaceMovementProvider`：`from.offset(dx,dy,dz)`（`dx,dz∈{-1,0,1}`）、`to.below()/above()`
+     *       以及 `canSweepPlayer` 的 AABB（±0.3 半宽，`floor` 后仍在 `to` 列内）⇒ **≤1**；</li>
+     *   <li>`appendDescend` 的过冲列 `beyond = to.offset(dx,0,dz)` + `beyond.below(2)` ⇒ **≤2**；</li>
+     *   <li>{@link #hazardAdjacencyPenalty} 的 `to.relative(dir)` / `to.above().relative(dir)` ⇒ **≤2**；</li>
+     *   <li>`level.getFluidState(to/to.above())`（`SurfaceMovementProvider:132,234`）⇒ **≤1**。</li>
+     * </ul>
+     * 取 **3** = 实测最大 + **1 格余量**：保守（宁可少走一格，也不许读到未加载区块）。
+     * ⚠️ 谁往扩展路径里加了"读得更远"的判定，**必须同步改这个常量** —— 否则红线会以静默方式回归。
+     */
+    public static final int READ_FOOTPRINT_RADIUS = 3;
+
+    /**
+     * **扩展该节点所需的"读脚印"是否完整落在已加载区块内**（`D-337`：让"读"本身成为屏障）。
+     *
+     * <p>只问 {@link #chunkLoaded}（= `hasChunkAt`，**绝不加载**）⇒ 本方法自身零副作用。
+     * 语义：`false` ⇒ 该节点**不扩展**（保守地当"到边界为止"），而不是"读读看会怎样"。
+     *
+     * <p>为什么不用"逐格读前都问一次"：读点分散在 provider / `MovementHelper` / 成本模型里，
+     * 逐个补检查既漏得掉（今天就是这么漏的）又慢；按**区块粒度**在扩展前一次性判定，
+     * 一个节点最多 4 次 `hasChunkAt`（同区块时提前返回 ⇒ 常数极小）。
+     */
+    public boolean readFootprintLoaded(BlockPos foot) {
+        int minCX = (foot.getX() - READ_FOOTPRINT_RADIUS) >> 4;
+        int maxCX = (foot.getX() + READ_FOOTPRINT_RADIUS) >> 4;
+        int minCZ = (foot.getZ() - READ_FOOTPRINT_RADIUS) >> 4;
+        int maxCZ = (foot.getZ() + READ_FOOTPRINT_RADIUS) >> 4;
+        if (minCX == maxCX && minCZ == maxCZ) {
+            // 脚印全在**本节点自己那一列区块**里；节点能进 openSet 就说明它已加载（不变式，见搜索里的边闸门）
+            return true;
+        }
+        for (int cx = minCX; cx <= maxCX; cx++) {
+            for (int cz = minCZ; cz <= maxCZ; cz++) {
+                if (!chunkLoaded(new BlockPos(cx << 4, foot.getY(), cz << 4))) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     /** 是否在**世界边界**内（对照 Baritone `AStarPathFinder` 的 `worldBorder.entirelyContains`）。 */
     public boolean withinWorldBorder(BlockPos pos) {
         return level.getWorldBorder().isWithinBounds(pos);

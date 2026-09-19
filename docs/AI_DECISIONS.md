@@ -13207,3 +13207,50 @@ CORE/全量独有、别的档给不了的东西只有一件 = **跨模块回归*
 **下一步（本决策的执行项）**：修 **搜索侧的加载守卫** —— 候选位置的 `canWalk*` 判定在读方块**之前**先问 `chunkLoaded`；
 未加载 ⇒ 视为**不可通行**（保守、且正是"到边界就交前缀"的期望语义）⇒ 粗目标拿到**干净的尽力而为前缀**，
 红线恢复。修完必须：① 把 `far_path_bench` 那条断言改回红绿判据；② 复跑 `single:pathing` + 收口 CORE（内核改动）。
+
+### D-337 附注一：为什么"把 `AStarMovementSearch:175` 那条门提前"修不好（⚠️ 门装错了层，2026-09-19 查证）
+
+`AStarMovementSearch:175-181` 的跨区块门是**后置**的：它只在节点**跨区块**时问 `chunkLoaded(toFoot)`，
+但真正的方块读发生在它**之前**、且读的范围比 `toFoot` **更远**。读 → 加载 → 门随后看到"已加载" ⇒ 放行 ⇒
+下一格继续读 = **自增强泄漏**（正好对上实测的 224→384 **连续**翻真）。三个泄漏点（代码级枚举）：
+
+| 泄漏点 | 位置 | 机制 |
+|---|---|---|
+| ① 候选生成（主因） | `SurfaceMovementProvider.appendCandidates`（`AStarMovementSearch:150`，在门之前） | 对 `from.offset(dx,dy,dz)`（`dx,dz∈{-1,0,1}`）做 `canWalk*`；`appendDescend` 的过冲列 `beyond`（`to.offset(dx,0,dz)`）达 **2 格** ⇒ 节点离区块边界 ≤2 格时读邻区块 = 立刻加载 |
+| ② 成本/危险厌恶 | `MovementContext.hazardAdjacencyPenalty:73-89`（在门之后） | 读 `to.relative(dir)` / `to.above().relative(dir)`；`toFoot` 站在区块边缘（如 x=255）时邻居格 x=256 在**另一个区块** ⇒ 门已通过而读仍加载 |
+| ③ 目标侧 | `canStandCentered(currentFoot)`（`:131` 目标准入） | 粗目标 `isInGoal` 是**纯算术**，可达格可以在未加载区 ⇒ 读它 |
+
+⇒ **正确修法 = 让"读"本身成为屏障**，不是再加一道门：① 在 `MovementContext` 里定义**读脚印半径**
+（实测当前最大水平偏移 = 2，取 **3** = +1 余量）并给出 `readFootprintLoaded(BlockPos)`（只用
+`hasChunkAt` ⇒ 绝不加载）；② `AStarMovementSearch` 在**每次扩展前**（即 `appendCandidates` 之前）检查
+脚印覆盖的区块是否全加载，未全加载 ⇒ **该节点不扩展**（计入 `boundaryBlocked`），搜索在边界自然收口；
+③ **语义**：`boundaryBlocked > 0` 而搜索空间穷尽时**不许报 `UNREACHABLE`**（那是"证明到不了"，此处是
+"未知"）—— 有 best-so-far 前缀 ⇒ `PARTIAL`（消费者 `PathRetryRunner` 执行前缀再重规划 = hop，
+正是远距离粗目标要的），空前缀 ⇒ `SEARCH_LIMIT`；④ 边闸门 `:175-181` 保留作**见证**（修好后其
+`skippedUnloaded` 恒为 0；若哪天又 >0，说明读脚印半径不够）。
+
+**代价（要记账，不是零成本）**：靠近已加载区边缘 ≤3 格的格子不再能作为**扩展起点**（仍可被**进入**为节点，
+故"终点落在边缘 3 格内"的精确目标可能从 `REACHED` 变成 `PARTIAL`/`SEARCH_LIMIT`）—— ③ 的状态语义
+正是为此而设：**不谎报不可达**，交给调用方随加载推进重试。
+
+**性能影响量级（证据分级，别混用）**：`getChunkAt` 在主线程同步 `ChunkStatus.FULL` 加载 ⇒
+① 语义/契约影响**确定**（本次已证）；② **卡顿时长未测**（超平坦世界里的同步加载很便宜，所以电池一直没红）
+⇒ 真实世界的代价要**在用户世界里测**；③ 替代技术（`getChunkNow` 只读快照 / 观测记忆缓存 / `.mca` 离线采样 /
+`getBaseHeight` 粗筛 / 异步预取 / 显式 forceload）**没有一条能让"未知"免费变已知**：要么当未知（=不可通行，
+只能分段推进），要么付加载/读盘代价；`.mca` 路线还有**内存与落盘不一致**（路线穿过玩家刚放的墙）的致命语义
+⇒ **维持"加载边界保守 + 分段 hop"**（Baritone 同路线），不为"一次搜完 1000 格"引入预加载（要做也是**显式预算化**）。
+
+**收口结果（2026-09-19，先红后绿）**：`MovementContext.READ_FOOTPRINT_RADIUS=3` + `readFootprintLoaded(...)`
+（只看 `hasChunkAt` ⇒ 自身零副作用）+ 搜索在 `appendCandidates` **之前**的读脚印闸门 + 边界状态语义
+（`boundaryBlocked>0` ⇒ 有前缀给 `PARTIAL`、无前缀给 `SEARCH_LIMIT`，**绝不 `UNREACHABLE`**）。红 =
+断言改回 `check` 后同一步 `checks=12 failures=1`（`newlyLoaded=6`，采样 192→384 **连续**翻真）；
+绿 = `checks=12 failures=0`、`newlyLoaded=0`、`regionLoadedAfter=false`、
+`status=PARTIAL prefixLen=198 progress=197`（前缀正好停在加载边界内侧 3 格），
+`diag=budget exhausted (…) boundary_blocked=117 skipped_unloaded=0 skipped_border=0` ⇒
+① 读脚印闸门**真的开火了**（117 次）；② 边闸门已退化为**恒 0 的见证**（与上文预期一致）。
+
+⚠️ **收口时暴露的下一个事实（未修，已登记台账）**：粗目标在**边界外不可达** ⇒ A\* 必须把**已加载区整片**
+展开完才收手 ⇒ 实测**预算耗尽**（`nodes=20000` = 上限、147~163 ms）而非"撞边界即停"；
+对照**可达**的 640 格 = `641 节点 / 8~14 ms`。⇒ 远距离 hop 的**每跳代价 = 一次整片洪泛**
+（可选优化：把粗目标**先夹到已加载区域边界**，搜索重归线性）。**卡顿时长仍未测**（超平坦下同步加载很便宜，
+真实世界的数字要用户世界里测）。

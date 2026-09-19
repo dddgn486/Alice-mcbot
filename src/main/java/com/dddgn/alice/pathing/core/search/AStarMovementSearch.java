@@ -93,6 +93,8 @@ public final class AStarMovementSearch {
         // 门控计数（诚实报告用）：跳过多少条"会跨到未加载区块"或"越出世界边界"的边
         int skippedUnloaded = 0;
         int skippedBorder = 0;
+        // `D-337`：有多少个节点因为**读脚印伸进未加载区块**而拒绝扩展（= 搜索在加载边界收口）
+        int boundaryBlocked = 0;
         int startEscape = 0;
         // D-250/②′：被"禁用具体边"挡掉的候选数（只在校验冲突后的重搜里非 0）
         int skippedForbidden = 0;
@@ -146,6 +148,18 @@ public final class AStarMovementSearch {
                         elapsed(startMillis));
             }
 
+            // ⭐⭐ `D-337`：**读脚印闸门** —— 必须在 `appendCandidates` **之前**问。
+            // 为什么（2026-09-19 实测机制）：候选生成/成本计算会 `getBlockState`/`getFluidState`
+            // 读节点周围最多 `READ_FOOTPRINT_RADIUS` 格；这些读一旦落在**未加载**区块上，
+            // 服务端就 `getChunkAt` **同步加载/生成**（主线程阻塞 + 世界副作用）= 违反红线 `D-132`。
+            // 而下面的"跨区块才查"边闸门是**后置**的：加载已经发生 ⇒ 它随后看到"已加载"并放行
+            // ⇒ 旧写法会**自增强地**一路蚕食加载出去（实测粗目标把 224→384 的 6 个采样列、14 个区块读了进来）。
+            // 语义：`false` = 该节点**不扩展**（保守地"到此为止"），搜索在加载边界自然收口。
+            if (!context.readFootprintLoaded(currentFoot)) {
+                boundaryBlocked++;
+                continue;
+            }
+
             candidates.clear();
             provider.appendCandidates(context, currentFoot, candidates);
             if (candidates.isEmpty() && current == startNode) {
@@ -170,8 +184,10 @@ public final class AStarMovementSearch {
                 }
                 // S-2 节点级门控（对照 Baritone `AStarPathFinder:105-112`）：
                 // **只在跨越区块边界时**才查一次"目的地区块是否已加载"，未加载 ⇒ 跳过这条边
-                // （`continue`，不是把整条路径判死）。这样搜索**永远不会去读未加载区块的方块**，
-                // 也就不会触发服务端的同步加载/生成（主线程阻塞 + 世界副作用）。
+                // （`continue`，不是把整条路径判死）。
+                // ⚠️ `D-337`：**这条门是后置的、拦不住"读"**（读在 `appendCandidates` 里已经发生，
+                // 见上面的**读脚印闸门**）—— 它现在的作用降级为**见证/断言**：修好后 `skippedUnloaded`
+                // 应恒为 0；若哪天又 > 0，说明 `MovementContext.READ_FOOTPRINT_RADIUS` 不够用了。
                 if ((toFoot.getX() >> 4) != (current.x >> 4)
                         || (toFoot.getZ() >> 4) != (current.z >> 4)) {
                     if (!context.chunkLoaded(toFoot)) {
@@ -217,7 +233,8 @@ public final class AStarMovementSearch {
             String budgetNote = "budget exhausted (maxNodes=" + budget.maxNodes() + ", maxMillis="
                     + budget.maxMillis() + ", openSet=" + openSet.size() + ", best=" + bestSoFar[0].cost
                     + ", skipped_unloaded=" + skippedUnloaded + " skipped_border=" + skippedBorder
-                    + " skipped_forbidden=" + skippedForbidden + ")";
+                    + " skipped_forbidden=" + skippedForbidden
+                    + " boundary_blocked=" + boundaryBlocked + ")";
             // K-1：**预算耗尽可能只是"没算完"** —— 若 best-so-far 已经走出过一段（有前驱），
             // 就把那段前缀交出来（PARTIAL），而不是报"一无所获"。注意：
             //  · 只有**预算类**耗尽才给前缀；搜索空间真穷尽（下面的 UNREACHABLE）**不给**（那是证明到不了）；
@@ -231,6 +248,25 @@ public final class AStarMovementSearch {
             }
             return PathPlan.failure(PlanningStatus.SEARCH_LIMIT, startFoot, goal.goalFoot(),
                     expandedNodes, movementsConsidered, elapsed, PLANNER_NAME, budgetNote);
+        }
+        // ⭐ `D-337`：搜索空间穷尽**但原因不是"证明到不了"，而是"前面没加载"**。
+        // 语义（`D-076` 同宗：`SEARCH_LIMIT ≠ UNREACHABLE`）：**绝不许报 `UNREACHABLE`** ——
+        // 未加载 ≠ 到不了。有 best-so-far 前缀 ⇒ `PARTIAL`（消费者 `PathRetryRunner` 执行前缀再重规划
+        // = Baritone 式 hop，正是远距离**粗目标**要的行为）；空前缀 ⇒ `SEARCH_LIMIT`（可达性未知，
+        // 交给调用方随加载推进稍后重试）。
+        if (boundaryBlocked > 0) {
+            String boundaryNote = "boundary_unloaded blocked_nodes=" + boundaryBlocked
+                    + " skipped_unloaded=" + skippedUnloaded + " skipped_border=" + skippedBorder
+                    + " skipped_forbidden=" + skippedForbidden;
+            List<PlannedMovement> boundaryPrefix = prefixTo(bestSoFar[0]);
+            if (!boundaryPrefix.isEmpty()) {
+                List<BlockPos> projected = projectedFootPath(startFoot, boundaryPrefix);
+                return PathPlan.partial(startFoot, goal.goalFoot(), boundaryPrefix, projected,
+                        bestSoFar[0].cost, expandedNodes, movementsConsidered, elapsed, PLANNER_NAME,
+                        boundaryNote + " partialPrefix=" + boundaryPrefix.size());
+            }
+            return PathPlan.failure(PlanningStatus.SEARCH_LIMIT, startFoot, goal.goalFoot(),
+                    expandedNodes, movementsConsidered, elapsed, PLANNER_NAME, boundaryNote);
         }
         return PathPlan.failure(PlanningStatus.UNREACHABLE, startFoot, goal.goalFoot(),
                 expandedNodes, movementsConsidered, elapsed, PLANNER_NAME,
