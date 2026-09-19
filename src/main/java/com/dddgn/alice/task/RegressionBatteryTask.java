@@ -170,6 +170,9 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("mine_inventory", Profile.EXTRA),
             // D-336：斜向上升那一格（规划级：能力 + 信封）
             Map.entry("place_step_diagonal", Profile.EXTRA),
+            // D-327 机制 B（2026-09-19）：任务失败后回安全区的兜底（无区 ⇒ 诚实码 / 200 格 ⇒ 分段走回 /
+            // 封死格 ⇒ 如实失败且站定不动）。EXTRA：会临时认领一个区块 + 建/还原一个封盒 ⇒ 只单跑。
+            Map.entry("safe_return", Profile.EXTRA),
             // 队列第③项（2026-09-17）：`MineJob` 新尝试上场时必须保留上一轮失败事实。
             // ⚠️ 判据必须在**运行中**采样（结束态走 finishedMinerNode 分支，天然有 failure ⇒ 判别不了）。
             Map.entry("mine_failure_visible", Profile.MAIN),

@@ -2,6 +2,7 @@ package com.dddgn.alice.task.check.modules;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.task.ProtectionZoneCheckTask;
+import com.dddgn.alice.task.SafeReturnCheckTask;
 import com.dddgn.alice.task.check.CheckContext;
 import com.dddgn.alice.task.check.CheckModule;
 import com.dddgn.alice.task.check.CheckProfile;
@@ -42,6 +43,10 @@ public final class ProtectionModule implements CheckModule {
         var observer = ctx.observer();
         return List.of(
                 CheckStep.of("protection_zones", CheckProfile.MAIN, List.of(), null,
-                        () -> new ProtectionZoneCheckTask(bot, observer), 200));
+                        () -> new ProtectionZoneCheckTask(bot, observer), 200),
+                // D-327 机制 B（2026-09-19）：**任务失败后回安全区的兜底** —— EXTRA（走 200 格 + 封盒两用例，
+                // 耗时较长且会临时认领/还原一个区块 ⇒ 不进 CORE；改世界的部分夹具自己还原 ✓）
+                CheckStep.of("safe_return", CheckProfile.EXTRA, List.of(), null,
+                        () -> new SafeReturnCheckTask(bot, observer), 2200));
     }
 }

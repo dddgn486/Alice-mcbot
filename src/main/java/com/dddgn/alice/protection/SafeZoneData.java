@@ -220,6 +220,52 @@ public final class SafeZoneData extends SavedData {
                 .add(ChunkPos.asLong(chunkX, chunkZ));
     }
 
+    /**
+     * **该位置是否落在已认领区块里**（`D-327` 机制 B 的到达判据）——**纯认领集查询，不读方块**。
+     *
+     * <p>为什么不复用 {@link #protectionReason}：那个方法为了"保护方块/标签"还会**读方块状态**
+     * （`level.getBlockState`）⇒ 对未加载区块会触发同步加载（红线 `D-132` 同类）。
+     * 到达判据每 tick 都要问，必须是零副作用的。
+     */
+    public boolean isClaimed(ServerLevel level, BlockPos pos) {
+        return claims(level.dimension().location())
+                .contains(ChunkPos.asLong(pos.getX() >> 4, pos.getZ() >> 4));
+    }
+
+    /**
+     * ⭐ **回程终点**（`D-327` 机制 B / `§5.2` 那个"回哪一格"的定案）：**离 {@code from} 最近的认领区块里、
+     * 离它最近的那一格**（XZ；Y 取 {@code from} 的 Y 作占位——实际落脚点由返程任务在到达后解析）。
+     *
+     * <p>为什么是这条规则：① 目的是"回到保护区**里面**"，所以终点取**区内**的格（不是边界外）；
+     * ② 多个认领区时取**最近**的（少走路 = 更快脱离野外）；③ 完全不读方块 ⇒ 远处未加载也照样能算方向。
+     * ⚠️ 这是**主线的选择**（用户把该问题挂账，`D-327` 执行时定案）；要改成"某个固定集合点"只需换本方法。
+     *
+     * @return 最近的区内格；**该维度没有任何认领 ⇒ `null`**（调用方按"没有安全区"处理）
+     */
+    public BlockPos nearestClaimedCell(ServerLevel level, BlockPos from) {
+        Set<Long> chunks = claims(level.dimension().location());
+        if (chunks.isEmpty()) {
+            return null;
+        }
+        long best = Long.MAX_VALUE;
+        BlockPos bestCell = null;
+        for (long key : chunks) {
+            int chunkX = ChunkPos.getX(key);
+            int chunkZ = ChunkPos.getZ(key);
+            // 区块内离 from 最近的格（就是圆/矩形相交判据用的那套夹取）
+            int cellX = (int) Math.max((long) chunkX << 4, Math.min(from.getX(), ((long) chunkX << 4) + 15));
+            int cellZ = (int) Math.max((long) chunkZ << 4, Math.min(from.getZ(), ((long) chunkZ << 4) + 15));
+            long dx = cellX - from.getX();
+            long dz = cellZ - from.getZ();
+            long distSq = dx * dx + dz * dz;
+            if (distSq < best) {
+                best = distSq;
+                bestCell = new BlockPos(cellX, from.getY(), cellZ);
+            }
+        }
+        return bestCell == null ? null : bestCell.immutable();
+    }
+
     /** 某维度已认领的区块键（**只读**；网络层下发认领元数据时用）。 */
     public Set<Long> claims(ResourceLocation dimension) {
         Set<Long> chunks = claimedChunks.get(dimension);

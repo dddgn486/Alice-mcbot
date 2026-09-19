@@ -2250,6 +2250,8 @@ public final class BotManager {
 
         private void complete(String resultCode, TaskExecutionRecord.TerminalStatus terminalStatus) {
             MineTask mineTask = task instanceof MineTask value ? value : null;
+            // D-327 机制 B：返程兜底自己失败时**不许再触发一次返程**（否则是递归）
+            boolean wasReturnTask = task instanceof com.dddgn.alice.task.SafeReturnTask;
             if (mineTask != null) {
                 lastMineStartPos = mineTask.mineStartPos();
             }
@@ -2273,9 +2275,46 @@ public final class BotManager {
                     terminalStatus == TaskExecutionRecord.TerminalStatus.COMPLETED ? "info" : "warn",
                     taskKind + " " + terminalStatus + " " + resultCode,
                     lastExecutionRecord == null ? "" : "reason=" + lastExecutionRecord.terminalReason());
+            // ⭐ `D-327` 机制 B（2026-09-19）：**任务失败后"回安全区"的兜底**。
+            // 只在"确实存在安全区（`SafeZoneData` 认领区块）**且** bot 在区外"时生效 ——
+            // 没有认领区 ⇒ 与今天**一字不变**（回归零影响：CORE 没有任何步会认领区块，且电池是
+            // **直驱夹具**、不走本方法）。返程本身失败 ⇒ 返程任务**如实报码**，bot 就**站定不动**
+            // （= 今天已有的行为，作为**临时**兜底）。
+            // ⚠️ 刻意**不**为"就地固守"造新行为：用户 2026-09-19 澄清它是"**避免死亡的最保守行为**"，
+            // 勘测侧意见是现在不做（那等于把责任转接给玩家）—— 所以这里只做**回安全区**这一条。
+            if (terminalStatus == TaskExecutionRecord.TerminalStatus.FAILED && !wasReturnTask
+                    && startSafeReturnIfNeeded()) {
+                return;   // 返程兜底接管；决策层会在**返程自身终态**时被叫到（通知不丢，只是延后）
+            }
             // D-135：任务终态是最自然的"下一步做什么"时机 —— 交给决策层（有节流）
             com.dddgn.alice.decision.GoalDirector.onTaskTerminal(bot, taskKind,
                     lastExecutionRecord == null ? "" : lastExecutionRecord.terminalReason());
+        }
+
+        /**
+         * **任务失败 ⇒ 回安全区的兜底判决**（`D-327` 机制 B，2026-09-19）。
+         *
+         * <p>三条门槛（缺一不动手，全部只读、零副作用）：① 本维度**有认领区块**；
+         * ② bot **不在**认领区块里（在区里 = 已经安全，不需要兜底）；③ 上一个任务不是返程任务本身（由调用方判）。
+         *
+         * @return 是否已启动返程任务
+         */
+        private boolean startSafeReturnIfNeeded() {
+            ServerLevel level = bot.serverLevel();
+            BlockPos foot = com.dddgn.alice.pathing.MovementHelper.footCell(level, bot);
+            if (!com.dddgn.alice.task.SafeReturnTask.shouldStart(level, foot)) {
+                return false;   // 已经在安全区里 / 世界没声明过安全区 ⇒ 不改变今天的行为
+            }
+            BlockPos entry = com.dddgn.alice.protection.SafeZoneData.get(level.getServer())
+                    .nearestClaimedCell(level, foot);
+            BotLog.warn("[SafeReturn] 任务失败且不在安全区 ⇒ 启动返程兜底（D-327 机制 B）bot={} from={}"
+                            + " entry={} distance={} failed={}",
+                    bot.getName().getString(), foot.toShortString(), entry.toShortString(),
+                    com.dddgn.alice.task.FarWalkTask.distanceXZ(foot, entry),
+                    lastExecutionRecord == null ? "-" : lastExecutionRecord.terminalReason());
+            beginTask(new com.dddgn.alice.task.SafeReturnTask(bot), TaskTarget.block(entry));
+            broadcastTarget(this.target);
+            return true;
         }
 
         /**

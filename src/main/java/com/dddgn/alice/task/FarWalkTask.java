@@ -197,8 +197,8 @@ public final class FarWalkTask implements Task {
         return distanceXZ(MovementHelper.footCell(bot.serverLevel(), bot), target);
     }
 
-    /** 目标的 XZ 欧氏距离（四舍五入）：与 {@link FarTravelHop} 的度量一致。 */
-    static int distanceXZ(BlockPos from, BlockPos to) {
+    /** 目标的 XZ 欧氏距离（四舍五入）：与 {@link FarTravelHop} 的度量一致（日志/判据共用）。 */
+    public static int distanceXZ(BlockPos from, BlockPos to) {
         double dx = from.getX() - to.getX();
         double dz = from.getZ() - to.getZ();
         return (int) Math.round(Math.sqrt(dx * dx + dz * dz));

@@ -19,8 +19,12 @@
 SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 **跳过多少、跑多少、各档几项**一眼可见；归属表与实跑项对不上（漏登记 / 文档说测了其实没测）**直接判红**。
 
-## 2. 当前归属表（66 项 → CORE 51 项）
+## 2. 当前归属表（67 项 → CORE 51 项）
 
+> **2026-09-19 校正（4）**：`safe_return` 进 EXTRA（`D-327` 机制 B：**任务失败后回安全区的兜底** ——
+> 无认领区 ⇒ 诚实码 `return_no_safe_zone`；200 格外 ⇒ **分段走回认领区块**（2 段 / 732 tick）；
+> 封死格 ⇒ `return_unreachable` 且**站定不动**）⇒ BASELINE 15 + MAIN 36 + EXTRA 16 = **67**，CORE 仍 **51**。
+>
 > **2026-09-19 校正（3）**：`place_step_diagonal` 进 EXTRA（`D-336`：斜向上升那一格的**规划级**门禁，三用例互为反证）
 > ⇒ BASELINE 15 + MAIN 36 + EXTRA 15 = **66**，CORE 仍 **51**。
 >
@@ -100,7 +104,10 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 会造/拆一个封死房间 ⇒ 只 `single:path_retry_bench`）、
 `place_step_diagonal`（D-336：**斜向上升那一格** —— 通用信封 / **挖矿信封（不含 PILLAR）** / 纯通行信封三用例；规划级）、
 `mine_inventory`（D-335：矿侧容量守卫门禁 —— 前置满包 ⇒ 一格不动；作业中满包 ⇒ **恰好只少 1 格**；
-判据钉在"世界有没有被白改"上，先红后绿实测）
+判据钉在"世界有没有被白改"上，先红后绿实测）、
+`safe_return`（D-327 机制 B：**任务失败后回安全区的兜底** —— 三用例：无区 ⇒ `return_no_safe_zone`、
+200 格外 ⇒ 分段走回**认领区块里**、封死格 ⇒ `return_unreachable` + 原地不动；夹具自己认领/取消
++ 自建/还原封盒 ⇒ 只 `single:safe_return`）
 
 ## 3. 维护规则（我 = AI 负责执行）
 
