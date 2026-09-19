@@ -151,10 +151,16 @@ patrol()
 
 | 片 | 内容 | 验收 |
 |---|---|---|
-| **A** ⭐ **代码已落地（2026-09-19）** | 清单数据结构（**派生**默认值 + NBT）+ `sweepDecision` 纯判据 + `sweep` 阶段（复用 `CollectDropsTask`）+ **互斥** + ①的 `SESSION` 短 TTL 授权（`CollectGrants.revoke` 新增，窗口**精确等于**扫描时长）+ `finish()` 失败路径清理 | ✅ `COMPILES` · ✅ `SERVER_TESTED`（`module:lumber` PASS；日志见下）· ✅ 内核规则 `rule_replant_sweep_bounded` + **反向对照 4 条全红**。⏳ **夹具步未做**（要动 `CURATION` + 模块两处登记） |
-| **B** ⭐ **③ 已提前落地（同上）** | 零进展 `N=3`（`SWEEP_NO_PROGRESS_LIMIT`）+ 新终态码 `sweep_no_progress`（带 `foreign=`/`unreachable=` 分类）。**为什么提前**：不留"每轮重扫"的洞（`D-341`/`D-342` 同族） | ✅ 已进门禁与反向对照（见上）；⏳ 端到端夹具未做 |
+| **A** ⭐ **代码 + 夹具已落地（2026-09-19）** | 清单数据结构（**派生**默认值 + NBT）+ `sweepDecision` 纯判据 + `sweep` 阶段（复用 `CollectDropsTask`）+ **互斥** + ①的 `SESSION` 短 TTL 授权（`CollectGrants.revoke` 新增，窗口**精确等于**扫描时长）+ `finish()` 失败路径清理 | ✅ `COMPILES` · ✅ `SERVER_TESTED`（`module:lumber` PASS）· ✅ 内核规则 `rule_replant_sweep_bounded` + **反向对照 4 条全红** · ✅ **新夹具步 `region_sweep`**（`RegionSweepCheckTask`，**19 判据**，`single:region_sweep` PASS）+ **夹具自身反向对照 3 条全红** |
+| **B** ⭐ **③ 已提前落地（同上）** | 零进展 `N=3`（`SWEEP_NO_PROGRESS_LIMIT`）+ 新终态码 `sweep_no_progress`（带 `foreign=`/`unreachable=` 分类）。**为什么提前**：不留"每轮重扫"的洞（`D-341`/`D-342` 同族） | ✅ 已进门禁与反向对照（见上）；⏳ **端到端夹具未做**（"零树苗 + 区域地面有苗 ⇒ 真去捡回来并补种"要新场景） |
 | **C** ⏳ 未做 | 用户接口（`pickup add/remove/list` 读主手）+ 缺口①（补种/扫描不吃退避） | 无头 + `check-all.sh` |
 | **D** | （用户已提）**区域内注册容器卸货**（台账第 15 项，同族后续） | 另立方案 |
+
+**⚠️ 夹具反向对照抓到的真缺陷（值得记住）**：第一版夹具的"优先级"断言挑的用例
+（`sweepDecision(0,0,0)` 与 `(3,1,5)`）在**正确顺序**与**换序后**给**同一个答案**
+⇒ 把生产代码的两条判定换序，夹具**照样 PASS**（假绿）。补上**两解不同**的用例
+（`(0,5,9)`＝不欠树压过有苗、`(3,4,0)`＝有苗压过地上没东西）后，换序才真的红。
+**教训**：断言"顺序/优先级"必须用**能区分两种顺序的输入**，否则断言与实现无关。
 
 **片 A/B 的实证（`module:lumber` 无头日志，2026-09-19 23:06）**：
 ```

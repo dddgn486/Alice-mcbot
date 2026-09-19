@@ -420,7 +420,14 @@ public final class LumberRegionState extends SavedData {
 
     // ==================== 持久化 ====================
 
-    private static LumberRegionState load(CompoundTag root) {
+    /**
+     * 反序列化（`SavedData` 的加载口）。
+     *
+     * <p>⚠️ `public` 是**给夹具的**（`D-344` 片 A 夹具 #5：`save` → `load` 往返断言
+     * 「显式项留存 / **派生项不落盘**」）—— 只有把加载口开放出来，夹具才能验证"重启后清单还在"
+     * 这件事，而不用真重启服务器。**生产路径只经 {@link #get(MinecraftServer)}**。
+     */
+    public static LumberRegionState load(CompoundTag root) {
         LumberRegionState state = new LumberRegionState();
         ListTag list = root.getList("regions", Tag.TAG_COMPOUND);
         for (int i = 0; i < list.size(); i++) {

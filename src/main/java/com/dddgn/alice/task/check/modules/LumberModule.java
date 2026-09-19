@@ -10,6 +10,7 @@ import com.dddgn.alice.job.lumber.RegionLumberJob;
 import com.dddgn.alice.job.policy.NearestPolicy;
 import com.dddgn.alice.task.LumberCourseAnchor;
 import com.dddgn.alice.task.LumberFailureCheckTask;
+import com.dddgn.alice.task.RegionSweepCheckTask;
 import com.dddgn.alice.task.check.CheckContext;
 import com.dddgn.alice.task.check.CheckModule;
 import com.dddgn.alice.task.check.CheckProfile;
@@ -101,7 +102,14 @@ public final class LumberModule implements CheckModule {
                         2000)
                         // 常驻任务：砍到 ≥1 棵且补种 ≥1 棵即算本步通过（之后它会继续巡查等苗长大）
                         .withDoneWhen(task -> task instanceof RegionLumberJob region
-                                && region.treesChopped() >= 1 && region.plantedSomething()));
+                                && region.treesChopped() >= 1 && region.plantedSomething()),
+                // `D-344` 片 A/B：区域**"扫地面"判定 + 可配置拾取清单**的自检。
+                // 判据是**纯函数**（`sweepDecision` 只吃三个整数）⇒ 夹具**不写世界、不派真任务**
+                // （技能 `alice-scene-based-testing` 陷阱#6 的硬要求）；因此**不需要场景、也不需要 provision**。
+                // ⚠️ 本步**不覆盖**端到端（"真去把地面的苗捡回来"）—— 那要"零树苗 + 地面有苗"的场景，
+                // 属下一步（见 `docs/REGION_REPLANT_ASYNC_DESIGN.md` §7）。
+                CheckStep.of("region_sweep", CheckProfile.EXTRA, List.of(), null,
+                        () -> new RegionSweepCheckTask(bot), 200));
     }
 
     /** 传送到统一起点（与电池 `teleportBot` 逐字段一致 ✓；顺带起"先热区块再 fill"的作用 ✓）。 */

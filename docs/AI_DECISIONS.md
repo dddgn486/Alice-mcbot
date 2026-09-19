@@ -14315,3 +14315,20 @@ cross_spelling_accounting=false`，其余五条仍 true = 归因精确）+ 内�
 **未核实（实现前必须查，§9）**：① ~~`CollectGrants` 的 `Scope` 取值~~ ✅ 已查实（`SESSION`）+ ②
 `PickupGate` 节流是否在 sweep 期间刷屏 + ③ sweep 与内层 `LumberJob.COLLECT` 是否争同一批落物 +
 ④ 「扫到捡完为止」在大区域下是否会先撞 `maxTicks=24000`（会 ⇒ 需区分"扫不完"与"超时"）。
+
+**`D-344` 落地补记（2026-09-19 夜）**：片 A + 裁定③（零进展上限）**已实现并入库**，不是纸面方案。
+- 代码：`LumberRegionState.pickupItems`（只存显式项）+ `effectivePickupItems()`（**派生** = 显式 ∪ 选定树苗
+  ⇒ 裁定④"不硬编码"由派生保证）+ NBT；`RegionLumberJob.sweepDecision(...)`（纯函数四态，顺序=优先级）
+  + `sweep` 阶段（复用 `CollectDropsTask`，`allowWorldModification=false`，预算走 `suggestedSweepTicks`
+  ⇒ **随落物数缩放、不人为封顶**）+ 互斥（`tick()` 两守卫 + `sweepTask=new` 仅一处）
+  + ①的 `SESSION` 短 TTL 授权与 `CollectGrants.revoke(id)`（**权限窗口精确等于扫描时长**）
+  + ③的 `SWEEP_NO_PROGRESS_LIMIT=3` 与终态码 `sweep_no_progress`（带 `foreign=`/`unreachable=` 分类，
+  分类在**撤销授权之后**做）+ `finish()` 失败路径也撤授权。
+- 门禁：内核规则 `rule_replant_sweep_bounded`（反向对照 **4 条全红**）+ 新夹具步 `region_sweep`
+  （`RegionSweepCheckTask`，**19 判据**；反向对照 **3 条全红**：判定表换序 / 默认值写死 / 派生项落盘）。
+- ⚠️ **反向对照抓到我的一个假绿断言**（记下来防再犯）：夹具第一版断言"优先级"用的两个输入
+  （`(0,0,0)`、`(3,1,5)`）在**正确顺序与换序后答案相同** ⇒ 生产代码换序时夹具**照样 PASS**。
+  补上**两解不同**的输入（`(0,5,9)`、`(3,4,0)`）后才真的红。
+  ⇒ **教训：断言"顺序/优先级"必须挑"能区分两种顺序"的输入**，否则那条断言与实现无关。
+- **未做（明确申明）**：① 端到端夹具（"零树苗 + 区域地面有苗 ⇒ 真捡回来并补种"）——需新场景；
+  ② 片 C（`/alice region pickup add|remove|list` 读主手 + 缺口①"补种/扫描不吃退避"）。
