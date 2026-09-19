@@ -380,6 +380,14 @@ public final class BotCommand {
                                                 .executes(ctx -> unclaimChunk(ctx.getSource(),
                                                         IntegerArgumentType.getInteger(ctx, "chunkX"),
                                                         IntegerArgumentType.getInteger(ctx, "chunkZ"))))))
+                        .then(Commands.literal("safe")
+                                // `D-338` ②（2026-09-19）：**安全区 = 保护区的子类声明**。
+                                // 刻意**零参数**：作用对象 = 执行者**当前所在区块**（资产在脚下 ⇒ 站在里面声明）。
+                                // 勾选界面（可多选、可框选）是后续增量，且其操作逻辑先给用户审核。
+                                .then(Commands.literal("claim")
+                                        .executes(ctx -> safeZone(ctx.getSource(), true)))
+                                .then(Commands.literal("unclaim")
+                                        .executes(ctx -> safeZone(ctx.getSource(), false))))
                         .then(Commands.literal("add-block")
                                 .then(Commands.argument("id", StringArgumentType.string())
                                         .executes(ctx -> changeBlockRule(ctx.getSource(),
@@ -613,6 +621,49 @@ public final class BotCommand {
         return 1;
     }
 
+    /**
+     * `/alice protect safe claim|unclaim`（`D-338` ②，2026-09-19）：把**执行者当前所在区块**
+     * 声明为 / 取消**安全区**（保护区的子类）。
+     *
+     * <p>刻意**零参数**（AGENTS.md 的测试入口纪律：不许要求玩家输入坐标/长参数）——
+     * "站到你的基地里敲一下"就是全部操作；多选/框选留给勾选界面。
+     *
+     * <p>为什么未认领就**拒绝**而不是顺手认领保护区：那会让"声明安全区"静默扩大资产保护范围
+     * （= 静默提权）。这里选择明确拒绝 + 告诉下一步。
+     */
+    private static int safeZone(CommandSourceStack source, boolean declare) {
+        if (!(source.getEntity() instanceof ServerPlayer actor)) {
+            source.sendFailure(Component.literal("[alice] 安全区声明必须由玩家在游戏内执行"
+                    + "（作用对象 = 他当前所在区块 ⇒ 站在资产里敲）"));
+            return 0;
+        }
+        SafeZoneData data = SafeZoneData.get(source.getServer());
+        ServerLevel level = actor.serverLevel();
+        int chunkX = actor.chunkPosition().x;
+        int chunkZ = actor.chunkPosition().z;
+        if (declare) {
+            SafeZoneData.SafeDeclare result = data.declareSafe(level, chunkX, chunkZ);
+            if (result == SafeZoneData.SafeDeclare.NOT_PROTECTED) {
+                source.sendFailure(Component.literal("[alice] 该区块（" + chunkX + ", " + chunkZ
+                        + "）**还不是保护区** ⇒ 安全区必须是保护区的子集：先认领保护区，再声明安全区"));
+                return 0;
+            }
+            source.sendSuccess(() -> Component.literal("[alice] 安全区：" + chunkX + ", " + chunkZ + " ⇒ "
+                    + (result == SafeZoneData.SafeDeclare.DECLARED ? "已声明" : "本就是安全区")
+                    + "（安全区 = 保护区的子类；当前安全区 " + data.safeChunkCount() + " 个区块 / 保护区 "
+                    + data.claimedChunkCount() + " 个）"), false);
+            return 1;
+        }
+        if (!data.clearSafe(level, chunkX, chunkZ)) {
+            source.sendFailure(Component.literal("[alice] 该区块（" + chunkX + ", " + chunkZ
+                    + "）不是安全区 ⇒ 无需取消（保护区认领不受影响）"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("[alice] 安全区：已取消 " + chunkX + ", " + chunkZ
+                + "（**保护区认领保留**；当前安全区 " + data.safeChunkCount() + " 个区块）"), false);
+        return 1;
+    }
+
     private static int changeBlockRule(CommandSourceStack source, String rawId, boolean add) {
         boolean tagRule = rawId.startsWith("#");
         String idText = tagRule ? rawId.substring(1) : rawId;
@@ -643,8 +694,21 @@ public final class BotCommand {
     }
 
     private static int listProtection(CommandSourceStack source) {
-        source.sendSuccess(() -> Component.literal("[alice] 安全区: "
-                + SafeZoneData.get(source.getServer()).summary()), false);
+        SafeZoneData data = SafeZoneData.get(source.getServer());
+        // `D-338` ③：**当前位置**的两态（保护区/安全区）——这是玩家验证"我声明的到底生效没有"的入口，
+        // 也让 `isClaimed`/`isSafe` 这对判据在服务端有真实读者（不是只有夹具在读）。
+        if (source.getEntity() instanceof ServerPlayer actor) {
+            ServerLevel level = actor.serverLevel();
+            BlockPos at = actor.blockPosition();
+            source.sendSuccess(() -> Component.literal("[alice] 当前位置 " + at.toShortString()
+                    + "（区块 " + (at.getX() >> 4) + ", " + (at.getZ() >> 4) + "）：保护区="
+                    + data.isClaimed(level, at) + " 安全区=" + data.isSafe(level, at)), false);
+        }
+        source.sendSuccess(() -> Component.literal("[alice] 保护区（父类）/ 安全区（子类）: "
+                + data.summary() + "｜内部区块（向中心靠的安全范围）：保护区="
+                + data.internalClaims(source.getLevel().dimension().location()).size()
+                + " 安全区=" + data.internalSafeClaims(source.getLevel().dimension().location()).size()
+                + "（空 = 区域太小 ⇒ 退化为「进区即到」）"), false);
         return 1;
     }
 

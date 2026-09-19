@@ -40,6 +40,13 @@ import java.util.Set;
  * {@link #summary()} ⇒ `/alice protection list` 看得见）。丢弃的坏条目（维度解析失败等）同样计数并告警。
  *
  * <p>⚠️ 本类**只回答"能不能动"**，不授权、不记账（记账在 `ledger`，授权在 `WritePolicyMatrix`/`WriteBudget`）。
+ *
+ * <p><b>层次（`D-338` ②③，2026-09-19）</b>：玩家认领的区块 = **保护区**（具体父类实例：保护资产）；
+ * **安全区**是它的**子类声明**，且**必须是保护区的子集**（{@link #declareSafe} 对未认领区块直接拒绝
+ * `NOT_PROTECTED`）—— 保护区的破坏闸门对安全区自动成立，不需要第二套判据。返程目的地的**优先级**
+ * 是 归位点 > 安全区 > 保护区，终点取**内部区块**（{@link #internalChunks}：自身及四邻都已认领 ⇒
+ * "向区域中心靠但不要求到中心"）；内部区块为空（1 区块 / 条带 / 2×2）⇒ 消费方按**退化**处理
+ * （等价"进区即到"），这正是小区域的正确行为。
  */
 public final class SafeZoneData extends SavedData {
 
@@ -50,12 +57,20 @@ public final class SafeZoneData extends SavedData {
 
     /** 维度 → 认领的区块键集合（键 = {@link ChunkPos#asLong(int, int)}）。 */
     private final Map<ResourceLocation, Set<Long>> claimedChunks = new LinkedHashMap<>();
+    /**
+     * 维度 → **安全区**区块键集合（`D-338` ②）：保护区的**子类声明**。
+     * ⚠️ 不变量：**安全区 ⊆ 保护区**（{@link #declareSafe} 拒绝未认领的区块；{@link #unclaim} 连带清除；
+     * {@link #load} 丢掉并计数任何孤儿条目 —— 三条路都堵住，不变量就不可能被单边破坏）。
+     */
+    private final Map<ResourceLocation, Set<Long>> safeChunks = new LinkedHashMap<>();
     private final Set<ResourceLocation> protectedBlocks = new LinkedHashSet<>();
     private final Set<ResourceLocation> protectedTags = new LinkedHashSet<>();
     /** 本次加载从旧格式转换过来的区域条数（只读诊断用；>0 时加载期会告警）。 */
     private int migratedLegacyAreas;
     /** 转换不了的旧条目条数（维度解析失败等）—— 同样要"响亮"，不能静默丢。 */
     private int droppedLegacyAreas;
+    /** 加载期丢掉的**孤儿安全区**（不在认领集合里的安全区标记）—— 同样计数 + 告警。 */
+    private int droppedOrphanSafeClaims;
 
     public static SafeZoneData get(MinecraftServer server) {
         return server.overworld().getDataStorage()
@@ -77,6 +92,24 @@ public final class SafeZoneData extends SavedData {
                 chunks.add(key);
             }
         }
+        // ①′ 安全区（`D-338` ②）：**必须在 claims 之后读** —— 孤儿判定要用认领集合。
+        // 孤儿（安全区标记指向未认领区块）只可能来自外部改档/未来版本 ⇒ **丢掉 + 计数 + 告警**，不静默留。
+        for (Tag entry : root.getList("safe_chunks", Tag.TAG_COMPOUND)) {
+            CompoundTag tag = (CompoundTag) entry;
+            ResourceLocation dimension = ResourceLocation.tryParse(tag.getString("dimension"));
+            if (dimension == null) {
+                data.droppedOrphanSafeClaims += tag.getLongArray("chunks").length;
+                continue;
+            }
+            Set<Long> claimed = data.claimedChunks.getOrDefault(dimension, Set.of());
+            for (long key : tag.getLongArray("chunks")) {
+                if (claimed.contains(key)) {
+                    data.safeChunks.computeIfAbsent(dimension, ignored -> new LinkedHashSet<>()).add(key);
+                } else {
+                    data.droppedOrphanSafeClaims++;
+                }
+            }
+        }
         // ② 旧格式（v1，水平圆形半径）⇒ 自动转区块集合 + 计数（调用方/本类负责"响亮提示"）
         for (Tag entry : root.getList("areas", Tag.TAG_COMPOUND)) {
             CompoundTag tag = (CompoundTag) entry;
@@ -96,6 +129,12 @@ public final class SafeZoneData extends SavedData {
             BotLog.warn("[SafeZone] 旧格式（圆形半径）保护区已迁移为**区块认领**：migrated={} 条 / 丢弃={} 条"
                             + "（规则 = 与该圆相交即认领；忽略 Y ⇒ 覆盖全高度）⇒ 现在 {}",
                     data.migratedLegacyAreas, data.droppedLegacyAreas, data.summary());
+        }
+        if (data.droppedOrphanSafeClaims > 0) {
+            // 安全区必须是保护区的子集（`D-338` ②）⇒ 孤儿条目既不能留（会破坏不变量），也不能静默丢
+            BotLog.warn("[SafeZone] 孤儿**安全区**标记已丢弃：orphans={}（安全区 ⊆ 保护区；这些区块不在认领集合里）"
+                            + "⇒ 现在 {}",
+                    data.droppedOrphanSafeClaims, data.summary());
         }
         return data;
     }
@@ -128,6 +167,22 @@ public final class SafeZoneData extends SavedData {
             claims.add(tag);
         }
         root.put("claims", claims);
+        ListTag safe = new ListTag();
+        for (Map.Entry<ResourceLocation, Set<Long>> entry : safeChunks.entrySet()) {
+            if (entry.getValue().isEmpty()) {
+                continue;
+            }
+            CompoundTag tag = new CompoundTag();
+            tag.putString("dimension", entry.getKey().toString());
+            long[] keys = new long[entry.getValue().size()];
+            int i = 0;
+            for (long key : entry.getValue()) {
+                keys[i++] = key;
+            }
+            tag.putLongArray("chunks", keys);
+            safe.add(tag);
+        }
+        root.put("safe_chunks", safe);
         root.put("blocks", writeIds(protectedBlocks));
         root.put("tags", writeIds(protectedTags));
         return root;
@@ -159,6 +214,8 @@ public final class SafeZoneData extends SavedData {
         if (chunks == null || !chunks.remove(ChunkPos.asLong(chunkX, chunkZ))) {
             return false;
         }
+        // 不变量（D-338 ②）：取消保护区**连带**取消该区块的安全区声明 —— 否则安全区会存活在保护区之外
+        clearSafeInternal(dimension, ChunkPos.asLong(chunkX, chunkZ));
         if (chunks.isEmpty()) {
             // 空集合不留档：否则 summary() 会报「dims=2、chunks=0」这种把人看糊涂的计数
             // （诊断字符串是给人读的 ⇒ 它自己必须是诚实的；save() 本来就会跳过空维度）
@@ -289,6 +346,121 @@ public final class SafeZoneData extends SavedData {
         return droppedLegacyAreas;
     }
 
+    // ==================== 安全区（保护区的子类声明，D-338 ②）====================
+
+    /** 安全区声明的结果（命令与将来的勾选界面**共用同一套判据** ⇒ 只有一处口径）。 */
+    public enum SafeDeclare {
+        /** 从"不是"变成"是"。 */
+        DECLARED,
+        /** 本来就是安全区（幂等）。 */
+        ALREADY,
+        /** ⛔ 该区块**未认领保护区** ⇒ 拒绝：安全区 ⊆ 保护区（`D-338` ②）。 */
+        NOT_PROTECTED
+    }
+
+    /**
+     * 把某区块声明为**安全区**（必须已是保护区 —— 保护区的破坏闸门因此自动对它成立）。
+     *
+     * <p>为什么不自动连带认领保护区：那等于让"声明安全区"顺手扩大资产保护范围，
+     * 是**静默提权**。这里选择**明确拒绝**并把下一步告诉调用方（命令会提示"先认领保护区"）。
+     */
+    public SafeDeclare declareSafe(ServerLevel level, int chunkX, int chunkZ) {
+        ResourceLocation dimension = level.dimension().location();
+        long key = ChunkPos.asLong(chunkX, chunkZ);
+        if (!claimedChunks.getOrDefault(dimension, Set.of()).contains(key)) {
+            return SafeDeclare.NOT_PROTECTED;
+        }
+        if (!safeChunks.computeIfAbsent(dimension, ignored -> new LinkedHashSet<>()).add(key)) {
+            return SafeDeclare.ALREADY;
+        }
+        setDirty();
+        return SafeDeclare.DECLARED;
+    }
+
+    /** 取消某区块的安全区声明（**保留**其保护区认领）。返回是否发生了变化。 */
+    public boolean clearSafe(ServerLevel level, int chunkX, int chunkZ) {
+        if (!clearSafeInternal(level.dimension().location(), ChunkPos.asLong(chunkX, chunkZ))) {
+            return false;
+        }
+        setDirty();
+        return true;
+    }
+
+    private boolean clearSafeInternal(ResourceLocation dimension, long key) {
+        Set<Long> chunks = safeChunks.get(dimension);
+        if (chunks == null || !chunks.remove(key)) {
+            return false;
+        }
+        if (chunks.isEmpty()) {
+            safeChunks.remove(dimension);   // 与认领同一口径：空集合不留档（诊断字符串必须诚实）
+        }
+        return true;
+    }
+
+    /**
+     * **该位置是否落在已声明的安全区里**（`D-338` ③ 的返程判据）——**纯认领集查询，不读方块**。
+     * 与 {@link #isClaimed} 同一纪律：每 tick 都要问的东西不许有副作用。
+     */
+    public boolean isSafe(ServerLevel level, BlockPos pos) {
+        return safeClaims(level.dimension().location())
+                .contains(ChunkPos.asLong(pos.getX() >> 4, pos.getZ() >> 4));
+    }
+
+    /** 某维度已声明为安全区的区块键（**只读**）。 */
+    public Set<Long> safeClaims(ResourceLocation dimension) {
+        Set<Long> chunks = safeChunks.get(dimension);
+        return chunks == null ? Set.of() : Collections.unmodifiableSet(chunks);
+    }
+
+    /** 已声明的安全区区块总数（跨维度）。 */
+    public int safeChunkCount() {
+        int total = 0;
+        for (Set<Long> chunks : safeChunks.values()) {
+            total += chunks.size();
+        }
+        return total;
+    }
+
+    /** 加载期丢掉的孤儿安全区标记数（>0 时加载期会告警；夹具据此断言"不静默丢"）。 */
+    public int droppedOrphanSafeClaims() {
+        return droppedOrphanSafeClaims;
+    }
+
+    /**
+     * ⭐ **内部区块**（`D-338` ③ 的"自适应安全范围"）：自身及**四邻**（N/S/E/W）**都**在给定集合里的区块。
+     *
+     * <p>用途：返程目的地取"内部区块"而不是"认领区块" —— 于是 bot **向区域中心靠**，
+     * 不会贴着边界停下（边界另一侧就是野外）。**纯函数**（只查集合、零方块读取、零区块加载）。
+     *
+     * <p>⚠️ **退化是正确行为**：1 区块 / 条带 / 2×2 的区域**没有**内部区块（返回空集）⇒ 消费方按
+     * "进区即到"处理（今天口径）。这也是"自适应"的含义：区域越大，安全范围相对越小。
+     * 对角**不计**（四邻口径，2026-09-19 用户选定）；要放宽成八邻只改本方法一处。
+     */
+    public static Set<Long> internalChunks(Set<Long> chunks) {
+        Set<Long> result = new LinkedHashSet<>();
+        for (long key : chunks) {
+            int chunkX = ChunkPos.getX(key);
+            int chunkZ = ChunkPos.getZ(key);
+            if (chunks.contains(ChunkPos.asLong(chunkX + 1, chunkZ))
+                    && chunks.contains(ChunkPos.asLong(chunkX - 1, chunkZ))
+                    && chunks.contains(ChunkPos.asLong(chunkX, chunkZ + 1))
+                    && chunks.contains(ChunkPos.asLong(chunkX, chunkZ - 1))) {
+                result.add(key);
+            }
+        }
+        return result;
+    }
+
+    /** 某维度**保护区的内部区块**（返程目的地的次优先目标 = 安全区之后的兜底）。 */
+    public Set<Long> internalClaims(ResourceLocation dimension) {
+        return internalChunks(claims(dimension));
+    }
+
+    /** 某维度**安全区的内部区块**（返程目的地的优先目标；空集 ⇒ 退化，消费方按"进区即到"处理）。 */
+    public Set<Long> internalSafeClaims(ResourceLocation dimension) {
+        return internalChunks(safeClaims(dimension));
+    }
+
     // ==================== 方块规则（黑名单；语义不变）====================
 
     public boolean addBlock(ResourceLocation id) {
@@ -353,11 +525,15 @@ public final class SafeZoneData extends SavedData {
     public String summary() {
         StringBuilder text = new StringBuilder("chunks=").append(claimedChunkCount())
                 .append(" dims=").append(claimedChunks.size())
+                .append(" safe=").append(safeChunkCount())
                 .append(" blocks=").append(protectedBlocks.size())
                 .append(" tags=").append(protectedTags.size());
         if (migratedLegacyAreas > 0 || droppedLegacyAreas > 0) {
             text.append(" migrated_legacy=").append(migratedLegacyAreas)
                     .append(" dropped_legacy=").append(droppedLegacyAreas);
+        }
+        if (droppedOrphanSafeClaims > 0) {
+            text.append(" safe_orphans=").append(droppedOrphanSafeClaims);
         }
         return text.toString();
     }

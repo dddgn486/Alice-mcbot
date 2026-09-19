@@ -59,6 +59,16 @@ import java.util.Set;
  * <p>⚠️ **自清理是判据的一部分**：认领/黑名单都会**持久化**（`SavedData`）⇒ 夹具结束时必须回到进入前的状态
  * 并**断言**它（否则会毒化后续步骤的挖掘/伐木判据，那种红最难查）。失败路径同样走收尾。
  *
+ * <p><b>3/3（`D-338` ②③，2026-09-19）再加一组 —— 安全区（保护区的子类）+ 内部区块</b>：
+ * 安全区**必须是保护区的子集**（未认领 ⇒ `NOT_PROTECTED` 拒绝且不留半个声明）、取消保护区**连带**清安全区、
+ * 新 NBT 键 `safe_chunks` 的存/读往返、孤儿安全区标记**丢弃 + 计数 + 人能看见**、
+ * 以及**内部区块**（四邻腐蚀 = "向区域中心靠的自适应安全范围"）的口径与**退化**（1 区块 / 2×2 ⇒ 空集
+ * ⇒ 消费方按"进区即到"）。另含**命令入口**判据（`/alice protect safe claim|unclaim`：零参数、
+ * 作用对象 = 执行者所在区块、未认领必须拒绝 ⇒ **用户真正会敲的那条路被跑过**）。
+ * ⚠️ 判据用**专用孤立区块区**（chunk 2000,2000 起）且**全部按增量断言**、维度集断言一律**先裁到该区**
+ * （不假设世界本来没有保护区/安全区）⇒ 在"玩家已经圈过地"的真实存档里同样可复现。
+ * 全程**纯集合运算**：不读方块、不加载区块、传送都不需要。
+ *
  * <p>⚠️ 为什么用 `bot` 所在区块做"位置级"断言：那里**一定已加载**（区块票据）⇒ 不会因为
  * "区块未加载"顺手把世界生成出去，也不会读到虚空。Y 方向的断言用同一区块的极值高度（认领命中在
  * 读方块之前返回 ⇒ 不需要那两处已加载）。
@@ -68,7 +78,15 @@ public final class ProtectionZoneCheckTask implements Task {
     /** 单次加载的自定义 `SavedData` 上做往返，不需要世界 tick；留一点余量给日志。 */
     private static final int BUDGET_TICKS = 150;
 
-    private enum Phase { ZONE, RELEASE, PERSIST, MIGRATE, PROTOCOL, GEOMETRY, BLACKLIST, CLEANUP, DONE }
+    /**
+     * 安全区 / 内部区块用例的**专用孤立区块区**（`D-338` ②③）：block 32000,32000 = chunk 2000,2000。
+     * 选这么远是因为它是**纯集合运算**（不读方块、不加载区块）⇒ 只要不与其他夹具的区块重叠就绝对安全；
+     * 3×3 是能产生"内部区块"的最小方形（2×2 没有内部区块 —— 那是**退化**用例）。
+     */
+    private static final int SAFE_BASE_CHUNK_X = 2000;
+    private static final int SAFE_BASE_CHUNK_Z = 2000;
+
+    private enum Phase { ZONE, RELEASE, PERSIST, MIGRATE, PROTOCOL, GEOMETRY, BLACKLIST, SAFE, CLEANUP, DONE }
 
     private final BotPlayer bot;
     private final net.minecraft.server.level.ServerPlayer observer;
@@ -90,6 +108,10 @@ public final class ProtectionZoneCheckTask implements Task {
     private int probeChunkX = Integer.MIN_VALUE;
     private boolean addedBlockRule;
     private boolean addedTagRule;
+    /** 进入前的安全区计数（`D-338` ②；收尾按**增量**断言 ⇒ 真实存档里也能跑）。 */
+    private int safeDeclaredBefore;
+    /** 安全区用例是否已经认领了那片 3×3（失败路径要把它们拆掉）。 */
+    private boolean safeZoneClaimed;
 
     public ProtectionZoneCheckTask(BotPlayer bot, net.minecraft.server.level.ServerPlayer observer) {
         this.bot = bot;
@@ -133,6 +155,7 @@ public final class ProtectionZoneCheckTask implements Task {
             case PROTOCOL -> protocolPhase();
             case GEOMETRY -> geometryPhase();
             case BLACKLIST -> blacklistPhase();
+            case SAFE -> safePhase();
             case CLEANUP -> finish();
             default -> {
                 return finish();
@@ -154,6 +177,7 @@ public final class ProtectionZoneCheckTask implements Task {
         long hereKey = ChunkPos.asLong(hereChunkX, hereChunkZ);
         long neighborKey = ChunkPos.asLong(hereChunkX + 1, hereChunkZ);
         chunksBefore = data.claimedChunkCount();
+        safeDeclaredBefore = data.safeChunkCount();   // D-338 ②：收尾按增量断言（真实存档里也能跑）
         hereWasClaimed = data.claims(dimension).contains(hereKey);
 
         // 前提自证：位置级断言必须站在**已加载**区块里，否则判据可能读到虚空/顺手生成世界
@@ -637,6 +661,178 @@ public final class ProtectionZoneCheckTask implements Task {
                     data.protectionReason(level, support) == null);
         }
         BotLog.info("[Protection] 黑名单回归 ✓（方块 / 标签两条规则各自命中并可取消）");
+        advance(Phase.SAFE);
+    }
+
+    // ==================== 安全区 / 内部区块（D-338 ②③）====================
+
+    /**
+     * **安全区 = 保护区的子类声明**（`D-338` ②）+ **内部区块 = 自适应安全范围**（`D-338` ③）。
+     *
+     * <p>九条判据的顺序刻意如此：先在"未认领"上证明**不变量**（拒绝声明、不留半个），
+     * 再在"已认领"上证明**声明生效**（含 Y 无关、子集语义、幂等），然后证明**腐蚀几何**与**退化**，
+     * 接着证明**取消保护区的连带清除**，最后是**持久化**（新键往返 + 孤儿丢弃）与**命令入口**。
+     *
+     * <p>⚠️ 维度级集合（`internalClaims` / `internalSafeClaims`）的断言一律**先裁到专用区**：
+     * 真实存档里别处可能已有认领/安全区 ⇒ 不裁剪的 `size()==1` 是**假红**制造机。
+     */
+    private void safePhase() {
+        ServerLevel level = bot.serverLevel();
+        SafeZoneData data = SafeZoneData.get(level.getServer());
+        ResourceLocation dimension = level.dimension().location();
+        int baseX = SAFE_BASE_CHUNK_X;
+        int baseZ = SAFE_BASE_CHUNK_Z;
+        int safeBefore = data.safeChunkCount();
+
+        // 前提自证：专用区进入前**干净**（否则"内部区块恰好 = 中心"的期望值会被污染）
+        Set<Long> area = new LinkedHashSet<>();
+        boolean clean = true;
+        for (int dx = 0; dx < 3; dx++) {
+            for (int dz = 0; dz < 3; dz++) {
+                long key = ChunkPos.asLong(baseX + dx, baseZ + dz);
+                area.add(key);
+                if (data.claims(dimension).contains(key)) {
+                    clean = false;
+                }
+            }
+        }
+        check("前提：安全区用例的 3×3 区块块进入前**未被认领**（chunk " + baseX + ", " + baseZ + " 起）", clean);
+
+        // ① 不变量（安全区 ⊆ 保护区）：未认领区块必须**拒绝**声明，且**不留半个声明**
+        SafeZoneData.SafeDeclare refused = data.declareSafe(level, baseX, baseZ);
+        check("**安全区 ⊆ 保护区**：未认领区块声明安全区必须被拒（实际 " + refused + "）",
+                refused == SafeZoneData.SafeDeclare.NOT_PROTECTED);
+        check("被拒时安全区计数**不变**（" + safeBefore + " = " + data.safeChunkCount() + "）",
+                data.safeChunkCount() == safeBefore);
+
+        // ② 认领 3×3 ⇒ **内部区块**（四邻腐蚀）恰好 = 中心那一个（期望值在夹具里独立算）
+        int added = 0;
+        for (long key : area) {
+            safeZoneClaimed = true;
+            if (data.claim(level, ChunkPos.getX(key), ChunkPos.getZ(key))) {
+                added++;
+            }
+        }
+        long centre = ChunkPos.asLong(baseX + 1, baseZ + 1);
+        check("认领 3×3 必须新增 9 个区块（实际 " + added + "）", added == 9);
+        Set<Long> internalInArea = intersect(data.internalClaims(dimension), area);
+        check("**内部区块**（四邻腐蚀）：3×3 ⇒ 恰好中心 1 个（期望 " + describeKey(centre) + "，实际 "
+                        + describeKeys(internalInArea) + "）",
+                internalInArea.size() == 1 && internalInArea.contains(centre));
+
+        // ③ 退化口径（**纯函数 + 合成集合** ⇒ 零世界副作用）：2×2 / 单区块**没有**内部区块
+        Set<Long> square = new LinkedHashSet<>(List.of(
+                ChunkPos.asLong(0, 0), ChunkPos.asLong(1, 0),
+                ChunkPos.asLong(0, 1), ChunkPos.asLong(1, 1)));
+        check("退化：2×2 区域**没有**内部区块（实际 " + SafeZoneData.internalChunks(square).size()
+                        + "）⇒ 消费方按「进区即到」处理",
+                SafeZoneData.internalChunks(square).isEmpty());
+        check("退化：单区块区域也没有内部区块（实际 "
+                        + SafeZoneData.internalChunks(Set.of(ChunkPos.asLong(7, 7))).size() + "）",
+                SafeZoneData.internalChunks(Set.of(ChunkPos.asLong(7, 7))).isEmpty());
+        check("内部区块是**派生视图**：腐蚀不原地改入参（实际入参仍 " + square.size() + " = 4）",
+                square.size() == 4);
+
+        // ④ 声明中心区块 ⇒ 安全区：**同区块任意 Y** 都成立（与认领同一口径）、幂等、且只是**子集**
+        SafeZoneData.SafeDeclare declared = data.declareSafe(level, baseX + 1, baseZ + 1);
+        check("声明中心区块为安全区（实际 " + declared + "）",
+                declared == SafeZoneData.SafeDeclare.DECLARED);
+        int centreX = (baseX + 1) << 4;
+        int centreZ = (baseZ + 1) << 4;
+        check("isSafe：中心区块**最低处**为真（y=" + level.getMinBuildHeight() + "）",
+                data.isSafe(level, new BlockPos(centreX, level.getMinBuildHeight(), centreZ)));
+        check("isSafe：中心区块**最高处**也为真（y=" + (level.getMaxBuildHeight() - 1) + " ⇒ 与认领同一 Y 无关口径）",
+                data.isSafe(level, new BlockPos(centreX + 15, level.getMaxBuildHeight() - 1, centreZ + 15)));
+        SafeZoneData.SafeDeclare repeated = data.declareSafe(level, baseX + 1, baseZ + 1);
+        check("幂等：重复声明 = ALREADY 且计数不变（实际 " + repeated + " / "
+                        + data.safeChunkCount() + " = " + (safeBefore + 1) + "）",
+                repeated == SafeZoneData.SafeDeclare.ALREADY && data.safeChunkCount() == safeBefore + 1);
+        check("安全区是**子集**不是整片保护区：相邻**已认领但未声明**的区块 isSafe=false",
+                !data.isSafe(level, new BlockPos(centreX + 16, 64, centreZ)));
+        Set<Long> internalSafeInArea = intersect(data.internalSafeClaims(dimension), area);
+        check("**1 个区块的安全区没有内部区块**（生产数据上同样走退化口径；实际 "
+                        + internalSafeInArea.size() + "）", internalSafeInArea.isEmpty());
+
+        // ⑤ 整片 3×3 都声明 ⇒ 安全区内部区块 = 中心 1 个（返程"向中心靠"的落点来源）
+        for (long key : area) {
+            data.declareSafe(level, ChunkPos.getX(key), ChunkPos.getZ(key));
+        }
+        check("全部声明后安全区 = 进入前 + 9（实际 " + data.safeChunkCount() + " = "
+                        + (safeBefore + 9) + "）", data.safeChunkCount() == safeBefore + 9);
+        Set<Long> internalSafe = intersect(data.internalSafeClaims(dimension), area);
+        check("**安全区的内部区块** = 中心 1 个（期望 " + describeKey(centre) + "，实际 "
+                        + describeKeys(internalSafe) + "）", internalSafe.size() == 1 && internalSafe.contains(centre));
+
+        // ⑥ 取消**保护区** ⇒ **连带**清掉该区块的安全区声明（三条路都堵 ⇒ 不变量不可能被单边破坏）
+        long corner = ChunkPos.asLong(baseX + 2, baseZ + 2);
+        check("取消保护区认领必须成功（chunk " + (baseX + 2) + ", " + (baseZ + 2) + "）",
+                data.unclaim(level, baseX + 2, baseZ + 2));
+        check("取消保护区**连带**清掉安全区标记（安全区 " + (safeBefore + 9) + " → "
+                        + data.safeChunkCount() + "；该区块仍在安全区集合里="
+                        + data.safeClaims(dimension).contains(corner) + "）",
+                data.safeChunkCount() == safeBefore + 8 && !data.safeClaims(dimension).contains(corner));
+        check("连带清除在**位置级**也成立（isSafe=false，且该区块已不在认领集合里）",
+                !data.isSafe(level, new BlockPos((baseX + 2) << 4, 64, (baseZ + 2) << 4)));
+
+        // ⑦ 持久化：新 NBT 键 `safe_chunks` 的存/读往返 + 派生视图随数据回来
+        CompoundTag saved = data.save(new CompoundTag());
+        SafeZoneData reloaded = SafeZoneData.load(saved);
+        check("存/读往返：安全区集合逐字回来（写 " + data.safeChunkCount() + " / 读 "
+                        + reloaded.safeChunkCount() + "）",
+                reloaded.safeChunkCount() == data.safeChunkCount()
+                        && reloaded.safeClaims(dimension).contains(centre));
+        check("存/读往返：安全区**内部区块**（派生视图）计算结果一致",
+                reloaded.internalSafeClaims(dimension).equals(data.internalSafeClaims(dimension)));
+
+        // ⑧ 孤儿安全区标记（外部改档 / 未来版本）：**丢掉 + 计数 + 人能看见**，不静默留
+        long orphan = ChunkPos.asLong(baseX + 40, baseZ + 40);
+        SafeZoneData fixed = SafeZoneData.load(orphanSafeTag(dimension, centre, orphan));
+        check("孤儿安全区标记必须被**丢掉**（合法 1 个保留 / 孤儿 1 个丢弃；实际 safe="
+                        + fixed.safeChunkCount() + "）",
+                fixed.safeChunkCount() == 1 && fixed.safeClaims(dimension).contains(centre)
+                        && !fixed.safeClaims(dimension).contains(orphan));
+        check("孤儿丢弃必须**计数可查**（实际 dropped=" + fixed.droppedOrphanSafeClaims() + "）",
+                fixed.droppedOrphanSafeClaims() == 1);
+        check("孤儿丢弃**人能看见**（summary=" + fixed.summary() + "）",
+                fixed.summary().contains("safe_orphans=1") && fixed.summary().contains("safe=1"));
+
+        // ⑨ 命令入口：**用户真正会敲的那一条**（零参数、作用对象 = 执行者所在区块）
+        // bot 所在区块此刻是**未认领**的（RELEASE 相位已取消）⇒ 正好拿它先测"拒绝"分支。
+        var server = level.getServer();
+        var source = server.createCommandSourceStack().withEntity(bot).withPosition(bot.position())
+                .withSuppressedOutput();
+        BlockPos botAt = bot.blockPosition();
+        int botChunkX = botAt.getX() >> 4;
+        int botChunkZ = botAt.getZ() >> 4;
+        int refusedCode = server.getCommands().performPrefixedCommand(source, "alice protect safe claim");
+        check("命令入口：**未认领保护区**时 `protect safe claim` 必须失败（返回 " + refusedCode
+                        + "；实际 isSafe=" + data.isSafe(level, botAt) + "）",
+                refusedCode == 0 && !data.isSafe(level, botAt));
+        data.claim(level, botChunkX, botChunkZ);
+        int declaredCode = server.getCommands().performPrefixedCommand(source, "alice protect safe claim");
+        check("命令入口：认领后同一命令成功（返回 " + declaredCode + "）且**落库**（isSafe(执行者)="
+                        + data.isSafe(level, botAt) + "）",
+                declaredCode == 1 && data.isSafe(level, botAt));
+        int clearedCode = server.getCommands().performPrefixedCommand(source, "alice protect safe unclaim");
+        check("命令入口：`protect safe unclaim` 取消安全区但**保留保护区认领**（返回 " + clearedCode
+                        + "；isSafe=" + data.isSafe(level, botAt) + " isClaimed="
+                        + data.isClaimed(level, botAt) + "）",
+                clearedCode == 1 && !data.isSafe(level, botAt) && data.isClaimed(level, botAt));
+        data.unclaim(level, botChunkX, botChunkZ);   // bot 所在区块回"未认领"（本相位进入时就是它）
+
+        // 收尾（本相位自己造的自己拆）：专用区 9 个区块全部取消认领（**连带**清安全区）
+        int removed = 0;
+        for (long key : area) {
+            if (data.unclaim(level, ChunkPos.getX(key), ChunkPos.getZ(key))) {
+                removed++;
+            }
+        }
+        safeZoneClaimed = false;
+        check("自清理：安全区计数回到进入前（" + data.safeChunkCount() + " = " + safeBefore + "）",
+                data.safeChunkCount() == safeBefore);
+        BotLog.info("[Protection] 安全区/内部区块 ✓：3×3 内部={}（四邻腐蚀）；专用区 9 个区块已取消"
+                        + "（连带清安全区，实际拆了 {} 个）；命令入口 claim/unclaim 均被跑过",
+                describeKeys(internalInArea), removed);
         advance(Phase.CLEANUP);
     }
 
@@ -658,11 +854,21 @@ public final class ProtectionZoneCheckTask implements Task {
             data.removeTag(supportTag.location());
             addedTagRule = false;
         }
+        if (safeZoneClaimed) {   // D-338 ②：安全区与其保护区认领一起拆（失败路径也要拆干净）
+            for (int dx = 0; dx < 3; dx++) {
+                for (int dz = 0; dz < 3; dz++) {
+                    data.unclaim(level, SAFE_BASE_CHUNK_X + dx, SAFE_BASE_CHUNK_Z + dz);
+                }
+            }
+            safeZoneClaimed = false;
+        }
         if (hereWasClaimed) {
             data.claim(level, hereChunkX, hereChunkZ);      // 进入前就有 ⇒ 复原（精确复原，不是"清空"）
         }
         check("自清理：认领计数必须回到进入前的值（" + data.claimedChunkCount() + " = " + chunksBefore + "）",
                 data.claimedChunkCount() == chunksBefore);
+        check("自清理：安全区计数必须回到进入前的值（" + data.safeChunkCount() + " = " + safeDeclaredBefore
+                + "；按**增量**断言 ⇒ 真实存档里同样成立）", data.safeChunkCount() == safeDeclaredBefore);
         bot.controller().stopMovement();      // 复位：夹具不动 bot，但保持"结束即停输入"的同一条纪律
         done = true;
         boolean pass = failures.isEmpty();
@@ -703,6 +909,46 @@ public final class ProtectionZoneCheckTask implements Task {
 
     private static String desc(Object value) {
         return value == null ? "无" : value.toString();
+    }
+
+    /** 把维度级集合**裁到本夹具的专用区**（真实存档里别处可能已有认领 ⇒ 不裁剪的 size 断言是假红制造机）。 */
+    private static Set<Long> intersect(Set<Long> chunks, Set<Long> area) {
+        Set<Long> result = new LinkedHashSet<>(chunks);
+        result.retainAll(area);
+        return result;
+    }
+
+    private static String describeKeys(Set<Long> chunkKeys) {
+        List<String> parts = new ArrayList<>();
+        for (long key : chunkKeys) {
+            parts.add(describeKey(key));
+        }
+        return parts.toString();
+    }
+
+    /**
+     * 造一个**含孤儿安全区**的存档标签（`D-338` ②）：`safe_chunks` 里有一个合法区块 + 一个**未认领**的区块。
+     * 用于钉住"孤儿不能静默留"（加载期必须丢掉 + 计数 + 在 summary 里看得见）。
+     */
+    private static CompoundTag orphanSafeTag(ResourceLocation dimension, long legal, long orphan) {
+        CompoundTag claim = new CompoundTag();
+        claim.putString("dimension", dimension.toString());
+        claim.putLongArray("chunks", new long[]{legal});
+        ListTag claims = new ListTag();
+        claims.add(claim);
+
+        CompoundTag safe = new CompoundTag();
+        safe.putString("dimension", dimension.toString());
+        safe.putLongArray("chunks", new long[]{legal, orphan});
+        ListTag safeClaims = new ListTag();
+        safeClaims.add(safe);
+
+        CompoundTag root = new CompoundTag();
+        root.put("claims", claims);
+        root.put("safe_chunks", safeClaims);
+        root.put("blocks", new ListTag());
+        root.put("tags", new ListTag());
+        return root;
     }
 
     /** 造一个**旧格式**（v1：圆形半径）的存档标签，用于迁移契约测试。 */
