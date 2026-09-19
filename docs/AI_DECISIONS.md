@@ -12097,7 +12097,7 @@ bash 是**按需读文件**的 ⇒ 我一边让 `module-selftest.sh` 跑着（8 
 不改变：protectionReason 签名/语义方向 · 保护区仍是"独立闸门"（不是 WritePolicyMatrix 的第三层）
         · block/tag 黑名单语义 · CollectGrants 独立 · 不引任何模组依赖
 最小闭环：claim(chunkX,chunkZ) → 该区块**任意 Y** 破坏被拒(protected_area) → 相邻未认领可破 → 存/读往返一致
-成功条件：夹具日志逐条 PASS + SUMMARY；/alice protection list 报区块数；旧格式加载后报迁移条数（不静默丢）
+成功条件：夹具日志逐条 PASS + SUMMARY；/alice protect list 报区块数；旧格式加载后报迁移条数（不静默丢）
 验证方式：编译 + 无头 module:protection（纯查询夹具）+ CORE 步序 diff + check-all.sh
 ```
 
@@ -13403,7 +13403,7 @@ L3 全权(仅玩家显式)`）**未拍板** ⇒ 登记在台账（§5.12 第 5 �
    对角**不计**（四邻口径）。零方块读取、零区块加载 ⇒ 每 tick 问得起。
 3. `BotCommand`：`/alice protect safe claim|unclaim` —— **零参数**（作用对象 = **执行者当前所在区块**；
    与 AGENTS.md"测试入口必须零参数"一致，也让"站到自己基地里敲一下"成为全部操作）；未认领时**拒绝**并提示
-   "先认领保护区"。`/alice protection list` 改为打印**当前位置的两态**（保护区=…/安全区=…）+ 两个维度级
+   "先认领保护区"。`/alice protect list` 改为打印**当前位置的两态**（保护区=…/安全区=…）+ 两个维度级
    内部区块计数 ⇒ 玩家验证"我声明的到底生效没有"的入口，也让 `isClaimed`/`isSafe`/内部区块在服务端有真实读者。
    ⚠️ **勾选界面（可多选/框选）是后续增量，其操作逻辑先给用户审核**（用户 2026-09-19 明确）。
 4. 门禁：`protection_zones`（**MAIN**，进 CORE）新增 `SAFE` 相位 —— 判据 **67 → 95（+28）**。

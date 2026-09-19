@@ -46,7 +46,7 @@
 > ✅ **`D-338` 执行项①/③ 已落地**（2026-09-19，`D-338` 附注一）：`SafeZoneData` 加**安全区子集**（`safe_chunks` NBT +
 >    `SafeDeclare`；不变量"安全区 ⊆ 保护区"三条路都堵：拒声明 / `unclaim` 连带清 / `load` 丢孤儿并计数+summary）+
 >    **`internalChunks` 四邻腐蚀**（自适应安全范围，纯函数，1 区块/2×2 ⇒ 空 ⇒ 退化"进区即到"）+ 命令
->    **`/alice protect safe claim|unclaim`**（**零参数**，作用对象 = 执行者所在区块）+ `/alice protection list` 打印
+>    **`/alice protect safe claim|unclaim`**（**零参数**，作用对象 = 执行者所在区块）+ `/alice protect list` 打印
 >    "当前位置两态 + 内部区块计数"。门禁 `protection_zones` 判据 **67 → 95**（+28，含命令入口三例）；
 >    **先红后绿**（拆子集检查 ⇒ `failures=4` 恰好是依赖该不变量的四条）→ `checks=95 failures=0`；
 >    `ALICE_HEADLESS=1 check-all` = **17 PASS / 0 WARN / 0 FAIL**（CORE 51/51）。⚠️ **待确认**：四邻腐蚀下 2×2 区块没有内部区块
