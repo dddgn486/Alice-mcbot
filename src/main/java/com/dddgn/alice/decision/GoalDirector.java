@@ -179,9 +179,27 @@ public final class GoalDirector {
         long lastFailTick;
     }
 
-    /** 身份串：`kind|目标`（区域型用区域盒，其余用中心 +（可选）产物标签）。 */
+    /**
+     * 身份串：`kind|目标`。
+     *
+     * <p>⚠️ **必须归一 `kind` 的大小写**（2026-09-19 客户端实测抓到的缺陷）：**生产的两处写法不一样** ——
+     * 受理侧是 `JobRequest.Kind.name()`（枚举 ⇒ **大写** `REGION_LUMBER`），终态侧是 `BotManager` 的
+     * `stableTaskKind(...)` = `Task.taskName()`（日志实测 ⇒ **小写** `region_lumber`）
+     * ⇒ 不归一的话，{@link #noteAttemptOutcome} 里 `key.startsWith(kind + "|")` **永远为假**
+     * ⇒ **静默不记账**（走的正是"宁可漏记也不错记"那条分支）⇒ 计数恒 0 ⇒ 受理闸永不触发。
+     * 客户端现场：连跑三次 `/alice instruct` 起同一区域任务，**三次都放行**、`REFUSED` 零条。
+     *
+     * <p>⚠️ **为什么夹具当时全绿**：夹具两边都用了小写 `lumber`（自洽但**与生产不同**）——
+     * 这正是 `alice-scene-based-testing` §6.9.1 说的"夹具自己的假设没被写下来、也没被断言"。
+     * 现在夹具有一条 **跨写法** 断言（受理 = `JobRequest.Kind.name()` 的大小写形态，终态 = `taskName()` 的形态）。
+     */
     private static String attemptKey(String kind, String target) {
-        return kind + "|" + target;
+        return (kind == null ? "" : kind.trim().toLowerCase(java.util.Locale.ROOT)) + "|" + target;
+    }
+
+    /** **夹具用**：`attemptKey` 的公开视图（断言"生产两处写法归一到同一身份"）。 */
+    public static String attemptIdentity(String kind, String target) {
+        return attemptKey(kind, target);
     }
 
     /** `JobRequest` ⇒ 稳定目标 id（**同一目标的两种写法必须落到同一个 id**，否则循环检测形同虚设）。 */

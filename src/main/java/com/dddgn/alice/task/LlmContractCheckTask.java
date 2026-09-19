@@ -258,10 +258,27 @@ public class LlmContractCheckTask implements Task {
             // ⑤ 别的目标不受牵连
             boolean other = GoalDirector.loopRefusal(bot, com.dddgn.alice.decision.Driver.LLM,
                     "lumber", "tree@fixture-loop,64,77") == null;
-            check("loop_admission_control", first && second && blocked && exempt && reset && other,
+            // ⑥ ⭐ **跨写法**（2026-09-19 客户端实测漏过的那一条）：生产的 kind 有**两种写法** ——
+            //     受理侧 = `JobRequest.Kind.name()`（枚举 ⇒ 大写 `REGION_LUMBER`）；
+            //     终态侧 = `Task.taskName()`（实测 ⇒ 小写 `region_lumber`）。
+            //     不归一到同一身份 ⇒ 记账静默失败 ⇒ 计数恒 0 ⇒ 闸门永不触发（客户端三次全放行）。
+            boolean spellingNormalized = GoalDirector.attemptIdentity("REGION_LUMBER", target)
+                    .equals(GoalDirector.attemptIdentity("region_lumber", target));
+            GoalDirector.noteAttempt(bot, "REGION_LUMBER", target);            // 受理侧写法（大写）
+            GoalDirector.noteTerminalOutcome(bot, "region_lumber", true);      // 终态侧写法（小写）
+            boolean crossSpelling = GoalDirector.loopFailCount(bot, "region_lumber", target) == 1
+                    && GoalDirector.loopFailCount(bot, "REGION_LUMBER", target) == 1;
+            GoalDirector.noteAttempt(bot, "region_lumber", target);            // 清账（不留痕）
+            GoalDirector.noteTerminalOutcome(bot, "region_lumber", false);
+            check("loop_admission_control",
+                    first && second && blocked && exempt && reset && other && spellingNormalized
+                            && crossSpelling,
                     "first=" + first + " second=" + second + " third_blocked=" + blocked
                             + " player_exempt=" + exempt + " reset_on_success=" + reset
-                            + " other_target_ok=" + other + " refusal=" + refusal);
+                            + " other_target_ok=" + other
+                            + " spelling_normalized=" + spellingNormalized
+                            + " cross_spelling_accounting=" + crossSpelling
+                            + " refusal=" + refusal);
         } finally {
             com.dddgn.alice.decision.Driver.set(bot, previousDriver);
         }

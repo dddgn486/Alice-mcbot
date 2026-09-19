@@ -464,6 +464,15 @@ def rule_loop_admission():
         problems.append("`loopRefusal(...)` 出现在 `assignJob(...)` **之后** ⇒ 任务已经起了才判，闸门形同虚设")
     if "noteAttempt(bot" not in body:
         problems.append("`execute` 起任务成功后没有 `noteAttempt(...)` ⇒ 终态无法归到身份上（记账永远为空）")
+    # ⚠️ 2026-09-19 客户端实测漏过的那一条：**生产的 kind 有两种写法**（受理侧 `JobRequest.Kind.name()`
+    # 大写 / 终态侧 `Task.taskName()` 小写）⇒ `attemptKey` 必须归一，否则记账静默失败、闸门永不触发。
+    if "private static String attemptKey(String kind, String target) {" not in text:
+        problems.append("`GoalDirector.attemptKey` 没了（身份归一化的唯一出处）")
+    elif "toLowerCase" not in text[text.find("private static String attemptKey(String kind, String target) {"):
+                                  text.find("private static String attemptKey(String kind, String target) {") + 400]:
+        problems.append("`attemptKey` 没有归一 kind 的大小写 ⇒ 受理侧（`JobRequest.Kind.name()` 大写）与"
+                        "终态侧（`Task.taskName()` 小写）落不到同一身份 ⇒ **静默不记账、闸门永不触发**"
+                        "（2026-09-19 客户端三次全放行就是这个原因）")
     return problems
 
 

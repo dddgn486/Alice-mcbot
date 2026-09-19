@@ -14188,6 +14188,26 @@ code=failed:no_reachable_candidate durationTicks=1` ⇒ **它是被拒的**。**
   ② `loopRefusal` 注入恒 `null` ⇒ `single:llm_contract` **恰 1 红**（`loop_admission_control`）。恢复 ⇒
   `module:llm` PASS + 内核 PASS。
 
+**🔴 客户端复测抓到的缺陷（2026-09-19 20:48 会话）—— 已修 + 已把"本该抓到的断言"补上**：
+连跑三次 `/alice instruct "在保护区里起一个 region_lumber"` ⇒ **三次都放行**（三份
+`task_terminal_reason kind=region_lumber driver=llm terminalReason=no_permitted_candidate`、`REFUSED` **零条**）。
+
+**根因（代码 + 日志双确认）**：`kind` 在生产里**有两种写法** —— 受理侧 `JobRequest.Kind.name()`
+（枚举 ⇒ **大写** `REGION_LUMBER`），终态侧 `BotManager.stableTaskKind(...)` = `Task.taskName()`
+（实测 ⇒ **小写** `region_lumber`）。而 `noteAttemptOutcome` 用 `key.startsWith(kind + "|")` 做匹配
+⇒ **永远为假** ⇒ 走"宁可漏记"分支 **静默不记账** ⇒ 计数恒 0 ⇒ 受理闸永不触发。
+（已排除另一个嫌疑：`Driver.set(bot, LLM)` 在 `execute` **之前**（`:561` vs `:572`）⇒ 不是被"玩家豁免"吃掉。）
+
+**修**：`attemptKey` **归一 `kind` 大小写**（`trim().toLowerCase(ROOT)`）+ 公开 `attemptIdentity` 供夹具断言。
+
+**⭐ 夹具为什么当时全绿（元教训，`alice-scene-based-testing` §6.9.1 的原话就是这个）**：夹具两边都用了小写
+`lumber`（**自洽但与生产不同**）⇒ "夹具自己的假设没有被写下来、也没有被断言"。
+**已补判据**：`loop_admission_control` 新增 ⑥ **跨写法**（受理 = 大写形态、终态 = 小写形态）：
+`attemptIdentity("REGION_LUMBER", t).equals(attemptIdentity("region_lumber", t))`
++ `noteAttempt("REGION_LUMBER")` 后 `noteTerminalOutcome("region_lumber")` ⇒ 计数必须为 1。
+**⭐ 反向对照（重现现场）**：去掉归一化 ⇒ 夹具 **恰 1 红**（`spelling_normalized=false
+cross_spelling_accounting=false`，其余五条仍 true = 归因精确）+ 内核规则红（直指"没有归一 kind 的大小写"）。
+
 **⚠️ 已知边界（不假装）**：① 身份**不含失败码**是有意的（要抓"换条路重试"），代价是"同一目标换了失败原因"
 也算重复 —— 但同一目标本就值得怀疑；② 闸门只在 **LLM 应用 `start_job`** 这一条路上生效
 （`craft` / `maintain_tool` / `stop_current` 等动作未纳入，它们本身不形成"目标循环"）；

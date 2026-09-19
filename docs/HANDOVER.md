@@ -67,7 +67,12 @@
 > **证据**：`llm_contract` **10 判据全绿** · 内核规则 `rule_loop_admission`（**顺序·结构断言**）·
 > **反向对照两条**（① 拒绝分支注入 `&& false` ⇒ 内核红；② `loopRefusal` 恒 `null` ⇒ 恰 1 红）·
 > `module:llm` PASS · **CORE 51/51（`ticks=4770`）**。
-> **⏳ 客户端待复验**：让 LLM 连撞同一目标两次后，第 3 次应被拒并回读 `repeat_failure（同一目标 …）`；
+> 🔴 **客户端首测 = 反例（2026-09-19 20:48）**：三次 `instruct` **全放行**（`REFUSED` 零条）。根因 = `kind` 生产两写法
+> （受理 `JobRequest.Kind.name()` 大写 `REGION_LUMBER` / 终态 `Task.taskName()` 小写 `region_lumber`）⇒ `startsWith`
+> 恒假 ⇒ **静默不记账** ⇒ 计数恒 0。**已修**（`attemptKey` 归一大小写）+ **补跨写法断言**（这正是本该抓到的判据；
+> 夹具当时两边都用小写 = 自洽但与生产不同，`alice-scene-based-testing` §6.9.1 说的就是这个病）。
+> **⭐ 反向对照（重现现场）**：去掉归一 ⇒ 夹具**恰 1 红**（`spelling_normalized=false` / `cross_spelling_accounting=false`，
+> 另五条仍 true）+ 内核规则红。**⏳ 待你复跑**：三次 `instruct` ⇒ 第 3 次应被拒 `repeat_failure`；右键物品（玩家显式）仍放行。
 > 而**你自己**右键测试物品连点三次同目标 ⇒ 应当**照旧放行**（豁免）。
 > ⭐ **客户端复验通过（2026-09-19 20:17 新包，用户判"符合预期"）**：`kind=region_lumber driver=llm
 > terminalReason=no_permitted_candidate`（P2 端到端：`/alice instruct` 起 ⇒ **立刻如实失败**）·
