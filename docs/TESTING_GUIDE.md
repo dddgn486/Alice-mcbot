@@ -440,6 +440,35 @@ claim 上限默认按"最大成员"算 ⇒ 不变）。所以它**不在 spawn �
 
 ---
 
+## 2.9 ★ 保护区里的任务区（权限阶梯 `L0`–`L3`，`D-338`）—— **零坐标，三个用例**
+
+**要验的主张**：保护区（你认领的区块）里，**有任务区 ⇒ bot 真的能干活**；**没有任务区 ⇒ 一律拒**；
+**与安全区冲突 ⇒ 任务如实失败**。
+
+```
+/function alice_test:lumber_course        # 一键场景（地形 + 5 棵树：4 橡 + 云杉 + 2×2 高云杉）
+/tp 23 64 207                             # 站到场景里（区块 1,12）
+/give @s alice:protection_selector
+```
+① 右键地图 → **左键拖选** 6 格（区块 `1..2 × 12..14`）→ **ESC 提交**；期望聊天
+`保护区：认领 6 个区块…`（日志 `[Protection] batch … action=claim applied=6`）。
+
+| 用例 | 入口 | 期望（看日志键） |
+|---|---|---|
+| **① 正例**：保护区里划林场 | `/give @s alice:region_lumber` → **右键** | `[TaskZone] declared … kind=region_lumber **level=L2** chunks=6`；`[ZoneAuthority] ALLOW … 等级 L2`；**真的砍到树**（`[Job] … chopped=` 在涨）；够不到的高处会 `[Ledger] place … cobblestone [TEMP STEP_PLACEMENT]`（"垫一格"，用完自己拆） |
+| **② 对照**：无任务区 | 先 `/alice region stop`，再 `/give @s alice:lumber_job` → 右键 | **1 tick 就 FAILED**：`[Job] select job=lumber … candidates=0 rejected=[tree@…:**protected_area**,…]` + `terminal=FAILED code=failed:no_reachable_candidate` |
+| **③ 冲突必须如实失败** | 站在场景里 `/alice protect safe claim` → `/alice region start` | 立即 `任务区与**安全区**冲突 ⇒ 拒绝声明` + 聊天 `区域任务失败：task_zone_conflict[safe_zone 1 chunks: 1,12]`；**bot 一步都不动** |
+
+**⚠️ 判读时的一个陷阱**：任务失败后 **LLM 可能自起一个新区域任务**（`[Goal] decision_action … {"action":"start_job","kind":"region_lumber"}`）
+⇒ 看到的"又在砍"未必是你点的那个入口。现在决策层起/停任务会**在聊天回执并写明触发原因**（`…（触发=terminal:lumber(no_reachable_candidate)）`），
+用那一行分辨"**谁起的**"；机制细节见 `AI_DECISIONS.md` 的 `D-338` 附注十一/十三。
+
+**⚠️ FTB 干扰**（见 §2.5.1）：`/alice ftb status` 先看；若日志出现
+`[WRITE-REFUSED] break … reason=world_unchanged（… 被保护层取消）` 而**没有** `protected_area`/`zone_*` 码 ⇒ 那是 **FTB 拦的**，
+`/alice ftb bind` 后应归零（实测：bind 前 40 次、bind 后 0 次）。
+
+**收尾**：`/alice region stop` → `/alice protect safe unclaim`（若还在安全区）→ 地图右键点那 6 格=待取消 → ESC 提交。
+
 ## 3. ★ R4 路径会话（规划 → 逐段执行）
 
 **物品**：`alice:pathing_session`（路径会话测试器，场景专属）

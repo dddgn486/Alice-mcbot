@@ -251,6 +251,15 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 
 | R2 零进展快速失败（D-105） | 任一卡死场景（如旧版 `clear_guard` 的箱顶弹跳） | 观察日志 | 连续 3 次"起跳后落回同一脚位格"即 `[R4 Session] no_progress … → TIMEOUT/SEGMENT_NO_PROGRESS`，约 40 tick 内退出而不是 161 tick | **`SERVER_TESTED`（D-242 已实测触发）**：`AI_DECISIONS.md:9965` `no_progress … wastedJumpLandings=3 ⇒ SEGMENT_NO_PROGRESS ⇒ TIMEOUT`（水里 PILLAR 构造场景）⇒ 原「待测」作废 |
 
+### 任务区 / 权限阶梯（`D-338` 附注六/八/十/十三，2026-09-19）
+
+| 判据 | 证据等级 | 证据 |
+|---|---|---|
+| 任务区**几何 + 锁定 + 覆盖规则 + 生命周期**（工作区域方块级 ⇒ 区块最小覆盖；随 `scopeId` 生灭） | `SERVER_TESTED` | `single:task_zone`（**82 判据 / 0 失败**）、`module:protection` 3/3、`ALICE_HEADLESS=1 check-all` 17 PASS（CORE 51/51） |
+| **权限阶梯**（`L0` 只读 / `L1` 脚手架 / `L2` 工作面 / `L3` 全权）接进**四处**消费（候选扫描 / 破坏 / 放置 / **能力闸门**） | `SERVER_TESTED` + `WINDOWS_CLIENT` | 客户端：`[TaskZone] level=L2 chunks=6`、`ZONE_PROTECTED` **144→0**、内层 Job `places=0→3`、云杉 `chopped 6/7→7/7`、`[Ledger] place … [TEMP STEP_PLACEMENT]`；**三次先红后绿**反向对照（拆候选消费 ⇒ 恰 2 红；破坏闸恒放行 ⇒ 恰 3 红；恒拒 ⇒ 恰 3 红） |
+| 无任务区 ⇒ **逐字** `protected_area`（既有码/行为不变） | `SERVER_TESTED` + `WINDOWS_CLIENT` | 判据"无任务区逐字回归"；客户端用例②（1 tick FAILED） |
+| ⚠️ **保护区里 LLM 自起任务能拿 `L2`** | **待裁定**（非缺陷，是政策未定） | 客户端两轮复现（台账 §5.12 第 14/18 项；`D-338` 附注十一） |
+
 ## 电池自身的"起步前提"（2026-09-14 起）
 
 | 前提 | 现状 | 读数 |

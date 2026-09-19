@@ -84,9 +84,10 @@
 >    `L3 全权(仅玩家显式)`）。
 > ✅ **`§5.12` 第 4 件下半段已落地**（2026-09-19，`D-338` 附注八）：**权限阶梯接进闸门** ——
 >    `WritePolicyMatrix.Level`（等级**单一出处**，`L3` 无玩家驱动身份 ⇒ 降级 `L2`）+ 新 `protection/ZoneAuthority`
->    = ⭐**一个判据、三处消费**：① 候选扫描（`MineCandidateSource`/`LumberCandidateSource`）② 破坏闸门（`BlockBreakSafety`）
+>    = ⭐**一个判据、多处消费**：① 候选扫描（`MineCandidateSource`/`LumberCandidateSource`）② 破坏闸门（`BlockBreakSafety`）
 >    ③ **放置闸门**（`BlockInteraction.placeAt` —— 今天**完全没有**保护区检查 = `D-338` 核对表里的缺口，本片补上，
->    `PlaceResult` 加 `ZONE_DENIED`）。`L1` 的"≤8 次"= **区内**配额（不是作用域级预算上限 ⇒ 野外在 `L0` 期间照旧可写）。
+>    `PlaceResult` 加 `ZONE_DENIED`）④ ⚠️ **能力闸门**（`PathSession`→`CapabilityGate`，2026-09-19 客户端实测**漏接**
+>    ⇒ 保护区内 `PILLAR` 被拒 144 次；"三处消费"的说法**作废**，见 `D-338` 附注十）。`L1` 的"≤8 次"= **区内**配额（不是作用域级预算上限 ⇒ 野外在 `L0` 期间照旧可写）。
 >    ⚠️ **一处变严**：保护区内**放置**从"没闸门"变成"要任务区 + 等级"（无任务区时码仍逐字 `protected_area`）。
 >    门禁 `task_zone` **50 → 76 判据**；⭐**反向对照三次**：拆候选那处消费 ⇒ `failures=2`（恰好两条候选判据）；
 >    破坏闸恒放行 ⇒ `failures=3`（恰好 `L0`/`L1`/候选 `L0` 三条**拒绝**判据）；破坏恒拒 ⇒ `failures=3`（恰好 `L2` 三条**放行**判据）。
