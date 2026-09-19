@@ -166,6 +166,8 @@ public final class RegressionBatteryTask implements Task {
             // M3b（2026-09-15）：两条"照词表写了、但从来没被观测过"的归因映射各配一个确定性夹具。
             Map.entry("mine_stale", Profile.MAIN),
             Map.entry("mine_budget", Profile.MAIN),
+            // D-335：挖矿容量守卫（前置满包不许动世界 / 作业中满包恰好只少 1 格）—— 对際 lumber_failure
+            Map.entry("mine_inventory", Profile.EXTRA),
             // 队列第③项（2026-09-17）：`MineJob` 新尝试上场时必须保留上一轮失败事实。
             // ⚠️ 判据必须在**运行中**采样（结束态走 finishedMinerNode 分支，天然有 failure ⇒ 判别不了）。
             Map.entry("mine_failure_visible", Profile.MAIN),

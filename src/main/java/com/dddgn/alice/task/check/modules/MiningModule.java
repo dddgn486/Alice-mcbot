@@ -13,6 +13,7 @@ import com.dddgn.alice.task.MineRegressionTask;
 import com.dddgn.alice.task.NoProgressCheckTask;
 import com.dddgn.alice.task.OreCourseAnchor;
 import com.dddgn.alice.task.check.CheckContext;
+import com.dddgn.alice.task.MineInventoryCheckTask;
 import com.dddgn.alice.task.check.CheckModule;
 import com.dddgn.alice.task.check.CheckProfile;
 import com.dddgn.alice.task.check.CheckStep;
@@ -23,8 +24,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * **挖掘模块（R-2 第五片，7 步）**：`mine_regression` · `no_progress` · `mine_menu` · `mine_job`
- * · `mine_no_tool` · `mine_stale` · `mine_budget`。
+ * **挖掘模块（R-2 第五片，8 步）**：`mine_regression` · `no_progress` · `mine_menu` · `mine_job`
+ * · `mine_inventory` · `mine_no_tool` · `mine_stale` · `mine_budget`。
  *
  * <p>为什么这七步归一类：它们是**同一条挖掘链路的不同环节**，而且**共享同一个场景**（`ore_course_terrain`）
  * 与同一批"必须不猜"的红线：
@@ -94,6 +95,10 @@ public final class MiningModule implements CheckModule {
                                         MineCandidateSource.SCAN_RADIUS),
                                 new NearestPolicy()),
                         2200),
+                // D-335（2026-09-19）：**容量守卫**（前置 + 作业中）—— 对際伐木 `LumberFailureCheckTask`。
+                // 判据钉在"世界有没有被白改"上：前置满包 ⇒ 一格不动；作业中满包 ⇒ 恰好只少 1 格。
+                CheckStep.of("mine_inventory", CheckProfile.EXTRA, ore, staged,
+                        () -> new MineInventoryCheckTask(bot, scope), 1400),
                 // M3（G3 归因）：**缺工具**必须如实报 `tool_missing`，不许被总括码 `no_reachable_candidate` 盖掉。
                 // 与上一步**同一场景、同一 Job**，唯一差别 = **不发镐** ⇒ 每个候选都 `no_suitable_tool`。
                 // 判据挂在 `doneWhen`：终态理由一旦成为 `tool_missing` 即记 PASS（`MineJob` 会 FAILED，
