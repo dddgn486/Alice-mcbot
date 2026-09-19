@@ -27,8 +27,13 @@ import java.util.List;
  *
  * <p><b>怎么走</b>：远距离用**一跳一跳逼近**（`FarTravelHop`：只读 `hasChunkAt` 采样已加载前沿 ⇒
  * 夹到边界内侧 + `GoalNearXZ`；实测远粗目标 `20000 节点 / 142~186 ms` vs 一跳 `161 节点 / 1 ms`），
- * 终点临近时改走**精确落脚**（在认领区块内找一个可站格）—— 因为"到达"的判据是
- * **脚位落在认领区块里**（`SafeZoneData.isClaimed`，纯认领集查询，不读方块）。
+ * 终点临近时改走**精确落脚**（在到达集内找一个可站格）。
+ *
+ * <p><b>回家去哪（`D-338` ③ 优先级链，2026-09-19）</b>：**归位点（玩家设定，待落地）> 安全区 > 保护区**；
+ * **到达判据 = 脚位落在"返程到达集"里** = 目标区的**内部区块**（自身及四邻都已认领 ⇒ "向区域中心靠"），
+ * 内部集为空（1 区块 / 条带 / ≤3×2）⇒ **退化为目标区本身**（"进区即到"）。
+ * ⚠️ 旧口径是"进认领区块即到"（`isClaimed`）—— 它会让 bot **贴着边界停下**，且**看不见安全区**。
+ * 全部判据都在 {@link SafeZoneData}（`isInReturnZone` / `nearestReturnCell`，纯集合查询、不读方块）。
  *
  * <p><b>兜底语义（用户 2026-09-19 重新声明）</b>：**"就地固守"不是兜底** —— 它是"避免死亡的最保守行为"，
  * 勘测侧意见是**现在不做**（那等于把责任转接给玩家）。因此本任务**不新造固守行为**：
@@ -97,7 +102,7 @@ public final class SafeReturnTask implements Task {
      */
     public static boolean shouldStart(ServerLevel level, BlockPos foot) {
         SafeZoneData zones = SafeZoneData.get(level.getServer());
-        return !zones.isClaimed(level, foot) && zones.nearestClaimedCell(level, foot) != null;
+        return !zones.isInReturnZone(level, foot) && zones.nearestReturnCell(level, foot) != null;
     }
 
     @Override
@@ -117,12 +122,12 @@ public final class SafeReturnTask implements Task {
         ServerLevel level = bot.serverLevel();
         SafeZoneData zones = SafeZoneData.get(level.getServer());
         BlockPos foot = MovementHelper.footCell(level, bot);
-        if (zones.isClaimed(level, foot)) {
-            return done("returned:inside=" + foot.toShortString());
+        if (zones.isInReturnZone(level, foot)) {
+            return done("returned:inside=" + foot.toShortString() + " safe=" + zones.isSafe(level, foot));
         }
-        BlockPos entry = zones.nearestClaimedCell(level, foot);
+        BlockPos entry = zones.nearestReturnCell(level, foot);
         if (entry == null) {
-            return fail("return_no_safe_zone", "claims=0 dim=" + level.dimension().location()
+            return fail("return_no_safe_zone", "claims=0 safe=0 dim=" + level.dimension().location()
                     + " from=" + foot.toShortString());
         }
         entryCell = entry;
@@ -159,9 +164,10 @@ public final class SafeReturnTask implements Task {
                 note = "hop " + hop.describe() + " from=" + foot.toShortString();
             }
             legCurve.add("leg=" + rounds + (finalLeg ? " final " : " hop ") + note);
-            BotLog.info("[SafeReturn] leg={} kind={} distance={} from={} entry={} {}",
-                    rounds, finalLeg ? "final" : "hop", distance, foot.toShortString(),
-                    entry.toShortString(), note);
+            BotLog.info("[SafeReturn] leg={} kind={} zone={} arrivalChunks={} distance={} from={} entry={} {}",
+                    rounds, finalLeg ? "final" : "hop", zoneKind(zones, level),
+                    zones.returnArrivalChunks(level.dimension().location()).size(),
+                    distance, foot.toShortString(), entry.toShortString(), note);
             runner = new PathRetryRunner(bot, request, PathRetryRunner.DEFAULT_MAX_REPLANS,
                     "safereturn-" + rounds);
         }
@@ -185,7 +191,7 @@ public final class SafeReturnTask implements Task {
                     + (result == null ? "-" : result.status()));
         }
         BlockPos now = MovementHelper.footCell(level, bot);
-        if (zones.isClaimed(level, now)) {
+        if (zones.isInReturnZone(level, now)) {
             return done("returned:inside=" + now.toShortString() + " rounds=" + rounds);
         }
         int after = FarWalkTask.distanceXZ(now, entry);
@@ -240,8 +246,8 @@ public final class SafeReturnTask implements Task {
             for (int dz = -STAND_SEARCH; dz <= STAND_SEARCH; dz++) {
                 for (int dy = 3; dy >= -4; dy--) {
                     BlockPos cell = entryCell.offset(dx, dy, dz);
-                    if (!zones.isClaimed(level, cell)) {
-                        continue;   // 落点必须在区内（否则"进区"这个判据不成立）
+                    if (!zones.isInReturnZone(level, cell)) {
+                        continue;   // 落点必须在**到达集**里（否则"到家"这个判据不成立）
                     }
                     if (!level.hasChunkAt(cell)) {
                         continue;   // ⚠️ 先问加载状态再读方块（D-331/D-337 同一纪律）
@@ -259,6 +265,11 @@ public final class SafeReturnTask implements Task {
             }
         }
         return best;
+    }
+
+    /** 目标区种类（日志/诊断用）：有安全区 ⇒ `safe`，否则 ⇒ `protect`（`D-338` ③ 的优先级链）。 */
+    private static String zoneKind(SafeZoneData zones, ServerLevel level) {
+        return zones.safeClaims(level.dimension().location()).isEmpty() ? "protect" : "safe";
     }
 
     private Status done(String why) {

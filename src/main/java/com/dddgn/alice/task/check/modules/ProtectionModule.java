@@ -44,9 +44,10 @@ public final class ProtectionModule implements CheckModule {
         return List.of(
                 CheckStep.of("protection_zones", CheckProfile.MAIN, List.of(), null,
                         () -> new ProtectionZoneCheckTask(bot, observer), 200),
-                // D-327 机制 B（2026-09-19）：**任务失败后回安全区的兜底** —— EXTRA（走 200 格 + 封盒两用例，
-                // 耗时较长且会临时认领/还原一个区块 ⇒ 不进 CORE；改世界的部分夹具自己还原 ✓）
+                // D-327 机制 B（2026-09-19）：**任务失败后回安全区的兜底** —— EXTRA（走 3 段路 + 封盒，
+                // 耗时较长且会临时认领/声明/还原区域 ⇒ 不进 CORE；改世界的部分夹具自己还原 ✓）。
+                // `D-338` ③（2026-09-19）加了两段路（安全区内部 / 保护区内部）+ 单区块退化 ⇒ 预算 2200 → 3600。
                 CheckStep.of("safe_return", CheckProfile.EXTRA, List.of(), null,
-                        () -> new SafeReturnCheckTask(bot, observer), 2200));
+                        () -> new SafeReturnCheckTask(bot, observer), 3600));
     }
 }

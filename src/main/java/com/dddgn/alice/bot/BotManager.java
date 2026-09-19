@@ -2306,8 +2306,8 @@ public final class BotManager {
                 return false;   // 已经在安全区里 / 世界没声明过安全区 ⇒ 不改变今天的行为
             }
             BlockPos entry = com.dddgn.alice.protection.SafeZoneData.get(level.getServer())
-                    .nearestClaimedCell(level, foot);
-            BotLog.warn("[SafeReturn] 任务失败且不在安全区 ⇒ 启动返程兜底（D-327 机制 B）bot={} from={}"
+                    .nearestReturnCell(level, foot);
+            BotLog.warn("[SafeReturn] 任务失败且不在返程到达集 ⇒ 启动返程兜底（D-327 机制 B / D-338 ③）bot={} from={}"
                             + " entry={} distance={} failed={}",
                     bot.getName().getString(), foot.toShortString(), entry.toShortString(),
                     com.dddgn.alice.task.FarWalkTask.distanceXZ(foot, entry),

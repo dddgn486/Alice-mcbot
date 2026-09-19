@@ -300,10 +300,46 @@ public final class SafeZoneData extends SavedData {
      * @return 最近的区内格；**该维度没有任何认领 ⇒ `null`**（调用方按"没有安全区"处理）
      */
     public BlockPos nearestClaimedCell(ServerLevel level, BlockPos from) {
-        Set<Long> chunks = claims(level.dimension().location());
-        if (chunks.isEmpty()) {
-            return null;
-        }
+        return nearestCellIn(claims(level.dimension().location()), from);
+    }
+
+    /**
+     * ⭐ **返程目标区**（`D-338` ③ 优先级链的第一段）：**有安全区 ⇒ 安全区；没有 ⇒ 保护区**。
+     * 纯集合查询（零方块读取、零区块加载）。
+     */
+    public Set<Long> returnZoneChunks(ResourceLocation dimension) {
+        Set<Long> safe = safeClaims(dimension);
+        return safe.isEmpty() ? claims(dimension) : safe;
+    }
+
+    /**
+     * ⭐ **返程到达集**（`D-338` ③）：目标区的**内部区块**（"向区域中心靠"的**自适应安全范围**）；
+     * 内部集为空（1 区块 / 条带 / ≤3×2 的小区）⇒ **退化为目标区本身** = "进区即到"
+     * （用户 2026-09-19 裁定：小基地不要加几何，正解是玩家设定归位点）。
+     */
+    public Set<Long> returnArrivalChunks(ResourceLocation dimension) {
+        Set<Long> zone = returnZoneChunks(dimension);
+        Set<Long> internal = internalChunks(zone);
+        return internal.isEmpty() ? zone : internal;
+    }
+
+    /**
+     * **到达判据**（每 tick 都要问 ⇒ 纯集合查询、零副作用）：脚位所在区块在返程到达集里。
+     * `D-327` 机制 B 用 `isClaimed`（"走到认领区块边界就算到家"）；`D-338` ③ 起改成这一条
+     * （"走到**安全区的内部**才算到家"）。
+     */
+    public boolean isInReturnZone(ServerLevel level, BlockPos pos) {
+        return returnArrivalChunks(level.dimension().location())
+                .contains(ChunkPos.asLong(pos.getX() >> 4, pos.getZ() >> 4));
+    }
+
+    /** **返程终点**：到达集里离 {@code from} 最近的那一格；世界没有任何区 ⇒ `null`。 */
+    public BlockPos nearestReturnCell(ServerLevel level, BlockPos from) {
+        return nearestCellIn(returnArrivalChunks(level.dimension().location()), from);
+    }
+
+    /** 集合里离 {@code from} 最近的那一格（XZ；Y 取 {@code from} 的 Y 作占位）；空集 ⇒ `null`。 */
+    private static BlockPos nearestCellIn(Set<Long> chunks, BlockPos from) {
         long best = Long.MAX_VALUE;
         BlockPos bestCell = null;
         for (long key : chunks) {
