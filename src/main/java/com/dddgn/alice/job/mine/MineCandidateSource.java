@@ -187,10 +187,9 @@ public final class MineCandidateSource implements CandidateSource {
                         // ⭐ 保护区这一层走**区域级授权面**（`D-338` 附注七③：与破坏/放置闸门**同一个函数**）。
                         // 挖矿是 `L0`（`D-338` ④"挖矿 = 野外采集，不发生在保护区内"）⇒ 认领区块里的矿
                         // **照旧被拒**（没有任务区时拒绝码逐字仍是 `protected_area`）。
-                        String reason = com.dddgn.alice.protection.ZoneAuthority.regionRefusal(level,
+                        String reason = com.dddgn.alice.protection.ZoneAuthority.candidateRefusal(level,
                                 bot.getUUID(), pos, safeZones.protectionReason(level, pos),
-                                WriteReason.EXPECTED_TARGET,
-                                com.dddgn.alice.protection.ZoneAuthority.Act.BREAK);
+                                WriteReason.EXPECTED_TARGET);
                         if (reason != null) {
                             rejected.get(i).add(id(pos) + ":" + reason);
                             continue;

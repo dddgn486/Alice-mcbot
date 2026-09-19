@@ -160,7 +160,25 @@ public final class ZoneAuthority {
         if (!"protected_area".equals(worldProtection)) {
             return worldProtection;
         }
-        return authorize(level, owner, pos, reason, act).refusal();
+        Decision decision = authorize(level, owner, pos, reason, act);
+        logAllow(pos, reason, decision);
+        return decision.refusal();
+    }
+
+    /**
+     * **候选扫描专用**：**同一判据**，但**不写日志** —— 候选扫描是逐方块热路径
+     * （一次巡查可能问几十上百格），逐块留痕会把日志刷成噪声；真正的"写入放行"由动作层
+     * （{@link #regionRefusal}）留一行。
+     */
+    public static String candidateRefusal(ServerLevel level, UUID owner, BlockPos pos, String worldProtection,
+                                         WriteReason reason) {
+        if (worldProtection == null) {
+            return null;
+        }
+        if (!"protected_area".equals(worldProtection)) {
+            return worldProtection;
+        }
+        return authorize(level, owner, pos, reason, Act.BREAK).refusal();
     }
 
     /** 便捷入口（破坏）：{@code null} = 允许。 */
