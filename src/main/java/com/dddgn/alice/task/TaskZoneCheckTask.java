@@ -684,8 +684,12 @@ public final class TaskZoneCheckTask implements Task {
                 ZoneAuthority.placeRefusal(level, owner, AUTH_INSIDE, WriteReason.STEP_PLACEMENT) == null);
         List<String> llmRejected = new LumberCandidateSource().candidates(bot, treeSpec).rejected();
         check("⑪封顶端到端：LLM 自起的区域任务，保护区里的树在**候选期**就被拒（`:zone_break_not_allowed`）"
-                        + "⇒ 真任务会**如实失败**（`no_reachable_candidate`），而不是去砍玩家的树｜rejected=" + llmRejected,
+                        + "⇒ 不会去砍玩家的树｜rejected=" + llmRejected,
                 hasCode(llmRejected, "zone_break_not_allowed"));
+        // ⚠️ **诚实纠正**（2026-09-19，`D-341`）：这一条以前还写着"⇒ 真任务会**如实失败**（`no_reachable_candidate`）"
+        // —— **客户端实测证明那句是错的**：区域作业把"没权限的树"当成"区域里没有树"、走**待机巡查**，
+        // 空转到 `maxTicks=24000`（20 分钟）。现在"如实失败"由 `permissionBlock` 保证
+        // （码 = `no_permitted_candidate`），由下面 ⑫ 断言。
         TaskZoneRegistry.declare(server, owner, "region_lumber", authArea, true);
         check("⑪封顶：**玩家显式发起**（命令/物品）时同一格**照旧放行**破坏（`L2`）⇒ 阶梯对玩家不缩水",
                 ZoneAuthority.breakRefusal(level, owner, AUTH_INSIDE, WriteReason.EXPECTED_TARGET) == null);
@@ -704,6 +708,40 @@ public final class TaskZoneCheckTask implements Task {
                 ZoneAuthority.placeRefusal(level, owner, AUTH_WILDERNESS, WriteReason.STEP_PLACEMENT) == null
                         && ZoneAuthority.breakRefusal(level, owner, AUTH_WILDERNESS,
                                 WriteReason.EXPECTED_TARGET) == null);
+
+        // ⑫ ⭐ `D-341`：**"无权" ≠ "没有"** —— 候选扫描把没权限的树丢进 `rejected`、`viable` 里根本没有它，
+        //    于是区域作业的世界模型变成"区域里没有树" ⇒ 走**待机巡查等生长**分支（那是为树苗生长设计的
+        //    正常机制、也是用户要的"等窗口"）。客户端实测（2026-09-19 19:06）：LLM 自起的 `region_lumber`
+        //    在保护区内被封顶 `L1`、5 棵树全 `zone_break_not_allowed` ⇒ `viable=0 inRegion=0` +
+        //    `欠树 deficit=5` **空转到 `maxTicks=24000`（20 分钟）**，期间反复唤醒 LLM。
+        //    用户口径："任务要如实失败，不能继续跑" ⇒ 作业必须把"树全被**永久**拒绝"判成 `FAILED`。
+        List<String> cappedRejected = new LumberCandidateSource().candidates(bot, treeSpec).rejected();
+        var treeRegion = new LumberRegionState.Region(
+                AUTH_TREE_BASE.getX() - 4, AUTH_TREE_BASE.getZ() - 4,
+                AUTH_TREE_BASE.getX() + 4, AUTH_TREE_BASE.getZ() + 4, FOOT_Y, 8);
+        String blockedMain = RegionLumberJob.permissionBlock(treeRegion, cappedRejected, FOOT_Y + 8);
+        check("⑫无权≠没有：**真扫描**里被封顶拒绝的树（`:zone_break_not_allowed`）⇒ `permissionBlock` 报出**主因**"
+                        + "（⇒ 区域作业**如实失败** `no_permitted_candidate`，不再当「区域里没树」空转）｜blocked="
+                        + blockedMain,
+                hasCode(cappedRejected, "zone_break_not_allowed")
+                        && blockedMain != null && blockedMain.startsWith("zone_break_not_allowed"));
+        String treeId = "tree@" + AUTH_TREE_BASE.getX() + "," + AUTH_TREE_BASE.getY() + ","
+                + AUTH_TREE_BASE.getZ();
+        check("⑫无权≠没有：**搜索性/策略性**理由不算永久拒绝（`trunk_too_tall`（含带括号后缀）/`not_nearest`/"
+                        + "`no_stand`/`null`/空串）⇒ 判据为 `null`（该照旧等生长，不许被误判成失败）",
+                RegionLumberJob.permissionBlock(treeRegion, List.of(
+                        treeId + ":trunk_too_tall",
+                        treeId + ":trunk_too_tall(unreachable=7)",
+                        treeId + ":not_nearest",
+                        treeId + ":no_stand"), FOOT_Y + 8) == null
+                        && !ZoneAuthority.permanentDenial(null)
+                        && !ZoneAuthority.permanentDenial(""));
+        check("⑫无权≠没有：**区域外**的永久拒绝不算本区域的问题（区域外的 `protected_area` ⇒ `null`）",
+                RegionLumberJob.permissionBlock(treeRegion,
+                        List.of("tree@0,-60,0:protected_area"), FOOT_Y + 8) == null);
+        check("⑫无权≠没有：**安全区**（子类声明，任务区不可能覆盖）与 `L0` 也只读 ⇒ 都算永久拒绝",
+                ZoneAuthority.permanentDenial("protected_safe_zone")
+                        && ZoneAuthority.permanentDenial("zone_read_only"));
 
         findings.add("authority: L0/L1/L2 判据 + 真写入（quota=" + quotaPlaced + "/"
                 + ZoneAuthority.L1_MAX_PLACES + " 区内放置，越界/安全区/野外/别的 owner/候选扫描各一条）");

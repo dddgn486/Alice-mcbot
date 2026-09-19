@@ -377,6 +377,62 @@ def rule_stop_event_ring():
     return problems
 
 
+def rule_no_permitted_candidate():
+    """D-341（2026-09-19 用户裁定 P2）：**「无权」≠「没有」**。
+
+    事实（裁定依据，客户端实测）：区域作业的候选扫描把**没权限的树**丢进 `rejected`、`viable` 里根本没有
+    它 ⇒ 作业的世界模型变成「区域里没有树」⇒ 走**待机巡查等生长**（那是为树苗生长设计的正常机制）。
+    2026-09-19 19:06 客户端：LLM 自起的 `region_lumber` 在保护区内被封顶 `L1`、5 棵树全
+    `zone_break_not_allowed` ⇒ `viable=0 inRegion=0` + `欠树 deficit=5`，**空转到 `maxTicks=24000`
+    （20 分钟）**，期间反复唤醒 LLM。用户口径：「任务要如实失败，不能继续跑」。
+
+    本规则断言：① 分类的**唯一出处** `ZoneAuthority.permanentDenial` 在、且**永久码齐**；
+    ② 它**没有**把搜索性理由（`trunk_too_tall`）收进去（否则「该等」会被误判成「失败」）；
+    ③ `RegionLumberJob.patrol()` **真的调用**它、并给出 `no_permitted_candidate` 终态码。
+    删掉任何一处 ⇒ 门禁红。
+    """
+    zone = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "protection" / "ZoneAuthority.java"
+    region = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "lumber" / "RegionLumberJob.java"
+    problems = []
+    ztext = zone.read_text(encoding="utf-8")
+    start = ztext.find("public static boolean permanentDenial(String code) {")
+    if start < 0:
+        problems.append("ZoneAuthority 找不到 `permanentDenial`（分类的唯一出处没了 ⇒ 本规则要跟着改）")
+    else:
+        body = ztext[start:ztext.find("\n    }", start)]
+        # ⚠️ 必须**先剥注释**：方法体里那句注释就举了 `trunk_too_tall(unreachable=…)` 当例子
+        # （2026-09-19 实测：不剥注释 ⇒ 本规则假红，报"收了搜索性理由"）
+        body = re.sub(r"/\*.*?\*/", "", body, flags=re.S)
+        body = re.sub(r"//[^\n]*", "", body)
+        for code in ('"zone_break_not_allowed"', '"protected_area"', '"protected_safe_zone"',
+                     '"zone_read_only"', '"zone_place_not_scaffold"'):
+            if code not in body:
+                problems.append("`permanentDenial` 丢了永久码 " + code + "（权限类拒绝必须算永久）")
+        if "trunk_too_tall" in body:
+            problems.append("`permanentDenial` 里出现了 `trunk_too_tall` —— 那是**搜索性**理由，"
+                            "不是权限 ⇒ 会把『该等生长』误判成『失败』")
+    rtext = region.read_text(encoding="utf-8")
+    if "public static String permissionBlock(" not in rtext:
+        problems.append("`RegionLumberJob.permissionBlock` 没了（夹具 ⑫ 直接断言它）")
+    start = rtext.find("Status patrol() {")
+    if start < 0:
+        problems.append("RegionLumberJob 找不到 `patrol()`（结构变了 ⇒ 本规则要跟着改）")
+    else:
+        body = rtext[start:rtext.find("\n    }", start)]
+        # ⚠️ **结构断言，不是"文本在不在"**（2026-09-19 实测教训）：第一版只查 `permissionBlock(` 是否出现
+        # ⇒ 反向对照把条件注入成 `if (inRegion.isEmpty() && false)` 时**规则照样 PASS**（调用文本还在，
+        # 只是永远不执行）⇒ 门禁形同虚设。改成断言"那个分支是**无条件**的、且调用是它第一条语句"。
+        expected = ("if (inRegion.isEmpty()) {\n"
+                    "            String blocked = permissionBlock(region, raw.rejected(), effectiveTop);")
+        if expected not in body:
+            problems.append("`patrol()` 的『区域内没有可用树』分支没有**无条件**走 `permissionBlock(...)`"
+                            "（被删掉 / 挪走 / 加了条件都会命中这里）⇒ 永久拒绝又会被当成"
+                            "『区域里没有树』去待机巡查（= 那个 20 分钟空转）")
+        if '"no_permitted_candidate"' not in body:
+            problems.append("`patrol()` 没有 `no_permitted_candidate` 终态码 ⇒ 不会如实失败")
+    return problems
+
+
 def rule_no_until_full():
     """J5-P1（2026-09-17 用户裁定「删」）：**`GoalSpec.Kind.UNTIL_FULL` 不得复活**。
 
@@ -548,6 +604,7 @@ def main() -> int:
     r2p2 = rule_module_step_inventory()
     r2p3 = rule_step_boundary_parity()
     ring = rule_stop_event_ring()
+    noperm = rule_no_permitted_candidate()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -586,9 +643,12 @@ def main() -> int:
         print(f"[R2·步边界对齐] {line}")
     for line in ring:
         print(f"[D-338·事件环补全] {line}")
+    for line in noperm:
+        print(f"[D-341·无权≠没有] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
-          and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring)
+          and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
+          and not noperm)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
           f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)}"

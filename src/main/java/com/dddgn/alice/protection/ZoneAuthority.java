@@ -48,6 +48,46 @@ public final class ZoneAuthority {
     /** `L1`（临时脚手架）在**区内**的放置配额（用户口径：**≤8 次**）。 */
     public static final int L1_MAX_PLACES = 8;
 
+    /**
+     * ⭐ `D-341`：**这个拒绝码是"永久没有权限"，还是"暂时/搜索性的"？**
+     *
+     * <p><b>为什么要区分（"无权" ≠ "没有"）</b>：区域作业 `RegionLumberJob` 的候选扫描把**没权限的树
+     * 直接丢进 `rejected`**、不进 `viable` ⇒ 作业的世界模型变成"区域里没有树" ⇒ 走**待机巡查等生长**
+     * 分支（那是为树苗生长设计的正常机制）。客户端实测（2026-09-19 19:06）：LLM 自起的 `region_lumber`
+     * 在保护区内被封顶 `L1`、5 棵树全 `zone_break_not_allowed` ⇒ `viable=0 inRegion=0` +
+     * `欠树 deficit=5 但当前没有可补种的位置`，**每 ~2 s 一行、一直转到 `maxTicks=24000`（20 分钟）**，
+     * 期间反复唤醒 LLM。用户口径：**"任务要如实失败，不能继续跑"**。
+     *
+     * <p>⇒ 本函数是**唯一的分类出处**：作业据此把"树全被永久拒绝"判成 `FAILED`，而把
+     * `trunk_too_tall` / `not_nearest` / `no_stand` 这类**搜索性或策略性**理由继续当"暂时没有"（照旧等）。
+     *
+     * <p><b>收录的码</b>：{@code protected_area}（在保护区里且**没有**生效任务区）/
+     * {@code protected_safe_zone}（安全区，任务区不可能覆盖）/ {@code zone_read_only}（`L0`）/
+     * {@code zone_break_not_allowed}（`L1` 不许破坏）/ {@code zone_place_not_scaffold}（`L1` 只许临时放置）/
+     * {@code protected_block} / {@code protected_tag}（玩家设的全世界通用黑名单 —— 也不是"等一下就会变"）。
+     *
+     * <p>⚠️ **刻意不收录**：`trunk_too_tall`、`not_nearest`、`no_stand`、`unreachable`、`search_limit` 之类
+     * —— 那些是"目标此刻做不了"，作业该照旧等/换目标，**不是权限问题**。
+     *
+     * @param code 候选/动作层给出的拒绝码（`null`/空 ⇒ `false`）
+     */
+    public static boolean permanentDenial(String code) {
+        if (code == null || code.isBlank()) {
+            return false;
+        }
+        // 码可能带括号后缀（如 `trunk_too_tall(unreachable=…)`）⇒ 按分隔符取主干
+        String head = code;
+        int cut = head.indexOf('(');
+        if (cut > 0) {
+            head = head.substring(0, cut);
+        }
+        return switch (head.trim()) {
+            case "protected_area", "protected_safe_zone", "protected_block", "protected_tag",
+                 "zone_read_only", "zone_break_not_allowed", "zone_place_not_scaffold" -> true;
+            default -> false;
+        };
+    }
+
     /** 判定三态。 */
     public enum Verdict {
         /** 该区块**未认领** ⇒ 本判据不适用（野外）。 */

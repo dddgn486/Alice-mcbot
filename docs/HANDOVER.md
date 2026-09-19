@@ -41,6 +41,21 @@
 > ⚠️ 判据**必须直接驱动 `onEvent`**（夹具自身 `isSelfCheck=true` ⇒ `notifyIfAllowed` 先短路，走 `DecisionEvents.emit` 会假红）。
 > ⏳ **下一步 = P2**：`RegionLumberJob:437` 处，"候选全被**永久授权拒绝**"（`raw.rejected()` 里的
 > `zone_break_not_allowed`/`zone_read_only`/`protected_area`…）⇒ **如实失败**，不再 `viable=0` 空转到 `maxTicks`；之后 ③。
+>
+> **➡️ 2026-09-19 夜 续 2：P2 已落地 = `D-341`（"无权" ≠ "没有"）**
+> 分类唯一出处 `ZoneAuthority.permanentDenial(code)`（永久码齐；**刻意不收** `trunk_too_tall`/`not_nearest` 类
+> 搜索性理由）+ 纯函数 `RegionLumberJob.permissionBlock(region, rejected, effectiveTop)` + `patrol()` 在
+> `inRegion.isEmpty()` 时**先问它** ⇒ `terminalReason=no_permitted_candidate` + `FAILED`（⚠️ **放在补种之前**，
+> 否则 `deficit>0` 会先跑 `tryPlant` 把真因盖成假原因）。
+> **证据**：`task_zone` **⑫ 组 4 条**（用真扫描的 `rejected` + 手搭真树 + 已认领区；**89 → 93 判据 / 0 失败**）
+> · 内核规则 `rule_no_permitted_candidate`（**结构断言**） · **反向对照两条**：接线注入 `if (… && false)` ⇒ 内核红
+> （⚠️ **第一版弱规则放过了它**，已改结构断言后重放 ⇒ 红）；`permanentDenial` 注入恒 `false` ⇒ `checks=93 failures=2`
+> · `module:lumber` + `module:protection` PASS。
+> ⚠️ **没做端到端**（真跑被封顶的 `RegionLumberJob`）：`LumberCandidateSource` 是 `final`（塞不了桩源）、
+> `patrol()` 要求 bot 在区域内，且在共享夹具里真跑会写**按 owner 的 `baselineTrees`/`patrol`** 污染后续阶段。
+> ⇒ **客户端端到端入口**：`/alice instruct "在保护区里起一个 region_lumber"`（`instruct` 的动作由 LLM 应用 ⇒
+> `driver=llm` ⇒ 被封顶 `L1`）⇒ 应当**立刻** `FAILED no_permitted_candidate`，而不是 20 分钟不动。
+> **➡️ 下一个 = ③ 最小跨任务循环检测**（P1/P2 已完成）。
 
 > **⏭ 2026-09-19 晚（本弧全部落地）：§5.12 第 4 件 + 客户端三轮 + 决策层讨论**，最后一次 commit `d33f775`：
 > ⭐ 权限阶梯接进闸门（含客户端实测补的**第④处消费** = `PathSession`→`CapabilityGate`，`D-338` 附注十）

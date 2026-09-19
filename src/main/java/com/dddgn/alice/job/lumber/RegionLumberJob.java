@@ -425,6 +425,22 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
                 state.pendingReplantCount(bot.getUUID()), waitingFor, currentPatrolInterval,
                 server.getTickCount());
 
+        // ⭐ `D-341`：**"无权" ≠ "没有"** —— 区域里有树、但全被**永久授权拒绝**（例如保护区里被封顶 `L1`
+        // 的非玩家发起任务）⇒ **如实失败**，不许当成"区域里没有树"去待机巡查等生长。
+        // 客户端实测（2026-09-19 19:06）：正是这里把"5 棵树全 `zone_break_not_allowed`"当成"没树"，
+        // 加上 `欠树 deficit=5` ⇒ 每 ~2 s 一行、空转到 `maxTicks=24000`（20 分钟），期间反复唤醒 LLM。
+        // ⚠️ **必须放在补种之前**：否则 `deficit>0` 会先跑去补种、把真正的阻塞原因（没权限）盖成假原因。
+        if (inRegion.isEmpty()) {
+            String blocked = permissionBlock(region, raw.rejected(), effectiveTop);
+            if (blocked != null) {
+                terminalReason = "no_permitted_candidate";
+                failure = terminalReason + " " + blocked;
+                BotLog.warn("[Job] maintain {}", failure);
+                tell("区域里有树，但我**没有权限**作业（" + blocked + "）—— 如实收工，不再空转");
+                return finish(com.dddgn.alice.task.Task.Status.FAILED);
+            }
+        }
+
         // ① 欠树 ⇒ 先补种（§13.1"有空格且欠树 → 补种"）；② 有树 ⇒ 砍；两者都在同一轮里按需做
         if (deficit > 0) {
             var planted = tryPlant(state, deficit);
@@ -501,6 +517,63 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         var treeSpec = GoalSpec.harvestUnits(picked.anchor(), localRadius, 1, maxTicks);
         current = new LumberJob(bot, treeSpec, scope, source, policy);
         return com.dddgn.alice.task.Task.Status.RUNNING;
+    }
+
+    /**
+     * ⭐ `D-341`：**区域内被"永久授权拒绝"的树**（`null` = 没有这类候选 ⇒ 该等就照旧等）。
+     *
+     * <p>判据 = `raw.rejected()` 里 ① 锚点**落在区域内**且竖直在有效上界内、② 理由是
+     * {@link com.dddgn.alice.protection.ZoneAuthority#permanentDenial(String)}。命中 ⇒ 返回
+     * `"<码> <逐树理由>"`（给 `failure` 用），无 ⇒ `null`。
+     *
+     * <p>**为什么不看 `viable`**：调用方只在 `inRegion.isEmpty()` 时问它 —— **"无权"与"没有"必须分开**：
+     * 前者该如实失败，后者该照旧等生长（那是常驻作业的设计语义、也是用户要的"等窗口"）。
+     */
+    public static String permissionBlock(LumberRegionState.Region region, List<String> rejected,
+                                         int effectiveTop) {
+        List<String> hits = new ArrayList<>();
+        String code = null;
+        for (String entry : rejected) {
+            if (entry == null) {
+                continue;
+            }
+            int cut = entry.lastIndexOf(':');
+            if (cut <= 0) {
+                continue;
+            }
+            String reason = entry.substring(cut + 1);
+            if (!com.dddgn.alice.protection.ZoneAuthority.permanentDenial(reason)) {
+                continue;
+            }
+            net.minecraft.core.BlockPos anchor = parseRejectedAnchor(entry.substring(0, cut));
+            if (anchor == null || !region.containsHorizontal(anchor)
+                    || anchor.getY() < region.baseY() - 2 || anchor.getY() > effectiveTop) {
+                continue;
+            }
+            if (code == null) {
+                code = reason;                 // 首个命中的码 = 主因（扫描顺序确定 ⇒ 可复现）
+            }
+            hits.add(entry);
+        }
+        return hits.isEmpty() ? null : code + " " + String.join(" | ", hits);
+    }
+
+    /** 解析 `tree@12,64,8` 里的锚点（`LumberCandidateSource` 铸造的 `id` 格式）；不可解析 ⇒ `null`。 */
+    private static net.minecraft.core.BlockPos parseRejectedAnchor(String id) {
+        int at = id.lastIndexOf('@');
+        if (at < 0 || at == id.length() - 1) {
+            return null;
+        }
+        String[] parts = id.substring(at + 1).split(",");
+        if (parts.length != 3) {
+            return null;
+        }
+        try {
+            return new net.minecraft.core.BlockPos(Integer.parseInt(parts[0].trim()),
+                    Integer.parseInt(parts[1].trim()), Integer.parseInt(parts[2].trim()));
+        } catch (NumberFormatException exception) {
+            return null;
+        }
     }
 
     /**

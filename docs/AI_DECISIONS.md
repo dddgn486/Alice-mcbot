@@ -14093,3 +14093,58 @@ code=failed:no_reachable_candidate durationTicks=1` ⇒ **它是被拒的**。**
   = 两道闸门判据**相互独立**）；恢复 ⇒ `module:llm` PASS。
 - **客户端待复验**：非自检窗口下右键 `alice:region_lumber` 跑到发 `PROGRESS` ⇒ 应当只多
   `trigger_dropped reason=fixture_driver（夹具驱动的事件不交给决策层）`，且**没有** `[Goal] decision_action`。
+
+### D-341：**"无权" ≠ "没有"** —— 区域作业在"树全被永久拒绝"时**如实失败**（用户裁定 P2）2026-09-19
+
+**背景（客户端实测的原始事实）**：LLM 自起的 `region_lumber` 在保护区里被封顶 `L1`、5 棵树全
+`zone_break_not_allowed` ⇒ `viable=0 inRegion=0` + `欠树 deficit=5 但当前没有可补种的位置`，
+**每 ~2 s 一行、一直转到 `maxTicks=24000`（20 分钟）**，期间反复唤醒 LLM。用户口径：**"任务要如实失败，不能继续跑"**。
+
+**根因（代码级）**：`RegionLumberJob` 的候选扫描（`LumberCandidateSource:76`）把**没权限的树直接丢进
+`rejected`**、`viable` 里根本没有它 ⇒ 作业的世界模型变成**"区域里没有树"** ⇒ 走**待机巡查等生长**
+（`patrol()` 里 `inRegion.isEmpty()` 分支 —— 那是为树苗生长设计的正常机制、也是用户要的"等窗口"）。
+于是**两类完全不同的状态被合并了**：
+
+| 状态 | 该做什么 | 原来做的 |
+|---|---|---|
+| **暂时没有**（树苗还没长 / 都砍完了） | 照旧等生长 ✓ | 等 ✓ |
+| **永久无权**（`zone_break_not_allowed`/`protected_area`/`L0`…） | **如实失败** ❌ | 也当成"没有" ⇒ 空转 20 分钟 |
+
+这就是 **"`SEARCH_LIMIT` ≠ `UNREACHABLE`" 的同族错误：`"无权" ≠ "没有"`**。
+⚠️ 另外 `:453` 那条"区域里有树但全不可达 ⇒ `FAILED`"的分支**永远到不了** —— 它判的是 `inRegion`，
+而 `inRegion` 已被授权闸门清空。
+
+**改动（两处，都很局部）**：
+1. ⭐ **分类的唯一出处** `ZoneAuthority.permanentDenial(code)` —— 永久码 =
+   `protected_area` / `protected_safe_zone` / `protected_block` / `protected_tag` / `zone_read_only` /
+   `zone_break_not_allowed` / `zone_place_not_scaffold`；**刻意不收** `trunk_too_tall` / `not_nearest` /
+   `no_stand` / `unreachable` / `search_limit`（那些是"此刻做不了"，该照旧等或换目标）。支持带括号后缀的码。
+2. `RegionLumberJob`：新增 **纯函数** `permissionBlock(region, rejected, effectiveTop)`（区域内 + 永久码 ⇒
+   返回 `"<码> <逐树理由>"`，否则 `null`）+ `patrol()` 在 `inRegion.isEmpty()` 时**先问它**，
+   命中 ⇒ `terminalReason = "no_permitted_candidate"` + `FAILED`。
+   ⚠️ **必须放在补种之前**：否则 `deficit>0` 会先跑 `tryPlant`、把真正的阻塞原因（没权限）盖成假原因。
+
+**门禁与反向对照**：
+- 夹具 **`task_zone`** 新增 **⑫ 组 4 条**（用**真扫描**的 `rejected` + 手搭真树 + 已认领区，89 → **93 判据**）：
+  ① 真 `zone_break_not_allowed` ⇒ `permissionBlock` 报主因（⇒ 会 `FAILED no_permitted_candidate`）；
+  ② **搜索性/策略性**理由（含带括号后缀）⇒ `null`（不许误判成失败）；③ **区域外**的永久拒绝 ⇒ `null`；
+  ④ `protected_safe_zone`/`zone_read_only` 也算永久。
+- ⭐ **内核规则** `rule_no_permitted_candidate`（`tools/kernel-predicates.py`）：永久码齐 + **没有**收
+  `trunk_too_tall` + `patrol()` **无条件**调用 + 终态码在。
+- ⭐ **反向对照（两条，都已做）**：
+  ① 拆接线：把条件注入成 `if (inRegion.isEmpty() && false)` ⇒ **内核规则红**。
+  ⚠️ **这里抓到过我自己的弱门禁**：第一版规则只查"`permissionBlock(` 文本在不在" ⇒ 注入后**照样 PASS**
+  （文本还在、只是永不执行）⇒ 已改成**结构断言**（那个分支必须无条件的、且调用是其第一条语句），
+  重放注入 ⇒ 红。
+  ② 废分类：`permanentDenial` 注入 `if (true) { return false; }` ⇒ `single:task_zone`
+  **`checks=93 failures=2`**（红的恰是两条**依赖"分类为真"**的判据；另两条是"必须为 `null`"的反面判据，
+  注入后自然仍绿 = 符合预期）。恢复 ⇒ 夹具 PASS + 内核 PASS。
+- ⚠️ **诚实纠正**：`task_zone` 的 ⑪ 里原先写着"候选期被拒 ⇒ 真任务会**如实失败**（`no_reachable_candidate`）"
+  —— **客户端实测证明那句是错的**（真任务当时空转了 20 分钟）。已把那句改掉并注明由 ⑫ 保证。
+
+**⚠️ 未做的部分**：**没有**做"JT 级端到端"（真跑一个被封顶的 `RegionLumberJob` 断言它 `FAILED`）——
+`RegionLumberJob` 的构造需要 `final` 的 `LumberCandidateSource`（不能塞桩源）、`patrol()` 还要求 bot 在区域内，
+而在共享夹具里真跑会写**按 owner 的 `baselineTrees`/`patrol` 状态**、污染后续阶段。
+⇒ 目前覆盖 = **分类（夹具，真扫描）** + **接线（内核结构断言）**；**端到端留给客户端**：
+`/alice instruct "在保护区里起一个 region_lumber"`（`instruct` 的动作由 LLM 应用 ⇒ `driver=llm` ⇒ 会被封顶 `L1`）
+⇒ 应当**立刻** `FAILED no_permitted_candidate`，而不是 20 分钟不动。
