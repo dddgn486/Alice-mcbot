@@ -473,6 +473,10 @@ claim 上限默认按"最大成员"算 ⇒ 不变）。所以它**不在 spawn �
 
 **收尾**：`/alice region stop` → `/alice protect safe unclaim`（若还在安全区）→ 地图右键点那 6 格=待取消 → ESC 提交。
 
+**✅ 2026-09-19 起**：`/alice region stop`（显式停止）**会写进事件环**（`STOP`），被丢弃的触发也会留痕
+（`[Goal] trigger_dropped reason=… droppedSinceLastDecision=N`）+ 进快照 `droppedTriggers` ⇒ 决策层不再
+"看不见刚发生过什么"。判读时可 grep：`trigger_dropped|STOP|droppedTriggers`。
+
 ## 3. ★ R4 路径会话（规划 → 逐段执行）
 
 **物品**：`alice:pathing_session`（路径会话测试器，场景专属）

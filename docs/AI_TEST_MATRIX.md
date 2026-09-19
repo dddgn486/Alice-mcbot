@@ -258,6 +258,7 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 | 任务区**几何 + 锁定 + 覆盖规则 + 生命周期**（工作区域方块级 ⇒ 区块最小覆盖；随 `scopeId` 生灭） | `SERVER_TESTED` | `single:task_zone`（**82 判据 / 0 失败**）、`module:protection` 3/3、`ALICE_HEADLESS=1 check-all` 17 PASS（CORE 51/51） |
 | **权限阶梯**（`L0` 只读 / `L1` 脚手架 / `L2` 工作面 / `L3` 全权）接进**四处**消费（候选扫描 / 破坏 / 放置 / **能力闸门**） | `SERVER_TESTED` + `WINDOWS_CLIENT` | 客户端：`[TaskZone] level=L2 chunks=6`、`ZONE_PROTECTED` **144→0**、内层 Job `places=0→3`、云杉 `chopped 6/7→7/7`、`[Ledger] place … [TEMP STEP_PLACEMENT]`；**三次先红后绿**反向对照（拆候选消费 ⇒ 恰 2 红；破坏闸恒放行 ⇒ 恰 3 红；恒拒 ⇒ 恰 3 红） |
 | 无任务区 ⇒ **逐字** `protected_area`（既有码/行为不变） | `SERVER_TESTED` + `WINDOWS_CLIENT` | 判据"无任务区逐字回归"；客户端用例②（1 tick FAILED） |
+| **终止路径进事件环**（显式停止/顶替/启动前拒绝）+ **被丢弃触发的计数进快照** | `SERVER_TESTED` | 源码规则 `rule_stop_event_ring`（删调用 ⇒ 红，已做反向对照）+ `decision_contract` 的 `dropped_triggers_visible`；`D-338` 附注十五 |
 | **保护区里 LLM 自起任务封顶 `L1`**（玩家显式照旧 `L2`） | `SERVER_TESTED`（客户端待复验） | `task_zone` **89 判据 / 0 失败**（封顶组 7 条）+ 反向对照拆封顶 ⇒ **恰 3 红**；`D-338` 附注十四 |
 
 ## 电池自身的"起步前提"（2026-09-14 起）

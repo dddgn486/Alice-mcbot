@@ -92,9 +92,11 @@ public class LlmContractCheckTask implements Task {
         checkProductFilter();
         checkRefusalReadback();
         checkNotifyTargets();
+        checkDroppedTriggerVisibility();
 
         String summary = "job_failure_reports=" + verdict("job_failure_reports")
                 + " notify_targets=" + verdict("notify_targets")
+                + " dropped_triggers_visible=" + verdict("dropped_triggers_visible")
                 + " product_filter_target=" + verdict("product_filter_target")
                 + " product_filter_default=" + verdict("product_filter_default")
                 + " refusal_readback=" + verdict("refusal_readback")
@@ -104,6 +106,26 @@ public class LlmContractCheckTask implements Task {
             observer.sendSystemMessage(net.minecraft.network.chat.Component.literal(
                     "[LlmContract] " + summary));
         }
+    }
+
+    /**
+     * ⭐ `D-338` 附注十五：**被闸门丢弃的触发必须如实写进快照**
+     * （`droppedTriggers` = "自你上次决策以来有 N 次事件没能叫到你"）。
+     *
+     * <p>这里只断言"**字段在、且与计数器口径一致、prompt 里解释了它**"；真正走一遍丢弃路径需要
+     * 网络/节流（夹具不联网）⇒ 丢弃路径的**留痕**由源码规则 `tools/kernel-predicates.py`
+     * 的 `rule_stop_event_ring` + `[Goal] trigger_dropped` 日志在客户端侧验证。
+     */
+    private void checkDroppedTriggerVisibility() {
+        int dropped = GoalDirector.droppedTriggers(bot);
+        com.google.gson.JsonObject snapshot =
+                com.dddgn.alice.decision.DecisionSnapshot.build(bot, null, "fixture");
+        boolean fieldOk = snapshot.has("droppedTriggers")
+                && snapshot.get("droppedTriggers").getAsInt() == dropped;
+        String prompt = com.dddgn.alice.decision.DecisionSnapshot.buildPrompt(bot, null, "fixture");
+        boolean explained = prompt.contains("droppedTriggers");
+        check("dropped_triggers_visible", fieldOk && explained,
+                "field=" + fieldOk + " explained_in_prompt=" + explained + " dropped=" + dropped);
     }
 
     /**

@@ -72,6 +72,8 @@ public final class GoalDirector {
         String pendingTrigger = "";
         long lastRequestTick = Long.MIN_VALUE;
         long lastIdleTick = -1L;
+        /** ⭐ 附注十五：**因闸门被丢弃的触发次数**（自上次真正做出决策起算；会如实写进快照）。 */
+        int droppedTriggers;
         int minuteRequests;
         long minuteStartTick;
         String lastAction = "-";
@@ -245,7 +247,12 @@ public final class GoalDirector {
     private static void maybeTrigger(BotPlayer bot, String trigger) {
         State state = state(bot);
         LlmConfig config = LlmConfig.get();
-        if (!config.usable() || state.pending != null) {
+        if (!config.usable()) {
+            return;
+        }
+        if (state.pending != null) {
+            // ⭐ `D-338` 附注十五：**这条以前是静默丢弃**（连日志都没有）⇒ 决策层永远不知道自己漏了事件
+            noteDroppedTrigger(bot, state, trigger, "in_flight（已有决策在飞）");
             return;
         }
         long now = bot.getServer().getTickCount();
@@ -260,8 +267,8 @@ public final class GoalDirector {
             return;
         }
         if (state.lastRequestTick != Long.MIN_VALUE && now - state.lastRequestTick < config.minIntervalTicks()) {
-            BotLog.info("[Goal] trigger_skipped reason=throttle trigger={} sinceLast={}tick",
-                    trigger, now - state.lastRequestTick);
+            noteDroppedTrigger(bot, state, trigger,
+                    "throttle（距上次 " + (now - state.lastRequestTick) + "tick < " + config.minIntervalTicks() + "）");
             return;
         }
         if (now - state.minuteStartTick >= 1200L) {
@@ -269,8 +276,8 @@ public final class GoalDirector {
             state.minuteRequests = 0;
         }
         if (state.minuteRequests >= config.maxRequestsPerMinute()) {
-            BotLog.info("[Goal] trigger_skipped reason=rate_limit trigger={} used={}/min",
-                    trigger, state.minuteRequests);
+            noteDroppedTrigger(bot, state, trigger,
+                    "rate_limit（已用 " + state.minuteRequests + "/min）");
             return;
         }
         fire(bot, state, trigger, null);
@@ -286,6 +293,22 @@ public final class GoalDirector {
      *
      * @param directedPrompt 非 null = 操作者直连指令（见 {@link #instruct}）；null = 正常决策
      */
+    /**
+     * ⭐ `D-338` 附注十五：**触发被闸门丢掉时要留痕 + 计数**（以前三条丢弃路径里有一条完全静默）。
+     * 计数会写进下一次快照（`droppedTriggers`）⇒ 决策层知道"你上次之后有 N 次事件没能叫到你"。
+     */
+    private static void noteDroppedTrigger(BotPlayer bot, State state, String trigger, String reason) {
+        state.droppedTriggers++;
+        BotLog.info("[Goal] trigger_dropped reason={} trigger={} droppedSinceLastDecision={}",
+                reason, trigger, state.droppedTriggers);
+    }
+
+    /** **快照/夹具用**：自上次决策以来被丢弃的触发次数。 */
+    public static int droppedTriggers(BotPlayer bot) {
+        State state = STATES.get(bot == null ? null : bot.getUUID());
+        return state == null ? 0 : state.droppedTriggers;
+    }
+
     private static void fire(BotPlayer bot, State state, String trigger, String directedPrompt) {
         LlmConfig config = LlmConfig.get();
         state.lastRequestTick = bot.getServer().getTickCount();
@@ -394,6 +417,7 @@ public final class GoalDirector {
     /** 执行动作：**只走既定入口**，未知/拒绝动作不动任何东西。 */
     private static void execute(BotPlayer bot, State state, GoalAction action, String trigger) {
         clearRefusal(state);
+        state.droppedTriggers = 0;   // ⭐ 附注十五：计数语义 = "自**上一次真正做出决策**以来"
         if (action instanceof GoalAction.StartJob start) {
             boolean ok = BotManager.assignJob(bot, state.observer, start.request(), false);
             BotLog.info("[Goal] execute action=start_job ok={} trigger={}", ok, trigger);

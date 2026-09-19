@@ -1901,6 +1901,9 @@ public final class BotManager {
                 recordTerminal(taskKind, taskTargetDescription, taskStartTick,
                         TaskExecutionRecord.TerminalStatus.CANCELLED_REPLACED,
                         "cancelled:replaced", "idle_after_cleanup");
+                // ⭐ 附注十五：被顶替也进事件环（"我的任务被换掉了" 是决策层该知道的事实）
+                com.dddgn.alice.decision.BotEventLog.record(bot, "REPLACED", "info",
+                        "任务被新任务顶替 " + taskKind, "code=cancelled:replaced");
             }
             clearTask();
             return true;
@@ -1970,6 +1973,9 @@ public final class BotManager {
                 lastTaskResult = "failed:road_plan_invalid";
                 recordTerminal("RoadBuildTask", "road_plan", serverTick(),
                         TaskExecutionRecord.TerminalStatus.REJECTED_BEFORE_START, lastTaskResult, "not_started");
+                // ⭐ 附注十五：**启动前拒绝**也进事件环（否则决策层看不见"我刚被拒了"）
+                com.dddgn.alice.decision.BotEventLog.record(bot, "REFUSED", "warn",
+                        "修路任务未启动：" + lastTaskResult, "phase=not_started");
                 return;
             }
             TaskTarget assignedTarget = TaskTarget.block(plan.second());
@@ -2005,6 +2011,8 @@ public final class BotManager {
                     recordTerminal("unimplemented", newTarget.describe(), serverTick(),
                             TaskExecutionRecord.TerminalStatus.REJECTED_BEFORE_START,
                             lastTaskResult, "not_started");
+                    com.dddgn.alice.decision.BotEventLog.record(bot, "REFUSED", "warn",
+                            "实体目标任务未实现（启动前拒绝）：" + newTarget.describe(), "phase=not_started");
                     this.target = null;
                     return;
                 }
@@ -2034,6 +2042,13 @@ public final class BotManager {
             clearTask();
             int residue = com.dddgn.alice.ledger.WorldModLedger
                     .pendingForOwner(bot.serverLevel().getServer(), bot.getUUID()).size();
+            // ⭐ `D-338` 附注十五：**显式停止也要进事件环** —— 这条路径（玩家 `/alice region stop`、
+            // `/alice stop-task`、`stop_current`、延后到安全点）**不走 `complete()`** ⇒ 以前事件环里
+            // 什么都不留，决策层下次被叫时**看不到"刚才被谁停了"**（客户端实测：用户 stop 后等 30 s
+            // 静默无反应，正是因为它压根不知道发生过这件事）。
+            com.dddgn.alice.decision.BotEventLog.record(bot, "STOP", "info",
+                    "任务被显式停止 " + kind + "（" + (reason == null ? "user" : reason) + "）",
+                    "residue=" + residue);
             BotLog.info("[alice] 已显式停止任务 {}（{}）残余临时方块={}", kind,
                     reason == null ? "user" : reason, residue);
             if (forced) {

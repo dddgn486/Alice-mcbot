@@ -13963,3 +13963,29 @@ code=failed:no_reachable_candidate durationTicks=1` ⇒ **它是被拒的**。**
 - 绿：`single:task_zone` **89 / 0**；`module:protection` 3/3；
 - ⭐ **反向对照（拆掉封顶**：`effectiveLevel()` 直接返回 `level`）⇒ **`failures=3`，恰好那三条封顶判据**
   （LLM 破坏被拒 / 候选期被拒 / `L3` 封顶），其余全绿 ⇒ 判据真的咬得住。
+
+### D-338 附注十五：事件环补全（用户 2026-09-19「继续工作」= 落地台账第 18 项②）2026-09-19
+
+**背景（客户端实测的事实，见附注十三）**：`BotSession` 有**两条**收尾路径，只有 `complete()` 会写事件环 /
+叫决策层 ⇒ **玩家显式停止**（`immediateStop`：`/alice region stop`、`/alice stop-task`、`stop_current`、
+延后到安全点）**在事件环里什么都不留**；两个 `REJECTED_BEFORE_START`（修路计划非法 / 实体目标未实现）
+与 `CANCELLED_REPLACED`（被顶替）同样不留。
+
+**改动**（全部**追加**，不改既有语义）：
+1. `immediateStop` ⇒ `BotEventLog.record(bot, "STOP", "info", "任务被显式停止 X（原因）", "residue=N")`；
+2. `CANCELLED_REPLACED` ⇒ `"REPLACED"`；两处启动前拒绝 ⇒ `"REFUSED"`（事件环的 `type` 是自由字符串，
+   快照**原样渲染** ⇒ 新类型自描述、不需要改结构）；
+3. ⭐ **静默丢弃留痕**：`GoalDirector.maybeTrigger` 原来 `if (!config.usable() || state.pending != null) return;`
+   —— **"已有决策在飞"时连日志都没有**；现在节流 / 限流 / 在飞三条都走
+   `noteDroppedTrigger(...)` ⇒ 日志 `[Goal] trigger_dropped reason=… trigger=… droppedSinceLastDecision=N`，
+   并把计数写进快照 `droppedTriggers`（**语义 = "自你上次真正做出决策以来有 N 次事件没能叫到你"**，
+   在 `execute()` 落地一次决策后清零；prompt 里加了一句话解释它）。
+   （自检按住/未配置不算"丢弃" ⇒ 不计数，避免电池期间把计数堆成噪声。）
+
+**门禁与反向对照**：
+- ⭐ **源码规则**（`tools/kernel-predicates.py` 新增 `rule_stop_event_ring`）：断言 `immediateStop` 体内必须有
+  `BotEventLog.record(bot, "STOP"`、`"REPLACED"` 必须存在、`"REFUSED"` 至少两处 —— **删掉调用 ⇒ 门禁红**
+  （反向对照已做：注入删除 ⇒ `[D-338·事件环补全]` 报错 + `KERNEL_PREDICATE_CHECK_RESULT FAIL`；恢复 ⇒ PASS）；
+- 夹具：`decision_contract` 新增 `dropped_triggers_visible`（快照字段在、与计数器口径一致、prompt 解释了它）。
+  ⚠️ **诚实标注**：真正的"丢弃路径"要网络/节流才触发（夹具不联网）⇒ 那条由源码规则 + 客户端
+  `[Goal] trigger_dropped` 日志验证；"STOP 进环"由源码规则 + 客户端复跑验证。

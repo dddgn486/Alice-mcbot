@@ -177,6 +177,8 @@ public final class DecisionSnapshot {
             events.add(eventNode);
         }
         root.add("recentEvents", events);
+        // ⭐ `D-338` 附注十五：**被闸门丢弃的触发次数**（"自你上次决策以来有 N 次事件没能叫到你"）
+        root.addProperty("droppedTriggers", GoalDirector.droppedTriggers(bot));
 
         // S3：**未决请示** —— 决策层要知道"有人在等玩家拍板"，别把它当成"卡住"
         JsonArray pendingRequests = new JsonArray();
@@ -227,6 +229,9 @@ public final class DecisionSnapshot {
 
                 其中 `trigger` = **为什么现在问你**（`terminal:<任务>(<终止理由>)` / `event:<事件>` /
                 `manual` = 玩家/夹具手动触发 / `operator` = 操作者直连指令）。
+
+                `droppedTriggers` > 0 ⇒ **你上次决策之后有 N 次事件被闸门（节流/限流/在飞）丢掉了**，
+                期间的世界可能已经变了 —— 以当前快照为准，必要时先问一句再动手。
 
                 注意：`start_job` 的 `target` **只能引用 menu 里出现过的 id**（例如 `tree@20,64,208`）；
                 `craft` 的 `item` **只能引用 menu 中 `kind="craftable"` 且 `can_use=true` 的 id**

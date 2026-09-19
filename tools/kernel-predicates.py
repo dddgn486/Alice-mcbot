@@ -350,6 +350,33 @@ def rule_driver_attribution():
     return problems
 
 
+def rule_stop_event_ring():
+    """D-338 附注十五（2026-09-19 用户裁定「事件环补全」）：**终止路径必须进事件环**。
+
+    事实（裁定依据，客户端实测）：`BotSession.immediateStop`（玩家 `/alice region stop`、`/alice stop-task`、
+    `stop_current`、延后到安全点）**不走 `complete()`** ⇒ 事件环里什么都不留，决策层下次被叫时
+    **看不到"刚才被谁停了"**（用户 stop 后等 30 s 静默无反应，根因之一）；同理两个
+    `REJECTED_BEFORE_START`（修路计划非法 / 实体目标未实现）与 `CANCELLED_REPLACED`（被顶替）。
+
+    本规则断言这三类收尾点**必须**写一条 `BotEventLog.record`（删掉调用 ⇒ 门禁红）。
+    """
+    path = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "bot" / "BotManager.java"
+    text = path.read_text(encoding="utf-8")
+    problems = []
+    start = text.find("String immediateStop(String reason, boolean forced) {")
+    if start < 0:
+        problems.append("BotManager.java 找不到 `immediateStop`（结构变了 ⇒ 本规则要跟着改）")
+    else:
+        body = text[start:text.find("\n        }", start)]
+        if 'BotEventLog.record(bot, "STOP"' not in body:
+            problems.append("`immediateStop` 没有把显式停止写进事件环（`BotEventLog.record(bot, \"STOP\"`）")
+    if 'BotEventLog.record(bot, "REPLACED"' not in text:
+        problems.append("`CANCELLED_REPLACED`（被新任务顶替）没有写进事件环")
+    if text.count('BotEventLog.record(bot, "REFUSED"') < 2:
+        problems.append("`REJECTED_BEFORE_START` 的两处（修路计划非法 / 实体目标未实现）没有都写进事件环")
+    return problems
+
+
 def rule_no_until_full():
     """J5-P1（2026-09-17 用户裁定「删」）：**`GoalSpec.Kind.UNTIL_FULL` 不得复活**。
 
@@ -520,6 +547,7 @@ def main() -> int:
     r2 = rule_harness_step_hygiene()
     r2p2 = rule_module_step_inventory()
     r2p3 = rule_step_boundary_parity()
+    ring = rule_stop_event_ring()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -556,9 +584,11 @@ def main() -> int:
         print(f"[R2·步清单完整性] {line}")
     for line in r2p3:
         print(f"[R2·步边界对齐] {line}")
+    for line in ring:
+        print(f"[D-338·事件环补全] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
-          and not prog_default and not j5 and not r2 and not r2p2 and not r2p3)
+          and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
           f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)}"
