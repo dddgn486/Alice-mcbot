@@ -91,8 +91,10 @@ public class LlmContractCheckTask implements Task {
         checkSnapshotFailureFields();
         checkProductFilter();
         checkRefusalReadback();
+        checkNotifyTargets();
 
         String summary = "job_failure_reports=" + verdict("job_failure_reports")
+                + " notify_targets=" + verdict("notify_targets")
                 + " product_filter_target=" + verdict("product_filter_target")
                 + " product_filter_default=" + verdict("product_filter_default")
                 + " refusal_readback=" + verdict("refusal_readback")
@@ -101,6 +103,43 @@ public class LlmContractCheckTask implements Task {
         if (observer != null) {
             observer.sendSystemMessage(net.minecraft.network.chat.Component.literal(
                     "[LlmContract] " + summary));
+        }
+    }
+
+    /**
+     * ⭐ `D-338` 附注十二：**自动触发（无 observer）时，决策层的回执必须有人收到** —— 通知**创建者**
+     * （`BotOwnership`，`D-319`）；未登记 ⇒ 空（不猜）；有 observer ⇒ **只通知它**（不捎带创建者）。
+     *
+     * <p>现场（2026-09-19 客户端）：用户点的一次性砍树被如实拒绝后，LLM 4 秒内自起 `region_lumber`
+     * 砍掉用户保护区里的树 —— 因为自动触发**没有 observer**，回执**一个字都没发**，聊天零提示。
+     */
+    private void checkNotifyTargets() {
+        com.dddgn.alice.bot.BotOwnership.Creator before =
+                com.dddgn.alice.bot.BotOwnership.creatorOfBot(bot);
+        try {
+            // ① 未登记 ⇒ 空（不猜、不静默补）
+            com.dddgn.alice.bot.BotOwnership.applyTo(bot, com.dddgn.alice.bot.BotOwnership.NONE);
+            boolean unregisteredOk = GoalDirector.notifyTargets(bot, null).isEmpty();
+            // ② 登记后：自动触发 ⇒ 通知创建者
+            java.util.UUID creatorId = java.util.UUID.nameUUIDFromBytes("alice-notify-fixture".getBytes());
+            com.dddgn.alice.bot.BotOwnership.applyTo(bot,
+                    new com.dddgn.alice.bot.BotOwnership.Creator(creatorId, "fixture_creator"));
+            var automatic = GoalDirector.notifyTargets(bot, null);
+            boolean automaticOk = automatic.size() == 1 && creatorId.equals(automatic.get(0));
+            // ③ 有 observer（手动触发）⇒ 只通知它，不捎带创建者
+            var manual = GoalDirector.notifyTargets(bot, bot);
+            boolean manualOk = manual.size() == 1 && bot.getUUID().equals(manual.get(0));
+            // ④ 回执计数器（供其它夹具做增量断言）
+            GoalDirector.resetNotified(bot);
+            int before2 = GoalDirector.notifiedCount(bot);
+            check("notify_targets",
+                    unregisteredOk && automaticOk && manualOk && before2 == 0,
+                    "unregistered_empty=" + unregisteredOk + " automatic=creator:" + automaticOk
+                            + " manual=observer_only:" + manualOk
+                            + " counter_reset=" + (before2 == 0));
+        } finally {
+            com.dddgn.alice.bot.BotOwnership.applyTo(bot, before);
+            GoalDirector.resetNotified(bot);
         }
     }
 

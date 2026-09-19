@@ -30,6 +30,8 @@ import java.util.concurrent.CompletableFuture;
 public final class GoalDirector {
 
     private static final Map<UUID, State> STATES = new HashMap<>();
+    /** 决策层回执送出次数（**只用于夹具断言/汇报**；通知对象判据见 {@link #notifyTargets}）。 */
+    private static final Map<UUID, Integer> NOTIFIED = new java.util.concurrent.ConcurrentHashMap<>();
 
     /** 动作词汇表（system prompt 的主体；`config.systemPrompt` 会追加在后面）。 */
     public static final String VOCABULARY = """
@@ -322,7 +324,7 @@ public final class GoalDirector {
                         LlmConfig.get().timeoutMs());
                 DecisionTrace.failure(bot, state.pendingTrigger, "timeout",
                         "waited=" + waited + "tick");
-                tell(state, "[alice] 决策层请求超时（" + (LlmConfig.get().timeoutMs() + 5000)
+                tell(bot, state, "[alice] 决策层请求超时（" + (LlmConfig.get().timeoutMs() + 5000)
                         + "ms）⇒ 保持确定性策略");
             }
             return;
@@ -334,14 +336,14 @@ public final class GoalDirector {
         } catch (Exception ex) {
             BotLog.warn("[Goal] decision_failed trigger={} {}", state.pendingTrigger, ex.toString());
             DecisionTrace.failure(bot, state.pendingTrigger, "exception", ex.toString());
-            tell(state, "[alice] 决策层请求失败：" + ex.getClass().getSimpleName());
+            tell(bot, state, "[alice] 决策层请求失败：" + ex.getClass().getSimpleName());
             return;
         }
         if (!reply.ok()) {
             BotLog.warn("[Goal] decision_failed trigger={} error={} latency={}ms",
                     state.pendingTrigger, reply.error(), reply.latencyMs());
             DecisionTrace.failure(bot, state.pendingTrigger, "llm_error", reply.error());
-            tell(state, "[alice] 决策层不可用（" + reply.error() + "）⇒ 保持确定性策略");
+            tell(bot, state, "[alice] 决策层不可用（" + reply.error() + "）⇒ 保持确定性策略");
             return;
         }
         String trimmed = reply.text().length() > LlmConfig.get().maxReplyChars()
@@ -397,8 +399,8 @@ public final class GoalDirector {
             BotLog.info("[Goal] execute action=start_job ok={} trigger={}", ok, trigger);
             DecisionTrace.result(bot, trigger, "start_job", ok ? "executed" : "refused",
                     start.request().describe(), 0L);
-            tell(state, ok ? "[alice] 决策层：已起 Job " + start.request().describe()
-                    : "[alice] 决策层：起 Job 失败（bot 正忙？）");
+            tell(bot, state, (ok ? "[alice] 决策层：已起 Job " + start.request().describe()
+                    : "[alice] 决策层：起 Job 失败（bot 正忙？）") + "（触发=" + trigger + "）");
             return;
         }
         clearRefusal(state);
@@ -407,7 +409,8 @@ public final class GoalDirector {
             BotLog.info("[Goal] execute action=stop_current stopped={} trigger={}", stopped, trigger);
             DecisionTrace.result(bot, trigger, "stop_current", stopped == null ? "no_task" : "executed",
                     stop.reason(), 0L);
-            tell(state, "[alice] 决策层：已停止 " + (stopped == null ? "（当时没有任务）" : stopped));
+            tell(bot, state, "[alice] 决策层：已停止 " + (stopped == null ? "（当时没有任务）" : stopped)
+                    + "（触发=" + trigger + "）");
             return;
         }
         clearRefusal(state);
@@ -420,8 +423,8 @@ public final class GoalDirector {
             BotLog.info("[Goal] execute action=craft ok={} trigger={} raw={}", ok, trigger, craft.note());
             DecisionTrace.result(bot, trigger, "craft", ok ? "executed" : "refused",
                     request.describe(), 0L);
-            tell(state, ok ? "[alice] 决策层：已起合成 Job " + request.describe()
-                    : "[alice] 决策层：起合成 Job 失败（bot 正忙？）");
+            tell(bot, state, (ok ? "[alice] 决策层：已起合成 Job " + request.describe()
+                    : "[alice] 决策层：起合成 Job 失败（bot 正忙？）") + "（触发=" + trigger + "）");
             return;
         }
         clearRefusal(state);
@@ -431,22 +434,22 @@ public final class GoalDirector {
                     maintain.kind(), accepted, trigger);
             DecisionTrace.result(bot, trigger, "maintain_tool", accepted ? "executed" : "refused",
                     maintain.kind() + " " + maintain.note(), 0L);
-            tell(state, accepted ? "[alice] 决策层：维护工具 " + maintain.kind().label()
-                    : "[alice] 决策层：维护工具失败（bot 正忙？）");
+            tell(bot, state, (accepted ? "[alice] 决策层：维护工具 " + maintain.kind().label()
+                    : "[alice] 决策层：维护工具失败（bot 正忙？）") + "（触发=" + trigger + "）");
             clearRefusal(state);
             return;
         }
         if (action instanceof GoalAction.ReportStatus report) {
             BotLog.info("[Goal] execute action=report_status note={}", report.note());
             DecisionTrace.result(bot, trigger, "report_status", "executed", report.note(), 0L);
-            tell(state, "[alice] 决策层状态：" + report.note());
+            tell(bot, state, "[alice] 决策层状态：" + report.note());
             return;
         }
         clearRefusal(state);
         if (action instanceof GoalAction.NoOp noop) {
             BotLog.info("[Goal] execute action=no_op note={}", noop.note());
             DecisionTrace.result(bot, trigger, "no_op", "executed", noop.note(), 0L);
-            tell(state, "[alice] 决策层：不动（" + noop.note() + "）");
+            tell(bot, state, "[alice] 决策层：不动（" + noop.note() + "）");
             return;
         }
         GoalAction.Refused refused = (GoalAction.Refused) action;
@@ -454,7 +457,7 @@ public final class GoalDirector {
         DecisionTrace.result(bot, trigger, "refused", "refused", refused.reason(), 0L);
         // J-7：记下来 —— 下一轮 prompt 会带上"上次为什么被拒"，避免 LLM 反复撞同一堵墙
         noteRefusal(bot, refused.reason());
-        tell(state, "[alice] 决策层动作被拒绝：" + refused.reason());
+        tell(bot, state, "[alice] 决策层动作被拒绝：" + refused.reason());
     }
 
     /**
@@ -492,10 +495,48 @@ public final class GoalDirector {
                 + " 连续=" + state.lastRefusalCount + "）";
     }
 
-    private static void tell(State state, String text) {
-        ServerPlayer observer = state.observer;
-        if (observer != null && !observer.hasDisconnected() && !observer.isRemoved()) {
-            observer.sendSystemMessage(Component.literal(text));
+    private static void tell(BotPlayer bot, State state, String text) {
+        java.util.List<UUID> targets = notifyTargets(bot, state.observer);
+        int delivered = 0;
+        for (UUID id : targets) {
+            ServerPlayer target = bot.getServer().getPlayerList().getPlayer(id);
+            if (target == null || target.hasDisconnected() || target.isRemoved()) {
+                continue;
+            }
+            target.sendSystemMessage(Component.literal(text));
+            delivered++;
         }
+        NOTIFIED.merge(bot.getUUID(), 1, Integer::sum);
+        BotLog.info("[Goal] notify bot={} targets={} delivered={} automatic={} text={}",
+                bot.getName().getString(), targets.size(), delivered, state.observer == null, text);
+    }
+
+    /**
+     * ⭐ **通知对象 = 单一出处**（`D-338` 附注十二，夹具据此断言）：
+     * 有 observer（手动触发 / `instruct`）⇒ **只通知它**；否则（自动触发 `terminal:*` / `event:*`）
+     * ⇒ **通知创建者**（`BotOwnership`，`D-319`）；**未登记 ⇒ 空**（不猜、不静默补）。
+     *
+     * <p>为什么必须这样（2026-09-19 客户端实测）：自动触发路径**没有 observer**，于是决策层的回执
+     * （"已起 Job …"）**一个字都不发** ⇒ 玩家只能翻日志才知道"这活是谁起的"。现场：用户点的
+     * 一次性砍树**被如实拒绝**后，LLM 4 秒内自起 `region_lumber` 把用户保护区里的树砍了，
+     * 聊天**零提示**，两轮把用户绕懵（详见 `D-338` 附注十一）。
+     */
+    public static java.util.List<UUID> notifyTargets(BotPlayer bot, ServerPlayer observer) {
+        if (observer != null && !observer.hasDisconnected() && !observer.isRemoved()) {
+            return java.util.List.of(observer.getUUID());
+        }
+        com.dddgn.alice.bot.BotOwnership.Creator creator =
+                com.dddgn.alice.bot.BotOwnership.creatorOfBot(bot);
+        return creator.registered() ? java.util.List.of(creator.uuid()) : java.util.List.of();
+    }
+
+    /** **夹具用**：该 bot 的决策层回执一共送出过几次。 */
+    public static int notifiedCount(BotPlayer bot) {
+        return NOTIFIED.getOrDefault(bot.getUUID(), 0);
+    }
+
+    /** **夹具复位用**。 */
+    public static void resetNotified(BotPlayer bot) {
+        NOTIFIED.remove(bot.getUUID());
     }
 }
