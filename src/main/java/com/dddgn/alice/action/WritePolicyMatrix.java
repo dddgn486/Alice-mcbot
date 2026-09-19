@@ -125,6 +125,17 @@ public final class WritePolicyMatrix {
             this.scaffoldPlaceQuota = scaffoldPlaceQuota;
         }
 
+        /**
+         * ⭐ `D-338` 附注十四：**非玩家发起**（LLM / 未归因）在**保护区**内的等级**封顶**。
+         *
+         * <p>只收紧、**不放宽**：`L0` 仍是 `L0`（只读不许被抬成"可临时放置"），`L2/L3` 降到 `L1`
+         * （"能清障垫脚，**拆不了玩家的方块**"）。野外/无认领区块**根本不走这条**（`ZoneAuthority`
+         * 在未认领时就返回 `NOT_GATED`）⇒ 对既有行为零影响。
+         */
+        public Level cappedForUnattended() {
+            return ordinal() <= L1_SCAFFOLD.ordinal() ? this : L1_SCAFFOLD;
+        }
+
         public String label() {
             return label;
         }

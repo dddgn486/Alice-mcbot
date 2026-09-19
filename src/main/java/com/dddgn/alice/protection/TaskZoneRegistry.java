@@ -113,7 +113,7 @@ public final class TaskZoneRegistry {
      * <p>`kind` 用任务的稳定名（如 `region_lumber`，`Job#taskName` 的口径）而不是实现类名。
      */
     public record Zone(String scopeId, UUID owner, String kind, Level level, WorkArea area,
-                       Set<Long> chunks, long declaredTick) {
+                       Set<Long> chunks, long declaredTick, boolean playerDriven) {
 
         public Zone {
             chunks = Set.copyOf(chunks);
@@ -129,8 +129,14 @@ public final class TaskZoneRegistry {
             return chunks.contains(ChunkPos.asLong(blockX >> 4, blockZ >> 4));
         }
 
+        /** ⭐ `D-338` 附注十四：**保护区内**该任务区的**生效等级**（非玩家发起 ⇒ 封顶 `L1`）。 */
+        public Level effectiveLevel() {
+            return playerDriven ? level : level.cappedForUnattended();
+        }
+
         public String describe() {
-            return "kind=" + kind + " level=" + level.label() + " chunks=" + chunks.size()
+            return "kind=" + kind + " level=" + level.label() + (playerDriven ? "" : "(非玩家发起)")
+                    + " chunks=" + chunks.size()
                     + " area(block)=" + area.areaXZ() + " " + area.describe();
         }
     }
@@ -290,12 +296,16 @@ public final class TaskZoneRegistry {
         }
         Level level = WritePolicyMatrix.zoneLevel(kind, playerDriven);
         Zone existing = ZONES.get(scopeId);
+        // ⭐ `D-338` 附注十四：**驱动身份也是声明的一部分** —— 同一任务区"换个身份再声明"
+        // （`playerDriven` 变）必须**真的重建**（`REPLACED`），否则会留下**过时的封顶标记**
+        // （门禁实测抓到：同 kind/同区域的再声明被判 `ALREADY` ⇒ 新的身份被忽略）。
         if (existing != null && existing.owner().equals(owner) && existing.kind().equals(kind)
-                && existing.level() == level && existing.area().equals(area)) {
+                && existing.level() == level && existing.area().equals(area)
+                && existing.playerDriven() == playerDriven) {
             return new Result(Declare.ALREADY, existing, List.of());
         }
         Zone zone = new Zone(scopeId, owner, kind, level, area, chunks,
-                server.overworld() == null ? 0L : server.overworld().getGameTime());
+                server.overworld() == null ? 0L : server.overworld().getGameTime(), playerDriven);
         ZONES.put(scopeId, zone);
         // 换区/换等级 ⇒ 区内放置配额重新开始（配额是**区内**记账，跟着这条任务区走）
         ZONE_PLACES.remove(scopeId);
@@ -304,8 +314,11 @@ public final class TaskZoneRegistry {
                         + "单向派生，不许反向裁剪工作区域）{}",
                 existing == null ? "declared（声明任务区）" : "replaced（换工作区域/等级 ⇒ 旧区块不再覆盖）",
                 scopeId, owner.toString().substring(0, 8), zone.describe(), area.areaXZ(),
-                ceiling == level ? "" : " ⚠ 等级已降级：请求 " + ceiling.label()
-                        + " ⇒ 授予 " + level.label() + "（L3 全权只能由玩家显式取得）");
+                (ceiling == level ? "" : " ⚠ 等级已降级：请求 " + ceiling.label()
+                        + " ⇒ 授予 " + level.label() + "（L3 全权只能由玩家显式取得）")
+                        + (playerDriven ? ""
+                        : " ⚠ 非玩家发起（LLM/未归因）⇒ **保护区内按 "
+                        + level.cappedForUnattended().label() + " 执行**（拆不了玩家的方块；野外不受影响）"));
         return new Result(existing == null ? Declare.DECLARED : Declare.REPLACED, zone, List.of());
     }
 

@@ -113,20 +113,27 @@ public final class ZoneAuthority {
             return new Decision(Verdict.DENY, "zone_reason_required",
                     "任务区 " + zone.kind() + " 存在，但这次写入**没有声明理由** ⇒ 不给放行");
         }
-        WritePolicyMatrix.Level level0 = zone.level();
+        // ⭐ `D-338` 附注十四：**保护区内，非玩家发起（LLM/未归因）的任务区封顶 `L1`** ——
+        // 走到这里就已经确定"这一格在**已认领**区块里"（未认领早在上面的 `isClaimed` 就返回 `NOT_GATED`），
+        // 所以封顶不需要再判区块：**非玩家发起 ⇒ 只能收紧**（拆不了玩家的方块；临时垫脚仍然允许）。
+        WritePolicyMatrix.Level declared = zone.level();
+        WritePolicyMatrix.Level level0 = zone.effectiveLevel();
+        String capNote = level0 == declared ? ""
+                : "【保护区内·非玩家发起（LLM/未归因）⇒ 从 " + declared.label() + " 封顶 " + level0.label() + "】";
         if (act == Act.BREAK) {
             if (!level0.allowsBreak()) {
                 return new Decision(Verdict.DENY,
                         level0 == WritePolicyMatrix.Level.L0_READ_ONLY ? "zone_read_only" : "zone_break_not_allowed",
-                        "任务区 " + zone.kind() + " 等级 " + level0.label()
+                        "任务区 " + zone.kind() + " 等级 " + level0.label() + capNote
                                 + (level0 == WritePolicyMatrix.Level.L0_READ_ONLY ? "（只读）" : "（临时脚手架 ⇒ 不许破坏）"));
             }
             return new Decision(Verdict.ALLOW, null,
-                    "任务区 " + zone.kind() + " 等级 " + level0.label() + " ⇒ 放行破坏（理由 " + reason.name() + "）");
+                    "任务区 " + zone.kind() + " 等级 " + level0.label() + capNote
+                            + " ⇒ 放行破坏（理由 " + reason.name() + "）");
         }
         if (!level0.allowsPlace()) {
             return new Decision(Verdict.DENY, "zone_read_only",
-                    "任务区 " + zone.kind() + " 等级 " + level0.label() + "（只读）⇒ 不许放置");
+                    "任务区 " + zone.kind() + " 等级 " + level0.label() + capNote + "（只读）⇒ 不许放置");
         }
         if (level0 == WritePolicyMatrix.Level.L1_SCAFFOLD) {
             if (!reason.temporary()) {
@@ -141,7 +148,8 @@ public final class ZoneAuthority {
             }
         }
         return new Decision(Verdict.ALLOW, null,
-                "任务区 " + zone.kind() + " 等级 " + level0.label() + " ⇒ 放行放置（理由 " + reason.name() + "）");
+                "任务区 " + zone.kind() + " 等级 " + level0.label() + capNote
+                        + " ⇒ 放行放置（理由 " + reason.name() + "）");
     }
 
     /**

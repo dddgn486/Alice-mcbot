@@ -13935,3 +13935,31 @@ code=failed:no_reachable_candidate durationTicks=1` ⇒ **它是被拒的**。**
 
 **待用户裁定（未动代码）**：① 玩家显式停止要不要也交给 LLM（我倾向**不要**，但要把"被玩家停了"写进事件环）；
 ② `unimplemented`（实体目标未实现）这类**启动前拒绝**要不要进事件环（今天不进 ⇒ 决策层看不见"我刚被拒了"）。
+
+### D-338 附注十四：⭐**保护区内，非玩家发起封顶 `L1`**（用户 2026-09-19「继续工作」= 落地台账第 18 项①）2026-09-19
+
+**政策（本次落地）**：保护区（已认领区块）里，**非玩家发起**的任务等级**封顶 `L1`** ——
+「**能清障/垫脚，拆不了玩家的方块**」；**玩家显式发起**照旧按任务类别（`L2`/`L3`）。
+野外/未认领区块**根本不走这条路**（`ZoneAuthority` 在未认领时即返回 `NOT_GATED`）⇒ 既有行为零改动。
+
+- **"玩家显式"的判据**（唯一定义在 `RegionLumberJob` 的声明点）：`Driver.IN_GAME_PLAYER`（命令）
+  **或** `Driver.FIXTURE`（**物品右键**/夹具）⇒ 算玩家显式；`Driver.LLM` 与 `Driver.SYSTEM`（未归因）**不算**
+  ⇒ 封顶。`GoalDirector` 早已在应用模型回复前 `Driver.set(bot, Driver.LLM)`，所以**LLM 自起不可能冒充玩家**。
+- **封顶只收紧、不放宽**：`Level.cappedForUnattended()` = `min(声明等级, L1)` ⇒ `L0` 仍是 `L0`
+  （不许被"封顶"抬成可临时放置），`L2/L3` 降到 `L1`；配 `L3` 原有的"非玩家降级 `L2`"= **两级都只收紧**。
+- **实现位置**：`WritePolicyMatrix.Level.cappedForUnattended()`（口径单一出处）·
+  `TaskZoneRegistry.Zone.playerDriven()` + `Zone.effectiveLevel()`（**生效**等级）·
+  `ZoneAuthority.authorize` 用 `effectiveLevel()`，且拒绝/放行文案带
+  `【保护区内·非玩家发起 ⇒ 从 L2 封顶 L1】`（**日志不说谎**）。
+- ⭐ **门禁顺带抓到一个真语义问题**：同 `scopeId` 同 `kind` 同区域的**再声明**被判 `ALREADY` ⇒ **新的驱动身份被忽略**
+  （过时的封顶标记会留下）⇒ 修法：`ALREADY` 的比较**加上 `playerDriven`**（身份变了 ⇒ `REPLACED` 重建）。
+- **对用户现场的意义**：LLM 在玩家基地里自起 `region_lumber` ⇒ 保护区内的树在**候选期**就被拒
+  （码 `zone_break_not_allowed`，**不是** `protected_area`）⇒ 区域任务**如实失败** `no_reachable_candidate`，
+  **不会再去砍玩家的树**；它仍可垫脚/清障（`L1` 的临时放置）。
+
+**门禁与反向对照（本片）**：
+- `task_zone` **82 → 89 判据**（新增封顶组 7 条：LLM 自起 ⇒ 拒破坏 + 仍许临时放置 + **候选期端到端**被拒 +
+  玩家显式 ⇒ 照旧放行 + `L3` 非玩家 ⇒ 两级收紧 + `L0` **不许被抬高** + 野外不受影响）；
+- 绿：`single:task_zone` **89 / 0**；`module:protection` 3/3；
+- ⭐ **反向对照（拆掉封顶**：`effectiveLevel()` 直接返回 `level`）⇒ **`failures=3`，恰好那三条封顶判据**
+  （LLM 破坏被拒 / 候选期被拒 / `L3` 封顶），其余全绿 ⇒ 判据真的咬得住。

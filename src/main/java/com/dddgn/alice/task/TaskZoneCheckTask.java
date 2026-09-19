@@ -571,7 +571,8 @@ public final class TaskZoneCheckTask implements Task {
                 TaskZoneRegistry.zonePlaceCount(l1.zone().scopeId()) == ZoneAuthority.L1_MAX_PLACES);
 
         // ④ L2 工作面（`region_lumber` ⇒ LUMBER ⇒ L2）
-        TaskZoneRegistry.Result l2 = TaskZoneRegistry.declare(server, owner, "region_lumber", authArea, false);
+        // ⭐ `D-338` 附注十四：`region_lumber`(L2) 在保护区内**只对玩家显式发起**生效 ⇒ 这里传 `true`
+        TaskZoneRegistry.Result l2 = TaskZoneRegistry.declare(server, owner, "region_lumber", authArea, true);
         check("⑤`L2`：等级 = L2（工作面）", l2.active()
                 && l2.zone().level() == WritePolicyMatrix.Level.L2_WORKFACE);
         check("⑤`L2`：**目标内**（`EXPECTED_TARGET`）破坏 ⇒ 放行",
@@ -623,7 +624,7 @@ public final class TaskZoneCheckTask implements Task {
         List<String> noZoneRejected = new LumberCandidateSource().candidates(bot, treeSpec).rejected();
         check("⑨候选扫描（第三处消费）：**无任务区** ⇒ 被认领区块里的树在候选期就被拒（`:protected_area`）",
                 hasCode(noZoneRejected, "protected_area"));
-        TaskZoneRegistry.declare(server, owner, "region_lumber", authArea, false);
+        TaskZoneRegistry.declare(server, owner, "region_lumber", authArea, true);
         var l2Candidates = new LumberCandidateSource().candidates(bot, treeSpec);
         check("⑨候选扫描：`L2` 任务区覆盖 ⇒ 同一棵树**不再以保护区为由被拒**（= 保护区里的目标成为合法候选；"
                         + "可达性等其它理由另行判定）｜rejected=" + l2Candidates.rejected(),
@@ -637,7 +638,7 @@ public final class TaskZoneCheckTask implements Task {
         // ⑧ 日志卫生（**客户端实测逼出来的**）：规划期谓词会反复问同一格 ⇒ 留痕必须去重，否则刷屏
         ZoneAuthority.clearAudit();
         int before = ZoneAuthority.auditLoggedCount();
-        TaskZoneRegistry.declare(server, owner, "region_lumber", authArea, false);
+        TaskZoneRegistry.declare(server, owner, "region_lumber", authArea, true);
         boolean allAllowed = true;
         for (int i = 0; i < 100; i++) {
             // 走**动作层那条**（`regionRefusal` 才留痕；`breakRefusal` 是纯判定入口，刻意不打印）
@@ -653,7 +654,7 @@ public final class TaskZoneCheckTask implements Task {
         // ⑨ ⭐ **第四处消费：规划/执行期的能力闸门**（`CapabilityGate.Facts`）——
         //    客户端实测暴露我上一片**漏接了这一处**：保护区里 `PILLAR`（"垫一格上去"）被裸保护区判据拒了
         //    **144 次**、全轮零放置 ⇒ 高树最高一格够不到、直接跳过（离线对照：同一场景无认领时 `places=9`、`7/7`）。
-        TaskZoneRegistry.declare(server, owner, "region_lumber", authArea, false);
+        TaskZoneRegistry.declare(server, owner, "region_lumber", authArea, true);
         check("⑨能力闸门（第四处消费）：`L2` 任务区覆盖 ⇒ **放置类移动**（垫脚/`PILLAR`）落点判定放行",
                 ZoneAuthority.movementRefusal(level, owner, AUTH_INSIDE, "protected_area", true) == null);
         check("⑨能力闸门：`L2` 下**破坏类移动**（`PATH_ACCESS` 语义）落点也放行",
@@ -671,6 +672,38 @@ public final class TaskZoneCheckTask implements Task {
         check("⑨能力闸门：**方块/标签黑名单不参与区域授权**（`protected_block` 原样返回）",
                 "protected_block".equals(ZoneAuthority.movementRefusal(level, owner, AUTH_INSIDE,
                         "protected_block", true)));
+
+        // ⑩ ⭐ `D-338` 附注十四：**保护区内，非玩家发起（LLM/未归因）封顶 `L1`**
+        //    —— 现场：用户点的一次性砍树被如实拒绝后，LLM 自起 `region_lumber` 把用户保护区里的树砍了（两轮）。
+        TaskZoneRegistry.declare(server, owner, "region_lumber", authArea, false);
+        String llmBreak = ZoneAuthority.breakRefusal(level, owner, AUTH_INSIDE, WriteReason.EXPECTED_TARGET);
+        check("⑪封顶：**LLM 自起**的 `region_lumber`（声明 L2）在保护区内 ⇒ 破坏被拒 **`zone_break_not_allowed`**"
+                        + "（= 「拆不了玩家的方块」），且**不是** `protected_area`（那是「没有任务区」的码）｜code=" + llmBreak,
+                "zone_break_not_allowed".equals(llmBreak));
+        check("⑪封顶：同一任务区**仍允许临时放置**（「能清障垫脚」）⇒ 只砍掉「拆家」能力",
+                ZoneAuthority.placeRefusal(level, owner, AUTH_INSIDE, WriteReason.STEP_PLACEMENT) == null);
+        List<String> llmRejected = new LumberCandidateSource().candidates(bot, treeSpec).rejected();
+        check("⑪封顶端到端：LLM 自起的区域任务，保护区里的树在**候选期**就被拒（`:zone_break_not_allowed`）"
+                        + "⇒ 真任务会**如实失败**（`no_reachable_candidate`），而不是去砍玩家的树｜rejected=" + llmRejected,
+                hasCode(llmRejected, "zone_break_not_allowed"));
+        TaskZoneRegistry.declare(server, owner, "region_lumber", authArea, true);
+        check("⑪封顶：**玩家显式发起**（命令/物品）时同一格**照旧放行**破坏（`L2`）⇒ 阶梯对玩家不缩水",
+                ZoneAuthority.breakRefusal(level, owner, AUTH_INSIDE, WriteReason.EXPECTED_TARGET) == null);
+        TaskZoneRegistry.declare(server, owner, "road-build", authArea, false);
+        check("⑪封顶：`L3` 类（修路）非玩家发起 ⇒ 先降级 `L2`、保护区内再封顶 `L1`（两级都只收紧）⇒ 破坏仍被拒",
+                "zone_break_not_allowed".equals(ZoneAuthority.breakRefusal(level, owner, AUTH_INSIDE,
+                        WriteReason.EXPECTED_TARGET)));
+        TaskZoneRegistry.declare(server, owner, "walk-return", authArea, false);
+        check("⑪封顶**只收紧、不放宽**：`L0`（只读）非玩家发起**仍是 `L0`**，放置照样 `zone_read_only`"
+                        + "（不许被「封顶」抬成可临时放置）｜code=" + ZoneAuthority.placeRefusal(level, owner,
+                        AUTH_INSIDE, WriteReason.STEP_PLACEMENT),
+                "zone_read_only".equals(ZoneAuthority.placeRefusal(level, owner, AUTH_INSIDE,
+                        WriteReason.STEP_PLACEMENT)));
+        TaskZoneRegistry.declare(server, owner, "region_lumber", authArea, false);
+        check("⑪封顶只作用于**已认领**区块：同一非玩家任务区在**野外**不受影响（`NOT_GATED`，野外写入照旧）",
+                ZoneAuthority.placeRefusal(level, owner, AUTH_WILDERNESS, WriteReason.STEP_PLACEMENT) == null
+                        && ZoneAuthority.breakRefusal(level, owner, AUTH_WILDERNESS,
+                                WriteReason.EXPECTED_TARGET) == null);
 
         findings.add("authority: L0/L1/L2 判据 + 真写入（quota=" + quotaPlaced + "/"
                 + ZoneAuthority.L1_MAX_PLACES + " 区内放置，越界/安全区/野外/别的 owner/候选扫描各一条）");

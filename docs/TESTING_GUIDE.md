@@ -459,6 +459,10 @@ claim 上限默认按"最大成员"算 ⇒ 不变）。所以它**不在 spawn �
 | **② 对照**：无任务区 | 先 `/alice region stop`，再 `/give @s alice:lumber_job` → 右键 | **1 tick 就 FAILED**：`[Job] select job=lumber … candidates=0 rejected=[tree@…:**protected_area**,…]` + `terminal=FAILED code=failed:no_reachable_candidate` |
 | **③ 冲突必须如实失败** | 站在场景里 `/alice protect safe claim` → `/alice region start` | 立即 `任务区与**安全区**冲突 ⇒ 拒绝声明` + 聊天 `区域任务失败：task_zone_conflict[safe_zone 1 chunks: 1,12]`；**bot 一步都不动** |
 
+**✅ 2026-09-19 起**：**保护区里 LLM 自起的任务封顶 `L1`**（能清障垫脚、**拆不了你的方块**）⇒ 它再自起
+`region_lumber` 时会**如实失败**（候选期 `zone_break_not_allowed` ⇒ `no_reachable_candidate`），并会回聊天
+（带触发原因）。下列"陷阱"仍是判读要点（**谁起的**决定了它有没有权限）：
+
 **⚠️ 判读时的一个陷阱**：任务失败后 **LLM 可能自起一个新区域任务**（`[Goal] decision_action … {"action":"start_job","kind":"region_lumber"}`）
 ⇒ 看到的"又在砍"未必是你点的那个入口。现在决策层起/停任务会**在聊天回执并写明触发原因**（`…（触发=terminal:lumber(no_reachable_candidate)）`），
 用那一行分辨"**谁起的**"；机制细节见 `AI_DECISIONS.md` 的 `D-338` 附注十一/十三。

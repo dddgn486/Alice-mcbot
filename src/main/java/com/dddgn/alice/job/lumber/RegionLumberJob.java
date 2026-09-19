@@ -305,10 +305,14 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         // 而工作区域必须落在某个维度里 ⇒ 以作业时的维度为准（跨维度作业本来也不成立）。
         var area = new TaskZoneRegistry.WorkArea(bot.serverLevel().dimension().location(),
                 region.minX(), region.minZ(), region.maxX(), region.maxZ());
+        // ⭐ `D-338` 附注十四：**玩家显式**的判据 = 命令（`IN_GAME_PLAYER`）或物品/夹具（`FIXTURE`）发起；
+        // LLM（`LLM`）与未归因（`SYSTEM`）**不算** ⇒ 在保护区内的生效等级封顶 `L1`（拆不了玩家的方块）。
+        // 野外/无认领区块不受影响（`ZoneAuthority` 在未认领时即 `NOT_GATED`）。
+        String driver = com.dddgn.alice.decision.Driver.of(bot);
+        boolean playerDriven = com.dddgn.alice.decision.Driver.IN_GAME_PLAYER.equals(driver)
+                || com.dddgn.alice.decision.Driver.FIXTURE.equals(driver);
         TaskZoneRegistry.Result result = TaskZoneRegistry.declare(
-                server, bot.getUUID(), NAME, area,
-                com.dddgn.alice.decision.Driver.IN_GAME_PLAYER.equals(
-                        com.dddgn.alice.decision.Driver.of(bot)));
+                server, bot.getUUID(), NAME, area, playerDriven);
         // 解算结果**逐字留痕一次**（含 `ALREADY`/`REPLACED`/`NO_SCOPE` 这些"没发生事"的分支）——
         // 否则"任务区到底声明没声明、按哪个区域算的"只能靠推断（`Result#describe` 的唯一消费者）。
         BotLog.info("[TaskZone] region_lumber 解算结果：{}", result.describe());
