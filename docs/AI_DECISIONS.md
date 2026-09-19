@@ -13986,6 +13986,8 @@ code=failed:no_reachable_candidate durationTicks=1` ⇒ **它是被拒的**。**
 - ⭐ **源码规则**（`tools/kernel-predicates.py` 新增 `rule_stop_event_ring`）：断言 `immediateStop` 体内必须有
   `BotEventLog.record(bot, "STOP"`、`"REPLACED"` 必须存在、`"REFUSED"` 至少两处 —— **删掉调用 ⇒ 门禁红**
   （反向对照已做：注入删除 ⇒ `[D-338·事件环补全]` 报错 + `KERNEL_PREDICATE_CHECK_RESULT FAIL`；恢复 ⇒ PASS）；
-- 夹具：`decision_contract` 新增 `dropped_triggers_visible`（快照字段在、与计数器口径一致、prompt 解释了它）。
+- 夹具：**`llm_contract`**（`LlmModule`，MAIN）新增 `dropped_triggers_visible`（快照字段在、与计数器口径一致、
+  prompt 解释了它）。⚠️ **步名对照（我一度搞错、已写进审查报告）**：`llm_contract` = `LlmContractCheckTask`
+  （本轮改动都在这里）；`decision_contract` = 另一个夹具 `DecisionContractCheckTask` ⇒ 定向验证用 `single:llm_contract`。
   ⚠️ **诚实标注**：真正的"丢弃路径"要网络/节流才触发（夹具不联网）⇒ 那条由源码规则 + 客户端
   `[Goal] trigger_dropped` 日志验证；"STOP 进环"由源码规则 + 客户端复跑验证。
