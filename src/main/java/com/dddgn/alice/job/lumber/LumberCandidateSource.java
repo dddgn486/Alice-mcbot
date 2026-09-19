@@ -65,8 +65,16 @@ public final class LumberCandidateSource implements CandidateSource {
                 rejected.add(id + ":trunk_too_tall");
                 continue;
             }
-            if (SafeZoneData.get(level.getServer()).protectionReason(level, tree.base()) != null) {
-                rejected.add(id + ":protected");
+            // ⭐ 保护区这一层走**区域级授权面**（`D-338` 附注七③："一个判据三处消费"）：
+            // 伐木 = `L2` 工作面 ⇒ **有任务区覆盖 + 等级够**时，保护区里的树**是**合法候选
+            //（这正是"玩家在自己的基地里划一片林场"的用法）；没有任务区 ⇒ 代码逐字仍是 `protected_area`。
+            String protection = com.dddgn.alice.protection.ZoneAuthority.regionRefusal(level, bot.getUUID(),
+                    tree.base(),
+                    SafeZoneData.get(level.getServer()).protectionReason(level, tree.base()),
+                    com.dddgn.alice.action.WriteReason.EXPECTED_TARGET,
+                    com.dddgn.alice.protection.ZoneAuthority.Act.BREAK);
+            if (protection != null) {
+                rejected.add(id + ":" + protection);
                 continue;
             }
             // 掏空后可以站进去的"柱底"格子：本树原木格，且其下方不是本树原木（= 真实地面）

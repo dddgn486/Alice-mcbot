@@ -1,5 +1,7 @@
 package com.dddgn.alice.protection;
 
+import com.dddgn.alice.action.WritePolicyMatrix;
+import com.dddgn.alice.action.WritePolicyMatrix.Level;
 import com.dddgn.alice.ledger.WorldModLedger;
 import com.dddgn.alice.log.BotLog;
 import net.minecraft.core.BlockPos;
@@ -105,12 +107,13 @@ public final class TaskZoneRegistry {
     }
 
     /**
-     * 一条**已声明的任务区**：派生的区块集合 + 归属元数据（谁的任务、哪种任务、多大面积、什么时候声明的）。
+     * 一条**已声明的任务区**：派生的区块集合 + 归属元数据（谁的任务、哪种任务、多大面积、什么时候声明的）
+     * + ⭐**区域级权限等级**（`D-338` 附注七②，用户 2026-09-19 拍板；来源 = `WritePolicyMatrix` 单一出处）。
      *
      * <p>`kind` 用任务的稳定名（如 `region_lumber`，`Job#taskName` 的口径）而不是实现类名。
      */
-    public record Zone(String scopeId, UUID owner, String kind, WorkArea area, Set<Long> chunks,
-                       long declaredTick) {
+    public record Zone(String scopeId, UUID owner, String kind, Level level, WorkArea area,
+                       Set<Long> chunks, long declaredTick) {
 
         public Zone {
             chunks = Set.copyOf(chunks);
@@ -127,8 +130,8 @@ public final class TaskZoneRegistry {
         }
 
         public String describe() {
-            return "kind=" + kind + " chunks=" + chunks.size() + " area(block)=" + area.areaXZ()
-                    + " " + area.describe();
+            return "kind=" + kind + " level=" + level.label() + " chunks=" + chunks.size()
+                    + " area(block)=" + area.areaXZ() + " " + area.describe();
         }
     }
 
@@ -170,6 +173,15 @@ public final class TaskZoneRegistry {
 
     /** 进程内状态（**故意不持久化**，理由见类注释）：scopeId → 任务区。 */
     private static final Map<String, Zone> ZONES = new HashMap<>();
+
+    /**
+     * ⭐ **区内放置计数**（`D-338` 附注七②：`L1` 的"≤8 次"）：scopeId → 已在**任务区内**落地的放置次数。
+     *
+     * <p>为什么记在这里而不是做成 `WriteBudget` 的 caps：预算 caps 是**作用域级**的，
+     * 而"≤8"是**区内**配额 —— 用 caps 实现会把任务在**野外**的放置也一起清零
+     * （一个 `L0` 的区会让整条任务失去野外写入权，那是错的）。所以按位置计数、只记区内的。
+     */
+    private static final Map<String, Integer> ZONE_PLACES = new HashMap<>();
 
     private TaskZoneRegistry() {
     }
@@ -240,10 +252,18 @@ public final class TaskZoneRegistry {
      * 声明（或重声明）**当前任务**的任务区。作用域由 {@link WorldModLedger#currentScope} 解析
      * —— **不接受调用方传 scopeId**（否则"任务区随 scope 生灭"就有旁路了）。
      *
+     * <p>⭐ **等级由 `WritePolicyMatrix` 单一出处解析**（`D-338` ⑦ / 附注七③）：调用方只给
+     * {@code kind}（= 任务的稳定名 ⇒ 任务类别）+ {@code playerDriven}（`L3` 只能由玩家显式取得），
+     * **不许自报等级**。等级一旦声明就**锁定**在元数据里（任务存续期内玩家改不了、任务自己也不改）。
+     *
      * <p>失败路径一律**如实返回**：没有作用域 ⇒ {@code NO_SCOPE}；与安全区冲突 ⇒
      * {@code CONFLICT_SUBZONE}（**不裁剪、不降级**，冲突区块原样报出去）。
+     *
+     * @param playerDriven 该任务是**玩家显式**发起的吗（任务层用 {@code Driver.of(bot)} 判定后传进来；
+     *                     `false` 时 `L3` 降级为 `L2`）
      */
-    public static Result declare(MinecraftServer server, UUID owner, String kind, WorkArea area) {
+    public static Result declare(MinecraftServer server, UUID owner, String kind, WorkArea area,
+                                 boolean playerDriven) {
         if (server == null || owner == null || area == null) {
             return new Result(Declare.NO_SCOPE, null, List.of());
         }
@@ -268,18 +288,24 @@ public final class TaskZoneRegistry {
                     scopeId, kind, area.describe(), describeChunks(conflicts));
             return new Result(Declare.CONFLICT_SUBZONE, null, conflicts);
         }
+        Level level = WritePolicyMatrix.zoneLevel(kind, playerDriven);
         Zone existing = ZONES.get(scopeId);
         if (existing != null && existing.owner().equals(owner) && existing.kind().equals(kind)
-                && existing.area().equals(area)) {
+                && existing.level() == level && existing.area().equals(area)) {
             return new Result(Declare.ALREADY, existing, List.of());
         }
-        Zone zone = new Zone(scopeId, owner, kind, area, chunks,
+        Zone zone = new Zone(scopeId, owner, kind, level, area, chunks,
                 server.overworld() == null ? 0L : server.overworld().getGameTime());
         ZONES.put(scopeId, zone);
+        // 换区/换等级 ⇒ 区内放置配额重新开始（配额是**区内**记账，跟着这条任务区走）
+        ZONE_PLACES.remove(scopeId);
+        Level ceiling = WritePolicyMatrix.zoneLevel(WritePolicyMatrix.taskOf(kind));
         BotLog.info("[TaskZone] {} scope={} owner={} {} blocks={} conflicts=0（派生工作区域 ⇒ 区块最小覆盖；"
-                        + "单向派生，不许反向裁剪工作区域）",
-                existing == null ? "declared（声明任务区）" : "replaced（换工作区域 ⇒ 旧区块不再覆盖）",
-                scopeId, owner.toString().substring(0, 8), zone.describe(), area.areaXZ());
+                        + "单向派生，不许反向裁剪工作区域）{}",
+                existing == null ? "declared（声明任务区）" : "replaced（换工作区域/等级 ⇒ 旧区块不再覆盖）",
+                scopeId, owner.toString().substring(0, 8), zone.describe(), area.areaXZ(),
+                ceiling == level ? "" : " ⚠ 等级已降级：请求 " + ceiling.label()
+                        + " ⇒ 授予 " + level.label() + "（L3 全权只能由玩家显式取得）");
         return new Result(existing == null ? Declare.DECLARED : Declare.REPLACED, zone, List.of());
     }
 
@@ -288,11 +314,40 @@ public final class TaskZoneRegistry {
         if (scopeId == null) {
             return false;
         }
+        ZONE_PLACES.remove(scopeId);
         boolean removed = ZONES.remove(scopeId) != null;
         if (removed) {
             BotLog.info("[TaskZone] released scope={}（任务结束/被取消 ⇒ 任务区随之解除；玩家无需再点一次）", scopeId);
         }
         return removed;
+    }
+
+    /**
+     * ⭐ **区内放置够不够配额**（`L1` 的"≤8 次"）：该作用域**已经**在区内放了几个。
+     * 只统计"落点在**自己**任务区覆盖范围内"的放置（区外的放置不进这个计数）。
+     */
+    public static int zonePlaceCount(String scopeId) {
+        return scopeId == null ? 0 : ZONE_PLACES.getOrDefault(scopeId, 0);
+    }
+
+    /**
+     * 记录一次**已落地**的放置：落点在**自己**任务区覆盖范围内才计数（其它一律 no-op）。
+     *
+     * <p>由动作层在**世界真的变了之后**调用（`BlockInteraction` 的两条放置路径）——
+     * 计数放在"落地之后"与 `WriteBudget.consumePlace` 同一纪律：失败的尝试不占额度。
+     *
+     * @return 该作用域累计的区内放置次数（不在区内 ⇒ 返回当前值、不计数）
+     */
+    public static int recordZonePlacement(ServerLevel level, UUID owner, BlockPos pos) {
+        MinecraftServer server = level.getServer();
+        if (server == null || owner == null || pos == null) {
+            return 0;
+        }
+        Zone zone = zoneOf(server, owner);
+        if (zone == null || !zone.covers(pos)) {
+            return zone == null ? 0 : zonePlaceCount(zone.scopeId());
+        }
+        return ZONE_PLACES.merge(zone.scopeId(), 1, Integer::sum);
     }
 
     /**
@@ -369,6 +424,7 @@ public final class TaskZoneRegistry {
     /** **夹具/收尾专用**：清空全部任务区（生产路径不许调用 —— 那是"静默留权"的反面：静默撤权）。 */
     public static void clearAll() {
         ZONES.clear();
+        ZONE_PLACES.clear();
     }
 
     /** 一行可读摘要（诊断/日志用）。 */

@@ -13647,3 +13647,106 @@ quota=1 → 回巡查；命令 `/alice region start|stop|info|clear`）已有"�
 **复核触发**：① 冲突导致任务直接失败在实践中太硬（玩家只想绕过那几个区块）⇒ 改"报错 + 降级"；
 ② 任务区随 `scopeId` 生灭若导致"中途重规划丢授权" ⇒ 补持久化（同主条 ⑦）；
 ③ 两个 bot 的任务区**重叠**今天**允许**（各自的作用域授权，不是产权）—— 若实践需要互斥 ⇒ 加判据。
+
+### D-338 附注七：**冲突语义与权限阶梯**定案（用户 2026-09-19 拍板）+ 下半段的机制口径 2026-09-19
+
+**① 冲突语义（用户原话）**：「**任务要如实失败，不能继续跑**」⇒ 附注六里那条待拍板项**关闭**：
+任务区与安全区冲突 ⇒ `task_zone_conflict` **如实失败**（**不降级继续**），不再考虑"报错但降级跑"的备选。
+⇒ 附注六的**现实现状即终态**（本片**零代码改动**，只登记）。
+
+**② 权限等级阶梯（用户原话）**：「**权限阶梯我同意**」⇒ 我 2026-09-19 的提案**原样通过**：
+- **`L0` 只读**：区内**零写入**；
+- **`L1` 临时脚手架**：只允许**临时**放置（`WriteReason#temporary()` 那一族），**上限 8 次**；**不许破坏**；
+- **`L2` 工作面**：**目标内**（`WriteReason.Policy.EXPLICIT_TARGET`：`EXPECTED_TARGET`/`DESCEND_FOOT`/`REGION_REPLANT`…）
+  ⇒ 放行；**目标外**（`Policy.CLEARING`：`LINE_OF_SIGHT`/`STANDING_SPACE`/`PATH_ACCESS`）⇒ 放行但**走既有显式授权 + 预算 + `TEMP`**；
+- **`L3` 全权**：区内放行到"只剩预算/账本"这一层，**只能由玩家显式**（`Driver.IN_GAME_PLAYER`）取得；
+  没有玩家显式时**降级为 `L2`**（不是拒绝 —— 拒绝一个 LLM 发起的建筑任务会更糟，但它拿不到 L3 的额外额度）。
+
+**③ 机制口径（本片要落的，仍是"几何/授权面"，不是新制度）**：
+- ⭐ **一个判据、三处消费**：新 `protection/ZoneAuthority` 回答"这一格**这次**能不能写"，被
+  ⒜ **候选扫描**（`MineCandidateSource:184` / `LumberCandidateSource:68` 今天硬编码按 `protectionReason` 排除）、
+  ⒝ **破坏闸门**（`BlockBreakSafety`）、
+  ⒞ **放置闸门**（`BlockInteraction.placeAt` —— ⚠️ **今天完全缺**，`placeBulkEdit` 有但 `placeAt` 没有）
+  共同消费。三处各写一套 = 重演"六份重复"，所以只做**一个**函数。
+- **等级来源 = 单一出处**：`WritePolicyMatrix`（`D-338` ⑦"权限等级 + 预算由任务自己的 `WritePolicyMatrix` 行给出"）。
+- ⚠️ **任务类别 → 等级的映射（我的提案，可驳回；一处可改）**：
+  `LUMBER`⇒`L2`（实验载体：目标内原木/树叶、目标外清障起架）· `RESTORE`⇒`L2`（拆自家临时方块）·
+  `BUILD`/`MANUAL`⇒`L3`（建筑/玩家命令，且 L3 需玩家显式）· `CRAFT`⇒`L1`（用一下就走的工作站）·
+  `SURVIVAL`⇒`L2`（逃生准备金自带 **8/8** 信封 ⇒ 比 L2 更严；用户裁定"紧急逃生临时提权"是两条提权途径之一）·
+  `TRAVERSAL`/`GATHERING`/`MINING`/`CONTAINER`/`DIAGNOSTIC`/`UNREGISTERED`⇒**`L0`**
+  —— 其中 `MINING`⇒`L0` 是**照 `D-338` ④ 办的**（"挖矿 = 野外采集，不发生在保护区内"），
+  于是"矿进不了保护区"这条**不变**（候选层仍排除），而**伐木/建筑**这类"玩家自己的地盘上干活"才有封套。
+- **🔴 一处行为变严（必须说清）**：`BlockInteraction.placeAt` 今天**没有**保护区检查 ⇒ 在保护区内放置**本来是被允许的**
+  （`D-338` 核对表里"保护区内放置无权限 ❌ 缺"那条缺口）。接上闸门后：**保护区内放置**要求"有任务区覆盖 + 等级够"，
+  否则拒绝 ⇒ **变严**。判据里专门有一条"**无任务区时拒绝码逐字仍是 `protected_area`**"，保证既有失败码不变。
+- **🔴 野外与非保护区块一个字不变**（`D-327` 场所化：野外由成本模型 + 维生 + 只读审计治理）⇒
+  `ZoneAuthority` 对未认领区块直接 **`NOT_GATED`**（不拦、不留痕）。**L0 也不许冻结野外**：
+  "≤8 放置"是**区内**配额（按位置计数），**不是**作用域级预算上限 —— 否则一个 L0 区会把任务的野外放置也清零。
+
+**④ 仍未做（本片之外）**：勾选界面里的等级选择（第 9 件，操作逻辑要先给用户审核）· 默认任务区（第 6 件）·
+  "玩家显式划 L3 区"的**命令入口**（今天 L3 只能由 `MANUAL`/`BUILD` 类任务 + 玩家驱动身份取得）—— 待用户要时再加。
+
+**复核触发**：① 任务类别→等级表在实践中太粗（同类别不同任务该有不同等级）⇒ 改按 requester 细表；
+② `MINING`⇒`L0` 若挡住"清掉保护区里挡路的矿"这种合理需求 ⇒ 提等级（但那与 `D-338` ④ 冲突，需先拍板）；
+③ L1 的"8 次"若不够/太多 ⇒ 调常量（`ZoneAuthority.L1_MAX_PLACES`）。
+
+### D-338 附注八：`§5.12` 第 4 件下半段落地 —— ⭐**权限阶梯接进闸门**（"一个判据，三处消费"） 2026-09-19
+
+**范围**：用户 2026-09-19 拍板的两条（`附注七`）中的第 ② 条落地：把任务区从"几何封套"变成
+**真正的授权面**（`D-338` ① 的"目标内 `KEEP` / 目标外提权+预算+`TEMP`"由此第一次有执行体）。
+第 ① 条（冲突 ⇒ 任务如实失败）本就已是现实现状 ⇒ 零代码改动。
+
+**落地（1 个新类 + 1 张表 + 5 处接线 + 1 组门禁）**：
+1. ⭐ `WritePolicyMatrix.Level{L0_READ_ONLY, L1_SCAFFOLD, L2_WORKFACE, L3_FULL}`
+   （`allowsBreak` / `allowsPlace` / `scaffoldPlaceQuota`）+ **`zoneLevel(Task)` 单一出处** +
+   **`zoneLevel(requester, playerDriven)`**（⭐ `L3` 无玩家驱动身份 ⇒ **降级 `L2`**，不拒 —— 拒一个 LLM 发起的
+   建筑任务会更糟，但它拿不到 `L3` 的额度）。**不由调用点自报等级**（那是"静默提权"的口子）。
+2. ⭐ 新 `protection/ZoneAuthority`（**一个判据**）：`authorize(level, owner, pos, reason, Act)` →
+   `NOT_GATED`（未认领 ⇒ 野外不管）/ `ALLOW` / `DENY(code)`；`regionRefusal(...)` 把
+   `SafeZoneData.protectionReason` 的结果分流：`protected_block`/`protected_tag`（**全世界通用**的玩家规则）
+   **原样拒**，`protected_area`（区块认领）**才**问授权面。拒绝码 = 稳定词表
+   （`protected_area` / `protected_safe_zone` / `zone_read_only` / `zone_break_not_allowed` /
+   `zone_place_not_scaffold` / `zone_place_quota` / `zone_reason_required`）。
+3. **三处消费（同一个函数）**：
+   ⒜ **候选扫描** —— `MineCandidateSource`（`MINING`⇒`L0` ⇒ 认领区块里的矿**照旧被拒**，`D-338` ④ 不变）、
+      `LumberCandidateSource`（`LUMBER`⇒`L2` ⇒ 基地里的树**成为合法候选**，这正是"玩家在自己地盘划林场"的用法）；
+   ⒝ **破坏闸门** —— `BlockBreakSafety`（`refusal`/`explicitTargetRefusal`/`clearingRefusal` 三条都带上理由）；
+   ⒞ **放置闸门** —— ⚠️ **`BlockInteraction.placeAt` 今天完全没有保护区检查**（`D-338` 核对表里的缺口）
+      ⇒ 本片补上；`placeBulkEdit` 改走同一判据；两者成功后 `TaskZoneRegistry.recordZonePlacement` 计数。
+      **`PlaceResult` 新增 `ZONE_DENIED`**（与 `BUDGET_EXHAUSTED` 分开：一个是"额度用尽"、一个是"这块地没授权"）。
+4. **`L1` 的"≤8 次"= 区内配额**（`TaskZoneRegistry.ZONE_PLACES`，按 scopeId 计数、随声明重置/`release` 清）——
+   ⛔ **刻意不做成 `WriteBudget` 的 caps**：caps 是**作用域级**的，会把任务在**野外**的放置一起清零
+   （一个 `L0` 的区就让整条任务失去野外写入权 = 错）。判据里专门有一条"野外在 `L0` 期间照旧可写"钉住这一点。
+5. 任务区元数据加 `level`（**锁定**：任务存续期内玩家改不了、任务自己也不改），日志/summary/失败报告带 `level=…`；
+   声明时若发生降级，**响亮记一行**（`请求 L3 ⇒ 授予 L2`），不静默。
+
+**⭐ 一处行为变严（必须记住）**：保护区内**放置**从"没有闸门"变成"要任务区 + 等级" ⇒ 无任务区时**拒**
+（码仍逐字 `protected_area`）。判据里有一条断言"世界未变"；**野外与未认领区块一个字不变**。
+
+**门禁**：`task_zone`（EXTRA）判据 **50 → 76（+26）**，新增第 10 组 = 区域级授权面 10 条：
+前提四格分属不同区块 · 无任务区 ⇒ 破坏码**逐字回归 `protected_area`** + **放置真被拦且世界未变** ·
+`L0` 破坏/放置全拒 + **野外在 `L0` 期间可写** · `L1` 非临时理由 `zone_place_not_scaffold` +
+**真放 8 次落地**、第 9 次 `zone_place_quota` 且世界未变 + 破坏 `zone_break_not_allowed` + 配额计数落在 scope ·
+`L2` 目标内/目标外破坏放行 + **真的写/真的拆**（世界事实断言）+ 配额不再适用 · 越界 `protected_area` /
+安全区 `protected_safe_zone` / 别的 owner `protected_area` · ⭐**候选扫描**（手搭 3 格原木小树在被认领区块里：
+无区 `:protected_area` → `L2` 不再以保护区为由拒 → `L0` `:zone_read_only`）· 等级解析 6 条（含 `L3` 降级）。
+夹具收尾：所有真的写过的格子**逐格还原 + 销账本条目**（否则电池的"留我方临时方块 ⇒ 判红"会把本步记成泄漏）。
+
+**证据（`SERVER_TESTED`）**：`single:task_zone` = **`checks=76 failures=0 verdict=PASS`**（34 tick）·
+`module:protection` **3/3**（95 + 41 + 76）· `ALICE_HEADLESS=1 check-all` = **17 PASS / 0 WARN / 0 FAIL**
+（含 CORE **51/51**，`ticks=4762`）⇒ **接闸门对既有 CORE 零回归**（这是"收紧没误伤"的活体证据）。
+⭐ **反向对照三次（都先红后绿，且各自打中设计的那一组）**：
+① **拆掉候选扫描那处消费**（回退成裸 `protectionReason`）⇒ `failures=2`，**恰好**两条候选判据，
+判别性事实 `rejected=[tree@35210,-60,35206:protected_area]`；
+② **拆掉"破坏等级闸"**（`if (false && !allowsBreak())`，即恒放行）⇒ `failures=3`，**恰好**是
+`L0`／`L1`／候选 `L0` 三条**拒绝**判据；
+③ 反过来 **"破坏恒拒"** ⇒ `failures=3`，**恰好**是 `L2` 三条**放行**判据（含"真的破坏成功"）。
+⇒ 正反两侧都被判据抓住，不是"随手就红"。
+
+**仍未做**：① **勾选界面里的等级选择 / 玩家显式划 `L3` 区的命令入口**（今天 `L3` 只能由 `MANUAL`/`BUILD`
+类任务 + 玩家驱动身份取得；`§5.12` 第 9 件的操作逻辑要先给用户审核）；② **默认任务区**（第 6 件）；
+③ `MINING`⇒`L0` 意味着"保护区里的矿"仍不可挖（照 `D-338` ④）；若将来要"清掉挡路的矿"需先拍板。
+
+**复核触发**：① 任务类别→等级表太粗（同类别不同任务该不同等级）⇒ 改按 requester 细表；
+② 保护区内放置"变严"在实践中挡住合理动作（例如任务需要在自家基地垫一格）⇒ 看是否该把某些任务升到 `L1`；
+③ `L1` 的 8 次不够/太多 ⇒ 调 `ZoneAuthority.L1_MAX_PLACES`。

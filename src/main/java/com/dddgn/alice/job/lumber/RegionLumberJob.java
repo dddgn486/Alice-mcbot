@@ -306,7 +306,9 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         var area = new TaskZoneRegistry.WorkArea(bot.serverLevel().dimension().location(),
                 region.minX(), region.minZ(), region.maxX(), region.maxZ());
         TaskZoneRegistry.Result result = TaskZoneRegistry.declare(
-                server, bot.getUUID(), NAME, area);
+                server, bot.getUUID(), NAME, area,
+                com.dddgn.alice.decision.Driver.IN_GAME_PLAYER.equals(
+                        com.dddgn.alice.decision.Driver.of(bot)));
         // 解算结果**逐字留痕一次**（含 `ALREADY`/`REPLACED`/`NO_SCOPE` 这些"没发生事"的分支）——
         // 否则"任务区到底声明没声明、按哪个区域算的"只能靠推断（`Result#describe` 的唯一消费者）。
         BotLog.info("[TaskZone] region_lumber 解算结果：{}", result.describe());

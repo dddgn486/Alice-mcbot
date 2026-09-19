@@ -231,7 +231,7 @@ public final class DecisionTrace {
 | **A** | 距起点最近，但 3 面 + 顶被石头封死（需隧道，超预算） | `rejected=A:no_stand` |
 | **B** | 中等距离、露天、4 原木、有树冠 | **`picked=B`** |
 | **C** | 更远、6 原木 | `rejected=C:not_nearest`（nearest 策略下） |
-| **D** | 原木柱但位于保护区内 | `rejected=D:protected` |
+| **D** | 原木柱但位于保护区内（**无任务区**时；有 `L2` 任务区覆盖则成为合法候选，`D-338` 附注八） | `rejected=D:protected_area` |
 
 ### 6.2 三类断言
 

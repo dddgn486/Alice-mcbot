@@ -68,7 +68,14 @@ public final class BlockInteraction {
          * <p>单独一个值而不是复用 `NO_OPTION`：两者病因完全不同 —— `NO_OPTION` = 没有可用的支撑面，
          * `NO_ITEM` = 手上根本没有那种方块。混成一个值会让"为什么没放成"在下游无法区分。
          */
-        NO_ITEM
+        NO_ITEM,
+        /**
+         * ⭐ **区域级授权拒绝**（`D-338` 附注七③）：该格在**保护区**内，而**任务区/等级**不允许放
+         * （代表码见 `ZoneAuthority`：`protected_area` / `zone_read_only` / `zone_place_quota`…）：
+         * **未写入**、**不消耗物品与预算**。与 `BUDGET_EXHAUSTED` 分开：一个是"额度用尽"，
+         * 一个是"这块地没授权" —— 归因完全不同。
+         */
+        ZONE_DENIED
     }
 
     private BlockInteraction() {
@@ -304,6 +311,17 @@ public final class BlockInteraction {
                     placeAt.toShortString(), grant == null ? "-" : grant.describe(), WriteBudget.describe(bot));
             return PlaceResult.BUDGET_EXHAUSTED;
         }
+        // ⭐ 区域级授权面（`D-338` 附注七③）：**保护区内放置**这条闸门**今天本来不存在**
+        //（`D-338` 核对表里的缺口）⇒ 在这里补上。判据与破坏侧**同一个函数**（`ZoneAuthority`）。
+        // ⚠️ 没有任务区时拒绝码逐字仍是 `protected_area`；野外/未认领 ⇒ 不拦、不留痕。
+        String zoneRefusal = com.dddgn.alice.protection.ZoneAuthority.regionRefusal(level, bot.getUUID(), placeAt,
+                com.dddgn.alice.protection.SafeZoneData.get(level.getServer()).protectionReason(level, placeAt),
+                grant == null ? null : grant.reason(), com.dddgn.alice.protection.ZoneAuthority.Act.PLACE);
+        if (zoneRefusal != null) {
+            BotLog.warn("[WRITE-REFUSED] place pos={} by={} reason={}",
+                    placeAt.toShortString(), grant == null ? "-" : grant.describe(), zoneRefusal);
+            return PlaceResult.ZONE_DENIED;
+        }
         if (!reachable(bot, placeAt)) {
             return PlaceResult.NO_OPTION;
         }
@@ -352,6 +370,8 @@ public final class BlockInteraction {
             // 账本记录（J6-a）：动作层是唯一看得见"每一次修改"的地方（含内核 PILLAR 放的方块）
             com.dddgn.alice.ledger.WorldModLedger.recordPlacement(level, bot.getUUID(), grant, placeAt,
                     previousState, level.getBlockState(placeAt));
+            // ⭐ 区内放置计数（`L1` 的"≤8 次"配额，`D-338` 附注七②）：只统计落在**自己任务区**里的放置
+            com.dddgn.alice.protection.TaskZoneRegistry.recordZonePlacement(level, bot.getUUID(), placeAt);
             return PlaceResult.PLACED;
         }
         return PlaceResult.NO_OPTION;
@@ -459,8 +479,9 @@ public final class BlockInteraction {
                     pos.toShortString(), grant == null ? "-" : grant.describe(), WriteBudget.describe(bot));
             return false;
         }
-        String protectedReason = com.dddgn.alice.protection.SafeZoneData.get(level.getServer())
-                .protectionReason(level, pos);
+        String protectedReason = com.dddgn.alice.protection.ZoneAuthority.regionRefusal(level, bot.getUUID(), pos,
+                com.dddgn.alice.protection.SafeZoneData.get(level.getServer()).protectionReason(level, pos),
+                grant == null ? null : grant.reason(), com.dddgn.alice.protection.ZoneAuthority.Act.PLACE);
         if (protectedReason != null) {
             BotLog.warn("[WRITE-REFUSED] place pos={} by={} reason={}",
                     pos.toShortString(), grant.describe(), protectedReason);
@@ -479,6 +500,7 @@ public final class BlockInteraction {
         level.setBlock(pos, state, 3);
         com.dddgn.alice.ledger.WorldModLedger.recordPlacement(level, bot.getUUID(), grant, pos,
                 previousState, state);
+        com.dddgn.alice.protection.TaskZoneRegistry.recordZonePlacement(level, bot.getUUID(), pos);
         return true;
     }
 

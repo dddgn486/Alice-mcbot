@@ -89,6 +89,95 @@ public final class WritePolicyMatrix {
         UNREGISTERED
     }
 
+    /**
+     * ⭐ **区域级权限等级**（用户 2026-09-19 拍板"权限阶梯我同意"，`D-338` 附注七②）。
+     *
+     * <p>它回答的是**第三维**问题：在**保护区**（= 玩家认领的区块）里，**这个任务**被允许写到什么程度。
+     * 与另两维正交：① 保护区闸门（`SafeZoneData`：认领即禁止）管"能不能动"；
+     * ② 本表的 {@link Zone}（EXTERNAL/WORKSPACE）管"这片地是不是 Alice 的"；
+     * ③ 本枚举管"**任务在这个封套里被授予了哪一档**"。
+     *
+     * <p>⚠️ **等级不是新制度**：它**不放宽**任何既有红线 —— 每一次写入仍然要过
+     * `WriteGrant`（谁/为什么）+ `WriteBudget`（改了世界几次）+ 账本（`TEMP`/`KEEP`）。
+     * 本枚举只是把"保护区内的写入"从**一律拒绝**变成**按档授予**（`D-338` ① 的落地）。
+     *
+     * <p>⚠️ 野外（未认领区块）**不看这一档**（`D-327` 场所化：野外由成本模型 + 维生 + 只读审计治理）。
+     */
+    public enum Level {
+        /** **只读**：区内零写入。 */
+        L0_READ_ONLY("L0", false, false, 0),
+        /** **临时脚手架**：只许**临时**放置（`WriteReason#temporary()`），**上限 8 次**；不许破坏。 */
+        L1_SCAFFOLD("L1", false, true, 8),
+        /** **工作面**：目标内（`Policy.EXPLICIT_TARGET`）+ 目标外（`Policy.CLEARING`，走显式授权/预算/`TEMP`）都放行。 */
+        L2_WORKFACE("L2", true, true, 0),
+        /** **全权**：只剩预算/账本这一层；**只能由玩家显式取得**（见 {@link #zoneLevel(String, boolean)}）。 */
+        L3_FULL("L3", true, true, 0);
+
+        private final String label;
+        private final boolean breakAllowed;
+        private final boolean placeAllowed;
+        private final int scaffoldPlaceQuota;
+
+        Level(String label, boolean breakAllowed, boolean placeAllowed, int scaffoldPlaceQuota) {
+            this.label = label;
+            this.breakAllowed = breakAllowed;
+            this.placeAllowed = placeAllowed;
+            this.scaffoldPlaceQuota = scaffoldPlaceQuota;
+        }
+
+        public String label() {
+            return label;
+        }
+
+        public boolean allowsBreak() {
+            return breakAllowed;
+        }
+
+        public boolean allowsPlace() {
+            return placeAllowed;
+        }
+
+        /** **区内**放置配额（`0` = 无配额限制，只受预算/账本约束）；`L1` = 8（用户口径）。 */
+        public int scaffoldPlaceQuota() {
+            return scaffoldPlaceQuota;
+        }
+    }
+
+    /**
+     * **任务类别 → 区域级等级**（**单一出处**；用户拍板的阶梯 + 我的类别映射，见 `D-338` 附注七③）。
+     *
+     * <p>为什么 `MINING` ⇒ `L0`：`D-338` ④ 已定"**挖矿 = 野外采集，不发生在保护区内**"
+     * ⇒ 保护区里的矿**本来就不该挖**（候选层排除照旧）⇒ 给它工作面等级会与那条裁定冲突。
+     *
+     * <p>为什么 `UNREGISTERED`/`DIAGNOSTIC` ⇒ `L0`：未登记的任务与自检夹具**不该**拿到区内写入权
+     * （保守方向，且让"没登记"这件事保持可见）。
+     */
+    public static Level zoneLevel(Task task) {
+        return switch (task) {
+            case LUMBER, RESTORE, SURVIVAL -> Level.L2_WORKFACE;
+            case BUILD, MANUAL -> Level.L3_FULL;
+            case CRAFT -> Level.L1_SCAFFOLD;
+            case TRAVERSAL, MINING, GATHERING, CONTAINER, DIAGNOSTIC, UNREGISTERED -> Level.L0_READ_ONLY;
+        };
+    }
+
+    /**
+     * **requester → 区域级等级**（含 ⭐"`L3` 只能由玩家显式取得"这条规则）。
+     *
+     * <p>没有玩家驱动身份（`Driver.IN_GAME_PLAYER`）时 `L3` **降级为 `L2`** —— 不是拒绝：
+     * 拒绝一个 LLM 发起的建筑任务会更糟，但它拿不到 `L3` 的"只剩预算"那档额度。
+     *
+     * @param playerDriven 调用方（任务层）用 {@code Driver.of(bot)} 判定后传进来 ——
+     *                     本类在 `action` 层，不去反向依赖 `decision` 层
+     */
+    public static Level zoneLevel(String requester, boolean playerDriven) {
+        Level level = zoneLevel(taskOf(requester));
+        if (level == Level.L3_FULL && !playerDriven) {
+            return Level.L2_WORKFACE;
+        }
+        return level;
+    }
+
     /** 放置的**回收义务**。 */
     public enum Obligation {
         /** 按理由自身语义（{@link WriteReason#temporary()}）——今天的默认行为。 */

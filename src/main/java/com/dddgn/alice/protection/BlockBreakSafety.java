@@ -31,13 +31,25 @@ public final class BlockBreakSafety {
      */
     public static String refusal(ServerPlayer bot, BlockPos target, WriteReason reason) {
         if (reason != null && reason.policy() == WriteReason.Policy.EXPLICIT_TARGET) {
-            return explicitTargetRefusal(bot, target);
+            return explicitTargetRefusal(bot, target, reason);
         }
-        return clearingRefusal(bot, target);
+        return clearingRefusal(bot, target, reason);
     }
 
     /** 明确指定目标的硬拒绝原因；返回 null 表示目标本身允许挖。 */
     public static String explicitTargetRefusal(ServerPlayer bot, BlockPos target) {
+        return explicitTargetRefusal(bot, target, null);
+    }
+
+    /**
+     * 明确指定目标的硬拒绝原因（带**写入理由** ⇒ 保护区那一层可以按区域级授权面判定）。
+     *
+     * <p>⭐ `D-338` 附注七③：**保护区认领**这一条从"一律拒"变成"问区域授权面"
+     * —— 任务区覆盖 + 等级够 ⇒ 放行（其后仍受 `WriteGrant`/`WriteBudget`/账本约束）。
+     * ⚠️ **没有任务区时拒绝码逐字仍是 `protected_area`**（既有失败码/文档/夹具都按它写）。
+     * ⚠️ 方块/标签黑名单（`protected_block`/`protected_tag`）**不参与**区域授权 ⇒ 原样拒。
+     */
+    public static String explicitTargetRefusal(ServerPlayer bot, BlockPos target, WriteReason reason) {
         ServerLevel level = (ServerLevel) bot.level();
         // 流体不可挖：对照 Baritone MovementHelper.getMiningDurationTicks:588-590（任何流体 → COST_INF）。
         // 否则岩浆会被当成可清障方块（estimateBreakTicks 给出有限代价），规划器可能选择"挖岩浆"。
@@ -45,8 +57,10 @@ public final class BlockBreakSafety {
             return "fluid_block";
         }
         String worldProtection = SafeZoneData.get(level.getServer()).protectionReason(level, target);
-        if (worldProtection != null) {
-            return worldProtection;
+        String zoneRefusal = ZoneAuthority.regionRefusal(level, bot.getUUID(), target, worldProtection,
+                reason, ZoneAuthority.Act.BREAK);
+        if (zoneRefusal != null) {
+            return zoneRefusal;
         }
         if (isUnbreakable(level, target)) {
             return "unbreakable_block";
@@ -59,10 +73,15 @@ public final class BlockBreakSafety {
      * 返回非 null 时，上层应先尝试其他站位/路线，而不是立即破坏该方块。
      */
     public static String clearingRefusal(ServerPlayer bot, BlockPos target) {
+        return clearingRefusal(bot, target, null);
+    }
+
+    /** 清障的拒绝原因（带理由 ⇒ 与明确目标走**同一套**区域级授权判定）。 */
+    public static String clearingRefusal(ServerPlayer bot, BlockPos target, WriteReason reason) {
         if (isUnderfoot(bot, target)) {
             return "underfoot_block";
         }
-        String hardRefusal = explicitTargetRefusal(bot, target);
+        String hardRefusal = explicitTargetRefusal(bot, target, reason);
         if (hardRefusal != null) {
             return hardRefusal;
         }
