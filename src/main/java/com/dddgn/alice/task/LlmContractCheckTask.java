@@ -231,11 +231,11 @@ public class LlmContractCheckTask implements Task {
             boolean first = GoalDirector.loopRefusal(bot, com.dddgn.alice.decision.Driver.LLM,
                     "lumber", target) == null;
             GoalDirector.noteAttempt(bot, "lumber", target);
-            GoalDirector.noteTerminalOutcome(bot, "lumber", true);
+            GoalDirector.noteTerminalOutcome(bot, true);
             boolean second = GoalDirector.loopRefusal(bot, com.dddgn.alice.decision.Driver.LLM,
                     "lumber", target) == null;
             GoalDirector.noteAttempt(bot, "lumber", target);
-            GoalDirector.noteTerminalOutcome(bot, "lumber", true);
+            GoalDirector.noteTerminalOutcome(bot, true);
             // ② 第 3 次：拒（理由码 + 身份 + 次数都要在）
             String refusal = GoalDirector.loopRefusal(bot, com.dddgn.alice.decision.Driver.LLM,
                     "lumber", target);
@@ -251,33 +251,28 @@ public class LlmContractCheckTask implements Task {
                             "lumber", target) == null;
             // ④ 成功一次 ⇒ 复位
             GoalDirector.noteAttempt(bot, "lumber", target);
-            GoalDirector.noteTerminalOutcome(bot, "lumber", false);
+            GoalDirector.noteTerminalOutcome(bot, false);
             boolean reset = GoalDirector.loopRefusal(bot, com.dddgn.alice.decision.Driver.LLM,
                     "lumber", target) == null
                     && GoalDirector.loopFailCount(bot, "lumber", target) == 0;
             // ⑤ 别的目标不受牵连
             boolean other = GoalDirector.loopRefusal(bot, com.dddgn.alice.decision.Driver.LLM,
                     "lumber", "tree@fixture-loop,64,77") == null;
-            // ⑥ ⭐ **跨写法**（2026-09-19 客户端实测漏过的那一条）：生产的 kind 有**两种写法** ——
-            //     受理侧 = `JobRequest.Kind.name()`（枚举 ⇒ 大写 `REGION_LUMBER`）；
-            //     终态侧 = `Task.taskName()`（实测 ⇒ 小写 `region_lumber`）。
-            //     不归一到同一身份 ⇒ 记账静默失败 ⇒ 计数恒 0 ⇒ 闸门永不触发（客户端三次全放行）。
-            boolean spellingNormalized = GoalDirector.attemptIdentity("REGION_LUMBER", target)
-                    .equals(GoalDirector.attemptIdentity("region_lumber", target));
-            GoalDirector.noteAttempt(bot, "REGION_LUMBER", target);            // 受理侧写法（大写）
-            GoalDirector.noteTerminalOutcome(bot, "region_lumber", true);      // 终态侧写法（小写）
-            boolean crossSpelling = GoalDirector.loopFailCount(bot, "region_lumber", target) == 1
-                    && GoalDirector.loopFailCount(bot, "REGION_LUMBER", target) == 1;
-            GoalDirector.noteAttempt(bot, "region_lumber", target);            // 清账（不留痕）
-            GoalDirector.noteTerminalOutcome(bot, "region_lumber", false);
+            // ⑥ ⭐ **归因不靠字符串匹配**（`D-342` 修订，2026-09-19 用户裁定「这类验证本该无头」）：
+            //     原设计要在终态侧拿 `kind` 与受理侧对齐 —— 而生产两处写法不同（受理 `JobRequest.Kind.name()`
+            //     大写 / 终态 `Task.taskName()` 小写）⇒ 静默不记账、闸门永不触发（客户端三次全放行）。
+            //     现在改成：**在飞身份只由 LLM 受理侧写入，别人派活一进来就 `clearAttempt`**
+            //     ⇒ 终态归因无需任何跨边界匹配（这条断言锁住"别人派活后不会被记到 LLM 的账上"）。
+            GoalDirector.noteAttempt(bot, "lumber", target);
+            GoalDirector.clearAttempt(bot);                                     // = 玩家/夹具/系统派活
+            GoalDirector.noteTerminalOutcome(bot, true);
+            boolean foreignNotAccounted = GoalDirector.loopFailCount(bot, "lumber", target) == 0;
             check("loop_admission_control",
-                    first && second && blocked && exempt && reset && other && spellingNormalized
-                            && crossSpelling,
+                    first && second && blocked && exempt && reset && other && foreignNotAccounted,
                     "first=" + first + " second=" + second + " third_blocked=" + blocked
                             + " player_exempt=" + exempt + " reset_on_success=" + reset
                             + " other_target_ok=" + other
-                            + " spelling_normalized=" + spellingNormalized
-                            + " cross_spelling_accounting=" + crossSpelling
+                            + " foreign_assignment_not_accounted=" + foreignNotAccounted
                             + " refusal=" + refusal);
         } finally {
             com.dddgn.alice.decision.Driver.set(bot, previousDriver);

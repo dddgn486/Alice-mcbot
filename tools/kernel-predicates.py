@@ -464,15 +464,39 @@ def rule_loop_admission():
         problems.append("`loopRefusal(...)` 出现在 `assignJob(...)` **之后** ⇒ 任务已经起了才判，闸门形同虚设")
     if "noteAttempt(bot" not in body:
         problems.append("`execute` 起任务成功后没有 `noteAttempt(...)` ⇒ 终态无法归到身份上（记账永远为空）")
-    # ⚠️ 2026-09-19 客户端实测漏过的那一条：**生产的 kind 有两种写法**（受理侧 `JobRequest.Kind.name()`
-    # 大写 / 终态侧 `Task.taskName()` 小写）⇒ `attemptKey` 必须归一，否则记账静默失败、闸门永不触发。
-    if "private static String attemptKey(String kind, String target) {" not in text:
-        problems.append("`GoalDirector.attemptKey` 没了（身份归一化的唯一出处）")
-    elif "toLowerCase" not in text[text.find("private static String attemptKey(String kind, String target) {"):
-                                  text.find("private static String attemptKey(String kind, String target) {") + 400]:
-        problems.append("`attemptKey` 没有归一 kind 的大小写 ⇒ 受理侧（`JobRequest.Kind.name()` 大写）与"
-                        "终态侧（`Task.taskName()` 小写）落不到同一身份 ⇒ **静默不记账、闸门永不触发**"
-                        "（2026-09-19 客户端三次全放行就是这个原因）")
+    # ⚠️ 2026-09-19 客户端实测的缺陷 + 用户裁定「这类验证本该无头」之后的**结构修订**：
+    # 终态归因**不许**再跨边界做字符串匹配（原先拿受理侧 kind 与终态侧 kind 对齐，而两者写法不同
+    # ⇒ 静默不记账、闸门永不触发）；改为「在飞身份只由 LLM 受理侧写、别人派活即 `clearAttempt`」。
+    # ⚠️ 必须先剥注释再搜：`attemptKey` 的 javadoc 里**引用了**那句被删掉的表达式当反例
+    # （2026-09-19 实测：不剥注释 ⇒ 本规则假红，报"又出现字符串匹配"）
+    code = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    code = re.sub(r"//[^\n]*", "", code)
+    if "startsWith(kind" in code:
+        problems.append("`GoalDirector` 又出现了按 `kind` 做字符串匹配（`startsWith(kind`）⇒ 受理侧与终态侧"
+                        "写法不同（`JobRequest.Kind.name()` 大写 / `Task.taskName()` 小写）就会静默不记账")
+    if "public static void clearAttempt(BotPlayer bot) {" not in text:
+        problems.append("`GoalDirector.clearAttempt` 没了（别人派活时清在飞身份的入口）")
+    bm = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "bot" / "BotManager.java").read_text(encoding="utf-8")
+    if "GoalDirector.clearAttempt(bot)" not in bm:
+        problems.append("`BotManager.beginTask` 没有在『不是 LLM 派活』时调用 `GoalDirector.clearAttempt(bot)`"
+                        "⇒ 玩家/夹具派的活会被记到 LLM 的账上")
+    if "GoalDirector.noteTerminalOutcome(bot," not in bm:
+        problems.append("`BotManager.complete` 没有调用 `noteTerminalOutcome(...)` ⇒ 循环闸永远收不到失败")
+    else:
+        i_note = bm.find("GoalDirector.noteTerminalOutcome(bot,")
+        i_ret = bm.find("startSafeReturnIfNeeded()")
+        if 0 <= i_ret < i_note:
+            problems.append("`noteTerminalOutcome(...)` 出现在返程兜底**之后** ⇒ 漏掉「失败触发返程」那一次")
+    # ⚠️ 受理侧"玩家豁免"的前提：应用模型回复时**必须先把 Driver 标成 LLM**
+    # （否则 `Driver.of(bot)` 还是上一个任务的驱动者，可能是 `fixture` ⇒ 闸门被豁免吃掉）。
+    i_drv = code.find("Driver.set(bot, Driver.LLM)")
+    i_exec = code.find("execute(bot, state, action")
+    if i_drv < 0 or i_exec < 0 or i_drv > i_exec:
+        problems.append("应用模型回复时 `Driver.set(bot, Driver.LLM)` 不在 `execute(...)` **之前**"
+                        "⇒ 受理闸读到的可能是上一个任务的驱动者（如 `fixture`）⇒ 被玩家豁免吃掉")
+    if "noteAttempt(bot, start.request().kind().name()" not in text \
+            or "loopRefusal(bot, Driver.of(bot), start.request().kind().name()" not in text:
+        problems.append("受理侧两处（`loopRefusal` 与 `noteAttempt`）没有用**同一个表达式**喂身份 ⇒ 身份会分叉")
     return problems
 
 

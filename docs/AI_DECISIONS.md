@@ -14214,6 +14214,36 @@ cross_spelling_accounting=false`，其余五条仍 true = 归因精确）+ 内�
 ⇒ **将来 `taskName()` 改名 ⇒ 这条红**（反向对照已做：把 `NAME` 注入成 `RegionLumber` ⇒ `checks=94 failures=1`，
 恰是这一条）。这一条堵的是"生产悄悄断、夹具照样绿"那个洞（我上面那两条跨写法断言用的是**硬编码**小写串）。
 
+### D-342 修订（同日，用户裁定「**这种重复测试应该加入无头测试，而不是反复测试**」）2026-09-19
+
+**用户的追问（逐字）**：「这种重复测试应该加入无头测试，而不是反复测试，**这个测试有我客户端才能获取的信息吗**？」
+**诚实回答：没有。** `D-342` 是**纯服务端逻辑**（受理闸 / 记账 / 终态），不沾渲染、物理、GUI、同步、玩家观感
+⇒ **那轮客户端复测本来就不该发生**（是我把"复测"当默认动作的惯性 —— 上一个弧的改动确实需要客户端）。
+
+**更根本的修法（不是"再加一条拼写断言"，而是让这类缺陷不可能发生）**：
+原设计让**身份跨边界做字符串匹配**（终态侧拿 `kind` 去对齐受理侧写的 key）⇒ 两处写法不同就静默失效。
+现在改为**在飞身份只由 LLM 受理侧写入，别人派活一进来就清掉**：
+- `GoalDirector.clearAttempt(bot)`（新公开入口）由 **`BotManager.beginTask`** 在
+  `!Driver.LLM.equals(Driver.of(bot))` 时调用 ⇒ **终态归因不再需要任何跨边界匹配**；
+- `noteTerminalOutcome(bot, failed)` / `noteAttemptOutcome(bot, failed)` **去掉 `kind` 参数**与 `startsWith` 判据；
+- ⚠️ **删掉了** `task_zone` 里那条"跨写法前提"断言（`task_zone` 判据 94 → **93**）——
+  生产已不依赖"两处拼写一致"，留着它 = 断言一个已不存在的约束（**死规则**，按 S8/S10 同类处理）。
+
+**门禁（全部无头，不需要客户端）**：
+- 夹具 `llm_contract/loop_admission_control` 改为 7 件断言，新增
+  **`foreign_assignment_not_accounted`**（`noteAttempt` 后 `clearAttempt` ⇒ 终态**不许**记到 LLM 账上）；
+- 内核规则 `rule_loop_admission` 扩到**锁住整条链的结构**：受理闸在 `assignJob` 前 + 拒绝分支在 +
+  `noteAttempt` 用**同一个表达式** + `Driver.set(bot, LLM)` 在 `execute` 之前 +
+  `beginTask` 调 `clearAttempt` + `complete` 调 `noteTerminalOutcome` 且在**返程兜底之前** +
+  **禁止**再出现 `startsWith(kind`（防回归）。
+- ⭐ **反向对照三条（都做）**：① 记账又按 `kind` 匹配 ⇒ 内核红；② `beginTask` 不清理 ⇒ 内核红；
+  ③ `complete` 不记账 ⇒ 内核红。（另：规则首版又被我 javadoc 里**引用的反例表达式**弄成假红 ⇒ 已改成**先剥注释**。）
+- 结果：`single:task_zone` **93/0**、`single:llm_contract` PASS（7 断言全 true）、`module:llm`、`module:lumber`、
+  **CORE 51/51（`ticks=4777`）**、内核规则 PASS。
+
+**⇒ 结论：这条线今后**不需要**客户端轮次**；客户端只用于"证据在客户端"的类别
+（渲染 / 物理 / GUI / 同步 / 真人观感 / 真实模组交互）。
+
 **⚠️ 已知边界（不假装）**：① 身份**不含失败码**是有意的（要抓"换条路重试"），代价是"同一目标换了失败原因"
 也算重复 —— 但同一目标本就值得怀疑；② 闸门只在 **LLM 应用 `start_job`** 这一条路上生效
 （`craft` / `maintain_tool` / `stop_current` 等动作未纳入，它们本身不形成"目标循环"）；

@@ -229,17 +229,28 @@ public final class GoalDirector {
      * **返程兜底（`D-327`）会提前 `return`** ⇒ 挂在通知路径上的记账会**漏掉"失败触发了返程"那一次**
      * （客户端最常见的正是"失败之后"这一形态）。**记账属于"终态发生了"，不属于"通知"**。
      */
-    public static void noteTerminalOutcome(BotPlayer bot, String kind, boolean failed) {
-        noteAttemptOutcome(bot, kind, failed);
+    public static void noteTerminalOutcome(BotPlayer bot, boolean failed) {
+        noteAttemptOutcome(bot, failed);
+    }
+
+    /**
+     * ⭐ `D-342` 修订（2026-09-19 用户裁定「这类验证本该无头」）：**清掉在飞尝试标记** ——
+     * 由 `BotManager.beginTask` 在"**不是 LLM 派活**"时调用。
+     *
+     * <p>这样"终态归因"就不再需要任何**跨边界字符串匹配**：在飞身份只由 LLM 受理侧写入，
+     * 别人派活（玩家命令/夹具/系统）一进来就清掉 ⇒ 终态记账只会归到**真正由 LLM 起的那个**尝试上。
+     */
+    public static void clearAttempt(BotPlayer bot) {
+        state(bot).lastAttemptKey = null;
     }
 
     /** 终态记账：在飞身份失败 ⇒ 计数 +1；成功一次 ⇒ **复位**（"成功了就不再怀疑这个目标"）。 */
-    private static void noteAttemptOutcome(BotPlayer bot, String kind, boolean failed) {
+    private static void noteAttemptOutcome(BotPlayer bot, boolean failed) {
         State state = state(bot);
         String key = state.lastAttemptKey;
         state.lastAttemptKey = null;
-        if (key == null || !key.startsWith(kind + "|")) {
-            // 没有在飞的尝试，或**任务被换过**（玩家中途插了别的活）⇒ 宁可漏记，也不**错记**
+        if (key == null) {
+            // 没有在飞的 LLM 尝试（或它已被别人派活清掉）⇒ 不记账
             return;
         }
         if (failed) {

@@ -1868,6 +1868,12 @@ public final class BotManager {
             // （`Task.taskName()`：默认=类名，Job/夹具可覆写成 `lumber`/`region_lumber` 这类稳定标识）。
             // 原先取 `getClass().getSimpleName()` ⇒ 换实现类就换名字 ⇒ 多 bot 归因与 LLM 侧按 kind 分派不可靠。
             taskKind = stableTaskKind(assignedTask);
+            // ⭐ `D-342` 修订：**不是 LLM 派活 ⇒ 清掉在飞尝试标记** —— 这样终态归因不需要任何
+            // **跨边界字符串匹配**（原先靠 `kind` 匹配，而受理侧是 `JobRequest.Kind.name()` 大写、
+            // 终态侧是 `taskName()` 小写 ⇒ 静默不记账、循环闸永不触发；客户端实测三次全放行）。
+            if (!com.dddgn.alice.decision.Driver.LLM.equals(com.dddgn.alice.decision.Driver.of(bot))) {
+                com.dddgn.alice.decision.GoalDirector.clearAttempt(bot);
+            }
             // D-189：**自检任务开始即暂停决策层** —— 否则任务终态会触发 LLM，常选 start_job（实测
             // region_lumber）⇒ 每次测试（尤其失败后）bot 就跑去做生产作业，把测试场地占住。
             // 窗口取 1200 tick（60 秒，与 EventThresholdCheckTask 同口径）：覆盖夹具本身 + 一段冷却。
@@ -2299,7 +2305,7 @@ public final class BotManager {
             // 勘测侧意见是现在不做（那等于把责任转接给玩家）—— 所以这里只做**回安全区**这一条。
             // ⭐ `D-342`：**循环检测的记账**必须发生在**终态这一刻**、且在"返程兜底 return"**之前**
             // （返程兜底会提前 return ⇒ 挂在通知路径上的记账会漏掉"失败触发返程"那一次）。
-            com.dddgn.alice.decision.GoalDirector.noteTerminalOutcome(bot, taskKind,
+            com.dddgn.alice.decision.GoalDirector.noteTerminalOutcome(bot,
                     terminalStatus == TaskExecutionRecord.TerminalStatus.FAILED);
             if (terminalStatus == TaskExecutionRecord.TerminalStatus.FAILED && !wasReturnTask
                     && startSafeReturnIfNeeded()) {

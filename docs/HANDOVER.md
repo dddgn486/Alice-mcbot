@@ -72,7 +72,17 @@
 > 恒假 ⇒ **静默不记账** ⇒ 计数恒 0。**已修**（`attemptKey` 归一大小写）+ **补跨写法断言**（这正是本该抓到的判据；
 > 夹具当时两边都用小写 = 自洽但与生产不同，`alice-scene-based-testing` §6.9.1 说的就是这个病）。
 > **⭐ 反向对照（重现现场）**：去掉归一 ⇒ 夹具**恰 1 红**（`spelling_normalized=false` / `cross_spelling_accounting=false`，
-> 另五条仍 true）+ 内核规则红。**⏳ 待你复跑**：三次 `instruct` ⇒ 第 3 次应被拒 `repeat_failure`；右键物品（玩家显式）仍放行。
+> 另五条仍 true）+ 内核规则红。
+> ⭐ **修订（同日，用户逐字问「这种重复测试应该加入无头测试，而不是反复测试，这个测试有我客户端才能获取的信息吗」）**
+> ⇒ **回答 = 没有**（纯服务端逻辑）。已把这条线做成**纯无头**：身份**不再跨边界做字符串匹配**
+> （在飞身份只由 LLM 受理侧写、`BotManager.beginTask` 在非 LLM 派活时 `clearAttempt`），
+> `noteTerminalOutcome` 去掉 `kind` 参数；夹具 `loop_admission_control` **7 断言全 true** + 内核规则锁整条链
+> （受理闸在 `assignJob` 前 / 同一表达式 / `Driver=LLM` 在 `execute` 前 / `beginTask` 调 `clearAttempt` /
+> `complete` 调记账且在**返程兜底之前** / **禁止**再出现 `startsWith(kind`）+ **反向对照三条**（三类注入各 ⇒ 内核红）。
+> `single:llm_contract` / `single:task_zone`(**93/0**) / `module:llm` / `module:lumber` / **CORE 51/51（`ticks=4777`）**。
+> ⭐ **口径已落 `TESTING_GUIDE.md`「客户端轮次的准入尺子」**：**默认无头**；客户端只用于**证据在客户端**的类别
+> （渲染/物理/GUI/同步/真实模组交互/真人观感）；交付话术必须明说"不需要你复测（已无头覆盖：`<命令>`）"。
+> **⏳ 旧的"待你复跑"作废**：`D-342` 这条线**不需要客户端轮次**（豁免语义已由夹具 `player_exempt` 断言 + 内核规则覆盖）。
 > 而**你自己**右键测试物品连点三次同目标 ⇒ 应当**照旧放行**（豁免）。
 > ⭐ **客户端复验通过（2026-09-19 20:17 新包，用户判"符合预期"）**：`kind=region_lumber driver=llm
 > terminalReason=no_permitted_candidate`（P2 端到端：`/alice instruct` 起 ⇒ **立刻如实失败**）·
