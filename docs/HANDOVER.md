@@ -25,14 +25,15 @@
 > **证据**：夹具 `llm_contract` 新增 **`fixture_terminal_silent`**（9 判据全绿）· **反向对照注入 `if (false)` ⇒ 恰 1 红**
 > · `module:llm` PASS · **CORE 51/51 PASS（`ticks=4791`）**。口径与残余口子见 `AI_DECISIONS.md D-339`。
 > **jar 已同步**：`alice-1.0.0-1.20.1.jar` **`JAR_CONTENT_SHA256=129f1749…`**（换 jar ⇒ **重启客户端**）。
-> **客户端复验清单（`D-339` 的正面）**：① 保护区里**右键 `alice:lumber_job`**（那次失败的）⇒ 应当**只有**它自己
-> 如实失败，**不再**出现 4 秒后的 `[Goal] decision_action … start_job region_lumber`，聊天**不再**有
-> `决策层：不动（…）`；② `/alice region stop` + `alice:bot_report` 应看到 `trigger_dropped reason=fixture_driver`
-> （丢弃记账）与事件环里的 STOP 并存。
+> ⭐ **客户端已验证（2026-09-19 19:28，新包）**：同场景同一失败 ⇒ 日志**只**多一行
+> `[Goal] trigger_dropped reason=fixture_driver（夹具终态不交给决策层） trigger=terminal:lumber(no_reachable_candidate)`，
+> **全会话 `[Goal]` 仅此 1 行**（零 `decision_request` / 零 `decision_action` / 聊天零 `决策层：`）；
+> 对照上一轮同场景 = 自起 `region_lumber` 空转 20 分钟。用户判**"符合预期"** ⇒ `WINDOWS_CLIENT` + `USER_ACCEPTED`。
+> ⭐ **同轮口径①已定（用户原话）**：一次性 `lumber_job` 在**自己认领区**里仍被拒 `protected_area`
+> **"就是预期…是一个反例"** ⇒ **设计行为，不开豁免口子**（阶梯豁免只对**任务区**生效）。
 > **⏳ 未做/未决**：③ **最小跨任务循环检测**（下一步；本轮只掐了那条链的第一环）· 残余口子 = 夹具驱动任务
 > **运行中**的 `event:PROGRESS` 仍会唤醒 LLM（要一起掐需把 `driver` **在任务启动时固定**）· **`L2` 是否也要
-> "每 `scopeId` 区内放置上限"**（`L1` 有 ≤8）· 玩家显式一次性作业在**自己认领区**里仍被拒 `protected_area`
-> （= 现状口径，待你确认是否要开口子）。
+> "每 `scopeId` 区内放置上限"**（`L1` 有 ≤8）。
 
 > **⏭ 2026-09-19 晚（本弧全部落地）：§5.12 第 4 件 + 客户端三轮 + 决策层讨论**，最后一次 commit `d33f775`：
 > ⭐ 权限阶梯接进闸门（含客户端实测补的**第④处消费** = `PathSession`→`CapabilityGate`，`D-338` 附注十）

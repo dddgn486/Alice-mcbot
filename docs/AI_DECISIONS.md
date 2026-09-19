@@ -14044,3 +14044,19 @@ code=failed:no_reachable_candidate durationTicks=1` ⇒ **它是被拒的**。**
 一边把进度喂给 LLM，LLM 有可能中途插手）。⚠️ **别把本次改动的功劳说过头**：这轮 20 分钟里烧掉的 4 次请求
 来自那条**已被掐死的链**（LLM 自起的任务），所以它们**随之消失**；但"夹具任务的进度要不要给 LLM 看"是**另一个**
 口径问题，要一起掐需要把 `driver` **在任务启动时固定**（而不是终态读全局位）—— 见台账。
+
+**⭐ 客户端已验证（2026-09-19 19:28，`WINDOWS_CLIENT` + `USER_ACCEPTED`）**：用户换包重启后复跑"保护区里右键
+`alice:lumber_job`"（同步后新包 `JAR_CONTENT_SHA256=129f1749…`）。日志逐行对得上：
+`:260` `[Job] select job=lumber … candidates=0 rejected=[tree@20,64,208:protected_area,…]` ⇒
+`:263` `[Job] terminal job=lumber result=FAILED reason=no_reachable_candidate … ticks=1` ⇒
+**:268** ⭐ `[Goal] trigger_dropped reason=fixture_driver（夹具终态不交给决策层） trigger=terminal:lumber(no_reachable_candidate) droppedSinceLastDecision=1`；
+**整个会话 `[Goal]` 只有这 1 行**（零 `decision_request` / 零 `decision_action` / 聊天零 `决策层：`）。
+对照上一轮同场景（19:06）：那次之后是 `decision_request` → `llm_request` → `start_job region_lumber` → 空转 20 分钟。
+⇒ **链在第一环就断了，用户判"符合预期"。**
+
+**同轮确认的两条口径（用户 2026-09-19）**：
+1. ⭐ **玩家显式发起的一次性作业，在自己认领区里仍被拒 `protected_area` —— 这是设计行为，不开豁免口子。**
+   用户原话："一次性 `lumber_job` 在自己认领区里仍被拒**就是预期**，这个测试就是验证可以这样，**是一个反例**。"
+   ⇒ 阶梯的豁免只对**任务区**生效（一次性作业不声明任务区 ⇒ 无授权面可依 ⇒ 拒）；**不要**为它造口子。
+   （这与附注十四的封顶同向：**领地内只有能被授权面覆盖的写入**。）
+2. ⏳ **仍未决**：`L2` 要不要也有"每 `scopeId` 区内放置上限"（`L1` 有 ≤8）。
