@@ -13858,3 +13858,43 @@ code=failed:no_reachable_candidate durationTicks=1` ⇒ **它是被拒的**。**
 | `BotManager:2308`（归位点/返回）、`BotCommand`（`protect list`/`region info` 显示）、各夹具 | 有意裸用 | 读/显示/夹具，不做写入决策 |
 
 ⇒ 口径收敛为：**写入决策必须过 `ZoneAuthority`**（今天 5 处已接、1 处待定）；显示与夹具可直接读 `SafeZoneData`。
+
+### D-338 附注十一：这轮"保护区里的树又被砍了"——**不是 `lumber_job` 的问题**，是 LLM 决策层**换路重试** 2026-09-19
+
+**用户第三轮实测**（`latest.log` 17:28–17:30；先确认**上一片的修复在客户端成立**）：
+- ✅ **垫方块不再被拦**（`D-338` 附注十修复生效）：`ZONE_PROTECTED*` 从 **144 → 0**；
+  `[Ledger] place 28, 64, 208 / 65 / 66 minecraft:cobblestone [TEMP STEP_PLACEMENT scope=…#1960:Region…]`
+  = **真的在保护区里垫了三格上去**；云杉 `phase=COLLECT detail=**chopped=7/7 failed=0**`（上一轮是 `6/7 failed=1`）；
+  内层 Job `places=0` → **`places=3`**（4 次）。
+- ⚠️ 用户报告"**只启动 lumber_job，还是会放行挖掘保护区的树**" ⇒ **日志给出同时刻的现场对照**：
+  - `17:30:02.473` 一次性 `lumber`：`candidates=**0** rejected=[tree@20,64,208:**protected_area**,
+    tree@28,64,208:**protected_area**, tree@33,64,208:**protected_area**]` + `task_execution_terminal kind=lumber
+    … durationTicks=1 terminal=**FAILED** code=failed:no_reachable_candidate` ⇒ **它照旧被如实拒绝**（`lumber_job` 无罪）。
+  - `17:30:06.419`（4 秒后）`[Goal] decision_action trigger=terminal:lumber(no_reachable_candidate)
+    raw={"action":"start_job","kind":"**region_lumber**","maxTicks":24000,…}` → `[Job] launch kind=REGION_LUMBER`
+    → `[TaskZone] declared … level=**L2** chunks=6` → `[Job] select … picked=tree@20,64,208`（**同一棵树**）⇒ 砍掉。
+  ⇒ **同一棵树、同一会话、相隔 4 秒的 A/B**：无任务区 ⇒ `protected_area` 拒；LLM 自起的区域任务 ⇒ `L2` 放行。
+  （上一轮 `16:53:29 / 16:53:31` 是同型事件 ⇒ **两轮都复现**。）
+
+**⭐ 现在这套 LLM 处理到底是什么（用户问的"临时机制吗"）**：
+- **是生产路径，不是夹具**：`decision/GoalDirector`（S1 事实层 / S2 候选菜单 / S3 请示 / S4 事件 / S5 …）
+  + `LlmClient`（真网络，客户端日志里 `llm_request`/`llm_reply` 就是它）。触发点 = `terminal:*`（任务终态）、
+  `event:*`（阈值：工具见底/卡住）、`survival:*`、`manual`、`instruct`；节流 = 最小间隔 + 每分钟上限 +
+  同时只允许 1 个在飞 + **自检按住**（`selfCheckHold`）。它的定位是"**只选目标，不决定怎么走/怎么挖/怎么放**"，
+  安全靠确定性层的闸门（预算/保护区/等级）兜。
+- **它能选什么由服务端菜单决定**（`CandidateMenu`，有界：每类 ≤5、总 ≤12，LLM 只能引用菜单里的 `id`）。
+  ⭐ 菜单里有一项 `region:saved`（`kind=region_lumber`）——**只要 `LumberRegionState` 里存着区域就会一直在**，
+  而区域配置是 `SavedData`（`alice_lumber_regions`）⇒ **持久化、跨重启用不丢**。用户之前用物品划过一次区域
+  ⇒ 从此 `start_job region_lumber` **永远是它的可选项之一**。
+- **提示词里其实已经有一条规则**：`任务刚失败过（lastTerminal.terminal=FAILED）时，优先考虑换目标或 no_op，
+  而不是立刻重跑同一个。` ⚠️ 但 LLM 这次**换了 kind**（`lumber` → `region_lumber`）⇒ **符合字面、违背本意**
+  （同**一片**区域换条路重试）。另外词汇表里 `region_lumber` 的注释是"**只能用'已保存的区域'（玩家划定）**"
+  ⇒ 这句话很可能反而**鼓励**它"玩家划的区域要维持运转"。
+- 结论：**闸门本身没错**（无区不写、有 `L2` 才写，两轮都如实），**错在"谁能拿到那个 `L2`"这条政策没定**
+  ⇒ 就是台账 §5.12 第 14 项。⭐ 另注：`region:saved` 常驻菜单 + 区域持久化 ⇒ 这类事件**还会复发**。
+
+**四个候选护栏（登记，未拍板）**：
+① **权限面（确定性、最硬）**：保护区里**非玩家发起**的任务封顶 `L1`（能清障/垫脚，**不能拆玩家的方块**）⇒ 它砍不动你的树，区域任务会**如实失败**；
+② **菜单面**：`region:saved` 与**保护区重叠**时不进菜单（或注明"该区域在保护区内 ⇒ 需玩家自己起"）；
+③ **提示词面**：规则收紧为"刚失败过 ⇒ **不得对同一片区域换路重试**（含 `region_lumber`）"；
+④ **可观测性**：LLM 起的任务在聊天留一行"谁起的、起了什么"（今天只有日志 `[Job] launch`）。
