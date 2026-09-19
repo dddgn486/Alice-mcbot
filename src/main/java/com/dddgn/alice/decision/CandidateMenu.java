@@ -186,15 +186,17 @@ public final class CandidateMenu {
         // 勘测 11 实测"菜单 30~90ms"的来源）⇒ 现在**一遍扫描、结果分发**，候选集逐字不变。
         List<com.dddgn.alice.job.mine.MineCandidateSource.Target> mineTargets = mineScanTargets();
         com.dddgn.alice.job.mine.MineCandidateSource.resetBlockReads();   // 判据：数**真实**读取
+        com.dddgn.alice.job.mine.MineCandidateSource.resetUnscanned();    // 判据：数**未加载而跳过**的格
         var mineScan = com.dddgn.alice.job.mine.MineCandidateSource.candidatesForTargets(
                 bot, mineProbe, mineTargets, MINE_SCAN_RADIUS);
         for (var set : mineScan.sets()) {
             mineCandidates.addAll(set.viable());
         }
         // 读取计数单独一行：**不碰**上面那行既有日志（`mine=N` 是夹具逐字断言的口径）
-        BotLog.info("[Goal] candidate_menu_scan one_pass=true targets={} block_reads={}",
-                mineTargets.size(), mineScan.blockReads());
+        BotLog.info("[Goal] candidate_menu_scan one_pass=true targets={} block_reads={} unscanned={}",
+                mineTargets.size(), mineScan.blockReads(), mineScan.unscanned());
         CandidateMenu.lastMineScanBlockReads = (int) com.dddgn.alice.job.mine.MineCandidateSource.blockReads();
+        CandidateMenu.lastMineScanUnscanned = (int) com.dddgn.alice.job.mine.MineCandidateSource.unscanned();
         CandidateMenu.lastMineScanTargets = mineTargets.size();
         mineCandidates.stream()
                 .sorted(java.util.Comparator.comparingDouble(c -> c.anchor().distSqr(botPos)))
@@ -265,11 +267,17 @@ public final class CandidateMenu {
      */
     /** **夹具只读**（队列第②项的判据）：上一次建菜单时，矿扫描实际发生的方块读取次数与目标数。 */
     private static volatile int lastMineScanBlockReads = -1;
+    private static volatile int lastMineScanUnscanned = -1;
     private static volatile int lastMineScanTargets = -1;
 
     /** **夹具只读**：上一次矿扫描的方块读取次数（未建过菜单 ⇒ -1）。 */
     public static int lastMineScanBlockReads() {
         return lastMineScanBlockReads;
+    }
+
+    /** **夹具只读**（D-329 ① 判据）：上一次矿扫描里**因未加载而跳过**的格数。 */
+    public static int lastMineScanUnscanned() {
+        return lastMineScanUnscanned;
     }
 
     /** **夹具只读**：上一次矿扫描的目标数。 */

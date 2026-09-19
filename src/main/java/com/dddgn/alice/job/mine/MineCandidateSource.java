@@ -113,7 +113,7 @@ public final class MineCandidateSource implements CandidateSource {
      *
      * @param blockReads 本次扫描实际发生的 `getBlockState` 次数（判据用：必须 ≈ (2r+1)³，不是它的 N 倍）
      */
-    public record MultiScan(List<CandidateSet> sets, int blockReads) {
+    public record MultiScan(List<CandidateSet> sets, int blockReads, int unscanned) {
     }
 
     /** **诊断计数**（队列第②项判据）：自上次 `resetBlockReads()` 起，扫描真实发生的 `getBlockState` 次数。
@@ -127,6 +127,25 @@ public final class MineCandidateSource implements CandidateSource {
 
     public static long blockReads() {
         return BLOCK_READS.get();
+    }
+
+    /**
+     * ⭐ **未加载而跳过**的格数（`D-329` ① 用户裁定：**只扫已加载**；未加载记"未扫"，**不许冒充"没矿"**）。
+     *
+     * <p><b>为什么必须有它（`D-331` 同类缺陷）</b>：`Level.getBlockState` 对未加载区块会**同步加载**
+     * （`getChunkAt`）⇒ 扫描一旦越出加载半径，就等于在服务端 tick 线程上替内核"偷偷加载"那些区块
+     * （几百格外 = 真地形生成 + 磁盘 I/O）。守卫之后**不读方块**，而是把它记成"未扫"。
+     * <p><b>判据不变式</b>：`blockReads + unscanned == 扫描体积` —— 夹具断言这一条（读数少了必须是被跳过的，不是漏扫）。
+     */
+    private static final java.util.concurrent.atomic.AtomicLong UNSCANNED =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    public static void resetUnscanned() {
+        UNSCANNED.set(0L);
+    }
+
+    public static long unscanned() {
+        return UNSCANNED.get();
     }
 
     /** 一次扫描多目标：`sets` 顺序与传入 `targets` 一致。 */
@@ -145,10 +164,18 @@ public final class MineCandidateSource implements CandidateSource {
             rejected.add(new ArrayList<>());
         }
         int reads = 0;
+        int unscanned = 0;
         for (int dx = -scan; dx <= scan; dx++) {
             for (int dy = -scan; dy <= scan; dy++) {
                 for (int dz = -scan; dz <= scan; dz++) {
                     BlockPos pos = center.offset(dx, dy, dz);
+                    // ⭐ D-329 ① / D-331 同类：**未加载的格一律不读**（`getBlockState` 会同步加载区块）。
+                    // 只记"未扫"，绝不冒充"没矿"；调用方据此把该区域视为**尚未感知**（等靠近/记忆累积）。
+                    if (!level.hasChunkAt(pos)) {
+                        unscanned++;
+                        UNSCANNED.incrementAndGet();
+                        continue;
+                    }
                     BlockState state = level.getBlockState(pos);
                     reads++;
                     BLOCK_READS.incrementAndGet();
@@ -179,7 +206,7 @@ public final class MineCandidateSource implements CandidateSource {
             }
             sets.add(new CandidateSet(viable.get(i), rejected.get(i)));
         }
-        return new MultiScan(sets, reads);
+        return new MultiScan(sets, reads, unscanned);
     }
 
     /** 单目标路径（Job 用）：与多目标共用同一份扫描逻辑。 */

@@ -6,6 +6,7 @@ import com.dddgn.alice.decision.GoalAction;
 import com.dddgn.alice.job.JobLauncher;
 import com.dddgn.alice.job.JobRequest;
 import com.dddgn.alice.log.BotLog;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -97,9 +98,35 @@ public class MineMenuCheckTask implements Task {
         int targets = CandidateMenu.lastMineScanTargets();
         int r = CandidateMenu.mineScanRadius();
         long perScan = (long) (2 * r + 1) * (2 * r + 1) * (2 * r + 1);
+        int unscanned = CandidateMenu.lastMineScanUnscanned();
         check("矿扫描一遍完成（读取=" + reads + " ≈ 单遍" + perScan + "，目标数=" + targets
                         + "；不许是 目标数×单遍=" + (perScan * Math.max(1, targets)) + "）",
                 reads > 0 && reads <= perScan * 2);
+        // ⭐ D-329 ①（用户裁定「只扫已加载」）+ D-331 同类：**不变式** = 读到的 + 未加载跳过的 = 扫描体积。
+        // 这条同时防两个方向：读数少了必须是"被跳过"，不是"漏扫"；也不是"读了却没计数"。
+        check("扫描不变式：block_reads + unscanned = 扫描体积（读=" + reads + " 未加载跳过=" + unscanned
+                        + " 体积=" + perScan + "）",
+                reads + unscanned == perScan);
+        check("矿石场景在已加载区内 ⇒ 本次扫描不该有未加载跳过（unscanned=" + unscanned + "）",
+                unscanned == 0);
+
+        // ⭐ **"扫描不加载区块"门禁**（`D-329` ① / `D-331` 同类缺陷）：扫一个**远在加载半径之外**的中心，
+        // 必须"未加载 ⇒ 跳过（只记未扫）"，且**扫描后该区块仍未加载**。
+        // 反向对照（改回无守卫的 `getBlockState`）⇒ 这一条必红：区块会被**同步加载**进来。
+        BlockPos farCenter = bot.blockPosition().offset(400, 0, 0);
+        boolean farLoadedBefore = bot.serverLevel().hasChunkAt(farCenter);
+        com.dddgn.alice.job.mine.MineCandidateSource.resetUnscanned();
+        com.dddgn.alice.job.mine.MineCandidateSource.resetBlockReads();
+        var farScan = com.dddgn.alice.job.mine.MineCandidateSource.candidatesForTargets(
+                bot, com.dddgn.alice.job.GoalSpec.mineBlocks(farCenter, 8, 1, 3600), List.of(), 8);
+        long farCells = 17L * 17L * 17L;
+        check("远距离扫描必须只记「未扫」、一个方块都不读（读=" + farScan.blockReads()
+                        + " 未加载跳过=" + farScan.unscanned() + " 体积=" + farCells
+                        + "，且中心扫描前未加载=" + farLoadedBefore + "）",
+                !farLoadedBefore && farScan.blockReads() == 0 && farScan.unscanned() == farCells);
+        check("远距离扫描**不许把目标区块加载进来**（中心=" + farCenter.toShortString()
+                        + " 扫描前=" + farLoadedBefore + " 扫描后=" + bot.serverLevel().hasChunkAt(farCenter) + "）",
+                !bot.serverLevel().hasChunkAt(farCenter));
         check("矿石场景里菜单必须含 mine 候选", mine != null);
 
         String block = CandidateMenu.extraValue(mine, "block");
