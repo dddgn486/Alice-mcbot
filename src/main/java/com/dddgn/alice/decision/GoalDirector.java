@@ -74,6 +74,8 @@ public final class GoalDirector {
         long lastIdleTick = -1L;
         /** ⭐ 附注十五：**因闸门被丢弃的触发次数**（自上次真正做出决策起算；会如实写进快照）。 */
         int droppedTriggers;
+        /** ⭐ `D-339`：最近一次丢弃的**原因**（判据要能断言"是哪道闸门拦的"）。 */
+        String lastDroppedReason = "";
         int minuteRequests;
         long minuteStartTick;
         String lastAction = "-";
@@ -124,11 +126,40 @@ public final class GoalDirector {
         }
     }
 
-    /** 任务终态后调用（`BotSession.complete` 末尾）。 */
-    public static void onTaskTerminal(BotPlayer bot, String kind, String terminalReason) {
-        maybeTrigger(bot, "terminal:" + kind + (terminalReason == null || terminalReason.isBlank()
-                ? "" : "(" + terminalReason + ")"));
+    /**
+     * 任务终态后调用（`BotSession.complete` 末尾）。
+     *
+     * <p>⭐ `D-339`（2026-09-19 用户裁定）：**夹具终态不是"世界事实"，不交给决策层。**
+     *
+     * <p><b>为什么</b>：测试物品/电池起的任务，结果归**测试者**（聊天 + 日志 + 事件环），不该让
+     * 决策层接手。客户端实测两次（2026-09-19 16:53 / 19:06）都是同一条链：
+     * 夹具一次性砍树在保护区被**如实拒绝** ⇒ LLM 4 秒内自起一个**它无权做**的 `region_lumber`
+     * ⇒ 封顶 `L1` 一棵都砍不动 ⇒ `viable=0 inRegion=0` 空转到 `maxTicks=24000`（**20 分钟**），
+     * 期间每 200 tick 唤醒 LLM 一次（限流 3/min）⇒ 你看到的"他没有动"。
+     * 与 {@link #suspend} 同一条教训：**自检要的是确定性，不该被生产决策层中途接管**。
+     *
+     * <p>⚠️ 阻断**不丢账**：事件环那条 `FAILURE`/`MILESTONE` 由 `BotSession.complete`
+     * **先于**本方法写入（`BotManager:2288`），所以"夹具跑了什么、成没成"照样留痕；
+     * 这里只把"要不要叫 LLM"这一件事掐掉，并记一条 `fixture_driver` 丢弃（进 `droppedTriggers`）。
+     *
+     * <p>⚠️ 口径边界：**只拦 `FIXTURE`**（明确是夹具）。`SYSTEM`（未归因）**不拦** —— 那是
+     * "已知发起者还没标注到位"的兜底，一起拦会顺带改掉未经审计的入口行为。
+     *
+     * @return 是否**真的交给了决策层**（`false` = 夹具终态被闸门拦下）
+     */
+    public static boolean onTaskTerminal(BotPlayer bot, String kind, String terminalReason) {
+        String trigger = "terminal:" + kind + (terminalReason == null || terminalReason.isBlank()
+                ? "" : "(" + terminalReason + ")");
+        if (Driver.FIXTURE.equals(Driver.of(bot))) {
+            noteDroppedTrigger(bot, state(bot), trigger, FIXTURE_TERMINAL_REASON);
+            return false;
+        }
+        maybeTrigger(bot, trigger);
+        return true;
     }
+
+    /** 夹具终态被拦下的丢弃原因（**判据按它断言**；改文案必须同步 `LlmContractCheckTask`）。 */
+    public static final String FIXTURE_TERMINAL_REASON = "fixture_driver（夹具终态不交给决策层）";
 
     /**
      * **暂停触发**（自检/回归用）：`ticks` 内不因空闲/终态/事件自动发起决策。
@@ -299,6 +330,7 @@ public final class GoalDirector {
      */
     private static void noteDroppedTrigger(BotPlayer bot, State state, String trigger, String reason) {
         state.droppedTriggers++;
+        state.lastDroppedReason = reason;
         BotLog.info("[Goal] trigger_dropped reason={} trigger={} droppedSinceLastDecision={}",
                 reason, trigger, state.droppedTriggers);
     }
@@ -307,6 +339,12 @@ public final class GoalDirector {
     public static int droppedTriggers(BotPlayer bot) {
         State state = STATES.get(bot == null ? null : bot.getUUID());
         return state == null ? 0 : state.droppedTriggers;
+    }
+
+    /** **夹具用**：最近一次被丢弃的触发**原因**（判据据此断言"是哪道闸门拦的"）。 */
+    public static String lastDroppedReason(BotPlayer bot) {
+        State state = STATES.get(bot == null ? null : bot.getUUID());
+        return state == null ? "" : state.lastDroppedReason;
     }
 
     private static void fire(BotPlayer bot, State state, String trigger, String directedPrompt) {

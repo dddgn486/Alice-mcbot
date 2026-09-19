@@ -13991,3 +13991,56 @@ code=failed:no_reachable_candidate durationTicks=1` ⇒ **它是被拒的**。**
   （本轮改动都在这里）；`decision_contract` = 另一个夹具 `DecisionContractCheckTask` ⇒ 定向验证用 `single:llm_contract`。
   ⚠️ **诚实标注**：真正的"丢弃路径"要网络/节流才触发（夹具不联网）⇒ 那条由源码规则 + 客户端
   `[Goal] trigger_dropped` 日志验证；"STOP 进环"由源码规则 + 客户端复跑验证。
+
+### D-339：**夹具终态不交给决策层**（阻断"夹具失败 ⇒ LLM 自起一个它无权做的任务 ⇒ 空转"）2026-09-19
+
+**背景（客户端复测的原始记录）**：这一轮复测本意是**保护区验证的反向测试**（LLM 在保护区自起任务**应当干不了活**）。
+结果是**三通过 + 一处真缺陷**：
+- ✅ **封顶生效**：LLM 自起的那轮候选全被拒 —— `candidate_menu rejected(不可做)= [tree@…:zone_break_not_allowed ×5]`
+  （该码只可能来自 `L1`）；
+- ✅ **保护区里"玩家自己发起"照旧干活**（回归原始 bug）：`alice:region_lumber` 右键那轮 `chopped=0→5`、逐树 `DONE`、
+  `[ZoneAuthority] ALLOW … reason=STEP_PLACEMENT 任务区 … 等级 L2 ⇒ 放行放置`（**真的垫了方块**）、
+  `sweep_up_start/end` + `restore_start` 闭环、`scaffoldLeft=0`；
+- ✅ **事件环可取证**：`bot_report` 的 `[Report] json=` 里 `recentEvents` 有 `tick=1787 type=STOP`（+ `droppedTriggers=3`）；
+- ❌ **缺陷**：那个被拦下的任务**没有"如实失败"，而是空转** —— `viable=0 inRegion=0` +
+  `欠树 deficit=5 但当前没有可补种的位置`，每 ~2 s 一行，一直转到 `maxTicks=24000`（**20 分钟**），
+  期间每 200 tick 唤醒 LLM（限流 3/min），LLM 只能回 `no_op`。用户口径是**"任务要如实失败，不能继续跑"**。
+
+**用户裁定的口径（2026-09-19）**：**不做"改作业机制"的方案**（作业在 `viable=0` 时待机巡查是**它设计好的常驻语义**，
+即用户要的"等窗口"），而是**直接阻断"测试夹具失败 → LLM"这条消息**。理由 = 测试物品/电池起的任务，
+结果归**测试者**（聊天 + 日志 + 事件环），不该让决策层接手 —— 与 `GoalDirector.suspend` 注释同一条教训：
+"自检要的是确定性，不该被生产决策层中途接管"。
+
+**为什么这能治本**：客户端**两次**（16:53 / 19:06）都是同一条**链**，而链的第一环是同一个：
+
+```
+夹具任务失败（driver=fixture）→ 终态触发交 LLM → LLM 自起它**无权做**的 region_lumber → 封顶 L1 ⇒ 空转
+```
+
+掐掉第一环 ⇒ 后两环不再发生。（用户原话"这种小修复" —— 它确实只是一道闸门。）
+
+**改动**：
+1. `GoalDirector.onTaskTerminal` 加闸：`Driver.FIXTURE.equals(Driver.of(bot))` ⇒ **不发触发**，
+   改记一条丢弃（`noteDroppedTrigger(..., FIXTURE_TERMINAL_REASON)` ⇒ 进 `droppedTriggers`）并**返回 `false`**；
+   返回值 `void` → `boolean`（"是否真的交给了决策层"）⇒ 可断言，且调用方 `BotManager:2305` 无需改动。
+2. 新增 `State.lastDroppedReason` + `GoalDirector.lastDroppedReason(bot)` —— 判据据此断言**是哪道闸门拦的**
+   （只看计数无法区分"被本闸门拦"与"被节流/限流拦"）。
+3. **口径边界：只拦 `FIXTURE`**；`SYSTEM`（未归因）**不拦** —— 它是"已知发起者还没标注到位"的兜底，
+   一起拦会顺带改掉未经审计的入口行为。
+
+**⭐ 敢拦的前提 = 阻断不丢账**：事件环那条 `FAILURE`/`MILESTONE` 由 `BotSession.complete` **先于**
+`onTaskTerminal` 写入（`BotManager:2288`）⇒ "夹具跑了什么、成没成"照样留痕，只是不叫 LLM。
+
+**门禁与反向对照**：
+- 夹具 **`llm_contract`**（`LlmModule`，MAIN）新增 **`fixture_terminal_silent`** 三件断言：
+  ① 夹具驱动 ⇒ 不交（`false`）+ 恰记一条 `fixture_driver` 丢弃 + 原因就是这道闸门；
+  ② 非夹具（`llm`）⇒ **照旧交**（`true`，闸门**不是一刀切**）；③ 控制组挂 `suspend(1)` ⇒ **不产生真实请求**（夹具不联网）；
+- ⭐ **反向对照已做**：把闸门条件注入成 `if (false)`（= 真正拆掉机制）⇒ `single:llm_contract`
+  **恰 1 红**：`fixture_terminal_silent=FAIL fixture_blocked=false handed=true reason=`；恢复后 ⇒
+  `single:llm_contract` PASS（9 条判据全绿）+ `module:llm` PASS + **CORE 51/51 PASS（ticks=4791）**。
+
+**⚠️ 诚实的残余口子（已记台账，未闭）**：本次只拦**终态**触发。同一条"夹具驱动"血脉上的**另一条通道还开着**：
+夹具驱动的任务在**运行中**发出的 `event:PROGRESS` 仍会唤醒 LLM（例如用户右键起的 `alice:region_lumber` 一边跑
+一边把进度喂给 LLM，LLM 有可能中途插手）。⚠️ **别把本次改动的功劳说过头**：这轮 20 分钟里烧掉的 4 次请求
+来自那条**已被掐死的链**（LLM 自起的任务），所以它们**随之消失**；但"夹具任务的进度要不要给 LLM 看"是**另一个**
+口径问题，要一起掐需要把 `driver` **在任务启动时固定**（而不是终态读全局位）—— 见台账。

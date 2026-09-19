@@ -11,7 +11,30 @@
 ## 1. 一句话现状（2026-09-15 上午）
 
 > **⏭ 2026-09-19 晚 断点（压缩后从这里接；最新在**最上面**）**：
-> **本弧（`§5.12` 第 4 件 + 客户端三轮 + 决策层讨论）已全部落地并推送**，最后一次 commit `d33f775`：
+> **⏭ 2026-09-19 夜（最新）：客户端反向测试 → `D-339`**（本轮 commit 见 `git log -1`）
+> **输入**：用户做的是**保护区验证的反向测试**（LLM 在保护区自起任务应当干不了活），现象 = "`lumber_job` 失败后
+> LLM 又起 `region_lumber`，但**他没有动**"。我读客户端日志（`19:00–19:07`）得到：**三通过 + 一处真缺陷**：
+> ✅ 保护区里**玩家自己**发起照旧干活（`chopped=0→5`、`ALLOW … STEP_PLACEMENT` **真垫了方块**、`scaffoldLeft=0`）
+> · ✅ **封顶生效**（LLM 自起那轮 5 棵树全 `zone_break_not_allowed`）· ✅ **事件环可取证**（`bot_report` 快照
+> `recentEvents` 里 `tick=1787 type=STOP`、`droppedTriggers=3`）· ❌ **被拦下的任务没"如实失败"而是空转**
+> （`viable=0 inRegion=0` 每 ~2 s 一行，直到 `maxTicks=24000` = **20 分钟**，期间反复唤醒 LLM）。
+> **用户裁定**：**不改作业机制**（作业在 `viable=0` 时待巡查**就是它设计好的常驻语义**= 你要的"等窗口"），
+> 而是**直接阻断"测试夹具失败 → LLM"这条消息** ⇒ 落地 **`D-339`**：`GoalDirector.onTaskTerminal` 加闸
+> （`driver=fixture` ⇒ **不发触发**、记一条 `fixture_driver` 丢弃、返回 `false`），**只拦 `FIXTURE` 不拦 `SYSTEM`**；
+> ⚠️ **阻断不丢账**（事件环那条 `FAILURE` 由 `complete` **先于**它写入）。
+> **证据**：夹具 `llm_contract` 新增 **`fixture_terminal_silent`**（9 判据全绿）· **反向对照注入 `if (false)` ⇒ 恰 1 红**
+> · `module:llm` PASS · **CORE 51/51 PASS（`ticks=4791`）**。口径与残余口子见 `AI_DECISIONS.md D-339`。
+> **jar 已同步**：`alice-1.0.0-1.20.1.jar` **`JAR_CONTENT_SHA256=129f1749…`**（换 jar ⇒ **重启客户端**）。
+> **客户端复验清单（`D-339` 的正面）**：① 保护区里**右键 `alice:lumber_job`**（那次失败的）⇒ 应当**只有**它自己
+> 如实失败，**不再**出现 4 秒后的 `[Goal] decision_action … start_job region_lumber`，聊天**不再**有
+> `决策层：不动（…）`；② `/alice region stop` + `alice:bot_report` 应看到 `trigger_dropped reason=fixture_driver`
+> （丢弃记账）与事件环里的 STOP 并存。
+> **⏳ 未做/未决**：③ **最小跨任务循环检测**（下一步；本轮只掐了那条链的第一环）· 残余口子 = 夹具驱动任务
+> **运行中**的 `event:PROGRESS` 仍会唤醒 LLM（要一起掐需把 `driver` **在任务启动时固定**）· **`L2` 是否也要
+> "每 `scopeId` 区内放置上限"**（`L1` 有 ≤8）· 玩家显式一次性作业在**自己认领区**里仍被拒 `protected_area`
+> （= 现状口径，待你确认是否要开口子）。
+
+> **⏭ 2026-09-19 晚（本弧全部落地）：§5.12 第 4 件 + 客户端三轮 + 决策层讨论**，最后一次 commit `d33f775`：
 > ⭐ 权限阶梯接进闸门（含客户端实测补的**第④处消费** = `PathSession`→`CapabilityGate`，`D-338` 附注十）
 > · ⭐ **保护区里非玩家发起封顶 `L1`**（附注十四；`task_zone` **89 判据 / 0 失败**；反向对照拆封顶 ⇒ 恰 3 红）
 > · ⭐ **事件环补全**（附注十五；`immediateStop`/顶替/启动前拒绝进环 + 静默丢弃留痕 + `droppedTriggers` 进快照；

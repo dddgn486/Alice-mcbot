@@ -93,10 +93,12 @@ public class LlmContractCheckTask implements Task {
         checkRefusalReadback();
         checkNotifyTargets();
         checkDroppedTriggerVisibility();
+        checkFixtureTerminalSilent();
 
         String summary = "job_failure_reports=" + verdict("job_failure_reports")
                 + " notify_targets=" + verdict("notify_targets")
                 + " dropped_triggers_visible=" + verdict("dropped_triggers_visible")
+                + " fixture_terminal_silent=" + verdict("fixture_terminal_silent")
                 + " product_filter_target=" + verdict("product_filter_target")
                 + " product_filter_default=" + verdict("product_filter_default")
                 + " refusal_readback=" + verdict("refusal_readback")
@@ -126,6 +128,42 @@ public class LlmContractCheckTask implements Task {
         boolean explained = prompt.contains("droppedTriggers");
         check("dropped_triggers_visible", fieldOk && explained,
                 "field=" + fieldOk + " explained_in_prompt=" + explained + " dropped=" + dropped);
+    }
+
+    /**
+     * ⭐ `D-339`：**夹具终态不许交给决策层** —— 阻断"夹具失败 ⇒ LLM 自起一个它无权做的任务 ⇒ 空转"。
+     *
+     * <p>客户端实测那条链（2026-09-19 19:06）：夹具一次性砍树被如实拒绝 ⇒ LLM 自起
+     * `region_lumber` ⇒ 封顶 `L1` 砍不动 ⇒ `viable=0` **空转到 `maxTicks=24000`（20 分钟）**。
+     *
+     * <p>三件断言：① 夹具驱动 ⇒ **不交**（返回 `false`）+ 记一条 `fixture_driver` 丢弃；
+     * ② 非夹具驱动（这里用 `llm`）⇒ **照旧交**（返回 `true`，闸门**不是一刀切**）；
+     * ③ 控制组挂 `suspend` ⇒ 不真的发请求（**夹具不联网**，client 上跑电池也不该产生 API 调用）。
+     *
+     * <p>**反向对照**（已实测）：把 `onTaskTerminal` 里的 `Driver.FIXTURE` 分支删掉
+     * ⇒ ① 变红（返回 `true` 且无丢弃记录）。
+     */
+    private void checkFixtureTerminalSilent() {
+        String previousDriver = com.dddgn.alice.decision.Driver.of(bot);
+        try {
+            // ① 夹具终态 ⇒ 拦下 + 留痕（且原因必须是这道闸门，不是节流/限流）
+            com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
+            int before = GoalDirector.droppedTriggers(bot);
+            boolean handed = GoalDirector.onTaskTerminal(bot, "lumber", "no_reachable_candidate");
+            boolean blocked = !handed
+                    && GoalDirector.droppedTriggers(bot) == before + 1
+                    && GoalDirector.FIXTURE_TERMINAL_REASON.equals(GoalDirector.lastDroppedReason(bot));
+            // ② 非夹具（llm）⇒ 照旧交（挂 1 tick 暂停保证控制组不产生真实请求）
+            GoalDirector.suspend(bot, 1);
+            com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.LLM);
+            boolean handed2 = GoalDirector.onTaskTerminal(bot, "lumber", "no_reachable_candidate");
+            check("fixture_terminal_silent", blocked && handed2,
+                    "fixture_blocked=" + blocked + " handed=" + handed
+                            + " reason=" + GoalDirector.lastDroppedReason(bot)
+                            + " non_fixture_handed=" + handed2);
+        } finally {
+            com.dddgn.alice.decision.Driver.set(bot, previousDriver);
+        }
     }
 
     /**
