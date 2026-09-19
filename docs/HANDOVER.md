@@ -64,8 +64,23 @@
 >    + 返程链**最前项**（`zone=home`；有归位点 ⇒ 跳过区几何；**跨维度忽略**）。门禁 `safe_return` 判据 **30 → 41**，
 >    **反向对照先红后绿**（假装无归位点 ⇒ `failures=3` 恰好是归位点三条；绿：`home DONE@2933,4064 dHome=3.0 dZone=93.0`）。
 >    `module:protection` 2/2、`ALICE_HEADLESS=1 check-all` = **17 PASS / 0 WARN / 0 FAIL**（CORE 51/51，260s）。
->    **下一件** = 第 4 件**工作区域（方块级）/ 任务区（区块级）分层**（`D-338` 附注四②③④；实验载体 = 区域砍伐
->    `RegionLumberJob`，命令 `/alice region start|stop|info|clear`）；备选第 3 件（`WorldModLedger` break 条目）。
+> ✅ **`§5.12` 第 4 件的「几何 + 锁定」层已落地**（2026-09-19，`D-338` 附注六）：新 `protection/TaskZoneRegistry`
+>    —— **工作区域（方块级）⇒ 任务区（区块级最小覆盖）**、**单向派生**；`WorkArea`（两角规范化）/`Zone`（带
+>    `scopeId`/kind 元数据）/**纯函数** `chunkCoverOf`（矩形与**逐方块枚举**两条路径必须同结果）/`safeZoneConflicts`。
+>    **口径**：任务区**可以覆盖保护区父类**；与**安全区**（子类声明）有交集 ⇒ **拒绝 + 报错 + 不裁剪、不降级**
+>    （要走必须**显式退化**）；**随 `scopeId` 生灭**（`zoneOf` 每次拿 `currentScope` 复核 ⇒ 作用域一收尾权威立刻消失，
+>    **不靠谁记得来关**）+ 作用域收尾两处钩子（`BotManager.clearTask` / 电池 `endStep`）；没有作用域 ⇒ `NO_SCOPE`。
+>    ⚠️ **本片零权限改动**（破坏闸门照旧；判据里有一条"`protectionReason=protected_area`"钉住这一点）。
+>    **生产接线**：`RegionLumberJob` 首 tick 解算（工作区域 = 玩家林场矩形），冲突 ⇒ `task_zone_conflict` **如实失败**
+>    （失败事实带冲突区块 + 退路提示），终态自动解除；只读面 `/alice protect list`（三态）+ `/alice region info`（预检）。
+>    门禁 `task_zone`（**EXTRA**）**50 判据 / 9 组**；⭐**反向对照两次**：拆冲突检查 ⇒ `failures=8`（**恰好**冲突那两组，
+>    几何/生命周期/覆盖全绿）；`zoneOf` 退回"按 owner 找" ⇒ `failures=2`（**恰好**两条生命周期判据）⇒ 复原绿
+>    `checks=50 failures=0`。`module:protection` **3/3**、CORE 未动（CORE 仍 51 步；总步数 67 → **68**）。
+>    ⚠️ 附带教训：**第一次生命周期注入无效**（只改尾部、`currentScope==null` 的早退还在 ⇒ 注入后仍绿）——
+>    "注入必须真的拆掉待证机制"；另把该判据的顺序改成**先重开作用域、再问 authority**（否则会被 prune 侥幸顶绿）。
+>    **下一件（待你拍板）**：① **任务区接进闸门**（目标内 `KEEP` / 目标外 `TEMP` + 预算）⇒ 依赖**第 5 件权限阶梯**
+>    （`L0 只读 / L1 临时脚手架(≤8 放置) / L2 工作面 / L3 全权`，我提案）；② **冲突语义**：今天 = 任务**如实失败**
+>    （最响的报错），备选 = 报错但**降级继续**；③ 默认任务区（第 6 件）。备选线 = 第 3 件（`WorldModLedger` break 条目）。
 > ⚠️ **④ 唯一剩余**：`FarWalkTask` **还没有生产调用方**（复核触发：下个增量仍无调用方就删）（预期先给 `D-327` 机制 B「返回安全区」或决策层
 >    「去坐标」目标；后者要改闭集动词表，属另一件事）—— 已登记台账。
 > ⚠️ 自测档位按 `D-332`：小改动只跑 `single:`，CORE/全量留到收口。

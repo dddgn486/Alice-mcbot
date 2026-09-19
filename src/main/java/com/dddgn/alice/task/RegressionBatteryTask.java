@@ -173,6 +173,10 @@ public final class RegressionBatteryTask implements Task {
             // D-327 机制 B（2026-09-19）：任务失败后回安全区的兜底（无区 ⇒ 诚实码 / 200 格 ⇒ 分段走回 /
             // 封死格 ⇒ 如实失败且站定不动）。EXTRA：会临时认领一个区块 + 建/还原一个封盒 ⇒ 只单跑。
             Map.entry("safe_return", Profile.EXTRA),
+            // `§5.12` 第 4 件（2026-09-19，D-338 附注二/附注四）：**任务区**（工作区域 ⇒ 区块最小覆盖）
+            // 的几何/覆盖规则/生命周期 + 真跑一次 RegionLumberJob。EXTRA：临时认领几个孤立区块、
+            // 且会跑一个真 Job（收尾按增量还原）。
+            Map.entry("task_zone", Profile.EXTRA),
             // 队列第③项（2026-09-17）：`MineJob` 新尝试上场时必须保留上一轮失败事实。
             // ⚠️ 判据必须在**运行中**采样（结束态走 finishedMinerNode 分支，天然有 failure ⇒ 判别不了）。
             Map.entry("mine_failure_visible", Profile.MAIN),
@@ -777,6 +781,9 @@ public final class RegressionBatteryTask implements Task {
         String closed = com.dddgn.alice.ledger.WorldModLedger.closeScope(
                 bot.getServer(), bot.getUUID());
         com.dddgn.alice.action.WriteBudget.closeScope(closed);
+        // 任务区同样随作用域解除（D-338 附注二第 2 条）—— 电池每一步一个作用域，
+        // 步结束还留着任务区 = "没有任务对应的授权封套" ⇒ 结构性禁止。
+        com.dddgn.alice.protection.TaskZoneRegistry.release(closed);
         com.dddgn.alice.ledger.WorldModLedger.dropStale(bot.serverLevel());
         var pending = com.dddgn.alice.ledger.WorldModLedger.pendingTemporary(
                 bot.getServer(), closed);

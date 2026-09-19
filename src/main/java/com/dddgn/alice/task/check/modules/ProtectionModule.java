@@ -3,6 +3,7 @@ package com.dddgn.alice.task.check.modules;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.task.ProtectionZoneCheckTask;
 import com.dddgn.alice.task.SafeReturnCheckTask;
+import com.dddgn.alice.task.TaskZoneCheckTask;
 import com.dddgn.alice.task.check.CheckContext;
 import com.dddgn.alice.task.check.CheckModule;
 import com.dddgn.alice.task.check.CheckProfile;
@@ -48,6 +49,12 @@ public final class ProtectionModule implements CheckModule {
                 // 耗时较长且会临时认领/声明/还原区域 ⇒ 不进 CORE；改世界的部分夹具自己还原 ✓）。
                 // `D-338` ③（2026-09-19）加了两段路（安全区内部 / 保护区内部）+ 单区块退化 ⇒ 预算 2200 → 3600。
                 CheckStep.of("safe_return", CheckProfile.EXTRA, List.of(), null,
-                        () -> new SafeReturnCheckTask(bot, observer), 3600));
+                        () -> new SafeReturnCheckTask(bot, observer), 3600),
+                // `§5.12` 第 4 件的"几何 + 锁定"层（2026-09-19，`D-338` 附注二/附注四）：
+                // 工作区域（方块级）⇒ 任务区（区块级最小覆盖）+ 覆盖规则（可覆盖保护区父类、
+                // 不得覆盖安全区 ⇒ 报错且不裁剪）+ 随 scopeId 生灭 + **真跑一次 RegionLumberJob**。
+                // EXTRA：会临时认领/声明几个孤立区块（收尾按增量还原）并跑一个真实 Job。
+                CheckStep.of("task_zone", CheckProfile.EXTRA, List.of(), null,
+                        () -> new TaskZoneCheckTask(bot, observer, ctx.scope()), 600));
     }
 }

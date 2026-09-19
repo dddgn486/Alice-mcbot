@@ -13579,3 +13579,71 @@ quota=1 → 回巡查；命令 `/alice region start|stop|info|clear`）已有"�
 
 **仍未做**：① 工作区域/任务区分层（**下一件**，实验载体 = 区域砍伐）；② 归位点的**界面**（用户说暂时用命令）；
 ③ 多 bot 的**名称参数**（现在作用于"该维度第一只假人"）。
+
+### D-338 附注六：`§5.12` 第 4 件的「几何 + 锁定」层落地 —— **任务区**（工作区域 ⇒ 区块最小覆盖）2026-09-19
+
+**范围**：`§5.12` 第 4 件里**不依赖第 5 件（权限等级阶梯，未拍板）**的那一半 ——
+**任务区的几何（单向派生）+ 覆盖规则 + 锁定与生命周期 + 只读消费面 + 门禁**。
+⛔ **本片一个字都没改权限行为**：破坏/放置闸门（`BlockBreakSafety` / `WritePolicyMatrix` / `WriteBudget`）
+原样不动；把任务区当**授权封套**接进闸门（目标内 `KEEP` / 目标外 `TEMP` + 预算）留到**第 5 件拍板之后**。
+
+**落地（1 个新类 + 3 处接线 + 1 道门禁 + 2 个只读面）**：
+1. ⭐ 新 `protection/TaskZoneRegistry`：`WorkArea`（**方块级**水平矩形；两角**规范化** ⇒ 重划同区可判幂等）·
+   `Zone`（派生出的区块集合 + 归属元数据 `scopeId`/`owner`/`kind`/面积/声明时刻）·
+   `Declare{DECLARED, ALREADY, REPLACED, NO_SCOPE, EMPTY_AREA, CONFLICT_SUBZONE}` ·
+   纯函数 `chunkCoverOf(WorkArea)` / `chunkCoverOf(Collection<BlockPos>)`（两条派生路径**必须同结果**）·
+   `safeZoneConflicts`（**只查子类声明**：与安全区求交，稳定排序 ⇒ 报错可复现）·
+   `declare` / `release` / `zoneOf` / `zoneAt` / `activeCount` / `prune` / `summary`。
+   ⚠️ **故意不持久化**（与 `SafeZoneData`/`ReturnPointData` 的 `SavedData` 不同）：任务树本身不跨重启存活，
+   任务区若活下来就是一个**没有任务对应的授权封套**（= 静默留权）⇒ 重启后世界回到"没有任务区"（保守方向）。
+2. `job/lumber/RegionLumberJob`（**实验载体，生产 Job 类**）：首 tick 解算任务区 ——
+   工作区域 = **玩家的林场矩形**（`LumberRegionState.Region`，`D-338` 附注四② 的第一个真实实例）
+   ⇒ 派生区块集合；与**安全区**冲突 ⇒ `terminalReason=task_zone_conflict` + **如实失败**
+   （失败事实带冲突区块，提示退路 = 先 `safe unclaim` 显式退化再重启）；
+   `finish()` 里 `release(scopeId)`（**取消/结束任务 ⇒ 自动解除**）；`SUMMARY`/`failureReport` 带 `zone=`。
+3. 作用域收尾钩子两处：`BotManager.clearTask` 与 `RegressionBatteryTask.endStep`
+   在 `WriteBudget.closeScope` 旁 `TaskZoneRegistry.release(closedScope)`
+   （`/alice region stop` 那条路**不经过** `finish()` ⇒ 必须有这一处）。
+4. 只读消费面（**玩家看得见**）：`/alice protect list` 打印"当前位置三态（保护区/安全区/**任务区**）"
+   + 全服任务区摘要；`/alice region info` 打印**任务区预检**（工作区域 blocks ⇒ 派生 chunks /
+   冲突=无｜安全区×N / 当前生效的区与 scope）。
+
+**口径（全部对齐用户 2026-09-19 的裁定，无自创）**：ⓐ 任务区**可以覆盖保护区父类**（也可在野外独立划分）；
+ⓑ ⛔ **不得覆盖子类声明**（今天 = 安全区）⇒ **拒绝声明 + 报错**，**不裁剪、不静默降级**，
+且**不替玩家剥离子类**（要走这条路必须**显式退化**）；ⓒ **锁定是结构性的**：唯一写入者是
+`TaskZoneRegistry.declare`（命令层没有写入口）⇒ 任务存续期内玩家**改不了**；
+ⓓ **随 `scopeId` 生灭**：`zoneOf` 每次都拿 `WorldModLedger.currentScope` 复核 ⇒ 作用域一收尾
+（终态 / 被替换 / 显式打断）**权威立刻消失**，**不靠任何调用方记得来关**；没有打开的作用域 ⇒ `NO_SCOPE`；
+ⓔ 任务区**不回答**"目标内/目标外"（那要目标集，只有任务有）—— 它只回答"这里的写入要不要提权"。
+
+**门禁 `task_zone`（EXTRA，`ProtectionModule` 步数 2 → 3）：50 判据 / 9 组**（`BATTERY_CURATION.md` 有逐组清单）。
+夹具两条纪律：**专用孤立区**（块 `35200..35240` **故意跨 3 个区块** / `35360..35363` 一区块 /
+区外点 2215,2215）+ **全部维度级计数按增量断言**、**临时认领按增量还原** ⇒ 真实存档里也能跑。
+生产 Job 用例把 `LumberRegionState` 的**补种/我种的苗/基线**先挪开、收尾复原（否则会污染 `region_maintain` 的
+"欠树 ⇒ 补种"判据）。
+
+**证据（`SERVER_TESTED`）**：
+- 绿：`single:task_zone` = **`checks=50 failures=0 verdict=PASS`**（33 tick）。判别性事实：
+  `geometry blocks=451 chunks=3[2200,2200 | 2201,2200 | 2202,2200]`（矩形口径 == 逐方块枚举口径）·
+  `job_ok status=FAILED reason=goal_timeout zone=DECLARED chunks=1 ticks=5` ·
+  `job_conflict status=FAILED reason=task_zone_conflict failure=task_zone_conflict[safe_zone 1 chunks: 2201,2200]`。
+- ⭐ **反向对照两次（都先红后绿）**：
+  ① 拆掉冲突检查（`if (false && !conflicts.isEmpty())`）⇒ **`failures=8`**，**恰好**是冲突那一组
+  （夹具 4 条 + 生产 Job 4 条），而**几何 / 生命周期 / 覆盖父类那几组全绿** ⇒ 判据不是"随手就红"；
+  ② `zoneOf` 退回"按 owner 找"（不看作用域）⇒ **`failures=2`**，**恰好**是两条生命周期判据
+  （"作用域收尾 ⇒ 权威立即消失" + "重开作用域不继承"）。
+  ⚠️ ②的第一次注入**无效**（我只改了尾部，`currentScope == null` 的早退还在 ⇒ 注入后仍绿）——
+  这说明"**注入必须真的拆掉待证的那条机制**"，否则反向对照给的是假绿。同一轮还发现原来那条
+  "新 scope 不继承"会被**过期条目先被 prune** 侥幸顶绿 ⇒ 已把顺序改成**先重开作用域、再问 authority**，
+  并补一条"新作用域里必须**重新声明**（`DECLARED` 而非 `ALREADY`）"。
+- `module:protection` **3/3**（`protection_zones` 95 + `safe_return` 41 + `task_zone` 50，均 0 失败，114s）。
+- 收口：`ALICE_HEADLESS=1 tools/check-all.sh` = **17 PASS / 0 WARN / 0 FAIL**（含 CORE **51/51**）。
+
+**仍未做 / 待拍板**：① **任务区接进保护闸门**（目标内 `KEEP` / 目标外 `TEMP` + 预算）
+—— 依赖**第 5 件权限等级阶梯**（用户未拍板）；② **默认任务区**（第 6 件；`D-338` 附注二第 3/4 条）；
+③ ⚠️ **冲突后的语义**（本片选了最响的一种：**任务如实失败**）—— 备选是"报错但降级继续跑"，
+**请用户拍板**（我倾向维持"失败"：授权封套不成立时跑下去就是静默降级）；④ 勾选界面的安全区/任务区模式（第 9 件）。
+
+**复核触发**：① 冲突导致任务直接失败在实践中太硬（玩家只想绕过那几个区块）⇒ 改"报错 + 降级"；
+② 任务区随 `scopeId` 生灭若导致"中途重规划丢授权" ⇒ 补持久化（同主条 ⑦）；
+③ 两个 bot 的任务区**重叠**今天**允许**（各自的作用域授权，不是产权）—— 若实践需要互斥 ⇒ 加判据。

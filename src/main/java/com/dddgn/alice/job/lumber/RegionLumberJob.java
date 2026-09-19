@@ -6,8 +6,10 @@ import com.dddgn.alice.job.CandidateSet;
 import com.dddgn.alice.job.GoalSpec;
 import com.dddgn.alice.job.Selection;
 import com.dddgn.alice.job.SelectionPolicy;
+import com.dddgn.alice.ledger.WorldModLedger;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
+import com.dddgn.alice.protection.TaskZoneRegistry;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -119,6 +121,22 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
     /** 本会话是否已就"没有活干"提示过玩家（只提示一次，别刷屏）。 */
     private boolean toldNoWork;
 
+    /**
+     * **任务区解算状态**（`D-338` 附注四②，`§5.12` 第 4 件的几何层）：
+     * 本 Job 的**工作区域 = 玩家的林场矩形（方块级）** ⇒ 派生出**区块级最小覆盖** = 任务区。
+     *
+     * <p>为什么必须解算一次而且只解算一次：任务区是**授权封套**（谁会提权、哪里算目标外），
+     * 中途变化会让"同一条任务里两格拿到不同授权"。而且它是**锁定**的 ——
+     * 唯一写入者就是本 Job（命令层没有写入口，玩家改不了）。
+     */
+    private boolean zoneResolved;
+    /** 本任务区的 scopeId（收尾用它 release；**解算时抓下来**，不依赖收尾时作用域还开着）。 */
+    private String taskZoneScope;
+    /** 任务区状态文本（日志/夹具/失败报告可见），如 `DECLARED chunks=6`、`CONFLICT_SUBZONE safe=1`。 */
+    private String taskZoneStatus = "-";
+    /** 任务区覆盖的区块数（夹具/日志用）。 */
+    private int taskZoneChunks;
+
     public RegionLumberJob(BotPlayer bot, LumberRegionState.Region region, ScopeBuffer scope,
                            LumberCandidateSource source, SelectionPolicy policy,
                            int patrolIntervalTicks, int maxTicks) {
@@ -193,6 +211,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
                 failureReason(), "maintain", progressSummary()
                 + " terminal=" + terminalReason
                 + " waitingFor=" + waitingFor
+                + " zone=" + taskZoneStatus
                 + " mySaplings=" + com.dddgn.alice.job.lumber.LumberRegionState
                         .get(bot.getServer()).mySaplingCount(bot.getUUID())
                 + (failure.isBlank() ? "" : " failure=" + failure),
@@ -208,6 +227,15 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
     public com.dddgn.alice.task.Task.Status tick() {
         if (terminated) {
             return com.dddgn.alice.task.Task.Status.DONE;
+        }
+        if (!zoneResolved) {
+            // 首 tick 先解算任务区（**在这一 tick 的最前面** ⇒ "第一 tick 必有定论"是可断言前提）：
+            // 有冲突就地如实失败，绝不带着一个无效的授权封套继续跑。
+            zoneResolved = true;
+            com.dddgn.alice.task.Task.Status zoneVerdict = resolveTaskZone();
+            if (zoneVerdict != null) {
+                return zoneVerdict;
+            }
         }
         if (++ticks > maxTicks) {
             terminalReason = "goal_timeout";
@@ -249,6 +277,69 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         }
         patrolCooldown = currentPatrolInterval;
         return patrol();
+    }
+
+    // ==================== 任务区（工作区域 ⇒ 区块级最小覆盖，D-338 附注四②）====================
+
+    /**
+     * 解算本任务的**任务区**：工作区域（林场矩形，**方块级**）⇒ 任务区（**区块级最小覆盖**）。
+     *
+     * <p>三种如实结果：① 声明成功（含幂等/换区）⇒ 记状态、继续跑；② 没有打开的任务作用域
+     * ⇒ 如实告警 + **不声明**（保守：没有封套就没有提权，行为与今天一致）；③ 与**安全区**冲突
+     * ⇒ `terminalReason=task_zone_conflict` + **如实失败**（用户口径：任务区不得覆盖子类声明，
+     * 冲突必须报错，**不裁剪、不静默降级**）。
+     *
+     * <p>为什么冲突要**停任务**而不是"照旧跑"：任务的授权封套此时**不成立**，而工作区域是
+     * **玩家的意图**（不许系统替他改小）⇒ 唯一诚实的做法是把"跑不了"当场说出来，
+     * 并把**退路**写进提示（先显式取消那些区块的安全区声明）。
+     *
+     * @return `null` = 继续跑；非 null = 本 tick 的终态
+     */
+    private com.dddgn.alice.task.Task.Status resolveTaskZone() {
+        var server = bot.getServer();
+        if (server == null) {
+            return null;
+        }
+        taskZoneScope = WorldModLedger.currentScope(server, bot.getUUID());
+        // 维度取**bot 所在维度**：`LumberRegionState.Region` 只有水平范围（玩家只划水平），
+        // 而工作区域必须落在某个维度里 ⇒ 以作业时的维度为准（跨维度作业本来也不成立）。
+        var area = new TaskZoneRegistry.WorkArea(bot.serverLevel().dimension().location(),
+                region.minX(), region.minZ(), region.maxX(), region.maxZ());
+        TaskZoneRegistry.Result result = TaskZoneRegistry.declare(
+                server, bot.getUUID(), NAME, area);
+        // 解算结果**逐字留痕一次**（含 `ALREADY`/`REPLACED`/`NO_SCOPE` 这些"没发生事"的分支）——
+        // 否则"任务区到底声明没声明、按哪个区域算的"只能靠推断（`Result#describe` 的唯一消费者）。
+        BotLog.info("[TaskZone] region_lumber 解算结果：{}", result.describe());
+        switch (result.status()) {
+            case CONFLICT_SUBZONE -> {
+                taskZoneStatus = "CONFLICT_SUBZONE safe_zone_chunks=" + result.conflicts().size();
+                terminalReason = "task_zone_conflict";
+                failure = "task_zone_conflict[safe_zone " + result.conflicts().size()
+                        + " chunks: " + TaskZoneRegistry.describeChunks(result.conflicts()) + "]";
+                BotLog.warn("[Job] region_lumber 任务区与**安全区**冲突 ⇒ 如实失败（不裁剪、不继续）："
+                                + "area={} 冲突区块={} ⇒ 先 `/alice protect safe unclaim` 那些区块"
+                                + "（**显式退化**到保护区父类）再重新启动任务",
+                        area.describe(), TaskZoneRegistry.describeChunks(result.conflicts()));
+                return finish(com.dddgn.alice.task.Task.Status.FAILED);
+            }
+            case NO_SCOPE -> taskZoneStatus = "NO_SCOPE";
+            case EMPTY_AREA -> taskZoneStatus = "EMPTY_AREA";
+            default -> {
+                taskZoneChunks = result.zone().chunks().size();
+                taskZoneStatus = result.status() + " chunks=" + taskZoneChunks;
+            }
+        }
+        return null;
+    }
+
+    /** 任务区状态文本（**夹具/诊断可见**）：`DECLARED chunks=6` / `CONFLICT_SUBZONE …` / `-`。 */
+    public String taskZoneStatus() {
+        return taskZoneStatus;
+    }
+
+    /** 任务区覆盖的区块数（未生效时为 0）。 */
+    public int taskZoneChunks() {
+        return taskZoneChunks;
     }
 
     // ==================== 巡查 ====================
@@ -575,15 +666,20 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
     private com.dddgn.alice.task.Task.Status finish(com.dddgn.alice.task.Task.Status status) {
         terminated = true;
         bot.controller().stopMovement();
+        // **取消任务 ⇒ 自动解除任务区**（D-338 附注二第 2 条）：任务区内所有区块的授权都由任务持有，
+        // 任务一结束就没有持有者了 ⇒ 就地解除，玩家不需要再点一次。
+        // （`/alice region stop` 那种**不经 finish** 的显式打断走的是作用域收尾钩子
+        //  `TaskZoneRegistry.release(closedScope)`；两条路都堵住。）
+        TaskZoneRegistry.release(taskZoneScope);
         BotLog.info("[Job] maintain SUMMARY region={} chopped={} failed={} patrols={} mySaplings={}"
-                        + " planted={} baseline={} saplingItem={} reason={} → {}",
+                        + " planted={} baseline={} saplingItem={} zone={} reason={} → {}",
                 region.describe(), treesChopped, treesFailed,
                 LumberRegionState.get(bot.getServer()).patrols(bot.getUUID()),
                 LumberRegionState.get(bot.getServer()).mySaplingCount(bot.getUUID()),
                 LumberRegionState.get(bot.getServer()).saplingsPlanted(bot.getUUID()),
                 LumberRegionState.get(bot.getServer()).baselineTrees(bot.getUUID()),
                 String.valueOf(LumberRegionState.get(bot.getServer()).saplingItem(bot.getUUID())),
-                terminalReason, status);
+                taskZoneStatus, terminalReason, status);
         // 终态也回聊天（否则"任务悄悄结束/悄悄失败"只有日志里看得到）
         if ("idle_no_work".equals(terminalReason)) {
             tell("区域没有活干了（无树无苗无欠）⇒ idle_no_work 收工；"

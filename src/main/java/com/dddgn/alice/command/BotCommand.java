@@ -752,15 +752,23 @@ public final class BotCommand {
         if (source.getEntity() instanceof ServerPlayer actor) {
             ServerLevel level = actor.serverLevel();
             BlockPos at = actor.blockPosition();
+            // `D-338` 附注四②：**任务区**（工作区域派生的区块级授权封套）——只读展示，
+            // 玩家由此能看出"这个区块现在被某个任务覆盖着"（任务存续期内他手改不了它）。
+            com.dddgn.alice.protection.TaskZoneRegistry.Zone zone =
+                    com.dddgn.alice.protection.TaskZoneRegistry.zoneAt(level, at);
             source.sendSuccess(() -> Component.literal("[alice] 当前位置 " + at.toShortString()
                     + "（区块 " + (at.getX() >> 4) + ", " + (at.getZ() >> 4) + "）：保护区="
-                    + data.isClaimed(level, at) + " 安全区=" + data.isSafe(level, at)), false);
+                    + data.isClaimed(level, at) + " 安全区=" + data.isSafe(level, at)
+                    + " 任务区=" + (zone == null ? "无"
+                            : zone.kind() + "（scope=" + zone.scopeId() + "，任务存续期内玩家不可改）")), false);
         }
         source.sendSuccess(() -> Component.literal("[alice] 保护区（父类）/ 安全区（子类）: "
                 + data.summary() + "｜内部区块（向中心靠的安全范围）：保护区="
                 + data.internalClaims(source.getLevel().dimension().location()).size()
                 + " 安全区=" + data.internalSafeClaims(source.getLevel().dimension().location()).size()
                 + "（空 = 区域太小 ⇒ 退化为「进区即到」）"), false);
+        source.sendSuccess(() -> Component.literal("[alice] 任务区（由任务的工作区域派生，随任务生灭）: "
+                + com.dddgn.alice.protection.TaskZoneRegistry.summary(source.getServer())), false);
         return 1;
     }
 
@@ -1030,6 +1038,30 @@ public final class BotCommand {
                 + " patrols=" + state.patrols(bot.getUUID())
                 + " autoIdleStop=" + state.autoIdleStop(bot.getUUID())
                 + " lastPatrol=" + state.lastPatrolTick(bot.getUUID())), false);
+        // `D-338` 附注四②：**任务区预检**（纯查询，不改任何状态）—— 把"工作区域（方块级）⇒ 任务区
+        // （区块级最小覆盖）"和"会不会与安全区冲突"在**启动之前**摊给玩家看：
+        // 冲突在这里就该被看见，而不是等任务跑起来才失败。
+        if (region != null) {
+            var server = source.getServer();
+            var level = source.getLevel();
+            var area = new com.dddgn.alice.protection.TaskZoneRegistry.WorkArea(
+                    level.dimension().location(), region.minX(), region.minZ(),
+                    region.maxX(), region.maxZ());
+            var chunks = area.chunkCover();
+            var conflicts = com.dddgn.alice.protection.TaskZoneRegistry.safeZoneConflicts(
+                    SafeZoneData.get(server), level.dimension().location(), chunks);
+            var active = com.dddgn.alice.protection.TaskZoneRegistry.zoneOf(server, bot.getUUID());
+            source.sendSuccess(() -> Component.literal("[alice] 任务区（派生）：工作区域 " + area.describe()
+                    + " blocks=" + area.areaXZ() + " ⇒ 区块最小覆盖 chunks=" + chunks.size()
+                    + "（**单向派生**：工作区域 ⇒ 任务区）｜冲突="
+                    + (conflicts.isEmpty() ? "无（可覆盖保护区父类）"
+                            : "⛔ 安全区×" + conflicts.size() + " "
+                                    + com.dddgn.alice.protection.TaskZoneRegistry.describeChunks(conflicts)
+                                    + " ⇒ 任务会**如实失败**，先 /alice protect safe unclaim 那些区块（显式退化）")
+                    + "｜当前生效=" + (active == null ? "无（任务未在跑）"
+                            : active.kind() + " chunks=" + active.chunks().size()
+                                    + " scope=" + active.scopeId())), false);
+        }
         return 1;
     }
 

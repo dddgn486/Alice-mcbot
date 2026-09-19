@@ -2386,6 +2386,10 @@ public final class BotManager {
                         bot.getServer(), bot.getUUID());
                 // 执行期写入预算收尾（D-106）：一行可观测摘要（breaks/places 对上限、豁免、拒绝次数）
                 com.dddgn.alice.action.WriteBudget.closeScope(closedScope);
+                // **任务区随作用域解除**（`D-338` 附注二第 2 条"取消任务自动解除"）：显式打断
+                // （`/alice region stop`）走的是这条路、不经过 Job 的 `finish()` ⇒ 两处都要收，
+                // 否则会留下一个"没有任务对应的授权封套"。
+                com.dddgn.alice.protection.TaskZoneRegistry.release(closedScope);
                 // 账本保持"活的"：现场已不是我方方块的条目就地销掉（场景重放/别人拆掉/我方已拆）
                 com.dddgn.alice.ledger.WorldModLedger.dropStale(bot.serverLevel());
                 var pendingTemp = com.dddgn.alice.ledger.WorldModLedger.pendingTemporary(
