@@ -92,7 +92,7 @@
 >    破坏闸恒放行 ⇒ `failures=3`（恰好 `L0`/`L1`/候选 `L0` 三条**拒绝**判据）；破坏恒拒 ⇒ `failures=3`（恰好 `L2` 三条**放行**判据）。
 >    绿：`checks=76 failures=0`、`module:protection` **3/3**、`ALICE_HEADLESS=1 check-all` = **17 PASS / 0 WARN / 0 FAIL**
 >    （CORE **51/51**，`ticks=4762` ⇒ 收紧对 CORE **零回归**）。已同步客户端 `mods/`：
->    `alice-1.0.0-1.20.1.jar` `JAR_CONTENT_SHA256=ed9171b5e0abaca8d0fc1f6cc00addd4bcfac5f8ce80a1876ee0363a8a9ac657`。
+>    `alice-1.0.0-1.20.1.jar` `JAR_CONTENT_SHA256=0db714d5be6564771f1a4dfa967f9afdfd8bc67716b69e3f46ac5c914cdbf273`（含日志卫生修正 `e0617c6`）。
 >    **下一件**：默认任务区（第 6 件：玩家预存工作区域 + 启动时派生 + 冲突报错）或 **勾选界面的等级选择**
 >    （第 9 件，⚠️ 操作逻辑要先给你审核）；备选线 = 第 3 件（`WorldModLedger` break 条目）。
 > ⚠️ **④ 唯一剩余**：`FarWalkTask` **还没有生产调用方**（复核触发：下个增量仍无调用方就删）（预期先给 `D-327` 机制 B「返回安全区」或决策层
