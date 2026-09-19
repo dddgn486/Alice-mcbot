@@ -2302,7 +2302,7 @@ public final class BotManager {
         private boolean startSafeReturnIfNeeded() {
             ServerLevel level = bot.serverLevel();
             BlockPos foot = com.dddgn.alice.pathing.MovementHelper.footCell(level, bot);
-            if (!com.dddgn.alice.task.SafeReturnTask.shouldStart(level, foot)) {
+            if (!com.dddgn.alice.task.SafeReturnTask.shouldStart(level, bot.getUUID(), foot)) {
                 return false;   // 已经在安全区里 / 世界没声明过安全区 ⇒ 不改变今天的行为
             }
             BlockPos entry = com.dddgn.alice.protection.SafeZoneData.get(level.getServer())

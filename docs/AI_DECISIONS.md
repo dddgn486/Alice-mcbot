@@ -13549,3 +13549,33 @@ quota=1 → 回巡查；命令 `/alice region start|stop|info|clear`）已有"�
 目标外（清灌木/垫脚 ⇒ 提权 + 预算 + `TEMP`）→ 取消任务自动解除。
 
 **顺序**：① 归位点（**现在做**，小且插在返程链最前）；② 工作区域/任务区分层（**下一件**，实验载体 = 区域砍伐）。
+
+### D-338 附注五：第 8 件落地 —— **归位点**（每 bot 一个 / 命令设定，插在返程链最前） 2026-09-19
+
+**落地（3 处 + 1 门禁）**：
+1. ⭐ 新 `protection/ReturnPointData`（`SavedData` 键 `alice_return_points`）：`Map<botUuid → (dimension, pos, radius)>`；
+   `DEFAULT_RADIUS=3`、`MAX_RADIUS=64` 夹取；**坏条目丢掉**（读不出主人的归位点没有意义，也不改挂到别人身上）；
+   `set` 同值算未改（幂等）；`load/save` 往返契约（夹具测）。
+2. 命令 **`/alice bot-home set|clear|show`**：**零参数** —— `set` = 以**执行者当前站位**为归位点（默认半径 3），
+   作用对象 = 该维度**第一只假人**（多 bot 的名称参数以后再加）；`show` 打印现状。
+   ⚠️ 这也是用户裁定的"小基地 / 想要精确落点"的**正解**（不要去改内部区块几何）。
+3. `SafeReturnTask`：把归位点插到链首 —— `shouldStart(level, botId, foot)`（**签名加 botId**）、每 tick 的到达判据、
+   终点选择、末段落点谓词；`standableInsideZone` **泛化**成 `standableNear(level, center, Predicate<BlockPos> inside, from)`
+   （归位点用"半径内"、区用"到达集内" —— 一处代码两种谓词）；段日志 `zone=home|safe|protect`。
+   ⚠️ **维度必须比对**：归位点在别的维度 ⇒ 本维度**忽略**它（跨维度返程不做）。`BotManager` 传 botId。
+4. 门禁：`safe_return` 加 `HOME_SET` / `HOME_RUN` 两相位 ⇒ 判据 **30 → 41（+11）**。
+
+**新增判据**：命令 `set` 成功且归位点 = **执行者站位**；前提"归位点在**两区之外**"（否则优先级分不开）；
+⭐判决：有归位点 ⇒ `shouldStart=true`（**即使世界里有安全区**）；⭐判决：已在归位点半径内 ⇒ false；
+⭐判决：归位点在**别的维度** ⇒ 本维度忽略（仍按区几何）；⭐**归位点优先**：必须走到**半径内**；
+⭐且**没有**跑回区里（距区中心 > 30 且不在到达集里）；命令 `clear` 成功且清干净；清后判决回到区几何。
+
+**反向对照（先红后绿）**：把 `homeOf` 临时强制返回 `null`（= 假装从来没有归位点）⇒ `verdict=FAIL`、`failures=3`，
+**恰好是归位点那三条**（`shouldStart(home)` 判反 / 走到安全区内部而距归位点 74 > 3 / 跑回区里）；
+判别性事实 `home DONE@2992,4015 dHome=74.0 dZone=17.0`。
+**复原后绿**：`home DONE@2933,4064 dHome=3.0 dZone=93.0`（2 段 / 220 tick）⇒ `checks=41 failures=0`。
+收口：`single:safe_return` 41/0；`module:protection` **2/2**（95 + 41 判据）；
+`ALICE_HEADLESS=1 check-all` = **17 PASS / 0 WARN / 0 FAIL**（CORE **51/51**，260s）。
+
+**仍未做**：① 工作区域/任务区分层（**下一件**，实验载体 = 区域砍伐）；② 归位点的**界面**（用户说暂时用命令）；
+③ 多 bot 的**名称参数**（现在作用于"该维度第一只假人"）。

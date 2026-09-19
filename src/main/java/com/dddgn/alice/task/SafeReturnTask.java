@@ -6,12 +6,15 @@ import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.search.FarTravelHop;
 import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.pathing.core.session.PathExecutionResult;
+import com.dddgn.alice.protection.ReturnPointData;
 import com.dddgn.alice.protection.SafeZoneData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
+import java.util.function.Predicate;
 
 /**
  * **机制 B：任务失败后"回安全区"的兜底**（`D-327` ①，2026-09-19 用户裁定执行）：
@@ -29,7 +32,7 @@ import java.util.List;
  * 夹到边界内侧 + `GoalNearXZ`；实测远粗目标 `20000 节点 / 142~186 ms` vs 一跳 `161 节点 / 1 ms`），
  * 终点临近时改走**精确落脚**（在到达集内找一个可站格）。
  *
- * <p><b>回家去哪（`D-338` ③ 优先级链，2026-09-19）</b>：**归位点（玩家设定，待落地）> 安全区 > 保护区**；
+ * <p><b>回家去哪（`D-338` ③ + 附注四①）</b>：**归位点（玩家用命令设定，每 bot 一个）> 安全区 > 保护区**；
  * **到达判据 = 脚位落在"返程到达集"里** = 目标区的**内部区块**（自身及四邻都已认领 ⇒ "向区域中心靠"），
  * 内部集为空（1 区块 / 条带 / ≤3×2）⇒ **退化为目标区本身**（"进区即到"）。
  * ⚠️ 旧口径是"进认领区块即到"（`isClaimed`）—— 它会让 bot **贴着边界停下**，且**看不见安全区**。
@@ -100,9 +103,30 @@ public final class SafeReturnTask implements Task {
      *
      * @return true = 调用方应启动 {@link SafeReturnTask}
      */
-    public static boolean shouldStart(ServerLevel level, BlockPos foot) {
+    public static boolean shouldStart(ServerLevel level, UUID botId, BlockPos foot) {
         SafeZoneData zones = SafeZoneData.get(level.getServer());
+        if (arrivedAtHome(level, botId, foot)) {
+            return false;   // 已经在归位点 ⇒ 不启动
+        }
+        if (homeOf(level, botId) != null) {
+            return true;    // 有归位点（同维度）⇒ **归位点优先**，跳过区几何
+        }
         return !zones.isInReturnZone(level, foot) && zones.nearestReturnCell(level, foot) != null;
+    }
+
+    /**
+     * 该 bot 在**当前维度**的归位点（`D-338` 附注四①）；没设定过 / 维度不符 ⇒ `null`（⇒ 走区几何）。
+     * ⚠️ 维度必须比对：归位点是"世界里某个点"，跨维度返程不做。
+     */
+    private static ReturnPointData.Point homeOf(ServerLevel level, UUID botId) {
+        ReturnPointData.Point point = ReturnPointData.get(level.getServer()).get(botId);
+        return point != null && point.dimension().equals(level.dimension().location()) ? point : null;
+    }
+
+    /** 是否已到达归位点（XZ 距离 ≤ 半径）。 */
+    private static boolean arrivedAtHome(ServerLevel level, UUID botId, BlockPos foot) {
+        ReturnPointData.Point point = homeOf(level, botId);
+        return point != null && FarWalkTask.distanceXZ(foot, point.pos()) <= point.radius();
     }
 
     @Override
@@ -122,10 +146,16 @@ public final class SafeReturnTask implements Task {
         ServerLevel level = bot.serverLevel();
         SafeZoneData zones = SafeZoneData.get(level.getServer());
         BlockPos foot = MovementHelper.footCell(level, bot);
-        if (zones.isInReturnZone(level, foot)) {
-            return done("returned:inside=" + foot.toShortString() + " safe=" + zones.isSafe(level, foot));
+        ReturnPointData.Point home = homeOf(level, bot.getUUID());
+        // ① 到达判据（优先级链最前）：**归位点 > 安全区内部 > 保护区内部**
+        if (arrived(level, zones, home, foot)) {
+            return done("returned:" + (home == null
+                    ? "inside=" + foot.toShortString() + " safe=" + zones.isSafe(level, foot)
+                    : "home=" + home.pos().toShortString() + " d="
+                    + FarWalkTask.distanceXZ(foot, home.pos()) + " r=" + home.radius()));
         }
-        BlockPos entry = zones.nearestReturnCell(level, foot);
+        // ② 终点：有归位点就用它（跳过区几何），否则用"返程到达集"里最近的一格
+        BlockPos entry = home != null ? home.pos() : zones.nearestReturnCell(level, foot);
         if (entry == null) {
             return fail("return_no_safe_zone", "claims=0 safe=0 dim=" + level.dimension().location()
                     + " from=" + foot.toShortString());
@@ -143,7 +173,9 @@ public final class SafeReturnTask implements Task {
             PathRequest request;
             if (level.hasChunkAt(entry) && distance <= FarTravelHop.DEFAULT_RADIUS + STAND_SEARCH) {
                 // 末段：终点区块已加载 ⇒ 直取**认领区内**的一个可站格（精确目标）
-                BlockPos stand = standableInsideZone(level, zones, foot);
+                BlockPos stand = standableNear(level, entry, cell -> home != null
+                        ? FarWalkTask.distanceXZ(cell, home.pos()) <= home.radius()
+                        : zones.isInReturnZone(level, cell), foot);
                 if (stand == null) {
                     return fail("return_no_standable_cell", "entry=" + entry.toShortString()
                             + " search=" + STAND_SEARCH + " from=" + foot.toShortString());
@@ -165,7 +197,7 @@ public final class SafeReturnTask implements Task {
             }
             legCurve.add("leg=" + rounds + (finalLeg ? " final " : " hop ") + note);
             BotLog.info("[SafeReturn] leg={} kind={} zone={} arrivalChunks={} distance={} from={} entry={} {}",
-                    rounds, finalLeg ? "final" : "hop", zoneKind(zones, level),
+                    rounds, finalLeg ? "final" : "hop", zoneKind(zones, level, home),
                     zones.returnArrivalChunks(level.dimension().location()).size(),
                     distance, foot.toShortString(), entry.toShortString(), note);
             runner = new PathRetryRunner(bot, request, PathRetryRunner.DEFAULT_MAX_REPLANS,
@@ -191,8 +223,9 @@ public final class SafeReturnTask implements Task {
                     + (result == null ? "-" : result.status()));
         }
         BlockPos now = MovementHelper.footCell(level, bot);
-        if (zones.isInReturnZone(level, now)) {
-            return done("returned:inside=" + now.toShortString() + " rounds=" + rounds);
+        if (arrived(level, zones, home, now)) {
+            return done("returned:" + (home == null ? "inside=" + now.toShortString()
+                    : "home=" + home.pos().toShortString()) + " rounds=" + rounds);
         }
         int after = FarWalkTask.distanceXZ(now, entry);
         if (after >= legStartDistance) {
@@ -239,15 +272,16 @@ public final class SafeReturnTask implements Task {
      * 每列从高到低取第一个可站格（`canStandCentered`），列间取离 bot 最近者。确定性：与遍历顺序无关
      * （比较的是距离，平手时取先遇到的 ⇒ 固定顺序遍历 ⇒ 可复现）。
      */
-    private BlockPos standableInsideZone(ServerLevel level, SafeZoneData zones, BlockPos from) {
+    private BlockPos standableNear(ServerLevel level, BlockPos center, Predicate<BlockPos> inside,
+                                   BlockPos from) {
         BlockPos best = null;
         double bestDist = Double.MAX_VALUE;
         for (int dx = -STAND_SEARCH; dx <= STAND_SEARCH; dx++) {
             for (int dz = -STAND_SEARCH; dz <= STAND_SEARCH; dz++) {
                 for (int dy = 3; dy >= -4; dy--) {
-                    BlockPos cell = entryCell.offset(dx, dy, dz);
-                    if (!zones.isInReturnZone(level, cell)) {
-                        continue;   // 落点必须在**到达集**里（否则"到家"这个判据不成立）
+                    BlockPos cell = center.offset(dx, dy, dz);
+                    if (!inside.test(cell)) {
+                        continue;   // 落点必须真的**算到家**（到达集内 / 归位点半径内）
                     }
                     if (!level.hasChunkAt(cell)) {
                         continue;   // ⚠️ 先问加载状态再读方块（D-331/D-337 同一纪律）
@@ -267,8 +301,20 @@ public final class SafeReturnTask implements Task {
         return best;
     }
 
-    /** 目标区种类（日志/诊断用）：有安全区 ⇒ `safe`，否则 ⇒ `protect`（`D-338` ③ 的优先级链）。 */
-    private static String zoneKind(SafeZoneData zones, ServerLevel level) {
+    /** 到达判据（`D-338` ③ + 附注四①）：**归位点 > 安全区内部 > 保护区内部**。 */
+    private static boolean arrived(ServerLevel level, SafeZoneData zones, ReturnPointData.Point home,
+                                   BlockPos foot) {
+        if (home != null) {
+            return FarWalkTask.distanceXZ(foot, home.pos()) <= home.radius();
+        }
+        return zones.isInReturnZone(level, foot);
+    }
+
+    /** 目标区种类（日志/诊断用）：归位点 ⇒ `home`；有安全区 ⇒ `safe`；否则 ⇒ `protect`。 */
+    private static String zoneKind(SafeZoneData zones, ServerLevel level, ReturnPointData.Point home) {
+        if (home != null) {
+            return "home";
+        }
         return zones.safeClaims(level.dimension().location()).isEmpty() ? "protect" : "safe";
     }
 

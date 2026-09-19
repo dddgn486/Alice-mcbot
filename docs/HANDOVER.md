@@ -59,8 +59,13 @@
 >    **5 用例 30 判据**（含⭐优先级链判决 + 单区块退化）；**先红后绿**（旧实现 `failures=4` ⇒ 恰好是设计的三处 + 同源一条；
 >    绿：`safe @2992 内部=true 3 段 734 tick` / `prot @2976 内部=true 2 段 292 tick` / `single 退化` / `sealed 1 tick 不动`）。
 >    `module:protection` **2/2**、`ALICE_HEADLESS=1 check-all` = **17 PASS / 0 WARN / 0 FAIL**（CORE 51/51，261s）。
->    **下一件**：第 8 件 **归位点**（用户指定的"小基地/精确落点"正解；**形态待用户定**：每 bot / 每区、命令 / 物品）
->    或第 3 件（`WorldModLedger` break 条目，限保护区、默认不恢复）。
+> ✅ **第 8 件归位点已落地**（2026-09-19，`D-338` 附注五）：`protection/ReturnPointData`（**每 bot 一个**：dimension+pos+radius=3）
+>    + 命令 **`/alice bot-home set|clear|show`**（零参数：`set` = 以你的站位为准，作用于该维度第一只假人）
+>    + 返程链**最前项**（`zone=home`；有归位点 ⇒ 跳过区几何；**跨维度忽略**）。门禁 `safe_return` 判据 **30 → 41**，
+>    **反向对照先红后绿**（假装无归位点 ⇒ `failures=3` 恰好是归位点三条；绿：`home DONE@2933,4064 dHome=3.0 dZone=93.0`）。
+>    `module:protection` 2/2、`ALICE_HEADLESS=1 check-all` = **17 PASS / 0 WARN / 0 FAIL**（CORE 51/51，260s）。
+>    **下一件** = 第 4 件**工作区域（方块级）/ 任务区（区块级）分层**（`D-338` 附注四②③④；实验载体 = 区域砍伐
+>    `RegionLumberJob`，命令 `/alice region start|stop|info|clear`）；备选第 3 件（`WorldModLedger` break 条目）。
 > ⚠️ **④ 唯一剩余**：`FarWalkTask` **还没有生产调用方**（复核触发：下个增量仍无调用方就删）（预期先给 `D-327` 机制 B「返回安全区」或决策层
 >    「去坐标」目标；后者要改闭集动词表，属另一件事）—— 已登记台账。
 > ⚠️ 自测档位按 `D-332`：小改动只跑 `single:`，CORE/全量留到收口。

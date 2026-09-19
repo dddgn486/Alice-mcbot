@@ -2,9 +2,11 @@ package com.dddgn.alice.task;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.protection.ReturnPointData;
 import com.dddgn.alice.protection.SafeZoneData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.ChunkPos;
@@ -74,14 +76,25 @@ public final class SafeReturnCheckTask implements Task {
     /** 封死盒子的位置：往 +Z 走 240 格（区外）。 */
     private static final BlockPos SEAL = ZONE_CENTER.offset(0, 0, 240);
 
+    /**
+     * ⭐ **归位点**（`D-338` 附注四①）：故意放在**两个区之外**（区块 183,254）——
+     * 于是"归位点优先"与"区几何"会走到**完全不同的地方**（区几何会去 2992,4000 / 2976,4000）⇒
+     * 判别性判据（忽略归位点的实现必然红）。
+     */
+    private static final BlockPos HOME = ZONE_CENTER.offset(-64, 0, 64);
+
+    /** 归位点用例起点：再往西 60 格（快）。 */
+    private static final BlockPos HOME_START = HOME.offset(-60, 0, 0);
+
     private static final int SETTLE_TICKS = 30;
     private static final int SAFE_TICK_CAP = 1600;
     private static final int PROT_TICK_CAP = 900;
     private static final int SINGLE_TICK_CAP = 600;
-    private static final int BUDGET_TICKS = 3200;
+    private static final int HOME_TICK_CAP = 900;
+    private static final int BUDGET_TICKS = 3400;
 
-    private enum Phase { PREPARE, NO_ZONE, DECLARE, SAFE_RUN, DEGRADE, PROT_RUN, SINGLE, SINGLE_RUN,
-        SEAL_BUILD, SEALED, CLEANUP, DONE }
+    private enum Phase { PREPARE, NO_ZONE, DECLARE, HOME_SET, HOME_RUN, SAFE_RUN, DEGRADE, PROT_RUN,
+        SINGLE, SINGLE_RUN, SEAL_BUILD, SEALED, CLEANUP, DONE }
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -97,6 +110,8 @@ public final class SafeReturnCheckTask implements Task {
     private boolean timedOut;
     private int safeDeclaredBefore;
     private int chunksBefore;
+    private int homesBefore;
+    private BlockPos homeCell;
 
     private SafeReturnTask task;
     private BlockPos outsideStart;
@@ -146,6 +161,7 @@ public final class SafeReturnCheckTask implements Task {
                     // 进入前的现场（收尾要**按增量**还原 ⇒ 真实存档里也能跑）
                     safeDeclaredBefore = zones.safeChunkCount();
                     chunksBefore = zones.claimedChunkCount();
+                    homesBefore = ReturnPointData.get(level.getServer()).count();
                     teleport(bot, OUTSIDE);
                     settle++;
                     return Task.Status.RUNNING;
@@ -185,7 +201,7 @@ public final class SafeReturnCheckTask implements Task {
                         bot.blockPosition().distManhattan(outsideStart) <= 1);
                 check("① 判决：**没有认领区 ⇒ 不启动兜底**（`shouldStart=false`，"
                                 + "= 今天的行为一字不变）",
-                        !SafeReturnTask.shouldStart(level, outsideStart));
+                        !SafeReturnTask.shouldStart(level, bot.getUUID(), outsideStart));
                 task = null;
                 phase = Phase.DECLARE;
             }
@@ -210,16 +226,87 @@ public final class SafeReturnCheckTask implements Task {
                 check("前提：区外起点既不在保护区也不在安全区",
                         !zones.isClaimed(level, outsideStart) && !zones.isSafe(level, outsideStart));
                 // 判决矩阵（接线看的就这一条）
-                check("② 判决：区外 + 有区 ⇒ `shouldStart=true`", SafeReturnTask.shouldStart(level, outsideStart));
+                check("② 判决：区外 + 有区 ⇒ `shouldStart=true`", SafeReturnTask.shouldStart(level, bot.getUUID(), outsideStart));
                 check("② 判决：已在**安全区内部**（到达到达集里）⇒ `shouldStart=false`"
                                 + "（已安全，不再兜底）",
-                        !SafeReturnTask.shouldStart(level, ZONE_CENTER));
+                        !SafeReturnTask.shouldStart(level, bot.getUUID(), ZONE_CENTER));
                 check("⭐ 判决（`D-338` ③ 优先级链）：**在保护区里、但不在安全区里**、而世界有安全区 ⇒ "
                                 + "仍然 `shouldStart=true`（有安全区就回安全区；实际 isClaimed="
                                 + zones.isClaimed(level, PROT_ONLY) + " isSafe=" + zones.isSafe(level, PROT_ONLY)
-                                + " shouldStart=" + SafeReturnTask.shouldStart(level, PROT_ONLY) + "）",
+                                + " shouldStart=" + SafeReturnTask.shouldStart(level, bot.getUUID(), PROT_ONLY) + "）",
                         zones.isClaimed(level, PROT_ONLY) && !zones.isSafe(level, PROT_ONLY)
-                                && SafeReturnTask.shouldStart(level, PROT_ONLY));
+                                && SafeReturnTask.shouldStart(level, bot.getUUID(), PROT_ONLY));
+                check("前提：此刻**没有**归位点（本用例自己设定与清除；count="
+                                + ReturnPointData.get(level.getServer()).count() + " = " + homesBefore + "）",
+                        ReturnPointData.get(level.getServer()).count() == homesBefore);
+                settle = 0;
+                phase = Phase.HOME_SET;
+            }
+            case HOME_SET -> {
+                // 命令的作用对象是"执行者站位" ⇒ 让 bot 站在归位点上再敲命令（零参数入口的真实走法）
+                teleport(bot, HOME);
+                var server = level.getServer();
+                var source = server.createCommandSourceStack().withEntity(bot).withPosition(bot.position())
+                        .withSuppressedOutput();
+                int setCode = server.getCommands().performPrefixedCommand(source, "alice bot-home set");
+                ReturnPointData homes = ReturnPointData.get(level.getServer());
+                ReturnPointData.Point point = homes.get(bot.getUUID());
+                homeCell = point == null ? HOME : point.pos();
+                check("⭐ 命令入口：`alice bot-home set` 成功（返回 " + setCode + "）且归位点 = **执行者站位**"
+                                + "（实际 " + (point == null ? "无" : point.describe()) + "，站位 "
+                                + bot.blockPosition().toShortString() + "）",
+                        setCode == 1 && point != null && point.pos().equals(bot.blockPosition()));
+                check("⭐ 前提：归位点**在两个区之外**（否则「归位点优先」与「区几何」分不开；isClaimed="
+                                + zones.isClaimed(level, homeCell) + " isSafe=" + zones.isSafe(level, homeCell) + "）",
+                        !zones.isClaimed(level, homeCell) && !zones.isSafe(level, homeCell));
+                check("⭐ 判决：有归位点（同维度）⇒ `shouldStart=true` —— **即使世界里有安全区**"
+                                + "（实际 " + SafeReturnTask.shouldStart(level, bot.getUUID(), OUTSIDE) + "）",
+                        SafeReturnTask.shouldStart(level, bot.getUUID(), OUTSIDE));
+                check("⭐ 判决：已在归位点半径内 ⇒ `shouldStart=false`（已经到位，不再兜底）",
+                        !SafeReturnTask.shouldStart(level, bot.getUUID(), homeCell));
+                // 维度不符 ⇒ 本维度忽略归位点（数据级断言，不传送）：先指向 the_nether 再问
+                homes.set(bot.getUUID(), ResourceLocation.parse("minecraft:the_nether"), homeCell,
+                        ReturnPointData.DEFAULT_RADIUS);
+                check("⭐ 判决：归位点在**别的维度** ⇒ 本维度**忽略**它、仍按区几何判断"
+                                + "（区外 + 有区 ⇒ true）",
+                        SafeReturnTask.shouldStart(level, bot.getUUID(), OUTSIDE));
+                homes.set(bot.getUUID(), level.dimension().location(), homeCell,
+                        ReturnPointData.DEFAULT_RADIUS);
+                settle = 0;
+                phase = Phase.HOME_RUN;
+            }
+            case HOME_RUN -> {
+                Task.Status status = pumpReturn(level, homeCell.offset(-60, 0, 0), HOME_TICK_CAP, "归位点优先");
+                if (status == null) {
+                    return advanceAfterTimeout(Phase.SAFE_RUN);
+                }
+                BlockPos now = bot.blockPosition();
+                double toHome = FarWalkTask.distanceXZ(now, homeCell);
+                double toZone = FarWalkTask.distanceXZ(now, ZONE_CENTER);
+                findings.add("home status=" + status + " rounds=" + task.rounds()
+                        + " ticks=" + (ticks - caseStartTick) + " from=" + caseStartFoot.toShortString()
+                        + " to=" + now.toShortString() + " dHome=" + toHome + " dZone=" + toZone
+                        + " legs=[" + String.join("; ", task.legCurve()) + "]");
+                BotLog.info("[SafeReturnDiag] home status={} rounds={} ticks={} dHome={} dZone={} to={}",
+                        status, task.rounds(), ticks - caseStartTick, toHome, toZone, now.toShortString());
+                check("⭐ **归位点优先**：必须走到**归位点半径内**（status=" + status + " 脚位="
+                                + now.toShortString() + " 距归位点=" + toHome + " ≤ r="
+                                + ReturnPointData.DEFAULT_RADIUS + "）",
+                        status == Task.Status.DONE && toHome <= ReturnPointData.DEFAULT_RADIUS);
+                check("⭐ 且**没有**跑回区里（区几何本来可用：到达集 "
+                                + zones.returnArrivalChunks(level.dimension().location()).size()
+                                + " 个区块；距区中心=" + toZone + " ⇒ 必须仍远）",
+                        toZone > 30 && !zones.isInReturnZone(level, now));
+                task = null;
+                var server = level.getServer();
+                var source = server.createCommandSourceStack().withEntity(bot).withPosition(bot.position())
+                        .withSuppressedOutput();
+                int clearCode = server.getCommands().performPrefixedCommand(source, "alice bot-home clear");
+                check("⭐ 命令入口：`alice bot-home clear` 成功（返回 " + clearCode + "）且归位点已清"
+                                + "（count=" + ReturnPointData.get(level.getServer()).count() + "）",
+                        clearCode == 1 && ReturnPointData.get(level.getServer()).get(bot.getUUID()) == null);
+                check("⭐ 取消归位点后 ⇒ 判决回到区几何（区外 + 有区 ⇒ true）",
+                        SafeReturnTask.shouldStart(level, bot.getUUID(), OUTSIDE));
                 settle = 0;
                 phase = Phase.SAFE_RUN;
             }
@@ -247,7 +334,7 @@ public final class SafeReturnCheckTask implements Task {
                 check("② 返程必须**分段**（段数 ≥ 2 ⇒ 是「一跳一跳逼近」而不是一次搜到底；实际 rounds="
                                 + task.rounds() + "）", task.rounds() >= 2);
                 check("② 判决：已进到达集 ⇒ `shouldStart=false`（已经安全，不再兜底）",
-                        !SafeReturnTask.shouldStart(level, now));
+                        !SafeReturnTask.shouldStart(level, bot.getUUID(), now));
                 task = null;
                 phase = Phase.DEGRADE;
             }
@@ -376,6 +463,10 @@ public final class SafeReturnCheckTask implements Task {
                         zones.claimedChunkCount() == chunksBefore);
                 check("自复位：安全区数回到进入前（" + zones.safeChunkCount() + " = " + safeDeclaredBefore + "）",
                         zones.safeChunkCount() == safeDeclaredBefore);
+                ReturnPointData homes = ReturnPointData.get(level.getServer());
+                homes.clear(bot.getUUID());
+                check("自复位：归位点数回到进入前（" + homes.count() + " = " + homesBefore + "）",
+                        homes.count() == homesBefore);
                 teleport(bot, ZONE_CENTER);   // 传送自带 stopMovement
                 phase = Phase.DONE;
                 return finish();

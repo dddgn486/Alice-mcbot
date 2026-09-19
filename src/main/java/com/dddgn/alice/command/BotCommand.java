@@ -21,6 +21,7 @@ import com.dddgn.alice.transfer.TransferSelectionSubmission;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.dddgn.alice.protection.ReturnPointData;
 import com.dddgn.alice.protection.SafeZoneData;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -357,6 +358,12 @@ public final class BotCommand {
                                         .executes(ctx -> autoMine(ctx.getSource(),
                                                 StringArgumentType.getString(ctx, "tag"),
                                                 IntegerArgumentType.getInteger(ctx, "count"))))))
+                .then(Commands.literal("bot-home")
+                        // `D-338` 附注四①（2026-09-19）：**每 bot 一个归位点**，玩家用命令设定。
+                        // 零参数：`set` = 以**执行者站位**为归位点；作用对象 = 该维度第一只假人。
+                        .then(Commands.literal("set").executes(ctx -> botHome(ctx.getSource(), "set")))
+                        .then(Commands.literal("clear").executes(ctx -> botHome(ctx.getSource(), "clear")))
+                        .then(Commands.literal("show").executes(ctx -> botHome(ctx.getSource(), "show"))))
                 .then(Commands.literal("protect")
                         .then(Commands.literal("add-area")
                                 .then(Commands.argument("pos", BlockPosArgument.blockPos())
@@ -661,6 +668,51 @@ public final class BotCommand {
         }
         source.sendSuccess(() -> Component.literal("[alice] 安全区：已取消 " + chunkX + ", " + chunkZ
                 + "（**保护区认领保留**；当前安全区 " + data.safeChunkCount() + " 个区块）"), false);
+        return 1;
+    }
+
+    /**
+     * `/alice bot-home set|clear|show`（`D-338` 附注四①，2026-09-19）：**每 bot 一个归位点**，
+     * 由**玩家用命令**设定 —— 它是返程优先级链的**最前项**（**归位点 > 安全区 > 保护区**），
+     * 且"有归位点（同维度）⇒ 跳过区几何"。
+     *
+     * <p>刻意**零参数**（AGENTS.md 的测试入口纪律）：`set` = 以**执行者当前站位**为归位点（默认半径
+     * {@link ReturnPointData#DEFAULT_RADIUS}）；作用对象 = 该维度**第一只假人**（多 bot 的名称参数以后再加）。
+     * ⚠️ 这也是用户裁定的"小基地 / 想要精确落点"的**正解**：不要去改内部区块几何。
+     */
+    private static int botHome(CommandSourceStack source, String action) {
+        if (!(source.getEntity() instanceof ServerPlayer actor)) {
+            source.sendFailure(Component.literal("[alice] 归位点必须由玩家在游戏内设定"
+                    + "（作用对象 = 该维度第一只假人，坐标 = 你的站位）"));
+            return 0;
+        }
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] 该维度没有假人 ⇒ 归位点无人可挂（先 /alice spawn）"));
+            return 0;
+        }
+        ReturnPointData homes = ReturnPointData.get(source.getServer());
+        String who = bot.getName().getString();
+        if ("show".equals(action)) {
+            ReturnPointData.Point point = homes.get(bot.getUUID());
+            source.sendSuccess(() -> Component.literal("[alice] 归位点（bot=" + who + "）："
+                    + (point == null ? "未设定 ⇒ 返程走区几何（安全区 > 保护区）"
+                    : point.describe() + "（到达判据 = XZ 距离 ≤ 半径）")), false);
+            return 1;
+        }
+        if ("clear".equals(action)) {
+            boolean cleared = homes.clear(bot.getUUID());
+            source.sendSuccess(() -> Component.literal("[alice] 归位点："
+                    + (cleared ? "已清除" : "本来就未设定") + "（bot=" + who
+                    + "）⇒ 返程回到区几何（安全区 > 保护区）"), false);
+            return cleared ? 1 : 0;
+        }
+        boolean changed = homes.set(bot.getUUID(), actor.serverLevel().dimension().location(),
+                actor.blockPosition(), ReturnPointData.DEFAULT_RADIUS);
+        ReturnPointData.Point point = homes.get(bot.getUUID());
+        source.sendSuccess(() -> Component.literal("[alice] 归位点：" + (changed ? "已设定" : "未变化")
+                + " " + (point == null ? "?" : point.describe())
+                + "（= 你的站位；返程优先级 **归位点 > 安全区 > 保护区**）"), false);
         return 1;
     }
 
