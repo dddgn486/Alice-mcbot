@@ -11881,7 +11881,7 @@ bash 是**按需读文件**的 ⇒ 我一边让 `module-selftest.sh` 跑着（8 
 | `protection/SafeZoneData` | `SavedData`（key `alice_safe_zones`）：**区域**（按维度隔离 · 水平圆形半径 · **覆盖该维度所有高度**）+ ⭐ **方块 ID 黑名单** + ⭐ **标签黑名单**（全世界通用） | `protection/SafeZoneData.java:22-24`、`:137-153` |
 | 保护区声明入口 | `/alice` 命令：加区域 `BotCommand.java:537` · 移除 `:544` · **增删方块/标签黑名单** `:572`（`changeBlockRule`）· 汇报 `:585` | `command/BotCommand.java` |
 | 已接在**破坏闸门**上（非装饰） | `BlockInteraction.java:462`（读 `protectionReason`）· `protection/BlockBreakSafety.java:47` · `pathing/core/CapabilityGate.java:69-74`（② 保护区分支 → `ZONE_*` 拒绝码）· `pathing/core/MovementCapabilities.java:51-53`（`requiresZoneAuthorization=true`，2026-09-12 修，注释写明"此前 false ⇒ 分支**永不触发**、字段退化成装饰"） | 多处 |
-| 已接在**候选源**上 | `job/mine/MineCandidateSource.java:139` · `job/lumber/LumberCandidateSource.java:68` · `road/RoadObstaclePolicy.java:42` · `pathing/core/session/PathSession.java:746` | 多处 |
+| 已接在**候选源**上 | `job/mine/MineCandidateSource.java:139` · `job/lumber/LumberCandidateSource.java:68` · `road/RoadObstaclePolicy.java:54（`exactForbidden`）` · `pathing/core/session/PathSession.java:746` | 多处 |
 | ⭐ **模组机器已有专门保护** | `BlockBreakSafety.clearingRefusal:73-82`：`state.hasBlockEntity() → "block_entity"`，注释原文（**D-095**）"含方块实体的方块（箱子/熔炉/漏斗/告示牌/刷怪笼/**模组机器**）不得作为清障对象…**模组机器可能内容物直接蒸发**"，且"剔除之后**规划器会自动绕开**"（绕不开就如实 `found_but_unminable`，不需要新机制） | `protection/BlockBreakSafety.java` |
 | 另加高代价方块 | `isExpensiveToClear` = 黑曜石 / 哭泣黑曜石 / 强化深板岩 | `protection/BlockBreakSafety.java:104-108` |
 
@@ -13854,7 +13854,7 @@ code=failed:no_reachable_candidate durationTicks=1` ⇒ **它是被拒的**。**
 | `BlockBreakSafety`（`explicitTarget`/`clearing`） | ✅ 走 `regionRefusal(BREAK)`（留痕） | 动作期：等级 + 理由 |
 | `BlockInteraction` 放置（`placeAt` + `placeBulkEdit`） | ✅ 走 `regionRefusal(PLACE)`（留痕） | 动作期：等级 + 理由 + 区内配额 |
 | ⭐ `PathSession` → `CapabilityGate.Facts` | ✅ **本片接上**（`movementRefusal`，静默） | 规划/执行期：每条会改世界的 Movement 逐条复验 |
-| `RoadObstaclePolicy:42` | ⚠️ **仍是裸 `protectionReason`**（保守：保护区一律视为障碍 ⇒ 不越界） | **未接**；是否让 `L3` 任务区允许"修路穿过自己的保护区"= **待定**（不是回归，今天更保守） |
+| `RoadObstaclePolicy.exactForbidden:54` | ✅ **裸 `protectionReason` 是**有意**的**（2026-09-19 `D-343` 裁定②）：这是**规划期规避**（保护区一律视为障碍 ⇒ 不越界，方向**收紧**），**不做授权决策** | **故意不接阶梯**（接上 = 放松，且会造出"规划通过、逐块写入被拒"的半成品路）；真正的写入闸门在 `BlockInteraction.placeBulkEdit`/`breakForBulkEdit` 且**没绕过**；结论已变**可失败断言** `rule_bulk_write_zone_gate` ③ |
 | `BotManager:2308`（归位点/返回）、`BotCommand`（`protect list`/`region info` 显示）、各夹具 | 有意裸用 | 读/显示/夹具，不做写入决策 |
 
 ⇒ 口径收敛为：**写入决策必须过 `ZoneAuthority`**（今天 5 处已接、1 处待定）；显示与夹具可直接读 `SafeZoneData`。
@@ -14059,7 +14059,9 @@ code=failed:no_reachable_candidate durationTicks=1` ⇒ **它是被拒的**。**
    用户原话："一次性 `lumber_job` 在自己认领区里仍被拒**就是预期**，这个测试就是验证可以这样，**是一个反例**。"
    ⇒ 阶梯的豁免只对**任务区**生效（一次性作业不声明任务区 ⇒ 无授权面可依 ⇒ 拒）；**不要**为它造口子。
    （这与附注十四的封顶同向：**领地内只有能被授权面覆盖的写入**。）
-2. ⏳ **仍未决**：`L2` 要不要也有"每 `scopeId` 区内放置上限"（`L1` 有 ≤8）。
+2. ✅ **已裁定（2026-09-19，`D-343` 裁定①）**：`L2` **不加**"每 `scopeId` 区内放置上限"——
+   **无洞**（`WriteBudget` 同样按 `scopeId` 计、默认 32，且 `scopeId` 随任务生灭）+ **加了会伤正当工作**
+   （补种/火把/垫脚天然 >8 次 ⇒ 假拒绝）⇒ `L1` 的"≤8"是**脚手架级授权**的专属约束。
 
 ### D-340：**夹具驱动的事件也不交给决策层**（`D-339` 的同一条口径补完）2026-09-19
 
@@ -14248,3 +14250,44 @@ cross_spelling_accounting=false`，其余五条仍 true = 归因精确）+ 内�
 也算重复 —— 但同一目标本就值得怀疑；② 闸门只在 **LLM 应用 `start_job`** 这一条路上生效
 （`craft` / `maintain_tool` / `stop_current` 等动作未纳入，它们本身不形成"目标循环"）；
 ③ 计数是**内存态**（重启清零）—— 循环本来就发生在一次会话里，跨会话的"执念"不在本闸范围。
+
+### D-343：`L2` **不加**区内放置配额 + 道路"裸判据"是**有意的规划期规避**（两项未决裁定）2026-09-19
+
+**裁定①「`L2` 要不要也有"每 `scopeId` 区内放置上限"」⇒ 不加**（用户 2026-09-19 拍板；**已评估，不是漏做**）
+- **事实（代码级查证，这才是判据）**：配额只查 `L1`（`ZoneAuthority.java:178-189`，`L1_MAX_PLACES=8`）；
+  但 `L2` **不是无界** —— `WriteBudget` 的上限**也按 `scopeId` 计**（`SCOPES`，`DEFAULT.maxPlaces=32`），
+  而 `scopeId = WorldModLedger.currentScope` = **当前任务作用域、随任务生灭**
+  （`TaskZoneRegistry.java:276`、`release:326-331`；`WriteBudget.java:92,105,135`）
+  ⇒ 一个 `L2` 任务**全部**放置（区内 ⊆ 全部）已经 ≤32 ⇒ **不存在"无限往玩家区里铺"的路径**。
+- **不加的第二条理由**：`L2` = 工作面，补种树苗 / 插火把 / 垫脚 pillar **天然**需要多于 8 次区内放置
+  ⇒ 再压一道小额配额会制造**假拒绝**（正是 `D-341` 那一类"任务被误判"）。
+  ⇒ 所以 `L1` 的"≤8"**不是**"所有等级都该有"，而是**脚手架级授权**的专属约束（它的语义就是"临时、少量"）。
+- **代码已就地锚定**：`ZoneAuthority` 在该分支之后写了注释（含上面两条理由 + 复核触发），
+  免得下个会话又把它当"漏了"补上。
+- **复核触发**：① 观测到某个 LLM 起的 `L2` 任务在玩家认领区留下**大量 `KEEP`（永久）方块**；
+  ② 实现"区域补种"（台账 `§5.12` 第 13 项）时按**真实用量**定数。届时更锋利的刀是
+  **只卡 `KEEP` 类区内放置**（`TEMP` 脚手架自带账本 + `RestoreScopeTask` 自动回收），而不是卡全部放置。
+- **跨任务累积是另一个问题**：多个任务在同一认领区越留越多，要**按 owner 持久化**的账 —— 那是设计，不是加个 int。
+
+**裁定②「`RoadObstaclePolicy.exactForbidden:54` 仍是裸 `protectionReason`」⇒ 行为零改动，只正名 + 加可失败断言**
+- **实测：它不是欠账，是"规划期规避"**（让路线**绕开**保护格 = 方向**收紧**，更保守）。它**不做授权决策**，
+  而真正的**写入闸门没绕过**：`RoadBuilder.buildUnit` → `BlockInteraction.placeBulkEdit`
+  （`setBlock` **之前**调 `ZoneAuthority.regionRefusal(..., Act.PLACE)`，`:482` vs `:500`）/
+  `breakForBulkEdit`（`breakRefusal` → `BlockBreakSafety.refusal` → 同一个 `regionRefusal`，`:526` vs `:540`）
+  ⇒ 两边**结论一致**（保护区里都拒），这里只是**先**拒（更便宜）。
+- **为什么不接阶梯**：接上是**放松**（路线可穿过被任务区覆盖的保护格），还会造出
+  "规划通过、逐块写入被拒"的**半成品路**。
+- **可执行断言（新落地）**：`tools/kernel-predicates.py: rule_bulk_write_zone_gate`
+  （输出前缀 `[D-343·批量写入区域闸]`）—— ① 两处批量写入的闸门必须在写入**之前**；
+  ② 破坏那条 4 跳链（`breakForBulkEdit`→`breakRefusal`→`BlockBreakSafety.refusal`→`explicitTargetRefusal`→`regionRefusal`）不许断；
+  ③ ⭐ **`RoadObstaclePolicy` 里不许出现 `ZoneAuthority`**（"顺手接上"会**直接构建红**；要改先改规则 + 本条）。
+- **反向对照三条（都做，全部如预期变红再复绿）**：① 删掉 `placeBulkEdit` 的闸门；② 把判定挪到 `setBlock` **之后**；
+  ③ 给 `RoadObstaclePolicy` 接上 `ZoneAuthority`。（另一条链断言"文本在不在"不够 —— 顺序/结构断言才拦得住 `&& false` 类绕过，`D-341` 的老教训。）
+
+**裁定③ 新发现：单独立项，不在本弧处理**
+- 道路任务**不声明任务区**，`RoadBuilder.start` 只由玩家命令（`BotCommand.java:1726`）触发
+  ⇒ **玩家显式在自己认领区修路，目前也做不了**（写入闸门拒 `protected_area`）。
+  按阶梯 `BUILD ⇒ L3`（玩家显式本该可开）这算**缺口** ⇒ 登记为台账 `§5.12` **第 20 项**（不借②顺手放宽）。
+
+**验证**：改动 = 两处**注释** + 一条**门禁规则** + 文档 ⇒ 客户端无新增可观测量
+⇒ **不需要客户端轮次**（口径见 `docs/TESTING_GUIDE.md`）；`COMPILES` + 内核规则 PASS + `check-all.sh` 全绿。

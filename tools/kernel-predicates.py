@@ -500,6 +500,88 @@ def rule_loop_admission():
     return problems
 
 
+def rule_bulk_write_zone_gate():
+    """D-343（2026-09-19 用户裁定）：**道路施工那条批量写入链不许绕过区域授权面**，
+    且 `RoadObstaclePolicy` 的"裸判据"必须**继续是**规划期规避（不许被顺手接上阶梯）。
+
+    事实（裁定依据，代码级查证）：`RoadObstaclePolicy.exactForbidden` 读**裸** `protectionReason`，
+    台账曾把它记成"未接阶梯 = 欠账"。实测**不是**：它只是**规划期让路线绕开保护格**（收紧，更保守），
+    真正的写入闸门在动作层且已接好 ——
+    `RoadBuilder.buildUnit` → `BlockInteraction.placeBulkEdit`（`setBlock` 前调 `regionRefusal(PLACE)`）/
+    `breakForBulkEdit`（`breakRefusal` → `BlockBreakSafety.refusal` → 同一个 `regionRefusal`）。
+    ⇒ 两边结论一致（保护区里都拒）。把它"接上阶梯"的方向是**放松**，还会造成"规划通过、逐块写入被拒"
+    的**半成品路** ⇒ 故**零行为改动**；本规则把该结论变成**可失败**的约束（散文注释不失败 = 拦不住回归）。
+
+    断言（任一被破坏 ⇒ 构建红）：
+    ① `placeBulkEdit`：区域授权判定在 `level.setBlock(` **之前**；
+    ② `breakForBulkEdit`：`breakRefusal(...)` 在 `level.destroyBlock(` **之前**，且
+    ③ `BlockInteraction.breakRefusal` → `BlockBreakSafety.refusal(` 这一跳还在，
+    ④ `BlockBreakSafety.refusal` → `clearingRefusal(`/`explicitTargetRefusal(` 这一跳还在，
+    ⑤ `BlockBreakSafety.explicitTargetRefusal(..., WriteReason ...)` 真的调 `ZoneAuthority.regionRefusal(`；
+    ⑥ ⭐ `RoadObstaclePolicy.exactForbidden` **不许**出现 `ZoneAuthority`
+       （要放松规划期规避 ⇒ 先改本规则 + `D-343`，不许顺手改）。
+    """
+    alice = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
+    bi = alice / "action" / "BlockInteraction.java"
+    bbs = alice / "protection" / "BlockBreakSafety.java"
+    rop = alice / "road" / "RoadObstaclePolicy.java"
+    problems = []
+    for path in (bi, bbs, rop):
+        if not path.exists():
+            problems.append(f"{path.name} 不存在（改名/移动？同步本规则）")
+    if problems:
+        return problems
+
+    bi_text = bi.read_text(encoding="utf-8")
+    bbs_text = bbs.read_text(encoding="utf-8")
+
+    def gate_before_write(text, signature, gate, write, label):
+        body = method_body(text, signature)
+        if not body:
+            problems.append(f"找不到 {label}（结构变了 ⇒ 本规则要跟着改）")
+            return
+        i_gate, i_write = body.find(gate), body.find(write)
+        if i_gate < 0:
+            problems.append(f"{label} 里没有 `{gate}` ⇒ **批量写入绕过了区域授权面**"
+                            "（RoadBuilder 就是走这条路进保护区的）")
+        elif i_write < 0:
+            problems.append(f"{label} 里找不到 `{write}`（改名？同步本规则）")
+        elif i_gate > i_write:
+            problems.append(f"{label} 的 `{gate}` 在 `{write}` **之后** ⇒ 判定晚于写入 = 等于没有闸门")
+
+    gate_before_write(bi_text, "public static boolean placeBulkEdit(",
+                      "ZoneAuthority.regionRefusal(", "level.setBlock(", "`placeBulkEdit`")
+    gate_before_write(bi_text, "public static boolean breakForBulkEdit(",
+                      "breakRefusal(bot, level, pos, grant)", "level.destroyBlock(", "`breakForBulkEdit`")
+
+    hop = method_body(bi_text, "public static String breakRefusal(")
+    if not hop:
+        problems.append("找不到 `BlockInteraction.breakRefusal`（断开链 ⇒ 本规则要跟着改）")
+    elif "BlockBreakSafety.refusal(" not in hop:
+        problems.append("`BlockInteraction.breakRefusal` 不再走 `BlockBreakSafety.refusal(` ⇒ 破坏闸门链断了")
+
+    hop2 = method_body(bbs_text, "public static String refusal(")
+    if not hop2:
+        problems.append("找不到 `BlockBreakSafety.refusal`（断开链 ⇒ 本规则要跟着改）")
+    elif not ("clearingRefusal(" in hop2 or "explicitTargetRefusal(" in hop2):
+        problems.append("`BlockBreakSafety.refusal` 不再走 `clearingRefusal`/`explicitTargetRefusal` ⇒ 链断了")
+
+    hop3 = method_body(bbs_text, "public static String explicitTargetRefusal(ServerPlayer bot, BlockPos target, WriteReason reason)")
+    if not hop3:
+        problems.append("找不到**带写入理由**的 `explicitTargetRefusal`（没了它，保护区那层无法按区域授权面判定）")
+    elif "ZoneAuthority.regionRefusal(" not in hop3:
+        problems.append("`explicitTargetRefusal(..., WriteReason ...)` 不再调 `ZoneAuthority.regionRefusal(` "
+                        "⇒ 破坏路径绕过区域授权面")
+
+    # ⑥ 反向：**故意不接阶梯**。少了这条，"顺手接上"就会静默改变 ② 的结论。
+    rop_code = re.sub(r"/\*.*?\*/", "", rop.read_text(encoding="utf-8"), flags=re.S)
+    rop_code = re.sub(r"//[^\n]*", "", rop_code)
+    if "ZoneAuthority" in rop_code:
+        problems.append("`RoadObstaclePolicy` 里出现了 `ZoneAuthority` ⇒ 规划期规避被接上权限阶梯"
+                        "（方向是**放松**，会造出半成品路）。要改先改本规则 + `D-343`")
+    return problems
+
+
 def rule_no_until_full():
     """J5-P1（2026-09-17 用户裁定「删」）：**`GoalSpec.Kind.UNTIL_FULL` 不得复活**。
 
@@ -673,6 +755,7 @@ def main() -> int:
     ring = rule_stop_event_ring()
     noperm = rule_no_permitted_candidate()
     loop = rule_loop_admission()
+    bwg = rule_bulk_write_zone_gate()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -715,10 +798,12 @@ def main() -> int:
         print(f"[D-341·无权≠没有] {line}")
     for line in loop:
         print(f"[D-342·循环受理闸] {line}")
+    for line in bwg:
+        print(f"[D-343·批量写入区域闸] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop)
+          and not noperm and not loop and not bwg)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
           f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)}"

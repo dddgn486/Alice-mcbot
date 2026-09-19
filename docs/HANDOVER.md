@@ -24,14 +24,19 @@
 >   `noteTerminalOutcome` 去掉 `kind`；`task_zone` 判据 **94 → 93**（删掉已废弃的"跨写法"断言）。
 > **证据（全无头）**：`single:llm_contract`（10 判据全绿）· `single:task_zone` **93/0** ·
 > `module:{llm,lumber,protection}` · **CORE 51/51（`ticks=4777`）** · 内核规则
-> （`rule_stop_event_ring` / `rule_no_permitted_candidate` / `rule_loop_admission`）PASS ·
+> （`rule_stop_event_ring` / `rule_no_permitted_candidate` / `rule_loop_admission` / `rule_bulk_write_zone_gate`）PASS ·
 > 反向对照**每条机制都做过**（明细见各 `D-3xx`，含"注入被弱规则放过 ⇒ 改结构断言"两次教训）。
-> **jar 已同步**：`alice-1.0.0-1.20.1.jar` **`JAR_CONTENT_SHA256=642e388b…`**（换 jar ⇒ **重启客户端**）。
+> **jar 已同步**：`alice-1.0.0-1.20.1.jar` **`JAR_CONTENT_SHA256=80eab57f…`**（换 jar ⇒ **重启客户端**）。
+> ⚠️ 这条哈希从 `642e388b` 变到 `80eab57f` **不是行为变化**：`D-343` 只往 `ZoneAuthority` / `RoadObstaclePolicy`
+> 加了注释，而注释**移动行号** ⇒ `.class` 里的 `LineNumberTable` 变了。已用 `javap -c` 逐指令比对
+> **完全一致**（仅 2 个条目不同）⇒ **无需任何复测**；重同步只为保持"客户端 == `build/libs`"。
 > ⭐ **本弧最重要的口径（用户裁定，不许再犯）**：**默认无头**。客户端轮次只用于"证据本身在客户端"的类别
 > （渲染 / 物理 / GUI / 同步 / 真实模组交互 / 真人观感）⇒ 见 `docs/TESTING_GUIDE.md`「客户端轮次的准入尺子」。
 > 交付话术必须明说"**不需要你复测**（已无头覆盖：`<命令>`）"，或"需要，因为 `<客户端才有的信息>`"。
-> **⏳ 未决（等用户拍）**：① `L2` 要不要也加"每 `scopeId` 区内放置上限"（`L1` 有 ≤8）；
-> ② `RoadObstaclePolicy` 仍走裸保护区判据（已登记、未接阶梯）。
+> ✅ **两项未决已裁定（2026-09-19，`D-343`）**：① **`L2` 不加**区内放置配额（**无洞**：`WriteBudget` 同按
+> `scopeId` 计默认 32、随任务生灭；加了会伤补种/火把/垫脚 ⇒ 假拒绝）· ② **`RoadObstaclePolicy` 裸判据有意保留**
+> （那是**规划期规避**（收紧）不是欠账，写入闸门没绕过）⇒ 已变**可失败断言** `rule_bulk_write_zone_gate`
+> （含 ⭐"**不许顺手接上阶梯**"反向断言；三条反向对照都做过）。新增第 20 项：**玩家显式在自认领区修路做不了**（道路任务不声明任务区 ⇒ 未开工）。
 > **⏳ 下一步候选**（台账 `§5.12` / 第 13/15 行）：区域补种异步化 + **可配置拾取清单** · 区域内**注册容器卸货** ·
 > 决策层**队列 + 持久终态**（`docs/DECISION_LAYER_FINAL_FORM.md`，设计定稿·未实现·未验收）。
 > **历史指针（从这里**不要**接，细节查 `AI_DECISIONS.md` 与 `git log`）**：

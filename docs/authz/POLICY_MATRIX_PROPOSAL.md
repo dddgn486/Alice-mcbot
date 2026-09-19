@@ -79,7 +79,7 @@
 
 1. **`PROTECTED` 不能当默认区类的名字**：项目里"保护区"= `SafeZoneData` 命中 ⇒ **禁止破坏**
    （`protection/BlockBreakSafety.java:47`、`action/BlockInteraction.java:462`、`pathing/core/CapabilityGate.java:71`、
-   `road/RoadObstaclePolicy.java:42`）；而默认区**允许**破坏（挖矿/清障/脚手架都在里面）。**同名反义**必致误读。
+   `road/RoadObstaclePolicy.java:54（`exactForbidden`）`）；而默认区**允许**破坏（挖矿/清障/脚手架都在里面）。**同名反义**必致误读。
    ⇒ 默认区改名 **`EXTERNAL`**（不是 Alice 的地）。
 2. **`TRANSIT` 是维度混淆**：通行是 **`PathRequest` 的属性**（D-076 默认纯通行；`of:35` vs 降级 `pureTraversal():119`），
    不是**地块的属性**；塞进区域分层等于给同一概念造第三个同义词。
