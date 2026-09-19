@@ -6,6 +6,8 @@ import com.dddgn.alice.log.BotLog;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -191,12 +193,51 @@ public final class ZoneAuthority {
         return authorize(level, owner, pos, reason, Act.PLACE).refusal();
     }
 
-    /** 放行时留一行（**低频**：只在"保护区里真的被放行"时打，便于事后审计"谁被授予了区内写入"）。 */
+    /**
+     * **留痕上限**（条）：同一格 + 同一理由**只留一次**，且总数有上限。
+     *
+     * <p>为什么必须去重（**客户端实测逼出来的**，2026-09-19）：{@code BlockBreakSafety} 不只被**动作层**调用，
+     * 还被**规划期**的候选谓词反复调用（同一个 `pos`+`reason` 在 50 ms 内被问 5 次）⇒ 不去重的话
+     * 一轮区域伐木会刷出成千上万行 `ALLOW`，把真日志淹掉。行为一条没改，改的只是**打印次数**。
+     */
+    public static final int AUDIT_CAP = 512;
+
+    private static final Set<String> AUDITED = new LinkedHashSet<>();
+    private static boolean auditSaturated;
+
+    /**
+     * 放行时留一行（同一格 + 同一理由只留一次；总数到 {@link #AUDIT_CAP} 后不再逐条打，只报一次饱和）。
+     * 目的：事后能审计"**谁被授予了区内写入**"，同时不把日志刷成噪声。
+     */
     public static void logAllow(BlockPos pos, WriteReason reason, Decision decision) {
-        if (decision.allowed()) {
-            BotLog.info("[ZoneAuthority] ALLOW pos={} reason={} {}", pos.toShortString(),
-                    reason == null ? "-" : reason.name(), decision.detail());
+        if (!decision.allowed() || pos == null) {
+            return;
         }
+        String key = pos.asLong() + "|" + (reason == null ? "-" : reason.name());
+        if (!AUDITED.add(key)) {
+            return;
+        }
+        if (AUDITED.size() > AUDIT_CAP) {
+            if (!auditSaturated) {
+                auditSaturated = true;
+                BotLog.info("[ZoneAuthority] 审计留痕已达上限 {} 条 ⇒ 后续放行不再逐条打印"
+                        + "（**闸门行为不变**，只是不再打印；真要逐次审计看 `[WRITE]` / 账本）", AUDIT_CAP);
+            }
+            return;
+        }
+        BotLog.info("[ZoneAuthority] ALLOW pos={} reason={} {}（同一格+同一理由只留痕一次）",
+                pos.toShortString(), reason == null ? "-" : reason.name(), decision.detail());
+    }
+
+    /** 已留痕的 (格, 理由) 条数（夹具据此断言"重复问同一格不会重复刷日志"）。 */
+    public static int auditLoggedCount() {
+        return AUDITED.size();
+    }
+
+    /** **夹具/收尾专用**：清空留痕去重表（不影响任何授权判定）。 */
+    public static void clearAudit() {
+        AUDITED.clear();
+        auditSaturated = false;
     }
 
     private static String shortId(UUID owner) {

@@ -634,6 +634,22 @@ public final class TaskZoneCheckTask implements Task {
                         + "（与矿侧同一条路：`MINING` 也是 L0）",
                 hasCode(l0Rejected, "zone_read_only") && !hasCode(l0Rejected, "protected_area"));
 
+        // ⑧ 日志卫生（**客户端实测逼出来的**）：规划期谓词会反复问同一格 ⇒ 留痕必须去重，否则刷屏
+        ZoneAuthority.clearAudit();
+        int before = ZoneAuthority.auditLoggedCount();
+        TaskZoneRegistry.declare(server, owner, "region_lumber", authArea, false);
+        boolean allAllowed = true;
+        for (int i = 0; i < 100; i++) {
+            // 走**动作层那条**（`regionRefusal` 才留痕；`breakRefusal` 是纯判定入口，刻意不打印）
+            allAllowed &= ZoneAuthority.regionRefusal(level, owner, AUTH_INSIDE, "protected_area",
+                    WriteReason.EXPECTED_TARGET, ZoneAuthority.Act.BREAK) == null;
+        }
+        check("⑩日志卫生：**同一格 + 同一理由问 100 次 ⇒ 只留痕 1 条**（判定每次都一致；"
+                        + "客户端实测里规划期谓词 50 ms 问了 5 次同一格 ⇒ 不去重会刷屏）"
+                        + "｜logged=" + (ZoneAuthority.auditLoggedCount() - before),
+                allAllowed && ZoneAuthority.auditLoggedCount() - before == 1);
+        ZoneAuthority.clearAudit();
+
         findings.add("authority: L0/L1/L2 判据 + 真写入（quota=" + quotaPlaced + "/"
                 + ZoneAuthority.L1_MAX_PLACES + " 区内放置，越界/安全区/野外/别的 owner/候选扫描各一条）");
         TaskZoneRegistry.release(WorldModLedger.currentScope(server, owner));
@@ -751,6 +767,7 @@ public final class TaskZoneCheckTask implements Task {
             check("收尾：本步没有发生用例超时", false);
         }
         TaskZoneRegistry.clearAll();
+        ZoneAuthority.clearAudit();
         phase = Phase.DONE;
         finish();
     }

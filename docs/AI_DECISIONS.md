@@ -13750,3 +13750,51 @@ quota=1 → 回巡查；命令 `/alice region start|stop|info|clear`）已有"�
 **复核触发**：① 任务类别→等级表太粗（同类别不同任务该不同等级）⇒ 改按 requester 细表；
 ② 保护区内放置"变严"在实践中挡住合理动作（例如任务需要在自家基地垫一格）⇒ 看是否该把某些任务升到 `L1`；
 ③ `L1` 的 8 次不够/太多 ⇒ 调 `ZoneAuthority.L1_MAX_PLACES`。
+
+### D-338 附注九：客户端第二轮（保护区里划林场）—— 判定 + 一个**日志卫生**缺陷 + 三个空白 2026-09-19
+
+**用户实测**（固定客户端 `latest.log`，2026-09-19 16:49–16:55；用户先 `/alice ftb bind` 绑定了 bot）。用户报告两点偏差：
+① 「遇到高树挖不到**没有搭柱子**，直接跳过了」；② 「在保护区范围内启动**一次性砍树，还是会正常破坏方块**」。
+
+**判定（证据逐条来自 `latest.log`，AI 直接读的客户端日志）**：
+- ✅ **用例 1（保护区里划林场）成立**：`[TaskZone] declared … kind=region_lumber level=L2 chunks=6 area(block)=609
+  [17..37,203..231]`（4 次启动全部如此，`:282/:4907/:6352/:6754`）；`[ZoneAuthority] ALLOW … 等级 L2 ⇒ 放行破坏`
+  （`:7425+`）；内层 Job 真的砍完：`[Job] terminal job=lumber result=DONE reason=quota_met progress=trees 1/1 logs 4/4`
+  （`:7087`/`:7387`）；补种 `[Ledger] place … oak_sapling [KEEP REGION_REPLANT]`（`:5276/:7117`）。
+- ✅ **用例 3（冲突如实失败）成立**：`安全区：1, 12 ⇒ 已声明`（`:6703`）→
+  `[TaskZone] ⛔ …冲突 ⇒ 拒绝声明`（`:6722`）+ 聊天 `区域任务失败：task_zone_conflict[safe_zone 1 chunks: 1,12]`（`:6733`），
+  且**任务 1 tick 就终态**（`:6727 durationTicks=1`）⇒ "如实失败、不继续跑"在客户端成立。
+- ✅ **用例 2（无任务区的一次性砍树）**：`:6326` 聊天 `伐木 Job 启动` → `:6327`
+  `[Job] select job=lumber … candidates=0 rejected=[tree@20,64,208:protected_area, tree@28…, tree@33…]`
+  → `:6331 terminal=FAILED code=failed:no_reachable_candidate durationTicks=1` ⇒ **全被拒、1 tick 失败**。
+  ⚠️ **但这与用户报告 ② 相反**，`session` 里**只有这一次**一次性砍树（`grep "task_execution_terminal kind=lumber"` 仅 1 条）
+  ⇒ **必须向用户问清**：当时点的是哪个入口/在什么时机。**最可能的解释**：在**区域任务正在跑**时点 `alice:lumber_job`
+  （被 `BotManager.isBusy` 挡下 / 或用户看到的是区域任务在砍 —— 区域任务是 `L2`，**本来就该砍**）。
+  ⇒ 未定论，**不据日志下结论**（用户口径：物理/现场事实优先问人）。
+- ⚠️ **报告 ① 拆成两个不同的事实**：
+  ⒜ **2×2 高大云杉 `(22,64,218)` 是候选期按设计拒绝**（`tree@22,64,218:trunk_too_tall`，`:6831/:7130/:7407/:7453`）——
+  77 原木 > `TreeScanner.MAX_LOGS=64` ⇒ **根本不尝试，也就不会搭柱子**（`D-128`/J7 Step 4 既有口径）。
+  "要它搭柱子上去砍 2×2 高树"= **新需求**，不是回归。
+  ⒝ **真正卡住的是"云杉树叶清障"**：`stand=29,64,209 eyeDist=0.90` 想清 `minecraft:spruce_leaves`（`:4670`），
+  连续 **40 次** `[WRITE-REFUSED] break … reason=world_unchanged（destroyBlock=false 方块仍是 云杉树叶 —— 被保护层取消 / 未生效）`
+  → `[MiningPlanner] standable_only … no_reachable_standing_point`（`:4679`）⇒ 放弃这棵树。
+  ⭐ **判别性事实：这 40 次全部发生在 16:50:57–16:51:01，也就是用户 `16:51:08 /alice ftb bind` 之前；
+  bind 之后 `[WRITE] break` 51 次、`world_unchanged` 0 次** ⇒ 那次"被保护层取消"= **FTB**（§2.5.1 已登记的风险），
+  **不是**我们的闸门（我们的拒绝会带 `protected_area` / `zone_*` 码，且 `ftb bind` 不可能修好我们的闸门）。
+  ⇒ 报告 ① **不是回归**；"没有搭柱子"的直接后果是"**清障被打包拦 ⇒ 连站位都拿不到**"，与攀爬逻辑无关。
+
+**⭐ 本轮暴露的真缺陷（我引入的）：`[ZoneAuthority] ALLOW` 日志刷屏**。客户端日志 `:7425–7452` 在 50 ms 内打了
+**约 30 行**同格同理由的 `ALLOW` —— 根因：`BlockBreakSafety` 不只被**动作层**调用，还被**规划期候选谓词**反复调用
+（同一 `pos`+`reason` 一次规划问多次）。**修法**：留痕按 **(格, 理由)** 去重 + 总数上限 `AUDIT_CAP=512`（到顶只报一次饱和）
+⇒ 行为一字未改，只是打印次数回到"一次一格一理由"。**门禁加第 11 条**：同一格 + 同一理由问 **100 次 ⇒ 只留痕 1 条**
+（且判定每次相同）。
+
+**⚠️ 这一轮**没有**覆盖到的空白（要写下来，别当成验过）**：
+① ⭐ **J7 攀爬兜底在保护区（`L2` 任务区）里会不会搭柱子** —— 整轮 `[Ledger] place` 只有补种树苗、
+   `scaffoldLeft=0` ⇒ **零 pillar 放置** ⇒ "区内放置放行（`STEP_PLACEMENT` + `TEMP`）"**在客户端没被观察到**
+   （离线门禁里 `placeBulkEdit` 那条是真的写过世界的，但那不是内核 `PILLAR` 路径）。
+② **区域任务因缺树苗中止**（`:6682 terminal=FAILED code=failed:tool_missing（区域欠树 deficit=1，但背包里没有 minecraft:oak_sapling）`）
+   —— 同一时刻日志里有 `[Pickup] blocked item=oak_sapling x2 provenance=FOREIGN policy=ASK`（`:6700`）
+   ⇒ **自己砍下来的树苗在地上、被动拾取闸门不放行 ⇒ 补种缺料**。这是**既有口径**（D-134 系列）不是本片引入，
+   但"区域补种"这条链上它构成**可用性缺口** ⇒ 登记为新发现，待用户裁定（是否让区域任务显式收集自己砍的掉落物）。
+③ 高树支持（⒜）本身 = 需求，未做。
