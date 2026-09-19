@@ -25,10 +25,13 @@
 >    **之前**的读脚印闸门 + 边界语义（`boundaryBlocked>0` ⇒ 有前缀给 `PARTIAL`、无前缀给 `SEARCH_LIMIT`，
 >    **绝不 `UNREACHABLE`**：未知≠到不了）。红 `failures=1 newlyLoaded=6` → 绿 `failures=0 newlyLoaded=0` +
 >    `PARTIAL prefixLen=198 progress=197` + `diag boundary_blocked=117 skipped_unloaded=0`。
->    ⚠️ **新暴露的事实（未修，已登记 `D-337 附注二`）**：粗目标在边界外不可达 ⇒ A\* 把**已加载区整片**展开完
->    才收手 ⇒ `nodes=20000`（= 上限）/ 147~163 ms（对照**可达**的 640 格 = 641 节点 / 8~14 ms）⇒
->    **hop 每跳 = 一次整片洪泛**；可选优化 = 粗目标先夹到已加载边界（或给它单独的小节点预算）。
->    **④ 剩余**：`GoalNearXZ` 仍**生产未接线**（无任务/命令构造它）+ 上面那条洪泛优化。
+>    ✅ **洪泛 + 生产接线（`D-337 附注二`）也已落地（2026-09-19）**：⭐ `FarTravelHop`（只读 `hasChunkAt`
+>    采样已加载前沿 ⇒ **夹到边界内侧** + `GoalNearXZ` 半径版）+ ⭐ `FarWalkTask`（生产任务：**反复跳**，
+>    护栏 = 跳数/tick/单调性；到达口径粗 ⇒ 精确落脚接 `WalkToTask` = Baritone `GoalNear`→`GoalBlock`）。
+>    **A/B（同一轮）**：粗目标 `20000 节点 / 142~186 ms / PARTIAL` vs **一跳 `161 节点 / 1 ms / REACHED`**；
+>    **执行侧**：300 格 = **hops=2 / 1111 tick / DONE** + 精确落脚 30 tick ✓。判据 19 项 / 0 失败。
+> ⚠️ **④ 唯一剩余**：`FarWalkTask` **还没有生产调用方**（预期先给 `D-327` 机制 B「返回安全区」或决策层
+>    「去坐标」目标；后者要改闭集动词表，属另一件事）—— 已登记台账。
 > ⚠️ 自测档位按 `D-332`：小改动只跑 `single:`，CORE/全量留到收口。
 
 

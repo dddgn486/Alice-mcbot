@@ -35,6 +35,14 @@ import java.util.List;
  * ③ 大距离**不设通过/失败** —— `SEARCH_LIMIT` / `GOAL_NOT_LOADED` / `PARTIAL` 都是**要记录的事实**，
  * 不是判红条件（判红会诱使后来人把曲线"调好看"）。
  *
+ * <p><b>后三个相位是"远距离怎么走"的判据（有红绿，`D-337`）</b>：
+ * ④ `COARSE`（远粗目标）：不许被硬拒、必须给朝目标推进的前缀、**不许把未加载区块读进来**（红线 `D-132`）、
+ *    被边界挡住时**不许报 `UNREACHABLE`**；对照：同位置精确目标仍 `GOAL_NOT_LOADED`；
+ * ⑤ `HOP`（夹边界的一跳，{@link com.dddgn.alice.pathing.core.search.FarTravelHop}）：必须 `REACHED`
+ *    且**节点数线性**（不许整片洪泛）—— 与 ④ 在同一轮内构成 A/B；
+ * ⑥ `FAR_WALK` + `FINAL_APPROACH`：生产任务 {@link FarWalkTask} 把 bot 真的送出去
+ *    （跳数 ≥2 ⇒ 真分段），之后接 {@link WalkToTask} 精确落脚（组合 = Baritone `GoalNear`→`GoalBlock`）。
+ *
  * <p>收尾：走廊方块清回空气 + 撤销 forceload（夹具不复位 = 污染后续步）。
  */
 public final class FarPathBenchCheckTask implements Task {
@@ -68,7 +76,8 @@ public final class FarPathBenchCheckTask implements Task {
 
     private static final int BUDGET_TICKS = 6000;   // 走路那遍要 ~1900+ tick（每 tick 驱动子任务一 tick）
 
-    private enum Phase { GUARD, BUILD, MEASURE, MEASURE_TERRAIN, WALK, NO_LOAD, COARSE, CLEANUP, DONE }
+    private enum Phase { GUARD, BUILD, MEASURE, MEASURE_TERRAIN, WALK, NO_LOAD, COARSE, HOP,
+                         FAR_WALK, FINAL_APPROACH, CLEANUP, DONE }
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -93,6 +102,17 @@ public final class FarPathBenchCheckTask implements Task {
     private int corridorMeasured;
     private int terrainMeasured;
     private int noLoadMeasured;
+    /** 粗目标那一遍的节点数（`HOP` 相位做 A/B 对照用）。 */
+    private int coarseNodes = -1;
+    /** 远距离旅行那两遍（`FAR_WALK` + `FINAL_APPROACH`）：生产任务实例与结果快照。 */
+    private FarWalkTask farWalkTask;
+    private WalkToTask finalApproachTask;
+    private BlockPos farWalkTarget;
+    private int farWalkStartTick;
+    private int finalApproachStartTick;
+    private int farWalkHops;
+    private int farWalkTicks;
+    private Task.Status farWalkStatus;
     /** 不 forceload 那遍的起点（settle 之后从 bot 实际位置取；见该遍的前提判据）。 */
     private BlockPos noLoadStart;
     /** 走廊**覆盖掉的原方块**（收尾必须还原 —— 第一版直接清成空气，等于把这片自然地形挖了个洞）。 */
@@ -141,6 +161,9 @@ public final class FarPathBenchCheckTask implements Task {
             case WALK -> walkPhase();
             case NO_LOAD -> noLoadPhase();
             case COARSE -> coarsePhase();
+            case HOP -> hopPhase();   // D-337 附注二：同一轮内的 A/B（远粗目标 vs 夹边界的一跳）
+            case FAR_WALK -> farWalkPhase();          // 生产任务 FarWalkTask：反复跳直到到达
+            case FINAL_APPROACH -> finalApproachPhase();   // 组合：GoalNear → GoalBlock
             case CLEANUP -> cleanupPhase();
             case DONE -> {
                 return finish();
@@ -351,11 +374,7 @@ public final class FarPathBenchCheckTask implements Task {
         int radius = 16;
         // ⚠️ 沿路**多采样**前后对比：只问"区域中心"会被"搜索只走到边界"骗过去 ——
         // 若搜索在扩展时读了未加载方块，它会**一路把区块加载进来**，但停在中心之前（中心仍 false）。
-        int[] probes = {192, 224, 256, 288, 320, 352, 384, 400};
-        StringBuilder beforeStr = new StringBuilder();
-        for (int d : probes) {
-            beforeStr.append(d).append('=').append(level.hasChunkAt(start.offset(d, 0, 0))).append(' ');
-        }
+        boolean[] probedBefore = sampleProbes(level, start);
         boolean loadedBefore = level.hasChunkAt(center);
         var goal = com.dddgn.alice.pathing.core.search.GoalNearXZ.around(center, radius);
         PathPlan coarse = new CorePathPlanner().plan(bot, level,
@@ -384,23 +403,18 @@ public final class FarPathBenchCheckTask implements Task {
         check("粗目标：必须给出朝目标推进的前缀（progress=" + bestProgress + " > 0，prefixLen="
                         + coarse.projectedFootPath().size() + "）",
                 bestProgress > 0);
-        StringBuilder afterStr = new StringBuilder();
-        int newlyLoaded = 0;
-        for (int d : probes) {
-            boolean after = level.hasChunkAt(start.offset(d, 0, 0));
-            afterStr.append(d).append('=').append(after).append(' ');
-            if (after && !beforeStr.toString().contains(d + "=true")) {
-                newlyLoaded++;
-            }
-        }
-        BotLog.info("[FarBench] coarse 采样前：{}｜采样后：{}｜新被加载的采样点={}", beforeStr, afterStr, newlyLoaded);
-        curve.add("coarse_loadProbe before=[" + beforeStr.toString().trim() + "] after=["
-                + afterStr.toString().trim() + "] newlyLoaded=" + newlyLoaded);
+        coarseNodes = coarse.nodesExpanded();
+        boolean[] probedAfter = sampleProbes(level, start);
+        int newlyLoaded = newlyLoadedCount(probedBefore, probedAfter);
+        BotLog.info("[FarBench] coarse 采样前：{}｜采样后：{}｜新被加载的采样点={}",
+                probeText(probedBefore), probeText(probedAfter), newlyLoaded);
+        curve.add("coarse_loadProbe before=[" + probeText(probedBefore) + "] after=["
+                + probeText(probedAfter) + "] newlyLoaded=" + newlyLoaded);
         // ⭐ **红线判据（`D-337` 收口，2026-09-19）**：内核**从不加载区块**（`D-132`）。
         // 修好之前这里暂时是响亮 WARN（红证据见 `D-337`：`newlyLoaded=6`，224→384 被同步加载）；
         // 修好之后**必须恒为 0** —— 判据回到 `check(...)` 才是"能失败的规则"。
         check("红线 D-132：粗目标搜索**不许**把任何未加载区块读进来（实际 newlyLoaded="
-                        + newlyLoaded + "，采样 " + afterStr.toString().trim() + "）",
+                        + newlyLoaded + "，采样 " + probeText(probedAfter) + "）",
                 newlyLoaded == 0);
         // ⭐ 语义判据（`D-337` 附注）：搜索因"前面没加载"而停手时**不许报 `UNREACHABLE`**
         // —— 那是"搜索空间穷尽、证明确实到不了"，而这里是"未知"（`D-076`：`SEARCH_LIMIT ≠ UNREACHABLE`）。
@@ -416,7 +430,184 @@ public final class FarPathBenchCheckTask implements Task {
                         + exact.status() + " nodes=" + exact.nodesExpanded() + "）",
                 exact.status() == com.dddgn.alice.pathing.core.search.PlanningStatus.GOAL_NOT_LOADED
                         && exact.nodesExpanded() == 0);
+        phase = Phase.HOP;
+    }
+
+    /**
+     * ⭐ **分段 hop 那一遍**（`D-337 附注二`）：同一个远目标，改成"**夹到已加载边界内的一跳**"
+     * （{@link com.dddgn.alice.pathing.core.search.FarTravelHop}）后，搜索必须**回归线性**。
+     *
+     * <p>**A/B 就在同一轮里**：上一相位（`COARSE`）量的是"直接用远粗目标" ⇒ 目标区永远不可达
+     * ⇒ 整片洪泛（`nodes=20000` = 预算上限）。本相位量"先夹再规划" ⇒ 目标永远可达 ⇒ 节点数 ≈ 一跳长度。
+     */
+    private void hopPhase() {
+        ServerLevel level = bot.serverLevel();
+        BlockPos start = noLoadStart;
+        BlockPos target = start.offset(400, 0, 0);
+        boolean[] probedBefore = sampleProbes(level, start);
+        var hop = com.dddgn.alice.pathing.core.search.FarTravelHop.compute(
+                level, start, target,
+                com.dddgn.alice.pathing.core.search.FarTravelHop.DEFAULT_RADIUS,
+                com.dddgn.alice.pathing.core.search.FarTravelHop.MARGIN);
+        PathPlan plan = null;
+        if (hop.feasible()) {
+            plan = new CorePathPlanner().plan(bot, level,
+                    com.dddgn.alice.pathing.core.search.FarTravelHop.request(
+                            bot.getUUID().toString(), start, hop, "pathing"));
+        }
+        boolean[] probedAfter = sampleProbes(level, start);
+        int newlyLoaded = newlyLoadedCount(probedBefore, probedAfter);
+        long linearBound = 4L * (hop.reachBlocks() + 1L);
+        String at = "hop " + hop.describe() + " status=" + (plan == null ? "NOT_FEASIBLE" : plan.status())
+                + " nodes=" + (plan == null ? -1 : plan.nodesExpanded())
+                + " moves=" + (plan == null ? -1 : plan.movementsConsidered())
+                + " ms=" + (plan == null ? -1 : plan.elapsedMillis())
+                + " reached=" + (plan != null && plan.reached()) + " newlyLoaded=" + newlyLoaded;
+        BotLog.info("[FarBench] {} ｜A/B：粗目标 nodes={} vs 一跳 nodes={}（线性上限 {}）",
+                at, coarseNodes, plan == null ? -1 : plan.nodesExpanded(), linearBound);
+        curve.add("hop_target=" + target.toShortString() + " " + at + " coarseNodes=" + coarseNodes
+                + " linearBound=" + linearBound);
+        check("分段 hop：目标被夹到已加载区内 ⇒ 一跳必须可行（" + hop.describe() + "）", hop.feasible());
+        check("分段 hop：一跳必须 `REACHED`（不再靠边界前缀凑合，实际 "
+                        + (plan == null ? "null" : plan.status()) + "）",
+                plan != null && plan.status() == com.dddgn.alice.pathing.core.search.PlanningStatus.REACHED);
+        check("分段 hop：节点数必须**线性**（" + (plan == null ? -1 : plan.nodesExpanded())
+                        + " ≤ " + linearBound + "）—— 不许再整片洪泛（A/B 对照见日志 coarseNodes="
+                        + coarseNodes + "）",
+                plan != null && plan.nodesExpanded() <= linearBound);
+        check("分段 hop：一跳也不许把未加载区块读进来（实际 newlyLoaded=" + newlyLoaded + "）",
+                newlyLoaded == 0);
+        phase = Phase.FAR_WALK;
+    }
+
+    /** 远距离旅行那一遍走多远（格）：用户给的量级 300~1000 的低端，够触发 ≥2 跳（一跳 ~170 格）。 */
+    private static final int FAR_WALK_DISTANCE = 300;
+
+    /** 远距离旅行的夹具护栏（tick）：300 格 ≈ 1140 tick + 两跳规划，留 2.5 倍余量。 */
+    private static final int FAR_WALK_TICK_CAP = 3000;
+
+    /** 精确落脚（组合那一段）的夹具护栏：只剩 ≤8 格，600 tick 足够。 */
+    private static final int FINAL_APPROACH_TICK_CAP = 600;
+
+    /**
+     * ⭐ **远距离旅行（生产任务 `FarWalkTask`）**：同一起点朝 {@link #FAR_WALK_DISTANCE} 格外走，
+     * 证明"反复跳"真的能把 bot 送到远处（跳数必须 ≥2 ⇒ 确实分段了，而不是一次搜到底）。
+     */
+    private void farWalkPhase() {
+        if (farWalkTask == null) {
+            farWalkTarget = noLoadStart.offset(FAR_WALK_DISTANCE, 0, 0);
+            farWalkStartTick = ticks;
+            farWalkTask = new FarWalkTask(bot, farWalkTarget);
+            BotLog.info("[FarBench] far_walk 起走 {} → {}（{} 格；分段 hop 生产任务）",
+                    bot.blockPosition().toShortString(), farWalkTarget.toShortString(), FAR_WALK_DISTANCE);
+            return;
+        }
+        Task.Status status = farWalkTask.tick();
+        if (status == Task.Status.RUNNING) {
+            if (ticks - farWalkStartTick > FAR_WALK_TICK_CAP) {
+                farWalkStatus = Task.Status.FAILED;
+                farWalkHops = farWalkTask.hops();
+                farWalkTicks = ticks - farWalkStartTick;
+                curve.add("far_walk TIMEOUT ticks=" + farWalkTicks + " hops=" + farWalkHops);
+                check("远距离旅行：夹具护栏内必须走完（" + FAR_WALK_TICK_CAP + " tick，实际用了 "
+                        + farWalkTicks + "）", false);
+                farWalkTask = null;
+                phase = Phase.FINAL_APPROACH;
+            }
+            return;
+        }
+        farWalkStatus = status;
+        farWalkHops = farWalkTask.hops();
+        farWalkTicks = ticks - farWalkStartTick;
+        int remaining = FarWalkTask.distanceXZ(bot.blockPosition(), farWalkTarget);
+        curve.add("far_walk d=" + FAR_WALK_DISTANCE + " status=" + status + " hops=" + farWalkHops
+                + " ticks=" + farWalkTicks + " remaining=" + remaining
+                + " bot=" + bot.blockPosition().toShortString()
+                + " reason=" + farWalkTask.failureReason()
+                + " hops=[" + String.join("; ", farWalkTask.hopCurve()) + "]");
+        BotLog.info("[FarBench] far_walk d={} status={} hops={} ticks={} remaining={} bot={} reason={}",
+                FAR_WALK_DISTANCE, status, farWalkHops, farWalkTicks, remaining,
+                bot.blockPosition().toShortString(), farWalkTask.failureReason());
+        check("远距离旅行：" + FAR_WALK_DISTANCE + " 格必须走到（status=" + status + " remaining="
+                        + remaining + " ≤ " + FarWalkTask.DEFAULT_ARRIVE_RADIUS + "，reason="
+                        + farWalkTask.failureReason() + "）",
+                status == Task.Status.DONE && remaining <= FarWalkTask.DEFAULT_ARRIVE_RADIUS);
+        check("远距离旅行：跳数必须 ≥ 2（" + FAR_WALK_DISTANCE + " 格 > 一跳 ~170 格 ⇒ 证明**真的分段**了；"
+                        + "实际 hops=" + farWalkHops + "）",
+                farWalkHops >= 2);
+        // ⚠️ 红线复核：**走**的过程本来就会加载沿途区块（那是 bot 移动的自然结果）——
+        // 这里要证的是"**规划**不额外加载"：两跳的规划都发生在各自起点附近，标签见 `[FarWalk] hop=`。
+        farWalkTask = null;
+        phase = Phase.FINAL_APPROACH;
+    }
+
+    /**
+     * **组合那一段**（Baritone `GoalNear` → `GoalBlock`）：远距离旅行只保证"进 XZ 邻域"，
+     * 精确落脚由紧接的 {@link WalkToTask} 完成 —— 此时目标区块**已被自己的移动加载**，
+     * 所以 `D-331` 的 `walk_goal_unloaded` 不该触发。
+     */
+    private void finalApproachPhase() {
+        if (finalApproachTask == null) {
+            finalApproachStartTick = ticks;
+            finalApproachTask = new WalkToTask(bot, farWalkTarget);
+            BotLog.info("[FarBench] final_approach 精确落脚 → {}（距离 {}）",
+                    farWalkTarget.toShortString(), FarWalkTask.distanceXZ(bot.blockPosition(), farWalkTarget));
+            return;
+        }
+        Task.Status status = finalApproachTask.tick();
+        if (status == Task.Status.RUNNING) {
+            if (ticks - finalApproachStartTick > FINAL_APPROACH_TICK_CAP) {
+                check("组合：精确落脚必须在 " + FINAL_APPROACH_TICK_CAP + " tick 内走完（剩余 "
+                        + FarWalkTask.distanceXZ(bot.blockPosition(), farWalkTarget) + " 格）", false);
+                finalApproachTask = null;
+                phase = Phase.CLEANUP;
+            }
+            return;
+        }
+        int used = ticks - finalApproachStartTick;
+        boolean arrived = bot.blockPosition().distManhattan(farWalkTarget) <= 3;
+        curve.add("final_approach status=" + status + " ticks=" + used + " arrived=" + arrived
+                + " bot=" + bot.blockPosition().toShortString()
+                + " reason=" + finalApproachTask.failureReason());
+        BotLog.info("[FarBench] final_approach status={} ticks={} arrived={} bot={} reason={}",
+                status, used, arrived, bot.blockPosition().toShortString(),
+                finalApproachTask.failureReason());
+        check("组合（GoalNear → GoalBlock）：远距离旅行 DONE 之后精确落脚必须能走完"
+                        + "（status=" + status + " arrived=" + arrived + " remaining="
+                        + FarWalkTask.distanceXZ(bot.blockPosition(), farWalkTarget)
+                        + " reason=" + finalApproachTask.failureReason() + "）",
+                status == Task.Status.DONE && arrived);
+        finalApproachTask = null;
         phase = Phase.CLEANUP;
+    }
+
+    /** 沿"起点 → +X"方向的加载前沿采样点（格）。沿路多采样：只问中心会被"搜索只走到边界"骗过去。 */
+    private static final int[] LOAD_PROBES = {192, 224, 256, 288, 320, 352, 384, 400};
+
+    private static boolean[] sampleProbes(ServerLevel level, BlockPos start) {
+        boolean[] out = new boolean[LOAD_PROBES.length];
+        for (int i = 0; i < LOAD_PROBES.length; i++) {
+            out[i] = level.hasChunkAt(start.offset(LOAD_PROBES[i], 0, 0));
+        }
+        return out;
+    }
+
+    private static String probeText(boolean[] probed) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < probed.length; i++) {
+            sb.append(LOAD_PROBES[i]).append('=').append(probed[i]).append(' ');
+        }
+        return sb.toString().trim();
+    }
+
+    private static int newlyLoadedCount(boolean[] before, boolean[] after) {
+        int n = 0;
+        for (int i = 0; i < before.length; i++) {
+            if (!before[i] && after[i]) {
+                n++;
+            }
+        }
+        return n;
     }
 
     private static int chebyshev(BlockPos a, BlockPos b) {

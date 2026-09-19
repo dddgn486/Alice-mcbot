@@ -30,6 +30,7 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 > **2026-09-19 校正**：`far_path_bench` + `path_retry_bench` 进 EXTRA（**测量用基准，不是判据**）
 > ⇒ BASELINE 15 + MAIN 36 + EXTRA 13 = **64**，CORE 仍 **51**（`core` 实跑 SUMMARY 佐证：`baseline=15 main=36 extra_skipped=13 passed=51/51`）。
 > 这两步会**改世界**（走廊 + forceload 40+ 区块 / 一个封死房间），所以**只适合 `single:` 单独跑**，CORE 与全量档都会跳过。
+> **2026-09-19 更正**：`far_path_bench` 已**不只是测量** —— 它同时承载"内核从不加载区块（红线 `D-132`）"、"被边界挡住不许报 `UNREACHABLE`"、"夹边界的一跳必须线性"、"300 格远距离旅行真的到得了 + 精确落脚能组合"这几条**有红绿的判据**（`D-337` / `附注一` / `附注二`，共 19 项检查）；曲线本身仍不设通过/失败。
 >
 > 2026-09-18 校正：本节标题里的计数长期漂移（原写 46/38）⇒ 本次按 `RegressionBatteryTask.CURATION`
 > **逐条数了一遍**：BASELINE 15 + MAIN 36 + EXTRA 11 = **62**，CORE = **51**（2026-09-18：`bot_ownership` 进 MAIN、`bot_pair_no_recurse` 进 EXTRA、`break_refused` 进 MAIN）。
