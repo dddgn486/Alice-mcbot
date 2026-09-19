@@ -283,7 +283,15 @@ public final class BotCommand {
                         .then(Commands.literal("sapling")
                                 .then(Commands.argument("item", ResourceLocationArgument.id())
                                         .executes(ctx -> regionSapling(ctx.getSource(),
-                                                ResourceLocationArgument.getId(ctx, "item").toString())))))
+                                                ResourceLocationArgument.getId(ctx, "item").toString()))))
+                        // ⭐ `D-344` ⑤：**读主手**增删"可配置拾取清单"（零参数 ⇒ 不要求输注册名）
+                        .then(Commands.literal("pickup")
+                                .then(Commands.literal("add")
+                                        .executes(ctx -> regionPickup(ctx.getSource(), true)))
+                                .then(Commands.literal("remove")
+                                        .executes(ctx -> regionPickup(ctx.getSource(), false)))
+                                .then(Commands.literal("list")
+                                        .executes(ctx -> regionPickupList(ctx.getSource())))))
                 .then(Commands.literal("ledger")
                         .executes(ctx -> ledger(ctx.getSource(), false))
                         .then(Commands.literal("all").executes(ctx -> ledger(ctx.getSource(), true))))
@@ -1062,6 +1070,76 @@ public final class BotCommand {
                             : active.kind() + " chunks=" + active.chunks().size()
                                     + " scope=" + active.scopeId())), false);
         }
+        return 1;
+    }
+
+    /**
+     * {@code /alice region pickup add|remove}：**读主手物品**增删"可配置拾取清单"（`D-344` ⑤ 裁定）。
+     *
+     * <p><b>为什么读主手而不是收参数</b>：项目纪律要求操作/测试入口**不许长参数串**（输注册名既难记又易错）
+     * —— 手里拿着什么就加什么，是零参数且**所见即所得**的做法（与 `alice:collect_grant` 物品同风格）。
+     *
+     * <p>⚠️ **移不掉"派生项"**（= 当前选定的树苗）：它是**算出来的**（显式项 ∪ 选定树苗），
+     * 换树苗要用 {@code /alice region sapling <item>}（`D-344` ④ 的实现方式）。
+     */
+    private static int regionPickup(CommandSourceStack source, boolean add) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendSuccess(() -> Component.literal("[alice] 没有可用 bot"), false);
+            return 0;
+        }
+        var runner = source.getPlayer();
+        if (runner == null) {
+            source.sendSuccess(() -> Component.literal(
+                    "[alice] 这条要**玩家**执行（指令台没有\u300c主手\u300d可读）"), false);
+            return 0;
+        }
+        var held = runner.getMainHandItem();
+        if (held.isEmpty()) {
+            source.sendSuccess(() -> Component.literal(
+                    "[alice] 你的主手是空的 —— 先拿一件要捡的东西（比如树苗/树枝）再执行"), false);
+            return 0;
+        }
+        String itemId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(held.getItem()).toString();
+        var state = com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer());
+        boolean changed = add
+                ? state.addPickupItem(bot.getUUID(), itemId)
+                : state.removePickupItem(bot.getUUID(), itemId);
+        var effective = state.effectivePickupItems(bot.getUUID());
+        com.dddgn.alice.log.BotLog.info("[alice] 拾取清单 {} item={} changed={} 生效={}",
+                add ? "add" : "remove", itemId, changed, effective);
+        String tail;
+        if (add) {
+            tail = changed ? "已加入" : "本来就在清单里（幂等，没重复加）";
+        } else {
+            tail = changed ? "已移出"
+                    : "没移掉：它要么本来就不在，要么是**默许项**（跟着 /alice region sapling 走）";
+        }
+        source.sendSuccess(() -> Component.literal("[alice] 拾取清单 " + tail + "：" + itemId
+                + "\n  生效清单=" + effective + "（区域作业\u300c扫地面\u300d时按它找地上的落物）"), false);
+        return 1;
+    }
+
+    /** {@code /alice region pickup list}：显示生效清单 + 每项来源（默认 / 手动加）。 */
+    private static int regionPickupList(CommandSourceStack source) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendSuccess(() -> Component.literal("[alice] 没有可用 bot"), false);
+            return 0;
+        }
+        var state = com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer());
+        var effective = state.effectivePickupItems(bot.getUUID());
+        StringBuilder text = new StringBuilder("[alice] 区域拾取清单（生效 " + effective.size() + " 项）");
+        for (String itemId : effective) {
+            text.append("\n  · ").append(itemId).append(state.pickupItemIsDefault(bot.getUUID(), itemId)
+                    ? "（默认：跟着 /alice region sapling 走）" : "（手动加：/alice region pickup remove 可移出）");
+        }
+        if (effective.isEmpty()) {
+            text.append("\n  （空 ⇒ 区域作业**不会**扫地面：既没选树苗、也没手动加）");
+        }
+        text.append("\n  手动加过的=").append(state.pickupItems(bot.getUUID()));
+        String out = text.toString();
+        source.sendSuccess(() -> Component.literal(out), false);
         return 1;
     }
 

@@ -678,6 +678,21 @@ def rule_replant_sweep_bounded():
                             "扫描预算变成了人为拍的数（细则③「一次不设上限」要用**按落物数缩放**的口径）")
 
     # ④ 撤销授权：正常结束 + 失败/收工路径都要撤
+    # ⑦ `D-344` ②：**退避豁免**（有活的那一轮不吃退避）+ 与 ③ 的配套
+    if tick_body and "workedThisPatrol ? patrolIntervalTicks : currentPatrolInterval" not in tick_body:
+        problems.append("`tick()` 的巡查冷却没有按 `workedThisPatrol` 分流 ⇒ ②裁定失效："
+                        "「砍完立刻补」最坏仍要等 600 tick（≈30 s）退避")
+    n_worked = code.count("workedThisPatrol = true")
+    if n_worked < 4:
+        problems.append(f"`workedThisPatrol = true` 只有 {n_worked} 处（应 ≥4：挑树 / 起扫描 / 走回去补 / "
+                        "真种下去）⇒ 有的\u300c干活\u300d分支没被算成有活，豁免就不完整")
+    patrol_body = method_body(code, "private com.dddgn.alice.task.Task.Status patrol()")
+    if not patrol_body:
+        problems.append("找不到 `patrol()`（结构变了 ⇒ 同步本规则）")
+    elif "workedThisPatrol = false" not in patrol_body[:300]:
+        problems.append("`patrol()` 开头没有把 `workedThisPatrol` **复位** ⇒ 一旦为真就永久为真 "
+                        "⇒ **退避永久失效**（高频扫描，正是 §13.1 禁止的）")
+
     if "dropSweepGrant()" not in sweep_body:
         problems.append("`sweep()` 结束时没有 `dropSweepGrant()` ⇒ 扫描的放宽权限会多活一个 TTL")
     finish_body = method_body(code, "private com.dddgn.alice.task.Task.Status finish(")

@@ -154,7 +154,7 @@ patrol()
 | **A** ⭐ **代码 + 夹具已落地（2026-09-19）** | 清单数据结构（**派生**默认值 + NBT）+ `sweepDecision` 纯判据 + `sweep` 阶段（复用 `CollectDropsTask`）+ **互斥** + ①的 `SESSION` 短 TTL 授权（`CollectGrants.revoke` 新增，窗口**精确等于**扫描时长）+ `finish()` 失败路径清理 | ✅ `COMPILES` · ✅ `SERVER_TESTED`（`module:lumber` PASS）· ✅ 内核规则 `rule_replant_sweep_bounded` + **反向对照 4 条全红** · ✅ **新夹具步 `region_sweep`**（`RegionSweepCheckTask`，**19 判据**，`single:region_sweep` PASS）+ **夹具自身反向对照 3 条全红** |
 | **A′** ⭐ **端到端夹具已落地（2026-09-19 夜）** | 新夹具步 `region_sweep_e2e`（`RegionSweepE2ECheckTask`）：**不砍树**造出欠树（先把 baseline 抬到实测 standing 之上）+ 地面预置树苗 + 背包零苗 ⇒ 只能靠扫描拿到苗再补种 | ✅ `single:region_sweep_e2e` PASS · `module:lumber` PASS · **CORE 51 步 PASS（272 s）** · 反向对照：不签授权 ⇒ **FAIL**（144 s）；还原 ⇒ PASS。⭐ **它抓出 3 个真缺陷**（见 §10） |
 | **B** ⭐ **③ 已提前落地（同上）** | 零进展 `N=3`（`SWEEP_NO_PROGRESS_LIMIT`）+ 新终态码 `sweep_no_progress`（带 `foreign=`/`unreachable=` 分类）。**为什么提前**：不留"每轮重扫"的洞（`D-341`/`D-342` 同族） | ✅ 已进门禁与反向对照（见上）；⏳ **端到端夹具未做**（"零树苗 + 区域地面有苗 ⇒ 真去捡回来并补种"要新场景） |
-| **C** ⏳ 未做 | 用户接口（`pickup add/remove/list` 读主手）+ 缺口①（补种/扫描不吃退避） | 无头 + `check-all.sh` |
+| **C** ⭐ **已落地（2026-09-19 深夜）** | 用户接口 `/alice region pickup add\|remove\|list`（**读主手**，零参数）+ 缺口①退避豁免（`workedThisPatrol`：干过活的那一轮不吃退避） | ✅ `check-all` 16/0 · `module:lumber` PASS · **CORE PASS（270 s）** · 内核规则新增 3 条断言 + **反向对照 3 条全红**（不分流 / 不复位 / 漏一处"干活"） |
 | **D** | （用户已提）**区域内注册容器卸货**（台账第 15 项，同族后续） | 另立方案 |
 
 **⚠️ 夹具反向对照抓到的真缺陷（值得记住）**：第一版夹具的"优先级"断言挑的用例

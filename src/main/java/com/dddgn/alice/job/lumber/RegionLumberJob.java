@@ -161,6 +161,13 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
     private final Set<net.minecraft.core.BlockPos> unreachablePlantSpots = new LinkedHashSet<>();
     private int ticks;
     private int patrolCooldown;
+    /**
+     * ⭐ `D-344` ②：**本轮巡查是否真的干了活**（补种成功 / 起了扫描 / 起了"回补种点" / 挑了一棵树）。
+     *
+     * <p>干过活 ⇒ 下一次巡查用**配置间隔**（不吃退避）；没干成活（在等树长大、等树桩空出来）
+     * ⇒ 照旧退避到 `MAX_PATROL_INTERVAL_TICKS`。
+     */
+    private boolean workedThisPatrol;
     /** 当前生效的巡查间隔（等生长时退避；发现活就恢复配置值）。 */
     private int currentPatrolInterval;
     /** 上一轮巡查"在等什么"（生长/补种），用于健康输出。 */
@@ -336,8 +343,16 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
             patrolCooldown--;
             return com.dddgn.alice.task.Task.Status.RUNNING;
         }
-        patrolCooldown = currentPatrolInterval;
-        return patrol();
+        // ⭐ `D-344` ②（用户裁定「修」）：**有明确待办的那一轮不吃退避**。
+        // 退避是为「树苗生长需要真实时间」设计的（§13.1 禁高频扫描）；而"补种 / 扫地面 / 砍树"
+        // 是**有活可干**的动作 —— 干完就该**很快**再来看一眼（否则"砍完立刻补"最坏要等
+        // `MAX_PATROL_INTERVAL_TICKS=600` tick ≈ 30 s）。
+        // ⚠️ **必须与 ③ 的零进展上限配套**：豁免退避 ⇒ "有活但干不成"会变成 40-tick 一轮，
+        // 所以 `SWEEP_NO_PROGRESS_LIMIT=3` 与"走不到的补种点不再重试"是这条豁免的**前提**。
+        // 反过来说：**没干成活**（如"欠树但没有可补的位置"= 正等树桩空出来）仍然照旧退避 ✓
+        var status = patrol();
+        patrolCooldown = workedThisPatrol ? patrolIntervalTicks : currentPatrolInterval;
+        return status;
     }
 
     // ==================== 任务区（工作区域 ⇒ 区块级最小覆盖，D-338 附注四②）====================
@@ -452,6 +467,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
     }
 
     private com.dddgn.alice.task.Task.Status patrol() {
+        workedThisPatrol = false;      // `D-344` ②：本轮是否真干了活（由下面各分支置真）
         // D-179：区外就**不选新的作业**（计数/告警/终态由 tick() 统一按真实 tick 处理）。
         if (!nearRegion()) {
             return com.dddgn.alice.task.Task.Status.RUNNING;
@@ -641,6 +657,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
                 picked.anchor().toShortString(), selection.reason(), inRegion.size());
         var treeSpec = GoalSpec.harvestUnits(picked.anchor(), localRadius, 1, maxTicks);
         current = new LumberJob(bot, treeSpec, scope, source, policy);
+        workedThisPatrol = true;      // `D-344` ②：挑了树 = 有活 ⇒ 下一轮用配置间隔
         return com.dddgn.alice.task.Task.Status.RUNNING;
     }
 
@@ -852,6 +869,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         inventory.getItem(slot).shrink(1);
         state.addMySapling(bot.getUUID(), spot);
         state.removePendingReplant(bot.getUUID(), spot);
+        workedThisPatrol = true;      // `D-344` ②：真种下去了 = 有活 ⇒ 下一轮用配置间隔（不吃退避）
         BotLog.info("[Job] maintain plant sapling@{}（deficit={} → 补种后 standing 上升；KEEP 策略）",
                 spot.toShortString(), deficit);
         return null;
@@ -1036,6 +1054,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
                 ids, false, budget, com.dddgn.alice.task.mining.MiningProfile.STANDABLE_ONLY,
                 () -> listDropsInRegion(LumberRegionState.get(bot.getServer())));
         sweepTargets = targets.size();
+        workedThisPatrol = true;      // `D-344` ②：起了扫描 = 有活
         BotLog.info("[Job] maintain sweep 开始 目标={} 清单={} 预算={} tick（按落物数缩放，不设人为上限）",
                 targets.size(), LumberRegionState.get(bot.getServer()).effectivePickupItems(bot.getUUID()),
                 budget);
@@ -1111,6 +1130,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
     private com.dddgn.alice.task.Task.Status startApproach(net.minecraft.core.BlockPos goal) {
         approachGoal = goal.immutable();
         approachTask = new com.dddgn.alice.task.WalkToTask(bot, approachGoal);
+        workedThisPatrol = true;      // `D-344` ②：走回去补 = 有活
         BotLog.info("[Job] maintain 回补种点 走去 {}（补种只校验触及、不会自己过去 ⇒ 细则⑤「捡完再回来补」）",
                 approachGoal.toShortString());
         return com.dddgn.alice.task.Task.Status.RUNNING;

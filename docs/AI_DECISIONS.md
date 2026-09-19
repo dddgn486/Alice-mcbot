@@ -14355,3 +14355,23 @@ cross_spelling_accounting=false`，其余五条仍 true = 归因精确）+ 内�
 **验证**：`single:region_sweep_e2e` PASS · `single:region_sweep` PASS（19 判据）· `module:lumber` PASS ·
 ⭐ **CORE 51 步 PASS（272 s）** · `check-all` 16 PASS/0 FAIL · 反向对照：**不签收集授权 ⇒ FAIL**（144 s）、
 还原 ⇒ PASS。**片 A 完成**；剩 **片 C**（`pickup add/remove/list` 读主手 + 缺口①"补种/扫描不吃退避"）。
+
+**`D-344` 落地补记三（2026-09-19 深夜）：片 C 完成 —— 本弧收口**
+
+1. **用户接口**（⑤裁定）：`/alice region pickup add|remove|list` —— **读主手物品**，**零参数**
+   （不要求输注册名，照"入口不许长参数串"的纪律）；`list` 显示**生效清单 + 每项来源**（默认 / 手动加）。
+   实现要点：**派生项移不掉**（= 当前选定的树苗，跟着 `/alice region sapling` 走），这是 ④ 派生实现的
+   必然结果，已在命令回执里写明（免得用户以为"remove 没用"）。
+2. **退避豁免**（②裁定）：`workedThisPatrol` 标记"这一轮真干了活"（挑树 / 起扫描 / 走回去补 / 真种下去
+   四处置真），`tick()` 据此分流：**干过活 ⇒ 下一轮用配置间隔**（不吃退避）；**没干成活**
+   （欠树但没有可补位置 = 正等树桩空出来）**仍照旧退避** —— §13.1"禁高频扫描"没有被破坏。
+   ⚠️ **与 ③ 的配套是前提**：豁免了退避 ⇒ "有活但干不成"会变成 40-tick 一轮，所以
+   `SWEEP_NO_PROGRESS_LIMIT=3` 与"走不到的补种点不再重试"是这条豁免的安全阀。
+3. **门禁**（规则要能失败）：`rule_replant_sweep_bounded` 新增 3 条结构断言 —— ① 冷却必须按
+   `workedThisPatrol` 分流；② `patrol()` 开头必须**复位**该标记（**否则一旦为真就永久为真 ⇒ 退避永久失效**）；
+   ③ `workedThisPatrol = true` 至少 4 处（漏掉"干活"分支 ⇒ 豁免不完整）。
+   **反向对照 3 条全红**（不分流 / 不复位 / 删掉"补种成功"那一处），还原复绿。
+4. **验证**：`check-all` **16 PASS/0 FAIL** · `single:region_sweep_e2e` PASS · `module:lumber` PASS ·
+   ⭐ **CORE PASS（51 步，270 s）**。
+5. **未做（明确）**：退避豁免**没有专门的端到端夹具**（现有覆盖 = 内核结构断言 + 三条反向对照 +
+   CORE 无回归）；要更强的证据需造"退避到顶后出现新活"的场景，属可选加固。
