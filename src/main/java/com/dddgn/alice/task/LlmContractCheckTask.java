@@ -94,11 +94,13 @@ public class LlmContractCheckTask implements Task {
         checkNotifyTargets();
         checkDroppedTriggerVisibility();
         checkFixtureTerminalSilent();
+        checkFixtureEventSilent();
 
         String summary = "job_failure_reports=" + verdict("job_failure_reports")
                 + " notify_targets=" + verdict("notify_targets")
                 + " dropped_triggers_visible=" + verdict("dropped_triggers_visible")
                 + " fixture_terminal_silent=" + verdict("fixture_terminal_silent")
+                + " fixture_event_silent=" + verdict("fixture_event_silent")
                 + " product_filter_target=" + verdict("product_filter_target")
                 + " product_filter_default=" + verdict("product_filter_default")
                 + " refusal_readback=" + verdict("refusal_readback")
@@ -158,6 +160,44 @@ public class LlmContractCheckTask implements Task {
             com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.LLM);
             boolean handed2 = GoalDirector.onTaskTerminal(bot, "lumber", "no_reachable_candidate");
             check("fixture_terminal_silent", blocked && handed2,
+                    "fixture_blocked=" + blocked + " handed=" + handed
+                            + " reason=" + GoalDirector.lastDroppedReason(bot)
+                            + " non_fixture_handed=" + handed2);
+        } finally {
+            com.dddgn.alice.decision.Driver.set(bot, previousDriver);
+        }
+    }
+
+    /**
+     * ⭐ `D-340`：**夹具驱动的事件也不许交给决策层**（`D-339` 只拦了终态，事件通道还开着）。
+     *
+     * <p>现场（客户端 2026-09-19 19:04–19:05）：物品右键起的 `region_lumber` 一边跑一边把 `PROGRESS`
+     * 喂给 LLM，**5 次**触发决策；根因 = `DecisionEvents.notifyIfAllowed` 的通知路径**只看 `isSuspended`**。
+     *
+     * <p>⚠️ **为什么这里直接驱动 `GoalDirector.onEvent`，而不是走 `DecisionEvents.emit`**：
+     * 本夹具的类名含 `check` ⇒ `Task.isSelfCheck()=true` ⇒ 运行期 `selfCheckHold=true`
+     * ⇒ `notifyIfAllowed` 会**先**短路（"自检暂停：不通知决策层"），被测的那道闸门根本走不到
+     * ⇒ 断言会**假红**。**真实链路由客户端日志验证**（非自检窗口下 `[Events] PROGRESS` 后应当
+     * 只多一行 `trigger_dropped reason=fixture_driver（夹具驱动的事件不交给决策层）`，且**没有**
+     * `[Goal] decision_action`）。
+     *
+     * <p>**反向对照**：把 `onEvent` 里的 `Driver.FIXTURE` 分支删掉 ⇒ ① 变红（返回 `true` 且无丢弃记录）。
+     */
+    private void checkFixtureEventSilent() {
+        String previousDriver = com.dddgn.alice.decision.Driver.of(bot);
+        try {
+            // ① 夹具驱动的事件 ⇒ 拦下 + 留痕（原因必须是这道闸门，不是节流/限流）
+            com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
+            int before = GoalDirector.droppedTriggers(bot);
+            boolean handed = GoalDirector.onEvent(bot, "PROGRESS:自检夹具事件");
+            boolean blocked = !handed
+                    && GoalDirector.droppedTriggers(bot) == before + 1
+                    && GoalDirector.FIXTURE_EVENT_REASON.equals(GoalDirector.lastDroppedReason(bot));
+            // ② 非夹具（llm）⇒ 照旧交（挂 1 tick 暂停保证控制组不产生真实请求）
+            GoalDirector.suspend(bot, 1);
+            com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.LLM);
+            boolean handed2 = GoalDirector.onEvent(bot, "PROGRESS:控制组事件");
+            check("fixture_event_silent", blocked && handed2,
                     "fixture_blocked=" + blocked + " handed=" + handed
                             + " reason=" + GoalDirector.lastDroppedReason(bot)
                             + " non_fixture_handed=" + handed2);

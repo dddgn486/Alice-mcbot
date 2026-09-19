@@ -34,6 +34,13 @@
 > **⏳ 未做/未决**：③ **最小跨任务循环检测**（下一步；本轮只掐了那条链的第一环）· 残余口子 = 夹具驱动任务
 > **运行中**的 `event:PROGRESS` 仍会唤醒 LLM（要一起掐需把 `driver` **在任务启动时固定**）· **`L2` 是否也要
 > "每 `scopeId` 区内放置上限"**（`L1` 有 ≤8）。
+>
+> **➡️ 2026-09-19 夜 续（用户选 P1 → P2 → ③）**：**P1 已落地 = `D-340`** —— `GoalDirector.onEvent` 按
+> `driver=fixture` 拦（新增 `FIXTURE_EVENT_REASON`，与 `FIXTURE_TERMINAL_REASON` 共享 `fixture_driver` 前缀）；
+> 判据 `fixture_event_silent`；**反向对照注入 `if (false)` ⇒ 恰 1 红**（两闸门判据独立）；`module:llm` PASS。
+> ⚠️ 判据**必须直接驱动 `onEvent`**（夹具自身 `isSelfCheck=true` ⇒ `notifyIfAllowed` 先短路，走 `DecisionEvents.emit` 会假红）。
+> ⏳ **下一步 = P2**：`RegionLumberJob:437` 处，"候选全被**永久授权拒绝**"（`raw.rejected()` 里的
+> `zone_break_not_allowed`/`zone_read_only`/`protected_area`…）⇒ **如实失败**，不再 `viable=0` 空转到 `maxTicks`；之后 ③。
 
 > **⏭ 2026-09-19 晚（本弧全部落地）：§5.12 第 4 件 + 客户端三轮 + 决策层讨论**，最后一次 commit `d33f775`：
 > ⭐ 权限阶梯接进闸门（含客户端实测补的**第④处消费** = `PathSession`→`CapabilityGate`，`D-338` 附注十）

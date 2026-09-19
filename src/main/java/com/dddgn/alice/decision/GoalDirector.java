@@ -162,6 +162,12 @@ public final class GoalDirector {
     public static final String FIXTURE_TERMINAL_REASON = "fixture_driver（夹具终态不交给决策层）";
 
     /**
+     * `D-340`：夹具驱动的**事件**被拦下的丢弃原因。两条共享 `fixture_driver` 前缀
+     * ⇒ 一条 `grep fixture_driver` 能同时捞到"终态"与"事件"两条通道的留痕。
+     */
+    public static final String FIXTURE_EVENT_REASON = "fixture_driver（夹具驱动的事件不交给决策层）";
+
+    /**
      * **暂停触发**（自检/回归用）：`ticks` 内不因空闲/终态/事件自动发起决策。
      *
      * <p>为什么需要：2026-09-12 实测 —— S4 的 `STUCK` 事件触发了真实决策，LLM 选了
@@ -203,9 +209,32 @@ public final class GoalDirector {
                 hold, hold ? "自检期间不发起任何" : "恢复正常");
     }
 
-    /** **事件阈值**触发的决策（S4）：工具见底 / 卡住 —— 有节流，重复事件不会连环调用。 */
-    public static void onEvent(BotPlayer bot, String summary) {
-        maybeTrigger(bot, "event:" + summary);
+    /**
+     * **事件阈值**触发的决策（S4）：工具见底 / 卡住 —— 有节流，重复事件不会连环调用。
+     *
+     * <p>⭐ `D-340`（2026-09-19，`D-339` 的**同一条口径补完**）：**夹具驱动的事件也不交给决策层。**
+     *
+     * <p><b>为什么</b>：`DecisionEvents.notifyIfAllowed` 的通知路径**只看 `isSuspended`（自检按住）**
+     * —— `D-339` 只拦住了**终态**，事件这条通道还开着。客户端实测（2026-09-19 19:04–19:05）：
+     * 物品右键起的 `region_lumber` 一边跑一边把 `PROGRESS` 喂给 LLM，**5 次**触发决策
+     * （用户看到的是一连串"决策层：不动"）。
+     *
+     * <p>⚠️ **就地拦比"等 LLM 改写了归属再拦"更可靠**：第一发事件到达时 `Driver` 仍是 `fixture`
+     * ⇒ LLM 根本没机会把它变成 `llm`（这就是不需要动"任务启动时固定 driver"的原因）。
+     *
+     * <p>⚠️ 口径边界与 `onTaskTerminal` 一致：**只拦 `FIXTURE`**；事件环那条记录由
+     * `DecisionEvents.record` **先于**本方法写入 ⇒ 阻断**不丢账**。
+     *
+     * @return 是否**真的交给了决策层**（`false` = 夹具驱动的事件被闸门拦下）
+     */
+    public static boolean onEvent(BotPlayer bot, String summary) {
+        String trigger = "event:" + summary;
+        if (Driver.FIXTURE.equals(Driver.of(bot))) {
+            noteDroppedTrigger(bot, state(bot), trigger, FIXTURE_EVENT_REASON);
+            return false;
+        }
+        maybeTrigger(bot, trigger);
+        return true;
     }
 
     /** 维生中断后调用（逃生出口已由 `BotSession` 起好）。 */

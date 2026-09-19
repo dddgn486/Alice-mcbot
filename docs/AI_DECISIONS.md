@@ -14060,3 +14060,36 @@ code=failed:no_reachable_candidate durationTicks=1` ⇒ **它是被拒的**。**
    ⇒ 阶梯的豁免只对**任务区**生效（一次性作业不声明任务区 ⇒ 无授权面可依 ⇒ 拒）；**不要**为它造口子。
    （这与附注十四的封顶同向：**领地内只有能被授权面覆盖的写入**。）
 2. ⏳ **仍未决**：`L2` 要不要也有"每 `scopeId` 区内放置上限"（`L1` 有 ≤8）。
+
+### D-340：**夹具驱动的事件也不交给决策层**（`D-339` 的同一条口径补完）2026-09-19
+
+**背景（机制 + 实测双确认）**：`D-339` 只拦住了**终态**。事件这条通道**还开着** ——
+`DecisionEvents.notifyIfAllowed` 的通知路径**只看 `GoalDirector.isSuspended`（自检按住），完全不看 `driver`**。
+客户端实测（2026-09-19 19:04–19:05）：**物品右键**起的 `region_lumber`（`driver=fixture`）一边跑一边把
+`PROGRESS` 喂给 LLM，**5 次**触发决策（`decision_action trigger=event:PROGRESS:…startedTick=390…`，
+19:04:22 / 19:04:31 / 19:04:42 / 19:05:12 / 19:05:22），用户看到的是一连串"决策层：不动"。
+（⚠️ 诚实标注：那份 `latest.log` 已被 19:26 的新会话覆盖，行号我没引。）
+
+**改动**（与 `D-339` 同形，一个面、一条判据）：
+- `GoalDirector.onEvent` 加闸：`Driver.FIXTURE.equals(Driver.of(bot))` ⇒ **不发触发**，记一条
+  `FIXTURE_EVENT_REASON`（新常量 `fixture_driver（夹具驱动的事件不交给决策层）`）并**返回 `false`**；
+  返回值 `void` → `boolean`（与 `onTaskTerminal` 同口径）。
+- 两条原因常量共享 `fixture_driver` 前缀 ⇒ **一条 `grep fixture_driver` 能同时捞到"终态"与"事件"两条通道的留痕**。
+- ⚠️ 口径边界同 `D-339`：**只拦 `FIXTURE`**；事件环那条记录由 `DecisionEvents.record` **先于**本方法写入
+  ⇒ 阻断**不丢账**。
+
+**⭐ 为什么这样拦就够（不必先做"任务启动时固定 `driver`"）**：事件到达 `onEvent` 时 `Driver` **仍是 `fixture`**
+⇒ 闸门就地拦下 ⇒ **LLM 根本没机会**做一次决策把它改写成 `llm`。原先担心的"最后写入者胜会漏网"在**第一发**
+就被掐住了，所以 (ii) 仍然只是"更讲原理"的选项、不阻塞。
+
+**门禁与反向对照**：
+- 夹具 **`llm_contract`** 新增 **`fixture_event_silent`**：① 夹具驱动 ⇒ 不交（`false`）+ 恰记一条该原因；
+  ② 非夹具（`llm`，挂 `suspend(1)`）⇒ 照旧交（`true`）。
+- ⚠️ **判据为什么直接驱动 `GoalDirector.onEvent` 而不走 `DecisionEvents.emit`**（下个会话别改成后者）：
+  本夹具类名含 `check` ⇒ `Task.isSelfCheck()=true` ⇒ 运行期 `selfCheckHold=true` ⇒ `notifyIfAllowed`
+  会**先**短路（"自检暂停：不通知决策层"）⇒ 被测闸门根本走不到 ⇒ 断言**假红**。真实链路留给客户端验证。
+- ⭐ **反向对照已做**：`onEvent` 里注入 `if (false)` ⇒ `single:llm_contract` **恰 1 红**
+  （`fixture_event_silent=FAIL fixture_blocked=false handed=true`，且 `fixture_terminal_silent` 仍绿
+  = 两道闸门判据**相互独立**）；恢复 ⇒ `module:llm` PASS。
+- **客户端待复验**：非自检窗口下右键 `alice:region_lumber` 跑到发 `PROGRESS` ⇒ 应当只多
+  `trigger_dropped reason=fixture_driver（夹具驱动的事件不交给决策层）`，且**没有** `[Goal] decision_action`。
