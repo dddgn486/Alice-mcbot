@@ -746,6 +746,20 @@ public final class TaskZoneCheckTask implements Task {
         check("⑫无权≠没有：**安全区**（子类声明，任务区不可能覆盖）与 `L0` 也只读 ⇒ 都算永久拒绝",
                 ZoneAuthority.permanentDenial("protected_safe_zone")
                         && ZoneAuthority.permanentDenial("zone_read_only"));
+        // ⑫ ⭐ **跨写法前提**（2026-09-19 客户端实测的缺陷就是这条没被断言）：
+        //    循环闸的身份 = `kind|目标`，而 `kind` 在生产里有**两处写法** ——
+        //      受理侧 = `JobRequest.Kind.name()`（枚举 ⇒ 大写）；终态侧 = `BotManager.stableTaskKind()` = `Task.taskName()`
+        //    （小写）。不归一 ⇒ `key.startsWith(...)` 恒假 ⇒ **静默不记账** ⇒ 计数恒 0 ⇒ 闸门永不触发
+        //    （客户端现场：三次 `instruct` 全放行、`REFUSED` 零条）。
+        //    ⚠️ 终态侧拼写**从生产对象取**（`RegionLumberJob` 构造无副作用），不靠夹具硬编码 ——
+        //    将来 `taskName()` 改名 ⇒ 这条红，而不是生产悄悄断、夹具照样绿。
+        String admissionKind = com.dddgn.alice.job.JobRequest.Kind.REGION_LUMBER.name();
+        String terminalKind = new RegionLumberJob(bot, treeRegion, scope, new LumberCandidateSource(),
+                new NearestPolicy(), 20, 4).taskName();
+        check("⑫跨写法：受理侧 `JobRequest.Kind.name()`（" + admissionKind + "）与终态侧 `Task.taskName()`（"
+                        + terminalKind + "）必须归一到**同一身份**（否则循环闸记账静默失效）",
+                com.dddgn.alice.decision.GoalDirector.attemptIdentity(admissionKind, "x")
+                        .equals(com.dddgn.alice.decision.GoalDirector.attemptIdentity(terminalKind, "x")));
 
         findings.add("authority: L0/L1/L2 判据 + 真写入（quota=" + quotaPlaced + "/"
                 + ZoneAuthority.L1_MAX_PLACES + " 区内放置，越界/安全区/野外/别的 owner/候选扫描各一条）");

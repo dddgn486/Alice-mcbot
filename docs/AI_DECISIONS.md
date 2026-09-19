@@ -14208,6 +14208,12 @@ code=failed:no_reachable_candidate durationTicks=1` ⇒ **它是被拒的**。**
 **⭐ 反向对照（重现现场）**：去掉归一化 ⇒ 夹具 **恰 1 红**（`spelling_normalized=false
 cross_spelling_accounting=false`，其余五条仍 true = 归因精确）+ 内核规则红（直指"没有归一 kind 的大小写"）。
 
+**⭐ 追加一条"生产派生"的判据（比硬编码强）**：`task_zone` 新增第 **⑭** 条（判据 **93 → 94**）——
+终态侧拼写**从生产对象取**（`new RegionLumberJob(...).taskName()`，构造无副作用），
+受理侧取 `JobRequest.Kind.REGION_LUMBER.name()`，断言两者 `attemptIdentity` 相等。
+⇒ **将来 `taskName()` 改名 ⇒ 这条红**（反向对照已做：把 `NAME` 注入成 `RegionLumber` ⇒ `checks=94 failures=1`，
+恰是这一条）。这一条堵的是"生产悄悄断、夹具照样绿"那个洞（我上面那两条跨写法断言用的是**硬编码**小写串）。
+
 **⚠️ 已知边界（不假装）**：① 身份**不含失败码**是有意的（要抓"换条路重试"），代价是"同一目标换了失败原因"
 也算重复 —— 但同一目标本就值得怀疑；② 闸门只在 **LLM 应用 `start_job`** 这一条路上生效
 （`craft` / `maintain_tool` / `stop_current` 等动作未纳入，它们本身不形成"目标循环"）；
