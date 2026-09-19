@@ -433,6 +433,40 @@ def rule_no_permitted_candidate():
     return problems
 
 
+def rule_loop_admission():
+    """D-342（2026-09-19 用户裁定 ③）：**跨任务循环检测的受理闸必须真的接在 `start_job` 上**。
+
+    事实（裁定依据）：客户端三次实测（16:53 / 17:30 / 19:06）同一形态 —— 一个目标失败后，决策层
+    **换条路重试**（一次性被拒 ⇒ 自起常驻区域任务）。用户口径：「任务要如实失败，不能继续跑」。
+
+    ⚠️ **本规则是"结构断言"，不是"文本在不在"**（`D-341` 的教训：只查文本会被 `&& false` 绕过）：
+    断言 `execute` 的 `start_job` 分支里，`assignJob` **之前**必须有一次 `loopRefusal(...)` 判定
+    与 `if (loop != null) {` 的拒绝分支。删掉受理闸 / 把它挪到 `assignJob` 之后 / 给它加条件 ⇒ 红。
+    """
+    path = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "decision" / "GoalDirector.java"
+    text = path.read_text(encoding="utf-8")
+    problems = []
+    start = text.find("private static void execute(BotPlayer bot, State state, GoalAction action, String trigger) {")
+    if start < 0:
+        problems.append("GoalDirector 找不到 `execute(...)`（结构变了 ⇒ 本规则要跟着改）")
+        return problems
+    body = text[start:text.find("\n    }", start)]
+    body = re.sub(r"/\*.*?\*/", "", body, flags=re.S)
+    body = re.sub(r"//[^\n]*", "", body)
+    call = "loopRefusal(bot, Driver.of(bot)"
+    guard = "if (loop != null) {"
+    assign = "BotManager.assignJob(bot, state.observer, start.request(), false)"
+    if call not in body:
+        problems.append("`execute` 的 start_job 分支没有调用 `loopRefusal(...)` ⇒ 同一目标反复失败可以无限重起")
+    if guard not in body:
+        problems.append("`execute` 没有 `if (loop != null) {` 的**拒绝分支** ⇒ 判定结果被丢掉（等于没接）")
+    if call in body and assign in body and body.find(call) > body.find(assign):
+        problems.append("`loopRefusal(...)` 出现在 `assignJob(...)` **之后** ⇒ 任务已经起了才判，闸门形同虚设")
+    if "noteAttempt(bot" not in body:
+        problems.append("`execute` 起任务成功后没有 `noteAttempt(...)` ⇒ 终态无法归到身份上（记账永远为空）")
+    return problems
+
+
 def rule_no_until_full():
     """J5-P1（2026-09-17 用户裁定「删」）：**`GoalSpec.Kind.UNTIL_FULL` 不得复活**。
 
@@ -605,6 +639,7 @@ def main() -> int:
     r2p3 = rule_step_boundary_parity()
     ring = rule_stop_event_ring()
     noperm = rule_no_permitted_candidate()
+    loop = rule_loop_admission()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -645,10 +680,12 @@ def main() -> int:
         print(f"[D-338·事件环补全] {line}")
     for line in noperm:
         print(f"[D-341·无权≠没有] {line}")
+    for line in loop:
+        print(f"[D-342·循环受理闸] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm)
+          and not noperm and not loop)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
           f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)}"

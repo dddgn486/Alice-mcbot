@@ -76,6 +76,10 @@ public final class GoalDirector {
         int droppedTriggers;
         /** ⭐ `D-339`：最近一次丢弃的**原因**（判据要能断言"是哪道闸门拦的"）。 */
         String lastDroppedReason = "";
+        /** ⭐ `D-342`：`kind|目标` ⇒ 窗口内失败记账（跨任务循环检测）。 */
+        final Map<String, Attempt> loopAttempts = new HashMap<>();
+        /** ⭐ `D-342`：**在飞**尝试的身份（受理时记、终态时记账并清空）。 */
+        String lastAttemptKey;
         int minuteRequests;
         long minuteStartTick;
         String lastAction = "-";
@@ -156,6 +160,119 @@ public final class GoalDirector {
         }
         maybeTrigger(bot, trigger);
         return true;
+    }
+
+    // ==================== ⭐ `D-342`：最小跨任务循环检测 ====================
+
+    /** 同一 `(kind|目标)` 在窗口内失败到这个次数 ⇒ 受理闸**拒绝再起**（默认 = 第 3 次拦下）。 */
+    public static final int LOOP_BLOCK_AT = 2;
+
+    /** 循环检测窗口（tick）：超过它就当作"那是很久以前的事"⇒ 放行并顺手清账。 */
+    public static final int LOOP_WINDOW_TICKS = 1200;
+
+    /** 受理闸的拒绝码（**判据/日志/夹具都按它归因**）。 */
+    public static final String LOOP_REFUSAL_CODE = "repeat_failure";
+
+    /** 一个 `(kind|目标)` 身份的失败记账。 */
+    private static final class Attempt {
+        int fails;
+        long lastFailTick;
+    }
+
+    /** 身份串：`kind|目标`（区域型用区域盒，其余用中心 +（可选）产物标签）。 */
+    private static String attemptKey(String kind, String target) {
+        return kind + "|" + target;
+    }
+
+    /** `JobRequest` ⇒ 稳定目标 id（**同一目标的两种写法必须落到同一个 id**，否则循环检测形同虚设）。 */
+    private static String targetIdOf(com.dddgn.alice.job.JobRequest request) {
+        if (request.region() != null) {
+            var region = request.region();
+            return "region[" + region.minX() + ".." + region.maxX() + ","
+                    + region.minZ() + ".." + region.maxZ() + "]";
+        }
+        String base = request.center().getX() + "," + request.center().getY() + "," + request.center().getZ();
+        return request.productTag() == null ? base : base + "#" + request.productTag();
+    }
+
+    /**
+     * ⭐ `D-342`：**受理时记一笔"这次尝试的身份"**（applier 与夹具共用）—— 终态记账靠它把
+     * "失败"归到正确的身份上（**不需要**把 LLM 的目标串与终态的 `targetDescription` 做字符串匹配，
+     * 那两套写法不一样、匹配必然漂移）。
+     */
+    public static void noteAttempt(BotPlayer bot, String kind, String target) {
+        state(bot).lastAttemptKey = attemptKey(kind, target);
+    }
+
+    /**
+     * ⭐ `D-342`：**终态记账的公开入口**（`BotManager.complete` 在**终态那一刻**调用，与"要不要叫 LLM"无关）。
+     *
+     * <p>为什么必须在终态点、而不是在 {@link #onTaskTerminal} 里：`BotManager.complete` 里
+     * **返程兜底（`D-327`）会提前 `return`** ⇒ 挂在通知路径上的记账会**漏掉"失败触发了返程"那一次**
+     * （客户端最常见的正是"失败之后"这一形态）。**记账属于"终态发生了"，不属于"通知"**。
+     */
+    public static void noteTerminalOutcome(BotPlayer bot, String kind, boolean failed) {
+        noteAttemptOutcome(bot, kind, failed);
+    }
+
+    /** 终态记账：在飞身份失败 ⇒ 计数 +1；成功一次 ⇒ **复位**（"成功了就不再怀疑这个目标"）。 */
+    private static void noteAttemptOutcome(BotPlayer bot, String kind, boolean failed) {
+        State state = state(bot);
+        String key = state.lastAttemptKey;
+        state.lastAttemptKey = null;
+        if (key == null || !key.startsWith(kind + "|")) {
+            // 没有在飞的尝试，或**任务被换过**（玩家中途插了别的活）⇒ 宁可漏记，也不**错记**
+            return;
+        }
+        if (failed) {
+            Attempt attempt = state.loopAttempts.computeIfAbsent(key, ignored -> new Attempt());
+            attempt.fails++;
+            attempt.lastFailTick = bot.getServer().getTickCount();
+        } else {
+            state.loopAttempts.remove(key);
+        }
+    }
+
+    /**
+     * ⭐ `D-342`：**受理闸** —— 同一目标在窗口内已失败 `LOOP_BLOCK_AT` 次 ⇒ **拒绝再起**（`null` = 放行）。
+     *
+     * <p><b>为什么要它</b>：客户端两次实测（2026-09-19 16:53 / 17:30 / 19:06）都是同一个形态 ——
+     * 一个目标失败后，决策层**换条路重试**（一次性被拒 ⇒ 自起常驻区域任务）。用户口径："任务要如实失败，
+     * 不能继续跑"。`D-339`/`D-340` 掐掉了**夹具血脉**的成环、`D-341` 让"永久无权"如实失败，
+     * 本闸是**最后一张网**：不管失败原因是什么，同一个目标在窗口内反复撞 ⇒ 拒 + 如实回读给 LLM。
+     *
+     * <p>⭐ **玩家显式发起（`IN_GAME_PLAYER` / `FIXTURE`）一律豁免** —— 他再点一次是他的自由，
+     * 阶梯对玩家不缩水（与 `D-338` 附注十四同向）。
+     *
+     * @param requester 发起者（`Driver` 值）
+     * @return 拒绝理由（含身份、次数、最近失败 tick 与"换个目标"的指示）；`null` = 放行
+     */
+    public static String loopRefusal(BotPlayer bot, String requester, String kind, String target) {
+        if (Driver.IN_GAME_PLAYER.equals(requester) || Driver.FIXTURE.equals(requester)) {
+            return null;
+        }
+        State state = state(bot);
+        String key = attemptKey(kind, target);
+        Attempt attempt = state.loopAttempts.get(key);
+        if (attempt == null) {
+            return null;
+        }
+        long now = bot.getServer().getTickCount();
+        if (now - attempt.lastFailTick > LOOP_WINDOW_TICKS) {
+            state.loopAttempts.remove(key);      // 窗口过期 ⇒ 放行并清账（懒清理）
+            return null;
+        }
+        return attempt.fails >= LOOP_BLOCK_AT
+                ? LOOP_REFUSAL_CODE + "（同一目标 `" + key + "` 在 " + LOOP_WINDOW_TICKS
+                  + " tick 内已失败 " + attempt.fails + " 次，最近 @" + attempt.lastFailTick
+                  + " tick）⇒ **换目标或 no_op**，不要重跑同一个"
+                : null;
+    }
+
+    /** **夹具用**：某身份的窗口内失败计数（0 = 没账）。 */
+    public static int loopFailCount(BotPlayer bot, String kind, String target) {
+        Attempt attempt = state(bot).loopAttempts.get(attemptKey(kind, target));
+        return attempt == null ? 0 : attempt.fails;
     }
 
     /** 夹具终态被拦下的丢弃原因（**判据按它断言**；改文案必须同步 `LlmContractCheckTask`）。 */
@@ -486,7 +603,23 @@ public final class GoalDirector {
         clearRefusal(state);
         state.droppedTriggers = 0;   // ⭐ 附注十五：计数语义 = "自**上一次真正做出决策**以来"
         if (action instanceof GoalAction.StartJob start) {
+            // ⭐ `D-342`：**受理闸（跨任务循环检测）** —— 同一目标在窗口内反复失败 ⇒ **拒再起** + 如实回读，
+            // 而不是"换条路重试"（客户端 16:53/17:30/19:06 都是这个形态）。玩家显式发起**豁免**。
+            String loop = loopRefusal(bot, Driver.of(bot), start.request().kind().name(),
+                    targetIdOf(start.request()));
+            if (loop != null) {
+                com.dddgn.alice.decision.BotEventLog.record(bot, "REFUSED", "warn",
+                        "拒绝重复起任务 " + start.request().describe(), "code=" + LOOP_REFUSAL_CODE);
+                noteRefusal(bot, loop);
+                BotLog.warn("[Goal] execute action=start_job refused reason={} trigger={}", loop, trigger);
+                DecisionTrace.result(bot, trigger, "start_job", "refused", loop, 0L);
+                tell(bot, state, "[alice] 决策层：**拒绝**再起同一个任务（" + loop + "）（触发=" + trigger + "）");
+                return;
+            }
             boolean ok = BotManager.assignJob(bot, state.observer, start.request(), false);
+            if (ok) {
+                noteAttempt(bot, start.request().kind().name(), targetIdOf(start.request()));
+            }
             BotLog.info("[Goal] execute action=start_job ok={} trigger={}", ok, trigger);
             DecisionTrace.result(bot, trigger, "start_job", ok ? "executed" : "refused",
                     start.request().describe(), 0L);

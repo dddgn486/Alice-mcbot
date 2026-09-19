@@ -2297,6 +2297,10 @@ public final class BotManager {
             // （= 今天已有的行为，作为**临时**兜底）。
             // ⚠️ 刻意**不**为"就地固守"造新行为：用户 2026-09-19 澄清它是"**避免死亡的最保守行为**"，
             // 勘测侧意见是现在不做（那等于把责任转接给玩家）—— 所以这里只做**回安全区**这一条。
+            // ⭐ `D-342`：**循环检测的记账**必须发生在**终态这一刻**、且在"返程兜底 return"**之前**
+            // （返程兜底会提前 return ⇒ 挂在通知路径上的记账会漏掉"失败触发返程"那一次）。
+            com.dddgn.alice.decision.GoalDirector.noteTerminalOutcome(bot, taskKind,
+                    terminalStatus == TaskExecutionRecord.TerminalStatus.FAILED);
             if (terminalStatus == TaskExecutionRecord.TerminalStatus.FAILED && !wasReturnTask
                     && startSafeReturnIfNeeded()) {
                 return;   // 返程兜底接管；决策层会在**返程自身终态**时被叫到（通知不丢，只是延后）

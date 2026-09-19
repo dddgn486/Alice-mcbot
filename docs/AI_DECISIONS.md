@@ -14148,3 +14148,47 @@ code=failed:no_reachable_candidate durationTicks=1` ⇒ **它是被拒的**。**
 ⇒ 目前覆盖 = **分类（夹具，真扫描）** + **接线（内核结构断言）**；**端到端留给客户端**：
 `/alice instruct "在保护区里起一个 region_lumber"`（`instruct` 的动作由 LLM 应用 ⇒ `driver=llm` ⇒ 会被封顶 `L1`）
 ⇒ 应当**立刻** `FAILED no_permitted_candidate`，而不是 20 分钟不动。
+
+### D-342：**最小跨任务循环检测（受理闸）** —— 同一目标窗口内反复失败 ⇒ 拒再起 + 如实回读（用户裁定 ③）2026-09-19
+
+**背景**：客户端**三次**实测（16:53 / 17:30 / 19:06）同一个形态 —— 一个目标失败后，决策层**换条路重试**
+（一次性作业被拒 ⇒ 自起常驻区域任务）。`D-339`（夹具终态不交 LLM）、`D-340`（夹具事件不交 LLM）掐掉了
+**夹具血脉**的成环，`D-341` 让"永久无权"**如实失败**，本闸是**最后一张网**：不管失败原因是什么，
+**同一个目标在窗口内反复撞 ⇒ 拒 + 如实回读给 LLM**。
+
+**用户裁定（2026-09-19，我提案里的默认口径，用户"继续下一步"采纳）**：
+
+| 项 | 口径 |
+|---|---|
+| 身份 | `kind\|目标`；目标 = 区域型取**区域盒**、其余取**中心坐标**（+ 产物标签）；**失败码不进身份**（"换条路重试"要能抓住） |
+| 阈值 / 窗口 | 窗口内失败 **`LOOP_BLOCK_AT = 2`** 次 ⇒ **第 3 次受理前拦下**；窗口 **`LOOP_WINDOW_TICKS = 1200`**（60 s），过期懒清 |
+| 拦在哪 | `GoalDirector.execute` 的 **`start_job` 受理闸**（`assignJob` **之前**）；玩家显式（`IN_GAME_PLAYER`/`FIXTURE`）**豁免** |
+| 升级 | 拒 + `REFUSED` 进事件环 + `noteRefusal` 回读 + 聊天回执（**带身份、次数、最近失败 tick、换目标指示**） |
+| 复位 | 该身份**成功一次** ⇒ 清账；窗口过期 ⇒ 清账 |
+
+**改动**：
+1. `GoalDirector`：`State.loopAttempts`（`kind|目标` ⇒ 失败次数/最近失败 tick）+ `State.lastAttemptKey`；
+   公开面 `noteAttempt` / `loopRefusal` / `loopFailCount` / `noteTerminalOutcome`（前三个与既有 `noteRefusal`
+   一族同风格：**applier 与夹具共用**）。
+2. ⭐ **身份是靠"受理时记 key、终态时按 key 记账"**，**不是**把 LLM 的目标串与终态 `targetDescription`
+   做字符串匹配 —— 那两套写法不一样（LLM 给 `tree@20,64,208`，终态给 `方块@27, 58, 217`），匹配必然漂移。
+3. ⭐ **记账点在"终态那一刻"、`BotManager` 返程兜底 `return` 之前**（`complete` 里）——
+   ⚠️ 挂在 `onTaskTerminal` 上会**漏掉"失败触发了返程"那一次**（客户端最常见的正是"失败之后"这一形态）：
+   **记账属于"终态发生了"，不属于"通知"**。
+4. 口径：`kind` 不匹配在飞 key ⇒ **不记账**（宁可漏记，也不错记：任务可能被玩家中途换过）。
+
+**门禁与反向对照**：
+- 夹具 **`llm_contract`** 新增 **`loop_admission_control`** 五件断言：① 前两次放行；② 第 3 次拒
+  （理由码 `repeat_failure` + 带身份 + 带次数 + 计数一致）；③ **玩家显式豁免**（`FIXTURE` 与 `IN_GAME_PLAYER` 都放行）；
+  ④ **成功一次复位**；⑤ **别的目标不受牵连**（按身份，不是全局刹车）。⇒ `llm_contract` **10 条判据全绿**。
+- ⭐ **内核规则** `rule_loop_admission`（`tools/kernel-predicates.py`，**结构断言**）：`execute` 的 start_job 分支
+  必须在 `assignJob` **之前**有 `loopRefusal(...)` + `if (loop != null) {` 拒绝分支 + 成功后有 `noteAttempt(...)`。
+  （按 `D-341` 的教训写成**顺序/结构**断言，而不是"文本在不在"。）
+- ⭐ **反向对照两条（都已做）**：① 拒绝分支注入 `if (loop != null && false)` ⇒ **内核规则红**；
+  ② `loopRefusal` 注入恒 `null` ⇒ `single:llm_contract` **恰 1 红**（`loop_admission_control`）。恢复 ⇒
+  `module:llm` PASS + 内核 PASS。
+
+**⚠️ 已知边界（不假装）**：① 身份**不含失败码**是有意的（要抓"换条路重试"），代价是"同一目标换了失败原因"
+也算重复 —— 但同一目标本就值得怀疑；② 闸门只在 **LLM 应用 `start_job`** 这一条路上生效
+（`craft` / `maintain_tool` / `stop_current` 等动作未纳入，它们本身不形成"目标循环"）；
+③ 计数是**内存态**（重启清零）—— 循环本来就发生在一次会话里，跨会话的"执念"不在本闸范围。

@@ -56,6 +56,19 @@
 > ⇒ **客户端端到端入口**：`/alice instruct "在保护区里起一个 region_lumber"`（`instruct` 的动作由 LLM 应用 ⇒
 > `driver=llm` ⇒ 被封顶 `L1`）⇒ 应当**立刻** `FAILED no_permitted_candidate`，而不是 20 分钟不动。
 > **➡️ 下一个 = ③ 最小跨任务循环检测**（P1/P2 已完成）。
+>
+> **➡️ 2026-09-19 夜 续 3：③ 已落地 = `D-342`（受理闸）** —— 同一 `(kind|目标)` 在 **1200 tick** 窗口内失败
+> **2 次** ⇒ **第 3 次受理前拦下**：`loopRefusal` 在 `execute` 的 `start_job` 分支、**`assignJob` 之前**判；
+> 拒时 `REFUSED` 进事件环 + `noteRefusal` 回读 + 聊天回执（带身份/次数/最近失败 tick/换目标指示）；
+> **玩家显式（`IN_GAME_PLAYER`/`FIXTURE`）豁免**；该身份**成功一次**或窗口过期 ⇒ 复位。
+> ⚠️ 两个易踩的点（都写在 `D-342` 里）：① 身份靠「受理记 key、终态按 key 记账」，**不做** LLM 目标串与
+> `targetDescription` 的字符串匹配（两套写法不同，必然漂移）；② 记账点在 **`BotManager.complete` 里返程兜底
+> `return` 之前**（挂在 `onTaskTerminal` 上会漏掉「失败触发返程」那一次）。
+> **证据**：`llm_contract` **10 判据全绿** · 内核规则 `rule_loop_admission`（**顺序·结构断言**）·
+> **反向对照两条**（① 拒绝分支注入 `&& false` ⇒ 内核红；② `loopRefusal` 恒 `null` ⇒ 恰 1 红）·
+> `module:llm` PASS · **CORE 51/51（`ticks=4770`）**。
+> **⏳ 客户端待复验**：让 LLM 连撞同一目标两次后，第 3 次应被拒并回读 `repeat_failure（同一目标 …）`；
+> 而**你自己**右键测试物品连点三次同目标 ⇒ 应当**照旧放行**（豁免）。
 > ⭐ **客户端复验通过（2026-09-19 20:17 新包，用户判"符合预期"）**：`kind=region_lumber driver=llm
 > terminalReason=no_permitted_candidate`（P2 端到端：`/alice instruct` 起 ⇒ **立刻如实失败**）·
 > `trigger_dropped reason=fixture_driver（夹具驱动的事件…）`×23（P1）· `（夹具终态…）`×1（`D-339`）·

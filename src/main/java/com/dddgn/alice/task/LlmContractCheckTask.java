@@ -95,12 +95,14 @@ public class LlmContractCheckTask implements Task {
         checkDroppedTriggerVisibility();
         checkFixtureTerminalSilent();
         checkFixtureEventSilent();
+        checkLoopAdmissionControl();
 
         String summary = "job_failure_reports=" + verdict("job_failure_reports")
                 + " notify_targets=" + verdict("notify_targets")
                 + " dropped_triggers_visible=" + verdict("dropped_triggers_visible")
                 + " fixture_terminal_silent=" + verdict("fixture_terminal_silent")
                 + " fixture_event_silent=" + verdict("fixture_event_silent")
+                + " loop_admission_control=" + verdict("loop_admission_control")
                 + " product_filter_target=" + verdict("product_filter_target")
                 + " product_filter_default=" + verdict("product_filter_default")
                 + " refusal_readback=" + verdict("refusal_readback")
@@ -201,6 +203,65 @@ public class LlmContractCheckTask implements Task {
                     "fixture_blocked=" + blocked + " handed=" + handed
                             + " reason=" + GoalDirector.lastDroppedReason(bot)
                             + " non_fixture_handed=" + handed2);
+        } finally {
+            com.dddgn.alice.decision.Driver.set(bot, previousDriver);
+        }
+    }
+
+    /**
+     * ⭐ `D-342`：**最小跨任务循环检测（受理闸）** —— 同一 `(kind|目标)` 在窗口内反复失败 ⇒ **拒再起**。
+     *
+     * <p>现场（客户端三次：16:53 / 17:30 / 19:06）：一个目标失败后决策层**换条路重试**（一次性被拒 ⇒
+     * 自起常驻区域任务）。用户口径："任务要如实失败，不能继续跑"。
+     *
+     * <p>五件断言：① 前两次放行；② 第 3 次（窗口内已失败 `LOOP_BLOCK_AT` 次）⇒ **拒**，且理由码 =
+     * `repeat_failure`、理由里**带身份与次数**（LLM 要能据此换目标）；③ **玩家显式发起豁免**
+     * （`IN_GAME_PLAYER`/`FIXTURE` ⇒ 放行，阶梯对玩家不缩水）；④ **成功一次 ⇒ 复位**；
+     * ⑤ **别的目标不受牵连**（闸门按身份，不是全局刹车）。
+     *
+     * <p>**反向对照**（已实测）：把 `loopRefusal` 的阈值判定注入成恒 `null`
+     * ⇒ ② 变红（`blocked=false`）；把 `execute` 里那道受理闸删掉 ⇒ 源码规则 `rule_loop_admission` 变红。
+     */
+    private void checkLoopAdmissionControl() {
+        String previousDriver = com.dddgn.alice.decision.Driver.of(bot);
+        String target = "tree@fixture-loop,64,0";
+        try {
+            com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.LLM);
+            // ① 前两次：放行
+            boolean first = GoalDirector.loopRefusal(bot, com.dddgn.alice.decision.Driver.LLM,
+                    "lumber", target) == null;
+            GoalDirector.noteAttempt(bot, "lumber", target);
+            GoalDirector.noteTerminalOutcome(bot, "lumber", true);
+            boolean second = GoalDirector.loopRefusal(bot, com.dddgn.alice.decision.Driver.LLM,
+                    "lumber", target) == null;
+            GoalDirector.noteAttempt(bot, "lumber", target);
+            GoalDirector.noteTerminalOutcome(bot, "lumber", true);
+            // ② 第 3 次：拒（理由码 + 身份 + 次数都要在）
+            String refusal = GoalDirector.loopRefusal(bot, com.dddgn.alice.decision.Driver.LLM,
+                    "lumber", target);
+            boolean blocked = refusal != null
+                    && refusal.contains(GoalDirector.LOOP_REFUSAL_CODE)
+                    && refusal.contains(target)
+                    && refusal.contains(String.valueOf(GoalDirector.LOOP_BLOCK_AT))
+                    && GoalDirector.loopFailCount(bot, "lumber", target) == GoalDirector.LOOP_BLOCK_AT;
+            // ③ 玩家显式发起 ⇒ 豁免
+            boolean exempt = GoalDirector.loopRefusal(bot, com.dddgn.alice.decision.Driver.FIXTURE,
+                    "lumber", target) == null
+                    && GoalDirector.loopRefusal(bot, com.dddgn.alice.decision.Driver.IN_GAME_PLAYER,
+                            "lumber", target) == null;
+            // ④ 成功一次 ⇒ 复位
+            GoalDirector.noteAttempt(bot, "lumber", target);
+            GoalDirector.noteTerminalOutcome(bot, "lumber", false);
+            boolean reset = GoalDirector.loopRefusal(bot, com.dddgn.alice.decision.Driver.LLM,
+                    "lumber", target) == null
+                    && GoalDirector.loopFailCount(bot, "lumber", target) == 0;
+            // ⑤ 别的目标不受牵连
+            boolean other = GoalDirector.loopRefusal(bot, com.dddgn.alice.decision.Driver.LLM,
+                    "lumber", "tree@fixture-loop,64,77") == null;
+            check("loop_admission_control", first && second && blocked && exempt && reset && other,
+                    "first=" + first + " second=" + second + " third_blocked=" + blocked
+                            + " player_exempt=" + exempt + " reset_on_success=" + reset
+                            + " other_target_ok=" + other + " refusal=" + refusal);
         } finally {
             com.dddgn.alice.decision.Driver.set(bot, previousDriver);
         }
