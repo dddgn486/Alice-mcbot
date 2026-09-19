@@ -10,7 +10,25 @@
 
 ## 1. 一句话现状（2026-09-15 上午）
 
-> **⏭ 2026-09-19 断点（压缩后从这里接）**：队列 ①→④ 施工中。
+> **⏭ 2026-09-19 晚 断点（压缩后从这里接；最新在**最上面**）**：
+> **本弧（`§5.12` 第 4 件 + 客户端三轮 + 决策层讨论）已全部落地并推送**，最后一次 commit `d33f775`：
+> ⭐ 权限阶梯接进闸门（含客户端实测补的**第④处消费** = `PathSession`→`CapabilityGate`，`D-338` 附注十）
+> · ⭐ **保护区里非玩家发起封顶 `L1`**（附注十四；`task_zone` **89 判据 / 0 失败**；反向对照拆封顶 ⇒ 恰 3 红）
+> · ⭐ **事件环补全**（附注十五；`immediateStop`/顶替/启动前拒绝进环 + 静默丢弃留痕 + `droppedTriggers` 进快照；
+> 源码规则 `rule_stop_event_ring` 反向对照已做）· 设计文档审查修正（`docs/reviews/2026-09-19-设计文档审查.md`）
+> · 决策层最终形态落档（`docs/DECISION_LAYER_FINAL_FORM.md`，**设计定稿·未实现·未验收**）。
+> ⚠️ **jar 未同步**：`8c3b2ec` / `826a57d` 之后**没有**跑 `./gradlew build` + `sync-windows-artifact.sh`
+> ⇒ 客户端 `mods/` 里还是上一版（`JAR_CONTENT_SHA256=007ee58b…`）。**下次客户端复验前必须先打包同步**。
+> **下一步（按用户已同意的计划）**：③ **最小跨任务循环检测**（同一区域/同一目标在窗口内失败 ≥ N ⇒
+> **禁止再起 + 升级**，而不是"换条路重试"—— 就是 17:30 那两轮的形态）；配判据 + 反向对照，只跑相关门禁。
+> **未决口径（等用户拍）**：`L1` 有区内放置配额（≤8），`L2` **没有** —— 要不要给 `L2` 也加"每 `scopeId` 区内放置上限"？
+> **客户端复验清单（同步 jar 后）**：① 保护区里右键 `alice:region_lumber` ⇒ 仍能砍（玩家显式 ⇒ `L2`）；
+> ② 让 LLM 在保护区里自起 `region_lumber`（或直接观察它自起）⇒ 应**如实失败** `zone_break_not_allowed`；
+> ③ `/alice region stop` 之后事件环出现 `STOP`（grep `STOP|trigger_dropped|droppedTriggers`）。
+> **证据**：`task_zone` 89/0 · `llm_contract` 6 keys PASS · `module:{protection,contracts,llm}` 全 PASS ·
+> `check-kernel-predicates` PASS（新规则） · 冻结三件套 **1475/1476**。
+
+> **⏭ 2026-09-19 断点（队列 ①→④ 施工线，仍在进行）**：
 > ① **扫描器加载守卫** ✅ `fb6e142`（`hasChunkAt` ⇒ 未加载记「未扫」+ 不变式/不加载两条门禁，先红后绿）
 > ② **`inventory_full` 复核 = 非缺陷** ✅ `8ccb47e`（`MineJob:235` 每 tick 都跑 ⇒ 本就是作业中守卫；
 >    我按勘测报告补的那条被红证明证伪 ⇒ 已撤；补的是**矿侧门禁** `mine_inventory`）
