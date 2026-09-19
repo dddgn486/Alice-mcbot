@@ -13898,3 +13898,40 @@ code=failed:no_reachable_candidate durationTicks=1` ⇒ **它是被拒的**。**
 ② **菜单面**：`region:saved` 与**保护区重叠**时不进菜单（或注明"该区域在保护区内 ⇒ 需玩家自己起"）；
 ③ **提示词面**：规则收紧为"刚失败过 ⇒ **不得对同一片区域换路重试**（含 `region_lumber`）"；
 ④ **可观测性**：LLM 起的任务在聊天留一行"谁起的、起了什么"（今天只有日志 `[Job] launch`）。
+
+### D-338 附注十三：**中断点 → 是否交给 LLM** 的完整矩阵（用户要求核实并落档）2026-09-19
+
+**用户实测（要核实的那个事实，我核过了）**：`/alice region stop` 之后**故意等了半分钟**，LLM **没有**起任务；
+随后**一点 `alice:lumber_job` 就马上去砍树了**。⇒ **用户的观察完全正确**，而且它纠正了我上一条回答里
+"任务一结束就交给 LLM"的**过度概括**：
+
+- 全日志只有 **8 次** `decision_request`：6 次 `event:PROGRESS:…region_lumber`、1 次
+  `terminal:lumber(no_reachable_candidate)`、1 次 `terminal:region_lumber(tool_missing)`；
+  ⭐ **没有任何一次来自那次 stop**（`17:29:26` stop → `17:30:02` 点物品，**36 秒内 `[Goal]` 行数 = 0**）。
+- 真正的因果链（逐行对齐）：`17:29:22` 区域任务**跑着**时被 `event:PROGRESS` 叫过 → LLM 回 `no_op`
+  （`region_lumber 正在正常推进`）→ `17:29:26` 用户 stop（`CANCELLED_BY_USER cancelled:region_stop`，**不叫 LLM**）
+  → `17:30:02` 用户点 `lumber_job` → **1 tick 就 FAILED**（5 棵树全 `protected_area`）→ ⭐ **这次 FAILED 终态**
+  才把 LLM 叫来 → `17:30:06` LLM 选 `start_job kind=region_lumber` → 砍树。
+  ⇒ 用户那句"`lumber_job` 让他去砍的树"**在因果上是对的**（是**点它引发的失败通知**把 LLM 招来的）；
+  我此前说"LLM 自起"没错，但**没把触发点说准**。
+
+**根因（代码级）**：`BotSession` 有**两条**收尾路径，只有一条做"终态后处理"：
+
+| 收尾路径 | 触发场景 | 终态记录 | 事件环 | **决策层接手** | 返程兜底（D-327） |
+|---|---|---|---|---|---|
+| `complete(...)` | 自然完成 / 失败 / 维生中断 / `follow` 停止 | ✅ | ✅ | ✅（过五道闸） | ✅ |
+| ⭐ `immediateStop(...)` | **玩家显式停止**（`/alice region stop`、`/alice stop-task`、`stop_current`、延后到安全点后执行） | ✅ | ❌ | ❌ | ❌ |
+| `recordTerminal(CANCELLED_REPLACED)`（`replaceTaskIfRunning`） | **被新任务顶掉** | ✅ | ❌ | ❌（新任务已在跑，**合理**） | ❌ |
+| `recordTerminal(REJECTED_BEFORE_START)` | 修路计划非法 / **实体目标任务未实现** | ✅ | ❌ | ❌ | ❌ |
+
+⇒ **玩家显式停止是一条旁路**：不叫 LLM（**这大概是对的**：玩家说停就是停，叫 LLM 反而可能被它立刻重开 ——
+正是这两轮把用户绕懵的同一件事），但 ⚠️ **它连事件环都不记** ⇒ 决策层下一次被叫时**看不到"刚才被玩家停了"**
+（只能从 `lastTerminal` 快照字段间接看到）。
+
+**其余入口**：阈值事件（工具见底 / 卡住）、维生中断、`manual`、`instruct` 各有自己的入口；
+**空闲触发在你的配置里是关的**（`idleDecisionEnabled=false`）；**被节流/限流/自检按住 ⇒ 丢掉、不排队**
+（日志 `trigger_skipped reason=throttle|rate_limit|suspended`）；⚠️ **另有一个静默丢弃**：
+`maybeTrigger` 开头 `if (!config.usable() || state.pending != null) return;` —— **已有请求在飞时连日志都不打**。
+
+**待用户裁定（未动代码）**：① 玩家显式停止要不要也交给 LLM（我倾向**不要**，但要把"被玩家停了"写进事件环）；
+② `unimplemented`（实体目标未实现）这类**启动前拒绝**要不要进事件环（今天不进 ⇒ 决策层看不见"我刚被拒了"）。
