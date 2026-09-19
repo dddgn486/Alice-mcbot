@@ -10,109 +10,37 @@
 
 ## 1. 一句话现状（2026-09-15 上午）
 
-> **⏭ 2026-09-19 晚 断点（压缩后从这里接；最新在**最上面**）**：
-> **⏭ 2026-09-19 夜（最新）：客户端反向测试 → `D-339`**（本轮 commit 见 `git log -1`）
-> **输入**：用户做的是**保护区验证的反向测试**（LLM 在保护区自起任务应当干不了活），现象 = "`lumber_job` 失败后
-> LLM 又起 `region_lumber`，但**他没有动**"。我读客户端日志（`19:00–19:07`）得到：**三通过 + 一处真缺陷**：
-> ✅ 保护区里**玩家自己**发起照旧干活（`chopped=0→5`、`ALLOW … STEP_PLACEMENT` **真垫了方块**、`scaffoldLeft=0`）
-> · ✅ **封顶生效**（LLM 自起那轮 5 棵树全 `zone_break_not_allowed`）· ✅ **事件环可取证**（`bot_report` 快照
-> `recentEvents` 里 `tick=1787 type=STOP`、`droppedTriggers=3`）· ❌ **被拦下的任务没"如实失败"而是空转**
-> （`viable=0 inRegion=0` 每 ~2 s 一行，直到 `maxTicks=24000` = **20 分钟**，期间反复唤醒 LLM）。
-> **用户裁定**：**不改作业机制**（作业在 `viable=0` 时待巡查**就是它设计好的常驻语义**= 你要的"等窗口"），
-> 而是**直接阻断"测试夹具失败 → LLM"这条消息** ⇒ 落地 **`D-339`**：`GoalDirector.onTaskTerminal` 加闸
-> （`driver=fixture` ⇒ **不发触发**、记一条 `fixture_driver` 丢弃、返回 `false`），**只拦 `FIXTURE` 不拦 `SYSTEM`**；
-> ⚠️ **阻断不丢账**（事件环那条 `FAILURE` 由 `complete` **先于**它写入）。
-> **证据**：夹具 `llm_contract` 新增 **`fixture_terminal_silent`**（9 判据全绿）· **反向对照注入 `if (false)` ⇒ 恰 1 红**
-> · `module:llm` PASS · **CORE 51/51 PASS（`ticks=4791`）**。口径与残余口子见 `AI_DECISIONS.md D-339`。
-> **jar 已同步**：`alice-1.0.0-1.20.1.jar` **`JAR_CONTENT_SHA256=129f1749…`**（换 jar ⇒ **重启客户端**）。
-> ⭐ **客户端已验证（2026-09-19 19:28，新包）**：同场景同一失败 ⇒ 日志**只**多一行
-> `[Goal] trigger_dropped reason=fixture_driver（夹具终态不交给决策层） trigger=terminal:lumber(no_reachable_candidate)`，
-> **全会话 `[Goal]` 仅此 1 行**（零 `decision_request` / 零 `decision_action` / 聊天零 `决策层：`）；
-> 对照上一轮同场景 = 自起 `region_lumber` 空转 20 分钟。用户判**"符合预期"** ⇒ `WINDOWS_CLIENT` + `USER_ACCEPTED`。
-> ⭐ **同轮口径①已定（用户原话）**：一次性 `lumber_job` 在**自己认领区**里仍被拒 `protected_area`
-> **"就是预期…是一个反例"** ⇒ **设计行为，不开豁免口子**（阶梯豁免只对**任务区**生效）。
-> **⏳ 未做/未决**：③ **最小跨任务循环检测**（下一步；本轮只掐了那条链的第一环）· 残余口子 = 夹具驱动任务
-> **运行中**的 `event:PROGRESS` 仍会唤醒 LLM（要一起掐需把 `driver` **在任务启动时固定**）· **`L2` 是否也要
-> "每 `scopeId` 区内放置上限"**（`L1` 有 ≤8）。
->
-> **➡️ 2026-09-19 夜 续（用户选 P1 → P2 → ③）**：**P1 已落地 = `D-340`** —— `GoalDirector.onEvent` 按
-> `driver=fixture` 拦（新增 `FIXTURE_EVENT_REASON`，与 `FIXTURE_TERMINAL_REASON` 共享 `fixture_driver` 前缀）；
-> 判据 `fixture_event_silent`；**反向对照注入 `if (false)` ⇒ 恰 1 红**（两闸门判据独立）；`module:llm` PASS。
-> ⚠️ 判据**必须直接驱动 `onEvent`**（夹具自身 `isSelfCheck=true` ⇒ `notifyIfAllowed` 先短路，走 `DecisionEvents.emit` 会假红）。
-> ⏳ **下一步 = P2**：`RegionLumberJob:437` 处，"候选全被**永久授权拒绝**"（`raw.rejected()` 里的
-> `zone_break_not_allowed`/`zone_read_only`/`protected_area`…）⇒ **如实失败**，不再 `viable=0` 空转到 `maxTicks`；之后 ③。
->
-> **➡️ 2026-09-19 夜 续 2：P2 已落地 = `D-341`（"无权" ≠ "没有"）**
-> 分类唯一出处 `ZoneAuthority.permanentDenial(code)`（永久码齐；**刻意不收** `trunk_too_tall`/`not_nearest` 类
-> 搜索性理由）+ 纯函数 `RegionLumberJob.permissionBlock(region, rejected, effectiveTop)` + `patrol()` 在
-> `inRegion.isEmpty()` 时**先问它** ⇒ `terminalReason=no_permitted_candidate` + `FAILED`（⚠️ **放在补种之前**，
-> 否则 `deficit>0` 会先跑 `tryPlant` 把真因盖成假原因）。
-> **证据**：`task_zone` **⑫ 组 4 条**（用真扫描的 `rejected` + 手搭真树 + 已认领区；**89 → 93 判据 / 0 失败**）
-> · 内核规则 `rule_no_permitted_candidate`（**结构断言**） · **反向对照两条**：接线注入 `if (… && false)` ⇒ 内核红
-> （⚠️ **第一版弱规则放过了它**，已改结构断言后重放 ⇒ 红）；`permanentDenial` 注入恒 `false` ⇒ `checks=93 failures=2`
-> · `module:lumber` + `module:protection` PASS。
-> ⚠️ **没做端到端**（真跑被封顶的 `RegionLumberJob`）：`LumberCandidateSource` 是 `final`（塞不了桩源）、
-> `patrol()` 要求 bot 在区域内，且在共享夹具里真跑会写**按 owner 的 `baselineTrees`/`patrol`** 污染后续阶段。
-> ⇒ **客户端端到端入口**：`/alice instruct "在保护区里起一个 region_lumber"`（`instruct` 的动作由 LLM 应用 ⇒
-> `driver=llm` ⇒ 被封顶 `L1`）⇒ 应当**立刻** `FAILED no_permitted_candidate`，而不是 20 分钟不动。
-> **➡️ 下一个 = ③ 最小跨任务循环检测**（P1/P2 已完成）。
->
-> **➡️ 2026-09-19 夜 续 3：③ 已落地 = `D-342`（受理闸）** —— 同一 `(kind|目标)` 在 **1200 tick** 窗口内失败
-> **2 次** ⇒ **第 3 次受理前拦下**：`loopRefusal` 在 `execute` 的 `start_job` 分支、**`assignJob` 之前**判；
-> 拒时 `REFUSED` 进事件环 + `noteRefusal` 回读 + 聊天回执（带身份/次数/最近失败 tick/换目标指示）；
-> **玩家显式（`IN_GAME_PLAYER`/`FIXTURE`）豁免**；该身份**成功一次**或窗口过期 ⇒ 复位。
-> ⚠️ 两个易踩的点（都写在 `D-342` 里）：① 身份靠「受理记 key、终态按 key 记账」，**不做** LLM 目标串与
-> `targetDescription` 的字符串匹配（两套写法不同，必然漂移）；② 记账点在 **`BotManager.complete` 里返程兜底
-> `return` 之前**（挂在 `onTaskTerminal` 上会漏掉「失败触发返程」那一次）。
-> **证据**：`llm_contract` **10 判据全绿** · 内核规则 `rule_loop_admission`（**顺序·结构断言**）·
-> **反向对照两条**（① 拒绝分支注入 `&& false` ⇒ 内核红；② `loopRefusal` 恒 `null` ⇒ 恰 1 红）·
-> `module:llm` PASS · **CORE 51/51（`ticks=4770`）**。
-> 🔴 **客户端首测 = 反例（2026-09-19 20:48）**：三次 `instruct` **全放行**（`REFUSED` 零条）。根因 = `kind` 生产两写法
-> （受理 `JobRequest.Kind.name()` 大写 `REGION_LUMBER` / 终态 `Task.taskName()` 小写 `region_lumber`）⇒ `startsWith`
-> 恒假 ⇒ **静默不记账** ⇒ 计数恒 0。**已修**（`attemptKey` 归一大小写）+ **补跨写法断言**（这正是本该抓到的判据；
-> 夹具当时两边都用小写 = 自洽但与生产不同，`alice-scene-based-testing` §6.9.1 说的就是这个病）。
-> **⭐ 反向对照（重现现场）**：去掉归一 ⇒ 夹具**恰 1 红**（`spelling_normalized=false` / `cross_spelling_accounting=false`，
-> 另五条仍 true）+ 内核规则红。
-> ⭐ **修订（同日，用户逐字问「这种重复测试应该加入无头测试，而不是反复测试，这个测试有我客户端才能获取的信息吗」）**
-> ⇒ **回答 = 没有**（纯服务端逻辑）。已把这条线做成**纯无头**：身份**不再跨边界做字符串匹配**
-> （在飞身份只由 LLM 受理侧写、`BotManager.beginTask` 在非 LLM 派活时 `clearAttempt`），
-> `noteTerminalOutcome` 去掉 `kind` 参数；夹具 `loop_admission_control` **7 断言全 true** + 内核规则锁整条链
-> （受理闸在 `assignJob` 前 / 同一表达式 / `Driver=LLM` 在 `execute` 前 / `beginTask` 调 `clearAttempt` /
-> `complete` 调记账且在**返程兜底之前** / **禁止**再出现 `startsWith(kind`）+ **反向对照三条**（三类注入各 ⇒ 内核红）。
-> `single:llm_contract` / `single:task_zone`(**93/0**) / `module:llm` / `module:lumber` / **CORE 51/51（`ticks=4777`）**。
-> ⭐ **口径已落 `TESTING_GUIDE.md`「客户端轮次的准入尺子」**：**默认无头**；客户端只用于**证据在客户端**的类别
-> （渲染/物理/GUI/同步/真实模组交互/真人观感）；交付话术必须明说"不需要你复测（已无头覆盖：`<命令>`）"。
-> **⏳ 旧的"待你复跑"作废**：`D-342` 这条线**不需要客户端轮次**（豁免语义已由夹具 `player_exempt` 断言 + 内核规则覆盖）。
-> 而**你自己**右键测试物品连点三次同目标 ⇒ 应当**照旧放行**（豁免）。
-> ⭐ **客户端复验通过（2026-09-19 20:17 新包，用户判"符合预期"）**：`kind=region_lumber driver=llm
-> terminalReason=no_permitted_candidate`（P2 端到端：`/alice instruct` 起 ⇒ **立刻如实失败**）·
-> `trigger_dropped reason=fixture_driver（夹具驱动的事件…）`×23（P1）· `（夹具终态…）`×1（`D-339`）·
-> 全会话**唯一**一次 LLM 调用 = `trigger=operator mode=directed`（用户自己的 `/alice instruct`，设计如此）。
+> **⏭ 2026-09-19 夜 断点（压缩后从这里接）。** 以下按"**最新在上**"；再往下的旧断点**只作历史指针**。
 
-> **⏭ 2026-09-19 晚（本弧全部落地）：§5.12 第 4 件 + 客户端三轮 + 决策层讨论**，最后一次 commit `d33f775`：
-> ⭐ 权限阶梯接进闸门（含客户端实测补的**第④处消费** = `PathSession`→`CapabilityGate`，`D-338` 附注十）
-> · ⭐ **保护区里非玩家发起封顶 `L1`**（附注十四；`task_zone` **89 判据 / 0 失败**；反向对照拆封顶 ⇒ 恰 3 红）
-> · ⭐ **事件环补全**（附注十五；`immediateStop`/顶替/启动前拒绝进环 + 静默丢弃留痕 + `droppedTriggers` 进快照；
-> 源码规则 `rule_stop_event_ring` 反向对照已做）· 设计文档审查修正（`docs/reviews/2026-09-19-设计文档审查.md`）
-> · 决策层最终形态落档（`docs/DECISION_LAYER_FINAL_FORM.md`，**设计定稿·未实现·未验收**）。
-> ✅ **jar 已同步**（2026-09-19 18:57）：`alice-1.0.0-1.20.1.jar` `JAR_CONTENT_SHA256=3412a74a…`
-> （源码镜像 / Windows 仓库 / 客户端 `mods/` 三处一致；场景数据包 115 函数已刷 ⇒ 需 `/reload` 或重进存档；
-> 换 jar ⇒ **必须重启客户端**）。三处落点已**逐类**在包内核实：`WritePolicyMatrix$Level.cappedForUnattended`
-> · `ZoneAuthority.{movementRefusal,silentRefusal,regionRefusal}` · `PathSession$1.movementRefusal`
-> · `BotManager$BotSession` 的 `REPLACED|REFUSED|STOP` · `DecisionSnapshot.droppedTriggers`
-> （⚠️ 教训：这些字面量**分散在嵌套/匿名内部类**里，查 `PathSession.class`/`BotManager.class` 会误判成"没进包"）。
-> **下一步（按用户已同意的计划）**：③ **最小跨任务循环检测**（同一区域/同一目标在窗口内失败 ≥ N ⇒
-> **禁止再起 + 升级**，而不是"换条路重试"—— 就是 17:30 那两轮的形态）；配判据 + 反向对照，只跑相关门禁。
-> **未决口径（等用户拍）**：`L1` 有区内放置配额（≤8），`L2` **没有** —— 要不要给 `L2` 也加"每 `scopeId` 区内放置上限"？
-> **客户端复验清单（同步 jar 后）**：① 保护区里右键 `alice:region_lumber` ⇒ 仍能砍（玩家显式 ⇒ `L2`）；
-> ② 让 LLM 在保护区里自起 `region_lumber`（或直接观察它自起）⇒ 应**如实失败** `zone_break_not_allowed`；
-> ③ `/alice region stop` 后**取证只能经快照**：`BotEventLog.record()` **只写内存环、不写日志** ⇒
-> 右键 `alice:bot_report`，看聊天/日志 `[Report] json=…` 的 `recentEvents` 里 `"type":"STOP"`（+ `droppedTriggers`）；
-> 只有 `[Goal] trigger_dropped` 在 `latest.log`。⚠️ 本轮**没有**改成"stop 立即唤醒 LLM" ⇒ stop 后干等仍**无反应是预期**，
-> 环里的 `STOP` 是给**下一次**决策看的（要手验就右键 `alice:goal_director` 强制决策一次）。
-> **证据**：`task_zone` 89/0 · `llm_contract` 6 keys PASS · `module:{protection,contracts,llm}` 全 PASS ·
-> `check-kernel-predicates` PASS（新规则） · 冻结三件套 **1475/1476**。
-
+> ⭐ **当前状态（2026-09-19 夜，最新）**：本弧（保护区反向测试 → 夹具血脉闸门 → 循环闸）**已收口**：
+> · `D-339` 夹具**终态**不交 LLM（`fixture_terminal_silent`）—— 客户端已验证"符合预期"
+> · `D-340` 夹具**事件**不交 LLM（`fixture_event_silent`）—— 客户端 ×23 留痕、全会话零多余 LLM 调用
+> · `D-341` **「无权」≠「没有」**：区域作业在"树全被永久拒绝"时**如实失败** `no_permitted_candidate`
+>   —— 客户端端到端已验证（`task_terminal_reason kind=region_lumber driver=llm terminalReason=no_permitted_candidate`）
+> · `D-342` **循环受理闸**（同一 `kind|目标` 在 1200 tick 内失败 2 次 ⇒ 拒再起 + 如实回读；玩家显式豁免）
+>   —— 🔴 客户端首测是**反例**（三次 `instruct` 全放行）：根因 = 身份**跨边界字符串匹配**（受理侧
+>   `JobRequest.Kind.name()` 大写 / 终态侧 `Task.taskName()` 小写）⇒ **已做结构修订**：在飞身份只由 LLM
+>   受理侧写、`BotManager.beginTask` 在非 LLM 派活时 `clearAttempt` ⇒ **不再需要任何跨边界匹配**；
+>   `noteTerminalOutcome` 去掉 `kind`；`task_zone` 判据 **94 → 93**（删掉已废弃的"跨写法"断言）。
+> **证据（全无头）**：`single:llm_contract`（10 判据全绿）· `single:task_zone` **93/0** ·
+> `module:{llm,lumber,protection}` · **CORE 51/51（`ticks=4777`）** · 内核规则
+> （`rule_stop_event_ring` / `rule_no_permitted_candidate` / `rule_loop_admission`）PASS ·
+> 反向对照**每条机制都做过**（明细见各 `D-3xx`，含"注入被弱规则放过 ⇒ 改结构断言"两次教训）。
+> **jar 已同步**：`alice-1.0.0-1.20.1.jar` **`JAR_CONTENT_SHA256=642e388b…`**（换 jar ⇒ **重启客户端**）。
+> ⭐ **本弧最重要的口径（用户裁定，不许再犯）**：**默认无头**。客户端轮次只用于"证据本身在客户端"的类别
+> （渲染 / 物理 / GUI / 同步 / 真实模组交互 / 真人观感）⇒ 见 `docs/TESTING_GUIDE.md`「客户端轮次的准入尺子」。
+> 交付话术必须明说"**不需要你复测**（已无头覆盖：`<命令>`）"，或"需要，因为 `<客户端才有的信息>`"。
+> **⏳ 未决（等用户拍）**：① `L2` 要不要也加"每 `scopeId` 区内放置上限"（`L1` 有 ≤8）；
+> ② `RoadObstaclePolicy` 仍走裸保护区判据（已登记、未接阶梯）。
+> **⏳ 下一步候选**（台账 `§5.12` / 第 13/15 行）：区域补种异步化 + **可配置拾取清单** · 区域内**注册容器卸货** ·
+> 决策层**队列 + 持久终态**（`docs/DECISION_LAYER_FINAL_FORM.md`，设计定稿·未实现·未验收）。
+> **历史指针（从这里**不要**接，细节查 `AI_DECISIONS.md` 与 `git log`）**：
+> · `D-338` 附注十四/十五（保护区里非玩家发起**封顶 `L1`** + **事件环补全**）—— 客户端三轮：**三通过 + 一处真缺陷**：
+>   玩家自起照旧干活（`chopped=0→5` + `STEP_PLACEMENT` **真垫了方块** + `scaffoldLeft=0`）、封顶生效
+>   （LLM 自起那轮 5 棵树全 `zone_break_not_allowed`）、`bot_report` 快照 `recentEvents` 里
+>   `type=STOP`；❌ 缺陷 = 被拦下的任务**不"如实失败"而是空转 20 分钟** ⇒ 由此引出 `D-339`~`D-342`。
+> · **下一节是 19:00 之前的旧断点**（`§5.12` 第 4 件、队列 ①→④ 等），**已被本弧取代**；其内残留的
+>   "下一步/客户端复验清单"**已删除**，避免照着过期指令做事。
 > **⏭ 2026-09-19 断点（队列 ①→④ 施工线，仍在进行）**：
 > ① **扫描器加载守卫** ✅ `fb6e142`（`hasChunkAt` ⇒ 未加载记「未扫」+ 不变式/不加载两条门禁，先红后绿）
 > ② **`inventory_full` 复核 = 非缺陷** ✅ `8ccb47e`（`MineJob:235` 每 tick 都跑 ⇒ 本就是作业中守卫；
