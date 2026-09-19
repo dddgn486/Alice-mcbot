@@ -156,7 +156,7 @@
 > `module:{llm,lumber,protection}` · **CORE 51/51（`ticks=4777`）** · 内核规则
 > （`rule_stop_event_ring` / `rule_no_permitted_candidate` / `rule_loop_admission` / `rule_bulk_write_zone_gate`）PASS ·
 > 反向对照**每条机制都做过**（明细见各 `D-3xx`，含"注入被弱规则放过 ⇒ 改结构断言"两次教训）。
-> **jar 已同步**：`alice-1.0.0-1.20.1.jar` **`JAR_CONTENT_SHA256=7c41ae43…`**（`D-346` 后重新同步；⚠️ 这次**没有客户端可见行为改动** ⇒ 换不换 jar 都不影响你上次的观察，换 jar 仍旧要**重启客户端**）。
+> **jar 已同步**：`alice-1.0.0-1.20.1.jar` **`JAR_CONTENT_SHA256=c246fab65a9134ba…`**（`D-347` 后重新同步，2026-09-20 01:28；上一版 `7c41ae43…` 已过期；⚠️ 这次**没有客户端可见行为改动** ⇒ 换不换 jar 都不影响你上次的观察，换 jar 仍旧要**重启客户端**）。
 > ⚠️ `642e388b → 80eab57f` 那一次**不是行为变化**（只加注释 ⇒ 只动了 `LineNumberTable`，已用 `javap -c`
 > 逐指令比对确认）；而 **`80eab57f → eea49c93` 是真实行为变化**（`D-344` 片 A：区域"扫地面"阶段）——
 > 但**没有需要你复测的客户端可见行为**（判定/配置层已由无头夹具 `region_sweep` 19 判据覆盖）。
