@@ -650,6 +650,28 @@ public final class TaskZoneCheckTask implements Task {
                 allAllowed && ZoneAuthority.auditLoggedCount() - before == 1);
         ZoneAuthority.clearAudit();
 
+        // ⑨ ⭐ **第四处消费：规划/执行期的能力闸门**（`CapabilityGate.Facts`）——
+        //    客户端实测暴露我上一片**漏接了这一处**：保护区里 `PILLAR`（"垫一格上去"）被裸保护区判据拒了
+        //    **144 次**、全轮零放置 ⇒ 高树最高一格够不到、直接跳过（离线对照：同一场景无认领时 `places=9`、`7/7`）。
+        TaskZoneRegistry.declare(server, owner, "region_lumber", authArea, false);
+        check("⑨能力闸门（第四处消费）：`L2` 任务区覆盖 ⇒ **放置类移动**（垫脚/`PILLAR`）落点判定放行",
+                ZoneAuthority.movementRefusal(level, owner, AUTH_INSIDE, "protected_area", true) == null);
+        check("⑨能力闸门：`L2` 下**破坏类移动**（`PATH_ACCESS` 语义）落点也放行",
+                ZoneAuthority.movementRefusal(level, owner, AUTH_INSIDE, "protected_area", false) == null);
+        TaskZoneRegistry.declare(server, owner, "craft-station", authArea, false);
+        check("⑨能力闸门：`L1` 允许「垫脚」（临时脚手架）但**不允许破坏类移动**"
+                        + "（码=" + ZoneAuthority.movementRefusal(level, owner, AUTH_INSIDE, "protected_area", false) + "）",
+                ZoneAuthority.movementRefusal(level, owner, AUTH_INSIDE, "protected_area", true) == null
+                        && "zone_break_not_allowed".equals(ZoneAuthority.movementRefusal(level, owner,
+                                AUTH_INSIDE, "protected_area", false)));
+        TaskZoneRegistry.release(WorldModLedger.currentScope(server, owner));
+        check("⑨能力闸门：**没有任务区**时逐字仍是 `protected_area`（既有失败码/`ZONE_PROTECTED_AREA` 不变）",
+                "protected_area".equals(ZoneAuthority.movementRefusal(level, owner, AUTH_INSIDE,
+                        "protected_area", true)));
+        check("⑨能力闸门：**方块/标签黑名单不参与区域授权**（`protected_block` 原样返回）",
+                "protected_block".equals(ZoneAuthority.movementRefusal(level, owner, AUTH_INSIDE,
+                        "protected_block", true)));
+
         findings.add("authority: L0/L1/L2 判据 + 真写入（quota=" + quotaPlaced + "/"
                 + ZoneAuthority.L1_MAX_PLACES + " 区内放置，越界/安全区/野外/别的 owner/候选扫描各一条）");
         TaskZoneRegistry.release(WorldModLedger.currentScope(server, owner));

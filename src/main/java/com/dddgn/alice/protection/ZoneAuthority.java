@@ -174,13 +174,39 @@ public final class ZoneAuthority {
      */
     public static String candidateRefusal(ServerLevel level, UUID owner, BlockPos pos, String worldProtection,
                                          WriteReason reason) {
+        return silentRefusal(level, owner, pos, worldProtection, reason, Act.BREAK);
+    }
+
+    /**
+     * ⭐ **规划/执行期专用**（**不留痕**，与 {@link #regionRefusal} 同一判据）：{@code null} = 放行。
+     *
+     * <p>消费者 = {@code CapabilityGate.Facts}（能力闸门在**执行每一条 Movement 之前**复验：
+     * "这条会改世界的移动，落点是不是受保护"）。⚠️ **2026-09-19 客户端实测暴露**：这一处此前走的是
+     * **裸 `SafeZoneData.protectionReason`** ⇒ 在保护区里连 `L2` 任务区授权的 `PILLAR`
+     * （"垫一格上去"）都被拒（`ZONE_PROTECTED_AREA` ×144，全轮无一次垫脚放置）⇒ **这是第四处消费点，
+     * 我上一片漏接了**（当时只接了候选扫描 ×2 / 破坏闸门 / 放置闸门）。
+     */
+    public static String silentRefusal(ServerLevel level, UUID owner, BlockPos pos, String worldProtection,
+                                       WriteReason reason, Act act) {
         if (worldProtection == null) {
             return null;
         }
         if (!"protected_area".equals(worldProtection)) {
             return worldProtection;
         }
-        return authorize(level, owner, pos, reason, Act.BREAK).refusal();
+        return authorize(level, owner, pos, reason, act).refusal();
+    }
+
+    /**
+     * **会改世界的移动**（`CapabilityGate`）的落点判定：破坏类按 `PATH_ACCESS`（清障语义）、
+     * 放置类按 `STEP_PLACEMENT`（临时脚手架语义）—— 于是 `L1` 允许"垫脚"、`L2` 两者都允许、
+     * 没有任务区时**逐字**仍是 `protected_area`（既有码不变）。
+     */
+    public static String movementRefusal(ServerLevel level, UUID owner, BlockPos pos, String worldProtection,
+                                         boolean placing) {
+        return silentRefusal(level, owner, pos, worldProtection,
+                placing ? WriteReason.STEP_PLACEMENT : WriteReason.PATH_ACCESS,
+                placing ? Act.PLACE : Act.BREAK);
     }
 
     /** 便捷入口（破坏）：{@code null} = 允许。 */

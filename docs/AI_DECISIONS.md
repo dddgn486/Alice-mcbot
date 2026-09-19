@@ -13798,3 +13798,63 @@ quota=1 → 回巡查；命令 `/alice region start|stop|info|clear`）已有"�
    ⇒ **自己砍下来的树苗在地上、被动拾取闸门不放行 ⇒ 补种缺料**。这是**既有口径**（D-134 系列）不是本片引入，
    但"区域补种"这条链上它构成**可用性缺口** ⇒ 登记为新发现，待用户裁定（是否让区域任务显式收集自己砍的掉落物）。
 ③ 高树支持（⒜）本身 = 需求，未做。
+
+### D-338 附注十：客户端第二轮**根因**——能力闸门是**第四处**消费点（我上一片漏接）+ 报告②的判定 2026-09-19
+
+**用户报告①「遇到高树挖不到没有搭柱子，直接跳过」= ⭐真回归，根因已锁定**：
+- **症状证据（客户端）**：该轮 **144 次** `[R4 Session] capability_gate_denied … **type=PILLAR** code=ZONE_PROTECTED_AREA`
+  （例 `:6042 session=lumber-gain-2 pos=28, 65, 208`），全轮**零放置**（内层 Job 终态逐条 `places=0`）⇒
+  云杉最高那一格够不到 ⇒ `chopped=6/7 failed=1` ⇒ 跳过（用户观察完全一致）。
+- **离线对照（同场景、同代码、**无认领区**）**：`step … detail=chopped=**7/7** failed=0 cleared=6` +
+  `[Ledger] place 28, 64, 208 minecraft:cobblestone` + 终态 `writes breaks=41 **places=9**` ⇒ **同一场景它会垫一格**。
+  A/B 的唯一差别 = "那片区块被认领了" ⇒ **根因锁定在我们的判据**。
+- **根因**：`CapabilityGate`（执行每条 Movement **之前**的能力复验）的 `Facts.protectionReason` 由
+  `PathSession.capabilityFacts()` 实现，而它调的是 **裸 `SafeZoneData.protectionReason`** ⇒
+  保护区块里**任何会改世界的移动**（`PILLAR` / `PLACE_STEP_AND_TRAVERSE`）一律被拒，`L2` 任务区**根本没机会发言**。
+  ⇒ **`ZoneAuthority` 的消费点实际有四处，不是三处**：候选扫描（矿/木）×2 · 破坏闸门 · 放置闸门 ·
+  **能力闸门（规划/执行期）**。⚠️ 我上一片宣称"一个判据三处消费"**不完整**——原因是我只按
+  `protectionReason` 的**部分**调用点去数，漏了 `PathSession`→`CapabilityGate` 这条**间接**路径。
+  **教训（写进纪律）**：宣称"判据只有一处/几处消费"之前，必须 `grep` **全部** `protectionReason` 调用者
+  （含经由接口/回调解引用实现的那种），否则"三处"是错觉。
+- **修法（最小、且让它回到"一个判据"）**：
+  ① `CapabilityGate.Facts.protectionReason(BlockPos, boolean placing)`（签名带**动作语义**）；
+  ② `PathSession.capabilityFacts()` 改为走 ⭐ `ZoneAuthority.movementRefusal(level, owner, pos, raw, placing)`；
+  ③ `ZoneAuthority` 新增 `silentRefusal(...)`（**规划/执行期不留痕**，与动作层 `regionRefusal` 同一判据）+
+     `movementRefusal(...)`（破坏类按 `PATH_ACCESS`、放置类按 `STEP_PLACEMENT` ⇒ `L1` 允许"垫脚"、`L2` 两者都允许）；
+  ④ 没有任务区 ⇒ 返回码**逐字**仍是 `protected_area` ⇒ `ZONE_PROTECTED_AREA` 这个既有失败码不变；
+     `protected_block` / `protected_tag` 原样返回（**黑名单/标签规则不参与区域授权**）。
+- **门禁**：`task_zone` 判据 **77 → 82**，新增"第四处消费"5 条（`L2` 放行放置类/破坏类移动 · `L1` 只放行"垫脚" ·
+  **无任务区逐字回归 `protected_area`** · `protected_block` 不参与）。⚠️ **仍未离线覆盖**：真正的
+  `PathSession` 会话级复验（需要在保护区里跑一次真会话）⇒ 下一轮客户端要复看 `places ≥ 1`。
+
+**用户报告②「保护区里启动一次性砍树仍然正常破坏方块」= 观察归属问题（不是闸门漏放）**：
+日志逐条对齐（用户口径：**先 `/alice region stop`、再点 `alice:lumber_job`**）：
+`:6298` 停止区域任务 → `:6326` 聊天 `伐木 Job 启动` → `:6327` `[Job] select job=lumber … **candidates=0
+rejected=[tree@20,64,208:protected_area, tree@28…, tree@33…]**` → `:6331 terminal=FAILED
+code=failed:no_reachable_candidate durationTicks=1` ⇒ **它是被拒的**。**2 秒后**（`:6350`）
+`[Goal] decision_action trigger=terminal:lumber(no_reachable_candidate) raw={"action":"start_job","kind":…}`
+→ `[Job] launch kind=REGION_LUMBER` ⇒ ⭐ **LLM 自己起了一个区域任务**（聊天里**零提示**），它按 `L2` 正常砍树
+⇒ 用户看到的"还在正常破坏"是**那个区域任务**，不是一次性砍树。
+⇒ 由此暴露**两个真问题**（都待拍板，不擅自改）：
+⒜ **可观测性**：LLM 起的任务在聊天里没有提示 ⇒ 玩家无法分辨"这是谁起的"（今天只有日志 `[Job] launch`）；
+⒝ ⭐ **政策**：LLM 能否**自行**起一个拿到 `L2` 区内写权限的任务？（今天等级**只按任务类别**授予、不看驱动身份 ⇒
+`Driver.LLM` 与 `IN_GAME_PLAYER` 在 `L1/L2` 上等价；只有 `L3` 要求玩家显式。）用户的实测直觉是"这不该发生"
+⇒ 需裁定：**保护区内**的 `L2` 是否也要求玩家显式（即"LLM 只能在自己划的任务区里干、不能在玩家基地里自起任务"）。
+
+**用户新需求（2026-09-19，报告①的副产物）**：区域补种这条链要**异步化**（原话要点）：
+① 砍完**立刻捡原木**；② **等待窗口**（巡查退避/等生长）里**主动捡区域内的树苗**（不止自己砍下的那些
+——"可能要主动捡树苗后树苗才够"）；③ **"该补的种"先记账**（今天已有 `pendingReplant`），**捡完再回来补**；
+④ 身上有苗时，砍完**仍然立刻补**（现行为保持）。⇒ 登记为 `§5.12` 第 13 项（见台账），实现前先出方案。
+
+**附注十·补：全消费者清点（按教训做的，别再靠"数调用点"）** 2026-09-19：
+
+| 消费点 | 现状 | 语义 |
+|---|---|---|
+| `LumberCandidateSource` / `MineCandidateSource` | ✅ 走 `ZoneAuthority.candidateRefusal`（静默） | 候选期：无区 ⇒ `protected_area` 硬排除 |
+| `BlockBreakSafety`（`explicitTarget`/`clearing`） | ✅ 走 `regionRefusal(BREAK)`（留痕） | 动作期：等级 + 理由 |
+| `BlockInteraction` 放置（`placeAt` + `placeBulkEdit`） | ✅ 走 `regionRefusal(PLACE)`（留痕） | 动作期：等级 + 理由 + 区内配额 |
+| ⭐ `PathSession` → `CapabilityGate.Facts` | ✅ **本片接上**（`movementRefusal`，静默） | 规划/执行期：每条会改世界的 Movement 逐条复验 |
+| `RoadObstaclePolicy:42` | ⚠️ **仍是裸 `protectionReason`**（保守：保护区一律视为障碍 ⇒ 不越界） | **未接**；是否让 `L3` 任务区允许"修路穿过自己的保护区"= **待定**（不是回归，今天更保守） |
+| `BotManager:2308`（归位点/返回）、`BotCommand`（`protect list`/`region info` 显示）、各夹具 | 有意裸用 | 读/显示/夹具，不做写入决策 |
+
+⇒ 口径收敛为：**写入决策必须过 `ZoneAuthority`**（今天 5 处已接、1 处待定）；显示与夹具可直接读 `SafeZoneData`。

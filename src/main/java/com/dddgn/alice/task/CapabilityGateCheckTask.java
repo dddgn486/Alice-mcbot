@@ -83,7 +83,8 @@ public class CapabilityGateCheckTask implements Task {
     private record FakeFacts(boolean pureRequest, String protection, int throwaway, boolean breakBudget,
                              boolean placeBudget, boolean tool) implements CapabilityGate.Facts {
         @Override
-        public String protectionReason(BlockPos pos) {
+        public String protectionReason(BlockPos pos, boolean placing) {
+            // 假事实只喂"受不受保护"；`placing` 由区域授权面在**真实** Facts 里用（这里不模拟等级）
             return protection;
         }
 

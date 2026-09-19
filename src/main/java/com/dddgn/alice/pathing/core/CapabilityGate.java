@@ -31,8 +31,15 @@ public final class CapabilityGate {
 
     /** 执行期需要的**世界事实**（由调用方注入，便于自检与替换）。 */
     public interface Facts {
-        /** 受保护则返回保护理由（`protected_area`/`protected_block`/`protected_tag`），否则 null。 */
-        String protectionReason(BlockPos pos);
+        /**
+         * 受保护则返回保护理由（`protected_area`/`protected_block`/`protected_tag`），否则 null。
+         *
+         * <p>⭐ `placing` = 这条 Movement 是**放置类**（`PILLAR` / `PLACE_STEP_AND_TRAVERSE`）——
+         * 判定要按**放置**语义问区域授权面（`L1` 临时脚手架就允许垫脚）；破坏类按破坏语义问。
+         * 混用一个"是不是受保护"的布尔会把 `D-338` 附注七的等级阶梯压平（客户端实测教训见
+         * `ZoneAuthority.silentRefusal` 的注释）。
+         */
+        String protectionReason(BlockPos pos, boolean placing);
 
         /** 一次性方块数量（放置类 Movement 的消耗品）。 */
         int throwawayBlocks();
@@ -68,7 +75,7 @@ public final class CapabilityGate {
         }
         // ② 保护区（requiresZoneAuthorization）
         if (caps.requiresZoneAuthorization()) {
-            String reason = facts.protectionReason(toFoot);
+            String reason = facts.protectionReason(toFoot, !caps.canBreakBlocks());
             if (reason != null) {
                 return Optional.of("ZONE_" + reason.toUpperCase(Locale.ROOT));
             }

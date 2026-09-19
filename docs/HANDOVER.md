@@ -92,7 +92,7 @@
 >    破坏闸恒放行 ⇒ `failures=3`（恰好 `L0`/`L1`/候选 `L0` 三条**拒绝**判据）；破坏恒拒 ⇒ `failures=3`（恰好 `L2` 三条**放行**判据）。
 >    绿：`checks=76 failures=0`、`module:protection` **3/3**、`ALICE_HEADLESS=1 check-all` = **17 PASS / 0 WARN / 0 FAIL**
 >    （CORE **51/51**，`ticks=4762` ⇒ 收紧对 CORE **零回归**）。已同步客户端 `mods/`：
->    `alice-1.0.0-1.20.1.jar` `JAR_CONTENT_SHA256=0db714d5be6564771f1a4dfa967f9afdfd8bc67716b69e3f46ac5c914cdbf273`（含日志卫生修正 `e0617c6`）。
+>    `alice-1.0.0-1.20.1.jar` `JAR_CONTENT_SHA256=da9af34fcdc77b5dfa300dc3725a3c81347dba29fd0c38981a022877bbd0b71d`（含第四处消费修复）。
 > 📌 **客户端第二轮已跑（2026-09-19，`D-338` 附注九）**：用例 1（保护区里划林场 `level=L2 chunks=6` + 真的砍到树）
 >    与用例 3（安全区冲突 ⇒ `task_zone_conflict` 如实失败、1 tick 终态）**成立**；用例 2（无任务区的一次性砍树）
 >    日志显示"5 棵树全 `protected_area`、1 tick FAILED"，**与用户观察不一致 ⇒ 待问清入口/时机**。
@@ -100,8 +100,16 @@
 >    真正卡住的是云杉树叶清障 **40 次 `world_unchanged`**，全部在用户 `/alice ftb bind` **之前**、bind 后 0 次
 >    ⇒ **是 FTB 不是我们的闸门**。本轮**真缺陷**（我引入、已修）：`[ZoneAuthority] ALLOW` 被规划期谓词反复触发而刷屏
 >    （50 ms 30 行）⇒ 按 (格, 理由) 去重 + 上限 512；门禁 `task_zone` **76 → 77 判据**。
->    ⚠️ **本轮没覆盖**：J7 攀爬兜底在保护区内**零 pillar 观察**（`scaffoldLeft=0`）⇒ 下一个客户端用例要专门造
->    "够不到的上层原木"；另见台账 §5.12 新增第 10/11/12 项（攀爬未验 / 区域补种缺料被被动拾取闸门挡 / 高树支持=需求）。
+>    ⚠️ 用户报告①**查出真回归**（`D-338` 附注十）：`PathSession`→`CapabilityGate` 是**第四处**保护区判据、
+>    我上一片**漏接了**（走裸 `SafeZoneData`）⇒ 保护区块里 `PILLAR`"垫一格"被拒 **144 次**、全轮 `places=0`
+>    ⇒ 云杉最高一格跳过；离线同场景（无认领）`7/7` + `places=9` 锁根因。**已修**：`CapabilityGate.Facts`
+>    带 `placing` 语义 + `ZoneAuthority.silentRefusal/movementRefusal`，判据 **76 → 82**。
+>    ⚠️ 用户报告② = **观察归属**：一次性砍树那次**被拒了**（5 棵树全 `protected_area`、1 tick FAILED），
+>    砍树的是 **2 秒后 LLM 自起的 `region_lumber`**（聊天零提示）⇒ 待拍板：LLM 能否自起 `L2` 任务 +
+>    LLM 起任务要在聊天留一行。
+>    ⚠️ **本轮没覆盖**：真正的 `PathSession` 会话级复验 ⇒ 下一轮客户端必须复看 **`places ≥ 1`**（`[Ledger] place …
+>    cobblestone [TEMP STEP_PLACEMENT]`）；另见台账 §5.12 新增第 10–14 项（攀爬未验 / 区域补种缺料 / 高树支持 /
+>    **区域补种异步化需求** / **LLM 自起 L2 政策**）。
 >    **下一件**：① 把上面的攀爬用例补上（客户端）；② 默认任务区（第 6 件：玩家预存工作区域 + 启动时派生 + 冲突报错）或 **勾选界面的等级选择**
 >    （第 9 件，⚠️ 操作逻辑要先给你审核）；备选线 = 第 3 件（`WorldModLedger` break 条目）。
 > ⚠️ **④ 唯一剩余**：`FarWalkTask` **还没有生产调用方**（复核触发：下个增量仍无调用方就删）（预期先给 `D-327` 机制 B「返回安全区」或决策层
