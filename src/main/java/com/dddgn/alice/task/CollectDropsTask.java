@@ -95,6 +95,10 @@ public final class CollectDropsTask implements Task {
     private final BlockPos origin;
     private final ScopeBuffer scope;
     private final Set<UUID> expectedIds;
+    /**
+     * ⭐ `D-344`：候选来源（`null` = `scope.liveDrops()`）。见带 `liveDropsSource` 的构造器注释。
+     */
+    private final java.util.function.Supplier<List<ItemEntity>> liveDropsSource;
     private final boolean allowWorldModification;
     /**
      * 收集阶段的**能力信封**（D-116）：掉落物在头顶够不到时，允许用同一份"原地加高"能力上去拿。
@@ -155,6 +159,30 @@ public final class CollectDropsTask implements Task {
     public CollectDropsTask(BotPlayer bot, BlockPos origin, ScopeBuffer scope,
                             List<UUID> expectedIds, boolean allowWorldModification, int totalBudgetTicks,
                             com.dddgn.alice.task.mining.MiningProfile gainProfile) {
+        this(bot, origin, scope, expectedIds, allowWorldModification, totalBudgetTicks, gainProfile, null);
+    }
+
+    /**
+     * ⭐ `D-344`：**候选来源可换**（本次新增）—— 默认 `null` = 沿用 `scope.liveDrops()`（"我方登记在册"），
+     * **既有调用方行为逐字不变**。
+     *
+     * <p><b>为什么必须能换</b>：{@code scope.liveDrops()} 只包含**归属我方**的掉落物
+     * （我方破坏直接/间接产生的，`ScopeBuffer` 登记）。而 `D-344` 要收的是**区域地面上的旧树苗**
+     * —— 它们是 `FOREIGN`（`DropPolicy` 三态里的第三态）⇒ **根本进不了候选集**，
+     * 于是不管有没有收集授权，本任务都会"一件没看见就 DONE"（2026-09-19 端到端夹具实测：
+     * `sweep 结束 status=DONE 实际入包=0 区内剩余=9`，三连零进展 ⇒ 如实失败）。
+     *
+     * <p><b>换了来源不放松授权</b>：能不能捡仍由 {@code DropPolicy.mayCollect}（{@code :632}）把关
+     * ⇒ 两层各司其职：**来源 = "我想收哪些"**、**授权 = "我准不准收"**（`FOREIGN` 要靠
+     * `CollectGrant` 变成 `GRANTED_AREA` 才放行）。
+     *
+     * @param liveDropsSource 候选来源（`null` = `scope::liveDrops`）；供应商每 tick 重新问一次，
+     *                        所以调用方可以**实时重扫**（比如"区域内清单内落物"）
+     */
+    public CollectDropsTask(BotPlayer bot, BlockPos origin, ScopeBuffer scope,
+                            List<UUID> expectedIds, boolean allowWorldModification, int totalBudgetTicks,
+                            com.dddgn.alice.task.mining.MiningProfile gainProfile,
+                            java.util.function.Supplier<List<ItemEntity>> liveDropsSource) {
         this.gainProfile = gainProfile == null
                 ? com.dddgn.alice.task.mining.MiningProfile.STANDABLE_ONLY : gainProfile;
         this.bot = bot;
@@ -163,6 +191,7 @@ public final class CollectDropsTask implements Task {
         this.expectedIds = expectedIds == null ? Set.of() : Set.copyOf(expectedIds);
         this.allowWorldModification = allowWorldModification;
         this.totalBudgetTicks = Math.max(40, totalBudgetTicks);
+        this.liveDropsSource = liveDropsSource;
     }
 
     @Override
@@ -456,7 +485,9 @@ public final class CollectDropsTask implements Task {
     private List<ItemEntity> refreshCandidates() {
         liveById.clear();
         List<ItemEntity> result = new ArrayList<>();
-        for (ItemEntity item : scope.liveDrops()) {
+        // `D-344`：候选来源可换（默认仍是"我方登记在册"的 `scope.liveDrops()`）
+        List<ItemEntity> source = liveDropsSource == null ? scope.liveDrops() : liveDropsSource.get();
+        for (ItemEntity item : source == null ? List.<ItemEntity>of() : source) {
             UUID id = item.getUUID();
             if (consumed.contains(id) || retired.contains(id)) {
                 continue;

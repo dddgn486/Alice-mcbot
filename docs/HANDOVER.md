@@ -26,7 +26,7 @@
 > `module:{llm,lumber,protection}` · **CORE 51/51（`ticks=4777`）** · 内核规则
 > （`rule_stop_event_ring` / `rule_no_permitted_candidate` / `rule_loop_admission` / `rule_bulk_write_zone_gate`）PASS ·
 > 反向对照**每条机制都做过**（明细见各 `D-3xx`，含"注入被弱规则放过 ⇒ 改结构断言"两次教训）。
-> **jar 已同步**：`alice-1.0.0-1.20.1.jar` **`JAR_CONTENT_SHA256=eea49c93…`**（换 jar ⇒ **重启客户端**）。
+> **jar 已同步**：`alice-1.0.0-1.20.1.jar` **`JAR_CONTENT_SHA256=7e279d24…`**（换 jar ⇒ **重启客户端**）。
 > ⚠️ `642e388b → 80eab57f` 那一次**不是行为变化**（只加注释 ⇒ 只动了 `LineNumberTable`，已用 `javap -c`
 > 逐指令比对确认）；而 **`80eab57f → eea49c93` 是真实行为变化**（`D-344` 片 A：区域"扫地面"阶段）——
 > 但**没有需要你复测的客户端可见行为**（判定/配置层已由无头夹具 `region_sweep` 19 判据覆盖）。
@@ -38,10 +38,9 @@
 > （那是**规划期规避**（收紧）不是欠账，写入闸门没绕过）⇒ 已变**可失败断言** `rule_bulk_write_zone_gate`
 > （含 ⭐"**不许顺手接上阶梯**"反向断言；三条反向对照都做过）。新增第 20 项：**玩家显式在自认领区修路做不了**（道路任务不声明任务区 ⇒ 未开工）。
 > **⏳ 下一步候选**（台账 `§5.12`）：① **区域补种异步化 + 可配置拾取清单**（第 13 项）——
-> **片 A + 裁定③已落地入库**（`D-344`：`sweepDecision` 纯判据 / `sweep` 阶段 / 互斥 / `SESSION` 短 TTL
-> 授权 + `revoke` / `SWEEP_NO_PROGRESS_LIMIT=3` + `sweep_no_progress`；夹具步 `region_sweep` **19 判据**；
-> 内核规则 + 反向对照 4 条、夹具反向对照 3 条全红）⇒ ⏳ **剩**：**端到端夹具**（需新场景："零树苗 + 区域地面
-> 有苗 ⇒ 真捡回来并补种"）· **片 C**（`/alice region pickup add|remove|list` 读主手 + 缺口①"补种/扫描不吃退避"）。
+> **片 A（含端到端夹具）+ 裁定③已落地入库**（`D-344`：`sweepDecision` 纯判据 / `sweep` 阶段 / 互斥 / `SESSION` 短 TTL
+> 授权 + `revoke` / `SWEEP_NO_PROGRESS_LIMIT=3` + `sweep_no_progress`；夹具步 `region_sweep` **19 判据** + 端到端 `region_sweep_e2e`（**抓出 3 个真缺陷**）；`CORE 51 步 PASS`；
+> 内核规则 + 反向对照 4 条、夹具反向对照 3 条全红）。⇒ ⏳ **剩**：**片 C**（`/alice region pickup add|remove|list` 读主手 + 缺口①"补种/扫描不吃退避"）。
 > 方案全文 `docs/REGION_REPLANT_ASYNC_DESIGN.md`。
 > ② 区域内**注册容器卸货**（第 15 项）· ③ 决策层**队列 + 持久终态**（`docs/DECISION_LAYER_FINAL_FORM.md`，设计定稿·未实现·未验收）。
 > **历史指针（从这里**不要**接，细节查 `AI_DECISIONS.md` 与 `git log`）**：

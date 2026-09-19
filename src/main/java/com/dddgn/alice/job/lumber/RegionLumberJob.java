@@ -142,6 +142,23 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
     private SweepDecision lastSweepDecision;
     /** 连续多少轮零进展就如实失败（与既有 `IDLE_PATROLS` 同值 ⇒ 同一套"连续 N 次无活"语义）。 */
     public static final int SWEEP_NO_PROGRESS_LIMIT = 3;
+    /** 扫描阶段累计跑过的轮数（**夹具/诊断可见**，与 `treesChopped()` 同族的观察口）。 */
+    private int sweepsRun;
+    /** 扫描阶段累计**实际入包**件数（`CollectDropsTask.collected()` 之和）。 */
+    private int sweepCollected;
+    /** 最近一次结束时的连续零进展轮数（0 = 上次有进展）。 */
+    private int sweepNoProgressStreak;
+    /**
+     * ⭐ `D-344` 细则⑤「**捡完再回来补**」：**走回补种点**的子任务。
+     *
+     * <p>为什么必须有它（端到端实测暴露）：`tryPlant` 只做**触及校验**、**不会走过去**
+     * ⇒ 扫完地面后 bot 停在别处 ⇒ 每轮都只留一行 `补种够不着`，永远补不上。
+     */
+    private com.dddgn.alice.task.WalkToTask approachTask;
+    /** 正在走去的补种点（`null` = 没有在走）。 */
+    private net.minecraft.core.BlockPos approachGoal;
+    /** **走不到的**补种点：记下来不再重试（否则"走不到就无限重走"就是新的空转，`D-341` 同族）。 */
+    private final Set<net.minecraft.core.BlockPos> unreachablePlantSpots = new LinkedHashSet<>();
     private int ticks;
     private int patrolCooldown;
     /** 当前生效的巡查间隔（等生长时退避；发现活就恢复配置值）。 */
@@ -311,6 +328,10 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         if (sweepTask != null) {
             return sweep();
         }
+        // ⭐ `D-344` 细则⑤：**回补种点**阶段（同样与上面两者互斥）
+        if (approachTask != null) {
+            return approach();
+        }
         if (patrolCooldown > 0) {
             patrolCooldown--;
             return com.dddgn.alice.task.Task.Status.RUNNING;
@@ -386,6 +407,33 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
     /** 任务区覆盖的区块数（未生效时为 0）。 */
     public int taskZoneChunks() {
         return taskZoneChunks;
+    }
+
+    // ==================== 扫描阶段的观察口（夹具/诊断；不改行为）====================
+
+    /** 扫描阶段**跑过几轮**（端到端夹具用它证明"苗是扫回来的"，而不是凭空出现在背包里）。 */
+    public int sweepsRun() {
+        return sweepsRun;
+    }
+
+    /** 扫描阶段**累计入包件数**。 */
+    public int sweepCollected() {
+        return sweepCollected;
+    }
+
+    /** 连续零进展轮数（`0` = 上次有进展；到 `SWEEP_NO_PROGRESS_LIMIT` 即如实失败）。 */
+    public int sweepNoProgressStreak() {
+        return sweepNoProgressStreak;
+    }
+
+    /** **此刻是否正在扫描**（细则④"不许撞车"的运行时证据：为 `true` 时一定不在砍树）。 */
+    public boolean sweeping() {
+        return sweepTask != null;
+    }
+
+    /** **此刻是否有砍树子任务在跑**（与 {@link #sweeping()} **不可能同时为真** ⇒ 互斥的运行时证据）。 */
+    public boolean harvesting() {
+        return current != null;
     }
 
     // ==================== 巡查 ====================
@@ -504,6 +552,18 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
             BotLog.info("[Job] maintain 欠树 deficit={} 手里没苗，且区内地面上**没有**清单内落物（清单={}）"
                             + "⇒ 不进扫描（绝不空转），按既有语义处理",
                     deficit, state.effectivePickupItems(bot.getUUID()));
+        }
+
+        // ⭐ `D-344` 细则⑤「**捡完再回来补**」：手里已经有苗、但**够不着**补种点时，先**走过去**。
+        // 为什么必须有这一步（端到端实测暴露）：`tryPlant` 只做**触及校验**、不会自己过去 ⇒
+        // 扫完地面后 bot 停在别处 ⇒ 每轮只留一行「补种够不着」，**永远补不上**。
+        // 判据与 `tryPlant` **共用** `plantSpotFor`（同一个点）⇒ 不会"走到 A、补在 B"。
+        if (deficit > 0 && saplingInInv > 0) {
+            var spot = plantSpotFor(state, bot.getUUID(), bot.serverLevel());
+            if (spot != null && !unreachablePlantSpots.contains(spot)
+                    && !com.dddgn.alice.action.BlockInteraction.reachable(bot, spot)) {
+                return startApproach(spot);
+            }
         }
 
         // ① 欠树 ⇒ 先补种（§13.1"有空格且欠树 → 补种"）；② 有树 ⇒ 砍；两者都在同一轮里按需做
@@ -727,17 +787,10 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
             BotLog.warn("[Job] maintain {}", failure);
             return finish(com.dddgn.alice.task.Task.Status.FAILED);
         }
-        // 找一格可补种的位置：优先"自己砍过的树桩"，其下方必须是土/草（树苗的放置前提）
+        // 找一格可补种的位置：**唯一出处** = `plantSpotFor`（"补种"与"走回去补"必须挑**同一个**点，
+        // 否则会出现"走到 A 点、却在 B 点补"⇒ 永远够不着）
         var level = bot.serverLevel();
-        var spots = new java.util.ArrayList<>(state.pendingReplant(bot.getUUID()));
-        net.minecraft.core.BlockPos spot = null;
-        for (var candidate : spots) {
-            var below = level.getBlockState(candidate.below());
-            if (level.getBlockState(candidate).isAir() && below.is(net.minecraft.tags.BlockTags.DIRT)) {
-                spot = candidate;
-                break;
-            }
-        }
+        net.minecraft.core.BlockPos spot = plantSpotFor(state, bot.getUUID(), level);
         if (spot == null) {
             BotLog.info("[Job] maintain 欠树 deficit={} 但当前没有可补种的位置（等地形/等树桩空出来）", deficit);
             return null;
@@ -758,6 +811,22 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
             BotLog.warn("[Job] maintain {}", failure);
             return finish(com.dddgn.alice.task.Task.Status.FAILED);
         }
+        // ⚠️ T1 / R-4（2026-09-14）：**补种的物理前提 = 触及距离**。
+        // 原先这里直接 `level.setBlock`，**没有任何 reach / 朝向 / 放置面校验**（三路审计 §3.1 R-4 实证：
+        // 这是四层里唯一的 job→world 直写越界）⇒ bot 理论上可以隔空在 4.5 格外"补种"。
+        // 现在补上**触及**这条硬前提（判据与 `action/BlockInteraction` 完全同一份，不另写一套）；
+        // 够不着就**不写世界**、保留待补种项，诚实跳过优于隔空成功。
+        // 已知残留（**登记在案，不是遗忘**）：本方法仍用直接 `setBlock` 而非 `gameMode` 交互路径，
+        // 因为选定树苗可能落在**主背包**（而 `BlockInteraction.placeAt` 只认快捷栏 0-8）——
+        // 改走原语会同时改变**物品消耗路径**与**放置面语义**，属行为变更，需独立一轮客户端验证。
+        // ⚠️ 顺序修正（`D-344` 端到端实测）：触及校验必须在 `consumePlace` **之前** ——
+        // 原先"先扣预算、再校验触及"⇒ 每次"够不着"都**白扣一次放置配额**（拿真实预算去抵一次
+        // 根本没发生的写入）⇒ 预算会被"够不着"慢慢吃光，症状是后来**真的**够得着时被 `REFUSED`。
+        if (!com.dddgn.alice.action.BlockInteraction.reachable(bot, spot)) {
+            BotLog.warn("[Job] maintain 补种够不着 {}（触及校验未过）⇒ 本轮不写世界、保留待补种"
+                            + "（放置预算**未被消耗**：校验已在扣账之前）", spot.toShortString());
+            return null;
+        }
         var grant = com.dddgn.alice.action.WriteGrant.of(jobName(),
                 com.dddgn.alice.action.WriteReason.REGION_REPLANT);
         var verdict = com.dddgn.alice.action.WriteBudget.consumePlace(bot, level, spot, grant);
@@ -767,19 +836,6 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
             return null;
         }
         var previous = level.getBlockState(spot);
-        // ⚠️ T1 / R-4（2026-09-14）：**补种的物理前提 = 触及距离**。
-        // 原先这里直接 `level.setBlock`，**没有任何 reach / 朝向 / 放置面校验**（三路审计 §3.1 R-4 实证：
-        // 这是四层里唯一的 job→world 直写越界）⇒ bot 理论上可以隔空在 4.5 格外"补种"。
-        // 现在补上**触及**这条硬前提（判据与 `action/BlockInteraction` 完全同一份，不另写一套）；
-        // 够不着就**不写世界**、保留待补种项，下一轮巡查再说（诚实跳过优于隔空成功）。
-        // 已知残留（**登记在案，不是遗忘**）：本方法仍用直接 `setBlock` 而非 `gameMode` 交互路径，
-        // 因为选定树苗可能落在**主背包**（而 `BlockInteraction.placeAt` 只认快捷栏 0-8）——
-        // 改走原语会同时改变**物品消耗路径**与**放置面语义**，属行为变更，需独立一轮客户端验证。
-        if (!com.dddgn.alice.action.BlockInteraction.reachable(bot, spot)) {
-            BotLog.warn("[Job] maintain 补种够不着 {}（触及校验未过）⇒ 本轮不写世界、保留待补种",
-                    spot.toShortString());
-            return null;
-        }
         // D-326：第三方保护层（补种也是世界底层写入 ⇒ FTB 认领看不见它）—— 被拒就**不写世界**、
         // 把待补种项留着（与"够不着"同一个诚实语义：宁可不做，也不越过别人的闸门）。
         String thirdParty = com.dddgn.alice.protection.ThirdPartyProtection.refusalReason(bot, spot);
@@ -849,6 +905,29 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
                 current.subTasks());
         current = null;
         return com.dddgn.alice.task.Task.Status.RUNNING;
+    }
+
+    /**
+     * ⭐ `D-344` 细则⑤「**捡完再回来补**」的落点：**本轮要补的那一格**（`null` = 现在没有可补的位置）。
+     *
+     * <p><b>唯一出处</b>：`tryPlant`（真的补）与"走回去补"（`patrol()` 的 approach 分支）**共用它**
+     * —— 两处若各挑一次，就会出现"走到 A 点、却在 B 点补"⇒ 永远够不着（端到端实测踩到的正是这个坑）。
+     *
+     * <p>判据：待补种点 + 该格**是空气** + 下方**是泥土/草**（树苗的放置前提）⇒ 取**第一个**命中的
+     * （顺序确定 ⇒ 可复现）。
+     */
+    public static net.minecraft.core.BlockPos plantSpotFor(LumberRegionState state, UUID owner,
+                                                          net.minecraft.server.level.ServerLevel level) {
+        if (state == null || owner == null || level == null) {
+            return null;
+        }
+        for (var candidate : state.pendingReplant(owner)) {
+            var below = level.getBlockState(candidate.below());
+            if (level.getBlockState(candidate).isAir() && below.is(net.minecraft.tags.BlockTags.DIRT)) {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     // ==================== 扫描地面（`D-344` ③）====================
@@ -949,8 +1028,13 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         // 预算**随落物数缩放**（`suggestedSweepTicks` 是"按实测代价反推"的口径），**不人为封顶**
         // ⇒ 细则③「一次不设上限、扫到区域内捡完为止」。
         int budget = com.dddgn.alice.task.CollectDropsTask.suggestedSweepTicks(targets.size(), null);
+        // ⚠️ `D-344` 端到端实测修正：**候选来源必须换成"区域内清单内落物"**——
+        // 默认来源 `scope.liveDrops()` 只含**归属我方**的掉落物，而我们要收的正是 `FOREIGN` 的旧落物
+        // ⇒ 不改来源的话，不管授权签没签，扫描器都"看不见它们"（实测：`DONE 入包=0 剩余=9`）。
+        // 换成来源**不放松授权**：能不能捡仍由 `DropPolicy.mayCollect` 把关（`FOREIGN` 要靠 ①的授权）。
         sweepTask = new com.dddgn.alice.task.CollectDropsTask(bot, nearest.blockPosition(), scope,
-                ids, false, budget);
+                ids, false, budget, com.dddgn.alice.task.mining.MiningProfile.STANDABLE_ONLY,
+                () -> listDropsInRegion(LumberRegionState.get(bot.getServer())));
         sweepTargets = targets.size();
         BotLog.info("[Job] maintain sweep 开始 目标={} 清单={} 预算={} tick（按落物数缩放，不设人为上限）",
                 targets.size(), LumberRegionState.get(bot.getServer()).effectivePickupItems(bot.getUUID()),
@@ -973,6 +1057,8 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         int collected = sweepTask.collected();
         int left = listDropsInRegion(state).size();
         String reason = sweepTask.terminalReason();
+        sweepsRun++;                    // 观察口（夹具用它证明"苗是扫回来的"）
+        sweepCollected += collected;
         BotLog.info("[Job] maintain sweep 结束 status={} 目标={} 实际入包={} 区内剩余={} reason={}",
                 status, sweepTargets, collected, left, reason);
         // ⚠️ 顺序有意：**先撤销授权、再分类**。分类要回答的是"**在没有放宽权限的世界里**这批东西是什么"
@@ -983,6 +1069,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         if (progress) {
             sweepNoProgress = 0;
         } else if (++sweepNoProgress >= SWEEP_NO_PROGRESS_LIMIT) {
+            sweepNoProgressStreak = sweepNoProgress;   // 观察口：失败时的连续零进展轮数
             terminalReason = "sweep_no_progress";
             failure = terminalReason + "(" + classifySweepBlockers(state) + ") 连续 " + sweepNoProgress
                     + " 轮扫描零进展（区内剩余 " + left + " 件，清单="
@@ -1018,6 +1105,38 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         return "foreign=" + foreign + " unreachable=" + unreachable;
     }
 
+    // ==================== 回补种点（`D-344` 细则⑤「捡完再回来补」）====================
+
+    /** **开始走回补种点**：复用生产既有的 `WalkToTask`（**纯通行**、不挖不垫 ⇒ 不碰 `D-076` 红线）。 */
+    private com.dddgn.alice.task.Task.Status startApproach(net.minecraft.core.BlockPos goal) {
+        approachGoal = goal.immutable();
+        approachTask = new com.dddgn.alice.task.WalkToTask(bot, approachGoal);
+        BotLog.info("[Job] maintain 回补种点 走去 {}（补种只校验触及、不会自己过去 ⇒ 细则⑤「捡完再回来补」）",
+                approachGoal.toShortString());
+        return com.dddgn.alice.task.Task.Status.RUNNING;
+    }
+
+    /**
+     * **回补种点阶段**（每 tick）：走到了 ⇒ 下一轮巡查的 `tryPlant` 就能补上；
+     * 走不到 ⇒ **把这个点记下不再重试**（否则"走不到就无限重走"就是新的空转 —— `D-341` 同族）。
+     */
+    private com.dddgn.alice.task.Task.Status approach() {
+        var status = approachTask.tick();
+        if (status == com.dddgn.alice.task.Task.Status.RUNNING) {
+            return com.dddgn.alice.task.Task.Status.RUNNING;
+        }
+        if (status == com.dddgn.alice.task.Task.Status.DONE) {
+            BotLog.info("[Job] maintain 已到补种点 {}", approachGoal.toShortString());
+        } else {
+            unreachablePlantSpots.add(approachGoal);
+            BotLog.warn("[Job] maintain 走不到补种点 {} reason={} ⇒ 记下不再重试（跳过它、干别的）",
+                    approachGoal.toShortString(), approachTask.failureReason());
+        }
+        approachTask = null;
+        approachGoal = null;
+        return com.dddgn.alice.task.Task.Status.RUNNING;
+    }
+
     /** 撤销本轮扫描签发的收集授权（没有在飞的授权时是空操作）。 */
     private void dropSweepGrant() {
         if (sweepGrantId == null) {
@@ -1039,6 +1158,8 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         dropSweepGrant();
         sweepTask = null;
         sweepTargets = 0;
+        approachTask = null;      // `D-344` 细则⑤：终态也把"走回去"的子任务丢掉
+        approachGoal = null;
         // **取消任务 ⇒ 自动解除任务区**（D-338 附注二第 2 条）：任务区内所有区块的授权都由任务持有，
         // 任务一结束就没有持有者了 ⇒ 就地解除，玩家不需要再点一次。
         // （`/alice region stop` 那种**不经 finish** 的显式打断走的是作用域收尾钩子

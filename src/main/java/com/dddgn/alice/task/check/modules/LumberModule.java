@@ -11,6 +11,7 @@ import com.dddgn.alice.job.policy.NearestPolicy;
 import com.dddgn.alice.task.LumberCourseAnchor;
 import com.dddgn.alice.task.LumberFailureCheckTask;
 import com.dddgn.alice.task.RegionSweepCheckTask;
+import com.dddgn.alice.task.RegionSweepE2ECheckTask;
 import com.dddgn.alice.task.check.CheckContext;
 import com.dddgn.alice.task.check.CheckModule;
 import com.dddgn.alice.task.check.CheckProfile;
@@ -109,7 +110,12 @@ public final class LumberModule implements CheckModule {
                 // ⚠️ 本步**不覆盖**端到端（"真去把地面的苗捡回来"）—— 那要"零树苗 + 地面有苗"的场景，
                 // 属下一步（见 `docs/REGION_REPLANT_ASYNC_DESIGN.md` §7）。
                 CheckStep.of("region_sweep", CheckProfile.EXTRA, List.of(), null,
-                        () -> new RegionSweepCheckTask(bot), 200));
+                        () -> new RegionSweepCheckTask(bot), 200),
+                // `D-344` 片 A 的**端到端**一环：真跑一个 `RegionLumberJob`，看它"扫地面 → 捡苗 → 补种"。
+                // 场景与状态由夹具自己在 SETUP 里造（含地形函数、传送、清背包），结束**还原**
+                // ⇒ provision 传 `null`（技能：夹具自己负责传送与复位）。
+                CheckStep.of("region_sweep_e2e", CheckProfile.EXTRA, List.of(), null,
+                        () -> new RegionSweepE2ECheckTask(bot, scope), 3000));
     }
 
     /** 传送到统一起点（与电池 `teleportBot` 逐字段一致 ✓；顺带起"先热区块再 fill"的作用 ✓）。 */
