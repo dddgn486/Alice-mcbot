@@ -13145,3 +13145,33 @@ CORE/全量独有、别的档给不了的东西只有一件 = **跨模块回归*
 1. **勘测报告的"行为断言"与"项目断言"一样要先当假设**（`survey/21 §4` 的纪律），这次是**第二次**抓到同类；
 2. **"先红后绿"不只是给门禁用的 —— 它同样能证伪"我以为需要的修复"**（这次就用它挡掉了一条冗余守卫）；
 3. 夹具自身的 `record()` 必须计入 `failures`，否则**用例 BAD 却整步 PASS**（第一版犯过，`D-323` 同类"谎报"）。
+
+### D-336：⭐ **斜向上升那一格**（`survey/22 §4.3` 的能力缺口）已补 + 门禁（2026-09-19）
+
+**缺口**：`PLACE_STEP_AND_TRAVERSE` 原先只生成 `dy ∈ {0, -1}`（`SurfaceMovementProvider:72-76`）
+⇒ 平走 / 下 1 格都有，**只有"升 1 格 + 走 1 格"没有**；`PILLAR` 只解决**纯垂直**。
+
+**改动（两处，都在 provider）**：
+1. `for (int dy = 0; dy >= -1; dy--)` ⇒ **`for (int dy = 1; dy >= -1; dy--)`** —— 几何**复用同一个 helper**：
+   `to` 在斜上方，`target = to.below()` 就是"要放台阶的那一格"（必须可穿过 ⇒ 空；放置后斜向上踩上去）；
+2. **定价基类**：`dy == 0 ? TRAVERSE : DESCEND` ⇒ `dy == 0 ? TRAVERSE : (dy < 0 ? DESCEND : ASCEND)`
+   —— 第一版会让 `dy=+1` 落到 `DESCEND`（**把上行按下行定价**，2.67 > 1.67 ⇒ 反而抑制这条边）。
+
+**⚠️ 边界（`D-334` 的约束，必须守住）**：**不动 `ASCEND`** —— `MovementType.changesWorld()` 是**信封分档的唯一静态口径**，
+让 `ASCEND` 自己放方块会让"纯通行移动集"再也无法包含 `ASCEND` ⇒ **打穿信封分层**。
+本边**仍是世界修改类**（`PLACE_STEP_AND_TRAVERSE` 本来就在 `changesWorld()` 里）⇒ 信封语义不变。
+
+**门禁 `place_step_diagonal`（EXTRA，规划级，三用例互为反证）** + **先红后绿实测**：
+
+| 用例 | 修前（`dy ∈ {0,-1}`） | 修后 |
+|---|---|---|
+| `ASCENT`（通用世界修改信封，`PILLAR` 可用） | `REACHED` 但走 `TRAVERSE + PILLAR`（**2 条边**，成本 6.0） | `REACHED`，**1 条边** `PLACE_STEP_AND_TRAVERSE`（Δy=+1，成本 5.0，13 ms） |
+| `MINING`（**挖矿信封** `miningApproach`，**不含 `PILLAR`**） | ⭐ **不可达**（`PARTIAL`，20k 节点耗尽） | ⭐ **`REACHED`，1 条边（2 ms）** |
+| `ENVELOPE`（纯通行 `PathRequest.of`） | 不可达 + **0** 条 place 边 | 同样 ✓（**新边没有渗透进纯通行信封**） |
+
+**⇒ 结论（诚实口径）**：真正的**能力增益在挖矿/收集信封里**（那里没有 `PILLAR` 兜底 ⇒ 修前"升 1 格 + 走 1 格"**确实无路**）；
+在通用信封里它是**把 2 条边降到 1 条、成本降 1.0**。⇒ 与作者"垂直移动三条路要齐"（`survey/22 §4.4`）对齐。
+
+**⚠️ 夹具踩的坑（记下防复发）**：requester 用 `"pathing"` 会被**规划期拒掉**（`WRITE_POLICY_MOVEMENT_DENIED`：
+`(EXTERNAL, PATHING)` 那行**不含 `WITH_WORLD_MODIFICATION`**，即 `P-02` 口径）⇒ 要验"这条边能不能规划出来"，
+必须用**有权写世界**的那一行（本夹具用 `collect-drops` = `P-03`）。

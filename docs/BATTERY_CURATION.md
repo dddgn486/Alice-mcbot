@@ -19,8 +19,11 @@
 SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 **跳过多少、跑多少、各档几项**一眼可见；归属表与实跑项对不上（漏登记 / 文档说测了其实没测）**直接判红**。
 
-## 2. 当前归属表（65 项 → CORE 51 项）
+## 2. 当前归属表（66 项 → CORE 51 项）
 
+> **2026-09-19 校正（3）**：`place_step_diagonal` 进 EXTRA（`D-336`：斜向上升那一格的**规划级**门禁，三用例互为反证）
+> ⇒ BASELINE 15 + MAIN 36 + EXTRA 15 = **66**，CORE 仍 **51**。
+>
 > **2026-09-19 校正（2）**：`mine_inventory` 进 EXTRA（**矿侧容量守卫的门禁** —— 矿侧此前**完全没有** `inventory_full` 覆盖）
 > ⇒ BASELINE 15 + MAIN 36 + EXTRA 14 = **65**，CORE 仍 **51**。
 >
@@ -86,7 +89,7 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 > **瘦身的前提**是"每个夹具自己显式自证前提、顺序无关"；该前提未落地前不允许再减 CORE 项。
 > 恢复路径：先做"显式自证前提"（菜单身份/位置/方块实体状态/账本与归因时间窗）⇒ 再**逐条**撤，**每条复跑一次**。
 
-### EXTRA（14）
+### EXTRA（15）
 `lumber_failure`、`region_maintain`（区域常驻 Job，耗时）、`decision_contract`、`decision_trace`、
 `permission_gate`、`pickup_gate`、`collect_job`、`recipes_dump`、`event_thresholds`、
 `bot_pair_no_recurse`（2026-09-18，D-320：两假人相邻不爆栈）、
@@ -94,6 +97,7 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 会 forceload 40+ 区块并写/清走廊 ⇒ 只 `single:far_path_bench`）、
 `path_retry_bench`（**测量基准**，D-328 附注 + D-331 门禁：失败重试节奏 + "未加载目标不许被同步加载"；
 会造/拆一个封死房间 ⇒ 只 `single:path_retry_bench`）、
+`place_step_diagonal`（D-336：**斜向上升那一格** —— 通用信封 / **挖矿信封（不含 PILLAR）** / 纯通行信封三用例；规划级）、
 `mine_inventory`（D-335：矿侧容量守卫门禁 —— 前置满包 ⇒ 一格不动；作业中满包 ⇒ **恰好只少 1 格**；
 判据钉在"世界有没有被白改"上，先红后绿实测）
 

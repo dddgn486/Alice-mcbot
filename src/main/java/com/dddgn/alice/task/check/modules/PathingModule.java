@@ -4,6 +4,7 @@ import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.task.CleanupWrappedTask;
 import com.dddgn.alice.task.ContrastTimerCheckTask;
 import com.dddgn.alice.task.FallDiagnosticTask;
+import com.dddgn.alice.task.PlaceStepDiagonalCheckTask;
 import com.dddgn.alice.task.PillarDiagnosticTask;
 import com.dddgn.alice.task.check.CheckContext;
 import com.dddgn.alice.task.check.CheckModule;
@@ -37,6 +38,9 @@ public final class PathingModule implements CheckModule {
     public List<CheckStep> steps(CheckContext ctx) {
         BotPlayer bot = ctx.bot();
         return List.of(
+                // D-336（2026-09-19）：**斜向上升那一格**（规划级）—— 能力 + 信封两用例，互为反证。
+                CheckStep.of("place_step_diagonal", CheckProfile.EXTRA, List.of(), null,
+                        () -> new PlaceStepDiagonalCheckTask(bot, ctx.observer()), 400),
                 CheckStep.of("fall_execute", CheckProfile.MAIN,
                         List.of("alice_test:fall_course_terrain"), null,
                         () -> new CleanupWrappedTask(new FallDiagnosticTask(bot, ctx.observer()), bot), 600),

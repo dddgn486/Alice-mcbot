@@ -71,7 +71,13 @@ public final class SurfaceMovementProvider implements MovementProvider {
         }
         if (context.allows(MovementType.PLACE_STEP_AND_TRAVERSE)) {
             for (int[] d : CARDINAL) {
-                for (int dy = 0; dy >= -1; dy--) {
+                // ⭐ **dy 从 -1 扩到 +1**（`D-336` / `survey/22 §4.3`：**斜向上升那一格**是真缺口 ——
+                // 平走 `dy=0`、下 1 格 `dy=-1` 都有，只有"斜上方"没有）。
+                // 几何用**同一个 helper** 表达：`to` 在斜上方，`target = to.below()` 就是"要在其中放台阶的那一格"
+                // （它必须可穿过 ⇒ 是空的；放置后 bot 斜向上踩上去）。
+                // ⚠️ 不动 `ASCEND`（`D-334`：`changesWorld()` 是信封分档的唯一静态口径，
+                // 让 `ASCEND` 自己放方块会打穿分层）；本边**仍是世界修改类**，信封语义不变。
+                for (int dy = 1; dy >= -1; dy--) {
                     appendPlaceStepAndTraverse(context, level, from, d[0], d[1], dy, out);
                 }
             }
@@ -421,7 +427,10 @@ public final class SurfaceMovementProvider implements MovementProvider {
         if (!BlockInteraction.hasPlacementFace(level, target)) {
             return;
         }
-        MovementType base = dy == 0 ? MovementType.TRAVERSE : MovementType.DESCEND;
+        // 定价基类：同层 = 走；下一格 = 下降；⭐ 上一格 = **上升**（第一版只有前两种，
+        // dy=+1 会落到 DESCEND ⇒ **把上行定价成下行**（DESCEND_COST 2.67 > ASCEND_COST 1.67）⇒ 会抑制这条边）。
+        MovementType base = dy == 0 ? MovementType.TRAVERSE
+                : (dy < 0 ? MovementType.DESCEND : MovementType.ASCEND);
         double cost = context.cost(base, from, to) + PLACE_ONE_BLOCK_COST;
         out.add(new PlannedMovement(MovementType.PLACE_STEP_AND_TRAVERSE, from, to, cost,
                 com.dddgn.alice.pathing.core.RecoverabilityEvaluator.levelOf(MovementType.PLACE_STEP_AND_TRAVERSE)));
