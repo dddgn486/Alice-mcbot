@@ -477,6 +477,12 @@ public final class TaskZoneCheckTask implements Task {
             if (ticks - jobStartTick > JOB_TICK_CAP) {
                 timedOut = true;
                 check("生产接线：Job 必须在 " + JOB_TICK_CAP + " tick 内跑到终态（实际超时）", false);
+                // 超时**不能继续 tick 同一个 Job**（既不前进、又会拖到总预算）：丢掉它、照常走后面的用例
+                // 与收尾（收尾会按增量还原，失败路径也不许把认领/声明留在世界里）。
+                job = null;
+                observedZoneMidFlight = false;
+                settle = 0;
+                phase = Phase.JOB_CONFLICT_SETUP;
             }
             return;
         }

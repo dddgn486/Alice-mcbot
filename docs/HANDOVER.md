@@ -76,6 +76,7 @@
 >    门禁 `task_zone`（**EXTRA**）**50 判据 / 9 组**；⭐**反向对照两次**：拆冲突检查 ⇒ `failures=8`（**恰好**冲突那两组，
 >    几何/生命周期/覆盖全绿）；`zoneOf` 退回"按 owner 找" ⇒ `failures=2`（**恰好**两条生命周期判据）⇒ 复原绿
 >    `checks=50 failures=0`。`module:protection` **3/3**、CORE 未动（CORE 仍 51 步；总步数 67 → **68**）。
+>    已同步客户端 `mods/`：`alice-1.0.0-1.20.1.jar` `JAR_CONTENT_SHA256=e8dfd174345d99c72e589c1522027a2ea94b6b1846f942ca36478fd15ae38597`（用 `tools/jar-content-hash.sh` 复核"同一版代码"）。
 >    ⚠️ 附带教训：**第一次生命周期注入无效**（只改尾部、`currentScope==null` 的早退还在 ⇒ 注入后仍绿）——
 >    "注入必须真的拆掉待证机制"；另把该判据的顺序改成**先重开作用域、再问 authority**（否则会被 prune 侥幸顶绿）。
 >    **下一件（待你拍板）**：① **任务区接进闸门**（目标内 `KEEP` / 目标外 `TEMP` + 预算）⇒ 依赖**第 5 件权限阶梯**
