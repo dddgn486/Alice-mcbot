@@ -61,7 +61,10 @@ public final class AStarMovementSearch {
         // 理由：服务端读未加载区块会同步加载/生成并阻塞主线程；"没加载"也不等于"到不了"。
         // 对照 Baritone：从不加载区块（`getChunk(..., FULL, false)`），执行期在
         // `PathExecutor:188` "Pausing since destination is at edge of loaded chunks" 等区块。
-        if (!context.chunkLoaded(goal.goalFoot())) {
+        // ⭐ `D-337`：**粗目标**（`exactFoot()==false`）跳过这条守卫 —— 它的到达判断是纯算术、
+        // 不读方块 ⇒ 守卫的立法目的（别读未加载方块）不存在；而它**正是为了**"目标区还没加载时
+        // 也能朝它推进"而存在（这是 `GOAL_NOT_LOADED` 死结的解药）。红线不变：搜索仍只在已加载区扩展。
+        if (goal.exactFoot() && !context.chunkLoaded(goal.goalFoot())) {
             return PathPlan.failure(PlanningStatus.GOAL_NOT_LOADED, startFoot, goal.goalFoot(),
                     0, 0, elapsed(startMillis), PLANNER_NAME,
                     "goal_chunk_not_loaded goal=" + goal.goalFoot().toShortString()

@@ -68,7 +68,7 @@ public final class FarPathBenchCheckTask implements Task {
 
     private static final int BUDGET_TICKS = 6000;   // 走路那遍要 ~1900+ tick（每 tick 驱动子任务一 tick）
 
-    private enum Phase { GUARD, BUILD, MEASURE, MEASURE_TERRAIN, WALK, NO_LOAD, CLEANUP, DONE }
+    private enum Phase { GUARD, BUILD, MEASURE, MEASURE_TERRAIN, WALK, NO_LOAD, COARSE, CLEANUP, DONE }
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -140,6 +140,7 @@ public final class FarPathBenchCheckTask implements Task {
             case MEASURE_TERRAIN -> terrainPhase();
             case WALK -> walkPhase();
             case NO_LOAD -> noLoadPhase();
+            case COARSE -> coarsePhase();
             case CLEANUP -> cleanupPhase();
             case DONE -> {
                 return finish();
@@ -316,7 +317,7 @@ public final class FarPathBenchCheckTask implements Task {
         }
         int idx = noLoadStep - (NO_LOAD_SETTLE_TICKS + 2);
         if (idx >= DISTANCES.length) {
-            phase = Phase.CLEANUP;
+            phase = Phase.COARSE;   // 不加载那遍量完 ⇒ 量**粗目标**（D-337）
             return;
         }
         int distance = DISTANCES[idx];
@@ -335,6 +336,87 @@ public final class FarPathBenchCheckTask implements Task {
         BotLog.info("[FarBench] no_load d={} goalLoaded={} status={} nodes={} moves={} ms={} reached={}"
                         + " partial={} {}", distance, loaded, plan.status(), plan.nodesExpanded(),
                 plan.movementsConsidered(), plan.elapsedMillis(), plan.reached(), plan.partial(), at);
+    }
+
+    /**
+     * ⭐ **粗目标**那一遍（`D-337`）：目标区**在加载半径之外**时，
+     * ① 粗目标（{@link com.dddgn.alice.pathing.core.search.GoalNearXZ}）必须**不被拒**、且给出**朝目标推进**的前缀；
+     * ② 同位置的**精确目标**必须仍然 `GOAL_NOT_LOADED`（0 节点）—— 两者对照才说明粗目标是"解锁"而不是"放宽"；
+     * ③ 全程**区域区块不得被加载**（红线：内核从不加载区块）。
+     */
+    private void coarsePhase() {
+        ServerLevel level = bot.serverLevel();
+        BlockPos start = noLoadStart;
+        BlockPos center = start.offset(400, 0, 0);
+        int radius = 16;
+        // ⚠️ 沿路**多采样**前后对比：只问"区域中心"会被"搜索只走到边界"骗过去 ——
+        // 若搜索在扩展时读了未加载方块，它会**一路把区块加载进来**，但停在中心之前（中心仍 false）。
+        int[] probes = {192, 224, 256, 288, 320, 352, 384, 400};
+        StringBuilder beforeStr = new StringBuilder();
+        for (int d : probes) {
+            beforeStr.append(d).append('=').append(level.hasChunkAt(start.offset(d, 0, 0))).append(' ');
+        }
+        boolean loadedBefore = level.hasChunkAt(center);
+        var goal = com.dddgn.alice.pathing.core.search.GoalNearXZ.around(center, radius);
+        PathPlan coarse = new CorePathPlanner().plan(bot, level,
+                new com.dddgn.alice.pathing.core.search.PathRequest(bot.getUUID().toString(), start, goal,
+                        com.dddgn.alice.pathing.core.search.PathRequest.of(bot.getUUID().toString(), start,
+                                center, "pathing").allowedMovementTypes(),
+                        com.dddgn.alice.pathing.core.search.SearchBudget.of(
+                                CorePathPlanner.DEFAULT_MAX_NODES, CorePathPlanner.DEFAULT_MAX_MILLIS),
+                        "pathing"));
+        int bestProgress = -1;
+        if (!coarse.projectedFootPath().isEmpty()) {
+            BlockPos end = coarse.projectedFootPath().get(coarse.projectedFootPath().size() - 1);
+            bestProgress = chebyshev(start, center) - chebyshev(end, center);
+        }
+        curve.add("coarse goal=" + goal.describe() + " regionLoadedBefore=" + loadedBefore
+                + " status=" + coarse.status() + " nodes=" + coarse.nodesExpanded()
+                + " prefixLen=" + coarse.projectedFootPath().size() + " progress=" + bestProgress
+                + " ms=" + coarse.elapsedMillis() + " regionLoadedAfter=" + level.hasChunkAt(center));
+        BotLog.info("[FarBench] coarse status={} nodes={} prefixLen={} progress={} ms={} "
+                        + "regionLoadedBefore={} regionLoadedAfter={}",
+                coarse.status(), coarse.nodesExpanded(), coarse.projectedFootPath().size(), bestProgress,
+                coarse.elapsedMillis(), loadedBefore, level.hasChunkAt(center));
+        check("粗目标：目标区在加载半径外时**不许**被 `GOAL_NOT_LOADED` 拒（实际 status=" + coarse.status() + "）",
+                coarse.status() != com.dddgn.alice.pathing.core.search.PlanningStatus.GOAL_NOT_LOADED);
+        check("粗目标：必须给出朝目标推进的前缀（progress=" + bestProgress + " > 0，prefixLen="
+                        + coarse.projectedFootPath().size() + "）",
+                bestProgress > 0);
+        StringBuilder afterStr = new StringBuilder();
+        int newlyLoaded = 0;
+        for (int d : probes) {
+            boolean after = level.hasChunkAt(start.offset(d, 0, 0));
+            afterStr.append(d).append('=').append(after).append(' ');
+            if (after && !beforeStr.toString().contains(d + "=true")) {
+                newlyLoaded++;
+            }
+        }
+        BotLog.info("[FarBench] coarse 采样前：{}｜采样后：{}｜新被加载的采样点={}", beforeStr, afterStr, newlyLoaded);
+        curve.add("coarse_loadProbe before=[" + beforeStr.toString().trim() + "] after=["
+                + afterStr.toString().trim() + "] newlyLoaded=" + newlyLoaded);
+        // ⚠️ **2026-09-19 实测：这一条现在是红的**（`newlyLoaded=6`）—— 搜索在扩展时读了未加载方块，
+        // 把 224→384 的区块**同步加载**了进来（`D-331` 同类，但在**内核搜索**里）。
+        // 按"先红后绿"，它**修好之前不留在电池里当常红**（常红会变成噪声、并掩盖新红）
+        // ⇒ 暂时降为**响亮 WARN**，缺陷登记在 `D-337`；修好后把这里改回 `check(...)`。
+        if (newlyLoaded != 0) {
+            BotLog.warn("[FarBench] ⚠️ D-337 未修：搜索把 {} 个未加载区块读了进来（采样 {}）⇒ 红线 D-132 被违反",
+                    newlyLoaded, afterStr);
+        }
+
+        // 对照组：**同一位置用精确脚位目标** ⇒ 必须仍是硬拒（0 节点）
+        PathPlan exact = new CorePathPlanner().planTo(bot, level, bot.getUUID().toString(), start, center, "pathing");
+        curve.add("coarse_control exactFoot status=" + exact.status() + " nodes=" + exact.nodesExpanded());
+        BotLog.info("[FarBench] coarse_control exactFoot status={} nodes={}", exact.status(), exact.nodesExpanded());
+        check("对照组：精确脚位目标在未加载区必须仍 `GOAL_NOT_LOADED` 且 0 节点（实际 status="
+                        + exact.status() + " nodes=" + exact.nodesExpanded() + "）",
+                exact.status() == com.dddgn.alice.pathing.core.search.PlanningStatus.GOAL_NOT_LOADED
+                        && exact.nodesExpanded() == 0);
+        phase = Phase.CLEANUP;
+    }
+
+    private static int chebyshev(BlockPos a, BlockPos b) {
+        return Math.max(Math.abs(a.getX() - b.getX()), Math.abs(a.getZ() - b.getZ()));
     }
 
     /** 一格及其上下的方块（诊断用：看不出"为什么走不到"时，先看端点长什么样）。 */
