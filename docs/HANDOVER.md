@@ -56,6 +56,10 @@
 > ⇒ **客户端端到端入口**：`/alice instruct "在保护区里起一个 region_lumber"`（`instruct` 的动作由 LLM 应用 ⇒
 > `driver=llm` ⇒ 被封顶 `L1`）⇒ 应当**立刻** `FAILED no_permitted_candidate`，而不是 20 分钟不动。
 > **➡️ 下一个 = ③ 最小跨任务循环检测**（P1/P2 已完成）。
+> ⭐ **客户端复验通过（2026-09-19 20:17 新包，用户判"符合预期"）**：`kind=region_lumber driver=llm
+> terminalReason=no_permitted_candidate`（P2 端到端：`/alice instruct` 起 ⇒ **立刻如实失败**）·
+> `trigger_dropped reason=fixture_driver（夹具驱动的事件…）`×23（P1）· `（夹具终态…）`×1（`D-339`）·
+> 全会话**唯一**一次 LLM 调用 = `trigger=operator mode=directed`（用户自己的 `/alice instruct`，设计如此）。
 
 > **⏭ 2026-09-19 晚（本弧全部落地）：§5.12 第 4 件 + 客户端三轮 + 决策层讨论**，最后一次 commit `d33f775`：
 > ⭐ 权限阶梯接进闸门（含客户端实测补的**第④处消费** = `PathSession`→`CapabilityGate`，`D-338` 附注十）
