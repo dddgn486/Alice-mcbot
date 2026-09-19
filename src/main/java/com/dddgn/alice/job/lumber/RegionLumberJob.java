@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * **`MAINTAIN` 区域型伐木 Job**（J8 / §13）：不追求"跑完即结束"，而是**持续维持区域不变量**。
@@ -86,6 +87,19 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
     /** 垂直自适应下界（即使区域内暂时没树，也至少留这么高，免得刚种下的苗被漏掉）。 */
     public static final int MIN_ADAPTIVE_HEIGHT = 8;
 
+    /**
+     * ⭐ `D-344` ①（用户 2026-09-19 裁定）：**扫地面期间的收集授权时长**（tick，2 分钟）。
+     *
+     * <p>为什么是"短 TTL + 用完就撤"：收集授权（{@code CollectGrant}）会让**范围内**的 `FOREIGN`
+     * 落物变成 `GRANTED_AREA`（默认政策 `AUTO` ⇒ 可捡）。裁定是**只在"我扫自己区域地面"的那段时间**
+     * 放宽 ⇒ `SESSION`（**纯内存、不持久化**）+ 短 TTL，并在 sweep 结束时**主动撤销**
+     * （{@code CollectGrants.revoke}）⇒ 权限窗口**精确等于**扫描时长；TTL 只当崩溃兜底。
+     *
+     * <p>⚠️ **已知代价（物理不可避）**：授权期内**旁边**的落物会被**范围吸附顺手捡走** ——
+     * 清单只能决定"走向谁"，决定不了"只捡谁"（原版拾取是范围触发）。
+     */
+    private static final int SWEEP_GRANT_TICKS = 20 * 120;
+
     private final BotPlayer bot;
     private final LumberRegionState.Region region;
     /** 连续在作业区外的 tick 数（D-179 漂移守卫）。 */
@@ -106,6 +120,28 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
     private final List<String> failureNotes = new ArrayList<>();
 
     private LumberJob current;
+    /**
+     * ⭐ `D-344` ③：**扫描地面**阶段的子任务。与 {@link #current}（砍树）**串行互斥** ——
+     * 同一时刻最多一个非空（`tick()` 先看 `current` 再看它；`patrol()` 只在两者皆空时才会派活）
+     * ⇒ 细则④「补种与扫描不许撞车」由**状态机结构**保证，不靠调用方自觉。
+     */
+    private com.dddgn.alice.task.CollectDropsTask sweepTask;
+    /** 本轮扫描的目标件数（日志用）。 */
+    private int sweepTargets;
+    /** 本轮扫描**签发**的收集授权 id（结束时主动撤销；空 = 没有在飞的授权）。 */
+    private String sweepGrantId;
+    /**
+     * ⭐ `D-344` ③（裁定：`N = 3`）：**连续多少轮扫描"零进展"**。
+     *
+     * <p>为什么必须有它：细则③说「扫到区域内捡完为止」，但**捡不完**时必须**如实说**
+     * —— 否则"区域里有东西、每轮都去扫、每次都没收获"就成了新的 20 分钟空转
+     * （`D-341`/`D-342` 同一族教训：**任务要如实失败，不能继续跑**）。
+     */
+    private int sweepNoProgress;
+    /** 上一次的扫描判定（**只在变化时留痕** ⇒ 有状态转移证据，又不刷屏）。 */
+    private SweepDecision lastSweepDecision;
+    /** 连续多少轮零进展就如实失败（与既有 `IDLE_PATROLS` 同值 ⇒ 同一套"连续 N 次无活"语义）。 */
+    public static final int SWEEP_NO_PROGRESS_LIMIT = 3;
     private int ticks;
     private int patrolCooldown;
     /** 当前生效的巡查间隔（等生长时退避；发现活就恢复配置值）。 */
@@ -270,6 +306,10 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         }
         if (current != null) {
             return harvest();
+        }
+        // ⭐ `D-344` ③：扫描阶段（与 `current` 互斥 —— 两者不会同时非空，见字段注释）
+        if (sweepTask != null) {
+            return sweep();
         }
         if (patrolCooldown > 0) {
             patrolCooldown--;
@@ -441,6 +481,31 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
             }
         }
 
+        // ⭐ `D-344` ③（`D-344` ④ 的互斥保证）：**欠树 + 手里没苗 + 区内地面上有清单内落物** ⇒ 进扫描。
+        // 位置**在 `tryPlant` 之前**是有意的：细则⑤「先记账、**捡够再补**」——
+        // 手里没苗时跑去 `tryPlant` 只会得到 `tool_missing` 如实失败（旧行为），
+        // 而地面上明明有苗可捡 ⇒ 先扫地面才是用户要的语义。
+        // ⚠️ 判据必须**放在 `D-341` 永久拒绝闸之后**：否则"没权限"会被"欠树 ⇒ 去扫地面"盖成假原因。
+        int saplingInInv = saplingInInventoryCount(state);
+        List<net.minecraft.world.entity.item.ItemEntity> groundDrops = listDropsInRegion(state);
+        SweepDecision decision = sweepDecision(deficit, saplingInInv, groundDrops.size());
+        if (decision != lastSweepDecision) {
+            // **断转移**（技能：别断初始状态）——只在判定**变化**时留一行，既有证据又不刷屏
+            BotLog.info("[Job] maintain 扫描判定 {} → {}（deficit={} 手里苗={} 区内可捡={} 清单={}）",
+                    lastSweepDecision == null ? "-" : lastSweepDecision.name(), decision.name(),
+                    deficit, saplingInInv, groundDrops.size(), state.effectivePickupItems(bot.getUUID()));
+            lastSweepDecision = decision;
+        }
+        if (decision == SweepDecision.ENTER) {
+            return startSweep(groundDrops);
+        }
+        if (decision == SweepDecision.NOTHING_TO_SWEEP) {
+            // 只留一行**可行动**的提示（不是每轮刷屏）：欠树、没苗、地上也没有 ⇒ 如实走 tool_missing
+            BotLog.info("[Job] maintain 欠树 deficit={} 手里没苗，且区内地面上**没有**清单内落物（清单={}）"
+                            + "⇒ 不进扫描（绝不空转），按既有语义处理",
+                    deficit, state.effectivePickupItems(bot.getUUID()));
+        }
+
         // ① 欠树 ⇒ 先补种（§13.1"有空格且欠树 → 补种"）；② 有树 ⇒ 砍；两者都在同一轮里按需做
         if (deficit > 0) {
             var planted = tryPlant(state, deficit);
@@ -517,6 +582,53 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         var treeSpec = GoalSpec.harvestUnits(picked.anchor(), localRadius, 1, maxTicks);
         current = new LumberJob(bot, treeSpec, scope, source, policy);
         return com.dddgn.alice.task.Task.Status.RUNNING;
+    }
+
+    /**
+     * ⭐ `D-344` ③（用户 2026-09-19 裁定）：**进不进"扫地面"阶段**的四态判据。
+     *
+     * <p><b>为什么做成纯函数</b>：生产路径（{@code patrol()}）与夹具**共用同一份判定**
+     * —— 夹具可以**零世界写入、零副作用**地断言整张判定表（技能 `alice-scene-based-testing`
+     * §陷阱#6 的硬要求：判据提成纯函数，别让夹具去启动真任务）。
+     *
+     * <p>四态的语义（**顺序即优先级**，改顺序 = 改行为）：
+     * <ol>
+     *   <li>{@link #NO_DEFICIT}：不欠树 ⇒ 没有补种需求，扫它没意义；</li>
+     *   <li>{@link #HAS_SAPLINGS}：**手里已经有苗** ⇒ 走既有"砍完立刻补"路径（细则⑥），
+     *       不必扫地面（有苗还去扫 = 白跑）；</li>
+     *   <li>{@link #NOTHING_TO_SWEEP}：欠树、手里没苗，但区内地面上**没有**清单内的落物
+     *       ⇒ ⭐ **不进扫描** —— 这就是"**绝不空转**"的保证：「扫到捡完为止」**不等于**
+     *       "没东西也扫"（`D-341` 口径：任务要如实失败，不能继续跑）；</li>
+     *   <li>{@link #ENTER}：欠树 + 没苗 + 地面上确实有东西可捡 ⇒ 进扫描。</li>
+     * </ol>
+     *
+     * @param deficit             欠树数（`> 0` 才可能要补种）
+     * @param saplingInInventory  背包里**选定的那种**树苗件数
+     * @param listDropsInRegion   区域内**清单内**的地面落物件数
+     */
+    public static SweepDecision sweepDecision(int deficit, int saplingInInventory, int listDropsInRegion) {
+        if (deficit <= 0) {
+            return SweepDecision.NO_DEFICIT;
+        }
+        if (saplingInInventory > 0) {
+            return SweepDecision.HAS_SAPLINGS;
+        }
+        if (listDropsInRegion <= 0) {
+            return SweepDecision.NOTHING_TO_SWEEP;
+        }
+        return SweepDecision.ENTER;
+    }
+
+    /** {@link #sweepDecision} 的四态。 */
+    public enum SweepDecision {
+        /** 进扫描：欠树 + 手里没苗 + 区内地面上有清单内落物。 */
+        ENTER,
+        /** 不欠树 ⇒ 不扫。 */
+        NO_DEFICIT,
+        /** 手里有苗 ⇒ 走既有"立刻补种"路径（细则⑥），不扫。 */
+        HAS_SAPLINGS,
+        /** 欠树但**地面上没有可捡的** ⇒ **不扫**（绝不空转；照旧走 `tool_missing` 如实失败）。 */
+        NOTHING_TO_SWEEP
     }
 
     /**
@@ -739,12 +851,194 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         return com.dddgn.alice.task.Task.Status.RUNNING;
     }
 
+    // ==================== 扫描地面（`D-344` ③）====================
+
+    /**
+     * **区域内、清单内的地面落物**（{@link #sweepDecision} 的输入，也是扫描的目标集合）。
+     *
+     * <p><b>几何前提</b>（技能 `alice-scene-based-testing` §6.9.1 ①：测量盒以谁为中心、多大，
+     * 必须写下来而不是心里假设）：范围 = 作业区域的**水平范围**（`minX..maxX` × `minZ..maxZ`）
+     * + 竖直 `baseY-2 … baseY+maxHeight+1` —— 与 `patrol()` 判"树算不算在区内"用的是**同一个**
+     * `region` 对象 ⇒ "扫描范围"与"作业范围"**不会分叉**（不另写一份几何）。
+     *
+     * <p>清单为空 ⇒ **直接返回空**：清单为空意味着"用户没说要捡什么" ⇒ **不猜**。
+     */
+    private List<net.minecraft.world.entity.item.ItemEntity> listDropsInRegion(LumberRegionState state) {
+        Set<String> wanted = new LinkedHashSet<>(state.effectivePickupItems(bot.getUUID()));
+        if (wanted.isEmpty()) {
+            return List.of();
+        }
+        var level = bot.serverLevel();
+        var box = new net.minecraft.world.phys.AABB(
+                region.minX(), region.baseY() - 2, region.minZ(),
+                region.maxX() + 1, region.baseY() + region.maxHeight() + 2, region.maxZ() + 1);
+        List<net.minecraft.world.entity.item.ItemEntity> hits = new ArrayList<>();
+        for (var item : level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, box)) {
+            if (item.getItem().isEmpty()) {
+                continue;
+            }
+            String id = net.minecraft.core.registries.BuiltInRegistries.ITEM
+                    .getKey(item.getItem().getItem()).toString();
+            if (wanted.contains(id)) {
+                hits.add(item);
+            }
+        }
+        return hits;
+    }
+
+    /** 背包里**选定的那种**树苗件数（与 `tryPlant` 找槽位的判据同源：`stack.is(item)`）。 */
+    private int saplingInInventoryCount(LumberRegionState state) {
+        var item = selectedSaplingItem(state);
+        if (item == null) {
+            return 0;
+        }
+        var inventory = bot.getInventory();
+        int total = 0;
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            var stack = inventory.getItem(i);
+            if (!stack.isEmpty() && stack.is(item)) {
+                total += stack.getCount();
+            }
+        }
+        return total;
+    }
+
+    /** 用户选定的树苗物品（`null` = 未配置或注册名无效）。 */
+    private net.minecraft.world.item.Item selectedSaplingItem(LumberRegionState state) {
+        String itemId = state.saplingItem(bot.getUUID());
+        if (itemId == null) {
+            return null;
+        }
+        var item = net.minecraft.core.registries.BuiltInRegistries.ITEM
+                .get(new net.minecraft.resources.ResourceLocation(itemId));
+        return item == net.minecraft.world.item.Items.AIR ? null : item;
+    }
+
+    /**
+     * **开始扫描**：签发**短期**收集授权 + 派一个 `CollectDropsTask`。
+     *
+     * <p>为什么**复用** `CollectDropsTask` 而不是新写拾取器：它是已验证的"走到落物旁收干净"的扫尾器
+     * （建簇 / 重锚 / 等 pickupDelay / 原版拾取），新写一套 = 重演"六份重复"的教训。
+     * 传 `allowWorldModification=false` ⇒ **只走"走过去 + 原版拾取"**，不挖不垫（不引入新写入面）。
+     */
+    private com.dddgn.alice.task.Task.Status startSweep(
+            List<net.minecraft.world.entity.item.ItemEntity> targets) {
+        if (targets.isEmpty()) {
+            // 调用方刚数过 > 0；这里只做**防御**：不让"空目标"变成一次空转
+            return com.dddgn.alice.task.Task.Status.RUNNING;
+        }
+        var level = bot.serverLevel();
+        // ⭐ ① 裁定：**只在扫地面期间**放宽（`SESSION` = 纯内存、不持久化；TTL 兜底 + 结束主动撤销）
+        var grant = com.dddgn.alice.decision.CollectGrants.add(level.getServer(),
+                region.minX(), region.minZ(), region.maxX(), region.maxZ(),
+                com.dddgn.alice.decision.PermissionGate.Scope.SESSION, "region_lumber", SWEEP_GRANT_TICKS);
+        sweepGrantId = grant.id();
+        // 起始锚点 = 离 bot **最近**的那件；其余交给 `CollectDropsTask` 自己建簇/重锚
+        net.minecraft.core.BlockPos foot = com.dddgn.alice.pathing.MovementHelper.footCell(level, bot);
+        List<UUID> ids = new ArrayList<>();
+        net.minecraft.world.entity.item.ItemEntity nearest = null;
+        double best = Double.MAX_VALUE;
+        for (var item : targets) {
+            ids.add(item.getUUID());
+            double distance = item.blockPosition().distSqr(foot);
+            if (distance < best) {
+                best = distance;
+                nearest = item;
+            }
+        }
+        // 预算**随落物数缩放**（`suggestedSweepTicks` 是"按实测代价反推"的口径），**不人为封顶**
+        // ⇒ 细则③「一次不设上限、扫到区域内捡完为止」。
+        int budget = com.dddgn.alice.task.CollectDropsTask.suggestedSweepTicks(targets.size(), null);
+        sweepTask = new com.dddgn.alice.task.CollectDropsTask(bot, nearest.blockPosition(), scope,
+                ids, false, budget);
+        sweepTargets = targets.size();
+        BotLog.info("[Job] maintain sweep 开始 目标={} 清单={} 预算={} tick（按落物数缩放，不设人为上限）",
+                targets.size(), LumberRegionState.get(bot.getServer()).effectivePickupItems(bot.getUUID()),
+                budget);
+        return com.dddgn.alice.task.Task.Status.RUNNING;
+    }
+
+    /**
+     * **扫描阶段**（每 tick）：跑子任务；终态时**记账 + 撤销授权 + 相位前进**。
+     *
+     * <p>⚠️ "相位前进"是硬要求（技能「夹具相位状态机」：每段处理完必须前进，
+     * 否则下一 tick 又进同一分支 ⇒ 表现为静默空转/TIMEOUT 而不是断言失败）。
+     */
+    private com.dddgn.alice.task.Task.Status sweep() {
+        var status = sweepTask.tick();
+        if (status == com.dddgn.alice.task.Task.Status.RUNNING) {
+            return com.dddgn.alice.task.Task.Status.RUNNING;
+        }
+        var state = LumberRegionState.get(bot.getServer());
+        int collected = sweepTask.collected();
+        int left = listDropsInRegion(state).size();
+        String reason = sweepTask.terminalReason();
+        BotLog.info("[Job] maintain sweep 结束 status={} 目标={} 实际入包={} 区内剩余={} reason={}",
+                status, sweepTargets, collected, left, reason);
+        // ⚠️ 顺序有意：**先撤销授权、再分类**。分类要回答的是"**在没有放宽权限的世界里**这批东西是什么"
+        // ⇒ `foreign=` = 权限问题（放宽了也拿不到），其余 = 是我方登记在册的、但我够不着/没走到。
+        dropSweepGrant();
+        // ③ 裁定（`N = 3`）：**零进展**计数 —— 有收获、或剩余变少，都算进展。
+        boolean progress = collected > 0 || left < sweepTargets;
+        if (progress) {
+            sweepNoProgress = 0;
+        } else if (++sweepNoProgress >= SWEEP_NO_PROGRESS_LIMIT) {
+            terminalReason = "sweep_no_progress";
+            failure = terminalReason + "(" + classifySweepBlockers(state) + ") 连续 " + sweepNoProgress
+                    + " 轮扫描零进展（区内剩余 " + left + " 件，清单="
+                    + state.effectivePickupItems(bot.getUUID()) + "）";
+            BotLog.warn("[Job] maintain {}", failure);
+            tell("区域里有东西可捡、但我**捡不到**（" + failure + "）—— 如实收工，不再空转");
+            sweepTask = null;
+            sweepTargets = 0;
+            return finish(com.dddgn.alice.task.Task.Status.FAILED);
+        }
+        sweepTask = null;      // 相位前进
+        sweepTargets = 0;
+        return com.dddgn.alice.task.Task.Status.RUNNING;
+    }
+
+    /**
+     * **"捡不到"的原因分类**（`D-344` ③ 裁定的 `foreign=` / `unreachable=` 后缀）。
+     *
+     * <p>⚠️ 必须在**撤销扫描授权之后**调用：它回答的是"**在没有放宽权限的世界里**，这批东西算什么"
+     * —— `FOREIGN` = 权限问题（授权了也拿不到），其余（我方登记在册的）= "是我的，但我够不着"。
+     */
+    private String classifySweepBlockers(LumberRegionState state) {
+        int foreign = 0;
+        int unreachable = 0;
+        for (var item : listDropsInRegion(state)) {
+            if (com.dddgn.alice.decision.DropPolicy.effectiveProvenance(bot, item)
+                    == com.dddgn.alice.decision.DropPolicy.Provenance.FOREIGN) {
+                foreign++;
+            } else {
+                unreachable++;
+            }
+        }
+        return "foreign=" + foreign + " unreachable=" + unreachable;
+    }
+
+    /** 撤销本轮扫描签发的收集授权（没有在飞的授权时是空操作）。 */
+    private void dropSweepGrant() {
+        if (sweepGrantId == null) {
+            return;
+        }
+        boolean revoked = com.dddgn.alice.decision.CollectGrants.revoke(sweepGrantId);
+        BotLog.info("[Job] maintain sweep 撤销收集授权 {}（revoked={}）", sweepGrantId, revoked);
+        sweepGrantId = null;
+    }
+
     /** **刚结束的子任务节点**（M4b）：内层 Job 置空后仍让树里看得见"哪个子阶段失败"。 */
     private com.dddgn.alice.task.TaskNode finishedChildNode;
 
     private com.dddgn.alice.task.Task.Status finish(com.dddgn.alice.task.Task.Status status) {
         terminated = true;
         bot.controller().stopMovement();
+        // ⭐ `D-344`：终态/失败路径也要收掉扫描子任务与它签发的收集授权
+        // （技能 §6.9.2：**失败必清理** —— 扫到一半失败不许把"区内拾取放宽"留在世上）
+        dropSweepGrant();
+        sweepTask = null;
+        sweepTargets = 0;
         // **取消任务 ⇒ 自动解除任务区**（D-338 附注二第 2 条）：任务区内所有区块的授权都由任务持有，
         // 任务一结束就没有持有者了 ⇒ 就地解除，玩家不需要再点一次。
         // （`/alice region stop` 那种**不经 finish** 的显式打断走的是作用域收尾钩子

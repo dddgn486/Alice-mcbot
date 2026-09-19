@@ -86,6 +86,22 @@ public final class CollectGrants {
         return grant;
     }
 
+    /**
+     * **撤销一条会话级授权**（按 id）。返回 `true` = 确实撤掉了。
+     *
+     * <p>为什么需要它（`D-344` ①）：区域作业只在**扫地面期间**放宽拾取，授权窗口应当**精确等于**
+     * 那段时长 —— 光靠 TTL 会让权限多活最多一个 TTL。授权是"我签发的东西"，所以我该能收回来。
+     *
+     * <p>⚠️ 只覆盖**会话级**（`ONCE`/`SESSION`）；`ALWAYS` 是**玩家签发并持久化**的，作业无权撤销
+     * ⇒ 传 `ALWAYS` 的 id 会**撤不掉**（这是有意的：作业不能悄悄改玩家的持久授权）。
+     */
+    public static boolean revoke(String id) {
+        if (id == null) {
+            return false;
+        }
+        return SESSION.remove(id) != null;
+    }
+
     /** 覆盖该位置的授权（会话 + 持久化），过期的自动销账。 */
     public static Grant covering(MinecraftServer server, BlockPos pos) {
         long now = server.getTickCount();

@@ -103,6 +103,15 @@ public final class LumberRegionState extends SavedData {
         private String saplingItem;
         /** 砍完树留下的**待补种位置**（通常是树桩格）；补种成功后从这里销账。 */
         private final Set<BlockPos> pendingReplant = new LinkedHashSet<>();
+        /**
+         * ⭐ `D-344` ④：**可配置拾取清单** —— 用户用 `/alice region pickup add` **显式加过**的物品注册名。
+         *
+         * <p><b>这里只存"显式项"</b>：**生效清单** = 显式项 ∪ `{选定的树苗}`，由
+         * {@link LumberRegionState#effectivePickupItems} 派生 ——
+         * 于是"默认捡选定的树苗"是**算出来的**，不是写死的（细节⑦「不许硬编码树苗」）；
+         * 用户换树苗时，默认项**自动跟着换**，不需要再改一行配置。
+         */
+        private final Set<String> pickupItems = new LinkedHashSet<>();
         /** **区域目标棵数**（首次巡查时按当时的可作业树数确定；区域"欠树"就是相对它算的）。 */
         private int baselineTrees;
         /**
@@ -217,6 +226,66 @@ public final class LumberRegionState extends SavedData {
         Entry entry = entry(owner, true);
         entry.saplingItem = itemId;
         setDirty();
+    }
+
+    // ==================== 可配置拾取清单（`D-344` ④ / 细则⑦）====================
+
+    /** 用户**显式**加过的拾取物品（**不含**派生的默认项）。 */
+    public List<String> pickupItems(UUID owner) {
+        Entry entry = entry(owner, false);
+        return entry == null ? List.of() : List.copyOf(entry.pickupItems);
+    }
+
+    /**
+     * ⭐ **生效清单** = 显式项 ∪ `{选定的树苗}`（`D-344` ④ 裁定：默认值 = 选定树苗，且**不硬编码**）。
+     *
+     * <p>树苗未选定 ⇒ 只剩显式项（可能为空）；空清单 ⇒ 作业**不进扫描**（不猜用户想捡什么）。
+     */
+    public List<String> effectivePickupItems(UUID owner) {
+        Entry entry = entry(owner, false);
+        LinkedHashSet<String> items = new LinkedHashSet<>();
+        if (entry != null) {
+            items.addAll(entry.pickupItems);
+            if (entry.saplingItem != null && !entry.saplingItem.isBlank()) {
+                items.add(entry.saplingItem);
+            }
+        }
+        return List.copyOf(items);
+    }
+
+    /** 加入清单（`/alice region pickup add`）。返回 `false` = 本来就在清单里（**幂等，不是错误**）。 */
+    public boolean addPickupItem(UUID owner, String itemId) {
+        if (itemId == null || itemId.isBlank()) {
+            return false;
+        }
+        Entry entry = entry(owner, true);
+        boolean added = entry.pickupItems.add(itemId);
+        if (added) {
+            setDirty();
+        }
+        return added;
+    }
+
+    /** 移出清单。返回 `false` = 本来就不在（幂等）。⚠️ 移不掉**派生**的默认项（它跟着树苗选择走）。 */
+    public boolean removePickupItem(UUID owner, String itemId) {
+        Entry entry = entry(owner, false);
+        if (entry == null) {
+            return false;
+        }
+        boolean removed = entry.pickupItems.remove(itemId);
+        if (removed) {
+            setDirty();
+        }
+        return removed;
+    }
+
+    /** 该物品是不是**派生出来的默认项**（清单显示用：区分「默认」与「手动加」）。 */
+    public boolean pickupItemIsDefault(UUID owner, String itemId) {
+        Entry entry = entry(owner, false);
+        if (entry == null || itemId == null) {
+            return false;
+        }
+        return itemId.equals(entry.saplingItem) && !entry.pickupItems.contains(itemId);
     }
 
     // ==================== 我种的苗 ====================
@@ -369,6 +438,11 @@ public final class LumberRegionState extends SavedData {
                         r.getInt("max_z"), r.getInt("base_y"), r.getInt("max_h"));
             }
             entry.saplingItem = tag.contains("sapling_item") ? tag.getString("sapling_item") : null;
+            // `D-344` ④：可配置拾取清单（旧存档没有这一项 ⇒ 空集合 = 只有派生的默认项，行为不变）
+            ListTag pickup = tag.getList("pickup_items", Tag.TAG_STRING);
+            for (int k = 0; k < pickup.size(); k++) {
+                entry.pickupItems.add(pickup.getString(k));
+            }
             entry.baselineTrees = tag.getInt("baseline");
             // 旧存档没有这个标记：正数目标棵数视为"已推导"（别把历史目标冲掉）；0 则允许推一次
             entry.baselineDerived = tag.contains("baseline_derived")
@@ -411,6 +485,12 @@ public final class LumberRegionState extends SavedData {
             if (entry.saplingItem != null) {
                 tag.putString("sapling_item", entry.saplingItem);
             }
+            // `D-344` ④：只持久化**显式项**；默认项是派生的（换树苗时自动跟着换，不必落盘）
+            ListTag pickup = new ListTag();
+            for (String itemId : entry.pickupItems) {
+                pickup.add(net.minecraft.nbt.StringTag.valueOf(itemId));
+            }
+            tag.put("pickup_items", pickup);
             tag.putInt("baseline", entry.baselineTrees);
             tag.putBoolean("baseline_derived", entry.baselineDerived);
             tag.putBoolean("auto_idle_stop", entry.autoIdleStop);

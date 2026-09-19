@@ -151,10 +151,19 @@ patrol()
 
 | 片 | 内容 | 验收 |
 |---|---|---|
-| **A** | 清单数据结构 + 默认值（取选定树苗）+ `sweep` 阶段（**只捡不补**）+ 互斥 + 夹具 1/2/4/5 | 无头 `module:lumber` + 夹具绿 |
-| **B** | `tryPlant` 门槛改"捡够再补" + `N` 轮如实失败 + 夹具 3 + 内核规则 | 无头 + 反向对照三条 |
-| **C** | 用户接口（`pickup add/remove/list`）+ 缺口①（补种/扫描不吃退避间隔） | 无头 + `check-all.sh` |
+| **A** ⭐ **代码已落地（2026-09-19）** | 清单数据结构（**派生**默认值 + NBT）+ `sweepDecision` 纯判据 + `sweep` 阶段（复用 `CollectDropsTask`）+ **互斥** + ①的 `SESSION` 短 TTL 授权（`CollectGrants.revoke` 新增，窗口**精确等于**扫描时长）+ `finish()` 失败路径清理 | ✅ `COMPILES` · ✅ `SERVER_TESTED`（`module:lumber` PASS；日志见下）· ✅ 内核规则 `rule_replant_sweep_bounded` + **反向对照 4 条全红**。⏳ **夹具步未做**（要动 `CURATION` + 模块两处登记） |
+| **B** ⭐ **③ 已提前落地（同上）** | 零进展 `N=3`（`SWEEP_NO_PROGRESS_LIMIT`）+ 新终态码 `sweep_no_progress`（带 `foreign=`/`unreachable=` 分类）。**为什么提前**：不留"每轮重扫"的洞（`D-341`/`D-342` 同族） | ✅ 已进门禁与反向对照（见上）；⏳ 端到端夹具未做 |
+| **C** ⏳ 未做 | 用户接口（`pickup add/remove/list` 读主手）+ 缺口①（补种/扫描不吃退避） | 无头 + `check-all.sh` |
 | **D** | （用户已提）**区域内注册容器卸货**（台账第 15 项，同族后续） | 另立方案 |
+
+**片 A/B 的实证（`module:lumber` 无头日志，2026-09-19 23:06）**：
+```
+[Job] maintain 扫描判定 - → NO_DEFICIT（deficit=0 手里苗=8 区内可捡=7 清单=[minecraft:oak_sapling]）
+[Job] maintain 扫描判定 NO_DEFICIT → HAS_SAPLINGS（deficit=1 手里苗=8 区内可捡=7 清单=[minecraft:oak_sapling]）
+```
+⇒ ① **默认清单是派生的**（没人显式加过它，跟着选定树苗出现 = 裁定④"不硬编码"成立）；
+② 砍完 1 棵后欠树但**手里有苗 ⇒ 不进扫描**（裁定⑥保持，无回归）；
+③ `区内可捡=7` ⇒ ENTER 条件在真实场景里**可达**，只是被正确抑制。
 
 ---
 

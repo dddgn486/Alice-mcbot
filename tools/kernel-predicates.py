@@ -582,6 +582,113 @@ def rule_bulk_write_zone_gate():
     return problems
 
 
+def rule_replant_sweep_bounded():
+    """D-344（2026-09-19 用户逐项裁定）：**区域补种的"扫地面"阶段必须互斥且有界**。
+
+    事实（裁定依据）：用户细则（台账 §5.12 第 13 项）要求"窗口内主动扫区域内地上的东西、
+    **一次不设上限、扫到捡完为止**"，同时④「**补种与扫描不许撞车**」（串行互斥）；
+    而 `D-341`/`D-342` 的教训是**"捡不到"必须如实失败，不许空转** ⇒ ③ 裁定 `N = 3`
+    + 新终态码 `sweep_no_progress`。①裁定 = 只在扫地面期间放宽拾取（`SESSION` 短 TTL + 用完即撤）。
+
+    本规则把上面几条变成**可失败的结构断言**（散文注释不失败 ⇒ 拦不住回归）：
+    ① `sweepDecision` 四态的**顺序 = 优先级**（改顺序 = 改行为）⇒ 逐个按位置断言；
+    ② `sweep()` 必须真的用 `SWEEP_NO_PROGRESS_LIMIT` 判"零进展"并给 `sweep_no_progress` 终态；
+    ③ 互斥：`tick()` 里 `current` 与 `sweepTask` 两个守卫都在，且 `sweepTask = new` 只出现在
+       `startSweep`、`current = new` 只出现在 `patrol()`（同处赋值 ⇒ 两者可能同时非空）；
+    ④ ①的授权：`startSweep` 里 `CollectGrants.add(... SESSION ...)` + 结束时 `dropSweepGrant()`，
+       且 `finish()`（失败/收工路径）**也要**撤 ⇒ 权限不留在世上；
+    ⑤ 预算**随落物数缩放**（`suggestedSweepTicks`），不是人为封顶（细则③「一次不设上限」）。
+    """
+    path = ROOT / "src/main/java/com/dddgn/alice/job/lumber/RegionLumberJob.java"
+    if not path.exists():
+        return ["RegionLumberJob.java 不存在（改名？同步本规则）"]
+    text = path.read_text(encoding="utf-8")
+    # ⚠️ 先剥注释：规则会引用被注释掉的示例/反例（`D-341`/`D-343` 各吃过一次假红）
+    code = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    code = re.sub(r"//[^\n]*", "", code)
+    problems = []
+
+    # ① 四态的**顺序**（= 优先级）
+    body = method_body(code, "public static SweepDecision sweepDecision(")
+    if not body:
+        problems.append("找不到 `sweepDecision`（纯判据没了 ⇒ 夹具也没法零副作用地断言它）")
+    else:
+        marks = ["SweepDecision.NO_DEFICIT", "SweepDecision.HAS_SAPLINGS",
+                 "SweepDecision.NOTHING_TO_SWEEP", "SweepDecision.ENTER"]
+        idx = [body.find(m) for m in marks]
+        if any(i < 0 for i in idx):
+            problems.append("`sweepDecision` 少了某一态：" + ", ".join(
+                m for m, i in zip(marks, idx) if i < 0) + "（四态缺一 = 判定表不完整）")
+        elif idx != sorted(idx):
+            problems.append("`sweepDecision` 的四态**顺序变了**（顺序 = 优先级 ⇒ 改顺序就是改行为）："
+                            "现在顺序 = " + " → ".join(
+                                m.rsplit(".", 1)[1] for _, m in sorted(zip(idx, marks))))
+        for cond in ("deficit <= 0", "saplingInInventory > 0", "listDropsInRegion <= 0"):
+            if cond not in body:
+                problems.append(f"`sweepDecision` 少了条件 `{cond}`（判定表被改窄/改宽）")
+
+    # ② 零进展上限 + 如实终态
+    sweep_body = method_body(code, "private com.dddgn.alice.task.Task.Status sweep()")
+    if not sweep_body:
+        problems.append("找不到 `sweep()`（扫描阶段没了？）")
+    else:
+        if "SWEEP_NO_PROGRESS_LIMIT" not in sweep_body:
+            problems.append("`sweep()` 没有用 `SWEEP_NO_PROGRESS_LIMIT` 判零进展 ⇒ "
+                            "「捡不到」会变成每轮重扫（**新的空转**，D-341/D-342 同一族）")
+        if '"sweep_no_progress"' not in sweep_body:
+            problems.append("`sweep()` 没有 `sweep_no_progress` 终态码 ⇒ 不会如实失败")
+        if "finish(" not in sweep_body:
+            problems.append("`sweep()` 判了零进展却没有 `finish(...)` ⇒ 只是记了个数、没有收工")
+        if "sweepTask = null" not in sweep_body:
+            problems.append("`sweep()` 没有把 `sweepTask` 置空 ⇒ **相位不前进**"
+                            "（技能「夹具相位状态机」：会每 tick 重复同一分支）")
+
+    # ③ 互斥（状态机结构）
+    tick_body = method_body(code, "public com.dddgn.alice.task.Task.Status tick()")
+    if not tick_body:
+        problems.append("找不到 `tick()`（结构变了 ⇒ 同步本规则）")
+    else:
+        i_cur = tick_body.find("current != null")
+        i_sweep = tick_body.find("sweepTask != null")
+        i_patrol = tick_body.find("patrol()")
+        if i_cur < 0 or i_sweep < 0:
+            problems.append("`tick()` 少了 `current != null` 或 `sweepTask != null` 的守卫 ⇒ "
+                            "扫描与砍树可能**同时**在跑（细则④「不许撞车」）")
+        elif i_cur > i_sweep:
+            problems.append("`tick()` 里 `sweepTask` 守卫排在 `current` **之前** ⇒ 顺序与设计相反")
+        if i_patrol >= 0 and (i_cur > i_patrol or i_sweep > i_patrol):
+            problems.append("`tick()` 里两个守卫必须在 `patrol()` **之前**（否则派活时不看谁在跑）")
+    n_new_sweep = code.count("sweepTask = new ")
+    if n_new_sweep != 1:
+        problems.append(f"`sweepTask = new` 出现 {n_new_sweep} 次（应恰好 1 次，且只在 `startSweep`）"
+                        "⇒ 多处赋值会让互斥不再由结构保证")
+    start_body = method_body(code, "private com.dddgn.alice.task.Task.Status startSweep(")
+    if not start_body:
+        problems.append("找不到 `startSweep(...)`（扫描的派活入口没了）")
+    else:
+        if "sweepTask = new " not in start_body:
+            problems.append("`startSweep` 里没有创建 `sweepTask`（那在哪里创建？互斥前提被破坏）")
+        # ④①的授权
+        if "CollectGrants.add(" not in start_body or "Scope.SESSION" not in start_body:
+            problems.append("`startSweep` 没有签发 `SESSION` 收集授权 ⇒ 区内 `FOREIGN` 落物"
+                            "**捡不起来**（①裁定失效；`CollectGrant` 是唯一正规出口）")
+        # ⑤ 预算随落物数缩放
+        if "suggestedSweepTicks(" not in start_body:
+            problems.append("`startSweep` 没用 `CollectDropsTask.suggestedSweepTicks(` ⇒ "
+                            "扫描预算变成了人为拍的数（细则③「一次不设上限」要用**按落物数缩放**的口径）")
+
+    # ④ 撤销授权：正常结束 + 失败/收工路径都要撤
+    if "dropSweepGrant()" not in sweep_body:
+        problems.append("`sweep()` 结束时没有 `dropSweepGrant()` ⇒ 扫描的放宽权限会多活一个 TTL")
+    finish_body = method_body(code, "private com.dddgn.alice.task.Task.Status finish(")
+    if not finish_body:
+        problems.append("找不到 `finish(...)`（结构变了 ⇒ 同步本规则）")
+    elif "dropSweepGrant()" not in finish_body:
+        problems.append("`finish(...)` 没有 `dropSweepGrant()` ⇒ **失败路径把放宽的拾取权限留在世上**"
+                        "（技能 §6.9.2：失败必清理）")
+    return problems
+
+
 def rule_no_until_full():
     """J5-P1（2026-09-17 用户裁定「删」）：**`GoalSpec.Kind.UNTIL_FULL` 不得复活**。
 
@@ -756,6 +863,7 @@ def main() -> int:
     noperm = rule_no_permitted_candidate()
     loop = rule_loop_admission()
     bwg = rule_bulk_write_zone_gate()
+    d344 = rule_replant_sweep_bounded()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -800,10 +908,12 @@ def main() -> int:
         print(f"[D-342·循环受理闸] {line}")
     for line in bwg:
         print(f"[D-343·批量写入区域闸] {line}")
+    for line in d344:
+        print(f"[D-344·补种扫描有界互斥] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg)
+          and not noperm and not loop and not bwg and not d344)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
           f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)}"
