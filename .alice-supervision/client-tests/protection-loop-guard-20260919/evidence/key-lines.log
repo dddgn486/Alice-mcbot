@@ -1,0 +1,17 @@
+# 来源：/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10/logs/latest.log（2026-09-19 20:17:20 会话，新包 JAR_CONTENT_SHA256=ea9d885d…）
+# 提取命令（逐类）：grep -o 关键前缀；本文件是可判读的证据切片，不是全文
+
+## [Goal] 丢弃留痕（D-339 终态 / D-340 事件）
+[Goal] trigger_dropped reason=fixture_driver（夹具终态不交给决策层） trigger=terminal:lumber(no_reachable_candidate) droppedSinceLastDecision=25
+
+## LLM 调用（全会话仅 1 次 = 用户 instruct）
+[Goal] decision_request trigger=operator mode=directed
+
+## D-341 如实失败（新终态码 + 逐树理由 + driver）
+task_terminal_reason kind=region_lumber botId=d35e0dc3-e7d2-469b-862c-6dd96b02df7e driver=llm terminalReason=no_permitted_candidate
+task_terminal_reason kind=region_lumber botId=d35e0dc3-e7d2-469b-862c-6dd96b02df7e driver=fixture terminalReason=
+task_terminal_reason kind=lumber botId=d35e0dc3-e7d2-469b-862c-6dd96b02df7e driver=fixture terminalReason=no_reachable_candidate
+[Job] maintain no_permitted_candidate zone_break_not_allowed tree@20,64,208:zone_break_not_allowed 
+
+## 任务区解算（封顶前的声明等级）
+region_lumber 解算结果：DECLARED kind=region_lumber level=L2 chunks=6

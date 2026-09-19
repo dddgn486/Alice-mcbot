@@ -716,6 +716,10 @@ public final class TaskZoneCheckTask implements Task {
         //    `欠树 deficit=5` **空转到 `maxTicks=24000`（20 分钟）**，期间反复唤醒 LLM。
         //    用户口径："任务要如实失败，不能继续跑" ⇒ 作业必须把"树全被**永久**拒绝"判成 `FAILED`。
         List<String> cappedRejected = new LumberCandidateSource().candidates(bot, treeSpec).rejected();
+        // **几何盒（§6.9.1①，必须写下来）**：`treeRegion` **以手搭那棵树 `AUTH_TREE_BASE` 为中心**、
+        // 水平半径 **4 格**、`baseY = FOOT_Y`（树的基座层）、竖直上界取 `FOOT_Y + 8`
+        // ⇒ 判据里的竖直过滤窗口是 `[FOOT_Y-2, FOOT_Y+8]`，锚点在 `FOOT_Y` 的那棵树**落在盒内** ✓。
+        // 反面用例的坐标也用 `treeId`（同一棵树）构造 ⇒ "盒内/盒外"是同一条事实的两个方向。
         var treeRegion = new LumberRegionState.Region(
                 AUTH_TREE_BASE.getX() - 4, AUTH_TREE_BASE.getZ() - 4,
                 AUTH_TREE_BASE.getX() + 4, AUTH_TREE_BASE.getZ() + 4, FOOT_Y, 8);
