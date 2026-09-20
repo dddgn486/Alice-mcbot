@@ -1472,6 +1472,38 @@ def rule_standing_point_detour_bounded():
     return problems
 
 
+def rule_scan_advances_every_select():
+    """`D-371` **扫描必须每次选择都推进**（R1 覆盖缺口的直接原因）。
+
+    真机证据（2026-09-20）：整轮 `分片推进` **只出现 1 次**（`visited=8192/117649` = 7%），
+    同一矿脉 `y=76`×5 / `y=81`×5 共 **10 格从未进入任何一次选择**。原因：`session.advance(bot)`
+    写在 `if (selection.picked() == null)` 分支里 ⇒ **只要第一分片里还有能挖的，候选集永久冻结**。
+
+    断言（改任一处 ⇒ 红）：
+    ① `session.advance(` 必须出现在 `MineJob.select()` 里 `if (selection.picked() == null)` **之前**
+       （放回那个分支 = 覆盖永冻，真机退化原样回来）；
+    ② 夹具必须存在且被调用（"一次一格预算 + 反复推进能覆盖全量"两条合同）。
+    """
+    problems = []
+    job = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "mine"
+           / "MineJob.java").read_text(encoding="utf-8")
+    fixture = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
+               / "MineMenuCheckTask.java").read_text(encoding="utf-8")
+    body = code_only(method_body(job, "private Task.Status select()"))
+    advance = body.find("session.advance(")
+    if advance < 0:
+        problems.append("`MineJob.select()` 里找不到 `session.advance(` ⇒ 分片扫描根本不会推进"
+                        "（第一分片之外的矿**永远进不了候选**：真机实测 10 格从未出现）")
+    else:
+        frozen = body.find("if (selection.picked() == null)")
+        if frozen >= 0 and advance > frozen:
+            problems.append("`session.advance(` 又回到了「没得挖才扫」的分支里 ⇒ 只要第一分片还有能挖的，"
+                            "候选集**永久冻结**（真机 `visited=8192/117649` 的退化会原样回来）")
+    if "runScanCoverageChecks" not in code_only(fixture) or "runScanCoverageChecks();" not in code_only(fixture):
+        problems.append("缺少 R1 覆盖夹具（一次一格预算 + 反复推进覆盖全量）或它没被调用")
+    return problems
+
+
 def rule_value_is_only_a_cost_component():
     """`D-329` §2.2 成本模型（用户 2026-09-20 三条裁定）：
     **「矿物价值优先级」只能是成本函数里的一个可配置分量**，不是独立模型、不是硬优先。
@@ -1671,6 +1703,7 @@ def main() -> int:
     contract = rule_movement_contract_agreement()
     searchbudget = rule_search_budget_is_tick_aware()
     detour = rule_standing_point_detour_bounded()
+    scan = rule_scan_advances_every_select()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -1749,13 +1782,15 @@ def main() -> int:
         print(f"[D-369·搜索预算同 tick 量级] {line}")
     for line in detour:
         print(f"[D-370·不许绕远] {line}")
+    for line in scan:
+        print(f"[D-371·每次选择都推进扫描] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not detour)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not detour and not scan)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 不许绕远={len(detour)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 不许绕远={len(detour)} / 扫描推进={len(scan)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

@@ -312,6 +312,20 @@ public final class MineJob implements Job {
         // ⭐ **决策前复检**（`D-348` 同一条纪律）：候选**位置**是扫描那一刻的快照，但"还能不能做"
         // （可破坏性 / 授权面）是**当前**的世界事实 —— 旧版每次选择都重扫世界，所以它天然是当前的；
         // 分片之后必须显式补回这一步（实测 `mine_budget`：不补 ⇒ 预算耗尽后仍去试旧候选 ⇒ 归因退化）。
+        // ⭐ `D-371`（R1 覆盖缺口）：**每次选择至多推进一个分片，无论当前有没有可挖目标**。
+        // 原实现把推进放在"`selection.picked() == null`（没得挖）"分支里 ⇒ 只要**第一个分片**里还有能挖的，
+        // 候选集就**永久冻结在第一分片**（真机实测整轮只推进 1 次：`visited=8192/117649`，
+        // 同一矿脉 y=76 / y=81 的 10 格**从未进入候选**）。分片是**有界**的
+        // （每格预算 `MineCandidateSource.CELL_BUDGET_PER_TICK`，实测 13–20 ms），而 `select()` 不是每 tick
+        // 都跑 ⇒ 代价可接受；分片扫完后 `done()` 为真 ⇒ 稳态回到零成本。
+        if (!session.done() && !session.truncated()) {
+            MineCandidateSource.Progress progress = session.advance(bot);
+            DecisionTrace.step(jobName(), "SCAN", spec.center().toShortString(),
+                    "分片推进 visited=" + session.visited() + "/" + session.volume()
+                            + " 本次=" + progress.visitedThisCall() + " 读=" + session.reads()
+                            + " 未扫=" + session.unscanned()
+                            + "（`D-371`：**不再**只在「没得挖」时才扫）");
+        }
         CandidateSet set = withoutAttempted(session.revalidate(bot));
         // ⭐ **种类分配先过滤**（`D-361`）：满足的种类不再选它（`kind_quota_met`）、不在分配里的不要
         // （`kind_not_wanted`）。**必须在簇之前** —— `TargetClusters` 保持**纯几何**（否则"簇"会随
@@ -347,12 +361,8 @@ public final class MineJob implements Job {
         }
         if (selection.picked() == null) {
             if (!session.done() && !session.truncated()) {
-                // S4：**还有没考察到的格** ⇒ 本 tick 继续扫。⚠️ 绝不许把"还没扫到"当成"这里没有"。
-                MineCandidateSource.Progress progress = session.advance(bot);
-                DecisionTrace.step(jobName(), "SCAN", spec.center().toShortString(),
-                        "分片推进 visited=" + session.visited() + "/" + session.volume()
-                                + " 本次=" + progress.visitedThisCall() + " 读=" + session.reads()
-                                + " 未扫=" + session.unscanned());
+                // S4：**还有没考察到的格** ⇒ 本 tick 继续（推进已移到本方法开头：每次选择都推一格）。
+                // ⚠️ 绝不许把"还没扫到"当成"这里没有"。
                 return Task.Status.RUNNING;
             }
             return shortfall(set);

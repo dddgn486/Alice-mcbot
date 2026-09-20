@@ -195,6 +195,7 @@ public class MineMenuCheckTask implements Task {
         runBreakCostChecks();
         runRefineAmortizationChecks();
         runStandingPointChoiceChecks();
+        runScanCoverageChecks();
         // ⭐⭐ `D-364` **垫方块只在「掉落物真会丢」时** —— 同样放最后（临时改场景，用完复位）
         runSupportTriggerChecks();
         // ⭐⭐ `D-365` **目标在视线内就地挖**（用户 2026-09-20 要求）
@@ -533,6 +534,61 @@ public class MineMenuCheckTask implements Task {
                     server.createCommandSourceStack().withSuppressedOutput(),
                     "function alice_test:ore_course_terrain");
         }
+    }
+
+    /**
+     * ⑤ `D-371` **R1：扫描覆盖**（"10 格矿整轮从未进入候选"的直接原因）。
+     *
+     * <p>真机证据：整轮 `分片推进` **只出现 1 次**（`visited=8192/117649` = 只扫了 7%），
+     * 同一矿脉 `y=76`×5 / `y=81`×5 的 **10 格从未出现在任何一次选择里**。
+     * 原因：推进条件写在"`selection.picked() == null`（没得挖）"分支里 ⇒ 只要第一个分片还有能挖的，
+     * 候选集**永久冻结**。
+     *
+     * <p>本组锁两条**会话级合同**（判据本身与场景无关，确定性）：
+     * ① 一次 `advance` 只吃**一格预算**（有界 ⇒ 每次选择最多一个分片，不会吃掉 tick）；
+     * ② 反复推进**最终必须覆盖全量**（`SEARCH_LIMIT ≠ UNREACHABLE` 的同宗纪律：**不许把"还没扫到"当成"这里没有"**）。
+     * ⚠️ 注意：这两条是"扫描**能**覆盖全量"的合同；"**作业循环真的每次都推进**"由门禁
+     * `rule_scan_advances_every_select` 咬住（结构断言），并由真机日志的 `分片推进 visited=…/…` 复核。
+     */
+    private void runScanCoverageChecks() {
+        final var center = new net.minecraft.core.BlockPos(52, 63, 128);
+        var source = new com.dddgn.alice.job.mine.MineCandidateSource(
+                com.dddgn.alice.job.mine.MineCandidateSource.Target.ofBlock(
+                        net.minecraft.world.level.block.Blocks.IRON_ORE),
+                com.dddgn.alice.job.mine.MineCandidateSource.SCAN_RADIUS);
+        var spec = com.dddgn.alice.job.GoalSpec.mineBlocks(center,
+                com.dddgn.alice.job.mine.MineCandidateSource.SCAN_RADIUS, 1, 600);
+        // ⚠️ 必须用**真实预算**建会话：第一版传了 `Integer.MAX_VALUE` ⇒ 一次 `advance` 把 117649 格全扫了
+        // （实测 `本次=117649`），完全测不出"每 tick 一格"的界。作业里用的就是这两个常量。
+        var scan = source.newSession(spec,
+                com.dddgn.alice.job.mine.MineCandidateSource.CELL_BUDGET_PER_TICK,
+                com.dddgn.alice.job.mine.MineCandidateSource.CELL_BUDGET_TOTAL);
+
+        long started = System.nanoTime();
+        com.dddgn.alice.job.mine.MineCandidateSource.Progress progress = scan.advance(bot);
+        long advanceMillis = (System.nanoTime() - started) / 1_000_000L;
+        check("R1 覆盖①：一次 advance 只吃一格预算（实测 本次=" + progress.visitedThisCall()
+                        + " ≤ " + com.dddgn.alice.job.mine.MineCandidateSource.CELL_BUDGET_PER_TICK
+                        + "；每次选择最多一个分片 ⇒ 不会吃掉 tick）",
+                progress.visitedThisCall() <= com.dddgn.alice.job.mine.MineCandidateSource.CELL_BUDGET_PER_TICK);
+        check("R1 覆盖②：单次推进耗时必须有界（实测 " + advanceMillis + "ms ≤ 60ms，tick 预算 50ms 量级）",
+                advanceMillis <= 60L);
+
+        int guard = 0;
+        int previous = scan.visited();
+        boolean monotone = true;
+        while (!scan.done() && !scan.truncated() && guard++ < 200) {
+            scan.advance(bot);
+            monotone = monotone && scan.visited() >= previous;
+            previous = scan.visited();
+        }
+        BotLog.info("[MineMenu] D-371 判别性事实（R1 扫描覆盖）：单次推进={} 格 / 限 {} · {}ms · "
+                        + "反复推进后 visited={}/{} monotone={}（真机整轮只到 8192/117649）",
+                progress.visitedThisCall(), com.dddgn.alice.job.mine.MineCandidateSource.CELL_BUDGET_PER_TICK,
+                advanceMillis, scan.visited(), scan.volume(), monotone);
+        check("R1 覆盖③：反复推进必须**单调覆盖到全量**（visited=" + scan.visited() + "/" + scan.volume()
+                        + " monotone=" + monotone + "；真机整轮只推到 8192/117649 就冻结了）",
+                monotone && (scan.visited() >= scan.volume() || scan.truncated()));
     }
 
     private void runBreakCostChecks() {
