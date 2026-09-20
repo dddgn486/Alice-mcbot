@@ -174,6 +174,9 @@ public final class RegressionBatteryTask implements Task {
             // 连跑 3 次真 `MineJob`（每次配额 2）＋ 1 次反向对照（目标不存在）⇒ 断言"到达率/世界改动数"
             // 是量出来的、且**到达率真的会小于 1**。EXTRA（自建地形 + 4 次运行）⇒ 不进 CORE。
             Map.entry("mine_run_metrics", Profile.EXTRA),
+            // `D-348`（2026-09-20）：**登记被推迟**的现场取证（新鲜区块 + 同一 tick 破坏 ⇒ tick 末还没登记，
+            // 宽限窗口内会出现）—— 判据 = 前提（确实推迟）∧ 期望（最终被登记）。EXTRA（自建地形）。
+            Map.entry("scope_pending_grace", Profile.EXTRA),
             // D-335：挖矿容量守卫（前置满包不许动世界 / 作业中满包恰好只少 1 格）—— 对際 lumber_failure
             Map.entry("mine_inventory", Profile.EXTRA),
             // D-336：斜向上升那一格（规划级：能力 + 信封）

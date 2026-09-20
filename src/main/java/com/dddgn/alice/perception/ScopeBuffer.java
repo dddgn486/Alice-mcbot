@@ -34,6 +34,24 @@ public final class ScopeBuffer {
 
     /** 破坏事件与随后掉落物的配对窗口（tick）与半径（格）：覆盖连锁挖掘模组。 */
     private static final int DROP_PAIR_WINDOW_TICKS = 10;
+
+    /**
+     * **宽限窗口**（`D-348`，2026-09-20）：排队掉落物在这个窗口内**允许"还没被登记进世界"**，超时才丢弃。
+     *
+     * <p>为什么必须有它 —— 实测（临时探针 + 10 tick 后验）：
+     * <ul>
+     *   <li>`EntityJoinLevelEvent` 是在 `PersistentEntitySectionManager` **把实体登记进查找表之前**
+     *       发出的（探针调用栈：`PersistentEntitySectionManager:79 → EventBus`）⇒ `level.getEntity(id)`
+     *       在事件当刻**必然是 null**；</li>
+     *   <li>登记可能被推迟：真实挖掘掉落物 **1~4 tick**（`single:mine_run_metrics` 10 连跑猎捕实测）、
+     *       刚 forceload 的区块里 summon **19 tick**（`D-345` 实测）⇒ 窗口取 {@code 40}（≈2 倍余量）；</li>
+     *   <li>旧实现只在 **tick 末判一次**就永久丢弃 ⇒ 会把**真的会进世界**的掉落物丢掉
+     *       （收集器永远看不到它 ⇒ `MineJob` 如实 `FAILED product_not_collected`，**本可成功**）。</li>
+     * </ul>
+     * ⚠️ 窗口内登记的**归属仍然正确**：直接配对（{@link #DROP_PAIR_WINDOW_TICKS} 10 tick / 3 格）与
+     * 松窗（60 tick / 4 格，`D-138`）用的都是**入队 tick**（不是登记 tick）⇒ 窗口内到达照旧算我方。
+     */
+    private static final int PENDING_GRACE_TICKS = 40;
     private static final double DROP_PAIR_RADIUS = 3.0D;
 
     private BlockPos center;
@@ -72,10 +90,31 @@ public final class ScopeBuffer {
     }
 
     /** 待登记掉落物：生成事件里先排队，**tick 末**再确认它真的进入了世界。 */
-    private record PendingItem(ItemEntity item, long tick) {
+    /**
+     * 排队项（`D-348` 起带上**入队时已解析好的归属**）。
+     *
+     * <p>为什么归属必须在入队时定、而不是登记时算：直接配对窗口只有 {@link #DROP_PAIR_WINDOW_TICKS}(10) tick，
+     * 破坏记录也会被 prune ⇒ 若登记被推迟到 21 tick（实测），**登记时已经查不到那条记录了** ⇒
+     * 掉落物会以 `FOREIGN(未登记)` 落账 ⇒ `liveDrops()` 里看不到、收集器也捡不起来
+     * （实测：宽限窗口救回了实体但丢了归属 ⇒ 夹具当场判红）。语义窗口本身**不变**，
+     * 参照点仍是**入队 tick**（= 掉落物真正出现在世界的那一刻），只是不再因技术延迟而失效。
+     */
+    private record PendingItem(ItemEntity item, long tick, BlockPos source,
+                               com.dddgn.alice.decision.DropPolicy.Provenance provenance) {
     }
 
     private final List<PendingItem> pending = new ArrayList<>();
+
+    /**
+     * **宽限窗口内的排队项**（`D-348`）：tick 末还没被确认进世界、但**仍在窗口内**的那些。
+     * 每个 tick 末与当 tick 的新项一起复验；窗口用完 ⇒ 丢弃并如实记录。
+     */
+    private final List<PendingItem> deferred = new ArrayList<>();
+
+    /** 累计"进入过宽限窗口"的项数（`D-348` 只读读数，供夹具断言"**这一轮确实推迟了**"）。 */
+    private int deferredEnteredCount;
+    /** 实测到的**最大登记延迟**（tick）：窗口内项最终被确认进世界时 `now - 入队tick` 的最大值。 */
+    private long maxDeferTicks;
 
     /** 注册监听区间(重复调用先结束旧区间)。 */
     public void begin(BlockPos center, int radius) {
@@ -128,6 +167,9 @@ public final class ScopeBuffer {
         this.ownerUuid = owner;
         this.active = true;
         this.pending.clear();
+        this.deferred.clear();      // `D-348`：宽限窗口里的项也必须随作用域重置清掉
+        this.deferredEnteredCount = 0;
+        this.maxDeferTicks = 0L;
         this.spawnedItems.clear();
         this.itemOrigins.clear();
         this.brokenBlocks.clear();
@@ -267,6 +309,37 @@ public final class ScopeBuffer {
      * 但实体对象仍满足 {@code isAlive()}，不剔除就会变成永远追不到的幻影
      * （Ore Excavation 连锁期间缓冲掉落物即为此类）。
      */
+    /**
+     * `D-348`：**在入队那一刻**解析归属（直接配对 10 tick / 3 格 → 松窗 60 tick / 4 格）。
+     *
+     * <p>入队 = 掉落物刚出现在世界的那一刻 ⇒ 破坏记录必然是新鲜的；把结果**存进排队项**，
+     * 登记被推迟多久都不会丢归属（见 {@link PendingItem}）。
+     */
+    private PendingItem pendingEntry(ItemEntity item, long tick, BlockPos pos) {
+        BlockPos source = matchBreakSource(pos, tick);
+        com.dddgn.alice.decision.DropPolicy.Provenance provenance = null;
+        if (source != null) {
+            provenance = com.dddgn.alice.decision.DropPolicy.Provenance.OURS_DIRECT;
+        } else {
+            BlockPos indirect = matchIndirectOrigin(pos, tick);
+            if (indirect != null) {
+                source = indirect;
+                provenance = com.dddgn.alice.decision.DropPolicy.Provenance.OURS_INDIRECT;
+            }
+        }
+        return new PendingItem(item, tick, source, provenance);
+    }
+
+    /** `D-348` 只读读数：累计进入过宽限窗口的项数（0 = 本作用域内没有任何登记被推迟）。 */
+    public int deferredEnteredCount() {
+        return deferredEnteredCount;
+    }
+
+    /** `D-348` 只读读数：实测到的最大登记延迟（tick）；0 = 从未发生推迟。 */
+    public long maxDeferTicks() {
+        return maxDeferTicks;
+    }
+
     private static boolean inWorld(ItemEntity item) {
         return !item.isRemoved() && !item.getItem().isEmpty()
                 && item.level() instanceof ServerLevel level && level.getEntity(item.getId()) != null;
@@ -379,7 +452,7 @@ public final class ScopeBuffer {
         BlockPos pos = item.blockPosition();
         for (ScopeBuffer scope : ACTIVE) {
             if (scope.inScope(pos)) {
-                scope.pending.add(new PendingItem(item, tick));
+                scope.pending.add(scope.pendingEntry(item, tick, pos));
             }
         }
     }
@@ -415,11 +488,16 @@ public final class ScopeBuffer {
      * 已登记为 `D-348` 的修复方向（宽限窗口）。
      */
     private void flushPending() {
-        if (pending.isEmpty()) {
+        if (pending.isEmpty() && deferred.isEmpty()) {
             return;
         }
-        List<PendingItem> batch = List.copyOf(pending);
+        // ⚠️ 必须是**可变**副本：`List.copyOf` 不可变 ⇒ `addAll` 会抛
+        // `UnsupportedOperationException` 并把服务端 tick 打死（`D-348` 修复首跑实测踩到，别改回去）。
+        List<PendingItem> batch = new ArrayList<>(pending);
         pending.clear();
+        // `D-348`：上一轮"还没确认进世界、但仍在宽限窗口内"的项，与本轮新项一起复验
+        batch.addAll(deferred);
+        deferred.clear();
         if (!active) {
             return;
         }
@@ -427,9 +505,23 @@ public final class ScopeBuffer {
             ItemEntity item = entry.item();
             BlockPos pos = item.blockPosition();
             if (!inWorld(item)) {
-                BotLog.info("作用域丢弃未确认进入世界的掉落物: {} x{} y{} z{}"
+                long graceNow = item.level() instanceof ServerLevel graceLevel
+                        ? graceLevel.getGameTime() : entry.tick();
+                long age = graceNow - entry.tick();
+                if (age < PENDING_GRACE_TICKS) {
+                    // ⭐ `D-348`：**不再在 tick 末一次定生死** —— 放进宽限窗口，下个 tick 末再复验。
+                    if (age == 0) {
+                        BotLog.info("作用域登记被推迟（{} tick 宽限窗口内复验，不再当 tick 丢弃）: {} x{} y{} z{}",
+                                PENDING_GRACE_TICKS, item.getItem().getItem(),
+                                pos.getX(), pos.getY(), pos.getZ());
+                    }
+                    deferredEnteredCount++;
+                    deferred.add(entry);
+                    continue;
+                }
+                BotLog.info("作用域丢弃未确认进入世界的掉落物（宽限窗口 {} tick 已用完）: {} x{} y{} z{}"
                                 + " removed={} empty={} inGetEntity={} chunkLoaded={}",
-                        item.getItem().getItem(), pos.getX(), pos.getY(), pos.getZ(),
+                        PENDING_GRACE_TICKS, item.getItem().getItem(), pos.getX(), pos.getY(), pos.getZ(),
                         item.isRemoved(), item.getItem().isEmpty(),
                         item.level() instanceof ServerLevel lookupLevel
                                 && lookupLevel.getEntity(item.getId()) != null,
@@ -438,20 +530,12 @@ public final class ScopeBuffer {
             }
             spawnedItems.add(item);
             long now = item.level() instanceof ServerLevel level ? level.getGameTime() : entry.tick();
+            maxDeferTicks = Math.max(maxDeferTicks, now - entry.tick());   // `D-348`：实测登记延迟
             pruneBreaks(now);
-            // ① 直接配对（10 tick / 3 格）→ OURS_DIRECT
-            BlockPos source = matchBreakSource(pos, entry.tick());
-            com.dddgn.alice.decision.DropPolicy.Provenance provenance = null;
-            if (source != null) {
-                provenance = com.dddgn.alice.decision.DropPolicy.Provenance.OURS_DIRECT;
-            } else {
-                // ② 松窗归属（60 tick / 4 格）→ OURS_INDIRECT：树叶衰减、支撑移除后弹出（S3.5/D-138）
-                BlockPos indirect = matchIndirectOrigin(pos, entry.tick());
-                if (indirect != null) {
-                    source = indirect;
-                    provenance = com.dddgn.alice.decision.DropPolicy.Provenance.OURS_INDIRECT;
-                }
-            }
+            // `D-348`：归属用**入队时**解析好的那一份（① 直接配对 10 tick/3 格 → OURS_DIRECT；
+            // ② 松窗 60 tick/4 格 → OURS_INDIRECT）—— 登记被推迟也不丢归属（否则会退化成 FOREIGN 捡不起来）。
+            BlockPos source = entry.source();
+            com.dddgn.alice.decision.DropPolicy.Provenance provenance = entry.provenance();
             itemOrigins.put(item.getUUID(), source);
             if (provenance != null) {
                 itemProvenance.put(item.getUUID(), provenance);

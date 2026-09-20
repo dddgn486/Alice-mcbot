@@ -20,7 +20,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * **掉落物模块（R-2 第十五片，2 步）**：`pickup_gate`(EXTRA) + `collect_job`(EXTRA) —— 都是 **EXTRA**。
+ * **掉落物模块（R-2 第十五片，3 步）**：⭐ `scope_pending_grace`(EXTRA) · `pickup_gate`(EXTRA)
+ * · `collect_job`(EXTRA) —— 都是 **EXTRA**；`scope_pending_grace` = `D-348`（登记被推迟的现场取证）。
  *
  * <ul>
  *   <li>{@code pickup_gate}：**掉落物归属闸门**（`DropPolicy.effectiveProvenance` 的那条线：
@@ -60,6 +61,12 @@ public final class PickupModule implements CheckModule {
         var scope = ctx.scope();
         List<String> course = List.of("alice_test:lumber_course_terrain");
         return List.of(
+                // ⭐ `D-348`（2026-09-20）：**登记被推迟**的现场取证 —— 新鲜区块里**同一 tick** 建地形 + 破坏方块
+                // ⇒ 掉落物的生成事件在"实体登记进查找表之前"发出 ⇒ tick 末**还没进世界**；而它在**宽限窗口**
+                // 内真的会出现 ⇒ 旧实现"当 tick 丢弃"会把它丢掉（收集器永远看不到它 ⇒ `product_not_collected`）。
+                // 判据两条，缺一不可：① 前提 = 本轮**确实**观察到了推迟；② 期望 = 它**最终被登记**（`liveDrops()` 非空）。
+                CheckStep.of("scope_pending_grace", CheckProfile.EXTRA, List.of(), null,
+                        () -> new com.dddgn.alice.task.ScopePendingGraceCheckTask(bot, observer, scope), 400),
                 CheckStep.of("pickup_gate", CheckProfile.EXTRA, course,
                         () -> to(bot, LumberCourseAnchor.START_FOOT),
                         () -> new PickupGateCheckTask(bot, observer), 600),

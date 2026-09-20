@@ -53,9 +53,12 @@
 > `EntityJoinLevelEvent` 是在 `PersistentEntitySectionManager` **把实体登记进查找表之前**发出的
 > ⇒ `getEntity` 当刻必为 null，而**登记可能被推迟 1~4 tick** ⇒ **在 tick 末只判一次就永久丢弃，
 > 会把真的会进世界的掉落物丢掉**（收集器看不到它 ⇒ `MineJob` 如实 `product_not_collected`）。
-> ⇒ **修复方向**：`flushPending` 加**有界宽限窗口**（10~20 tick，窗口内出现即登记、窗口结束才丢弃）。
-> **已落地（只改日志、零行为）**：丢弃分支不再打作者的**解释**（"生成被取消/缓冲"，它只描述了 A），
-> 改成打印**实测子项**（`removed/empty/inGetEntity/chunkLoaded`）+ javadoc 写清两类；探针已全删。
+> ⇒ ✅ **已修（用户拍板"加有界宽限窗口 + 先红后绿夹具"）**：① `PENDING_GRACE_TICKS=40` 宽限窗口内每 tick 复验
+> （tick 末不再一次定生死）；② ⭐ **归属在"入队那一刻"解析好并随排队项携带** —— 只做①会让实体救回来
+> 但**归属丢了**（登记时破坏记录已被 prune ⇒ `FOREIGN` ⇒ 照样捡不起来），这半截是**夹具逼出来的**。
+> 取证夹具 `scope_pending_grace`（EXTRA，`PickupModule`）：绿 `checks=8 failures=0`（实测登记延迟 13 tick、
+> 归属 `OURS_DIRECT`）/ 反向对照（注入窗口=0）**红 2 条**。**CORE 51/51** · `module:pickup`/`module:mining` PASS ·
+> `check-all` 17 PASS/0 FAIL。丢弃日志改为打印**实测子项**；三处临时探针已全删。
 >
 > **六、验证（✅ 次日已收口）**：当晚 `single:mine_run_metrics` PASS（24 判据 0 失败）· `module:mining`
 > PASS（10 步 / 106 s；编排器门禁 `started=+10 finished=+10`）。次日补跑 ⭐ **CORE = PASS 51/51**

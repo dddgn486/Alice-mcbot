@@ -14673,10 +14673,40 @@ BASELINE 15 / MAIN 36 / EXTRA 20）** ⇒ `mine_far_drop` 正确落在 EXTRA（C
 1~4 tick**。路径 A（模组取消）则**永远不会**登记 —— 两类在同一句日志里长得一模一样，
 **原来那句"生成被取消/缓冲"只描述了 A、把 B1 误判成了 A**。
 
-**③ 结论与修复方向（⏳ 待用户拍板，尚未改行为）**：`flushPending()` 应在**有界宽限窗口**内
-（如 10~20 tick）每 tick 复验，**窗口内出现即正常登记、窗口结束才丢弃**。判据：
-① B1 那一类不再丢（收集器能看到 ⇒ 夹具 `quota_met`）；② 路径 A 的 17 条仍在窗口后如实丢弃
-（不变红、不刷屏）⇒ **两组都能观测**。
+**③ 修复（用户 2026-09-20 拍板"修：加有界宽限窗口 + 先红后绿夹具"）—— ✅ 已落地，两处缺一不可**：
+
+| # | 改动 | 为什么不能只有它 |
+|---|---|---|
+| **a** | `PENDING_GRACE_TICKS = 40` + `deferred` 列表：tick 末不再一次定生死，**窗口内每 tick 复验**，窗口用完才丢弃（丢弃日志带实测子项） | 只有 a ⇒ 实体救回来了，但**归属丢了**（见下） |
+| **b** | ⭐ **归属在"入队那一刻"解析好、随排队项携带**（`PendingItem(item, tick, source, provenance)`）⇒ 登记时直接用存好的那一份 | 直接配对窗口只有 10 tick、破坏记录会被 prune ⇒ 实测**登记被推迟 13~21 tick** 时，登记那一刻**已经查不到记录**了 ⇒ 掉落物以 `FOREIGN(未登记)` 落账 ⇒ `liveDrops()` 看不到、**收集器照样捡不起来**。<br>⭐ **这一半是夹具逼出来的**：只做 a 时夹具判红（`推迟计数=16` 但 `liveDrops()=0`）—— 若没有"最终可收集"这条判据，这是个**假绿** |
+
+参照点不变：配对窗口仍以**入队 tick**（掉落物真正出现的那一刻）为准 ⇒ 语义窗口**没有放宽**，
+只是不再因为**技术性延迟**而失效。
+
+**④ 判据夹具（先红后绿，EXTRA 步 `scope_pending_grace`，`PickupModule`）**：
+新鲜区块（原点 3600,100,2000，**没别的夹具用过**）里**同一个 tick** 完成
+forceload → 建地板+矿 → 传送 → `scope.begin` → **真的破坏那格矿** ⇒ 掉落物在 tick 末**还没被登记**。
+判据两条，缺一不可：① 前提 = 本轮**确实**出现了推迟（`deferredEnteredCount` 增量 > 0）；
+② 期望 = 它**最终被登记**（`liveDrops()` 非空，且 `provenance=OURS_DIRECT`）——`liveDrops()` 本身就要求归属非空
+⇒ 两条合起来正好钉住 a+b 两半。
+
+| 运行 | 结果 |
+|---|---|
+| **绿**（含 a+b） | `PASS checks=8 failures=0`；`推迟计数增量=13`、**实测登记延迟 13 tick**、登记为 `provenance=OURS_DIRECT source=3603,101,2000` |
+| **红**（反向对照：注入 `PENDING_GRACE_TICKS = 0` = 旧行为） | **`FAIL failures=2`**：前提（推迟未复现）+ 期望（`liveDrops()` 恒 0）**同时红** ⇒ 这条判据确实能咬人 |
+
+**⑤ 这条弧里踩到的三个"夹具自己"的坑（都写进夹具注释了，免得后来人重踩）**：
+① `List.copyOf(...)` **不可变** ⇒ `batch.addAll(deferred)` 抛 `UnsupportedOperationException`
+**把服务端 tick 打死**（首跑 `verdict=<无> exit=3` + 看门狗崩溃报告，栈就在 `flushPending`）—— 必须 `new ArrayList<>(pending)`；
+② 破坏原语必须与生产**同源**：`level.destroyBlock(...)` **不触发 `BlockEvent.BreakEvent`**
+（`BlockInteraction:532` 早就写过）⇒ 归属恒 `unpaired` ⇒ 夹具在"归属"那一格假红；生产用的是
+**`bot.gameMode.destroyBlock(pos)`**（`BlockBreakSession:106`）；
+③ 破坏前必须**手持正确的镐**（否则 `playerDestroy` 一格都不掉 ⇒ `推迟计数=0` 看着像产品坏了）。
+
+**⑥ 验证**：`single:scope_pending_grace` **PASS**（8 判据）+ 反向对照 **FAIL**（窗口=0）·
+`single:mine_run_metrics` PASS · `module:pickup` PASS · `module:mining` PASS ·
+⭐ **CORE PASS 51/51**（`ScopeBuffer` = 收集共用路径）· `check-all` **17 PASS / 0 FAIL** ·
+静态门禁 PASS。⚠️ **无客户端可见行为变化**（只影响掉落物登记时机与归属）⇒ 不需要你复测。
 
 **本次已落地的产品改动（最小、只改日志、零行为）**：丢弃分支原来打的是**作者的解释**
 （"生成被取消/缓冲"）⇒ 改成打印**实测子项**（`removed / empty / inGetEntity / chunkLoaded`），

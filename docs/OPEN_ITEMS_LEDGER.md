@@ -1992,10 +1992,11 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 > 退避豁免，片 A/B/C）· ⭐ **`D-345`+`D-346`**（挖矿收集距离窗口：取证 → 上限改由作用域派生，同日转绿；
 > 夹具 `mine_far_drop` 已搬进 `MiningModule`）· ⭐ **`D-347`**（运行账 / 可测量判据：`bot/TaskMetrics` +
 > 只读出口 + 两道会话侧门禁 + 取证夹具 `mine_run_metrics`，到达率 **3/4** 是量出来的）。
-> ⏳ **待你拍板（`D-348`，2026-09-20）**：`ScopeBuffer.flushPending` 的"宽限窗口"修复 —— 实测证据齐全
-> （被丢弃的实体 1~4 tick 后 `visible=true`；机制 = `EntityJoinLevelEvent` 在实体**登记进查找表之前**发出），
-> 修 = tick 末不再一次定生死，窗口 10~20 tick 内复验。**不改行为的话**：普通破坏路径仍有低概率丢掉落物
-> ⇒ 任务会**如实失败**（`product_not_collected`），但**本可以成功**。
+> ✅ **`D-348` 已修（2026-09-20，用户拍板"加有界宽限窗口 + 先红后绿夹具"）**：`ScopeBuffer.flushPending`
+> 不再"tick 末一次定生死" ⇒ **40 tick 宽限窗口内每 tick 复验**；并且**归属在入队那一刻就解析好、随窗口携带**
+> （否则登记被推迟 13~21 tick 时记录已被 prune ⇒ 实体救回但归属丢 ⇒ **照样捡不起来** —— 这半截是夹具逼出来的）。
+> 取证夹具 `scope_pending_grace`（EXTRA，`PickupModule`）：绿 `checks=8 failures=0`（推迟 13 tick、登记为
+> `OURS_DIRECT`）/ 反向对照（窗口=0）**红 2 条**。
 > **复读（`survey/22`+`21` 第二次）后**剩下的可做项：② 收集器**物品过滤钩子** · ③ **挖矿设计文档**
 > （`D-329` 路线图第 1 步，尚不存在）·
 > ⑤ `HAZARD_ADJACENCY_PENALTY` 相对化（被 `D-333` 冻结压住，等实测触发）· ⑥ `FarWalkTask` 仍无生产调用方。
