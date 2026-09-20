@@ -933,6 +933,57 @@ def rule_structured_attribution():
     return problems
 
 
+def rule_search_limit_not_unreachable():
+    """`D-329` §2 **S3**（2026-09-20 落地）：**`SEARCH_LIMIT ≠ UNREACHABLE`**。
+
+    依据：`D-329` ① 用户裁定"扫描边界 = **不加载**" ⇒ "**没扫到**"与"**没有**"在数据上**必然**同时存在。
+    混为一谈的后果有两层：① 决策层拿到错的下一步（去换地方挖，而真相是"还没看完"）；
+    ② 任何"那就挖过去"的动作都等于**拿搜索预算当写入授权** —— `D-076` 明令禁止
+    （破坏/放置只能由上层任务显式授权并受预算闸门约束）。
+
+    本规则断言（删任一处 ⇒ 红）：
+    ① `MineJob.shortfallReason` 纯函数存在，且**搜索受限优先**给 `search_incomplete`（不是 `no_reachable_candidate`）；
+    ② `shortfall` 真把 `session.truncated()` 接了进去（没接线 ⇒ 截断永远报不出去）；
+    ③ `not_found` 只允许出现在"**扫完**的收尾"里，**不许**出现在逐格 `visit()`（否则没扫完也记成"没有"）；
+    ④ 收尾路径 `shortfall` 里**不许**构造挖掘子任务/写授权（S3 红线：搜索受限不得变成"挖过去"）。
+    """
+    problems = []
+    mine = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "mine"
+            / "MineJob.java").read_text(encoding="utf-8")
+    src = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "mine"
+           / "MineCandidateSource.java").read_text(encoding="utf-8")
+
+    fn = method_body(mine, "public static String shortfallReason(boolean searchLimited, int minedCount) {")
+    if not fn:
+        problems.append("MineJob 缺 `shortfallReason` 纯函数（S3 的判据点没了 ⇒ 夹具喂不了合成事实）")
+    elif "search_incomplete" not in fn:
+        problems.append("`shortfallReason` 没有 `search_incomplete` 分支"
+                        " ⇒ 搜索受限会退化成『没有可达候选』（S3 禁止）")
+
+    body = method_body(mine, "private Task.Status shortfall(CandidateSet set) {")
+    if not body:
+        problems.append("MineJob 找不到 `shortfall`（结构变了 ⇒ 本规则要跟着改）")
+    else:
+        if "session.truncated()" not in body:
+            problems.append("`shortfall` 没有把 `session.truncated()` 接进去"
+                            "（没接线 ⇒ 分片被预算截断这件事永远报不出去）")
+        if "new MineTask(" in body or "WriteGrant" in body:
+            problems.append("`shortfall`（配额未达成的收尾）里出现了挖掘子任务/写授权 ⇒ S3 红线（不得『挖过去』）")
+
+    fin = method_body(src, "private void finish() {")
+    if not fin:
+        problems.append("MineCandidateSource 找不到扫完的收尾 `finish()`（结构变了 ⇒ 规则要跟着改）")
+    elif "not_found" not in fin:
+        problems.append("扫完的收尾里没有 `not_found` 归因 ⇒ 失去『真的找遍了也没有』这一态")
+
+    vis = method_body(src, "private void visit(ServerLevel level, ServerPlayer bot, "
+                           "SafeZoneData safeZones, BlockPos pos) {")
+    if vis and "not_found" in vis:
+        problems.append("逐格 `visit()` 里写了 `not_found`"
+                        " ⇒ **没扫完**也会被记成『没有』（S3 禁止：未扫 ≠ 没矿）")
+    return problems
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
@@ -965,6 +1016,7 @@ def main() -> int:
     bwg = rule_bulk_write_zone_gate()
     d344 = rule_replant_sweep_bounded()
     attr = rule_structured_attribution()
+    s3 = rule_search_limit_not_unreachable()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -1013,13 +1065,15 @@ def main() -> int:
         print(f"[D-344·补种扫描有界互斥] {line}")
     for line in attr:
         print(f"[D-329·结构化归因] {line}")
+    for line in s3:
+        print(f"[D-329·搜索受限≠没有] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

@@ -15048,3 +15048,81 @@ forceload → 建地板+矿 → 传送 → `scope.begin` → **真的破坏那�
 所以"这轮到底跑没跑"只能看那一行；② 指纹是**保守近似**：机器负载/时钟/缓存命中率不影响判决（不必进指纹），
 但换机器、换 Java、换世界母本、换模组**都会**（前者已由 `java -version` 覆盖）；
 ③ 只有"默认那一轮 `core`"配用缓存：**单步/模块/对照实验一律真跑**（那些正是用来定位的）。
+
+### D-353：挖矿 1.x 落地 —— **S4 分片扫描 + S3 `SEARCH_LIMIT ≠ UNREACHABLE`**（2026-09-20，用户"就先做这三项"之一）2026-09-20
+
+**需求来源**：`docs/MINE_TASK_DESIGN.md` §2 的扫描契约（`D-329` 阶段 1.2）。**判据先写死在文档里，本注只记录落地与偏离。**
+
+#### 一、落地形状（`MineCandidateSource.ScanSession`，可续跑会话）
+| 契约 | 落地 |
+|---|---|
+| **S4** 单 tick 不做 `(2r+1)³` 全量 | `CELL_BUDGET_PER_TICK = 8192`（≈32 个区块列）；会话逐 tick `advance()`，游标单调 ⇒ 每格只考察一次 |
+| **S4** 跨 tick 幂等合并 + 去重 | 累积 `viable/rejected`；`produced` 集合做第二道保险；夹具断言"分片合并结果 == 一次性全量（逐字）+ 无重复" |
+| **S4** 确定性顺序 | **对齐 Baritone `cache/WorldScanner.java`**：Y 段按距玩家高度排序（`:56`/`:149`）取 `0,+1,-1,+2,-2,…`；水平按**方环**由近及远（`:60-89`）；以区块为工作单元（`:146-180` 同款粒度），未加载只记"未扫" |
+| **S3** 预算耗尽 ⇒ "搜索受限" | `CELL_BUDGET_TOTAL = 240_000`（> r=24 整卷 117,649 ⇒ 默认不截断）；截断 ⇒ `truncated=true/done=false`、**不产 `not_found`**、顶层码 `search_incomplete` |
+| **S3** 不得"挖过去" | 截断路径**不构造挖掘子任务、不产生写授权**（门禁结构断言 + 反向对照） |
+
+⭐ **一处 Alice 有意取序（登记）**：Baritone 按 |Δy| 排序是"先扫与玩家同层"；Alice 取 **上先于下**（`0,+1,-1,…`）。
+理由：谁先被扫到谁先成为候选，而 `D-329` ④ 认定当前存在"向下偏置" —— 这里**不再给向下任何先手**。
+⚠️ 这不是把偏置改成反向偏置（`D-329` ④ 的真正解法是 §3 的作业区/意图，阶段 1.5）；**偏离后果可验证**：
+夹具的 S4 判据只断言"合并==全量"，与顺序无关；顺序本身在 1.5 用**水平位移分布 + 向下占比**度量。
+
+#### 二、判据与反向对照（都已实测）
+- `mine_menu`（CORE）新增 **10 条**判据：单次 ≤ 上限 / 扫完 `visited == (2r+1)³` / `visited == reads + unscanned` /
+  确实分了多次调用 / **跨调用合并 == 一次性全量** / 去重 / 截断两态 / 不产 `not_found` / 顶层码三分法。
+  **判别性事实**（`latest.log`）：`calls=12 单次最大=64（上限=64）visited=729/729 读=729 未扫=0 ·
+  合并==全量 true（318/318）· 截断 visited=64 truncated=true done=false not_found=0`。
+- **反向对照①**：拆掉 `shortfallReason` 的截断分支 ⇒ 夹具红（`S3 搜索受限 ⇒ search_incomplete` 那两条）。
+- **反向对照②**：分片"漏扫一半 y 层" ⇒ `S4 扫完时 visited == 体积` 红（`visited=405 vs 729`），
+  且既有 S1/S2 两条不变式（`block_reads + unscanned == 体积`）跟着红。
+  ⚠️ **诚实标注**：这条对照**不是**用来证明"顺序对"的 —— "合并==全量"那条与实现同源（同一份代码跑两遍），
+  它只能抓**分片特有**的缺陷（漏/重复），抓不到"实现整体就是错的"。
+- **门禁** `rule_search_limit_not_unreachable`（`tools/kernel-predicates.py`）：`shortfallReason` 存在且截断优先 ·
+  `shortfall` 真接了 `session.truncated()` · `not_found` 只许在**扫完的收尾** · 收尾路径**不许**构造挖掘子任务。
+  **四种注入实测全红**（拆分支 / 断接线 / 在逐格 `visit()` 里写 `not_found` / 在 `shortfall` 里 new `MineTask`）。
+
+#### 三、⭐ 这次踩到的真坑（比 S3/S4 本身更值钱）：**分片把"世界事实"变成了"快照"**
+旧实现**每次 `select()` 重扫一遍世界** ⇒ "这个候选现在还能不能做"**天然是当前的**。
+改成"扫一次、跨 tick 累积"后，候选**位置**是快照，而**可破坏性/授权**是**当时**的世界事实 ⇒ **过期**。
+实测（`module:mining` 抓到，`mine_budget` 红）：预算被压到 `0/0` 时，旧版第一格用尽预算后**剩下的 5 格当场变成
+`:unbreakable`** ⇒ 归因 `write_budget_exhausted`（该步的 `doneWhen` 判据）；不补复检的新版让那 5 格继续"可选"，
+最后报运行期 `TARGET_NOT_BREAKABLE` ⇒ **码集混合 ⇒ 归因退化成总括码 ⇒ 判据红**。
+**修法**：决策前 `session.revalidate(bot)` 用**当前**世界重算可行性（与旧版"重扫"语义等价，只是不重复扫方块）。
+⇒ 与 `D-348` **同源纪律**：**别把代理判据（快照/查找表/账本）当世界事实**；也说明"既有判据网"能在**当天**抓到这类语义漂移。
+
+#### 四、验证
+`single:mine_menu` PASS（27 判据）· `single:lumber_failure` PASS（另见 `D-354`）· `module:mining` **10/10 PASS**（102s）·
+`module:lumber` PASS · **CORE 51/51 PASS**（265s，`ticks=4779` 量级）· `check-all` pass=19/0/0。
+`docs/MINE_TASK_DESIGN.md` §7 的 1.2 行已标 **S3 ✅ + S4 ✅**，**S5 待做**。
+
+### D-354：伐木失败归因 **retrofit 成结构化**（`M4` 先于 `M3`，先做的那一项）2026-09-20
+
+**需求来源**：`docs/MINE_TASK_DESIGN.md` §6（`D-329` ⑤.3）。**为什么先做它**：它是三项里最小、
+最独立的一项，而且是 `M4`（失败码必须机器可读）的**前置** —— 否则 §3 的作业区意图会建在脆弱判据上。
+
+**事实（代码为准）**：`LumberJob.deriveTopLevelReason` 旧版是
+`attemptFailures.stream().allMatch(f -> f.contains("no_suitable_tool") || f.contains("tool_missing"))`，
+而 `f` 是 `"pos:code gained=x/y failed=code,…"` 这种**拼接串** ⇒ 它匹配的是**子串**。
+挖矿侧 `MineJob` 早已是逐码比较（`AttemptFailure::code` + `TOOL_CODES`/`BUDGET_CODES`）。
+
+**改动**：
+1. 新增两个结构化记录：`record LogFailure(BlockPos pos, String code)` / `record TreeFailure(BlockPos base,
+   String code, int gainedLogs, int logs, List<String> logCodes)`；`attemptFailures`/`failedLogs` **换成结构化类型**
+   ⇒ **类型即约束**（`List<String>` 才会被顺手拿去 `contains`）。展示一律走 `describe()`。
+2. 归因提成**纯函数** `deriveTopLevelReason(base, failures, treesDone)`（`public static`）⇒ 夹具喂合成事实即可断言。
+3. ⭐ **一处有意行为差异（登记）**：旧版"串里**出现过**工具码"就算工具因 ⇒ 同一棵树里
+   "缺镐（`no_suitable_tool`）+ 那格被换成别的方块（`log_replaced`）"这种**混合原因**也会被报成 `tool_missing`
+   —— **把玩家改方块的锅甩给工具**，决策层据此去弄工具（错）。新版要求每棵树逐原木码**非空且全是**工具码；
+   混合情形**如实**保持 `partial_quota`。
+
+**判据**：
+- 夹具 `lumber_failure` 新增 **5 条纯函数用例**（不造世界/不发料/不建 Job）：`ALL_TOOL`（正例，退回用）·
+  ⭐`MIXED`（**把旧写法原样实现一遍当场对照**：旧=误报 `tool_missing`）· `CLIMB` · `NO_EVIDENCE`（有失败但零证据
+  ⇒ 不许甩锅工具）· `SUCCESS_GUARD`（`treesDone>0` ⇒ 不许归因；非总括码 ⇒ 不许被理由盖掉）。
+- 门禁 `rule_structured_attribution`（`M4-P1`）：断言两侧都有结构化记录、清单字段是结构化类型、
+  归因读 `logCodes()`/`TreeFailure::code`/`AttemptFailure::code`、且**归因路径不出现 `f.contains(`**。
+  **三种注入实测全红**（归因退回子串 / 拆结构化类型 / `MineJob` 不再读 `code`）。
+- ⭐ **端到端反向对照**：把归因退回旧子串写法 ⇒ `single:lumber_failure` **verdict=FAIL**，且**恰好
+  `taxonomy_mixed` 一条红**（其余 10 条仍绿 ⇒ 判据定位精准）；恢复后 `PASS`（11 例全绿，`ticks=398`）。
+
+**验证**：`single:lumber_failure` PASS · `module:lumber` **6/6 PASS**（91s）· `check-all` pass=19/0/0（`7b34e9d`）。

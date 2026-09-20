@@ -66,6 +66,15 @@ public final class MineJob implements Job {
     private final SelectionPolicy policy;
 
     /**
+     * ⭐ `D-329` §2 S4：**分片扫描会话**（跨 tick 存续；`null` = 还没开扫）。
+     *
+     * <p>为什么挂在 Job 上而不是每次 `select()` 新建：大范围扫描要"边扫边记、跨 tick 累积"，
+     * 而且**已扫过的格不重扫**（游标单调）——这正是 `S4`/`S5` 的分工：会话管"这一次扫到哪"，
+     * 持久记忆（`S5`）管"以前扫过哪"。
+     */
+    private MineCandidateSource.ScanSession session;
+
+    /**
      * **夹具专用**：把"身份复检"注入进来（`null` = 走生产路径的 {@link MineCandidateSource#matchesTarget}）。
      *
      * <p>为什么需要它：`stale_target`（决策后被改动）这条归因要求"每个候选的身份复检都失败"，
@@ -248,13 +257,33 @@ public final class MineJob implements Job {
     // ==================== 阶段 ====================
 
     private Task.Status select() {
-        CandidateSet raw = source.candidates(bot, spec);
-        CandidateSet set = withoutAttempted(raw);
+        // ⭐ `D-329` §2 S4：**分片扫描**（会话跨 tick 存续，不随每次选目标重置）——
+        // 旧版是"一 tick 把 (2r+1)³ 全扫完"（r=24 ⇒ 117,649 次考察全压在 tick 线程上）。
+        if (session == null) {
+            session = source.newSession(spec);
+            DecisionTrace.step(jobName(), "SCAN", spec.center().toShortString(),
+                    "分片扫描开始 radius=" + session.radius() + " 体积=" + session.volume()
+                            + " 单次上限=" + MineCandidateSource.CELL_BUDGET_PER_TICK
+                            + " 总预算=" + MineCandidateSource.CELL_BUDGET_TOTAL);
+        }
+        // ⭐ **决策前复检**（`D-348` 同一条纪律）：候选**位置**是扫描那一刻的快照，但"还能不能做"
+        // （可破坏性 / 授权面）是**当前**的世界事实 —— 旧版每次选择都重扫世界，所以它天然是当前的；
+        // 分片之后必须显式补回这一步（实测 `mine_budget`：不补 ⇒ 预算耗尽后仍去试旧候选 ⇒ 归因退化）。
+        CandidateSet set = withoutAttempted(session.revalidate(bot));
         Selection selection = policy.select(bot, spec, set);
-        DecisionTrace.select(jobName(), policy.name(), set, selection);
         if (selection.picked() == null) {
+            if (!session.done() && !session.truncated()) {
+                // S4：**还有没考察到的格** ⇒ 本 tick 继续扫。⚠️ 绝不许把"还没扫到"当成"这里没有"。
+                MineCandidateSource.Progress progress = session.advance(bot);
+                DecisionTrace.step(jobName(), "SCAN", spec.center().toShortString(),
+                        "分片推进 visited=" + session.visited() + "/" + session.volume()
+                                + " 本次=" + progress.visitedThisCall() + " 读=" + session.reads()
+                                + " 未扫=" + session.unscanned());
+                return Task.Status.RUNNING;
+            }
             return shortfall(set);
         }
+        DecisionTrace.select(jobName(), policy.name(), set, selection);
         current = selection.picked().anchor();
         ServerLevel level = bot.serverLevel();
         // 身份复检（§6.2c⑤，与伐木同一条纪律）：`candidates` 是**决策时刻的扫描结果**，
@@ -389,10 +418,38 @@ public final class MineJob implements Job {
             BotLog.warn("[Job] mine 未能完成的目标: {}", attemptFailures.stream()
                     .map(AttemptFailure::describe).collect(java.util.stream.Collectors.joining(" | ")));
         }
-        terminalReason = deriveTopLevelReason(
-                minedCount > 0 ? "partial_quota" : "no_reachable_candidate");
+        // ⭐ `D-329` §2 S3：**`SEARCH_LIMIT ≠ UNREACHABLE`**。
+        // 总预算把扫描截断了 ⇒ 我们**不知道**还有没有矿 ⇒ 只能说"搜索受限"。
+        // 这里若报 `no_reachable_candidate`（"没有可达候选"）就是在把"没看见"说成"没有"，
+        // 决策层会据此**换个地方挖**（错）；更严重的是任何"那就挖过去"的路径都等于拿搜索预算当写入授权（`D-076` 禁止）。
+        boolean searchLimited = session != null && session.truncated();
+        terminalReason = deriveTopLevelReason(shortfallReason(searchLimited, minedCount));
+        if (searchLimited) {
+            // 如实报"扫到哪了"，并明确**没有**对世界下"没矿"的结论
+            BotLog.warn("[Job] mine 搜索受限（未扫完，不许当成没矿）：visited={}/{} 读={} 未扫={}",
+                    session.visited(), session.volume(), session.reads(), session.unscanned());
+        }
         failure = terminalReason + (set.rejected().isEmpty() ? "" : " " + String.join(",", set.rejected()));
         return finish(Task.Status.FAILED);
+    }
+
+    /**
+     * **配额没达成时的顶层码**（`D-329` §2 S3 的判据点，纯函数 ⇒ 夹具可逐条断言，不必造 24 万格的世界）。
+     *
+     * <p>三分法：
+     * <ul>
+     *   <li>**搜索被截断** ⇒ `search_incomplete`。‼️ 这里**绝不能**退化成 `no_reachable_candidate`：
+     *       那是在把"我还没看完"说成"这里没有"，决策层会据此换地方挖（错），
+     *       而且任何"那就挖过去"的读取都等于把**搜索预算**当成**写入授权**（`D-076` 明令禁止）。</li>
+     *   <li>扫完了、但挖到了一些、配额没够 ⇒ `partial_quota`；</li>
+     *   <li>扫完了、一个都没挖成 ⇒ `no_reachable_candidate`。</li>
+     * </ul>
+     */
+    public static String shortfallReason(boolean searchLimited, int minedCount) {
+        if (searchLimited) {
+            return "search_incomplete";
+        }
+        return minedCount > 0 ? "partial_quota" : "no_reachable_candidate";
     }
 
     /** 过滤掉已尝试过的目标，并把过滤原因写进 rejected（§6.2a：拒绝必须带理由码）。 */

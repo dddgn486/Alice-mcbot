@@ -129,6 +129,11 @@ public class MineMenuCheckTask implements Task {
                 !bot.serverLevel().hasChunkAt(farCenter));
         check("矿石场景里菜单必须含 mine 候选", mine != null);
 
+        // ⭐⭐ `D-329` §2 **S4 分片扫描** + **S3 预算受限**（2026-09-20 落地）。
+        // 为什么放在本夹具：扫描的**不变量**（读+未扫=体积）本来就断言在这里；S4 只是把"一次全量"
+        // 换成"多次分片"，判据必须跟着把**"分片后仍然等价"**这件事咬住 —— 否则分片很容易变成"少扫"。
+        runScanContractChecks();
+
         String block = CandidateMenu.extraValue(mine, "block");
         check("mine 条目必须带 block=（方块 id 由确定性层给出）", block != null && !block.isBlank());
 
@@ -213,6 +218,92 @@ public class MineMenuCheckTask implements Task {
         if (!ok) {
             failures.add(what);
         }
+    }
+
+    /**
+     * ⭐ `D-329` §2 **S4（分片扫描）+ S3（搜索预算受限）** 的判据组。
+     *
+     * <p>为什么这些判据必须存在（而不是"实现完看一眼"）：分片把"一次全量"拆成"多次部分"，
+     * **最容易犯的错是"少扫了却没人发现"**（部分结果看起来跟"没有矿"一模一样）。
+     * 所以这里断言三件事：① 单次调用有上限；② **拼起来仍然逐字等于一次性全量**（幂等合并 + 去重）；
+     * ③ 被总预算截断时**不许**产出 `not_found`（那是把"没扫完"说成"没有"）。
+     *
+     * <p>反向对照（改法）：把游标改成"每次 advance 从头开始" ⇒ `visited > 体积`、单次上限与
+     * "合并==全量"两条同时红；把总预算截断分支去掉 ⇒ `truncated/done` 那条红。
+     */
+    private void runScanContractChecks() {
+        final BlockPos center = bot.blockPosition();
+        final int smallBudget = 64;
+        final int r = 4;
+        final long volume = (long) (2 * r + 1) * (2 * r + 1) * (2 * r + 1);
+        final var stone = com.dddgn.alice.job.mine.MineCandidateSource.Target
+                .ofBlock(net.minecraft.world.level.block.Blocks.STONE);
+        final var spec = com.dddgn.alice.job.GoalSpec.mineBlocks(center, r, 1, 600);
+        final var source = new com.dddgn.alice.job.mine.MineCandidateSource(stone, r);
+
+        // ---- S4：分片推进 + 幂等合并 + 去重 ----
+        var session = source.newSession(spec, smallBudget, Integer.MAX_VALUE);
+        int calls = 0;
+        while (!session.done() && calls < 100_000) {
+            session.advance(bot);
+            calls++;
+        }
+        check("S4 单次考察格数 ≤ 上限（上限=" + smallBudget + " 实测单次最大="
+                        + session.maxCallVisited() + "）",
+                session.maxCallVisited() <= smallBudget);
+        check("S4 扫完时 visited == 体积（visited=" + session.visited() + " 体积=" + volume + "）",
+                session.visited() == volume);
+        check("S4 不变式 visited == reads + unscanned（" + session.visited() + " == "
+                        + session.reads() + " + " + session.unscanned() + "）",
+                session.visited() == session.reads() + session.unscanned());
+        check("S4 确实分了多次调用（calls=" + calls + "；一次全量的话是 1）", calls > 1);
+
+        var oneShot = com.dddgn.alice.job.mine.MineCandidateSource
+                .candidatesForTargets(bot, spec, List.of(stone), r).sets().get(0);
+        List<Long> oneShotIds = oneShot.viable().stream().map(c -> c.anchor().asLong()).sorted().toList();
+        List<Long> chunkedIds = session.sets().get(0).viable().stream()
+                .map(c -> c.anchor().asLong()).sorted().toList();
+        check("S4 跨 tick 合并结果 == 一次性全量（分片=" + chunkedIds.size()
+                        + " 全量=" + oneShotIds.size() + "；少扫/漏扫在这里现形）",
+                oneShotIds.equals(chunkedIds));
+        check("S4 去重：候选无重复（" + chunkedIds.size() + " 条 / 去重后 "
+                        + chunkedIds.stream().distinct().count() + "）",
+                chunkedIds.stream().distinct().count() == chunkedIds.size());
+
+        // ---- S3：总预算截断 ⇒ "搜索受限"，**不是**"没矿" ----
+        var truncated = source.newSession(spec, smallBudget, smallBudget);
+        truncated.advance(bot);
+        check("S3 总预算用尽 ⇒ truncated=true 且 done=false（truncated=" + truncated.truncated()
+                        + " done=" + truncated.done() + " visited=" + truncated.visited()
+                        + " 预算=" + smallBudget + "）",
+                truncated.truncated() && !truncated.done() && truncated.visited() == smallBudget);
+        check("S3 截断**不许**产出 not_found（出现它 = 把『没扫完』说成『这里没有』）",
+                truncated.sets().get(0).rejected().stream().noneMatch(x -> x.contains("not_found")));
+
+        // ---- S3：顶层码三分法（纯函数；截断**不许**退化成"没有可达候选"）----
+        // 反向对照：把 `shortfallReason` 的第一条改回"无论如何都按挖到数算" ⇒ 前两条必红。
+        String limitedNone = com.dddgn.alice.job.mine.MineJob.shortfallReason(true, 0);
+        String limitedSome = com.dddgn.alice.job.mine.MineJob.shortfallReason(true, 3);
+        String scannedNone = com.dddgn.alice.job.mine.MineJob.shortfallReason(false, 0);
+        String scannedSome = com.dddgn.alice.job.mine.MineJob.shortfallReason(false, 3);
+        check("S3 搜索受限 ⇒ search_incomplete（挖到 0 个或 3 个都一样；实测 "
+                        + limitedNone + " / " + limitedSome + "）",
+                "search_incomplete".equals(limitedNone) && "search_incomplete".equals(limitedSome));
+        check("S3 扫完且零产出 ⇒ no_reachable_candidate（与『搜索受限』**必须区分**；实测 "
+                        + scannedNone + "）",
+                "no_reachable_candidate".equals(scannedNone));
+        check("S3 扫完且有产出 ⇒ partial_quota（实测 " + scannedSome + "）",
+                "partial_quota".equals(scannedSome));
+
+        // **判别性事实**（判据绿了也要能复核数字；红了更要能看出差在哪）
+        BotLog.info("[MineMenu] S3/S4 判别性事实：分片 calls={} 单次最大={}（上限={}）visited={}/{} "
+                        + "读={} 未扫={} · 合并==全量: {}（分片 {} 条 / 全量 {} 条）· "
+                        + "截断 visited={} truncated={} done={} not_found={}",
+                calls, session.maxCallVisited(), smallBudget, session.visited(), volume,
+                session.reads(), session.unscanned(), oneShotIds.equals(chunkedIds),
+                chunkedIds.size(), oneShotIds.size(), truncated.visited(), truncated.truncated(),
+                truncated.done(),
+                truncated.sets().get(0).rejected().stream().filter(x -> x.contains("not_found")).count());
     }
 
     /** 用**同一份**菜单断言拒绝（菜单构建含 11 个矿石目标的全扫，重复构建会在一个 tick 里白烧掉百万次读）。 */
