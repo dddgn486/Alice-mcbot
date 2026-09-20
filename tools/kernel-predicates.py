@@ -1228,7 +1228,9 @@ def rule_cost_includes_break():
 
     断言（改任一处 ⇒ 红）：
     ① 生产策略必须走精算链：`CostOptimalPolicy.production()` 里出现 `PlanRefinedCostProvider`；
-    ② 精算次数是**常量**（`DEFAULT_TOP_K`）且 > 0（有界，不许无上限地每个候选都跑规划器）；
+    ② 精算次数是**常量**（`REFINE_PER_SELECT`）且 > 0（有界，不许无上限地每个候选都跑规划器）
+       —— `D-368` 起是**摊销**：每次选择 ≤1 次，覆盖靠缓存跨选择累积；
+    ②b 必须有缓存 TTL 常量，且**精算失败也要记账**（否则失败候选每次挡住轮转）；
     ③ 精算必须真的用 `MiningPlanner`（`new MiningPlanner()` + `.plan(`）—— 手写一套破坏估算 = 另造内核；
     ④ **不许把"估不出"当"不能挖"**：精算失败只能 `continue`（保持"估不出"），不许据此拒绝候选。
     """
@@ -1241,8 +1243,15 @@ def rule_cost_includes_break():
     if "PlanRefinedCostProvider" not in production:
         problems.append("`CostOptimalPolicy.production()` 没用 `PlanRefinedCostProvider` ⇒ 生产仍是纯走路成本"
                         "（`break` 分量没接上；`D-363` 的真机退化会原样回来）")
-    if not re.search(r"public static final int DEFAULT_TOP_K\s*=\s*[1-9]", provider):
-        problems.append("`DEFAULT_TOP_K` 的声明不是 > 0 的常量 ⇒ 精算要么关掉、要么无界")
+    if not re.search(r"public static final int REFINE_PER_SELECT\s*=\s*[1-9]", provider):
+        problems.append("`REFINE_PER_SELECT` 的声明不是 > 0 的常量 ⇒ 摊销精算要么关掉、要么无界"
+                        "（`D-367` 实测：3 次完整规划器 = 102→126 ms ⇒ 超 tick 预算 2 倍）")
+    if not re.search(r"public static final long CACHE_TTL_TICKS\s*=\s*[1-9]", provider):
+        problems.append("缺 `CACHE_TTL_TICKS` 常量 ⇒ 摊销靠什么复用、过期由谁说了算都不可见")
+    if "if (Double.isFinite(cost)) { cache.put(" in provider or "cache.put(key, new Entry(cost, now));" not in provider:
+        problems.append("精算**失败**没有记账（`cache.put` 被 `Double.isFinite` 包住）⇒ 同一个失败候选"
+                        "每次选择都会挡住轮转 ⇒ 覆盖永远涨不上去（`D-368` 反向对照实测：这条断言最初太弱，"
+                        "必须用「排序第一个」当失败靶子才抓得住）")
     if "new MiningPlanner()" not in provider or ".plan(" not in provider:
         problems.append("精算没有走 `MiningPlanner`（`new MiningPlanner()` + `.plan(`）⇒ 等于自己另写一套破坏估算"
                         "（内核路线禁止：破坏成本已有唯一出处）")

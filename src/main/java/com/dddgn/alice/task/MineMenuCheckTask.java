@@ -193,6 +193,7 @@ public class MineMenuCheckTask implements Task {
 
         // ⭐⭐ `D-363` **break 分量**（成本场估算 → top-K 精算）—— 放在最后：它要临时改场景（给矿加盖子）
         runBreakCostChecks();
+        runRefineAmortizationChecks();
         // ⭐⭐ `D-364` **垫方块只在「掉落物真会丢」时** —— 同样放最后（临时改场景，用完复位）
         runSupportTriggerChecks();
         // ⭐⭐ `D-365` **目标在视线内就地挖**（用户 2026-09-20 要求）
@@ -328,6 +329,115 @@ public class MineMenuCheckTask implements Task {
      *
      * <p>反向对照（改法）：把 `PlanRefinedCostProvider` 的 `topK` 置 0（或直接返回成本场结果）⇒ ②③ 全红。
      */
+    /**
+     * `D-368` **摊销精算**：每次选择**有界**（≤ {@code REFINE_PER_SELECT} 次规划器）+ 缓存**跨选择覆盖全部候选**。
+     *
+     * <p>为什么必须摊销（真机证据，`docs/reviews/2026-09-20-mine-round3-root-cause.md` §2bis / §4）：
+     * `D-363` 的"每次选择固定精算 top-3"同时造成 ① **102→126 ms/选择（tick 预算 50 ms）** 与
+     * ② **`精算 尝试=3 成功=3（候选 91）` ⇒ 97% 候选永远没有真实成本**（脉内其余矿永远排不上 ⇒ 绕远折返）。
+     *
+     * <p>本夹具用**注入的精算函数 + 注入的时钟**做纯逻辑断言（不依赖世界地形）：
+     * ① 每次选择只跑 1 次精算；
+     * ② 连续选择后缓存覆盖**全部**候选，且成本表里的最小值 == **真最优**（构造"最优在更远处"：
+     *    真成本 `100 - index`，索引越大离 bot 越远 ⇒ 若只精算最近的 3 个，永远选到 100）；
+     * ③ TTL 过期后必须**重新精算**（世界会变）；
+     * ④ 精算失败（∞）也记账，**不许挡住轮转**，且**不许据此拒绝候选**。
+     */
+    private void runRefineAmortizationChecks() {
+        // 本组不读世界地形（base 是 scripted ⇒ 忽略 spec），但接口需要一份 GoalSpec
+        final var amortSpec = com.dddgn.alice.job.GoalSpec.mineBlocks(
+                new net.minecraft.core.BlockPos(0, 62, 100),
+                com.dddgn.alice.job.mine.MineCandidateSource.SCAN_RADIUS, 1, 600);
+        final var anchors = new java.util.ArrayList<com.dddgn.alice.job.Candidate>();
+        for (int index = 0; index < 10; index++) {
+            anchors.add(new com.dddgn.alice.job.Candidate(new net.minecraft.core.BlockPos(0, 62, 100 + index),
+                    "block", java.util.Map.of()));
+        }
+        // 真成本：索引越大越远，但成本越低（构造"真最优在更远处"）
+        final java.util.Map<Long, Double> trueCost = new java.util.HashMap<>();
+        for (int index = 0; index < anchors.size(); index++) {
+            trueCost.put(anchors.get(index).anchor().asLong(), 100.0D - index);
+        }
+        final java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+        final long[] clock = {0L};
+        // 成本场全 ∞（真实地形里就是这样）⇒ 排序退化成"欧氏最近"
+        var allUnknown = com.dddgn.alice.job.mine.CandidateCostProvider.scripted(java.util.Map.of());
+        var amortized = new com.dddgn.alice.job.mine.PlanRefinedCostProvider(allUnknown,
+                com.dddgn.alice.job.mine.PlanRefinedCostProvider.REFINE_PER_SELECT,
+                com.dddgn.alice.job.mine.PlanRefinedCostProvider.CACHE_TTL_TICKS,
+                (who, candidate) -> {
+                    calls.incrementAndGet();
+                    return trueCost.get(candidate.anchor().asLong());
+                },
+                () -> clock[0]);
+
+        var first = amortized.estimate(bot, amortSpec, anchors);
+        check("摊销精算①：一次选择只精算 " + com.dddgn.alice.job.mine.PlanRefinedCostProvider.REFINE_PER_SELECT
+                        + " 个（实测 calls=" + calls.get() + "）",
+                calls.get() == com.dddgn.alice.job.mine.PlanRefinedCostProvider.REFINE_PER_SELECT);
+        long finiteAfterFirst = anchors.stream()
+                .filter(candidate -> Double.isFinite(first.travel(candidate))).count();
+        check("摊销精算①：本 tick 只有 1 个候选拿到真实成本、其余保持「估不出」（实测 finite="
+                        + finiteAfterFirst + "，不许因此被拒绝）", finiteAfterFirst == 1L);
+
+        // 连续选择（每次推进游戏时间）⇒ 覆盖增长到全部
+        int selects = 0;
+        while (calls.get() < anchors.size() + 1 && selects < 40) {
+            clock[0] += 5;
+            selects++;
+            var step = amortized.estimate(bot, amortSpec, anchors);
+            if (selects == 1) {
+                check("摊销精算②：缓存覆盖随选择增长（第 2 次选择后 calls=" + calls.get() + "）",
+                        calls.get() == com.dddgn.alice.job.mine.PlanRefinedCostProvider.REFINE_PER_SELECT + 1);
+                long finiteAfterSecond = anchors.stream()
+                        .filter(candidate -> Double.isFinite(step.travel(candidate))).count();
+                check("摊销精算②：已被覆盖的候选成本进入成本表（实测 finite=" + finiteAfterSecond + "）",
+                        finiteAfterSecond == 2L);
+            }
+        }
+        check("摊销精算②：缓存最终覆盖**全部**候选（精算次数=" + calls.get() + " ≥ " + anchors.size()
+                        + "，不再锁死最近 3 个）", calls.get() >= anchors.size());
+        var warmed = amortized.estimate(bot, amortSpec, anchors);
+        double best = anchors.stream().mapToDouble(candidate -> warmed.travel(candidate)).min().orElse(Double.NaN);
+        check("摊销精算②：成本表里的最优 == 真最优（实测 " + best + "，真最优 91.0；"
+                        + "「只精算最近 3 个」会永远停在 100.0）", Math.abs(best - 91.0D) < 1.0E-6D);
+        check("摊销精算②：一次选择之后不应该再有新的精算（TTL 内复用缓存，calls=" + calls.get() + "）",
+                calls.get() == anchors.size());
+
+        // ③ TTL：过期后重新精算
+        int beforeTtl = calls.get();
+        clock[0] += com.dddgn.alice.job.mine.PlanRefinedCostProvider.CACHE_TTL_TICKS + 1L;
+        amortized.estimate(bot, amortSpec, anchors);
+        check("摊销精算③：超过 TTL 后必须重新精算（calls " + beforeTtl + " → " + calls.get() + "）",
+                calls.get() > beforeTtl);
+
+        // ④ 失败（∞）也要记账：否则同一个失败候选每次挡住轮转 ⇒ 覆盖涨不上去
+        final java.util.concurrent.atomic.AtomicInteger failCalls = new java.util.concurrent.atomic.AtomicInteger();
+        final long[] clock2 = {0L};
+        // ⚠️ 失败靶子必须是**排序第一个**（否则它不一定会挡住轮转 ⇒ 判据没有判别力，反向对照实测漏过一次）
+        var rankedFirst = com.dddgn.alice.job.mine.PlanRefinedCostProvider
+                .rankForRefine(bot, anchors, allUnknown.estimate(bot, amortSpec, anchors)).get(0);
+        var failures = new com.dddgn.alice.job.mine.PlanRefinedCostProvider(allUnknown,
+                com.dddgn.alice.job.mine.PlanRefinedCostProvider.REFINE_PER_SELECT,
+                com.dddgn.alice.job.mine.PlanRefinedCostProvider.CACHE_TTL_TICKS,
+                (who, candidate) -> {
+                    failCalls.incrementAndGet();
+                    return rankedFirst.anchor().equals(candidate.anchor())
+                            ? Double.POSITIVE_INFINITY : 5.0D;
+                },
+                () -> clock2[0]);
+        for (int index = 0; index < 4; index++) {
+            clock2[0] += 5;
+            failures.estimate(bot, amortSpec, anchors);
+        }
+        check("摊销精算④：精算失败也记账 ⇒ 它不会每次挡住轮转（失败靶子="
+                        + rankedFirst.anchor().toShortString() + " · 精算次数=" + failCalls.get()
+                        + " ≤ 4 · 覆盖=" + failures.coveredCount(anchors) + "/" + anchors.size() + "）",
+                failCalls.get() <= 4 && failures.coveredCount(anchors) == 4);
+        check("摊销精算④：精算失败的候选保持「估不出」（没有被当成「不能挖」）",
+                !Double.isFinite(failures.estimate(bot, amortSpec, anchors).travel(anchors.get(0))));
+    }
+
     private void runBreakCostChecks() {
         final net.minecraft.server.level.ServerLevel level = bot.serverLevel();
         final var server = level.getServer();
@@ -852,7 +962,7 @@ public class MineMenuCheckTask implements Task {
         long tField = System.nanoTime();
         new com.dddgn.alice.job.mine.StandingCostField(4, 64).estimate(bot, costSpec, costCandidates);
         long fieldMs = (System.nanoTime() - tField) / 1_000_000L;
-        BotLog.info("[MineMenu] D-367 tick耗时：候选={} · 选择(含 top-K 精算)={}ms · 成本场only={}ms · "
+        BotLog.info("[MineMenu] D-367 tick耗时：候选={} · 选择(冷启动=摊销第1次)={}ms · 成本场only={}ms · "
                         + "扫描分片={}ms（tick 预算 50ms；真机掉刻 2035/2632/2232ms）",
                 costCandidates.size(), refinedMs, fieldMs, shardMs);
         long tMenu = System.nanoTime();
@@ -860,8 +970,18 @@ public class MineMenuCheckTask implements Task {
         long menuMs = (System.nanoTime() - tMenu) / 1_000_000L;
         BotLog.info("[MineMenu] D-367 tick耗时②：候选菜单构建={}ms（真机每个 PROGRESS 事件都会重建快照，"
                         + "而快照含菜单 ⇒ 这是掉刻的主要嫌疑）", menuMs);
-        check("掉刻归因：一次选择(含 top-K 精算) 的耗时必须有界（实测 " + refinedMs + "ms ≤ 200ms）",
+        // ⭐ `D-368` 摊销后：**同一提供者**的第二次选择走缓存 ⇒ 稳态耗时（① 的收益在这里）
+        var amortizedProvider = com.dddgn.alice.job.mine.PlanRefinedCostProvider.production();
+        amortizedProvider.estimate(bot, costSpec, costCandidates);
+        long tWarm = System.nanoTime();
+        amortizedProvider.estimate(bot, costSpec, costCandidates);
+        long warmMs = (System.nanoTime() - tWarm) / 1_000_000L;
+        BotLog.info("[MineMenu] D-368 tick耗时③：摊销后（热缓存）一次选择={}ms vs 冷启动={}ms "
+                        + "（tick 预算 50ms）", warmMs, refinedMs);
+        check("掉刻归因：一次选择(冷启动，即摊销精算第 1 次) 的耗时必须有界（实测 " + refinedMs + "ms ≤ 200ms）",
                 refinedMs <= 200L);
+        check("掉刻归因：摊销后（热缓存）一次选择的耗时必须回到 tick 预算附近（实测 " + warmMs + "ms ≤ 60ms）",
+                warmMs <= 60L);
         check("掉刻归因：候选菜单构建耗时必须有界（实测 " + menuMs + "ms ≤ 200ms）", menuMs <= 200L);
 
         // ---- ⭐ 成本模型（`D-329` §2.2；用户 2026-09-20 三条裁定）----
