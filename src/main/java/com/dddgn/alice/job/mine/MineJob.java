@@ -261,10 +261,19 @@ public final class MineJob implements Job {
         // 旧版是"一 tick 把 (2r+1)³ 全扫完"（r=24 ⇒ 117,649 次考察全压在 tick 线程上）。
         if (session == null) {
             session = source.newSession(spec);
+            // ⭐ `S5`（`D-329` §2）：把**记忆里的历史事实**如实报给决策层——"这片区域以前扫过没有、见过几个"。
+            // ⚠️ 它**只当事实**：不参与"选哪一格"（记忆里只有计数、没有位置 ⇒ 结构上就挖不了），
+            // 选点仍然只来自**这一次**扫描 + 身份复检（`D-348` 纪律）。
+            long[] past = MineScanMemoryData.get(bot.getServer()).nearbySummary(
+                    bot.serverLevel(), MineScanMemoryData.targetKey(source.target()),
+                    spec.center().getX() >> 4, spec.center().getZ() >> 4,
+                    Math.max(1, session.radius() >> 4));
             DecisionTrace.step(jobName(), "SCAN", spec.center().toShortString(),
                     "分片扫描开始 radius=" + session.radius() + " 体积=" + session.volume()
                             + " 单次上限=" + MineCandidateSource.CELL_BUDGET_PER_TICK
-                            + " 总预算=" + MineCandidateSource.CELL_BUDGET_TOTAL);
+                            + " 总预算=" + MineCandidateSource.CELL_BUDGET_TOTAL
+                            + " · 记忆：本区域已扫过 " + past[0] + " 区块 / 累计命中 " + past[1]
+                            + " / 最新 tick " + past[2] + "（只当事实，不参与选点）");
         }
         // ⭐ **决策前复检**（`D-348` 同一条纪律）：候选**位置**是扫描那一刻的快照，但"还能不能做"
         // （可破坏性 / 授权面）是**当前**的世界事实 —— 旧版每次选择都重扫世界，所以它天然是当前的；
@@ -429,7 +438,15 @@ public final class MineJob implements Job {
             BotLog.warn("[Job] mine 搜索受限（未扫完，不许当成没矿）：visited={}/{} 读={} 未扫={}",
                     session.visited(), session.volume(), session.reads(), session.unscanned());
         }
-        failure = terminalReason + (set.rejected().isEmpty() ? "" : " " + String.join(",", set.rejected()));
+        // `S5`：失败时也把记忆事实带上（决策层要判断"是换个地方、还是扩大半径、还是等一等"）
+        long[] past = MineScanMemoryData.get(bot.getServer()).nearbySummary(
+                bot.serverLevel(), MineScanMemoryData.targetKey(source.target()),
+                spec.center().getX() >> 4, spec.center().getZ() >> 4,
+                Math.max(1, spec.radius() >> 4));
+        String memoryNote = " memory[scannedChunks=" + past[0] + " hits=" + past[1]
+                + " latestTick=" + past[2] + "]";
+        failure = terminalReason + (set.rejected().isEmpty() ? "" : " " + String.join(",", set.rejected()))
+                + memoryNote;
         return finish(Task.Status.FAILED);
     }
 

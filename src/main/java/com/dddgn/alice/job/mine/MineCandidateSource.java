@@ -230,6 +230,10 @@ public final class MineCandidateSource implements CandidateSource {
         private int visited;
         private int reads;
         private int unscanned;
+        /** ⭐ `S5`：本会话**每个区块**的 `[命中数, 考察格数]`（扫完时一次性写进 {@link MineScanMemoryData}）。 */
+        private final Map<Long, int[]> perChunk = new LinkedHashMap<>();
+        /** 是否把结果写进扫描记忆（`MineJob` 的会话写；菜单的"一遍全量"不写 —— 它不是作业）。 */
+        private final boolean recordMemory;
         private int dyIndex;
         private int shell;
         private int ring;
@@ -239,11 +243,17 @@ public final class MineCandidateSource implements CandidateSource {
         private int maxCallVisited;
 
         public ScanSession(List<Target> targets, int sourceRadius, int specRadius, BlockPos center) {
-            this(targets, sourceRadius, specRadius, center, CELL_BUDGET_PER_TICK, CELL_BUDGET_TOTAL);
+            this(targets, sourceRadius, specRadius, center, CELL_BUDGET_PER_TICK, CELL_BUDGET_TOTAL, false);
         }
 
         public ScanSession(List<Target> targets, int sourceRadius, int specRadius, BlockPos center,
                            int perCallBudget, int totalBudget) {
+            this(targets, sourceRadius, specRadius, center, perCallBudget, totalBudget, true);
+        }
+
+        public ScanSession(List<Target> targets, int sourceRadius, int specRadius, BlockPos center,
+                           int perCallBudget, int totalBudget, boolean recordMemory) {
+            this.recordMemory = recordMemory;
             this.targets = List.copyOf(targets);
             // 扫描范围口径与既有实现**逐字相同**：来源半径与 GoalSpec 半径取小
             this.scan = Math.min(Math.max(1, sourceRadius), Math.max(1, specRadius));
@@ -315,7 +325,7 @@ public final class MineCandidateSource implements CandidateSource {
             while (did < budget && !done) {
                 if (dyIndex > 2 * scan) {
                     // 整卷扫完：**"没找到"只在这里、且只对"考察过 0 个目标方块"的目标**下结论
-                    finish();
+                    finish(level);
                     break;
                 }
                 int packed = ringPacked(shell, ring);
@@ -343,8 +353,20 @@ public final class MineCandidateSource implements CandidateSource {
         }
 
         /** 扫完的收尾：**只**给"一个目标方块都没考察到"的目标加 `not_found`（未加载的格不算"没找到"）。 */
-        private void finish() {
+        private void finish(ServerLevel level) {
             done = true;
+            // ⭐ `S5`：**只有扫完才写记忆** —— 被预算截断的扫描不写（把"没看完"记成"扫过了"，
+            // 正是 `S3` 禁止的那类谎言）。记忆里**只有计数**（没有位置），见 `MineScanMemoryData`。
+            if (recordMemory && targets.size() == 1) {
+                MineScanMemoryData memory = MineScanMemoryData.get(level.getServer());
+                String key = MineScanMemoryData.targetKey(targets.get(0));
+                for (Map.Entry<Long, int[]> chunk : perChunk.entrySet()) {
+                    memory.noteScanned(level, key,
+                            net.minecraft.world.level.ChunkPos.getX(chunk.getKey()),
+                            net.minecraft.world.level.ChunkPos.getZ(chunk.getKey()),
+                            level.getGameTime(), chunk.getValue()[0], chunk.getValue()[1]);
+                }
+            }
             for (int i = 0; i < targets.size(); i++) {
                 if (considered[i] == 0) {
                     rejected.get(i).add("scan(radius=" + scan + " @" + center.toShortString() + "):not_found");
@@ -364,11 +386,16 @@ public final class MineCandidateSource implements CandidateSource {
             BlockState state = level.getBlockState(pos);
             reads++;
             BLOCK_READS.incrementAndGet();
+            int[] chunkCounter = perChunk.computeIfAbsent(
+                    net.minecraft.world.level.ChunkPos.asLong(pos.getX() >> 4, pos.getZ() >> 4),
+                    ignored -> new int[2]);
+            chunkCounter[1]++;
             for (int i = 0; i < targets.size(); i++) {
                 if (!targets.get(i).matches(state)) {
                     continue;   // 不匹配的方块不是"被拒候选"，只是背景——不刷理由码
                 }
                 considered[i]++;
+                chunkCounter[0]++;
                 String reason = viabilityRefusal(level, bot, safeZones, pos);
                 if (reason != null) {
                     rejected.get(i).add(id(pos) + ":" + reason);
@@ -508,7 +535,7 @@ public final class MineCandidateSource implements CandidateSource {
     public static MultiScan candidatesForTargets(ServerPlayer bot, GoalSpec spec,
                                                  List<Target> targets, int sourceRadius) {
         ScanSession session = new ScanSession(targets, sourceRadius, Math.max(1, spec.radius()),
-                spec.center(), Integer.MAX_VALUE, Integer.MAX_VALUE);
+                spec.center(), Integer.MAX_VALUE, Integer.MAX_VALUE, false);   // 菜单全扫不写记忆（它不是作业）
         Progress p = session.advance(bot);
         return new MultiScan(p.sets(), p.reads(), p.unscanned());
     }
@@ -523,7 +550,7 @@ public final class MineCandidateSource implements CandidateSource {
     /** ⭐ `S4`：**分片扫描会话**（`MineJob` 用它，逐 tick 推进、不再一 tick 全量）。 */
     public ScanSession newSession(GoalSpec spec) {
         return new ScanSession(List.of(target), radius, Math.max(1, spec.radius()), spec.center(),
-                CELL_BUDGET_PER_TICK, cellBudgetTotal);
+                CELL_BUDGET_PER_TICK, cellBudgetTotal, true);
     }
 
     /**
@@ -534,7 +561,7 @@ public final class MineCandidateSource implements CandidateSource {
      */
     public ScanSession newSession(GoalSpec spec, int perCallBudget, int totalBudget) {
         return new ScanSession(List.of(target), radius, Math.max(1, spec.radius()), spec.center(),
-                perCallBudget, totalBudget);
+                perCallBudget, totalBudget, true);
     }
     private static Map<String, String> features(ServerPlayer bot, BlockPos pos, BlockState state) {
         Map<String, String> features = new LinkedHashMap<>();

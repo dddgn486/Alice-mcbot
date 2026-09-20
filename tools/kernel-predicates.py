@@ -970,9 +970,9 @@ def rule_search_limit_not_unreachable():
         if "new MineTask(" in body or "WriteGrant" in body:
             problems.append("`shortfall`（配额未达成的收尾）里出现了挖掘子任务/写授权 ⇒ S3 红线（不得『挖过去』）")
 
-    fin = method_body(src, "private void finish() {")
+    fin = method_body(src, "private void finish(ServerLevel level) {")
     if not fin:
-        problems.append("MineCandidateSource 找不到扫完的收尾 `finish()`（结构变了 ⇒ 规则要跟着改）")
+        problems.append("MineCandidateSource 找不到扫完的收尾 `finish(ServerLevel)`（结构变了 ⇒ 规则要跟着改）")
     elif "not_found" not in fin:
         problems.append("扫完的收尾里没有 `not_found` 归因 ⇒ 失去『真的找遍了也没有』这一态")
 
@@ -981,6 +981,44 @@ def rule_search_limit_not_unreachable():
     if vis and "not_found" in vis:
         problems.append("逐格 `visit()` 里写了 `not_found`"
                         " ⇒ **没扫完**也会被记成『没有』（S3 禁止：未扫 ≠ 没矿）")
+    return problems
+
+
+def rule_scan_memory_has_no_positions():
+    """`D-329` §2 **S5**（2026-09-20 落地）：扫描记忆**只有计数，没有位置**，且**只有扫完才写**。
+
+    为什么做成门禁而不是注释：记忆一旦能存坐标，它就**必然**会被某个消费者当成"该挖哪一格"的
+    事实来源 —— 而记忆是**历史**（那一刻的世界），不是**现在**（`D-348` 同一条纪律）。
+    ⇒ 用**类型**挡住（与 `D-354` 的 retrofit 同一个手法）：记忆的字段形状里根本没有位置可放。
+
+    断言（删任一处 ⇒ 红）：
+    ① `MineScanMemoryData` 里**不出现 `BlockPos`**，且 `Memory` 的字段恰是 `lastTick/hits/cellsVisited`；
+    ② 有界 + **确定性**淘汰（`DEFAULT_CAP` + `evictIfNeeded` + 逐级全序比较，不许随机）；
+    ③ 写记忆只发生在**扫完的收尾** `finish(...)` 里，且**只出现一次**（截断的扫描不许写）。
+    """
+    problems = []
+    base = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "mine"
+    mem = (base / "MineScanMemoryData.java").read_text(encoding="utf-8")
+    src = (base / "MineCandidateSource.java").read_text(encoding="utf-8")
+
+    if "BlockPos" in mem:
+        problems.append("`MineScanMemoryData` 里出现了 `BlockPos` ⇒ 记忆能存**位置**"
+                        "（S5 红线：记忆是历史计数，不许变成「该挖哪一格」的来源）")
+    if "public record Memory(long lastTick, int hits, int cellsVisited)" not in mem:
+        problems.append("`Memory` 的字段形状变了（必须是 lastTick/hits/cellsVisited ⇒ 没有位置可存）")
+    if "DEFAULT_CAP" not in mem or "evictIfNeeded" not in mem:
+        problems.append("记忆缺『有界 + 淘汰』（S5 要求有界，且淘汰必须**确定性**）")
+    if "thenComparing(" not in mem or "thenComparingLong(" not in mem:
+        problems.append("淘汰顺序不是全序（必须 lastTick → bucketKey → chunkKey 逐级比较；随机淘汰 = 不可复现现场）")
+
+    fin = method_body(src, "private void finish(ServerLevel level) {")
+    if not fin:
+        problems.append("找不到扫完的收尾 `finish(ServerLevel)`（结构变了 ⇒ 本规则要跟着改）")
+    elif "noteScanned" not in fin:
+        problems.append("写记忆**不在**『扫完的收尾』里 ⇒ 被预算截断的扫描也会写（把「没看完」记成「扫过了」）")
+    if src.count("noteScanned") != 1:
+        problems.append("`noteScanned` 在扫描器里出现了 %d 次（只许在扫完收尾里出现**一次**）"
+                        % src.count("noteScanned"))
     return problems
 
 
@@ -1017,6 +1055,7 @@ def main() -> int:
     d344 = rule_replant_sweep_bounded()
     attr = rule_structured_attribution()
     s3 = rule_search_limit_not_unreachable()
+    s5 = rule_scan_memory_has_no_positions()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -1067,13 +1106,15 @@ def main() -> int:
         print(f"[D-329·结构化归因] {line}")
     for line in s3:
         print(f"[D-329·搜索受限≠没有] {line}")
+    for line in s5:
+        print(f"[D-329·扫描记忆无位置] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

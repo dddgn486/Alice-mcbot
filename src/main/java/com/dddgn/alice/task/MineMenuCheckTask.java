@@ -240,6 +240,7 @@ public class MineMenuCheckTask implements Task {
                 .ofBlock(net.minecraft.world.level.block.Blocks.STONE);
         final var spec = com.dddgn.alice.job.GoalSpec.mineBlocks(center, r, 1, 600);
         final var source = new com.dddgn.alice.job.mine.MineCandidateSource(stone, r);
+        final var memory = com.dddgn.alice.job.mine.MineScanMemoryData.get(bot.getServer());
 
         // ---- S4：分片推进 + 幂等合并 + 去重 ----
         var session = source.newSession(spec, smallBudget, Integer.MAX_VALUE);
@@ -272,7 +273,13 @@ public class MineMenuCheckTask implements Task {
 
         // ---- S3：总预算截断 ⇒ "搜索受限"，**不是**"没矿" ----
         var truncated = source.newSession(spec, smallBudget, smallBudget);
+        // ⭐ 写入门槛的基线**必须在这一行之前取**：判据要包住这次 `advance`，否则
+        // "截断也写记忆"的注入会被读成"本来就有的条目"⇒ 假绿（第一版就是这么错的，反向对照抓出来的）。
+        int entriesBeforeTruncated = memory.totalEntries();
         truncated.advance(bot);
+        check("S5 被预算截断的扫描**不写记忆**（advance 前=" + entriesBeforeTruncated + " 后="
+                        + memory.totalEntries() + "）",
+                memory.totalEntries() == entriesBeforeTruncated);
         check("S3 总预算用尽 ⇒ truncated=true 且 done=false（truncated=" + truncated.truncated()
                         + " done=" + truncated.done() + " visited=" + truncated.visited()
                         + " 预算=" + smallBudget + "）",
@@ -294,6 +301,72 @@ public class MineMenuCheckTask implements Task {
                 "no_reachable_candidate".equals(scannedNone));
         check("S3 扫完且有产出 ⇒ partial_quota（实测 " + scannedSome + "）",
                 "partial_quota".equals(scannedSome));
+
+        // ---- S5：扫描记忆（有界 + 可持久化 + **只有计数没有位置**）----
+        // （`memory` 在方法开头就取，因为"截断不写记忆"这条判据要包住前面的 `advance`）
+
+        // ② 落盘往返：写 3 条 → save/load → 逐条相等
+        int savedCap = memory.cap();
+        memory.setCapForTesting(64);
+        long tick = bot.serverLevel().getGameTime();
+        memory.noteScanned(bot.serverLevel(), "#test:memory", 11, 22, tick, 3, 256);
+        memory.noteScanned(bot.serverLevel(), "#test:memory", 12, 22, tick + 1, 0, 256);
+        memory.noteScanned(bot.serverLevel(), "#test:memory", 13, 22, tick + 2, 7, 128);
+        com.dddgn.alice.job.mine.MineScanMemoryData reloaded =
+                com.dddgn.alice.job.mine.MineScanMemoryData.load(memory.save(new net.minecraft.nbt.CompoundTag()));
+        boolean roundTrip = reloaded.totalEntries() == memory.totalEntries();
+        for (int cx = 11; cx <= 13 && roundTrip; cx++) {
+            var a = memory.at(bot.serverLevel(), "#test:memory", cx, 22);
+            var b = reloaded.at(bot.serverLevel(), "#test:memory", cx, 22);
+            roundTrip = a != null && b != null && a.lastTick() == b.lastTick()
+                    && a.hits() == b.hits() && a.cellsVisited() == b.cellsVisited();
+        }
+        check("S5 落盘往返后记忆逐条不变（条目=" + memory.totalEntries() + " / 往返后="
+                        + reloaded.totalEntries() + "）", roundTrip);
+        check("S5 落盘往返保留上限与淘汰计数（cap=" + reloaded.cap() + " evicted=" + reloaded.evictedTotal() + "）",
+                reloaded.cap() == memory.cap() && reloaded.evictedTotal() == memory.evictedTotal());
+
+        check("S5 记忆条目读取口径：写进去的那条能原样读回（hits=3 cells=256）",
+                memory.at(bot.serverLevel(), "#test:memory", 11, 22) != null
+                        && memory.at(bot.serverLevel(), "#test:memory", 11, 22).hits() == 3
+                        && memory.at(bot.serverLevel(), "#test:memory", 11, 22).cellsVisited() == 256);
+
+        // ③ 有界 + **确定性淘汰**：上限压到 4，写 6 条（tick 递增）⇒ 只剩 4 条，淘汰的**恰好是最旧 2 条**；
+        //    两个**独立实例**做同样的写入 ⇒ 留下来的必须是同一批（"不许随机"是靠这条判据咬住的）。
+        var evictA = new com.dddgn.alice.job.mine.MineScanMemoryData();
+        var evictB = new com.dddgn.alice.job.mine.MineScanMemoryData();
+        for (var instance : List.of(evictA, evictB)) {
+            instance.setCapForTesting(4);
+            for (int i = 0; i < 6; i++) {
+                instance.noteScanned(bot.serverLevel(), "#test:evict", 100 + i, 200, 1000L + i, i, 256);
+            }
+        }
+        boolean boundedOk = evictA.totalEntries() == 4 && evictA.evictedTotal() == 2
+                && evictA.at(bot.serverLevel(), "#test:evict", 100, 200) == null
+                && evictA.at(bot.serverLevel(), "#test:evict", 101, 200) == null
+                && evictA.at(bot.serverLevel(), "#test:evict", 105, 200) != null;
+        boolean deterministic = true;
+        for (int i = 100; i <= 105; i++) {
+            deterministic &= (evictA.at(bot.serverLevel(), "#test:evict", i, 200) != null)
+                    == (evictB.at(bot.serverLevel(), "#test:evict", i, 200) != null);
+        }
+        check("S5 有界（上限 4 ⇒ 留 4 条 / 淘汰 2 条 / 最旧两条消失=" + boundedOk + "）+ 确定性淘汰"
+                        + "（两个实例留下同一批=" + deterministic + "；evicted=" + evictA.evictedTotal() + "）",
+                boundedOk && deterministic);
+
+        // ④ 记忆**不参与选点**：把记忆灌满后再扫一次，候选集必须与空记忆时逐字相同
+        var memoryScan = source.newSession(spec, smallBudget, Integer.MAX_VALUE);
+        int guard = 0;
+        while (!memoryScan.done() && guard++ < 100_000) {
+            memoryScan.advance(bot);
+        }
+        List<Long> withMemory = memoryScan.sets().get(0).viable().stream()
+                .map(c -> c.anchor().asLong()).sorted().toList();
+        check("S5 记忆**不参与选点**（灌记忆后再扫，候选集与先前逐字相同："
+                        + withMemory.size() + " vs " + chunkedIds.size() + "）",
+                withMemory.equals(chunkedIds));
+        memory.setCapForTesting(savedCap);
+        memory.clear();   // 收尾复位（记忆是全局单例 SavedData）
 
         // **判别性事实**（判据绿了也要能复核数字；红了更要能看出差在哪）
         BotLog.info("[MineMenu] S3/S4 判别性事实：分片 calls={} 单次最大={}（上限={}）visited={}/{} "
