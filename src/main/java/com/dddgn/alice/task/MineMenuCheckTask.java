@@ -855,8 +855,14 @@ public class MineMenuCheckTask implements Task {
         BotLog.info("[MineMenu] D-367 tick耗时：候选={} · 选择(含 top-K 精算)={}ms · 成本场only={}ms · "
                         + "扫描分片={}ms（tick 预算 50ms；真机掉刻 2035/2632/2232ms）",
                 costCandidates.size(), refinedMs, fieldMs, shardMs);
+        long tMenu = System.nanoTime();
+        com.dddgn.alice.decision.CandidateMenu.build(bot);
+        long menuMs = (System.nanoTime() - tMenu) / 1_000_000L;
+        BotLog.info("[MineMenu] D-367 tick耗时②：候选菜单构建={}ms（真机每个 PROGRESS 事件都会重建快照，"
+                        + "而快照含菜单 ⇒ 这是掉刻的主要嫌疑）", menuMs);
         check("掉刻归因：一次选择(含 top-K 精算) 的耗时必须有界（实测 " + refinedMs + "ms ≤ 200ms）",
                 refinedMs <= 200L);
+        check("掉刻归因：候选菜单构建耗时必须有界（实测 " + menuMs + "ms ≤ 200ms）", menuMs <= 200L);
 
         // ---- ⭐ 成本模型（`D-329` §2.2；用户 2026-09-20 三条裁定）----
         // 判据用**脚本化成本**（确定性，不依赖世界）：把"规则"与"事实"分开测（本项目一贯口径）。

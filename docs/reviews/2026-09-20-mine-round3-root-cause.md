@@ -76,6 +76,22 @@ java.lang.IllegalArgumentException: PLACE_STEP_AND_TRAVERSE requires one cardina
 4. ⇒ **`D-363`（我加的 top-K 精算）是掉刻的一个已证来源**（但 102 ms 不足以单独解释 2035 ms；
    **决策层 LLM 是否在 tick 线程同步往返仍未测**）。
 
+**第二轮补充实测（同日）**：
+```
+[MineMenu] D-367 tick耗时：候选=6 · 选择(含精算)=126ms · 成本场only=16ms · 扫描分片=13ms
+[MineMenu] D-367 tick耗时②：候选菜单构建=31ms
+```
+- **已排除**："LLM 同步阻塞 tick" —— `GoalDirector` 用 `CompletableFuture<LlmClient.Reply> pending`（异步 + 看门狗）。
+- **已证**：`CandidateMenu.build(bot)` = 31 ms，而 **`GoalDirector:533` 与 `BotStateReport:29` 各建一次**
+  ⇒ **每个 PROGRESS 事件 ≥2 次菜单构建**；真机菜单含多目标全扫（夹具注释原文："重复构建会在一个 tick 里
+  白烧掉百万次读"）⇒ 客户端会成倍放大。
+- ⇒ **掉刻 = 多个超预算子系统之和**，量级最大的是 **选择(~100-126 ms) + 菜单构建(≥2×)**；
+  真机 `候选=91` 时选择项还会更大。**不是单一元凶**（与 §2 的"不许猜"一致）。
+
+**下一步（同一改动同时解 ① 与 ②）**：把"选择"改成**下界分支限界**——用 `StandingCostEstimator` 的下界排序，
+**只精算下界可能赢过当前最优的候选** ⇒ ①耗时被压到预算内、②"97% 候选无成本 ⇒ 折返"同时被消掉；
+外加菜单构建**同 tick 复用**（`GoalDirector`/`BotStateReport` 不要各建一次）。两项都要夹具判据+反向对照。
+
 **判据**：`掉刻归因：一次选择(含 top-K 精算) 的耗时必须有界（实测 X ≤ 200ms）` —— 只做**数量级护栏**（不 flaky），
 数字走 `[MineMenu] D-367 tick耗时…` 一行日志（绿了也能复核）。**候选=6 下已 102 ms，说明护栏 200 ms 只是防失控，
 真正的整改方向是让"选择"不再吃掉整个 tick（缓存/降 K/移出 tick 线程，待设计，不许打补丁）。**
