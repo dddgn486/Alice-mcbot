@@ -51,6 +51,8 @@ public final class MineBlockRunner {
     private boolean supportPlaced;
     /** `D-364`：支撑块**没垫上**（放不下）⇒ 照挖，不把这个目标判死。 */
     private boolean supportSkipped;
+    /** `D-365`：本格是否改成"**就地挖**"（目标在视线与触及内 ⇒ 不走去计划站位点）。 */
+    private boolean mineInPlace;
     private Status status = Status.MOVING;
     private String failureReason = "";
     private String failurePhase = "unknown";
@@ -107,11 +109,30 @@ public final class MineBlockRunner {
             return status;
         }
 
+        // ⭐ `D-365`（用户 2026-09-20 要求）：**下一个目标在视线范围内就地挖**。
+        // 背景（真机实测）：目标 `367,77,430`(铜矿) 离 bot 站位 `369,78,430` **只有 2 格**，
+        // 规划器却给了 `mode=TUNNEL pathSize=11`；这一轮 **64 次破坏里 56 次是挖路**
+        // （`mine-runner:attempt0/2`），只有 8 次是挖目标矿 ⇒ 写预算 64/64 打满、只挖到 8/64。
+        // 判据与运行期**完全同一套**（`tickBreak` 的前置：可见 + 触及），不新增物理；
+        // 万一不满足，`tickBreak` 照旧报 `LINE_OF_SIGHT_BLOCKED`/`OUT_OF_REACH`（可重试）⇒ 任务层重规划。
+        // 用户明确要求保留的那条：**会丢的掉落物仍要先处理**（计划要求垫方块且还没垫 ⇒ 先按计划走）。
+        if (!mineInPlace && canMineInPlace()) {
+            if (runner != null) {
+                runner.cancel();
+                runner = null;
+            }
+            mineInPlace = true;
+            BotLog.info("[MineRunner] mine_in_place target={} feet={} planStand={}（可见+触及 ⇒ 不走去站位点）",
+                    target.toShortString(), MovementHelper.footCell(level, bot).toShortString(),
+                    plan.standingFoot().toShortString());
+        }
+
         // 1) 走到站位：只要有 runner 就继续推进，直到它报 DONE（会话按 EXACT 容差落定到站位中心）
         if (runner != null) {
             return tickMovement();
         }
-        if (!MovementHelper.footCell(bot.serverLevel(), bot).equals(plan.standingFoot())) {
+        if (!mineInPlace
+                && !MovementHelper.footCell(bot.serverLevel(), bot).equals(plan.standingFoot())) {
             return tickMovement();
         }
 
@@ -131,6 +152,11 @@ public final class MineBlockRunner {
 
         // 4) 破坏目标
         return tickBreak();
+    }
+
+    /** 供夹具/终态归因：本格是否走了「就地挖」（`D-365`）。 */
+    public boolean mineInPlace() {
+        return mineInPlace;
     }
 
     /** 供夹具/终态归因：本格是否出现过「垫不上」（`D-364`）。 */
@@ -185,6 +211,30 @@ public final class MineBlockRunner {
         runner = null;
         status = Status.MOVING;
         return status;
+    }
+
+    /**
+     * `D-365`：**现在这一格就能挖到目标吗**（可见 + 触及）。
+     *
+     * <p>为什么不复用 `StandingPointSelector.isValidStandingPoint`：那个函数被**寻路**用，它额外要求
+     * 「这格适合站位」（`canStandCentered`）。而这里 bot **已经在**这一格上，"适不适合站位"是寻路问题，
+     * 与"现在能不能挖"无关 —— 真机里正是这种错位让 bot 放着眼前的矿不挖、去挖 11 格隧道。
+     * 这里用的是**执行期同一套判据**（`tickBreak` 的前置），因此不会出现"预检说能挖、真挖被拒"。
+     */
+    private boolean canMineInPlace() {
+        if (walkOnly) {
+            return false;
+        }
+        if (plan.supportPlacementPos() != null && !supportPlaced) {
+            return false;   // 会丢的掉落物还没接住 ⇒ 先按计划处理（用户 2026-09-20 明确要求）
+        }
+        if (MovementHelper.footCell(level, bot).equals(plan.standingFoot())) {
+            return false;   // 已经在计划站位点上 ⇒ 走老路径
+        }
+        LineOfSightChecker.LineOfSightResult los =
+                LineOfSightChecker.checkFromEye(level, bot.getEyePosition(), target);
+        return los.isClear()
+                && bot.getEyePosition().distanceTo(los.getSuccessfulSample()) <= bot.getBlockReach();
     }
 
     private Status tickSupportPlacement() {

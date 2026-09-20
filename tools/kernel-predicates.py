@@ -1298,6 +1298,39 @@ def rule_support_and_cluster_order():
     return problems
 
 
+def rule_mine_in_place_before_walk():
+    """`D-365` **目标在视线内就地挖**（用户 2026-09-20 要求）。
+
+    真机靶子：目标 `367,77,430`(铜矿) 离 bot 站位 `369,78,430` 只有 **2 格**，规划器却给
+    `mode=TUNNEL pathSize=11`；这一轮 **64 次破坏里 56 次是挖路**（只有 8 次挖到目标矿）
+    ⇒ 写预算打满、`mined 8/64`、`partial_quota`。
+
+    断言（改任一处 ⇒ 红）：
+    ① `MineBlockRunner.tick()` 里 `canMineInPlace()` 必须**在走路闸门之前**被问（否则等于没修）；
+    ② 判据必须用**执行期同一套**（`checkFromEye(` + `getBlockReach()`）—— 不许自己另写一套视线/触及公式；
+    ③ 判据里**不得**要求「这格适合站位」（`canStandCentered`/`isStandable`）：bot 已经在上面了，
+       "适不适合站位"是寻路问题 —— 真机里正是这种错位让 bot 放着眼前的矿不挖、去挖隧道；
+    ④ 用户明确要求保留的那条：**会丢的掉落物仍要先处理**（计划要求垫方块且还没垫 ⇒ 先按计划走）。
+    """
+    problems = []
+    runner = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "action"
+              / "MineBlockRunner.java").read_text(encoding="utf-8")
+    tick = code_only(method_body(runner, "public Status tick()"))
+    judge = code_only(method_body(runner, "private boolean canMineInPlace()"))
+    if "canMineInPlace()" not in tick:
+        problems.append("`tick()` 里没有 `canMineInPlace()` ⇒ 就地挖没接上（`D-365` 未生效）")
+    elif tick.index("canMineInPlace()") > tick.index("if (runner != null)"):
+        problems.append("`canMineInPlace()` 出现在走路闸门**之后** ⇒ 永远先走路，等于没修")
+    if "checkFromEye(" not in judge or "getBlockReach()" not in judge:
+        problems.append("就地挖判据没有用执行期同一套（`checkFromEye(` + `getBlockReach()`）"
+                        "⇒ 自己另写视线/触及公式，会出现「预检说能挖、真挖被拒」")
+    if "canStandCentered" in judge or "isStandable" in judge:
+        problems.append("就地挖判据里要求了「这格适合站位」⇒ 真机里正是这条错位让 bot 放着眼前的矿不挖、去挖隧道")
+    if "supportPlacementPos()" not in judge or "supportPlaced" not in judge:
+        problems.append("就地挖判据没有保留「会丢的掉落物要先接住」⇒ 用户明确要求不能跳过这条")
+    return problems
+
+
 def rule_value_is_only_a_cost_component():
     """`D-329` §2.2 成本模型（用户 2026-09-20 三条裁定）：
     **「矿物价值优先级」只能是成本函数里的一个可配置分量**，不是独立模型、不是硬优先。
@@ -1493,6 +1526,7 @@ def main() -> int:
     clearance = rule_clearance_never_eats_task_target()
     breakcost = rule_cost_includes_break()
     support = rule_support_and_cluster_order()
+    inplace = rule_mine_in_place_before_walk()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -1563,13 +1597,15 @@ def main() -> int:
         print(f"[D-363·break进成本] {line}")
     for line in support:
         print(f"[D-364·垫方块与簇顺序] {line}")
+    for line in inplace:
+        print(f"[D-365·视线内就地挖] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

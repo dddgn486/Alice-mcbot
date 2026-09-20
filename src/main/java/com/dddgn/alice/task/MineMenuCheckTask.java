@@ -195,6 +195,8 @@ public class MineMenuCheckTask implements Task {
         runBreakCostChecks();
         // ⭐⭐ `D-364` **垫方块只在「掉落物真会丢」时** —— 同样放最后（临时改场景，用完复位）
         runSupportTriggerChecks();
+        // ⭐⭐ `D-365` **目标在视线内就地挖**（用户 2026-09-20 要求）
+        runMineInPlaceChecks();
 
         boolean pass = failures.isEmpty();
         BotLog.info("[MineMenu] SUMMARY checks={} failures={} mineEntries={} {} → {}",
@@ -454,6 +456,77 @@ public class MineMenuCheckTask implements Task {
                     server.createCommandSourceStack().withSuppressedOutput(),
                     "function alice_test:ore_course_terrain");
         }
+    }
+
+    /**
+     * ⭐ `D-365` **下一个目标在视线范围内就地挖**（用户 2026-09-20 要求）。
+     *
+     * <p>真机实测的靶子：目标 `367,77,430`(铜矿) 离 bot 站位 `369,78,430` **只有 2 格**，
+     * 规划器给了 `mode=TUNNEL pathSize=11`；这一轮 **64 次破坏里 56 次是挖路**（只有 8 次挖到目标矿）
+     * ⇒ 写预算 64/64 打满、`mined 8/64`、`partial_quota` 收场。
+     *
+     * <p>判据用**执行期同一套**「可见 + 触及」（`tickBreak` 的前置），只是**提前问一次**来决定要不要走路；
+     * 与 `isValidStandingPoint` 的区别是**不要求"这格适合站位"**（bot 已经在上面了，"适不适合站位"是寻路问题）。
+     *
+     * <p>本组只断言**决策**（`mineInPlace()`）：正例 = 挪到能看见+够得着的一格 ⇒ 必须就地挖；
+     * 负例 = 同一计划但视线被临时方块挡住 ⇒ 必须**不**就地挖（继续走路）。
+     */
+    private void runMineInPlaceChecks() {
+        final net.minecraft.server.level.ServerLevel level = bot.serverLevel();
+        final var server = level.getServer();
+        final BlockPos ore = new BlockPos(52, 62, 136);      // 场景里的裸露铁矿
+        final BlockPos farFoot = new BlockPos(60, 63, 132);   // 计划起点（够不着）
+        final BlockPos nearFoot = new BlockPos(51, 63, 136);  // 能看见 + 够得着，且**不是**计划的站位点
+        final BlockPos screen = new BlockPos(51, 64, 136);    // 负例：挡住眼位到目标
+        try {
+            com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
+            teleport(farFoot);
+            var planned = new com.dddgn.alice.task.mining.MiningPlanner().plan(bot, ore,
+                    com.dddgn.alice.task.mining.MiningBudget.forTarget(bot, level, ore, true));
+            boolean planOk = planned.success() && !planned.plan().standingFoot().equals(nearFoot);
+            check("就地挖：远处先得到真计划（mode=" + (planned.success() ? planned.plan().mode() : "-")
+                            + " stand=" + (planned.success()
+                            ? planned.plan().standingFoot().toShortString() : "-")
+                            + "，且不等于我们将要站的那格）", planOk);
+            if (!planOk) {
+                return;
+            }
+
+            // 正例：挪到"看得见也够得着"的另一格 ⇒ 必须就地挖
+            teleport(nearFoot);
+            var inPlace = new com.dddgn.alice.action.MineBlockRunner(bot, planned.plan(),
+                    com.dddgn.alice.action.WriteGrant.of(taskName(), com.dddgn.alice.action.WriteReason.EXPECTED_TARGET));
+            inPlace.tick();
+            boolean positive = inPlace.mineInPlace();
+            inPlace.cancel();
+            check("就地挖：在视线+触及内 ⇒ **不走去站位点**（mineInPlace=" + positive + "）", positive);
+
+            // 负例：同一计划，但视线被临时方块挡住 ⇒ 必须不就地挖
+            level.setBlockAndUpdate(screen,
+                    net.minecraft.world.level.block.Blocks.STONE.defaultBlockState());
+            teleport(nearFoot);
+            var blocked = new com.dddgn.alice.action.MineBlockRunner(bot, planned.plan(),
+                    com.dddgn.alice.action.WriteGrant.of(taskName(), com.dddgn.alice.action.WriteReason.EXPECTED_TARGET));
+            blocked.tick();
+            boolean negative = !blocked.mineInPlace();
+            blocked.cancel();
+            check("就地挖：视线被挡住 ⇒ **不**就地挖（继续走计划路线）", negative);
+            BotLog.info("[MineMenu] D-365 判别性事实：计划 stand={} · 就地格={} · 正例 mineInPlace={} · "
+                            + "负例（挡视线）mineInPlace={}",
+                    planned.plan().standingFoot().toShortString(), nearFoot.toShortString(),
+                    positive, !negative);
+        } finally {
+            server.getCommands().performPrefixedCommand(
+                    server.createCommandSourceStack().withSuppressedOutput(),
+                    "function alice_test:ore_course_terrain");
+        }
+    }
+
+    private void teleport(BlockPos foot) {
+        bot.teleportTo(bot.serverLevel(), foot.getX() + 0.5D, foot.getY(), foot.getZ() + 0.5D,
+                java.util.Set.of(), bot.getYRot(), bot.getXRot());
+        bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+        bot.controller().stopMovement();
     }
 
     private static net.minecraft.core.BlockPos supportPos(
