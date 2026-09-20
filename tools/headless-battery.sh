@@ -168,7 +168,10 @@ rm -f "$MODS"/*.jar
 if [ "$BACKEND" = "prod" ]; then
     if [ "$NO_BUILD" = "no" ]; then
         say "构建 Alice 工件（./gradlew build）…"
-        ./gradlew build --no-daemon -q > /tmp/alice-headless-build.log 2>&1 \
+        # ⚠️ 2026-09-20 实测：构建卡死 30+ 分钟的真因是 **Gradle 在等网络**
+        # （`jstack` 见 `Socket.connect`、`ss` 见 `SYN-SENT` 对 :443 永不返回）⇒ 网络不通时用
+        # `ALICE_GRADLE_OFFLINE=1` 走离线构建（依赖缓存是热的；缺依赖会**响亮失败**而不是静默等待）。
+        ./gradlew build --no-daemon ${ALICE_GRADLE_OFFLINE:+--offline} -q > /tmp/alice-headless-build.log 2>&1 \
             || { tail -30 /tmp/alice-headless-build.log; die "构建失败（详见 /tmp/alice-headless-build.log）"; }
     fi
     [ -f "$ARTIFACT" ] || die "找不到 Alice 工件 $ARTIFACT（先 ./gradlew build）"
