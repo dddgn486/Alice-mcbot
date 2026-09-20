@@ -14600,9 +14600,15 @@ BASELINE 15 / MAIN 36 / EXTRA 20）** ⇒ `mine_far_drop` 正确落在 EXTRA（C
 **不推测、不立项，先查**：判据 = 能否用探针把"生成事件已发但 `getEntity` 为 null"的窗口稳定复现
 （`debugging-root-cause-analysis`：先做工作版/失败版对照，别先加 epsilon 或重试）。
 
-**三、今晚的验证范围（临时收尾，用户裁定「只跑模块」）**：`single:mine_run_metrics` PASS（24 判据 0 失败）
-· `module:mining` PASS（10 步 / 106 s；编排器门禁 `started=+10 finished=+10 ticks=+1552 arrived=+4`）
-· 四条**静态**门禁 PASS（`step-names` 172 引用/72 步 · `ref-integrity` 634 引用/0 越界 ·
-`fixture-hygiene` 62 夹具/R1R2R4=0 · `kernel-predicates` 九类规则全 0）。
-⏳ **未跑（明天补）**：⭐ **CORE**（本轮改了 `BotManager`/`WriteBudget` = 生产共用路径 ⇒ **必须跑**）、
-`check-all` 全量档、`list-modules` 的模块/步清单核对。⚠️ 因此今晚**不宣告收口**，只宣告"定向 + 模块级已验证"。
+**三、验证（当晚"只跑模块"，次日补跑收口 ⇒ ✅ 已收口）**：
+当晚：`single:mine_run_metrics` PASS（24 判据 0 失败）· `module:mining` PASS（10 步 / 106 s；
+编排器门禁 `started=+10 finished=+10 ticks=+1552 arrived=+4`）· 四条**静态**门禁 PASS
+（`step-names` 172 引用/72 步 · `ref-integrity` 634 引用/0 越界 · `fixture-hygiene` 62 夹具/R1R2R4=0 ·
+`kernel-predicates` 九类规则全 0）。
+次日补跑（本轮改了 `BotManager`/`WriteBudget` = **生产共用路径** ⇒ 按 `D-332` 必须跑 CORE）：
+⭐ **CORE = PASS 51/51**（4778 tick / 275 s，`baseline=15 main=36 extra_skipped=21 passed=51/51 skipped=0`
+—— EXTRA 从 20 变 21 正是新步 `mine_run_metrics`，CORE 步序未变）· 无头门禁行
+`started=+1 finished=+1 ticks=+4757 arrived=+8 世界改动 breaks=+69 places=+22`（电池自身那一次会话任务
+被如实记账）· ⭐ **`check-all` = 17 PASS / 0 WARN / 0 FAIL**（内含 CORE 再跑一次 PASS 274 s；
+冻结三件套 1475 ≤ 1476）· **`list-modules` = 21 模块**（只有 `harness_self:FAIL` 是声明过的故意红，
+`mining:PASS`）⇒ **本弧收口**。

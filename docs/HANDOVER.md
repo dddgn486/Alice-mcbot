@@ -52,12 +52,12 @@
 > 先把"生成事件已发但 `getEntity` 为 null"的窗口稳定复现出来。证据日志：
 > `run/headless-logs/20260920-011428-single_mine_run_metrics.log`（`[CollectDrops]` 里**没有 3405 的簇**）。
 >
-> **⏳ 六、今晚的验证范围（用户裁定「只跑模块」⇒ 临时收尾，未宣告收口）**：
-> ✅ `single:mine_run_metrics` PASS（24 判据 0 失败）· ✅ `module:mining` PASS（10 步 / 106 s；编排器门禁
-> `started=+10 finished=+10 ticks=+1552 arrived=+4`）· ✅ 四条**静态**门禁 PASS（`step-names` 172 引用/72 步 ·
-> `ref-integrity` 634 引用/0 越界 · `fixture-hygiene` 62 夹具 · `kernel-predicates` 九类全 0）。
-> ⏳ **未跑，明天补**：⭐ **CORE**（本轮改了 `BotManager` + `WriteBudget` = **生产共用路径** ⇒ 必须跑；
-> 上一次 CORE 51/51 是 `D-346` 那轮）· `check-all` 全量档 · `list-modules` 清单核对。
+> **六、验证（✅ 次日已收口）**：当晚 `single:mine_run_metrics` PASS（24 判据 0 失败）· `module:mining`
+> PASS（10 步 / 106 s；编排器门禁 `started=+10 finished=+10`）。次日补跑 ⭐ **CORE = PASS 51/51**
+>（4778 tick / 275 s，`extra_skipped=21` —— 比上轮多 1 就是新步）· ⭐ **`check-all` = 17 PASS / 0 WARN /
+> 0 FAIL**（内含 CORE 再跑一次 PASS 274 s）· **`list-modules` = 21 模块**（`mining:PASS`；
+> 只有声明过的 `harness_self:FAIL`）· 四条静态门禁 PASS（`step-names` 172/72 · `ref-integrity` 634/0 越界 ·
+> `fixture-hygiene` 62 · `kernel-predicates` 九类全 0）。⇒ **`D-347` 弧收口**。
 >
 > **七、剩余可做项（复读结论，②③⑤⑥ 仍未做）**：② 收集器**物品过滤钩子**（`CollectDropsTask` 只有 UUID
 > 白名单；半成品 `MineProductFilter` 只用于计数）· ③ **挖矿设计文档**（`D-329` 路线图第 1 步，`docs/` 里
@@ -65,9 +65,13 @@
 > 冻结压住，等实测触发）· ⑥ `FarWalkTask` 仍无生产调用方（台账第 102 行）。
 > **建议顺序**：③（纯文档、零风险）→ ②（"不捡石头"一行接线）→ ⑤⑥（等触发）。
 >
-> **八、压缩后从这里接**：`AI_DECISIONS.md` 尾部 `D-347`（+ 附注一）是全文，台账第 98 行与队列索引
-> 已标记，`BATTERY_CURATION §2/§4` 已更新为 **72 项 / CORE 51 / `mining` 10 步**。
-> **本弧状态 = 定向 + 模块级已验证，CORE 未跑（明天补）** ⇒ 接续时先做「五、」那件事，再补 CORE/`check-all`。
+> **八、接续入口（`D-347` 已收口）**：① ⭐ **先做「五、」那件事** —— 查"真实挖掘掉落物被作用域当成
+> 未进入世界而忽略"的触发条件（`D-345` 同一现象，今天出现在 bot 脚边 ⇒ 触发条件未定性）；
+> ② 然后是 `survey/23`（2026-09-20 已拉取合并，`406fc82`）的三处"隐藏坑"与"开工前置检查三问"——
+> 它是**对提案与方法论的判断**，不是项目事实清单，采纳与否要你拍板；
+> ③ 再往下是复读剩下的可做项（② 收集器物品过滤钩子 · ③ 挖矿设计文档 · ⑤⑥ 等触发）。
+> `AI_DECISIONS.md` 尾部 `D-347`（+ 附注一）是全文，台账第 98 行与队列索引已标记，
+> `BATTERY_CURATION §2/§4` 已更新为 **72 项 / CORE 51 / `mining` 10 步**。
 >
 > ---
 
