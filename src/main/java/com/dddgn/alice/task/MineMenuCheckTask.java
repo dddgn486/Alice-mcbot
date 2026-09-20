@@ -828,6 +828,36 @@ public class MineMenuCheckTask implements Task {
                         + " 簇 / 成员=" + oreMembers + "，守恒=" + (oreMembers == oreAnchors.size()) + "）",
                 !oreAnchors.isEmpty() && oreMembers == oreAnchors.size());
 
+        // ---- ⑨ ⭐ 掉刻归因（`D-367`）：**量化**"一次成本选择"与"一次扫描分片"的耗时 ----
+        // 背景（`docs/reviews/2026-09-20-mine-round3-root-cause.md` §2）：真机三次
+        // `Can't keep up! … Running 2035/2632/2232ms or 40/52/44 ticks behind`（2026-09-20）。
+        // 候选之一是 `D-363`：每次选择最多跑 K 次**完整规划器**（`nodes=2348 ms=69` 量级）。
+        // 这里把数字量出来（离线可测，不需要客户端）；判据只做**数量级护栏**（>200ms = 单次选择
+        // 就能吃掉整个 tick 预算），避免 flaky。
+        var costSource = new com.dddgn.alice.job.mine.MineCandidateSource(
+                com.dddgn.alice.job.mine.MineCandidateSource.Target.ofBlock(
+                        net.minecraft.world.level.block.Blocks.IRON_ORE),
+                com.dddgn.alice.job.mine.MineCandidateSource.SCAN_RADIUS);
+        var costSpec = com.dddgn.alice.job.GoalSpec.mineBlocks(center,
+                com.dddgn.alice.job.mine.MineCandidateSource.SCAN_RADIUS, 1, 600);
+        long tShard = System.nanoTime();
+        var costSession = costSource.newSession(costSpec, Integer.MAX_VALUE, Integer.MAX_VALUE);
+        costSession.advance(bot);
+        long shardMs = (System.nanoTime() - tShard) / 1_000_000L;
+        var costCandidates = costSession.sets().get(0).viable();
+        long tRefined = System.nanoTime();
+        com.dddgn.alice.job.mine.PlanRefinedCostProvider.production()
+                .estimate(bot, costSpec, costCandidates);
+        long refinedMs = (System.nanoTime() - tRefined) / 1_000_000L;
+        long tField = System.nanoTime();
+        new com.dddgn.alice.job.mine.StandingCostField(4, 64).estimate(bot, costSpec, costCandidates);
+        long fieldMs = (System.nanoTime() - tField) / 1_000_000L;
+        BotLog.info("[MineMenu] D-367 tick耗时：候选={} · 选择(含 top-K 精算)={}ms · 成本场only={}ms · "
+                        + "扫描分片={}ms（tick 预算 50ms；真机掉刻 2035/2632/2232ms）",
+                costCandidates.size(), refinedMs, fieldMs, shardMs);
+        check("掉刻归因：一次选择(含 top-K 精算) 的耗时必须有界（实测 " + refinedMs + "ms ≤ 200ms）",
+                refinedMs <= 200L);
+
         // ---- ⭐ 成本模型（`D-329` §2.2；用户 2026-09-20 三条裁定）----
         // 判据用**脚本化成本**（确定性，不依赖世界）：把"规则"与"事实"分开测（本项目一贯口径）。
         var lowOre = new com.dddgn.alice.job.Candidate(new net.minecraft.core.BlockPos(0, 62, 1), "block",
