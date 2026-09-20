@@ -15669,3 +15669,48 @@ IllegalArgumentException: PLACE_STEP_AND_TRAVERSE requires one cardinal step, dy
 - **R2/R3（绕远、折返）**：`精算 尝试=3 成功=3（候选 91）`（97% 候选无成本）+ 站位点选择，
   仍待**只读探针**一轮确认；`D-366b` 只解决"垂直能力"这一半。
 - **掉落物落进不可进入的洞**：收集器纯通行（`worldMod=false`）+ 自造 1 格高口袋 ⇒ 是否给**有界**世界修改权，待裁。
+
+### D-368：**选择成本 = 下界分支限界**（一改同解 ①掉刻 与 ②绕远折返）+ 菜单同 tick 复用 2026-09-20（设计定案，待实施）
+
+#### 一、实测依据（`D-367`，离线可复核，见 `docs/reviews/2026-09-20-mine-round3-root-cause.md` §2bis）
+| 子系统 | 实测（候选=6） | 判定 |
+|---|---|---|
+| 一次成本选择（含 top-K 精算） | **102→126 ms** | **超 tick 预算 2×** ⇒ 掉刻已证来源 |
+| ├ 成本场 only | 16 ms | — |
+| └ top-3 精算 | ≈85–110 ms | `D-363` 引入 |
+| 候选菜单构建 | 31 ms，`GoalDirector:533` 与 `BotStateReport:29` **各建一次** | ≥2×/PROGRESS 事件 |
+| 扫描分片 | 13 ms / 8192 格 | 非主因 |
+| 决策层 LLM | `CompletableFuture` 异步 + 看门狗 | **已排除**同步阻塞 |
+
+#### 二、设计（不许打补丁：这是把 `D-329` §2.1 的"估算→精算"两段式**做对**）
+现状缺陷：`PlanRefinedCostProvider` 只精算**固定 top-K=3**（先按估算排序，而估算在真实地形里几乎全是"估不出"
+⇒ 等于"欧氏最近 3 个"）⇒ ① 固定 3 次完整规划器（~100 ms/tick）② `候选=91` 时 **97% 候选无成本** ⇒
+只要那 3 个里还有能挖的，脉内其余矿**永远排不上** ⇒ 用户看到的"绕远/来回折返"。
+
+**改法 = 下界分支限界（branch & bound）**：
+1. **为每个候选算一个"合法下界"**：`bound(c) = max(成本场纯通行值, 几何下界)`。
+   两者都 ≤ 真实挖掘代价（实时代价 = 通行 + 破坏），取 `max` 得**更紧的合法下界**。
+   几何下界**复用既有** `GoalFoot.heuristic`（octile 水平 + 非对称竖向，`CostModel:12` 指明）——**不另写公式**。
+2. 按 `bound` 升序**逐个精算**，维护当前最优 `incumbent`；当 `bound(next) >= incumbent + valueMargin` 时
+   **剪枝并停止**（升序 ⇒ 后面的更没希望）。`valueMargin = 配置的 valueWeight`（价值项最多能补回多少）；
+   默认 `valueWeight=0` ⇒ `valueMargin=0`（当前行为下最优）。
+3. **安全上限** `MAX_REFINES`（默认 8）：上限内没收敛就**如实标注"近似"**（`note` 里写 `精算=n/N 剪枝=m 近似=true`），
+   **绝不因为"估不出"而拒绝候选**（`SEARCH_LIMIT ≠ UNREACHABLE` 不变）。
+4. 被剪枝的候选**保持"估不出"**（排序靠后）—— 与其下界 ≥ incumbent 的事实一致；下一次选择会重新评估它们。
+5. **`refine` 与 `bound` 都做成可注入**（`BiFunction<ServerPlayer,Candidate,Double>` / `ToDoubleFunction<Candidate>`）
+   ⇒ 夹具能注入确定性成本做**纯逻辑**断言（沿用 `CandidateCostProvider.scripted` 的既有模式）。
+
+**预期效果**：① 每次选择的规划器次数从"固定 3 次"降到"按需 1–2 次 + 剪枝"，耗时回到 tick 预算内；
+② 选中的是**下界意义下的真最优**（不再被"最近 3 个"绑死）⇒ 折返减少。
+
+#### 三、配套（同一改动的另一半）
+`CandidateMenu.build(bot)` **同 tick 复用**：`GoalDirector:533` 与 `BotStateReport:29` 不要各建一次而互不知道
+（31 ms × ≥2/事件；客户端菜单含多目标全扫，夹具注释原文"重复构建会在一个 tick 里白烧掉百万次读"）。
+
+#### 四、判据计划（实施时必须一起交）
+- **夹具（`mine_menu`，CORE）**：注入 `bound`/`refine` ⇒ ① 选中 == 真实最优（含"最优在更远处"的构造）
+  · ② 剪枝计数 > 0 且精算次数 ≤ MAX_REFINES · ③ `valueWeight>0` 时剪枝必须留出 `valueMargin` 余量。
+- **反向对照（改法必红）**：a) 去掉剪枝只做 top-3 ⇒ 漏掉真最优；b) 剪枝条件去掉 `valueMargin` ⇒ 在 `w>0` 下漏掉高价值候选；
+  c) 让 `bound` 返回 0 ⇒ 退化成"全量精算"（耗时爆表，计时判据红）。
+- **计时判据**：`D-367` 的两条（选择 ≤200ms、菜单 ≤200ms）保持；实施后追加**"选择耗时下降"的对照读数**进档案。
+- **门禁**：`rule_selection_is_bounded_and_sound`（下界必须来自既有启发式 / 必须有剪枝 + 上限 / 不许据"估不出"拒绝候选）。
