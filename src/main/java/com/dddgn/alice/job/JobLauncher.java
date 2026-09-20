@@ -118,6 +118,17 @@ public final class JobLauncher {
 
     /** 构造 `Job`（不发料、不登记会话——那是 `BotManager.assignJob` 的事）。 */
     public static Job create(BotPlayer bot, ScopeBuffer scope, JobRequest request) {
+        // ⭐ `D-349`（勘测侧 Pit 1）：**"成功必须能用世界事实对账"的受理闸**。
+        // 提案 `§11` 判据 1 只查"有没有 successCriterion"（存在性）；这里补上**可判定性**的一半：
+        // 每个 kind 必须在 `JobKindContract` 里声明「判据 / 读世界事实的方法 / 不一致时怎么办」，
+        // 且门禁 `tools/check-job-kind-contracts.sh` 会核对那个方法**真的存在**（否则构建红）。
+        // 今天 5 个 kind 全部齐全 ⇒ 本闸是**不改变行为的**（一旦有人新增 kind 忘了声明，这里会当场拒绝入队）。
+        if (!com.dddgn.alice.job.JobKindContract.isComplete(request.kind())) {
+            com.dddgn.alice.log.BotLog.warn("[Job] 拒绝入队：kind={} 缺世界事实对账契约（{}）—— "
+                            + "新增 kind 必须在 `JobKindContract` 声明 判据/对账方法/不一致时怎么办（`D-349`）",
+                    request.kind(), com.dddgn.alice.job.JobKindContract.describe());
+            return null;
+        }
         var policy = new com.dddgn.alice.job.policy.NearestPolicy();
         return switch (request.kind()) {
             case LUMBER -> new com.dddgn.alice.job.lumber.LumberJob(bot,

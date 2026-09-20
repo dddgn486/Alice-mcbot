@@ -12,6 +12,7 @@ import com.dddgn.alice.task.LumberCourseAnchor;
 import com.dddgn.alice.task.LumberFailureCheckTask;
 import com.dddgn.alice.task.RegionSweepCheckTask;
 import com.dddgn.alice.task.RegionSweepE2ECheckTask;
+import com.dddgn.alice.task.RegionMaintainUnmaintainableCheckTask;
 import com.dddgn.alice.task.check.CheckContext;
 import com.dddgn.alice.task.check.CheckModule;
 import com.dddgn.alice.task.check.CheckProfile;
@@ -26,7 +27,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * **伐木模块（R-2 第六片，3 步）**：`lumber_failure` · `lumber_job` · `region_maintain`。
+ * **伐木模块（R-2 第六片，6 步）**：`lumber_failure` · `lumber_job` · `region_maintain`
+ * · `region_sweep` · `region_sweep_e2e` · ⭐ `region_maintain_unmaintainable`（`D-349`）。
  *
  * <p>三态覆盖"伐木"这条链的**失败归因 / 生产闭环 / 可持续巡查**：
  * <ul>
@@ -115,7 +117,13 @@ public final class LumberModule implements CheckModule {
                 // 场景与状态由夹具自己在 SETUP 里造（含地形函数、传送、清背包），结束**还原**
                 // ⇒ provision 传 `null`（技能：夹具自己负责传送与复位）。
                 CheckStep.of("region_sweep_e2e", CheckProfile.EXTRA, List.of(), null,
-                        () -> new RegionSweepE2ECheckTask(bot, scope), 3000));
+                        () -> new RegionSweepE2ECheckTask(bot, scope), 3000),
+                // ⭐ `D-349`（勘测侧 Pit 2）：**`MAINTAIN` 的"不可维持"判据** —— 常驻区域作业
+                // 不许"看起来在跑、其实终态已不可达"。判据：① 触发（事实被登记 + 上报"可做什么"）；
+                // ② **不越权**（登记时仍 RUNNING，收工只由玩家/决策层打断）；③ **恢复**（注入欠树+苗 ⇒ 清除）。
+                // 自建空盒（草方块地板、无树无苗）+ 自己 tick 真 `RegionLumberJob` + 收尾还原共享区域状态。
+                CheckStep.of("region_maintain_unmaintainable", CheckProfile.EXTRA, List.of(), null,
+                        () -> new RegionMaintainUnmaintainableCheckTask(bot, observer, scope), 1200));
     }
 
     /** 传送到统一起点（与电池 `teleportBot` 逐字段一致 ✓；顺带起"先热区块再 fill"的作用 ✓）。 */

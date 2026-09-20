@@ -134,7 +134,10 @@ HistoryEntry { tick, kind, paramsDigest, resultCode, outcome, durationTicks, by(
 
 ---
 
-## §7 三条防乱派/防空转的机制（**这是"能保证"的全部来源**）
+## §7 防乱派/防空转的机制（**这是"不会失控"的全部来源**）
+
+> ⚠️ **标题校正（2026-09-20 采纳勘测侧 Pit 1）**：原写"这是**能保证**的全部来源"——
+> 这四条都是**刹车**（防乱派、防空转），**不产生成功**。成功的来源是 §7.5（每个 kind 的世界事实对账）。
 
 | 机制 | 规则 | 防的是 |
 |---|---|---|
@@ -142,6 +145,31 @@ HistoryEntry { tick, kind, paramsDigest, resultCode, outcome, durationTicks, by(
 | **进展契约** | 每条目必须有 `successCriterion` + `limit`；超限 ⇒ 按 `onFail`（不许无限重试） | 空转、静默挂死 |
 | **循环检测 + 升级** | 同一 `(kind, 参数摘要)` 在窗口内失败 ≥N ⇒ **禁止再入队** + 升级请示 | **跨任务换路重试**（实测两次） |
 | **陈旧队列复验** | 条目执行前**重验 `precondition`**（世界变了 ⇒ 作废/重规划，不硬跑） | 队列与世界脱节（同 `CapabilityGate` 的执行期复验哲学） |
+| **升级上限**（`D-349`/Pit 3） | `escalationCount >= ESCALATION_CAP(3)` ⇒ **强制 `END_QUEUE` + 待机 + 如实登记** | 无限升级（= 把"卡死"从"等批准"搬到"升级链"） |
+
+---
+
+## §7.5 能**成功**的全部来源（2026-09-20 采纳勘测侧 Pit 1）
+
+> 一句话：**"有 `successCriterion`"（存在性）≠ "它在世界里判得下来"（可判定性）**。
+> 后者才是"能保证"的真要求；本节的规矩是"每个 kind 的判据必须**能在世界里对账**"。
+
+| kind | 成功判据（对账什么） | 读世界事实的方法（**门禁核对存在**） | 不一致时如实怎么办 |
+|---|---|---|---|
+| `LUMBER` | 目标树真的被砍 + **原木进背包** ≥ 配额 | `LumberJob#countLogs` | 如实失败/未达成，不静默成功 |
+| `MINE` | 目标方块真的被破坏 + **目标物品进背包** ≥ 已破坏数 | `MineJob#countTargetItems` | `FAILED product_not_collected`（挖了没拿到 = 没成功） |
+| `REGION_LUMBER`（`MAINTAIN`） | 区域持续可作业；**不可维持必须如实登记** | `RegionLumberJob#maintainUnreachable` | 登记 + 上报"可做什么"（**不擅自收工**） |
+| `COLLECT` | 清单内落物**进背包**（in-flight 账本净增量） | `CollectJob#dropsInRange` | 仍有落物未到手 ⇒ 如实未完成/失败 |
+| `CRAFT` | 产物数量 ≥ 配额（从产物栏/背包读出） | `CraftJob#verify` | `FAILED partial_quota` |
+
+**已落地的实现（不是散文）**：`com.dddgn.alice.job.JobKindContract`（声明表）+
+`tools/check-job-kind-contracts.sh`（挂 `check-all`：kind 缺行 / 字段为空 / `queryRef` 指向的方法不存在
+⇒ **构建红**；三种注入实测都红）+ `JobLauncher.create` 受理闸（不齐 ⇒ 拒绝入队 + 留痕）。
+
+**为什么它不是"又一条散文规则"**：判据被三件事咬住 —— ① 门禁能红；② 队列入队受理直接复用
+`JobKindContract.isComplete`（不写第二份判据）；③ `bot_report` 里有一行 `kind 契约 ✓✓✓✓✓`。
+代价实证：`D-345/346`（判据永不可能成立）与 ⭐`D-348`（拿"查找表里在不在"当代理，真事实是"登记被推迟 1~19 tick"）
+都是这个缺口的产物。
 
 ---
 
@@ -175,7 +203,9 @@ HistoryEntry { tick, kind, paramsDigest, resultCode, outcome, durationTicks, by(
 | 请示超时 | = 拒绝（既有规则）⇒ 走 §6.4 收尾路径 |
 | 容器未注册 | 不进菜单/不生成条目；只可"请示是否登记容器" |
 | 材料不足 / 工具坏且无料 | 升级请示；被拒 ⇒ 收尾待机 |
-| 终态不可达 | `UNREACHABLE` ⇒ 收尾 ⇒ 待机 ⇒ 不再触发 |
+| 终态不可达（`REACH_STATE`） | `UNREACHABLE` ⇒ 收尾 ⇒ 待机 ⇒ 不再触发 |
+| ⭐ 不可维持（`MAINTAIN`，`D-349`/Pit 2） | `maintainableQuery` 三态判定：**有活** / **暂时无活**（退避 + 冷却）/ **不可恢复** ⇒ **如实登记 + 上报"可做什么"**（常驻**不擅自收工**：收工只由玩家/决策层打断） |
+| ⭐ 升级到顶（`D-349`/Pit 3） | `escalationCount >= ESCALATION_CAP(3)` ⇒ **强制 `END_QUEUE` + 待机 + 如实登记原因**（不许继续升级） |
 | 世界变化（区块卸载/方块被改） | 执行前复验 → 作废/重规划（§7） |
 
 ---
@@ -184,6 +214,11 @@ HistoryEntry { tick, kind, paramsDigest, resultCode, outcome, durationTicks, by(
 
 **离线门禁（新增步 `goal_queue`，判据示例）**：
 1. `TaskSpec` 缺 `successCriterion` ⇒ **拒绝入队**；
+1b. ⭐ 该 `successCriterion` **没有世界事实对账路径**（`queryRef` 为空/指向不存在的方法）⇒ **拒绝入队**
+   —— 今天已由 `JobKindContract` + `check-job-kind-contracts.sh` **先行落地**（不依赖队列）；
+1c. ⭐ `MAINTAIN` 条目缺 `maintainableQuery` ⇒ **拒绝入队**（`D-349`/Pit 2）；
+1d. ⭐ 升级到顶（`escalationCount ≥ 3`）⇒ **`END_QUEUE` + 待机**，判据 = 世界里"bot 在归位点且无任务"
+   + 事件环里有一条**如实原因**（`D-349`/Pit 3）；
 2. `precondition` 不满足 ⇒ 执行前拒绝 + 回读原因；
 3. 同一条目失败 N 次 ⇒ **禁止再入队 + 升级**（反向对照：去掉检测 ⇒ 变红）；
 4. 正常推进 N 千 tick ⇒ **LLM 调用次数 = 0**（这条是提案的**核心收益**，必须有判据）；
@@ -234,3 +269,4 @@ HistoryEntry { tick, kind, paramsDigest, resultCode, outcome, durationTicks, by(
 | 日期 | 变更 |
 |---|---|
 | 2026-09-19 | 用户提案 + AI 三条建议（`MAINTAIN` 优先 / 默认策略 / 终态两型）被采纳；**完整形态落档**；状态 = 设计定稿 · 未实现 · 未验收 |
+| 2026-09-20 | ⭐ 采纳勘测侧三处"隐藏坑"（`survey/23` §1.3–1.5）并**部分落地**：Pit 1 ⇒ §7 标题校正 + 新 §7.5（世界事实对账表）+ 判据 1b（**已落地**：`JobKindContract` + 门禁 + 受理闸）；Pit 2 ⇒ §7.3-B `maintainableQuery` 三态 + §10 行 + 判据 1c（**已落地**：`RegionLumberJob.maintainUnreachable` + 夹具 `region_maintain_unmaintainable`）；Pit 3 ⇒ 升级上限 `ESCALATION_CAP=3` + §10/§11（**纯声明**，队列落地时由 `goal_queue` 判据咬住） |

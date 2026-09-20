@@ -1997,6 +1997,14 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 > （否则登记被推迟 13~21 tick 时记录已被 prune ⇒ 实体救回但归属丢 ⇒ **照样捡不起来** —— 这半截是夹具逼出来的）。
 > 取证夹具 `scope_pending_grace`（EXTRA，`PickupModule`）：绿 `checks=8 failures=0`（推迟 13 tick、登记为
 > `OURS_DIRECT`）/ 反向对照（窗口=0）**红 2 条**。
+> ✅ **`survey/23` 三处隐藏坑已处置（`D-349`，2026-09-20 用户拍板"一起做"）**：Pit 1（"能保证"押在刹车上）
+> ⇒ §7 标题校正 + 新 §7.5 世界事实对账表 + **已落地** `JobKindContract` 声明表 + 门禁
+> `tools/check-job-kind-contracts.sh`（三种注入全红）+ `JobLauncher` 受理闸；Pit 2（`MAINTAIN` 无"还能不能维持"判据）
+> ⇒ **已落地** `RegionLumberJob.maintainUnreachable()`（如实登记 + 上报「可做什么」+ 恢复自清，**不擅自收工**）
+> + 夹具 `region_maintain_unmaintainable`（触发/不越权/恢复，反向对照红 5 条）；Pit 3（升级链无上限）
+> ⇒ **纯声明** `ESCALATION_CAP=3 ⇒ END_QUEUE + 待机 + 如实登记`（复核触发：队列落地时若 `goal_queue`
+> 夹具没加这条判据，本规则退回散文 ⇒ 应删）。
+>
 > **复读（`survey/22`+`21` 第二次）后**剩下的可做项：② 收集器**物品过滤钩子** · ③ **挖矿设计文档**
 > （`D-329` 路线图第 1 步，尚不存在）·
 > ⑤ `HAZARD_ADJACENCY_PENALTY` 相对化（被 `D-333` 冻结压住，等实测触发）· ⑥ `FarWalkTask` 仍无生产调用方。

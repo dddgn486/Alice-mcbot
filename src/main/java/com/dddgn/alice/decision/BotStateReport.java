@@ -184,6 +184,7 @@ public final class BotStateReport {
         // 世界改动数。为什么放在这条只读报告里：它是零参、玩家不装 mod 也能看的既有面，
         // 而且"这四个数是估的还是量的"必须**随时可核对**（否则又变成推断）。
         lines.add(com.dddgn.alice.bot.TaskMetrics.describe());
+        lines.add(com.dddgn.alice.job.JobKindContract.describe());   // `D-349`：每 kind 的成功对账契约
         // 基-4：决策 trace 的**内存尾**（完整历史在 <config>/alice-decisions.jsonl）
         List<String> trace = DecisionTrace.recent(8);
         if (trace.isEmpty()) {

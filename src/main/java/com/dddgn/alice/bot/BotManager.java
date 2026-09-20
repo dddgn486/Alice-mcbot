@@ -655,6 +655,12 @@ public final class BotManager {
         }
         com.dddgn.alice.job.JobLauncher.logLaunch(bot, request);
         com.dddgn.alice.job.Job job = com.dddgn.alice.job.JobLauncher.create(bot, session.scope(), request);
+        if (job == null) {
+            // ⭐ `D-349`：kind 缺「世界事实对账契约」⇒ `create` 已拒绝并留痕；这里**如实不起任务**
+            // （不许把 null 塞进 `beginTask` 里 —— 那会变成 NPE，把"受理拒绝"伪装成崩溃）
+            BotLog.warn("[Job] 不起 Job：kind 缺世界事实对账契约（{}）", request.describe());
+            return false;
+        }
         session.beginTask(job, TaskTarget.block(request.center()));
         broadcastTarget(session.target);
         return true;

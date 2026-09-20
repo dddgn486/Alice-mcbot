@@ -14714,3 +14714,69 @@ forceload → 建地板+矿 → 传送 → `scope.begin` → **真的破坏那�
 
 **探针生命周期**：`inWorld` 子项探针 + 入队调用栈探针 + 10 tick 后验，**验证完成即删除**
 （`alice-scene-based-testing` §6「临时探针」），只留终态日志。
+
+
+### D-349：采纳勘测侧三处"隐藏坑"（`survey/23` §1.3–1.5）—— **两条落地、一条纯声明** 2026-09-20
+
+**缘起**：勘测侧对两份提案（`DECISION_LAYER_DESIGN.md` / `DECISION_LAYER_FINAL_FORM.md`）提了三处
+"能被检测但没人写下来"的坑。用户 2026-09-20 拍板「一起做」。**这三条共同的底座**（代码为准，不是推测）：
+
+| 事实 | 含义 |
+|---|---|
+| `GoalRecord`/`TaskSpec`/`END_QUEUE` 在 `src/main/java` **0 命中** | **队列还没实现** ⇒ 现在改 = 改文档 + 一件真代码；实现后再改 = 改机制 |
+| `JobRequest.Kind` = **5 个**（`LUMBER/MINE/REGION_LUMBER/COLLECT/CRAFT`） | 声明表今天就有 5 行真内容 |
+| `RegionLumberJob` = **活的 `MAINTAIN` 形状**（且 `:533` 已按 `D-341` 区分"全被拒"与"没树"） | Pit 2 **今天就能端到端验证** |
+
+#### Pit 1（"能保证"押在刹车上）—— ✅ 落地（文档 + 声明表 + 门禁 + 受理闸）
+- **判断**：部分采纳。§7 的四条是**刹车**（防失控）而非成功来源 ⇒ 标题校正为「**不会失控**的全部来源」。
+- **真缺口**：`§11` 判据 1 只查"**有没有** `successCriterion`"（存在性），不查"**世界里判不定得下来**"（可判定性）。
+  这个缺口本周被咬三次：`D-345/346`（追取上限 < 自身作用域直径 ⇒ 判据**永不可能**成立）、
+  ⭐`D-348`（拿"tick 末在不在实体查找表里"当**代理**，真事实是"**登记被推迟** 1~19 tick"）。
+- **实现**：`com.dddgn.alice.job.JobKindContract`（每 kind 三件套：`successCriterion` / `queryRef`
+  =**读世界事实的方法**（`类名#方法名`）/ `onMismatch`）+ 门禁 `tools/check-job-kind-contracts.sh`
+  （挂 `check-all`）+ `JobLauncher.create` 受理闸（不齐 ⇒ 拒绝入队 + 留痕；`BotManager` 对 `null` 如实不起任务，
+  不许把"受理拒绝"伪装成 NPE）。
+- ⭐ **为什么这不是散文**：门禁核对 `queryRef` 指向的方法**真的存在于源码里** ⇒ 声明钉在真代码上；
+  **三种注入实测全红**：① 新增 kind 无契约行；② `queryRef` 指向不存在的方法；③ 字段为空。
+- 文档：`DESIGN §7.3-A2`（契约三件套）· `FINAL_FORM §7` 标题校正 + **新 §7.5**（世界事实对账表）。
+
+#### Pit 2（终态级陈旧：`MAINTAIN` 没有"不变量还能不能维持"的判据）—— ✅ 落地（代码 + 夹具）
+- **判断**：采纳。`§10` 只有 `UNREACHABLE ⇒ 收尾`（那是 `REACH_STATE` 的形式），**`MAINTAIN` 一行都没有**。
+- **旧实现的病**：`RegionLumberJob` **已经算出**"区内无树 ∧ 无苗 ∧ 不欠树"这个事实（就是 `idle-stop` 的判据），
+  但**只在 `idle-stop=true` 时才用它** ⇒ 默认常驻模式下这个事实**没人知道**：
+  玩家把区域清成石头/砍光不再补种 ⇒ Job 一直退避巡查，**没有任何判据会说**（"看起来在跑、终态已不可达"）。
+- **修法（最小、且不越权）**：与模式无关地**如实登记并上报**（一次性 `warn` + `BotEventLog("MAINTAIN_UNREACHABLE")`
+  + 告知创建者 + 给出**可做什么**），**恢复后自动清除**；⭐ **不擅自收工** —— 用户 2026-09-12 裁定
+  「常驻任务只由玩家/决策层显式打断」，`idle-stop` 仍只在开启时收工。
+- **判据夹具 `region_maintain_unmaintainable`**（EXTRA，`LumberModule` 第 6 步；自建空盒草方块地板 + 自己 tick 真 Job）：
+  **四条**：① 前提（无树无苗不欠树 + `idle-stop` 关）；② 触发（≤400 tick 内 `maintainUnreachable()` 变真**且**上报了"可做什么"）；
+  ③ **不越权**（登记那一刻 Job **仍是 `RUNNING`**）；④ **恢复**（注入欠树 + 苗 ⇒ 标记清除**且真的补种成功**）。
+  绿：`checks=12 failures=0`（触发@43 tick、恢复@41 tick、`planted=true`）·
+  **反向对照**（退回旧行为：只在 `idle-stop` 模式下用判据）⇒ **红 5 条**。
+- **踩到的两个夹具坑**（都写进注释）：① 补种点的**唯一出处**是 `RegionLumberJob.plantSpotFor`
+  ⇒ 它只认 `LumberRegionState.pendingReplant` 里记着的点（"树桩空出来"），**不是**"随便一块草地"
+  （首跑日志 `欠树 deficit=3 但当前没有可补种的位置` ⇒ 恢复阶段假红）；② 区域状态（`baselineTrees`/
+  `baselineDerived`/我的苗账本）是**跨夹具共享的会话状态** ⇒ 夹具必须**先存后还原**（否则算错 `region_maintain` 的欠树）。
+
+#### Pit 3（升级链没有上限）—— ✅ 采纳为**纯声明**（不写无调用者的机制）
+- **判断**：采纳规则，**不写代码**。今天**没有升级链在跑**（`PermissionGate.request` 一次性、超时=拒绝即结束）
+  ⇒ 现在写"上限机制"= 造出没有调用者、没有判据的代码（项目已经吃过一次：`BotSelftest` 被删而
+  `build.gradle` 还在宣传它）。
+- **规则**：`escalationCount >= ESCALATION_CAP = 3` ⇒ **强制 `END_QUEUE` + 待机 + 如实登记原因**。
+  与 §9「请示超时=拒绝、**绝不让'没批准'变成'卡死'**」是**同一条红线**——否则只是把"卡死"从
+  "等批准"搬到"升级链"。
+- 文档：`DESIGN §7.3-D2`（定值 3 + 终态规则）+ `FINAL_FORM §10`（矩阵一行）+ `§11`（判据 1d）。
+  **复核触发**：队列落地时，`goal_queue` 夹具必须加"升级到顶 ⇒ 终态"一条判据；**若届时没加，本规则退回散文 ⇒ 应当删掉**。
+
+#### 验证（实测数字）
+| 项 | 结果 |
+|---|---|
+| `single:region_maintain_unmaintainable` | **PASS** `checks=12 failures=0`（触发@43 tick · 恢复@41 tick · `planted=true`） |
+| 反向对照（Pit 2 退回旧行为） | **FAIL 红 5 条**（触发/恢复及其连带） |
+| 门禁 `check-job-kind-contracts` | **PASS**（5 个 kind，`queryRef` 全部真实存在）；三种注入 **全红** |
+| `module:lumber` | **PASS**（6 步 0 失败；跨夹具状态还原没破坏 `region_maintain`） |
+| `module:pickup` / `module:mining` | **PASS**（`D-348` 回归正常） |
+| ⭐ **CORE** | **PASS 51/51**（277 s，`extra_skipped=23` —— 74 = 51 + 23） |
+| `check-all` | **pass=18 warning=0 failed=0**（新门禁已在内）；冻结三件套 1475 ≤ 1476 ✓ |
+
+⚠️ **无客户端可见行为变化**（Pit 2 的一次性 `warn`/聊天只在"区域真的不可维持"时出现）⇒ 不需要客户端复测。

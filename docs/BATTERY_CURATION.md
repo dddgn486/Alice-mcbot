@@ -19,8 +19,14 @@
 SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 **跳过多少、跑多少、各档几项**一眼可见；归属表与实跑项对不上（漏登记 / 文档说测了其实没测）**直接判红**。
 
-## 2. 当前归属表（73 项 → CORE 51 项）
+## 2. 当前归属表（74 项 → CORE 51 项）
 
+> **2026-09-20 校正（3）**：`region_maintain_unmaintainable` 进 EXTRA（`D-349`/勘测侧 Pit 2）——
+> **`MAINTAIN` 的"不可维持"判据**：常驻区域作业不许"看起来在跑、其实终态已不可达"。
+> 判据四条 = 前提（无树无苗不欠树）∧ 触发（≤400 tick 内登记 + 上报"可做什么"）∧ **不越权**（登记时仍 `RUNNING`）
+> ∧ 恢复（注入欠树+苗 ⇒ 标记清除且真补种）。反向对照（退回旧行为）红 5 条。
+> ⇒ BASELINE 15 + MAIN 36 + EXTRA **23** = **74**，CORE 仍 **51**。
+>
 > **2026-09-20 校正（2）**：`scope_pending_grace` 进 EXTRA（`D-348`：**登记被推迟**的现场取证 ——
 > 新鲜区块里同一 tick 建地形 + 破坏方块 ⇒ 掉落物在 tick 末还没被登记进世界，而它在**宽限窗口**内真的会出现。
 > 判据两条：① 前提 = 本轮确实观察到推迟；② 期望 = 它最终被登记（`liveDrops()` 非空且归属为我方）。
@@ -158,6 +164,7 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 
 | 日期 | CORE | FULL | 说明 |
 |---|---|---|---|
+| 2026-09-20 | **51** | **74** | ⭐ **`D-349` 勘测侧三处隐藏坑（Pit 1/2/3）**：Pit 1 = §7 标题校正（四条是**刹车**不是成功来源）+ 新 §7.5「能成功的全部来源」+ ⭐**已落地** `JobKindContract` 声明表（每 kind：判据 / **读世界事实的方法** / 不一致时怎么办）+ 门禁 `check-job-kind-contracts.sh`（**核对 `queryRef` 指向的方法真的存在**；三种注入全红）+ `JobLauncher.create` 受理闸。Pit 2 = ⭐**已落地** `RegionLumberJob.maintainUnreachable()`（无树无苗无欠 ⇒ 如实登记 + 上报「可做什么」+ 事件环，**不擅自收工**；恢复自清）+ 新步 `region_maintain_unmaintainable`（EXTRA，`LumberModule` 6 步；反向对照红 5 条）。Pit 3 = **纯声明** `ESCALATION_CAP=3 ⇒ END_QUEUE + 待机 + 如实登记`（无调用者 ⇒ 不写死代码）。 |
 | 2026-09-20 | **51** | **73** | ⭐ **`D-348` 掉落物登记被推迟（`survey/22` 尾巴 + `D-347` 弧的现场）**：`ScopeBuffer.flushPending` 原来"tick 末判一次就永久丢弃"，而 `EntityJoinLevelEvent` 是在 `PersistentEntitySectionManager` **把实体登记进查找表之前**发出的、登记可推迟 **1~19 tick** ⇒ 会丢掉**真的会进世界**的掉落物（收集器看不到 ⇒ `MineJob` 如实 `product_not_collected`）。修 = ① **40 tick 宽限窗口**内每 tick 复验；② ⭐**归属在入队那一刻解析并随窗口携带**（只做①会让实体救回但归属丢 ⇒ 照样捡不起来 —— 夹具逼出来的半截）。另：路径 A（连锁挖掘交给 Ore Excavation，它取消原版掉落并缓冲）**丢弃正确、无损失**（每次 CORE 稳定 17 条，同轮真产物 `provenance=OURS_DIRECT` 被正常捕捉）。新步 `scope_pending_grace`（**EXTRA**，由 `PickupModule` 提供：3 步）—— 绿 `checks=8 failures=0`（推迟 13 tick）/ 反向对照（窗口=0）**红 2 条**。**CORE 51/51** · `check-all` 17 PASS/0 FAIL。 |
 | 2026-09-20 | **51** | **72** | ⭐ **`D-347` 运行账（`survey/22 §5.2③` 的可测量判据）**：新增 `bot/TaskMetrics`（累计：启动/完成/状态桶/耗时/到达/返程/世界改动/被拒）+ 接线四处（`BotSession.beginTask`、`BotSession.recordTerminal`、`WriteBudget.consumeBreak/Place/ContainerWrite`、任务自报到达）+ 只读出口（`alice:bot_report` 一行）+ 两道**会话侧门禁**（`CheckHarness.verdict` / `HeadlessBattery` 判决前：账必须真的动过）。新步 `mine_run_metrics`（**EXTRA**，由 `MiningModule` 提供：9 步）⇒ **24 条判据** 全绿：每次**到达增量恰好 1**、账与 `WriteBudget` 独立读数逐位一致（3/4/4，含走位清障）、耗时 > 0、反向对照 `no_reachable_candidate` 且到达/改动增量都是 0 ⇒ 到达率 **3/4**、平均 tick **98**、世界改动 **11**。⚠️ 本夹具**只判运行账、不判收集闭环**（收集另有 `mine_job`/`mine_far_drop`/`mine_inventory` 判）⇒ 每次运行的 `quota_met` 结果进 SUMMARY 的 `quota_met次数` **事实字段**（实测 single=2/3、module=3/3 ⇒ 间歇性，附注一见 `D-347`）。⭐ 首跑实测推翻了我自己的假设"世界改动数 = 配额"（详见 `D-347`）。 |
 | 2026-09-20 | **51** | **71** | ⭐ **`D-346` 收集追取上限改为由作用域派生**（`survey/22 §1.5①` 的修复）：`CollectDropsTask.MAX_CHASE_DISTANCE=32` 写死 ⇒ 小于 `MineJob` 自己的作用域直径（`2×SCAN_RADIUS(24)=48`）⇒ 自己挖的产物被自己**永久**退休 ⇒ `product_not_collected`（`D-345` 取证：`retire reason=too_far` + `collected=1/2`）。修 = `ScopeBuffer.currentRadius()`（只读）+ `chaseLimit()=max(32, 2×半径)`。新步 `mine_far_drop`（**EXTRA**，由 `MiningModule` 提供：8 步）—— **A/B 同一夹具**：修复前 `clusters=1/collected=1/地上剩 1/FAIL` → 修复后 `clusters=2（远件 3240 也被捡）/collected=2/地上 0/PASS`。`single:mine_far_drop` PASS · `module:mining` PASS(8 步) · **CORE 51/51**（271 s，`extra_skipped=20`，步序未变）· `check-all` 16 PASS/0 FAIL（`D-074` 裁定 2 的 N 由实现定 ⇒ 本次把 N 从 32 改成作用域直径，口径不变） |

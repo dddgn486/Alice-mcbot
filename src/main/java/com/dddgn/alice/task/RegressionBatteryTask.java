@@ -177,6 +177,9 @@ public final class RegressionBatteryTask implements Task {
             // `D-348`（2026-09-20）：**登记被推迟**的现场取证（新鲜区块 + 同一 tick 破坏 ⇒ tick 末还没登记，
             // 宽限窗口内会出现）—— 判据 = 前提（确实推迟）∧ 期望（最终被登记）。EXTRA（自建地形）。
             Map.entry("scope_pending_grace", Profile.EXTRA),
+            // `D-349`（勘测侧 Pit 2）：**MAINTAIN 的"不可维持"判据** —— 常驻区域作业不许"看起来在跑、
+            // 其实终态已不可达"。判据 = 触发（登记 + 上报）∧ 不越权（仍 RUNNING）∧ 恢复（清除 + 补种）。EXTRA。
+            Map.entry("region_maintain_unmaintainable", Profile.EXTRA),
             // D-335：挖矿容量守卫（前置满包不许动世界 / 作业中满包恰好只少 1 格）—— 对際 lumber_failure
             Map.entry("mine_inventory", Profile.EXTRA),
             // D-336：斜向上升那一格（规划级：能力 + 信封）

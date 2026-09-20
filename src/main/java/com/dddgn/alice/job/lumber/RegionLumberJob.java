@@ -168,6 +168,26 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
      * ⇒ 照旧退避到 `MAX_PATROL_INTERVAL_TICKS`。
      */
     private boolean workedThisPatrol;
+    // ---- ⭐ `D-349`（Pit 2）：**不可维持**这个事实的登记与上报（只读读数给夹具断言）----
+
+    /**
+     * **不可维持**（区内**无树 ∧ 无苗 ∧ 不欠树**）—— 判据与 {@link #IDLE_PATROLS} 同源（连续 N 次巡查仍成立）。
+     *
+     * <p>为什么必须有它：常驻任务"看起来在跑、其实终态已不可达"是**最坏的一种**——
+     * 玩家把区域清成石头、或砍光不再补种之后，Job 会一直退避巡查，而**没有任何判据会说**。
+     * 这里把**已经算出来的事实**（`inRegion.isEmpty() && deficit==0 && mySaplings==0`）如实登记：
+     * 一次性 warn + 事件环 + 告知创建者（含**可做什么**）；**恢复后自动清除**
+     * （`§11` 判据 6：破裂 ⇒ 触发一次；恢复 ⇒ 不再触发；再破裂 ⇒ 再触发）。
+     *
+     * ⚠️ **它不越权**：不擅自收工 —— 用户 2026-09-12 裁定「常驻任务只由玩家/决策层显式打断」，
+     * 收工仍只在 `idle-stop=true` 时发生（{@link LumberRegionState#autoIdleStop}）。本字段只负责**说清事实**。
+     */
+    private boolean maintainUnreachable;
+    /** 上报过一次就不再刷屏（恢复后复位 ⇒ 下次再破裂会再报一次）。 */
+    private boolean toldUnmaintainable;
+    /** 上报时给出的**可做什么**（夹具与报告都读它；空串 = 从未上报）。 */
+    private String maintainRemediation = "";
+
     /** 当前生效的巡查间隔（等生长时退避；发现活就恢复配置值）。 */
     private int currentPatrolInterval;
     /** 上一轮巡查"在等什么"（生长/补种），用于健康输出。 */
@@ -257,6 +277,31 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
     /** 本会话已砍棵数（夹具/电池断言用）。 */
     public int treesChopped() {
         return treesChopped;
+    }
+
+    /**
+     * `D-349`：**恢复可维持** ⇒ 清除标记并复位"已上报"（下次再破裂会再报一次，`§11` 判据 6）。
+     *
+     * <p>两条"有活"的路径都要调它：① 补种成功；② 区内扫到可作业的树。
+     * ⚠️ 不能只在②调 —— 补种成功时 `tryPlant` **会提前 return**，根本没走到②（这正是本 helper 存在的原因）。
+     */
+    private void noteMaintainable(String why) {
+        if (maintainUnreachable) {
+            maintainUnreachable = false;
+            toldUnmaintainable = false;
+            maintainRemediation = "";
+            BotLog.info("[Job] maintain **恢复可维持**（{}）⇒ 清除不可维持标记", why);
+        }
+    }
+
+    /** ⭐ `D-349`（Pit 2）只读读数：本区当前是否**不可维持**（区内无树无苗无欠；恢复后自动清除）。 */
+    public boolean maintainUnreachable() {
+        return maintainUnreachable;
+    }
+
+    /** ⭐ `D-349` 只读读数：不可维持时给出的"可做什么"（空串 = 从未上报过）。 */
+    public String maintainRemediation() {
+        return maintainRemediation;
     }
 
     /** 本会话是否已至少补种一棵（夹具/电池断言用）。 */
@@ -589,6 +634,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
                 return planted;               // 失败（缺配置/缺苗）⇒ 如实上抛
             }
             idlePatrols = 0;                  // 刚干了活（补种），不算待机
+            noteMaintainable("补种成功（区内有活）");   // `D-349`：恢复 ⇒ 清除不可维持标记
         }
 
         if (inRegion.isEmpty()) {
@@ -620,6 +666,23 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
                 // 用户 2026-09-12 裁定：**常驻任务本就该只由玩家/决策层显式打断**
                 // （`/alice region stop` 或任何 `/alice` 指令）。旧的"连续无活即 IDLE_NO_WORK 收工"
                 // 保留为**可选模式**（`/alice region idle-stop on`），默认关闭。
+                // ⭐ `D-349`（Pit 2）：**先如实登记"不可维持"这个事实**（与 `idle-stop` 模式无关）——
+                // 旧实现只在 `idle-stop=true` 时才用这个判据，默认模式下**事实被算出来却没人知道**。
+                boolean unmaintainable = deficit == 0 && state.mySaplingCount(bot.getUUID()) == 0;
+                maintainUnreachable = unmaintainable;
+                if (unmaintainable && !toldUnmaintainable) {
+                    toldUnmaintainable = true;
+                    maintainRemediation = "给区域加树或加苗（现在无树无苗、也不欠树 ⇒ 没有"
+                            + "「等生长」的对象）/ 改区域范围 / 用 /alice region stop 收工";
+                    BotLog.warn("[Job] maintain **不可维持**（区内无树无苗无欠）：{} —— 仍按常驻巡查"
+                                    + "（收工只由玩家/决策层打断，§13.1 + 用户 2026-09-12 裁定）；可做：{}",
+                            region.describe(), maintainRemediation);
+                    com.dddgn.alice.decision.BotEventLog.record(bot, "MAINTAIN_UNREACHABLE", "warn",
+                            "区域不可维持（无树无苗无欠） region=" + region.describe(),
+                            "remediation=" + maintainRemediation);
+                    tell("这个区域**已经没有可维持的东西**了（无树、无苗、也不欠树）⇒ 不可维持；"
+                            + "我仍按常驻巡查（不擅自收工），你可以：" + maintainRemediation);
+                }
                 if (state.autoIdleStop(bot.getUUID())
                         && deficit == 0 && state.mySaplingCount(bot.getUUID()) == 0) {
                     terminalReason = "idle_no_work";
@@ -640,6 +703,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         }
 
         idlePatrols = 0;
+        noteMaintainable("区内有可作业的树");   // `D-349`：恢复 ⇒ 清除不可维持标记
         if (currentPatrolInterval != patrolIntervalTicks) {
             BotLog.info("[Job] maintain 发现活 ⇒ 巡查间隔恢复 {} tick", patrolIntervalTicks);
             currentPatrolInterval = patrolIntervalTicks;

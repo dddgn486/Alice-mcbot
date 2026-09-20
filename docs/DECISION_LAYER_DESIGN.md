@@ -198,19 +198,37 @@ S4 决定**什么时候该开口**；S5/S6 才是"复杂物品"的执行能力 �
 **A. 类型化条目 `TaskSpec`（不接受自由文本）**
 ```
 TaskSpec { kind(确定性枚举) , params(取自菜单/世界事实) ,
-           precondition(可判定) , successCriterion(可判定) ,
+           precondition(可判定) , successCriterion(**纸面可判定 ∧ 世界里可对账**) ,
            limit{ maxTicks, maxAttempts } , onFail{ SKIP | ESCALATE | END_QUEUE } }
 ```
 无 `successCriterion` 或无可判定进展的条目 **不许入队**。
 
+⭐ **A2. 每个 kind 必须有"世界事实对账"契约（2026-09-20 采纳勘测侧 Pit 1，已落地最小件）**：
+"有 `successCriterion`"（**存在性**）不等于"它在世界里判得下来"（**可判定性**）——后者才是真要求。
+这个缺口被咬过三次：`D-345/346`（追取上限 `SEARCH_LIMIT` 小于自己的作用域直径 ⇒ 判据永不可能成立）、
+⭐`D-348`（判据拿"tick 末在不在实体查找表里"当**代理**，而真事实是"**登记被推迟** 1~19 tick"）。
+⇒ 契约三件套：`successCriterion`（判据）/ `queryRef`（**读该世界事实的方法**，格式 `类名#方法名`）/
+`onMismatch`（不一致时**如实**怎么办，禁止静默成功）。
+**今天的实现**：`com.dddgn.alice.job.JobKindContract`（表，5 个 kind 已齐）+
+门禁 `tools/check-job-kind-contracts.sh`（挂在 `check-all`：kind 缺行 / 字段为空 /
+`queryRef` 指向的方法**不存在** ⇒ **构建红**）+ `JobLauncher.create` 的受理闸（不齐 ⇒ 拒绝入队并留痕）。
+
 **B. 持久目标 `GoalRecord`**
 ```
-GoalRecord { finalState = REACH_STATE(checkable) | MAINTAIN(invariant + remediation[]) ,
+GoalRecord { finalState = REACH_STATE(checkable) | MAINTAIN(invariant + maintainableQuery + remediation[]) ,
              current: TaskSpec? , queue: [TaskSpec] , history: [完成条目+结果码] ,
              budget{ totalTicks, totalCalls, spent } , escalationCount }
 ```
 ⭐ **终态两型必须分开**：`REACH_STATE` = 一次性达成即待机；`MAINTAIN` = 稳态不变量 + 补救规则，
 **队列可为空且不触发 LLM**（用户"一直持续砍树"属于这一型）。
+
+⭐ **`MAINTAIN` 必须带 `maintainableQuery`，且返回三态（2026-09-20 采纳勘测侧 Pit 2）**：
+`有活` / `暂时无活（可恢复：等生长/等树桩空出来 ⇒ 退避 + 冷却）` / **`不可恢复`**（目标永久消失，
+或**全被永久拒绝** ⇒ 如实终态）。⚠️ 判据必须能区分"**没有**"与"**全被拒**"（`D-341`：**"无权" ≠ "没有"**）——
+否则"没权限"会被当成"区域里没树"去空转等生长。
+**今天的实现**：`RegionLumberJob.maintainUnreachable()`（区内**无树 ∧ 无苗 ∧ 不欠树** ⇒ 如实登记 +
+上报「可做什么」+ 事件环；**不擅自收工** —— 常驻只由玩家/决策层打断，用户 2026-09-12 裁定）；
+判据夹具 `region_maintain_unmaintainable`（触发/不越权/恢复三条）。
 
 **C. 触发点显式化（回答用户的关键问题）—— 只在需要"队列变更"时叫 LLM**
 1. **队列空且终态未达成**（当前任务结束/失败且无下一步）；
@@ -222,6 +240,14 @@ GoalRecord { finalState = REACH_STATE(checkable) | MAINTAIN(invariant + remediat
 **D. 防"乱派 + 循环"的三道**：① **准入校验**（前置条件不满足就地拒绝并回读原因，不是"先干了再说"）；
 ② **进展契约**（每条目有上限与成功判据）；③ **跨任务循环检测 + 升级**（同一 `(kind, 参数)` 在窗口内失败 ≥N
 ⇒ **禁止再入队** + 升级请示玩家，**不是换条路重试**——这正是这两轮咬人的形态）。
+
+⭐ **D2. 升级链必须有**上限**（2026-09-20 采纳勘测侧 Pit 3）**：
+`escalationCount >= ESCALATION_CAP = 3` ⇒ **强制 `END_QUEUE` + 待机 + 如实登记原因**
+（进 `BotEventLog` + 聊天一行 + 运行账可见），**不许无限升级**。
+为什么必须有：与 §9「请示超时=拒绝、**绝不让'没批准'变成'卡死'**」是**同一条红线**——
+"被拒 ⇒ 再升级 ⇒ 再被拒 ⇒ …"若没有终点，就是把"卡死"从"等批准"搬到了"升级链"里。
+**状态**：纯声明（今天没有升级链在跑 ⇒ 不写无调用者的机制）；队列落地时在 `§11` 的 `goal_queue`
+夹具里加"升级到顶 ⇒ 终态"一条判据，届时由它咬住。
 
 **E. 交互三件套（不是"任务表单"）**：① **计划卡**（聊天一行：当前队列 + 终态 + 下一步 + 为什么；
 `/alice goals` 查全文）；② **请示**（复用 `options[] + deadline + default`，超时=拒绝，选项由确定性层生成）；
