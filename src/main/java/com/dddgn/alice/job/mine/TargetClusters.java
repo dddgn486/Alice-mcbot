@@ -210,6 +210,35 @@ public final class TargetClusters {
         return out;
     }
 
+    /**
+     * **选中点所在簇的成员队列**（簇消费的纯逻辑）：选中的那个**排第一**（决策理由不变），
+     * 其余成员按确定性顺序跟在后面 ⇒ 同一簇的目标**连续挖完**，接近成本被摊薄。
+     *
+     * <p>⚠️ 只是**顺序建议**，不是可挖承诺：调用方每个成员仍要过**当前**授权面/身份复检
+     * （用户点出的陷阱：簇内可能有成员实际不可挖 ⇒ 那些成员必须留下**自己的**理由码）。
+     */
+    public static List<BlockPos> queueFor(Collection<BlockPos> anchors, BlockPos picked) {
+        return queueFor(anchors, picked, Connectivity.DIAGONAL_26, DEFAULT_EXTRA_SEARCH_BUDGET);
+    }
+
+    public static List<BlockPos> queueFor(Collection<BlockPos> anchors, BlockPos picked, Connectivity mode,
+                                          int extraSearchBudget) {
+        for (Cluster cluster : partition(anchors, mode, extraSearchBudget)) {
+            if (!cluster.members().contains(picked)) {
+                continue;
+            }
+            List<BlockPos> ordered = new ArrayList<>();
+            ordered.add(picked);
+            for (BlockPos member : cluster.members()) {
+                if (!member.equals(picked)) {
+                    ordered.add(member);
+                }
+            }
+            return List.copyOf(ordered);
+        }
+        return List.of(picked);
+    }
+
     private static boolean chunksAdjacent(long a, long b) {
         int dx = Math.abs(ChunkPos.getX(a) - ChunkPos.getX(b));
         int dz = Math.abs(ChunkPos.getZ(a) - ChunkPos.getZ(b));

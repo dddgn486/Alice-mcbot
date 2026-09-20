@@ -1116,6 +1116,55 @@ def rule_cluster_is_pure_geometry():
     return problems
 
 
+def rule_value_is_only_a_cost_component():
+    """`D-329` §2.2 成本模型（用户 2026-09-20 三条裁定）：
+    **「矿物价值优先级」只能是成本函数里的一个可配置分量**，不是独立模型、不是硬优先。
+
+    裁定原文：① 价值**不是**单独模型，应存在于成本函数里；② **只在多目标种类任务**里启用；
+    ③ **不许无条件挖最高级矿**。
+
+    断言（改任一处 ⇒ 红）：
+    ① `CostOptimalPolicy` 里**不出现方块名字符串**（`*_ore` 之类）—— 价值只能来自 `MineValueTable`；
+    ② 价值启用必须经 `config.valueEnabled(multiKind)`，且 `multiKind` 来自"候选里 ≥2 种方块"；
+    ③ 策略**不读世界**（不出现 `getBlockState` / `serverLevel()` / `BlockState`）—— 价值取自**候选快照**，
+       世界变化由 `MineJob` 的身份复检处理（快照口径让策略可注入、可确定性判定）；
+    ④ 成本读数**每次选择都重算**（`select(...)` 体内必须调 `provider.estimate(`）—— 成本场以 bot 当前位置
+       为源 ⇒ 跨选择复用就是错的（用户裁定其三）；
+    ⑤ 默认权重声明恰为 `0.0`（关闭）；⑥ `MineValueTable` 未登记方块**恰为 0**（不猜）。
+    """
+    problems = []
+    base = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job"
+    policy = (base / "policy" / "CostOptimalPolicy.java").read_text(encoding="utf-8")
+    table = (base / "mine" / "MineValueTable.java").read_text(encoding="utf-8")
+    config = (base / "mine" / "MineCostConfig.java").read_text(encoding="utf-8")
+
+    if re.search(r'"[^"]*_ore"', policy):
+        problems.append("`CostOptimalPolicy` 里出现了方块名字符串 ⇒ 价值变成了**硬优先**"
+                        "（用户裁定①：价值只能在成本函数里）")
+    if "config.valueEnabled(multiKind)" not in policy:
+        problems.append("价值启用没有走 `config.valueEnabled(multiKind)` ⇒ 单种类任务也会被价值扰动"
+                        "（用户裁定②：只在多目标种类任务里启用）")
+    if "kinds.size() >= 2" not in policy:
+        problems.append("`multiKind` 不是由「候选里 ≥2 种方块」判定的（判据必须现场可观测）")
+    for banned in ["getBlockState", "serverLevel()", "BlockState"]:
+        if banned in policy:
+            problems.append("`CostOptimalPolicy` 里出现 `%s` ⇒ 策略**读了世界**"
+                            "（价值必须取自候选快照；世界变化交给身份复检）" % banned)
+    body = method_body(policy, "public Selection select(ServerPlayer bot, GoalSpec spec, "
+                               "CandidateSet candidates) {")
+    if not body:
+        problems.append("找不到 `select(...)`（结构变了 ⇒ 本规则要跟着改）")
+    elif "provider.estimate(" not in body:
+        problems.append("`select(...)` 里没有调 `provider.estimate(` ⇒ 成本读数被跨选择复用"
+                        "（成本场以 bot 当前位置为源，复用即错）")
+    if not re.search(r"DEFAULT_VALUE_WEIGHT\s*=\s*0\.0D\s*;", config):
+        problems.append("`MineCostConfig.DEFAULT_VALUE_WEIGHT` 不是 `0.0D` ⇒ 默认就打开了价值项"
+                        "（用户裁定②的默认值是关闭）")
+    if "return tier <= 0 ? 0.0D : tier / 3.0D;" not in table:
+        problems.append("`MineValueTable` 未登记方块的归一化价值不是 `0.0D` ⇒ **在猜**（可能把未知当低级/高级）")
+    return problems
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
@@ -1152,6 +1201,7 @@ def main() -> int:
     s5 = rule_scan_memory_has_no_positions()
     intent = rule_intent_before_viability()
     clusters = rule_cluster_is_pure_geometry()
+    value = rule_value_is_only_a_cost_component()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -1208,13 +1258,15 @@ def main() -> int:
         print(f"[D-329·意图先于可挖性] {line}")
     for line in clusters:
         print(f"[D-329·簇只做几何] {line}")
+    for line in value:
+        print(f"[D-329·价值只是成本分量] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

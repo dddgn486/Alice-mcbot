@@ -15244,3 +15244,47 @@ forceload → 建地板+矿 → 传送 → `scope.begin` → **真的破坏那�
 #### 四、验证
 `single:mine_menu` PASS（42 判据）· **CORE 51/51 PASS** · `check-all` pass=19 warning=0 failed=0。
 `TargetClusters` 只做几何、不读世界（`IMPLEMENTED` + `SERVER_TESTED` 一级：夹具/CORE 已覆盖）。
+
+### D-358：**成本最优目标选择 + 价值分量（可配）+ 簇消费**（用户 2026-09-20 四条裁定落地）2026-09-20
+
+#### 一、四条裁定（用户原话 → 落地形状）
+| 裁定 | 落地 |
+|---|---|
+| ①「矿物价值优先级」**不是独立模型**，是**成本函数里的可配置分量**；表放**数据包标签**，权重放**配置** | `MineValueTable`（`#alice:mine_value/tier1|2|3`，未登记 = **0**，不猜）+ `MineCostConfig`（`config/alice-mine.json`，沿用 `LlmConfig` 的 JSON 形态） |
+| ② **只在多目标种类任务**里启用；权重默认 0 | `MineCostConfig.valueEnabled(multiKind)`（`multiKind` = 候选里 ≥2 种方块）+ `DEFAULT_VALUE_WEIGHT = 0.0D`；生产入口只在**标签目标**上换策略（`JobLauncher.isTagTarget`，与 `Target.parse` 同源），**单种类任务逐字保持 `NearestPolicy`** |
+| ③ 成本场**选完即失效** + 记录算了几格 | `StandingCostField` 不缓存（每次 `select` 重算），`estimatedCells` 进决策日志；`CostOptimalPolicy.select` 体内必调 `provider.estimate(`（门禁断言） |
+| ④ 簇内部分不可挖 ⇒ **复用 `partial_quota` + 成员理由**，不新增码 | `MineJob` 只加"簇队列"（`TargetClusters.queueFor`），终态码表**一个字都没加**（门禁断言无新码） |
+
+#### 二、形状
+- `cost = travelCost(最优站位点) − valueWeight × 归一化价值`；归一化 = tier/3 ⇒ **权重单位可解释**：
+  "最高档矿最多值多少格的额外路程"。
+- `StandingCostField`：每个候选枚举 ≤8 个站位点 → **一次** `StandingCostEstimator.estimate` 覆盖全部
+  （`MAX_COST_FIELD_CELLS = 512` 上限，超了如实记 `（截断到格数上限）`）⇒ 成本有界可测。
+- ⭐ **策略完全不读世界**（价值取自候选快照的 `block` 特征）：这是夹具跑出来的真问题 ——
+  第一版按 `level.getBlockState(anchor)` 取价值，于是**脚本化候选**（合成方块 id）的价值全是 0，
+  "权重大 ⇒ 才绕路"那条判据直接红。改快照口径后策略可注入、可确定性判定，也不需要额外方块读。
+  世界若已变，由 `MineJob` 的身份复检如实处理（`target_replaced`），**不是**靠偷偷按新方块算钱。
+- 簇消费：选中点所在**几何相连簇**的成员排在队列前面（选中的第一）⇒ 同一簇连续挖、接近成本摊薄；
+  ⚠️ 队列只是**顺序建议**：成员仍要过身份复检 + 规划器，失败就留下**自己的**理由码。
+
+#### 三、判据（`mine_menu` 新增 8 条 ⇒ `checks=50`）与反向对照
+- 权重 0 ⇒ 价值不参与（选成本低的）· **权重小 ⇒ 仍选近的**（"不许无条件挖最高级矿"）·
+  权重压过路程差 ⇒ 才选贵的（同一候选集、只有权重变）· **单种类 ⇒ 价值项惰性** ·
+  价值表标签解析生效 + 未登记 = 0 · 成本读数**每次选择重算**（估算次数=2）· 真成本场在生产路径跑得通且有界 ·
+  簇队列 = 同簇成员且选中的排第一（远端不同簇不在队列里）。
+- **反向对照五条**（都实测红）：单种类也启用价值 / **钻石硬优先** / 成本读数跨选择缓存 /
+  未登记方块当 0.1 / 簇队列忽略簇（整卷排队）。
+- **门禁** `rule_value_is_only_a_cost_component`：六条断言（无方块名字符串 · 多目标种类门槛 ·
+  不读世界 · 每次重算 · 默认权重恰 0.0 · 未登记恰 0）。**六种注入全红**。
+  ⚠️ 又一个"子串/正则不如声明处"的坑：第一版正则 `"[a-z_]*_ore"` **匹配不到带命名空间的**
+  `"minecraft:diamond_ore"` ⇒ 硬编码注入假绿；改成 `"[^"]*_ore"` 才咬住。
+- 既有回归：`module:mining`（`mine_budget`/`mine_stale`/`mine_no_tool`/`mine_run_metrics` 等真作业）+
+  **CORE 51/51** ⇒ "簇消费 + 复检 + 归因"三者没有互相踩（现场景 6 块矿互不相连 ⇒ 每块自成单格簇 ⇒
+  行为与今天等价，这正是"改造不许改行为"的那条对照）。
+
+#### 四、诚实标注（未验证/待做）
+1. **真实矿脉场景**（§9 挂账）：真实场景判据只到"成员守恒/单格簇等价"，**"同一簇连续挖"没有被真实场景量过**。
+2. **成本项还不全**：只有 `travel`（+ 价值）。`break`/`clear`/`risk` 三项**没做** —— 需要把硬度/清障数/视线
+   注入候选特征；**登记为下一步**，此前不许声称"成本模型完整"。
+3. **`CostOptimalPolicy` 的生产入口只在标签目标**：`/alice mine forge:ores` 这类；**电池里没有这一步**
+   ⇒ 生产路径今天只有夹具覆盖（`IMPLEMENTED` + `COMPILES` + 夹具 `SERVER_TESTED`，生产 e2e **待测**）。

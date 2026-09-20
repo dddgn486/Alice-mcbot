@@ -507,6 +507,101 @@ public class MineMenuCheckTask implements Task {
                         + " 簇 / 成员=" + oreMembers + "，守恒=" + (oreMembers == oreAnchors.size()) + "）",
                 !oreAnchors.isEmpty() && oreMembers == oreAnchors.size());
 
+        // ---- ⭐ 成本模型（`D-329` §2.2；用户 2026-09-20 三条裁定）----
+        // 判据用**脚本化成本**（确定性，不依赖世界）：把"规则"与"事实"分开测（本项目一贯口径）。
+        var lowOre = new com.dddgn.alice.job.Candidate(new net.minecraft.core.BlockPos(0, 62, 1), "block",
+                java.util.Map.of("block", "minecraft:coal_ore", "d", "1.0"));
+        var richOre = new com.dddgn.alice.job.Candidate(new net.minecraft.core.BlockPos(20, 62, 1), "block",
+                java.util.Map.of("block", "minecraft:diamond_ore", "d", "20.0"));
+        var twoKinds = new com.dddgn.alice.job.CandidateSet(java.util.List.of(lowOre, richOre),
+                java.util.List.of());
+        var scripted = com.dddgn.alice.job.mine.CandidateCostProvider.scripted(java.util.Map.of(
+                lowOre.anchor().asLong(), 1.0D, richOre.anchor().asLong(), 11.0D));
+
+        // ① 权重 0 ⇒ 价值项**完全不参与**（用户裁定其二：默认关闭）：近的低级矿胜出
+        var w0 = new com.dddgn.alice.job.policy.CostOptimalPolicy(scripted,
+                com.dddgn.alice.job.mine.MineCostConfig.of(0.0D));
+        var pickW0 = w0.select(bot, spec, twoKinds);
+        check("成本模型：权重 0 ⇒ 选**成本低**的（低价值近矿；实测 "
+                        + pickW0.picked().feature("block") + "）· 价值项关闭=" + !w0.lastValueEnabled(),
+                "minecraft:coal_ore".equals(pickW0.picked().feature("block")) && !w0.lastValueEnabled());
+
+        // ② 权重小 ⇒ **仍然选近的**（用户裁定其三：不许无条件挖最高级矿）
+        var small = new com.dddgn.alice.job.policy.CostOptimalPolicy(scripted,
+                com.dddgn.alice.job.mine.MineCostConfig.of(3.0D));
+        var pickSmall = small.select(bot, spec, twoKinds);
+        check("成本模型：价值权重大于路程差之前**必须仍选近的**（w=3，钻石价值优势=3×(1−1/3)=2 < 10 ⇒ 选 "
+                        + pickSmall.picked().feature("block") + "）",
+                "minecraft:coal_ore".equals(pickSmall.picked().feature("block"))
+                        && small.lastValueEnabled());
+
+        // ③ 权重压过路程差 ⇒ 才愿意绕路（同一候选集，只有权重变）
+        var big = new com.dddgn.alice.job.policy.CostOptimalPolicy(scripted,
+                com.dddgn.alice.job.mine.MineCostConfig.of(20.0D));
+        var pickBig = big.select(bot, spec, twoKinds);
+        check("成本模型：权重压过路程差 ⇒ 才选贵的（w=20，优势=20×(1−1/3)=13.3 > 10 ⇒ 选 "
+                        + pickBig.picked().feature("block") + "；同一候选集只有权重变）",
+                "minecraft:diamond_ore".equals(pickBig.picked().feature("block")));
+
+        // ④ 单种类任务 ⇒ 价值项**完全惰性**（用户裁定其二）
+        var oneKind = new com.dddgn.alice.job.CandidateSet(java.util.List.of(lowOre), java.util.List.of());
+        var single = new com.dddgn.alice.job.policy.CostOptimalPolicy(scripted,
+                com.dddgn.alice.job.mine.MineCostConfig.of(20.0D));
+        single.select(bot, spec, oneKind);
+        check("成本模型：**单种类**任务里价值项必须惰性（kinds=" + single.lastKindCount()
+                        + " valueOn=" + single.lastValueEnabled() + "；极端权重也不生效）",
+                single.lastKindCount() == 1 && !single.lastValueEnabled());
+
+        // ⑤ 价值表：**未登记 = 0**（不猜），已登记按档位归一化；真实方块走标签解析
+        double diamond = com.dddgn.alice.job.mine.MineValueTable.normalized(
+                net.minecraft.world.level.block.Blocks.DIAMOND_ORE.defaultBlockState());
+        double coal = com.dddgn.alice.job.mine.MineValueTable.normalized(
+                net.minecraft.world.level.block.Blocks.COAL_ORE.defaultBlockState());
+        double plainStone = com.dddgn.alice.job.mine.MineValueTable.normalized(
+                net.minecraft.world.level.block.Blocks.STONE.defaultBlockState());
+        check("价值表：标签解析生效（钻石=" + diamond + " > 煤=" + coal + "），未登记方块 = 0（石头="
+                        + plainStone + "，**不猜**为低级）",
+                diamond > coal && coal > 0.0D && plainStone == 0.0D);
+
+        // ⑥ 成本场**一次性**（用户裁定其三）：同一策略连选两次 ⇒ 两次都重新估算（计数不得为 0 且递增）
+        var counting = new java.util.concurrent.atomic.AtomicInteger();
+        com.dddgn.alice.job.mine.CandidateCostProvider countingProvider = (serverPlayer, goalSpec, list) -> {
+            counting.incrementAndGet();
+            return new com.dddgn.alice.job.mine.CandidateCostProvider.Result(java.util.Map.of(
+                    lowOre.anchor().asLong(), 1.0D, richOre.anchor().asLong(), 11.0D), list.size(), "counting");
+        };
+        var countingPolicy = new com.dddgn.alice.job.policy.CostOptimalPolicy(countingProvider,
+                com.dddgn.alice.job.mine.MineCostConfig.of(0.0D));
+        countingPolicy.select(bot, spec, twoKinds);
+        countingPolicy.select(bot, spec, twoKinds);
+        check("成本模型：成本读数**每次选择重算**（不跨选择缓存；实测估算次数=" + counting.get() + " 应为 2）"
+                        + "，且 `estimatedCells` 有值（有界性可测="
+                        + countingPolicy.lastResult().estimatedCells() + "）",
+                counting.get() == 2 && countingPolicy.lastResult().estimatedCells() > 0);
+
+        // ⑦ 真成本场（生产路径）能跑通且有界：真实世界 + 真站位点枚举
+        var realPolicy = new com.dddgn.alice.job.policy.CostOptimalPolicy(
+                new com.dddgn.alice.job.mine.StandingCostField(4, 64),
+                com.dddgn.alice.job.mine.MineCostConfig.of(0.0D));
+        var oreCandidates = new com.dddgn.alice.job.CandidateSet(
+                oreScan.sets().get(0).viable(), java.util.List.of());
+        var realPick = realPolicy.select(bot, spec, oreCandidates);
+        check("成本模型：真成本场在生产路径上跑得通（候选=" + oreCandidates.viable().size()
+                        + " 选中=" + (realPick.picked() == null ? "none" : realPick.picked().id())
+                        + " cells=" + realPolicy.lastResult().estimatedCells() + " ≤ 64）",
+                realPick.picked() != null && realPolicy.lastResult().estimatedCells() <= 64
+                        && realPolicy.lastResult().estimatedCells() > 0);
+
+        // ⑧ 簇队列（纯函数）：同簇成员连续、选中的排第一、单格簇不改变行为
+        var clusterAnchors = java.util.List.of(new net.minecraft.core.BlockPos(0, 62, 0),
+                new net.minecraft.core.BlockPos(1, 62, 0), new net.minecraft.core.BlockPos(2, 62, 0),
+                new net.minecraft.core.BlockPos(30, 62, 0));
+        var queue = com.dddgn.alice.job.mine.TargetClusters.queueFor(clusterAnchors,
+                new net.minecraft.core.BlockPos(1, 62, 0));
+        check("簇消费：队列 = 同簇成员且**选中的排第一**（实测 " + queue.size() + " 个："
+                        + queue.stream().map(p -> p.getX() + "").toList() + "；远端不同簇的**不在**队列里）",
+                queue.size() == 3 && queue.get(0).getX() == 1 && queue.stream().noneMatch(p -> p.getX() == 30));
+
         // **判别性事实**（判据绿了也要能复核数字；红了更要能看出差在哪）
         BotLog.info("[MineMenu] S3/S4 判别性事实：分片 calls={} 单次最大={}（上限={}）visited={}/{} "
                         + "读={} 未扫={} · 合并==全量: {}（分片 {} 条 / 全量 {} 条）· "

@@ -130,6 +130,18 @@ public final class JobLauncher {
             return null;
         }
         var policy = new com.dddgn.alice.job.policy.NearestPolicy();
+        // ⭐ `D-329` §2.2 成本模型（用户 2026-09-20 裁定）：
+        //   · **只在多目标种类任务**（目标是标签 ⇒ 一次扫描会命中多种方块）里换成成本最优策略；
+        //   · 单种类任务（固定方块 id，例如 `MineJobItem` 的铁矿石）**逐字保持** `NearestPolicy` ⇒ 零行为变化；
+        //   · 权重默认 0（`config/alice-mine.json`）⇒ "价值"不参与，成本模型只按**通行成本**排序。
+        // ⚠️ 为什么按"目标是标签"而不是"候选里有几种方块"：策略内部的判定是后者（现场事实），而这里是
+        //    **任务声明**（决策层要它挖的是一类东西）—— 两者都要能单独说清楚，判据分别咬（见 `D-358`）。
+        var costPolicy = request.kind() == JobRequest.Kind.MINE
+                && request.productTag() != null
+                && request.productTag().contains(":")
+                && isTagTarget(bot, request.productTag())
+                ? com.dddgn.alice.job.policy.CostOptimalPolicy.production()
+                : null;
         return switch (request.kind()) {
             case LUMBER -> new com.dddgn.alice.job.lumber.LumberJob(bot,
                     GoalSpec.harvestUnits(request.center(), request.radius(), request.quota(),
@@ -141,7 +153,7 @@ public final class JobLauncher {
                     scope,
                     new com.dddgn.alice.job.mine.MineCandidateSource(
                             mineTargetFor(bot, request), request.radius()),
-                    policy);
+                    costPolicy == null ? policy : costPolicy);
             case CRAFT -> new com.dddgn.alice.job.craft.CraftJob(bot, request.productTag(),
                     request.quota(), request.maxTicks());
             case COLLECT -> new com.dddgn.alice.job.collect.CollectJob(bot,
@@ -206,6 +218,27 @@ public final class JobLauncher {
             throw new IllegalArgumentException("MINE 请求的 productTag 无法解析为方块/标签：" + tag);
         }
         return parsed;
+    }
+
+    /**
+     * 这个 `productTag` 是否解析成**标签**（而不是单个方块）。
+     *
+     * <p>`Target.parse` 的口径是"先标签、无同名标签再方块"（{@code MineCandidateSource}）—— 这里与它**同源**：
+     * 用 `level.registryAccess().registryOrThrow(BLOCK).getTag(tag).isPresent()` 判是否存在该标签
+     * （与 `MineCandidateSource.Target.parse` 同源）。
+     * ⚠️ 标签不存在时**回落成方块目标**（同 `Target.parse`），此时**不**启用成本模型 ⇒ 单种类任务零变化。
+     */
+    private static boolean isTagTarget(BotPlayer bot, String productTag) {
+        var id = net.minecraft.resources.ResourceLocation.tryParse(productTag);
+        if (id == null) {
+            return false;
+        }
+        var tag = net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.BLOCK, id);
+        // ⚠️ 与 `Target.parse` **逐字同源**（`level.registryAccess().registryOrThrow(BLOCK).getTag(tag)`）——
+        // 判"是不是标签"和"解析成什么"必须是同一个事实来源，否则两条路会各判一套。
+        return bot.serverLevel().registryAccess()
+                .registryOrThrow(net.minecraft.core.registries.Registries.BLOCK)
+                .getTag(tag).isPresent();
     }
 
     /** 记一行决策可判读的启动日志（决策层的"我起了什么"）。 */

@@ -73,6 +73,11 @@ public final class MineJob implements Job {
      * 持久记忆（`S5`）管"以前扫过哪"。
      */
     private MineCandidateSource.ScanSession session;
+    /**
+     * ⭐ **簇消费队列**（用户 2026-09-20 定的簇口径）：选中点所在**几何相连簇**的成员，选中的排第一。
+     * 每个成员仍要过身份复检 + 规划器；成员失败就 `attempted` 掉继续下一个 ⇒ **部分完成如实**。
+     */
+    private java.util.List<BlockPos> clusterQueue = java.util.List.of();
 
     /**
      * **夹具专用**：把"身份复检"注入进来（`null` = 走生产路径的 {@link MineCandidateSource#matchesTarget}）。
@@ -279,7 +284,33 @@ public final class MineJob implements Job {
         // （可破坏性 / 授权面）是**当前**的世界事实 —— 旧版每次选择都重扫世界，所以它天然是当前的；
         // 分片之后必须显式补回这一步（实测 `mine_budget`：不补 ⇒ 预算耗尽后仍去试旧候选 ⇒ 归因退化）。
         CandidateSet set = withoutAttempted(session.revalidate(bot));
-        Selection selection = policy.select(bot, spec, set);
+        // ⭐ **簇消费**：上一轮选中的目标若还有"同簇且仍然可用"的成员没挖，**先挖它**（顺序建议）。
+        // 判据：同一簇的目标**连续**被尝试（`mine_run_metrics`/夹具看尝试序列）；成员不可用时**不许**静默
+        // 跳过 —— 走正常的选择路径（它会为该成员留下**自己的**理由码，见 `TargetClusters` 的告警）。
+        Selection selection = null;
+        while (!clusterQueue.isEmpty()) {
+            BlockPos next = clusterQueue.get(0);
+            clusterQueue = clusterQueue.subList(1, clusterQueue.size());
+            if (attempted.contains(next)) {
+                continue;
+            }
+            for (com.dddgn.alice.job.Candidate candidate : set.viable()) {
+                if (candidate.anchor().equals(next)) {
+                    selection = new Selection(candidate, "cluster_member",
+                            new java.util.ArrayList<>(set.rejected()));
+                    break;
+                }
+            }
+            break;
+        }
+        if (selection == null) {
+            selection = policy.select(bot, spec, set);
+            if (selection.picked() != null) {
+                clusterQueue = TargetClusters.queueFor(
+                        set.viable().stream().map(com.dddgn.alice.job.Candidate::anchor).toList(),
+                        selection.picked().anchor());
+            }
+        }
         if (selection.picked() == null) {
             if (!session.done() && !session.truncated()) {
                 // S4：**还有没考察到的格** ⇒ 本 tick 继续扫。⚠️ 绝不许把"还没扫到"当成"这里没有"。
