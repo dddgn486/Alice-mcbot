@@ -28,6 +28,9 @@ import java.util.List;
  */
 public class PartialSearchCheckTask implements Task {
 
+    /** 时间预算的允许过冲（预算按**节点**检查 ⇒ 单个节点的扩展时间；tick 预算 50 ms 的零头）。 */
+    private static final long TIME_BUDGET_SLACK_MILLIS = 50L;
+
     private final BotPlayer bot;
     private final ServerPlayer observer;
     private final List<String> failures = new ArrayList<>();
@@ -145,6 +148,20 @@ public class PartialSearchCheckTask implements Task {
                         && !tight.movements().isEmpty()
                         && tight.projectedFootPath().size() == tight.movements().size() + 1,
                 "goal=" + goal.toShortString() + " " + tight.summary() + " diagnostics=" + tight.diagnostics());
+
+        // C（`D-369`）：**极小时间预算** ⇒ 搜索必须真的遵守**墙钟**预算。
+        // 为什么必须有这条：Alice 的搜索跑在**服务器 tick 线程**上（tick 预算 50 ms），默认时间预算若被调大
+        // （原值 3_000 ms = 60 倍预算）单次搜索就能合法独占一个 tick —— 真机三次 `Can't keep up!`
+        // （2035/2632/2232 ms）正是这个机制。这条判据把"时间预算必须生效"钉住（节点预算已由 A 覆盖）。
+        PathPlan tightTime = plan(from, goal, SearchBudget.of(0, 1L), "partial_tight_time");
+        check("time_budget_respected",
+                tightTime.status() != PlanningStatus.REACHED,
+                "1 ms 墙钟预算下不许「算完」（实测 status=" + tightTime.status() + " elapsed="
+                        + tightTime.elapsedMillis() + "ms " + tightTime.summary() + "）");
+        check("time_budget_elapsed_bounded",
+                tightTime.elapsedMillis() <= 1L + TIME_BUDGET_SLACK_MILLIS,
+                "搜索必须在墙钟预算附近停下（实测 " + tightTime.elapsedMillis() + "ms ≤ 1+"
+                        + TIME_BUDGET_SLACK_MILLIS + "ms；超出 = 单次搜索会独占 tick）");
 
         // B：**同一目标 + 无限预算** ⇒ 期望到达（由 A 的校准保证可达，而不是靠假设）
         PathPlan ample = plan(from, goal, SearchBudget.UNLIMITED, "partial_ample");

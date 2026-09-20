@@ -135,6 +135,21 @@
 > - **验证**：CORE **51/51 PASS**（ticks=4805）· `check-all` 见下行。
 > - **仍未做**：菜单构建同 tick 复用（31 ms×2/事件）· 缓存失效改用 Job 写入计数当世界版本 ·
 >   选择期 Dijkstra 与规划器内部站位点搜索重复计算 · ②的其余来源（R3 站位点 / R1 覆盖）与 ④ 掉落物归因。
+>
+> ### ✅ 断点更新（目标轮 6）：`D-369` **搜索预算同 tick 量级**（真机单 tick 2～2.6 s 停顿的机制）
+> - **机制**：搜索**跑在 tick 线程**（预算 50 ms），而 `DEFAULT_MAX_MILLIS` 原值 **3_000 ms = 60 倍预算**
+>   ⇒ 单次搜索可合法独占近 3 秒；真机 `Can't keep up! 2035/2632/2232 ms` 正落在该上限之下。
+> - **改**：默认预算 **3000 → 200 ms**（=4 倍预算，卡顿上限从 ~2.6 s 降到 ≤0.2 s）+ 新增**超 tick 预算日志**
+>   （`elapsed ≥ 50 ms` 打一条）⇒ 以后调紧调松有数据；超预算结局仍是既有的 `SEARCH_LIMIT`/`PARTIAL`
+>   （`SEARCH_LIMIT ≠ UNREACHABLE` 不变）。
+> - **内核对照**：Baritone **把搜索放独立线程**（`PathingBehavior.java:469 findPathInNewThread` + `safeForThreadedUse`
+>   + `primaryTimeoutMS`/`failureTimeoutMS`）⇒ **线程化才是根治**，需线程安全世界视图 ⇒ **登记待办**。
+> - **判据**：`partial_search` 新增时间预算用例（`SearchBudget.of(0,1L)` ⇒ 不许 `REACHED`、elapsed ≤ 1+50ms）；
+>   **行为对照**去掉强制点 ⇒ `status` 变 `REACHED` ⇒ 红。门禁 `rule_search_budget_is_tick_aware`（**24 条**）3 注入全红
+>   （⚠️ 其中"强制点"那条第一次没红：只查标识符会被我自己新加的"记账"调用满足 ⇒ 已收紧为精确强制表达式）。
+> - **本轮两次自我订正**（`D-369 §三`）：①"每事件 ≥2 次菜单构建"**错**（决策路径只建一次，`BotStateReport` 是右键按需）
+>   ⇒ 菜单复用待办**作废**；②"时间预算是死代码"**错**（生效的是 `timeBudgetExhausted`，`isExpired()` 才是没人用的）。
+> - **验证**：CORE **51/51 PASS**（ticks=4780）· `check-all` 见下行 · 目标剩余：③R3 站位点 ④掉落物归因 ⑤R1 覆盖 + D-366b 风险核实。
 > ## 🔖 断点（2026-09-20 22:0x · 用户压缩前落盘）
 >
 > **证据台账（唯一的证据来源，别再从对话里找）**：`docs/reviews/2026-09-20-mine-round3-root-cause.md`

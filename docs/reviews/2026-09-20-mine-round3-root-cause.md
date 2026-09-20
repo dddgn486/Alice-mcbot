@@ -82,9 +82,14 @@ java.lang.IllegalArgumentException: PLACE_STEP_AND_TRAVERSE requires one cardina
 [MineMenu] D-367 tick耗时②：候选菜单构建=31ms
 ```
 - **已排除**："LLM 同步阻塞 tick" —— `GoalDirector` 用 `CompletableFuture<LlmClient.Reply> pending`（异步 + 看门狗）。
-- **已证**：`CandidateMenu.build(bot)` = 31 ms，而 **`GoalDirector:533` 与 `BotStateReport:29` 各建一次**
-  ⇒ **每个 PROGRESS 事件 ≥2 次菜单构建**；真机菜单含多目标全扫（夹具注释原文："重复构建会在一个 tick 里
-  白烧掉百万次读"）⇒ 客户端会成倍放大。
+- **已证**：`CandidateMenu.build(bot)` = 31 ms（**每次决策一次**）。
+  ⚠️ **订正（2026-09-20，`D-369 §三`）**：我上一轮写"`GoalDirector:533` 与 `BotStateReport:29` 各建一次
+  ⇒ 每事件 ≥2 次"是**错的** —— 决策路径**只建一次并在 536/591 复用**，`BotStateReport` 是**右键物品**的按需路径。
+  ⇒ "菜单同 tick 复用"这个待办**作废**；31 ms/事件是真的，但不是重复。
+- **⭐ 决定性发现（同日）**：单 tick 2～2.6 s 停顿的机制 = **搜索的墙钟预算 `DEFAULT_MAX_MILLIS = 3_000 ms`
+  = 60 倍 tick 预算**（搜索跑在 tick 线程上）⇒ 已改为 **200 ms** + 超预算日志（见 `D-369`）。
+  另：我一度说"时间预算是死代码"也是**错的** —— 生效的是 `budget.timeBudgetExhausted(elapsed)`，
+  死的是没被调用的 `SearchBudget.isExpired()`。**两次自我订正都记在 `D-369 §三`。**
 - ⇒ **掉刻 = 多个超预算子系统之和**，量级最大的是 **选择(~100-126 ms) + 菜单构建(≥2×)**；
   真机 `候选=91` 时选择项还会更大。**不是单一元凶**（与 §2 的"不许猜"一致）。
 

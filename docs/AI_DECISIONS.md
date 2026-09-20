@@ -15748,3 +15748,54 @@ IllegalArgumentException: PLACE_STEP_AND_TRAVERSE requires one cardinal step, dy
 更精确的做法是**用 Job 的写入计数当世界版本**（`WriteAudit`/`SelfWriteConsistency`）⇒ 待接；
 ② `D-367` 测到**首次**规划器调用明显更贵（冷启动 99 ms vs 热 26 ms）⇒ 摊销已把它摊到"每个新候选一次"，
 但还可进一步（预热/共享成本场：选择期的 Dijkstra 与规划器内部的站位点搜索**是同一个计算**，目前算了两遍）。
+
+### D-369：**搜索的时间预算必须与 tick 预算同量级**（真机掉刻 2～2.6 s 的机制）2026-09-20
+
+#### 一、事实链（离线可复核）
+1. Alice 的路径搜索 **跑在服务器 tick 线程上**（`PathRetryRunner.tick → PathSession.tick`，见 2026-09-20 崩服栈）；
+   tick 预算 = **50 ms**。
+2. `CorePathPlanner.DEFAULT_MAX_MILLIS` 原值 **3_000 ms**（= **60 倍** tick 预算）⇒ 单次搜索可以**合法地**
+   独占服务器近 3 秒（`SearchBudget.timeBudgetExhausted` 逐节点生效，**不是** bug —— 见 §三订正）。
+3. 真机三次 `Can't keep up! … Running 2035 / 2632 / 2232 ms or 40 / 52 / 44 ticks behind`
+   （21:30:53 / 21:31:11 / 21:31:30）**正落在这个上限之下**；对应日志里成片的
+   `descend_precondition=7万+ status=SEARCH_LIMIT` + `[PathRetry] … nodes=20000`。
+4. 无头电池（CORE，4800+ tick）实测全部搜索 **≤ 9 ms**（`ms=0`×73 · `ms=1`×15 · 3–9 ms×5）
+   ⇒ 正常挖掘/短途路径远用不到大预算。
+
+#### 二、改法（`DEFAULT_MAX_MILLIS: 3_000 → 200`）
+- **200 ms = 4 倍 tick 预算** ⇒ 单 tick 卡顿上限**可量化**地从 ~2.6 s 降到 ≤0.2 s；
+- 超预算的结局沿用既有机制：`SEARCH_LIMIT`（或 `PARTIAL` 前缀）—— `D-076`：`SEARCH_LIMIT ≠ UNREACHABLE`，
+  且 `PathRetry` 有重试 ⇒ **不是**把"没算完"谎报成"到不了"（`budgetNote` 现在带 `why=time|nodes`）；
+- 新增 **超 tick 预算日志**（`elapsed ≥ 50 ms` 才打一条 `[Search] 超 tick 预算…nodes=… goal=…`）
+  ⇒ 以后"预算该调紧还是调松"有**数据来源**，不靠猜。
+
+#### 三、⚠️ 我在本轮**两次自我订正**（都记下来）
+- **"每 PROGRESS 事件 ≥2 次菜单构建" —— 错**。`GoalDirector:533` 每次决策**只建一次**菜单并在 536/591 复用；
+  `BotStateReport:29` 是**右键物品**的按需路径，与决策**不是同一条路径**。我上一轮只看到两个调用点就断言重复
+  ⇒ **"菜单同 tick 复用"这个待办作废**（31 ms/事件仍是真的，但不是重复）。
+- **"时间预算是死代码" —— 错**。真正的检查是 `budget.timeBudgetExhausted(elapsed)`（在扩展循环里逐节点生效）；
+  没人用的是**另一个方法** `SearchBudget.isExpired()`。我先 grep `isExpired|maxMillis()` 就下了结论
+  ⇒ **教训：断言"某机制不存在"之前必须按"所有可能的入口名"搜一遍，或直接读循环**。
+
+#### 四、内核对照（`D-036`）
+Baritone **把搜索放在独立线程**：`baritone/behavior/PathingBehavior.java:469 findPathInNewThread`
+（并要求 `context.safeForThreadedUse`，另有 `primaryTimeoutMS` / `failureTimeoutMS` 两个超时设置）
+⇒ **线程化才是根治**。Alice 目前同步在 tick 线程上读实时 `ServerLevel` ⇒ 线程化需要**线程安全的世界视图**
+（架构级改动）⇒ **登记为待办**，本值只是把单 tick 卡顿限制在可接受范围。
+
+#### 五、判据与反向对照
+- **夹具**（`partial_search`，BASELINE 档）：`SearchBudget.of(0, 1L)` ⇒ ① `status != REACHED`
+  ② `elapsedMillis ≤ 1 + 50`。**行为对照**：去掉强制点 ⇒ `status` 从 `PARTIAL` 变 `REACHED` ⇒ **红**
+  （实测三态：PASS → FAIL(REACHED) → PASS）。
+- **门禁** `rule_search_budget_is_tick_aware`（24 条）：① 默认值 ≤ 250 ms（涨回去 = 卡顿回归 + 要求登记理由）；
+  ② 必须存在**精确的强制条件** `budget.nodeBudgetExhausted(expandedNodes) || budget.timeBudgetExhausted(elapsed)`；
+  ③ 必须有超预算日志。**3 注入全红**。
+  ⚠️ 其中②**第一次没红**：我原来只查标识符 `budget.timeBudgetExhausted(`，而**我自己新加的"记账"用途**
+  （`budgetNote` 里的同一调用）把它满足了 ⇒ 收紧为"精确强制表达式"才抓住
+  （**本会话第三次「判据太弱」**：`D-366` 方法定义 vs 调用点、`D-368` 索引 0 vs 排序第一、本条标识符 vs 强制点
+  ⇒ 通用教训：**断言要钉住"起作用的那个表达式/调用点"，不要钉标识符出现**）。
+
+#### 六、仍未做
+- **线程化搜索**（Baritone 式；需线程安全世界视图）—— 根治，架构级，待与用户讨论；
+- 预算是否还能更紧（如 50 ms）：等 `[Search] 超 tick 预算` 日志积累真实数据再定；
+- 选择期 Dijkstra 与规划器内部站位点搜索**重复计算**（`D-368 §五` 同款待办）。

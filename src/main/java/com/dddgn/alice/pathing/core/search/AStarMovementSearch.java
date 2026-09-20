@@ -28,6 +28,9 @@ import java.util.Map;
 public final class AStarMovementSearch {
     public static final String PLANNER_NAME = "alice.astar.movement.v1";
 
+    /** 单次搜索"独占一个 tick"的告警阈值（tick 预算 50 ms；`D-369` 调参数据靠这条日志）。 */
+    private static final long TICK_BUDGET_WARN_MILLIS = 50L;
+
     /** 加权 A* 系数（越大越贪心）；第 0 项用于最终路径。 */
     private static final double[] COEFFICIENTS = {1.5D, 2.0D, 2.5D, 3.0D, 4.0D, 5.0D, 10.0D};
 
@@ -229,8 +232,18 @@ public final class AStarMovementSearch {
         }
 
         long elapsed = elapsed(startMillis);
+        if (elapsed >= TICK_BUDGET_WARN_MILLIS) {
+            // `D-369`：本搜索**独占了一个 tick**（tick 预算 50 ms）。真机三次 `Can't keep up!`（2035/2632/2232 ms）
+            // 就是这类搜索。这条日志是"把默认预算调紧/调松"的**唯一数据来源**（超阈值才打，不刷屏）。
+            com.dddgn.alice.log.BotLog.info("[Search] 超 tick 预算（{}ms ≥ {}ms · tick 预算 50ms）"
+                            + "nodes={} open={} goal={} ⇒ 该次搜索独占了这个 tick",
+                    elapsed, TICK_BUDGET_WARN_MILLIS, expandedNodes, openSet.size(),
+                    goal.goalFoot().toShortString());
+        }
         if (budgetExhausted) {
-            String budgetNote = "budget exhausted (maxNodes=" + budget.maxNodes() + ", maxMillis="
+            String budgetNote = "budget exhausted (why="
+                    + (budget.timeBudgetExhausted(elapsed) ? "time" : "nodes")
+                    + " maxNodes=" + budget.maxNodes() + ", maxMillis="
                     + budget.maxMillis() + ", openSet=" + openSet.size() + ", best=" + bestSoFar[0].cost
                     + ", skipped_unloaded=" + skippedUnloaded + " skipped_border=" + skippedBorder
                     + " skipped_forbidden=" + skippedForbidden

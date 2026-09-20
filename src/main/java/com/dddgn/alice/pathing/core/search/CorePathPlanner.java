@@ -12,7 +12,30 @@ import net.minecraft.server.level.ServerLevel;
  */
 public final class CorePathPlanner {
     public static final int DEFAULT_MAX_NODES = 20_000;
-    public static final long DEFAULT_MAX_MILLIS = 3_000L;
+    /**
+     * 搜索的**墙钟毫秒上限**（`D-369`，2026-09-20）。
+     *
+     * <p>⚠️ **这个值直接决定"服务器会不会卡"**：Alice 的路径搜索**跑在服务器 tick 线程上**
+     * （`PathRetryRunner.tick → PathSession.tick`，见 2026-09-20 崩服栈），而 tick 预算是 **50 ms**。
+     * 原值 `3_000L` = **60 倍 tick 预算** ⇒ 单次搜索可以合法地独占服务器近 3 秒 ——
+     * 真机实测的三次 `Can't keep up! … Running 2035 / 2632 / 2232 ms or 40 / 52 / 44 ticks behind`
+     * （2026-09-20 21:30:53 / 21:31:11 / 21:31:30）正落在这个上限之下。
+     *
+     * <p>**为什么是 200 ms**：① 无头电池（CORE，4800+ tick）里全部搜索实测 ≤ 9 ms
+     * （`[PathRetry] plan … ms=` 分布：0 ms ×73、1 ms ×15、3–9 ms ×5）⇒ 正常挖掘/短途路径远用不到 200 ms；
+     * ② 200 ms = 4 倍 tick 预算 = **卡顿上限可量化**（从 ~2.6 s 降到 ≤0.2 s）；
+     * ③ 超预算的诚实结果是既有的 `SEARCH_LIMIT`/`PARTIAL`（`D-076`：`SEARCH_LIMIT ≠ UNREACHABLE`，
+     * 有 `PathRetry` 重试），**不是**把"没算完"谎报成"到不了"。
+     *
+     * <p>⚠️ **内核对照（`D-036`）**：Baritone **把搜索放到独立线程**
+     * （`baritone/behavior/PathingBehavior.java:469 findPathInNewThread`，并断言
+     * `context.safeForThreadedUse`），另有 `primaryTimeoutMS` / `failureTimeoutMS`。
+     * 线程化才是根治（Alice 目前同步在 tick 线程上读实时 `ServerLevel` ⇒ 线程化需要线程安全的世界视图，
+     * 属架构级改动）⇒ 本值只是**把"单 tick 卡顿"限制在可接受范围**，线程化仍登记为待办。
+     *
+     * <p>调紧调松的唯一依据 = `[Search] 超 tick 预算` 日志（超 50 ms 才打一条，给调参留数据）。
+     */
+    public static final long DEFAULT_MAX_MILLIS = 200L;
 
     /** D-250/②′：计划自洽性重搜上限（每次禁掉一条"清空者"边）。 */
     private static final int MAX_SELF_WRITE_RETRIES = 3;

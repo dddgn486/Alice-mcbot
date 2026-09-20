@@ -19,6 +19,7 @@ import pathlib
 import re
 import sys
 
+SEARCH_BUDGET_CEILING_MILLIS = 250
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CORE = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing" / "core"
 
@@ -1389,6 +1390,52 @@ def rule_movement_contract_agreement():
     return problems
 
 
+def rule_search_budget_is_tick_aware():
+    """`D-369` **搜索的时间预算必须与 tick 预算同量级**（2026-09-20 真机掉刻的机制）。
+
+    事实链：① Alice 的搜索**跑在服务器 tick 线程上**（`PathRetryRunner.tick → PathSession.tick`，
+    2026-09-20 崩服栈可见）；② tick 预算 = **50 ms**；③ `CorePathPlanner.DEFAULT_MAX_MILLIS` 原值
+    **3_000 ms = 60 倍预算** ⇒ 单次搜索可合法独占服务器近 3 秒；④ 真机三次
+    `Can't keep up! … Running 2035 / 2632 / 2232 ms`（21:30:53 / 21:31:11 / 21:31:30）正落在该上限之下；
+    ⑤ 无头电池（CORE）里全部搜索实测 ≤ 9 ms ⇒ 正常路径用不到大预算。
+
+    内核对照（`D-036`）：Baritone 把搜索**放独立线程**（`PathingBehavior.java:469 findPathInNewThread` +
+    `safeForThreadedUse` 断言，另有 `primaryTimeoutMS`/`failureTimeoutMS`）⇒ 线程化才是根治；
+    Alice 目前只能**把默认预算压到 tick 量级**（本规则守的就是这个值不许悄悄涨回去）。
+
+    断言（改任一处 ⇒ 红）：
+    ① `DEFAULT_MAX_MILLIS` ≤ {@link #SEARCH_BUDGET_CEILING_MILLIS}（涨回去 = 单 tick 卡顿回归）；
+    ② 搜索循环必须**真的检查**时间预算（`budget.timeBudgetExhausted(`）；
+    ③ 超 tick 预算必须有日志（`TICK_BUDGET_WARN_MILLIS` + `[Search] 超 tick 预算`）⇒ 调参有数据，
+       否则"该调紧还是调松"只能靠猜。
+    """
+    problems = []
+    planner = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing" / "core"
+               / "search" / "CorePathPlanner.java").read_text(encoding="utf-8")
+    search = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing" / "core"
+              / "search" / "AStarMovementSearch.java").read_text(encoding="utf-8")
+    match = re.search(r"DEFAULT_MAX_MILLIS\s*=\s*([0-9_]+)L", planner)
+    if not match:
+        problems.append("找不到 `DEFAULT_MAX_MILLIS` 的常量声明 ⇒ 搜索墙钟预算不可见（调度器可能无界）")
+    else:
+        value = int(match.group(1).replace("_", ""))
+        if value > SEARCH_BUDGET_CEILING_MILLIS:
+            problems.append("`DEFAULT_MAX_MILLIS=%d ms` 超过 %d ms 上限 ⇒ 搜索跑在 tick 线程上（预算 50 ms），"
+                            "单次搜索最多可独占服务器 ~%d 个 tick ⇒ 真机 `Can't keep up! 2035/2632/2232 ms` "
+                            "会原样回来；要调大必须在 `docs/AI_DECISIONS.md` 登记并说明为何不要线程化"
+                            % (value, SEARCH_BUDGET_CEILING_MILLIS, value // 50))
+    # ⚠️ 必须断言**强制点本身**，不能只找标识符：`AStarMovementSearch` 里还有一处"记账"用途
+    # （`budgetNote` 里 `budget.timeBudgetExhausted(elapsed) ? "time" : "nodes"`）⇒ 只查标识符会被它满足，
+    # 反向对照实测**没红**（本会话第三次「判据太弱」）。这里钉住**那条 if 条件**。
+    if "budget.nodeBudgetExhausted(expandedNodes) || budget.timeBudgetExhausted(elapsed)" \
+            not in code_only(search):
+        problems.append("搜索循环没有检查时间预算（`budget.timeBudgetExhausted(`）⇒ 墙钟预算形同虚设"
+                        "（节点预算挡不住「单点很贵」的搜索）")
+    if "TICK_BUDGET_WARN_MILLIS" not in search or "[Search] 超 tick 预算" not in search:
+        problems.append("超 tick 预算没有日志 ⇒ 默认预算该调紧还是调松没有数据来源（只能靠猜）")
+    return problems
+
+
 def rule_value_is_only_a_cost_component():
     """`D-329` §2.2 成本模型（用户 2026-09-20 三条裁定）：
     **「矿物价值优先级」只能是成本函数里的一个可配置分量**，不是独立模型、不是硬优先。
@@ -1586,6 +1633,7 @@ def main() -> int:
     support = rule_support_and_cluster_order()
     inplace = rule_mine_in_place_before_walk()
     contract = rule_movement_contract_agreement()
+    searchbudget = rule_search_budget_is_tick_aware()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -1660,13 +1708,15 @@ def main() -> int:
         print(f"[D-365·视线内就地挖] {line}")
     for line in contract:
         print(f"[D-366·移动契约一致] {line}")
+    for line in searchbudget:
+        print(f"[D-369·搜索预算同 tick 量级] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 
