@@ -1436,6 +1436,42 @@ def rule_search_budget_is_tick_aware():
     return problems
 
 
+def rule_standing_point_detour_bounded():
+    """`D-370` **不许绕远**（用户 2026-09-20 亲眼所见：「跑到了很远的第一个同层可站点，然后水平挖过去」）。
+
+    真机证据：bot 在自挖沟底 `461,77,318`、目标 `463,79,317`（高 2 格）⇒ 规划器给
+    `standingFoot=462,79,317`（**站位格离目标只 1 格**）但 **`pathSize=11`** ⇒
+    **病根是"到达路径长度"，不是站位格远近**（同层石壳几何实测站位格距离 = 1、pathSize = 3–4）。
+
+    断言（改任一处 ⇒ 红）：
+    ① 夹具必须断言**到达路径有界**（`pathSize` 与上限的比较）—— 没有这条，"绕远"就没有判据；
+    ② 夹具必须断言**站位格紧邻目标**（距离 ≤ 2 格）；
+    ③ **夹具场景必须物理合法**：坑底几何里**头位格也要清成空气**
+       （第一版只清脚位 ⇒ 眼睛嵌在石头里 ⇒ `LineOfSightChecker` **假阳性**，实测 `mode=CURRENT pathSize=0`
+       看着"完美"其实是非法状态下的错判）。
+    """
+    problems = []
+    fixture = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
+               / "MineMenuCheckTask.java").read_text(encoding="utf-8")
+    marker = "private void runStandingPointChoiceChecks()"
+    if marker not in fixture:
+        return ["找不到 `runStandingPointChoiceChecks`（R3 站位点/路径夹具被删？）—— "
+                "真机「目标 2 格远却 11 段隧道」就没有判据了"]
+    body = method_body(fixture, marker)
+    # ⚠️ 必须查**去掉注释后**的代码：注入把调用注释掉（`// runStandingPointChoiceChecks();`）时，
+    # 单纯查字符串仍然命中 ⇒ 反向对照实测**没红**（本会话第四次「判据太弱」，同 `D-366` 一类）。
+    if "runStandingPointChoiceChecks();" not in code_only(fixture):
+        problems.append("`runStandingPointChoiceChecks()` 没有被调用（夹具在但不跑 = 等于没有）")
+    if "path().movements().size() <= 6" not in code_only(body):
+        problems.append("缺少「到达路径必须有界（≤6 段）」的判据 ⇒ 用户看到的「绕远」没有断言守着")
+    if "distSqr(" not in code_only(body):
+        problems.append("缺少「站位格必须紧邻目标（≤2 格）」的判据")
+    if "pitFoot.above(2)" not in code_only(body):
+        problems.append("坑底几何**没有清头位格** ⇒ 眼睛嵌在方块里会让 `LineOfSightChecker` 假阳性"
+                        "（实测出现 `mode=CURRENT pathSize=0` 的错判）⇒ 夹具场景必须物理合法")
+    return problems
+
+
 def rule_value_is_only_a_cost_component():
     """`D-329` §2.2 成本模型（用户 2026-09-20 三条裁定）：
     **「矿物价值优先级」只能是成本函数里的一个可配置分量**，不是独立模型、不是硬优先。
@@ -1634,6 +1670,7 @@ def main() -> int:
     inplace = rule_mine_in_place_before_walk()
     contract = rule_movement_contract_agreement()
     searchbudget = rule_search_budget_is_tick_aware()
+    detour = rule_standing_point_detour_bounded()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -1710,13 +1747,15 @@ def main() -> int:
         print(f"[D-366·移动契约一致] {line}")
     for line in searchbudget:
         print(f"[D-369·搜索预算同 tick 量级] {line}")
+    for line in detour:
+        print(f"[D-370·不许绕远] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not detour)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 不许绕远={len(detour)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

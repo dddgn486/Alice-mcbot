@@ -194,6 +194,7 @@ public class MineMenuCheckTask implements Task {
         // ⭐⭐ `D-363` **break 分量**（成本场估算 → top-K 精算）—— 放在最后：它要临时改场景（给矿加盖子）
         runBreakCostChecks();
         runRefineAmortizationChecks();
+        runStandingPointChoiceChecks();
         // ⭐⭐ `D-364` **垫方块只在「掉落物真会丢」时** —— 同样放最后（临时改场景，用完复位）
         runSupportTriggerChecks();
         // ⭐⭐ `D-365` **目标在视线内就地挖**（用户 2026-09-20 要求）
@@ -436,6 +437,102 @@ public class MineMenuCheckTask implements Task {
                 failCalls.get() <= 4 && failures.coveredCount(anchors) == 4);
         check("摊销精算④：精算失败的候选保持「估不出」（没有被当成「不能挖」）",
                 !Double.isFinite(failures.estimate(bot, amortSpec, anchors).travel(anchors.get(0))));
+    }
+
+    /**
+     * ③ `D-370` **R3：到达路径长度**（用户 2026-09-20 亲眼所见的那一半"绕远"）。
+     *
+     * <p>真机口径（用户原话）：「他的结果**不是挖斜着的楼梯，而是跑到了很远的第一个同层可站点，
+     * 然后水平挖过去**」；探针证据：bot 在自挖沟底 `461,77,318`、目标 `463,79,317`（**高 2 格**），
+     * 规划器给出 `standingFoot=462,79,317`（站位格离目标只 1 格）**但 `pathSize=11`** ⇒
+     * **病根是"到达路径长度"，不是站位格远近**。
+     *
+     * <p>本组用真机同形几何（bot 在坑底、目标在**上方 2 格**、周围是岩体）断言两条：
+     * ① 必须规划成功；② **到达路径有界**（≤6 段；真机那种 2 格远却 11 段 = 绕远）。
+     * 另附同层石壳几何（已验证可规划）对照"站位格确实就近"这一事实，防止把病根记错。
+     */
+    private void runStandingPointChoiceChecks() {
+        final net.minecraft.server.level.ServerLevel level = bot.serverLevel();
+        final var server = level.getServer();
+        try {
+            // ---- 几何 A：真机同形（bot 在坑底，目标在上方 2 格，四周岩体）----
+            final BlockPos ore = new BlockPos(58, 63, 128);
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    for (int dz = -1; dz <= 1; dz++) {
+                        level.setBlockAndUpdate(ore.offset(dx, dy, dz),
+                                net.minecraft.world.level.block.Blocks.STONE.defaultBlockState());
+                    }
+                }
+            }
+            level.setBlockAndUpdate(ore,
+                    net.minecraft.world.level.block.Blocks.IRON_ORE.defaultBlockState());
+            // 坑：bot 站在 ore.below(2)，脚位/头位是空气，脚下实心
+            // ⚠️ 夹具纪律：场景必须**物理合法** —— 脚位**和头位**都必须是空气。
+            // 第一版只清了脚位，没清头位 ⇒ 眼睛嵌在石头里 ⇒ `LineOfSightChecker` **假阳性**
+            // （实测 `mode=CURRENT pathSize=0`，看着"完美"其实是非法状态下的错判）。
+            final BlockPos pitFoot = ore.below(2);
+            level.setBlockAndUpdate(pitFoot, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+            level.setBlockAndUpdate(pitFoot.above(), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+            level.setBlockAndUpdate(pitFoot.above(2), net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+            level.setBlockAndUpdate(pitFoot.below(), net.minecraft.world.level.block.Blocks.STONE.defaultBlockState());
+            // 坑壁：让"绕远"只能靠垂直动作解决（真机里 bot 就在自挖的 1 格宽沟里）
+            for (BlockPos around : java.util.List.of(pitFoot.offset(1, 0, 0), pitFoot.offset(-1, 0, 0),
+                    pitFoot.offset(0, 0, 1), pitFoot.offset(0, 0, -1))) {
+                level.setBlockAndUpdate(around, net.minecraft.world.level.block.Blocks.STONE.defaultBlockState());
+                level.setBlockAndUpdate(around.above(), net.minecraft.world.level.block.Blocks.STONE.defaultBlockState());
+            }
+            bot.teleportTo(level, pitFoot.getX() + 0.5D, pitFoot.getY(), pitFoot.getZ() + 0.5D,
+                    java.util.Set.of(), bot.getYRot(), bot.getXRot());
+
+            var pitResult = new com.dddgn.alice.task.mining.MiningPlanner().plan(bot, ore);
+            var pitPlan = pitResult.plan();
+            String pitFacts = "【坑底几何】target=" + ore.toShortString() + " startFoot="
+                    + (pitPlan == null ? "-" : pitPlan.startFoot().toShortString())
+                    + " standingFoot=" + (pitPlan == null ? "-" : pitPlan.standingFoot().toShortString())
+                    + " mode=" + (pitPlan == null ? "-" : pitPlan.mode())
+                    + " pathSize=" + (pitPlan == null ? -1 : pitPlan.path().movements().size())
+                    + " pathStatus=" + (pitPlan == null ? "-" : pitPlan.path().status())
+                    + " failure=" + pitResult.failureReason();
+            BotLog.info("[MineMenu] D-370 判别性事实（R3）：{}", pitFacts);
+            check("R3 路径①：bot 在坑底、目标在上方 2 格时必须规划成功（" + pitFacts + "）",
+                    pitResult.success());
+            if (pitPlan != null) {
+                check("R3 路径②：到达路径必须**有界**（≤6 段，实测 "
+                                + pitPlan.path().movements().size()
+                                + "；真机那种「目标 2 格远却 11 段隧道」= 用户看到的绕远）",
+                        pitPlan.path().movements().size() <= 6);
+            }
+
+            // ---- 几何 B：同层石壳（已验证可规划）⇒ 记录"站位格就近"这一事实，防止病根记错 ----
+            final BlockPos flatOre = new BlockPos(52, 63, 128);
+            for (BlockPos pos : java.util.List.of(flatOre.offset(1, 0, 0), flatOre.offset(-1, 0, 0),
+                    flatOre.offset(0, 0, 1), flatOre.offset(0, 0, -1), flatOre.above(), flatOre.below())) {
+                level.setBlockAndUpdate(pos,
+                        net.minecraft.world.level.block.Blocks.STONE.defaultBlockState());
+            }
+            level.setBlockAndUpdate(flatOre,
+                    net.minecraft.world.level.block.Blocks.IRON_ORE.defaultBlockState());
+            bot.teleportTo(level, OreCourseAnchor.START_FOOT.getX() + 0.5D,
+                    OreCourseAnchor.START_FOOT.getY(), OreCourseAnchor.START_FOOT.getZ() + 0.5D,
+                    java.util.Set.of(), bot.getYRot(), bot.getXRot());
+            var flatResult = new com.dddgn.alice.task.mining.MiningPlanner().plan(bot, flatOre);
+            var flatPlan = flatResult.plan();
+            BotLog.info("[MineMenu] D-370 判别性事实（R3·同层对照）：target={} standingFoot={} mode={} pathSize={}",
+                    flatOre.toShortString(), flatPlan == null ? "-" : flatPlan.standingFoot().toShortString(),
+                    flatPlan == null ? "-" : flatPlan.mode(),
+                    flatPlan == null ? -1 : flatPlan.path().movements().size());
+            if (flatPlan != null) {
+                double distance = Math.sqrt(flatPlan.standingFoot().distSqr(flatOre));
+                check("R3 站位格：同层石壳几何下站位格必须紧邻（≤2 格，实测 "
+                                + String.format(java.util.Locale.ROOT, "%.2f", distance) + "）",
+                        distance <= 2.0D);
+            }
+        } finally {
+            server.getCommands().performPrefixedCommand(
+                    server.createCommandSourceStack().withSuppressedOutput(),
+                    "function alice_test:ore_course_terrain");
+        }
     }
 
     private void runBreakCostChecks() {
