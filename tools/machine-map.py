@@ -42,6 +42,7 @@ import argparse
 import fnmatch
 import glob
 import os
+import pathlib
 import re
 import shutil
 import subprocess
@@ -79,6 +80,12 @@ UPSTREAMS = {
 }
 
 DEFAULT_MODS_DIR = "/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10/mods"
+# ⭐ `D-359`：**被临时禁用的模组仍然算"上游能力存在"**（jar 还在磁盘上，只是 Forge 不加载）。
+# 2026-09-20 为真机挖矿实测把 `[矿石挖掘] oreexcavation-*.jar` 移进 `mods-disabled/`，
+# 于是本检查当场报 `INCOMPLETE：缺上游 jar ⇒ 双向覆盖断言本轮未执行`（warning=1）。
+# ⇒ 复核目录 = `mods/` **加上** `mods-disabled/`（同级的禁用目录）：断言照旧执行，也不至于
+# 因为"临时禁用"就悄悄丢掉一条覆盖断言（那正是这条工具存在的意义）。
+DEFAULT_DISABLED_MODS_DIR = str(pathlib.Path(DEFAULT_MODS_DIR).parent / "mods-disabled")
 
 
 def strip_comments(text: str) -> str:
@@ -500,7 +507,13 @@ def find_jar(mods_dir: Path, pattern: str) -> Path | None:
     （实测：`[矿石挖掘] oreexcavation-1.13.174.jar`），锚定在开头的 glob 会**静默找不到**它
     （症状 = 那句断言进 `unverified`，容易被读成"环境问题"而不是"我们匹配错了"）。
     """
-    candidates = sorted(glob.glob(str(mods_dir / pattern))) + sorted(glob.glob(str(mods_dir / ("*" + pattern))))
+    candidates = (sorted(glob.glob(str(mods_dir / pattern)))
+                  + sorted(glob.glob(str(mods_dir / ("*" + pattern)))))
+    # 被临时禁用的模组（`mods-disabled/`）也要能找到：能力存在性没变，变的只是"加载不加载"
+    disabled = pathlib.Path(DEFAULT_DISABLED_MODS_DIR)
+    if disabled.is_dir():
+        candidates += (sorted(glob.glob(str(disabled / pattern)))
+                       + sorted(glob.glob(str(disabled / ("*" + pattern)))))
     return next((Path(p) for p in candidates if "sources" not in p), None)
 
 

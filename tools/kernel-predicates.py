@@ -1165,6 +1165,42 @@ def rule_value_is_only_a_cost_component():
     return problems
 
 
+def rule_world_refused_is_attributed():
+    """`D-359`（2026-09-20，为真机地形实测补）：**被世界侧拒绝 ⇒ 顶层码必须说出来**。
+
+    依据：`D-323` 附注一那批真机日志（FTB 认领拦下 4 次破坏）。第一层坑已修（"没发生的破坏被记成成功"
+    ⇒ `BlockBreakSession` 用 `BlockState` 身份比对，报 `REFUSED`）；**第二层**是归因：
+    若每次尝试都被拒而顶层只按"有没有挖到"算 ⇒ 退化成 `no_reachable_candidate` ⇒
+    真机里读成"这里没矿"，而真相是"世界不许我们改"（处置完全不同：换目标 vs 换地方/要权限）。
+
+    断言：① `WORLD_REFUSED_CODES` 家族在（含 `BREAK_REFUSED`）；② 归因里 `world_refused` 分支在；
+    ③ 归因是**纯函数**且被 `deriveTopLevelReason` 调用（夹具喂得了合成码，接线也钉住）；
+    ④ 触发时有**响亮**日志（真机里这是判断"换地方还是换目标"的唯一依据）。
+    """
+    problems = []
+    mine = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "mine"
+            / "MineJob.java").read_text(encoding="utf-8")
+    family = method_body(mine, "private static final java.util.Set<String> WORLD_REFUSED_CODES = "
+                               "java.util.Set.of(")
+    if not family or "BREAK_REFUSED" not in family:
+        problems.append("`WORLD_REFUSED_CODES` 家族不在（或缺 `BREAK_REFUSED`）⇒ 被拒会退化成『没矿』")
+    body = method_body(mine, "public static String attributeFailure(String base, "
+                             "java.util.List<String> attemptCodes) {")
+    if not body:
+        problems.append("归因不是纯函数 `attributeFailure(String, List<String>)`（夹具喂不了合成码）")
+    else:
+        if '"world_refused"' not in body:
+            problems.append("归因里没有 `world_refused` 分支")
+        if "attemptFailures" in body:
+            problems.append("纯函数里读了实例字段 `attemptFailures` ⇒ 不再是纯函数")
+    derived = method_body(mine, "private String deriveTopLevelReason(String base) {")
+    if not derived or "attributeFailure(" not in derived:
+        problems.append("`deriveTopLevelReason` 没有走纯函数（接线断了 ⇒ 判据测的不是生产路径）")
+    if "world_refused\".equals(terminalReason)" not in mine:
+        problems.append("触发 `world_refused` 时没有响亮日志（真机里分不清『换地方』还是『换目标』）")
+    return problems
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
@@ -1202,6 +1238,7 @@ def main() -> int:
     intent = rule_intent_before_viability()
     clusters = rule_cluster_is_pure_geometry()
     value = rule_value_is_only_a_cost_component()
+    refused = rule_world_refused_is_attributed()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -1260,13 +1297,15 @@ def main() -> int:
         print(f"[D-329·簇只做几何] {line}")
     for line in value:
         print(f"[D-329·价值只是成本分量] {line}")
+    for line in refused:
+        print(f"[D-359·世界侧拒绝要归因] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

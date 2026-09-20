@@ -423,12 +423,23 @@ public final class MineJob implements Job {
      * 本身就是明确原因，**不许被逐目标理由盖掉**（与 `LumberJob` 同一条纪律）。
      */
     private String deriveTopLevelReason(String base) {
-        if (!"no_reachable_candidate".equals(base) || attemptFailures.isEmpty()) {
+        return attributeFailure(base, attemptFailures.stream().map(AttemptFailure::code).toList());
+    }
+
+    /**
+     * **顶层码归因**（`D-329` §6 `M4`）：基础码 + 逐次尝试的失败码 ⇒ 顶层码。**纯函数** ⇒ 夹具喂合成码即可。
+     *
+     * <p>⭐ 为什么 `world_refused` 这一族必须存在（`D-359`，为真机地形实测补）：破坏被**世界侧**拦下
+     * （FTB 认领 / 别的保护模组 / 事件层取消 / 冒险模式）时，每个目标都报 `BREAK_REFUSED`；
+     * 若顶层只按"有没有挖到"算 ⇒ 退化成 `no_reachable_candidate` ⇒ 真机里看到的是**"这里没矿"**，
+     * 而真相是**"世界不许我们改"**（`D-323` 附注一同一个坑的第二层：第一层是"没发生的破坏被记成成功"，
+     * 第二层是"被拒绝的破坏被记成没矿"）。两者的处置完全不同：前者换目标，后者换地方/要权限。
+     */
+    public static String attributeFailure(String base, java.util.List<String> attemptCodes) {
+        if (!"no_reachable_candidate".equals(base) || attemptCodes == null || attemptCodes.isEmpty()) {
             return base;
         }
-        java.util.Set<String> codes = attemptFailures.stream()
-                .map(AttemptFailure::code)
-                .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
+        java.util.Set<String> codes = new java.util.LinkedHashSet<>(attemptCodes);
         if (codes.stream().allMatch(TOOL_CODES::contains)) {
             return "tool_missing";
         }
@@ -437,6 +448,9 @@ public final class MineJob implements Job {
         }
         if (codes.size() == 1 && codes.contains("target_replaced")) {
             return "stale_target";
+        }
+        if (codes.stream().allMatch(WORLD_REFUSED_CODES::contains)) {
+            return "world_refused";
         }
         return base;
     }
@@ -449,6 +463,14 @@ public final class MineJob implements Job {
      * **写入预算耗尽类**理由码：这些码来自既有词表（`BreakAndEnterExecution` / `PlaceStepAndTraverseExecution` /
      * `DownwardExecution` / `PlaceTask` / 连锁挖掘），不是新造的。
      */
+    /**
+     * **世界侧拒绝**（`D-359`）：破坏被保护层/事件层拦下。`D-323` 附注一那批真机日志里，
+     * `BlockBreakSession` 报 `REFUSED`、`MineBlockRunner` 包装成 `BREAK_REFUSED`；
+     * `world_unchanged`/`REFUSED` 也收进来，免得换个包装就漏归因。
+     */
+    private static final java.util.Set<String> WORLD_REFUSED_CODES = java.util.Set.of(
+            "BREAK_REFUSED", "world_unchanged", "REFUSED");
+
     private static final java.util.Set<String> BUDGET_CODES = java.util.Set.of(
             "WRITE_BUDGET_EXHAUSTED", "write_budget_exhausted", "prod_budget_exhausted");
 
@@ -464,6 +486,11 @@ public final class MineJob implements Job {
         // 决策层会据此**换个地方挖**（错）；更严重的是任何"那就挖过去"的路径都等于拿搜索预算当写入授权（`D-076` 禁止）。
         boolean searchLimited = session != null && session.truncated();
         terminalReason = deriveTopLevelReason(shortfallReason(searchLimited, minedCount));
+        if ("world_refused".equals(terminalReason)) {
+            BotLog.warn("[Job] mine 世界侧拒绝（{}/{} 次破坏全被拦下：保护层/认领/事件取消）"
+                            + " ⇒ 换站位或重试都没有意义；要么换地方、要么拿权限（`D-359`）",
+                    attemptFailures.size(), attemptFailures.size());
+        }
         if (searchLimited) {
             // 如实报"扫到哪了"，并明确**没有**对世界下"没矿"的结论
             BotLog.warn("[Job] mine 搜索受限（未扫完，不许当成没矿）：visited={}/{} 读={} 未扫={}",

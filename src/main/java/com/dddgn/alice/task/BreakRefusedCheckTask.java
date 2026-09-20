@@ -175,7 +175,25 @@ public final class BreakRefusedCheckTask implements Task {
                         + "（否则这条谓词退化成「永远 true」）",
                 !MineTask.isHardTargetRefusal("BREAK_PROGRESS_TIMEOUT")
                         && !MineTask.isHardTargetRefusal("OUT_OF_REACH"));
-        advance(Phase.CONTROL);
+
+        // ⭐ `D-359`：**被拒绝**这件事必须一路走到**顶层码**，不许在 Job 层退化成"没矿"
+        // （`D-323` 附注一的第二层：第一层是"没发生的破坏被记成成功"，第二层是"被拒绝的破坏被记成没矿"）。
+        java.util.List<String> allRefused = java.util.List.of("BREAK_REFUSED", "BREAK_REFUSED");
+        String refusedTop = com.dddgn.alice.job.mine.MineJob.attributeFailure("no_reachable_candidate", allRefused);
+        check("⑥ 归因：**每一次**破坏都被世界侧拒绝 ⇒ 顶层码必须是 `world_refused`（实测 " + refusedTop
+                        + "）；不许退化成 `no_reachable_candidate`（那会让真机里读成『这里没矿』）",
+                "world_refused".equals(refusedTop));
+        String mixedTop = com.dddgn.alice.job.mine.MineJob.attributeFailure("no_reachable_candidate",
+                java.util.List.of("BREAK_REFUSED", "no_suitable_tool"));
+        check("⑥ 反向对照：混合原因（被拒 + 缺工具）⇒ **保持**总括码（不许挑一个家庭硬说成单一原因；实测 "
+                        + mixedTop + "）", "no_reachable_candidate".equals(mixedTop));
+        String budgetTop = com.dddgn.alice.job.mine.MineJob.attributeFailure("no_reachable_candidate",
+                java.util.List.of("WRITE_BUDGET_EXHAUSTED"));
+        check("⑥ 既有家庭没被新家庭抢走：全预算耗尽 ⇒ 仍是 `write_budget_exhausted`（实测 " + budgetTop + "）",
+                "write_budget_exhausted".equals(budgetTop));
+        String otherBase = com.dddgn.alice.job.mine.MineJob.attributeFailure("search_incomplete", allRefused);
+        check("⑥ 非总括基础码**逐字返回**（`search_incomplete` + 全被拒 ⇒ 仍是 " + otherBase
+                        + "；S3 的『搜索受限』不许被拒绝归因盖掉）", "search_incomplete".equals(otherBase));        advance(Phase.CONTROL);
     }
 
     /** ① 对照：普通生存模式挖掉自己放的泥土 ⇒ 必须真成功（否则后面的"被拒绝"判据没有意义）。 */

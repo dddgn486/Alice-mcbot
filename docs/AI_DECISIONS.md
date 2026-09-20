@@ -15288,3 +15288,57 @@ forceload → 建地板+矿 → 传送 → `scope.begin` → **真的破坏那�
    注入候选特征；**登记为下一步**，此前不许声称"成本模型完整"。
 3. **`CostOptimalPolicy` 的生产入口只在标签目标**：`/alice mine forge:ores` 这类；**电池里没有这一步**
    ⇒ 生产路径今天只有夹具覆盖（`IMPLEMENTED` + `COMPILES` + 夹具 `SERVER_TESTED`，生产 e2e **待测**）。
+
+### D-359：真机地形实测的**观测与归因前提**（2026-09-20，用户"先搞 A"当日落地）2026-09-20
+
+用户 2026-09-20 决定：数值层先走 **A = 真实地形实测**。本注记录为这次实测准备好的三件事（都不是"功能"，
+而是**让观测结果可信**的前提）。
+
+#### 一、环境净化：禁用连锁挖掘（用户当场要求："会污染数据"）
+`mods/` 里的 `[矿石挖掘] oreexcavation-1.13.174.jar` 已移到 `mods-disabled/`（附 `README.txt` 写明原因与恢复命令）。
+污染面（三步都对不上账）：
+1. **破坏数/配额**：bot 挖 1 格、模组连锁挖 N 格 ⇒ `mined/quota` 与 `WriteBudget` 记的不是同一件事；
+2. **簇判定**：聚簇由模组代劳 ⇒ `TargetClusters` 与簇消费**根本测不到**；
+3. **归因噪声**：被连锁挖掉的方块让 bot 的候选变成 `target_replaced`（假竞态）。
+⚠️ 同批排查出的**第二个污染源**：**FTB Chunks**。用户存档 `新的世界` 已有 **4 个认领区块**
+（overworld chunk (1,13)/(2,13)/(1,14)/(2,14) ⇒ 方块 x16..47, z208..239），且世界配置
+`fake_players: "check"` ⇒ **认领区内的假人破坏会被拒**。实测口径（`break_refused` 步骤，真 FTB Chunks 在场）：
+`③ FTB 拦下的破坏必须被拒绝：status=… 失败码=REFUSED` + `方块必须原地不动` ✓
+⇒ **测试区域必须落在未认领区块**，否则量的是"权限"不是"挖掘行为"。
+
+#### 二、观测工具：矿石透视资源包**带边框**（用户否决"完全隐形"，两轮迭代）
+- 位置 `[fixed-client]/resourcepacks/AliceXray`，生成器入库：`tools/gen-xray-pack.py`（可复现，透明 PNG 手写不依赖 PIL）。
+- **v2 口径（用户定稿）**：围岩 = **带边框的透明玻璃**（51 种围岩，按材质上色：灰=石、棕=土、黄=沙、红=下界岩、蓝=冰），
+  矿石**保持原样**。理由：完全隐形会**失去空间感**（分不清山体/空洞/墙面）。
+- ⭐ 「**相连部分无边框**」为什么能成立：相邻围岩之间的面在**引擎层**本来就被剔除
+  （遮挡判定来自 `BlockState`，与模型无关 ⇒ 覆盖模型不影响它）⇒ 边框只出现在**外表面**，内部不糊成网格。
+  ⚠️ **诚实标注**：完整的"只在外轮廓画边"需要 **CTM 类模组**（Forge 1.20.1 有 Fusion）——
+  纯资源包做不到**逐边**选贴图（`render_type` 能改渲染层，`cullface` 只能整面剔除）。
+- 启用：`options.txt` 的 `resourcePacks:["file/AliceXray"]`（已写入；⚠️ 若客户端正在运行，退出时会覆盖该文件
+  ⇒ 请在 选项→资源包 里勾选）。
+
+#### 三、归因缺口：**被世界侧拒绝 ⇒ 顶层码必须说出来**（本次补的实现）
+事实链：`BlockBreakSession`（`D-323` 附注一，真机发现）用 `BlockState` **身份比对**识别"世界没变" ⇒
+`fail("REFUSED")` ⇒ `MineBlockRunner` 包装成 `BREAK_REFUSED` ⇒ `MineTask` 视作**硬拒绝**（不再白重试 2 次）。
+**缺的是第二层**：`MineJob` 的顶层归因只有工具/预算/`target_replaced` 三族 ⇒ 一次作业里**每一次**都被拒时，
+顶层退化成 `no_reachable_candidate` ⇒ 真机里读成"**这里没矿**"，而真相是"**世界不许我们改**"（处置完全不同：
+前者换目标，后者换地方/要权限）。
+- 修法：`MineJob.attributeFailure(base, attemptCodes)`（**纯函数**）+ `WORLD_REFUSED_CODES
+  {BREAK_REFUSED, world_unchanged, REFUSED}` ⇒ 顶层码 `world_refused` + 响亮日志。
+- 判据（`break_refused` 步骤，CORE/MAIN，+4 条 ⇒ `checks=25`）：全被拒 ⇒ `world_refused` ·
+  **混合原因（被拒+缺工具）⇒ 保持总括码**（不许挑一个家庭硬说成单一原因）· 全预算耗尽仍 `write_budget_exhausted`
+  （新家庭没抢旧家庭）· 非总括基础码（`search_incomplete`）**逐字返回**（S3 的"搜索受限"不许被盖掉）。
+- 门禁 `rule_world_refused_is_attributed`（5 条断言）。**五种注入全红**：删家族 / 去分支 / 纯函数改读实例字段 /
+  断接线 / 去响日志。
+
+#### 四、"失败能不能显式且不卡死"的回答（事实，供真机测试参考）
+- **不卡死**有界：`GoalSpec.maxTicks` ⇒ `goal_timeout`；`MineTask` 每目标重试 ≤2（硬拒绝**不重试**）；
+  `M2` 长作业停滞 ⇒ `NO_PROGRESS`；电池侧每步还有 tick 预算。
+- **显式**：每次尝试都有码（`attemptFailures` 结构化，`D-353`/`D-354`）→ 顶层按家族归因
+  （工具/预算/被替换/世界侧拒绝/搜索受限）；终止理由进 `DecisionTrace` 与任务树。
+- ⚠️ **仍未知**：真实地形里的**第三方模组**（Mekanism/Thermal/Create 的机器、FTB 认领）会以何种方式拒绝或改变
+  bot 的写入 —— 已覆盖的是**破坏被拒**这条；**放置/容器**方向的第三方拒绝尚未在真机里量过（登记）。
+
+#### 五、验证
+`single:break_refused` PASS（25 判据，含 `FTB=REFUSED` 现场读数）· **CORE 51/51 PASS**（261s）·
+`check-all` pass=19 warning=0 failed=0。
