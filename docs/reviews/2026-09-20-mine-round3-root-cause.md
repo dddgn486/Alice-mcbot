@@ -199,3 +199,22 @@ java.lang.IllegalArgumentException: PLACE_STEP_AND_TRAVERSE requires one cardina
 `D-369` 标识符 vs 强制点 · `D-370` 字符串 vs 剥注释后的代码。
 **另 1 次 flaky 判据被 CORE 抓出**（`D-369 §六`：1 ms 预算的搜索本就 0–1 ms ⇒ 状态断言天然 flaky）。
 **通用纪律**：断言必须钉住**"起作用的那个表达式/调用点，且在剥掉注释后的代码里"**；**不许依赖环境快慢**。
+
+## 9. ⚠️ harness/场景异常登记（2026-09-21，**与本次源码改动无关**）
+
+**现象**：CORE 里 `lumber_job=FAIL`（`docs` 提交 `D-372` 时 50/51）。
+- 第一次：`terminal result=FAILED reason=partial_quota progress=trees 1/4`，开局 `candidates=1`（只有 `tree@22,64,218:trunk_too_tall` 被拒）。
+- 删掉 `run/world-pristine`（母本）重建后：`reason=no_reachable_candidate ticks=0`（连那 1 棵也没了）。
+
+**已排除"我的改动"** —— 按项目纪律做了 **working vs failing 版本对比**：
+`git stash push -u`（暂存本次全部改动）⇒ `./gradlew build` ⇒ 跑 `single:lumber_job` ⇒ **同样 FAIL，同一症状**
+（`picked=tree@33,64,208 … candidates=1`）⇒ 与 `D-372`/`D-371` 无关。
+
+**已核**：`tools/test-scenes/` 工作树干净（场景源未被本次会话改动）；`alice_test` 数据包**每轮都会被重装**
+（`headless-battery.sh:220-221` `rm -rf` + `cp -r`）；`trunk_too_tall` 是场景里**故意摆的对照大云杉**
+（`LumberCourseAnchor`：2×2 高云杉 77 原木，`TaskZoneCheckTask` 断言它必须被拒）⇒ 缺的是**几棵正常橡树**。
+
+**推断（未证，需用户确认）**：`run/world-pristine` 是从**用户的客户端存档**拷来的
+（`headless-battery.sh:38`）；若用户在自己的世界里动过伐木考场那片地（挖/建/放方块），场景函数重建地形后
+**那几棵树的位置/条件已不成立** ⇒ 候选缺失。**这属于 harness 场景鲁棒性**（场景函数应先清场再搭），
+不是 bot 的行为缺陷。⇒ 已登记，**等用户确认那片地的现状**再决定是修场景函数还是复位存档。

@@ -482,7 +482,7 @@ public final class LumberJob implements Job {
             return Task.Status.RUNNING;
         }
         phase = Phase.COLLECT;
-        collector = new CollectDropsTask(bot, tree.base(), scope, List.of(), false);
+        collector = new CollectDropsTask(bot, tree.base(), scope, List.of(), true);
         DecisionTrace.step(jobName(), "COLLECT", tree.base().toShortString(),
                 "chopped=" + choppedLogs + "/" + queue.size() + " failed=" + failedLogs.size()
                         + (clearedTotal > 0 ? " cleared=" + clearedTotal : "")

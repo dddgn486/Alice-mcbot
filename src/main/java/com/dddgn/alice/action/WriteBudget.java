@@ -63,6 +63,16 @@ public final class WriteBudget {
         public static final Caps DEFAULT =
                 new Caps(DEFAULT_MAX_BREAKS, DEFAULT_MAX_PLACES, DEFAULT_MAX_CONTAINER_WRITES);
 
+        /**
+         * **不设格数上限**（`D-372`，用户 2026-09-21 裁定：**保护区外世界修改全部放开**）。
+         *
+         * <p>区外不再用格数当闸门 —— 闸门改为**时间预算**（防空转）：任务/作业层的 tick 预算
+         * （`CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS`、`MiningBudget.maxExtraBreakTicks`、
+         * 作业 `maxTicks`、`no_progress` 看门狗）继续生效，计数**照记**（SUMMARY/审计不看丢）。
+         */
+        public static final Caps UNBOUNDED =
+                new Caps(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
+
         /** 兼容构造：只关心破坏/放置的调用点（容器写入取默认上限）。 */
         public Caps(int maxBreaks, int maxPlaces) {
             this(maxBreaks, maxPlaces, DEFAULT_MAX_CONTAINER_WRITES);
@@ -147,12 +157,18 @@ public final class WriteBudget {
         if (counters == null) {
             return;
         }
-        Caps effective = caps == null ? Caps.DEFAULT : caps;
-        BotLog.info("[WriteBudget] SUMMARY scope={} breaks={}/{} places={}/{} containers={}/{}"
-                        + " exemptBreaks={} exemptPlaces={} refusedBreaks={} refusedPlaces={}"
-                        + " refusedContainers={} exhausted={}",
-                scopeId, counters.breaks, effective.maxBreaks(), counters.places, effective.maxPlaces(),
-                counters.containerWrites, effective.maxContainerWrites(),
+        Caps effective = caps == null ? Caps.UNBOUNDED : caps;
+        BotLog.info("[WriteBudget] SUMMARY scope={} breaks={} places={} containers={}/{}"
+                        + " cap[breaks/places]={} exemptBreaks={} exemptPlaces={} refusedBreaks={}"
+                        + " refusedPlaces={} refusedContainers={} exhausted={}"
+                        + "（`D-372`：**默认不限**（世界修改放开，靠时间预算防空转）；"
+                        + "显式装订的上限照旧强制；保护区由权限层 `CapabilityGate` 管）",
+                scopeId, counters.breaks, counters.places, counters.containerWrites,
+                // ⚠️ 容器轴的**生效上限**与破坏/放置不同：它不随 `D-372` 放开
+                // （`consumeContainerWrite` 仍回退 `Caps.DEFAULT`）⇒ 日志必须印**它真正强制**的那个数，
+                // 否则"无界"会把"别人的存储仍然封顶 32"这条事实印错（证据不许印错）。
+                (caps == null ? Caps.DEFAULT : caps).maxContainerWrites(),
+                caps == null ? "不限" : (caps.maxBreaks() + "/" + caps.maxPlaces()),
                 counters.exemptBreaks, counters.exemptPlaces, counters.refusedBreaks, counters.refusedPlaces,
                 counters.refusedContainerWrites,
                 counters.breakExhausted || counters.placeExhausted);
@@ -168,7 +184,11 @@ public final class WriteBudget {
             return Verdict.ALLOW;
         }
         Counters counters = SCOPES.computeIfAbsent(scope, key -> new Counters());
-        Caps caps = CAPS.getOrDefault(scope, Caps.DEFAULT);
+        // ⭐ `D-372`（用户 2026-09-21 裁定）：**默认不设格数上限**（`UNBOUNDED`）——
+        // 世界修改放开的闸门改为**时间预算**（防空转）；**显式装订**的上限（`setCaps`/`capForEscape`）
+        // 仍然优先、照旧强制（`D-241` 逃生准备金不受影响）。
+        // 保护区的约束**不在这里**：它是独立的权限层（`CapabilityGate` → `protectionReason` ⇒ `protected_area`）。
+        Caps caps = CAPS.getOrDefault(scope, Caps.UNBOUNDED);
         if (grant != null && grant.reason() == WriteReason.SCAFFOLD_RESTORE) {
             // 建拆同权：回收我方临时放置不受破坏上限约束（否则恢复会被自己的预算卡死）
             counters.exemptBreaks++;
@@ -201,7 +221,7 @@ public final class WriteBudget {
             return Verdict.ALLOW;
         }
         Counters counters = SCOPES.computeIfAbsent(scope, key -> new Counters());
-        Caps caps = CAPS.getOrDefault(scope, Caps.DEFAULT);
+        Caps caps = CAPS.getOrDefault(scope, Caps.UNBOUNDED);   // `D-372` 同破坏：默认不限、显式优先
         if (counters.places >= caps.maxPlaces()) {
             counters.refusedPlaces++;
             TaskMetrics.noteRefusedPlace();

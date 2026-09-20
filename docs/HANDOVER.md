@@ -177,6 +177,33 @@
 > - **验证**：CORE **51/51 PASS**（ticks=4783）· `check-all` 见下行 · 全部已推送/镜像/同步。
 > - **下一轮客户端建议观察**：`分片推进 visited=…/…` 是否突破 8192 · `pathSize` 分布 · `mine_in_place` 次数 ·
 >   挖路:挖矿比例 · `[Search] 超 tick 预算` 条数 · 是否还有崩溃。**未验证的都标着，不许当已验证。**
+>
+> ### ✅ 断点更新（2026-09-21）：`D-372` **默认不设格数上限 + 收集器获得世界修改权**（用户裁定）
+> - **用户原话**：「保护区外，世界修改全部放开，只限制时间防止空转」+「保护区本来不就是有分级权限管理吗，
+>   保持权限管理就行」+「可以完全给掉落物收集器有界的世界修改权，跟挖掘任务一样」。
+> - **改**：`WriteBudget.consumeBreak/consumePlace` 默认回退 **`Caps.UNBOUNDED`**（计数照记）；
+>   **显式装订**上限（`setCaps`/`capForEscape`，含 `D-241` 逃生准备金）**照旧强制**；
+>   容器轴**不动**（别人的存储 = 另一条红线）；收集器在 `MineJob`/`LumberJob`/`RestoreScopeTask`/`CollectJob`
+>   全部改为 `allowWorldModification=true`（有界：`DEFAULT_TOTAL_BUDGET_TICKS=600` + 簇预算 + 重试上限）；
+>   **保护区权限层原样保留**（`CapabilityGate` → `protectionReason` ⇒ `protected_area`）。
+> - **代价/补偿/回收条件**已写进 `D-372 §三`：格数上限原本是"停止损失"，现在**时间预算**是唯一停止损失
+>   （收集器预算 / `MiningBudget.maxExtraBreakTicks` / 作业 `maxTicks` / `no_progress` 看门狗）；
+>   若真机出现跑飞，按用户口径**按风险分档重新引入默认上限**，而不是回到一刀切 64。
+> - **判据**：`write_policy` 新增 4 条（前提：作用域存在 · 默认不限 200/200 ALLOW · 显式上限 ⇒ 1 · `capForEscape` ⇒ 1）；
+>   门禁 `rule_write_caps_default_open_protection_kept`（**27 条**）**4 注入全红**
+>   （⚠️ 又踩「判据太弱」三次：容器轴"别处有 DEFAULT"、权限层"接口声明 vs 调用点"、收集器"逐字替换只改第一处"）。
+> - **静默测量失败已提前堵**：`consumeBreak` 在 `scope == null` 时直接返回 ALLOW ⇒ "200 次全 ALLOW"可能是
+>   "没有作用域"⇒ 夹具加了**前提断言** `scope != null`。
+> - **验证**：六步单步全 PASS · **CORE 见提交说明** · `check-all pass=18 failed=0`。
+>
+> ### ⚠️ harness 异常（2026-09-21，与源码改动无关）：CORE `lumber_job=FAIL`（50/51）
+> - 症状：`reason=partial_quota trees 1/4`（开局 `candidates=1`）→ 我删掉 `run/world-pristine` 重建后变成
+>   `reason=no_reachable_candidate ticks=0`。
+> - **已排除我的改动**：`git stash push -u` + `./gradlew build` + `single:lumber_job` ⇒ **干净版本同样 FAIL**（同症状）。
+> - 场景源干净、数据包每轮重装、`trunk_too_tall` 是故意摆的对照大云杉 ⇒ 缺的是几棵正常橡树。
+> - **待用户确认**：`run/world-pristine` 来自客户端存档；若你在世界里动过**伐木考场那片地**，场景函数重建地形后
+>   树的落点条件已不成立（属 harness 场景鲁棒性：应先清场再搭）⇒ 详见取证档案 §9。
+> - 期间我做了一次**harness 状态干预**（删 `run/world-pristine`，已自动重建）——如实记录。
 > ## 🔖 断点（2026-09-20 22:0x · 用户压缩前落盘）
 >
 > **证据台账（唯一的证据来源，别再从对话里找）**：`docs/reviews/2026-09-20-mine-round3-root-cause.md`

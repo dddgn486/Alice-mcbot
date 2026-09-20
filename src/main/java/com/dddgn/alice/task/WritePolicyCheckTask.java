@@ -114,7 +114,78 @@ public class WritePolicyCheckTask implements Task {
         return Status.RUNNING;
     }
 
+    /**
+     * `D-372` **默认不设格数上限**（用户 2026-09-21 裁定）。
+     *
+     * <p>用户原话：「**保护区外，世界修改全部放开，只限制时间防止空转**」；
+     * 以及「不是说区内强制不让修改啊，**保护区本来不就是有分级权限管理吗，保持权限管理就行**」。
+     *
+     * <p>所以语义是三条，缺一不可：
+     * <ol>
+     *   <li>**默认（无显式上限）⇒ 不限格数**：世界修改放开，闸门换成**时间预算**防空转
+     *       （`CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS` / `MiningBudget.maxExtraBreakTicks` /
+     *       作业 `maxTicks` / `no_progress` 看门狗）；</li>
+     *   <li>**显式装订的上限照旧强制**（`setCaps` / `capForEscape`）—— `D-241` 逃生准备金、
+     *       以及各夹具刻意压到 1 格的用例都靠它；</li>
+     *   <li>**保护区的约束不在这里**：它是独立的权限层（`CapabilityGate` → `protectionReason`
+     *       ⇒ `protected_area` / `protected_block`）——**放开默认上限不许顺手拆掉它**。</li>
+     * </ol>
+     */
+    private void runDefaultCapChecks() {
+        String scope = com.dddgn.alice.action.WriteBudget.scopeOf(bot);
+        net.minecraft.server.level.ServerLevel level = bot.serverLevel();
+        net.minecraft.core.BlockPos pos = bot.blockPosition();
+        try {
+            // ⚠️ **前提断言（防静默测量失败）**：`consumeBreak` 在 `scope == null` 时**直接返回 ALLOW**
+            // ⇒ 若作用域拿不到，下面"200 次全 ALLOW"测到的就是"没有作用域"而不是"没有上限"。
+            // ② 号用例（显式上限 ⇒ 只有 1 次 ALLOW）反证了强制路径是活的，这里再把前提显式钉住。
+            check("前提：作用域存在", scope != null, "scopeOf(bot)=" + scope);
+            // ① 默认：不限（连做 200 次破坏，一次都不许被拒）
+            com.dddgn.alice.action.WriteBudget.closeScope(scope);
+            int allowed = 0;
+            for (int index = 0; index < 200; index++) {
+                if (com.dddgn.alice.action.WriteBudget.consumeBreak(bot, level, pos, null)
+                        == com.dddgn.alice.action.WriteBudget.Verdict.ALLOW) {
+                    allowed++;
+                }
+            }
+            check("默认不限①", allowed == 200,
+                    "无显式上限时破坏 200 次不得被拒（实测 ALLOW=" + allowed
+                            + "；`D-372`：世界修改放开，闸门改时间预算防空转）");
+
+            // ② 显式上限仍然强制
+            com.dddgn.alice.action.WriteBudget.closeScope(scope);
+            com.dddgn.alice.action.WriteBudget.setCaps(scope,
+                    new com.dddgn.alice.action.WriteBudget.Caps(1, 0));
+            int allowedExplicit = 0;
+            for (int index = 0; index < 5; index++) {
+                if (com.dddgn.alice.action.WriteBudget.consumeBreak(bot, level, pos, null)
+                        == com.dddgn.alice.action.WriteBudget.Verdict.ALLOW) {
+                    allowedExplicit++;
+                }
+            }
+            check("显式上限②", allowedExplicit == 1,
+                    "`setCaps` 装订的上限仍强制（实测 ALLOW=" + allowedExplicit + " == 1）");
+
+            // ③ D-241 逃生准备金（capForEscape）在放开默认上限后仍强制
+            com.dddgn.alice.action.WriteBudget.closeScope(scope);
+            com.dddgn.alice.action.WriteBudget.capForEscape(scope, 1, 1);
+            int allowedEscape = 0;
+            for (int index = 0; index < 5; index++) {
+                if (com.dddgn.alice.action.WriteBudget.consumeBreak(bot, level, pos, null)
+                        == com.dddgn.alice.action.WriteBudget.Verdict.ALLOW) {
+                    allowedEscape++;
+                }
+            }
+            check("显式上限③", allowedEscape == 1,
+                    "`capForEscape`（`D-241` 逃生准备金）仍强制（实测 ALLOW=" + allowedEscape + " == 1）");
+        } finally {
+            com.dddgn.alice.action.WriteBudget.closeScope(scope);
+        }
+    }
+
     private void runChecks() {
+        runDefaultCapChecks();
         // D-241：**纯通行名单不许漂移** —— `PathRequest.pureTraversal()` 是字面集合，
         // `MovementType.changesWorld()` 是规划期唯一口径；两者必须互为补集（写错就红，不靠 review 眼睛）。
         java.util.Set<com.dddgn.alice.pathing.core.MovementType> pureTraversalSet = com.dddgn.alice.pathing.core.search

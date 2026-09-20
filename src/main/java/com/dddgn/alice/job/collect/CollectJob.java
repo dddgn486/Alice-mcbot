@@ -162,7 +162,7 @@ public final class CollectJob implements Job {
         BotLog.info("[Job] collect pick cluster@{} drops={} nearest={} 被拦下={}",
                 anchor.toShortString(), ids.size(),
                 String.format(java.util.Locale.ROOT, "%.1f", Math.sqrt(bestDistance)), blockedCandidates);
-        current = new CollectDropsTask(bot, anchor, scope, ids, false,
+        current = new CollectDropsTask(bot, anchor, scope, ids, true,
                 Math.max(200, spec.maxTicks() - ticks));
         phase = Phase.COLLECT;
         return Task.Status.RUNNING;

@@ -30,8 +30,14 @@ import java.util.UUID;
  *   <li>**来源判定**：只收集 {@code ScopeBuffer.liveDrops()}——即"由 bot 自己的破坏事件配对到的掉落物"
  *       （D-074；连锁挖掘模组的多点破坏同样覆盖）；</li>
  *   <li>**职责单一**：只收集，不挖方块、不搭桥；"怎么过去"完全交给寻路内核；</li>
- *   <li>**按需授予世界修改权限**：`allowWorldModification=true` → `PathRequest.withWorldModification`，
- *       false → 纯通行（`PathRequest.of`，HARD_PATH）；</li>
+ *   <li>**世界修改权限（`D-372`，用户 2026-09-21 裁定）**：`allowWorldModification=true` →
+ *       `PathRequest.withWorldModification`（**真实玩法调用点默认走这条**：挖掘/伐木/回收/收集作业），
+ *       false → 纯通行（`PathRequest.of`，HARD_PATH，夹具反证用）。
+ *       **"有界"的含义（`D-372`）**：① **时间预算** —— 本任务的 `totalBudgetTicks`（默认
+ *       {@code DEFAULT_TOTAL_BUDGET_TICKS}，**防空转的唯一闸门**）；② **格数上限默认不限**
+ *       （`WriteBudget` 回退 `Caps.UNBOUNDED`，显式装订的上限照旧强制）；
+ *       **③ 保护区不在这里管** —— 它是独立权限层（`CapabilityGate` → `protectionReason`
+ *       ⇒ `protected_area`/`protected_block`），用户口径「保持权限管理就行」；</li>
  *   <li>**自然拾取**：站进拾取范围后等待原版拾取，**不反射、不调 `playerTouch`**；</li>
  *   <li>**best-effort**：收不到不判 FAILED，输出 `[CollectDrops] SUMMARY ...`。</li>
  * </ul>

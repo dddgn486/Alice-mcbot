@@ -445,7 +445,7 @@ public final class MineJob implements Job {
 
     private void startCollect() {
         BlockPos origin = firstMined != null ? firstMined : spec.center();
-        collector = new CollectDropsTask(bot, origin, scope, List.of(), false);
+        collector = new CollectDropsTask(bot, origin, scope, List.of(), true);
         DecisionTrace.step(jobName(), "COLLECT", origin.toShortString(),
                 "mined=" + minedCount + "/" + spec.quota());
     }

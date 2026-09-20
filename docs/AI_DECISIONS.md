@@ -15879,3 +15879,51 @@ Baritone **把搜索放在独立线程**：`baritone/behavior/PathingBehavior.ja
   可离线先做的一半：把 `unreachable` 细分成「头位不足 / 需上行 / 无路」。
 - **`D-366b` 风险补偿核实**：需确认新放开的 `PILLAR`/`FALL`/`DOWNWARD` 仍经过风险层
   （`HazardAversion`/`RiskProfile`）；离线可查代码路径，真机需观察"跳下/搭柱是否造成伤害"。
+
+### D-372：**默认不设格数上限 + 收集器获得世界修改权**（用户 2026-09-21 裁定，红线放宽）2026-09-21
+
+#### 一、用户原话（本次让步的唯一依据）
+1. 「可以完全给掉落物收集器**有界**的世界修改权，跟挖掘任务一样，挖矿任务里**只给时间预算**，
+   对于保护区内给格数限制，先做这件事」
+2. 随后订正：「不是说区内强制不让修改啊，**保护区本来不就是有分级权限管理吗，保持权限管理就行**」
+
+⇒ 最终语义三条：**区外世界修改放开（只留时间预算防空转）** · **区内走既有的分级权限管理（不另加格数闸门）**
+· **收集器与挖掘任务同权（有界）**。
+
+#### 二、改了什么
+| 项 | 之前 | 现在 |
+|---|---|---|
+| `WriteBudget.consumeBreak/consumePlace` 的**默认回退** | `Caps.DEFAULT`（64/32 格） | **`Caps.UNBOUNDED`**（计数照记，供 SUMMARY/审计） |
+| **显式装订**的上限（`setCaps` / `capForEscape`） | 强制 | **照旧强制**（`D-241` 逃生准备金、"1 格"夹具都靠它） |
+| **容器写入**（`consumeContainerWrite`） | `Caps.DEFAULT` | **不动**（别人的存储 = 另一条红线，`D-076` 容器授权面） |
+| 掉落物收集器 `allowWorldModification` | `MineTask` 为 true；`MineJob`/`LumberJob`/`RestoreScopeTask`/`CollectJob` 为 false | **真实玩法调用点全部 true**（有界：`DEFAULT_TOTAL_BUDGET_TICKS=600` + 簇预算 + 重试上限） |
+| **保护区** | `CapabilityGate` → `protectionReason` ⇒ `protected_area`/`protected_block` | **原样保留**（用户口径「保持权限管理就行」；放开默认上限**不许**顺手拆掉它） |
+
+#### 三、让步的代价与补偿（必须写清）
+- **失去的东西**：格数上限原本是一道"**停止损失**"——跑飞的任务最多改 64 格就被拦住。现在**默认没有这道闸门**。
+- **补偿（都已有、且被门禁钉住）**：任务/作业层的**时间预算**成为唯一停止损失：① 收集器
+  `DEFAULT_TOTAL_BUDGET_TICKS` ② `MiningBudget.maxExtraBreakTicks` ③ 作业 `maxTicks`（如 12000）
+  ④ `no_progress` 看门狗（CORE 有独立步）⑤ 路径重试上限 `PathRetryRunner.DEFAULT_MAX_REPLANS`。
+- **显式上限仍在**：需要刻意限流的地方（逃生准备金、夹具）继续用 `setCaps`/`capForEscape` 装订。
+- **回收条件**：若真机出现"**跑飞/无界开挖**"（例如单任务破坏数远超预期、或时间预算用满仍在换目标继续挖），
+  就按用户口径**重新引入风险管理策略**——优先做成**按风险/价值分档的默认上限**，而不是回到一刀切 64 格。
+
+#### 四、判据与反向对照
+- **夹具**（`write_policy`，CORE，`runDefaultCapChecks`）：
+  ① **前提**：作用域必须存在（见下"静默测量失败"）② 无显式上限 ⇒ 破坏 200 次**全部 ALLOW**
+  ③ `setCaps(…, Caps(1,0))` ⇒ 只 1 次 ALLOW（显式上限仍强制）④ `capForEscape(scope,1,1)` ⇒ 只 1 次 ALLOW（`D-241` 未被顺手拆掉）。
+- **门禁** `rule_write_caps_default_open_protection_kept`（**27 条**）：默认回退必须是 `UNBOUNDED` ·
+  容器轴必须仍是 `DEFAULT` · 显式上限入口必须在 · **`CapabilityGate` 必须仍调用 `facts.protectionReason(`** ·
+  收集器时间预算常量必须在。**4 注入全红**。
+- ⚠️ **本轮又踩「判据太弱」三次**（本会话第 5/6/7 次），都已收紧：
+  ① 容器轴：只查"body 里出现过 `DEFAULT`" ⇒ 别处的 `DEFAULT` 就满足了 ⇒ 改为断言**取值那一行**；
+  ② 权限层：只查标识符 `protectionReason(` ⇒ **接口声明**就满足了 ⇒ 改为断言**调用点** `facts.protectionReason(`；
+  ③ 收集器预算：逐字替换只改到第一处 ⇒ 断言改为**常量声明的正则**。
+  **教训再次确认**：断言必须钉"**起作用的调用点/那一行**"，并**先跑反向对照再相信它**。
+- ⭐ **静默测量失败被提前堵住**：`consumeBreak` 在 `scope == null` 时**直接返回 ALLOW** ⇒
+  "200 次全 ALLOW"完全可能是"**没有作用域**"而不是"没有上限"。⇒ 夹具加**前提断言** `scope != null`
+  （②号用例另外反证了强制路径是活的）。
+
+#### 五、验证
+`write_policy` / `write_budget` / `mine_budget` / `mine_regression` / `mine_job` / `mine_menu` 六步全 PASS（单步）·
+**CORE 见提交说明** · 门禁 `pass=18 failed=0`。
