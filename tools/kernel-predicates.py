@@ -351,29 +351,49 @@ def rule_driver_attribution():
 
 
 def rule_stop_event_ring():
-    """D-338 附注十五（2026-09-19 用户裁定「事件环补全」）：**终止路径必须进事件环**。
+    """D-338 附注十五 + 附注十六（2026-09-20）：**终止 / 拒绝路径必须进事件环**。
 
     事实（裁定依据，客户端实测）：`BotSession.immediateStop`（玩家 `/alice region stop`、`/alice stop-task`、
     `stop_current`、延后到安全点）**不走 `complete()`** ⇒ 事件环里什么都不留，决策层下次被叫时
     **看不到"刚才被谁停了"**（用户 stop 后等 30 s 静默无反应，根因之一）；同理两个
     `REJECTED_BEFORE_START`（修路计划非法 / 实体目标未实现）与 `CANCELLED_REPLACED`（被顶替）。
 
-    本规则断言这三类收尾点**必须**写一条 `BotEventLog.record`（删掉调用 ⇒ 门禁红）。
+    ⭐ 附注十六补齐的三条**派活/受理被拒**（此前只有一行 warn、甚至**完全静默** ⇒ 决策层以为派活成功了）：
+    `replaceTaskIfRunning` 的「未结清传输」与「在飞传输」、`assignJob` 的「kind 契约不全」。
+
+    ⚠️ 断言按**每个站点各自的函数体**做（结构断言）。旧版是全局 `count(REFUSED) >= 2` ——
+    在别处**新增**一条 `REFUSED` 就能掩盖被删掉的那条（假绿）。删掉任何一处调用 ⇒ 门禁红。
     """
     path = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "bot" / "BotManager.java"
     text = path.read_text(encoding="utf-8")
     problems = []
-    start = text.find("String immediateStop(String reason, boolean forced) {")
-    if start < 0:
-        problems.append("BotManager.java 找不到 `immediateStop`（结构变了 ⇒ 本规则要跟着改）")
-    else:
-        body = text[start:text.find("\n        }", start)]
-        if 'BotEventLog.record(bot, "STOP"' not in body:
-            problems.append("`immediateStop` 没有把显式停止写进事件环（`BotEventLog.record(bot, \"STOP\"`）")
-    if 'BotEventLog.record(bot, "REPLACED"' not in text:
-        problems.append("`CANCELLED_REPLACED`（被新任务顶替）没有写进事件环")
-    if text.count('BotEventLog.record(bot, "REFUSED"') < 2:
-        problems.append("`REJECTED_BEFORE_START` 的两处（修路计划非法 / 实体目标未实现）没有都写进事件环")
+
+    def body_of(signature):
+        body = method_body(text, signature)
+        if not body:
+            problems.append("BotManager.java 找不到 `%s`（结构变了 ⇒ 本规则要跟着改）" % signature)
+        return body
+
+    sites = [
+        ("String immediateStop(String reason, boolean forced) {",
+         'BotEventLog.record(bot, "STOP"', "显式停止"),
+        ("private boolean replaceTaskIfRunning() {",
+         'BotEventLog.record(bot, "REPLACED"', "被新任务顶替"),
+        ("private boolean replaceTaskIfRunning() {",
+         "code=transfer_unsettled", "派活被拒：有未结清传输"),
+        ("private boolean replaceTaskIfRunning() {",
+         "code=transfer_in_transit", "派活被拒：在飞传输未结清"),
+        ("public void assignRoadBuild(com.dddgn.alice.road.RoadPlan plan) {",
+         'BotEventLog.record(bot, "REFUSED"', "启动前拒绝：修路计划非法"),
+        ("public void assign(TaskTarget newTarget) {",
+         'BotEventLog.record(bot, "REFUSED"', "启动前拒绝：实体目标未实现"),
+        ("public static boolean assignJob(",
+         'BotEventLog.record(bot, "REFUSED"', "受理侧拒绝：kind 缺世界事实对账契约"),
+    ]
+    for signature, needle, label in sites:
+        body = body_of(signature)
+        if body and needle not in body:
+            problems.append("`%s` 没有写进事件环（`%s` 体内找不到 `%s`）" % (label, signature, needle))
     return problems
 
 

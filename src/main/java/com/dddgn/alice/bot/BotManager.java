@@ -659,6 +659,9 @@ public final class BotManager {
             // ⭐ `D-349`：kind 缺「世界事实对账契约」⇒ `create` 已拒绝并留痕；这里**如实不起任务**
             // （不许把 null 塞进 `beginTask` 里 —— 那会变成 NPE，把"受理拒绝"伪装成崩溃）
             BotLog.warn("[Job] 不起 Job：kind 缺世界事实对账契约（{}）", request.describe());
+            // ⭐ `D-338` 附注十六：受理侧拒绝同样进事件环（口径同附注十五：记、不叫 LLM）
+            com.dddgn.alice.decision.BotEventLog.record(bot, "REFUSED", "warn",
+                    "Job 未启动：kind 缺世界事实对账契约", "code=job_contract_incomplete kind=" + request.kind());
             return false;
         }
         session.beginTask(job, TaskTarget.block(request.center()));
@@ -1908,9 +1911,18 @@ public final class BotManager {
                 BotLog.warn("[alice] 派活被拒：bot={} 有 {}={} ⇒ 不替换任务（未结清传输会保护物品；"
                                 + "见台账 §5.9）",
                         bot.getName().getString(), "未结清传输", blocked);
+                // ⭐ `D-338` 附注十六：**派活被拒也进事件环**（口径同附注十五：记事实、**不叫 LLM**）。
+                // 此前只有一行 warn ⇒ 决策层下次被叫时**看不见"我刚被拒了"**，会以为派活成功了。
+                com.dddgn.alice.decision.BotEventLog.record(bot, "REFUSED", "warn",
+                        "派活被拒：有未结清传输 ⇒ 不替换任务", "code=transfer_unsettled detail=" + blocked);
                 return false;
             }
             if (task instanceof TransferTask transfer && transferInTransitOrSuspended(transfer)) {
+                // ⭐ 同一口径：这条**以前完全静默**（连 warn 都没有）⇒ "bot 没反应"的经典现场。
+                BotLog.warn("[alice] 派活被拒：bot={} 的传输任务在飞（未结清）⇒ 不替换任务",
+                        bot.getName().getString());
+                com.dddgn.alice.decision.BotEventLog.record(bot, "REFUSED", "warn",
+                        "派活被拒：在飞传输未结清 ⇒ 不替换任务", "code=transfer_in_transit");
                 return false;
             }
             if (task != null) {
