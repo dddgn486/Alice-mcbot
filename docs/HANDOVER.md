@@ -43,14 +43,19 @@
 > （`quota_met次数` 实测 single **2/3** / module **3/3**）。**理由**：与判据无关的路径抖动让电池随机红
 > = **假红**，与假绿一样有害；失败**照样完整打印**，只是不由本夹具定罪。判据数 27 → **24**。
 >
-> **⏳ 五、明天第一件事：⭐ 查"掉落物被作用域当成未进入世界而忽略"的触发条件**。今晚那次红的第一手证据是
-> `作用域忽略未进入世界的掉落物(生成被取消/缓冲): raw_iron x3405 y101 z2000` —— **真实挖掘掉落物**、
-> 就在 bot 脚边 5 格，却被 `ScopeBuffer.flushPending` 的 `inWorld()` 判否并丢弃 ⇒ 收集器从未看见它
-> ⇒ `gained=1 < minedCount=2` ⇒ `product_not_collected`。**与 `D-345` 记的是同一现象**，但当时归因为
-> "夹具 summon 到刚 forceload 的远处区块"（人为触发）⇒ 现在**触发条件未定性**。
-> **做法（不许先加 epsilon/重试）**：按 `debugging-root-cause-analysis` 做工作版/失败版对照 + 探针，
-> 先把"生成事件已发但 `getEntity` 为 null"的窗口稳定复现出来。证据日志：
-> `run/headless-logs/20260920-011428-single_mine_run_metrics.log`（`[CollectDrops]` 里**没有 3405 的簇**）。
+> **✅ 五、`D-348`：那条尾巴查清了 —— 两条路径，一条是设计、一条是**真缺陷**（⏳ 修复待你拍板）**。
+> **路径 A（模组取消生成）**：`[ChainMine]` 那 17 条/轮**不是稀有竞态**（每次 CORE 都稳定 17 条）——
+> 连锁挖掘交给 Ore Excavation，它 **取消** ItemEntity 生成并缓冲（`captureAgent` 静态单例），结束时
+> `dropEverything()` 在同格重新生成。探针实测这些实体**永远不会**进世界，而**同一轮里真产物被正常捕捉**
+> （`raw_iron … provenance=OURS_DIRECT source=23,64,172`）⇒ **丢弃正确、无物品损失**。
+> **路径 B（普通破坏，无连锁）**：⭐ **探针后验推翻了"永远不会进世界"** —— 被丢弃的同一个实体
+> `id=75` 在 **1 tick / 4 tick 后 `visible=true`**（10 连跑循环第 7/8 轮各命中一次）。机制（调用栈实测）：
+> `EntityJoinLevelEvent` 是在 `PersistentEntitySectionManager` **把实体登记进查找表之前**发出的
+> ⇒ `getEntity` 当刻必为 null，而**登记可能被推迟 1~4 tick** ⇒ **在 tick 末只判一次就永久丢弃，
+> 会把真的会进世界的掉落物丢掉**（收集器看不到它 ⇒ `MineJob` 如实 `product_not_collected`）。
+> ⇒ **修复方向**：`flushPending` 加**有界宽限窗口**（10~20 tick，窗口内出现即登记、窗口结束才丢弃）。
+> **已落地（只改日志、零行为）**：丢弃分支不再打作者的**解释**（"生成被取消/缓冲"，它只描述了 A），
+> 改成打印**实测子项**（`removed/empty/inGetEntity/chunkLoaded`）+ javadoc 写清两类；探针已全删。
 >
 > **六、验证（✅ 次日已收口）**：当晚 `single:mine_run_metrics` PASS（24 判据 0 失败）· `module:mining`
 > PASS（10 步 / 106 s；编排器门禁 `started=+10 finished=+10`）。次日补跑 ⭐ **CORE = PASS 51/51**

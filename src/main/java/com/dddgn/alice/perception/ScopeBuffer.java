@@ -396,8 +396,23 @@ public final class ScopeBuffer {
     }
 
     /**
-     * 确认排队掉落物：被模组取消/缓冲的生成不会进入世界（{@code level.getEntity(id) == null}），
-     * 直接丢弃并如实记录——否则会变成"永远追不到的幻影掉落物"。
+     * 确认排队掉落物：tick 末校验"实体是否真的进了世界"（`level.getEntity(id) != null`）。
+     *
+     * <p>⚠️ **`D-348`（2026-09-20）实测更正**：这里原来把这句日志写成"生成被取消/缓冲"，
+     * 但那只是**解释**、只说对了一半 —— 实测（临时探针 + 10 tick 后验）：
+     * <ul>
+     *   <li><b>模组取消生成</b>（连锁挖掘 Ore Excavation 的 `captureAgent` 会取消 ItemEntity 生成并缓冲，
+     *       结束时 `dropEverything()` 在同一格重新生成）⇒ 实体**永远不会**进世界 ⇒ 丢弃正确；
+     *       归档实证：每次 CORE 稳定 17 条（`exec_chain` 用例），而同一轮里真产物
+     *       `raw_iron … provenance=OURS_DIRECT source=23,64,172` **被正常捕捉** ⇒ 无物品损失；</li>
+     *   <li>⭐ <b>注册被延迟</b> —— `EntityJoinLevelEvent` 是在 `PersistentEntitySectionManager`
+     *       **把实体登记进查找表之前**发出的（探针调用栈：`PersistentEntitySectionManager:79 → EventBus`），
+     *       而登记可能晚 **1~4 tick** ⇒ **在 tick 末只判一次就永久丢弃，会把真的会进世界的掉落物丢掉**
+     *       （实测：被丢弃的同一个实体 `id=75` 在 1 tick / 4 tick 后 `visible=true`，
+     *        收集器因此看不到它 ⇒ `MineJob` 如实 `FAILED product_not_collected`）。</li>
+     * </ul>
+     * ⇒ 因此本方法**只打实测子项**（不再替读者下结论），且**不在第一 tick 就下最终判断**这件事
+     * 已登记为 `D-348` 的修复方向（宽限窗口）。
      */
     private void flushPending() {
         if (pending.isEmpty()) {
@@ -412,8 +427,13 @@ public final class ScopeBuffer {
             ItemEntity item = entry.item();
             BlockPos pos = item.blockPosition();
             if (!inWorld(item)) {
-                BotLog.info("作用域忽略未进入世界的掉落物(生成被取消/缓冲): {} x{} y{} z{}",
-                        item.getItem().getItem(), pos.getX(), pos.getY(), pos.getZ());
+                BotLog.info("作用域丢弃未确认进入世界的掉落物: {} x{} y{} z{}"
+                                + " removed={} empty={} inGetEntity={} chunkLoaded={}",
+                        item.getItem().getItem(), pos.getX(), pos.getY(), pos.getZ(),
+                        item.isRemoved(), item.getItem().isEmpty(),
+                        item.level() instanceof ServerLevel lookupLevel
+                                && lookupLevel.getEntity(item.getId()) != null,
+                        item.level().hasChunkAt(pos));
                 continue;
             }
             spawnedItems.add(item);

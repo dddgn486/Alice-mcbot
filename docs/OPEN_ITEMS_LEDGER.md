@@ -1992,6 +1992,10 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 > 退避豁免，片 A/B/C）· ⭐ **`D-345`+`D-346`**（挖矿收集距离窗口：取证 → 上限改由作用域派生，同日转绿；
 > 夹具 `mine_far_drop` 已搬进 `MiningModule`）· ⭐ **`D-347`**（运行账 / 可测量判据：`bot/TaskMetrics` +
 > 只读出口 + 两道会话侧门禁 + 取证夹具 `mine_run_metrics`，到达率 **3/4** 是量出来的）。
+> ⏳ **待你拍板（`D-348`，2026-09-20）**：`ScopeBuffer.flushPending` 的"宽限窗口"修复 —— 实测证据齐全
+> （被丢弃的实体 1~4 tick 后 `visible=true`；机制 = `EntityJoinLevelEvent` 在实体**登记进查找表之前**发出），
+> 修 = tick 末不再一次定生死，窗口 10~20 tick 内复验。**不改行为的话**：普通破坏路径仍有低概率丢掉落物
+> ⇒ 任务会**如实失败**（`product_not_collected`），但**本可以成功**。
 > **复读（`survey/22`+`21` 第二次）后**剩下的可做项：② 收集器**物品过滤钩子** · ③ **挖矿设计文档**
 > （`D-329` 路线图第 1 步，尚不存在）·
 > ⑤ `HAZARD_ADJACENCY_PENALTY` 相对化（被 `D-333` 冻结压住，等实测触发）· ⑥ `FarWalkTask` 仍无生产调用方。

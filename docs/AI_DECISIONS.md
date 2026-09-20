@@ -14612,3 +14612,75 @@ BASELINE 15 / MAIN 36 / EXTRA 20）** ⇒ `mine_far_drop` 正确落在 EXTRA（C
 被如实记账）· ⭐ **`check-all` = 17 PASS / 0 WARN / 0 FAIL**（内含 CORE 再跑一次 PASS 274 s；
 冻结三件套 1475 ≤ 1476）· **`list-modules` = 21 模块**（只有 `harness_self:FAIL` 是声明过的故意红，
 `mining:PASS`）⇒ **本弧收口**。
+
+### D-348：⭐ 「掉落物被作用域当成未进入世界而忽略」—— **两条路径，一条是设计（无害）、一条稀有未定性** 2026-09-20
+
+**缘起**：`D-347` 弧收尾时夹具出现一次间歇红（`run#1 FAILED product_not_collected`），第一手证据是
+`作用域忽略未进入世界的掉落物(生成被取消/缓冲): raw_iron x3405 y101 z2000`。这与 `D-345` 记过的
+**同一现象**（当时归因为"夹具把落物 summon 到刚 forceload 的远处区块"）⇒ 按
+`debugging-root-cause-analysis`（同一现象第二次出现 ⇒ 停止猜测、做对照 + 探针）开工。
+
+**先做零成本对照**：翻全量归档（`run/headless-logs/*.log`，337 份）
+⇒ ⚠️ **这条日志根本不是稀有的** —— **每一次 CORE 都稳定 17 条**，位置集中在 `x22~24, y64, z172~174`，
+全归档累计 138+69 次。⇒ 于是有了**确定性复现**：`single:mine_regression`（31 s，17 条/轮）。
+
+**路径 A：连锁挖掘（`[ChainMine] prod_trigger`，`MineRegressionTask` 的 `exec_chain` 用例）—— ✅ 不是缺陷**
+
+| 证据 | 内容 |
+|---|---|
+| 归属 | 17 条**全部**出现在 `[ChainMine] prod_trigger` 之后（该用例显式 `chain=AUTO`，位置 = 连锁矿簇） |
+| **探针**（把 `inWorld()` 的四个子项分开测） | `removed=false empty=false alive=true chunkLoaded=true` 而 `inGetEntity=false`；**后验 10 tick 仍 `visible=false`** ⇒ **这些实体从来没被加进世界**（不是"进世界晚了"⇒ 等它/重试都没用） |
+| **源码级机制**（不是推测） | `compat/ChainMining` 的 javadoc 是**按模组字节码核实过**的：连锁期间 Ore Excavation 的 `EventHandler.onEntitySpawn` **取消 ItemEntity/XP 生成并缓冲**（`captureAgent` 是**全局静态单例**），结束时 `dropEverything()` **在同一格一次性生成** |
+| **对照（同一次运行内）** | 17 条幻影 vs **8 条真捕捉**，其中 `作用域捕捉掉落物: raw_iron x23 y64 z172 provenance=OURS_DIRECT source=23,64,172` ⇒ **OE 自己生成的产物被正常捕捉且归属正确** |
+
+⇒ **结论：被忽略的是"原版那一份（被模组取消、从未存在）"，OE 稍后会生成真正的产物并被我们捕捉
+⇒ 丢弃正确、无物品损失**。`flushPending` 那句"生成被取消/缓冲"在**这条路径上是准确的**。
+
+**路径 B：普通破坏（`mode=DIRECT`，无连锁）—— ⏳ 稀有，未定性**
+
+- 现场（`run/headless-logs/20260920-011428-single_mine_run_metrics.log`）：该轮**全程零 `[ChainMine]`**
+  （chain=OFF）⇒ 与路径 A 无关；那一格的掉落物**从头到尾没进世界**（收集器**没有 3405 的簇**）
+  ⇒ `gained=1 < minedCount=2` ⇒ `MineJob` 如实 `FAILED product_not_collected`（**没有静默成功**）。
+- 已排除：① **不是我们自己取消的**（全仓 `EntityJoinLevelEvent` 只有一个消费者 = `ScopeBuffer`，
+  且它 `event.isCanceled() ⇒ return`；全仓没有"取消掉落物生成"的代码）；② 不是区块未加载
+  （`chunkLoaded=true`；且路径 A 的探针同样如此）；③ 不是"进世界晚了"（后验 10 tick 仍不可见）。
+- 复现强度：定向 3 连跑 = **0 条**；改用 **10 连跑循环**猎捕 ⇒ 第 7、8 轮各命中 1 条（≈20%/轮）。
+  归档里在**矿道场景**（`mine_job`/`mine_stale`/`mine_budget` 那一片）一次都没出现 ⇒ 与矿道本身无关。
+
+#### ⭐ D-348 附注一（同日，猎捕结果**推翻了我自己的两条早期结论**）
+
+**① 我说过"不加'等几 tick 再试'，因为探针证明 10 tick 后仍不可见" —— 这条是错的。**
+错在**探针只看了"tick 末那一次 + 10 tick 后一次"**，而第 7/8 轮命中的两次显示：
+
+```
+[探针/后验] id=75 pos=3405,101,2000 年龄=1tick ⇒ visible=true     ← 我们丢掉的那一个，1 tick 后就进世界了
+[探针/后验] id=75 …                 年龄=4tick ⇒ visible=true     ← 另一次同样
+（另有一次 年龄=10tick ⇒ visible=false = 真的没进世界）
+```
+
+⇒ 路径 B 里**混着两类**：**B1 注册被延迟**（1~4 tick 后才可见 ⇒ **我们的丢弃是错的**，那个掉落物
+真的会进世界，收集器却永远看不到它）＋ **B2 从未进世界**（丢弃正确）。**"等几 tick"不是无效动作，
+它正是 B1 的正解**（`debugging-root-cause-analysis` 反对的是"没测就加 epsilon"，而不是"测出来该等却不等"）。
+
+**② 机制（探针调用栈实测，不是推测）**：
+
+```
+生成者 = PersistentEntitySectionManager:79 → EventBus:315 → ASMEventHandler:73 → ScopeBuffer.onEntityJoin
+```
+
+⇒ `EntityJoinLevelEvent` 是在 `PersistentEntitySectionManager` **把实体登记进查找表之前**发出的
+⇒ `level.getEntity(id)` 在**事件当刻必然是 null**；正常情形到 tick 末就登记好了，但**登记可能被推迟
+1~4 tick**。路径 A（模组取消）则**永远不会**登记 —— 两类在同一句日志里长得一模一样，
+**原来那句"生成被取消/缓冲"只描述了 A、把 B1 误判成了 A**。
+
+**③ 结论与修复方向（⏳ 待用户拍板，尚未改行为）**：`flushPending()` 应在**有界宽限窗口**内
+（如 10~20 tick）每 tick 复验，**窗口内出现即正常登记、窗口结束才丢弃**。判据：
+① B1 那一类不再丢（收集器能看到 ⇒ 夹具 `quota_met`）；② 路径 A 的 17 条仍在窗口后如实丢弃
+（不变红、不刷屏）⇒ **两组都能观测**。
+
+**本次已落地的产品改动（最小、只改日志、零行为）**：丢弃分支原来打的是**作者的解释**
+（"生成被取消/缓冲"）⇒ 改成打印**实测子项**（`removed / empty / inGetEntity / chunkLoaded`），
+并把这套更正写进 javadoc。探针（子项 / 入队调用栈 / 10 tick 后验）**已全部删除**。
+
+**探针生命周期**：`inWorld` 子项探针 + 入队调用栈探针 + 10 tick 后验，**验证完成即删除**
+（`alice-scene-based-testing` §6「临时探针」），只留终态日志。
