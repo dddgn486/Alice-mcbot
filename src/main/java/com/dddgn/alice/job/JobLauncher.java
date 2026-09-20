@@ -148,8 +148,14 @@ public final class JobLauncher {
                             request.maxTicks()),
                     scope, new com.dddgn.alice.job.lumber.LumberCandidateSource(), policy);
             case MINE -> new com.dddgn.alice.job.mine.MineJob(bot,
-                    GoalSpec.mineBlocks(request.center(), request.radius(), request.quota(),
-                            request.maxTicks()),
+                    // `D-361` 种类分配：**空 ⇒ 逐字走老路径**（`mineBlocks`，行为零变化）；
+                    // 非空 ⇒ `productTag` 仍传 null（产物口径走标签族兜底：多**种类**任务里
+                    // "只认某一个标签"会把另一类产物漏掉 —— 那正是 J-6 修过的坑）。
+                    request.kindQuotas().isEmpty()
+                            ? GoalSpec.mineBlocks(request.center(), request.radius(), request.quota(),
+                                    request.maxTicks())
+                            : GoalSpec.mineKinds(request.center(), request.radius(), request.quota(),
+                                    request.maxTicks(), null, request.kindQuotas(), null),
                     scope,
                     new com.dddgn.alice.job.mine.MineCandidateSource(
                             mineTargetFor(bot, request), request.radius()),

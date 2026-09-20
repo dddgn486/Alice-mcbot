@@ -134,6 +134,10 @@ public class MineMenuCheckTask implements Task {
         // 换成"多次分片"，判据必须跟着把**"分片后仍然等价"**这件事咬住 —— 否则分片很容易变成"少扫"。
         runScanContractChecks();
 
+        // ⭐⭐ `D-361` **种类分配**（用户 2026-09-20：「挖一组煤炭和一组铁，煤炭多了就不要了」+
+        // 「种类分配也不能限定成 ID，也要支持标签」）。
+        runKindAllocationChecks();
+
         String block = CandidateMenu.extraValue(mine, "block");
         check("mine 条目必须带 block=（方块 id 由确定性层给出）", block != null && !block.isBlank());
 
@@ -211,6 +215,96 @@ public class MineMenuCheckTask implements Task {
                 OreCourseAnchor.START_FOOT.getY(),
                 OreCourseAnchor.START_FOOT.getZ() + 0.5D,
                 java.util.Set.of(), bot.getYRot(), bot.getXRot());
+    }
+
+    /**
+     * ⭐ `D-361` **种类分配**（用户 2026-09-20）的判据组。
+     *
+     * <p>为什么必须断言（而不是"实现完看一眼"）：三件事**只有断言能证明**——
+     * ① 键**既支持标签、也支持方块 ID**（用户追加约束）；② 多匹配时**按声明顺序**取第一条（确定性）；
+     * ③ **满足了就不再选它**（`kind_quota_met`）而**不是**静默少挖，且空计划必须**惰性**
+     * （否则"没配种类"的老行为会被悄悄改掉）。
+     *
+     * <p>反向对照（改法，逐条实测过）：`refusal` 的 `>=` 改 `>`、`indexOf` 改成从后往前找、
+     * 解析去掉重复键去重、`sumQuota` 只返回第一条 —— 四条注入各自把对应判据打红。
+     */
+    private void runKindAllocationChecks() {
+        // ① 键：标签 / 方块 id 都能解析
+        var tagSpec = com.dddgn.alice.job.mine.MineKindPlan.parse(List.of("forge:ores/coal=64"));
+        check("种类分配：**标签键**可解析（" + tagSpec.specs() + "）",
+                tagSpec.specs().size() == 1 && tagSpec.clean()
+                        && "forge:ores/coal".equals(tagSpec.specs().get(0).key())
+                        && tagSpec.specs().get(0).count() == 64);
+        var idSpec = com.dddgn.alice.job.mine.MineKindPlan.parse(List.of("minecraft:iron_ore=32"));
+        check("种类分配：**方块 id 键**同样可解析（count="
+                        + (idSpec.specs().isEmpty() ? "-" : idSpec.specs().get(0).count()) + "）",
+                idSpec.specs().size() == 1 && idSpec.clean() && idSpec.specs().get(0).count() == 32);
+
+        // ② 坏条目**一条都不许猜着收下**（少写数量 / 0 / 负数 / 非数字 / 空 / 缺键）
+        var bad = com.dddgn.alice.job.mine.MineKindPlan.parse(
+                List.of("forge:ores/coal", "x=0", "x=-2", "y=abc", "", "=5"));
+        check("种类分配：坏条目全被拒（specs=" + bad.specs().size() + " problems="
+                        + bad.problems().size() + "）",
+                bad.specs().isEmpty() && bad.problems().size() >= 5);
+
+        // ③ 重复键只留第一条（确定性；不然"优先级"就随文件顺序漂）
+        var dup = com.dddgn.alice.job.mine.MineKindPlan.parse(
+                List.of("minecraft:coal_ore=1", "minecraft:coal_ore=2"));
+        check("种类分配：重复键只留第一条（count="
+                        + (dup.specs().isEmpty() ? "-" : dup.specs().get(0).count()) + "）",
+                dup.specs().size() == 1 && dup.specs().get(0).count() == 1 && dup.problems().size() == 1);
+
+        // ④ 生产解析：标签解析成**标签**（不是被当成方块 id 丢掉）、方块解析成方块
+        var plan = com.dddgn.alice.job.mine.MineKindPlan.resolve(bot.serverLevel(),
+                List.of("forge:ores/coal=64", "minecraft:iron_ore=32"));
+        check("种类分配：标签键解析成标签、id 键解析成方块（" + plan.describe() + "）",
+                plan.active() && plan.entries().size() == 2
+                        && plan.entries().get(0).target().describe().startsWith("#")
+                        && "minecraft:iron_ore".equals(plan.entries().get(1).target().describe()));
+        check("种类分配：总配额 = 各条之和（实测 " + plan.sumQuota() + "，应为 96）",
+                plan.sumQuota() == 96);
+        check("种类分配：未知键被拒且不进 entries",
+                !com.dddgn.alice.job.mine.MineKindPlan
+                        .resolve(bot.serverLevel(), List.of("alice:not_a_block=4")).active());
+
+        // ⑤ 满足后不再要它 + 声明顺序优先（纯逻辑，反向对照的靶子）
+        var ordered = com.dddgn.alice.job.mine.MineKindPlan.of(List.of(
+                new com.dddgn.alice.job.mine.MineKindPlan.Entry("forge:ores", 8,
+                        com.dddgn.alice.job.mine.MineCandidateSource.Target.ofTag(
+                                net.minecraft.tags.TagKey.create(
+                                        net.minecraft.core.registries.Registries.BLOCK,
+                                        new net.minecraft.resources.ResourceLocation("forge", "ores")))),
+                new com.dddgn.alice.job.mine.MineKindPlan.Entry("minecraft:coal_ore", 8,
+                        com.dddgn.alice.job.mine.MineCandidateSource.Target.ofBlock(
+                                net.minecraft.world.level.block.Blocks.COAL_ORE))));
+        var coal = net.minecraft.world.level.block.Blocks.COAL_ORE.defaultBlockState();
+        var iron = net.minecraft.world.level.block.Blocks.IRON_ORE.defaultBlockState();
+        var stone = net.minecraft.world.level.block.Blocks.STONE.defaultBlockState();
+        check("种类分配：多匹配时按**声明顺序**取第一条（coal index=" + ordered.indexOf(coal) + "）",
+                ordered.indexOf(coal) == 0);
+        // ⭐ 标签条目的**覆盖面**也要咬住：`#forge:ores` 里当然含铁矿石 ⇒ 铁落到第 0 条（标签真的在生效）。
+        // （第一版这里写错成"铁应该不被要" ⇒ 夹具当场红 —— 那是判据写错，不是代码错：铁确实被 `#forge:ores` 覆盖。）
+        check("种类分配：标签条目**真的覆盖**其成员（iron index=" + ordered.indexOf(iron) + "，应为 0）",
+                ordered.indexOf(iron) == 0);
+        check("种类分配：没够 ⇒ 还要（refusal=" + ordered.refusal(0, new int[] {3, 0}) + "）",
+                ordered.refusal(0, new int[] {3, 0}) == null);
+        check("种类分配：够了 ⇒ **不再选它**（refusal=" + ordered.refusal(0, new int[] {8, 0}) + "）",
+                "kind_quota_met".equals(ordered.refusal(0, new int[] {8, 0})));
+        check("种类分配：**不在分配里**的方块 ⇒ 不要（stone index=" + ordered.indexOf(stone)
+                        + " refusal=" + ordered.refusal(ordered.indexOf(stone), new int[] {0, 0}) + "）",
+                ordered.indexOf(stone) < 0
+                        && "kind_not_wanted".equals(
+                                ordered.refusal(ordered.indexOf(stone), new int[] {0, 0})));
+        check("种类分配：**空计划必须惰性**（active=" + com.dddgn.alice.job.mine.MineKindPlan.NONE.active()
+                        + " refusal="
+                        + com.dddgn.alice.job.mine.MineKindPlan.NONE.refusal(-1, new int[0]) + "）",
+                !com.dddgn.alice.job.mine.MineKindPlan.NONE.active()
+                        && com.dddgn.alice.job.mine.MineKindPlan.NONE.refusal(-1, new int[0]) == null);
+
+        // ⑥ 配置 plumbing（零参数入口靠它：口径写在 config/alice-mine.json 里）
+        var config = com.dddgn.alice.job.mine.MineCostConfig.of(0.0D, List.of("forge:ores/coal=64"));
+        check("种类分配：可随配置携带（" + config.describe() + "）",
+                config.kindQuotas().size() == 1 && config.kindQuotas().get(0).endsWith("=64"));
     }
 
     private void check(String what, boolean ok) {

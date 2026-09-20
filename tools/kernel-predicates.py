@@ -1116,6 +1116,49 @@ def rule_cluster_is_pure_geometry():
     return problems
 
 
+def rule_kind_filter_before_cluster():
+    """`D-361` 种类分配（用户 2026-09-20）：「挖一组煤炭和一组铁，**煤炭多了就不要了**，做成种类分配」，
+    键**既支持标签也支持 ID**；并明确「**还是要保持配额当上限**，当前簇没挖完就放弃」。
+
+    断言（改任一处 ⇒ 红）：
+    ① **种类过滤必须发生在簇/选择之前**：`MineJob.select()` 里 `filterByKind(` 的出现位置必须**早于**
+       `TargetClusters.queueFor(` 与 `policy.select(` —— 否则"簇"会随配额状态漂移
+       （`rule_cluster_is_pure_geometry` 保护的是 `TargetClusters` 自己不读世界，这条保护的是**调用顺序**）；
+    ② 配额**仍是硬上限**：`minedCount >= spec.quota()` 这条判定必须**仍在**（不许为了"挖完一簇"把它推迟）；
+    ③ 键支持两种形态：`MineKindPlan` 必须复用 `Target#parse`（标签优先、否则方块 id）—— 不许自己写一套解析；
+    ④ 空计划惰性：`refusal(...)` 必须在 `active()` 为假时返回 `null`（"没配种类"的老行为不许被改掉）。
+    """
+    problems = []
+    base = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "mine"
+    job = (base / "MineJob.java").read_text(encoding="utf-8")
+    plan = (base / "MineKindPlan.java").read_text(encoding="utf-8")
+
+    body = job[job.find("private Task.Status select()"):]
+    if not body:
+        return ["找不到 `MineJob.select()`（本规则要跟着改）"]
+    at_filter = body.find("filterByKind(")
+    at_cluster = body.find("TargetClusters.queueFor(")
+    at_policy = body.find("policy.select(")
+    if at_filter < 0:
+        problems.append("`MineJob.select()` 里没有 `filterByKind(` ⇒ 种类分配没接进决策缝")
+    else:
+        if at_cluster >= 0 and at_filter > at_cluster:
+            problems.append("`filterByKind(` 出现在 `TargetClusters.queueFor(` **之后** ⇒ 簇会随配额状态漂移"
+                            "（`D-361` 口径：过滤必须在簇之前）")
+        if at_policy >= 0 and at_filter > at_policy:
+            problems.append("`filterByKind(` 出现在 `policy.select(` **之后** ⇒ 满足的种类仍会被选中")
+
+    if "minedCount >= spec.quota()" not in job:
+        problems.append("找不到 `minedCount >= spec.quota()` ⇒ 配额**不再是硬上限**"
+                        "（用户裁定：「还是要保持配额当上限，当前簇没挖完就放弃」）")
+    if "Target.parse(" not in plan:
+        problems.append("`MineKindPlan` 没有复用 `Target.parse(` ⇒ 键解析**另一套口径**（标签/ID 会漂）")
+    if "if (!active()) {\n            return null;\n        }" not in plan:
+        problems.append("`MineKindPlan.refusal` 里找不到「空计划 ⇒ 返回 null」⇒ 惰性保证不在了"
+                        "（没配种类时老行为会被悄悄改掉）")
+    return problems
+
+
 def rule_value_is_only_a_cost_component():
     """`D-329` §2.2 成本模型（用户 2026-09-20 三条裁定）：
     **「矿物价值优先级」只能是成本函数里的一个可配置分量**，不是独立模型、不是硬优先。
@@ -1307,6 +1350,7 @@ def main() -> int:
     value = rule_value_is_only_a_cost_component()
     refused = rule_world_refused_is_attributed()
     lock = rule_manual_test_lock_blocks_llm()
+    kinds = rule_kind_filter_before_cluster()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -1369,13 +1413,15 @@ def main() -> int:
         print(f"[D-359·世界侧拒绝要归因] {line}")
     for line in lock:
         print(f"[D-360·实测锁要挡LLM] {line}")
+    for line in kinds:
+        print(f"[D-361·种类分配] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

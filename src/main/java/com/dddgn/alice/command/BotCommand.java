@@ -2043,9 +2043,22 @@ public final class BotCommand {
         // ② 开采集（起点口径 = bot 起任务时的脚位）
         com.dddgn.alice.job.mine.MineSurvey.enable(start, level.getGameTime(), "mine here");
         // ③ 起任务：**手动入口**（绕过占用锁；其它闸门照旧）
-        var request = new com.dddgn.alice.job.JobRequest(
-                com.dddgn.alice.job.JobRequest.Kind.MINE, start, MINE_SURVEY_RADIUS,
-                MINE_SURVEY_QUOTA, MINE_SURVEY_MAX_TICKS, MINE_SURVEY_TAG, null);
+        // ③b `D-361` 种类分配：**从配置读**（零参数入口 ⇒ 口径只能写在 `config/alice-mine.json` 里，
+        //     不许要求玩家输参数）。空 ⇒ 单一总配额（= 今天的行为，逐字不变）。
+        java.util.List<String> kindQuotas = com.dddgn.alice.job.mine.MineCostConfig.load().kindQuotas();
+        com.dddgn.alice.job.mine.MineKindPlan.Parsed parsed =
+                com.dddgn.alice.job.mine.MineKindPlan.parse(kindQuotas);
+        int quota = MINE_SURVEY_QUOTA;
+        if (!parsed.specs().isEmpty()) {
+            // 总配额 = **各条之和**（用户裁定：配额当硬上限 ⇒ 种类分配只收紧、不放开）
+            quota = parsed.specs().stream()
+                    .mapToInt(com.dddgn.alice.job.mine.MineKindPlan.Spec::count).sum();
+        }
+        var request = parsed.specs().isEmpty()
+                ? com.dddgn.alice.job.JobRequest.mine(start, MINE_SURVEY_RADIUS, quota,
+                        MINE_SURVEY_MAX_TICKS, MINE_SURVEY_TAG)
+                : com.dddgn.alice.job.JobRequest.mineKinds(start, MINE_SURVEY_RADIUS, quota,
+                        MINE_SURVEY_MAX_TICKS, MINE_SURVEY_TAG, kindQuotas);
         // 归因：玩家入口的指派点必须标（F1 规则要求紧邻；手动窗口自己开关，异常也不会把锁留着）
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.IN_GAME_PLAYER);
         com.dddgn.alice.bot.ManualTestLock.beginManualWindow();

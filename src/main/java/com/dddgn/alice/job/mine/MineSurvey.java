@@ -63,10 +63,12 @@ public final class MineSurvey {
      *
      * @param attempted 被选中的目标序列（决策行为）
      * @param failedCodes 每次失败的理由码
+     * @param kindNote **种类分配**进度（`D-361`；空串 = 本轮没有种类分配）——单独一行打，
+     *                 不改 `MineSurveyStats.Snapshot` 的字段（那份口径被夹具逐字咬着，不许悄悄加字段）
      */
     public static void reportTerminal(String jobName, BlockPos fallbackStart, List<BlockPos> attempted,
                                       int successes, int quota, int ticks, String terminal,
-                                      List<String> failedCodes) {
+                                      List<String> failedCodes, String kindNote) {
         if (!active()) {
             return;
         }
@@ -85,6 +87,9 @@ public final class MineSurvey {
             // 口径分歧留痕：起点口径与"**只看成功格**"口径都给出来（后者排除"试了但没挖到"的噪声）
             BotLog.info("[MineSurvey] 口径对照 起点={} 被选中={} 成功={}（向下占比的两种分母见上两行）",
                     start.toShortString(), attempted.size(), successes);
+        }
+        if (kindNote != null && !kindNote.isBlank()) {
+            BotLog.info("[MineSurvey] 种类分配 {}", kindNote);
         }
         reset();
         ManualTestLock.off("作业已到终态（" + terminal + "）");

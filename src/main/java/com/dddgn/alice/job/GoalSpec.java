@@ -26,7 +26,18 @@ public record GoalSpec(Kind kind, int quota, BlockPos center, int radius, int ma
                         * 意图层与执行层分离 ⇒ 它只影响**候选的取舍与顺序**，绝不替授权面/破坏面下结论。
                         * `null` ⇒ {@link com.dddgn.alice.job.mine.MineIntent#none()}（= 今天的行为）。
                         */
-                       com.dddgn.alice.job.mine.MineIntent intent) {
+                       com.dddgn.alice.job.mine.MineIntent intent,
+                       /**
+                        * ⭐ **种类分配**（`D-361`，用户 2026-09-20）：「挖一组煤炭和一组铁，煤炭多了就不要了」。
+                        *
+                        * <p>形态 = 原文条目 `"<键>=<数量>"`，键**既可以是标签、也可以是方块 id**
+                        * （解析规则与命令入口同一处 = {@link com.dddgn.alice.job.mine.MineCandidateSource.Target#parse}）。
+                        * 空列表 ⇒ **惰性**（回到"单一总配额"行为，逐字不变）。
+                        *
+                        * <p>⚠️ 与 `quota` 的关系：`quota` 仍是**硬上限**，种类分配**不**推迟配额判定；
+                        * 调用方通常令 `quota = sum(各条数量)`（{@link com.dddgn.alice.job.mine.MineKindPlan#sumQuota()}）。
+                        */
+                       java.util.List<String> kindQuotas) {
 
     public enum Kind {
         /** 产物入包数量达到配额（按 `productTag` 统计背包增量）。 */
@@ -49,11 +60,12 @@ public record GoalSpec(Kind kind, int quota, BlockPos center, int radius, int ma
             throw new IllegalArgumentException("maxTicks must be > 0");
         }
         intent = intent == null ? com.dddgn.alice.job.mine.MineIntent.none() : intent;
+        kindQuotas = kindQuotas == null ? java.util.List.of() : java.util.List.copyOf(kindQuotas);
     }
 
     /** 伐木：在 center 半径内砍完 quota 棵。 */
     public static GoalSpec harvestUnits(BlockPos center, int radius, int units, int maxTicks) {
-        return new GoalSpec(Kind.HARVEST_UNITS, units, center, radius, maxTicks, null, null);
+        return new GoalSpec(Kind.HARVEST_UNITS, units, center, radius, maxTicks, null, null, null);
     }
 
     /**
@@ -63,25 +75,34 @@ public record GoalSpec(Kind kind, int quota, BlockPos center, int radius, int ma
      * 于是挖掘与伐木共用同一套配额/终止语义（J5 的"同一套 Job/Trace 复用"）。
      */
     public static GoalSpec mineBlocks(BlockPos center, int radius, int blocks, int maxTicks) {
-        return new GoalSpec(Kind.HARVEST_UNITS, blocks, center, radius, maxTicks, null, null);
+        return new GoalSpec(Kind.HARVEST_UNITS, blocks, center, radius, maxTicks, null, null, null);
     }
 
     /** 挖掘 + **作业区/意图**（阶段 1.5）：`intent` 只影响候选取舍与顺序（见 {@code MineIntent} 的告警）。 */
     public static GoalSpec mineBlocks(BlockPos center, int radius, int blocks, int maxTicks,
                                       com.dddgn.alice.job.mine.MineIntent intent) {
-        return new GoalSpec(Kind.HARVEST_UNITS, blocks, center, radius, maxTicks, null, intent);
+        return new GoalSpec(Kind.HARVEST_UNITS, blocks, center, radius, maxTicks, null, intent, null);
+    }
+
+    /** 挖掘 + **种类分配**（`D-361`）：`quota` 由调用方按 `sumQuota()` 给，仍是硬上限。 */
+    public static GoalSpec mineKinds(BlockPos center, int radius, int blocks, int maxTicks,
+                                     TagKey<Item> productTag, java.util.List<String> kindQuotas,
+                                     com.dddgn.alice.job.mine.MineIntent intent) {
+        return new GoalSpec(Kind.HARVEST_UNITS, blocks, center, radius, maxTicks, productTag, intent,
+                kindQuotas);
     }
 
     /** 采集：在 center 半径内收集 quota 个匹配 `tag` 的产物。 */
     public static GoalSpec collectItems(BlockPos center, int radius, int items,
                                         TagKey<Item> tag, int maxTicks) {
-        return new GoalSpec(Kind.COLLECT_ITEMS, items, center, radius, maxTicks, tag, null);
+        return new GoalSpec(Kind.COLLECT_ITEMS, items, center, radius, maxTicks, tag, null, null);
     }
 
     public String describe() {
         return kind + " quota=" + quota + " center=" + center.toShortString()
                 + " radius=" + radius + " maxTicks=" + maxTicks
                 + (productTag == null ? "" : " product=" + productTag.location())
-                + (intent.active() ? " intent=" + intent.describe() : "");
+                + (intent.active() ? " intent=" + intent.describe() : "")
+                + (kindQuotas.isEmpty() ? "" : " kinds=" + kindQuotas);
     }
 }

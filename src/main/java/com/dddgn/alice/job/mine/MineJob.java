@@ -77,7 +77,7 @@ public final class MineJob implements Job {
      * ⭐ **簇消费队列**（用户 2026-09-20 定的簇口径）：选中点所在**几何相连簇**的成员，选中的排第一。
      * 每个成员仍要过身份复检 + 规划器；成员失败就 `attempted` 掉继续下一个 ⇒ **部分完成如实**。
      */
-    private java.util.List<BlockPos> clusterQueue = java.util.List.of();
+    private java.util.List<BlockPos> clusterQueue = new ArrayList<>();
 
     /**
      * **夹具专用**：把"身份复检"注入进来（`null` = 走生产路径的 {@link MineCandidateSource#matchesTarget}）。
@@ -108,6 +108,18 @@ public final class MineJob implements Job {
      * 合在一起就分不出"是偏置"还是"被拒"。
      */
     private final List<BlockPos> attemptOrder = new ArrayList<>();
+
+    /**
+     * ⭐ **种类分配**（`D-361`，用户 2026-09-20）：「挖一组煤炭和一组铁，煤炭多了就不要了」。
+     *
+     * <p>空 ⇒ 惰性（单一总配额，行为逐字不变）。启用时：**先按种类过滤候选、再做簇/选择**
+     * （簇保持纯几何 ⇒ 过滤必须在它之前），且**总数配额仍是硬上限**（不推迟判定）。
+     */
+    private final MineKindPlan kindPlan;
+    /** 与 {@link #kindPlan} 的条目对齐的"已挖数量"（成功挖掉才 +1，与 `minedCount` 同一个时刻）。 */
+    private final int[] minedByKind;
+    /** 当前选中的目标属于哪条分配（`-1` = 无分配/不属于任何一条）；成功时按**选择时刻**的判定计数。 */
+    private int currentKind = -1;
 
     /** 一次尝试失败：`pos` 是目标格，`code` 是失败理由码（取自既有词表，见 `toolRefusal` / `MineTask.failureReason`）。 */
     private record AttemptFailure(BlockPos pos, String code) {
@@ -152,9 +164,15 @@ public final class MineJob implements Job {
         this.source = source;
         this.policy = policy;
         this.productFilter = MineProductFilter.forTag(spec.productTag());
+        this.kindPlan = MineKindPlan.resolve(bot.serverLevel(), spec.kindQuotas());
+        this.minedByKind = new int[kindPlan.entries().size()];
         this.itemsBefore = countTargetItems();
         BotLog.info("[MineJob] productFilter={}（J-6：目标驱动，不再硬编码原版矿物）",
                 productFilter.describe());
+        if (kindPlan.active()) {
+            BotLog.info("[MineJob] {}（用户 D-361：满足的种类不再选它；总配额 {} 仍是硬上限）",
+                    kindPlan.describe(), spec.quota());
+        }
     }
 
     @Override
@@ -234,6 +252,7 @@ public final class MineJob implements Job {
 
     public String progressSummary() {
         return "mined " + minedCount + "/" + spec.quota()
+                + (kindPlan.active() ? " · " + kindPlan.progress(minedByKind) : "")
                 + (attemptFailures.isEmpty() ? "" : " failed=" + attemptFailures.size());
     }
 
@@ -290,16 +309,18 @@ public final class MineJob implements Job {
         // （可破坏性 / 授权面）是**当前**的世界事实 —— 旧版每次选择都重扫世界，所以它天然是当前的；
         // 分片之后必须显式补回这一步（实测 `mine_budget`：不补 ⇒ 预算耗尽后仍去试旧候选 ⇒ 归因退化）。
         CandidateSet set = withoutAttempted(session.revalidate(bot));
+        // ⭐ **种类分配先过滤**（`D-361`）：满足的种类不再选它（`kind_quota_met`）、不在分配里的不要
+        // （`kind_not_wanted`）。**必须在簇之前** —— `TargetClusters` 保持**纯几何**（否则"簇"会随
+        // 配额状态漂移，判据就没法单独咬它了）。
+        set = filterByKind(set);
         // ⭐ **簇消费**：上一轮选中的目标若还有"同簇且仍然可用"的成员没挖，**先挖它**（顺序建议）。
-        // 判据：同一簇的目标**连续**被尝试（`mine_run_metrics`/夹具看尝试序列）；成员不可用时**不许**静默
-        // 跳过 —— 走正常的选择路径（它会为该成员留下**自己的**理由码，见 `TargetClusters` 的告警）。
+        // 判据：同一簇的目标**连续**被尝试（`mine_run_metrics`/夹具看尝试序列）。
+        // ⚠️ 用户 2026-09-20 裁定：**配额是硬上限** —— 配额到了就在簇中间收口（"当前簇没挖完就放弃"）；
+        //    但"成员不可用"**不许**静默跳过、也不许就此放弃整簇：逐个了结、每个都留下**它自己的**理由码，
+        //    队列空了才回到全局选择（否则其余成员再也轮不到，第一轮实测就是因为这个把带内 4 格煤留下了）。
         Selection selection = null;
-        while (!clusterQueue.isEmpty()) {
-            BlockPos next = clusterQueue.get(0);
-            clusterQueue = clusterQueue.subList(1, clusterQueue.size());
-            if (attempted.contains(next)) {
-                continue;
-            }
+        while (selection == null && !clusterQueue.isEmpty()) {
+            BlockPos next = clusterQueue.remove(0);
             for (com.dddgn.alice.job.Candidate candidate : set.viable()) {
                 if (candidate.anchor().equals(next)) {
                     selection = new Selection(candidate, "cluster_member",
@@ -307,14 +328,17 @@ public final class MineJob implements Job {
                     break;
                 }
             }
-            break;
+            if (selection == null) {
+                DecisionTrace.step(jobName(), "SKIP", next.toShortString(),
+                        "簇成员不可用（已了结，继续本簇下一个）：" + memberRefusal(set, next));
+            }
         }
         if (selection == null) {
             selection = policy.select(bot, spec, set);
             if (selection.picked() != null) {
-                clusterQueue = TargetClusters.queueFor(
+                clusterQueue = new ArrayList<>(TargetClusters.queueFor(
                         set.viable().stream().map(com.dddgn.alice.job.Candidate::anchor).toList(),
-                        selection.picked().anchor());
+                        selection.picked().anchor()));
             }
         }
         if (selection.picked() == null) {
@@ -332,6 +356,8 @@ public final class MineJob implements Job {
         DecisionTrace.select(jobName(), policy.name(), set, selection);
         current = selection.picked().anchor();
         ServerLevel level = bot.serverLevel();
+        // 种类分配：按**选择时刻**的世界事实判定它属于哪一条（成功时按这个计数，避免"挖完了再读世界"读到空气）
+        currentKind = kindPlan.active() ? kindPlan.indexOf(level.getBlockState(current)) : -1;
         // 身份复检（§6.2c⑤，与伐木同一条纪律）：`candidates` 是**决策时刻的扫描结果**，
         // 执行期世界可能已变——若该格已不是目标方块，挖它就是拿别人的东西。
         boolean stillTarget = identityCheckOverride == null
@@ -375,6 +401,14 @@ public final class MineJob implements Job {
         attempted.add(mined);
         if (status == Task.Status.DONE) {
             minedCount++;
+            if (kindPlan.active() && currentKind >= 0 && currentKind < minedByKind.length) {
+                minedByKind[currentKind]++;
+                MineKindPlan.Entry entry = kindPlan.entries().get(currentKind);
+                if (minedByKind[currentKind] == entry.count()) {
+                    DecisionTrace.step(jobName(), "KIND", mined.toShortString(),
+                            "种类已满足，不再选它：" + kindPlan.progress(minedByKind));
+                }
+            }
             if (firstMined == null) {
                 firstMined = mined;
                 // ⭐ `D-347`（运行账）：**"到达"由任务自己声明** —— 判据是"第一格目标方块**真的被挖掉**"
@@ -487,6 +521,11 @@ public final class MineJob implements Job {
             BotLog.warn("[Job] mine 未能完成的目标: {}", attemptFailures.stream()
                     .map(AttemptFailure::describe).collect(java.util.stream.Collectors.joining(" | ")));
         }
+        // 种类分配：把**没满足的种类**如实报出来（"总配额满了但某类还差"与"哪类都还没够"是两回事）
+        if (kindPlan.active() && !kindPlan.allSatisfied(minedByKind)) {
+            BotLog.warn("[Job] mine 种类未满足：{}（总 {} / 上限 {}）", kindPlan.shortfall(minedByKind),
+                    minedCount, spec.quota());
+        }
         // ⭐ `D-329` §2 S3：**`SEARCH_LIMIT ≠ UNREACHABLE`**。
         // 总预算把扫描截断了 ⇒ 我们**不知道**还有没有矿 ⇒ 只能说"搜索受限"。
         // 这里若报 `no_reachable_candidate`（"没有可达候选"）就是在把"没看见"说成"没有"，
@@ -551,6 +590,49 @@ public final class MineJob implements Job {
         return new CandidateSet(viable, rejected);
     }
 
+    /**
+     * **按种类分配过滤候选**（`D-361`）：满足的种类不再选它、不在分配里的不要。
+     *
+     * <p>⚠️ 调用点**必须**在 {@link TargetClusters#queueFor} 与 `policy.select` **之前**
+     * （`D-361` 口径：簇保持纯几何 —— 让"簇"随配额状态漂移，就没法单独咬簇判据了）。
+     * 门禁 `rule_kind_filter_before_cluster` 咬这条顺序。
+     */
+    private CandidateSet filterByKind(CandidateSet raw) {
+        if (!kindPlan.active()) {
+            return raw;
+        }
+        List<Candidate> viable = new ArrayList<>();
+        List<String> rejected = new ArrayList<>(raw.rejected());
+        for (Candidate candidate : raw.viable()) {
+            String refusal = kindPlan.refusal(
+                    kindPlan.indexOf(bot.serverLevel().getBlockState(candidate.anchor())), minedByKind);
+            if (refusal == null) {
+                viable.add(candidate);
+            } else {
+                rejected.add(candidate.anchor().toShortString() + ":" + refusal);
+            }
+        }
+        return new CandidateSet(viable, rejected);
+    }
+
+    /**
+     * **簇成员为什么不可用**（如实归因，`D-361`）：优先用**已有的**理由码（扫描/复检/已尝试过），
+     * 都不匹配才落到 `not_selectable`。绝不把"不可用"说成"没有"或静默丢掉这一格。
+     */
+    private String memberRefusal(CandidateSet set, BlockPos pos) {
+        String shortForm = pos.toShortString() + ":";
+        String policyForm = "block@" + pos.getX() + "," + pos.getY() + "," + pos.getZ() + ":";
+        for (String entry : set.rejected()) {
+            if (entry.startsWith(shortForm)) {
+                return entry.substring(shortForm.length());
+            }
+            if (entry.startsWith(policyForm)) {
+                return entry.substring(policyForm.length());
+            }
+        }
+        return attempted.contains(pos) ? "already_attempted" : "not_selectable";
+    }
+
     private Task.Status finish(Task.Status status) {
         if (!terminated) {
             terminated = true;
@@ -562,7 +644,8 @@ public final class MineJob implements Job {
             // ⭐ `D-360`：手动实测的采集**收口在这一个地方** —— `MineJob` 的终态有四条路径
             // （配额达成 / 候选穷尽 / 背包满 / 超时），在这里打点才不会出现"某条路径静默无数据"。
             MineSurvey.reportTerminal(jobName(), spec.center(), attemptOrder, minedCount, spec.quota(),
-                    ticks, terminalReason, attemptFailures.stream().map(AttemptFailure::code).toList());
+                    ticks, terminalReason, attemptFailures.stream().map(AttemptFailure::code).toList(),
+                    kindPlan.active() ? kindPlan.progress(minedByKind) : "");
         }
         return status;
     }

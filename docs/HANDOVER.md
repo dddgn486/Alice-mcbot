@@ -31,8 +31,21 @@
 > **用户已拍板（2026-09-20 第二轮口径）**：① 配额 8→**64**（`BotCommand`，已改）+ `maxTicks` 3600→12000；
 > ② **扫描方式先不改**（保持贪心，"候选耗尽才 advance"这一支由配额 64 自然触发）；③ **要加"挖完一簇"语义**
 > （用户同时点出陷阱：**同簇成员不一定都能挖，必须如实拒绝**，不许静默跳过、不许无限重试）；
-> ④ **`PATH_ACCESS` 吃目标块要修**；⑤ 成本模型加 `break` 分量 → **暂不实施**（用户要求先解释）；
+> ④ **`PATH_ACCESS` 吃目标块** → 用户改口「**先不管这个**」（修复方向被认可，登记在 `D-359` 附注，触发=再出现）；
+> ⑤ 成本模型加 `break` 分量 → **已同意**（未实施，见下）；
 > ⑥ **X 光材质包撤掉**（改用旁观者模式观察；已移到 `[client]/resourcepacks-disabled/AliceXray`、`options.txt` 已清空）。
+>
+> ### ✅ 本轮已落地（`D-361`，2026-09-20；`check-all` pass=18 warning=1 failed=0）：
+> ① **配额 8→64 / maxTicks 3600→12000**（`BotCommand`）；② **种类分配（per-kind allocation）**：
+> `MineKindPlan` + `GoalSpec`/`JobRequest` 新组件 + `MineJob.filterByKind`（**在簇之前**）+ `MineCostConfig.kindQuotas`
+> + `/alice mine here` 从 `config/alice-mine.json` 读；③ **簇语义**：成员不可用⇒**逐个了结 + 各自理由码**
+> （不再"弹一个不可用就掉回全局选择 ⇒ 整簇作废"），**配额仍是硬上限**（`minedCount >= spec.quota()` 原地不动）。
+> **证据**：`mine_menu` **checks=64**（+13 条新判据）**4 种注入全红**（`>=`→`>` / 反向找第一条 / 重复键不去重 /
+> 只返回第一条之和）；门禁新规则 `rule_kind_filter_before_cluster`（18 条）**4 种注入全红**；
+> `single:mine_survey` PASS（ticks=96）· `single:mine_job` PASS（ticks=245）· **CORE 51/51 PASS**（ticks=4822，
+> 缓存指纹 `cd11671c4fb2`）；jar 已同步客户端 `runtime_sha256=0be2424f…`。
+> ⏳ **未实施**：`break` 成本分量（已获同意；方案 = 补上 `D-329` §2.1 里**本就设计好但没实现的 top-K 精算**：
+> 用 `MiningPlanner` 的成本（**已含破坏 tick 项**）给前 K 个候选重新打分 ⇒ 修掉 `cells=0` 时退化成"欧氏最近"）。
 
 > ## 断点（2026-09-20 收口 · 压缩前落盘）
 >

@@ -27,7 +27,14 @@ public record JobRequest(
         /** 产物标签（挖掘用，如 `#forge:ores/iron`）；null = 不限。 */
         String productTag,
         /** 区域型专用：水平区域（玩家划定；null = 非区域型）。 */
-        com.dddgn.alice.job.lumber.LumberRegionState.Region region
+        com.dddgn.alice.job.lumber.LumberRegionState.Region region,
+        /**
+         * **种类分配**（挖掘用，`D-361`）：每条形如 `"<键>=<数量>"`，键 = **标签或方块 id**。
+         *
+         * <p>空 = 今天的行为（单一总配额）。与 `quota` 的关系：**`quota` 仍是硬上限**，
+         * 调用方通常令 `quota = sum(各条数量)`（见 {@code MineKindPlan.sumQuota()}）。
+         */
+        java.util.List<String> kindQuotas
 ) {
 
     public enum Kind {
@@ -53,19 +60,28 @@ public record JobRequest(
         radius = Math.max(1, radius);
         quota = Math.max(1, quota);
         maxTicks = Math.max(20, maxTicks);
+        kindQuotas = kindQuotas == null ? java.util.List.of() : java.util.List.copyOf(kindQuotas);
     }
 
     public static JobRequest lumber(BlockPos center, int radius, int quota, int maxTicks) {
-        return new JobRequest(Kind.LUMBER, center, radius, quota, maxTicks, null, null);
+        return new JobRequest(Kind.LUMBER, center, radius, quota, maxTicks, null, null, null);
     }
 
     public static JobRequest mine(BlockPos center, int radius, int quota, int maxTicks, String productTag) {
-        return new JobRequest(Kind.MINE, center, radius, quota, maxTicks, productTag, null);
+        return new JobRequest(Kind.MINE, center, radius, quota, maxTicks, productTag, null, null);
+    }
+
+    /** 挖掘 + **种类分配**（`D-361`；键 = 标签或方块 id）。 */
+    public static JobRequest mineKinds(BlockPos center, int radius, int quota, int maxTicks,
+                                       String productTag, java.util.List<String> kindQuotas) {
+        return new JobRequest(Kind.MINE, center, radius, quota, maxTicks, productTag, null,
+                kindQuotas);
     }
 
     public static JobRequest region(com.dddgn.alice.job.lumber.LumberRegionState.Region region,
                                     int radius, int quota, int maxTicks) {
-        return new JobRequest(Kind.REGION_LUMBER, region.center(), radius, quota, maxTicks, null, region);
+        return new JobRequest(Kind.REGION_LUMBER, region.center(), radius, quota, maxTicks, null, region,
+                null);
     }
 
     /**
@@ -73,12 +89,12 @@ public record JobRequest(
      * 我方（直接/间接）与**玩家授权区**默认 AUTO；`FOREIGN` 默认 ASK ⇒ 收集路径直接过滤掉）。
      */
     public static JobRequest collect(BlockPos center, int radius, int quota, int maxTicks) {
-        return new JobRequest(Kind.COLLECT, center, radius, quota, maxTicks, null, null);
+        return new JobRequest(Kind.COLLECT, center, radius, quota, maxTicks, null, null, null);
     }
 
     /** 合成 / 熔炼请求（A5）：`itemId` = 产物 id，`count` = 产物数量。 */
     public static JobRequest craft(BlockPos center, String itemId, int count, int maxTicks) {
-        return new JobRequest(Kind.CRAFT, center, 1, Math.max(1, count), maxTicks, itemId, null);
+        return new JobRequest(Kind.CRAFT, center, 1, Math.max(1, count), maxTicks, itemId, null, null);
     }
 
     /** 一行摘要（决策日志用）。 */
@@ -86,6 +102,7 @@ public record JobRequest(
         return "kind=" + kind + " center=" + center.toShortString() + " radius=" + radius
                 + " quota=" + quota + " maxTicks=" + maxTicks
                 + (productTag == null ? "" : " product=" + productTag)
-                + (region == null ? "" : " region=" + region.describe());
+                + (region == null ? "" : " region=" + region.describe())
+                + (kindQuotas.isEmpty() ? "" : " kinds=" + kindQuotas);
     }
 }

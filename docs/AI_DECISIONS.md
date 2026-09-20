@@ -15387,3 +15387,49 @@ forceload → 建地板+矿 → 传送 → `scope.begin` → **真的破坏那�
 #### 五、验证
 `single:mine_survey` PASS（12 判据）· 电池步数 74 → **75**（EXTRA `mine_survey`）· 全量 `full` 见提交信息 ·
 `check-all` pass=19 warning=0 failed=0。
+
+### D-361：**种类分配（per-kind allocation）** —— 键 = 标签**或**方块 ID；配额仍是**硬上限**（用户 2026-09-20）2026-09-20
+
+#### 一、用户裁定原文（本轮三条）
+1. 「「挖完一簇」语义**还是要保持配额当上限**，**当前簇没挖完就放弃**」
+   （= 我上一版提的"配额当下限、挖完当前簇才收口"**被否**）；
+2. 「配额有种类分配吗，比如要求挖**一组煤炭和一组铁**，**煤炭多了就不要了**，最好做成种类分配」；
+3. 「种类分配**当然也不能限定成 ID，也要支持标签**」。
+
+补充（用户同日）：`PATH_ACCESS` 吃目标块**先不管**（其修复方向被认可，但排序在后）；
+**成本模型加 `break` 分量已同意**（另开 `D-362`）。
+
+#### 二、口径（每条都有判据或门禁咬住）
+| 口径 | 落地 | 咬它的地方 |
+|---|---|---|
+| 键 = 标签**或**方块 id | `MineKindPlan.resolve` 复用 `Target.parse`（先标签、后方块） | `rule_kind_filter_before_cluster` ③ + 夹具"标签键/ID 键各一条" |
+| 多匹配 ⇒ **声明顺序**取第一条 | `indexOf` 顺序扫描、先到先得（不按"谁更具体"猜） | 夹具 `coal index==0`；注入"从后往前找"⇒ 红 |
+| **满足后不再选它** | 拒绝码 `kind_quota_met`；不在分配里 ⇒ `kind_not_wanted` | 夹具 `refusal(8,...)=="kind_quota_met"`；注入 `>=`→`>` ⇒ 红 |
+| 过滤在**簇之前** | `MineJob.select()`：`filterByKind` → `TargetClusters.queueFor` → `policy.select` | `rule_kind_filter_before_cluster` ①（注入换序 ⇒ 红） |
+| **配额仍是硬上限** | `minedCount >= spec.quota()` **原地不动**（不推迟、不因簇而超挖） | `rule_kind_filter_before_cluster` ②（删掉 ⇒ 红） |
+| 空计划**惰性** | `MineKindPlan.NONE.refusal(...) == null`；`JobLauncher` 空 ⇒ 逐字走 `mineBlocks` | 夹具"空计划惰性"；注入 ⇒ 红 |
+| 总数 = 各条之和 | `sumQuota()`；`BotCommand` 用它当 `quota` | 夹具 `sumQuota()==96`；注入"只返回第一条" ⇒ 红 |
+| 配置坏了**不许猜** | 坏条目全进 `problems()` + WARN；一条都不剩 ⇒ 惰性 | 夹具 6 种坏形态一次判死 |
+
+#### 三、为什么"过滤必须在簇之前"（而不是让簇去理解配额）
+`TargetClusters` 已被 `rule_cluster_is_pure_geometry` 钉死为**纯几何**（不读世界、不问授权、不查记忆）。
+种类分配是**当时的库存事实**（"煤够了"会随进程变化），把它塞进簇 ⇒ 簇的身份开始随状态漂移 ⇒
+"这一簇有几格"变成不可复现的量。⇒ 正解：**先按"还想要什么"过滤候选，再对过滤后的集合做几何分簇**。
+
+#### 四、"挖完一簇"的实际含义（用户第二版裁定后的语义）
+配额是硬上限 ⇒ **收口位置不变**；本轮的"簇"改动只修两处**放弃行为**：
+① 簇成员不可用时**逐个了结**（每个都留自己的理由码，`DecisionTrace` 打 `SKIP … 簇成员不可用（已了结，继续本簇下一个）`），
+   不再"弹一个不可用的就掉回全局选择 ⇒ 整簇作废"（第一轮真机实测：带内 4 格煤就是这么被留下的）；
+② 队列**只减不增**（`ArrayList.remove(0)`；终态由配额/候选穷尽决定）⇒ 不会因为"成员都不可用"而死循环。
+
+#### 五、配置面（零参数入口的唯一合法出口）
+`config/alice-mine.json` 新增 `"kindQuotas": {"forge:ores/coal": 64, "minecraft:iron_ore": 32}`（对象形态；
+声明顺序即优先级）。`/alice mine here` 读它：非空 ⇒ `quota = sum`、`JobRequest.mineKinds(...)`；
+空 ⇒ **逐字走今天的行为**（`MINE_SURVEY_QUOTA`，无种类过滤）。
+⚠️ 生产（LLM）路径本轮**不接**：`JobLauncher` 只在 `request.kindQuotas()` 非空时才走 `mineKinds`
+（LLM 的动作词汇表暂不暴露该字段）—— 接入方向与触发条件见 §六。
+
+#### 六、未做 / 触发条件
+- **LLM 路径暴露 `kindQuotas`**：等"决策层队列 `GoalRecord`"落地后一起做（与 `D-351` 同一触发）；
+- **每种独立产物核对**（现在产物核对仍是总数：`gained >= minedCount`）：等真机出现"某类没入包却报 quota_met"再补；
+- `PATH_ACCESS` 吃目标块（用户裁定"先不管"）：登记在 `D-359` 附注，触发 = 下一次真机出现"目标矿被当通路挖掉"。
