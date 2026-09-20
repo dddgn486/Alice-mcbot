@@ -1159,6 +1159,94 @@ def rule_kind_filter_before_cluster():
     return problems
 
 
+def rule_clearance_never_eats_task_target():
+    """`D-362` **清障不得吃掉任务目标**（用户 2026-09-20 修正口径：「要修的是清障与任务目标的区分，
+    即使是绕过去；不管的是成本模型隐含的不准确问题」）。
+
+    真机靶子（A 路线第一轮）：第 8 个目标 `479,68,103`（煤）的站位点 `479,68,104` **本身也是煤**，
+    被当清障方块挖掉 —— `[WRITE] break … minecraft:coal_ore by=mine-runner:attempt0:PATH_ACCESS`
+    ⇒ 产物进包但**既不进 success 也不进 failure**（同时解释当轮 `candidates=55` / `inventoryDelta=9`）。
+
+    对照 Baritone（本 skill 要求给 `文件:行`）：`MovementHelper.avoidBreaking:68` ⇒ `:590` 代价 COST_INF
+    （**绕行**）；`BuilderProcess:1166` `isPossiblyProtected` 同款。Alice 的闸门放在**授权侧**
+    （`BlockInteraction`），搜索与执行共用 ⇒ 不会"计划说能过、执行才被拒"。
+
+    断言（改任一处 ⇒ 红）：
+    ① `BlockInteraction.breakRefusal` 必须问 `TaskTargetProtection.refusalFor(`，**且**必须**只在 `PATH_ACCESS` 下**问
+       （无条件问 ⇒ `EXPECTED_TARGET` 也被拦 ⇒ 挖矿整体被打断；夹具 `guard_expected_allowed` 也会红）；
+    ② `beginBreak`（**唯一真正写世界**的入口）也必须问一遍 —— 不能只靠"调用点记得先问 breakable"；
+    ③ `BotManager` 换任务时必须撤销作用域（与 `WriteEnvelopes.clear` 同一处）—— 泄漏比 bug 更隐蔽
+       （上一个任务的目标保护会把下个任务的开路清障全拦掉）；
+    ④ 生产侧必须真的有人装：`MineJob` / `LumberJob` 都要 `begin(` + `end(`（否则规则空转）。
+    """
+    problems = []
+    action = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "action"
+    bi = (action / "BlockInteraction.java").read_text(encoding="utf-8")
+    guard = (action / "TaskTargetProtection.java").read_text(encoding="utf-8")
+    manager = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "bot"
+               / "BotManager.java").read_text(encoding="utf-8")
+    mine = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "mine"
+            / "MineJob.java").read_text(encoding="utf-8")
+    lumber = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "lumber"
+              / "LumberJob.java").read_text(encoding="utf-8")
+
+    if "public static final String CODE" not in guard:
+        problems.append("`TaskTargetProtection` 没有稳定的拒绝码常量 `public static final String CODE`"
+                        "（判据/日志要按它比对）")
+    refusal = method_body(bi, "public static String breakRefusal(")
+    if "TaskTargetProtection.refusalFor(" not in refusal:
+        problems.append("`breakRefusal` 没问 `TaskTargetProtection.refusalFor(` ⇒ 清障仍会吃掉任务目标")
+    elif "grant.reason() == WriteReason.PATH_ACCESS" not in refusal:
+        problems.append("`breakRefusal` 里问了目标保护但**没有限定 `PATH_ACCESS`** ⇒ `EXPECTED_TARGET`"
+                        "（真的去挖那一格）也会被拦 ⇒ 挖矿整体被打断")
+    begin = method_body(bi, "public static BlockBreakSession beginBreak(")
+    if "TaskTargetProtection.refusalFor(" not in begin:
+        problems.append("`beginBreak`（**唯一真正写世界**的入口）没问目标保护 ⇒ 只靠调用点自觉，迟早漏一处")
+    if "TaskTargetProtection.end(bot)" not in manager:
+        problems.append("`BotManager` 换任务时没有 `TaskTargetProtection.end(bot)` ⇒ 作用域会跨任务泄漏"
+                        "（下个任务的开路清障全被拦，且很难查）")
+    for name, text in (("MineJob", mine), ("LumberJob", lumber)):
+        if "TaskTargetProtection.begin(" not in text or "TaskTargetProtection.end(bot)" not in text:
+            problems.append("`%s` 没有成对安装/撤销目标保护（`begin(` + `end(bot)`）⇒ 规则空转" % name)
+    if "pos.equals(current)" not in mine:
+        problems.append("`MineJob` 的目标保护谓词没有豁免「当前这一格」 ⇒ `ENTER_TARGET`（破坏进入自己那格）"
+                        "会被自己拦死")
+    return problems
+
+
+def rule_cost_includes_break():
+    """`D-363` **`break` 分量进选择成本**（用户 2026-09-20：「`break` 分量我觉得可以马上做」）。
+
+    缺口（A 路线第一轮实测）：选择成本只算**纯通行** ⇒ 真实地形里全候选 `∞`（`cells=0`）⇒ 排序退化成
+    欧氏最近；而执行器在用 `TUNNEL`（走+挖）。修法 = 补上 `D-329` §2.1 里设计过但没实现的 **top-K 精算**，
+    复用 `MiningPlanner`（它的路径成本本来就含破坏 tick 折算）⇒ **不新造破坏估算器**。
+
+    断言（改任一处 ⇒ 红）：
+    ① 生产策略必须走精算链：`CostOptimalPolicy.production()` 里出现 `PlanRefinedCostProvider`；
+    ② 精算次数是**常量**（`DEFAULT_TOP_K`）且 > 0（有界，不许无上限地每个候选都跑规划器）；
+    ③ 精算必须真的用 `MiningPlanner`（`new MiningPlanner()` + `.plan(`）—— 手写一套破坏估算 = 另造内核；
+    ④ **不许把"估不出"当"不能挖"**：精算失败只能 `continue`（保持"估不出"），不许据此拒绝候选。
+    """
+    problems = []
+    base = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job"
+    policy = (base / "policy" / "CostOptimalPolicy.java").read_text(encoding="utf-8")
+    provider = (base / "mine" / "PlanRefinedCostProvider.java").read_text(encoding="utf-8")
+
+    production = method_body(policy, "public static CostOptimalPolicy production()")
+    if "PlanRefinedCostProvider" not in production:
+        problems.append("`CostOptimalPolicy.production()` 没用 `PlanRefinedCostProvider` ⇒ 生产仍是纯走路成本"
+                        "（`break` 分量没接上；`D-363` 的真机退化会原样回来）")
+    if not re.search(r"public static final int DEFAULT_TOP_K\s*=\s*[1-9]", provider):
+        problems.append("`DEFAULT_TOP_K` 的声明不是 > 0 的常量 ⇒ 精算要么关掉、要么无界")
+    if "new MiningPlanner()" not in provider or ".plan(" not in provider:
+        problems.append("精算没有走 `MiningPlanner`（`new MiningPlanner()` + `.plan(`）⇒ 等于自己另写一套破坏估算"
+                        "（内核路线禁止：破坏成本已有唯一出处）")
+    if "continue;" not in provider:
+        problems.append("精算失败分支没有 `continue`（保持「估不出」）⇒ 有把「估不出」当成「不能挖」的风险"
+                        "（`SEARCH_LIMIT != UNREACHABLE`）")
+    return problems
+
+
 def rule_value_is_only_a_cost_component():
     """`D-329` §2.2 成本模型（用户 2026-09-20 三条裁定）：
     **「矿物价值优先级」只能是成本函数里的一个可配置分量**，不是独立模型、不是硬优先。
@@ -1351,6 +1439,8 @@ def main() -> int:
     refused = rule_world_refused_is_attributed()
     lock = rule_manual_test_lock_blocks_llm()
     kinds = rule_kind_filter_before_cluster()
+    clearance = rule_clearance_never_eats_task_target()
+    breakcost = rule_cost_includes_break()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -1415,13 +1505,17 @@ def main() -> int:
         print(f"[D-360·实测锁要挡LLM] {line}")
     for line in kinds:
         print(f"[D-361·种类分配] {line}")
+    for line in clearance:
+        print(f"[D-362·清障不吃任务目标] {line}")
+    for line in breakcost:
+        print(f"[D-363·break进成本] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

@@ -54,9 +54,16 @@ public final class CostOptimalPolicy implements SelectionPolicy {
         this.config = config;
     }
 
-    /** 生产用：真成本场 + 配置权重。 */
+    /**
+     * 生产用：**成本场估算 → top-K 精算**（`D-363`：`break` 分量）+ 配置权重。
+     *
+     * <p>为什么不是裸的成本场：真机实测（A 路线第一轮）里"现成可站"的站位点几乎不存在
+     * （矿体嵌在地表）⇒ 所有候选都估不出成本 ⇒ 排序退化成欧氏最近，而执行器其实在用 `TUNNEL`。
+     * 精算走 {@code MiningPlanner}，它的路径成本**本来就含破坏 tick 折算** ⇒ 这才是"把 break 算进去"的
+     * 既有机制（内核路线：不另造一套破坏估算）。
+     */
     public static CostOptimalPolicy production() {
-        return new CostOptimalPolicy(new com.dddgn.alice.job.mine.StandingCostField(),
+        return new CostOptimalPolicy(com.dddgn.alice.job.mine.PlanRefinedCostProvider.production(),
                 MineCostConfig.load());
     }
 

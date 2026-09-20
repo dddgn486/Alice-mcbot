@@ -15433,3 +15433,87 @@ forceload → 建地板+矿 → 传送 → `scope.begin` → **真的破坏那�
 - **LLM 路径暴露 `kindQuotas`**：等"决策层队列 `GoalRecord`"落地后一起做（与 `D-351` 同一触发）；
 - **每种独立产物核对**（现在产物核对仍是总数：`gained >= minedCount`）：等真机出现"某类没入包却报 quota_met"再补；
 - `PATH_ACCESS` 吃目标块（用户裁定"先不管"）：登记在 `D-359` 附注，触发 = 下一次真机出现"目标矿被当通路挖掉"。
+
+### D-362：**清障（`PATH_ACCESS`）不得吃掉任务目标**（用户 2026-09-20 修正口径）2026-09-20
+
+#### 一、修正后的用户口径（与前一轮"先不管"的区别）
+> 「先不管**不是不修复**，**对清障目标和任务目标的区分还是要修复**，即使是**绕过去**；
+> 不管的是**成本模型隐含的不准确问题**。」
+
+⇒ 要做的：**把"清障方块"和"任务目标"分开**（任务目标绝不能被当障碍清掉——宁可绕行、宁可如实失败）。
+不做的（本轮）：**成本模型不知道"清障的那一格本来就是目标 ⇒ 更便宜"** 这件不准确的事（已登记在 §五）。
+
+#### 二、真机靶子（A 路线第一轮）
+第 8 个目标 = 煤 `479,68,103`，规划器给的站位点 = **`479,68,104`，那一格本身也是煤**（同簇活候选）
+⇒ `[WRITE] break 479,68,104 minecraft:coal_ore by=mine-runner:attempt0:PATH_ACCESS`
+⇒ 产物进包，但**既不进 `success` 也不进 `failure`**（同时解释当轮 `candidates=55` 与 `inventoryDelta=9`）。
+
+#### 三、对照 Baritone（skill 要求给 `文件:行`）
+| Baritone | 语义 | Alice 对应 |
+|---|---|---|
+| `MovementHelper.java:68` `avoidBreaking(bsi,x,y,z,state)`（名单 = `blocksToDisallowBreaking` + 冰 + 虫蚀 + 相邻危险） | "这一格不许挖" | `TaskTargetProtection`（按 botId 的作用域 + 谓词） |
+| 同文件 `:590` 命中 ⇒ **`COST_INF`** | **规划器自然绕行** | `breakable` 返回 false ⇒ 该步不可选（绕行）；绕不过去 ⇒ 如实失败 |
+| `BuilderProcess.java:1166` `isPossiblyProtected ⇒ COST_INF` | 被保护格不许挖 | 同上 |
+
+**这不是"新机制"而是对齐**（skill §4）：Baritone 用"成本无穷"实现绕行，Alice 把它放在**授权侧**
+（`BlockInteraction.breakRefusal`，搜索与执行**共用同一个 `breakable`**）⇒ 顺带满足"不出现计划说能过、执行才被拒"。
+
+#### 四、落地与判据
+- **闸门两处**：`BlockInteraction.breakRefusal`（搜索+执行共用）+ `beginBreak`（**唯一真正写世界**的入口，
+  不指望调用点自觉）。**只在 `WriteReason.PATH_ACCESS` 下生效** ⇒ `EXPECTED_TARGET` 逐字不受影响。
+- **生命周期**：`TaskTargetProtection.begin/end`（按 botId）；`MineJob` / `LumberJob` 成对安装/撤销；
+  `BotManager` 换任务时（与 `WriteEnvelopes.clear` 同一处）**兜底清一次** ⇒ 不会跨任务泄漏。
+- **豁免"当前这一格"**：`MineJob.protectedFromClearance` 里 `!pos.equals(current)` —— 否则
+  `ENTER_TARGET`（破坏进入目标那格）会被自己拦死。
+- **谓词抛异常 ⇒ fail-closed + 响亮告警**：保护类判据的保守方向是"宁可绕远"，且守卫自己坏了必须看得见。
+- **判据**（`clear_guard` 步骤新增一组，**同一场景**：通道塞由箱子换成**铁矿石**）：
+  ① 无作用域时矿**可**被清障挖（基线，证明不是无条件拦）· ② 有作用域 ⇒ 拒 + 理由 `task_target_not_clearance` ·
+  ③ `EXPECTED_TARGET` 不受影响 · ④ 跑一次**真实 `MineTask`** 后矿塞仍在（**实测 `status=DONE`**：
+  bot 绕开矿塞、从石头那边挖过去，目标照拿到 ⇒ "绕过去"确实可行）· ⑤ `end` 后恢复可破坏（不泄漏）。
+  **3 种注入全红**（删授权侧守卫 / 守卫不区分理由 / `end` 变空操作），还原后 PASS。
+- **门禁** `rule_clearance_never_eats_task_target`（规则数 18→19）：**5 种注入全红**
+  （`breakRefusal` 不问 / 不限定 `PATH_ACCESS` / `beginBreak` 不问 / `BotManager` 不撤销 / `MineJob` 不豁免当前格）。
+
+#### 五、未做（登记 + 触发）
+- **成本模型的"清障即目标 ⇒ 更便宜"**：用户明确"不管的是成本模型隐含的不准确问题" ⇒ 本轮不做。
+  触发 = 做 `break` 成本分量（`D-363`）时一并评估"被豁免格"的计价方式。
+- **`RegionLumberJob` 未安装**该作用域（它的终态不是单一 `finish`，装错会**泄漏**「以后都不能清障开路」）——
+  须连它的终态路径一起审。触发 = 区域伐木出现"原木被当通路挖掉"的真机现象。
+- `PATH_ACCESS` 的**放置**侧（`TEMPORARY_SUPPORT`）没有同类闸门；本轮只管破坏。
+
+### D-363：**`break` 分量进选择成本**（补上 `D-329` §2.1 里设计过但没实现的 top-K 精算）2026-09-20
+
+#### 一、用户裁定
+> 「`break` 分量我觉得可以**马上做**。」（同日另一条：「不管的是**成本模型隐含的不准确问题**」——
+> 指"清障的那一格本来就是目标 ⇒ 更便宜"这件不准确，**不在本轮范围**）
+
+#### 二、缺口（真机 A 路线第一轮实测）
+- 选择成本原本 = `走路的成本 − 权重×价值`，而"走路"来自 {@link StandingCostField} 的**纯通行** Dijkstra
+  ⇒ 只认**现成可站**的站位点。真实地形里矿体嵌在地表 ⇒ 一个合格站位点都没有
+  ⇒ 每个候选 `∞`（实测 `cells=0（所有候选都没枚举出站位点）`，8 次选择里 7 次）⇒ 排序退化成欧氏最近。
+- 而**执行器**用的是 `mode=TUNNEL`（先挖出站位点）⇒ **成本模型只算"走"，执行器在"走+挖"**。
+
+#### 三、做法（不新造机制）
+`D-329` §2.1 原文就写着：「两者都只做**排序用的估算**；最终对 **top-K 候选做精确规划**（`MiningPlanner`）」
+—— 这一半此前**没有实现**。本轮补上，于是 **`break` 分量不需要另造估算器**：规划器的路径成本
+本来就含破坏项（`SurfaceMovementProvider` 把 `(breakTicks + BREAK_PENALTY_TICKS) / WALK_ONE_BLOCK_TICKS`
+折进移动代价；`MiningPlanner.java:188` 同款换算；对照 Baritone `MovementHelper.java:583-600`
+的破坏成本公式 + `ActionCosts`）。
+
+- 新增 `PlanRefinedCostProvider`：**成本场估算 → top-K（默认 3）精算**；精算值 = 规划器 `score`（与成本场同尺度）。
+- `CostOptimalPolicy.production()` 换用它（策略本身**仍然不读世界** ⇒ `rule_value_is_only_a_cost_component` 四条不变）。
+- 三条不许漂的口径：① 精算失败 ⇒ 保持"估不出"，**绝不拒绝**（`SEARCH_LIMIT ≠ UNREACHABLE`）；
+  ② 单位一致（走路格数口径）；③ **有界**且次数写进 `note`（`… · 精算 尝试=3 成功=2（候选 45）`）⇒ 退化看得见。
+
+#### 四、判据
+`mine_menu` 新增一组（**同一矿脉场景**，把一块裸露铁矿用石头**盖上** ⇒ 它的唯一暴露面消失
+⇒ 最小复现"必须挖出来才能挖"）：
+① 纯成本场对该矿**估不出**（`travel=∞`，证明这就是原来的退化）· ② 精算后有**有限成本** ·
+③ 精算值 == 直接跑规划器的 `score`（**逐位相同** ⇒ 证明确实用了它）· ④ 精算候选排序（有限优先、其余按距离）。
+收尾去掉盖子（场景复位）。
+**反向对照**：`PlanRefinedCostProvider` 的 `topK` 置 0（= 只返回成本场结果）⇒ ②③ 红。
+
+#### 五、未做 / 触发
+- **"清障即目标 ⇒ 更便宜"的计价**：用户明确不管；触发 = 出现"因为绕行而放弃本可挖的矿"的真机现象
+  （那时才需要在精算里把"被豁免的当前目标格"按"反正要挖"折价）。
+- 精算用的预算 = 规划器默认收集预算（策略手里没有 Job 的 `MiningBudget`）⇒ 与执行期允许有小差异。

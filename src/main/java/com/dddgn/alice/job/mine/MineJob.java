@@ -167,6 +167,10 @@ public final class MineJob implements Job {
         this.kindPlan = MineKindPlan.resolve(bot.serverLevel(), spec.kindQuotas());
         this.minedByKind = new int[kindPlan.entries().size()];
         this.itemsBefore = countTargetItems();
+        // ⭐ `D-362`：把"**这些格是本任务的目标**"登记到唯一的世界写入闸门上（`BlockInteraction`）——
+        // 于是清障（`PATH_ACCESS`）**再也不会吃掉任务矿**：开路时规划器只能绕行，绕不过去就**如实失败**。
+        // 真机实测的靶子：第一轮第 8 个目标为了站上 `479,68,104` 把那一格的煤当障碍挖了（它本身就是同簇候选）。
+        com.dddgn.alice.action.TaskTargetProtection.begin(bot, jobName(), this::protectedFromClearance);
         BotLog.info("[MineJob] productFilter={}（J-6：目标驱动，不再硬编码原版矿物）",
                 productFilter.describe());
         if (kindPlan.active()) {
@@ -633,9 +637,28 @@ public final class MineJob implements Job {
         return attempted.contains(pos) ? "already_attempted" : "not_selectable";
     }
 
+    /**
+     * **清障不许吃掉的格**（`D-362`）：本作业的目标方块，**但不含"这一次要去挖的那一格"**。
+     *
+     * <p>为什么必须豁免当前目标：`ENTER_TARGET` 模式就是"破坏进入目标那一格"（路径自己把那格挖开），
+     * 一刀切保护会把这条腿打断（`enter_target_unreachable`）⇒ 挖矿整体退化。
+     * 真正要拦的是**顺手吃掉别的目标**（第一轮那个 `479,68,104` 就是"别的目标"）。
+     *
+     * <p>未加载的格返回 false：`getBlockState` 会同步加载区块（`D-331` 纪律），而且搜索本来也走不到未加载处。
+     */
+    private boolean protectedFromClearance(BlockPos pos) {
+        if (pos == null || pos.equals(current)) {
+            return false;
+        }
+        ServerLevel level = bot.serverLevel();
+        return level.hasChunkAt(pos) && source.matchesTarget(level, pos);
+    }
+
     private Task.Status finish(Task.Status status) {
         if (!terminated) {
             terminated = true;
+            // `D-362`：任务结束必须撤销目标保护（`BotManager` 换任务时也会兜底清一次）
+            com.dddgn.alice.action.TaskTargetProtection.end(bot);
             bot.controller().stopMovement();
             DecisionTrace.terminal(jobName(), status == Task.Status.DONE ? "DONE" : "FAILED",
                     terminalReason, progressSummary() + " inventoryDelta=" + (countTargetItems() - itemsBefore)

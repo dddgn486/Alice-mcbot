@@ -218,6 +218,12 @@ public final class LumberJob implements Job {
         this.source = source;
         this.policy = policy;
         this.logsBefore = countLogs();
+        // ⭐ `D-362`：伐木是同一个坑（§清障吃目标）——**所有原木都是本任务的目标**，清障（`PATH_ACCESS`）
+        // 一格都不许挖。这里**不需要豁免"当前那一格"**：砍树走的是 `EXPECTED_TARGET`（MineTask），
+        // 从来没有"用清障权限把原木挖开"这条合法路径。
+        com.dddgn.alice.action.TaskTargetProtection.begin(bot, jobName(),
+                pos -> pos != null && bot.serverLevel().hasChunkAt(pos)
+                        && bot.serverLevel().getBlockState(pos).is(net.minecraft.tags.BlockTags.LOGS));
     }
 
     @Override
@@ -737,6 +743,8 @@ public final class LumberJob implements Job {
     private Task.Status finish(Task.Status status) {
         if (!terminated) {
             terminated = true;
+            // `D-362`：任务结束撤销目标保护（`BotManager` 换任务时也会兜底清一次）
+            com.dddgn.alice.action.TaskTargetProtection.end(bot);
             bot.controller().stopMovement();
             // J7 Step 2：攀爬与"建拆同权"的账一起进终态（爬了几次、花了几块、还剩没拆的）
             // J7 Step 4（D-128）：顶层码优先按"所有失败是否同一根因"上抛（§13.3 的表格口径），

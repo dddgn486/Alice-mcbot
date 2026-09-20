@@ -397,6 +397,15 @@ public final class BlockInteraction {
         if (level.getBlockState(pos).isAir()) {
             return "already_air";
         }
+        // ⭐ `D-362`：**清障不得吃掉任务目标**（用户 2026-09-20 修正口径："要修的是清障与任务目标的区分"）。
+        // 放在这里 = 搜索（SurfaceMovementProvider）与执行（BreakAnd*Execution / PathSession 复检）**同时**生效
+        // ⇒ 不会"计划说能过、执行到一半才被拒"。对照 Baritone `MovementHelper.avoidBreaking:68`（⇒ `:590` COST_INF）。
+        if (grant != null && grant.reason() == WriteReason.PATH_ACCESS) {
+            String protectedTarget = TaskTargetProtection.refusalFor(bot, pos);
+            if (protectedTarget != null) {
+                return protectedTarget;
+            }
+        }
         return com.dddgn.alice.protection.BlockBreakSafety.refusal(bot, pos, grant.reason());
     }
 
@@ -452,6 +461,17 @@ public final class BlockInteraction {
      */
     public static BlockBreakSession beginBreak(ServerPlayer bot, ServerLevel level, BlockPos pos,
                                               WriteGrant grant) {
+        // ⭐ `D-362`：**最后一道闸门**也要拦"清障吃任务目标"——这是真正写世界的那一步，
+        // 不能只指望所有调用点都记得先问 `breakable`（那种"靠调用点自觉"的守卫迟早漏一处）。
+        if (grant != null && grant.reason() == WriteReason.PATH_ACCESS) {
+            String protectedTarget = TaskTargetProtection.refusalFor(bot, pos);
+            if (protectedTarget != null) {
+                BotLog.warn("[WRITE-REFUSED] break pos={} by={} reason={}（清障不得吃掉任务目标；"
+                                + "对照 Baritone MovementHelper.avoidBreaking:68）",
+                        pos.toShortString(), grant.describe(), protectedTarget);
+                return null;
+            }
+        }
         if (WriteBudget.consumeBreak(bot, level, pos, grant) == WriteBudget.Verdict.REFUSED) {
             BotLog.warn("[WRITE-REFUSED] break pos={} by={} reason=write_budget_exhausted {}",
                     pos.toShortString(), grant == null ? "-" : grant.describe(), WriteBudget.describe(bot));

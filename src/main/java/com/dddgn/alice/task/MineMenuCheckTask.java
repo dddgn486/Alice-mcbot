@@ -191,6 +191,9 @@ public class MineMenuCheckTask implements Task {
                 JobLauncher.refusalReason(bot,
                         JobRequest.mine(bot.blockPosition(), 4, 1, 200, "minecraft:iron_ore")) == null);
 
+        // ⭐⭐ `D-363` **break 分量**（成本场估算 → top-K 精算）—— 放在最后：它要临时改场景（给矿加盖子）
+        runBreakCostChecks();
+
         boolean pass = failures.isEmpty();
         BotLog.info("[MineMenu] SUMMARY checks={} failures={} mineEntries={} {} → {}",
                 checksRun,
@@ -305,6 +308,80 @@ public class MineMenuCheckTask implements Task {
         var config = com.dddgn.alice.job.mine.MineCostConfig.of(0.0D, List.of("forge:ores/coal=64"));
         check("种类分配：可随配置携带（" + config.describe() + "）",
                 config.kindQuotas().size() == 1 && config.kindQuotas().get(0).endsWith("=64"));
+    }
+
+    /**
+     * ⭐ `D-363` **`break` 分量**（用户 2026-09-20：「`break` 分量我觉得可以马上做」）的判据组。
+     *
+     * <p>缺口（真机 A 路线第一轮）：选择成本原本只算**纯通行**（现成可站的站位点）⇒ 真实地形里矿体嵌在地表、
+     * 一个合格站位点都没有 ⇒ 全部候选 `∞`（实测 `cells=0`）⇒ 排序退化成欧氏最近；而执行器用的是 `TUNNEL`。
+     *
+     * <p>本组做法：把矿脉场景里的一块**裸露**铁矿用石头**盖上**（它的顶面本来是唯一暴露面）⇒ 再没有任何
+     * 现成站位点（LOS 全被挡）——正是"必须挖出来才能挖"的最小复现。然后断言：
+     * ① 纯成本场估不出（`∞`，这就是原来的退化）；② 加了精算之后**有了有限成本**（= 规划器的 `score`，
+     * 而规划器的路径成本**本来就含破坏 tick 折算**）；③ 精算值与直接跑规划器**逐位相同**（证明确实用了它）。
+     * 收尾把盖子去掉（场景复位）。
+     *
+     * <p>反向对照（改法）：把 `PlanRefinedCostProvider` 的 `topK` 置 0（或直接返回成本场结果）⇒ ②③ 全红。
+     */
+    private void runBreakCostChecks() {
+        final net.minecraft.server.level.ServerLevel level = bot.serverLevel();
+        final var server = level.getServer();
+        // 场景：矿石场景里**现搭**一个"被石头包住的矿"，且包层与 bot 脚位**同一层**。
+        // ⚠️ 为什么必须同层：`miningApproach` 禁用 `DOWNWARD` ⇒ 矿的暴露面若只在**脚下一层**，
+        // 规划器会**如实**报 `tunnel=no_reachable_tunnel_standing_point`（实测过）——那是能力边界，不是 bug；
+        // 同层的石头面可以被 `BREAK_AND_ENTER` 挖开 ⇒ 才是"必须挖出来才能挖"的最小复现。
+        final BlockPos ore = new BlockPos(52, 63, 128);
+        final var shell = List.of(ore.offset(1, 0, 0), ore.offset(-1, 0, 0), ore.offset(0, 0, 1),
+                ore.offset(0, 0, -1), ore.above(), ore.below());
+        final var spec = com.dddgn.alice.job.GoalSpec.mineBlocks(ore, 8, 1, 600);
+        final var candidate = new com.dddgn.alice.job.Candidate(ore, "block",
+                java.util.Map.of("block", "minecraft:iron_ore", "d", "0",
+                        "y", String.valueOf(ore.getY())));
+        try {
+            for (BlockPos pos : shell) {
+                level.setBlockAndUpdate(pos,
+                        net.minecraft.world.level.block.Blocks.STONE.defaultBlockState());
+            }
+            level.setBlockAndUpdate(ore,
+                    net.minecraft.world.level.block.Blocks.IRON_ORE.defaultBlockState());
+            final var only = List.of(candidate);
+
+            var fieldOnly = new com.dddgn.alice.job.mine.StandingCostField().estimate(bot, spec, only);
+            check("break 分量：纯成本场对「被石头包住的矿」估不出（travel="
+                            + fieldOnly.travel(candidate) + " · " + fieldOnly.note() + "）",
+                    Double.isInfinite(fieldOnly.travel(candidate)));
+
+            var refined = com.dddgn.alice.job.mine.PlanRefinedCostProvider.production()
+                    .estimate(bot, spec, only);
+            double cost = refined.travel(candidate);
+            var planner = new com.dddgn.alice.task.mining.MiningPlanner().plan(bot, ore);
+            double plannerCost = planner.success() ? planner.score().getScore()
+                    : Double.POSITIVE_INFINITY;
+            check("break 分量：精算后有有限成本（travel=" + cost + " · " + refined.note() + "）",
+                    Double.isFinite(cost));
+            check("break 分量：精算值 == 规划器 score（" + cost + " vs " + plannerCost
+                            + "；规划器路径成本含破坏 tick 折算）",
+                    planner.success() && Math.abs(cost - plannerCost) < 1.0E-6D);
+
+            // 纯排序：有限的排前面、同为 ∞ 时近的先（确定性）
+            var far = new com.dddgn.alice.job.Candidate(ore.offset(20, 0, 0), "block",
+                    java.util.Map.of());
+            var near = new com.dddgn.alice.job.Candidate(ore.offset(2, 0, 0), "block",
+                    java.util.Map.of());
+            var scripted = new com.dddgn.alice.job.mine.CandidateCostProvider.Result(
+                    java.util.Map.of(near.anchor().asLong(), 9.0D), 0, "scripted");
+            var ranked = com.dddgn.alice.job.mine.PlanRefinedCostProvider
+                    .rankForRefine(bot, List.of(far, near), scripted);
+            check("break 分量：精算候选排序 = 有限成本优先、其余按距离（" + ranked.stream()
+                            .map(c -> c.anchor().toShortString()).toList() + "）",
+                    ranked.get(0).anchor().equals(near.anchor()));
+        } finally {
+            // 场景复位（矿石场景自带 terrain 函数）
+            server.getCommands().performPrefixedCommand(
+                    server.createCommandSourceStack().withSuppressedOutput(),
+                    "function alice_test:ore_course_terrain");
+        }
     }
 
     private void check(String what, boolean ok) {

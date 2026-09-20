@@ -46,6 +46,25 @@
 > 缓存指纹 `cd11671c4fb2`）；jar 已同步客户端 `runtime_sha256=0be2424f…`。
 > ⏳ **未实施**：`break` 成本分量（已获同意；方案 = 补上 `D-329` §2.1 里**本就设计好但没实现的 top-K 精算**：
 > 用 `MiningPlanner` 的成本（**已含破坏 tick 项**）给前 K 个候选重新打分 ⇒ 修掉 `cells=0` 时退化成"欧氏最近"）。
+>
+> ### ✅ 同日第二/三件也已落地（`D-362` 清障不吃任务目标 · `D-363` break 分量进成本）
+> **`D-362`**（用户修正口径：「**对清障目标和任务目标的区分还是要修复**，即使是绕过去」）：
+> 新 `TaskTargetProtection`（按 botId 作用域）+ 闸门**两处**（`breakRefusal` 搜索/执行共用 + `beginBreak`
+> 真正写世界那一步）；**只在 `PATH_ACCESS` 下生效**；`MineJob`/`LumberJob` 成对 begin/end；
+> `BotManager` 换任务兜底清（与 `WriteEnvelopes.clear` 同处）；`MineJob` 谓词豁免"当前那一格"（否则
+> `ENTER_TARGET` 被自己拦死）。对照 Baritone `MovementHelper.avoidBreaking:68` ⇒ `:590 COST_INF`（绕行）。
+> **判据**：`clear_guard` 步骤新增一组（**同一场景**把通道塞由箱子换成**铁矿**）：基线可挖 / 清障被拒
+> （理由 `task_target_not_clearance`）/ `EXPECTED_TARGET` 不受影响 / **跑真实 `MineTask` 后矿塞仍在**
+> （实测 `status=DONE` —— bot 绕开矿塞从石头那边挖过去了）/ `end` 后不泄漏；**3 种注入全红**。
+> **门禁** `rule_clearance_never_eats_task_target`（19 条）**5 种注入全红**。
+>
+> **`D-363`**（用户：「break 分量我觉得可以马上做」）：新 `PlanRefinedCostProvider`（成本场估算 → **top-K=3 精算**），
+> `CostOptimalPolicy.production()` 换用它；精算值 = `MiningPlanner` 的 `score`（**规划器路径成本本来就含破坏 tick 折算**
+> ⇒ 不需另造估算器）；精算失败**只保持"估不出"、绝不拒绝**（`SEARCH_LIMIT ≠ UNREACHABLE`）；次数写进 `note`。
+> **判据**：`mine_menu` **checks=64 → 68**（在矿石场景现搭"被石头**同层**包住的矿"：纯成本场 `∞` →
+> 精算得有限成本 `30.323` == 规划器 score）；**门禁** `rule_cost_includes_break`（20 条）。
+> ⚠️ 途中教训：第一版场景把矿盖在**脚下一层** ⇒ 规划器如实报 `tunnel=no_reachable_tunnel_standing_point`
+> （`miningApproach` 禁 `DOWNWARD`）—— 那是**能力边界**不是 bug；判据场景必须搭在**同层**。
 
 > ## 断点（2026-09-20 收口 · 压缩前落盘）
 >
