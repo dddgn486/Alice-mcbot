@@ -918,3 +918,27 @@ pathing 场景行与无头**逐字相同**、T3 探针 42 字段中 41 个与无
 却挂 EXTRA，属策展裁定）、台账 §5.6 风险议题（B/C 候选）。
 
 **压缩后取细节**：`node tools/dsh-session-log.mjs --shadowed last` 看被遮蔽的 seq，`--seq a-b` 取回，`--grep` 过滤。
+
+## 2026-09-20 断点（真机实测 A 路线：工具已就绪，等用户新世界一轮）
+
+**用户下一步（已在做）**：新建**普通世界 + 和平难度**，跑 `/alice mine here` ⇒ 观测量 = 挖矿的
+水平位移分布 / 向下占比。**操作·预期·判读·要交回的证据** = `docs/MINE_SURVEY_PROTOCOL.md`（单页，先读它）。
+
+**已就绪（都已提交 + jar 已同步到固定客户端 `runtime_sha256=a192ee38…`）**：
+- `/alice mine here`（零参数：bot 当前位为中心、半径 24、配额 8、3600 tick、`#forge:ores`）⇒ `de39d4f`；
+- **阻断 LLM 接手** = `ManualTestLock`（锁上时 `BotManager.assignJob` 一律拒绝并记事件环；放行口 = 作用域内一次性窗口）；
+- 终态打点 `[MineSurvey] SUMMARY …`（收口在 `MineJob.finish` 一处，四条终态路径共用）+ **自动解锁**；
+- 世界侧拒绝归因 `world_refused`（`D-359`）：被 FTB 认领/保护层拦下不再显示成"这里没矿"；
+- 环境：连锁挖掘已禁用（`mods-disabled/`）、透视包 `AliceXray`（带边框透明玻璃，`tools/gen-xray-pack.py` 可重生）。
+
+**这一轮我（AI）已验证/未验证**：
+- 已验证：`single:mine_survey` PASS(12 判据) · `single:break_refused` PASS(25) · `single:scope_pending_grace` PASS ·
+  **CORE 51/51 PASS**（`/home/fb486/alice-server/logs/latest.log` 的 `RESULT verdict=PASS ticks=4768`）·
+  `check-all` pass=19 warning=0 failed=0。
+- **未验证**：`full` 整链（修复夹具前提后没再跑，用户指示只跑 CORE）；`/alice mine here` 的真机效果；
+  真实矿脉场景下的簇消费；`break`/`clear`/`risk` 成本分量（未实现）。
+
+**回归护栏（改动别踩）**：门禁 `kernel-predicates.py` 现有 17 条规则（新增：`世界侧拒绝要归因` / `实测锁要挡LLM`），
+每条都做过注入反向对照；`tools/machine-map.py` 的复核目录 = `mods/ + mods-disabled/`。
+**读数陷阱**：harness 打印 `verdict=<无> exit=3 用时=9s` 时**不要**当红 —— 以服务端 `latest.log` 的
+`[Headless] RESULT` 行为准（`BATTERY_CURATION.md` 有判据）。
