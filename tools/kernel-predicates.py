@@ -598,6 +598,12 @@ def rule_replant_sweep_bounded():
     ④ ①的授权：`startSweep` 里 `CollectGrants.add(... SESSION ...)` + 结束时 `dropSweepGrant()`，
        且 `finish()`（失败/收工路径）**也要**撤 ⇒ 权限不留在世上；
     ⑤ 预算**随落物数缩放**（`suggestedSweepTicks`），不是人为封顶（细则③「一次不设上限」）。
+
+    ⭐ **`D-350` 修订**（2026-09-20 用户裁定「让区域任务显式收集自己的掉落物」）：
+    ① 的**顺序变了**（`HAS_SAPLINGS → ENTER → NOTHING_TO_SWEEP → NO_DEFICIT`）：**不再要求欠树才扫**；
+    但**顺序仍然是优先级**、仍然逐位置断言 ⇒ 再改照样红。新增 ⑥：`sweepRequired` +
+    `SWEEP_OPTIONAL_BACKOFF_TICKS` + 纯函数 `sweepEntryAllowed` 必须在位
+    （**非必需扫描零收获 ⇒ 退避而非失败** —— 否则"地上有一件捡不到的"会把整个区域任务判死）。
     """
     path = ROOT / "src/main/java/com/dddgn/alice/job/lumber/RegionLumberJob.java"
     if not path.exists():
@@ -613,8 +619,13 @@ def rule_replant_sweep_bounded():
     if not body:
         problems.append("找不到 `sweepDecision`（纯判据没了 ⇒ 夹具也没法零副作用地断言它）")
     else:
-        marks = ["SweepDecision.NO_DEFICIT", "SweepDecision.HAS_SAPLINGS",
-                 "SweepDecision.NOTHING_TO_SWEEP", "SweepDecision.ENTER"]
+        # ⭐ `D-350`（2026-09-20 用户裁定「让区域任务显式收集自己的掉落物」）**故意改了优先级**：
+        # 旧序 = NO_DEFICIT → HAS_SAPLINGS → NOTHING_TO_SWEEP → ENTER（"不欠树就不扫"）；
+        # 新序 = HAS_SAPLINGS → ENTER → NOTHING_TO_SWEEP → NO_DEFICIT
+        # （现场：树苗已选定、`deficit=0` ⇒ 从不进扫描 ⇒ 自己砍出来的树苗留在地上被被动闸门挡 ⇒ 后来真欠树时
+        #   `tool_missing` 中止）。**顺序仍然 = 优先级**，仍然按位置断言 ⇒ 再改顺序照样红。
+        marks = ["SweepDecision.HAS_SAPLINGS", "SweepDecision.ENTER",
+                 "SweepDecision.NOTHING_TO_SWEEP", "SweepDecision.NO_DEFICIT"]
         idx = [body.find(m) for m in marks]
         if any(i < 0 for i in idx):
             problems.append("`sweepDecision` 少了某一态：" + ", ".join(
@@ -623,9 +634,16 @@ def rule_replant_sweep_bounded():
             problems.append("`sweepDecision` 的四态**顺序变了**（顺序 = 优先级 ⇒ 改顺序就是改行为）："
                             "现在顺序 = " + " → ".join(
                                 m.rsplit(".", 1)[1] for _, m in sorted(zip(idx, marks))))
-        for cond in ("deficit <= 0", "saplingInInventory > 0", "listDropsInRegion <= 0"):
+        # ⭐ `D-350`：新表的三个条件（缺一即红 —— 判定表不许被悄悄改窄/改宽）
+        for cond in ("saplingInInventory > 0", "listDropsInRegion > 0", "deficit > 0"):
             if cond not in body:
                 problems.append(f"`sweepDecision` 少了条件 `{cond}`（判定表被改窄/改宽）")
+
+        # ⭐ `D-350` 的新护栏也必须**结构上**在位（否则"退避"会被悄悄删掉 ⇒ 每轮空转 / 或任务被判死）
+        for cond in ("sweepEntryAllowed", "sweepOptionalBackoffUntil"):
+            if cond not in code:
+                problems.append(f"`D-350` 的护栏 `{cond}` 不见了 ⇒ 非必需扫描会每轮空转"
+                                "（或「地上有一件捡不到的」会把任务判死）")
 
     # ② 零进展上限 + 如实终态
     sweep_body = method_body(code, "private com.dddgn.alice.task.Task.Status sweep()")

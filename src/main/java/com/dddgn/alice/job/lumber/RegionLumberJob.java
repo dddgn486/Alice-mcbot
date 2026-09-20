@@ -142,6 +142,20 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
     private SweepDecision lastSweepDecision;
     /** 连续多少轮零进展就如实失败（与既有 `IDLE_PATROLS` 同值 ⇒ 同一套"连续 N 次无活"语义）。 */
     public static final int SWEEP_NO_PROGRESS_LIMIT = 3;
+    /**
+     * ⭐ `D-350`：**本轮扫描是否「补种必需」**（= 进扫描时 `deficit>0 且手里没苗`）。
+     *
+     * <p>为什么必须区分：`D-344` ③ 的「连续 {@link #SWEEP_NO_PROGRESS_LIMIT} 轮零进展 ⇒ **如实失败**」
+     * 是给「**补种不变量被阻塞**」设计的；而 `D-350` 之后，**不欠树**时也会为了「收自己的产物」进扫描
+     * ⇒ 若沿用同一额度，**地上只要有一件捡不到的东西就会把整个区域任务判死**。
+     * ⇒ 非必需时：零收获**不计数、不失败**，改成**退避**。
+     */
+    private boolean sweepRequired;
+    /** ⭐ `D-350`：非必需扫描零收获后的退避截止 tick（`<= now` = 允许再进）。 */
+    private long sweepOptionalBackoffUntil;
+    /** ⭐ `D-350`：非必需扫描零收获的退避时长（30 s；只为「别每轮空转」，不是失败判据）。 */
+    private static final int SWEEP_OPTIONAL_BACKOFF_TICKS = 20 * 30;
+
     /** 扫描阶段累计跑过的轮数（**夹具/诊断可见**，与 `treesChopped()` 同族的观察口）。 */
     private int sweepsRun;
     /** 扫描阶段累计**实际入包**件数（`CollectDropsTask.collected()` 之和）。 */
@@ -605,8 +619,15 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
                     deficit, saplingInInv, groundDrops.size(), state.effectivePickupItems(bot.getUUID()));
             lastSweepDecision = decision;
         }
-        if (decision == SweepDecision.ENTER) {
+        boolean required = deficit > 0 && saplingInInv == 0;
+        if (sweepEntryAllowed(decision, required, server.getTickCount(), sweepOptionalBackoffUntil)) {
+            sweepRequired = required;
             return startSweep(groundDrops);
+        }
+        if (decision == SweepDecision.ENTER) {
+            // ⭐ `D-350`：非必需扫描刚零收获过 ⇒ 退避期内不进（**只在状态变化时留痕**，不刷屏）
+            BotLog.info("[Job] maintain sweep 退避中（非必需：不欠树，只是地上还有 {} 件自己的产物；"
+                            + "截止 tick={}）—— 避免每轮空转", groundDrops.size(), sweepOptionalBackoffUntil);
         }
         if (decision == SweepDecision.NOTHING_TO_SWEEP) {
             // 只留一行**可行动**的提示（不是每轮刷屏）：欠树、没苗、地上也没有 ⇒ 如实走 tool_missing
@@ -748,16 +769,37 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
      * @param listDropsInRegion   区域内**清单内**的地面落物件数
      */
     public static SweepDecision sweepDecision(int deficit, int saplingInInventory, int listDropsInRegion) {
-        if (deficit <= 0) {
-            return SweepDecision.NO_DEFICIT;
+        // ⭐ `D-350`（2026-09-20 用户裁定「**让区域任务显式收集自己的掉落物**」）：
+        // **不再要求「欠树」才扫**。现场（客户端 2026-09-19 20:49 那轮）：
+        // 树苗**已选定**（生效清单非空 ✓）、区内还有 5 棵树 ⇒ `deficit = 0` ⇒ 走 `NO_DEFICIT` ⇒ **从不进扫描**
+        // ⇒ 它**自己砍出来的**树苗留在地上，被**被动拾取闸门**挡（`[Pickup] blocked … FOREIGN policy=ASK`）
+        // ⇒ 等到后来真欠树时手里没苗 ⇒ `tool_missing` **中止**。
+        // ⇒ 正确语义：**区内地面上有「我方产物」就该收**（那是它自己作业的产物，也是将来补种的库存），
+        // 与「现在欠不欠树」无关；只有「要啥啥没」才如实失败。
+        // ⚠️ 权限面**没有放宽**：仍是既有 `CollectGrants` 的 SESSION 授权（区域矩形 + TTL）+ `D-138` 归属判据。
+        if (deficit > 0 && saplingInInventory > 0) {
+            return SweepDecision.HAS_SAPLINGS;      // ① 手里有苗 ⇒ 先补种（细则⑥，不变）
         }
-        if (saplingInInventory > 0) {
-            return SweepDecision.HAS_SAPLINGS;
+        if (listDropsInRegion > 0) {
+            return SweepDecision.ENTER;             // ② ⭐ 地上有我方产物 ⇒ 收（**与欠不欠树无关**）
         }
-        if (listDropsInRegion <= 0) {
-            return SweepDecision.NOTHING_TO_SWEEP;
+        if (deficit > 0) {
+            return SweepDecision.NOTHING_TO_SWEEP;  // ③ 欠树却要啥啥没 ⇒ 如实 `tool_missing`（不空转）
         }
-        return SweepDecision.ENTER;
+        return SweepDecision.NO_DEFICIT;            // ④ 不欠树且地上没有 ⇒ 不扫
+    }
+
+    /**
+     * ⭐ `D-350`：**进不进扫描**（把「退避」从调用方提成纯函数 —— 夹具能直接断言，不需要造世界）。
+     */
+    public static boolean sweepEntryAllowed(SweepDecision decision, boolean required, long now,
+                                            long backoffUntil) {
+        if (decision != SweepDecision.ENTER) {
+            return false;
+        }
+        // 必需（补种被阻塞）⇒ **不退避**（`D-344` ③ 的「连续 3 轮零进展 ⇒ 如实失败」照旧）
+        // 非必需（只是收自己的产物）⇒ 退避期内不进（避免「地上有一件捡不到的 ⇒ 每轮都扫」）
+        return required || now >= backoffUntil;
     }
 
     /** {@link #sweepDecision} 的四态。 */
@@ -1151,6 +1193,12 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         boolean progress = collected > 0 || left < sweepTargets;
         if (progress) {
             sweepNoProgress = 0;
+            sweepOptionalBackoffUntil = 0L;
+        } else if (!sweepRequired) {
+            // ⭐ `D-350`：**非必需**扫描零收获 ⇒ **不计数、不失败**，只退避（补种不变量没被阻塞）
+            sweepOptionalBackoffUntil = bot.getServer().getTickCount() + SWEEP_OPTIONAL_BACKOFF_TICKS;
+            BotLog.info("[Job] maintain sweep 非必需且零收获 ⇒ 退避 {} tick（区内剩余 {} 件；"
+                            + "补种不变量未被阻塞 ⇒ 不判失败）", SWEEP_OPTIONAL_BACKOFF_TICKS, left);
         } else if (++sweepNoProgress >= SWEEP_NO_PROGRESS_LIMIT) {
             sweepNoProgressStreak = sweepNoProgress;   // 观察口：失败时的连续零进展轮数
             terminalReason = "sweep_no_progress";

@@ -118,11 +118,15 @@ public final class RegionSweepCheckTask implements Task {
         var nothing = RegionLumberJob.SweepDecision.NOTHING_TO_SWEEP;
         var enter = RegionLumberJob.SweepDecision.ENTER;
 
-        check("不欠树 ⇒ 不扫（即使地上有 9 件）",
-                RegionLumberJob.sweepDecision(0, 0, 9) == none);
-        check("负欠树（不该发生）⇒ 同样不扫",
-                RegionLumberJob.sweepDecision(-2, 0, 9) == none);
-        check("有苗 ⇒ 不扫（细则⑥「身上有苗砍完立刻补」，即使地上有 9 件）",
+        // ⭐ `D-350`（2026-09-20 用户裁定「让区域任务显式收集自己的掉落物」）：**这两条判据的含义变了** ——
+        // 旧行为「不欠树 ⇒ 不扫」正是现场缺口：树苗已选定、区内还有树（`deficit=0`）⇒ 从不进扫描
+        // ⇒ 自己砍出来的树苗留在地上被被动闸门挡（`[Pickup] blocked … FOREIGN policy=ASK`）⇒ 后来真欠树时
+        // 手里没苗 ⇒ `tool_missing` 中止。新语义 = **地上有我方产物就收，与欠不欠树无关**。
+        check("⭐ `D-350`：**不欠树 + 地上有我方产物 ⇒ 仍然要扫**（那是它自己的产物 / 将来的补种库存）",
+                RegionLumberJob.sweepDecision(0, 0, 9) == enter);
+        check("⭐ `D-350`：负欠树（不该发生）+ 地上有 ⇒ 同样进扫描（判据只看「地上有没有」）",
+                RegionLumberJob.sweepDecision(-2, 0, 9) == enter);
+        check("有苗 + 欠树 ⇒ 先补种（细则⑥「身上有苗砍完立刻补」），不走扫描",
                 RegionLumberJob.sweepDecision(3, 8, 9) == has);
         check("**欠树 + 没苗 + 地上没有 ⇒ 不进扫描**（绝不空转；走既有 tool_missing 如实失败）",
                 RegionLumberJob.sweepDecision(3, 0, 0) == nothing);
@@ -132,12 +136,22 @@ public final class RegionSweepCheckTask implements Task {
         // ⚠️ 这里踩过一次真坑（2026-09-19，反向对照实测）：我最初挑的 `(0,0,0)` 与 `(3,1,5)`
         // 在"正确顺序"和"换序后"**答案完全相同** ⇒ 把生产代码的两条判定换序，本夹具**照样 PASS**
         // （假绿）。补上这两条**两解不同**的用例后，换序才会真的红。
-        check("优先级：不欠树 **压过**「手里有苗」（换序后会变成 HAS_SAPLINGS ⇒ 红）",
-                RegionLumberJob.sweepDecision(0, 5, 9) == none);
+        check("⭐ `D-350` 优先级①：**手里的苗先补种** 压过「地上有东西」（`deficit>0 && 有苗` ⇒ HAS_SAPLINGS）",
+                RegionLumberJob.sweepDecision(0, 5, 9) == enter
+                        && RegionLumberJob.sweepDecision(3, 5, 9) == has);
         check("优先级：手里有苗 **压过**「地上没东西」（换序后会变成 NOTHING_TO_SWEEP ⇒ 红）",
                 RegionLumberJob.sweepDecision(3, 4, 0) == has);
-        check("优先级：不欠树 **压过**「地上有东西」（换序后会变成 NOTHING_TO_SWEEP ⇒ 红）",
-                RegionLumberJob.sweepDecision(0, 0, 5) == none);
+        check("⭐ `D-350` 优先级③：**不欠树且地上没有** ⇒ 才是不扫（`NO_DEFICIT`）",
+                RegionLumberJob.sweepDecision(0, 0, 0) == none);
+        // ⭐ `D-350`：进不进扫描（**退避**语义，纯函数 ⇒ 夹具可直接断言，不必造世界）
+        check("⭐ `D-350`：**必需**（补种被阻塞）⇒ **不退避**（`D-344` ③ 的「连续 3 轮零进展 ⇒ 如实失败」照旧）",
+                RegionLumberJob.sweepEntryAllowed(enter, true, 100L, 999L));
+        check("⭐ `D-350`：**非必需** + 退避期内 ⇒ 不进（否则「地上有一件捡不到的」会每轮都扫）",
+                !RegionLumberJob.sweepEntryAllowed(enter, false, 100L, 999L));
+        check("⭐ `D-350`：**非必需** + 退避已过 ⇒ 进（只是延后，不是放弃）",
+                RegionLumberJob.sweepEntryAllowed(enter, false, 1000L, 999L));
+        check("⭐ `D-350`：判定不是 `ENTER` ⇒ 无论必需与否都不进",
+                !RegionLumberJob.sweepEntryAllowed(none, true, 1000L, 0L));
     }
 
     /**
