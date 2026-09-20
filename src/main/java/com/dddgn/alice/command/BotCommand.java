@@ -2069,8 +2069,21 @@ public final class BotCommand {
 
     /** 实测默认参数（零参数入口的口径；要改就改这里，别让玩家输坐标）。 */
     private static final int MINE_SURVEY_RADIUS = 24;
-    private static final int MINE_SURVEY_QUOTA = 8;
-    private static final int MINE_SURVEY_MAX_TICKS = 3600;
+    /**
+     * 配额 8 → **64**（用户 2026-09-20 裁定：「让每轮数据更充分」）。
+     *
+     * <p>为什么 8 不够：第一轮实测**整条带内候选只有 55 个**，8 个配额在**同一条矿脉里**就被截断
+     * （带内还剩 4 格煤没挖）⇒ 判不了「簇挖完没有」，也看不出扫描冻在 7% 的后果。
+     * 64 &gt; 带内 55 ⇒ 这个值**天然会把「候选耗尽」那一支走到**（选不出候选时才 {@code advance()}）
+     * ⇒ 顺带实测「扫描能不能接着往下推进」（用户裁定**先不改扫描方式**）。
+     */
+    private static final int MINE_SURVEY_QUOTA = 64;
+    /**
+     * `maxTicks` 3600 → **12000**（10 分钟）：配额 ×4 之后，按实测单目标 80–200 tick（含开路/捡拾）估
+     * ⇒ 64 个目标 ≈ 5000–13000 tick，3600 会先撞 `goal_timeout` 而拿不到满额数据。
+     * ⚠️ 它只是**上限**：跑完就结束（第一轮 8 目标只用 644 tick），不会固定占满。
+     */
+    private static final int MINE_SURVEY_MAX_TICKS = 12000;
     /** 多目标种类（`#forge:ores`）⇒ 走成本模型与价值表；单种类任务的价值项是惰性的。 */
     private static final String MINE_SURVEY_TAG = "forge:ores";
 
