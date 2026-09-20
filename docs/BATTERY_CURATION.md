@@ -263,3 +263,14 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 ⚠️ 排查口径（省下一轮）：**"`full` 红、`single:` 绿" ⇒ 先怀疑状态残留，不要先怀疑产品**；
 `grep -rn "\.selected = "` 能直接指出谁会动选中槽。同类风险：会话/作用域/背包/选中槽/维度/游戏模式
 这五样只要被某一步改过，**任何**跨模块的前置判据都可能被它污染。
+
+### harness 判决读取会**提前放弃**（2026-09-20 实测两次；结果以**服务端日志**为准）
+
+现象：`tools/headless-battery.sh core` 打印 `verdict=<无> exit=3 用时=9s`，而**同一个服务端**继续跑到
+结束并写出 `[Headless] RESULT verdict=PASS exit=0 ticks=4768`（`PROFILE=CORE … passed=51/51 → PASS`）。
+⇒ 这是**读数竞态**（harness 的判定窗口先到了），不是产品红。**取证口径**：
+① 看 `/home/fb486/alice-server/logs/latest.log` 的 `[Headless] RESULT` 行（这是服务端自己写的，唯一权威）；
+② `run/headless-logs/<时间戳>-*.log` 是 harness 侧归档，**可能只截到前 9 秒**（本次 24 KB、无 RESULT 行）——
+   不要拿它当"跑完了"的证据。
+⚠️ 与"真红"的区别：真红会有 `SUMMARY … =FAIL` 与 `[Headless] RESULT verdict=FAIL`；只有 harness 侧 `<无>`
+   而服务端 PASS ⇒ 读数问题。**先看服务端日志，再下结论**。
