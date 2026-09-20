@@ -15342,3 +15342,48 @@ forceload → 建地板+矿 → 传送 → `scope.begin` → **真的破坏那�
 #### 五、验证
 `single:break_refused` PASS（25 判据，含 `FTB=REFUSED` 现场读数）· **CORE 51/51 PASS**（261s）·
 `check-all` pass=19 warning=0 failed=0。
+
+### D-360：真机地形实测**测试工具本体**（`/alice mine here` + 手动锁 + 统计口径）2026-09-20
+
+用户 2026-09-20 三条要求（"先搞 A" / "测试工具要阻断 LLM 接手" / "会让任务失败的接口都能显示失败不卡死吗"）
+⇒ 本注记录工具本体。前置（环境净化/透视包/世界侧拒绝归因）见 `D-359`。
+
+#### 一、`/alice mine here`：**零参数**就地开矿（测试入口纪律：不许要求坐标）
+以 **bot 当前位**为中心、默认半径 24 / 配额 8 / `maxTicks` 3600、目标是 **`#forge:ores`**（多目标种类 ⇒
+顺带压成本模型与价值表）。起任务走**既有 `assignJob` 路径**（发料/归属/事件环与生产同一条），
+唯一差别是那道锁。
+
+#### 二、⭐ 阻断 LLM 接手：`ManualTestLock`
+- 事实：客户端 `alice-llm.json` 里 `enabled=true`（真实 API key），LLM 唯一的执行入口是
+  `BotManager.assignJob`（`start_job` → `GoalDirector.execute`）⇒ 不挡就会"人测一份、LLM 又插一份"，数据作废。
+- 形状：锁上时 `assignJob` **一律拒绝**，并且**可见**（日志 + 事件环 `REFUSED`）。
+- ⭐ **放行口设计（当天迭代过一版）**：不用"再加一个 public 绕过入口"，而是
+  **作用域内的一次性窗口** `beginManualWindow()/endManualWindow()`（命令自己 `try/finally` 开关）。
+  为什么改：第一版把 `assignJob` 拆成 `public 委派 + private 实现`，**当场把 `D-338` 的事件环结构断言打漂**
+  （那条规则锚在 `public static boolean assignJob(` 的函数体上）⇒ 结构断言的锚点不该被"一个便利重载"挪走。
+- 门禁 `rule_manual_test_lock_blocks_llm`（6 断言）：`assignJob` 真查锁 · 窗口 API 在 ·
+  **窗口调用点恰好 = `BotCommand.java×1`**（数**出现次数**，不是文件数）· 窗口必须在 `finally` 里关 ·
+  拒绝进事件环 · 采集收口在 `MineJob` 终态 · `MineSurveyStats` 是纯函数。
+  **四种注入全红**：`assignJob` 不查锁 / 窗口不在 `finally` 关 / 同一文件两处调用 / 窗口 API 改名。
+- ⚠️ **门禁当天抓到真漏**：我前一轮的批处理脚本把 BotManager 的改动"写丢了"（写回了另一个文件），
+  `assignJob` 里其实**没有**查锁 —— 而夹具当时是绿的（它直接打谓词）。⇒ **结构断言是唯一能咬住"接线"的东西**。
+
+#### 三、统计口径：`MineSurveyStats`（**纯函数**）+ `MineSurvey`（终态收口）
+- 一次 SUMMARY 把口径**全记**（这样"分母/向下定义"这些分歧可以**看着数据再定**，而不是先定再发现量错）：
+  被选中数/成功数/配额 · Δy 三分法（相对**起点**）+ 均值 + 最大下降 · 水平位移均值/最大/不同列数 ·
+  失败码分布 · tick 数 · 终态理由 · 向下占比（分母 = 被选中的目标数）。
+- ⭐ **收口在 `MineJob.finish(...)` 一处**：`MineJob` 的终态有**四条**路径（配额达成 / 候选穷尽 / 背包满 / 超时），
+  包一层 Task 很容易漏一条 ⇒ "跑完了却一行数据都没有"。同一处**自动解锁**（任务怎么结束都会放锁）。
+- 实测样例（矿石场景，`mine_survey` 步骤）：`attempts=2/2 success=2 ticks=110 terminal=quota_met ·
+  Δy 下=2 平=0 上=0 均值=-1.0 最大下降=1 · 水平 均值=4.8 最大=5.7 列数=2 · 失败=无 · 向下占比=1.00`。
+
+#### 四、判据（新电池步 `mine_survey`，EXTRA，12 判据）
+纯统计 4 条（三分法/最大下降/水平/空输入不 NaN）+ 锁 3 条（谓词拒绝 · 事件环可见 · 起任务）+ 终态 4 条
+（自动解锁 · 有快照 · 字段可用 · 占比在 [0,1]）。**四种注入全红**：锁空操作 / 拒绝不进事件环 /
+采集钩子被摘 / 向下计数反了。
+⚠️ 夹具**不许**用 `BotManager.assignJob` 判"锁生效"——夹具自己占着会话，那样返回 `false` 分不清"锁"还是"会话忙"
+（**假绿**）；夹具要真起作业只能**直接建 `MineJob`**（与 `MineRunMetricsCheckTask` 同路）。
+
+#### 五、验证
+`single:mine_survey` PASS（12 判据）· 电池步数 74 → **75**（EXTRA `mine_survey`）· 全量 `full` 见提交信息 ·
+`check-all` pass=19 warning=0 failed=0。

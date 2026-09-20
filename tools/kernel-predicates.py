@@ -1201,6 +1201,73 @@ def rule_world_refused_is_attributed():
     return problems
 
 
+def rule_manual_test_lock_blocks_llm():
+    """`D-360`（用户 2026-09-20："测试工具要阻断 LLM 接手"）：**手动占用锁必须在唯一的执行入口上生效**。
+
+    为什么做成门禁：锁失效是**静默**的 —— LLM 插进来起了任务（或换掉了正在跑的任务），
+    人却以为数据干净。而"锁生效"这件事只能靠结构断言咬住：
+    ① 生产入口 `assignJob` 里**真的**查了锁；
+    ② 放行口是**作用域内的一次性窗口**（`beginManualWindow`/`endManualWindow`，不新增 public 绕过 API）；
+    ③ 窗口的**调用点只有一个**（= 手动测试命令）且必须在 `finally` 里关闭；
+    ④ 拒绝必须**可见**（事件环 `REFUSED` + 日志）；
+    ⑤ 手动实测的采集**收口在 `MineJob` 的终态**（四条终态路径共用一个出口，漏一条就会"跑完没数据"）；
+    ⑥ `MineSurveyStats` 是**纯函数**（不读世界）。
+    """
+    problems = []
+    bot_dir = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "bot"
+    manager = (bot_dir / "BotManager.java").read_text(encoding="utf-8")
+    lock = (bot_dir / "ManualTestLock.java").read_text(encoding="utf-8")
+    job = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "mine"
+           / "MineJob.java").read_text(encoding="utf-8")
+    stats = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "mine"
+             / "MineSurveyStats.java").read_text(encoding="utf-8")
+
+    body = method_body(manager, "public static boolean assignJob(BotPlayer bot, ServerPlayer observer,")
+    if not body:
+        problems.append("找不到 `BotManager.assignJob`（结构变了 ⇒ 本规则要跟着改）")
+    elif "ManualTestLock.refusalFor(" not in body:
+        problems.append("生产入口 `assignJob` 没有查手动占用锁 ⇒ LLM 能在实测中途插进来起任务"
+                        "（数据作废且现场难复盘）")
+    if "beginManualWindow()" not in lock or "endManualWindow()" not in lock:
+        problems.append("没有**作用域内的一次性放行窗口**（`beginManualWindow`/`endManualWindow`）"
+                        "⇒ 要么锁形同虚设，要么得新增一条能被误用的 public 绕过入口")
+    if "BotEventLog.record(" not in lock or '"REFUSED"' not in lock:
+        problems.append("锁的拒绝没有进事件环（`REFUSED`）⇒ 拒绝是静默的，事后无法复盘")
+
+    callers = []
+    for path in (ROOT / "src" / "main" / "java").rglob("*.java"):
+        if path.name == "ManualTestLock.java":
+            continue
+        # ⚠️ 剥掉注释再数（第一版把 BotManager 里**提到**窗口的注释也当调用点 ⇒ 假红）；
+        # ⚠️ 数**出现次数**而不是文件数（第二版按文件名去重 ⇒ 同一文件里多加一处调用**假绿**）
+        text = re.sub(r"/\*.*?\*/", "", path.read_text(encoding="utf-8"), flags=re.S)
+        text = re.sub(r"//[^\n]*", "", text)
+        count = text.count("beginManualWindow()")
+        if count:
+            callers.append(f"{path.name}×{count}")
+    if callers != ["BotCommand.java×1"]:
+        problems.append("`beginManualWindow()` 的调用点必须恰好是手动测试命令一处（实测 %s）"
+                        % (", ".join(callers) if callers else "0 处"))
+    command = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "command"
+               / "BotCommand.java").read_text(encoding="utf-8")
+    if "beginManualWindow();" in command:
+        window_at = command.find("beginManualWindow();")
+        tail = command[window_at:window_at + 400]
+        if "finally" not in tail or "endManualWindow();" not in tail:
+            problems.append("手动窗口没有在 `finally` 里关闭 ⇒ 起任务抛异常就会把锁**永久**留在放行态")
+
+    finish = method_body(job, "private Task.Status finish(Task.Status status) {")
+    if not finish:
+        problems.append("找不到 `MineJob.finish(...)`（终态收口）")
+    elif "MineSurvey.reportTerminal(" not in finish:
+        problems.append("`MineJob` 的终态收口没有打采集点 ⇒ 四条终态路径里漏一条就是『跑完没数据』")
+    for banned in ["getBlockState", "serverLevel()", "BlockState"]:
+        if banned in stats:
+            problems.append("`MineSurveyStats` 里出现 `%s` ⇒ 统计不再是纯函数（夹具喂不了合成数据，口径也无法逐条断言）"
+                            % banned)
+    return problems
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
@@ -1239,6 +1306,7 @@ def main() -> int:
     clusters = rule_cluster_is_pure_geometry()
     value = rule_value_is_only_a_cost_component()
     refused = rule_world_refused_is_attributed()
+    lock = rule_manual_test_lock_blocks_llm()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -1299,13 +1367,15 @@ def main() -> int:
         print(f"[D-329·价值只是成本分量] {line}")
     for line in refused:
         print(f"[D-359·世界侧拒绝要归因] {line}")
+    for line in lock:
+        print(f"[D-360·实测锁要挡LLM] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

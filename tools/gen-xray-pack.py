@@ -10,6 +10,12 @@
     内部不会糊成网格。<b>完整版</b>"只在外轮廓画边"（相邻处连边框都不画）需要 CTM 类模组
     （Forge 1.20.1 的 Fusion），纯资源包做不到逐边选择 —— 见 `--help` 输出与文档。
 
+⭐ **必须按 blockstate 枚举模型状态**（2026-09-20 真机截图暴露的坑）：原版很多方块的 blockstate 是
+**多个加权变体**，例如 `stone` = `stone` / `stone_mirrored` / 各自 y=180 ⇒ 只覆盖 `stone.json`
+会让**一半的石头**保持不透明（用户看到的就是"只有部分石头透明"）。`deepslate` 同理
+（`deepslate` / `deepslate_mirrored`）。⇒ 本脚本**从客户端 jar 里读 blockstate**，把每个引用到的
+模型**全部**覆盖；读不到 jar 时回落到"同名 + `_mirrored`"并**响亮告警**（不许静默出半个包）。
+
 为什么用脚本而不是手搓文件：① 可复现（客户端目录丢了重跑一次）；② 材质颜色表是数据；
 ③ 透明 PNG 手写（不依赖 PIL，任何环境都能跑）。
 
@@ -84,6 +90,38 @@ def frame_texture(size: int, color: tuple[int, int, int]):
     return pixel
 
 
+def models_referenced_by(block: str, jar: pathlib.Path) -> list[str]:
+    """从客户端 jar 的 blockstate 里取出该方块**引用到的全部模型**（去掉命名空间/目录）。
+
+    ⚠️ 返回值可能含**不属于 `MATERIALS` 的名字**（如 `stone_mirrored`、`grass_block_snow`）——
+    那正是要覆盖的对象：它们同属这个方块的材质分组。
+    """
+    import re
+    import zipfile
+    entry = f"assets/minecraft/blockstates/{block}.json"
+    with zipfile.ZipFile(jar) as archive:
+        if entry not in archive.namelist():
+            return []
+        text = archive.read(entry).decode("utf-8", "replace")
+    refs = {ref.split(":")[-1].split("/")[-1] for ref in re.findall(r'"model"\s*:\s*"([^"]+)"', text)}
+    # 变体可能引用**别的方块**的模型（如 grass_block_snow 属于 grass_block）⇒ 一并覆盖，颜色随本方块
+    return sorted(refs)
+
+
+def find_client_jar(client: pathlib.Path) -> pathlib.Path | None:
+    """定位**含原版资源**的 jar（Forge 版本 jar 里有 `assets/minecraft/blockstates/`）。"""
+    candidates = sorted(client.glob("*.jar")) + sorted(client.glob("PCL/**/*.jar"))
+    for candidate in candidates:
+        try:
+            import zipfile
+            with zipfile.ZipFile(candidate) as archive:
+                if "assets/minecraft/blockstates/stone.json" in archive.namelist():
+                    return candidate
+        except Exception:
+            continue
+    return None
+
+
 def main() -> int:
     client = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else DEFAULT_CLIENT)
     root = client / "resourcepacks" / PACK_NAME
@@ -108,15 +146,33 @@ def main() -> int:
         png_rgba(textures / f"{name}.png", 16, frame_texture(16, color))
         texture_of[color] = f"alicexray:block/{name}"
 
+    jar = find_client_jar(client)
+    covered: set[str] = set()
+    state_models = 0
     for block, color in MATERIALS.items():
-        (models / f"{block}.json").write_text(json.dumps({
-            "parent": "minecraft:block/cube_all",
-            "render_type": "minecraft:cutout_mipped",
-            "textures": {"all": texture_of[color], "particle": texture_of[color]}
-        }, indent=2), encoding="utf-8")
+        names = models_referenced_by(block, jar) if jar else []
+        if not names:
+            # 回落：同名 + `_mirrored`（`stone`/`deepslate` 那一半不透明就是这么漏掉的）
+            names = [block, f"{block}_mirrored"]
+            if jar:
+                print(f"⚠️ {block}：blockstate 里没解析出模型 ⇒ 回落到 {names}")
+        state_models += len(names)
+        for name in names:
+            (models / f"{name}.json").write_text(json.dumps({
+                "parent": "minecraft:block/cube_all",
+                "render_type": "minecraft:cutout_mipped",
+                "textures": {"all": texture_of[color], "particle": texture_of[color]}
+            }, indent=2), encoding="utf-8")
+            covered.add(name)
+    if jar is None:
+        print("⚠️ 没找到含原版资源的客户端 jar ⇒ 只覆盖了「同名 + _mirrored」；"
+              "若截图里仍有不透明围岩，请把客户端实例目录作为参数传入。")
 
     print(f"包路径      = {root}")
-    print(f"隐形围岩数  = {len(MATERIALS)}（保留矿石原样）")
+    print(f"隐形围岩数  = {len(MATERIALS)} 种方块（保留矿石原样）")
+    print(f"覆盖模型数  = {len(covered)}（含 blockstate 的**全部变体状态**：{len(covered) - len(MATERIALS)} 个"
+          f"非同名模型，如 stone_mirrored / deepslate_mirrored / grass_block_snow）")
+    print(f"原版 jar    = {jar.name if jar else '未找到（回落模式）'}")
     print(f"边框贴图数  = {len(colors)}（按材质上色：灰=石/棕=土/黄=沙/红=下界岩/蓝=冰…）")
     print(f"pack_format = {PACK_FORMAT}（1.20.1）")
     print("启用方式    = 选项→资源包 勾选 AliceXray（或 options.txt 的 resourcePacks 里加 file/AliceXray）")

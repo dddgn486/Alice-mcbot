@@ -84,6 +84,8 @@ public final class BotCommand {
                 .then(Commands.literal("come")
                         .executes(ctx -> come(ctx.getSource())))
                 .then(Commands.literal("mine")
+                        // ⭐ `D-360` 真机地形实测入口：**零参数**就地在 bot 脚下开矿（测试纪律：不许要求坐标）
+                        .then(Commands.literal("here").executes(ctx -> mineHere(ctx.getSource())))
                         .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                 .executes(ctx -> mine(ctx.getSource(),
                                         BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
@@ -2014,6 +2016,63 @@ public final class BotCommand {
                 + BotOwnership.describe(BotOwnership.creatorOfBot(target))), false);
         return 1;
     }
+
+    /**
+     * **真机地形实测：就地开矿**（`/alice mine here`，零参数）。
+     *
+     * <p>为什么需要它（用户 2026-09-20 "先搞 A"）：数值层要的是**真实地形**里的决策行为
+     * （水平位移分布 / 向下占比），而既有入口 `/alice mine <x y z>` **要求坐标** ⇒ 违反"测试入口零参数"纪律，
+     * 也会把"选在哪测"变成人肉决策。
+     *
+     * <p>它做三件事：① 以 **bot 当前位**为中心、默认半径/配额起一个**多目标种类**（`#forge:ores`）挖掘任务
+     * （顺带压到成本模型与价值表）；② **上手动占用锁** ⇒ LLM 起任务被拒且可见（`ManualTestLock`）；
+     * ③ 打开采集 ⇒ 终态打一行 `[MineSurvey] SUMMARY`（口径全记，见 `MineSurveyStats`）。
+     *
+     * <p>⚠️ 未认领区块是前提（FTB Chunks 会拒绝认领区内的假人破坏 ⇒ 那量到的是"权限"不是"行为"）。
+     */
+    private static int mineHere(CommandSourceStack source) {
+        ServerLevel level = source.getLevel();
+        BotPlayer bot = BotManager.firstOrSpawn(level, BlockPos.containing(source.getPosition()));
+        if (bot == null) {
+            source.sendFailure(Component.literal("[alice] 没有可用的 bot"));
+            return 0;
+        }
+        BlockPos start = bot.blockPosition();
+        // ① 上锁（LLM 的唯一执行入口 = `BotManager.assignJob` ⇒ 从这里起全部被拒并记进事件环）
+        com.dddgn.alice.bot.ManualTestLock.on("mine here @" + start.toShortString());
+        // ② 开采集（起点口径 = bot 起任务时的脚位）
+        com.dddgn.alice.job.mine.MineSurvey.enable(start, level.getGameTime(), "mine here");
+        // ③ 起任务：**手动入口**（绕过占用锁；其它闸门照旧）
+        var request = new com.dddgn.alice.job.JobRequest(
+                com.dddgn.alice.job.JobRequest.Kind.MINE, start, MINE_SURVEY_RADIUS,
+                MINE_SURVEY_QUOTA, MINE_SURVEY_MAX_TICKS, MINE_SURVEY_TAG, null);
+        // 归因：玩家入口的指派点必须标（F1 规则要求紧邻；手动窗口自己开关，异常也不会把锁留着）
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.IN_GAME_PLAYER);
+        com.dddgn.alice.bot.ManualTestLock.beginManualWindow();
+        boolean started;
+        try {
+            started = BotManager.assignJob(bot, source.getPlayer(), request, true);
+        } finally {
+            com.dddgn.alice.bot.ManualTestLock.endManualWindow();
+        }
+        if (!started) {
+            com.dddgn.alice.job.mine.MineSurvey.reset();
+            com.dddgn.alice.bot.ManualTestLock.off("起任务失败");
+            source.sendFailure(Component.literal("[alice] 挖掘任务没起来（看日志里的拒绝理由）"));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("[alice] " + bot.getName().getString()
+                + " 就地开矿：" + request.describe()
+                + "（LLM 起任务已阻断；结束时看日志 [MineSurvey] SUMMARY）"), false);
+        return 1;
+    }
+
+    /** 实测默认参数（零参数入口的口径；要改就改这里，别让玩家输坐标）。 */
+    private static final int MINE_SURVEY_RADIUS = 24;
+    private static final int MINE_SURVEY_QUOTA = 8;
+    private static final int MINE_SURVEY_MAX_TICKS = 3600;
+    /** 多目标种类（`#forge:ores`）⇒ 走成本模型与价值表；单种类任务的价值项是惰性的。 */
+    private static final String MINE_SURVEY_TAG = "forge:ores";
 
     private static int mine(CommandSourceStack source, BlockPos target) {
         ServerLevel level = source.getLevel();

@@ -644,6 +644,13 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
+        // ⭐ `D-360` 手动测试占用锁：**生产入口一律拒绝**（LLM 的 `start_job` 走的就是这里）。
+        // 唯一的放行口 = 调用方用 `ManualTestLock.beginManualWindow()` 开一个**作用域内的一次性窗口**
+        // （手动测试命令自己开关；见 `ManualTestLock`：不新增 public 绕过入口，也就没有可被误用的生产 API）。
+        String locked = ManualTestLock.refusalFor(bot, request.describe());
+        if (locked != null) {
+            return false;
+        }
         String refusal = com.dddgn.alice.job.JobLauncher.refusalReason(bot, request);
         if (refusal != null) {
             BotLog.warn("[Job] launch 拒绝 {}（{}）—— 不起 Job", request.describe(), refusal);

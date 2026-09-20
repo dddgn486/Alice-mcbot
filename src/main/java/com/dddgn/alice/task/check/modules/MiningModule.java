@@ -101,6 +101,10 @@ public final class MiningModule implements CheckModule {
                         2200),
                 // D-335（2026-09-19）：**容量守卫**（前置 + 作业中）—— 对際伐木 `LumberFailureCheckTask`。
                 // 判据钉在"世界有没有被白改"上：前置满包 ⇒ 一格不动；作业中满包 ⇒ 恰好只少 1 格。
+                // ⭐ `D-360`（2026-09-20）：**真机实测测试工具的自检** —— 就地开采 + 阻断 LLM 接手 + 统计口径。
+                // 三件事都会**静默失败**（锁没生效 / 没打点 / 口径算错）⇒ 必须有判据，不能"手动试一下"。
+                CheckStep.of("mine_survey", CheckProfile.EXTRA, ore, staged,
+                        () -> new com.dddgn.alice.task.MineSurveyCheckTask(bot, scope), 1400),
                 CheckStep.of("mine_inventory", CheckProfile.EXTRA, ore, staged,
                         () -> new MineInventoryCheckTask(bot, scope), 1400),
                 // M3（G3 归因）：**缺工具**必须如实报 `tool_missing`，不许被总括码 `no_reachable_candidate` 盖掉。

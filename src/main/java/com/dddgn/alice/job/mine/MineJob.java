@@ -102,6 +102,12 @@ public final class MineJob implements Job {
      * 匹配 —— 那既会把位置串误伤，也禁不起词表演化。M4 把"失败事实"变成字段之后，归因应当**逐码精确比较**。
      */
     private final List<AttemptFailure> attemptFailures = new ArrayList<>();
+    /**
+     * ⭐ **被选中的目标序列**（`D-360` 真机实测统计）：顺序 = 尝试顺序。
+     * ⚠️ 这是**决策行为**的账，与"世界被改了多少"（`TaskMetrics`/`WriteAudit`）**分开记** ——
+     * 合在一起就分不出"是偏置"还是"被拒"。
+     */
+    private final List<BlockPos> attemptOrder = new ArrayList<>();
 
     /** 一次尝试失败：`pos` 是目标格，`code` 是失败理由码（取自既有词表，见 `toolRefusal` / `MineTask.failureReason`）。 */
     private record AttemptFailure(BlockPos pos, String code) {
@@ -339,6 +345,7 @@ public final class MineJob implements Job {
             current = null;
             return Task.Status.RUNNING;
         }
+        attemptOrder.add(current);
         DecisionTrace.step(jobName(), "MINE", current.toShortString(),
                 "block=" + selection.picked().feature("block")
                         + " d=" + selection.picked().feature("d")
@@ -552,6 +559,10 @@ public final class MineJob implements Job {
                     terminalReason, progressSummary() + " inventoryDelta=" + (countTargetItems() - itemsBefore)
                             + " " + com.dddgn.alice.action.WriteAudit.summary(),
                     ticks);
+            // ⭐ `D-360`：手动实测的采集**收口在这一个地方** —— `MineJob` 的终态有四条路径
+            // （配额达成 / 候选穷尽 / 背包满 / 超时），在这里打点才不会出现"某条路径静默无数据"。
+            MineSurvey.reportTerminal(jobName(), spec.center(), attemptOrder, minedCount, spec.quota(),
+                    ticks, terminalReason, attemptFailures.stream().map(AttemptFailure::code).toList());
         }
         return status;
     }

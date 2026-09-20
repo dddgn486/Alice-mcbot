@@ -182,6 +182,10 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("region_maintain_unmaintainable", Profile.EXTRA),
             // D-335：挖矿容量守卫（前置满包不许动世界 / 作业中满包恰好只少 1 格）—— 对際 lumber_failure
             Map.entry("mine_inventory", Profile.EXTRA),
+            // ⭐ `D-360`（2026-09-20）：**真机实测测试工具的自检** —— 就地开采 + 阻断 LLM 接手（`ManualTestLock`）
+            // + 统计口径（`MineSurveyStats`）。三件事都会**静默失败**（锁没生效 / 没打点 / 口径算错）⇒ 必须判据化。
+            // EXTRA：要起一个真作业并等它到终态（整链），不进 CORE。
+            Map.entry("mine_survey", Profile.EXTRA),
             // D-336：斜向上升那一格（规划级：能力 + 信封）
             Map.entry("place_step_diagonal", Profile.EXTRA),
             // D-327 机制 B（2026-09-19）：任务失败后回安全区的兜底（无区 ⇒ 诚实码 / 200 格 ⇒ 分段走回 /
