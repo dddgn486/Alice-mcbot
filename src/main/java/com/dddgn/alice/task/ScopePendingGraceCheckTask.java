@@ -202,6 +202,13 @@ public final class ScopePendingGraceCheckTask implements Task {
         //    （首跑就是这么红的：`推迟计数=0`、`liveDrops()=0`，看着像产品坏了，其实是夹具没发镐）。
         com.dddgn.alice.item.FixtureToolKit.resetInventory(bot);
         com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
+        // ⭐ **夹具自己准备前提**（2026-09-20 `full` 实测踩到）：`ensurePickaxe` 只把镐放进**快捷栏空格（slot=0）**，
+        // **不选中**它；而本夹具读的是 `getMainHandItem()`（= **选中槽**）。工艺/机器模块的夹具会合法地把选中槽
+        // 挪到别的槽（`MachineCycle:445`/`StationProvision:161`/`CraftFurnaceCheckTask:162`）⇒ 在 `full` 里
+        // 主手读到 `air`、前提**未复现**红；而**单跑**（bot 的选中槽还是 0）是绿的 —— 这类"只在整链里红"的
+        // 现场极难复盘。⇒ 明确选中 slot 0 并广播主手，前提不再依赖前一步的残留。
+        bot.getInventory().selected = 0;
+        com.dddgn.alice.bot.BotManager.syncMainHand(bot);
         toolReady = bot.getMainHandItem().is(net.minecraft.world.item.Items.STONE_PICKAXE)
                 || bot.getMainHandItem().is(net.minecraft.world.item.Items.IRON_PICKAXE)
                 || bot.getMainHandItem().is(net.minecraft.world.item.Items.DIAMOND_PICKAXE)
