@@ -44,6 +44,21 @@
 #   ALICE_SAVE_ON_HALT=1         停机前同步存档（配 `-Dalice.headless.saveOnHalt=true`，见 HeadlessBattery）
 #   —— 后两个是**持久化实验**专用（D-235）：`SavedData` 里的状态只有存档才看得见。
 #
+# ============================ CORE 结果缓存（2026-09-20） ============================
+#  动机（用户 2026-09-20 定，观测指标"从改一行到知道对不对"）：CORE 真跑 ≈ 4–5 min，
+#  而 `check-all` 每次都跑它 ⇒ 绝大多数时间花在**与本次改动无关**的回归上。
+#  ⇒ `core`（且仅 `core`、且仅默认 prod/不保留世界/无 A/B 开关）时：
+#     **源码指纹一致 + 上次判决 PASS ⇒ 直接复用判决，秒级返回**。
+#  ⚠️ **绝不允许假绿**（比慢贵得多），因此：
+#    · 指纹 = `src/` + `tools/` + 构建脚本 + **世界母本** + **上游模组 jar** + `server.properties`
+#      （**剔注释行** + difficulty 归一 —— 第一版没剔 ⇒ 保存时间戳每次 boot 都变 ⇒ 永不命中）
+#      + `unix_args.txt` + `java -version` + （`--no-build` 时）工件 sha
+#      —— **输入变了就必然不匹配**；
+#    · 缓存**缺失 / 读不动 / 指纹不匹配 / 上次不是 PASS** ⇒ **真跑**（没有任何静默复用路径）；
+#    · 命中时会**大声**打一行 `缓存复用`（含指纹前 12 位 + 真实轮次时间戳）⇒ 读日志的人不会误以为刚跑过；
+#    · `--no-cache`（或 `ALICE_BATTERY_NO_CACHE=1`）**强制真跑**。
+#    · 缓存文件 `run/.cache/core-verdict.txt`（`run/` 在 `.gitignore` 里 ⇒ 本机状态，不进仓库）。
+#
 set -uo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -54,6 +69,10 @@ BACKEND="prod"          # prod = 生产专用服务端（默认）；dev = gradl
 KEEP_WORLD=no
 DO_INSTALL=no
 NO_BUILD=no             # prod 默认每轮重建 Alice 工件；--no-build 用现有 build/libs 里的 jar
+# 强制真跑开关：`--no-cache` 或 `ALICE_BATTERY_NO_CACHE=<真值>`。
+# ⚠️ 真值判定写成显式 case：**第一版只认字符串 `yes`** ⇒ `ALICE_BATTERY_NO_CACHE=1`（文档里就是这么写的）
+#    被静默当成"关"，反向对照一跑就露出（控制 ③ 实测命中缓存 = 假绿）。文档说了 `=1`，代码就必须认 `1`。
+case "${ALICE_BATTERY_NO_CACHE:-}" in ""|0|no|false|NO|False) NO_CACHE=no ;; *) NO_CACHE=yes ;; esac
 TIMEOUT_SEC="${ALICE_HEADLESS_TIMEOUT:-1200}"
 
 while [ $# -gt 0 ]; do
@@ -64,9 +83,10 @@ while [ $# -gt 0 ]; do
         --keep-world)       KEEP_WORLD=yes ;;
         --reuse-world)      REUSE_WORLD=yes ;;   # 不重置世界（持久化/两轮实验用，如 death-persistence-e2e）
         --no-build)         NO_BUILD=yes ;;
+        --no-cache)         NO_CACHE=yes ;;      # 强制真跑（忽略 CORE 结果缓存，见文件头）
         --install)          DO_INSTALL=yes ;;
         --timeout)          shift; TIMEOUT_SEC="$1" ;;
-        -h|--help)          sed -n '2,55p' "${BASH_SOURCE[0]}"; exit 0 ;;
+        -h|--help)          sed -n '2,72p' "${BASH_SOURCE[0]}"; exit 0 ;;
         *) echo "未知参数：$1（-h 看用法）" >&2; exit 5 ;;
     esac
     shift
@@ -129,6 +149,61 @@ if [ "$BACKEND" = "prod" ]; then
 else
     WORLD="$REPO/run/world"; MODS="$REPO/run/mods"; RUN_DIR="$REPO/run"
     LOG="$REPO/run/logs/latest.log"; RESULT="$REPO/headless-result.txt"
+fi
+
+# ---------------------------------------------------------------- CORE 结果缓存（见文件头）
+CACHE_DIR="$REPO/run/.cache"
+CACHE_FILE="$CACHE_DIR/core-verdict.txt"
+
+# 指纹 = **判决的全部输入**。任何一项变了 ⇒ 不匹配 ⇒ 真跑。
+# ⚠️ 宁可比实际需要**更宽**（多算一个偶尔变化的输入 ⇒ 只是少命中），也**不许更窄**（少算 ⇒ 假绿）。
+core_fingerprint() {
+    {
+        # ① Alice 源码 + 工具链 + 构建脚本（候选/夹具/数据包都在这里）
+        ( cd "$REPO" && find src tools build.gradle settings.gradle gradle.properties \
+              gradle/wrapper/gradle-wrapper.properties -type f -print0 2>/dev/null \
+            | sort -z | xargs -0 -r sha256sum )
+        # ② 世界母本：5 个 CORE 步（clear_retry/write_budget/scaffold/clear_guard/mine_regression）
+        #    的 START_FOOT 是绝对坐标，完全依赖它的地形 ⇒ **它是输入，不是环境**
+        [ -d "$PRISTINE" ] && ( cd "$PRISTINE" && find . -type f ! -name 'session.lock' -print0 \
+            | sort -z | xargs -0 -r sha256sum )
+        # ③ 上游模组 jar（alice 自己排除在外：它由 ① 的 src 决定）
+        [ -d "$CLIENT_MODS" ] && ( cd "$CLIENT_MODS" && find . -maxdepth 1 -type f -name '*.jar' \
+              ! -name 'alice-*.jar' ! -name '*.bak.*' -print0 | sort -z | xargs -0 -r sha256sum )
+        printf 'client_only=%s\n' "${ALICE_HEADLESS_CLIENT_ONLY-$CLIENT_ONLY_DEFAULT}"
+        printf 'jvm=%s\n' "$(java -version 2>&1 | head -1)"
+        # ④ 服务端属性（把脚本自己会改的 difficulty 归一 + **去掉注释行**——第一条注释是
+        #    `Properties.store()` 写的**保存时间戳**，每次 boot 都变 ⇒ 不做这步缓存永远不命中，见实测教训）
+        [ -f "$SERVER_DIR/server.properties" ] \
+            && sed -e '/^#/d' -e '/^[[:space:]]*$/d' -e 's/^difficulty=.*/difficulty=peaceful/' \
+                   "$SERVER_DIR/server.properties" | sha256sum
+        # ⑤ Forge 库清单（换 Forge/库布局 ⇒ 变）
+        [ -f "$FORGE_ARGS" ] && sha256sum "$FORGE_ARGS"
+        # ⑥ `--no-build` 时**真正被测的是现成工件**，不是源码 ⇒ 必须把它算进来
+        [ "$NO_BUILD" = "yes" ] && [ -f "$ARTIFACT" ] && sha256sum "$ARTIFACT"
+    } 2>/dev/null
+}
+
+# 只有"默认那一轮"才配用缓存：A/B 开关、保留世界、dev 后端、单步/模块模式都**必须真跑**。
+if [ "$MODE" = "core" ] && [ "$BACKEND" = "prod" ] && [ "$NO_CACHE" != "yes" ] \
+   && [ "$KEEP_WORLD" = "no" ] && [ "${REUSE_WORLD:-no}" != "yes" ] && [ "$NO_BUILD" != "yes" ] \
+   && [ -z "${ALICE_EXTRA_JVM_ARGS:-}" ] && [ "${ALICE_KEEP_ALICE_DATA:-0}" != "1" ]; then
+    FP="$(core_fingerprint | sha256sum | cut -d' ' -f1)"
+    say "CORE 指纹（src+tools+世界母本+上游模组+JVM）：${FP:0:12}"
+    CACHED_FP="$(sed -n 's/^fingerprint=//p' "$CACHE_FILE" 2>/dev/null | head -1)"
+    CACHED_VERDICT="$(sed -n 's/^verdict=//p' "$CACHE_FILE" 2>/dev/null | head -1)"
+    if [ -n "$FP" ] && [ "$CACHED_FP" = "$FP" ] && [ "$CACHED_VERDICT" = "PASS" ]; then
+        CACHED_META="$(sed -n 's/^stamp=//p' "$CACHE_FILE" | head -1) ticks=$(sed -n 's/^ticks=//p' "$CACHE_FILE" | head -1)"
+        say "──── 结果 ────（本轮**没有跑服务端**）"
+        say "verdict=PASS exit=0 用时=0s 缓存复用（指纹=${FP:0:12} 与上次绿轮一致；上次真跑 ${CACHED_META}）"
+        say "⚠️ 这不是新证据：要真跑用 --no-cache（或 ALICE_BATTERY_NO_CACHE=1）—— 改任何源码/工具/世界母本/模组都会自动失效"
+        exit 0
+    fi
+    if [ -f "$CACHE_FILE" ]; then
+        say "缓存不可用（缓存指纹=${CACHED_FP:0:12} 判决=${CACHED_VERDICT:-<空>}）⇒ 真跑"
+    else
+        say "无缓存 ⇒ 真跑"
+    fi
 fi
 
 mkdir -p "$RUN_DIR" "$MODS" "$(dirname "$WORLD")"
@@ -298,4 +373,20 @@ if [ -f /tmp/alice-headless-server.log ]; then
 fi
 say "日志：$LOG（服务端 stdout：/tmp/alice-headless-server.log ⇒ **已归档** $ARCHIVE）"
 [ "$KEEP_WORLD" = "no" ] || say "（--keep-world：$WORLD 已保留）"
+
+# ---------------------------------------------------------------- 写结果缓存（**只写 PASS**）
+# ⚠️ 只缓存 PASS：红/降级/无判决一律不写（也就永远不会被复用 ⇒ 不存在"把红记成绿"）。
+# 用 tmp + mv ⇒ 不会留下半截文件（真半截了也只是指纹不匹配 ⇒ 真跑）。
+if [ -n "${FP:-}" ] && [ "$CODE" -eq 0 ]; then
+    mkdir -p "$CACHE_DIR"
+    {
+        printf 'fingerprint=%s\n' "$FP"
+        printf 'verdict=PASS\n'
+        printf 'stamp=%s\n' "$(date +%Y-%m-%dT%H:%M:%S)"
+        printf 'ticks=%s\n' "$(grep -aoE 'ticks=[0-9]+' "$ARCHIVE" 2>/dev/null | tail -1 | cut -d= -f2)"
+        printf 'elapsed=%ss\n' "$ELAPSED"
+        printf 'artifact_sha256=%s\n' "$(sha256sum "$ARTIFACT" 2>/dev/null | cut -d' ' -f1)"
+    } > "$CACHE_FILE.tmp" 2>/dev/null && mv "$CACHE_FILE.tmp" "$CACHE_FILE"
+    say "已写结果缓存：$CACHE_FILE（指纹=${FP:0:12} verdict=PASS；改源码/工具/世界母本/模组即自动失效）"
+fi
 exit "$CODE"

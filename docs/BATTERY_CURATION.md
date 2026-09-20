@@ -160,6 +160,19 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 ⚠️ 纪律：**"故意红"的模块必须显式声明 `expectedVerdict()`，并在本文 + `AI_DECISIONS.md` 写明翻面条件** ——
 否则下一个人会把它当成"电池漏登记"或"已知坏掉但没人管的测试"。
 
+### 3.2 ⭐ CORE 结果缓存（2026-09-20，`D-352`）—— 只对**默认那一轮 core** 生效
+
+`core` 真跑 ≈ 4–5 min，而按 §3.5 它只在**收口点**跑 ⇒ 收口那一下很贵。现改为：
+**源码指纹一致 + 上次判决 PASS ⇒ 秒级复用判决**（在 `tools/headless-battery.sh` 内；缓存文件 `run/.cache/core-verdict.txt`）。
+
+| 问题 | 答案（**代码为准**，别当散文记） |
+|---|---|
+| 什么情况会命中？ | **只有** `MODE=core` + `prod` + 未开 `--keep-world`/`--reuse-world`/`--no-build` + **无** `ALICE_EXTRA_JVM_ARGS` + 未开 `ALICE_KEEP_ALICE_DATA` + **指纹与上次 PASS 逐字一致** |
+| 指纹算哪些输入？ | `src/` 全量 · `tools/` 全量（夹具/数据包/本脚本）· 构建脚本 · **`run/world-pristine` 世界母本**（5 个 CORE 步的 `START_FOOT` 依赖它的地形）· **上游模组 jar**（排除 alice 自己）· `server.properties`（**剔注释行** + `difficulty` 归一）· `unix_args.txt` · `java -version` ·（`--no-build` 时）工件 sha |
+| 会不会静默复用？ | **不会**：命中时大声打 `缓存复用（指纹=… 上次真跑 …）` 并注明"这不是新证据"；`--no-cache` / `ALICE_BATTERY_NO_CACHE=1` 强制真跑；缺失/坏文件/指纹不符/**上次非 PASS** ⇒ **一律真跑** |
+| 只缓存好结果吗？ | **是**，只写 `verdict=PASS`（红/降级/无判决永不写入 ⇒ 不存在"把红记成绿"）；写入用 tmp+mv ⇒ 不留半截文件 |
+| 踩过的坑（第一版） | 把 `server.properties` **整份**入指纹 ⇒ 它第一条注释是 `Properties.store()` 写的**保存时间戳**，每次 boot 都变 ⇒ **缓存永不命中**（实测：真跑 262 s 后紧接着复跑仍在真跑，且逐分量对指纹后只此一项在变）⇒ 修法 = 剔掉注释行 |
+
 ## 4. 历史
 
 | 日期 | CORE | FULL | 说明 |
