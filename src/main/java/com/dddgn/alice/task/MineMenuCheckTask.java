@@ -368,6 +368,76 @@ public class MineMenuCheckTask implements Task {
         memory.setCapForTesting(savedCap);
         memory.clear();   // 收尾复位（记忆是全局单例 SavedData）
 
+        // ---- ⭐ 1.5 作业区 / 意图（`D-329` §3）：意图只回答"在不在计划里"，**不替"能不能挖"下结论** ----
+        // 判据要咬住用户点出的陷阱：**区内但实际不可挖**的候选必须保住**它自己的**理由码，
+        // 不许被 `outside_work_area` 顶替（否则"挖不动"会被伪装成"不在计划里"）。
+        // ⚠️ 层位取 `center.getY() - 1`：bot 自己那一层是空气，**石块在脚下那一层**
+        // （首版取 `center.getY()` ⇒ 区内可行=0，判据当场红 —— 这就是"意图只是一层过滤"的直接证据）
+        final var intent = com.dddgn.alice.job.mine.MineIntent
+                .area(center, 2, center.getY() - 1, center.getY() - 1);
+        final var intentSpec = com.dddgn.alice.job.GoalSpec.mineBlocks(center, r, 1, 600, intent);
+        var intentSession = source.newSession(intentSpec, Integer.MAX_VALUE, Integer.MAX_VALUE);
+        intentSession.advance(bot);
+        var intentSet = intentSession.sets().get(0);
+        long outsideRejected = intentSet.rejected().stream()
+                .filter(x -> x.endsWith(com.dddgn.alice.job.mine.MineIntent.OUTSIDE)).count();
+        long insideViable = intentSet.viable().stream()
+                .filter(c -> intent.refusalFor(c.anchor()) == null).count();
+        check("1.5 作业区生效：区外候选带 `outside_work_area`（区外被拒=" + outsideRejected
+                        + "）· 区内可行=" + insideViable + "（>0）· 且**所有可行候选都在区内**",
+                outsideRejected > 0 && insideViable > 0
+                        && intentSet.viable().stream().allMatch(c -> intent.refusalFor(c.anchor()) == null));
+
+        // ⭐⭐ 陷阱判据（用户 2026-09-20 点出）：**区内**也可能有"实际不可挖"的目标 ⇒
+        // 它必须报**它自己的**理由（这里用**保护区**这条真实授权路径造），而区外那些报的是
+        // **计划层**理由 `outside_work_area` ⇒ 两类理由同时可见、**互不顶替**。
+        // ⚠️ 判据要**强**才可红：把**整卷扫描**都罩进保护区 ⇒ 一旦检查顺序反了（先算能不能挖），
+        //    区外候选就会全被 `protected_area` 顶替 ⇒ `outsideByPlan` 归零 ⇒ 红。
+        var zones = com.dddgn.alice.protection.SafeZoneData.get(bot.getServer());
+        var dimension = bot.serverLevel().dimension().location();
+        var claimsBefore = new java.util.HashSet<>(zones.claims(dimension));
+        zones.claimCircle(bot.serverLevel(), center, 5);
+        try {
+            var protectedSession = source.newSession(intentSpec, Integer.MAX_VALUE, Integer.MAX_VALUE);
+            protectedSession.advance(bot);
+            var protectedSet = protectedSession.sets().get(0);
+            long insideByAuthority = protectedSet.rejected().stream()
+                    .filter(x -> x.endsWith(":protected_area")).count();
+            long outsideByPlan = protectedSet.rejected().stream()
+                    .filter(x -> x.endsWith(com.dddgn.alice.job.mine.MineIntent.OUTSIDE)).count();
+            check("1.5 陷阱：区内**不可挖**的候选保住自己的理由码（区内 `protected_area`=" + insideByAuthority
+                            + " >0 · 区外 `outside_work_area`=" + outsideByPlan
+                            + " >0 且**一个都没被顶替**；整卷都在保护区内 ⇒ 顺序反了这条必红）",
+                    insideByAuthority > 0 && outsideByPlan > 0);
+        } finally {
+            // 收尾必须还原：只放掉**本判据新认领**的区块（判据自己不留副作用）
+            // ⚠️ 必须先**拷贝**：`claims(...)` 返回的是活集合的视图，边遍历边 unclaim 会 CME
+            for (long key : new java.util.ArrayList<>(zones.claims(dimension))) {
+                if (!claimsBefore.contains(key)) {
+                    zones.unclaim(bot.serverLevel(),
+                            net.minecraft.world.level.ChunkPos.getX(key),
+                            net.minecraft.world.level.ChunkPos.getZ(key));
+                }
+            }
+        }
+
+        // 反向对照（行为）：意图指到**没有目标的远处** ⇒ 一个可行候选都不许有（证明意图真被消费）
+        final var farIntent = com.dddgn.alice.job.mine.MineIntent.area(center.offset(1000, 0, 0), 2,
+                Integer.MIN_VALUE, Integer.MAX_VALUE);
+        var farSession = source.newSession(
+                com.dddgn.alice.job.GoalSpec.mineBlocks(center, r, 1, 600, farIntent),
+                Integer.MAX_VALUE, Integer.MAX_VALUE);
+        farSession.advance(bot);
+        check("1.5 反向对照：意图指到远处 ⇒ 可行候选=0（意图**真的**参与取舍，不是装饰）",
+                farSession.sets().get(0).viable().isEmpty());
+        // 正向对照：没有意图 ⇒ 与上面"无意图"那次逐字相同（意图不是隐形默认打开）
+        var noneSession = source.newSession(
+                com.dddgn.alice.job.GoalSpec.mineBlocks(center, r, 1, 600), Integer.MAX_VALUE, Integer.MAX_VALUE);
+        noneSession.advance(bot);
+        check("1.5 对照：`MineIntent.none()` ⇒ 候选集与基线逐字相同（意图默认关闭）",
+                noneSession.sets().get(0).viable().stream().map(c -> c.anchor().asLong()).sorted().toList()
+                        .equals(chunkedIds));
+
         // **判别性事实**（判据绿了也要能复核数字；红了更要能看出差在哪）
         BotLog.info("[MineMenu] S3/S4 判别性事实：分片 calls={} 单次最大={}（上限={}）visited={}/{} "
                         + "读={} 未扫={} · 合并==全量: {}（分片 {} 条 / 全量 {} 条）· "

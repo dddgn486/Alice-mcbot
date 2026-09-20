@@ -234,6 +234,11 @@ public final class MineCandidateSource implements CandidateSource {
         private final Map<Long, int[]> perChunk = new LinkedHashMap<>();
         /** 是否把结果写进扫描记忆（`MineJob` 的会话写；菜单的"一遍全量"不写 —— 它不是作业）。 */
         private final boolean recordMemory;
+        /**
+         * ⭐ **作业区 / 意图**（`D-329` §3）：只回答"**在不在计划里**"，不替授权面/破坏面下结论。
+         * 见 {@link MineIntent} 的告警：区内候选**照样**要过授权与可破性检查，且**它们自己的理由码必须保住**。
+         */
+        private final MineIntent intent;
         private int dyIndex;
         private int shell;
         private int ring;
@@ -243,7 +248,14 @@ public final class MineCandidateSource implements CandidateSource {
         private int maxCallVisited;
 
         public ScanSession(List<Target> targets, int sourceRadius, int specRadius, BlockPos center) {
-            this(targets, sourceRadius, specRadius, center, CELL_BUDGET_PER_TICK, CELL_BUDGET_TOTAL, false);
+            this(targets, sourceRadius, specRadius, center, CELL_BUDGET_PER_TICK, CELL_BUDGET_TOTAL,
+                    false, MineIntent.none());
+        }
+
+        public ScanSession(List<Target> targets, int sourceRadius, int specRadius, BlockPos center,
+                           int perCallBudget, int totalBudget, boolean recordMemory) {
+            this(targets, sourceRadius, specRadius, center, perCallBudget, totalBudget, recordMemory,
+                    MineIntent.none());
         }
 
         public ScanSession(List<Target> targets, int sourceRadius, int specRadius, BlockPos center,
@@ -252,8 +264,9 @@ public final class MineCandidateSource implements CandidateSource {
         }
 
         public ScanSession(List<Target> targets, int sourceRadius, int specRadius, BlockPos center,
-                           int perCallBudget, int totalBudget, boolean recordMemory) {
+                           int perCallBudget, int totalBudget, boolean recordMemory, MineIntent intent) {
             this.recordMemory = recordMemory;
+            this.intent = intent == null ? MineIntent.none() : intent;
             this.targets = List.copyOf(targets);
             // 扫描范围口径与既有实现**逐字相同**：来源半径与 GoalSpec 半径取小
             this.scan = Math.min(Math.max(1, sourceRadius), Math.max(1, specRadius));
@@ -396,6 +409,14 @@ public final class MineCandidateSource implements CandidateSource {
                 }
                 considered[i]++;
                 chunkCounter[0]++;
+                // ⭐ 顺序**必须**是"先问在不在作业区，再问能不能挖"：
+                // 反过来（先算可破性）会让区外候选也带 `:unbreakable` 之类，把"不在计划里"和"挖不动"混在一起；
+                // 而**区内**候选走到下面时，保住的正是**它自己的**理由码（保护/不可破）—— 那正是用户点出的陷阱。
+                String areaRefusal = intent.refusalFor(pos);
+                if (areaRefusal != null) {
+                    rejected.get(i).add(id(pos) + ":" + areaRefusal);
+                    continue;
+                }
                 String reason = viabilityRefusal(level, bot, safeZones, pos);
                 if (reason != null) {
                     rejected.get(i).add(id(pos) + ":" + reason);
@@ -450,7 +471,10 @@ public final class MineCandidateSource implements CandidateSource {
             List<Candidate> stillViable = new ArrayList<>();
             List<String> rejectedNow = new ArrayList<>(rejected.get(targetIndex));
             for (Candidate candidate : viable.get(targetIndex)) {
-                String refusal = viabilityRefusal(level, bot, safeZones, candidate.anchor());
+                String refusal = intent.refusalFor(candidate.anchor());
+                if (refusal == null) {
+                    refusal = viabilityRefusal(level, bot, safeZones, candidate.anchor());
+                }
                 if (refusal == null) {
                     stillViable.add(candidate);
                 } else {
@@ -535,7 +559,8 @@ public final class MineCandidateSource implements CandidateSource {
     public static MultiScan candidatesForTargets(ServerPlayer bot, GoalSpec spec,
                                                  List<Target> targets, int sourceRadius) {
         ScanSession session = new ScanSession(targets, sourceRadius, Math.max(1, spec.radius()),
-                spec.center(), Integer.MAX_VALUE, Integer.MAX_VALUE, false);   // 菜单全扫不写记忆（它不是作业）
+                spec.center(), Integer.MAX_VALUE, Integer.MAX_VALUE, false, spec.intent());
+        // 菜单全扫不写记忆（它不是作业）；意图照旧生效（菜单与作业必须同一套取舍口径）
         Progress p = session.advance(bot);
         return new MultiScan(p.sets(), p.reads(), p.unscanned());
     }
@@ -550,7 +575,7 @@ public final class MineCandidateSource implements CandidateSource {
     /** ⭐ `S4`：**分片扫描会话**（`MineJob` 用它，逐 tick 推进、不再一 tick 全量）。 */
     public ScanSession newSession(GoalSpec spec) {
         return new ScanSession(List.of(target), radius, Math.max(1, spec.radius()), spec.center(),
-                CELL_BUDGET_PER_TICK, cellBudgetTotal, true);
+                CELL_BUDGET_PER_TICK, cellBudgetTotal, true, spec.intent());
     }
 
     /**
@@ -561,7 +586,7 @@ public final class MineCandidateSource implements CandidateSource {
      */
     public ScanSession newSession(GoalSpec spec, int perCallBudget, int totalBudget) {
         return new ScanSession(List.of(target), radius, Math.max(1, spec.radius()), spec.center(),
-                perCallBudget, totalBudget, true);
+                perCallBudget, totalBudget, true, spec.intent());
     }
     private static Map<String, String> features(ServerPlayer bot, BlockPos pos, BlockState state) {
         Map<String, String> features = new LinkedHashMap<>();

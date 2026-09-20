@@ -1022,6 +1022,56 @@ def rule_scan_memory_has_no_positions():
     return problems
 
 
+def rule_intent_before_viability():
+    """`D-329` §3（阶段 1.5，2026-09-20 落地）：**作业区/意图只回答"在不在计划里"，不替"能不能挖"下结论**。
+
+    依据（用户 2026-09-20 点出的陷阱）：一个符合意图的作业区里**完全可能有一部分目标实际不可挖**
+    （被保护、不可破、视线不可达）。如果**先**算可挖性再问作业区，区外候选就会被内容层的理由顶替
+    （`:protected_area` / `:unbreakable`），于是"不在计划里"和"挖不动"**混成一个码** ——
+    决策层再也分不清"该换地方"还是"该换个目标"。
+
+    断言（删/改任一处 ⇒ 红）：
+    ① `MineIntent` 里 `outside_work_area` 是**唯一**的区域外理由码；
+    ② `MineCandidateSource.visit(...)` 与 `revalidate(...)` 里，`intent.refusalFor(...)` 必须**出现在**
+       `viabilityRefusal(...)` **之前**（顺序即语义）；
+    ③ `GoalSpec` 真的把意图当**输入**（组件在）。
+    """
+    problems = []
+    base = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job"
+    src = (base / "mine" / "MineCandidateSource.java").read_text(encoding="utf-8")
+    intent = (base / "mine" / "MineIntent.java").read_text(encoding="utf-8")
+    spec = (base / "GoalSpec.java").read_text(encoding="utf-8")
+
+    if 'OUTSIDE = "outside_work_area"' not in intent:
+        problems.append("`MineIntent` 里没有 `outside_work_area` 这个区域外理由码"
+                        "（拒绝必须带**显式码**，不许静默丢弃 —— `D-341` 口径）")
+    # ⚠️ 只看**记录头**：工厂方法里也会出现同一个类型名（第一版就是这么被"绿"过去的）
+    header_start = spec.find("public record GoalSpec(")
+    header_end = spec.find(") {", header_start) if header_start >= 0 else -1
+    header = spec[header_start:header_end] if header_start >= 0 and header_end > header_start else ""
+    if not header:
+        problems.append("找不到 `public record GoalSpec(` 的记录头（结构变了 ⇒ 本规则要跟着改）")
+    elif "com.dddgn.alice.job.mine.MineIntent intent" not in header:
+        problems.append("`GoalSpec` 的**记录头**里没有意图组件（组件不在 ⇒ 意图只能靠散装字段传，迟早漂）")
+
+    for signature, label in [
+        ("private void visit(ServerLevel level, ServerPlayer bot, SafeZoneData safeZones, BlockPos pos) {", "visit"),
+        ("public CandidateSet revalidate(ServerPlayer bot, int targetIndex) {", "revalidate"),
+    ]:
+        body = method_body(src, signature)
+        if not body:
+            problems.append("找不到 `%s`（结构变了 ⇒ 本规则要跟着改）" % signature)
+            continue
+        area_at = body.find("intent.refusalFor(")
+        viability_at = body.find("viabilityRefusal(")
+        if area_at < 0:
+            problems.append("`%s` 里没有作业区判定（意图没接上）" % label)
+        elif viability_at >= 0 and area_at > viability_at:
+            problems.append("`%s` 的**顺序反了**：先算可挖性、后问作业区 ⇒ "
+                            "区外候选会被 `:protected_area`/`:unbreakable` 顶替（陷阱）" % label)
+    return problems
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
@@ -1056,6 +1106,7 @@ def main() -> int:
     attr = rule_structured_attribution()
     s3 = rule_search_limit_not_unreachable()
     s5 = rule_scan_memory_has_no_positions()
+    intent = rule_intent_before_viability()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -1108,13 +1159,15 @@ def main() -> int:
         print(f"[D-329·搜索受限≠没有] {line}")
     for line in s5:
         print(f"[D-329·扫描记忆无位置] {line}")
+    for line in intent:
+        print(f"[D-329·意图先于可挖性] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

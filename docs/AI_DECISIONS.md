@@ -15167,3 +15167,42 @@ forceload → 建地板+矿 → 传送 → `scope.begin` → **真的破坏那�
 #### 五、验证
 `single:mine_menu` PASS（**33 判据**）· `module:mining` 10/10 PASS · **CORE 51/51 PASS**（262s）·
 `check-all` pass=19 warning=0 failed=0。`docs/MINE_TASK_DESIGN.md` §7 的 1.2 行三格全部 ✅。
+
+### D-356：挖矿 1.x 第⑤项 —— **作业区/意图（阶段 1.5）的过滤层**（数值层待场景）2026-09-20
+
+**需求来源**：`docs/MINE_TASK_DESIGN.md` §3（`D-329` ④：向下偏置来自成本形状 + 固定中心 + 可见性）。
+
+#### 一、落地形状
+| 件 | 内容 |
+|---|---|
+| `MineIntent` | `record MineIntent(BlockPos areaCenter, int halfExtentXZ, int yMin, int yMax)`；`none()` = 今天的行为；**方形**作业区（形状目前只有这一种，新增形状要在这里长出来） |
+| 输入形态 | `GoalSpec` **记录头**新增 `intent` 组件（`null` → `none()`）；老工厂逐字不变，新增 `mineBlocks(..., intent)` 重载 |
+| 接线 | `ScanSession` 从 `spec.intent()` 取；`visit()` 与 `revalidate()` **先问作业区、再问能不能挖** |
+| 语义 | 意图 = **搜索偏好**，**不是**可挖承诺；它**不**改 `not_found` 语义、**不**改授权面/破坏面判定 |
+
+#### 二、⭐⭐ 用户点出的陷阱：**一个符合意图的作业区里，完全可能有一部分目标实际不可挖**
+落到代码形状就是**检查顺序**：
+- **先**问作业区 ⇒ 区外候选报 `outside_work_area`（**计划层**理由）；区内候选继续走 `ZoneAuthority` + `breakable`
+  ⇒ 报 `:protected_area` / `:unbreakable`（**内容层**理由）。两类理由**同时可见**，决策层才能分清
+  "该换地方"还是"该换目标"。
+- **顺序反过来**（先算可挖性）⇒ 区外候选会被内容层理由顶替 ⇒ "不在计划里"和"挖不动"**混成一个码**。
+
+#### 三、判据（`mine_menu` 4 条 ⇒ `checks=37`）与反向对照
+- 区外带 `outside_work_area` + 所有可行候选都在区内；**陷阱强判据**（整卷罩保护区：两类理由都必须 >0）；
+  反向对照（意图指到 1000 格外 ⇒ 可行=0）；`none()` 与基线逐字相同。
+- **反向对照实测**：① `visit` 顺序对调 ⇒ 红；② `refusalFor` 恒 `null`（意图被忽略）⇒ 红。
+- **门禁** `rule_intent_before_viability`：码在 · **记录头**有组件 · 两处顺序正确。**三种注入全红**。
+- ⚠️ 记一条方法论：门禁第一版写的是"文件里出现过 `MineIntent intent`"，**被工厂方法里的同名串混过去**
+  （注入"记录头换成 `Object`" ⇒ 假绿）⇒ 改成只读**记录头**。**结构断言必须盯着声明处**。
+- 夹具第二处踩坑（留档）：保护区收尾按"新认领集合"还原时**边遍历 `claims()` 边 `unclaim`** ⇒
+  `ConcurrentModificationException`（`claims()` 是活集合视图）⇒ 先拷贝再删。
+
+#### 四、**未落地**（诚实登记，`MINE_TASK_DESIGN.md` §9 同步）
+§3 的**数值**判据 —— 带意图 vs 不带意图的**水平位移分布差异**与**向下格占比下降** —— **没做**：
+① 现有 `ore_course_terrain` 的矿**都在同一层** ⇒ 竖向分布量不出来（要新建多层矿层场景）；
+② `mine_run_metrics` 现在是"3 真作业 + 1 反向对照"，4 次运行的判据互相耦合 ⇒ 加一段"带意图运行"要连带改前提与汇总断言。
+⇒ **触发条件**：做 §4 通道能力/分支巷时一并做（那时本来就要多层场景），或用户要求现在就量。
+**在那之前，不许声称"向下偏置已消除"** —— 意图的**过滤层**能改候选取舍，量不出占比下降。
+
+#### 五、验证
+`single:mine_menu` PASS（37 判据）· **CORE 51/51 PASS**（265s）· `check-all` pass=19 warning=0 failed=0。

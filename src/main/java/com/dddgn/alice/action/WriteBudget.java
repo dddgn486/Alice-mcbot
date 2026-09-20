@@ -124,6 +124,11 @@ public final class WriteBudget {
                 scopeId, maxBreaks, maxPlaces);
     }
 
+    /** 读某个作用域的**当前**上限（夹具用：压小之后要能还原，否则会污染后续步骤）。 */
+    public static Caps capsOf(String scopeId) {
+        return CAPS.getOrDefault(scopeId, Caps.DEFAULT);
+    }
+
     /** 覆写某个作用域的上限（**夹具专用**：构造"预算不足"自检，不接玩家命令入口）。 */
     public static void setCaps(String scopeId, Caps caps) {
         if (scopeId == null) {
