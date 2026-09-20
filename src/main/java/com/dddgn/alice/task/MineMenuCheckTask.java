@@ -438,15 +438,85 @@ public class MineMenuCheckTask implements Task {
                 noneSession.sets().get(0).viable().stream().map(c -> c.anchor().asLong()).sorted().toList()
                         .equals(chunkedIds));
 
+        // ---- ⭐ 目标簇（`D-329` §3 邻居；用户 2026-09-20：几何相连就是一簇，区块分割最多 +3 次搜索）----
+        // 判据必须咬住两件事：① 簇判定**纯粹是几何**（不掺授权/可挖性/记忆）；② 超预算要**如实拆簇**且成员守恒。
+        var chain = new java.util.ArrayList<net.minecraft.core.BlockPos>();
+        for (int i = 0; i < 4; i++) {
+            chain.add(new net.minecraft.core.BlockPos(100 + i, 62, 200));
+        }
+        var diagonal = java.util.List.of(new net.minecraft.core.BlockPos(0, 62, 0),
+                new net.minecraft.core.BlockPos(1, 62, 1));
+        var apart = java.util.List.of(new net.minecraft.core.BlockPos(0, 62, 0),
+                new net.minecraft.core.BlockPos(9, 62, 9));
+        var faceOnly = com.dddgn.alice.job.mine.TargetClusters.partition(diagonal,
+                com.dddgn.alice.job.mine.TargetClusters.Connectivity.FACE, 3);
+        var diagonalAll = com.dddgn.alice.job.mine.TargetClusters.partition(diagonal,
+                com.dddgn.alice.job.mine.TargetClusters.Connectivity.DIAGONAL_26, 3);
+        check("簇：面相连成一条 ⇒ 恰好 1 簇（实测 " + com.dddgn.alice.job.mine.TargetClusters.partition(chain).size() + "）"
+                        + " · 隔开的 ⇒ 2 簇（实测 " + com.dddgn.alice.job.mine.TargetClusters.partition(apart).size() + "）"
+                        + " · 对角相连：26 邻接=1 簇 / 面邻接=2 簇（实测 "
+                        + diagonalAll.size() + " / " + faceOnly.size() + "）",
+                com.dddgn.alice.job.mine.TargetClusters.partition(chain).size() == 1
+                        && com.dddgn.alice.job.mine.TargetClusters.partition(apart).size() == 2
+                        && diagonalAll.size() == 1 && faceOnly.size() == 2);
+
+        // 跨区块边界 ⇒ **仍是一簇**，但如实记账"要多扫几个区块"
+        var straddling = java.util.List.of(new net.minecraft.core.BlockPos(15, 62, 8),
+                new net.minecraft.core.BlockPos(16, 62, 8));
+        var straddleClusters = com.dddgn.alice.job.mine.TargetClusters.partition(straddling);
+        check("簇：跨区块边界**不许**被切开（用户口径：区块分割只是搜索成本）；"
+                        + straddleClusters.size() + " 簇 / chunks="
+                        + straddleClusters.get(0).chunkCount() + " / extraSearches="
+                        + straddleClusters.get(0).extraSearches() + " ≤ 3",
+                straddleClusters.size() == 1 && straddleClusters.get(0).crossesChunkBoundary()
+                        && straddleClusters.get(0).extraSearches() <= 3);
+
+        // 超预算（一条横跨 6 个区块的相连链）⇒ **如实拆簇**，且**成员守恒**（一个都不许丢）
+        var longChain = new java.util.ArrayList<net.minecraft.core.BlockPos>();
+        for (int i = 0; i < 6 * 16; i++) {
+            longChain.add(new net.minecraft.core.BlockPos(i, 62, 300));
+        }
+        var split = com.dddgn.alice.job.mine.TargetClusters.partition(longChain);
+        int membersAfter = split.stream().mapToInt(com.dddgn.alice.job.mine.TargetClusters.Cluster::size).sum();
+        boolean budgetOk = split.stream().allMatch(c -> c.extraSearches() <= 3);
+        check("簇：跨 6 个区块的相连链 ⇒ 拆成 " + split.size() + " 簇，每簇 extraSearches ≤ 3（" + budgetOk
+                        + "）且**成员守恒**（拆前 " + longChain.size() + " = 拆后 " + membersAfter + "）",
+                split.size() > 1 && budgetOk && membersAfter == longChain.size());
+
+        // 确定性：同一输入两次 ⇒ 逐字同结果（不许靠 HashSet 迭代序）
+        var again = com.dddgn.alice.job.mine.TargetClusters.partition(longChain);
+        check("簇：同一输入两次跑 ⇒ 簇数与每簇成员逐字相同（确定性）",
+                again.size() == split.size() && java.util.stream.IntStream.range(0, split.size())
+                        .allMatch(i -> again.get(i).members().equals(split.get(i).members())));
+
+        // 真实场景：矿石场景扫出来的候选也要能被切成簇（不是只有合成坐标能跑）
+        var oreScan = new com.dddgn.alice.job.mine.MineCandidateSource(
+                com.dddgn.alice.job.mine.MineCandidateSource.Target.ofBlock(
+                        net.minecraft.world.level.block.Blocks.IRON_ORE),
+                com.dddgn.alice.job.mine.MineCandidateSource.SCAN_RADIUS)
+                .newSession(com.dddgn.alice.job.GoalSpec.mineBlocks(center,
+                        com.dddgn.alice.job.mine.MineCandidateSource.SCAN_RADIUS, 1, 600),
+                        Integer.MAX_VALUE, Integer.MAX_VALUE);
+        oreScan.advance(bot);
+        var oreAnchors = oreScan.sets().get(0).viable().stream()
+                .map(com.dddgn.alice.job.Candidate::anchor).toList();
+        var oreClusters = com.dddgn.alice.job.mine.TargetClusters.partition(oreAnchors);
+        int oreMembers = oreClusters.stream()
+                .mapToInt(com.dddgn.alice.job.mine.TargetClusters.Cluster::size).sum();
+        check("簇：真实矿石场景的候选也能切簇（候选=" + oreAnchors.size() + " ⇒ " + oreClusters.size()
+                        + " 簇 / 成员=" + oreMembers + "，守恒=" + (oreMembers == oreAnchors.size()) + "）",
+                !oreAnchors.isEmpty() && oreMembers == oreAnchors.size());
+
         // **判别性事实**（判据绿了也要能复核数字；红了更要能看出差在哪）
         BotLog.info("[MineMenu] S3/S4 判别性事实：分片 calls={} 单次最大={}（上限={}）visited={}/{} "
                         + "读={} 未扫={} · 合并==全量: {}（分片 {} 条 / 全量 {} 条）· "
-                        + "截断 visited={} truncated={} done={} not_found={}",
+                        + "截断 visited={} truncated={} done={} not_found={} · 真实矿石簇={}（成员={}）",
                 calls, session.maxCallVisited(), smallBudget, session.visited(), volume,
                 session.reads(), session.unscanned(), oneShotIds.equals(chunkedIds),
                 chunkedIds.size(), oneShotIds.size(), truncated.visited(), truncated.truncated(),
                 truncated.done(),
-                truncated.sets().get(0).rejected().stream().filter(x -> x.contains("not_found")).count());
+                truncated.sets().get(0).rejected().stream().filter(x -> x.contains("not_found")).count(),
+                oreClusters.size(), oreMembers);
     }
 
     /** 用**同一份**菜单断言拒绝（菜单构建含 11 个矿石目标的全扫，重复构建会在一个 tick 里白烧掉百万次读）。 */

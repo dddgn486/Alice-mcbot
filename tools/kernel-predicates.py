@@ -1072,6 +1072,50 @@ def rule_intent_before_viability():
     return problems
 
 
+def rule_cluster_is_pure_geometry():
+    """`D-329` §3 邻居（2026-09-20 落地）：**目标簇只回答"谁和谁相连"**。
+
+    依据（用户 2026-09-20 点出的陷阱）：一个"符合要求"的簇里**完全可能有一部分目标实际不可挖**。
+    ⇒ 簇判定必须**纯粹是几何**：一旦它开始看授权面/可破性（或扫描记忆），"这一簇里有几格挖得动"
+    就会被**固化进簇的身份** —— 而那是**那一刻**的世界事实，会过期（`D-348` 同一条纪律）。
+    "哪些真能挖"永远由调用方用**当前**的授权/可破性去算（`MineJob` 的 `revalidate` 就是那个位置）。
+
+    断言（加任一符号 ⇒ 红）：
+    ① `TargetClusters` 里**不出现** `ZoneAuthority` / `breakable` / `WriteBudget` / `MineScanMemoryData`
+       / `getBlockState`（几何就是几何：不读世界、不问授权、不查记忆）；
+    ② 相邻判定只有**一处出处**（`isNeighbour`），且两种口径都在（`FACE` / `DIAGONAL_26` 逐条有判据）；
+    ③ 超预算的宽容度是**常量**（`DEFAULT_EXTRA_SEARCH_BUDGET`），不许散落在调用方。
+    """
+    problems = []
+    path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "mine"
+            / "TargetClusters.java")
+    if not path.exists():
+        return ["`TargetClusters` 不在了（本规则要跟着改）"]
+    text = path.read_text(encoding="utf-8")
+    for banned in ["ZoneAuthority", "breakable", "WriteBudget", "MineScanMemoryData",
+                   "getBlockState", "SafeZoneData"]:
+        if banned in text:
+            problems.append("`TargetClusters` 里出现了 `%s` ⇒ 簇判定**不再纯粹是几何**"
+                            "（授权/可破性/记忆都会过期；见本规则头部）" % banned)
+    if "public static boolean isNeighbour(" not in text:
+        problems.append("找不到唯一的相邻判定出处 `isNeighbour(...)`")
+    # ⚠️ 只看**声明处**（`FACE` / `DEFAULT_EXTRA_SEARCH_BUDGET` 这些名字在别处也会出现；
+    #    同名子串会把"删掉常量声明"这种注入放绿 —— 本项目当天已在 GoalSpec 上踩过同一个坑）
+    enum_start = text.find("public enum Connectivity {")
+    enum_end = text.find("\n    }", enum_start) if enum_start >= 0 else -1
+    enum_body = text[enum_start:enum_end] if enum_start >= 0 and enum_end > enum_start else ""
+    if not enum_body:
+        problems.append("找不到 `public enum Connectivity {`（连通口径的声明处）")
+    for mode in ["FACE", "DIAGONAL_26"]:
+        if not re.search(r"^\s*%s\s*[,;]?\s*$" % mode, enum_body, re.M):
+            problems.append("连通口径 `%s` 的**常量声明**不在枚举里"
+                            "（两种口径都必须存在且各有判据）" % mode)
+    if not re.search(r"public static final int DEFAULT_EXTRA_SEARCH_BUDGET\s*=", text):
+        problems.append("超预算宽容度的**常量声明** `public static final int DEFAULT_EXTRA_SEARCH_BUDGET =` 不在"
+                        "（散落到调用方 ⇒ 每个调用点一个口径）")
+    return problems
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
@@ -1107,6 +1151,7 @@ def main() -> int:
     s3 = rule_search_limit_not_unreachable()
     s5 = rule_scan_memory_has_no_positions()
     intent = rule_intent_before_viability()
+    clusters = rule_cluster_is_pure_geometry()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -1161,13 +1206,15 @@ def main() -> int:
         print(f"[D-329·扫描记忆无位置] {line}")
     for line in intent:
         print(f"[D-329·意图先于可挖性] {line}")
+    for line in clusters:
+        print(f"[D-329·簇只做几何] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 
