@@ -109,11 +109,11 @@ public final class MiningPlanner {
                     bot.getUUID().toString(), startFoot, startFoot, "mining-planner"));
             StandingPointEvaluator.StandingPointScore score =
                     StandingPointEvaluator.of(startFoot, 0.0D, 0.0D, currentLos);
-            // 悬空目标（D-078 修正，v7 §2.3）：即使当前站位就能挖，也要先在目标下方放支撑块，
-            // 否则掉落物会掉进虚空/岩浆/深坑。当前站位**就在目标正下方**时属于"从下方挖"策略，无需支撑。
+            // 掉落物会丢的目标（D-078 修正，v7 §2.3；判据 `D-364` 收紧为"真会丢"）：
+            // 即使当前站位就能挖，也要先在目标下方放支撑块。当前站位**就在目标正下方**时属于"从下方挖"策略，无需支撑。
             // 手上没有一次性方块时不强行要求支撑（避免把"没资源"变成任务失败），维持原行为。
             BlockPos supportPos = null;
-            if (!hasSupportBelow(level, target) && budget.collectDrops()
+            if (dropWouldBeLost(level, target) && budget.collectDrops()
                     && !isSameColumn(startFoot, target)
                     && com.dddgn.alice.action.BlockInteraction.findPlaceableSlot(bot) >= 0) {
                 supportPos = target.below();
@@ -131,8 +131,8 @@ public final class MiningPlanner {
             return new Result(null, null, "no_valid_standing_point");
         }
 
-        boolean floating = !hasSupportBelow(level, target);
-        boolean needSupportBlock = floating && budget.collectDrops();
+        boolean dropLost = dropWouldBeLost(level, target);
+        boolean needSupportBlock = dropLost && budget.collectDrops();
         if (needSupportBlock) {
             List<StandingPointSelector.Candidate> side = new ArrayList<>();
             List<StandingPointSelector.Candidate> below = new ArrayList<>();
@@ -149,7 +149,7 @@ public final class MiningPlanner {
                     null, 0.0D);
             Result chosen = cheaper(withSupport, fromBelow);
             if (chosen != null) {
-                BotLog.info("[MiningPlanner] floating_target target={} supportOption={} belowOption={} chosen={}",
+                BotLog.info("[MiningPlanner] support_needed target={} supportOption={} belowOption={} chosen={}",
                         target.toShortString(), withSupport.failureReason().isEmpty() ? "ok" : "-",
                         fromBelow.failureReason().isEmpty() ? "ok" : "-",
                         chosen.plan() == null ? "-" : chosen.plan().mode());
@@ -341,9 +341,33 @@ public final class MiningPlanner {
         return pos.getX() == target.getX() && pos.getZ() == target.getZ();
     }
 
-    private static boolean hasSupportBelow(ServerLevel level, BlockPos target) {
-        BlockPos below = target.below();
-        return !level.getBlockState(below).getCollisionShape(level, below).isEmpty();
+    /**
+     * **掉落物真的会丢**才需要垫（`D-364`）—— 真机实测（2026-09-20）暴露了原判据与注释的错位：
+     * 注释写的是"否则掉落物会掉进**虚空/岩浆/深坑**"，而实现是 `!hasSupportBelow`（下方那格不是实心就垫）
+     * ⇒ **挖矿自己挖出来的坑也满足条件**：先挖 y=72、再挖 y=73 时，下方正是刚挖空的空气
+     * ⇒ 每个上层矿石都要求垫方块 ⇒ **垫不上就把那个目标判死**（实测 9 次 `SUPPORT_PLACE_FAILED`，
+     * 于是整层 y=73 的煤被留下、bot 跑去远处挖），而且垫下去的方块**会挡住相邻矿石的视线**
+     * （实测 `LINE_OF_SIGHT_BLOCKED`）。现在按注释的原意判：**N 格内没有可落面**（深坑/虚空）
+     * 或**先撞上岩浆**才算"会丢"。
+     */
+    private static final int DROP_FALL_SEARCH = 4;
+
+    private static boolean dropWouldBeLost(ServerLevel level, BlockPos target) {
+        BlockPos cursor = target.below();
+        for (int depth = 0; depth < DROP_FALL_SEARCH; depth++) {
+            if (!level.hasChunkAt(cursor)) {
+                return false;       // 未加载 ⇒ 不判"会丢"（保守：不写世界；D-331）
+            }
+            var state = level.getBlockState(cursor);
+            if (state.getFluidState().is(net.minecraft.tags.FluidTags.LAVA)) {
+                return true;        // 掉落物落到岩浆 = 销毁
+            }
+            if (!state.getCollisionShape(level, cursor).isEmpty()) {
+                return false;       // 找到可落面 ⇒ 捡得回来
+            }
+            cursor = cursor.below();
+        }
+        return true;                // N 格内都没有可落面 ⇒ 按"深坑/虚空"处理
     }
 
     private static PathPlan planPath(ServerPlayer bot, BlockPos startFoot, BlockPos standingFoot,

@@ -30,6 +30,11 @@ FACTORY_PREDICATES = {
 }
 
 
+def code_only(text: str) -> str:
+    """去掉 `//` 行注释后的代码（判据只该看代码；注释里提到旧写法不算违规）。"""
+    return "\n".join(line.split("//")[0] for line in text.split("\n"))
+
+
 def method_body(text: str, signature: str) -> str:
     idx = text.find(signature)
     if idx < 0:
@@ -1247,6 +1252,52 @@ def rule_cost_includes_break():
     return problems
 
 
+def rule_support_and_cluster_order():
+    """`D-364` **垫方块只在「掉落物真会丢」时** + **垫不上不判死** + **簇内按图距**（2026-09-20 真机实测）。
+
+    真机靶子（`新的世界 (2)`，`/alice mine here` @393,71,176）：
+    ①**垫方块过触发**：先挖 y=72、再挖 y=73 时下方正是**自己刚挖空的空气** ⇒ 旧判据 `!hasSupportBelow`
+      （下方那格不是实心就垫）判它「悬空」⇒ 要垫 ⇒ **垫不上就把目标判死**（实测 9 次 `SUPPORT_PLACE_FAILED`
+      + 23 次 `MOVE_MOVEMENT_FAILED`）⇒ 整层 y=73 的煤被留下（存档核对：`400/401/402,73,181` 仍是 coal_ore），
+      bot 跑去 18 格外的远簇；垫上了又**挡住相邻矿视线**（实测 `LINE_OF_SIGHT_BLOCKED`）。
+      而代码注释写的原意只是「防止掉进**虚空/岩浆/深坑**」—— **实现比意图宽**。
+    ②**簇内顺序**：`queueFor` 直接用发现顺序（= 扫描的逐 y 层方环序）⇒ `y=71 三格 → y=72 七格 → y=73`、
+      层内横跳；单矿只挖 12 tick（0.6s）而走到下一站位点要 9s ⇒ 用户看到「挖一半突然跑出几格又跑回来」。
+
+    断言（改任一处 ⇒ 红）：
+    ① `MiningPlanner` 必须按**真会丢**判（`dropWouldBeLost(`），**不得**再出现旧的 `!hasSupportBelow(level, target)` 判据；
+    ② `MineBlockRunner.tickSupportPlacement` **不得**再把「垫不上」变成目标失败（不许 `fail("SUPPORT_PLACE_FAILED"`）
+       且必须留下 `supportSkipped = true`（可归因）；
+    ③ `TargetClusters.queueFor` 必须用 `graphDistance(`（BFS 图距）排序 —— 仍是**纯几何**。
+    """
+    problems = []
+    planner = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task" / "mining"
+               / "MiningPlanner.java").read_text(encoding="utf-8")
+    runner = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "action"
+              / "MineBlockRunner.java").read_text(encoding="utf-8")
+    clusters = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "mine"
+                / "TargetClusters.java").read_text(encoding="utf-8")
+
+    if "dropWouldBeLost(" not in planner:
+        problems.append("`MiningPlanner` 没有 `dropWouldBeLost(` ⇒ 垫方块又变成「下方那格不是实心就垫」"
+                        "（真机实测会把挖矿自己挖出的坑当悬空 ⇒ 目标被垫方块毁掉）")
+    if "!hasSupportBelow(level, target)" in planner:
+        problems.append("`MiningPlanner` 里仍以 `!hasSupportBelow(level, target)` 作判据 ⇒ `D-364` 的口径回退")
+    placement = code_only(method_body(runner, "private Status tickSupportPlacement()"))
+    if 'fail("SUPPORT_PLACE_FAILED"' in placement:
+        problems.append("`tickSupportPlacement` 仍把「垫不上」变成目标失败 ⇒ 实测会毁掉整层矿石"
+                        "（应降级为「照挖」，掉落物落到坑底仍能捡）")
+    if "supportSkipped = true" not in placement:
+        problems.append("`tickSupportPlacement` 没有 `supportSkipped = true` ⇒ 「垫不上」不可归因")
+    queue = method_body(clusters, "public static List<BlockPos> queueFor(Collection<BlockPos> anchors, BlockPos picked, Connectivity mode,")
+    if "graphDistance(" not in queue:
+        problems.append("`TargetClusters.queueFor` 没用 `graphDistance(` ⇒ 簇内顺序退回「发现顺序」"
+                        "（真机观感：挖一半突然跑出几格又跑回来）")
+    if ".sort(" not in queue:
+        problems.append("`TargetClusters.queueFor` 没有对簇成员排序 ⇒ 顺序不确定/退化")
+    return problems
+
+
 def rule_value_is_only_a_cost_component():
     """`D-329` §2.2 成本模型（用户 2026-09-20 三条裁定）：
     **「矿物价值优先级」只能是成本函数里的一个可配置分量**，不是独立模型、不是硬优先。
@@ -1441,6 +1492,7 @@ def main() -> int:
     kinds = rule_kind_filter_before_cluster()
     clearance = rule_clearance_never_eats_task_target()
     breakcost = rule_cost_includes_break()
+    support = rule_support_and_cluster_order()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -1509,13 +1561,15 @@ def main() -> int:
         print(f"[D-362·清障不吃任务目标] {line}")
     for line in breakcost:
         print(f"[D-363·break进成本] {line}")
+    for line in support:
+        print(f"[D-364·垫方块与簇顺序] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

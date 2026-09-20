@@ -117,14 +117,19 @@ public final class MineRegressionTask implements Task {
             // 模式 B 沿途破坏通道方块 → 其掉落物可能在走位时被自然拾取，故只要求"至少 1 件"
             execute("exec_blocked", "mine_course", MINE_START, new BlockPos(23, 64, 134),
                     1, Items.COBBLESTONE, false),
-            // 悬空目标：正下方无支撑 → 规划必须给出支撑放置点；执行必须先放支撑块
-            // 起点就能触及悬空目标 → 合法模式是 CURRENT（附带支撑放置）；也允许 DIRECT
+            // ⭐ `D-364`（2026-09-20 真机实测）**口径收紧**：本场景的竖井只有 1 格深
+            // （`(23,63,190)` 空气、下面 `y=62` 是实心）⇒ 掉落物**落在坑底、捡得回来**
+            // ⇒ 按新判据**不该垫方块**（旧判据「下方那格不是实心就垫」会垫 —— 那正是真机里
+            // 9 次 `SUPPORT_PLACE_FAILED` 与「垫了挡住相邻矿视线」的来源）。
+            // 所以这两条用例现在断言的是：**不垫** + 照常挖到 + 掉落物收到。
+            // 模式仍合法为 CURRENT（起点就能触及）或 DIRECT。
             new CaseDef("floating_plan", "floating_course", FLOAT_START, FLOAT_TARGET,
                     Kind.PLAN, List.of(MiningPlan.Mode.CURRENT, MiningPlan.Mode.DIRECT),
-                    0, null, true, true, 0),
-            // D-112：放支撑 −1 ＋ 目标掉落 +1 ＋ 拆回支撑 +1 ⇒ 净增量 +1（支撑"用完即拆"是硬要求）
+                    0, null, true, false, 0),
+            // 不垫方块 ⇒ 净增量 = 掉落物本身 = +1（与旧语义「放支撑 −1 ＋ 掉落 +1 ＋ 拆回 +1」同值
+            // ⇒ 这条期望在两种语义下都成立，不用改）
             new CaseDef("exec_floating", "floating_course", FLOAT_START, FLOAT_TARGET,
-                    Kind.EXECUTE, List.of(), 1, Items.COBBLESTONE, true, true, 1),
+                    Kind.EXECUTE, List.of(), 1, Items.COBBLESTONE, true, false, 1),
             new CaseDef("exec_chain", "chain_mine_course", CHAIN_START, CHAIN_TARGET,
                     Kind.CHAIN, List.of(), 9, Items.RAW_IRON, true, false, 9),
             // G3：同一场景、**预算压到 1 次破坏** ⇒ 连锁必须当场停 + 如实报 `chain_budget_refused`

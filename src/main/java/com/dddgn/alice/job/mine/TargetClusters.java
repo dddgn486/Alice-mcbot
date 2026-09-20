@@ -227,16 +227,55 @@ public final class TargetClusters {
             if (!cluster.members().contains(picked)) {
                 continue;
             }
-            List<BlockPos> ordered = new ArrayList<>();
-            ordered.add(picked);
-            for (BlockPos member : cluster.members()) {
-                if (!member.equals(picked)) {
-                    ordered.add(member);
-                }
-            }
+            // D-364（2026-09-20 真机实测）：簇内顺序**按图距**（从选中格 BFS），
+            // 不再直接用 `cluster.members()` 的**层优先坐标序**（`members` 按 y → x → z 排）。
+            // ⚠️ 因果要写准（我第一版写成「扫描发现顺序」是**错的**，注入对照把它抓出来了）：
+            // `members` 本身就是 (y,x,z) 排序 ⇒ **y 层优先**：真机实测选中序列
+            // `y=71`：`401,71,181 → 402,71,181(with z=182)` → `y=72`：`400,72,180 … 403,72,181`
+            // —— 先把整层（含同一层里 3 格外的）挖完，再进下一层，于是**来回横跳**；
+            // 单个矿石只挖 **12 tick（0.6s）**，而走到下一个站位点要 **9s** ⇒ 用户看到的
+            // 「挖一半突然跑出几格、又跑回来开始挖」。BFS 图距保证「越近的越先挖」。
+            // **仍是纯几何**（只用坐标 + 连通口径，不读世界）。
+            Map<BlockPos, Integer> distance = graphDistance(picked, cluster.members(), mode);
+            List<BlockPos> ordered = new ArrayList<>(cluster.members());
+            ordered.sort(Comparator
+                    .comparingInt((BlockPos pos) -> distance.getOrDefault(pos, Integer.MAX_VALUE))
+                    .thenComparingInt(BlockPos::getY)
+                    .thenComparingInt(BlockPos::getX)
+                    .thenComparingInt(BlockPos::getZ));
             return List.copyOf(ordered);
         }
         return List.of(picked);
+    }
+
+    /**
+     * 从 `from` 出发、**只在成员集合内**按 `mode` 走的 BFS 图距（`from` = 0）。
+     *
+     * <p>同簇成员按定义必然可达（`partition` 就是这么分的）；万一不可达（不该发生）则不进表，
+     * 排序时按「最差」处理 —— 顺序问题不该让作业失败。
+     */
+    private static Map<BlockPos, Integer> graphDistance(BlockPos from, List<BlockPos> members,
+                                                        Connectivity mode) {
+        List<BlockPos> ordered = sorted(members);
+        Map<BlockPos, Integer> distance = new LinkedHashMap<>();
+        if (!ordered.contains(from)) {
+            return distance;
+        }
+        distance.put(from, 0);
+        ArrayDeque<BlockPos> queue = new ArrayDeque<>();
+        queue.add(from);
+        while (!queue.isEmpty()) {
+            BlockPos current = queue.poll();
+            int next = distance.get(current) + 1;
+            for (BlockPos neighbour : neighboursIn(ordered, current, mode)) {
+                if (distance.containsKey(neighbour)) {
+                    continue;
+                }
+                distance.put(neighbour, next);
+                queue.add(neighbour);
+            }
+        }
+        return distance;
     }
 
     private static boolean chunksAdjacent(long a, long b) {

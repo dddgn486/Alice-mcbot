@@ -49,6 +49,8 @@ public final class MineBlockRunner {
     private PathRetryRunner runner;
     private BlockBreakSession breakSession;
     private boolean supportPlaced;
+    /** `D-364`：支撑块**没垫上**（放不下）⇒ 照挖，不把这个目标判死。 */
+    private boolean supportSkipped;
     private Status status = Status.MOVING;
     private String failureReason = "";
     private String failurePhase = "unknown";
@@ -131,6 +133,11 @@ public final class MineBlockRunner {
         return tickBreak();
     }
 
+    /** 供夹具/终态归因：本格是否出现过「垫不上」（`D-364`）。 */
+    public boolean supportSkipped() {
+        return supportSkipped;
+    }
+
     public void cancel() {
         if (runner != null) {
             runner.cancel();
@@ -192,7 +199,15 @@ public final class MineBlockRunner {
             return fail("WRITE_BUDGET_EXHAUSTED", "support", false);
         }
         if (result != BlockInteraction.PlaceResult.PLACED) {
-            return fail("SUPPORT_PLACE_FAILED", "support", true);
+            // D-364（2026-09-20 真机实测）：**垫不上不判死**。
+            // 原实现直接 `fail("SUPPORT_PLACE_FAILED")` ⇒ 整个目标报废（实测 9 次，连带 23 次移动失败重试），
+            // 用户看到的是「卡一下然后抽风」。而垫方块的目的只是「别让掉落物丢」：垫不上就**照挖**，
+            // 掉落物落到坑底照样能捡（真机里那些坑底是石头）⇒ 用「少捡一次」换「不放弃这一格」。
+            BotLog.info("[MineRunner] support_skipped target={} pos={} result={}（垫不上 ⇒ 照挖，不判死）",
+                    target.toShortString(), plan.supportPlacementPos().toShortString(), result);
+            supportSkipped = true;
+            supportPlaced = true;       // 标记「支撑阶段已处理」⇒ 状态机继续走破坏
+            return status;
         }
         supportPlaced = true;
         BotLog.info("[MineRunner] support_placed target={} pos={} feet={}",

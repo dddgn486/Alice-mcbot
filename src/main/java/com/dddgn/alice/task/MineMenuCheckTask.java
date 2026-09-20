@@ -193,6 +193,8 @@ public class MineMenuCheckTask implements Task {
 
         // ⭐⭐ `D-363` **break 分量**（成本场估算 → top-K 精算）—— 放在最后：它要临时改场景（给矿加盖子）
         runBreakCostChecks();
+        // ⭐⭐ `D-364` **垫方块只在「掉落物真会丢」时** —— 同样放最后（临时改场景，用完复位）
+        runSupportTriggerChecks();
 
         boolean pass = failures.isEmpty();
         BotLog.info("[MineMenu] SUMMARY checks={} failures={} mineEntries={} {} → {}",
@@ -382,6 +384,81 @@ public class MineMenuCheckTask implements Task {
                     server.createCommandSourceStack().withSuppressedOutput(),
                     "function alice_test:ore_course_terrain");
         }
+    }
+
+    /**
+     * ⭐ `D-364` **垫方块的触发条件**（用户 2026-09-20 点名要修的那条）。
+     *
+     * <p>真机实测（第一轮）：先挖 y=72、再挖 y=73 时，下方正是**自己刚挖空的空气** ⇒ 旧判据
+     * `!hasSupportBelow` 判它「悬空」⇒ 要垫方块 ⇒ 垫不上就把目标判死（9 次 `SUPPORT_PLACE_FAILED`），
+     * 垫上了又**挡住相邻矿石的视线**（`LINE_OF_SIGHT_BLOCKED`）。而代码注释写的原意只是
+     * 「防止掉落物掉进**虚空/岩浆/深坑**」—— 实现比意图宽得多。
+     *
+     * <p>本组在矿石场景现搭一个**同层**的临时矿（`(54,63,132)`）并改它下面的几何，断言三条：
+     * ① 浅坑（掉落物落坑底、捡得回来）⇒ **不垫**（= 真机那一格）· ② 4 格内无可落面（深坑/虚空）⇒ **要垫**
+     * · ③ 坑底是岩浆 ⇒ **要垫**。收尾跑场景函数复位。
+     */
+    private void runSupportTriggerChecks() {
+        final net.minecraft.server.level.ServerLevel level = bot.serverLevel();
+        final var server = level.getServer();
+        final BlockPos ore = new BlockPos(54, 63, 132);
+        try {
+            // 夹具职责：垫方块需要手上一块可放置方块（`findPlaceableSlot`）
+            com.dddgn.alice.item.FixtureToolKit.ensureHotbarTool(bot,
+                    () -> new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.COBBLESTONE),
+                    stack -> stack.is(net.minecraft.world.item.Items.COBBLESTONE), "cobblestone");
+            bot.teleportTo(level, OreCourseAnchor.START_FOOT.getX() + 0.5D,
+                    OreCourseAnchor.START_FOOT.getY(), OreCourseAnchor.START_FOOT.getZ() + 0.5D,
+                    java.util.Set.of(), bot.getYRot(), bot.getXRot());
+            level.setBlockAndUpdate(ore,
+                    net.minecraft.world.level.block.Blocks.IRON_ORE.defaultBlockState());
+
+            // ① 浅坑：下方 1 格空气、再下就是实心岩体 ⇒ 掉落物落坑底 ⇒ 不垫
+            level.setBlockAndUpdate(ore.below(),
+                    net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+            var shallow = new com.dddgn.alice.task.mining.MiningPlanner().plan(bot, ore,
+                    com.dddgn.alice.task.mining.MiningBudget.forTarget(bot, level, ore, true));
+            check("垫方块：浅坑（掉落物落坑底、捡得回来）⇒ **不垫**（support=" + supportPos(shallow) + "）",
+                    shallow.success() && supportPos(shallow) == null);
+
+            // ② 深坑：窗口内（4 格）都没有可落面 ⇒ 会丢 ⇒ 要垫
+            for (int depth = 2; depth <= 4; depth++) {
+                level.setBlockAndUpdate(ore.below(depth),
+                        net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+            }
+            var deep = new com.dddgn.alice.task.mining.MiningPlanner().plan(bot, ore,
+                    com.dddgn.alice.task.mining.MiningBudget.forTarget(bot, level, ore, true));
+            check("垫方块：4 格内无可落面（深坑/虚空）⇒ **要垫**（support=" + supportPos(deep)
+                            + "，期望 " + ore.below().toShortString() + "）",
+                    deep.success() && ore.below().equals(supportPos(deep)));
+
+            // ③ 坑底岩浆 ⇒ 掉落物被销毁 ⇒ 要垫
+            level.setBlockAndUpdate(ore.below(2),
+                    net.minecraft.world.level.block.Blocks.LAVA.defaultBlockState());
+            var lava = new com.dddgn.alice.task.mining.MiningPlanner().plan(bot, ore,
+                    com.dddgn.alice.task.mining.MiningBudget.forTarget(bot, level, ore, true));
+            check("垫方块：坑底是岩浆 ⇒ **要垫**（support=" + supportPos(lava) + "）",
+                    lava.success() && ore.below().equals(supportPos(lava)));
+
+            // **判别性事实**：三条读数都落日志 —— 判据绿了也要能看出"当时几何是什么、算出什么"
+            BotLog.info("[MineMenu] D-364 判别性事实：临时矿={} · 浅坑 plan={} mode={} support={} · "
+                            + "深坑 plan={} support={} · 岩浆 plan={} support={}（期望 {}）",
+                    ore.toShortString(),
+                    shallow.success(), shallow.success() ? shallow.plan().mode() : "-",
+                    supportPos(shallow),
+                    deep.success(), supportPos(deep), lava.success(), supportPos(lava),
+                    ore.below().toShortString());
+        } finally {
+            // 结束复位（失败路径同样走）：矿石场景自带 terrain 函数
+            server.getCommands().performPrefixedCommand(
+                    server.createCommandSourceStack().withSuppressedOutput(),
+                    "function alice_test:ore_course_terrain");
+        }
+    }
+
+    private static net.minecraft.core.BlockPos supportPos(
+            com.dddgn.alice.task.mining.MiningPlanner.Result result) {
+        return result == null || result.plan() == null ? null : result.plan().supportPlacementPos();
     }
 
     private void check(String what, boolean ok) {
@@ -772,6 +849,30 @@ public class MineMenuCheckTask implements Task {
         check("簇消费：队列 = 同簇成员且**选中的排第一**（实测 " + queue.size() + " 个："
                         + queue.stream().map(p -> p.getX() + "").toList() + "；远端不同簇的**不在**队列里）",
                 queue.size() == 3 && queue.get(0).getX() == 1 && queue.stream().noneMatch(p -> p.getX() == 30));
+
+        // ⑧b `D-364`：**簇内顺序按图距** —— 真机实测「挖一半突然跑出几格又跑回来」。
+        // ⚠️ 判据必须有判别力：`Cluster.members` 本身就是 (y,x,z) 排序 ⇒ 旧顺序 = **层优先坐标序**
+        // （先挖完整层、含同层 3 格外的，再进下一层）。所以这里用一个"T 形"簇：
+        //   A(0,0) 有两条路 —— 沿 z 的链 (0,1)(0,2)(0,3)(0,4)，以及**紧邻**的 N(1,0)。
+        //   层优先坐标序会把 x=0 的都排前面 ⇒ 先走到 (0,4) 才回头到 N（图距 4 → 1，**来回横跳**）；
+        //   图距序（BFS，同距按 y→x→z）⇒ N 紧跟 (0,1) 之后。断言**精确序列**。
+        var zigzag = java.util.List.of(new net.minecraft.core.BlockPos(0, 62, 0),
+                new net.minecraft.core.BlockPos(0, 62, 1), new net.minecraft.core.BlockPos(0, 62, 2),
+                new net.minecraft.core.BlockPos(0, 62, 3), new net.minecraft.core.BlockPos(0, 62, 4),
+                new net.minecraft.core.BlockPos(1, 62, 0));
+        var expectedOrder = java.util.List.of(new net.minecraft.core.BlockPos(0, 62, 0),
+                new net.minecraft.core.BlockPos(0, 62, 1), new net.minecraft.core.BlockPos(1, 62, 0),
+                new net.minecraft.core.BlockPos(0, 62, 2), new net.minecraft.core.BlockPos(0, 62, 3),
+                new net.minecraft.core.BlockPos(0, 62, 4));
+        var ordered = com.dddgn.alice.job.mine.TargetClusters.queueFor(zigzag,
+                new net.minecraft.core.BlockPos(0, 62, 0));
+        check("簇消费：**按图距排序**（T 形簇：层优先坐标序 = 0,0,1→0,0,4→1,0（图距 0,1,2,3,4,**1** 来回横跳）；"
+                        + "期望图距序 0,0,0 → 0,0,1 → 1,0,0 → 0,0,2 …；实测 "
+                        + ordered.stream().map(p -> p.getX() + "," + p.getZ()).toList() + "）",
+                ordered.equals(expectedOrder));
+        BotLog.info("[MineMenu] D-364 簇内顺序：T 形簇（A 沿 z 的链 + 紧邻 N）⇒ 层优先坐标序会先走到"
+                        + " z=4 再回头到 N；图距序实测={}（同距按 y→x→z）",
+                ordered.stream().map(p -> p.getX() + "," + p.getZ()).toList());
 
         // **判别性事实**（判据绿了也要能复核数字；红了更要能看出差在哪）
         BotLog.info("[MineMenu] S3/S4 判别性事实：分片 calls={} 单次最大={}（上限={}）visited={}/{} "
