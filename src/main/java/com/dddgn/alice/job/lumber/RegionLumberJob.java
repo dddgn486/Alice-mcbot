@@ -1018,7 +1018,9 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
             treesFailed++;
             String detail = base.toShortString() + ":" + reason
                     + (current.attemptFailures().isEmpty() ? ""
-                            : " " + String.join(" | ", current.attemptFailures()));
+                            : " " + current.attemptFailures().stream()
+                                    .map(LumberJob.TreeFailure::describe)
+                                    .collect(java.util.stream.Collectors.joining(" | ")));
             failureNotes.add(detail);
             tried.add(base);
             BotLog.warn("[Job] maintain tree@{} 未完成 reason={}（记入逐树理由，本轮不再挑它）",

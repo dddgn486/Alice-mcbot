@@ -886,6 +886,53 @@ def rule_step_boundary_parity():
     return problems
 
 
+def rule_structured_attribution():
+    """`D-329` ⑤.3 / `M4`（2026-09-20 落地）：**顶层失败归因必须读结构化码字段，禁止子串匹配**。
+
+    事实（本次 retrofit 的对象，代码为准）：伐木 `LumberJob.deriveTopLevelReason` 旧版是
+    `attemptFailures.stream().allMatch(f -> f.contains("no_suitable_tool") || f.contains("tool_missing"))`
+    —— `f` 是 `"pos:code gained=x/y failed=code"` 这种**拼接串**。后果：同一棵树里"缺镐 + 那格被换成
+    别的方块"这类**混合原因**也会被报成 `tool_missing`（把锅甩给工具 ⇒ 决策层去弄工具，而不是换目标）。
+    挖矿侧 `MineJob` 早已是逐码比较（`AttemptFailure::code` + `TOOL_CODES`/`BUDGET_CODES`）。
+
+    本规则把两边一起钉住（**类型即约束**：`List<TreeFailure>` / `List<LogFailure>` 拿不到串，
+    只有 `describe()` 给人类看）。删任一处 ⇒ 门禁红；把 `f.contains(...)` 写回归因 ⇒ 门禁红。
+    """
+    problems = []
+    lumber = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "lumber"
+              / "LumberJob.java").read_text(encoding="utf-8")
+    mine = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "mine"
+            / "MineJob.java").read_text(encoding="utf-8")
+
+    for needle, why in [
+        ("public record LogFailure(", "逐原木失败事实不是结构化记录"),
+        ("public record TreeFailure(", "逐树失败事实不是结构化记录"),
+        ("List<TreeFailure> attemptFailures",
+         "逐树失败清单不是结构化类型（只要是 List<String>，就一定会被拿去 contains）"),
+        ("List<LogFailure> failedLogs", "逐原木失败清单不是结构化类型"),
+        ("public static String deriveTopLevelReason(String base, List<TreeFailure> failures, int treesDone)",
+         "归因没有可测试的纯函数形态（夹具喂不了合成事实 ⇒ 判据只能靠跑世界）"),
+    ]:
+        if needle not in lumber:
+            problems.append("LumberJob.java: %s（找不到 `%s`）" % (why, needle))
+
+    body = method_body(lumber, "public static String deriveTopLevelReason(")
+    if not body:
+        problems.append("LumberJob.java: 找不到归因纯函数体（结构变了 ⇒ 本规则要跟着改）")
+    else:
+        if "logCodes()" not in body or "TreeFailure::code" not in body:
+            problems.append("LumberJob 归因没有读结构化字段（要 `logCodes()` 与 `TreeFailure::code`）")
+        if "f.contains(" in body or 'contains("no_suitable_tool")' in body:
+            problems.append("LumberJob 归因又用回了**子串匹配**（`f.contains(...)`）—— `D-329` ⑤.3 禁止")
+
+    mbody = method_body(mine, "private String deriveTopLevelReason(String base) {")
+    if not mbody:
+        problems.append("MineJob.java: 找不到归因方法（结构变了 ⇒ 本规则要跟着改）")
+    elif "AttemptFailure::code" not in mbody:
+        problems.append("MineJob 归因没有读 `AttemptFailure::code`（逐码比较是这里的口径）")
+    return problems
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
@@ -917,6 +964,7 @@ def main() -> int:
     loop = rule_loop_admission()
     bwg = rule_bulk_write_zone_gate()
     d344 = rule_replant_sweep_bounded()
+    attr = rule_structured_attribution()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -963,14 +1011,16 @@ def main() -> int:
         print(f"[D-343·批量写入区域闸] {line}")
     for line in d344:
         print(f"[D-344·补种扫描有界互斥] {line}")
+    for line in attr:
+        print(f"[D-329·结构化归因] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344)
+          and not noperm and not loop and not bwg and not d344 and not attr)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)}"
-          f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3 —— 见各规则头部的注释）")
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)}"
+          f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 
 

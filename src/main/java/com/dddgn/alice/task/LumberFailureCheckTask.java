@@ -45,7 +45,20 @@ public final class LumberFailureCheckTask implements Task {
     private enum Case {
         NO_CANDIDATES, ALL_REJECTED, INVENTORY_FULL, GOAL_TIMEOUT, LOG_REPLACED,
         /** J7 Step 4：**没有斧头** ⇒ 前置检查直接 FAILED `tool_missing`（不拿徒手去撞预算）。 */
-        TOOL_MISSING
+        TOOL_MISSING,
+        // ⭐ `D-329` ⑤.3（`M4` 先于 `M3`）：下面 5 条是**归因分类器**的纯函数判据 ——
+        // 直接喂合成事实给 `LumberJob.deriveTopLevelReason(base, failures, treesDone)`，
+        // 不造世界、不跑 Job、不依赖时机（`M4` 要的正是"理由码可机器读、可逐条归因"）。
+        /** 全是工具码 ⇒ `tool_missing`（退回用的正例：retrofit 不许把**该归因的**弄丢）。 */
+        TAXONOMY_ALL_TOOL,
+        /** ⭐ 混合原因（同一棵树既有缺镐又有方块被换）⇒ **不许**报 `tool_missing`；并当场对照旧写法。 */
+        TAXONOMY_MIXED,
+        /** 全是"爬了但没砍完" ⇒ `climb_incomplete`。 */
+        TAXONOMY_CLIMB,
+        /** 有失败但**一条逐原木证据都没有** ⇒ 不许甩锅工具（保持总括码）。 */
+        TAXONOMY_NO_EVIDENCE,
+        /** 已经砍成过树（`treesDone > 0`）⇒ 工具/攀爬本身可用 ⇒ 不许归因、保持原码。 */
+        TAXONOMY_SUCCESS_GUARD
     }
 
     private final BotPlayer bot;
@@ -125,6 +138,13 @@ public final class LumberFailureCheckTask implements Task {
     // ==================== 用例装配 ====================
 
     private void prepare() {
+        if (isTaxonomy(current)) {
+            // ⭐ 纯函数判据：**不碰世界、不发料、不传送、不建 Job**（判据只喂合成事实）
+            caseTicks = 0;
+            runTaxonomyCase(current);
+            endCase();          // 记完即翻页（`tick()` 下一拍会取下一个用例）
+            return;
+        }
         ServerLevel level = bot.serverLevel();
         var server = level.getServer();
         var commandSource = server.createCommandSourceStack().withSuppressedOutput();
@@ -162,6 +182,10 @@ public final class LumberFailureCheckTask implements Task {
             case GOAL_TIMEOUT -> GoalSpec.harvestUnits(LumberCourseAnchor.START_FOOT, 16, 1, 40);
             case LOG_REPLACED -> GoalSpec.harvestUnits(LumberCourseAnchor.START_FOOT, 16, 1, 600);
             case TOOL_MISSING -> GoalSpec.harvestUnits(LumberCourseAnchor.START_FOOT, 16, 1, 300);
+            // 纯函数用例在上面 `prepare()` 已 `return` ⇒ 走到这里说明"枚举加了成员却没接线"
+            case TAXONOMY_ALL_TOOL, TAXONOMY_MIXED, TAXONOMY_CLIMB, TAXONOMY_NO_EVIDENCE,
+                 TAXONOMY_SUCCESS_GUARD ->
+                    throw new IllegalStateException("纯函数用例不该走到建 Job 这一步：" + current);
         };
         if (current == Case.INVENTORY_FULL) {
             fillInventory();
@@ -169,6 +193,81 @@ public final class LumberFailureCheckTask implements Task {
         job = new LumberJob(bot, spec, scope, source, new NearestPolicy());
         BotLog.info("[FailCheck] case={} start spec(quota={}, maxTicks={})",
                 current, spec.quota(), spec.maxTicks());
+    }
+
+    // ==================== 归因分类器（纯函数，`D-329` ⑤.3 / `M4`） ====================
+
+    private static boolean isTaxonomy(Case c) {
+        return switch (c) {
+            case TAXONOMY_ALL_TOOL, TAXONOMY_MIXED, TAXONOMY_CLIMB, TAXONOMY_NO_EVIDENCE,
+                 TAXONOMY_SUCCESS_GUARD -> true;
+            default -> false;
+        };
+    }
+
+    /** 合成一条树的失败事实（坐标是假的：分类器**不看世界**，只看码字段）。 */
+    private static LumberJob.TreeFailure tree(int idx, String code, List<String> logCodes) {
+        return new LumberJob.TreeFailure(new BlockPos(idx * 16, 64, 0), code, 0, 7, logCodes);
+    }
+
+    /**
+     * ⭐ **旧写法的原样对照**（`LumberJob` retrofit 之前的那一行）：
+     * `attemptFailures.stream().allMatch(f -> f.contains("no_suitable_tool") || f.contains("tool_missing"))`，
+     * 其中 `f` 是 `describe()` 拼出来的**串**。夹具把它在**同一输入**上跑一遍 —— 这样"新写法为什么必须存在"
+     * 就不是一句主张，而是一个**当场可判**的对照（`TAXONOMY_MIXED` 里旧的会撒谎）。
+     */
+    private static boolean legacySubstringRule(List<LumberJob.TreeFailure> failures) {
+        return failures.stream().allMatch(f -> f.describe().contains("no_suitable_tool")
+                || f.describe().contains("tool_missing"));
+    }
+
+    private void runTaxonomyCase(Case c) {
+        switch (c) {
+            case TAXONOMY_ALL_TOOL -> {
+                List<LumberJob.TreeFailure> failures = List.of(
+                        tree(1, "partial_tree", List.of("no_suitable_tool")),
+                        tree(2, "partial_tree", List.of("tool_missing")));
+                String got = LumberJob.deriveTopLevelReason("partial_quota", failures, 0);
+                record(c, "tool_missing".equals(got), "全部逐原木码都是工具类 ⇒ " + got
+                        + "（期望 tool_missing；旧写法=" + legacySubstringRule(failures) + " 也必须为 true）");
+            }
+            case TAXONOMY_MIXED -> {
+                // ⭐ 混合原因：同一棵树里既有"缺镐"又有"那格被换成别的方块"
+                List<LumberJob.TreeFailure> failures = List.of(
+                        tree(1, "partial_tree", List.of("no_suitable_tool", "log_replaced")));
+                String got = LumberJob.deriveTopLevelReason("partial_quota", failures, 0);
+                boolean legacy = legacySubstringRule(failures);
+                record(c, "partial_quota".equals(got) && legacy,
+                        "混合原因 ⇒ 新写法=" + got + "（期望 partial_quota，不甩锅工具）· "
+                                + "旧子串写法=" + (legacy ? "误报 tool_missing（撒谎）" : "?!") + " ⇒ 对照成立");
+            }
+            case TAXONOMY_CLIMB -> {
+                List<LumberJob.TreeFailure> failures = List.of(
+                        tree(1, "climb_incomplete", List.of()),
+                        tree(2, "climb_incomplete", List.of()));
+                String got = LumberJob.deriveTopLevelReason("partial_quota", failures, 0);
+                record(c, "climb_incomplete".equals(got), "全是爬了没砍完 ⇒ " + got + "（期望 climb_incomplete）");
+            }
+            case TAXONOMY_NO_EVIDENCE -> {
+                List<LumberJob.TreeFailure> failures = List.of(
+                        tree(1, "partial_tree", List.of()),
+                        tree(2, "partial_tree", List.of()));
+                String got = LumberJob.deriveTopLevelReason("partial_quota", failures, 0);
+                record(c, "partial_quota".equals(got), "有失败但零逐原木证据 ⇒ " + got
+                        + "（期望保持 partial_quota：没有证据不许甩锅工具）");
+            }
+            case TAXONOMY_SUCCESS_GUARD -> {
+                // 已经砍成过树 ⇒ 工具与攀爬都被证明可用 ⇒ 不许归因（这条是"别把成功也归因成缺镐"的守卫）
+                List<LumberJob.TreeFailure> failures = List.of(
+                        tree(1, "partial_tree", List.of("no_suitable_tool")));
+                String kept = LumberJob.deriveTopLevelReason("partial_quota", failures, 1);
+                String other = LumberJob.deriveTopLevelReason("goal_timeout", failures, 0);
+                record(c, "partial_quota".equals(kept) && "goal_timeout".equals(other),
+                        "treesDone>0 ⇒ 保持 " + kept + "（期望 partial_quota）· 非总括码 ⇒ 保持 "
+                                + other + "（期望 goal_timeout，超时不许被理由盖掉）");
+            }
+            default -> throw new IllegalStateException("不是纯函数用例：" + c);
+        }
     }
 
     /** 把背包塞满圆石（保存原状以便恢复）——用于 `inventory_full`。 */

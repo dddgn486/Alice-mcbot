@@ -91,8 +91,45 @@ public final class LumberJob implements Job {
     private final int logsBefore;
     /** 已尝试过的树基座（成功或失败都算）——保证**不重复砍同一棵**（§6.2b 循环不变量）。 */
     private final java.util.Set<BlockPos> attempted = new java.util.HashSet<>();
+    /**
+     * **逐原木的失败事实**（结构化）：`code` 是**字段**，不是拼接串里的一段子串。
+     *
+     * <p>⭐ `D-329` ⑤.3（`M4` 先于 `M3`）：顶层归因**禁止** `contains("…")` 自由文本匹配 ——
+     * 旧版正是在 `"pos:code gained=… failed=code"` 这种拼接串上做子串匹配（勘测 `survey/23` 点出的坑）。
+     */
+    public record LogFailure(BlockPos pos, String code) {
+        public String describe() {
+            return pos.toShortString() + ":" + code;
+        }
+    }
+
+    /**
+     * **一棵树的失败事实**（结构化）。
+     *
+     * @param base     树基座
+     * @param code     **树级**码（`product_not_collected` / `climb_incomplete` / `partial_tree`）
+     * @param gainedLogs 本棵树开始以来的**背包原木增量**（展示用；判定读 `code` 与 `logCodes`）
+     * @param logs     这棵树计划的原木数
+     * @param logCodes **逐原木**失败码（`miner.failureReason()` / `log_replaced`）
+     */
+    public record TreeFailure(BlockPos base, String code, int gainedLogs, int logs, List<String> logCodes) {
+        public TreeFailure {
+            logCodes = List.copyOf(logCodes);
+        }
+
+        /** **只给人看**（日志/决策提示）——判定一律读字段，不读这个串。 */
+        public String describe() {
+            return base.toShortString() + ":" + code + " gained=" + gainedLogs + "/" + logs
+                    + (logCodes.isEmpty() ? "" : " failed=" + String.join(",", logCodes));
+        }
+    }
+
+    /** 缺工具类码（与 `MineJob.TOOL_CODES` 同口径）。 */
+    private static final java.util.Set<String> TOOL_CODES = java.util.Set.of(
+            "no_suitable_tool", "tool_missing");
+
     /** 逐树的失败清单（Job 级，用于 §6.2c⑤ 的如实上报）。 */
-    private final java.util.List<String> attemptFailures = new ArrayList<>();
+    private final java.util.List<TreeFailure> attemptFailures = new ArrayList<>();
 
     private Phase phase = Phase.SELECT;
     private int ticks;
@@ -107,7 +144,7 @@ public final class LumberJob implements Job {
     private int plannedTotal;
     /** **本棵树**开始前的背包原木数（逐树完成判据的基线）。 */
     private int logsBeforeThisTree;
-    private final List<String> failedLogs = new ArrayList<>();
+    private final List<LogFailure> failedLogs = new ArrayList<>();
     private MineTask miner;
     /**
      * **本棵树**已清障格数（预算闸门用）。
@@ -345,7 +382,7 @@ public final class LumberJob implements Job {
         // `MineTask` 只拦"保护区/不可破坏/流体"，不拦"这还是不是原木"。
         // 复查失败即**放弃本树**（计划已失效）并如实记账，交给结算走 partial 路径。
         if (!isStillLog(bot.serverLevel(), log)) {
-            failedLogs.add(log.toShortString() + ":log_replaced");
+            failedLogs.add(new LogFailure(log, "log_replaced"));
             DecisionTrace.step(jobName(), "SKIP", log.toShortString(),
                     "该格已不是原木（决策后被改动）→ 放弃本树");
             queueIndex = queue.size();
@@ -389,7 +426,7 @@ public final class LumberJob implements Job {
         String reason = String.valueOf(miner.failureReason());
         recordClear(miner);
         recordGain(miner);
-        failedLogs.add(log.toShortString() + ":" + reason);
+        failedLogs.add(new LogFailure(log, reason));
         finishedChildNode = com.dddgn.alice.task.TaskNode.finished("MineTask",
                 miner.target().describe(), phase.name(), ticks,
                 "cleared=" + miner.clearedBlocks() + " gained=" + miner.gainedSteps(), miner, status);
@@ -565,13 +602,14 @@ public final class LumberJob implements Job {
         }
         // J7 Step 4（D-128）：把"爬了但没砍完"与"根本没爬上去/没砍完"分开 ——
         // 依据是 **L2 汇报的加高步数**（`gainedThisTree`，D-111 起加高在 L2），不是背包增量。
-        String detail = base.toShortString() + ":"
-                + (allChoppedNow() ? "product_not_collected"
-                        : (gainedThisTree > 0 ? "climb_incomplete" : "partial_tree"))
-                + " gained=" + gained + "/" + tree.logCount()
-                + (failedLogs.isEmpty() ? "" : " failed=" + String.join(",", failedLogs));
-        attemptFailures.add(detail);
-        BotLog.warn("[Job] lumber 该树未完成 {}", detail);
+        // ⭐ `D-329` ⑤.3：**先建结构化事实**（码是字段），展示串由 `describe()` 现拼 —— 判定永不读它。
+        TreeFailure failure = new TreeFailure(base,
+                allChoppedNow() ? "product_not_collected"
+                        : (gainedThisTree > 0 ? "climb_incomplete" : "partial_tree"),
+                gained, tree.logCount(),
+                failedLogs.stream().map(LogFailure::code).toList());
+        attemptFailures.add(failure);
+        BotLog.warn("[Job] lumber 该树未完成 {}", failure.describe());
     }
 
     private boolean allChoppedNow() {
@@ -581,7 +619,9 @@ public final class LumberJob implements Job {
     /** 配额未达成时的终态：有产出 → `partial_quota`，一棵没成 → `no_reachable_candidate`。 */
     private Task.Status shortfall(CandidateSet set) {
         if (!attemptFailures.isEmpty()) {
-            BotLog.warn("[Job] lumber 未能完成的树: {}", String.join(" | ", attemptFailures));
+            BotLog.warn("[Job] lumber 未能完成的树: {}",
+                    attemptFailures.stream().map(TreeFailure::describe)
+                            .collect(java.util.stream.Collectors.joining(" | ")));
         }
         terminalReason = treesDone > 0 ? "partial_quota" : "no_reachable_candidate";
         failure = terminalReason + (set.rejected().isEmpty() ? "" : " " + String.join(",", set.rejected()));
@@ -636,18 +676,37 @@ public final class LumberJob implements Job {
      * 只在**没有一棵树成功**时才归因（有成功就说明工具/攀爬本身可用，不能甩锅给它们）。
      */
     private String deriveTopLevelReason(String base) {
+        return deriveTopLevelReason(base, attemptFailures, treesDone);
+    }
+
+    /**
+     * **归因的纯函数形态**（`D-329` ⑤.3 / `M4`）—— 让夹具能直接喂合成事实做判据，不必造世界。
+     *
+     * <p>⭐ **禁止子串匹配**（旧版 `f.contains("no_suitable_tool")` 干的正是这件事）：现在读的是
+     * {@link TreeFailure#code()}（树级）与 {@link TreeFailure#logCodes()}（逐原木级）两个**字段**。
+     *
+     * <p>⚠️ **与旧版的一处行为差异（有意，已登记）**：旧版是"拼接串里**出现过**工具码"就算工具因 ——
+     * 于是"同一棵树里既有 `no_suitable_tool` 又有 `log_replaced`"这种**混合原因**也会被报成
+     * `tool_missing`（把玩家改方块的锅甩给工具）。新版要求每棵树的逐原木码**非空且全是**工具码；
+     * 混合情形如实保持 `partial_quota`。夹具 `lumber_failure` 的 `TAXONOMY_MIXED` 用例把
+     * **旧写法原样实现一遍**做对照，证明它会在同一输入上撒谎（⇒ 这条判据可红）。
+     */
+    public static String deriveTopLevelReason(String base, List<TreeFailure> failures, int treesDone) {
         // 只对"**树被尝试过、但一棵都没成功**"这个总括码做归因；其它终态（超时/装不下/没候选/缺工具）
         // 本身就是明确原因，不能被逐树理由盖掉。
-        if (!"partial_quota".equals(base) || attemptFailures.isEmpty() || treesDone > 0) {
+        if (!"partial_quota".equals(base) || failures.isEmpty() || treesDone > 0) {
             return base;
         }
-        boolean allTool = attemptFailures.stream()
-                .allMatch(f -> f.contains("no_suitable_tool") || f.contains("tool_missing"));
-        if (allTool) {
+        // ① 全是工具因：**每棵树**都有逐原木证据，且**所有**证据码都是工具类
+        boolean everyTreeAllTool = failures.stream().allMatch(f -> !f.logCodes().isEmpty()
+                && f.logCodes().stream().allMatch(TOOL_CODES::contains));
+        if (everyTreeAllTool) {
             return "tool_missing";
         }
-        boolean allClimb = attemptFailures.stream().allMatch(f -> f.contains("climb_incomplete"));
-        if (allClimb) {
+        // ② 全是"爬了但没砍完"：树级码集合唯一且为 climb_incomplete
+        java.util.Set<String> treeCodes = failures.stream().map(TreeFailure::code)
+                .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
+        if (treeCodes.size() == 1 && treeCodes.contains("climb_incomplete")) {
             return "climb_incomplete";
         }
         return base;
@@ -665,8 +724,13 @@ public final class LumberJob implements Job {
         return false;
     }
 
-    /** 逐树失败理由（夹具断言用，J7 Step 4）。 */
-    public java.util.List<String> attemptFailures() {
+    /**
+     * 逐树失败事实（夹具断言用，J7 Step 4）。
+     *
+     * <p>⭐ 返回的是**结构化记录**（`D-329` ⑤.3）：调用方要展示请用 {@link TreeFailure#describe()}，
+     * **不要**再把它们拼成一个串去 `contains`（那正是本次 retrofit 要消灭的写法）。
+     */
+    public java.util.List<TreeFailure> attemptFailures() {
         return java.util.List.copyOf(attemptFailures);
     }
 
