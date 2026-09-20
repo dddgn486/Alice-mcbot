@@ -77,7 +77,11 @@ public final class SurfaceMovementProvider implements MovementProvider {
                 // （它必须可穿过 ⇒ 是空的；放置后 bot 斜向上踩上去）。
                 // ⚠️ 不动 `ASCEND`（`D-334`：`changesWorld()` 是信封分档的唯一静态口径，
                 // 让 `ASCEND` 自己放方块会打穿分层）；本边**仍是世界修改类**，信封语义不变。
-                for (int dy = 1; dy >= -1; dy--) {
+                // D-366（2026-09-20，用户选 A）：**只允许 dy ∈ {0,-1}**。
+                // D-336 曾把这里放开到 `dy = 1`（搭一格上升），但下游 `MovementSpec.validateDisplacement`
+                // 与 `PlaceStepAndTraverseExecutionFactory` **都只接受 {0,-1}** ⇒ 搜索会规划出执行端
+                // 构造不出来的边 ⇒ `MovementSpec` 构造时**硬抛 ⇒ 崩服**（真机实测 2026-09-20 21:32）。
+                for (int dy = 0; dy >= -1; dy--) {
                     appendPlaceStepAndTraverse(context, level, from, d[0], d[1], dy, out);
                 }
             }
@@ -427,10 +431,8 @@ public final class SurfaceMovementProvider implements MovementProvider {
         if (!BlockInteraction.hasPlacementFace(level, target)) {
             return;
         }
-        // 定价基类：同层 = 走；下一格 = 下降；⭐ 上一格 = **上升**（第一版只有前两种，
-        // dy=+1 会落到 DESCEND ⇒ **把上行定价成下行**（DESCEND_COST 2.67 > ASCEND_COST 1.67）⇒ 会抑制这条边）。
-        MovementType base = dy == 0 ? MovementType.TRAVERSE
-                : (dy < 0 ? MovementType.DESCEND : MovementType.ASCEND);
+        // 定价基类：同层 = 走；下一格 = 下降（D-366 起不再有 dy=+1 分支）。
+        MovementType base = dy == 0 ? MovementType.TRAVERSE : MovementType.DESCEND;
         double cost = context.cost(base, from, to) + PLACE_ONE_BLOCK_COST;
         out.add(new PlannedMovement(MovementType.PLACE_STEP_AND_TRAVERSE, from, to, cost,
                 com.dddgn.alice.pathing.core.RecoverabilityEvaluator.levelOf(MovementType.PLACE_STEP_AND_TRAVERSE)));

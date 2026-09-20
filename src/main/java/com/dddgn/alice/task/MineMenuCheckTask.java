@@ -332,7 +332,7 @@ public class MineMenuCheckTask implements Task {
         final net.minecraft.server.level.ServerLevel level = bot.serverLevel();
         final var server = level.getServer();
         // 场景：矿石场景里**现搭**一个"被石头包住的矿"，且包层与 bot 脚位**同一层**。
-        // ⚠️ 为什么必须同层：`miningApproach` 禁用 `DOWNWARD` ⇒ 矿的暴露面若只在**脚下一层**，
+        // ⚠️ 为什么当时必须同层：`miningApproach` 当时禁用 `DOWNWARD`（**D-366b 已放开**）⇒ 矿的暴露面若只在**脚下一层**，
         // 规划器会**如实**报 `tunnel=no_reachable_tunnel_standing_point`（实测过）——那是能力边界，不是 bug；
         // 同层的石头面可以被 `BREAK_AND_ENTER` 挖开 ⇒ 才是"必须挖出来才能挖"的最小复现。
         final BlockPos ore = new BlockPos(52, 63, 128);

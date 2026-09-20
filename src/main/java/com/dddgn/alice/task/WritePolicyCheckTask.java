@@ -213,7 +213,9 @@ public class WritePolicyCheckTask implements Task {
         Set<MovementType> pureWriters = intersect(pure, writers);
         Set<MovementType> removalPlacement = intersect(removal, PLACEMENT_PRIMITIVES);
         Set<MovementType> removalTunnel = intersect(removal, TUNNEL_PRIMITIVES);
-        Set<MovementType> miningForbidden = intersect(mining, MINING_FORBIDDEN);
+        // D-366b（2026-09-20 用户临时让步）：挖矿信封**放开** PILLAR/FALL/DOWNWARD ⇒ 断言从
+        // "必须为空"翻成"必须包含"，让步范围与回收条件见 `docs/AI_DECISIONS.md` `D-366`。
+        boolean miningLifted = mining.containsAll(MINING_FORBIDDEN);
         boolean removalRemoves = removal.contains(MovementType.DOWNWARD)
                 && removal.contains(MovementType.FALL);
         boolean miningBreaks = mining.contains(MovementType.BREAK_AND_TRAVERSE)
@@ -226,7 +228,7 @@ public class WritePolicyCheckTask implements Task {
                 && removalPlacement.isEmpty()
                 && removalTunnel.isEmpty()
                 && removalRemoves
-                && miningForbidden.isEmpty()
+                && miningLifted
                 && miningBreaks;
         check("grants_semantics", semantic,
                 "of∩写原语=" + ofWriters + " pureTraversal∩写原语=" + pureWriters
@@ -234,7 +236,7 @@ public class WritePolicyCheckTask implements Task {
                         + " scaffoldRemoval∩放置=" + removalPlacement
                         + " scaffoldRemoval∩挖穿=" + removalTunnel
                         + " scaffoldRemoval含DOWNWARD+FALL=" + removalRemoves
-                        + " miningApproach∩[PILLAR,FALL,DOWNWARD]=" + miningForbidden
+                        + " miningApproach含[PILLAR,FALL,DOWNWARD]（D-366b 放开）=" + miningLifted
                         + " miningApproach含BREAK_*/PLACE_STEP=" + miningBreaks);
 
         // D 登记表
@@ -409,7 +411,7 @@ public class WritePolicyCheckTask implements Task {
     private static final Set<MovementType> TUNNEL_PRIMITIVES =
             Set.of(MovementType.BREAK_AND_TRAVERSE, MovementType.BREAK_AND_ENTER);
 
-    /** `miningApproach` javadoc 显式禁用的三件（D-067 ㉘：挖矿不许搭柱子/跳下来）。 */
+    /** `miningApproach` **曾经**显式禁用的三件（D-067 ㉘）；`D-366b`（2026-09-20）起临时放开。 */
     private static final Set<MovementType> MINING_FORBIDDEN =
             Set.of(MovementType.PILLAR, MovementType.FALL, MovementType.DOWNWARD);
 

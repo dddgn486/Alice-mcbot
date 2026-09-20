@@ -98,6 +98,28 @@
 > **登记**：①「规划器当初为何挖隧道」的具体子原因仍是**日志盲区**（`isValidStandingPoint` 内部
 > `checkFromEye` 不打日志）——`D-365` 已让它对挖矿行为无影响，要归因需临时探针；②「同层挖掘」不是规则，
 > 是**扫描顺序副作用**（`dyAt` = 0,+1,−1,+2,−2 ⇒ 候选集只有前几层，簇又是在"当前已扫候选"上算的）。
+>
+> ### 🔴 同日第六件已落地（`D-366` **崩服修复** + **挖矿信封临时放开**；用户两条裁定）
+> **裁定**：(a) 崩溃走 **A**（收回搜索侧 `dy=+1`）；(b)「**先取消挖矿的 Movement 禁用，能用之后再调整风险管理策略**」。
+> **崩服根因**（`crash-reports/crash-2026-09-20_21.32.05-server.txt`）：搜索生成侧 `SurfaceMovementProvider`
+> 的 `for (int dy = 1; …)`（**昨天 `bc5ffaa`/`D-336` 加入**）允许 `PLACE_STEP_AND_TRAVERSE dy=+1`，
+> 而 `MovementSpec.validateDisplacement:110`（**硬抛**）与 `PlaceStepAndTraverseExecutionFactory`
+> **都只接受 {0,-1}**（2:1）⇒ 规划出执行端构造不出来的边 ⇒ **崩服**；没被拦住是因为 `D-336` 的夹具是
+> **EXTRA + 规划级**（从没构造过 `MovementSpec`）。
+> **修法**：收回生成侧 `dy=+1` + `PathSession.startSegment` 把 `toSpec` 包进 try/catch（坏边降级为段失败，
+> **不许崩服**）+ 夹具改成**执行级不变量**（每一步都真构造一次 `MovementSpec`）。
+> **先红后绿**：回退 `dy=1` ⇒ `place_step_diagonal` **failures=4 FAIL**；修复后 `checks=10 PASS`；
+> 门禁 `rule_movement_contract_agreement`（**23 条**）**4 注入全红**（其中"删掉不变量"第一次没红 ⇒
+> 判据太弱、已收紧为"定义+调用点同时存在"）。
+> **`D-366b` 让步**：`PathRequest.miningApproach` 放开 PILLAR/FALL/DOWNWARD，**范围仅限该工厂**
+> （`of`/`scaffoldRemoval` 不动，破坏/放置仍走预算闸门）⇒ **授权面没放松，放松的是路线能力**；
+> **回收条件**写进代码注释 + `D-366`。意外好副作用：`D-336` 想要的能力**由合法的 `PILLAR` 实现**
+> （夹具实测 `[TRAVERSE][PILLAR]`）⇒ 能力保留、契约统一。
+> **验证**：`write_policy`/`place_step_diagonal`/`mine_regression`/`mine_menu` 全 PASS ·
+> **CORE 51/51 PASS**（ticks=4829）· `check-all pass=18 warning=1 failed=0`。
+> ⏳ **仍未做**：**掉刻 2～2.6 s ×3 未归因**（候选：`SEARCH_LIMIT` 重搜索 / 决策层 LLM 同步调用 /
+> `D-363` top-3 精算 ⇒ 需按子系统插桩）；**R2/R3 绕远折返**待只读探针；**掉落物落进不可进入的洞**
+> 是否给收集器有界世界修改权待裁。
 
 > ## 断点（2026-09-20 收口 · 压缩前落盘）
 >

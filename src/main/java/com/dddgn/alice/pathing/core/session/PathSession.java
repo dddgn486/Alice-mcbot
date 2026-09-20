@@ -326,8 +326,21 @@ public final class PathSession {
         if (bot.getXRot() != 0.0F) {
             bot.setXRot(0.0F);
         }
-        MovementSpec spec = PlannedMovementSpecs.toSpec(movement,
-                List.of("session_segment", "target_support", "target_body_clear", "target_head_clear"));
+        MovementSpec spec;
+        try {
+            spec = PlannedMovementSpecs.toSpec(movement,
+                    List.of("session_segment", "target_support", "target_body_clear", "target_head_clear"));
+        } catch (RuntimeException exception) {
+            // ⭐ D-366：**契约不一致绝不许崩服**。搜索产出的位移若违反执行端契约（历史上真的发生了：
+            // D-336 生成的 `PLACE_STEP_AND_TRAVERSE dy=+1` 被 `MovementSpec` 硬抛 ⇒ 整服崩溃），
+            // 这里把它降级成"这一段失败"（可重试/可重规划）并**响亮告警** —— 服务器不该被一条坏边带走。
+            BotLog.warn("[R4 Session] movement_contract_violation session={} type={} from={} to={}"
+                            + "（搜索产出违反执行端契约的位移 ⇒ 已降级为段失败，不崩服）：{}",
+                    sessionId, movement.movementType(), movement.fromFoot().toShortString(),
+                    movement.toFoot().toShortString(), exception.toString());
+            mapFailure("MOVEMENT_CONTRACT_VIOLATION");
+            return;
+        }
         boolean finalSegment = index == movements.size() - 1;
         // **K-1 收口（2026-09-16）**：`PARTIAL` 前缀的最后一段**只是路过的中间格**，不是目标段 ——
         // 对它要 `EXACT`（脚位 + 落地 + 距中心 ≤0.3）比需要的严，而且 K-4 那条"目标格必须可站居中"

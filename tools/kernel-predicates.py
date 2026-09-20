@@ -1331,6 +1331,55 @@ def rule_mine_in_place_before_walk():
     return problems
 
 
+def rule_movement_contract_agreement():
+    """`D-366` **移动契约三方一致**（2026-09-20 真机崩服换来的规则）。
+
+    崩服原文（`crash-reports/crash-2026-09-20_21.32.05-server.txt`）：
+    `IllegalArgumentException: PLACE_STEP_AND_TRAVERSE requires one cardinal step, dy 0 or -1`
+    ← `MovementSpec.validateDisplacement:110`（**硬抛**）← `PlannedMovementSpecs.toSpec:57`
+    ← `PathSession.startSegment:329`。根因：搜索生成侧 `SurfaceMovementProvider` 的
+    `for (int dy = 1; dy >= -1; dy--)` 允许 `dy=+1`（D-336 于 2026-09-19 加入），
+    而 `MovementSpec` 与 `PlaceStepAndTraverseExecutionFactory` **都只接受 {0,-1}**（2:1）
+    ⇒ 搜索规划出执行端构造不出来的边 ⇒ 崩服。D-336 的夹具是 **EXTRA + 规划级**，只测了"能规划出来"。
+
+    断言（改任一处 ⇒ 红）：
+    ① 生成侧必须从 `dy = 0` 起（不得再有 `dy = 1`）；
+    ② `PathSession.startSegment` 必须把 `toSpec` 包起来 ⇒ **契约不一致降级为段失败，绝不崩服**；
+    ③ 必须保留"搜索产出的每一步都能构造 `MovementSpec`"的**执行级**不变量夹具；
+    ④ `miningApproach` 的 D-366b 让步（放开 PILLAR/FALL/DOWNWARD）必须**显式标注回收条件**，不许隐形放宽红线。
+    """
+    problems = []
+    provider = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing" / "core"
+                / "search" / "SurfaceMovementProvider.java").read_text(encoding="utf-8")
+    session = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing" / "core"
+               / "session" / "PathSession.java").read_text(encoding="utf-8")
+    fixture = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
+               / "PlaceStepDiagonalCheckTask.java").read_text(encoding="utf-8")
+    request = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing" / "core"
+               / "search" / "PathRequest.java").read_text(encoding="utf-8")
+
+    if "for (int dy = 1; dy >= -1; dy--)" in code_only(provider):
+        problems.append("`SurfaceMovementProvider` 又从 `dy = 1` 起生成 `PLACE_STEP_AND_TRAVERSE` ⇒ "
+                        "执行端 `MovementSpec` 只接受 {0,-1} ⇒ 会规划出构造不出来的边（真机崩服原因）")
+    start = code_only(method_body(session, "private void startSegment()"))
+    if "PlannedMovementSpecs.toSpec(" not in start:
+        problems.append("`startSegment` 里找不到 `PlannedMovementSpecs.toSpec(` ⇒ 结构变了，请人工核对")
+    elif "catch (RuntimeException" not in start or "mapFailure(" not in start:
+        problems.append("`startSegment` 没有把 `toSpec` 包在 try/catch（+ `mapFailure(`）⇒ "
+                        "一条违反契约的边会**崩掉服务器**，而不是让这一段失败")
+    # ⚠️ 断言要"能被违反"：只查方法定义存在会被"定义了但没调用"骗过（反向对照实测）⇒ 必须**调用点也在 check 里**
+    if (fixture.count("contractViolation(") < 2
+            or "check(" not in fixture.split("contractViolation(")[1][:200]
+            or "PlannedMovementSpecs.toSpec(" not in fixture):
+        problems.append("缺少「搜索产出的每一步都能构造 `MovementSpec`」的执行级不变量断言"
+                        "（`D-336` 只有规划级 EXTRA 夹具，所以当年没拦住）")
+    mining = method_body(request, "public static PathRequest miningApproach(String botId, BlockPos startFoot, BlockPos goalFoot,")
+    if "MovementType.PILLAR" in mining and "回收条件" not in request:
+        problems.append("`miningApproach` 放开了 PILLAR/FALL/DOWNWARD（D-366b 让步）却**没有标注回收条件**"
+                        "⇒ 临时让步变永久红线")
+    return problems
+
+
 def rule_value_is_only_a_cost_component():
     """`D-329` §2.2 成本模型（用户 2026-09-20 三条裁定）：
     **「矿物价值优先级」只能是成本函数里的一个可配置分量**，不是独立模型、不是硬优先。
@@ -1527,6 +1576,7 @@ def main() -> int:
     breakcost = rule_cost_includes_break()
     support = rule_support_and_cluster_order()
     inplace = rule_mine_in_place_before_walk()
+    contract = rule_movement_contract_agreement()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -1599,13 +1649,15 @@ def main() -> int:
         print(f"[D-364·垫方块与簇顺序] {line}")
     for line in inplace:
         print(f"[D-365·视线内就地挖] {line}")
+    for line in contract:
+        print(f"[D-366·移动契约一致] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

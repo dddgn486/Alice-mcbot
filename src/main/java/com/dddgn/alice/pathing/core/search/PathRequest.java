@@ -93,14 +93,27 @@ public record PathRequest(
     }
 
     /**
-     * 挖掘到达请求（D-067 ㉘）：允许破坏进入 / 破坏通行 / 放置台阶，**显式禁用** PILLAR / FALL / DOWNWARD，
-     * 避免"挖矿时先搭柱子/跳下来"这类奇技。
+     * 挖掘到达请求（D-067 ㉘）：允许破坏进入 / 破坏通行 / 放置台阶。
+     *
+     * <p>⭐ **D-366b（2026-09-20 用户裁定，临时让步）**：**取消**原先对 `PILLAR` / `FALL` / `DOWNWARD`
+     * 的显式禁用（原理由："避免挖矿时先搭柱子/跳下来这类奇技"）。用户原话：
+     * 「因为现在问题很多，**先取消挖矿的 Movement 禁用，能用之后再调整风险管理策略**」。
+     * <ul>
+     *   <li><b>为什么</b>：禁用垂直能力后，目标在下方时路径只能"跑到很远的同层可站点，再水平挖过去"
+     *       （真机实测：目标离 bot 只有 2 格，却给出 11 格隧道；本轮 64 次破坏里 56 次是挖路）
+     *       ⇒ 用户最在意的"绕远 / 来回折返"直接来自这里；</li>
+     *   <li><b>让步范围**仅限**本工厂</b>：`of`（纯通行）仍不含任何写原语；`scaffoldRemoval` 仍"只拆不建"；
+     *       破坏/放置仍走 `MiningBudget`/`WriteBudget` 闸门（授权面没有放松，放松的是**路线能力**）；</li>
+     *   <li><b>回收条件</b>：等"能用"之后按用户口径**重新引入风险管理策略**（届时按风险/下落高度/危险方块
+     *       给这些边加条件，而不是一刀切禁用）。见 `docs/AI_DECISIONS.md` `D-366`。</li>
+     * </ul>
      */
     public static PathRequest miningApproach(String botId, BlockPos startFoot, BlockPos goalFoot,
                                              String requester) {
         return new PathRequest(botId, startFoot, new GoalFoot(goalFoot),
                 Set.of(MovementType.TRAVERSE, MovementType.DIAGONAL, MovementType.ASCEND,
-                        MovementType.DESCEND, MovementType.BREAK_AND_TRAVERSE,
+                        MovementType.DESCEND, MovementType.PILLAR, MovementType.FALL,
+                        MovementType.DOWNWARD, MovementType.BREAK_AND_TRAVERSE,
                         MovementType.BREAK_AND_ENTER, MovementType.PLACE_STEP_AND_TRAVERSE),
                 WALK_BUDGET, requester);
     }

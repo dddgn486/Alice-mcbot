@@ -25,7 +25,7 @@ import java.util.function.BiFunction;
  *       当前站位能挖 → 直接用；否则现成可站的多角度候选 + 可挖掘面前提 + 路径成本排序；</li>
  *   <li><b>目标下方无支撑</b>：按成本比较"在目标下方放支撑块 + 侧面站位"与"只从正下方挖"（仅当需要收集掉落物）；</li>
  *   <li><b>模式 B</b>（{@link MiningPlan.Mode#TUNNEL}）：A 无解 → 固定几何集（4 面 × {y,y−1} + 正下方），
- *       到达允许破坏/放置（`PathRequest.miningApproach`，禁用 PILLAR/FALL/DOWNWARD）；</li>
+ *       到达允许破坏/放置（`PathRequest.miningApproach`；`D-366b` 起**放开** PILLAR/FALL/DOWNWARD，见 `D-366`）；</li>
  *   <li><b>兜底</b>（{@link MiningPlan.Mode#ENTER_TARGET}）：以目标格为终点破坏进入，
  *       受 {@link MiningBudget#maxExtraBreakTicks()} 限制，超预算即 `found_but_unminable`。</li>
  * </ol>

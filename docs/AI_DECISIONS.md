@@ -15620,3 +15620,52 @@ forceload → 建地板+矿 → 传送 → `scope.begin` → **真的破坏那�
 - **"同层挖掘"**：不是规则而是**扫描顺序的副作用** —— `dyAt` 序为 `0,+1,−1,+2,−2`（y=78,79,77,80,…），
   每次分片只覆盖前若干层 ⇒ **候选集只有那几层**；而簇是在**当前已扫到的候选**上算的
   ⇒ 队列一耗尽就换种子，新种子自然也在同一层。触发 = 用户再问"为什么只在同一层挖"。
+
+### D-366：**移动契约三方一致**（崩服根因）+ **挖矿信封临时放开垂直能力**（用户 2026-09-20 裁定）2026-09-20
+
+#### 一、崩服根因（`crash-reports/crash-2026-09-20_21.32.05-server.txt`）
+```
+IllegalArgumentException: PLACE_STEP_AND_TRAVERSE requires one cardinal step, dy 0 or -1
+  MovementSpec.validateDisplacement:110（**硬抛**）← MovementSpec.<init>:43
+  ← PlannedMovementSpecs.toSpec:57 ← PathSession.startSegment:329 ← PathRetryRunner:132
+  ← MineBlockRunner.tickMovement:201 ← MineTask.tickOnce:380 ← MineJob.mine:393
+```
+**三方口径不一致（2:1）**：搜索生成侧 `SurfaceMovementProvider` 的 `for (int dy = 1; dy >= -1; dy--)`
+允许 `dy=+1`（**2026-09-19 `bc5ffaa`/`D-336` 加入**），而 `MovementSpec.validateDisplacement` 与
+`PlaceStepAndTraverseExecutionFactory` **都只接受 `{0,-1}`** ⇒ 规划出一条执行端构造不出来的边 ⇒ **崩服**。
+**为什么没被拦住**：`D-336` 的夹具是 **EXTRA 档 + 规划级**（只断言"能规划出来"，**从没构造过 `MovementSpec`**）。
+**真机触发配方**（日志最后 4 行）：bot 在自挖沟底 `461,77,318` → 目标站位点 `462,79,317`（高 2 格）
+⇒ 最便宜路径 `movements=2 writes>=0/1`（有一次放置）⇒ 第一段就是那条非法边。
+
+#### 二、修法（用户选 **A**）
+1. **生成侧收回 `dy=+1`**（`for (int dy = 0; ...)`，并去掉已死的 ASCEND 定价分支）—— 与下游 2:1 的多数一致。
+2. **不再硬抛**：`PathSession.startSegment` 把 `PlannedMovementSpecs.toSpec` 包进 try/catch ⇒
+   契约不一致**降级为"这一段失败"**（`mapFailure("MOVEMENT_CONTRACT_VIOLATION")` + 响亮告警），
+   **任何一条坏边都不许带走服务器**。
+3. **夹具改成执行级不变量**（`PlaceStepDiagonalCheckTask`）：搜索产出的**每一步**都真的构造一次
+   `MovementSpec` ⇒ 不变量 + "不再产出 `PLACE_STEP dy=+1`"。
+   **先红后绿实测**：把生成侧改回 `dy=1` ⇒ `checks=10 failures=4 FAIL`（`placeStepUp=1` + 不变量抓到抛异常）；
+   修复后 `checks=10 PASS`。
+4. **门禁** `rule_movement_contract_agreement`（23 条）：生成侧不得从 `dy=1` 起 / `startSegment` 必须包住 `toSpec` /
+   必须保留执行级不变量夹具 / **让让步不能隐形** —— **4 种注入全红**
+   （其中"删掉执行级不变量"第一次**没红**：断言只查方法定义存在 ⇒ 已收紧为"定义+调用点同时存在"，属**判据太弱的自查纠错**）。
+
+#### 三、`D-366b`：**挖矿信封临时放开 `PILLAR`/`FALL`/`DOWNWARD`**（用户裁定，**临时让步**）
+> 用户原话：「因为现在问题很多，**先取消挖矿的 Movement 禁用，能用之后再调整风险管理策略**」。
+- **为什么**：禁用垂直能力后，目标在下方时路径只能"跑到很远的同层可站点再水平挖过去"
+  （真机：目标离 bot 仅 2 格却给 11 格隧道；本轮 64 次破坏里 **56 次是挖路**）⇒ 用户最在意的"绕远/来回折返"直接来自这里。
+- **让步范围仅限 `PathRequest.miningApproach`**：`of`（纯通行）仍不含写原语；`scaffoldRemoval` 仍"只拆不建"；
+  破坏/放置仍走 `MiningBudget`/`WriteBudget` 闸门（**授权面没放松，放松的是路线能力**）。
+- **意外的好副作用**：`D-336` 想要的那条能力（斜向上升）在收回 `dy=+1` 后**由合法的 `PILLAR` 实现**
+  （夹具实测 `[TRAVERSE][PILLAR]` 到达）⇒ 能力保留、契约统一。
+- **回收条件（必须可查）**：等"能用"之后按用户口径**重新引入风险管理策略**（按下落高度/危险方块/风险画像
+  给这些边加条件，而不是一刀切禁用）。触发 = 用户说"可以调风险管理了"，或出现"挖矿时跳下/搭柱"造成的伤害/损失事件。
+- **补偿措施**：FALL 的逐边返回守卫（provider 层）保留；`HazardAversion`/风险层不因本放宽而关闭
+  （**待验**：需一轮真机确认风险层仍在生效——已登记）。
+
+#### 四、未做 / 登记
+- **掉刻（2～2.6 s ×3）尚未归因**：候选 = `SEARCH_LIMIT` 重搜索（`descend_precondition` 7 万+）/ 决策层 LLM 同步调用 /
+  `D-363` 的 top-3 精算。**需要按子系统插桩**，不许猜。
+- **R2/R3（绕远、折返）**：`精算 尝试=3 成功=3（候选 91）`（97% 候选无成本）+ 站位点选择，
+  仍待**只读探针**一轮确认；`D-366b` 只解决"垂直能力"这一半。
+- **掉落物落进不可进入的洞**：收集器纯通行（`worldMod=false`）+ 自造 1 格高口袋 ⇒ 是否给**有界**世界修改权，待裁。

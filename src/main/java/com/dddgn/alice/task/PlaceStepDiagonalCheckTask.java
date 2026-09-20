@@ -142,9 +142,8 @@ public final class PlaceStepDiagonalCheckTask implements Task {
         PathRequest base = switch (which) {
             // ① 有权写世界的通用信封（P-03）
             case ASCENT -> PathRequest.withWorldModification(bot.getUUID().toString(), start, goal, requester);
-            // ② ⭐ **挖矿信封**（`miningApproach`）：它**不含 `PILLAR`** ⇒ 修前"升 1 格 + 走 1 格"
-            //    这条几何在该信封里**真的无路可走**（ASCEND 要求目标可站；PLACE_STEP 原先只有 dy≤0）
-            //    ⇒ 这才是本修复**真正的能力增益**（不只是变便宜）。
+            // ② ⭐ **挖矿信封**（`miningApproach`）：`D-366b` 起它**允许** PILLAR/FALL/DOWNWARD
+            //    （用户 2026-09-20 临时放开）⇒ 这条几何现在**应当可达**（方式不再限定为 PLACE_STEP）。
             case MINING -> PathRequest.miningApproach(bot.getUUID().toString(), start, goal, "mine-plan");
             // ③ 纯通行信封（反证：新边不许渗透进来）
             case ENVELOPE -> PathRequest.of(bot.getUUID().toString(), start, goal, requester);
@@ -175,16 +174,39 @@ public final class PlaceStepDiagonalCheckTask implements Task {
                 which, plan.status(), plan.reached(), plan.movements().size(), placeStep, placeStepUp,
                 plan.elapsedMillis(), plan.diagnostics());
         if (which == Case.ASCENT || which == Case.MINING) {
-            check((which == Case.ASCENT ? "① 通用信封" : "② 挖矿信封（不含 PILLAR）")
+            check((which == Case.ASCENT ? "① 通用信封" : "② 挖矿信封（D-366b 放开垂直能力）")
                             + "：斜向上升必须可规划：REACHED（status=" + plan.status() + "）", plan.reached());
-            check("⭐ 且必须是**一条** `PLACE_STEP_AND_TRAVERSE`（movements=" + plan.movements().size()
-                            + " placeStep=" + placeStep + "，修前这里是「无路可走」）",
-                    placeStep == 1 && plan.movements().size() == 1);
-            check("该边的 Δy 必须 = +1（实际 placeStepUp=" + placeStepUp + "）", placeStepUp == 1);
+            // ⭐⭐ D-366 不变量（**这是放开信封的安全网**）：搜索产出的每一步都必须能构造出执行端契约
+            // (`MovementSpec`) —— 2026-09-20 真机崩服就是"搜索产出的 dy=+1 边执行端构造不出"。
+            String violation = contractViolation(plan);
+            check("搜索产出的每一步都能构造出执行端 `MovementSpec`（不抛）"
+                            + (violation.isEmpty() ? "" : "：违反=" + violation), violation.isEmpty());
+            check("⭐ 不再产出执行端不接受的 `PLACE_STEP_AND_TRAVERSE dy=+1`"
+                            + "（placeStepUp=" + placeStepUp + "；D-366 撤销 D-336 的生成侧）", placeStepUp == 0);
         } else {
             check("② 信封：纯通行请求下同一起终点必须**不可达**（status=" + plan.status() + "）", !plan.reached());
             check("② 信封：纯通行请求里**不许**出现世界修改类边（placeStep=" + placeStep + "）", placeStep == 0);
         }
+    }
+
+    /**
+     * `D-366` 不变量：把计划里的**每一步**都真的构造一次执行端 `MovementSpec`。
+     *
+     * <p>返回空串 = 全部通过；否则返回第一条违反的 `type from→to` + 异常摘要。
+     * **这正是 2026-09-20 崩服那一步**（`PathSession.startSegment` → `PlannedMovementSpecs.toSpec`）。
+     */
+    private static String contractViolation(com.dddgn.alice.pathing.core.search.PathPlan plan) {
+        for (com.dddgn.alice.pathing.core.search.PlannedMovement movement : plan.movements()) {
+            try {
+                com.dddgn.alice.pathing.core.search.PlannedMovementSpecs.toSpec(movement,
+                        java.util.List.of("session_segment", "target_support", "target_body_clear",
+                                "target_head_clear"));
+            } catch (RuntimeException exception) {
+                return movement.movementType() + " " + movement.fromFoot().toShortString() + "→"
+                        + movement.toFoot().toShortString() + " :: " + exception.getMessage();
+            }
+        }
+        return "";
     }
 
     private void teleport(ServerPlayer who, BlockPos foot) {
