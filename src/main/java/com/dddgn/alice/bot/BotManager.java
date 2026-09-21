@@ -1065,6 +1065,20 @@ public final class BotManager {
         return session != null && session.currentTask() != null;
     }
 
+    /**
+     * 该 bot 当前任务的**类型名**（只读；无任务 ⇒ `null`）。
+     *
+     * <p>为什么需要它（2026-09-21 "浮起来后自己上岸"那条的夹具）：光有 {@link #hasTask} 分不出
+     * "上浮自救"（{@code SurvivalFloatTask}）与"走上岸"（{@code SurvivalExitTask}）——
+     * 而这两件事正是那条判据的全部内容（**先浮、再走**）。`taskKind` 字段不能用：它是
+     * **陈旧字符串**（任务清空后仍是上一个任务名，`D-377` 的临时探针就被它骗过）。
+     */
+    public static String currentTaskKind(BotPlayer bot) {
+        BotSession session = BOTS.get(bot.getUUID());
+        Task task = session == null ? null : session.currentTask();
+        return task == null ? null : task.getClass().getSimpleName();
+    }
+
     public static String currentTaskSummary(BotPlayer bot) {
         BotSession session = BOTS.get(bot.getUUID());
         return session == null ? null : session.currentTaskSummary();
@@ -2078,6 +2092,11 @@ public final class BotManager {
         private int safeStopDeferredCount;
         private int forcedUnsafeStopCount;
         private int survivalUnsafeInterruptCount;
+        /**
+         * 「无任务在水里、但 8 格内没有纯通行可达的干站位」这件事**本 episode 是否已登记过**
+         * （2026-09-21 用户裁定"浮起来后自己上岸"那条；滞回 = 上岸后重新武装）。
+         */
+        private boolean shoreBlockedLogged;
 
         /** K-3：此刻停这个任务安全吗（任务层承诺点 + 空中硬事实）。 */
         boolean safeToStopNow() {
@@ -2358,6 +2377,58 @@ public final class BotManager {
                 broadcastTarget(this.target);
                 return;
             }
+            // ⭐ 用户 2026-09-21 第十二轮裁定：**浮起来之后要自己走上岸**（= 原版生物级；纯通行、零写权）。
+            //
+            // <p>**为什么不能"把窒息逃生那一套直接套给一般状态"**（用户原话之问）：
+            // 那一套（`SurvivalSystem.plannableRefuge` + `SurvivalExitTask`）**已经**接在无任务档里
+            // （下面 `case INTERRUPT -> startSurvivalExit()`），但一般状态**够不着**它 ——
+            // ① `WATER_CONTACT`（只要 `isInWater()`）**不是软危险**（`SurvivalSystem.softHazard`）
+            //    ⇒ 空闲在水里判决恒 `IGNORE`（设计如此：水下作业/蹚河不该被打断）；
+            // ② 上面那条浮面档在 `decide` **之前**就 `return` ⇒ 浮完眼睛一出水又回到 `IGNORE`
+            //    ⇒ bot 浮在水面不动，没人叫它上岸。
+            // **顺序还不能颠倒**：完全浸没时规划器**一条边都生成不出来**（只读审计 §2.2：十种 Movement
+            // 全都不成立）⇒ 逃生那套从水下起就是**注定失败**的尝试 ⇒ **必须先浮、再找岸**。
+            //
+            // <p>**口径**（用户明确）：只找**已有的无液体站位**、**纯通行**（`allowWrites=false`，
+            // 不动用放置准备金 ⇒ 不放方块、不挖方块）、半径沿用 `REFUGE_RADIUS=8`；
+            // 8 格内没有 ⇒ **如实登记 + 不动**（不做"自己造站位"那件事）。
+            //
+            // ⚠️ **为什么还要显式要求"眼睛已经出水"**（把顺序**写进结构**，而不是靠经验）：
+            // 2026-09-21 红对照实测（**同一格、同一代码、两次跑**）`plannableRefuge` 给出**不同**答案
+            // （`true` / `false`）—— 因为 `isPlannable` 用的是**时间预算**（`PRECHECK_MAX_MILLIS`）
+            // 且口径是「`SEARCH_LIMIT` 也算可尝试」⇒ 机器一忙就返回"可规划"。
+            // 若不挡住，水下就会起一个注定失败的逃生任务（失败 → 再起 ⇒ 抖动）。
+            // 眼睛还在水里 ⇒ 一律交给上面那条浮面档（它 15 tick 内把头带出水面）⇒ 顺序天然正确。
+            if (bot.isInWater() && !bot.isEyeInFluid(net.minecraft.tags.FluidTags.WATER)) {
+                BlockPos shore = SurvivalSystem.plannableRefuge(bot, hazard.type(), false);
+                if (shore != null) {
+                    BlockPos from = SurvivalSystem.footCell(bot);
+                    BotLog.warn("[Survival] **无任务**时人在水里 ⇒ 找岸（**纯通行**、零写权）：shore={}"
+                                    + " 距 {} 格（从脚位 {}）—— 启动 SurvivalExitTask",
+                            shore.toShortString(), fmt3(Math.sqrt(shore.distSqr(from))), from.toShortString());
+                    com.dddgn.alice.decision.DecisionEvents.emit(bot, "DANGER", "warn",
+                            "无任务时在水里 ⇒ 走上岸（纯通行）",
+                            "hazard=" + hazard.type() + " decision=exit shore=" + shore.toShortString()
+                                    + " pos=" + from.toShortString());
+                    shoreBlockedLogged = false;
+                    startSurvivalExit(true);
+                    return;
+                }
+                if (!shoreBlockedLogged) {
+                    // 每 episode 只登记一次（不按 tick 记 —— 那会变成刷屏；不与"没出口"混为一谈）
+                    shoreBlockedLogged = true;
+                    String where = SurvivalSystem.footCell(bot).toShortString();
+                    BotLog.warn("[Survival] **无任务**时人在水里，但半径 {} 格内**没有纯通行可达的无液体站位**"
+                                    + " ⇒ 如实登记、**不动**（不造站位、不改世界；用户口径③）hazard={}"
+                                    + " exit=none pos={}",
+                            SurvivalSystem.REFUGE_RADIUS, hazard.type(), where);
+                    com.dddgn.alice.decision.DecisionEvents.emit(bot, "DANGER", "warn",
+                            "无任务时在水里，但 8 格内没有纯通行可达的干站位 ⇒ 不动（不造岸）",
+                            "hazard=" + hazard.type() + " exit=none decision=none pos=" + where);
+                }
+            } else {
+                shoreBlockedLogged = false;      // 上岸了 ⇒ 下一次落水重新武装（每 episode 一次的滞回）
+            }
             SurvivalSystem.Verdict verdict = SurvivalSystem.decide(bot, hazard, false);
             if (hazard.durationTicks() % 20 == 0) {
                 BotLog.warn("[SurvProbe] verdict={} type={} duration={} taskNull=true escapeWrites=false",
@@ -2403,12 +2474,25 @@ public final class BotManager {
         }
 
         private void startSurvivalExit() {
+            startSurvivalExit(false);
+        }
+
+        /**
+         * 起逃生出口。
+         *
+         * @param pureTraversal `true` = **强制纯通行**（把写权信封当成没有 ⇒ 预检与任务都用
+         *                      `allowWrites=false`，**不动用放置准备金**）。用户 2026-09-21 第十二轮裁定：
+         *                      "无任务时浮起来后自己走上岸"这一档**只走纯通行** —— 只找已有的无液体站位，
+         *                      不许放方块/挖方块来造站位（层 2/3 仍在延后区）。
+         */
+        private void startSurvivalExit(boolean pureTraversal) {
             // ⚠️ 排除格必须用**脚位格**（`SurvivalSystem.footCell`），不能用 `bot.blockPosition()`：
             // 贴地时后者会退回**支撑格**（实体方块）⇒ "排除自己"失效 ⇒ bot 自己那格被当成出口，
             // 逃生任务走到原地、0 步完成而 bot 一格没动（S-5 / 2026-09-15 由电池步实测抓到）。
             BlockPos foot = SurvivalSystem.footCell(bot);
             // D-241：信封闸门（与 hazard 分支同一口径；这里单独取一次，因为本方法作用域不同）。
-            boolean escapeWrites = com.dddgn.alice.pathing.core.WriteEnvelopes.had(bot.getUUID().toString());
+            boolean escapeWrites = !pureTraversal
+                    && com.dddgn.alice.pathing.core.WriteEnvelopes.had(bot.getUUID().toString());
             // D-238：出逃生之前先做一次**可规划**预检（几何落点存在 ≠ 去得了）。
             BlockPos refuge = SurvivalSystem.plannableRefuge(bot, SurvivalSystem.current(bot).type(),
                     escapeWrites);

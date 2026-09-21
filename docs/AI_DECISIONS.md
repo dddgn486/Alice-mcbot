@@ -16603,3 +16603,83 @@ cluster_start anchor=433, 87, 206 → retire reason=cluster_budget
 ① 若出现"排除了正确的格、反而捡不到"（即次优格更差）⇒ 改成按"到物品**包围盒**的距离"排序；
 ② 若同一件物品在**多个簇**之间反复失败 ⇒ 才考虑跨簇记忆（今天不做）；
 ③ 若 `goal_excluded` 在真机长期为 0 ⇒ 说明真机几何不再命中这一段 ⇒ 可把本夹具降级为回归哨兵。
+
+---
+
+### D-382：**无任务的水下 bot「先浮 → 再走上岸」**（用户 2026-09-21 第十二轮裁定；纯通行、零写权）（2026-09-21）
+
+**状态**：`SERVER_TESTED`（新电池步 `survival_shore_escape`：`checks=17 failures=0`，两案例 + 红对照已跑）。
+⏳ **客户端待验**：零参数入口 `/alice shore-escape-test`（建孤立场景 + 把 bot 放进池底 + 清任务 + 按住决策层）。
+
+#### 一、用户之问与答案（"他在水里窒息受伤时会逃到岸边，为啥不直接把这个套给一般状态"）
+
+**那套机制本来就已经接在无任务档里**（`BotManager` 的 `case INTERRUPT -> startSurvivalExit()`）；
+一般状态够不着它，是两件事叠加：
+
+1. **`WATER_CONTACT` 不是软危险**（`SurvivalSystem.softHazard` 只有 `LOW_AIR`/`ON_FIRE`/`FREEZING`）
+   ⇒ 空闲在水里判决**恒 `IGNORE`** —— 设计如此（水下作业/蹚河不该被打断）；
+2. **`D-380` 的浮面档在 `decide` 之前 `return`** ⇒ 眼睛还在水里时只会浮；浮完眼一出水，
+   危险又回到 `WATER_CONTACT` ⇒ 还是 `IGNORE` ⇒ **bot 浮在水面不动**（= 用户看到的现状）。
+
+**顺序还不能颠倒**（事实，非推测）：完全浸没时十种 Movement **一条边都生成不出来**（只读审计 §2.2）
+⇒ `plannableRefuge` 的纯通行预检必然 `UNREACHABLE` ⇒ **必须先浮、再找岸**。
+所以修法不是"把逃生套过去"，而是**在浮面档之后接一次"找岸"**。
+（这条事实已由夹具前提实测：`plannable(浸没中)=false` 而 `8格内几何落点=true` —— 有岸，但当时规划不出来。）
+
+#### 二、改动（生产侧，一处；口径全部来自用户裁定）
+
+`BotManager.tickHazardWithoutTask` 在**浮面档之后**新增一档：
+
+| 判据 | 行为 |
+|---|---|
+| `bot.isInWater() \|\| 眼在水里` | `shore = SurvivalSystem.plannableRefuge(bot, hazard.type(), **false**)`（**第三参 = 纯通行、零写权**） |
+| `shore != null` | 记日志（`[Survival] **无任务**时人在水里 ⇒ 找岸（**纯通行**、零写权）…`）+ `DANGER` 事件 + `startSurvivalExit(**true**)` |
+| `shore == null` | **每 episode 只登记一次**（`shoreBlockedLogged` 滞回；上岸后重新武装）⇒ 如实 `exit=none`、**不动**（不造站位、不改世界） |
+
+配套：`startSurvivalExit(boolean pureTraversal)` 重载 —— `pureTraversal=true` 时把写权信封当没有
+（预检与任务都用 `allowWrites=false`、**不动用放置准备金**），原有 3 个调用点行为逐字不变；
+半径**沿用** `SurvivalSystem.REFUGE_RADIUS=8`（**不新造阈值**）；**只对无任务生效**（有任务时照旧不打断）。
+另加只读读数 `BotManager.currentTaskKind`（夹具必须能区分"浮"与"走上岸"；`taskKind` 字段是陈旧字符串，不能用）。
+
+#### 三、判据（新电池步 `survival_shore_escape`，EXTRA；用第二个假人跑生产路径）
+
+入口：`ALICE_HEADLESS=1 tools/headless-battery.sh single:survival_shore_escape`。
+
+| 案例 | 场景 | 读数（实测） |
+|---|---|---|
+| `SHORE_IN_RANGE` | 5×5×3 水池，四周天然干地（岸在 2 格外） | `浸没时规划状态=UNREACHABLE`（节点预算，确定性）、`8格内几何落点=true`；`sawFloat=true sawExit=true`；**`eyeOut@15 → exit@16`（先浮再走）**；`dry=true@75`；`changed=0`（**纯通行、世界零改动**） |
+| `NO_SHORE_IN_RANGE`（反证） | 21×21×3 大水池（17³ 搜索盒里没有无液体落点） | 照样浮起来（`eyeOut@15`）但 `sawExit=false`、`dry=false`、`changed=0` ⇒ **没有岸就不许造岸** |
+
+#### 四、⭐ 红对照暴露的两件事（都已修，**这是本轮最有价值的发现**）
+
+1. **`plannableRefuge` 在浸没时是"不稳"的**：**同一格、同一代码、两次跑**给出**不同**答案
+   （`true` / `false`）—— 因为 `isPlannable` 的预检用**时间预算**（`PRECHECK_MAX_MILLIS`），
+   而口径是「`SEARCH_LIMIT`（预算耗尽、可达性未知）算可尝试，只有 `UNREACHABLE` 才算没出口」
+   （`SurvivalSystem.java:252-260`）。机器一忙 ⇒ 返回"可规划" ⇒ 若照它起逃生任务，
+   就是**在水下起一个注定失败的任务**（失败 → 再起 ⇒ 抖动）。
+   ⇒ **修法（结构，不靠经验）**：本档加 `&& !bot.isEyeInFluid(WATER)` —— 眼还在水里一律交给浮面档
+   ⇒ **"先浮、再走"写进代码**，不再依赖"浸没时预检必然失败"。
+2. **夹具前提不许拿不稳的读数当判据**（`fixture-hygiene` 同类事故）：第一版前提断言
+   「浸没时 `plannableRefuge` 必须为 `null`」⇒ 红对照那一跑它变成 `true` ⇒ 夹具**随机红**。
+   改成问**同一张图**但用**节点预算 + 慷慨时间预算**（`SearchBudget.of(500, 60_000)`）⇒
+   `PlanningStatus.UNREACHABLE` **确定性**；生产预检的读数**只记录、不断言**
+   （日志里标了"不稳,仅记录"）。
+
+**红对照（撤掉本档）**：`failures=3`，且**三条全在"必须走上岸"那组**
+（`sawExit=false` / 顺序 `exit@0` / `dry=false`），前提那条**不再红** ⇒ 判据干净、指哪打哪。
+
+#### 五、诚实边界
+
+- **没有**给"维持浮面"新写任何东西：无岸时探针在水面附近小幅起伏（`y=-61.3~-61.7`，
+  眼出水/入水交替 ⇒ 浮面档反复接管）—— 这是**原版级别**的"踩水"，不是新机制；
+  用户第十一轮"没有缓沉"的观感与这条一致（粗看是停在水面，细看是几 tick 一次的微调）。
+- 8 格内没有岸 ⇒ **如实失败**（用户口径③）；今天**不实现**"自己造站位"（层 2/3 仍在延后区）。
+- 客户端只验"看得见的部分"（是否真的自己爬出来、爬得自不自然、有没有卡在池边抖动）；
+  "它在哪一格停住"由日志给。
+
+#### 六、回收条件
+
+① 若客户端看到"卡在池边反复上下/抖动" ⇒ 才讨论"浮面维持"或"上岸的最后一步"；
+② 若半径 8 在实战里经常不够（大湖/海洋）⇒ 那时**按数据**讨论是否放宽（不许先放宽再看）；
+③ 若出现"没任务 bot 只是短暂蹚水却被起了一个逃生任务" ⇒ 再加状态判据（例如"连续 N tick 在水里"），
+但**不许**回到"空气余量"那种口径。

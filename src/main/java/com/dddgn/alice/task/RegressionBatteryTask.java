@@ -145,6 +145,9 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("survival_exit", Profile.BASELINE),
             // ⭐ `D-377`：无任务溺水自救（第二假人 + 自建水井；EXTRA —— 会在系统里再起一只假人）。
             Map.entry("survival_idle_drown", Profile.EXTRA),
+            // ⭐ 用户 2026-09-21 第十二轮裁定：**浮起来后自己走上岸**（纯通行、零写权）——
+            // ① 有岸 ⇒ 先浮再走 + 世界零改动；② 大水池（8 格内无落点）⇒ 如实失败、不造站位。
+            Map.entry("survival_shore_escape", Profile.EXTRA),
             // ---- MAIN：阶段 3-A 收口后的最小烟测集（4）----
             // 口径（D-201）：每一类"只此一步覆盖"的机制各留一步 + 查询层最便宜一步；
             // A2/A3/A3b/C/装配/发现器探针等同机制夹具退 FULL（机制不丢，默认时长下降）

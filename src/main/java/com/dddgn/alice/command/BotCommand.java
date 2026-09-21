@@ -99,6 +99,11 @@ public final class BotCommand {
                                          .executes(ctx -> buildRoadByBot(ctx.getSource()))))
                 .then(Commands.literal("observe")
                         .executes(ctx -> observe(ctx.getSource())))
+                // ⭐ 用户 2026-09-21 第十二轮裁定：**「浮起来之后自己走上岸」的真人入口**（零参数）。
+                // 一条命令 = 建孤立场景（平台 + 3×3×3 水池）+ 把 bot 放进池底 + 清任务 + 按住决策层 + 玩家到观察点。
+                // 应当看到：① 立刻上浮；② 头出水后**自己走到平台干格**上；③ 全程**不放不挖**（纯通行）。
+                .then(Commands.literal("shore-escape-test")
+                        .executes(ctx -> shoreEscapeTest(ctx.getSource())))
                 // K-3：**取消当前任务**（`bot-control stop` 只停移动输入，不停任务）
                 .then(Commands.literal("stop-task")
                         .executes(ctx -> stopTaskCommand(ctx.getSource())))
@@ -2030,6 +2035,27 @@ public final class BotCommand {
      *
      * <p>⚠️ 未认领区块是前提（FTB Chunks 会拒绝认领区内的假人破坏 ⇒ 那量到的是"权限"不是"行为"）。
      */
+    /**
+     * `/alice shore-escape-test`（零参数）：建**孤立**场景 + 把 bot 放进池底 + 清任务 + 按住决策层。
+     *
+     * <p>它验的是"无任务的水下 bot 会先浮、再走到 8 格内的干站位"（用户 2026-09-21 第十二轮裁定）；
+     * 场景与判据见 {@link com.dddgn.alice.task.ShoreEscapeFixture} 的注释，离线判据见电池步
+     * `survival_shore_escape`。
+     */
+    private static int shoreEscapeTest(CommandSourceStack source) {
+        try {
+            String armed = com.dddgn.alice.task.ShoreEscapeFixture.arm(source.getPlayerOrException());
+            source.sendSuccess(() -> Component.literal("[alice] 「浮起来后自己上岸」已武装：" + armed), false);
+            source.sendSuccess(() -> Component.literal("[alice] 应当看到：① bot 立刻浮到水面；"
+                    + "② 头出水后**自己走到平台干格**上（日志 `[Survival] … ⇒ 找岸（**纯通行**、零写权）`）；"
+                    + "③ 全程**不放方块、不挖方块**。看 15 秒即可。"), false);
+            return 1;
+        } catch (Exception error) {
+            source.sendFailure(Component.literal("[alice] 武装失败：" + error.getMessage()));
+            return 0;
+        }
+    }
+
     private static int mineHere(CommandSourceStack source) {
         ServerLevel level = source.getLevel();
         BotPlayer bot = BotManager.firstOrSpawn(level, BlockPos.containing(source.getPosition()));

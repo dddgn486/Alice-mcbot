@@ -64,6 +64,13 @@ public final class SurvivalModule implements CheckModule {
                 CheckStep.of("survival_idle_drown", CheckProfile.EXTRA, List.of(), null,
                         () -> new com.dddgn.alice.task.SurvivalIdleDrownCheckTask(bot, ctx.observer()),
                         600),
+                // ⭐ 用户 2026-09-21 第十二轮裁定：**浮起来之后要自己走上岸**（原版生物级；纯通行、零写权）。
+                // 两个案例：① 8 格内有天然岸 ⇒ 先浮（`SurvivalFloatTask`）**再**走（`SurvivalExitTask`）
+                // 且**世界零改动**；② 21×21 大水池（8 格内无落点）⇒ 照样浮起来，但**永远不起逃生任务、
+                // 永远不上岸、零改动**（用户口径③：没有现成站位 ⇒ 如实失败，不自己造站位）。
+                CheckStep.of("survival_shore_escape", CheckProfile.EXTRA, List.of(), null,
+                        () -> new com.dddgn.alice.task.SurvivalShoreEscapeCheckTask(bot, ctx.observer()),
+                        1400),
                 CheckStep.of("survival_exit", CheckProfile.BASELINE,
                         List.of("alice_test:survival_course"),
                         () -> to(bot, SurvivalCourseAnchor.PLATFORM_FOOT),
