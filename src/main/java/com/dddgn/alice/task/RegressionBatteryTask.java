@@ -193,6 +193,9 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("mine_survey", Profile.EXTRA),
             // D-336：斜向上升那一格（规划级：能力 + 信封）
             Map.entry("place_step_diagonal", Profile.EXTRA),
+            // ⭐ `D-374`（2026-09-21）：**脚位空、头位实**的目的地必须有入边（内核图完整性；
+            // 真机代价 = 掉落物落在 1 格高夹缝里被瞬退）。规划级、便宜 ⇒ 进 CORE。
+            Map.entry("break_enter_head_blocked", Profile.MAIN),
             // D-327 机制 B（2026-09-19）：任务失败后回安全区的兜底（无区 ⇒ 诚实码 / 200 格 ⇒ 分段走回 /
             // 封死格 ⇒ 如实失败且站定不动）。EXTRA：会临时认领一个区块 + 建/还原一个封盒 ⇒ 只单跑。
             Map.entry("safe_return", Profile.EXTRA),

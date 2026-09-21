@@ -15983,3 +15983,79 @@ Baritone **把搜索放在独立线程**：`baritone/behavior/PathingBehavior.ja
 - ⚠️ 夹具 requester 必须用**已登记**前缀：第一版用 `fixture:search-tick` ⇒
   `write_policy` 步的 `no_unregistered_requester` **当场把 CORE 判红**（改用 `walk-to`）。
 - `CORE`：**119 PASS**，仅剩**已知的** `lumber_job`（与本次改动无关，用户裁定先不管）。
+
+### D-374
+
+#### 一、决定（2026-09-21，P0）：修「脚位可通行 + 头位被挡」的**图缺口**，并登记为对 Baritone 的偏离收口
+
+`SurfaceMovementProvider.appendBreakAndEnter` 的**入口闸门**从单格谓词
+`canWalkThrough(level, to)`（只看躯干）改为**整体通行**
+`canWalkThrough(level, to) && canWalkThrough(level, to.above())`。
+
+#### 二、为什么（真机实测链条，逐字见 `docs/reviews/2026-09-21-掉落物在洞里被瞬退.md`）
+
+用户第五轮真机 + 存档只读取证（`saves/新的世界 (2)` 的 region mtime = 跑完即存盘）：
+
+```
+432,86,223 = stone（支撑）· 432,87,223 = air（掉落物）· 432,88,223 = dirt（**头顶实心**）
+431,87,223 = air/air + 下方 dirt ⇒ 唯一可站邻格（bot 就站在那里）
+```
+
+- `anchor` **本来就等于掉落物所在格**（日志原文），但那一格在图里**没有任何入边**：
+  `TRAVERSE` 要 `canStandCentered`（含头位）⇒ 拒；`BREAK_AND_TRAVERSE` 不适用；
+  `BREAK_AND_ENTER` 被上面那一行**提前 return** ⇒ 20 000 节点搜爆 ⇒ `SEARCH_LIMIT`
+  ⇒ `retire reason=MOVEMENT_FAILED`（`reanchor=0`、`goal_shift=0`）⇒ `SUMMARY collected=0/2`。
+- **用户的原话就是答案**：「夹缝里的煤看得见，**只挖一格方块就能走过去**」—— 那**一格**正是
+  `432,88,223`（头位），也正是缺失的边要破的东西；「**朝东**推一下才捡到」= 补最后 ~0.1 格
+  （与 `botBox`/`inRange=false` 的独立几何反推一致）。
+- 客户端日志自带对照：`[BreakEnter] cleared pos=429/429/430/430/431/431`（**每格两行 = 躯干+头位**，
+  那时脚位也被挡 ⇒ 边生成了）而 `432` **一次都没有** ⇒ **头位破块管道本来就是通的**，唯一拦路的是一行谓词。
+- 该缺口**自 `da56fc0`（2026-09-09，BREAK_AND_ENTER 诞生那天）就存在**，且**同一个函数在 12 天内被复核过**
+  （`:173-177` 把 `canStandCentered` 放宽成 `canWalkOn`，带 K-4/D-167 注释）——**只修了紧邻那一行，早退没动**。
+
+#### 三、对照 Baritone（`D-036`；这是**偏离收口**，不是新增能力）
+
+- `baritone-1.20.1/.../movements/MovementTraverse.java:57`：`positionsToBreak = {to.above(), to}`；
+- 同文件 `:109-118`：cost 里给目的地 `y`（`hardness1`）与 **`y+1`（`hardness2`）分别计价**。
+
+⇒ 「脚位空、头位实」在 Baritone 里是**一次正常且已计价的 Traverse**（顺手把头位挖掉）。
+Alice 既没让 Traverse 覆盖它、又让 BreakAndEnter 提前退出 ⇒ 这是**相对 Baritone 的能力缺失**；
+本决定补上等价能力，偏离按"**实现形态不同**"登记：Alice 走 `BREAK_AND_ENTER` 一条边，
+Baritone 走 `MovementTraverse` 内部破头位。
+
+#### 四、不变量缺口（本次事故的**结构性**原因；用户 2026-09-21 裁定"这不是小事"）
+
+现有门禁只保证**健全性**：*可规划 ⇒ 可执行*（`MovementSpec.validateDisplacement` 硬抛、K-4）。
+**没有**任何东西保证**完成性**：*执行器/物理允许的移动 ⇒ 生成器必须给出这条边*。
+⇒ **完成性缺口永远不会变红**，只能靠真人踩到（这次就是）。
+审计第一遍（`docs/reviews/2026-09-21-寻路核心语义一致性审计.md`）：同一份准入契约在
+**三层各写一遍**（生成器 / `*ExecutionFactory` / `*Execution`；9 类 × 3 = 27 处，91 个 `canWalkThrough(` 调用点），
+散文承诺语 10 处全无门禁，**6 条架构红线只有 D-076 有可执行门禁、D-036 零门禁**。
+⇒ 后续轨道：**G1** 谓词分层 + 禁止边生成器裸用单格谓词；**G3** 红线↔门禁清单；
+**G2** 完备性差集（独立朴素 BFS vs 规划器允许全集）——**G2 是唯一能发现未知缺口的东西**。
+
+#### 五、判据（门禁 + 电池，本次已落地）
+
+- 新电池步 `break_enter_head_blocked`（**MAIN/CORE**，规划级，`BreakEnterHeadBlockedCheckTask`）**四用例互为对照**：
+  ① `HEAD_BLOCKED`（能力）必须 `REACHED` 且**恰好 1 条** `BREAK_AND_ENTER` 落到该格
+  （前提已断言脚位可通行 ⇒ 唯一 blocker 只能是头位 ⇒ 本条即"破的是头位"的证明）；
+  ② `FOOT_BLOCKED`（行为不得变化）仍须 `REACHED`；
+  ③ `ENVELOPE` 纯通行请求（`PathRequest.of`）必须**不可达且 0 条写边**（`D-076` 反向对照）；
+  ④ `UNBREAKABLE`（头位换基岩）必须**不可达且不产出该边**（不许把"破不动"伪装成"能到"）。
+  另有 K-4 网：每一步都真的构造一次 `PlannedMovementSpecs.toSpec`（2026-09-20 崩服那一步）。
+- **红绿反向对照**：把谓词改回脚位 ⇒ `verdict=FAIL exit=1`，且红态**正是真机症状**
+  （`HEAD_BLOCKED status=SEARCH_LIMIT reached=false breakEnter=0`，而 `FOOT_BLOCKED` 仍绿 ⇒ 修复是外科式的）；
+  还原后 `verdict=PASS`。
+- **CORE 无回归**：`break_enter_head_blocked=PASS`；唯一失败仍是 `lumber_job`，且其失败行与改动前
+  **逐字相同**（`pos=64,64,102 recovery=idle_after_cleanup failureDetails=`）⇒ 与本改动无关。
+- 静态门禁 `tools/check-all.sh` = `pass=18 warning=1 failed=0`（warning = 既有的"电池未在本模式跑"）。
+
+#### 六、未做 / 回收条件
+
+- **未做**（待用户拍板）：`canWalkThrough` **全局改名**（已量出 **117 处调用点 / 37 文件**）——
+  收益主要是可读性，**拦截力实际来自形状规则 + G2**；建议先把形状规则与 G2 落地再决定。
+- **未做**：G2 差集工具；P1（`MiningPlanner.selectBestApproach` 把 `SEARCH_LIMIT` 并进
+  `no_reachable_candidate` ⇒ `MineJob.attempted` **永久跳过该格**。本轮铁证：25 次拒绝全 `已发起=1`、
+  目标 `436,82,229` **从未被挖**却已 `already_attempted`、`search_incomplete` 0 次）。
+- **回收条件**：出现"修复后仍有一条**只差 1 格破块**却不可达的实测反例" ⇒ 说明还有第二处缺口，
+  届时**先跑 G2 差集**再动代码（不许直接再加谓词）。

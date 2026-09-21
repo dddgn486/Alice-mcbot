@@ -165,8 +165,18 @@ public final class SurfaceMovementProvider implements MovementProvider {
         if (!context.yInBounds(to.getY())) {
             return;
         }
-        // 目的地可通行 → 属于 TRAVERSE，不生成
-        if (MovementHelper.canWalkThrough(level, to)) {
+        // 目的地**整体**可通行（躯干 + 头位）→ 属于 TRAVERSE，不生成。
+        // ⚠️ 2026-09-21（D-374）：此处原先只查 `canWalkThrough(level, to)`（**单格**谓词，只看躯干），
+        // 于是「脚位可通行 + 头位被挡」的目的地会**提前 return**，而 TRAVERSE 的准入
+        // （`canTraverse → canStandCentered`）要求头位也可通行 ⇒ **两条边都不生成**
+        // ⇒ 该类格（= 一格高夹缝的形状）在**整张图里没有任何入边**。
+        // 真机实测代价：掉落物落在 1 格高夹缝里 → 20 000 节点搜爆 → `SEARCH_LIMIT` → 拾取退役；
+        // 用户手挖的那**一格**（头位方块）正是这条缺失的边要破的东西。
+        // 判据必须用**整体**通行（与 `canStandCentered` 同口径）；脚位空 + 头位实 ⇒ 落到下面，
+        // 由 `collectBlockers` 把头位收进待破列表（它本来就会收，见 `BreakAndEnterExecution:69-78`）。
+        // 对照 Baritone：`MovementTraverse:57` 的 `positionsToBreak = {to.above(), to}`、
+        // `:109-118` 给目的地 `y+1` 单独计价 —— 在 Baritone 里这本是**一次正常的 Traverse**。
+        if (MovementHelper.canWalkThrough(level, to) && MovementHelper.canWalkThrough(level, to.above())) {
             return;
         }
         // 目的地最终必须可站（脚下支撑）。

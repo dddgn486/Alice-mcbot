@@ -1,6 +1,7 @@
 package com.dddgn.alice.task.check.modules;
 
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.task.BreakEnterHeadBlockedCheckTask;
 import com.dddgn.alice.task.CleanupWrappedTask;
 import com.dddgn.alice.task.ContrastTimerCheckTask;
 import com.dddgn.alice.task.FallDiagnosticTask;
@@ -38,6 +39,10 @@ public final class PathingModule implements CheckModule {
     public List<CheckStep> steps(CheckContext ctx) {
         BotPlayer bot = ctx.bot();
         return List.of(
+                // D-374（2026-09-21）：⭐ **脚位空、头位实**的目的地必须有入边（规划级；四用例互为对照）。
+                // MAIN：便宜（无场景文件、无执行、4 次 1 格远的规划）且守的是**内核图完整性**不变式 ⇒ 进 CORE。
+                CheckStep.of("break_enter_head_blocked", CheckProfile.MAIN, List.of(), null,
+                        () -> new BreakEnterHeadBlockedCheckTask(bot, ctx.observer()), 120),
                 // D-336（2026-09-19）：**斜向上升那一格**（规划级）—— 能力 + 信封两用例，互为反证。
                 CheckStep.of("place_step_diagonal", CheckProfile.EXTRA, List.of(), null,
                         () -> new PlaceStepDiagonalCheckTask(bot, ctx.observer()), 400),
