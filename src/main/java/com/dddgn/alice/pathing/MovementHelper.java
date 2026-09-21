@@ -174,6 +174,22 @@ public final class MovementHelper {
     }
 
     /**
+     * ⭐ **某个"脚位格"的整机通行性**（`D-374`，2026-09-21）：**脚位 + 头位都可穿过**。
+     *
+     * <p><b>为什么必须单独有一个名字</b>：`canWalkThrough(pos)` 只查**单格**（它的名字里没有这个信息），
+     * 而玩家要占**两格**。把单格谓词放进"目的地能不能进"的闸门位置，就会**静默砍掉一整类边**——
+     * 2026-09-21 真机实测：`appendBreakAndEnter` 的入口闸门只查躯干 ⇒ 「脚位可通行 + 头位被挡」
+     * 的目的地**既不是 TRAVERSE（要 `canStandCentered`，含头位）也不是 BREAK_AND_ENTER（被提前 return）**
+     * ⇒ 一格高夹缝在整张图里**没有任何入边**（代价：掉落物被瞬退）。
+     *
+     * <p><b>口径</b>：与 {@link #canStandCentered} 的"通行"那两半**逐字一致**（只是不含"脚下有支撑"）——
+     * 需要"能站上去"用 `canStandCentered`，只需要"身体放得下"用本方法。
+     */
+    public static boolean bodyPassable(ServerLevel level, BlockPos foot) {
+        return canWalkThrough(level, foot) && canWalkThrough(level, foot.above());
+    }
+
+    /**
      * 规划期"可站"世界前提（K-4 / D-167）：脚下有支撑 + 脚位可通行 + 头位可通行。
      *
      * <p><b>与执行期契约的关系</b>：运行期完成判定 {@link #isSettledAtFootPos}

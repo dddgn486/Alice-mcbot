@@ -51,15 +51,15 @@ Alice 是 Minecraft Forge 1.20.1 项目。这里的规则用于帮助 AI 在会�
 
 ## 不可悄悄改变的架构边界
 
-- LLM 只做目标级决策；确定性执行器负责动作、权限、安全和完成条件；
-- 服务端是世界、bot、任务和库存的真相；
+- LLM 只做目标级决策；确定性执行器负责动作、权限、安全和完成条件；`[gate: check-goal-vocabulary.sh（部分：只挡词表外的目标名，挡不住「动作级指令」）]`
+- 服务端是世界、bot、任务和库存的真相；`[未门禁: 没有「客户端不得改世界/库存」的静态或行为判据；复核触发: 出现一次把客户端侧状态当真相的实测]`
 - **寻路红线（D-076）：寻路请求默认纯通行（`PathRequest.of`）；破坏/放置只能由上层任务显式授权并受预算闸门约束**
   ——挖掘站位用 `PathRequest.miningApproach` + `MiningBudget`（禁用 `PILLAR/FALL/DOWNWARD`），
   掉落物收集需调用方显式 `allowWorldModification=true`；禁止寻路器自行挖穿地形、禁止把 `SEARCH_LIMIT` 当授权、
-  禁止实验性移动模式隐式接入正式任务；
-- 未知模组能力默认只读，不让 AI 猜槽位、配方或写入语义。
-- **模组适配是「需求驱动」而非「覆盖率驱动」（D-219，2026-09-14 用户采纳 `survey/07` §3.5）**：只为**当前存档真正用到**的东西适配 —— **不因"这模组有名／已在 `mods/`／表里该凑齐全量"就登记它** ⇒ 开销上限 = 用户实际玩到哪，"永远有下一个模组"不是待办队列。
-- **内核路线（D-036）：Alice = Baritone 兼容内核**。非 Alice 目标差异部分（搜索 / Movement / 执行器状态机 / 自愈 / 段超时 / 成本模型 / 跳跃门控）一律先对照 `/home/fb486/projects/reference/baritone/` 再实现，禁止自制替代内核和补丁堆叠；必须偏离时在 `docs/AI_DECISIONS.md` 登记（Baritone `文件:行` + Alice 特有约束）。
+  禁止实验性移动模式隐式接入正式任务；`[gate: check-authz-registry.sh,check-policy-matrix.sh,check-far-goal-usage.sh]`
+- 未知模组能力默认只读，不让 AI 猜槽位、配方或写入语义。`[gate: check-machine-map.sh（部分：只挡「映射缺行/未映射」）]`
+- **模组适配是「需求驱动」而非「覆盖率驱动」（D-219，2026-09-14 用户采纳 `survey/07` §3.5）**：只为**当前存档真正用到**的东西适配 —— **不因"这模组有名／已在 `mods/`／表里该凑齐全量"就登记它** ⇒ 开销上限 = 用户实际玩到哪，"永远有下一个模组"不是待办队列。`[未门禁: 「不做某事」的政策没有可执行对象；复核触发: 出现一次为凑覆盖率而登记的模组/能力]`
+- **内核路线（D-036）：Alice = Baritone 兼容内核**。非 Alice 目标差异部分（搜索 / Movement / 执行器状态机 / 自愈 / 段超时 / 成本模型 / 跳跃门控）一律先对照 `/home/fb486/projects/reference/baritone/` 再实现，禁止自制替代内核和补丁堆叠；必须偏离时在 `docs/AI_DECISIONS.md` 登记（Baritone `文件:行` + Alice 特有约束）。`[gate: check-kernel-predicates.sh（部分：K4-P1 工厂谓词统一 + D-374 目的地整体通行 + D-366 移动契约一致）]`
 
 ## 客户端测试规则
 

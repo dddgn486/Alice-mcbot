@@ -1661,6 +1661,71 @@ def rule_approach_plans_bounded():
     return problems
 
 
+def rule_edge_destination_body_clearance():
+    """`D-374`（2026-09-21 真机实测 + 存档取证）：**边生成器的「目的地」闸门必须查整体通行**。
+
+    事故原文（真机第五轮，逐字见 `docs/reviews/2026-09-21-掉落物在洞里被瞬退.md`）：
+    `SurfaceMovementProvider.appendBreakAndEnter` 的入口闸门只查 `canWalkThrough(level, to)`
+    （**单格**谓词 —— 名字读起来像"人能走过去"，实际只查**一格**，而玩家占两格）就 `return`；
+    而 TRAVERSE 的准入 `canTraverse → canStandCentered` 要求**头位**也可通行
+    ⇒「脚位可通行 + 头位被挡」的目的地**两条边都不生成** ⇒ 一格高夹缝在**整张图里没有任何入边**。
+    代价：掉落物落在夹缝里 ⇒ 20 000 节点搜爆 ⇒ `SEARCH_LIMIT` ⇒ 零重试退役（`collected=0/2`）；
+    而真机上用户手挖的那**一格**（头位方块）正是缺失的边本该破的东西。
+
+    **为什么必须门禁**：这类缺口是**完成性**缺口（"执行器/物理允许 ⇒ 生成器必须给出这条边"），
+    而现有全部门禁只保证**健全性**（可规划 ⇒ 可执行：`MovementSpec.validateDisplacement` 硬抛、K-4）
+    ⇒ 它**永远不会自己变红**，只能靠真人踩到。该缺口自 `da56fc0`（2026-09-09）起存在，
+    期间同一函数还被复核并改过一次（只改了紧邻的那一行）。
+
+    断言（改任一处 ⇒ 红）：
+    ① `MovementHelper.bodyPassable` 存在，且真的是「脚位 + 头位」的合取；
+    ② `appendBreakAndEnter` / `appendFall` / `appendPillar` / `appendPlaceStepAndTraverse`
+       四个目的地闸门必须是整体通行（`bodyPassable(level, <目的地>)` 或「脚位 + 头位」合取）；
+    ③ 历史原文 `if (MovementHelper.canWalkThrough(level, to)) {` 不许复活（= 缺口形态本身）。
+    """
+    problems = []
+    provider = code_only((CORE / "search" / "SurfaceMovementProvider.java").read_text(encoding="utf-8"))
+    helper = code_only((ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing"
+                        / "MovementHelper.java").read_text(encoding="utf-8"))
+
+    named_predicate = method_body(
+        helper, "public static boolean bodyPassable(ServerLevel level, BlockPos foot) {")
+    if not named_predicate:
+        problems.append("`MovementHelper.bodyPassable` 不存在 ⇒ 目的地闸门没有可读的「整体通行」谓词"
+                        "（单格谓词会被误当成「人能走过去」，D-374 就是这么发生的）")
+    elif ("canWalkThrough(level, foot)" not in named_predicate
+          or "canWalkThrough(level, foot.above())" not in named_predicate):
+        problems.append("`bodyPassable` 不是「脚位 + 头位」的合取（口径漂了）")
+
+    gates = (
+        ("appendBreakAndEnter",
+         "private static void appendBreakAndEnter(MovementContext context, ServerLevel level, BlockPos from,", "to"),
+        ("appendFall",
+         "private static void appendFall(MovementContext context, ServerLevel level, BlockPos from,", "edge"),
+        ("appendPillar",
+         "private static void appendPillar(MovementContext context, ServerLevel level, BlockPos from,", "to"),
+        ("appendPlaceStepAndTraverse",
+         "private static void appendPlaceStepAndTraverse(MovementContext context, ServerLevel level,", "to"),
+    )
+    for name, signature, var in gates:
+        body = method_body(provider, signature)
+        if not body:
+            problems.append(f"找不到 `{name}`（结构变了 ⇒ 本规则要跟着改）")
+            continue
+        if f"bodyPassable(level, {var})" in body:
+            continue
+        if f"canWalkThrough(level, {var})" in body and f"canWalkThrough(level, {var}.above())" in body:
+            continue
+        problems.append(f"`{name}` 的目的地闸门**没有**查整体通行"
+                        f"（既无 `bodyPassable(level, {var})`，也无「脚位 + 头位」合取）"
+                        f"⇒ 会重演 D-374：脚位空、头位实的格子在整张图里没有入边")
+
+    if "if (MovementHelper.canWalkThrough(level, to)) {" in provider:
+        problems.append("历史原文 `if (MovementHelper.canWalkThrough(level, to)) {` 复活"
+                        "（= D-374 的缺口形态本身）⇒ 一格高夹缝会再次没有任何入边")
+    return problems
+
+
 def rule_value_is_only_a_cost_component():
     """`D-329` §2.2 成本模型（用户 2026-09-20 三条裁定）：
     **「矿物价值优先级」只能是成本函数里的一个可配置分量**，不是独立模型、不是硬优先。
@@ -1864,6 +1929,7 @@ def main() -> int:
     writecaps = rule_write_caps_default_open_protection_kept()
     ticksearch = rule_tick_search_account_enforced()
     approachbound = rule_approach_plans_bounded()
+    bodyclear = rule_edge_destination_body_clearance()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -1950,13 +2016,15 @@ def main() -> int:
         print(f"[A1·每tick搜索总账] {line}")
     for line in approachbound:
         print(f"[A2·模式B穷举有界] {line}")
+    for line in bodyclear:
+        print(f"[D-374·目的地整体通行] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not detour and not scan and not writecaps and not ticksearch and not approachbound)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / 模式B穷举有界={len(approachbound)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

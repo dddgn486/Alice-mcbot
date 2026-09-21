@@ -176,7 +176,7 @@ public final class SurfaceMovementProvider implements MovementProvider {
         // 由 `collectBlockers` 把头位收进待破列表（它本来就会收，见 `BreakAndEnterExecution:69-78`）。
         // 对照 Baritone：`MovementTraverse:57` 的 `positionsToBreak = {to.above(), to}`、
         // `:109-118` 给目的地 `y+1` 单独计价 —— 在 Baritone 里这本是**一次正常的 Traverse**。
-        if (MovementHelper.canWalkThrough(level, to) && MovementHelper.canWalkThrough(level, to.above())) {
+        if (MovementHelper.bodyPassable(level, to)) {
             return;
         }
         // 目的地最终必须可站（脚下支撑）。
@@ -221,8 +221,7 @@ public final class SurfaceMovementProvider implements MovementProvider {
     private static void appendFall(MovementContext context, ServerLevel level, BlockPos from,
                                    int dx, int dz, List<PlannedMovement> out) {
         BlockPos edge = from.offset(dx, 0, dz);
-        if (!MovementHelper.canWalkThrough(level, edge)
-                || !MovementHelper.canWalkThrough(level, edge.above())) {
+        if (!MovementHelper.bodyPassable(level, edge)) {
             return;   // 走不出边缘
         }
         for (int drop : FALL_DROPS) {
@@ -293,8 +292,7 @@ public final class SurfaceMovementProvider implements MovementProvider {
         if (!context.yInBounds(to.getY())) {
             return;
         }
-        if (!MovementHelper.canWalkThrough(level, to)
-                || !MovementHelper.canWalkThrough(level, to.above())
+        if (!MovementHelper.bodyPassable(level, to)
                 || !MovementHelper.canWalkThrough(level, from)) {
             return;
         }
@@ -422,8 +420,7 @@ public final class SurfaceMovementProvider implements MovementProvider {
         if (!context.yInBounds(to.getY())) {
             return;
         }
-        if (!MovementHelper.canWalkThrough(level, to)
-                || !MovementHelper.canWalkThrough(level, to.above())
+        if (!MovementHelper.bodyPassable(level, to)
                 || MovementHelper.canWalkOn(level, to)) {
             return;
         }
