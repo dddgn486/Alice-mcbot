@@ -55,6 +55,18 @@ public final class BreakAndTraverseExecutionFactory implements MovementExecution
         if (blockers.isEmpty()) {
             return ValidationResult.invalid("BREAK_AND_TRAVERSE_NOTHING_TO_BREAK");
         }
+        // ⭐ `D-379`（K-4 双向一致）：**中间列必须立得住** —— 与规划侧
+        // `SurfaceMovementProvider.appendBreakAndTraverse` **同一个谓词、同一个理由**：
+        // 执行器直着走过中间列（`driveTowardTarget`），中间列脚下没有支撑时
+        // 「破坏中间列之后走到 `to`」这个承诺是假的（真机 = 从中间列掉进水里）。
+        BlockPos mid = from.offset(Integer.signum(dx), 0, Integer.signum(dz));
+        if (!MovementHelper.canWalkOn(context.level(), mid)) {
+            return ValidationResult.invalid("BREAK_AND_TRAVERSE_NO_MID_SUPPORT@from="
+                    + from.toShortString() + ",mid=" + mid.toShortString() + ",to=" + to.toShortString()
+                    + ",mid.below=" + mid.below().toShortString()
+                    + ",mid.belowBlock=" + context.level().getBlockState(mid.below()).getBlock()
+                    .getName().getString());
+        }
         for (BlockPos blocker : blockers) {
             String refusal = BlockInteraction.breakRefusal(context.bot(), context.level(), blocker,
                     WriteGrant.of(context.requester(), WriteReason.PATH_ACCESS));

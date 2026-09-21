@@ -2301,6 +2301,101 @@ def rule_head_blocked_route_closure():
     return problems
 
 
+def rule_break_traverse_footing():
+    """`D-379`（2026-09-21 第八轮真机）：**「破坏通行」破掉的中间列是 bot 要踩过去的一格 —— 它必须立得住**。
+
+    真机原文（逐字见 `docs/reviews/2026-09-21-掉落物在洞里被瞬退.md` §13.3）：
+    ```
+    14:21:59.894 走到 632, 64, 95（踩在自己刚放的 632,63,95 上）
+    14:22:00.044 [WRITE] break 632, 64, 94   ← BREAK_AND_TRAVERSE from=632,64,95 → to=632,64,93 的「中间格」
+    14:22:00.947 维生监测 hazard=WATER_CONTACT pos=632, 62, 94   ← 掉进水里（掉了约 2 格）
+    ```
+    落点 `632,62,94` = **中间列正下方**、水面 ⇒ bot 是从**中间列**掉下去的（它穿过了 `y=63` ⇒
+    中间列在脚位层是个**没有地板的洞**）。而**规划侧与执行侧都不查中间列自己有没有地板**：
+    执行器是直着走过去的（`driveTowardTarget`，位移 2 格；`PlanRouteSafety` 也把 `mid`/`mid.above()`
+    算作「bot 身体会占据的格子」）⇒ 中间列立不住时，「破坏中间列之后走到 `to`」这个承诺是**假的**。
+
+    断言（改任一处 ⇒ 红）：
+    ① 规划侧 `appendBreakAndTraverse` 必须查中间列落脚（`if (!MovementHelper.canWalkOn(level, mid))`）；
+    ② 执行侧 `BreakAndTraverseExecutionFactory.validate` 必须查**同一个谓词**（K-4 双向一致），
+       拒绝码 `BREAK_AND_TRAVERSE_NO_MID_SUPPORT`（带几何，便于真机归因）；
+    ③ 归因计数必须**两侧都记**（`PathingStats.record(code)` + `recordTotal(code)`）
+       —— 只记 `COUNTS` 时夹具拿不到增量、"拒绝了但拒绝了多少"就无从取证；
+    ④ 夹具必须复用生产谓词（出现 `MovementHelper.canWalkOn(level, mid)`），且三用例的该谓词取值
+       恰好是三档（`which == Case.MID_FLOOR_SOLID ? midFooting : !midFooting`）；
+    ⑤ 夹具必须有「悬空 ⇒ **不许**生成该边」（`edge == null`）**和**反证「立在地板上 ⇒ **必须**生成」
+       （`edge != null`）—— 只有前者 = 永远绿；
+    ⑥ 夹具必须断言执行工厂的拒绝码前缀 `BREAK_AND_TRAVERSE_NO_MID_SUPPORT`；
+    ⑦ 夹具必须断言两个计数键的增量（`break_traverse_no_mid_support_fluid` / `…_dry`）；
+    ⑧ 步骤名 `break_traverse_footing` 必须注册进模块**并**登记进电池归属表。
+    """
+    problems = []
+    provider = ROOT / "src/main/java/com/dddgn/alice/pathing/core/search/SurfaceMovementProvider.java"
+    factory = ROOT / "src/main/java/com/dddgn/alice/pathing/core/BreakAndTraverseExecutionFactory.java"
+    fixture = ROOT / "src/main/java/com/dddgn/alice/task/BreakTraverseFootingCheckTask.java"
+    module = ROOT / "src/main/java/com/dddgn/alice/task/check/modules/PathingModule.java"
+    battery = ROOT / "src/main/java/com/dddgn/alice/task/RegressionBatteryTask.java"
+    step = "break_traverse_footing"
+
+    for path in (provider, factory, fixture, module, battery):
+        if not path.exists():
+            problems.append(f"缺文件：{path.relative_to(ROOT)}")
+    if problems:
+        return problems
+
+    provider_code = code_only(provider.read_text(encoding="utf-8"))
+    append_body = method_body(provider_code, "private static void appendBreakAndTraverse(")
+    if not append_body:
+        problems.append("找不到 `appendBreakAndTraverse`（结构变了 ⇒ 本规则要跟着改）")
+    else:
+        if "MovementHelper.canWalkOn(level, mid)" not in append_body:
+            problems.append("规划侧 `appendBreakAndTraverse` 没查**中间列落脚**"
+                            "（缺 `MovementHelper.canWalkOn(level, mid)`）⇒ 会重演 D-379："
+                            "破开中间列之后那格没有地板，bot 直接掉下去（真机 = 掉进水里淹死）")
+        for key in ("break_traverse_no_mid_support_fluid", "break_traverse_no_mid_support_dry"):
+            if key not in append_body:
+                problems.append(f"规划侧没有记归因计数 `{key}` ⇒ 「拒了多少 / 拒的是哪一类」无从取证")
+
+    factory_code = code_only(factory.read_text(encoding="utf-8"))
+    validate_body = method_body(factory_code, "public ValidationResult validate(")
+    if not validate_body:
+        problems.append("找不到 `BreakAndTraverseExecutionFactory.validate`（结构变了 ⇒ 本规则要跟着改）")
+    else:
+        if "MovementHelper.canWalkOn(context.level(), mid)" not in validate_body:
+            problems.append("执行侧没有查**同一个谓词**（K-4 双向一致）"
+                            "⇒ 会出现「可规划不可执行 / 可执行但计划是假的」")
+        if "BREAK_AND_TRAVERSE_NO_MID_SUPPORT" not in validate_body:
+            problems.append("执行侧拒绝码不是 `BREAK_AND_TRAVERSE_NO_MID_SUPPORT`（真机归因要靠它）")
+
+    code = code_only(re.sub(r"/\*.*?\*/", "", fixture.read_text(encoding="utf-8"), flags=re.S))
+    if "MovementHelper.canWalkOn(level, mid)" not in code:
+        problems.append("夹具没有复用生产谓词 `MovementHelper.canWalkOn(level, mid)`"
+                        "（自己另写近似判据 = 骗自己）")
+    expression_pins = (
+        ("夹具前提：三用例的被测谓词取值是三档",
+         "which == Case.MID_FLOOR_SOLID ? midFooting : !midFooting"),
+        ("夹具：悬空+水 ⇒ 不许生成该边", "edge == null"),
+        ("夹具：悬空+浅坑 ⇒ 同样不许生成该边", "edge == null"),
+        ("夹具反证：立在地板上 ⇒ 必须生成该边", "edge != null"),
+        ("夹具：归因计数（流体）", "fluidDelta == 1 && dryDelta == 0"),
+        ("夹具：归因计数（干的）", "dryDelta == 1 && fluidDelta == 0"),
+        ("夹具：执行工厂拒绝码前缀", "verdict.failureCode().startsWith(FACTORY_CODE)"),
+    )
+    for label, expression in expression_pins:
+        if expression not in code:
+            problems.append(f"{label} 的断言不见了（缺有效表达式 `{expression}`）⇒ 该判据会静默失效")
+    if not re.search(r'check\("⭐ ①[\s\S]{0,300}?edge == null\);', code):
+        problems.append("夹具缺「悬空+水 ⇒ 不许生成该边」的断言（`edge == null` 在 ① 分支内）")
+    if not re.search(r'check\("⭐ ③ 反证[\s\S]{0,300}?edge != null\);', code):
+        problems.append("夹具缺反证「立在地板上 ⇒ 必须生成该边」（`edge != null` 在 ③ 分支内）⇒ 只有前者的话永远绿")
+
+    if '"' + step + '"' not in code_only(module.read_text(encoding="utf-8")):
+        problems.append(f"步骤名 `{step}` 没注册进 `PathingModule`")
+    if 'Map.entry("' + step + '"' not in code_only(battery.read_text(encoding="utf-8")):
+        problems.append(f"步骤名 `{step}` 没登记进 `RegressionBatteryTask` 的归属表（`CURATION`）")
+    return problems
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
@@ -2357,6 +2452,7 @@ def main() -> int:
     sweepclearance = rule_height_change_sweep()
     hazardnotgated = rule_hazard_not_task_gated()
     routeclosure = rule_head_blocked_route_closure()
+    btfooting = rule_break_traverse_footing()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -2453,13 +2549,15 @@ def main() -> int:
         print(f"[D-375·收集目标可站] {line}")
     for line in routeclosure:
         print(f"[D-378·夹缝路线收口] {line}")
+    for line in btfooting:
+        print(f"[D-379·破通行要站得住] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

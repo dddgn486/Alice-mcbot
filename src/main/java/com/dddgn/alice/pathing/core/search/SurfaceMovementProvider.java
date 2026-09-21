@@ -384,6 +384,32 @@ public final class SurfaceMovementProvider implements MovementProvider {
         if (!MovementHelper.canStandCentered(level, to)) {
             return;
         }
+        // ⭐ `D-379`（2026-09-21 真机 14:22:00，逐字见 `docs/reviews/2026-09-21-掉落物在洞里被瞬退.md` §13.3）：
+        // **破开之后「中间列」是 bot 要踩过去的一格 —— 它必须立得住。**
+        // 执行器是**直着走过去**的（`BreakAndTraverseExecution.driveTowardTarget`，位移 2 格，
+        // `PlanRouteSafety` 也把 `mid`/`mid.above()` 算作"bot 身体会占据的格子"），而本移动的承诺
+        // 是"破坏中间列之后走到 `to`"；中间列脚下没有支撑（空洞 / 水 / 岩浆）时这个承诺是**假的**：
+        // 真机实测 `BREAK_AND_TRAVERSE from=632,64,95 → to=632,64,93` 破掉中间格 `632,64,94` 之后
+        // 0.9 秒，bot 在 `632,62,94`（= **中间列正下方**、水面）⇒ 它是**从中间列掉下去的**
+        // （落水 → 沉底 → 溺水，见 `D-377`）。
+        // ⚠️ 这是**契约**判据（"中间列立不住 ⇒「走到 to」不成立"），不是风险策略判据 ——
+        // 它连"中间列下面只有 1 格浅坑"也一并拒绝（那一类同样让"计划说的落脚点"与执行结果不一致）。
+        // 若将来要按 `D-366b` 的"先用起来"精神收窄成"只拒水/岩浆/深坑"，**先看这两个计数**：
+        // `break_traverse_no_mid_support_fluid`（落点是流体）vs `…_dry`（落点是干的）。
+        if (!MovementHelper.canWalkOn(level, mid)) {
+            // 归因用（**两侧都记**：`COUNTS` 进规划摘要、`TOTALS` 进 `bot_report`/夹具增量断言）：
+            // 中间列下方**落点**是流体（水/岩浆）还是干的（空洞/实地）
+            BlockPos landing = mid.below();
+            while (landing.getY() > level.getMinBuildHeight() && level.getBlockState(landing).isAir()) {
+                landing = landing.below();
+            }
+            String code = level.getFluidState(landing).isEmpty()
+                    ? "break_traverse_no_mid_support_dry"
+                    : "break_traverse_no_mid_support_fluid";
+            PathingStats.record(code);
+            PathingStats.recordTotal(code);
+            return;
+        }
         double breakTicks = 0.0D;
         for (BlockPos blocker : blockers) {
             if (context.bot() == null || !BlockInteraction.breakable(context.bot(), level, blocker,

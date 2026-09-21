@@ -16376,3 +16376,89 @@ cluster_start anchor=433, 87, 206 → retire reason=cluster_budget
 ① 若真机出现「直挖路在、但 A\* 仍绕远」⇒ 说明还有第三个成因，本判据要扩（加真机取证）；
 ② 若将来把 `BREAK_AND_ENTER` 的闸门换成另一种等价写法 ⇒ `[D-378·夹缝路线收口]` 的 9 条 pin 要同步改
 （门禁会先红，这是设计）；③ 若拿到冻结副本 ⇒ 把本夹具的「同形状」换成「同读数」。
+
+### D-379：**「破坏通行」破掉的中间列是 bot 要踩过去的一格 —— 它必须立得住**（2026-09-21 第八轮真机）
+
+#### 一、根因（代码级 + 真机几何互证）
+
+真机原文（逐字见 `docs/reviews/2026-09-21-掉落物在洞里被瞬退.md` §13.3）：
+
+```
+14:21:59.894 走到 632, 64, 95（踩在自己刚放的 632,63,95 上）
+14:22:00.044 [WRITE] break 632, 64, 94   ← BREAK_AND_TRAVERSE from=632,64,95 → to=632,64,93 的「中间格」
+14:22:00.947 维生监测 hazard=WATER_CONTACT pos=632, 62, 94   ← 掉进水里（掉了约 2 格）
+14:22:09→14:22:23 pos 632,61/60/59,94  air 298→18 → 14:22:24 LOW_AIR air=-2 ⇒ 掉血 20→10
+```
+
+- 落点 `632,62,94` 正是**中间列正下方**、水面，而 bot 原来脚位是 `y=64` ⇒ 它穿过了 `y=63` 才落到 `y=62`
+  ⇒ **中间列在脚位层是个没有地板的洞**（`(632,63,94)` 不是实心）⇒ **它是从中间列掉下去的**。
+- `BREAK_AND_TRAVERSE` 的语义 = 破坏**中间列**（`BreakAndTraverseExecution.collectBlockers` 收
+  `mid` / `mid.above()`）之后从 `from` **直着走过去**到 `to`（位移 2 格；执行器
+  `BreakAndTraverseExecution.driveTowardTarget`；`PlanRouteSafety` 也把 `mid`/`mid.above()` 算作
+  「bot 身体会占据的格子」）。
+- **缺口**：规划侧 `appendBreakAndTraverse` 只查「中间列有阻挡且可破坏」+「`to` 可站」；
+  执行侧 `BreakAndTraverseExecutionFactory.validate` 同样只查 `to` + 可破坏性
+  —— **两侧都不查中间列自己有没有地板** ⇒ 中间列立不住时，「破坏中间列之后走到 `to`」这个承诺是**假的**。
+
+#### 二、口径：**契约判据**（不是风险策略判据）
+
+判据 = **`MovementHelper.canWalkOn(level, mid)` 必须成立**（中间列**脚下有支撑**，且不是空洞/水/岩浆）。
+
+- 为什么**不**只拒「水/岩浆/深坑」：那需要给「多深算深坑」**新造一个阈值**（凭空阈值的教训：
+  `D-377` 第一版把阈值塞进共享分类表就直接炸了 CORE）。而「浅坑」这一类**同样**让「计划说的落脚点」
+  与执行结果不一致（bot 会先掉进洞，而计划的下一段仍以为它站在 `to`）⇒ 它属于**契约**问题，不是安全问题。
+- 为什么**不担心**误伤合法能力：「破墙过去」这一类，中间列方块**本来就立在地板上**（`mid.below` 是实地）
+  ⇒ 判据放行 ✓（夹具用例 ③ 就是这条反证；CORE 里该反证路径照常通过）。
+- ⚠️ 与 `D-366b`（用户 2026-09-20「先取消挖矿 Movement 禁用，能用之后再调整风险管理策略」）的张力：
+  本判据**删除**一类**写边**（会减少可规划路线）。为此把归因做成**两个计数**，
+  让「拒了多少 / 拒的是哪一类」可取证，收窄口径时**先看数据再动**：
+  `break_traverse_no_mid_support_fluid`（落点是流体）vs `break_traverse_no_mid_support_dry`（落点是干的）。
+
+#### 三、落地改动（4 处）
+
+1. **规划侧** `SurfaceMovementProvider.appendBreakAndTraverse`：在「中间列有阻挡」+「`to` 可站」之后，
+   加 `if (!MovementHelper.canWalkOn(level, mid)) { 记归因计数; return; }`
+   （落点分类：向下扫到第一个非空气格，是流体 ⇒ `…_fluid`，否则 ⇒ `…_dry`；两侧都记：
+   `PathingStats.record` 进规划摘要、`recordTotal` 进 `bot_report`/夹具增量断言）。
+2. **执行侧** `BreakAndTraverseExecutionFactory.validate`：**同一个谓词**、拒绝码
+   `BREAK_AND_TRAVERSE_NO_MID_SUPPORT@from=…,mid=…,to=…,mid.below=…,mid.belowBlock=…`（K-4 双向一致；
+   带几何 ⇒ 真机可归因）。
+3. **夹具 `BreakTraverseFootingCheckTask`**（电池步 `break_traverse_footing`，EXTRA，规划级）：3 用例
+   ——`MID_FLOOR_FLUID`（中间列悬空 + 落点是水 = **真机那一步的形状**）、`MID_FLOOR_SHALLOW`
+   （悬空 + 只有 1 格浅坑）、`MID_FLOOR_SOLID`（**反证**：立在地板上 ⇒ 必须生成且工厂必须接受）。
+4. **内核门禁** `tools/kernel-predicates.py` 新规则 `[D-379·破通行要站得住]`（8 条断言：两侧谓词 +
+   拒绝码 + 两个计数键 + 夹具三档前提 + 两条输出断言 + 步骤注册两处）。
+
+#### 四、判据与红→绿
+
+- 夹具 **`checks=30 failures=0 → PASS`**，读数：
+  - `MID_FLOOR_FLUID`：`edge=false canWalkOn(mid)=false factoryValid=false code=…NO_MID_SUPPORT@… mid.belowBlock=Air fluidDelta=1 dryDelta=0`；
+  - `MID_FLOOR_SHALLOW`：`edge=false dryDelta=1 fluidDelta=0`；
+  - `MID_FLOOR_SOLID`：`edge=true canWalkOn(mid)=true mid.below=Grass Block factoryValid=true`。
+- **红对照 A（撤规划侧闸门）** ⇒ `checks=30 failures=4`：①② 两用例都**生成了**那条边 + 两个计数都没记
+  （执行侧断言仍绿 ⇒ 归因干净）。
+- **红对照 B（撤执行侧闸门）** ⇒ `checks=30 failures=3`：①② 的 `factoryValid=true code=null`
+  （规划侧断言仍绿 ⇒ 归因干净）。
+- **门禁**：`[D-379·破通行要站得住]` 8 条 pin 全绿；注入式反向对照见提交说明（改任一处 ⇒ 红）。
+- **回归**：CORE **51/52（仅既有 `lumber_job`）**、`edge_completeness=PASS`（差集夹具未被影响）、
+  `check-all` 19/1/0。
+- ⭐ **不是死代码**（CORE 实测）：`break_traverse_no_mid_support_dry=9`，全部来自 `fluid_course`
+  这个 **`expect=PLAN_REFUSED` 的负例场景**（`[Regression] scene=fluid_course start=0,64,66 goal=4,64,66`）
+  —— 也就是说这条闸门**真的在拦「跨缺口破通行」这个形状**，而该场景的预期结论不变（仍 `UNREACHABLE`）。
+
+#### 五、诚实边界（未做 / 待客户端复核）
+
+- ⚠️ **口径是我方判断**：原 HANDOVER 里写的是「只拒水/岩浆/深坑」，落地时按**契约**扩到
+  「中间列必须立得住」（连浅坑也拒）。理由是「凭空阈值」的教训 + 浅坑同样破坏落脚点契约；
+  代价 = 少一类能力（`…_dry` 计数就是它的量尺）。**回收条件**见下。
+- ⚠️ **未做**：执行期「已经掉进洞就当场中止本段」的守卫（真机那次掉进去之后**继续**按计划走，
+  最后靠维生才发现）。这一条属于「执行期异常检测」，与 `D-377` 的水中自救是两件事。
+- ⚠️ **未做**：客户端物理复核（bot 走过"中间列地板缺 1 格"的位置时实际会不会掉、掉几格）
+  —— 本判据**不需要**那个答案（它按契约拒，不按物理拒），但若将来要收窄口径，**必须先问用户**。
+
+#### 六、回收条件
+
+① 若真机出现「破坏了中间列、但 bot 没掉下去」的合法场景（即浅坑其实走得过去）⇒ 按 `…_dry` 计数
+   与用户口径把它收窄成「只拒流体/深坑」；② 若出现「中间列立得住但仍掉下去」（例如中间列**头位**
+   被破后 bot 被卡）⇒ 补夹具再改；③ 若 `…_fluid` 在真机高发 ⇒ 说明还有别的上游原因（例如
+   站位选择把 bot 送到了"脚下没地"的位置），要往上游查而不是继续加闸门。

@@ -44,6 +44,13 @@ public final class PathingModule implements CheckModule {
                 // MAIN：便宜（无场景文件、无执行、4 次 1 格远的规划）且守的是**内核图完整性**不变式 ⇒ 进 CORE。
                 CheckStep.of("break_enter_head_blocked", CheckProfile.MAIN, List.of(), null,
                         () -> new BreakEnterHeadBlockedCheckTask(bot, ctx.observer()), 120),
+                // ⭐ `D-379`（2026-09-21 第八轮真机）：**「破坏通行」破掉的中间列是 bot 要踩过去的一格
+                // ⇒ 它必须立得住**（`canWalkOn(mid)`）。真机 = 破掉中间格后从中间列掉进水里 → 沉底 → 溺水。
+                // 规划级（边生成层 + 执行工厂准入，两侧同谓词），3 用例（悬空+水 / 悬空+浅坑 / 立在地板上）。
+                // EXTRA（自建并还原 3 格场景 + 1 次边生成）；便宜但不守"图完整性"级不变式 ⇒ 不进 CORE。
+                CheckStep.of("break_traverse_footing", CheckProfile.EXTRA, List.of(), null,
+                        () -> new com.dddgn.alice.task.BreakTraverseFootingCheckTask(bot, ctx.observer()),
+                        300),
                 // ⭐⭐ `G2`（2026-09-21，D-374 事故的结构性补救）：**边集完备性差集** ——
                 // 局部谓词（canTraverse/canAscend/canDescend/可破入）给出的「应有边」 vs
                 // `SurfaceMovementProvider.appendCandidates` 实际产出的边。零搜索、确定性、覆盖每格×每方向。

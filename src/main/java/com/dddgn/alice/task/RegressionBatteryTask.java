@@ -198,6 +198,11 @@ public final class RegressionBatteryTask implements Task {
             // 自建 5 格夹缝直挖路 vs 46 格绕远，同一请求跑三遍（生产 / 旧谓词边过滤 / 旧谓词+紧预算）。
             // EXTRA：自建并还原一个基岩盒（约 1 000 次 setBlock）。
             Map.entry("head_blocked_route_closure", Profile.EXTRA),
+            // ⭐ `D-379`（2026-09-21 第八轮真机）：**「破坏通行」破掉的中间列是 bot 要踩过去的一格
+            // ⇒ 它必须立得住**（两侧同谓词 `canWalkOn(mid)`）。真机 = 破掉中间格后从中间列掉进水里
+            // → 沉底 → 溺水（`docs/reviews/2026-09-21-掉落物在洞里被瞬退.md` §13.3）。
+            // EXTRA：自建并还原 3 格场景 + 1 次边生成（毫秒级），3 用例一次跑完。
+            Map.entry("break_traverse_footing", Profile.EXTRA),
             // ⭐ G2（2026-09-21）：边集完备性差集（局部谓词 vs 边生成器）—— 唯一能发现"未知缺口"的判据。
             // EXTRA：自建并还原一个 13×3×13 场景。
             Map.entry("edge_completeness", Profile.EXTRA),
