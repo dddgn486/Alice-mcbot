@@ -42,17 +42,21 @@ import java.util.Set;
  *
  * <h2>前提（红了说明夹具坏，不是缺陷证据）</h2>
  * ① 探针 bot 真的在水里且**眼睛在水里**（整只没入水中）；② 它**没有任务**（`hasTask=false`）；
- * ③（`B2` 生效）`SurvivalSystem.tick(probe).type() == LOW_AIR` —— 空气 ≤ {@link SurvivalSystem#DROWN_PRECURSOR_AIR}
- * 且眼在水里；④ 判决是 `FLOAT_UP`（1 格宽水井 ⇒ 规划不出"走出去"的路 ⇒ 几何落点即使存在也不可规划）。
+ * ③（分类事实）空气 > 0 且眼在水里时共享分类表仍给 `WATER_CONTACT`（`LOW_AIR` 只在空气耗尽时才出现）；
+ * ④ 判决是 `FLOAT_UP`（1 格宽水井 ⇒ 规划不出"走出去"的路 ⇒ 几何落点即使存在也不可规划）。
  *
- * <h2>判据（`B1`）</h2>
+ * <h2>判据（`B1` + `D-380` 口径）</h2>
  * 在 {@link #WATCH_TICKS} 内：**出现了一次任务**（`hasTask` 由 false 变 true = 无任务路径真的起了自救），
  * 且探针 bot 的头**露出过水面**并且空气回到 ≥ {@link SurvivalFloatTask#AIR_SAFE}（= 自救真的成功）。
+ * ⭐ 并且这次自救必须在**空气还很满**时就发生（`firstTaskAir > {@link SurvivalSystem#DROWN_PRECURSOR_AIR}`）
+ * —— 第九轮客户端实测老口径要等 air 从 300 掉到 100（约 10 秒）才动手，用户看到的是「没有浮出来」
+ * （`D-380` 把无任务档改成「眼在水里就浮」，本断言就是那条口径的**可红判据**）。
  * ⇒ 修复前（`task == null` 直接 return）这里必然红：空气只会一路掉到 0 然后开始掉血。
  *
  * <h2>诚实边界</h2>
- * 本夹具把空气**直接设成** {@link #AIR_START}（60）而不是慢慢等它掉 —— 那样只是把 200 tick 的等待换成
+ * 本夹具把空气**直接设成** {@link #AIR_START}（200）而不是慢慢等它掉 —— 那样只是把 200 tick 的等待换成
  * 一次 `setAirSupply`，**被测的那条生产路径完全相同**（分类 → 判决 → 无任务动作），并且前提③④逐条自证。
+ * 取 200（> 旧阈值）是为了让上面那条 `firstTaskAir > 旧阈值` 有判别力。
  * 另外它**不测**"自救成功后 bot 会缓慢再次下沉"（那是"维持浮力"的另一个议题，见 `D-377` 未做项），
  * 只看**第一次**自救是否发生并成功。
  */
@@ -73,8 +77,14 @@ public final class SurvivalIdleDrownCheckTask implements Task {
      */
     private static final int DEPTH = 3;
 
-    /** 空气初值：**必须** ≤ {@link SurvivalSystem#DROWN_PRECURSOR_AIR}（否则前提③不成立）。 */
-    private static final int AIR_START = 60;
+    /**
+     * 空气初值：**必须 > {@link SurvivalSystem#DROWN_PRECURSOR_AIR}**（`D-380` 之后这就是判据本身）。
+     *
+     * <p>为什么改成 200（原 60）：`D-380` 把无任务档的「`air ≤ 旧阈值`」改成了「眼在水里就浮」
+     * ⇒ 夹具必须让空气**还远高于旧阈值**，这样「首个任务出现在 air > 旧阈值」才是一条**有判别力**的断言
+     * （若阈值复活，自救会等到 100 才发生 ⇒ 这条当场红）。
+     */
+    private static final int AIR_START = 200;
 
     /** 观察窗口：上浮 4 格 + 空气回满在实测里 < 100 tick；给 300 tick 余量。 */
     private static final int WATCH_TICKS = 300;
@@ -101,6 +111,8 @@ public final class SurvivalIdleDrownCheckTask implements Task {
     private boolean sawTask;
     private boolean sawLowAir;
     private boolean sawLowAirWhileBreathing;
+    /** 头**第一次露出水面**时的空气（`D-380` 口径的可观测判据）。 */
+    private int firstEyeOutAir;
     private int firstTaskAir;
     private boolean sawEyeOut;
     private int maxAir;
@@ -160,23 +172,19 @@ public final class SurvivalIdleDrownCheckTask implements Task {
                 }
                 // 别让决策层（LLM）给探针派活 —— 那会让它**有任务**，本夹具测的东西就没了
                 com.dddgn.alice.decision.GoalDirector.suspend(probe, BUDGET_TICKS + 200);
-                settle = 0;
-                phase = 2;
-                return Task.Status.RUNNING;
-            }
-            case 2 -> {
-                if (settle++ < SETTLE_TICKS) {
-                    return Task.Status.RUNNING;
-                }
-                // ⚠️ 空气一设下去就**当场**读前提：此时宽限期（{@link SurvivalSystem#SOFT_HAZARD_GRACE_TICKS}）
-                // 还没过 ⇒ 维生必然还没动手 ⇒ `hasTask` 一定是 false（无竞态）。
-                // 判决那条用 `synthetic(...)` 跳过宽限期，否则就是在"宽限期内"断言"宽限后该有的判决"。
+                // ⭐ `D-380`（2026-09-21 第九轮客户端）：**前提必须"出生就测"**。
+                // 为什么（实测踩到）：新口径是「眼一进水就浮」⇒ 旧写法在这里再静置 20 tick 的话，
+                // 探针**自己就浮到水面了**（实测 `foot=-61`、`eyeInWater=false`、`eyeY=-59.35`）⇒
+                // 前提「眼在水里」「没有任务」「判决=FLOAT_UP」全部当场失效（判决还变成 `INTERRUPT`，
+                // 因为浮到水面后水面格成了"可站的安全点"）—— 那是**修复生效**的副作用，不是缺陷。
                 probe.setAirSupply(AIR_START);
                 runPremises(level);
                 settle = 0;
-                phase = 4;
+                phase = 4;            // 直接进观察期（不再有第二段静置）
                 return Task.Status.RUNNING;
             }
+            // ⚠️ `case 2`（第二段静置后读前提）已由 `D-380` **删除**：新口径下探针会在那 20 tick 里
+            // 自己浮到水面（见 `case 1` 的注释）⇒ 前提必须与"生成探针"同一 tick 读。
             case 4 -> {
                 watch++;
                 if (probe.isRemoved() || probe.getHealth() <= 0.0F) {
@@ -187,6 +195,10 @@ public final class SurvivalIdleDrownCheckTask implements Task {
                 }
                 int air = probe.getAirSupply();
                 maxAir = Math.max(maxAir, air);
+                if (watch == 1) {
+                    // 「眼睛真的在水里」在生成那一 tick 读不可靠（实体缓存）⇒ 挪到第一个观察 tick
+                    runSubmergedPremise();
+                }
                 HazardType seen = SurvivalSystem.tick(probe).type();
                 sawLowAir |= seen == HazardType.LOW_AIR;
                 // ⭐ 这一档的**作用域**：空气还没耗尽时，共享分类表**仍是** WATER_CONTACT（不改 classify）
@@ -194,6 +206,15 @@ public final class SurvivalIdleDrownCheckTask implements Task {
                 if (!sawTask && BotManager.hasTask(probe)) {
                     sawTask = true;
                     firstTaskAir = air;      // 自救是在"空气还够"时就开始，还是等到耗尽？
+                }
+                // ⭐ `D-380`：**口径的可观测判据** —— 头**第一次露出水面**时空气还剩多少。
+                // 为什么不用「首个任务出现时的空气」（`firstTaskAir`）：`D-380` 之后自救可能**在一两个
+                // tick 内完成**（水井只有 3 格深、空气本来就 > `AIR_SAFE`）⇒ `hasTask` 那一瞬会被采样漏掉
+                // （实测：红态 `firstTaskAir=100`、绿态 `sawTask=false` 但头已出水）。
+                // 而「眼出水那一刻的空气」是**一个 tick 的事件**，采样一定看得见，且判别力相同：
+                // 阈值活着时它必然 ≈ 旧阈值（等 10 秒才浮），阈值删掉后它必然 ≈ `AIR_START`。
+                if (firstEyeOutAir == 0 && !probe.isEyeInFluid(FluidTags.WATER)) {
+                    firstEyeOutAir = air;
                 }
                 boolean eyeOut = !probe.isEyeInFluid(FluidTags.WATER);
                 sawEyeOut |= eyeOut;
@@ -244,10 +265,18 @@ public final class SurvivalIdleDrownCheckTask implements Task {
 
     // ==================== 前提与判据 ====================
 
+    /**
+     * **生成那一 tick**能可靠读到的前提（位置 / 无任务 / 判决）。
+     *
+     * <p>⚠️ **流体的物理读数不在这里读**：`isInWater` / `isEyeInFluid` 来自实体的**缓存**，
+     * 刚 `spawn` 的那一 tick 还是旧的（实测：位置已是 `y=-63`、`getEyeY()=-61.38` 都对，
+     * 但 `isInWater=false`）⇒ 那是 `fixture-hygiene` R4 的同一个坑（"传送那一 tick 的读数是旧的"）。
+     * 它改在**第一个观察 tick** 读（见 {@link #runSubmergedPremise()}）。
+     */
     private void runPremises(ServerLevel level) {
-        boolean submerged = probe.isInWater() && probe.isEyeInFluid(FluidTags.WATER);
-        check("前提：探针 bot 真的在水里且**眼睛在水里**（inWater=" + probe.isInWater()
-                + " eyeInWater=" + probe.isEyeInFluid(FluidTags.WATER) + "）", submerged);
+        check("前提：探针 bot 被生成在**水井底部**（foot=" + probe.blockPosition().toShortString()
+                        + "，应为 " + ORIGIN.below(DEPTH).toShortString() + "）—— 位置是 spawn 当场就可靠的读数",
+                probe.blockPosition().equals(ORIGIN.below(DEPTH)));
         check("前提：探针 bot **没有任务**（`BotManager.hasTask`=false）—— 这正是被测的那条路径",
                 !BotManager.hasTask(probe));
 
@@ -272,12 +301,23 @@ public final class SurvivalIdleDrownCheckTask implements Task {
         BotLog.info("[IdleDrown] 几何自证 列={} probeY={} onGround={} blockPos={}",
                 col, String.format("%.2f", probe.getY()), probe.onGround(),
                 probe.blockPosition().toShortString());
-        findings.add("premise:submerged=" + submerged + " hasTask=" + BotManager.hasTask(probe)
+        findings.add("premise:hasTask=" + BotManager.hasTask(probe)
                 + " verdict(afterGrace)=" + verdict + " air=" + probe.getAirSupply()
                 + " eyeY=" + String.format("%.2f", eyeY) + " foot=" + probe.blockPosition().toShortString());
-        BotLog.info("[IdleDrown] 前提成立（当场）：verdict={} air={} hasTask=false submerged=true foot={} eyeY={}",
+        BotLog.info("[IdleDrown] 前提成立（生成当场）：verdict={} air={} hasTask=false foot={} eyeY={}",
                 verdict, probe.getAirSupply(), probe.blockPosition().toShortString(),
                 String.format("%.2f", eyeY));
+    }
+
+    /**
+     * **第一个观察 tick**读「眼睛真的在水里」——`isInWater`/`isEyeInFluid` 是实体缓存，spawn 那一 tick
+     * 还不会更新（见 {@link #runPremises} 的注释）。这一刻救援最多才走了一两 tick（实测头要 ~15 tick
+     * 才出水面）⇒ 读数仍然有效。
+     */
+    private void runSubmergedPremise() {
+        boolean submerged = probe.isInWater() && probe.isEyeInFluid(FluidTags.WATER);
+        check("前提：探针 bot 真的在水里且**眼睛在水里**（inWater=" + probe.isInWater()
+                + " eyeInWater=" + probe.isEyeInFluid(FluidTags.WATER) + "）", submerged);
     }
 
     /** 合成一条危险状态（**只换类型与已持续 tick**，其余取 bot 当前真实值）。 */
@@ -287,19 +327,24 @@ public final class SurvivalIdleDrownCheckTask implements Task {
     }
 
     private void runJudgement(boolean recovered) {
-        check("⭐ 沉底档（**作用域**）：air ∈ (0, " + SurvivalSystem.DROWN_PRECURSOR_AIR
+        check("⭐ 沉底档（**作用域**）：air ∈ (0, " + AIR_START
                         + "] 且眼在水里时，**共享分类表仍是 WATER_CONTACT**（实际在呼吸中被判 LOW_AIR 的次数="
                         + (sawLowAirWhileBreathing ? ">0" : "0") + "）—— 这一档只对**无任务**生效、不改 "
                         + "`classify`（第一版改 classify 直接把电池步 `survival_exit` 判成真溺水 ⇒ 整轮 no_verdict）",
                 !sawLowAirWhileBreathing);
-        check("⭐ 沉底档：自救必须在**空气还够的时候**就开始（首个任务出现在 air=" + firstTaskAir
-                        + "，必须 > 0；若等到 0 才动，就是「白等 15 秒」的老症状）",
-                sawTask && firstTaskAir > 0);
-        check("⭐ `B1`：**无任务**的 bot 也必须被维生接管 —— 观察窗口内必须出现一次任务"
-                        + "（`hasTask` 由 false 变 true = 无任务路径真的起了自救；实际 sawTask=" + sawTask + "）",
-                sawTask);
-        check("⭐ `B1`：头必须**露出过水面**（sawEyeOut=" + sawEyeOut + "，最高空气 " + maxAir + "）",
-                sawEyeOut);
+        // ⭐ `D-380`（2026-09-21 第九轮客户端）：判据从「空气还剩一点就动」升级成
+        // 「**空气还很满就得动**」—— 客户端实测的老口径要等 air 从 300 掉到 100（约 10 秒）才动手，
+        // 用户看到的是「没有浮出来」。
+        // ⚠️ 读数取「**头第一次露出水面时的空气**」而不是「首个任务出现时的空气」：`D-380` 之后自救可能
+        // **在一两个 tick 内完成**（井只有 3 格深、空气本来就 > `AIR_SAFE`）⇒ `hasTask` 那一瞬会被逐 tick
+        // 采样漏掉（实测绿态 `sawTask=false` 而头已出水）。「眼出水那一刻」是单 tick 事件，采样必然看见，
+        // 判别力相同：阈值活着 ⇒ 它 ≈ 旧阈值（等 10 秒才浮）；阈值删掉 ⇒ 它 ≈ `AIR_START`。
+        check("⭐ `D-380` 口径：头**第一次露出水面**时空气必须**还很满**（firstEyeOutAir=" + firstEyeOutAir
+                        + "，必须 > 旧阈值 " + SurvivalSystem.DROWN_PRECURSOR_AIR
+                        + "；阈值一旦复活，这个数必然 ≈ " + SurvivalSystem.DROWN_PRECURSOR_AIR + " ⇒ 红）",
+                firstEyeOutAir > SurvivalSystem.DROWN_PRECURSOR_AIR);
+        check("⭐ `B1`（**行为证据**）：**无任务**的 bot 也必须被维生接管 —— 头必须真的**露出过水面**"
+                        + "（sawEyeOut=" + sawEyeOut + "；修复前它只会一路沉到 air=0 再掉血）", sawEyeOut);
         check("⭐ `B1`：空气必须回到 ≥ AIR_SAFE=" + SurvivalFloatTask.AIR_SAFE + "（实际最高 " + maxAir
                         + "）—— 修复前只会一路掉到 0 然后开始掉血",
                 maxAir >= SurvivalFloatTask.AIR_SAFE);

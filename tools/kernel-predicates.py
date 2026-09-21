@@ -2021,10 +2021,13 @@ def rule_hazard_not_task_gated():
        （三档里至少这两条动作路径在）；
     ③ 无任务处理**恒为**纯通行口径（`decide(bot, hazard, false)`）—— 无任务就没有写信封，
        不许动用逃生准备金（`D-241`）；
-    ④ `SurvivalSystem` 必须有**溺水前置**常量与分类分支（阈值 + `isEyeInFluid` 同段），
-       且判据拼写为 `airSupply() <= DROWN_PRECURSOR_AIR`；
+    ④ 无任务档的「水下自救」判据必须是**状态**（`isEyeInFluid(FluidTags.WATER)`）而**不是余量**
+       —— 不许出现 `getAirSupply() <= …` 这类阈值（`D-380`：第九轮客户端实测老阈值要等约 10 秒才动手，
+       用户看到的是「没有浮出来」）；同时 `DROWN_PRECURSOR_AIR` **必须仍不在**共享分类表 `classify` 里，
+       且**也不许**回到无任务档（它现在只是夹具的判别基准）；
     ⑤ 夹具必须存在且它断言的是**有效表达式**：`hasTask`（无任务前提）+ `FLOAT_UP`（前提判决）
-       + `SurvivalFloatTask.AIR_SAFE`（自救成功判据）；同时必须有 `BotManager.hasTask` 这个只读读数
+       + `SurvivalFloatTask.AIR_SAFE`（自救成功判据）+ `firstTaskAir > SurvivalSystem.DROWN_PRECURSOR_AIR`
+       （**空气还很满就得动** = `D-380` 口径的可红判据）；同时必须有 `BotManager.hasTask` 这个只读读数
        （否则"无任务"只能靠陈旧 `taskKind` 猜）。
     """
     problems = []
@@ -2068,25 +2071,34 @@ def rule_hazard_not_task_gated():
 
     sv = code_only(survival.read_text(encoding="utf-8"))
     if "public static final int DROWN_PRECURSOR_AIR" not in sv:
-        problems.append("缺 `DROWN_PRECURSOR_AIR` 常量（溺水前置阈值）")
+        problems.append("缺 `DROWN_PRECURSOR_AIR` 常量（`D-380` 之后它是夹具的判别基准：自救必须发生在"
+                        "air 仍 > 它的时候）")
     if re.search(r"DROWN_PRECURSOR_AIR[\s\S]{0,120}?return HazardType\.LOW_AIR", sv):
         problems.append("`DROWN_PRECURSOR_AIR` 被写进了**共享分类表** `classify` —— 第一版就是这么写的，"
                         "结果电池步 `survival_exit`（那相位故意 air=5 + 眼在水里）被判成真溺水 ⇒ "
                         "`FLOAT_UP` 分支 `complete(..., SURVIVAL_INTERRUPTED)` **中断了整轮电池**（no_verdict）。"
                         "这一档必须只对**无任务**生效")
-    if not re.search(r"isEyeInFluid\(net\.minecraft\.tags\.FluidTags\.WATER\)[\s\S]{0,200}?DROWN_PRECURSOR_AIR",
-                     handler):
-        problems.append("无任务处理里没有「沉底提前自救」那一档（眼在水里 + `air ≤ DROWN_PRECURSOR_AIR`）"
-                        "⇒ 空闲 bot 沉底仍要白等到空气耗尽")
+    # ⭐ `D-380`：无任务档的判据是**状态**（眼在水里）而不是**余量**（air 还剩多少）。
+    # 反向断言：那一档里不许再出现阈值判据（`D-380` 客户端实测：老阈值要等约 10 秒 ⇒ 用户看到「没浮出来」）。
+    if "isEyeInFluid(net.minecraft.tags.FluidTags.WATER)" not in handler:
+        problems.append("无任务处理里没有「人在水下 ⇒ 上浮」那一档（`isEyeInFluid(FluidTags.WATER)`）"
+                        "⇒ 空闲 bot 在水里仍要白等")
+    submerged_branch = handler[handler.find("isEyeInFluid(net.minecraft.tags.FluidTags.WATER)"):]
+    submerged_branch = submerged_branch[:submerged_branch.find("}")] if "}" in submerged_branch else submerged_branch
+    if "getAirSupply()" in submerged_branch or "DROWN_PRECURSOR_AIR" in submerged_branch:
+        problems.append("无任务档的「水下自救」又挂上了**空气余量阈值**（`getAirSupply()` / "
+                        "`DROWN_PRECURSOR_AIR`）—— `D-380` 已经删掉它：对没有任务的 bot 不存在"
+                        "「正常潜水」，判据必须是**状态**（眼在水里），否则会再出现「等 10 秒才浮」"
+                        "（第九轮客户端实测就是这样）")
 
     fx = code_only(fixture.read_text(encoding="utf-8"))
     for token, why in (
             ("BotManager.hasTask(probe)", "夹具没断言「探针 bot 无任务」这个前提"),
             ("SurvivalSystem.Verdict.FLOAT_UP", "夹具没断言前提判决是 FLOAT_UP"),
             ("SurvivalFloatTask.AIR_SAFE", "夹具没断言「自救成功」（空气回到 AIR_SAFE）"),
-            ("sawTask && firstTaskAir > 0", "夹具没断言「自救在空气还够时就开始了」"
-                                             "（钉有效表达式 `sawTask && firstTaskAir > 0`；"
-                                             "只钉标识符会被别处的引用顶包 —— 实测漏过）"),
+            ("firstEyeOutAir > SurvivalSystem.DROWN_PRECURSOR_AIR",
+             "夹具没断言「头第一次露出水面时空气还很满」（`D-380` 口径；钉有效表达式 "
+             "`firstEyeOutAir > SurvivalSystem.DROWN_PRECURSOR_AIR` —— 阈值一旦复活，这个数必然 ≈ 旧阈值）"),
             ("isEyeInFluid(FluidTags.WATER)", "夹具没断言「眼睛在水里」（沉底的事实前提）")):
         if token not in fx:
             problems.append(f"{why}（缺 `{token}`）")

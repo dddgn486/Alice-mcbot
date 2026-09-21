@@ -2333,19 +2333,24 @@ public final class BotManager {
             if (hazard == null || hazard.type() == com.dddgn.alice.survival.HazardType.NONE || task != null) {
                 return;
             }
-            // ⭐ `D-377` 第二档：**沉底**（眼在水里、空气过半）—— 即便分类还是 `WATER_CONTACT`
-            // （它不是软危险 ⇒ `decide` 会恒 `IGNORE`），没有任务的 bot 也要先浮上去呼吸。
+            // ⭐ `D-377` 第二档（口径由 `D-380` 修订）：**没有任务 + 眼睛在水里 ⇒ 立刻上浮**
+            // —— 即便分类还是 `WATER_CONTACT`（它不是软危险 ⇒ `decide` 会恒 `IGNORE`）。
+            // ⚠️ `D-380`（2026-09-21 第九轮客户端）**删掉了原来那条 `air ≤ DROWN_PRECURSOR_AIR` 阈值**：
+            // 客户端实测（19:53:43–19:53:49）把无任务的 bot 放进水里，它坐在水底、`verdict=IGNORE`
+            // （设计如此），而阈值档要等 air 从 300 掉到 100 ⇒ **约 10 秒**才动手；那次测试在 `air=182`
+            // （约 6 秒）就结束了 ⇒ 用户看到的是「没有浮出来」。**对没有任务的 bot 根本不存在"正常潜水"
+            // 这回事**（没人让它待在水下）⇒ 判据应当是**状态**（眼在水里），不是**余量**（air 剩多少）
+            // —— 状态判据没有魔数，也不会有"等多久"的口径分歧。
             // ⚠️ 这一档**只对无任务生效**（第一版写进 `classify` ⇒ 把电池步 `survival_exit` 里
             // "故意 air=5 + 眼在水里"的相位判成真溺水 ⇒ 中断了整轮电池；见 `DROWN_PRECURSOR_AIR` 注释）。
             if (hazard.type() != com.dddgn.alice.survival.HazardType.LOW_AIR
-                    && bot.isEyeInFluid(net.minecraft.tags.FluidTags.WATER)
-                    && bot.getAirSupply() <= SurvivalSystem.DROWN_PRECURSOR_AIR) {
+                    && bot.isEyeInFluid(net.minecraft.tags.FluidTags.WATER)) {
                 String submergedAt = SurvivalSystem.footCell(bot).toShortString();
-                BotLog.warn("[Survival] **无任务**时沉底（眼在水里，air={} ≤ {}）⇒ 先上浮自救"
+                BotLog.warn("[Survival] **无任务**时人在水下（眼在水里，air={}）⇒ 立刻上浮自救"
                                 + "（分类仍是 {}，所以这条只对无任务生效）pos={}",
-                        bot.getAirSupply(), SurvivalSystem.DROWN_PRECURSOR_AIR, hazard.type(), submergedAt);
+                        bot.getAirSupply(), hazard.type(), submergedAt);
                 com.dddgn.alice.decision.DecisionEvents.emit(bot, "DANGER", "warn",
-                        "无任务时沉底 ⇒ 上浮自救",
+                        "无任务时在水下 ⇒ 上浮自救",
                         "hazard=" + hazard.type() + " air=" + bot.getAirSupply()
                                 + " decision=float_up pos=" + submergedAt);
                 beginTask(new com.dddgn.alice.task.SurvivalFloatTask(bot),

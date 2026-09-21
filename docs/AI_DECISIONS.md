@@ -16462,3 +16462,77 @@ cluster_start anchor=433, 87, 206 → retire reason=cluster_budget
    与用户口径把它收窄成「只拒流体/深坑」；② 若出现「中间列立得住但仍掉下去」（例如中间列**头位**
    被破后 bot 被卡）⇒ 补夹具再改；③ 若 `…_fluid` 在真机高发 ⇒ 说明还有别的上游原因（例如
    站位选择把 bot 送到了"脚下没地"的位置），要往上游查而不是继续加闸门。
+
+### D-380：**无任务的水下 bot「一进水就浮」** —— 删掉 `D-377` 那条空气余量阈值（2026-09-21 第九轮客户端）
+
+#### 一、客户端实测（第九轮，逐字 `logs/latest.log`）
+
+```
+19:53:42.944 [Bot] teleported from=404, 66, 115 to=402, 66, 107     ← 用户把 bot 传送进水里
+19:53:43.482 维生监测: hazard=WATER_CONTACT duration=1 air=300 pos=402, 62, 107
+19:53:44.434 [SurvProbe] enter type=WATER_CONTACT duration=20 taskNull=true eyeInWater=true air=283 pos=402, 60, 107
+19:53:44.435 [SurvProbe] verdict=IGNORE …
+   …（每 20 tick 一条，全部 verdict=IGNORE，air 283→182）
+19:53:49.622 Saving and pausing game…                              ← 测试结束（air=182，约 6 秒）
+```
+
+**结论（事实，不是推测）**：
+
+- ✅ `taskNull=true` + `verdict` 行**存在** ⇒ `D-377` 的 `B1`（无任务路径真的调 `decide`）**生效** ✓
+  （修复前那一轮是「`enter` 有、`verdict` 没有」）。
+- ✅ `verdict=IGNORE` 是**设计如此**：`WATER_CONTACT` 不是软危险（`softHazard` 只含 `LOW_AIR`/`ON_FIRE`/`FREEZING`）。
+- ⚠️ **用户看到「没有浮出来」的直接原因是我自己设的阈值**：`D-377` 的沉底档判据是
+  「眼在水里 **且** `air ≤ DROWN_PRECURSOR_AIR = 100`」⇒ 空气从 300 掉到 100 要 **约 10 秒**
+  （1/tick）⇒ 那一档**在 air=182（约 6 秒）时还没到触发点**，测试就结束了。
+  ⇒ 也就是说：**不是没实现，是"等太久"**。
+- ⚠️ **口径本身错了**：阈值当初的理由是「短时潜水/涉水是正常动作」。但**没有任务**的 bot
+  **根本不存在"正常潜水"这回事**（没人让它待在水下）⇒ 判据应当是**状态**（眼在水里），
+  不是**余量**（air 还剩多少）。状态判据**没有魔数**，也不会再有"等多久"的口径分歧。
+
+#### 二、改动（1 处生产代码 + 夹具/门禁跟着改）
+
+1. **`BotManager.tickHazardWithoutTask`**：删掉 `&& bot.getAirSupply() <= SurvivalSystem.DROWN_PRECURSOR_AIR`
+   ⇒ 判据变成 **`hazard != LOW_AIR && bot.isEyeInFluid(FluidTags.WATER)`**（无任务 + 人在水下 ⇒ 立刻上浮）。
+   日志与决策事件同步改成「**无任务**时人在水下（眼在水里，air=…）⇒ **立刻**上浮自救」。
+2. **`SurvivalSystem.DROWN_PRECURSOR_AIR` 保留但**不再驱动生产路径**（文档改写）：它现在是
+   **夹具的判别基准**（断言「头第一次出水面时 air 仍 > 本值」）⇒ 阈值一旦复活就红。
+3. **夹具 `SurvivalIdleDrownCheckTask`**（3 处，都因为"自救变快了"）：
+   - `AIR_START` 60 → **200**（必须 > 旧阈值，`firstEyeOutAir > 旧阈值` 才有判别力）；
+   - **删掉第二段静置（`case 2`）**：新口径下探针在那 20 tick 里**自己就浮到水面了**
+     （实测 `foot=-61`、`eyeInWater=false`、判决还变成 `INTERRUPT` —— 那是**修复生效**的副作用，
+     不是缺陷）⇒ 前提必须与 `spawn` **同一 tick** 读；
+   - 前提拆成两半：`spawn` 当场读「生成在水井底部 / 没有任务 / 判决=FLOAT_UP」，
+     **第一个观察 tick** 才读「眼睛真的在水里」（`isInWater`/`isEyeInFluid` 是实体**缓存**，
+     spawn 那一 tick 还是旧的 —— `fixture-hygiene` R4 的同一个坑）；
+   - 口径判据从「首个任务出现时的 air」改成「**头第一次露出水面时的 air**」
+     （`firstEyeOutAir > DROWN_PRECURSOR_AIR`）：新口径下自救可能**1~2 tick 内完成**，
+     `hasTask` 那一瞬会被逐 tick 采样漏掉（实测绿态 `sawTask=false` 而头已出水）。
+4. **门禁 `[D-377·危险处理不挂任务]`**：新增**反向断言**「无任务档里不许再出现 `getAirSupply()` /
+   `DROWN_PRECURSOR_AIR`」（阈值复活 ⇒ 静态红），夹具那条 pin 换成
+   `firstEyeOutAir > SurvivalSystem.DROWN_PRECURSOR_AIR`。
+
+#### 三、判据与红→绿
+
+- 夹具 **`checks=9 failures=0 观察=15 tick → PASS`**，读数：
+  `verdict(afterGrace)=FLOAT_UP air=200 foot=3000,-63,4200` → `sawTask=true firstTaskAir=198`
+  → `sawEyeOut=true maxAir=199`（**头在 15 tick 内就出水面**；旧口径要 ~200 tick）。
+- **红对照（阈值复活）** ⇒ 夹具 FAIL，且**恰好**红在口径那条：
+  `首个任务出现在 air=100，必须 > 旧阈值 100`（同时门禁静态红）。
+  ⇒ 这条判据**能红、也在正确的地方红**。
+- 回归：CORE **51/52（仅既有 `lumber_job`）**、`survival_exit=PASS`、`check-all` 19/1/0。
+
+#### 四、诚实边界（它没证明什么）
+
+- ⚠️ **仍不知道"浮上来之后会不会再沉下去"**：`SurvivalFloatTask` 的成功判据是「头出水 + `air ≥ AIR_SAFE`」
+  ⇒ 成功后**不再按住跳跃** ⇒ 按物理它还会慢慢下沉（`D-377` 已登记的"浮一下沉一下"）。
+  本轮客户端**没有观察到**这一点（测试在浮起来之前就结束了）⇒ 下一轮要**等 15 秒以上**并观察：
+  ① 是否浮起来（`[Survival] **无任务**时人在水下…⇒ 立刻上浮自救`）；② 浮起来后**是否停在水面**。
+- ⚠️ **没做**：「维持浮力 / 游到岸边」仍是单独一件事（若下一轮看到"浮一下沉一下"就提上来做）。
+- ⚠️ **有任务**的水下作业行为**完全不变**（这一档只对无任务生效 —— 那是 `D-377` 第一版炸掉 CORE 之后
+  定下的作用域，本轮**没有**放宽）。
+
+#### 五、回收条件
+
+① 若下一轮客户端看到「浮一下沉一下」被判定不可接受 ⇒ 做"维持浮力"那件事（`SurvivalFloatTask` 语义或
+空闲水中常驻漂浮）；② 若出现「无任务 bot 只是短暂涉水（眼睛短暂入水）却被起了一个上浮任务，导致抖动」
+⇒ 那时再讨论一个**状态**判据（例如"眼在水里连续 N tick"），但**不许**回到"空气余量"这种口径。
