@@ -100,6 +100,8 @@ public final class MineReachProbeTask implements Task {
     private int index;
     private int reach1x;
     private int reach100x;
+    /** 真的扩展过（`nodes > 1`）的搜索次数 —— 读数有效性判据用（0 ⇒ 一次真实搜索都没发生）。 */
+    private int realSearches;
     private BlockPos firstSuccess100x;
     /** 硬前提失败的理由（`check-fixture-hygiene` R1：探针必须能**响亮失败**，不能只会 DONE）。 */
     private String failureReason = "";
@@ -171,6 +173,10 @@ public final class MineReachProbeTask implements Task {
                 ROUND4_START_FOOT, foot, "mining-planner").withBudget(budget);
         PathPlan plan = new CorePathPlanner().plan(bot, bot.serverLevel(), request);
         boolean reached = plan.reached();
+        // ⭐ 2026-09-21：**"这次搜索真的发生了吗"必须自己数**（见 `summary()` 的读数有效性判据）
+        if (plan.nodesExpanded() > 1) {
+            realSearches++;
+        }
         if (reached) {
             if ("1x".equals(label)) {
                 reach1x++;
@@ -217,6 +223,15 @@ public final class MineReachProbeTask implements Task {
 
         int tried1x = candidates.size();
         int tried100x = Math.min(candidates.size(), PASS2_MAX_CANDIDATES);
+        // ⭐⭐ **读数有效性**（2026-09-21 P3 实测踩到，`silent-measurement-failure` 类）：
+        // 本探针跑在**真机存档副本**上，而真机存档会被后续测试**覆盖存盘** ⇒ 起点可能已经踩空
+        // （实测 `432,83,428 = air`）⇒ 每次搜索都 `nodes=1 / open set exhausted`，
+        // **一次真实搜索都没发生**，而旧版仍报 `reproduced=true` —— 这比没有读数更危险。
+        // 判据两条，任一不成立 ⇒ **响亮失败**（不许把"没测到"说成"测到了"）：
+        //   ① 起点可站（几何前提）；② 至少一次搜索真的扩展过（`nodes > 1`）。
+        boolean startStandable = com.dddgn.alice.pathing.MovementHelper
+                .canStandCentered(bot.serverLevel(), ROUND4_START_FOOT);
+        boolean measurementValid = startStandable && realSearches > 0;
         // ① 复现性对照：1× 那遍**必须**复现真机的"全部失败"，否则现场不对、实验不作数
         boolean reproduced = candidates.size() >= 10 && reach1x == 0;
         // ② 判据结论：100× 下到不到得了
@@ -236,6 +251,7 @@ public final class MineReachProbeTask implements Task {
                 + " · 1x(20k/200ms) reachable=" + reach1x + "/" + tried1x
                 + " · 100x(2M/30s) reachable=" + reach100x + "/" + tried100x
                 + " · reproduced=" + reproduced
+                + " · start_standable=" + startStandable + " realSearches=" + realSearches
                 + " ⇒ " + verdict;
         BotLog.info("{}", line);
         if (observer != null && !observer.hasDisconnected() && !observer.isRemoved()) {
@@ -247,6 +263,15 @@ public final class MineReachProbeTask implements Task {
         // ⭐ 但它**必须对"实验本身是否成立"响亮失败**（`check-fixture-hygiene` R1：只可能返回 DONE 的方法
         // = "内部失败被吞成静默绿"）。判据 = **1× 对照没有复现真机现场** ⇒ 这次 100× 的读数**不能用来下结论**
         // （现场不对的读数比没有读数更危险：它看起来像结论）。
+        if (!measurementValid) {
+            phase = Phase.DONE;
+            failureReason = "读数无效：start_standable=" + startStandable + " realSearches=" + realSearches
+                    + "/" + (tried1x + tried100x)
+                    + "（起点踩空或一次都没扩展 ⇒ **一次真实搜索都没发生**；"
+                    + "真机存档可能已被后续测试覆盖存盘）⇒ 本次结论不作数";
+            BotLog.warn("[ReachProbe] FAILED {}", failureReason);
+            return Status.FAILED;
+        }
         if (!reproduced) {
             phase = Phase.DONE;
             failureReason = "实验前提不成立（1x 对照未复现真机：reachable=" + reach1x + "/" + tried1x
