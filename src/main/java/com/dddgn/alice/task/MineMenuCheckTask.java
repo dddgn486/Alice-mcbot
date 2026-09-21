@@ -6,6 +6,12 @@ import com.dddgn.alice.decision.GoalAction;
 import com.dddgn.alice.job.JobLauncher;
 import com.dddgn.alice.job.JobRequest;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.pathing.core.search.CorePathPlanner;
+import com.dddgn.alice.pathing.core.search.PathPlan;
+import com.dddgn.alice.pathing.core.search.PathRequest;
+import com.dddgn.alice.pathing.core.search.PlanningStatus;
+import com.dddgn.alice.pathing.core.search.SearchTickBudget;
+import com.dddgn.alice.task.mining.MiningPlanner;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -200,6 +206,8 @@ public class MineMenuCheckTask implements Task {
         runSupportTriggerChecks();
         // ⭐⭐ `D-365` **目标在视线内就地挖**（用户 2026-09-20 要求）
         runMineInPlaceChecks();
+        // ⭐⭐ **A1/A2（2026-09-21）每 tick 搜索总账 + 模式 B 有界穷举** —— 放最后（临时改场景，用完复位）
+        runSearchBudgetChecks();
 
         boolean pass = failures.isEmpty();
         BotLog.info("[MineMenu] SUMMARY checks={} failures={} mineEntries={} {} → {}",
@@ -1266,6 +1274,141 @@ public class MineMenuCheckTask implements Task {
                 truncated.done(),
                 truncated.sets().get(0).rejected().stream().filter(x -> x.contains("not_found")).count(),
                 oreClusters.size(), oreMembers);
+    }
+
+    /**
+     * ⭐⭐ **A1/A2（2026-09-21）：每 tick 搜索总账 + 模式 B 有界穷举** —— 真机"57.6 秒掉刻（0.4 TPS）"的两条止血判据。
+     *
+     * <p>为什么必须是**电池步**而不是"实现完看一眼"（真机第四轮日志复算，`docs/reviews/2026-09-21-客户端第四轮-深矿搜索卡顿.md`）：
+     * `MiningPlanner.planTunnel` 对 13 个站位候选各跑一次全预算 A\*（`WALK_BUDGET` = 20 000 节点 / 200 ms）
+     * ⇒ **单个 tick 花掉 ≈2.4 s**；`[Job] step` 间隔被实测为 **2.4 s（= 一个 tick）** ⇒ **0.4 TPS 持续 57.6 s**、
+     * `[Search] 超 tick 预算` **376 条**（最大一波 336 条）、决策层在这段时间里**无法接管**。
+     * ⇒ "每个消费者都以为自己在一个预算内、但预算不在同一个账上"这件事只有断言能防复发。
+     *
+     * <p>⚠️ **本组刻意用字面量 `3` 断言 A2**（不是 `MiningPlanner.MAX_APPROACH_PLANS`）：
+     * 用常量断言等于"把常数改大就自动变绿"，而这条判据的意义正是"**一次规划不许发起很多次全预算搜索**"。
+     * 要改上限的人**必须**同时改这一行 —— 那正是我们想要的摩擦（同 `D-366`/`D-368` 的"钉住有效表达式"纪律）。
+     */
+    private void runSearchBudgetChecks() {
+        final net.minecraft.server.level.ServerLevel level = bot.serverLevel();
+        final var server = level.getServer();
+
+        // ---- 第 1 段：账本级（纯确定性：全部用"已累计"驱动，与任何搜索的快慢无关）----
+        try {
+            SearchTickBudget.setLimits(60_000L, 1, 99);
+            SearchTickBudget.resetForFixture();
+            SearchTickBudget.handleTick(9000L);
+            check("A1①：本 tick 的**第一个**搜索必须放行（判据是「已累计」⇒ 累计为 0 必然放行；"
+                            + "否则预算会把整条路径能力锁死）",
+                    SearchTickBudget.tryAcquire());
+            // ⭐ 这条是**主判据的负向对照**：廉价搜索不许吃掉"烧预算"的额度。
+            // 电池实测逼出来的区分：旧写法（总毫秒 ≤150ms）在 `mine_menu` 一个 tick 里
+            // 被"20 次廉价搜索累计 161ms"误伤 ⇒ `就地挖：远处先得到真计划` 变红，而那不是病灶。
+            SearchTickBudget.recordMillis(5L);
+            check("A1②：**廉价**搜索（5ms）不许消耗「烧预算的搜索」额度（实测 已发起="
+                            + SearchTickBudget.tickSearches() + " · 烧预算="
+                            + SearchTickBudget.tickExpensiveSearches() + "）",
+                    SearchTickBudget.tryAcquire());
+            SearchTickBudget.recordMillis(200L);
+            check("A1③：一次**烧掉自己预算**的搜索（200ms ≥ " + SearchTickBudget.EXPENSIVE_SEARCH_MILLIS
+                            + "ms）之后必须拒新的（实测 烧预算=" + SearchTickBudget.tickExpensiveSearches()
+                            + " ≥ 上限 " + SearchTickBudget.DEFAULT_MAX_EXPENSIVE_SEARCHES_PER_TICK
+                            + "；真机第四轮 13 次 × 185ms = 2.4s/tick 就是这么来的）",
+                    !SearchTickBudget.tryAcquire());
+            SearchTickBudget.handleTick(9001L);
+            check("A1④：换 tick 必须清零（否则闸门会永久关闭 —— 把「掉刻」变成「永远搜不了」）",
+                    SearchTickBudget.tryAcquire());
+            SearchTickBudget.handleTick(9002L);
+            SearchTickBudget.setLimits(150L, 99, 99);
+            SearchTickBudget.recordMillis(150L);
+            check("A1⑤：总毫秒**兜底**轴必须生效（实测 累计=" + SearchTickBudget.tickMillis()
+                            + "ms ≥ 上限 " + SearchTickBudget.limitMillis() + "ms）",
+                    !SearchTickBudget.tryAcquire());
+            SearchTickBudget.handleTick(9003L);
+            SearchTickBudget.setLimits(60_000L, 99, 4);
+            int granted = 0;
+            for (int i = 0; i < 5; i++) {
+                if (SearchTickBudget.tryAcquire()) {
+                    granted++;
+                }
+            }
+            check("A1⑥：次数**兜底**轴必须生效（放行 " + granted + " 次 == 上限 4）", granted == 4);
+        } finally {
+            SearchTickBudget.restoreDefaults();
+            SearchTickBudget.resetForFixture();
+        }
+
+        // ---- 第 2 段：端到端（走**真实的** `CorePathPlanner.plan`，钉住"有效的那个调用点"）----
+        try {
+            // 用**次数轴 = 1** 让第二次必然被拒（与搜索快慢无关 ⇒ 不 flaky、不吃环境速度）
+            SearchTickBudget.setLimits(60_000L, 99, 1);
+            SearchTickBudget.resetForFixture();
+            BlockPos foot = com.dddgn.alice.pathing.MovementHelper.footCell(level, bot).immutable();
+            // ⚠️ requester 必须用**已登记**的前缀：`WritePolicyMatrix.taskOf` 对未登记 requester 记一次
+            // `unregistered_requester`，而 `write_policy` 步的 `no_unregistered_requester` 判据会因此变红
+            // （本轮实测：第一版用 `fixture:search-tick` ⇒ **CORE 的 write_policy 步 FAIL** ⇒ 改用已登记的
+            // `walk-to`（TRAVERSAL）；本请求是 `PathRequest.of` 纯通行，语义也正好对上）。
+            PathRequest req = PathRequest.of(bot.getUUID().toString(), foot, foot, "walk-to");
+            CorePathPlanner planner = new CorePathPlanner();
+            PathPlan first = planner.plan(bot, level, req);
+            PathPlan second = planner.plan(bot, level, req);
+            check("A1⑦：同一 tick 的**第一个**规划不许被本闸门拒（实测 diagnostics="
+                            + first.diagnostics() + "）",
+                    !tickBudgetRefused(first));
+            check("A1⑧：同一 tick 的**第二个**规划必须被本闸门拒（实测 status=" + second.status()
+                            + " diagnostics=" + second.diagnostics() + "）",
+                    tickBudgetRefused(second));
+            check("A1⑨：被拒**不许**伪装成「到不了」（`D-076`：`SEARCH_LIMIT` ≠ `UNREACHABLE`）",
+                    second.status() != PlanningStatus.UNREACHABLE);
+        } finally {
+            SearchTickBudget.restoreDefaults();
+            SearchTickBudget.resetForFixture();
+        }
+
+        // ---- 第 3 段：A2 有界穷举（**实测量**：一次模式 B 规划到底发起了几次全预算搜索）----
+        try {
+            // 场景：矿石被实心石体**完全包住**、bot 站在石体顶上
+            //   ⇒ 模式 A 必然 `no_valid_standing_point`（与真机第四轮的 `direct=no_valid_standing_point` **同形**）
+            //   ⇒ 走模式 B，`tunnelCandidates` 给出 4 面 × {y, y−1} + 正下方 那组几何候选
+            final BlockPos ore = new BlockPos(62, 68, 132);
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dy = -2; dy <= 2; dy++) {
+                    for (int dz = -2; dz <= 2; dz++) {
+                        level.setBlockAndUpdate(ore.offset(dx, dy, dz),
+                                net.minecraft.world.level.block.Blocks.STONE.defaultBlockState());
+                    }
+                }
+            }
+            level.setBlockAndUpdate(ore,
+                    net.minecraft.world.level.block.Blocks.COAL_ORE.defaultBlockState());
+            bot.teleportTo(level, ore.getX() + 0.5D, ore.getY() + 3, ore.getZ() + 0.5D,
+                    java.util.Set.of(), bot.getYRot(), bot.getXRot());
+            // ⚠️ A1 的闸门要**让开**：本段量的是"A2 发起了几次"，不是"允不允许发起"
+            SearchTickBudget.setLimits(60_000L, 1_000, 1_000);
+            SearchTickBudget.resetForFixture();
+            MiningPlanner.Result a2 = new MiningPlanner().plan(bot, ore);
+            int issued = SearchTickBudget.tickSearches();
+            BotLog.info("[MineMenu] A2 判别性事实：target={} mode={} failure={} issuedSearches={}",
+                    ore.toShortString(), a2.plan() == null ? "-" : a2.plan().mode(),
+                    a2.failureReason(), issued);
+            check("A2①：一次模式 B 规划最多发起 **3** 次全预算搜索（实测 issued=" + issued
+                            + "；真机 13 次 ≈ 2.4 s/tick ≈ 0.4 TPS。⚠️ 这里的 3 是**字面量**，"
+                            + "改 `MAX_APPROACH_PLANS` 必须同时改这条判据）",
+                    issued == 3);
+        } finally {
+            SearchTickBudget.restoreDefaults();
+            SearchTickBudget.resetForFixture();
+            server.getCommands().performPrefixedCommand(
+                    server.createCommandSourceStack().withSuppressedOutput(),
+                    "function alice_test:ore_course_terrain");
+        }
+    }
+
+    /** `A1` 拒绝对外可辨的唯一凭据：`SEARCH_LIMIT` **且**带 `tick_search_budget_exhausted` 诊断。 */
+    private static boolean tickBudgetRefused(PathPlan plan) {
+        return plan.status() == PlanningStatus.SEARCH_LIMIT
+                && plan.diagnostics() != null
+                && plan.diagnostics().contains("tick_search_budget_exhausted");
     }
 
     /** 用**同一份**菜单断言拒绝（菜单构建含 11 个矿石目标的全扫，重复构建会在一个 tick 里白烧掉百万次读）。 */

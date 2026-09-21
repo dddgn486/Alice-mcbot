@@ -9,6 +9,7 @@ import com.dddgn.alice.job.policy.NearestPolicy;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.task.MineCourseDiagnosticTask;
 import com.dddgn.alice.task.MineMenuCheckTask;
+import com.dddgn.alice.task.MineReachProbeTask;
 import com.dddgn.alice.task.MineRegressionTask;
 import com.dddgn.alice.task.MineRunMetricsCheckTask;
 import com.dddgn.alice.task.NoProgressCheckTask;
@@ -194,7 +195,15 @@ public final class MiningModule implements CheckModule {
                 // 断言：每次到达都自报 1 次、每次世界改动恰好 2、反向对照那两次增量都是 0
                 // ⇒ **到达率 3/4 是"量出来的"而不是恒等式**。EXTRA（自建地形 + 4 次运行）⇒ 不进 CORE。
                 CheckStep.of("mine_run_metrics", CheckProfile.EXTRA, List.of(), null,
-                        () -> new MineRunMetricsCheckTask(bot, observer, scope), 4800));
+                        () -> new MineRunMetricsCheckTask(bot, observer, scope), 4800),
+                // ⭐ **B（2026-09-21）：深矿可达性判据探针** —— 回答 `survey/24 §2.4` 第 3 问 /
+                // `survey/25 §2.3` 第 1 问「给 100× 预算，这个深矿到底能不能到？」。
+                // 真机第四轮只留下 `SEARCH_LIMIT`（= 预算耗尽、**可达性未知**）⇒ 证据同时兼容
+                // 「预算不够」与「根本没有路/表示不了」两种解释，而这两种解释指向**完全不同的修法**。
+                // ⚠️ **必须跑在真机那次的存档上**（`saves/新的世界 (2)`）；EXTRA（不进 CORE）⇒
+                // 只由 `single:mine_reach_probe` 显式跑。本探针**不设通过/失败**（记事实，判读由人做）。
+                CheckStep.of("mine_reach_probe", CheckProfile.EXTRA, List.of(), null,
+                        () -> new MineReachProbeTask(bot, observer), 400));
     }
 
     /** 传送到统一起点（与电池 `teleportBot` 逐字段一致 ✓；顺带起"先热区块再 fill"的作用 ✓）。 */

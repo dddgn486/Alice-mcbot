@@ -15927,3 +15927,59 @@ Baritone **把搜索放在独立线程**：`baritone/behavior/PathingBehavior.ja
 #### 五、验证
 `write_policy` / `write_budget` / `mine_budget` / `mine_regression` / `mine_job` / `mine_menu` 六步全 PASS（单步）·
 **CORE 见提交说明** · 门禁 `pass=18 failed=0`。
+
+---
+
+### D-373：**每 tick 搜索总账（A1）+ 模式 B 有界穷举（A2）** 2026-09-21
+
+用户裁定（本轮）：**「A1+A2 止血 + B 离线判据实验，并行开工」**（三条挖矿路线的推进顺序另定为
+`③ 鱼骨 → ① 跟随 → ② 探洞`，但排在轨 A/B 之后）。
+
+#### 一、病灶（真机第四轮日志复算，`docs/reviews/2026-09-21-客户端第四轮-深矿搜索卡顿.md`）
+不是"单次搜索慢"（`D-369` 已框 200 ms），而是**"一个 tick 里连发 13 次全预算搜索"**：
+`MiningPlanner.planTunnel → selectBestApproach` 对 13 个站位候选**逐一**跑全预算 A\*
+（`candidates=13 planned=13`）⇒ 单 tick ≈ **2.4 s**；`[Job] step` 间隔被实测为 **2.4 s**（= 一个 tick）
+⇒ **≈0.4 TPS，持续 57.6 s**；期间 `[Search] 超 tick 预算` **376 条**（最大一波 336 条跨 57.6 s）、
+`tick 1588` 之后 60 s **一条 PROGRESS 都没有**、决策层**无法接管**。定性同 `survey/24 §1.1`：
+**共享资源的记账缺失** —— 与项目自己解决过的 `WriteBudget` **同一类问题**。
+
+#### 二、A1：`SearchTickBudget`（每 tick 搜索总账）
+- 形状照 `WriteBudget`：一个**共享账本** + **超限即拒**的硬闸门 + 口径进日志（不静默丢弃归因）。
+- 唯一强制点 = `CorePathPlanner.plan`（所有规划入口都经过它）；**唯一搜索出口** = `searchAndRecord(...)`
+  ⇒ 漏记一处，闸门就会在"实际已超预算"时放行（`kernel-predicates` 断言 `search.search(...)` 只许出现 1 次）。
+- 超限 = **诚实的 `SEARCH_LIMIT` + `tick_search_budget_exhausted` 诊断**（`D-076`：`SEARCH_LIMIT ≠ UNREACHABLE`；
+  这条诊断正是 `survey/24 §2.4` 要的"预算不够 vs 根本没有路"的第一块砖）。
+- ⭐ **三条轴，主判据是"烧预算的搜索次数"（默认 1）而不是总毫秒** —— 这是**电池实测逼出来的区分**：
+  第一版用"总毫秒 ≤150 ms"⇒ `mine_menu` 步**一条既有判据变红**（夹具一个 tick 里连做 **20 次极廉价搜索、累计 161 ms**）。
+  那 20 次**不是病灶**：病灶是"每次都搜不动"（真机 185–200 ms/次），而找到路的搜索普遍 0–2 ms。
+  兜底两轴：总毫秒 ≤400 ms（防"很多次廉价"与 `UNLIMITED`）、次数 ≤32。
+- 选择期成本场（`StandingCostEstimator`）**只记毫秒、不吃主判据额度**（真机 `estimate=DIJKSTRA … ms=69`
+  与路径搜索争同一个 tick；拦它会把目标选择搞死，让它吃掉搜索额度则是换一种卡法）。
+
+#### 三、A2：`MAX_APPROACH_PLANS = 3`（模式 B 有界穷举）
+- 上限检查必须**在 `planPath(` 调用之前**且是 `break`（`kernel-predicates` 断言**两条都查**）。
+- ⚠️ **代价与回收条件（不许当成"已经没问题了"）**：截断会丢掉"第 4~13 个候选里恰好有一个可行"。
+  **本轮 B 实验给出了这条代价的实测证据**：13 个候选里**按几何距离最近的前 2 个连 2M 节点都不可达**，
+  第 3 个才可达 ⇒ **"由近到远"没有预测力**，cap=3 这次是**运气**。
+  回收条件 = 出现一次「前 3 个候选全失败、但更多候选能成功」的实测反例；届时正确做法是
+  **把穷举摊到多个 tick**，而不是把上限调大。
+
+#### 四、B 实验（判据，已跑）：`docs/reviews/2026-09-21-B-深矿可达性判据实验.md`
+**结论：解释甲成立（"预算不够"，不是"没有路"）** —— 给 100× 预算确实能到（`REACHED`）。
+⚠️ **但不是"调大预算就能用"**：要 **1.9M 节点（95× 预算）** 才找到一条 **88 段** 路径、单次 **14.9 s**；
+另两个候选**连 2M 都打满仍未到**。⇒ **必须降低"找下行入口"的搜索难度**（结构/成本模型），不是加预算；
+`survey/24 §2.3`（octile 启发式对"目标在下方"几乎不提供方向信息）与 `survey/25` 的 ③鱼骨（取消搜索）由此获得实测支持。
+⚠️ **一个未解机制已登记**：88 段路径 vs "直挖 4 下 + 横 5"的理论 ≈10 段 ⇒ A\* 返回的不是最便宜的路
+⇒ 那条直挖路所需的边在该次搜索里**没有被生成或未被采用**。已排除 `yInBounds`（全建筑高度）与
+`plannedWritesAllowed`（无作用域 ⇒ true）。**下一步只做一件事：把返回路径的动作类型直方图 + 总成本打出来**
+（探针加一行统计即可，一次 73 s 的 `single:mine_reach_probe` 就能拿到），**先量后猜**。
+
+#### 五、判据（门禁 + 电池）
+- 新规则 `rule_tick_search_account_enforced`（A1）与 `rule_approach_plans_bounded`（A2）：
+  **2 注入全红**（A1 拆闸门 ⇒ `A1⑧` 红；A2 删上限 ⇒ `A2①` 红且 `issued=13` = 真机同数），恢复后全绿。
+- 夹具 `MineMenuCheckTask.runSearchBudgetChecks()`：账本级 6 条（含"廉价搜索不许吃烧预算额度"的**负向对照**）
+  + 端到端 3 条（走真实 `CorePathPlanner.plan`）+ A2 实测量 1 条（**用字面量 3 断言**，
+  改 `MAX_APPROACH_PLANS` 必须同时改判据 —— 用常量断言等于"改大常量就自动变绿"）。
+- ⚠️ 夹具 requester 必须用**已登记**前缀：第一版用 `fixture:search-tick` ⇒
+  `write_policy` 步的 `no_unregistered_requester` **当场把 CORE 判红**（改用 `walk-to`）。
+- `CORE`：**119 PASS**，仅剩**已知的** `lumber_job`（与本次改动无关，用户裁定先不管）。

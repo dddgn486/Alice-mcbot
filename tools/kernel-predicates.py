@@ -1551,6 +1551,116 @@ def rule_write_caps_default_open_protection_kept():
     return problems
 
 
+def rule_tick_search_account_enforced():
+    """**A1（2026-09-21）：每 tick 搜索总账必须真的在拦**（真机"57.6 秒掉刻 / 0.4 TPS"的止血判据）。
+
+    真机第四轮复算（`docs/reviews/2026-09-21-客户端第四轮-深矿搜索卡顿.md` + 日志原文计数）：
+    `[Search] 超 tick 预算` **376 条**、最大一波 **336 条跨 57.6 s**；`[Job] step` 间隔 **2.4 s**
+    （= 一个 tick ⇒ ≈0.4 TPS）；根因不是"单次搜索慢"（`D-369` 已框 200 ms），而是
+    **"一个 tick 里连发 13 次全预算搜索"**（`MiningPlanner` 模式 B 对 13 个站位候选逐一精算）。
+    定性同 `survey/24 §1.1`：**共享资源的记账缺失** —— 与项目自己解决过的 `WriteBudget` 同一类问题。
+
+    断言（改任一处 ⇒ 红）：
+    ① 规划入口（`CorePathPlanner.plan`）必须过 tick 边界 + 过闸门（**钉有效调用**，不是钉类名）；
+    ② 拒绝必须是 `SEARCH_LIMIT` + `tick_search_budget_exhausted` 诊断（`D-076`：不许伪装成不可达）；
+    ③ **没有搜索能绕过记账**：`search.search(context, forbiddenEdges)` 在 `CorePathPlanner` 里
+       只许出现 **1 次**（那个唯一出口 = `searchAndRecord`）—— 漏记一处，闸门就会在"实际已超预算"时放行；
+    ④ 主判据必须是**"烧预算的搜索次数"**而不是纯总毫秒（电池实测：夹具一个 tick 里 20 次**廉价**搜索
+       累计 161 ms 被旧写法误伤 ⇒ `就地挖：远处先得到真计划` 判据变红；廉价搜索不是病灶）；
+    ⑤ `recordExternal`（选择期成本场）**只许记毫秒、不许吃主判据的额度**（否则成本场会把挖矿规划挤掉）。
+    """
+    problems = []
+    planner = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing" / "core"
+               / "search" / "CorePathPlanner.java").read_text(encoding="utf-8")
+    account_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing" / "core"
+                    / "search" / "SearchTickBudget.java")
+    if not account_path.exists():
+        return ["`SearchTickBudget`（每 tick 搜索总账）不存在 ⇒ 掉刻的根因（预算不在同一个账上）没有落点"]
+    account = account_path.read_text(encoding="utf-8")
+    planner_code = code_only(planner)
+    if "SearchTickBudget.handleTick(level.getGameTime())" not in planner_code:
+        problems.append("`CorePathPlanner.plan` 没有过 tick 边界（`SearchTickBudget.handleTick(level.getGameTime())`）"
+                        "⇒ 账会跨 tick 累加 / 或永远不会清零")
+    gate = "if (!SearchTickBudget.tryAcquire())"
+    if gate not in planner_code:
+        problems.append("`CorePathPlanner.plan` 没有 A1 闸门（`if (!SearchTickBudget.tryAcquire())`）"
+                        "⇒ 每 tick 搜索总账形同虚设，真机 2.4 s/tick 会原样回来")
+    else:
+        # ⚠️ 钉**闸门之后那段**：拒绝必须是 SEARCH_LIMIT（不是 UNREACHABLE）+ 带唯一诊断字段
+        tail = planner_code[planner_code.find(gate):][:600]
+        if "PlanningStatus.SEARCH_LIMIT" not in tail or "tick_search_budget_exhausted" not in tail:
+            problems.append("A1 闸门的拒绝没有如实交出 `SEARCH_LIMIT` + `tick_search_budget_exhausted` 诊断"
+                            "⇒ 「预算不够」与「根本没有路」事后分不开（`D-076` + `survey/24 §2.4`）")
+    # ③ 唯一出口：漏记一处 = 闸门在"实际已超预算"时放行
+    call_sites = planner_code.count("search.search(context, forbiddenEdges)")
+    if call_sites != 1:
+        problems.append("`CorePathPlanner` 里有 %d 处 `search.search(context, forbiddenEdges)`（应为 1）"
+                        "⇒ 有搜索绕过了 `searchAndRecord` 的记账（漏记的那次会让闸门误放行）" % call_sites)
+    # ④ 主判据 = 烧预算的次数（钉**强制表达式**，不是标识符）
+    if "expensiveSearches >= limitExpensive" not in code_only(account):
+        problems.append("A1 主判据不是「烧预算的搜索次数」（缺 `expensiveSearches >= limitExpensive`）"
+                        "⇒ 退回纯总毫秒会误伤「一个 tick 里一串廉价搜索」的正常链条（电池实测已咬到一次）")
+    if "if (elapsedMillis >= EXPENSIVE_SEARCH_MILLIS)" not in code_only(account):
+        problems.append("没有按 `EXPENSIVE_SEARCH_MILLIS` 判定「这次搜索烧掉了预算」⇒ 主判据没有计量来源")
+    external = code_only(method_body(account, "public static void recordExternal("))
+    if "expensiveSearches++" in external:
+        problems.append("`recordExternal`（选择期成本场）在吃主判据的额度 ⇒ 成本场会把挖矿规划挤掉"
+                        "（真机实测成本场单次 `ms=69`，与路径搜索争同一个 tick）")
+    fixture = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
+               / "MineMenuCheckTask.java").read_text(encoding="utf-8")
+    if "runSearchBudgetChecks();" not in code_only(fixture):
+        problems.append("A1/A2 夹具没有被调用（夹具在但不跑 = 等于没有）")
+    else:
+        body = code_only(method_body(fixture, "private void runSearchBudgetChecks()"))
+        if "!SearchTickBudget.tryAcquire()" not in body:
+            problems.append("A1 夹具没有断言「超限必须拒新搜索」这件事本身")
+        if "tickExpensiveSearches()" not in body or "recordMillis(5L)" not in body:
+            problems.append("A1 夹具缺少**负向对照**（廉价搜索不许消耗「烧预算」额度）"
+                            "⇒ 判据退化成「只要拒绝就算对」，压不住误伤正常链条的回归")
+    return problems
+
+
+def rule_approach_plans_bounded():
+    """**A2（2026-09-21）：模式 B 的站位候选穷举必须有界**（真机 2.4 s/tick 的直接来源）。
+
+    事实：`MiningPlanner.selectBestApproach` 原来对 `tunnelCandidates` **全部**候选各跑一次
+    `PathRequest.miningApproach` 全预算 A\\*（`WALK_BUDGET` = 20 000 节点 / 200 ms）。
+    真机实测 `candidates=13 planned=13` ⇒ 一次规划 **≈2.4 s**（且发生在 tick 线程上）。
+
+    断言（改任一处 ⇒ 红）：
+    ① 上限常量存在；② **上限检查必须出现在 `planPath(` 调用之前**（写在调用之后 = 一点都没省）；
+    ③ 截断必须是 `break`（`continue` 只跳过本次，等于没截断）；④ 夹具按**实测量**断言
+       （一次模式 B 规划发起的搜索次数），且用**字面量 3** 钉住 —— 用常量断言等于"改大常量就自动变绿"。
+    """
+    problems = []
+    planner = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task" / "mining"
+               / "MiningPlanner.java").read_text(encoding="utf-8")
+    if "MAX_APPROACH_PLANS" not in planner:
+        problems.append("`MiningPlanner` 没有模式 B 的穷举上限常量（`MAX_APPROACH_PLANS`）")
+    body = code_only(method_body(planner, "private Result selectBestApproach("))
+    cap = body.find("planned >= MAX_APPROACH_PLANS")
+    call = body.find("planPath(bot, startFoot, foot,")
+    if cap < 0:
+        problems.append("`selectBestApproach` 没有上限检查（`planned >= MAX_APPROACH_PLANS`）"
+                        "⇒ 13 个候选各跑一次全预算搜索 = 2.4 s/tick 的根因原样回来")
+    elif call < 0:
+        problems.append("找不到 `selectBestApproach` 里的 `planPath(` 调用 ⇒ 判据无法定位（代码形状变了？）")
+    elif cap > call:
+        problems.append("上限检查出现在 `planPath(` **之后** ⇒ 搜索已经跑过了，一点都没省")
+    elif "break;" not in body[cap:cap + 200]:
+        problems.append("上限处不是 `break`（`continue` 只跳过本次 ⇒ 等于没有上限）")
+    fixture = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
+               / "MineMenuCheckTask.java").read_text(encoding="utf-8")
+    fbody = code_only(method_body(fixture, "private void runSearchBudgetChecks()"))
+    if "issued == 3" not in fbody:
+        problems.append("A2 夹具没有用**字面量 3** 断言「一次模式 B 规划最多发起 3 次全预算搜索」"
+                        "⇒ 把 `MAX_APPROACH_PLANS` 改大就会自动变绿（判据太弱）")
+    if "SearchTickBudget.tickSearches()" not in fbody:
+        problems.append("A2 夹具没有按**实测量**（`SearchTickBudget.tickSearches()`）断言搜索次数"
+                        "⇒ 它量的会是常量而不是真实行为")
+    return problems
+
+
 def rule_value_is_only_a_cost_component():
     """`D-329` §2.2 成本模型（用户 2026-09-20 三条裁定）：
     **「矿物价值优先级」只能是成本函数里的一个可配置分量**，不是独立模型、不是硬优先。
@@ -1752,6 +1862,8 @@ def main() -> int:
     detour = rule_standing_point_detour_bounded()
     scan = rule_scan_advances_every_select()
     writecaps = rule_write_caps_default_open_protection_kept()
+    ticksearch = rule_tick_search_account_enforced()
+    approachbound = rule_approach_plans_bounded()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -1834,13 +1946,17 @@ def main() -> int:
         print(f"[D-371·每次选择都推进扫描] {line}")
     for line in writecaps:
         print(f"[D-372·默认不限+权限层保留] {line}")
+    for line in ticksearch:
+        print(f"[A1·每tick搜索总账] {line}")
+    for line in approachbound:
+        print(f"[A2·模式B穷举有界] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not detour and not scan and not writecaps)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not detour and not scan and not writecaps and not ticksearch and not approachbound)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / 模式B穷举有界={len(approachbound)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

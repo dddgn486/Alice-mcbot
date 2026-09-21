@@ -42,6 +42,31 @@ public final class HeadlessBattery {
     private static final int SPAWN_DELAY_TICKS = 20;
 
     /**
+     * 假人**初始落位**的可覆盖属性：`-Dalice.headless.botFoot=x,y,z`（缺省 = {@code ClearRetryCheckTask.START_FOOT}）。
+     *
+     * <p>为什么需要它（2026-09-21 实测）：跑**真机存档**上的实验时（`--reuse-world`），母本世界的那一格
+     * 在别的存档里可能是实心方块 —— 实测真机第四轮存档 `6,65,67` = **泥土** ⇒ 假人生成即
+     * `hazard=SUFFOCATING` ⇒ `RegressionBattery` 被 `SURVIVAL_INTERRUPT` 打断、整步 `no_verdict`
+     * （**实验还没开始就结束了，而报错与实验内容毫无关系**）。
+     * ⇒ 它让"**在任意存档上跑电池**"成为可能（`ALICE_EXTRA_JVM_ARGS` 已有通道，见脚本头注释）。
+     */
+    private static final String PROP_BOT_FOOT = "alice.headless.botFoot";
+
+    /** 解析 {@link #PROP_BOT_FOOT}；格式不对 ⇒ **响亮失败**（不静默退回缺省，免得实验跑在错的现场）。 */
+    private static net.minecraft.core.BlockPos harnessSpawnFoot() {
+        String raw = System.getProperty(PROP_BOT_FOOT);
+        if (raw == null || raw.isBlank()) {
+            return com.dddgn.alice.task.ClearRetryCheckTask.START_FOOT;
+        }
+        String[] parts = raw.trim().split(",");
+        if (parts.length != 3) {
+            throw new IllegalArgumentException("[-Dalice.headless.botFoot] 期望 x,y,z，实际=" + raw);
+        }
+        return new net.minecraft.core.BlockPos(Integer.parseInt(parts[0].trim()),
+                Integer.parseInt(parts[1].trim()), Integer.parseInt(parts[2].trim()));
+    }
+
+    /**
      * 看门狗：超过这么多 tick 仍没等到判决 ⇒ 退 3。
      *
      * <p>必须存在：CI 上"卡住不动"比"失败"更贵（要人去看）。取值 = 电池自身 `TOTAL_BUDGET_TICKS`
@@ -147,7 +172,7 @@ public final class HeadlessBattery {
             }
             spawnRequested = true;
             ServerLevel level = server.overworld();
-            bot = BotManager.firstOrSpawn(level, com.dddgn.alice.task.ClearRetryCheckTask.START_FOOT);
+            bot = BotManager.firstOrSpawn(level, harnessSpawnFoot());
             if (bot == null) {
                 exit(server, 4, "bot_spawn_failed");
                 return;

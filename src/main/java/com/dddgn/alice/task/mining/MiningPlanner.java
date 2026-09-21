@@ -32,6 +32,26 @@ import java.util.function.BiFunction;
  */
 public final class MiningPlanner {
 
+    /**
+     * ⭐ **A2（2026-09-21）模式 B 的"有界穷举"上限** —— 一次规划调用最多对几个站位候选做**全预算精算**。
+     *
+     * <p>为什么必须有（真机第四轮取证，`docs/reviews/2026-09-21-客户端第四轮-深矿搜索卡顿.md` + 日志复算）：
+     * `selectBestApproach` 原来对 `tunnelCandidates` **全部**候选各跑一次
+     * `PathRequest.miningApproach` 全预算 A\*（`WALK_BUDGET` = 20 000 节点 / 200 ms）。
+     * 真机实测 `candidates=13 planned=13` ⇒ **一次规划调用 ≈ 13 × 185 ms ≈ 2.4 s**，
+     * 而它发生在**服务端 tick 线程**上 ⇒ `[Job] step` 间隔被实测为 **2.4 s**（≈0.4 TPS，持续 57.6 s）。
+     *
+     * <p>为什么"可以"截断（这是**有界**而不是"换成贪心"）：候选按
+     * {@code GoalFoot.heuristic(startFoot)} **由近到远排序**，而 13 个候选来自同一目标的同一个小几何集
+     * （4 面 × {y, y−1} + 正下方）⇒ **它们的可达性高度相关**：真机实测 13/13 全部 `!reached()`
+     * （`reason=no_reachable`），即"近的那几个过不去，远的也过不去"。
+     *
+     * <p>⚠️ **代价与回收条件**（不许当成"已经没问题了"）：截断会丢掉"第 4~13 个候选里恰好有一个可行"的情形。
+     * 因此本常量是**临时止血**，回收条件 = 出现一次「前 {@value} 个候选全失败、但更多候选能成功」的实测反例，
+     * 届时正确做法是**把穷举摊到多个 tick**（记住进度、下 tick 继续），而不是把上限调大。
+     */
+    public static final int MAX_APPROACH_PLANS = 3;
+
     /** 规划结果：plan 为空时仅表示当前规划阶段未产生可用计划。 */
     public record Result(MiningPlan plan, StandingPointEvaluator.StandingPointScore score,
                          String failureReason) {
@@ -237,6 +257,11 @@ public final class MiningPlanner {
         PathPlan bestPath = null;
         int planned = 0;
         for (BlockPos foot : ordered) {
+            // ⭐ **A2 有界穷举**：见 {@link #MAX_APPROACH_PLANS}。截断事实**必须进日志**，
+            // 否则"只试了 3 个"与"试了 13 个全失败"在事后看来一模一样（`capped=` 字段就是为此）。
+            if (planned >= MAX_APPROACH_PLANS) {
+                break;
+            }
             PathPlan path = planPath(bot, startFoot, foot,
                     PathRequest.miningApproach(bot.getUUID().toString(), startFoot, foot, "mining-planner"));
             planned++;
@@ -251,13 +276,16 @@ public final class MiningPlanner {
             }
         }
         if (best == null) {
-            BotLog.warn("[MiningPlanner] mode={} target={} startFoot={} candidates={} planned={} reason=no_reachable",
-                    mode, target.toShortString(), startFoot.toShortString(), ordered.size(), planned);
+            BotLog.warn("[MiningPlanner] mode={} target={} startFoot={} candidates={} planned={} capped={}"
+                            + " reason=no_reachable",
+                    mode, target.toShortString(), startFoot.toShortString(), ordered.size(), planned,
+                    planned < ordered.size());
             return new Result(null, null, "no_reachable_candidate");
         }
         BotLog.info("[MiningPlanner] mode={} target={} startFoot={} candidates={} estimate=EXHAUSTIVE planned={}"
-                        + " chosen={} cost={} pathSize={} los={}",
+                        + " capped={} chosen={} cost={} pathSize={} los={}",
                 mode, target.toShortString(), startFoot.toShortString(), ordered.size(), planned,
+                planned < ordered.size(),
                 best.getPosition().toShortString(),
                 String.format(java.util.Locale.ROOT, "%.3f", best.getScore()),
                 bestPath.movements().size(), best.getLineOfSightResult().isClear());

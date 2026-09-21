@@ -6,6 +6,7 @@ import com.dddgn.alice.pathing.core.search.MovementContext;
 import com.dddgn.alice.pathing.core.search.MovementProvider;
 import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.pathing.core.search.PlannedMovement;
+import com.dddgn.alice.pathing.core.search.SearchTickBudget;
 import com.dddgn.alice.pathing.core.search.SurfaceMovementProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -52,10 +53,18 @@ public final class StandingCostEstimator {
         if (candidates.isEmpty()) {
             return new Result(MiningTuning.estimateMode(), Map.of(), 0, 0L);
         }
-        return switch (MiningTuning.estimateMode()) {
+        // ⭐ **A1（2026-09-21）**：成本场与路径搜索**争同一个 50 ms tick**
+        // （真机实测一次 `estimate=DIJKSTRA … ms=69`）⇒ 必须进**同一个账**，否则下一个
+        // "预算不在同一个账上"的坑就是它。⚠️ **只记不拦**：成本场有自己的两个界
+        // （`MiningTuning.costFieldMaxCost` / `costFieldMaxNodes`），且它被拒的语义是"估不出成本"
+        // 而不是失败 —— 拦它会把目标选择搞死（见 `SearchTickBudget.recordExternal` 的注释）。
+        SearchTickBudget.handleTick(level.getGameTime());
+        Result result = switch (MiningTuning.estimateMode()) {
             case LOWER_BOUND -> lowerBound(bot, candidates, start);
             case DIJKSTRA -> dijkstra(bot, level, candidates, start);
         };
+        SearchTickBudget.recordExternal(result.elapsedMillis());
+        return result;
     }
 
     /** S1：octile 下界（不可达无法判断，全部返回成本，由精算阶段淘汰）。 */

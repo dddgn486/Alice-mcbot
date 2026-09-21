@@ -174,6 +174,11 @@ public final class RegressionBatteryTask implements Task {
             // 连跑 3 次真 `MineJob`（每次配额 2）＋ 1 次反向对照（目标不存在）⇒ 断言"到达率/世界改动数"
             // 是量出来的、且**到达率真的会小于 1**。EXTRA（自建地形 + 4 次运行）⇒ 不进 CORE。
             Map.entry("mine_run_metrics", Profile.EXTRA),
+            // **B（2026-09-21）深矿可达性判据探针**（`survey/24 §2.4` 第 3 问 / `survey/25 §2.3` 第 1 问）：
+            // 「给 100× 预算，这个深矿到底能不能到？」—— 它**依赖真机那次的存档**（`saves/新的世界 (2)`）
+            // 才能复现现场（1× 那遍是实验自己的对照）⇒ EXTRA、不进 CORE（CORE 跑在母本世界上）
+            // ⇒ 只由 `single:mine_reach_probe --reuse-world` 显式跑。
+            Map.entry("mine_reach_probe", Profile.EXTRA),
             // `D-348`（2026-09-20）：**登记被推迟**的现场取证（新鲜区块 + 同一 tick 破坏 ⇒ tick 末还没登记，
             // 宽限窗口内会出现）—— 判据 = 前提（确实推迟）∧ 期望（最终被登记）。EXTRA（自建地形）。
             Map.entry("scope_pending_grace", Profile.EXTRA),

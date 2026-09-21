@@ -69,6 +69,9 @@ public final class CorePathPlanner {
     }
 
     public PathPlan plan(ServerPlayer bot, ServerLevel level, PathRequest request) {
+        // ⭐ **A1（2026-09-21）：每 tick 搜索总账** —— 所有规划入口都经过本方法 ⇒ 一处管住全部。
+        // 先过 tick 边界（tick 一换就清零），再判"本 tick 还能不能起新搜索"。
+        SearchTickBudget.handleTick(level.getGameTime());
         // D-207 ①：**规划期**写入授权闸门（所有规划入口都经过这里 ⇒ 一处管住全部）。
         // 越权 = **请求本身**的错误（拿到的授权对不上），不是搜索结果 ⇒ 规划期就该拦，别带进执行期
         //（与 RecoverabilityPolicy "规划期抛、不当场降级" 同一条理由）。
@@ -86,10 +89,21 @@ public final class CorePathPlanner {
                     0, 0, 0L, "alice.write-policy",
                     violation.code() + " " + violation.getMessage());
         }
+        // ⭐ **A1 闸门（2026-09-21）**：本 tick 的搜索预算已用尽 ⇒ **不起新搜索**，如实交出 `SEARCH_LIMIT`。
+        // 为什么是 `SEARCH_LIMIT` 而不是别的：`D-076` 的纪律 —— "预算不够"**不等于**"到不了"，
+        // 两者必须能被上层区分；这里连"可达性未知"都是准确的（根因是**没搜**，不是没路）。
+        // 诊断字段带 `tick_search_budget_exhausted` ⇒ 事后可与"搜索空间真穷尽"区分开
+        //（这正是 `survey/24 §2.4` 要的"可行性判据 vs 性能判据"的第一块砖）。
+        if (!SearchTickBudget.tryAcquire()) {
+            return PathPlan.failure(PlanningStatus.SEARCH_LIMIT, request.startFoot(),
+                    request.goal().goalFoot(), 0, 0, 0L, "alice.astar.movement.v1",
+                    "tick_search_budget_exhausted " + SearchTickBudget.describe()
+                            + " requester=" + request.requester());
+        }
         MovementContext context = MovementContext.live(bot, level, request);
         AStarMovementSearch search = new AStarMovementSearch(provider);
         java.util.Set<SelfWriteConsistency.EdgeKey> forbiddenEdges = new java.util.LinkedHashSet<>();
-        PathPlan plan = reportStats(search.search(context, forbiddenEdges), request);
+        PathPlan plan = searchAndRecord(search, context, forbiddenEdges, request);
         // ================= D-250/②′：计划自我写入自洽性（校验 + 有界重搜） =================
         // 搜完**回放计划自己的写入**，检查有没有"后面的边踩在前面挖掉的格子上"。发现冲突就
         // **禁掉那条"清空者"边**（按具体边禁，不按 Movement 类禁）重搜，最多 K 次。
@@ -150,7 +164,7 @@ public final class CorePathPlanner {
                     attempt + 1, conflict.clearer().type(), conflict.supportCell().toShortString(),
                     conflict.violatingType());
             forbiddenEdges.add(conflict.clearer());
-            PathPlan retry = reportStats(search.search(context, forbiddenEdges), request);
+            PathPlan retry = searchAndRecord(search, context, forbiddenEdges, request);
             if (!retry.reached()) {
                 // 禁掉之后搜不到（含真 UNREACHABLE）：**如实交出去**。原计划已被证明不可执行
                 // （执行期健康检查会当场判 BLOCKED，重规划又会重算出同一形状），不能拿它冒充 REACHED。
@@ -164,6 +178,22 @@ public final class CorePathPlanner {
                 + "（执行期 `futureTargetBlocked` 仍是兜底）goal={}",
                 MAX_SELF_WRITE_RETRIES, request.goal().goalFoot().toShortString());
         return plan;
+    }
+
+    /**
+     * ⭐ **A1 的唯一搜索出口**：跑一次搜索 → 记账 → 输出单次规划摘要（D-044）。
+     *
+     * <p>为什么必须收成一个出口：`plan()` 里有两处搜索（首次 + `D-250/②′` 的自洽性重搜）。
+     * 只要有一处漏记，{@link SearchTickBudget} 的账就会**偏小**，闸门就会在"实际已经超预算"时放行
+     * —— 那正是本轮要修的病灶（"每个消费者都以为自己在预算内"）在代码层的复发。
+     * ⇒ 新增加搜索调用点时**必须**走本方法（`tools/kernel-predicates.py` 有对应断言）。
+     */
+    private static PathPlan searchAndRecord(AStarMovementSearch search, MovementContext context,
+                                            java.util.Set<SelfWriteConsistency.EdgeKey> forbiddenEdges,
+                                            PathRequest request) {
+        PathPlan plan = search.search(context, forbiddenEdges);
+        SearchTickBudget.recordMillis(plan.elapsedMillis());
+        return reportStats(plan, request);
     }
 
     /** 每次搜索后输出单次规划摘要（D-044）。 */
