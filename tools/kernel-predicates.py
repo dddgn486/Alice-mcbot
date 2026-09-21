@@ -2120,10 +2120,11 @@ def rule_collect_goal_standable():
     **19 段计划 / 破 6 格 / 约 10 秒** ⇒ 烧满 200 tick 簇预算 ⇒ 最坏 `collected=0/13`。
 
     断言（改任一处 ⇒ 红）：
-    ① `withinPickupReach` 必须是**真实拾取盒**（`AABB` + 与 `inPickupRange` **共享的**外扩常量 +
-       `item.getBoundingBox()` 相交）；
+    ① 相交本体只能是**一个** `reachesFrom(playerBox, item)`（`item.getBoundingBox()` + 共享外扩常量 +
+       `intersects`），且 `withinPickupReach`（建模）与 `inPickupRange`（执行）**都必须调它**
+       —— 3-b/`D-381` 起它还被抽成包可见 `static`，夹具可两边都用生产定义断言；
     ② 旧粗判形态 `Math.abs(cell.getX() + 0.5D - item.getX()) <= 1.2D` 不许复活；
-    ③ `inPickupRange` 必须复用同一对外扩常量（不许再出现写死的 `inflate(1.0D, 0.5D, 1.0D)`）；
+    ③ 不许再出现写死的 `inflate(1.0D, 0.5D, 1.0D)`，也不许任一侧自己写 `intersects(`；
     ④ `pickupGoalFor` 不许「找不到就退回物品自身格」（`best == null ? itemCell : best` 形态）；
     ⑤ 找不到时必须**如实拒绝 + 留日志**（`goal == null ⇒ return false` + `BotLog.warn`）；
     ⑥ 规划前必须有硬不变式「收集请求的 `GoalFoot` 必须可站」（`if (!isStandableCell(anchor))`）；
@@ -2143,15 +2144,26 @@ def rule_collect_goal_standable():
         problems.append("拾取盒外扩常量 `PICKUP_INFLATE_XZ = 1.0D` / `PICKUP_INFLATE_Y = 0.5D` 不存在"
                         "（口径的唯一来源没了 ⇒ 规划期与执行期必然各写一份）")
 
+    # ⭐ 3-b / `D-381`（2026-09-21）：相交**本体**抽成了 `reachesFrom(playerBox, item)`
+    # （`withinPickupReach` 用"格中心盒子"、`inPickupRange` 用 bot 的真实盒子，**同一个相交谓词**）
+    # ⇒ 断言随之加强：本体只能有一个，两边都**必须调它**，不许再各自写一份相交。
+    shared_reach = method_body(text, "static boolean reachesFrom(AABB playerBox, ItemEntity item) {")
+    if not shared_reach:
+        problems.append("找不到 `CollectDropsTask.reachesFrom`（相交本体没了 ⇒ 规划期与执行期会各写一份"
+                        "「够得着」）")
+    else:
+        if "intersects(" not in shared_reach or "item.getBoundingBox()" not in shared_reach:
+            problems.append("`reachesFrom` 不是真实拾取盒（缺 相交 / `item.getBoundingBox()`）"
+                            "⇒ 会重演 D-375：真够得着却被规划期否掉")
+        if shared_inflate not in shared_reach:
+            problems.append("`reachesFrom` 没有用共享外扩常量 ⇒ 与外扩口径会漂移")
+
     reach = method_body(text, "static boolean withinPickupReach(BlockPos cell, ItemEntity item) {")
     if not reach:
         problems.append("找不到 `CollectDropsTask.withinPickupReach`（结构变了 ⇒ 本规则要跟着改）")
-    else:
-        if "AABB" not in reach or "intersects(" not in reach or "item.getBoundingBox()" not in reach:
-            problems.append("`withinPickupReach` 不是真实拾取盒（缺 `AABB` / 相交 / `item.getBoundingBox()`）"
-                            "⇒ 会重演 D-375：真够得着却被规划期否掉")
-        if shared_inflate not in reach:
-            problems.append("`withinPickupReach` 没有用共享外扩常量 ⇒ 与 `inPickupRange` 的口径会漂移")
+    elif "reachesFrom(" not in reach or "AABB" not in reach:
+        problems.append("`withinPickupReach` 没有走「格中心 → 玩家盒 → 共享相交本体 `reachesFrom`」"
+                        "⇒ 规划期与执行期的「够得着」各写一份")
 
     if ("Math.abs(cell.getX() + 0.5D - item.getX())" in text
             or "Math.abs(cell.getZ() + 0.5D - item.getZ())" in text):
@@ -2161,8 +2173,9 @@ def rule_collect_goal_standable():
     in_range = method_body(text, "private boolean inPickupRange(ItemEntity item) {")
     if not in_range:
         problems.append("找不到 `inPickupRange`（结构变了 ⇒ 本规则要跟着改）")
-    elif shared_inflate not in in_range:
-        problems.append("`inPickupRange` 没有复用同一对外扩常量 ⇒ 规划期与执行期的「够得着」各写一份")
+    elif "reachesFrom(bot.getBoundingBox()" not in in_range:
+        problems.append("`inPickupRange` 没有复用共享相交本体 `reachesFrom(bot.getBoundingBox(), …)`"
+                        "⇒ 规划期与执行期的「够得着」各写一份")
     if "inflate(1.0D, 0.5D, 1.0D)" in text:
         problems.append("仍存在写死的 `inflate(1.0D, 0.5D, 1.0D)` ⇒ 外扩量有了第二份定义（会漂移）")
 

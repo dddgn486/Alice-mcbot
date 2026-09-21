@@ -281,6 +281,10 @@ public final class RegressionBatteryTask implements Task {
             // ③ 反证「该改世界时照样改」（封死石室合法破墙 + 决策层收到 `PICKUP_DETOUR`）；
             // ④ 反证「慢也要被看见」（`PickupDelay` 永久 ⇒ 收到 `PICKUP_SLOW`）。EXTRA（自建地形）。
             Map.entry("collect_slot_approach", Profile.EXTRA),
+            // ⭐ 3-b（`D0`+`D2`，2026-09-21）：**「到位却够不到」⇒ 换格再试** —— bot 站进"模型说够得着"
+            // 的那一格、但**离心 0.49** 站着（真机第七/八轮那一幕）⇒ 必须排除该格、取次优、真的捡回来；
+            // 顺带钉 `approach_probe` 与 `pickupGoalFor` **枚举同一批格**（含 `dy=-1` 层，真机误读的成因）。
+            Map.entry("collect_offcenter_retry", Profile.EXTRA),
             Map.entry("recipes_dump", Profile.EXTRA),
             Map.entry("event_thresholds", Profile.EXTRA),
             // **D-319**：假人归属（创建者登记）—— 它是将来"继承创建者身份/权限"的地基，错了会以

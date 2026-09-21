@@ -81,10 +81,21 @@
 >    但要配反证夹具 + CORE 回归（`estimateBreakTicks` 全项目共用）。
 >
 > **▶ 队列明细**
-> - **▶▶ 1) 3-b `D0/D2`（当前）**：`D0` 修探针 `dy=-1` 盲区（本轮误报过 `standable=0`）；
->   `D2` 失败即把该格加入本次簇排除集、取次优（已有定量：bot 离心 0.49 + 物品贴角 0.375 > 模型余量 0.05）。
-> - **2) 上岸（纯通行）**：加"浮面档之后找岸"（计划 §6.2 六条），新无头夹具（水池+8 格内干岸 ⇒
->   能规划纯通行路径 + **零写**；8 格内无干岸 ⇒ 如实失败 + 零位移）+ 一轮客户端（浅水/池边看它走上岸）。
+> - ✅ **1) 3-b `D0`/`D2` 已完成并推送（`D-381`，2026-09-21）**：
+>   `D2` = 失败格进**本簇**排除集 + `pickupGoalFor` 取次优；`D0` = 探针与搜索**共用同一份候选枚举**
+>   （`CollectDropsTask.approachCandidates`，`dy ∈ {0,-1}` × 环 1/2）+ 读数抽成 `approachReading(...)`。
+>   入口：`ALICE_HEADLESS=1 tools/headless-battery.sh single:collect_offcenter_retry`（EXTRA）
+>   ⇒ `[CollectOffcenter] SUMMARY checks=17 failures=0 collected=1 goal_excluded=1 → PASS`
+>   （读数：`模型够得着=true 真实够不到=true` → `goal_excluded cell=3399,101,2600` → 次优 `3400,101,2599`
+>   → `collected=1/1 movements=2 cost=2.00`）。**红→绿两条**：撤排除集 ⇒ `collected=0 goal_excluded=0`；
+>   探针改回只扫 `dy=0` ⇒ 恰好红在 `D0` 那条（`D2` 仍绿）。回归 `collect_slot_approach=PASS`。
+>   ⚠️ 顺手把拾取判定本体抽成 `CollectDropsTask.reachesFrom(playerBox,item)`（建模与执行同一个相交谓词，
+>   夹具两边都用生产定义断言"模型接受 / 真实判否"）。
+> - **▶▶ 2) 上岸（纯通行）（下一件事）**：加"浮面档之后找岸"（计划 §6.2 六条），新无头夹具
+>   （水池+8 格内干岸 ⇒ 能规划纯通行路径 + **零写**；8 格内无干岸 ⇒ 如实失败 + 零位移）
+>   + 一轮客户端（浅水/池边看它走上岸）。⚠️ 已知：执行侧 `shouldHoldJumpInWater` 只在
+>   **目标脚位更高**时按住跳跃（水面同高横渡靠"沉一点就被按回来"自纠）；`escapeTask=true` 时
+>   三条救援分支全被 `!escapeTask` 排除 ⇒ 逃生途中没有第二道兜底（需客户端确认）。
 > - **3) 水中挖掘成本模型**：`estimateBreakTicks` 加"眼在水里 ×5（除 Aqua Affinity/潮涌）"（**唯一来源**，
 >   规划执行共用）⇒ 规划器**自然**偏向放置，而不是塞"水里优先放置"特判；配反证夹具 + CORE 回归。
 > - **仍待用户裁定**：**B3**（K-3 延后停止在"不安全时刻"落地 = 本链条起点，建议"有活动危险时不许落地"）。

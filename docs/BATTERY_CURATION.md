@@ -135,6 +135,11 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 **一格都不许挖**；无任何可站邻格 ⇒ 如实 `no_standable_approach` 退休、**不许挖穿天花板**；
 反证①封死石室（世界修改已授权）⇒ 合法破墙 + 决策层收到 `PICKUP_DETOUR`；
 反证②永久 `PickupDelay` ⇒ 决策层收到 `PICKUP_SLOW`。自建空中场景、4 案例一次跑完、约 220 tick）
+`collect_offcenter_retry`（3-b / `D-381`：**「到位却够不到」⇒ 换格再试** —— bot 站进"模型说够得着"的那一格、
+但**离心 0.49** 站着（真机第七/八轮那一幕）⇒ 必须把该格记进本簇排除集、取**次优**格、真的把物品捡回来
+（`collected=1` + `goal_excluded=1` + 世界零改动）；顺带钉 `approach_probe` 与 `pickupGoalFor`
+**枚举同一批格**（含 `dy=-1` 层 —— 第八轮那份 `standable=0` 误读正是探针只扫 `dy=0` 造成的）。
+自建空中孤岛、夹具自己传送/复位、约 30 tick。红对照：撤排除集 ⇒ `collected=0`；探针改回只扫 `dy=0` ⇒ 红在 `D0` 那条）
 `place_step_descend_clearance`（`D-376`：**搭石斜下的「过渡空间」** —— 规划级：`to`/`to.above()` 空气、
 `to.below()` 缺支撑（正要放一块），但 `to.above(2)` 实心 ⇒ **不许**生成 `PLACE_STEP_AND_TRAVERSE` 边、
 执行工厂必须以 `NO_SWEEP` 拒绝；反证：去掉那块 ⇒ 这条边**必须**生成且工厂接受。

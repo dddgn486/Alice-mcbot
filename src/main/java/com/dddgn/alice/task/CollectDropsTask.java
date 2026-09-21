@@ -16,6 +16,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -115,6 +116,11 @@ public final class CollectDropsTask implements Task {
     /** 一个簇内最多换几次锚点扫尾（覆盖簇边缘够不到的物品）。 */
     private static final int MAX_REANCHORS = 2;
     /**
+     * `approach_probe` 一行里最多列几格（**有界**：枚举本身最多 48 格 = 2 层 × (环1 8 + 环2 16)，
+     * 这里只是防止"每格都可站/够得着"时日志行过长）。
+     */
+    private static final int PROBE_MAX_ENTRIES = 40;
+    /**
      * **追取上限的下限兜底**（格）：`D-074` 用户裁定 2「**超过 N 格放弃**追踪」—— ⚠️ 裁定里
      * **N 从未被指定**，`32` 是实现当初选的。实际用的上限见 {@link #chaseLimit()}：它是
      * `max(本常量, 2 × 当前作用域半径)`。
@@ -184,6 +190,23 @@ public final class CollectDropsTask implements Task {
     /** `D-375`：本簇是否已上报过"慢"/"在改造地形"（每簇至多一次 = 阈值的滞回形式）。 */
     private boolean slowReported;
     private boolean detourReported;
+
+    /**
+     * ⭐ **本簇已证明"模型说够得着、执行期够不到"的目标格**（3-b/D2，2026-09-21）。
+     *
+     * <p><b>为什么需要它</b>：`withinPickupReach` 建模的是「bot **站正在格中心**」，而执行期 bot 可以
+     * 停在格内偏 0.19~0.49 处（`EXACT` 容差），掉落物又能停在自己那格的远角（偏移 ~0.375）
+     * ⇒ 存在一段「**模型说够得着、`inPickupRange` 判否**」的几何。真机第七/八轮实测（`§12②`、`§13.1`）：
+     * 收集器走到那格、够不到 ⇒ `reanchor` 又算出**同一个**格（没有排除集）⇒ 换锚点两轮后如实退休
+     * `not_in_pickup_range`，物品留在地上（12/93 件）。
+     *
+     * <p><b>口径</b>：这一格不是"不可达"，而是"**站上去不够**"⇒ 本簇内不再把它当选址，
+     * 换**次优**格（`pickupGoalFor` 的同一个最近优先序，只是跳过已失败的格）。簇结束即清空
+     * （不跨簇记忆 —— 下一次簇的物品位置/朝向都可能变了，跨簇记忆会变成"永久拉黑"）。
+     */
+    private final Set<BlockPos> failedGoalCells = new HashSet<>();
+    /** 累计被排除过的"够不到"目标格数（观测用，进 `SUMMARY goal_excluded=`）。 */
+    private int goalExcludedCount;
     /**
      * `D-375`：本簇开始时的**世界改动运行账**（`TaskMetrics`）—— 用来判"这一簇在改造地形"。
      *
@@ -297,6 +320,16 @@ public final class CollectDropsTask implements Task {
     /** `D-375`：上报给决策层的 `PICKUP_DETOUR` 事件数（夹具/门禁用）。 */
     public int detourEventEmits() {
         return detourEmits;
+    }
+
+    /**
+     * 3-b/D2：本任务累计**排除过多少个"站上去也够不到"的目标格**（夹具/门禁用）。
+     *
+     * <p>判据意义：这个数 > 0 = "模型说够得着、执行期判否"的几何**真的发生过**，而且收集器
+     * **没有立刻放弃**（旧行为：换个锚点又算出同一个格，两轮后如实退休，物品留在地上）。
+     */
+    public int goalExcludedTotal() {
+        return goalExcludedCount;
     }
 
     /**
@@ -463,6 +496,9 @@ public final class CollectDropsTask implements Task {
 
         // 3) 到位但够不到（物品卡在够不着的位置）→ 换最近成员再试，用尽后如实退休
         if (reanchors < MAX_REANCHORS) {
+            // 3-b/D2：**这一格已经被证明"站上去也够不到"** ⇒ 记进本簇排除集，下一轮必须换**次优**格。
+            // 没有这一条时 `reanchor` 会算出同一个格（真机第七/八轮：4 次同格 ≈ 5 秒，物品留在地上）。
+            excludeFailedGoal();
             if (reanchor(members)) {
                 return Status.RUNNING;
             }
@@ -475,6 +511,23 @@ public final class CollectDropsTask implements Task {
         }
         endCluster(true);
         return Status.RUNNING;
+    }
+
+    /**
+     * 3-b/D2：把"站上去也够不到"的**当前目标格**记进本簇排除集（下一轮 `reanchor` 就会取次优格）。
+     *
+     * <p>触发条件（只在这一处）：走位**已完成**、`members` 里**没有一件**进入 `inPickupRange`，
+     * 而且还有换锚点余额 —— 即"位置到了、够不到"，不是"走不到"（走不到走 `retire(reason)` 那条）。
+     */
+    private void excludeFailedGoal() {
+        if (anchor == null || !failedGoalCells.add(anchor.immutable())) {
+            return;
+        }
+        goalExcludedCount++;
+        BotLog.warn("[CollectDrops] goal_excluded cell={} botFeet={}（模型说够得着、执行期 `inPickupRange`"
+                        + " 判否 ⇒ 本簇不再选这一格、换次优；真机定量：bot 离心可达 ~0.49 + 物品压格角"
+                        + " ~0.375 > 模型余量）",
+                anchor.toShortString(), bot.blockPosition().toShortString());
     }
 
     /**
@@ -590,32 +643,64 @@ public final class CollectDropsTask implements Task {
      *         **不许**退回物品自身格（`D-375`：那一格正是"站不住"才要搜索的）
      */
     private BlockPos pickupGoalFor(ItemEntity item, BlockPos itemCell) {
-        if (isStandableCell(itemCell)) {
+        if (isStandableCell(itemCell) && !failedGoalCells.contains(itemCell)) {
             return itemCell;
         }
         BlockPos best = null;
         double bestDist = Double.MAX_VALUE;
         for (int radius = 1; radius <= 2 && best == null; radius++) {
-            for (int dx = -radius; dx <= radius; dx++) {
-                for (int dz = -radius; dz <= radius; dz++) {
-                    if (Math.abs(dx) != radius && Math.abs(dz) != radius) {
-                        continue;   // 只看这一圈的边
-                    }
-                    for (int dy = 0; dy >= -1; dy--) {
-                        BlockPos cell = itemCell.offset(dx, dy, dz);
-                        if (!isStandableCell(cell) || !withinPickupReach(cell, item)) {
-                            continue;
-                        }
-                        double d = cell.distSqr(itemCell);
-                        if (d < bestDist) {
-                            bestDist = d;
-                            best = cell.immutable();
-                        }
-                    }
+            for (BlockPos cell : approachCandidates(itemCell, radius)) {
+                // 3-b/D2：本簇已证明"站上去也够不到"的格不再选 ⇒ 让位给次优格
+                // （没有这一条时 `reanchor` 会算出**同一个**格，两轮后如实退休，物品留在地上）
+                if (failedGoalCells.contains(cell)) {
+                    continue;
+                }
+                if (!isStandableCell(cell) || !withinPickupReach(cell, item)) {
+                    continue;
+                }
+                double d = cell.distSqr(itemCell);
+                if (d < bestDist) {
+                    bestDist = d;
+                    best = cell.immutable();
                 }
             }
         }
         return best;
+    }
+
+    /**
+     * ⭐ **候选格枚举的唯一定义**（3-b/D0，2026-09-21）：`pickupGoalFor` 的**搜索**与
+     * {@link #logApproachProbe} 的**取证**必须枚举**同一批格**——否则探针会"证错"。
+     *
+     * <p><b>为什么必须共用一个方法（真机教训）</b>：第八轮真机探针打出 `standable=0`，
+     * 而 bot **自己就站在**物品下方那一层（`dy=-1`）的可站格上 —— 因为探针只扫 `dy=0`，
+     * 而搜索扫 `dy ∈ {0,-1}`（`pickupGoalFor` 的 `for (int dy = 0; dy >= -1; dy--)`）。
+     * 那份读数误导了当场的诊断（"一格都不可站" vs "bot 正站在可站格上"）。
+     * 与 `D-375` 的 `withinPickupReach` 同一条纪律：**探针不许自己写第二份判据**。
+     *
+     * <p><b>口径</b>（逐字等于搜索一直在用的几何，行为不变）：
+     * <ul>
+     *   <li>**层**：`dy ∈ {0, -1}`（物品所在层 + 它下面那一层）；</li>
+     *   <li>**环**：`radius=1` = 八邻（含斜角）；`radius=2` = 该环 16 格（4 正交 + 4 斜角，
+     *       与搜索的 `|dx| == radius || |dz| == radius` 一致）；</li>
+     *   <li>**顺序**：`dx` → `dz` → `dy`（= 搜索的遍历序 ⇒ 距离并列时"先遇到的赢"这条语义不变）。</li>
+     * </ul>
+     *
+     * <p>包可见（`static`）是**故意**的：夹具要断言"搜索的层 = 探针的层"，必须能直接调它。
+     */
+    static List<BlockPos> approachCandidates(BlockPos itemCell, int radius) {
+        List<BlockPos> out = new ArrayList<>();
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dz = -radius; dz <= radius; dz++) {
+                if (Math.abs(dx) != radius && Math.abs(dz) != radius) {
+                    continue;   // 只看这一圈的边（radius=1 时 = 八邻；radius=2 时 = 16 格环）
+                }
+                for (int dy = 0; dy >= -1; dy--) {
+                    out.add(itemCell.offset(dx, dy, dz));
+                }
+            }
+        }
+        return out;
     }
 
     /** 可站：脚下有支撑 + 脚位/头位可穿过（与挖掘站位同一口径）。 */
@@ -642,18 +727,32 @@ public final class CollectDropsTask implements Task {
         double cz = cell.getZ() + 0.5D;
         AABB standing = new AABB(cx - PLAYER_HALF_WIDTH, cell.getY(), cz - PLAYER_HALF_WIDTH,
                 cx + PLAYER_HALF_WIDTH, cell.getY() + PLAYER_HEIGHT, cz + PLAYER_HALF_WIDTH);
-        return standing.inflate(PICKUP_INFLATE_XZ, PICKUP_INFLATE_Y, PICKUP_INFLATE_XZ)
+        return reachesFrom(standing, item);
+    }
+
+    /**
+     * ⭐ **拾取判定本体**（`D-375`，2026-09-21）：给定一个**玩家包围盒**，它外扩 `±1.0 x/z、±0.5 y`
+     * 后是否与掉落物包围盒相交 —— 与原版 `Player.tick()` 逐字一致（掉落物落地后中心约在方块底面
+     * +0.125，用"到方块中心距离"判会出现"看着到位、实际差半格"的假到位）。
+     *
+     * <p><b>为什么单独抽出来</b>（3-b/D0）：`withinPickupReach`（**站着建模**，用格中心造盒子）与
+     * `inPickupRange`（**执行期判据**，用 bot 的真实盒子）必须是**同一个相交谓词**，
+     * 而夹具要能**用生产定义**断言"真机那个几何下：模型说够得着、真实盒子够不到"
+     * —— 它必须拿到 `bot.getBoundingBox()` 的那条路径，而不是自己再抄一份外扩常量。
+     *
+     * <p>包可见（`static`）是**故意**的（与 `withinPickupReach` 同一条纪律）。
+     */
+    static boolean reachesFrom(AABB playerBox, ItemEntity item) {
+        return playerBox.inflate(PICKUP_INFLATE_XZ, PICKUP_INFLATE_Y, PICKUP_INFLATE_XZ)
                 .intersects(item.getBoundingBox());
     }
 
     /**
      * 是否已进入**原版拾取范围**：与原版 `Player.tick()` 的判定完全一致——
-     * 玩家包围盒外扩 `1.0 x/z、0.5 y` 与掉落物包围盒相交（掉落物落地后中心约在方块底面 +0.125，
-     * 用"到方块中心距离"判定会出现"看着到位、实际差半格"的假到位）。
+     * 玩家包围盒外扩 `1.0 x/z、0.5 y` 与掉落物包围盒相交。
      */
     private boolean inPickupRange(ItemEntity item) {
-        return bot.getBoundingBox().inflate(PICKUP_INFLATE_XZ, PICKUP_INFLATE_Y, PICKUP_INFLATE_XZ)
-                .intersects(item.getBoundingBox());
+        return reachesFrom(bot.getBoundingBox(), item);
     }
 
     // ---- 候选与观测 ----
@@ -764,6 +863,7 @@ public final class CollectDropsTask implements Task {
         settleTicks = 0;
         slowReported = false;
         detourReported = false;
+        failedGoalCells.clear();          // 3-b/D2：排除集**只在本簇内**有效（不跨簇记忆，避免变永久拉黑）
         worldChangesBefore = com.dddgn.alice.bot.TaskMetrics.snapshot();   // `D-375`："改造地形"的基线
         runner = null;
         BotLog.info("[CollectDrops] cluster_start anchor={} members={} items={} types={}",
@@ -844,6 +944,7 @@ public final class CollectDropsTask implements Task {
         settleTicks = 0;
         slowReported = false;
         detourReported = false;
+        failedGoalCells.clear();          // 3-b/D2：同上（簇结束即清空）
         worldChangesBefore = null;
     }
 
@@ -918,47 +1019,76 @@ public final class CollectDropsTask implements Task {
      *
      * <p>口径纪律：**只读、只打日志、不做任何决策**（它是失败终态日志，不是临时探针 ——
      * 临时探针用完要删，这条要留到"够不着"这一类彻底收敛）。
-     * 打印面向 = 物品格自身 + 环 1（8 格）+ 环 2 的 4 个正交格（共 13 格，**有界**），
-     * 只列"可站或够得着"的那些格（其余全是空气/无效信息）。
+     * 枚举**与搜索同一份定义**（{@link #approachCandidates}：`dy ∈ {0,-1}` × 环 1/环 2，见那里的注释），
+     * 打印只列"可站或够得着"的格、每条带 `(dx,dy,dz)` 与层计数（**有界**：枚举本身最多 48 格）。
      */
     private void logApproachProbe(String why, ItemEntity item) {
         if (item == null) {
             return;
         }
         BlockPos itemCell = item.blockPosition().immutable();
+        ApproachReading reading = approachReading(item);
+        BotLog.warn("[CollectDrops] approach_probe why={} item={} itemPos={} itemBox={} itemY={}"
+                        + " botFeet={} botBox={} itemCellStandable={} standable={}"
+                        + " standableAndReachable={} standable_dy0={} standable_dy-1={} ring={}",
+                why, item.getUUID(), itemCell.toShortString(), fmtBox(item.getBoundingBox()),
+                String.format(java.util.Locale.ROOT, "%.3f", item.getY()),
+                bot.blockPosition().toShortString(), fmtBox(bot.getBoundingBox()),
+                isStandableCell(itemCell), reading.standable(), reading.standableAndReachable(),
+                reading.standableDy0(), reading.standableDyMinus1(),
+                reading.ring().isEmpty() ? "-" : reading.ring());
+    }
+
+    /**
+     * `approach_probe` 的**读数**（3-b/D0）：与上面那行日志**共用同一份计算**
+     * ⇒ 夹具断言的正是"真打出去的东西"，不必去扒日志文本。
+     *
+     * @param standable             枚举中可站的格数（两层合计）
+     * @param standableAndReachable 既可站、又够得着的格数
+     * @param standableDy0          `dy=0` 层的可站格数
+     * @param standableDyMinus1     `dy=-1` 层的可站格数（**这一层原探针根本不扫**）
+     * @param ring                  逐格 `(dx,dy,dz)stand=…/reach=…`（只列"可站或够得着"的，有界）
+     */
+    record ApproachReading(int standable, int standableAndReachable, int standableDy0,
+                           int standableDyMinus1, String ring) {
+    }
+
+    ApproachReading approachReading(ItemEntity item) {
+        BlockPos itemCell = item.blockPosition().immutable();
         StringBuilder ring = new StringBuilder();
         int standable = 0;
         int standableAndReachable = 0;
-        for (int dx = -2; dx <= 2; dx++) {
-            for (int dz = -2; dz <= 2; dz++) {
-                int radius = Math.max(Math.abs(dx), Math.abs(dz));
-                if (radius == 0 || (radius == 2 && dx != 0 && dz != 0)) {
-                    continue;   // 去掉物品格自身与环 2 的斜角（有界：8 + 4 = 12 格）
-                }
-                BlockPos cell = itemCell.offset(dx, 0, dz);
+        int standableDy0 = 0;
+        int standableDyMinus1 = 0;
+        int entries = 0;
+        for (int radius = 1; radius <= 2; radius++) {
+            for (BlockPos cell : approachCandidates(itemCell, radius)) {
+                int dx = cell.getX() - itemCell.getX();
+                int dy = cell.getY() - itemCell.getY();
+                int dz = cell.getZ() - itemCell.getZ();
                 boolean canStand = isStandableCell(cell);
                 boolean reach = withinPickupReach(cell, item);
                 if (canStand) {
                     standable++;
+                    if (dy == 0) {
+                        standableDy0++;
+                    } else {
+                        standableDyMinus1++;
+                    }
                 }
                 if (canStand && reach) {
                     standableAndReachable++;
                 }
-                if (canStand || reach) {
-                    ring.append(" (").append(dx).append(',').append(dz)
+                if ((canStand || reach) && entries < PROBE_MAX_ENTRIES) {
+                    entries++;
+                    ring.append(" (").append(dx).append(',').append(dy).append(',').append(dz)
                             .append(")stand=").append(canStand ? 1 : 0)
                             .append("/reach=").append(reach ? 1 : 0);
                 }
             }
         }
-        BotLog.warn("[CollectDrops] approach_probe why={} item={} itemPos={} itemBox={} itemY={}"
-                        + " botFeet={} botBox={} itemCellStandable={} standable={}"
-                        + " standableAndReachable={} ring={}",
-                why, item.getUUID(), itemCell.toShortString(), fmtBox(item.getBoundingBox()),
-                String.format(java.util.Locale.ROOT, "%.3f", item.getY()),
-                bot.blockPosition().toShortString(), fmtBox(bot.getBoundingBox()),
-                isStandableCell(itemCell), standable, standableAndReachable,
-                ring.isEmpty() ? "-" : ring.toString());
+        return new ApproachReading(standable, standableAndReachable, standableDy0, standableDyMinus1,
+                ring.toString());
     }
 
     /**
@@ -1045,6 +1175,7 @@ public final class CollectDropsTask implements Task {
                 + " policy_blocked=" + policyBlockedCount
                 + " slow_events=" + slowEmits
                 + " detour_events=" + detourEmits
+                + " goal_excluded=" + goalExcludedCount
                 + " goal_foot=" + (lastGoalFoot == null ? "-" : lastGoalFoot.toShortString())
                 + " ticks=" + ticks;
         BotLog.info("[CollectDrops] SUMMARY {}", summary);

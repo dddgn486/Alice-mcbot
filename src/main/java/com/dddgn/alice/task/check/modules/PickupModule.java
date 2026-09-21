@@ -95,7 +95,14 @@ public final class PickupModule implements CheckModule {
                 // 它钉的是"**为捡一件掉落物挖穿地形**"这条真机症状（19 段 / 破 6 格 / 烧满簇预算）。
                 CheckStep.of("collect_slot_approach", CheckProfile.EXTRA, List.of(), null,
                         () -> new com.dddgn.alice.task.CollectSlotApproachCheckTask(bot, observer, scope),
-                        1200));
+                        1200),
+                // ⭐ 3-b（`D0`+`D2`，2026-09-21）：**「到位却够不到」⇒ 换格再试**。自建空中孤岛
+                // （⇒ `List.of()`；夹具自己传送 + 自己复位）：bot 站进"模型说够得着"的那一格、
+                // 但**离心 0.49** 站着（真机第七/八轮那一幕）⇒ 必须排除该格、取次优、真的捡回来。
+                // 顺带钉住 `approach_probe` 与 `pickupGoalFor` **枚举同一批格**（含 `dy=-1` 层）。
+                CheckStep.of("collect_offcenter_retry", CheckProfile.EXTRA, List.of(), null,
+                        () -> new com.dddgn.alice.task.CollectOffcenterRetryCheckTask(bot, observer, scope),
+                        600));
     }
 
     /** 传送到统一起点（与电池 `teleportBot` 逐字段一致 ✓；顺带起"先热区块再 fill"的作用 ✓）。 */
