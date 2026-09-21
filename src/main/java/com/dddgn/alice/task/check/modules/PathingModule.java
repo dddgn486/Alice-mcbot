@@ -48,6 +48,12 @@ public final class PathingModule implements CheckModule {
                 // 局部谓词（canTraverse/canAscend/canDescend/可破入）给出的「应有边」 vs
                 // `SurfaceMovementProvider.appendCandidates` 实际产出的边。零搜索、确定性、覆盖每格×每方向。
                 // EXTRA：会自建并还原一整个 13×3×13 场景（约 5 000 次 setBlock），不进 CORE。
+                // ⭐ `D-376`（2026-09-21 第八轮真机）：**搭石斜下的「过渡空间」**。规划级（边生成层 +
+                // 执行工厂准入），2 用例（过渡被挡 ⇒ 不许生成该边 / 过渡通畅 ⇒ 必须生成）。
+                // 它钉的是真机那 222 tick ×2 的"顶在格边界原地走"。
+                CheckStep.of("place_step_descend_clearance", CheckProfile.EXTRA, List.of(), null,
+                        () -> new com.dddgn.alice.task.PlaceStepDescendClearanceCheckTask(bot, ctx.observer()),
+                        400),
                 CheckStep.of("edge_completeness", CheckProfile.EXTRA, List.of(), null,
                         () -> new EdgeCompletenessCheckTask(bot, ctx.observer()), 200),
                 // D-336（2026-09-19）：**斜向上升那一格**（规划级）—— 能力 + 信封两用例，互为反证。

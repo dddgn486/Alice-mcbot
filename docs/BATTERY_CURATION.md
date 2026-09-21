@@ -135,6 +135,11 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 **一格都不许挖**；无任何可站邻格 ⇒ 如实 `no_standable_approach` 退休、**不许挖穿天花板**；
 反证①封死石室（世界修改已授权）⇒ 合法破墙 + 决策层收到 `PICKUP_DETOUR`；
 反证②永久 `PickupDelay` ⇒ 决策层收到 `PICKUP_SLOW`。自建空中场景、4 案例一次跑完、约 220 tick）
+`place_step_descend_clearance`（`D-376`：**搭石斜下的「过渡空间」** —— 规划级：`to`/`to.above()` 空气、
+`to.below()` 缺支撑（正要放一块），但 `to.above(2)` 实心 ⇒ **不许**生成 `PLACE_STEP_AND_TRAVERSE` 边、
+执行工厂必须以 `NO_SWEEP` 拒绝；反证：去掉那块 ⇒ 这条边**必须**生成且工厂接受。
+它钉的是真机那 `segment_stall … pos=…,94.300 delta≈0 forward=1.00 segmentTicks=222`（×2）的
+「顶着格边界原地走」；零搜索、毫秒级、2 用例一次跑完）
 
 ## 3. 维护规则（我 = AI 负责执行）
 

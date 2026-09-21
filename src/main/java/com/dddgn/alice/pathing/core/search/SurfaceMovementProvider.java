@@ -424,6 +424,24 @@ public final class SurfaceMovementProvider implements MovementProvider {
                 || MovementHelper.canWalkOn(level, to)) {
             return;
         }
+        // ⭐ **`D-376`（2026-09-21 第八轮真机）：高度变化必须查「过渡空间」**。
+        //
+        // `bodyPassable(to)` 只证明「站进去之后放得下」（`to` + `to.above()` 两层）；
+        // 但 dy=-1 是从**上面一层**走下来的：身体的扫掠盒覆盖 `to.y .. from.y + 1.8`（第三层也在内）
+        // ⇒ 目的地正上方第二格实心时，bot 会**顶在格边界上原地走**，直到段超时。
+        //
+        // 真机实证（逐字见 `docs/reviews/2026-09-21-掉落物在洞里被瞬退.md` §13.2）：
+        // `segment_stall … to=632,64,93 botFoot=632,65,94 pos=…,94.300 onGround=true
+        //  delta≈0 input=forward=1.00 toBlock=空气 headBlock=空气 segmentTicks=222`（两次）；
+        //  位置 z=94.300 = 包围盒北面**正好贴住格边界** ⇒ 挡住它的只能是**闸门不查的那一层**。
+        //
+        // 口径与 `canDescend` **同一个谓词**（`canSweepPlayer`，它本来就豁免 `from.below()`/`to.below()`
+        // ⇒ 正好适配「放置发生在 to.below()」这件事）；对照 `AscendExecutionFactory` 也早就在查
+        // `from.up2`（`ASCEND_NO_HEADROOM`）—— 本条只是把同一个道理补到 place-step 这一侧。
+        if (!MovementHelper.canSweepPlayer(level, from, to)) {
+            PathingStats.record("place_step_no_sweep");
+            return;
+        }
         BlockPos target = to.below();
         if (!MovementHelper.canWalkThrough(level, target)) {
             return;

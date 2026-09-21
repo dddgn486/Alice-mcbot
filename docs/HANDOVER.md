@@ -5,32 +5,33 @@
 > **已完成**：`survey/24`/`25`/`26`+`README` **已完整通读**并整理（结论与逐条对账见 `D-373` 与下面速览）；
 > 用户当日裁定 = **「A1+A2 止血 + B 判据实验并行」**，三条挖矿路线顺序 = **③ 鱼骨 → ① 跟随 → ② 探洞**（排在 A/B 之后）。
 >
-> # ▶▶ 压缩后**先读这 6 行**（2026-09-21 14:0x；P2 已落地，红→绿实证完毕，等客户端实测第七轮）
-> - **P2（拾取加固）已完成**：`withinPickupReach` 换**真实拾取盒**（与 `inPickupRange` 共享外扩常量，
->   上界 `1.2 → 1.425`）+ `pickupGoalFor` **不再静默兜底到物品自身格** + 规划前硬不变式
->   （`GoalFoot` 必须可站，新原因码 `no_standable_approach`）+ 决策层信号 `PICKUP_SLOW`/`PICKUP_DETOUR`。
->   决策与证据见 `docs/AI_DECISIONS.md` **`D-375`**、复盘 `docs/reviews/2026-09-21-掉落物在洞里被瞬退.md` **§11**。
-> - **新夹具**：电池步 `collect_slot_approach`（EXTRA，自建空中场景，**4 案例一次跑完**）：
->   `SLOT_REACH`（夹缝：走过去捡到、**一格不挖**）/ `UNREACHABLE`（真够不到：如实退休、物品留在世界）/
->   `SEALED_ROOM`（反证：该破墙时照破 + 决策层收到 `PICKUP_DETOUR`）/ `PICKUP_DELAY`（反证：慢也上报）。
->   新门禁 `[D-375·收集目标可站]` **8/8 注入变红**；夹具**红→绿**：改回修复前形态 ⇒ `failures=7`
->   （含 `UNREACHABLE` 真的挖穿天花板把物品捡走 `worldChanges=1`），恢复 ⇒ `failures=0`。
-> - ⭐ **两条被实测逼出来的判据修正**（别再犯）：① 「只看世界最终状态」会漏 —— 修复前 `SLOT_REACH`
->   的 `worldChanges=0` 竟是真的（物品在破格**之前**就被原版拾取范围捞走）⇒ 必须判**收集器挑的目标格**
->   （新观察点 `lastGoalFoot()`，`SUMMARY` 有 `goal_foot=`）；② 事件判据不许读「走位执行过的 Movement 类型」
->   （要等某段**成功**才追加，常恰好是最后一段 ⇒ 实测破了 2 格却 `detour_events=0`）⇒ 改读**运行账增量**。
-> - **第七轮结论（2026-09-21 14:06，bot `tango`）**：P2 真机生效 —— 收集侧破块 **16→0**、
->   `cluster_budget` 烧满 **2→0**、收集计划 `nodes 2911→≤4`、27 簇 93 件里 **81 件入包**；
->   `goal_shift` 真机跑通（物品格站不住 ⇒ 目标改邻格）。⚠️ 同时暴露**新残差（非 D-375 族）**：
->   4 簇丢 12 件（`not_in_pickup_range`：物品停在格远角 + bot `EXACT` 停偏 0.19 ⇒ 模型对
->   「站正在格中心」乐观）。取证补丁已落地（`retire` 带 `itemBox` + 失败路径 `approach_probe`，
->   **零行为改动**，夹具仍 `checks=39 failures=0`）⇒ **第八轮专门复现一次**看 `approach_probe`，
->   再定「保守余量」还是「失败后换下一个候选格」（见复盘 §12②/⑤）。
-> - **下一步 = 客户端第八轮（等用户；零参数入口仍是 `/alice mine here`）**：看 `[CollectDrops] SUMMARY`
->   的 `collected=N/N`、`no_approach=`、`slow_events=`/`detour_events=`，以及**是否还有 `cluster_budget` 烧满**；
->   夹缝掉落物应表现为**走到旁边就捡到、不再挖天花板**（若出现"够不到却不捡"，看 `no_standable_approach` 日志）。
-> - ⚠️ **P3 重做仍受阻**（`新的世界 (2)` 已被第六轮覆盖）⇒ 需冻结副本，或改成**当场建场景**的深矿几何（推荐）。
-> - 其余待办：`canWalkThrough` 全局改名（**建议不做**，117 处/37 文件）；3 条「未门禁」红线待定。
+> # ▶▶ 压缩后**先读这 8 行**（2026-09-21 15:0x；第八轮真机已复盘，`D-376` 已落地，B/C/D 等用户定方向）
+> - **第八轮真机（14:19–14:22，bot `tango`，`/alice mine here @610,66,91`）三个事实**（复盘 §13）：
+>   ① **拾取绕远没复现**（9 簇里 8 簇逐字 `N/N`，收集侧零破块）；唯一一次失败被 14:17 同步的 `approach_probe`
+>   抓到**精确几何** ⇒ 残差**定量**了：物品压在格远角（格内偏移 **0.875**）+ bot 停在离心 **0.49** 处，
+>   而 `withinPickupReach` 假设 bot 站正中心 ⇒ 模型以为还有 **0.05** 余量，真机 `inRange=false`
+>   （上界 ≈ **0.49 + 0.375 ≈ 0.87**）。⚠️ 探针有**盲区要修**：只探了 `dy=0` 的 12 格，漏了
+>   `pickupGoalFor` 真正会搜的 `dy=-1`（bot 自己站的那格就被漏掉，读数误导）。
+>   ② **搭石斜下被卡 = `PLACE_STEP_AND_TRAVERSE dy=-1` 没查「过渡空间」**（用户目视确认了第三层那块石头）：
+>   `segment_stall … pos=…,94.300 delta≈0 forward=1.00 toBlock=空气 headBlock=空气 segmentTicks=222`（×2，约 20 秒）
+>   ⇒ 挡住 bot 的只能是**身体扫掠盒覆盖、闸门不查的那一层**（`to.above(2)`）。**已修**：规划侧 + 执行侧
+>   统一用 `canSweepPlayer`（与 `canDescend` 同一谓词；`ASCEND_NO_HEADROOM` 早就查 `from.up2`）⇒ `D-376`。
+>   ③ **落水自锁 + 溺水**：`BREAK_AND_TRAVERSE` 跨 2 格把**中间格**（自己刚站过的台阶）破掉 ⇒ 掉进水里；
+>   水里 `ASCEND_INVALID_PRECONDITION` ×2、`PILLAR_NOT_ON_GROUND` ×11 ⇒ 沉底、`air 300→-2`、掉血 20→10，
+>   **任务未中断**。⚠️ **更正我上一版的说法**：水里**做过**（`shouldHoldJumpInWater` = `D-243`/`D-251`，
+>   `AscendExecution` 水分支 + `SurvivalExitCheckTask` 端到端「从水里出来」都有）—— 但**浮起是"某个 ASCEND 段
+>   正在执行"的副作用**；本次 ASCEND 段全部因 bot 在下沉而立刻过期 ⇒ 没有任何段按住跳跃 ⇒ 继续下沉。
+>   用户补充：**落水点附近的可站点都比水平面高一格，正常浮水跳不上去（要在岸边搭方块才行）**。
+> - **已落地 `D-376`**（本次 A 修复）：`SurfaceMovementProvider.appendPlaceStepAndTraverse` + `PlaceStepAndTraverseExecutionFactory.validate`
+>   补扫掠空间判据（后者带 `NO_SWEEP@…几何`）；新门禁 `[D-376·高度变化查过渡空间]`（**7/7 注入红且各命中专属条目**）；
+>   新夹具 `PlaceStepDescendClearanceCheckTask`（电池步 `place_step_descend_clearance`，EXTRA，2 用例互为对照）：
+>   `[PlaceStepClear] checks=24 failures=0 → PASS`，读数 `BLOCKED edge=false sweep=false factoryValid=false code=…NO_SWEEP`
+>   / `CLEAR edge=true sweep=true factoryValid=true`。
+> - **等用户定方向（都已给详细方案，见对话/复盘 §13.4）**：
+>   **B** 水中上浮（新能力 or 放宽 ASCEND 的水中分支 + 维生「无出口也可否决」）、
+>   **C** 禁「破掉自己唯一落脚点」的破坏性 fallback、
+>   **D** 拾取残差改「失败即排除该格、取次优」+ 修探针盲区。
+> - 其余待办不变：`canWalkThrough` 全局改名（**建议不做**）；3 条「未门禁」红线待定；P3 需冻结副本或当场建景。
 >
 > **⭐ 2026-09-21 离线批次（P0 + G1 + G2 + G3 + P1）全部完成并各自反向对照；现在到「需要客户端实测」边界。**
 >

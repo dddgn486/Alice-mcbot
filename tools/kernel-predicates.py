@@ -1923,6 +1923,82 @@ def rule_manual_test_lock_blocks_llm():
     return problems
 
 
+
+def rule_height_change_sweep():
+    """`D-376`（2026-09-21 第八轮真机）：**高度变化必须查「过渡空间」—— 不能只证"站进去放得下"**。
+
+    事故原文（真机，逐字见 `docs/reviews/2026-09-21-掉落物在洞里被瞬退.md` §13.2）：
+    ```
+    [R4 Session] segment_stall kind=segment_timeout to=632, 64, 93 botFoot=632, 65, 94
+      pos=632.499,65.000,94.300 onGround=true delta≈0
+      input=BotController[forward=1.00 strafing=0.00 jumping=false]
+      toBlock=空气 headBlock=空气 supportBlock=圆石 segmentTicks=222     ← 同一形状两次，约 20 秒
+    ```
+    `toBlock`/`headBlock` 都是空气（= 闸门查过的那两层没问题），位置 **z=94.300**（包围盒北面正好贴住格
+    边界）⇒ 挡住 bot 的方块只能在**身体扫掠盒会覆盖、而闸门不查的那一层**（`to.above(2)`）。
+
+    口径差（这就是缺口）：`canDescend` 早就查了 `canSweepPlayer`（扫掠盒 `maxY = max(from,to)+1.8` ⇒ 含第 3 层），
+    `AscendExecutionFactory` 也早就查 `from.up2`（`ASCEND_NO_HEADROOM`）；唯独
+    `appendPlaceStepAndTraverse` 只查 `bodyPassable(to)`（两层）⇒ 计划里出现**物理上过不去**的段。
+
+    断言（改任一处 ⇒ 红）：
+    ① 规划侧 `appendPlaceStepAndTraverse` 必须查**扫掠空间**（`MovementHelper.canSweepPlayer(level, from, to)`）；
+    ② 执行侧 `PlaceStepAndTraverseExecutionFactory.validate` 必须查**同一个谓词**（K-4 双向一致），
+       且拒绝码是 `PLACE_STEP_AND_TRAVERSE_NO_SWEEP`（带几何，便于真机归因）；
+    ③ 夹具必须存在，且它的**前提**断言两用例的 `canSweepPlayer` 取值恰好相反
+       （`which == Case.TRANSITION_BLOCKED ? !sweep : sweep`）—— 而不是自己另写一份近似判据；
+    ④ 夹具必须有「过渡被挡 ⇒ **不许**生成该边」的断言（`edge == null`）**和**反证
+       「过渡通畅 ⇒ **必须**生成」（`edge != null`）—— 只有前者 = 永远绿；
+    ⑤ 夹具必须断言执行工厂的拒绝码是 `NO_SWEEP`（若因别的原因拒绝，说明前提没立住）；
+    ⑥ 步骤名 `place_step_descend_clearance` 必须注册进模块。
+    """
+    problems = []
+    provider = ROOT / "src/main/java/com/dddgn/alice/pathing/core/search/SurfaceMovementProvider.java"
+    factory = ROOT / "src/main/java/com/dddgn/alice/pathing/core/PlaceStepAndTraverseExecutionFactory.java"
+    fixture = ROOT / "src/main/java/com/dddgn/alice/task/PlaceStepDescendClearanceCheckTask.java"
+    module = ROOT / "src/main/java/com/dddgn/alice/task/check/modules/PathingModule.java"
+
+    for path in (provider, factory, fixture, module):
+        if not path.exists():
+            problems.append(f"缺文件：{path.relative_to(ROOT)}")
+    if problems:
+        return problems
+
+    provider_code = code_only(provider.read_text(encoding="utf-8"))
+    append_body = method_body(provider_code, "private static void appendPlaceStepAndTraverse(")
+    if "MovementHelper.canSweepPlayer(level, from, to)" not in append_body:
+        problems.append("规划侧 `appendPlaceStepAndTraverse` 没查扫掠空间"
+                        "（缺 `MovementHelper.canSweepPlayer(level, from, to)`）⇒ 高度变化只看两层，"
+                        "真机就会顶在格边界原地走到段超时")
+
+    factory_code = code_only(factory.read_text(encoding="utf-8"))
+    validate_body = method_body(factory_code, "public ValidationResult validate(")
+    if "MovementHelper.canSweepPlayer(context.level(), from, to)" not in validate_body:
+        problems.append("执行侧 `PlaceStepAndTraverseExecutionFactory.validate` 没查同一个谓词"
+                        "（K-4 双向一致）")
+    if "PLACE_STEP_AND_TRAVERSE_NO_SWEEP" not in validate_body:
+        problems.append("执行侧拒绝码不是 `PLACE_STEP_AND_TRAVERSE_NO_SWEEP`（真机归因要靠它）")
+
+    fixture_code = code_only(fixture.read_text(encoding="utf-8"))
+    if "which == Case.TRANSITION_BLOCKED ? !sweep : sweep" not in fixture_code:
+        problems.append("夹具前提没断言「两用例的 `canSweepPlayer` 取值恰好相反」"
+                        "（`which == Case.TRANSITION_BLOCKED ? !sweep : sweep`）⇒ 红了也说不清是不是夹具坏了")
+    if "canSweepPlayer(level, from, to)" not in fixture_code:
+        problems.append("夹具没有复用生产谓词 `MovementHelper.canSweepPlayer(`（自己另写近似判据 = 骗自己）")
+    if not re.search(r'check\("⭐ ① 过渡空间被挡[\s\S]{0,200}?edge == null\)', fixture_code):
+        problems.append("夹具没有「过渡被挡 ⇒ 不许生成该边」的断言（`edge == null` 在 TRANSITION_BLOCKED 分支内）")
+    if not re.search(r'check\("⭐ ② 过渡空间通畅[\s\S]{0,200}?edge != null\)', fixture_code):
+        problems.append("夹具缺反证「过渡通畅 ⇒ 必须生成该边」（`edge != null` 在 TRANSITION_CLEAR 分支内）"
+                        "⇒ 只有前者的话永远绿")
+    if "PLACE_STEP_AND_TRAVERSE_NO_SWEEP" not in fixture_code:
+        problems.append("夹具没断言执行工厂的拒绝码是 `NO_SWEEP`")
+
+    module_code = code_only(module.read_text(encoding="utf-8"))
+    if '"place_step_descend_clearance"' not in module_code:
+        problems.append("步骤名 `place_step_descend_clearance` 没注册进 `PathingModule`")
+    return problems
+
+
 def rule_collect_goal_standable():
     """`D-375`（2026-09-21 第六轮真机 + 存档取证）：**「够得着的可站格」必须与真实拾取盒同一谓词；
     一个都没有时不许规划，更不许退回「物品自身格」**。
@@ -2090,6 +2166,7 @@ def main() -> int:
     approachbound = rule_approach_plans_bounded()
     bodyclear = rule_edge_destination_body_clearance()
     collectgoal = rule_collect_goal_standable()
+    sweepclearance = rule_height_change_sweep()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -2178,15 +2255,17 @@ def main() -> int:
         print(f"[A2·模式B穷举有界] {line}")
     for line in bodyclear:
         print(f"[D-374·目的地整体通行] {line}")
+    for line in sweepclearance:
+        print(f"[D-376·高度变化查过渡空间] {line}")
     for line in collectgoal:
         print(f"[D-375·收集目标可站] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

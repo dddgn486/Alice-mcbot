@@ -194,6 +194,9 @@ public final class RegressionBatteryTask implements Task {
             // ⭐ G2（2026-09-21）：边集完备性差集（局部谓词 vs 边生成器）—— 唯一能发现"未知缺口"的判据。
             // EXTRA：自建并还原一个 13×3×13 场景。
             Map.entry("edge_completeness", Profile.EXTRA),
+            // ⭐ `D-376`（2026-09-21 第八轮真机）：**搭石斜下必须证明"过渡空间"能过**（`canSweepPlayer`
+            // 覆盖第 3 层）。判据 + 反证 + 执行工厂同谓词；EXTRA（规划级、毫秒级）。
+            Map.entry("place_step_descend_clearance", Profile.EXTRA),
             // D-336：斜向上升那一格（规划级：能力 + 信封）
             Map.entry("place_step_diagonal", Profile.EXTRA),
             // ⭐ `D-374`（2026-09-21）：**脚位空、头位实**的目的地必须有入边（内核图完整性；

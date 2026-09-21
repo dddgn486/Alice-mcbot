@@ -16155,3 +16155,59 @@ cluster_start anchor=433, 87, 206 → retire reason=cluster_budget
 - **回收条件**：若出现「修复后仍有**合法**目标被判 `no_standable_approach`」的实测反例
   （即真的需要走到一个站不住的格才能捡到）⇒ 说明还有第三种手段没被建模，届时**先补夹具复现**再动代码，
   不许直接把兜底加回来。
+
+
+---
+
+### D-376：**高度变化必须查「过渡空间」** —— 搭石斜下（`PLACE_STEP_AND_TRAVERSE dy=-1`）不许只证"站进去放得下"（2026-09-21 第八轮真机）
+
+#### 一、事故（真机，逐字见 `docs/reviews/2026-09-21-掉落物在洞里被瞬退.md` §13.2–13.3）
+
+用户口径：**「需要搭石头斜着下去，而没有考虑垂直高度变化时头位是否能不被卡住，被卡在那里直到时间耗尽」**。
+日志同一形状出现两次（14:21:47 / 14:21:58，各约 11 秒）：
+
+```
+[R4 Session] segment_stall kind=segment_timeout to=632, 64, 93 botFoot=632, 65, 94
+  pos=632.499,65.000,94.300 onGround=true delta=-0.0001,-0.0784,0.0000
+  input=BotController[forward=1.00 strafing=0.00 jumping=false]
+  toBlock=空气 headBlock=空气 supportBlock=圆石 segmentTicks=222
+```
+
+四条事实合成唯一解释：① 按着前进却**零位移**；② 位置 **z=94.300**（包围盒北面正好贴住格边界）；
+③ 目的地 `to` 与其上一层都是空气（闸门查过的那两层没问题）；④ ⇒ 挡住 bot 的只能是
+**身体扫掠盒会覆盖、而闸门不查的那一层**（`to.above(2)`，即目的地正上方第二格）。用户在客户端**目视确认**了这一点。
+
+#### 二、落地改动（4 处）
+
+1. **规划侧**（`SurfaceMovementProvider.appendPlaceStepAndTraverse`）：`bodyPassable(to)` 之后加
+   `MovementHelper.canSweepPlayer(level, to 的几何)` 判据（`dy` 两支统一走同一行；不通过则
+   `PathingStats.record("place_step_no_sweep")` 并不生成该边）。
+2. **执行侧**（`PlaceStepAndTraverseExecutionFactory.validate`）：**同一个谓词**（K-4 双向一致），
+   拒绝码 `PLACE_STEP_AND_TRAVERSE_NO_SWEEP@from=…,from.up2=…,to.up2=…`（带几何，便于真机归因）。
+3. **内核门禁**：`tools/kernel-predicates.py` 新规则 `[D-376·高度变化查过渡空间]`（7 条断言：两侧谓词、
+   夹具前提「两用例取值恰好相反」、夹具「不许生成」+「反证必须生成」两条断言、执行工厂拒绝码、步骤注册）。
+4. **夹具**：`PlaceStepDescendClearanceCheckTask`（电池步 `place_step_descend_clearance`，EXTRA，规划级、
+   零搜索、2 用例互为对照）。
+
+#### 三、为什么「查扫掠空间」是对的口径（不是新发明）
+
+同一几何上**早就有人查**，只有 place-step 这一侧漏了：
+
+| 移动 | 过渡空间判据（既存） |
+|---|---|
+| `DESCEND`（普通下台阶） | `canDescend` 里的 `canSweepPlayer`（扫掠盒 `maxY = max(from,to) + 1.8` ⇒ **含第 3 层**） |
+| `ASCEND`（跳上一格） | `AscendExecutionFactory`：`ASCEND_NO_HEADROOM` 显式查 `from.up2`（dump `from/up/up2/up3`） |
+| `PLACE_STEP_AND_TRAVERSE`（搭石斜下） | ❌ 只有 `bodyPassable(to)`（`to` + `to.above()` **两层**）→ **D-376 补上** |
+
+`canSweepPlayer` 本来就豁免 `from.below()`/`to.below()` ⇒ 恰好适配「放置发生在 `to.below()`」这件事，
+所以复用它是**同一谓词**而不是新增近似判据（这是本项目反复吃过的亏：两套近似判据必然在某个角上分歧）。
+
+#### 四、代价与诚实边界
+
+- **代价**：这条边的**可达集变小**了 —— 凡是"过渡空间被挡、但目的地本身放得下"的搭石斜下都不再生成。
+  这正是 D-376 想要的（那些边物理上走不通），但它确实会砍掉一部分**旧的**（可能已被 K-4 网兜住但从未真正跑通）路径。
+  已有 `canDescend`/`ASCEND_NO_HEADROOM` 两个先例，且 CORE/EXTRA 回归全绿 ⇒ 判定为净收益。
+- **没做的**：① 水中逃生（落水后自锁、溺水；本轮真机已复现，见 review §13.3）—— 待定方向；
+  ② "破掉自己唯一落脚点"的破坏性 fallback（`BREAK_AND_TRAVERSE` 跨 2 格把中间格破掉 ⇒ 掉进水里）—— 待定方向。
+- **回收条件**：若真机出现「合法搭石斜下被判 `place_step_no_sweep` 而卡住」的实测反例 ⇒ 说明"过渡空间"这条
+  判据在不该拦的地方拦了（例如 bot 能从侧面挤进去），届时**先补夹具复现该几何**再动判据。
