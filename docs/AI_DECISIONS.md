@@ -16049,6 +16049,14 @@ Baritone 走 `MovementTraverse` 内部破头位。
 - **CORE 无回归**：`break_enter_head_blocked=PASS`；唯一失败仍是 `lumber_job`，且其失败行与改动前
   **逐字相同**（`pos=64,64,102 recovery=idle_after_cleanup failureDetails=`）⇒ 与本改动无关。
 - 静态门禁 `tools/check-all.sh` = `pass=18 warning=1 failed=0`（warning = 既有的"电池未在本模式跑"）。
+- **G1**（谓词分层）：新增 `MovementHelper.bodyPassable`（脚位+头位合取，唯一可读口径）+ 4 个目的地闸门改用它
+  （逐字等价）；新门禁 `rule_edge_destination_body_clearance`（**3 注入红**：裸用脚位 / 别的生成器被放宽 / 历史原文复活）。
+- **G2**（完备性差集）：新电池步 `edge_completeness`（EXTRA，`EdgeCompletenessCheckTask`）——
+  **边集差集**（局部谓词「应有边」vs `appendCandidates`「实际边」）。绿：`expected=349 actual=523 gaps=0`；
+  **反向对照：把本决定的谓词改回只查脚位 ⇒ `gaps=35`（全是 `BREAK_AND_ENTER`）**
+  ⇒ **这个一行谓词在普通地形里砍掉约 20% 的破入边**（`D-373` 的 88 段绕远极可能就是它）。
+- **G3**（红线↔门禁）：`AGENTS.md` 6 条红线全部带标记（**有门禁 4 / 未门禁 2**）；新门禁
+  `tools/check-redline-gates.sh` 挂进 `check-all.sh`（`pass=18 → 19`）；**4 注入红**（无标记 / 假指针 / 未门禁缺复核触发 / 两标记并存）。
 
 #### 六、未做 / 回收条件
 
