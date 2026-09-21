@@ -10,6 +10,7 @@ import com.dddgn.alice.task.mining.MiningProfile;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.phys.AABB;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -84,8 +85,29 @@ public final class CollectDropsTask implements Task {
     }
     /** 到位后等待自然拾取的 tick 数（原版拾取延迟 10 tick + 余量）。 */
     private static final int PICKUP_WAIT_TICKS = 40;
-    /** 判定"已站进拾取范围"的水平距离（格）。 */
-    private static final double PICKUP_RADIUS = 1.2D;
+    /**
+     * ⭐ **原版拾取盒的外扩量**（`D-375`）：玩家包围盒外扩 `±1.0 x/z、±0.5 y` 后与掉落物包围盒
+     * 相交 —— 这就是原版 `Player.tick()` 的判据，即 {@link #inPickupRange}。
+     *
+     * <p><b>为什么这两个数只许在这里定义一次</b>：规划期"站在这格够得着吗"
+     * （{@link #withinPickupReach}）与执行期"到位了吗"（{@link #inPickupRange}）必须是**同一个盒子**。
+     * 各写一份就会出现一段"真够得着、却被规划期否掉"的位置（旧粗判逐轴 `1.2` vs 真实上界 `1.425`）——
+     * 2026-09-21 第六轮真机实测正是如此：够得着的可站邻格 `433,87,205` 被旧粗判否掉
+     * ⇒ `pickupGoalFor` 找不到任何格 ⇒ 静默把**站不住的物品自身格**当目标 ⇒ 搜索被迫挖 19 段。
+     */
+    private static final double PICKUP_INFLATE_XZ = 1.0D;
+    private static final double PICKUP_INFLATE_Y = 0.5D;
+    /** 玩家包围盒半宽 / 身高（`0.6 × 1.8`，与 `BotPlayer` 同口径）：规划期假设 bot 站**正在格中心**。 */
+    private static final double PLAYER_HALF_WIDTH = 0.3D;
+    private static final double PLAYER_HEIGHT = 1.8D;
+    /**
+     * ⭐ **收集阶段"绕远"上报阈值**（tick，`D-375`）：一个簇耗掉**一半预算**还没收手 ⇒ 报一次事件。
+     *
+     * <p>取一半（= 100 tick = 5 秒）的依据：正常一簇的固定开销（建立 / 等落地 / 拾取延迟 / 收尾）
+     * 只有 40~80 tick，走位按每格 1~2 tick ⇒ **100 tick 还没收手 = 明确的病态**；
+     * 而真机实测的病态簇是"烧满 200 tick（10 秒）后退役"。等烧满再报太晚（预算已经没了）。
+     */
+    private static final int CLUSTER_SLOW_TICKS = CLUSTER_BUDGET_TICKS / 2;
     /** 簇内两个掉落物的最大连通距离（格）：对应原版拾取盒 ±1.3。 */
     private static final double CLUSTER_LINK_DISTANCE = 2.0D;
     /** 簇内允许的最大垂直差（格）。 */
@@ -139,6 +161,16 @@ public final class CollectDropsTask implements Task {
     private int mismatchCount;
     /** 被 `DropPolicy` 拒绝而留下的掉落物数（J-10：与 unreachable/timeout 分开记）。 */
     private int policyBlockedCount;
+    /**
+     * ⭐ `D-375`：**没有"可站且够得着"的格**而被如实退休的物品数（与 `unreachable` 分开记）。
+     *
+     * <p>它与 `unreachable` 是两件事：`unreachable` = "走位试过、失败了"；本计数 = "**根本不许规划**"
+     * （把站不住的格当目标 = 要求寻路挖进去）。混在一起就看不出"是不是又有人在挖穿地形捡东西"。
+     */
+    private int noApproachCount;
+    /** `D-375`：上报过的 `PICKUP_SLOW` / `PICKUP_DETOUR` 次数（每簇各至多一次）。 */
+    private int slowEmits;
+    private int detourEmits;
 
     // ---- 当前簇扫描状态 ----
     private List<UUID> clusterIds;
@@ -149,6 +181,26 @@ public final class CollectDropsTask implements Task {
     private int waitTicks;
     private int reanchors;
     private int settleTicks;
+    /** `D-375`：本簇是否已上报过"慢"/"在改造地形"（每簇至多一次 = 阈值的滞回形式）。 */
+    private boolean slowReported;
+    private boolean detourReported;
+    /**
+     * `D-375`：本簇开始时的**世界改动运行账**（`TaskMetrics`）—— 用来判"这一簇在改造地形"。
+     *
+     * <p>为什么用运行账增量，而不是"读走位执行过的 Movement 类型"（自检实测踩到过）：
+     * `PathSession.executedMovementTypes()` 是在**某一段成功之后**才追加的，而"为捡一件东西挖一格"
+     * 常常正好是**最后一段** ⇒ 收集器在物品入包的那一 tick 就结束本簇（`members.isEmpty()`），
+     * 之后再没机会读那个集合 ⇒ 破了 2 格石墙、`detour_events` 仍是 0 ✗。
+     * 而运行账是在**真的扣掉一次写入预算的那一刻**记的（`WriteBudget.consumeBreak ⇒ TaskMetrics.noteBreak`）
+     * ⇒ 它是"已经改了世界"的**地面真值**，与走位内部簿记无关。
+     *
+     * <p>口径诚实说明：运行账是**进程级**计数 ⇒ 它衡量的是"本簇这段时间里世界改了几格"。
+     * 今天成立（作业是相位串行的：`MineJob.collectPhase()` 只 tick 收集器，矿工不在跑），
+     * 但事件文案必须说清这是**增量**，不是"本条路径破的格数"。
+     */
+    private com.dddgn.alice.bot.TaskMetrics.Snapshot worldChangesBefore;
+    /** `D-375`：最近一次**真的拿去规划**的目标格（夹具/取证用：它必须可站）。 */
+    private BlockPos lastGoalFoot;
     private PathRetryRunner runner;
 
     public CollectDropsTask(BotPlayer bot, BlockPos origin, ScopeBuffer scope,
@@ -228,6 +280,36 @@ public final class CollectDropsTask implements Task {
         return collectedItems;
     }
 
+    /**
+     * `D-375`：**因"没有可站且够得着的格"而被如实退休**的物品数（夹具/门禁用）。
+     *
+     * <p>它与 `unreachable` 是两件事：这一档是"**根本不许规划**"（把站不住的格当目标 = 让寻路挖进去）。
+     */
+    public int noApproachRetired() {
+        return noApproachCount;
+    }
+
+    /** `D-375`：上报给决策层的 `PICKUP_SLOW` 事件数（夹具/门禁用）。 */
+    public int slowEventEmits() {
+        return slowEmits;
+    }
+
+    /** `D-375`：上报给决策层的 `PICKUP_DETOUR` 事件数（夹具/门禁用）。 */
+    public int detourEventEmits() {
+        return detourEmits;
+    }
+
+    /**
+     * `D-375`：最近一次**真的拿去规划**的目标格（`null` = 本任务从未规划过）。
+     *
+     * <p>为什么要暴露它：夹具必须能判"收集器挑的目标**可站**吗" —— 只看世界的最终状态是**不够**的，
+     * 实测（2026-09-21 注入复现）会漏：目标不可站 ⇒ 计划里带一条破格边，但物品在**破格之前**
+     * 就被原版拾取范围捞走了 ⇒ 世界零改动、看起来全绿，而缺陷（目标是站不住的格）已经在计划里了。
+     */
+    public BlockPos lastGoalFoot() {
+        return lastGoalFoot;
+    }
+
     @Override
     public Status tick() {
         if (++ticks > totalBudgetTicks) {
@@ -270,6 +352,9 @@ public final class CollectDropsTask implements Task {
             return Status.RUNNING;
         }
 
+        // ⭐ `D-375`：把"这一簇在磨 / 在改造地形"上报给决策层（**在烧完预算之前**）。
+        reportCollectSymptoms(members);
+
         // 0) 正在加高（D-116）：先把它跑完 —— 完成后重锚并重试走位
         if (gainRunner != null) {
             com.dddgn.alice.task.mining.GainStepRunner.State gainState = gainRunner.tick();
@@ -282,7 +367,9 @@ public final class CollectDropsTask implements Task {
                 BotLog.info("[CollectDrops] gain_done item={} steps={}/{} foot={}",
                         members.get(0).getUUID(), gainSteps, gainProfile.maxGainSteps(),
                         bot.blockPosition().toShortString());
-                reanchor(members);
+                if (!reanchor(members)) {
+                    retireNoApproach(members);
+                }
                 return Status.RUNNING;
             }
             BotLog.warn("[CollectDrops] gain_failed steps={}/{} → 如实退役",
@@ -299,7 +386,21 @@ public final class CollectDropsTask implements Task {
             // D-114：寻路目标必须是"**够得着掉落物的可站格**"，而不是掉落物所在格。
             // 反例（2026-09-11 实测）：支撑块被拆后掉落物停在平台格 (23,64,189) ✓，而锚点是
             // 刚拆掉的支撑块所在格 (23,64,190)——空气+下面也是空气 ⇒ 不可站 ⇒ UNREACHABLE ⇒ 退役残留。
-            normalizeAnchor(members);
+            if (!normalizeAnchor(members)) {
+                retireNoApproach(members);
+                return Status.RUNNING;
+            }
+            // ⭐ **不变式（`D-375`）**：收集请求的 `GoalFoot` **必须可站**。
+            // `normalizeAnchor` 已经保证了它；这里是"响了就说明上游破了"的硬闸 ——
+            // 一个站不住的目标 = 要求寻路**挖进去**（真机 19 段挖掘回环的成因）。
+            if (!isStandableCell(anchor)) {
+                BotLog.warn("[CollectDrops] INVARIANT_VIOLATION goal_not_standable goal={} itemPos={}"
+                                + "（锚点规范化破了：目标格站不住 ⇒ 拒绝规划，如实退休）",
+                        anchor.toShortString(), members.get(0).blockPosition().toShortString());
+                retireNoApproach(members);
+                return Status.RUNNING;
+            }
+            lastGoalFoot = anchor.immutable();
             PathRequest request = allowWorldModification
                     ? PathRequest.withWorldModification(bot.getUUID().toString(), MovementHelper.footCell(bot.serverLevel(), bot), anchor, "collect-drops")
                     : PathRequest.of(bot.getUUID().toString(), MovementHelper.footCell(bot.serverLevel(), bot), anchor, "collect-drops");
@@ -346,7 +447,10 @@ public final class CollectDropsTask implements Task {
         if (members.stream().anyMatch(this::inPickupRange)) {
             if (++waitTicks >= PICKUP_WAIT_TICKS) {
                 if (reanchors < MAX_REANCHORS) {
-                    reanchor(members);
+                    if (reanchor(members)) {
+                        return Status.RUNNING;
+                    }
+                    retireNoApproach(members);   // `D-375`：没有可站的可达格 ⇒ 不许规划，如实退休
                 } else {
                     for (ItemEntity member : members) {
                         retire(member.getUUID(), "pickup_timeout");
@@ -359,7 +463,10 @@ public final class CollectDropsTask implements Task {
 
         // 3) 到位但够不到（物品卡在够不着的位置）→ 换最近成员再试，用尽后如实退休
         if (reanchors < MAX_REANCHORS) {
-            reanchor(members);
+            if (reanchor(members)) {
+                return Status.RUNNING;
+            }
+            retireNoApproach(members);           // `D-375`：同上
             return Status.RUNNING;
         }
         for (ItemEntity member : members) {
@@ -369,14 +476,36 @@ public final class CollectDropsTask implements Task {
         return Status.RUNNING;
     }
 
-    /** 换到**离 bot 最近的存活成员**作为新锚点（原样重走）。 */
-    private void reanchor(List<ItemEntity> members) {
+    /**
+     * 换到**离 bot 最近的存活成员**作为新锚点（原样重走）。
+     *
+     * @return `true` = 新锚点可站（可以继续规划）；`false` = 找不出可站且够得着的格 ⇒ 调用方如实收尾
+     */
+    private boolean reanchor(List<ItemEntity> members) {
         reanchors++;
-        normalizeAnchor(members);
+        if (!normalizeAnchor(members)) {
+            return false;
+        }
         waitTicks = 0;
         runner = null;
         BotLog.info("[CollectDrops] reanchor cluster_anchor={} remaining={} reanchors={}/{}",
                 anchor.toShortString(), members.size(), reanchors, MAX_REANCHORS);
+        return true;
+    }
+
+    /**
+     * ⭐ `D-375`：**没有"可站且够得着"的格** ⇒ 不许规划（把站不住的格当目标 = 要求寻路挖进去），
+     * 逐件如实退休并收尾。
+     *
+     * <p>为什么不能"先规划看看"：寻路器**有能力**满足这种目标 —— 破掉格子头顶的方块就能站进去
+     * （`D-374` 刚把那条边补上）⇒ 代价是"为捡一件掉落物挖穿地形"（真机 19 段 / 破 6 格 / 10 秒）。
+     * 够不着就是够不着，如实退休（`no_standable_approach`）比挖穿地形诚实得多。
+     */
+    private void retireNoApproach(List<ItemEntity> members) {
+        for (ItemEntity member : members) {
+            retire(member.getUUID(), "no_standable_approach");
+        }
+        endCluster(true);
     }
 
     /**
@@ -422,22 +551,42 @@ public final class CollectDropsTask implements Task {
      *
      * <p>判据：优先用掉落物所在格（今天的行为，可站时完全不变）；否则在其周围
      * （水平 4 邻、y ∈ {0,+1,-1}，必要时半径 2）找**最近的可站格**，且与掉落物在拾取半径内。
-     * 一个都没有 → 保留原格（失败码保持诚实，随后照旧退役）。
+     *
+     * @return `true` = 锚点已设定为**可站**格（可以据此规划）；`false` = 一个都没有
+     *         ⇒ 调用方**不许**规划（规划到一个站不住的格 = 要求寻路"挖进去"，`D-375`），必须如实收尾
      */
-    private void normalizeAnchor(List<ItemEntity> members) {
+    private boolean normalizeAnchor(List<ItemEntity> members) {
         ItemEntity nearest = members.stream()
                 .min(java.util.Comparator.comparingDouble(item -> bot.distanceToSqr(item)))
                 .orElse(members.get(0));
         BlockPos itemCell = nearest.blockPosition().immutable();
         BlockPos goal = pickupGoalFor(nearest, itemCell);
+        if (goal == null) {
+            // ⭐ `D-375`（2026-09-21 第六轮真机）：**这里原先静默回退到"物品自身格"**——
+            // 那一格站不住（头位被挡）⇒ 搜索为了到达它只能**挖穿天花板**（真机：19 段计划、破 6 格、
+            // 烧满 200 tick 簇预算）。现在如实拒绝，并**留下日志**（旧行为一行都没有）。
+            BotLog.warn("[CollectDrops] no_standable_approach item={} itemPos={} itemY={} botFeet={}"
+                            + "（物品所在格站不住，周围 2 格内也没有「可站且够得着」的格"
+                            + " ⇒ 不许把不可站格当寻路目标（那等于让寻路挖进去），如实换锚点/退休）",
+                    nearest.getUUID(), itemCell.toShortString(),
+                    String.format(java.util.Locale.ROOT, "%.3f", nearest.getY()),
+                    bot.blockPosition().toShortString());
+            return false;
+        }
         anchor = goal;
         if (!goal.equals(itemCell)) {
             BotLog.info("[CollectDrops] goal_shift item={} itemPos={} goal={}（掉落物所在格不可站 → 走到够得着的可站格）",
                     nearest.getUUID(), itemCell.toShortString(), goal.toShortString());
         }
+        return true;
     }
 
-    /** 够得着该掉落物的可站格；掉落物所在格可站时原样返回。 */
+    /**
+     * 够得着该掉落物的可站格；掉落物所在格可站时原样返回。
+     *
+     * @return `null` = **找不到**（既不是"物品所在格"，也不是任何邻格）—— 调用方必须如实收尾，
+     *         **不许**退回物品自身格（`D-375`：那一格正是"站不住"才要搜索的）
+     */
     private BlockPos pickupGoalFor(ItemEntity item, BlockPos itemCell) {
         if (isStandableCell(itemCell)) {
             return itemCell;
@@ -464,7 +613,7 @@ public final class CollectDropsTask implements Task {
                 }
             }
         }
-        return best == null ? itemCell : best;
+        return best;
     }
 
     /** 可站：脚下有支撑 + 脚位/头位可穿过（与挖掘站位同一口径）。 */
@@ -473,11 +622,26 @@ public final class CollectDropsTask implements Task {
                 .isStandable(bot.serverLevel(), cell);
     }
 
-    /** 粗判"站在该格能否拾取到该掉落物"（原版拾取盒外扩 1.0 x/z、0.5 y）；精确判定仍走 inPickupRange。 */
-    private static boolean withinPickupReach(BlockPos cell, ItemEntity item) {
-        return Math.abs(cell.getX() + 0.5D - item.getX()) <= 1.2D
-                && Math.abs(cell.getZ() + 0.5D - item.getZ()) <= 1.2D
-                && Math.abs(cell.getY() - item.getY()) <= 1.2D;
+    /**
+     * ⭐ 站在该格（**站正在格中心**）能否拾取到该掉落物 —— **与 {@link #inPickupRange} 同一谓词**。
+     *
+     * <p><b>`D-375`（2026-09-21）：这里原先是一段粗判</b>（`|格中心 − 物品| ≤ 1.2` 逐轴），
+     * 而真实判据是"玩家包围盒外扩 `±1.0 x/z、±0.5 y` 与掉落物包围盒相交"，逐轴上界是
+     * `0.125(物品半宽) + 0.3(玩家半宽) + 1.0 = 1.425` ⇒ **1.2 &lt; 1.425**，于是存在一段
+     * "**真够得着、却被规划期否掉**"的位置。第六轮真机实测就被这一段打中：
+     * 掉落物在 `433,87,206`（自己那格站不住），够得着的可站邻格 `433,87,205` 距物品中心 1.3~1.4
+     * ⇒ 被粗判否掉 ⇒ `pickupGoalFor` 返回 null 后被静默换成物品自身格 ⇒ 挖 19 段。
+     *
+     * <p>包可见（`static`）是**故意**的：夹具必须复用它，不许自己再写一份近似判据
+     * （"可规划即可执行"的同一条纪律：夹具若用另一套判据，就会**自己骗自己**）。
+     */
+    static boolean withinPickupReach(BlockPos cell, ItemEntity item) {
+        double cx = cell.getX() + 0.5D;
+        double cz = cell.getZ() + 0.5D;
+        AABB standing = new AABB(cx - PLAYER_HALF_WIDTH, cell.getY(), cz - PLAYER_HALF_WIDTH,
+                cx + PLAYER_HALF_WIDTH, cell.getY() + PLAYER_HEIGHT, cz + PLAYER_HALF_WIDTH);
+        return standing.inflate(PICKUP_INFLATE_XZ, PICKUP_INFLATE_Y, PICKUP_INFLATE_XZ)
+                .intersects(item.getBoundingBox());
     }
 
     /**
@@ -486,7 +650,8 @@ public final class CollectDropsTask implements Task {
      * 用"到方块中心距离"判定会出现"看着到位、实际差半格"的假到位）。
      */
     private boolean inPickupRange(ItemEntity item) {
-        return bot.getBoundingBox().inflate(1.0D, 0.5D, 1.0D).intersects(item.getBoundingBox());
+        return bot.getBoundingBox().inflate(PICKUP_INFLATE_XZ, PICKUP_INFLATE_Y, PICKUP_INFLATE_XZ)
+                .intersects(item.getBoundingBox());
     }
 
     // ---- 候选与观测 ----
@@ -595,6 +760,9 @@ public final class CollectDropsTask implements Task {
         waitTicks = 0;
         reanchors = 0;
         settleTicks = 0;
+        slowReported = false;
+        detourReported = false;
+        worldChangesBefore = com.dddgn.alice.bot.TaskMetrics.snapshot();   // `D-375`："改造地形"的基线
         runner = null;
         BotLog.info("[CollectDrops] cluster_start anchor={} members={} items={} types={}",
                 anchor.toShortString(), clusterIds.size(), clusterStartSum, typeBefore.size());
@@ -672,6 +840,65 @@ public final class CollectDropsTask implements Task {
         waitTicks = 0;
         reanchors = 0;
         settleTicks = 0;
+        slowReported = false;
+        detourReported = false;
+        worldChangesBefore = null;
+    }
+
+    /**
+     * ⭐ **收集阶段的"绕远 / 在改造地形"上报**（`D-375` 第 4 条；第六轮真机实测的缺口）。
+     *
+     * <p><b>为什么必须有</b>：决策层能看到的一切只有"任务终态 + 事件"，而**簇内的那 10 秒**
+     * （真机实证：一条 19 段计划、破 6 格、烧满 200 tick 簇预算、`collected=0/13`）对它**完全不可见**
+     * —— 截图里它还在说「不动…mined 在涨…继续观察」。挖矿作业的代价恰恰是在这段时间被烧掉的。
+     *
+     * <p><b>两条判据（各自每簇只报一次；滞回 = 换簇重新武装）</b>：
+     * <ul>
+     *   <li>{@code PICKUP_SLOW}：本簇已耗 {@link #CLUSTER_SLOW_TICKS} tick（簇预算的一半）还没收手；</li>
+     *   <li>{@code PICKUP_DETOUR}：本簇期间**世界真的被改动过**（运行账增量 &gt; 0）
+     *       ⇒ 为了捡一件掉落物在改造地形（真机取证：`by=collect-drops:attempt0:PATH_ACCESS` ×16）。</li>
+     * </ul>
+     *
+     * <p>两条都走统一出口 {@code DecisionEvents.emit}（事件环 + 日志 + 通知决策层），于是决策层
+     * **当场**可以停 / 换点 / 放弃这一簇，而不是等 600 tick 的总预算烧完才发现。
+     * 自检窗口内 `GoalDirector` 会只记录不通知（既有守卫）。
+     */
+    private void reportCollectSymptoms(List<ItemEntity> members) {
+        if (!slowReported && sweepTicks >= CLUSTER_SLOW_TICKS) {
+            slowReported = true;
+            slowEmits++;
+            com.dddgn.alice.decision.DecisionEvents.emit(bot, "PICKUP_SLOW", "warn",
+                    "拾取一簇已耗 " + sweepTicks + " tick 还没收手（成员 " + members.size() + " 件）",
+                    "anchor=" + (anchor == null ? "-" : anchor.toShortString())
+                            + " members=" + members.size() + " sweepTicks=" + sweepTicks
+                            + " reanchors=" + reanchors + "/" + MAX_REANCHORS
+                            + " collected=" + collectedItems + "/" + expectedItems
+                            + " ticks=" + ticks);
+        }
+        int changes = worldChangesInCluster();
+        if (!detourReported && changes > 0) {
+            detourReported = true;
+            detourEmits++;
+            com.dddgn.alice.decision.DecisionEvents.emit(bot, "PICKUP_DETOUR", "warn",
+                    "为拾取掉落物**改造地形**（本簇期间世界已被改动 " + changes + " 格）",
+                    "anchor=" + (anchor == null ? "-" : anchor.toShortString())
+                            + " members=" + members.size()
+                            + " botFeet=" + bot.blockPosition().toShortString()
+                            + " worldChanges=" + changes + " sweepTicks=" + sweepTicks
+                            + " worldMod=" + allowWorldModification);
+        }
+    }
+
+    /**
+     * 本簇开始以来**世界被改动的格数**（运行账增量：破坏 + 放置 + 容器写入）。
+     *
+     * <p>见 {@link #worldChangesBefore} 的理由 —— 这是"改造地形"判据的唯一来源。
+     */
+    private int worldChangesInCluster() {
+        if (worldChangesBefore == null) {
+            return 0;
+        }
+        return com.dddgn.alice.bot.TaskMetrics.snapshot().delta(worldChangesBefore).worldChanges();
     }
 
     private void retire(UUID id, String reason) {
@@ -680,6 +907,9 @@ public final class CollectDropsTask implements Task {
         }
         if ("pickup_timeout".equals(reason)) {
             pickupTimeoutCount++;
+        } else if ("no_standable_approach".equals(reason)) {
+            // `D-375`：与 `unreachable`（"试过走位、失败了"）分开记 —— 这一档是"**根本不许规划**"
+            noApproachCount++;
         } else {
             unreachableCount++;
         }
@@ -737,9 +967,13 @@ public final class CollectDropsTask implements Task {
                 + " entities=" + consumed.size() + "/" + known.size()
                 + " clusters=" + clustersSwept
                 + " unreachable=" + unreachableCount
+                + " no_approach=" + noApproachCount
                 + " pickup_timeout=" + pickupTimeoutCount
                 + " mismatch=" + mismatchCount
                 + " policy_blocked=" + policyBlockedCount
+                + " slow_events=" + slowEmits
+                + " detour_events=" + detourEmits
+                + " goal_foot=" + (lastGoalFoot == null ? "-" : lastGoalFoot.toShortString())
                 + " ticks=" + ticks;
         BotLog.info("[CollectDrops] SUMMARY {}", summary);
         return Status.DONE;

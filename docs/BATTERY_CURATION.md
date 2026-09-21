@@ -131,6 +131,10 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 `safe_return`（D-327 机制 B：**任务失败后回安全区的兜底** —— 三用例：无区 ⇒ `return_no_safe_zone`、
 200 格外 ⇒ 分段走回**认领区块里**、封死格 ⇒ `return_unreachable` + 原地不动；夹具自己认领/取消
 + 自建/还原封盒 ⇒ 只 `single:safe_return`）
+`collect_slot_approach`（`D-375`：**掉落物「够得着的可站格」** —— 1 格高夹缝 ⇒ 必须走到可站邻格去捡、
+**一格都不许挖**；无任何可站邻格 ⇒ 如实 `no_standable_approach` 退休、**不许挖穿天花板**；
+反证①封死石室（世界修改已授权）⇒ 合法破墙 + 决策层收到 `PICKUP_DETOUR`；
+反证②永久 `PickupDelay` ⇒ 决策层收到 `PICKUP_SLOW`。自建空中场景、4 案例一次跑完、约 220 tick）
 
 ## 3. 维护规则（我 = AI 负责执行）
 

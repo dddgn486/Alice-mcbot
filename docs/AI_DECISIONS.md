@@ -16073,3 +16073,85 @@ Baritone 走 `MovementTraverse` 内部破头位。
   目标 `436,82,229` **从未被挖**却已 `already_attempted`、`search_incomplete` 0 次）。
 - **回收条件**：出现"修复后仍有一条**只差 1 格破块**却不可达的实测反例" ⇒ 说明还有第二处缺口，
   届时**先跑 G2 差集**再动代码（不许直接再加谓词）。
+
+
+### D-375
+
+#### 一、决定（2026-09-21，P2）：收集器的「够得着的可站格」与**真实拾取盒同一谓词**；找不到就不许规划
+
+四件事一起改（少一条，第六轮那条绕远就还在）：
+
+1. **`CollectDropsTask.withinPickupReach` 换成真实拾取盒**：`AABB`（玩家 `0.6×1.8` 站正在格中心）
+   + 与 `inPickupRange` **共享的**外扩常量（`PICKUP_INFLATE_XZ = 1.0D` / `PICKUP_INFLATE_Y = 0.5D`）
+   + `intersects(item.getBoundingBox())`。逐轴上界从旧粗判的 `1.2` 变成真实的
+   `0.125(物品半宽) + 0.3(玩家半宽) + 1.0 = **1.425**`；
+2. **`pickupGoalFor` 找不到就返回 `null`**（删掉 `best == null → return itemCell` 的**静默兜底**），
+   `normalizeAnchor` 改成返回 `boolean`，`goal == null ⇒ BotLog.warn + return false`（**旧行为一行日志都没有**）；
+3. **规划前硬不变式**：`if (!isStandableCell(anchor)) ⇒ 拒绝规划 + 如实退休`；新原因码
+   `no_standable_approach` **单独计数**（`no_approach=`，与 `unreachable` 分开）；
+4. **决策层信号**（用户 2026-09-21 裁定②）：`PICKUP_SLOW`（一簇耗掉一半预算 = `CLUSTER_SLOW_TICKS` = 100 tick）
+   + `PICKUP_DETOUR`（本簇期间**世界改动运行账**增量 > 0），都走统一出口 `DecisionEvents.emit`。
+
+#### 二、为什么（真机实测链条，逐字见 `docs/reviews/2026-09-21-掉落物在洞里被瞬退.md` §10）
+
+第六轮真机：7 个簇里 6 个 `collected=N/N`（P0 生效 ✓），但**两簇烧满 200 tick**：
+
+```
+cluster_start anchor=433, 87, 206 → retire reason=cluster_budget
+[PathRetry] plan attempt=0 status=REACHED cost=58.64 nodes=2911 movements=19 feet=433,86,208 goal=433,87,206
+[WRITE] break … by=collect-drops:attempt0:PATH_ACCESS ×16        ← 目标只有 2 格远
+存档取证（region mtime 13:31）：433,88,206 = 实心（天花板）· 433,87,206 = 物品格（站不住）
+                                433,87,205 = air/air ⇒ **可站**且够得着
+```
+
+四个环节**缺一不可**（这正是它藏了这么久的原因）：
+
+1. 旧 `withinPickupReach` 是**粗判**（逐轴 `1.2`），而真实上界是 `1.425` ⇒ 存在一段
+   「真够得着、却被规划期否掉」的位置；真机上那件落物**正好**落在里面（邻格中心距 1.3~1.4）；
+2. ⇒ `pickupGoalFor` 一圈**一格都没找到**；
+3. ⇒ 走 `best == null` 的静默兜底，把**站不住的物品自身格**当目标；
+4. ⇒ 走到「脚位可通行、头位被挡」的格**只能**靠 `BREAK_AND_ENTER`（`D-374` 刚补上的那条边）
+   ⇒ 唯一可行路线就是那条 **19 段 / 破 6 格 / ≈10 秒**的挖掘回环 ⇒ 簇预算烧光。
+
+**它与 `D-374` 是同一族的两个反面**：`D-374` 是「**图**不给边」（到不了），本条是
+「**目标**本身要求挖进去」（不该去）——**一个补能力，一个收权力**。
+
+#### 三、判据（`tools/kernel-predicates.py` → `rule_collect_goal_standable`，标签 `[D-375·收集目标可站]`）
+
+钉**有效表达式**（不是标识符）：外扩常量、`withinPickupReach` 必须是真盒子、旧粗判形态**不许复活**、
+`inPickupRange` 必须复用同一对常量、`pickupGoalFor` 的返回必须是裸 `best`、
+`normalizeAnchor` 必须 `goal == null ⇒ return false` + `BotLog.warn`、规划前必须有
+`if (!isStandableCell(anchor))`、两个事件类型必须在、`worldChangesInCluster` 必须是运行账增量、
+**夹具必须用生产谓词算「真够得着」前提**（`premiseGoalReachable = CollectDropsTask.withinPickupReach(...)`）。
+
+**红态对照（8/8 变红）**：① 旧粗判复活 ② 静默兜底复活 ③ 不变式 `if (false)` ④ `goal == null` 改 `if (false)`
+⑤ 外扩常量改 0.9 ⑥ DETOUR 判据永远返回 0 ⑦ 换簇基线不重取 ⑧ 夹具改用自己的近似判据。
+⚠️ 第 ⑧ 条第一版**静默绿**过：门禁只查「文件里出现过 `CollectDropsTask.withinPickupReach(`」，
+而别处还留着同名调用 ⇒ 已改成钉那**一行有效表达式**（与「断言有效表达式、不钉标识符」同一条教训）。
+
+**夹具**：`CollectSlotApproachCheckTask`（电池步 `collect_slot_approach`，EXTRA，自建空中场景，4 案例：
+`SLOT_REACH` / `UNREACHABLE` / `SEALED_ROOM` / `PICKUP_DELAY`，一次右键跑完，`SUMMARY` 打印 `checks/failures`）。
+**红→绿实证**：把上述 4 处改回修复前形态再跑 ⇒ `failures=7`（含 `UNREACHABLE` 真的**挖穿天花板把物品捡走**：
+`collected=1 worldChanges=1 no_approach=0 itemLeft=false`）；恢复修复 ⇒ `failures=0`。
+
+**一条被实测逼出来的判据设计**：只判「世界最终状态」**不够** —— 修复前 `SLOT_REACH` 那条
+`worldChanges=0` 竟是真的（计划里带一条破格边，但 bot 走到够得着的邻格时物品**已进原版拾取范围**、
+破格那一段根本没执行）⇒ 夹具必须判**收集器挑的目标格**（新观察点 `CollectDropsTask.lastGoalFoot()`，
+`SUMMARY` 里有 `goal_foot=`）。
+
+#### 四、口径诚实说明
+
+- `PICKUP_DETOUR` 用的是 `TaskMetrics` 的**进程级**世界改动增量 ⇒ 它说的是「本簇这段时间全世界改了几格」，
+  **不是**「这条路径破的格数」。今天成立（作业相位串行：`MineJob.collectPhase()` 只 tick 收集器，矿工不在跑），
+  事件文案里也如实这么写。
+- 第一版信号实现读的是「走位执行过的 Movement 类型」，**自检当场抓到它漏**：
+  `PathSession.executedMovementTypes()` 要等**某一段成功**才追加，而「为捡一件东西挖一格」常常正好是最后一段
+  ⇒ 实测真破了 2 格石墙、`detour_events` 仍是 0 ✗ ⇒ 改成运行账增量（那是**真的扣写入预算那一刻**记的）。
+
+#### 五、未做 / 回收条件
+
+- **未做**：`canWalkThrough` 全局改名（117 处 / 37 文件）—— 拦截力已由形状门禁 + `D-374` 的 G2 差集提供，
+  改名收益是「防误读」而成本是一次大范围机械改动，**建议不做**（同 §D-374 五）。
+- **回收条件**：若出现「修复后仍有**合法**目标被判 `no_standable_approach`」的实测反例
+  （即真的需要走到一个站不住的格才能捡到）⇒ 说明还有第三种手段没被建模，届时**先补夹具复现**再动代码，
+  不许直接把兜底加回来。

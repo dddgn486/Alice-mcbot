@@ -1923,6 +1923,120 @@ def rule_manual_test_lock_blocks_llm():
     return problems
 
 
+def rule_collect_goal_standable():
+    """`D-375`（2026-09-21 第六轮真机 + 存档取证）：**「够得着的可站格」必须与真实拾取盒同一谓词；
+    一个都没有时不许规划，更不许退回「物品自身格」**。
+
+    事故原文（真机，逐字见 `docs/reviews/2026-09-21-掉落物在洞里被瞬退.md` §10）：
+    `CollectDropsTask.pickupGoalFor` 的「够得着吗」是**粗判**（逐轴 1.2），而真实拾取盒的逐轴上界是
+    `0.125 + 0.3 + 1.0 = 1.425` ⇒ 存在一段「**真够得着、却被规划期否掉**」的位置；真机上那件落物
+    正好落在里面 ⇒ 搜索一圈没找到 ⇒ 静默 `best == null → return itemCell` 把**站不住的物品自身格**
+    当目标（**一行日志都没有**）⇒ 走到那种格只能靠同层 `BREAK_AND_ENTER` ⇒ 唯一可行路线是
+    **19 段计划 / 破 6 格 / 约 10 秒** ⇒ 烧满 200 tick 簇预算 ⇒ 最坏 `collected=0/13`。
+
+    断言（改任一处 ⇒ 红）：
+    ① `withinPickupReach` 必须是**真实拾取盒**（`AABB` + 与 `inPickupRange` **共享的**外扩常量 +
+       `item.getBoundingBox()` 相交）；
+    ② 旧粗判形态 `Math.abs(cell.getX() + 0.5D - item.getX()) <= 1.2D` 不许复活；
+    ③ `inPickupRange` 必须复用同一对外扩常量（不许再出现写死的 `inflate(1.0D, 0.5D, 1.0D)`）；
+    ④ `pickupGoalFor` 不许「找不到就退回物品自身格」（`best == null ? itemCell : best` 形态）；
+    ⑤ 找不到时必须**如实拒绝 + 留日志**（`goal == null ⇒ return false` + `BotLog.warn`）；
+    ⑥ 规划前必须有硬不变式「收集请求的 `GoalFoot` 必须可站」（`if (!isStandableCell(anchor))`）；
+    ⑦ 决策层信号必须在：`PICKUP_DETOUR` / `PICKUP_SLOW`，且「改造地形」的判据必须是**世界改动运行账
+       的增量**（`TaskMetrics.snapshot().delta(簇基线).worldChanges()`）—— 自检实测：读"走位执行过的
+       Movement 类型"会漏（`executedMovementTypes()` 要等某一段**成功**才追加，而"为捡一件东西挖一格"
+       常常正好是最后一段 ⇒ 破了 2 格石墙、事件计数仍是 0）；运行账是"真的扣了写入预算那一刻"记的；
+    ⑧ 夹具必须**复用生产谓词**（`CollectSlotApproachCheckTask` 里出现 `CollectDropsTask.withinPickupReach(`）
+       —— 夹具自己另写一份近似判据 = 自己骗自己。
+    """
+    problems = []
+    task_file = ROOT / "src/main/java/com/dddgn/alice/task/CollectDropsTask.java"
+    text = code_only(task_file.read_text(encoding="utf-8"))
+    shared_inflate = "inflate(PICKUP_INFLATE_XZ, PICKUP_INFLATE_Y, PICKUP_INFLATE_XZ)"
+
+    if "PICKUP_INFLATE_XZ = 1.0D" not in text or "PICKUP_INFLATE_Y = 0.5D" not in text:
+        problems.append("拾取盒外扩常量 `PICKUP_INFLATE_XZ = 1.0D` / `PICKUP_INFLATE_Y = 0.5D` 不存在"
+                        "（口径的唯一来源没了 ⇒ 规划期与执行期必然各写一份）")
+
+    reach = method_body(text, "static boolean withinPickupReach(BlockPos cell, ItemEntity item) {")
+    if not reach:
+        problems.append("找不到 `CollectDropsTask.withinPickupReach`（结构变了 ⇒ 本规则要跟着改）")
+    else:
+        if "AABB" not in reach or "intersects(" not in reach or "item.getBoundingBox()" not in reach:
+            problems.append("`withinPickupReach` 不是真实拾取盒（缺 `AABB` / 相交 / `item.getBoundingBox()`）"
+                            "⇒ 会重演 D-375：真够得着却被规划期否掉")
+        if shared_inflate not in reach:
+            problems.append("`withinPickupReach` 没有用共享外扩常量 ⇒ 与 `inPickupRange` 的口径会漂移")
+
+    if ("Math.abs(cell.getX() + 0.5D - item.getX())" in text
+            or "Math.abs(cell.getZ() + 0.5D - item.getZ())" in text):
+        problems.append("旧粗判（逐轴 1.2 的格中心比较）复活 ⇒ 真实上界 1.425 与它之间那段位置"
+                        "会再次被否掉（= D-375 的缺口形态本身）")
+
+    in_range = method_body(text, "private boolean inPickupRange(ItemEntity item) {")
+    if not in_range:
+        problems.append("找不到 `inPickupRange`（结构变了 ⇒ 本规则要跟着改）")
+    elif shared_inflate not in in_range:
+        problems.append("`inPickupRange` 没有复用同一对外扩常量 ⇒ 规划期与执行期的「够得着」各写一份")
+    if "inflate(1.0D, 0.5D, 1.0D)" in text:
+        problems.append("仍存在写死的 `inflate(1.0D, 0.5D, 1.0D)` ⇒ 外扩量有了第二份定义（会漂移）")
+
+    goal = method_body(text, "private BlockPos pickupGoalFor(ItemEntity item, BlockPos itemCell) {")
+    if not goal:
+        problems.append("找不到 `pickupGoalFor`（结构变了 ⇒ 本规则要跟着改）")
+    else:
+        if "best == null ? itemCell" in goal:
+            problems.append("`pickupGoalFor` 又退回「物品自身格」= D-375 的静默兜底形态"
+                            "（那一格正是「站不住」才要搜索的）")
+        if "return best;" not in goal:
+            problems.append("`pickupGoalFor` 的返回值不是裸 `best`（找不到就该返回 null ⇒ 调用方如实收尾）")
+
+    norm = method_body(text, "private boolean normalizeAnchor(List<ItemEntity> members) {")
+    if not norm:
+        problems.append("找不到 `normalizeAnchor`（结构变了 ⇒ 本规则要跟着改）")
+    else:
+        if "if (goal == null)" not in norm or "return false;" not in norm:
+            problems.append("`normalizeAnchor` 在找不到可站格时没有「如实拒绝」"
+                            "（`goal == null ⇒ return false`）⇒ 调用方会拿不可站的目标去规划")
+        if "BotLog.warn(" not in norm:
+            problems.append("找不到可站格时**一行日志都没有**（旧行为）⇒ 现场不可取证")
+
+    if "if (!normalizeAnchor(members)) {" not in text:
+        problems.append("规划前没有处理「锚点规范化失败」（`if (!normalizeAnchor(members))`）")
+    if "if (!isStandableCell(anchor)) {" not in text:
+        problems.append("缺少硬不变式「收集请求的 GoalFoot 必须可站」（`if (!isStandableCell(anchor))`）"
+                        "⇒ 站不住的目标 = 要求寻路挖进去")
+
+    if 'DecisionEvents.emit(bot, "PICKUP_DETOUR"' not in text:
+        problems.append("决策层信号 `PICKUP_DETOUR` 不存在 ⇒「为捡一件东西在改造地形」对决策层不可见")
+    if 'DecisionEvents.emit(bot, "PICKUP_SLOW"' not in text:
+        problems.append("决策层信号 `PICKUP_SLOW` 不存在 ⇒ 簇内那 10 秒（真机烧掉 200 tick）对决策层不可见")
+    changes = method_body(text, "private int worldChangesInCluster() {")
+    if not changes:
+        problems.append("找不到 `worldChangesInCluster`（结构变了 ⇒ 本规则要跟着改）")
+    elif ("TaskMetrics.snapshot()" not in changes or ".delta(" not in changes
+          or ".worldChanges()" not in changes):
+        problems.append("`PICKUP_DETOUR` 的判据不是「世界改动运行账增量」"
+                        "（`TaskMetrics.snapshot().delta(...).worldChanges()`）"
+                        "⇒ 会重演自检实测：真破了 2 格石墙，`detour_events` 仍是 0")
+    if "worldChangesBefore = com.dddgn.alice.bot.TaskMetrics.snapshot();" not in text:
+        problems.append("换簇时没有重取「世界改动」基线 ⇒ 上一簇（甚至上一步）的改动会算进下一簇")
+
+    fixture = ROOT / "src/main/java/com/dddgn/alice/task/CollectSlotApproachCheckTask.java"
+    if not fixture.exists():
+        problems.append("夹具 `CollectSlotApproachCheckTask` 不存在 ⇒ D-375 没有判据（只能靠真人踩到）")
+    elif ("premiseGoalReachable = CollectDropsTask.withinPickupReach(goal, item);"
+          not in code_only(fixture.read_text(encoding="utf-8"))):
+        # ⚠️ 判据要钉**有效表达式**，不能只钉"文件里出现过这个名字"：
+        # 实测（2026-09-21 注入 ⑧）把正例那条前提换成夹具自写的 `roughReach(...)` 时，
+        # 文件里**别处**（起点/最近站格那两条）还留着同名调用 ⇒ 只查"出现过"的门禁**静默绿** ✗
+        problems.append("夹具的「真够得着」前提**不是**生产谓词算出来的"
+                        "（缺 `premiseGoalReachable = CollectDropsTask.withinPickupReach(goal, item);`）"
+                        "⇒ 它用另一套判据自己骗自己（与「可规划即可执行」同一条纪律）")
+
+    return problems
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
@@ -1975,6 +2089,7 @@ def main() -> int:
     ticksearch = rule_tick_search_account_enforced()
     approachbound = rule_approach_plans_bounded()
     bodyclear = rule_edge_destination_body_clearance()
+    collectgoal = rule_collect_goal_standable()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -2063,13 +2178,15 @@ def main() -> int:
         print(f"[A2·模式B穷举有界] {line}")
     for line in bodyclear:
         print(f"[D-374·目的地整体通行] {line}")
+    for line in collectgoal:
+        print(f"[D-375·收集目标可站] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

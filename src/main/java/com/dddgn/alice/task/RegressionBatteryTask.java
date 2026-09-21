@@ -261,6 +261,11 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("permission_gate", Profile.EXTRA),
             Map.entry("pickup_gate", Profile.EXTRA),
             Map.entry("collect_job", Profile.EXTRA),
+            // ⭐ `D-375`（2026-09-21 第六轮真机）：**掉落物「够得着的可站格」** —— 两个判据 + 各自的反证：
+            // ① 1 格高夹缝 ⇒ 必须走到可站邻格去捡、**一格都不许挖**；② 无任何可站邻格 ⇒ 如实退休且不许挖穿；
+            // ③ 反证「该改世界时照样改」（封死石室合法破墙 + 决策层收到 `PICKUP_DETOUR`）；
+            // ④ 反证「慢也要被看见」（`PickupDelay` 永久 ⇒ 收到 `PICKUP_SLOW`）。EXTRA（自建地形）。
+            Map.entry("collect_slot_approach", Profile.EXTRA),
             Map.entry("recipes_dump", Profile.EXTRA),
             Map.entry("event_thresholds", Profile.EXTRA),
             // **D-319**：假人归属（创建者登记）—— 它是将来"继承创建者身份/权限"的地基，错了会以

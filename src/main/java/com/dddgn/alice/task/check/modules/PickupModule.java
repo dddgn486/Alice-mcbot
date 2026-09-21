@@ -89,7 +89,13 @@ public final class PickupModule implements CheckModule {
                         // **走统一入口**（JobRequest → JobLauncher）：顺带覆盖 D-134 的"起任意 Job"路径
                         () -> JobLauncher.create(bot, scope,
                                 JobRequest.collect(CollectJobItem.DROP_CENTER, 16, 24, 600)),
-                        800));
+                        800),
+                // ⭐ `D-375`（2026-09-21 第六轮真机）：**掉落物「够得着的可站格」**。自建空中场景
+                // （⇒ 无需数据包场景，`List.of()`；夹具自己传送 + 自己复位），四个案例串行跑完。
+                // 它钉的是"**为捡一件掉落物挖穿地形**"这条真机症状（19 段 / 破 6 格 / 烧满簇预算）。
+                CheckStep.of("collect_slot_approach", CheckProfile.EXTRA, List.of(), null,
+                        () -> new com.dddgn.alice.task.CollectSlotApproachCheckTask(bot, observer, scope),
+                        1200));
     }
 
     /** 传送到统一起点（与电池 `teleportBot` 逐字段一致 ✓；顺带起"先热区块再 fill"的作用 ✓）。 */
