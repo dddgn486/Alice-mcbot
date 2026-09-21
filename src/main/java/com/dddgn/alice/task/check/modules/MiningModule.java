@@ -12,6 +12,7 @@ import com.dddgn.alice.task.MineMenuCheckTask;
 import com.dddgn.alice.task.MineReachProbeTask;
 import com.dddgn.alice.task.MineRegressionTask;
 import com.dddgn.alice.task.MineRunMetricsCheckTask;
+import com.dddgn.alice.task.MiningWaterBreakCostCheckTask;
 import com.dddgn.alice.task.NoProgressCheckTask;
 import com.dddgn.alice.task.OreCourseAnchor;
 import com.dddgn.alice.task.check.CheckContext;
@@ -203,7 +204,14 @@ public final class MiningModule implements CheckModule {
                 // ⚠️ **必须跑在真机那次的存档上**（`saves/新的世界 (2)`）；EXTRA（不进 CORE）⇒
                 // 只由 `single:mine_reach_probe` 显式跑。本探针**不设通过/失败**（记事实，判读由人做）。
                 CheckStep.of("mine_reach_probe", CheckProfile.EXTRA, List.of(), null,
-                        () -> new MineReachProbeTask(bot, observer), 400));
+                        () -> new MineReachProbeTask(bot, observer), 400),
+                // ⭐ `D-385`（2026-09-21）：**规划期的挖掘成本必须等于执行侧真值** ——
+                // 执行侧走 vanilla，而 vanilla 有"眼在水里 ÷5""离地 ÷5"两项状态惩罚，
+                // 旧 `estimateBreakTicks` 只等于「陆地 + 在地面」那一档 ⇒ 水下/离地乐观 5×~25×。
+                // 本步在自建水池 + 石壁上量四个状态组合（估计 vs `1.0F/getDestroyProgress`），
+                // 并用生产边生成器断言"水里那一步的破坏项确实贵了 (est_湿−est_干)/6"⇒ 规划器自然偏向放置。
+                CheckStep.of("mining_water_break_cost", CheckProfile.EXTRA, List.of(), null,
+                        () -> new MiningWaterBreakCostCheckTask(bot, observer), 600));
     }
 
     /** 传送到统一起点（与电池 `teleportBot` 逐字段一致 ✓；顺带起"先热区块再 fill"的作用 ✓）。 */

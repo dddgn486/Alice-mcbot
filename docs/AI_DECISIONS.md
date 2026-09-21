@@ -16819,3 +16819,112 @@ boolean safe = safeToStopNow() && !hazardActive;
 - 危险中"不落地"**不等于**"危险被处理"：它只是**不把任务从 bot 脚下抽走**；真正的处理仍归维生
   （`INTERRUPT`/`FLOAT_UP`/`ABANDON_NO_EXIT`）与 `D-380`/`D-382`。
 - 若危险 60 秒不清 ⇒ **强制落地**（如实计入 `forcedUnsafe`）⇒ 这条规则不承诺"危险中永不停"。
+
+### D-385：**规划期的挖掘成本必须等于执行侧真值**（补 vanilla 的两项状态惩罚：眼在水里 ⇒ ×5、离地 ⇒ ×5）（2026-09-21 队列第 3 项）
+
+**状态**：`SERVER_TESTED`（新电池步 `mining_water_break_cost`：`checks=40 failures=0` + **两轮**红对照；CORE **51/52** = 基线）。
+
+#### 一、事实（只读审计 + javap 实测字节码，全部可核）
+
+- **规划侧** `estimateBreakTicks`（修复前）= `seconds = canHarvest ? hardness*1.5/speed : hardness*5/speed`
+  ⇒ `ticks = hardness*30/speed`（或 `*100`）—— **只等于 vanilla 在「站在地上 + 眼不在水里」那一档**。
+- **执行侧**每 tick 累加 vanilla `BlockState.getDestroyProgress`（`BlockBreakSession.java:100`），
+  它的分子 `Player.getDigSpeed` 里带两项除法（javap 实测 `1.20.1-47.4.10_mapped_official` 字节码：
+  `158-180` 与 `181-193`）：
+  ```
+  isEyeInFluid(WATER) && !EnchantmentHelper.hasAquaAffinity(玩家)  ⇒ f /= 5.0f
+  !onGround()                                                    ⇒ f /= 5.0f
+  ```
+  ⇒ **旧估计在水下 / 离地时乐观 5×~25×**；执行侧上限 `MAX_BREAK_TICKS = 1200`（`BlockBreakSession.java:28`）。
+- **影响面不止逃生**：任何"水边/水下挖矿""落体中挖方块"都欠估 ⇒ 规划器**过度挖、该放不放**。
+- **Baritone 对照（`D-036`）**：`MovementHelper.getMiningDurationTicks:580-606` 同样只算陆地那一档
+  （`strVsBlock` + `breakBlockAdditionalCost`，**无**眼在水里/离地项）—— 它靠回避水下挖掘绕开，
+  Alice 不回避 ⇒ 这一条是**主动偏离**（见 §三）。
+
+#### 二、改动（唯一来源）
+
+```java
+// BlockInteraction.estimateBreakTicks 末尾
+double ticks = seconds * 20.0D * stateBreakPenaltyMultiplier(bot);   // 惩罚**先乘**
+return Math.max(1.0D, ticks);                                        // 再取下限（与 vanilla 同序）
+
+private static double stateBreakPenaltyMultiplier(ServerPlayer bot) {
+    if (eyeInWater && !hasAquaAffinity) multiplier *= 5.0D;          // 眼在水里（现查几何）
+    if (!bot.onGround() && !hasSupportBelow(bot)) multiplier *= 5.0D; // 离地（见 §三的偏离）
+    return multiplier;
+}
+```
+- 规划与执行共用这一个函数 ⇒ **不产生第二份口径**（门禁断言：源码里同时出现 `hasAquaAffinity`
+  与「×/÷ 5.0」算式的**生产**文件只允许 `BlockInteraction.java`）。
+- **不是**"水里优先放置"的特判：公式补全后规划器**自然**偏向放置（判据④）。
+
+#### 三、⚠️ 两处**主动偏离 vanilla 字面**（都是为了"规划期提问时刻 ≠ 破坏时刻"）
+
+1. **离地那一项用「脚下有没有耐久支撑」而不是单看 `onGround()`**
+   —— `hasSupportBelow` = `MovementHelper.footCell(...).below()` 是「实心、非流体、有碰撞形状」
+   （复用 `isSolidForPlacement`，脚位格口径跟 `D-226` 统一）。
+   **证据（真机无头实测，探针逐次打印）**：`pathing` 步的 `break_course` 场景**传送到起点那一 tick**，
+   bot 就在 `0,64,66` 且**脚下是 Stone**，而 `onGround=false`（标志位由上一次 `move()` 写入 ⇒ 滞后一 tick）
+   ⇒ 全图破坏边被误罚 5× ⇒ 规划从「**破墙过去**」（`TRAVERSE,BREAK_AND_TRAVERSE`，52 tick）翻成
+   「**搭柱翻墙**」（`TRAVERSE,ASCEND,PILLAR,FALL`，65 tick）—— 实际更慢的路线被选中 ⇒ CORE 判红（50/52）。
+2. **用的是 bot 的当前状态，不是"破坏发生时的状态"**
+   —— 搜索里被估值的边可能离 bot 很远（当前在水里 ⇒ 远处**干燥**墙的破坏边也会 ×5）。
+   这是**已知近似**（本轮的取舍：只在成本里补状态，不改 5 个调用点的签名）；回收条件见 §六。
+
+#### 四、判据（电池步 `mining_water_break_cost`，EXTRA）
+
+场景（自建、空中孤立、收尾清空）：5×5×5 石箱内挖 3×3×4 水池 + 同高干燥踏板；
+被测几何 = `from(1,0,0) → mid(2,0,0)=石壁 → to(3,0,0)`；工具 = 夹具发镐 + `switchToBestToolFor` 放**主手**
+（否则"估计器用最佳工具、vanilla 用主手"两边不可比）。**六个用例**覆盖四个
+`(眼在水里, 在地面)` 组合 + 规划器两态 + §三.1 那一幕：
+
+```
+[MiningWaterCost] CASE DRY_GROUND       eyeInWater=false onGround=true (natural=true)  est=5.625   vanilla=5.625
+[MiningWaterCost] CASE WATER_SURFACE    eyeInWater=false onGround=false(natural=false) est=28.125  vanilla=28.125
+[MiningWaterCost] CASE SUBMERGED_GROUND eyeInWater=true  onGround=true (natural=true)  est=28.125  vanilla=28.125
+[MiningWaterCost] CASE SUBMERGED_FLOAT  eyeInWater=true  onGround=false(natural=false) est=140.625 vanilla=140.625
+[MiningWaterCost] CASE DRY_AIRBORNE     eyeInWater=false onGround=false(natural=false) est=28.125  vanilla=28.125
+[MiningWaterCost] CASE DRY_STALE_FLAG   eyeInWater=false onGround=false(natural=true)  est=5.625   vanilla=28.125  ← §三.1
+[MiningWaterCost] SUMMARY checks=40 failures=0 建方块=155 原本非空气=0 → PASS
+```
+① **场景前提**（红了 = 夹具坏，不是缺陷证据）：四个组合真的造出来 + **vanilla 自己**给出 1/5/25/5
+（`1.0F/getDestroyProgress` 实测）+ 无 Aqua Affinity + 人工置位的两档**自然读数**也确实离地
+（防"置位掩盖真实状态"）+ 陈旧标志位那档的自然读数确实是**在地面**；
+② **⭐ 被测判据**：逐用例 `estimateBreakTicks == 1.0F/getDestroyProgress`（相对 1e-4 —— 同一公式只差
+float/double 精度）；**例外** = `DRY_STALE_FLAG`（§三.1）：期望是 `vanilla/5`；
+③ **⭐ 生产后果（一）**：生产边生成器 `SurfaceMovementProvider` 取出的**同一条** `BREAK_AND_TRAVERSE` 边，
+浮在水面时破坏项比陆地贵 `(vanilla_湿 − vanilla_干)/6 = 3.750` 走路格（**期望值锚在 vanilla 真值上** ——
+锚在 `estimate` 上则两边一起变小、永远绿；另断言两边"非破坏部分"逐位相同 ⇒ 差额只可能来自破坏项）；
+④ **⭐ 生产后果（二）**：陆地挖石头 `1.271 < 放一块 3.333`（修复不许把陆地挖掘也搞贵）、
+水里浮着 `5.021 > 3.333`、水柱中段 `23.771 > 3.333` ⇒ **规划器自然偏向放置**；
+⑤ 每个用例断言"测量是只读的"（5 格快照前后一致）。
+
+**红对照 A（撤掉整个惩罚）⇒ `failures=7`**：四个非基线用例的等价性（`est` 全部退回 5.625）+ 规划器差额
+（实测 0.000 vs 期望 3.750）+ 两条代价结论；**28 条前提/自洽判据全绿** ⇒ 归因清楚。
+**红对照 B（退回"只看 `onGround()` 标志位"）⇒ `failures=2`**：**恰好**红在 `DRY_STALE_FLAG` 那两条
+（等价性 + "必须等于基线"）⇒ §三.1 的守卫有专门判据（也正是 CORE 那次 50/52 的机制复现）。
+
+#### 五、CORE 回归（必须：`estimateBreakTicks` 是全项目共用）
+
+| 版本 | CORE | `pathing` 步的 `break_course` |
+|---|---|---|
+| 基线（改动前，`run/headless-logs/20260921-220043-core.log`） | 51/52（仅既有 `lumber_job`） | `PASS route=TRAVERSE,BREAK_AND_TRAVERSE sceneTicks=52` |
+| 只补惩罚（**未加**"耐久支撑"守卫） | **50/52**（新增 `pathing=FAIL`） | **FAIL** `route=TRAVERSE,ASCEND,PILLAR,FALL sceneTicks=65` |
+| 最终版（惩罚 + 耐久支撑守卫） | **51/52**（仅既有 `lumber_job`） | `PASS route=TRAVERSE,BREAK_AND_TRAVERSE sceneTicks=52` |
+
+⚠️ `single:pathing` 单步跑的 `break_course` 是 **64 tick/场景**（≈12 tick/方块）：那是**运行方式**差异
+（单步运行时夹具只发**石镐** ⇒ `45/4 = 11.25` ⇒ 12 tick；CORE 里前面步骤留下**钻石镐** ⇒ `45/8 = 5.625` ⇒ 6 tick），
+**与本次改动无关**（同一次 CORE 里 `sceneTicks=52` 与基线逐字相同）。
+
+#### 六、诚实边界 / 未验证 / 回收条件
+
+- **未做客户端验证**：这是**规划期数值**，不产生可视行为差异（判据全部在成本层与边生成层）
+  ⇒ 本轮不发客户端轮次。若要观察，观察点是"水里边挖边放的取舍"（真机出现"该搭桥却硬挖"或反之时才需要）。
+- **未测**：§三.2 的近似（当前状态 vs 破坏时的状态）对选路的实际影响；"起跳瞬间重规划"会让破坏边偏高 5×。
+- **未验**：Aqua Affinity（潮涌能量/水下速掘附魔）那半只有在真机给 bot 附魔时才有意义 —— 夹具只断言
+  "本场景里 `hasAquaAffinity=false`"，**没有**反证"有 Aqua Affinity 时不给那 5×"（改一行 `!` 就能造，
+  但那就成了"为夹具造生产状态"，等真有该附魔的真机场景再补）。
+- **回收条件**：① 出现一次"水下作业被规划器判成**不可行**（`SEARCH_LIMIT`/`UNREACHABLE`）" ⇒ 说明惩罚
+  渗进了**可行性**判断（不该，只该进成本）⇒ 按"惩罚只影响成本"的口径修（`SEARCH_LIMIT ≠ UNREACHABLE` 仍成立）；
+  ② 出现一次"该挖却搭桥/绕远"的实测 ⇒ 说明惩罚过高（届时按 §三.2 改成"按破坏发生位置的状态"估值，
+  即给 5 个调用点传"破坏时 bot 将站在哪一格"）。

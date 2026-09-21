@@ -152,6 +152,10 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("survival_escape_air", Profile.EXTRA),
             // ⭐ B3：**活动危险中延后停止不许落地**（本链条起点：任务被清掉 ⇒ bot 没人管）
             Map.entry("survival_stop_in_hazard", Profile.EXTRA),
+            // ⭐ `D-385`：**规划期挖掘成本 == 执行侧真值**（vanilla 的「眼在水里 ÷5」「离地 ÷5」）——
+            // 旧估计只等于陆地那一档 ⇒ 水下挖被算成陆地速度 ⇒ 该放不放。夹具 = 自建水池 + 石壁，
+            // 四个状态组合逐个与 `1.0F/getDestroyProgress` 比对 + 生产边生成器的破坏项差额。
+            Map.entry("mining_water_break_cost", Profile.EXTRA),
             // ---- MAIN：阶段 3-A 收口后的最小烟测集（4）----
             // 口径（D-201）：每一类"只此一步覆盖"的机制各留一步 + 查询层最便宜一步；
             // A2/A3/A3b/C/装配/发现器探针等同机制夹具退 FULL（机制不丢，默认时长下降）

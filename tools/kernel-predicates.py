@@ -2421,6 +2421,129 @@ def rule_break_traverse_footing():
     return problems
 
 
+def rule_break_cost_state_penalty():
+    """`D-385`（2026-09-21）：**规划期的挖掘成本必须等于执行侧真值 —— 含 vanilla 的两项状态惩罚**。
+
+    事实（可核，javap 实测 1.20.1 官方映射字节码）：执行侧每 tick 累加
+    `BlockState.getDestroyProgress`（`BlockBreakSession.java`），其分子 `Player.getDigSpeed` 里有两项除法
+    —— `isEyeInFluid(WATER) && !hasAquaAffinity ⇒ f /= 5.0f`、`!onGround() ⇒ f /= 5.0f`。
+    旧 `estimateBreakTicks` 只等于「站在地上 + 眼不在水里」那一档 ⇒ 眼在水里乐观 5×、
+    眼在水里且离地（水下挖矿/落体挖）乐观 25× ⇒ 规划器把水下挖掘当陆地速度 ⇒ **该放不放、过度挖**。
+
+    断言（改任一处 ⇒ 红）：
+    ① `estimateBreakTicks` 必须**乘上**状态惩罚（调用唯一来源 `stateBreakPenaltyMultiplier`）；
+    ② 该惩罚函数必须用 vanilla 的**谓词**（`isEyeInFluid` / `hasAquaAffinity` / `onGround()`）与 `5.0D` 因子；
+    ③ **不许长出第二份口径**：源码里同时出现 `hasAquaAffinity` 与 `5.0D` 的文件只允许是 `BlockInteraction.java`；
+    ④ 执行侧仍走 vanilla（`BlockBreakSession` 里 `progress += … getDestroyProgress(…)`）——
+       否则夹具的「估计 == 真值」判据量的是别的东西；
+    ⑤ 夹具必须**与 vanilla 真值**比对（出现 `getDestroyProgress` 与 `1.0D / (double) progress`）；
+    ⑥ 夹具的规划器差额必须**锚在 vanilla 真值**上（`(surface.vanillaTicks() - dry.vanillaTicks())`）——
+       锚在 estimate 上则两边一起变小、永远绿（自洽≠正确）；
+    ⑦ 夹具必须覆盖四个 `(眼在水里, 在地面)` 组合，并断言 vanilla 自己给出的倍数 1/5/25/5（防"量了个幽灵"）；
+    ⑧ 步骤名 `mining_water_break_cost` 必须注册进模块**并**登记进电池归属表。
+    """
+    problems = []
+    interaction = ROOT / "src/main/java/com/dddgn/alice/action/BlockInteraction.java"
+    session = ROOT / "src/main/java/com/dddgn/alice/action/BlockBreakSession.java"
+    fixture = ROOT / "src/main/java/com/dddgn/alice/task/MiningWaterBreakCostCheckTask.java"
+    module = ROOT / "src/main/java/com/dddgn/alice/task/check/modules/MiningModule.java"
+    battery = ROOT / "src/main/java/com/dddgn/alice/task/RegressionBatteryTask.java"
+    step = "mining_water_break_cost"
+
+    for path in (interaction, session, fixture, module, battery):
+        if not path.exists():
+            problems.append(f"缺文件：{path.relative_to(ROOT)}")
+    if problems:
+        return problems
+
+    interaction_code = code_only(interaction.read_text(encoding="utf-8"))
+    estimate_body = method_body(interaction_code, "public static double estimateBreakTicks(")
+    if not estimate_body:
+        problems.append("找不到 `estimateBreakTicks`（结构变了 ⇒ 本规则要跟着改）")
+    elif "stateBreakPenaltyMultiplier(bot)" not in estimate_body:
+        problems.append("`estimateBreakTicks` 没有乘状态惩罚 ⇒ 眼在水里/离地时估计值乐观 5×~25×"
+                        "（水下挖矿被算成陆地速度 ⇒ 该放不放）")
+    penalty_body = method_body(interaction_code, "private static double stateBreakPenaltyMultiplier(")
+    if not penalty_body:
+        problems.append("找不到 `stateBreakPenaltyMultiplier`（D-385 的唯一来源）")
+    else:
+        for token, why in (
+                ("isEyeInFluid", "没查「眼在水里」（vanilla 惩罚项 ①）"),
+                ("hasAquaAffinity", "没查潮涌能量（有 Aqua Affinity 时 vanilla 不给那 5×）"),
+                ("onGround()", "没查「离地」（vanilla 惩罚项 ②）"),
+                ("hasSupportBelow", "没查「脚下有没有耐久支撑」——只用 `onGround()` 标志位会让"
+                                    "「传送到起点那一 tick」的全图破坏边误罚 5×（CORE `break_course` 实测翻路线）"),
+                ("5.0D", "没写 ×5 因子（与 vanilla `f /= 5.0f` 不一致）"),
+        ):
+            if token not in penalty_body:
+                problems.append(f"状态惩罚函数 {why}（缺 `{token}`）")
+        if penalty_body.count("5.0D") < 2:
+            problems.append("状态惩罚函数只乘了一次 5.0D ⇒ 缺「眼在水里**且**离地 = 25×」那一档")
+
+    # ③ 不许长出第二份口径（判据 = 「Aqua Affinity」与「×/÷ 5.0」这对组合出现在同一个文件里；
+    #    夹具里出现 5.0D 只是**断言里的期望倍数**，不构成第二份实现 —— 故看算式而不是看常数）
+    #（夹具被排除：那里出现 `vanilla/5.0D` 是**断言里的期望值**，不是第二份实现；
+    # 生产侧任何文件长出新口径都会被抓到）
+    penalty_factor = re.compile(r"[*/]=?\s*5\.0")
+    for path in (ROOT / "src/main/java").rglob("*.java"):
+        if "Check" in path.name or "Fixture" in path.name or "Diagnostic" in path.name:
+            continue
+        text = code_only(path.read_text(encoding="utf-8"))
+        if path != interaction and "hasAquaAffinity" in text and penalty_factor.search(text):
+            problems.append(f"{path.relative_to(ROOT)} 里也有一份「Aqua Affinity × 5.0」⇒ "
+                            "惩罚口径长出了第二份（D-385 要求唯一来源）")
+
+    support_body = method_body(interaction_code, "private static boolean hasSupportBelow(")
+    if not support_body:
+        problems.append("找不到 `hasSupportBelow`（D-385 的「离地」几何判据）")
+    else:
+        for token, why in (
+                ("MovementHelper.footCell(", "没用统一的脚位格口径（`blockPosition()` 在半砖上不是脚位格，D-226）"),
+                ("isSolidForPlacement(", "没查「实心、非流体、有碰撞形状」的支撑（用别的近似谓词会与放置判据分叉）"),
+        ):
+            if token not in support_body:
+                problems.append(f"`hasSupportBelow` {why}（缺 `{token}`）")
+
+    session_code = code_only(session.read_text(encoding="utf-8"))
+    if "progress += current.getDestroyProgress(bot, level, pos)" not in session_code:
+        problems.append("`BlockBreakSession` 不再逐 tick 累加 vanilla `getDestroyProgress` ⇒ "
+                        "执行侧的真值来源变了，夹具的「估计 == 真值」判据会量错东西")
+
+    fixture_code = re.sub(r"/\*.*?\*/", "", fixture.read_text(encoding="utf-8"), flags=re.S)
+    for label, expression in (
+            ("夹具：与 vanilla 真值比对", "getDestroyProgress(bot, level, MID)"),
+            ("夹具：真值 = 进度倒数", "1.0D / (double) progress"),
+            ("夹具：规划器差额锚在 vanilla 真值（不是 estimate）",
+             "(surface.vanillaTicks() - dry.vanillaTicks())"),
+            ("夹具：估计值与期望值的容差断言", "relative(reading.estimate(), expected) <= REL_TOL"),
+            ("夹具：**故意偏离**那一档（陈旧标志位）的期望口径", "spec.aliceDeviation()"),
+            ("夹具：陈旧标志位下成本必须等于基线（CORE `break_course` 那一幕）",
+             "relative(staleFlag.estimate(), dry.estimate()) <= REL_TOL"),
+            ("夹具：陈旧标志位那一档的自然标志位是**在地面**（人工置位才造出陈旧 false）",
+             "staleFlag.naturalOnGround() && !staleFlag.onGround()"),
+            ("夹具：(否,是) 组合", "!dry.eyeInWater() && dry.onGround()"),
+            ("夹具：(是,是) 组合", "submergedGround.eyeInWater() && submergedGround.onGround()"),
+            ("夹具：(是,否) 组合", "submergedFloat.eyeInWater() && !submergedFloat.onGround()"),
+            ("夹具：(否,否) 组合", "!airborne.eyeInWater() && !airborne.onGround()"),
+            ("夹具：vanilla 自己就是 ×5（防量幽灵）",
+             "nearRatio(submergedGround.vanillaTicks() / baseVanilla, 5.0D)"),
+            ("夹具：vanilla 自己就是 ×25（防量幽灵）",
+             "nearRatio(submergedFloat.vanillaTicks() / baseVanilla, 25.0D)"),
+            ("夹具：生产边生成器被真的问过", "new SurfaceMovementProvider().appendCandidates(context, FROM, out)"),
+            ("夹具：陆地挖仍比放便宜（反证：修复不许把陆地也搞贵）",
+             "dryCost < CostModel.PLACE_ONE_BLOCK_COST"),
+            ("夹具：水里挖已比放贵", "wetCost > CostModel.PLACE_ONE_BLOCK_COST"),
+    ):
+        if expression not in fixture_code:
+            problems.append(f"{label} 的断言不见了（缺有效表达式 `{expression}`）⇒ 该判据会静默失效")
+
+    if '"' + step + '"' not in code_only(module.read_text(encoding="utf-8")):
+        problems.append(f"步骤名 `{step}` 没注册进 `MiningModule`")
+    if 'Map.entry("' + step + '"' not in code_only(battery.read_text(encoding="utf-8")):
+        problems.append(f"步骤名 `{step}` 没登记进 `RegressionBatteryTask` 的归属表（`CURATION`）")
+    return problems
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
@@ -2478,6 +2601,7 @@ def main() -> int:
     hazardnotgated = rule_hazard_not_task_gated()
     routeclosure = rule_head_blocked_route_closure()
     btfooting = rule_break_traverse_footing()
+    d385 = rule_break_cost_state_penalty()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -2576,13 +2700,15 @@ def main() -> int:
         print(f"[D-378·夹缝路线收口] {line}")
     for line in btfooting:
         print(f"[D-379·破通行要站得住] {line}")
+    for line in d385:
+        print(f"[D-385·挖矿成本含状态惩罚] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

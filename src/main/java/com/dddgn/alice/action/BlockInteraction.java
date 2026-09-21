@@ -425,6 +425,22 @@ public final class BlockInteraction {
     /**
      * 破坏该方块的预计 tick 数（对照 Baritone {@code MovementHelper.getMiningDurationTicks}）。
      * 用于规划期成本，不修改世界。
+     *
+     * <p>⭐ **`D-385`（2026-09-21）：补上 vanilla 的两项"状态惩罚"**。
+     *
+     * <p><b>事实（可核，javap 实测 1.20.1 官方映射字节码）</b>：执行侧每 tick 累加
+     * `BlockState.getDestroyProgress`（{@code BlockBreakSession.java:100}），它的分子
+     * `Player.getDigSpeed` 里带两项除法 ——
+     * <pre>
+     *   isEyeInFluid(WATER) &amp;&amp; !EnchantmentHelper.hasAquaAffinity(玩家) ⇒ f /= 5.0f
+     *   !onGround()                                                 ⇒ f /= 5.0f
+     * </pre>
+     * 而**原式只等于「站在地上 + 眼不在水里」那一档** ⇒ 眼在水里时估计乐观 **5×**、
+     * 眼在水里**且**离地（水下挖矿 / 落体挖）时乐观 **25×** ⇒ 规划器把水下挖掘当陆地速度
+     * ⇒ **该放不放、过度挖**（不止逃生：任何水边/水下挖矿都欠估）。
+     *
+     * <p><b>为什么写在这里</b>：规划与执行共用这一个函数 ⇒ **唯一来源**，不产生第二份口径；
+     * ⚠️ 这不是"水里优先放置"的特判，只是把 vanilla 的公式补全 ⇒ 规划器**自然**偏向放置。
      */
     public static double estimateBreakTicks(ServerPlayer bot, ServerLevel level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
@@ -449,7 +465,64 @@ public final class BlockInteraction {
         double seconds = canHarvest
                 ? (double) hardness * 1.5D / Math.max(speed, 1.0E-4F)
                 : (double) hardness * 5.0D / Math.max(speed, 1.0E-4F);
-        return Math.max(1.0D, seconds * 20.0D);
+        // `D-385`：惩罚**先乘**（与 vanilla 同序：先除挖掘速度、再累加进度），再取 `max(1, …)` 下限
+        // ⇒ 极软方块也不会把惩罚吃掉。
+        double ticks = seconds * 20.0D * stateBreakPenaltyMultiplier(bot);
+        return Math.max(1.0D, ticks);
+    }
+
+    /**
+     * vanilla `Player.getDigSpeed` 的**状态惩罚倍数**（`D-385`；唯一定义处 —— 别在别处再抄一份）。
+     *
+     * <p>对照 Baritone：`MovementHelper.getMiningDurationTicks:580-606` **同样**只算"站在地上、眼不在水里"
+     * 那一档（Baritone 靠 `canPlaceAgainst` 之类回避水下挖掘，Alice 不回避 ⇒ 必须补这两项）。
+     *
+     * <p>谓词与常数都直接来自 vanilla（`isEyeInFluid` / `EnchantmentHelper.hasAquaAffinity` /
+     * `onGround`），判据见电池步 `mining_water_break_cost`：它把本函数的输出与 vanilla 的
+     * `1.0F / BlockState.getDestroyProgress`（= 执行侧真正的每 tick 进度）逐状态比对。
+     *
+     * <p>⚠️ **两处与 vanilla 字面不同，都是为了"规划期提问时刻 ≠ 破坏时刻"**：
+     * <ol>
+     *   <li><b>离地那一项用「脚下有没有耐久支撑」而不是单看 `onGround()`</b>（见正文注释的证据：
+     *       传送到场景起点那一 tick，bot 站在石头上而标志位是 false ⇒ 全图破坏边误罚 5×）；</li>
+     *   <li><b>用的是 bot 的当前状态，不是"破坏发生时的状态"</b> —— 搜索里被估值的边可能离 bot 很远
+     *       （当前在水里 ⇒ 远处干燥墙的破坏边也会 ×5）。这是已知近似，回收条件见 `D-385` §六。</li>
+     * </ol>
+     *
+     * @return 1（陆地且在地面/有支撑）· 5（眼在水里 XOR 离地）· 25（眼在水里且离地）
+     */
+    private static double stateBreakPenaltyMultiplier(ServerPlayer bot) {
+        if (bot == null) {
+            return 1.0D;
+        }
+        double multiplier = 1.0D;
+        if (bot.isEyeInFluid(net.minecraft.tags.FluidTags.WATER)
+                && !net.minecraft.world.item.enchantment.EnchantmentHelper.hasAquaAffinity(bot)) {
+            multiplier *= 5.0D;
+        }
+        // ⚠️ **Alice 主动偏离 vanilla**（见方法注释的证据）：vanilla 只看 `onGround()` 这一个**标志位**，
+        // 而规划期的提问时刻可能比真正的破坏早很多 tick（整条边在搜索里被估值时 bot 还在起点），
+        // 标志位是**上一 tick 的滞后状态**（真机实测：传送到场景起点那一 tick，
+        // bot 明明**站在石头上**（脚下=Stone）而 `onGround=false` ⇒ 全图破坏边被误罚 5×
+        // ⇒ CORE `break_course` 从「破墙过去 52 tick」翻成「搭柱翻墙 65 tick」）。
+        // ⇒ Alice 只在「**没有耐久支撑**」时才收这一项：那才是"破坏时仍会在空中"的可预测事实
+        //（水中浮着 ⇒ 脚下是水 ⇒ 照收 ✓）。
+        if (!bot.onGround() && !hasSupportBelow(bot)) {
+            multiplier *= 5.0D;
+        }
+        return multiplier;
+    }
+
+    /**
+     * 脚下有没有**耐久支撑**（实心、非流体、有碰撞形状）——`D-385` 里"离地"那一半的判据。
+     *
+     * <p>为什么不用 `bot.onGround()` 单独判：那是**标志位**，由上一次 `move()` 写入，
+     * 传送/生成/落体当 tick 都可能是陈旧的（证据见 {@link #stateBreakPenaltyMultiplier}）。
+     * 几何事实（脚下那一格是什么）与"破坏发生时会不会站在地上"才是同一件事。
+     */
+    private static boolean hasSupportBelow(ServerPlayer bot) {
+        BlockPos foot = com.dddgn.alice.pathing.MovementHelper.footCell(bot.serverLevel(), bot);
+        return isSolidForPlacement(bot.serverLevel(), foot.below());
     }
 
     /**

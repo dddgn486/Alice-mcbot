@@ -151,6 +151,15 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 前提用**节点预算**直接问同一张图（生产预检是**时间预算**、浸没时会不稳地返回「可规划」⇒ 不许拿它当前提）。
 自建水池、夹具自己传送/复位、约 240 tick×2。红对照：撤掉找岸档 ⇒ `failures=3`（全在「必须走上岸」那组）
 ；真人入口 = `/alice shore-escape-test`（零参数：建孤立场景 + 入池 + 清任务 + 按住决策层））
+`mining_water_break_cost`（`D-385`：**规划期的挖掘成本必须等于执行侧真值 —— 含 vanilla 的两项状态惩罚**
+（`isEyeInFluid(WATER) && !hasAquaAffinity ⇒ ÷5`、`!onGround() ⇒ ÷5`）。自建空中水池（5×5×5 石箱内挖
+3×3×4 水池）+ 同高干燥踏板，被测几何 = `from(1,0,0) → mid(2,0,0)=石壁 → to(3,0,0)`。五个用例覆盖四个
+`(眼在水里, 在地面)` 组合（`DRY_GROUND/WATER_SURFACE/SUBMERGED_GROUND/SUBMERGED_FLOAT/DRY_AIRBORNE`）
+⇒ 逐用例断言 `estimateBreakTicks == 1.0F/getDestroyProgress`；再用生产边生成器断言"同一条
+`BREAK_AND_TRAVERSE` 边浮在水面时破坏项贵 `(vanilla_湿−vanilla_干)/6`"（**期望锚在 vanilla 真值上**，
+锚在 estimate 上则永远绿）+ 代价结论「陆地挖 < 放一块 < 水里挖」⇒ 规划器**自然**偏向放置。
+约 35 tick、零执行。红对照：撤掉惩罚 ⇒ `failures=7`（4 条估计值 + 1 条规划器差额 + 2 条代价结论），
+28 条前提/自洽判据全绿）
 `collect_offcenter_retry`（3-b / `D-381`：**「到位却够不到」⇒ 换格再试** —— bot 站进"模型说够得着"的那一格、
 但**离心 0.49** 站着（真机第七/八轮那一幕）⇒ 必须把该格记进本簇排除集、取**次优**格、真的把物品捡回来
 （`collected=1` + `goal_excluded=1` + 世界零改动）；顺带钉 `approach_probe` 与 `pickupGoalFor`
