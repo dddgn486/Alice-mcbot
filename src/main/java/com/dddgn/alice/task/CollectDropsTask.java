@@ -469,6 +469,7 @@ public final class CollectDropsTask implements Task {
             retireNoApproach(members);           // `D-375`：同上
             return Status.RUNNING;
         }
+        logApproachProbe("not_in_pickup_range", nearestMember(members));
         for (ItemEntity member : members) {
             retire(member.getUUID(), "not_in_pickup_range");
         }
@@ -502,6 +503,7 @@ public final class CollectDropsTask implements Task {
      * 够不着就是够不着，如实退休（`no_standable_approach`）比挖穿地形诚实得多。
      */
     private void retireNoApproach(List<ItemEntity> members) {
+        logApproachProbe("no_standable_approach", nearestMember(members));
         for (ItemEntity member : members) {
             retire(member.getUUID(), "no_standable_approach");
         }
@@ -889,6 +891,76 @@ public final class CollectDropsTask implements Task {
         }
     }
 
+    /** 本簇里**离 bot 最近**的存活成员（取证/探针用；空列表 ⇒ `null`）。 */
+    private ItemEntity nearestMember(List<ItemEntity> members) {
+        return members.stream()
+                .min(java.util.Comparator.comparingDouble(item -> bot.distanceToSqr(item)))
+                .orElse(null);
+    }
+
+    /** 包围盒的一行格式（`retire` 行既有 botBox 格式**逐字不变**，itemBox 共用它）。 */
+    private static String fmtBox(AABB box) {
+        return String.format(java.util.Locale.ROOT, "[%.2f..%.2f y %.2f..%.2f z %.2f..%.2f]",
+                box.minX, box.maxX, box.minY, box.maxY, box.minZ, box.maxZ);
+    }
+
+    /**
+     * ⭐ `D-375` **残差取证**：把「够不着」那一刻的**几何一次性打全**（**只在失败路径**调用）。
+     *
+     * <p><b>为什么需要它</b>（2026-09-21 第七轮真机 + 14:06 那段日志）：27 簇里 4 簇丢了 12 件
+     * （`reason=not_in_pickup_range`，同一件被反复聚簇 4 次 ≈ 5 秒）。但 `retire` 行只有**格**坐标
+     * 与 `botBox`，而"该不该修、怎么修"取决于两件**当时看不到**的事：
+     * <ol>
+     *   <li>物品停在自己那格的**哪一角** —— 拾取盒外扩只有 `1.0 x/z`，而 bot 在 `EXACT` 容差下
+     *       可以停偏 0.19（第七轮实测 `botBox z 中心 152.31`）⇒ 只差一点点就"判得着、捡不到"；</li>
+     *   <li>除已选的目标格外，**还有哪些格可站 / 够得着** —— 这决定"失败后换下一个候选格"能不能救回来。</li>
+     * </ol>
+     *
+     * <p>口径纪律：**只读、只打日志、不做任何决策**（它是失败终态日志，不是临时探针 ——
+     * 临时探针用完要删，这条要留到"够不着"这一类彻底收敛）。
+     * 打印面向 = 物品格自身 + 环 1（8 格）+ 环 2 的 4 个正交格（共 13 格，**有界**），
+     * 只列"可站或够得着"的那些格（其余全是空气/无效信息）。
+     */
+    private void logApproachProbe(String why, ItemEntity item) {
+        if (item == null) {
+            return;
+        }
+        BlockPos itemCell = item.blockPosition().immutable();
+        StringBuilder ring = new StringBuilder();
+        int standable = 0;
+        int standableAndReachable = 0;
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dz = -2; dz <= 2; dz++) {
+                int radius = Math.max(Math.abs(dx), Math.abs(dz));
+                if (radius == 0 || (radius == 2 && dx != 0 && dz != 0)) {
+                    continue;   // 去掉物品格自身与环 2 的斜角（有界：8 + 4 = 12 格）
+                }
+                BlockPos cell = itemCell.offset(dx, 0, dz);
+                boolean canStand = isStandableCell(cell);
+                boolean reach = withinPickupReach(cell, item);
+                if (canStand) {
+                    standable++;
+                }
+                if (canStand && reach) {
+                    standableAndReachable++;
+                }
+                if (canStand || reach) {
+                    ring.append(" (").append(dx).append(',').append(dz)
+                            .append(")stand=").append(canStand ? 1 : 0)
+                            .append("/reach=").append(reach ? 1 : 0);
+                }
+            }
+        }
+        BotLog.warn("[CollectDrops] approach_probe why={} item={} itemPos={} itemBox={} itemY={}"
+                        + " botFeet={} botBox={} itemCellStandable={} standable={}"
+                        + " standableAndReachable={} ring={}",
+                why, item.getUUID(), itemCell.toShortString(), fmtBox(item.getBoundingBox()),
+                String.format(java.util.Locale.ROOT, "%.3f", item.getY()),
+                bot.blockPosition().toShortString(), fmtBox(bot.getBoundingBox()),
+                isStandableCell(itemCell), standable, standableAndReachable,
+                ring.isEmpty() ? "-" : ring.toString());
+    }
+
     /**
      * 本簇开始以来**世界被改动的格数**（运行账增量：破坏 + 放置 + 容器写入）。
      *
@@ -926,17 +998,17 @@ public final class CollectDropsTask implements Task {
                         id, provenance, com.dddgn.alice.decision.DropPolicy.policy(bot, provenance));
             }
         }
-        BotLog.warn("[CollectDrops] retire item={} reason={} itemPos={} itemY={} stack={}"
+        BotLog.warn("[CollectDrops] retire item={} reason={} itemPos={} itemY={} itemBox={} stack={}"
                         + " botFeet={} botBox={} inRange={}",
                 id, reason,
                 item == null ? "-" : item.blockPosition().toShortString(),
                 item == null ? "-" : String.format(java.util.Locale.ROOT, "%.3f", item.getY()),
+                // ⭐ `D-375` 残差取证：**物品的精确包围盒**（格内停在哪一角）——
+                // 第七轮真机那 12 件留在地上的掉落物，结论正取决于它（见 `logApproachProbe`）。
+                item == null ? "-" : fmtBox(item.getBoundingBox()),
                 lastSeenStack.getOrDefault(id, 0),
                 bot.blockPosition().toShortString(),
-                String.format(java.util.Locale.ROOT, "[%.2f..%.2f y %.2f..%.2f z %.2f..%.2f]",
-                        bot.getBoundingBox().minX, bot.getBoundingBox().maxX,
-                        bot.getBoundingBox().minY, bot.getBoundingBox().maxY,
-                        bot.getBoundingBox().minZ, bot.getBoundingBox().maxZ),
+                fmtBox(bot.getBoundingBox()),
                 item != null && inPickupRange(item));
     }
 

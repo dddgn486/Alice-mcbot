@@ -19,7 +19,14 @@
 >   的 `worldChanges=0` 竟是真的（物品在破格**之前**就被原版拾取范围捞走）⇒ 必须判**收集器挑的目标格**
 >   （新观察点 `lastGoalFoot()`，`SUMMARY` 有 `goal_foot=`）；② 事件判据不许读「走位执行过的 Movement 类型」
 >   （要等某段**成功**才追加，常恰好是最后一段 ⇒ 实测破了 2 格却 `detour_events=0`）⇒ 改读**运行账增量**。
-> - **下一步 = 客户端第七轮（等用户；零参数入口仍是 `/alice mine here`）**：看 `[CollectDrops] SUMMARY`
+> - **第七轮结论（2026-09-21 14:06，bot `tango`）**：P2 真机生效 —— 收集侧破块 **16→0**、
+>   `cluster_budget` 烧满 **2→0**、收集计划 `nodes 2911→≤4`、27 簇 93 件里 **81 件入包**；
+>   `goal_shift` 真机跑通（物品格站不住 ⇒ 目标改邻格）。⚠️ 同时暴露**新残差（非 D-375 族）**：
+>   4 簇丢 12 件（`not_in_pickup_range`：物品停在格远角 + bot `EXACT` 停偏 0.19 ⇒ 模型对
+>   「站正在格中心」乐观）。取证补丁已落地（`retire` 带 `itemBox` + 失败路径 `approach_probe`，
+>   **零行为改动**，夹具仍 `checks=39 failures=0`）⇒ **第八轮专门复现一次**看 `approach_probe`，
+>   再定「保守余量」还是「失败后换下一个候选格」（见复盘 §12②/⑤）。
+> - **下一步 = 客户端第八轮（等用户；零参数入口仍是 `/alice mine here`）**：看 `[CollectDrops] SUMMARY`
 >   的 `collected=N/N`、`no_approach=`、`slow_events=`/`detour_events=`，以及**是否还有 `cluster_budget` 烧满**；
 >   夹缝掉落物应表现为**走到旁边就捡到、不再挖天花板**（若出现"够不到却不捡"，看 `no_standable_approach` 日志）。
 > - ⚠️ **P3 重做仍受阻**（`新的世界 (2)` 已被第六轮覆盖）⇒ 需冻结副本，或改成**当场建场景**的深矿几何（推荐）。
