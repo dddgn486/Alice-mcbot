@@ -370,7 +370,12 @@ public final class SurvivalSystem {
     private static final int FLOAT_SCAN_MAX = 48;
 
     /** "浮过一次仍失败"的封禁时长（D-237）：这段时间内同一场溺水不再反复试，直接放弃任务。 */
-    private static final int FLOAT_RETRY_BLOCK_TICKS = 1200;
+    /**
+     * **上浮失败后的封禁时长**（tick）。2026-09-21 起它**还**被 `BotManager` 复用为
+     * 「活动危险中延后停止的上限」（B3）—— 同一层意思："给维生一段**有界**的时间"。
+     * `public` 是**故意**的（只给同项目的这一处复用；**不许**把它当配置项暴露给玩家/模组）。
+     */
+    public static final int FLOAT_RETRY_BLOCK_TICKS = 1200;
 
     /**
      * **浮得上去吗**（D-237）：从脚位往上找，先撞到"能穿过的非流体格"（空气等）⇒ 能浮上去；

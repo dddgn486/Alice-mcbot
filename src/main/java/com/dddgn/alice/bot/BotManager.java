@@ -1079,6 +1079,17 @@ public final class BotManager {
         return task == null ? null : task.getClass().getSimpleName();
     }
 
+    /**
+     * K-3 停止账目的**只读快照**（`deferred=` / `forcedUnsafe=` / `survivalUnsafe=` / `pending=`）。
+     *
+     * <p>为什么给夹具一个读数（与 `D-377` 加 `hasTask` 同一条理由）：B3 的判据是"活动危险中延后停止
+     * **不许落地**"，而这件事在日志里只能靠"有没有那一行"来猜 ⇒ 夹具必须能直接读"停了几次/还挂着什么"。
+     */
+    public static String describeSafeStops(BotPlayer bot) {
+        BotSession session = BOTS.get(bot.getUUID());
+        return session == null ? "-" : session.describeSafeStops();
+    }
+
     public static String currentTaskSummary(BotPlayer bot) {
         BotSession session = BOTS.get(bot.getUUID());
         return session == null ? null : session.currentTaskSummary();
@@ -2087,6 +2098,12 @@ public final class BotManager {
 
         /** K-3：延迟停止的上限（≈1 秒）；超时强制停并计数。 */
         static final int SAFE_STOP_DEFER_TICKS = 20;
+        /**
+         * B3（2026-09-21 用户裁定）：**活动危险中**延后停止的上限 = 60 秒
+         * （**刻意等于** `SurvivalSystem.FLOAT_RETRY_BLOCK_TICKS`：同一层意思"给维生一段有界的时间"）。
+         * 超过它 ⇒ 如实记账 + 强制落地，保证 `/alice stop` 不会永不生效。
+         */
+        static final int SAFE_STOP_HAZARD_MAX_DEFER_TICKS = SurvivalSystem.FLOAT_RETRY_BLOCK_TICKS;
         private String pendingStopReason;
         private int pendingStopTicks;
         private int safeStopDeferredCount;
@@ -2172,18 +2189,44 @@ public final class BotManager {
                 return;
             }
             // K-3：待处理的安全点停止（每 tick 检查一次）
+            //
+            // ⭐ B3（用户 2026-09-21 第十二轮裁定）：**有活动危险时不许落地**。
+            // 为什么（本链条的起点）：延后停止在危险中落地 ⇒ 任务被清掉 ⇒ bot 进入"没人管"的状态，
+            // 而当时维生在"无任务"下**整段被跳过**（`D-377`）⇒ 真机表现为在水里沉底、掉血 20→1.0。
+            // `D-377`/`D-380`/`D-382` 已把"无任务 + 危险"那条路补上（这一条不再是唯一防线），
+            // 但它仍然**正确**：危险正在被处理时，不该把 bot 的任务从它脚下抽走。
+            //
+            // 口径（**故意不含 `WATER_CONTACT`**）：只有**软/硬危险**（`softHazard`/`hardHazard`）算
+            // "活动危险"。`WATER_CONTACT`（只要 `isInWater()`）不算 —— 否则"水下作业时想停一下"会被
+            // 拖到上限（60 秒）才生效；而"在水里"的后半段已由 `D-380`（一进水就浮）+ `D-382`
+            // （浮完自己走上岸）覆盖 ⇒ 不会回到"无人看管的沉底"。
+            //
+            // 上限 = `SAFE_STOP_HAZARD_MAX_DEFER_TICKS`（**刻意等于** `SurvivalSystem.FLOAT_RETRY_BLOCK_TICKS`：
+            // 同一层意思，"给维生一段**有界**的时间"），超时如实记账并强制落地，避免 `/alice stop` 永不生效。
             if (pendingStopReason != null) {
-                boolean safe = safeToStopNow();
-                if (safe || ++pendingStopTicks > SAFE_STOP_DEFER_TICKS) {
+                boolean hazardActive = hazard != null
+                        && (SurvivalSystem.softHazard(hazard.type()) || SurvivalSystem.hardHazard(hazard.type()));
+                boolean safe = safeToStopNow() && !hazardActive;
+                long deferLimit = hazardActive ? SAFE_STOP_HAZARD_MAX_DEFER_TICKS : SAFE_STOP_DEFER_TICKS;
+                if (safe || ++pendingStopTicks > deferLimit) {
                     String reason = pendingStopReason;
                     pendingStopReason = null;
                     if (safe) {
                         safeStopDeferredCount++;
                         BotLog.info("[alice] 已到安全点，执行延后的停止（等待 {} tick）", pendingStopTicks);
+                    } else if (hazardActive) {
+                        BotLog.warn("[alice] 延后的停止**在活动危险中已等满 {} tick**（hazard={}）⇒ 强制落地"
+                                        + "（避免 `/alice stop` 永不生效；已如实计入 forcedUnsafe）",
+                                SAFE_STOP_HAZARD_MAX_DEFER_TICKS, hazard.type());
                     }
                     pendingStopTicks = 0;
                     immediateStop(reason + (safe ? ":safe_point" : ":forced_unsafe"), !safe);
                     return;
+                }
+                if (hazardActive && pendingStopTicks % 20 == 0) {
+                    BotLog.info("[alice] 延后的停止**暂不落地**：活动危险 {} 还在（已等 {} tick / 上限 {}）"
+                                    + " —— 危险处理中不把任务从 bot 脚下抽走（B3）",
+                            hazard.type(), pendingStopTicks, SAFE_STOP_HAZARD_MAX_DEFER_TICKS);
                 }
             }
             // S-1（P1-C，2026-09-12）：**逃生任务本身豁免否决** —— 否则"中断 ⇒ 起逃生 ⇒ 下一 tick

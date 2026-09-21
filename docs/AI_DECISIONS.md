@@ -16712,3 +16712,110 @@ inWater=true **eyeInWater=true air=284** pos=350,60,94`，随后 `air 284→278�
 ② 若半径 8 在实战里经常不够（大湖/海洋）⇒ 那时**按数据**讨论是否放宽（不许先放宽再看）；
 ③ 若出现"没任务 bot 只是短暂蹚水却被起了一个逃生任务" ⇒ 再加状态判据（例如"连续 N tick 在水里"），
 但**不许**回到"空气余量"那种口径。
+
+---
+
+### D-383：**逃生途中的空气告警**（逃生任务自带"眼在水里 + 空气低 ⇒ 按住跳跃"）（2026-09-21 真机第十二轮暴露）
+
+**状态**：`SERVER_TESTED`（新电池步 `survival_escape_air`：`checks=10 failures=0` + 红对照）。
+
+#### 一、事实（真机，逐字见 `D-382` §六）
+
+用户自建冰坑 + 狭长水下通道那一跑里，**逃生路线本身**钻了水下：`taskName=SurvivalExitTask
+escapeTask=true inWater=true eyeInWater=true air=284` → `air 284→…→158`（约 **7 秒**），
+而这期间 `decide` 的三条救援分支**全被 `!escapeTask` 排除**、判决恒 `IGNORE` ⇒ **维生零动作**
+（是它自己游上来才没淹死）。若通道更长/死胡同 ⇒ **逃生途中会淹死且零干预**。
+
+#### 二、改动（用户裁定："逃生任务自带空气告警"，2026-09-21）
+
+`SurvivalExitTask.tick()` 在 `super.tick()`（走位照常推进）**之后**调用
+`assistSurfacingIfAirLow()`：**眼在水里 且 `air ≤ SurvivalFloatTask.AIR_SAFE`(100) ⇒ `setJumping(true)`**；
+眼出水或空气回来 ⇒ 松开（进入/退出各记一条日志，不刷屏）。
+
+| 设计选择 | 为什么 |
+|---|---|
+| **阈值复用 `AIR_SAFE`** | 它就是本仓既有的"呼吸缓过来了"口径（`D-237`），**不新造数** |
+| **不暂停走位**（不是"先浮完再走"） | 真机那条通道是**狭长水道**：1 格高时"浮不上去又不前进" = **死锁**（空气照样归零）⇒ 只**加一个向上输入**、走位一秒不停：有气口就当场回气，没气口也至少在做"往上+往前"的正确动作 |
+| **写进任务而不是维生层** | 维生层要覆盖它就得放开 `!escapeTask` 豁免（那会让"逃生 ⇒ 被否决 ⇒ 再逃生"的自杀循环回来，`S-1` 明令禁止） |
+| **顺序（先 `super.tick()` 再覆盖输入）** | 执行器每 tick 自己写 `setJumping`（`shouldHoldJumpInWater`：目标更高才按）⇒ 必须**后**写才能生效 |
+
+#### 三、判据（电池步 `survival_escape_air`，EXTRA；真驱动一个 `SurvivalExitTask`）
+
+```
+[EscapeAir] 读数 干地(告警=false 按跳跃=false) 低空气(眼在水里=true 告警=true 按跳跃=true)
+            空气够(眼在水里=true 告警=false 按跳跃=true) statusOk=true
+[EscapeAir] SUMMARY checks=10 failures=0 → PASS
+```
+- 三个相位：干地（不许按）/ 水里 + `air=60 ≤ AIR_SAFE`（**必须激活告警并按下跳跃**）/ 水里 + `air=300`（**必须解除**）。
+- ⚠️ **判据用 `escape.airAlarmActive()`，不用 `isJumping()`**：执行器自己在水里爬出池子时也会按跳跃
+  （首跑实测：相位 3 告警已解除但 `isJumping()` 仍为 true）⇒ 用控制器读数会**误判**。
+- **红对照**（撤掉 `assistSurfacingIfAirLow()`）⇒ `failures=1`，且**恰好**红在"低空气必须激活告警"那条。
+- 夹具的 bot **空气始终 > 0** ⇒ 分类只到 `WATER_CONTACT`（不是软危险）⇒ 不会把电池步自己打断。
+
+#### 四、诚实边界（**不许读成"逃生不再会淹死"**）
+
+- 这条只把"**零动作**"变成"**主动上浮尝试**"。**完全封死的水下长通道**（没有任何气口）仍然救不了
+  —— 那种路线的正确做法是**别选它**（空气预算/路线选择 = 「水中逃生」计划的层 2/3，本轮不做）。
+- 本步**只断言"告警的触发与松开"**，**不断言"救回一条命"**（那需要 ≥15 秒的真实水下路线，受地形摆布）。
+- 没做：把逃生路线长度与空气做**事前**比较（依赖路径长度、易错）；逃生途中改走别的路线。
+
+#### 五、回收条件
+
+① 若真机再出现"逃生途中空气告警反复触发但仍在原地"（= 有气口却回不来）⇒ 那时才考虑"暂停走位先浮"，
+并**同时**处理 1 格高水道里的死锁；② 若告警在实战里从不触发 ⇒ 说明逃生路线不再钻水下，可降级为回归哨兵。
+
+---
+
+### D-384：**有活动危险时，K-3 延后停止不许落地**（B3；2026-09-21 用户裁定）
+
+**状态**：`SERVER_TESTED`（新电池步 `survival_stop_in_hazard`：`checks=8 failures=0` + 红对照）。
+
+#### 一、裁定与事实
+
+用户裁定：**"有活动危险时不许落地"**。这是本链条的**起点**：`D-377` 的真机现场就是
+**延后停止在危险中落地** ⇒ 任务被清掉 ⇒ bot 进入"没人管"的状态，而当时维生在"无任务"下整段被跳过
+⇒ 在水里沉底、`air 300→-2`、掉血 20→**1.0**。
+
+#### 二、改动（`BotSession.tick` 的 K-3 块）
+
+```java
+boolean hazardActive = hazard != null && (SurvivalSystem.softHazard(hazard.type())
+                                       || SurvivalSystem.hardHazard(hazard.type()));
+boolean safe = safeToStopNow() && !hazardActive;
+// 上限：危险中 = SAFE_STOP_HAZARD_MAX_DEFER_TICKS(1200 = 60s)，否则仍是 SAFE_STOP_DEFER_TICKS(20)
+```
+- 危险中**不落地**，每 20 tick 如实记一条"暂不落地：活动危险 X 还在（已等 N / 上限 1200）"；
+- 危险解除 ⇒ **立即落地**（`safeToStopNow()` 那一侧照常）；
+- **上限 60 秒**（`SAFE_STOP_HAZARD_MAX_DEFER_TICKS`，**刻意等于** `SurvivalSystem.FLOAT_RETRY_BLOCK_TICKS`
+  —— 同一层意思"给维生一段**有界**的时间"），超时**如实记账 + 强制落地**，保证 `/alice stop` 不会永不生效。
+  为此把 `FLOAT_RETRY_BLOCK_TICKS` 从 `private` 放宽为 `public`（**只给这一处复用，不许当配置项**）。
+
+#### 三、⭐ 口径：`hazardActive` **故意不含 `WATER_CONTACT`**
+
+只有**软/硬危险**（`LOW_AIR`/`ON_FIRE`/`FREEZING`/`LAVA_CONTACT`/`SUFFOCATING`）算"活动危险"。
+`WATER_CONTACT`（只要 `isInWater()`）**不算** —— 否则"**水下作业时想停一下**"会被拖到 60 秒上限才生效；
+而"在水里"那一段的后半程已由 `D-380`（一进水就浮）+ `D-382`（浮完自己走上岸）覆盖
+⇒ 不会再回到"无人看管的沉底"。（这条口径写在代码注释里，审计时按它判。）
+
+#### 四、判据（电池步 `survival_stop_in_hazard`，EXTRA；**第二个假人**：夹具不能停掉自己）
+
+场景：3×3 石壳 + 中心 **1 宽 × 4 高**竖井（洞内**没有别的可站格** ⇒ 软危险落在 `HOLD_NO_EXIT`、
+不中断任务）⇒ 探针点着 `ON_FIRE`、从顶部**空中**提一次延后停止（站在地上提 = 立即停止，进不了延后档）。
+
+```
+[StopInHazard] 空中提请延后停止 requested=HoldTask onGround=false 危险=ON_FIRE 任务=true
+[StopInHazard] watch=20/40/60 hazard=ON_FIRE hasTask=true      ← 危险中任务一直在（60 tick > 普通上限 20）
+[StopInHazard] 相位B 停止已落地（watch=2）                       ← 灭火后 2 tick 内落地
+[StopInHazard] SUMMARY checks=8 failures=0 → PASS
+```
+- ⚠️ 夹具自身的两个坑（实测踩到，已修）：① 井高 **3** 时探针的头埋在天花板里 ⇒ `isInWall()` ⇒
+  `SUFFOCATING`（**硬**危险）⇒ 维生**中断**任务 ⇒ 判据全废（改成 4 高 + 顶部安全脚位）；
+  ② dummy 任务不能用 `WalkToTask`（目标是它自己那格 ⇒ 请求退化 ⇒ 任务瞬间 DONE）⇒ 用夹具自带的
+  `HoldTask`（永不结束，类名不含 `check/probe` ⇒ `isSelfCheck()` 为假）。
+- **红对照**（撤掉 `&& !hazardActive`）⇒ `failures=1`，**恰好**红在"危险中任务必须还在"那条。
+
+#### 五、诚实边界
+
+- 危险中"不落地"**不等于**"危险被处理"：它只是**不把任务从 bot 脚下抽走**；真正的处理仍归维生
+  （`INTERRUPT`/`FLOAT_UP`/`ABANDON_NO_EXIT`）与 `D-380`/`D-382`。
+- 若危险 60 秒不清 ⇒ **强制落地**（如实计入 `forcedUnsafe`）⇒ 这条规则不承诺"危险中永不停"。

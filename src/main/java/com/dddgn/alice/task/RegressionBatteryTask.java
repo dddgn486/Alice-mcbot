@@ -148,6 +148,10 @@ public final class RegressionBatteryTask implements Task {
             // ⭐ 用户 2026-09-21 第十二轮裁定：**浮起来后自己走上岸**（纯通行、零写权）——
             // ① 有岸 ⇒ 先浮再走 + 世界零改动；② 大水池（8 格内无落点）⇒ 如实失败、不造站位。
             Map.entry("survival_shore_escape", Profile.EXTRA),
+            // ⭐ `D-383`：**逃生途中的空气告警**（真机：逃生路线钻水下 7 秒而 escapeTask 排除救援）
+            Map.entry("survival_escape_air", Profile.EXTRA),
+            // ⭐ B3：**活动危险中延后停止不许落地**（本链条起点：任务被清掉 ⇒ bot 没人管）
+            Map.entry("survival_stop_in_hazard", Profile.EXTRA),
             // ---- MAIN：阶段 3-A 收口后的最小烟测集（4）----
             // 口径（D-201）：每一类"只此一步覆盖"的机制各留一步 + 查询层最便宜一步；
             // A2/A3/A3b/C/装配/发现器探针等同机制夹具退 FULL（机制不丢，默认时长下降）

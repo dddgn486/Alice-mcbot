@@ -135,6 +135,15 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 **一格都不许挖**；无任何可站邻格 ⇒ 如实 `no_standable_approach` 退休、**不许挖穿天花板**；
 反证①封死石室（世界修改已授权）⇒ 合法破墙 + 决策层收到 `PICKUP_DETOUR`；
 反证②永久 `PickupDelay` ⇒ 决策层收到 `PICKUP_SLOW`。自建空中场景、4 案例一次跑完、约 220 tick）
+`survival_escape_air`（`D-383`：**逃生途中的空气告警** —— 真机那次逃生路线钻了水下 7 秒
+（`air 284→158`），而 `escapeTask=true` 时维生三条救援分支全被排除 ⇒ 逃生途中零动作。
+夹具真驱动一个 `SurvivalExitTask`，三相位钉住「告警的触发与松开」：干地不许按 / 眼在水里 + `air=60`
+必须激活 / `air=300` 必须解除；判据用 `airAlarmActive()`（**不能用** `isJumping()` —— 执行器自己
+爬出水面时也按跳跃）。自建孤立水池、约 40 tick。红对照：撤掉告警调用 ⇒ 恰好红在那条）
+`survival_stop_in_hazard`（`D-384` / B3：**有活动危险时延后停止不许落地** —— 本链条起点。
+第二个假人（夹具不能停自己）+ 3×3 石壳 + 1 宽×4 高竖井（无别的可站格 ⇒ 软危险落 `HOLD_NO_EXIT`）
++ `ON_FIRE` + **空中**提延后停止 ⇒ 危险中 60 tick 任务必须还在、灭火后 2 tick 内落地。
+红对照：撤掉 `&& !hazardActive` ⇒ 恰好红在那条）
 `survival_shore_escape`（`D-382`，用户 2026-09-21 第十二轮裁定：**无任务的水下 bot「先浮 → 再走上岸」**，纯通行、零写权）
 —— 两个案例：① 5×5×3 水池 + 四周天然干地（岸在 2 格外）⇒ 先起 `SurvivalFloatTask`、**再**起
 `SurvivalExitTask`、最终**真的离开水**，且**世界零改动**；② **反证**：21×21 水池（17³ 搜索盒里无落点）

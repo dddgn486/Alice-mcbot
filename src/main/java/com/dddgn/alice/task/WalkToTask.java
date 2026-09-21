@@ -43,6 +43,14 @@ public class WalkToTask implements Task {   // 非 final：S-1 的逃生任务 S
                 MovementHelper.footCell(walker.serverLevel(), walker), goal, "walk-to");
     }
 
+    /**
+     * 本任务驱动的 bot（**只读**；给子类的 tick 钩子用 —— 例如 `SurvivalExitTask` 的 `D-383` 空气告警
+     * 需要在走位**之后**读"眼在水里/空气"并覆盖跳跃输入）。
+     */
+    protected final BotPlayer bot() {
+        return bot;
+    }
+
     @Override
     public TaskTarget target() {
         return TaskTarget.block(goalFoot);

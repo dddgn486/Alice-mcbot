@@ -71,6 +71,20 @@ public final class SurvivalModule implements CheckModule {
                 CheckStep.of("survival_shore_escape", CheckProfile.EXTRA, List.of(), null,
                         () -> new com.dddgn.alice.task.SurvivalShoreEscapeCheckTask(bot, ctx.observer()),
                         1400),
+                // ⭐ `D-383`（2026-09-21 真机第十二轮）：**逃生途中的空气告警** —— 真机那次逃生路线
+                // 钻了水下 7 秒（`air 284→158`），而 `escapeTask=true` 时维生三条救援分支全被排除
+                // ⇒ 逃生途中零动作。本步钉"告警真的动手"：眼在水里 + `air ≤ AIR_SAFE` ⇒ 按跳跃；
+                // 空气回来 ⇒ 松开；干地上 ⇒ 不按（防兔子跳）。
+                CheckStep.of("survival_escape_air", CheckProfile.EXTRA, List.of(), null,
+                        () -> new com.dddgn.alice.task.SurvivalEscapeAirCheckTask(bot, ctx.observer()),
+                        600),
+                // ⭐ B3（2026-09-21 用户裁定）：**有活动危险时，K-3 延后停止不许落地** —— 本链条的起点
+                // 就是"延后停止在危险中落地 ⇒ 任务被清掉 ⇒ bot 没人管"。用第二个假人（夹具不能停自己）：
+                // 密封盒 + 着火（软危险、无出口 ⇒ `HOLD_NO_EXIT`）+ 一次延后停止 ⇒ 危险中任务必须还在，
+                // 灭火后必须落地。
+                CheckStep.of("survival_stop_in_hazard", CheckProfile.EXTRA, List.of(), null,
+                        () -> new com.dddgn.alice.task.SurvivalStopInHazardCheckTask(bot, ctx.observer()),
+                        500),
                 CheckStep.of("survival_exit", CheckProfile.BASELINE,
                         List.of("alice_test:survival_course"),
                         () -> to(bot, SurvivalCourseAnchor.PLATFORM_FOOT),
