@@ -112,6 +112,16 @@ public final class MiningPlanner {
         if (enter.success()) {
             return enter;
         }
+        // P1：三条腿里**任一条**是「本轮没评价完」⇒ 整体**不许**报成不可挖（`SEARCH_LIMIT ≠ UNREACHABLE`）
+        if ("search_incomplete".equals(direct.failureReason())
+                || "search_incomplete".equals(tunnel.failureReason())
+                || "search_incomplete".equals(enter.failureReason())) {
+            BotLog.warn("[MiningPlanner] search_incomplete target={} direct={} tunnel={} enter={}"
+                            + "（本轮搜索被限流 ⇒ 目标**不许**被永久了结）",
+                    immutableTarget.toShortString(), direct.failureReason(), tunnel.failureReason(),
+                    enter.failureReason());
+            return new Result(null, null, "search_incomplete");
+        }
         BotLog.warn("[MiningPlanner] found_but_unminable target={} direct={} tunnel={} enter={} budget={}",
                 immutableTarget.toShortString(), direct.failureReason(), tunnel.failureReason(),
                 enter.failureReason(), budget.describe());
@@ -256,6 +266,7 @@ public final class MiningPlanner {
         StandingPointEvaluator.StandingPointScore best = null;
         PathPlan bestPath = null;
         int planned = 0;
+        boolean searchLimited = false;
         for (BlockPos foot : ordered) {
             // ⭐ **A2 有界穷举**：见 {@link #MAX_APPROACH_PLANS}。截断事实**必须进日志**，
             // 否则"只试了 3 个"与"试了 13 个全失败"在事后看来一模一样（`capped=` 字段就是为此）。
@@ -264,6 +275,14 @@ public final class MiningPlanner {
             }
             PathPlan path = planPath(bot, startFoot, foot,
                     PathRequest.miningApproach(bot.getUUID().toString(), startFoot, foot, "mining-planner"));
+            // P1（D-374，2026-09-21）：SEARCH_LIMIT = 「这一格本轮还没被评价」，**不是**「没有路」。
+            // 它不计入 planned（A2 的 cap 只该数真的评价过的候选），并把事实带上去 —— 否则
+            // 「本 tick 搜索预算被占满」会被写进 no_reachable_candidate，再被 MineJob 永久了结
+            // （真机实测：目标 436,82,229 **从未被挖**却已 already_attempted）。
+            if (path.status() == com.dddgn.alice.pathing.core.search.PlanningStatus.SEARCH_LIMIT) {
+                searchLimited = true;
+                continue;
+            }
             planned++;
             if (!path.reached()) {
                 continue;
@@ -274,6 +293,14 @@ public final class MiningPlanner {
                         level, StandingPointSelector.eyeAt(foot), target));
                 bestPath = path;
             }
+        }
+        if (best == null && searchLimited) {
+            BotLog.warn("[MiningPlanner] mode={} target={} startFoot={} candidates={} planned={} capped={}"
+                            + " reason=search_incomplete searchLimited=true"
+                            + "（**本轮没评价完**，不是「不可达」：`SEARCH_LIMIT ≠ UNREACHABLE`）",
+                    mode, target.toShortString(), startFoot.toShortString(), ordered.size(), planned,
+                    planned < ordered.size());
+            return new Result(null, null, "search_incomplete");
         }
         if (best == null) {
             BotLog.warn("[MiningPlanner] mode={} target={} startFoot={} candidates={} planned={} capped={}"

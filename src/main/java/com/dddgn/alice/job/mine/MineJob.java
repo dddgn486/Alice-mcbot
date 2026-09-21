@@ -122,6 +122,17 @@ public final class MineJob implements Job {
     private int currentKind = -1;
 
     /** 一次尝试失败：`pos` 是目标格，`code` 是失败理由码（取自既有词表，见 `toolRefusal` / `MineTask.failureReason`）。 */
+    /**
+     * 暂时性失败的上限（`P1`）：`search_incomplete` 重试到这么多次仍未成功 ⇒ 如实了结（防空转）。
+     * 只认「本轮没评价完」这一类码；真实的不可达码不受影响。
+     */
+    private static final int MAX_TRANSIENT_RETRIES = 3;
+
+    /** 「本轮还没评价完」≠「不可达」（`SEARCH_LIMIT ≠ UNREACHABLE`）。 */
+    private static boolean transientFailure(String code) {
+        return code != null && code.startsWith("search_incomplete");
+    }
+
     private record AttemptFailure(BlockPos pos, String code) {
         String describe() {
             return pos.toShortString() + ":" + code;
@@ -412,8 +423,9 @@ public final class MineJob implements Job {
                 "cleared=" + miner.clearedBlocks(), miner, status);
         miner = null;
         current = null;
-        attempted.add(mined);
+        boolean transientFailure = transientFailure(reason);
         if (status == Task.Status.DONE) {
+            attempted.add(mined);
             minedCount++;
             if (kindPlan.active() && currentKind >= 0 && currentKind < minedByKind.length) {
                 minedByKind[currentKind]++;
@@ -431,8 +443,26 @@ public final class MineJob implements Job {
                 com.dddgn.alice.bot.TaskMetrics.arrived(taskName());
             }
         } else {
-            attemptFailures.add(new AttemptFailure(mined,
-                    reason == null || reason.isBlank() ? "mining_failed" : reason));
+            String code = reason == null || reason.isBlank() ? "mining_failed" : reason;
+            attemptFailures.add(new AttemptFailure(mined, code));
+            // P1（D-374，2026-09-21）：**暂时性失败不许永久了结这一格**。
+            // search_incomplete 的语义是「本轮搜索被限流，还没评价完」——写进 attempted 等于拿
+            // **本 tick 的资源状况**当**世界事实**，下 tick 明明能挖却永远轮不到它（真机铁证：
+            // 目标 436,82,229 从未被挖却已 already_attempted）。
+            // 重试次数从已有的 attemptFailures **派生**（不新增字段），超过上限才如实了结 ⇒ 有界、不空转。
+            long transientSoFar = 0;
+            for (AttemptFailure failure : attemptFailures) {
+                if (failure.pos().equals(mined) && transientFailure(failure.code())) {
+                    transientSoFar++;
+                }
+            }
+            if (!transientFailure || transientSoFar > MAX_TRANSIENT_RETRIES) {
+                attempted.add(mined);
+            } else {
+                DecisionTrace.step(jobName(), "RETRY", mined.toShortString(),
+                        "暂时性失败（" + code + "，" + transientSoFar + "/" + MAX_TRANSIENT_RETRIES
+                                + "）：**不**永久了结，下一轮仍可被选中");
+            }
         }
         if (minedCount >= spec.quota()) {
             startCollect();

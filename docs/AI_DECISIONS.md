@@ -16056,6 +16056,12 @@ Baritone 走 `MovementTraverse` 内部破头位。
   **反向对照：把本决定的谓词改回只查脚位 ⇒ `gaps=35`（全是 `BREAK_AND_ENTER`）**
   ⇒ **这个一行谓词在普通地形里砍掉约 20% 的破入边**（`D-373` 的 88 段绕远极可能就是它）。
 - **G3**（红线↔门禁）：`AGENTS.md` 6 条红线全部带标记（**有门禁 4 / 未门禁 2**）；新门禁
+- **P1**（挖掘侧记账）：`A1` 上线后暴露的第二处红线违反 —— `MiningPlanner.selectBestApproach` 用
+  `if (!path.reached()) continue;` 把「本 tick 被限流」与「搜完确实没有路」写成同一件事
+  ⇒ `no_reachable_candidate` ⇒ `MineJob.mine()` **无条件** `attempted.add(mined)` ⇒ **该格本会话永久跳过**。
+  修法：`SEARCH_LIMIT` 不计入 `planned`、不并成 `no_reachable`；聚合入口三条腿任一被限流 ⇒ `search_incomplete`；
+  `MineJob` 对暂时性失败不做 `attempted.add`（重试上限从已有 `attemptFailures` **派生**，不新增字段）。
+  S3 规则扩展后 **2 注入红**；第一次的规则**漏掉第二个注入**（钉 identifier 而非有效表达式）⇒ 已收紧。
   `tools/check-redline-gates.sh` 挂进 `check-all.sh`（`pass=18 → 19`）；**4 注入红**（无标记 / 假指针 / 未门禁缺复核触发 / 两标记并存）。
 
 #### 六、未做 / 回收条件

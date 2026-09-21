@@ -987,6 +987,51 @@ def rule_search_limit_not_unreachable():
     if vis and "not_found" in vis:
         problems.append("逐格 `visit()` 里写了 `not_found`"
                         " ⇒ **没扫完**也会被记成『没有』（S3 禁止：未扫 ≠ 没矿）")
+    # ---- S3 扩展（`P1`，2026-09-21）：**挖掘侧**的 `SEARCH_LIMIT ≠ UNREACHABLE` ----
+    # 起因：`A1`（每 tick 搜索总账）上线后，`MiningPlanner.selectBestApproach` 把"本 tick 被限流"
+    # 与"搜完了确实没有路"当成同一件事（`if (!path.reached()) continue;`）⇒ 输出 `no_reachable_candidate`
+    # ⇒ `MineJob.mine()` **无条件** `attempted.add(mined)` ⇒ 该格本会话再也不会被选中。
+    # 真机铁证（第五轮）：25 次拒绝全部 `已发起=1`；目标 `436,82,229` **从未被挖**（`[WRITE] break` 0 次）
+    # 却已 `already_attempted`；`search_incomplete` 出现 **0 次**（词早就有，没人用）。
+    planner_code = code_only((ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
+                              / "mining" / "MiningPlanner.java").read_text(encoding="utf-8"))
+    approach = method_body(
+        planner_code,
+        "private Result selectBestApproach(ServerPlayer bot, ServerLevel level, BlockPos target,")
+    if not approach:
+        problems.append("`MiningPlanner` 找不到 `selectBestApproach`（结构变了 ⇒ 本规则要跟着改）")
+    else:
+        if ("PlanningStatus.SEARCH_LIMIT)" not in approach or "searchLimited = true;" not in approach):
+            problems.append("`selectBestApproach` 不再区分 `SEARCH_LIMIT`（缺「判状态 + 置标志」）"
+                            " ⇒ 「本 tick 被限流」会被写进 `no_reachable_candidate`"
+                            "（S3：`SEARCH_LIMIT ≠ UNREACHABLE`）")
+        if "search_incomplete" not in approach:
+            problems.append("`selectBestApproach` 全失败时没有 `search_incomplete` 分支"
+                            " ⇒ 输出端仍然分不出「没评价完」")
+    aggregate = method_body(
+        planner_code,
+        "public Result plan(ServerPlayer bot, BlockPos target, MiningBudget budget, boolean standableOnly) {")
+    if not aggregate:
+        problems.append("`MiningPlanner` 找不到聚合入口 `plan(…, standableOnly)`（结构变了 ⇒ 规则要跟着改）")
+    elif not all(f'"search_incomplete".equals({leg}.failureReason())' in aggregate
+                 for leg in ("direct", "tunnel", "enter")):
+        problems.append("`MiningPlanner.plan` 聚合三条腿时没有把 `search_incomplete` 单独识别"
+                        " ⇒ 任一条腿被限流仍会整体报 `found_but_unminable`（= 不可挖）")
+    mine_more = code_only(mine)
+    mine_body = method_body(mine_more, "private Task.Status mine() {")
+    if not mine_body:
+        problems.append("`MineJob` 找不到 `mine()`（结构变了 ⇒ 规则要跟着改）")
+    else:
+        # ⚠️ 断言必须钉**有效表达式**：只查 `transientFailure(` 会被 `if (true)` 之类的改动骗过
+        #（本规则第一次写完就实测到了：注入 `if (true) { attempted.add(mined); }` 仍然 PASS）
+        if "!transientFailure || transientSoFar > MAX_TRANSIENT_RETRIES" not in mine_body:
+            problems.append("`MineJob.mine()` 的暂时性失败**没有被真正用作闸门**"
+                            "（找不到 `!transientFailure || transientSoFar > MAX_TRANSIENT_RETRIES` 这个有效表达式）"
+                            " ⇒ 改动绕过闸门不会被发现 ⇒ `search_incomplete` 仍会被永久了结")
+        if "MAX_TRANSIENT_RETRIES" not in mine_body:
+            problems.append("`MineJob.mine()` 没有有界的重试上限 ⇒ 要么永久跳过、要么空转")
+    if "startsWith(\"search_incomplete\")" not in mine_more:
+        problems.append("`MineJob.transientFailure` 判据不再以 `search_incomplete` 为准（口径漂了）")
     return problems
 
 
