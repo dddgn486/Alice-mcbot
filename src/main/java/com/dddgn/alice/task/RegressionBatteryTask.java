@@ -193,6 +193,11 @@ public final class RegressionBatteryTask implements Task {
             // + 统计口径（`MineSurveyStats`）。三件事都会**静默失败**（锁没生效 / 没打点 / 口径算错）⇒ 必须判据化。
             // EXTRA：要起一个真作业并等它到终态（整链），不进 CORE。
             Map.entry("mine_survey", Profile.EXTRA),
+            // ⭐ `D-378`（2026-09-21）：**`survey/27 §3 #1` 的收口判据** —— 「88 段绕远是不是那一行谓词
+            // 造成的」。`D-374` 的距离 1 能力版是 `break_enter_head_blocked`（MAIN）；这一步量的是**规模**：
+            // 自建 5 格夹缝直挖路 vs 46 格绕远，同一请求跑三遍（生产 / 旧谓词边过滤 / 旧谓词+紧预算）。
+            // EXTRA：自建并还原一个基岩盒（约 1 000 次 setBlock）。
+            Map.entry("head_blocked_route_closure", Profile.EXTRA),
             // ⭐ G2（2026-09-21）：边集完备性差集（局部谓词 vs 边生成器）—— 唯一能发现"未知缺口"的判据。
             // EXTRA：自建并还原一个 13×3×13 场景。
             Map.entry("edge_completeness", Profile.EXTRA),

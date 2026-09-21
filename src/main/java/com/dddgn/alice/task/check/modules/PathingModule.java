@@ -54,6 +54,15 @@ public final class PathingModule implements CheckModule {
                 CheckStep.of("place_step_descend_clearance", CheckProfile.EXTRA, List.of(), null,
                         () -> new com.dddgn.alice.task.PlaceStepDescendClearanceCheckTask(bot, ctx.observer()),
                         400),
+                // ⭐⭐ `survey/27 §3 #1` 的收口判据（`D-378`）：`D-374` 修的那一行谓词，是不是**真的**
+                // 把「深矿直挖路」还回来了 —— 当场自建基岩隧道（5 个「脚位空 + 头位实」夹缝 + 一条 46 格绕远），
+                // 同一请求跑三遍：生产 provider（修复后）⇒ ≤7 段；旧谓词边过滤（修复前）⇒ ≥40 段；
+                // 旧谓词 + 紧预算 ⇒ 到不了且预算打满（= 复现 `SEARCH_LIMIT` 的机制）。
+                // 距离 1 的能力版是 `break_enter_head_blocked`（MAIN）；本步量的是**规模/绕远**。
+                // EXTRA：自建并还原一个 10×23×4 基岩盒（约 1 000 次 setBlock）+ 3 次小搜索。
+                CheckStep.of("head_blocked_route_closure", CheckProfile.EXTRA, List.of(), null,
+                        () -> new com.dddgn.alice.task.HeadBlockedRouteClosureCheckTask(bot, ctx.observer()),
+                        600),
                 CheckStep.of("edge_completeness", CheckProfile.EXTRA, List.of(), null,
                         () -> new EdgeCompletenessCheckTask(bot, ctx.observer()), 200),
                 // D-336（2026-09-19）：**斜向上升那一格**（规划级）—— 能力 + 信封两用例，互为反证。

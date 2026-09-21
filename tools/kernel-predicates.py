@@ -2210,6 +2210,97 @@ def rule_collect_goal_standable():
     return problems
 
 
+def rule_head_blocked_route_closure():
+    """`D-378`（2026-09-21）：**`survey/27 §3 #1` 的收口判据** —— 「88 段绕远」是不是那一行谓词造成的。
+
+    勘测侧原文链条（`survey/27-当前核心问题与依赖关系图-20260921.md` §2.3）：
+        直挖路需要破入边 → 一行谓词只查脚位、不查头位 → 20% 的破入边没有生成
+        → A* 找不到直挖路 ⇒ 只能绕 88 段 → 88 段太贵 ⇒ 撞搜索预算 ⇒ `SEARCH_LIMIT`
+    前两段已由 `D-374`（`break_enter_head_blocked` 距离 1 能力 + `edge_completeness` 边集差集）证明；
+    **后两段一直没证**（`P3` 复测因真机存档被覆盖 ⇒ 一次真实搜索都没发生却输出 `reproduced=true`）。
+    `D-378` 用**当场自建的基岩隧道**收口：同一条请求、同一份几何、同一个预算，只把「旧闸门会拒掉的
+    那一类边」滤掉，路径就从 ≤`EXPECTED_DIRECT_MOVEMENTS` 段变成 ≥`DETOUR_MIN_MOVEMENTS` 段。
+
+    断言（改任一处 ⇒ 红）：
+    ① 反臂必须是**夹具自带的 provider 包装**（`implements MovementProvider`；过滤条件是
+       「`BREAK_AND_ENTER` ∧ `canWalkThrough(level, toFoot())`」；经 `new CorePathPlanner(provider)` 生效）
+       —— 不许改生产代码、也不许另写一份近似判据；
+    ② 反臂**不许**自己重写生产闸门（夹具里不许出现 `bodyPassable(`）—— 它只能**过滤生成结果**；
+    ③ 「滤掉了多少」必须进判据（`dropped > 0`）：为 0 就是「没测到」，
+       不是「测到没差别」（`silent-measurement-failure`，`P3` 的教训）；
+    ④ 三个读数必须是**有效表达式**（不是标识符）：生产臂 `movements().size() <= EXPECTED_DIRECT_MOVEMENTS`
+       且 `headBlockedBreaks == SLIT_COUNT`；旧谓词臂 `movements().size() >= DETOUR_MIN_MOVEMENTS`
+       且 `headBlockedBreaks == 0`；紧预算臂 `!plan.reached()` 且 `nodesExpanded() >= BUDGET_TIGHT.maxNodes()`；
+    ⑤ 收口判据本体必须在：`post.plan.movements().size() * 4 <= ample.plan.movements().size()`
+       与 `post.plan.totalCost() < ample.plan.totalCost()`（后者是**前提**：绕远若反而更便宜，
+       那「绕远」就不是被谓词逼的，而是被成本逼的）；
+    ⑥ 场景隔离必须自断言：`offPlaneTypes(...)` 的 `.isEmpty()` 进 `check(...)`
+       （起终点附近不许有上升／下落／搭柱／放置类边，否则段数不由几何决定）；
+    ⑦ 步骤名 `head_blocked_route_closure` 必须注册进 `PathingModule` **并**登记进电池归属表
+       （`RegressionBatteryTask` 的 `CURATION`；漏登记 = 构建红）。
+    """
+    problems = []
+    fixture = ROOT / "src/main/java/com/dddgn/alice/task/HeadBlockedRouteClosureCheckTask.java"
+    module = ROOT / "src/main/java/com/dddgn/alice/task/check/modules/PathingModule.java"
+    battery = ROOT / "src/main/java/com/dddgn/alice/task/RegressionBatteryTask.java"
+    step = "head_blocked_route_closure"
+
+    for path in (fixture, module, battery):
+        if not path.exists():
+            problems.append(f"缺文件：{path.relative_to(ROOT)}")
+    if problems:
+        return problems
+
+    # ⚠️ 模块级 `code_only` 只剥 `//` 行注释 ⇒ 这里必须**连块注释一起剥**：
+    # 夹具的 javadoc 里会**引用**被禁写法（`bodyPassable(`）讲等价性，那是注释不是代码。
+    raw_fixture = fixture.read_text(encoding="utf-8")
+    code = code_only(re.sub(r"/\*.*?\*/", "", raw_fixture, flags=re.S))
+
+    wrapper = method_body(code, "private void filterLegacy(MovementContext context, BlockPos from,")
+    if "implements MovementProvider" not in code or not wrapper:
+        problems.append("反臂不是**夹具自带的 provider 包装**（缺 `implements MovementProvider` / "
+                        "`filterLegacy`）⇒ 「旧谓词」这一臂没有可控的实现")
+    else:
+        if "MovementType.BREAK_AND_ENTER" not in wrapper:
+            problems.append("反臂的过滤条件没有按**边类型**限定（缺 `MovementType.BREAK_AND_ENTER`）"
+                            "⇒ 会误滤别的边，读数不再是「旧边集」")
+        if "MovementHelper.canWalkThrough(context.level(), movement.toFoot())" not in wrapper:
+            problems.append("反臂没有滤「脚位可通行」那一类（缺 "
+                            "`MovementHelper.canWalkThrough(context.level(), movement.toFoot())`）"
+                            "⇒ 与旧闸门 `canWalkThrough(level, to)` 不等价")
+        if "dropped++" not in wrapper:
+            problems.append("反臂不数「滤掉了几条」（缺 `dropped++`）⇒ 分不清「没测到」与「测到没差别」")
+    if "bodyPassable(" in code:
+        problems.append("夹具里出现了 `bodyPassable(` ⇒ 反臂在**重写生产闸门**，而不是过滤生成结果"
+                        "（重写 = 自己骗自己）")
+    if "new CorePathPlanner(provider)" not in code:
+        problems.append("反臂没有真正生效（缺 `new CorePathPlanner(provider)`）⇒ 两臂其实是同一条路径")
+
+    expression_pins = (
+        ("生产臂：直挖路段数上界", "plan.movements().size() <= EXPECTED_DIRECT_MOVEMENTS"),
+        ("生产臂：恰好 SLIT_COUNT 段属于旧谓词拒掉的那一类", "headBlockedBreaks == SLIT_COUNT"),
+        ("旧谓词臂：段数下界（绕远被量出来）", "plan.movements().size() >= DETOUR_MIN_MOVEMENTS"),
+        ("旧谓词臂：不许出现那类边", "headBlockedBreaks == 0"),
+        ("紧预算臂：预算真的是绑定点", "plan.nodesExpanded() >= BUDGET_TIGHT.maxNodes()"),
+        ("收口判据：修复前/后段数比", "post.plan.movements().size() * 4 <= ample.plan.movements().size()"),
+        ("收口前提：直挖路更便宜", "post.plan.totalCost() < ample.plan.totalCost()"),
+        ("反臂自证：真的滤掉了边", "dropped > 0"),
+        ("场景隔离：不许有平面外的能力（上/下/柱/放）",
+         "startOffPlane.isEmpty() && deepOffPlane.isEmpty()"),
+    )
+    for label, expression in expression_pins:
+        if expression not in code:
+            problems.append(f"{label} 的断言不见了（缺有效表达式 `{expression}`）⇒ 该判据会静默失效")
+
+    if '"' + step + '"' not in code_only(module.read_text(encoding="utf-8")):
+        problems.append(f"步骤名 `{step}` 没注册进 `PathingModule`")
+    battery_code = code_only(battery.read_text(encoding="utf-8"))
+    if 'Map.entry("' + step + '"' not in battery_code:
+        problems.append(f"步骤名 `{step}` 没登记进 `RegressionBatteryTask` 的归属表（`CURATION`）"
+                        "⇒ 构建时自校验会红（这是设计：漏登记不许静默漏测）")
+    return problems
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
@@ -2265,6 +2356,7 @@ def main() -> int:
     collectgoal = rule_collect_goal_standable()
     sweepclearance = rule_height_change_sweep()
     hazardnotgated = rule_hazard_not_task_gated()
+    routeclosure = rule_head_blocked_route_closure()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -2359,13 +2451,15 @@ def main() -> int:
         print(f"[D-376·高度变化查过渡空间] {line}")
     for line in collectgoal:
         print(f"[D-375·收集目标可站] {line}")
+    for line in routeclosure:
+        print(f"[D-378·夹缝路线收口] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

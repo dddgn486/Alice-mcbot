@@ -16286,3 +16286,93 @@ cluster_start anchor=433, 87, 206 → retire reason=cluster_budget
   要真救出来需要「水中上浮 / 搭方块出水」的新能力（原 `B3`）。
 - **回收条件**：① 若真机出现「**有任务**时反而不动手」（即修复把无任务路径做对了、有任务路径退化了）
   ⇒ 先补夹具复现再改；② 若「浮一下沉一下」被用户判定为不可接受 ⇒ 把上面第一条未做项提上来做。
+
+### D-378：**`survey/27 §3 #1` 收口** —— 「88 段绕远」确实由那一行谓词造成（规划级夹具，可红）（2026-09-21）
+
+#### 一、要收口的那句话
+
+勘测侧原文（`survey/27-当前核心问题与依赖关系图-20260921.md` §2.3）：
+
+```
+直挖路需要「破入边」（BREAK_AND_ENTER）
+     ↓  一行谓词只查脚位、不查头位
+     ↓  ⇒ 20% 的破入边没有生成（G2 差集实测：gaps=35 / expected=349 / actual=488）
+     ↓  A* 找不到直挖路 ⇒ 只能绕 88 段
+     ↓  88 段太贵 ⇒ 撞搜索预算 ⇒ SEARCH_LIMIT
+```
+
+前两段已由 `D-374` 的**距离 1** 能力夹具（`break_enter_head_blocked`）+ 边集差集（`edge_completeness`）证明；
+**后两段一直没证**：`P3` 复测因真机存档被下一轮测试覆盖而**读数无效**（起点踩空 ⇒ 一次真实搜索都没发生，
+探针却输出 `reproduced=true`）。勘测侧建议①②：**改成当场自建几何 + 给 #1 一条能红的判据**。
+
+#### 二、做法（**与原批准的「注入式临时回退」有偏差：不碰生产代码**）
+
+原计划是在内核里加一个夹具开关、把门禁临时换回旧写法。实际做法更好：**`CorePathPlanner(MovementProvider)`
+是公开构造器** ⇒ 反臂用**夹具自带的 provider 包装 + 过滤**，生产代码一行不改。
+
+等价性是**可算的**，不是「我觉得」：修复后的生成器**已**要求 `!bodyPassable(to)`（脚位 **且** 头位），
+旧闸门要求 `!canWalkThrough(to)`（只看脚位）⇒ 两者的差集恰好是
+`canWalkThrough(to) && !canWalkThrough(to.above())` ⇒ **从修复后的边集里滤掉「脚位可通行」的
+`BREAK_AND_ENTER`，剩下的逐字就是旧边集**。过滤计数 `dropped` 进判据（为 0 = 没测到）。
+
+**场景**（自建、自还原、不依赖任何存档）：一整块**基岩**盒（10×23×4，外圈一圈空气）里挖出
+起点腔室 →（普通格）→ **5 个「脚位空 + 头位实」的夹缝格** → 目标格（脚位被挡）；另有一条 46 格绕远通道
+接同一个目标。三处设计都是判据的一部分：
+
+1. **脚位层上下焊死**（地板 = 基岩、天花板 = 基岩）⇒ 全场景只有一层：`ASCEND` 要求"上方那格立得住"
+   （其支撑是脚位层的空气）、`PILLAR` 要求 `bodyPassable(from.above())`、`DOWNWARD` 要求脚下那格**下方**
+   仍有支撑、`FALL` 要求落点有支撑 ⇒ **全部不成立**（夹具把它们当**前提**自断言）；
+2. **每格都有地板** ⇒ `PLACE_STEP_AND_TRAVERSE` 的前提 `!canWalkOn(to)` 处处不成立
+   ⇒ 放置类边一条都不生成（**不依赖「bot 手里没方块」这个假设**）；
+3. **目标格脚位被挡** ⇒ `collectBlockers` 在**两遍里都**非空 ⇒ 目标两遍都能进 ⇒ 于是
+   「绕远多少段」是**量出来的**。若把目标改成头位被挡，修复前**任何预算都到不了**（零入边）⇒ 量不到段数。
+
+#### 三、读数（实测：`ALICE_HEADLESS=1 tools/headless-battery.sh single:head_blocked_route_closure`）
+
+| 档 | provider | 预算 | status | movements | breakEnter | 其中「旧谓词拒掉那类」 | nodes | cost |
+|---|---|---|---|---|---|---|---|---|
+| `POST_PRODUCTION` | 生产（修复后） | 20 000 / 200 ms | **REACHED** | **7** | 6 | **5** | 18 | 24.00 |
+| `PRE_LEGACY_AMPLE` | 旧谓词边过滤 | 同上 | **REACHED** | **47** | 1 | **0** | 49 | 49.83 |
+| `PRE_LEGACY_TIGHT` | 同上 | 40 / 50 ms | **PARTIAL**（未到） | 1（前缀） | 0 | 0 | **40**（打满） | 1.00 |
+
+- 生产臂的 7 段 = `[TRAVERSE]` + 5 段破夹缝 + 1 段破进目标，**其中 5 段正是旧谓词拒掉的那一类**
+  ⇒ 这条路**只因那一行谓词**才存在；
+- 旧谓词臂的 47 段 = 绕远通道全长 + 破进目标（`2K+7`，K=20）⇒ **「绕远」被量出来了**；
+- 紧预算臂 `diag=budget exhausted (why=nodes maxNodes=40 …)` ⇒ **复现了那条链的最后一段的形状**：
+  廉价的直挖路不存在 ⇒ 搜索只能走长绕路 ⇒ **预算耗尽、可达性未知**（正是真机那 52 次 `SEARCH_LIMIT` 的语义）。
+
+#### 四、判据与红→绿
+
+- 夹具 `[RouteClosure] SUMMARY checks=27 failures=0 arms=3/3 directMovements=7 detourMovements=47
+  tightReached=false tightNodes=40 verdict=PASS`；
+- **红对照 A（撤回生产门禁 `bodyPassable` → `canWalkThrough`）** ⇒ `checks=27 failures=8`，
+  `POST` 从 7 段变 **47 段**、`headBlockedBreaks` 5→0；`[D-374·目的地整体通行]` 门禁同时红（2 条命中）；
+  恢复后复绿；
+- **红对照 B（把反臂的过滤器改成空操作）** ⇒ `checks=27 failures=10`，两臂都退化成 7 段
+  ⇒ 证明**对比来自过滤器**，不是预算/场景噪声；
+- **内核门禁** `tools/kernel-predicates.py` 新规则 `[D-378·夹缝路线收口]`：9 条 pin = 反臂形态
+  （`implements MovementProvider` + 类型 ∧ 谓词双重条件 + `dropped++` + `new CorePathPlanner(provider)`）+
+  「夹具不许重写生产闸门（不许出现 `bodyPassable(`）」+ 8 条**有效表达式**（`movements().size() <=
+  EXPECTED_DIRECT_MOVEMENTS` / `headBlockedBreaks == SLIT_COUNT` / `>= DETOUR_MIN_MOVEMENTS` /
+  `headBlockedBreaks == 0` / `nodesExpanded() >= BUDGET_TIGHT.maxNodes()` /
+  `post × 4 <= pre` / `post cost < pre cost` / `dropped > 0` / 平面外候选 `.isEmpty()`）+ 步骤注册两处；
+- **回归**：CORE **51/52（仅既有 `lumber_job`）**、`check-all` 19/1/0。
+
+#### 五、诚实边界（它证明了什么、没证明什么）
+
+- ✅ **证明了机制**：同一条请求、同一份几何、同一个预算，只差「旧闸门会拒掉的那一类边」，
+  路径就是 **7 段 vs 47 段**（且紧预算下前者照样到、后者`PARTIAL`）⇒ **`survey/27 §2.3` 链条的后两段成立**。
+- ⚠️ **没证明**「真机那次的 88 段就是这条链算出来的」—— 那需要一份**冻结的 round-4 世界副本**
+  （真机存档必被下一轮覆盖，勘测侧建议①）。本夹具证的是**机制**，不是那一次的具体读数。
+- ⚠️ **没有复现 `SEARCH_LIMIT` 的绝对量级**（真机 20 000 节点打满）：自建场景太小、太干净
+  ⇒ 改用「**按几何可证不足**的紧预算」（旧臂唯一路线 47 段 ⇒ 至少 47 次弹出 > 40）。
+- ⚠️ **仍未知**：真机那 88 步的**动作类型直方图**（`docs/reviews/2026-09-21-B-深矿可达性判据实验.md` §3.4 的
+  「下一步量」）。本夹具给的是**同形状**的直方图：旧臂 = 46 段 `TRAVERSE` + 1 段 `BREAK_AND_ENTER`，
+  新臂 = 1 段 `TRAVERSE` + 6 段 `BREAK_AND_ENTER`（**没有 `DOWNWARD`/`FALL`** —— 与真机推断一致）。
+- ⚠️ 场景是**抽象隧道**（基岩盒），不是真矿井几何；它量的是**路线代价的差**，不是地形复杂度。
+
+#### 六、回收条件
+
+① 若真机出现「直挖路在、但 A\* 仍绕远」⇒ 说明还有第三个成因，本判据要扩（加真机取证）；
+② 若将来把 `BREAK_AND_ENTER` 的闸门换成另一种等价写法 ⇒ `[D-378·夹缝路线收口]` 的 9 条 pin 要同步改
+（门禁会先红，这是设计）；③ 若拿到冻结副本 ⇒ 把本夹具的「同形状」换成「同读数」。
