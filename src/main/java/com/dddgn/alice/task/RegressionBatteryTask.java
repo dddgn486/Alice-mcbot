@@ -191,6 +191,9 @@ public final class RegressionBatteryTask implements Task {
             // + 统计口径（`MineSurveyStats`）。三件事都会**静默失败**（锁没生效 / 没打点 / 口径算错）⇒ 必须判据化。
             // EXTRA：要起一个真作业并等它到终态（整链），不进 CORE。
             Map.entry("mine_survey", Profile.EXTRA),
+            // ⭐ G2（2026-09-21）：边集完备性差集（局部谓词 vs 边生成器）—— 唯一能发现"未知缺口"的判据。
+            // EXTRA：自建并还原一个 13×3×13 场景。
+            Map.entry("edge_completeness", Profile.EXTRA),
             // D-336：斜向上升那一格（规划级：能力 + 信封）
             Map.entry("place_step_diagonal", Profile.EXTRA),
             // ⭐ `D-374`（2026-09-21）：**脚位空、头位实**的目的地必须有入边（内核图完整性；
