@@ -27,6 +27,15 @@
 >   新夹具 `PlaceStepDescendClearanceCheckTask`（电池步 `place_step_descend_clearance`，EXTRA，2 用例互为对照）：
 >   `[PlaceStepClear] checks=24 failures=0 → PASS`，读数 `BLOCKED edge=false sweep=false factoryValid=false code=…NO_SWEEP`
 >   / `CLEAR edge=true sweep=true factoryValid=true`。
+> - 🔬 **B 的机制尚未钉死 ⇒ 已加临时探针（零行为改动，取证后删）**：`BotManager.BotSession.tick(HazardState)`
+>   入口与 `decide` 之后各一条 `[SurvProbe]`（每 20 tick 一条；`grep SurvProbe logs/latest.log`）。
+>   **为什么必须探**：`decide(LOW_AIR, duration ≥ 10)` 在代码上**只可能**返回 INTERRUPT / FLOAT_UP /
+>   ABANDON_NO_EXIT，而这三条分支**都留 WARN 日志**（含 `任务因维生危险中断`）；第八轮真机里
+>   `air 300→-2`、掉血 20→10 共 340 tick，**一条都没有** ⇒ 代码与实测矛盾 ⇒ 先钉机制，不许猜着改。
+>   判读口径写在探针注释里：全无 ⇒ `session.tick(hazard)` 没被调到；`task=null` ⇒ 卡在提前返回；
+>   `enter` 有 `verdict` 无 ⇒ `decide` 之前返回/抛异常；有 `verdict` 无分支 ⇒ 判决值不在三条分支里。
+>   ⚠️ **更正**：上一版我说"水里完全没做"是**错的** —— `SurvivalFloatTask`（`D-237`）、`shouldHoldJumpInWater`
+>   （`D-243`/`D-251`）、`SurvivalExitCheckTask` 的端到端「从水里出来」都在，且 `single:survival_exit` 仍 PASS。
 > - **等用户定方向（都已给详细方案，见对话/复盘 §13.4）**：
 >   **B** 水中上浮（新能力 or 放宽 ASCEND 的水中分支 + 维生「无出口也可否决」）、
 >   **C** 禁「破掉自己唯一落脚点」的破坏性 fallback、

@@ -2105,6 +2105,22 @@ public final class BotManager {
         }
 
         private void tick(HazardState hazard) {
+            // 🔬 **临时探针**（2026-09-21 第八轮真机取证：bot 在深水里 `air 300→-2`、掉血 20→10
+            // 而 `decide` 的三条分支（INTERRUPT / FLOAT_UP / ABANDON_NO_EXIT）**一条日志都没有**，
+            // 与代码矛盾 ⇒ 先钉机制，不猜）。零行为改动，取证后删除。
+            // 判读：`grep SurvProbe logs/latest.log`
+            //   · 一条都没有 ⇒ `session.tick(hazard)` 根本没被调到（接线问题）；
+            //   · `task=null` ⇒ 卡在下面那句提前返回（作业已结束 ⇒ 没人管危险）；
+            //   · `enter` 有、`verdict` 无 ⇒ `decide` 之前就返回/抛了；
+            //   · `enter`+`verdict` 有、分支无 ⇒ 判决值不在三条分支里。
+            if (hazard != null && hazard.type() != com.dddgn.alice.survival.HazardType.NONE
+                    && hazard.durationTicks() % 20 == 0) {
+                BotLog.warn("[SurvProbe] enter type={} duration={} task={} escapeTask={} onGround={} inWater={}"
+                                + " air={} pos={}",
+                        hazard.type(), hazard.durationTicks(), taskKind, task instanceof com.dddgn.alice.task.SurvivalExit,
+                        bot.onGround(), bot.isInWater(), bot.getAirSupply(),
+                        bot.blockPosition().toShortString());
+            }
             // T1 / R-3：**自检按住随任务存续**（不是定长窗口）—— 1200 tick 的窗口盖不住 ~3400 tick 的
             // 电池，终态那一刻照样把 LLM 招来（round-16 实测现场）。
             // ⚠️ 必须放在 `task == null` 提前返回**之前**：否则任务结束后这一句永远不执行，
@@ -2138,6 +2154,10 @@ public final class BotManager {
             // 信封里出现过写请求（挖掘站位/掉落物收集/脚手架…）才允许动用逃生准备金。
             boolean escapeWrites = com.dddgn.alice.pathing.core.WriteEnvelopes.had(bot.getUUID().toString());
             SurvivalSystem.Verdict verdict = SurvivalSystem.decide(bot, hazard, escapeWrites);
+            if (hazard.type() != com.dddgn.alice.survival.HazardType.NONE && hazard.durationTicks() % 20 == 0) {
+                BotLog.warn("[SurvProbe] verdict={} type={} duration={} task={} escapeWrites={}",
+                        verdict, hazard.type(), hazard.durationTicks(), taskKind, escapeWrites);
+            }
             // S-5（2026-09-15）③：**软危险 + 无出口 ⇒ 不否决**（`HOLD_NO_EXIT`）——但必须**如实登记一次**，
             // 否则日志看不出"判据生效了，但判断是继续跑"。登记点取 `durationTicks == 宽限期` 这**唯一 tick**
             // （同一次危险里 duration 逐 tick 单调 +1）⇒ 天然"每 episode 一次"，不需要额外闩锁。
