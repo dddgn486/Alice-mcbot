@@ -5,42 +5,35 @@
 > **已完成**：`survey/24`/`25`/`26`+`README` **已完整通读**并整理（结论与逐条对账见 `D-373` 与下面速览）；
 > 用户当日裁定 = **「A1+A2 止血 + B 判据实验并行」**，三条挖矿路线顺序 = **③ 鱼骨 → ① 跟随 → ② 探洞**（排在 A/B 之后）。
 >
-> # ▶▶ 压缩后**先读这 8 行**（2026-09-21 15:0x；第八轮真机已复盘，`D-376` 已落地，B/C/D 等用户定方向）
-> - **第八轮真机（14:19–14:22，bot `tango`，`/alice mine here @610,66,91`）三个事实**（复盘 §13）：
->   ① **拾取绕远没复现**（9 簇里 8 簇逐字 `N/N`，收集侧零破块）；唯一一次失败被 14:17 同步的 `approach_probe`
->   抓到**精确几何** ⇒ 残差**定量**了：物品压在格远角（格内偏移 **0.875**）+ bot 停在离心 **0.49** 处，
->   而 `withinPickupReach` 假设 bot 站正中心 ⇒ 模型以为还有 **0.05** 余量，真机 `inRange=false`
->   （上界 ≈ **0.49 + 0.375 ≈ 0.87**）。⚠️ 探针有**盲区要修**：只探了 `dy=0` 的 12 格，漏了
->   `pickupGoalFor` 真正会搜的 `dy=-1`（bot 自己站的那格就被漏掉，读数误导）。
->   ② **搭石斜下被卡 = `PLACE_STEP_AND_TRAVERSE dy=-1` 没查「过渡空间」**（用户目视确认了第三层那块石头）：
->   `segment_stall … pos=…,94.300 delta≈0 forward=1.00 toBlock=空气 headBlock=空气 segmentTicks=222`（×2，约 20 秒）
->   ⇒ 挡住 bot 的只能是**身体扫掠盒覆盖、闸门不查的那一层**（`to.above(2)`）。**已修**：规划侧 + 执行侧
->   统一用 `canSweepPlayer`（与 `canDescend` 同一谓词；`ASCEND_NO_HEADROOM` 早就查 `from.up2`）⇒ `D-376`。
->   ③ **落水自锁 + 溺水**：`BREAK_AND_TRAVERSE` 跨 2 格把**中间格**（自己刚站过的台阶）破掉 ⇒ 掉进水里；
->   水里 `ASCEND_INVALID_PRECONDITION` ×2、`PILLAR_NOT_ON_GROUND` ×11 ⇒ 沉底、`air 300→-2`、掉血 20→10，
->   **任务未中断**。⚠️ **更正我上一版的说法**：水里**做过**（`shouldHoldJumpInWater` = `D-243`/`D-251`，
->   `AscendExecution` 水分支 + `SurvivalExitCheckTask` 端到端「从水里出来」都有）—— 但**浮起是"某个 ASCEND 段
->   正在执行"的副作用**；本次 ASCEND 段全部因 bot 在下沉而立刻过期 ⇒ 没有任何段按住跳跃 ⇒ 继续下沉。
->   用户补充：**落水点附近的可站点都比水平面高一格，正常浮水跳不上去（要在岸边搭方块才行）**。
-> - **已落地 `D-376`**（本次 A 修复）：`SurfaceMovementProvider.appendPlaceStepAndTraverse` + `PlaceStepAndTraverseExecutionFactory.validate`
->   补扫掠空间判据（后者带 `NO_SWEEP@…几何`）；新门禁 `[D-376·高度变化查过渡空间]`（**7/7 注入红且各命中专属条目**）；
->   新夹具 `PlaceStepDescendClearanceCheckTask`（电池步 `place_step_descend_clearance`，EXTRA，2 用例互为对照）：
->   `[PlaceStepClear] checks=24 failures=0 → PASS`，读数 `BLOCKED edge=false sweep=false factoryValid=false code=…NO_SWEEP`
->   / `CLEAR edge=true sweep=true factoryValid=true`。
-> - 🔬 **B 的机制尚未钉死 ⇒ 已加临时探针（零行为改动，取证后删）**：`BotManager.BotSession.tick(HazardState)`
->   入口与 `decide` 之后各一条 `[SurvProbe]`（每 20 tick 一条；`grep SurvProbe logs/latest.log`）。
->   **为什么必须探**：`decide(LOW_AIR, duration ≥ 10)` 在代码上**只可能**返回 INTERRUPT / FLOAT_UP /
->   ABANDON_NO_EXIT，而这三条分支**都留 WARN 日志**（含 `任务因维生危险中断`）；第八轮真机里
->   `air 300→-2`、掉血 20→10 共 340 tick，**一条都没有** ⇒ 代码与实测矛盾 ⇒ 先钉机制，不许猜着改。
->   判读口径写在探针注释里：全无 ⇒ `session.tick(hazard)` 没被调到；`task=null` ⇒ 卡在提前返回；
->   `enter` 有 `verdict` 无 ⇒ `decide` 之前返回/抛异常；有 `verdict` 无分支 ⇒ 判决值不在三条分支里。
->   ⚠️ **更正**：上一版我说"水里完全没做"是**错的** —— `SurvivalFloatTask`（`D-237`）、`shouldHoldJumpInWater`
->   （`D-243`/`D-251`）、`SurvivalExitCheckTask` 的端到端「从水里出来」都在，且 `single:survival_exit` 仍 PASS。
-> - **等用户定方向（都已给详细方案，见对话/复盘 §13.4）**：
->   **B** 水中上浮（新能力 or 放宽 ASCEND 的水中分支 + 维生「无出口也可否决」）、
->   **C** 禁「破掉自己唯一落脚点」的破坏性 fallback、
->   **D** 拾取残差改「失败即排除该格、取次优」+ 修探针盲区。
-> - 其余待办不变：`canWalkThrough` 全局改名（**建议不做**）；3 条「未门禁」红线待定；P3 需冻结副本或当场建景。
+> # ▶▶ 压缩后**先读这 8 行**（2026-09-21 晚；`D-376` 客户端已验、`D-377` 已落地，B3/C/D 待定方向）
+> - **`D-376`（搭石斜下过渡空间）客户端已验 ✓**：本轮 `segment_stall=0`、`SEGMENT_TIMEOUT=0`
+>   （修复前 2×222 tick 顶着格边界原地走）、新门禁拦下非法边 `place_step_no_sweep=20`、合法搭石斜下
+>   照常完成（`segment_done ticks=27/58`）。
+> - **`D-377`（落水自锁/溺水无人管）已落地 ✓**（复盘 `docs/reviews/2026-09-21-落水自锁与溺水无人管.md`）：
+>   根因两条 —— ① `BotSession.tick(HazardState)` 的 `if (task == null) return;` 把 **`decide` 本身**跳过
+>   （真机：延后停止清掉任务后 `air 300→-2`、`health 20→1.0` **零动作**；`[SurvProbe]` 的 `enter` 有、
+>   `verdict` 无 ⇒ 定位在 `decide` 之前返回）；② 沉底时 `air>0` 仍是 `WATER_CONTACT`（**不是**软危险）
+>   ⇒ 判决恒 `IGNORE` ⇒ 最长 15 秒白等。修法：`tickHazardWithoutTask`（只做三档、恒纯通行判决
+>   `decide(bot,hazard,false)`）+ `DROWN_PRECURSOR_AIR=100` 的**沉底提前自救档（只对无任务生效）**
+>   + `BotManager.hasTask` 只读读数。⚠️ 第一版把阈值写进**共享分类表** `classify` ⇒ CORE `no_verdict`
+>   （电池步 `survival_exit` 的「开阔水池」相位故意 `air=5` + 眼在水里 ⇒ 被判真溺水 ⇒ 中断了电池本身）
+>   ⇒ 收窄后方绿；门禁另加反向断言「阈值不许出现在 `classify`」。
+>   新夹具 `survival_idle_drown`（EXTRA，**第二个假人**天然无任务 + 自建 1 格宽水井）`checks=9 failures=0 → PASS`（读数：首个任务出现在 `air>0` 时 ⇒ 不是白等 15 秒）；
+>   门禁 `[D-377·危险处理不挂任务]` **10/10 注入红**；行为级红对照：撤 B1 ⇒ `failures=4`（`hasTask` 全程 false、
+>   `air 59→-1`）、撤沉底档 ⇒ `failures=1`；CORE **51/52（仅既有 `lumber_job`）**、`survival_exit=PASS`。
+> - ⚠️ **探针字段教训（第二次栽）**：`[SurvProbe]` 原来打的是 `taskKind`（**陈旧字符串**，任务清空后
+>   仍是旧任务名）⇒ 把 `task == null` 掩盖了。现在探针与夹具都直接读 `taskNull` / `BotManager.hasTask`。
+> - ⚠️ **夹具自身三个坑（已修，别再犯）**：① 别在**宽限期内**断言"宽限后该有的判决"（用 `synthetic(…, grace+1)`）；
+>   ② 别在**同一 tick** 读监视器分类（探针 bot 的会话可能已先 tick ⇒ 读到缓存；改观察期逐 tick 记录）；
+>   ③ 无头测试世界地面**只有 3 层**（`y=-61..-63`，`-64` 以下放不下方块）⇒ 水井取 3 格 + 井底自补实心。
+> - **待用户定方向**：**B3**（K-3 延后停止在"不安全时刻"落地 = 本次链条起点，建议"有活动危险时不许落地"）、
+>   **C1**（禁"破掉自己唯一落脚点"）、**D0/D2**（拾取残差改"失败即排除该格取次优" + 修探针 `dy=-1` 盲区）。
+>   三者详细方案已在对话里给过；`D-377` 的未做项（"浮一下沉一下"、封闭水牢无出路）也登记在它 §四。
+> - **桩 2（`#1` 收口）**：勘测侧 `survey/27 §3 #1`「88 段绕远是否由"一行谓词"造成」仍未收口
+>   （`P3` 复测读数无效）⇒ 我方建议做成**规划级夹具**（当场建深矿几何 + 同批候选跑修复前/后两遍，
+>   断言修复后小预算内 REACHED 且段数接近理论），比"再来一次 73 s 探针"便宜且确定性。
+> - 其余待办不变：`canWalkThrough` 全局改名（**建议不做**）；3 条「未门禁」红线待定；
+>   `A2 MAX_APPROACH_PLANS=3` 的 cap 是**运气**（勘测侧建议登记为已知风险 + 留意"前 3 全败但更多可成功"）。
 >
 > **⭐ 2026-09-21 离线批次（P0 + G1 + G2 + G3 + P1）全部完成并各自反向对照；现在到「需要客户端实测」边界。**
 >

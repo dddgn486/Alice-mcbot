@@ -140,6 +140,7 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 执行工厂必须以 `NO_SWEEP` 拒绝；反证：去掉那块 ⇒ 这条边**必须**生成且工厂接受。
 它钉的是真机那 `segment_stall … pos=…,94.300 delta≈0 forward=1.00 segmentTicks=222`（×2）的
 「顶着格边界原地走」；零搜索、毫秒级、2 用例一次跑完）
+`survival_idle_drown`（`D-377`：**无任务的 bot 也必须被维生接管** —— 真机里「任务被延后停止清掉后在水里沉底、air 300→-2、health 20→1.0 而维生零动作」。夹具用**第二个假人**（天然无任务）跑生产路径，自带 1 格宽水井场景；判据 = 自救在空气还够时就开始了（`firstTaskAir > 0`）+ 头露出水面 + 空气回到 `AIR_SAFE`，且共享分类表仍是 `WATER_CONTACT`（沉底档只对无任务生效））
 
 ## 3. 维护规则（我 = AI 负责执行）
 

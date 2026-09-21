@@ -16211,3 +16211,78 @@ cluster_start anchor=433, 87, 206 → retire reason=cluster_budget
   ② "破掉自己唯一落脚点"的破坏性 fallback（`BREAK_AND_TRAVERSE` 跨 2 格把中间格破掉 ⇒ 掉进水里）—— 待定方向。
 - **回收条件**：若真机出现「合法搭石斜下被判 `place_step_no_sweep` 而卡住」的实测反例 ⇒ 说明"过渡空间"这条
   判据在不该拦的地方拦了（例如 bot 能从侧面挤进去），届时**先补夹具复现该几何**再动判据。
+
+---
+
+### D-377：**危险处理不许挂在任务上** + **溺水前置分类**（2026-09-21 真机第二次复现）
+
+#### 一、事故（真机；用户口径：「传送进水里，直接沉底，没有反应」）
+
+两条独立缺陷叠在一起，**都由真机日志逐字取证**：
+
+1. **任务一没，维生就整段停摆。** 17:56:50.569 `task_execution_terminal kind=RestoreScope
+   terminal=CANCELLED_BY_USER` + `17:56:50.571 任务在**不安全时刻被强制停止**（累计 1）`
+   （触发链：上一轮新加的决策层信号 `PICKUP_DETOUR` → LLM 决定 `stop_current` → K-3「延后到安全点」落地）
+   ⇒ `task = null`。此后：
+   - `[SurvProbe] enter` 一路在打（**危险处理「进得来」**），`verdict` **再没打过**；
+   - 340 tick 内**无任何 `[Survival]` 日志**，`air 300→-2`，`health 20→1.0`，**零动作**。
+   病根：`BotSession.tick(HazardState)` 的 `if (task == null) return;` 把 **`decide` 本身**跳过了。
+   ⚠️ 探针当时打的是 `taskKind`（**陈旧字符串**，任务清空后仍是 `RestoreScope`）⇒ 把 `task == null`
+   掩盖了 —— 这是本项目第二次栽在「探针印了一个看起来对的字段」上。
+2. **沉底不算危险。** 18:04 用户把 bot 传送进水：`hazard=WATER_CONTACT duration=241 air=300→62`、
+   `onGround=true inWater=true`（整只没入水中）—— 而 `WATER_CONTACT` **不是**软危险
+   （`softHazard` 只含 `LOW_AIR`/`ON_FIRE`/`FREEZING`）⇒ 判决恒 `IGNORE` ⇒ **最长 15 秒白等**。
+
+#### 二、落地改动（4 处）
+
+1. **`BotManager.BotSession.tick(HazardState)`**：`task == null` 分支不再直接返回，改调新方法
+   **`tickHazardWithoutTask(hazard)`**；该方法**只做「不需要任务就能做」的三档**（不碰任何任务分支）：
+   `INTERRUPT` ⇒ `startSurvivalExit()`（无任务可中断，只起逃生）；`FLOAT_UP` ⇒ 起 `SurvivalFloatTask`；
+   `ABANDON_NO_EXIT` ⇒ **没有可放弃的东西**，只在每个 episode 如实登记一次（否则「没人管」又变回静默）。
+   写权口径：无任务 ⇒ `WriteEnvelopes` 已清空 ⇒ **恒为 `decide(bot, hazard, false)`**
+   （纯通行，不动用逃生准备金 —— `D-241`）。
+2. **`SurvivalSystem.DROWN_PRECURSOR_AIR = 100`** + **沉底提前自救档（只对无任务生效）**：
+   在 `tickHazardWithoutTask` 里，只要「眼在水里 + `air ≤ 100`」，即便分类还是 `WATER_CONTACT`
+   （它不是软危险 ⇒ `decide` 恒 `IGNORE`）也**先浮上去呼吸**。
+   ⚠️ 取 100（≈1/3）而不是「眼一进水就算」：短时潜水/涉水是正常动作；100 留 **5 秒**余量（掉血在 -20）。
+   1 格水（头在水面上）不受影响（判据是 `isEyeInFluid`）。
+   ⚠️⚠️ **第一版把它写进了共享分类表 `classify`（`air ≤ 100 && 眼在水里 ⇒ LOW_AIR`）⇒ CORE 立刻红**：
+   电池步 `survival_exit` 的「开阔水池」相位本来就故意把 bot 弄成 `air=5` + 眼睛在水里（它要单独测上浮
+   机制）⇒ 被判成**真溺水** ⇒ `FLOAT_UP` 分支 `complete(..., SURVIVAL_INTERRUPTED)`
+   **中断了电池任务本身**（`task_execution_terminal kind=RegressionBattery`）⇒ 整轮 `no_verdict`。
+   语义上那条改动也没错（沉底确实是溺水前兆），但 `classify` 是**共享表**（生产任务/夹具/决策表都读）
+   ⇒ 收窄作用域更诚实：**有任务的水下作业不受影响**，只有「没有任务、没人管」的 bot 才提前自救。
+   门禁为此加了一条**反向断言**：`DROWN_PRECURSOR_AIR` **不许**出现在 `classify` 的返回里。
+3. **`BotManager.hasTask(BotPlayer)`**：只读读数（夹具前提 + 归因）。存在的理由 = ① 这条缺陷的
+   「有没有任务」在日志里看不见；② 陈旧 `taskKind` 已经骗过一次探针。
+4. **夹具 `SurvivalIdleDrownCheckTask`**（电池步 `survival_idle_drown`，EXTRA）：**必须用第二个假人** ——
+   夹具本身是 `Task`，在跑夹具的 bot 上 `task != null`，**永远测不到**这条路径。它另起一只**天然无任务**
+   的假人放进 1 格宽水井底部（规划不出「走出去」的路 ⇒ 判决必是 `FLOAT_UP`），把空气直接设成 60
+   （被测的生产路径完全相同），断言：`B2` 分类出现过 `LOW_AIR` + `B1` 出现了一次任务 + 头露出过水面
+   + 空气回到 `AIR_SAFE`。
+
+#### 三、判据与红→绿
+
+- 门禁 `[D-377·危险处理不挂任务]`：**10/10 注入变红且各命中专属条目**（无任务分支改回裸 return /
+  调用挪出该段 / 非纯通行判决 / **去掉 `FLOAT_UP` 档的上浮** / 去掉出口 / **把阈值写回共享分类表** /
+  **去掉沉底档** / 去掉 `hasTask` / **夹具去掉 `firstTaskAir > 0` 有效表达式** / 取消步骤注册），
+  恢复后 PASS。⚠️ 其中两条第一版**钉得不够**：④只查「文件里出现过 `SurvivalFloatTask`」会被沉底档那次
+  调用顶包、⑨只钉标识符会被别处引用顶包 ⇒ 都改成钉**有效表达式/所属分支**（第 13 次同一教训）。
+- 夹具 **`checks=9 failures=0 → PASS`**，读数链条：
+  `前提 verdict(afterGrace)=FLOAT_UP air=60 hasTask=false` → `watch=1 hazard=WATER_CONTACT`（**共享表没被改**）
+  → 首个任务出现在 `air` 还够的时候（`firstTaskAir > 0`）→ `eyeOut=true` → 拆除时 `air=103`（≥AIR_SAFE）。
+- **行为级红对照（都用实测数字）**：撤掉 `tickHazardWithoutTask`（B1）⇒ `FAIL failures=4`，
+  `hasTask` 全程 false、`air 59→-1`、`y=-63.00` 一格没动；撤掉沉底档 ⇒ `FAIL failures=1`
+  （自救等到 `air ≤ 0` 才开始 ⇒ `firstTaskAir > 0` 那条红）。
+- **回归**：CORE **51/52（仅既有 `lumber_job`）**、`survival_exit=PASS`（它正是第一版踩红的那一步）、
+  `check-all` 19/1/0。
+
+#### 四、诚实边界（未做 / 回收条件）
+
+- **未做**：自救成功之后 bot 会**缓慢再次下沉**（空气掉回 <100 ⇒ 再触发一次自救）⇒ 表现为
+  「浮一下、沉一下」。它**不再会淹死**（每次都能呼吸），但观感不优雅。真正「维持浮力」需要改
+  `SurvivalFloatTask` 的语义（或让空闲水中 bot 常驻漂浮），**是单独一件事**。
+- **未做**：`ABANDON_NO_EXIT` 且**无任务**时（封闭水牢、浮不上去）仍只能如实登记等干预 ——
+  要真救出来需要「水中上浮 / 搭方块出水」的新能力（原 `B3`）。
+- **回收条件**：① 若真机出现「**有任务**时反而不动手」（即修复把无任务路径做对了、有任务路径退化了）
+  ⇒ 先补夹具复现再改；② 若「浮一下沉一下」被用户判定为不可接受 ⇒ 把上面第一条未做项提上来做。

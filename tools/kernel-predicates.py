@@ -1999,6 +1999,103 @@ def rule_height_change_sweep():
     return problems
 
 
+
+def rule_hazard_not_task_gated():
+    """`D-377`（2026-09-21 真机）：**危险处理不许挂在任务上** + **溺水前置分类**。
+
+    真机原文（第八轮 17:56–17:57，bot `tango` 在水塘 `633,59,94`）：
+    ```
+    17:56:50.569 task_execution_terminal kind=RestoreScope terminal=CANCELLED_BY_USER
+    17:56:50.571 任务在**不安全时刻被强制停止**（累计 1）        ← 延后停止落地 ⇒ task = null
+    17:57:00.233 [SurvProbe] enter type=LOW_AIR duration=20 …    ← 危险处理"进得来"
+    （之后 340 tick：`verdict` 再没打过、无任何 [Survival] 日志、air 300→-2、health 20→1.0）
+    ```
+    病根：`BotSession.tick(HazardState)` 里 `if (task == null) return;` 把 **`decide` 本身**跳过了
+    ⇒ 空闲的 bot 溺水/着火/被埋时维生**零动作**。第二处：`classify` 只在 `air <= 0` 才算 `LOW_AIR`，
+    而沉底期间是 `WATER_CONTACT`（**不是**软危险）⇒ 判决恒 `IGNORE` ⇒ 最长 15 秒白等。
+
+    断言（改任一处 ⇒ 红）：
+    ① `tick(HazardState)` 的 `task == null` 分支**不许直接 return**，必须调无任务危险处理
+       （`tickHazardWithoutTask(hazard);` 与该 return **同段**，钉成一体避免"别处也有这个词"）；
+    ② 无任务处理必须真的动作：`SurvivalSystem.decide(` + `SurvivalFloatTask` + `startSurvivalExit()`
+       （三档里至少这两条动作路径在）；
+    ③ 无任务处理**恒为**纯通行口径（`decide(bot, hazard, false)`）—— 无任务就没有写信封，
+       不许动用逃生准备金（`D-241`）；
+    ④ `SurvivalSystem` 必须有**溺水前置**常量与分类分支（阈值 + `isEyeInFluid` 同段），
+       且判据拼写为 `airSupply() <= DROWN_PRECURSOR_AIR`；
+    ⑤ 夹具必须存在且它断言的是**有效表达式**：`hasTask`（无任务前提）+ `FLOAT_UP`（前提判决）
+       + `SurvivalFloatTask.AIR_SAFE`（自救成功判据）；同时必须有 `BotManager.hasTask` 这个只读读数
+       （否则"无任务"只能靠陈旧 `taskKind` 猜）。
+    """
+    problems = []
+    manager = ROOT / "src/main/java/com/dddgn/alice/bot/BotManager.java"
+    survival = ROOT / "src/main/java/com/dddgn/alice/survival/SurvivalSystem.java"
+    fixture = ROOT / "src/main/java/com/dddgn/alice/task/SurvivalIdleDrownCheckTask.java"
+    module = ROOT / "src/main/java/com/dddgn/alice/task/check/modules/SurvivalModule.java"
+    for path in (manager, survival, fixture, module):
+        if not path.exists():
+            problems.append(f"缺文件：{path.relative_to(ROOT)}")
+    if problems:
+        return problems
+
+    mgr = code_only(manager.read_text(encoding="utf-8"))
+    tick_body = method_body(mgr, "private void tick(HazardState hazard)")
+    if not tick_body:
+        problems.append("找不到 `BotSession.tick(HazardState hazard)`")
+    else:
+        if "tickHazardWithoutTask(hazard);" not in tick_body:
+            problems.append("`task == null` 分支没调无任务危险处理 ⇒ 空闲 bot 溺水时维生零动作（`D-377` 病根）")
+        if not re.search(r"if \(task == null\) \{[\s\S]{0,600}?tickHazardWithoutTask\(hazard\);[\s\S]{0,80}?return;",
+                         tick_body):
+            problems.append("无任务处理没接在 `if (task == null) { … return; }` 这一段里"
+                            "（钉成一体：只在别处出现 `tickHazardWithoutTask` 不算）")
+    handler = method_body(mgr, "private void tickHazardWithoutTask(HazardState hazard)")
+    if not handler:
+        problems.append("缺 `tickHazardWithoutTask(HazardState)`")
+    else:
+        if "SurvivalSystem.decide(bot, hazard, false)" not in handler:
+            problems.append("无任务处理没走**纯通行**判决（`decide(bot, hazard, false)`；"
+                            "无任务=没有写信封，不许动用逃生准备金 —— D-241）")
+        if not re.search(r"case FLOAT_UP -> \{[\s\S]{0,2000}?new com\.dddgn\.alice\.task\.SurvivalFloatTask\(",
+                         handler):
+            problems.append("无任务处理的 `FLOAT_UP` 档里没有上浮自救（溺水无出口时唯一能做的动作）"
+                            "—— 注意：只查「文件里出现过 SurvivalFloatTask」会被**沉底档**那次调用顶包（实测漏过）")
+        if "startSurvivalExit();" not in handler:
+            problems.append("无任务处理里没有「走向出口」（有可规划出口时应当直接去，无任务可中断）")
+    if "public static boolean hasTask(BotPlayer bot)" not in mgr:
+        problems.append("缺 `BotManager.hasTask` 只读读数 ⇒ 夹具只能靠**陈旧** `taskKind` 猜有无任务"
+                        "（第八轮探针就是这样被骗过去的）")
+
+    sv = code_only(survival.read_text(encoding="utf-8"))
+    if "public static final int DROWN_PRECURSOR_AIR" not in sv:
+        problems.append("缺 `DROWN_PRECURSOR_AIR` 常量（溺水前置阈值）")
+    if re.search(r"DROWN_PRECURSOR_AIR[\s\S]{0,120}?return HazardType\.LOW_AIR", sv):
+        problems.append("`DROWN_PRECURSOR_AIR` 被写进了**共享分类表** `classify` —— 第一版就是这么写的，"
+                        "结果电池步 `survival_exit`（那相位故意 air=5 + 眼在水里）被判成真溺水 ⇒ "
+                        "`FLOAT_UP` 分支 `complete(..., SURVIVAL_INTERRUPTED)` **中断了整轮电池**（no_verdict）。"
+                        "这一档必须只对**无任务**生效")
+    if not re.search(r"isEyeInFluid\(net\.minecraft\.tags\.FluidTags\.WATER\)[\s\S]{0,200}?DROWN_PRECURSOR_AIR",
+                     handler):
+        problems.append("无任务处理里没有「沉底提前自救」那一档（眼在水里 + `air ≤ DROWN_PRECURSOR_AIR`）"
+                        "⇒ 空闲 bot 沉底仍要白等到空气耗尽")
+
+    fx = code_only(fixture.read_text(encoding="utf-8"))
+    for token, why in (
+            ("BotManager.hasTask(probe)", "夹具没断言「探针 bot 无任务」这个前提"),
+            ("SurvivalSystem.Verdict.FLOAT_UP", "夹具没断言前提判决是 FLOAT_UP"),
+            ("SurvivalFloatTask.AIR_SAFE", "夹具没断言「自救成功」（空气回到 AIR_SAFE）"),
+            ("sawTask && firstTaskAir > 0", "夹具没断言「自救在空气还够时就开始了」"
+                                             "（钉有效表达式 `sawTask && firstTaskAir > 0`；"
+                                             "只钉标识符会被别处的引用顶包 —— 实测漏过）"),
+            ("isEyeInFluid(FluidTags.WATER)", "夹具没断言「眼睛在水里」（沉底的事实前提）")):
+        if token not in fx:
+            problems.append(f"{why}（缺 `{token}`）")
+    mod = code_only(module.read_text(encoding="utf-8"))
+    if '"survival_idle_drown"' not in mod:
+        problems.append("步骤名 `survival_idle_drown` 没注册进 `SurvivalModule`")
+    return problems
+
+
 def rule_collect_goal_standable():
     """`D-375`（2026-09-21 第六轮真机 + 存档取证）：**「够得着的可站格」必须与真实拾取盒同一谓词；
     一个都没有时不许规划，更不许退回「物品自身格」**。
@@ -2167,6 +2264,7 @@ def main() -> int:
     bodyclear = rule_edge_destination_body_clearance()
     collectgoal = rule_collect_goal_standable()
     sweepclearance = rule_height_change_sweep()
+    hazardnotgated = rule_hazard_not_task_gated()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -2255,6 +2353,8 @@ def main() -> int:
         print(f"[A2·模式B穷举有界] {line}")
     for line in bodyclear:
         print(f"[D-374·目的地整体通行] {line}")
+    for line in hazardnotgated:
+        print(f"[D-377·危险处理不挂任务] {line}")
     for line in sweepclearance:
         print(f"[D-376·高度变化查过渡空间] {line}")
     for line in collectgoal:
@@ -2262,10 +2362,10 @@ def main() -> int:
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

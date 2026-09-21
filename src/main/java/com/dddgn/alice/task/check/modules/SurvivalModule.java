@@ -58,6 +58,12 @@ public final class SurvivalModule implements CheckModule {
         BotPlayer bot = ctx.bot();
         var observer = ctx.observer();
         return List.of(
+                // ⭐ `D-377`（2026-09-21 真机）：**无任务的 bot 也必须被维生接管** —— 真机上"任务被延后停止
+                // 清掉之后在水里沉底、掉血 20→1.0 而维生零动作"。用**第二个假人**（天然无任务）跑生产路径；
+                // 判据 = 观察窗口内出现一次任务 + 头露出水面 + 空气回到 AIR_SAFE。自带水井场景，无需数据包。
+                CheckStep.of("survival_idle_drown", CheckProfile.EXTRA, List.of(), null,
+                        () -> new com.dddgn.alice.task.SurvivalIdleDrownCheckTask(bot, ctx.observer()),
+                        600),
                 CheckStep.of("survival_exit", CheckProfile.BASELINE,
                         List.of("alice_test:survival_course"),
                         () -> to(bot, SurvivalCourseAnchor.PLATFORM_FOOT),

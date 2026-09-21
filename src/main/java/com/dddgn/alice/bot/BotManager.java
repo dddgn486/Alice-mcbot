@@ -1052,6 +1052,19 @@ public final class BotManager {
         return true;
     }
 
+    /**
+     * 该 bot 此刻**有没有任务**（只读；`D-377` 夹具的**前提判据** + 归因用）。
+     *
+     * <p>为什么需要它：`D-377` 的病根正是"`task == null` ⇒ 危险处理被整段跳过"，而这件事
+     * 在日志里**看不见**（`taskKind` 是**陈旧字符串**，任务清空后仍然显示上一个任务名 ⇒
+     * 第八轮的临时探针就被它骗过：打出 `task=RestoreScope`，实际 `task == null`）。
+     * ⇒ 给夹具一个**能直接断言**的读数，而不是再靠日志猜。
+     */
+    public static boolean hasTask(BotPlayer bot) {
+        BotSession session = BOTS.get(bot.getUUID());
+        return session != null && session.currentTask() != null;
+    }
+
     public static String currentTaskSummary(BotPlayer bot) {
         BotSession session = BOTS.get(bot.getUUID());
         return session == null ? null : session.currentTaskSummary();
@@ -2115,10 +2128,13 @@ public final class BotManager {
             //   · `enter`+`verdict` 有、分支无 ⇒ 判决值不在三条分支里。
             if (hazard != null && hazard.type() != com.dddgn.alice.survival.HazardType.NONE
                     && hazard.durationTicks() % 20 == 0) {
-                BotLog.warn("[SurvProbe] enter type={} duration={} task={} escapeTask={} onGround={} inWater={}"
-                                + " air={} pos={}",
-                        hazard.type(), hazard.durationTicks(), taskKind, task instanceof com.dddgn.alice.task.SurvivalExit,
-                        bot.onGround(), bot.isInWater(), bot.getAirSupply(),
+                BotLog.warn("[SurvProbe] enter type={} duration={} taskNull={} taskName={} escapeTask={}"
+                                + " onGround={} inWater={} eyeInWater={} air={} pos={}",
+                        hazard.type(), hazard.durationTicks(), task == null,
+                        task == null ? "-" : task.taskName(),
+                        task instanceof com.dddgn.alice.task.SurvivalExit,
+                        bot.onGround(), bot.isInWater(),
+                        bot.isEyeInFluid(net.minecraft.tags.FluidTags.WATER), bot.getAirSupply(),
                         bot.blockPosition().toShortString());
             }
             // T1 / R-3：**自检按住随任务存续**（不是定长窗口）—— 1200 tick 的窗口盖不住 ~3400 tick 的
@@ -2129,6 +2145,11 @@ public final class BotManager {
             com.dddgn.alice.decision.GoalDirector.setSelfCheckHold(bot,
                     task != null && task.isSelfCheck());
             if (task == null) {
+                // ⭐ `D-377`（2026-09-21 真机）：**危险处理不许挂在任务上**。
+                // 真机实证：任务被"延后停止"清掉后，bot 在水里沉底、`air 300→-2`、掉血 20→**1.0**，
+                // 而维生**一条动作都没有** —— 因为这一句提前返回把 `decide` 与三条动作分支全跳过了
+                // （`[SurvProbe]` 实测：`enter` 一路在打、`verdict` 再没打过）。
+                tickHazardWithoutTask(hazard);
                 return;
             }
             // K-3：待处理的安全点停止（每 tick 检查一次）
@@ -2155,8 +2176,9 @@ public final class BotManager {
             boolean escapeWrites = com.dddgn.alice.pathing.core.WriteEnvelopes.had(bot.getUUID().toString());
             SurvivalSystem.Verdict verdict = SurvivalSystem.decide(bot, hazard, escapeWrites);
             if (hazard.type() != com.dddgn.alice.survival.HazardType.NONE && hazard.durationTicks() % 20 == 0) {
-                BotLog.warn("[SurvProbe] verdict={} type={} duration={} task={} escapeWrites={}",
-                        verdict, hazard.type(), hazard.durationTicks(), taskKind, escapeWrites);
+                BotLog.warn("[SurvProbe] verdict={} type={} duration={} taskNull={} taskName={} escapeWrites={}",
+                        verdict, hazard.type(), hazard.durationTicks(), task == null,
+                        task == null ? "-" : task.taskName(), escapeWrites);
             }
             // S-5（2026-09-15）③：**软危险 + 无出口 ⇒ 不否决**（`HOLD_NO_EXIT`）——但必须**如实登记一次**，
             // 否则日志看不出"判据生效了，但判断是继续跑"。登记点取 `durationTicks == 宽限期` 这**唯一 tick**
@@ -2286,6 +2308,95 @@ public final class BotManager {
          * 真正的移动交给 `SurvivalExitTask`（= 已验收的硬路径 `WalkToTask`，纯通行、不挖不放置）。
          * 找不到落点就**如实登记"无出口"**（不假装成功、不造一个必失败的任务）。
          */
+        /**
+         * ⭐ **`D-377`：无任务时的危险处理**（只做"不需要任务就能做"的那几档）。
+         *
+         * <p><b>为什么必须单独有一条</b>：上面那句 `if (task == null) return;` 的原意是"没有任务就没有
+         * 可中断/可放弃的东西"，但它连带把 **`decide` 本身**也跳过了 ⇒ 一个**空闲**的 bot 在水里
+         * 沉底/在火里/被埋时，维生**零动作、零日志**。真机实证（第八轮 17:56–17:57，bot `tango`，
+         * 水塘 `633,59,94`）：`task_execution_terminal terminal=CANCELLED_BY_USER`（延后停止落地）之后
+         * `[SurvProbe] enter` 一路在打、`verdict` 再没打过，`air 300→-2`、`health 20→1.0` 全程无动作。
+         *
+         * <p><b>本方法的作用域（刻意收窄）</b>：只处理三档，且**不碰任务分支**
+         * （没有 `complete(...)`、没有 `transfer.survivalInterrupted(...)`）：
+         * <ul>
+         *   <li>`INTERRUPT`（有可规划出口）⇒ 直接走去出口（**无任务可中断**，所以只起逃生）；</li>
+         *   <li>`FLOAT_UP`（溺水、无落点但浮得上去）⇒ 起 {@code SurvivalFloatTask} 上浮自救；</li>
+         *   <li>`ABANDON_NO_EXIT` ⇒ **没有可放弃的东西**，只在每个 episode 如实登记一次
+         *       （否则"没人管"这件事又变回静默 = 旧症状）。</li>
+         * </ul>
+         *
+         * <p><b>写权口径</b>：无任务 ⇒ `WriteEnvelopes` 已被清空 ⇒ 这里**恒为** `allowWrites=false`
+         * （只走纯通行的出口；不动用逃生准备金）。这与 `D-241` 一致：准备金只给"拿到写信封的任务"。
+         */
+        private void tickHazardWithoutTask(HazardState hazard) {
+            if (hazard == null || hazard.type() == com.dddgn.alice.survival.HazardType.NONE || task != null) {
+                return;
+            }
+            // ⭐ `D-377` 第二档：**沉底**（眼在水里、空气过半）—— 即便分类还是 `WATER_CONTACT`
+            // （它不是软危险 ⇒ `decide` 会恒 `IGNORE`），没有任务的 bot 也要先浮上去呼吸。
+            // ⚠️ 这一档**只对无任务生效**（第一版写进 `classify` ⇒ 把电池步 `survival_exit` 里
+            // "故意 air=5 + 眼在水里"的相位判成真溺水 ⇒ 中断了整轮电池；见 `DROWN_PRECURSOR_AIR` 注释）。
+            if (hazard.type() != com.dddgn.alice.survival.HazardType.LOW_AIR
+                    && bot.isEyeInFluid(net.minecraft.tags.FluidTags.WATER)
+                    && bot.getAirSupply() <= SurvivalSystem.DROWN_PRECURSOR_AIR) {
+                String submergedAt = SurvivalSystem.footCell(bot).toShortString();
+                BotLog.warn("[Survival] **无任务**时沉底（眼在水里，air={} ≤ {}）⇒ 先上浮自救"
+                                + "（分类仍是 {}，所以这条只对无任务生效）pos={}",
+                        bot.getAirSupply(), SurvivalSystem.DROWN_PRECURSOR_AIR, hazard.type(), submergedAt);
+                com.dddgn.alice.decision.DecisionEvents.emit(bot, "DANGER", "warn",
+                        "无任务时沉底 ⇒ 上浮自救",
+                        "hazard=" + hazard.type() + " air=" + bot.getAirSupply()
+                                + " decision=float_up pos=" + submergedAt);
+                beginTask(new com.dddgn.alice.task.SurvivalFloatTask(bot),
+                        TaskTarget.block(bot.blockPosition()));
+                broadcastTarget(this.target);
+                return;
+            }
+            SurvivalSystem.Verdict verdict = SurvivalSystem.decide(bot, hazard, false);
+            if (hazard.durationTicks() % 20 == 0) {
+                BotLog.warn("[SurvProbe] verdict={} type={} duration={} taskNull=true escapeWrites=false",
+                        verdict, hazard.type(), hazard.durationTicks());
+            }
+            String where = SurvivalSystem.footCell(bot).toShortString();
+            switch (verdict) {
+                case INTERRUPT -> {
+                    BotLog.warn("[Survival] **无任务**时危险 hazard={}（持续 {} tick，air={}）⇒ 走向出口"
+                                    + "（没有可中断的任务，只起逃生）pos={}",
+                            hazard.type(), hazard.durationTicks(), bot.getAirSupply(), where);
+                    com.dddgn.alice.decision.DecisionEvents.emit(bot, "DANGER", "warn",
+                            "无任务时遇危险 ⇒ 走向逃生出口",
+                            "hazard=" + hazard.type() + " decision=exit pos=" + where);
+                    startSurvivalExit();
+                }
+                case FLOAT_UP -> {
+                    BotLog.warn("[Survival] **无任务**时溺水 hazard={} 持续 {} tick，无落点但**浮得上去**"
+                                    + " ⇒ 起自救（按住跳跃上浮）air={} pos={}",
+                            hazard.type(), hazard.durationTicks(), bot.getAirSupply(), where);
+                    com.dddgn.alice.decision.DecisionEvents.emit(bot, "DANGER", "warn",
+                            "无任务时溺水 ⇒ 上浮自救",
+                            "hazard=" + hazard.type() + " exit=none decision=float_up pos=" + where);
+                    com.dddgn.alice.decision.BotEventLog.record(bot, "DANGER", "warn",
+                            "维生自救（无任务）", "pos=" + where);
+                    beginTask(new com.dddgn.alice.task.SurvivalFloatTask(bot),
+                            TaskTarget.block(bot.blockPosition()));
+                    broadcastTarget(this.target);
+                }
+                case ABANDON_NO_EXIT -> {
+                    if (hazard.durationTicks() == SurvivalSystem.SOFT_HAZARD_GRACE_TICKS) {
+                        BotLog.warn("[Survival] **无任务**时溺水 hazard={} 且无落点、也浮不上去 ⇒ 如实登记"
+                                        + "（等玩家/决策层干预；没有任务可放弃）air={} pos={}",
+                                hazard.type(), bot.getAirSupply(), where);
+                        com.dddgn.alice.decision.DecisionEvents.emit(bot, "DANGER", "warn",
+                                "无任务时溺水且无出口 ⇒ 如实登记等干预",
+                                "hazard=" + hazard.type() + " exit=none decision=none pos=" + where);
+                    }
+                }
+                case HOLD_NO_EXIT, IGNORE -> {
+                }
+            }
+        }
+
         private void startSurvivalExit() {
             // ⚠️ 排除格必须用**脚位格**（`SurvivalSystem.footCell`），不能用 `bot.blockPosition()`：
             // 贴地时后者会退回**支撑格**（实体方块）⇒ "排除自己"失效 ⇒ bot 自己那格被当成出口，

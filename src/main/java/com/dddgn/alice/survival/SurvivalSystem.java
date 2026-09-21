@@ -147,6 +147,29 @@ public final class SurvivalSystem {
     public static final int FREEZE_WARN_TICKS = 60;
 
     /**
+     * ⭐ **「无任务在水中」的自救空气阈值**（`D-377`，2026-09-21 真机）：**没有任务**的 bot 只要
+     * **眼睛在水里**且空气掉到这个值以下，就必须先浮上去（`BotManager.tickHazardWithoutTask`）。
+     *
+     * <p><b>为什么要这一条</b>：原版空气 300 tick，只有归零后才开始"再 20 tick 掉血"；而空气 > 0 时
+     * 分类是 `WATER_CONTACT`，它不是软危险（{@link #softHazard}）⇒ 判决恒为 `IGNORE` ⇒
+     * **空闲 bot 沉底后最长 15 秒内维生零动作、零日志**。真机实测（第八轮 18:04，用户把 bot 传送进水）：
+     * `hazard=WATER_CONTACT duration=241 air=300→62`、`onGround=true inWater=true` —— 全程无反应。
+     *
+     * <p><b>⚠️ 为什么它是「无任务策略」而**不是**分类表里的新分类</b>（2026-09-21 实测教训）：
+     * 第一版把它写进 `classify`（`air ≤ 100 && 眼在水里 ⇒ LOW_AIR`）⇒ **CORE 立刻红**：
+     * 电池步 `survival_exit` 的"开阔水池"相位本来就故意把 bot 弄成 `air=5` + 眼睛在水里
+     * （它要单独测上浮机制），于是被当成**真溺水** ⇒ `FLOAT_UP` 分支 `complete(..., SURVIVAL_INTERRUPTED)`
+     * **把电池任务本身中断了**（`task_execution_terminal kind=RegressionBattery`）⇒ 整轮 `no_verdict`。
+     * 公平地说那条改动**语义上也没错**（沉底确实是溺水前兆），但 `classify` 是**共享**表
+     * （生产任务、夹具、决策表都读它）⇒ 收窄作用域更诚实：**有任务的水下作业不受影响**，
+     * 只有"没有任务、没人管"的 bot 才提前自救。
+     *
+     * <p><b>为什么取 100（≈ 1/3）</b>：空气 1/tick 递减、掉血在 -20 才发生 ⇒ 100 留 **5 秒**余量，
+     * 足够浮上来呼吸。判据是 `isEyeInFluid(WATER)` ⇒ 1 格水（头在水面上）不受影响。
+     */
+    public static final int DROWN_PRECURSOR_AIR = 100;
+
+    /**
      * **唯一的维生决策入口**（S-5，2026-09-15）。
      *
      * <p>判据（按顺序）：

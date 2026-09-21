@@ -143,6 +143,8 @@ public final class RegressionBatteryTask implements Task {
             // S-5（2026-09-15）：**维生决策表 + 出口可达 + 掉血可见** —— 维生是"长作业能活着回来"的底线件，
             // 而且此前**零电池步**（只能真人验）。放 BASELINE（CORE 跑），每次改动都跑得到。
             Map.entry("survival_exit", Profile.BASELINE),
+            // ⭐ `D-377`：无任务溺水自救（第二假人 + 自建水井；EXTRA —— 会在系统里再起一只假人）。
+            Map.entry("survival_idle_drown", Profile.EXTRA),
             // ---- MAIN：阶段 3-A 收口后的最小烟测集（4）----
             // 口径（D-201）：每一类"只此一步覆盖"的机制各留一步 + 查询层最便宜一步；
             // A2/A3/A3b/C/装配/发现器探针等同机制夹具退 FULL（机制不丢，默认时长下降）
