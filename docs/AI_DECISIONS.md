@@ -17765,3 +17765,116 @@ break -85, 89, 147 gold_block   by=command:EXPECTED_TARGET
 2. Z1 之后再做（保护区内会遇到同样几何）：守卫**挪到破块前** + A/C（侧拆 / 先撤离）；
 3. 夹具 `restore_underfoot_safety` 的几何**要改**：必须让 bot **取件时不在目标上**（复现真实时序），
    否则它继续是"巧合命中"的假绿。
+
+### D-407：⭐ **`Z1` 落地 —— 账本/回收收窄到"保护区及其子区域"**（`D-398` 的第一片实现，2026-09-22）
+
+**目标（用户原话，逐字见 `D-398`）**：区外（无主区域）**不记账、不恢复、无限制修改**；
+保护区内**一定记账**（不要求立即恢复）。判据 = 区外放/破后**账本无条目**、无恢复动作；保护区内**必有条目**。
+
+#### 一、实现（四处，全部收敛到一个判据）
+
+| # | 位置 | 改动 |
+|---|---|---|
+| 1 | ⭐ **新** `protection/ProtectionZones` | **唯一判据入口**：`isProtected(level,pos)` = `SafeZoneData.isClaimed`（区块级、全高度、零副作用）+ 反面名字 `isWild`。类注释写死三条口径：子区域（安全区）**已按不变量 ⊆ 保护区** ⇒ 不加第三项；**任务区不是保护区**（`D-406` §二那次误判就是把它当成了区）；挖掘黑名单与"地归谁"正交 ⇒ 不进本判据 |
+| 2 | `ledger/WorldModLedger.recordPlacement` | 区外**直接不记**（`[Ledger] skip …` 一行 + 遥测计数 `outsideSkipCount`，**不是静默丢弃**）。这一条就是真机事故的直接修复 |
+| 3 | `WorldModLedger.dropStale` | 除"幽灵条目"外，**区外条目也销**（旧存档遗留 / 玩家 `unclaim` 之后）—— 两类各打一行日志。取件前后都调 ⇒ 时序不敏感 |
+| 4 | `WorldModLedger.pendingTemporaryProtected` + `task/RestoreScopeTask` | 回收的**取件口径**（`buildQueue`）与**收尾对账**（`finish` 的 `remaining`）都换成"只认区内条目" ⇒ 区外条目既不会被拆、也不会被算成"没拆完" |
+
+#### 二、判据：新夹具 `ledger_zone_scope`（EXTRA，`LedgerModule`）—— 四条臂，每条都能被"去掉实现"弄红
+
+| 臂 | 断言 | 注入即变红 |
+|---|---|---|
+| ① 区外放置 | 动作层**真的放了**（`PLACED` + 世界事实=圆石）+ 遥测 `outsideSkips +1`（**防空跑假绿**）+ 账本**无条目** | 去掉 ② 的过滤 ⇒ 红 |
+| ② 区外不恢复 | `RestoreScopeTask` 终态 `nothing_to_restore` 且**方块还在** | 去掉 ④ 的取件口径 ⇒ 它去拆无主区域 ⇒ 红 |
+| ③ 区内放置 | 认领 + L2 任务区封套后：**必有 `TEMP` 条目**、条落在本步 scope；回收跑完 ⇒ **方块变空气 + 条目被销** | 过滤写反 ⇒ 红 |
+| ④ 先记账后 `unclaim` | 条目被 `dropStale` 销掉、**方块留在原地**（那片地已无主） | 去掉 ③ 的区外销账 ⇒ 红 |
+
+**实测（`single:ledger_zone_scope`，headless）**：`checks=24 failures=0 outsideSkips=0→1 wildTerminal=nothing_to_restore
+zoneTerminal=restore_done purgeDropped=1 ticks=166 → PASS`（`run/headless-logs/20260922-222357-single_ledger_zone_scope.log`）。
+分级：**IMPLEMENTED + COMPILES + SERVER_TESTED**（`single:` 与 `module:ledger` 5/5 两跑；CORE 待收口轮，见 `D-408`）。
+
+#### 三、⚠️ 代价与连带（如实登记，别当没发生）
+
+1. **区外不再拆任何我方方块**（R2 的直接推论）：野外作业会**留下垫脚石/工作站**，并**净消耗**
+   `THROWAWAY` 方块（通常是圆石）——"建拆同权"在区外不再成立。要改就得改裁定本身。
+2. ⭐ **夹具纪律升级**：凡是要验"保护区内该发生什么"（建拆同权 / 工作站的拆回 / 回收守卫）的夹具，
+   现在**必须自己摆前提**（认领区块 + 声明 L2 任务区封套）⇒ 新增 `task/FixtureZone`
+   （一个入口、结束复位、幂等 `release`）。本片改了 3 个夹具：`scaffold`（实测真红过：
+   `pillar=4 torn=0 residue=4`）、`craft_station`（实测真红过：`write_accounted=FAIL / teardown_clean=FAIL`）、
+   `restore_underfoot_safety`（改前是**静默假绿**：播种被跳过 ⇒ `pending=0` ⇒ `nothing_to_restore` ⇒ 三条判据空跑）。
+   ⚠️ 夹具借用 `region_lumber` 这一档（L2 工作面）**不是**在验权限阶梯 —— 夹具自己是 `DIAGNOSTIC`(L0)，
+   不借封套根本写不进区内；本夹具同时断言"**没有封套时区内放置被拒 `protected_area`**"（证明闸门不是恒假）。
+3. **`J6` 不变量的适用面收窄**为"保护区内的条目"（`Z2` 待做）；`WriteBudget` 降级为遥测（`Z3`/`RC4` 待做）。
+
+#### 四、未做（承接 `D-406` §三）
+
+1. 守卫**挪到破块前**（`pickNext` 的检查时机）± 侧拆/先撤离；
+2. `restore_underfoot_safety` 几何重做（bot **取件时不在目标上**）；
+3. 夹具 `restore_underfoot_safety` 的"回收真的发生"仍不成立（`resetInventory` 清掉了镐 ⇒
+   `NO_REQUIRED_TOOL` ⇒ 两条 `side_break_failed`）—— 这一条**在改几何时一起处理**。
+
+### D-408：**CORE 瘦身（53 → 41）** + 一个真缺陷（假绿包装器）+ 一处真缺陷（场景跑在冷区块上）（2026-09-22）
+
+**触发**：用户 2026-09-22「这一步做完**不马上跑 CORE**，整理下 CORE 内容，**次要的剔除**」。
+梳理输入 = 只读分析报告 `docs/reviews/2026-09-22-CORE步表梳理与剔除建议.md`（53 步逐步表 + 证据引用）。
+
+#### 一、降级 12 步 ⇒ `EXTRA`（**一步没删，FULL 仍全覆盖**）：CORE **53 → 41**（BASELINE 15 + MAIN 26）
+
+| 组 | 步 | 理由 |
+|---|---|---|
+| 只读探针 | `craft_probe_inventory` / `craft_probe_table` / `craft_probe_upgradetab` / `machine_route` | 零写入、无场景；机制由 `craft_check`（生产查询层）/`craft_goal`（发现器）覆盖 |
+| 自证前提的诊断 | `fall_execute` / `pillar_execute` | `CleanupWrappedTask` 包着、自带场景自收尾；同坐标同 Movement 已由 BASELINE 的 `pathing`（21 场景 / 10 种 Movement）覆盖 |
+| 阶段 3-A 合成线 | `craft_action` / `craft_station` / `craft_station_provision` / `craft_station_craft` | `D-201` 原裁定名单（**扣掉 `craft_table`**，见下） |
+| 阶段 3-B 机器线 | `machine_station` / `machine_cycle` | 已验收、非当前主线（主线 = 挖掘）；`craft_machine` 是同一闭环的**生产入口**，保留 |
+
+**刻意保留**：`craft_table`（`D-201` 名单里有它，但它**是 CORE 里唯一的原版 3×3 `CraftingMenu` 执行覆盖** ——
+`craft_goal` 只走随身 2×2）· `coarse_goal_prefix`（用户 2026-09-22 点名要它进 CORE，只花 4 tick；
+⚠️ 它名字承诺的"粗目标必须有前缀"在 CORE 世界里是**条件式**的 —— `D-391` §四已记，真正常驻的是
+`D-132` 读脚印 + `GOAL_NOT_LOADED` 两条）。
+
+#### 二、⭐ 真缺陷 1：`CleanupWrappedTask` 把内层 `FAILED` 也报成 `DONE`（**结构上不可能红**）
+
+- **事实**：`tick()` 内层返回 `FAILED` 时只置 `innerDone=true` + `cleanup()`，终态写
+  `innerDone && cleaned ? DONE : FAILED`；而电池**只按 `status == DONE` 记 PASS** ⇒
+  `fall_execute` / `pillar_execute` 的判据**全红也记绿**（`D-201` 附注一那类"假绿"的同一个病）。
+- **修**（本片）：内层终态**透传**（`innerFailed`），收尾动作与"内层干得对不对"分开。
+  实测今天内层是**全 PASS**（`[Fall] SUMMARY fall_plan_2/3/no_deep_fall/recover_guard/execute 全 PASS`、
+  `[Pillar] pillar_plan/resource_guard/pillar_execute 全 PASS`）⇒ 本修**不改变今天的判决**，只把"能红"还回去。
+- ⭐ **注入证明（"注入即变红"，2026-09-22）**：把 `FallDiagnosticTask.finish()` 的 `allPass` 注入一个 `&& false`
+  （临时改，验证完已还原）⇒ `single:fall_execute` = **`FAIL reason=FALL_FAILED fall_plan_2=PASS …`**
+  （`run/headless-logs/20260922-230726-single_fall_execute.log`）。修**前**同样注入会被报成 PASS
+  （包装器吞掉内层 `FAILED`）⇒ 该判据现在真的能红。
+
+#### 三、⭐ 真缺陷 2：**电池把场景函数跑在"没人握住的冷区块"上**（`D-296` 的 T-1 修正只补到了编排器）
+
+- **症状**：瘦身后 `craft_table` 由 PASS→FAIL（`ticks=0 reason=table_found`），而**单跑也红**。
+- **取证（临时探针，已删）**：场景 `rc=5`（5 条命令**全部成功**）、区块 `hasChunkAt=true`，
+  但 3 tick 后那格是**一台箱子**（`%s%sChest`）—— 那是**另一个场景**（`craft_tab_course`）
+  留在**磁盘存档**里、同一坐标 (46,64,306) 的内容；当场重跑同一个场景函数 ⇒ 立刻变成工作台。
+- **根因**：电池的执行顺序是 `scenes → provision`（**旧顺序**），而编排器是 `provision → scenes`
+  （`D-296` 修过的 T-1）。冷区块上 `/fill` 直接报 `ERROR_NOT_LOADED`、`/setblock` 写进去的方块
+  又会随区块卸载**回滚到磁盘内容** ⇒ 夹具拿着"没有地形"的世界做判断。旧 CORE 之所以绿，
+  是**靠前序步骤的副产物**把区块捂住了（正是 `D-201` 附注一警告的那类隐含前置）。
+- **修**（本片）：电池侧改成 `provision → scenes`，与编排器**逐字对齐**；并给场景函数加上
+  **返回值日志**（`scene=<fn> rc=<n>`，`rc<=0` 响亮告警 —— `D-251` 的教训：`withSuppressedOutput()`
+  会把"函数不存在/陈旧/未加载"全吞掉）。实测：改序后 `single:craft_table` **PASS**（`rc=5`，`table=46,64,306`）。
+
+#### 四、⭐ `Z1` 与 `D-245` 的口径冲突（已按 `D-398` 对齐，⚑ 用户可复核）
+
+瘦身后 `survival_exit` 由 PASS→FAIL：`逃生不自动回收（D-245）：账本里仍记着这笔待拆（policy=无条目）`。
+⇒ 逃生场景在**无主区域** ⇒ 按 `D-398` R1/R2 **本来就不该有条目**（`D-245` 当年写"记账待玩家回收"时
+还没有地理范围裁定）。**处置**：夹具改成**两条臂** —— 区内仍要求 `TEMP` 条目；区外要求**无条目**
+（"不会被自动回收"由**世界事实**那条断言守着，它才是防逃生循环的那半边）。实测 `single:survival_exit` **PASS**。
+⚑ 若用户希望"**维生逃生**也例外记账"（便于事后清理），那是**改 `D-398`**，不是改夹具 —— 已登记待裁。
+
+#### 五、验证（分级）
+
+- **静态门禁**：`tools/check-kernel-predicates.sh` **PASS**（含 **R2-P2 步清单**=0、R2-P3 步边界对齐=0）；
+  `ALICE_HEADLESS=1 bash tools/check-all.sh` = `pass=19 warning=0 failed=1`，唯一失败项 = `check-headless-battery`
+  （因为 CORE 本就红在 `lumber_job`，见下）；其余 19 道含 `check-fixture-hygiene`（83 夹具 / R1/R2/R4 违例=0）
+  与 `check-step-names`（202 处引用命中 93 步）✓。
+- ⭐ **逐步 diff（`D-201` 附注一的纪律）**：`53 → 41` 两轮 CORE 逐步比对 ⇒ **除被撤的 12 步外，
+  判决逐条不变**；被撤 12 步之外**没有新增删除/移位**（存活步相对次序 **0 位移**）。
+- 收口轮（修完三处之后）的 CORE 判决记录在本条下（见 `docs/HANDOVER.md` 顶部）。
+- **仍未做**：`lumber_job` 连红 34 轮（`no_reachable_candidate` + `trunk_too_tall` + **`idempotent=false`**）
+  —— 它是 CORE 唯一红项，也是把 CORE 从 280 s 降到秒级（`D-352` 缓存只写 PASS ⇒ 永不命中）的**唯一大杠杆**。

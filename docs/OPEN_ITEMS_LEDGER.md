@@ -2083,7 +2083,7 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 | # | 事项 | 判据 | 依赖 | 状态 |
 |---|---|---|---|---|
 | **C** | ⭐ **安全守卫 I-1**：移除我方方块前，`canWalkOn(level, botFoot)` **在移除后**仍须为真（否则先把 bot 移到安全处）+ 回收**自上而下**、bot 当前支撑那格最后 | 夹具：bot 站在**自己放的 3 格脚手架柱**上跑**保护区内**回收 ⇒ 断言全程有支撑、脚位不下落；**红臂** = 去掉守卫 ⇒ 红 | 无 | **✅ 守卫落地（`D-399`，防御性）；判据不可红（`D-400` 两次实测，不再追）** |
-| **Z1** | **账本/恢复收窄到保护区内**（`D-398` R1–R4）：无主区域**不记账、不恢复**；`RestoreScopeTask` 只认保护区内条目 | 判据：区外放/破后**账本无条目**、无恢复动作；保护区内**必有条目** | `D-398` | 待做 |
+| **Z1** | **账本/恢复收窄到保护区内**（`D-398` R1–R4）：无主区域**不记账、不恢复**；`RestoreScopeTask` 只认保护区内条目 | 判据：区外放/破后**账本无条目**、无恢复动作；保护区内**必有条目** | `D-398` | **✅ 完成**（`D-407`）：`protection/ProtectionZones`（唯一判据）+ `recordPlacement` 区外跳过（遥测 `outsideSkipCount`）+ `dropStale` 销区外条目 + `pendingTemporaryProtected`（取件与 `remaining` 同口径）；判据 = 新步 **`ledger_zone_scope`**（EXTRA）四臂 **绿 `checks=24 failures=0`**；连带：`task/FixtureZone`（夹具前提：认领 + L2 任务区）改了 3 个夹具（`scaffold`/`craft_station`/`restore_underfoot_safety`，前两个在 Z1 后**实测真红过**，第三个原是**静默假绿**）|
 | **Z2** | `J6` 不变量**范围收窄**（只对保护区内条目闭合）并**做成门禁**（不是注释） | `kernel-predicates.py` 新增/修改规则 + **注入即变红** | Z1 | 待做 |
 | **Z3** | **区外取消格数额度**（保留 `capForEscape` 显式装订）；保护区内**不许静默降级** | 门禁/夹具：区外无 cap；cap 打满必须给**瞬时**理由 + 日志（不许写成永久失败） | `D-398` | 待做 |
 
@@ -2128,6 +2128,19 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 |---|---|---|---|
 | **P6** | **搜索线程化**（`D-369 §四`）—— `D-388 §五` 自证"不等于根治"；**多 bot 并行的前提** | 需线程安全的世界视图（架构级） | 登记 |
 | **产品** | **三天挖矿任务线**：③ 鱼骨（`D-386` 设计已定档，切片 1–4 未开工）→ ① 跟随 → ② 探洞 | 内核/挖掘逻辑修复完成后进入 | 登记 |
+
+### F. 2026-09-22 新增（`Z1` 的连带 + **CORE 瘦身的副产品**）—— 明细见 `D-407`/`D-408`
+
+| # | 事项 | 判据 / 触发 | 状态 |
+|---|---|---|---|
+| **CORE 瘦身** | 用户「整理下 CORE 内容，**次要的剔除**」⇒ **降级 12 步 ⇒ EXTRA**（一步没删）：CORE **53 → 41**（BASELINE 15 + MAIN 26） | `D-201` 附注一：**复跑 CORE 逐步 diff** ⇒ 除被撤 12 步外**判决逐条不变、存活步 0 位移**；唯一红项 = `lumber_job`（既有） | **✅ 完成**（`D-408`；`PROFILE=CORE baseline=15 main=26 extra_skipped=52 (passed=40/41) ticks=4552`） |
+| **真缺陷①** | ⭐ `CleanupWrappedTask` 把内层 `FAILED` 也报 `DONE` ⇒ `fall_execute`/`pillar_execute` **结构上不可能红**（判据全红仍记 PASS） | 修 = 内层终态透传；**注入证明**见 `D-408` | **✅ 已修**（`D-408`） |
+| **真缺陷②** | ⭐ 电池把**场景函数跑在冷区块上**（旧顺序 `scenes → provision`；编排器早是 `provision → scenes`）⇒ `/fill` 静默失败、`/setblock` 随区块卸载回滚 ⇒ 夹具拿"没有地形"的世界做判断（`craft_table` 实测） | 修 = 电池侧对齐顺序 + 场景函数**返回值日志**（`scene rc=`，`rc<=0` 告警 —— `D-251` 的教训） | **✅ 已修**（`D-408`；`single:craft_table` 由红转绿） |
+| **待用户拍板 ①** | `craft_table` 保不保：它**是 CORE 里唯一的原版 3×3 `CraftingMenu` 执行覆盖**（`craft_goal` 只走随身 2×2）⇒ 本轮**保留**（与 `D-201` 名单有异议） | 用户一句确认即定 | 待裁 |
+| **待用户拍板 ②** | `survival_exit` 与 `D-398` 的冲突：逃生垫的方块在**区外** ⇒ 按裁定**不记账**；`D-245` 当年要求"记账交玩家回收"。本轮夹具已按裁定改成**两臂**（区内要 `TEMP`、区外要**无条目**，防逃生循环由世界事实那半守） | 若用户要"**维生逃生例外记账**"（便于事后清理）⇒ 那是**改 `D-398`**，不是改夹具 | 待裁（不阻塞） |
+| **待办（小）** | `mine_regression` 超时可能记 `DONE`（`:202-205` vs `:595`）；`decision_contract` 的 `SUMMARY checks=10` 是硬编码（真实 14 站点）；`mine_regression` 用例级 SKIP 不上报（CORE 里 2 例 SKIP 而过 `skipped=0`）；三处预算 < 任务 `MAX_TICKS`（失败码被 `TIMEOUT` 盖掉） | 各自一条夹具/门禁判据 | 登记（来自 `docs/reviews/2026-09-22-CORE步表梳理与剔除建议.md` §4-D7） |
+| **待办（中）** | `D5` 三条归因步（`mine_no_tool`/`mine_stale`/`mine_budget`）是否三合一（**不省时间、只省步位，需重做顺序论证**）· `D6` `mine_failure_visible` 的"诊断"半 | — | 登记（报告 §4-D5/D6） |
+| **观察** | `head_blocked_route_closure`（EXTRA）在 `module:pathing` 里连红（历史 1 PASS/3 FAIL）· `mine_reach_probe`（EXTRA）自述"真机存档可能已被覆盖 ⇒ 本次结论不作数" ⇒ 两步都**依赖真机存档的具体地形**，不是 Z1/瘦身引入 | 需要时各补一条"显式自证前提" | 登记 |
 
 ### E. 观察项（**遇到再记录，不主动修**）
 

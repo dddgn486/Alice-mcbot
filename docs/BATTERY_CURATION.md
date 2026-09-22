@@ -19,7 +19,24 @@
 SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 **跳过多少、跑多少、各档几项**一眼可见；归属表与实跑项对不上（漏登记 / 文档说测了其实没测）**直接判红**。
 
-## 2. 当前归属表（74 项 → CORE 51 项）
+## 2. 当前归属表（**93 项 → CORE 41 项**）
+
+> ⭐ **2026-09-22 校正（CORE 53 → 41，`D-407`/`D-408`）**：用户「整理下 CORE 内容，**次要的剔除**」。
+> **降级 12 步 ⇒ EXTRA（一步没删，FULL 仍全覆盖）**：
+> `fall_execute` · `pillar_execute`（自证前提的诊断，同坐标同 Movement 已由 BASELINE 的 `pathing` 覆盖）·
+> `craft_probe_inventory` · `craft_probe_table` · `craft_probe_upgradetab` · `machine_route`（只读探针，零写入）·
+> `craft_action` · `craft_station` · `craft_station_provision` · `craft_station_craft`（`D-201` 原名单，**扣掉 `craft_table`**）·
+> `machine_station` · `machine_cycle`（阶段 3-B 已验收、非当前主线；`craft_machine` 是同一闭环的生产入口，保留）。
+> **刻意保留**：`craft_table`（CORE 里**唯一**的原版 3×3 `CraftingMenu` 执行覆盖）· `coarse_goal_prefix`（用户点名，4 tick）。
+> **新增**：`ledger_zone_scope`（**EXTRA**，`Z1`/`D-398` 的地理范围判据，`LedgerModule`）。
+> ⇒ BASELINE 15 + MAIN 26 + EXTRA **52** = **93**，**CORE 41**。
+> **同片修掉两个真缺陷**（与本瘦身**是两件事**，别用降级代替修复）：① `CleanupWrappedTask` 把内层 `FAILED`
+> 报成 `DONE` ⇒ `fall_execute`/`pillar_execute` **结构上不可能红**（已透传）；② **电池把场景函数跑在冷区块上**
+> （旧顺序 `scenes → provision`，编排器早已是 `provision → scenes`）⇒ `/fill` 静默失败、`/setblock` 随区块卸载
+> 回滚 ⇒ 夹具拿着没有地形的世界做判断（`craft_table` 实测；已对齐并加 `scene rc` 日志）。
+> ⭐ **纪律（`D-201` 附注一）**：撤步骤必须**复跑 CORE 逐步 diff** —— 本轮已做（53→41 两轮比对：
+> 除被撤 12 步外判决逐条不变、存活步 **0 位移**）。
+
 
 > **2026-09-20 校正（3）**：`region_maintain_unmaintainable` 进 EXTRA（`D-349`/勘测侧 Pit 2）——
 > **`MAINTAIN` 的"不可维持"判据**：常驻区域作业不许"看起来在跑、其实终态已不可达"。
