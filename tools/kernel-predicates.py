@@ -2580,6 +2580,151 @@ def rule_break_cost_state_penalty():
     return problems
 
 
+# ⭐⭐ 尺子 2「准入来源单一」（`D-395` P1；形状来自 `survey/28 §6.5` + `D-394` 教训）
+#
+# 病灶（`D-394`）：规划侧 `MovementHelper.canAscend` 是布尔、执行侧 `AscendExecutionFactory`
+# **另一份** ⇒ 两份必然漂移 ⇒ 「规划必出边、执行必拒、重规划又算出同一条边」= **确定性死循环**；
+# 而 `rule_k4` 只做**字符串包含**（本脚本 39/50 条规则都是这一档）⇒ 该缺陷**静默 6 天**、门禁全程绿。
+#
+# 本规则把"执行侧独有准入"变成**可数的东西**（`survey/28 §6.6#5`：不许用「复杂度」这种形容词）：
+#   ① 执行工厂里出现的**每一个**拒绝码必须在本表里**分类**（新增码 ⇒ **红**）；
+#   ② 类别 `CAPABILITY`（能力类 = 决定"这条边该不该存在"）的**必须指名规划侧出处**；
+#   ③ 指名的出处必须**在仓库里真实存在**（防编造 —— 写个不存在的符号 ⇒ **红**）；
+#   ④ 未指名的能力类码**只许减少**：`CAPABILITY_UNRESOLVED_BUDGET` 是"冻结上限"，涨 ⇒ **红**。
+#
+# ⚠️ 反漂移纪律（`D-395`）：本规则是**尺子**、不是能力进展；尺度是它必须能"**注入即变红**"。
+# ⚠️ 把 27 个能力类码逐个"指名"是 **P2（Movement 审查切片）** 的活，一片解决一两个；
+#    本规则现在的作用是**阻止新增漂移**，不是一次还清。
+EXECUTOR_REFUSAL_CLASSES = {
+    "ASCEND_FALLING_BLOCK_ABOVE": ("CAPABILITY", "-"),
+    "ASCEND_FROM_CLIMBABLE": ("CAPABILITY", "-"),
+    "ASCEND_INVALID_GEOMETRY": ("META", "-"),
+    "ASCEND_INVALID_PRECONDITION": ("META", "-"),
+    "ASCEND_MISSING_CONTEXT": ("META", "-"),
+    "ASCEND_NO_HEADROOM": ("CAPABILITY", "MovementHelper.canAscend"),
+    "ASCEND_STALE_START": ("META", "-"),
+    "ASCEND_UNSUPPORTED_SPEC": ("META", "-"),
+    "BREAK_AND_ENTER_BLOCK_NOT_BREAKABLE": ("TIMING", "-"),
+    "BREAK_AND_ENTER_DESTINATION_CLEAR": ("CAPABILITY", "-"),
+    "BREAK_AND_ENTER_INVALID_GEOMETRY": ("META", "-"),
+    "BREAK_AND_ENTER_MISSING_CONTEXT": ("META", "-"),
+    "BREAK_AND_ENTER_NO_LANDING_SUPPORT": ("CAPABILITY", "-"),
+    "BREAK_AND_ENTER_STALE_START": ("META", "-"),
+    "BREAK_AND_ENTER_UNSUPPORTED_SPEC": ("META", "-"),
+    "BREAK_AND_TRAVERSE_INVALID_GEOMETRY": ("META", "-"),
+    "BREAK_AND_TRAVERSE_MISSING_CONTEXT": ("META", "-"),
+    "BREAK_AND_TRAVERSE_NOTHING_TO_BREAK": ("CAPABILITY", "-"),
+    "BREAK_AND_TRAVERSE_NO_SUPPORT": ("CAPABILITY", "-"),
+    "BREAK_AND_TRAVERSE_STALE_START": ("META", "-"),
+    "BREAK_AND_TRAVERSE_UNSUPPORTED_SPEC": ("META", "-"),
+    "BREAK_BLOCK_PROTECTED": ("CAPABILITY", "-"),
+    "BREAK_BLOCK_UNBREAKABLE": ("CAPABILITY", "-"),
+    "DESCEND_INVALID_GEOMETRY": ("META", "-"),
+    "DESCEND_INVALID_PRECONDITION": ("META", "-"),
+    "DESCEND_MISSING_CONTEXT": ("META", "-"),
+    "DESCEND_REJECTED_LANDING_HAZARD": ("CAPABILITY", "-"),
+    "DESCEND_REJECTED_OVERSHOOT_CLIFF": ("CAPABILITY", "-"),
+    "DESCEND_STALE_START": ("META", "-"),
+    "DESCEND_UNSUPPORTED_SPEC": ("META", "-"),
+    "DIAGONAL_INVALID_GEOMETRY": ("META", "-"),
+    "DIAGONAL_INVALID_PRECONDITION": ("META", "-"),
+    "DIAGONAL_MISSING_CONTEXT": ("META", "-"),
+    "DIAGONAL_SIDE_COLLISION": ("CAPABILITY", "-"),
+    "DIAGONAL_STALE_START": ("META", "-"),
+    "DIAGONAL_UNSUPPORTED_SPEC": ("META", "-"),
+    "DOWNWARD_BLOCK_NOT_BREAKABLE": ("TIMING", "-"),
+    "DOWNWARD_INVALID_GEOMETRY": ("META", "-"),
+    "DOWNWARD_INVALID_PRECONDITION": ("META", "-"),
+    "DOWNWARD_MISSING_CONTEXT": ("META", "-"),
+    "DOWNWARD_STALE_START": ("META", "-"),
+    "DOWNWARD_UNSUPPORTED_SPEC": ("META", "-"),
+    "FALL_COLUMN_BLOCKED": ("CAPABILITY", "-"),
+    "FALL_EDGE_BLOCKED": ("CAPABILITY", "-"),
+    "FALL_INVALID_GEOMETRY": ("META", "-"),
+    "FALL_LANDING_BOTTOM_SLAB": ("CAPABILITY", "-"),
+    "FALL_LANDING_FLUID": ("CAPABILITY", "-"),
+    "FALL_LANDING_INVALID": ("CAPABILITY", "-"),
+    "FALL_MISSING_CONTEXT": ("META", "-"),
+    "FALL_NOT_ON_GROUND": ("TIMING", "-"),
+    "FALL_NOT_RECOVERABLE_HEADROOM": ("CAPABILITY", "-"),
+    "FALL_NOT_RECOVERABLE_NO_BLOCKS": ("CAPABILITY", "-"),
+    "FALL_NOT_RECOVERABLE_NO_FACE": ("CAPABILITY", "-"),
+    "FALL_STALE_START": ("META", "-"),
+    "FALL_UNSUPPORTED_SPEC": ("META", "-"),
+    "PILLAR_HEAD_BLOCKED": ("CAPABILITY", "-"),
+    "PILLAR_INVALID_GEOMETRY": ("META", "-"),
+    "PILLAR_MISSING_CONTEXT": ("META", "-"),
+    "PILLAR_NOT_ON_GROUND": ("TIMING", "-"),
+    "PILLAR_PLACE_OCCUPIED": ("CAPABILITY", "-"),
+    "PILLAR_STALE_START": ("META", "-"),
+    "PILLAR_UNSUPPORTED_SPEC": ("META", "-"),
+    "PLACE_NO_VALID_FACE": ("CAPABILITY", "-"),
+    "PLACE_RESOURCE_UNAVAILABLE": ("CAPABILITY", "-"),
+    "PLACE_STEP_AND_TRAVERSE_INVALID_GEOMETRY": ("META", "-"),
+    "PLACE_STEP_AND_TRAVERSE_MISSING_CONTEXT": ("META", "-"),
+    "PLACE_STEP_AND_TRAVERSE_PLACE_OCCUPIED": ("CAPABILITY", "-"),
+    "PLACE_STEP_AND_TRAVERSE_STALE_START": ("META", "-"),
+    "PLACE_STEP_AND_TRAVERSE_SUPPORT_EXISTS": ("CAPABILITY", "-"),
+    "PLACE_STEP_AND_TRAVERSE_TARGET_BLOCKED": ("CAPABILITY", "-"),
+    "PLACE_STEP_AND_TRAVERSE_UNSUPPORTED_SPEC": ("META", "-"),
+    "TRAVERSE_INVALID_PRECONDITION": ("META", "-"),
+    "TRAVERSE_MISSING_CONTEXT": ("META", "-"),
+    "TRAVERSE_STALE_START": ("META", "-"),
+    "TRAVERSE_UNSUPPORTED_SPEC": ("META", "-"),
+}
+# 未指名的能力类码上限（**只许减**；每解决一个就把它改小，改不动的说明还没做）
+CAPABILITY_UNRESOLVED_BUDGET = 26
+
+
+def rule_k4_capability_provenance():
+    """尺子 2：执行侧独有准入必须分类；能力类必须指名规划侧出处（且出处真实存在）。"""
+    violations = []
+    pattern = re.compile(r'invalid\(\s*(?:describe\(\s*)?"([A-Z_]+)"')
+    seen = {}
+    for path in sorted(CORE.glob("*ExecutionFactory.java")):
+        if path.name == "MovementExecutionFactory.java":
+            continue   # 接口文件
+        for code in set(pattern.findall(path.read_text(encoding="utf-8"))):
+            seen.setdefault(code, path.name)
+    # ① 新增码必须先分类
+    for code, where in sorted(seen.items()):
+        if code not in EXECUTOR_REFUSAL_CLASSES:
+            violations.append(f"新增执行侧准入码 {code}（{where}）未分类 ⇒ 加进 "
+                              "EXECUTOR_REFUSAL_CLASSES 并判定 CAPABILITY/TIMING/META")
+    # ②③ 能力类必须指名规划侧出处，且出处必须真实存在
+    unresolved = 0
+    for code, (cls, site) in sorted(EXECUTOR_REFUSAL_CLASSES.items()):
+        if cls != "CAPABILITY":
+            continue
+        if site in ("-", "", "UNRESOLVED"):
+            if code in seen:
+                unresolved += 1
+            continue
+        name = site.split(".")[-1].rstrip("()")
+        if not grep_symbol_exists(name):
+            violations.append(f"{code} 指名的规划侧出处 {site} 在仓库里不存在（防编造：出处必须可 grep）")
+    # ④ 未指名数只许减
+    if unresolved > CAPABILITY_UNRESOLVED_BUDGET:
+        violations.append(f"未指名的能力类准入码从 {CAPABILITY_UNRESOLVED_BUDGET} 涨到 {unresolved}"
+                          "（只许减少；新加的能力类码必须同时指名规划侧出处）")
+    rule_k4_capability_provenance.unresolved = unresolved
+    rule_k4_capability_provenance.total = len(seen)
+    rule_k4_capability_provenance.scanned = len(EXECUTOR_REFUSAL_CLASSES)
+    return violations
+
+
+def grep_symbol_exists(name):
+    """该符号是否在 src/main/java 下真实出现（防"编造出处"）。"""
+    needle = name + "("
+    for path in (ROOT / "src/main/java").rglob("*.java"):
+        try:
+            if needle in path.read_text(encoding="utf-8"):
+                return True
+        except OSError:
+            continue
+    return False
+
+
 def main() -> int:
     k4 = rule_k4()
     k5 = rule_k5()
@@ -2639,6 +2784,7 @@ def main() -> int:
     routeclosure = rule_head_blocked_route_closure()
     btfooting = rule_break_traverse_footing()
     d385 = rule_break_cost_state_penalty()
+    capability = rule_k4_capability_provenance()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -2741,13 +2887,16 @@ def main() -> int:
         print(f"[D-379·破通行要站得住] {line}")
     for line in d385:
         print(f"[D-385·挖矿成本含状态惩罚] {line}")
+    for line in capability:
+        print(f"[K4·准入来源单一] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
           f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
+          f" / 准入来源单一={len(capability)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

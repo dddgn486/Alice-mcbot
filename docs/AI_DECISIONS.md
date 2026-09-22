@@ -17297,7 +17297,13 @@ FTB Chunks/WorldEdit/JEI…）的客户端渲染问题，与 bot 无关。**建�
   - ⚠️ 第一次红臂（只把坑深从 5 改回 4）**PASS 了** —— 那不是"规则没生效"，而是**夹具场景下方本来就是空气**
     （挖多深都一样"会丢"）⇒ **无效对照**。有效对照必须**显式放一块承接面在边界那一格**。
 
-### D-394：`canAscend` 漏查"起跳第三格" ⇒ `ASCEND_NO_HEADROOM` ×75 + **无限重规划循环**（2026-09-22 真机，已修）
+### D-394：**上升 Movement 可能的隐患** —— `canAscend` 漏查「起跳第三格」⇒ `ASCEND_NO_HEADROOM` ×75 + 无限重规划循环（2026-09-22，已修）
+
+> ⚠️ **用户 2026-09-22 裁定：本条改记为「上升 Movement 可能的隐患问题」** ——
+> 症状**复测不复现**、因果**不作定论**（此前把它与"发光苔藓卡死"挂钩的解释**被用户否决**）。
+> **缺陷本身日志可证**（75 次 `ASCEND_NO_HEADROOM` + 同址 6 次段重启 / 5 次 resync / 3 次段超时），
+> 修复（`canAscend` 补 `from.above(2)`）与判据（`place_step_descend_clearance` 的
+> `ascendHeadroomContract`）**保留**；它现在的定位是「**上升这条 Movement 的准入可能还有别的隐患**」的样本。
 
 **用户现象**：「最后被发光苔藓卡死了」+「现在经常挖脚下的方块，却因为站位在边缘导致没有正常掉下去，卡一会才恢复」。
 
@@ -17372,3 +17378,41 @@ ms 常量**（`SearchTickBudget.DEFAULT_MAX_MILLIS_PER_TICK=**400**`＝8 个 tic
    否则撤掉。本轮的**能力目标**是 P2（Movement 审查切片）/ P3（掉落物作业内授权）/ P5（`D-391` 收口 + 死候选剔除）。
 
 **完整核对表与 7 项计划**：`docs/reviews/2026-09-22-survey28-核对与计划.md`。
+
+### D-396：**P1 落地 —— 尺子 2「准入来源单一」进 `kernel-predicates.py`**（2026-09-22，含三连注入证明）
+
+`D-395` P1 的执行。**不新建脚本**（`tools/` 已有 54 个），规则加进 `tools/kernel-predicates.py`。
+
+#### 一、可数项（把 `survey/28 §6.6#5` 要的"不许用复杂度这种形容词"落地）
+
+执行侧准入码**全量扫描**（⚠️ 完整模式必须同时匹配 `invalid("CODE"` **与** `invalid(describe("CODE"` ——
+第一版只匹配前者，**漏掉了经 `describe` 转发的码**，`ASCEND_NO_HEADROOM` 恰是这种 ⇒ 那次统计是错的）：
+
+| 工厂 | Ascend | BreakAndEnter | BreakAndTraverse | Descend | Diagonal | Downward | Fall | Pillar | PlaceStep | Traverse |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 码数 | 8 | 7 | 8 | 7 | 6 | 6 | 13 | 9 | 9 | 4 |
+
+⇒ **唯一准入码 75**（能力类 **27** / 时序类 4 / 元信息 44）；`Traverse` 仍是最干净的一个 ✓（`survey/28 §4.2` 核实）。
+
+#### 二、规则四条（`rule_k4_capability_provenance`）
+
+① 执行工厂里出现的**每一个**拒绝码必须在 `EXECUTOR_REFUSAL_CLASSES` 里分类 ⇒ 新增码 **红**；
+② 类别 `CAPABILITY` 的**必须指名规划侧出处**；③ 出处必须**在仓库里真实存在**（防编造 ⇒ 红）；
+④ 未指名的能力类码**只许减少**（`CAPABILITY_UNRESOLVED_BUDGET = 26`，涨 ⇒ 红）。
+第一个**已解决项**：`ASCEND_NO_HEADROOM → MovementHelper.canAscend`（`D-394` 的修复就是它的规划侧出处）。
+
+#### 三、"注入即变红"三连（已实测，各命中专属条目）
+
+| 注入 | 结果 |
+|---|---|
+| 工厂里加一个未分类码 `FAKE_NEW_CAPABILITY` | 🔴 `新增执行侧准入码 FAKE_NEW_CAPABILITY（FallExecutionFactory.java）未分类` |
+| 把 `ASCEND_NO_HEADROOM` 的出处写成 `MovementHelper.zzzNotARealPredicate` | 🔴 `指名的规划侧出处…在仓库里不存在（防编造）` |
+| 把上限从 26 改成 25 | 🔴 `未指名的能力类准入码从 25 涨到 26（只许减少）` |
+
+还原后 `KERNEL_PREDICATE_CHECK_RESULT PASS`、`准入来源单一=0（未指名能力类=26/26，总准入码=75）`。
+
+#### 四、边界（诚实）
+
+- 本规则**只防新增漂移**，**不解决**已有的 26 个未指名能力类码 —— 那是 **P2（Movement 审查切片）** 的活，
+  一片解决一两个（每解决一个把 `CAPABILITY_UNRESOLVED_BUDGET` 改小）。
+- ⚠️ 它仍是**尺子**（`D-395` 反漂移纪律）：不计能力进展；本轮**能力目标**仍是 P2/P3/P5。
