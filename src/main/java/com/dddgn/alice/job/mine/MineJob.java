@@ -121,6 +121,11 @@ public final class MineJob implements Job {
     /** 当前选中的目标属于哪条分配（`-1` = 无分配/不属于任何一条）；成功时按**选择时刻**的判定计数。 */
     private int currentKind = -1;
 
+    /** ⭐ `Y`（2026-09-22）：`search_incomplete` 冷却到哪个 tick（`-1` = 无冷却）。 */
+    private long searchLimitedUntilTick = -1L;
+    /** ⭐ `Y`：连续 `search_incomplete` 次数（**任何一次成功**清零）。 */
+    private int consecutiveSearchLimited = 0;
+
     /** 一次尝试失败：`pos` 是目标格，`code` 是失败理由码（取自既有词表，见 `toolRefusal` / `MineTask.failureReason`）。 */
     /**
      * 暂时性失败的上限（`P1`）：`search_incomplete` 重试到这么多次仍未成功 ⇒ 如实了结（防空转）。
@@ -128,9 +133,41 @@ public final class MineJob implements Job {
      */
     private static final int MAX_TRANSIENT_RETRIES = 3;
 
+    /**
+     * ⭐ `Y`（2026-09-22 真机卡顿根因）：一次 `search_incomplete` 之后，本作业**静默**这么多 tick
+     * 再起新目标（同时让`D-371` 的全覆盖扫描让路）。
+     *
+     * <p>病灶：`P1-b` 把「静默了结」改成「诚实重试」之后，作业变成**每 tick 换一个候选再撞一次**
+     * 200 ms 的无望搜索（真机 30 s 内 33 次、平均 196 ms ⇒ 4-5 TPS + `Can't keep up 42 ticks behind`
+     * + 追补刷新成「跳帧」）。⇒ 重试必须**跨 tick 摊销**，不许同 tick 连续撞。
+     */
+    private static final int SEARCH_LIMIT_COOLDOWN_TICKS = 40;
+
+    /**
+     * ⭐ `Y`：**连续**（其间没有任何成功）`search_incomplete` 到这个数 ⇒ 本作业如实收工
+     * （终态理由沿用既有 `partial_quota`/`search_incomplete`，不新增词表），即「快速、便宜地把
+     * 超预算的目标判成本轮做不到，然后走开」——而不是在 1500 个候选上无限撞墙。
+     */
+    private static final int MAX_CONSECUTIVE_SEARCH_LIMITED = 8;
+
     /** 「本轮还没评价完」≠「不可达」（`SEARCH_LIMIT ≠ UNREACHABLE`）。 */
     private static boolean transientFailure(String code) {
         return code != null && code.startsWith("search_incomplete");
+    }
+
+    /** ⭐ `Y`：本 tick 是否处在「搜索被限流」的冷却里（纯函数，便于夹具红/绿对照）。 */
+    public static boolean inSearchLimitCooldown(long gameTime, long cooldownUntilTick) {
+        return gameTime < cooldownUntilTick;
+    }
+
+    /** ⭐ `Y`：连续 `search_incomplete` 是否已到「本作业该走开」的程度（纯函数）。 */
+    public static boolean searchLimitedStorm(int consecutive) {
+        return consecutive >= MAX_CONSECUTIVE_SEARCH_LIMITED;
+    }
+
+    /** ⭐ `Y`：冷却时长（tick）——夹具断言"不许是 0/1"（那等于没摊销）。 */
+    public static int searchLimitCooldownTicks() {
+        return SEARCH_LIMIT_COOLDOWN_TICKS;
     }
 
     private record AttemptFailure(BlockPos pos, String code) {
@@ -291,6 +328,22 @@ public final class MineJob implements Job {
             BotLog.warn("[Job] mine 背包没有空位，直接结束（未动世界）");
             return finish(Task.Status.DONE);
         }
+        // ⭐ `Y`（2026-09-22）：`search_incomplete` 冷却期**刻意不工作** —— 既不选新目标，
+        // 也不推 `D-371` 的全覆盖扫描（扫描是可跨 tick 续的）。理由是它把「每 tick 撞一次 200 ms
+        // 无望搜索」变成「每 40 tick 撞一次」，同时把同一 tick 的 CPU 让给规划。
+        if (phase == Phase.SELECT && inSearchLimitCooldown(bot.serverLevel().getGameTime(),
+                searchLimitedUntilTick)) {
+            return Task.Status.RUNNING;
+        }
+        // ⭐ `Y`：连续撞墙到上限 ⇒ 如实收工（不新增终态词表；挖到的部分照记）
+        if (searchLimitedStorm(consecutiveSearchLimited)) {
+            BotLog.warn("[Job] mine 连续 {} 次 search_incomplete（其间无任何成功）⇒ 如实收工："
+                            + "本区域内目标超出单次搜索预算（`SEARCH_LIMIT ≠ UNREACHABLE`，"
+                            + "下次可重跑）。progress=mined {}/{}",
+                    consecutiveSearchLimited, minedCount, spec.quota());
+            terminalReason = deriveTopLevelReason(shortfallReason(true, minedCount));
+            return finish(Task.Status.FAILED);
+        }
         return switch (phase) {
             case SELECT -> select();
             case MINE -> mine();
@@ -427,6 +480,8 @@ public final class MineJob implements Job {
         if (status == Task.Status.DONE) {
             attempted.add(mined);
             minedCount++;
+            // ⭐ `Y`：有成功 ⇒ "连续撞墙"链断掉（否则本作业会在几个难目标上被判「该走开」）
+            consecutiveSearchLimited = 0;
             if (kindPlan.active() && currentKind >= 0 && currentKind < minedByKind.length) {
                 minedByKind[currentKind]++;
                 MineKindPlan.Entry entry = kindPlan.entries().get(currentKind);
@@ -459,9 +514,17 @@ public final class MineJob implements Job {
             if (!transientFailure || transientSoFar > MAX_TRANSIENT_RETRIES) {
                 attempted.add(mined);
             } else {
+                // ⭐ `Y`（2026-09-22）：**跨 tick 摊销 + 连续计数**
+                // ① 冷却：下一次起新目标至少等 `SEARCH_LIMIT_COOLDOWN_TICKS` 个 tick
+                //    （原来切目标就把"每目标重试数"清零 ⇒ 1500 个候选能无限每 tick 撞一次）；
+                // ② 连续计数由**任何一次成功**清零（见上面 DONE 分支），到上限即如实收工。
+                consecutiveSearchLimited++;
+                searchLimitedUntilTick = bot.serverLevel().getGameTime() + SEARCH_LIMIT_COOLDOWN_TICKS;
                 DecisionTrace.step(jobName(), "RETRY", mined.toShortString(),
                         "暂时性失败（" + code + "，" + transientSoFar + "/" + MAX_TRANSIENT_RETRIES
-                                + "）：**不**永久了结，下一轮仍可被选中");
+                                + "，本作业连续 " + consecutiveSearchLimited + "/"
+                                + MAX_CONSECUTIVE_SEARCH_LIMITED + "）：**不**永久了结，"
+                                + SEARCH_LIMIT_COOLDOWN_TICKS + " tick 后再选（跨 tick 摊销）");
             }
         }
         if (minedCount >= spec.quota()) {

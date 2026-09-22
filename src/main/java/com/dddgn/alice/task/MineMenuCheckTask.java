@@ -894,6 +894,22 @@ public class MineMenuCheckTask implements Task {
         check("S3 扫完且有产出 ⇒ partial_quota（实测 " + scannedSome + "）",
                 "partial_quota".equals(scannedSome));
 
+        // ---- `Y`（2026-09-22 真机卡顿）：`search_incomplete` 必须**跨 tick 摊销** ----
+        // 病灶：`P1-b` 改成诚实重试后，作业变成「每 tick 换一个候选再撞一次 200 ms 无望搜索」
+        //（真机 30 s 内 33 次 × 196 ms ⇒ 4-5 TPS + `Can't keep up 42 ticks behind` + 追补跳帧）。
+        // 反向对照：把 `SEARCH_LIMIT_COOLDOWN_TICKS` 改成 0/1 ⇒ 下面第一条必红。
+        check("`search_incomplete` 冷却必须是「跨 tick 摊销」（> 1 tick），实测 "
+                        + com.dddgn.alice.job.mine.MineJob.searchLimitCooldownTicks() + " tick"
+                        + "（=0/1 等于没摊销：每 tick 仍会撞一次注定搜不完的搜索）",
+                com.dddgn.alice.job.mine.MineJob.searchLimitCooldownTicks() > 1);
+        check("冷却期判定：now < until ⇒ 静默；now ≥ until ⇒ 恢复（边界=到点即恢复，不许差一 tick 卡住）",
+                com.dddgn.alice.job.mine.MineJob.inSearchLimitCooldown(100L, 140L)
+                        && !com.dddgn.alice.job.mine.MineJob.inSearchLimitCooldown(140L, 140L));
+        check("连续 search_incomplete 到上限 ⇒ 如实收工（不许在 1500 个候选上无限撞）",
+                !com.dddgn.alice.job.mine.MineJob.searchLimitedStorm(1)
+                        && com.dddgn.alice.job.mine.MineJob.searchLimitedStorm(8)
+                        && com.dddgn.alice.job.mine.MineJob.searchLimitedStorm(99));
+
         // ---- S5：扫描记忆（有界 + 可持久化 + **只有计数没有位置**）----
         // （`memory` 在方法开头就取，因为"截断不写记忆"这条判据要包住前面的 `advance`）
 

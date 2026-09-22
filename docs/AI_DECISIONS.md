@@ -17064,3 +17064,58 @@ float/double 精度）；**例外** = `DRY_STALE_FLAG`（§三.1）：期望是 
   可疑点：归属配对窗口（`perception/ScopeBuffer.registerAsOurs`，直接配对 10 tick / 3 格）—— 矿在水边/斜坡滚出 3 格即
   `FOREIGN` ⇒ 收集器（默认只捡我方）看不到。**下一批第一步 = 加读数**（每次我方破坏的产物按
   `OURS_DIRECT/INDIRECT/FOREIGN` 计数 + 掉落点与破坏点的距离/tick 延迟），有读数再定修法。
+
+### D-388：卡顿根治（本轮）—— **单次搜索收到 1 个 tick 的量级** + **`search_incomplete` 跨 tick 摊销**（2026-09-22）
+
+**触发**：用户 2026-09-22 真机挖矿（`P1-a..d` 修好之后）只剩一个问题：**捡铜掉落物要开路时卡住约 5 秒，
+随后"跳帧"——一下子突然挖掉好几块石头**（截图：bot 站在半空窄石脊上）。用户裁定：**Z（内核 + 作业层都做）
++ 让全覆盖扫描给规划让路**。
+
+#### 一、真机事实（可核，`latest.log` 2026-09-22 10:49 窗口）
+
+| 读数 | 值 |
+|---|---|
+| `[Search] 超 tick 预算` | 30 s 窗口内 **33 次**，平均 **196 ms**（合计 6.5 s = 该窗口 **22%**）；整场 **87 次**、平均 189 ms、合计 **16.4 s** |
+| `[Job] step phase=MINE` | 30 s 内 **33 次** ⇒ **≈每 tick 换一个候选再撞一次** |
+| `phase=RETRY` / `search_incomplete` | 25 / 30 次（`P1-b` 的"诚实重试"照设计工作） |
+| 服务端 | `Can't keep up! Is the server overloaded? Running 2114ms or 42 ticks behind` |
+| ⭐ 空窗与爆发 | **10:49:05.938 → 10:49:14.204 一次方块都没破（8.3 s）**，随后 **0.6 s 内连完 10 次 `block_break_done`**（各 `ticks=6`）⇒ 服务端追补欠 tick ⇒ 用户看到的"卡住 + 跳帧" |
+| 写入预算 | `cap=不限 refusedBreaks=0` ⇒ `P1-a` 生效，**不是**写入封顶（`breaks=64` 是巧合） |
+
+#### 二、改法
+
+| 项 | 位置 | 改法 |
+|---|---|---|
+| **X：单次搜索不许吃掉多个 tick** | `pathing/core/search/CorePathPlanner.java` | `DEFAULT_MAX_MILLIS: 200 → 50`（= 一个 tick 的量级）。这是 `D-369 §六` 自己留的待办（*"预算是否还能更紧（如 50 ms）：等 `[Search] 超 tick 预算` 日志积累真实数据再定"*）—— 数据现在到手了 |
+| **X 的门禁上限** | `tools/kernel-predicates.py` | `SEARCH_BUDGET_CEILING_MILLIS: 250 → 60`（涨回去 = 卡顿回归，必须重新登记理由） |
+| **Y：重试必须跨 tick 摊销** | `job/mine/MineJob.java` | `SEARCH_LIMIT_COOLDOWN_TICKS = 40`：一次 `search_incomplete` 之后 40 tick 内**不选新目标**；`MAX_CONSECUTIVE_SEARCH_LIMITED = 8`：**连续**（其间无任何成功）8 次 ⇒ 如实收工（终态沿用既有 `partial_quota`/`search_incomplete`，**不新增词表**）；任何一次成功清零计数 |
+| **Y：扫描让路** | 同上（`tick()` 的 SELECT 闸门） | 冷却期内 `phase == SELECT` **刻意不工作** ⇒ `D-371` 的全覆盖扫描（可跨 tick 续）同时让路，CPU 归规划 |
+
+#### 三、为什么"每 tick 撞墙"必须改成"跨 tick"
+
+`P1-b` 把「静默了结」改成「诚实重试」是**对的**，但它让**代价**暴露了：原来切目标会把"每目标重试数"清零
+⇒ 在 1500 个候选的簇里可以**无限每 tick 撞一次**。⇒ 修法不是退回静默，而是**摊销 + 连续上限**：
+"快速、便宜地把超预算的目标判成本轮做不到，然后走开"（用户 2026-09-22 口径）。
+
+#### 四、判据与红/绿对照
+
+- **`mine_menu`（CORE）新增 3 条纯函数断言**：① 冷却 `> 1` tick（`=0/1` 等于没摊销）；
+  ② 冷却边界"到点即恢复"；③ 连续上限在 1 与 8/99 之间正确翻转。
+  **红臂**：`SEARCH_LIMIT_COOLDOWN_TICKS = 1` ⇒ `mine_menu=FAIL`（实测 `failures=1`，消息精确）。
+- **门禁新规则 `rule_mine_job_search_limit_backoff`**（挂在 `kernel-predicates` 上，进 `ok`/summary）：
+  常量存在、冷却 > 1、`searchLimitedStorm(...)` 真的被调用、`tick()` 里真有把 SELECT 挡在冷却外的调用点、
+  成功分支真的清零。**红臂**：`DEFAULT_MAX_MILLIS = 200` ⇒ `KERNEL_PREDICATE_CHECK_RESULT FAIL`（消息点名"要调大必须登记理由"）。
+- **CORE 回归**：`passed=51/52`（唯一失败仍是既有 `lumber_job`）⇒ **无回归**。
+- ⭐ **代价实测（诚实）**：两次 CORE 日志的搜索耗时 **最大 4–5 ms、中位 0 ms、>50 ms 的 0 次**
+  ⇒ **在电池覆盖范围内，这次收紧的代价为 0**（内核从来没用上 200 ms）。
+
+#### 五、诚实边界与回收条件
+
+- **本值不等于"根治"**：`D-369 §四` 已登记 —— Baritone 把搜索放**独立线程**
+  （`baritone/behavior/PathingBehavior.java:469 findPathInNewThread`），Alice 同步跑在 tick 线程上，
+  线程化需要线程安全的世界视图（架构级）。50 ms 只是**把单 tick 卡顿限制在 1 个 tick 内**。
+- **代价只在真机深部体现**（电池场景太浅，测不到）："能规划成功的范围"确实缩小了
+  ⇒ **需要用户真机复测**确认两件事：① 卡顿/跳帧消失；② 挖掘仍有进展（不是"全变 search_incomplete"）。
+- **回收条件**：① 真机出现"原本能挖的目标现在成片 `search_incomplete`" ⇒ 50 ms 太紧 ⇒ 在 50–200 之间取值
+  并在此登记理由；② 若 `[Search] 超 tick 预算` 仍频繁 ⇒ 说明还有**别的**长搜索入口（先补读数，不要继续压这个值）；
+  ③ 线程化落地后，本值可以放宽回 200 ms（那时它不再对应单 tick 卡顿）。

@@ -34,8 +34,17 @@ public final class CorePathPlanner {
      * 属架构级改动）⇒ 本值只是**把"单 tick 卡顿"限制在可接受范围**，线程化仍登记为待办。
      *
      * <p>调紧调松的唯一依据 = `[Search] 超 tick 预算` 日志（超 50 ms 才打一条，给调参留数据）。
+     *
+     * <p>⭐ **2026-09-22 调紧 `200 → 50`（= 一个 tick 的量级）**：数据到手了（`D-369 §六` 的原话是
+     * 「预算是否还能更紧（如 50 ms）：等 `[Search] 超 tick 预算` 日志积累真实数据再定」）。
+     * 真机 `latest.log`（2026-09-22 10:49 窗口）：**87 次**撞上限、平均 **189 ms**、合计 **16.4 s**，
+     * 其中 30 s 窗口内 33 次 × 196 ms = **6.5 s**（占该窗口 22%）⇒ 每 tick 一次「注定搜不完」的搜索
+     * ⇒ 服务端 `Can't keep up! Running 2114ms or 42 ticks behind` ⇒ **8.3 s 内一次方块都没破**，
+     * 紧接着 0.6 s 内连完 10 次 `block_break_done`（追补欠 tick ⇒ 用户看到「卡住 + 跳帧/突然连破几块」）。
+     * ⇒ 单次搜索**不许再吃掉多个 tick**；搜不完的诚实结局仍是 `SEARCH_LIMIT`/`PARTIAL`（`D-076`）。
+     * 代价与回收条件见 `D-388`。
      */
-    public static final long DEFAULT_MAX_MILLIS = 200L;
+    public static final long DEFAULT_MAX_MILLIS = 50L;
 
     /** D-250/②′：计划自洽性重搜上限（每次禁掉一条"清空者"边）。 */
     private static final int MAX_SELF_WRITE_RETRIES = 3;

@@ -19,7 +19,11 @@ import pathlib
 import re
 import sys
 
-SEARCH_BUDGET_CEILING_MILLIS = 250
+# ⭐ 2026-09-22：`D-369 §六` 的待办（"预算是否还能更紧（如 50 ms）：等 `[Search] 超 tick 预算`
+# 日志积累真实数据再定"）已按真机数据决断 —— 87 次撞线 · 平均 189 ms · 合计 16.4 s ·
+# `Can't keep up 42 ticks behind` ⇒ 上限从 250 收到 **60**（= 一个 tick 的量级 + 余量）。
+# 反向对照：把 `DEFAULT_MAX_MILLIS` 改回 200 ⇒ 本断言红（卡顿回归必须重新登记理由）。
+SEARCH_BUDGET_CEILING_MILLIS = 60
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CORE = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing" / "core"
 
@@ -1435,6 +1439,38 @@ def rule_movement_contract_agreement():
     return problems
 
 
+def rule_mine_job_search_limit_backoff():
+    """
+    `Y`（2026-09-22 真机卡顿根因）：挖掘作业对 `search_incomplete` 必须**跨 tick 摊销**，
+    不许"每 tick 换一个候选再撞一次"（真机 30 s 内 33 次 × 196 ms ⇒ 4-5 TPS + 追补跳帧）。
+
+    断言（改任一处 ⇒ 红）：
+    ① `MineJob` 里有冷却常量且 **> 1 tick**（`=0/1` 等于没摊销）；
+    ② 有"连续 N 次 ⇒ 如实收工"的上限常量，且**用在** `tick()` 的判定里；
+    ③ `tick()` 里存在把 `Phase.SELECT` 挡在冷却之外的调用点（`inSearchLimitCooldown(`）；
+    ④ 成功分支会把连续计数清零（否则本作业会被几个难目标误判成"该走开"）。
+    """
+    problems = []
+    job = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "mine"
+           / "MineJob.java").read_text(encoding="utf-8")
+    m_cool = re.search(r"SEARCH_LIMIT_COOLDOWN_TICKS\s*=\s*([0-9]+)", job)
+    if not m_cool:
+        problems.append("找不到 `SEARCH_LIMIT_COOLDOWN_TICKS` ⇒ `search_incomplete` 没有跨 tick 摊销")
+    elif int(m_cool.group(1)) <= 1:
+        problems.append("`SEARCH_LIMIT_COOLDOWN_TICKS=%s` ≤ 1 ⇒ 等于没有摊销（每 tick 仍会撞墙）"
+                        % m_cool.group(1))
+    m_max = re.search(r"MAX_CONSECUTIVE_SEARCH_LIMITED\s*=\s*([0-9]+)", job)
+    if not m_max:
+        problems.append("找不到 `MAX_CONSECUTIVE_SEARCH_LIMITED` ⇒ 连续撞墙没有上限")
+    elif "searchLimitedStorm(consecutiveSearchLimited)" not in job:
+        problems.append("`searchLimitedStorm(...)` 没有被调用 ⇒ 上限只是摆设（不会真的收工）")
+    if "inSearchLimitCooldown(bot.serverLevel().getGameTime()," not in job:
+        problems.append("`tick()` 里没有把 `Phase.SELECT` 挡在冷却外的调用点 ⇒ 冷却没生效")
+    if "consecutiveSearchLimited = 0;" not in job:
+        problems.append("成功分支没有清零连续计数 ⇒ 难目标会把整局判成「该走开」")
+    return problems
+
+
 def rule_search_budget_is_tick_aware():
     """`D-369` **搜索的时间预算必须与 tick 预算同量级**（2026-09-20 真机掉刻的机制）。
 
@@ -2590,6 +2626,7 @@ def main() -> int:
     inplace = rule_mine_in_place_before_walk()
     contract = rule_movement_contract_agreement()
     searchbudget = rule_search_budget_is_tick_aware()
+    searchbackoff = rule_mine_job_search_limit_backoff()
     detour = rule_standing_point_detour_bounded()
     scan = rule_scan_advances_every_select()
     writecaps = rule_write_caps_default_open_protection_kept()
@@ -2678,6 +2715,8 @@ def main() -> int:
         print(f"[D-366·移动契约一致] {line}")
     for line in searchbudget:
         print(f"[D-369·搜索预算同 tick 量级] {line}")
+    for line in searchbackoff:
+        print(f"[D-388·搜索受限要跨 tick 摊销] {line}")
     for line in detour:
         print(f"[D-370·不许绕远] {line}")
     for line in scan:
@@ -2705,10 +2744,10 @@ def main() -> int:
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 
