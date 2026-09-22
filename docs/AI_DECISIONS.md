@@ -17659,3 +17659,37 @@ A3 确认"任务外的保护区内待办一律不自动"。
 - **RC1** 简化为：「放弃路径必须带归因（不许静默）」+ 三条保留条件的落地；**不再**做"待办/分批"。
 - **RC2（显式回收入口）⇒ 暂不做**（登记在案；触发条件：真机出现"必须专程回收"的实例）。
 - **RC3/RC4**（不可逆项如实记账 / `WriteBudget` 降级为遥测）**保留**。
+
+### D-404：**C3 的第一步结论 —— 路径的 `BREAK_AND_ENTER` 判据两侧对称，排除为坠落机制**（2026-09-22）
+
+#### 一、查清了什么
+
+1. 那句 `break 74,116,198 minecraft:stone by=mine-runner:attempt0:PATH_ACCESS` 的来源**确认**：
+   `BreakAndEnterExecution`（`grant = WriteGrant.of(context.requester(), PATH_ACCESS)`，`requester = "mine-runner"`）
+   ⇒ 与日志里 `segment index=3/4 type=BREAK_AND_ENTER from=74,116,197 to=74,116,198` **逐字对上**；
+2. ⭐ **判据两侧对称**（与 `D-394` 不同）：
+
+| 侧 | 判据 | 证据 |
+|---|---|---|
+| 规划（生成该边） | `if (!MovementHelper.canWalkOn(level, to)) return;` | `SurfaceMovementProvider.appendBreakAndEnter:187` |
+| 执行（准入） | `if (!MovementHelper.canWalkOn(level, to)) return invalid("BREAK_AND_ENTER_NO_LANDING_SUPPORT");` | `BreakAndEnterExecutionFactory`（`validate` 第 3 条） |
+
+⇒ **同一条谓词、同一格（`to` 的支撑 = `to.below()`），两处都在查**；
+且 `BREAK_AND_ENTER` 只破**目的地本体 + 头位**（`collectBlockers`，`D-374` 注释），**不破 `to.below()`**
+⇒ 这条边的判据**不自证**（不像我曾怀疑的那样"读的是自己将要破掉的格"）。
+⇒ **结论：该边不可能把 bot 送进"破完没有落脚面"的格子** ⇒ **排除**为本次坠落的机制。
+
+#### 二、因此：**需要用户补物理事实**（`AGENTS.md` 的强制询问条款）
+
+代码侧的候选（"回收拆掉脚下支撑" → `D-400` 已排除；"路径破进无支撑格" → 本条已排除）**都用尽了**，
+剩下的只能靠现场几何。需要问的是：
+
+1. 坠落那一刻 bot **站的那一格**（脚位）与**它掉的格**分别是哪两个坐标（F3 读数 / 大致方位）；
+2. 落差大概几格（1 格 / 2–3 格 / 更多）；
+3. 脚下原本是**自然方块**还是**bot 自己放的**（cobblestone 是我们的脚手架吗）；
+4. 是**一次性**掉下去，还是**反复**掉（第二次还掉吗）。
+
+#### 三、队列影响
+
+`C3` 从"候选真凶"降为：**待现场几何复核**（不是未开工的代码活）。
+在拿到几何之前**不再**在路径/回收两侧加任何守卫（避免"为未证实的机制加补丁"）。
