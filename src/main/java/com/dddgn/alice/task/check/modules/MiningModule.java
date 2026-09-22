@@ -12,6 +12,7 @@ import com.dddgn.alice.task.MineMenuCheckTask;
 import com.dddgn.alice.task.MineReachProbeTask;
 import com.dddgn.alice.task.MineRegressionTask;
 import com.dddgn.alice.task.MineRunMetricsCheckTask;
+import com.dddgn.alice.task.MineVeinPropagationCheckTask;
 import com.dddgn.alice.task.MiningSearchLimitHonestyCheckTask;
 import com.dddgn.alice.task.MiningWaterBreakCostCheckTask;
 import com.dddgn.alice.task.NoProgressCheckTask;
@@ -218,7 +219,13 @@ public final class MiningModule implements CheckModule {
                 // 本步同 tick 内先把额度占满（前提断言），再规划 ⇒ 理由必须是瞬时的 `search_incomplete`；
                 // 等 tick 边界后对**同一目标**再规划 ⇒ 必须成功（`SEARCH_LIMIT ≠ UNREACHABLE` 的行为级证明）。
                 CheckStep.of("mining_search_limit_honesty", CheckProfile.EXTRA, List.of(), null,
-                        () -> new MiningSearchLimitHonestyCheckTask(bot, observer), 400));
+                        () -> new MiningSearchLimitHonestyCheckTask(bot, observer), 400),
+                // ⭐⭐ `D-389`（2026-09-22）：**沿脉传播**的行为级判据 —— 石壳 + 3×2×3 铁矿脉（26 邻接），
+                // bot 只能挖进去；进脉之后每个下一个目标都在 1 格内 ⇒ 便宜。
+                // 断言 ① 传播真的触发（veinPropagations > 0）② 矿簇被挖穿（mined ≥ 12/18）。
+                // 红臂：注释掉 `MineJob.enqueueVeinNeighbours(...)` ⇒ ① 必红。EXTRA（跑一个真实作业）。
+                CheckStep.of("mine_vein_propagation", CheckProfile.EXTRA, List.of(), null,
+                        () -> new MineVeinPropagationCheckTask(bot, observer), 2800));
     }
 
     /** 传送到统一起点（与电池 `teleportBot` 逐字段一致 ✓；顺带起"先热区块再 fill"的作用 ✓）。 */

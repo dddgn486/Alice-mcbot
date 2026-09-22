@@ -313,3 +313,5 @@ CODE_REVIEW -> COMPILES -> SERVER_LOG -> WINDOWS_CLIENT -> USER_ACCEPTED
 
 发生服务端日志与客户端现象不一致时，标记 `EVIDENCE_CONFLICT`，先核对 Windows 实际 JAR 和日志，不直接宣布修复成功。
 | `mining_search_limit_honesty` | 电池/EXTRA | A1 每 tick 搜索额度占满时，规划器必须报**瞬时**的 `search_incomplete`（不是 `found_but_unminable`）；tick 边界后**同一目标**必须能规划出来 | 绿 `checks=5 failures=0`；红（三条腿还原）实测 `found_but_unminable` ⇒ FAIL | 2026-09-22（`D-387`/`P1-b`） |
+| `coarse_goal_prefix` | 电池/CORE（MAIN） | 粗目标 + 滚动重规划：目标区未加载时不许 `GOAL_NOT_LOADED`/`UNREACHABLE`，**必须给出朝目标推进的前缀**，且不许读未加载区块（`D-132`） | 绿 `checks=6 failures=0`（`PARTIAL prefixLen=2 progress=1`）；红（预算压到 1ms）⇒ `SEARCH_LIMIT prefixLen=0` FAIL | 2026-09-22（`D-390`） |
+| `mine_vein_propagation` | 电池/EXTRA | **沿脉传播**（`D-389`）：石壳 + 3×2×5 铁矿脉（26 邻接）⇒ ① 传播真的触发（`veinPropagations > 0`）② 沿脉走之后**零昂贵搜索**（`search_incomplete == 0`）③ 完成度不许退化（下限 = 已测上限 12/30，`D-391` 收口后须抬到 ~28） | 绿 `checks=4 failures=0`（`mined=12/30 传播=11 入队=50 transientFailures=0`）；红臂：注释掉 `enqueueVeinNeighbours` ⇒ ① 必红 | 2026-09-22（`D-389`/`D-391`） |

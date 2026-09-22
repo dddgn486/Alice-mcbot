@@ -159,6 +159,8 @@ public final class RegressionBatteryTask implements Task {
             // `P1-b`：搜索限流**不许**被写成永久理由（同 tick 占满额度 ⇒ `search_incomplete`；
             // 下一 tick 同一目标必须能规划出来）。
             Map.entry("mining_search_limit_honesty", Profile.EXTRA),
+            // `D-389`：沿脉传播必须真的发生 + 矿簇被挖穿（石壳 + 3×2×3 铁矿脉）。
+            Map.entry("mine_vein_propagation", Profile.EXTRA),
             // ---- MAIN：阶段 3-A 收口后的最小烟测集（4）----
             // 口径（D-201）：每一类"只此一步覆盖"的机制各留一步 + 查询层最便宜一步；
             // A2/A3/A3b/C/装配/发现器探针等同机制夹具退 FULL（机制不丢，默认时长下降）
@@ -228,6 +230,9 @@ public final class RegressionBatteryTask implements Task {
             // ⭐ `D-374`（2026-09-21）：**脚位空、头位实**的目的地必须有入边（内核图完整性；
             // 真机代价 = 掉落物落在 1 格高夹缝里被瞬退）。规划级、便宜 ⇒ 进 CORE。
             Map.entry("break_enter_head_blocked", Profile.MAIN),
+            // `D-390`：粗目标 + 滚动重规划的核心断言（远目标不许 GOAL_NOT_LOADED/UNREACHABLE，
+            // 必须给出前缀，且不许读未加载区块）。
+            Map.entry("coarse_goal_prefix", Profile.MAIN),
             // D-327 机制 B（2026-09-19）：任务失败后回安全区的兜底（无区 ⇒ 诚实码 / 200 格 ⇒ 分段走回 /
             // 封死格 ⇒ 如实失败且站定不动）。EXTRA：会临时认领一个区块 + 建/还原一个封盒 ⇒ 只单跑。
             Map.entry("safe_return", Profile.EXTRA),

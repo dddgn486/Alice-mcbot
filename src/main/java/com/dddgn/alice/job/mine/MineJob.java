@@ -126,6 +126,10 @@ public final class MineJob implements Job {
     /** ⭐ `Y`：连续 `search_incomplete` 次数（**任何一次成功**清零）。 */
     private int consecutiveSearchLimited = 0;
 
+    /** ⭐ `D-389`：沿脉传播触发次数 / 被插到队列最前的相邻目标总数（夹具断言 + 真机读数）。 */
+    private int veinPropagations = 0;
+    private int veinEnqueued = 0;
+
     /** 一次尝试失败：`pos` 是目标格，`code` 是失败理由码（取自既有词表，见 `toolRefusal` / `MineTask.failureReason`）。 */
     /**
      * 暂时性失败的上限（`P1`）：`search_incomplete` 重试到这么多次仍未成功 ⇒ 如实了结（防空转）。
@@ -168,6 +172,27 @@ public final class MineJob implements Job {
     /** ⭐ `Y`：冷却时长（tick）——夹具断言"不许是 0/1"（那等于没摊销）。 */
     public static int searchLimitCooldownTicks() {
         return SEARCH_LIMIT_COOLDOWN_TICKS;
+    }
+
+    /** ⭐ `D-389`：沿脉传播触发次数（夹具：必须 > 0，否则"顺序改了"这件事没被验证）。 */
+    public int veinPropagations() {
+        return veinPropagations;
+    }
+
+    /** ⭐ `D-389`：被插到簇队列最前的相邻目标总数。 */
+    public int veinEnqueued() {
+        return veinEnqueued;
+    }
+
+    /** ⭐ `D-389`：本作业 `search_incomplete`（昂贵搜索被限流）的累计次数 —— 沿脉走的判据读数。 */
+    public int transientFailureCount() {
+        int n = 0;
+        for (AttemptFailure failure : attemptFailures) {
+            if (transientFailure(failure.code())) {
+                n++;
+            }
+        }
+        return n;
     }
 
     private record AttemptFailure(BlockPos pos, String code) {
@@ -482,6 +507,13 @@ public final class MineJob implements Job {
             minedCount++;
             // ⭐ `Y`：有成功 ⇒ "连续撞墙"链断掉（否则本作业会在几个难目标上被判「该走开」）
             consecutiveSearchLimited = 0;
+            // ⭐⭐ `D-389`（用户 2026-09-22 裁定）：**沿脉传播** —— 把"刚挖掉那格的 26 邻域里仍然是目标
+            // 的格"插到簇队列**最前**。理由（用户原话）：*"矿簇每个子矿一定是六面或者对角相连……
+            // 理论上除了水下/岩浆旁这些本来就不能挖的情况，都是能够完成挖掘的"*。
+            // 病灶：原来消费**列表序**，下一个成员可能离 bot 6+ 格（真机 `target=48,63,140 startFoot=45,68,137`
+            // = 6.6 格远）⇒ 每个成员付一次**昂贵** approach 搜索 ⇒ 30 s 内 33 次 × 196 ms ⇒ 卡顿 + 挖不完。
+            // 沿脉走之后下一个目标 ≈1 格远 ⇒ `D-365` 就地挖或 1 格隧道 ⇒ 搜索规模 O(1)。
+            enqueueVeinNeighbours(bot.serverLevel(), mined);
             if (kindPlan.active() && currentKind >= 0 && currentKind < minedByKind.length) {
                 minedByKind[currentKind]++;
                 MineKindPlan.Entry entry = kindPlan.entries().get(currentKind);
@@ -704,6 +736,67 @@ public final class MineJob implements Job {
      * （`D-361` 口径：簇保持纯几何 —— 让"簇"随配额状态漂移，就没法单独咬簇判据了）。
      * 门禁 `rule_kind_filter_before_cluster` 咬这条顺序。
      */
+    /**
+     * ⭐ `D-389`：**沿脉传播** —— 把刚挖掉那格的 26 邻域里「仍然是目标、且没被了结」的格
+     * **插到簇队列最前**（下一个就试它们）。
+     *
+     * <p>为什么这是"簇能被挖完"的关键（用户 2026-09-22 的推理）：26 邻接（`TargetClusters.DIAGONAL_26`，
+     * 对角相连**已加入判定**）⇒ 进了脉之后每个下一个目标都在 1 格内 ⇒ 只需要**便宜**的规划
+     * （`CURRENT`/`DIRECT`/`D-365` 就地挖 / 1 格隧道），而不是一次跨 6 格的昂贵隧道搜索。
+     *
+     * <p>安全性：**只改消费顺序** —— 下游（种类会计、候选查找、`attempted`、归因码）全部不变；
+     * 不在 `set.viable()` 里的位置会被既有消费循环自然跳过；`kindPlan` 的过滤仍在
+     * {@link #filterByKind} 先行执行（`D-361`：簇保持纯几何，顺序建议不改变筛选）。
+     */
+    /** 作业声明范围（水平半径 + 垂直 ±8 格，与扫描口径同量级）。 */
+    private boolean inDeclaredRange(BlockPos pos) {
+        int dx = Math.abs(pos.getX() - spec.center().getX());
+        int dz = Math.abs(pos.getZ() - spec.center().getZ());
+        int dy = Math.abs(pos.getY() - spec.center().getY());
+        return dx <= spec.radius() && dz <= spec.radius() && dy <= 8;
+    }
+
+    private void enqueueVeinNeighbours(ServerLevel level, BlockPos mined) {
+        int added = 0;
+        BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
+        for (int dy = -1; dy <= 1; dy++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (dx == 0 && dy == 0 && dz == 0) {
+                        continue;
+                    }
+                    cursor.set(mined.getX() + dx, mined.getY() + dy, mined.getZ() + dz);
+                    BlockPos pos = cursor.immutable();
+                    if (attempted.contains(pos)) {
+                        continue;
+                    }
+                    // ⚠️ **不许越界**：作业声明了 `center + radius`（`ScopeBuffer` 也按它开）
+                    // ⇒ 沿脉传播只准在**声明范围内**走；跨边界的部分留给同簇其余成员/下次作业
+                    // （`TargetClusters` 有几何口径，`D-329 §3`）。
+                    if (!inDeclaredRange(pos)) {
+                        continue;
+                    }
+                    if (!source.matchesTarget(level, pos)) {
+                        continue;
+                    }
+                    // ⚠️ **必须"挪到最前"，不是"不在才加"**：`TargetClusters.queueFor` 返回的队列
+                    // **本来就含整簇成员** ⇒ 用 `contains` 判重会把 26 个邻居**全部跳过**、传播变成死代码
+                    // （2026-09-22 夹具 `mine_vein_propagation` 第一版实测 `veinPropagations=0` 抓到的就是这个）。
+                    // 位置不在候选集里也不会出问题：消费循环在 `set.viable()` 里查不到就跳下一个。
+                    clusterQueue.remove(pos);
+                    clusterQueue.add(0, pos);
+                    added++;
+                }
+            }
+        }
+        if (added > 0) {
+            veinPropagations++;
+            veinEnqueued += added;
+            DecisionTrace.step(jobName(), "VEIN", mined.toShortString(),
+                    "沿脉传播：把 " + added + " 个相邻目标插到最前（每个 ≈1 格远 ⇒ 不需要昂贵搜索）");
+        }
+    }
+
     private CandidateSet filterByKind(CandidateSet raw) {
         if (!kindPlan.active()) {
             return raw;

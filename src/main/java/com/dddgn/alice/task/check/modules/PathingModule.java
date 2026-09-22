@@ -2,6 +2,7 @@ package com.dddgn.alice.task.check.modules;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.task.BreakEnterHeadBlockedCheckTask;
+import com.dddgn.alice.task.CoarseGoalPrefixCheckTask;
 import com.dddgn.alice.task.CleanupWrappedTask;
 import com.dddgn.alice.task.EdgeCompletenessCheckTask;
 import com.dddgn.alice.task.ContrastTimerCheckTask;
@@ -44,6 +45,13 @@ public final class PathingModule implements CheckModule {
                 // MAIN：便宜（无场景文件、无执行、4 次 1 格远的规划）且守的是**内核图完整性**不变式 ⇒ 进 CORE。
                 CheckStep.of("break_enter_head_blocked", CheckProfile.MAIN, List.of(), null,
                         () -> new BreakEnterHeadBlockedCheckTask(bot, ctx.observer()), 120),
+                // ⭐⭐ `D-390`（2026-09-22，用户追问"远目标/粗目标+滚动重规划 CORE 有没有证明"）：
+                // **没有** —— `far_path_bench`（唯一完整测这件事的基准）是 EXTRA，而 CORE 的搜索最大只 4–5 ms
+                // ⇒ 50 ms 收紧后"远目标还走不走得动"在回归保护之外。本步把它的**核心断言**提进 CORE：
+                // 粗目标区未加载时不许 GOAL_NOT_LOADED / 不许 UNREACHABLE / **必须给出朝目标推进的前缀** /
+                // 跑完未加载区仍未被读（`D-132`）。场景自建 8 格走廊 ⇒ 前缀有确定落脚点（不依赖世界地形）。
+                CheckStep.of("coarse_goal_prefix", CheckProfile.MAIN, List.of(), null,
+                        () -> new CoarseGoalPrefixCheckTask(bot, ctx.observer()), 300),
                 // ⭐ `D-379`（2026-09-21 第八轮真机）：**「破坏通行」破掉的中间列是 bot 要踩过去的一格
                 // ⇒ 它必须立得住**（`canWalkOn(mid)`）。真机 = 破掉中间格后从中间列掉进水里 → 沉底 → 溺水。
                 // 规划级（边生成层 + 执行工厂准入，两侧同谓词），3 用例（悬空+水 / 悬空+浅坑 / 立在地板上）。
