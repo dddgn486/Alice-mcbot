@@ -68,6 +68,10 @@ public class CraftStationCheckTask implements Task {
     private BlockPos placedStation;
     private MenuSession session;
     private RestoreScopeTask restore;
+    /** ⭐ `D-399`（C）：拆台全程「bot 无支撑」的 tick 数 + 单 tick 最大坠落格数。 */
+    private int unsupportedTicks;
+    private int biggestFall;
+    private int lastFootY = Integer.MIN_VALUE;
     /** 恢复任务的终态理由（`RestoreScopeTask` 特有，接口没有）；失败时是唯一能区分病因的字段。 */
     private String restoreReason = "-";
     /** 失败路径的清理尝试过没有（防 `finish()` ↔ `CLEANUP` 互相递归）。 */
@@ -224,6 +228,17 @@ public class CraftStationCheckTask implements Task {
         }
         Task.Status status = restore.tick();
         restoreReason = restore.terminalReason();
+        // ⭐ `D-399`（C）：拆台**全程采样**「bot 有没有支撑」+「单 tick 最大坠落」。
+        // 事故判据 = 回收自己放的方块时把 bot 摔下去（用户 2026-09-22 的 10 张连拍）。
+        net.minecraft.server.level.ServerLevel lvl = bot.serverLevel();
+        net.minecraft.core.BlockPos footNow = com.dddgn.alice.pathing.MovementHelper.footCell(lvl, bot);
+        if (!com.dddgn.alice.pathing.MovementHelper.canWalkOn(lvl, footNow)) {
+            unsupportedTicks++;
+        }
+        if (lastFootY != Integer.MIN_VALUE) {
+            biggestFall = Math.max(biggestFall, lastFootY - footNow.getY());
+        }
+        lastFootY = footNow.getY();
         if (status == Task.Status.RUNNING) {
             return phaseTicks > TEARDOWN_TICKS ? finishWith("teardown_timeout") : Status.RUNNING;
         }
@@ -237,6 +252,22 @@ public class CraftStationCheckTask implements Task {
         int pendingAll = WorldModLedger.pendingForOwner(bot.serverLevel().getServer(), bot.getUUID()).size();
         check("teardown_clean", gone && pending == 0 && pendingAll == 0,
                 "stationGone=" + gone + " pendingHere=" + pending + " pendingAll=" + pendingAll);
+        // ⭐ `D-399`（C）：**回收不许把 bot 摔下去** —— 全程必须有支撑，且单 tick 坠落 ≤ 1 格
+        // （拆台本来就是"站上去 → 向下拆"，逐格下降 1 格是**正常**流程；≥2 格 = 摔）。
+        // ⚠️ 口径修正（2026-09-22 实测）：`unsupportedTicks > 0` **不是**缺陷 ——
+        // "站上去 → 向下拆"本来就是**逐格下降**，每下降 1 格都有几 tick 腾空（`canWalkOn` 假）。
+        // 真正的缺陷是**坠落**（≥2 格）或**收尾没支撑**⇒ 只咬这两条；`unsupportedTicks` 只作读数。
+        net.minecraft.core.BlockPos endFoot = com.dddgn.alice.pathing.MovementHelper.footCell(
+                bot.serverLevel(), bot);
+        boolean endSupported = com.dddgn.alice.pathing.MovementHelper.canWalkOn(
+                bot.serverLevel(), endFoot);
+        // ⚠️ **只断言"收尾必须有支撑"**（诚实、弱）：本夹具的拆台是**严格自上而下**，
+        // 每次拆的都是自己脚下那格、逐格降 1 ⇒ 2026-09-22 实测**守卫开/关都得到 `biggestFall=1`**
+        // ⇒ `biggestFall <= 1` 在这里**无法区分**（判据会变成空跑，已实测红臂变绿）。
+        // 强判据（真坠落 ≥2）需要**乱序账本**几何 ⇒ 已拆成队列条目 **C2**（见 `OPEN_ITEMS_LEDGER §11`）。
+        check("teardown_support", endSupported,
+                "endSupported=" + endSupported + " biggestFall=" + biggestFall
+                        + " unsupportedTicks=" + unsupportedTicks + "（后两项仅读数）");
         return finish();
     }
 

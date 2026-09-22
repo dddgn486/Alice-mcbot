@@ -2082,7 +2082,7 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 
 | # | 事项 | 判据 | 依赖 | 状态 |
 |---|---|---|---|---|
-| **C** | ⭐ **安全守卫 I-1**：移除我方方块前，`canWalkOn(level, botFoot)` **在移除后**仍须为真（否则先把 bot 移到安全处）+ 回收**自上而下**、bot 当前支撑那格最后 | 夹具：bot 站在**自己放的 3 格脚手架柱**上跑**保护区内**回收 ⇒ 断言全程有支撑、脚位不下落；**红臂** = 去掉守卫 ⇒ 红 | 无 | **进行中 —— 落点已钉（2026-09-22）** |
+| **C** | ⭐ **安全守卫 I-1**：移除我方方块前，`canWalkOn(level, botFoot)` **在移除后**仍须为真（否则先把 bot 移到安全处）+ 回收**自上而下**、bot 当前支撑那格最后 | 夹具：bot 站在**自己放的 3 格脚手架柱**上跑**保护区内**回收 ⇒ 断言全程有支撑、脚位不下落；**红臂** = 去掉守卫 ⇒ 红 | 无 | **守卫已落地（`D-399`）；强判据未落地 ⇒ 拆出 C2** |
 | **Z1** | **账本/恢复收窄到保护区内**（`D-398` R1–R4）：无主区域**不记账、不恢复**；`RestoreScopeTask` 只认保护区内条目 | 判据：区外放/破后**账本无条目**、无恢复动作；保护区内**必有条目** | `D-398` | 待做 |
 | **Z2** | `J6` 不变量**范围收窄**（只对保护区内条目闭合）并**做成门禁**（不是注释） | `kernel-predicates.py` 新增/修改规则 + **注入即变红** | Z1 | 待做 |
 | **Z3** | **区外取消格数额度**（保留 `capForEscape` 显式装订）；保护区内**不许静默降级** | 门禁/夹具：区外无 cap；cap 打满必须给**瞬时**理由 + 日志（不许写成永久失败） | `D-398` | 待做 |
@@ -2093,6 +2093,9 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 > **缺的守卫**：当 bot 的脚位 = `pos.above()`（正踩着待拆的那格）时，**必须先证明拆完之后还有落脚面** ——
 > 形状对照 Baritone `MovementDownward:61` 的 `canWalkOn(x, y-2, z)` ⇒ 这里 = **`MovementHelper.canWalkOn(level, pos.below())`**；
 > 不满足则**本次不拆**（延后到队列末尾重试，收尾仍不安全 ⇒ 计 `skipped` + 归因 `underfoot_unsafe`，不许静默）。
+
+| **C2** | ⭐ C 的**强判据**（真坠落 ≥2 格）：需要**乱序账本**几何 —— 把 bot 脚下那根的**下层**方块（或支撑它footing 的邻居）作为账本条目 ⇒ 拆它会让整根塌。**守卫开** ⇒ 延后/`underfoot_unsafe` 如实跳过、`biggestFall ≤ 1`；**守卫关** ⇒ `biggestFall ≥ 2` ⇒ 红 | 夹具：新步 `restore_underfoot_safety`（EXTRA，自建地形 + 直接 `WorldModLedger.record` 播种 TEMP 条目 + `setBlock`）；读数 `biggestFall/unsupportedTicks/skipped 归因` | 为什么必须做：2026-09-22 实测——现夹具（`craft_station`）**守卫开/关都 `biggestFall=1`** ⇒ 判据空跑 | 待做 |
+| **C3** | ⚠️ **事故归因复核**：真机那次坠落**可能不是回收造成的**，而是**路径**的 `BREAK_AND_ENTER` 进了"破坏后下方无支撑"的格子（真机日志 `planned … executable=false support=-` + `chosen=74,116,198` + 该格随后被 `PATH_ACCESS` 破掉）⇒ 候选落点 `SurfaceMovementProvider.appendBreakAndEnter:187`（只查 `canWalkOn(to)`）/ `AStarMovementSearch:143`（只守 goal）。**C 的守卫不覆盖这条路径** | 先补读数：把"破坏后 foot 是否有支撑"做成夹具（乱序/无支撑几何）再定改动 | 与 C 同族（"我方写入把自己置于险境"） | 待做 |
 
 ### B. 能力线（用户要的"能干活"）
 

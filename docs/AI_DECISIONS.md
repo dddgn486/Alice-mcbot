@@ -17510,3 +17510,41 @@ ms 常量**（`SearchTickBudget.DEFAULT_MAX_MILLIS_PER_TICK=**400**`＝8 个 tic
 | **Z1** | 账本/恢复**收窄到保护区内**（`record` 排除无主区域；`RestoreScopeTask` 只认保护区内条目） | 本裁定 |
 | **Z2** | `J6` 不变量的**范围收窄**并做成门禁（保护区内条目闭合） | Z1 |
 | **Z3** | 区外**取消格数额度**（保留 `capForEscape` 显式装订）；保护区内"不许静默降级"做成判据 | 本裁定 |
+
+### D-399：**C 落地 —— 回收"脚下支撑"守卫**（+ 一条重要负面结果：naive 判据是空跑）（2026-09-22）
+
+#### 一、改了什么（`task/RestoreScopeTask.pickNext()`）
+
+在选中待拆条目、进入 `APPROACH` **之前**加守卫：若该格正是 **bot 脚位下方那一格**（`pos == footCell(bot).below()`）
+且**拆完之后没有落脚面**（`!MovementHelper.canWalkOn(level, pos)` —— 该谓词读的是 `pos.below()`，
+形状对照 Baritone `movements/MovementDownward.java:61` 的 `canWalkOn(x, y-2, z)`）⇒ **本次不拆**：
+放进 `deferred`，队列耗尽后**重试一次**（`MAX_DEFER_PASSES=1`）；仍不安全 ⇒ 计入 `skipped` +
+归因 **`underfoot_unsafe`**（进 `unresolved`/`notes`，**绝不静默**）。
+
+#### 二、⭐ 负面结果（本轮最重要的发现）：**naive 判据是空跑**
+
+夹具 `craft_station` 加了逐 tick 采样（`unsupportedTicks` / `biggestFall` / `endSupported`）后实测：
+
+| 断言 | 守卫开 | 守卫关（红臂） | 结论 |
+|---|---|---|---|
+| `unsupportedTicks == 0` | `0`（单跑）/ **`4`（CORE）** | FAIL | ⚠️ **不稳定**：`4` 是"逐格下降"的**腾空帧**（正常），单跑/CORE 时序不同 ⇒ 假红 |
+| `biggestFall <= 1 && endSupported` | `biggestFall=1` | **也 `biggestFall=1`** ⇒ **红臂变绿** | ⚠️ **判据空跑** |
+
+**根因**：`RestoreScopeTask` **本来就是严格自上而下**（"站上去 → 向下拆"）⇒ 每次拆的都是自己脚下那格、
+**逐格降 1** ⇒ 在这个几何里**有没有守卫都不会摔 ≥2 格** ⇒ 该夹具**结构上无法**给 C 做强判据。
+
+⇒ **处置**：① 守卫**保留**（无害，且它管的是"直接踩在待拆格上"这一类 + 给出诚实归因）；
+② 夹具只保留**诚实弱判据** `endSupported`（收尾必须有支撑），另两项**只作读数**；
+③ 强判据**拆出为队列条目 `C2`**（需要**乱序账本**几何：把 bot 脚下那根的**下层**方块作为条目 ⇒ 拆它会塌）。
+
+#### 三、⭐ 归因复核（新条目 `C3`）
+
+真机那次坠落**未必来自回收**：日志里同时有 `planned … executable=false support=-`、
+`chosen=74,116,198`、以及该格随后被 **`PATH_ACCESS` 破掉** ⇒ 候选落点是**路径**的
+`BREAK_AND_ENTER`（`SurfaceMovementProvider.appendBreakAndEnter:187` 只查 `canWalkOn(to)`；
+`AStarMovementSearch:143` 只守 goal）⇒ **C 的守卫不覆盖这条路径**。已登记为 `C3`（先补读数再动）。
+
+#### 四、验证等级
+
+守卫 = `IMPLEMENTED` + `COMPILES` + `SERVER_TESTED`（`CORE 52/53`，唯一失败仍是既有 `lumber_job`；
+`check-all` 19/1/0）；**强判据 = 未落地**（`C2`）；**归因 = 未复核**（`C3`）。
