@@ -58,9 +58,6 @@ public final class RestoreScopeTask implements Task {
     /** 收尾收集的 tick 预算（与 CollectDropsTask 默认一致）。 */
     private static final int COLLECT_BUDGET_TICKS = 600;
 
-    /** 延后重试上限：仍不安全 ⇒ 如实计入 `skipped` + 归因 `underfoot_unsafe`（**绝不静默**）。 */
-    private static final int MAX_DEFER_PASSES = 1;
-
     private enum Stage { APPROACH, DESCEND, SIDE_BREAK }
 
     private final BotPlayer bot;
@@ -85,14 +82,6 @@ public final class RestoreScopeTask implements Task {
     /** 第一个成功恢复的位置（收尾收集的锚点）。 */
     private BlockPos firstRestored;
     private final List<String> notes = new ArrayList<>();
-
-    /**
-     * ⭐ `D-399`（C，用户 2026-09-22 事故）：**脚下不安全**而被延后的条目（拆了会把 bot 摔下去）。
-     * 事故现场：回收自己放的脚手架时把 bot 正踩着的那格拆掉 ⇒ 直接掉下去（10 张连拍可见）。
-     */
-    private final List<BlockPos> deferred = new ArrayList<>();
-    /** 延后重试的轮数（上限 {@link #MAX_DEFER_PASSES}，防止"永远延后"变成静默丢弃）。 */
-    private int deferPass;
 
     private BlockPos current;
     private Stage stage = Stage.APPROACH;
@@ -277,8 +266,13 @@ public final class RestoreScopeTask implements Task {
             BlockPos footNow = com.dddgn.alice.pathing.MovementHelper.footCell(level, bot);
             if (pos.equals(footNow.below())
                     && !com.dddgn.alice.pathing.MovementHelper.canWalkOn(level, pos)) {
-                BotLog.warn("[Restore] 延后 {}：bot 正踩着它、拆了会掉下去（下方无可站面）", pos.toShortString());
-                deferred.add(pos);
+                // ⭐ `D-403`（用户 2026-09-22）：**保留自动拆除，条件不满足就当场放弃** ——
+                // **不延后、不重试、不留待办**（那套机制被判为冗余）；但**必须如实归因，绝不静默**。
+                BotLog.warn("[Restore] 放弃 {}：bot 正踩着它、拆了会掉下去（不满足安全条件）",
+                        pos.toShortString());
+                skipped++;
+                unresolved.add(pos);
+                notes.add(pos.toShortString() + ":underfoot_unsafe");
                 continue;
             }
             current = pos;
@@ -286,24 +280,6 @@ public final class RestoreScopeTask implements Task {
             BotLog.info("[Restore] block {} placed={} policy={} scope={}",
                     pos.toShortString(), entry.placed(), entry.policy(), entry.scopeId());
             return startStage(pos.above());
-        }
-        // ⭐ `D-399`：延后条目重试一次；仍不安全 ⇒ 如实计入 `skipped` + `underfoot_unsafe`
-        if (!deferred.isEmpty() && deferPass < MAX_DEFER_PASSES) {
-            deferPass++;
-            int n = deferred.size();
-            queue.addAll(deferred);
-            deferred.clear();
-            BotLog.info("[Restore] 第 {} 次重试：{} 个「脚下不安全」条目重新入队", deferPass, n);
-            return pickNext();
-        }
-        if (!deferred.isEmpty()) {
-            for (BlockPos pos : deferred) {
-                skipped++;
-                unresolved.add(pos);
-                notes.add(pos.toShortString() + ":underfoot_unsafe");
-            }
-            BotLog.warn("[Restore] 放弃 {} 个「脚下不安全」条目（拆了会把 bot 摔下去）", deferred.size());
-            deferred.clear();
         }
         terminalReason = skipped == 0 ? "restore_done" : "restore_partial";
         if (!notes.isEmpty()) {
