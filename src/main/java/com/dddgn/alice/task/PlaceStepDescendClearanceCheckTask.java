@@ -4,6 +4,7 @@ import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
+import com.dddgn.alice.pathing.core.AscendExecutionFactory;
 import com.dddgn.alice.pathing.core.CompletionTolerance;
 import com.dddgn.alice.pathing.core.LiveExecutionContext;
 import com.dddgn.alice.pathing.core.MovementSpec;
@@ -244,6 +245,8 @@ public final class PlaceStepDescendClearanceCheckTask implements Task {
                 if (edge != null) {
                     check("② 这条边能构造出执行端 MovementSpec（K-4 可规划即可执行）", spec != null);
                 }
+                // ⭐ `D-394`：同一循环里再量一次「起跳头位」那类几何（复用场景，末尾用例跑）
+                ascendHeadroomContract(level, from);
             }
         }
     }
@@ -267,6 +270,71 @@ public final class PlaceStepDescendClearanceCheckTask implements Task {
                     + (pass ? "PASS" : "FAIL") + "（2 用例，详见日志 [PlaceStepClear]）"));
         }
         return pass ? Task.Status.DONE : Task.Status.FAILED;
+    }
+
+    /**
+     * ⭐ `D-394`（2026-09-22 真机：`ASCEND_NO_HEADROOM` ×75 + 无限重规划循环）：
+     * **规划侧准入 ⇔ 执行侧准入**（同一几何，两侧必须一致）。
+     *
+     * <p>几何：bot 站在 `from`（头位空、**`from.above(2)` 实心** = 两格高坑道），要升到 `to = from.offset(1,1,0)`。
+     * 对照 Baritone `MovementAscend.java:42` 的位置集 `{dest, src.above(2), dest.above()}` ⇒ 起跳需要第三格。
+     *
+     * <p>三条判据：① 规划侧 `canAscend` 必须为假；② 执行侧必须拒且码是 `ASCEND_NO_HEADROOM`；
+     * ③ ⭐ **两侧必须一致** —— 不一致就是"规划出边、执行必拒 ⇒ 重规划又算出同一条边"的死循环。
+     * 红臂：删掉 `canAscend` 里新加的 `from.above(2)` 检查 ⇒ ①③ 必红。
+     */
+    private void ascendHeadroomContract(ServerLevel level, BlockPos from) {
+        BlockPos up = from.offset(1, 1, 0);
+        java.util.Map<BlockPos, net.minecraft.world.level.block.state.BlockState> before =
+                new java.util.LinkedHashMap<>();
+        block(level, before, from.below(), Blocks.STONE);
+        block(level, before, from, Blocks.AIR);
+        block(level, before, from.above(), Blocks.AIR);
+        block(level, before, from.above(2), Blocks.STONE);   // ⭐ 被测的那一格：第三格实心
+        block(level, before, from.above(3), Blocks.AIR);
+        block(level, before, up.below(), Blocks.STONE);      // up 可站
+        block(level, before, up, Blocks.AIR);
+        block(level, before, up.above(), Blocks.AIR);
+        teleport(bot, from);
+
+        boolean planSide = MovementHelper.canAscend(level, from, up);
+        PlannedMovement movement = new PlannedMovement(MovementType.ASCEND, from, up, SYNTHETIC_COST,
+                RecoverabilityEvaluator.levelOf(MovementType.ASCEND));
+        com.dddgn.alice.pathing.core.MovementExecutionFactory.ValidationResult verdict =
+                new AscendExecutionFactory().validate(
+                        PlannedMovementSpecs.toSpec(movement, List.of("session_segment")),
+                        new LiveExecutionContext(bot, level, "ascend-headroom", 0L,
+                                CompletionTolerance.EXACT, "mine"));
+
+        findings.add("ascend_headroom:from=" + from.toShortString() + " planSide=" + planSide
+                + " execValid=" + verdict.valid() + " code=" + verdict.failureCode());
+        BotLog.info("[AscendHeadroom] from={} up2=stone planSide={} execValid={} code={}",
+                from.toShortString(), planSide, verdict.valid(), verdict.failureCode());
+        check("ASCEND 起跳头位：规划侧 `canAscend` 必须为假（实际 " + planSide + "；`D-394` 修复前是 true）",
+                !planSide);
+        // 执行侧必须拒；码可以是 `ASCEND_NO_HEADROOM`（如果共享谓词没拦住、由它兜底）
+        // 或 `ASCEND_INVALID_PRECONDITION`（共享谓词 `canAscend` 自己就拦住了 —— **修复后的正常形态**）。
+        String code = String.valueOf(verdict.failureCode());
+        check("ASCEND 起跳头位：执行侧必须拒（码 ∈ {ASCEND_NO_HEADROOM, ASCEND_INVALID_PRECONDITION}，"
+                        + "实际 valid=" + verdict.valid() + " code=" + code + "）",
+                !verdict.valid() && (code.startsWith("ASCEND_NO_HEADROOM")
+                        || code.startsWith("ASCEND_INVALID_PRECONDITION")));
+        check("⭐ ASCEND 起跳头位：**两侧准入必须一致**（规划=" + planSide + " 执行=" + verdict.valid()
+                        + "）—— 不一致 ⇒ 规划出边 / 执行必拒 / 重规划又算同一条边 ⇒ 死循环（真机 75 次）",
+                planSide == verdict.valid());
+
+        for (java.util.Map.Entry<BlockPos, net.minecraft.world.level.block.state.BlockState> e : before.entrySet()) {
+            level.setBlockAndUpdate(e.getKey(), e.getValue());
+        }
+    }
+
+    /** 记录原状再放置（本夹具的临时改动**必须在方法内还原**）。 */
+    private static void block(ServerLevel level,
+                              java.util.Map<BlockPos, net.minecraft.world.level.block.state.BlockState> before,
+                              BlockPos pos, net.minecraft.world.level.block.Block block) {
+        BlockPos key = pos.immutable();
+        before.putIfAbsent(key, level.getBlockState(key));
+        level.setBlockAndUpdate(key, block.defaultBlockState());
     }
 
     /** 把本夹具动过的格子还原（**失败路径也走**）。 */

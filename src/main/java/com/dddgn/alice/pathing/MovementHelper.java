@@ -421,6 +421,17 @@ public final class MovementHelper {
         if (to.getY() != from.getY() + 1) {
             return false;
         }
+        // ⭐⭐ `D-394`（2026-09-22 真机：`ASCEND_NO_HEADROOM` ×75 + 无限重规划循环）：
+        // **起跳需要 `from.above(2)` 那格也是空的**（跳到 1 格高时头顶要占两格 + 到第三格）。
+        // 对照 Baritone `MovementAscend.java:42`：它的位置集就是 `{dest, src.above(2), dest.above()}`
+        // （`Movement` 的 `positionsToPlace`/畅通集），即 **`src.above(2)` 是它的一等成员**。
+        // 病灶：本方法（规划侧共享谓词）**漏了它**，而执行侧 `AscendExecutionFactory:59` 一直在查
+        // ⇒ 规划出边、执行必拒 ⇒ `PathExecutor` 重规划又算出**同一条边**（确定性）⇒ 死循环
+        // （真机 75 次拒绝、同一脚位 6 次 segment 重启：`from=10,71,219` 头位空、`from.up2=石头`）。
+        // 收进**同一个谓词**（`D-374`/K-4 纪律：谓词只有一处出处），两侧同时生效。
+        if (!canWalkThrough(level, from.above(2))) {
+            return false;
+        }
         BlockPos mid = new BlockPos(to.getX(), from.getY(), to.getZ());
         if (!canJumpThrough(level, mid)) {
             return false;

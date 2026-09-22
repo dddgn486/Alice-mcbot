@@ -17296,3 +17296,56 @@ FTB Chunks/WorldEdit/JEI…）的客户端渲染问题，与 bot 无关。**建�
     ⇒ 证明边界**确实在 8**（不是 7 也不是 9），且断言非空跑。
   - ⚠️ 第一次红臂（只把坑深从 5 改回 4）**PASS 了** —— 那不是"规则没生效"，而是**夹具场景下方本来就是空气**
     （挖多深都一样"会丢"）⇒ **无效对照**。有效对照必须**显式放一块承接面在边界那一格**。
+
+### D-394：`canAscend` 漏查"起跳第三格" ⇒ `ASCEND_NO_HEADROOM` ×75 + **无限重规划循环**（2026-09-22 真机，已修）
+
+**用户现象**：「最后被发光苔藓卡死了」+「现在经常挖脚下的方块，却因为站位在边缘导致没有正常掉下去，卡一会才恢复」。
+
+#### 一、取证（真机 `latest.log`，同一脚位）
+
+```
+[PathRetry] replan reason=MOVEMENT_FAILED code=ASCEND_NO_HEADROOM@
+  from=10, 71, 219:minecraft:air, from.up=10, 72, 219:minecraft:air,
+  from.up2=10, 73, 219:minecraft:stone, from.up3=10, 74, 219:minecraft:stone
+出现次数：75
+```
+且该处呈**无限振荡**：`ASCEND 14,70,213→15,71,213 (EXACT)` → `resync feet=15,70,213 resumeIndex=0`
+→ `TRAVERSE 15,70,213→14,70,213` → `continuous_advance nextIndex=1 ASCEND` → …（6 次 start / 5 次 resync，
+3 次 `SEGMENT_TIMEOUT` 全落在同一脚位）。
+⇒ 用户看到的"苔藓"是现场旁边的方块；**真正挡住的是 `from.above(2)` 那格石头** =
+**两格高坑道里想向上跳**（头位 72 空、73 实心）。
+
+#### 二、根因：**规划侧与执行侧的准入判据不对称**
+
+| 侧 | 判据 | 是否查 `from.above(2)` |
+|---|---|---|
+| 规划（provider 的 ASCEND 边） | `MovementHelper.canAscend` | ❌ **漏了** |
+| 执行（`AscendExecutionFactory:59`） | `canAscend` + **额外** `canWalkThrough(from.above(2))` ⇒ `ASCEND_NO_HEADROOM` | ✅ 查了 |
+
+⇒ 规划**必然给出**这条边、执行**必然拒绝**；`PathRetryRunner` 重规划**又算出同一条边**（确定性）
+⇒ 死循环。对照 **Baritone `movements/MovementAscend.java:42`**：其位置集就是
+`{dest, src.above(2), dest.above()}` ⇒ **`src.above(2)` 是它的一等成员**（Alice 漏了这一格）。
+
+#### 三、改法（收进**同一个谓词**，两侧同时生效 —— `D-374`/K-4 纪律）
+
+`MovementHelper.canAscend` 开头补 `if (!canWalkThrough(level, from.above(2))) return false;`
+
+#### 四、判据（绿/红双臂，已实测）
+
+- 夹具 `place_step_descend_clearance` 末尾新增 `ascendHeadroomContract`（**复用其场景，临时放/还原**）：
+  几何 = bot 站在 `from`（头位空、**`from.above(2)` 实心**），目标是 `from.offset(1,1,0)`。
+  三条：① 规划侧 `canAscend` 必须为假 ② 执行侧必须拒（码 ∈ `{ASCEND_NO_HEADROOM,
+  ASCEND_INVALID_PRECONDITION}`）③ ⭐ **两侧准入必须一致**（`planSide == execValid`）。
+- **绿** = `planSide=false`、执行侧拒（`ASCEND_INVALID_PRECONDITION`：共享谓词自己就拦住了 = 修复后的正常形态）。
+- **红臂**（删掉 `canAscend` 里新加的检查）= `planSide=true` 而执行侧仍拒 ⇒ ③ **红** ✓ 真机缺陷被夹具复现。
+- **CORE 52/53**（唯一失败仍是既有 `lumber_job`）；`check-all` 19/1/0。
+
+#### 五、未收口（记下，别忘）
+
+- **"挖脚下那格却没掉下去"（用户在坑边缘、挖斜下方/正下方 ⇒ 人没跟着落）**：本次会话的 3 次 `SEGMENT_TIMEOUT`
+  全在 §一那处（ASCEND），**没有**抓到这条的现场读数 ⇒ 归 `MovementDescend/Downward` 切片，
+  需要真机复现点（用户已确认动作描述）⇒ 是 Movement 审查的**下一片**。
+- **`resync` 反复重放同一条计划没有次数上限**：本次的死循环终态是靠 `PathRetryRunner` 的 `replans` 上限
+  收住的；段级 `resync` 自身仍无界 ⇒ 归 §"段间推进"那行的 Baritone 对照（`PathExecutor` 的 repack）。
+- **掉落物授权**（用户 2026-09-22 已裁定）：给 mine 作业一个**「本作业声明范围内」的收集授权**
+  （`provenance=GRANTED_AREA`）⇒ **未实现**，是本轮的待办。
