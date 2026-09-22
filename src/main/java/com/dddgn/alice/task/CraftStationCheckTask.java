@@ -76,6 +76,8 @@ public class CraftStationCheckTask implements Task {
     private String restoreReason = "-";
     /** 失败路径的清理尝试过没有（防 `finish()` ↔ `CLEANUP` 互相递归）。 */
     private boolean cleanupAttempted;
+    /** ⭐ `Z1`/`D-398`：夹具自摆的"保护区 + 任务区"前提（结束复位）。 */
+    private FixtureZone.Handle zone;
 
     public CraftStationCheckTask(BotPlayer bot, ServerPlayer observer) {
         this.bot = bot;
@@ -131,6 +133,16 @@ public class CraftStationCheckTask implements Task {
         bot.controller().stopMovement();
         check("start_premise", bot.blockPosition().distSqr(start) <= 4.0D,
                 "foot=" + bot.blockPosition().toShortString() + " start=" + start.toShortString());
+        // ⭐ `D-398`/`Z1`（2026-09-22）：**本夹具验的是"保护区内"的建拆同权**（放工作站 → 拆干净）。
+        // 区外按裁定**不记账、不回收** ⇒ 不摆前提就会实测成 `write_accounted=FAIL / teardown_clean=FAIL`
+        // （台子留在世界里）——那不是缺陷，是"这片地本来就不该记"。所以这里认领场景区块 +
+        // 声明 L2 任务区封套（理由与生产一致性见 `FixtureZone` 的类注释）。
+        zone = FixtureZone.protect(bot.serverLevel(), bot.getUUID(),
+                start.offset(-6, -8, -6), start.offset(6, 8, 6), "region_lumber");
+        check("zone_premise", zone.ok(), zone.describe());
+        if (!zone.ok()) {
+            return finish();
+        }
         // **上一轮失败留下的残留**先销账：场景函数把这块地清成空气了，账本里的条目已是幽灵；
         // 不销掉的话下面的 `teardown_clean`（pendingAll==0）会被上一轮的残留顶成假失败。
         int stale = WorldModLedger.dropStale(bot.serverLevel());
@@ -332,6 +344,9 @@ public class CraftStationCheckTask implements Task {
     }
 
     private Status finish() {
+        if (zone != null) {
+            zone.release();   // 夹具纪律：结束复位（含失败路径）—— 还回本夹具摆的保护区/任务区前提
+        }
         // **§6.9.4 副作用边界**：任何失败路径都不许把世界改动留在身后。
         // 2026-09-13 实测就吃了这一条：`station_placed=FAIL` 直接 finish() ⇒ 那块圆石留在世界里，
         // 客户端还打了 `world_mod_ledger_close … 仍有 1 条我方临时放置未拆除`。

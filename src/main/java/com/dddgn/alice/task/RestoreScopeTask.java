@@ -33,6 +33,11 @@ import java.util.List;
  * <p>三条纪律：**严格自上而下**（y 降序）、**只拆自己放的**（拆前比对账本 `placed` 与现场方块，
  * 不匹配即放弃并销账 `not_ours`）、**不许沿途挖地形**（授权集合不含 `BREAK_AND_*`）。
  *
+ * <p>⭐ <b>`D-398`（用户 2026-09-22 决定性断言）：只对"保护区及其子区域"内的条目负有义务</b>
+ * —— 区外（无主区域）**一定不恢复**。取件（{@code buildQueue}）与收尾对账（{@code finish} 的
+ * {@code remaining}）都走 `WorldModLedger.pendingTemporaryProtected` ⇒ 区外条目既不会被拆、
+ * 也不会被算成"没拆完"。真机那次"拆掉 bot 脚下垫脚石导致坠落"的事故现场就在区外（`D-406` §二）。
+ *
  * <p>**两条拆除路径（J6-b1c，按块依次尝试）**：
  * <ol>
  *   <li>**站上去 → 向下拆**（`APPROACH` + `DESCEND`，`DOWNWARD`）——设计文档 §12.3 的机制，
@@ -168,9 +173,15 @@ public final class RestoreScopeTask implements Task {
     private void buildQueue() {
         queueBuilt = true;
         ServerLevel level = bot.serverLevel();
-        WorldModLedger.dropStale(level);   // 先把"现场已不是我方方块"的幽灵条目销掉
+        // 先把不该留的条目销掉：① 现场已非我方方块的幽灵条目；② ⭐`D-398` 区外条目
+        //（旧存档遗留 / unclaim 之后）—— 两类都会在日志里逐条点名（不静默）。
+        WorldModLedger.dropStale(level);
         List<BlockPos> positions = new ArrayList<>();
-        for (WorldModLedger.Entry entry : WorldModLedger.pendingTemporary(level.getServer(), scopeId)) {
+        // ⭐ `D-398`（用户 2026-09-22 决定性断言）：**回收只认保护区内的条目**（"区外一定不恢复"）。
+        // 写入期已经过滤过一道，这里**再过滤一道**：老存档 + "先记账后 unclaim" 的时序都可能让
+        // 区外条目出现在账本里，而"去拆无主区域"正是裁定明令禁止的事 ⇒ 两道一起才闭合。
+        for (WorldModLedger.Entry entry
+                : WorldModLedger.pendingTemporaryProtected(level, scopeId)) {
             positions.add(entry.pos());
         }
         // **严格自上而下**：y 降序；同 y 按 x/z 稳定排序
@@ -440,7 +451,8 @@ public final class RestoreScopeTask implements Task {
         // （还有几块我方 TEMP 方块真的留在世界里），而不是账本残留。
         ServerLevel level = bot.serverLevel();
         WorldModLedger.dropStale(level);
-        int remaining = WorldModLedger.pendingTemporary(level.getServer(), scopeId).size();
+        // ⭐ `D-398`：`remaining` 的口径与取件一致 —— **只数保护区内的条目**（区外不承担恢复责任）。
+        int remaining = WorldModLedger.pendingTemporaryProtected(level, scopeId).size();
         int reconciled = 0;
         for (BlockPos pos : unresolved) {
             if (WorldModLedger.at(level.getServer(), pos) == null) {

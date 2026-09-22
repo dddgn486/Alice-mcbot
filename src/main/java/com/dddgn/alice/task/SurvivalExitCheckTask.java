@@ -879,11 +879,22 @@ public class SurvivalExitCheckTask implements Task {
             check("逃生不自动回收（D-245）：垫脚方块**仍在世界里**（" + desc(pillar) + " = " + pillarBlock
                             + "）⇒ 逃生任务没有拆自己垫的路（防逃生循环）",
                     !bot.serverLevel().getBlockState(pillar).isAir());
-            check("逃生不自动回收（D-245）：账本里**仍记着这笔待拆**（policy="
-                            + (ledgerEntry == null ? "无条目" : ledgerEntry.policy())
-                            + "）⇒ 回收时机交玩家（`/alice restore`），不是静默丢弃",
-                    ledgerEntry != null
-                            && ledgerEntry.policy() == com.dddgn.alice.ledger.WorldModLedger.Policy.TEMP);
+            // ⭐ 2026-09-22 与 `D-398`（用户决定性断言）对齐，**两条臂分开断言**：
+            //  · 保护区内：`D-398` R3"一定记账" ⇒ `D-245` 的"账本里留着这笔待拆、回收时机交玩家"成立；
+            //  · 区外（本夹具的场景就在无主区域）：`D-398` R1/R2"不记账、一定不恢复" ⇒ **账本里本来就不该有条目**，
+            //    而"不会被自动回收"这一点由上面那条**世界事实**断言守着（它才是防逃生循环的那半边）。
+            // ⚠️ 旧版把"必须有条目"写成无条件 ⇒ `Z1` 落地后本步在区外**如实变红**（2026-09-22 实测）。
+            // 那不是回归，而是 `D-245` 的"记账"口径被 `D-398` 的**地理范围**收窄了：区外的修改不再记账。
+            boolean pillarProtected = com.dddgn.alice.protection.ProtectionZones.isProtected(
+                    bot.serverLevel(), pillar);
+            check("逃生不自动回收（D-245 × D-398）："
+                            + (pillarProtected ? "区内 ⇒ 账本里**仍记着这笔待拆**" : "区外 ⇒ 按裁定**账本无条目**")
+                            + "（在区内=" + pillarProtected + " policy="
+                            + (ledgerEntry == null ? "无条目" : ledgerEntry.policy()) + "）",
+                    pillarProtected
+                            ? (ledgerEntry != null
+                                    && ledgerEntry.policy() == com.dddgn.alice.ledger.WorldModLedger.Policy.TEMP)
+                            : ledgerEntry == null);
             return;
         }
         if (phaseTicks >= 5) {

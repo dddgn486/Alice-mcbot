@@ -60,7 +60,7 @@ public final class CraftModule implements CheckModule {
                 CheckStep.of("craft_check", CheckProfile.MAIN, List.of(), null,
                         () -> new CraftCheckTask(bot, observer), 200),
                 // 阶段 3-A / A2（D-186）：随身 2×2 合成（真消耗真产物 + 缺料如实失败 + 网格清理）
-                CheckStep.of("craft_action", CheckProfile.MAIN, List.of(), null,
+                CheckStep.of("craft_action", CheckProfile.EXTRA, List.of(), null,
                         () -> new CraftActionCheckTask(bot, observer), 200),
                 // 阶段 3-A / A3（D-188）：现成工作台 3×3 合成（找台→走位→开菜单→合成 + 零写入断言）
                 CheckStep.of("craft_table", CheckProfile.MAIN,
@@ -68,7 +68,7 @@ public final class CraftModule implements CheckModule {
                         () -> to(bot, CraftTableCheckTask.START),
                         () -> new CraftTableCheckTask(bot, observer), 900),
                 // 阶段 3-A / A3b（D-190）：**自放工作站**（第一次真正写世界的合成路径）+ 建拆同权
-                CheckStep.of("craft_station", CheckProfile.MAIN,
+                CheckStep.of("craft_station", CheckProfile.EXTRA,
                         List.of("alice_test:craft_station_course"),
                         () -> to(bot, CraftTableCheckTask.START),
                         () -> new CraftStationCheckTask(bot, observer), 2600),
@@ -79,28 +79,28 @@ public final class CraftModule implements CheckModule {
                         () -> new com.dddgn.alice.task.RestoreUnderfootSafetyCheckTask(bot, observer), 1200),
                 // 阶段 3-A / S1-3（D-192）：**通用网格发现**的回归三连 ——
                 // ① 随身 2×2（Auto⇒inventory）② 原版工作台 3×3（零模组依赖）③ 模组"升级页签"（不可用则 SKIP）
-                CheckStep.of("craft_probe_inventory", CheckProfile.MAIN, List.of(),
+                CheckStep.of("craft_probe_inventory", CheckProfile.EXTRA, List.of(),
                         () -> select(bot, "inventory"),
                         () -> new CraftGridProbeTask(bot, observer, 2, 2), 300),
-                CheckStep.of("craft_probe_table", CheckProfile.MAIN,
+                CheckStep.of("craft_probe_table", CheckProfile.EXTRA,
                         List.of("alice_test:craft_table_course"),
                         () -> select(bot, "table"),
                         () -> new CraftGridProbeTask(bot, observer, 3, 3), 300),
-                CheckStep.skippable("craft_probe_upgradetab", CheckProfile.MAIN,
+                CheckStep.skippable("craft_probe_upgradetab", CheckProfile.EXTRA,
                         List.of("alice_test:craft_tab_course"),
                         () -> select(bot, "upgradetab"),
                         () -> new CraftGridProbeTask(bot, observer), 400,
                         task -> task.failureReason().contains("station_opened")),
                 // 阶段 3-A / L2（D-194）：**工作站装配**（装升级 → 能力验证 3×3 → 取回复原）
                 // 依赖精妙存储：模组不在或站点不在 ⇒ SKIP（环境不具备，不判红）
-                CheckStep.skippable("craft_station_provision", CheckProfile.MAIN,
+                CheckStep.skippable("craft_station_provision", CheckProfile.EXTRA,
                         List.of("alice_test:craft_tab_course"),
                         () -> to(bot, CraftGridProbeTask.START),
                         () -> new CraftStationProvisionCheckTask(bot, observer), 900,
                         task -> task.failureReason().contains("mod_present")
                                 || task.failureReason().contains("station_found")),
                 // 阶段 3-A / C（D-195）：**模组站点真合成**（装升级 → 用页签 3×3 合成 → 拆回）
-                CheckStep.skippable("craft_station_craft", CheckProfile.MAIN,
+                CheckStep.skippable("craft_station_craft", CheckProfile.EXTRA,
                         List.of("alice_test:craft_tab_course"),
                         () -> to(bot, CraftGridProbeTask.START),
                         () -> new CraftStationCraftCheckTask(bot, observer), 1200,

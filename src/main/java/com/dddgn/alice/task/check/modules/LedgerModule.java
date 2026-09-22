@@ -2,6 +2,7 @@ package com.dddgn.alice.task.check.modules;
 
 import com.dddgn.alice.task.ClearGuardCheckTask;
 import com.dddgn.alice.task.ClearRetryCheckTask;
+import com.dddgn.alice.task.LedgerZoneScopeCheckTask;
 import com.dddgn.alice.task.ScaffoldLifecycleTask;
 import com.dddgn.alice.task.WriteBudgetCheckTask;
 import com.dddgn.alice.task.check.CheckContext;
@@ -40,6 +41,13 @@ public final class LedgerModule implements CheckModule {
                 CheckStep.of("scaffold", CheckProfile.BASELINE, List.of(), null,
                         () -> new ScaffoldLifecycleTask(ctx.bot(), ctx.scope()), 900),
                 CheckStep.of("clear_guard", CheckProfile.BASELINE, List.of(), null,
-                        () -> new ClearGuardCheckTask(ctx.bot(), ctx.scope()), 900));
+                        () -> new ClearGuardCheckTask(ctx.bot(), ctx.scope()), 900),
+                // ⭐ `Z1` / `D-398`（2026-09-22）：**账本与恢复的地理范围 = 保护区及其子区域**
+                //（区外不记账、不恢复、无限制修改；区内一定记账）。
+                // EXTRA 而非 CORE：它自建场景（地板 + 目标格）、**改认领状态**、并且**故意让区外
+                // 留一块方块不回收**（`D-398` R2 的直接后果）⇒ 与其它"会改世界"的取证夹具同档，
+                // 只适合 `single:ledger_zone_scope` / `module:ledger` 单独跑。
+                CheckStep.of("ledger_zone_scope", CheckProfile.EXTRA, List.of(), null,
+                        () -> new LedgerZoneScopeCheckTask(ctx.bot(), ctx.observer()), 2400));
     }
 }

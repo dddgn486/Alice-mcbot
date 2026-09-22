@@ -122,6 +122,28 @@ public final class RegressionBatteryTask implements Task {
      *
      * <p>刻意用"按名字的清单"而不是给每个步骤加参数：① 一处可见、便于 review；
      * ② 构造时会**自校验**（有步骤没归属 / 有归属没步骤 ⇒ 直接判红），防止"悄悄漏测"。
+     *
+     * <p>⭐ <b>2026-09-22 CORE 瘦身（用户："整理下 CORE 内容，次要的剔除"）：CORE 53 → 41</b>
+     * （BASELINE 15 + MAIN 26）。降级 12 步 ⇒ `EXTRA`（**FULL 仍全覆盖，一步没删**）：
+     * <ul>
+     *   <li><b>只读探针（零写入、无场景）</b>：`craft_probe_inventory` / `craft_probe_table` /
+     *       `craft_probe_upgradetab`（网格发现器三连，机制由 `craft_check`/`craft_goal` 覆盖）、
+     *       `machine_route`（`MachineProbeTask` 零写入、机制由 `craft_check` 的生产查询层覆盖）；</li>
+     *   <li><b>自证前提的诊断步</b>：`fall_execute` / `pillar_execute`（`CleanupWrappedTask` 包着，
+     *       自带场景 + 自收尾；同坐标同 Movement 已由 BASELINE 的 `pathing` 21 场景覆盖）；</li>
+     *   <li><b>阶段 3-A 合成线</b>（`D-201` 原裁定名单，扣掉 `craft_table`）：`craft_action` /
+     *       `craft_station` / `craft_station_provision` / `craft_station_craft`；</li>
+     *   <li><b>阶段 3-B 机器线</b>（已验收、当前主线是挖掘）：`machine_station` / `machine_cycle`
+     *       —— `craft_machine` 是同一份闭环的**生产入口**，保留。</li>
+     * </ul>
+     * <b>刻意保留</b>：`craft_table`（`D-201` 名单里有它，但它**是 CORE 里唯一的原版 3×3
+     * `CraftingMenu` 执行覆盖** —— `craft_goal` 只走随身 2×2）· `coarse_goal_prefix`（用户 2026-09-22
+     * 点名要它进 CORE，且只花 4 tick；它名字承诺的"粗目标必须有前缀"在 CORE 世界里是**条件式**的，
+     * 真正常驻的是 `D-132` 读脚印 + `GOAL_NOT_LOADED` 两条 —— 见 `D-390`/`D-391`）。
+     * <p>⚠️ <b>纪律（`D-201` 附注一，2026-09-13 用一次真红换来的）</b>：撤步骤**必须复跑 CORE 并逐步对比**
+     * —— 当年 8 步退 EXTRA 后 CORE 立刻红（`craft_furnace`/`craft_cooking`/`transfer`：被撤的步在替它们
+     * 做前置/清场）。本轮已按该纪律跑一轮 CORE 逐步 diff（见 `D-408`）；**若出现 `lumber_job` 之外的新红，
+     * 逐条回滚**而不是继续砍。
      */
     private static final Map<String, Profile> CURATION = Map.ofEntries(
             // ---- BASELINE：必要基础（15）----
@@ -168,11 +190,11 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("craft_furnace", Profile.MAIN),
             Map.entry("craft_cooking", Profile.MAIN),
             Map.entry("craft_goal", Profile.MAIN),
-            Map.entry("machine_route", Profile.MAIN),
-            Map.entry("machine_station", Profile.MAIN),
+            Map.entry("machine_route", Profile.EXTRA),
+            Map.entry("machine_station", Profile.EXTRA),
             // 阶段 3-B / S4（D-213）：单机最小闭环（真的把机器跑起来一次）——它**会写容器**，
             // 是 MAIN 里唯一带写入的一步；模组不在 ⇒ SKIP（同 machine_route/machine_station）
-            Map.entry("machine_cycle", Profile.MAIN),
+            Map.entry("machine_cycle", Profile.EXTRA),
             // M1（G1）：挖矿候选菜单契约 —— `mine` 不许猜位置（矿石场景 + 复用 MineCandidateSource）。
             // 放 MAIN（CORE 跑）而不是 EXTRA：它是"**不猜语义**"这条红线的门禁，必须每次改动都跑得到。
             Map.entry("mine_menu", Profile.MAIN),
@@ -252,8 +274,8 @@ public final class RegressionBatteryTask implements Task {
             // 死亡机制第 1 步（D-276）：死亡**不删数据**（倒下态 = FALLEN，含位置/死因/时刻）。
             Map.entry("death_persistence", Profile.MAIN),
             // V-4 对照的 **Alice 侧**（2026-09-17）：把 FALL / PILLAR 的移动执行 tick 变成无头可取的数
-            Map.entry("fall_execute", Profile.MAIN),
-            Map.entry("pillar_execute", Profile.MAIN),
+            Map.entry("fall_execute", Profile.EXTRA),
+            Map.entry("pillar_execute", Profile.EXTRA),
             // **CORE 修剪（2026-09-17）**：它是 V-4 停表的**工具检查**（V-4 已裁定不阻塞）⇒ 移出 CORE，
             // 只在 FULL 跑（`single:contrast_timer` 仍可随时单独跑）。判据本身不变。
             Map.entry("contrast_timer", Profile.EXTRA),
@@ -272,17 +294,21 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("craft_machine", Profile.MAIN),
             // 2026-09-13 D-201 附注一：**回退整理**——撤走后 CORE 三项变红（缺隐含前置），
             // 而这些步骤在 FULL 里是绿的 ⇒ 先恢复绿基线，等"显式自证前提"做完再**逐条**撤（每条复跑一次）
-            Map.entry("craft_action", Profile.MAIN),
+            Map.entry("craft_action", Profile.EXTRA),
             Map.entry("craft_table", Profile.MAIN),
-            Map.entry("craft_station", Profile.MAIN),
+            Map.entry("craft_station", Profile.EXTRA),
             // `C2`（`D-399`）：回收脚下支撑的强判据（自下而上账本 ⇒ 守卫关掉才会真摔）。
             Map.entry("restore_underfoot_safety", Profile.EXTRA),
-            Map.entry("craft_probe_inventory", Profile.MAIN),
-            Map.entry("craft_probe_table", Profile.MAIN),
-            Map.entry("craft_probe_upgradetab", Profile.MAIN),
-            Map.entry("craft_station_provision", Profile.MAIN),
-            Map.entry("craft_station_craft", Profile.MAIN),
-            // ---- EXTRA：已验收/无关/耗时（11）----
+            Map.entry("craft_probe_inventory", Profile.EXTRA),
+            Map.entry("craft_probe_table", Profile.EXTRA),
+            Map.entry("craft_probe_upgradetab", Profile.EXTRA),
+            Map.entry("craft_station_provision", Profile.EXTRA),
+            Map.entry("craft_station_craft", Profile.EXTRA),
+            // ---- EXTRA：已验收/无关/耗时（52）----
+            // ⭐ `Z1` / `D-398`（2026-09-22）：**账本/回收的地理范围 = 保护区及其子区域**
+            //（区外不记账、不恢复；区内一定记账）。EXTRA：自建场景 + 改认领状态 + **故意在区外留一块
+            // 不回收的方块**（R2 的直接后果）⇒ 与其它"会改世界"的取证夹具同档，只适合 `single:` / `module:ledger`。
+            Map.entry("ledger_zone_scope", Profile.EXTRA),
             Map.entry("lumber_failure", Profile.EXTRA),
             Map.entry("region_maintain", Profile.EXTRA),
             Map.entry("region_sweep", Profile.EXTRA),
@@ -756,11 +782,29 @@ public final class RegressionBatteryTask implements Task {
         BotLog.info("[Regression] step={} ({}/{}) scenes={} budget={}",
                 step.name(), index + 1, steps.size(), step.scenes(), step.budgetTicks());
         bot.controller().stopMovement();
+        // ⭐ **顺序（`D-296` 的 T-1 修正，2026-09-22 补到电池侧）**：先 **发料/传送**（把区块**握住**）
+        // **再**跑场景函数。旧顺序是"场景 → provision"✗ —— 场景在一个**没有被任何人握住**的冷区块上执行，
+        // `/fill` 报 `ERROR_NOT_LOADED`、`/setblock` 写进去的方块又会随区块卸载而回滚到磁盘上的旧内容
+        // ⇒ 夹具拿着"**没有地形**"的世界做判断（`craft_table` 实测：场景 `rc=5`（全成功）、
+        // 3 tick 后现场却是一台**箱子**——另一个场景留在那格上的磁盘内容）。
+        // 编排器（`CheckHarness`）早就是这个顺序 ⇒ 这里对齐，两侧不再有"未证明的顺序差异"。
+        if (step.provision() != null) {
+            step.provision().run();
+        }
         if (!step.scenes().isEmpty()) {
             var server = bot.serverLevel().getServer();
             var source = server.createCommandSourceStack().withSuppressedOutput();
             for (String fn : step.scenes()) {
-                server.getCommands().performPrefixedCommand(source, "function " + fn);
+                int sceneRc = server.getCommands().performPrefixedCommand(source, "function " + fn);
+                // ⭐ `D-251` 教训（2026-09-22 复现）：命令源是 `withSuppressedOutput()` ⇒ 场景函数失败
+                // （不存在 / 数据包陈旧 / 区块没加载）**一个字都不会打**，于是夹具拿着"没有地形"的世界
+                // 做判断 ⇒ 判据悄悄变成另一回事（`craft_table` 实测：`table_found=FAIL` 而现场是一台
+                // **箱子**——另一个场景的函数留在这格上的残留）。⇒ 把返回值**如实记下来**，rc<=0 响亮告警。
+                BotLog.info("[Regression] scene={} rc={}", fn, sceneRc);
+                if (sceneRc <= 0) {
+                    BotLog.warn("[Regression] ⚠️ 场景函数 {} 一条命令都没成功（rc={}）⇒ 本步的世界前提**可能没落地**",
+                            fn, sceneRc);
+                }
             }
         }
         if (step.provision() != null) {

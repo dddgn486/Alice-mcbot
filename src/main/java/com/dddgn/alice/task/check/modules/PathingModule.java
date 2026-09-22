@@ -83,10 +83,10 @@ public final class PathingModule implements CheckModule {
                 // D-336（2026-09-19）：**斜向上升那一格**（规划级）—— 能力 + 信封两用例，互为反证。
                 CheckStep.of("place_step_diagonal", CheckProfile.EXTRA, List.of(), null,
                         () -> new PlaceStepDiagonalCheckTask(bot, ctx.observer()), 400),
-                CheckStep.of("fall_execute", CheckProfile.MAIN,
+                CheckStep.of("fall_execute", CheckProfile.EXTRA,
                         List.of("alice_test:fall_course_terrain"), null,
                         () -> new CleanupWrappedTask(new FallDiagnosticTask(bot, ctx.observer()), bot), 600),
-                CheckStep.of("pillar_execute", CheckProfile.MAIN,
+                CheckStep.of("pillar_execute", CheckProfile.EXTRA,
                         List.of("alice_test:pillar_course_terrain"), null,
                         () -> new CleanupWrappedTask(new PillarDiagnosticTask(bot, ctx.observer()), bot), 900),
                 CheckStep.of("contrast_timer", CheckProfile.EXTRA,

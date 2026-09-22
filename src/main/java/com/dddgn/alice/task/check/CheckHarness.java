@@ -150,7 +150,14 @@ public final class CheckHarness {
                 if (!step.scenes().isEmpty()) {
                     var source = server.createCommandSourceStack().withSuppressedOutput();
                     for (String fn : step.scenes()) {
-                        server.getCommands().performPrefixedCommand(source, "function " + fn);
+                        int sceneRc = server.getCommands().performPrefixedCommand(source, "function " + fn);
+                        // ⭐ `D-251` 教训：`withSuppressedOutput()` 会把场景函数的失败**全部吞掉** ⇒
+                        // 夹具会拿着"没有地形"的世界做判断。返回值如实记下，rc<=0 响亮告警。
+                        BotLog.info("[Harness] scene={} rc={}", fn, sceneRc);
+                        if (sceneRc <= 0) {
+                            BotLog.warn("[Harness] ⚠️ 场景函数 {} 一条命令都没成功（rc={}）⇒ 本步前提可能没落地",
+                                    fn, sceneRc);
+                        }
                     }
                 }
                 premiseStartTick = ticks;

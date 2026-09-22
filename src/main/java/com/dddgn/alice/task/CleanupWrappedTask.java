@@ -27,6 +27,8 @@ public class CleanupWrappedTask implements Task {
     private final Task inner;
     private final BotPlayer bot;
     private boolean innerDone;
+    /** ⭐ `D-408`：内层是否**如实失败**（旧实现把它吞掉 ⇒ 这一步结构上不可能红）。 */
+    private boolean innerFailed;
     private boolean cleaned;
     private int cleanupTicks;
 
@@ -61,6 +63,14 @@ public class CleanupWrappedTask implements Task {
             Status status = inner.tick();
             if (status == Status.DONE || status == Status.FAILED) {
                 innerDone = true;
+                // ⭐ 2026-09-22 修（真缺陷，`D-408`）：**内层终态必须透传**。
+                // 旧实现这里只记 `innerDone`，终态判据写成 `innerDone && cleaned ? DONE : FAILED`
+                // ⇒ 内层 `FAILED` 也被报成 `DONE`；而电池只在 `status == DONE` 时记 PASS
+                // （`RegressionBatteryTask` 的 `record(...)`）⇒ `fall_execute` / `pillar_execute`
+                // **结构上不可能红**（判据全红仍记绿）。这与本项目自己的纪律冲突
+                // （"终态必须传播自检结论" —— 见 `WritePolicyCheckTask` 里同类事故的注释）：
+                // **假绿比假红危险**。收尾动作（下面 `cleanup()`）与"内层干得对不对"是两件事，不许混。
+                innerFailed = status == Status.FAILED;
                 cleanup();
             }
             return Status.RUNNING;
@@ -68,7 +78,7 @@ public class CleanupWrappedTask implements Task {
         if (cleanupTicks++ < 3) {
             return Status.RUNNING;   // 给拆方块/复位一点时间落定
         }
-        return innerDone && cleaned ? Status.DONE : Status.FAILED;
+        return innerDone && cleaned && !innerFailed ? Status.DONE : Status.FAILED;
     }
 
     private void cleanup() {

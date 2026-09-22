@@ -49,13 +49,13 @@ public final class MachineModule implements CheckModule {
         return List.of(
                 // 阶段 3-B / S1（D-204 / §6.51）：**机器配方只读**（问上游自述读输入/输出 + 查询层给 MACHINE_ROUTE）；
                 // 模组不在/该命名空间没有机器类型 ⇒ SKIP（不判红）。零写入、无场景。
-                CheckStep.skippable("machine_route", CheckProfile.MAIN, List.of(), () -> { },
+                CheckStep.skippable("machine_route", CheckProfile.EXTRA, List.of(), () -> { },
                         () -> new MachineProbeTask(bot, observer), 200,
                         task -> task.failureReason().contains("_absent")),
                 // 阶段 3-B / S2+S3（D-206 / D-209）：**机器站点只读**，按 `MachineMap` 认机器
                 // （半径内表里登记的方块每类一台 ⇒ 双机器场景也能自证点对了哪台）；
                 // 断言菜单类与"方块实体自述配方类型 == 表里的类型"。零写入。
-                CheckStep.skippable("machine_station", CheckProfile.MAIN, course,
+                CheckStep.skippable("machine_station", CheckProfile.EXTRA, course,
                         () -> to(bot, MachineStationProbeTask.START),
                         () -> new MachineStationProbeTask(bot, observer), 400,
                         task -> task.failureReason().contains("_absent")),
@@ -63,7 +63,7 @@ public final class MachineModule implements CheckModule {
                 // 第一次**容器写入**：`WriteBudget.consumeContainerWrite` + 理由 CONTAINER_TRANSFER +
                 // requester `machine-cycle`（矩阵登记为 CONTAINER）；写入一律**按结果验证**，不猜槽位语义。
                 // 预算 1600 > 任务自身 MAX_TICKS 1400（让任务的守卫先报**具体**失败原因）。
-                CheckStep.skippable("machine_cycle", CheckProfile.MAIN, course,
+                CheckStep.skippable("machine_cycle", CheckProfile.EXTRA, course,
                         () -> to(bot, MachineCycleCheckTask.CYCLE_START),
                         () -> new MachineCycleCheckTask(bot, observer), 1600,
                         task -> task.failureReason().contains("_absent")),

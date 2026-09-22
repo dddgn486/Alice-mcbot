@@ -77,6 +77,8 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
     private String notes = "-";
     private int skippedCount = -1;
     private boolean reported;
+    /** ⭐ `Z1`/`D-398`：夹具自摆的"保护区 + 任务区"前提（结束复位）。 */
+    private FixtureZone.Handle zone;
 
     public RestoreUnderfootSafetyCheckTask(BotPlayer bot, ServerPlayer observer) {
         this.bot = bot;
@@ -244,6 +246,19 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
         FixtureToolKit.resetInventory(bot);
         bot.controller().stopMovement();
         scope = new ScopeBuffer();
+        // ⭐ `D-398`/`Z1`（2026-09-22）：**回收只在保护区内发生** —— 区外按裁定不记账、不恢复
+        // ⇒ 不摆这个前提，下面的账本播种会被 `recordPlacement` 整批跳过（静默假绿：
+        // `pending=0` → `nothing_to_restore` → 三条判据在"什么都没发生"的世界里全绿）。
+        // 前提 = 认领场景区块 + L2 任务区封套（理由见 `FixtureZone` 类注释）。
+        zone = FixtureZone.protect(level, bot.getUUID(),
+                new BlockPos(ORIGIN.getX() - 2, FLOOR_Y, ORIGIN.getZ() - 2),
+                new BlockPos(ORIGIN.getX() + PILLAR_H + 2, FLOOR_Y + PILLAR_H + 2, ORIGIN.getZ() + 2),
+                "region_lumber");
+        if (!zone.ok()) {
+            failures.add("FIXTURE_ZONE_PREMISE_FAILED " + zone.describe());
+            BotLog.warn("[C2] 前提未成立：{}", zone.describe());
+            return;
+        }
         String scopeId = WorldModLedger.openScope(level.getServer(), bot.getUUID(), "c2_underfoot");
         // ⭐ **自下而上**播种（= 真机 `PILLAR` 上行的真实顺序）
         for (int i = 0; i < PILLAR_H; i++) {
@@ -272,6 +287,9 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
             level.setBlock(entry.getKey(), entry.getValue(), 3);
         }
         touched.clear();
+        if (zone != null) {
+            zone.release();   // 夹具纪律：结束复位（含失败路径）
+        }
         WorldModLedger.closeScope(level.getServer(), bot.getUUID());
         BlockPos home = new BlockPos(ORIGIN.getX(), FLOOR_Y + 1, ORIGIN.getZ());
         bot.teleportTo(level, home.getX() + 0.5D, home.getY(), home.getZ() + 0.5D, 0.0F, 0.0F);
