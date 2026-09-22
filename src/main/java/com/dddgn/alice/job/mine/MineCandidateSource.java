@@ -452,9 +452,19 @@ public final class MineCandidateSource implements CandidateSource {
             if (reason != null) {
                 return reason;
             }
-            if (!BlockInteraction.breakable(bot, level, pos,
-                    WriteGrant.of("mine-plan", WriteReason.EXPECTED_TARGET))) {
-                return "unbreakable";
+            // ⭐ `D-392`（2026-09-22 真机：用户问"最后为什么停下"，日志答不了 —— 因为这里把
+            // `breakRefusal` 的**所有**具体码塌成了一个 `unbreakable`）。
+            // 实测真相：`BlockInteraction.breakRefusal` 的**第一条**就是 `already_air` ⇒ 快照里
+            // "早被挖空的格"一直以 `unbreakable` 出现在 SKIP/rejected 列表里（真机 `candidates` 涨到 1037、
+            // 终态失败列表里 `block@164,91,158:unbreakable…` 全是这种），把"已空"说成"挖不动"。
+            // 顺序：保护区 → **预算**（保 `mine_budget` 的 `write_budget_exhausted` 归因）→ 具体拒绝码。
+            WriteGrant grant = WriteGrant.of("mine-plan", WriteReason.EXPECTED_TARGET);
+            if (!com.dddgn.alice.action.WriteBudget.breakAllowed(bot, grant)) {
+                return "write_budget_exhausted";
+            }
+            String refusal = BlockInteraction.breakRefusal(bot, level, pos, grant);
+            if (refusal != null) {
+                return refusal;   // already_air / fluid_block / unbreakable_block / protected_target / …
             }
             return null;
         }

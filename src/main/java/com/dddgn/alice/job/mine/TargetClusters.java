@@ -84,7 +84,11 @@ public final class TargetClusters {
 
     /** 默认口径：二十六邻接 + 预算 3。 */
     public static List<Cluster> partition(Collection<BlockPos> anchors) {
-        return partition(anchors, Connectivity.DIAGONAL_26, DEFAULT_EXTRA_SEARCH_BUDGET);
+        // ⭐ 用户 2026-09-22 裁定：**改回六面判定**（`FACE`）。理由（真机实测）：
+        // 26 邻接把 **10 种矿 / y=72→91 跨 19 格 / 候选 1037 个**串成"一个簇"（`kinds=10`），
+        // 那已经不是"一条脉"；且 26 邻接与"站/碰需要 6 面邻接空气"**判据不匹配** ——
+        // 一个格可以"对角连着已挖空位"却在 6 面全被同族包住 ⇒ 规划器给不出站位（`found_but_unminable`）。
+        return partition(anchors, Connectivity.FACE, DEFAULT_EXTRA_SEARCH_BUDGET);
     }
 
     /**

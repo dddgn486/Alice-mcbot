@@ -1060,6 +1060,14 @@ public class MineMenuCheckTask implements Task {
                 com.dddgn.alice.job.mine.TargetClusters.Connectivity.FACE, 3);
         var diagonalAll = com.dddgn.alice.job.mine.TargetClusters.partition(diagonal,
                 com.dddgn.alice.job.mine.TargetClusters.Connectivity.DIAGONAL_26, 3);
+        // ⭐ `D-392`（用户 2026-09-22 裁定）：默认连通口径**必须是六面**（`FACE`）。
+        // 反向对照：把 `TargetClusters.partition(anchors)` 里的默认改回 `DIAGONAL_26` ⇒ 下面必红。
+        check("簇：**默认**连通口径必须是六面（用户 2026-09-22 裁定）—— 对角两点在默认口径下必须分属 2 簇"
+                        + "（实测 " + com.dddgn.alice.job.mine.TargetClusters.partition(diagonal).size()
+                        + "；26 邻接会把 10 种矿/跨 19 格串成一个 1037 成员的「簇」，"
+                        + "且与「站/碰要 6 面空气」判据不匹配）",
+                com.dddgn.alice.job.mine.TargetClusters.partition(diagonal).size() == 2);
+
         check("簇：面相连成一条 ⇒ 恰好 1 簇（实测 " + com.dddgn.alice.job.mine.TargetClusters.partition(chain).size() + "）"
                         + " · 隔开的 ⇒ 2 簇（实测 " + com.dddgn.alice.job.mine.TargetClusters.partition(apart).size() + "）"
                         + " · 对角相连：26 邻接=1 簇 / 面邻接=2 簇（实测 "

@@ -17233,3 +17233,47 @@ float/double 精度）；**例外** = `DRY_STALE_FLAG`（§三.1）：期望是 
   因为 CORE 世界里该区域**走廊外是空的且已加载** ⇒ 搜索 open set 耗尽 ⇒ `UNREACHABLE`（**诚实**：那里真走不通）
   且前缀被丢弃。⇒ 把"必须有前缀"改成**条件式**（只在 `PARTIAL` 时要求），
   并新增**与世界无关的不变式**："`diag` 里出现 `boundary_unloaded` 时才禁止 `UNREACHABLE`"。
+
+### D-392：**簇连通默认改回六面**（用户裁定）+ **拆开被塌成一个的 `unbreakable` 码** + **帧延迟取证**（2026-09-22）
+
+用户 2026-09-22 本轮三个追问的答复与落地：
+*"帧延迟一直很大……进世界的时候就很大，加载地形很缓慢"* / *"最后为什么停下了"* /
+*"簇的连续挖掘选目标顺序真的合理吗？合理的话为什么会被下一个目标同族包裹"*。
+
+#### 一、簇连通默认：`DIAGONAL_26` → **`FACE`（六面）**（用户裁定）
+
+- **用户理由（真机实测支持）**：26 邻接把 **10 种矿（`kinds=10`）/ y=72→91 跨 19 格 / 候选 1037 个**
+  串成"一个簇" —— 那已经不是"一条脉"；且**判据不匹配**：簇按 26 邻接（对角算同族），
+  而"能站/能碰"要求 **6 面邻接空气** ⇒ 一个目标可以"**对角**连着刚挖空的格（因此被沿脉传播排到最前）"
+  却在 6 面全被同族矿包住 ⇒ 规划器给不出站位（`direct=no_valid_standing_point`）⇒ `found_but_unminable`。
+- **改法**：`TargetClusters.partition(anchors)` 默认改 `Connectivity.FACE`（两种口径都保留，`D-329 §3` 的
+  "几何 + 同区块"不变）。
+- **门禁**：`mine_menu` 新增断言"默认口径下**对角两点必须分属 2 簇**"（红臂：默认改回 `DIAGONAL_26` ⇒ 红）。
+
+#### 二、`unbreakable` 塌码 —— 真相是 **`already_air`**（"为什么停下"的答案）
+
+- 现象：终态 `partial_quota` 且失败列表是 `block@164,91,158:unbreakable, block@180,91,159:unbreakable…`，
+  而 `[WriteBudget] SUMMARY cap=不限 refusedBreaks=0` ⇒ 用户确认该区域**无保护/无流体** ⇒ 日志答不了"为什么"。
+- 根因：`MineCandidateSource.viabilityRefusal` 原来把 `BlockInteraction.breakRefusal` 的**所有**具体码
+  塌成一个 `"unbreakable"`；而 `breakRefusal` 的**第一条**就是 `already_air` ⇒ 快照里
+  **"早被挖空的格"一直以"挖不动"的样子**出现在 SKIP / rejected / 终态失败列表里（`candidates` 单调涨到 1037）。
+- 改法：顺序 = 保护区 → **预算**（保 `mine_budget` 的 `write_budget_attribution`）→ **`breakRefusal` 的原码**
+  （`already_air` / `fluid_block` / `unbreakable_block` / `protected_target` …）。
+- **顺带记下的未收口项**：**死候选从不从快照里剔除**（`candidates` 只涨不减）⇒ 每次选择的全量复检成本
+  随之增长。这是"任务跑久了变慢"的来源之一（与本条 ③ 的客户端慢**无关**，别混）。
+- 判据：`mine_menu`/`mine_regression`/`mine_job`/`mine_budget` 四步全 PASS（CORE 52/53，唯一失败仍是既有 `lumber_job`）。
+
+#### 三、帧延迟取证：**不是 Alice**（客户端渲染配置）
+
+| 证据 | 值 |
+|---|---|
+| 客户端 `options.txt` | **`renderDistance:32`** · `simulationDistance:12` · `graphicsMode:1`（Fancy）· `entityShadows:true` · `renderClouds:true` · `mipmapLevels:4` · `maxFps:260` · `enableVsync:false` |
+| 性能优化 mod | **一个都没有**（`mods/` 里无 Sodium / Embeddium / Rubidium / Oculus / Nvidium —— 已 grep） |
+| GPU / 驱动 | `RTX 5070 Ti` · 驱动 `595.97` · `GL 4.6.0 NVIDIA` ⇒ **硬件充足**（用户：9600X + 5070 Ti + 32G） |
+| 截图分辨率 | 3840×2120（≈4K） |
+| Alice 侧（同会话） | `Can't keep up` = **0**；撞上限搜索 **9 次 × 恰好 50 ms**（`D-388` 生效） |
+
+⇒ "**进世界就慢、地形加载缓慢**"= **原版渲染器 + 32 区块视距 + 4K + 重模组包**（Create/Mekanism/Thermal/
+FTB Chunks/WorldEdit/JEI…）的客户端渲染问题，与 bot 无关。**建议**（按收益排序）：① `renderDistance 32 → 12~16`；
+② 装 **Embeddium**（Forge 1.20.1 的 Sodium 移植）；③ `graphicsMode → Fast`、`renderClouds/entityShadows → off`；
+④ `simulationDistance 12 → 8`；⑤ 测试时用 1440p 而不是 4K。
