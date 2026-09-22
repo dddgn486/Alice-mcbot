@@ -2097,6 +2097,15 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 | **C2** | ⭐ C 的**强判据**（真坠落 ≥2 格）：需要**乱序账本**几何 —— 把 bot 脚下那根的**下层**方块（或支撑它footing 的邻居）作为账本条目 ⇒ 拆它会让整根塌。**守卫开** ⇒ 延后/`underfoot_unsafe` 如实跳过、`biggestFall ≤ 1`；**守卫关** ⇒ `biggestFall ≥ 2` ⇒ 红 | 夹具：新步 `restore_underfoot_safety`（EXTRA，自建地形 + 直接 `WorldModLedger.record` 播种 TEMP 条目 + `setBlock`）；读数 `biggestFall/unsupportedTicks/skipped 归因` | 为什么必须做：2026-09-22 实测——现夹具（`craft_station`）**守卫开/关都 `biggestFall=1`** ⇒ 判据空跑 | **✅ 完成**：新步 `restore_underfoot_safety`（阶梯几何）绿；真判据 = 不许摔 + **归因不静默**（`D-400`） |
 | **C3** | ⚠️ **事故归因复核**：真机那次坠落**可能不是回收造成的**，而是**路径**的 `BREAK_AND_ENTER` 进了"破坏后下方无支撑"的格子（真机日志 `planned … executable=false support=-` + `chosen=74,116,198` + 该格随后被 `PATH_ACCESS` 破掉）⇒ 候选落点 `SurfaceMovementProvider.appendBreakAndEnter:187`（只查 `canWalkOn(to)`）/ `AStarMovementSearch:143`（只守 goal）。**C 的守卫不覆盖这条路径** | 先补读数：把"破坏后 foot 是否有支撑"做成夹具（乱序/无支撑几何）再定改动 | 与 C 同族（"我方写入把自己置于险境"） | ⭐ **下一步（提升优先）** |
 
+### A2. 回收方案（用户 2026-09-22 要求「完整回收方案」⇒ 设计文档已出：`docs/plans/2026-09-22-回收方案.md`）
+
+| # | 事项 | 判据 | 依赖 | 状态 |
+|---|---|---|---|---|
+| **RC1** | **触发器收敛**：作业层统一收尾（成功/失败/超时/取消四条路径都收）+ **作用域关闭时登记"待收"**（关账 ≠ 已收，但不许静默） | 夹具：失败路径也必须回收；关账后仍有待收 ⇒ 有清单可查 | Z1 | 待做 |
+| **RC2** | **补收**：T3 启动补收（幂等）+ T4 进入范围补收（**不许**为回收强制加载区块） | 夹具：重启后待收条目被补做；未加载 ⇒ 排队不报错 | ⚠️ 需用户裁定（§4.4） | 待做（待裁定） |
+| **RC3** | `CANNOT_RECLAIM`（容器物品 / 流体光照副作用）**如实记账**（不做逐 item 还原，但必须有可查计数/日志） | 门禁/夹具：不许把不可逆说成可逆 | 无 | 待做 |
+| **RC4** | **冗余 1 处置**：账本为唯一真相，`WriteBudget` 降级为遥测/闸门（呼应 `D-387` P1-a 两份不同源） | 门禁：同一量不得有两份"真相" | Z3 | 待做 |
+
 ### B. 能力线（用户要的"能干活"）
 
 | # | 事项 | 判据 | 依赖 | 状态 |
