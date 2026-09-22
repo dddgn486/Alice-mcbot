@@ -438,7 +438,15 @@ public final class MiningPlanner {
      * （实测 `LINE_OF_SIGHT_BLOCKED`）。现在按注释的原意判：**N 格内没有可落面**（深坑/虚空）
      * 或**先撞上岩浆**才算"会丢"。
      */
-    private static final int DROP_FALL_SEARCH = 4;
+    /**
+     * 「掉落承接面」的搜索深度 ⭐ 用户 2026-09-22 裁定（**先 5 后改为 8**，以 8 为准）：
+     * **至少要下方悬空 8 格**才算"掉落物会丢"。
+     *
+     * <p>原来 = 4 ⇒ 真机上"目标下面只空 3~4 格、再往下就是实心"的**普通矿洞**被当成深坑 ⇒
+     * 触发了"在目标下方垫方块"这条会写世界的动作（用户看到的是"莫名其妙跑到目标下面垫石头"）。
+     * 8 格口径：**只有掉落物真会掉 ≥8 格（或下方是岩浆/虚空）才垫** ⇒ 普通矿洞一律不写世界。
+     */
+    private static final int DROP_FALL_SEARCH = 8;
 
     private static boolean dropWouldBeLost(ServerLevel level, BlockPos target) {
         BlockPos cursor = target.below();

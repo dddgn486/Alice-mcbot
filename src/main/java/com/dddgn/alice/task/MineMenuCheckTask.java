@@ -668,7 +668,7 @@ public class MineMenuCheckTask implements Task {
      * 「防止掉落物掉进**虚空/岩浆/深坑**」—— 实现比意图宽得多。
      *
      * <p>本组在矿石场景现搭一个**同层**的临时矿（`(54,63,132)`）并改它下面的几何，断言三条：
-     * ① 浅坑（掉落物落坑底、捡得回来）⇒ **不垫**（= 真机那一格）· ② 4 格内无可落面（深坑/虚空）⇒ **要垫**
+     * ① 浅坑（掉落物落坑底、捡得回来）⇒ **不垫**（= 真机那一格）· ② 8 格内无可落面（深坑/虚空）⇒ **要垫**（`D-393` 收紧）
      * · ③ 坑底是岩浆 ⇒ **要垫**。收尾跑场景函数复位。
      */
     private void runSupportTriggerChecks() {
@@ -694,14 +694,14 @@ public class MineMenuCheckTask implements Task {
             check("垫方块：浅坑（掉落物落坑底、捡得回来）⇒ **不垫**（support=" + supportPos(shallow) + "）",
                     shallow.success() && supportPos(shallow) == null);
 
-            // ② 深坑：窗口内（4 格）都没有可落面 ⇒ 会丢 ⇒ 要垫
-            for (int depth = 2; depth <= 4; depth++) {
+            // ② 深坑：窗口内（⭐ `D-393` 收紧后 = **8 格**）都没有可落面 ⇒ 会丢 ⇒ 要垫
+            for (int depth = 2; depth <= 8; depth++) {
                 level.setBlockAndUpdate(ore.below(depth),
                         net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
             }
             var deep = new com.dddgn.alice.task.mining.MiningPlanner().plan(bot, ore,
                     com.dddgn.alice.task.mining.MiningBudget.forTarget(bot, level, ore, true));
-            check("垫方块：4 格内无可落面（深坑/虚空）⇒ **要垫**（support=" + supportPos(deep)
+            check("垫方块：8 格内无可落面（深坑/虚空）⇒ **要垫**（support=" + supportPos(deep)
                             + "，期望 " + ore.below().toShortString() + "）",
                     deep.success() && ore.below().equals(supportPos(deep)));
 
