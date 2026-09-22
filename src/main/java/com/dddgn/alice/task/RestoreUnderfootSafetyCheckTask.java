@@ -249,7 +249,10 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
         for (int i = 0; i < PILLAR_H; i++) {
             BlockPos pos = stepPos(i);
             WorldModLedger.recordPlacement(level, bot.getUUID(),
-                    com.dddgn.alice.action.WriteGrant.of("c2-fixture",
+                    // ⚠️ requester 必须含**派生前缀**（`tools/policy-map.py` 的 derived_markers：
+                    // check/probe/dump/diagnostic/regression/battery/demo）⇒ 否则 `check-policy-matrix` 报
+                    // "未登记的 requester 字面量"（2026-09-22 我第一版用了 `c2-fixture` ⇒ 门禁红了一次）。
+                    com.dddgn.alice.action.WriteGrant.of("check:c2-underfoot",
                             com.dddgn.alice.action.WriteReason.STEP_PLACEMENT),
                     pos, Blocks.AIR.defaultBlockState(), Blocks.COBBLESTONE.defaultBlockState());
         }
