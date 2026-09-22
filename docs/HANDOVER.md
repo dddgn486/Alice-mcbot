@@ -8,6 +8,12 @@
 > 静态档 = **19/1/0**（WARN = 未跑电池）· 客户端 jar = `dd0ada15f58ef646…`（**已同步**到客户端 mods + 镜像仓）·
 > 本轮新增电池步：`ledger_zone_scope`（EXTRA，`Z1` 判据）。
 >
+> ⭐ **真机确认（2026-09-22 23:11，`WINDOWS_CLIENT` + `USER_ACCEPTED`）**：用户重放了事故那一步（野外指派挖矿、
+> 内核 `PILLAR` 垫脚）——**同一格 `-84,90,147`**、同一理由 `STEP_PLACEMENT`，本次 `[Ledger] skip …（区外）` ×3、
+> `[Ledger] place`=**0**、`SCAFFOLD_RESTORE`/`[Restore]`=**0**、**无坠落**、`MineTask terminal=COMPLETED`（69 tick）。
+> 对照 `D-406`：那时进账 ⇒ 130 tick 后 `break -84,90,147 … RestoreScope:SCAFFOLD_RESTORE` ⇒ bot 坠落。
+> ⇒ 「区外自动回收」这条事故路径**已从根上消失**；用户判定「符合预期」。**`Z1` 全弧闭合。**
+>
 > **⛔ 队列 = 唯一排期来源**：`docs/OPEN_ITEMS_LEDGER.md` **§11**（A 安全/责任 · A2 回收 · B 能力 · C 尺子 · D 架构 ·
 > E 观察项 · ⭐ **F 2026-09-22 新增**）。
 > **下一步** = `Z2`（`J6` 收窄 + 做成门禁）→ `Z3`（区外取消格数额度 / 区内不许静默降级）→ **守卫挪到破块前** +

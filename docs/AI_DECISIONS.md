@@ -17878,3 +17878,23 @@ zoneTerminal=restore_done purgeDropped=1 ticks=166 → PASS`（`run/headless-log
 - 收口轮（修完三处之后）的 CORE 判决记录在本条下（见 `docs/HANDOVER.md` 顶部）。
 - **仍未做**：`lumber_job` 连红 34 轮（`no_reachable_candidate` + `trunk_too_tall` + **`idempotent=false`**）
   —— 它是 CORE 唯一红项，也是把 CORE 从 280 s 降到秒级（`D-352` 缓存只写 PASS ⇒ 永不命中）的**唯一大杠杆**。
+
+#### 五、⭐ 真机确认（2026-09-22 23:11，`WINDOWS_CLIENT` + `USER_ACCEPTED`）—— **与事故同一坐标的复现**
+
+用户在固定客户端里**重放了事故那一步**（野外指派挖矿目标 ⇒ 内核 `PILLAR` 垫脚上行）：
+
+```
+23:11:54  [Ledger] skip -84, 90, 147 place=minecraft:cobblestone by=mine-runner:attempt0:STEP_PLACEMENT（区外：D-398 R1/R2 不记账、不恢复；累计 1 次）
+23:11:54  [Ledger] skip -84, 90, 148 place=minecraft:cobblestone by=mine-runner:attempt0:STEP_PLACEMENT（… 累计 2 次）
+23:11:55  [Ledger] skip -86, 90, 148 place=minecraft:cobblestone by=mine-runner:attempt1:STEP_PLACEMENT（… 累计 3 次）
+23:11:56  [WRITE] break -85, 89, 147 minecraft:gold_block by=command:EXPECTED_TARGET
+23:11:57  task_execution_terminal kind=MineTask target=方块@-85,89,147 terminal=COMPLETED code=done durationTicks=69
+          [WriteBudget] SUMMARY breaks=1 places=3
+```
+
+**对照事故当时（`D-406` 逐字）**：同一格 `-84,90,147`、同一理由 `mine-runner:attempt0:STEP_PLACEMENT`，
+但那时进账 ⇒ 130 tick 后 `break -84,90,147 … by=RestoreScope:SCAFFOLD_RESTORE` ⇒ bot 坠落。
+
+**本次全会话**：`[Ledger] place` = **0** · `RestoreScope`/`SCAFFOLD_RESTORE` = **0** · `[Restore]` = **0** ·
+**无任何坠落/失撑日志** · 任务 `COMPLETED`。⇒ `D-398`/`Z1` 在真机上**从根上消掉了**那条事故路径，
+用户判定「符合预期」。分级：**`WINDOWS_CLIENT` + `USER_ACCEPTED`**。
