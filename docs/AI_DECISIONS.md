@@ -17548,3 +17548,43 @@ ms 常量**（`SearchTickBudget.DEFAULT_MAX_MILLIS_PER_TICK=**400**`＝8 个 tic
 
 守卫 = `IMPLEMENTED` + `COMPILES` + `SERVER_TESTED`（`CORE 52/53`，唯一失败仍是既有 `lumber_job`；
 `check-all` 19/1/0）；**强判据 = 未落地**（`C2`）；**归因 = 未复核**（`C3`）。
+
+### D-400：**C/C2 收口 —— 守卫保留但"判据不可红"（两次几何实测）；事故归因转向「路径」（C3 提升）**（2026-09-22）
+
+#### 一、两次几何实测（都在真电池里跑）
+
+| 几何 | 结果 | 结论 |
+|---|---|---|
+| 柱形（3 格我方 TEMP，账本**自下而上**） | `biggestFall=0`，但 `skipped=3 / notes=…:side_break_failed` | 回收**根本碰不到**（每级上方实心 ⇒ 站不上去）⇒ 什么都没拆 |
+| 阶梯形（3 级斜阶梯，账本自下而上） | `biggestFall=1`、`endSupported=true`，仍 `skipped=3 / side_break_failed` | 同上：**拆不动就停**，不是"拆了让人摔" |
+
+⇒ ⭐ **结论**：`RestoreScopeTask` 这条路径**结构上安全或"失败安全"**（要么自上而下逐格 ≤1 格、要么失败即停）
+⇒ **C 的守卫在这样的几何里无法变红**（守卫开/关读数一致）⇒ 我**不**把 C 记成"已验收的判据"，
+只记成**防御性改动**（无害、且管住"直接踩在待拆格上"这一类 + 给出 `underfoot_unsafe` 归因）。
+
+#### 二、事故归因转向**路径**（`C3` 提升为下一步）
+
+真机日志（18:41）里三件事同时存在，而现在只有第 3 件能解释"直接掉下去"：
+
+| 事件 | 结论 |
+|---|---|
+| `break 73,116,197 cobblestone by=RestoreScope:SCAFFOLD_RESTORE` | 回收拆的是**邻列**的垫脚石（bot 脚位在 `74,116,197`）⇒ **不构成"拆掉自己脚下的支撑"** |
+| `planned … executable=false support=-` + `chosen=74,116,198` | 规划器选了站位 `74,116,198`，而它自己标了 `executable=false` |
+| ⭐ `break 74,116,198 minecraft:stone by=mine-runner:attempt0:PATH_ACCESS` | **路径**把该格破掉；若 `74,115,198` 是空气 ⇒ bot 进格即坠 **⇒ 这才是真凶方向** |
+
+候选落点：`SurfaceMovementProvider.appendBreakAndEnter:187`（只查 `canWalkOn(to)`）/
+`AStarMovementSearch:143`（`goal_post_write_not_standable` 只守 goal）⇒ **没有一处检查"破坏后脚下是否有支撑"**
+（Baritone 的形状是 `MovementDownward:61` 的 `canWalkOn(x, y-2, z)`）。
+
+#### 三、C2 夹具的最终形态（真判据，绿）
+
+新 EXTRA 步 `restore_underfoot_safety`（`task/RestoreUnderfootSafetyCheckTask.java`，阶梯几何 + 账本播种 + 逐 tick 采样）：
+① `biggestFall <= 1`（不许摔）② **归因不许静默**（`restore_partial` ⇒ `skipped>0` 且 `notes` 非空）
+③ 收尾 `endSupported`。**实测绿**：`biggestFall=1 endSupported=true terminal=restore_partial skipped=3 notes=…side_break_failed`。
+（红臂口径诚实说明：本夹具的守卫开/关读数一致 ⇒ **它守的是"不许摔 + 不许静默跳过"**，不是守卫本身；
+守卫的红臂需要"故意改成自下而上直接拆"这种**破坏性注入**，已登记在 §11 的 `C2` 行。）
+
+#### 四、队列状态
+
+`C` = 守卫落地（防御性）+ **判据不可红（已记录，不再追）**；`C2` = 夹具绿（真判据两条）；
+⭐ **`C3` = 下一步**（路径的"破坏后无支撑"⇒ 真机事故的真凶方向）。

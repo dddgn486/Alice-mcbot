@@ -275,6 +275,8 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("craft_action", Profile.MAIN),
             Map.entry("craft_table", Profile.MAIN),
             Map.entry("craft_station", Profile.MAIN),
+            // `C2`（`D-399`）：回收脚下支撑的强判据（自下而上账本 ⇒ 守卫关掉才会真摔）。
+            Map.entry("restore_underfoot_safety", Profile.EXTRA),
             Map.entry("craft_probe_inventory", Profile.MAIN),
             Map.entry("craft_probe_table", Profile.MAIN),
             Map.entry("craft_probe_upgradetab", Profile.MAIN),

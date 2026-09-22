@@ -72,6 +72,11 @@ public final class CraftModule implements CheckModule {
                         List.of("alice_test:craft_station_course"),
                         () -> to(bot, CraftTableCheckTask.START),
                         () -> new CraftStationCheckTask(bot, observer), 2600),
+                // ⭐⭐ `C2`（`D-399` 强判据）：**回收自己放的柱子不许把 bot 摔下去**。
+                // 账本**自下而上**播种（= 真机 `PILLAR` 上行顺序）⇒ 轮到柱顶时下方已是空气
+                // ⇒ 守卫开：延后 + `underfoot_unsafe` 如实归因、全程不掉；守卫关：柱顶被拆 ⇒ bot 摔到地面 ⇒ 红。
+                CheckStep.of("restore_underfoot_safety", CheckProfile.EXTRA, List.of(), null,
+                        () -> new com.dddgn.alice.task.RestoreUnderfootSafetyCheckTask(bot, observer), 1200),
                 // 阶段 3-A / S1-3（D-192）：**通用网格发现**的回归三连 ——
                 // ① 随身 2×2（Auto⇒inventory）② 原版工作台 3×3（零模组依赖）③ 模组"升级页签"（不可用则 SKIP）
                 CheckStep.of("craft_probe_inventory", CheckProfile.MAIN, List.of(),

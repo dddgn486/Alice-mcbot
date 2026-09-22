@@ -239,6 +239,16 @@ public final class RestoreScopeTask implements Task {
         return total;
     }
 
+    /** ⭐ `D-399`/`C2`：夹具读数 —— 未能恢复的明细（含 `underfoot_unsafe` 归因）。 */
+    public List<String> notes() {
+        return List.copyOf(notes);
+    }
+
+    /** ⭐ `D-399`/`C2`：夹具读数 —— 计入 `skipped` 的条数。 */
+    public int skippedCount() {
+        return skipped;
+    }
+
     private Task.Status pickNext() {
         ServerLevel level = bot.serverLevel();
         while (index < queue.size()) {
