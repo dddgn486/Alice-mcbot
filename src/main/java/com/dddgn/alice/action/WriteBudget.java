@@ -369,8 +369,15 @@ public final class WriteBudget {
             return Integer.MAX_VALUE;
         }
         Counters counters = SCOPES.get(scope);
-        return counters == null ? CAPS.getOrDefault(scope, Caps.DEFAULT).maxBreaks()
-                : Math.max(0, CAPS.getOrDefault(scope, Caps.DEFAULT).maxBreaks() - counters.breaks);
+        // ⭐⭐ `D-372` 的**第二个副本**（2026-09-22 真机根因）：网关 `consumeBreak` 读 `Caps.UNBOUNDED`，
+        // 而**判定器**（唯一生产消费者 = `PathRetryRunner:117`）读的是这里 —— 原来仍回退 `Caps.DEFAULT`(64/32)
+        // ⇒ 每作用域**实际仍被 64 次破坏封顶**；且封顶后不是拒绝写入，而是把"需要多格破坏"的计划
+        // **静默降级成纯通行** ⇒ 深挖隧道全部挖不动（真机实测：`remaining=5/32` ×31、
+        // `planWrites>=9..20` 全被降级、作业 `mined 19/64` 与 `6/8`）。
+        // ⇒ 同一个量的两处必须**同源**（改甲必须改乙：`silent-measurement-failure` §5）。
+        Caps caps = CAPS.getOrDefault(scope, Caps.UNBOUNDED);
+        return counters == null ? caps.maxBreaks()
+                : (int) Math.min(Integer.MAX_VALUE, Math.max(0L, (long) caps.maxBreaks() - counters.breaks));
     }
 
     /** 剩余放置额度（计划级检查用；无作用域 = 无限）。 */
@@ -380,8 +387,9 @@ public final class WriteBudget {
             return Integer.MAX_VALUE;
         }
         Counters counters = SCOPES.get(scope);
-        return counters == null ? CAPS.getOrDefault(scope, Caps.DEFAULT).maxPlaces()
-                : Math.max(0, CAPS.getOrDefault(scope, Caps.DEFAULT).maxPlaces() - counters.places);
+        Caps caps = CAPS.getOrDefault(scope, Caps.UNBOUNDED);
+        return counters == null ? caps.maxPlaces()
+                : (int) Math.min(Integer.MAX_VALUE, Math.max(0L, (long) caps.maxPlaces() - counters.places));
     }
 
     /** 已拒绝的破坏次数（诊断/夹具断言）。 */

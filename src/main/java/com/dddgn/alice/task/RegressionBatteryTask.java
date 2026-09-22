@@ -156,6 +156,9 @@ public final class RegressionBatteryTask implements Task {
             // 旧估计只等于陆地那一档 ⇒ 水下挖被算成陆地速度 ⇒ 该放不放。夹具 = 自建水池 + 石壁，
             // 四个状态组合逐个与 `1.0F/getDestroyProgress` 比对 + 生产边生成器的破坏项差额。
             Map.entry("mining_water_break_cost", Profile.EXTRA),
+            // `P1-b`：搜索限流**不许**被写成永久理由（同 tick 占满额度 ⇒ `search_incomplete`；
+            // 下一 tick 同一目标必须能规划出来）。
+            Map.entry("mining_search_limit_honesty", Profile.EXTRA),
             // ---- MAIN：阶段 3-A 收口后的最小烟测集（4）----
             // 口径（D-201）：每一类"只此一步覆盖"的机制各留一步 + 查询层最便宜一步；
             // A2/A3/A3b/C/装配/发现器探针等同机制夹具退 FULL（机制不丢，默认时长下降）

@@ -127,9 +127,17 @@ public final class CostOptimalPolicy implements SelectionPolicy {
     }
 
     private String reason(ServerPlayer bot, Scored picked, double weight) {
-        String travel = Double.isInfinite(picked.travel())
-                ? "cost=inf（估不出通行成本 ⇒ 排序靠后，**不是**不可达）"
-                : String.format(Locale.ROOT, "cost=%.2f", picked.cost());
+        // ⭐ `P1-d`（2026-09-22 真机根因）：成本场**一格都没枚举出来**（`cells=0`）时，
+        // 每个候选的 `travel` 都是 `∞` ⇒ 排序在数学上已**退化成"成本相等"**，实际由
+        // `thenComparingDouble(欧氏距离)` 决定 ⇒ 选出来的是**欧氏最近**，**不是** cost_optimal。
+        // 原来这里仍以 `cost_optimal` 打头（真机 `[Job] select … cost=inf（估不出通行成本 ⇒ 排序靠后）`
+        // 却仍被选中）⇒ 归因与事实不符。⇒ 显式标注 `UNREFINED`，让"退化"在日志里 grep 得到。
+        boolean unrefined = lastResult.estimatedCells() <= 0 || Double.isInfinite(picked.travel());
+        String travel = !unrefined
+                ? String.format(Locale.ROOT, "cost=%.2f", picked.cost())
+                : (lastResult.estimatedCells() <= 0
+                        ? "estimate=UNREFINED（成本场 cells=0 ⇒ 本次排序**退化为欧氏最近**，不是 cost_optimal）"
+                        : "cost=inf（该候选估不出成本 ⇒ 退化为欧氏最近，**不是**不可达）");
         return String.format(Locale.ROOT,
                 "cost_optimal %s travel=%.2f value=%.2f w=%.2f kinds=%d valueOn=%s cells=%d · %s",
                 travel, picked.travel(), picked.value(), weight, lastKindCount, lastValueEnabled,

@@ -202,7 +202,19 @@ public final class MiningPlanner {
         }
         Result result = selectBestApproach(bot, level, target, startFoot, candidates,
                 MiningPlan.Mode.TUNNEL);
-        return result.plan() != null ? result : new Result(null, null, "no_reachable_tunnel_standing_point");
+        if (result.plan() != null) {
+            return result;
+        }
+        // ⭐ `P1-b`（2026-09-22 真机根因）：**逐字保留** `search_incomplete`。
+        // 病灶：这里原来无条件改写成 `no_reachable_tunnel_standing_point` ⇒ `plan()` 的 P1 合取闸门
+        // （三条腿任一为 `search_incomplete` 就整体降级）**永不触发** ⇒ 报 `found_but_unminable`
+        // （永久性理由）⇒ `MineJob` 把候选写进 `attempted` **永久了结**。
+        // 真机实测（2026-09-22 客户端 `latest.log`）：`found_but_unminable` 377 次、`search_incomplete` 206 次、
+        // A1 拒绝 ~235 次（`[Search] 超 tick 预算` 234 次）⇒ 目标 `336,62,190` 从未被挖却已 `already_attempted`。
+        if ("search_incomplete".equals(result.failureReason())) {
+            return result;
+        }
+        return new Result(null, null, "no_reachable_tunnel_standing_point");
     }
 
     private Result planEnterTarget(ServerPlayer bot, ServerLevel level, BlockPos target,
@@ -210,6 +222,15 @@ public final class MiningPlanner {
         // 兜底：以目标格为终点（破坏进入），破坏成本受预算限制
         PathPlan path = planPath(bot, startFoot, target,
                 PathRequest.miningApproach(bot.getUUID().toString(), startFoot, target, "mining-planner"));
+        // ⭐ `P1-b`：**先看状态再看到达** —— `!reached()` 里包含 `SEARCH_LIMIT`（本 tick 搜索额度已用尽），
+        // 那不是"到不了"。原来直接返回 `enter_target_unreachable` ⇒ 同上，整体被记成 `found_but_unminable`。
+        if (path.status() == com.dddgn.alice.pathing.core.search.PlanningStatus.SEARCH_LIMIT) {
+            BotLog.warn("[MiningPlanner] mode=ENTER_TARGET target={} startFoot={} "
+                            + "reason=search_incomplete searchLimited=true"
+                            + "（本轮没评价完，不是「不可达」：`SEARCH_LIMIT ≠ UNREACHABLE`）",
+                    target.toShortString(), startFoot.toShortString());
+            return new Result(null, null, "search_incomplete");
+        }
         if (!path.reached()) {
             return new Result(null, null, "enter_target_unreachable");
         }
@@ -333,12 +354,17 @@ public final class MiningPlanner {
         StandingPointEvaluator.StandingPointScore best = null;
         PathPlan bestPath = null;
         int planned = 0;
+        // ⭐ `P1-b`：是否出现过"本轮没评价完"（`SEARCH_LIMIT`）。有它 ⇒ 结尾**不许**报 `no_reachable_candidate`。
+        boolean searchLimited = false;
         int k = Math.min(MiningTuning.exactTopK(), ranked.size());
         while (true) {
             for (int i = planned; i < k; i++) {
                 BlockPos foot = ranked.get(i);
                 PathPlan path = planPath(bot, startFoot, foot, requestFactory.apply(startFoot, foot));
                 if (!path.reached()) {
+                    if (path.status() == com.dddgn.alice.pathing.core.search.PlanningStatus.SEARCH_LIMIT) {
+                        searchLimited = true;
+                    }
                     continue;
                 }
                 double cost = path.totalCost() + extraCost;
@@ -364,6 +390,13 @@ public final class MiningPlanner {
         }
 
         if (best == null) {
+            if (searchLimited) {
+                BotLog.warn("[MiningPlanner] mode={} target={} startFoot={} candidates={} planned={}"
+                                + " reason=search_incomplete searchLimited=true"
+                                + "（本轮没评价完，不是「不可达」：`SEARCH_LIMIT ≠ UNREACHABLE`）",
+                        mode, target.toShortString(), startFoot.toShortString(), feet.size(), planned);
+                return new Result(null, null, "search_incomplete");
+            }
             return new Result(null, null, "no_reachable_candidate");
         }
         BotLog.info("[MiningPlanner] mode={} target={} startFoot={} candidates={} estimate={} nodes={} ms={}"

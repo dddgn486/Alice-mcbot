@@ -153,6 +153,23 @@ public class WritePolicyCheckTask implements Task {
                     "无显式上限时破坏 200 次不得被拒（实测 ALLOW=" + allowed
                             + "；`D-372`：世界修改放开，闸门改时间预算防空转）");
 
+            // ⭐ `P1-a`（2026-09-22 真机根因）：上面那条只测了**网关**（`consumeBreak`）。
+            // 而唯一的生产消费者 `PathRetryRunner:117` 读的是 `remainingBreaks` —— `D-372` 当时只改了网关，
+            // 这里仍回退 `Caps.DEFAULT`(64/32) ⇒ 每作用域**实际仍被 64 次破坏封顶**，且封顶后不是拒绝写入，
+            // 而是把「需要多格破坏」的计划**静默降级成纯通行**（真机 `remaining=5/32` ×31、`mined 19/64`）。
+            // ⇒ 补上**读数路径**这条轴。反向对照：把 `remainingBreaks` 的默认回退改回 `Caps.DEFAULT` ⇒ 下面必红。
+            com.dddgn.alice.action.WriteBudget.closeScope(scope);
+            for (int index = 0; index < 200; index++) {
+                com.dddgn.alice.action.WriteBudget.consumeBreak(bot, level, pos, null);
+            }
+            check("默认不限②（**判定器读的那个数**也必须不限）",
+                    com.dddgn.alice.action.WriteBudget.remainingBreaks(bot) > 200
+                            && com.dddgn.alice.action.WriteBudget.remainingPlaces(bot) > 200,
+                    "连破坏 200 次后 remainingBreaks="
+                            + com.dddgn.alice.action.WriteBudget.remainingBreaks(bot)
+                            + " remainingPlaces=" + com.dddgn.alice.action.WriteBudget.remainingPlaces(bot)
+                            + "（旧行为 = 64−200 ⇒ 0 ⇒ `PathRetryRunner` 把计划**静默**降级成纯通行）");
+
             // ② 显式上限仍然强制
             com.dddgn.alice.action.WriteBudget.closeScope(scope);
             com.dddgn.alice.action.WriteBudget.setCaps(scope,

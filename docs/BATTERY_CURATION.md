@@ -152,6 +152,7 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 自建水池、夹具自己传送/复位、约 240 tick×2。红对照：撤掉找岸档 ⇒ `failures=3`（全在「必须走上岸」那组）
 ；真人入口 = `/alice shore-escape-test`（零参数：建孤立场景 + 入池 + 清任务 + 按住决策层））
 `mining_water_break_cost`（`D-385`：**规划期的挖掘成本必须等于执行侧真值 —— 含 vanilla 的两项状态惩罚**
+- `mining_search_limit_honesty`（EXTRA，`D-387`）：搜索限流诚实性 —— 同 tick 占满 A1 额度 ⇒ 理由必须是 `search_incomplete`；下一 tick 同一目标必须能规划（红臂：三条腿还原 ⇒ `found_but_unminable`）。
 （`isEyeInFluid(WATER) && !hasAquaAffinity ⇒ ÷5`、`!onGround() ⇒ ÷5`）。自建空中水池（5×5×5 石箱内挖
 3×3×4 水池）+ 同高干燥踏板，被测几何 = `from(1,0,0) → mid(2,0,0)=石壁 → to(3,0,0)`。五个用例覆盖四个
 `(眼在水里, 在地面)` 组合（`DRY_GROUND/WATER_SURFACE/SUBMERGED_GROUND/SUBMERGED_FLOAT/DRY_AIRBORNE`）

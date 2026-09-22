@@ -12,6 +12,7 @@ import com.dddgn.alice.task.MineMenuCheckTask;
 import com.dddgn.alice.task.MineReachProbeTask;
 import com.dddgn.alice.task.MineRegressionTask;
 import com.dddgn.alice.task.MineRunMetricsCheckTask;
+import com.dddgn.alice.task.MiningSearchLimitHonestyCheckTask;
 import com.dddgn.alice.task.MiningWaterBreakCostCheckTask;
 import com.dddgn.alice.task.NoProgressCheckTask;
 import com.dddgn.alice.task.OreCourseAnchor;
@@ -211,7 +212,13 @@ public final class MiningModule implements CheckModule {
                 // 本步在自建水池 + 石壁上量四个状态组合（估计 vs `1.0F/getDestroyProgress`），
                 // 并用生产边生成器断言"水里那一步的破坏项确实贵了 (est_湿−est_干)/6"⇒ 规划器自然偏向放置。
                 CheckStep.of("mining_water_break_cost", CheckProfile.EXTRA, List.of(), null,
-                        () -> new MiningWaterBreakCostCheckTask(bot, observer), 600));
+                        () -> new MiningWaterBreakCostCheckTask(bot, observer), 600),
+                // `P1-b`（2026-09-22 真机根因）：A1 每 tick 搜索总账拒一次搜索时，规划器**不许**把
+                // 「本轮没评价完」写成「不可挖/不可达」——真机 377 次 `found_but_unminable` 就是这么来的。
+                // 本步同 tick 内先把额度占满（前提断言），再规划 ⇒ 理由必须是瞬时的 `search_incomplete`；
+                // 等 tick 边界后对**同一目标**再规划 ⇒ 必须成功（`SEARCH_LIMIT ≠ UNREACHABLE` 的行为级证明）。
+                CheckStep.of("mining_search_limit_honesty", CheckProfile.EXTRA, List.of(), null,
+                        () -> new MiningSearchLimitHonestyCheckTask(bot, observer), 400));
     }
 
     /** 传送到统一起点（与电池 `teleportBot` 逐字段一致 ✓；顺带起"先热区块再 fill"的作用 ✓）。 */

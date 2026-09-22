@@ -17004,3 +17004,63 @@ float/double 精度）；**例外** = `DRY_STALE_FLAG`（§三.1）：期望是 
 - 大矿洞常伴岩浆/怪物：岩浆/水走第 4 条；**怪物在切片 1/2 不做战斗**（如实记录，交给维生/风险系统）。
 - **回收条件**：① 出现一次"鱼骨仍撞 `SEARCH_LIMIT`"的实测 ⇒ 说明每格规划不总是 1 格，先补读数；
   ② 出现一次"模板明明可挖却被判 `main_blocked`" ⇒ 说明闸门过严，先补该几何复现。
+
+### D-387：**A1 搜索限流不许被写成永久理由** + **写入额度两处同源**（2026-09-22 真机根因，三条修复）
+
+**触发**：用户 2026-09-22 真机挖矿测试（客户端 `latest.log` 09:15–09:22，两次作业都 `FAILED partial_quota`），
+三个现象：①矿簇没挖干净 ②掉落物没捡完 ③目标不是最近的；另有冰湖「浮着进窄口打转下沉」。
+**用户口径（同日）**：**这只是"确认挖矿代码没有程序问题"的测试**；**不许**靠放宽搜索预算去让 bot 追超预算的远处目标。
+⇒ 本注只修**程序错误**（诚实性/记账/终态），设计局限留给 C 线三天挖矿任务线（`D-386`）。
+
+#### 一、真机事实（可核，`latest.log`）
+
+| 读数 | 值 |
+|---|---|
+| `[Job] terminal job=mine` | `FAILED partial_quota` `mined 19/64 failed=61` ticks=1666 · `mined 6/8 failed=173` ticks=1384 |
+| `[MineSurvey] SUMMARY` | `失败=found_but_unminable×49, MOVE_MOVEMENT_FAILED×12`；水平位移均值 22.8 |
+| `[MiningPlanner] found_but_unminable` | **377 次**（`direct=no_valid_standing_point tunnel=no_reachable_tunnel_standing_point enter=enter_target_unreachable`） |
+| `[MiningPlanner] … reason=search_incomplete searchLimited=true` | **206 次**（`candidates=13 planned=1 capped=true`） |
+| A1 拒绝 | `SEARCH_LIMIT …` 171+32+32 ≈ **235 次**；`[Search] 超 tick 预算` **234 次** |
+| `[PathRetry] plan_write_budget_insufficient` | **31 次，`remaining=5/32` 全同值**；run1 `breaks=64`（= `DEFAULT_MAX_BREAKS`）、run2 累计 123 = 64+59 |
+| `[CollectDrops] SUMMARY` | 多数 `collected=0/0`（收集器队列空）而 `inventoryDelta=3` 对 19 个已挖 ⇒ 用户截图：**煤掉在地上没捡** |
+| 冰湖 | `WalkToTask failed goalFoot=345,63,93 reason=walk_no_path code=PLAN_UNREACHABLE **actualFoot=345,59,94** replans=0` ⇒ `durationTicks=1`；紧接 `SurvivalFloatTask COMPLETED surfaced` |
+
+#### 二、三条程序错误与修法
+
+| # | 错误 | 位置 | 修法 |
+|---|---|---|---|
+| **`P1-b`** | `SEARCH_LIMIT`（=「本轮没评价完」）被两条腿**覆盖成永久理由** ⇒ `plan()` 的 P1 合取闸门永不触发 ⇒ 报 `found_but_unminable` ⇒ `MineJob` 把候选写进 `attempted` **永久了结** | `task/mining/MiningPlanner.java`：`planTunnel` 结尾、`planEnterTarget`（从不看 `path.status()`）、`exactTopK` 结尾 | 三条腿**逐字保留** `search_incomplete`（`planEnterTarget` 先查 `PlanningStatus.SEARCH_LIMIT` 再查 `reached()`） |
+| **`P1-a`** | `D-372` **只改了网关**（`consumeBreak` ⇒ `Caps.UNBOUNDED`），**判定器读的是另一个副本**（`remainingBreaks` 仍回退 `Caps.DEFAULT` 64/32）⇒ 每作用域实际仍被 64 次封顶 | `action/WriteBudget.java:366-390` | 两处**同源**（都 `Caps.UNBOUNDED`，并防 `int` 溢出） |
+| **`P1-c`** | 计划超剩余额度时**静默**换成纯通行 ⇒ 失败面报成 `walk_no_path`/`MOVE_MOVEMENT_FAILED`（假象）而不是「我没有写入额度」 | `task/PathRetryRunner.java` + `task/WalkToTask.java` | 新增 `writeBudgetDegraded()`；降级后仍失败 ⇒ 失败码**上调**为既有码 `write_budget_exhausted` |
+| **`P1-d`** | 成本场 `cells=0` ⇒ 全候选 `cost=inf` ⇒ 排序**退化成欧氏最近**，日志却仍以 `cost_optimal` 打头 | `job/policy/CostOptimalPolicy.java` | 显式标注 `estimate=UNREFINED（成本场 cells=0 ⇒ 本次排序退化为欧氏最近）`，让退化 grep 得到 |
+
+#### 三、判据与红/绿对照（都在门禁里）
+
+- **新电池步 `mining_search_limit_honesty`**（`EXTRA`，`task/MiningSearchLimitHonestyCheckTask.java`）：
+  自建孤立场景（3×3×3 石箱 + **埋在正中心**的铁矿石）⇒ 只能走模式 B（必须发起搜索）；
+  同一 tick 内先 `recordMillis(EXPENSIVE_SEARCH_MILLIS)` 把额度占满（**前提断言**：`tryAcquire()==false`），
+  再规划 ⇒ 断言理由是**瞬时**的 `search_incomplete`；等 tick 边界后对**同一目标**再规划 ⇒ 断言**成功**
+  （这才是 `SEARCH_LIMIT ≠ UNREACHABLE` 的行为级证明）。
+  **绿**：`checks=5 failures=0`（`burnReason=search_incomplete` / `replanPlan=有计划`）。
+  **红**（三条腿全部还原成旧行为）：`verdict=FAIL`，实测理由 **`found_but_unminable`** —— 与真机那 377 次逐字同名。
+- **`write_policy` 新增「读数路径」轴**：连破坏 200 次后断言 `remainingBreaks/remainingPlaces` 也必须**不限**
+  （旧夹具只测了网关权限 ⇒ 所以漏了这个坑；`silent-measurement-failure` §5：「同一个量常常有多个副本」）。
+  **红**（`remainingBreaks` 回退 `Caps.DEFAULT`）：`remainingBreaks=0 remainingPlaces=32` ⇒ FAIL —— 与真机 `5/32` 同形。
+- **CORE 回归**：`passed=51/52`（唯一失败仍是既有的 `lumber_job`）⇒ 三条修复无回归。
+- 门禁：`CHECK_ALL_RESULT PASS_WITH_WARNINGS: pass=19 warning=1 failed=0`。
+
+#### 四、本注**不做**的三件事（边界，用户 2026-09-22 明确）
+
+1. **不放宽 A1 的每 tick 搜索预算**、**不抬高** `MAX_APPROACH_PLANS`、不允许 bot 追「超寻路预算」的远处目标
+   —— `P1-b` 只把「本轮没评价完」与「不可挖」**分清**，止损仍靠作业 `maxTicks` + `no_progress`（`D-372 §三`）。
+2. **不改选择策略**：`cost_optimal` **本来就不是"最近的"**（它算的是含破坏的通行成本）——这是设计，不是 bug；
+   本次只把「成本场失效时悄悄退化成最近」这件事**标注出来**。是否改成"最近优先"属于 C 线（鱼骨**取消搜索**，不需要选目标）。
+3. **不动冰湖**：「浮着进窄口打转下沉 / 向下挖一格却像脚在边缘没落下去」是**内核/移动**症状（用户描述），
+   与本次三条不同源 ⇒ 另立一次调查。
+
+#### 五、仍未收口（下一批，先加读数再定修法）
+
+- **② 掉落物没进收集器队列**：真机 `[CollectDrops] SUMMARY` 多数 `collected=0/0`，而用户截图里**煤掉在地上没捡**。
+  可疑点：归属配对窗口（`perception/ScopeBuffer.registerAsOurs`，直接配对 10 tick / 3 格）—— 矿在水边/斜坡滚出 3 格即
+  `FOREIGN` ⇒ 收集器（默认只捡我方）看不到。**下一批第一步 = 加读数**（每次我方破坏的产物按
+  `OURS_DIRECT/INDIRECT/FOREIGN` 计数 + 掉落点与破坏点的距离/tick 延迟），有读数再定修法。

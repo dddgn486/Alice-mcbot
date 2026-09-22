@@ -183,6 +183,16 @@ public final class PathRetryRunner {
         return replans;
     }
 
+    /**
+     * ⭐ 本次运行是否因**写入额度不足**被降级为纯通行（`P1-c`，2026-09-22）。
+     *
+     * <p>供调用方（`WalkToTask`）把失败归因**上调**成 `write_budget_exhausted` —— 降级本身是保守动作，
+     * 但"降级后仍然到不了"这件事的原因**不是**"走不通"，而是"没有写入额度了"。
+     */
+    public boolean writeBudgetDegraded() {
+        return degradedToPureTraversal;
+    }
+
     /** 本次任务（含重规划）实际执行过的 Movement 类型集合（D-061 覆盖断言用）。 */
     public java.util.Set<com.dddgn.alice.pathing.core.MovementType> executedTypes() {
         return java.util.Set.copyOf(executedTypes);
