@@ -213,7 +213,7 @@ tar -xzf dsh-state-*.tar.gz -C ~ && chmod 600 ~/.dsh/.credentials.yaml ~/.dsh/se
 
 | # | 事项 | 状态 |
 |---|---|---|
-| 1 | `dsh web` 默认**只绑 `127.0.0.1`** | ✅ **我方实测**（`ss -ltnp` = `127.0.0.1:3081`）⇒ 端口转发场景**必须** `--host 0.0.0.0` |
+| 1 | `dsh web` 的绑定 | ✅ **实跑更正**：默认只绑 `127.0.0.1`，且 **`--host 0.0.0.0` 被 DSH 主动拒绝**（安全设计）⇒ **保持回环**；Codespaces 转发器在容器内部连 localhost ⇒ 够用 |
 | 2 | `--trusted-host`（`/api` 信任围栏） | ✅ **我方实测**（`dsh web --help`）⇒ 域名访问不加会「页面能开、功能坏」 |
 | 3 | 密钥**不能**用环境变量替代 | ✅ 实测：包内无 `*_API_KEY` 环境变量回退 |
 | 4 | `~/.dsh` 的真实体积构成 | ✅ 实测（1.2 G；`profiles` 539 M、`sessions` 302 M、旧备份 293 M） |
@@ -227,7 +227,9 @@ tar -xzf dsh-state-*.tar.gz -C ~ && chmod 600 ~/.dsh/.credentials.yaml ~/.dsh/se
 | 12 | DSH 版本 = 本机 `0.1.5-rc.1` / npm latest `0.1.5-rc.2` | ✅ 实测 ⇒ **devcontainer 锁版本**（会话存储带世代迁移，别让新版写同一份 `sessions/`） |
 | 13 | ⭐ **自建 devcontainer 的镜像必须带 sshd** | ✅ **实跑抓到**：`base:ubuntu-24.04` 不带 SSH 服务 ⇒ `gh codespace ssh` 报 `failed to start SSH server`（Codespaces 默认镜像自带 sshd，所以只在自建 devcontainer 时踩到） ⇒ 修法 = 加 `ghcr.io/devcontainers/features/sshd:1`（错误信息自己就给了这条） |
 | 14 | ⭐ `gh codespace rebuild` **用的是工作目录里的** devcontainer | ✅ 实跑抓到（帮助原文 + 亲测）：云端工作树还停在旧 commit（没有 `.devcontainer`）时重建 = **等于没有 devcontainer**（仍是默认镜像：Node 24 / JDK 25 / 无 DSH）⇒ **先 `git pull` 再 rebuild** |
-| 15 | `gh codespace cp` 的 `remote:` 路径**相对远端家目录** | ✅ 实测：本地是 `/home/fb486`、远端是 `/home/codespace` ⇒ 写 `remote:.dsh/xxx`（**别用本地 `$HOME` 拼绝对路径**） |
+| 15 | ⭐ `gh codespace cp` **本身有引号 bug** | ✅ 实跑抓到（本机 gh 2.45.0）：它把远端路径**连引号**交给远端 scp ⇒ `dest open "'/home/vscode/.dsh/x'"` ⇒ **别用它**；我们改成**内容经 base64 走 ssh + 两端 sha256 对账**（`tools/codespace-zero.sh` 的 `rput`） |
+| 16 | ⭐ `gh codespace ssh -- bash -lc '脚本'` **引号会被吞** | ✅ 实跑抓到：gh 把 `--` 之后的参数**用空格拼接** ⇒ 远端只收到 `bash -lc mkdir`（症状 `mkdir: missing operand`）；多行脚本更隐蔽（login shell 逐行跑）⇒ 我们改成 **base64 中转 + `bash -l`**（`tools/codespace-zero.sh` 的 `rsh`） |
+| 17 | 自建 devcontainer 的**远端用户是 `vscode`** | ✅ 实测：Codespaces 默认镜像是 `codespace`、`base:ubuntu-24.04` 是 `vscode`（`HOME=/home/vscode`）⇒ 一切路径都要**先问远端 `$HOME`** |
 
 **`.devcontainer/devcontainer.json` 草稿**（报告 §12 的版本 + 我加的一行装 DSH）：
 ```json

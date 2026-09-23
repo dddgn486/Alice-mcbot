@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # 在 **Codespace 内**启动 DSH web —— 把"端口转发场景的两个必需参数"算在这里。
 #
-# 为什么需要这个脚本（两处都是我方实测，不是猜的）：
-#   ① `dsh web` **默认只绑 `127.0.0.1`**（`ss -ltnp` 实测）⇒ Codespaces 的转发器从容器网络取端口，
-#      不绑 `0.0.0.0` 就**外部连不上**；
+# 为什么需要这个脚本（三处都是实跑抓到的，不是猜的）：
+#   ① ⭐ **不要**试图 `--host 0.0.0.0`：DSH 会**主动拒绝**（原文 "intentionally not supported yet for safety:
+#      it would expose remote code execution to the network; use 127.0.0.1 instead"）⇒ 保持默认回环即可，
+#      Codespaces 的端口转发器是在**容器内部**连 `localhost`（所以回环就够，绑 0.0.0.0 反而被拒）；
 #   ② `--trusted-host <authority>` 是 **`/api` 的浏览器信任围栏** ⇒ 用转发域名访问时不加它，
 #      会出现「**页面能打开、一发消息就坏**」这种最难查的形态。
 #
@@ -39,7 +40,7 @@ mkdir -p "$WORKDIR"
 cd "$WORKDIR"
 SLUG="$(printf '%s' "$WORKDIR" | tr '/' '-')"
 echo "→ cwd = $WORKDIR（会话 slug 目录 = ~/.dsh/sessions/${SLUG}/）"
-echo "→ bind 0.0.0.0:${PORT} · --trusted-host ${TRUSTED}"
+echo "→ bind 127.0.0.1:${PORT}（DSH 只允许回环；转发器在容器内部连它）· --trusted-host ${TRUSTED}"
 echo "→ 外部入口（PORTS 面板同一行也有）：https://${TRUSTED}"
 
 # dsh 的解析要稳：非交互 ssh 里 PATH 可能不含 nvm 的 bin（实测：直接在 ssh 里 `dsh` 会 command not found）
@@ -48,4 +49,4 @@ DSH_BIN="$(command -v dsh || true)"
 [ -x "$DSH_BIN" ] || { echo "✗ 找不到 dsh（试过 PATH 与 \`npm prefix -g\`/bin）；先跑：npm i -g @deepseek-ai/dsh@0.1.5-rc.1" >&2; exit 3; }
 echo "→ dsh = $DSH_BIN（$("$DSH_BIN" --version 2>&1)）"
 
-exec "$DSH_BIN" web --host 0.0.0.0 --port "$PORT" --no-open --trusted-host "$TRUSTED"
+exec "$DSH_BIN" web --port "$PORT" --no-open --trusted-host "$TRUSTED"
