@@ -94,11 +94,23 @@ fi
 if [[ -n "${CLIENT_WORLD}" && -d "${CLIENT_WORLD}" && -d "${datapack_src}" ]]; then
   dp_target="${CLIENT_WORLD}/datapacks/alice_test"
   if [[ -d "${dp_target}" ]]; then
-    dp_backup="${dp_target}.bak.$(date +%Y%m%d-%H%M%S)"
+    # ⚠️ `D-412`：备份**必须放在 `datapacks/` 之外**。放在里面的话它本身就是一个
+    # **提供同名命名空间（`alice_test`）的活数据包**，且加载顺序排在 `alice_test` 之后
+    # ⇒ **它会盖住刚复制进去的那份**，跑的还是旧场景，而且**没有任何报错**
+    #（2026-09-20 起母本里积了 2 份这样的包，直到 2026-09-23 才暴露）。
+    dp_backup_dir="${CLIENT_WORLD}/.alice-datapack-backups"
+    mkdir -p "${dp_backup_dir}"
+    dp_backup="${dp_backup_dir}/alice_test.$(date +%Y%m%d-%H%M%S)"
     cp -r "${dp_target}" "${dp_backup}"
     keep_dp="${ALICE_BACKUP_KEEP:-2}"
-    mapfile -t stale_dp < <(ls -dt "${dp_target}".bak.* 2>/dev/null | tail -n +$((keep_dp + 1)))
+    mapfile -t stale_dp < <(ls -dt "${dp_backup_dir}"/alice_test.* 2>/dev/null | tail -n +$((keep_dp + 1)))
     (( ${#stale_dp[@]} > 0 )) && rm -rf "${stale_dp[@]}"
+    # 顺手清掉历史遗留的**同名活数据包**（它们会静默盖住新场景）
+    mapfile -t legacy_dp < <(ls -d "${CLIENT_WORLD}/datapacks/alice_test".bak.* 2>/dev/null)
+    if (( ${#legacy_dp[@]} > 0 )); then
+      rm -rf "${legacy_dp[@]}"
+      echo "removed_legacy_datapacks=${#legacy_dp[@]}（同命名空间的活备份 ⇒ 会盖住新场景，D-412）"
+    fi
   fi
   rm -rf "${dp_target}"
   cp -r "${datapack_src}" "${dp_target}"

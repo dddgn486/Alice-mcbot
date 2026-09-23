@@ -217,8 +217,37 @@ else
     cp -r "$PRISTINE" "$WORLD" || die "复制世界失败"
 fi
 # 场景数据包**每轮以仓库版为准**（母本里那份可能过期；HANDOVER 里原本是"手动复制 + /reload"）
+#
+# ⚠️ `D-412`（2026-09-23 实测，**静默且能骗过 `scene rc=`**）：`datapacks/` 下**每个子目录都是一个活数据包**。
+#    历史备份被命名成 `alice_test.bak.<时间戳>` 留在同一个目录里 ⇒ 它们**同样提供 `alice_test` 命名空间**，
+#    且加载顺序在 `alice_test` **之后** ⇒ **旧场景盖住新场景**，而 `rc` 照样是 855（命令确实执行了，
+#    只是落在**旧坐标**上，那里的区块又没被握 ⇒ 什么都不落地）。结果：夹具拿"空世界"判断，报内核失败码。
+#    ⇒ 复制前**清掉一切同命名空间的旧包**，并**断言只剩一个提供者**（宁可响亮失败，不要静默用旧的）。
 rm -rf "$WORLD/datapacks/alice_test"
 cp -r tools/test-scenes/alice_test "$WORLD/datapacks/alice_test" || die "装场景数据包失败"
+for other in "$WORLD"/datapacks/*/; do
+    [ -d "$other/data/alice_test" ] || continue
+    [ "$(basename "$other")" = "alice_test" ] && continue
+    rm -rf "$other"
+    say "⚠️ 清掉同命名空间的旧数据包：$(basename "$other")（它会**静默盖住**本轮场景 —— D-412）"
+done
+providers=0
+for d in "$WORLD"/datapacks/*/; do
+    [ -d "$d/data/alice_test" ] && providers=$((providers + 1))
+done
+[ "$providers" = "1" ] || die "场景数据包提供者应为 1 个，实测 $providers 个（同命名空间的包会互相盖住 —— D-412）"
+# **第三方认领也一律从「夹具世界」里清掉**（`D-409`/`D-413`）：
+#   夹具世界是**玩家存档的副本** ⇒ 夹具会**继承玩家的 FTB Chunks 认领**，而认领内的破坏/放置
+#   会被 FTB **静默取消**（`gameMode.destroyBlock` 返回 false）⇒ 夹具拿到"树砍不动"的世界，
+#   **却报成内核失败码**（`lumber_job` 连红 35 轮的真因）。与上面"清 `alice_*.dat`"**同一条理由**：
+#   **夹具世界是给 Alice 的代码用的，不是给第三方模组状态用的**。要测第三方保护本身，
+#   `break_refused` 会在运行期**自己造**一个认领（它不依赖预存认领）。
+#   ⚠️ 只动**本轮副本**（`$WORLD`）—— 绝不碰母本与客户端存档；`ALICE_KEEP_FTB_CLAIMS=1` 可保留。
+if [ "${ALICE_KEEP_FTB_CLAIMS:-0}" != "1" ] && [ -d "$WORLD/ftbchunks" ]; then
+    ftb_files="$(find "$WORLD/ftbchunks" -maxdepth 1 -type f -name '*.snbt' | wc -l)"
+    rm -f "$WORLD"/ftbchunks/*.snbt
+    say "已清第三方认领（$ftb_files 份 ftbchunks/*.snbt ⇒ 本轮夹具世界无认领；D-409/D-413）"
+fi
 # **Alice 的持久化状态一律清零**（`world/data/alice_*.dat`：假人 / 转移账本 / 区域状态 /
 # 权限 / 安全区 / 决策状态 / 收集授权 / 世界改动账本）。两个理由：
 #  ① **存档假人会让起服崩溃**：`BotManager.onServerStarted → restoreFromWorld → spawn`
