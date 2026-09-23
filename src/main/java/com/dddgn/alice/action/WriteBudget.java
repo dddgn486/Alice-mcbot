@@ -483,6 +483,41 @@ public final class WriteBudget {
         return counters != null && counters.placeExhausted;
     }
 
+    /**
+     * ⭐ `Z4`（2026-09-23）：**"本作用域到底写没写世界"的人口读数**（**与区无关**）。
+     *
+     * <p>为什么需要它：`Z1` 让账本**在区外不记账**，于是"账本里没有我方临时方块"在野外**恒真**
+     * （空集）⇒ 一族"零写入 / 无残留"的断言**失去人口**（清单见
+     * `docs/reviews/2026-09-23-Z2-账本闭合与空集假绿.md §6`）。本方法给出那个**仍然有效**的量：
+     * 闸门（{@link #consumeBreak}/{@link #consumePlace}/{@link #consumeContainerWrite}）计数的
+     * 真实写入次数 —— **每一次真实写入都必须过闸门**，所以"写入 = 0"是有效判据，而且比
+     * "账本里没有条目"**更强**（后者只覆盖保护区内）。
+     *
+     * <p>⚠️ 它回答的是"**写没写**"，**不是**"留没留下"：留下与否只有账本知道，而区外**本就不留账**
+     * （`D-398` R1/R2：区外不负责任、也不恢复）⇒ 断言"无残留"的地方必须**同时**报出这个人口，
+     * 读的人才知道那条断言覆盖了多少。
+     */
+    public static String population(ServerPlayer bot) {
+        String scope = scopeOf(bot);
+        if (scope == null) {
+            return "writes[scope=<none> breaks=0 places=0 containers=0]";
+        }
+        Counters counters = SCOPES.get(scope);
+        if (counters == null) {
+            return "writes[scope=" + scope + " breaks=0 places=0 containers=0]";
+        }
+        return "writes[scope=" + scope + " breaks=" + counters.breaks + " places=" + counters.places
+                + " containers=" + counters.containerWrites + " refused=" + counters.refusedBreaks
+                + "/" + counters.refusedPlaces + "]";
+    }
+
+    /** 本作用域**闸门计数的真实写入次数**（`Z4`：零写入类断言用它，与区无关 ⇒ 不会空集）。 */
+    public static int writeCount(ServerPlayer bot) {
+        String scope = scopeOf(bot);
+        Counters counters = scope == null ? null : SCOPES.get(scope);
+        return counters == null ? 0 : counters.breaks + counters.places + counters.containerWrites;
+    }
+
     /** 只读快照（诊断/夹具断言用）：`breaks=n/max places=n/max exhausted=?`。 */
     public static String describe(ServerPlayer bot) {
         String scope = scopeOf(bot);

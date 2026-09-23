@@ -536,9 +536,13 @@ public class MachineProbeTask implements Task {
         }
 
         int pending = WorldModLedger.pendingForOwner(server, bot.getUUID()).size();
-        if (pending != 0) {
+        // ⭐ `Z4`：探针是只读的 ⇒ 判据要能看见**真实写入次数**（账本口径在野外是空集）
+        int writes = com.dddgn.alice.action.WriteBudget.writeCount(bot);
+        if (pending != 0 || writes != 0) {
             failed = true;
         }
+        BotLog.info("[MachineProbe] 只读自证 pendingTemporary={} {}", pending,
+                com.dddgn.alice.action.WriteBudget.population(bot));
         StringBuilder summary = new StringBuilder();
         summary.append("namespaces=").append(namespaces)
                 .append(" types=").append(types)

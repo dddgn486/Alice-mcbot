@@ -274,9 +274,14 @@ public class CraftGridProbeTask implements Task {
 
     private Status finish() {
         phase = Phase.DONE;
-        // 只读硬断言：账本里不该有我方临时方块（探针不写世界）
+        // 只读硬断言：探针不写世界。
+        // ⭐ `Z4`（2026-09-23）：原判据只看"账本里有没有我方临时方块"，而 `Z1` 之后**区外不记账**
+        // ⇒ 它在野外恒真（空集）。现在加判**闸门计数的真实写入次数 = 0**（与区无关、更强）。
         int pending = WorldModLedger.pendingForOwner(bot.serverLevel().getServer(), bot.getUUID()).size();
-        check("read_only", pending == 0, "pendingTemporary=" + pending);
+        int writes = com.dddgn.alice.action.WriteBudget.writeCount(bot);
+        check("read_only", pending == 0 && writes == 0,
+                "writes=" + writes + " pendingTemporary=" + pending + " "
+                        + com.dddgn.alice.action.WriteBudget.population(bot));
         if (session != null && session.state() == MenuSession.State.OPEN) {
             session.close("probe_done");
         }

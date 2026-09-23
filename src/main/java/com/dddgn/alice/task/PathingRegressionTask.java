@@ -331,9 +331,14 @@ public final class PathingRegressionTask implements Task {
             removed++;
         }
         int stale = com.dddgn.alice.ledger.WorldModLedger.dropStale(level);
-        BotLog.info("[Regression] scene={} cleanup=ledger 回收我方临时方块={} 非我方={} 销账={} 剩余={}",
+        // ⭐ `Z4`（2026-09-23）：本步的真清理只认**账本条目**，而 `Z1` 之后**区外不记账** ⇒
+        // 野外放的方块**不在账上、本函数拆不到**（只能靠下一步的场景重放抹掉）。读数必须印出这件事，
+        // 否则"回收=0"会被读成"没留东西"。
+        BotLog.info("[Regression] scene={} cleanup=ledger 回收我方临时方块={} 非我方={} 销账={} 剩余={}"
+                        + "｜{}（`Z4`：区外写入不入账 ⇒ 本清理**覆盖不到**它们）",
                 scene.scene(), removed, foreign, stale,
-                com.dddgn.alice.ledger.WorldModLedger.pendingTemporary(server, scope).size());
+                com.dddgn.alice.ledger.WorldModLedger.pendingTemporary(server, scope).size(),
+                com.dddgn.alice.action.WriteBudget.population(bot));
     }
 
     /** 建地形 + 传送 + 装备（放置/破坏场景需要圆石与石镐）。 */

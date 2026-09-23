@@ -158,7 +158,9 @@ public class RecoverabilityCheckTask implements Task {
 
         // 统计：把"执行期真实统计"一并打出来（无执行则显示 movements=0，不算失败）
         notes.add("report[" + RecoverabilityReport.describe() + "]");
-        notes.add("residues[" + RecoverabilityReport.describeResidues() + "]");
+        // ⭐ `Z4`：`residues=0` 在野外是**空读数**（唯一喂数点只认区内条目）⇒ 把账本人口一并印出来
+        notes.add("residues[" + RecoverabilityReport.describeResidues() + "]"
+                + " ledger[" + com.dddgn.alice.action.WriteBudget.population(bot) + "]");
 
         String summary = "table_nondeterministic=" + verdict("nondeterministic_table")
                 + " per_type=" + verdict("per_type")

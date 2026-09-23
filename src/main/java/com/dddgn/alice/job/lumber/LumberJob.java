@@ -509,13 +509,20 @@ public final class LumberJob implements Job {
         return Task.Status.RUNNING;
     }
 
-    /** 本 Job 作用域内仍未拆除的我方临时放置数（建拆同权的账）。 */
+    /**
+     * 本 Job 作用域内仍未拆除的我方临时放置数（建拆同权的账）。
+     *
+     * <p>⭐ `Z4`（2026-09-23）：**只数保护区内条目**（`D-398` R2：区外一定不恢复 ⇒ 也不欠账）。
+     * 用裸视图会把"区外/旧存档遗留"算成"还没拆"，而那个东西**本来就不该去拆**。
+     * ⚠️ 因此本读数在野外**恒为 0**，这是设计：判断"这次到底写没写世界"要看
+     * {@link com.dddgn.alice.action.WriteBudget#population}（闸门计数，与区无关）。
+     */
     private int pendingTemp() {
         String scopeId = com.dddgn.alice.ledger.WorldModLedger
                 .currentScope(bot.getServer(), bot.getUUID());
         return scopeId == null ? 0
                 : com.dddgn.alice.ledger.WorldModLedger
-                        .pendingTemporary(bot.getServer(), scopeId).size();
+                        .pendingTemporaryProtected(bot.serverLevel(), scopeId).size();
     }
 
     /** ① 就地扫尾：仍在架上时收"此刻够得到"的产物（D-107 附注）。 */

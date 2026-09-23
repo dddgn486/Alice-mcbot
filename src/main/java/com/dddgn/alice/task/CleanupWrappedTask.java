@@ -99,6 +99,10 @@ public class CleanupWrappedTask implements Task {
         bot.teleportTo(level, bot.getX(), bot.getY() + 1.0D, bot.getZ(),
                 java.util.Set.of(), bot.getYRot(), bot.getXRot());
         cleaned = true;
-        BotLog.info("[Cleanup] 诊断收尾：拆我方临时方块={} 库存已复位（wrapped={}）", removed, inner.taskName());
+        // ⭐ `Z4`：`removed=0` 有两种读法 —— "本来就没留"与"**区外写的、账本没记、这里看不到**"。
+        // 后者的证据是闸门计数的写入次数（与区无关）⇒ 一起印出来。
+        BotLog.info("[Cleanup] 诊断收尾：拆我方临时方块={} 库存已复位（wrapped={}）｜{}"
+                        + "（账本只认保护区内条目 ⇒ 区外写入拆不到，`Z4`）",
+                removed, inner.taskName(), com.dddgn.alice.action.WriteBudget.population(bot));
     }
 }

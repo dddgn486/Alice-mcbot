@@ -193,10 +193,23 @@ public final class DecisionSnapshot {
         }
         root.add("pendingRequests", pendingRequests);
 
+        // ⭐ `Z4`（2026-09-23）：**喂给 LLM 的世界事实不许空集/误导**。
+        // ① `pendingTemporaryBlocks` 改成**义务口径**（只数保护区内条目，与 `D-398` 一致）；
+        // ② 另给"本次任务真实写过几次"（闸门计数，**与区无关**）—— 否则"0"会被读成
+        //    "bot 没改过世界"，而它在野外可能刚刚垫了一摞圆石（只是不入账）。
         int pendingTemp = com.dddgn.alice.ledger.WorldModLedger
-                .pendingForOwner(bot.serverLevel().getServer(), bot.getUUID()).size();
+                .pendingTemporaryProtected(bot.serverLevel(), null).size();
         JsonObject world = new JsonObject();
         world.addProperty("pendingTemporaryBlocks", pendingTemp);
+        world.addProperty("pendingScope",
+                com.dddgn.alice.action.WriteBudget.scopeOf(bot) == null ? "" : "open");
+        world.addProperty("writesThisScope",
+                com.dddgn.alice.action.WriteBudget.writeCount(bot));
+        world.addProperty("writePopulation",
+                com.dddgn.alice.action.WriteBudget.population(bot));
+        world.addProperty("note",
+                "pendingTemporaryBlocks 只数**保护区内**义务条目；区外修改不入账也不恢复（D-398）"
+                        + " ⇒ 判断\"bot 有没有改世界\"请看 writesThisScope");
         root.add("worldMod", world);
 
         // **S-9 消费（D-277）**：**伤害按事件观测**的实事交给决策层。

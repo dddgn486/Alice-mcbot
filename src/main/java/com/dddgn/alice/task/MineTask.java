@@ -441,6 +441,12 @@ public final class MineTask implements Task {
                 : com.dddgn.alice.ledger.WorldModLedger
                         .pendingTemporary(bot.getServer(), scopeId).size();
         if (pending == 0) {
+            // ⭐ `Z4`（2026-09-23）：`pending=0` 有两种含义 —— "已经收干净了"与"**本任务压根没记账**"
+            // （区外写入不入账）。**后者是 `D-398` R2 的设计**（野外没有回收义务），不是"漏收"：
+            // 挖矿用的脚手架在野外会留在原地。把人口印出来，读日志的人不必去猜是哪一种。
+            BotLog.info("[MineTask] restore_skip pending=0（{}）⇒ 无回收义务"
+                            + "（区外写入不入账 = `D-398` R2 的设计；`Z4`）",
+                    com.dddgn.alice.action.WriteBudget.population(bot));
             return Status.DONE;
         }
         if (!(bot instanceof com.dddgn.alice.bot.BotPlayer botPlayer)) {

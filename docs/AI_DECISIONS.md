@@ -18238,3 +18238,55 @@ wildSkippedSince 窗口内被跳过的区外放置次数
   （两个半张合起来才是判据）。
 - ⚠️ `Z3` 原文的"区内不许静默降级"这半：原本只有 `MineJob` 那条链有判据；本轮**没有**给
   `WalkToTask`/`PlaceTask`/craft/transfer 逐条实测"最终报什么码"（它们都有日志 + 同一瞬时码）。
+
+---
+
+### D-416：`Z4` —— 空集断言**补人口** + 义务读数收尾（`Z1` 假绿清单执行）（2026-09-23）
+
+队列项 = `OPEN_ITEMS_LEDGER §11-A` 的 `Z4`（`Z2` 审计时登记的连带项；清单 =
+`docs/reviews/2026-09-23-Z2-账本闭合与空集假绿.md §6` 的 10 组站点）。用户此前裁定"本轮只做**可见** + 登记清单"
+⇒ 本轮就是那张清单的**执行**。
+
+#### 一、钥匙：一个与区无关的权威读数
+
+`WriteBudget.writeCount(bot)` = **闸门计数的真实写入次数**（breaks + places + containers）。
+为什么它有效：每一次真实写入都必须过闸门 ⇒ 它**与区无关**；账本在野外是空集，它不是。
+`WriteBudget.population(bot)` 给出一行 `writes[scope=… breaks=N places=N containers=N refused=a/b]`。
+
+#### 二、逐站点处置（10 组）
+
+| # | 站点 | 处置 |
+|---|---|---|
+| 1 | `CraftTableCheckTask`（`no_world_write`） | ⭐ **改强判据** `writes == 0 && pending.isEmpty()`；实测 `writes=0`（该步真的零写入） |
+| 2 | `CraftStationCraftCheckTask` / `CraftStationProvisionCheckTask` / `CraftFurnaceCheckTask` | **补覆盖度**（`check(..., "writes=N ledgerEntries=M " + population)`）——这三步是"无残留"而非"零写入" |
+| 3 | `PathingRegressionTask.cleanupScene` | **补人口** + 明写"区外写入不入账 ⇒ 本清理覆盖不到" |
+| 4 | `CleanupWrappedTask.cleanup()` | **补人口** + 明写 `removed=0` 的两种读法 |
+| 5 | `RecoverabilityCheckTask`（`residues=0`） | **补人口**（`residues[… ledger[writes[…]]]`） |
+| 6 | `MachineProbeTask` / `CraftGridProbeTask` / `MachineStationProbeTask` | ⭐ **改强判据**：只读探针 = `pending==0 && writes==0` |
+| 7 | `MineTask` "用完即拆"相位 | **标注**：印人口 + 明写"区外不入账 = `D-398` R2 的**设计**，不是漏收" |
+| 8 | `LumberJob.pendingTemp()` | **收成区内口径** + javadoc 写明野外恒 0 是设计 |
+| 9 | 四个有认领的夹具 | 人口本来就有效 ⇒ **不动** |
+| 10 | `BotManager` 4 处 · `DecisionSnapshot` | ⭐ **收成义务口径（区内）+ 带人口**（见三） |
+
+#### 三、⭐ 顺带发现：`Z2` 没扫完的**义务读数**（同一族，5 处）
+
+`BotManager.teardownRecoveryDecision`（"我们欠不欠拆除"）· `tryRecoverUnfinishedTeardown`
+（⭐ **拿 `pending.get(0)` 去起 `RestoreScopeTask`** ⇒ 首条若是区外条目就是"说去恢复、到了什么都不做"）·
+`pendingTemporaryCount`（`/alice region stop` 回执）· 取消路径的 `residue`（进事件环）·
+`DecisionSnapshot.worldMod.pendingTemporaryBlocks`（⭐ **喂给 LLM 的世界事实**）。
+⇒ 全部收成 `pendingTemporaryProtected(...)`；`DecisionSnapshot` 另加 `writesThisScope` +
+`writePopulation` + 一句 `note`（判断"bot 有没有改世界"看 `writesThisScope`）。
+
+#### 四、门禁与**四条注入臂**
+
+`rule_vacuous_assertions_carry_population`（`[Z4·空集断言要带人口]`）：① 4 个"零写入"站点必须含
+`writeCount(`；② 6 个"无残留"站点必须含 `population(`；③ 义务读数必须含 `pendingTemporaryProtected(`
+且 `DecisionSnapshot` 必须**真的发出** `addProperty("writesThisScope"`。
+⚠️ **臂③ 第一版没红**：判据被我写的 `note` 文案里那个词满足了（**本会话第 8 次"判据太弱"**）⇒ 改成钉属性发射后红。
+
+#### 五、残余（**登记**，不在本轮做）
+
+`CleanupWrappedTask` / `PathingRegressionTask.cleanupScene` 的**真清理**只能按账本条目拆 ⇒
+**野外放的方块拆不到**（本轮只是把这件事**印出来**：`places=2` vs `回收=0`）。彻底修需要"卫生专用视图"
+（记全部放置）或世界快照差分 —— 与前者的 `D-398`"不记账"口径冲突、后者代价过大。
+**复核触发**：出现一次"某步把方块留在电池世界里、并影响了后续步的判决"。

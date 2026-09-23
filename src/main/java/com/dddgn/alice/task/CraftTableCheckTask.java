@@ -178,10 +178,16 @@ public class CraftTableCheckTask implements Task {
         boolean ok = outcome.ok() && after - furnaceBefore == 1
                 && RecipeQuery.countInInventory(bot, Items.COBBLESTONE) == 0;
         check("crafted_furnace", ok, "product+" + (after - furnaceBefore) + " " + outcome.describe());
-        // 零写入硬断言：账本里不该有我方临时方块（A3 只"用现成"，不放置）
-        // B 方案（2026-09-17）：**只看本步 scope**，别再被别的步的遗留误伤
+        // 零写入硬断言：**A3 只"用现成"，不放置**。
+        // ⭐ `Z4`（2026-09-23）：原判据是"账本里没有我方临时方块"，而 `Z1` 之后**区外不记账**
+        // ⇒ 它在野外**恒真**（实测 `temporaryBlocks=0` = 空集，见 Z4 清单）。现在改判**闸门计数的
+        // 真实写入次数 = 0**（每一次写入都必须过闸门 ⇒ 与区无关、且比"账本空"更强），
+        // 并把账本口径一并印出来（覆盖度可读）。
         var pending = WorldModLedger.pendingTemporaryInCurrentScope(bot.serverLevel().getServer(), bot.getUUID());
-        check("no_world_write", pending.isEmpty(), "temporaryBlocks=" + pending.size());
+        int writes = com.dddgn.alice.action.WriteBudget.writeCount(bot);
+        check("no_world_write", writes == 0 && pending.isEmpty(),
+                "writes=" + writes + " ledgerInZone=" + pending.size() + " "
+                        + com.dddgn.alice.action.WriteBudget.population(bot));
         session = null;
         return advance(Phase.NO_TABLE_CASE);
     }

@@ -1217,8 +1217,11 @@ public final class BotManager {
     public static String teardownRecoveryDecision(BotPlayer bot) {
         var level = bot.serverLevel();
         com.dddgn.alice.ledger.WorldModLedger.dropStale(level);   // 现场已非我方方块的条目先销掉
+        // ⭐ `Z4`（2026-09-23）：**这是"我们欠不欠"的读数 ⇒ 只认保护区内条目**（`D-398` R2：
+        // 区外一定不恢复）。用跨 scope 的 owner 口径（`pendingForOwner`）会把**区外/旧存档遗留**
+        // 算成"欠着"，于是去炸/去拆一片**本来没有义务**的地方。
         var pending = com.dddgn.alice.ledger.WorldModLedger
-                .pendingForOwner(level.getServer(), bot.getUUID());
+                .pendingTemporaryProtected(level, null);
         if (pending.isEmpty()) {
             return "none";
         }
@@ -1252,8 +1255,13 @@ public final class BotManager {
             BotLog.info("[Recovery] bot 正忙/未注册 ⇒ 本次不自动续做（留给 /alice restore）");
             return "busy";
         }
+        // ⭐ `Z4`：入口只认**保护区内**条目（与 `RestoreScopeTask` 的取件口径一致）——
+        // 否则会把 bot 送到一个**永远不会被恢复**的区外方块旁（症状：起得来、到了什么都不做）
         var pending = com.dddgn.alice.ledger.WorldModLedger
-                .pendingForOwner(bot.serverLevel().getServer(), bot.getUUID());
+                .pendingTemporaryProtected(bot.serverLevel(), null);
+        if (pending.isEmpty()) {
+            return "none";
+        }
         session.beginTask(new com.dddgn.alice.task.RestoreScopeTask(bot, session.scope(), null),
                 TaskTarget.block(pending.get(0).pos()));
         broadcastTarget(session.target);
@@ -1346,10 +1354,15 @@ public final class BotManager {
         return bot == null ? null : BOTS.get(bot.getUUID());
     }
 
-    /** bot 名下**未闭合**的我方临时方块条数（`/alice region stop` 回执用，只读）。 */
+    /**
+     * bot 名下**未闭合**的我方临时方块条数（`/alice region stop` 回执用，只读）。
+     *
+     * <p>⭐ `Z4`（2026-09-23）：**只数保护区内条目** —— 这是"我们欠多少"的读数（`D-398` R2）。
+     * 区外条目既不入账也不恢复，数进来只会让玩家以为有一堆待收。
+     */
     public static int pendingTemporaryCount(BotPlayer bot) {
         return com.dddgn.alice.ledger.WorldModLedger
-                .pendingForOwner(bot.serverLevel().getServer(), bot.getUUID()).size();
+                .pendingTemporaryProtected(bot.serverLevel(), null).size();
     }
 
     /** **被动拾取闸门自检**（S3.5 / D-143）：我方掉落物应捡、外来掉落物应被拦下。 */
@@ -2141,15 +2154,18 @@ public final class BotManager {
                     TaskExecutionRecord.TerminalStatus.CANCELLED_BY_USER,
                     "cancelled:" + (reason == null ? "user" : reason), "idle_after_cleanup");
             clearTask();
+            // ⭐ `Z4`：`residue` 会进事件环给决策层看 ⇒ 必须是**义务**口径（区内）；
+            // 另把"本任务到底写没写"的人口一并带上（区外写入不入账 ⇒ 光看 residue=0 会误读成"很干净"）
             int residue = com.dddgn.alice.ledger.WorldModLedger
-                    .pendingForOwner(bot.serverLevel().getServer(), bot.getUUID()).size();
+                    .pendingTemporaryProtected(bot.serverLevel(), null).size();
+            String residuePopulation = com.dddgn.alice.action.WriteBudget.population(bot);
             // ⭐ `D-338` 附注十五：**显式停止也要进事件环** —— 这条路径（玩家 `/alice region stop`、
             // `/alice stop-task`、`stop_current`、延后到安全点）**不走 `complete()`** ⇒ 以前事件环里
             // 什么都不留，决策层下次被叫时**看不到"刚才被谁停了"**（客户端实测：用户 stop 后等 30 s
             // 静默无反应，正是因为它压根不知道发生过这件事）。
             com.dddgn.alice.decision.BotEventLog.record(bot, "STOP", "info",
                     "任务被显式停止 " + kind + "（" + (reason == null ? "user" : reason) + "）",
-                    "residue=" + residue);
+                    "residue=" + residue + " " + residuePopulation);
             BotLog.info("[alice] 已显式停止任务 {}（{}）残余临时方块={}", kind,
                     reason == null ? "user" : reason, residue);
             if (forced) {

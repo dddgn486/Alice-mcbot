@@ -362,10 +362,14 @@ public class CraftStationProvisionCheckTask implements Task {
         closeSession("fixture_done");
         // B 方案（2026-09-17）：**只看本步 scope**
         int pending = WorldModLedger.pendingTemporaryInCurrentScope(bot.serverLevel().getServer(), bot.getUUID()).size();
-        record("no_block_writes", String.valueOf(pending == 0));
-        if (pending != 0) {
-            failures.add("no_block_writes");
-        }
+        // ⭐ `Z4`（2026-09-23）：这是"**无残留**"判据（夹具自己会摆/收工作站），不是"零写入"。
+        // `Z1` 之后区外不记账 ⇒ 光看账本证明不了"外面也收干净了" ⇒ 把**覆盖度**印出来：
+        // `writes` = 本步闸门计数的真实写入次数；`writes > ledgerInZone` 的差额落在区外，
+        // 本判据**覆盖不到**（`D-398` R1/R2：那里没有义务、也没有账）。
+        int writes = com.dddgn.alice.action.WriteBudget.writeCount(bot);
+        // 用 `check(...)`（它同时 record + 打日志 + 记账失败）⇒ 覆盖度进日志，判决不变
+        check("no_block_writes", pending == 0, "writes=" + writes + " ledgerEntries=" + pending
+                + " " + com.dddgn.alice.action.WriteBudget.population(bot));
         record("install_verified", String.valueOf(installedVerified));
         StringBuilder summary = new StringBuilder();
         for (Map.Entry<String, String> entry : facts.entrySet()) {

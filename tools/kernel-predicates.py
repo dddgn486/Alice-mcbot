@@ -2945,6 +2945,81 @@ def rule_write_budget_zone_and_container_exception():
     return problems
 
 
+def rule_vacuous_assertions_carry_population():
+    """`Z4`（2026-09-23）：**「我没写世界 / 没残留」的断言必须带人口；义务读数必须只认保护区内**。
+
+    <h3>为什么（`Z1` 引出的假绿，清单见 `docs/reviews/2026-09-23-Z2-…md §6`）</h3>
+    `Z1` 让账本**在区外不记账** ⇒ 一族「账本里没有我方临时方块」的断言在野外**恒真**（空集）。
+    它不报错、也不变红，只是**失去意义**（本项目纪律：假绿比假红危险）。`Z2` 给了「人口读数」
+    这件工具，本规则把它**钉在这些站点上**，防止哪天被顺手删掉。
+
+    <h3>两条口径（各一条注入臂）</h3>
+    ① **「零写入」类**断言（探针 / 只用现成的步）必须判**闸门计数的真实写入次数 = 0**
+       （`WriteBudget.writeCount(...)`，**与区无关** ⇒ 不会空集；且比「账本空」更强）；
+    ② **「无残留」类**断言与**义务读数**必须报出人口，且义务读数只认区内
+       （`pendingTemporaryProtected`）—— 用跨 scope 的 owner 口径会把区外 / 旧存档遗留算成「欠着」。
+    """
+    base = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
+    zero_write = {
+        "task/CraftTableCheckTask.java": "craft_table（只用现成工作台）",
+        "task/CraftGridProbeTask.java": "合成网格探针",
+        "task/MachineProbeTask.java": "机器探针",
+        "task/MachineStationProbeTask.java": "机器站点探针",
+    }
+    leftovers = {
+        "task/CraftStationCraftCheckTask.java": "合成站（摆 / 收工作站）",
+        "task/CraftStationProvisionCheckTask.java": "工作站部署检查",
+        "task/CraftFurnaceCheckTask.java": "熔炉检查",
+        "task/PathingRegressionTask.java": "寻路回归的场景清理",
+        "task/CleanupWrappedTask.java": "诊断包装器的收尾",
+        "task/RecoverabilityCheckTask.java": "可回收性残留读数",
+    }
+    problems = []
+
+    def stripped(rel: str) -> str:
+        path = base / rel
+        if not path.exists():
+            return ""
+        return code_only(re.sub(r"/\*.*?\*/", "", path.read_text(encoding="utf-8"), flags=re.S))
+
+    for rel, label in zero_write.items():
+        body = stripped(rel)
+        if not body:
+            problems.append(f"{rel} 不存在（{label}）—— 改名？同步本规则")
+        elif "writeCount(" not in body:
+            problems.append(f"{label}（`{rel}`）的「零写入」判据没有人口读数 "
+                            f"`WriteBudget.writeCount(...)` ⇒ `Z1` 之后它在野外是**空集**（恒真、不报错）")
+    for rel, label in leftovers.items():
+        body = stripped(rel)
+        if not body:
+            problems.append(f"{rel} 不存在（{label}）—— 改名？同步本规则")
+        elif "population(" not in body:
+            problems.append(f"{label}（`{rel}`）的「无残留」判据没报**覆盖度 / 人口**"
+                            f"（`WriteBudget.population(...)`）⇒ 读数会被误读成「很干净」")
+
+    manager = stripped("bot/BotManager.java")
+    if not manager:
+        problems.append("`bot/BotManager.java` 不存在 —— 改名？同步本规则")
+    elif "pendingTemporaryProtected(" not in method_body(
+            manager, "public static String teardownRecoveryDecision("):
+        problems.append("残留续做决策（`BotManager.teardownRecoveryDecision`）用的是跨 scope 的 owner 口径 "
+                        "⇒ 会把**区外**条目算成「我们欠着」（`D-398` R2：区外一定不恢复）")
+
+    snapshot = stripped("decision/DecisionSnapshot.java")
+    if not snapshot:
+        problems.append("`decision/DecisionSnapshot.java` 不存在 —— 改名？同步本规则")
+    # ⚠️ 必须钉**属性发射**本身：文案里提到 `writesThisScope` 不算（第一版判据被自己的提示语满足 ⇒
+    # 注入实测没红，本会话第 8 次「判据太弱」）。
+    elif "pendingTemporaryProtected(" not in snapshot \
+            or 'addProperty("writesThisScope"' not in snapshot:
+        problems.append("喂给 LLM 的世界事实（`DecisionSnapshot.worldMod`）既没把义务口径收成区内，"
+                        "也没真的发出 `writesThisScope` 属性 ⇒ 那个零会被读成「没改过世界」")
+
+    if "public static String population(" not in stripped("action/WriteBudget.java"):
+        problems.append("`WriteBudget.population(...)` 不在了 ⇒ `Z4` 的人口读数工具没了")
+    return problems
+
+
 def grep_symbol_exists(name):
     """该符号是否在 src/main/java 下真实出现（防"编造出处"）。"""
     needle = name + "("
@@ -3019,6 +3094,7 @@ def main() -> int:
     capability = rule_k4_capability_provenance()
     z2 = rule_ledger_closure_zone_scoped()
     z3 = rule_write_budget_zone_and_container_exception()
+    z4 = rule_vacuous_assertions_carry_population()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -3127,14 +3203,16 @@ def main() -> int:
         print(f"[Z2·账本闭合口径] {line}")
     for line in z3:
         print(f"[Z3·额度同源+容器例外] {line}")
+    for line in z4:
+        print(f"[Z4·空集断言要带人口] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
           f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
-          f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 额度同源与容器例外={len(z3)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
+          f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 
