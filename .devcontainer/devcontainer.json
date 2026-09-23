@@ -10,5 +10,5 @@
   "portsAttributes": {
     "3081": { "label": "DSH web", "onAutoForward": "silent" }
   },
-  "postCreateCommand": "npm i -g @deepseek-ai/dsh@0.1.5-rc.1 && echo \"node=$(node -v)\" && java -version 2>&1 | head -1 && dsh --version"
+  "postCreateCommand": "npm i -g @deepseek-ai/dsh@0.1.5-rc.3 && echo \"node=$(node -v)\" && java -version 2>&1 | head -1 && dsh --version"
 }
