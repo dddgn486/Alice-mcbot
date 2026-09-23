@@ -209,6 +209,14 @@ CORE 步拿到真地形）。**代价**：夹具会**继承玩家世界的一切
 | A 现状 | 认领在 | `lumber_job=SKIP ticks=0 idempotent=true` ⇒ **`DEGRADED`**（`passed=0/1 skipped=1`）；⭐ `[Premise]` 行**逐字点名 4 个被拦区块 `chunk(1,13)(1,14)(2,13)(2,14)@…:ftb_claim_denied`** —— 与认领文件**恰好一致**；**`no_reachable_candidate`/`trunk_too_tall`/`WRITE-REFUSED` 全部 = 0**；用时 **72 s → 21 s** |
 | B 移开认领 | 前提成立 | `lumber_job=PASS ticks=593` ⇒ 说明**前提成立时这一步真能过** |
 | C 注入 | 移开认领 + 配额不可达 | `FAIL partial_quota` + **`idempotent=true`**（§7.1 的证明） |
+| D 模块 | `module:lumber` | **`failures=0 skipped=4 [lumber_failure, lumber_job, region_maintain, region_sweep_e2e]`** ⇒ 4 个踩在认领盒里的步全部如实 `SKIP`；`region_sweep`/`region_maintain_unmaintainable` 照常 `PASS`；用时 **147 s → 26 s** |
+
+⭐ **D 这一步多抓出第 4 个受害夹具**：第一次跑 `module:lumber` 时 `region_sweep_e2e` 仍 **FAIL**
+（`REGION_SWEEP_E2E_FAILED`），日志逐字 `[WRITE-REFUSED] plant pos=23, 64, 211 by=region_lumber…` ×113
+⇒ **认领同样拦"放置"**（不只是破坏），而该步用 `LumberCourseAnchor.region()` **在代码里自建场景**
+⇒ 我先前那次"115 个场景函数"的扫描**漏掉了它**（扫描只看数据包函数）。
+⇒ **教训（写进 `LumberModule` 的注释了）**：排查"夹具踩到别人的地"**不能只扫数据包场景函数**，
+**代码里自建场景的夹具**同样要查。
 
 ### 7.4 ⚠️ 顺带查出的新事实：**前提成立时这一步是"刀尖上的"（flaky）**
 

@@ -50,6 +50,12 @@ import java.util.function.Supplier;
  * <p>**本模块自带前提**：三步都先传送到课程起点（`lumber_failure` 的 `provision` 只做这一件事
  * —— 它**自带地形函数**，但顺序是"函数 → 传送"，所以必须由模块**先把区块热起来**，否则 `/fill`
  * 会落在冷区块上 ✗，D-296 记过这个坑 ✓）。
+ *
+ * <p>⭐ **另一条前提：第三方保护**（`D-409`/`D-410`）。无头电池的世界母本是**玩家真实存档的副本**
+ * ⇒ 夹具会**继承玩家的 FTB Chunks 认领**，而伐木课程的坐标恰恰就在玩家基地里 ⇒ 认领内的
+ * 破坏/放置会被 FTB **静默取消**，夹具却报成内核失败码（`lumber_job` 连红 35 轮的真因）。
+ * ⇒ 四个用到该课程的步（`lumber_failure` / `lumber_job` / `region_maintain` / `region_sweep_e2e`）
+ * 一律挂 {@code FixtureThirdParty} 前提，不成立就**记 `SKIP`（结论不作数）**，绝不假装绿。
  */
 public final class LumberModule implements CheckModule {
 
@@ -122,8 +128,15 @@ public final class LumberModule implements CheckModule {
                 // `D-344` 片 A 的**端到端**一环：真跑一个 `RegionLumberJob`，看它"扫地面 → 捡苗 → 补种"。
                 // 场景与状态由夹具自己在 SETUP 里造（含地形函数、传送、清背包），结束**还原**
                 // ⇒ provision 传 `null`（技能：夹具自己负责传送与复位）。
-                CheckStep.of("region_sweep_e2e", CheckProfile.EXTRA, List.of(), null,
-                        () -> new RegionSweepE2ECheckTask(bot, scope), 3000),
+                // ⚠️ 本步**也在伐木课程的第三方认领盒内**（它用 `LumberCourseAnchor.region()`，与
+                //    `region_maintain` 同一个区域）：**建场景**的命令源不受第三方保护约束，但**bot 自己去
+                //    补种**会 —— 2026-09-23 实测 `[WRITE-REFUSED] plant pos=23, 64, 211 by=region_lumber…`
+                //    ×113 ⇒ `saplingsPlanted` 不增 ⇒ **假红** `REGION_SWEEP_E2E_FAILED`。
+                //    ⇒ 同样挂第三方前提（`D-410`）。⭐ 教训：只看**数据包场景函数**的坐标会漏掉
+                //    **在代码里自建场景**的夹具（本步就是被漏掉的那个）。
+                CheckStep.skippable("region_sweep_e2e", CheckProfile.EXTRA, List.of(), null,
+                        guarded(bot, "region_sweep_e2e", () -> new RegionSweepE2ECheckTask(bot, scope)),
+                        3000, LumberModule::premiseFailed),
                 // ⭐ `D-349`（勘测侧 Pit 2）：**`MAINTAIN` 的"不可维持"判据** —— 常驻区域作业
                 // 不许"看起来在跑、其实终态已不可达"。判据：① 触发（事实被登记 + 上报"可做什么"）；
                 // ② **不越权**（登记时仍 RUNNING，收工只由玩家/决策层打断）；③ **恢复**（注入欠树+苗 ⇒ 清除）。
