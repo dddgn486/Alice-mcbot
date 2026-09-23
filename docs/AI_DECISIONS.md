@@ -18181,3 +18181,60 @@ wildSkippedSince 窗口内被跳过的区外放置次数
 而是**登记清单**（10 组站点，分"判据/生产决策输入/只读数"三类，见 review §6）+ 本轮给的"可见性"能力。
 每条的修法只有三种：① 夹具 `FixtureZone.protect(...)` 让**人口回来** ② 判据改读**世界事实**
 ③ 明确标 `n/a（区外 ⇒ 无义务）` 并**印出人口**。
+
+---
+
+### D-415：⭐⭐ `Z3` —— 额度**同源收口**（`P1-a` 同类复发）+ 容器例外显式化（2026-09-23）
+
+队列项 = `OPEN_ITEMS_LEDGER §11-A` 的 `Z3`（`D-398` 兑现顺序最后一条）。
+用户本轮裁定：**容器上限保留**（不随 `D-372`/`D-398` 放开）。
+
+#### 一、先审计：`Z3` 登记时的两条**大半已经满足**（诚实结论，不重复造轮子）
+
+| 条款 | 结论 | 证据 |
+|---|---|---|
+| 区外取消格数额度 | **行为已满足**（默认回退 `Caps.UNBOUNDED`），但**"区"在代码里不存在** —— 是默认值的涌现属性 | `grep ProtectionZones action/` = 0；生产行全印 `cap[breaks/places]=不限`；`write_policy` 连破坏 200 次后 `remainingBreaks > 200` |
+| 保护区内不许静默降级 | **已满足且有判据** | 内核 `[WRITE-REFUSED] … reason=write_budget_exhausted`；作业 `[Job] terminal … reason=write_budget_exhausted`；`BreakRefusedCheckTask ⑥` 反向对照"预算不许被 `world_refused` 抢走" |
+
+#### 二、审计挖出的**真缺陷**：同一个量的 **6 个副本**（`P1-a` 同类复发）
+
+`D-372`（2026-09-21）把**闸门**改成"默认不限"；`P1-a`（2026-09-22 真机根因"判定器读的是另一个副本"）
+只修好了 `remaining*` 两个。审计发现**还有 4 个读者回退 `Caps.DEFAULT`(64/32)，且全有生产调用者**：
+
+| 读者 | 生产调用者 | 症状 |
+|---|---|---|
+| `plannedWritesAllowed` | `MovementContext:175`（**A\* 写边谓词**）+ `PathSession:777` | 破满 64 次后搜索剪掉**所有写边** ⇒ 计划**静默降级为纯通行**（"隧道挖不动"复发） |
+| `breakAllowed` | `MineCandidateSource:462` + `BlockInteraction:419` | 候选报 `write_budget_exhausted`（码对、**触发是幻影 64**）；预检拒了闸门会放行的写入 |
+| `placeAllowed` | `BlockInteraction:308/569` | 同上（放置轴） |
+| `describe` | 所有 `[WRITE-REFUSED]` 证据行 | 把上限**印错**（印 `/64`，生效值是不限）|
+
+⚠️ 这类失败**不报错**（`silent-measurement-failure §5`：同一个量的多个副本）⇒ 只能靠门禁。
+⭐ 现网可达：`write_policy` 那一步实测**一个作用域 200 次破坏**（无装订）⇒ 幻影墙必然被撞到。
+
+#### 三、改动
+
+1. **唯一出处** `effectiveCaps(scopeId)` = `CAPS.getOrDefault(scopeId, Caps.UNBOUNDED)`；
+   **9 个读者**全改走它；**删掉死 API `capsOf`**（零调用者 + unset 时回 `Caps.DEFAULT` = 又一处错口径）。
+2. **瞬时码单一出处** `WriteBudget.EXHAUSTED_CODE`（7 处字面量 → 引用常量）——
+   它跨内核→作业→归因→日志传递，拼错一个字母就静默丢归因。
+3. **容器例外结构化**（用户裁定保留）：`consumeContainerWrite`/`remainingContainerWrites` 回退
+   `Caps.DEFAULT`（唯一两个例外）+ `closeScope` 的容器列证据；**`Caps.UNBOUNDED` 的容器份额 =
+   `DEFAULT_MAX_CONTAINER_WRITES`**（原先 `MAX_VALUE` ⇒ 装"不限的破坏/放置额度"会顺手放开容器轴）。
+4. **判据（动态）**：CORE 的 `write_budget` 步追加 `ZONE` 臂 —— **野外前提自证**
+   （`ProtectionZones.isWild`，不成立即判红）+ 臂①「无装订 ⇒ 连做 **70** 次破坏/放置一次都不许被拒」
+   （70 > 64/32 ⇒ 对"兜底退回 64"有鉴别力）+ 臂②「显式装订照旧强制」（`capForEscape` 装"**再给 1 次**"，
+   第 2 次必被拒）。⚠️ 第一版把额度写成绝对值 1 ⇒ 本阶段第一次就被拒（**前提是假的**，判据看着对）——
+   已改为"当前计数 + 1"。
+5. **门禁**：`rule_write_budget_zone_and_container_exception`（`[Z3·额度同源+容器例外]`）**八条注入臂全红**；
+   同时把 `D-372` 规则的第①臂**指向新位置**（属性不变，位置从 `consume*` 方法体搬进 `effectiveCaps`）。
+
+#### 四、净效果与边界
+
+- **只放松不收紧**：无显式装订时，搜索/预检不再被幻影 64 挡住；**显式装订（`capForEscape`/夹具
+  `setCaps`）完全不变**（`D-241` 逃生准备金照旧；`mine_budget` 的 `Caps(0,0)` 照旧把作业逼成
+  `write_budget_exhausted`）。
+- ⚠️ **"区外无额度"的准确含义**：**没有显式装订**时成立；显式装订在区外照旧生效（这是"保留显式装订"的含义）。
+- ⚠️ 动态判据覆盖"生效上限 = `UNBOUNDED` 时不被拒"；"**默认回退** = `UNBOUNDED`"由**静态门禁**钉
+  （两个半张合起来才是判据）。
+- ⚠️ `Z3` 原文的"区内不许静默降级"这半：原本只有 `MineJob` 那条链有判据；本轮**没有**给
+  `WalkToTask`/`PlaceTask`/craft/transfer 逐条实测"最终报什么码"（它们都有日志 + 同一瞬时码）。

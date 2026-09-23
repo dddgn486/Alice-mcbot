@@ -184,7 +184,8 @@ public final class MiningModule implements CheckModule {
                         new NearestPolicy()),
                         400)
                         .withDoneWhen(task -> task instanceof MineJob job
-                                && "write_budget_exhausted".equals(job.terminalReason())),
+                                && com.dddgn.alice.action.WriteBudget.EXHAUSTED_CODE
+                                        .equals(job.terminalReason())),
                 // ⭐ `D-346`（2026-09-20）：**收集的追取上限必须覆盖本作业自己的作用域** —— 旧实现把
                 // `MAX_CHASE_DISTANCE` 写死 32，比 `MineJob` 自己的作用域直径（`2 × SCAN_RADIUS(24)` = 48）
                 // 还小 ⇒ **自己挖出来的产物被自己的上限永久退休**（`retire reason=too_far`）⇒

@@ -190,7 +190,7 @@ public final class BreakRefusedCheckTask implements Task {
         String budgetTop = com.dddgn.alice.job.mine.MineJob.attributeFailure("no_reachable_candidate",
                 java.util.List.of("WRITE_BUDGET_EXHAUSTED"));
         check("⑥ 既有家庭没被新家庭抢走：全预算耗尽 ⇒ 仍是 `write_budget_exhausted`（实测 " + budgetTop + "）",
-                "write_budget_exhausted".equals(budgetTop));
+                com.dddgn.alice.action.WriteBudget.EXHAUSTED_CODE.equals(budgetTop));
         String otherBase = com.dddgn.alice.job.mine.MineJob.attributeFailure("search_incomplete", allRefused);
         check("⑥ 非总括基础码**逐字返回**（`search_incomplete` + 全被拒 ⇒ 仍是 " + otherBase
                         + "；S3 的『搜索受限』不许被拒绝归因盖掉）", "search_incomplete".equals(otherBase));        advance(Phase.CONTROL);

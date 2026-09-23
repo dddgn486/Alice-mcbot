@@ -460,7 +460,7 @@ public final class MineCandidateSource implements CandidateSource {
             // 顺序：保护区 → **预算**（保 `mine_budget` 的 `write_budget_exhausted` 归因）→ 具体拒绝码。
             WriteGrant grant = WriteGrant.of("mine-plan", WriteReason.EXPECTED_TARGET);
             if (!com.dddgn.alice.action.WriteBudget.breakAllowed(bot, grant)) {
-                return "write_budget_exhausted";
+                return com.dddgn.alice.action.WriteBudget.EXHAUSTED_CODE;
             }
             String refusal = BlockInteraction.breakRefusal(bot, level, pos, grant);
             if (refusal != null) {

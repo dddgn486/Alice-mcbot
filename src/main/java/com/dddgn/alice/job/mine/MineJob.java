@@ -644,7 +644,7 @@ public final class MineJob implements Job {
             return "tool_missing";
         }
         if (codes.stream().allMatch(BUDGET_CODES::contains)) {
-            return "write_budget_exhausted";
+            return com.dddgn.alice.action.WriteBudget.EXHAUSTED_CODE;
         }
         if (codes.size() == 1 && codes.contains("target_replaced")) {
             return "stale_target";
@@ -672,7 +672,9 @@ public final class MineJob implements Job {
             "BREAK_REFUSED", "world_unchanged", "REFUSED");
 
     private static final java.util.Set<String> BUDGET_CODES = java.util.Set.of(
-            "WRITE_BUDGET_EXHAUSTED", "write_budget_exhausted", "prod_budget_exhausted");
+            "WRITE_BUDGET_EXHAUSTED",
+            com.dddgn.alice.action.WriteBudget.EXHAUSTED_CODE,   // ← 唯一出处（Z3）
+            "prod_budget_exhausted");
 
     /** 配额未达成：有产出 → `partial_quota`，一个没挖成 → `no_reachable_candidate`。 */
     private Task.Status shortfall(CandidateSet set) {

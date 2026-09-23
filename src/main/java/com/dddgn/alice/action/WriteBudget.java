@@ -48,6 +48,16 @@ public final class WriteBudget {
     /** **任务级容器写入上限**（2026-09-13：容器写入纳入"世界改动"体系；32 起点，按观测再收紧）。 */
     public static final int DEFAULT_MAX_CONTAINER_WRITES = 32;
 
+    /**
+     * ⭐ `Z3`（2026-09-23）：**预算耗尽的唯一瞬时码**。
+     *
+     * <p>为什么提成常量（而不是散在各处写字面量）：这个码要跨边界传递（内核 `[WRITE-REFUSED]`
+     * → 作业终态 → `MineJob.BUDGET_CODES` 归因 → LLM/日志），**拼错一个字母就静默丢归因**；
+     * 而且它必须保持**瞬时**语义（"这段额度用完了"，不是"这里到不了"）。
+     * 门禁 `rule_write_budget_zone_and_container_exception` 断言这个字面量**只在本文件**出现。
+     */
+    public static final String EXHAUSTED_CODE = "write_budget_exhausted";
+
     /** 判定结果。 */
     public enum Verdict {
         /** 计数已累加，允许写入。 */
@@ -70,8 +80,14 @@ public final class WriteBudget {
          * （`CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS`、`MiningBudget.maxExtraBreakTicks`、
          * 作业 `maxTicks`、`no_progress` 看门狗）继续生效，计数**照记**（SUMMARY/审计不看丢）。
          */
+        /**
+         * ⚠️ **容器份额刻意保持 {@link #DEFAULT_MAX_CONTAINER_WRITES}**（不是 `MAX_VALUE`）：
+         * 容器是**别人的存储**（`D-076` 红线），与地皮归属正交 ⇒ `D-372`/`D-398` 的"区外放开"
+         * **不覆盖**它，而且"装上不限的破坏/放置额度"**不许顺手把它放开**（用户 2026-09-23 裁定保留）。
+         * 要放开只能显式装订（`capForEscape` 反而是**收紧**到 0）。
+         */
         public static final Caps UNBOUNDED =
-                new Caps(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
+                new Caps(Integer.MAX_VALUE, Integer.MAX_VALUE, DEFAULT_MAX_CONTAINER_WRITES);
 
         /** 兼容构造：只关心破坏/放置的调用点（容器写入取默认上限）。 */
         public Caps(int maxBreaks, int maxPlaces) {
@@ -134,17 +150,32 @@ public final class WriteBudget {
                 scopeId, maxBreaks, maxPlaces);
     }
 
-    /** 读某个作用域的**当前**上限（夹具用：压小之后要能还原，否则会污染后续步骤）。 */
-    public static Caps capsOf(String scopeId) {
-        return CAPS.getOrDefault(scopeId, Caps.DEFAULT);
-    }
-
     /** 覆写某个作用域的上限（**夹具专用**：构造"预算不足"自检，不接玩家命令入口）。 */
     public static void setCaps(String scopeId, Caps caps) {
         if (scopeId == null) {
             return;
         }
         CAPS.put(scopeId, caps);
+    }
+
+    /**
+     * ⭐ `Z3`（2026-09-23）：**破坏/放置这一对额度桶的唯一出处**。
+     *
+     * <p>为什么必须收成一个函数：`D-372` 把闸门改成"默认不限"之后，**同一个量在文件里出现了 6 个读者**
+     * （`consumeBreak`/`consumePlace`/`plannedWritesAllowed`/`breakAllowed`/`placeAllowed`/`describe`），
+     * 而 `P1-a`（2026-09-22 真机根因）只修好了其中两个（`remaining*`）⇒ 其余四个仍回退 `Caps.DEFAULT`
+     * （64/32）⇒ 后果是**闸门说"不限"，计划期/搜索谓词/预检却说"64 次就没了"**：
+     * 破满 64 次后 A* 的写边谓词（`MovementContext:175` → `plannedWritesAllowed`）把**所有**写边剪掉
+     * ⇒ 计划**静默降级为纯通行**（正是 `P1-a` 描述过的"隧道挖不动"复发），而且预检会拒掉
+     * `consumeBreak` 本来会放行的写入。这类失败**不报错**（`silent-measurement-failure` §5）。
+     *
+     * <p>口径（`Z3` + `D-398` R4）：**格数闸门与"区"无关** —— 区内/区外同一套（默认不限，
+     * 因为区外无限制修改、区内由权限层 `CapabilityGate` 管）；**显式装订**（`capForEscape`/
+     * 夹具 `setCaps`）照旧优先、照旧强制。
+     * ⚠️ 例外只有一条：**容器轴**（{@link #consumeContainerWrite} 仍回退 {@link Caps#DEFAULT}）。
+     */
+    private static Caps effectiveCaps(String scopeId) {
+        return CAPS.getOrDefault(scopeId, Caps.UNBOUNDED);
     }
 
     /** 作用域收尾：输出一行可观测 SUMMARY 并清账。 */
@@ -188,7 +219,7 @@ public final class WriteBudget {
         // 世界修改放开的闸门改为**时间预算**（防空转）；**显式装订**的上限（`setCaps`/`capForEscape`）
         // 仍然优先、照旧强制（`D-241` 逃生准备金不受影响）。
         // 保护区的约束**不在这里**：它是独立的权限层（`CapabilityGate` → `protectionReason` ⇒ `protected_area`）。
-        Caps caps = CAPS.getOrDefault(scope, Caps.UNBOUNDED);
+        Caps caps = effectiveCaps(scope);
         if (grant != null && grant.reason() == WriteReason.SCAFFOLD_RESTORE) {
             // 建拆同权：回收我方临时放置不受破坏上限约束（否则恢复会被自己的预算卡死）
             counters.exemptBreaks++;
@@ -221,7 +252,7 @@ public final class WriteBudget {
             return Verdict.ALLOW;
         }
         Counters counters = SCOPES.computeIfAbsent(scope, key -> new Counters());
-        Caps caps = CAPS.getOrDefault(scope, Caps.UNBOUNDED);   // `D-372` 同破坏：默认不限、显式优先
+        Caps caps = effectiveCaps(scope);   // `D-372` 同破坏：默认不限、显式优先（`Z3`：唯一出处）
         if (counters.places >= caps.maxPlaces()) {
             counters.refusedPlaces++;
             TaskMetrics.noteRefusedPlace();
@@ -321,7 +352,7 @@ public final class WriteBudget {
             return;
         }
         Counters counters = SCOPES.computeIfAbsent(scope, key -> new Counters());
-        Caps caps = CAPS.getOrDefault(scope, Caps.DEFAULT);
+        Caps caps = effectiveCaps(scope);   // ⭐ `Z3`：证据行里的上限必须与闸门同源（原先印 64）
         counters.refusedPlaces++;
         TaskMetrics.noteRefusedPlace();
         if (!counters.placeExhausted) {
@@ -355,7 +386,8 @@ public final class WriteBudget {
         if (counters.breakExhausted || counters.placeExhausted) {
             return false;
         }
-        Caps caps = CAPS.getOrDefault(scope, Caps.DEFAULT);
+        // ⭐ `Z3`：与闸门**同源**（这里原先回退 `Caps.DEFAULT` ⇒ 计划期把"不限"读成 64）
+        Caps caps = effectiveCaps(scope);
         if (minBreaks > 0 && counters.breaks + minBreaks > caps.maxBreaks()) {
             return false;
         }
@@ -375,7 +407,7 @@ public final class WriteBudget {
         // **静默降级成纯通行** ⇒ 深挖隧道全部挖不动（真机实测：`remaining=5/32` ×31、
         // `planWrites>=9..20` 全被降级、作业 `mined 19/64` 与 `6/8`）。
         // ⇒ 同一个量的两处必须**同源**（改甲必须改乙：`silent-measurement-failure` §5）。
-        Caps caps = CAPS.getOrDefault(scope, Caps.UNBOUNDED);
+        Caps caps = effectiveCaps(scope);
         return counters == null ? caps.maxBreaks()
                 : (int) Math.min(Integer.MAX_VALUE, Math.max(0L, (long) caps.maxBreaks() - counters.breaks));
     }
@@ -387,7 +419,7 @@ public final class WriteBudget {
             return Integer.MAX_VALUE;
         }
         Counters counters = SCOPES.get(scope);
-        Caps caps = CAPS.getOrDefault(scope, Caps.UNBOUNDED);
+        Caps caps = effectiveCaps(scope);
         return counters == null ? caps.maxPlaces()
                 : (int) Math.min(Integer.MAX_VALUE, Math.max(0L, (long) caps.maxPlaces() - counters.places));
     }
@@ -421,7 +453,8 @@ public final class WriteBudget {
             return true;
         }
         Counters counters = SCOPES.get(scope);
-        Caps caps = CAPS.getOrDefault(scope, Caps.DEFAULT);
+        // ⭐ `Z3`：与闸门同源（原先回退 `DEFAULT` ⇒ 破满 64 次后**搜索谓词**认为再也破不动了）
+        Caps caps = effectiveCaps(scope);
         return counters == null || counters.breaks < caps.maxBreaks();
     }
 
@@ -432,7 +465,7 @@ public final class WriteBudget {
             return true;
         }
         Counters counters = SCOPES.get(scope);
-        Caps caps = CAPS.getOrDefault(scope, Caps.DEFAULT);
+        Caps caps = effectiveCaps(scope);   // ⭐ `Z3`：与闸门同源
         return counters == null || counters.places < caps.maxPlaces();
     }
 
@@ -457,7 +490,7 @@ public final class WriteBudget {
             return "scope=<none>";
         }
         Counters counters = SCOPES.get(scope);
-        Caps caps = CAPS.getOrDefault(scope, Caps.DEFAULT);
+        Caps caps = effectiveCaps(scope);   // ⭐ `Z3`：证据行不许把上限印错（原先印 64 而生效值是不限）
         if (counters == null) {
             return "scope=" + scope + " breaks=0/" + caps.maxBreaks() + " places=0/" + caps.maxPlaces()
                     + " exhausted=false";

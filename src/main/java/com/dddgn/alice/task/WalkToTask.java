@@ -107,7 +107,7 @@ public class WalkToTask implements Task {   // 非 final：S-1 的逃生任务 S
         // 而不是"我没有写入额度了"（真相）。真机实测同一条链：`remaining=5/32` ⇒ 计划被降级 ⇒ 目标全部失败。
         if (runner.writeBudgetDegraded() && failure != null && !failure.isBlank()) {
             BotLog.warn("[WalkToTask] 失败归因上调：计划因写入额度不足被降级（{} ⇒ write_budget_exhausted）", failure);
-            failure = "write_budget_exhausted";
+            failure = com.dddgn.alice.action.WriteBudget.EXHAUSTED_CODE;
         }
         BotLog.warn("[WalkToTask] failed bot={} goalFoot={} reason={} status={} code={} actualFoot={} replans={}",
                 bot.getName().getString(), goalFoot.toShortString(), failure,

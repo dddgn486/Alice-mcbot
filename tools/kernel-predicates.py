@@ -1607,11 +1607,18 @@ def rule_write_caps_default_open_protection_kept():
     collector = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
                  / "CollectDropsTask.java").read_text(encoding="utf-8")
 
+    # ⚠️ `Z3`（2026-09-23）搬了位置：默认回退**收成一个出处** `effectiveCaps(...)`（原先 6 个读者
+    # 各回退各的，`P1-a` 只修好 2 个）⇒ 本臂改为断言"属性在 `effectiveCaps` 里 + 闸门走它"，
+    # 语义与 `D-372` 完全相同（默认不限），只是不再散在方法体里。
+    effective = code_only(method_body(budget, "private static Caps effectiveCaps("))
+    if "CAPS.getOrDefault(scopeId, Caps.UNBOUNDED)" not in effective:
+        problems.append("`effectiveCaps(...)` 的默认回退不是 `Caps.UNBOUNDED` ⇒ 默认格数上限又回来了"
+                        "（`D-372`：保护区外世界修改放开，只留时间预算防空转）")
     for method in ("public static Verdict consumeBreak(", "public static Verdict consumePlace("):
         body = code_only(method_body(budget, method))
-        if "Caps.UNBOUNDED" not in body:
-            problems.append("`%s` 的默认回退不是 `Caps.UNBOUNDED` ⇒ 默认格数上限又回来了"
-                            "（`D-372`：保护区外世界修改放开，只留时间预算防空转）" % method.split()[3])
+        if "effectiveCaps(" not in body:
+            problems.append("`%s` 没走唯一的额度出处 `effectiveCaps(...)` ⇒ 闸门与其它读者不同源"
+                            "（`Z3`：同一个量的多个副本就是 `P1-a` 那个真机根因）" % method.split()[3])
     # ⚠️ 必须断言**取值那一行**：只查"body 里出现过 DEFAULT"会被"别处仍有一处 DEFAULT"满足
     # （注入实测没红，本会话第 5 次「判据太弱」）。
     container = code_only(method_body(budget, "public static Verdict consumeContainerWrite("))
@@ -2833,6 +2840,111 @@ def rule_ledger_closure_zone_scoped():
     return problems
 
 
+def rule_write_budget_zone_and_container_exception():
+    """`Z3`（2026-09-23）：**额度只有一处出处；容器轴是唯一例外；瞬时码只有一个拼法**。
+
+    <h3>为什么（审计挖出来的真缺陷，不是推测）</h3>
+    `D-372` 把闸门改成"默认不限"之后，**同一个量在 `WriteBudget` 里出现了 6 个读者**
+    （`consumeBreak` / `consumePlace` / `plannedWritesAllowed` / `breakAllowed` / `placeAllowed` /
+    `describe`），而 `P1-a`（2026-09-22 真机根因）只修好了 `remaining*` 两个 ⇒ 其余**全都有生产调用者**却
+    仍回退 `Caps.DEFAULT`(64/32)：`MovementContext:175 → plannedWritesAllowed`（**A* 的写边谓词**）、
+    `MineCandidateSource:462` / `BlockInteraction:419 → breakAllowed`、`BlockInteraction:308/569 → placeAllowed`。
+    ⇒ 破满 64 次后，闸门说"还能改"，搜索/预检说"改不动了" ⇒ 计划**静默降级为纯通行**
+    （正是 `P1-a` 描述过的"隧道挖不动"复发），且证据行把上限印错。
+    这类失败**不报错**（`silent-measurement-failure` §5：同一个量的多个副本）。
+
+    <h3>三条（各一条注入臂 ⇒ 改任一处即红）</h3>
+    ① **非容器读者全部走 `effectiveCaps(...)`**（区内/区外同一套：默认不限、显式装订优先）；
+    ② **容器轴是唯一例外**（`consumeContainerWrite` / `remainingContainerWrites` 回退 `Caps.DEFAULT`），
+       且 `Caps.UNBOUNDED` **不许**顺手把它放开（用户 2026-09-23 裁定：保留容器上限 ——
+       容器是别人的存储 `D-076`，与地皮归属正交）；
+    ③ **瞬时码 `write_budget_exhausted` 只许有一个出处**（`WriteBudget.EXHAUSTED_CODE`）——
+       它跨内核→作业→归因→日志传递，拼错一个字母就静默丢归因。
+
+    <p>另断言判据还在：`WriteBudgetCheckTask` 必须保留**野外前提自证**与 `capForEscape` 对比臂
+    （否则"区外无额度"这条判据会退化成一句注释）。
+    """
+    budget_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "action"
+                   / "WriteBudget.java")
+    fixture_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
+                    / "WriteBudgetCheckTask.java")
+    if not budget_path.exists() or not fixture_path.exists():
+        return ["`WriteBudget.java` 或 `WriteBudgetCheckTask.java` 不存在（改名？同步本规则）"]
+
+    def strip_block_comments(text: str) -> str:
+        return re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+
+    budget = code_only(strip_block_comments(budget_path.read_text(encoding="utf-8")))
+    fixture = code_only(strip_block_comments(fixture_path.read_text(encoding="utf-8")))
+    problems = []
+
+    # ---- 臂① 非容器读者同源 ----
+    readers = {
+        "public static Verdict consumeBreak(": "破坏闸门",
+        "public static Verdict consumePlace(": "放置闸门",
+        "public static boolean plannedWritesAllowed(": "计划期剪枝（A* 写边谓词）",
+        "public static int remainingBreaks(": "剩余破坏读数",
+        "public static int remainingPlaces(": "剩余放置读数",
+        "public static boolean breakAllowed(": "内核破坏谓词",
+        "public static boolean placeAllowed(": "放置预检",
+        "public static String describe(": "证据行",
+        "public static void notePlaceRefusal(": "提前拒绝记账",
+    }
+    for signature, label in readers.items():
+        body = code_only(method_body(budget, signature))
+        if not body:
+            problems.append(f"找不到 `{signature.strip()}`（{label}）—— 改名？同步本规则")
+        elif "effectiveCaps(" not in body:
+            problems.append(f"{label}（`{signature.split()[-1]}`）没走唯一的额度出处 "
+                            f"`effectiveCaps(...)` ⇒ 它读的是**另一个副本**"
+                            f"（`P1-a`/`Z3`：闸门说不限、这里说 64 ⇒ 计划静默降级）")
+
+    # ---- 臂② 容器轴是唯一例外 ----
+    container = code_only(method_body(budget, "public static Verdict consumeContainerWrite("))
+    container_left = code_only(method_body(budget, "public static int remainingContainerWrites("))
+    for body, label in ((container, "`consumeContainerWrite`"),
+                        (container_left, "`remainingContainerWrites`")):
+        if "Caps.DEFAULT" not in body:
+            problems.append(f"{label} 不再回退 `Caps.DEFAULT` ⇒ 容器轴（别人的存储，`D-076`）"
+                            f"被卷进了 `D-372`/`D-398` 的放开（用户 2026-09-23 裁定：保留容器上限）")
+    # 容器列在**三处**出现：两个读者 + 收尾 SUMMARY 的证据行（`closeScope` 要印"容器 x/32"这个真数）
+    close_body = code_only(method_body(budget, "public static void closeScope("))
+    rest = budget
+    for body in (container, container_left, close_body):
+        rest = rest.replace(body, "", 1)
+    if "Caps.DEFAULT" in rest:
+        problems.append("`WriteBudget` 里除容器轴外还出现了 `Caps.DEFAULT` ⇒ 破坏/放置轴上又有了一处 "
+                        "`64/32` 兜底（`Z3`：唯一出处是 `effectiveCaps`）")
+    if "return CAPS.getOrDefault(scopeId, Caps.UNBOUNDED);" not in code_only(
+            method_body(budget, "private static Caps effectiveCaps(")):
+        problems.append("`effectiveCaps(...)` 的兜底不再是 `Caps.UNBOUNDED`（`D-372` 的默认不限被改回去了）")
+    unbounded = re.search(r"public static final Caps UNBOUNDED\s*=\s*new Caps\(([^;]*)\);", budget)
+    if not unbounded or "DEFAULT_MAX_CONTAINER_WRITES" not in unbounded.group(1):
+        problems.append("`Caps.UNBOUNDED` 的**容器份额**不是 `DEFAULT_MAX_CONTAINER_WRITES` ⇒ "
+                        "装一个「不限的破坏/放置额度」会**顺手放开容器轴**（与用户裁定冲突）")
+
+    # ---- 臂③ 瞬时码只有一个出处 ----
+    literal = '"write_budget_exhausted"'
+    offenders = []
+    for path in (ROOT / "src" / "main" / "java").rglob("*.java"):
+        if path.name == "WriteBudget.java":
+            continue
+        if literal in strip_block_comments(path.read_text(encoding="utf-8")):
+            offenders.append(path.name)
+    if offenders:
+        problems.append(f"瞬时码字面量 {literal} 出现在 WriteBudget 之外：{sorted(offenders)} ⇒ "
+                        f"改用 `WriteBudget.EXHAUSTED_CODE`（拼错一个字母 = 静默丢归因）")
+    if 'public static final String EXHAUSTED_CODE = "write_budget_exhausted";' not in budget:
+        problems.append("`WriteBudget.EXHAUSTED_CODE` 不在了（瞬时码失去唯一出处）")
+
+    # ---- 判据本身还在（不是退化成注释）----
+    if "ProtectionZones.isWild" not in fixture:
+        problems.append("`WriteBudgetCheckTask` 没有**野外前提自证** ⇒ 「区外无额度」这条判据会退化成一句注释")
+    if "capForEscape(" not in fixture:
+        problems.append("`WriteBudgetCheckTask` 没有 `capForEscape` 对比臂 ⇒ 「显式装订照旧强制」这半没判据")
+    return problems
+
+
 def grep_symbol_exists(name):
     """该符号是否在 src/main/java 下真实出现（防"编造出处"）。"""
     needle = name + "("
@@ -2906,6 +3018,7 @@ def main() -> int:
     d385 = rule_break_cost_state_penalty()
     capability = rule_k4_capability_provenance()
     z2 = rule_ledger_closure_zone_scoped()
+    z3 = rule_write_budget_zone_and_container_exception()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -3012,14 +3125,16 @@ def main() -> int:
         print(f"[K4·准入来源单一] {line}")
     for line in z2:
         print(f"[Z2·账本闭合口径] {line}")
+    for line in z3:
+        print(f"[Z3·额度同源+容器例外] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
           f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
-          f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
+          f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 额度同源与容器例外={len(z3)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 
