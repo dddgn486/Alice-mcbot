@@ -17966,3 +17966,65 @@ zoneTerminal=restore_done purgeDropped=1 ticks=166 → PASS`（`run/headless-log
 **诚实边界**：`33,64,208` 的 `no_valid_standing_point` 是**场景几何还是内核问题未定**（不写成缺陷）；
 场景函数头部另有一条自记的"树冠通道红线"（`y=65 z=212..214`）是可能的成因。
 
+---
+
+### D-410：落地 `D-409` 的两条 —— **夹具第三方前提**（`C5`）+ **6 处终态闩锁统一**（`D`）（2026-09-23）
+
+用户 2026-09-23 拍板："先做 `C5`（夹具第三方前提）+ `D`（终态闩锁）"。**两件都已落地并各有实测。**
+
+#### 一、`D`：6 处终态闩锁统一成 `MineTask` 形状
+
+`if (terminated) return Task.Status.DONE;` ⇒ 外层 `tick()` **记住首次终态并原样回放**
+（`terminalStatus` 字段 + 原主体改名 `tickOnce()`），全仓 6 处一次改完：
+`job/lumber/LumberJob` · `job/mine/MineJob` · `job/collect/CollectJob` · `task/RestoreScopeTask` ·
+`task/LumberFailureCheckTask` · `task/ClearGuardCheckTask`。
+⚠️ `CollectJob` 的 `finish(FAILED,…)` 今天**取不到**（`:223` 只以 `DONE` 收尾）⇒ 那一处是**形状统一**
+而非修活缺陷（已写进它的字段注释，免得后人误读成"刚修好一个真 bug"）。
+
+⭐ **注入证明**（临时把 `lumber_job` 树配额改 4→99 + 移开认领）：
+
+| | 修前（`20260922-225609-core.log`） | 注入后（`20260923-124551-…`） |
+|---|---|---|
+| 终态 | `FAILED partial_quota` | `FAILED partial_quota`（同一失败码） |
+| `idempotent` | **`false（再 tick 返回 DONE/DONE，期望 FAILED）`** | ✅ **`true`** |
+
+#### 二、`C5`：夹具自己断言"这段范围不在别人的保护里"
+
+新增 `task/FixtureThirdParty`（逐区块问 **FTB 自己的**裁决函数；**不改世界**；fail-open 同 `D-326`）
++ `task/PremiseGateTask`（**首 tick 之前**求值的闸门）。
+**为什么不用 `skipWhen`**：`skipWhen` 是**终态之后**才求值（`RegressionBatteryTask:754-761`）⇒ 任务仍会真跑、
+仍会打出那条**误导性失败码**，等于"错的原因"还留在日志里 —— 那正是 `D-409` 要消掉的东西。
+接线 = `LumberModule` 的 3 步走 `CheckStep.skippable(..., LumberModule::premiseFailed)` + `guarded(...)`；
+前提盒**从 `LumberCourseAnchor` 区域常量派生**；`region_maintain` 的 `doneWhen` 用 `unwrap(task)` 穿透包装。
+⚠️ 闸门**必须透传** `isSelfCheck()`（`WritePolicyMatrix`/夹具洁净门禁都读它）等成员，否则会**静默改变**内层任务的写策略。
+
+#### 三、实测（A/B/C 三条互为对照）
+
+| 运行 | 条件 | 结果 |
+|---|---|---|
+| A | 认领在（现状） | `lumber_job=SKIP ticks=0 idempotent=true` ⇒ **`DEGRADED`**；`[Premise]` 行**逐字点名 4 个被拦区块** `chunk(1,13)(1,14)(2,13)(2,14)…ftb_claim_denied`（与认领文件**恰好一致**）；误导码 `no_reachable_candidate`/`trunk_too_tall`/`WRITE-REFUSED` **全部 = 0**；用时 **72 s → 21 s** |
+| B | 移开认领 | **`lumber_job=PASS ticks=593`** ⇒ 前提成立时这一步**真能过** |
+| C | 移开认领 + 配额不可达 | `FAIL partial_quota` + **`idempotent=true`**（= §一 的证明） |
+
+#### 四、⚠️ 顺带查出：前提成立时这一步是**刀尖上的（flaky）**
+
+两次**同样移开认领**的运行结果不同：`123423` = `FAIL partial_quota ticks=904`；
+`124423` = **`PASS ticks=593`**。原因：配额要 **4 棵**、可用候选 **5 棵**（其中 1 棵是设计上的
+"期望被拒对照"）⇒ 任何一次规划失败都翻盘，而 `already_attempted`（`LumberJob:646`）让
+**失败一次 = 永久少一棵**。
+⭐ **对 `C6`（搬迁）的含义**：**搬迁是必要条件，但不保证稳定转绿** ⇒ `C6` **不能按"搬完就绿"验收**，
+必须同时处理「配额 vs 候选数」这个刀尖（或让 `attempted` 不再永久）。
+
+#### 五、验证分级 + 未做
+
+- `IMPLEMENTED` + `COMPILES` + `SERVER_TESTED`（A/B/C 三条无头实测 + 注入证明）。
+- ⭐ **CORE 逐步 diff（`D-201` 附注一纪律）**：`20260922-225609-core.log` vs `20260923-124938-core.log`
+  ⇒ 42 步 vs 42 步、`baseline=15 main=26` 不变、**判决变化恰好 1 条**（`lumber_job: FAIL → SKIP`）、
+  `ticks 4552 → 3578`、总判决 `FAIL → DEGRADED(SKIP=1)`。
+  ⇒ **改动了 6 个任务类（含 CORE 用到的 `MineJob`/`CollectJob`）却零附带变化** —— 这是"闩锁只影响终态之后"的行为证明。
+  ⚠️ `tools/check-all.sh` 的无头档**仍会红在那一条电池线**：`DEGRADED ≠ PASS`（原因从 `FAIL` 变成 `SKIP`，性质更准，但**不是全绿**）。
+- **未做**：没有搬迁场景（`C6` 仍待拍板）· 没有改母本（临时移开**已复位**，6 文件一致）· 没有动 `CURATION`。
+- **诚实边界**：`C5` 的采样是"每区块一次"（第三方保护按区块 ⇒ 结论不受影响，但**不是**逐方块穷举）；
+  `33,64,208` 的站位失败**性质仍未定**（见 `D-409 §六`）。
+
+

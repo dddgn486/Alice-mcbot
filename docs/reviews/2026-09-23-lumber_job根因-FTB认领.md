@@ -164,3 +164,63 @@ CORE 步拿到真地形）。**代价**：夹具会**继承玩家世界的一切
 | 代码：候选排除放大 | `src/main/java/com/dddgn/alice/job/lumber/LumberJob.java:646` |
 | 代码：终态闩锁 | `src/main/java/com/dddgn/alice/job/lumber/LumberJob.java:304-306` |
 | 场景锚点 | `src/main/java/com/dddgn/alice/task/LumberCourseAnchor.java` |
+
+---
+
+## 七、落地：`C5`（夹具第三方前提）+ `D`（终态闩锁）（用户 2026-09-23 拍板）
+
+### 7.1 `D`：6 处终态闩锁统一成 `MineTask` 形状
+
+`if (terminated) return Task.Status.DONE;` ⇒ 外层 `tick()` 记住**首次终态并原样回放**
+（`terminalStatus` + `tickOnce()`），全仓 6 处一次改完：
+`LumberJob` · `MineJob` · `CollectJob` · `RestoreScopeTask` · `LumberFailureCheckTask` · `ClearGuardCheckTask`。
+
+⭐ **注入证明（不是"读代码觉得对"）**：临时把 `lumber_job` 的树配额改成不可达（`trees 4 → 99`）+ 移开认领
+⇒ 终态仍是 `FAILED partial_quota`（**同一个失败码**），但
+
+| | 修前（`20260922-225609-core.log`） | 注入后（`20260923-124551-…`） |
+|---|---|---|
+| `idempotent` | **`false（再 tick 返回 DONE/DONE，期望 FAILED）`** | ✅ **`true`** |
+
+⇒ 闩锁**真的记住了状态**（不是把断言绕过）。**注**：`CollectJob` 的 `finish(FAILED,…)` 今天取不到
+（`:223` 只以 `DONE` 收尾）⇒ 那一处是**形状统一**，不是修活缺陷（已写进它的字段注释）。
+
+### 7.2 `C5`：夹具自己断言第三方前提
+
+新增两个类：
+
+| 类 | 职责 |
+|---|---|
+| `task/FixtureThirdParty` | 逐区块问 FTB 自己的裁决函数（复用 `ThirdPartyProtection`）；**采样粒度 = 每个区块一次**（第三方保护按区块），采样点取「盒 ∩ 区块」最小角；**fail-open**（桥不可用 ⇒ 前提成立，与 `D-326` 取舍一致）；**不改世界** |
+| `task/PremiseGateTask` | 前提闸门：**首 tick 之前**求值一次，不成立就**当场以专属码收场**（一个字的世界操作都不做）；必须**透传** `isSelfCheck()`（`WritePolicyMatrix`/夹具洁净门禁都读它）、`taskName()`、`target()`、`safeToCancel()`、`failureReport()` |
+
+**为什么用闸门而不是 `skipWhen`**：`CheckStep.skipWhen` 是**终态之后**才求值
+（`RegressionBatteryTask:754-761`）⇒ 任务仍会真跑一遍、仍会打出那条**误导性的功能失败码**。
+闸门把前提提到**开跑之前** ⇒ 日志里只有"前提不成立"。
+
+接线：`LumberModule` 的 3 步（`lumber_failure` / `lumber_job` / `region_maintain`）走
+`CheckStep.skippable(..., LumberModule::premiseFailed)` + `guarded(...)`；前提盒**从 `LumberCourseAnchor`
+的区域常量派生**（不另写一套）；`region_maintain` 的 `doneWhen` 用 `unwrap(task)` 穿透包装。
+
+### 7.3 实测（三条，互为对照）
+
+| 运行 | 条件 | 结果 |
+|---|---|---|
+| A 现状 | 认领在 | `lumber_job=SKIP ticks=0 idempotent=true` ⇒ **`DEGRADED`**（`passed=0/1 skipped=1`）；⭐ `[Premise]` 行**逐字点名 4 个被拦区块 `chunk(1,13)(1,14)(2,13)(2,14)@…:ftb_claim_denied`** —— 与认领文件**恰好一致**；**`no_reachable_candidate`/`trunk_too_tall`/`WRITE-REFUSED` 全部 = 0**；用时 **72 s → 21 s** |
+| B 移开认领 | 前提成立 | `lumber_job=PASS ticks=593` ⇒ 说明**前提成立时这一步真能过** |
+| C 注入 | 移开认领 + 配额不可达 | `FAIL partial_quota` + **`idempotent=true`**（§7.1 的证明） |
+
+### 7.4 ⚠️ 顺带查出的新事实：**前提成立时这一步是"刀尖上的"（flaky）**
+
+两次**同样移开认领**的运行，结果不同：
+
+| 日志 | 结果 |
+|---|---|
+| `20260923-123423-…` | `FAIL partial_quota ticks=904`（`rejected=[22,64,218:trunk_too_tall, 33,64,208:already_attempted]`） |
+| `20260923-124423-…` | **`PASS ticks=593`**（无 rejected 列表 ⇒ 配额干净达成） |
+
+⇒ 配额要 **4 棵**、可用候选 **5 棵**（其中 1 棵是设计上的"期望被拒对照"）⇒ **任何一次规划失败都翻盘**，
+而 `already_attempted` 让"失败一次 = 永久少一棵"。
+⭐ **对 `C6`（搬迁）的含义**：**搬迁是必要条件，但不保证稳定转绿** —— 还得同时解决
+「配额 vs 候选数」这个刀尖（或让 `attempted` 不再是永久的）。**所以 `C6` 不能只按"搬完就绿"验收。**
+

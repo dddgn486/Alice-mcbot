@@ -57,6 +57,14 @@ public final class ClearGuardCheckTask implements Task {
     private int ticks;
     private String failure = "";
     private boolean terminated;
+    /**
+     * **终态闩锁**（`D-175`/`D-178`）：记住**首次**终态并原样回放，使"终态后再 tick"幂等。
+     * ⚠️ 修前外层守卫写的是 `if (terminated) return Task.Status.DONE;` —— 守卫在、但**硬编码 DONE**
+     * ⇒ 终态是 `FAILED` 时再 tick 返回 `DONE`（违反 `D-178`）。本类 `terminated=true` 有 2 处
+     * （`:161/266`）⇒ 由外层 `tick()` 统一闩锁，不依赖各自赋值点。
+     * 形状照唯一正解 `task/MineTask:87/328`（`D-409`：全仓同形状 6 处统一）。
+     */
+    private Task.Status terminalStatus;
 
     // ---- `D-362` 组的读数（进 SUMMARY） ----
     private boolean guardBaselineAllowed;
@@ -86,9 +94,21 @@ public final class ClearGuardCheckTask implements Task {
 
     @Override
     public Task.Status tick() {
-        if (terminated) {
-            return Task.Status.DONE;
+        // **终态闩锁在外层**（`D-175`/`D-178`）：首次终态被记住后，再 tick **原样回放**。
+        // ⚠️ 修前这里是 `if (terminated) return Task.Status.DONE;` —— 守卫在、但硬编码 `DONE`
+        // ⇒ 终态为 `FAILED` 时再 tick 返回 `DONE`（违反 `D-178`）。形状照唯一正解 `MineTask:328`。
+        if (terminalStatus != null) {
+            return terminalStatus;
         }
+        Task.Status status = tickOnce();
+        if (status != Task.Status.RUNNING) {
+            terminalStatus = status;
+        }
+        return status;
+    }
+
+    /** 原 `tick()` 主体 —— 终态闩锁已提到外层 `tick()`（见字段注释 / `D-409`）。 */
+    private Task.Status tickOnce() {
         return switch (phase) {
             case SETUP -> setup();
             case MINE -> mine();

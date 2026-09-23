@@ -2,8 +2,10 @@
 
 > # ▶▶▶ 压缩后**先读这一段**（2026-09-22 晚 · `Z1` + **CORE 瘦身** 收口；最后提交见 `git log -1`）
 >
-> **⚙ 状态**：**CORE 列表 = 41 步**（BASELINE 15 + MAIN 26）；最新一轮 CORE = **`passed=40/41`**
-> （`run/headless-logs/20260922-225609-core.log`，唯一红项 = `lumber_job` —— ⭐ **根因已查清 = 假红，见下 `D-409`**）·
+> **⚙ 状态**：**CORE 列表 = 41 步**（BASELINE 15 + MAIN 26）；最新一轮 CORE = **`passed=40/41 skipped=1` → `DEGRADED`**
+> （`run/headless-logs/20260923-124938-core.log`，199 s；唯一非 PASS 项 = `lumber_job=SKIP`——
+> ⭐ 根因已查清 = **假红**（第三方认领），`D-409`/`D-410`）· 逐步 diff（`D-201` 附注一）：
+> **只此 1 条变化**（`lumber_job: FAIL → SKIP`），42 步列表不变，4552 → 3578 tick ·
 > `tools/check-all.sh`（无头档）= **pass=19 warning=0 failed=1**（唯一失败 = 那条电池行，因为 CORE 本就红在 `lumber_job`）；
 > 静态档 = **19/1/0**（WARN = 未跑电池）· 客户端 jar = `dd0ada15f58ef646…`（**已同步**到客户端 mods + 镜像仓）·
 > 本轮新增电池步：`ledger_zone_scope`（EXTRA，`Z1` 判据）。
@@ -27,7 +29,15 @@
 > ⇒ **假红**。归因探针（已永久保留）7/7 行 `FTB=ftb_claim_denied`；**A/B 反向对照**（移开认领）：拒绝→**0**、
 > **砍完 3 棵橡树**。第二层：配额 4 棵 vs 可用 5 棵（1 棵是"期望被拒的对照" + `33,64,208` 规划期失败后被
 > `already_attempted` 永久排除）⇒ 仍 `partial_quota`。⭐ **注意**：修终态闩锁**不会**让该步转绿 ⇒
-> "CORE 反馈 分钟→秒"的乘法级杠杆**只归 A2（逐步缓存）**，不归 A1。待拍板 = 台账 **§11-G `C5`/`C6`**。
+> "CORE 反馈 分钟→秒"的乘法级杠杆**只归 A2（逐步缓存）**，不归 A1。
+> ✅ **已按用户拍板落地 `C5` + `D`（`D-410`）**：① `D` = 6 处终态闩锁统一成 `MineTask` 形状
+> （`if (terminated) return DONE` ⇒ 记住首次终态；**注入证明**：同一 `FAILED partial_quota` 下
+> `idempotent` 由 **`false` → `true`**）；② `C5` = 新增 `task/FixtureThirdParty` + `task/PremiseGateTask`
+> （**首 tick 之前**求值；用 `skipWhen` 不行 —— 它是终态后才求值，任务仍会打出误导码）⇒
+> `lumber_job` 由 **FAIL → `SKIP`+`DEGRADED`**，日志**逐字点名 4 个被拦区块**，误导码归零，用时 72 s→21 s。
+> ⚠️ **新事实（`D-410 §四`）**：前提成立时这一步是**刀尖上的（flaky）** —— 两次"移开认领"分别
+> `FAIL partial_quota` 与 **`PASS`** ⇒ **`C6` 搬迁是必要条件但不保证转绿**，必须连"配额 4 棵 vs 候选 5 棵"
+> 一起处理。待拍板 = 台账 **§11-G `C6`**（`C5` 已 ✅）。
 >
 > **本次落地的两件事**
 > | # | 内容 | 判据 |

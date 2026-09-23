@@ -8,11 +8,14 @@ import com.dddgn.alice.job.lumber.LumberJob;
 import com.dddgn.alice.job.lumber.LumberRegionState;
 import com.dddgn.alice.job.lumber.RegionLumberJob;
 import com.dddgn.alice.job.policy.NearestPolicy;
+import com.dddgn.alice.task.FixtureThirdParty;
 import com.dddgn.alice.task.LumberCourseAnchor;
 import com.dddgn.alice.task.LumberFailureCheckTask;
+import com.dddgn.alice.task.PremiseGateTask;
 import com.dddgn.alice.task.RegionSweepCheckTask;
 import com.dddgn.alice.task.RegionSweepE2ECheckTask;
 import com.dddgn.alice.task.RegionMaintainUnmaintainableCheckTask;
+import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.check.CheckContext;
 import com.dddgn.alice.task.check.CheckModule;
 import com.dddgn.alice.task.check.CheckProfile;
@@ -25,6 +28,7 @@ import net.minecraft.world.item.Items;
 
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * **伐木模块（R-2 第六片，6 步）**：`lumber_failure` · `lumber_job` · `region_maintain`
@@ -76,17 +80,18 @@ public final class LumberModule implements CheckModule {
         };
         return List.of(
                 // 失败归因五连（自带地形函数 ⇒ 模块只负责"先把区块热起来"）
-                CheckStep.of("lumber_failure", CheckProfile.EXTRA, List.of(),
+                CheckStep.skippable("lumber_failure", CheckProfile.EXTRA, List.of(),
                         () -> to(bot, LumberCourseAnchor.START_FOOT),
-                        () -> new LumberFailureCheckTask(bot, scope), 1800),
+                        guarded(bot, "lumber_failure", () -> new LumberFailureCheckTask(bot, scope)),
+                        1800, LumberModule::premiseFailed),
                 // 伐木 Job：手动场景（terrain + 手写树）⇒ 电池自己跑场景函数 + 复刻 LumberJobItem 的发料
-                CheckStep.of("lumber_job", CheckProfile.BASELINE, course, tools,
-                        () -> new LumberJob(bot,
+                CheckStep.skippable("lumber_job", CheckProfile.BASELINE, course, tools,
+                        guarded(bot, "lumber_job", () -> new LumberJob(bot,
                                 GoalSpec.harvestUnits(LumberCourseAnchor.START_FOOT, 16, 4, 3600),
-                                scope, new LumberCandidateSource(), new NearestPolicy()),
-                        1500),
+                                scope, new LumberCandidateSource(), new NearestPolicy())),
+                        1500, LumberModule::premiseFailed),
                 // J8 可持续伐木区（MAINTAIN）：同一个伐木场景，但走"巡查 → 砍 → 继续巡查"的区域型 Job
-                CheckStep.of("region_maintain", CheckProfile.EXTRA, course, () -> {
+                CheckStep.skippable("region_maintain", CheckProfile.EXTRA, course, () -> {
                     tools.run();
                     // Slice B：区域欠树要补种 ⇒ 夹具发**选定的那种**树苗（未选则默认橡树苗）
                     var state = LumberRegionState.get(bot.getServer());
@@ -99,12 +104,13 @@ public final class LumberModule implements CheckModule {
                         FixtureToolKit.ensureHotbarStack(bot, () -> new ItemStack(sapling),
                                 stack -> stack.is(sapling), 8, "sapling");
                     }
-                }, () -> new RegionLumberJob(bot,
+                }, guarded(bot, "region_maintain", () -> new RegionLumberJob(bot,
                         LumberCourseAnchor.region(),
-                        scope, new LumberCandidateSource(), new NearestPolicy(), 20, 8000),
-                        2000)
+                        scope, new LumberCandidateSource(), new NearestPolicy(), 20, 8000)),
+                        2000, LumberModule::premiseFailed)
                         // 常驻任务：砍到 ≥1 棵且补种 ≥1 棵即算本步通过（之后它会继续巡查等苗长大）
-                        .withDoneWhen(task -> task instanceof RegionLumberJob region
+                        // ⚠️ 判据拿到的是**前提闸门**（`D-409`）⇒ 必须 `unwrap` 到内层再看类型。
+                        .withDoneWhen(task -> unwrap(task) instanceof RegionLumberJob region
                                 && region.treesChopped() >= 1 && region.plantedSomething()),
                 // `D-344` 片 A/B：区域**"扫地面"判定 + 可配置拾取清单**的自检。
                 // 判据是**纯函数**（`sweepDecision` 只吃三个整数）⇒ 夹具**不写世界、不派真任务**
@@ -124,6 +130,44 @@ public final class LumberModule implements CheckModule {
                 // 自建空盒（草方块地板、无树无苗）+ 自己 tick 真 `RegionLumberJob` + 收尾还原共享区域状态。
                 CheckStep.of("region_maintain_unmaintainable", CheckProfile.EXTRA, List.of(), null,
                         () -> new RegionMaintainUnmaintainableCheckTask(bot, observer, scope), 1200));
+    }
+
+    // ==================== 世界前提（`D-409`） ====================
+
+    /**
+     * **前提盒**：伐木课程的实际范围 —— **与 `LumberCourseAnchor` 的区域常量同源**（不另写一套，
+     * 免得将来场景搬了而前提盒没跟着搬）。
+     */
+    private static final BlockPos PREMISE_MIN = new BlockPos(
+            LumberCourseAnchor.REGION_MIN_X, LumberCourseAnchor.REGION_BASE_Y, LumberCourseAnchor.REGION_MIN_Z);
+    private static final BlockPos PREMISE_MAX = new BlockPos(
+            LumberCourseAnchor.REGION_MAX_X,
+            LumberCourseAnchor.REGION_BASE_Y + LumberCourseAnchor.REGION_MAX_HEIGHT,
+            LumberCourseAnchor.REGION_MAX_Z);
+
+    /**
+     * ⭐ **世界前提：这段范围不能落在「别人的保护」里**（`D-409`）。
+     *
+     * <p>为什么必须有这条：无头电池的世界母本是**玩家真实存档的副本** ⇒ 夹具会**继承玩家的 FTB Chunks
+     * 认领**；而 `lumber_course_*` 恰恰是从真实存档抓下来的（坐标就在玩家基地里）。2026-09-23 实测：
+     * 认领内的破坏会被 FTB **静默取消**（`gameMode.destroyBlock` 返回 false），夹具拿到"树砍不动"的世界，
+     * 却报成内核失败码 `no_reachable_candidate` ⇒ **这一步连红 35 轮，所有人都以为内核坏了**。
+     * ⇒ 前提不成立时**当场以专属码收场**（一个字的世界操作都不做），让电池记 `SKIP`（"结论不作数"），
+     * 而不是一个**误导性的功能失败**。
+     */
+    private static Supplier<Task> guarded(BotPlayer bot, String owner, Supplier<Task> factory) {
+        return () -> new PremiseGateTask(owner,
+                () -> FixtureThirdParty.refusal(bot, PREMISE_MIN, PREMISE_MAX), factory.get());
+    }
+
+    /** `skipWhen`：前提不成立 ⇒ 记 `SKIP`（**SKIP 不计入 PASS** ⇒ 整轮转 `DEGRADED`，绝不假绿）。 */
+    private static boolean premiseFailed(Task task) {
+        return FixtureThirdParty.CODE.equals(task.failureReason());
+    }
+
+    /** 前提闸门会**包住**内层任务 ⇒ 按内层类型写的判据（`doneWhen`）必须先穿透包装。 */
+    private static Task unwrap(Task task) {
+        return task instanceof PremiseGateTask gate ? unwrap(gate.inner()) : task;
     }
 
     /** 传送到统一起点（与电池 `teleportBot` 逐字段一致 ✓；顺带起"先热区块再 fill"的作用 ✓）。 */
