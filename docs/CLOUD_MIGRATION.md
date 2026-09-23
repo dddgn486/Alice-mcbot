@@ -237,6 +237,8 @@ tar -xzf dsh-state-*.tar.gz -C ~ && chmod 600 ~/.dsh/.credentials.yaml ~/.dsh/se
 | 24 | ⭐⭐⭐ **设置页只在回环入口可用**（走 HTTPS 转发域名时**对话能用、模型/插件配置永远打不开**） | ✅ **源码级**：`dsh-client-ui-settings/lib/client.js:1345` = `persistence = ctx.remote.$host.isLoopback ? "host" : "memory"`；`isLoopback` 见 `dsh-client-connection/lib/client.js:6344`（只认 `localhost` / `[::1]` / `127.x.x.x`）；`memory` 时镜像 `ensure()` 立刻返回（settings client:1252）⇒ `view` 恒为 undefined ⇒ 报 `settings are unavailable in this browser`。**这是 rc.3 的设计行为，不是我们配错**；用户实测症状完全吻合 |
 | 25 | ⭐⭐⭐ **正确入口 = SSH 隧道**（`gh codespace ssh -c <名> -- -L 3181:127.0.0.1:3081`，再开 `http://127.0.0.1:3181/?token=…`） | ✅ 由 24 直接推出：隧道下页面 hostname = `127.0.0.1` ⇒ 设置可读写；顺带**不再需要 `--trusted-host`**、也不需要把端口设 private（回环本来就过围栏）⇒ 脚本子命令 = `tools/codespace-zero.sh tunnel` |
 | 26 | ⚠️ **更正我先前的错误结论**：我曾用「挪走 `settings.yaml` 后对话成功」推断「是它打坏了设置页」 | ❌ **该推断无效**（A/B 判据选错：对话本来就能用，真正出问题的设置页**从未复测**）⇒ 真因是 24 的 `persistence`。教训 = **A/B 必须测「出问题的那件事」，不能拿代理指标替代** |
+| 27 | ⭐ **「回环入口」不等于「本地服务」** | ✅ 实测三方对账：本机 `ss -ltnp` 显示 3181 的监听者是 **`ssh`**（`gh codespace ssh -c <名> -- -N -L 3181:127.0.0.1:3081`）= 纯端口转发；`dsh web` 进程在**云端**（`hostname=codespaces-a0f5bd`、2 核/7 G、PID 17230）；工作区 `/workspaces/Alice-mcbot`；**会话落在云端** `~/.dsh/sessions/--home-vscode-dsh-test--/session-3813eafe…`（本机 `~/.dsh/sessions/` 只有 `--home-fb486--` 等本地 slug） ⇒ **算力/数据/会话/模型调用全在云端，本机只出一个 TCP 入口**；代价 = 设置页需要本机挂一条 ssh（或 VS Code 端口转发） |
+| 28 | ⚠️ 云端会话的 **cwd 由 UI 里的「工作区」决定** | 实测：云端两个会话的 slug = `--home-vscode-dsh-test--`（cwd 是个**空目录** `/home/vscode/dsh-test`）⇒ **云端 agent 看不到 Alice 仓库**；要它干活得把工作区选到 `/workspaces/Alice-mcbot`（或让 `DSH_WORKDIR` 与 UI 选择一致） |
 | 22 | ⭐ 三个自定义插件**都在 npm 上**，云上可直接装 | ✅ 实测 `npm view`：`dsh-dafeiyu` **0.1.14** · `dsh-ears` **0.3.2** · `dsh-whale-widget` **0.3.11**（本机的 `dsh-whale-widget` 是 `link:/home/fb486/dsh-plugins/…` **开发覆盖**，发布版可用） ⇒ 装法 = `dsh plugin --profile web add <包>` **且把名字加进该 profile `package.json` 的 `dsh.profile.bundles`**（bundles 才是启动真正加载的层） |
 | 23 | ⚠️ **pnpm v12 默认拦依赖的构建脚本**（`pnpm approve-builds`） | ✅ 实跑：`dsh plugin add` 报 `Ignored build scripts: @fugood/whisper.node@1.1.3` ⇒ **包仍装进 `node_modules`**，但 `dsh-ears` 的 whisper 原生件没构建（要用音频才受影响）；要放行得在 profile 的 `pnpm.onlyBuiltDependencies` 里显式列名 |
 
@@ -261,3 +263,26 @@ tar -xzf dsh-state-*.tar.gz -C ~ && chmod 600 ~/.dsh/.credentials.yaml ~/.dsh/se
 - 它**不占** `AGENTS.md + PLAYBOOK + STATE` 的冻结预算（那三份只管协作纪律）。
 - ⚠️ **别照抄行号**：`survey/31` 的行号是基线 `2f10f66` 的，而 `aec21fc` 之后 `headless-battery.sh` 已改过
   （cp 客户端 mods 从 `:262-270` 漂到 `:292/:299`）⇒ 引用前先 `grep -n` 现查。
+
+## §11 零期结果（2026-09-23，全部实跑）
+
+**在跑的东西**（codespace `humble-tribble-97pv59gw5rg62prg5`，`basicLinux32gb` = 2 核/7 G/32 G，30 分钟空闲自动停）：
+
+| 项 | 状态 |
+|---|---|
+| 工具链 | node `v22.23.2` · java `17.0.20.1` · dsh **`0.1.5-rc.3`**（发布的 rc.1/rc.2 残缺，见 §9-18） |
+| 配置 | `.credentials.yaml` 已送（两端 sha256 一致）；**`settings.yaml` 已挪走**（备份 `~/.dsh/settings.yaml.foreign` / `.copied-from-local`） |
+| 服务 | `dsh web --port 3081`（回环）+ `--trusted-host <转发域名>`，日志 `~/dsh-web.log` |
+| 仓库 | `/workspaces/Alice-mcbot` @ `a295058`（与本地 master 同步） |
+| 插件 | `dsh-ears`、`dsh-whale-widget` 在 `dsh.profile.bundles` 里（可加载）；**`dsh-dafeiyu` 已按用户要求移除**（用户：该插件从云端显示到本地麻烦） |
+
+**两条入口（性质不同，别混）**：
+
+| 入口 | 能干什么 | 代价 |
+|---|---|---|
+| `http://127.0.0.1:3181/?token=…`（`tools/codespace-zero.sh tunnel`）| ✅ 全部（含设置/模型/插件配置） | 需要本机挂着隧道；令牌每次重启变 |
+| `https://<名>-3081.app.github.dev/?token=…` | 只能对话；**设置页永久不可用**（§9-24） | 无需本机任何东西 |
+
+**零期判据**：1–4 ✅（`verify` 全绿；`compileJava OK`、`check-all` 见日志）· 5 ✅（用户实测能发起对话）· 6/7 ✅（云端编译 + 离线门禁通过）· 8 ⏳ 未做（两前端并发）· 入口的"设置页可用"✅（**真浏览器** headless Chrome 实测：回环入口下模型选择器/余额/插件设置面板正常渲染，无 §9-24 那句报错）。
+
+**待办**：① 判据 8（两前端并发发一句）；② 用户决定是否让云端 agent 的工作区指向 `/workspaces/Alice-mcbot`；③ 是否把隧道做成常驻（去掉 1 小时超时）；④ 旧 codespace（`fictional-bassoon-*` 已 stop、`symmetrical-spork-*` 空白）是否删除。
