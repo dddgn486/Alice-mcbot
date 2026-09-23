@@ -70,26 +70,49 @@
 
 ### 4.1 零期：Codespaces（**最短路径**）
 
-**你要先做的**（顺序即依赖）：
+**A 路（用户 2026-09-23 选定）：`gh` 驱动 + 三件已入库的件**
 
-1. 仓库加一个 `.devcontainer/devcontainer.json`（本文件 §9 给了内容；或跳过它用默认镜像 ⇒ 但要自己验 `node -v`）。
-2. GitHub → 仓库 → **Code ▾ → Codespaces → Create codespace on `master`**（默认 2 核 / 8 G / 32 G）。
-3. 等容器就绪，在 codespace 终端里跑 §8 的零期判据。
-4. 起 DSH：⭐ **端口转发场景必须加两个参数**（本方案对报告的关键补充）：
-   ```bash
-   npm i -g @deepseek-ai/dsh
-   dsh web --host 0.0.0.0 --port 3081 --no-open \
-           --trusted-host "${CODESPACE_NAME}-3081.${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}"
-   ```
-   ⚠️ **未核实**：Codespaces 是否真的导出上面两个环境变量（我本地没有 Codespaces）；若没有，就从 **Ports 面板**复制
-   转发域名手填。**为什么必须加**（我方实测）：`dsh web` 默认**只绑 `127.0.0.1`**，而 Codespaces 的转发器
-   从容器网络里取端口 ⇒ 不绑 `0.0.0.0` 就**外部连不上**；而 `--trusted-host` 是 **`/api` 的浏览器信任围栏**
-   ⇒ 不加会出现「**页面能开、功能坏**」。
-5. 把配置与凭据放进去（**不走 git**）：`settings.yaml` + `.credentials.yaml`（`chmod 600`）。
-   通道：`gh codespace cp`（需本机装 `gh`）或 scp 或手动粘贴。
-6. Ports 面板把 3081 的可见性设为 **Private**（**别设 Public**）。
+| 件 | 作用 |
+|---|---|
+| `.devcontainer/devcontainer.json` | Codespace 的镜像与工具链：**JDK 17 + Node 22** + `forwardPorts:[3081]` + `postCreateCommand` 装 DSH（**锁 0.1.5-rc.1**，与本机一致 —— 见下面的版本告警） |
+| `tools/codespace-start-dsh.sh` | **在 Codespace 内**启动：自动算 `--host 0.0.0.0` 与 `--trusted-host <转发域名>`；cwd 决定会话 slug，可用 `DSH_WORKDIR` 指 |
+| `tools/codespace-zero.sh` | **在本机**驱动：`doctor / create / state / verify / start / url / list / down / destroy`，每步都有判据 |
 
-**能省的**：DSH 的安装、会话史（零期不必搬）、profiles（先让它自己初始化）。
+**执行顺序（每一步都能单独重跑）**
+
+```bash
+tools/codespace-zero.sh doctor            # ① 查 gh / 认证 / 仓库（认证见 §4.1b）
+tools/codespace-zero.sh create            # ② 建 codespace（免费档 2 核/8G/32G；devcontainer 自动装工具链）
+tools/codespace-zero.sh state  <name>     # ③ 送 settings.yaml + .credentials.yaml（600；⭐ 内容不打印、不进 git）
+tools/codespace-zero.sh verify <name>     # ④ 零期判据 1–4、6、7（node/java/dsh/配置/编译/门禁）
+tools/codespace-zero.sh start  <name>     # ⑤ 后台起 dsh web + 端口设 private + 打印外部 URL
+tools/codespace-zero.sh url    <name>     # ⑥ 复制 URL 到浏览器：⭐ **发一条消息**确认功能真的通
+```
+⑦（判据 8）两个前端各发一句 ⇒ `node tools/dsh-session-log.mjs --list/--grep` 查有没有乱序/丢事件。
+⑧ 用完 `tools/codespace-zero.sh down <name>`（计费停、存储照算；删除用 `destroy`）。
+
+**⚠️ 版本告警（搬历史时必须注意）**：本机 DSH = **0.1.5-rc.1**（实测 `dsh --version`），npm `latest` 已是
+**0.1.5-rc.2**。会话存储是**带世代迁移**的（`session.v3.jsonl.zstd`）⇒ **不要让云端用更新版去读/写同一份 `sessions/`**：
+要么按 devcontainer 里的写法**锁版本**，要么零期**先不搬 sessions**（`state` 只搬配置与凭据，正是为此）。
+
+**能省的**：DSH 的安装（devcontainer 装）、会话史（零期不必搬）、profiles（先让它自己初始化）。
+
+### 4.1b ⚠️ 本机认证的**实测限制**（决定"能不能用 `gh auth login`"）
+
+| 事实（实测） | 后果 |
+|---|---|
+| **`github.com` 的 HTTPS 不通**（`curl` 挂；`~/.ssh/config` 已把 github 指向 `ssh.github.com:443`） | `gh auth login --web`（设备码流程要访问 `github.com`）**在本机走不通** |
+| **`api.github.com` 通**（200） | ⇒ 用 **PAT** 认证（`GH_TOKEN`），全程只走 api |
+| `gh` 已装好 | `~/.local/opt/gh-2.45.0` + `~/.local/bin/gh` 软链（**无 sudo**：`apt-get download` + `dpkg-deb -x`）；`gh codespace {create,cp,ssh,ports,list,stop,delete,view}` 都在 |
+
+⇒ **你只需做一件事**（约 1 分钟）：
+1. 浏览器打开 `https://github.com/settings/tokens/new?scopes=repo,codespace&description=alice-codespace`
+   （**classic** PAT，勾 `repo` + **`codespace`**）；
+2. 把令牌存成本机文件（**别贴进聊天**）：
+   `printf '%s' '<PAT>' > ~/.gh-token && chmod 600 ~/.gh-token`
+3. 回来跑 `tools/codespace-zero.sh doctor` ⇒ 出 `api OK（账号 dddgn486）` 就算通了。
+
+（若你的浏览器要经代理/VPN 才能开 github.com：那就用能开的那个设备建 PAT，同样是上面三步。）
 
 ### 4.2 一期：VPS（DSH + 编译）
 
@@ -135,9 +158,9 @@
 | **备份**（DSH 状态 + 仓库） | ✅ **已做** | 见 §7（两个文件 + 校验） |
 | 出网（clone / push） | ✅ | 本机实测：`ssh -T git@github.com` 与 `-p 443` **都鉴权成功**（账号 `dddgn486`）；`~/.ssh/config` 已把 github 指向 `ssh.github.com:443` |
 | 把行李传到**一台已开好、我能 SSH 上去**的机器 | ✅ 基本可以 | 上传、装 node/DSH、起 `dsh web`（含 `--host`/`--trusted-host`）、放 sessions、跑判据 |
-| **自己开一台机器** | ❌ | 需要云账号/支付/控制台；本地**无** `gh`（`gh: command not found`）⇒ 连 Codespaces 都建不了 |
+| **自己开一台机器** | ❌ | 需要云账号/支付/控制台（这一步权属永远在你账号下）。⭐ **但 `gh` 我已经装好了**（`~/.local/opt/gh-2.45.0`，**无 sudo**；`gh codespace` 全套子命令可用）⇒ **只差你一次 PAT 认证**（§4.1b） |
 | 在浏览器里点验（多设备切换 / 并发写入 / GUI） | ❌ | 需要真人（这也是纪律：客户端事实必须问用户） |
-| ⭐ **中间档**：本机装 `gh` + `gh auth login`（带 `codespace` scope） | ⭐ **之后我能把零期整段代跑** | `gh codespace create/cp/ssh/ports` 都是 CLI；除了浏览器那一步 |
+| ⭐ **A 路（已就绪）**：`gh` 已装 + 你给一次 PAT（`~/.gh-token`） | ⭐ **之后零期整段我代跑** | 三件已入库：`.devcontainer/devcontainer.json` · `tools/codespace-start-dsh.sh` · `tools/codespace-zero.sh`（`doctor/create/state/verify/start/url/down`），除浏览器点验（判据 5/8）外全在 CLI 里 |
 
 ⇒ **诚实回答「你自己能搬自己吗」**：
 **打包与搬迁我能做（给我一台可登录的机器）；"开机器"这一步必须在你的账号下发生。**
@@ -199,6 +222,9 @@ tar -xzf dsh-state-*.tar.gz -C ~ && chmod 600 ~/.dsh/.credentials.yaml ~/.dsh/se
 | 7 | Codespaces 是否导出 `CODESPACE_NAME` / `GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN` | ⚠️ **未核实** |
 | 8 | 「会话列表按 cwd slug 过滤」 | ⚠️ **推断未实测**（§4.3） |
 | 9 | 首次 `decompile` 内存峰值 · 云端部署步骤 | ⚠️ 未实测（报告也自述一条都没真机跑过） |
+| 10 | **本机 `github.com` 的 HTTPS 不通** | ✅ 实测（`curl` 挂、`api.github.com` 200）⇒ **`gh auth login --web` 不可用，必须走 PAT**（§4.1b） |
+| 11 | `gh` 已**无 sudo** 装好 | ✅ 实测（`apt-get download` + `dpkg-deb -x` ⇒ `~/.local/opt/gh-2.45.0`）|
+| 12 | DSH 版本 = 本机 `0.1.5-rc.1` / npm latest `0.1.5-rc.2` | ✅ 实测 ⇒ **devcontainer 锁版本**（会话存储带世代迁移，别让新版写同一份 `sessions/`） |
 
 **`.devcontainer/devcontainer.json` 草稿**（报告 §12 的版本 + 我加的一行装 DSH）：
 ```json

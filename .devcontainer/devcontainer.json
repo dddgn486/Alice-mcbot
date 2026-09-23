@@ -1,0 +1,13 @@
+{
+  "name": "Alice (Forge 1.20.1 · DSH 控制面)",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/java:1": { "version": "17" },
+    "ghcr.io/devcontainers/features/node:1": { "version": "22" }
+  },
+  "forwardPorts": [3081],
+  "portsAttributes": {
+    "3081": { "label": "DSH web", "onAutoForward": "silent" }
+  },
+  "postCreateCommand": "npm i -g @deepseek-ai/dsh@0.1.5-rc.1 && node -v && java -version && dsh --version"
+}
