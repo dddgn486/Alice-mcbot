@@ -2,10 +2,12 @@
 
 > # ▶▶▶ 压缩后**先读这一段**（2026-09-22 晚 · `Z1` + **CORE 瘦身** 收口；最后提交见 `git log -1`）
 >
-> **⚙ 状态**：**CORE 列表 = 41 步**（BASELINE 15 + MAIN 26）；最新一轮 CORE = **`passed=41/41 skipped=0` → `PASS`**
-> （`run/headless-logs/20260923-144521-core.log`，226 s；结果缓存 `指纹=817aa837fc6029ae…`）—— **35+ 轮以来全绿**。
+> **⚙ 状态**（2026-09-23 19:25 刷新）：**CORE 列表 = 41 步**（BASELINE 15 + MAIN 26）；最新一轮 CORE =
+> **`passed=41/41 skipped=0` → `PASS`**（`run/headless-logs/20260923-192408-core.log`，222 s）—— **35+ 轮以来全绿**。
 > ⭐ `ALICE_HEADLESS=1 tools/check-all.sh` = **`PASS: pass=20 warning=0 failed=0`**（含电池）· 静态档 = **19/1/0**
-> （WARN = 未跑电池）· 客户端 jar = `6322493b0683df87…`（**已同步**到客户端 mods + 镜像仓）。
+> （WARN = 未跑电池）· 客户端 jar = `2b015a0bd1661957…`（**已同步**到客户端 mods + 镜像仓）。
+> ⭐ 本轮（`Z3`/`Z4`）新增两条门禁规则：`rule_write_budget_zone_and_container_exception`（**八臂全红**）、
+> `rule_vacuous_assertions_carry_population`（**四臂全红**）。
 > ⭐ **`Z2` 已完成（`D-414`，2026-09-23）**：账本闭合口径收窄到**保护区内**（唯一入口 = `WorldModLedger.Closure`）
 > + 门禁 `rule_ledger_closure_zone_scoped`（**八条注入臂全红**）＋ 让「账本空」的三种含义在日志里分得开
 > （`recorded=+8（记过 8 条、已收干净 ✓）` vs 野外 `recorded=0 wildSkipped=+3（⚠️ 全在区外）`）；
