@@ -42,4 +42,10 @@ echo "→ cwd = $WORKDIR（会话 slug 目录 = ~/.dsh/sessions/${SLUG}/）"
 echo "→ bind 0.0.0.0:${PORT} · --trusted-host ${TRUSTED}"
 echo "→ 外部入口（PORTS 面板同一行也有）：https://${TRUSTED}"
 
-exec dsh web --host 0.0.0.0 --port "$PORT" --no-open --trusted-host "$TRUSTED"
+# dsh 的解析要稳：非交互 ssh 里 PATH 可能不含 nvm 的 bin（实测：直接在 ssh 里 `dsh` 会 command not found）
+DSH_BIN="$(command -v dsh || true)"
+[ -n "$DSH_BIN" ] || DSH_BIN="$(npm prefix -g 2>/dev/null)/bin/dsh"
+[ -x "$DSH_BIN" ] || { echo "✗ 找不到 dsh（试过 PATH 与 \`npm prefix -g\`/bin）；先跑：npm i -g @deepseek-ai/dsh@0.1.5-rc.1" >&2; exit 3; }
+echo "→ dsh = $DSH_BIN（$("$DSH_BIN" --version 2>&1)）"
+
+exec "$DSH_BIN" web --host 0.0.0.0 --port "$PORT" --no-open --trusted-host "$TRUSTED"

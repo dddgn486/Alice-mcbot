@@ -43,6 +43,28 @@ need_gh() {
 
 ghc() { gh codespace "$@"; }
 
+# ⭐ 实跑抓到的坑：`gh codespace ssh -- bash -lc '脚本'` **不可用** —— gh 把 `--` 之后的参数
+#    用空格拼成一个字符串，**本地引号在那一刻已经没了** ⇒ 远端只收到 `bash -lc mkdir`
+#    （症状：`mkdir: missing operand`；多行脚本更隐蔽：login shell 会把脚本**逐行**当命令跑）。
+#    ⇒ 统一走 base64：本地把脚本编码，远端 `bash -lc '<base64>' | base64 -d | bash -l`。
+#    （`bash -l` 是必要的：ssh 的非登录 shell 不读 profile ⇒ `node`/`dsh` 会不在 PATH 里。）
+rsh() {   # rsh <codespace> <脚本>（脚本里**不要**出现单引号）
+    local name="$1" script="$2" b64
+    b64="$(printf '%s' "$script" | base64 -w0)"
+    ghc ssh -c "$name" -- "bash -lc 'echo $b64 | base64 -d | bash -l'"
+}
+
+# ⭐ 另一个实跑抓到的坑：`gh codespace cp`（本机 gh 2.45.0）把远端路径**连引号一起**交给远端 scp
+#    （症状：`dest open "'/home/vscode/.dsh/x'": No such file or directory`）⇒ 不用它。
+#    改成**内容经 base64 走 ssh**：不依赖任何路径引号规则，并且**两端 sha256 可对账**。
+rput() {   # rput <codespace> <本地文件> <远端绝对路径>
+    local name="$1" src="$2" dst="$3" b64 local_sha
+    [ -f "$src" ] || die "本地文件不存在：$src"
+    b64="$(base64 -w0 "$src")"
+    local_sha="$(sha256sum "$src" | cut -c1-16)"
+    rsh "$name" "mkdir -p \$(dirname $dst) && printf %s $b64 | base64 -d > $dst && chmod 600 $dst && printf '远端 ' && sha256sum $dst | cut -c1-16 && printf '本地 $local_sha  $dst\n'"
+}
+
 cmd_doctor() {
     need_gh
     info "gh = $(gh --version | head -1)"
@@ -85,34 +107,38 @@ cmd_state() {
     local name="${1:?用法: state <codespace 名>}"
     [ -f "$HOME/.dsh/settings.yaml" ] || die "本机没有 ~/.dsh/settings.yaml"
     [ -f "$HOME/.dsh/.credentials.yaml" ] || die "本机没有 ~/.dsh/.credentials.yaml"
-    info "建远端 ~/.dsh（并把权限收紧）…"
-    ghc ssh -c "$name" -- bash -lc 'mkdir -p ~/.dsh && chmod 700 ~/.dsh'
-    # ⚠️ `remote:` 路径是**相对远端用户家目录**的（gh 文档原文）—— 别用本地的 $HOME 拼绝对路径，
-    #    本地是 /home/fb486、远端是 /home/codespace。
+    # ⚠️ 两个实跑坑：① `remote:` 的相对路径会被 gh 的 scp **加引号当字面名**（实测失败）；
+    #    ② 远端家目录随镜像而变（Codespaces 默认镜像 = /home/codespace，自建 devcontainer = /home/vscode）
+    #    ⇒ 先**问**远端 $HOME，再用绝对路径拷。
+    local rh
+    rh="$(rsh "$name" 'mkdir -p ~/.dsh && chmod 700 ~/.dsh && echo "$HOME"' 2>/dev/null | tr -d '\r' | tail -1)"
+    [ -n "$rh" ] || die "拿不到远端 HOME（远端 shell 正常吗？）"
+    info "远端 HOME = $rh（sha256 前缀两端对账）"
     info "送 settings.yaml（含 contextWindow / 插件配置）…"
-    ghc cp "$HOME/.dsh/settings.yaml" "remote:.dsh/settings.yaml" -c "$name"
+    rput "$name" "$HOME/.dsh/settings.yaml" "$rh/.dsh/settings.yaml"
     info "送 .credentials.yaml（⭐ 含密钥：内容不打印、不落 git）…"
-    ghc cp "$HOME/.dsh/.credentials.yaml" "remote:.dsh/.credentials.yaml" -c "$name"
-    ghc ssh -c "$name" -- bash -lc 'chmod 600 ~/.dsh/settings.yaml ~/.dsh/.credentials.yaml && ls -l ~/.dsh/'
+    rput "$name" "$HOME/.dsh/.credentials.yaml" "$rh/.dsh/.credentials.yaml"
+    printf '本地 %s  %s\n' "$(sha256sum "$HOME/.dsh/settings.yaml" | cut -c1-16)" "settings.yaml"
+    printf '本地 %s  %s\n' "$(sha256sum "$HOME/.dsh/.credentials.yaml" | cut -c1-16)" ".credentials.yaml"
 }
 
 cmd_verify() {
     need_gh
     local name="${1:?用法: verify <codespace 名>}"
     info "零期判据（1–4、6、7；5、8 需要你在浏览器里点验）…"
-    ghc ssh -c "$name" -- bash -lc '
-        set -u
+    rsh "$name" '
         echo "--- 1) node（硬要求 ≥22.15：tools/dsh-session-log.mjs 用 zlib.zstdDecompressSync）"
         node -v
         echo "--- 2) java 17"
         java -version 2>&1 | head -1
         echo "--- 3) dsh"
-        command -v dsh >/dev/null && dsh --version || echo "✗ 没有 dsh（postCreateCommand 是否跑完？）"
+        DSH_BIN="$(command -v dsh || echo "$(npm prefix -g 2>/dev/null)/bin/dsh")"
+        [ -x "$DSH_BIN" ] && "$DSH_BIN" --version || echo "✗ 没有 dsh（跑：npm i -g @deepseek-ai/dsh@0.1.5-rc.1）"
         echo "--- 4) 配置与凭据（只看在不在与权限）"
         ls -l ~/.dsh/settings.yaml ~/.dsh/.credentials.yaml 2>&1
         echo "--- 6) 编译（首次会下 Forge/MC 依赖，数 GB）"
-        if [ -d ~/projects/alice ]; then cd ~/projects/alice; elif [ -d /workspaces/Alice-mcbot ]; then cd /workspaces/Alice-mcbot; fi
-        pwd; ./gradlew compileJava --no-daemon -q && echo "compileJava OK"
+        R=/workspaces/Alice-mcbot; [ -d "$R" ] || R=~/projects/alice
+        cd "$R" && pwd && ./gradlew compileJava --no-daemon -q && echo "compileJava OK"
         echo "--- 7) 离线门禁（无上游 jar ⇒ check-machine-map 必然 WARN，属预期）"
         bash tools/check-all.sh 2>&1 | tail -3
     '
@@ -122,12 +148,13 @@ cmd_start() {
     need_gh
     local name="${1:?用法: start <codespace 名>}"
     info "后台启动 dsh web（带 --host 0.0.0.0 与 --trusted-host；见 tools/codespace-start-dsh.sh）…"
-    ghc ssh -c "$name" -- bash -lc '
-        cd ~ && if [ -d ~/projects/alice ]; then cd ~/projects/alice; elif [ -d /workspaces/Alice-mcbot ]; then cd /workspaces/Alice-mcbot; fi
+    rsh "$name" '
+        R=/workspaces/Alice-mcbot; [ -d "$R" ] || R=~/projects/alice; cd "$R"
         chmod +x tools/codespace-start-dsh.sh
         pkill -f "dsh web" 2>/dev/null || true
-        nohup env DSH_WORKDIR="${DSH_WORKDIR:-$HOME/projects}" tools/codespace-start-dsh.sh > ~/dsh-web.log 2>&1 &
-        sleep 6; tail -5 ~/dsh-web.log
+        nohup env DSH_WORKDIR=/workspaces tools/codespace-start-dsh.sh > ~/dsh-web.log 2>&1 &
+        sleep 8; echo "--- ~/dsh-web.log ---"; tail -8 ~/dsh-web.log
+        echo "--- 监听 ---"; (ss -ltn 2>/dev/null | grep -E ":3081" || echo "(还没监听)")
     '
     info "把 $PORT 设为 private（别设 public）…"
     ghc ports visibility "$PORT:private" -c "$name" 2>/dev/null || info "（该版本 gh 不支持命令行改可见性 ⇒ 在 PORTS 面板手动设为 Private）"
