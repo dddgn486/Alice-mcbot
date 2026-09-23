@@ -3,11 +3,14 @@
 > # ▶▶▶ 压缩后**先读这一段**（2026-09-22 晚 · `Z1` + **CORE 瘦身** 收口；最后提交见 `git log -1`）
 >
 > **⚙ 状态**：**CORE 列表 = 41 步**（BASELINE 15 + MAIN 26）；最新一轮 CORE = **`passed=41/41 skipped=0` → `PASS`**
-> （`run/headless-logs/20260923-140625-core.log`，343 s 首跑；⭐ **结果缓存已写** ⇒ 之后 `core` **用时 0 s 缓存复用**，
-> `指纹=996a85b8521e`）—— ⭐ **35+ 轮以来第一次全绿**（`lumber_job` 由连红转 **PASS**）·
-> `tools/check-all.sh`（无头档）= **pass=19 warning=0 failed=1**（唯一失败 = 那条电池行，因为 CORE 本就红在 `lumber_job`）；
-> 静态档 = **19/1/0**（WARN = 未跑电池）· 客户端 jar = `dd0ada15f58ef646…`（**已同步**到客户端 mods + 镜像仓）·
-> 本轮新增电池步：`ledger_zone_scope`（EXTRA，`Z1` 判据）。
+> （`run/headless-logs/20260923-144521-core.log`，226 s；结果缓存 `指纹=817aa837fc6029ae…`）—— **35+ 轮以来全绿**。
+> ⭐ `ALICE_HEADLESS=1 tools/check-all.sh` = **`PASS: pass=20 warning=0 failed=0`**（含电池）· 静态档 = **19/1/0**
+> （WARN = 未跑电池）· 客户端 jar = `6322493b0683df87…`（**已同步**到客户端 mods + 镜像仓）。
+> ⭐ **`Z2` 已完成（`D-414`，2026-09-23）**：账本闭合口径收窄到**保护区内**（唯一入口 = `WorldModLedger.Closure`）
+> + 门禁 `rule_ledger_closure_zone_scoped`（**八条注入臂全红**）＋ 让「账本空」的三种含义在日志里分得开
+> （`recorded=+8（记过 8 条、已收干净 ✓）` vs 野外 `recorded=0 wildSkipped=+3（⚠️ 全在区外）`）；
+> 连带抓出 **`Z1` 引出的空集假绿**（8 条记账全来自自认领的 `scaffold` 步、13 次放置全 `skip`）
+> ⇒ 登记为新队列项 **`Z4`**（10 组站点清单 = `docs/reviews/2026-09-23-Z2-账本闭合与空集假绿.md §6`）。
 >
 > ⭐ **真机确认（2026-09-22 23:11，`WINDOWS_CLIENT` + `USER_ACCEPTED`）**：用户重放了事故那一步（野外指派挖矿、
 > 内核 `PILLAR` 垫脚）——**同一格 `-84,90,147`**、同一理由 `STEP_PLACEMENT`，本次 `[Ledger] skip …（区外）` ×3、
