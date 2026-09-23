@@ -74,7 +74,7 @@
 
 | 件 | 作用 |
 |---|---|
-| `.devcontainer/devcontainer.json` | Codespace 的镜像与工具链：**JDK 17 + Node 22** + `forwardPorts:[3081]` + `postCreateCommand` 装 DSH（**锁 0.1.5-rc.1**，与本机一致 —— 见下面的版本告警） |
+| `.devcontainer/devcontainer.json` | Codespace 的镜像与工具链：**JDK 17 + Node 22** + `forwardPorts:[3081]` + `postCreateCommand` 装 DSH（**锁 0.1.5-rc.3** —— ⭐ 实跑证明**发布的 rc.1/rc.2 是残缺的**，见 §9-18） |
 | `tools/codespace-start-dsh.sh` | **在 Codespace 内**启动：自动算 `--host 0.0.0.0` 与 `--trusted-host <转发域名>`；cwd 决定会话 slug，可用 `DSH_WORKDIR` 指 |
 | `tools/codespace-zero.sh` | **在本机**驱动：`doctor / create / state / verify / start / url / list / down / destroy`，每步都有判据 |
 
@@ -91,9 +91,9 @@ tools/codespace-zero.sh url    <name>     # ⑥ 复制 URL 到浏览器：⭐ **
 ⑦（判据 8）两个前端各发一句 ⇒ `node tools/dsh-session-log.mjs --list/--grep` 查有没有乱序/丢事件。
 ⑧ 用完 `tools/codespace-zero.sh down <name>`（计费停、存储照算；删除用 `destroy`）。
 
-**⚠️ 版本告警（搬历史时必须注意）**：本机 DSH = **0.1.5-rc.1**（实测 `dsh --version`），npm `latest` 已是
-**0.1.5-rc.2**。会话存储是**带世代迁移**的（`session.v3.jsonl.zstd`）⇒ **不要让云端用更新版去读/写同一份 `sessions/`**：
-要么按 devcontainer 里的写法**锁版本**，要么零期**先不搬 sessions**（`state` 只搬配置与凭据，正是为此）。
+**⚠️ 版本告警（搬历史时必须注意）**：本机 DSH = **0.1.5-rc.1**（实测 `dsh --version`；且它是 **DSH 源码检出**，不是 npm 安装），npm 上其后还有 rc.2 / **rc.3**。会话存储是**带世代迁移**的（`session.v3.jsonl.zstd`）⇒ **不要让云端用更新版去读/写同一份 `sessions/`**：
+⇒ 零期**先不搬 sessions**（`state` 只搬配置与凭据，正是为此）。
+⭐ **实跑更正（2026-09-23）**：**发布的 `0.1.5-rc.1` / `rc.2` 装出来是残缺的** —— `@deepseek-ai/dsh` 的 72 个依赖装完只有 **120** 个插件，而 `dsh web` 需要的 `@deepseek-ai/dsh-sandbox-local` **不在其中** ⇒ 启动即 `plugin tree failed to load`。**可用的发布版 = `0.1.5-rc.3`**（实测 **240** 个插件、`dsh-sandbox-local` 在位、`dsh web` 正常监听 `127.0.0.1:3081`）。本机那份有 250 个插件是因为它是**源码检出** ⇒ 两边天然不能逐包对比。
 
 **能省的**：DSH 的安装（devcontainer 装）、会话史（零期不必搬）、profiles（先让它自己初始化）。
 
@@ -224,12 +224,15 @@ tar -xzf dsh-state-*.tar.gz -C ~ && chmod 600 ~/.dsh/.credentials.yaml ~/.dsh/se
 | 9 | 首次 `decompile` 内存峰值 · 云端部署步骤 | ⚠️ 未实测（报告也自述一条都没真机跑过） |
 | 10 | **本机 `github.com` 的 HTTPS 不通** | ✅ 实测（`curl` 挂、`api.github.com` 200）⇒ **`gh auth login --web` 不可用，必须走 PAT**（§4.1b） |
 | 11 | `gh` 已**无 sudo** 装好 | ✅ 实测（`apt-get download` + `dpkg-deb -x` ⇒ `~/.local/opt/gh-2.45.0`）|
-| 12 | DSH 版本 = 本机 `0.1.5-rc.1` / npm latest `0.1.5-rc.2` | ✅ 实测 ⇒ **devcontainer 锁版本**（会话存储带世代迁移，别让新版写同一份 `sessions/`） |
+| 12 | DSH 版本 = 本机 `0.1.5-rc.1`（**源码检出**）/ 可用的发布版 = `0.1.5-rc.3` | ✅ 实测 ⇒ **devcontainer 锁 rc.3**；搬 `sessions/` 前先想清世代（**零期不搬**） |
 | 13 | ⭐ **自建 devcontainer 的镜像必须带 sshd** | ✅ **实跑抓到**：`base:ubuntu-24.04` 不带 SSH 服务 ⇒ `gh codespace ssh` 报 `failed to start SSH server`（Codespaces 默认镜像自带 sshd，所以只在自建 devcontainer 时踩到） ⇒ 修法 = 加 `ghcr.io/devcontainers/features/sshd:1`（错误信息自己就给了这条） |
 | 14 | ⭐ `gh codespace rebuild` **用的是工作目录里的** devcontainer | ✅ 实跑抓到（帮助原文 + 亲测）：云端工作树还停在旧 commit（没有 `.devcontainer`）时重建 = **等于没有 devcontainer**（仍是默认镜像：Node 24 / JDK 25 / 无 DSH）⇒ **先 `git pull` 再 rebuild** |
 | 15 | ⭐ `gh codespace cp` **本身有引号 bug** | ✅ 实跑抓到（本机 gh 2.45.0）：它把远端路径**连引号**交给远端 scp ⇒ `dest open "'/home/vscode/.dsh/x'"` ⇒ **别用它**；我们改成**内容经 base64 走 ssh + 两端 sha256 对账**（`tools/codespace-zero.sh` 的 `rput`） |
 | 16 | ⭐ `gh codespace ssh -- bash -lc '脚本'` **引号会被吞** | ✅ 实跑抓到：gh 把 `--` 之后的参数**用空格拼接** ⇒ 远端只收到 `bash -lc mkdir`（症状 `mkdir: missing operand`）；多行脚本更隐蔽（login shell 逐行跑）⇒ 我们改成 **base64 中转 + `bash -l`**（`tools/codespace-zero.sh` 的 `rsh`） |
 | 17 | 自建 devcontainer 的**远端用户是 `vscode`** | ✅ 实测：Codespaces 默认镜像是 `codespace`、`base:ubuntu-24.04` 是 `vscode`（`HOME=/home/vscode`）⇒ 一切路径都要**先问远端 `$HOME`** |
+| 18 | ⭐⭐ **发布的 `0.1.5-rc.1`/`rc.2` 残缺**（少 `dsh-sandbox-local` ⇒ `dsh web` 起不来） | ✅ 实跑：同一台机器上 rc.1 = **120** 插件 + 启动失败；**rc.3 = 240** 插件 + 正常监听 ⇒ **devcontainer 锁 rc.3** |
+| 19 | ⭐ `dsh web` **拒绝** `--host 0.0.0.0` | ✅ 实跑原文：`intentionally not supported yet for safety … use 127.0.0.1 instead` ⇒ **保持回环**（Codespaces 转发器在容器内部连 localhost ⇒ 够用） |
+| 20 | 首次启动会**自建 profile**（`~/.dsh/profiles/web`，bundle = `[dsh-base, dsh-web-app]`） | ✅ 实跑：插件从 **CLI 自带的 `node_modules`** 解析 ⇒ **不需要**搬本机 270 M 的 `profiles/web`，也不用跑 `dsh plugin install` |
 
 **`.devcontainer/devcontainer.json` 草稿**（报告 §12 的版本 + 我加的一行装 DSH）：
 ```json
