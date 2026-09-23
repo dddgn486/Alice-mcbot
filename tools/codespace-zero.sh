@@ -18,7 +18,8 @@
 #   tools/codespace-zero.sh state  <name>     # ⭐ 把 settings.yaml + .credentials.yaml 送进去（600）
 #   tools/codespace-zero.sh verify <name>     # 零期判据 1–4、6、7（node/java/dsh/配置/编译/门禁）
 #   tools/codespace-zero.sh start  <name>     # 后台起 dsh web + 打印外部 URL + 端口设 private
-#   tools/codespace-zero.sh url    <name>     # 只打印转发 URL
+#   tools/codespace-zero.sh tunnel <name>     # ⭐ 推荐入口：SSH 隧道到本地回环 + 打印带令牌的回环 URL
+#   tools/codespace-zero.sh url    <name>     # 只打印转发 URL（⚠️ 走它打开时设置页不可用，见 tunnel 的说明）
 #   tools/codespace-zero.sh list              # 列 codespaces
 #   tools/codespace-zero.sh down   <name>     # 停（stop）；`destroy` 才删
 set -uo pipefail
@@ -133,7 +134,7 @@ cmd_verify() {
         java -version 2>&1 | head -1
         echo "--- 3) dsh"
         DSH_BIN="$(command -v dsh || echo "$(npm prefix -g 2>/dev/null)/bin/dsh")"
-        [ -x "$DSH_BIN" ] && "$DSH_BIN" --version || echo "✗ 没有 dsh（跑：npm i -g @deepseek-ai/dsh@0.1.5-rc.1）"
+        [ -x "$DSH_BIN" ] && "$DSH_BIN" --version || echo "✗ 没有 dsh（跑：npm i -g @deepseek-ai/dsh@0.1.5-rc.3 —— 发布的 rc.1/rc.2 残缺）"
         echo "--- 4) 配置与凭据（只看在不在与权限）"
         ls -l ~/.dsh/settings.yaml ~/.dsh/.credentials.yaml 2>&1
         echo "--- 6) 编译（首次会下 Forge/MC 依赖，数 GB）"
@@ -147,7 +148,7 @@ cmd_verify() {
 cmd_start() {
     need_gh
     local name="${1:?用法: start <codespace 名>}"
-    info "后台启动 dsh web（带 --host 0.0.0.0 与 --trusted-host；见 tools/codespace-start-dsh.sh）…"
+    info "后台启动 dsh web（回环 + --trusted-host；见 tools/codespace-start-dsh.sh）…"
     rsh "$name" '
         R=/workspaces/Alice-mcbot; [ -d "$R" ] || R=~/projects/alice; cd "$R"
         chmod +x tools/codespace-start-dsh.sh
@@ -168,6 +169,32 @@ cmd_url() {
     ghc ports -c "$name" --json sourcePort,browseUrl,visibility 2>/dev/null || ghc ports -c "$name"
 }
 
+# ⭐⭐ 这一条是**源码级**结论（2026-09-23 实跑 + 读源码），决定「从哪打开」：
+#   ① `dsh-client-ui-settings/lib/client.js:1345`：
+#        const persistence = ctx.remote.$host.isLoopback ? "host" : "memory";
+#   ② `dsh-client-connection/lib/client.js:6344`：
+#        isLoopback: transport?.ownsHost === true || pageLocation === void 0
+#                    || isLoopbackHostname(pageLocation.hostname)   # 只认 localhost / [::1] / 127.x.x.x
+#   ③ persistence 为 memory 时，设置镜像的 `ensure()` **立刻返回**（settings client:1252）
+#      ⇒ `view` 恒为 undefined ⇒ 设置页报 settings are unavailable in this browser
+#   实测：走 https://<域名>-3081.app.github.dev 时**对话能用，但模型/插件配置打不开**；
+#         走 SSH 隧道（页面 hostname = 127.0.0.1）时 isLoopback=true ⇒ 设置可读可写。
+#   ⇒ **推荐入口 = tunnel**；转发 URL 只当「能对话」的备用入口。
+cmd_tunnel() {
+    need_gh
+    local name="${1:?用法: tunnel <codespace 名> [本地端口，默认 3181]}"
+    local lp="${2:-3181}" token
+    token="$(rsh "$name" 'grep -o "token=[A-Za-z0-9_-]*" ~/dsh-web.log | tail -1' 2>/dev/null | tr -d '\r' | tail -1)"
+    info "为什么要隧道（源码级事实，不是偏好）："
+    info '  dsh-client-ui-settings/lib/client.js:1345  persistence = ctx.remote.$host.isLoopback ? "host" : "memory"'
+    info '  ⇒ 非回环页面（HTTPS 转发域名）= memory ⇒ 设置镜像 ensure() 直接返回 ⇒ 模型/插件配置永远打不开'
+    info '  ⇒ 回环页面（127.0.0.1）= host ⇒ 设置可读可写'
+    printf '\n  ⭐ 浏览器打开： http://127.0.0.1:%s/%s\n\n' "$lp" "${token:-?token=(读不到：远端 ~/dsh-web.log)}"
+    info "下面这条会占住当前终端（保持开着 = 隧道；Ctrl-C 断开）："
+    printf '    gh codespace ssh -c %s -- -L %s:127.0.0.1:%s\n\n' "$name" "$lp" "$PORT"
+    exec ghc ssh -c "$name" -- -L "$lp:127.0.0.1:$PORT"
+}
+
 cmd_down() { need_gh; local name="${1:?用法: down <codespace 名>}"; ghc stop -c "$name"; info "已停（计费停止，存储仍计）。删除用：gh codespace delete -c $name"; }
 
 case "${1:-}" in
@@ -176,6 +203,7 @@ case "${1:-}" in
     state)  shift; cmd_state  "$@" ;;
     verify) shift; cmd_verify "$@" ;;
     start)  shift; cmd_start  "$@" ;;
+    tunnel) shift; cmd_tunnel "$@" ;;
     url)    shift; cmd_url    "$@" ;;
     list)   cmd_list ;;
     down)   shift; cmd_down   "$@" ;;

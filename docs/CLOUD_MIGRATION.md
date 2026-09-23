@@ -33,7 +33,7 @@
 
 | 物件 | 实测大小 | 搬？ | 说明 |
 |---|---|---|---|
-| `~/.dsh/settings.yaml` | 8 K | ✅ **必搬** | profile / 模型（含 `contextWindow`）/ 权限 / preset + 插件配置段 |
+| `~/.dsh/settings.yaml` | 8 K | ⚠️ **搬不搬待定**（原写「必搬」） | profile / 模型（含 `contextWindow`）/ 权限 / preset + 插件配置段。**跨版本 schema 差异是否会打坏设置页仍未验证**（曾把它误当成设置页坏掉的原因，见 §9-26 的更正）⇒ 更稳的做法 = 只搬 `.credentials.yaml`，模型等在**回环入口**的设置页里重配 |
 | `~/.dsh/.credentials.yaml` | 681 B（mode 600） | ✅ **必搬** | ⭐ **密钥在这里**（`refs:` 下 7 个：`DEEPSEEK_API_KEY` 等）。**永不进 git** |
 | `~/.dsh/profiles/*/` | **539 M** | ⚠️ **二选一** | `web` 270 M + `alice-bus`/`alice-bus-lab`/`alice-git-lab`/`alice-mcp-lab` 各 63–77 M；**大头是 `node_modules`**（与平台/版本绑定）⇒ 更干净是**云端重建**（`dsh --profile web` / `dsh plugin`）。⚠️ **未核实**：首次启动是否自动装依赖（包内没找到自动 `pnpm install`）⇒ **保守做法：先搬 `web` 的 `package.json` + `cordis*.yml`，缺依赖时再整目录拷** |
 | `~/.dsh/sessions/` | **302 M**（80 个 `.zstd`） | 零期可跳过 | 这是「我」的历史。⚠️ 目录名 = **cwd slug**（见 §4.3） |
@@ -75,7 +75,7 @@
 | 件 | 作用 |
 |---|---|
 | `.devcontainer/devcontainer.json` | Codespace 的镜像与工具链：**JDK 17 + Node 22** + `forwardPorts:[3081]` + `postCreateCommand` 装 DSH（**锁 0.1.5-rc.3** —— ⭐ 实跑证明**发布的 rc.1/rc.2 是残缺的**，见 §9-18） |
-| `tools/codespace-start-dsh.sh` | **在 Codespace 内**启动：自动算 `--host 0.0.0.0` 与 `--trusted-host <转发域名>`；cwd 决定会话 slug，可用 `DSH_WORKDIR` 指 |
+| `tools/codespace-start-dsh.sh` | **在 Codespace 内**启动：回环绑定 + 自动算 `--trusted-host <转发域名>`；cwd 决定会话 slug，可用 `DSH_WORKDIR` 指 |
 | `tools/codespace-zero.sh` | **在本机**驱动：`doctor / create / state / verify / start / url / list / down / destroy`，每步都有判据 |
 
 **执行顺序（每一步都能单独重跑）**
@@ -195,7 +195,7 @@ tar -xzf dsh-state-*.tar.gz -C ~ && chmod 600 ~/.dsh/.credentials.yaml ~/.dsh/se
 2. `java -version` ⇒ 17（gradle/Forge 要求）
 3. `npm i -g @deepseek-ai/dsh && dsh --version` ⇒ 出得来
 4. `~/.dsh/settings.yaml` 在、`~/.dsh/.credentials.yaml` 在（`chmod 600`）
-5. ⭐ **转发域名能打开且能真的发一条消息**（不只"页面能开" —— 后者挡不住 `--trusted-host` 的坑）
+5. ⭐ **能真的发一条消息**（不只"页面能开" —— 后者挡不住 `--trusted-host` 的坑）。⚠️ 但**「能对话」≠「设置能用」**：设置页需要**回环入口**（SSH 隧道），见 §9-24/25
 6. `./gradlew compileJava --no-daemon` 成功
 7. `bash tools/check-all.sh` ⇒ 打出 `pass/warning/failed`（CI 上无上游 jar ⇒ **Tier B 必然 WARN**，属预期）
 8. ⭐ **并发写入行为有结论**：两个前端各发一句 ⇒ 查 `node tools/dsh-session-log.mjs --list/--grep`（正常 / 写进纪律）
@@ -234,6 +234,9 @@ tar -xzf dsh-state-*.tar.gz -C ~ && chmod 600 ~/.dsh/.credentials.yaml ~/.dsh/se
 | 19 | ⭐ `dsh web` **拒绝** `--host 0.0.0.0` | ✅ 实跑原文：`intentionally not supported yet for safety … use 127.0.0.1 instead` ⇒ **保持回环**（Codespaces 转发器在容器内部连 localhost ⇒ 够用） |
 | 20 | 首次启动会**自建 profile**（`~/.dsh/profiles/web`，bundle = `[dsh-base, dsh-web-app]`） | ✅ 实跑：插件从 **CLI 自带的 `node_modules`** 解析 ⇒ **不需要**搬本机 270 M 的 `profiles/web`，也不用跑 `dsh plugin install` |
 | 21 | ⭐ **令牌 URL 是必须的**，Ports 面板的裸链接永远显示 `authentication required` | ✅ 实跑：不带 token = **401**；`?token=…` = **303 + 种 cookie**（cookie 的 `authority` **绑转发域名**）⇒ 再请求 = **200**；cookie 有效期 30 天 ⇒ **只需带一次** |
+| 24 | ⭐⭐⭐ **设置页只在回环入口可用**（走 HTTPS 转发域名时**对话能用、模型/插件配置永远打不开**） | ✅ **源码级**：`dsh-client-ui-settings/lib/client.js:1345` = `persistence = ctx.remote.$host.isLoopback ? "host" : "memory"`；`isLoopback` 见 `dsh-client-connection/lib/client.js:6344`（只认 `localhost` / `[::1]` / `127.x.x.x`）；`memory` 时镜像 `ensure()` 立刻返回（settings client:1252）⇒ `view` 恒为 undefined ⇒ 报 `settings are unavailable in this browser`。**这是 rc.3 的设计行为，不是我们配错**；用户实测症状完全吻合 |
+| 25 | ⭐⭐⭐ **正确入口 = SSH 隧道**（`gh codespace ssh -c <名> -- -L 3181:127.0.0.1:3081`，再开 `http://127.0.0.1:3181/?token=…`） | ✅ 由 24 直接推出：隧道下页面 hostname = `127.0.0.1` ⇒ 设置可读写；顺带**不再需要 `--trusted-host`**、也不需要把端口设 private（回环本来就过围栏）⇒ 脚本子命令 = `tools/codespace-zero.sh tunnel` |
+| 26 | ⚠️ **更正我先前的错误结论**：我曾用「挪走 `settings.yaml` 后对话成功」推断「是它打坏了设置页」 | ❌ **该推断无效**（A/B 判据选错：对话本来就能用，真正出问题的设置页**从未复测**）⇒ 真因是 24 的 `persistence`。教训 = **A/B 必须测「出问题的那件事」，不能拿代理指标替代** |
 | 22 | ⭐ 三个自定义插件**都在 npm 上**，云上可直接装 | ✅ 实测 `npm view`：`dsh-dafeiyu` **0.1.14** · `dsh-ears` **0.3.2** · `dsh-whale-widget` **0.3.11**（本机的 `dsh-whale-widget` 是 `link:/home/fb486/dsh-plugins/…` **开发覆盖**，发布版可用） ⇒ 装法 = `dsh plugin --profile web add <包>` **且把名字加进该 profile `package.json` 的 `dsh.profile.bundles`**（bundles 才是启动真正加载的层） |
 | 23 | ⚠️ **pnpm v12 默认拦依赖的构建脚本**（`pnpm approve-builds`） | ✅ 实跑：`dsh plugin add` 报 `Ignored build scripts: @fugood/whisper.node@1.1.3` ⇒ **包仍装进 `node_modules`**，但 `dsh-ears` 的 whisper 原生件没构建（要用音频才受影响）；要放行得在 profile 的 `pnpm.onlyBuiltDependencies` 里显式列名 |
 
