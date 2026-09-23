@@ -2713,6 +2713,126 @@ def rule_k4_capability_provenance():
     return violations
 
 
+def rule_ledger_closure_zone_scoped():
+    """`Z2`（2026-09-23）：**"账本收工了没有"只许一个口径，而且必须带人口**。
+
+    事实（为什么必须门禁化，不是注释）：`Z1` 让 `recordPlacement` **在区外不记账** ⇒
+    "**用账本证明我没写世界 / 没留我方方块**"的那一族判据在野外**人口为 0** ⇒ 空集让它们恒真。
+    CORE 实测（`run/headless-logs/20260923-140625-core.log`）：`[Ledger] place` **8 条全来自
+    自己认领了区块的 `scaffold` 步**、其余 **13 次放置全是 `skip``；同轮
+    `[Recover] residues=0（本进程内没有出现「我方方块未收回」）` 因此是**空读数**，不是"世界很干净"。
+    这类失败**不报错**（本项目纪律：假绿比假红危险）⇒ 只能靠门禁。
+
+    三条，各有一条注入臂（改任一处 ⇒ 变红）：
+    ① **闭合点只许用 `closure(...)`**：电池 `endStep` / 编排器终态 / 生产 `clearTask` /
+       恢复入口，不得再拿裸 `pendingTemporary(` / `pendingForOwner(` 当"待收义务"的口径
+       （裸视图含区外条目 ⇒ 拿它判红就是拿无主区域的事判我方的错，`D-398` R1/R2）；
+    ② **区内判据只有一个出处**：`closure` 的 `inZone` 必须来自 `pendingTemporaryProtected`，
+       而后者必须问 `ProtectionZones.isProtected`（不许各写一遍 ⇒ 消费漏接一处就是 D-338 那类事故）；
+    ③ **空集必须可见**：闭合点要印人口（`Closure.describe()`），否则「账本空」=「世界干净」这个
+       误读会静默复活（`Z2` 的唯一产出就是让这个误读**看得见**）。
+    """
+    base = ROOT / "src/main/java/com/dddgn/alice"
+    ledger = base / "ledger/WorldModLedger.java"
+    battery = base / "task/RegressionBatteryTask.java"
+    harness = base / "task/check/CheckHarness.java"
+    manager = base / "bot/BotManager.java"
+    item = base / "item/RestoreCheckItem.java"
+
+    def strip_block_comments(text: str) -> str:
+        """去掉 `/* … */` 块注释（`code_only` 只去 `//`）—— 本规则查的是**代码**，
+        文档里提到旧写法（如 `pendingTemporary(本步 scope)`）不算违规。"""
+        return re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+
+    def code(path):
+        if not path.exists():
+            return None
+        return code_only(strip_block_comments(path.read_text(encoding="utf-8")))
+
+    problems = []
+    led = code(ledger)
+    bat = code(battery)
+    har = code(harness)
+    man = code(manager)
+    itm = code(item)
+    for text, name in ((led, ledger.name), (bat, battery.name), (har, harness.name),
+                       (man, manager.name), (itm, item.name)):
+        if text is None:
+            problems.append(f"{name} 不存在（改名？同步本规则）")
+    if problems:
+        return problems
+
+    # ---- 臂① 闭合点 / 义务入口只许用 zone-aware 视图 ----
+    if "pendingTemporary(" in bat:
+        problems.append("电池里还在用裸 `pendingTemporary(` 当待收口径 ⇒ 区外条目会参与判决"
+                        "（`D-398` R1/R2：区外不负任何责任）—— 应收窄到 `WorldModLedger.closure(...)`")
+    if "WorldModLedger.closure(" not in method_body(bat, "private void endStep()"):
+        problems.append("电池 `endStep()` 没有用 `WorldModLedger.closure(...)` 做闭合读数"
+                        "（那是唯一的「该收工了吗」口径，见 `Z2`）")
+    if "pendingForOwner(" in har:
+        problems.append("编排器里还在用 `pendingForOwner(`（**跨 scope 的 owner 口径**）判泄漏 ⇒ "
+                        "别的步的遗留会误伤本步（D-298 那类假红）⇒ 应为「本步作用域 + 保护区内」")
+    if "WorldModLedger.closure(" not in method_body(har, "private void tick()"):
+        problems.append("编排器终态判据没有用 `WorldModLedger.closure(...)`（口径必须与电池 `endStep` 同源）")
+    if "pendingTemporary(" in man:
+        problems.append("`BotManager` 里还有裸 `pendingTemporary(` ⇒ 生产侧（收尾/恢复入口）的"
+                        "义务口径没跟上 `D-398`（区外条目会出现在「仍有多少未拆除」里）")
+    if "WorldModLedger.closure(" not in method_body(man, "void clearTask()"):
+        problems.append("生产收尾 `clearTask()` 没用 `WorldModLedger.closure(...)` ⇒ 它报的"
+                        "「仍有 N 条未拆除」会把区外条目算进来（且看不出人口）")
+    if "pendingTemporaryProtected(" not in method_body(man, "assignRestore("):
+        problems.append("恢复入口 `assignRestore` 没用区内视图 ⇒ 与 `RestoreScopeTask` 的取件口径"
+                        "不一致（症状：说去恢复，到了什么都不做）")
+    if "pendingTemporary(" in itm or "pendingTemporaryProtected(" not in itm:
+        problems.append("`RestoreCheckItem` 的入口口径不是区内视图（`D-398` R2：区外一定不恢复）")
+
+    # ---- 臂② 区内判据只有一个出处 ----
+    closure_body = method_body(led, "public static Closure closure(")
+    if "pendingTemporaryProtected(" not in closure_body:
+        problems.append("`closure(...)` 的 `inZone` 不是取自 `pendingTemporaryProtected` ⇒ "
+                        "区内判据出现了第二个实现（必然漂移）")
+    # ⚠️ 人口差值的**基准必须是窗口起点**：传 `Population.ZERO` 会静默退回"自服务器启动累计"，
+    # 于是"本步期间发生了什么"这个读数就永远是对的假象（`silent-measurement-failure`）。
+    if "populationBaseline(" not in method_body(bat, "private void endStep()") \
+            or "stepPopulationBaseline" not in method_body(bat, "private void endStep()"):
+        problems.append("电池 `endStep()` 没有用**步窗口基线**（`populationBaseline(...)` → "
+                        "`stepPopulationBaseline`）⇒ 人口差值会退化成「自启动累计」（读起来像「本步」，其实是全局）")
+    if "populationBaseline(" not in har or "stepPopulationBaseline" not in har:
+        problems.append("编排器没有维护步窗口基线（`populationBaseline(...)` / `stepPopulationBaseline`）⇒ 同上")
+    if "populationBaseline(" not in man or "ledgerPopulationBaseline" not in man:
+        problems.append("生产 `BotManager` 没有维护任务窗口基线（`populationBaseline(...)` / "
+                        "`ledgerPopulationBaseline`）⇒ 收尾告警里的人口是全局累计，不是本任务")
+    # ⚠️ `recorded` 计数器是"<空是哪一种空>"的**唯一**依据 ⇒ 谁忘了递增，读数就会把
+    # "写了又收干净"误报成"压根没写"（又一次静默失败）。
+    if "recorded++" not in method_body(led, "public static void recordPlacement("):
+        problems.append("`recordPlacement` 没有递增 `recorded` 计数器 ⇒ `Closure.recordedSince` 恒 0 "
+                        "⇒ 会把「写了又收干净」误报成「压根没写」")
+    protected_body = method_body(led, "public static List<Entry> pendingTemporaryProtected(")
+    if "ProtectionZones.isProtected" not in protected_body:
+        problems.append("`pendingTemporaryProtected` 不再问 `ProtectionZones.isProtected` ⇒ "
+                        "保护区判据被绕开（`ProtectionZones` 是 `D-398` 的唯一判据入口）")
+
+    # ---- 臂③ 空集必须可见 ----
+    # ⚠️ 必须钉**人口行本身**：`endStep` 的"泄漏判红"分支里也有 `closure.describe()` ⇒
+    # 只查"该方法里出现过 describe()"会被它满足（注入实测没红，本会话第 7 次「判据太弱」）。
+    bat_close = method_body(bat, "private void endStep()")
+    if "[Ledger] 闭合 step=" not in bat_close or "closure.describe()" not in bat_close:
+        problems.append("电池 `endStep()` 少了**无条件**的人口行（`[Ledger] 闭合 step=… closure.describe()`）"
+                        "⇒ `Z1` 之后「账本空」会被读成「没写世界」（假绿，见 `Z2`）；"
+                        "判红分支里的那句不算（它只在出错时才印）")
+    har_close = method_body(har, "private void tick()")
+    if "[Ledger] 闭合 module=" not in har_close or "closure.describe()" not in har_close:
+        problems.append("编排器终态少了无条件的人口行（`[Ledger] 闭合 module=… closure.describe()`）⇒ 同上")
+    if "reportLedgerPopulation();" not in method_body(bat, "private Status finish()"):
+        problems.append("电池每轮的**人口汇总行**没有被调用（`finish()` 里少了 `reportLedgerPopulation()`）"
+                        "⇒ 报告里看不出「账本样本」有多大")
+    if "wildSkippedSince" not in led or "recordedSince" not in led \
+            or "public String describe()" not in led:
+        problems.append("`Closure` 记录不再带人口（`wildSkippedSince` / `recordedSince` / `describe()`）⇒ "
+                        "「空」的三种含义（收干净了/全在区外/真的没写）又分不开了")
+    return problems
+
+
 def grep_symbol_exists(name):
     """该符号是否在 src/main/java 下真实出现（防"编造出处"）。"""
     needle = name + "("
@@ -2785,6 +2905,7 @@ def main() -> int:
     btfooting = rule_break_traverse_footing()
     d385 = rule_break_cost_state_penalty()
     capability = rule_k4_capability_provenance()
+    z2 = rule_ledger_closure_zone_scoped()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -2889,14 +3010,16 @@ def main() -> int:
         print(f"[D-385·挖矿成本含状态惩罚] {line}")
     for line in capability:
         print(f"[K4·准入来源单一] {line}")
+    for line in z2:
+        print(f"[Z2·账本闭合口径] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
           f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
-          f" / 准入来源单一={len(capability)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
+          f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

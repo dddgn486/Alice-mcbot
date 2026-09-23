@@ -97,6 +97,8 @@ public final class LedgerZoneScopeCheckTask implements Task {
     private String zoneTerminal = "-";
     private String zoneNotes = "-";
     private int outsideSkipsBefore;
+    /** ⭐ `Z2`：本夹具窗口起点的**人口基线**（记账次数 + 区外跳过次数）—— 收尾读数的差值基准。 */
+    private WorldModLedger.Population populationBaseline = WorldModLedger.Population.ZERO;
     private int outsideSkipsAfter;
     private int purgeDropped;
     private boolean reported;
@@ -199,6 +201,7 @@ public final class LedgerZoneScopeCheckTask implements Task {
         check("前提：动作层能放置（快捷栏有" + Blocks.COBBLESTONE.getName().getString() + "）",
                 BlockInteraction.findSlotForBlock(bot, Blocks.COBBLESTONE) >= 0);
         outsideSkipsBefore = WorldModLedger.outsideSkipCount(level.getServer());
+        populationBaseline = WorldModLedger.populationBaseline(level.getServer());
         phase = Phase.WILD_PLACE;
         phaseTicks = 0;
     }
@@ -350,10 +353,13 @@ public final class LedgerZoneScopeCheckTask implements Task {
             return failures.isEmpty() ? Task.Status.DONE : Task.Status.FAILED;
         }
         reported = true;
-        // 本步自己的作用域里不许留条目（与电池 `endStep` 的 J6 口径一致）
-        List<WorldModLedger.Entry> left = scopeId == null ? List.of()
-                : WorldModLedger.pendingTemporary(level.getServer(), scopeId);
-        check("收尾 本步作用域内**无遗留条目**（实测 " + left.size() + " 条）", left.isEmpty());
+        // 本步自己的作用域里**保护区内**不许留条目（`Z2`：与电池 `endStep` 的 J6 口径一致 ——
+        // 只认区内；区外条目按 `D-398` R1/R2 不算义务）。读数带上人口，便于分辨"空"的两义。
+        var closure = scopeId == null
+                ? new WorldModLedger.Closure(0, 0, 0, 0)
+                : WorldModLedger.closure(level, scopeId, populationBaseline);
+        check("收尾 本步作用域内**无区内遗留条目**（实测 " + closure.inZone() + " 条）"
+                + closure.describe(), closure.inZone() == 0);
         cleanup(level);
         BotLog.info("[Z1] SUMMARY checks={} failures={} outsideSkips={}→{} wildTerminal={} "
                         + "zoneTerminal={} zoneNotes={} purgeDropped={} ticks={} → {}",

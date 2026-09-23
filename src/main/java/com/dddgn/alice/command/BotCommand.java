@@ -1413,7 +1413,14 @@ public final class BotCommand {
         source.sendSuccess(() -> Component.literal("[alice] 世界修改账本 pending=" + size
                 + " TEMP=" + temp + " KEEP=" + keep + " openScopes=" + open.size()), false);
         if (size == 0) {
-            source.sendSuccess(() -> Component.literal("[alice] （空：建拆同权已闭合）"), false);
+            // ⭐ `Z2`（2026-09-23）：**不许把"账本空"说成"建拆同权已闭合"** —— `Z1` 之后区外
+            // **不记账**，所以"空"还可能是"压根没记过"（`D-398` R1/R2）。把人口一起摆出来，
+            // 让读的人自己分辨（这是一条玩家可见读数，误读成本最高）。
+            long recorded = com.dddgn.alice.ledger.WorldModLedger.recordedCount(server);
+            long wild = com.dddgn.alice.ledger.WorldModLedger.outsideSkipCount(server);
+            source.sendSuccess(() -> Component.literal("[alice] （账本为空：迄今记账 " + recorded
+                    + " 次 / 区外放置被跳过 " + wild + " 次）—— 区外修改既不入账也不恢复（D-398）；"
+                    + "「记账 0 次」与「建拆同权已闭合」不是一回事"), false);
         }
         for (var entry : entries) {
             String line = "  " + entry.describe();

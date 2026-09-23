@@ -39,11 +39,18 @@ import java.util.UUID;
  *   <li>写入期：{@link #recordPlacement} 在区外**不记**（只留一行 `[Ledger] skip` + 遥测计数）；</li>
  *   <li>读取期：{@link #pendingTemporaryProtected} 是回收的取件口径（区外条目一律不认）；</li>
  *   <li>对账期：{@link #dropStale} 把旧存档遗留 / unclaim 后的区外条目销掉（逐条留日志）；</li>
+ *   <li>⭐ 闭合期：{@link #closure} 是**唯一**的"作用域该收工了吗"读数（`Z2`）——它同时给出
+ *       **区内待收**、**窗口内记账次数**与**窗口内区外放置次数**，使"账本空"的三种含义
+ *       （写了又收干净 / 全在区外没记 / 真的没写）**在日志里分得开**（见 {@link Closure}）；</li>
  *   <li>⇒ `J6` 不变量的适用面随之收窄为"**保护区内**的条目"（`Z2`）。</li>
  * </ul>
  * ⚠️ **后果**：区外的垫脚方块不再被收尾拆回（野外会留下圆石、并净消耗一次性方块）—— 这是
  * "区外一定不恢复"的推论，不是遗漏；口径与判据统一在
  * {@link com.dddgn.alice.protection.ProtectionZones}。
+ * ⚠️ **第二个后果（`Z2` 实测抓到）**：既然区外**不记账**，那么"**用账本证明我没写世界**"的判据
+ * 在野外就是**空集真**（CORE 实测：8 条记账全来自自认领的 `scaffold` 步，13 次放置全 `skip`）
+ * ⇒ 这一族断言必须**同时报出人口**才可信（{@link Closure}），未接人口的旧读数在
+ * `docs/reviews/2026-09-23-Z2-账本闭合与空集假绿.md` 里有逐条清单。
  *
  * <p>**建拆同权（D-081）**：{@link Policy#TEMP} 的条目**必须在同一 scope 内被移除**；
  * {@link Policy#KEEP}（道路等永久放置）走独立授权，不受配对约束——两者不可混。
@@ -77,6 +84,14 @@ public final class WorldModLedger extends SavedData {
     private int scopeSeq;
     /** ⭐ `D-398`：被跳过的"区外放置"次数（遥测，见 {@link #outsideSkipCount}）。 */
     private int outsideSkips;
+    /**
+     * ⭐ `Z2`：**真正记进账本的放置次数**（遥测，见 {@link #recordedCount}）。
+     *
+     * <p>与 {@link #outsideSkips} 配对使用：**"账本里 0 条"有两个完全不同的含义** ——
+     * "写了、后来收干净了"（{@code recorded>0}）与"压根没记（全在区外）"（{@code outsideSkips>0}）。
+     * 只有这一个数能把两者分开（`silent-measurement-failure`：`0` 必须排除掉"读错了/没人写"这一解释）。
+     */
+    private int recorded;
 
     public static WorldModLedger get(MinecraftServer server) {
         return server.overworld().getDataStorage()
@@ -170,6 +185,7 @@ public final class WorldModLedger extends SavedData {
         Entry entry = new Entry(pos.immutable(), blockId(placed), blockId(previous),
                 grant.reason().name(), policy, scopeOf(ledger, owner), owner, level.getGameTime());
         ledger.entries.put(key(pos), entry);
+        ledger.recorded++;
         ledger.setDirty();
         BotLog.info("[Ledger] place {} by={}", entry.describe(), grant.describe());
     }
@@ -241,6 +257,27 @@ public final class WorldModLedger extends SavedData {
      */
     public static int outsideSkipCount(MinecraftServer server) {
         return get(server).outsideSkips;
+    }
+
+    /** ⭐ `Z2`：**真正记进账本的放置次数**（累积；配合 {@link Population} 做窗口差值）。 */
+    public static int recordedCount(MinecraftServer server) {
+        return get(server).recorded;
+    }
+
+    /**
+     * ⭐ `Z2`：**人口基线**（窗口起点的一对计数器）。
+     *
+     * <p>为什么要两个数一起取：只取"区外跳过"会把"什么都没发生"与"写了但全在区外"混起来，
+     * 只取"记账次数"则反之。这对数就是 {@link Closure} 判别"空"是哪种空的依据。
+     */
+    public record Population(int wildSkipped, int recorded) {
+        public static final Population ZERO = new Population(0, 0);
+    }
+
+    /** 取当前人口基线（步/任务起点调用；配合 {@link #closure}）。 */
+    public static Population populationBaseline(MinecraftServer server) {
+        WorldModLedger ledger = get(server);
+        return new Population(ledger.outsideSkips, ledger.recorded);
     }
 
     /** 移除一条记录（该放置已被我方配对拆除）。 */
@@ -343,6 +380,98 @@ public final class WorldModLedger extends SavedData {
         return result;
     }
 
+    /**
+     * ⭐ `Z2`（2026-09-23）：**作用域闭合读数** —— 把"账本空"和"**根本没记账**"分开。
+     *
+     * <h2>为什么必须有它（实测的假绿，不是推测）</h2>
+     * `Z1` 之后 {@link #recordPlacement} **在区外完全不记**，于是"**用账本证明我没写世界 / 没留我方方块**"
+     * 的那一族判据，在野外世界里**人口为 0** ⇒ 空集让它们恒真。CORE 实测（`20260923-140625-core.log`）：
+     * `[Ledger] place` 8 条**全部**来自自己认领了区块的 `scaffold` 步，其余 13 次放置**全是** `skip`
+     * ⇒ 同轮的 `[Recover] residues=0（本进程内没有出现「我方方块未收回」）` 是**空读数**，
+     * 而不是"世界很干净"。这类失败**不报错**，只让判据失去意义（本项目纪律：假绿比假红危险）。
+     *
+     * <h2>口径（四个数一起交出来，使"空"可分辨）</h2>
+     * <ul>
+     *   <li>{@code inZone} —— 保护区内的待收临时方块：**这就是 `D-398` 意义上的义务**；</li>
+     *   <li>{@code wildInLedger} —— 账本里仍在的区外条目（旧存档遗留 / "先记账、后 unclaim"；
+     *       {@link #dropStale} 会把它们销掉 ⇒ **要在它之前读**）；</li>
+     *   <li>{@code recordedSince} —— 窗口内**真正记进账本**的放置次数（>0 ⇒ "空"= 收干净了）；</li>
+     *   <li>{@code wildSkippedSince} —— 窗口内被跳过的区外放置次数
+     *       （>0 而 {@code recordedSince=0} ⇒ **这段期间的世界修改全在区外**，本读数**不含**它们）。</li>
+     * </ul>
+     *
+     * <p>⚠️ 本记录**自己不下判决**（它不判"空是不是问题"）：它只保证调用方与读日志的人
+     * **看得见人口**，由调用方按自己的语义决定怎么记账（电池/编排器的泄漏判据只认 {@code inZone}；
+     * 生产收尾把它印进告警）。
+     *
+     * @param skipBaseline 任务/步开始时的 {@link #outsideSkipCount}（无基线概念时传 -1 ⇒ 不做差值）
+     */
+    public record Closure(int inZone, int wildInLedger, int recordedSince, int wildSkippedSince) {
+
+        /** 两个"账本里的条目数"都是 0 ⇒ **账本为空**（空不等于"干净"，见类 javadoc）。 */
+        public boolean empty() {
+            return inZone == 0 && wildInLedger == 0;
+        }
+
+        /** 本窗口**有没有真的记过账**（区分"写了又收干净"与"压根没记"）。 */
+        public boolean nothingRecorded() {
+            return recordedSince == 0;
+        }
+
+        /** 窗口里**有没有发生过任何世界修改**（记账的 + 被跳过的）。 */
+        public boolean anythingHappened() {
+            return recordedSince > 0 || wildSkippedSince > 0;
+        }
+
+        /**
+         * 给人读的一行。⚠️ 只在"**账本空**"时才展开解释是哪一种空：
+         * ① 记过账（`recorded>0`）⇒ 已经收干净了，读数可信；
+         * ② 一次都没记、却发生过区外放置 ⇒ **本读数不含那些修改**（`D-398` R1/R2，人口缺失）；
+         * ③ 一次都没记、也没有区外放置 ⇒ 本窗口真的没写世界。
+         */
+        public String describe() {
+            String base = "inZone=" + inZone + " wildInLedger=" + wildInLedger
+                    + " recorded=+" + recordedSince + " wildSkipped=+" + wildSkippedSince;
+            if (!empty()) {
+                return base;
+            }
+            if (recordedSince > 0) {
+                return base + "（账本空= 记过 " + recordedSince + " 条、已收干净 ✓）";
+            }
+            if (wildSkippedSince > 0) {
+                return base + "（⚠️ 本窗口**没有任何记账**：这 " + wildSkippedSince
+                        + " 次修改**全在区外** ⇒ 本读数不含它们）";
+            }
+            return base + "（本窗口没写过世界：既无区内记账，也无区外放置）";
+        }
+    }
+
+    /**
+     * ⭐ `Z2` 闭合读数（见 {@link Closure}）。**架在两个已有视图之上**（`inZone` = 区内视图，
+     * `wildInLedger` = 裸视图 − 区内视图）⇒ **不复制**保护区判据，不会与
+     * {@link #pendingTemporaryProtected} 漂移。
+     *
+     * @param baseline 窗口起点的 {@link Population}（用 {@link #populationBaseline} 取）；
+     *                 null = 不计算"窗口内发生过什么"（{@code recordedSince=wildSkippedSince=-1}）
+     *                 ⚠️ 不许图省事传 {@link Population#ZERO} —— 那会把差值静默变成"自服务器启动累计"，
+     *                 读起来像"本步窗口"、其实是全局（门禁 `rule_ledger_closure_zone_scoped` 钉这条）
+     */
+    public static Closure closure(ServerLevel level, String scopeId, Population baseline) {
+        MinecraftServer server = level.getServer();
+        if (server == null) {
+            return new Closure(0, 0, 0, 0);
+        }
+        int inZone = pendingTemporaryProtected(level, scopeId).size();
+        int raw = pendingTemporary(server, scopeId).size();
+        // `raw - inZone` = 裸视图里那些**区外**条目（两个视图的唯一差别就是这个过滤器）
+        if (baseline == null) {
+            return new Closure(inZone, raw - inZone, -1, -1);
+        }
+        WorldModLedger ledger = get(server);
+        return new Closure(inZone, raw - inZone,
+                ledger.recorded - baseline.recorded(), ledger.outsideSkips - baseline.wildSkipped());
+    }
+
     /** 某个作用域下未清除的记录。 */
     public static List<Entry> pendingInScope(MinecraftServer server, String scopeId) {
         List<Entry> result = new ArrayList<>();
@@ -369,6 +498,7 @@ public final class WorldModLedger extends SavedData {
         ledger.entries.clear();
         ledger.openScopes.clear();
         ledger.outsideSkips = 0;
+        ledger.recorded = 0;
         ledger.setDirty();
     }
 
@@ -386,6 +516,7 @@ public final class WorldModLedger extends SavedData {
         WorldModLedger ledger = new WorldModLedger();
         ledger.scopeSeq = root.getInt("scopeSeq");
         ledger.outsideSkips = root.getInt("outsideSkips");
+        ledger.recorded = root.getInt("recorded");
         ListTag list = root.getList("entries", CompoundTag.TAG_COMPOUND);
         for (int i = 0; i < list.size(); i++) {
             CompoundTag tag = list.getCompound(i);
@@ -418,6 +549,7 @@ public final class WorldModLedger extends SavedData {
     public CompoundTag save(CompoundTag root) {
         root.putInt("scopeSeq", scopeSeq);
         root.putInt("outsideSkips", outsideSkips);
+        root.putInt("recorded", recorded);
         ListTag list = new ListTag();
         for (Entry entry : entries.values()) {
             CompoundTag tag = new CompoundTag();

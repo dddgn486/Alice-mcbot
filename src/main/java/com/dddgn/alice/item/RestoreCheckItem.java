@@ -68,9 +68,13 @@ public class RestoreCheckItem extends Item {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
-        List<WorldModLedger.Entry> pending = WorldModLedger.pendingTemporary(level.getServer(), null);
+        // ⭐ `Z2`（2026-09-23）：**只认保护区内**的待恢复项 —— 与 `RestoreScopeTask` 的取件口径
+        // 一致（`D-398` R2「区外一定不恢复」）。用裸视图会把 bot 传送到一个**永远不会被恢复**的
+        // 区外方块旁边，玩家看到的症状是"自检启动了却什么都不做"（静默）。
+        List<WorldModLedger.Entry> pending =
+                WorldModLedger.pendingTemporaryProtected(level, null);
         if (pending.isEmpty()) {
-            say(player, "[alice] 账本无待恢复项（无需自检）");
+            say(player, "[alice] 账本无待恢复项（无需自检；区外条目不计 —— D-398 R2）");
             return;
         }
         BlockPos first = pending.get(0).pos();

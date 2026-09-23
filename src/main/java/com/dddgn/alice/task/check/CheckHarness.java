@@ -49,7 +49,13 @@ public final class CheckHarness {
     private int index;
     private int phase;          // 0=等空闲 1=起任务 2=等终态
     private int stepStartTick;
-    private int pendingBefore;
+    /**
+     * ⭐ `Z2`：**上一步闭合时**的人口基线 = 本步窗口的起点（`WorldModLedger.Population`）。
+     * 泄漏判据只看本步作用域**保护区内**的条目，而"本步到底写没写世界"要靠这对计数器才读得出来
+     * （区外不入账 ⇒ 只看账本分不清"没写"和"写了但全在区外"）。取在步边界 = 本步的
+     * provision/场景都落在窗口内 ✓（与电池 `endStep` 同口径，见 `rule_step_boundary_parity`）。
+     */
+    private WorldModLedger.Population stepPopulationBaseline = WorldModLedger.Population.ZERO;
     private int premiseStartTick;
     private int ticks;
     private String currentResultDetail = "";
@@ -181,7 +187,8 @@ public final class CheckHarness {
                     BotLog.info("[Harness] premise step={} 已落地（等了 {} tick）⇒ 开始本步",
                             step.name(), ticks - premiseStartTick);
                 }
-                pendingBefore = WorldModLedger.pendingForOwner(server, bot.getUUID()).size();
+                // ⭐ `Z2`：**不再**在这里读 `pendingForOwner`（跨 scope 的 owner 口径）——
+                // 泄漏判据改收在"**本步作用域 + 保护区内**"（见终态分支的 `closure`）。
                 Driver.set(bot, Driver.FIXTURE);
                 Task task = step.factory().get();
                 current = task;
@@ -241,11 +248,20 @@ public final class CheckHarness {
                                 + "；会话终态=" + (result == null ? "(no_result)" : result) + "）"
                         : (result == null ? "(no_result)" : result);
                 // **B 方案（D-283）**：留下我方临时方块且未声明 KEEP ⇒ 本步判红（错误当场出现 ✓）
-                int pendingAfter = WorldModLedger.pendingForOwner(server, bot.getUUID()).size();
-                boolean leakFailed = pendingAfter > pendingBefore && !step.keepWorldState();
+                // ⭐ `Z2`（2026-09-23）：口径收窄为「**本步作用域 + 保护区内**」——
+                //   ① 只认区内（`D-398` R1/R2：区外不负责任 ⇒ 不许拿区外残留判红本步）；
+                //   ② 作用域是本步自己的（原先读 `pendingForOwner` = 跨 scope 的 owner 口径，
+                //      别的步的遗留会误伤本步 —— 那正是 D-298 那一类假红）。
+                var closure = WorldModLedger.closure(bot.serverLevel(), stepScope, stepPopulationBaseline);
+                boolean leakFailed = closure.inZone() > 0 && !step.keepWorldState();
                 if (leakFailed) {
                     pass = false;
-                    currentResultDetail = "leaked_temporary_blocks=" + (pendingAfter - pendingBefore) + "（未声明 KEEP ✗）";
+                    currentResultDetail = "leaked_temporary_blocks=" + closure.inZone()
+                            + "（未声明 KEEP ✗）ledger[" + closure.describe() + "]";
+                } else if (!closure.empty() || closure.anythingHappened()) {
+                    // ⭐ `Z2` **可见性**：账本侧发生过事情就印人口读数 —— 否则"账本空"会被读成"没写世界"
+                    // （实测：CORE 里 8 条记账全来自自认领的 `scaffold` 步，13 次放置全 `skip`）。
+                    BotLog.info("[Ledger] 闭合 module={} step={} {}", moduleId, step.name(), closure.describe());
                 }
                 // **`skipWhen`（环境不具备）**：与电池同口径 —— **不看终态是 DONE 还是 FAILED**
                 // （T0-a 堵假绿的教训：`MachineProbeTask` 缺模组时**如实**返回 DONE + `machine_namespaces_absent`，
@@ -288,6 +304,8 @@ public final class CheckHarness {
         endStepHygiene();
         index++;
         phase = 0;
+        // ⭐ `Z2`：**步边界**取人口基线（本步 provision/场景落在窗口内 ✓，与电池同口径）
+        stepPopulationBaseline = WorldModLedger.populationBaseline(server);
     }
 
     /**

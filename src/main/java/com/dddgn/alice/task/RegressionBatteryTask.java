@@ -431,6 +431,14 @@ public final class RegressionBatteryTask implements Task {
     private int premiseWaitTicks;
     /** 有界等待上限：bot 落到地面通常几个 tick 内完成；等这么久还不落地就**如实继续**（不再等）。 */
     private static final int MAX_PREMISE_WAIT_TICKS = 40;
+    /**
+     * ⭐ `Z2`：**上一步闭合时**取的人口基线 = 本步窗口的起点（见 `WorldModLedger.Population`）。
+     * 为什么要成对取（记账次数 + 区外跳过次数）：区外放置不记账 ⇒ 光看账本分不清
+     * "写了但全在区外"、"写了又收干净了"、"压根没写"这三种情况 —— 而前两种都表现为"账本空"。
+     * 取在**步边界**而不是"步开始行"：本步的 provision/场景就在窗口里，取在边界不会把它们漏掉。
+     */
+    private com.dddgn.alice.ledger.WorldModLedger.Population stepPopulationBaseline =
+            com.dddgn.alice.ledger.WorldModLedger.Population.ZERO;
     private final Map<String, Integer> k4Baseline;
 
     public RegressionBatteryTask(BotPlayer bot, ServerPlayer observer, ScopeBuffer scope) {
@@ -904,32 +912,44 @@ public final class RegressionBatteryTask implements Task {
         // 任务区同样随作用域解除（D-338 附注二第 2 条）—— 电池每一步一个作用域，
         // 步结束还留着任务区 = "没有任务对应的授权封套" ⇒ 结构性禁止。
         com.dddgn.alice.protection.TaskZoneRegistry.release(closed);
+        // ⭐ `Z2`：**先读人口，再看账本** —— `dropStale` 会把区外条目销掉 ⇒ 在它之后读就看不到
+        // "账本里还留着区外旧条目"这件事了（那正是"先记账、后 unclaim"的现场）。
+        var closure = com.dddgn.alice.ledger.WorldModLedger.closure(
+                bot.serverLevel(), closed, stepPopulationBaseline);
         com.dddgn.alice.ledger.WorldModLedger.dropStale(bot.serverLevel());
-        var pending = com.dddgn.alice.ledger.WorldModLedger.pendingTemporary(
-                bot.getServer(), closed);
         scope.end();
         // **站点选择不跨步泄漏**：电池是自检串联，谁设的谁收（下一步回到 auto = 现状顺序）
         com.dddgn.alice.task.craft.CraftStation.select(bot, "auto");
+        // ⭐ `Z2` **可见性**：账本侧发生过任何事情（区内有待收 / 区外被跳过）就印一行人口读数。
+        // 为什么必须印：`Z1` 之后"用账本证明我没写世界"的判据在野外是**空集真**
+        // （实测 8 条记账全来自自认领的 `scaffold` 步，13 次放置全 `skip`）
+        // ⇒ 不报人口，读日志的人会把"没记账"读成"没写世界"（假绿，见 `WorldModLedger.Closure`）。
+        if (!closure.empty() || closure.anythingHappened()) {
+            BotLog.info("[Ledger] 闭合 step={} {}", currentStepName(), closure.describe());
+        }
         // **B 方案（2026-09-17 用户裁定「按 B 做」）**：留下我方临时方块且**未声明 KEEP** ⇒ **本步直接判红**。
         // 为什么：2026-09-17 实测过一次事故 —— `pillar_execute` 漏收尾 ⇒ 15 步之后 `craft_table` 的
         // `no_world_write`（跨 scope 的 `pendingForOwner`）红，理由与现场毫不相干 ✗。
         // 现在错误**当场**出现在漏收尾的那一步；真需要留东西的步用 `stepKeeping(...)` 显式声明。
-        var ownPending = com.dddgn.alice.ledger.WorldModLedger.pendingTemporary(bot.getServer(), closed);
-        if (!ownPending.isEmpty()) {
+        // ⭐ `Z2`：判据只认**保护区内**条目（`D-398` R1/R2：区外不负任何责任 ⇒ 不许拿它判红本步）。
+        if (closure.inZone() > 0) {
             boolean keep = currentStep() != null && currentStep().keepWorldState();
             if (keep) {
                 BotLog.info("[Regression] step={} 声明 KEEP：留下 {} 条我方临时方块（放行）",
-                        currentStepName(), ownPending.size());
+                        currentStepName(), closure.inZone());
             } else {
                 record(currentStepName(), "FAIL",
-                        "leaked_temporary_blocks=" + ownPending.size()
+                        "leaked_temporary_blocks=" + closure.inZone()
                                 + "（本步留下我方临时方块却未收尾；要么收尾，要么用 stepKeeping 声明 KEEP）"
-                                + " ticks=" + stepTicks);
+                                + " ticks=" + stepTicks + " ledger[" + closure.describe() + "]");
             }
         }
         current = null;
         stepStarted = false;
         index++;
+        // ⭐ `Z2`：**步边界**取人口基线（本步的 provision/场景落在它的窗口里 ✓）
+        stepPopulationBaseline =
+                com.dddgn.alice.ledger.WorldModLedger.populationBaseline(bot.getServer());
     }
 
     private void record(String name, String value, String detail) {
@@ -1012,6 +1032,7 @@ public final class RegressionBatteryTask implements Task {
                             + " ⇒ passed={}/{}，**不可作为验收证据**（补齐模组/场景后重跑）",
                     skipped, skippedNames(), pass, expected);
         }
+        reportLedgerPopulation();
         List<String> phantom = phantomEntries();
         if (!curationError.isEmpty() || !phantom.isEmpty()) {
             BotLog.warn("[Regression] 电池归属表与实跑项不一致：{} {}（见 docs/BATTERY_CURATION.md）",
@@ -1020,6 +1041,26 @@ public final class RegressionBatteryTask implements Task {
         // DEGRADED 仍返回 DONE：**运行本身完成了**（"环境不具备"不是电池的失败）；
         // 判决的严重性由那一行 `→ DEGRADED(...)` 承载，绝不冒充 PASS。
         return allPass || degraded ? Status.DONE : Status.FAILED;
+    }
+
+    /**
+     * ⭐ `Z2` **人口读数**（每轮一行）：本轮的账本"样本"到底有多大。
+     *
+     * <p>为什么要在 SUMMARY 旁边印：`Z1` 之后区外放置**不进账本**，于是"用账本证明我没写世界"
+     * 的判据在野外是**空集真**（实测：8 条记账全来自自认领的 `scaffold` 步，13 次放置全 `skip`）。
+     * 这一行把"样本只有 N 条、另有 M 次修改账本看不见"摆在报告里 ⇒ 读报告的人**不会**把
+     * "账本干净"读成"世界干净"（见 `WorldModLedger.Closure` 与 `docs/reviews/2026-09-23-Z2-…`）。
+     */
+    private void reportLedgerPopulation() {
+        // 差值基准取 `Population.ZERO` ⇒ 给出的是**整轮**的累计人口（不是某个窗口的）
+        var closure = com.dddgn.alice.ledger.WorldModLedger.closure(
+                bot.serverLevel(), null, com.dddgn.alice.ledger.WorldModLedger.Population.ZERO);
+        BotLog.info("[Ledger] 本轮人口：账本期末 {}(区内) + {}(区外遗留) 条；本轮**记账 {} 次**、"
+                        + "区外放置被跳过 {} 次 ⇒ 「我没写世界 / 无残留」类读数的样本**只含保护区内条目**"
+                        + "（区外修改既不入账也不恢复，`D-398` R1/R2）；"
+                        + "「记账 0 次」与「收干净了」是两回事，看这两个数分开读",
+                closure.inZone(), closure.wildInLedger(), closure.recordedSince(),
+                closure.wildSkippedSince());
     }
 
     /** 被跳过的步名（声明序，逗号分隔）——让 `DEGRADED` 那一行**自解释**，不必翻日志找哪几步没跑。 */

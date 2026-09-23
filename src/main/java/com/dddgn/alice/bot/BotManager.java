@@ -711,7 +711,12 @@ public final class BotManager {
         // D-119：拆我方圆石需要镐；工具由**入口**准备（生产 MineTask 不再兜底发工具）
         com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
         com.dddgn.alice.ledger.WorldModLedger.dropStale(bot.serverLevel());
-        var pending = com.dddgn.alice.ledger.WorldModLedger.pendingTemporary(bot.getServer(), null);
+        // ⭐ `Z2`（2026-09-23）：入口只认**保护区内**的待恢复项（`D-398` R2「区外一定不恢复」）。
+        // 用裸视图会把 bot 传送到一个**永远不会被恢复**的区外方块旁边（`RestoreScopeTask` 的取件
+        // 口径早已是区内 `pendingTemporaryProtected`）⇒ 入口与执行必须同一口径，
+        // 否则症状是"说要去恢复，到了却什么都不做"（静默）。
+        var pending = com.dddgn.alice.ledger.WorldModLedger.pendingTemporaryProtected(
+                bot.serverLevel(), null);
         if (pending.isEmpty()) {
             BotLog.info("[Restore] 账本无待恢复项（无需启动）");
             return false;
@@ -1819,6 +1824,12 @@ public final class BotManager {
         private final BotPlayer bot;
         private Task task;
         private TaskTarget target;
+        /**
+         * ⭐ `Z2`：本任务开始时的人口基线（记账次数 + 区外跳过次数）—— 任务收尾时用它算出
+         * **本任务期间的人口**（区外放置不入账 ⇒ 只看账本分不清"没写世界"和"写了但全在区外"）。
+         */
+        private com.dddgn.alice.ledger.WorldModLedger.Population ledgerPopulationBaseline =
+                com.dddgn.alice.ledger.WorldModLedger.Population.ZERO;
         private final ScopeBuffer scope = new ScopeBuffer();
         private String lastTaskResult = "";
         private BlockPos lastMineStartPos;
@@ -1903,6 +1914,9 @@ public final class BotManager {
         }
 
         private void beginTask(Task assignedTask, TaskTarget assignedTarget, boolean openScope) {
+            // ⭐ `Z2`：账本"人口"基线（本次任务期间有多少放置落在**区外**⇒ 不入账）
+            ledgerPopulationBaseline =
+                    com.dddgn.alice.ledger.WorldModLedger.populationBaseline(bot.getServer());
             // 一次任务 = 一个世界修改授权作用域（J6-a）：账本按 scope 聚合，恢复以 scope 为单位
             // `openScope=false` 只给**自检编排器**用：它必须与电池 `setup` 同序
             //（**openScope → 跑场景 → 发料/provision → 起任务** ✓）—— 因为 `provision` 里可能有
@@ -2721,10 +2735,11 @@ public final class BotManager {
                 // （`/alice region stop`）走的是这条路、不经过 Job 的 `finish()` ⇒ 两处都要收，
                 // 否则会留下一个"没有任务对应的授权封套"。
                 com.dddgn.alice.protection.TaskZoneRegistry.release(closedScope);
+                // ⭐ `Z2`：闭合读数**要在 `dropStale` 之前**读（区外遗留一旦被销掉就看不见了）
+                var closure = com.dddgn.alice.ledger.WorldModLedger.closure(
+                        bot.serverLevel(), closedScope, ledgerPopulationBaseline);
                 // 账本保持"活的"：现场已不是我方方块的条目就地销掉（场景重放/别人拆掉/我方已拆）
                 com.dddgn.alice.ledger.WorldModLedger.dropStale(bot.serverLevel());
-                var pendingTemp = com.dddgn.alice.ledger.WorldModLedger.pendingTemporary(
-                        bot.getServer(), closedScope);
                 scope.end();
                 task = null;
                 target = null;
@@ -2738,16 +2753,21 @@ public final class BotManager {
                             bot.controller().getInputStateString());
                     bot.controller().stopMovement();
                 }
-                if (!pendingTemp.isEmpty()) {
+                if (closure.inZone() > 0) {
                     // **只报信号，不自动追任务**（2026-09-11 简化，D-103）：
                     // 原先在这里自动追加一个"远程恢复任务"，但那时 bot 已经离开脚手架，
                     // 于是被迫引入"走回去 / 跨场景寻路 / 站位选择 / 侧拆兜底 / 放支撑块"——
                     // 复杂度与失败几乎都来自这个**错误的位置**（实测：走不到 + 往返跑）。
                     // 设计文档 §12.3 的原意是"**仍在脚手架上时**自上而下拆除，才允许离开"——
                     // 那属于**放方块的那个任务**（会话内），将在 J7 攀爬落地时接上。
+                    // ⭐ `Z2`：判据只认**保护区内**条目（`D-398` R1/R2）；并把人口一起印出来，
+                    // 免得把"账本空"读成"没写世界"。
                     BotLog.warn("world_mod_ledger_close scope={} 仍有 {} 条我方临时放置未拆除"
-                                    + "（建拆同权未闭合；如需手动清理用 /alice restore）",
-                            closedScope, pendingTemp.size());
+                                    + "（建拆同权未闭合；如需手动清理用 /alice restore）｜ledger[{}]",
+                            closedScope, closure.inZone(), closure.describe());
+                } else if (!closure.empty() || closure.anythingHappened()) {
+                    BotLog.info("world_mod_ledger_close scope={} 无区内待收｜ledger[{}]",
+                            closedScope, closure.describe());
                 }
             }
         }

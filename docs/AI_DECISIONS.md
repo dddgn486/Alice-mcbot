@@ -18113,3 +18113,71 @@ rm -f "$WORLD"/ftbchunks/*.snbt
 
 
 
+
+---
+
+### D-414：⭐⭐ `Z2` —— 闭合口径**收窄到保护区内** + **`Z1` 引出的空集假绿**（2026-09-23）
+
+队列项 = `OPEN_ITEMS_LEDGER §11-A` 的 `Z2`（`D-398` 裁定的兑现顺序里 `Z1` 的正下一条）。
+用户本轮两次拍板：① 空集断言「**本轮只做可见 + 登记清单**」（不做成全红）；
+② `CheckHarness` 的泄漏判据「**收成 本步 scope + 区内**」。
+
+#### 一、`Z2` 不只是"换个查询"：动手前先取证，抓出一条**假绿**
+
+取证源 `run/headless-logs/20260923-140625-core.log`（`Z2` 开工前最后一次 CORE 全绿）：
+
+| 读数 | 值 | 含义 |
+|---|---|---|
+| `[Ledger] place` | **8 条全来自 `scaffold` 步** | 只有**自己认领区块**的夹具才记上账 |
+| `[Ledger] skip` | **13 条**（lumber 1 / collect 2 / pathing_regression 5 / survival_escape 1 / break_refused 1 …） | 其余全在**区外** ⇒ 不记账 |
+| `[CraftTableCheck] no_world_write=PASS temporaryBlocks=0` | 0 | `craft_table` **没认领** ⇒ 判据在**空集**上通过 |
+| `[Recover] residues=0` | 0 | 唯一喂数点读的是**区内** `remaining` ⇒ CORE 里恒 0 |
+| `CleanupWrappedTask` 靠 `pendingForOwner` 找要拆的方块 | — | 野外一条都没有 ⇒ `拆=0` |
+
+⇒ ⭐ **`Z1` 的代价不是"世界变脏"，而是"一族判据失去人口"**：凡"**用账本证明我没写世界 / 没留我方方块**"
+的判据，在野外都变成**空集真**（不报错、不变红）。这与项目纪律"假绿比假红危险"直接冲突，
+也是 `silent-measurement-failure` 第 3 条（`0` 必须排除"读错了/没人写"）的教科书案例。
+⚠️ 诚实边界：CORE 当时**仍 41/41**（场景重放会清掉残留）—— 被削掉的是**判据的意义**，不是世界的整洁。
+
+#### 二、口径：`WorldModLedger.Closure`（**唯一**的"作用域该收工了吗"读数）
+
+```
+inZone           保护区内待收 TEMP（= D-398 意义上的义务）
+wildInLedger     账本里仍在的区外条目（旧存档遗留 / 先记账后 unclaim；须在 dropStale 之前读）
+recordedSince    窗口内**真正记进账本**的放置次数
+wildSkippedSince 窗口内被跳过的区外放置次数
+```
+
+- **三个数一起给**，"账本空"的三种含义（① 写了又收干净 ② 全在区外所以没记 ③ 真的没写）才分得开；
+- `closure(...)` **架在已有两个视图之上**（区内视图 + 裸视图差值）⇒ **不复制**保护区判据，不可能漂移；
+- 差值必须取**窗口起点基线** `populationBaseline(...)`；传 `Population.ZERO` 会静默退化成
+  "自服务器启动累计"（读起来像"本步"）⇒ 门禁第 ⑦ 臂钉这条；
+- `Closure` **自己不下判决** —— 它只保证调用方与读日志的人**看得见人口**。
+
+#### 三、判据收窄（6 处，全部走同一个入口）
+
+| 站点 | 改法 |
+|---|---|
+| 电池 `RegressionBatteryTask.endStep` | `closure(...)`；**先读人口、再 `dropStale`**；泄漏判据只认 `inZone`；**无条件人口行**；删掉一个**声明了却没人用**的 `pending` 变量 |
+| 编排器 `CheckHarness` 终态 | 从**跨 scope 的 owner 口径**（`pendingForOwner`）收成「**本步 scope + 区内**」（用户裁定） |
+| 生产 `BotManager.clearTask` | `closure(...)`：判据只认 `inZone`，人口进告警（区外条目不再算进"仍有 N 条未拆除"） |
+| 恢复入口 `BotManager.assignRestore` | 入口口径收成**区内视图** —— 与 `RestoreScopeTask` 的取件口径必须一致（否则"说去恢复，到了什么都不做"） |
+| `RestoreCheckItem` | 同上 |
+| `Z1` 夹具 `LedgerZoneScopeCheckTask.finish` | 改用 `closure(...)`（与电池 `endStep` 同口径） |
+| `/alice ledger`（`command/BotCommand.ledger`） | `pending==0` 的提示语**不再说「建拆同权已闭合」**，改成带人口的读法（玩家可见读数里误读成本最高的一句） |
+
+#### 四、门禁：`tools/kernel-predicates.py` → `rule_ledger_closure_zone_scoped`（标签 `[Z2·账本闭合口径]`）
+
+三条硬约束 + **八条注入臂**（每条实测变红，基线绿）：① 闭合点只许用 `closure(...)`（不许裸
+`pendingTemporary(`/`pendingForOwner(`）② 区内判据只有一个出处（`pendingTemporaryProtected` →
+`ProtectionZones.isProtected`）③ 空集必须可见（无条件人口行 + `recorded` 计数器 + 窗口基线）。
+⚠️ **臂③ 第一版没红**（本会话第 7 次"判据太弱"）：泄漏**判红分支**里也有 `closure.describe()`
+⇒ 删掉无条件人口行仍满足判据；改成**同时钉标记与数据**才红。逐臂输出见
+`docs/reviews/2026-09-23-Z2-账本闭合与空集假绿.md §5`。
+
+#### 五、本轮**不做**（用户裁定，登记为 `Z4`）
+
+空集断言**不当场变红**（那要给每个夹具认领区块或改读世界，CORE 会先红一片），
+而是**登记清单**（10 组站点，分"判据/生产决策输入/只读数"三类，见 review §6）+ 本轮给的"可见性"能力。
+每条的修法只有三种：① 夹具 `FixtureZone.protect(...)` 让**人口回来** ② 判据改读**世界事实**
+③ 明确标 `n/a（区外 ⇒ 无义务）` 并**印出人口**。
