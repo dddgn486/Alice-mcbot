@@ -114,8 +114,9 @@ public final class BlockBreakSession {
             // （破坏后留下水/另一半高草这类"换了别的状态"也算成功 ✓）。
             if (after == before) {
                 BotLog.warn("[WRITE-REFUSED] break pos={} by=BlockBreakSession reason=world_unchanged"
-                                + "（destroyBlock={} 方块仍是 {} —— 被保护层取消 / 未生效）",
-                        pos.toShortString(), destroyed, before.getBlock().getName().getString());
+                                + "（destroyBlock={} 方块仍是 {} —— 被保护层取消 / 未生效）{}",
+                        pos.toShortString(), destroyed, before.getBlock().getName().getString(),
+                        thirdPartyNote());
                 return fail("REFUSED");
             }
             level.sendBlockUpdated(pos, before, after, 3);
@@ -144,5 +145,26 @@ public final class BlockBreakSession {
                 bot.getName().getString(), pos.toShortString(), code, ticks,
                 String.format(java.util.Locale.ROOT, "%.2f", progress));
         return status;
+    }
+
+    /**
+     * **归因**（补 `D-323` 留的尾巴）：`reason=world_unchanged` 只说明"世界没变"，**不说明谁拦的** ——
+     * 原日志只能写"疑似被保护层取消 / 未生效"，读日志的人分不清是**我们自己的闸门**、**方块没被真的破坏**，
+     * 还是**别的模组**（实测：2026-09-23 伐木课程树的破坏在 FTB 认领内被静默拦下）。
+     *
+     * <p>单方块路径走 `gameMode.destroyBlock` ⇒ **会触发 Forge 破坏事件** ⇒ 第三方认领能在这里拦下；
+     * 而批量路径走 `level.destroyBlock`，事件不触发、第三方看不见（`D-326`，那边是**事前预检**）。
+     * ⇒ 这里问一次 FTB 自己的裁决函数（`FtbChunksBridge`），把"谁拦的"写成**名字**。
+     * FTB 不在场 ⇒ 桥 fail-open 返回 `null` ⇒ 如实说"不是它"，绝不编一个原因。
+     */
+    private String thirdPartyNote() {
+        try {
+            String reason = com.dddgn.alice.protection.ThirdPartyProtection.refusalReason(bot, pos);
+            return reason == null
+                    ? "（第三方保护预检：不拦 ⇒ 不是 FTB 认领，须查我方闸门/方块本身）"
+                    : "（第三方保护预检：FTB=" + reason + "）";
+        } catch (Throwable failure) {
+            return "（第三方保护预检异常：" + failure + "）";
+        }
     }
 }

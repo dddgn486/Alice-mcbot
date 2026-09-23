@@ -17898,3 +17898,71 @@ zoneTerminal=restore_done purgeDropped=1 ticks=166 → PASS`（`run/headless-log
 **本次全会话**：`[Ledger] place` = **0** · `RestoreScope`/`SCAFFOLD_RESTORE` = **0** · `[Restore]` = **0** ·
 **无任何坠落/失撑日志** · 任务 `COMPLETED`。⇒ `D-398`/`Z1` 在真机上**从根上消掉了**那条事故路径，
 用户判定「符合预期」。分级：**`WINDOWS_CLIENT` + `USER_ACCEPTED`**。
+
+---
+
+### D-409：⭐ `lumber_job` 连红 35 轮的根因 = **夹具场景落在玩家自己的 FTB 认领里**（假红，2026-09-23）
+
+**触发**：用户读完 `survey/29`+`30` 后选 `C4`（"查 `lumber_job` 真正阻塞点"）。
+⚠️ 勘测侧把 A1（终态闩锁）当作"CORE 转绿的必需项" ⇒ **本条更正它**（见 §四）。
+
+#### 一、事实（全部当场复算；完整取证 = `docs/reviews/2026-09-23-lumber_job根因-FTB认领.md`）
+
+1. ⭐ **位置结构**：同一次运行里，被拒的破坏**全部在 `z≥208`**，成功的**全部在 `z≤207`**；
+   与方块种类/工具/触及无关（同为 Oak Leaves，`18,65,207` 成功、`19,65,208` 被拒）⇒ 定位到**区块界**。
+2. **认领数据就在世界母本里**：`run/world-pristine/ftbchunks/6ffe1112-….snbt` 有
+   `overworld: [{x:1,z:13} {x:2,z:14} {x:2,z:13} {x:1,z:14}]`（建立时间 **2026-09-18 14:16 UTC**）
+   ⇒ 覆盖 `x∈[16,47] z∈[208,239]`，**恰好包含 `z=208` 这条界**；
+   而 `LumberCourseAnchor`（`START_FOOT=23,64,207` / `EXPECTED_TREE=20,64,208` / 区域 `x17..37 z203..231`）
+   **几乎全落在认领内**，bot 站位却在界外。
+3. **Alice 自己一处都不拦**：全 `src/` 取消破坏事件 = **0 处**；单方块路径走 `gameMode.destroyBlock`
+   ⇒ **会触发 Forge 破坏事件** ⇒ 第三方（FTB）能在这里拦；服务端确实加载了 FTB Chunks。
+4. ⭐ **归因探针（已作为永久改进保留）**：`BlockBreakSession` 失败分支补一次第三方裁决查询
+   （复用 `ThirdPartyProtection`/`FtbChunksBridge`，即 **FTB 自己的** `shouldPreventInteraction + Protection.EDIT_BLOCK`）
+   ⇒ 实测被拒行 **7/7 全部** `（第三方保护预检：FTB=ftb_claim_denied）`。
+   改前日志只能写"疑似被保护层取消"，**说不出谁拦的**。
+5. ⭐⭐ **反向对照（A/B）**：临时把 `ftbchunks/` 从母本移开（已复位，6 文件一致）再跑同一步 ⇒
+   `ftb_claim_denied` **7+ → 0**、`WRITE-REFUSED` **有 → 0**、
+   终态 **`no_reachable_candidate` → `partial_quota`**、战果 **树全砍不动 → 砍完 3 棵橡树**（`trees 3/4 logs 19/23`）
+   ⇒ **因果成立**（认领是"砍不动"的直接原因）。
+
+#### 二、⭐ 被第一层盖住的第二层（A/B 才看得见）
+
+去掉认领后**仍然 FAIL**（`partial_quota`，`trees 3/4`）：配额要 **4 棵**，而可用候选只有 5 棵 ——
+其中 `22,64,218` 的 2×2 高大云杉是 `LumberCourseAnchor:26` **逐字写明的"期望被拒的对照"**；
+`33,64,208` 在**规划期**就 `no_valid_standing_point`（一次破坏都没发生）⇒ 被 `LumberJob.java:646` 记成
+`already_attempted` ⇒ **本 job 内永久排除** ⇒ 配额落空。
+⭐ 放大机制 = **一次失败 = 永久少一棵候选**；在"有认领"的世界里这一点**完全不可见**（那时每棵树都失败）。
+
+#### 三、第三层（独立）：`idempotent=false` = 终态闩锁**硬编码状态**
+
+`LumberJob.java:304-306` `if (terminated) return Task.Status.DONE;` ⇒ 终态 `FAILED` 后再 tick 返回 `DONE`
+（违反 `D-178`；日志逐字 `再 tick 返回 DONE/DONE，期望 FAILED`）。**同形状全仓 6 处**
+（`MineJob:338` 有 4 条 `FAILED` 出口 ⇒ 潜在隐患；正解只有 `MineTask:87/328-329`）。
+
+#### 四、⚠️ 对 `survey/30 §5 A1` 的更正（勘测侧口径）
+
+`A1` 把"补终态闩锁"写作"CORE 转绿的必需项之一"⇒ **不充分**：该步 PASS 判据是
+`RegressionBatteryTask:757` `status == DONE && idempotent`，而本步**跑真 `LumberJob` 且无 `skipWhen`**
+（`LumberModule:83-87`）⇒ 修闩锁只让 `idempotent=true`，**本步仍 FAIL** ⇒
+⭐ **`D-352` 缓存（只写 PASS，`headless-battery.sh:195/377-390`）不会命中** ⇒
+"CORE 反馈 分钟→秒"这条**乘法级杠杆只归 A2（逐步缓存）**。
+
+#### 五、影响面 + 结构性教训
+
+- 扫描 115 个场景函数：落在认领内的只有**伐木类** —— `lumber_course_terrain` **760/855**、
+  `lumber_course_trees` **161/186**、`lumber_plant` **10/14**；`partial_search_terrain` 仅 fill 起点角在界内
+  （bot 活动点 `z=245` 在界外 ⇒ 无实际暴露）⇒ 解释了"为何只有 `lumber_job` 连红"。
+- ⭐ **教训**：世界母本 = **玩家真实存档副本**（`headless-battery.sh:33-39` 的设计）⇒ 夹具**继承玩家世界的一切**。
+  ⇒ **"夹具自带前提"必须扩展到第三方保护**：`Z1` 已为**我方**保护区做过（`FixtureZone`），
+  **第三方那一半今天没人管** ⇒ 踩进去只会得到**误导性的内核失败码**（`no_reachable_candidate`）而不是
+  "**前提不成立**"。**这是"静默"的一种：错的原因、对的表象。**
+
+#### 六、未决（**待用户拍板，本轮未实施任何夹具改动**）
+
+`A` 夹具断言第三方前提（报专属码，建议无论如何都做）· `B` 把伐木课程**搬出认领区**（要动几何 ⇒ 单独一轮）·
+`C` 换专用夹具世界（与母本设计冲突，不建议）· `D` 修终态闩锁（便宜，但**不使本步转绿**）。
+**未做**：没有改场景/锚点/母本（A/B 的移开已复位）；没有动 `CURATION`。
+**诚实边界**：`33,64,208` 的 `no_valid_standing_point` 是**场景几何还是内核问题未定**（不写成缺陷）；
+场景函数头部另有一条自记的"树冠通道红线"（`y=65 z=212..214`）是可能的成因。
+
