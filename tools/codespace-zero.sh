@@ -87,10 +87,12 @@ cmd_state() {
     [ -f "$HOME/.dsh/.credentials.yaml" ] || die "本机没有 ~/.dsh/.credentials.yaml"
     info "建远端 ~/.dsh（并把权限收紧）…"
     ghc ssh -c "$name" -- bash -lc 'mkdir -p ~/.dsh && chmod 700 ~/.dsh'
+    # ⚠️ `remote:` 路径是**相对远端用户家目录**的（gh 文档原文）—— 别用本地的 $HOME 拼绝对路径，
+    #    本地是 /home/fb486、远端是 /home/codespace。
     info "送 settings.yaml（含 contextWindow / 插件配置）…"
-    ghc cp -e "$HOME/.dsh/settings.yaml" "remote:$HOME/.dsh/settings.yaml" -c "$name"
+    ghc cp "$HOME/.dsh/settings.yaml" "remote:.dsh/settings.yaml" -c "$name"
     info "送 .credentials.yaml（⭐ 含密钥：内容不打印、不落 git）…"
-    ghc cp -e "$HOME/.dsh/.credentials.yaml" "remote:$HOME/.dsh/.credentials.yaml" -c "$name"
+    ghc cp "$HOME/.dsh/.credentials.yaml" "remote:.dsh/.credentials.yaml" -c "$name"
     ghc ssh -c "$name" -- bash -lc 'chmod 600 ~/.dsh/settings.yaml ~/.dsh/.credentials.yaml && ls -l ~/.dsh/'
 }
 
