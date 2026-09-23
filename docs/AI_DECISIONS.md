@@ -18344,3 +18344,84 @@ wildSkippedSince 窗口内被跳过的区外放置次数
 **验证等级**：`SERVER_TESTED`（无头电池 41 轮 + 归档日志复算 + 读码）；本项不涉客户端行为，故无 `WINDOWS_CLIENT`。
 **未做**：没有实现任何缓存；没有改 `HeadlessBattery`（`A2′` 只是登记）；`docs/BATTERY_CURATION.md:134` 那条
 "顺序无关"前提**仍未落地**（已工程化隔断四条通道；**起始位置**与**整轮前缀聚合**两条没有）。
+
+---
+
+### D-418：一批加固 —— `A1` 终态闩锁**门禁化** + `A4` 假绿夹具**根因修正** + `B2` 底线不许进配置面门禁（2026-09-23）
+
+**触发**：用户 2026-09-23 选定「①②③ 一批」= `B2`/`B3` 门禁 + `A1` 六处闩锁 + `A4` 假绿夹具；
+另裁定 **`craft_table` 保留在 CORE**（`survival_exit × D-398` 仍待裁，不阻塞）。
+本注覆盖已落地三项（`B3` 能力清单见 §五：**未做**，方案已写）。
+
+#### 一、`A1`：**"待做"是过期台账** —— 六处**早已修**（`51a66d3`，C5 那批），但**没人守**
+
+当场读码核实：`MineJob`/`CollectJob`/`LumberJob`/`RestoreScopeTask`/`LumberFailureCheckTask`/`ClearGuardCheckTask`
+**六处全部**已是 `D-175` 的正解形状（存 `Task.Status terminalStatus` + `tick()` 开头回放）。
+本片做的事是**把它变成会红的东西**（`tools/kernel-predicates.py` 新增
+`rule_terminal_latch_replays_status`，标签 `[A1′·终态闩锁回放]`）：
+
+| 断言 | 内容 | 注入证明 |
+|---|---|---|
+| ① | 任何 `src/` 文件不得出现"终态守卫直接返回硬编码 `DONE`/`FAILED`"（`D-178` 违反形状） | — |
+| ② | 声明了 `(?:Task\.)?Status terminalStatus` 的字段，必须同时有回放行 | 去掉 `ClearGuardCheckTask` 的回放 ⇒ 红 |
+| ③ | 闩锁站点数 ≥ **7**（人口，防空集真 —— `Z4` 的教训） | 站点降到 6 ⇒ 红 |
+
+⚠️ **本规则第一版连踩三次读错（都靠"对着真代码验"才发现；已写进规则 docstring）**：
+① 共享的 `code_only()` **只去 `//`**，不动 javadoc ⇒ 把注释里"修前的旧写法"当成违规；⇒ 本地改用 `strip_comments()`；
+② `terminalStatus` 这个名字**有两处含义** —— 规则管的是 `Task.Status` **字段**，而
+`task/mining/MiningSceneFixture.java` 只是在调 `TaskExecutionRecord.terminalStatus()` ⇒ 改成按**字段声明**匹配；
+③ 回放行的**真实形状带花括号且跨行** ⇒ 只认单行时**七个站点全被误报**；
+④ 字段写法有两种（`Task.Status` / `MineTask` 的简写 `Status`）⇒ 只认前者会**漏守正解本身**。
+
+#### 二、`A4`：假绿的根因**不是几何**，是夹具把"作用域 / 任务区"的顺序写反了
+
+完整取证 = `docs/reviews/2026-09-23-A4-脚下守卫夹具根因.md`。要点：
+
+- **现场**：`restored=0`、真破坏 **0** 次、`notes=…underfoot_unsafe | …:side_break_failed | …:side_break_failed`
+  ⇒ 夹具 javadoc 声称的"拆柱底/中段 ⇒ 都拆掉"**从未发生**；"不许摔"在"什么都没拆"时**必然为真**。
+- **两次误诊（留痕）**：① 相信旧注释"几何拆不到"；② 以为"没发镐" ⇒ **加镐后仍红**（假设被证伪）。
+- **分层探针**（`MineBlockRunner.tickBreak()`，验证后已删）：`breakAllowed=true refusal=protected_area`
+  ⇒ 真因 = `ZoneAuthority` 的 `protected_area`。
+- **代码级根因**：`TaskZoneRegistry.zoneOf` 是**按"当前作用域"**取任务区的
+  （`ZONES.get(WorldModLedger.currentScope(...))`）；夹具旧版**先 `FixtureZone.protect`（任务区挂外层步作用域）→ 再 `openScope("c2_underfoot")`（当前作用域换人）**
+  ⇒ 回收期写入找不到任务区 ⇒ `protected_area` ⇒ `TARGET_NOT_BREAKABLE`。（`side_break_failed` 只是**下游症状**。）
+- **修**：交换成 **先 `openScope` 后 `protect`**（参照 `task/LedgerZoneScopeCheckTask` 的正确形状）；
+  **全仓唯一受害者**（另外三个 `FixtureZone` 使用者不另开作用域）。
+- **判据（4 条，先红后绿 + 双向注入）**：新增**正向对照**（世界事实：回收后账本只该剩"脚下那格"）⇒
+  修前 `remaining=3` **红** / 修后 `remaining=1` **绿**；注入"关掉 `D-399` 脚下守卫" ⇒ **两条同时红**。
+- ⚠️ **顺带修掉我自己的弱判据**：旧 check ②`!terminal.contains("restore_partial") || (skipped>0 && notes!="-")`
+  **认任何理由**（注入后 `terminal=restore_done` ⇒ 空过）⇒ 改成**无条件点名** `notes.contains("underfoot_unsafe")`。
+  本会话第 9、10 次"判据太弱"，两次都是**我新写/改写的判据**。
+
+#### 三、`B2`：底线不许进配置面（+ 可选/底线分界）
+
+- **唯一真源**（代码侧）：`pathing/risk/RiskSwitches` 的 `KNOWN` / `OPTIONAL`（每个开关**必须**写清"为什么它可选"）/
+  `BOTTOM_LINES`（底线名 + 强制它的机制指针）。
+- **门禁**：`tools/risk-surface.py`（`check-risk-surface.sh`，已挂进 `check-all.sh`）。五条断言：
+  ① `KNOWN == OPTIONAL.keySet()`（**双向**，对照 `machine-map.py` 的模子）；② `KNOWN ∩ BOTTOM_LINES = ∅`；
+  ③ 三张表**都非空** + 每条理由 ≥ 20 字（**人口**）；④ 命令面 `riskSwitch(..., "name", …)` 的每个名字必须已分类，
+  且 `command/` 里**不许**出现底线名；⑤ `src/` 里**不许**出现 `ForgeConfigSpec`/`ModConfigSpec`
+  —— 今天 Alice **没有配置面**（这是**事实**，把它钉住而不是假设它）。
+- **实测事实**：可选开关 = `descend_overshoot`/`container_access`/`hazard_aversion`；**命令面只暴露 `descend_overshoot`**；
+  底线 = `pathing_pure_traversal`/`server_authoritative_state`/`unknown_mod_read_only`（**显式空集/人口都断言**）。
+- **注入证明（四臂全红）**：① 加 `extra_knob` 不登记分类 ⇒ 红；② 底线名进 `KNOWN` ⇒ 红；
+  ③ `BOTTOM_LINES` 清空 ⇒ 红（人口）；④ 命令面暴露底线名 ⇒ 红。基线绿。
+
+#### 四、验证（分级）
+
+- 静态：`tools/check-all.sh` = **20/1/0**（新增 `check-risk-surface` 记分；warning = 未跑电池那一档）；
+  `ALICE_HEADLESS=1 tools/check-all.sh` = **PASS 21/0/0**（电池命中 `D-352` 缓存）。
+- ⭐ **build 档 CORE = `41/41 PASS`**（`run/headless-logs/20260923-204926-core.log`，251 s），
+  并**重建了绿缓存**（指纹 `11c648ad94f8`）⇒ 顺带把 `Z4` 的验证从 `--no-build` **升级到 build 档**
+  （此前最后一次 build 档绿是 14:45，早于 `Z2`–`Z4`）。
+- 聚焦：`module:craft` PASS（78 s，含 `A4` 那步）· `single:lumber_job` = `PASS idempotent=true`（`A1` 的判据）。
+- **等级**：`SERVER_TESTED`（本批不涉客户端可见行为）。
+
+#### 五、`B3`（能力清单）**未做** —— 方案与理由
+
+`B3` = "能力清单**从代码生成** + **双向防漂移**门禁（记忆库的前置）"。**本轮没做**，理由是本批已用掉大量预算，
+而 `B3` 是四项里最大的一项（新聚合器 + 新文档 + 门禁 + 注入），**硬开会有"改到一半被打断"的风险**。
+⭐ 方案要点（下一步直接照做）：**不引入第五个真相源**，而是把**已有**的单一出处**聚合**成一份人读清单
+（`CheckModules.knownIds()` 测试模块 / `RegressionBatteryTask.CURATION` 电池步与档位 / `MachineMap` 机器类型 /
+`JobKindContract` 作业种类 / `MovementType` 移动原语 / `RiskSwitches.KNOWN` 玩家开关），
+门禁照 `machine-map.py`：**单一出处 + 解析不到即红 + 双向**（清单缺项红、清单多出红）+ **人口断言**。

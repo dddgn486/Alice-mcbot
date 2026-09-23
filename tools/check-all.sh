@@ -122,6 +122,7 @@ run_gate             "check-fixture-hygiene"    bash tools/check-fixture-hygiene
 run_gate             "check-transfer-clock"    bash tools/check-transfer-clock.sh
 # 内核 §2（2026-09-16 复核）：K-4 执行工厂必须用规划侧同一谓词 / K-5 声明了的状态必须有生产者。
 run_gate             "check-kernel-predicates" bash tools/check-kernel-predicates.sh
+run_gate             "check-risk-surface" bash tools/check-risk-surface.sh
   # G3（2026-09-21 用户裁定「这不是小事」）：架构红线必须带门禁指针，或带**复核触发**的「未门禁」标记。
   # 起因：6 条红线里只有 D-076 真被门禁覆盖，而 D-374 恰落在零门禁的 D-036 上 ⇒ 没人会因此变红。
 run_gate             "check-redline-gates"   bash tools/check-redline-gates.sh

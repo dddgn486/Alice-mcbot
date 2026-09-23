@@ -77,6 +77,10 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
     private String notes = "-";
     private int skippedCount = -1;
     private boolean reported;
+    /** ⭐ `A4`（2026-09-23）：本步账本作用域 id —— 收尾按**世界事实**断言"只该剩脚下那一条"。 */
+    private String scopeId = "-";
+    /** ⭐ `A4`：DONE 时账本里仍挂着的条目数（正向对照的读数）。 */
+    private int remainingAfter = -1;
     /** ⭐ `Z1`/`D-398`：夹具自摆的"保护区 + 任务区"前提（结束复位）。 */
     private FixtureZone.Handle zone;
 
@@ -189,22 +193,34 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
                 com.dddgn.alice.pathing.MovementHelper.footCell(level, bot));
         check("⭐ 回收不许把 bot 摔下去（单 tick 坠落 ≤ 1 格，实测 biggestFall=" + biggestFall + "）",
                 biggestFall <= 1);
-        // ⚠️ 口径修正（2026-09-22 实测两次几何）：**守卫本身在这里无法变红** ——
-        // 柱形几何：`side_break_failed ×3`（回收根本碰不到，什么都没拆）；
-        // 阶梯几何：同样 `side_break_failed ×3`，`biggestFall=1`。
-        // ⇒ 回收这条路径**要么自上而下（逐格 ≤1）、要么失败即停** ⇒ 它是"结构上安全/失败安全"的。
-        // 真机那次坠落的证据（`break 74,116,198 by=PATH_ACCESS` + `executable=false support=-`）
-        // 指向**路径**而不是回收 ⇒ 真凶方向见队列 `C3`。
-        // 本夹具因此只钉两条**真实且能变红**的不变式：① 不许摔（上面那条）② **归因不许静默**。
-        check("⭐ 归因不许静默：没拆成的条目必须带理由（实测 terminal=" + terminal
-                        + " skipped=" + skippedCount + " notes=" + notes + "）",
-                !terminal.contains("restore_partial") || (skippedCount > 0 && !"-".equals(notes)));
+        // ⚠️ 口径再修正（`A4`，2026-09-23 当场复测）：本夹具此前**只钉了两条**判据，实测读数：
+        //   `restored=0 skipped=3 notes=4002,101,2600:underfoot_unsafe | 4001,100,2600:side_break_failed
+        //    | 4000,99,2600:side_break_failed`
+        // ⇒ ① 守卫**确实开火了**（`underfoot_unsafe` ✓）；② 但**柱底/中段的两次回收都失败了**
+        // （`side_break_failed`）⇒ 本类 javadoc 声称的"拆柱底/中段：⇒ 都拆掉"**从未发生**，
+        // 于是"不许摔"那条在这个现场是**空跑**（什么都没拆，当然不会摔）。
+        // ⇒ 更糟的是旧判据②（`skipped > 0 && notes != "-"`）**认任何理由** —— 把守卫删掉它照样绿
+        // （另两条 `side_break_failed` 就满足了）⇒ 那是**太弱**，不是"能红"。
+        // 修法（本次）：② 收紧为**点名 `underfoot_unsafe`**；③ 新增**正向对照**（世界事实）：
+        // 回收结束后账本只该剩"bot 正踩着的那格"⇒ 逼回收路径真的拆掉另外 PILLAR_H-1 格。
+        // ⚠️ `A4` 注入实测（2026-09-23）：旧写法 `!terminal.contains("restore_partial") || (…)` 在
+        // **守卫被关掉**时会变 `restore_done` ⇒ 第一个析取项直接为真 ⇒ **断言空过**（判据太弱）。
+        // ⇒ 改成**无条件点名**：脚下那格**必须**被守卫拒绝并留下 `underfoot_unsafe`。守卫不在 ⇒ 它必然红。
+        check("⭐ 脚下那格必须被守卫**点名**拒绝（实测 skipped=" + skippedCount
+                        + " terminal=" + terminal + " notes=" + notes + "）",
+                notes.contains("underfoot_unsafe") && skippedCount >= 1);
+        // ③ 正向对照：世界事实（账本里还挂着几条）—— 回收没真的拆掉东西时必然红。
+        remainingAfter = com.dddgn.alice.ledger.WorldModLedger
+                .pendingTemporary(level.getServer(), scopeId).size();
+        check("⭐ 正向对照：扣除「bot 正踩着的那格」外，其余 " + (PILLAR_H - 1)
+                        + " 格必须真的被拆掉（实测回收后账本仍挂 " + remainingAfter + " 条）",
+                remainingAfter == 1);
         check("收尾 bot 脚下必须有支撑（实测 endSupported=" + endSupported + "）", endSupported);
         cleanup(level);
         BotLog.info("[C2] SUMMARY checks={} failures={} biggestFall={} unsupportedTicks={}"
-                        + " endSupported={} terminal={} skipped={} notes={} ticks={} → {}",
+                        + " endSupported={} terminal={} skipped={} remaining={} notes={} ticks={} → {}",
                 checks, failures.size(), biggestFall, unsupportedTicks, endSupported, terminal,
-                skippedCount, notes, totalTicks, failures.isEmpty() ? "PASS" : "FAIL");
+                skippedCount, remainingAfter, notes, totalTicks, failures.isEmpty() ? "PASS" : "FAIL");
         for (String line : findings) {
             BotLog.info("[C2]   {}", line);
         }
@@ -244,12 +260,32 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
 
     private void startRestore(ServerLevel level) {
         FixtureToolKit.resetInventory(bot);
+        // ⭐ `A4`（2026-09-23）：**必须发镐** —— 账本里播种的是 `Blocks.COBBLESTONE`（镐类方块），
+        // 旧版只 `resetInventory` ⇒ 回收要靠手挖石头（慢到超预算 ⇒ 同样落到 `side_break_failed`）。
+        // ⚠️ **但它不是那条红的成因**：实测加镐后仍是 `side_break_failed`，真因见下面 `openScope` 的顺序
+        // （`protected_area`）。本行留下是为了让夹具测的是**回收路径**，不是"手挖石头要多久"。
+        FixtureToolKit.ensurePickaxe(bot);
         bot.controller().stopMovement();
         scope = new ScopeBuffer();
         // ⭐ `D-398`/`Z1`（2026-09-22）：**回收只在保护区内发生** —— 区外按裁定不记账、不恢复
         // ⇒ 不摆这个前提，下面的账本播种会被 `recordPlacement` 整批跳过（静默假绿：
         // `pending=0` → `nothing_to_restore` → 三条判据在"什么都没发生"的世界里全绿）。
         // 前提 = 认领场景区块 + L2 任务区封套（理由见 `FixtureZone` 类注释）。
+        //
+        // ⭐⭐ `A4`（2026-09-23）：**顺序不能反** —— 必须**先开作用域、再声明任务区**。
+        // `TaskZoneRegistry.zoneOf` 是**按"当前作用域"**找生效任务区的：
+        //     `scopeId = WorldModLedger.currentScope(server, owner); zone = ZONES.get(scopeId);`
+        // 旧版反着来（先 `protect` ⇒ 任务区挂在外层电池步作用域 `#N:Regression:<step>` 上，
+        // 再 `openScope("c2_underfoot")` ⇒ 当前作用域变成新的内层 `#N+1`）⇒ 回收期的每一次写入
+        // 都在**另一个**作用域上 ⇒ `zoneOf` 返回 null ⇒ `ZoneAuthority` 判 `protected_area`
+        // ⇒ `BlockInteraction.breakable=false` ⇒ `MineRunner: TARGET_NOT_BREAKABLE` ⇒ `restored=0`。
+        // **实测链条（2026-09-23，探针已删）**：`[PROBE-A4] breakAllowed=true refusal=protected_area
+        // grant=RestoreScope:SCAFFOLD_RESTORE`；`[PathRetry] plan_failed UNREACHABLE goal=…`；
+        // `[MineTask] failure=TARGET_NOT_BREAKABLE`。⇒ 与**几何/工具无关**（旧注释把它记成"几何拆不到"，
+        // 那是**误诊**；`ensurePickaxe` 仍然必要，但它不是这条红的成因）。
+        // 正确形状的参照 = `task/LedgerZoneScopeCheckTask`（先 `openScope` 后 `protect`）。
+        String scopeId = WorldModLedger.openScope(level.getServer(), bot.getUUID(), "c2_underfoot");
+        this.scopeId = scopeId;
         zone = FixtureZone.protect(level, bot.getUUID(),
                 new BlockPos(ORIGIN.getX() - 2, FLOOR_Y, ORIGIN.getZ() - 2),
                 new BlockPos(ORIGIN.getX() + PILLAR_H + 2, FLOOR_Y + PILLAR_H + 2, ORIGIN.getZ() + 2),
@@ -259,7 +295,6 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
             BotLog.warn("[C2] 前提未成立：{}", zone.describe());
             return;
         }
-        String scopeId = WorldModLedger.openScope(level.getServer(), bot.getUUID(), "c2_underfoot");
         // ⭐ **自下而上**播种（= 真机 `PILLAR` 上行的真实顺序）
         for (int i = 0; i < PILLAR_H; i++) {
             BlockPos pos = stepPos(i);

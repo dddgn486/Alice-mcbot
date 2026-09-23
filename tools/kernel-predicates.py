@@ -27,6 +27,10 @@ SEARCH_BUDGET_CEILING_MILLIS = 60
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CORE = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing" / "core"
 
+# `A1′`：全仓终态闩锁站点的**人口下限**（= `task/MineTask.java` + `D-410` 统一的 6 处）。
+# 低于它 ⇒ `rule_terminal_latch_replays_status` 会红：判据不许在"没有站点"时静默通过。
+LATCH_SITES_MIN = 7
+
 FACTORY_PREDICATES = {
     "TraverseExecutionFactory.java": "canTraverse",
     "DiagonalExecutionFactory.java": "canTraverse",
@@ -54,6 +58,88 @@ def method_body(text: str, signature: str) -> str:
             break
         body.append(line)
     return "\n".join(body[1:])   # 去掉签名行（签名里可能含同名符号）
+
+
+
+def rule_terminal_latch_replays_status():
+    """`A1`（`D-410`，2026-09-23）：**终态闩锁必须回放状态，不许硬编码 `DONE`**。
+
+    形状（`D-175` 的正解 = `task/MineTask.java`）：任务/作业自己存 `Task.Status terminalStatus` 字段，
+    `tick()` 开头 `if (terminalStatus != null) return terminalStatus;`，首次非 RUNNING 时写入。
+
+    为什么必须门禁化：违反 `D-178` 的形状（`if (terminated) return Task.Status.DONE;`）会让
+    **终态是 FAILED 的任务在下一个 tick 变成 DONE** ⇒ 电池"只按 `status == DONE` 记 PASS"
+    ⇒ **失败被记成通过**（`D-408 §二` 的 `CleanupWrappedTask` 是同一族）。全仓曾**同时存在 6 处**。
+
+    两条断言（**带人口**，防空集真 —— `Z4` 的教训）：
+      ① 任何 `src/` 文件都不得出现"终态守卫直接返回硬编码 DONE/FAILED"的形状；
+      ② 声明了 `Task.Status terminalStatus` 字段的文件，必须同时有回放行；
+      ③ 闩锁站点数不得低于 `LATCH_SITES_MIN`（否则判据在"没有站点"时静默通过）。
+
+    ⚠️ **两处必须避开的读错（本规则第一版各踩一次，2026-09-23）**：
+      · 注释里**提到旧写法**不算违规 ⇒ 必须连**块注释/javadoc**一起去掉（共享的 `code_only` 只去 `//`）；
+      · `terminalStatus` 这个名字**有两处含义**：本规则管的是 `Task.Status terminalStatus` **字段**，
+        而 `TaskExecutionRecord.terminalStatus()` 是**另一个**东西（`task/mining/MiningSceneFixture.java`
+        只是在调那个方法）⇒ 必须按**字段声明**匹配，不能按"出现过这个词"匹配。
+    """
+    alice = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
+
+    def strip_comments(text: str) -> str:
+        """去 `//` 行注释 + `/* … */` 块注释（保留行数，便于报行号）。"""
+        out, i, n = [], 0, len(text)
+        in_block = False
+        while i < n:
+            if in_block:
+                if text.startswith("*/", i):
+                    in_block = False
+                    i += 2
+                else:
+                    if text[i] == "\n":
+                        out.append("\n")
+                    i += 1
+                continue
+            if text.startswith("/*", i):
+                in_block = True
+                i += 2
+                continue
+            if text.startswith("//", i):
+                while i < n and text[i] != "\n":
+                    i += 1
+                continue
+            out.append(text[i])
+            i += 1
+        return "".join(out)
+
+    problems = []
+    hardcoded = re.compile(r"if\s*\(\s*(?:terminated|done|finished)\s*\)\s*"
+                           r"return\s+Task\.Status\.(?:DONE|FAILED)\s*;")
+    # ⚠️ 字段写法有两种：`Task.Status terminalStatus;`（多数）与 `Status terminalStatus;`（`MineTask`
+    # 简写）⇒ 第二版只认前者 ⇒ **漏守 `MineTask`**（本规则的正解本身！）。
+    field = re.compile(r"private\s+(?:final\s+)?(?:Task\.)?Status\s+terminalStatus\s*;")
+    # 回放行的**真实形状**带花括号且跨行（`if (terminalStatus != null) {\n return terminalStatus;\n }`）
+    # ⇒ 第一版只认单行 ⇒ 7 个站点全被误报（对着真代码验才发现）。
+    replay = re.compile(r"if\s*\(\s*terminalStatus\s*!=\s*null\s*\)\s*\{?\s*"
+                        r"return\s+terminalStatus\s*;")
+    latch_sites = []
+    for path in sorted(alice.rglob("*.java")):
+        code = strip_comments(path.read_text(encoding="utf-8", errors="replace"))
+        for m in hardcoded.finditer(code):
+            line_no = code[:m.start()].count("\n") + 1
+            problems.append(f"{path.name}:{line_no} 终态守卫**直接返回硬编码状态**"
+                            f"（`{m.group(0).strip()}`）⇒ 终态是 FAILED 时下一 tick 会变 DONE"
+                            f"（违反 D-178）；正解见 task/MineTask.java 的 terminalStatus 回放")
+        if field.search(code):
+            if replay.search(code):
+                latch_sites.append(path.name)
+            else:
+                problems.append(f"{path.name} 声明了 `Task.Status terminalStatus` 字段，"
+                                f"但缺 `if (terminalStatus != null) return terminalStatus;` 回放行"
+                                f"⇒ 闩锁没接上（终态会被下一 tick 覆盖）")
+    if len(latch_sites) < LATCH_SITES_MIN:
+        problems.append(f"终态闩锁站点只剩 {len(latch_sites)} 个（< {LATCH_SITES_MIN}）"
+                        f"⇒ 本判据退化成空集真：真源={sorted(latch_sites)}"
+                        f"（已知站点 = `MineTask` + `D-410` 统一的 6 处 = 7）")
+    return problems
 
 
 def rule_k4():
@@ -3095,6 +3181,7 @@ def main() -> int:
     z2 = rule_ledger_closure_zone_scoped()
     z3 = rule_write_budget_zone_and_container_exception()
     z4 = rule_vacuous_assertions_carry_population()
+    latch = rule_terminal_latch_replays_status()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -3205,10 +3292,12 @@ def main() -> int:
         print(f"[Z3·额度同源+容器例外] {line}")
     for line in z4:
         print(f"[Z4·空集断言要带人口] {line}")
+    for line in latch:
+        print(f"[A1′·终态闩锁回放] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch)
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
           f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"

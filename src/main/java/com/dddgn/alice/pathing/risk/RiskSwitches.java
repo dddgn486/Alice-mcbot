@@ -28,6 +28,53 @@ public final class RiskSwitches {
     private static final java.util.Set<String> KNOWN =
             java.util.Set.of(DESCEND_OVERSHOOT_GUARD, CONTAINER_ACCESS, HAZARD_AVERSION);
 
+    /**
+     * ⭐ `B2`（2026-09-23）：**可选 vs 底线**的分界 —— 玩家可写面上**只许**出现这里的名字。
+     *
+     * <p>用户 2026-09-23 裁定取消风险三档 ⇒ 守卫分界改成两类：**可选**（玩家可以调，因为默认值就是
+     * 现状、且**只会收紧不会放宽**）与**底线**（见 {@link #BOTTOM_LINES}，**任何玩家可写入口都不许出现**）。
+     *
+     * <p>每个条目都要写清"为什么它可选"。这张表 + {@link #KNOWN} 是 `tools/risk-surface.py` 的**唯一真源**：
+     * 门禁断言 `KNOWN == OPTIONAL.keySet()`（**双向**一致）⇒ 加开关必须同时登记分类，否则构建红。
+     */
+    public static final java.util.Map<String, String> OPTIONAL = java.util.Map.of(
+            DESCEND_OVERSHOOT_GUARD,
+            "D-024 过冲红线：默认关（= Baritone 原样），打开只**加**守卫 ⇒ 不会放宽任何安全",
+            CONTAINER_ACCESS,
+            "D-291 画像字段：默认 true（= 现状允许开箱），关掉只**收紧** ⇒ 不会放宽",
+            HAZARD_AVERSION,
+            "D-292 危险厌恶：默认 false（= 现状零行为变化），打开只**加价绕行** ⇒ 不会放宽");
+    // ⚠️ 新增开关必须同时在这里加一行（写清"为什么它只会收紧"），否则 `tools/risk-surface.py` 红。
+
+    /**
+     * ⭐ `B2`：**底线** —— 名字 + "谁在强制它"的指针（只放决策号与门禁路径，不抄原文）。
+     *
+     * <p>门禁断言三件事：① 这些名字**不出现在**任何玩家可写入口（命令 / 配置面）；
+     * ② 与 {@link #OPTIONAL} / {@link #KNOWN} **不相交**；③ **这张表不许为空**（防空集真 —— `Z4` 的教训）。
+     */
+    public static final java.util.Map<String, String> BOTTOM_LINES = java.util.Map.of(
+            "pathing_pure_traversal",
+            "D-076 寻路红线（默认纯通行；破坏/放置只由上层显式授权）+ tools/check-authz-registry.sh",
+            "server_authoritative_state",
+            "AGENTS.md「不可悄悄改变的架构边界」（标注 [未门禁]，复核触发已登记）",
+            "unknown_mod_read_only",
+            "「未知模组能力默认只读」+ tools/check-machine-map.sh（部分覆盖）");
+
+    /** `B2`：玩家可写的开关名 → 为什么它可选（门禁的唯一真源）。 */
+    public static java.util.Map<String, String> optionalSwitches() {
+        return OPTIONAL;
+    }
+
+    /** `B2`：底线名 → 强制它的机制/指针。 */
+    public static java.util.Map<String, String> bottomLines() {
+        return BOTTOM_LINES;
+    }
+
+    /** `B2`：该名字是不是底线（底线**永不允许**成为玩家可写开关）。 */
+    public static boolean isBottomLine(String name) {
+        return BOTTOM_LINES.containsKey(name);
+    }
+
     private static volatile boolean descendOvershootGuard = false;
     /**
      * **容器访问策略（D-291，2026-09-17 用户裁定加入首批画像字段）**：默认 **true = 允许开箱**
