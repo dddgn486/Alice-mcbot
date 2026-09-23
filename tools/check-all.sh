@@ -123,6 +123,12 @@ run_gate             "check-transfer-clock"    bash tools/check-transfer-clock.s
 # 内核 §2（2026-09-16 复核）：K-4 执行工厂必须用规划侧同一谓词 / K-5 声明了的状态必须有生产者。
 run_gate             "check-kernel-predicates" bash tools/check-kernel-predicates.sh
 run_gate             "check-risk-surface" bash tools/check-risk-surface.sh
+# B3 / Q-22（2026-09-23）：「它知道的自己」= **从代码生成的能力清单**（`docs/CAPABILITY_LIST.md`）。
+# 牙齿是**跨出处**双向断言（步声明↔CURATION / 模块档位↔CURATION / 注册表↔电池成员 /
+# Kind↔契约表 / MovementType↔changesWorld）+ 人口下限 + 解析崩塌即红。
+# 起因：`survey/29 §3.8⑥` 要求"结构上不可能分叉"，而活体反例就在 `docs/BATTERY_CURATION.md` §2
+#（手写清单的小节计数 15/35/15 vs 真值 15/26/52，靠人读才发现）。
+run_gate             "check-capability-list" bash tools/check-capability-list.sh
   # G3（2026-09-21 用户裁定「这不是小事」）：架构红线必须带门禁指针，或带**复核触发**的「未门禁」标记。
   # 起因：6 条红线里只有 D-076 真被门禁覆盖，而 D-374 恰落在零门禁的 D-036 上 ⇒ 没人会因此变红。
 run_gate             "check-redline-gates"   bash tools/check-redline-gates.sh

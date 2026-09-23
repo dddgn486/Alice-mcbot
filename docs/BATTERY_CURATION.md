@@ -19,7 +19,15 @@
 SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 **跳过多少、跑多少、各档几项**一眼可见；归属表与实跑项对不上（漏登记 / 文档说测了其实没测）**直接判红**。
 
-## 2. 当前归属表（**93 项 → CORE 41 项**）
+## 2. 分档理由（**逐条清单与项数见生成物，本文只留"为什么"**）
+
+> ⭐ **2026-09-23（`B3` / `Q-22`）**：本节的三个小节**不再是清单** —— 93 项的**清单/档位/CORE 序号**
+> 由 `docs/CAPABILITY_LIST.md` §4 **从代码生成**（生成器 `tools/capability-list.py`，
+> 门禁 `tools/check-capability-list.sh` 已挂 `check-all`）。
+> **为什么改**：本节的手写清单和小节计数**此前长期漂移**（标题曾写 15/35/15，真值 15/26/52 ——
+> 见下面那条"本节标题计数长期漂移"的认领），而"靠人读才发现"正是 `survey/29 §3.8⑥` 要根治的病。
+> ⇒ 现在**"哪一步在哪一档"只有一个家**（代码里的 `CURATION` → 生成的清单），本节的文字是
+> **理由叙述**（人写的知识，不可生成），**不许再自称清单或计数**（门禁会因此判红）。
 
 > ⭐ **2026-09-22 校正（CORE 53 → 41，`D-407`/`D-408`）**：用户「整理下 CORE 内容，**次要的剔除**」。
 > **降级 12 步 ⇒ EXTRA（一步没删，FULL 仍全覆盖）**：
@@ -90,7 +98,7 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 > 后为 **44 / CORE 35**。**这是维生的第一个电池步** —— 此前 `Survival` 在电池里命中 0（只能真人验）。
 
 
-### BASELINE（15）
+### BASELINE —— 理由叙述（逐条清单见 `docs/CAPABILITY_LIST.md` §4）
 `pathing`（移动内核聚合 + 覆盖断言）、`write_budget`（写入预算/授权闸门）、`mine_regression`（挖掘闭环 11 用例）、
 `mine_job`、`lumber_job`（两个生产 Job 的最小闭环）、`transfer`（L2 容器传输——破坏性最强）、
 `clear_guard` / `clear_retry` / `scaffold`（三条破坏性路径的守卫与建拆同权）、`partial_search`（`SEARCH_LIMIT ≠ UNREACHABLE`）、
@@ -100,7 +108,7 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 封闭场景四层前提自证、**真实着火** ⇒ 不否决 + `exit=none decision=continue`、脚位格口径回归（半砖）、
 出口真能走到、掉血 ⇒ `DANGER`（`delta=`）且不刷屏）
 
-### MAIN（35）—— 阶段 3-A（回退瘦身，保持完整）+ 阶段 3-B / S1+S2（机器只读）+ S4 + (c) 增量 2（机器写入：夹具 + 生产）
+### MAIN —— 理由叙述（阶段 3-A（回退瘦身，保持完整）+ 阶段 3-B / S1+S2（机器只读）+ S4 + (c) 增量 2（机器写入：夹具 + 生产））
 > 2026-09-18 起含 `bot_ownership`（**D-319** 假人归属：创建者登记 / 认领单向 / 存档往返 / 老存档不猜；判据 20 条、约 5 tick、不写世界）
 `decision_contract`（③/策展：从 EXTRA 提到 MAIN —— 它自己的类注释写着"任何改动都跑得到"，
 而档位在 EXTRA ⇒ CORE 跑不到；200 tick、纯逻辑、不调 LLM、不改世界 ⇒ 与 M1/M2/M4 三次提档同一理由）、
@@ -134,7 +142,7 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 > **瘦身的前提**是"每个夹具自己显式自证前提、顺序无关"；该前提未落地前不允许再减 CORE 项。
 > 恢复路径：先做"显式自证前提"（菜单身份/位置/方块实体状态/账本与归因时间窗）⇒ 再**逐条**撤，**每条复跑一次**。
 
-### EXTRA（15）
+### EXTRA —— 理由叙述（逐条清单见 `docs/CAPABILITY_LIST.md` §4）
 `lumber_failure`、`region_maintain`（区域常驻 Job，耗时）、`decision_contract`、`decision_trace`、
 `permission_gate`、`pickup_gate`、`collect_job`、`recipes_dump`、`event_thresholds`、
 `bot_pair_no_recurse`（2026-09-18，D-320：两假人相邻不爆栈）、

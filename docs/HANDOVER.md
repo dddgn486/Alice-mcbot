@@ -4,7 +4,8 @@
 >
 > **⚙ 状态**（2026-09-23 19:25 刷新）：**CORE 列表 = 41 步**（BASELINE 15 + MAIN 26）；最新一轮 CORE =
 > **`passed=41/41 skipped=0` → `PASS`**（`run/headless-logs/20260923-192408-core.log`，222 s）—— **35+ 轮以来全绿**。
-> ⭐ `ALICE_HEADLESS=1 tools/check-all.sh` = **`PASS: pass=20 warning=0 failed=0`**（含电池）· 静态档 = **19/1/0**
+> ⭐ `ALICE_HEADLESS=1 tools/check-all.sh` = **`PASS: pass=22 warning=0 failed=0`**（含电池，`B3` 记分）· 静态档 = **21/1/0**（WARN = 未跑电池）
+> ⭐ **`B3` 那轮同时重建了 CORE 绿缓存**：指纹 `11c648ad…` → **`0f0f4b99f345…`**（`stamp=22:05:29`，CORE `41/41`，251 s）
 > （WARN = 未跑电池）· 客户端 jar = `2b015a0bd1661957…`（**已同步**到客户端 mods + 镜像仓）。
 > ⭐ 本轮（`Z3`/`Z4`）新增两条门禁规则：`rule_write_budget_zone_and_container_exception`（**八臂全红**）、
 > `rule_vacuous_assertions_carry_population`（**四臂全红**）。
@@ -38,11 +39,15 @@
 >   （取证 = `docs/reviews/2026-09-23-A4-脚下守卫夹具根因.md`）；
 > · `B2` 门禁 `tools/risk-surface.py`（已挂 `check-all`）：底线不许进配置面 + 可选/底线双向分类 + 人口，**四臂注入全红**。
 > · 顺带：**build 档 CORE = 41/41 PASS**（251 s，`20260923-204926-core.log`）并**重建绿缓存**
->   （指纹 `11c648ad`）⇒ `Z4` 的验证同时从 `--no-build` **升级到 build 档**；静态 `check-all` = **20/1/0**，
->   `ALICE_HEADLESS=1` = **PASS 21/0/0**。
-> **下一步** = ⭐ **`B3` 能力清单**（`D-418 §五` 已写方案：**聚合已有单一出处、不引入第五真相源**，
-> 门禁照 `machine-map.py`：解析不到即红 + 双向 + 人口）→ `A2′`（一次引导跑多个点名步，判据 = 与 `A2` 的
-> 41 步表一致）→ **守卫挪到破块前** + 侧拆/先撤离 → `§11` 的 **`C2`**（乱序账本几何，让"真坠落 ≥2 格"能红）。
+>   （指纹 `11c648ad`）⇒ `Z4` 的验证同时从 `--no-build` **升级到 build 档**；静态 `check-all` = **21/1/0**（`B3` 记分）。
+> ⭐ **`B3` 已完成（`D-419`，2026-09-23）**：`docs/CAPABILITY_LIST.md` = **从代码生成**的能力清单
+> （`tools/capability-list.py` / 门禁 `tools/check-capability-list.sh` 已挂 `check-all`）—— 聚合 8 个**已有**单一出处、
+> **不引入第五个真相源**；牙齿是**跨出处**双向（步声明↔`CURATION`、⭐模块档位↔`CURATION`、注册表↔电池成员、
+> `Kind`↔契约表反向、`MovementType`↔`changesWorld()`）+ 人口下限 + **解析崩塌即红**；**首跑绿 + 注入 13 臂全红**。
+> 同时**消灭第二真相源**：`docs/BATTERY_CURATION.md` §2 的手写清单（计数漂到 15/35/15、真值 15/26/52）降级为"理由叙述"。
+> ⚠️ **未达到**：清单**还没进 prompt** ⇒ 防分叉只对"表"生效、对 LLM 尚未生效（`survey/29 §3.8⑥` 原文另半句）。
+> **下一步** = ⭐ **`A2′`**（一次引导跑多个点名步，判据 = 与 `A2` 的 41 步表一致）→ **守卫挪到破块前** +
+> 侧拆/先撤离 → `§11` 的 **`C2`**（乱序账本几何，让"真坠落 ≥2 格"能红）→「能力清单进 prompt」（另一条裁定）。
 > ⚠️ 仍**待用户裁**：`survival_exit × D-398`（维生逃生要不要例外记账）。`craft_table` 已裁：**保留在 CORE**。
 > ⭐ **`Z3` 已完成（`D-415`，2026-09-23）**：先审计（结论：登记时的两条大半已由 `D-372`/`P1-a`/`P1-c` 满足），
 > 审计挖出**真缺陷** —— 同一个量在 `WriteBudget` 里**还有 4 个读者回退 `Caps.DEFAULT`(64/32)**
