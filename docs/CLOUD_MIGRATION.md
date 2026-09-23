@@ -233,6 +233,9 @@ tar -xzf dsh-state-*.tar.gz -C ~ && chmod 600 ~/.dsh/.credentials.yaml ~/.dsh/se
 | 18 | ⭐⭐ **发布的 `0.1.5-rc.1`/`rc.2` 残缺**（少 `dsh-sandbox-local` ⇒ `dsh web` 起不来） | ✅ 实跑：同一台机器上 rc.1 = **120** 插件 + 启动失败；**rc.3 = 240** 插件 + 正常监听 ⇒ **devcontainer 锁 rc.3** |
 | 19 | ⭐ `dsh web` **拒绝** `--host 0.0.0.0` | ✅ 实跑原文：`intentionally not supported yet for safety … use 127.0.0.1 instead` ⇒ **保持回环**（Codespaces 转发器在容器内部连 localhost ⇒ 够用） |
 | 20 | 首次启动会**自建 profile**（`~/.dsh/profiles/web`，bundle = `[dsh-base, dsh-web-app]`） | ✅ 实跑：插件从 **CLI 自带的 `node_modules`** 解析 ⇒ **不需要**搬本机 270 M 的 `profiles/web`，也不用跑 `dsh plugin install` |
+| 21 | ⭐ **令牌 URL 是必须的**，Ports 面板的裸链接永远显示 `authentication required` | ✅ 实跑：不带 token = **401**；`?token=…` = **303 + 种 cookie**（cookie 的 `authority` **绑转发域名**）⇒ 再请求 = **200**；cookie 有效期 30 天 ⇒ **只需带一次** |
+| 22 | ⭐ 三个自定义插件**都在 npm 上**，云上可直接装 | ✅ 实测 `npm view`：`dsh-dafeiyu` **0.1.14** · `dsh-ears` **0.3.2** · `dsh-whale-widget` **0.3.11**（本机的 `dsh-whale-widget` 是 `link:/home/fb486/dsh-plugins/…` **开发覆盖**，发布版可用） ⇒ 装法 = `dsh plugin --profile web add <包>` **且把名字加进该 profile `package.json` 的 `dsh.profile.bundles`**（bundles 才是启动真正加载的层） |
+| 23 | ⚠️ **pnpm v12 默认拦依赖的构建脚本**（`pnpm approve-builds`） | ✅ 实跑：`dsh plugin add` 报 `Ignored build scripts: @fugood/whisper.node@1.1.3` ⇒ **包仍装进 `node_modules`**，但 `dsh-ears` 的 whisper 原生件没构建（要用音频才受影响）；要放行得在 profile 的 `pnpm.onlyBuiltDependencies` 里显式列名 |
 
 **`.devcontainer/devcontainer.json` 草稿**（报告 §12 的版本 + 我加的一行装 DSH）：
 ```json
