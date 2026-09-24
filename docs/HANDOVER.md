@@ -480,3 +480,27 @@
   且**到边界就该 `complete`、不留悬着的活 goal**（`AGENTS.md` 2026-09-21 口径）⇒ 本断点以 **`complete` 收口**
   （不是 pause，也不是 `blocked`）。**恢复方式**：用户 `/compact` 后说一声"继续"，我 `resume`/重建 goal 并从
   `docs/HANDOVER.md` 断点②接 **A3**。上下文触线读数：`409,913 / 409,600`（80.1%）。
+
+## 2026-09-24 断点③：`A3`（击杀产物归属）完成 —— 队列继续往下
+
+- **队列位置**：`§11` 里 `P4 ✅` → `P5 收口 ✅` → `RC1 ✅` → `RC3 ✅` → `RC4 ✅` → `P2b ✅` → `A2′ ✅` →
+  既有红 `check-ref-integrity` ✅ → **`A3` ✅（本轮）** ⇒ **下一项 = `P7`**（`lumber_job` 在 CORE 报告里单列一行），
+  其后 `P3`（掉落物"本作业范围内"收集授权）· `PL-1`（从脉外打进实心脉 = D 段产品线）· `P2`（Movement 审查切片，依赖 `D-396`）。
+- **`A3` 收口事实（可核）**：夹具 `single:kill_drop_provenance` **PASS checks=11 failures=0**（两次复跑：ticks=62/53、
+  `pickupATicks=34/25`）· **先红**证据 = 提交 `4c00fa5` 的日志 `run/headless-logs/20260924-105859-*`（`provA=[FOREIGN, FOREIGN]`、
+  `passiveA=false`、`pickedA=0`）· 门禁 `rule_kill_drop_attributed` **六条注入臂全红** ·
+  CORE **41/41 PASS**（249 s）· `ALICE_MODS_DIR=$HOME/mc-client/mods tools/check-all.sh` = **`pass=20 warning=2 failed=0`**
+  （两个 warning 仍是"断言未执行"：无头电池未跑 / `check-machine-map` 缺上游 `oreexcavation` jar ⇒ **不等于通过**）·
+  `docs/CAPABILITY_LIST.md` 重生成（步 94 → **95**）· 裁定写进 **`D-422`** · 详细取证写进台账 `A3-进度` 行。
+- **本轮新增的两条教训**（都已写进台账/夹具 javadoc）：
+  ① ⭐ **夹具判据不许用固定 tick 数赌"实体什么时候开始被 tick"**：`A3` 夹具第一版用"固定等 30 tick"判拾取，
+     **同一份代码两次判决不同**（0 / 4 件）；探针读数给出机制 —— 落物生成后 `Age=0`/`PickupDelay=10` **冻住约 10 tick**
+     ⇒ `击杀 → 能捡` 实测 **≈40 tick**。**纪律**：这类判据一律"**等条件 + 上限**"。
+  ② ⭐ **写完台账/文档必须再跑一次门禁**：上一轮的**落盘晚于门禁**，本轮门禁一跑就抓到 **2 处文档自身**的红
+     （把**历史行号**原样写成带 `文件:行` 前缀的引用 —— 那个行号当时已越界（真值 236 行）⇒ 判超界；单步形态示例被当成真步名引用）。⚠️ 修法本身也有讲究：**描述「过期引用」时不许把那个过期值再写成 `文件:行`**（本轮修第一遍时就又踩了一次）⇒ 一律写成「`ToolSet.java` 的历史行号值」这种不带前缀的形式。
+     两处已修；这条也写进了 `§11` 的"既有红"行。
+- **环境姿势（云端，未变）**：电池 `ALICE_CLIENT_MODS=$HOME/mc-client/mods` · 门禁 `ALICE_MODS_DIR=$HOME/mc-client/mods` ·
+  参照树 `~/reference/baritone-1.20.1`（本轮 `ref-integrity` 依赖它）· 世界母本 `run/world-pristine`。
+- **提交链（本轮）**：`4c00fa5`（`A3` 夹具**先红**）→ `7cccee1`（`A3` 实现 + 门禁 + 能力清单 + `D-422`）→ 本轮文档提交。
+- **goal**：上一轮的 `goal-d754df35` 已 `complete`（**`complete` 之后不能再 `resume`** —— 运行时拒绝
+  `cannot resume goal from phase "complete"`）⇒ 本轮**新建** `goal-d7f06b81`，队列从本断点的"下一项"接。
