@@ -668,3 +668,46 @@
 - **证据**：`single:place_step_descend_clearance` = `PASS checks=27 failures=0`（日志 `run/headless-logs/20260924-130516-*`）·
   CORE **41/41 PASS**（逐步逐字相同，含总 tick）· `check-all` = `pass=20 warning=2 failed=0`。
 - **余下**：`Pillar`（2 个能力类码）→ `Fall`（8 个）；Baritone 参考树 = `/home/vscode/reference/baritone-1.20.1`。
+
+### 断点⑤ 补记 3（同日）：`P2` 第三片 `Pillar` ✅（**修掉一处真缺陷**）⇒ **队列下一项 = `P2` 的 `Fall` 片（8 个能力类码）**
+
+- ⭐ **这一片不是"又对照了一遍代码"，而是修掉一处真缺陷**：`PillarExecutionFactory.validate` 里的
+  `PILLAR_NOT_ON_GROUND` 原先**无条件**，而 `D-244` 的水柱支（`from`/`to` 都是水）里 `onGround`
+  **恒假** —— 这是**执行侧自己写着的契约**（`PillarExecution.postconditionHolds` 水柱支原文「水里没有
+  `onGround`、也没有支撑」，且 `preconditionsHold()` **故意**不查它）。⇒ 灌水竖井 **≥3 格**
+  （= 需要 2 段以上 `PILLAR`）**第 2 段起**全在**准入**处被挡 = 「规划得到、执行不了」（`D-242` 家族残余）。
+- **真机证据**：`docs/reviews/2026-09-21-掉落物在洞里被瞬退.md:554`（`PILLAR_NOT_ON_GROUND` ×11，
+  现场 = 破掉脚下 → 落水 → 沉底 → 溺水）。**为什么以前从没量到**：`D-244` 的夹具 `FLOODED_SHAFT`
+  只有 **2 格水** = **恰好 1 段**水柱（第 1 段 bot 还站在坑底 ⇒ 守卫不触发）。
+- **改法（3 处生产代码 + 1 处预算）**：① 门控加条件 —— 口径取**脚位那一格**
+  （与执行器 `tick()` 读的 `MovementHelper.footCell` 同源）：`!isWater(feet) && !onGround` ⇒ 拒；
+  ② `validate` 与 `preconditionsHold()` 原先**各自手搓**两次 `canWalkThrough(to)`/`to.above()`，
+  而规划侧 `appendPillar` 用的是 `bodyPassable` ⇒ 三处统一（**行为逐字相同** ⇒ 判据只能是静态门禁）；
+  ③ `pillar_execute` 步预算 `900 → 1300`（夹具内部上限 1200 —— `PL-1` 的教训：**harness 预算必须 ≥ 夹具上限**）。
+- **夹具（零新增电池步）**：既有 EXTRA 步 `pillar_execute` 新增"水柱准入契约"相位 —— 自建**孤立**
+  4 格灌水竖井 + 石墙（结束按原样还原），**13 checks**：
+  前提自证（4 格都是水 / 脚位在柱中且下面是水 / **`&& !bot.onGround()` 实测**）·
+  ⭐ **规划级见证**（`[PILLAR -59→-58] [PILLAR -58→-57] [ASCEND →墙顶] status=REACHED pillars=2
+  swimPillars=2` —— 这条边**真的会被规划出来**）· ⭐ **核心判据**（第 2 段准入必须被接受）·
+  执行侧第一 tick 不许拒 · 对照两条（**站柱底必须接受** + **干地悬空必须仍拒且码逐字 = `PILLAR_NOT_ON_GROUND`**）。
+- **绿 / 红臂**：绿 = `flooded_column=PASS contract_checks=13`（`run/headless-logs/20260924-133837-*`，39 s）·
+  红臂（把门控改回无条件）= `valid=false code=PILLAR_NOT_ON_GROUND`（`…/20260924-133937-*`，40 s）——
+  **同一几何、同一条计划、同一批判据，只有那一个条件不同**。
+- **新门禁** `rule_pillar_water_admission`（四臂）+ **七处注入逐条单独开火全红**（A 门控改回无条件 ·
+  B/C/D 三处手搓/丢谓词 · E 删表项 · F 掏空夹具前提 · G 掏空精确拒绝码）。
+  ⚠️ **臂④第一版假绿**（只咬子串 `!bot.onGround()`，而夹具里「干地悬空」那条前提也有同串）⇒ 改成咬
+  **合取形态** `&& !bot.onGround()` —— 与 `D-425` §四是同一课，**又犯了一次**（所以每片都必须真做注入）。
+- ⭐ **两条新的夹具物理事实**（下一轮直接用）：① 假人在水里**照常下沉**（实测 ≈ **10 tick 掉一整格**）
+  ⇒ "传进柱中、等 N tick 再量悬空"量到的是柱底（第一版实测：拒绝码因此变成 `PILLAR_STALE_START`，
+  **判据量错了对象**）；② **`teleport()` 会把 `onGround` 按成 `false`** ⇒ "每 tick 拉回站位"会让
+  **柱底那条对照永远立不起来**（第二版实测）。正解 = **只传一次 + 等 2 个物理 tick**。
+- **码**：`PILLAR_HEAD_BLOCKED → MovementHelper.bodyPassable`、`PILLAR_PLACE_OCCUPIED →
+  MovementHelper.canWalkThrough` ⇒ `CAPABILITY_UNRESOLVED_BUDGET` **21 → 19**（读数 `未指名能力类=19/19`、
+  `总准入码=76` 不变）。裁定与取证 = `D-427`。
+- **回归**：CORE = **41/41 PASS**（`run/headless-logs/20260924-133645-core.log`，248 s，**逐步判决逐条相同**）·
+  `ALICE_MODS_DIR=$HOME/mc-client/mods tools/check-all.sh` = `pass=20 warning=2 failed=0`（两个 warning 仍是
+  "断言未执行"：headless 电池那一档 + `check-machine-map` 缺上游 jar）。
+- **如实登记的未做**：**多段水柱的端到端实跑没做**（本片 = 规划级 + 准入级两侧真实代码路径，加上 `D-244`
+  已实跑的 1 段；第 2 段与第 1 段是同一段执行代码）—— 若将来水柱上浮被拆成独立 `MovementType` ⇒ 必须补。
+- **余下**：`Fall`（8 个能力类码，`CAPABILITY_UNRESOLVED_BUDGET` 19 → ~11）；Baritone 参考树 =
+  `/home/vscode/reference/baritone-1.20.1`（`movements/MovementFall.java`）。

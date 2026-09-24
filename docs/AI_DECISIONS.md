@@ -18903,3 +18903,124 @@ F 新增一个拼接形态的未分类码（`FAKE_CONCAT_CODE`）。
    `PLACE_STEP_SHARED_PREDICATES` 移除并写明理由（**不许**绕过规则静默删表项 —— 人口臂会红）；
 2. 出现第三种"码看不见"的形态 ⇒ 先补正则 + 抬高 `REFUSAL_CODES_MIN`，再分类；
 3. `PLACE_RESOURCE_UNAVAILABLE` 若真的需要出处 ⇒ 那意味着"库存"要进入规划侧谓词（架构变更），**先裁定**。
+
+---
+
+### D-427：`PILLAR` 的起跳门控只对"脚位不是水"成立 —— 水柱第 2 段起的准入缺口（2026-09-24）
+
+`P2` 第三片（`Pillar`）。**一处真缺陷 + 两处谓词同源 + 两条夹具物理事实**；改动 3 个生产文件、
+1 个夹具、1 个步预算、1 条新门禁。
+
+#### 一、事实（缺口是什么，以及为什么六年没量到）
+
+`PillarExecutionFactory.validate` 里那条 **`PILLAR_NOT_ON_GROUND` 原先是无条件的**：
+
+```java
+if (!context.bot().onGround()) return ValidationResult.invalid("PILLAR_NOT_ON_GROUND");   // 旧
+```
+
+而同一个类的**执行侧自己写着相反的口径**：
+- `PillarExecution.postconditionHolds()` 水柱支原文：「水里没有 `onGround`、也没有支撑 ⇒ `D-026` 的
+  "已落地/居中"两套完成口径都永远不会成立」；
+- `PillarExecution.preconditionsHold()` **故意不查** `onGround`（它的三条净空 + 资源 + 放置面里没有它）。
+
+⇒ 灌水竖井只要 **≥3 格**（= 需要 **2 段**以上 `PILLAR`），**第 2 段起**就在**准入**处被
+`PILLAR_NOT_ON_GROUND` 挡下 = 又一次「**规划得到、执行不了**」（`D-242` 家族的残余）。
+**真机证据**：`docs/reviews/2026-09-21-掉落物在洞里被瞬退.md:554`
+（`ASCEND_INVALID_PRECONDITION` ×2、**`PILLAR_NOT_ON_GROUND` ×11**，现场 = 破掉脚下 → 落水 → 沉底 → 溺水）
+—— 当时只登记成"水中所有向上手段前置都不成立"，**没归因到这条守卫**。
+
+**为什么从来没量到**：`D-244` 的夹具 `FLOODED_SHAFT` 只有 **2 格水** = **恰好 1 段**水柱
+（第 1 段时 bot 还站在坑底 ⇒ `onGround=true` ⇒ 守卫根本不触发）。本片把夹具扩到 **4 格水 + 悬空起点**，
+这条缝第一次被量到。
+
+#### 二、Baritone 对照（`8c55ad0`）
+
+| 关注点 | Baritone `movements/MovementPillar.java` | Alice | 判定 |
+|---|---|---|---|
+| 起跳是否需要地面 | 成本函数 `:58-136` **从不查 `onGround`**；陆地支 `:193-205` 用 `dist>0.17`/`flatMotion<0.05` 决定"前进/按住跳跃" | `validate` **原先无条件**要求 | **Alice 过严 ⇒ 本片修掉**（只对"脚位不是水"成立） |
+| 水里上浮 | `:150-161`：`isWater(fromDown) && isWater(dest)` ⇒ 居中 + 游（靠原版"朝上看 + 前进"耦合） | `D-244` 显式按住跳跃（服务端假人没有那个耦合） | 差异**已登记**（`D-243`/`D-244`） |
+| 水柱省料 | `:77-82` 直接 `LADDER_UP_ONE_COST`（注释："only if we're already in one"） | `D-244` 不放方块 | **等价** ✓ |
+| 目标格净空 | 成本函数查 `to.above(2)`（**要挖掉**的方块，`:104-130`）与 FallingBlock | `bodyPassable(to)`（脚位 + 头位，纯通行） | Alice **不做破头顶分支**（`D-055` 已登记） |
+| 放置动作 | 客户端式：`:182` `selectThrowawayForLocation` + `:186` SNEAK + `:219-221` `CLICK_RIGHT` | 服务端 `BlockInteraction.placeAt`（自造 `BlockHitResult`） | **架构差异**（类 javadoc 已登记） |
+| 脚下底部半砖 / 梯子 | `:63-69` 两种 `COST_INF`；`:131-132` `LADDER_UP_ONE_COST` | 无此两分支 | 登记（**不在本片范围**） |
+| 完成口径 | `:226-228` `playerFeet().equals(dest) && blockIsThere` | `D-026`：脚位 + 落地 + 居中；水柱支例外 = 脚位到格 | 差异**已登记**（`D-244`） |
+
+#### 三、改法（3 处生产代码）
+
+1. **`PillarExecutionFactory.validate`**：起跳门控加上"脚位不是水"这个条件，口径取
+   **脚位那一格**（与执行器 `tick()` 读的 `MovementHelper.footCell` 同源）：
+   `if (!MovementHelper.isWater(context.level(), feet) && !context.bot().onGround())` ——
+   即"**水里（水柱上浮 / 水里浮到放置高度）不需要地面；陆地起跳仍然需要**"。
+2. **两侧净空谓词同源**（`K4-P1`）：`validate` 与 `PillarExecution.preconditionsHold()` 原先各自
+   **手搓**了两句 `canWalkThrough(to)` + `canWalkThrough(to.above())`，而规划侧 `appendPillar` 用的是
+   `MovementHelper.bodyPassable(to)` ⇒ 三处统一成 `bodyPassable`（**行为逐字相同**，见 §四末）。
+3. **步预算**：`pillar_execute` 的单项预算 `900 → 1300` —— 夹具自己的内部上限是 **1200**
+   （`PL-1` 的教训：**harness 预算必须 ≥ 夹具自己的上限**，否则夹具的判据根本没机会打印）。
+
+#### 四、判据（夹具 5 组 13 checks + 门禁 7 注入）
+
+夹具 = **既有 EXTRA 步 `pillar_execute`**（`PillarDiagnosticTask`）新增"水柱准入契约"相位
+（**零新增电池步**，原有三条判据作为前缀保持不变）。自建**孤立** 4 格灌水竖井（`3100,-60,3800` +
+四面石墙，结束**按原样还原**）：
+
+| # | 判据 | 绿 | 红臂（把 §三.1 改回无条件） |
+|---|---|---|---|
+| ① | 前提：4 格都是水 · 脚位在柱中且下面是水 · **`&& !bot.onGround()`** | ✓ | ✓ |
+| ② | 规划级见证：从**悬空**起点规划到墙顶 = `REACHED`、首段 `PILLAR`、**≥2 段水柱 `PILLAR`** | ✓ | ✓ |
+| ③ | ⭐ **核心**：第 2 段（悬空 + `from`/`to` 都是水）**准入必须被接受** | `valid=true code=null` | **`valid=false code=PILLAR_NOT_ON_GROUND`** |
+| ④ | 执行侧第一 tick 不许拒（`create(...).tick()` ⇒ `phase != FAILED`） | ✓ | 随③跳过（记失败） |
+| ⑤ | 对照：同形状水柱段**站柱底**必须接受 + **干地悬空**必须仍被拒且码**逐字** = `PILLAR_NOT_ON_GROUND` | ✓ | ✓ |
+
+- **规划级见证的链**（两次运行逐字相同）：
+  `[PILLAR 3100,-59→3100,-58] [PILLAR 3100,-58→3100,-57] [ASCEND 3100,-57→3101,-56] status=REACHED pillars=2 swimPillars=2`
+  ⇒ **这条边是真的会被规划出来的**，"准入拒了它"就是「规划得到、执行不了」的字面定义。
+- **绿**：`flooded_column=PASS contract_checks=13`（`run/headless-logs/20260924-133837-single_pillar_execute.log`，
+  39 s，`ticks=57`）。
+- **红臂**：`flooded_column=FAIL`、`code=PILLAR_NOT_ON_GROUND`（`…/20260924-133937-…`，40 s）——
+  **同一个几何、同一条计划、同一批判据，只有那一个条件不同**。
+- 新门禁 **`rule_pillar_water_admission`**，四臂 + **七处注入逐条单独开火全红**：
+  A 起跳门控改回无条件（⇒ 臂①红）· B `validate` 手搓回两次 `canWalkThrough`（⇒ 臂②红）·
+  C `preconditionsHold` 手搓（⇒ 臂②红）· D 规划侧丢掉 `bodyPassable`（⇒ 臂②红）· E 删表项（⇒ 臂③人口红）·
+  F 掏空夹具前提（⇒ 臂④红）· G 掏空"精确拒绝码"（⇒ 臂④红）。
+- ⚠️ **臂④第一版假绿（`D-425` §四的同一课又犯一次）**：第一版只查子串 `!bot.onGround()`，
+  而夹具里「干地悬空」那条前提**也**写着同样的子串 ⇒ 注入 F 没红。改成咬**合取形态**
+  `&& !bot.onGround()`，并且把干地那条前提的顺序刻意写成 `!bot.onGround()` **在前**
+  （`!bot.onGround() && !canWalkOn(...)`）⇒ 合取形态在夹具里**唯一**。
+- 方法论的同一句话再确认一次：§三.2（手搓 ↔ `bodyPassable`）**行为逐字相同** ⇒ 判据只能是**静态门禁**；
+  行为侧由本夹具的拒绝码断言 + 既有 `pillar_execute` 三条判据钉住。
+- **13 checks 的最后一条 = 夹具纪律**（`PLAYBOOK §5.0d`）：`清理：本夹具动过的 N 格已按原样还原
+  （不匹配=0）` —— 逐格比对还原后的世界状态（与 `BreakTraverseFootingCheckTask` 同形）。
+  第一版写的是"落点还能站住"（弱：它并不证明那 20 格回去了）⇒ 已换成**逐格比对**。
+
+#### 五、两条新的**夹具物理事实**（下一轮直接用，别重新发现）
+
+写这个夹具时连踩两次，两次都是"我以为水里的假人会悬停"：
+
+1. **假人在水里照常下沉**（实测 ≈ **10 tick 掉一整格**）⇒ "传送进柱中、等 N tick 再量悬空"
+   量到的是**柱底**（第一版实测：脚位变 `3100,-60`，拒绝码因此变成 `PILLAR_STALE_START`，
+   **判据量错了对象**）。客户端侧早就记过同一现象（`2026-09-21` 评审 §13.4 用户原话：
+   "bot 先扑腾了一会再沉底"），现在是**服务端实测数字**。
+2. **`teleport()` 会把 `onGround` 按成 `false`** ⇒ "每 tick 把站位拉回"会让**柱底那条对照永远立不起来**
+   （第二版实测：`onGround=true` 的期望值恒为 `false`，`footCell` 却是对的）。
+   **正解 = 只传一次 + 等 `CONTRACT_PHYSICS_TICKS=2` 个物理 tick**（标志位由物理给、且还在这一格里）。
+   ⇒ 凡"夹具要测 `onGround`"的场合，这两条必须一起考虑。
+
+#### 六、如实登记的未做 / 差异
+
+- **端到端"多段水柱实跑上浮"没做**：本片给的是**规划级 + 准入级**（两侧都走真实代码路径），
+  加上 `D-244` 已实跑的 **1 段**水柱（`FLOODED_SHAFT`）。第 2 段与第 1 段是**同一段执行代码**
+  （只是 `from`/`to` 换了格），所以没有再堆一次物理实跑；**若将来水柱上浮被拆成独立 Movement ⇒ 必须补**。
+- `PILLAR` 仍属**写类 Movement** ⇒ 纯通行档连"不写世界的水柱上浮"都生成不出来（`D-244` 已登记，未动）。
+- Baritone 的**梯子** / **底部半砖** 两个分支 Alice 没有（登记，不在本片范围）。
+- 未指名的能力类码：`PILLAR_HEAD_BLOCKED → MovementHelper.bodyPassable`、
+  `PILLAR_PLACE_OCCUPIED → MovementHelper.canWalkThrough` ⇒ `CAPABILITY_UNRESOLVED_BUDGET` **21 → 19**
+  （读数 `未指名能力类=19/19`；`总准入码=76` 不变）。
+
+#### 七、复核触发
+
+1. 出现"水里起跳不需要地面"以外的**第二种免地面**情形（例如将来做梯子/藤蔓）⇒ **先裁定**再扩那个条件，
+   不许直接把 `isWater` 换成更宽的东西；
+2. `MovementHelper.isWater` 的口径变了（含水方块那一档，`D-244` 登记过）⇒ 本条门禁的臂①只看 `isWater(`，
+   需同步（它是"条件存在"的判据，不是"口径正确"的判据）；
+3. 水柱上浮若被拆成独立 `MovementType` ⇒ 门控那条条件必须跟着下移（否则新 Movement 会重新踩这个坑）。
