@@ -26,7 +26,13 @@ mkdir -p "$DEST/presets"
 cp -rf "$REPO/tools/client-agent/presets/." "$DEST/presets/"
 cp -f "$REPO/tools/client-agent/"*.cmd "$DEST/" 2>/dev/null || true   # 含 client-agent.cmd / client-agent-ui.cmd
 cp -f "$REPO/tools/client-agent/"*.ps1 "$DEST/"
+# ⭐ 先**重建**再拷贝（2026-09-24 实测坑：本脚本原来只拷贝 ⇒ 改了人设忘了重建 = 桌面版**静默导入旧人设**）
+if ! python3 "$REPO/tools/client-agent/make-preset-package.py"; then
+    echo "✗ 重建 .dshpreset 失败 ⇒ 拒绝打包（宁可不打，也不发内容过期的预设包）" >&2
+    exit 1
+fi
 cp -f "$REPO/tools/client-agent/"*.dshpreset "$DEST/"   # 桌面版可导入的预设包
+echo "→ preset 包 sha256 前16 = $(sha256sum "$REPO/tools/client-agent/alice-client-master.dshpreset" | cut -c1-16)"
 # 说明文件转成 CRLF + UTF-8 BOM（记事本 / PowerShell 5.1 都友好）
 python3 - "$REPO/tools/cloud-tunnel-README.txt" "$DEST/怎么用.txt" <<'PY'
 import sys, pathlib
