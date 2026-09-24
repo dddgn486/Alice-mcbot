@@ -308,11 +308,20 @@ bash tools/codespace-zero.sh tunnel-bg humble-tribble-97pv59gw5rg62prg5
 | 认证 | 把带 `repo` + `codespace` scope 的 PAT 存成 `$HOME\.gh-token`（`Set-Content -NoNewline -Path $HOME\.gh-token -Value '<PAT>'`）。⚠️ 本机网络**不通 github.com 的 HTTPS**（实测），所以 PAT 要在能上 github.com 的设备上建好再带过来；`api.github.com` 是通的，脚本全程只走 api + SSH |
 | （可选）ssh 客户端 | Windows 自带 OpenSSH 客户端即可；**没有也能工作**（脚本退到 gh 原生转发） |
 
-**一条命令**（仓库里已带脚本 ⇒ 新设备 `git clone` 后即可）：
+**一条命令**（注意路径：`-File` 用的是**当前目录**的相对路径，不是 PATH ⇒ 要么 `cd` 到脚本目录，要么用**绝对路径**）：
 
 ```powershell
-pwsh -File tools\codespace-tunnel.ps1 -Open
+# 方式 1：包装脚本（推荐，内部用 %~dp0 解析自身目录 ⇒ **任何当前目录都能调**）
+D:\JAVA_projects\alice\tools\codespace-tunnel.cmd -Open     # 或 -Stop / -LocalPort 3183
+
+# 方式 2：直接调 ps1，用绝对路径（若你**已经在 pwsh 里**，不要再套一层 pwsh，用 & 调用）
+pwsh -File "D:\JAVA_projects\alice\tools\codespace-tunnel.ps1" -Open
+& "D:\JAVA_projects\alice\tools\codespace-tunnel.ps1" -Stop
 ```
+
+> ⚠️ 实测踩到的报错（用户 2026-09-24）：`pwsh -File tools\codespace-tunnel.ps1 -Stop`
+> ⇒ `The argument 'tools\codespace-tunnel.ps1' is not recognized as the name of a script file`。
+> 原因是**当时的工作目录不是仓库目录**（`-File` 不做 PATH 搜索）⇒ 用上面两种方式之一即可。
 
 它依次做：① 检查 gh/认证 → ② **确保云端 `dsh web` 在跑**（顺带唤醒 codespace）→ ③ 挂端口转发到本机回环 → ④ 读回令牌 → ⑤ 打印（并可选打开）`http://127.0.0.1:3181/?token=…`。
 停掉转发：`pwsh -File tools\codespace-tunnel.ps1 -Stop`。
