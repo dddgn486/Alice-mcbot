@@ -711,3 +711,35 @@
   已实跑的 1 段；第 2 段与第 1 段是同一段执行代码）—— 若将来水柱上浮被拆成独立 `MovementType` ⇒ 必须补。
 - **余下**：`Fall`（8 个能力类码，`CAPABILITY_UNRESOLVED_BUDGET` 19 → ~11）；Baritone 参考树 =
   `/home/vscode/reference/baritone-1.20.1`（`movements/MovementFall.java`）。
+
+### 断点⑤ 补记 4（同日）：`P2` 第四片 `Fall` ✅（**无行为改动**）⇒ **`P2` 四片全部完成**；队列下一项 = `P2c` 决策点（待用户拍板）
+
+- **本片产出（不是"又读了一遍代码"）**：`FALL` 的边缘/落点/回收三层判据原先在**三个现场**各写一份
+  （规划侧 `appendFall` · 执行运行时 `preconditionsHold` · 执行准入 `validate`），其中
+  **执行准入把边缘与落点两处都手搓了**（`canWalkThrough(edge)+edge.above()`、
+  `canWalkOn(to)+canWalkThrough(to)+to.above()`），而规划侧用的是 `bodyPassable` / `canStandCentered`
+  —— **逐字等价**（`MovementHelper:188-190` / `:207-211`）⇒ 统一到共享谓词。回收守卫（`fallRecoverable`
+  的三条）**两侧各留一份、只做同步门禁**（理由：三个拒绝码必须留在 `*ExecutionFactory.java` 里，
+  搬走会让 `REFUSAL_CODES_MIN` 人口掉下去，而那与"正则退化"读数相同 ⇒ 会弄瞎告警）。
+- **新门禁** `rule_fall_landing_parity`（四臂：边缘三处 / 落点三处 / 回收守卫两侧同步 / 两张表人口）
+  + **七处注入逐条单独开火全红**，恢复后 PASS。
+- **尺子第 4 批**：指名 6 个 `FALL_*` 码 ⇒ `CAPABILITY_UNRESOLVED_BUDGET` **19 → 13**
+  （读数 `未指名能力类=13/13`、`总准入码=76` 不变）；**有意留债 2 个**并写明理由
+  （`NOT_RECOVERABLE_NO_BLOCKS` = 执行期库存事实，同 `PLACE_RESOURCE_UNAVAILABLE`；
+  `LANDING_FLUID` = 任意流体内联判据，拿 `isWater` 当出处**是错的**）。
+- ⭐ **本片登记的决策点（一行代码没改）= 台账新行 `P2c`**：`FALL_NOT_ON_GROUND` 两侧一致，但**规划侧
+  查不到"起点是否落地"** ⇒ 浮空 / 水柱顶格起点的 `FALL` 边**会被规划出来、又必然被两侧拒**
+  （`D-376` 家族的确定性重规划循环）。两条候选改法**都不干净**：放宽执行侧 = 能力增加但**没有实测证据**；
+  收紧规划侧**做不到** —— `canStandCentered(from)` 会连「浅水里站在水底」那种**合法**起点一起砍掉
+  （脚下是源流体）。⇒ **推荐先不改**（保留守卫 + `TIMING` 分类），复核触发见 `D-428` §六。
+- **证据**：既有 EXTRA 步 `fall_execute` = `PASS`（`fall_plan_2/3`、`no_deep_fall`、`fall_recover_guard`、
+  `fall_execute` 全 PASS，`exec_ticks=17`，`run/headless-logs/20260924-134454-*`）·
+  CORE = **41/41 PASS**（`…/20260924-134916-core.log`，247 s，**逐步判决与上一轮逐条相同**）·
+  `check-all` = `pass=20 warning=2 failed=0`。
+- **`P2` 收口**：四片（`Diagonal` / `Traverse` / `Pillar` / `Fall`）全部完成，尺子债
+  **26 → 25 → 21 → 19 → 13**（方法：每片 = Baritone `文件:行` 对照 + 差异表 + 一条红/绿判据 + 门禁注入）。
+- **余下（下一轮候选，按推荐序）**：① `P2c` 决策点（**需用户拍方向**，一句话即可）；
+  ② `P2` 收尾：`CAPABILITY_UNRESOLVED_BUDGET` 13 里还剩 `ASCEND_*` / `BREAK_*` / `DESCEND_*` / `DOWNWARD_*`
+  等**已做过切片**的族零散债（可直接指名，无需新夹具）；
+  ③ §11 F 段小项（如 `survival_exit` **区内臂** —— `D-245` 唯一幸存却没被执行过的半边，动 CORE 步预算 ⇒ 须复跑 CORE 逐步 diff）；
+  ④ `P4′`（阻塞在用户/客户端的 `Can't keep up` 读数）。

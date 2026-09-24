@@ -19024,3 +19024,103 @@ if (!context.bot().onGround()) return ValidationResult.invalid("PILLAR_NOT_ON_GR
 2. `MovementHelper.isWater` 的口径变了（含水方块那一档，`D-244` 登记过）⇒ 本条门禁的臂①只看 `isWater(`，
    需同步（它是"条件存在"的判据，不是"口径正确"的判据）；
 3. 水柱上浮若被拆成独立 `MovementType` ⇒ 门控那条条件必须跟着下移（否则新 Movement 会重新踩这个坑）。
+
+---
+
+### D-428：`FALL` 的边缘/落点/回收三层判据三处同源（2026-09-24）
+
+`P2` 第四片（`Fall`）。**无行为改动**：三处判据逐字等价地收进共享谓词；另把 `FALL` 的 6 个能力类码
+指名、2 个**有意留债**，并**登记一处待用户拍板的 K-4 决策点**（§六）。
+
+#### 一、事实（哪三处、各写了什么）
+
+| 判据 | 规划侧 `appendFall`（`SurfaceMovementProvider:221-263`） | 执行运行时 `FallExecution.preconditionsHold()` | 执行准入 `FallExecutionFactory.validate` |
+|---|---|---|---|
+| 走离边缘 | `MovementHelper.bodyPassable(level, edge)` ✓ | 手搓 `canWalkThrough(edge)` + `canWalkThrough(edge.above())` | **同样手搓**（`D-428` 前） |
+| 落点可站 | `MovementHelper.canStandCentered(level, to)` ✓（`K-4/D-167`） | `canStandCentered(level, to)` ✓（注释里就写着"共用唯一定义"） | **手搓** `canWalkOn(to)` + `canWalkThrough(to)` + `canWalkThrough(to.above())`（`D-428` 前） |
+| 回收守卫 | 具名谓词 `fallRecoverable(context, level, to, drop)` | 不查（**设计如此**：它是"这条边该不该存在"的事实，计划期已定） | 把 `fallRecoverable` 的三条**又抄了一遍** |
+
+**逐字等价（本次改动行为不变的依据）**：
+- `MovementHelper.bodyPassable:188-190` = `canWalkThrough(foot) && canWalkThrough(foot.above())` —— 与手搓的
+  边缘两句**同一对调用、同一顺序、同一短路结果**；
+- `MovementHelper.canStandCentered:207-211` = `canWalkOn(foot) && canWalkThrough(foot) && canWalkThrough(foot.above())`
+  —— 与工厂手搓的落点三句**逐字相同**。
+
+**为什么必须门禁化**：这三处是"同一判据写三份"，而 `D-374` 的事故就是**手搓那份漏了头位**
+（"脚位空、头位实"的目的地在整张图里没有任何入边）；`D-376`/`D-379` 是"一侧查了、另一侧没查"
+⇒ 规划产出执行必拒的边 ⇒ 确定性重规划循环。本片把它们从"靠人记得"变成"构建会红的事实"。
+
+#### 二、Baritone 对照（`8c55ad0`）
+
+| 关注点 | Baritone | Alice | 判定 |
+|---|---|---|---|
+| 落差归属 | `MovementFall.calculateCost:59-67` 调 `MovementDescend.cost`，`result.y != dest.y ⇒ COST_INF`（落差由 **Descend 的成本函数**决定） | `FALL` 是独立 `MovementType`，落差 **2~3** 硬编在几何里 | **架构差异**（Alice 用 Movement 类型表达"要不要写世界"）⇒ 登记 |
+| 起点是否要站地面 | `MovementFall.updateState` **不查** `onGround`（只在"要不要放水桶"那支里读 `!onGround`） | 准入 + 运行前都要求 `feet.equals(from) && onGround`（`FALL_NOT_ON_GROUND`，类别 `TIMING`） | ⚠️ **见 §六：登记为待裁决策点** |
+| 落水 | 有完整的落水 + **水桶落地**分支（`STACK_BUCKET_WATER`、`isWater`、`willPlaceBucket`） | 不做（`D-058`：本轮只做无水落地 ≤3 格）⇒ `FALL_LANDING_FLUID` | 差异**已登记**（`D-058`） |
+| 破坏 | `buildPositionsToBreak(src, dest)`（`MovementFall.java:44`）—— 落点列上的方块**进待破列表** | 下落列必须**已经**净空（否则不生成边） | Alice **更严**（登记） |
+| 完成口径 | `playerFeet.equals(dest) && (y - dest.y < 0.094 \|\| isWater)` | `D-056` `isAtFootColumn` / `isSettledAtFootPos`（脚位 + `onGround`） | 差异**已登记**（`D-056`） |
+| 危险方块 | `steppingOnBlocks` + `MAGMA_BLOCK` ⇒ SNEAK（`:96-98`） | 无（`avoidWalkingInto` 里岩浆块是"不可走入"，不是"踩着要潜行"） | 登记（不在本片范围） |
+
+#### 三、改法（3 处调用点，**行为不变**）
+
+1. `FallExecutionFactory.validate`：边缘 → `MovementHelper.bodyPassable(level, edge)`；落点 → `MovementHelper.canStandCentered(level, to)`；
+2. `FallExecution.preconditionsHold()`：边缘 → `MovementHelper.bodyPassable(level, edge)`（落点本来就是 `canStandCentered`）；
+3. **回收守卫保持两侧各写一份，只做"同步门禁"**（理由见 §四 末）。
+
+#### 四、判据（门禁 + 七处注入即红）
+
+新门禁 **`rule_fall_landing_parity`**，四臂：
+① **边缘**三处都必须是 `bodyPassable(`，且不许出现手搓形态（注入 A 准入侧 / B 运行期手搓 ⇒ 红）；
+② **落点**三处都必须是 `canStandCentered(`，且不许出现手搓三句（注入 C 准入侧手搓 / D 规划侧改回
+`canWalkOn` ⇒ 红）；
+③ **回收守卫**（规划侧 `fallRecoverable` + 执行准入）都必须含 `FALL_RECOVERY_PREDICATES` 三条
+（注入 E 规划侧丢 `hasPlacementFace` / F 准入侧丢 `countThrowaway` ⇒ 红）；
+④ 两张表人口下限（注入 G 删表项 ⇒ 红）。**七处注入逐条单独开火全红，恢复后 PASS。**
+
+⚠️ **为什么回收守卫不做代码单源（重要取舍）**：三条谓词两侧逐字相同，本可抽成一个共享谓词；但
+三个**拒绝码**必须留在 `*ExecutionFactory.java` 里 —— `rule_k4_capability_provenance` 的人口下限
+`REFUSAL_CODES_MIN` 是按"扫 `*ExecutionFactory.java`"立的，把码搬进 `MovementHelper` 会让**人口掉下去**，
+而那与"正则退化"在读数上**长得一样** ⇒ 那才是真把告警弄瞎（`P2` Traverse 片刚吃过这个亏）。
+所以选**同步门禁**（与 `D-426` 的 `rule_place_step_parity` 同形）。
+
+**行为锁**（本次改动行为不变 ⇒ 判据只能是静态门禁，方法同 `D-425`/`D-426`）：既有 EXTRA 步
+`fall_execute`（真机落差场景 + `FallDiagnosticTask` 实跑）= **PASS**（`fall_plan_2` / `fall_plan_3` /
+`no_deep_fall` / `fall_recover_guard` / `fall_execute` 五条全 PASS，`exec_ticks=17`，
+`run/headless-logs/20260924-134454-*`）；CORE = **41/41 PASS**（`…/20260924-134916-core.log`，247 s，
+**逐步判决与上一轮逐条相同**）；`check-all` = `pass=20 warning=2 failed=0`。
+
+#### 五、尺子（`P2` 的"逐个指名"第 4 批）
+
+- 指名 **6 个**：`FALL_COLUMN_BLOCKED → MovementHelper.canWalkThrough` ·
+  `FALL_EDGE_BLOCKED → MovementHelper.bodyPassable` ·
+  `FALL_LANDING_BOTTOM_SLAB → MovementHelper.isBottomSlab` ·
+  `FALL_LANDING_INVALID → MovementHelper.canStandCentered` ·
+  `FALL_NOT_RECOVERABLE_HEADROOM → MovementHelper.canWalkThrough` ·
+  `FALL_NOT_RECOVERABLE_NO_FACE → BlockInteraction.hasPlacementFace`
+  ⇒ `CAPABILITY_UNRESOLVED_BUDGET` **19 → 13**（读数 `未指名能力类=13/13`、`总准入码=76` 不变）。
+- **有意留债 2 个**（各写了理由）：
+  · `FALL_NOT_RECOVERABLE_NO_BLOCKS` = 执行期**库存**事实（`countThrowaway`），与
+    `PLACE_RESOURCE_UNAVAILABLE` 同档 ⇒ 不硬凑移动谓词；
+  · `FALL_LANDING_FLUID` = 两侧都是内联 `getFluidState(to).isEmpty()`（**任意流体**，含岩浆）——
+    `MovementHelper.isWater` 只认水，拿它当出处**是错的**（比留债更糟）。
+
+#### 六、⭐ 登记的决策点（**待用户拍板，本片一行没改**）
+
+`FALL_NOT_ON_GROUND`（`feet.equals(from) && !onGround`）**两侧一致**（工厂 + 运行前），但
+**规划侧 `appendFall` 不查"起点站得住"**（它查不到 —— 那是运行期事实）。⇒ 存在这种可能：
+某个 FALL 边的起点是**不落地**的节点（浮在水柱顶格、或悬空），它**会被规划出来**、又**必然被两侧拒**
+= 又一次「规划得到、执行不了」（`D-376` 家族的确定性重规划循环）。
+
+- 可达性推导（不是假想）：`PILLAR` 水柱段成功后 bot 是**浮着**的（`D-244`/`D-427`），
+  那个浮空节点会作为下一段搜索的起点；若它旁边正好是 2~3 格落差 + 可站落点 ⇒ `appendFall` 会产出这条边。
+- **两条候选改法**（都要用户裁，因为都不是纯技术问题）：
+  1. **放宽执行侧**（两侧都加"脚位是水则免地面"条件，同 `D-427` 对 `PILLAR` 的修法）——
+     能力**增加**；执行器的空中分支确实会给前进输入（`FallExecution.tick():106-116`），物理上大概率能落到位；
+     但**没有任何实测证据**支持，属"猜"。
+  2. **收紧规划侧**：`appendFall` 加"起点可站" —— ⚠️ **不能用 `canStandCentered(from)`**：浅水（1 格深）里
+     bot 是 `onGround=true`（执行侧接受），而 `canStandCentered` 因"脚下是源流体"为假 ⇒ **会砍掉能跑的边**
+     （反向漂移）。要精确镜像执行侧那道守卫，规划侧缺少"是否落地"这个事实 ⇒ **做不到**。
+- **本片建议 = 先不改**（推荐项）：维持 `TIMING` 分类 + 保留守卫（它挡的是"陆地空中走离边缘"这种物理上
+  不可能的动作），并把本项登记进台账，**复核触发** = ① 任意一轮日志里出现 `FALL_NOT_ON_GROUND`；
+  ② 出现"计划里 FALL 边的起点是浮空/水柱顶格"的实测读数；③ 用户要求"水里也能自己掉下去"。
+  —— 真要改，方向取候选 1（放宽执行侧，与 `D-427` 对 `PILLAR` 的处置同形），并必须**先有夹具**。
