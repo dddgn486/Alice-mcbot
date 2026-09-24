@@ -3208,6 +3208,88 @@ def rule_write_truth_single_source():
     return problems
 
 
+def rule_replay_bounded():
+    """`P2b`（2026-09-24）：**同一条计划不许被无限重放** —— 重同步 / 重规划 / 段超时都要有界。
+
+    <h3>为什么（先更正台账，再把它钉成可执行判据）</h3>
+    台账 `§11 P2b` 原来写的是「**段级 `resync` 重放同一条计划无次数上限**」——
+    **事实核对后该说法不成立**：`PathSession.MAX_RESYNCS = 5` 自 `d9e82c8`（2026-09-09，`D-047`）
+    就存在，比 `D-394`（2026-09-22）早 13 天；`PathRetryRunner.DEFAULT_MAX_REPLANS = 2`；
+    段超时走 `fail(TIMEOUT, "SEGMENT_TIMEOUT")` **结束会话**（不是重置计时器继续跑）
+    ⇒ `D-394` 现场那一串振荡本来就是**上界收口**的样子（"5 次 resync" 正好等于上限）。
+    ⚠️ 但**没有任何门禁钉住这三处上界** ⇒ 谁把守卫删掉一行，就会真的变成"无限重放"
+    （`D-394` 的振荡形态就是那个后果）。本条 = 把"有界"从**注释里的约定**变成**构建会红的事实**。
+
+    <h3>三条臂（各有一条注入）</h3>
+    ① **重同步有界**：`PathSession` 保留 `MAX_RESYNCS`，`tryResync()` 计数（`resyncs++`）且在
+       **任何状态变更之前**先判 `resyncs >= MAX_RESYNCS`；
+    ② **重规划有界**：`PathRetryRunner` 保留 `maxReplans` 与上界比较，且 `replans++` 的次数
+       **不超过**守卫的次数（多出来的那一次 = 无守卫自增 = 可以无限重放）；
+    ③ **段超时必须收口**：段超时分支里必须是失败上报（`fail(..., "SEGMENT_TIMEOUT")`），
+       不许把 `segmentTicks` 清零后继续跑（那正是"同一条计划无限重放"的另一种写法）。
+    """
+    base = ROOT / "src/main/java/com/dddgn/alice"
+    session = base / "pathing/core/session/PathSession.java"
+    runner = base / "task/PathRetryRunner.java"
+
+    def code(path):
+        if not path.exists():
+            return None
+        return code_only(re.sub(r"/\*.*?\*/", "", path.read_text(encoding="utf-8"), flags=re.S))
+
+    problems = []
+    ses = code(session)
+    run = code(runner)
+    for text, name in ((ses, session.name), (run, runner.name)):
+        if text is None:
+            problems.append(f"{name} 不存在（改名？同步本规则 `P2b`）")
+    if problems:
+        return problems
+
+    # ---- 臂① 重同步有界 ----
+    if "MAX_RESYNCS" not in ses:
+        problems.append("`PathSession` 不再有 `MAX_RESYNCS` ⇒ 重同步次数没有上界"
+                        "（`D-394` 的同址振荡就是靠它收口的）")
+    resync = method_body(ses, "private boolean tryResync(")
+    guard = resync.find("resyncs >= MAX_RESYNCS")
+    inc = resync.find("resyncs++")
+    if inc < 0:
+        problems.append("`tryResync()` 不再计数（`resyncs++`）⇒ 重放次数没有读数，上界也就无从守起")
+    if guard < 0:
+        problems.append("`tryResync()` 没有在入口判上界（`resyncs >= MAX_RESYNCS`）⇒ "
+                        "同一条计划可以被无限重放")
+    elif inc >= 0 and guard > inc:
+        problems.append("`tryResync()` 的上界判据出现在 `resyncs++` **之后** ⇒ 先动状态后判界，"
+                        "最后一次仍会越过上界")
+
+    # ---- 臂② 重规划有界 ----
+    if "maxReplans" not in run:
+        problems.append("`PathRetryRunner` 不再有 `maxReplans` ⇒ 重规划没有上界")
+    guards = run.count("replans < maxReplans")
+    incs = run.count("replans++")
+    if guards == 0:
+        problems.append("`PathRetryRunner` 里没有任何 `replans < maxReplans` 守卫 ⇒ 重规划无界")
+    elif incs > guards:
+        problems.append(f"`PathRetryRunner` 里 `replans++` 有 {incs} 处、上界守卫只有 {guards} 处 ⇒ "
+                        "存在**无守卫自增**（那一次重规划可以无限重复）")
+
+    # ---- 臂③ 段超时收口 ----
+    at_timeout = ses.find("segmentTicks > segmentTimeoutTicks()")
+    if at_timeout < 0:
+        problems.append("`PathSession` 里找不到段超时判据（`segmentTicks > segmentTimeoutTicks()`）⇒ "
+                        "段级重放可能变成无界（本规则的前提变了，同步它）")
+    else:
+        at_code = ses.find("SEGMENT_TIMEOUT", at_timeout)
+        window = ses[at_timeout:at_code if at_code > 0 else at_timeout + 400]
+        if at_code < 0 or "fail(" not in window:
+            problems.append("段超时分支没有**失败上报**（`fail(..., \"SEGMENT_TIMEOUT\")`）⇒ "
+                            "段卡住时不会再收口")
+        if "segmentTicks = 0" in window:
+            problems.append("段超时分支把 `segmentTicks` **清零后继续跑** ⇒ 段预算被无限续杯"
+                            "（等价于同一条计划无限重放）")
+    return problems
+
+
 def rule_write_budget_zone_and_container_exception():
     """`Z3`（2026-09-23）：**额度只有一处出处；容器轴是唯一例外；瞬时码只有一个拼法**。
 
@@ -3464,6 +3546,7 @@ def main() -> int:
     z2 = rule_ledger_closure_zone_scoped()
     rc3 = rule_lossy_write_accounted()
     rc4 = rule_write_truth_single_source()
+    p2b = rule_replay_bounded()
     z3 = rule_write_budget_zone_and_container_exception()
     z4 = rule_vacuous_assertions_carry_population()
     latch = rule_terminal_latch_replays_status()
@@ -3579,6 +3662,8 @@ def main() -> int:
         print(f"[RC3·不可逆写入记账] {line}")
     for line in rc4:
         print(f"[RC4·写入真相同源] {line}")
+    for line in p2b:
+        print(f"[P2b·重放有界] {line}")
     for line in z3:
         print(f"[Z3·额度同源+容器例外] {line}")
     for line in z4:
@@ -3588,11 +3673,11 @@ def main() -> int:
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4) and not tlb
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b) and not tlb
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
           f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / tick负载预算={len(tlb)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
-          f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 不可逆写入记账={len(rc3)} / 写入真相同源={len(rc4)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
+          f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 不可逆写入记账={len(rc3)} / 写入真相同源={len(rc4)} / 重放有界={len(p2b)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 
