@@ -49,6 +49,8 @@ client-agent.cmd "上传最近一次测试的 latest.log 和之后的截图"
 
 云端侧同构：web UI（人看）或 `dsh --profile headless "<任务>"`（脚本化）。
 
+（⭐ 这一步已经被 §九 的 `bus-watch` **自动化**：云端一写、本地最多 N 分钟后自动执行。）
+
 ## 四、Windows 一次性安装（`client-agent.cmd -Install` 做三件事）
 
 1. `npm i -g @deepseek-ai/dsh@0.1.5-rc.3` —— ⭐ 实测这台机器**已有 node v24.19.0 + npm 11.17.0**（nvm4w）⇒ 前提已满足；
@@ -112,3 +114,68 @@ client-agent.cmd "上传最近一次测试的 latest.log 和之后的截图"
 
 **本轮验收等级**：`BUILT` + 本机 WSL `SMOKE_TESTED` + ⭐ **真 Windows 全链路 `WINDOWS_CLIENT` 级验证通过**（13/13 自检、点名上传、缩图、sha256 一致、云端 `read_image` 能看图；详见 `CLIENT_AGENT_NEW_DEVICE_TEST.md` §10）；
 **未做**：Windows 新设备上装 DSH / 跑 headless / 导入 preset 并试跑（要用户点头）。
+
+## 九、bus-watch：云端一写、本地自动唤醒（2026-09-24）
+
+### 9.1 它补的是哪一段
+唤醒原本**只能靠人**（桌面版说「读信箱」/ 双击 `client-agent.cmd`）—— 云端**没有入站通道**，写完请求本地不知道。
+`bus-watch` 用**纯确定性**逻辑补上：每 N 秒用 gh 列一次云端 `bus/to-win/`，与云端 `.done` 对比，
+**有未处理的新消息才唤起** `client-agent.cmd`（headless 单发，默认任务＝读信箱并照做）。
+
+⭐ **没有新消息时不启动 dsh ⇒ 零模型调用 ⇒ 零 token 成本。**
+⚠️ `.done` 是**管家的账**：bus-watch **只读、绝不写**；它自己的"已尝试"记在本地状态文件（冷却 `RetryAfterMin` 分钟）。
+
+### 9.2 用法（文件在 `tools/client-agent/`）
+| 命令 | 作用 |
+|---|---|
+| `bus-watch.cmd` | 前台挂着（默认每 300 s；Ctrl-C 停）|
+| `bus-watch.cmd -Once` | 只检查一轮（无新消息则秒退）|
+| `bus-watch.cmd -DryRun` | 只报告会做什么，**绝不唤起** |
+| `bus-watch.cmd -Interval 60` | 自定义间隔（秒）|
+| `bus-watch.cmd -Stop` | 停掉正在跑的 watcher |
+| `bus-watch.cmd -Install` | 注册**登录自启**（隐藏窗口）；`-Uninstall` 取消 |
+
+ps1 参数：`-Codespace`（空＝读配置）· `-RemoteBus`（空＝读配置 `mailbox.toWin`）· `-IntervalSec`（300）·
+`-RetryAfterMin`（30，同一条消息两次尝试的最小间隔）· `-QuietRetrySec`（60）· `-LogFile` / `-PidFile` / `-StateFile` ·
+`-Once` / `-DryRun` / `-Stop` / `-Install` / `-Uninstall`。
+
+### 9.3 状态文件（都在 `%TEMP%`）
+`bus-watch.log`（自身日志 + **agent 的 stdout/stderr 追加**；>5 MB 自动轮转 `.1`）·
+`bus-watch.pid`（单实例）· `bus-watch.state.json`（`lastCheck` / `failing` / `cool`）·
+`bus-watch.wakelock`（唤醒期间存在 ⇒ **不并发**）· 计划任务名 `alice-bus-watch`。
+
+### 9.4 成本
+每轮 = 1 次 `gh codespace ssh`（几 KB 出网、**0 次模型调用**）。默认 300 s ⇒ 约 288 次/天。
+只有"确实有新消息"时才真的调模型（一次完整管家会话）。
+
+### 9.5 如何停
+`bus-watch.cmd -Stop`（读 pid 文件 + 核对 `Win32_Process.CommandLine` 确认是自己才杀）· `-Uninstall` 取消自启 · 前台窗口 Ctrl-C。
+
+### 9.6 自检（2026-09-24 实测，先跑通再交付）
+**① 无新消息 ⇒ 秒退且不唤起**（指向云端空信箱 `~/bus/selftest-empty`；真实信箱当时也是 0 条未处理）：
+```
+[2026-09-24 15:29:31][bus-watch] 没有新消息 ⇒ 不唤起 agent（零 LLM 调用）
+（耗时 7 秒）
+```
+**② 有新消息 ⇒ 真唤起并产生回执**（投入 `20260924-152957-buswatch-selftest.md`，用 `bus-watch.cmd -Once` 触发）：
+```
+[2026-09-24 15:30:10][bus-watch] 发现未处理消息：20260924-152957-buswatch-selftest.md
+[2026-09-24 15:30:10][bus-watch] === 唤起 agent（新消息：20260924-152957-buswatch-selftest.md）===
+[2026-09-24 15:35:15][bus-watch] === agent 退出码 0 ===
+```
+云端结果：回执 `/home/vscode/bus/to-cloud/20260924-073406-buswatch-selftest.md`（**2150 字节**，含 `PONG`）·
+`.done` **4 → 5 行**（管家追加了本文件名）。
+⚠️ **唤醒是同步的**（bus-watch 阻塞等 agent）⇒ 上面那 5 分钟是**管家干活的时间**，不是 bus-watch 卡住。
+
+### 9.7 纪律与坑（都是实测踩出来的）
+1. PS 5.1 读中文脚本**必须有 BOM**；`.cmd` 必须 **CRLF + 纯 ASCII**（默认任务文案写英文）。
+2. **不用 `pgrep -f` 自检**（模式会匹配到自己，已踩过）⇒ pid 文件 + `Win32_Process.CommandLine` 核对**指定 pid**。
+3. gh helper：先试裸 `gh`，失败退回 `C:\Program Files\GitHub CLI\gh.exe`
+   （**管家会话会继承旧 PATH 快照 ⇒ 实测裸 gh 找不到**；PATH 里其实有此文件）。
+4. codespace 名与信箱路径**从 `%USERPROFILE%\.alice-client.json` 读**，不硬编码。
+5. **`.done` 只读**（那是管家的账）。
+6. **网络/服务抖动静默重试**：连续失败只在第一次记一行，恢复时再记一行。
+7. ⚠️ **远端命令必须以 `true` 收尾**：`.done` 可能还不存在 ⇒ `cat` 返回非 0 ⇒ 若据此判失败，
+   **正常的空信箱会被误判成"检查失败"**（自检① 第一次就是静默无输出，根因在此）。
+8. 从 WSL 读 PowerShell 的 stdout 会显示成 **GBK 乱码**（管道编码）⇒ 看输出加 `iconv -f GBK -t UTF-8`；
+   日志文件本身是 UTF-8（带 BOM）。
