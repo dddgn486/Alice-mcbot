@@ -46,10 +46,10 @@ public final class FallExecutionFactory implements MovementExecutionFactory {
             return ValidationResult.invalid("FALL_NOT_ON_GROUND");
         }
 
-        // 走离边缘
+        // 走离边缘 —— 用**规划侧同一个谓词** `bodyPassable`（K-4/D-374；`appendFall` 的准入就是它），
+        // 别手搓成两次 `canWalkThrough`（手搓那份漏了头位，正是 `D-374` 的事故形态）。
         BlockPos edge = from.offset(dx, 0, dz);
-        if (!MovementHelper.canWalkThrough(context.level(), edge)
-                || !MovementHelper.canWalkThrough(context.level(), edge.above())) {
+        if (!MovementHelper.bodyPassable(context.level(), edge)) {
             return ValidationResult.invalid("FALL_EDGE_BLOCKED");
         }
         // 下落列净空
@@ -59,10 +59,10 @@ public final class FallExecutionFactory implements MovementExecutionFactory {
                 return ValidationResult.invalid("FALL_COLUMN_BLOCKED");
             }
         }
-        // 落点
-        if (!MovementHelper.canWalkOn(context.level(), to)
-                || !MovementHelper.canWalkThrough(context.level(), to)
-                || !MovementHelper.canWalkThrough(context.level(), to.above())) {
+        // 落点：**可站**用 `canStandCentered`（= `canWalkOn` + 脚位/头位可穿，`MovementHelper:207-211`）——
+        // 规划侧 `appendFall`（K-4/D-167）与**执行运行时** `FallExecution.preconditionsHold()` 用的都是它，
+        // 本处原先手搓了同样的三句 ⇒ 三处同源（逐字等价，本次改动**行为不变**）。
+        if (!MovementHelper.canStandCentered(context.level(), to)) {
             return ValidationResult.invalid("FALL_LANDING_INVALID");
         }
         if (!context.level().getFluidState(to).isEmpty()

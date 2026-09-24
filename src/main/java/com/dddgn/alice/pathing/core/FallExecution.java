@@ -169,10 +169,10 @@ public final class FallExecution implements MovementExecution {
         if (feet.equals(from) && !bot.onGround()) {
             return false;   // 必须站好才能走离边缘
         }
-        // 走离边缘 + 下落列净空 + 落点可站
+        // 走离边缘（`bodyPassable` = 脚位 + 头位，与规划侧 `appendFall` 和执行工厂同一个谓词）
+        // + 下落列净空 + 落点可站
         BlockPos edge = from.offset(dx, 0, dz);
-        if (!MovementHelper.canWalkThrough(level, edge)
-                || !MovementHelper.canWalkThrough(level, edge.above())) {
+        if (!MovementHelper.bodyPassable(level, edge)) {
             return false;
         }
         for (int y = from.getY() - 1; y > to.getY(); y--) {
