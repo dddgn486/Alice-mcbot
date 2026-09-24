@@ -528,3 +528,6 @@ bash tools/headless-battery.sh core
 - **35**：迁移会话时用 `tar` 打包**必须加 `--` 分隔**：会话目录名按 slug 约定以 `--` 开头（`--home-fb486-projects--`），
   GNU tar 会把它当**长选项**解析 ⇒ 报 `unrecognized option`，而远端 `tar xf -` 收到空流 ⇒ **静默什么都没传**（实测踩过）。
   正确写法：`tar cf - --exclude='…' -- --home-fb486-projects-- | ssh … 'tar xf - -C ~/.dsh/sessions'`。
+- **36**：⭐ **迁移会话必须连 `~/.dsh/attachments/` 一起迁**。只搬 `sessions/` ⇒ 引用了图片对象的会话会在构造请求时坏掉，
+  云端表现为 **API stream 失败（`code: TRANSPORT`）**，而**不含图片的小会话完全正常** ⇒ 极易误判为网络/额度问题（2026-09-24 实踩）。
+  另：云端 settings 若缺 `llm-deepseek`（`contextWindow`/`imagePixelBudget`/`imageMaxBytes`）会与本地行为不一致，需**部分迁移**该段。
