@@ -95,7 +95,9 @@ done
 CLIENT_ROOT="/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10"
 CLIENT_SAVE="${ALICE_CLIENT_SAVE:-$CLIENT_ROOT/saves/新的世界}"
 CLIENT_MODS="${ALICE_CLIENT_MODS:-$CLIENT_ROOT/mods}"
-SERVER_DIR="${ALICE_SERVER_DIR:-/home/fb486/alice-server}"
+# ⭐ 2026-09-24：默认改成 `$HOME`（本地 WSL 的 HOME=/home/fb486 ⇒ 仍是 /home/fb486/alice-server；云端 ⇒ /home/vscode/alice-server）
+# ⇒ 两台机器都开箱即用，不必再设环境变量。
+SERVER_DIR="${ALICE_SERVER_DIR:-$HOME/alice-server}"
 FORGE_VERSION="1.20.1-47.4.10"
 FORGE_ARGS="$SERVER_DIR/libraries/net/minecraftforge/forge/$FORGE_VERSION/unix_args.txt"
 PRISTINE="$REPO/run/world-pristine"
