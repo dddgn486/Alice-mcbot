@@ -472,3 +472,7 @@
   `8b60bd8`(RC4) → `46d77b1` → `de6de94` → `56f7985`(P2b) → `443e47e`(ref-integrity) → `21bbc20`(A2′, 最新)。
 - **goal**：`goal-d754df35`（第 12 轮结束）。**本断点按 `D-421` 主动 `pause`**（上下文 77.4%，下一次作业必然过 80% 线）；
   用户说"继续"后 `resume`，队列从上面的"下一轮该做什么"接。
+- ⚠️ **`pause` 的运行时限制（2026-09-24 实测）**：`update_goal action=pause` 在**自动续行轮**里被拒
+  （`this goal operation requires a direct human turn on a top-level agent`）⇒ **我无法在续行中自己暂停**。
+  替代纪律（下一轮照此执行，直到用户发话或压缩）：**过线后只做「读数 + 提醒 + 落盘」，不开任何新作业**；
+  用户只要发一句话（人类回合）我就能 `pause`；或直接 `/compact`（压缩后 goal 会自动 disarm，效果等价于暂停）。
