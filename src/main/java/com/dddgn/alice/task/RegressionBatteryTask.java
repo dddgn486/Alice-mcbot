@@ -349,6 +349,8 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("break_refused", Profile.MAIN),
             // D-328：远距离寻路基准（**测量**，不是判据）—— EXTRA：跑一次要 forceload 40+ 区块并写/清走一条走廊
             Map.entry("far_path_bench", Profile.EXTRA),
+            // `P4′` 的 A/B 台架（2026-09-24）：故意让一个 tick 烧 ≥2 s ⇒ 只 `single:` 跑，绝不进 CORE
+            Map.entry("tick_budget_bench", Profile.EXTRA),
             // D-328 附注：失败重试节奏基准（**测量**）—— EXTRA：要造一个封死的房间并驱动真的 WalkToTask 去撞
             Map.entry("path_retry_bench", Profile.EXTRA));
 

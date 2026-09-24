@@ -56,6 +56,14 @@ TICK_BUDGET_EXEMPTIONS = {
         "分类阈值：`elapsedMillis ≥ 此值` 才计一次 expensiveSearch（A1 主判据的计量口径），不是执行额度；"
         "复核触发：A1 主判据改成按节点数/切片数判定时，同步本值并在电池复跑 CORE 逐步 diff。",
     ),
+    # ⚠️ 本项**完全不是预算**：它是**原版告警阈值**（`MinecraftServer.run`：单 tick 落后 >2000 ms 才打
+    # `Can't keep up!`）—— 台架把它写成常量只是为了**把判据的判读口径钉在代码里**
+    # （`D-429`：红臂 = 只有"闸门全关 + 历史形态"那格单 tick ≥ 此值；台架实测 2578 ms）。
+    "KEEP_UP_WARN_MILLIS": (
+        2000,
+        "判读口径常量（原版 `Can't keep up!` 的告警阈值 = 单 tick 落后 >2000 ms），不是任何执行额度；"
+        "复核触发：若将来改用别的「卡顿判据」（如客户端帧时间），同步本值并重跑 `tick_budget_bench`。",
+    ),
 }
 # 人口下限：低于它 ⇒ 本规则红（判据不许在"扫不到任何常量"时静默通过）。
 TICK_BUDGET_SITES_MIN = 4

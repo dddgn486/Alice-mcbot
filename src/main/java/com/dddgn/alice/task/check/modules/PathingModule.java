@@ -8,6 +8,7 @@ import com.dddgn.alice.task.EdgeCompletenessCheckTask;
 import com.dddgn.alice.task.ContrastTimerCheckTask;
 import com.dddgn.alice.task.FallDiagnosticTask;
 import com.dddgn.alice.task.PlaceStepDiagonalCheckTask;
+import com.dddgn.alice.task.TickBudgetBenchTask;
 import com.dddgn.alice.task.PillarDiagnosticTask;
 import com.dddgn.alice.task.check.CheckContext;
 import com.dddgn.alice.task.check.CheckModule;
@@ -95,7 +96,15 @@ public final class PathingModule implements CheckModule {
                 CheckStep.of("contrast_timer", CheckProfile.EXTRA,
                         List.of("alice_test:ore_course_terrain"),
                         () -> teleportTo(bot, new BlockPos(56, 63, 132)),
-                        () -> new ContrastTimerCheckTask(bot, ctx.observer()), 200));
+                        () -> new ContrastTimerCheckTask(bot, ctx.observer()), 200),
+                // ⭐ `P4′`（2026-09-24）：**每 tick 搜索预算的 A/B 台架**（`TickBudgetBenchTask`）——
+                // 一次运行同时量三种配置（`PROD(400/1/32)` · `TIGHTENED(60/1/32)` · `UNGATED`=闸门全关）
+                // × 两种负载（13 次全预算搜索 / 30 次廉价链），并**实测出红臂**：
+                // `UNGATED` 那格故意让一个 tick 烧 ≥2 s（A1 之前的真机形态）⇒ 电池日志里会出现
+                // `Can't keep up!`（原版阈值 = 单 tick 落后 >2000 ms），而闸门开着时在算术上够不到。
+                // EXTRA：**故意制造一次 2.4 s 的 tick** ⇒ 绝不进 CORE。预算 400 > 台架自己的 300（PL-1 教训）。
+                CheckStep.of("tick_budget_bench", CheckProfile.EXTRA, List.of(), null,
+                        () -> new TickBudgetBenchTask(bot, ctx.observer()), 400));
     }
 
     /** 与电池 `teleportBot` **逐字段一致** ✓（模块不能调它的私有方法 ✗ ⇒ 这里复制同一套 ✓）。 */
