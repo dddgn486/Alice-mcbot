@@ -2897,14 +2897,17 @@ def rule_ledger_closure_zone_scoped():
     `[Recover] residues=0（本进程内没有出现「我方方块未收回」）` 因此是**空读数**，不是"世界很干净"。
     这类失败**不报错**（本项目纪律：假绿比假红危险）⇒ 只能靠门禁。
 
-    三条，各有一条注入臂（改任一处 ⇒ 变红）：
+    四条，各有一条注入臂（改任一处 ⇒ 变红）：
     ① **闭合点只许用 `closure(...)`**：电池 `endStep` / 编排器终态 / 生产 `clearTask` /
        恢复入口，不得再拿裸 `pendingTemporary(` / `pendingForOwner(` 当"待收义务"的口径
        （裸视图含区外条目 ⇒ 拿它判红就是拿无主区域的事判我方的错，`D-398` R1/R2）；
     ② **区内判据只有一个出处**：`closure` 的 `inZone` 必须来自 `pendingTemporaryProtected`，
        而后者必须问 `ProtectionZones.isProtected`（不许各写一遍 ⇒ 消费漏接一处就是 D-338 那类事故）；
     ③ **空集必须可见**：闭合点要印人口（`Closure.describe()`），否则「账本空」=「世界干净」这个
-       误读会静默复活（`Z2` 的唯一产出就是让这个误读**看得见**）。
+       误读会静默复活（`Z2` 的唯一产出就是让这个误读**看得见**）；
+    ④ ⭐ `RC1`（2026-09-24）：**对账路径不许替未加载区块开图** —— `dropStale` 读方块之前必须先判
+       `isLoaded`（未加载 ⇒ 不读、不销、留待下次）。否则「已加载才碰」这条保留条件会被上游这一读
+       卸掉力：`pickNext` 的 `chunk_not_loaded` 变成**不可达**分支（实测见臂④代码注释）。
     """
     base = ROOT / "src/main/java/com/dddgn/alice"
     ledger = base / "ledger/WorldModLedger.java"
@@ -3004,6 +3007,22 @@ def rule_ledger_closure_zone_scoped():
             or "public String describe()" not in led:
         problems.append("`Closure` 记录不再带人口（`wildSkippedSince` / `recordedSince` / `describe()`）⇒ "
                         "「空」的三种含义（收干净了/全在区外/真的没写）又分不开了")
+
+    # ---- 臂④ `RC1`：账本**对账路径不许替未加载区块开图** ----
+    # 实测逼出来的（不是读码猜的）：`RestoreScopeTask.pickNext` 的 `chunk_not_loaded` 保留条件在没有
+    # 本守卫时**到不了** —— `buildQueue` **开头**就调 `dropStale`，它对区内条目裸读方块 ⇒ 未加载区块被
+    # **强制同步加载**（把对账变成开图），条目还被当"幽灵"销掉；注入实测 = 关掉守卫 ⇒
+    # 臂③红（`nothing_to_restore`，`run/headless-logs/20260924-090447-*`）。
+    stale_body = method_body(led, "public static int dropStale(")
+    read_at = stale_body.find("getBlockState(entry.pos())")
+    if read_at < 0:
+        problems.append("`dropStale` 里找不到对账读方块（`getBlockState(entry.pos())`）⇒ "
+                        "改名/搬迁了？本规则的臂④要跟着同步（否则守卫会静默消失）")
+    elif "!level.isLoaded(entry.pos())" not in stale_body[:read_at]:
+        problems.append("`dropStale` 在**读方块之前**没有「未加载 ⇒ 不读、不销」守卫 ⇒ "
+                        "`level.getBlockState(未加载区块)` 会**强制同步加载**（对账变成开图），"
+                        "条目还会被当幽灵销掉 ⇒ `RestoreScopeTask.pickNext` 的 `chunk_not_loaded` "
+                        "分支**到不了**（`RC1` 实测：run/headless-logs/20260924-085903-*）")
     return problems
 
 

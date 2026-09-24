@@ -547,3 +547,13 @@ bash tools/headless-battery.sh core
 - **38**：`check-machine-map` 的 mods 目录写死在本地 Windows 路径 ⇒ 云端必 `INCOMPLETE`。修：`tools/check-machine-map.sh` 支持 `ALICE_MODS_DIR`
   （云端用法：`ALICE_MODS_DIR=$HOME/mc-client/mods tools/check-all.sh` ⇒ `pass=19 warning=2 failed=1`，唯一 FAIL = 既有红 `check-ref-integrity` 26 条过期引用）。
 
+- **39**：⭐ **云端跑无头电池必须显式给客户端模组目录**（否则 craft 类步骤**假红**）：`tools/headless-battery.sh` 的
+  `CLIENT_MODS` 默认是本地固定客户端路径 `/mnt/d/.../worldedit-test/.../mods`（云端不存在）⇒ 云端的 `~/alice-server/mods`
+  只会有 alice jar，**没有任何上游模组**。
+  实测（2026-09-24 云端 CORE，`run/headless-logs/20260924-090839-core.log`）：`38/41`，唯一 FAIL = `craft_check`，
+  失败子项正是"要靠模组才有机器配方"的那两条 —— `machine_only_vanilla=FAIL NO_RECIPE target=minecraft:cobblestone x1`
+  与 `machine_only=SKIP`（`mekanism:dust_iron` 不存在）。**与代码无关**（对照：同一提交 `single:restore_underfoot_safety` PASS）。
+  云端正确跑法：`ALICE_CLIENT_MODS=$HOME/mc-client/mods ALICE_HEADLESS=1 tools/headless-battery.sh --no-build core`
+  （`~/mc-client/mods` 有 22 个 jar，含 Mekanism/Create 系）。
+  ⚠️ **别再踩**：`ALICE_HEADLESS=1 tools/check-all.sh` 里那次电池调用**不带**这个环境变量 ⇒ 云端会拿到上面那批**假红**；
+  门禁自查用**不带** `ALICE_HEADLESS` 的跑法（电池记 WARN），电池单独带变量跑。

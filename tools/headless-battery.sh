@@ -94,7 +94,25 @@ done
 
 CLIENT_ROOT="/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10"
 CLIENT_SAVE="${ALICE_CLIENT_SAVE:-$CLIENT_ROOT/saves/新的世界}"
-CLIENT_MODS="${ALICE_CLIENT_MODS:-$CLIENT_ROOT/mods}"
+CLIENT_MODS="${ALICE_CLIENT_MODS:-}"
+# ⭐ 2026-09-24（云端实测踩过，见 `docs/CLOUD_MIGRATION.md` §9-39）：本地固定客户端路径在**云端不存在**
+# ⇒ 旧写法会**静默降级**成"只装 alice jar"，于是 craft 类步骤因**缺模组**假红（实测 `craft_check=FAIL`，
+# 失败子项正是 `machine_only_vanilla=NO_RECIPE` / `machine_only=SKIP`）。
+# 现在：显式变量 > 本地固定客户端 > 云端镜像目录（`~/mc-client/mods`）；都没有 ⇒ **响亮地说清楚**再继续。
+if [ -z "$CLIENT_MODS" ]; then
+    if [ -d "$CLIENT_ROOT/mods" ]; then
+        CLIENT_MODS="$CLIENT_ROOT/mods"
+    elif [ -d "$HOME/mc-client/mods" ]; then
+        CLIENT_MODS="$HOME/mc-client/mods"
+        printf '[headless] 客户端模组目录取自云端镜像：%s（本地固定客户端不存在）\n' "$CLIENT_MODS"
+    else
+        CLIENT_MODS="$CLIENT_ROOT/mods"
+        printf '[headless] ⚠️ 客户端模组目录**不存在**（%s 与 %s 都没有）⇒ 本轮只装 alice jar：\n' \
+            "$CLIENT_ROOT/mods" "$HOME/mc-client/mods" >&2
+        printf '[headless] ⚠️ 任何依赖上游模组的步骤（craft_check / craft_machine 等）会**假红**；\n' >&2
+        printf '[headless] ⚠️ 正确跑法：ALICE_CLIENT_MODS=<模组目录> ALICE_HEADLESS=1 tools/headless-battery.sh …\n' >&2
+    fi
+fi
 # ⭐ 2026-09-24：默认改成 `$HOME`（本地 WSL 的 HOME=/home/fb486 ⇒ 仍是 /home/fb486/alice-server；云端 ⇒ /home/vscode/alice-server）
 # ⇒ 两台机器都开箱即用，不必再设环境变量。
 SERVER_DIR="${ALICE_SERVER_DIR:-$HOME/alice-server}"
