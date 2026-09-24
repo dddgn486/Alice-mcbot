@@ -783,3 +783,67 @@
 - **下一段主力 = 能力线**：三天挖矿任务线 ③ 鱼骨（`D-386` 口径已定档、切片 1–4 未开工）→ ① 跟随 → ② 探洞；
   成本口径「我方一轮」＝ 一次上下文窗口 + 2–4 次电池跑 + 1 次 CORE；客户端验收轮单列（云端 AI **无法 mirror**）。
 - **开口决策点（J-0，先裁）**：`P2c`（推荐先不改）· `P4′`（推荐 `P4″`＝打重消费者单次搜索上限）。
+
+---
+
+# 断点⑥（2026-09-24 晚）：⭐ **内核关门**（`D-430`）+ 排期挂起待勘测报告 —— 收工快照
+
+> **在这里断点的理由**：用户 2026-09-24 裁定「**同意关门**」，并明确「我去找**勘测员**聊聊计划，
+> **根据勘测报告再决定之后的排期**」⇒ 项目从"内核自证期"进入"能力线待定档期"。
+> 下一轮开工前**先要勘测报告**，不要凭本文件自行开工鱼骨切片。
+
+## 1. 收工状态（逐条可核）
+
+| 项 | 值 |
+|---|---|
+| HEAD / 远端 | `955366d`（= `origin/master`，工作树干净） |
+| CORE | **41/41 PASS**（`run/headless-logs/20260924-140740-core.log`，248 s） |
+| 门禁 | `ALICE_MODS_DIR=$HOME/mc-client/mods tools/check-all.sh` = **`pass=20 warning=2 failed=0`**（两个 warning = "断言未执行"：headless 那一档 + `check-machine-map` 缺上游 jar） |
+| 电池 | **97 步**（CORE 41 / EXTRA 56）· 21 模块（`docs/CAPABILITY_LIST.md` 为生成物） |
+| 尺子债 | 未指名能力类 **13/13**（原 26）· 总准入码 **76** |
+| 本轮三片 | `P2` `Pillar`✅（`D-427`，真缺陷）· `P2` `Fall`✅（`D-428`）· `P4′` 台架✅（`D-429`） |
+
+## 2. ⭐ 内核关门线（`D-430`，已生效）
+
+- **内核只接受三种输入**：真机实测红 · 用户报障 · CORE 回归。其余一律不进内核队列。
+- **四件自证型工作已转观察项**（`§11-E` 的 O5–O8，各带复活条件）：名词登记 · 门禁人口/对称性 ·
+  死码/同源化审计 · Baritone 逐行对照切片。
+- **解除条件**（写死在 `D-430 §三`）：CORE 回归 red · 真机可指名失败 · 能力线撞到内核边界且读数证明
+  缺口在那边 · 用户一句话。
+
+## 3. ⏸ 排期状态（`§11-J`）
+
+- **J-0 收口**：0.3 关门线 ✅ · 0.4 冻结登记 ✅ · **0.1 `P2c` 未裁**（推荐：先不改，留守卫 + 触发条件）·
+  **0.2 `P4′` 未裁**（推荐 `P4″` = 给重消费者 `SearchBudget` 加时间上限；读数见 `D-429` 九格表）。
+- **J-1/J-2/J-3 = 挂起**，**输入 = 勘测报告**（用户原话）。表里那些行是**候选池**，不是已定档排期。
+- **⏭ 下一轮第一件事（顺序固定）**：① 拿到勘测报告（`survey/` 新号）→ ② 我方**核对 + 复算**并出一份
+  `docs/reviews/<日期>-survey<NN>-核对.md`（格式照 `2026-09-23-survey29-30-核对.md` / `-survey31-核对.md`：
+  逐条"报告说法 / 我方复算 / 判定"）→ ③ 用核对结论给 J-1..J-3 定档（哪几片、什么顺序、各几轮）→ ④ 才开工。
+
+## 4. 恢复环境时的固定动作（照抄，别凭记忆）
+
+```bash
+cd <repo>            # 云端 = /workspaces/Alice-mcbot；本会话的 workspace 根是 /home/fb486/projects（含 alice 软链）
+git log --oneline -3 && git status --short          # 先确认断点
+ALICE_MODS_DIR=$HOME/mc-client/mods tools/check-all.sh                    # 静态档：期望 pass=20 warning=2
+LC_ALL=C.UTF-8 ALICE_CLIENT_MODS=$HOME/mc-client/mods ALICE_HEADLESS=1 \
+  tools/headless-battery.sh core                     # 真跑：期望 41/41（~250 s；改过 src/tools 才真跑）
+LC_ALL=C.UTF-8 ALICE_CLIENT_MODS=$HOME/mc-client/mods ALICE_HEADLESS=1 \
+  tools/headless-battery.sh single:<步名>             # 单步（改夹具时用它）
+bash tools/dsh-context-usage.sh                       # 上下文线（只报一次，别反复估）
+```
+
+## 5. 已知的坑（本轮实测，别再踩）
+
+1. **必须 `LC_ALL=C.UTF-8`**：否则 JVM 把中文写成 `?`（harness 默认 `zh_CN.UTF-8`）。
+2. **harness 单项预算必须 ≥ 夹具自己的内部上限**（`PL-1` 教训；`pillar_execute` 已修成 1300>1200）。
+3. **`teleport` 会把 `onGround` 按成 false，且落地要几 tick 才立起来** — 夹具要测 `onGround` 就用**自适应等待**
+   （`D-427`：写死 2 tick ⇒ 前提假红）。
+4. **假人在水里照常下沉**（≈10 tick 掉一格）⇒ 水里"悬停"必须每 tick 位置钉住或只传一次。
+5. **Python heredoc 里中文字符串别用 ASCII 引号**（本会话踩了 5 次 `SyntaxError`）—— 用「」。
+6. **客户端本轮无待验项**；且**云上无法 `mirror-windows-workspace.sh`**（无 `/mnt/d`）⇒ 镜像是用户侧动作。
+
+## 6. 挂起中、但随时可一句话关闭的项
+
+- `P2c`（`FALL_NOT_ON_GROUND`）· `P4′`（三选项）· `Q-1…Q-22`（勘测侧批裁，**或"不裁=不做"**）·
+  `S31-4`（世界母本版本化，云端二期前置）· `P6`（搜索线程化，多 bot 前提）。
