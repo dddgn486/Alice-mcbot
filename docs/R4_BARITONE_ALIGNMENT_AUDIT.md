@@ -159,7 +159,7 @@
 | 破坏无流体/LOS 语义 | `BlockBreakSession.java:85-87`（仅距离） | `Movement.java:153-197`（LOS + 换目标 + UNREACHABLE） | 只查距离，无可见性 | DEVIATION-UNREGISTERED（P2） | ⬜ |
 | 破坏会话无 STOP/ABORT 包 | `BlockBreakSession.java:92-113`（只发 START）+ `BreakAndTraverseExecution.cancel` | `BlockBreakHelper.java:43-50`（`resetBlockRemoving`） | 取消后客户端裂纹残留（B 区同项） | DEVIATION-UNREGISTERED（P1） | ✅ |
 | 工具选择平手/耐久 | `BlockInteraction.java:95-109` | `ToolSet.java:139-182` | 无材料代价 tie-break、无将坏工具跳过 | DEVIATION-UNREGISTERED（P2） | ⬜ |
-| 破坏 tick 估算公式 | `BlockInteraction.java:222-242` | `ToolSet.java:207-239` | 数学等价（可收获 30h/s、不可收获 100h/s） | ALIGNED | ⬜ |
+| 破坏 tick 估算公式 | `BlockInteraction.java:222-242` | `ToolSet.java:207-236` | 数学等价（可收获 30h/s、不可收获 100h/s） | ALIGNED | ⬜ |
 | 放置面顺序 | `BlockInteraction.java:34-35` | `Movement.java:36` | N/S/E/W/DOWN 一致 | ALIGNED | ✅ |
 | 放置直放分支 / 放置节奏 | `BlockInteraction.java:157-188`（无直放、无间隔） | `MovementHelper.java:791-796`、`BlockPlaceHelper.java:47`（`rightClickSpeed=4`） | 缺"可替换方块直放"与放置间隔 | MISSING-IN-ALICE（P2） | ⬜ |
 | 世界视图快照 / 未加载区块 | `WorldView.java:7-15`（零实现零调用）；`pathing/` 全包 `isLoaded|hasChunk|getChunk` 0 命中 | `BlockStateInterface.java:79,97,142-165` | 无快照、无"未加载"概念 | MISSING-IN-ALICE（P2/R7） | ✅ |

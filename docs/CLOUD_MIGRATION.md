@@ -557,3 +557,12 @@ bash tools/headless-battery.sh core
   （`~/mc-client/mods` 有 22 个 jar，含 Mekanism/Create 系）。
   ⚠️ **别再踩**：`ALICE_HEADLESS=1 tools/check-all.sh` 里那次电池调用**不带**这个环境变量 ⇒ 云端会拿到上面那批**假红**；
   门禁自查用**不带** `ALICE_HEADLESS` 的跑法（电池记 WARN），电池单独带变量跑。
+- **40**：⭐ **`check-ref-integrity` 的"26 条过期引用"在云端是假阳性**（2026-09-24 查清并修掉）：
+  `tools/ref-integrity.py` 把 Baritone 参照仓路径**写死**成 `/home/fb486/projects/reference/baritone`（本地 WSL），
+  而云端参照仓在 `$HOME/reference/baritone-1.20.1` ⇒ 索引不到 ⇒ 两个仓都有的 `MovementHelper.java` 只剩**我们那份（474 行）**
+  ⇒ 26 条**指向 Baritone 行号**的引用（`565…843`；Baritone 实为 **863 行**，逐行核对都命中）被判"超界"。
+  修法：① 参照仓路径 = `ALICE_BARITONE_DIR` > 本地固定路径 > `$HOME/reference/baritone*`；
+  ② 裸基名引用改为**候选全取、候选都装不下才红**（不再依赖"基名唯一"，也不依赖参照仓在不在）。
+  效果：校验量 836 → **1082** 处、提示 232 → 156，并**真的抓出 2 条真过期**（`ToolSet.java:207-239` ⇒ 已改 `207-236`）；
+  `ALICE_MODS_DIR=$HOME/mc-client/mods tools/check-all.sh` = **`pass=20 warning=2 failed=0`（首次无 FAIL）**。
+  ⚠️ 两个 warning 仍是"未执行"（无头电池未跑 / `check-machine-map` 缺上游 jar），**不是通过**。
