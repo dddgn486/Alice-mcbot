@@ -743,3 +743,32 @@
   等**已做过切片**的族零散债（可直接指名，无需新夹具）；
   ③ §11 F 段小项（如 `survival_exit` **区内臂** —— `D-245` 唯一幸存却没被执行过的半边，动 CORE 步预算 ⇒ 须复跑 CORE 逐步 diff）；
   ④ `P4′`（阻塞在用户/客户端的 `Can't keep up` 读数）。
+
+### 断点⑤ 补记 5（同日）：`P4′` 的**判据仪器**已造好并跑出九格读数 ⇒ 下一步 = **用户裁方向**
+
+- 新增 **EXTRA 电池步 `tick_budget_bench`**（`TickBudgetBenchTask`）：**一次运行**量出
+  3 配置（`PROD` 400/1/32 · `TIGHTENED` 60/1/32 · `UNGATED` 闸门全关）× 3 负载
+  （`MINING`=13×50 ms 上限搜索 = **生产形态** · `CHEAP`=30 短搜索 · `LEGACY`=13×**无时间上限**搜索 = 历史形态）
+  = **9 格读数**，每格严格在**一个 tick 内**跑完（用 `SearchTickBudget` 的夹具专用口 `setLimits`/`resetForFixture`
+  ⇒ **不用改源码重编**，同轮对照）。
+- **九格读数**（`run/headless-logs/20260924-140303-single_tick_budget_bench.log`，16 checks **全绿**）：
+
+  | 配置 | `MINING`（生产形态） | `CHEAP` | `LEGACY`（历史形态） |
+  |---|---|---|---|
+  | `PROD` 400 | **402 ms**（放行 8/拒 5） | **400 ms**（8/拒 22） | 761 ms（1/拒 12） |
+  | `TIGHTENED` 60 | **100 ms**（2/拒 11） | **100 ms**（2/拒 28） | 358 ms（1/拒 12） |
+  | `UNGATED` | 650 ms（13/0） | 1500 ms（30/0） | ⭐ **2578 ms**（13/0） |
+
+- ⭐ **红臂在电池里真的出现了**（全日志唯一一条）：`Can't keep up! Is the server overloaded? Running 2198ms
+  or 43 ticks behind` —— 来自 `UNGATED/LEGACY` 那格，**与真机三次同形**。
+- ⭐⭐ **三条结论**：① 收益 = 生产形态最坏 tick **402 → 100 ms**；② 代价 = 同一 tick 被拒搜索数 **5 → 11**
+  （廉价链 22 → 28 ⇒ 批处理链首当其冲，`mine_menu` 的 161 ms 链当初正是为此把毫秒轴定在 400）；
+  ③ **原判据后半句（"收到 ≤60 ⇒ `Can't keep up` 消失"）在算术上不成立** —— 闸门开着时生产形态最坏 ~402 ms，
+  离原版阈值 2000 ms 差一半 ⇒ **400 与 60 都不产生它**。
+- ⭐ **第四条（真正的杠杆）**：最坏 tick 由**单次搜索的时长**决定（`LEGACY` 两格 761/358 ms 都是*单次*搜索）
+  ⇒ 要压 tick 上限，该给**重消费者自己的 `SearchBudget` 加时间上限**（`maxMillis=0` 那一档），
+  而不是收 `DEFAULT_MAX_MILLIS_PER_TICK`。⇒ 新候选 **`P4″`**。
+- **待用户拍板**（台账 `P4′` 已改成"读数已就绪、待裁方向"，`D-429` §五 给了三选项）：
+  ① ⭐ 推荐 = 不动毫秒轴、改打重消费者单次搜索上限；② 维持 400；③ 收紧到 60（须先跑 CORE 逐步 diff）。
+- 附带事实：能力清单/电池步数 = **97 步（CORE 41）**；新步在 `RegressionBatteryTask.CURATION` 里登记为 `EXTRA`
+  （`single:` 跑；它**故意**让一个 tick 烧 2.5 s ⇒ 绝不进 CORE）。
