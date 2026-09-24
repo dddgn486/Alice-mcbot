@@ -3268,6 +3268,78 @@ def rule_battery_nonpass_steps_listed():
     return problems
 
 
+def rule_job_area_grant_scoped():
+    """`P3`（2026-09-24）：**作业级收集授权必须"范围内 + 只认本作业产物"，且只在内存、随作业收掉**。
+
+    <h3>为什么</h3>
+    用户 2026-09-22 裁定的出口是给 mine 作业一条「本作业声明范围内」的收集授权，用来救"自己挖出来的落物
+    没配上破坏事件 ⇒ 永远捡不起来"。但 `GRANTED_AREA` 的策略是 `AUTO` 且**被动吸附也放行** ⇒
+    若只按**坐标**放行，等于把"这片地上的东西我都准你捡"（玩家授权的语义）悄悄搬给作业，
+    作业范围内的**玩家丢的东西**会被一起吸走。⇒ 产物过滤是判据的一部分，不是附带说明。
+    另外两条结构性约束：授权**只在内存**（作业无权把它持久化成玩家授权，`D-344` 同口径）、
+    **签发与撤销成对**（权限窗口 = 作业时长，TTL 只是兜底）。
+
+    <h3>四条臂（各有一条注入）</h3>
+    ① `DropPolicy.effectiveProvenance` 必须咨询 `CollectGrants.coveringJobScoped(...)` **并传入物品**
+       （只传坐标 = 放宽面，注入 A 去掉咨询 / 注入 B 去掉物品参数 ⇒ 红）；
+    ② 查询内部必须**同时**判 `contains(` 与 `acceptsItem(`（注入 C 去掉产物判定 ⇒ 红）；
+    ③ 签发文件的 `addJobScoped(` 必须与 `revokeJobScoped(` **成对**（注入 D 删撤销 ⇒ 红）；
+    ④ 作业级授权**不许**出现在持久化路径（`JobGrant` 与 `GrantsData` 不许同处一个 `save(`/`load(` 方法；
+       注入 E 把 JobGrant 塞进 `save(` ⇒ 红）。
+    """
+    base = ROOT / "src/main/java/com/dddgn/alice"
+    policy = base / "decision/DropPolicy.java"
+    grants = base / "decision/CollectGrants.java"
+    minejob = base / "job/mine/MineJob.java"
+
+    def code(path):
+        return code_only(path.read_text(encoding="utf-8")) if path.exists() else None
+
+    problems = []
+    po = code(policy)
+    gr = code(grants)
+    mj = code(minejob)
+    for text, name in ((po, policy.name), (gr, grants.name), (mj, minejob.name)):
+        if text is None:
+            problems.append(f"{name} 不存在（改名？同步本规则 `P3`）")
+    if problems:
+        return problems
+
+    # ---- 臂① 单一判定入口必须真的咨询"作业级授权"（且带物品） ----
+    eff = method_body(po, "public static Provenance effectiveProvenance(")
+    if "coveringJobScoped(" not in eff:
+        problems.append("`DropPolicy.effectiveProvenance` 没有咨询**作业级**授权（`CollectGrants.coveringJobScoped(`）"
+                        "⇒ 作业范围内的落物照旧按 `FOREIGN` 处理（自己挖出来的东西捡不起来，`P3` 的缺口原样）")
+    elif "item.getItem()" not in eff:
+        problems.append("`effectiveProvenance` 调 `coveringJobScoped(...)` 时**没有传物品** ⇒ "
+                        "只按坐标放行 = 把「整片都准捡」（玩家授权语义）搬给作业（产物过滤失效）")
+
+    # ---- 臂② 查询内部必须同时判范围与产物 ----
+    query = method_body(gr, "public static JobGrant coveringJobScoped(")
+    if not query:
+        problems.append("`CollectGrants.coveringJobScoped(...)` 不见了（`P3` 的查询唯一入口）")
+    else:
+        if "contains(pos)" not in query:
+            problems.append("`coveringJobScoped` 没有判**范围**（`grant.contains(pos)`）⇒ 作业授权会出圈")
+        if "acceptsItem(" not in query:
+            problems.append("`coveringJobScoped` 没有判**产物**（`grant.acceptsItem(...)`）⇒ "
+                            "作业范围内的玩家丢的东西会被算成 `GRANTED_AREA`（被动吸附一起吸走）")
+
+    # ---- 臂③ 签发/撤销成对 ----
+    if "addJobScoped(" in mj and "revokeJobScoped(" not in mj:
+        problems.append("`MineJob` 签了作业级授权却没有**撤销**（`revokeJobScoped(`）⇒ 权限窗口退化成 TTL，"
+                        "`finish()` 之后一段时间里它仍在放行")
+
+    # ---- 臂④ 作业级授权不许持久化 ----
+    if "JobGrant" in gr:
+        for signature in ("private static GrantsData load(", "public CompoundTag save("):
+            body = method_body(gr, signature)
+            if "JobGrant" in body:
+                problems.append(f"`CollectGrants` 的持久化路径 `{signature}` 里出现了 `JobGrant` ⇒ "
+                                f"作业级授权被写成玩家级持久授权（`D-344`：作业不能悄悄改玩家的持久授权）")
+    return problems
+
+
 def rule_write_truth_single_source():
     """`RC4`（2026-09-24）：**"我方写了多少世界"只有一个真相；没发生的写入不许留在账上**。
 
@@ -3708,6 +3780,7 @@ def main() -> int:
     rc3 = rule_lossy_write_accounted()
     a3 = rule_kill_drop_attributed()
     p7 = rule_battery_nonpass_steps_listed()
+    p3 = rule_job_area_grant_scoped()
     rc4 = rule_write_truth_single_source()
     p2b = rule_replay_bounded()
     z3 = rule_write_budget_zone_and_container_exception()
@@ -3827,6 +3900,8 @@ def main() -> int:
         print(f"[A3·击杀产物归属] {line}")
     for line in p7:
         print(f"[P7·非PASS步单列] {line}")
+    for line in p3:
+        print(f"[P3·作业级收集授权] {line}")
     for line in rc4:
         print(f"[RC4·写入真相同源] {line}")
     for line in p2b:
@@ -3840,11 +3915,11 @@ def main() -> int:
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b and not a3 and not p7) and not tlb
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b and not a3 and not p7 and not p3) and not tlb
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
           f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / tick负载预算={len(tlb)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
-          f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 不可逆写入记账={len(rc3)} / 击杀产物归属={len(a3)} / 非PASS步单列={len(p7)} / 写入真相同源={len(rc4)} / 重放有界={len(p2b)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
+          f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 不可逆写入记账={len(rc3)} / 击杀产物归属={len(a3)} / 非PASS步单列={len(p7)} / 作业级收集授权={len(p3)} / 写入真相同源={len(rc4)} / 重放有界={len(p2b)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

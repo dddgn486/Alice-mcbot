@@ -108,6 +108,12 @@ public final class PickupModule implements CheckModule {
                 // 它钉的是"自己杀的牛，肉落成 FOREIGN ⇒ 捡不起来且静默"这条真缺口。
                 CheckStep.of("kill_drop_provenance", CheckProfile.EXTRA, List.of(), null,
                         () -> new com.dddgn.alice.task.KillDropProvenanceCheckTask(bot, observer),
+                        900),
+                // ⭐ `P3`（2026-09-22 用户裁定）：**作业级**收集授权（本作业范围内 + **只认目标产物**）。
+                // 自建地板 + 自己签/撤授权 ⇒ `List.of()`。四条臂里**臂②③ 是承重墙**
+                // （范围内玩家丢的东西、范围外的产物都必须仍不碰），臂④ 钉"撤销即关"。
+                CheckStep.of("job_area_grant", CheckProfile.EXTRA, List.of(), null,
+                        () -> new com.dddgn.alice.task.JobAreaGrantCheckTask(bot, observer),
                         900));
     }
 

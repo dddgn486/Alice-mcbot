@@ -93,6 +93,16 @@ public final class MineJob implements Job {
     /** 产物判定口径（J-6）：由 `GoalSpec.productTag` 决定，见 {@link MineProductFilter}。 */
     private final MineProductFilter productFilter;
 
+    /**
+     * `P3`：本作业签发的**作业级收集授权**（开工签发、`finish()` 撤销）。
+     *
+     * <p>为什么不靠 TTL 收口：TTL 只是"撤销路径被漏掉"的兜底 —— 权限窗口应当**精确等于**作业时长。
+     */
+    private com.dddgn.alice.decision.CollectGrants.JobGrant areaGrant;
+
+    /** `P3`：作业级收集授权的**兜底 TTL**（10 分钟；正常路径由 `finish()` 撤销）。 */
+    private static final int AREA_GRANT_TTL_TICKS = 20 * 600;
+
     /** 已尝试过的目标格（挖成与挖不动都算）——保证不重复选同一格。 */
     private final Set<BlockPos> attempted = new HashSet<>();
     /**
@@ -367,6 +377,13 @@ public final class MineJob implements Job {
         if (!scopeStarted) {
             scopeStarted = true;
             scope.begin(spec.center(), spec.radius(), bot.getUUID());
+            // ⭐ `P3`（用户 2026-09-22 裁定）：给本作业一条**「本作业声明范围内 + 只认本作业目标产物」**
+            // 的收集授权 —— 作业自己挖出来的落物即使**没配上破坏事件**（连锁模组缓冲/延迟生成/窗口错过）
+            // 也收得起来；而**范围内的玩家丢的东西**仍是 `FOREIGN`（被动闸门照旧拦）。
+            // 期限 = 作业时长（`finish()` 里撤销）；这里给的 TTL 只是"撤销路径被漏掉"时的兜底。
+            areaGrant = com.dddgn.alice.decision.CollectGrants.addJobScoped(
+                    bot.getServer(), spec.center(), spec.radius(), productFilter.describe(),
+                    productFilter::matches, "mine:" + jobName(), AREA_GRANT_TTL_TICKS);
         }
         if (!hasEmptySlot()) {
             terminalReason = "inventory_full";
@@ -877,6 +894,12 @@ public final class MineJob implements Job {
             terminated = true;
             // `D-362`：任务结束必须撤销目标保护（`BotManager` 换任务时也会兜底清一次）
             com.dddgn.alice.action.TaskTargetProtection.end(bot);
+            // ⭐ `P3`：**权限窗口 = 作业时长** —— 四条终态路径（配额达成/候选穷尽/背包满/超时）全过这里
+            // ⇒ 撤销点只写一处；漏掉的话 TTL 兜底，但那就是权限多活一段时间（不许靠它）。
+            if (areaGrant != null) {
+                com.dddgn.alice.decision.CollectGrants.revokeJobScoped(areaGrant.id());
+                areaGrant = null;
+            }
             bot.controller().stopMovement();
             DecisionTrace.terminal(jobName(), status == Task.Status.DONE ? "DONE" : "FAILED",
                     terminalReason, progressSummary() + " inventoryDelta=" + (countTargetItems() - itemsBefore)

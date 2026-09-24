@@ -86,6 +86,12 @@ public final class DropPolicy {
         if (CollectGrants.covering(bot.getServer(), item.blockPosition()) != null) {
             return Provenance.GRANTED_AREA;
         }
+        // ⭐ `P3`：**作业级**授权（本作业声明范围内 **且** 属于该作业的目标产物）。
+        // 为什么必须传 `item.getItem()`：只按坐标放行 = 把"整片都准捡"（玩家授权的语义）搬给作业，
+        // 于是作业范围内的**玩家丢的东西**会被被动吸附一起吸走（`P3` 夹具臂②专门钉这条）。
+        if (CollectGrants.coveringJobScoped(bot.getServer(), item.blockPosition(), item.getItem()) != null) {
+            return Provenance.GRANTED_AREA;
+        }
         return Provenance.FOREIGN;
     }
 

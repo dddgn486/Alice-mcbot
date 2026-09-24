@@ -303,6 +303,8 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("lossy_write_accounted", Profile.EXTRA),
             // `A3`（2026-09-24）：击杀产物归属（自养两头牛：一头我方击杀、一头无归因对照）⇒ EXTRA。
             Map.entry("kill_drop_provenance", Profile.EXTRA),
+            // `P3`（2026-09-24）：作业级收集授权（范围内 + 只认目标产物；撤销即关）⇒ EXTRA。
+            Map.entry("job_area_grant", Profile.EXTRA),
             Map.entry("craft_probe_inventory", Profile.EXTRA),
             Map.entry("craft_probe_table", Profile.EXTRA),
             Map.entry("craft_probe_upgradetab", Profile.EXTRA),
