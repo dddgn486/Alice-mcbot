@@ -276,6 +276,17 @@ public final class RestoreScopeTask implements Task {
             if (entry == null) {
                 continue;   // 已被别的路径销账
             }
+            // ⭐⭐ `RC1`（`D-403` 三条保留条件之①：**已加载**）：未加载的区块**不碰** ——
+            // ① `level.getBlockState(pos)` 在未加载区块上会**强制同步加载**（代价高、且把"回收"变成"开图"）；
+            // ② 三条条件的语义是"只回收**现场**能确证的方块"，未加载 = 无法确证。
+            // ⇒ 必须在读方块**之前**判，而且**如实归因**（`chunk_not_loaded`），不许静默跳过（`D-403`：不许静默）。
+            if (!level.isLoaded(pos)) {
+                skipped++;
+                unresolved.add(pos);
+                notes.add(pos.toShortString() + ":chunk_not_loaded");
+                BotLog.warn("[Restore] 跳过 {}：区块未加载（不为了回收去强制加载区块）", pos.toShortString());
+                continue;
+            }
             BlockState now = level.getBlockState(pos);
             String nowId = String.valueOf(
                     net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(now.getBlock()));

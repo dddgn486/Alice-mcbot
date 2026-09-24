@@ -430,3 +430,22 @@
 > **之后的待办**：**P2** 拾取层加固（判据统一 / 失败可 `reanchor` / 到位但够不到时朝物品走一步 /
 > `best==null` 补日志）——⚠️ **端到端 `collected=1/1` 夹具尚未建**（P0 的夹具是规划级）；
 > **P3** 只用 **1× 预算**重跑 `single:mine_reach_probe`（G2 已强烈暗示 88 段是缺口造成的，P3 用来证实）。
+
+---
+
+## 2026-09-24 断点：云端接管 + goal 轮次（1–7）—— **指针版，压缩安全**
+
+- **环境**：云端为主工作流（codespace `humble-tribble-97pv59gw5rg62prg5`，cwd `/home/fb486/projects` ＝软链 `/workspaces/Alice-mcbot`）；
+  本地 WSL＝**兜底副本**（未授权不参加工作），规则见 `docs/reviews/2026-09-24-云端主工作流交接.md`。
+- **云端跑门禁的正确姿势**：`ALICE_MODS_DIR=$HOME/mc-client/mods tools/check-all.sh` ⇒ `pass=19 warning=2 failed=1`；
+  唯一 FAIL ＝**既有红** `check-ref-integrity`（26 条过期引用；§11 I 段已登记，与本轮改动无关）。
+- **goal**：`goal-d754df35`（§11 队列推进，上限 256 轮，当前第 7 轮）。队列位置：**P4 ✅ → P5 收口（测量半边）✅ → RC1 🟡 进行中** → 之后 RC3、RC4；
+  `A2′` 已按"推荐方案"批准但**未实现**；`craft_table` 保留；`Q-20/21/22` 照准。
+- **RC1 现状（断点）**：`task/RestoreScopeTask.java` 补了第①条保留条件（**已加载** ⇒ `chunk_not_loaded` 归因，且放在 `getBlockState` **之前**避免强制加载）
+  — 代码在树，但 ⚠️ **回归演练未跑完**（`single:restore_underfoot_safety` 那一次被中断）＋三条条件的**夹具臂未补** ⇒ **RC1 未完成**。
+  恢复后第一件事：跑该夹具确认不回归 → 补 `not_ours` / `chunk_not_loaded` 两臂 →（注入即红）。
+- **取证文件**：`docs/plans/2026-09-24-P5a-两格高走廊设计.md`（含 Baritone `TunnelCommand.java:51-84`/`:46` 对照 + 三条实测事实 + 两条候选路线）·
+  `docs/reviews/2026-09-24-P5-现状复测与瓶颈定位.md` · `docs/reviews/2026-09-24-P4-tick负载预算门禁.md`。
+- **云端环境备注**：Baritone 参考树 `~/reference/baritone-1.20.1`（`8c55ad0`，仓库外）；`libpython3.12-stdlib` 已装且写进 `.devcontainer`；
+  电池 `SERVER_DIR` 默认已改 `$HOME/alice-server`；`check-machine-map` 支持 `ALICE_MODS_DIR`。
+- **提交链**：`dc4e519`(P4 门禁) → `6bbb670`(P5-a 切片3 回退) → `e09735e`(P5 裁定 + PL-1)。
