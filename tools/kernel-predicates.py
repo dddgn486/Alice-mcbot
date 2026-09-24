@@ -3026,6 +3026,87 @@ def rule_ledger_closure_zone_scoped():
     return problems
 
 
+def rule_lossy_write_accounted():
+    """`RC3`（2026-09-24）：**不可逆写入必须如实记账，而且两条破坏路径都要记**。
+
+    <h3>为什么（裁定 + 今天真的会发生，不是推测）</h3>
+    `docs/plans/2026-09-22-回收方案.md` §4.1 C 裁定：容器内容 / 流体 / 方块实体副作用
+    **明确不做逐 item 还原，但必须如实记账**（可查计数/日志），且"不许假装可逆"。
+    而今天 Alice **能**破这些方块：`BlockBreakSafety.clearingRefusal` 只在**清障**策略下拒
+    `hasBlockEntity()`（`D-095`），明确目标策略（`EXPECTED_TARGET`/`DESCEND_FOOT`/`BULK_EDIT`）
+    照挖不误 ⇒ 没有记账时，"箱子里的东西连同箱子一起没了"**完全静默**。
+
+    <h3>五条臂（各有一条注入）</h3>
+    ① **唯一判据入口** `WorldModLedger.lossyOf`：容器 → 方块实体 → 流体（顺序即优先级）；
+    ② **两条真的改世界的路都要记**：`BlockBreakSession`（按 tick 的会话：挖矿/破入/下落都走它）
+       与 `BlockInteraction.breakForBulkEdit`（`level.destroyBlock` 批量）；
+    ③ **计数必须进闭合人口**（`Closure`）：否则 `lossy=+0` 分不清"没遇上带数据的方块"与"不在看"；
+    ④ `anythingHappened()` 必须把不可逆算作"发生过" —— 破箱子**不产生任何回收义务**
+       （`recorded=0`）⇒ 漏了它，"账本空"会被读成"本窗口没写过世界"（正是要防的谎）；
+    ⑤ **不许静默**：每次都要有 `[Ledger] cannot_reclaim` 行 + 一个可读的人口差值。
+    """
+    base = ROOT / "src/main/java/com/dddgn/alice"
+    ledger = base / "ledger/WorldModLedger.java"
+    session = base / "action/BlockBreakSession.java"
+    interact = base / "action/BlockInteraction.java"
+
+    def code(path):
+        if not path.exists():
+            return None
+        return code_only(re.sub(r"/\*.*?\*/", "", path.read_text(encoding="utf-8"), flags=re.S))
+
+    problems = []
+    led = code(ledger)
+    ses = code(session)
+    itr = code(interact)
+    for text, name in ((led, ledger.name), (ses, session.name), (itr, interact.name)):
+        if text is None:
+            problems.append(f"{name} 不存在（改名？同步本规则 `RC3`）")
+    if problems:
+        return problems
+
+    # ---- 臂① 唯一判据入口 + 优先级顺序 ----
+    classify = method_body(led, "public static Lossy lossyOf(")
+    if "enum Lossy" not in led:
+        problems.append("`WorldModLedger` 里没有 `Lossy` 族枚举 ⇒ `RC3` 的「不可逆」没有判据入口")
+    for needle, why in (("ContainerSemantics.of(", "容器（内容拿不回来）"),
+                        ("hasBlockEntity()", "其余方块实体（NBT 丢失）"),
+                        ("getFluidState().isEmpty()", "流体本身")):
+        if needle not in classify:
+            problems.append(f"`lossyOf` 少了 {why} 的判据（`{needle}`）⇒ 那一族不会被记账")
+    idx = [classify.find(n) for n in ("ContainerSemantics.of(", "hasBlockEntity()",
+                                      "getFluidState().isEmpty()")]
+    if all(i >= 0 for i in idx) and not (idx[0] < idx[1] < idx[2]):
+        problems.append("`lossyOf` 的判定顺序变了（必须 容器 → 方块实体 → 流体）："
+                        "顺序即优先级，换了会把 `container_contents` 误报成 `block_entity`")
+
+    # ---- 臂② 两条破坏路径都要记 ----
+    if "recordLossyWrite(" not in ses:
+        problems.append("`BlockBreakSession` 破成功后**没有**调用 `WorldModLedger.recordLossyWrite(` ⇒ "
+                        "挖矿/破入/下落这条路径上「破掉带数据的方块」会静默（`RC3` 的记账等于没落地）")
+    bulk = method_body(itr, "public static boolean breakForBulkEdit(")
+    if "recordLossyWrite(" not in bulk:
+        problems.append("`BlockInteraction.breakForBulkEdit`（`level.destroyBlock` 批量路）没有记账 ⇒ "
+                        "同一件事在第二条路径上仍然静默")
+
+    # ---- 臂③④⑤ 人口可见 + 不许把不可逆读成"没发生" + 不静默 ----
+    clos = method_body(led, "public record Closure(")
+    if "lossyWritesSince" not in clos or "lossyRefusalsSince" not in clos:
+        problems.append("`Closure` 不再带不可逆计数（`lossyWritesSince` / `lossyRefusalsSince`）⇒ "
+                        "每个闭合点的读数里看不到「弄丢了东西」，`lossy=+0` 也就无法解释")
+    elif "lossy=+" not in clos:
+        problems.append("`Closure.describe()` 没有把不可逆计数印出来 ⇒ 人口不可见（`Z2` 的同一条教训）")
+    ah = method_body(led, "public boolean anythingHappened()")
+    if "lossyWritesSince" not in ah:
+        problems.append("`Closure.anythingHappened()` 没把不可逆算作「发生过」 ⇒ 破了箱子却报"
+                        "「本窗口没写过世界」（把不可逆说成没发生）")
+    rec = method_body(led, "public static void recordLossyWrite(")
+    if "[Ledger] cannot_reclaim" not in rec:
+        problems.append("`recordLossyWrite` 没有逐条 `[Ledger] cannot_reclaim` 日志 ⇒ "
+                        "计数在、明细不在（裁定要的是「可查计数/日志」，两者都要）")
+    return problems
+
+
 def rule_write_budget_zone_and_container_exception():
     """`Z3`（2026-09-23）：**额度只有一处出处；容器轴是唯一例外；瞬时码只有一个拼法**。
 
@@ -3280,6 +3361,7 @@ def main() -> int:
     d385 = rule_break_cost_state_penalty()
     capability = rule_k4_capability_provenance()
     z2 = rule_ledger_closure_zone_scoped()
+    rc3 = rule_lossy_write_accounted()
     z3 = rule_write_budget_zone_and_container_exception()
     z4 = rule_vacuous_assertions_carry_population()
     latch = rule_terminal_latch_replays_status()
@@ -3391,6 +3473,8 @@ def main() -> int:
         print(f"[K4·准入来源单一] {line}")
     for line in z2:
         print(f"[Z2·账本闭合口径] {line}")
+    for line in rc3:
+        print(f"[RC3·不可逆写入记账] {line}")
     for line in z3:
         print(f"[Z3·额度同源+容器例外] {line}")
     for line in z4:
@@ -3400,11 +3484,11 @@ def main() -> int:
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch) and not tlb
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3) and not tlb
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
           f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / tick负载预算={len(tlb)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
-          f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
+          f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 不可逆写入记账={len(rc3)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

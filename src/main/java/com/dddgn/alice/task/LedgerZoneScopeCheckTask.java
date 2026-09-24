@@ -356,7 +356,7 @@ public final class LedgerZoneScopeCheckTask implements Task {
         // 本步自己的作用域里**保护区内**不许留条目（`Z2`：与电池 `endStep` 的 J6 口径一致 ——
         // 只认区内；区外条目按 `D-398` R1/R2 不算义务）。读数带上人口，便于分辨"空"的两义。
         var closure = scopeId == null
-                ? new WorldModLedger.Closure(0, 0, 0, 0)
+                ? new WorldModLedger.Closure(0, 0, 0, 0, 0, 0)
                 : WorldModLedger.closure(level, scopeId, populationBaseline);
         check("收尾 本步作用域内**无区内遗留条目**（实测 " + closure.inZone() + " 条）"
                 + closure.describe(), closure.inZone() == 0);

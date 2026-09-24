@@ -1,5 +1,6 @@
 package com.dddgn.alice.ledger;
 
+import com.dddgn.alice.action.ContainerSemantics;
 import com.dddgn.alice.action.WriteGrant;
 import com.dddgn.alice.action.WritePolicyMatrix;
 import com.dddgn.alice.log.BotLog;
@@ -92,6 +93,12 @@ public final class WorldModLedger extends SavedData {
      * 只有这一个数能把两者分开（`silent-measurement-failure`：`0` 必须排除掉"读错了/没人写"这一解释）。
      */
     private int recorded;
+    /** ⭐ `RC3`：**不可逆写入**按族计数（累计；见 {@link #recordLossyWrite}）。 */
+    private final int[] lossyFamily = new int[Lossy.values().length];
+    /** ⭐ `RC3`：被守卫**拦下**的不可逆写入次数（累计；见 {@link #recordLossyRefusal}）。 */
+    private int lossyRefusals;
+    /** ⭐ `RC3`：最近的不可逆明细（环形，只影响可读性，不影响计数）。 */
+    private final List<String> lossyDetails = new ArrayList<>();
 
     public static WorldModLedger get(MinecraftServer server) {
         return server.overworld().getDataStorage()
@@ -271,6 +278,147 @@ public final class WorldModLedger extends SavedData {
     }
 
     /**
+     * ⭐ `RC3`（`docs/plans/2026-09-22-回收方案.md` §4.1 **C 类 `CANNOT_RECLAIM`**）：**写完就还不回来的族**。
+     *
+     * <p>判据都是"**方块自己带着数据**"（不是"我们觉得它贵重"）：
+     * <ul>
+     *   <li>{@link #CONTAINER_CONTENTS} —— 已登记的容器语义（{@link ContainerSemantics}：箱子/木桶/
+     *       潜影盒/漏斗/发射器/投掷器/熔炉类）⇒ 里面那 N 格物品**明确不做逐 item 还原**
+     *       （用户 2026-09-22 裁定："明确不做，但必须如实记账"）；</li>
+     *   <li>{@link #BLOCK_ENTITY} —— 其余带方块实体的方块（告示牌文字 / 蜂巢 / 刷怪笼 / **模组机器**）
+     *       ⇒ NBT 丢失。⚠️ 未知模组一律**如实记为不可逆**，不猜它的语义（项目纪律：未知能力默认只读）；</li>
+     *   <li>{@link #FLUID} —— 流体方块本身（水/岩浆）。`BlockBreakSafety` 已一律拒挖
+     *       ⇒ 生产里这一族的计数应当恒为 0；留在表里是为了让"0 次"也有口径可读。</li>
+     * </ul>
+     *
+     * <p>⚠️ **它不管授权**：调用点在**执行器**（方块真的被写掉之后）⇒ 到那里时授权早已判定完毕。
+     */
+    public enum Lossy {
+        CONTAINER_CONTENTS("container_contents"),
+        BLOCK_ENTITY("block_entity"),
+        FLUID("fluid");
+
+        private final String code;
+
+        Lossy(String code) {
+            this.code = code;
+        }
+
+        public String code() {
+            return code;
+        }
+    }
+
+    /** `RC3` 明细环上限（只影响诊断可读性，不影响计数）。 */
+    private static final int LOSSY_DETAIL_CAP = 16;
+
+    /**
+     * 这个方块被我方写掉之后，**内容/数据还能还原吗**（{@code null} = 可逆）。
+     *
+     * <p>⚠️ 这是"不可逆族"的**唯一判据入口**（`container_contents` → `block_entity` → `fluid` 的**顺序**
+     * 就是优先级：容器比"带方块实体"更具体）。门禁 `rule_lossy_write_accounted` 钉住它 + 钉住调用点。
+     */
+    public static Lossy lossyOf(BlockState state) {
+        if (state == null || state.isAir()) {
+            return null;
+        }
+        if (ContainerSemantics.of(state) != null) {
+            return Lossy.CONTAINER_CONTENTS;
+        }
+        if (state.hasBlockEntity()) {
+            return Lossy.BLOCK_ENTITY;
+        }
+        if (!state.getFluidState().isEmpty()) {
+            return Lossy.FLUID;
+        }
+        return null;
+    }
+
+    /**
+     * ⭐ `RC3`：记一笔**真的发生了**的不可逆世界修改（方块已经被我方写掉）。
+     *
+     * <p>**不静默**：每次一条 `[Ledger] cannot_reclaim …`（位置 / 方块 / 族 / 归因），并且进
+     * {@link Population} ⇒ 每个闭合点（电池步 / 编排器 / 生产收尾）的读数里都能看到窗口差值。
+     * ⚠️ **不做逐 item 还原**是裁定（`§4.1 C`），这条记录就是那个裁定的**可见性**：
+     * 不许把"内容拿不回来"讲成"已还原"。
+     *
+     * @param by 归因（执行器/授权描述，例如 {@code grant.describe()}）；**不许传 null**
+     */
+    public static void recordLossyWrite(ServerLevel level, BlockPos pos, BlockState state, String by) {
+        MinecraftServer server = level == null ? null : level.getServer();
+        if (server == null) {
+            return;
+        }
+        Lossy lossy = lossyOf(state);
+        if (lossy == null) {
+            return;
+        }
+        WorldModLedger ledger = get(server);
+        ledger.lossyFamily[lossy.ordinal()]++;
+        ledger.setDirty();
+        ledger.lossyDetails.add(pos.toShortString() + " " + blockId(state) + " " + lossy.code()
+                + " by=" + by);
+        while (ledger.lossyDetails.size() > LOSSY_DETAIL_CAP) {
+            ledger.lossyDetails.remove(0);
+        }
+        BotLog.warn("[Ledger] cannot_reclaim {} {} reason={} by={}"
+                        + "（不可逆：不做逐 item 还原；本进程该族累计 {}）",
+                pos.toShortString(), blockId(state), lossy.code(), by,
+                ledger.lossyFamily[lossy.ordinal()]);
+    }
+
+    /**
+     * ⭐ `RC3`：记一次**被守卫拦下**的不可逆写入（`beginBreak` 执行器入口，不是搜索路径）。
+     *
+     * <p>为什么要有这一半：`cannot_reclaim=0` 有两个完全不同的含义 —— "走了 N 次破坏、一次带数据的
+     * 方块都没碰上"与"守卫根本不在/没在看"。和 {@link #outsideSkipCount} 是同一个理由
+     * （`silent-measurement-failure`：`0` 必须排除"读错了"这一解释）。
+     * ⚠️ 必须**只在执行器入口**计数：搜索路径（`breakable`）会反复问同一格 ⇒ 计数会失真成噪声。
+     */
+    public static void recordLossyRefusal(ServerLevel level, BlockPos pos, BlockState state,
+                                          String refusal, String by) {
+        MinecraftServer server = level == null ? null : level.getServer();
+        if (server == null) {
+            return;
+        }
+        Lossy lossy = lossyOf(state);
+        if (lossy == null) {
+            return;
+        }
+        WorldModLedger ledger = get(server);
+        ledger.lossyRefusals++;
+        ledger.setDirty();
+        BotLog.info("[Ledger] lossy_refused {} {} reason={} refusal={} by={}"
+                        + "（守卫拦下 ⇒ 本轮没有产生不可逆写入；累计 {}）",
+                pos.toShortString(), blockId(state), lossy.code(), refusal, by,
+                ledger.lossyRefusals);
+    }
+
+    /** ⭐ `RC3`：本进程**真的发生**的不可逆写入次数（各族之和；配合 {@link Population} 做窗口差值）。 */
+    public static int lossyWriteCount(MinecraftServer server) {
+        int sum = 0;
+        for (int n : get(server).lossyFamily) {
+            sum += n;
+        }
+        return sum;
+    }
+
+    /** ⭐ `RC3`：本进程被拦下的不可逆写入次数（人口读数，见 {@link #recordLossyRefusal}）。 */
+    public static int lossyRefusalCount(MinecraftServer server) {
+        return get(server).lossyRefusals;
+    }
+
+    /** ⭐ `RC3`：按族的累计计数（日志/夹具读数用；顺序 = {@link Lossy#values()}）。 */
+    public static int[] lossyFamilyCounts(MinecraftServer server) {
+        return get(server).lossyFamily.clone();
+    }
+
+    /** ⭐ `RC3`：最近的不可逆明细（最多 {@link #LOSSY_DETAIL_CAP} 条，最旧在前）。 */
+    public static List<String> lossyDetails(MinecraftServer server) {
+        return List.copyOf(get(server).lossyDetails);
+    }
+
+    /**
      * ⭐ `D-398`：**本次进程内被跳过的"区外放置"次数**（遥测读数，不参与任何判据的通过/失败）。
      *
      * <p>为什么要有：账本"区外恒为空"这条断言**在没有任何写入时也成立**（空跑假绿）⇒ 光看账本空
@@ -292,14 +440,18 @@ public final class WorldModLedger extends SavedData {
      * <p>为什么要两个数一起取：只取"区外跳过"会把"什么都没发生"与"写了但全在区外"混起来，
      * 只取"记账次数"则反之。这对数就是 {@link Closure} 判别"空"是哪种空的依据。
      */
-    public record Population(int wildSkipped, int recorded) {
-        public static final Population ZERO = new Population(0, 0);
+    public record Population(int wildSkipped, int recorded, int lossyWrites, int lossyRefusals) {
+        public static final Population ZERO = new Population(0, 0, 0, 0);
     }
 
     /** 取当前人口基线（步/任务起点调用；配合 {@link #closure}）。 */
     public static Population populationBaseline(MinecraftServer server) {
         WorldModLedger ledger = get(server);
-        return new Population(ledger.outsideSkips, ledger.recorded);
+        int lossy = 0;
+        for (int n : ledger.lossyFamily) {
+            lossy += n;
+        }
+        return new Population(ledger.outsideSkips, ledger.recorded, lossy, ledger.lossyRefusals);
     }
 
     /** 移除一条记录（该放置已被我方配对拆除）。 */
@@ -420,6 +572,11 @@ public final class WorldModLedger extends SavedData {
      *   <li>{@code recordedSince} —— 窗口内**真正记进账本**的放置次数（>0 ⇒ "空"= 收干净了）；</li>
      *   <li>{@code wildSkippedSince} —— 窗口内被跳过的区外放置次数
      *       （>0 而 {@code recordedSince=0} ⇒ **这段期间的世界修改全在区外**，本读数**不含**它们）。</li>
+     *   <li>⭐ `RC3`（2026-09-24）{@code lossyWritesSince} —— 窗口内**真的发生**的不可逆写入次数
+     *       （破了带数据的方块：容器内容/NBT/流体）⇒ 这些修改**不会**变成"回收义务"，只会留在
+     *       `[Ledger] cannot_reclaim` 明细里；把它印在这里，是为了让"账本空"**不能**被读成"没写过世界"；</li>
+     *   <li>⭐ {@code lossyRefusalsSince} —— 窗口内被守卫**拦下**的不可逆写入次数（人口读数：
+     *       {@code lossy=+0} 配上它才分得清"一次都没遇上"与"守卫不在"）。</li>
      * </ul>
      *
      * <p>⚠️ 本记录**自己不下判决**（它不判"空是不是问题"）：它只保证调用方与读日志的人
@@ -428,7 +585,8 @@ public final class WorldModLedger extends SavedData {
      *
      * @param skipBaseline 任务/步开始时的 {@link #outsideSkipCount}（无基线概念时传 -1 ⇒ 不做差值）
      */
-    public record Closure(int inZone, int wildInLedger, int recordedSince, int wildSkippedSince) {
+    public record Closure(int inZone, int wildInLedger, int recordedSince, int wildSkippedSince,
+                          int lossyWritesSince, int lossyRefusalsSince) {
 
         /** 两个"账本里的条目数"都是 0 ⇒ **账本为空**（空不等于"干净"，见类 javadoc）。 */
         public boolean empty() {
@@ -440,9 +598,15 @@ public final class WorldModLedger extends SavedData {
             return recordedSince == 0;
         }
 
-        /** 窗口里**有没有发生过任何世界修改**（记账的 + 被跳过的）。 */
+        /**
+         * 窗口里**有没有发生过任何世界修改**（记账的 + 被跳过的 + ⭐`RC3` 不可逆的）。
+         *
+         * <p>⚠️ `RC3` 那一项不能漏：破掉一个箱子**不产生任何回收义务**（`recorded=0`、`wildSkipped=0`）
+         * ⇒ 漏了它，本读数会在"我们刚把世界改了"的时候说"**本窗口没写过世界**"（正是 `D-403`
+         * "不许把不可逆说成可逆"要防的那种谎）。
+         */
         public boolean anythingHappened() {
-            return recordedSince > 0 || wildSkippedSince > 0;
+            return recordedSince > 0 || wildSkippedSince > 0 || lossyWritesSince > 0;
         }
 
         /**
@@ -453,7 +617,8 @@ public final class WorldModLedger extends SavedData {
          */
         public String describe() {
             String base = "inZone=" + inZone + " wildInLedger=" + wildInLedger
-                    + " recorded=+" + recordedSince + " wildSkipped=+" + wildSkippedSince;
+                    + " recorded=+" + recordedSince + " wildSkipped=+" + wildSkippedSince
+                    + " lossy=+" + lossyWritesSince + " lossyRefused=+" + lossyRefusalsSince;
             if (!empty()) {
                 return base;
             }
@@ -463,6 +628,10 @@ public final class WorldModLedger extends SavedData {
             if (wildSkippedSince > 0) {
                 return base + "（⚠️ 本窗口**没有任何记账**：这 " + wildSkippedSince
                         + " 次修改**全在区外** ⇒ 本读数不含它们）";
+            }
+            if (lossyWritesSince > 0) {
+                return base + "（⚠️ 本窗口**没有任何记账**，但发生过 " + lossyWritesSince
+                        + " 次**不可逆**写入：见 `[Ledger] cannot_reclaim` —— 别把它读成「没写过世界」）";
             }
             return base + "（本窗口没写过世界：既无区内记账，也无区外放置）";
         }
@@ -481,17 +650,22 @@ public final class WorldModLedger extends SavedData {
     public static Closure closure(ServerLevel level, String scopeId, Population baseline) {
         MinecraftServer server = level.getServer();
         if (server == null) {
-            return new Closure(0, 0, 0, 0);
+            return new Closure(0, 0, 0, 0, 0, 0);
         }
         int inZone = pendingTemporaryProtected(level, scopeId).size();
         int raw = pendingTemporary(server, scopeId).size();
         // `raw - inZone` = 裸视图里那些**区外**条目（两个视图的唯一差别就是这个过滤器）
         if (baseline == null) {
-            return new Closure(inZone, raw - inZone, -1, -1);
+            return new Closure(inZone, raw - inZone, -1, -1, -1, -1);
         }
         WorldModLedger ledger = get(server);
+        int lossy = 0;
+        for (int n : ledger.lossyFamily) {
+            lossy += n;
+        }
         return new Closure(inZone, raw - inZone,
-                ledger.recorded - baseline.recorded(), ledger.outsideSkips - baseline.wildSkipped());
+                ledger.recorded - baseline.recorded(), ledger.outsideSkips - baseline.wildSkipped(),
+                lossy - baseline.lossyWrites(), ledger.lossyRefusals - baseline.lossyRefusals());
     }
 
     /** 某个作用域下未清除的记录。 */
@@ -521,6 +695,9 @@ public final class WorldModLedger extends SavedData {
         ledger.openScopes.clear();
         ledger.outsideSkips = 0;
         ledger.recorded = 0;
+        java.util.Arrays.fill(ledger.lossyFamily, 0);
+        ledger.lossyRefusals = 0;
+        ledger.lossyDetails.clear();
         ledger.setDirty();
     }
 
@@ -539,6 +716,12 @@ public final class WorldModLedger extends SavedData {
         ledger.scopeSeq = root.getInt("scopeSeq");
         ledger.outsideSkips = root.getInt("outsideSkips");
         ledger.recorded = root.getInt("recorded");
+        // ⭐ `RC3`：不可逆计数**要跨会话留着**（"不改"的是还原，不是记录）；旧存档没有这个键 ⇒ 全 0。
+        int[] lossy = root.getIntArray("lossyFamily");
+        for (int i = 0; i < Math.min(lossy.length, ledger.lossyFamily.length); i++) {
+            ledger.lossyFamily[i] = lossy[i];
+        }
+        ledger.lossyRefusals = root.getInt("lossyRefusals");
         ListTag list = root.getList("entries", CompoundTag.TAG_COMPOUND);
         for (int i = 0; i < list.size(); i++) {
             CompoundTag tag = list.getCompound(i);
@@ -572,6 +755,8 @@ public final class WorldModLedger extends SavedData {
         root.putInt("scopeSeq", scopeSeq);
         root.putInt("outsideSkips", outsideSkips);
         root.putInt("recorded", recorded);
+        root.putIntArray("lossyFamily", lossyFamily);
+        root.putInt("lossyRefusals", lossyRefusals);
         ListTag list = new ListTag();
         for (Entry entry : entries.values()) {
             CompoundTag tag = new CompoundTag();

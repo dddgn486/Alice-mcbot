@@ -542,16 +542,23 @@ public final class BlockInteraction {
                 BotLog.warn("[WRITE-REFUSED] break pos={} by={} reason={}（清障不得吃掉任务目标；"
                                 + "对照 Baritone MovementHelper.avoidBreaking:68）",
                         pos.toShortString(), grant.describe(), protectedTarget);
+                // ⭐ `RC3`：这一格若"带着数据"（容器/方块实体/流体），把它记成**被拦下的不可逆写入**
+                // （⇒ 闭合读数里的 `lossy=+0` 才有"没弄丢东西"的含义；非不可逆方块上是空操作）。
+                com.dddgn.alice.ledger.WorldModLedger.recordLossyRefusal(level, pos,
+                        level.getBlockState(pos), protectedTarget, grant.describe());
                 return null;
             }
         }
         if (WriteBudget.consumeBreak(bot, level, pos, grant) == WriteBudget.Verdict.REFUSED) {
             BotLog.warn("[WRITE-REFUSED] break pos={} by={} reason=write_budget_exhausted {}",
                     pos.toShortString(), grant == null ? "-" : grant.describe(), WriteBudget.describe(bot));
+            com.dddgn.alice.ledger.WorldModLedger.recordLossyRefusal(level, pos,
+                    level.getBlockState(pos), WriteBudget.EXHAUSTED_CODE,
+                    grant == null ? "unknown" : grant.describe());
             return null;
         }
         WriteAudit.breakWrite(level, pos, level.getBlockState(pos), grant);
-        return BlockBreakSession.begin(bot, level, pos);
+        return BlockBreakSession.begin(bot, level, pos, grant);
     }
 
     /**
@@ -643,6 +650,9 @@ public final class BlockInteraction {
             return false;
         }
         WriteAudit.breakWrite(level, pos, before, grant);
+        // ⭐ `RC3`：批量破坏是**另一条真的改世界的路**（`level.destroyBlock`）⇒ 同一套不可逆记账。
+        com.dddgn.alice.ledger.WorldModLedger.recordLossyWrite(level, pos, before,
+                grant == null ? "bulk-edit" : grant.describe());
         return true;
     }
 }

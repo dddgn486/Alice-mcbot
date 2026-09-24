@@ -3,6 +3,7 @@ package com.dddgn.alice.task.check.modules;
 import com.dddgn.alice.task.ClearGuardCheckTask;
 import com.dddgn.alice.task.ClearRetryCheckTask;
 import com.dddgn.alice.task.LedgerZoneScopeCheckTask;
+import com.dddgn.alice.task.LossyWriteAccountedCheckTask;
 import com.dddgn.alice.task.ScaffoldLifecycleTask;
 import com.dddgn.alice.task.WriteBudgetCheckTask;
 import com.dddgn.alice.task.check.CheckContext;
@@ -48,6 +49,11 @@ public final class LedgerModule implements CheckModule {
                 // 留一块方块不回收**（`D-398` R2 的直接后果）⇒ 与其它"会改世界"的取证夹具同档，
                 // 只适合 `single:ledger_zone_scope` / `module:ledger` 单独跑。
                 CheckStep.of("ledger_zone_scope", CheckProfile.EXTRA, List.of(), null,
-                        () -> new LedgerZoneScopeCheckTask(ctx.bot(), ctx.observer()), 2400));
+                        () -> new LedgerZoneScopeCheckTask(ctx.bot(), ctx.observer()), 2400),
+                // ⭐ `RC3`（2026-09-24）：**不可逆写入的如实记账**。EXTRA：它自建场景、真的破掉
+                // 一个装着钻石的箱子 + 一个告示牌（**故意**让内容物拿不回来），只适合
+                // `single:lossy_write_accounted` / `module:ledger` 单独跑。
+                CheckStep.of("lossy_write_accounted", CheckProfile.EXTRA, List.of(), null,
+                        () -> new LossyWriteAccountedCheckTask(ctx.bot(), ctx.observer()), 900));
     }
 }

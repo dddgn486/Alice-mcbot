@@ -6,6 +6,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import com.dddgn.alice.action.WriteGrant;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -31,6 +32,12 @@ public final class BlockBreakSession {
     private final ServerLevel level;
     private final BlockPos pos;
     private final int maxTicks;
+    /**
+     * ⭐ `RC3`：**归因**（授权描述）—— 破坏真的发生时用它记一笔"不可逆"（见
+     * {@link com.dddgn.alice.ledger.WorldModLedger#recordLossyWrite}）。
+     * 允许为空串（夹具直接开会话时没有 grant），但**生产路径必须传**。
+     */
+    private final String by;
 
     private Status status = Status.IN_PROGRESS;
     private String failureCode = "";
@@ -39,15 +46,24 @@ public final class BlockBreakSession {
     private boolean started;
     private Direction face = Direction.UP;
 
-    private BlockBreakSession(ServerPlayer bot, ServerLevel level, BlockPos pos, int maxTicks) {
+    private BlockBreakSession(ServerPlayer bot, ServerLevel level, BlockPos pos, int maxTicks,
+                              String by) {
         this.bot = bot;
         this.level = level;
         this.pos = pos.immutable();
         this.maxTicks = maxTicks;
+        this.by = by == null ? "unknown" : by;
     }
 
     public static BlockBreakSession begin(ServerPlayer bot, ServerLevel level, BlockPos pos) {
-        return new BlockBreakSession(bot, level, pos, MAX_BREAK_TICKS);
+        return begin(bot, level, pos, null);
+    }
+
+    /** ⭐ `RC3`：带**归因**开会话（生产路径用这个 ⇒ 不可逆写入能追到是谁授权的）。 */
+    public static BlockBreakSession begin(ServerPlayer bot, ServerLevel level, BlockPos pos,
+                                          WriteGrant grant) {
+        return new BlockBreakSession(bot, level, pos, MAX_BREAK_TICKS,
+                grant == null ? "unknown" : grant.describe());
     }
 
     public BlockPos pos() {
@@ -119,6 +135,11 @@ public final class BlockBreakSession {
                         thirdPartyNote());
                 return fail("REFUSED");
             }
+            // ⭐ `RC3`（2026-09-24）：**破坏真的发生了** ⇒ 若这一格带着拿不回来的数据（容器内容 /
+            // 方块实体 NBT / 流体），**如实记一笔**（不做逐 item 还原是裁定，但"不许假装可逆"）。
+            // 位置：放在 `after == before` 判据**之后** —— 世界没变就不算写成功（`D-323`），
+            // 也就不该记成"我们弄丢了东西"。
+            com.dddgn.alice.ledger.WorldModLedger.recordLossyWrite(level, pos, before, by);
             level.sendBlockUpdated(pos, before, after, 3);
             status = Status.DONE;
             BotLog.info("block_break_done bot={} pos={} ticks={}", bot.getName().getString(),
