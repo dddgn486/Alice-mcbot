@@ -15,7 +15,7 @@
 | 作业种类（它**能接什么活**） | 5 | §2 |
 | 移动原语（它**能怎么动**） | 10（其中改世界 5） | §3 |
 | 自检模块 | 21 | §4.1 |
-| 自检步（能力清单用它证明自己） | 93 = BASELINE 15 + MAIN 26 + EXTRA 52（**CORE 实跑 41**） | §4.2 |
+| 自检步（能力清单用它证明自己） | 94 = BASELINE 15 + MAIN 26 + EXTRA 53（**CORE 实跑 41**） | §4.2 |
 | 机器类型（上游已登记） | 59 行 | §5 |
 | 玩家能调的开关 | 3 | §6 |
 | 底线（**任何玩家入口都不许出现**） | 3 | §7 |
@@ -75,7 +75,7 @@
 
 | 模块 id | 标题 | 期望判决 | 步数 | 电池内？ |
 |---|---|---|---|---|
-| `ledger` | 账本 / 写入预算 / 场景清理 | `PASS` | 5 | ✅ |
+| `ledger` | 账本 / 写入预算 / 场景清理 | `PASS` | 6 | ✅ |
 | `harness_self` | 编排器自检（故意被外部命令打断两次） | `FAIL` | 3 | ❌（豁免：整模块 expectedVerdict=FAIL（故意被打断两次）⇒ 只由 module:harness_self 单独跑，不进电池） |
 | `pathing` | 移动执行（落差 / 竖井 / 停表） | `PASS` | 10 | ✅ |
 | `decision` | 决策 / 观测 / 归因 | `PASS` | 5 | ✅ |
@@ -97,7 +97,7 @@
 | `ownership` | 假人归属（创建者登记 / 认领单向 / 存档往返 / 老存档不猜） | `PASS` | 1 | ✅ |
 | `break_refused` | 破坏被拒（世界事实判定 / 冒险模式 / FTB 认领 / 不许谎报成功） | `PASS` | 1 | ✅ |
 
-### §4.2 电池步（93 步；`#` = CORE 运行序，`—` = 只在 FULL 跑）
+### §4.2 电池步（94 步；`#` = CORE 运行序，`—` = 只在 FULL 跑）
 
 | # | 步名 | 档位 | 来源 |
 |---|---|---|---|
@@ -106,6 +106,7 @@
 | 3 | `scaffold` | BASELINE | ledger |
 | 4 | `clear_guard` | BASELINE | ledger |
 | — | `ledger_zone_scope` | EXTRA | ledger |
+| — | `lossy_write_accounted` | EXTRA | ledger |
 | — | `lumber_failure` | EXTRA | lumber |
 | 5 | `lumber_job` | BASELINE | lumber |
 | — | `region_maintain` | EXTRA | lumber |
