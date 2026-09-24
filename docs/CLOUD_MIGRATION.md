@@ -280,7 +280,16 @@ tar -xzf dsh-state-*.tar.gz -C ~ && chmod 600 ~/.dsh/.credentials.yaml ~/.dsh/se
 
 | 入口 | 能干什么 | 代价 |
 |---|---|---|
-| `http://127.0.0.1:3181/?token=…`（`tools/codespace-zero.sh tunnel`）| ✅ 全部（含设置/模型/插件配置） | 需要本机挂着隧道；令牌每次重启变 |
+| `http://127.0.0.1:3181/?token=…`（`tools/codespace-zero.sh tunnel` 前台 / **`tunnel-bg` 常驻**）| ✅ 全部（含设置/模型/插件配置） | 需要本机挂着隧道；令牌每次重启变 |
+
+**⭐ 电脑重启 / codespace 被空闲停掉之后，一条命令恢复（2026-09-23 已实测）**：
+
+```bash
+bash tools/codespace-zero.sh tunnel-bg humble-tribble-97pv59gw5rg62prg5
+```
+
+它做三件事：① 远端 `dsh web` 不在就起（并自动唤醒 codespace）；② `setsid` 挂**自带重连**的隧道（日志 `~/.dsh-cloud-tunnel.log`，`ServerAliveInterval=30`）；③ 打印**带新令牌**的回环 URL。
+⚠️ 容器文件系统在 stop/start 之间**会保留**（实测：`.credentials.yaml`、profile、bundles、仓库全在），但**进程不会** ⇒ 每次唤醒都要重起服务（`tunnel-bg` 已代做）。
 | `https://<名>-3081.app.github.dev/?token=…` | 只能对话；**设置页永久不可用**（§9-24） | 无需本机任何东西 |
 
 **零期判据**：1–4 ✅（`verify` 全绿；`compileJava OK`、`check-all` 见日志）· 5 ✅（用户实测能发起对话）· 6/7 ✅（云端编译 + 离线门禁通过）· 8 ⏳ 未做（两前端并发）· 入口的"设置页可用"✅（**真浏览器** headless Chrome 实测：回环入口下模型选择器/余额/插件设置面板正常渲染，无 §9-24 那句报错）。

@@ -19,6 +19,7 @@
 #   tools/codespace-zero.sh verify <name>     # 零期判据 1–4、6、7（node/java/dsh/配置/编译/门禁）
 #   tools/codespace-zero.sh start  <name>     # 后台起 dsh web + 打印外部 URL + 端口设 private
 #   tools/codespace-zero.sh tunnel <name>     # ⭐ 推荐入口：SSH 隧道到本地回环 + 打印带令牌的回环 URL
+#   tools/codespace-zero.sh tunnel-bg <name>  # ⭐⭐ 常驻恢复：确保云端服务在跑 + 挂自动重连的隧道（重启电脑后用这条）
 #   tools/codespace-zero.sh url    <name>     # 只打印转发 URL（⚠️ 走它打开时设置页不可用，见 tunnel 的说明）
 #   tools/codespace-zero.sh list              # 列 codespaces
 #   tools/codespace-zero.sh down   <name>     # 停（stop）；`destroy` 才删
@@ -184,15 +185,44 @@ cmd_tunnel() {
     need_gh
     local name="${1:?用法: tunnel <codespace 名> [本地端口，默认 3181]}"
     local lp="${2:-3181}" token
-    token="$(rsh "$name" 'grep -o "token=[A-Za-z0-9_-]*" ~/dsh-web.log | tail -1' 2>/dev/null | tr -d '\r' | tail -1)"
+    token="$(rsh "$name" 'grep -o "token=[A-Za-z0-9_-]*" ~/dsh-web.log | tail -1' 2>/dev/null | tr -d '\r' | tail -1 | cut -d= -f2)"
     info "为什么要隧道（源码级事实，不是偏好）："
     info '  dsh-client-ui-settings/lib/client.js:1345  persistence = ctx.remote.$host.isLoopback ? "host" : "memory"'
     info '  ⇒ 非回环页面（HTTPS 转发域名）= memory ⇒ 设置镜像 ensure() 直接返回 ⇒ 模型/插件配置永远打不开'
     info '  ⇒ 回环页面（127.0.0.1）= host ⇒ 设置可读可写'
-    printf '\n  ⭐ 浏览器打开： http://127.0.0.1:%s/%s\n\n' "$lp" "${token:-?token=(读不到：远端 ~/dsh-web.log)}"
+    printf '\n  ⭐ 浏览器打开： http://127.0.0.1:%s/?token=%s\n\n' "$lp" "${token:-(读不到：远端 ~/dsh-web.log)}"
     info "下面这条会占住当前终端（保持开着 = 隧道；Ctrl-C 断开）："
     printf '    gh codespace ssh -c %s -- -L %s:127.0.0.1:%s\n\n' "$name" "$lp" "$PORT"
     exec ghc ssh -c "$name" -- -L "$lp:127.0.0.1:$PORT"
+}
+
+remote_token() {   # 读远端 dsh web 日志里的令牌（每次重启服务都会变）
+    local name="$1"
+    rsh "$name" 'grep -o "token=[A-Za-z0-9_-]*" ~/dsh-web.log | tail -1' 2>/dev/null | tr -d '\r' | tail -1 | cut -d= -f2
+}
+
+# ⭐⭐ 常驻版：**本机重启 / codespace 被空闲停掉**之后，一条命令恢复「云端服务 + 隧道」。
+#     与 tunnel 的区别：tunnel 是前台（占终端，Ctrl-C 断）；tunnel-bg 是 setsid 脱离会话 +
+#     断线自动重连的循环，日志在 ~/.dsh-cloud-tunnel.log。
+cmd_tunnel_bg() {
+    need_gh
+    local name="${1:?用法: tunnel-bg <codespace 名> [本地端口，默认 3181]}"
+    local lp="${2:-3181}" token
+    info "① 确保远端 dsh web 在跑（不在就起；唤醒 codespace 由 gh 自动做）…"
+    rsh "$name" '
+        R=/workspaces/Alice-mcbot; [ -d "$R" ] || R=~/projects/alice
+        if pgrep -f "bin/dsh web" >/dev/null; then echo "远端服务已经在跑"; else
+            cd "$R" && chmod +x tools/codespace-start-dsh.sh
+            nohup env DSH_WORKDIR=/workspaces tools/codespace-start-dsh.sh >> ~/dsh-web.log 2>&1 &
+            sleep 10; tail -3 ~/dsh-web.log
+        fi'
+    info "② 挂常驻隧道（断线自动重连）…"
+    pkill -f "L ${lp}:127.0.0.1:${PORT}" 2>/dev/null || true
+    setsid nohup bash -c "while true; do gh codespace ssh -c $name -- -N -o ServerAliveInterval=30 -o ServerAliveCountMax=6 -o ExitOnForwardFailure=yes -L ${lp}:127.0.0.1:${PORT}; sleep 5; done" >> "$HOME/.dsh-cloud-tunnel.log" 2>&1 &
+    sleep 10
+    info "③ 本地监听 127.0.0.1:${lp} = $(ss -ltn 2>/dev/null | grep -c ":${lp}") 条；自检 HTTP = $(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://127.0.0.1:${lp}/")（401 = 隧道通、只是没带令牌）"
+    token="$(remote_token "$name")"
+    printf '\n  ⭐ 浏览器打开（回环入口 ⇒ 设置页才可用）：\n\n      http://127.0.0.1:%s/?token=%s\n\n' "$lp" "${token:-(读不到：远端 ~/dsh-web.log)}"
 }
 
 cmd_down() { need_gh; local name="${1:?用法: down <codespace 名>}"; ghc stop -c "$name"; info "已停（计费停止，存储仍计）。删除用：gh codespace delete -c $name"; }
@@ -204,6 +234,7 @@ case "${1:-}" in
     verify) shift; cmd_verify "$@" ;;
     start)  shift; cmd_start  "$@" ;;
     tunnel) shift; cmd_tunnel "$@" ;;
+    tunnel-bg) shift; cmd_tunnel_bg "$@" ;;
     url)    shift; cmd_url    "$@" ;;
     list)   cmd_list ;;
     down)   shift; cmd_down   "$@" ;;
