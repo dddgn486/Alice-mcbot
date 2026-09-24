@@ -149,6 +149,11 @@ run_gate             "check-far-goal-usage"   bash tools/check-far-goal-usage.sh
 run_gate             "check-exec-record"      bash tools/check-exec-record.sh
 run_gate             "check-policy-matrix"      bash tools/check-policy-matrix.sh
 run_gate             "check-authz-registry"     bash tools/check-authz-registry.sh
+# 回迁（2026-09-24）：`tools/dsh-session-rollback.mjs` 决定"云端哪些字节要搬回本机" ——
+# 决定错了**不会响**（本机会安静地留一个半截会话）⇒ 自检必须进构建：
+# 分叉判 suffix（只搬前缀之后那段）/ 逐字节相同判 skip / 无公共前缀判 whole / 重建 sha256 必须对得上 /
+# 反向臂：故意改坏一个 part ⇒ rebuild 必须 exit 1。
+run_gate             "check-rollback-delta"   node tools/dsh-session-rollback.mjs selftest
 run_machine_map
 run_gate             "check-scene-connectivity" python3 tools/check-scene-connectivity.py --all
 run_headless_battery

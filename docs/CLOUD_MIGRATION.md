@@ -411,25 +411,36 @@ tools/make-cloud-tunnel-bundle.sh
 | 有 PAT 文件时跑（端口 3186） | 认证 ✓ · 打印回环链接 ✓ · `HTTP 401` ✓ · `-Stop` 后监听残留 **0** ✓ |
 | **模拟新设备**（把 `.gh-token` 移走，PAT 走 `DSH_PAT`） | 同样跑通并打印链接 ✓（测完已把文件恢复） |
 
-## §13 回迁准备（⭐ **只针对本设备**：WSL `/home/fb486/projects/alice`）
+## §13 回迁（⭐ **只针对本设备**：WSL `/home/fb486/projects/alice`）—— **增量版，2026-09-24 重写**
 
 > 用户 2026-09-23：不一定一直留在云端 ⇒ 要先准备回迁；**回迁只针对目前这个设备**。
-> 所以这里不做通用逻辑，只写本机路径（换设备时"回迁"没有意义：云端那份本来就是从本机搬上去的副本）。
+> 用户 2026-09-24 转达 `survey/33` 并指派「**回迁靠你来**」⇒ 当场实做一遍并**重写工具**（详见
+> `docs/reviews/2026-09-24-回迁准备与云端分叉.md`：实测数字、分叉事实、四个坑）。
 
-**一条命令**（已实测跑通，2026-09-24 10:36）：
+**一条命令**（✅ 已实测跑通两次，2026-09-24 10:36 旧版 / **23:01 增量版**）：
 
 ```bash
 bash tools/cloud-rollback.sh            # 可选参数：<codespace 名>
 ```
 
-它做四件事，**都不删远端任何东西**：
+它做八件事，**都不删远端任何东西**：
 
-1. **云端仓库自检**（回迁最怕丢的部分）：未提交改动 / 未推送 commit ⇒ 本次实测 = 都 0；若有则**只报告**，不替云端提交；
+1. **云端仓库自检**：未提交改动 / 未推送 commit（⚠️ "未推送 0"可能是引用过期，见坑 **43**）；只报告，不替云端提交；
 2. **本地同步**：`git pull --ff-only github master` + 刷新 Windows 镜像；
-3. **云端非代码状态打包回本机**（远端 `tar` → `base64` → 本机解码，**两端 sha256 对账**）：本次实测 11 个文件 / 21 K，
-   = **2 个云端会话**（`session.v3.jsonl.zstd`）+ `storages/`（含 `workspace.json`）+ `settings.yaml*` + `profiles/web/package.json`，
-   落在 **Windows 可见**的 `D:\JAVA_projects\alice-backups\cloud-dsh-<时间戳>.tar.gz`；
-4. **打印"能不能被本机 DSH 采纳"的诚实结论 + 收尾清单**。
+3. **云端清单**：会话（含**哈希阶梯**：前 1/2/3…MiB 的 sha256）+ 附件 + 小文件 ⇒ 取回本机；
+4. **本机算增量计划**：只搬"本机没有的那一段"（跳过两端逐字节相同的项）；
+5. **云端按计划切字节**（切在 **zstd 帧起点**上，见坑 **46**）并打包；
+6. **取回 + 重建 + sha256 两端对账** ⇒ 落 **Windows 可见**的 `D:\JAVA_projects\alice-backups\cloud-rollback-<时间戳>\`；
+7. ⭐ **文本出口（层次 b）**：把搬回来的增量解码成 `.jsonl` + **可读 `.md`**（给下一个主工作流读的原文）；
+8. 打印"能不能被本机 DSH 采纳"的诚实结论 + 收尾清单。
+
+**为什么重写（旧版的硬缺陷）**：旧版把**整个** `~/.dsh/sessions` 打包回来 —— 当时云端只有 2 个会话（21 KB，能用）；
+迁移 177 个会话后同一份会变成 **292 MB**（经 base64 过 ssh ≈ 400 MB）⇒ 在"额度快耗尽 + 链路不稳"时**不可用**。
+✅ 增量版本次实测：**要搬 29 项 / 跳过 251 项 ⇒ 传输 9.99 MB，重建 29/29 全部 sha256 通过**。
+
+**回迁的核心事实（工具成立的前提）**：会话日志**只追加**，云端那份是从本机复制出去的
+⇒ 本机文件是云端文件的**前缀**，只需传 `云端[F:]`；分叉点 `F` 由**哈希阶梯**反查（不靠猜）。
+✅ 实测：主会话共同前缀 **90,206,208 B（86.02 MiB）**，拼回后 **98,839,800 B / `sha256 853f5a8be1b56f9b…` = 云端整文件**。
 
 **诚实边界（回迁时别踩）**：
 
@@ -437,12 +448,14 @@ bash tools/cloud-rollback.sh            # 可选参数：<codespace 名>
 |---|---|
 | 代码 | **零成本**：云端已 commit 的东西都在 git（= GitHub = 本机）⇒ 回迁靠 `git pull` 就够 |
 | `settings.yaml` | **本机那份是权威**（云端那份本来就是从本机搬上去的副本，而且 DSH 之后在云端**自己重建过一个**）⇒ 归档只为留证，**不要覆盖本机** |
-| `sessions/`（会话历史） | **归档可读，但不建议直接采纳**：① slug 不同（云端 `--home-vscode-dsh-test--` vs 本机 `--home-fb486-projects--`）⇒ 历史不会出现在同一工作区下；② **版本不同代**（云端 rc.3 / 本机 rc.1）⇒ 会话存储带世代迁移，跨代读取**应当响亮失败**（预期行为，别静默兼容）⇒ 要读就用归档里的原始文件配对应版本的工具 |
+| `sessions/`（会话历史） | ⭐ **归档可读，但不要把归档会话塞回本机 `~/.dsh/sessions/`**：**同一个会话 id 在两端各自长过**（实测主会话两端各 +2.3 MB / +8.6 MB）⇒ 同 id 会与活着的本机分支**互踩**。另有版本代际（云端 rc.3 / 本机 rc.1）⇒ 别指望 DSH 本体静默兼容。**正确读法**：`node tools/dsh-session-log.mjs --file <归档里的 .zstd>`，或直接看回迁产出的 `.md` 文本出口 |
+| ⚠️ `survey/33 §3` 的 slug 理由 | **已过期**：云端工作目录就是 `/home/fb486/projects` ⇒ 两端 slug **相同**（都是 `--home-fb486-projects--`）。层次 (a) 的真实障碍只剩"版本代际 + 同 id 双活" |
 | 插件 | 无需回迁（云端装的是 npm 上的 `dsh-ears` / `dsh-whale-widget`；本机的 `dsh-whale-widget` 反而是 `link:` 开发副本） |
-| 云端机器 | 回迁完成后 **stop** 省额度；确认不要了再 `gh codespace delete -c <名> --force`（不可逆） |
+| 云端机器 | 回迁完成后 **stop** 省额度（⚠️ 实测**空闲超时不会自己停**，见 `survey/32 §4.2`）；确认不要了再 `gh codespace delete -c <名> --force`（不可逆） |
 
-**两个脚本的分工**：`tools/codespace-zero.sh`（WSL 侧遥控：doctor/create/state/verify/start/**tunnel**/**tunnel-bg**/url/down/destroy）·
-`tools/codespace-tunnel.ps1`（Windows 侧，新设备只用 pwsh · 只做"挂隧道 + 打印链接"）· `tools/cloud-rollback.sh`（回迁准备，只对本设备）。
+**脚本分工**：`tools/codespace-zero.sh`（WSL 侧遥控：doctor/create/state/verify/start/**tunnel**/**tunnel-bg**/url/down/destroy）·
+`tools/codespace-tunnel.ps1`（Windows 侧，新设备只用 pwsh · 只做"挂隧道 + 打印链接"）·
+`tools/cloud-rollback.sh`（回迁驱动）· `tools/dsh-session-rollback.mjs`（增量清单/计划/切字节/重建/文本出口，自检进 `check-all`）。
 
 ## §14 ✅ 云端「开发 + 编译 + 无头测试」闭环已跑通（2026-09-24 实测）
 
@@ -591,3 +604,23 @@ bash tools/headless-battery.sh core
   更彻底的选项（需 `wsl --shutdown`，会重启本会话与 WSL 里的服务）：`%USERPROFILE%\.wslconfig` 加 `networkingMode=mirrored`。
   ⚠️ **Windows 侧的管家 / bus-watch 同理**：它们的 `gh` 也需要 `HTTPS_PROXY`（系统代理不够）
   ⇒ 建议设用户级环境变量 `HTTP_PROXY`/`HTTPS_PROXY=http://127.0.0.1:7897`。
+- **43**：⚠️ **云端仓库的"未推送 0"可能是假的**（2026-09-24 回迁时实测）：云端克隆的 `origin/master` 引用**可能从没 fetch 过**
+  ⇒ `git log @{u}..HEAD` 自然为 0，而 GitHub 上其实已经有**别的环境**（勘测员）推的新提交。
+  本次实测：云端 HEAD 停在 `3093e31`，而 GitHub 上已有 `a2e5b05` / `f3f26af`（两份勘测报告），
+  两端的 `git status` 都显示"干净且未推送 0"。**判据**：回迁脚本的 ② 步（本机 `git fetch` + `pull`）才是权威口径，
+  不要把云端那句"未推送 0"当结论。
+- **44**：⭐ **同一个会话 id 可能在两端各自长过（分叉）⇒ 不能按 id 合并**（2026-09-24 实测）：
+  主会话 `session-c83b9b33-…` 在本机与云端**都活着**，共同前缀 **90,206,208 B**，之后本机 +2.3 MB、云端 +8.6 MB
+  ⇒ 把云端那份塞进本机 `~/.dsh/sessions/` 会**与活着的本机分支同 id 互踩**（不是"锦上添花"）。
+  **正解**：当归档读 —— `node tools/dsh-session-log.mjs --file <归档> --out x.jsonl`，或看
+  `tools/cloud-rollback.sh` ⑦ 步产出的 `.md` 文本出口。
+  ⚠️ 另：`survey/33 §3` 说的"slug 不同"**已过期** —— 云端工作目录就是 `/home/fb486/projects`，
+  两端 slug **相同**（都是 `--home-fb486-projects--`）。
+- **45**：⚠️ **"base64 套 base64"传文件有硬上限（Linux 单参数 128 KB）**：`rput` 把文件 base64 后塞进远端脚本，
+  远端脚本又被 base64 一次 ⇒ 体积 ×2.33。实测 84 KB 的增量计划 → 外层参数 ~150 KB ⇒
+  **`gh: Argument list too long`**（现象像"连不上云端"，实则没发出去）。**修**：结构化文件（清单/计划）一律走
+  `gh codespace cp`；小脚本（<20 KB）仍可 base64。
+- **46**：⭐ **增量切字节必须切在 zstd 帧起点上**：哈希阶梯给的偏移是 1 MiB 整数倍，**不是**帧边界
+  ⇒ 从那儿直接切，解码会以"首个魔数不在偏移 0"失败。`tools/dsh-session-rollback.mjs pack` 已改成
+  "从 `≥offset` 的第一个魔数起切"，并把 `start` 写进 manifest，`rebuild` 用 `本机[0,start)` 补前缀
+  ⇒ 还原仍是**逐字节**的（sha256 两端对账已证）。

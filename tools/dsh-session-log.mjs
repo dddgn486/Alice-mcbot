@@ -17,6 +17,7 @@
 //   node tools/dsh-session-log.mjs --grep 'shadowedSeqs' --max 5
 //   node tools/dsh-session-log.mjs --out /tmp/s.jsonl       # 只解码落盘（之后自己 grep）
 //   node tools/dsh-session-log.mjs --json                   # 机器可读
+//   node tools/dsh-session-log.mjs --file <路径> --stats    # ⭐ 直接解**归档里的**会话文件（不查 ~/.dsh；回迁用）
 //
 // 只读保证：从不写入 `~/.dsh`；解码产物默认写 /tmp（可用 --out 改）。
 // 失败即报错：任何一行无法解析为 JSON ⇒ exit 1（磁盘格式带世代迁移 v0→v1→v2→v3，升代后本工具会**响亮地**失效）。
@@ -34,6 +35,8 @@ const flag = (name, def = null) => {
   return i === -1 ? def : (argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : true)
 }
 const SESSIONS_ROOT = path.join(os.homedir(), '.dsh', 'sessions')
+// ⭐ `--file`：直接解一个**指定的**会话文件（回迁/归档场景）——绕开 `~/.dsh` 下的会话发现。
+const FILE_ARG = typeof flag('file', null) === 'string' ? flag('file', null) : null
 const PREVIEW = Number(flag('preview', 300))
 const MAX = Number(flag('max', 20))
 const FULL = argv.includes('--full')
@@ -44,7 +47,8 @@ function die(msg, code = 1) {
   process.exit(code)
 }
 
-if (!fs.existsSync(SESSIONS_ROOT)) die(`找不到会话目录 ${SESSIONS_ROOT}（本机没跑过 DSH？）`)
+if (!FILE_ARG && !fs.existsSync(SESSIONS_ROOT)) die(`找不到会话目录 ${SESSIONS_ROOT}（本机没跑过 DSH？）`)
+if (FILE_ARG && !fs.existsSync(FILE_ARG)) die(`--file 指向的文件不存在：${FILE_ARG}`)
 if (typeof zlib.zstdDecompressSync !== 'function') die(`需要 Node ≥ 22.15 的 zlib.zstdDecompressSync（当前 ${process.version}）`)
 
 /** 枚举所有会话：{id, slug, file, bytes, mtime}。 */
@@ -109,6 +113,10 @@ function decode(file) {
 
 const cut = (s, n = PREVIEW) => (FULL || s.length <= n ? s : `${s.slice(0, n)}…[+${s.length - n} 字]`)
 const findSession = (id) => {
+  if (FILE_ARG) {
+    const st = fs.statSync(FILE_ARG)
+    return { id: `(file) ${path.basename(path.dirname(FILE_ARG))}`, slug: '(file)', file: FILE_ARG, bytes: st.size, mtime: st.mtimeMs }
+  }
   const all = listSessions()
   if (!id) {
     const env = process.env.DSH_SESSION_ID
