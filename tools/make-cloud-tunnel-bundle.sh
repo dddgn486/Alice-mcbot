@@ -26,6 +26,7 @@ mkdir -p "$DEST/presets"
 cp -rf "$REPO/tools/client-agent/presets/." "$DEST/presets/"
 cp -f "$REPO/tools/client-agent/"*.cmd "$DEST/" 2>/dev/null || true   # 含 client-agent.cmd / client-agent-ui.cmd
 cp -f "$REPO/tools/client-agent/"*.ps1 "$DEST/"
+cp -f "$REPO/tools/client-agent/"*.dshpreset "$DEST/"   # 桌面版可导入的预设包
 # 说明文件转成 CRLF + UTF-8 BOM（记事本 / PowerShell 5.1 都友好）
 python3 - "$REPO/tools/cloud-tunnel-README.txt" "$DEST/怎么用.txt" <<'PY'
 import sys, pathlib
