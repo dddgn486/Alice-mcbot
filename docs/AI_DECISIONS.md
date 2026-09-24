@@ -18759,3 +18759,73 @@ CORE 日志里的 `[Grant] 作业级授权 …` / `[Grant] 撤销作业级授权
    并在夹具里加对应场景（先补读数再改）；
 3. 出现「同一格在一次作业里反复重评」⇒ 上限或邻域位串口径不对，先补读数再改；
 4. 真机出现「同格被重评但还是挖不到」⇒ 说明缺的是别的能力（那时执行器路线才有用户）。
+
+---
+
+### D-425：**`P2` Diagonal 切片** —— 对角两侧格准入的**第二处手搓判据**是死码（退役 + 五处注入即红）（2026-09-24）
+
+#### 一、事实（读码可核 + 实跑实证）
+
+`DiagonalExecutionFactory.validate` **先**调规划侧共享谓词 `MovementHelper.canTraverse`，
+**再**手搓一份"两侧格 + 各自 `above()` 必须可穿过"并给出 `DIAGONAL_SIDE_COLLISION`。
+两处算的是**同一批格子、同一个 `canWalkThrough`**：
+
+| 侧 | 侧格定义 | 判据 |
+|---|---|---|
+| 规划（`MovementHelper.canTraverse`，`|dx|=|dz|=1` 分支） | `(from.x+dx, from.y, from.z)` / `(from.x, from.y, from.z+dz)` | 4 项 `canWalkThrough` + **玩家扫掠** `canSweepPlayer` |
+| 执行（`DiagonalExecutionFactory.validate`，已删） | `(to.x, from.y, from.z)` / `(from.x, from.y, to.z)`（`|dx|=1` 时**相等**） | 同 4 项 `canWalkThrough` |
+
+⇒ 侧格被堵时**第一句就返回** `DIAGONAL_INVALID_PRECONDITION` ⇒ 那段是它的**真子集**、**永远不可达**。
+
+**实跑实证（两步，都做了）**：
+1. 把那段**原地复活**（放回 `canTraverse` 之后）⇒ 夹具仍然**全绿**、码仍是
+   `DIAGONAL_INVALID_PRECONDITION` ⇒ **它真的不可达**（不是"我觉得不可达"）；
+2. 把它**挪到 `canTraverse` 之前**（死码变活）⇒ 夹具立刻红（`failures=1`，码变成
+   `DIAGONAL_SIDE_COLLISION`）⇒ 夹具那条判据**真会咬**。
+
+#### 二、Baritone 对照（`D-036`）与差异登记
+
+| 关注点 | Baritone（`movements/MovementDiagonal.java`） | Alice | 判定 |
+|---|---|---|---|
+| 位置集 | `:105-113` `getValidPositions`：`src`/`dest`/两个对角格（升降时加 `above`/`below`） | 几何 `dy==0 && |dx|==|dz|==1`；合法位置集 = `{from,to}` | 有意收窄：升降对角由 `ASCEND`/`DESCEND` 家族负责 ⇒ **登记**，不改 |
+| 侧格（脚位层） | `:194-195` `pb0`/`pb2` + `:220-221` `getMiningDurationTicks(...)` ⇒ **可挖（成本化）**，挑便宜的一侧**破掉走过去** | `canTraverse` 要求两侧**可穿过**（不挖） | 差异 = `D-076` 纯通行红线 ⇒ **有意保留** |
+| 侧格（头位层） | `:229` `pb1` + 后续 mining cost | 同上（`sideX/sideZ.above()`） | 同上 |
+| 升降对角的三层侧格 | `:197-207`（`ATop/AMid/ALow/BTop/BMid/BLow`，`y+2/y+1/y`） | 无（Alice 的 DIAGONAL 只做同高度） | 同上（能力在 `ASCEND`/`DESCEND`） |
+| 门的阻挡 | `:149`、`:203-204`、`:288-294` `isBlockingDoor`（门算 1 tick） | 无专门处理（`canWalkThrough` 覆盖） | 登记（Alice 的门由方块属性表达） |
+
+#### 三、改法（单一来源 + 退役死码）
+
+1. **删掉执行侧那段重复判定**（`K4-P1`：执行工厂不许手搓规划侧已有的判据）；
+2. **退役 `DIAGONAL_SIDE_COLLISION`**（从 `EXECUTOR_REFUSAL_CLASSES` 移除；`K5` 同族：声明了却无人产出的码 = 观测盲区）；
+3. `CAPABILITY_UNRESOLVED_BUDGET` **26 → 25**，并把尺子臂④从"只许减"改成**双向钉死**
+   （涨 ⇒ 红；降了却忘改上限 ⇒ 也红 —— 上限是**读数**，不是"以后再说"的额度）。
+   读数：`未指名能力类=25/25`、`总准入码=75 → 74`。
+
+#### 四、判据（五处注入即红 + 两条夹具实证）
+
+门禁 `rule_diagonal_side_single_source` 五臂：① 执行工厂必须仍引用 `canTraverse`；
+② 执行工厂不许出现 `canWalkThrough(`；③ `canTraverse` 体内必须仍有对角侧格 4 项检查
+（否则"删重复"会退化成"两侧都能穿"）；④ 生产路径（`pathing/`）不许复活该死码；
+⑤ 夹具契约不许被掏空（**要咬断言表达式本身**，不是只咬方法名）。
+
+**五处注入即红**（逐条单独开火）：A 执行侧复活重复判定（三条同时红：K4 未分类 + ② + ④）·
+B 删掉规划侧侧格检查（③）· C 生产路径写回死码字面量（④）· D 掏空夹具判据（⑤）· E 上限与实际值脱钩（K4 臂④双向）。
+⚠️ **D 第一次没红**：那版判据只查 `sideCollisionContract(` 与字面量 ⇒ 把断言换成恒真也能过
+（`RC4` 的"判据太糙"同族教训）⇒ 改成咬 `"DIAGONAL_INVALID_PRECONDITION".equals(code)` 才红。
+
+夹具 `single:place_step_diagonal` 新增 `SIDE` 用例（`checks=17 failures=0`）：
+两侧都空 ⇒ 两侧都接受；侧格摆实心 ⇒ 规划侧假 + 执行侧拒 + ⭐ **码必须是共享谓词那条**；还原后两侧恢复接受。
+
+#### 五、⭐ 一条方法论结论（写给下一片）
+
+**死码的删除，判据只能是静态门禁**：删前删后**行为逐字相同**（这正是"不可达"的定义）——
+所以"跑夹具看不出来"不是判据失灵，而是这件事的本质。夹具在本片的作用是**见证不可达**
+（把重复判定原地复活 ⇒ 仍然全绿）+ 钉住"码必须来自共享谓词"这条**行为**契约。
+
+#### 六、复核触发
+
+1. 出现"对角边上确实需要**区分**侧格被堵与其它不可通行原因"的实证（日志/夹具）⇒ 那时把侧格判定
+   收进**规划侧共享谓词**并给它一个**可达**的码（不是把执行侧那段加回来）；
+2. 有人需要在 Alice 支持 Baritone 的"破掉一侧走过去"⇒ 那是 `D-076` 授权面的变更，**先裁定再动**；
+3. `CAPABILITY_UNRESOLVED_BUDGET` 的双向臂若在别处造成"改了实际值却忘了改上限"的假红 ⇒ 说明该值
+   应该改成**从人口派生**（与 `Z3` 的"额度同源"同一条路），到时候一起做。
