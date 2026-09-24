@@ -217,6 +217,7 @@ public final class WorldModLedger extends SavedData {
         WorldModLedger ledger = get(server);
         List<String> dropped = new ArrayList<>();
         List<String> outside = new ArrayList<>();
+        List<String> unloaded = new ArrayList<>();
         java.util.Iterator<Map.Entry<String, Entry>> it = ledger.entries.entrySet().iterator();
         while (it.hasNext()) {
             Entry entry = it.next().getValue();
@@ -224,6 +225,22 @@ public final class WorldModLedger extends SavedData {
             if (com.dddgn.alice.protection.ProtectionZones.isWild(level, entry.pos())) {
                 outside.add(entry.describe());
                 it.remove();
+                continue;
+            }
+            // ⭐⭐ `RC1`（2026-09-24，**实测逼出来的**）：**未加载的区块不许读** ——
+            // `level.getBlockState(pos)` 在未加载区块上会**强制同步加载**（生成/落盘），
+            // 也就是说：这条"对账"会替一个**玩家根本不在的区块**开图。
+            // 实证（`single:restore_underfoot_safety` 红臂，日志 `run/headless-logs/20260924-085903-*`）：
+            //   ① 夹具把一个 TEMP 条目种在 `+512` 格（`view-distance=10` ⇒ 确定未加载，前提断言绿）；
+            //   ② 本轮**没有**这道守卫时，`buildQueue` 开头的本函数就把它读成 `air` ⇒
+            //      `销掉 1 条已失效条目 …(cobblestone→air)` + 该区块 **`farLoaded=true`**；
+            //   ③ ⇒ `pendingTemporaryProtected` 里已经没有它 ⇒ `pickNext` 的
+            //      `chunk_not_loaded` 分支**根本到不了**（那一轮 `reason=nothing_to_restore`）。
+            //   ⇒ 结论：`RestoreScopeTask` 的"已加载 ⇒ 不碰"必须**同时**落在**所有读方块的对账路径**上，
+            //      否则修复是**惰性的**（力全被上游这一读卸掉了）。
+            // 未加载 ⇒ 现场**无法确证** ⇒ **不读、不销**，留着等那片地真的加载了再判；**不静默**：逐条记日志。
+            if (!level.isLoaded(entry.pos())) {
+                unloaded.add(entry.describe());
                 continue;
             }
             String nowId = blockId(level.getBlockState(entry.pos()));
@@ -244,6 +261,11 @@ public final class WorldModLedger extends SavedData {
             BotLog.info("[Ledger] 销掉 {} 条区外条目（D-398：账本只记保护区内）: {}",
                     outside.size(), String.join(" | ", outside.size() > 8
                             ? outside.subList(0, 8) : outside));
+        }
+        if (!unloaded.isEmpty()) {
+            BotLog.info("[Ledger] 暂不对账 {} 条（区块未加载 ⇒ 不读、不销：不为了对账去开图；`RC1`）: {}",
+                    unloaded.size(), String.join(" | ", unloaded.size() > 8
+                            ? unloaded.subList(0, 8) : unloaded));
         }
         return dropped.size() + outside.size();
     }
