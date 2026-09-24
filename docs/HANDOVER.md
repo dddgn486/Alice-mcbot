@@ -652,3 +652,19 @@
 - **顺带**：`docs/authz/AUTHZ_REGISTRY.csv` 的 L2-1 行是**防过期断言**（声明每个族的码数）⇒ 删码后它立刻红
   （`DIAGONAL` 7→6、总数 118→117）—— 这是门禁按设计工作，已同步。
 - **余下**：`Traverse` → `Pillar` → `Fall`（每片 1–2 个码；Baritone 对照用 `/home/vscode/reference/baritone-1.20.1`）。
+
+### 断点⑤ 补记 2（同日）：`P2` 第二片 `Traverse`（含搭石/破通族）✅ ⇒ **队列下一项 = `P2` 的 `Pillar` 片**
+
+- ⭐ **本片最有价值的产出不是"又对照了一遍"，而是补上了尺子的第三种漏码形态**：
+  `invalid("CODE@" + "…")`（字面量 + 诊断串**拼接**）—— 原正则要求闭引号紧跟大写 ⇒
+  **整条看不见 2 个码**（`PLACE_STEP_AND_TRAVERSE_NO_SWEEP` / `BREAK_AND_TRAVERSE_NO_MID_SUPPORT`），
+  `总准入码` 一直是 74（实际 **76**）。修法 = 正则不要求闭引号 **+ 人口下限** `REFUSAL_CODES_MIN=76`
+  （正则一旦退化回严格 ⇒ 74 < 76 ⇒ **红**）。`D-396` 踩过第二种形态（`describe` 转发），这是第三种。
+- **第二处**：执行侧把 `MovementHelper.bodyPassable` **手搓**成两次 `canWalkThrough`（`D-374` 建那个谓词
+  就是为了收"只查一半"）⇒ 改成同一谓词，**行为逐字相同**（所以判据只能是静态门禁 —— `D-425` 同一条方法论）。
+- **指名 6 个码**（4 个 place-step 族 + 2 个新看见的）⇒ 尺子债 **25 → 21**（`未指名能力类=21/21`）；
+  `PLACE_RESOURCE_UNAVAILABLE` 有意留债（执行期库存事实，不是移动谓词 —— 硬凑出处等于编造）。
+- **新门禁** `rule_place_step_parity`（搭石族两侧谓词六条齐备 + 人口下限）+ **六处注入即红**。
+- **证据**：`single:place_step_descend_clearance` = `PASS checks=27 failures=0`（日志 `run/headless-logs/20260924-130516-*`）·
+  CORE **41/41 PASS**（逐步逐字相同，含总 tick）· `check-all` = `pass=20 warning=2 failed=0`。
+- **余下**：`Pillar`（2 个能力类码）→ `Fall`（8 个）；Baritone 参考树 = `/home/vscode/reference/baritone-1.20.1`。

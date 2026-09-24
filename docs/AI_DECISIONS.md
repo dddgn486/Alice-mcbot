@@ -18829,3 +18829,77 @@ B 删掉规划侧侧格检查（③）· C 生产路径写回死码字面量（�
 2. 有人需要在 Alice 支持 Baritone 的"破掉一侧走过去"⇒ 那是 `D-076` 授权面的变更，**先裁定再动**；
 3. `CAPABILITY_UNRESOLVED_BUDGET` 的双向臂若在别处造成"改了实际值却忘了改上限"的假红 ⇒ 说明该值
    应该改成**从人口派生**（与 `Z3` 的"额度同源"同一条路），到时候一起做。
+
+---
+
+### D-426：**`P2` Traverse 片** —— 尺子的**第三种漏码形态**（拼接）+ 搭石族两侧谓词齐备 + 6 个码指名（2026-09-24）
+
+Baritone 的 `MovementTraverse`（走 **和** 搭桥同一支）在 Alice 被**拆成三支**：`TRAVERSE`（纯走）
+/ `PLACE_STEP_AND_TRAVERSE`（搭石/斜下）/ `BREAK_AND_TRAVERSE`（破通）⇒ 本片按"这一族"一起审。
+
+#### 一、⭐ 抓到的真事实（两条，都可注入复现）
+
+**① 尺子漏码的第三种形态：`invalid("CODE@" + "…")`（字面量 + 诊断串拼接）。**
+`rule_k4_capability_provenance` 的正则原来是 `invalid\\(\\s*(?:describe\\(\\s*)?"([A-Z_]+)"` ——
+**闭引号必须紧跟大写**，于是拼接形态的码**整条看不见**。实测漏了 **2 个**：
+
+| 漏掉的码 | 在哪 | 规划侧同一谓词（出处） |
+|---|---|---|
+| `PLACE_STEP_AND_TRAVERSE_NO_SWEEP` | `PlaceStepAndTraverseExecutionFactory.validate`（带 `from=/to=/…` 诊断串） | `SurfaceMovementProvider.appendPlaceStepAndTraverse` 的 `canSweepPlayer`（`D-376`） |
+| `BREAK_AND_TRAVERSE_NO_MID_SUPPORT` | `BreakAndTraverseExecutionFactory.validate`（带 `from=` 诊断串） | `SurfaceMovementProvider.appendBreakAndTraverse` 的 `canWalkOn(mid)`（`D-379`） |
+
+⇒ 读数后果：`总准入码` 一直是 **74**（实际 **76**）—— 与 `D-396` 登记的第二种形态（经 `describe` 转发）
+同族，这是**第三种**。修法两条一起上：**(a)** 正则不再要求闭引号；**(b)** 新增**人口下限**
+`REFUSAL_CODES_MIN = 76`（正则一旦退化回严格 ⇒ 扫到 74 ⇒ **红**）。
+
+**② 执行侧把 `bodyPassable` 手搓成两次 `canWalkThrough`。**
+`PlaceStepAndTraverseExecutionFactory` 的 `TARGET_BLOCKED` 判据原本是
+`!canWalkThrough(to) || !canWalkThrough(to.above())` —— 那**正是** `MovementHelper.bodyPassable` 的定义
+（`D-374` 建它的理由就是"只查一半"这类错误：真机事故里"脚位可通行 + 头位被挡"的落点在整张图里没有任何入边）。
+规划侧用的是 `bodyPassable`、执行侧手搓 ⇒ **同一判据两份实现**（`K4-P1`）⇒ 改成同一个谓词（**行为逐字相同**）。
+
+#### 二、指名（`P2` 第二批，尺子债 25 → **21**）
+
+| 码 | 类别 | 规划侧出处（可 grep） |
+|---|---|---|
+| `PLACE_STEP_AND_TRAVERSE_TARGET_BLOCKED` | CAPABILITY | `MovementHelper.bodyPassable` |
+| `PLACE_STEP_AND_TRAVERSE_SUPPORT_EXISTS` | CAPABILITY | `MovementHelper.canWalkOn` |
+| `PLACE_STEP_AND_TRAVERSE_PLACE_OCCUPIED` | CAPABILITY | `MovementHelper.canWalkThrough` |
+| `PLACE_NO_VALID_FACE` | CAPABILITY | `BlockInteraction.hasPlacementFace` |
+| `PLACE_STEP_AND_TRAVERSE_NO_SWEEP`（新看见） | CAPABILITY | `MovementHelper.canSweepPlayer` |
+| `BREAK_AND_TRAVERSE_NO_MID_SUPPORT`（新看见） | CAPABILITY | `MovementHelper.canWalkOn` |
+| `PLACE_RESOURCE_UNAVAILABLE` | CAPABILITY | **有意留债**：它是"背包里有没有可放方块"（执行期库存事实），两侧都查 `findPlaceableSlot`，但那不是"规划侧决定边该不该存在"的移动谓词 ⇒ 硬凑出处等于编造 |
+
+读数：`未指名能力类=21/21`（双侧钉死）· `总准入码=74 → 76`。
+
+#### 三、Baritone 对照（`D-036`）与差异登记
+
+| 关注点 | Baritone `movements/MovementTraverse.java` | Alice | 判定 |
+|---|---|---|---|
+| 形态 | "走"（`:84` `canWalkOn(destX, y-1, destZ)` 分支）与"搭桥"（`:125` 起 place 分支、`:149-168` side/back place）在**同一个 Movement** 里 | 拆成 `TRAVERSE` / `PLACE_STEP_AND_TRAVERSE` / `BREAK_AND_TRAVERSE` 三支 | **架构差异**（Alice 用 Movement 类型分类表达"要不要写世界"，便于 `writesAllowed` 计划期剪枝）⇒ 登记，不改 |
+| 落脚 | `canWalkOn(dest)`（+ frost walker / ladder 例外，`:241`） | `canStandCentered(to)`（支撑 + **脚位/头位**两格） | Alice **更严**（Baritone 的 `getValidPositions` 只给 `{src,dest}`，靠运行期 `isSafeToCancel` 兜底） |
+| 扫掠 | 无玩家 AABB 连续扫掠 | `canSweepPlayer`（0.6×1.8 连续盒；`D-376` 的过渡空间就是它） | Alice **更严**（有意：真机 222 tick 顶格边界） |
+| 危险方块 | `:189-192` `avoidWalkingInto(pb0/pb1)`（脚位 + 头位） | `canWalkThrough` 内建 `avoidWalkingInto` | **等价** ✓ |
+| 水 | `isWater(pb0/pb1)`（`:88`，走到水边算 bridge）、`!isLiquid(feet)`（`:269`） | 水位例外在 `canWalkOn`（`D-251`）+ `canWalkThrough` | 差异已登记（`D-025`/`D-251`） |
+| 门 | `MovementTraverse` 不处理门（别处 `canOpenFenceGate`） | 无专门处理 | 登记 |
+
+#### 四、判据（六处注入即红）
+
+新门禁 `rule_place_step_parity`（**搭石族两侧谓词齐备**）：① `PLACE_STEP_SHARED_PREDICATES` 六条
+（`bodyPassable`/`canWalkOn`/`canSweepPlayer`/`canWalkThrough`/`hasPlacementFace`/`findPlaceableSlot`）
+都必须在**执行侧 `validate`** 与**规划侧 `appendPlaceStepAndTraverse`** 里都出现；② 表本身不得短于 6 条（人口）。
+
+**六处注入即红**：A 删执行侧 `canSweepPlayer`（`D-376` 回归）· B 删规划侧 `canWalkOn`（`D-379` 形态）·
+C 删表项（人口）· D 执行侧退回手搓两次 `canWalkThrough`（= 本次修的那处）· E 正则退回严格（`74 < 76` 人口红）·
+F 新增一个拼接形态的未分类码（`FAKE_CONCAT_CODE`）。
+
+⚠️ **与 `D-425` 同一条方法论**：`D`（手搓 ↔ `bodyPassable`）**行为逐字相同** ⇒ 行为判据测不出来，
+**判据只能是静态门禁**；行为侧由既有夹具 `place_step_descend_clearance`（断言"拒绝码必须是 `NO_SWEEP`"）
+与 `place_step_diagonal` 钉住。
+
+#### 五、复核触发
+
+1. 出现"两侧谓词**故意**不齐"的真实需求（例如规划侧不再需要某谓词）⇒ 先裁定，再把该条从
+   `PLACE_STEP_SHARED_PREDICATES` 移除并写明理由（**不许**绕过规则静默删表项 —— 人口臂会红）；
+2. 出现第三种"码看不见"的形态 ⇒ 先补正则 + 抬高 `REFUSAL_CODES_MIN`，再分类；
+3. `PLACE_RESOURCE_UNAVAILABLE` 若真的需要出处 ⇒ 那意味着"库存"要进入规划侧谓词（架构变更），**先裁定**。

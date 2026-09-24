@@ -2787,6 +2787,7 @@ EXECUTOR_REFUSAL_CLASSES = {
     "BREAK_AND_ENTER_UNSUPPORTED_SPEC": ("META", "-"),
     "BREAK_AND_TRAVERSE_INVALID_GEOMETRY": ("META", "-"),
     "BREAK_AND_TRAVERSE_MISSING_CONTEXT": ("META", "-"),
+    "BREAK_AND_TRAVERSE_NO_MID_SUPPORT": ("CAPABILITY", "MovementHelper.canWalkOn"),
     "BREAK_AND_TRAVERSE_NOTHING_TO_BREAK": ("CAPABILITY", "-"),
     "BREAK_AND_TRAVERSE_NO_SUPPORT": ("CAPABILITY", "-"),
     "BREAK_AND_TRAVERSE_STALE_START": ("META", "-"),
@@ -2831,30 +2832,47 @@ EXECUTOR_REFUSAL_CLASSES = {
     "PILLAR_PLACE_OCCUPIED": ("CAPABILITY", "-"),
     "PILLAR_STALE_START": ("META", "-"),
     "PILLAR_UNSUPPORTED_SPEC": ("META", "-"),
-    "PLACE_NO_VALID_FACE": ("CAPABILITY", "-"),
+    # ⚠️ `PLACE_RESOURCE_UNAVAILABLE` **有意留未指名**（2026-09-24）：它是"背包里有没有可放方块"
+    # —— 两侧确实都查 `BlockInteraction.findPlaceableSlot`，但那是**执行期库存事实**，
+    # 不是"规划侧决定这条边该不该存在"的移动谓词 ⇒ 硬凑一个出处等于编造（宁可留在债上）。
+    "PLACE_NO_VALID_FACE": ("CAPABILITY", "BlockInteraction.hasPlacementFace"),
     "PLACE_RESOURCE_UNAVAILABLE": ("CAPABILITY", "-"),
     "PLACE_STEP_AND_TRAVERSE_INVALID_GEOMETRY": ("META", "-"),
     "PLACE_STEP_AND_TRAVERSE_MISSING_CONTEXT": ("META", "-"),
-    "PLACE_STEP_AND_TRAVERSE_PLACE_OCCUPIED": ("CAPABILITY", "-"),
+    "PLACE_STEP_AND_TRAVERSE_NO_SWEEP": ("CAPABILITY", "MovementHelper.canSweepPlayer"),
+    "PLACE_STEP_AND_TRAVERSE_PLACE_OCCUPIED": ("CAPABILITY", "MovementHelper.canWalkThrough"),
     "PLACE_STEP_AND_TRAVERSE_STALE_START": ("META", "-"),
-    "PLACE_STEP_AND_TRAVERSE_SUPPORT_EXISTS": ("CAPABILITY", "-"),
-    "PLACE_STEP_AND_TRAVERSE_TARGET_BLOCKED": ("CAPABILITY", "-"),
+    "PLACE_STEP_AND_TRAVERSE_SUPPORT_EXISTS": ("CAPABILITY", "MovementHelper.canWalkOn"),
+    "PLACE_STEP_AND_TRAVERSE_TARGET_BLOCKED": ("CAPABILITY", "MovementHelper.bodyPassable"),
     "PLACE_STEP_AND_TRAVERSE_UNSUPPORTED_SPEC": ("META", "-"),
     "TRAVERSE_INVALID_PRECONDITION": ("META", "-"),
     "TRAVERSE_MISSING_CONTEXT": ("META", "-"),
     "TRAVERSE_STALE_START": ("META", "-"),
     "TRAVERSE_UNSUPPORTED_SPEC": ("META", "-"),
 }
+# 执行侧准入码的**人口下限**（`P2` Traverse 片，2026-09-24）：规则**看得见**的码不得少于这个数。
+# 为什么需要它：正则漏一种形态（`describe` 转发 / 字面量 + 诊断串拼接）时会**静默少扫**，
+# 而"少扫"在读数上与"没新增"长得一样 ⇒ 用一个人口下限把"正则退化"变成红的。
+REFUSAL_CODES_MIN = 76
+
 # 未指名的能力类码上限（**双向**：必须等于当前实际值 —— 每解决一个就把它改小；
 # 新加未指名的能力类码 ⇒ 实际值涨 ⇒ 红。2026-09-24 `P2` Diagonal 切片：26 → **25**
 # （`DIAGONAL_SIDE_COLLISION` 退役：它与 `canTraverse` 内部那段逐格相同 ⇒ 不可达死码，已删）
-CAPABILITY_UNRESOLVED_BUDGET = 25
+# 2026-09-24 `P2` Traverse 片：25 → **21**（`P2` 的"逐个指名"第 2 批）
+# —— 指名 4 个：`PLACE_STEP_AND_TRAVERSE_{TARGET_BLOCKED,SUPPORT_EXISTS,PLACE_OCCUPIED}` + `PLACE_NO_VALID_FACE`
+# （出处见各自条目；`PLACE_RESOURCE_UNAVAILABLE` 有意留债，理由见上）。
+CAPABILITY_UNRESOLVED_BUDGET = 21
 
 
 def rule_k4_capability_provenance():
     """尺子 2：执行侧独有准入必须分类；能力类必须指名规划侧出处（且出处真实存在）。"""
     violations = []
-    pattern = re.compile(r'invalid\(\s*(?:describe\(\s*)?"([A-Z_]+)"')
+    # ⚠️ 2026-09-24（`P2` Traverse 片）：**必须吃掉"字面量 + 诊断串"的拼接形态** ——
+    # `invalid("CODE@" + "from=" + …)`（诊断串换行拼接也算）。原来的 `"([A-Z_]+)"` 要求**闭引号紧跟大写**
+    # ⇒ 这类码**整条看不见**（实测漏了 2 个：`PLACE_STEP_AND_TRAVERSE_NO_SWEEP` 与
+    # `BREAK_AND_TRAVERSE_NO_MID_SUPPORT`）。`D-396` 登记过第二种形态（经 `describe` 转发），这是第三种；
+    # 防复发靠下面的人口下限 `REFUSAL_CODES_MIN`（正则退回严格 ⇒ 人口掉下去 ⇒ 红）。
+    pattern = re.compile(r'invalid\(\s*(?:describe\(\s*)?"([A-Z_]+)')
     seen = {}
     for path in sorted(CORE.glob("*ExecutionFactory.java")):
         if path.name == "MovementExecutionFactory.java":
@@ -2878,6 +2896,10 @@ def rule_k4_capability_provenance():
         name = site.split(".")[-1].rstrip("()")
         if not grep_symbol_exists(name):
             violations.append(f"{code} 指名的规划侧出处 {site} 在仓库里不存在（防编造：出处必须可 grep）")
+    # ③b 人口下限（`P2` Traverse 片）：防"正则退回严格 ⇒ 拼接形态的码又看不见"
+    if len(seen) < REFUSAL_CODES_MIN:
+        violations.append(f"扫到的执行侧准入码只有 {len(seen)} 个，低于人口下限 {REFUSAL_CODES_MIN}"
+                          "（怀疑正则退化：拼接/转发的码又漏了 —— `D-396` 与 `P2` 各踩过一次）")
     # ④ 未指名数**双向**钉死（涨 = 新增漂移；降而不改上限 = 进度没被登记 ⇒ 上限会变成假读数）
     if unresolved > CAPABILITY_UNRESOLVED_BUDGET:
         violations.append(f"未指名的能力类准入码从 {CAPABILITY_UNRESOLVED_BUDGET} 涨到 {unresolved}"
@@ -3517,6 +3539,63 @@ def rule_diagonal_side_single_source():
     return problems
 
 
+# `P2` Traverse 片（2026-09-24）：**"搭石/破通"这一族（Baritone 的 `MovementTraverse` 在 Alice 被拆成
+# `TRAVERSE` + `PLACE_STEP_AND_TRAVERSE` + `BREAK_AND_TRAVERSE`）的规划侧/执行侧必须查同一批谓词**。
+# 为什么需要门禁：`D-376` 的事故形态就是"一侧查了、另一侧没查"（规划产出物理上过不去的段 ⇒ 真机顶着
+# 格边界原地走 222 tick ×2）；`D-379` 是同一形态的另一处（中间列立不住 ⇒ 从中间列掉进水里）。
+PLACE_STEP_SHARED_PREDICATES = (
+    "bodyPassable(",        # 目的地整体通行（脚位 + 头位）
+    "canWalkOn(",          # 目的地支撑 / 中间列支撑
+    "canSweepPlayer(",     # 过过渡空间（`D-376` 的扫掠盒；`NO_SWEEP` 码就来自它）
+    "canWalkThrough(",     # 放置位可替换 / 目标列可穿
+    "hasPlacementFace(",   # 有可用放置面（`PLACE_NO_VALID_FACE`）
+    "findPlaceableSlot(",  # 有可放材料（`PLACE_RESOURCE_UNAVAILABLE`，两侧都查；出处**有意留债**）
+)
+# 人口下限：低于它 ⇒ 红（防"删掉表项让规则静默失效" —— `Z4` 的空集教训）
+PLACE_STEP_SHARED_PREDICATES_MIN = 6
+
+
+def rule_place_step_parity():
+    """`P2` Traverse 片（2026-09-24）：**搭石/破通族的规划侧与执行侧必须查同一批谓词**。
+
+    <h3>为什么（全部是既有事故的形态，不是假想）</h3>
+    ① `D-376`（2026-09-21 真机）：`PLACE_STEP_AND_TRAVERSE` 只查了"站进去放得下"，
+       **没查从上一层走下来的过渡空间** ⇒ 规划产出物理上过不去的段（`segment_stall … segmentTicks=222` ×2）
+       ⇒ 两侧都补 `canSweepPlayer`（执行侧码 = `PLACE_STEP_AND_TRAVERSE_NO_SWEEP`）；
+    ② `D-379`（2026-09-22 真机）：破通移动没查**中间列**立不立得住 ⇒
+       "破坏中间列之后走到 `to`"这个承诺是假的（从中间列掉进水里）⇒ 两侧都补 `canWalkOn(mid)`
+       （执行侧码 = `BREAK_AND_TRAVERSE_NO_MID_SUPPORT`）。
+    ⇒ 判据 = **这些谓词必须同时出现在两侧**；只在一侧 = 回归（要么规划产出执行必拒的边，
+    要么执行放行规划永不会生成的边）。
+
+    <h3>两条臂（各有一条注入）</h3>
+    ① 逐条谓词：`PLACE_STEP_SHARED_PREDICATES` 里每一个都必须在**执行侧**与**规划侧**都出现
+       （注入 A 删执行侧 `canSweepPlayer(` ⇒ 红；注入 B 删规划侧 `canWalkOn(` ⇒ 红）；
+    ② 人口：表本身不得短于 `PLACE_STEP_SHARED_PREDICATES_MIN`（注入 C 删表项 ⇒ 红）。
+    """
+    base = ROOT / "src/main/java/com/dddgn/alice"
+    exec_factory = base / "pathing/core/PlaceStepAndTraverseExecutionFactory.java"
+    provider = base / "pathing/core/search/SurfaceMovementProvider.java"
+    problems = []
+    if len(PLACE_STEP_SHARED_PREDICATES) < PLACE_STEP_SHARED_PREDICATES_MIN:
+        problems.append(f"共享谓词表只剩 {len(PLACE_STEP_SHARED_PREDICATES)} 条（下限 "
+                        f"{PLACE_STEP_SHARED_PREDICATES_MIN}）⇒ 删表项就能让本规则静默失效")
+    for path, side, signature in ((exec_factory, "执行侧", "public ValidationResult validate("),
+                                  (provider, "规划侧", "private static void appendPlaceStepAndTraverse(")):
+        if not path.exists():
+            problems.append(f"{path.name} 不存在（改名？同步本规则 `P2`）")
+            continue
+        body = method_body(code_only(path.read_text(encoding="utf-8")), signature)
+        if not body:
+            problems.append(f"{path.name} 里找不到 {side}的那个方法（{signature}）⇒ 本规则的锚点失效")
+            continue
+        for predicate in PLACE_STEP_SHARED_PREDICATES:
+            if predicate not in body:
+                problems.append(f"{side}（{path.name}）没有查 `{predicate.rstrip('(')}` ⇒ "
+                                "两侧谓词不齐（`D-376`/`D-379` 的事故形态：一侧查了、另一侧没查）")
+    return problems
+
+
 def rule_write_truth_single_source():
     """`RC4`（2026-09-24）：**"我方写了多少世界"只有一个真相；没发生的写入不许留在账上**。
 
@@ -3964,6 +4043,7 @@ def main() -> int:
     z4 = rule_vacuous_assertions_carry_population()
     pl1 = rule_stale_proof_replan()
     diagside = rule_diagonal_side_single_source()
+    psparity = rule_place_step_parity()
     latch = rule_terminal_latch_replays_status()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
@@ -4095,14 +4175,16 @@ def main() -> int:
         print(f"[PL-1·过期证明重评] {line}")
     for line in diagside:
         print(f"[P2·对角侧格单源] {line}")
+    for line in psparity:
+        print(f"[P2·搭石族两侧谓词] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b and not a3 and not p7 and not p3 and not pl1 and not diagside) and not tlb
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b and not a3 and not p7 and not p3 and not pl1 and not diagside and not psparity) and not tlb
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
           f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / tick负载预算={len(tlb)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
-          f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 不可逆写入记账={len(rc3)} / 击杀产物归属={len(a3)} / 非PASS步单列={len(p7)} / 作业级收集授权={len(p3)} / 写入真相同源={len(rc4)} / 重放有界={len(p2b)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)} / 过期证明重评={len(pl1)} / 对角侧格单源={len(diagside)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
+          f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 不可逆写入记账={len(rc3)} / 击杀产物归属={len(a3)} / 非PASS步单列={len(p7)} / 作业级收集授权={len(p3)} / 写入真相同源={len(rc4)} / 重放有界={len(p2b)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)} / 过期证明重评={len(pl1)} / 对角侧格单源={len(diagside)} / 搭石族两侧谓词={len(psparity)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

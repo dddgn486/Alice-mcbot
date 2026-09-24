@@ -41,8 +41,12 @@ public final class PlaceStepAndTraverseExecutionFactory implements MovementExecu
         }
 
         // 目标列可通行且确实缺支撑
-        if (!MovementHelper.canWalkThrough(context.level(), to)
-                || !MovementHelper.canWalkThrough(context.level(), to.above())) {
+        // ⭐ `P2` Traverse 片（2026-09-24）：这里原先**手搓**成两次 `canWalkThrough(to)` /
+        // `canWalkThrough(to.above())` —— 而那正是 `MovementHelper.bodyPassable` 的定义
+        // （`D-374` 建它就是为把"只查一半"这类错误收成一个名字：真机事故里"脚位可通行 + 头位被挡"
+        // 的落点，在整张图里**没有任何入边**）。规划侧用的是 `bodyPassable`、执行侧手搓
+        // ⇒ 同一判据两份实现（`K4-P1`）。改成同一谓词：**行为逐字相同**，判据只留一处。
+        if (!MovementHelper.bodyPassable(context.level(), to)) {
             return ValidationResult.invalid("PLACE_STEP_AND_TRAVERSE_TARGET_BLOCKED");
         }
         if (MovementHelper.canWalkOn(context.level(), to)) {
