@@ -29,14 +29,20 @@ import java.util.Map;
  * 而真机（2026-09-22 10:49）消费的是**列表序**：下一个成员离 bot **6.6 格**（`target=48,63,140`
  * vs `startFoot=45,68,137`）⇒ 每个成员付一次跨 6 格的**昂贵** approach 搜索 ⇒ 30 s 内 33 次 × 196 ms。
  *
- * <h2>判据（两条，都只在"顺序真的改了"时才成立）</h2>
+ * <h2>判据（三条）</h2>
  * <ol>
  *   <li>`job.veinPropagations() > 0` —— 沿脉传播**真的被触发**（否则本夹具测不到被改的那条路径）；</li>
- *   <li>挖到数 ≥ {@link #MIN_MINED}（{@link #ORE_COUNT} 个相邻矿石中的大多数）—— **簇被沿脉挖穿**。</li>
+ *   <li>挖到数 ≥ {@link #MIN_MINED}（{@link #ORE_COUNT} 个相邻矿石中的大多数）—— **簇被沿脉挖穿**；</li>
+ *   <li>⭐ `job.staleProofRetries() > 0` —— `PL-1` 的**过期证明重评**真的被触发
+ *       （否则这条能力是死代码，或者仍被 `already_attempted` 永久挡住）。</li>
  * </ol>
  *
- * <h2>反向对照（红臂）</h2>
- * 注释掉 `MineJob` 里 `enqueueVeinNeighbours(...)` 那一行 ⇒ 第 1 条必红（`veinPropagations=0`）。
+ * <h2>反向对照（两条红臂，各对应一组判据）</h2>
+ * <ol>
+ *   <li>注释掉 `MineJob` 里 `enqueueVeinNeighbours(...)` 那一行 ⇒ 第 1 条必红（`veinPropagations=0`）；</li>
+ *   <li>把 `MineJob.proofExpired(...)` 改成恒 `false`（= 关掉重评，回到"永久了结"）⇒ 第 2/3 条必红
+ *       （实测落回 `mined 12/30`、`staleRetries=0`，与 `PL-1` 之前完全一致 ⇒ 差距确实由这条能力带来）。</li>
+ * </ol>
  *
  * <h2>场景</h2>
  * 孤立**石壳 + 3×2×3 铁矿脉**（18 格，**26 邻接** ⇒ 对角也算一条脉），bot 站在石壳西面的平台上
@@ -65,13 +71,23 @@ public final class MineVeinPropagationCheckTask implements Task {
     /** 矿脉总格数（= 作业配额）。 */
     private static final int ORE_COUNT = (VEIN_DX_MAX + 1) * (VEIN_DY_MAX + 1) * (2 * SHELL_DZ + 1);
     /**
-     * 判据下限 = **2026-09-22 实测的能力上限**（12/30）。
-     * ⚠️ 这是"不许退化"的门，**不是**"簇被挖完"的证明 —— 剩余 18 格见 `D-391`（规划器给不出
-     * 站位/进入方案）；`D-391` 收口后必须把这个值抬到 ~28 并把断言改成"接近挖完"。
+     * 判据下限 = **2026-09-24 实测值**（`30/30`，连跑两次：4421 / 4540 tick）。
+     *
+     * <p>历史：`D-389` 那会儿实测只有 **12/30**（剩余 18 格全 `found_but_unminable`）⇒ 下限只能写 12。
+     * `PL-1` 切片 1 的**过期证明重评**交付后（`MineJob.proofExpired`：失败时记 26 邻域证明，
+     * 只有邻域变了才**有界**重评），同一夹具两跑都是 `mined=30/30` · `orphans=0` · `staleRetries=18`
+     * ⇒ 按实测把下限抬到 **28**（留两格余量：每格的收集阶段时长随掉落物落点波动，见 `D-424`）。
+     * 复核触发：连续三次都是 `30/30` ⇒ 抬到 30（判据只许紧、不许松）。
      */
-    private static final int MIN_MINED = 12;
-    private static final int JOB_MAX_TICKS = 4200;
-    private static final int BUDGET_TICKS = 4600;
+    private static final int MIN_MINED = 28;
+    /**
+     * 作业自己的上限与夹具上限（`PL-1` 2026-09-24 实测重定）：重评机制让"每格都要付一次收集阶段"
+     * （≈130 tick/格）⇒ 挖穿 30 格 ≈ 4400 tick，原 4200/4600 会把作业**卡在最后一格**上收场
+     * （实测 `mined 29/30` + `goal_timeout`）。现在给足余量，让终态由**作业自己达成配额**决定，
+     * 而不是由时钟落点决定 ⇒ 判决可复现（并留一格余量给 MIN_MINED 的判据）。
+     */
+    private static final int JOB_MAX_TICKS = 5200;
+    private static final int BUDGET_TICKS = 5400;
 
     private enum Phase { SETUP, RUN, DONE }
 
@@ -92,6 +108,8 @@ public final class MineVeinPropagationCheckTask implements Task {
     private int veinPropagations;
     private int veinEnqueued;
     private int transientFailures;
+    /** ⭐ `PL-1`：作业**真的重评**过期证明的次数（0 ⇒ 新能力是死代码，夹具会红）。 */
+    private int staleRetries;
 
     public MineVeinPropagationCheckTask(BotPlayer bot, ServerPlayer observer) {
         this.bot = bot;
@@ -159,6 +177,7 @@ public final class MineVeinPropagationCheckTask implements Task {
                         veinPropagations = job.veinPropagations();
                         veinEnqueued = job.veinEnqueued();
                         transientFailures = job.transientFailureCount();
+                        staleRetries = job.staleProofRetries();
                         phase = Phase.DONE;
                         phaseTicks = 0;
                     }
@@ -190,6 +209,7 @@ public final class MineVeinPropagationCheckTask implements Task {
             veinPropagations = job == null ? veinPropagations : job.veinPropagations();
             veinEnqueued = job == null ? veinEnqueued : job.veinEnqueued();
             transientFailures = job == null ? transientFailures : job.transientFailureCount();
+            staleRetries = job == null ? staleRetries : job.staleProofRetries();
         }
         // 超时路径下作业可能还在跑：不再让它继续（`Job` 没有 `cancel()`；置空引用即停在本夹具侧）
         if (totalTicks > BUDGET_TICKS) {
@@ -197,6 +217,10 @@ public final class MineVeinPropagationCheckTask implements Task {
         }
         if (!reported) {
             reported = true;
+            // ⭐ `PL-1` 取证读数（**只读**）：作业终态后复评每一格剩余矿石。
+            // ⚠️ **必须在判据之前**跑 —— 判据行里要印"剩余矿石格"，而它是这个探针数出来的
+            // （2026-09-24 实测踩过：放在判据之后 ⇒ 红臂日志里那行印成"剩余矿石格=0"，与 SUMMARY 的 18 矛盾）。
+            probeOrphans(level);
             check("前提：矿脉真的建起来了（中心是铁矿石、外面是石头）", premiseOre && premiseShell);
             check("⭐ 沿脉传播**必须真的被触发**（`veinPropagations > 0`，实测 " + veinPropagations
                             + "；=0 ⇒ 本夹具没测到被改的那条路径）",
@@ -204,21 +228,26 @@ public final class MineVeinPropagationCheckTask implements Task {
             check("⭐ 沿脉走之后**不许**再出现昂贵搜索被限流（`search_incomplete` 实测 "
                             + transientFailures + " 次；真机同位置是 33 次 × 196 ms ⇒ 卡顿载荷）",
                     transientFailures == 0);
+            check("⭐ `PL-1` **过期证明重评必须真的被触发**（`staleRetries > 0`，实测 " + staleRetries
+                            + "；=0 ⇒ 新能力是死代码，或被 `already_attempted` 永久了结挡住）",
+                    staleRetries > 0);
             // ⚠️ **完成度是读数、不是无条件门**：2026-09-22 实测 12/30 是**当前能力的真实上限** ——
             // 剩下的 18 格全部 `found_but_unminable`（`direct=no_valid_standing_point /
             // tunnel=no_reachable / enter=unreachable`），且把 `MAX_APPROACH_PLANS 3→13` **完全没改变结果**
             // （决定性实验，两次都 12/30）⇒ 瓶颈是"被矿石自己包住的目标"给不出站位/进入方案，
             // **不是** A2 截断、也**不是**搜索预算（本轮 `search_incomplete=0`）。
             // ⇒ 这里只钉"不许比已测值退化"；等 `D-391` 收口后**必须把这个下限抬上去**。
-            check("矿簇完成度不许退化（mined=" + mined + " ≥ " + MIN_MINED + " / " + ORE_COUNT
-                            + "，terminal=" + terminal + "；⚠️ **已测上限就是 12**，"
-                            + "剩余 18 格是 `D-391` 的待收口项）",
+            check("矿簇必须被挖穿（mined=" + mined + " ≥ " + MIN_MINED + " / " + ORE_COUNT
+                            + "，terminal=" + terminal + "，剩余矿石格=" + orphanCount
+                            + "；2026-09-24 实测 30/30）",
                     mined >= MIN_MINED);
             cleanup(level);
             BotLog.info("[VeinProp] SUMMARY checks={} failures={} mined={}/{} veinPropagations={}"
-                            + " veinEnqueued={} transientFailures={} terminal={} ticks={} → {}",
+                            + " veinEnqueued={} transientFailures={} terminal={} ticks={}"
+                            + " orphans={} orphanPlannableNow={} staleRetries={} → {}",
                     checks, failures.size(), mined, ORE_COUNT, veinPropagations, veinEnqueued,
-                    transientFailures, terminal, totalTicks, failures.isEmpty() ? "PASS" : "FAIL");
+                    transientFailures, terminal, totalTicks, orphanCount, orphanPlannable,
+                    staleRetries, failures.isEmpty() ? "PASS" : "FAIL");
             for (String line : findings) {
                 BotLog.info("[VeinProp]   {}", line);
             }
@@ -239,6 +268,44 @@ public final class MineVeinPropagationCheckTask implements Task {
     private boolean reported;
     private boolean premiseOre;
     private boolean premiseShell;
+
+    /**
+     * ⭐ `PL-1` 读数：作业终态后，对每一格**仍是矿石**的目标再规划一次（**只读**）。
+     *
+     * <p>为什么需要它：夹具的 18 个失败目标在**尝试时刻**确实没有可行方案（邻格还是矿石 ⇒ 没有可站格 /
+     * 没有视线），但作业继续挖下去会**改变邻域**（西列被挖空）⇒ 之前那份"无解"证明**过期**。
+     * 光读作业日志分不出这两种情况（`already_attempted` 对两者长得一样）⇒ 必须补这个读数。
+     */
+    private void probeOrphans(ServerLevel level) {
+        com.dddgn.alice.task.mining.MiningPlanner planner = new com.dddgn.alice.task.mining.MiningPlanner();
+        java.util.Map<String, Integer> reasons = new java.util.TreeMap<>();
+        for (int dx = 0; dx <= VEIN_DX_MAX; dx++) {
+            for (int dy = 0; dy <= VEIN_DY_MAX; dy++) {
+                for (int dz = -SHELL_DZ; dz <= SHELL_DZ; dz++) {
+                    BlockPos cell = ORIGIN.offset(dx, dy, dz);
+                    if (!level.getBlockState(cell).is(Blocks.IRON_ORE)) {
+                        continue;
+                    }
+                    orphanCount++;
+                    com.dddgn.alice.task.mining.MiningPlanner.Result result = planner.plan(bot, cell,
+                            com.dddgn.alice.task.mining.MiningBudget.forTarget(bot, level, cell, true), false);
+                    if (result.success()) {
+                        orphanPlannable++;
+                    } else {
+                        reasons.merge(result.failureReason(), 1, Integer::sum);
+                    }
+                    BotLog.info("[VeinProp复评探针] pos={} ok={} mode={} reason={}",
+                            cell.toShortString(), result.success(),
+                            result.plan() == null ? "-" : result.plan().mode(), result.failureReason());
+                }
+            }
+        }
+        BotLog.info("[VeinProp复评探针] SUMMARY 孤儿={} 现在可规划={} 仍然无解={} reasons={}",
+                orphanCount, orphanPlannable, orphanCount - orphanPlannable, reasons);
+    }
+
+    private int orphanCount;
+    private int orphanPlannable;
 
     // ==================== 场景与作业 ====================
 

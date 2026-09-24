@@ -3340,6 +3340,97 @@ def rule_job_area_grant_scoped():
     return problems
 
 
+def rule_stale_proof_replan():
+    """`PL-1` 切片 1（2026-09-24 实测改道）：**"无解"是当时的证明，邻域变了就必须重评（有界）**。
+
+    <h3>为什么（全部是实测，不是推断）</h3>
+    夹具 `mine_vein_propagation`：30 格矿脉只挖到 12，剩 18 格全是 `found_but_unminable`；
+    作业终态后把每一格**重新规划**一遍（只读探针）：**17/18 现在都有方案**（9 `CURRENT` + 8 `TUNNEL`）、
+    剩 1 格是暂时性的 `search_incomplete`。⇒ 卡点是"**失败那一刻的证明被当成了永久事实**"
+    （`P1-b`/`D-388` 的同一家族：`SEARCH_LIMIT ≠ UNREACHABLE` 的姊妹条款
+    "当时无解 ≠ 永远无解"）。真机同病：`336,62,190 从未被挖却已 already_attempted`。
+
+    <h3>六条臂（各有一条注入）</h3>
+    ① 过滤处必须真的**问**"这份证明过期了吗"（注入 A：`withoutAttempted` 不再调 `proofExpired(` ⇒ 红）；
+    ② 过期判据必须是"**记录 vs 当前**比较"（注入 B：把比较换成 `return true` ⇒ 红）；
+    ③ 必须有**上限**（注入 C：删掉 `MAX_STALE_PROOF_RETRIES` 判断 ⇒ 红）；
+    ④ 证明必须在**失败时**记录、且**硬拒绝不记**（注入 D：删 `proofWitness.put(` ⇒ 红；
+       注入 E：去掉 `isHardTargetRefusal(` 守卫 ⇒ 红 —— 换邻域也改变不了"这格不许碰"，`D-323`）；
+    ⑤ **通过性判据同源**：邻域位串必须用 `MovementHelper.canWalkThrough`（注入 F：换成 `isAir()` ⇒ 红）；
+    ⑥ **harness 单项预算不许抢在夹具自己的预算之前**（注入 G：把 `mine_vein_propagation` 的步预算改回
+       `2800` ⇒ 红）。判据：harness 预算是**兜底**，夹具内部的 `BUDGET_TICKS` 才是判据 ——
+       实测就发生过"能力真的赢了（`mined` 12→19）但读数根本没机会打印"。
+    """
+    base = ROOT / "src/main/java/com/dddgn/alice"
+    minejob = base / "job/mine/MineJob.java"
+    minetask = base / "task/MineTask.java"
+    module = base / "task/check/modules/MiningModule.java"
+    fixture = base / "task/MineVeinPropagationCheckTask.java"
+
+    def code(path):
+        return code_only(path.read_text(encoding="utf-8")) if path.exists() else None
+
+    problems = []
+    mj = code(minejob)
+    mt = code(minetask)
+    mod = code(module)
+    fx = code(fixture)
+    for text, name in ((mj, minejob.name), (mt, minetask.name), (mod, module.name), (fx, fixture.name)):
+        if text is None:
+            problems.append(f"{name} 不存在（改名？同步本规则 `PL-1`）")
+    if problems:
+        return problems
+
+    # ---- 臂①②③：过滤 → 过期判据 → 上限 ----
+    filter_body = method_body(mj, "private CandidateSet withoutAttempted(")
+    expired_body = method_body(mj, "private boolean proofExpired(")
+    if "proofExpired(" not in filter_body:
+        problems.append("`MineJob.withoutAttempted` 不再问「这份证明过期了吗」（`proofExpired(`）⇒ "
+                        "`already_attempted` 又变回**永久了结**（`PL-1` 的缺口原样：夹具 18 格孤儿只剩 12/30 就是这个）")
+    if not expired_body:
+        problems.append("`MineJob.proofExpired(...)` 不见了（过期判据的唯一入口）")
+    else:
+        if "proofWitness.get(" not in expired_body:
+            problems.append("`proofExpired` 没有读**当时记下的**证明（`proofWitness.get(`）⇒ "
+                            "判据不是「记录 vs 当前」，而是凭空放行")
+        if ".equals(" not in expired_body:
+            problems.append("`proofExpired` 没有**比较**（`.equals(`）记录与当前邻域 ⇒ 变成无条件重评")
+        if "MAX_STALE_PROOF_RETRIES" not in expired_body:
+            problems.append("`proofExpired` 没有**上限**（`MAX_STALE_PROOF_RETRIES`）⇒ 邻域反复变化时无限重试（空转）")
+
+    # ---- 臂④：失败时记录 + 硬拒绝不记 ----
+    mine_body = method_body(mj, "private Task.Status mine()")
+    if "proofWitness.put(" not in mine_body:
+        problems.append("失败分支没有记**这一刻的邻域证明**（`proofWitness.put(`）⇒ 没有证明可过期（重评永不触发）")
+    if "isHardTargetRefusal(" not in mine_body:
+        problems.append("失败分支没有排除**硬拒绝**（`isHardTargetRefusal(`）⇒ 保护区/不可破坏/流体风险的目标"
+                        "会在邻域变化后被反复重评（`D-323`：被拒这件事换站位/换邻域都不会变）")
+    if "public static boolean isHardTargetRefusal(" not in mt:
+        problems.append("`MineTask.isHardTargetRefusal` 不是 public ⇒ 作业层要么用不了它、要么自己写**第二份**拒绝清单"
+                        "（`J-6`：名单只能有一处定义）")
+
+    # ---- 臂⑤：通过性判据同源 ----
+    witness_body = method_body(mj, "static String neighbourhoodWitness(")
+    if not witness_body:
+        problems.append("`MineJob.neighbourhoodWitness(...)` 不见了（邻域证明的唯一生成处）")
+    elif "MovementHelper" not in witness_body or "canWalkThrough(" not in witness_body:
+        problems.append("邻域证明没有用规划侧同一份通过性判据（`MovementHelper.canWalkThrough`）⇒ "
+                        "自己造第二份「能不能穿」的真相（`K-4`：可规划即可执行）")
+
+    # ---- 臂⑥：harness 单项预算必须比夹具自己的预算宽 ----
+    budget_match = re.search(r'CheckStep\.of\("mine_vein_propagation".*?,\s*(\d+)\)\)', mod, re.S)
+    fixture_budget = re.search(r"BUDGET_TICKS\s*=\s*(\d+)", fx)
+    if not budget_match:
+        problems.append("`MiningModule` 里找不到 `mine_vein_propagation` 步骤的**单项预算**（解析失败？）")
+    elif not fixture_budget:
+        problems.append("夹具里找不到 `BUDGET_TICKS`（判据口径不明）")
+    elif int(budget_match.group(1)) <= int(fixture_budget.group(1)):
+        problems.append(f"`mine_vein_propagation` 的 harness 单项预算（{budget_match.group(1)}）"
+                        f"不大于夹具自己的 `BUDGET_TICKS`（{fixture_budget.group(1)}）⇒ harness 会**抢先**判 TIMEOUT，"
+                        f"夹具内部的预算与读数永远轮不到（2026-09-24 实测：能力已到 `mined` ~19 却连 SUMMARY 都没打印）")
+    return problems
+
+
 def rule_write_truth_single_source():
     """`RC4`（2026-09-24）：**"我方写了多少世界"只有一个真相；没发生的写入不许留在账上**。
 
@@ -3785,6 +3876,7 @@ def main() -> int:
     p2b = rule_replay_bounded()
     z3 = rule_write_budget_zone_and_container_exception()
     z4 = rule_vacuous_assertions_carry_population()
+    pl1 = rule_stale_proof_replan()
     latch = rule_terminal_latch_replays_status()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
@@ -3912,14 +4004,16 @@ def main() -> int:
         print(f"[Z4·空集断言要带人口] {line}")
     for line in latch:
         print(f"[A1′·终态闩锁回放] {line}")
+    for line in pl1:
+        print(f"[PL-1·过期证明重评] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b and not a3 and not p7 and not p3) and not tlb
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b and not a3 and not p7 and not p3 and not pl1) and not tlb
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
           f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / tick负载预算={len(tlb)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
-          f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 不可逆写入记账={len(rc3)} / 击杀产物归属={len(a3)} / 非PASS步单列={len(p7)} / 作业级收集授权={len(p3)} / 写入真相同源={len(rc4)} / 重放有界={len(p2b)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
+          f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 不可逆写入记账={len(rc3)} / 击杀产物归属={len(a3)} / 非PASS步单列={len(p7)} / 作业级收集授权={len(p3)} / 写入真相同源={len(rc4)} / 重放有界={len(p2b)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)} / 过期证明重评={len(pl1)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

@@ -23,8 +23,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.tags.ItemTags;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -167,6 +169,25 @@ public final class MineJob implements Job {
     /** 「本轮还没评价完」≠「不可达」（`SEARCH_LIMIT ≠ UNREACHABLE`）。 */
     private static boolean transientFailure(String code) {
         return code != null && code.startsWith("search_incomplete");
+    }
+
+    // ==================== `PL-1` 切片 1：过期证明的重评（有界） ====================
+
+    /** 同一格最多重评几次（有界：邻域反复变化也不许无限重试）。 */
+    static final int MAX_STALE_PROOF_RETRIES = 3;
+
+    /** 失败那一刻的**邻域证明**（见 {@link #neighbourhoodWitness}）；没有条目 = 不许重评。 */
+    private final Map<BlockPos, String> proofWitness = new HashMap<>();
+
+    /** 每格尝试了几次（失败时 +1）——重评上限就用它。 */
+    private final Map<BlockPos, Integer> attemptCount = new HashMap<>();
+
+    /** 读数：本作业**真的重评过**（选中过）多少次（夹具 / 门禁看它，避免"字段只写不读"）。 */
+    private int staleProofRetries;
+
+    /** ⭐ `PL-1`：本作业重评过期证明的次数（>0 = 这条能力真的被触发过，不是死代码）。 */
+    public int staleProofRetries() {
+        return staleProofRetries;
     }
 
     /** ⭐ `Y`：本 tick 是否处在「搜索被限流」的冷却里（纯函数，便于夹具红/绿对照）。 */
@@ -496,6 +517,18 @@ public final class MineJob implements Job {
         DecisionTrace.select(jobName(), policy.name(), set, selection);
         current = selection.picked().anchor();
         ServerLevel level = bot.serverLevel();
+        if (attempted.contains(current)) {
+            // ⭐ `PL-1` 切片 1：这一格**之前已经被了结**，现在又被选中 ⇒ 它的"无解"证明过期了。
+            // 读数 + 决策痕迹都留痕（否则"重评"这件事在日志里看不见，判据没法咬它）。
+            staleProofRetries++;
+            DecisionTrace.step(jobName(), "RETRY", current.toShortString(),
+                    "之前的「无解」证明已过期（26 邻域变了，`PL-1`）⇒ 重评"
+                            + "（第 " + attemptCount.getOrDefault(current, 1) + "/"
+                            + MAX_STALE_PROOF_RETRIES + " 次尝试）");
+            BotLog.info("[MineJob] stale_proof_retry target={} attempts={}/{} retries={}",
+                    current.toShortString(), attemptCount.getOrDefault(current, 1),
+                    MAX_STALE_PROOF_RETRIES, staleProofRetries);
+        }
         // 种类分配：按**选择时刻**的世界事实判定它属于哪一条（成功时按这个计数，避免"挖完了再读世界"读到空气）
         currentKind = kindPlan.active() ? kindPlan.indexOf(level.getBlockState(current)) : -1;
         // 身份复检（§6.2c⑤，与伐木同一条纪律）：`candidates` 是**决策时刻的扫描结果**，
@@ -569,6 +602,14 @@ public final class MineJob implements Job {
         } else {
             String code = reason == null || reason.isBlank() ? "mining_failed" : reason;
             attemptFailures.add(new AttemptFailure(mined, code));
+            // ⭐ `PL-1` 切片 1：**记下"这一刻的邻域证明"** —— 只有它过期了才允许重评这一格。
+            // 硬拒绝（保护区 / 不可破坏 / 流体风险）**不记**：换邻域也改变不了"这格不许碰"（`D-323`）。
+            attemptCount.merge(mined, 1, Integer::sum);
+            if (!MineTask.isHardTargetRefusal(code)) {
+                proofWitness.put(mined, neighbourhoodWitness(bot.serverLevel(), mined));
+            } else {
+                proofWitness.remove(mined);
+            }
             // P1（D-374，2026-09-21）：**暂时性失败不许永久了结这一格**。
             // search_incomplete 的语义是「本轮搜索被限流，还没评价完」——写进 attempted 等于拿
             // **本 tick 的资源状况**当**世界事实**，下 tick 明明能挖却永远轮不到它（真机铁证：
@@ -752,20 +793,84 @@ public final class MineJob implements Job {
     }
 
     /** 过滤掉已尝试过的目标，并把过滤原因写进 rejected（§6.2a：拒绝必须带理由码）。 */
+    /**
+     * ⭐ `PL-1` 切片 1（2026-09-24 实测改道）：**"无解"是当时的证明，不是世界的不变量**。
+     *
+     * <p>病灶（`single:mine_vein_propagation` 无头实跑铁证）：夹具 30 格矿脉只挖到 **12**，
+     * 剩下 18 格全是 `found_but_unminable`（尝试时刻邻格还是矿石 ⇒ 没有可站格 / 没有视线），
+     * 而作业**继续挖下去改变了邻域**（西列被挖空）之后，把这 18 格**重新规划**一遍：
+     * **17 格现在都有方案**（9 格 `CURRENT`：原地就能挖；8 格 `TUNNEL`），只剩 1 格是
+     * `search_incomplete`（暂时性）。⇒ 卡点不是"没有便宜的执行器"（先前 `PL-1` 的假设），
+     * 而是**过早的永久了结**：`already_attempted` 把"当时无解"当成"永远无解"。
+     *
+     * <p>与 `P1-b`（`SEARCH_LIMIT ≠ UNREACHABLE`）同族，但判据不同：那边是"本轮没评价完"，
+     * 这边是"评价完了、结果是真的，**但前提已经过期**"。⇒ 记下**失败那一刻的邻域证明**
+     * （26 邻域通行性位串），只有当前邻域与证明**不一致**时才允许重评，且**有上限**（防空转）。
+     *
+     * <p>边界（本切片有意不覆盖）：只看**26 邻域**——更远处的世界变化（例如 5 格外的通路被打开）
+     * 不改判决；硬拒绝码（保护区 / 不可破坏 / 流体风险）**不记证明**（换邻域也不该重试，
+     * 那是 `D-323` 的既有语义）。
+     */
     private CandidateSet withoutAttempted(CandidateSet raw) {
         if (attempted.isEmpty()) {
             return raw;
         }
+        ServerLevel level = bot.serverLevel();
         List<Candidate> viable = new ArrayList<>();
         List<String> rejected = new ArrayList<>(raw.rejected());
         for (Candidate candidate : raw.viable()) {
-            if (attempted.contains(candidate.anchor())) {
-                rejected.add(candidate.anchor().toShortString() + ":already_attempted");
-            } else {
+            BlockPos anchor = candidate.anchor();
+            if (!attempted.contains(anchor)) {
                 viable.add(candidate);
+            } else if (proofExpired(level, anchor)) {
+                viable.add(candidate);
+            } else {
+                rejected.add(anchor.toShortString() + ":already_attempted");
             }
         }
         return new CandidateSet(viable, rejected);
+    }
+
+    /**
+     * 这一格的"无解"证明是否已过期（⇒ 允许重评一次）。
+     *
+     * @return true = 当时记录过证明、当前邻域**变了**、且尝试次数还没到上限
+     */
+    private boolean proofExpired(ServerLevel level, BlockPos pos) {
+        String recorded = proofWitness.get(pos);
+        if (recorded == null) {
+            return false;   // 没有证明可过期（硬拒绝 / 已挖成 / 暂时性失败各自有自己的路）
+        }
+        if (attemptCount.getOrDefault(pos, 1) > MAX_STALE_PROOF_RETRIES) {
+            return false;   // 有界：同一格最多重评这么多次
+        }
+        return !recorded.equals(neighbourhoodWitness(level, pos));
+    }
+
+    /**
+     * **失败那一刻的邻域证明**：26 邻域逐格"能否穿过"的位串（`0` = 能穿过，`1` = 挡路）。
+     *
+     * <p>为什么是 26 格而不是 6 个面：夹具实跑里改变结论的那一格是**对角**邻格
+     * （目标 `3701,101,2601` 的可站格在 `3700,100,2601`，相对偏移 `(-1,-1,0)`）——
+     * 只看 6 面**抓不到**这个变化。
+     *
+     * <p>为什么用 `MovementHelper.canWalkThrough` 而不是 `isAir`：**与规划器同一份通过性定义**
+     * （`K-4`：可规划即可执行；自己再造一个"能不能站/能不能穿"的判据就是第二份真相）。
+     */
+    static String neighbourhoodWitness(ServerLevel level, BlockPos pos) {
+        StringBuilder bits = new StringBuilder(26);
+        for (int dy = -1; dy <= 1; dy++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (dx == 0 && dy == 0 && dz == 0) {
+                        continue;
+                    }
+                    bits.append(com.dddgn.alice.pathing.MovementHelper
+                            .canWalkThrough(level, pos.offset(dx, dy, dz)) ? '0' : '1');
+                }
+            }
+        }
+        return bits.toString();
     }
 
     /**

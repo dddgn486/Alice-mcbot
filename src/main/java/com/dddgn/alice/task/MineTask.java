@@ -634,10 +634,11 @@ public final class MineTask implements Task {
      * `recoveryAttempts=2/2`，每次都要重新规划 + 走位 + 挖到进度满再被拒）才失败。被"拒"这件事
      * **不会因为换站位而改变** ⇒ 与 `unbreakable_block` / `protected_*` 同类，进名单。
      *
-     * <p>包可见（不是 private）：`BreakRefusedCheckTask` 直接断言这张名单的形状
-     * （含"可重试码不许被算成硬拒绝"的反向对照），免得它被悄悄改回可重试。
+     * <p>**公开**（2026-09-24，`PL-1`）：作业层也要用它 —— 「过期证明的重评」必须**排除**硬拒绝
+     * （换邻域也改变不了"这格不许碰"），而这份名单只能有一处定义（`J-6`：不许长出第二份拒绝清单）。
+     * 原先只是包可见（`BreakRefusedCheckTask` 直接断言这张名单的形状，含"可重试码不许被算成硬拒绝"的反向对照）。
      */
-    static boolean isHardTargetRefusal(String reason) {
+    public static boolean isHardTargetRefusal(String reason) {
         return "unbreakable_block".equals(reason)
                 || "fluid_risk_lava".equals(reason)
                 || "TARGET_NOT_BREAKABLE".equals(reason)
