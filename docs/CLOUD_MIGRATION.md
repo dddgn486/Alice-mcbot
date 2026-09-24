@@ -566,3 +566,13 @@ bash tools/headless-battery.sh core
   效果：校验量 836 → **1082** 处、提示 232 → 156，并**真的抓出 2 条真过期**（`ToolSet.java` 当时写的 `207-239` **越界**（真值 236 行）⇒ 已改 `207-236`）；
   `ALICE_MODS_DIR=$HOME/mc-client/mods tools/check-all.sh` = **`pass=20 warning=2 failed=0`（首次无 FAIL）**。
   ⚠️ 两个 warning 仍是"未执行"（无头电池未跑 / `check-machine-map` 缺上游 jar），**不是通过**。
+- **41**：⭐ **日志里的中文变成 `?` = 启动器的 locale，不是电池的问题**（2026-09-24 用探针读数时发现，
+  影响**所有证据留存**）：同一份代码、同一条命令，日志有的轮次中文完整、有的轮次全 `?`
+  （实测 `…/20260924-112326-core.log` 里 `[Regression] ? PASS ??0 ????` 就是 `非 PASS 步（0 条）…`）。
+  机制：本 harness 直接调用时环境里 `LC_ALL=zh_CN.UTF-8`（该 locale **不可用**，每条命令都打
+  `setlocale: LC_ALL: cannot change locale (zh_CN.UTF-8)`）⇒ JVM/控制台流回落到 ASCII ⇒ 中文写成 `?`；
+  经 Python 子进程或显式 `LC_ALL=C.UTF-8` 启动的那几轮中文完整（对照：`…/20260924-112518-*` 里
+  `非 PASS 步（0 条）：无 —— 本步清单内**每一条**都是 PASS` 逐字可读）。
+  ⇒ **纪律：跑电池一律前置 `LC_ALL=C.UTF-8`**（`LC_ALL=C.UTF-8 ALICE_CLIENT_MODS=$HOME/mc-client/mods
+  ALICE_HEADLESS=1 tools/headless-battery.sh …`）。⚠️ 这条**不影响判决**（`PASS/FAIL/step 名/计数`都是 ASCII），
+  但它决定"人能不能读日志"—— `P7` 那行报告的存在意义就是给人读。

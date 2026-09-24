@@ -3216,6 +3216,58 @@ def rule_kill_drop_attributed():
     return problems
 
 
+def rule_battery_nonpass_steps_listed():
+    """`P7`（2026-09-24）：**非 PASS 的步必须逐条单列一行**（0 条时也要印计数）。
+
+    <h3>为什么（不是洁癖，是实测过的误读）</h3>
+    汇总行把 40+ 步挤成**一行**（`clear_retry=PASS write_budget=PASS … lumber_job=FAIL …`）。
+    连红 35 轮的 `lumber_job` 就坐在那一行中间 ⇒ 读者形成「唯一失败 = 那个已知的 X」的预期，
+    **新失败**只要不是最后一步，就会被「看起来还是老样子」盖掉（真机轮次上实测发生过）。
+    ⇒ 任何 `!= PASS` 的步必须**自己占一行**并带明细（失败码/跳过理由/ticks）；
+    **0 条时也印** —— 「全绿」必须来自**判据计数**，不是来自「我没看见那一行」（`Z4` 的同一条教训）。
+
+    <h3>四条臂（各有一条注入）</h3>
+    ① `finish()` 里必须调用 `reportNonPassSteps()`（注入 A：删调用 ⇒ 红）；
+    ② 实现必须**遍历步骤表**并取实跑值（`for (Step step : steps)` + `results.getOrDefault`）；
+    ③ **不许**用「非空才印」的守卫把 0 条那一行藏起来（注入 B：包进 `if (!nonPass.isEmpty())` ⇒ 红）；
+    ④ 必须带 `details` 明细，且 FAIL 走 `BotLog.warn`（注入 C：去掉 details ⇒ 红）。
+    """
+    bat_path = ROOT / "src/main/java/com/dddgn/alice/task/RegressionBatteryTask.java"
+    if not bat_path.exists():
+        return [f"{bat_path.name} 不存在（改名？同步本规则 `P7`）"]
+    text = code_only(bat_path.read_text(encoding="utf-8"))
+    problems = []
+
+    # ---- 臂① 调用点 ----
+    finish = method_body(text, "private Status finish()")
+    if "reportNonPassSteps();" not in finish:
+        problems.append("`RegressionBatteryTask.finish()` 没有调用 `reportNonPassSteps()` ⇒ "
+                        "非 PASS 的步又只剩汇总行里那一段（新失败会被「已知红的那个」盖掉，`P7`）")
+
+    # ---- 臂②③④ 实现 ----
+    body = method_body(text, "private void reportNonPassSteps(")
+    if not body:
+        problems.append("`reportNonPassSteps()` 不见了（`P7` 的判据入口）")
+        return problems
+    if "for (Step step : steps)" not in body or "results.getOrDefault" not in body:
+        problems.append("`reportNonPassSteps()` 没有遍历**步骤表**取实跑值（`for (Step step : steps)` + "
+                        "`results.getOrDefault(…)`）⇒ 它印的就不是「本步清单」的判决")
+    if '非 PASS 步（' not in body or "nonPass.size()" not in body:
+        problems.append("`reportNonPassSteps()` 丢了**计数行**（`非 PASS 步（N 条）`）⇒ "
+                        "「全绿」只能靠「没看见那行」推断（`Z4`：看不见 ≠ 不存在）")
+    for guard in ("if (!nonPass.isEmpty())", "if (nonPass.size() > 0", "if (!nonPass.isEmpty()"):
+        if guard in body:
+            problems.append(f"`reportNonPassSteps()` 用 `{guard}` 把计数行藏起来了 ⇒ "
+                            f"0 条时那一行不印，「本轮没有非 PASS 步」变成**看不见**而不是**判据为 0**")
+    if "details.get(" not in body:
+        problems.append("`reportNonPassSteps()` 没带 `details` 明细 ⇒ 只报步名不报**为什么**"
+                        "（失败码/跳过理由/ticks 都在 `details` 里）")
+    if "BotLog.warn(" not in body:
+        problems.append("`reportNonPassSteps()` 里 FAIL 没有走 `BotLog.warn` ⇒ 扫日志时红的和灰的混在一起"
+                        "（本块的用途就是「一眼看见非 PASS」）")
+    return problems
+
+
 def rule_write_truth_single_source():
     """`RC4`（2026-09-24）：**"我方写了多少世界"只有一个真相；没发生的写入不许留在账上**。
 
@@ -3655,6 +3707,7 @@ def main() -> int:
     z2 = rule_ledger_closure_zone_scoped()
     rc3 = rule_lossy_write_accounted()
     a3 = rule_kill_drop_attributed()
+    p7 = rule_battery_nonpass_steps_listed()
     rc4 = rule_write_truth_single_source()
     p2b = rule_replay_bounded()
     z3 = rule_write_budget_zone_and_container_exception()
@@ -3772,6 +3825,8 @@ def main() -> int:
         print(f"[RC3·不可逆写入记账] {line}")
     for line in a3:
         print(f"[A3·击杀产物归属] {line}")
+    for line in p7:
+        print(f"[P7·非PASS步单列] {line}")
     for line in rc4:
         print(f"[RC4·写入真相同源] {line}")
     for line in p2b:
@@ -3785,11 +3840,11 @@ def main() -> int:
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b and not a3) and not tlb
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b and not a3 and not p7) and not tlb
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
           f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / tick负载预算={len(tlb)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
-          f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 不可逆写入记账={len(rc3)} / 击杀产物归属={len(a3)} / 写入真相同源={len(rc4)} / 重放有界={len(p2b)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
+          f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 不可逆写入记账={len(rc3)} / 击杀产物归属={len(a3)} / 非PASS步单列={len(p7)} / 写入真相同源={len(rc4)} / 重放有界={len(p2b)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

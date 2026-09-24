@@ -1037,6 +1037,7 @@ public final class RegressionBatteryTask implements Task {
                     skipped, skippedNames(), pass, expected);
         }
         reportLedgerPopulation();
+        reportNonPassSteps();
         List<String> phantom = phantomEntries();
         if (!curationError.isEmpty() || !phantom.isEmpty()) {
             BotLog.warn("[Regression] 电池归属表与实跑项不一致：{} {}（见 docs/BATTERY_CURATION.md）",
@@ -1065,6 +1066,43 @@ public final class RegressionBatteryTask implements Task {
                         + "「记账 0 次」与「收干净了」是两回事，看这两个数分开读",
                 closure.inZone(), closure.wildInLedger(), closure.recordedSince(),
                 closure.wildSkippedSince());
+    }
+
+    /**
+     * ⭐ `P7`（2026-09-24）：**非 PASS 的步逐条单列一行**（0 条时也印）。
+     *
+     * <h3>为什么要有这一块</h3>
+     * 汇总行把 40+ 步挤成**一行**（`clear_retry=PASS write_budget=PASS …`）。连红 35 轮的
+     * `lumber_job=FAIL` 就坐在那一行中间 ⇒ 读者形成"唯一失败就是那个已知的 X"的预期，
+     * **新失败**只要不是最后一步，极易被那行"看起来还是老样子"盖掉（真机轮次上实测发生过这种误读）。
+     *
+     * <p>因此：任何 `!= PASS` 的步（`FAIL` / `SKIP` / `SKIPPED`）都必须**自己占一行**，并带上
+     * `record(...)` 里的明细（失败码 / 跳过理由 / ticks）。⚠️ **0 条时也要印** —— "全绿"这个读数
+     * 必须来自**判据计数**（`非 PASS 步（0 条）`），而不是来自"我没看见那一行"（`Z4` 的同一条教训：
+     * 看不见 ≠ 不存在）。
+     *
+     * <p>门禁 `rule_battery_nonpass_steps_listed` 钉住这一块：删掉它 = 构建红（构造不出"被盖掉的失败"
+     * 这种事故场景，只能用静态规则守）。
+     */
+    private void reportNonPassSteps() {
+        List<String> nonPass = new ArrayList<>();
+        for (Step step : steps) {
+            String value = results.getOrDefault(step.name(), "SKIPPED");
+            if ("PASS".equals(value)) {
+                continue;
+            }
+            nonPass.add(step.name() + "=" + value + "（" + safe(details.get(step.name())) + "）");
+        }
+        BotLog.info("[Regression] 非 PASS 步（{} 条）：{}", nonPass.size(),
+                nonPass.isEmpty() ? "无 —— 本步清单内**每一条**都是 PASS" : "逐条如下");
+        for (String row : nonPass) {
+            // FAIL 用 warn、SKIP 用 info：扫日志时先看见红的
+            if (row.contains("=FAIL")) {
+                BotLog.warn("[Regression]   · {}", row);
+            } else {
+                BotLog.info("[Regression]   · {}", row);
+            }
+        }
     }
 
     /** 被跳过的步名（声明序，逗号分隔）——让 `DEGRADED` 那一行**自解释**，不必翻日志找哪几步没跑。 */
