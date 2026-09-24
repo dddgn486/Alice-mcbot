@@ -443,3 +443,37 @@ bash tools/cloud-rollback.sh            # 可选参数：<codespace 名>
 
 **两个脚本的分工**：`tools/codespace-zero.sh`（WSL 侧遥控：doctor/create/state/verify/start/**tunnel**/**tunnel-bg**/url/down/destroy）·
 `tools/codespace-tunnel.ps1`（Windows 侧，新设备只用 pwsh · 只做"挂隧道 + 打印链接"）· `tools/cloud-rollback.sh`（回迁准备，只对本设备）。
+
+## §14 ✅ 云端「开发 + 编译 + 无头测试」闭环已跑通（2026-09-24 实测）
+
+**怎么跑**（codespace 已装好生产服务端；母本与模组已就位）：
+
+```bash
+# 云端（codespace 内）
+ALICE_HEADLESS=1 \
+ALICE_CLIENT_SAVE=/home/vscode/mc-client/save \
+ALICE_CLIENT_MODS=/home/vscode/mc-client/mods \
+ALICE_SERVER_DIR=/home/vscode/alice-server \
+bash tools/headless-battery.sh core
+```
+
+**结果**：`PROFILE=CORE baseline=15 main=26 extra_skipped=52 (passed=41/41 skipped=0)` **PASS** ·
+一轮 ≈ **248 s**（本地 251 s ⇒ **4 核不比 2 核快**，服务端基本单线程）· 云端指纹 **`55045bbb2b15`**（与本地 `0f0f4b99f345…` 不同 ⇒ `D-352` 缓存**不跨机器**，云上第一轮必然真跑）。
+
+**搬运清单（实测尺寸）**：客户端存档 **93 M**（电池据此建母本）+ 客户端模组 **65 M** = **净 158 M**，用
+`gh codespace cp -e -r <本地> remote:/home/vscode/mc-client/<名>`（⚠️ **远端必须写绝对路径**；同名目录已存在时
+`cp -r` 会**嵌套进去** ⇒ 想重搬先 `rm -rf` 远端那份）。服务端目录（332 M）**不用搬**：`bash tools/headless-battery.sh --install`
+在云上自己装（实测 <1 min，下载飞快）。
+
+**⭐ 跨机器跑当天就抓到两个"本地永远看不见"的真缺陷**（都已修，各带云端实测证据）：
+
+| # | 缺陷 | 为什么本地看不见 | 修 |
+|---|---|---|---|
+| 1 | 电池**假设 `run/` 已存在** | `run/` 整个被 `.gitignore` ⇒ 全新检出里**根本不存在**；本地这台机器的 `run/` 常年存在 | `9669d9b`：建母本前 `mkdir -p "$(dirname "$PRISTINE")"` |
+| 2 | ⭐ 电池**没有真正钉住 `difficulty`**：旧代码带 `[ -f server.properties ]` 守卫，而该文件是**服务端首次启动时**才生成的 | 本地文件早已存在、且早被这段代码钉过 ⇒ 守卫从没挡住过 | `3804802`：**先建文件再钉**；并在结果段打印 `前提(effective)`（不钉的项也打印，方便将来一眼看出两端分歧） |
+
+缺陷 2 的云端表现 = CORE **40/41**，唯一红项 `damage_event_visible`（`hits=4 total=4.0`，`easy` 下多出的伤害源）⇒ 是**假红**，不是内核问题。
+⇒ **结论**：跨机器跑不是为了"更快"，它的价值是**暴露隐含前提**（"本地常年如此"的目录/文件/默认值）。
+
+**注意（与手册 §9-30 的额度口径配套）**：4 核 ⇒ 免费 **120 core-hours/月 ≈ 30 小时**；一轮 CORE ≈ 4 min ⇒ 一个月能跑几百轮，
+但**别让它 24 小时开着**（空闲 30 分钟自动停已开）。
