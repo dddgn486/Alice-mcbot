@@ -104,25 +104,6 @@ public final class MineTask implements Task {
      * （2026-09-11 实测 `clear_start used=1/8` → `clear_end exhausted=true`）。
      */
     private final java.util.Set<BlockPos> failedBlockers = new java.util.LinkedHashSet<>();
-    /**
-     * `P5-a`：口袋挖掘的**独立**用尽标志。
-     *
-     * <p>⚠️ 实测教训（2026-09-24 第一次跑）：复用时**不能**用 `clearExhausted` —— 视线清障失败时会先把它置真，
-     * 而 `tryClear(...) || tryDigPocket(...)` 是短路求值 ⇒ 口袋那条**永远不会被执行**
-     * （日志证据：`pocket_start=0`、`pocket_exhausted=0`、完成度仍 12/30）。两个候选来源各有各的"用尽"。
-     */
-    private boolean pocketExhausted;
-    /**
-     * `P5-a` 口袋预算：每个目标最多腾几格（头位 + 脚位 = 2）。
-     *
-     * <p>⚠️ 实测教训（2026-09-24 第三次跑）：**不能**复用 `profile.mayClear()` —— 两个挖掘 profile
-     * （`STANDABLE_ONLY` / `TUNNEL_ALLOWED`）的 `clearBudget` 都是 **0**（`MiningProfile.java:37/40`），
-     * 而 `mayClear()` = `clearBudget > 0` ⇒ 既有「限次清障」对**挖掘**本来就是死的（那是伐木的机制）。
-     * 口袋是挖掘自己的能力 ⇒ 用**自己的**小预算，且**不改**伐木侧既有行为。
-     * 破方成本仍走既有通道：子任务带 `MiningBudget.forTarget(...)`，写入走 `WriteBudget` 闸门。
-     */
-    private static final int POCKET_BUDGET_PER_TARGET = 2;
-    private int pocketSteps;
     /** 本次正在清的阻挡格（`tickClear` 失败时登记进 {@link #failedBlockers}）。 */
     private BlockPos clearingBlocker;
     /** 清障尝试次数（夹具断言用：应当 > 1 = 确实换过候选）。 */
@@ -697,51 +678,6 @@ public final class MineTask implements Task {
         return startClear(blocker, "planning:" + reason);
     }
 
-    /**
-     * ⭐ `P5-a`（2026-09-24）：**口袋挖掘** —— 站位候选**根本没有**（`faceStandable=0/6`）且限次清障也找不到
-     * 可清的阻挡格时，改用"破开目标旁边两格腾出一个能站的口袋"（先头位、后脚位）。
-     *
-     * <p>为什么需要（实测）：`single:mine_vein_propagation` 12/30、20 个失败目标**全部** `faceStandable=0/6`、
-     * `footPassable=false headPassable=false`；模式 B 候选 58 次**全 `UNREACHABLE`（0 次 `SEARCH_LIMIT`）**
-     * ⇒ 不是预算问题，而是"没有能站的格"。Baritone 的对应做法是把走廊**整盒清空**再走
-     * （`command/defaults/TunnelCommand.java:84`，且 `height < 2` 直接拒绝 `:46`）。
-     *
-     * <p>约束：走**同一套**授权与预算（`WriteGrant.with(STANDING_SPACE)` + `profile.clearBudget()`），
-     * 六面都不可行时如实收敛（`pocket_exhausted`），不伪装成「不可达」。
-     */
-    private boolean tryDigPocket(String reason) {
-        if (pocketExhausted || pocketSteps >= POCKET_BUDGET_PER_TARGET) {
-            return false;
-        }
-        // ⚠️ 实测教训（2026-09-24 第二次跑）：`MiningPlanner.plan` 在三条腿全败时交出的**合成码**是
-        // `found_but_unminable`（三条腿各自的 `no_valid_standing_point` / `no_reachable_tunnel_standing_point` /
-        // `enter_target_unreachable` 只进日志）⇒ 只按 `standing_point/no_valid/no_reachable` 过滤会把本能力
-        // 永远挡在门外（日志证据：`pocket_start=0 / pocket_exhausted=0`，完成度仍 12/30）。
-        if (reason == null || !(reason.contains("standing_point") || reason.contains("no_valid")
-                || reason.contains("no_reachable") || reason.contains("found_but_unminable"))) {
-            return false;
-        }
-        BlockPos pocket = com.dddgn.alice.task.mining.BlockerClearPlanner.nextPocketStep(
-                bot, bot.serverLevel(), target,
-                grant.with(com.dddgn.alice.action.WriteReason.STANDING_SPACE), failedBlockers);
-        if (pocket == null) {
-            pocketExhausted = true;
-            BotLog.info("[MineTask] pocket_exhausted target={} attempts={} used={}/{}"
-                            + "（六面皆不可行 ⇒ 如实收敛，不许伪装成不可达）",
-                    target.toShortString(), clearAttempts, clearSteps, profile.clearBudget());
-            return false;
-        }
-        BotLog.info("[MineTask] pocket_start target={} cell={} used={}/{} why={}",
-                target.toShortString(), pocket.toShortString(), pocketSteps + 1,
-                POCKET_BUDGET_PER_TARGET, reason);
-        if (startClear(pocket, "pocket:" + reason,
-                com.dddgn.alice.action.WriteReason.STANDING_SPACE)) {
-            pocketSteps++;
-            return true;
-        }
-        return false;
-    }
-
     /** 运行期视线被挡 → 清掉当前第一个阻挡物。 */
     private boolean tryClearLineOfSight() {
         if (clearExhausted || !profile.mayClear() || clearSteps >= profile.clearBudget()) {
@@ -757,18 +693,9 @@ public final class MineTask implements Task {
     }
 
     private boolean startClear(BlockPos blocker, String why) {
-        return startClear(blocker, why, com.dddgn.alice.action.WriteReason.LINE_OF_SIGHT);
-    }
-
-    /**
-     * `P5-a` 起：清障/腾站位的**写入理由**由调用方给（视线清障 = `LINE_OF_SIGHT`，腾站位 = `STANDING_SPACE`）——
-     * 理由不同 ⇒ 授权面不同（`WriteGrant.with(...)`），不许一律用视线那条。
-     */
-    private boolean startClear(BlockPos blocker, String why,
-                               com.dddgn.alice.action.WriteReason reason) {
         if (blocker == null
                 || !com.dddgn.alice.task.mining.BlockerClearPlanner.clearable(bot, bot.serverLevel(),
-                        blocker, grant.with(reason))) {
+                        blocker, grant.with(com.dddgn.alice.action.WriteReason.LINE_OF_SIGHT))) {
             return false;
         }
         clearSteps++;
@@ -784,7 +711,7 @@ public final class MineTask implements Task {
         clearTask = new MineTask(bot, blocker, scope,
                 MiningBudget.forTarget(bot, bot.serverLevel(), blocker, false),
                 subProfile,
-                grant.with(reason));
+                grant.with(com.dddgn.alice.action.WriteReason.LINE_OF_SIGHT));
         phase = Phase.CLEAR;
         return true;
     }
@@ -971,8 +898,7 @@ public final class MineTask implements Task {
                 if (tryGainHeight(result.failureReason())) {
                     return Status.RUNNING;
                 }
-            } else if (tryClear(result.failureReason()) || tryDigPocket(result.failureReason())) {
-                // `P5-a`：限次清障（视线阻挡）不行时，再试「腾一个能站的口袋」（同预算、同授权通道）。
+            } else if (tryClear(result.failureReason())) {
                 return Status.RUNNING;
             }
             return escalateFailure(new MineBlockRunner.FailureReport(

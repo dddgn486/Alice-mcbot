@@ -47,43 +47,6 @@ public final class BlockerClearPlanner {
     }
 
     /**
-     * ⭐ `P5-a`（2026-09-24）：**口袋挖掘** —— 目标六面**都没有现成可站**的格时（实测 `faceStandable=0/6` 20/20），
-     * 找一格 `P`：`P` 与其上一格都在**允许集**内可破、且 `P` 下方**有可站支撑** ⇒ 依次破开这两格就能站进去。
-     *
-     * <p>Baritone 对照（`D-036`）：隧道 = `BuilderProcess.clearArea(corner1, corner2)` **先清一个盒子**
-     * （`command/defaults/TunnelCommand.java:84`），且 **`height < 2` 直接拒绝**（同文件 `:46`）——
-     * 上游明确把「2 格高」当形状要求；本方法是它在 Alice 侧的**逐格最小版**（只破必要两格，不整盒清空）。
-     *
-     * <p>顺序固定：**先头位、后脚位**（先破脚位会先少一格支撑，而头位仍挡着也用不上）。
-     * 返回下一步该破的那一格；`null` = 六面都不可行（调用方必须如实收敛，不许伪装成「不可达」）。
-     */
-    public static BlockPos nextPocketStep(ServerPlayer bot, ServerLevel level, BlockPos target,
-                                          WriteGrant grant, java.util.Set<BlockPos> failed) {
-        for (net.minecraft.core.Direction direction : net.minecraft.core.Direction.values()) {
-            if (direction == net.minecraft.core.Direction.UP || direction == net.minecraft.core.Direction.DOWN) {
-                continue;   // 站位只能是水平四邻
-            }
-            BlockPos stand = target.relative(direction);
-            BlockPos head = stand.above();
-            if (!MovementHelper.canWalkOn(level, stand.below())) {
-                continue;   // 站进去要有地板
-            }
-            if (failed.contains(stand) || failed.contains(head)) {
-                continue;   // 刚失败过的格不原地重试（与限次清障同一条纪律）
-            }
-            if (!MovementHelper.canWalkThrough(level, head) && clearable(bot, level, head, grant)) {
-                return head;    // ① 先腾头位
-            }
-            if (MovementHelper.canWalkThrough(level, head)
-                    && !MovementHelper.canWalkThrough(level, stand)
-                    && clearable(bot, level, stand, grant)) {
-                return stand;   // ② 头位已通 ⇒ 再腾脚位
-            }
-        }
-        return null;
-    }
-
-    /**
      * 找"清障后能从某个站位看见该原木"的方案，返回需要清掉的方块数；不可行返回 -1。
      *
      * @param budget 允许的最大清障数（超出即视为不可行）
