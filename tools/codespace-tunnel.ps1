@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   在**新设备（只用 PowerShell，不装 WSL）**上把云端 DSH 的"回环入口"挂起来，并打印可点链接。
 
@@ -67,7 +67,7 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
 "@ -ForegroundColor Red
     exit 2
 }
-Info "gh = $((gh --version | Select-Object -First 1))"
+Info "gh = $(gh --version | Select-Object -First 1)"
 
 # ---------- 1) 认证：GH_TOKEN（PAT，带 codespace scope）----------
 $TokenFile = Join-Path $HOME ".gh-token"

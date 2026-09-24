@@ -337,7 +337,23 @@ pwsh -File tools\codespace-tunnel.ps1 -Open
 | `127.0.0.1:<端口>` 连不上 | 端口被占（换 `-LocalPort`）；或 codespace 被空闲停掉 ⇒ 重跑脚本 |
 | `gh: not found` / 认证报错 | 见上表前两行；`gh api /user --jq .login` 应打印账号 |
 
-⚠️ **诚实标注**：`tools/codespace-tunnel.ps1` **在 Windows 上还没被执行过**（我这台机器没有 pwsh）⇒ 它依赖的每条 gh 行为都在 WSL 实测过，但脚本本身首次在 Windows 上跑**请把报错发我**。
+### ✅ 已在 Windows 上实测（2026-09-24，Windows PowerShell **5.1**.19041）
+
+| 项 | 结果 |
+|---|---|
+| Windows 侧前置 | `ssh.exe` / `curl.exe` / `git` 本来就有；**`gh` 没有** ⇒ `winget install --id GitHub.cli -e --accept-source-agreements --accept-package-agreements` **装成功**（v2.101.0，落在 `C:\Program Files\GitHub CLI\gh.exe`）。⚠️ 装完**必须新开终端**（PATH 才更新） |
+| ⭐ 真实 bug（验证抓到并已修） | 脚本原来是**无 BOM 的 UTF-8**，而 PS 5.1 对无 BOM 的 .ps1 按 **ANSI/GBK** 读 ⇒ 中文把 here-string 解析搞坏，报 3 处语法错、**根本跑不起来**。修法 = 存成 **UTF-8 with BOM**（现已修，PS 5.1 解析 0 error） |
+| 端到端跑通 | 认证 = PAT（读 `C:\Users\<你>\.gh-token`）✓ · 账号 `dddgn486` ✓ · 唤醒 codespace + 确保远端服务 ✓ · 挂转发 ✓ · 本地就绪 `HTTP 401` ✓ · 打印带令牌链接 ✓ |
+| 绑定地址 | `netstat` 实测 **`127.0.0.1:3183` LISTENING**（走 ssh 路线 ⇒ **只绑回环** ✓，设置页可用） |
+| 经隧道取页面 | 无令牌 = **401**，带令牌 = **303** ✓ |
+| ssh 密钥 | `gh codespace ssh` 在 Windows 上**没有额外操作**就通了（无需手动登记密钥）⇒ 新设备少一个坑 |
+| `-Stop` | ✓ 干净：`gh`/`ssh` 进程消失、监听消失、PID 文件清掉。（⚠️ 注意 `netstat | findstr` 在停止后 ~2 分钟内还能看到 **TIME_WAIT** 残留，那不是没停掉） |
+
+**给别人/未来自己复现时的一个坑**：若你也想从 WSL 里起 `powershell.exe` 来做这种验证，那个进程继承的是 **WSL 的 PATH** ⇒ 新装的 `gh` 会"找不到"。
+先在同一会话里刷新：
+`$env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')`
+
+**仍未被人类确认的部分**：Windows 浏览器里页面**渲染**（脚本只证到 HTTP 303/401 与打印链接）⇒ 你点开链接看一眼即可。
 
 ## §13 回迁准备（⭐ **只针对本设备**：WSL `/home/fb486/projects/alice`）
 
