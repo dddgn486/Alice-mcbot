@@ -3168,13 +3168,18 @@ def rule_write_truth_single_source():
     # 直接查**整个文件里的先后顺序**：`consumePlace(` 必须出现在"方块真的落地"判据之后。
     #（第一版抠签名 ⇒ 只拿到第一个重载、规则自己假红一次；记录在台账 `RC4-进度`。）
     at_consume = itr.find("consumePlace(")
-    at_landed = itr.find("canBeReplaced()")
     if at_consume < 0:
         problems.append("`BlockInteraction` 里找不到 `consumePlace(` ⇒ 放置根本没进预算"
                         "（本规则的前提变了，同步它）")
-    elif at_landed < 0 or at_landed > at_consume:
-        problems.append("`placeAt` 把 `consumePlace(` 挪到了「方块真的落地」判据**之前** ⇒ "
-                        "失败的放置尝试会占额度（这正是破坏侧犯过的错）")
+    else:
+        # ⚠️ 必须**只看 `consumePlace(` 所在方法内部**：第一版拿"整个文件里 canBeReplaced() 的第一次
+        # 出现"比位置 ⇒ 注入实测（把落地判据挪到扣账之后）**没红**，因为文件里别处还有同名调用。
+        # 教训同 `Z2`：判据太糙 = 假绿。
+        method_start = itr.rfind("\n    public static ", 0, at_consume)
+        window = itr[method_start if method_start > 0 else 0:at_consume]
+        if "canBeReplaced()" not in window:
+            problems.append("`placeAt` 里 `consumePlace(` **之前**没有「方块真的落地」判据"
+                            "（`canBeReplaced()`）⇒ 失败的放置尝试会占额度（这正是破坏侧犯过的错）")
 
     # ---- 臂③ 义务口径唯一 ----
     names = re.findall(r"public static [\w<>\[\], .]*?\s(\w+)\(", bud)
