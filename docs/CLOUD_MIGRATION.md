@@ -377,6 +377,37 @@ pwsh -File "D:\JAVA_projects\alice\tools\codespace-tunnel.ps1" -Open
 
 **仍未被人类确认的部分**：Windows 浏览器里页面**渲染**（脚本只证到 HTTP 303/401 与打印链接）⇒ 你点开链接看一眼即可。
 
+## §12b 「丢到新设备就能用」的包（实测：模拟新设备跑通）
+
+**生成**（一条命令，产物落在**桌面**；源文件都在仓库里，随时可重建）：
+
+```bash
+tools/make-cloud-tunnel-bundle.sh
+```
+
+产物：
+
+| 位置 | 内容 |
+|---|---|
+| `C:\Users\<你>\Desktop\alice-cloud-tunnel\`（文件夹，可直接双击） | `codespace-tunnel.cmd` · `codespace-tunnel.ps1` · `怎么用.txt`（CRLF+UTF-8 BOM，记事本友好） · `本机WSL专用/cloud-rollback.sh` |
+| `C:\Users\<你>\Desktop\alice-cloud-tunnel-<日期>.zip` | 同一份，**拷到新设备用**（12 K） |
+| `D:\JAVA_projects\alice-backups\` | 同一 zip 的备份 |
+
+**脚本替新设备挡掉的两个摩擦点**（都在包里实现）：
+① 没有 `gh` ⇒ 问一句 `现在装吗? [y/N]`，同意就用 winget 装并把安装目录接进本次会话的 PATH；
+② 没有 PAT ⇒ 提示粘贴一次，存到 `%USERPROFILE%\.gh-token` 并 `icacls` 收紧为仅本人可读写。
+
+**实测（2026-09-24，把 zip 解压到全新临时目录当"新设备"）**：
+
+| 检查 | 结果 |
+|---|---|
+| zip 解压内容 | `.cmd`(692 B) / `.ps1`(8018 B) / `怎么用.txt`(3073 B) / `本机WSL专用\cloud-rollback.sh` ✓ |
+| `.cmd` 经 zip 往返后仍是 **CRLF** | ✓ |
+| `怎么用.txt` 是 **UTF-8 BOM + CRLF** | ✓（239,187,191 开头） |
+| 解压出来的 `.ps1` 用 **PS 5.1 解析** | **0 error** ✓ |
+| 有 PAT 文件时跑（端口 3186） | 认证 ✓ · 打印回环链接 ✓ · `HTTP 401` ✓ · `-Stop` 后监听残留 **0** ✓ |
+| **模拟新设备**（把 `.gh-token` 移走，PAT 走 `DSH_PAT`） | 同样跑通并打印链接 ✓（测完已把文件恢复） |
+
 ## §13 回迁准备（⭐ **只针对本设备**：WSL `/home/fb486/projects/alice`）
 
 > 用户 2026-09-23：不一定一直留在云端 ⇒ 要先准备回迁；**回迁只针对目前这个设备**。
