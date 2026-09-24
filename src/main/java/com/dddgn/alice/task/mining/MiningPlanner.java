@@ -158,6 +158,14 @@ public final class MiningPlanner {
         List<StandingPointSelector.Candidate> candidates =
                 StandingPointSelector.generateCandidates(level, target, startFoot, reach);
         if (candidates.isEmpty()) {
+            // ⭐ P5 诊断探针（2026-09-24，临时：定位完成后删）：模式 A 零候选时，把**几何事实**记下来 ——
+            // 否则「被同族矿石包住」只能靠读码推断（`D-391` 三-2 的教训：先补读数，不猜）。
+            BotLog.warn("[MiningPlanner探针] no_valid_standing_point target={} faceStandable={}/6 "
+                            + "footPassable={} headPassable={} belowSolid={}",
+                    target.toShortString(), countStandableFaces(level, target),
+                    MovementHelper.canWalkThrough(level, target),
+                    MovementHelper.canWalkThrough(level, target.above()),
+                    MovementHelper.canWalkOn(level, target.below()));
             return new Result(null, null, "no_valid_standing_point");
         }
 
@@ -255,6 +263,17 @@ public final class MiningPlanner {
                 MiningPlan.Mode.ENTER_TARGET, null), score, "");
     }
 
+    /** ⭐ P5 诊断探针（2026-09-24，临时：定位完成后删）：目标 6 面邻格里「现成可站」的个数（0 = 真被包住）。 */
+    private static int countStandableFaces(ServerLevel level, BlockPos target) {
+        int standable = 0;
+        for (net.minecraft.core.Direction direction : net.minecraft.core.Direction.values()) {
+            if (StandingPointSelector.isStandable(level, target.relative(direction))) {
+                standable++;
+            }
+        }
+        return standable;
+    }
+
     // ==================== 选择与精算 ====================
 
     /** 模式 A：候选 → 估算 → top-K 精确规划（纯通行请求）。 */
@@ -306,6 +325,13 @@ public final class MiningPlanner {
             }
             planned++;
             if (!path.reached()) {
+                // ⭐ P5 诊断探针（2026-09-24，临时：定位完成后删）：模式 B 每个候选**逐个**记状态，
+                // 配合目标格的脚位/头位读数，才能分清「候选本身站不住」与「路被断在某类边上」。
+                BotLog.warn("[MiningPlanner探针] mode={} target={} candidate={} status={} reached=false "
+                                + "candFootPassable={} candHeadPassable={}",
+                        mode, target.toShortString(), foot.toShortString(), path.status(),
+                        MovementHelper.canWalkThrough(level, foot),
+                        MovementHelper.canWalkThrough(level, foot.above()));
                 continue;
             }
             double cost = path.totalCost();
