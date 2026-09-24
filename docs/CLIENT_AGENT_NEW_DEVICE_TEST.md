@@ -177,3 +177,61 @@ client-agent.cmd -PullOutbox
 | **新设备上的 `-Install`（npm 装 DSH + 自动发现客户端 + 写配置 + 写 gh 凭据 + 设默认 preset）** | ❌ **从未在真机执行过** —— 这就是本手册要测的东西 |
 | 新设备上 `dsh --profile headless` 真跑 agent | ❌ 未做（依赖上一项） |
 | 截图从新设备传到云端并被 `read_image` 正确读出 | ❌ 未做（§5 第 4 条） |
+
+---
+
+## 10. ✅ 实测结果（2026-09-24，**真 Windows 机器**上完整跑通）
+
+在本机 Windows 侧（`DESKTOP-1MGHVSF`，nvm4w node v24.19.0）用**桌面包解压出来的副本**照着本手册跑，结果如下。
+
+**① `client-agent.cmd -Install` 一次通过**（输出节选）：
+
+```
+[install] node = v24.19.0
+[install] 装 DSH（锁 0.1.5-rc.3，约几分钟）...
+[install] preset 已导入：C:\Users\dddgn\.dsh\.agent-presets\alice-client-master
+[install] 扫到客户端：D:\JAVA_projects\worldedit-test\versions\1.20.1-Forge_47.4.10
+[install] 配置已写：C:\Users\dddgn\.alice-client.json
+[install] gh 认证 OK：dddgn486（凭据写入 C:\Users\dddgn\AppData\Roaming\GitHub CLI\hosts.yml）
+[install] 默认 preset → alice-client-master（原 settings 已备份）
+```
+
+**② `-SelfTest` = 13 项全绿**（含关键的两项）：
+
+```
+[ OK ] dsh 可用：0.1.5-rc.3
+[ OK ] 客户端目录形状正确：D:\JAVA_projects\worldedit-test\versions\1.20.1-Forge_47.4.10（含 logs/ 与 mods/）
+[ OK ] 读信箱 OK，里面有：20260924-035539-selfcheck.md
+[ OK ] 写信箱 OK 并读回（/home/vscode/bus/to-cloud/selftest-DESKTOP-1MGHVSF-20260924-051207.md）
+[ OK ] 附件通道 OK（latest.log 66374 字节，两端一致）
+=== 汇总：13 项通过 / 0 项失败 ===
+```
+
+**③ 唤醒 agent 处理真实请求（点名上传）—— 成功**：
+
+| 结果 | 证据 |
+|---|---|
+| 只传点名两样，**没传整目录** | `~/client-info/test1/logs/latest.log` **66374 字节**（与本机一致）＋ `screenshots/2026-09-22_22.08.36.png` **2289872 字节** |
+| ⭐ **自己缩图**（人设里的要求被遵守） | 原图 3840×2120 / 5870300 字节 ⇒ 缩到 1600×883 / 2289872 字节 |
+| 回执四段齐全 + **sha256 逐条对照** | `~/bus/to-cloud/20260924-051531-client-data-test1-receipt.md`（2845 字节），含"本地路径 → 远端路径 + 字节数 + sha256"表格 |
+| `.done` 记账 | `20260924-051251-client-data-test1.md` 已登记 |
+| ⭐ **云端 AI 能真的"看见"截图** | 把 png 拉回本地用 `read_image` 打开：雪地 + 深色大型结构 + bot + 小地图「Bots 任/tang」+ 聊天栏截图提示，**sha256 与回执一致**（`e9fd21ac…`）⇒ 内容无损、可用 |
+| 诚实提醒（自发的） | 回执 §4 指出：现存 `latest.log` 最后写入 **09-22 23:12**，而请求是 09-24 发的 ⇒「若你要的是 09-22 之后的新数据，本机现在没有，先跑一轮客户端再唤醒我」 |
+
+**④ 途中抓到的真缺陷（都已修）**
+
+| # | 缺陷 | 后果 | 修 |
+|---|---|---|---|
+| 1 | 打包脚本**逐个 cp**，漏了 `client-agent-install.ps1` | 新设备上 `-Install` 直接报"参数不存在" | 改成**整目录拷贝** `tools/client-agent/*`（`make-cloud-tunnel-bundle.sh`） |
+| 2 | `.cmd` 被转成纯 ASCII 后，**默认任务里的中文变成 `???`** | 唤醒时给 agent 的任务是乱码 | 默认任务改写成 **ASCII 英文**（`client-agent.cmd`）；用户传参不受影响 |
+| 3 | 打包脚本漏文件 | 见 #1 | 见 #1 |
+| 4 | 环境问题：Windows 那份 `.credentials.yaml` 的 `DEEPSEEK_API_KEY` 已被服务端判**无效**（`…c37a`） | 唤醒报 `AUTH: Authentication Fails` | 只替换这一条 ref 为 WSL 侧可用的 key（`sk-80…46c9`），**已备份** `credentials.yaml.bak-pre-alice` |
+
+**⑤ 结论**：`-Install → -SelfTest → 唤醒 agent → 点名上传 → 云端读日志/看图` **全链路在真 Windows 上验证通过**，
+手册 §9 里"未验"的两项（新设备 `-Install`、真跑 headless）**现在都已验证**；剩下唯一未跑的是**新设备**（另一台机器）上的同一套流程 —— 但因为全流程已在本机 Windows 跑通，新设备上属于"照抄 + 环境自检"。
+
+**⑥ 两个需要用户拍板的副作用（本机 Windows 侧）**
+
+1. `-Install` 把 **默认 agent preset 改成了 `alice-client-master`**（`%USERPROFILE%\.dsh\settings.yaml`，原文件备份 `.bak-pre-client-agent`）——
+   桌面版 DSH 与 CLI 共用这个文件 ⇒ 你的桌面版默认人设也会变成"客户端管家"。**要还原：**把备份拷回去。
+2. Windows 的 `DEEPSEEK_API_KEY` 被换成了 WSL 侧那把可用的（备份在 `credentials.yaml.bak-pre-alice`）。

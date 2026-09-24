@@ -110,5 +110,5 @@ client-agent.cmd "上传最近一次测试的 latest.log 和之后的截图"
 2. **跨机资源一律给"哪台机器 + 具体命令"**，`~/…` 这种写法必须点名是谁的 `~`（本机 `~/bus` 就是踩坑点）；
 3. **凭据给"可执行的落地方式"**，不是给一个文件名（`gh auth login` 的 scope 陷阱已记档）。
 
-**本轮验收等级**：`BUILT` + **本机 WSL `SMOKE_TESTED`（真跑通）**；
+**本轮验收等级**：`BUILT` + 本机 WSL `SMOKE_TESTED` + ⭐ **真 Windows 全链路 `WINDOWS_CLIENT` 级验证通过**（13/13 自检、点名上传、缩图、sha256 一致、云端 `read_image` 能看图；详见 `CLIENT_AGENT_NEW_DEVICE_TEST.md` §10）；
 **未做**：Windows 新设备上装 DSH / 跑 headless / 导入 preset 并试跑（要用户点头）。

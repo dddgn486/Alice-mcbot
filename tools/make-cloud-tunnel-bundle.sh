@@ -21,11 +21,11 @@ cp -f "$REPO/tools/codespace-tunnel.cmd" "$DEST/"
 cp -f "$REPO/tools/cloud-rollback.sh"    "$DEST/本机WSL专用/"
 cp -f "$REPO/tools/client-info-watch.ps1" "$DEST/"
 cp -f "$REPO/tools/client-info-watch.cmd" "$DEST/"
+# client-agent 整个目录一起拷（2026-09-24 教训：逐个 cp 会漏文件 —— 漏了 install.ps1 导致新设备上 -Install 直接失败）
 mkdir -p "$DEST/presets"
-rm -rf "$DEST/presets/alice-client-master"
-cp -r "$REPO/tools/client-agent/presets/alice-client-master" "$DEST/presets/"
-cp -f "$REPO/tools/client-agent/client-agent.cmd" "$DEST/"
-cp -f "$REPO/tools/client-agent/client-agent-selftest.ps1" "$DEST/"
+cp -rf "$REPO/tools/client-agent/presets/." "$DEST/presets/"
+cp -f "$REPO/tools/client-agent/"*.cmd "$DEST/" 2>/dev/null || true
+cp -f "$REPO/tools/client-agent/"*.ps1 "$DEST/"
 # 说明文件转成 CRLF + UTF-8 BOM（记事本 / PowerShell 5.1 都友好）
 python3 - "$REPO/tools/cloud-tunnel-README.txt" "$DEST/怎么用.txt" <<'PY'
 import sys, pathlib

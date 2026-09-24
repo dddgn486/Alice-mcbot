@@ -20,11 +20,20 @@ function Warn($m) { Write-Host "[install] !! $m" -ForegroundColor Yellow }
 
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) { Warn "没有 node（先装 Node.js 22+）"; exit 2 }
 Info ("node = " + (node --version))
-if (-not (Get-Command dsh -ErrorAction SilentlyContinue)) {
-    Info "装 DSH（锁 $DshVersion）..."
+$dshOk = $false
+if (Get-Command dsh -ErrorAction SilentlyContinue) { Info ("全局 dsh = " + ((dsh --version) 2>&1)); $dshOk = $true }
+elseif (Get-Command npx -ErrorAction SilentlyContinue) {
+    # ⭐ 不强制装全局包：npx 缓存里可能已有（本机 Windows 就是 npx 跑的 rc.2）
+    foreach ($v in @($DshVersion, "0.1.5-rc.2", "0.1.5-rc.3")) {
+        $probe = (& npx --no-install "@deepseek-ai/dsh@$v" --help 2>&1) -join " "
+        if ($probe -match "profile|Usage") { Info "npx 缓存里已有 @deepseek-ai/dsh@$v ⇒ 跳过全局安装（client-agent.cmd 会自动走 npx）"; $dshOk = $true; break }
+    }
+}
+if (-not $dshOk) {
+    Info "装 DSH（锁 $DshVersion，约几分钟）..."
     npm i -g "@deepseek-ai/dsh@$DshVersion" | Out-Null
-    if (-not (Get-Command dsh -ErrorAction SilentlyContinue)) { Warn "dsh 装完但不在 PATH（重开一个终端再跑）"; exit 2 }
-} else { Info ("dsh = " + ((dsh --version) 2>&1)) }
+    if (-not (Get-Command dsh -ErrorAction SilentlyContinue)) { Warn "dsh 装完但不在 PATH（重开终端再跑）"; exit 2 }
+}
 
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $preset = Join-Path $here "presets\alice-client-master"
