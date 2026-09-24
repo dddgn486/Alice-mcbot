@@ -539,3 +539,6 @@ bash tools/headless-battery.sh core
 - **38**：工作区分组（= 会话分组）登记的 `sessionIds` **只影响"已登记/排序"**，磁盘上同 `cwd` 的会话仍会出现；
   想**藏掉**某个会话要用 `global.archivedSessionIds`（API 原文：hidden from every grouping surface，
   且不毁掉它在工作区里的位置）。
+- **36**：⭐ **两端的 git 远端名不同**：**本地 WSL 用 `github`**，**云端容器用 `origin`** ⇒ 在云端照抄本地的
+  `git push github master` 会报 `fatal: 'github' does not appear to be a git repository`（实测踩过；提交本身是成功的，只是没推上去）。
+  两端都可用同一句的自查：`git remote -v`。
