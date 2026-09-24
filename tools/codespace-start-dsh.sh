@@ -38,7 +38,11 @@ fi
 
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
-SLUG="$(printf '%s' "$WORKDIR" | tr '/' '-')"
+# ⚠️ DSH 的 slug 约定（实测）：绝对路径去掉开头的 `/`，其余 `/` 换成 `-`，再**两端各加 `--`**
+#    例：/home/fb486/projects ⇒ --home-fb486-projects--
+#    旧写法 `tr '/' '-'` 得到 `-home-fb486-projects`（**少一个前导与全部尾随短横**）⇒ 会让人把会话
+#    复制到错的目录（迁移踩过）。
+SLUG="--$(printf '%s' "$WORKDIR" | sed 's|^/||; s|/|-|g')--"
 echo "→ cwd = $WORKDIR（会话 slug 目录 = ~/.dsh/sessions/${SLUG}/）"
 echo "→ bind 127.0.0.1:${PORT}（DSH 只允许回环；转发器在容器内部连它）· --trusted-host ${TRUSTED}"
 echo "→ 外部入口（PORTS 面板同一行也有）：https://${TRUSTED}"
