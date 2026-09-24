@@ -117,15 +117,25 @@ public final class HeadlessBattery {
         if ("core".equals(mode) || "full".equals(mode)) {
             fullProfile = "full".equals(mode);
         } else if (mode.startsWith("single:")) {
-            String name = mode.substring("single:".length()).trim();
-            if (name.isEmpty()) {
+            // ⭐ `A2′`（2026-09-24）：**一次点名多步** —— `single:a,b,c`（半角/全角逗号、空白都收）。
+            // 为什么：主工作流的验证轮里，"一条命令验 2~3 个相关步"把人工等待次数直接除 N；
+            // 而**判决口径逐条与 solo 一致**是这条的验收判据（见台账 `A2′`）——合并只改"跑哪些步"，
+            // 不改任何一步的判据、预算与步骤顺序（顺序仍按**步骤表声明顺序**，不按点名顺序）。
+            String spec = mode.substring("single:".length()).trim();
+            java.util.List<String> names = java.util.Arrays.stream(spec.split("[,\\s，]+"))
+                    .map(String::trim).filter(t -> !t.isEmpty()).distinct().toList();
+            if (names.isEmpty()) {
                 BotLog.warn("[Headless] 属性 {}={} 的步名为空 ⇒ 不启用", PROP, mode);
                 return;
             }
             // **快速失败（2026-09-17）**：写错步名原先要**白跑 200 tick** 才报 `battery_never_ran`（本轮实测踩到）。
             // 步名唯一出处 = `CURATION`（构造期自校验与步骤表一一对应）⇒ 起跑前就能判。
+            // ⚠️ 多步点名时**逐个**校验：任一个未知 ⇒ 整轮不跑（不许"跑一半再报错"）。
             java.util.Set<String> known = com.dddgn.alice.task.RegressionBatteryTask.knownStepNames();
-            if (!known.contains(name)) {
+            for (String name : names) {
+                if (known.contains(name)) {
+                    continue;
+                }
                 java.util.List<String> close = known.stream()
                         .filter(k -> k.contains(name) || name.contains(k)
                                 || k.startsWith(name.substring(0, Math.min(4, name.length()))))
@@ -135,8 +145,8 @@ public final class HeadlessBattery {
                 exit(event.getServer(), 6, "unknown_step");
                 return;
             }
-            com.dddgn.alice.task.RegressionBatteryTask.setOnlySteps(java.util.List.of(name));
-            BotLog.info("[Headless] 定向模式：只跑 1 步 {}", name);
+            com.dddgn.alice.task.RegressionBatteryTask.setOnlySteps(names);
+            BotLog.info("[Headless] 定向模式：只跑 {} 步 {}", names.size(), names);
         } else if (mode.startsWith("module:")) {
             // **R-2（Phase 1b）**：模块单跑 —— 这是"一个模块保证可以单独测"的验收入口 ✓
             String id = mode.substring("module:".length()).trim();

@@ -21,7 +21,9 @@ BATTERY = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
            / "RegressionBatteryTask.java")
 # 扫这些地方（说明性文本最可能写步名）
 SCAN_DIRS = [ROOT / "docs", ROOT / "AGENTS.md", ROOT / ".alice-supervision" / "skills", ROOT / "tools"]
-REF = re.compile(r"single:([A-Za-z_][A-Za-z0-9_]*)")
+# ⭐ `A2′`（2026-09-24）：`single:` 支持**逗号点名多步**（`single:<步名1>,<步名2>`）⇒ 引用必须**逐个**校验；
+# 旧正则只吃第一个名字 ⇒ 清单里后面写错的步名会被静默漏掉（"判据太弱"，同 `Z2` 教训）。
+REF = re.compile(r"single:([A-Za-z_][A-Za-z0-9_]*(?:\s*[,，]\s*[A-Za-z_][A-Za-z0-9_]*)*)")
 # `single:<step>` 这种占位写法（文档里讲用法）不算引用
 PLACEHOLDER = {"step", "name", "步名", "X", "Y", "NAME", "STEP", "S"}
 
@@ -57,11 +59,12 @@ def main() -> int:
         except (UnicodeDecodeError, OSError):
             continue
         for match in REF.finditer(text):
-            name = match.group(1)
-            if name in PLACEHOLDER:
-                continue
-            checked += 1
-            if name not in known:
+            for name in [t for t in re.split(r"[,\s，]+", match.group(1)) if t]:
+                if name in PLACEHOLDER:
+                    continue
+                checked += 1
+                if name in known:
+                    continue
                 close = sorted(k for k in known if name[:4] in k or k[:4] in name)[:4]
                 problems.append(f"{path.relative_to(ROOT)} 引用了不存在的步 `single:{name}`"
                                 + (f"（相近：{close}）" if close else ""))

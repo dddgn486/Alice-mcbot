@@ -7,6 +7,9 @@
 #      tools/headless-battery.sh                       # 跑 CORE（30 项）—— 生产服务端
 #      tools/headless-battery.sh full                  # 跑 FULL（40 项）
 #      tools/headless-battery.sh single:capability_gate  # 只跑一步（秒级，调试通道用）
+#      tools/headless-battery.sh single:break_refused,restore_underfoot_safety
+#                                                        # ⭐ 一次跑多步（`A2′`；判决逐条与 solo 一致，
+#                                                        #    跑的顺序仍按步骤表声明顺序，不按点名顺序）
 #      tools/headless-battery.sh core --dev            # 退回 dev 服务端（gradlew runServer）
 #      tools/headless-battery.sh core --keep-world     # 保留本轮世界（查现场）
 #

@@ -95,6 +95,12 @@ public final class LossyWriteAccountedCheckTask implements Task {
     private int closureRecorded = -1;
     private int closureLossy = -1;
     private int inventoryDiamonds = -1;
+    /**
+     * ⭐ **夹具卫生（2026-09-24 由 `A2′` 的组合点名实测抓出）**：进场景**之前** bot 的脚位。
+     * 收尾必须回**这里**，不许回"自己的场景原点" —— 场景方块已还原成原始地形，原点常常是**空中**
+     * ⇒ bot 掉下去，后一步继承到一个坑里。
+     */
+    private BlockPos entryFoot;
     private boolean reported;
 
     public LossyWriteAccountedCheckTask(BotPlayer bot, ServerPlayer observer) {
@@ -286,6 +292,10 @@ public final class LossyWriteAccountedCheckTask implements Task {
     // ==================== 场景与账本 ====================
 
     private void setup(ServerLevel level) {
+        // ⭐ 先记下"进来时站在哪"（收尾回这里；见 `entryFoot` 的注释）
+        if (entryFoot == null) {
+            entryFoot = com.dddgn.alice.pathing.MovementHelper.footCell(level, bot).immutable();
+        }
         // 地板（3 格宽，覆盖三个目标格 —— 摔/落都有底）
         for (int dx = -1; dx <= 6; dx++) {
             for (int dz = -1; dz <= 1; dz++) {
@@ -351,7 +361,10 @@ public final class LossyWriteAccountedCheckTask implements Task {
         }
         WorldModLedger.closeScope(level.getServer(), bot.getUUID());
         BlockPos home = new BlockPos(ORIGIN.getX(), FLOOR_Y + 1, ORIGIN.getZ());
-        bot.teleportTo(level, home.getX() + 0.5D, home.getY(), home.getZ() + 0.5D, 0.0F, 0.0F);
+        // ⭐ 夹具卫生：回**进来时**的脚位（不是自己的场景原点 —— 那里多半已经是空中）
+        BlockPos back = entryFoot != null ? entryFoot : home;
+        bot.teleportTo(level, back.getX() + 0.5D, back.getY(), back.getZ() + 0.5D, 0.0F, 0.0F);
+        bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
         bot.controller().stopMovement();
     }
 }

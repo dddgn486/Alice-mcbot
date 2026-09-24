@@ -119,6 +119,13 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
     private boolean notOursSwapped;
     /** ⭐ `RC1` 臂③：远区块那条目用的**内层作用域**（见 `startFarArm`）。 */
     private String farScopeId = "-";
+    /**
+     * ⭐ **夹具卫生（2026-09-24 由 `A2′` 的组合点名实测抓出）**：进场景**之前** bot 的脚位。
+     * 收尾必须回**这里**，不许回"自己的场景原点" —— 场景方块已还原成原始地形，原点常常是**空中**
+     * ⇒ bot 掉下去（实测：`single:restore_underfoot_safety,break_refused` 组合跑，后一步继承到
+     * y≈44 的坑里，全部 `BREAK_OUT_OF_REACH`）。
+     */
+    private BlockPos entryFoot;
     private boolean reported;
     /** ⭐ `A4`（2026-09-23）：本步账本作用域 id —— 收尾按**世界事实**断言"只该剩脚下那一条"。 */
     private String scopeId = "-";
@@ -335,6 +342,10 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
     // ==================== 场景与账本 ====================
 
     private void buildScene(ServerLevel level) {
+        // ⭐ 先记下"进来时站在哪"（收尾回这里；见 `entryFoot` 的注释）
+        if (entryFoot == null) {
+            entryFoot = com.dddgn.alice.pathing.MovementHelper.footCell(level, bot).immutable();
+        }
         // 地板（覆盖阶梯 + 南向延伸到臂②那格）—— 摔下来落这里
         for (int dx = -1; dx <= PILLAR_H + 1; dx++) {
             for (int dz = -1; dz <= FLOOR_DZ; dz++) {
@@ -502,7 +513,10 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
         }
         WorldModLedger.closeScope(level.getServer(), bot.getUUID());
         BlockPos home = new BlockPos(ORIGIN.getX(), FLOOR_Y + 1, ORIGIN.getZ());
-        bot.teleportTo(level, home.getX() + 0.5D, home.getY(), home.getZ() + 0.5D, 0.0F, 0.0F);
+        // ⭐ 夹具卫生：回**进来时**的脚位（不是自己的场景原点 —— 那里多半已经是空中）
+        BlockPos back = entryFoot != null ? entryFoot : home;
+        bot.teleportTo(level, back.getX() + 0.5D, back.getY(), back.getZ() + 0.5D, 0.0F, 0.0F);
+        bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
         bot.controller().stopMovement();
     }
 }
