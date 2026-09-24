@@ -3107,6 +3107,115 @@ def rule_lossy_write_accounted():
     return problems
 
 
+def rule_kill_drop_attributed():
+    """`A3`（2026-09-24）：**击杀产物必须归我方，而且只归"我们打死的"**。
+
+    <h3>为什么（`survey/29 §2.1`，夹具先复现过，不是推测）</h3>
+    `ScopeBuffer` 原先只按 `BlockEvent.BreakEvent` 配对归属 ⇒ **击杀不产生破坏事件** ⇒
+    击杀产物没有任何来源 ⇒ `DropPolicy.effectiveProvenance` 落 `FOREIGN` ⇒ `PickupGate` 在**被动路径**上
+    直接拦下（`drop.foreign = ASK`）⇒ "自己杀的牛，肉捡不起来"，且只有一行节流日志。
+    实测（夹具红线版，`run/headless-logs/20260924-105859-*`）：`playerAttack(bot)` 打死牛 ⇒
+    `provA=[FOREIGN, FOREIGN]` · `passiveA=false` · `pickedA=0`。
+
+    <h3>四条臂（各有一条注入）</h3>
+    ① **通道存在 + 只认我方**：`LivingDeathEvent` 订阅里 killer 必须是**玩家**（1.20.1 的
+       `getKillCredit()` 返回 `LivingEntity`，不判玩家就会把"生物互殴"算成我方），
+       并且必须与本作用域 owner 比对（别人打的**不许**默认领）；
+    ② **归类在入队时解析、且击杀优先于间接松窗**（`pendingEntry` 里 `matchKillOrigin` 存在且
+       位置在 `matchIndirectOrigin` 之前）—— 顺序换了就会把"确证的死因"降级成 60 tick 兜底；
+    ③ **策略表同源**：`DropPolicy` 的 `OURS_KILL` 必须映射到具名能力，且 `PermissionGate.DEFAULTS`
+       里登记为 `AUTO`（漏登记 ⇒ 默认退化 `ASK` ⇒ 又变回"捡不起来"，且**静默**）；
+    ④ **通道单一**：`OURS_KILL` 只许在 `ScopeBuffer`（生产处）与 `DropPolicy`（定义/映射）出现
+       ⇒ 防止在别处（如破坏路径）手工伪造"击杀归属"。
+
+    <h3>注入即红（2026-09-24 逐条单独开火，均已实测）</h3>
+    A 去掉 owner 比对；B 去掉 killer 的"是不是玩家"判定；C 删 `pendingEntry` 的击杀分支；
+    D 把击杀分支挪到间接松窗之后；E 删 `PermissionGate.DEFAULTS` 里的 `CAP_OURS_KILL` 行；
+    F 在 `BlockBreakSession` 里塞一处 `OURS_KILL`。每条都让本规则变红并指名。
+    """
+    base = ROOT / "src/main/java/com/dddgn/alice"
+    scope = base / "perception/ScopeBuffer.java"
+    policy = base / "decision/DropPolicy.java"
+    gate = base / "decision/PermissionGate.java"
+
+    def code(path):
+        if not path.exists():
+            return None
+        # 只去 `//` 行注释（与共享 `code_only` 同口径）；文本里的 `OURS_KILL` 提及不算违规
+        return code_only(path.read_text(encoding="utf-8"))
+
+    problems = []
+    sc = code(scope)
+    po = code(policy)
+    ga = code(gate)
+    for text, name in ((sc, scope.name), (po, policy.name), (ga, gate.name)):
+        if text is None:
+            problems.append(f"{name} 不存在（改名？同步本规则 `A3`）")
+    if problems:
+        return problems
+
+    # ---- 臂① 通道存在 + 只认我方（玩家 + owner 比对） ----
+    if "LivingDeathEvent" not in sc:
+        problems.append("`ScopeBuffer` 不再订阅 `LivingDeathEvent` ⇒ 击杀产物又没有任何归属来源"
+                        "（`A3` 的缺口原样回来：杀牛产物落 `FOREIGN` ⇒ 捡不起来且静默）")
+    death = method_body(sc, "public static void onLivingDeath(")
+    if not death:
+        problems.append("`ScopeBuffer.onLivingDeath` 不见了（`A3` 的击杀登记入口）⇒ 门禁钉不住通道")
+    else:
+        if "ownerUuid.equals(killer)" not in death:
+            problems.append("`onLivingDeath` 里没有「killer 必须等于本作用域 owner」的比对 ⇒ "
+                            "**别人在同一片地杀的东西会被默认领成我方的**（`A3` 臂②就是钉这个）")
+        credit = method_body(sc, "private static java.util.UUID creditedKiller(")
+        # ⚠️ **判据要精确到"哪一处 instanceof"**：本方法里有两处玩家判定（credit 与伤害来源），
+        # 只查"文件里有没有 instanceof Player"是**假绿** —— 注入 B 第一版实测**没红**（第二处还在）。
+        # 要求：**第一处** `instanceof Player` 必须落在 `getKillCredit()` 与 `getSource()` **之间**。
+        credit_at = credit.find("getKillCredit()")
+        first_check = credit.find("instanceof net.minecraft.world.entity.player.Player")
+        source_at = credit.find("getSource()")
+        if credit_at < 0 or first_check < 0 or first_check < credit_at \
+                or (source_at >= 0 and first_check > source_at):
+            problems.append("`creditedKiller` 没有把**击杀credit**再判一次是不是玩家 ⇒ 1.20.1 的 "
+                            "`getKillCredit()` 会返回 `lastHurtByMob`（`LivingEntity`）⇒ "
+                            "生物互殴/自然死亡会被算成我方击杀（⚠️ 判据盯**第一处** instanceof："
+                            "第二处是伤害来源，只看「有没有」会假绿 —— 注入 B 第一版实测）")
+    # ---- 臂② 入队时解析 + 击杀优先于间接松窗 ----
+    pending = method_body(sc, "private PendingItem pendingEntry(")
+    if "matchKillOrigin(" not in pending:
+        problems.append("`pendingEntry` 里没有击杀配对分支（`matchKillOrigin`）⇒ 登记通道在，"
+                        "但**归属解析**没接上（产物照旧落 FOREIGN）")
+    elif "matchIndirectOrigin(" in pending and pending.find("matchKillOrigin(") > pending.find("matchIndirectOrigin("):
+        problems.append("`pendingEntry` 里击杀配对排在**间接松窗之后** ⇒ 两者同时命中时会把"
+                        "「确证的死因」降级成 60 tick/4 格的兜底归属（优先级：破坏直配 → 击杀 → 间接）")
+    if "private BlockPos matchKillOrigin(" not in sc:
+        problems.append("`ScopeBuffer.matchKillOrigin` 不见了（击杀配对的唯一出处）")
+    # ---- 臂③ 策略表同源 ----
+    if "OURS_KILL" not in po:
+        problems.append("`DropPolicy.Provenance` 里没有 `OURS_KILL` ⇒ 击杀产物只能并进其它档"
+                        "（玩家就没法单独把这一档调紧）")
+    if "case OURS_KILL -> CAP_OURS_KILL" not in po:
+        problems.append("`DropPolicy.capability` 没有把 `OURS_KILL` 映射到具名能力"
+                        "（`DropPolicy.CAP_OURS_KILL`）⇒ 权限表里没有可配的开关")
+    if "DEFAULTS.put(DropPolicy.CAP_OURS_KILL, Policy.AUTO)" not in ga:
+        problems.append("`PermissionGate.DEFAULTS` 没把 `drop.ours_kill` 登记为 `AUTO` ⇒ "
+                        "默认落到 `policy()` 的兜底 `ASK` ⇒ 我方击杀产物**又被拦下**（回到缺口的症状，"
+                        "而且看不出是配置漏了）")
+    # ---- 臂④ 通道单一 ----
+    # 只许 `ScopeBuffer` 产生、`DropPolicy` 定义/映射；**自检夹具除外** —— 夹具读这个枚举值正是
+    # 它的判据（`*CheckTask`/`*ProbeTask`，与 `tools/fixture-hygiene.py` 的命名口径同源）。
+    fixture_name = re.compile(r"(Check|Probe)\w*Task\.java$")
+    allowed = {"perception/ScopeBuffer.java", "decision/DropPolicy.java"}
+    for path in sorted((base / "perception").rglob("*.java")) + sorted((base / "action").rglob("*.java")) \
+            + sorted((base / "task").rglob("*.java")) + sorted((base / "job").rglob("*.java")):
+        rel = path.relative_to(base).as_posix()
+        if fixture_name.search(path.name):
+            continue
+        text = code(path)
+        if text and "OURS_KILL" in text and rel not in allowed:
+            problems.append(f"`{rel}` 也在产生/引用 `OURS_KILL` ⇒ 击杀归属通道不再单一"
+                            f"（只许 `ScopeBuffer` 产生、`DropPolicy` 定义/映射；夹具除外）")
+    return problems
+
+
 def rule_write_truth_single_source():
     """`RC4`（2026-09-24）：**"我方写了多少世界"只有一个真相；没发生的写入不许留在账上**。
 
@@ -3545,6 +3654,7 @@ def main() -> int:
     capability = rule_k4_capability_provenance()
     z2 = rule_ledger_closure_zone_scoped()
     rc3 = rule_lossy_write_accounted()
+    a3 = rule_kill_drop_attributed()
     rc4 = rule_write_truth_single_source()
     p2b = rule_replay_bounded()
     z3 = rule_write_budget_zone_and_container_exception()
@@ -3660,6 +3770,8 @@ def main() -> int:
         print(f"[Z2·账本闭合口径] {line}")
     for line in rc3:
         print(f"[RC3·不可逆写入记账] {line}")
+    for line in a3:
+        print(f"[A3·击杀产物归属] {line}")
     for line in rc4:
         print(f"[RC4·写入真相同源] {line}")
     for line in p2b:
@@ -3673,11 +3785,11 @@ def main() -> int:
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b) and not tlb
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b and not a3) and not tlb
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
           f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / tick负载预算={len(tlb)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
-          f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 不可逆写入记账={len(rc3)} / 写入真相同源={len(rc4)} / 重放有界={len(p2b)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
+          f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 不可逆写入记账={len(rc3)} / 击杀产物归属={len(a3)} / 写入真相同源={len(rc4)} / 重放有界={len(p2b)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

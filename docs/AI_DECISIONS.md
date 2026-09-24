@@ -18557,3 +18557,75 @@ wildSkippedSince 窗口内被跳过的区外放置次数
 1. 实际出现"按 80% 线 pause + 压缩"之后，**恢复工作时代价明显**（找不回断点 / 重问已答事实）⇒ 把断点线提前到 70%；
 2. 50% 提醒线**连续三次**提醒后用户都没压 ⇒ 说明提醒无用，撤回提醒线（只留 80%）；
 3. `dsh-context-usage.sh` 读数与 harness 实际触发压缩不一致（脚本读的是 JSONL，若 DSH 改存储世代则该脚本应"响亮地失败"）⇒ 先修脚本，别用读数下结论。
+
+### D-422：⭐ **击杀产物归我方**（`A3` —— 新增第三条归属通道）+ 一条夹具陷阱（2026-09-24）
+
+**背景（勘测侧推断 ⇒ 本项先复现）**：`survey/29 §2.1` 读码指出"bot 击杀动物 ⇒ 产物落 `FOREIGN` ⇒
+不会捡、且静默"，`survey/30` 把它列为 `P0` 并注明**属推断、必须先用夹具复现**。夹具跑出来了，
+与推断**逐字一致**（提交 `4c00fa5` 的日志）：
+
+```
+[A3] ?? ??? + ???? ??=4302, 99, 2600 ??=playerAttack(bot)?killer=<bot uuid>?died=true hp=0.0
+[A3] SUMMARY checks=11 failures=3 ... provA=[FOREIGN, FOREIGN] itemsA=minecraft:leatherx2,minecraft:beefx2
+     passiveA=false pickedA=0 provB=[FOREIGN, FOREIGN, FOREIGN] ... remainingB=3 blocked=+54 verdict=FAIL
+```
+
+#### 一、裁定：**归属先行**，且归属走"第三条通道"
+
+1. **新增枚举 `DropPolicy.Provenance.OURS_KILL`**（不并进 `OURS_DIRECT`）：证据通道不同（死亡事件 vs
+   破坏事件），且**可单独设策略** —— `/alice policy drop.ours_kill ASK` 能只把这一档调紧而不动挖矿产物。
+   能力名 = `drop.ours_kill`，`PermissionGate.DEFAULTS` = **`AUTO`**（与我方破坏产物同档）。
+2. **归因口径**（`ScopeBuffer.creditedKiller`）：① 先认 `LivingEntity.getKillCredit()` —— 它覆盖
+   "我打伤之后它死于火焰/坠落/摔伤"这类**我方行为的后果**；② 再认伤害来源实体（投射物由
+   `getEntity()` 给出射手）；③ **两条都必须是玩家** —— ⚠️ 1.20.1 的 `getKillCredit()` 返回
+   `LivingEntity`，不判玩家就会把 `lastHurtByMob`（生物互殴）算成我方；④ 最后 killer 必须等于
+   **本作用域 owner**（`ownerUuid == null` = 匿名作用域，与破坏那条通道同口径）⇒ 别人在同一片地杀的
+   东西**不领**，产物继续走 `FOREIGN` + 闸门拦截。
+3. **三条通道的优先级**（`ScopeBuffer.pendingEntry`，仍在**入队那一刻**解析 —— `D-348` 的纪律）：
+   **破坏直配（10 tick/3 格）→ 我方击杀（10 tick/3 格）→ 间接松窗（60 tick/4 格）**。
+   理由：前两条是"确证的直接原因"，第三条是兜底；两者同时命中时取**更精确的证据**。
+   实现 = `recentKills` + `KillRecord(pos, tick, victim)` + `matchKillOrigin`，与 `recentBreaks` 完全同形
+   （**不**在死亡事件里直接给产物标 UUID：那会依赖 `LivingDeathEvent` 与产物进世界之间的
+   `dropAllDeathLoot` 顺序，且 `flushPending` 会用自己解析的 `source` 覆盖 `itemOrigins`）。
+4. **产物要能被收集**：击杀记录同时当"来源"用（= 死亡点）⇒ `liveDrops()` 看得见它、
+   `CollectDropsTask` / `CollectJob` 能把它当候选（授权仍由 `DropPolicy.mayCollect` 把关）。
+5. **不做**：本项**不写攻击**（`survey/30` 的"归属先行"）；**不做**"外来击杀"计数（与外来破坏不同，
+   外来击杀不产生任何义务，`[Pickup] blocked` 已经点名叫停）。
+
+#### 二、门禁（`rule_kill_drop_attributed`，四条臂 + 六处注入即红）
+
+| 臂 | 断言 | 注入（逐条单独开火，均实测变红） |
+|---|---|---|
+| ① | `LivingDeathEvent` 订阅存在；killer 必须是玩家（**第一处** instanceof 落在 `getKillCredit()` 与 `getSource()` 之间）；且必须与 owner 比对 | A 去 owner 比对 · B 去"是不是玩家" |
+| ② | `pendingEntry` 里有 `matchKillOrigin` 且**排在** `matchIndirectOrigin` **之前** | C 删分支 · D 挪到间接松窗之后 |
+| ③ | `OURS_KILL` 映射到具名能力 + `PermissionGate.DEFAULTS` 里有 `AUTO` 登记 | E 删 `DEFAULTS` 登记（漏登记 ⇒ 默认退化 `ASK` ⇒ **静默回到缺口症状**） |
+| ④ | `OURS_KILL` 只许出现在 `ScopeBuffer`（产生）与 `DropPolicy`（定义/映射）；**自检夹具除外** | F 在 `BlockBreakSession` 里伪造一处 |
+
+⚠️ **注入 B 第一版没红**：臂①只查"文件里有没有 `instanceof Player`"，而**伤害来源那一处还在**
+（同 `RC4` 的 I3 教训）⇒ 收紧成"第一处 instanceof 必须落在 `getKillCredit()` 与 `getSource()` 之间"才红。
+
+#### 三、⭐ 顺带抓出的夹具陷阱（**别用固定 tick 数赌实体的 tick 起点**）
+
+夹具第一版用"固定等 30 tick 再断言拾取"，**同一份代码两次判决不同**（`pickedA=0` / `pickedA=4`）。
+临时探针的原始读数给出机制（定位后已删除探针）：
+
+```
+pt=1  delay=10 age=0   (生成后 Age=0、PickupDelay 冻住)
+pt=10 delay=10 age=0   ← 约 10 tick 里实体根本没被 tick
+pt=15 delay=7  age=3
+pt=20 delay=2  age=8
+pt=25 inv=4 drops(0)   ← 捡到了
+```
+
+⇒ `击杀 → 能捡` 实测 **≈40 tick**，30 tick 的窗口正好卡在边界上（一次够、一次不够）。
+**纪律**：这类"等世界发生某事"的判据一律用 **"等条件 + 上限"**，不用固定时长 ——
+本夹具现在：正向等"背包真的多了"（上限 60 tick）、反向等"闸门真的被撞到"（且至少 20 tick，
+防"还没轮到它就宣布拦住了"）。读数（`pickupATicks=34 / 25`，两次复跑）也进了终态行。
+
+#### 四、复核触发
+
+1. 攻击/猎杀能力**真正上线**时：把本项当**前置件**复核一遍（"杀了拿不到"就是上线第一天的形状）；
+2. 出现"我方**宠物/召唤物**击杀"（狼、铁傀儡、模组召唤物）⇒ 重新裁定 `getKillCredit()` 的主人归因
+   （今天的口径 = 按主人算我方；"我方宠物"这个概念今天不存在）；
+3. 模组**自定义掉落**（`LivingDropsEvent` 里改产物/延迟生成）导致窗口配对漏配 ⇒ 先加读数
+   （产物 tick 起点 / 窗口命中率），再考虑 UUID 直标通道（本项已记录为何暂不采用）。

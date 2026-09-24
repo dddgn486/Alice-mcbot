@@ -23,6 +23,16 @@ public final class DropPolicy {
     public enum Provenance {
         /** 我方破坏事件**直接**产生（现成的配对）。 */
         OURS_DIRECT,
+        /**
+         * ⭐ `A3`（2026-09-24）：**我方击杀**的生物产物。
+         *
+         * <p>为什么单独一档而不是并进 `OURS_DIRECT`：证据通道不同（破坏事件 vs 死亡事件），
+         * 而且**可单独设策略**（"准我去挖，但不准我顺手捡战场"是合理的玩家口径）。
+         * 归因见 {@code ScopeBuffer.onLivingDeath} + {@code matchKillOrigin}：
+         * 只认**玩家归因**（`LivingEntity.getKillCredit()` 优先 —— 覆盖"我打伤后它死于火焰/坠落"；
+         * 否则看伤害来源实体），且 killer 必须是**本作用域的 owner**。
+         */
+        OURS_KILL,
         /** 我方行为的**间接后果**（时间窗 + 空间窗归属：树叶衰减、支撑被移除后弹出…）。 */
         OURS_INDIRECT,
         /** 落在**玩家授权**的收集区域/时段内（`CollectGrant`；S3.5 第二步落地）。 */
@@ -33,6 +43,7 @@ public final class DropPolicy {
 
     /** 能力名（复用 `PermissionGate` 的策略表 ⇒ `/alice policy drop.foreign ASK` 直接可用）。 */
     public static final String CAP_OURS_DIRECT = "drop.ours_direct";
+    public static final String CAP_OURS_KILL = "drop.ours_kill";
     public static final String CAP_OURS_INDIRECT = "drop.ours_indirect";
     public static final String CAP_GRANTED_AREA = "drop.granted_area";
     public static final String CAP_FOREIGN = "drop.foreign";
@@ -50,6 +61,7 @@ public final class DropPolicy {
     public static String capability(Provenance provenance) {
         return switch (provenance) {
             case OURS_DIRECT -> CAP_OURS_DIRECT;
+            case OURS_KILL -> CAP_OURS_KILL;
             case OURS_INDIRECT -> CAP_OURS_INDIRECT;
             case GRANTED_AREA -> CAP_GRANTED_AREA;
             case FOREIGN -> CAP_FOREIGN;
@@ -57,7 +69,7 @@ public final class DropPolicy {
     }
 
     /**
-     * **有效归属**（S3.5 第二步）：按优先级判定 —— ① 我方登记在册（`ScopeBuffer`，直接/间接）
+     * **有效归属**（S3.5 第二步）：按优先级判定 —— ① 我方登记在册（`ScopeBuffer`，直接/击杀/间接）
      * ② 落在**玩家授权区**内（`CollectGrants`）③ 其余 = `FOREIGN`。
      *
      * <p>主动（`CollectJob`）与被动（`PickupGate`）**都必须用这一个入口**判定，不允许各写一套。

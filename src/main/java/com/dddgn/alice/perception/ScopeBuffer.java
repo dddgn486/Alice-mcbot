@@ -19,7 +19,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * 任务启动时以目标为中心注册一个监听区间,在任务生命周期内实时记录:
  * <ul>
  *   <li>新生成的掉落物(EntityJoinLevelEvent → ItemEntity),用于「挖完去捡掉落物」;</li>
- *   <li>区间内的方块破坏(BlockEvent.BreakEvent),用于外部扰动感知。</li>
+ *   <li>区间内的方块破坏(BlockEvent.BreakEvent),用于外部扰动感知;</li>
+ *   <li>区间内的生物死亡(LivingDeathEvent)⇒ **我方击杀的产物归我方**(`A3`)。</li>
  * </ul>
  * 事件回调均在服务端主线程,实例过滤只做距离判断,O(1) 开销。
  * </p>
@@ -63,14 +64,25 @@ public final class ScopeBuffer {
     /** 掉落物 → 其**来源方块**（由破坏事件配对得到；未配对为 null）。 */
     private final java.util.Map<java.util.UUID, BlockPos> itemOrigins = new java.util.HashMap<>();
     /**
-     * 掉落物 → **归属**（S3.5 / D-138）：直接配对 = `OURS_DIRECT`；落在"我方动作点松窗内" = `OURS_INDIRECT`。
-     * 未登记 = 不是我们的（`FOREIGN`，由 `DropPolicy` 判定怎么处理）。
+     * 掉落物 → **归属**（S3.5 / D-138）：破坏直配 = `OURS_DIRECT`；我方击杀 = `OURS_KILL`（`A3`）；
+     * 落在"我方动作点松窗内" = `OURS_INDIRECT`。未登记 = 不是我们的（`FOREIGN`，由 `DropPolicy` 判定）。
      */
     private final java.util.Map<java.util.UUID, com.dddgn.alice.decision.DropPolicy.Provenance>
             itemProvenance = new java.util.HashMap<>();
     private final List<BlockPos> brokenBlocks = new ArrayList<>();
     /** 最近的破坏事件（pos + 游戏 tick），用于与随后生成的掉落物配对。 */
     private final List<BreakRecord> recentBreaks = new ArrayList<>();
+
+    // ==================== `A3`：**我方击杀**（2026-09-24） ====================
+    // 为什么要有这条通道：`recentBreaks` 只认 `BlockEvent.BreakEvent`，而**击杀不产生破坏事件** ⇒
+    // 击杀产物没有任何归属来源 ⇒ `DropPolicy.effectiveProvenance` 落到 `FOREIGN` ⇒ `PickupGate`
+    // 在被动路径上直接拦下（`drop.foreign = ASK`）⇒ "自己杀的牛，肉捡不起来，只有一行节流日志"。
+    // 攻击/猎杀能力上线后第一天就是这个形状（`survey/29 §2.1`）⇒ 归属先行。
+    /** 我方击杀记录（死亡点 + tick + 受害者），与 `recentBreaks` 同形的"时间窗 + 空间窗"配对。 */
+    private final List<KillRecord> recentKills = new ArrayList<>();
+
+    private record KillRecord(BlockPos pos, long tick, String victim) {
+    }
 
     // ==================== G3：**外来破坏**（模组连锁/爆炸/其他玩家） ====================
     // 2026-09-12 复核：原先只登记"我方破坏"，范围内由**别人/模组**造成的破坏被静默忽略 ——
@@ -174,6 +186,7 @@ public final class ScopeBuffer {
         this.itemOrigins.clear();
         this.brokenBlocks.clear();
         this.recentBreaks.clear();
+        this.recentKills.clear();
         this.foreignBreaks.clear();
         this.foreignBreakCount = 0;
         this.lastForeignSummary = "-";
@@ -197,6 +210,7 @@ public final class ScopeBuffer {
             itemOrigins.clear();
             brokenBlocks.clear();
             recentBreaks.clear();
+            recentKills.clear();
             foreignBreaks.clear();
             foreignBreakCount = 0;
             lastForeignSummary = "-";
@@ -310,10 +324,14 @@ public final class ScopeBuffer {
      * （Ore Excavation 连锁期间缓冲掉落物即为此类）。
      */
     /**
-     * `D-348`：**在入队那一刻**解析归属（直接配对 10 tick / 3 格 → 松窗 60 tick / 4 格）。
+     * `D-348`：**在入队那一刻**解析归属（直接配对 10 tick / 3 格 → 击杀 10 tick / 3 格 → 松窗 60 tick / 4 格）。
      *
-     * <p>入队 = 掉落物刚出现在世界的那一刻 ⇒ 破坏记录必然是新鲜的；把结果**存进排队项**，
+     * <p>入队 = 掉落物刚出现在世界的那一刻 ⇒ 破坏/击杀记录必然是新鲜的；把结果**存进排队项**，
      * 登记被推迟多久都不会丢归属（见 {@link PendingItem}）。
+     *
+     * <p>⭐ `A3`（2026-09-24）：**击杀**排在"间接松窗"**之前** —— 两者都能命中时取**更精确的证据**
+     * （击杀是确证的死因；间接窗口是 60 tick/4 格的兜底）。三条通道的优先级：
+     * 破坏直配 → 我方击杀 → 间接松窗。
      */
     private PendingItem pendingEntry(ItemEntity item, long tick, BlockPos pos) {
         BlockPos source = matchBreakSource(pos, tick);
@@ -321,10 +339,16 @@ public final class ScopeBuffer {
         if (source != null) {
             provenance = com.dddgn.alice.decision.DropPolicy.Provenance.OURS_DIRECT;
         } else {
-            BlockPos indirect = matchIndirectOrigin(pos, tick);
-            if (indirect != null) {
-                source = indirect;
-                provenance = com.dddgn.alice.decision.DropPolicy.Provenance.OURS_INDIRECT;
+            BlockPos killed = matchKillOrigin(pos, tick);
+            if (killed != null) {
+                source = killed;
+                provenance = com.dddgn.alice.decision.DropPolicy.Provenance.OURS_KILL;
+            } else {
+                BlockPos indirect = matchIndirectOrigin(pos, tick);
+                if (indirect != null) {
+                    source = indirect;
+                    provenance = com.dddgn.alice.decision.DropPolicy.Provenance.OURS_INDIRECT;
+                }
             }
         }
         return new PendingItem(item, tick, source, provenance);
@@ -420,6 +444,39 @@ public final class ScopeBuffer {
 
     private void pruneBreaks(long tick) {
         recentBreaks.removeIf(record -> tick - record.tick() > DROP_PAIR_WINDOW_TICKS);
+    }
+
+    /** `A3`：击杀记录的过期淘汰（与破坏记录同一窗口/同一条纪律）。 */
+    private void pruneKills(long tick) {
+        recentKills.removeIf(record -> tick - record.tick() > DROP_PAIR_WINDOW_TICKS);
+    }
+
+    /**
+     * ⭐ `A3`：与最近的**我方击杀**配对（时间窗 + 空间窗，参数与破坏配对一致）。
+     *
+     * <p>为什么用"窗口配对"而不是"在死亡事件里直接给产物标 UUID"：本类的纪律是
+     * **归属在掉落物入队那一刻解析**（`D-348`），而 `LivingDeathEvent` 与产物进世界之间隔着
+     * `dropAllDeathLoot`（模组还可能重排/缓冲生成事件）⇒ 直接标注会依赖事件顺序，且
+     * `flushPending` 会用自己的 `source` 覆盖 `itemOrigins`。窗口配对与 {@link #matchBreakSource}
+     * 完全同形，而**死亡就发生在产物那一格**（半径 3 格绰绰有余）。
+     *
+     * @return 命中则返回**死亡点** —— 它同时当"来源"用 ⇒ `liveDrops()` 能看见它、收集任务能收它
+     */
+    private BlockPos matchKillOrigin(BlockPos itemPos, long tick) {
+        double radiusSqr = DROP_PAIR_RADIUS * DROP_PAIR_RADIUS;
+        BlockPos best = null;
+        double bestDistance = Double.MAX_VALUE;
+        for (KillRecord record : recentKills) {
+            if (tick - record.tick() > DROP_PAIR_WINDOW_TICKS) {
+                continue;
+            }
+            double distance = record.pos().distSqr(itemPos);
+            if (distance <= radiusSqr && distance < bestDistance) {
+                bestDistance = distance;
+                best = record.pos();
+            }
+        }
+        return best;
     }
 
     private boolean inScope(BlockPos pos) {
@@ -573,6 +630,66 @@ public final class ScopeBuffer {
     /** 最近的外来破坏（最新在后，供汇报）。 */
     public java.util.List<ForeignBreak> recentForeignBreaks() {
         return java.util.List.copyOf(foreignBreaks);
+    }
+
+    /**
+     * ⭐ `A3`（2026-09-24）：**击杀归属** —— 我方打死的生物，其产物算我方（`OURS_KILL`）。
+     *
+     * <p><b>为什么必须有这条订阅</b>：`onBlockBreak` 只认 `BlockEvent.BreakEvent`，而**击杀不产生
+     * 破坏事件** ⇒ 击杀产物没有任何归属来源 ⇒ 落 `FOREIGN` ⇒ `PickupGate` 直接拦下（`drop.foreign=ASK`）
+     * ⇒ "自己杀的牛，肉捡不起来"，且只有一行节流日志。攻击/猎杀能力一旦上线，第一天就是这个形状。
+     *
+     * <p><b>归因口径（谁算"我方"）</b>：① 先认 `LivingEntity.getKillCredit()` —— 它覆盖
+     * "我打伤之后它死于火焰/坠落/摔伤"这类**我方行为的后果**；② 再认伤害来源实体（投射物也算
+     * `getEntity()` = 射手的场合）。两条都要是**玩家** —— 模组程序化死亡（无玩家来源）一律不认。
+     * ③ 最后与破坏同一条纪律：killer 必须是**本作用域的 owner**（`ownerUuid == null` = 匿名作用域，
+     * 与前文口径一致）⇒ 别的玩家在同一片地杀的东西**不算我们的**（产物继续走 `FOREIGN` + 闸门拦截）。
+     *
+     * <p>⚠️ 诚实边界：**玩家驯服的宠物**（狼/猫）的击杀credit 是主人，`getKillCredit()` 会给出主人 ⇒
+     * 按"我方"处理；"我方宠物"这个概念今天不存在（Alice 不养宠物），不做区分。
+     */
+    @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.LOWEST)
+    public static void onLivingDeath(net.minecraftforge.event.entity.living.LivingDeathEvent event) {
+        if (!(event.getEntity().level() instanceof ServerLevel level)) {
+            return;
+        }
+        java.util.UUID killer = creditedKiller(event);
+        if (killer == null) {
+            return;   // 无玩家归因（自然死亡/模组/生物互殴）⇒ 产物仍是 FOREIGN，不许算我们的
+        }
+        long tick = level.getGameTime();
+        BlockPos pos = event.getEntity().blockPosition().immutable();
+        for (ScopeBuffer scope : ACTIVE) {
+            if (!scope.inScope(pos)) {
+                continue;
+            }
+            if (scope.ownerUuid != null && !scope.ownerUuid.equals(killer)) {
+                continue;   // 别人打的 ⇒ 不是我们的（不要静默认领）
+            }
+            scope.recentKills.add(new KillRecord(pos, tick, victimId(event)));
+            scope.pruneKills(tick);
+        }
+    }
+
+    /** 击杀归因（`A3`）：先认击杀credit（含"打伤后死于他因"），再认伤害来源实体；都要求是玩家。 */
+    private static java.util.UUID creditedKiller(
+            net.minecraftforge.event.entity.living.LivingDeathEvent event) {
+        // ⚠️ 1.20.1 的 `getKillCredit()` 返回 `LivingEntity`（无玩家时会给 `lastHurtByMob`）
+        // ⇒ **必须再判一次是不是玩家**，否则"生物互殴"会被当成我方击杀（`A3` 反向臂就是钉这个）。
+        net.minecraft.world.entity.LivingEntity credit = event.getEntity().getKillCredit();
+        if (credit instanceof net.minecraft.world.entity.player.Player player) {
+            return player.getUUID();
+        }
+        if (event.getSource().getEntity()
+                instanceof net.minecraft.world.entity.player.Player player) {
+            return player.getUUID();
+        }
+        return null;
+    }
+
+    private static String victimId(net.minecraftforge.event.entity.living.LivingDeathEvent event) {
+        return String.valueOf(net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE
+                .getKey(event.getEntity().getType()));
     }
 
     @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.LOWEST)

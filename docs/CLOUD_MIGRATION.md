@@ -563,6 +563,6 @@ bash tools/headless-battery.sh core
   ⇒ 26 条**指向 Baritone 行号**的引用（`565…843`；Baritone 实为 **863 行**，逐行核对都命中）被判"超界"。
   修法：① 参照仓路径 = `ALICE_BARITONE_DIR` > 本地固定路径 > `$HOME/reference/baritone*`；
   ② 裸基名引用改为**候选全取、候选都装不下才红**（不再依赖"基名唯一"，也不依赖参照仓在不在）。
-  效果：校验量 836 → **1082** 处、提示 232 → 156，并**真的抓出 2 条真过期**（`ToolSet.java:207-239` ⇒ 已改 `207-236`）；
+  效果：校验量 836 → **1082** 处、提示 232 → 156，并**真的抓出 2 条真过期**（`ToolSet.java` 当时写的 `207-239` **越界**（真值 236 行）⇒ 已改 `207-236`）；
   `ALICE_MODS_DIR=$HOME/mc-client/mods tools/check-all.sh` = **`pass=20 warning=2 failed=0`（首次无 FAIL）**。
   ⚠️ 两个 warning 仍是"未执行"（无头电池未跑 / `check-machine-map` 缺上游 jar），**不是通过**。

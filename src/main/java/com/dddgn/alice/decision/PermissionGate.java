@@ -76,9 +76,12 @@ public final class PermissionGate {
         // 用户裁定：改世界/占用玩家资源必须 ASK；取材料这类"自己动手"先 NOTIFY（S3 起为 ASK 以便验证）
         DEFAULTS.put(CAP_FETCH_TOOLS, Policy.ASK);
         DEFAULTS.put(CAP_DEMO, Policy.ASK);
-        // D-138 裁定：掉落物归属策略 —— 我方（直接/间接）与授权区 AUTO；FOREIGN 默认 **ASK**
+        // D-138 裁定：掉落物归属策略 —— 我方（直接/击杀/间接）与授权区 AUTO；FOREIGN 默认 **ASK**
         // （被动路径上 ASK 会被直接拦下，不弹请示；要捡只能显式派活/先授权）
         DEFAULTS.put(DropPolicy.CAP_OURS_DIRECT, Policy.AUTO);
+        // `A3`（2026-09-24）：**我方击杀**的产物与我方挖出来的产物同档（否则"自己杀的牛捡不起来"）。
+        // 单独一个能力名 ⇒ 玩家可以只把这一档调紧（`/alice policy drop.ours_kill ASK`）。
+        DEFAULTS.put(DropPolicy.CAP_OURS_KILL, Policy.AUTO);
         DEFAULTS.put(DropPolicy.CAP_OURS_INDIRECT, Policy.AUTO);
         DEFAULTS.put(DropPolicy.CAP_GRANTED_AREA, Policy.AUTO);
         DEFAULTS.put(DropPolicy.CAP_FOREIGN, Policy.ASK);

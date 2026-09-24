@@ -39,20 +39,28 @@ import java.util.Map;
  *
  * <h2>两条臂（都必须能变红）</h2>
  * <ol>
- *   <li>**臂①（正向 = `A3` 判据）**：bot 亲手打死一头牛（`playerAttack(bot)`）⇒ 产物**不许**是
- *       `FOREIGN`，且**被动拾取必须放行**，并**端到端**真的进背包（走到落点上等着捡）；</li>
+ *   <li>**臂①（正向 = `A3` 判据）**：bot 亲手打死一头牛（`playerAttack(bot)`）⇒ 产物必须是
+ *       `OURS_KILL`，且**被动拾取必须放行**，并**端到端**真的进背包（站到落点上等自动吸附）；</li>
  *   <li>**臂②（反向对照 = "闸门还在"）**：同一片区里再杀一头牛，但**没有任何玩家归因**
  *       （`genericKill()` ⇒ killer=null）⇒ 产物**必须仍是 `FOREIGN`**、被动拾取**必须被拦**、
  *       东西**必须留在地上**。没有这条臂，"把所有掉落物一律登记成我方的"也能让臂①变绿（假绿）。</li>
  * </ol>
  *
- * <h2>为什么用"等 tick + 站在落点上"而不是调用收集任务</h2>
- * 本条判据是**归属**，不是路径/收集能力（后者已有 `pickup_gate` / `collect_job` 等步覆盖）。
- * 所以这里只做两件事：读 `DropPolicy.effectiveProvenance`，然后**站着等自动吸附**（原版那条路）
- * —— 那正是真机上"自己杀的牛捡不起来"的同一段代码路径。
+ * <h2>先红后绿（本夹具的证据链）</h2>
+ * 实现落地**之前**的实跑（提交 `4c00fa5`，日志
+ * `run/headless-logs/20260924-105859-single_kill_drop_provenance.log`）：
+ * `FAIL checks=11 failures=3 ticks=72` · `provA=[FOREIGN, FOREIGN]` · `passiveA=false` ·
+ * `pickedA=0`（真缺口复现：自己杀的牛，皮革/牛肉落成 `FOREIGN` ⇒ 被动闸门直接拦下）；
+ * 当时臂①的断言只有"不许是 `FOREIGN`"，实现落地后**收紧成"必须是 `OURS_KILL`"**（同一条臂）。
  *
- * <h2>夹具卫生（照 `A2′` 抓出来的纪律）</h2>
- * 收尾回**进来时的脚位**（`entryFoot`），不回自己的场景原点（那时自建地板已还原 ⇒ 多半是空中）。
+ * <h2>⭐ 夹具教训（2026-09-24，第一版**偶发红**换来的）：别用固定 tick 数赌实体的 tick 起点</h2>
+ * 第一版用"固定等 30 tick 再断言拾取"，实测**同代码两次判决不同**（`pickedA=0` 与 `pickedA=4`）。
+ * 探针（临时加、定位后删除）打出的原始读数解释了原因：掉落物生成后 **`Age=0`/`PickupDelay=10`
+ * 被冻住约 10 tick**（`pt=1..10` 全是 `age=0 delay=10`，`pt=15` 才 `age=3 delay=7`）——
+ * 也就是"生成 → 开始被 tick"本身有一段延迟，再叠加 `pickupDelay`≈10 tick ⇒
+ * `击杀 → 能捡`实测要 **≈40 tick**，而 30 tick 的窗口正好卡在边界上。
+ * ⇒ 本夹具改成 **"等条件 + 上限"**：拾取臂等"背包真的多了"（上限 60 tick）、
+ * 反向臂等"闸门真的被撞到"（上限 60 tick）⇒ 既不赌时长，也不会无限等。
  */
 public final class KillDropProvenanceCheckTask implements Task {
 
@@ -66,10 +74,12 @@ public final class KillDropProvenanceCheckTask implements Task {
     /** 臂②（无归因击杀）的落点：bot 西侧 2 格（与臂① 相距 4 格，两批产物不会混）。 */
     private static final BlockPos KILL_B_POS = new BlockPos(ORIGIN.getX() - 2, FLOOR_Y + 1, ORIGIN.getZ());
     private static final int SCOPE_RADIUS = 16;
-    /** 死亡当 tick 就掉物；等 2 tick 让"生成 → 入队 → tick 末登记"走完（`D-348` 的宽限窗口）。 */
-    private static final int WAIT_DROPS = 3;
-    /** 掉落物 `pickupDelay` 默认 10 tick ⇒ 站着至少等 30 tick 才能断言"捡到了/没捡到"。 */
-    private static final int WAIT_PICKUP = 30;
+    /** 产物**出现**的上限（死亡当 tick 就掉物；`D-348` 的生成登记可能被推迟若干 tick）。 */
+    private static final int MAX_WAIT_DROPS = 20;
+    /** 拾取臂的上限（实测 `击杀 → 能捡` ≈40 tick，见类注释的教训）。 */
+    private static final int MAX_WAIT_PICKUP = 60;
+    /** 反向臂：至少等这么久才认"闸门没反应"（防"还没被撞到就宣布拦住了"）。 */
+    private static final int MIN_PICKUP_TICKS = 20;
     private static final int BUDGET_TICKS = 900;
 
     private enum Phase { SETUP, KILL_A, ASSERT_A, PICKUP_A, KILL_B, ASSERT_B, PICKUP_B, DONE }
@@ -92,9 +102,13 @@ public final class KillDropProvenanceCheckTask implements Task {
     private final List<DropPolicy.Provenance> provB = new ArrayList<>();
     private String itemsA = "-";
     private String itemsB = "-";
+    private String dropsAtPickupA = "-";
+    private String dropsAtPickupB = "-";
     private boolean passiveA;
     private boolean passiveB;
     private int pickedA = -1;
+    private int pickupATicks = -1;
+    private int pickupBTicks = -1;
     private int invBeforeA = -1;
     private int invBeforeB = -1;
     private int remainingB = -1;
@@ -163,7 +177,7 @@ public final class KillDropProvenanceCheckTask implements Task {
                     premiseOnGround();
                     kill(level, KILL_A_POS, true);
                 }
-                if (phaseTicks >= WAIT_DROPS) {
+                if (dropsNear(level, KILL_A_POS, 3.0D) > 0 || phaseTicks >= MAX_WAIT_DROPS) {
                     phase = Phase.ASSERT_A;
                     phaseTicks = 0;
                 }
@@ -180,9 +194,13 @@ public final class KillDropProvenanceCheckTask implements Task {
                     invBeforeA = itemCount();
                     standOn(level, KILL_A_POS);
                 }
-                if (phaseTicks >= WAIT_PICKUP) {
+                boolean picked = invBeforeA >= 0 && itemCount() > invBeforeA;
+                if (picked || phaseTicks >= MAX_WAIT_PICKUP) {
                     pickedA = itemCount() - invBeforeA;
-                    check("⭐ 臂① 端到端：站着等自动吸附 ⇒ 必须真的进背包（实测 +" + pickedA + " 件）",
+                    pickupATicks = phaseTicks;
+                    dropsAtPickupA = describeDrops(level, KILL_A_POS, 3.0D);
+                    check("⭐ 臂① 端到端：站到落点上等自动吸附 ⇒ 必须真的进背包（实测 +" + pickedA
+                                    + " 件，等了 " + pickupATicks + " tick；地上剩 " + dropsAtPickupA + "）",
                             pickedA > 0);
                     phase = Phase.KILL_B;
                     phaseTicks = 0;
@@ -195,7 +213,7 @@ public final class KillDropProvenanceCheckTask implements Task {
                     blockedBefore = PickupGate.blockedTotal();
                     kill(level, KILL_B_POS, false);
                 }
-                if (phaseTicks >= WAIT_DROPS) {
+                if (dropsNear(level, KILL_B_POS, 3.0D) > 0 || phaseTicks >= MAX_WAIT_DROPS) {
                     phase = Phase.ASSERT_B;
                     phaseTicks = 0;
                 }
@@ -211,12 +229,18 @@ public final class KillDropProvenanceCheckTask implements Task {
                 if (phaseTicks == 1) {
                     standOn(level, KILL_B_POS);
                 }
-                if (phaseTicks >= WAIT_PICKUP) {
+                blockedAfterB = PickupGate.blockedTotal();
+                // ⭐ **等条件**：闸门真的被撞到（且至少等够 MIN_PICKUP_TICKS）⇒ 才算"拦截确实发生过"；
+                // 否则退化成"还没轮到它，就宣布拦住了"
+                boolean gateReached = blockedAfterB > blockedBefore && phaseTicks >= MIN_PICKUP_TICKS;
+                if (gateReached || phaseTicks >= MAX_WAIT_PICKUP) {
+                    pickupBTicks = phaseTicks;
                     remainingB = dropsNear(level, KILL_B_POS, 3.0D);
-                    blockedAfterB = PickupGate.blockedTotal();
+                    dropsAtPickupB = describeDrops(level, KILL_B_POS, 3.0D);
                     int gained = itemCount() - invBeforeB;
                     check("⭐ 臂② 反向对照：无归因的击杀产物**必须留在地上**（实测 剩 " + remainingB
-                                    + " 堆 / 背包 +" + gained + " 件）",
+                                    + "/" + provB.size() + " 堆 · 背包 +" + gained + " 件 · 等了 "
+                                    + pickupBTicks + " tick）",
                             remainingB == provB.size() && gained == 0);
                     check("⭐ 臂② 闸门确实点名拦了（`[Pickup] blocked` 计数 +"
                                     + (blockedAfterB - blockedBefore) + "）",
@@ -263,7 +287,7 @@ public final class KillDropProvenanceCheckTask implements Task {
 
     /** 前提：站在自建地板上（**与 `teleportTo` 分开的方法** —— `fixture-hygiene` 的 R4）。 */
     private void premiseOnGround() {
-        boolean onGround = com.dddgn.alice.task.FixturePremise.onGround(bot).ok();
+        boolean onGround = FixturePremise.onGround(bot).ok();
         check("夹具前提：bot 站在自建地板上（实测 onGround=" + onGround + "）", onGround);
         check("夹具前提：`doMobLoot` 必须为真（否则**根本不会有产物** —— 本夹具会对着空集断言）",
                 "true".equals(mobLoot));
@@ -313,10 +337,11 @@ public final class KillDropProvenanceCheckTask implements Task {
                     .allMatch(p -> DropPolicy.mayPickUpPassively(bot, p));
             check("⭐ 臂① 前提：我方击杀**产生了产物**（实测 " + provs.size() + " 堆：" + itemsA + "）",
                     !provs.isEmpty());
-            // ⭐ `A3` 判据本体（红线版；实现落地后收紧为 `== OURS_KILL`）
-            check("⭐ 臂①（`A3` 判据）我方击杀的产物**不许**是 FOREIGN（实测 " + provs + "）",
+            // ⭐ `A3` 判据本体：**必须**是 `OURS_KILL`（红线版只判 `!= FOREIGN`，实现落地后收紧 ——
+            // 先红证据见提交 `4c00fa5`：同一条臂当时读到 `provA=[FOREIGN, FOREIGN]`）
+            check("⭐ 臂①（`A3` 判据）我方击杀的产物必须是 `OURS_KILL`（实测 " + provs + "）",
                     !provs.isEmpty() && provs.stream()
-                            .noneMatch(p -> p == DropPolicy.Provenance.FOREIGN));
+                            .allMatch(p -> p == DropPolicy.Provenance.OURS_KILL));
             check("⭐ 臂① 被动拾取必须放行（`mayPickUpPassively`，实测 " + passiveA + "）", passiveA);
         } else {
             provB.addAll(provs);
@@ -340,12 +365,13 @@ public final class KillDropProvenanceCheckTask implements Task {
         reported = true;
         cleanup(level);
         BotLog.info("[A3] SUMMARY checks={} failures={} provA={} itemsA={} passiveA={} pickedA={}"
-                        + " provB={} itemsB={} passiveB={} remainingB={} blocked=+{} doMobLoot={} ticks={}"
-                        + " verdict={}",
-                checks, failures.size(), provA, itemsA, passiveA, pickedA,
-                provB, itemsB, passiveB, remainingB,
+                        + " pickupATicks={} remainA={} provB={} itemsB={} passiveB={} remainingB={}"
+                        + " pickupBTicks={} blocked=+{} doMobLoot={} ticks={} verdict={}",
+                checks, failures.size(), provA, itemsA, passiveA, pickedA, pickupATicks, dropsAtPickupA,
+                provB, itemsB, passiveB, remainingB, pickupBTicks,
                 blockedAfterB < 0 || blockedBefore < 0 ? "-" : (blockedAfterB - blockedBefore),
                 mobLoot, totalTicks, failures.isEmpty() ? "PASS" : "FAIL");
+        BotLog.info("[A3] 地上残留读数：臂①={} 臂②={}", dropsAtPickupA, dropsAtPickupB);
         for (String line : findings) {
             BotLog.info("[A3]   {}", line);
         }
@@ -369,6 +395,24 @@ public final class KillDropProvenanceCheckTask implements Task {
 
     private int dropsNear(ServerLevel level, BlockPos pos, double radius) {
         return drops(level, pos, radius).size();
+    }
+
+    /**
+     * 落物的**原始读数**（坐标 + `PickupDelay` + `Age` + 距离）：只在**断言与终态行**里用。
+     * 为什么留着它：拾取这条路径的失败原因全在这三个数上（"还没开始被 tick"/"还有延迟"/"不在范围内"），
+     * 而 `pickedA=0` 本身说不出是哪一种（第一版就是靠它才定位到"`Age=0` 冻住约 10 tick"）。
+     */
+    private String describeDrops(ServerLevel level, BlockPos pos, double radius) {
+        List<String> rows = new ArrayList<>();
+        for (ItemEntity drop : drops(level, pos, radius)) {
+            var nbt = drop.saveWithoutId(new net.minecraft.nbt.CompoundTag());
+            rows.add(String.valueOf(BuiltInRegistries.ITEM.getKey(drop.getItem().getItem()))
+                    + "x" + drop.getItem().getCount()
+                    + "@" + String.format("%.2f/%.2f/%.2f", drop.getX(), drop.getY(), drop.getZ())
+                    + "(delay=" + nbt.getShort("PickupDelay") + ",age=" + nbt.getShort("Age")
+                    + ",d=" + String.format("%.2f", Math.sqrt(drop.distanceToSqr(bot))) + ")");
+        }
+        return rows.isEmpty() ? "-" : String.join(" ", rows);
     }
 
     private int itemCount() {
