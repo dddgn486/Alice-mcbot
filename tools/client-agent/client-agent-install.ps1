@@ -1,4 +1,4 @@
-﻿﻿<#
+﻿<#
 .SYNOPSIS
   新设备一次性安装：装 DSH、导入管家 preset、**发现本机客户端路径并写进配置文件**。
   由 `client-agent.cmd -Install` 调用；可重复跑（幂等）。
@@ -10,6 +10,11 @@ param(
     [string]$DshVersion = "0.1.5-rc.3"
 )
 $ErrorActionPreference = "Continue"
+
+# ⭐ 必须自己刷新 PATH：winget/npm 刚装完的东西只在**新终端**里可见，
+#    从别处（WSL 调用、计划任务、刚装完就双击）启动时 PATH 是旧的 ⇒ 会出现"明明装了却说没有"。
+$env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')
+
 function Info($m) { Write-Host "[install] $m" }
 function Warn($m) { Write-Host "[install] !! $m" -ForegroundColor Yellow }
 
