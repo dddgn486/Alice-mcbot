@@ -323,6 +323,19 @@ pwsh -File "D:\JAVA_projects\alice\tools\codespace-tunnel.ps1" -Open
 > ⇒ `The argument 'tools\codespace-tunnel.ps1' is not recognized as the name of a script file`。
 > 原因是**当时的工作目录不是仓库目录**（`-File` 不做 PATH 搜索）⇒ 用上面两种方式之一即可。
 
+**⭐ 两个"只有真在 Windows 上跑才会现形"的坑（都是本次实测抓到并已修）**：
+
+| # | 坑 | 症状 | 修法 |
+|---|---|---|---|
+| 1 | `.ps1` 存成**无 BOM 的 UTF-8** | PS 5.1 对无 BOM 的 .ps1 按 **ANSI/GBK** 读 ⇒ 中文把 here-string 解析坏，3 处语法错、**脚本跑不起来** | 存成 **UTF-8 with BOM**（`tools/codespace-tunnel.ps1` 已修） |
+| 2 | `.cmd` 用 **LF 行尾 + 中文注释** | `cmd.exe` 按 GBK 误读、LF 断错行 ⇒ 命令行被切碎（报错里出现 `espace-tunnel.cmd` = 头部被吃掉的证据） | **CRLF + 纯 ASCII**（`tools/codespace-tunnel.cmd` 已修，`file` 实测 = `DOS batch file, ASCII text, CRLF`） |
+
+**包装脚本实测（2026-09-24，从 `C:\Users\<你>` 这种**非仓库目录**调用）**：
+`...\tools\codespace-tunnel.cmd -LocalPort 3184` ⇒ 打印 `http://127.0.0.1:3184/?token=…` ✓ ·
+监听 = **`127.0.0.1:3184` + `[::1]:3184`**（回环 ✓）· 无令牌 **401** / 带令牌 **303** ✓ ·
+`...codespace-tunnel.cmd -Stop` ⇒ 监听残留 **0** ✓。
+（包装脚本在找不到 `pwsh` 时会自动退回 Windows PowerShell 5.1 ✓）
+
 它依次做：① 检查 gh/认证 → ② **确保云端 `dsh web` 在跑**（顺带唤醒 codespace）→ ③ 挂端口转发到本机回环 → ④ 读回令牌 → ⑤ 打印（并可选打开）`http://127.0.0.1:3181/?token=…`。
 停掉转发：`pwsh -File tools\codespace-tunnel.ps1 -Stop`。
 
