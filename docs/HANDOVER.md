@@ -847,3 +847,52 @@ bash tools/dsh-context-usage.sh                       # 上下文线（只报一
 
 - `P2c`（`FALL_NOT_ON_GROUND`）· `P4′`（三选项）· `Q-1…Q-22`（勘测侧批裁，**或"不裁=不做"**）·
   `S31-4`（世界母本版本化，云端二期前置）· `P6`（搜索线程化，多 bot 前提）。
+
+---
+
+# 断点⑦（2026-09-24 深夜，**本地侧**）：回迁收口 + 主工作流回到本机 + `P4″` 已裁 —— 收工快照
+
+> **在这里断点的理由**：用户 2026-09-24「**你现在恢复主工作流身份**」+「**回迁靠你来**」，
+> 本地侧把回迁做完并把云端停掉 ⇒ **主工作流已回到本机**，下一步是勘测报告核对（不是开工）。
+> 这一条与 `断点⑥` 的关系：⑥ 是**云端侧**的收工快照（内核关门线），⑦ 是**本机侧**的接手快照。
+> ⚠️ 开工前先读 `survey/32`（勘测报告）并出核对文档 —— **不要**凭本文件直接开 `J-1`。
+
+## 1. 收工状态（逐条可核）
+
+| 项 | 值 |
+|---|---|
+| HEAD / 远端 | `8b9078c`（= `github/master`，工作树干净；`dd4b864`→`88a5b6e`→`8b9078c` 三段都在） |
+| 云端 | codespace `humble-tribble-97pv59gw5rg62prg5` = **`Shutdown`**（用户裁定 stop；计算费停、存储照计） |
+| 云端的提交 | 全部在本机：`f1d355f d7b3229 c1ab924 f352e9f aacbbd1 7c141df 955366d 3093e31` 逐个 `merge-base --is-ancestor` = 在 |
+| 会话叙事 | 归档 `D:\JAVA_projects\alice-backups\cloud-rollback-20260924-230109\`（**140 MB**）：云端主会话**逐字节**副本（98,839,800 B / `sha256 853f5a8be1b56f9b…`）+ 9 个会话的 `.md` 文本出口 |
+| 云端证据 | `run/headless-logs/` **83 个日志 / 22 MB** 已并入本机（`cp -n`，无重名）；云端 CORE 日志逐字可核：`passed=41/41 skipped=0` · `elapsed=248s` · `Can't keep up! … 2198ms or 43 ticks behind` |
+| 门禁 | `bash tools/check-all.sh` = `PASS_WITH_WARNINGS: pass=22 warning=1 failed=0`（warning = 无头电池未在 Linux 跑，预期） |
+
+## 2. 本轮（本机侧）做了什么
+
+1. **回迁链路实做 + 重写工具**：`tools/dsh-session-rollback.mjs`（inventory/plan/pack/rebuild/transcript/selftest）
+   + `tools/cloud-rollback.sh` 改增量九步 + `dsh-session-log.mjs --file` + 门禁 `check-rollback-delta`；
+   实测 **29 项 / 跳过 251 项 / 传输 9.99 MB / 重建 29-29 sha256 全通过**（旧版会搬 292 MB）。
+2. **`P4′` 裁定落盘 = `D-431`**（用户拍板选 ①）⇒ 新项 **`P4″`**（不动毫秒兜底轴，给重消费者 `SearchBudget` 加时间上限）。
+   台账 `P4′`/`P4″` 行 + `§11-J` J-0.2 已更新。
+3. **云端 `run/` 证据补捞**（用户裁定"现在唤醒捞一次"）+ 两个新坑（**48** 暂存不能跨 stop · **49** `gh codespace cp` 弱网失败 ⇒ ssh 管道兜底）修进脚本。
+4. 文档：`docs/reviews/2026-09-24-回迁准备与云端分叉.md`（含对 `survey/33 §3` 的 **slug 更正**）+ `docs/CLOUD_MIGRATION.md §13` 重写 + 已知坑 **43–49**。
+
+## 3. 下一轮的固定顺序（不要跳步）
+
+```
+①  node tools/dsh-session-log.mjs --file <归档里的 .zstd> --out /tmp/x.jsonl   # 需要时读云端原文
+②  读 survey/32（内核关门后路线勘测）
+③  出 docs/reviews/2026-09-24-survey32-核对.md（逐条：报告说法 / 我方复算 / 判定）← 云端留的既定下一步
+④  据此定 J-1..J-3（切片、顺序、轮数）—— 定完才开工
+⑤  仍未裁：P2c（两侧建议"先不改"）· P4″ 待落地（判据见 D-431 §二）
+```
+
+## 4. 本机侧新踩的坑（与 `断点⑥ §5` 并列，别再踩）
+
+1. **`stop → start` 会清云端 `/tmp`** ⇒ 打包与取回必须在**同一次唤醒**里做完（跨 stop 只信 `/workspaces`）。
+2. **`gh codespace cp` 弱网会 `context deadline exceeded`** ⇒ 取回走 `cloud-rollback.sh` 的 `fetch_remote()`（先 cp，失败换 ssh 管道 + base64）。
+3. **base64 套 base64 顶爆 Linux 单参数 128 KB** ⇒ 结构化文件走 `gh codespace cp`，别塞进命令行。
+4. **本机 `gh` 2.45 没有 `codespace start`**（打印通用帮助且**退出码 0**）⇒ 唤醒用 `gh api -X POST /user/codespaces/<名>/start` 或网页 Start。
+5. ⚠️ **提交信息里别用反引号**（`git commit -m "…\`run\`…"` 会被当命令替换执行，读数被吃掉）—— 用 `-F -` + heredoc。
+6. **同一个会话 id 可能在两端各自长过** ⇒ 归档会话**别塞回** `~/.dsh/sessions/`（`D-431` 前情见回迁评审）。
