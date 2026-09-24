@@ -531,3 +531,11 @@ bash tools/headless-battery.sh core
 - **36**：⭐ **迁移会话必须连 `~/.dsh/attachments/` 一起迁**。只搬 `sessions/` ⇒ 引用了图片对象的会话会在构造请求时坏掉，
   云端表现为 **API stream 失败（`code: TRANSPORT`）**，而**不含图片的小会话完全正常** ⇒ 极易误判为网络/额度问题（2026-09-24 实踩）。
   另：云端 settings 若缺 `llm-deepseek`（`contextWindow`/`imagePixelBudget`/`imageMaxBytes`）会与本地行为不一致，需**部分迁移**该段。
+- **37**：⚠️ **云端重启 `dsh web` 时的"自匹配误杀"**（2026-09-24 实踩，后果 = 界面里所有会话都"打不开"）。
+  `pkill -f "dsh web"` 会匹配到**执行这条命令的 shell 自身**（它的命令行里就含这串字）⇒ 连带杀掉正在跑的
+  会话/服务，表现为"服务没了、界面打不开"。**正解**：用方括号写法 `pkill -f "[d]sh web"`，
+  或直接 `kill <pid>`；重启一律走 `tools/codespace-start-dsh.sh`（它会打印新的 token URL）。
+  排查口径：`pgrep -af "[d]sh web"` 为空 ⇒ 先怀疑服务没跑，而不是会话坏了。
+- **38**：工作区分组（= 会话分组）登记的 `sessionIds` **只影响"已登记/排序"**，磁盘上同 `cwd` 的会话仍会出现；
+  想**藏掉**某个会话要用 `global.archivedSessionIds`（API 原文：hidden from every grouping surface，
+  且不毁掉它在工作区里的位置）。
