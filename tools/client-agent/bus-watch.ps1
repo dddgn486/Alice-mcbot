@@ -120,6 +120,13 @@ if (-not $RemoteBus) {
     else { $RemoteBus = "/home/vscode/bus/to-win" }
 }
 
+# 本地代理：gh 只认 HTTP(S)_PROXY（Windows 系统代理不算）⇒ 配置里有就用它（除非环境变量已给）
+if (-not $env:HTTPS_PROXY -and $cfg -and $cfg.proxy) {
+    $env:HTTPS_PROXY = [string]$cfg.proxy
+    $env:HTTP_PROXY = $env:HTTPS_PROXY
+    Info ("已按配置启用代理 " + $env:HTTPS_PROXY)
+}
+
 function Get-WatcherPid {
     if (-not (Test-Path $PidFile)) { return $null }
     $p = (Get-Content $PidFile -Raw).Trim()

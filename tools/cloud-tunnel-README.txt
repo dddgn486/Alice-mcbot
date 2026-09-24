@@ -50,3 +50,10 @@
   codespace-tunnel.ps1   主脚本（UTF-8 with BOM，Windows PowerShell 5.1 解析通过）
   怎么用.txt             本文件
   本机WSL专用/           只在那台 WSL 开发机上用的回迁脚本，新设备不需要
+
+九、如果你的机器在用本地代理（国内环境很常见）
+  · gh 是 Go 写的，**只认 HTTP(S)_PROXY 环境变量，不读 Windows 系统代理**
+    ⇒ 只开代理不设环境变量时，浏览器能上 GitHub、而 gh 会超时（管家读信箱/bus-watch 会失败）。
+  · 处理：跑一次 client-agent.cmd -Install（它会自动从系统代理读并设好**用户级**变量）；
+    若读不到，显式给一次：client-agent.cmd -Install -ProxyUrl http://127.0.0.1:7897
+  · 设完**新开一个终端**再用（老终端继承不到新变量）。

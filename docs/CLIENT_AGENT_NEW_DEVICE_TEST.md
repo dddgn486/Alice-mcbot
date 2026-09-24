@@ -15,8 +15,14 @@
 | PAT 文件 `%USERPROFILE%\.gh-token` | `dir %USERPROFILE%\.gh-token` | 从这台机器拷一份（**需 `codespace` + `repo` scope**）；或新建 PAT |
 | 模型凭据 `%USERPROFILE%\.dsh\.credentials.yaml` | `dir %USERPROFILE%\.dsh\.credentials.yaml` | 从这台机器拷一份（**含 API key，别进 git**） |
 | **客户端本体**（`versions\1.20.1-Forge_*`，含 `logs\` 与 `mods\`） | 安装脚本会自己扫 | 没有客户端也能装，但"传日志/截图"就没内容可传 |
+| **本地代理**（若这台机器在用，例如 `127.0.0.1:7897`） | 安装脚本自己从系统代理读 | 读不到就加参数：`-ProxyUrl http://127.0.0.1:7897` |
 
 ⚠️ **PATH 陷阱**：winget/npm **刚装完的东西**只有**新开的终端**才看得见。仓库里的三个脚本已经会自己刷新 PATH（`Machine` + `User`），所以从 `.cmd` 启动不会踩这个坑；但你**手动敲命令**时如果报"找不到 gh/dsh"，先关掉终端重开一个。
+
+⚠️ **代理陷阱（2026-09-24 实测，与 PATH 陷阱同类）**：`gh` 是 Go 写的，**不读 Windows 系统代理**，只认
+`HTTP(S)_PROXY` 环境变量 ⇒ 机器只开代理却没设环境变量时，**浏览器能上 GitHub 而 `gh` 会超时**，
+表现为"管家读信箱失败 / bus-watch 检查失败"（极易误判成云端挂了）。安装脚本已自动处理
+（探测 → 写配置 → 设**用户级**变量），所以**装完请开新终端**再跑 `-SelfTest`。
 
 ---
 

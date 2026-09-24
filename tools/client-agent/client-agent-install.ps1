@@ -7,7 +7,8 @@
 param(
     [string]$Codespace = "humble-tribble-97pv59gw5rg62prg5",
     [string]$ClientRoot = "",
-    [string]$DshVersion = "0.1.5-rc.3"
+    [string]$DshVersion = "0.1.5-rc.3",
+    [string]$ProxyUrl = ""   # 本地代理，如 http://127.0.0.1:7897；空 = 自动从系统代理读
 )
 $ErrorActionPreference = "Continue"
 
@@ -62,11 +63,35 @@ if (-not $ClientRoot) {
         $ClientRoot = (Read-Host "请粘贴客户端安装目录").Trim()
     }
 }
+# ---------- 本地代理（⭐ 关键：gh 是 Go，只认 HTTP(S)_PROXY，**不读** Windows 系统代理） ----------
+# 实测（2026-09-24）：Windows 开着本地代理（注册表 ProxyEnable=1 / ProxyServer=127.0.0.1:7897）时，
+# 浏览器能上 GitHub，但 gh 直连会超时 ⇒ host 管家读信箱、bus-watch 巡检都会**间歇性失败**。
+# ⚠️ 这里写的是**用户级**环境变量（新开的终端/计划任务才继承；本脚本内也会立即生效）。
+$proxyUrl = ""
+if ($ProxyUrl) { $proxyUrl = $ProxyUrl }
+else {
+    $reg = Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings" -ErrorAction SilentlyContinue
+    if ($reg -and ([int]$reg.ProxyEnable -eq 1) -and $reg.ProxyServer) {
+        $srv = [string]$reg.ProxyServer
+        if ($srv -notmatch '^https?://') { $srv = "http://$srv" }
+        $proxyUrl = $srv
+    }
+}
+if ($proxyUrl) {
+    Info "检测到本地代理：$proxyUrl ⇒ 写入配置 + 设用户级 HTTP(S)_PROXY（gh 只认环境变量，不认系统代理）"
+    foreach ($k in @("HTTP_PROXY","HTTPS_PROXY")) { [Environment]::SetEnvironmentVariable($k, $proxyUrl, "User") }
+    [Environment]::SetEnvironmentVariable("NO_PROXY", "localhost,127.0.0.1,::1", "User")
+    $env:HTTP_PROXY = $proxyUrl; $env:HTTPS_PROXY = $proxyUrl
+} else {
+    Warn "没检测到本地代理（gh 直连）。若你在用代理，用 -ProxyUrl http://127.0.0.1:7897 再跑一次本脚本"
+}
+
 $cfg = @{
     codespace  = $Codespace
     clientRoot = $ClientRoot
     mailbox    = @{ toWin = "/home/vscode/bus/to-win"; toCloud = "/home/vscode/bus/to-cloud"
                     clientInfo = "/home/vscode/client-info"; outbox = "/home/vscode/outbox" }
+    proxy      = $proxyUrl
     writtenAt  = (Get-Date).ToString("s"); machine = $env:COMPUTERNAME
 }
 $cfgPath = Join-Path $HOME ".alice-client.json"

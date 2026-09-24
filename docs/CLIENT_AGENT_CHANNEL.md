@@ -51,11 +51,16 @@ client-agent.cmd "上传最近一次测试的 latest.log 和之后的截图"
 
 （⭐ 这一步已经被 §九 的 `bus-watch` **自动化**：云端一写、本地最多 N 分钟后自动执行。）
 
-## 四、Windows 一次性安装（`client-agent.cmd -Install` 做三件事）
+## 四、Windows 一次性安装（`client-agent.cmd -Install` 做四件事）
 
 1. `npm i -g @deepseek-ai/dsh@0.1.5-rc.3` —— ⭐ 实测这台机器**已有 node v24.19.0 + npm 11.17.0**（nvm4w）⇒ 前提已满足；
 2. 把 `presets/alice-client-master/` 拷进 `%USERPROFILE%\.dsh\.agent-presets\`（preset 就是**目录**：`preset.yml` + `agent.cordis.yml`）；
 3. 检查 `%USERPROFILE%\.dsh\.credentials.yaml`（含 API key；**从本机拷或在 DSH 里配一次，绝不进 git**）。
+4. ⭐ **本地代理**（2026-09-24 加）：`gh` 是 Go 写的，**只认 `HTTP(S)_PROXY` 环境变量，不读 Windows 系统代理**
+   ⇒ 开着代理的机器上，管家读信箱 / bus-watch 巡检会**间歇性超时**（浏览器却正常，极易误判成"云端挂了"）。
+   安装脚本会自己从注册表读代理（`ProxyEnable=1` + `ProxyServer`），写进 `%USERPROFILE%\.alice-client.json`
+   的 `proxy` 字段，并设**用户级** `HTTP_PROXY`/`HTTPS_PROXY`（外加 `NO_PROXY=localhost,127.0.0.1,::1`）。
+   没自动读到就显式给一次：`client-agent.cmd -Install -ProxyUrl http://127.0.0.1:7897`。
 
 > `settings.yaml` 的 `agent-presets.default: alice-client-master` 决定默认用哪个人设（也可在 UI 里选）。
 
@@ -179,3 +184,6 @@ ps1 参数：`-Codespace`（空＝读配置）· `-RemoteBus`（空＝读配置 
    **正常的空信箱会被误判成"检查失败"**（自检① 第一次就是静默无输出，根因在此）。
 8. 从 WSL 读 PowerShell 的 stdout 会显示成 **GBK 乱码**（管道编码）⇒ 看输出加 `iconv -f GBK -t UTF-8`；
    日志文件本身是 UTF-8（带 BOM）。
+9. ⭐ **本地代理**：`gh` 只认 `HTTP(S)_PROXY`（不读 Windows 系统代理）。`bus-watch.ps1` 启动时读
+   `.alice-client.json` 的 `proxy` 字段补上环境变量（已设则不覆盖）；`client-agent.cmd` 像刷 PATH 一样
+   从注册表刷代理 ⇒ **两者都不依赖"终端是不是新开的"**。
