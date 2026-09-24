@@ -48,16 +48,18 @@ public final class DiagonalExecutionFactory implements MovementExecutionFactory 
             return ValidationResult.invalid("DIAGONAL_INVALID_PRECONDITION");
         }
         
-        // 验证两侧方块可通行（避免穿墙）
-        BlockPos sideX = new BlockPos(to.getX(), from.getY(), from.getZ());
-        BlockPos sideZ = new BlockPos(from.getX(), from.getY(), to.getZ());
-        if (!MovementHelper.canWalkThrough(context.level(), sideX)
-                || !MovementHelper.canWalkThrough(context.level(), sideX.above())
-                || !MovementHelper.canWalkThrough(context.level(), sideZ)
-                || !MovementHelper.canWalkThrough(context.level(), sideZ.above())) {
-            return ValidationResult.invalid("DIAGONAL_SIDE_COLLISION");
-        }
-        
+        // ⭐ `P2`/`D-425`（2026-09-24 实读码）：这里原先还有**第二次手搓**的两侧格检查
+        // （`sideX`/`sideZ` 及其 `above()`）并给出 `DIAGONAL_SIDE_COLLISION` —— 它与 `canTraverse`
+        // 内部那段**逐格相同**（`MovementHelper.canTraverse` 的 |dx|=|dz|=1 分支算的是
+        // `(from.x+dx, from.y, from.z)` / `(from.x, from.y, from.z+dz)`，与这里的
+        // `(to.x, from.y, from.z)` / `(from.x, from.y, to.z)` 是**同一批格子**、同一个 `canWalkThrough`）。
+        // 而本方法**先**调 `canTraverse`（上面那一句）⇒ 侧格被堵时早就返回 `DIAGONAL_INVALID_PRECONDITION`
+        // ⇒ `DIAGONAL_SIDE_COLLISION` **永远不可达**（死码）；`canTraverse` 还多查了玩家扫掠空间
+        // ⇒ 那段重复判定是它的**真子集**。
+        // ⇒ 删掉：单一来源（`K4-P1`：执行工厂不许手搓规划侧已有的判据）+ 退役死码
+        //   （`K5` 同族：声明了却无人产出的码就是观测盲区）。
+        // 判据 = 夹具 `place_step_diagonal` 的 `SIDE` 用例（两侧准入一致、且码必须是**共享谓词**的）
+        // + 门禁 `rule_diagonal_side_single_source`（注入即红）。
         return ValidationResult.accepted();
     }
 

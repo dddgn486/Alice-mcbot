@@ -3,10 +3,17 @@ package com.dddgn.alice.task;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.pathing.MovementHelper;
+import com.dddgn.alice.pathing.core.CompletionTolerance;
+import com.dddgn.alice.pathing.core.LiveExecutionContext;
+import com.dddgn.alice.pathing.core.MovementSpec;
+import com.dddgn.alice.pathing.core.MovementType;
+import com.dddgn.alice.pathing.core.RecoverabilityEvaluator;
 import com.dddgn.alice.pathing.core.search.CorePathPlanner;
 import com.dddgn.alice.pathing.core.search.PathPlan;
 import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.pathing.core.search.PlannedMovement;
+import com.dddgn.alice.pathing.core.search.PlannedMovementSpecs;
 import com.dddgn.alice.pathing.core.search.SearchBudget;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -14,6 +21,8 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
@@ -40,6 +49,11 @@ import java.util.List;
  *
  * <p><b>只做规划断言、不做执行</b>：`PLACE_STEP_AND_TRAVERSE` 的执行路径已由 `pathing` 步的场景覆盖；
  * 本步只补"**这一档几何能不能被规划出来、且在不在信封内**"两件确定性事实。
+ *
+ * <p><b>⭐ `D-425`（2026-09-24，`P2` 的 Diagonal 切片）</b>：本夹具末尾再加一个
+ * {@code SIDE} 用例 —— **对角两侧格的准入只能有一处判据**（规划侧共享谓词 `canTraverse`），
+ * 执行工厂里那段重复判定与它给出的 `DIAGONAL_SIDE_COLLISION` 都是**不可达的死码** ⇒ 已删。
+ * 详见 {@link #sideCollisionContract}。
  */
 public final class PlaceStepDiagonalCheckTask implements Task {
 
@@ -49,7 +63,16 @@ public final class PlaceStepDiagonalCheckTask implements Task {
     private static final int SETTLE_TICKS = 30;
     private static final int BUDGET_TICKS = 300;
 
-    private enum Case { ASCENT, MINING, ENVELOPE }
+    /**
+     * ⭐ `D-425`：人造代价（与 `place_step_descend_clearance` 的 ascend 契约同形 —— 本契约只看
+     * **准入判据**，不看代价，所以代价取一个显式常数即可）。
+     */
+    private static final double SYNTHETIC_COST = 5.0D;
+
+    /**
+     * `SIDE` = ⭐ `P2`/`D-425`（2026-09-24）**对角两侧格的准入只能有一处判据**（见 {@link #sideCollisionContract}）。
+     */
+    private enum Case { ASCENT, MINING, ENVELOPE, SIDE }
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -129,7 +152,12 @@ public final class PlaceStepDiagonalCheckTask implements Task {
         if (index >= Case.values().length) {
             return finish();
         }
-        runCase(Case.values()[index++]);
+        Case which = Case.values()[index++];
+        if (which == Case.SIDE) {
+            sideCollisionContract(bot.serverLevel());
+        } else {
+            runCase(which);
+        }
         return Task.Status.RUNNING;
     }
 
@@ -147,6 +175,8 @@ public final class PlaceStepDiagonalCheckTask implements Task {
             case MINING -> PathRequest.miningApproach(bot.getUUID().toString(), start, goal, "mine-plan");
             // ③ 纯通行信封（反证：新边不许渗透进来）
             case ENVELOPE -> PathRequest.of(bot.getUUID().toString(), start, goal, requester);
+            // `SIDE` 不走这里（它测的是"两侧格的准入判据只许有一处"，见 `sideCollisionContract`）
+            case SIDE -> throw new IllegalStateException("SIDE 用例不经 runCase");
         };
         PathRequest request = new PathRequest(base.botId(), start, base.goal(), base.allowedMovementTypes(),
                 SearchBudget.of(CorePathPlanner.DEFAULT_MAX_NODES, CorePathPlanner.DEFAULT_MAX_MILLIS),
@@ -187,6 +217,85 @@ public final class PlaceStepDiagonalCheckTask implements Task {
             check("② 信封：纯通行请求下同一起终点必须**不可达**（status=" + plan.status() + "）", !plan.reached());
             check("② 信封：纯通行请求里**不许**出现世界修改类边（placeStep=" + placeStep + "）", placeStep == 0);
         }
+    }
+
+    /**
+     * ⭐ `P2` / `D-425`（2026-09-24）：**对角线的两侧格准入只能有一处判据**。
+     *
+     * <p><b>为什么有这条</b>：`DiagonalExecutionFactory.validate` 原先在调完规划侧共享谓词
+     * `MovementHelper.canTraverse(...)` **之后**，又手搓了一份"两侧格 + 各自 above 必须可穿过"，
+     * 并给出 `DIAGONAL_SIDE_COLLISION`。两处算的**是同一批格子、同一个 `canWalkThrough`**
+     * （`canTraverse` 的 |dx|=|dz|=1 分支用 `(from.x+dx, from.y, from.z)`；执行侧用
+     * `(to.x, from.y, from.z)`，在 |dx|=1 下相等）⇒ 侧格被堵时**第一句就返回**
+     * `DIAGONAL_INVALID_PRECONDITION` ⇒ 那个码**永远不可达**（死码），而 `canTraverse` 还多查玩家扫掠
+     * ⇒ 重复判定是它的真子集。对照 **Baritone `MovementDiagonal.java:194-195`** 的 `pb0`/`pb2` 与
+     * `:220-223` 的 `getMiningDurationTicks(...)`：Baritone 把侧格当**可挖（成本化）**，
+     * Alice 走 `D-076` 纯通行 ⇒ 差异**有意保留**（登记在 `D-425`），但"判据只许有一处"是 `K4-P1`。
+     *
+     * <p><b>几何</b>：`from → to = from.offset(1,0,1)`（纯水平对角：`dy=0`、`|dx|=|dz|=1`）；
+     * 侧格 = `(to.x, from.y, from.z)`（擦过的那一格）与 `(from.x, from.y, to.z)`。
+     *
+     * <p><b>四条判据</b>：① 两侧都空 ⇒ **两侧都必须接受**（反证：删了重复判定不许把合法对角禁掉）；
+     * ② 把侧格摆成实心 ⇒ 规划侧 `canTraverse` 必须为假、执行侧必须拒；
+     * ③ ⭐ **拒绝码必须是共享谓词那条**（`DIAGONAL_INVALID_PRECONDITION`）—— 若又出现
+     * `DIAGONAL_SIDE_COLLISION`，说明执行侧又手搓了一份；④ 还原后必须回到两侧都接受。
+     *
+     * <p><b>红臂</b>：把那段重复判定加回 `DiagonalExecutionFactory` ⇒ ③ 必红（码变成 `DIAGONAL_SIDE_COLLISION`）。
+     */
+    private void sideCollisionContract(ServerLevel level) {
+        BlockPos from = start;
+        BlockPos to = from.offset(1, 0, 1);
+        BlockPos sideX = new BlockPos(to.getX(), from.getY(), from.getZ());
+        BlockPos sideZ = new BlockPos(from.getX(), from.getY(), to.getZ());
+        BlockState sideXBefore = level.getBlockState(sideX);
+        check("前提：对角两侧格原本都是空气（sideX=" + sideX.toShortString() + " sideZ="
+                        + sideZ.toShortString() + "）",
+                sideXBefore.isAir() && level.getBlockState(sideZ).isAir());
+
+        // ① 两侧都空 ⇒ 两侧都必须接受
+        boolean openPlan = MovementHelper.canTraverse(level, from, to);
+        com.dddgn.alice.pathing.core.MovementExecutionFactory.ValidationResult openVerdict =
+                diagonalVerdict(level, from, to);
+        check("① 两侧都空 ⇒ 规划侧 `canTraverse` 必须为真（实际 " + openPlan + "）", openPlan);
+        check("① 两侧都空 ⇒ 执行侧必须接受（实际 valid=" + openVerdict.valid()
+                + " code=" + openVerdict.failureCode() + "）", openVerdict.valid());
+
+        try {
+            level.setBlockAndUpdate(sideX, Blocks.STONE.defaultBlockState());
+            boolean planSide = MovementHelper.canTraverse(level, from, to);
+            com.dddgn.alice.pathing.core.MovementExecutionFactory.ValidationResult verdict =
+                    diagonalVerdict(level, from, to);
+            String code = String.valueOf(verdict.failureCode());
+            findings.add("diagonal_side:from=" + from.toShortString() + " to=" + to.toShortString()
+                    + " sideX=stone planSide=" + planSide + " execValid=" + verdict.valid() + " code=" + code);
+            BotLog.info("[DiagSide] from={} to={} sideX={} sideX=stone planSide={} execValid={} code={}",
+                    from.toShortString(), to.toShortString(), sideX.toShortString(),
+                    planSide, verdict.valid(), code);
+            check("② 侧格被堵 ⇒ 规划侧 `canTraverse` 必须为假（实际 " + planSide + "）", !planSide);
+            check("② 侧格被堵 ⇒ 执行侧必须拒（实际 valid=" + verdict.valid() + " code=" + code + "）",
+                    !verdict.valid());
+            check("⭐ ③ 拒绝码必须来自**共享谓词**（`DIAGONAL_INVALID_PRECONDITION`，实际 " + code
+                            + "；出现 `DIAGONAL_SIDE_COLLISION` = 执行侧又手搓了一份判据，`D-425`）",
+                    "DIAGONAL_INVALID_PRECONDITION".equals(code));
+        } finally {
+            level.setBlockAndUpdate(sideX, sideXBefore);
+        }
+        boolean backPlan = MovementHelper.canTraverse(level, from, to);
+        boolean backExec = diagonalVerdict(level, from, to).valid();
+        check("④ 还原侧格后两侧必须都恢复接受（规划=" + backPlan + " 执行=" + backExec + "）",
+                backPlan && backExec);
+    }
+
+    /** 造一个同高度对角的 `MovementSpec` 并跑执行工厂（与 `place_step_descend_clearance` 的 ascend 契约同形）。 */
+    private com.dddgn.alice.pathing.core.MovementExecutionFactory.ValidationResult diagonalVerdict(
+            ServerLevel level, BlockPos from, BlockPos to) {
+        MovementSpec spec = PlannedMovementSpecs.toSpec(
+                new PlannedMovement(MovementType.DIAGONAL, from, to, SYNTHETIC_COST,
+                        RecoverabilityEvaluator.levelOf(MovementType.DIAGONAL)),
+                List.of("session_segment"));
+        return new com.dddgn.alice.pathing.core.DiagonalExecutionFactory().validate(spec,
+                new LiveExecutionContext(bot, level, "diagonal-side", 0L,
+                        CompletionTolerance.EXACT, "mine"));
     }
 
     /**
