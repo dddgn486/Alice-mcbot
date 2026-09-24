@@ -294,4 +294,80 @@ bash tools/codespace-zero.sh tunnel-bg humble-tribble-97pv59gw5rg62prg5
 
 **零期判据**：1–4 ✅（`verify` 全绿；`compileJava OK`、`check-all` 见日志）· 5 ✅（用户实测能发起对话）· 6/7 ✅（云端编译 + 离线门禁通过）· 8 ⏳ 未做（两前端并发）· 入口的"设置页可用"✅（**真浏览器** headless Chrome 实测：回环入口下模型选择器/余额/插件设置面板正常渲染，无 §9-24 那句报错）。
 
-**待办**：① 判据 8（两前端并发发一句）；② 用户决定是否让云端 agent 的工作区指向 `/workspaces/Alice-mcbot`；③ 是否把隧道做成常驻（去掉 1 小时超时）；④ 旧 codespace（`fictional-bassoon-*` 已 stop、`symmetrical-spork-*` 空白）是否删除。
+**用户裁定（2026-09-23）**：判据 8（两前端并发发一句）**跳过** —— 「并发情况几乎没有」（临时裁定；**复核触发** = 将来出现多前端并发或会话错乱/丢事件的现象，再补这一条）；工作区指向 `/workspaces/Alice-mcbot` **先不做**（项目还没迁移过去）。
+
+**已办**：旧的两个 codespace（`fictional-bassoon-*`、空白的 `symmetrical-spork-*`）**已删除**（`gh codespace delete --force`，不可逆）⇒ 账号里只剩 `humble-tribble-97pv59gw5rg62prg5`。
+
+## §12 新设备：只用 PowerShell（**不装 WSL**）
+
+**新设备需要两样东西**：
+
+| 项 | 怎么做 |
+|---|---|
+| `gh` CLI | `winget install --id GitHub.cli -e`（或 `scoop install gh`）；装完**新开终端** |
+| 认证 | 把带 `repo` + `codespace` scope 的 PAT 存成 `$HOME\.gh-token`（`Set-Content -NoNewline -Path $HOME\.gh-token -Value '<PAT>'`）。⚠️ 本机网络**不通 github.com 的 HTTPS**（实测），所以 PAT 要在能上 github.com 的设备上建好再带过来；`api.github.com` 是通的，脚本全程只走 api + SSH |
+| （可选）ssh 客户端 | Windows 自带 OpenSSH 客户端即可；**没有也能工作**（脚本退到 gh 原生转发） |
+
+**一条命令**（仓库里已带脚本 ⇒ 新设备 `git clone` 后即可）：
+
+```powershell
+pwsh -File tools\codespace-tunnel.ps1 -Open
+```
+
+它依次做：① 检查 gh/认证 → ② **确保云端 `dsh web` 在跑**（顺带唤醒 codespace）→ ③ 挂端口转发到本机回环 → ④ 读回令牌 → ⑤ 打印（并可选打开）`http://127.0.0.1:3181/?token=…`。
+停掉转发：`pwsh -File tools\codespace-tunnel.ps1 -Stop`。
+
+**两种转发机制（都实测过）**：
+
+| 机制 | 绑定 | 结论 |
+|---|---|---|
+| `gh codespace ssh -c <名> -- -N -L 3181:127.0.0.1:3081` | **`127.0.0.1`** ✓ | 脚本**优先**用这条 |
+| `gh codespace ports forward 3081:3181 -c <名>`（参数顺序 = **远端:本地**） | **`*`（所有网卡）** ⚠️ | 只在没有 ssh.exe 时兜底；局域网内可访问该端口（DSH 的围栏仍会挡掉非回环 Host，但不如前者干净） |
+
+**为什么非得是回环**：见 §9-24（`persistence = isLoopback ? "host" : "memory"`）—— 用 `https://<名>-3081.app.github.dev` 打开时只能对话，**模型/插件配置永远打不开**。
+
+**完全不用 gh CLI 的备用路线**：VS Code（桌面版）+ 官方 Codespaces 扩展 → 连上该 codespace → **PORTS 面板 → 3081 → Open in Browser** ⇒ 浏览器拿到的是 `http://localhost:3081`（**也是回环**）⇒ 设置页同样可用，而且不占终端。
+
+**常见故障对照**：
+
+| 现象 | 原因 / 处置 |
+|---|---|
+| 页面显示 `authentication required` | 没带 `?token=`（Ports 面板的裸链接必然如此）⇒ 用脚本打印的链接 |
+| 页面能开但"设置不可用 / 加载提供方目录失败" | **入口不是回环**（用了转发域名）⇒ 改用回环链接，见 §9-24 |
+| `127.0.0.1:<端口>` 连不上 | 端口被占（换 `-LocalPort`）；或 codespace 被空闲停掉 ⇒ 重跑脚本 |
+| `gh: not found` / 认证报错 | 见上表前两行；`gh api /user --jq .login` 应打印账号 |
+
+⚠️ **诚实标注**：`tools/codespace-tunnel.ps1` **在 Windows 上还没被执行过**（我这台机器没有 pwsh）⇒ 它依赖的每条 gh 行为都在 WSL 实测过，但脚本本身首次在 Windows 上跑**请把报错发我**。
+
+## §13 回迁准备（⭐ **只针对本设备**：WSL `/home/fb486/projects/alice`）
+
+> 用户 2026-09-23：不一定一直留在云端 ⇒ 要先准备回迁；**回迁只针对目前这个设备**。
+> 所以这里不做通用逻辑，只写本机路径（换设备时"回迁"没有意义：云端那份本来就是从本机搬上去的副本）。
+
+**一条命令**（已实测跑通，2026-09-24 10:36）：
+
+```bash
+bash tools/cloud-rollback.sh            # 可选参数：<codespace 名>
+```
+
+它做四件事，**都不删远端任何东西**：
+
+1. **云端仓库自检**（回迁最怕丢的部分）：未提交改动 / 未推送 commit ⇒ 本次实测 = 都 0；若有则**只报告**，不替云端提交；
+2. **本地同步**：`git pull --ff-only github master` + 刷新 Windows 镜像；
+3. **云端非代码状态打包回本机**（远端 `tar` → `base64` → 本机解码，**两端 sha256 对账**）：本次实测 11 个文件 / 21 K，
+   = **2 个云端会话**（`session.v3.jsonl.zstd`）+ `storages/`（含 `workspace.json`）+ `settings.yaml*` + `profiles/web/package.json`，
+   落在 **Windows 可见**的 `D:\JAVA_projects\alice-backups\cloud-dsh-<时间戳>.tar.gz`；
+4. **打印"能不能被本机 DSH 采纳"的诚实结论 + 收尾清单**。
+
+**诚实边界（回迁时别踩）**：
+
+| 类别 | 结论 |
+|---|---|
+| 代码 | **零成本**：云端已 commit 的东西都在 git（= GitHub = 本机）⇒ 回迁靠 `git pull` 就够 |
+| `settings.yaml` | **本机那份是权威**（云端那份本来就是从本机搬上去的副本，而且 DSH 之后在云端**自己重建过一个**）⇒ 归档只为留证，**不要覆盖本机** |
+| `sessions/`（会话历史） | **归档可读，但不建议直接采纳**：① slug 不同（云端 `--home-vscode-dsh-test--` vs 本机 `--home-fb486-projects--`）⇒ 历史不会出现在同一工作区下；② **版本不同代**（云端 rc.3 / 本机 rc.1）⇒ 会话存储带世代迁移，跨代读取**应当响亮失败**（预期行为，别静默兼容）⇒ 要读就用归档里的原始文件配对应版本的工具 |
+| 插件 | 无需回迁（云端装的是 npm 上的 `dsh-ears` / `dsh-whale-widget`；本机的 `dsh-whale-widget` 反而是 `link:` 开发副本） |
+| 云端机器 | 回迁完成后 **stop** 省额度；确认不要了再 `gh codespace delete -c <名> --force`（不可逆） |
+
+**两个脚本的分工**：`tools/codespace-zero.sh`（WSL 侧遥控：doctor/create/state/verify/start/**tunnel**/**tunnel-bg**/url/down/destroy）·
+`tools/codespace-tunnel.ps1`（Windows 侧，新设备只用 pwsh · 只做"挂隧道 + 打印链接"）· `tools/cloud-rollback.sh`（回迁准备，只对本设备）。
