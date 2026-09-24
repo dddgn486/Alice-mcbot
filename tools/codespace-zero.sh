@@ -15,7 +15,7 @@
 # 用法：
 #   tools/codespace-zero.sh doctor            # 先跑这个：查 gh / 认证 / 仓库
 #   tools/codespace-zero.sh create [machine]  # 默认机器用 API 定（免费档 = 2 核/8 G/32 G）
-#   tools/codespace-zero.sh state  <name>     # ⭐ 把 settings.yaml + .credentials.yaml 送进去（600）
+#   tools/codespace-zero.sh state  <name>     # ⭐ 送 .credentials.yaml（600）；加 --with-settings 才连 settings.yaml 一起送
 #   tools/codespace-zero.sh verify <name>     # 零期判据 1–4、6、7（node/java/dsh/配置/编译/门禁）
 #   tools/codespace-zero.sh start  <name>     # 后台起 dsh web + 打印外部 URL + 端口设 private
 #   tools/codespace-zero.sh tunnel <name>     # ⭐ 推荐入口：SSH 隧道到本地回环 + 打印带令牌的回环 URL
@@ -106,9 +106,13 @@ cmd_list() { need_gh; ghc list --json name,state,machineName,repository,createdA
 
 cmd_state() {
     need_gh
-    local name="${1:?用法: state <codespace 名>}"
-    [ -f "$HOME/.dsh/settings.yaml" ] || die "本机没有 ~/.dsh/settings.yaml"
+    local name="${1:?用法: state [--with-settings] <codespace 名>}"
+    local with_settings=no
+    if [ "$name" = "--with-settings" ]; then with_settings=yes; name="${2:?用法: state [--with-settings] <codespace 名>}"; fi
     [ -f "$HOME/.dsh/.credentials.yaml" ] || die "本机没有 ~/.dsh/.credentials.yaml"
+    # ⭐ 默认**只送凭据**：本机 settings.yaml 是 rc.1 时代的（含本机插件段），跨版本 schema 差异是否会打坏设置页**未验证**
+    #    ⇒ 云端让 DSH 自建（实测它会重建一个最小的）；要连设置一起送再加 --with-settings。
+    [ "$with_settings" = no ] || [ -f "$HOME/.dsh/settings.yaml" ] || die "本机没有 ~/.dsh/settings.yaml"
     # ⚠️ 两个实跑坑：① `remote:` 的相对路径会被 gh 的 scp **加引号当字面名**（实测失败）；
     #    ② 远端家目录随镜像而变（Codespaces 默认镜像 = /home/codespace，自建 devcontainer = /home/vscode）
     #    ⇒ 先**问**远端 $HOME，再用绝对路径拷。
@@ -116,11 +120,15 @@ cmd_state() {
     rh="$(rsh "$name" 'mkdir -p ~/.dsh && chmod 700 ~/.dsh && echo "$HOME"' 2>/dev/null | tr -d '\r' | tail -1)"
     [ -n "$rh" ] || die "拿不到远端 HOME（远端 shell 正常吗？）"
     info "远端 HOME = $rh（sha256 前缀两端对账）"
-    info "送 settings.yaml（含 contextWindow / 插件配置）…"
-    rput "$name" "$HOME/.dsh/settings.yaml" "$rh/.dsh/settings.yaml"
+    if [ "$with_settings" = yes ]; then
+        info "送 settings.yaml（--with-settings；含 contextWindow / 插件配置）…"
+        rput "$name" "$HOME/.dsh/settings.yaml" "$rh/.dsh/settings.yaml"
+        printf '本地 %s  %s\n' "$(sha256sum "$HOME/.dsh/settings.yaml" | cut -c1-16)" "settings.yaml"
+    else
+        info "跳过 settings.yaml（默认只送凭据 ⇒ 云端自建设置；要一起送加 --with-settings）"
+    fi
     info "送 .credentials.yaml（⭐ 含密钥：内容不打印、不落 git）…"
     rput "$name" "$HOME/.dsh/.credentials.yaml" "$rh/.dsh/.credentials.yaml"
-    printf '本地 %s  %s\n' "$(sha256sum "$HOME/.dsh/settings.yaml" | cut -c1-16)" "settings.yaml"
     printf '本地 %s  %s\n' "$(sha256sum "$HOME/.dsh/.credentials.yaml" | cut -c1-16)" ".credentials.yaml"
 }
 
