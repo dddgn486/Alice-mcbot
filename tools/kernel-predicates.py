@@ -3462,7 +3462,12 @@ def rule_stale_proof_replan():
                         "自己造第二份「能不能穿」的真相（`K-4`：可规划即可执行）")
 
     # ---- 臂⑥：harness 单项预算必须比夹具自己的预算宽 ----
-    budget_match = re.search(r'CheckStep\.of\("mine_vein_propagation".*?,\s*(\d+)\)\)', mod, re.S)
+    # ⚠️ 2026-09-24（`D-386` 鱼骨切片 1 落地时抓到）：原正则 `.*?,\s*(\d+)\)\)` 会**跨过步边界** ——
+    # 它只在 `mine_vein_propagation` 是 `MiningModule` 里**最后一步**时才恰好抓到自己的预算；
+    # 之后任何新步追加在后面，`.*?` 就会一路吃到**那一步**的预算（实测：抓到新步的 `4000`）——
+    # 因为要求 `))` 而该步在列表中间时只有 `)`。判据读错数比没有判据更坏
+    # ⇒ 修成"**本步调用内第一个** `NNNN)`"（一个右括号就够，且不会跨步）。
+    budget_match = re.search(r'CheckStep\.of\("mine_vein_propagation".*?(\d+)\)', mod, re.S)
     fixture_budget = re.search(r"BUDGET_TICKS\s*=\s*(\d+)", fx)
     if not budget_match:
         problems.append("`MiningModule` 里找不到 `mine_vein_propagation` 步骤的**单项预算**（解析失败？）")

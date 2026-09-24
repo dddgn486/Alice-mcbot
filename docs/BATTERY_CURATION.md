@@ -179,6 +179,7 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 `mining_water_break_cost`（`D-385`：**规划期的挖掘成本必须等于执行侧真值 —— 含 vanilla 的两项状态惩罚**
 - `mining_search_limit_honesty`（EXTRA，`D-387`）：搜索限流诚实性 —— 同 tick 占满 A1 额度 ⇒ 理由必须是 `search_incomplete`；下一 tick 同一目标必须能规划（红臂：三条腿还原 ⇒ `found_but_unminable`）。
 - `coarse_goal_prefix`（MAIN，`D-390`）：**粗目标 + 滚动重规划**的核心断言进 CORE（原来只有 EXTRA 的 `far_path_bench` 测这件事）：自建 8 格走廊 + 400 格外未加载目标区 ⇒ 不许 `GOAL_NOT_LOADED`/`UNREACHABLE`、必须有前缀、跑完不许读未加载区块（红臂：预算 1ms ⇒ FAIL）。
+- `fishbone_slice1`（EXTRA，`D-386`，`J-1.1` 鱼骨切片 1）：**模板推进 + 不搜索**的行为级判据 —— 三臂一次跑完（① 实心石体挖通主巷 ⇒ `C1` 模板=事实 / `C3` 搜索规模恒定且零 `SEARCH_LIMIT` / `C4` 可返回；② 前方基岩 ⇒ `main_blocked:<码>` 且**先返回起点**、那一格与之后零改动；③ 起点被封 ⇒ `start_unreachable` 且**零世界改动**）。⭐ 顺带量两条读数（`survey/32` 发现二）：**每轮规划耗时** + **每格 tick 成本**。判据落在**世界事实**上（逐格期望表 + `WriteAudit` 破坏条目必须全在模板格内）。自建孤立石体 ⇒ 不依赖真机存档、也不依赖前序模块。
 - `mine_vein_propagation`（EXTRA，`D-389`）：**沿脉传播**的行为级判据（石壳+3×2×5 铁矿脉）：传播必须触发 + 沿脉走后零昂贵搜索 + 完成度不许退化（已测上限 12/30，`D-391` 待收口）。⚠️ 约 130 s/轮（跑一个真实作业）。
 （`isEyeInFluid(WATER) && !hasAquaAffinity ⇒ ÷5`、`!onGround() ⇒ ÷5`）。自建空中水池（5×5×5 石箱内挖
 3×3×4 水池）+ 同高干燥踏板，被测几何 = `from(1,0,0) → mid(2,0,0)=石壁 → to(3,0,0)`。五个用例覆盖四个

@@ -77,7 +77,23 @@ public final class CorePathPlanner {
         return plan(bot, level, request);
     }
 
+    /**
+     * **规划的唯一漏斗**：先跑真正的规划，再把这一次的**搜索规模**记进 {@link PathingStats}。
+     *
+     * <p>为什么用"包一层"而不是在每个 `return` 前各记一次：本方法有 10+ 个出口
+     * （写策略拒绝 / A1 闸门 / 自写入重搜各分支 …）⇒ 逐出口记账**必然漏一个**，
+     * 而漏掉的那个正好会是最不常走的分支。包一层 ⇒ **一次记全、且只有一处**。
+     *
+     * <p>读数口径见 {@link PathingStats#scale()}；行为与包之前**逐字相同**（只多一次纯计数）。
+     */
     public PathPlan plan(ServerPlayer bot, ServerLevel level, PathRequest request) {
+        PathPlan plan = planInternal(bot, level, request);
+        PathingStats.recordScale(plan.nodesExpanded(), plan.elapsedMillis(),
+                plan.status() == PlanningStatus.SEARCH_LIMIT);
+        return plan;
+    }
+
+    private PathPlan planInternal(ServerPlayer bot, ServerLevel level, PathRequest request) {
         // ⭐ **A1（2026-09-21）：每 tick 搜索总账** —— 所有规划入口都经过本方法 ⇒ 一处管住全部。
         // 先过 tick 边界（tick 一换就清零），再判"本 tick 还能不能起新搜索"。
         SearchTickBudget.handleTick(level.getGameTime());

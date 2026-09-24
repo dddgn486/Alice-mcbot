@@ -19324,3 +19324,83 @@ CORE 的搜索最大只 4–5 ms（`P2` 备忘记过），而真机那三次 `Ca
 - 两者都是**裁定，不是实现**（`IMPLEMENTED` 不适用：`P2c` = 一行不改；`craft_table` = 什么都不做）。
 - ⇒ ⭐ **`§11-J` 的 `J-0` 两个开口点（0.1 / 0.2）全部收口**，`J-1` 以下的 ⏸ 挂起**解除**（排期见台账 `§11-J` 的「定档」段）。
 - 台账已同步：`P2c` 行 · `J-0.1` 行 · `§11-F`「待用户拍板 ①」行。
+
+---
+
+### D-433：`J-1.1` **鱼骨切片 1（主巷 + 返回）已落地** —— `C1`/`C3`/`C4`/`C6` 全绿；⭐ 顺带把 `survey/32` 发现二 的"极廉价"从**假设**变成**读数**
+
+📋 依据：`D-386`（鱼骨口径定档，2026-09-21 用户逐条裁定）+ `docs/plans/2026-09-21-鱼骨挖矿计划.md`
+§6/§7-1（切片 1 = 主巷 + 返回，判据 `C1`/`C3`/`C4`/`C6`）+ 台账 `§11-J 1.1`（2026-09-24 定档，用户 2026-09-24「起切片1」）。
+
+#### 一、交付面（每一件都带消费者，无"声明了没人用"）
+
+| 件 | 位置 | 说明 |
+|---|---|---|
+| `FishboneTemplate` | `job/fishbone/FishboneTemplate.java` | **只有主巷 4 个字段**（`startFoot`/`dir`/`mainLength`/`height`）——计划 §2 的另 7 个字段（支巷/配额/搭路/junk…）**故意不声明**：切片 1 没有消费者（`J5-P1` 那类"声明了没人用"是缺陷）。`cells()` = 纯几何、不读世界（`C1`/`C5` 的基准） |
+| `FishboneJob` | `job/fishbone/FishboneJob.java` | `L3` 作业：`PREPARE → EXCAVATE → RETURN → DONE`；每格 = 一个 `MineTask`（`DIRECT`，站位在身后 ⇒ **规划距离恒 1 格**）；返回 = `PathRetryRunner` + `PathRequest.of`（**纯通行**，`D-076`）。⚠️ **不新增 Movement、不动成本模型、不用 `planTunnel`**（计划 §1"明确不做"） |
+| 终态词表 | 同上（javadoc 表） | `template_complete` / `start_unreachable` / `start_search_incomplete`（⭐ **`SEARCH_LIMIT ≠ UNREACHABLE`**，两者分开报）/ `main_blocked:<码>` / `main_unreachable:<码>` / `no_progress` / `goal_timeout` / `return_failed` |
+| 失败也先回家 | 同上 | 逐字落地计划 §10.2：「主巷遇不可挖 ⇒ 报告 + 如实失败，**且优先沿已挖通的主巷返回起点**」（`D-327` 同宗）；`return_failed` 是**独立**终态（不许静默留在洞里） |
+| 夹具步 | `task/FishboneSlice1CheckTask.java` + `MiningModule` 的 `fishbone_slice1`（EXTRA，预算 4000） | **三臂一次跑完**：① 实心石体挖通主巷（`C1`/`C3`/`C4`）② 前方基岩（`C6` 归因 + 先返回）③ 起点被封（`C6` 零改动）。判据落在**世界事实**（逐格期望表 + `WriteAudit` 条目必须全在模板格内） |
+| ⭐ 搜索规模读数口 | `pathing/core/search/PathingStats.scale()` + `CorePathPlanner.plan` 的**唯一漏斗** | 计划 §4 原写"复用 `PathingStats`（`nodesExpanded` 等）"——**那时它并不存在**（`PathPlan` 有那两个字段，但只有 `PathRetryRunner` 把它打成一行日志）⇒ 判据只能 grep 日志、做不成断言。现在补上：`plans/nodes/millis/searchLimit` 四元组，**写入点只有一处**（包一层 `planInternal`，因为原方法有 10+ 出口，逐出口记账必然漏） |
+| 登记 | `RegressionBatteryTask.CURATION`（EXTRA）+ `WritePolicyMatrix.PREFIX_RULES`（`fishbone` → `MINING`）+ `docs/BATTERY_CURATION.md` + `docs/AI_TEST_MATRIX.md` | 写入理由码**复用** `WriteReason.BULK_EDIT`（计划 §4：不新增枚举值） |
+
+#### 二、证据（`SERVER_TESTED`；四条独立）
+
+1. **夹具绿**：`single:fishbone_slice1` = **PASS `checks=28 failures=0`**（`run/headless-logs/20260924-235730-…`）。
+   三臂读数：① `template_complete` `advance=6/6 mined=12 skipped=0 ticks=246` · `auditBreaks=12 模板外=0` · 期望表差 **0** 格 · 脚位回起点（XZ 偏差 0.03）；② `main_blocked:TARGET_NOT_BREAKABLE` `advance=2/6 mined=4`，**先返回起点**，基岩格与其后**零改动**；③ `start_unreachable`（规划 `status=UNREACHABLE`，**不是** `SEARCH_LIMIT`）且**零世界改动**。
+2. **红臂（先红后绿）**：临时把 `FishboneTemplate.cells()` 改成返回空（= **关掉模板生成**，计划 §7 指定的红臂）
+   ⇒ **`FAIL checks=28 failures=6`**（`mined=0`；期望表差 **12** 格；臂②归因退化成 `template_complete`）——
+   即"**判据真的会咬**"，不是恒真。还原后复跑 **PASS**（`run/headless-logs/20260925-000003-*` 红 / `…000147-*` 绿）。
+3. **CORE 逐步 diff = 判决 41/41 逐字不变**（`run/headless-logs/20260925-000600-core.log`，230 s，`verdict=PASS`）：
+   与上一轮（`20260924-140740`）逐行对比，**唯一变化 = `extra_skipped 56 → 57`**（新增的那个 EXTRA 步）。
+   ⚠️ 总 `ticks` +30 —— 逐 step 看只有 `clear_guard`/`lumber_job`/`mine_job`/`mine_regression` 四步在抖，
+   **而同样四步在两次"改动前"的 CORE 之间也在抖**（`185↔178` / `603↔627` / `235↔238` / `132↔122`）
+   ⇒ 是既有非确定性，不是本片引入。
+4. **门禁**：`check-all` = `pass=22 warning=1 failed=0`（含新步的 `A1 步声明↔CURATION` 双向、`A2 档位`）。
+
+#### 三、⭐ 本片顺带回答的问题：计划 §5 的"极廉价"**从假设变成读数**（`survey/32` 发现二）
+
+计划 §5 把鱼骨选型 A 的风险写成「每格一次小规划的开销（**可实测**；`D-373` 的病灶是"13 次**全预算**"
+而不是"多次极廉价"）」—— 即"极廉价"当时是**待验证假设**。本片零额外成本量到了：
+
+| 读数 | 实测（臂①，6 格推进） | 参照 |
+|---|---|---|
+| **每轮规划耗时** | **0.55 ms/次**（`plans=20 millis=11`） | 真机 mine 循环 **≈198 ms/轮** |
+| **每轮展开节点** | **1.55 节点/次**（`nodes=31`） | —— |
+| **每格 tick 成本** | **41 tick/格**（`jobTicks=246 / advance=6`） | —— |
+| `SEARCH_LIMIT` | **0 次** | `C3` 要求 |
+
+⇒ `C3` 的常数**按实测收紧**（不是拍脑袋）：`plans ≤ 6 × 推进格数`（实测 3.3/格，余量 1.8×）、
+`nodes ≤ 40 × 推进格数`（实测 5.2/格，余量 7.7×）。
+
+⚠️ **诚实边界（不许把它读成"真机卡顿的病治好了"）**：这是**无头 + 自建 1 格宽石巷**里的读数，
+消费者只有"走到身后 1 格"这一种规划；真机那 ≈198 ms/轮 的构成是**候选扫描 + 成本场 + 规划**三件事，
+**本夹具没有对照它**。因此正确的结论只有一条：**"鱼骨这条路径的规划开销确实极廉价"已被量到**，
+**不等于**"`MineJob` 现有的 198 ms 被修好"（那是 `P4″`/`J-1.3` 的事，且计划 §5 早就写了
+"是**新路径没这个病**，不是病治好了"）。
+
+#### 四、⚠️ 顺带修掉一条**判据读错数**的真缺陷（门禁自身）
+
+`kernel-predicates.py` 的 `PL-1` 臂⑥（harness 预算 > 夹具 `BUDGET_TICKS`）原正则
+`CheckStep\.of\("mine_vein_propagation".*?,\s*(\d+)\)\)` **会跨过步边界**：它只在
+`mine_vein_propagation` 是 `MiningModule` **最后一步**时才恰好抓到自己的 `5500`；
+本片在它后面追加了一个步 ⇒ `.*?` 一路吃到**新步的 `4000`**，于是判据报
+"`mine_vein_propagation` 的预算（4000）不大于夹具的 5400"这种**假红**（数字全都对，只是配错了对象）。
+⇒ 修成"**本步调用内第一个 `NNNN)`**"（一个右括号就够，且不可能跨步）。
+⭐ **教训**：**判据读错数比没有判据更坏** —— 它会让下一次改动去改一个本来就对的常量。
+（同族：`RC4` 的 I3、`D-425` §四、`D-427` 臂④ 三次"判据太糙 ⇒ 假绿/假红"。）
+
+#### 五、复核触发
+
+1. 现场景换宽/换方向、或 `mainLength` 大幅变化后 `C3` 的两个常数变红 ⇒ 先看 `plans` 涨在哪一步
+   （`[PathRetry] plan` 逐行带 requester），确认是"新能力"还是"搜索失控"，再决定调常数还是查缺陷；
+2. 切片 2 加**支巷/收集/追簇**之后，`cells()` 的语义会扩（游走格也要登记）⇒ `C1`/`C5` 的白名单与
+   `expectedBlocks` 的期望表**必须同步**，否则会得到"看起来是内核坏了"的假红；
+3. 真机出现"鱼骨仍撞 `SEARCH_LIMIT`"（计划 §9 的回收条件①）⇒ 说明每格规划不总是 1 格，先补读数再改。
+
+#### 六、切片 1 **没做**的事（诚实清单，别误读成"鱼骨做完了"）
+
+支巷（`SPUR`）/ 露头矿顺手挖（`IN_PLACE`）/ 矿簇追取与配额 / `COLLECT` 与周期收集 /
+`JunkPolicy` 满包处置 / 搭一格地板（`main_floor_missing` 那条路径：本片场景**地板是实心的** ⇒ 未走到）/
+零参数真机入口（`alice:fishbone_job`，= 切片 3）/ 表单与生产入口（= 切片 4）。
+⇒ **`J-1.1` 的"看得见的推进"目前只有无头日志**；真机观感要等切片 3 + `J-1.5` 客户端验收轮。

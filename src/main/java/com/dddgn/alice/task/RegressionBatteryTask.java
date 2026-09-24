@@ -183,6 +183,9 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("mining_search_limit_honesty", Profile.EXTRA),
             // `D-389`：沿脉传播必须真的发生 + 矿簇被挖穿（石壳 + 3×2×3 铁矿脉）。
             Map.entry("mine_vein_propagation", Profile.EXTRA),
+            // `D-386`：鱼骨切片 1（主巷 + 返回）—— 模板推进 + 不搜索的行为级判据（三臂：模板隧道 /
+            // 前方基岩 / 起点被封）。EXTRA：自建孤立石体 + 三次作业。
+            Map.entry("fishbone_slice1", Profile.EXTRA),
             // ---- MAIN：阶段 3-A 收口后的最小烟测集（4）----
             // 口径（D-201）：每一类"只此一步覆盖"的机制各留一步 + 查询层最便宜一步；
             // A2/A3/A3b/C/装配/发现器探针等同机制夹具退 FULL（机制不丢，默认时长下降）

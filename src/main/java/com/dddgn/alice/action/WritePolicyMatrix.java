@@ -456,6 +456,8 @@ public final class WritePolicyMatrix {
             new String[]{"mining-planner", "MINING"},
             // job NAME（`job/mine/MineJob.java:91`）：任务自身的 requester 就是 "mine"
             new String[]{"mine", "MINING"},
+            // job NAME（`job/fishbone/FishboneJob.java`，`D-386` 鱼骨切片 1）：模板几何列出的格 += `BULK_EDIT`
+            new String[]{"fishbone", "MINING"},
             // job NAME（`job/lumber/RegionLumberJob.java:134` = "region_lumber"）
             new String[]{"region_lumber", "LUMBER"},
             new String[]{"lumber-plan", "LUMBER"},

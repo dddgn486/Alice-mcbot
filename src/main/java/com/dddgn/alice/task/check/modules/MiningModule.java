@@ -7,6 +7,7 @@ import com.dddgn.alice.job.mine.MineCandidateSource;
 import com.dddgn.alice.job.mine.MineJob;
 import com.dddgn.alice.job.policy.NearestPolicy;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.task.FishboneSlice1CheckTask;
 import com.dddgn.alice.task.MineCourseDiagnosticTask;
 import com.dddgn.alice.task.MineMenuCheckTask;
 import com.dddgn.alice.task.MineReachProbeTask;
@@ -231,7 +232,17 @@ public final class MiningModule implements CheckModule {
                 // 判 `TIMEOUT（单项预算用尽）` ⇒ 读数（`mined` 已涨到 ~19）**根本没机会打印**。
                 // 判据：harness 的预算是**兜底**，不是判据 ⇒ 必须比夹具自己的预算宽（门禁 `rule_stale_proof_replan` 咬它）。
                 CheckStep.of("mine_vein_propagation", CheckProfile.EXTRA, List.of(), null,
-                        () -> new MineVeinPropagationCheckTask(bot, observer), 5500));
+                        () -> new MineVeinPropagationCheckTask(bot, observer), 5500),
+                // ⭐⭐ `D-386`（2026-09-24，`J-1.1`）：**鱼骨切片 1（主巷 + 返回）** —— 判据
+                // `C1`（模板 = 事实）/ `C3`（搜索规模恒定 + 零 `SEARCH_LIMIT`）/ `C4`（可返回）/ `C6`（诚实失败）。
+                // 三臂一次跑完（模板隧道 / 前方基岩 / 起点被封）。⭐ 顺带量 `survey/32` 发现二 的两条读数：
+                // **每轮规划耗时** + **每格 tick 成本**（`PathingStats.scale()` 的读数口是本轮新加的，
+                // 计划 `§4` 原写"复用 `PathingStats`（`nodesExpanded`）"——那时它**并不存在**）。
+                // EXTRA（自建孤立石体 + 三臂作业，不进 CORE）；自带场景 ⇒ 不依赖前序模块 ✓
+                CheckStep.of("fishbone_slice1", CheckProfile.EXTRA, List.of(), null,
+                        // ⚠️ harness 预算是**兜底**，必须比夹具自己的 `BUDGET_TICKS`（3600）**宽** ——
+                        // `PL-1` 实测过反例（预算写窄了 ⇒ 夹具内部的预算与读数根本没机会打印）。
+                        () -> new FishboneSlice1CheckTask(bot, observer, scope), 4000));
     }
 
     /** 传送到统一起点（与电池 `teleportBot` 逐字段一致 ✓；顺带起"先热区块再 fill"的作用 ✓）。 */
