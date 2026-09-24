@@ -576,3 +576,18 @@ bash tools/headless-battery.sh core
   ⇒ **纪律：跑电池一律前置 `LC_ALL=C.UTF-8`**（`LC_ALL=C.UTF-8 ALICE_CLIENT_MODS=$HOME/mc-client/mods
   ALICE_HEADLESS=1 tools/headless-battery.sh …`）。⚠️ 这条**不影响判决**（`PASS/FAIL/step 名/计数`都是 ASCII），
   但它决定"人能不能读日志"—— `P7` 那行报告的存在意义就是给人读。
+- **42**：⚠️ **WSL 不继承 Windows 代理 ⇒ "连不上云端"的最常见原因**（2026-09-24 实踩）。
+  Windows 上开着本地代理时（实测注册表 `ProxyEnable=1`、`ProxyServer=127.0.0.1:7897`），
+  **浏览器能上 GitHub，WSL 不能**：`curl https://api.github.com/` 超时（而 `www.baidu.com` 200 正常）
+  ⇒ `gh` / 隧道全断，现象是 `127.0.0.1:3181` 打不开、`gh codespace ssh` 报 `dial tcp … i/o timeout`、
+  隧道日志 `Timeout, server localhost not responding`。
+  **⚠️ 此时云端服务其实一直在跑**（本次实测 pid 与 token 都没变）⇒ 别误判成"云端挂了"。
+  两个反直觉点：
+  ① **`gh`（Go）不读 Windows 系统代理**，只认 `HTTPS_PROXY`/`HTTP_PROXY` 环境变量；
+  ② WSL 里**不能写 `127.0.0.1:7897`**（NAT 模式下那不指向 Windows），要用**默认网关地址**
+     （`ip route show default | awk '{print $3}'`，本次实测 `172.23.112.1:7897` → HTTP 200 ✓）。
+  ⇒ **已修**：`tools/codespace-zero.sh` 新增 `ensure_proxy()`（按宿主 IP 探测 7897/7890 并导出代理），
+  隧道循环**每轮重算宿主 IP**（WSL 重启后网关会变）；实测 `tunnel-bg` 打印「已启用宿主代理 …」+ 自检 401 ✓。
+  更彻底的选项（需 `wsl --shutdown`，会重启本会话与 WSL 里的服务）：`%USERPROFILE%\.wslconfig` 加 `networkingMode=mirrored`。
+  ⚠️ **Windows 侧的管家 / bus-watch 同理**：它们的 `gh` 也需要 `HTTPS_PROXY`（系统代理不够）
+  ⇒ 建议设用户级环境变量 `HTTP_PROXY`/`HTTPS_PROXY=http://127.0.0.1:7897`。

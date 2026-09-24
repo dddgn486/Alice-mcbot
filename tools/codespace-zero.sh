@@ -36,6 +36,26 @@ if [ -f "$TOKEN_FILE" ]; then
     export GH_TOKEN
 fi
 
+# ⭐ 2026-09-24 实测坑：WSL **不继承 Windows 的代理**，而 `gh`（Go）**也不认 Windows 系统代理**
+#    ⇒ 直连 api.github.com 会 i/o 超时（但百度正常）⇒ gh/隧道全断，表现成"连不上云端"。
+#    这里按**当前宿主 IP** 探测常见本地代理端口；命中就导出 HTTPS_PROXY（并把端口记进 ALICE_PROXY_PORT）。
+#    ⚠️ 不要写 127.0.0.1：WSL NAT 模式下那不指向 Windows（要用默认网关地址）。
+ensure_proxy() {
+    [ -n "${HTTPS_PROXY:-}" ] && return 0
+    local hostip port
+    hostip="$(ip route show default 2>/dev/null | awk '{print $3; exit}')"
+    [ -n "$hostip" ] || return 0
+    for port in 7897 7890; do
+        if curl -s -o /dev/null --max-time 2 -x "http://${hostip}:${port}" https://api.github.com/ 2>/dev/null; then
+            export HTTPS_PROXY="http://${hostip}:${port}" HTTP_PROXY="http://${hostip}:${port}" ALL_PROXY="http://${hostip}:${port}"
+            ALICE_PROXY_PORT="$port"
+            info "已启用宿主代理 http://${hostip}:${port}（WSL 不继承 Windows 代理；gh 只认 HTTPS_PROXY）"
+            return 0
+        fi
+    done
+    return 0
+}
+
 die() { printf '✗ %s\n' "$*" >&2; exit 1; }
 info() { printf '→ %s\n' "$*"; }
 
@@ -226,7 +246,9 @@ cmd_tunnel_bg() {
         fi'
     info "② 挂常驻隧道（断线自动重连）…"
     pkill -f "L ${lp}:127.0.0.1:${PORT}" 2>/dev/null || true
-    setsid nohup bash -c "while true; do gh codespace ssh -c $name -- -N -o ServerAliveInterval=30 -o ServerAliveCountMax=6 -o ExitOnForwardFailure=yes -L ${lp}:127.0.0.1:${PORT}; sleep 5; done" >> "$HOME/.dsh-cloud-tunnel.log" 2>&1 &
+    # 隧道循环里**每轮重算宿主 IP**（WSL 重启后网关地址会变），并把探测到的代理端口带上
+    local proxyp="$ALICE_PROXY_PORT"
+    setsid nohup bash -c "while true; do if [ -n '$proxyp' ]; then export HTTPS_PROXY=\"http://\$(ip route show default | awk '{print \$3; exit}'):$proxyp\" HTTP_PROXY=\"\$HTTPS_PROXY\" ALL_PROXY=\"\$HTTPS_PROXY\"; fi; gh codespace ssh -c $name -- -N -o ServerAliveInterval=30 -o ServerAliveCountMax=6 -o ExitOnForwardFailure=yes -L ${lp}:127.0.0.1:${PORT}; sleep 5; done" >> "$HOME/.dsh-cloud-tunnel.log" 2>&1 &
     sleep 10
     info "③ 本地监听 127.0.0.1:${lp} = $(ss -ltn 2>/dev/null | grep -c ":${lp}") 条；自检 HTTP = $(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://127.0.0.1:${lp}/")（401 = 隧道通、只是没带令牌）"
     token="$(remote_token "$name")"
@@ -234,6 +256,8 @@ cmd_tunnel_bg() {
 }
 
 cmd_down() { need_gh; local name="${1:?用法: down <codespace 名>}"; ghc stop -c "$name"; info "已停（计费停止，存储仍计）。删除用：gh codespace delete -c $name"; }
+
+ensure_proxy   # 需要网络的子命令统一走这里（见函数注释）
 
 case "${1:-}" in
     doctor) cmd_doctor ;;
