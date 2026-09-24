@@ -315,14 +315,21 @@ say "  $MODS: $(ls "$MODS" | tr '\n' ' ')"
 # 且 `peaceful` 会把**存档里已经有的**敌对生物一起清掉，不只是停止新生成）。
 # ⚠️ 与客户端**有意不同构**：客户端电池仍可能被怪物干扰 —— 见
 # `docs/reviews/2026-09-15-夹具时机基准与DIAGONAL覆盖.md` §遗留。
-if [ "$BACKEND" = "prod" ] && [ -f "$SERVER_DIR/server.properties" ]; then
+# ⚠️ 旧写法带 `[ -f "$SERVER_DIR/server.properties" ]` 守卫 ⇒ **在全新服务端目录上静默跳过**
+#    （该文件是服务端**首次启动时**才生成的）。2026-09-24 云端首跑实测后果：服务端自建
+#    `difficulty=easy` ⇒ CORE 的 `damage_event_visible` 读到额外伤害源（`hits=4 total=4.0`）
+#    ⇒ **假红 40/41**；本地因为文件早已存在、且早被这段代码钉过，所以**从未暴露**。
+#    ⇒ 现在**先把文件建出来再钉**（服务端启动时会补齐其余默认项）。
+if [ "$BACKEND" = "prod" ]; then
     PROPS="$SERVER_DIR/server.properties"
+    mkdir -p "$SERVER_DIR"
+    [ -f "$PROPS" ] || : > "$PROPS"
     if grep -qE '^difficulty=' "$PROPS"; then
         sed -i 's/^difficulty=.*/difficulty=peaceful/' "$PROPS"
     else
         printf 'difficulty=peaceful\n' >> "$PROPS"
     fi
-    say "夹具洁净度：difficulty=$(grep -E '^difficulty=' "$PROPS" | head -1 | cut -d= -f2)"
+    say "夹具洁净度：difficulty=$(grep -E '^difficulty=' "$PROPS" | head -1 | cut -d= -f2)（已钉死为测试前提）"
 fi
 
 # ---------------------------------------------------------------- 跑
@@ -391,6 +398,10 @@ case "$VERDICT" in
     *)        say "无法识别的判决：$VERDICT"; CODE=5 ;;
 esac
 
+# 生效前提（**不钉的项也打印**：未来两端再有分歧，一眼可见，不必靠猜）
+if [ "$BACKEND" = "prod" ] && [ -f "$SERVER_DIR/server.properties" ]; then
+    say "前提(effective)：$(grep -E '^(difficulty|spawn-monsters|pvp|allow-flight|online-mode|spawn-protection|level-type)=' "$SERVER_DIR/server.properties" | tr '\n' ' ')"
+fi
 say "──── 结果 ────"
 say "verdict=${VERDICT:-<无>} exit=$CODE 用时=${ELAPSED}s 进程退出码=$SRV_EXIT${SRV_HUNG:+  进程_hung=yes}"
 grep -a 'Regression\] SUMMARY' "$LOG" 2>/dev/null | tail -1 | cut -c1-600
