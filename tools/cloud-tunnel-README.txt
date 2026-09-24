@@ -38,7 +38,14 @@
   · 隧道只绑 127.0.0.1（走 ssh 路线）；只有当机器上没有 ssh.exe 时才退到 gh 原生转发（那种会绑所有网卡）。
   · 用完想彻底断开：先 -Stop，再去 https://github.com/codespaces 停掉该 codespace。
 
-七、包里的东西
+七、客户端管家 agent（可选，云端开发的配套）
+  · client-agent.cmd -Install   在 Windows 装 DSH(锁 0.1.5-rc.3) + 导入 preset（需 node，本机已有）
+  · client-agent.cmd            唤醒本地管家 agent：读云端信箱 ~/bus/to-win 并照做
+  · client-agent.cmd "上传最近一次测试的日志和截图"
+  · client-info-watch.cmd       可选的自动 watcher（管家 agent 也可以调它做增量推日志）
+  详见仓库 docs/CLIENT_AGENT_CHANNEL.md（信箱协议 / 回执四段 / 纪律）
+
+八、包里的东西
   codespace-tunnel.cmd   包装脚本（从任何当前目录都能调；找不到 pwsh 会自动退回 Windows PowerShell）
   codespace-tunnel.ps1   主脚本（UTF-8 with BOM，Windows PowerShell 5.1 解析通过）
   怎么用.txt             本文件

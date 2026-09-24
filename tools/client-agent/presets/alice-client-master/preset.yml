@@ -1,0 +1,3 @@
+name: Alice 客户端管家
+description: 运行在玩家 Windows 机器上的本地 agent：查日志/截图、按请求上传测试数据、执行云端要求的客户端调整；不改源码。
+order: 20

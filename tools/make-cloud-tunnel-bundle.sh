@@ -19,6 +19,12 @@ mkdir -p "$DEST/本机WSL专用"
 cp -f "$REPO/tools/codespace-tunnel.ps1" "$DEST/"
 cp -f "$REPO/tools/codespace-tunnel.cmd" "$DEST/"
 cp -f "$REPO/tools/cloud-rollback.sh"    "$DEST/本机WSL专用/"
+cp -f "$REPO/tools/client-info-watch.ps1" "$DEST/"
+cp -f "$REPO/tools/client-info-watch.cmd" "$DEST/"
+mkdir -p "$DEST/presets"
+rm -rf "$DEST/presets/alice-client-master"
+cp -r "$REPO/tools/client-agent/presets/alice-client-master" "$DEST/presets/"
+cp -f "$REPO/tools/client-agent/client-agent.cmd" "$DEST/"
 # 说明文件转成 CRLF + UTF-8 BOM（记事本 / PowerShell 5.1 都友好）
 python3 - "$REPO/tools/cloud-tunnel-README.txt" "$DEST/怎么用.txt" <<'PY'
 import sys, pathlib
