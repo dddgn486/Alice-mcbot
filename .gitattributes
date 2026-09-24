@@ -11,3 +11,6 @@
 *.jar binary
 gradlew text eol=lf
 gradlew.bat text eol=crlf
+# Windows 批处理：**必须 CRLF**（LF + 中文会被 cmd.exe 按 GBK 误读并断错行，实测）
+*.cmd text eol=crlf
+*.bat text eol=crlf
