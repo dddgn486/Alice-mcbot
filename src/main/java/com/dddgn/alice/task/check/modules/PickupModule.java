@@ -102,7 +102,13 @@ public final class PickupModule implements CheckModule {
                 // 顺带钉住 `approach_probe` 与 `pickupGoalFor` **枚举同一批格**（含 `dy=-1` 层）。
                 CheckStep.of("collect_offcenter_retry", CheckProfile.EXTRA, List.of(), null,
                         () -> new com.dddgn.alice.task.CollectOffcenterRetryCheckTask(bot, observer, scope),
-                        600));
+                        600),
+                // ⭐ `A3`（`survey/29 §2.1`）：**击杀产物的归属**。自建地板 + 自养两头牛
+                // （一头我方击杀、一头无归因击杀作反向对照）⇒ `List.of()`（自己传送 + 自己复位）。
+                // 它钉的是"自己杀的牛，肉落成 FOREIGN ⇒ 捡不起来且静默"这条真缺口。
+                CheckStep.of("kill_drop_provenance", CheckProfile.EXTRA, List.of(), null,
+                        () -> new com.dddgn.alice.task.KillDropProvenanceCheckTask(bot, observer),
+                        900));
     }
 
     /** 传送到统一起点（与电池 `teleportBot` 逐字段一致 ✓；顺带起"先热区块再 fill"的作用 ✓）。 */

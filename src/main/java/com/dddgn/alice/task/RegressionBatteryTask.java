@@ -301,6 +301,8 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("restore_underfoot_safety", Profile.EXTRA),
             // `RC3`（2026-09-24）：不可逆写入（容器内容/NBT/流体）的如实记账；真破箱子 ⇒ EXTRA。
             Map.entry("lossy_write_accounted", Profile.EXTRA),
+            // `A3`（2026-09-24）：击杀产物归属（自养两头牛：一头我方击杀、一头无归因对照）⇒ EXTRA。
+            Map.entry("kill_drop_provenance", Profile.EXTRA),
             Map.entry("craft_probe_inventory", Profile.EXTRA),
             Map.entry("craft_probe_table", Profile.EXTRA),
             Map.entry("craft_probe_upgradetab", Profile.EXTRA),
