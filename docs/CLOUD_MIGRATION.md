@@ -477,3 +477,51 @@ bash tools/headless-battery.sh core
 
 **注意（与手册 §9-30 的额度口径配套）**：4 核 ⇒ 免费 **120 core-hours/月 ≈ 30 小时**；一轮 CORE ≈ 4 min ⇒ 一个月能跑几百轮，
 但**别让它 24 小时开着**（空闲 30 分钟自动停已开）。
+
+## §15 ✅ §5 世界母本：裁定与执行（2026-09-24，AI 定，用户授权）
+
+**裁定：权威 = 「存档派生版」母本**（即由客户端存档 `ALICE_CLIENT_SAVE` 生成的那一份）。三条理由：
+1. **可重建**：来源唯一且可哈希钉住（客户端存档）⇒ 任何机器都能复现同一份夹具；
+2. **有已记录的绿色判决**：云端用它跑出 CORE `passed=41/41`（指纹 `55045bbb2b15`）；
+3. **旧那份无法重建**：本机原来的 `run/world-pristine`（**369 文件**、`c9d7004d86ac25ea`）是从某个**已不存在的存档状态**派生的
+   ⇒ provenance 丢失 ⇒ 不能当权威（否则"权威"等于一个谁也复现不出的工件）。
+
+**实测到的分歧（同一口径 `LC_ALL=C`、排除 `session.lock`）**：
+
+| 工件 | 哈希 | 文件数 |
+|---|---|---|
+| 客户端存档 `saves/新的世界` | `9220aca0640a3eee` | 481 |
+| 云端 `run/world-pristine`（= 权威，存档派生） | `9220aca0640a3eee` | 481 |
+| 本机旧 `run/world-pristine` | `c9d7004d86ac25ea` | **369** |
+
+⇒ **两台机器此前在测不同的世界**（这就是"母本以哪份为权威"的物理后果）。
+
+**已执行**：云端母本下载到本机（94 M / 2m52s）→ 校验哈希与文件数一致 → 换装
+（旧那份留作对照 `run/world-pristine.old-369`）→ 本机重跑 CORE（换装使 `D-352` 指纹失效 ⇒ 这一轮是**真跑**）。
+
+⚠️ 口径纠正：早前我按"含 `session.lock`"与"不含"两种口径比过哈希，据此说过「客户端存档在 09-24 那轮后变了」——
+**那是错的**（口径不一致导致的误判）。用统一口径复算：存档哈希 `9a7e472d7733f6ed`(482 文件，含 lock) **与今早传输时完全一致** ⇒ **存档没变**。
+
+## §16 🔬 会话迁移实验（2026-09-24，进行中）
+
+**已确认的事实**（都实测）：
+
+| 项 | 结果 |
+|---|---|
+| 会话文件世代 | 本机与云端**同为 `session.v3.jsonl.zstd`** ✓（本机另有 128 个更老的 `session.jsonl.zstd`，**不要动**） |
+| slug 约定 | **`--<绝对路径去掉首斜杠、其余斜杠换短横>--`**，例：`/home/fb486/projects` ⇒ `--home-fb486-projects--`（⚠️ 我们的启动脚本原来算错成 `-home-fb486-projects`，已修 `5916f0f`） |
+| 云端路径 | `sudo mkdir -p /home/fb486/projects` 需要 root（`vscode` 有免密 sudo ✓）；已建 `alice → /workspaces/Alice-mcbot` 软链 |
+| 工作区登记 | 界面列表来自 `~/.dsh/storages/workspace.json`（`unit.name=workspace, version=2` + `tables.workspaces{<uuid>:{path,title,sessionIds,…}}` + `global.workspaceIds[]`）⇒ **手工登记在后端重启后保住了** ✓ |
+| 试点会话 | 本机 `session-99966497-…`（18 KB，09-23 生成）复制到云端 `~/.dsh/sessions/--home-fb486-projects--/` ⇒ **两端 sha256 一致**（`e6b60750d04e27922b8a88b0`） |
+| 服务以新 cwd 重启 | `WORKDIR=/home/fb486/projects` ✓；`401`/`303` 正常 ✓；**新 token** `4Q2RPSP11kt685_6Qwku6pJ_kFw8uCA-q6m2gn9u42M` |
+
+**待用户做的两步（判据）**：
+1. 打开云端界面 ⇒ 工作区 `projects（与本地同一 slug）` 是否出现、试点会话是否在列、能否打开；
+2. ⭐ 在**那个试点会话里发一条消息**（让云端 rc.3 写它）⇒ 我再测**本机 rc.1 能否继续读它**
+   —— 这就是"**单向门**"到底存不存在的决定性实验（试点会话是可丢弃的，所以拿它试）。
+
+**§9 新增已知坑**：
+- **32**：`CODESPACE_NAME` / `GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN` **在 ssh 会话里不存在**（那是 VS Code 终端注入的）
+  ⇒ 通过 ssh 启动 `dsh web` 必须显式给 `DSH_TRUSTED_HOST=<名字>-<端口>.<转发域名>`，否则脚本会拒绝启动（实测踩过）。
+- **33**：云端容器的 `python3` **没有 `json` 模块**（离谱但实测）⇒ 解析 JSON 用 `cat`/`jq`/本地处理，别在云上跑 python3 json。
+- **34**：slug 约定见 §16（启动脚本已修）。
