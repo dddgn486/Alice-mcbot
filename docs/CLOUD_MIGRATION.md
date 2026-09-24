@@ -542,3 +542,8 @@ bash tools/headless-battery.sh core
 - **36**：⭐ **两端的 git 远端名不同**：**本地 WSL 用 `github`**，**云端容器用 `origin`** ⇒ 在云端照抄本地的
   `git push github master` 会报 `fatal: 'github' does not appear to be a git repository`（实测踩过；提交本身是成功的，只是没推上去）。
   两端都可用同一句的自查：`git remote -v`。
+- **37**：云端基础镜像的 `python3.12` **物理缺标准库**（`/usr/lib/python3.12/json` 不存在）⇒ 4 项门禁因 `import json/html/shutil/zipfile` 失败而红（与代码无关）。
+  修：`sudo apt-get update && sudo apt-get install -y libpython3.12-stdlib`；已固化进 `.devcontainer/devcontainer.json` 的 `postCreateCommand`。
+- **38**：`check-machine-map` 的 mods 目录写死在本地 Windows 路径 ⇒ 云端必 `INCOMPLETE`。修：`tools/check-machine-map.sh` 支持 `ALICE_MODS_DIR`
+  （云端用法：`ALICE_MODS_DIR=$HOME/mc-client/mods tools/check-all.sh` ⇒ `pass=19 warning=2 failed=1`，唯一 FAIL = 既有红 `check-ref-integrity` 26 条过期引用）。
+

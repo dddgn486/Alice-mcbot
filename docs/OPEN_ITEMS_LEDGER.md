@@ -2120,8 +2120,9 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 
 | # | 事项 | 判据 | 状态 |
 |---|---|---|---|
-| **P4** | **尺子 1「tick 负载预算」**：跨 tick 摊销/有界搜索/批量扫描必须声明 ms 或节点上限且 < 1 tick；并把**3 个未受门禁保护的 ms 常量**纳入（含 `SearchTickBudget.DEFAULT_MAX_MILLIS_PER_TICK=**400**`＝8 tick、`ESCAPE_MAX_MILLIS=100`、`PRECHECK_MAX_MILLIS=20`） | 挂 `kernel-predicates.py`；注入即红 | 待做 |
+| **P4** | **尺子 1「tick 负载预算」**：跨 tick 摊销/有界搜索/批量扫描必须声明 ms 或节点上限且 < 1 tick；并把**3 个未受门禁保护的 ms 常量**纳入（含 `SearchTickBudget.DEFAULT_MAX_MILLIS_PER_TICK=**400**`＝8 tick、`ESCAPE_MAX_MILLIS=100`、`PRECHECK_MAX_MILLIS=20`） | 挂 `kernel-predicates.py`；注入即红 | ✅ **完成（2026-09-24）**：新增门禁规则 `rule_tick_load_budget_declared`（`[P4·tick负载预算]`）—— **人口口径**：全仓毫秒常量必须 ≤`SEARCH_BUDGET_CEILING_MILLIS=60`（一个 tick 量级）或在 `TICK_BUDGET_EXEMPTIONS` 具名登记**理由 + 复核触发**；双向防漂移（登记项须存在且数值一致）。⭐ 规则当场抓到台账没点名的第 4 个常量 `EXPENSIVE_SEARCH_MILLIS=100`（分类阈值）。判据 = **人口 7（额度 4/豁免 3）可见 + 4 条注入臂全红**（未登记 / 值漂移 / 改名失配 / 缺复核触发）；取证 = `docs/reviews/2026-09-24-P4-tick负载预算门禁.md` |
 | **P7** | `lumber_job` 在 CORE 报告里**单列一行**（防"唯一失败仍是既有 X"盖掉新失败） | CORE 汇报行改动 + 目视 | 待做 |
+| **P4′** | ⭐ **收紧项（由 P4 派生）**：把 `SearchTickBudget.DEFAULT_MAX_MILLIS_PER_TICK` 从 **400 ms（8 tick）** 收到 **≤60 ms**，复跑 CORE 逐步 diff | 先红后绿：注入 400 ⇒ CORE 出现/加重 `Can't keep up`；收到 ≤60 ⇒ 消失（**需客户端或电池可复现的读数**） | P4（已完成） | 待做（**复核触发已写在豁免理由里**：下一次收口客户端测试若仍见 `Can't keep up` ⇒ 做） |
 
 ### D. 架构 / 产品线
 
@@ -2189,6 +2190,15 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 | **S31-6** | 报告 §14.6-4「真人验收仍在本地」 | ⭐ **必须同时钉进验收等级口径**：**云上的绿 = `SERVER_TESTED`，永远不等于 `WINDOWS_CLIENT`** | 登记（口径） |
 | **S31-7** | ⭐ **我方可执行版本已落地** = `docs/CLOUD_MIGRATION.md`（修补版 v2）：保留报告骨架，修三处（① 端口转发必须 `--host 0.0.0.0` + `--trusted-host`；②「云上跑 CORE≈免费」口径；③ 世界母本版本化=**二期前置**），并写进**实测数字**（`~/.dsh`=1.2 G 构成、**密钥不能走环境变量**、`dsh web` 默认只绑回环、会话 slug=cwd）与**能力分工表**（我能搬行李/不能开机器；装 `gh` 后可代跑零期） | ✅ 已落地（手册） |
 
+
+### I. 2026-09-24 云端接管后登记（**只登记事实**）
+
+| # | 事项 | 事实 / 判据 | 状态 |
+|---|---|---|---|
+| **P4-环境①** | 云端容器的 `python3.12` **物理缺标准库**（`/usr/lib/python3.12/json` 不存在 ⇒ `import json/html/shutil/zipfile` 全失败）⇒ `check-item-models` / `check-authz-registry` / `check-machine-map` / `check-scene-connectivity` 四项在云端**必红**（与代码无关）| ✅ **已修 + 已固化**：`sudo apt-get update && sudo apt-get install -y libpython3.12-stdlib`（实测四项由红转绿）＋ 写进 `.devcontainer/devcontainer.json` 的 `postCreateCommand`（重建容器也带上）|
+| **P4-环境②** | `check-machine-map` 的 mods 目录**硬编码本地 Windows 路径** `/mnt/d/JAVA_projects/...` ⇒ 云端/其它机器跑必然 `INCOMPLETE`（未复核 6）| ✅ **已加开关**：`tools/check-machine-map.sh` 支持 `ALICE_MODS_DIR`（与无头电池同变量名）⇒ 云端指到 `~/mc-client/mods` 后 **未复核 6→1**（剩 `oreexcavation`：云端确实没有该 jar，如实保留，不许说成 PASS）|
+| **既有红（非本轮引入）** | ⚠️ `check-ref-integrity` = **26 条过期引用**（例：`docs/AI_DECISIONS.md` 引用 `MovementHelper.java:600/843/590`，而该文件只有 **474** 行）| 已用**纯净版** `kernel-predicates.py`（`git stash` 对照）复现 ⇒ 与 P4 无关。台账 F 段此前记的"静态 `check-all` = 21/1/0"与该红**不一致**（口径待复核）。**建议**：并入任一次文档整理逐条修正（26 条都是行号漂移，机械可查）|
+| **云端门禁口径** | 云端跑全套门禁的正确姿势：`ALICE_MODS_DIR=$HOME/mc-client/mods tools/check-all.sh` ⇒ 实测 `pass=19 warning=2 failed=1`（两项 WARN = 无头电池未跑 + machine-map 缺上游 jar；唯一 FAIL = 上面那条既有红）| 登记（**云端绿 ≠ 客户端绿**，`S31-6` 不变）|
 
 ### E. 观察项（**遇到再记录，不主动修**）
 

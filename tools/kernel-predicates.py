@@ -31,6 +31,35 @@ CORE = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing" / 
 # 低于它 ⇒ `rule_terminal_latch_replays_status` 会红：判据不许在"没有站点"时静默通过。
 LATCH_SITES_MIN = 7
 
+# ⭐ P4（2026-09-24）：**tick 负载预算的人口规则** —— 全仓所有"毫秒预算常量"必须要么 ≤ `SEARCH_BUDGET_CEILING_MILLIS`
+# （= 一个 tick 的量级），要么在这里**具名登记理由与复核触发**。出处：`docs/OPEN_ITEMS_LEDGER.md §11 P4`
+# （点名 3 个当时未受门禁保护的常量：`SearchTickBudget.DEFAULT_MAX_MILLIS_PER_TICK=400`（= 8 tick）、
+# `PathRequest.ESCAPE_MAX_MILLIS=100`、`SurvivalSystem.PRECHECK_MAX_MILLIS=20`）。
+# 双向防漂移：登记项必须**真的存在**且**数值一致**（改名/改值不清登记 ⇒ 红）。
+TICK_BUDGET_EXEMPTIONS = {
+    "DEFAULT_MAX_MILLIS_PER_TICK": (
+        400,
+        "跨 tick 摊销的**每 tick 切片额度**：搜索按 slice 让出，烧额度的次数由 SearchTickBudget 计账（A1 主判据）。"
+        "⚠️ 实测 09-24 客户端轮 mine 循环 ~198 ms/轮、仍在该额度内（= 单 tick 超支 4 倍）。"
+        "复核触发：下一次收口客户端测试若仍见 Can't keep up ⇒ 下调到 ≤60 并复跑 CORE 逐步 diff。",
+    ),
+    "ESCAPE_MAX_MILLIS": (
+        100,
+        "逃生/脱困请求专用（PathRequest 的逃生半边），单次上限 2 tick；"
+        "复核触发：出现一次逃生请求在 tick 线程上造成 Can't keep up ⇒ 收到 ≤60 或改成按 slice 摊销。",
+    ),
+    # ⚠️ 本项**不是执行额度**，是"一次搜索算不算烧预算"的**分类阈值**（A1 主判据的计量口径）：
+    # 规则靠人口扫描才发现它（`docs/OPEN_ITEMS_LEDGER.md §11 P4` 只点名了 3 个）—— 登记在这里
+    # 是为了让"毫秒常量"这件事**没有暗处**，而不是说它允许跑 2 个 tick。
+    "EXPENSIVE_SEARCH_MILLIS": (
+        100,
+        "分类阈值：`elapsedMillis ≥ 此值` 才计一次 expensiveSearch（A1 主判据的计量口径），不是执行额度；"
+        "复核触发：A1 主判据改成按节点数/切片数判定时，同步本值并在电池复跑 CORE 逐步 diff。",
+    ),
+}
+# 人口下限：低于它 ⇒ 本规则红（判据不许在"扫不到任何常量"时静默通过）。
+TICK_BUDGET_SITES_MIN = 4
+
 FACTORY_PREDICATES = {
     "TraverseExecutionFactory.java": "canTraverse",
     "DiagonalExecutionFactory.java": "canTraverse",
@@ -1603,6 +1632,58 @@ def rule_search_budget_is_tick_aware():
     return problems
 
 
+
+def rule_tick_load_budget_declared():
+    """**P4（2026-09-24）：tick 负载预算必须"声明 + 有界 + 有复核触发"**（尺子线，`docs/OPEN_ITEMS_LEDGER.md §11 P4`）。
+
+    背景：内核把"跨 tick 摊销 / 有界搜索 / 批量扫描"的额度写成毫秒常量，但**并非每个常量都被门禁看住** ——
+    `rule_search_budget_is_tick_aware` 只钉了 `CorePathPlanner.DEFAULT_MAX_MILLIS` 那一个点（真机掉刻的直接病灶）。
+    P4 要的是**人口口径**：任何毫秒预算都跑不掉 —— 要么 ≤ 一个 tick 的量级，要么**具名登记**理由 + 复核触发。
+
+    断言（改任一处 ⇒ 红）：
+    ① 扫描人口 ≥ {@link #TICK_BUDGET_SITES_MIN}（解析崩塌 / 常量被改名藏起来 ⇒ 红，不许静默通过）；
+    ② 超过 {@link #SEARCH_BUDGET_CEILING_MILLIS} 的常量必须有登记（否则报出"≈ 独占几个 tick"）；
+    ③ 登记表**双向**：登记项必须真的存在、数值必须与代码一致（改值不清登记 ⇒ 红）；
+    ④ 每条登记的理由必须 ≥20 字**且写出「复核触发」**（没有复核条件的豁免 = 永久豁免，等于没门禁）。
+    """
+    problems = []
+    found = {}
+    pattern = re.compile(r"static\s+final\s+(?:long|int)\s+([A-Z][A-Z0-9_]*(?:MILLIS|_MS)[A-Z0-9_]*)\s*=\s*([0-9_]+)L?\s*;")
+    for path in sorted((ROOT / "src" / "main" / "java").rglob("*.java")):
+        text = code_only(path.read_text(encoding="utf-8"))
+        for m in pattern.finditer(text):
+            name = m.group(1)
+            value = int(m.group(2).replace("_", ""))
+            found.setdefault(name, []).append((value, path))
+    print("[P4·tick负载预算] 人口=%d 个毫秒常量（额度 %d / 登记豁免 %d）"
+          % (len(found), len(found) - len([n for n in found if n in TICK_BUDGET_EXEMPTIONS]),
+             len(TICK_BUDGET_EXEMPTIONS)))
+    if len(found) < TICK_BUDGET_SITES_MIN:
+        problems.append("只扫到 %d 个毫秒预算常量（下限 %d）⇒ 判据的人口不成立（常量被改名/搬走？同步本规则）"
+                        % (len(found), TICK_BUDGET_SITES_MIN))
+    for name, sites in sorted(found.items()):
+        for value, path in sites:
+            if value <= SEARCH_BUDGET_CEILING_MILLIS:
+                continue
+            if name not in TICK_BUDGET_EXEMPTIONS:
+                problems.append("`%s=%d ms`（%s）未登记：超过 %d ms（一个 tick 的量级）≈ 单次可独占 %d 个 tick "
+                                "⇒ 要么收到 ≤%d，要么在 `TICK_BUDGET_EXEMPTIONS` 写明理由 + 复核触发"
+                                % (name, value, path.name, SEARCH_BUDGET_CEILING_MILLIS,
+                                   max(1, value // 50), SEARCH_BUDGET_CEILING_MILLIS))
+    for name, (declared, reason) in sorted(TICK_BUDGET_EXEMPTIONS.items()):
+        if name not in found:
+            problems.append("登记表里的 `%s` 在代码里不存在（改名了？登记与代码必须双向一致）" % name)
+            continue
+        actual = {v for v, _ in found[name]}
+        if declared not in actual:
+            problems.append("登记表写 `%s=%d ms`，代码实际是 %s（改值必须同步登记，否则豁免会漂成假账）"
+                            % (name, declared, " / ".join(str(v) for v in sorted(actual))))
+        if len(reason) < 20 or "复核触发" not in reason:
+            problems.append("登记 `%s` 的理由不合格：必须 ≥20 字且写明「复核触发」（没有复核条件的豁免 = 永久豁免）"
+                            % name)
+    return problems
+
+
 def rule_standing_point_detour_bounded():
     """`D-370` **不许绕远**（用户 2026-09-20 亲眼所见：「跑到了很远的第一个同层可站点，然后水平挖过去」）。
 
@@ -3169,6 +3250,7 @@ def main() -> int:
     scan = rule_scan_advances_every_select()
     writecaps = rule_write_caps_default_open_protection_kept()
     ticksearch = rule_tick_search_account_enforced()
+    tlb = rule_tick_load_budget_declared()
     approachbound = rule_approach_plans_bounded()
     bodyclear = rule_edge_destination_body_clearance()
     collectgoal = rule_collect_goal_standable()
@@ -3268,6 +3350,8 @@ def main() -> int:
         print(f"[D-372·默认不限+权限层保留] {line}")
     for line in ticksearch:
         print(f"[A1·每tick搜索总账] {line}")
+    for line in tlb:
+        print(f"[P4·tick负载预算] {line}")
     for line in approachbound:
         print(f"[A2·模式B穷举有界] {line}")
     for line in bodyclear:
@@ -3297,10 +3381,10 @@ def main() -> int:
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch)
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch) and not tlb
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / tick负载预算={len(tlb)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
           f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
