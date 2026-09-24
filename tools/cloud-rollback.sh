@@ -73,6 +73,17 @@ rput() {  # rput <本地文件> <远端路径>
     rsh "mkdir -p \$(dirname $dst); printf '%s' $b64 | base64 -d > $dst; echo \"上传 \$(stat -c %s $dst) 字节 → $dst\""
 }
 
+# ⚠️ 2026-09-24 实测：`gh codespace cp` 在弱网下会 `error connecting to internal server: context deadline exceeded`
+#    ⇒ 取回一律走这里：先 cp，失败就换 **ssh 管道 + base64**（大文件走管道，**不要**走命令行参数：
+#    Linux 单参数上限 128 KB，见坑 45）。
+fetch_remote() {  # fetch_remote <远端路径> <本地路径>
+    local rp="$1" lp="$2"
+    if gh codespace cp -e -c "$CS" "remote:$rp" "$lp" >/dev/null 2>&1 && [ -s "$lp" ]; then return 0; fi
+    info "gh codespace cp 失败 ⇒ 兜底：ssh 管道 + base64（$rp）"
+    gh codespace ssh -c "$CS" -- "base64 -w0 $rp" 2>/dev/null | tr -d '\r' | base64 -d > "$lp" 2>/dev/null
+    [ -s "$lp" ]
+}
+
 need_gh
 ensure_proxy
 mkdir -p "$ARCHIVE"
@@ -106,7 +117,7 @@ fi
 printf '\n===== ③ 云端清单（会话 + 哈希阶梯 + 附件 + 小文件）=====\n'
 rput "$TOOL" /tmp/dsh-session-rollback.mjs
 rsh "cd /tmp && node /tmp/dsh-session-rollback.mjs inventory --out /tmp/cloud-inventory.json" | sed 's/^/    /'
-gh codespace cp -e -c "$CS" remote:/tmp/cloud-inventory.json "$ARCHIVE/cloud-inventory.json" >/dev/null 2>&1 \
+fetch_remote /tmp/cloud-inventory.json "$ARCHIVE/cloud-inventory.json" \
     || die "取回 cloud-inventory.json 失败"
 [ -s "$ARCHIVE/cloud-inventory.json" ] || die "cloud-inventory.json 是空的"
 info "清单已取回：$ARCHIVE/cloud-inventory.json（$(stat -c%s "$ARCHIVE/cloud-inventory.json") 字节）"
@@ -130,12 +141,30 @@ rsh "
 " | sed 's/^/    /'
 
 printf '\n===== ⑥ 取回 + 重建 + sha256 对账 =====\n'
-gh codespace cp -e -c "$CS" remote:/tmp/rollback-bundle.tgz "$ARCHIVE/rollback-bundle.tgz" >/dev/null 2>&1 \
+fetch_remote /tmp/rollback-bundle.tgz "$ARCHIVE/rollback-bundle.tgz" \
     || die "取回 rollback-bundle.tgz 失败"
 info "bundle = $(stat -c%s "$ARCHIVE/rollback-bundle.tgz") 字节 / 本机 sha256 $(sha256sum "$ARCHIVE/rollback-bundle.tgz" | cut -c1-16)"
 mkdir -p "$WORK/unpacked" && tar xzf "$ARCHIVE/rollback-bundle.tgz" -C "$WORK/unpacked"
 node "$TOOL" rebuild --parts "$WORK/unpacked" --dest "$ARCHIVE" | sed 's/^/    /' \
     || die "重建 sha256 对账**失败** ⇒ 归档里有不一致项，别当成功（上面列了是哪一项）"
+
+printf '\n===== ⑥b 云端 run/ 证据（CORE/电池/台架日志）=====\n'
+# ⚠️ 2026-09-24 实踩：`run/` 在 `.gitignore:18` ⇒ 这些日志**不在 git 里**，只搬 `~/.dsh` 会全部丢在云端；
+#    而 `断点⑥`/`D-429` 都在引用 `run/headless-logs/<ts>-*.log` ⇒ 不搬回来，"读数"就无从复查。
+# ⚠️ 另一条：暂存**不能跨 stop**（stop→start 会清 `/tmp`）⇒ 打包与取回必须在**同一次唤醒**里做完。
+rsh "cd $REMOTE_REPO && tar czf /tmp/run-logs.tgz run/headless-logs run/.cache 2>/dev/null; \
+     echo \"RUNLOGS=\$(stat -c %s /tmp/run-logs.tgz) SHA=\$(sha256sum /tmp/run-logs.tgz | cut -c1-16)\""
+if fetch_remote /tmp/run-logs.tgz "$ARCHIVE/run-logs-cloud.tgz"; then
+    mkdir -p "$WORK/runlogs" && tar xzf "$ARCHIVE/run-logs-cloud.tgz" -C "$WORK/runlogs"
+    n="$(ls -1 "$WORK/runlogs/run/headless-logs" 2>/dev/null | wc -l)"
+    # `cp -n`：**不覆盖**本机已有的同名日志（本机自己的轮次也是证据）
+    mkdir -p "$REPO_DIR/run/headless-logs" "$REPO_DIR/run/.cache"
+    cp -n "$WORK/runlogs/run/headless-logs/"*.log "$REPO_DIR/run/headless-logs/" 2>/dev/null || true
+    cp -f "$WORK/runlogs/run/.cache/core-verdict.txt" "$REPO_DIR/run/.cache/core-verdict.cloud.txt" 2>/dev/null || true
+    info "云端 $n 个日志已并入 $REPO_DIR/run/headless-logs/（不覆盖同名）· 原始包在归档"
+else
+    info "⚠️ run/ 证据没取回（不影响会话回迁；下次唤醒时重跑本脚本即可）"
+fi
 
 printf '\n===== ⑦ 文本出口（层次 b：给下一个主工作流读的原文）=====\n'
 shopt -s nullglob

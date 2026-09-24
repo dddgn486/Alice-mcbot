@@ -423,7 +423,7 @@ tools/make-cloud-tunnel-bundle.sh
 bash tools/cloud-rollback.sh            # 可选参数：<codespace 名>
 ```
 
-它做八件事，**都不删远端任何东西**：
+它做九件事，**都不删远端任何东西**：
 
 1. **云端仓库自检**：未提交改动 / 未推送 commit（⚠️ "未推送 0"可能是引用过期，见坑 **43**）；只报告，不替云端提交；
 2. **本地同步**：`git pull --ff-only github master` + 刷新 Windows 镜像；
@@ -431,12 +431,14 @@ bash tools/cloud-rollback.sh            # 可选参数：<codespace 名>
 4. **本机算增量计划**：只搬"本机没有的那一段"（跳过两端逐字节相同的项）；
 5. **云端按计划切字节**（切在 **zstd 帧起点**上，见坑 **46**）并打包；
 6. **取回 + 重建 + sha256 两端对账** ⇒ 落 **Windows 可见**的 `D:\JAVA_projects\alice-backups\cloud-rollback-<时间戳>\`；
+6b. ⭐ **`run/` 证据回迁**（2026-09-24 追加）：`run/headless-logs/` + `run/.cache/` 打包取回，并 `cp -n` 并入本机 `run/headless-logs/`（**不覆盖**本机同名日志）
+   —— ⚠️ `run` 在 `.gitignore:18` ⇒ **这些日志不在 git 里**，只搬 `~/.dsh` 会让 `断点⑥`/`D-429` 引用的`run/headless-logs/<ts>-*.log` 在本机**无从解析**（本次实测补回 **83 个日志 / 22 MB**）
 7. ⭐ **文本出口（层次 b）**：把搬回来的增量解码成 `.jsonl` + **可读 `.md`**（给下一个主工作流读的原文）；
 8. 打印"能不能被本机 DSH 采纳"的诚实结论 + 收尾清单。
 
 **为什么重写（旧版的硬缺陷）**：旧版把**整个** `~/.dsh/sessions` 打包回来 —— 当时云端只有 2 个会话（21 KB，能用）；
 迁移 177 个会话后同一份会变成 **292 MB**（经 base64 过 ssh ≈ 400 MB）⇒ 在"额度快耗尽 + 链路不稳"时**不可用**。
-✅ 增量版本次实测：**要搬 29 项 / 跳过 251 项 ⇒ 传输 9.99 MB，重建 29/29 全部 sha256 通过**。
+✅ 增量版本次实测：**要搬 29 项 / 跳过 251 项 ⇒ 传输 9.99 MB，重建 29/29 全部 sha256 通过**；`run/` 证据另走 ⑥b（**83 个日志 / 22 MB**，bundle `sha256 50166abb9fc4315f…`）。
 
 **回迁的核心事实（工具成立的前提）**：会话日志**只追加**，云端那份是从本机复制出去的
 ⇒ 本机文件是云端文件的**前缀**，只需传 `云端[F:]`；分叉点 `F` 由**哈希阶梯**反查（不靠猜）。
@@ -631,3 +633,12 @@ bash tools/headless-battery.sh core
   或 `gh codespace ssh`（`tools/codespace-zero.sh` 注释称 gh 会自动唤醒，**未实测**）。
   ⚠️ 同理：`gh codespace list` 的 `STATE` 列 `Available` = 在跑、`Shutdown` = 已停；
   判断"额度有没有在烧"要看这一列，**不要看 `lastUsedAt`**（它只在某些操作时刷新，本次实测一整晚没变）。
+- **48**：⚠️ **暂存目录不能跨 `stop`**（2026-09-24 实踩）：cloud-rollback 的 `pack` 把包写在云端 `/tmp/rollback-staging` + `/tmp/*.tgz`，
+  而 **`stop → start` 会清掉 `/tmp`** ⇒ "先打包、下次再取"的流程会**取到一个不存在的包**
+  （实测：第一次取回被网络掐断 → 脚本 stop → 再次 start 后 `scp: /tmp/run-logs.tgz: No such file or directory`）。
+  **纪律**：打包与取回必须在**同一次唤醒**里做完；跨 stop 只应依赖 `/workspaces`（那是持久卷）。
+- **49**：⚠️ **`gh codespace cp` 在弱网下会失败**（2026-09-24 23:30 前后连续两次
+  `error connecting to internal server: context deadline exceeded`）⇒ 回迁脚本的取回一律走 `fetch_remote()`：
+  **先 `cp`、失败就换 `ssh 管道 + base64`**（`gh codespace ssh -c <名> -- "base64 -w0 <远端路径>" | tr -d '\r' | base64 -d > <本地>`），
+  并用 sha256 两端对账。⚠️ 这与坑 **45** 是同一类错误的两个面：**大文件只能走管道，不能走命令行参数**；
+  但**小文件（清单/计划）走 `cp` 更省事**（base64 套 base64 会顶爆 128 KB 单参数上限）。
