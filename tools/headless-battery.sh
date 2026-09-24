@@ -137,6 +137,10 @@ fi
 if [ ! -d "$PRISTINE" ]; then
     [ -d "$CLIENT_SAVE" ] || die "客户端存档不存在：$CLIENT_SAVE（可用 ALICE_CLIENT_SAVE 指定）"
     say "建原始世界母本（一次性）：$CLIENT_SAVE → $PRISTINE"
+    # ⚠️ 必须自己建父目录：`run/` 整个被 .gitignore ⇒ **在全新检出（云端）里 run/ 根本不存在**，
+    #    而本地这台机器的 run/ 常年存在 ⇒ 这个前提**从没被暴露过**（2026-09-24 云端首跑实测踩到：
+    #    `cp: cannot create directory '.../run/world-pristine': No such file or directory`）。
+    mkdir -p "$(dirname "$PRISTINE")" || die "无法创建 $(dirname "$PRISTINE")"
     rm -rf "$PRISTINE"
     cp -r "$CLIENT_SAVE" "$PRISTINE" || die "拷贝存档失败"
     rm -f "$PRISTINE/session.lock"
