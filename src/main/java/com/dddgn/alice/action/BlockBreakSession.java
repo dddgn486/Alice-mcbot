@@ -33,11 +33,12 @@ public final class BlockBreakSession {
     private final BlockPos pos;
     private final int maxTicks;
     /**
-     * ⭐ `RC3`：**归因**（授权描述）—— 破坏真的发生时用它记一笔"不可逆"（见
-     * {@link com.dddgn.alice.ledger.WorldModLedger#recordLossyWrite}）。
-     * 允许为空串（夹具直接开会话时没有 grant），但**生产路径必须传**。
+     * ⭐ `RC3`/`RC4`：本次破坏的**授权**（可以为 null —— 夹具直接开会话时没有 grant）。
+     * 两个用途：① `RC3` 记"不可逆"时的**归因**；② `RC4` **退回扣账**时判断这是不是免额扣账。
      */
-    private final String by;
+    private final WriteGrant grant;
+    /** ⭐ `RC4`：这笔破坏的预算扣账是否已退回（`fail(...)` 只许退一次）。 */
+    private boolean refunded;
 
     private Status status = Status.IN_PROGRESS;
     private String failureCode = "";
@@ -47,12 +48,17 @@ public final class BlockBreakSession {
     private Direction face = Direction.UP;
 
     private BlockBreakSession(ServerPlayer bot, ServerLevel level, BlockPos pos, int maxTicks,
-                              String by) {
+                              WriteGrant grant) {
         this.bot = bot;
         this.level = level;
         this.pos = pos.immutable();
         this.maxTicks = maxTicks;
-        this.by = by == null ? "unknown" : by;
+        this.grant = grant;
+    }
+
+    /** 归因字面量（`RC3` 的不可逆日志用）。 */
+    private String by() {
+        return grant == null ? "unknown" : grant.describe();
     }
 
     public static BlockBreakSession begin(ServerPlayer bot, ServerLevel level, BlockPos pos) {
@@ -62,8 +68,7 @@ public final class BlockBreakSession {
     /** ⭐ `RC3`：带**归因**开会话（生产路径用这个 ⇒ 不可逆写入能追到是谁授权的）。 */
     public static BlockBreakSession begin(ServerPlayer bot, ServerLevel level, BlockPos pos,
                                           WriteGrant grant) {
-        return new BlockBreakSession(bot, level, pos, MAX_BREAK_TICKS,
-                grant == null ? "unknown" : grant.describe());
+        return new BlockBreakSession(bot, level, pos, MAX_BREAK_TICKS, grant);
     }
 
     public BlockPos pos() {
@@ -139,7 +144,7 @@ public final class BlockBreakSession {
             // 方块实体 NBT / 流体），**如实记一笔**（不做逐 item 还原是裁定，但"不许假装可逆"）。
             // 位置：放在 `after == before` 判据**之后** —— 世界没变就不算写成功（`D-323`），
             // 也就不该记成"我们弄丢了东西"。
-            com.dddgn.alice.ledger.WorldModLedger.recordLossyWrite(level, pos, before, by);
+            com.dddgn.alice.ledger.WorldModLedger.recordLossyWrite(level, pos, before, by());
             level.sendBlockUpdated(pos, before, after, 3);
             status = Status.DONE;
             BotLog.info("block_break_done bot={} pos={} ticks={}", bot.getName().getString(),
@@ -161,6 +166,13 @@ public final class BlockBreakSession {
     private Status fail(String code) {
         failureCode = code;
         status = Status.FAILED;
+        // ⭐ `RC4`（2026-09-24）：**走到 fail 就说明世界没变**（成功路径走的是 DONE）⇒
+        // `consumeBreak` 在会话开始前扣的那笔账**不成立**，必须退回，否则预算账会说"写了 N 次"
+        // 而世界/审计说"一次都没写"（`D-323` 真机现场：`WriteBudget breaks=1/64` + 4 格仍是 dirt）。
+        if (!refunded) {
+            refunded = true;
+            WriteBudget.refundBreak(bot, pos, grant, code);
+        }
         level.destroyBlockProgress(bot.getId(), pos, -1);
         BotLog.warn("block_break_failed bot={} pos={} code={} ticks={} progress={}",
                 bot.getName().getString(), pos.toShortString(), code, ticks,

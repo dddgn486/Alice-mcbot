@@ -111,6 +111,8 @@ public final class WriteBudget {
         int exemptPlaces;
         int refusedBreaks;
         int refusedPlaces;
+        /** ⭐ `RC4`：被**退回**的破坏扣账次数（世界没变 ⇒ 这笔不成立；见 {@link #refundBreak}）。 */
+        int refundedBreaks;
         boolean breakExhausted;
         boolean placeExhausted;
         boolean loggedNoScope;
@@ -532,8 +534,53 @@ public final class WriteBudget {
         }
         return "scope=" + scope + " breaks=" + counters.breaks + "/" + caps.maxBreaks()
                 + " places=" + counters.places + "/" + caps.maxPlaces()
+                + " refundedBreaks=" + counters.refundedBreaks
                 + " exemptBreaks=" + counters.exemptBreaks + " exemptPlaces=" + counters.exemptPlaces
                 + " exhausted=" + (counters.breakExhausted || counters.placeExhausted);
+    }
+
+    /**
+     * ⭐ `RC4`（2026-09-24）：**退回**一次破坏扣账 —— "世界没变 ⇒ 这笔不成立"。
+     *
+     * <h3>为什么必须有（两份不同源的真事故）</h3>
+     * `consumeBreak` 在**会话开始前**扣账（闸门必须在下手前拦住），而破坏可能在很多 tick 之后
+     * 才被证明**根本没发生**：`D-323` 真机实测（`BreakRefusedCheckTask` 头部的原话）——FTB 认领内
+     * 4 次破坏全打了 `block_break_done` + `COMPLETED` + **`WriteBudget breaks=1/64`**，而存档里那
+     * 4 格仍是 `minecraft:dirt`。`D-323` 修好了**报告**（世界没变 ⇒ 失败码 `REFUSED`），
+     * 但**扣账留着** ⇒ 预算账说"写了 N 次"、世界与审计说"一次都没写" = 同一量两份真相。
+     *
+     * <p>放置那边**本来就是这个形状**（`BlockInteraction.placeAt`：预算计数放在"真正落地之后"，
+     * 尝试失败不占额度）⇒ 本方法是把破坏补齐成同一条原则，而不是新增一套机制。
+     *
+     * <p>⚠️ 免额扣账（`grant.reason() == SCAFFOLD_RESTORE`，`D-347`）**没进** `breaks`
+     * ⇒ 这里直接返回（否则会退掉别人的账）。**不静默**：每次退回一条 `[WriteBudget] refund …`。
+     */
+    public static void refundBreak(ServerPlayer bot, BlockPos pos, WriteGrant grant, String reason) {
+        if (grant != null && grant.reason() == WriteReason.SCAFFOLD_RESTORE) {
+            return;
+        }
+        String scope = scopeOf(bot);
+        Counters counters = scope == null ? null : SCOPES.get(scope);
+        if (counters == null || counters.breaks <= 0) {
+            return;
+        }
+        counters.breaks--;
+        counters.refundedBreaks++;
+        BotLog.info("[WriteBudget] refund break scope={} pos={} reason={} breaks={}/{} refunded={}",
+                scope, pos.toShortString(), reason, counters.breaks, effectiveCaps(scope).maxBreaks(),
+                counters.refundedBreaks);
+    }
+
+    /**
+     * ⭐ `RC4`：被退回的破坏扣账次数（**人口读数**）。
+     *
+     * <p>为什么不能只看 `breaks` 没涨：`breaks` 不动也可能是"压根没扣过"（没有作用域 / 免额）。
+     * 和 `refusedBreaks` / `outsideSkipCount` 同一个理由（`silent-measurement-failure`）。
+     */
+    public static int refundedBreaks(ServerPlayer bot) {
+        String scope = scopeOf(bot);
+        Counters counters = scope == null ? null : SCOPES.get(scope);
+        return counters == null ? 0 : counters.refundedBreaks;
     }
 
     /** 只读计数（夹具断言用）。 */

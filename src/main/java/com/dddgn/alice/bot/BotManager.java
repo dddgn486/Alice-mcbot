@@ -2155,10 +2155,14 @@ public final class BotManager {
                     "cancelled:" + (reason == null ? "user" : reason), "idle_after_cleanup");
             clearTask();
             // ⭐ `Z4`：`residue` 会进事件环给决策层看 ⇒ 必须是**义务**口径（区内）；
-            // 另把"本任务到底写没写"的人口一并带上（区外写入不入账 ⇒ 光看 residue=0 会误读成"很干净"）
+            // 另把"本任务到底写没写"的人口一并带上（区外写入不入账 ⇒ 光看 residue=0 会误读成"很干净"）。
+            // ⭐ `RC4`（2026-09-24）：人口**只许有一个出处** = 账本闭合读数（`recorded/wildSkipped/lossy`）；
+            // 原来这里还拼了 `WriteBudget.population(bot)`（闸门计数）⇒ 同一个量（"本任务写了多少世界"）
+            // 两个来源，而且 `RC4` 让预算在"世界没变"时**退回**扣账之后，两者必然分叉 ⇒ 去掉。
             int residue = com.dddgn.alice.ledger.WorldModLedger
                     .pendingTemporaryProtected(bot.serverLevel(), null).size();
-            String residuePopulation = com.dddgn.alice.action.WriteBudget.population(bot);
+            String residuePopulation = com.dddgn.alice.ledger.WorldModLedger
+                    .closure(bot.serverLevel(), null, ledgerPopulationBaseline).describe();
             // ⭐ `D-338` 附注十五：**显式停止也要进事件环** —— 这条路径（玩家 `/alice region stop`、
             // `/alice stop-task`、`stop_current`、延后到安全点）**不走 `complete()`** ⇒ 以前事件环里
             // 什么都不留，决策层下次被叫时**看不到"刚才被谁停了"**（客户端实测：用户 stop 后等 30 s

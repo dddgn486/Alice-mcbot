@@ -647,6 +647,9 @@ public final class BlockInteraction {
                             + "（destroyBlock={} 方块仍是 {}）",
                     pos.toShortString(), grant == null ? "-" : grant.describe(), destroyed,
                     before.getBlock().getName().getString());
+            // ⭐ `RC4`：这条路上预算也是**事前**扣的（`consumeBreak` 在 617 行）⇒ 世界没变就退回，
+            // 与 `BlockBreakSession.fail(...)` 同一条原则（"没发生的写入不许留在账上"）。
+            WriteBudget.refundBreak(bot, pos, grant, "world_unchanged");
             return false;
         }
         WriteAudit.breakWrite(level, pos, before, grant);

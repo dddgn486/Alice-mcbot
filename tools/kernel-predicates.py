@@ -3107,6 +3107,102 @@ def rule_lossy_write_accounted():
     return problems
 
 
+def rule_write_truth_single_source():
+    """`RC4`（2026-09-24）：**"我方写了多少世界"只有一个真相；没发生的写入不许留在账上**。
+
+    <h3>为什么（两份不同源的真事故，不是推测）</h3>
+    三本账各司其职，但**同一个量**只能有一个出处：
+    · `WorldModLedger` = **义务与残留**的真相（"还欠多少"，含 `RC3` 的不可逆事实）；
+    · `WriteBudget` = **闸门 + 人口**（"还让不让写" / "这次窗口写了多少次，含区外"）；
+    · `WriteAudit` = **逐条审计明细**（谁授权、写了哪一格）。
+    而 `consumeBreak` 在**会话开始前**扣账，破坏却可能在很多 tick 之后才被证明**根本没发生**
+    ⇒ `D-323` 真机现场（`BreakRefusedCheckTask` 头部原话）：FTB 认领内 4 次破坏全打了
+    `WriteBudget breaks=1/64`，而存档里那 4 格仍是 `minecraft:dirt`。`D-323` 只修好了**报告**，
+    **扣账留着** ⇒ 预算账说"写了 N 次"、世界与审计说"一次都没写" = 同一量两份真相。
+
+    <h3>四条臂（各有一条注入）</h3>
+    ① **世界没变 ⇒ 退回扣账**：`WriteBudget.refundBreak` 存在，且 `BlockBreakSession.fail(...)`
+       （所有"没成功"的终态都走它）与 `BlockInteraction.breakForBulkEdit` 的 `world_unchanged` 分支都调用；
+    ② **放置侧的既有正确形状**（回归锁）：`placeAt` 里 `consumePlace(` 必须在"方块真的落地"判据之后
+       （"失败不占额度"）—— 破坏那一侧要补齐的就是这条原则；
+    ③ **义务口径唯一**：`WriteBudget` **不得**提供"待收/残留"类 API（待收只许问账本）；
+    ④ **计数读数只许在夹具/探针**：`WriteBudget.breaks|places|writeCount|population` 不得出现在
+       生产决策目录（`action/`（`WriteBudget` 自身除外）/`pathing/`/`job/`/`bot/`）——
+       `describe(` 是允许的（它是"上限 + 计数"的证据行，`Z3` 已把它钉成同源）。
+    """
+    base = ROOT / "src/main/java/com/dddgn/alice"
+    budget = base / "action/WriteBudget.java"
+    session = base / "action/BlockBreakSession.java"
+    interact = base / "action/BlockInteraction.java"
+
+    def code(path):
+        if not path.exists():
+            return None
+        return code_only(re.sub(r"/\*.*?\*/", "", path.read_text(encoding="utf-8"), flags=re.S))
+
+    problems = []
+    bud = code(budget)
+    ses = code(session)
+    itr = code(interact)
+    for text, name in ((bud, budget.name), (ses, session.name), (itr, interact.name)):
+        if text is None:
+            problems.append(f"{name} 不存在（改名？同步本规则 `RC4`）")
+    if problems:
+        return problems
+
+    # ---- 臂① 世界没变 ⇒ 退回扣账 ----
+    if "public static void refundBreak(" not in bud:
+        problems.append("`WriteBudget` 没有 `refundBreak(...)` ⇒ 没有任何地方能退回"
+                        "「世界没变却已扣掉」的那笔账（`D-323` 的尾巴）")
+    fail_body = method_body(ses, "private Status fail(")
+    if "refundBreak(" not in fail_body:
+        problems.append("`BlockBreakSession.fail(...)` 没有退回预算 ⇒ 所有「没成功」的终态"
+                        "（`REFUSED` 世界没变 / 超时 / 中止）都会把「没发生的破坏」留在账上")
+    bulk = method_body(itr, "public static boolean breakForBulkEdit(")
+    if "world_unchanged" in bulk and "refundBreak(" not in bulk:
+        problems.append("`breakForBulkEdit` 的 `world_unchanged` 分支没有退回预算 ⇒ "
+                        "第二条破坏路径仍在记假账")
+
+    # ---- 臂② 放置侧的"落地之后才计数"（回归锁）----
+    # ⚠️ `placeAt` 有**两个重载**（带/不带 `wanted` 方块），且签名跨行 ⇒ 不去抠签名，
+    # 直接查**整个文件里的先后顺序**：`consumePlace(` 必须出现在"方块真的落地"判据之后。
+    #（第一版抠签名 ⇒ 只拿到第一个重载、规则自己假红一次；记录在台账 `RC4-进度`。）
+    at_consume = itr.find("consumePlace(")
+    at_landed = itr.find("canBeReplaced()")
+    if at_consume < 0:
+        problems.append("`BlockInteraction` 里找不到 `consumePlace(` ⇒ 放置根本没进预算"
+                        "（本规则的前提变了，同步它）")
+    elif at_landed < 0 or at_landed > at_consume:
+        problems.append("`placeAt` 把 `consumePlace(` 挪到了「方块真的落地」判据**之前** ⇒ "
+                        "失败的放置尝试会占额度（这正是破坏侧犯过的错）")
+
+    # ---- 臂③ 义务口径唯一 ----
+    names = re.findall(r"public static [\w<>\[\], .]*?\s(\w+)\(", bud)
+    bad = [n for n in names
+           # ⚠️ 别把 `…Allowed` 当"待收"：第一版写了 `owed` ⇒ 三条闸门 API 全被误报
+           #（`breakAllowed`/`placeAllowed`/`plannedWritesAllowed`），规则自己假红了一次。
+           if re.search(r"pending|unreclaim|residue|leftover", n, re.I)]
+    if bad:
+        problems.append(f"`WriteBudget` 出现了「待收/残留」类 API {bad} ⇒ 同一个量出现第二个真相"
+                        "（「还欠多少」只许问账本 `WorldModLedger`/`closure(...)`）")
+
+    # ---- 臂④ 计数读数只许在夹具/探针 ----
+    counted = ("WriteBudget.breaks(", "WriteBudget.places(", "WriteBudget.writeCount(",
+               "WriteBudget.population(")
+    for sub in ("action", "pathing", "job", "bot"):
+        for path in sorted((base / sub).rglob("*.java")):
+            if path.name == "WriteBudget.java":
+                continue
+            text = code(path)
+            if text is None:
+                continue
+            for needle in counted:
+                if needle in text:
+                    problems.append(f"生产决策目录里读了预算计数 {needle}（{sub}/{path.name}）⇒ "
+                                    "计数是**人口/遥测**，判据要用账本或夹具读数（`RC4`）")
+    return problems
+
+
 def rule_write_budget_zone_and_container_exception():
     """`Z3`（2026-09-23）：**额度只有一处出处；容器轴是唯一例外；瞬时码只有一个拼法**。
 
@@ -3362,6 +3458,7 @@ def main() -> int:
     capability = rule_k4_capability_provenance()
     z2 = rule_ledger_closure_zone_scoped()
     rc3 = rule_lossy_write_accounted()
+    rc4 = rule_write_truth_single_source()
     z3 = rule_write_budget_zone_and_container_exception()
     z4 = rule_vacuous_assertions_carry_population()
     latch = rule_terminal_latch_replays_status()
@@ -3475,6 +3572,8 @@ def main() -> int:
         print(f"[Z2·账本闭合口径] {line}")
     for line in rc3:
         print(f"[RC3·不可逆写入记账] {line}")
+    for line in rc4:
+        print(f"[RC4·写入真相同源] {line}")
     for line in z3:
         print(f"[Z3·额度同源+容器例外] {line}")
     for line in z4:
@@ -3484,11 +3583,11 @@ def main() -> int:
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3) and not tlb
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4) and not tlb
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
           f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / tick负载预算={len(tlb)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
-          f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 不可逆写入记账={len(rc3)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
+          f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 不可逆写入记账={len(rc3)} / 写入真相同源={len(rc4)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 

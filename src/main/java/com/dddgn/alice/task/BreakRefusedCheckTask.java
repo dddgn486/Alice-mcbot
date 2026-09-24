@@ -1,7 +1,9 @@
 package com.dddgn.alice.task;
 
 import com.dddgn.alice.action.BlockBreakSession;
+import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.action.WriteGrant;
+import com.dddgn.alice.action.WriteBudget;
 import com.dddgn.alice.action.WriteReason;
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
@@ -64,7 +66,12 @@ public final class BreakRefusedCheckTask implements Task {
     private static final UUID PROBE_UUID =
             UUID.nameUUIDFromBytes("alice-claim-probe".getBytes(StandardCharsets.UTF_8));
 
-    private enum Phase { GUARD, CONTROL, ADVENTURE, FTB_CLAIM, BULK_CONTROL, CLEANUP, DONE }
+    /**
+     * ⭐ `RC4`（2026-09-24）：`BUDGET_CONTROL` / `BUDGET_REFUSED` = 预算扣账的一对对照
+     * （真破坏要计数；**没发生的破坏要退回**，`D-323` 留的尾巴）。
+     */
+    private enum Phase { GUARD, CONTROL, ADVENTURE, FTB_CLAIM, BULK_CONTROL, BUDGET_CONTROL,
+                         BUDGET_REFUSED, CLEANUP, DONE }
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -80,6 +87,11 @@ public final class BreakRefusedCheckTask implements Task {
     private BlockState targetBefore;
 
     private BlockBreakSession session;
+    /** ⭐ `RC4`：预算对照臂的现场（保护区封套 + 授权 + 两个读数）。 */
+    private FixtureZone.Handle zone;
+    private WriteGrant budgetGrant;
+    private int budgetBefore = -1;
+    private int budgetRefundedBefore = -1;
     private int caseTicks;
     private String caseLabel = "";
 
@@ -130,6 +142,8 @@ public final class BreakRefusedCheckTask implements Task {
             case ADVENTURE -> adventurePhase();
             case FTB_CLAIM -> ftbClaimPhase();
             case BULK_CONTROL -> bulkControlPhase();
+            case BUDGET_CONTROL -> budgetControlPhase();
+            case BUDGET_REFUSED -> budgetRefusedPhase();
             case CLEANUP -> cleanupPhase();
             case DONE -> {
                 return finish();
@@ -333,14 +347,95 @@ public final class BreakRefusedCheckTask implements Task {
             check("⑤ 对照：**无认领**时批量破坏必须真的生效（返回=" + bulkBroke + " 方块现在="
                             + lvl.getBlockState(target).getBlock().getName().getString() + "）",
                     bulkBroke && lvl.getBlockState(target).isAir());
-            advance(Phase.CLEANUP);
+            advance(Phase.BUDGET_CONTROL);
             return;
+        }
+        advance(Phase.CLEANUP);
+    }
+
+    /**
+     * ⭐ `RC4` 对照：**真的破掉**一格 ⇒ 预算必须计数（否则下面那条"退回"判据可能只是"从来没扣过"）。
+     */
+    private void budgetControlPhase() {
+        ServerLevel lvl = bot.serverLevel();
+        if (caseTicks == 0) {
+            caseLabel = "对照（真破坏必须计数）";
+            caseTicks = 1;
+            clearTarget();
+            placeTarget();
+            budgetGrant = WriteGrant.of("check:break-refused", WriteReason.EXPECTED_TARGET);
+            zone = FixtureZone.protect(lvl, bot.getUUID(),
+                    target.offset(-2, -2, -2), target.offset(2, 2, 2), "region_lumber");
+            check("⑥ 前提：夹具摆出保护区 + 任务区封套（" + zone.describe() + "）", zone.ok());
+            String refusal = BlockInteraction.breakRefusal(bot, lvl, target, budgetGrant);
+            check("⑥ 前提：目标格在明文目标策略下**可写**（refusal=" + refusal + "）", refusal == null);
+            budgetBefore = WriteBudget.breaks(bot);
+            budgetRefundedBefore = WriteBudget.refundedBreaks(bot);
+            session = BlockInteraction.beginBreak(bot, lvl, target, budgetGrant);
+            check("⑥ 前提：`beginBreak` 必须真的开出会话（null = 被闸门拒绝）", session != null);
+            return;
+        }
+        if (!tickCase()) {
+            return;
+        }
+        int after = WriteBudget.breaks(bot);
+        check("⑥ ⭐ 真的破掉 ⇒ 预算必须**计数**（实测 breaks " + budgetBefore + "→" + after
+                        + "，status=" + statusOf(session) + " 失败码=" + codeOf(session) + "）",
+                session != null && session.status() == BlockBreakSession.Status.DONE
+                        && lvl.getBlockState(target).isAir() && after == budgetBefore + 1);
+        advance(Phase.BUDGET_REFUSED);
+    }
+
+    /**
+     * ⭐⭐ `RC4` 的判据：**世界没变 ⇒ 预算不许留着这笔扣账**。
+     *
+     * <p>`D-323` 的真机现场就是这条红的来源：FTB 认领内 4 次破坏全打了 `WriteBudget breaks=1/64`
+     * 而存档里那 4 格仍是 `minecraft:dirt`。`D-323` 修好了失败码，**扣账没修** ⇒ 同一个量
+     * （"我方写了多少世界"）在预算账与世界/审计之间两份真相。放置那边本来是对的
+     * （`placeAt` 落地之后才计数）⇒ 本臂就是把破坏补齐成同一条原则。
+     */
+    private void budgetRefusedPhase() {
+        ServerLevel lvl = bot.serverLevel();
+        if (caseTicks == 0) {
+            caseLabel = "负例（世界没变 ⇒ 扣账必须退回）";
+            caseTicks = 1;
+            clearTarget();
+            placeTarget();
+            bot.gameMode.changeGameModeForPlayer(GameType.ADVENTURE);   // 确定性拒绝（原版限制）
+            budgetBefore = WriteBudget.breaks(bot);
+            budgetRefundedBefore = WriteBudget.refundedBreaks(bot);
+            session = BlockInteraction.beginBreak(bot, lvl, target, budgetGrant);
+            return;
+        }
+        if (!tickCase()) {
+            return;
+        }
+        int after = WriteBudget.breaks(bot);
+        int refundedAfter = WriteBudget.refundedBreaks(bot);
+        check("⑦ ⭐⭐ 世界没变 ⇒ 预算**不许留着这笔扣账**（`D-323` 真机是 breaks=1/64 而方块仍是 dirt）："
+                        + "实测 breaks " + budgetBefore + "→" + after + "，status=" + statusOf(session)
+                        + " 失败码=" + codeOf(session) + "，方块="
+                        + lvl.getBlockState(target).getBlock().getName().getString(),
+                session != null && session.status() == BlockBreakSession.Status.FAILED
+                        && "REFUSED".equals(codeOf(session)) && !lvl.getBlockState(target).isAir()
+                        && after == budgetBefore);
+        check("⑦ 人口：退回必须**看得见**（refundedBreaks " + budgetRefundedBefore + "→" + refundedAfter
+                        + "；没有它，「breaks 没涨」也可能是「压根没扣过」）",
+                refundedAfter == budgetRefundedBefore + 1);
+        bot.gameMode.changeGameModeForPlayer(GameType.SURVIVAL);
+        if (zone != null) {
+            zone.release();
+            zone = null;
         }
         advance(Phase.CLEANUP);
     }
 
     /** 自清理：目标格还原、模式还原、认领撤销、探针拆掉。 */
     private void cleanupPhase() {
+        if (zone != null) {
+            zone.release();   // 前提未成立/中途失败时也要复位（`release` 幂等）
+            zone = null;
+        }
         if (bot != null) {
             ServerLevel level = bot.serverLevel();
             if (target != null && targetBefore != null) {
