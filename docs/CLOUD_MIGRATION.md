@@ -525,3 +525,6 @@ bash tools/headless-battery.sh core
   ⇒ 通过 ssh 启动 `dsh web` 必须显式给 `DSH_TRUSTED_HOST=<名字>-<端口>.<转发域名>`，否则脚本会拒绝启动（实测踩过）。
 - **33**：云端容器的 `python3` **没有 `json` 模块**（离谱但实测）⇒ 解析 JSON 用 `cat`/`jq`/本地处理，别在云上跑 python3 json。
 - **34**：slug 约定见 §16（启动脚本已修）。
+- **35**：迁移会话时用 `tar` 打包**必须加 `--` 分隔**：会话目录名按 slug 约定以 `--` 开头（`--home-fb486-projects--`），
+  GNU tar 会把它当**长选项**解析 ⇒ 报 `unrecognized option`，而远端 `tar xf -` 收到空流 ⇒ **静默什么都没传**（实测踩过）。
+  正确写法：`tar cf - --exclude='…' -- --home-fb486-projects-- | ssh … 'tar xf - -C ~/.dsh/sessions'`。
