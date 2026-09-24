@@ -476,3 +476,7 @@
   （`this goal operation requires a direct human turn on a top-level agent`）⇒ **我无法在续行中自己暂停**。
   替代纪律（下一轮照此执行，直到用户发话或压缩）：**过线后只做「读数 + 提醒 + 落盘」，不开任何新作业**；
   用户只要发一句话（人类回合）我就能 `pause`；或直接 `/compact`（压缩后 goal 会自动 disarm，效果等价于暂停）。
+- ⚠️ **本断点实际收口方式（2026-09-24，第 25 轮）**：触到 80% 线时 `pause` 被运行时拒绝（见上一行），
+  且**到边界就该 `complete`、不留悬着的活 goal**（`AGENTS.md` 2026-09-21 口径）⇒ 本断点以 **`complete` 收口**
+  （不是 pause，也不是 `blocked`）。**恢复方式**：用户 `/compact` 后说一声"继续"，我 `resume`/重建 goal 并从
+  `docs/HANDOVER.md` 断点②接 **A3**。上下文触线读数：`409,913 / 409,600`（80.1%）。
