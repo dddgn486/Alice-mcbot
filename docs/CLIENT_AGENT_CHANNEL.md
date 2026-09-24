@@ -82,3 +82,33 @@ client-agent.cmd "上传最近一次测试的 latest.log 和之后的截图"
 3. **每台机器先确认客户端路径**（不许照抄另一台的 `D:\JAVA_projects\...`）。
 4. 改客户端配置**先备份**（`.bak-<时间戳>`）并说清是否要重启客户端。
 5. **不碰 `saves/新的世界`**（世界母本的来源）。
+
+## 八、试跑记录：本机 WSL DSH 真跑了三次（2026-09-24）
+
+**做法**：把 preset 导进 `~/.dsh/.agent-presets/`，临时把 `settings.yaml → agent-presets.default` 切到 `alice-client-master`
+（⚠️ headless profile **没有** `--preset` 参数 ⇒ 只能靠这个默认值切），然后
+`dsh --profile headless "读信箱并按请求行动：只写回执到云端，不上传任何日志/截图"`。
+
+| 轮次 | 结果 | 暴露的缺陷 ⇒ 修法 |
+|---|---|---|
+| 1 | ❌ 它把回执写到了**本机** `~/bus/to-cloud/`，云端永远收不到；客户端路径也猜成了原版 `.minecraft` | ① 人设必须写死「**信箱在云端、本机不许建 `~/bus`**」+ 给出 `gh codespace ssh/cp` 的具体命令；② **机器相关事实不许写在提示词里** ⇒ 全部从配置文件 `~/.alice-client.json` 读（由 `client-agent.cmd -Install` 在本机发现后写入） |
+| 2 | ❌ 它拒绝行动：`gh auth status` 说没登录（PAT 只在环境变量里，agent 的 shell 拿不到） | `gh auth login --with-token` **也不行**：实测本 PAT scope = `codespace, repo`，而 gh 登录流程**额外要求 `read:org`** ⇒ 报 `missing required scope 'read:org'`。正解 = **把 token 写进 gh 自己的凭据文件**（Windows `%APPDATA%\GitHub CLI\hosts.yml`，WSL `~/.config/gh/hosts.yml`）⇒ 之后不需要任何环境变量 |
+| 3 | ✅ **成功** | 它读云端信箱 → 从配置确认客户端路径 `/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10`（正确）→ 回执写到**云端** `~/bus/to-cloud/20260924-040000-selfcheck.md` → 把请求记入云端 `.done` → **没上传任何附件** |
+
+**第三轮回执原文（四段齐全，就是协议要求的形状）**：
+
+```
+# 回执：selfcheck
+## 做了什么           已读取请求 20260924-035539-selfcheck.md。从本机配置确认客户端路径：/mnt/d/JAVA_projects/...
+## 上传了什么         仅本回执：/tmp/…-receipt.md → /home/vscode/bus/to-cloud/20260924-040000-selfcheck.md。未上传日志、截图
+## 没做什么与原因     未读取或上传任何日志/截图，遵循本次指示
+## 需要用户操作的     无需操作
+```
+
+**三条可复用结论**（已写进人设，避免下次重犯）：
+1. **机器相关的事实（路径、codespace 名）必须落在配置文件**，提示词只写"去读配置文件"；
+2. **跨机资源一律给"哪台机器 + 具体命令"**，`~/…` 这种写法必须点名是谁的 `~`（本机 `~/bus` 就是踩坑点）；
+3. **凭据给"可执行的落地方式"**，不是给一个文件名（`gh auth login` 的 scope 陷阱已记档）。
+
+**本轮验收等级**：`BUILT` + **本机 WSL `SMOKE_TESTED`（真跑通）**；
+**未做**：Windows 新设备上装 DSH / 跑 headless / 导入 preset 并试跑（要用户点头）。
