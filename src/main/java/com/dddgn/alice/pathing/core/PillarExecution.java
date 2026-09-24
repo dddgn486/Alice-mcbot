@@ -126,6 +126,9 @@ public final class PillarExecution implements MovementExecution {
             // 上一段可能刚往 from 那一格放过方块（那就不再是水柱了）。
             // 前置（放置资源/放置面）**故意不放开**：规划期 `appendPillar` 用的就是同一组前提
             // （"可规划即可执行"，K-4）—— 水柱省的是**方块本身**，不是"要不要带方块"。
+            // ⭐ `P2` Pillar 片（`D-427`）：**起跳门控（`PILLAR_NOT_ON_GROUND`）只对"脚位不是水"成立**
+            // —— 水柱支全程 `onGround` 恒假，而这条准入原先在工厂里是**无条件**的 ⇒ 多段水柱
+            // 第 2 段起全被挡在准入处。这里（执行侧）本来就没查它，两侧现在同源。
             swimColumn = MovementHelper.isWater(level, spec.fromFoot())
                     && MovementHelper.isWater(level, spec.toFoot());
             if (!preconditionsHold()) {
@@ -278,9 +281,9 @@ public final class PillarExecution implements MovementExecution {
         if (!feet.equals(from) && !feet.equals(to)) {
             return false;
         }
-        // 起跳列净空：目标格（身体）+ 头顶格；放置格（当前脚位）必须可替换
-        if (!MovementHelper.canWalkThrough(level, to)
-                || !MovementHelper.canWalkThrough(level, to.above())
+        // 起跳列净空：目标格**整体**通行（身体 + 头，`bodyPassable`——与规划侧 `appendPillar`
+        // 和执行侧 `PillarExecutionFactory.validate` 同一个谓词）+ 放置格（当前脚位）必须可替换
+        if (!MovementHelper.bodyPassable(level, to)
                 || !MovementHelper.canWalkThrough(level, from)) {
             return false;
         }

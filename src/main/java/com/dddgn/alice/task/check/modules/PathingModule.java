@@ -86,9 +86,12 @@ public final class PathingModule implements CheckModule {
                 CheckStep.of("fall_execute", CheckProfile.EXTRA,
                         List.of("alice_test:fall_course_terrain"), null,
                         () -> new CleanupWrappedTask(new FallDiagnosticTask(bot, ctx.observer()), bot), 600),
+                // ⚠️ 单项预算必须 **≥ 夹具自己的内部上限**（`PillarDiagnosticTask` 的 1200；`PL-1` 的
+                // 教训 = 预算比夹具小 ⇒ 夹具自己的判据根本没机会打印，只剩 `TIMEOUT（单项预算用尽）`）。
+                // `D-427` 起本步还要跑"水柱准入契约"（自建 4 格灌水竖井 + 1 次规划 + 3 次准入判定）。
                 CheckStep.of("pillar_execute", CheckProfile.EXTRA,
                         List.of("alice_test:pillar_course_terrain"), null,
-                        () -> new CleanupWrappedTask(new PillarDiagnosticTask(bot, ctx.observer()), bot), 900),
+                        () -> new CleanupWrappedTask(new PillarDiagnosticTask(bot, ctx.observer()), bot), 1300),
                 CheckStep.of("contrast_timer", CheckProfile.EXTRA,
                         List.of("alice_test:ore_course_terrain"),
                         () -> teleportTo(bot, new BlockPos(56, 63, 132)),

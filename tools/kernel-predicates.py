@@ -2825,11 +2825,11 @@ EXECUTOR_REFUSAL_CLASSES = {
     "FALL_NOT_RECOVERABLE_NO_FACE": ("CAPABILITY", "-"),
     "FALL_STALE_START": ("META", "-"),
     "FALL_UNSUPPORTED_SPEC": ("META", "-"),
-    "PILLAR_HEAD_BLOCKED": ("CAPABILITY", "-"),
+    "PILLAR_HEAD_BLOCKED": ("CAPABILITY", "MovementHelper.bodyPassable"),
     "PILLAR_INVALID_GEOMETRY": ("META", "-"),
     "PILLAR_MISSING_CONTEXT": ("META", "-"),
     "PILLAR_NOT_ON_GROUND": ("TIMING", "-"),
-    "PILLAR_PLACE_OCCUPIED": ("CAPABILITY", "-"),
+    "PILLAR_PLACE_OCCUPIED": ("CAPABILITY", "MovementHelper.canWalkThrough"),
     "PILLAR_STALE_START": ("META", "-"),
     "PILLAR_UNSUPPORTED_SPEC": ("META", "-"),
     # ⚠️ `PLACE_RESOURCE_UNAVAILABLE` **有意留未指名**（2026-09-24）：它是"背包里有没有可放方块"
@@ -2859,9 +2859,11 @@ REFUSAL_CODES_MIN = 76
 # 新加未指名的能力类码 ⇒ 实际值涨 ⇒ 红。2026-09-24 `P2` Diagonal 切片：26 → **25**
 # （`DIAGONAL_SIDE_COLLISION` 退役：它与 `canTraverse` 内部那段逐格相同 ⇒ 不可达死码，已删）
 # 2026-09-24 `P2` Traverse 片：25 → **21**（`P2` 的"逐个指名"第 2 批）
+# 2026-09-24 `P2` Pillar 片：21 → **19**（`PILLAR_HEAD_BLOCKED` → `MovementHelper.bodyPassable`、
+# `PILLAR_PLACE_OCCUPIED` → `MovementHelper.canWalkThrough`；同时两处手搓净空收进 `bodyPassable`）
 # —— 指名 4 个：`PLACE_STEP_AND_TRAVERSE_{TARGET_BLOCKED,SUPPORT_EXISTS,PLACE_OCCUPIED}` + `PLACE_NO_VALID_FACE`
 # （出处见各自条目；`PLACE_RESOURCE_UNAVAILABLE` 有意留债，理由见上）。
-CAPABILITY_UNRESOLVED_BUDGET = 21
+CAPABILITY_UNRESOLVED_BUDGET = 19
 
 
 def rule_k4_capability_provenance():
@@ -3554,6 +3556,24 @@ PLACE_STEP_SHARED_PREDICATES = (
 # 人口下限：低于它 ⇒ 红（防"删掉表项让规则静默失效" —— `Z4` 的空集教训）
 PLACE_STEP_SHARED_PREDICATES_MIN = 6
 
+# `P2` Pillar 片（2026-09-24）：`PILLAR` 的**起跳门控**（`PILLAR_NOT_ON_GROUND`）只许对
+# "脚位不是水"那支成立（`D-243`：水里按住跳跃即上浮；`D-244` 的水柱支全程 `onGround` 恒假），
+# 且目标格净空必须用**规划侧的同一个谓词** `bodyPassable`（两侧不许各自手搓 `canWalkThrough`）。
+PILLAR_SHARED_PREDICATES = (
+    "bodyPassable(",        # 目的地整体通行（脚位 + 头位）—— `appendPillar` 的准入就是它
+    "canWalkThrough(",      # 放置位（`from`）必须可替换
+    "hasPlacementFace(",    # 有可用放置面（`PLACE_NO_VALID_FACE`）
+    "findPlaceableSlot(",   # 有可放材料（`PLACE_RESOURCE_UNAVAILABLE`；出处**有意留债**）
+)
+PILLAR_SHARED_PREDICATES_MIN = 4
+# 把 `bodyPassable(to)` 手工拆回两次 `canWalkThrough` 的**具体写法**（两侧都不许再出现）。
+PILLAR_HANDROLLED_CLEARANCE = (
+    "canWalkThrough(context.level(), to)",
+    "canWalkThrough(context.level(), to.above())",
+    "canWalkThrough(level, to)",
+    "canWalkThrough(level, to.above())",
+)
+
 
 def rule_place_step_parity():
     """`P2` Traverse 片（2026-09-24）：**搭石/破通族的规划侧与执行侧必须查同一批谓词**。
@@ -3593,6 +3613,95 @@ def rule_place_step_parity():
             if predicate not in body:
                 problems.append(f"{side}（{path.name}）没有查 `{predicate.rstrip('(')}` ⇒ "
                                 "两侧谓词不齐（`D-376`/`D-379` 的事故形态：一侧查了、另一侧没查）")
+    return problems
+
+
+def rule_pillar_water_admission():
+    """`P2` Pillar 片（2026-09-24）：**水柱支的起跳门控 + 两侧净空谓词同源**。
+
+    <h3>为什么（真机证据，不是假想）</h3>
+    ① `PillarExecutionFactory.validate` 原先**无条件**要求 `bot.onGround()`。而 `D-244` 的水柱支
+       （`from`/`to` 都是水）里 `onGround` **恒假** —— 这是**执行侧自己写着的契约**
+       （`PillarExecution.postconditionHolds` 水柱支原文：「水里没有 `onGround`、也没有支撑」，
+       且 `preconditionsHold()` **故意**不查它）。⇒ 灌水竖井 ≥3 格时**第 2 段起**在准入处被
+       `PILLAR_NOT_ON_GROUND` 挡下 = 「规划得到、执行不了」（`D-242` 家族）。
+       真机证据 = `docs/reviews/2026-09-21-掉落物在洞里被瞬退.md:554`（`PILLAR_NOT_ON_GROUND` ×11，
+       现场 = 破掉脚下 → 落水 → 沉底 → 溺水）；`D-244` 的夹具只有 **2 格水 = 1 段** ⇒ 这条缝量不到。
+    ② `validate` / `PillarExecution.preconditionsHold` 各自**手搓**了一份"脚位 + 头位可穿"
+       （两次 `canWalkThrough`），而规划侧 `appendPillar` 用的是 `bodyPassable` —— 同一判据两处出处
+       （`D-374` 的事故形态：手搓那份只查脚位、漏头位）。
+
+    <h3>四条臂（各有注入，全部单独开火变红）</h3>
+    ① `PILLAR_NOT_ON_GROUND` 的判据里必须有"脚位是水"的条件（注入 A 改回无条件 ⇒ 红）；
+    ② 三处（执行侧准入 / 执行侧运行时 / 规划侧）都必须用 `bodyPassable(`，且都不许出现手工拆开的
+       `canWalkThrough(<...>, to[.above()])`（注入 B 准入侧手搓 ⇒ 红；注入 C 运行期侧手搓 ⇒ 红；
+       注入 D 规划侧丢掉 `bodyPassable` ⇒ 红）；
+    ③ 表人口下限（注入 E 删表项 ⇒ 红）；
+    ④ 夹具：前提必须是**实测**的 `!bot.onGround()`（注入 F 改成恒真 ⇒ 红）＋干地对照必须咬
+       **精确拒绝码**（注入 G 掏空 ⇒ 红）。
+    """
+    base = ROOT / "src/main/java/com/dddgn/alice"
+    factory = base / "pathing/core/PillarExecutionFactory.java"
+    execution = base / "pathing/core/PillarExecution.java"
+    provider = base / "pathing/core/search/SurfaceMovementProvider.java"
+    fixture = base / "task/PillarDiagnosticTask.java"
+    problems = []
+    for path in (factory, execution, provider, fixture):
+        if not path.exists():
+            problems.append(f"{path.name} 不存在（改名？同步本规则 `D-427`）")
+    if problems:
+        return problems
+
+    # code_only 只剥 `//`（块注释会留下）⇒ 判据里的窗口以**代码行**为准
+    fac = code_only(factory.read_text(encoding="utf-8"))
+    exe = code_only(execution.read_text(encoding="utf-8"))
+    prov = code_only(provider.read_text(encoding="utf-8"))
+    fix = code_only(fixture.read_text(encoding="utf-8"))
+
+    # ---- 臂① 起跳门控必须带"脚位是水"这个条件 ----
+    at = fac.find("PILLAR_NOT_ON_GROUND")
+    if at < 0:
+        problems.append("`PillarExecutionFactory` 里找不到 `PILLAR_NOT_ON_GROUND` ⇒ 本规则的锚点失效")
+    elif "isWater(" not in fac[max(0, at - 400):at]:
+        problems.append("`PILLAR_NOT_ON_GROUND` 的判据里没有「脚位是水」的条件 ⇒ 水柱支"
+                        "（`D-244`：`onGround` 恒假）第 2 段起全被挡在**准入**处"
+                        "（`D-242` 家族的「规划得到、执行不了」，真机 ×11 见规则头部）")
+
+    # ---- 臂② 两侧净空谓词同源 ----
+    for path, text, side, signature in (
+            (factory, fac, "执行侧准入", "public ValidationResult validate("),
+            (execution, exe, "执行侧运行时", "private boolean preconditionsHold("),
+            (provider, prov, "规划侧", "private static void appendPillar(")):
+        body = method_body(text, signature)
+        if not body:
+            problems.append(f"{path.name} 里找不到{side}的那个方法（{signature}）⇒ 本规则的锚点失效")
+            continue
+        for predicate in PILLAR_SHARED_PREDICATES:
+            if predicate not in body:
+                problems.append(f"{side}（{path.name}）没有查 `{predicate.rstrip('(')}` ⇒ "
+                                "两侧谓词不齐（一侧查了、另一侧没查 = `D-374`/`D-376` 的事故形态）")
+        for shape in PILLAR_HANDROLLED_CLEARANCE:
+            if shape in body:
+                problems.append(f"{side}（{path.name}）把 `bodyPassable` 手搓回 `{shape}` ⇒ "
+                                "同一个判据两处出处（`K4-P1`；手搓那份只查脚位、漏头位）")
+
+    # ---- 臂③ 表人口下限 ----
+    if len(PILLAR_SHARED_PREDICATES) < PILLAR_SHARED_PREDICATES_MIN:
+        problems.append(f"`PILLAR_SHARED_PREDICATES` 只剩 {len(PILLAR_SHARED_PREDICATES)} 条"
+                        f"（下限 {PILLAR_SHARED_PREDICATES_MIN}）⇒ 删表项就能让本规则静默失效")
+
+    # ---- 臂④ 夹具：实测前提 + 精确拒绝码 ----
+    # ⚠️ 第一版只查 `!bot.onGround()` 这个**子串** ⇒ **注入 F（把它掏成恒真）没红**：夹具里
+    # 「干地悬空」那条前提也写着同样的子串 ⇒ 判据太糙（`D-425` §四的同一课）。改成咬**合取形态**
+    # `&& !bot.onGround()` —— 三条实测事实合成的那条前提是唯一一处这样写的。
+    if not re.search(r"&&\s*!bot\.onGround\(\)", fix):
+        problems.append("`PillarDiagnosticTask` 里没有**实测** `&& !bot.onGround()` 的前提判据 ⇒ "
+                        "「水里没有 onGround」退化成引用文档（前提没了，判据就悬空；"
+                        "第一版判据只咬子串 ⇒ 注入实测假绿，见本规则注释）")
+    if '"PILLAR_NOT_ON_GROUND".equals(' not in fix:
+        problems.append("`PillarDiagnosticTask` 的干地对照没有咬精确表达式 "
+                        "`\"PILLAR_NOT_ON_GROUND\".equals(code)` ⇒ 判据可以被掏空成恒真"
+                        "（`D-425` 的教训）")
     return problems
 
 
@@ -4044,6 +4153,7 @@ def main() -> int:
     pl1 = rule_stale_proof_replan()
     diagside = rule_diagonal_side_single_source()
     psparity = rule_place_step_parity()
+    pillarwater = rule_pillar_water_admission()
     latch = rule_terminal_latch_replays_status()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
@@ -4177,14 +4287,16 @@ def main() -> int:
         print(f"[P2·对角侧格单源] {line}")
     for line in psparity:
         print(f"[P2·搭石族两侧谓词] {line}")
+    for line in pillarwater:
+        print(f"[P2·水柱起跳门控] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b and not a3 and not p7 and not p3 and not pl1 and not diagside and not psparity) and not tlb
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b and not a3 and not p7 and not p3 and not pl1 and not diagside and not psparity and not pillarwater) and not tlb
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
           f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / tick负载预算={len(tlb)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
-          f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 不可逆写入记账={len(rc3)} / 击杀产物归属={len(a3)} / 非PASS步单列={len(p7)} / 作业级收集授权={len(p3)} / 写入真相同源={len(rc4)} / 重放有界={len(p2b)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)} / 过期证明重评={len(pl1)} / 对角侧格单源={len(diagside)} / 搭石族两侧谓词={len(psparity)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
+          f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 不可逆写入记账={len(rc3)} / 击杀产物归属={len(a3)} / 非PASS步单列={len(p7)} / 作业级收集授权={len(p3)} / 写入真相同源={len(rc4)} / 重放有界={len(p2b)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)} / 过期证明重评={len(pl1)} / 对角侧格单源={len(diagside)} / 搭石族两侧谓词={len(psparity)} / 水柱起跳门控={len(pillarwater)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 
