@@ -624,3 +624,10 @@ bash tools/headless-battery.sh core
   ⇒ 从那儿直接切，解码会以"首个魔数不在偏移 0"失败。`tools/dsh-session-rollback.mjs pack` 已改成
   "从 `≥offset` 的第一个魔数起切"，并把 `start` 写进 manifest，`rebuild` 用 `本机[0,start)` 补前缀
   ⇒ 还原仍是**逐字节**的（sha256 两端对账已证）。
+- **47**：⚠️ **本机 `gh` 2.45.0 没有 `codespace start` 子命令**（2026-09-24 收尾时实测）：
+  `gh codespace start -c <名>` 会打印 `gh codespace` 的**通用帮助**（可用子命令列表），
+  **且退出码仍是 0** ⇒ 脚本里"看起来成功了、其实什么都没做"。
+  唤醒一个 `Shutdown` 的 codespace 走：网页 **Start** / **VS Code** / `gh codespace code`，
+  或 `gh codespace ssh`（`tools/codespace-zero.sh` 注释称 gh 会自动唤醒，**未实测**）。
+  ⚠️ 同理：`gh codespace list` 的 `STATE` 列 `Available` = 在跑、`Shutdown` = 已停；
+  判断"额度有没有在烧"要看这一列，**不要看 `lastUsedAt`**（它只在某些操作时刷新，本次实测一整晚没变）。
