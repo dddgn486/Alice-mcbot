@@ -449,3 +449,26 @@
 - **云端环境备注**：Baritone 参考树 `~/reference/baritone-1.20.1`（`8c55ad0`，仓库外）；`libpython3.12-stdlib` 已装且写进 `.devcontainer`；
   电池 `SERVER_DIR` 默认已改 `$HOME/alice-server`；`check-machine-map` 支持 `ALICE_MODS_DIR`。
 - **提交链**：`dc4e519`(P4 门禁) → `6bbb670`(P5-a 切片3 回退) → `e09735e`(P5 裁定 + PL-1)。
+
+---
+
+## 2026-09-24 断点②：队列推进到 RC4 之后（第 12 轮收口，**压缩前暂停**）
+
+- **队列位置**：`§11` 里 P4 ✅ → P5 收口（测量半边）✅ → RC1 ✅ → RC3 ✅ → RC4 ✅ → **P2b ✅（依据更正 + 门禁）** →
+  **A2′ ✅** → **既有红 `check-ref-integrity` ✅ 已清** ⇒ **门禁首次无 FAIL**：
+  `ALICE_MODS_DIR=$HOME/mc-client/mods tools/check-all.sh` = **`pass=20 warning=2 failed=0`**
+  （⚠️ 两个 warning = **断言未执行**：无头电池未跑 / `check-machine-map` 缺上游 jar ⇒ 不等于通过）。
+- **下一轮该做什么（无需用户输入，可直接开工）**：§11 剩余无依赖项 —— `A3`（击杀来源归属：击杀产物落 `FOREIGN` ⇒ 捡不起且静默；
+  判据 = 新夹具"生成动物 → 击杀 → 断言 `provenance != FOREIGN`"，**先红后绿**）· `P7`（`lumber_job` 在 CORE 报告里单列一行）·
+  `P3`（掉落物"本作业范围内"收集授权）· `PL-1`（从脉外打进实心脉；D 段产品线）。**`P2b` 的"无次数上限"那句已更正为过期依据**。
+- **本轮新增的两条本会话教训**（都已写进台账行）：
+  ① **组合点名会暴露单跑看不见的缺陷**：夹具收尾必须回**进来时的脚位**（`entryFoot`），回自己的场景原点会把人留在空中
+  （`single:restore_underfoot_safety,break_refused` 第一次 FAIL 就是这么来的；两个 EXTRA 夹具已修）。
+  ② **假红/过期依据要先核对再动手**：`check-ref-integrity` 那 26 条是**云端假阳性**（参照仓路径写死）；`P2b` 的上界**早 13 天就存在**。
+- **环境姿势（云端）**：电池 `ALICE_CLIENT_MODS=$HOME/mc-client/mods`（不带 ⇒ craft 类**假红**，见 `docs/CLOUD_MIGRATION.md` §9-39）·
+  门禁 `ALICE_MODS_DIR=$HOME/mc-client/mods tools/check-all.sh`（§9-38）· `ref-integrity` 参照仓 = `ALICE_BARITONE_DIR` 或 `$HOME/reference/baritone*`（§9-40）·
+  参照树 `~/reference/baritone-1.20.1`。
+- **提交链（本轮）**：`e048d91`(RC1) → `ac4d63a` → `ef044aa` → `083a376`(RC3) → `a387f31` → `d6f15b6` →
+  `8b60bd8`(RC4) → `46d77b1` → `de6de94` → `56f7985`(P2b) → `443e47e`(ref-integrity) → `21bbc20`(A2′, 最新)。
+- **goal**：`goal-d754df35`（第 12 轮结束）。**本断点按 `D-421` 主动 `pause`**（上下文 77.4%，下一次作业必然过 80% 线）；
+  用户说"继续"后 `resume`，队列从上面的"下一轮该做什么"接。
