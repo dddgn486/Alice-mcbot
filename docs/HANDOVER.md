@@ -1233,3 +1233,45 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 ```
 
 
+
+---
+
+# 断点⑮：**爬升必须可逆** —— 鱼骨补路走位补上 `FALL`（`D-442`）—— 下一轮仍是你的客户端验收（2026-09-25 傍晚）
+
+## 1. 收工状态（逐条可核）
+
+| 项 | 值 |
+|---|---|
+| 触发 | 你的原话：「测试完了，建议放开 Movement，因为 bot **给自己垫方块困住了**」 |
+| 事实（真机逐字） | 追簇把矿脉从**天花板**挖出来（`break -23,51,196 coal_ore` / `-21,52,198 tin_ore`，人一直站在走廊里）⇒ `[CollectDrops] sweep_start … worldMod=true` 用 **`PILLAR`+`ASCEND`** 爬上走廊**上方 2 格**（`[Pillar] placed pos=-22,49,197`）⇒ 那颗掉落物**够不到**（`goal_excluded`/`no_standable_approach` ⇒ 退役）⇒ 鱼骨 `SPUR_RETURN feet=-23,51,196 → junction=-22,49,177` ⇒ `descend_precondition=25 status=UNREACHABLE` ⇒ `spur_return_failed` ⇒ **`return_failed`** ⇒ `SUMMARY … return=no → FAIL` |
+| 根因 | `PathRequest.withPlacement`（`D-440` 的补路走位 = `A14`）**有 `PILLAR` 没 `FALL`** ⇒ **爬升单向**；`DESCEND` 救不了（只降 1 格 + 要求落点**本来就站得住**，而走廊脚下那格正是自己挖空的矿格） |
+| ⚠️ 分清两件事 | 主因 = 单向爬升（**已修**）；留在走廊脚位格的那块圆石只是**1 格台阶**（`ASCEND`/`DESCEND` 能过），**不是**主因 |
+| 本轮交付 | `withPlacement` **补 `FALL`**（纯通行 ⇒ **`A14` 写入权限没扩大**；`FALL` 的 `fallRecoverable` 守卫本来就要求"能用 `PILLAR` 返回"，本集合本来就有 `PILLAR`）。`of` / `climbApproach` / `scaffoldRemoval` **不动**（后两者是**特意配对**的"只上/只下"两阶段设计）。`A14` 登记行已加注 |
+| 裁定/记录 | **`D-442`**（逐字取证 / 根因 / 决定 / 判据 / **§五 三条未修发现** / 复核触发）；台账 **`1.4g` ✅** |
+| 绿 | `single:fishbone_slice2` = **`checks=84 failures=0`**（83 → 84）· `single:fishbone_slice1` = PASS · **CORE 电池 = PASS（246 s）** · `check-all` = `pass=21 warning=2 failed=0` · kernel-predicates = PASS |
+| 红臂 | **R2**（把 `FALL` 从 `withPlacement` 拿掉 = 修复之前的行为）⇒ 夹具实测 `✗ 单向爬升陷阱 … status=UNREACHABLE movements=0 FALL=0` ⇒ `FAIL failures=1`（= 真机 `PLAN_UNREACHABLE` 的**离线复现**）✓；门禁注入 ⇒ 红 ✓ |
+| ⚠️ 门禁踩的坑 | 第一版把规则写成**全仓普适断言**（`FALL` ⇒ `PILLAR`）⇒ 一跑就**误红 `scaffoldRemoval`**（它是"只下"的拆除阶段，与 `climbApproach` 特意配对）⇒ 收窄成只管 `withPlacement`，并把三处**故意的**单向集写进规则 docstring |
+| 工件 | `build/libs/alice-1.0.0-1.20.1.jar` · `sha256=7fae2b5d3f5779171de9101ec5aa7da716dded73e0850e1ad581e68e1a9461cc` · 已同步进固定客户端 `mods/`（同一值） |
+
+## 2. ⚠️ 待你拍 / 待复核（`D-442 §五` + 上一轮的 `D-440 §五`）
+
+| # | 事 | 现状 |
+|---|---|---|
+| 1 | **`SUMMARY collected=0/17` 是幻影读数**：本轮终态 `return_failed` ⇒ **COLLECT 阶段从没跑过** ⇒ 字段还是初值 `0`，却按"17 个矿收到 0 个"打印；而 `[CollectDrops] cluster_done delta=1`（`mismatch=0`）说明掉落物**确实进包了** | **未修**，建议把 `collected=` 做成**三态**（像 `return=` 的 `ok/no/n/a`）—— **等你拍** |
+| 2 | `CollectDrops` 为一颗**自己够不到**的掉落物爬了 2 格（`goal_shift` → 到达后 `goal_excluded（模型说够得着、执行期 inPickupRange 判否）` → `retire`，`collected=0/1 no_approach=1`）| **未修**：规划期模型 vs 执行期判据不一致（与"预检说能挖、真挖被拒"同族）—— **等你拍** |
+| 3 | `survivalEscape` 也是"有 `PILLAR` 没 `FALL`"（与本次事故**同形状**）| **待复核**（**没有**实测证据，不许当成已证缺陷） |
+| 4 | 往下追 **2 格**时矿脉最底那一格**物理上挖不掉** + 坑里掉落物可能收不回（`product_not_collected`）| **上一轮就问过、仍未拍**（`D-440 §五`）：① 允许"挖脚下" 还是 ② 把"够不着"降级为如实上报 |
+
+## 3. 下一轮怎么测（`J-1.5` 第四轮）
+
+```
+① 重启固定客户端（jar 已同步 sha=7fae2b5d…）
+② /alice come（bot 到你旁边）或遥控器把 bot 开到位
+③ /give @s alice:fishbone_job，朝想挖的方向右键
+④ 重点看两件事（本轮各自对应一条修复）：
+   ① 支巷还会不会被放弃（不该再有 spur_abandoned 成堆）—— `D-440` 的补路
+   ② ⭐ bot 爬到高处之后**能不能自己下来**：日志里不该再出现
+      `SPUR_RETURN … PLAN_UNREACHABLE` / `descend_precondition` 成堆 / `return=no`
+⑤ 顺带留意：`SUMMARY` 的 `collected=` 与日志里的 `[CollectDrops] collected=N/N` 对不对得上
+   （对不上就是 `D-442 §五.1` 那条幻影读数，把两个数一起贴给我）
+```

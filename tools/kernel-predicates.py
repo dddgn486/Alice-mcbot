@@ -1722,6 +1722,49 @@ def rule_fishbone_entry_origin():
     return problems
 
 
+def rule_placement_walk_reversible():
+    """`D-442` **鱼骨的补路走位必须"上得去也下得来"**（2026-09-25 真机 `return_failed` 换来的规则）。
+
+    真机实测（`latest.log` 2026-09-25 15:02 逐字）：追簇把矿脉从**天花板**里挖出来，
+    `[CollectDrops] sweep_start … worldMod=true` 用 `PILLAR`+`ASCEND` 爬上走廊上方 2 格的壁架
+    （`[Pillar] placed pos=-22,49,197`）⇒ 够不到那颗掉落物（退役）⇒ 鱼骨要继续挖却**下不来**：
+    `[Fishbone] SPUR_RETURN feet=-23,51,196 → junction=-22,49,177` ⇒
+    `[PathingStats] descend_precondition=25 status=UNREACHABLE` ⇒ `spur_return_failed`
+    ⇒ **整个作业 `return_failed` FAIL**（`SUMMARY … return=no`）。
+
+    根因：`withPlacement`（`D-440` 给鱼骨的补路走位 = `A14`）**有 `PILLAR` 没 `FALL`**
+    ⇒ 一次爬升是**单向**的；而 `DESCEND` 救不了（只降 1 格，且要求落点**本来就可站** ——
+    走廊脚下那格正是自己挖空的矿格）。
+    `FALL` 是**纯通行**（不改世界 ⇒ `A14` 的写入语义不变），且它的 `fallRecoverable` 守卫
+    要求"落点能用 `PILLAR` 返回" —— 本集本来就有 `PILLAR` ⇒ 这条边在本集**合法且可回收**
+    （`RecoverabilityPolicy`：`FALL` → `PATH_REVERSIBLE`）。
+
+    断言（改任一处 ⇒ 红）：`withPlacement(...)` 的方法体里**必须同时**有
+    `MovementType.PILLAR`（挖空地板后上得来 = `D-440` 的正题）与 `MovementType.FALL`（爬上去之后下得来）。
+
+    ⚠️ **本规则刻意只管这一处**（不做全仓"PILLAR/FALL 成对"的普适断言）：本仓有三处**故意**的单向集 ——
+    `climbApproach`（只上）与 `scaffoldRemoval`（只下、且 `DOWNWARD` = 拆自家脚手架）是**一对两阶段**设计
+    （见两者 javadoc），`survivalEscape` 则明确写"本入口不负责下落"。普适断言会把这三种设计判红。
+    ⚠️ 但 `survivalEscape`（有 `PILLAR` 没 `FALL`）与本次事故是**同一形状**，值得单独复核 —— 已记在 `D-442 §复核触发`。
+    """
+    problems = []
+    path = ROOT / "src/main/java/com/dddgn/alice/pathing/core/search/PathRequest.java"
+    if not path.exists():
+        return ["`PathRequest.java` 不见了（通行集工厂的唯一出处）"]
+    src = code_only(_strip_block_comments(path.read_text(encoding="utf-8")))
+    body = code_only(method_body(src, "public static PathRequest withPlacement("))
+    if not body.strip():
+        return ["找不到 `withPlacement(...)` 的工厂体 ⇒ 判据覆盖不到鱼骨的补路走位（`A14`）"]
+    if "MovementType.PILLAR" not in body:
+        problems.append("`withPlacement(...)`（鱼骨补路走位 / `A14`）没有 `MovementType.PILLAR`"
+                        " ⇒ 挖空地板后回不到路面上（`D-440` 的正题被删）")
+    if "MovementType.FALL" not in body:
+        problems.append("`withPlacement(...)`（鱼骨补路走位 / `A14`）没有 `MovementType.FALL`"
+                        " ⇒ `PILLAR` 变成**单向爬升**：真机实测（2026-09-25 15:02）爬到走廊上方 2 格后"
+                        "再也回不来（`descend_precondition` ⇒ `PLAN_UNREACHABLE` ⇒ `return_failed`）")
+    return problems
+
+
 def rule_movement_contract_agreement():
     """`D-366` **移动契约三方一致**（2026-09-20 真机崩服换来的规则）。
 
@@ -4479,6 +4522,7 @@ def main() -> int:
     inplace = rule_mine_in_place_before_walk()
     fbshape = rule_fishbone_live_log_shape()
     fbentry = rule_fishbone_entry_origin()
+    fbrev = rule_placement_walk_reversible()
     contract = rule_movement_contract_agreement()
     searchbudget = rule_search_budget_is_tick_aware()
     searchbackoff = rule_mine_job_search_limit_backoff()
@@ -4587,6 +4631,8 @@ def main() -> int:
         print(f"[D-438·鱼骨真机日志形状] {line}")
     for line in fbentry:
         print(f"[D-441·鱼骨入口起点=bot脚位] {line}")
+    for line in fbrev:
+        print(f"[D-442·补路走位可逆] {line}")
     for line in contract:
         print(f"[D-366·移动契约一致] {line}")
     for line in searchbudget:
@@ -4654,10 +4700,10 @@ def main() -> int:
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not fbshape and not fbentry and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b and not a3 and not p7 and not p3 and not pl1 and not diagside and not psparity and not pillarwater and not fallparity) and not tlb
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not fbshape and not fbentry and not fbrev and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b and not a3 and not p7 and not p3 and not pl1 and not diagside and not psparity and not pillarwater and not fallparity) and not tlb
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 鱼骨真机日志形状={len(fbshape)} / 鱼骨入口起点={len(fbentry)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / tick负载预算={len(tlb)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 鱼骨真机日志形状={len(fbshape)} / 鱼骨入口起点={len(fbentry)} / 补路走位可逆={len(fbrev)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / tick负载预算={len(tlb)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
           f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 不可逆写入记账={len(rc3)} / 击杀产物归属={len(a3)} / 非PASS步单列={len(p7)} / 作业级收集授权={len(p3)} / 写入真相同源={len(rc4)} / 重放有界={len(p2b)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)} / 过期证明重评={len(pl1)} / 对角侧格单源={len(diagside)} / 搭石族两侧谓词={len(psparity)} / 水柱起跳门控={len(pillarwater)} / 落点三层同源={len(fallparity)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1

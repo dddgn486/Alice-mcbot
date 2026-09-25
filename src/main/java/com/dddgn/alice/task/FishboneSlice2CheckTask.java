@@ -1,5 +1,6 @@
 package com.dddgn.alice.task;
 
+import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.action.WriteAudit;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.config.FishboneConfig;
@@ -9,7 +10,12 @@ import com.dddgn.alice.job.fishbone.FishboneJob;
 import com.dddgn.alice.job.fishbone.FishboneTemplate;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
+import com.dddgn.alice.pathing.core.MovementType;
+import com.dddgn.alice.pathing.core.search.CorePathPlanner;
+import com.dddgn.alice.pathing.core.search.PathPlan;
+import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.pathing.core.search.PathingStats;
+import com.dddgn.alice.pathing.core.search.PlannedMovement;
 import com.dddgn.alice.perception.ScopeBuffer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -559,6 +565,11 @@ public final class FishboneSlice2CheckTask implements Task {
                 arm, armFailures() == 0 ? "PASS" : "FAIL", armFailures(),
                 armVerdict, scaleDelta.describe(), ticksPerAdvance);
 
+        // ⭐ `D-442`：单向爬升陷阱（只在第一臂之后跑一次 —— 那时主巷已经挖通，最像真机现场）
+        if (armIndex == 0) {
+            trapChecks(level);
+        }
+
         armIndex++;
         if (armIndex >= ARMS.length) {
             phase = Phase.CLEANUP;
@@ -566,6 +577,78 @@ public final class FishboneSlice2CheckTask implements Task {
             phase = Phase.SETUP_ARM;
         }
         return Task.Status.RUNNING;
+    }
+
+    /**
+     * ⭐ **单向爬升陷阱**（`D-442`，2026-09-25 真机取证）。
+     *
+     * <p><b>真机现场逐字</b>：追簇把矿脉从**天花板**里挖出来（`WRITE break -23,51,196 coal_ore`、
+     * `-21,52,198 thermal:tin_ore` …，全程站在走廊里 `mode=CURRENT`），其中有颗掉落物掉在
+     * 走廊**上方 2 格**的壁架上 ⇒ `[CollectDrops] sweep_start … worldMod=true` 用
+     * **`PILLAR`（自己在脚下垫一块）+ `ASCEND`** 爬了 2 格上去（`[Pillar] placed pos=-22,49,197`）。
+     * 够不到那颗掉落物（`goal_excluded`/`no_standable_approach` ⇒ 退役）之后，鱼骨要继续挖
+     * 却发现**下不来**：`SPUR_RETURN feet=-23,51,196 → junction=-22,49,177` ⇒
+     * `[PathingStats] descend_precondition=25 status=UNREACHABLE` ⇒ `spur_return_failed`
+     * ⇒ `return_failed` ⇒ **整个作业 FAIL**（`SUMMARY … return=no`）。
+     *
+     * <p><b>根因</b>：鱼骨的走位工厂 `PathRequest.withPlacement`（`D-440`）当年**只有 `PILLAR` 没有 `FALL`**
+     * ⇒ 「能上不能下」。`DESCEND` 也救不了：它只降 1 格且要求落点**本来就可站**，而走廊脚下那格
+     * （矿已经挖掉了）恰恰不可站。
+     *
+     * <p><b>本判据把那个处境造出来</b>：走廊上方 2 格放一个可站壁架 + 一条能下来的空列
+     * ⇒ 用**鱼骨自己的走位工厂**必须**能回到起点**，且下来的那条边必须是 `FALL`。
+     * 反证（红臂 `R2`）：把 `FALL` 从工厂里拿掉 ⇒ 同一条请求变 `UNREACHABLE` ⇒ 本判据红。
+     *
+     * <p>⚠️ 世界改动**逐格记录 + 还原**（夹具纪律：失败路径同样还原），bot 回起点。
+     */
+    private void trapChecks(ServerLevel level) {
+        BlockPos foot = ORIGIN.relative(DIR, 2).above(2);   // 壁架上、走廊上方 2 格的站位（脚）
+        BlockPos landing = ORIGIN.relative(DIR, 1);        // 落点列 = 主巷第 1 格
+        BlockPos ledgeSupport = foot.below();              // 壁架支撑（主巷已经把它挖空了 ⇒ 临时补实心）
+
+        // ① 逐格记录原状
+        BlockPos[] punched = {foot, foot.above(), landing, landing.above(),
+                landing.above(2), landing.above(3)};
+        BlockState[] beforePunched = new BlockState[punched.length];
+        for (int i = 0; i < punched.length; i++) {
+            beforePunched[i] = level.getBlockState(punched[i]);
+        }
+        BlockState beforeSupport = level.getBlockState(ledgeSupport);
+
+        // ② 造处境：站位/下落列掏空 + 壁架支撑补实
+        for (BlockPos cell : punched) {
+            level.setBlock(cell, Blocks.AIR.defaultBlockState(), 3);
+        }
+        level.setBlock(ledgeSupport, Blocks.STONE.defaultBlockState(), 3);
+
+        // ③ `FALL` 的 `fallRecoverable` 守卫要求"落点能用 PILLAR 返回 ⇒ 一次性方块数 ≥ 落差(2)"
+        if (BlockInteraction.countThrowaway(bot) < 2) {
+            bot.getInventory().setItem(1, new ItemStack(Items.COBBLESTONE, 8));
+        }
+        teleport(level, foot);
+
+        // ④ 用**生产工厂**（不是照常量另抄一份）规划"下来"这一步
+        PathPlan down = new CorePathPlanner().plan(bot, level, PathRequest.withPlacement(
+                bot.getUUID().toString(), bot.blockPosition(), ORIGIN, "fishbone-trap"));
+        int falls = 0;
+        for (PlannedMovement movement : down.movements()) {
+            if (movement.movementType() == MovementType.FALL) {
+                falls++;
+            }
+        }
+        check("⭐单向爬升陷阱（`D-442`）**爬上去必须能下来**：站在走廊上方 2 格（" + foot.toShortString()
+                        + "，正下方实心）时，鱼骨自己的走位工厂必须能回到起点 —— 实测 status=" + down.status()
+                        + " movements=" + down.movements().size() + " FALL=" + falls
+                        + "（真机原文：`SPUR_RETURN … PLAN_UNREACHABLE`（`descend_precondition`）"
+                        + " ⇒ `spur_return_failed` ⇒ 整个作业 `return_failed` FAIL）",
+                down.reached() && falls >= 1);
+
+        // ⑤ 还原（世界逐格回写 + bot 回起点）
+        for (int i = 0; i < punched.length; i++) {
+            level.setBlock(punched[i], beforePunched[i], 3);
+        }
+        level.setBlock(ledgeSupport, beforeSupport, 3);
+        teleport(level, ORIGIN);
     }
 
     /** 臂①：`C1`（含支巷）+ 支巷退路记账 + `C3`。 */

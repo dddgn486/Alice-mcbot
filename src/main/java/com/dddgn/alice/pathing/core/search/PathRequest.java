@@ -94,13 +94,25 @@ public record PathRequest(
 
     /**
      * ⭐ **"补一块再走"的通行请求**（`D-440`）—— 纯通行 + `PLACE_STEP_AND_TRAVERSE`
-     * （**目标格的正下方**补一块，然后踩上去）+ `PILLAR`（跳起在**自己脚下**补一块）。
+     * （**目标格的正下方**补一块，然后踩上去）+ `PILLAR`（跳起在**自己脚下**补一块）+ `FALL`。
      * **只放不拆**：刻意不含 `BREAK_*` 与 `DOWNWARD`。
      *
      * <p><b>为什么必须单列一个入口，而不是复用 {@link #withWorldModification}</b>：
      * 后者同时给了 `BREAK_AND_*` 与 `DOWNWARD` —— 对"把**我们自己挖掉的路面补回来**"这件事，
      * 那两项是**多余且危险**的能力（会让调用方在返回路上顺手挖穿地形）。
      * 本入口把能力收成一句：**能修路，不能开路**。
+     *
+     * <p>⭐ <b>`FALL` 是 `D-442`（2026-09-25 真机取证）补进来的</b>：本集原来有 `PILLAR`（向上垫一格）
+     * 却没有 `FALL`（落差 2~3 格往下）⇒ **一次爬升是单向的**。真机原样发生过：追簇把矿脉从**天花板**
+     * 里挖出来之后，`CollectDrops` 用 `PILLAR + ASCEND` 爬上 2 格的壁架去够掉落物，然后鱼骨的
+     * 返回走位在同一集里规划不出"下来"这一步 ⇒ `PLAN_UNREACHABLE`（`descend_precondition=25`）
+     * ⇒ `spur_return_failed` ⇒ **整个作业 `return_failed` 失败**。
+     *
+     * <p>⚠️ 加 `FALL` **不扩大本入口的写入权限**（`FALL` 是纯通行，不改世界；`A14` 的写入语义不变）。
+     * 而且 `FALL` 边**只在** provider 的 `fallRecoverable` 守卫通过时才生成 —— 那条守卫要求
+     * "落点能用 `PILLAR` 返回（净空 + 放置面 + 一次性方块数 ≥ 落差）"，本集**本来就有 `PILLAR`**
+     * ⇒ 这条边在本集里是**合法且可回收**的（`RecoverabilityPolicy`：`FALL` → `PATH_REVERSIBLE`）。
+     * 反过来，`PathRequest.of` 刻意**不给** `FALL`：它没有 `PILLAR`，给了就真的下不来了。
      *
      * <p><b>调用点必须自己承担的两件事</b>（`D-076` 红线的受控口子）：
      * <ol>
@@ -119,7 +131,7 @@ public record PathRequest(
         return new PathRequest(botId, startFoot, new GoalFoot(goalFoot),
                 Set.of(MovementType.TRAVERSE, MovementType.DIAGONAL, MovementType.ASCEND,
                         MovementType.DESCEND, MovementType.PLACE_STEP_AND_TRAVERSE,
-                        MovementType.PILLAR),
+                        MovementType.PILLAR, MovementType.FALL),
                 WALK_BUDGET, requester);
     }
 

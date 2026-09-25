@@ -20046,3 +20046,96 @@ oreMined=7 oreFound=7 oreDeferred=0 places=1`，日志逐字
 - 13:18 那次 `faceStandable=1/6` 若再现 ⇒ 按 §一.3 补探针（打印 **bot 自己那格**的
   `canStandCentered` / LOS 结果），把"地形成因 vs 玩家成因"分开。**不许**用"大概就是玩家"结案。
 
+
+---
+
+### D-442：**爬升必须可逆** —— 鱼骨补路走位补上 `FALL`（`withPlacement` 原来"上得去、下不来"）（2026-09-25）
+
+**用户裁定（原文）**：「测试完了，建议放开 Movement，因为 bot **给自己垫方块困住了**」。
+
+#### 一、事实（真机取证，`latest.log` 2026-09-25 15:01~15:02 逐字）
+
+运行参数：`start=-19, 49, 177`、`dir=west`、`bot=tango`（`D-441` 之后的入口：起点 = bot 自己脚下 ✓）。
+
+1. 追簇把矿脉从**天花板**里挖出来，全程站在走廊里（`mode=CURRENT`、`eyeDist` 1.4~2.6）：
+   `WRITE break -23, 51, 196 minecraft:coal_ore`、`-21, 52, 198 thermal:tin_ore`、`-22, 52, 197` …
+   ⇒ 其中一颗掉落物落在走廊**上方 2 格**的壁架上。
+2. `[CollectDrops] goal_shift itemPos=-24, 52, 195 goal=-23, 51, 196` ⇒
+   `[CollectDrops] sweep_start … worldMod=true`（该任务的通行集 = `withWorldModification`，**含** `FALL`）
+   ⇒ 走位 **`PILLAR` + `ASCEND`** 爬了 2 格上去：`[WRITE] place -22, 49, 197 minecraft:cobblestone`
+   ＋ `[Pillar] placed pos=-22, 49, 197 from=-22, 49, 197 to=-22, 50, 197`（`by=collect-drops:…:STEP_PLACEMENT`）。
+3. 上去之后**够不到**那颗掉落物：`goal_excluded cell=-23, 51, 196 botFeet=-23, 51, 196（模型说够得着、执行期 inPickupRange 判否）`
+   ⇒ `no_standable_approach` ⇒ 退役 ⇒ `cluster_done … remaining=1 timeout=true`（白爬）。
+4. 鱼骨要继续挖，于是**必须回到走廊** ⇒
+   `[Fishbone] SPUR_RETURN 原路退回主巷 feet=-23, 51, 196 → junction=-22, 49, 177（纯通行 + 允许补一块再走，不含破坏）`
+   ⇒ `[PathingStats] descend_precondition=25 status=UNREACHABLE goal=-22, 49, 177`
+   ⇒ `[PathRetry] plan_failed status=UNREACHABLE … nodes=7`
+   ⇒ `[Fishbone] spur_return_failed:PLAN_UNREACHABLE` ⇒ `[Fishbone] RETURN … ` 同样不可达
+   ⇒ **`return_failed`** ⇒ `SUMMARY dir=W main=3/20 spurs=11/12 abandoned=1 mined=46 … return=no → FAIL`。
+   （同一次 RETURN 里又一次 `descend_precondition=25`；两次合计 50 次"想降 1 格但落点站不住"。）
+
+⇒ 用户肉眼结论「bot 给自己垫方块困住了」**与日志一致**：先是自己垫了一块（`PILLAR`）爬上去，然后下不来。
+⚠️ 但两件事要分开：① **主因** = 一次爬升**单向**（下方 2 格处没有可站中间点 ⇒ 单步 `DESCEND` 救不了）；
+② 留在走廊脚位格的那块圆石（`-22, 49, 197`）只是个**1 格台阶**（`ASCEND`/`DESCEND` 能过），**不是**主因。
+
+#### 二、根因
+
+`PathRequest.withPlacement`（`D-440` 给鱼骨的补路走位 = `A14`）当时的能力集 =
+`TRAVERSE/DIAGONAL/ASCEND/DESCEND + PLACE_STEP_AND_TRAVERSE + PILLAR` ⇒ **有"上"没有"下"**：
+
+- `PILLAR` 是"在自己脚下放一块并跳上去"⇒ **不需要落点可站**（自己造出支撑）；
+- 而往下只有 `DESCEND`（降 1 格），它要求**落点本来就站得住** —— 从"走廊上方 2 格"往下，
+  中间那一格（走廊的头位高度）下方正是**自己刚挖空的矿格** ⇒ 站不住 ⇒ `descend_precondition`。
+- 落差 2~3 格的 `FALL` 本来能解决，但**当时没在这个集合里**（它是照 `PathRequest.of` 抄的，而 `of` 刻意不给 `FALL`）。
+
+⚠️ `of` 不给 `FALL` 是**对的**：`of` 也没有 `PILLAR` ⇒ 它的上下是对称的（`ASCEND` 上去，`DESCEND` 原路下来）。
+⇒ 单向性**恰好**是 `PILLAR` 引入的：**谁给了"自己造支撑往上"，谁就必须同时给"落差往下"**。
+
+#### 三、决定
+
+1. `PathRequest.withPlacement` **增加 `MovementType.FALL`**。
+   - ⚠️ `FALL` **是纯通行、不改世界** ⇒ `A14` 的写入权限**一点没扩大**（登记表已加注）。
+   - `FALL` 边**只在** provider 的 `fallRecoverable` 守卫通过时生成 —— 那条守卫要求
+     "落点能用 `PILLAR` 返回（净空 + 放置面 + 一次性方块数 ≥ 落差）"；本集合**本来就有 `PILLAR`**
+     ⇒ 这条边在本集合里**合法且可回收**（`RecoverabilityPolicy`：`FALL` → `PATH_REVERSIBLE`）。
+     **反过来也说明为什么不能只加 `FALL` 到 `of`**：`of` 没有 `PILLAR`，加了才是真的单向下落。
+2. **不动** `PathRequest.of`（对称性没坏）；**不动** `climbApproach` / `scaffoldRemoval`（它们是
+   **一对两阶段**设计：只上的攀爬 + 只下的拆除，见各自 javadoc）；`survivalEscape` 见 §五.3。
+3. 结论一句话：**"放开 Movement"= 把可逆性补回来**，不是把破坏/下挖放进来（`BREAK_*` 与 `DOWNWARD` 仍然不在集合里）。
+
+#### 四、判据（都必须能红）
+
+- **夹具**（`fishbone_slice2`，+1 条 `trapChecks`，只在第一臂之后跑一次）：把真机处境**造出来** ——
+  走廊上方 2 格一个可站壁架 + 一条能走下来的空列（世界改动**逐格记录 + 还原**），
+  然后用**生产工厂** `PathRequest.withPlacement` 规划"回到起点"：必须 `reached()` **且**含 `FALL` 边。
+- **红臂 R2**（把 `FALL` 从 `withPlacement` 拿掉 = 修复之前的行为）⇒ 夹具实测
+  `✗ 单向爬升陷阱 … 实测 status=UNREACHABLE movements=0 FALL=0` ⇒ `FAIL failures=1` ✓
+  （= 真机 `PLAN_UNREACHABLE` 的**离线复现**）。
+- **新门禁** `[D-442·补路走位可逆]`（`tools/kernel-predicates.py`）：`withPlacement(...)` 的方法体里
+  **必须同时**有 `MovementType.PILLAR` 与 `MovementType.FALL`（注入双臂 ⇒ 红 ✓）。
+- ⚠️ **门禁第一版写成了"全仓普适断言"（`FALL` ⇒ `PILLAR`），一跑就误红 `scaffoldRemoval`** ——
+  那是我自己没读它的 javadoc：它是**只下**的拆除阶段（`DOWNWARD` = 拆自家脚手架），
+  与 `climbApproach`（只上）是**特意配对**的。⇒ 收窄成"只管 `withPlacement`"，
+  并把三处**故意的**单向集写进规则 docstring（判据不许靠"普适"掩盖设计意图）。
+
+#### 五、本轮同时发现（**未修**，单独记账 / 待裁）
+
+1. ⭐ **`SUMMARY collected=0/17` 是幻影读数**：本轮终态是 `return_failed` ⇒ **COLLECT 阶段从没跑过**
+   ⇒ `collectedProducts` 还停在字段初值 `0`，却按"17 个矿、收到 0 个"打印出来。
+   而每个 `[CollectDrops] cluster_done … delta=1`（`mismatch=0`）说明掉落物**确实进了包**。
+   ⇒ **这不是"没收集"，是"没测量"**（`silent-measurement` 家族）。建议把 `collected=` 做成**三态**
+   （像 `return=` 的 `ok/no/n/a`；键名保留 ⇒ 日志形状门禁不受影响）。**待用户拍**。
+2. **`CollectDrops` 为一颗自己够不到的掉落物爬了 2 格**：`goal_shift` 选了
+   `goal=-23,51,196`，到达后 `goal_excluded（模型说够得着、执行期 inPickupRange 判否）`
+   ⇒ `no_standable_approach` ⇒ `retire`（`collected=0/1 no_approach=1`）。
+   ⇒ 与"预检说能挖、真挖被拒"同族（规划期模型 vs 执行期判据不一致），且**爬升代价**由此暴露。**待裁**。
+3. `survivalEscape` 也是"有 `PILLAR` 没 `FALL`"（形状与本次事故相同）⇒ 逃生时若搭柱上升，
+   会不会同样困在高处？**待复核**（本条**没有**实测证据，不许当成已证缺陷）。
+
+#### 六、复核触发
+
+- 真机再出现"卡在某个高度下不来 / `descend_precondition` 成堆" ⇒ 按 §一 的读数（`feet=`、`descend_precondition=`、
+  `plan_failed`）逐字取证，不要只凭"看起来卡住了"。
+- `FALL` 进集合后若出现**新的**伤害/掉进危险（`FALL` 边有 `fallRecoverable` + 非流体 + 非底部半砖三道守卫）
+  ⇒ 立刻只回退这一项，并把实测原文记到这里。
+- `survivalEscape` 复核（§五.3）若证实 ⇒ 单独一片处理，**不许**顺手改（逃生是命脉路径）。
