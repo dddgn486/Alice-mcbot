@@ -137,6 +137,25 @@ public final class MiningPlanner {
      *                      需要清障时由**上层 Job** 显式做（限次 + 预算），不由规划器偷偷挖。
      */
     public Result plan(ServerPlayer bot, BlockPos target, MiningBudget budget, boolean standableOnly) {
+        return plan(bot, target, budget, standableOnly, MiningProfile.Approach.PURE_PASSAGE, "mining-planner");
+    }
+
+    /**
+     * ⭐ **接近能力由调用方声明**（`D-443` 裁定 1a，2026-09-25）：模式 A 的"走到站位格"这一步
+     * 不再由本类写死成纯通行。
+     *
+     * <p>为什么：真机出现"**同一个 bot、同一 tick，走位 `REACHED`、挖掘站位 `no_reachable_standing_point`**"
+     * （`survey/34 §2.1`）—— 两个组件对"能不能到"给出相反答案，因为**能力集不同**。
+     * 能力是**作业**的属性（鱼骨的 `A14` 已经授权"补一块再走"），所以由调用方的
+     * {@link MiningProfile} 带入，而不是规划器替所有消费者猜。
+     *
+     * @param approach  {@link MiningProfile.Approach#PURE_PASSAGE}（默认，= 精确现状）或
+     *                  {@link MiningProfile.Approach#PLACEMENT_ALLOWED}（只放不拆）
+     * @param requester 接近走位的归因串（**必须传作业自己的**，否则 `WriteAudit` 里
+     *                  这条放置会记到别的名下 ⇒ 作业侧的累计额度看不见它）
+     */
+    public Result plan(ServerPlayer bot, BlockPos target, MiningBudget budget, boolean standableOnly,
+                       MiningProfile.Approach approach, String requester) {
         ServerLevel level = bot.serverLevel();
         BlockPos immutableTarget = target.immutable();
         BlockPos startFoot = MovementHelper.footCell(bot.serverLevel(), bot).immutable();
@@ -155,7 +174,7 @@ public final class MiningPlanner {
             return new Result(null, null, fluidRefusal);
         }
 
-        Result direct = planDirect(bot, level, immutableTarget, startFoot, reach, budget);
+        Result direct = planDirect(bot, level, immutableTarget, startFoot, reach, budget, approach, requester);
         if (direct.success()) {
             return direct;
         }
@@ -197,7 +216,8 @@ public final class MiningPlanner {
     // ==================== 模式 A ====================
 
     private Result planDirect(ServerPlayer bot, ServerLevel level, BlockPos target, BlockPos startFoot,
-                              double reach, MiningBudget budget) {
+                              double reach, MiningBudget budget, MiningProfile.Approach approach,
+                              String requester) {
         LineOfSightChecker.LineOfSightResult currentLos =
                 StandingPointSelector.isValidStandingPoint(level, target, startFoot, reach);
         if (currentLos != null) {
@@ -248,9 +268,10 @@ public final class MiningPlanner {
                 }
             }
             Result withSupport = selectBest(bot, level, target, startFoot, side, MiningPlan.Mode.DIRECT,
-                    target.below(), com.dddgn.alice.pathing.core.search.CostModel.PLACE_ONE_BLOCK_COST);
+                    target.below(), com.dddgn.alice.pathing.core.search.CostModel.PLACE_ONE_BLOCK_COST,
+                    approach, requester);
             Result fromBelow = selectBest(bot, level, target, startFoot, below, MiningPlan.Mode.DIRECT,
-                    null, 0.0D);
+                    null, 0.0D, approach, requester);
             Result chosen = cheaper(withSupport, fromBelow);
             if (chosen != null) {
                 BotLog.info("[MiningPlanner] support_needed target={} supportOption={} belowOption={} chosen={}",
@@ -261,7 +282,7 @@ public final class MiningPlanner {
             }
         }
         Result best = selectBest(bot, level, target, startFoot, candidates, MiningPlan.Mode.DIRECT,
-                null, 0.0D);
+                null, 0.0D, approach, requester);
         // ⭐ `P1-d`：`exactTopK` 已经如实判过"本轮没评价完"（`SEARCH_LIMIT` 或 `PARTIAL`）
         // ⇒ **不许**在这一层被改写成"站不住"。原来这里无条件改写 ⇒ `P1-b`/`P1-d` 的信号在模式 A 上全丢。
         if (best.plan() != null || SEARCH_INCOMPLETE.equals(best.failureReason())) {
@@ -353,7 +374,8 @@ public final class MiningPlanner {
     /** 模式 A：候选 → 估算 → top-K 精确规划（纯通行请求）。 */
     private Result selectBest(ServerPlayer bot, ServerLevel level, BlockPos target, BlockPos startFoot,
                               List<StandingPointSelector.Candidate> candidates, MiningPlan.Mode mode,
-                              BlockPos supportPos, double extraCost) {
+                              BlockPos supportPos, double extraCost, MiningProfile.Approach approach,
+                              String requester) {
         if (candidates.isEmpty()) {
             return new Result(null, null, "no_candidate");
         }
@@ -363,8 +385,16 @@ public final class MiningPlanner {
             feet.add(candidate.foot());
             losByFoot.put(candidate.foot(), candidate.los());
         }
+        // ⭐ `D-443` 裁定 1a：接近请求的**能力由调用方声明**；默认 `PURE_PASSAGE` = 原有那一行逐字不变
+        //（连归因串 `"mining-planner"` 都保持原样，避免动到既有判据/账本口径）。
+        String requesterForApproach = requester == null || requester.isBlank()
+                ? "mining-planner" : requester;
         return exactTopK(bot, level, target, startFoot, feet, losByFoot, mode, supportPos, extraCost,
-                (from, to) -> PathRequest.of(bot.getUUID().toString(), from, to, "mining-planner"));
+                approach == MiningProfile.Approach.PLACEMENT_ALLOWED
+                        ? (from, to) -> PathRequest.withPlacement(bot.getUUID().toString(), from, to,
+                                requesterForApproach)
+                        : (from, to) -> PathRequest.of(bot.getUUID().toString(), from, to,
+                                requesterForApproach));
     }
 
     /**

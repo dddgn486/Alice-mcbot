@@ -26,18 +26,45 @@ package com.dddgn.alice.task.mining;
  *                               在**会话内**自上而下拆掉（`RestoreScopeTask`）。
  *                               嵌套子任务必须为 false —— 否则子任务会把"会话所有者"还要用的
  *                               脚手架拆掉（例如伐木的加高柱）。
+ * @param approach               **"走到站位格"这一步允许什么手段**（`D-443` 裁定 1a/7b，2026-09-25）。
+ *                               ⭐ 为什么单列一个字段：模式 A 的接近搜索（{@code MiningPlanner.selectBest}）
+ *                               原先把请求**硬编码**成 {@code PathRequest.of}（纯通行），于是出现了
+ *                               "**同一个 bot、同一 tick，走位说 `REACHED`、挖掘站位说 `unreachable`**"
+ *                               的真机读数（`survey/34 §2.1`）—— 能力本该由**调用方**声明，而不是由
+ *                               规划器替所有消费者写死。默认 {@link Approach#PURE_PASSAGE} = **精确现状**，
+ *                               所以既有调用点一行不改、行为不变。
  */
 public record MiningProfile(boolean standableOnly, int maxGainSteps, int gainBlockBudget,
-                            int clearBudget, boolean restoreOwnPlacements) {
+                            int clearBudget, boolean restoreOwnPlacements, Approach approach) {
+
+    /**
+     * 模式 A"走到站位格"的**接近能力**（`D-443` 裁定 1a）。
+     *
+     * <ul>
+     *   <li>{@link #PURE_PASSAGE}（默认）= {@code PathRequest.of}：只走，不改世界（`D-076` 默认）；</li>
+     *   <li>{@link #PLACEMENT_ALLOWED} = {@code PathRequest.withPlacement}：**只放不拆**
+     *       （`PLACE_STEP_AND_TRAVERSE` + `PILLAR` + `FALL`）—— 与鱼骨的 `A14` **同一个集合**，
+     *       所以**不扩大任何写入授权面**（`D-443` 裁定 7b：额度用尽 ⇒ 如实放弃，不静默降级）。</li>
+     * </ul>
+     *
+     * ⚠️ 消费方（今天的唯一消费者 = 鱼骨）必须自己持有预算与上限：本枚举只表达"**允许**"，
+     * 不表达"**放多少**"（`C8` 的三条上限 + `A14` 的作业累计额度仍在作业侧）。
+     */
+    public enum Approach {
+        PURE_PASSAGE,
+        PLACEMENT_ALLOWED
+    }
 
     /** 加高方块预算默认值（用户 2026-09-11 裁定：12，砍树够用；模组超高树不在范围）。 */
     public static final int DEFAULT_GAIN_BLOCK_BUDGET = 12;
 
     /** 只用现成可站站位、且**不许加高**（伐木 J1–J5 的原行为）。 */
-    public static final MiningProfile STANDABLE_ONLY = new MiningProfile(true, 0, 0, 0, false);
+    public static final MiningProfile STANDABLE_ONLY =
+            new MiningProfile(true, 0, 0, 0, false, Approach.PURE_PASSAGE);
 
     /** 允许规划器自己挖隧道/挖地进站（挖掘 Job 的原行为）。 */
-    public static final MiningProfile TUNNEL_ALLOWED = new MiningProfile(false, 0, 0, 0, false);
+    public static final MiningProfile TUNNEL_ALLOWED =
+            new MiningProfile(false, 0, 0, 0, false, Approach.PURE_PASSAGE);
 
     public MiningProfile {
         if (maxGainSteps < 0 || gainBlockBudget < 0 || clearBudget < 0) {
@@ -54,13 +81,13 @@ public record MiningProfile(boolean standableOnly, int maxGainSteps, int gainBlo
     }
 
     public MiningProfile withGain(int steps, int blockBudget) {
-        return new MiningProfile(standableOnly, steps, blockBudget, clearBudget, restoreOwnPlacements);
+        return new MiningProfile(standableOnly, steps, blockBudget, clearBudget, restoreOwnPlacements, approach);
     }
 
     /** 允许"限次清障"（腾站位 / 通视线 / 开立柱），最多破坏 {@code budget} 个阻挡方块。 */
     public MiningProfile withClear(int budget) {
         return new MiningProfile(standableOnly, maxGainSteps, gainBlockBudget, budget,
-                restoreOwnPlacements);
+                restoreOwnPlacements, approach);
     }
 
     /** 是否允许清障。 */
@@ -73,11 +100,23 @@ public record MiningProfile(boolean standableOnly, int maxGainSteps, int gainBlo
      * 只应由"会话所有者"开启（Job 的每个目标 / standalone MineTask），嵌套子任务保持 false。
      */
     public MiningProfile withRestore() {
-        return new MiningProfile(standableOnly, maxGainSteps, gainBlockBudget, clearBudget, true);
+        return new MiningProfile(standableOnly, maxGainSteps, gainBlockBudget, clearBudget, true, approach);
     }
 
     /**
-     * **嵌套子任务的信封**（R2 / D-121）：子任务的能力必须是父信封的**子集**。
+     * ⭐ **接近能力 = 允许"补一块再走"**（`D-443` 裁定 1a，2026-09-25）：把模式 A 的"走到站位格"
+     * 从纯通行升到 {@code PathRequest.withPlacement}（与鱼骨 `A14` 同一个集合：只放不拆）。
+     *
+     * <p>消费者的义务（不是本方法能表达的）：**作业累计额度**（`C8` 的
+     * {@code bridgeBlockBudget = max(16, advanceCells/10)}）+ **单段悬空上限** {@code maxGapLength=4}
+     * + 额度用尽后**如实放弃**（不许静默退回纯通行继续走 —— 那会留下半成品通道，违反 `I2`）。
+     */
+    public MiningProfile withPlacementApproach() {
+        return new MiningProfile(standableOnly, maxGainSteps, gainBlockBudget, clearBudget,
+                restoreOwnPlacements, Approach.PLACEMENT_ALLOWED);
+    }
+
+    /** **嵌套子任务的信封**（R2 / D-121）：子任务的能力必须是父信封的**子集**。
      *
      * <p>规则（三条都来自既有裁定）：
      * <ol>
@@ -89,7 +128,8 @@ public record MiningProfile(boolean standableOnly, int maxGainSteps, int gainBlo
      */
     public MiningProfile nestedSubTask() {
         int steps = Math.min(maxGainSteps, 1);
-        return new MiningProfile(standableOnly, steps, steps > 0 ? gainBlockBudget : 0, 0, false);
+        return new MiningProfile(standableOnly, steps, steps > 0 ? gainBlockBudget : 0, 0, false,
+                approach);
     }
 
     /**
@@ -121,6 +161,7 @@ public record MiningProfile(boolean standableOnly, int maxGainSteps, int gainBlo
 
     public String describe() {
         return "standableOnly=" + standableOnly
+                + (approach == Approach.PURE_PASSAGE ? "" : " approach=" + approach)
                 + (mayGain() ? " gain<=" + maxGainSteps + " blocks<=" + gainBlockBudget : " gain=none")
                 + (mayClear() ? " clear<=" + clearBudget : " clear=none")
                 + (restoreOwnPlacements ? " restore=own" : "");

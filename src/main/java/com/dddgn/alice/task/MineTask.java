@@ -594,7 +594,10 @@ public final class MineTask implements Task {
         }
         recoveryAttempts++;
         MiningPlan previousPlan = currentPlan;
-        MiningPlanner.Result result = miningPlanner.plan(bot, target, budget, profile.standableOnly());
+        // ⭐ `D-443` 裁定 1a：接近能力由**本任务的 profile** 声明；归因串用**本任务的 grant.requester**
+        // ⇒ 模式 A 里「补一块再走」的放置会记在作业名下（作业侧的累计额度才看得见它）。
+        MiningPlanner.Result result = miningPlanner.plan(bot, target, budget, profile.standableOnly(),
+                profile.approach(), grant.requester());
         if (!result.success()) {
             BotLog.warn("[MineTask重规划探针] target={} recoveryAttempt={}/{} oldStanding={} result=FAILED reason={}",
                     target.toShortString(), recoveryAttempts, MAX_RECOVERY_ATTEMPTS,
@@ -879,7 +882,10 @@ public final class MineTask implements Task {
             return Status.RUNNING;
         }
 
-        MiningPlanner.Result result = miningPlanner.plan(bot, target, budget, profile.standableOnly());
+        // ⭐ `D-443` 裁定 1a：接近能力由**本任务的 profile** 声明；归因串用**本任务的 grant.requester**
+        // ⇒ 模式 A 里「补一块再走」的放置会记在作业名下（作业侧的累计额度才看得见它）。
+        MiningPlanner.Result result = miningPlanner.plan(bot, target, budget, profile.standableOnly(),
+                profile.approach(), grant.requester());
         if (!result.success()) {
             BotLog.warn("[MiningPlanner探针] planning failed target={} reason={} budget={} profile={}",
                     target.toShortString(), result.failureReason(), budget.describe(), profile.describe());

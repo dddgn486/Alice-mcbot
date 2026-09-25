@@ -215,6 +215,20 @@ public final class FishboneJob implements Job {
     private PathRetryRunner chaseApproach;
     /** 放置额度用尽只提示一次（否则每次走位刷一行）。 */
     private boolean placeBudgetExhaustedLogged;
+
+    /**
+     * ⭐ **逐格挖掘的能力信封**（`D-443` 裁定 1a，2026-09-25）：`STANDABLE_ONLY`（只用现成可站站位、
+     * 不挖隧道）+ **接近允许「补一块再走」**（`A14` 的同一个集合：`PLACE_STEP` + `PILLAR` + `FALL`，只放不拆）。
+     *
+     * <p>为什么必须给接近这一步：真机（2026-09-25 16:21）逐字读数 —— 同一次失败里，挖掘站位用纯通行接近
+     * ⇒ `no_reachable_standing_point`（`descend_precondition=2668`），而**同一 tick、同一位置**
+     * 鱼骨自己的 `SPUR_RETURN`（`withPlacement`）`status=REACHED cost=14.31`
+     * ⇒ 「能不能到」是同一个问题，不该由两个能力集给出两个答案（`survey/34 §2.1`）。
+     *
+     * <p>⚠️ 额度与上限仍在作业侧：`C8` 的三条上限 + `A14` 的累计额度（`placeBudget()`）照旧管着
+     * 模式 A 规划出来的放置（归因串随 `grant.requester()` = `fishbone*` ⇒ 计得进 `placementsUsed()`）。
+     */
+    private static final MiningProfile CELL_PROFILE = MiningProfile.STANDABLE_ONLY.withPlacementApproach();
     private FishboneTemplate.Unit chaseApproachUnit;
     private MineTask oreTask;
     private BlockPos oreStartFeet;
@@ -412,7 +426,10 @@ public final class FishboneJob implements Job {
                     MiningBudget.forTarget(bot, level, cell, true),
                     // 站位只用**现成可站**的格：鱼骨的站位永远在身后一格 ⇒ 不需要规划器自己挖隧道
                     //（`STANDABLE_ONLY` = 计划 §5 方案 A 的"每格 1 次、距离恒 1 格"）。
-                    MiningProfile.STANDABLE_ONLY, grant);
+                    // ⭐ `D-443` 裁定 1a（2026-09-25）：**接近能力**升到「补一块再走」（与 `A14` 同一集合）——
+                    // 真机实测：追簇把 bot 带到通道层之外时，挖掘站位曾因「接近 = 纯通行」判
+                    // `no_reachable_standing_point` 而整条支巷被放弃，而**同一 tick** 鱼骨自己的走位却 `REACHED`。
+                    CELL_PROFILE, grant);
             return Task.Status.RUNNING;
         }
 
@@ -921,7 +938,7 @@ public final class FishboneJob implements Job {
             oreBroken = false;
             oreTask = new MineTask(bot, ore, scope,
                     MiningBudget.forTarget(bot, level, ore, true),
-                    MiningProfile.STANDABLE_ONLY, grant);
+                    CELL_PROFILE, grant);
             return Task.Status.RUNNING;
         }
         // ⚠️⚠️ **有任务在跑就必须把它跑到终态**，哪怕目标**已经是空气**了 ——
