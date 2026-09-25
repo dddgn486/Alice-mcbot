@@ -402,6 +402,22 @@ public final class FishboneJob implements Job {
         // ⭐ 切片 2：作用域半径**从模板推导**（含支巷）—— `CollectDropsTask` 的追取上限
         // 是 `max(32, 2×本半径)` ⇒ 这一行就是 `C2` 能成立的前提（`D-346` 的教训）。
         scope.begin(start, template.scopeRadius(), bot.getUUID());
+        // ⭐ `I5` **放置面**（2026-09-25 用户裁定「先治根因，让他不会在作业区放方块」）：
+        // 本作业自己那条通道的**通道层格**（每个单元的脚位格 + 其上 `height-1` 格）在施工期间
+        // **不许被放方块**。真机靶子（第四轮）：`collect-drops` 的 PILLAR 把圆石放进
+        // `-65,54,181`（2 秒前 bot 刚走过的通道脚位格）⇒ 那个格从"回程 FALL 的合法落点"
+        // 变成实心 ⇒ 零破坏的回家路被自己切断 ⇒ `return_failed` ⇒ 整个作业 FAILED。
+        //
+        // 判据取 `template.cellSet()`（= `C1`/`C5` 的同一份形状真源，**不另抄一份几何**）；
+        // 闸门在 `BlockInteraction.placementRefusal`（规划期剪枝 + 执行期最后一道闸门共用）。
+        //
+        // ⚠️ **必须装在这里、不许挪进构造器**：`BotManager.assignFishboneJob` 是
+        // `new FishboneJob(...)` **先求值**、再 `session.beginTask(job, ...)`，而后者函数体里会
+        // `TaskTargetProtection.end(bot)` ⇒ 构造器里装的作用域会被**同 tick 清掉**。
+        Set<BlockPos> channelCells = template.cellSet();
+        com.dddgn.alice.action.TaskTargetProtection.beginChannel(bot, jobName(), channelCells::contains);
+        BotLog.info("[Fishbone] channel_reserved cells={}（I5 放置面：本作业自己的通道层格不许被放方块）",
+                channelCells.size());
         BotLog.info("[Fishbone] start template={} scopeRadius={} maxTicks={}",
                 template.describe(), template.scopeRadius(), maxTicks);
         excavationStarted = true;
@@ -1247,6 +1263,9 @@ public final class FishboneJob implements Job {
 
     /** **唯一终态出口**：无论成功/失败都从这里落地（`SUMMARY` 只打一次）。 */
     private Task.Status finishTerminal() {
+        // `I5` 放置面：作业自己的作用域自己撤（`BotManager` 下个任务开始时也会清一次 —— 双保险：
+        // 泄漏的后果是"这个 bot 以后都不能在别处放方块"，比多撤一次危险得多）。
+        com.dddgn.alice.action.TaskTargetProtection.end(bot);
         if (!summaryEmitted) {
             summaryEmitted = true;
             emitSummary();

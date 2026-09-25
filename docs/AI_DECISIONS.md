@@ -20296,3 +20296,62 @@ oreMined=7 oreFound=7 oreDeferred=0 places=1`，日志逐字
 - ⭐ **副产物（已单列台账 `1.4o`）**：暴露了一个**潜伏缺陷** —— **砍完那棵 7 格高的云杉之后，伐木 job 砍不动下一棵树**。
   CORE 一直绿只是因为那棵高树**恰好被排在最后** ⇒ 那一步是**位置敏感的脆判据**。
   **没有去改判据/改场景**（那会把缺陷藏起来）。
+
+### D-446：**`I5` 放置面 —— 作业自己的通道层格不许被放方块**（真机第四轮根因的收口；2026-09-25）
+
+**用户裁定**：「**那先治根因吧，让他不会在作业区放方块**」（+「我不想再加修改账本让bot恢复」）。
+
+**背景（真机第四轮，逐字证据 `docs/reviews/2026-09-25-真机第四轮-自己搭的方块拦住回程.md`）**：
+`collect-drops` 为够一个掉落物，用 `PILLAR/STEP_PLACEMENT` 把圆石放进了 **bot 自己刚挖通、且 2 秒前
+刚走过** 的通道脚位格 `(-65,54,181)` ⇒ 该格从"回程 `FALL` 的合法落点"变成实心 ⇒ **零破坏的回家路消失**
+⇒ `SPUR_RETURN` `UNREACHABLE`（`nodes=3`）⇒ `return_failed` ⇒ 整个作业 FAILED。
+
+**裁定一：保护集合 = 作业**形状**驱动的通道层格（脚位格 + 头位格）。**
+- 真源取 `FishboneTemplate.cellSet()`（= `C1`/`C5` 已有的那份形状，**不另抄一份几何**）；
+- 只保护**通道层格**：③ **支撑格（脚位格下面那格）刻意不保护** —— 它是"补地板"的合法目标（`I2`），
+  保护它会把"路面被自己挖掉后补回来"一起禁掉（夹具里有一条**反证**专门钉这一条）。
+
+**裁定二：闸门落在 `BlockInteraction`（一处谓词，规划期与执行期共用）。**
+- 新入口 `BlockInteraction.placementRefusal(bot, placeAt)`（与 `breakRefusal` **严格同形**）；
+- **规划期剪枝**（`appendPillar` / `appendPlaceStepAndTraverse`）⇒ 规划器去**另找一条路**，
+  而不是先规划出一个注定被拒的放置（`D-106 Slice B` 的既有纪律）；计数 `place_channel_reserved`
+  （`record` + `recordTotal` 两处，照 `SurfaceMovementProvider:418-419` 先例）；
+- **执行期最后一道闸门**（`placeAt`，排在触及检查之前）⇒ 新 `PlaceResult.CHANNEL_DENIED` +
+  `[WRITE-REFUSED] … reason=channel_layer_reserved`，**不消耗物品与预算、世界未被改写**。
+- **放置侧不做理由豁免**（与破坏侧 `PATH_ACCESS` 白名单**刻意不同**）：通道层格按定义
+  （`I1` 可连通 / `I2` 支撑存在）**必须保持可通行** ⇒ "把方块放进通道层格"**不存在合法调用者**。
+
+**裁定三：载体沿用 `TaskTargetProtection`（`D-362`），不新造机制。**
+- 该类的三件事本来就符合 `D-443` 裁定 8 要的"作业作用域载体"：按 `botId`、任务开始立、任务结束撤；
+  predicate 驱动；**fail-closed**（谓词抛异常 ⇒ 按受保护处理 + 响亮告警）；
+- 新增 `beginChannel(bot, owner, isChannelCell)` + `placementRefusalFor`；两个面共用同一个查询体 ⇒
+  fail-closed 与告警只有一处实现。**不挂 `ZoneAuthority`**（它是 2D 无 Y，`D-443` 裁定 8 已排除）。
+- 安装点**必须在 `FishboneJob.prepare()`、不许挪进构造器**：`BotManager.assignFishboneJob` 是
+  `new FishboneJob(...)` 先求值、再 `session.beginTask(...)`，而后者函数体里会
+  `TaskTargetProtection.end(bot)` ⇒ 构造器里装的作用域会被**同 tick 清掉**（详见台账 `1.4r`：现有
+  `MineJob`/`LumberJob` 就是那个形状，`1.4r` 单独记一条待核实项，不在本次顺手改）。
+
+**裁定四（用户提出但未采纳的一支，留档）**：用户曾提出「**让 bot 有权限挖下去**」（给作业格开写权限）。
+我把代价讲清后**用户选了收窄（本条）而不是对称放宽**。留档要点：区外破坏额度已由 `D-372` 放开格数、
+只剩下信封/成本/时间三道闸，集合级写权限会把最后那道文字门换成一个会漂移的谓词，并且——
+`RecoverabilityPolicy` 里 `PILLAR/BREAK/DOWNWARD` 只是 `LOCAL_STEP`（真机日志
+`[Recover] PILLAR=LOCAL_STEP/ascent_reverse_break_unverified=4` 就是系统在自报"反向未验证"）——
+更根本的形态是**把回收债务在规划期消费掉**（按追求阶段的真实欠账推导回程信封），**未做**，等本条真机结果。
+
+**判据（先红后绿，全部 `ALICE_BATTERY_NO_CACHE=1` 真跑）**：
+- 新电池步 `channel_place_guard`（`ChannelPlaceGuardCheckTask`，`Profile.EXTRA`；自建 6×9×6 实心盒 +
+  两次规划 + 两次候选生成 + 一次 `placeAt`，约 26~32 s/轮）；
+- **绿臂** `checks=23 failures=0`：A 组复现真机（填圆石 ⇒ `UNREACHABLE nodes=3 movements=[]`）、
+  B 组（保住空气 ⇒ `REACHED movements=[FALL@脚位格, TRAVERSE@目标格]`，**零世界写入**）、
+  C 组（脚位/头位 = `channel_layer_reserved`；**支撑格与口袋 = null**，反证不误伤；
+  `placeAt = CHANNEL_DENIED` 且世界未变）、D 组（**负对照**：撤掉作用域 ⇒ `PILLAR` 落在通道层格
+  `hits=1`；装上 ⇒ `hits=0`）；
+- **红臂**（掐掉唯一出处 `placementRefusal ⇒ null`）：`failures=6 verdict=FAIL`，其中
+  `C:placeResult=PLACED worldChanged=true`（**真的把圆石写进了自己的通道格** —— 与真机同形），
+  D 组 `guarded hits=1`；还原后文件 sha 逐字一致。
+
+**两个测量陷阱（本轮亲历）**：
+① `FALL` 边要求手里**一次性方块 ≥ 落差**（`fallRecoverable` 的 `countThrowaway >= drop`）——
+夹具首版只给 1 个圆石 ⇒ 量到的是"没材料"而不是"落点被堵"，**判据假红一次**；真机那轮 bot 手里有圆石。
+② 夹具的**组间不许依赖副作用**：C 组真跑了一次 `placeAt`，闸门失效时它**会真的写进去** ⇒
+下一组从"实心格"出发 ⇒ 负对照退化成 0（红臂实测）。⇒ D 组开头**重新确立几何前提**。

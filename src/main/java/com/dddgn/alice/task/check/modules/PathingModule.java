@@ -81,6 +81,12 @@ public final class PathingModule implements CheckModule {
                         600),
                 CheckStep.of("edge_completeness", CheckProfile.EXTRA, List.of(), null,
                         () -> new EdgeCompletenessCheckTask(bot, ctx.observer()), 200),
+                // ⭐ `I5` 放置面（2026-09-25 用户裁定）：**本作业自己的通道层格不许被放方块**
+                // （规划期剪枝 + 执行期最后一道闸门共用 `BlockInteraction.placementRefusal`）。
+                // 含负对照（撤掉作用域 ⇒ 必须看见"放置格落在通道层格里"的那条边）。
+                CheckStep.of("channel_place_guard", CheckProfile.EXTRA, List.of(), null,
+                        () -> new com.dddgn.alice.task.ChannelPlaceGuardCheckTask(bot, ctx.observer()),
+                        400),
                 // D-336（2026-09-19）：**斜向上升那一格**（规划级）—— 能力 + 信封两用例，互为反证。
                 CheckStep.of("place_step_diagonal", CheckProfile.EXTRA, List.of(), null,
                         () -> new PlaceStepDiagonalCheckTask(bot, ctx.observer()), 400),

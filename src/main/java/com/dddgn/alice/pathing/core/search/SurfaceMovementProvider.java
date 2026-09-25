@@ -302,6 +302,18 @@ public final class SurfaceMovementProvider implements MovementProvider {
         if (!BlockInteraction.hasPlacementFace(level, from)) {
             return;
         }
+        // ⭐ `I5` 放置面（2026-09-25 用户裁定「先治根因，让他不会在作业区放方块」）：
+        // **计划期剪枝**（与上面 `writesAllowed` 同一个理由）——不生成"注定被执行期拒绝"的边，
+        // 规划器才会去**另找一条路**（而不是先规划出一个 PILLAR、执行到一半才被拒）。
+        // 真机代价：`PILLAR` 从自己的通道脚位格往上垫 ⇒ 那一格被填实 ⇒ 回程的零破坏 `FALL` 边消失
+        // ⇒ 整个作业 FAILED（证据见 `TaskTargetProtection.CHANNEL_CODE`）。
+        if (BlockInteraction.placementRefusal(context.bot(), from) != null) {
+            // 两处都记（照本文件 `:418-419` 的先例）：`record` 进**本次规划**的 `[PathingStats]` 行，
+            // `recordTotal` 进**进程累计**（夹具的增量断言与 `bot_report` 读它）。
+            PathingStats.record("place_channel_reserved");
+            PathingStats.recordTotal("place_channel_reserved");
+            return;
+        }
         out.add(new PlannedMovement(MovementType.PILLAR, from, to, CostModel.PILLAR_COST,
                 com.dddgn.alice.pathing.core.RecoverabilityEvaluator.levelOf(MovementType.PILLAR)));
     }
@@ -480,6 +492,13 @@ public final class SurfaceMovementProvider implements MovementProvider {
             return;
         }
         if (!BlockInteraction.hasPlacementFace(level, target)) {
+            return;
+        }
+        // ⭐ `I5` 放置面（2026-09-25）：与 `appendPillar` 同一处判据、同一个理由 ——
+        // 放置位 `target = to.below()` 若落在我自己的通道层格里，这条边不许生成。
+        if (BlockInteraction.placementRefusal(context.bot(), target) != null) {
+            PathingStats.record("place_channel_reserved");
+            PathingStats.recordTotal("place_channel_reserved");
             return;
         }
         // 定价基类：同层 = 走；下一格 = 下降（D-366 起不再有 dy=+1 分支）。

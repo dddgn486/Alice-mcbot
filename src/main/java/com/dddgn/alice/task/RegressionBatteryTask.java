@@ -254,6 +254,12 @@ public final class RegressionBatteryTask implements Task {
             // ⭐ `D-376`（2026-09-21 第八轮真机）：**搭石斜下必须证明"过渡空间"能过**（`canSweepPlayer`
             // 覆盖第 3 层）。判据 + 反证 + 执行工厂同谓词；EXTRA（规划级、毫秒级）。
             Map.entry("place_step_descend_clearance", Profile.EXTRA),
+            // ⭐ `I5` 放置面（2026-09-25 用户裁定「先治根因，让他不会在作业区放方块」）：**本作业自己的
+            // 通道层格不许被放方块**。真机靶子 = 第四轮 `collect-drops` 的 PILLAR 把圆石放进
+            // `-65,54,181`（2 秒前刚走过的通道脚位格）⇒ 回程那条零破坏 `FALL` 边消失 ⇒ 作业 FAILED。
+            // 本步含**负对照**（撤掉作用域必须看得见那条边）⇒ 判据不会永远绿。
+            // EXTRA：自建并还原一个 6×9×6 实心盒 + 2 次规划 + 2 次候选生成（规划级、毫秒级）。
+            Map.entry("channel_place_guard", Profile.EXTRA),
             // D-336：斜向上升那一格（规划级：能力 + 信封）
             Map.entry("place_step_diagonal", Profile.EXTRA),
             // ⭐ `D-374`（2026-09-21）：**脚位空、头位实**的目的地必须有入边（内核图完整性；

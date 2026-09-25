@@ -1395,3 +1395,28 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
   CORE 一直绿只因那棵高树恰好被排在最后 ⇒ 那一步是**位置敏感的脆判据**。**没有去改判据/改场景。**
 - **jar**：`build/libs/alice-1.0.0-1.20.1.jar` sha256 `7a236881a4bae91c56aae7810fa0176dce5898fd4ef3ac093a2215d9d5c0ba0c`（已镜像到 `D:\JAVA_projects\alice\build\libs\` 与固定客户端 `mods/`）。
 - **下一步**：真机客户端轮（重启客户端）；日志里 `[R4 Session] segment_stall` 应消失。
+
+## 9. 2026-09-25 深夜补记⑤：`I5` 放置面落地（`D-446`）—— 「bot 被自己搭的方块拦住」的根因收口
+
+- **用户裁定**：「**那先治根因吧，让他不会在作业区放方块**」（不采纳"给作业格开写权限"那一支）。
+- **因果链（本轮定死，原「层③未定」已解决）**：`collect-drops` 用 `PILLAR` 把圆石放进
+  bot **自己刚挖通、且 2 秒前刚走过** 的通道脚位格 `(-65,54,181)`（真机 `by=collect-drops:attempt0:STEP_PLACEMENT`）
+  ⇒ 该格从 `appendFall` 的合法落点变成实心 ⇒ **零破坏的 `FALL` 边消失**；而 `DESCEND` 又因
+  "2 格高通道 + 中继格头位之上是天花板石头"被拒 ⇒ `SPUR_RETURN` `UNREACHABLE`（`nodes=3`）⇒ `return_failed`。
+- **实现（三处 + 一个夹具）**：① `TaskTargetProtection`（`D-362` 的作业作用域载体）加**放置面**
+  （`beginChannel` / `placementRefusalFor` / `CHANNEL_CODE`）；② `BlockInteraction.placementRefusal`
+  （唯一定义处）+ `placeAt` 里**最后一道闸门**（新 `PlaceResult.CHANNEL_DENIED`）；
+  ③ `SurfaceMovementProvider` 的 `appendPillar` / `appendPlaceStepAndTraverse` **计划期剪枝**
+  （计数 `place_channel_reserved`）；④ `FishboneJob.prepare()` 用 `template.cellSet()` 装作用域
+  （**不许挪进构造器**，见台账 `1.4r`）。
+- **证据（全部 `ALICE_BATTERY_NO_CACHE=1`）**：新步 `channel_place_guard` 绿臂 `checks=25 failures=0` ·
+  红臂（`placementRefusal ⇒ null`）`failures=6`，其中 `C:placeResult=PLACED worldChanged=true`
+  （真的把自己的通道格写实了）· **CORE PASS（231 s）** · `fishbone_slice1/2 = 42/0 · 88/0`
+  （真跑里 `channel_reserved cells=12/24`、`place_channel_reserved=1~6` ⇒ 剪枝确实在发生而作业照常完成）·
+  `check-all pass=22 warning=1 failed=0` · `kernel-predicates PASS`。
+- ⚠️ **用户的问题「他还能找到别的路上去吧」= 已实测**：撤掉保护时那条老路存在
+  （`[PILLAR@通道脚位格, ASCEND@口袋]`，与真机同形）；装上后同形几何是 **`SEARCH_LIMIT`（不是 `UNREACHABLE`）**
+  ⇒ **可达性未知**（不许读成"证明上不去"）。代价 = 需要垫脚才够得着的掉落物会被 `retire`
+  —— 真机那轮它们本来就没捡到（`retire stack=3`）⇒ 净收益 = 作业 FAILED→PASS，实得一件不少。
+- **下一步**：真机客户端轮（入口不变：那个鱼骨作业工具）；看 `segment_stall` 保持 0、`return=ok`、
+  以及 `[Ledger] skip … 区外` 不再伴随"自己的通道格被填"。

@@ -75,7 +75,16 @@ public final class BlockInteraction {
          * **未写入**、**不消耗物品与预算**。与 `BUDGET_EXHAUSTED` 分开：一个是"额度用尽"，
          * 一个是"这块地没授权" —— 归因完全不同。
          */
-        ZONE_DENIED
+        ZONE_DENIED,
+        /**
+         * ⭐ **通道层格拒绝**（`I5` 放置面，2026-09-25 用户裁定）：该格是**本作业自己的通道层格**
+         * （脚位格 / 头位格）⇒ **未写入**、**不消耗物品与预算**。
+         *
+         * <p>与 `ZONE_DENIED` 分开的理由与 `NO_ITEM` 那条一样：病因与归因完全不同 ——
+         * 一个是"这块地没授权"（地皮/归属），一个是"**这是我自己要反复走的那条路的格，填了我就回不去**"
+         * （作业形状）。代表码 {@link TaskTargetProtection#CHANNEL_CODE}。
+         */
+        CHANNEL_DENIED
     }
 
     private BlockInteraction() {
@@ -322,6 +331,15 @@ public final class BlockInteraction {
                     placeAt.toShortString(), grant == null ? "-" : grant.describe(), zoneRefusal);
             return PlaceResult.ZONE_DENIED;
         }
+        // ⭐ `I5` 放置面（2026-09-25）：**最后一道闸门** —— 与破坏侧 `beginBreak` 同一个理由：
+        // 不能只指望所有调用点都记得先问 `placementRefusal`（"靠调用点自觉"的守卫迟早漏一处）。
+        // 这一格是本作业自己的通道层格 ⇒ 填了就等于把自己那条路切断（真机证据见 `CHANNEL_CODE`）。
+        String channelRefusal = placementRefusal(bot, placeAt);
+        if (channelRefusal != null) {
+            BotLog.warn("[WRITE-REFUSED] place pos={} by={} reason={}（填了我自己的通道层格 ⇒ 回程会被自己切断）",
+                    placeAt.toShortString(), grant == null ? "-" : grant.describe(), channelRefusal);
+            return PlaceResult.CHANNEL_DENIED;
+        }
         if (!reachable(bot, placeAt)) {
             return PlaceResult.NO_OPTION;
         }
@@ -385,6 +403,24 @@ public final class BlockInteraction {
             }
         }
         return false;
+    }
+
+    /**
+     * 放置拒绝原因（null = 允许）。**与 {@link #breakRefusal} 严格同形**（唯一定义处，
+     * 搜索与执行共用 ⇒ 不会"计划说能过、执行到一半才被拒"）。
+     *
+     * <p>⭐ `I5` 放置面（2026-09-25 用户裁定「先治根因，让他不会在作业区放方块」）：
+     * **本作业自己的通道层格不许被放方块**。真机证据与因果链见
+     * {@link TaskTargetProtection#CHANNEL_CODE}。
+     *
+     * <p>⚠️ **刻意与 `breakRefusal` 的 `PATH_ACCESS` 白名单不同：放置侧不做任何理由豁免。**
+     * 破坏侧要豁免是因为"破坏"有完全合法的用途（挖穿通道本身就是挖）；而放置侧没有 ——
+     * 通道层格按定义（`I1`：可连通；`I2`：支撑存在）**必须保持可通行**，
+     * 因此"把方块放进通道层格"不存在合法调用者。真正合法的"补地板"落在**支撑格**（脚位格下面那一格），
+     * 不在本谓词的集合里 ⇒ 不会被误伤。
+     */
+    public static String placementRefusal(ServerPlayer bot, BlockPos placeAt) {
+        return TaskTargetProtection.placementRefusalFor(bot, placeAt);
     }
 
     // ==================== 破坏 ====================
