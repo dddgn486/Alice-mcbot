@@ -225,10 +225,19 @@ public final class FishboneJob implements Job {
      * 鱼骨自己的 `SPUR_RETURN`（`withPlacement`）`status=REACHED cost=14.31`
      * ⇒ 「能不能到」是同一个问题，不该由两个能力集给出两个答案（`survey/34 §2.1`）。
      *
-     * <p>⚠️ 额度与上限仍在作业侧：`C8` 的三条上限 + `A14` 的累计额度（`placeBudget()`）照旧管着
+     * <p>⚠️ 额度与上限仍在作业侧：`C8` 的三条上限 + `A14` 的累计额度（`bridgeBlockBudget()`）照旧管着
      * 模式 A 规划出来的放置（归因串随 `grant.requester()` = `fishbone*` ⇒ 计得进 `placementsUsed()`）。
      */
     private static final MiningProfile CELL_PROFILE = MiningProfile.STANDABLE_ONLY.withPlacementApproach();
+
+    /**
+     * **本次调用时的逐格挖掘信封**（`D-443` 裁定 7b）：还有搭路额度 ⇒ {@link #CELL_PROFILE}
+     * （接近可以补一块）；额度用尽 ⇒ 退回 {@link MiningProfile#STANDABLE_ONLY}
+     * ⇒ 挖掘接近**不再放置**（否则额度会被"挖掘接近"这条路径悄悄绕过，作业侧看不见）。
+     */
+    private MiningProfile cellProfile() {
+        return placementsUsed() < bridgeBlockBudget() ? CELL_PROFILE : MiningProfile.STANDABLE_ONLY;
+    }
     private FishboneTemplate.Unit chaseApproachUnit;
     private MineTask oreTask;
     private BlockPos oreStartFeet;
@@ -249,6 +258,8 @@ public final class FishboneJob implements Job {
      * 而"作业中途预算忽然变了"会让同一轮作业的前后段不可比。
      */
     private final int oreBudgetPerUnit;
+    /** **单段连续悬空上限**（`C8` 第一条，`D-443` 裁定 1b）——构造时读一次。 */
+    private final int maxGapLength;
     /** 本单元已经消费掉几个候选（`oreBudgetPerUnit` 的分子；每单元开始清零）。 */
     private int oreBudgetUsed;
     /** 触发 `ore_budget_exhausted` 的次数（护栏生效的证据；0 = 自然上界比护栏更紧）。 */
@@ -300,6 +311,7 @@ public final class FishboneJob implements Job {
         // `COLLECT 开始 … 产物=3` ⇒ `产物=+0`，而背包里明明躺着 3 个原铁）。
         this.itemsBefore = countProductItems();
         this.oreBudgetPerUnit = FishboneConfig.oreBudgetPerUnit();
+        this.maxGapLength = FishboneConfig.maxGapLength();
     }
 
     /** 世界写入的 requester（`WritePolicyMatrix.PREFIX_RULES` 里登记为 `MINING` 类）。 */
@@ -408,6 +420,25 @@ public final class FishboneJob implements Job {
         FishboneTemplate.Unit unit = units.get(unitIndex);
         ServerLevel level = bot.serverLevel();
 
+        // ⭐ `C8` 推进门（`D-443` 裁定 1b/7b，2026-09-25）：**每个单元开头**先判"这一段还能不能推进"。
+        // 两档与挖不动**同一套**（§10.2：支巷 ⇒ 只放弃那条支巷；主巷 ⇒ 如实失败）。
+        if (current == null && cellInUnit == 0) {
+            String refusal = advanceRefusal(unit);
+            if (refusal != null) {
+                if (unit.isSpur()) {
+                    abandonSpur(unit, refusal);
+                } else {
+                    String code = "main_unreachable:" + refusal;
+                    BotLog.warn("[Fishbone] {} 主巷单元 {} 无法推进 target={} ⇒ 先沿主巷返回起点再失败",
+                            code, unitIndex + 1, unit.foot().toShortString());
+                    terminalReason = code;
+                    excavationFailed = true;
+                    beginReturn();
+                }
+                return Task.Status.RUNNING;
+            }
+        }
+
         if (current == null) {
             if (cellInUnit >= template.height()) {
                 finishUnit(unit);
@@ -429,7 +460,7 @@ public final class FishboneJob implements Job {
                     // ⭐ `D-443` 裁定 1a（2026-09-25）：**接近能力**升到「补一块再走」（与 `A14` 同一集合）——
                     // 真机实测：追簇把 bot 带到通道层之外时，挖掘站位曾因「接近 = 纯通行」判
                     // `no_reachable_standing_point` 而整条支巷被放弃，而**同一 tick** 鱼骨自己的走位却 `REACHED`。
-                    CELL_PROFILE, grant);
+                    cellProfile(), grant);
             return Task.Status.RUNNING;
         }
 
@@ -546,6 +577,58 @@ public final class FishboneJob implements Job {
     }
 
     // ==================== 切片 2：支巷（§10.2 两档处置） ====================
+
+    /**
+     * ⭐ **`C8` 推进门**（计划 §10.3 三条上限，`D-443` 裁定 1b/7b，2026-09-25 落地）：
+     * 返回 `null` = 可以推进；否则返回**归因码**（由调用方按主巷/支巷两档如实处置）。
+     *
+     * <p>两条（第三条"搭路方块不足"由放置原语自己拒 ⇒ `no_throwaway_blocks`，不在这里判）：
+     * <ol>
+     *   <li>{@code bridge_budget_exhausted}：本次作业累计放置已达
+     *       {@link #bridgeBlockBudget()}（= `max(16, 单元数/10)`，`D-443` 裁定 7a）
+     *       ⇒ **如实放弃**。取代 `A14` 原来的"额度用完就退回纯通行、坑留着继续挖"：
+     *       那会留下**半成品通道**（违反 `I2` 支撑格必须存在），而这条通道是 bot 自己后面
+     *       还要反复走的（`SPUR_RETURN` / `RETURN`）。</li>
+     *   <li>{@code big_cavern_ahead}：沿走向前瞻 {@link #maxGapLength} 格**找不到一格有地板**
+     *       ⇒ 这是"大矿洞"（`§10.3` 产品裁定：**放弃**，不是架桥过去）。
+     *       ⚠️ 反例臂：把 `maxGapLength` 调到很大 ⇒ 本判据失效 ⇒ 会开始"一格一格搭桥"（`C8` 原红臂）。</li>
+     * </ol>
+     *
+     * <p>⚠️ 为什么放在**单元开头**而不是每个格子：它表达的是"这一段通道还值不值得开工"，
+     * 每格判一次等于把"额度用尽"变成随机中断；单元粒度也让日志/归因可读。
+     */
+    private String advanceRefusal(FishboneTemplate.Unit unit) {
+        int used = placementsUsed();
+        int budget = bridgeBlockBudget();
+        if (used >= budget) {
+            return "bridge_budget_exhausted";
+        }
+        Direction dir = unit.isSpur() ? unit.spurDir() : template.dir();
+        if (!floorWithinLookahead(bot.serverLevel(), unit.foot(), dir, maxGapLength)) {
+            return "big_cavern_ahead";
+        }
+        return null;
+    }
+
+    /**
+     * **`C8` 的单段悬空判据**（`D-443` 裁定 1b）：从 {@code foot} 沿 {@code dir} 往前
+     * {@code maxGapLength} 格之内，**有没有一格"脚下有地板"**。
+     *
+     * <p>{@code false} = 连续悬空 > {@code maxGapLength} ⇒ 这是大矿洞（产品裁定：放弃，不是架桥）。
+     *
+     * <p>⚠️ 抽成 **public static** 是为了让夹具能**直接判这条几何判据**（`FishboneSlice2CheckTask`
+     * 的 `cavernChecks`），而不是照抄一份谓词 —— 判据必须与生产同一个出处（`K4-P1` 的纪律）。
+     */
+    public static boolean floorWithinLookahead(ServerLevel level, BlockPos foot, Direction dir, int maxGapLength) {
+        for (int d = 0; d <= maxGapLength; d++) {
+            // ⚠️ `canWalkOn(level, pos)` 的定义就是「**pos 下面那一格**是实心支撑」（`MovementHelper:49-51`）
+            // ⇒ 问"这一列有没有地板"要传**列本身**；传 `column.below()` 会多问一层（夹具实测踩到）。
+            if (MovementHelper.canWalkOn(level, foot.relative(dir, d))) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     /**
      * **支巷放弃**（§10.2 用户裁定）：记 `spur_abandoned:<码>`、**跳过该支巷剩余单元**、
@@ -775,8 +858,14 @@ public final class FishboneJob implements Job {
      * <p>为什么按形状推导而不是写死：形状是可配置的（`config/alice-fishbone.toml`），
      * 写死一个数会在"你把支巷改成 64 格"之后悄悄变成"路补到一半没额度了"。
      */
-    private int placeBudget() {
-        return Math.max(8, template.advanceCells() / 10);
+    private int bridgeBlockBudget() {
+        int configured = com.dddgn.alice.config.FishboneConfig.bridgeBlockBudget();
+        if (configured > 0) {
+            return configured;
+        }
+        // `D-443` 裁定 7a：**合成一个数** —— `C8` 的计划默认（16）当下限，`A14` 的形状推导当缩放。
+        return Math.max(com.dddgn.alice.config.FishboneConfig.BRIDGE_BLOCK_BUDGET_FLOOR,
+                template.advanceCells() / com.dddgn.alice.config.FishboneConfig.BRIDGE_BLOCK_UNITS_PER_BLOCK);
     }
 
     /**
@@ -812,10 +901,15 @@ public final class FishboneJob implements Job {
      * 挖掉之后脚位格失去支撑（真机实测 `belowSolid=false` ⇒ 站位搜索 0 候选 ⇒
      * `spur_abandoned:no_reachable_standing_point`）。补回来这件事**不写专门流程**：
      * 规划器在允许 `PLACE_STEP_AND_TRAVERSE` 时会**自然**产出那条边。
+     *
+     * <p>⚠️ **额度用尽时的边界**（`D-443` 裁定 7b）：这一层只做「辅助走位」（追簇 / 原路退回 / 回家），
+     * 它不承诺通道的完整性；通道的完整性由**推进门**负责（{@link #advanceRefusal}：
+     * 额度用尽或前瞻无地板 ⇒ **如实放弃/失败**）。所以这里额度用尽时退回纯通行是**安全的**：
+     * 走得通就继续，走不通就如实失败 —— 绝不会出现「拿没额度的通道继续往前挖」。
      */
     private PathRequest walkRequest(BlockPos goal, String suffix) {
         int used = placementsUsed();
-        int budget = placeBudget();
+        int budget = bridgeBlockBudget();
         if (used < budget) {
             return PathRequest.withPlacement(bot.getUUID().toString(), bot.blockPosition(), goal,
                     REQUESTER + suffix);
@@ -852,7 +946,7 @@ public final class FishboneJob implements Job {
                     RETURN_MAX_REPLANS, REQUESTER + "-chase");
             BotLog.info("[Fishbone] CHASE_APPROACH 走进刚挖完的那一格 {}（追簇游走段；纯通行 + "
                             + "允许补一块再走（`PILLAR` / `PLACE_STEP_AND_TRAVERSE`，不含破坏）；额度 {}/{}）",
-                    work.toShortString(), placementsUsed(), placeBudget());
+                    work.toShortString(), placementsUsed(), bridgeBlockBudget());
         }
         PathRetryRunner.State state = chaseApproach.tick();
         if (state == PathRetryRunner.State.RUNNING) {
@@ -938,7 +1032,7 @@ public final class FishboneJob implements Job {
             oreBroken = false;
             oreTask = new MineTask(bot, ore, scope,
                     MiningBudget.forTarget(bot, level, ore, true),
-                    CELL_PROFILE, grant);
+                    cellProfile(), grant);
             return Task.Status.RUNNING;
         }
         // ⚠️⚠️ **有任务在跑就必须把它跑到终态**，哪怕目标**已经是空气**了 ——

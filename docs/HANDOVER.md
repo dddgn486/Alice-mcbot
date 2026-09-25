@@ -1320,3 +1320,14 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 ⑤ 夹具：造 A2 处境（bot 高 3 格）⇒ 绿；红臂 = 接近集退回 of ⇒ 红；大矿洞超限 ⇒ 放弃，窗口调无限 ⇒ 红
 ⑥ 回归：fishbone_slice1 / fishbone_slice2 绿 · CORE 绿 · kernel-predicates 绿
 ```
+
+## 4. 2026-09-25 晚补记：**片 A 已落地**（`D-443` 裁定后）
+
+- **`P0.5`**（接近能力由调用方声明）：`MiningProfile.Approach`（默认纯通行 = 现状）+ `MiningPlanner` 6 参重载 +
+  `MineTask` 传 `profile.approach()/grant.requester()` + 鱼骨 `cellProfile()`。
+- ⭐ **夹具挖出的第二处同类病灶**：模式 A 的**候选排名**也假设纯通行（成本场口径「不可达候选不在 map 中」）
+  ⇒ `exactTopK` 加 `includeUnestimated`（仅放置能力开启时为真）。
+- **`C8`**：`maxGapLength`(4) 前瞻门 + `bridge_budget_exhausted` + 「用尽 ⇒ 如实放弃」；预算 `bridgeBlockBudget()`。
+- 证据：`fishbone_slice2` **87/0 PASS**；红臂 R-A/R-B 各自命中对应的那一条；`fishbone_slice1` PASS；门禁 PASS。
+- **下一步**：真机客户端轮（jar 同步后）——重点看 ① 支巷弃巷是否减少 ② 是否出现 `big_cavern_ahead`/`bridge_budget_exhausted`
+  这类**如实放弃**（而不是"一格一格搭桥"）。

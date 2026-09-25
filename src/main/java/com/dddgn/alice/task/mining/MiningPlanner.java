@@ -389,12 +389,13 @@ public final class MiningPlanner {
         //（连归因串 `"mining-planner"` 都保持原样，避免动到既有判据/账本口径）。
         String requesterForApproach = requester == null || requester.isBlank()
                 ? "mining-planner" : requester;
+        boolean includeUnestimated = approach == MiningProfile.Approach.PLACEMENT_ALLOWED;
         return exactTopK(bot, level, target, startFoot, feet, losByFoot, mode, supportPos, extraCost,
                 approach == MiningProfile.Approach.PLACEMENT_ALLOWED
                         ? (from, to) -> PathRequest.withPlacement(bot.getUUID().toString(), from, to,
                                 requesterForApproach)
                         : (from, to) -> PathRequest.of(bot.getUUID().toString(), from, to,
-                                requesterForApproach));
+                                requesterForApproach), includeUnestimated);
     }
 
     /**
@@ -482,10 +483,27 @@ public final class MiningPlanner {
                              List<BlockPos> feet,
                              Map<BlockPos, LineOfSightChecker.LineOfSightResult> losByFoot,
                              MiningPlan.Mode mode, BlockPos supportPos, double extraCost,
-                             BiFunction<BlockPos, BlockPos, PathRequest> requestFactory) {
+                             BiFunction<BlockPos, BlockPos, PathRequest> requestFactory,
+                             boolean includeUnestimated) {
         StandingCostEstimator.Result estimate = StandingCostEstimator.estimate(bot, level, feet);
         List<BlockPos> ranked = new ArrayList<>(estimate.costs().keySet());
         ranked.sort(Comparator.comparingDouble(estimate.costs()::get));
+        // ⭐ `D-443` 裁定 1a（2026-09-25）：**排名也不能假设纯通行**。
+        // `StandingCostEstimator` 的口径是「**不可达候选不在 map 中**」（它记的是**纯通行**成本场）
+        // ⇒ 当接近能力升到 `PLACEMENT_ALLOWED` 时，"只有补一块才到得了"的候选会被**整个丢掉排名**，
+        // 于是**永远不会被精算** ⇒ 报 `no_reachable_standing_point`，而同一段的走位工厂明明到得了
+        // （夹具实测：走位 `REACHED movements=4` / 挖掘站位 `no_reachable_standing_point`）。
+        // ⇒ 把这些"估不出成本"的候选按**几何下界**排在已估出的之后，交给精算阶段裁决（它们正是新能力的目标）。
+        if (includeUnestimated) {
+            List<BlockPos> unestimated = new ArrayList<>();
+            for (BlockPos foot : feet) {
+                if (!estimate.costs().containsKey(foot)) {
+                    unestimated.add(foot);
+                }
+            }
+            unestimated.sort(Comparator.comparingDouble(f -> new com.dddgn.alice.pathing.core.search.GoalFoot(f).heuristic(startFoot)));
+            ranked.addAll(unestimated);
+        }
 
         StandingPointEvaluator.StandingPointScore best = null;
         PathPlan bestPath = null;
@@ -506,7 +524,9 @@ public final class MiningPlanner {
                 }
                 double cost = path.totalCost() + extraCost;
                 if (best == null || cost < best.getScore()) {
-                    best = StandingPointEvaluator.of(foot, cost, estimate.costs().get(foot),
+                    Double estimated = estimate.costs().get(foot);
+                    best = StandingPointEvaluator.of(foot, cost,
+                            estimated == null ? new com.dddgn.alice.pathing.core.search.GoalFoot(foot).heuristic(startFoot) : estimated,
                             losByFoot.get(foot));
                     bestPath = path;
                 }
@@ -514,9 +534,10 @@ public final class MiningPlanner {
             planned = k;
             boolean canExpand = k < ranked.size() && k < MiningTuning.exactTopKMax();
             if (best != null) {
-                double nextEstimate = k < ranked.size()
-                        ? estimate.costs().get(ranked.get(k)) + extraCost
-                        : Double.POSITIVE_INFINITY;
+                Double nextRaw = k < ranked.size() ? estimate.costs().get(ranked.get(k)) : null;
+                double nextEstimate = nextRaw == null
+                        ? Double.POSITIVE_INFINITY
+                        : nextRaw + extraCost;
                 if (best.getScore() <= nextEstimate || !canExpand) {
                     break;
                 }

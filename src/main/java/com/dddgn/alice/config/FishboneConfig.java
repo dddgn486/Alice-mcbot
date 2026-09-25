@@ -49,6 +49,8 @@ public final class FishboneConfig {
     public static final ForgeConfigSpec.EnumValue<FishboneTemplate.SpurSide> SIDE;
     public static final ForgeConfigSpec.IntValue HEIGHT;
     public static final ForgeConfigSpec.IntValue ORE_BUDGET_PER_UNIT;
+    public static final ForgeConfigSpec.IntValue MAX_GAP_LENGTH;
+    public static final ForgeConfigSpec.IntValue BRIDGE_BLOCK_BUDGET;
 
     /** 主巷长度默认值。 */
     public static final int DEFAULT_MAIN_LENGTH = 20;
@@ -74,6 +76,33 @@ public final class FishboneConfig {
      */
     public static final int DEFAULT_ORE_BUDGET_PER_UNIT = 16;
 
+    /**
+     * **单段连续悬空上限**（`C8` 的第一条，`D-443` 裁定 1b，2026-09-25）：推进方向的前瞻窗口。
+     *
+     * <p>语义（计划 §10.3 逐字：「单段悬空 > `maxGapLength`… ⇒ **必须** 子巷放弃/主巷失败」）：
+     * 当前单元沿走向往前 `maxGapLength` 格之内**必须**找到一格「脚下有地板」；找不到 ⇒
+     * 判 `big_cavern_ahead` ⇒ **如实放弃**，而不是一格一格把桥搭过去。
+     *
+     * <p>为什么要有它：`C8` 的红臂原文就是「把上限调成"无限搭" ⇒ 立刻红」—— 大矿洞的产品答案是
+     * **放弃**（§10.3），不是"用移动能力硬救"。默认 4 = 计划值。
+     */
+    public static final int DEFAULT_MAX_GAP_LENGTH = 4;
+
+    /**
+     * **本次作业累计搭路上限**（`C8` 的第二条 + `A14` 的额度，`D-443` 裁定 7a）。
+     *
+     * <p>`0` = **按形状自动**（默认）：`max(16, 单元数 / 10)` —— 16 是 `C8` 的计划默认下限，
+     * `/10` 是 `A14` 的「形状可配 ⇒ 不许写死一个数」（`A14` 注释：写死会在你把支巷改成 64 格之后
+     * 悄悄变成「路补到一半没额度了」）。非 0 ⇒ 显式覆盖（调试用）。
+     */
+    public static final int DEFAULT_BRIDGE_BLOCK_BUDGET = 0;
+
+    /** 自动额度里的**下限**（= `C8` 的计划默认值 16）。 */
+    public static final int BRIDGE_BLOCK_BUDGET_FLOOR = 16;
+
+    /** 自动额度里「每多少个单元允许多补一块」的分母（`A14` 原式）。 */
+    public static final int BRIDGE_BLOCK_UNITS_PER_BLOCK = 10;
+
     static {
         ForgeConfigSpec.Builder b = new ForgeConfigSpec.Builder();
         b.comment("鱼骨挖矿（alice:fishbone_job 右键）的尺寸。改完重启客户端生效。",
@@ -95,6 +124,14 @@ public final class FishboneConfig {
         ORE_BUDGET_PER_UNIT = b.comment("每个模板单元最多消费几个暴露矿（顺手挖 / 追簇的上限）。默认 "
                         + DEFAULT_ORE_BUDGET_PER_UNIT + "；0 = 关闭顺手挖。详见 FishboneConfig 的字段注释。")
                 .defineInRange("oreBudgetPerUnit", DEFAULT_ORE_BUDGET_PER_UNIT, 0, 256);
+        MAX_GAP_LENGTH = b.comment("单段连续悬空上限（格；C8 第一条）。默认 " + DEFAULT_MAX_GAP_LENGTH
+                        + "。前瞻窗口内找不到地板 ⇒ big_cavern_ahead ⇒ 支巷放弃 / 主巷如实失败。")
+                .defineInRange("maxGapLength", DEFAULT_MAX_GAP_LENGTH, 1, 32);
+        BRIDGE_BLOCK_BUDGET = b.comment("本次作业累计搭路上限（块；C8 第二条 + A14 额度）。默认 "
+                        + DEFAULT_BRIDGE_BLOCK_BUDGET + " = 按形状自动 max(" + BRIDGE_BLOCK_BUDGET_FLOOR
+                        + ", 单元数/" + BRIDGE_BLOCK_UNITS_PER_BLOCK + ")；非 0 = 显式覆盖。"
+                        + "用尽 ⇒ 如实放弃/失败（不许静默退回纯通行继续走）。")
+                .defineInRange("bridgeBlockBudget", DEFAULT_BRIDGE_BLOCK_BUDGET, 0, 1024);
         b.pop();
         SPEC = b.build();
     }
@@ -124,5 +161,15 @@ public final class FishboneConfig {
 
     public static int oreBudgetPerUnit() {
         return ORE_BUDGET_PER_UNIT.get();
+    }
+
+    /** 单段连续悬空上限（C8 第一条，D-443 1b）。 */
+    public static int maxGapLength() {
+        return MAX_GAP_LENGTH.get();
+    }
+
+    /** 本次作业累计搭路上限；0 = 自动（FishboneJob.bridgeBlockBudget() 按形状推导）。 */
+    public static int bridgeBlockBudget() {
+        return BRIDGE_BLOCK_BUDGET.get();
     }
 }

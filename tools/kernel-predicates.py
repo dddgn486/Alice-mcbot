@@ -1736,6 +1736,63 @@ def rule_fishbone_entry_origin():
     return problems
 
 
+def rule_fishbone_c8_gate():
+    """`D-443` **鱼骨的 `C8` 推进门**（2026-09-25 逐条裁定后落地；计划 §10.3 三条上限）。
+
+    背景：`C8` 的红臂原文是「**把上限调成"无限搭" ⇒ 在"大矿洞"场景里立刻红**」——
+    也就是说"到了大矿洞必须放弃/如实失败"是**产品裁定**，不是实现细节。而这条裁定此前**没有任何实现**
+    （`FishboneTemplate` 明确"故意不声明"这些字段），同时 `A14` 的额度用尽后是**静默退回纯通行、
+    坑留着继续走** ⇒ 会留下半成品通道（违反 `I2` 支撑格必须存在），而这条通道是 bot 自己后面还要反复走的。
+
+    断言（改任一处 ⇒ 红）：
+    ① 推进门 `advanceRefusal(...)` 必须**同时**有预算档 `bridge_budget_exhausted` 与
+       前瞻档 `big_cavern_ahead`（缺哪一档 ⇒ 该情形会退化成"继续往前挖/搭桥"）；
+    ② 前瞻必须走**唯一出处** `floorWithinLookahead(`（不许在作业里另写一份谓词 —— `K4-P1` 纪律）；
+    ③ 搭路额度必须**合成一个数**：`bridgeBlockBudget()` 里出现 `BRIDGE_BLOCK_BUDGET_FLOOR` 与
+       `BRIDGE_BLOCK_UNITS_PER_BLOCK`（`D-443` 裁定 7a），且**旧名字 `placeBudget(` 不许残留**
+       （同一预算两个副本 = 本项目最怕的"改了一个、判定器读另一个"）；
+    ④ 两个旋钮必须在配置里存在（`maxGapLength` / `bridgeBlockBudget`）——否则"C8 可配"是空话。
+
+    ⚠️ 断言**位置化**到方法体内（本仓 `D-425` ⑤ 家族：全文件子串检查会被注释/报错文案满足）。
+    """
+    problems = []
+    path = ROOT / "src/main/java/com/dddgn/alice/job/fishbone/FishboneJob.java"
+    if not path.exists():
+        return ["`FishboneJob.java` 不见了（鱼骨作业）"]
+    src = code_only(_strip_block_comments(path.read_text(encoding="utf-8")))
+    gate = code_only(method_body(src, "private String advanceRefusal("))
+    if not gate.strip():
+        problems.append("`FishboneJob` 找不到推进门 `advanceRefusal(...)`（结构变了 ⇒ 规则要跟着改）")
+    else:
+        for code, why in (("bridge_budget_exhausted", "搭路额度用尽 ⇒ 必须如实放弃（`D-443` 7b）"),
+                          ("big_cavern_ahead", "前瞻看不到地板 ⇒ 必须判大矿洞（`C8` 第一条）")):
+            if code not in gate:
+                problems.append(f"推进门里缺 `{code}` 档 ⇒ {why}")
+        if "floorWithinLookahead(" not in gate:
+            problems.append("推进门没有走唯一出处 `floorWithinLookahead(`"
+                            " ⇒ 前瞻谓词出现了第二个副本")
+    budget = code_only(method_body(src, "private int bridgeBlockBudget()"))
+    if not budget.strip():
+        problems.append("`FishboneJob` 找不到 `bridgeBlockBudget()`（额度合成处；结构变了 ⇒ 规则要跟着改）")
+    else:
+        for token in ("BRIDGE_BLOCK_BUDGET_FLOOR", "BRIDGE_BLOCK_UNITS_PER_BLOCK"):
+            if token not in budget:
+                problems.append(f"`bridgeBlockBudget()` 里缺 `{token}` ⇒ `D-443` 7a 的"
+                                "「一个名字 = max(16, 单元数/10)」被拆回两套口径")
+    if "placeBudget(" in src:
+        problems.append("`FishboneJob` 里仍有旧名字 `placeBudget(` ⇒ 同一个预算两个副本"
+                        "（`D-443` 7a 要求合成一个数）")
+    cfg = ROOT / "src/main/java/com/dddgn/alice/config/FishboneConfig.java"
+    if not cfg.exists():
+        problems.append("`FishboneConfig.java` 不见了（`C8` 两个旋钮的住处）")
+    else:
+        cfg_src = cfg.read_text(encoding="utf-8")
+        for key in ('"maxGapLength"', '"bridgeBlockBudget"'):
+            if key not in cfg_src:
+                problems.append(f"配置里缺键 {key} ⇒ `C8` 不可配（`D-443` 1b）")
+    return problems
+
+
 def rule_placement_walk_reversible():
     """`D-442` **鱼骨的补路走位必须"上得去也下得来"**（2026-09-25 真机 `return_failed` 换来的规则）。
 
@@ -4537,6 +4594,7 @@ def main() -> int:
     fbshape = rule_fishbone_live_log_shape()
     fbentry = rule_fishbone_entry_origin()
     fbrev = rule_placement_walk_reversible()
+    fbc8 = rule_fishbone_c8_gate()
     contract = rule_movement_contract_agreement()
     searchbudget = rule_search_budget_is_tick_aware()
     searchbackoff = rule_mine_job_search_limit_backoff()
@@ -4647,6 +4705,8 @@ def main() -> int:
         print(f"[D-441·鱼骨入口起点=bot脚位] {line}")
     for line in fbrev:
         print(f"[D-442·补路走位可逆] {line}")
+    for line in fbc8:
+        print(f"[D-443·C8搭路上限] {line}")
     for line in contract:
         print(f"[D-366·移动契约一致] {line}")
     for line in searchbudget:
@@ -4714,10 +4774,10 @@ def main() -> int:
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not fbshape and not fbentry and not fbrev and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b and not a3 and not p7 and not p3 and not pl1 and not diagside and not psparity and not pillarwater and not fallparity) and not tlb
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not fbshape and not fbentry and not fbrev and not fbc8 and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b and not a3 and not p7 and not p3 and not pl1 and not diagside and not psparity and not pillarwater and not fallparity) and not tlb
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 鱼骨真机日志形状={len(fbshape)} / 鱼骨入口起点={len(fbentry)} / 补路走位可逆={len(fbrev)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / tick负载预算={len(tlb)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 鱼骨真机日志形状={len(fbshape)} / 鱼骨入口起点={len(fbentry)} / 补路走位可逆={len(fbrev)} / C8搭路上限={len(fbc8)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / tick负载预算={len(tlb)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
           f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 不可逆写入记账={len(rc3)} / 击杀产物归属={len(a3)} / 非PASS步单列={len(p7)} / 作业级收集授权={len(p3)} / 写入真相同源={len(rc4)} / 重放有界={len(p2b)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)} / 过期证明重评={len(pl1)} / 对角侧格单源={len(diagside)} / 搭石族两侧谓词={len(psparity)} / 水柱起跳门控={len(pillarwater)} / 落点三层同源={len(fallparity)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1

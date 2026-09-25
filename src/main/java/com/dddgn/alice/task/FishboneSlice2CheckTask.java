@@ -17,6 +17,11 @@ import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.pathing.core.search.PathingStats;
 import com.dddgn.alice.pathing.core.search.PlannedMovement;
 import com.dddgn.alice.perception.ScopeBuffer;
+import com.dddgn.alice.task.mining.LineOfSightChecker;
+import com.dddgn.alice.task.mining.MiningBudget;
+import com.dddgn.alice.task.mining.StandingPointSelector;
+import com.dddgn.alice.task.mining.MiningPlanner;
+import com.dddgn.alice.task.mining.MiningProfile;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
@@ -568,6 +573,9 @@ public final class FishboneSlice2CheckTask implements Task {
         // ⭐ `D-442`：单向爬升陷阱（只在第一臂之后跑一次 —— 那时主巷已经挖通，最像真机现场）
         if (armIndex == 0) {
             trapChecks(level);
+            // ⭐ `D-443` 片 A 的两条判据（同一臂、同一现场；各自自建处境 + 逐格还原）
+            approachChecks(level);
+            cavernChecks(level);
         }
 
         armIndex++;
@@ -649,6 +657,137 @@ public final class FishboneSlice2CheckTask implements Task {
         }
         level.setBlock(ledgeSupport, beforeSupport, 3);
         teleport(level, ORIGIN);
+    }
+
+    /**
+     * ⭐ **片 A 判据①**（`P0.5` / `D-443` 裁定 1a）：**"走到挖掘站位"这一步的能力必须由调用方声明**。
+     *
+     * <p>把真机 2026-09-25 16:21 的处境**造出来**：bot 在通道层上方 3 格（追簇把它带上去的），
+     * 目标在通道层同层的走廊尽头。真机原文：挖掘站位判 `no_reachable_standing_point`
+     * （`descend_precondition=2668`），而**同一 tick** 鱼骨自己的走位 `REACHED`。
+     *
+     * <p>判据 = **两种能力给出不同答案**：
+     * <ul>
+     *   <li>`PURE_PASSAGE`（旧行为）⇒ **必须够不着**（否则本处境不构成证据 ⇒ 判据红，要求重造场景）；</li>
+     *   <li>`PLACEMENT_ALLOWED`（`CELL_PROFILE`，新行为）⇒ **必须够得着**。</li>
+     * </ul>
+     * ⚠️ 这条判据用**生产入口** `MiningPlanner.plan(…, approach, requester)`（不照抄谓词）。
+     */
+    private void approachChecks(ServerLevel level) {
+        BlockPos foot = ORIGIN.relative(DIR, 2).above(2);      // 通道层上方 3 格（真机 y=55 vs 通道 y=52）
+        BlockPos support = foot.below();                       // 壁架支撑（临时补实心）
+        // ⚠️ `MAIN_LENGTH` 格主巷占的是 `ORIGIN+1 .. ORIGIN+MAIN_LENGTH` ⇒ 尽头**外**那一格才是石头
+        //（夹具首版取成走廊最后一格 = 已被挖空 ⇒ 测到的是"挖空气"，与真机处境不符）。
+        BlockPos target = ORIGIN.relative(DIR, MAIN_LENGTH + 1);
+        BlockPos candidateFoot = ORIGIN.relative(DIR, MAIN_LENGTH);
+
+        // ⚠️ 处境造法（夹具第三版）：**不能只掏 bot 自己那两格** —— 那样它会封在 1×1×2 的石头口袋里，
+        // 连满权限走位都 `movements=0`（实测踩到），判据就变成测"被埋住"了。
+        // 真机现场是：bot 站在自己垫的方块上，四周是巷道空气，**只是脚下的地板没了**
+        // ⇒ 这里掏一个 3×3×2 的口袋 + 给它垫一块支撑；走廊本来就在下面（净高 2）。
+        List<BlockPos> pocket = new ArrayList<>();
+        List<BlockState> pocketBefore = new ArrayList<>();
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                for (int dy = 0; dy <= 1; dy++) {
+                    BlockPos cell = foot.offset(dx, dy, dz);
+                    pocket.add(cell);
+                    pocketBefore.add(level.getBlockState(cell));
+                }
+            }
+        }
+        BlockState beforeSupport = level.getBlockState(support);
+        for (BlockPos cell : pocket) {
+            level.setBlock(cell, Blocks.AIR.defaultBlockState(), 3);
+        }
+        level.setBlock(support, Blocks.STONE.defaultBlockState(), 3);
+        if (BlockInteraction.countThrowaway(bot) < 2) {
+            bot.getInventory().setItem(1, new ItemStack(Items.COBBLESTONE, 8));
+        }
+        teleport(level, foot);
+
+        // 前置判据（反向臂）：**候选必须存在** —— 否则这条判据测的是"没有站位候选"，
+        // 而不是"接近能力"（夹具第二版就是在这里暴露的：目标取成了已被挖空的走廊格）。
+        LineOfSightChecker.LineOfSightResult candidateLos = StandingPointSelector.isValidStandingPoint(
+                level, target, candidateFoot, bot.getBlockReach());
+        check("片 A①前置：目标 " + target.toShortString() + " 必须**有合法站位候选**（走廊最后一格 "
+                        + candidateFoot.toShortString() + "；可站 + 视线通 + 触及）——实测 los="
+                        + (candidateLos != null) + "（否则本判据测的是别的东西）",
+                candidateLos != null);
+
+        MiningBudget budget = MiningBudget.forTarget(bot, level, target, true);
+        MiningPlanner.Result pure = new MiningPlanner().plan(bot, target, budget, true,
+                MiningProfile.Approach.PURE_PASSAGE, "fishbone-approach-check");
+        MiningPlanner.Result placement = new MiningPlanner().plan(bot, target, budget, true,
+                MiningProfile.Approach.PLACEMENT_ALLOWED, "fishbone-approach-check");
+        // 对照读数（`survey/34 §2.1` 的那个不对称）：**同一段起点→候选格**，走位工厂能不能到？
+        PathPlan walk = new CorePathPlanner().plan(bot, level, PathRequest.withPlacement(
+                bot.getUUID().toString(), bot.blockPosition(), candidateFoot, "fishbone-approach-check"));
+
+        check("⭐片 A①（`D-443` 1a）**接近能力由调用方声明**：bot 在通道层上方 3 格时，"
+                        + "纯通行接近必须够不着（旧行为，实测 success=" + pure.success()
+                        + " reason=" + pure.failureReason() + "），"
+                        + "而 `PLACEMENT_ALLOWED` 必须够得着（新行为，实测 success=" + placement.success()
+                        + " reason=" + placement.failureReason() + "）"
+                        + "；对照：同一段起点→候选格的**走位**工厂 " + walk.status()
+                        + " movements=" + walk.movements().size()
+                        + "（真机原文：`no_reachable_standing_point` + 同 tick 走位 `REACHED`）",
+                !pure.success() && placement.success());
+
+        level.setBlock(support, beforeSupport, 3);
+        for (int i = 0; i < pocket.size(); i++) {
+            level.setBlock(pocket.get(i), pocketBefore.get(i), 3);
+        }
+        teleport(level, ORIGIN);
+    }
+
+    /**
+     * ⭐ **片 A 判据②**（`C8` 单段悬空上限 / `D-443` 裁定 1b）：通道前方连续悬空 > `maxGapLength`
+     * ⇒ **必须判"大矿洞"**（产品裁定：放弃，不是一格一格架桥过去）。
+     *
+     * <p>判据用**生产同一个出处**的 `FishboneJob.floorWithinLookahead`（static，夹具直接判几何），
+     * 三段对照（每一段都在**同一列**上临时掏/补地板）：
+     * <ol>
+     *   <li>地板完好 ⇒ **有地板**（正对照）；</li>
+     *   <li>连续掏空 `maxGapLength + 2` 格 ⇒ **看不到地板**（= 必须放弃）；</li>
+     *   <li>同一处境、窗口放大到 `maxGapLength + 8` ⇒ **又能看到**（= `C8` 原红臂「上限调成无限搭」的等价物）。</li>
+     * </ol>
+     */
+    private void cavernChecks(ServerLevel level) {
+        BlockPos foot = ORIGIN.relative(DIR, 1);
+        int window = maxGapLengthForCheck();
+        List<BlockPos> touched = new ArrayList<>();
+        List<BlockState> before = new ArrayList<>();
+        for (int d = 0; d <= window + 2; d++) {
+            BlockPos floorCell = foot.relative(DIR, d).below();
+            touched.add(floorCell);
+            before.add(level.getBlockState(floorCell));
+        }
+
+        boolean intactFound = FishboneJob.floorWithinLookahead(level, foot, DIR, window);
+
+        for (BlockPos cell : touched) {
+            level.setBlock(cell, Blocks.AIR.defaultBlockState(), 3);
+        }
+        boolean voidMissing = FishboneJob.floorWithinLookahead(level, foot, DIR, window);
+        boolean wideWindowFound = FishboneJob.floorWithinLookahead(level, foot, DIR, window + 4);
+
+        check("⭐片 A②（`C8` / `D-443` 1b）**单段悬空上限**：地板完好 ⇒ 有地板（实测 "
+                        + intactFound + "）；连续掏空 " + (window + 2) + " 格地板后，窗口 " + window
+                        + " ⇒ **看不到地板**（实测 " + !voidMissing + "，必须放弃）；"
+                        + "同一处境把窗口放大到 " + (window + 8) + " ⇒ 又能看到（实测 " + wideWindowFound
+                        + "）（`C8` 原红臂 =「把上限调成无限搭」）",
+                intactFound && !voidMissing && wideWindowFound);
+
+        for (int i = 0; i < touched.size(); i++) {
+            level.setBlock(touched.get(i), before.get(i), 3);
+        }
+        teleport(level, ORIGIN);
+    }
+
+    /** 判据用的窗口：**取生产配置值**（不照抄常量；配置被改坏时判据跟着红）。 */
+    private static int maxGapLengthForCheck() {
+        return Math.max(1, FishboneConfig.maxGapLength());
     }
 
     /** 臂①：`C1`（含支巷）+ 支巷退路记账 + `C3`。 */
