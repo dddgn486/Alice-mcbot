@@ -1333,3 +1333,16 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
   （已同步到 `D:\JAVA_projects\alice\build\libs\` 与固定客户端 `mods/`）
 - **下一步**：真机客户端轮（**重启客户端**后）——重点看 ① 支巷弃巷是否减少 ② 是否出现 `big_cavern_ahead`/`bridge_budget_exhausted`
   这类**如实放弃**（而不是"一格一格搭桥"）。
+
+## 5. 2026-09-25 深夜补记：**真机第三轮取证完毕**（旋钮已翻倍，行为代码未动）
+
+- **用户裁定落地**：`maxGapLength` 默认 **4 → 8**（`D-444`）；两侧 `config/alice-fishbone.toml` 的**值**已同步
+  （⚠️ Forge 只改注释不改已有值 ⇒ 不同步的话真机跑的还是 4）。
+- **三链根因**（逐条证据 + 复算命令）：`docs/reviews/2026-09-25-真机第三轮-根因取证.md`
+  ① 弃巷 3/3 = `bodyPassable`（两格）问单格 ⇒ 空气块当矿挖 ⇒ `abandonSpur`；
+  ② 矿 53 找到/43 挖到/10 没挖 + 18 条掉落物 `retire`（根因 = 离心 ~0.49 击穿拾取模型）；
+  ③ 向下挖不掉 = 静止容忍度 `0.3 = AABB 半宽` ⇒ 压邻列角 + 缺 Baritone `MovementDownward:86-94` 的居中那一支。
+- **待用户裁定**（见取证文档 §6）：`1.4j①` 是否提前到片 B 开头 · 作业 1 的 `big_cavern_ahead` 是误判还是如实（**需要现场**）·
+  ③ 的现场观察 + 校准落地后有没有橡皮筋感。
+- **验证等级**：`SERVER_TESTED`（`slice1 42/0` · `slice2 87/0` · 门禁 PASS · 红臂 R-B 命中后还原）。
+- **jar**：本轮重新构建（行为等价，只是默认值 + 判据），sha256 `ec1c59a716633432c1be831bf3ecde6ab63add3cf06a33b2fe7e4d3953be52eb`（已镜像到 `D:\JAVA_projects\alice\build\libs\` 与固定客户端 `mods/`）。

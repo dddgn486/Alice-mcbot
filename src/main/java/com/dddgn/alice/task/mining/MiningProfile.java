@@ -108,7 +108,7 @@ public record MiningProfile(boolean standableOnly, int maxGainSteps, int gainBlo
      * 从纯通行升到 {@code PathRequest.withPlacement}（与鱼骨 `A14` 同一个集合：只放不拆）。
      *
      * <p>消费者的义务（不是本方法能表达的）：**作业累计额度**（`C8` 的
-     * {@code bridgeBlockBudget = max(16, advanceCells/10)}）+ **单段悬空上限** {@code maxGapLength=4}
+     * {@code bridgeBlockBudget = max(16, advanceCells/10)}）+ **单段悬空上限** {@code maxGapLength=8}
      * + 额度用尽后**如实放弃**（不许静默退回纯通行继续走 —— 那会留下半成品通道，违反 `I2`）。
      */
     public MiningProfile withPlacementApproach() {

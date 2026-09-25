@@ -20188,3 +20188,32 @@ oreMined=7 oreFound=7 oreDeferred=0 places=1`，日志逐字
 - 片 A 真机若出现"通道被搭成一座长桥"⇒ 说明 `C8` 的单段上限没咬住 ⇒ 立刻按 §一 7a/7b 逐字取证；
 - 若真机出现**因横向缺格**而放弃（归因①）⇒ 那才是重开 `parkour-place` 讨论的入场券（#3）；
 - 若"就地做判据"（#5）在片 C 中导致 `CollectDropsTask` 之类**共享任务**取不到判据 ⇒ 说明 #5 的"接口往后提"需要提前 ⇒ 单独一片处理，不许顺手把接口塞进共享任务。
+
+### D-444：**`maxGapLength` 默认翻倍 + 真机第三轮三链根因入账**（2026-09-25）
+
+**用户裁定（逐字）**：「想了下，最好把悬空放弃的格数翻倍，我设的有点草率了」⇒ `maxGapLength` 默认 **4 → 8**。
+
+- **范围**：只动**默认值**（配置键区间 1~32 不变；计划 §10.3 的表与代码骨架注释同步标注）。
+- **代价（如实入账）**：窗口翻倍 ⇒ 更宽的悬空会被判成"搭得过去" ⇒ 失败理由从 `big_cavern_ahead` **移向**
+  `bridge_budget_exhausted`（单段最多多消耗 4 块，而累计额度只有 `max(16, 单元数/10)`）。
+- **复核触发**：真机出现"一格一格把桥搭过去"，或 `bridge_budget_exhausted` 变成主要失败理由 ⇒ 回调。
+- ⚠️ **配置文件的静默陷阱（实测）**：Forge **只重写注释、不改已有值** —— 改完默认值后，无头服务端的
+  `config/alice-fishbone.toml` 注释写着"默认 8"、值仍是 `4` ⇒ 第一次复跑**用的还是 4**（判据读数 `窗口 4`）。
+  两侧 toml 的**值**已同步为 8。**下次改默认值必须同时查所有运行目录里的 toml。**
+- **判据跟着改**：`cavernChecks` 原来借场景实心盒的东边界（盒只到 `dx = MAIN_LENGTH + 3 = 9`），窗口 8 时
+  第③段要问到 `d = 12` ⇒ **判据红而生产代码没坏**。改成判据**自己铺地板并原样还原**（与场景尺寸、与默认值解耦）。
+- 证据：`fishbone_slice1 checks=42 failures=0` · `fishbone_slice2 checks=87 failures=0`（窗口 8 三段全真）·
+  `kernel-predicates PASS` · 红臂 R-B（`floorWithinLookahead` 恒真）`verdict=FAIL` 且**正好命中片 A②**，还原后 sha 一致。
+
+**同轮真机三链根因（事实，逐条取证见 `docs/reviews/2026-09-25-真机第三轮-根因取证.md`）**：
+
+1. **弃巷 3/3 = 谓词问错层**：`isAlreadyPassable` 用两格 `bodyPassable` 问单格 ⇒ 已经是空气的通道格不跳过
+   ⇒ 给**空气块**建 `MineTask` ⇒ `LineOfSightChecker.checkFromEye` 在定义上永远看不见空气 ⇒
+   `no_valid_standing_point` ⇒ `no_reachable_standing_point` ⇒ `abandonSpur`。
+   ⇒ **建议把 `1.4j①` 的单格口径提前到片 B 开头**（一行谓词换掉 3/3 弃巷；决策权仍在用户）。
+2. **矿/掉落物 = 三条互不相同的路径**：`ore_budget_exhausted` 丢弃 8（= 裁定 6 待修）· `ore_deferred` 硬丢 2 ·
+   18 条 `retire`（21+ 件）根因 = **离心 ~0.49 击穿拾取模型**（`goal_excluded` 逐字）。
+3. **向下挖不掉下去 = 缺 Baritone 的那一支**：静止容忍度 `0.3` **= AABB 半宽** ⇒ AABB 压进邻列 0.095/0.03 ⇒
+   `onGround=true` 永不下落；`DownwardExecution.java:112-113` 只 `stopMovement()`（`forward=0.00`），
+   缺 `MovementDownward.java:86-94` 的「偏移 ≥ 0.2 ⇒ `moveTowards` 朝格中心走」。
+   ⚠️ **与 `D-376`（`forward=1.00`，被第三层挡住）不是同一类**，修法不同、必须分开记账。

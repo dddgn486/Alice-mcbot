@@ -746,36 +746,48 @@ public final class FishboneSlice2CheckTask implements Task {
      * ⇒ **必须判"大矿洞"**（产品裁定：放弃，不是一格一格架桥过去）。
      *
      * <p>判据用**生产同一个出处**的 `FishboneJob.floorWithinLookahead`（static，夹具直接判几何），
-     * 三段对照（每一段都在**同一列**上临时掏/补地板）：
+     * 三段对照（都在**同一列**上临时改地板，判完**原样还原**）：
      * <ol>
-     *   <li>地板完好 ⇒ **有地板**（正对照）；</li>
-     *   <li>连续掏空 `maxGapLength + 2` 格 ⇒ **看不到地板**（= 必须放弃）；</li>
-     *   <li>同一处境、窗口放大到 `maxGapLength + 8` ⇒ **又能看到**（= `C8` 原红臂「上限调成无限搭」的等价物）。</li>
+     *   <li>地板铺满 ⇒ **有地板**（正对照）；</li>
+     *   <li>连续掏空 `0..maxGapLength` ⇒ **看不到地板**（= 必须放弃）；</li>
+     *   <li>同一处境在 `d = maxGapLength + 2` 处补一格 ⇒ 窗口放大到 `maxGapLength + 4` **又能看到**
+     *       （= `C8` 原红臂「上限调成无限搭」的等价物）。</li>
      * </ol>
+     *
+     * <p>⚠️ **地板由本判据自己铺**（不借场景实心盒的地板）：2026-09-25 把 `maxGapLength` 默认 4 → 8
+     * 之后，"借场景"的写法第 ③ 段要问 `d = window + 4 = 12`（= `ORIGIN.x + 13`），而场景盒只到
+     * `dx = MAIN_LENGTH + 3 = 9` ⇒ `wideWindowFound = false` ⇒ **判据红、而生产代码没坏**。
+     * 判据不许被场景尺寸绑架（`D-391` 三-2：先补读数，别猜）。
      */
     private void cavernChecks(ServerLevel level) {
         BlockPos foot = ORIGIN.relative(DIR, 1);
         int window = maxGapLengthForCheck();
+        int wideWindow = window + 4;
         List<BlockPos> touched = new ArrayList<>();
         List<BlockState> before = new ArrayList<>();
-        for (int d = 0; d <= window + 2; d++) {
+        for (int d = 0; d <= wideWindow + 1; d++) {         // 覆盖两段要问到的每一列
             BlockPos floorCell = foot.relative(DIR, d).below();
             touched.add(floorCell);
             before.add(level.getBlockState(floorCell));
         }
 
+        for (BlockPos cell : touched) {                     // ① 铺满地板 ⇒ 正对照
+            level.setBlock(cell, Blocks.STONE.defaultBlockState(), 3);
+        }
         boolean intactFound = FishboneJob.floorWithinLookahead(level, foot, DIR, window);
 
-        for (BlockPos cell : touched) {
-            level.setBlock(cell, Blocks.AIR.defaultBlockState(), 3);
+        for (int d = 0; d <= window; d++) {                 // ② 全掏空 ⇒ 必须看不到地板
+            level.setBlock(foot.relative(DIR, d).below(), Blocks.AIR.defaultBlockState(), 3);
         }
         boolean voidMissing = FishboneJob.floorWithinLookahead(level, foot, DIR, window);
-        boolean wideWindowFound = FishboneJob.floorWithinLookahead(level, foot, DIR, window + 4);
+        level.setBlock(foot.relative(DIR, window + 2).below(), Blocks.STONE.defaultBlockState(), 3);
+        boolean wideWindowFound = FishboneJob.floorWithinLookahead(level, foot, DIR, wideWindow);
 
         check("⭐片 A②（`C8` / `D-443` 1b）**单段悬空上限**：地板完好 ⇒ 有地板（实测 "
-                        + intactFound + "）；连续掏空 " + (window + 2) + " 格地板后，窗口 " + window
+                        + intactFound + "）；连续掏空 " + (window + 1) + " 格地板后，窗口 " + window
                         + " ⇒ **看不到地板**（实测 " + !voidMissing + "，必须放弃）；"
-                        + "同一处境把窗口放大到 " + (window + 8) + " ⇒ 又能看到（实测 " + wideWindowFound
+                        + "同一处境在 d=" + (window + 2) + " 处补一格、窗口放大到 " + wideWindow
+                        + " ⇒ 又能看到（实测 " + wideWindowFound
                         + "）（`C8` 原红臂 =「把上限调成无限搭」）",
                 intactFound && !voidMissing && wideWindowFound);
 

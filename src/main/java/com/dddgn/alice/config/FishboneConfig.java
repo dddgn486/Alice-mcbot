@@ -84,9 +84,14 @@ public final class FishboneConfig {
      * 判 `big_cavern_ahead` ⇒ **如实放弃**，而不是一格一格把桥搭过去。
      *
      * <p>为什么要有它：`C8` 的红臂原文就是「把上限调成"无限搭" ⇒ 立刻红」—— 大矿洞的产品答案是
-     * **放弃**（§10.3），不是"用移动能力硬救"。默认 4 = 计划值。
+     * **放弃**（§10.3），不是"用移动能力硬救"。计划值 4 格（§10.3：「能看见对岸、搭得过去」的量级）。
+     *
+     * <p>⚠️ **2026-09-25 用户裁定：默认 4 → 8（翻倍）**（原话「我设的有点草率了」）。代价**如实记在这里**：
+     * 窗口翻倍 ⇒ 更宽的悬空会被判成"搭得过去" ⇒ 失败理由会从 `big_cavern_ahead` **移向**
+     * `bridge_budget_exhausted`（单段最多多消耗 4 块，而累计额度只有 `max(16, 单元数/10)`）。
+     * 复核触发：真机出现"一格一格把桥搭过去"，或 `bridge_budget_exhausted` 变成主要失败理由 ⇒ 回调。
      */
-    public static final int DEFAULT_MAX_GAP_LENGTH = 4;
+    public static final int DEFAULT_MAX_GAP_LENGTH = 8;
 
     /**
      * **本次作业累计搭路上限**（`C8` 的第二条 + `A14` 的额度，`D-443` 裁定 7a）。
