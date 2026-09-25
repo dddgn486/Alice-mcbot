@@ -19404,3 +19404,62 @@ CORE 的搜索最大只 4–5 ms（`P2` 备忘记过），而真机那三次 `Ca
 `JunkPolicy` 满包处置 / 搭一格地板（`main_floor_missing` 那条路径：本片场景**地板是实心的** ⇒ 未走到）/
 零参数真机入口（`alice:fishbone_job`，= 切片 3）/ 表单与生产入口（= 切片 4）。
 ⇒ **`J-1.1` 的"看得见的推进"目前只有无头日志**；真机观感要等切片 3 + `J-1.5` 客户端验收轮。
+
+---
+
+### D-434：`P4″` = **关账**（判据① 已被 `D-388` 提前满足）+ 新登记 **`P1-d`**（`PARTIAL` 未被当作「本轮没评价完」）（2026-09-25 用户拍板 + 实测）
+
+📋 **用户裁定原话**：「R1：关账 —— 判据①已被 `D-388` 提前满足」（回答"`D-431 §二` 判据① 的主语在生产侧不存在 ⇒ `P4″` 怎么处置"）。
+
+#### 一、裁了什么：`P4″` 的**字面动作在生产侧没有对象**
+
+- 逐点核实（2026-09-25）：生产侧 **零个** `SearchBudget` 的 `maxMillis == 0` 调用点 ——
+  `PathRequest.WALK_BUDGET = SearchBudget.of(20000, **50**)`（被 `of` / `withWorldModification` / **`miningApproach`** 三个工厂共用）、
+  逃生 `survivalEscape = (4000, 100)`、维生预检 `isPlannable = (…, 20)`；**`SearchBudget.UNLIMITED` 在生产侧 0 命中**
+  （仅 `PartialSearchCheckTask` 等夹具使用）。
+- `D-388`（2026-09-22）已把 `CorePathPlanner.DEFAULT_MAX_MILLIS: 200 → 50`（= 一个 tick 的量级）并配门禁
+  `SEARCH_BUDGET_CEILING_MILLIS ≤ 60` ⇒ **`D-431 §二.1` 的判据①（「台架 `LEGACY` 格在生产形态下退到 ≤50 ms/次」）
+  由 `D-388` 提前满足**；`D-431 §一` 括注里的"今天进入生产的是挖矿候选那条链，`maxMillis = 0` 那一档"
+  **是一个已过期的认识**（挖矿候选链走的正是 `miningApproach` ⇒ 已经 50 ms）。
+- `D-431` 的其余两条**照旧成立**：**不动毫秒兜底轴**（`DEFAULT_MAX_MILLIS_PER_TICK` 保持 400）、
+  判据必须区分「单次搜索时长」与「一 tick 能塞几次」两把轴。
+- 台架 `tick_budget_bench` 的 `LEGACY` 负载（`SearchBudget.of(20000, 0L)`）**是历史形态的对照臂**，
+  **不是**生产形态 ⇒ **保留**（它是"闸门关掉会长什么样"的唯一可复现读数），但**不再充当任何判据的主语**。
+
+#### 二、⭐ 但那个症状还在 —— 把 ≈198 ms/轮 拆开（`SERVER_TESTED`）
+
+全文 = `docs/reviews/2026-09-25-mine循环198ms拆解.md`。数据 = 09-24 真机 `latest.log`
+（`/mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10/logs/`，**零新增数据生成**）
+
+| 读数 | 值 |
+|---|---|
+| `[Job] step` 窗口 | 50.2 s |
+| 撞**各自 50 ms 上限**的搜索 | **502 次** ⇒ 合计 **≥25.1 s = 窗口的 50%** |
+| mine 循环迭代（`SCAN`→`SCAN` 中位） | **222 ms** |
+| 每次 `phase=MINE` 的撞限搜索数 | **≈4.4**（`planDirect` 1 + `planTunnel` `planned=3`） |
+| `mode=TUNNEL … planned=3 capped=true` | **123 / 123 次** |
+| `本 tick 搜索预算已用尽`（A1 的 400 ms 闸门） | **0 次**（4×50=200 **<** 400 ⇒ 算术上没机会触发） |
+
+⇒ **≈200 ms/轮 = 4 次各自烧满 50 ms 的搜索**（**不是**"单次搜索无上限"）。
+⚠️ **修正** `docs/reviews/2026-09-24-客户端卡顿根因分析.md §三` 的表述（那里写"耗时在**每轮附带的那次**规划/搜索"）
+—— 实测是**每轮四次**。
+
+#### 三、新登记 `P1-d`（`D-387` 家族；**待裁，不得自动落地**）
+
+- **机制**：撞限的 502 次搜索里 **480 次返回 `PARTIAL`**（预算耗尽但有 best-so-far 前缀）、22 次 `SEARCH_LIMIT`
+  （480+22=502 精确闭合）。而 `MiningPlanner` **三条腿只认 `SEARCH_LIMIT`**
+  （`:322` `selectBestApproach`、`:222` `planTunnel`、`:235` `planEnterTarget`，`exactTopK` 同形）
+  ⇒ `PARTIAL` 落到 `planned++` + `!reached()` ⇒ 报 `no_reachable` ⇒ 整体 **`found_but_unminable`（永久性理由）**。
+- **同族先例**：与 `P1-b`（`D-387 §二`）**逐字同形** —— 那次只修了 `SEARCH_LIMIT`，**`PARTIAL` 是同一个洞的出口**。
+- **后果**：`MineJob` 的 `SEARCH_LIMIT_COOLDOWN_TICKS = 40` 与 `MAX_CONSECUTIVE_SEARCH_LIMITED = 8`
+  **只认 `search_incomplete`**（`:171`）⇒ 实测结局计数 **`found_but_unminable` 307 : `search_incomplete` 87**
+  ⇒ 每 tick 重烧一批注定报"永久理由"的候选，而不是"烧一次 → 冷却 40 tick"。
+- **三条路径**（用户本轮**未选**）：**A** 修 `PARTIAL` 归因（不动任何常量；离线夹具先红后绿）；
+  **B** 给挖矿候选链加聚合时间上限（= `P4″` 的机制读法，新内核机制）；**C** 收紧毫秒轴 400→60（= `D-431` 已否）。
+  ⇒ 全文 §四/§五（含我推荐 A 的理由与"渲染/GC/OS 干扰未排除"三条边界）。
+
+#### 四、复核触发
+
+1. 生产日志 `found_but_unminable` 明显多于 `search_incomplete`（当前 **307 : 87**）⇒ `P1-d` 仍在；
+2. 出现 `本 tick 搜索预算已用尽` ⇒ 单 tick 搜索数已 ≥ 8 ⇒ §二的算术前提变了，需重算；
+3. `D-388` 的 `SEARCH_BUDGET_CEILING_MILLIS` 门禁被放宽 / 重新出现无时间上限的消费者 ⇒ 回到 `P4″` 的前提重评。
