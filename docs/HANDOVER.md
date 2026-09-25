@@ -945,3 +945,50 @@ bash tools/dsh-context-usage.sh                       # 上下文线（只报一
    （本机 Gradle 取 `1.+` 动态版本会因网络失败；脚本已有这个开关，忘了设就会在"构建 Alice 工件"处红）。
 3. ⚠️ **日志字符串里别用 `§`**（Minecraft 格式化码前缀，实测 `§10.2` 被吃成 `0.2`）—— 同"直引号"那条纪律。
 4. ⚠️ **`PathRetryRunner` 只吃 `BotPlayer`**（不是 `ServerPlayer`）⇒ 作业类持 `BotPlayer`。
+
+# 断点⑨（2026-09-25 上午）：`P1-d` 真机已验 + 切片 2 **第一步（支巷几何）** 落地 —— 下一项 = 切片 2 第二步（行为臂）
+
+> **为什么在这里断**：① 上下文接近自动压缩线；② `P1-d`（`a0718cb`/`b7eb7a2`/`eaf2075`/`4840f7c`）与
+> 切片 2 第一步（本提交）都是**已验、可独立成立**的增量；③ 下一件（`FishboneJob` 的支巷实挖 + 顺手挖 + 收集）
+> 是**大件**（计划 §3 的 `SPUR`/`IN_PLACE`/`COLLECT` 三个相位 + 夹具 + CORE diff）⇒ 适合在干净窗口里做。
+
+## 1. 收工状态（逐条可核）
+
+| 项 | 值 |
+|---|---|
+| 本轮交付 | **`P1-d`**（`MiningPlanner` 的 `PARTIAL` 归因 + 两处掩蔽点 + 夹具臂 + 门禁）+ **`FishboneTemplate` 支巷几何** + 纯几何判据 14 条 |
+| 裁定/记录 | `D-434`（`P4″` 关账 + 登记 `P1-d`）· `D-435`（`P1-d` 落地 + **真机复验 §七**）· `D-436`（`J-1.2` 定档 + 切片 2 第一步）；台账 `P1-d` ✅、`P4″` ✅关账、新增 `P4-深矿`（⏸ 待裁）、`1.2` ✅、`1.4a` ✅ |
+| `P1-d` 真机读数 | 撞限搜索 **144 次全 `PARTIAL`**（基线 480:22）· `found_but_unminable` **307→0** · `attempted` **50→0** · `failed` 58→8 · 运行期 `Can't keep up` **2→0** |
+| 切片 2 第一步 | 绿 **`checks=42 failures=0`**；红臂（`LEFT`/`RIGHT` 互换）**`failures=4`**（正好 4 条顺序/侧向判据） |
+| 门禁 | `check-all` = `pass=22 warning=1 failed=0`；`kernel-predicates` 六条注入臂全红 |
+| 工件 | jar 已同步客户端（`sha256=7d58d33f…` 那一版；**支巷几何之后又改过源码 ⇒ 下次客户端轮前要重新 build+sync**） |
+
+## 2. 下一轮的固定顺序
+
+```
+① 切片 2 第二步【1 轮】：FishboneJob 的 SPUR（开出去 → 挖到端点 → 原路退回主巷）+ IN_PLACE（露头矿顺手挖）
+                          + COLLECT（半径从模板推导；`C2`）；判据 C1(含支巷)/C2/C5 + CORE 逐步 diff
+①′ 夹具：**自建带实心地板的新场景**（`D-436` §一；不动 `mine_vein_propagation`）
+② 切片 3【1 轮】：零参数真机入口 `alice:fishbone_job` + `[Fishbone]` 结构化日志（计划 §8）
+③ J-1.5【1 客户端轮】：真机鱼骨验收（只做鱼骨）
+④ 待裁：`P4-深矿`（50 ms 是否太紧 ⇒ 临时 200 的对照轮）
+```
+
+## 3. 本轮新踩的坑（别重踩）
+
+1. ⭐ **判据会被"另一处同名子串"满足**（今天第三次同类）：`P1-d` 的门禁第一版写成"仓库里有没有
+   `SEARCH_INCOMPLETE.equals(direct.failureReason())`" —— 而**聚合闸门里也有一份** ⇒ 回退 `standableOnly`
+   掩蔽点**照样 PASS**（注入臂 B 实测没红）。改成**位置化**判据（`if (standableOnly) {` 之后、
+   第一个 `no_reachable_standing_point` 之前必须出现）才咬住。同族：`PL-1`（正则跨步边界）、`D-425`⑤（只咬名字）。
+2. ⚠️ **中文文本里的 ASCII 直引号**今天踩了**两次**（Java 字符串字面量一次、Python heredoc 字符串一次）
+   ⇒ 一律用 `「」`。
+3. ⚠️ **夹具场景必须孤立**（skill `alice-scene-based-testing` 的**强制**纪律）：`PARTIAL` 臂第一版离
+   `TickBudgetBenchTask` 的基岩壳只有 **3 格** ⇒ 已挪到隔 **41 格**（仍出 `PARTIAL nodes=224 前缀=3`）。
+4. ⚠️ **深部场景要整场落在单一已加载区块内、且离区块边界 ≥ 4 格**：`AStarMovementSearch:161` 的读脚印闸门
+   （`D-337`）查的是**当前节点半径 3 的读脚印** ⇒ 平台西缘落在未加载区块 = 起点**一格都扩不出去**
+   （`boundary_unloaded blocked_nodes=1`、前缀为空 ⇒ 探针返 `SEARCH_LIMIT` 而不是 `PARTIAL`）。
+5. ⚠️ **成本场一个人就能撑爆每 tick 的搜索账**：`StandingCostEstimator` 经 `SearchTickBudget.recordExternal`
+   实测记入 **489 ms**（> 400 上限）⇒ 该 tick **之后所有搜索全被 A1 拒**（`searches=0 refused=9`）。
+   测"搜索跑完的归因"必须临时 `setLimits(0,0,0)` 关掉三条轴（测闸门是 BURN 臂的事）。
+6. ⚠️ **`mined`/`breaks` 别用 `block_break_done` 去 grep**（两份真机日志里都是 0 ⇒ 那是错的字符串，
+   真正要看 `[Job] terminal … breaks=N` / `MineSurvey SUMMARY`）。

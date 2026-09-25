@@ -236,6 +236,10 @@ public final class FishboneSlice1CheckTask implements Task {
         bot.controller().stopMovement();
 
         template = FishboneTemplate.main(startFoot, DIR, MAIN_LENGTH);
+        // ⭐ 切片 2 第一步（支巷几何）的纯几何判据：只在第一个臂跑一次（它不读世界、与臂无关）
+        if (armIndex == 0) {
+            spurGeometryChecks();
+        }
 
         // ⭐ 前提自断言（§6.9.1）：场景没落地 ⇒ 后面所有判据都不可解读 ⇒ 当场记失败，不当缺陷证据
         boolean sceneOk = arm == Arm.START_SEALED
@@ -590,6 +594,85 @@ public final class FishboneSlice1CheckTask implements Task {
     }
 
     // ==================== 工具 ====================
+
+    /**
+     * ⭐ **切片 2 第一步（支巷几何）的纯几何判据**（`D-386` 计划 §2/§3；判据 `C1`/`C5` 的**基准**）。
+     *
+     * <p>为什么单独钉这一层：`FishboneTemplate.cells()` / `unitFoots()` 是 `C1`（模板 = 事实）与
+     * `C5`（白名单）的**基准** —— 它一漂，后面所有行为判据都跟着漂。所以它自己必须能被红
+     * （`D-425` ⑤：只咬方法名/字面量的判据，恒真也能过 ⇒ 这里断言**逐个坐标**的期望表）。
+     *
+     * <p>期望值**独立算出**（手算的坐标表），不是从实现里抄的。
+     */
+    private void spurGeometryChecks() {
+        // 主巷 6、间距 2 ⇒ 支巷位置 i = 2, 4, 6（3 条）；每条 2 格；LEFT（EAST 的逆时针 = NORTH）
+        FishboneTemplate sp = FishboneTemplate.spurs(ORIGIN, Direction.EAST, 6, 2, 2,
+                FishboneTemplate.SpurSide.LEFT);
+        BlockPos f1 = ORIGIN.relative(Direction.EAST, 1);
+        BlockPos f2 = ORIGIN.relative(Direction.EAST, 2);
+        BlockPos f4 = ORIGIN.relative(Direction.EAST, 4);
+        BlockPos f6 = ORIGIN.relative(Direction.EAST, 6);
+
+        check("几何：支巷条数 == mainLength / spurSpacing（6/2 ⇒ 3，实测 " + sp.spurCount() + "）",
+                sp.spurCount() == 3);
+        check("几何：推进单元数 == 主巷 6 + 支巷 3×(1 侧)×2 格 = 12（实测 " + sp.advanceCells() + "）",
+                sp.advanceCells() == 12);
+        check("几何：模板格数 == 单元数 × 净高 = 12×2 = 24（实测 " + sp.cells().size() + "）",
+                sp.cells().size() == 24);
+        check("几何：cellSet 无重复（主巷与支巷正交 ⇒ 本几何不该有重叠；实测 "
+                        + sp.cellSet().size() + " vs " + sp.cells().size() + "）",
+                sp.cellSet().size() == sp.cells().size());
+
+        // ⭐ 顺序：支巷**插在它分叉出去的那个主巷单元之后**（"开出去 → 挖到端点 → 原路退回"）
+        List<BlockPos> u = sp.unitFoots();
+        check("几何：单元序列 = [主巷1, 主巷2, 支巷(2)+1N, 支巷(2)+2N, 主巷3, …]（逐格坐标比对）",
+                u.get(0).equals(f1) && u.get(1).equals(f2)
+                        && u.get(2).equals(f2.north()) && u.get(3).equals(f2.north(2))
+                        && u.get(4).equals(ORIGIN.relative(Direction.EAST, 3)));
+        check("几何：第 2 条支巷挂在第 4 个主巷单元之后（i=4 ⇒ 索引 6 起）",
+                u.get(5).equals(f4) && u.get(6).equals(f4.north()) && u.get(7).equals(f4.north(2)));
+        check("几何：最后一条支巷挂在第 6 个主巷单元之后（i=mainLength 也开）",
+                u.get(10).equals(f6.north()) && u.get(11).equals(f6.north(2)));
+
+        // ⭐ 侧向：ALTERNATE 必须真的交替（奇数条 LEFT=逆时针，偶数条 RIGHT=顺时针）
+        FishboneTemplate alt = FishboneTemplate.spurs(ORIGIN, Direction.EAST, 6, 2, 2,
+                FishboneTemplate.SpurSide.ALTERNATE);
+        List<BlockPos> a = alt.unitFoots();
+        check("几何：ALTERNATE 第 1 条朝 LEFT（EAST 的逆时针 = NORTH），第 2 条朝 RIGHT（= SOUTH）",
+                a.get(2).equals(f2.north()) && a.get(6).equals(f4.south()));
+
+        // ⭐ BOTH：两侧都开 ⇒ 单元数翻倍
+        FishboneTemplate both = FishboneTemplate.spurs(ORIGIN, Direction.EAST, 6, 2, 2,
+                FishboneTemplate.SpurSide.BOTH);
+        check("几何：BOTH 单元数 == 6 + 3×2 侧×2 格 = 18（实测 " + both.advanceCells() + "）",
+                both.advanceCells() == 18);
+
+        // ⭐ 作用域半径必须把支巷算进去（否则支巷的掉落物落在作用域外 ⇒ `C2` 永不成立，`D-346` 的教训）
+        check("几何：scopeRadius == mainLength + spurLength + 2 == 10（实测 " + sp.scopeRadius() + "）",
+                sp.scopeRadius() == 10);
+
+        // ⭐ 向后兼容：`spurSpacing = 0` 必须**逐字**等于切片 1 的展开（主巷 only）
+        FishboneTemplate plain = FishboneTemplate.main(ORIGIN, Direction.EAST, 6);
+        check("几何：spurSpacing=0（切片 1 口径）⇒ 无支巷、单元数 == 6、格数 == 12",
+                !plain.hasSpurs() && plain.advanceCells() == 6 && plain.cells().size() == 12);
+        check("几何：spurSpacing=0 的 scopeRadius == 8（不含 spurLength）", plain.scopeRadius() == 8);
+
+        // ⭐ 合法域：非法即**拒绝**而不是夹取（夹取会把"要 20 格"静默变成"挖了 3 格"）
+        boolean rejectedSpacing = false;
+        boolean rejectedLength = false;
+        try {
+            FishboneTemplate.spurs(ORIGIN, Direction.EAST, 6, 1, 2, FishboneTemplate.SpurSide.LEFT);
+        } catch (IllegalArgumentException expected) {
+            rejectedSpacing = true;
+        }
+        try {
+            FishboneTemplate.spurs(ORIGIN, Direction.EAST, 6, 2, 0, FishboneTemplate.SpurSide.LEFT);
+        } catch (IllegalArgumentException expected) {
+            rejectedLength = true;
+        }
+        check("几何：spurSpacing=1 必须抛（会把相邻支巷塌成大厅）", rejectedSpacing);
+        check("几何：spurLength=0 必须抛", rejectedLength);
+    }
 
     private void check(String name, boolean ok) {
         checks++;
