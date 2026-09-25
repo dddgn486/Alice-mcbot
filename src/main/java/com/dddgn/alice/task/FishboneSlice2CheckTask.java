@@ -107,6 +107,18 @@ public final class FishboneSlice2CheckTask implements Task {
      * 所以矿脉放南侧，才可能是"**只有追簇才会挖到**"的格。
      */
     private static final Direction VEIN_SIDE = Direction.SOUTH;
+    /** 臂④的**地板矿脉**占哪几格支巷（`LEFT`=北侧那条；支巷长 3 ⇒ 取第 2、3 格）。 */
+    private static final int[] FLOOR_VEIN_STEPS = {1, 2};
+    /**
+     * 地板矿脉的**深度**（格）。
+     *
+     * <p>⚠️ **本臂只钉 1 格**：2 格深会踩到一条**物理边界**（已单独登记，见 `D-440 §边界`）——
+     * 挖掘器的模式 A **拒绝把"正在挖的那一格本身"当站位**（那是 `DOWNWARD` 的语义），
+     * 所以矿脉最底那一格**本来就挖不掉**（`ore_deferred:no_reachable_standing_point`），
+     * 且坑里那颗掉落物可能收不回来（终态 `product_not_collected`）。
+     * 那条边界要用户拍板"要不要允许挖脚下 / 要不要把'坑里够不着'降级为如实上报"。
+     */
+    private static final int FLOOR_VEIN_DEPTH = 1;
 
     /** 整盒边界（建场景 / 期望表 / 断言**共用**）。 */
     private static final int BOX_MIN_DX = -2;
@@ -154,6 +166,8 @@ public final class FishboneSlice2CheckTask implements Task {
     private int auditBefore;
     private int auditDeltaBreaks;
     private int auditOutsideExpected;
+    private int auditDeltaPlaces;
+    private int auditOutsidePlaces;
     private int worldDiff;
     private int ticksPerAdvance;
     private int productsBefore;
@@ -245,12 +259,42 @@ public final class FishboneSlice2CheckTask implements Task {
      * 掉落物永远捡不回）。这条不是"为夹具方便"，而是**真机上也成立**的约束。
      */
     private Set<BlockPos> veinCells() {
+        Set<BlockPos> out = new LinkedHashSet<>(sideVeinCells());
+        out.addAll(floorVeinCells());
+        return out;
+    }
+
+    /** 臂④的**侧壁矿脉**（南侧，主巷单元 3 的壁上）。 */
+    private Set<BlockPos> sideVeinCells() {
         BlockPos junction = ORIGIN.relative(DIR, VEIN_UNIT);
         Set<BlockPos> out = new LinkedHashSet<>();
         for (int d = 1; d <= VEIN_DEPTH; d++) {
             out.add(junction.relative(VEIN_SIDE, d));
             if (d <= 2) {
                 out.add(junction.relative(VEIN_SIDE, d).above(1));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * ⭐ 臂④的**地板矿脉**（2026-09-25 真机那一例的忠实复现）：矿簇**就在支巷的地板里**
+     * （第 {@link #FLOOR_VEIN_STEPS} 格的**正下方**那一格）。
+     *
+     * <p>真机证据：`cell unit=49/404 cell=2/2 target=-68, 47, 202 spur=west14` ⇒
+     * `[MiningPlanner探针] no_valid_standing_point faceStandable=0/6 belowSolid=false` ⇒
+     * `spur_abandoned:no_reachable_standing_point`（用户原话：「只是因为挖矿簇往下挖了两格，就把支巷放弃了」）。
+     * 修法不是"别挖地板"，而是**让规划器补一块再走**（`PLACE_STEP_AND_TRAVERSE`，`D-440`）。
+     */
+    private Set<BlockPos> floorVeinCells() {
+        BlockPos junction = ORIGIN.relative(DIR, VEIN_UNIT);
+        Set<BlockPos> out = new LinkedHashSet<>();
+        for (int step : FLOOR_VEIN_STEPS) {
+            // ⚠️ **两格深**（用户原话：「只是因为挖矿簇往下挖了两格，就把支巷放弃了」）：
+            // 只挖掉 1 格时 bot 站在洞里还能斜向上够到下一格（夹具实测：纯通行也照样跑完 ⇒ 判据不够硬）；
+            // 挖掉 2 格之后它在头位格下方 3 格 ⇒ **没有任何可站格** ⇒ 复现真机的 `no_valid_standing_point`。
+            for (int down = 1; down <= FLOOR_VEIN_DEPTH; down++) {
+                out.add(junction.relative(Direction.NORTH, step).below(down));
             }
         }
         return out;
@@ -283,7 +327,35 @@ public final class FishboneSlice2CheckTask implements Task {
             }
         }
         if (arm == Arm.ORE_VEIN_CHASE) {
-            out.addAll(veinCells());
+            out.addAll(sideVeinCells());
+        }
+        return out;
+    }
+
+    /**
+     * 臂④的**地板矿脉格**：期望 = **空气或圆石**（`PLACE_STEP_AND_TRAVERSE` 补回来的就是它）。
+     *
+     * <p>为什么两头都接受：补不补取决于"bot 之后还要不要走这一格"—— 要考的是
+     * **"矿必须没了"**（不是"必须补"）＋ 另一条独立判据 `placements >= 1` 专门考"补路真的发生了"。
+     * 把两件事压成一条，会让"没补路"和"没挖矿"看起来一模一样。
+     */
+    private Set<BlockPos> floorVeinCells(Arm arm) {
+        return arm == Arm.ORE_VEIN_CHASE ? floorVeinCells() : Set.of();
+    }
+
+    /**
+     * `C5` 的**放置**白名单 = 破坏白名单 ∪ 「它们的正下方」。
+     *
+     * <p>口径（为什么这样定）：`PLACE_STEP_AND_TRAVERSE` 的放置位置**就是目标格的正下方**
+     * （`to.below()`），所以"只允许在**我们本来就有权碰的格**的下方补" 是一句可检验的强话 ——
+     * 它挡住了"沿路随便乱垫"（那会让 bot 有能力把石头垫到任何地方）。
+     */
+    private Set<BlockPos> placementWhitelist(Arm arm) {
+        Set<BlockPos> out = new LinkedHashSet<>();
+        for (BlockPos p : writeWhitelist(arm)) {
+            out.add(p);
+            out.add(p.below());
+            out.add(p.below(2));
         }
         return out;
     }
@@ -418,14 +490,22 @@ public final class FishboneSlice2CheckTask implements Task {
         List<WriteAudit.Entry> audit = WriteAudit.snapshot();
         auditDeltaBreaks = 0;
         auditOutsideExpected = 0;
+        auditDeltaPlaces = 0;
+        auditOutsidePlaces = 0;
+        Set<BlockPos> placeAllowed = placementWhitelist(ARMS[armIndex]);
         for (int i = auditBefore; i < audit.size(); i++) {
             WriteAudit.Entry entry = audit.get(i);
-            if (!"break".equals(entry.action())) {
-                continue;
-            }
-            auditDeltaBreaks++;
-            if (!allowed.contains(entry.pos())) {
-                auditOutsideExpected++;
+            if ("break".equals(entry.action())) {
+                auditDeltaBreaks++;
+                if (!allowed.contains(entry.pos())) {
+                    auditOutsideExpected++;
+                }
+            } else if ("place".equals(entry.action())
+                    && FishboneJob.isOurs(entry.grant().requester())) {
+                auditDeltaPlaces++;
+                if (!placeAllowed.contains(entry.pos())) {
+                    auditOutsidePlaces++;
+                }
             }
         }
         ticksPerAdvance = job.advancedUnits() == 0 ? -1 : job.elapsedTicks() / job.advancedUnits();
@@ -433,12 +513,14 @@ public final class FishboneSlice2CheckTask implements Task {
                         + " spursAbandoned={} spurUnitsSkipped={} spurReturns={} scanned={}"
                         + " oreMined={} oreFound={} oreDeferred={} oreUncollected={} budgetExhausted={}"
                         + " oreWalkedAway={} collectedProducts={}"
-                        + " auditBreaks={} auditOutsideExpected={} scale={} ticksPerAdvance={}",
+                        + " auditBreaks={} auditOutsideExpected={} places={} placesOutside={}"
+                        + " scale={} ticksPerAdvance={}",
                 ARMS[armIndex], armVerdict, status, job.elapsedTicks(), job.advancedUnits(), job.unitCount(),
                 job.minedCells(), job.skippedCells(), job.spursAbandoned(), job.spurUnitsSkipped(),
                 job.spurReturns(), job.scannedUnits(), job.oreMined(), job.oreFound(), job.oreDeferred(),
                 job.oreUncollected(), job.oreBudgetExhausted(),
                 job.oreWalkedAway(), job.collectedProducts(), auditDeltaBreaks, auditOutsideExpected,
+                auditDeltaPlaces, auditOutsidePlaces,
                 scaleDelta.describe(), ticksPerAdvance);
         phase = Phase.ASSERT;
         return Task.Status.RUNNING;
@@ -622,10 +704,17 @@ public final class FishboneSlice2CheckTask implements Task {
      */
     private void assertVeinChase(ServerLevel level) {
         Set<BlockPos> vein = veinCells();
-        long air = vein.stream().filter(pos -> level.getBlockState(pos).isAir()).count();
-        check("④ ⭐**矿脉整簇挖干净**（" + air + "/" + vein.size() + " 格为空气）—— 才是对"
-                        + "「洞壁和洞顶没有完全挖完」的正面回答",
-                air == vein.size());
+        Set<BlockPos> floorVeinCellsSet = floorVeinCells();
+        // ⚠️ 地板那几格的期望是**空气或圆石**：补路用的是 `PILLAR`（在脚下放一块）⇒ 它变圆石。
+        // 这条判据问的是"**矿还在不在**"，"补没补"由下面独立的 `places >= 1` 判据承担。
+        long resolved = vein.stream()
+                .filter(pos -> level.getBlockState(pos).isAir()
+                        || (floorVeinCellsSet.contains(pos)
+                                && level.getBlockState(pos).is(Blocks.COBBLESTONE)))
+                .count();
+        check("④ ⭐**矿脉整簇挖干净**（" + resolved + "/" + vein.size() + " 格已不再是矿：空气或补回的圆石）"
+                        + " —— 才是对「洞壁和洞顶没有完全挖完」的正面回答",
+                resolved == vein.size());
         check("④ ⭐破坏账 = 世界改动：`oreMined=" + job.oreMined() + "` == 矿脉 " + vein.size()
                         + " 格（破坏那一刻记账，不是「收集段成功了几次」）",
                 job.oreMined() == vein.size());
@@ -648,6 +737,28 @@ public final class FishboneSlice2CheckTask implements Task {
                         + "（不读任务自报值）", gained >= vein.size());
         check("④ 终态 = `template_complete`（实际 " + armVerdict + "）",
                 FishboneJob.TEMPLATE_COMPLETE.equals(armVerdict));
+        // ⭐⭐ 切片 5（`D-440`）的核心：**地板是矿簇**也不能把支巷搞死
+        long floorLeft = floorVeinCells().stream().filter(pos -> level.getBlockState(pos).is(Blocks.IRON_ORE))
+                .count();
+        check("④ ⭐⭐**地板里的矿簇也被挖掉**（" + (floorVeinCells().size() - floorLeft) + "/"
+                        + floorVeinCells().size() + " 格不再是铁矿）—— 真机那一例就是它把支巷搞死的",
+                floorLeft == 0);
+        long spurAir = templateFor(Arm.ORE_VEIN_CHASE).units().stream()
+                .filter(u -> u.isSpur() && u.mainUnit() == VEIN_UNIT && u.spurDir() == Direction.NORTH)
+                .flatMap(u -> java.util.stream.IntStream.range(0, HEIGHT).mapToObj(dy -> u.foot().above(dy)))
+                .filter(pos -> level.getBlockState(pos).isAir()).count();
+        check("④ ⭐⭐**支巷照常挖到底**（" + spurAir + "/"
+                        + (templateFor(Arm.ORE_VEIN_CHASE).spurLength() * HEIGHT)
+                        + " 格为空气）—— 而真机里它在第 14 格被放弃了",
+                spurAir == templateFor(Arm.ORE_VEIN_CHASE).spurLength() * HEIGHT);
+        check("④ ⭐⭐`spursAbandoned=" + job.spursAbandoned() + "` == 0（**一条支巷都不该被放弃** —— "
+                        + "这正是本轮要修的东西）", job.spursAbandoned() == 0);
+        check("④ ⭐**补路真的发生了**：`places=" + auditDeltaPlaces + "` ≥ 1"
+                        + "（`PILLAR` 跳起在脚下补一块 / `PLACE_STEP_AND_TRAVERSE` 在目标格下方补一块）"
+                        + " —— 真机实测走的是 `[Pillar] placed pos=3763,79,2397`（即被挖掉的那格地板）",
+                auditDeltaPlaces >= 1);
+        check("④ ⭐**补路只补在允许的位置**（白名单外 " + auditOutsidePlaces + " 处；白名单 = 模板格/矿格"
+                        + " ∪ 它们的正下方）", auditOutsidePlaces == 0);
         isolateOrePredicate(level);
     }
 
@@ -717,6 +828,7 @@ public final class FishboneSlice2CheckTask implements Task {
     /** 逐格比对，返回**不一致的格数**（> 0 即"动了不该动的地方"或"该挖的没挖"）。 */
     private int diffExpected(ServerLevel level, Arm arm) {
         Set<BlockPos> air = expectedAir(arm);
+        Set<BlockPos> floorVein = floorVeinCells(arm);
         int bad = 0;
         for (int dx = BOX_MIN_DX; dx <= BOX_MAX_DX; dx++) {
             for (int dy = BOX_MIN_DY; dy <= BOX_MAX_DY; dy++) {
@@ -728,6 +840,8 @@ public final class FishboneSlice2CheckTask implements Task {
                         ok = state.is(Blocks.BEDROCK);
                     } else if (arm == Arm.ORE_IN_PLACE && pos.equals(decoyCell())) {
                         ok = state.is(Blocks.IRON_ORE);
+                    } else if (floorVein.contains(pos)) {
+                        ok = state.isAir() || state.is(Blocks.COBBLESTONE);
                     } else if (air.contains(pos)) {
                         ok = state.isAir();
                     } else {

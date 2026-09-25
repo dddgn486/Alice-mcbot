@@ -93,6 +93,37 @@ public record PathRequest(
     }
 
     /**
+     * ⭐ **"补一块再走"的通行请求**（`D-440`）—— 纯通行 + `PLACE_STEP_AND_TRAVERSE`
+     * （**目标格的正下方**补一块，然后踩上去）+ `PILLAR`（跳起在**自己脚下**补一块）。
+     * **只放不拆**：刻意不含 `BREAK_*` 与 `DOWNWARD`。
+     *
+     * <p><b>为什么必须单列一个入口，而不是复用 {@link #withWorldModification}</b>：
+     * 后者同时给了 `BREAK_AND_*` 与 `DOWNWARD` —— 对"把**我们自己挖掉的路面补回来**"这件事，
+     * 那两项是**多余且危险**的能力（会让调用方在返回路上顺手挖穿地形）。
+     * 本入口把能力收成一句：**能修路，不能开路**。
+     *
+     * <p><b>调用点必须自己承担的两件事</b>（`D-076` 红线的受控口子）：
+     * <ol>
+     *   <li><b>显式授权</b>：本工厂构造时经 `PathRequest` 唯一构造点自动 `WriteEnvelopes.note`
+     *       （写世界的信封是**推导出来的**，不靠维护名单）；放置的归因取调用方持有的
+     *       `WriteGrant`（用完即还，不新增凭证类型）；</li>
+     *   <li><b>预算</b>：放置仍有执行期写入预算（`PlaceResult.BUDGET_EXHAUSTED`，`D-106`），
+     *       ⭐ 但调用方**还应自己设一个上限**（例如鱼骨按形状推导"每 10 个单元 1 块"），
+     *       用完就**如实降级回纯通行** —— 不许无限搭桥。</li>
+     * </ol>
+     *
+     * <p>已登记：`docs/WORLD_WRITE_AUTHORIZATION.md` **A14**。
+     */
+    public static PathRequest withPlacement(String botId, BlockPos startFoot, BlockPos goalFoot,
+                                           String requester) {
+        return new PathRequest(botId, startFoot, new GoalFoot(goalFoot),
+                Set.of(MovementType.TRAVERSE, MovementType.DIAGONAL, MovementType.ASCEND,
+                        MovementType.DESCEND, MovementType.PLACE_STEP_AND_TRAVERSE,
+                        MovementType.PILLAR),
+                WALK_BUDGET, requester);
+    }
+
+    /**
      * 挖掘到达请求（D-067 ㉘）：允许破坏进入 / 破坏通行 / 放置台阶。
      *
      * <p>⭐ **D-366b（2026-09-20 用户裁定，临时让步）**：**取消**原先对 `PILLAR` / `FALL` / `DOWNWARD`

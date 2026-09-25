@@ -212,7 +212,16 @@ public final class WritePolicyMatrix {
         CLIMB_APPROACH("climbApproach"),
         WITH_WORLD_MODIFICATION("withWorldModification"),
         /** 逃生准备金（D-241）：放置 + 破坏 + PILLAR，**不含** `DOWNWARD`/`FALL`。 */
-        SURVIVAL_ESCAPE("survivalEscape");
+        SURVIVAL_ESCAPE("survivalEscape"),
+        /**
+         * ⭐ **"补一块再走"**（`D-440` / 鱼骨切片 5）：纯通行 + `PLACE_STEP_AND_TRAVERSE` + `PILLAR`，
+         * **只放不拆**（不含 `BREAK_*`/`DOWNWARD`）。
+         *
+         * <p>用途：追簇把**地板（= 矿簇）**挖空之后，由**规划器自己**在目标格下方补一块再走上去 ——
+         * 修的是"脚位格失去支撑 ⇒ 站位搜索 0 候选 ⇒ `spur_abandoned`"（真机 2026-09-25 实测）。
+         * 与 {@link #WITH_WORLD_MODIFICATION} 的区别就是那句"**能修路，不能开路**"。
+         */
+        PLACEMENT_REPAIR("withPlacement");
 
         private final String factory;
 
@@ -236,6 +245,7 @@ public final class WritePolicyMatrix {
                 case CLIMB_APPROACH -> PathRequest.climbApproach(PROBE, zero, zero, PROBE);
                 case WITH_WORLD_MODIFICATION -> PathRequest.withWorldModification(PROBE, zero, zero, PROBE);
                 case SURVIVAL_ESCAPE -> PathRequest.survivalEscape(PROBE, zero, zero, PROBE);
+                case PLACEMENT_REPAIR -> PathRequest.withPlacement(PROBE, zero, zero, PROBE);
             };
             return probe.allowedMovementTypes();
         }
@@ -300,12 +310,14 @@ public final class WritePolicyMatrix {
                             + "移动集刻意**不含** withWorldModification（D-076 红线的可执行版本）"),
             new Row("P-02", Zone.EXTERNAL, Task.MINING, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.MINING_APPROACH,
-                            MovementGrant.CLIMB_APPROACH),
+                            MovementGrant.CLIMB_APPROACH, MovementGrant.PLACEMENT_REPAIR),
                     Set.of(WriteReason.EXPECTED_TARGET, WriteReason.STANDING_SPACE, WriteReason.PATH_ACCESS,
                             WriteReason.SUPPORT_PLACEMENT, WriteReason.STEP_PLACEMENT,
                             WriteReason.SCAFFOLD_RESTORE),
                     "task/mining/MiningPlanner.java:182,241、action/MineBlockRunner.java:158",
-                    "挖掘站位用 miningApproach（D-067 ㉘ 禁用 PILLAR/FALL/DOWNWARD）；支撑块用完即拆"),
+                    "挖掘站位用 miningApproach（D-067 ㉘ 禁用 PILLAR/FALL/DOWNWARD）；支撑块用完即拆；"
+                            + "⭐ withPlacement（D-440 鱼骨切片 5）= **只放不拆**的「补一块再走」："
+                            + "追簇挖空地板之后由规划器自己补回路面（额度由 Job 自己推导并封顶）"),
             new Row("P-03", Zone.EXTERNAL, Task.GATHERING, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.WITH_WORLD_MODIFICATION,
                             MovementGrant.CLIMB_APPROACH),

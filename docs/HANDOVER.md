@@ -1157,3 +1157,39 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
    改成考「**追簇不会凭空扩散**」（比原来更强）。
 5. **临时探针要删**：本轮加的 `[Fishbone][probe] ore_eval` 已在定案后删除（本轮代码里**没有**探针残留）。
 
+# 断点⑬：切片 5（追簇挖空地板之后**规划器自己补回来**）落地 —— **下一轮仍是你的客户端验收**（2026-09-25 下午）
+
+## 1. 收工状态（逐条可核）
+
+| 项 | 值 |
+|---|---|
+| 触发 | 第二轮真机：① 「一个矿簇剩一块……**只是因为挖矿簇往下挖了两格，就把支巷放弃了**，另一个煤矿簇开了个头就没挖了，还把支巷直接放弃了」；② 你的方向：「那里的地板**确实是矿簇**，就是要想办法让 bot 自己**把路补回来**，有办法**自然衔接搭桥**的 Movement 吗，而不是专门把流程写死」 |
+| 根因（日志逐字） | `cell unit=49/404 target=-68,47,202 spur=west14` ⇒ `[MiningPlanner探针] no_valid_standing_point faceStandable=0/6 **belowSolid=false**` ⇒ `spur_abandoned:no_reachable_standing_point` —— 追簇把**脚位格正下方**（= 地板）也挖了，脚位格失去支撑 ⇒ 头位格再也找不到可站格 |
+| ⭐ 结论 | **不是缺 Movement，是鱼骨没被授权用它**：kernel 里 `PLACE_STEP_AND_TRAVERSE`（目标格**正下方**补一块）与 `PILLAR`（跳起在脚下补一块）都现成，而鱼骨三个走位全是纯通行 |
+| 本轮交付 | ① 新增 **`PathRequest.withPlacement`**（**只放不拆**：不含 `BREAK_*`/`DOWNWARD`）+ 登记 `WORLD_WRITE_AUTHORIZATION` **A14**；② 鱼骨的「回作业面 / 支巷退回 / 回家」三处改用它，放置额度 = `max(8, 单元数/10)`（404 单元 ⇒ 40 块），用完**如实退回**纯通行；③ 走位触发放宽到「**作业面自己站不住了也要走**」 |
+| 裁定/记录 | **`D-440`**（真机取证 / 结论 / 实现四参数 / 判据与红臂 / **未决边界**）；台账 **`1.4e` ✅** |
+| 绿 | `single:fishbone_slice2` = **`checks=81 failures=0`**（76 → 81；臂④ `spursAbandoned=0 oreMined=7 oreFound=7 places=1`，日志 `[Pillar] placed pos=3763,79,2398` = **补回被挖掉的那格地板**）· `single:fishbone_slice1` = PASS · **CORE 电池 = PASS** |
+| 红臂 | **J3**（`walkRequest` 强制退回纯通行 = 修复之前的行为）⇒ `places=0` + `FAIL failures=1` |
+| 工件 | `build/libs/alice-1.0.0-1.20.1.jar` · `sha256=4ee3df7a942a20476216ae427d17b8a1dfb0e0feb3af1078a5287d0a04bf30b7` · 已同步进固定客户端 `mods/`（⚠️ 本轮同步前踩了"**编译失败但 jar 照旧**"的坑 ⇒ 新增护栏：工件比 `src/main` 旧就**拒绝同步**，见 `tools/sync-windows-artifact.sh`） |
+
+## 2. ⚠️ 未决边界（**已登记，等你拍**：`D-440 §五`）
+
+往下追 **2 格**（= 你那一例）会踩到一条**物理边界**：挖掘器模式 A **拒绝把「正在挖的那一格本身」当站位**
+（那是 `DOWNWARD` 的语义）⇒ 矿脉**最底那一格本来就挖不掉**，夹具实测 `oreDeferred=1` +
+终态 `product_not_collected`（坑里那颗掉落物没收回来）。
+
+⇒ **本片修的是「支巷被放弃」**（`spursAbandoned=0`）；**「最底那一格 + 坑里的掉落物」没修**。
+两条待你拍：① 允许"挖脚下"（改站位约束，影响面到所有 `MineTask` 调用点）；
+② 还是把"坑里的掉落物够不着"从 `product_not_collected`（FAIL）**降级为如实上报**（仍 DONE）。
+
+## 3. 下一轮怎么测（`J-1.5` 第三轮）
+
+```
+① 重启固定客户端（jar 已同步）
+② /give @s alice:fishbone_job
+③ 站到你想挖的地方、朝你想挖的方向，右键
+④ 重点看：支巷会不会再被放弃（聊天/日志里不该出现 spur_abandoned）
+   ＋ 日志里会出现 [Pillar] placed pos=… / [WRITE] place … by=fishbone-…
+     = bot **自己把挖掉的地板补回来了**
+```
+

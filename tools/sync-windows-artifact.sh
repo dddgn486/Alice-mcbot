@@ -21,6 +21,21 @@ if [[ ! -d "${WINDOWS_REPO}" ]]; then
   exit 2
 fi
 
+# ⭐ **陈旧工件护栏**（`D-440` 实测事故，2026-09-25）：`./gradlew build` **失败**时
+# `build/libs/*.jar` **不会更新**（Gradle 直接停在上一个成功的工件上），而本脚本照样把它拷进客户端
+# ⇒ 你测的是**上一版**代码，症状是"改了行为却没生效"（比崩溃更难查）。
+# 判据：`src/main` 下有**比工件更新**的源文件 ⇒ 拒绝同步（除非显式跳过）。
+# 成本 ≈ 一次 `find`；挂在**已有入口**上，不新增命令。
+if [[ "${ALICE_ALLOW_STALE_ARTIFACT:-0}" != "1" ]]; then
+  newer_source="$(find "${ROOT_DIR}/src/main" -type f -newer "${ARTIFACT}" -print -quit 2>/dev/null || true)"
+  if [[ -n "${newer_source}" ]]; then
+    echo "ERROR: 工件比源码旧 ⇒ **拒绝同步**（先跑通 ./gradlew build --offline 再同步）" >&2
+    echo "  比工件更新的文件（其一）：${newer_source}" >&2
+    echo "  确实要同步旧工件：ALICE_ALLOW_STALE_ARTIFACT=1 $0 …" >&2
+    exit 4
+  fi
+fi
+
 artifact_name="$(basename "${ARTIFACT}")"
 target_dir="${WINDOWS_REPO}/build/libs"
 target="${target_dir}/${artifact_name}"

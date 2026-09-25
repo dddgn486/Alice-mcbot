@@ -60,8 +60,9 @@ import java.util.Set;
  * <ul>
  *   <li><b>L3（本类）只决策/记账/终止</b>：取下一个模板单元、把终态理由说清楚；</li>
  *   <li><b>L2 只复用已验收的链路</b>：每格 = 一个 {@link MineTask}（`DIRECT` 模式，站位就在身后
- *       ⇒ **规划距离恒 1 格**），返回 / 支巷退路 = {@link PathRetryRunner}（`PathRequest.of` = **纯通行**，
- *       `D-076`），收集 = {@link CollectDropsTask}；</li>
+ *       ⇒ **规划距离恒 1 格**），返回 / 支巷退路 = {@link PathRetryRunner}
+ *       （⭐ 切片 5 `D-440`：`PathRequest.withPlacement` = **纯通行 + 只放不拆** —— 追簇把路面挖掉之后
+ *       由规划器自然补一块再走；额度用完**如实退回** `PathRequest.of` 纯通行），收集 = {@link CollectDropsTask}；</li>
  *   <li>⚠️ **本类不新增 Movement、不改成本模型、不调 `planTunnel`**（计划 §1「明确不做」——
  *       搜索型规划正是鱼骨要绕开的东西）。</li>
  * </ul>
@@ -212,6 +213,8 @@ public final class FishboneJob implements Job {
      */
     private final Set<BlockPos> chasePending = new LinkedHashSet<>();
     private PathRetryRunner chaseApproach;
+    /** 放置额度用尽只提示一次（否则每次走位刷一行）。 */
+    private boolean placeBudgetExhaustedLogged;
     private FishboneTemplate.Unit chaseApproachUnit;
     private MineTask oreTask;
     private BlockPos oreStartFeet;
@@ -467,9 +470,14 @@ public final class FishboneJob implements Job {
         //（`ore_eval pos=3763,80,2402 exposed=true reachable=false feet=3762,80,2400`）。
         // 走进那一格之后视线顺着矿脉轴 ⇒ 一层层往里追得到。
         ServerLevel level = bot.serverLevel();
-        boolean wantWorkCell = !oreQueue.isEmpty() || !chasePending.isEmpty();
-        if (wantWorkCell && !MovementHelper.footCell(level, bot).equals(unit.foot())
-                && MovementHelper.canStandCentered(level, unit.foot())) {
+        // ⭐ 切片 5（`D-440`）：**作业面自己站不住了也要走** —— 追簇允许往下挖，而地板往往就是矿簇
+        // 本身 ⇒ 挖掉之后脚位格失去支撑（真机实测 `belowSolid=false`、`faceStandable=0/6`
+        // ⇒ 站位搜索 0 候选 ⇒ `spur_abandoned:no_reachable_standing_point`）。
+        // 这一步的请求带 `PLACE_STEP_AND_TRAVERSE` ⇒ 规划器**自然**在下方补一块再走上去
+        //（不写"修复地板"的专门流程）。⚠️ 所以这里**不再**要求"目标格现在可站"。
+        boolean workCellNotStandable = !MovementHelper.canStandCentered(level, unit.foot());
+        boolean wantWorkCell = !oreQueue.isEmpty() || !chasePending.isEmpty() || workCellNotStandable;
+        if (wantWorkCell && !MovementHelper.footCell(level, bot).equals(unit.foot())) {
             chaseApproachUnit = unit;
             chaseApproach = null;
             pendingSpurReturn = lastOfSpur ? unit : null;
@@ -579,10 +587,9 @@ public final class FishboneJob implements Job {
                 return Task.Status.RUNNING;
             }
             spurReturnRunner = new PathRetryRunner(bot,
-                    PathRequest.of(bot.getUUID().toString(), bot.blockPosition(), spurReturnTarget,
-                            REQUESTER + "-spur"),
+                    walkRequest(spurReturnTarget, "-spur"),
                     RETURN_MAX_REPLANS, REQUESTER + "-spur");
-            BotLog.info("[Fishbone] SPUR_RETURN 原路退回主巷 feet={} → junction={}（纯通行，零破坏）",
+            BotLog.info("[Fishbone] SPUR_RETURN 原路退回主巷 feet={} → junction={}（纯通行 + 允许补一块再走，不含破坏）",
                     bot.blockPosition().toShortString(), spurReturnTarget.toShortString());
         }
         PathRetryRunner.State state = spurReturnRunner.tick();
@@ -742,6 +749,68 @@ public final class FishboneJob implements Job {
         }
     }
 
+    // ==================== 切片 5：走位额度（`D-440`） ====================
+
+    /**
+     * **本次作业的放置额度**：按形状推导 —— **每 10 个单元 1 块**，下限 8
+     * （真机默认形状 404 单元 ⇒ **40 块**）。
+     *
+     * <p>为什么按形状推导而不是写死：形状是可配置的（`config/alice-fishbone.toml`），
+     * 写死一个数会在"你把支巷改成 64 格"之后悄悄变成"路补到一半没额度了"。
+     */
+    private int placeBudget() {
+        return Math.max(8, template.advanceCells() / 10);
+    }
+
+    /**
+     * 已经用掉的放置块数（**只数本次作业自己的**放置）。
+     *
+     * <p>⚠️ 判"是不是我们的"用**前缀**而不是相等：走位请求的 requester 是
+     * `fishbone-chase` / `fishbone-spur` / `fishbone-return`（`PlaceStepAndTraverseExecution` /
+     * `PillarExecution` 把 `context.requester()` 原样写进 `WriteGrant`），
+     * 而 `MineTask` 用的是 `fishbone`。首版用相等 ⇒ 夹具实测 `places=0`，
+     * 而 `[WRITE] place … by=fishbone-chase:attempt0:STEP_PLACEMENT` 明明在日志里（数错了，不是没放）。
+     */
+    private int placementsUsed() {
+        int n = 0;
+        for (WriteAudit.Entry entry : WriteAudit.snapshot()) {
+            if ("place".equals(entry.action()) && isOurs(entry.grant().requester())) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /** 这条写入是不是**本次鱼骨作业**发起的（`requester` 前缀 = {@value #REQUESTER}）。 */
+    public static boolean isOurs(String requester) {
+        return requester != null && requester.startsWith(REQUESTER);
+    }
+
+    /**
+     * ⭐ **走位请求**（`D-440`）：还有放置额度 ⇒ {@link PathRequest#withPlacement}
+     * （**纯通行 + 只放不拆**：目标格下方补一块再走上去 / 跳起在脚下补一块）；
+     * 额度用完 ⇒ **如实退回纯通行** {@link PathRequest#of}（不再补路，坑就留着）。
+     *
+     * <p>为什么这次走位需要"能放"：追簇允许往下挖，而**地板往往就是矿簇本身** ——
+     * 挖掉之后脚位格失去支撑（真机实测 `belowSolid=false` ⇒ 站位搜索 0 候选 ⇒
+     * `spur_abandoned:no_reachable_standing_point`）。补回来这件事**不写专门流程**：
+     * 规划器在允许 `PLACE_STEP_AND_TRAVERSE` 时会**自然**产出那条边。
+     */
+    private PathRequest walkRequest(BlockPos goal, String suffix) {
+        int used = placementsUsed();
+        int budget = placeBudget();
+        if (used < budget) {
+            return PathRequest.withPlacement(bot.getUUID().toString(), bot.blockPosition(), goal,
+                    REQUESTER + suffix);
+        }
+        if (!placeBudgetExhaustedLogged) {
+            placeBudgetExhaustedLogged = true;
+            BotLog.info("[Fishbone] place_budget_exhausted used={}/{} ⇒ 走位退回纯通行"
+                            + "（阶梯/坑不再补；想要更多就调形状或看 `D-440`）", used, budget);
+        }
+        return PathRequest.of(bot.getUUID().toString(), bot.blockPosition(), goal, REQUESTER + suffix);
+    }
+
     /**
      * ⭐ **追簇游走段**（切片 4，`D-439`）：先走进**刚挖完的那一格**，再消费暴露矿队列。
      *
@@ -762,12 +831,11 @@ public final class FishboneJob implements Job {
     private Task.Status chaseApproach() {
         if (chaseApproach == null) {
             BlockPos work = chaseApproachUnit.foot();
-            chaseApproach = new PathRetryRunner(bot,
-                    PathRequest.of(bot.getUUID().toString(), bot.blockPosition(), work, REQUESTER + "-chase"),
+            chaseApproach = new PathRetryRunner(bot, walkRequest(work, "-chase"),
                     RETURN_MAX_REPLANS, REQUESTER + "-chase");
-            BotLog.info("[Fishbone] CHASE_APPROACH 走进刚挖完的那一格 {}（追簇游走段；纯通行、零破坏。"
-                            + "为什么必须走：站在身后一格时矿脉第二层被巷道壁挡住视线）",
-                    work.toShortString());
+            BotLog.info("[Fishbone] CHASE_APPROACH 走进刚挖完的那一格 {}（追簇游走段；纯通行 + "
+                            + "允许补一块再走（`PILLAR` / `PLACE_STEP_AND_TRAVERSE`，不含破坏）；额度 {}/{}）",
+                    work.toShortString(), placementsUsed(), placeBudget());
         }
         PathRetryRunner.State state = chaseApproach.tick();
         if (state == PathRetryRunner.State.RUNNING) {
@@ -975,9 +1043,7 @@ public final class FishboneJob implements Job {
      */
     private Task.Status returnPhase() {
         if (returnRunner == null) {
-            returnRunner = new PathRetryRunner(bot,
-                    PathRequest.of(bot.getUUID().toString(), bot.blockPosition(), template.startFoot(),
-                            REQUESTER + "-return"),
+            returnRunner = new PathRetryRunner(bot, walkRequest(template.startFoot(), "-return"),
                     RETURN_MAX_REPLANS, REQUESTER + "-return");
             BotLog.info("[Fishbone] RETURN 开始 feet={} → start={}（纯通行，零破坏）",
                     bot.blockPosition().toShortString(), template.startFoot().toShortString());
@@ -1086,7 +1152,7 @@ public final class FishboneJob implements Job {
             if (!"break".equals(entry.action()) || entry.tick() < gameTimeAtStart) {
                 continue;
             }
-            if (!REQUESTER.equals(entry.grant().requester())) {
+            if (!isOurs(entry.grant().requester())) {
                 continue;
             }
             if (whitelist.contains(entry.pos())) {

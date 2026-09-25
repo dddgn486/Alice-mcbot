@@ -19910,3 +19910,85 @@ CORE 的搜索最大只 4–5 ms（`P2` 备忘记过），而真机那三次 `Ca
   （消费者仍未出现，门禁 `J5-P1` 会红）。
 - **长作业无断点续跑**（用户明确"我可以随时终止，不需要完整跑完"）⇒ 中途停 = 已挖的部分留在世界里。
 
+### D-440：切片 5 —— 追簇把地板挖空之后，**由规划器自己补一块再走**（不写专门的修复流程）（2026-09-25）
+
+**触发**：`D-439` 后的第二轮真机。用户两条：
+① 现象 —— 「一个矿簇剩一块……**只是因为挖矿簇往下挖了两格，就把支巷放弃了**，然后另一个煤矿簇就开了个头就没挖了，
+还把支巷直接放弃了」；
+② 方向 —— 「那里的地板**确实是矿簇**，就是要想办法让 bot 自己**把路补回来**，有办法**自然衔接搭桥**的 Movement 吗，
+而不是专门把流程写死」。
+
+#### 一、真机取证（`latest.log` 13:18–13:21）
+
+| 事实 | 逐字证据 |
+|---|---|
+| 开局 8 次（面向东）全秒败 | `main_unreachable:no_reachable_standing_point` + `[MiningPlanner探针] no_valid_standing_point target=-53,47,199 faceStandable=1/6` ⇒ 站在大矿洞边缘时**周围没有可站位**（诚实失败，非缺陷；改朝南即正常） |
+| ⭐ 支巷放弃的**直接原因** | `cell unit=49/404 cell=2/2 target=-68,47,202 spur=west14` ⇒ `[MiningPlanner探针] no_valid_standing_point faceStandable=0/6 belowSolid=false` ⇒ `spur_abandoned:no_reachable_standing_point` |
+| ⭐ 它为什么 `belowSolid=false` | 追簇把 `y=45`（脚位格 `y=46` 的**正下方**）也当候选矿挖了：`任务创建 target=-68,45,203` / `target=-69,45,203` …；bot 随后 `botPos=-68,45,202`（**比模板低 1 格**）⇒ 脚位格失去支撑 ⇒ 头位格再也找不到可站格 |
+| 「剩一块」的真相 | `ore_deferred pos=-68,44,202 reason=no_reachable_standing_point`（bot 掉进洞后够不到）—— **不是**"故意留退路" |
+| 第二次放弃 | 同一根因（`spur_abandoned` ×2：主巷单元 3 第 14 格 / 主巷单元 6 第 2 格） |
+
+#### 二、结论：**不是缺 Movement，是鱼骨没被授权用它**
+
+kernel 里现成的"自然搭桥"原语：
+
+| 能力 | 原语 | 放置位置 |
+|---|---|---|
+| 补一块再走上去 | `MovementType.PLACE_STEP_AND_TRAVERSE` | **目标格的正下方** `to.below()` |
+| 跳起在脚下补一块 | `MovementType.PILLAR` | 自己当前那一格 |
+| 材料 | `alice:throwaway` 含 `minecraft:cobblestone` + `BlockInteraction.findPlaceableSlot`（查快捷栏 0..8） | bot 挖石头自然得到圆石 |
+| 执行期限额 | `PlaceResult.BUDGET_EXHAUSTED`（`D-106` 写入预算） | 已有 |
+
+而鱼骨的三个走位**全是纯通行**（`PathRequest.of`；单元挖掘用 `MiningProfile.STANDABLE_ONLY`）
+⇒ 地板一挖空，站位搜索就是 0 候选。**修法 = 开一个窄口子，让规划器自然产出那两条边。**
+
+#### 三、实现（用户 2026-09-25 三个参数裁定）
+
+| 项 | 裁定 | 落点 |
+|---|---|---|
+| 授权范围 | 「回到作业面」+「支巷退回 / 回家」 | `CHASE_APPROACH` / `SPUR_RETURN` / `RETURN` 三处改调 `walkRequest(...)`；`PREPARE` 的起点可达性**仍纯通行**（那是可行性判定，不该靠改世界"到达"） |
+| 口子宽度 | **只放不拆** | 新增 `PathRequest.withPlacement(...)` = `TRAVERSE/DIAGONAL/ASCEND/DESCEND + PLACE_STEP_AND_TRAVERSE + PILLAR`，**刻意不含** `BREAK_*`/`DOWNWARD`（**能修路，不能开路**）—— 复用一个宽口子（`withWorldModification`）会顺手给鱼骨"沿途挖穿地形"的能力 |
+| 放置上限 | **按形状推导**：`max(8, advanceCells/10)`（真机默认 404 单元 ⇒ 40 块） | `FishboneJob.placeBudget()`；用完**如实退回**纯通行并打一次 `place_budget_exhausted` —— 不许无限搭桥 |
+| 下追深度 | **不限**（自然上界 = 每单元 16 格矿上限 + 触及范围） | 不加额外字段 |
+
+**触发时机**：`finishUnit` 的走位条件从「有追簇队列」放宽到「**作业面自己站不住了也要走**」
+（`!MovementHelper.canStandCentered(level, unit.foot())`）—— 这正是真机那一例的入口。
+
+**登记**：`docs/WORLD_WRITE_AUTHORIZATION.md` **A14**（谁授权/谓词/预算/requester/理由/记账逐项写全）。
+
+#### 四、判据（`fishbone_slice2` 的臂④扩成"侧壁矿脉 + **地板矿脉**"；`checks` 76 → **81**）
+
+新增/改动：
+1. 臂④的矿脉加一条**地板矿脉**（支巷第 1 格的正下方，`FLOOR_VEIN_DEPTH=1`）：矿簇**就在地板里**；
+2. 期望表新增一类：地板矿脉格 = **空气或圆石**（补回来的就是它）—— 判据问的是"**矿还在不在**"，
+   "补没补"由独立判据 `places >= 1` 承担（两件事压成一条会让"没补路"和"没挖矿"长得一样）；
+3. 新增 **放置白名单**：`placementWhitelist = 破坏白名单 ∪ 其正下方`（`PLACE_STEP_AND_TRAVERSE` 的放置位置
+   就是 `to.below()`）⇒ 挡住"沿路随便乱垫"；
+4. 新判据 4 条：`spursAbandoned == 0`（**一条支巷都不该被放弃**）· 支巷照常挖到底 · 地板里的矿没了 ·
+   `places >= 1` + 白名单外 0 处。
+
+**绿**：`checks=81 failures=0`；臂④ `verdict=template_complete advance=12/12 spursAbandoned=0
+oreMined=7 oreFound=7 oreDeferred=0 places=1`，日志逐字
+`[Pillar] placed pos=3763, 79, 2398 from=3763,79,2398 to=3763,80,2398 feetY=80.166`
+＋ `[WRITE] place 3763, 79, 2398 minecraft:cobblestone by=fishbone-chase:attempt0:STEP_PLACEMENT`
+—— **补的正是被挖掉的那一格地板** ✓（走的是 `PILLAR`，不是 `PLACE_STEP_AND_TRAVERSE`；两条都在集里）。
+**红臂 J3**（`walkRequest` 强制退回 `PathRequest.of`，= 本轮修复之前的行为）⇒ `places=0` ⇒ `FAIL failures=1`。
+
+⚠️ **判据自己也踩了两个坑**（都修了）：① 数放置时用 `requester == "fishbone"` **相等**判定 ⇒
+走位请求的 requester 是 `fishbone-chase` ⇒ 明明放了却数成 `places=0`（改成**前缀**判定）；
+② 第一版注入（J3）替换的字符串在重写后不存在 ⇒ **空操作** ⇒ 差点得出"判据不咬人"的错误结论（改用 `assert` + `diff` 确认落地）。
+
+#### 五、⭐ 诚实边界（本轮**没有**解决的、已单独登记待裁）
+
+**往下追 2 格（= 用户原话那一例）会踩到一条物理边界**：挖掘器模式 A **拒绝把"正在挖的那一格本身"当站位**
+（那是 `DOWNWARD` 的语义，`PathRequest.scaffoldRemoval` 的注释里早就写了这条），所以
+**矿脉最底那一格本来就挖不掉** —— 夹具实测（`FLOOR_VEIN_DEPTH=2`）：`oreDeferred=1`
+（`pos=3763,78,2399 reason=no_reachable_standing_point`）、`oreMined=8 oreFound=9`、
+终态 **`product_not_collected`**（坑里那颗掉落物没收回来 ⇒ `collectedProducts=7 < oreMined=8`）。
+
+⇒ 因此本片：**支巷放弃 = 已修**（`spursAbandoned=0`，本轮的正题）；**"最底那一格 + 坑里的掉落物"= 未修**，
+夹具退回 `FLOOR_VEIN_DEPTH=1` 并把那条边界写在这里。待裁两条：
+1. 要不要允许"挖脚下"（改站位约束，影响面到 `MineTask` 的所有调用点）；
+2. 还是把"坑里的掉落物够不着"从 `product_not_collected`（FAIL）**降级为如实上报**（`uncollected=n` + 仍 DONE）——
+   这条会动 `D-436 §一.2` 的失败口径，必须用户拍板。
+
