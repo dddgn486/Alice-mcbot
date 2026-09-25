@@ -1359,3 +1359,39 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 - 证据：`fishbone_slice1 42/0` · `fishbone_slice2` **88/0** · 门禁 PASS · 红臂（处置恒 true）唯一红的就是新增那条。
 - ⚠️ **仍待用户裁定**：`1.4j①`（`isAlreadyPassable` 单格口径）是否提前到片 B 开头（它是弃巷 3/3 的直接原因，
   也是"把空气格当成已通"的必要条件）。
+
+## 7. 2026-09-25 深夜补记③：**机制 A 已落地**（用户「先把 A 改动做了我再测」）
+
+- **改的地方**：`DownwardExecution` 在"脚下方块已破"之后补上 `FallExecution:106-116` /
+  `DescendExecution:107-116` **早就有**的那一支 —— `onGround` 且**水平离心 > 0.2** ⇒ 朝格中心走过去，
+  够近才原地等掉落；**已离地则不给水平输入**。
+  `0.2 = 格半宽 0.5 − AABB 半宽 0.3`（= Baritone `MovementDownward:90` 的 `ab < 0.2`）。
+- **唯一出处**：`MovementHelper.horizontalDistanceToCenter` / `faceCellCenter`（新增），
+  且 `isSettledAtFootPos` 改成调**同一个**距离口径 ⇒ 判定与纠正同源。
+- **判据（运行时）**：挂在**已有的**电池步 `place_step_descend_clearance`（`edgeCrawlContract`）：
+  自建"洞沿"几何 + bot 摆在**离心 0.3**（校准的反操作）+ 真 tick 一条 `DOWNWARD` 到终态 + 3 条前提自证。
+  实测：**修复后 `SUCCEEDED（7 tick）`**；**红臂**（改回只 `stopMovement()`）**`TIMEOUT`（离心=0.300
+  `onGround=true input=forward=0.00`）** —— 把真机那两条 145 tick 的形态离线复现了。
+- **真机怎么看**：重启客户端后，看还有没有"停在洞沿上"的卡顿；日志里找
+  `[R4 Session] segment_stall` 应该不见了（若还有，把那一行发我，它带 `pos/onGround/input` 三个关键读数）。
+- ⚠️ **未做**：机制 B（结算点瞬移校准，专门给拾取模型那 0.49 的离心）—— 等 A 的真机结果再定；
+  同式 yaw 公式的 11 处合并 ⇒ 台账 `1.4n`。
+
+## 8. 2026-09-25 深夜补记④：机制 A **收窄触发条件后**才算完（`D-445`）
+
+- ⚠️ 第一版按 Baritone 做成**无条件**（`onGround` + 离心 > 0.2 ⇒ 走过去）⇒ **CORE 电池 `lumber_job=FAIL`**；
+  `git stash` 掉改动后 CORE **PASS** ⇒ 确认是回归（唯一行为改动就是 `DownwardExecution` 那一支）。
+- 根因：**"离心"在 ALICE 是正常状态**（`COLUMN` 容差不要求居中）⇒ 无条件给输入会改掉**所有正常下落的落点**；
+  伐木步按 `reason=nearest` 选树 ⇒ 第三棵从 @29 变成 @28（7 格云杉）⇒ 砍完高树后砍不动接下来的树。
+- **最终实现**：只在**真的被托住**时才动 —— `MovementHelper.supportedByNeighbourCorner`（本列脚下已空 **且**
+  AABB 按**一次重力步** `0.0784` 往下探会与邻列脚下一层的实心方块**真相交**）⇒ 正常下落**零水平输入**。
+- **证据（全部 `ALICE_BATTERY_NO_CACHE=1` 真跑）**：rim `SUCCEEDED（7 tick）checks=32 failures=0` ·
+  红臂（关掉那一支）`TIMEOUT（离心=0.300 onGround=true forward=0.00）checks=32 failures=1` ·
+  **CORE `PASS`（228 s，41 步含 `lumber_job=PASS`）** · `fishbone_slice1/2 = 42/0 · 88/0`。
+- ⚠️ **两个测量陷阱**（本轮亲历）：① **单跑一步不是 CORE 那一步的基线**（入口状态不同：CORE 的伐木在第 5 步、
+  前面刚跑过 `scaffold`）⇒ 回归判定必须**同样跑 `core`**；② 电池有**判决缓存**（源码指纹不变就复用）
+  ⇒ 红臂第一次"绿"其实是**没真跑 + `ls -t` 读到了上一轮日志**。**红臂一律 `--no-cache` 且先看日志时间戳。**
+- ⭐ **副产物**：暴露一个潜伏缺陷（台账 `1.4o`）—— **砍完那棵 7 格高的云杉之后，伐木 job 砍不动下一棵树**；
+  CORE 一直绿只因那棵高树恰好被排在最后 ⇒ 那一步是**位置敏感的脆判据**。**没有去改判据/改场景。**
+- **jar**：`build/libs/alice-1.0.0-1.20.1.jar` sha256 `7a236881a4bae91c56aae7810fa0176dce5898fd4ef3ac093a2215d9d5c0ba0c`（已镜像到 `D:\JAVA_projects\alice\build\libs\` 与固定客户端 `mods/`）。
+- **下一步**：真机客户端轮（重启客户端）；日志里 `[R4 Session] segment_stall` 应消失。

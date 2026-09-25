@@ -275,9 +275,94 @@ public final class MovementHelper {
         if (!entity.onGround()) {
             return false;
         }
-        double dx = entity.getX() - (footPos.getX() + 0.5D);
-        double dz = entity.getZ() - (footPos.getZ() + 0.5D);
-        return Math.sqrt(dx * dx + dz * dz) <= maxHorizontal;
+        // ⭐ 与"朝格中心走"（{@link #faceCellCenter} / `DownwardExecution`）**共用同一个距离口径**：
+        // 同一条几何被"判定"与"纠正"两处读 ⇒ 两处必须同源（`D-445` 裁定三的教训）。
+        return horizontalDistanceToCenter(entity, footPos) <= maxHorizontal;
+    }
+
+    /**
+     * **"被邻列方块的角托在洞沿上"** —— ③ 的**因果谓词**（`D-445` 裁定三）。
+     *
+     * <p>成立条件（缺一不可）：
+     * <ol>
+     *   <li>**本列脚下已经没有支撑**（`!canWalkOn(level, footCell)`）—— 也就是"该掉下去了"；</li>
+     *   <li>把 AABB 按**一次重力步**往下探（{@link #FALL_PROBE}），它与**相邻某列**在脚下一层的
+     *       实心方块**真的相交** ⇒ 这一 tick 的下落会被那一列的角挡住。</li>
+     * </ol>
+     * 第 2 条与真机读数**同形**：`delta=0.0000,-0.0784,0.0000` + `onGround=true` —— 每 tick 都想掉、
+     * 每 tick 都被邻列的角托住 ⇒ 永远掉不下去（2026-09-25 两条 145 tick `segment_timeout`）。
+     *
+     * <p>⚠️ 为什么不用"离格中心 > 0.2"当判据：那确实是真机的**成因**，但**离心是正常状态**
+     *（`COLUMN` 容差不要求居中），**无条件**给水平输入会改掉所有正常下落的落点。CORE 电池实测：
+     * 伐木步按 `nearest` 选树 ⇒ 落点一动就换了一棵树 ⇒ `lumber_job=FAIL`。
+     * ⇒ **只在真的被托住时才动**；正常下落**零水平输入**（对既有路径零扰动）。
+     *
+     * <p>⚠️ 垂直方向必须用"探一步之后"的盒子：静止时脚底与邻列方块顶面**恰好相切**，
+     * 直接 `AABB.intersects` 会因零体积相交返回 `false`（夹具实测踩到）。
+     */
+    public static boolean supportedByNeighbourCorner(ServerLevel level, net.minecraft.world.entity.Entity entity,
+                                                     BlockPos footCell) {
+        if (canWalkOn(level, footCell)) {
+            return false;
+        }
+        AABB probing = entity.getBoundingBox().move(0.0D, -FALL_PROBE, 0.0D);
+        int y = footCell.getY() - 1;
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if (dx == 0 && dz == 0) {
+                    continue;
+                }
+                BlockPos pos = new BlockPos(footCell.getX() + dx, y, footCell.getZ() + dz);
+                if (!level.isLoaded(pos)) {
+                    continue;
+                }
+                net.minecraft.world.phys.shapes.VoxelShape shape = level.getBlockState(pos)
+                        .getCollisionShape(level, pos);
+                if (!shape.isEmpty() && shape.bounds().move(pos).intersects(probing)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 探针步长：**一次重力步**（真机逐字读数 `delta=0.0000,-0.0784,0.0000`；= 0.08 × 0.98）。
+     * ⚠️ 不许改成 0：静止时脚底与邻列方块顶面**恰好相切**，零体积相交判不出来（见上）。
+     */
+    private static final double FALL_PROBE = 0.0784D;
+
+    /**
+     * **到某格中心的水平距离**（= Baritone `MovementDownward:88` 的 `ab`）。
+     *
+     * <p>⚠️ 是**格 +0.5 的那个中心**，不是格边 —— Baritone 原话（`MovementFall:174`）：
+     * "we are moving to the 0.5 center **not the edge**"。
+     *
+     * <p>⚠️ **0.2 是几何分界**：玩家 AABB 半宽 0.3、格半宽 0.5 ⇒ 离心 > 0.2 时 AABB 就压进了邻列；
+     * 邻列只要有一块实心，就能把 bot **托在洞沿上**（`onGround=true`、重力每 tick 被碰撞清零）
+     * ⇒ **永不下落**。2026-09-25 真机实测：`pos=-73.500,54.000,158.730`（离心 0.23）与
+     * `pos=-73.503,54.000,175.205`（离心 0.295），两条各 145 tick `segment_timeout`、`input=forward 0.00`
+     *（取证见 `docs/reviews/2026-09-25-真机第三轮-根因取证.md` §4）。
+     */
+    public static double horizontalDistanceToCenter(net.minecraft.world.entity.Entity entity, BlockPos foot) {
+        double dx = entity.getX() - (foot.getX() + 0.5D);
+        double dz = entity.getZ() - (foot.getZ() + 0.5D);
+        return Math.sqrt(dx * dx + dz * dz);
+    }
+
+    /**
+     * 把**身体 yaw** 指向某格中心（Baritone `MovementHelper.moveTowards:639-646` 的转向那一半）。
+     *
+     * <p>⚠️ 只写 `yRot`/`yBodyRot`（对齐 `LookBehavior:99-100`），头/身交给原版 `tickHeadTurn`；
+     * 只写 `yHeadRot` 而不同步 `yBodyRot` 会让客户端把头渲染成扭向一侧。
+     * ⚠️ **只负责转向，不给前进量** —— 前进量由各执行器按场景给（走过去 1.0 / 原地微调 0.4）。
+     */
+    public static void faceCellCenter(net.minecraft.world.entity.LivingEntity entity, BlockPos foot) {
+        double dx = foot.getX() + 0.5D - entity.getX();
+        double dz = foot.getZ() + 0.5D - entity.getZ();
+        float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
+        entity.setYRot(yaw);
+        entity.setYBodyRot(yaw);
     }
 
     /**

@@ -6,7 +6,9 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.AscendExecutionFactory;
 import com.dddgn.alice.pathing.core.CompletionTolerance;
+import com.dddgn.alice.pathing.core.DownwardExecutionFactory;
 import com.dddgn.alice.pathing.core.LiveExecutionContext;
+import com.dddgn.alice.pathing.core.MovementExecution;
 import com.dddgn.alice.pathing.core.MovementSpec;
 import com.dddgn.alice.pathing.core.MovementType;
 import com.dddgn.alice.pathing.core.PlaceStepAndTraverseExecutionFactory;
@@ -29,11 +31,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * ⭐ **「搭石斜下」的过渡空间取证**（电池步 `place_step_descend_clearance`；`D-376` 的落地判据）。
+ * ⭐ **「搭石斜下」的过渡空间取证 + 「洞沿离心」下落取证**
+ *（电池步 `place_step_descend_clearance`；前者 = `D-376` 的落地判据，后者 = `D-445` 裁定三的落地判据）。
  *
- * <h2>它钉住的是什么（一句话）</h2>
- * <b>`PLACE_STEP_AND_TRAVERSE` 在 `dy = -1`（从上面一层走下来）时，必须证明**身体的过渡空间**能过 ——
- * 不只是"站进去之后放得下"。</b>
+ * <h2>它钉住的是什么（两句话）</h2>
+ * <b>① `PLACE_STEP_AND_TRAVERSE` 在 `dy = -1`（从上面一层走下来）时，必须证明**身体的过渡空间**能过 ——
+ * 不只是"站进去之后放得下"。</b><br>
+ * <b>② `DOWNWARD` 在**洞沿上、离心 > 0.2** 时，必须**把自己挪到格中心再掉下去** ——
+ * 只 `stopMovement()` 会被邻列那块实心的角托住（`onGround=true`）而永不下落。</b>
+ * 两条是**同一个家族**（都表现为 `segment_stall kind=segment_timeout` + `onGround=true`），
+ * 但**按键读数恰好相反**（`D-376` 是 `forward=1.00` 被第三层挡住；`D-445` 是 `forward=0.00` 根本没按）
+ * ⇒ 必须分开记账，不许混成一条（2026-09-25 的教训）。
  *
  * <h2>真机事故（第八轮，逐字见 `docs/reviews/2026-09-21-掉落物在洞里被瞬退.md` §13.2）</h2>
  * ```
@@ -66,13 +74,19 @@ import java.util.List;
  * </table>
  *
  * <h2>它断言哪一层（技能 §6.9.1 ③）</h2>
- * 只断言**边生成层**（`SurfaceMovementProvider.appendCandidates` 的产出）+ **执行工厂的准入**
- * （`PlaceStepAndTraverseExecutionFactory.validate`），不 tick 任何子任务、不执行 ⇒ 零搜索、确定性、毫秒级。
+ * ① 过渡空间那两用例：只断言**边生成层**（`SurfaceMovementProvider.appendCandidates` 的产出）+
+ *   **执行工厂的准入**（`PlaceStepAndTraverseExecutionFactory.validate`）⇒ 不 tick、零搜索、确定性。<br>
+ * ② ⭐「洞沿离心」那一支（`edgeCrawlContract`）：**会真的 tick 一条 `DOWNWARD` 到终态**
+ *   （跨 tick 分阶段）—— 因为那个缺陷是**物理 × 输入循环**的产物，只有真 tick 才复现得出来
+ *   （真机形态：`onGround=true` + `delta=(0,-0.0784,0)` + `forward=0.00` + 145 tick 超时）。
+ *   它自带几何（`EDGE_ORIGIN`，world 无关）并在结束时**原样还原**。
  *
  * <h2>前提自证（红了说明夹具坏，不是缺陷证据）</h2>
  * ① `bodyPassable(to)`；② `!canWalkOn(to)`（正是"要放一块"的那种缺支撑）；
  * ③ `canWalkThrough(to.below())`（放置位可替换）；④ `!canDescend(from,to)`（隔离：DESCEND 不可能提供这条边）；
- * ⑤ 有可放置材料 + 有放置面；⑥ 写入预算允许；⑦ 两个用例的 `canSweepPlayer` 取值恰好相反（**这就是被测的那个谓词**）。
+ * ⑤ 有可放置材料 + 有放置面；⑥ 写入预算允许；⑦ 两个用例的 `canSweepPlayer` 取值恰好相反（**这就是被测的那个谓词**）；
+ * ⑧ ⭐「洞沿」那一支：bot 必须**真的静止在洞沿上（`onGround` + 离心 > 0.2）**、正下方是空气、邻列角是实心
+ * —— 三条缺一条就说明场景没搭出来（那时报红是夹具的错）。
  */
 public final class PlaceStepDescendClearanceCheckTask implements Task {
 
@@ -83,6 +97,16 @@ public final class PlaceStepDescendClearanceCheckTask implements Task {
     private static final int BUDGET_TICKS = 300;
     /** 合成 Movement 用的成本（`PlannedMovement` 需要有限非负；只有"构造得出来吗"这一条判据关心它）。 */
     private static final double SYNTHETIC_COST = 5.0D;
+
+    // ---- ⭐ 机制 A（`D-445` 裁定三）：洞沿离心 ⇒ 必须真的掉下去 ----
+    /** 专用孤立点**再往 +Z 40 格**（与上面三格场景隔开，互不干扰）。 */
+    private static final BlockPos EDGE_ORIGIN = START.offset(0, 0, 40);
+    /** 水平偏移 = **0.3**（= AABB 半宽 ⇒ AABB 刚好压进邻列 0.1 格 ⇒ 被托在洞沿上）。 */
+    private static final double EDGE_OFFSET = 0.3D;
+    /** 与 `DownwardExecution.CRAWL_TO_CENTER_EPSILON` 同源（Baritone `MovementDownward:90` 的 0.2）。 */
+    private static final double CRAWL_TO_CENTER_EPSILON = 0.2D;
+    private static final int EDGE_SETTLE_TICKS = 12;
+    private static final int EDGE_BUDGET_TICKS = 120;
 
     private enum Case { TRANSITION_BLOCKED, TRANSITION_CLEAR }
 
@@ -100,6 +124,15 @@ public final class PlaceStepDescendClearanceCheckTask implements Task {
     private BlockPos to;
     /** 挖掉的那一格（`to.below()`）**原本**是什么 —— 收尾要按原样还原（不是一律写空气）。 */
     private BlockState holeOriginal;
+
+    // ---- ⭐ 机制 A：洞沿离心下落的运行时契约（分阶段，跨 tick 跑一条真的 DOWNWARD） ----
+    private int edgePhase;
+    private int edgeSettleTicks;
+    private int edgeExecTicks;
+    private double edgeStartDistance;
+    private String edgeVerdict = "";
+    private MovementExecution edgeExecution;
+    private final java.util.Map<BlockPos, BlockState> edgeBefore = new java.util.LinkedHashMap<>();
 
     public PlaceStepDescendClearanceCheckTask(BotPlayer bot, ServerPlayer observer) {
         this.bot = bot;
@@ -161,10 +194,139 @@ public final class PlaceStepDescendClearanceCheckTask implements Task {
             return Task.Status.RUNNING;
         }
         if (index >= Case.values().length) {
-            return finish();
+            return edgeCrawlContract(bot.serverLevel());
         }
         runCase(Case.values()[index++]);
         return Task.Status.RUNNING;
+    }
+
+    // ==================== ⭐ 机制 A（`D-445` 裁定三）：洞沿离心 ⇒ 必须真的掉下去 ====================
+
+    /**
+     * ⭐ **运行时判据：把 bot 放在"洞沿上、离心 0.3"**（= AABB 半宽 ⇒ 正好蹭在邻列角上）**静止**，
+     * 然后跑一条 `DOWNWARD`（正下方已挖空）⇒ **必须在预算内真的掉下去**。
+     *
+     * <p>为什么必须**跑**而不是只判谓词：真机那两条 `segment_stall` 的形态是
+     * "`onGround=true` + `delta=(0,-0.0784,0)` + `input=forward 0.00` + 145 tick 超时" ——
+     * 这是**物理与输入循环**的产物，只有在真 tick 里才复现得出来
+     *（取证 `docs/reviews/2026-09-25-真机第三轮-根因取证.md` §4）。
+     *
+     * <p>修复前（`DownwardExecution` 只 `stopMovement()`）：邻列那块实心把 AABB 的 0.1 托住 ⇒
+     * `onGround` 永远成立 ⇒ 这里是 `TIMEOUT`（= 真机形态）。红臂就是把它改回去。
+     *
+     * <p>几何（**自建 + 原样还原**，不依赖世界地形）：
+     * <pre>
+     *   邻列角(Y-1,Z+1)=石 ── 托住 AABB 的那 0.1
+     *   (X,Y-1,Z)=空气 = 洞        bot 在 (X+0.5, Y, Z+0.8) ⇒ 离心 0.3
+     *   (X,Y-2,Z)=石   = 洞底      （走到中心就掉进洞里、落在洞底）
+     * </pre>
+     */
+    private Task.Status edgeCrawlContract(ServerLevel level) {
+        switch (edgePhase) {
+            case 0 -> {
+                edgeBuildScene(level);
+                edgeTeleportOffset(level, EDGE_ORIGIN, EDGE_OFFSET);
+                edgePhase = 1;
+                return Task.Status.RUNNING;
+            }
+            case 1 -> {
+                if (++edgeSettleTicks < EDGE_SETTLE_TICKS) {
+                    return Task.Status.RUNNING;
+                }
+                edgeStartDistance = MovementHelper.horizontalDistanceToCenter(bot, EDGE_ORIGIN);
+                boolean onRim = bot.onGround() && MovementHelper.footCell(level, bot).equals(EDGE_ORIGIN);
+                check("⭐机制 A 前提：bot 静止在**洞沿**上（onGround=" + bot.onGround() + " foot="
+                                + MovementHelper.footCell(level, bot).toShortString() + " 离心="
+                                + String.format("%.3f", edgeStartDistance) + "）"
+                                + " —— 离心 > 0.2 才会蹭到邻列角（格半宽 0.5 − AABB 半宽 0.3）",
+                        onRim && edgeStartDistance > CRAWL_TO_CENTER_EPSILON);
+                check("⭐机制 A 前提：正下方是**空气**、再下一格才是支撑（洞="
+                                + EDGE_ORIGIN.below().toShortString() + " air="
+                                + level.getBlockState(EDGE_ORIGIN.below()).isAir() + "）",
+                        level.getBlockState(EDGE_ORIGIN.below()).isAir()
+                                && MovementHelper.canWalkOn(level, EDGE_ORIGIN.below()));
+                check("⭐机制 A 前提：邻列角是实心（托住 bot 的那一格 " + EDGE_ORIGIN.offset(0, -1, 1).toShortString()
+                                + "）", MovementHelper.canWalkOn(level, EDGE_ORIGIN.offset(0, 0, 1)));
+                check("⭐机制 A 前提：**因果谓词认得出这个状态** —— `supportedByNeighbourCorner`"
+                                + "（本列脚下已空 + AABB 探一步会撞到邻列）= "
+                                + MovementHelper.supportedByNeighbourCorner(level, bot, EDGE_ORIGIN)
+                                + "（假 ⇒ 修复的触发条件没成立 ⇒ 红的是夹具，不是缺陷）",
+                        MovementHelper.supportedByNeighbourCorner(level, bot, EDGE_ORIGIN));
+                PlannedMovement movement = new PlannedMovement(MovementType.DOWNWARD, EDGE_ORIGIN,
+                        EDGE_ORIGIN.below(), SYNTHETIC_COST, RecoverabilityEvaluator.levelOf(MovementType.DOWNWARD));
+                edgeExecution = new DownwardExecutionFactory().create(
+                        PlannedMovementSpecs.toSpec(movement, List.of("session_segment")),
+                        new LiveExecutionContext(bot, level, "downward-edge-crawl", 0L,
+                                CompletionTolerance.COLUMN, "edge-crawl-contract"));
+                edgePhase = 2;
+                return Task.Status.RUNNING;
+            }
+            case 2 -> {
+                edgeExecution.tick();
+                if (edgeExecution.phase() == MovementExecution.Phase.SUCCEEDED) {
+                    edgeVerdict = "SUCCEEDED（" + edgeExecTicks + " tick 落到 "
+                            + MovementHelper.footCell(level, bot).toShortString() + "）";
+                } else if (edgeExecution.phase() == MovementExecution.Phase.FAILED
+                        || edgeExecution.phase() == MovementExecution.Phase.CANCELLED) {
+                    edgeVerdict = edgeExecution.phase() + "/" + edgeExecution.failureCode();
+                } else if (++edgeExecTicks > EDGE_BUDGET_TICKS) {
+                    edgeExecution.cancel();
+                    edgeVerdict = "TIMEOUT（" + EDGE_BUDGET_TICKS + " tick 没掉下去；离心="
+                            + String.format("%.3f", MovementHelper.horizontalDistanceToCenter(bot, EDGE_ORIGIN))
+                            + " onGround=" + bot.onGround() + " input=" + bot.controller().getInputStateString()
+                            + " —— 这正是真机那两条 145 tick 的形态）";
+                } else {
+                    return Task.Status.RUNNING;
+                }
+                BotLog.info("[PlaceStepClear] edge_crawl startDistance={} verdict={}",
+                        String.format("%.3f", edgeStartDistance), edgeVerdict);
+                check("⭐机制 A：洞沿离心 " + String.format("%.3f", edgeStartDistance)
+                                + " ⇒ `DOWNWARD` 必须在 " + EDGE_BUDGET_TICKS + " tick 内**真的掉下去**"
+                                + "（Baritone `MovementDownward:86-94`：偏移 ≥ 0.2 就朝格中心走）。实测 " + edgeVerdict,
+                        edgeVerdict.startsWith("SUCCEEDED"));
+                edgePhase = 3;
+                edgeRestore(level);
+                return finish();
+            }
+            default -> {
+                return finish();
+            }
+        }
+    }
+
+    /** 自建几何（**先在 `edgeBefore` 里记原状**，收尾原样还原：不许污染专用孤立点）。 */
+    private void edgeBuildScene(ServerLevel level) {
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                edgeBlock(level, EDGE_ORIGIN.offset(dx, 0, dz), Blocks.AIR);
+                edgeBlock(level, EDGE_ORIGIN.offset(dx, 1, dz), Blocks.AIR);
+                edgeBlock(level, EDGE_ORIGIN.offset(dx, -2, dz), Blocks.STONE);
+                // y-1：中间那格是"洞"，其余 8 格是石（其中 (0,-1,+1) 就是托住 bot 的那个角）
+                edgeBlock(level, EDGE_ORIGIN.offset(dx, -1, dz),
+                        dx == 0 && dz == 0 ? Blocks.AIR : Blocks.STONE);
+            }
+        }
+    }
+
+    private void edgeBlock(ServerLevel level, BlockPos pos, net.minecraft.world.level.block.Block block) {
+        BlockPos key = pos.immutable();
+        edgeBefore.putIfAbsent(key, level.getBlockState(key));
+        level.setBlockAndUpdate(key, block.defaultBlockState());
+    }
+
+    private void edgeRestore(ServerLevel level) {
+        for (java.util.Map.Entry<BlockPos, net.minecraft.world.level.block.state.BlockState> e
+                : edgeBefore.entrySet()) {
+            level.setBlockAndUpdate(e.getKey(), e.getValue());
+        }
+    }
+
+    /** 传送到某脚位格、**带水平偏移**（偏移就是被测量的那个自变量；夹具不许用"自动居中"的传送）。 */
+    private void edgeTeleportOffset(ServerLevel level, BlockPos foot, double dz) {
+        bot.teleportTo(level, foot.getX() + 0.5D, foot.getY(), foot.getZ() + 0.5D + dz,
+                java.util.Set.of(), bot.getYRot(), bot.getXRot());
+        bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+        bot.controller().stopMovement();
     }
 
     private void runCase(Case which) {
@@ -257,6 +419,7 @@ public final class PlaceStepDescendClearanceCheckTask implements Task {
         done = true;
         ServerLevel level = bot.serverLevel();
         restore();
+        edgeRestore(level);     // 机制 A 的临时几何也要还原（**失败路径同样走**）
         teleport(bot, START);
         bot.controller().stopMovement();
 

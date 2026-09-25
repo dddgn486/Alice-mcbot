@@ -20253,3 +20253,46 @@ oreMined=7 oreFound=7 oreDeferred=0 places=1`，日志逐字
 静止容忍度 0.3 同值 ⇒ AABB 蹭在邻列角上 0.03~0.095 格 ⇒ 原版碰撞判 `onGround` ⇒ 永不下落）。
 验证等级由 `SERVER_TESTED` 升到 **`WINDOWS_CLIENT`（用户目视确认机制形态）**。
 ⚠️ 修法**未开工**（待用户裁定机制：A = Baritone 式输入居中 / B = 结算点瞬移校准；建议先 A）。
+
+**裁定三的落地（2026-09-25 深夜，用户「先把 A 改动做了我再测」）**：
+
+- **改了 `DownwardExecution` 缺的那一支**（`FallExecution:106-116` 与 `DescendExecution:107-116` **早就有**，
+  只有它漏了）：方块已破后，`onGround` 且 `水平离心 > 0.2` ⇒ 朝格中心走过去；够近才原地等掉落；
+  **已离地则不给水平输入**（1 格落差几 tick，给输入可能把落点推出目标列）。
+- **0.2 不是随手取的**：`格半宽 0.5 − AABB 半宽 0.3 = 0.2` ⇒ 到了这个值 AABB 才不再压到邻列；
+  也正是 Baritone `MovementDownward:90` 的 `ab < 0.2`。
+- **唯一出处**：`MovementHelper.horizontalDistanceToCenter` / `faceCellCenter`（新增），
+  且 `isSettledAtFootPos` 改成**调用同一个距离口径** ⇒ **判定与纠正同源**（否则又是一对"同一概念两处定义"）。
+  ⚠️ 本仓另有 11 处同式 yaw 公式（`TraverseExecution`/`DescendExecution`/`FallExecution`/`PillarExecution`/
+  `AscendExecution`/`DiagonalExecution`/`BreakAnd*`/`TaskStep…`）**本轮不动**（它们行为正确、且正在被电池覆盖；
+  合并另开一轮，别和本次修复混在一起 ⇒ 台账 `1.4n`）。
+- **判据（运行时，不是谓词）**：挂在**已有的**电池步 `place_step_descend_clearance` 上
+  （`PlaceStepDescendClearanceCheckTask.edgeCrawlContract`）—— 自建"洞沿"几何 + 把 bot 摆在**离心 0.3**
+  （**校准的反操作**：夹具不许用会自动居中的传送）+ 真 tick 一条 `DOWNWARD` 到终态 + 三条前提自证。
+  实测：修复后 `SUCCEEDED（7 tick）`；红臂（改回只 `stopMovement()`）`TIMEOUT（离心=0.300 onGround=true
+  input=forward=0.00）` —— **把真机那条 145 tick 的形态离线复现**。
+- **未做**：机制 B（结算点瞬移校准，给拾取模型那 0.49 用）—— 等 A 的真机结果再定。
+
+**裁定三的落地——修正（同日深夜，第一版触发条件太宽 ⇒ CORE 回归后收窄）**：
+
+- ⚠️ 第一版照 Baritone 原文做成**无条件**（`onGround` + 离心 > 0.2 ⇒ 走过去）。rim 判据绿、红臂也红，
+  **但 CORE 电池 `lumber_job=FAIL`**；`git stash` 掉改动后 CORE **PASS** ⇒ 确认是本次回归。
+- 根因：**"离心"在 ALICE 是正常状态**（`COLUMN` 容差不要求居中）⇒ 无条件给水平输入会**改掉所有正常下落的落点**。
+  伐木步按 `reason=nearest` 选树 ⇒ 落点一动，第三棵从 @29 变成 @28（7 格云杉）⇒ 砍完高树后
+  砍不动接下来的任何一棵（`chopped=0/4 failed=4` ×2）⇒ `partial_quota`。
+- ⇒ **触发条件收窄为因果谓词** `MovementHelper.supportedByNeighbourCorner(level, entity, footCell)`：
+  ① 本列脚下**已无支撑**（`!canWalkOn`）；② AABB 按**一次重力步**（`FALL_PROBE = 0.0784`，真机逐字
+  `delta=(0,-0.0784,0)`）往下探，与**相邻某列在脚下一层**的实心方块**真相交**。
+  ⇒ **正常下落零水平输入**（对既有路径零扰动），只在"真的被托住"时才走过去。
+  ⚠️ 探针**不许取 0**：静止时脚底与邻列方块顶面恰好相切，零体积相交判不出来（夹具实测踩到）。
+- 收窄后的证据（全部 `ALICE_BATTERY_NO_CACHE=1` 真跑）：rim 判据 `SUCCEEDED（7 tick）checks=32/0` ·
+  红臂（关掉那一支）`TIMEOUT（离心=0.300 onGround=true forward=0.00）checks=32/1` · **CORE `PASS`（228 s，含 `lumber_job=PASS`）** ·
+  `fishbone_slice1/2 = 42/0 · 88/0`。
+- ⚠️ **两个测量陷阱（本轮亲历，写下来给下一次）**：
+  ① 单跑一步**不能**当作 CORE 里那一步的基线（入口状态不同：CORE 的伐木在第 5 步、前面刚跑过 `scaffold`）
+  ⇒ 回归判定必须**同样跑 `core`**；
+  ② 电池有**判决缓存**（`run/.cache/core-verdict.txt`，源码指纹不变就复用）⇒ 红臂第一次"绿"其实是
+  **没真跑 + 我用 `ls -t` 读到了上一轮的日志**。**红臂一律 `ALICE_BATTERY_NO_CACHE=1`，并先确认日志时间戳是本轮的。**
+- ⭐ **副产物（已单列台账 `1.4o`）**：暴露了一个**潜伏缺陷** —— **砍完那棵 7 格高的云杉之后，伐木 job 砍不动下一棵树**。
+  CORE 一直绿只是因为那棵高树**恰好被排在最后** ⇒ 那一步是**位置敏感的脆判据**。
+  **没有去改判据/改场景**（那会把缺陷藏起来）。

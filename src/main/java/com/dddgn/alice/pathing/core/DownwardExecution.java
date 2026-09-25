@@ -20,9 +20,18 @@ import java.util.Objects;
  * （工具选择 + 进度 + 广播），不使用瞬间销毁。
  *
  * <p>Baritone 原样语义（D-050）：脚下可破坏 + 落点有支撑；破坏期间保持原地，
- * 破坏完成后等待自然掉落并稳定（统一完成契约 + 分段容差 D-027）。
+ * 破坏完成后**先把身体挪到目标格中心**（偏移 > 0.2 ⇒ 朝中心走，Baritone `MovementDownward:86-94`），
+ * 够靠中心才原地等自然掉落（统一完成契约 + 分段容差 D-027）。
  */
 public final class DownwardExecution implements MovementExecution {
+    /**
+     * "已经够靠格中心了"的阈值：**0.2**（Baritone `MovementDownward:90` 的 `ab < 0.2`）。
+     *
+     * <p>它不是一个随手取的数：几何上 0.2 = `格半宽 0.5 − AABB 半宽 0.3` ⇒ 到了这个值，
+     * AABB 才**不再压到邻列**，"脚下那个洞"才真的接得住 bot。
+     */
+    private static final double CRAWL_TO_CENTER_EPSILON = 0.2D;
+
     private final MovementSpec spec;
     private final BotPlayer bot;
     private final ServerLevel level;
@@ -109,7 +118,33 @@ public final class DownwardExecution implements MovementExecution {
             return;
         }
 
-        // 方块已破：等待自然掉落并稳定
+        // 方块已破：**只有"被邻列方块的角托在洞沿上"时才把自己挪到格中心**，其余情况零水平输入。
+        // ⭐ 机制 A（`D-445` 裁定三；用户 2026-09-25 目视确认「停在洞沿上像悬空、刚好蹭在边缘上」）：
+        // 原来这里只有 `stopMovement()` ⇒ bot 静止在**邻列方块的角上**（离心 > 0.2 ⇒ AABB 压进邻列
+        // 0.03~0.1 格）⇒ 原版碰撞判 `onGround=true`、重力每 tick 被清零 ⇒ **永不下落**。
+        // 真机形态：两条 145 tick `segment_timeout`、`input=forward 0.00`
+        //（取证 `docs/reviews/2026-09-25-真机第三轮-根因取证.md` §4）。
+        // 对照 Baritone：`MovementDownward:86-94`（偏移 ≥ 0.2 ⇒ `moveTowards` 朝格中心走，够近才等）、
+        // `MovementFall:174-180`（"moving to the 0.5 center **not the edge**"）。
+        // ⇒ `FallExecution:106-116` 与 `DescendExecution:107-116` **早就有这一支**，只有本类漏了。
+        //
+        // ⚠️ **触发条件收窄到"真的被托住"**（`supportedByNeighbourCorner`），不是"离心 > 0.2"：
+        // Baritone 可以无条件 `moveTowards`（它有整套 Movement 状态机），而 Alice 这条路径上
+        // "离心"是正常状态（`COLUMN` 容差不要求居中）—— 无条件给水平输入会改掉**所有**正常下落的落点。
+        // CORE 电池实测（2026-09-25）：伐木步按 `nearest` 选树 ⇒ 落点一动就换一棵树 ⇒ `lumber_job=FAIL`。
+        // ⇒ 正常下落**零水平输入**（对既有路径零扰动），只在洞沿上才走过去。
+        BlockPos feetCell = MovementHelper.footCell(level, bot);
+        if (bot.onGround()
+                && MovementHelper.supportedByNeighbourCorner(level, bot, feetCell)
+                && MovementHelper.horizontalDistanceToCenter(bot, feetCell) > CRAWL_TO_CENTER_EPSILON) {
+            MovementHelper.faceCellCenter(bot, feetCell);
+            bot.controller().setForward(1.0F);
+            bot.controller().setStrafing(0.0F);
+            return;
+        }
+        // 其余情况：**零水平输入** —— 包括"已离地（正在掉落）"（1 格落差只有几 tick，给输入反而
+        // 可能把落点推出目标列；与 Baritone `MovementFall` 的差别在此：那是**多格**长距下落，
+        // 沿途必须持续修正，那件事由 `FallExecution:106-116` 负责，本类只负责 1 格）。
         bot.controller().stopMovement();
     }
 
