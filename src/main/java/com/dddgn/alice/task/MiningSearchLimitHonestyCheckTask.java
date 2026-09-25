@@ -101,10 +101,15 @@ public final class MiningSearchLimitHonestyCheckTask implements Task {
      * 的读脚印闸门（`D-337`）在**扩展当前节点之前**检查它的**半径 3 读脚印**是否已加载 ——
      * 第一版把平台西缘放到 `x=3215`（**区块 200**，未加载）⇒ 起点直接 `boundary_unloaded
      * blocked_nodes=1`、`nodes=1`、前缀为空 ⇒ 探针返回 `SEARCH_LIMIT` 而不是 `PARTIAL`。
-     * 区块 201 = x∈[3216, 3231]，区块 237 = z∈[3792, 3807] ⇒ 起点取 (3220, 3798)，
-     * 半径 3 脚印 = x∈[3217, 3223] · z∈[3795, 3801] 全部落在已加载区块内。
+     * 区块 201 = x∈[3216, 3231]，区块 240 = z∈[3840, 3855] ⇒ 起点取 (3220, 3846)，
+     * 半径 3 脚印 = x∈[3217, 3223] · z∈[3843, 3849] 全部落在已加载区块内。
+     *
+     * <p>⚠️ **Z 取 3846 而不是 3798**：`TickBudgetBenchTask` 的基岩壳在 `(3212, -60, 3800)`，
+     * 而项目 skill `alice-scene-based-testing` 的**强制**纪律是"场景边界外至少一圈（含上下）为空气，
+     * 判定标准 = 站在场景内任意位置，四周/上方/下方一圈都不存在**非本场景**方块" ⇒ 隔开 41 格
+     * （跨两列区块）才满足。
      */
-    private static final BlockPos PARTIAL_ORIGIN = new BlockPos(3220, -60, 3798);
+    private static final BlockPos PARTIAL_ORIGIN = new BlockPos(3220, -60, 3846);
     /** bot 站的自建石平台半径（**必须自建**：搜索起点要有可走的地面，否则第一条边就出不去 ⇒ 前缀为空）。 */
     private static final int PARTIAL_PAD_RADIUS = 3;
     /** 基岩壳半径（中心是空气 + 目标矿；六面基岩 ⇒ **搜索永远到不了** ⇒ 必然耗尽预算）。 */

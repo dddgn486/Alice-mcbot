@@ -19496,7 +19496,7 @@ CORE 的搜索最大只 4–5 ms（`P2` 备忘记过），而真机那三次 `Ca
 
 | 证据 | 结果 |
 |---|---|
-| 夹具绿 | **`checks=14 failures=0`**（`run/headless-logs/20260925-101013-single_mining_search_limit_honesty.log`） |
+| 夹具绿 | **`checks=14 failures=0`**（`run/headless-logs/20260925-101912-single_mining_search_limit_honesty.log`） |
 | ⭐ 行为臂真的走到 `PARTIAL` 那条腿 | 探针实测 **`PARTIAL nodes=224 ms≈20 前缀=3 诊断=[boundary_unloaded blocked_nodes=74 partialPrefix=3]`**；规划器 `searches +4`（**真的跑起来了**）· 理由 = `search_incomplete` |
 | ⭐ **红臂** | `inconclusive` 去掉 `PARTIAL` ⇒ **`failures=2`**（真值表 + 行为级双双红），`p1dReason=found_but_unminable` = **真机 09-24 的缺陷签名被复现**（`…/20260925-101100-…`） |
 | 门禁注入臂 | **六条全红**：A 谓词去掉 `PARTIAL` · B 回退 `standableOnly` 掩蔽点 · C 回退 `selectBestApproach` 的 `PARTIAL` 识别 · D 写回字面量（唯一出处被绕过）· E 回退 `planTunnel` 逐字保留 · F 回退 `planDirect` 掩蔽点 |
@@ -19527,7 +19527,13 @@ CORE 的搜索最大只 4–5 ms（`P2` 备忘记过），而真机那三次 `Ca
    "`MineJob` 的 40-tick 冷却因此真的生效、mine 循环的 200 ms/tick 因此变稀疏"**是推理，不是实测** ——
    需要一次真机复测（对照 `found_but_unminable` : `search_incomplete` 的比例，当前 **307 : 87**）。
 2. **推进可能变慢**：冷却生效 ⇒ 单位时间 `block_break_done` 可能下降 ⇒ 见 `D-434 §四` 复核触发 2。
-3. **行为臂是条件式的**：`PARTIAL` 能否被造出来**取决于外部地形/加载状态**
+3. **`PARTIAL` 臂的场景刻意贴在 `y = -60` 深部**（那里外围是未加载/虚空 ⇒ 搜索会撞加载边界 ⇒ 才会有"跑了但没算完"这种形态），
+   ⇒ 与项目 skill `alice-scene-based-testing` 的"孤立长方体（边界外一圈空气）"**纪律有张力**：
+   第一版离 `TickBudgetBenchTask` 的基岩壳只有 **3 格**（不满足"一圈空气"），已把它挪到 **Z=3846**
+   （隔 41 格 / 跨两列区块，`docs/…` 实测仍产出 `PARTIAL nodes=224 前缀=3`）。
+   ⚠️ 但**深部场景本身**仍不是"开阔孤立"形态（该纪律假设的是地面附近的合成场景）——这是一处**有意的例外**，
+   理由是：本臂要量的正是"**搜索被加载边界截断**"这一形态，把它放进孤立空场里就量不到了。
+4. **行为臂是条件式的**：`PARTIAL` 能否被造出来**取决于外部地形/加载状态**
    （`CoarseGoalPrefixCheckTask` 2026-09-22 记过同一条夹具洁净度坑：单跑有地形 ⇒ `PARTIAL`；
    CORE 里同一区域已加载且为空 ⇒ `UNREACHABLE`）⇒ 判定该形态的**确定性**那一半由真值表 + 门禁承担，
    行为臂只在环境允许时咬；不适用时会打一条 `warn` 说明（不许被读成"覆盖到了"）。
