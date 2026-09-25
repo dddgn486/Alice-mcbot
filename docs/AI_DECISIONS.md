@@ -19523,7 +19523,14 @@ CORE 的搜索最大只 4–5 ms（`P2` 备忘记过），而真机那三次 `Ca
 
 #### 六、⚠️ 诚实边界（未验证的部分）
 
-1. **真机的效果未验**：本片只证明"归因不再把 `PARTIAL` 写成不可达"（无头 `SERVER_TESTED`）。
+1. **真机的效果未验**（⭐ **用户 2026-09-25 裁定：先插一轮客户端复测**）：本片只证明"归因不再把 `PARTIAL` 写成不可达"（无头 `SERVER_TESTED`）。
+   **复测口径（入口零参数 `/alice mine here`，与 09-24 同区域）**：读数脚本 `run/analysis/p1d-client-probe.py <latest.log>`
+   （gitignore 的分析件），对照基线 = 09-24 那一轮：`found_but_unminable` **307** : `search_incomplete` **87**（比例 0.28）、
+   `[Search] 超 tick 预算` **502**、`phase=MINE` 间隔中位 **222 ms**、A1 闸门 **0** 次、`Can't keep up` **3**（运行期 2）。
+   ⭐ **jar 版本确认**：新日志里出现 `P1-d` 字样的 `[MiningPlanner] mode=ENTER_TARGET … status=…`（那行是本片新加的）
+   ⇒ >0 即证明加载的是新 jar；否则这一轮的读数**不可比**。
+   判读三条：① 比例上升 + 间隔下降 + 推进量不塌 ⇒ 达到目的；② 比例上升但 `block_break_done` 明显下降 ⇒ 冷却过长（§四 触发 2）；
+   ③ 比例没变 ⇒ 真机这条路没走到 `PARTIAL`（先看 `[Search] 超 tick 预算` 是否为 0）。
    "`MineJob` 的 40-tick 冷却因此真的生效、mine 循环的 200 ms/tick 因此变稀疏"**是推理，不是实测** ——
    需要一次真机复测（对照 `found_but_unminable` : `search_incomplete` 的比例，当前 **307 : 87**）。
 2. **推进可能变慢**：冷却生效 ⇒ 单位时间 `block_break_done` 可能下降 ⇒ 见 `D-434 §四` 复核触发 2。
