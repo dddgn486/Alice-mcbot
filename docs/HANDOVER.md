@@ -1329,5 +1329,7 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
   ⇒ `exactTopK` 加 `includeUnestimated`（仅放置能力开启时为真）。
 - **`C8`**：`maxGapLength`(4) 前瞻门 + `bridge_budget_exhausted` + 「用尽 ⇒ 如实放弃」；预算 `bridgeBlockBudget()`。
 - 证据：`fishbone_slice2` **87/0 PASS**；红臂 R-A/R-B 各自命中对应的那一条；`fishbone_slice1` PASS；门禁 PASS。
-- **下一步**：真机客户端轮（jar 同步后）——重点看 ① 支巷弃巷是否减少 ② 是否出现 `big_cavern_ahead`/`bridge_budget_exhausted`
+- **jar**：`build/libs/alice-1.0.0-1.20.1.jar` sha256 `2dd956a1afb35397d259c26f54fdedcbde7bed6dd50c6081a02e33dd5b04233d`
+  （已同步到 `D:\JAVA_projects\alice\build\libs\` 与固定客户端 `mods/`）
+- **下一步**：真机客户端轮（**重启客户端**后）——重点看 ① 支巷弃巷是否减少 ② 是否出现 `big_cavern_ahead`/`bridge_budget_exhausted`
   这类**如实放弃**（而不是"一格一格搭桥"）。
