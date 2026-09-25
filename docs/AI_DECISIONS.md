@@ -19463,3 +19463,71 @@ CORE 的搜索最大只 4–5 ms（`P2` 备忘记过），而真机那三次 `Ca
 1. 生产日志 `found_but_unminable` 明显多于 `search_incomplete`（当前 **307 : 87**）⇒ `P1-d` 仍在；
 2. 出现 `本 tick 搜索预算已用尽` ⇒ 单 tick 搜索数已 ≥ 8 ⇒ §二的算术前提变了，需重算；
 3. `D-388` 的 `SEARCH_BUDGET_CEILING_MILLIS` 门禁被放宽 / 重新出现无时间上限的消费者 ⇒ 回到 `P4″` 的前提重评。
+
+---
+
+### D-435：⭐ `P1-d` 落地（路径 A）—— **`PARTIAL` 与 `SEARCH_LIMIT` 同等视为「本轮没评价完」**（2026-09-25 用户拍板「先插 `P1-d`（路径 A）」）
+
+📋 依据：`D-434 §三`（新登记 `P1-d`）+ `docs/reviews/2026-09-25-mine循环198ms拆解.md`（真机 09-24 日志拆解）。
+**范围**：只改**归因**，**不动任何预算常量**（不触碰 `D-430` 内核关门线，也不触碰 `D-431` 的"不动毫秒兜底轴"）。
+
+#### 一、病灶（`P1-b` 留的洞）
+
+`P1-b`（`D-387`，2026-09-22）修好了「`SEARCH_LIMIT`（=本轮没评价完）被覆盖成永久理由」，但**只认 `SEARCH_LIMIT`**。
+而真机 09-24 客户端日志里，撞 50 ms 上限的 **502 次搜索有 480 次返回 `PARTIAL`**（22 次 `SEARCH_LIMIT`，
+480+22=502 精确闭合）⇒ 那 **96%** 照样被写成 `no_reachable` / `found_but_unminable`（**永久理由**）
+⇒ `MineJob` 的 40-tick 冷却（只认 `search_incomplete`，`:171`）几乎不生效
+（实测 `found_but_unminable` **307** : `search_incomplete` **87**）⇒ mine 循环每 tick 重烧 4 × 50 ms ≈ 200 ms。
+
+#### 二、改法（每一件都带消费者）
+
+| 件 | 位置 | 改法 |
+|---|---|---|
+| **唯一谓词** | `MiningPlanner.inconclusive(PlanningStatus)` | `SEARCH_LIMIT \|\| PARTIAL` ⇒ "这次搜索**有没有得出可达性结论**"收口成一处 |
+| **区分"没跑"与"跑了没算完"** | `MiningPlanner.neverRan(PlanningStatus)` | `SEARCH_LIMIT` 单独一个函数：A1 拒绝 ⇒ 搜索**没跑** ⇒ **不计入** A2 的 `planned`；`PARTIAL` **计**（预算真花了） |
+| **唯一出路函数** | `MiningPlanner.inconclusiveReason(PathPlan)` | 返回 `SEARCH_INCOMPLETE` 或空串 ⇒ 夹具能拿**真 `PathPlan` 对象**做与环境无关的断言 |
+| **瞬时码单一出处** | `MiningPlanner.SEARCH_INCOMPLETE` | 本类内**不许**再写该字面量（比较/返回各写一遍 = 改一处漏一处） |
+| **三条腿** | `selectBestApproach` / `exactTopK` / `planEnterTarget` | 走上面两个谓词/一个函数 |
+| ⭐ **两处掩蔽点（新发现，不修则本改动在两条腿上失效）** | `plan(...)` 的 `standableOnly` 早返回；`planDirect` 结尾 | 原来**无条件**改写成 `no_reachable_standing_point` ⇒ 直接吃掉 `search_incomplete`（`standableOnly` 正是 `MiningProfile.STANDABLE_ONLY`，**鱼骨逐格 `MineTask` 用的就是它**） |
+| **夹具** | `task/MiningSearchLimitHonestyCheckTask`（步 `mining_search_limit_honesty`，EXTRA） | 新增 `P1-d` 臂：**与环境无关的真值表**（真 `PathPlan`：`PARTIAL`/`SEARCH_LIMIT` ⇒ `search_incomplete`；`UNREACHABLE`/`REACHED` ⇒ 空串）+ **条件式**行为臂 |
+| **门禁** | `tools/kernel-predicates.py` → `rule_search_limit_not_unreachable`（`P1-d` ①–④） | 谓词必须同时含两种状态 · 唯一出路函数必须存在 · `"search_incomplete"` 字面量必须**只剩 1 处** · 三条腿必须走谓词 · **两条掩蔽点必须保留**（位置化判据） |
+
+#### 三、判据与红/绿对照（`SERVER_TESTED`）
+
+| 证据 | 结果 |
+|---|---|
+| 夹具绿 | **`checks=14 failures=0`**（`run/headless-logs/20260925-101013-single_mining_search_limit_honesty.log`） |
+| ⭐ 行为臂真的走到 `PARTIAL` 那条腿 | 探针实测 **`PARTIAL nodes=224 ms≈20 前缀=3 诊断=[boundary_unloaded blocked_nodes=74 partialPrefix=3]`**；规划器 `searches +4`（**真的跑起来了**）· 理由 = `search_incomplete` |
+| ⭐ **红臂** | `inconclusive` 去掉 `PARTIAL` ⇒ **`failures=2`**（真值表 + 行为级双双红），`p1dReason=found_but_unminable` = **真机 09-24 的缺陷签名被复现**（`…/20260925-101100-…`） |
+| 门禁注入臂 | **六条全红**：A 谓词去掉 `PARTIAL` · B 回退 `standableOnly` 掩蔽点 · C 回退 `selectBestApproach` 的 `PARTIAL` 识别 · D 写回字面量（唯一出处被绕过）· E 回退 `planTunnel` 逐字保留 · F 回退 `planDirect` 掩蔽点 |
+| CORE 逐步 diff | 见 §五 |
+
+#### 四、⭐ 本轮顺带得到的两个事实（都不是本改动的目标，但都要留档）
+
+1. **成本场一个人就能撑爆每 tick 的搜索账**（夹具实测）：`MiningPlanner` 的 `exactTopK` 会先跑
+   `StandingCostEstimator`（成本场 Dijkstra），它经 `SearchTickBudget.recordExternal` 记入**同一个账** ——
+   实测**一次调用记入 489 ms** ⇒ 超过 `DEFAULT_MAX_MILLIS_PER_TICK`(400) ⇒ **该 tick 之后所有搜索全被 A1 拒**
+   （读数 `searches=0/32 expensive=0/1 millis=489/400 refused=9`）。
+   ⇒ 这解释了行为臂为什么要临时把三条轴关掉（`setLimits(0,0,0)`）才能测到"搜索跑完的归因"。
+   ⚠️ **本条不修**：`SearchTickBudget.recordExternal` 的设计注释已写明"记但不拦"（拦它会把目标选择搞死），
+   而"给成本场加时间上限"属于新的内核行为 ⇒ 若要动，另立项（`D-434 §三` 的路径 B 与它同族）。
+2. ⚠️ **门禁第一版漏了一处**（第三次同类）：`P1-d` ④ 最初写成"仓库里有没有
+   `SEARCH_INCOMPLETE.equals(direct.failureReason())` 这个子串" —— 而**聚合闸门里也有一份同名子串**
+   ⇒ 回退 `standableOnly` 的掩蔽点**照样 PASS**（注入臂 B 实测没红）。改成**位置化**判据
+   （`if (standableOnly) {` 之后、第一个 `no_reachable_standing_point` 之前必须出现）后 B/E/F 全红。
+   ⇒ 与 `PL-1`（正则跨步边界）、`D-425` ⑤（只咬方法名）**同族**：**判据被"另一处同名/相邻的东西"满足**。
+
+#### 五、CORE 回归
+
+（本轮实测见提交说明；判决应与改动前**逐字相同** —— 本改动只动挖掘归因，不动搜索/成本模型/常量。）
+
+#### 六、⚠️ 诚实边界（未验证的部分）
+
+1. **真机的效果未验**：本片只证明"归因不再把 `PARTIAL` 写成不可达"（无头 `SERVER_TESTED`）。
+   "`MineJob` 的 40-tick 冷却因此真的生效、mine 循环的 200 ms/tick 因此变稀疏"**是推理，不是实测** ——
+   需要一次真机复测（对照 `found_but_unminable` : `search_incomplete` 的比例，当前 **307 : 87**）。
+2. **推进可能变慢**：冷却生效 ⇒ 单位时间 `block_break_done` 可能下降 ⇒ 见 `D-434 §四` 复核触发 2。
+3. **行为臂是条件式的**：`PARTIAL` 能否被造出来**取决于外部地形/加载状态**
+   （`CoarseGoalPrefixCheckTask` 2026-09-22 记过同一条夹具洁净度坑：单跑有地形 ⇒ `PARTIAL`；
+   CORE 里同一区域已加载且为空 ⇒ `UNREACHABLE`）⇒ 判定该形态的**确定性**那一半由真值表 + 门禁承担，
+   行为臂只在环境允许时咬；不适用时会打一条 `warn` 说明（不许被读成"覆盖到了"）。

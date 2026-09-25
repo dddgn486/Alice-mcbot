@@ -1115,34 +1115,88 @@ def rule_search_limit_not_unreachable():
         problems.append("逐格 `visit()` 里写了 `not_found`"
                         " ⇒ **没扫完**也会被记成『没有』（S3 禁止：未扫 ≠ 没矿）")
     # ---- S3 扩展（`P1`，2026-09-21）：**挖掘侧**的 `SEARCH_LIMIT ≠ UNREACHABLE` ----
+    # ---- `P1-d` 扩展（2026-09-25）：**`PARTIAL` 也是"没得出可达性结论"** ----
     # 起因：`A1`（每 tick 搜索总账）上线后，`MiningPlanner.selectBestApproach` 把"本 tick 被限流"
     # 与"搜完了确实没有路"当成同一件事（`if (!path.reached()) continue;`）⇒ 输出 `no_reachable_candidate`
     # ⇒ `MineJob.mine()` **无条件** `attempted.add(mined)` ⇒ 该格本会话再也不会被选中。
     # 真机铁证（第五轮）：25 次拒绝全部 `已发起=1`；目标 `436,82,229` **从未被挖**（`[WRITE] break` 0 次）
     # 却已 `already_attempted`；`search_incomplete` 出现 **0 次**（词早就有，没人用）。
+    # ⭐ `P1-d`：`P1-b` 那次**只认了 `SEARCH_LIMIT`**；而真机 09-24 客户端日志里，撞 50 ms 上限的
+    # **502 次搜索有 480 次返回 `PARTIAL`**（22 次 `SEARCH_LIMIT`，480+22=502 精确闭合）
+    # ⇒ 那 96% 照样被写成永久理由 ⇒ `MineJob` 的 40-tick 冷却几乎不生效
+    # （实测 `found_but_unminable` 307 : `search_incomplete` 87）。取证 = `docs/reviews/2026-09-25-mine循环198ms拆解.md`。
     planner_code = code_only((ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
                               / "mining" / "MiningPlanner.java").read_text(encoding="utf-8"))
+
+    # ⭐ `P1-d` ①：唯一谓词必须**同时**覆盖两种"没得出可达性结论"
+    inconclusive_fn = method_body(planner_code, "public static boolean inconclusive(PlanningStatus status) {")
+    if not inconclusive_fn:
+        problems.append("`MiningPlanner.inconclusive(PlanningStatus)` 唯一谓词不存在"
+                        " ⇒ `P1-b`/`P1-d` 的收口点没了（判据只能咬字面量）")
+    else:
+        for status_name in ("PlanningStatus.SEARCH_LIMIT", "PlanningStatus.PARTIAL"):
+            if status_name not in inconclusive_fn:
+                problems.append(f"`MiningPlanner.inconclusive` 少了 `{status_name}`"
+                                " ⇒ 那种「没得出可达性结论」会被当成不可达"
+                                "（`P1-d`：真机撞限搜 502 次里 **480 次是 PARTIAL**）")
+    # ⭐ `P1-d` ②：唯一出处（夹具要能拿真 `PathPlan` 对象做与环境无关的断言）
+    if "public static String inconclusiveReason(PathPlan plan) {" not in planner_code:
+        problems.append("`MiningPlanner.inconclusiveReason(PathPlan)` 唯一出处不存在"
+                        " ⇒ 夹具只能断言方法名/字面量（`D-425` ⑤：恒真也能过）")
+    # ⭐ `P1-d` ③：`SEARCH_INCOMPLETE` 必须是**唯一出处**，不许再写字符串字面量
+    if planner_code.count('"search_incomplete"') != 1:
+        problems.append("`MiningPlanner` 里 `\"search_incomplete\"` 字面量出现 "
+                        f"{planner_code.count(chr(34) + 'search_incomplete' + chr(34))} 次（应为 1：常量声明处）"
+                        " ⇒ 唯一出处被绕过（比较/返回各写一遍 ⇒ 改一处漏一处）")
+
     approach = method_body(
         planner_code,
         "private Result selectBestApproach(ServerPlayer bot, ServerLevel level, BlockPos target,")
     if not approach:
         problems.append("`MiningPlanner` 找不到 `selectBestApproach`（结构变了 ⇒ 本规则要跟着改）")
     else:
-        if ("PlanningStatus.SEARCH_LIMIT)" not in approach or "searchLimited = true;" not in approach):
-            problems.append("`selectBestApproach` 不再区分 `SEARCH_LIMIT`（缺「判状态 + 置标志」）"
-                            " ⇒ 「本 tick 被限流」会被写进 `no_reachable_candidate`"
+        if "neverRan(path.status())" not in approach or "searchLimited = true;" not in approach:
+            problems.append("`selectBestApproach` 不再区分「这次搜索**没跑**」（缺 `neverRan(path.status())`"
+                            " + 置标志）⇒ 「本 tick 被限流」会被写进 `no_reachable_candidate`"
                             "（S3：`SEARCH_LIMIT ≠ UNREACHABLE`）")
-        if "search_incomplete" not in approach:
-            problems.append("`selectBestApproach` 全失败时没有 `search_incomplete` 分支"
+        if "inconclusive(path.status())" not in approach:
+            problems.append("`selectBestApproach` 没有把 `PARTIAL`（**跑了但没算完**）也算进「本轮没评价完」"
+                            "（`P1-d`）⇒ 真机那 480/502 会被写成永久理由")
+        if "SEARCH_INCOMPLETE" not in approach:
+            problems.append("`selectBestApproach` 全失败时没有 `SEARCH_INCOMPLETE` 分支"
                             " ⇒ 输出端仍然分不出「没评价完」")
+    # ⭐ `P1-d` ④：两条腿**把「没评价完」改写成「不可达」**的掩蔽点必须堵上
+    # ⚠️ 判据必须**位置化**：`SEARCH_INCOMPLETE.equals(direct.failureReason())` 这个子串在
+    # **聚合闸门**里也有一份（`plan()` 的三腿合取）⇒ 只查"仓库里有没有这个子串"会被它满足，
+    # 回退 `standableOnly` 的掩蔽点照样 PASS（本规则第一版**实测就是这样漏的**，注入臂 B 没红）。
+    # ⇒ 改成"在 `if (standableOnly) {` 之后的第一个 `no_reachable_standing_point` 之前必须出现"。
+    standable = re.search(
+        r"if \(standableOnly\) \{(.{0,800}?)"
+        r"return new Result\(null, null, \"no_reachable_standing_point\"\);",
+        planner_code, re.S)
+    if not standable:
+        problems.append("`MiningPlanner.plan` 的 `standableOnly` 早返回结构变了 ⇒ 本规则要跟着改")
+    elif "SEARCH_INCOMPLETE.equals(direct.failureReason())" not in standable.group(1):
+        problems.append("`standableOnly` 早返回没有保留 `SEARCH_INCOMPLETE`"
+                        " ⇒ `MiningProfile.STANDABLE_ONLY`（鱼骨逐格 `MineTask` 用的就是它）上"
+                        "「没算完」仍会被改写成「站不住」（`P1-d`）")
+    if "SEARCH_INCOMPLETE.equals(result.failureReason())" not in planner_code:
+        problems.append("`planTunnel` 结尾不再逐字保留 `SEARCH_INCOMPLETE`"
+                        " ⇒ `P1-b` 的修法被回退")
+    if "best.plan() != null || SEARCH_INCOMPLETE.equals(best.failureReason())" not in planner_code:
+        problems.append("`planDirect` 结尾把 `exactTopK` 的 `SEARCH_INCOMPLETE` 改写成了"
+                        " `no_reachable_standing_point`（`P1-d`）")
+    if "inconclusiveReason(path)" not in planner_code:
+        problems.append("没有任何腿走 `inconclusiveReason(path)` 这个唯一出处"
+                        " ⇒ 「有没有结论」被各腿各判一遍")
     aggregate = method_body(
         planner_code,
         "public Result plan(ServerPlayer bot, BlockPos target, MiningBudget budget, boolean standableOnly) {")
     if not aggregate:
         problems.append("`MiningPlanner` 找不到聚合入口 `plan(…, standableOnly)`（结构变了 ⇒ 规则要跟着改）")
-    elif not all(f'"search_incomplete".equals({leg}.failureReason())' in aggregate
+    elif not all(f"SEARCH_INCOMPLETE.equals({leg}.failureReason())" in aggregate
                  for leg in ("direct", "tunnel", "enter")):
-        problems.append("`MiningPlanner.plan` 聚合三条腿时没有把 `search_incomplete` 单独识别"
+        problems.append("`MiningPlanner.plan` 聚合三条腿时没有把 `SEARCH_INCOMPLETE` 单独识别"
                         " ⇒ 任一条腿被限流仍会整体报 `found_but_unminable`（= 不可挖）")
     mine_more = code_only(mine)
     mine_body = method_body(mine_more, "private Task.Status mine() {")

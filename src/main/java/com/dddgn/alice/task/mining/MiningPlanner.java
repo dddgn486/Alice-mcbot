@@ -5,6 +5,7 @@ import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.search.CorePathPlanner;
 import com.dddgn.alice.pathing.core.search.PathPlan;
 import com.dddgn.alice.pathing.core.search.PathRequest;
+import com.dddgn.alice.pathing.core.search.PlanningStatus;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -51,6 +52,65 @@ public final class MiningPlanner {
      * 届时正确做法是**把穷举摊到多个 tick**（记住进度、下 tick 继续），而不是把上限调大。
      */
     public static final int MAX_APPROACH_PLANS = 3;
+
+    /**
+     * ⭐⭐ **`P1-d`（2026-09-25）：这次搜索**有没有得出可达性结论**。
+     *
+     * <p>两种"没得出"的形态，**都必须**与「不可达」分开（红线 `SEARCH_LIMIT ≠ UNREACHABLE`）：
+     * <ul>
+     *   <li>{@link PlanningStatus#SEARCH_LIMIT}：<b>A1 每 tick 总账拒绝</b> ⇒ 这次搜索**根本没跑**
+     *       （`CorePathPlanner.planInternal` 的 `tryAcquire()` 返回 false）⇒ 什么都不知道；</li>
+     *   <li>{@link PlanningStatus#PARTIAL}：搜索**跑了、烧光了自己的预算**（`D-388` 的 50 ms），
+     *       交出了 best-so-far **前缀**但 `reached() == false` ⇒ **没算完**。</li>
+     * </ul>
+     *
+     * <p><b>为什么必须收口成一处</b>（`P1-b` 的洞，`D-434 §三`）：`P1-b`（2026-09-22）修好了 `SEARCH_LIMIT`
+     * 被覆盖成永久理由的病灶，但**只认了 `SEARCH_LIMIT`**；而**真机实测 09-24 客户端日志**里，
+     * 撞 50 ms 上限的 502 次搜索中 **480 次返回的是 `PARTIAL`**（只有 22 次 `SEARCH_LIMIT`，
+     * 480+22=502 精确闭合）⇒ 那 96% 照样被判成 `no_reachable` / `found_but_unminable`（**永久理由**）
+     * ⇒ `MineJob` 的 40-tick 冷却（只认 `search_incomplete`）几乎不生效
+     * （实测 `found_but_unminable` **307** : `search_incomplete` **87**）⇒ mine 循环每 tick 重烧
+     * 4 × 50 ms ≈ 200 ms。取证 = `docs/reviews/2026-09-25-mine循环198ms拆解.md`。
+     *
+     * <p><b>⚠️ 两种形态在 A2 计数上不同</b>（`MAX_APPROACH_PLANS` 只数**真的评价过**的候选）：
+     * `SEARCH_LIMIT` 不计入；`PARTIAL` **计入**（预算真花了）。所以调用点不是一个 `if` 能合并的
+     * —— 本谓词只回答"结论是否可信"，**不回答**"算不算评价过"。
+     */
+    public static boolean inconclusive(PlanningStatus status) {
+        return status == PlanningStatus.SEARCH_LIMIT || status == PlanningStatus.PARTIAL;
+    }
+
+    /**
+     * 每 tick 总账拒绝 ⇒ 这次搜索**没跑** ⇒ 什么都不知道（**不是**"不可达"）。
+     *
+     * <p>单独一个方法而不是直接比较状态：调用点需要区分"没跑"（不计入 A2）与"跑了但没算完"（计入 A2）。
+     */
+    private static boolean neverRan(PlanningStatus status) {
+        return status == PlanningStatus.SEARCH_LIMIT;
+    }
+
+    /**
+     * ⭐ 瞬时理由码（**唯一出处**）："这次没得出可达性结论" ⇒ 调用方**不许**把这个目标永久了结
+     * （`D-387` 的 `P1-b` + `D-434` 的 `P1-d`）。本类内部**不许**再写这个字符串字面量。
+     */
+    public static final String SEARCH_INCOMPLETE = "search_incomplete";
+
+    /**
+     * ⭐⭐ `P1-d`：一条腿（一个 {@link PathPlan}）"**这次到底给出了什么结论**" —— **唯一出处**。
+     *
+     * <p>为什么要抽成函数（而不是在每个调用点写 `status == SEARCH_LIMIT || status == PARTIAL`）：
+     * 判据必须能**确定地**红。而 `PARTIAL` 能不能被造出来**取决于外部地形是否已加载** ——
+     * `CoarseGoalPrefixCheckTask`（2026-09-22）记过同一条夹具洁净度坑：单跑时目标方向有地形 ⇒
+     * 搜索撞未加载边界 ⇒ `PARTIAL` + 前缀；而在 CORE 里同一区域已加载且为空 ⇒ open set 耗尽 ⇒
+     * `UNREACHABLE`。⇒ **`PARTIAL` 形态**的行为级复现是环境相关的，不能当判据的主语。
+     * 抽成纯函数之后，夹具可以拿**真的 `PathPlan` 对象**（`PathPlan.partial(...)` /
+     * `PathPlan.failure(...)` 都是 public 工厂）做**与环境无关**的真值表断言。
+     *
+     * @return {@link #SEARCH_INCOMPLETE}（没结论 ⇒ 调用方**不许**当成不可达）；空串（有结论，交回调用方判）
+     */
+    public static String inconclusiveReason(PathPlan plan) {
+        return inconclusive(plan.status()) ? SEARCH_INCOMPLETE : "";
+    }
 
     /** 规划结果：plan 为空时仅表示当前规划阶段未产生可用计划。 */
     public record Result(MiningPlan plan, StandingPointEvaluator.StandingPointScore score,
@@ -102,6 +162,12 @@ public final class MiningPlanner {
         if (standableOnly) {
             BotLog.info("[MiningPlanner] standable_only target={} reason={}",
                     immutableTarget.toShortString(), direct.failureReason());
+            // ⭐ `P1-d`：**"没算完"不许被写成"站不住"** —— 这条腿原来**无条件**改写 direct 的理由
+            // ⇒ 直接吃掉 `search_incomplete`（`MiningProfile.STANDABLE_ONLY` 走的正是这条分支，
+            // 鱼骨逐格 `MineTask` 用的就是它）。
+            if (SEARCH_INCOMPLETE.equals(direct.failureReason())) {
+                return direct;
+            }
             return new Result(null, null, "no_reachable_standing_point");
         }
         Result tunnel = planTunnel(bot, level, immutableTarget, startFoot, reach, budget);
@@ -113,14 +179,14 @@ public final class MiningPlanner {
             return enter;
         }
         // P1：三条腿里**任一条**是「本轮没评价完」⇒ 整体**不许**报成不可挖（`SEARCH_LIMIT ≠ UNREACHABLE`）
-        if ("search_incomplete".equals(direct.failureReason())
-                || "search_incomplete".equals(tunnel.failureReason())
-                || "search_incomplete".equals(enter.failureReason())) {
+        if (SEARCH_INCOMPLETE.equals(direct.failureReason())
+                || SEARCH_INCOMPLETE.equals(tunnel.failureReason())
+                || SEARCH_INCOMPLETE.equals(enter.failureReason())) {
             BotLog.warn("[MiningPlanner] search_incomplete target={} direct={} tunnel={} enter={}"
                             + "（本轮搜索被限流 ⇒ 目标**不许**被永久了结）",
                     immutableTarget.toShortString(), direct.failureReason(), tunnel.failureReason(),
                     enter.failureReason());
-            return new Result(null, null, "search_incomplete");
+            return new Result(null, null, SEARCH_INCOMPLETE);
         }
         BotLog.warn("[MiningPlanner] found_but_unminable target={} direct={} tunnel={} enter={} budget={}",
                 immutableTarget.toShortString(), direct.failureReason(), tunnel.failureReason(),
@@ -196,7 +262,12 @@ public final class MiningPlanner {
         }
         Result best = selectBest(bot, level, target, startFoot, candidates, MiningPlan.Mode.DIRECT,
                 null, 0.0D);
-        return best.plan() != null ? best : new Result(null, null, "no_reachable_standing_point");
+        // ⭐ `P1-d`：`exactTopK` 已经如实判过"本轮没评价完"（`SEARCH_LIMIT` 或 `PARTIAL`）
+        // ⇒ **不许**在这一层被改写成"站不住"。原来这里无条件改写 ⇒ `P1-b`/`P1-d` 的信号在模式 A 上全丢。
+        if (best.plan() != null || SEARCH_INCOMPLETE.equals(best.failureReason())) {
+            return best;
+        }
+        return new Result(null, null, "no_reachable_standing_point");
     }
 
     // ==================== 模式 B / 兜底 ====================
@@ -219,7 +290,7 @@ public final class MiningPlanner {
         // （永久性理由）⇒ `MineJob` 把候选写进 `attempted` **永久了结**。
         // 真机实测（2026-09-22 客户端 `latest.log`）：`found_but_unminable` 377 次、`search_incomplete` 206 次、
         // A1 拒绝 ~235 次（`[Search] 超 tick 预算` 234 次）⇒ 目标 `336,62,190` 从未被挖却已 `already_attempted`。
-        if ("search_incomplete".equals(result.failureReason())) {
+        if (SEARCH_INCOMPLETE.equals(result.failureReason())) {
             return result;
         }
         return new Result(null, null, "no_reachable_tunnel_standing_point");
@@ -230,14 +301,17 @@ public final class MiningPlanner {
         // 兜底：以目标格为终点（破坏进入），破坏成本受预算限制
         PathPlan path = planPath(bot, startFoot, target,
                 PathRequest.miningApproach(bot.getUUID().toString(), startFoot, target, "mining-planner"));
-        // ⭐ `P1-b`：**先看状态再看到达** —— `!reached()` 里包含 `SEARCH_LIMIT`（本 tick 搜索额度已用尽），
-        // 那不是"到不了"。原来直接返回 `enter_target_unreachable` ⇒ 同上，整体被记成 `found_but_unminable`。
-        if (path.status() == com.dddgn.alice.pathing.core.search.PlanningStatus.SEARCH_LIMIT) {
-            BotLog.warn("[MiningPlanner] mode=ENTER_TARGET target={} startFoot={} "
-                            + "reason=search_incomplete searchLimited=true"
-                            + "（本轮没评价完，不是「不可达」：`SEARCH_LIMIT ≠ UNREACHABLE`）",
-                    target.toShortString(), startFoot.toShortString());
-            return new Result(null, null, "search_incomplete");
+        // ⭐ `P1-b`/`P1-d`：**先看"有没有结论"再看到达** —— `!reached()` 里既有 `SEARCH_LIMIT`
+        // （本 tick 搜索额度已用尽 ⇒ 根本没跑），也有 `PARTIAL`（跑了、烧完预算、只有前缀）。
+        // 两者都不是"到不了"。原来直接返回 `enter_target_unreachable` ⇒ 整体被记成 `found_but_unminable`。
+        String inconclusive = inconclusiveReason(path);
+        if (!inconclusive.isEmpty()) {
+            BotLog.warn("[MiningPlanner] mode=ENTER_TARGET target={} startFoot={} status={} "
+                            + "reason={} searchLimited=true"
+                            + "（本轮没评价完，不是「不可达」：`SEARCH_LIMIT ≠ UNREACHABLE`；"
+                            + "`PARTIAL` = 预算烧完只拿到前缀，`P1-d`）",
+                    target.toShortString(), startFoot.toShortString(), path.status(), inconclusive);
+            return new Result(null, null, inconclusive);
         }
         if (!path.reached()) {
             return new Result(null, null, "enter_target_unreachable");
@@ -319,9 +393,15 @@ public final class MiningPlanner {
             // 它不计入 planned（A2 的 cap 只该数真的评价过的候选），并把事实带上去 —— 否则
             // 「本 tick 搜索预算被占满」会被写进 no_reachable_candidate，再被 MineJob 永久了结
             // （真机实测：目标 436,82,229 **从未被挖**却已 already_attempted）。
-            if (path.status() == com.dddgn.alice.pathing.core.search.PlanningStatus.SEARCH_LIMIT) {
+            if (neverRan(path.status())) {
                 searchLimited = true;
                 continue;
+            }
+            // ⭐ `P1-d`：`PARTIAL` = 搜索**跑了、烧光了自己的预算、只拿到前缀** ⇒ 两件事同时成立：
+            // ① 结论不可信 ⇒ 置 `searchLimited`（结尾**不许**报 `no_reachable`）；
+            // ② 预算**真花了** ⇒ 仍然计入 `planned`（A2 的上限数的是"几次全预算精算"，不是"几次有结论"）。
+            if (inconclusive(path.status())) {
+                searchLimited = true;
             }
             planned++;
             if (!path.reached()) {
@@ -347,7 +427,7 @@ public final class MiningPlanner {
                             + "（**本轮没评价完**，不是「不可达」：`SEARCH_LIMIT ≠ UNREACHABLE`）",
                     mode, target.toShortString(), startFoot.toShortString(), ordered.size(), planned,
                     planned < ordered.size());
-            return new Result(null, null, "search_incomplete");
+            return new Result(null, null, SEARCH_INCOMPLETE);
         }
         if (best == null) {
             BotLog.warn("[MiningPlanner] mode={} target={} startFoot={} candidates={} planned={} capped={}"
@@ -388,7 +468,8 @@ public final class MiningPlanner {
                 BlockPos foot = ranked.get(i);
                 PathPlan path = planPath(bot, startFoot, foot, requestFactory.apply(startFoot, foot));
                 if (!path.reached()) {
-                    if (path.status() == com.dddgn.alice.pathing.core.search.PlanningStatus.SEARCH_LIMIT) {
+                    // ⭐ `P1-d`：`SEARCH_LIMIT`（没跑）与 `PARTIAL`（跑了没算完）**都不许**变成"没有路"。
+                    if (inconclusive(path.status())) {
                         searchLimited = true;
                     }
                     continue;
@@ -421,7 +502,7 @@ public final class MiningPlanner {
                                 + " reason=search_incomplete searchLimited=true"
                                 + "（本轮没评价完，不是「不可达」：`SEARCH_LIMIT ≠ UNREACHABLE`）",
                         mode, target.toShortString(), startFoot.toShortString(), feet.size(), planned);
-                return new Result(null, null, "search_incomplete");
+                return new Result(null, null, SEARCH_INCOMPLETE);
             }
             return new Result(null, null, "no_reachable_candidate");
         }
