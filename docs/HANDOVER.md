@@ -1346,3 +1346,16 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
   ③ 的现场观察 + 校准落地后有没有橡皮筋感。
 - **验证等级**：`SERVER_TESTED`（`slice1 42/0` · `slice2 87/0` · 门禁 PASS · 红臂 R-B 命中后还原）。
 - **jar**：本轮重新构建（行为等价，只是默认值 + 判据），sha256 `ec1c59a716633432c1be831bf3ecde6ab63add3cf06a33b2fe7e4d3953be52eb`（已镜像到 `D:\JAVA_projects\alice\build\libs\` 与固定客户端 `mods/`）。
+
+## 6. 2026-09-25 深夜补记②：**主巷前瞻档降为提示 + 矿预算 16→32**（`D-445`）
+
+- 用户第二轮原话：「矿簇的预算还能放开点吗；当时 bot 在矿洞里，我觉得 bot 不能因为起点开始方向是空气就不动吧，
+  直接当成主巷一部分就行，bot 停在洞沿上像悬空、刚好蹭在边缘上」。
+- **改了两处**：① `big_cavern_ahead`（**预测**）不再停主巷 —— 判据仍在 `advanceRefusal`，
+  **处置**抽到 `FishboneJob.advanceRefusalIsHard(isSpur, refusal)`（支巷两档都停 / 主巷只有
+  `bridge_budget_exhausted` 停），主巷吃到提示只打一行并**继续推进**；② `oreBudgetPerUnit` 16 → 32。
+- **③ 机制已由用户目视确认**（「蹭在边缘上」= AABB 蹭邻列角）⇒ `WINDOWS_CLIENT`。**修法未开工**，待裁定：
+  A = Baritone 式**输入居中**（`MovementDownward:86-94`）/ B = 结算点瞬移校准（用户原提议）；**我建议先 A**。
+- 证据：`fishbone_slice1 42/0` · `fishbone_slice2` **88/0** · 门禁 PASS · 红臂（处置恒 true）唯一红的就是新增那条。
+- ⚠️ **仍待用户裁定**：`1.4j①`（`isAlreadyPassable` 单格口径）是否提前到片 B 开头（它是弃巷 3/3 的直接原因，
+  也是"把空气格当成已通"的必要条件）。

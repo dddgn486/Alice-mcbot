@@ -576,6 +576,7 @@ public final class FishboneSlice2CheckTask implements Task {
             // ⭐ `D-443` 片 A 的两条判据（同一臂、同一现场；各自自建处境 + 逐格还原）
             approachChecks(level);
             cavernChecks(level);
+            advanceRefusalDispositionChecks();
         }
 
         armIndex++;
@@ -800,6 +801,30 @@ public final class FishboneSlice2CheckTask implements Task {
     /** 判据用的窗口：**取生产配置值**（不照抄常量；配置被改坏时判据跟着红）。 */
     private static int maxGapLengthForCheck() {
         return Math.max(1, FishboneConfig.maxGapLength());
+    }
+
+    /**
+     * ⭐ **`C8` 推进门的处置判据**（用户 2026-09-25 真机裁定：「bot 不能因为起点开始方向是空气就不动，
+     * 直接当成主巷一部分就行」）。
+     *
+     * <p>判的是**生产的同一个函数** {@link FishboneJob#advanceRefusalIsHard}（纯函数，不需要场景）：
+     * <ul>
+     *   <li>主巷 + `big_cavern_ahead`（**预测**）⇒ **不停**（真机那次 6 tick 零挖掘就失败就是它停的）；</li>
+     *   <li>主巷 + `bridge_budget_exhausted`（**计数事实**）⇒ **停**（`D-443` 7b 如实失败）；</li>
+     *   <li>支巷 + `big_cavern_ahead` ⇒ **停**（§10.2 两档：只放弃这一条肋）。</li>
+     * </ul>
+     * 红臂：把 `advanceRefusalIsHard` 改成恒 `true`（= 退回"预测即判决"）⇒ 当场红。
+     */
+    private void advanceRefusalDispositionChecks() {
+        boolean mainCavernContinues = !FishboneJob.advanceRefusalIsHard(false, "big_cavern_ahead");
+        boolean mainBudgetStops = FishboneJob.advanceRefusalIsHard(false, "bridge_budget_exhausted");
+        boolean spurCavernStops = FishboneJob.advanceRefusalIsHard(true, "big_cavern_ahead");
+        check("⭐`D-443` 推进门**处置**（用户 2026-09-25「方向是空气不能就不动、当成主巷一部分」）："
+                        + "主巷 + `big_cavern_ahead`（**预测**）⇒ **继续挖**（实测 " + mainCavernContinues + "）；"
+                        + "主巷 + `bridge_budget_exhausted`（**计数事实**）⇒ **停**（实测 " + mainBudgetStops + "）；"
+                        + "支巷 + `big_cavern_ahead` ⇒ **停**（只放弃这一条肋，实测 " + spurCavernStops + "）"
+                        + "（红臂 = 处置改成恒 `true` ⇒ 退回\"预测即判决\"）",
+                mainCavernContinues && mainBudgetStops && spurCavernStops);
     }
 
     /** 臂①：`C1`（含支巷）+ 支巷退路记账 + `C3`。 */

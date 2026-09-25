@@ -421,10 +421,11 @@ public final class FishboneJob implements Job {
         ServerLevel level = bot.serverLevel();
 
         // ⭐ `C8` 推进门（`D-443` 裁定 1b/7b，2026-09-25）：**每个单元开头**先判"这一段还能不能推进"。
+        // 判据只有一处（{@link #advanceRefusal}）、**处置**只有一处（{@link #advanceRefusalIsHard}）；
         // 两档与挖不动**同一套**（§10.2：支巷 ⇒ 只放弃那条支巷；主巷 ⇒ 如实失败）。
         if (current == null && cellInUnit == 0) {
             String refusal = advanceRefusal(unit);
-            if (refusal != null) {
+            if (refusal != null && advanceRefusalIsHard(unit.isSpur(), refusal)) {
                 if (unit.isSpur()) {
                     abandonSpur(unit, refusal);
                 } else {
@@ -436,6 +437,16 @@ public final class FishboneJob implements Job {
                     beginReturn();
                 }
                 return Task.Status.RUNNING;
+            }
+            if (refusal != null) {
+                // ⭐ 主巷的**前瞻档只是提示**（用户 2026-09-25 真机裁定：「bot 不能因为起点开始方向是空气
+                // 就不动，直接当成主巷一部分就行」——当时 bot 就在矿洞/空腔里）。
+                // 为什么可以让它过去：`big_cavern_ahead` 是**预测**（前瞻 N 格看不到地板），而预测不许当判决
+                //（与 `SEARCH_LIMIT ≠ UNREACHABLE` 同一条纪律，`D-329`）；真正的停手交给**计数事实**
+                //（搭路额度用尽）或单元自己的失败码（`no_reachable_standing_point` / `no_throwaway_blocks` …）。
+                BotLog.warn("[Fishbone] 主巷单元 {} 前瞻提示 {} target={} ⇒ 按裁定**继续推进**"
+                                + "（已通的格按\"已通\"跳过；只有搭路额度用尽才如实失败）",
+                        unitIndex + 1, refusal, unit.foot().toShortString());
             }
         }
 
@@ -591,7 +602,9 @@ public final class FishboneJob implements Job {
      *       还要反复走的（`SPUR_RETURN` / `RETURN`）。</li>
      *   <li>{@code big_cavern_ahead}：沿走向前瞻 {@link #maxGapLength} 格**找不到一格有地板**
      *       ⇒ 这是"大矿洞"（`§10.3` 产品裁定：**放弃**，不是架桥过去）。
-     *       ⚠️ 反例臂：把 `maxGapLength` 调到很大 ⇒ 本判据失效 ⇒ 会开始"一格一格搭桥"（`C8` 原红臂）。</li>
+     *       ⚠️ 反例臂：把 `maxGapLength` 调到很大 ⇒ 本判据失效 ⇒ 会开始"一格一格搭桥"（`C8` 原红臂）。
+     *       ⚠️ **本档只是判据的一半**：它要不要**停**由 {@link #advanceRefusalIsHard} 决定 ——
+     *       支巷停、**主巷不停**（用户 2026-09-25 真机裁定：站在矿洞里不许因为"方向是空气"就整体失败）。</li>
      * </ol>
      *
      * <p>⚠️ 为什么放在**单元开头**而不是每个格子：它表达的是"这一段通道还值不值得开工"，
@@ -628,6 +641,36 @@ public final class FishboneJob implements Job {
             }
         }
         return false;
+    }
+
+    /**
+     * **`C8` 推进门的处置**（`D-443` 裁定 1b/7b + 用户 2026-09-25 真机裁定）：这一档要不要**停**。
+     *
+     * <table border="1">
+     *   <tr><th>档</th><th>支巷</th><th>主巷</th></tr>
+     *   <tr><td>{@code bridge_budget_exhausted}（**计数事实**：额度真的用完了）</td>
+     *       <td>放弃该支巷</td><td><b>停</b>（如实失败）</td></tr>
+     *   <tr><td>{@code big_cavern_ahead}（**预测**：前瞻 N 格看不到地板）</td>
+     *       <td>放弃该支巷</td><td><b>不停</b>（只记一笔，继续挖）</td></tr>
+     * </table>
+     *
+     * <p>为什么主巷对前瞻档不停（真机实测）：bot 站在**矿洞/空腔**里开工时，主巷**第 2 个单元**就判
+     * {@code big_cavern_ahead} ⇒ **6 tick、一格没挖**（`mined=0`）整体失败。用户裁定：「那是方向是空气，
+     * 应当**当成主巷的一部分**继续挖」。预测（看不到地板）不是判决；主巷该不该停，由**计数事实**
+     * （额度用尽）或单元自己的失败码回答 —— 与 `SEARCH_LIMIT ≠ UNREACHABLE` 同一条纪律（`D-329`）。
+     *
+     * <p>为什么支巷仍按前瞻档放弃：支巷只值一条肋（放弃的代价**局部且有界**，且 §10.2 的两档就是这个意思），
+     * 主巷才是这轮作业的目的 ⇒ 把额度留给主巷。
+     *
+     * <p>⚠️ 抽成 **public static** 是为了让夹具能**直接判这一条处置**（`FishboneSlice2CheckTask`
+     * 的 `advanceRefusalDispositionChecks`），而不是在夹具里照抄一份 `if` —— 判据与生产**同一个出处**
+     *（`K4-P1` 的纪律，与 {@link #floorWithinLookahead} 同一种做法）。
+     */
+    public static boolean advanceRefusalIsHard(boolean isSpur, String refusal) {
+        if (isSpur) {
+            return true;      // 支巷两档都只是"放弃这条肋"，代价局部 ⇒ 一律停这一条支巷
+        }
+        return "bridge_budget_exhausted".equals(refusal);   // 主巷：只有计数事实才停
     }
 
     /**
