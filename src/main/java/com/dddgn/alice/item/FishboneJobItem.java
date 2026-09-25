@@ -2,6 +2,7 @@ package com.dddgn.alice.item;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.config.FishboneConfig;
 import com.dddgn.alice.decision.Driver;
 import com.dddgn.alice.job.fishbone.FishboneTemplate;
 import com.dddgn.alice.log.BotLog;
@@ -26,12 +27,17 @@ import java.util.Set;
  *
  * <p><b>为什么要这个物品</b>：切片 2 之前，`FishboneJob` 只有离线夹具能动它 ——
  * 而鱼骨的全部价值（"按模板开挖，不搜索"）只有在**真实地形**里才看得出来。
- * 这个物品把"最后一次交接"降到**一次右键**：`模板 = 你当前位置 + 你朝向`，
- * 尺寸用一组保守默认（主巷 {@value #MAIN_LENGTH} 格 / 支巷间距 {@value #SPUR_SPACING} /
- * 支巷 {@value #SPUR_LENGTH} 格 / {@code ALTERNATE} / 净高 2）。
+ * 这个物品把"最后一次交接"降到**一次右键**：`模板 = 你当前位置 + 你朝向`。
  *
  * <p><b>零坐标参数是硬要求</b>（`AGENTS.md` 客户端测试规则）：你走到哪、朝哪，就挖到哪。
  * 不要求你输入坐标、不要求你算位置、不要求你搭场景。
+ *
+ * <p>⭐ <b>尺寸在 `config/alice-fishbone.toml`</b>（切片 4，用户 2026-09-25 裁定
+ * 「主巷深和子巷深做成可配置的」）：物品本身仍然零参数，尺寸**在点击之前**就定好。
+ * 默认 = 主巷 {@value FishboneConfig#DEFAULT_MAIN_LENGTH} /
+ * 中心距 {@value FishboneConfig#DEFAULT_SPUR_SPACING} / 支巷长
+ * {@value FishboneConfig#DEFAULT_SPUR_LENGTH} / {@code BOTH}（左右对称）/ 净高 2
+ * ⇒ **6 个位置 × 2 侧 = 12 条肋 × 32 格** = 404 单元 / 808 格。
  *
  * <p><b>本物品只做三件事</b>（其余全在 `FishboneJob`）：
  * <ol>
@@ -41,47 +47,48 @@ import java.util.Set;
  * </ol>
  *
  * <p><b>你要看什么</b>（计划 §8）：`[Fishbone] SUMMARY` 一行里的
- * `main=20/20 spurs=4/4`（模板 = 事实）· `outside=0`（没乱挖）· `searchLimit=0` +
+ * `main=…/… spurs=…/…`（模板 = 事实）· `outside=0`（没乱挖）· `searchLimit=0` +
  * `searchNodes` 量级（鱼骨的卖点）· `return=ok`（回得来）；外加观感（巷道直不直、卡不卡、
- * 掉落物捡干净没）。
+ * 矿簇挖干净没、掉落物捡没捡）。
  *
- * <p>⚠️ **这是**真机**入口，会真的改世界**（挖 20 格主巷 + 4 条 5 格支巷）。请站到你**真想挖**的位置再按。
+ * <p>⚠️ **这是**真机**入口，会真的改世界**（默认形状 = 808 格）。请站到你**真想挖**的位置再按。
+ * ⚠️ 长作业**没有断点续跑**：想停就停（关客户端 / 退出存档），已挖的部分留在世界里。
  */
 public class FishboneJobItem extends Item {
 
-    /** 主巷长度（计划 §8 的保守默认）。 */
-    private static final int MAIN_LENGTH = 20;
-
-    /** 支巷间距（每 5 格开一条 ⇒ 4 条）。 */
-    private static final int SPUR_SPACING = 5;
-
-    /** 支巷长度。 */
-    private static final int SPUR_LENGTH = 5;
-
-    /** 支巷侧向（交替：一条左、一条右 ⇒ 形状最像鱼骨，也最容易一眼看出方向有没有错）。 */
-    private static final FishboneTemplate.SpurSide SIDE = FishboneTemplate.SpurSide.ALTERNATE;
-
     /**
-     * 作业自己的预算（`goal_timeout` 的判据）。
+     * 作业预算（`goal_timeout` 的判据）—— ⭐ **从模板推导，不是常数**（切片 4）。
      *
-     * <p>取值依据：离线夹具实测 **≈46 tick/单元**（`fishbone_slice2` 的 `ticksPerAdvance`），
-     * 本模板 = 20 主巷 + 4×5 支巷 = **40 个单元** ⇒ ≈1840 tick；真机地形更硬 ⇒ 给 4 倍余量。
+     * <p>取值依据（真机实测，不是拍脑袋）：`latest.log` 2026-09-25 12:16~12:17 那轮
+     * `main=20 spurSpacing=5 spurLen=5 ALTERNATE`（40 单元）的相邻单元时间差 ≈ **2.35 秒/单元
+     * ≈ 47 tick/单元**，与离线夹具的 46 tick/单元一致 ⇒ 用 **200 tick/单元**（≈ 4.3 倍余量）
+     * 加一段固定开销（PREPARE + COLLECT + RETURN）。
+     *
+     * <p>为什么不做成配置项：它是**由形状推出来的**，写死一个数就会在"你把支巷改成 64 格"之后
+     * 悄悄变成 `goal_timeout`；推导出来的预算**不会忘**。
      */
-    private static final int MAX_TICKS = 8000;
+    public static int maxTicksFor(FishboneTemplate template) {
+        return 200 * template.advanceCells() + 6000;
+    }
 
     public FishboneJobItem(Properties properties) {
         super(properties);
     }
 
     /**
-     * ⭐ **真机入口的模板工厂**（`D-438`）—— **唯一出处**：物品与离线夹具都调它
+     * ⭐ **真机入口的模板工厂**（`D-438` / `D-439`）—— **唯一出处**：物品与离线夹具都调它
      * ⇒ 夹具断言的就是运行时真的会用的那个模板（不是照着常量另抄一份）。
+     *
+     * <p>尺寸来自 {@link FishboneConfig}（`config/alice-fishbone.toml`）；非法组合由
+     * {@link FishboneTemplate} 的构造器**拒绝**（计划 §2），本方法**不夹取、不兜底**。
      *
      * @param startFoot 起点脚位（运行时 = **玩家当前脚位**）
      * @param dir       主巷方向（运行时 = **玩家朝向**，`Player#getDirection` 只给水平四向）
      */
     public static FishboneTemplate templateFor(BlockPos startFoot, Direction dir) {
-        return FishboneTemplate.spurs(startFoot, dir, MAIN_LENGTH, SPUR_SPACING, SPUR_LENGTH, SIDE);
+        return new FishboneTemplate(startFoot, dir,
+                FishboneConfig.mainLength(), FishboneConfig.spurSpacing(),
+                FishboneConfig.spurLength(), FishboneConfig.side(), FishboneConfig.height());
     }
 
     @Override
@@ -114,10 +121,11 @@ public class FishboneJobItem extends Item {
         try {
             template = templateFor(start, dir);
         } catch (IllegalArgumentException refused) {
-            // 非法即拒绝而不是夹取（计划 §2）—— 这里理论上到不了，但**不许静默**
-            say(player, "[alice] 鱼骨模板参数非法：" + refused.getMessage());
+            // 非法即拒绝而不是夹取（计划 §2 / `config/alice-fishbone.toml` 写错时走这里）
+            say(player, "[alice] 鱼骨模板参数非法（检查 config/alice-fishbone.toml）：" + refused.getMessage());
             return;
         }
+        int maxTicks = maxTicksFor(template);
 
         BotPlayer bot = BotManager.firstInLevel(level);
         if (bot == null) {
@@ -138,17 +146,20 @@ public class FishboneJobItem extends Item {
         // 决策层切 FIXTURE：否则 LLM 的决策会插进来改目标（与 `MineJobItem` 同一处置）
         Driver.set(bot, Driver.FIXTURE);
 
-        if (!BotManager.assignFishboneJob(bot, template, MAX_TICKS)) {
+        if (!BotManager.assignFishboneJob(bot, template, maxTicks)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
         BotLog.info("[FishboneJobItem] 启动 fishbone Job template={} maxTicks={} by={}",
-                template.describe(), MAX_TICKS, player.getName().getString());
-        say(player, "[alice] 鱼骨作业启动：方向 " + dir.getName() + " · 主巷 " + MAIN_LENGTH
-                + " 格 · 支巷 " + template.spurBranches() + " 条 × " + SPUR_LENGTH + " 格 · 净高 "
-                + template.height() + " · 起点 " + start.toShortString());
-        say(player, "[alice] 挖完会自己回起点。看聊天/日志的 [Fishbone] SUMMARY 行（"
-                + "main=…/… spurs=…/… outside=0 searchLimit=0 return=ok）");
+                template.describe(), maxTicks, player.getName().getString());
+        say(player, "[alice] 鱼骨作业启动：方向 " + dir.getName() + " · 主巷 " + template.mainLength()
+                + " 格 · 支巷 " + template.spurBranches() + " 条 × " + template.spurLength()
+                + " 格（" + template.side() + "，中心距 " + template.spurSpacing() + "）· 净高 "
+                + template.height() + " · 单元 " + template.advanceCells() + " · 起点 "
+                + start.toShortString());
+        say(player, "[alice] 挖完会自己回起点（预算 " + maxTicks + " tick，真机约 "
+                + Math.round(template.advanceCells() * 2.35D / 60.0D) + " 分钟；随时可以停）。"
+                + "看聊天/日志的 [Fishbone] SUMMARY 行");
     }
 
     private static void say(Player player, String message) {

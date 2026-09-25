@@ -1,6 +1,7 @@
 package com.dddgn.alice;
 
 import com.dddgn.alice.bot.BotManager;
+import com.dddgn.alice.config.FishboneConfig;
 import com.dddgn.alice.task.mining.MiningReplanFixture;
 import com.dddgn.alice.task.mining.MiningSceneFixture;
 import com.dddgn.alice.gui.ModMenuTypes;
@@ -10,7 +11,9 @@ import com.dddgn.alice.perception.ScopeBuffer;
 import com.dddgn.alice.road.RoadBuilder;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;  // ← 新增
 
 @Mod(AliceMod.MOD_ID)
@@ -28,6 +31,10 @@ public class AliceMod {
         ModMenuTypes.MENUS.register(modEventBus);
         // 网络通道(S2C 任务目标同步 + bot inventory 快照/action)
         AliceNetwork.register();
+
+        // 配置（切片 4）：鱼骨尺寸 —— `config/alice-fishbone.toml`
+        // ⚠️ 必须是 COMMON（服务端也要读：真机虽是客户端右键，但作业在**服务端**跑）
+        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, FishboneConfig.SPEC, "alice-fishbone.toml");
 
         // FORGE 总线:任务 tick / 感知事件 / 自检
         MinecraftForge.EVENT_BUS.register(BotManager.class);

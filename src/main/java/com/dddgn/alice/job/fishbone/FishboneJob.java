@@ -5,6 +5,7 @@ import com.dddgn.alice.action.WriteAudit;
 import com.dddgn.alice.action.WriteGrant;
 import com.dddgn.alice.action.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.config.FishboneConfig;
 import com.dddgn.alice.job.Job;
 import com.dddgn.alice.job.mine.MineCandidateSource;
 import com.dddgn.alice.job.mine.MineProductFilter;
@@ -48,7 +49,11 @@ import java.util.Set;
  *       判据 <b>`C1`（模板 = 事实）/ `C3`（搜索规模恒定 + 零 `SEARCH_LIMIT`）/ `C4`（可返回）/
  *       `C6`（诚实失败）</b>；</li>
  *   <li>⭐ <b>切片 2</b>（计划 §7-2）：{@code SPUR_RETURN / IN_PLACE / COLLECT} 三个相位，
- *       判据 <b>`C1`（含支巷）/ `C2`（露头矿进包）/ `C5`（不越界、不连锁）</b>。</li>
+ *       判据 <b>`C1`（含支巷）/ `C2`（露头矿进包）/ `C5`（不越界、不连锁）</b>；</li>
+ *   <li>⭐ <b>切片 4</b>（`D-439`，2026-09-25 真机实测驱动）：<b>追簇</b> —— 暴露面从"模板格"
+ *       扩成"**本次作业挖出来的面**"（{@link #dugCells}），且每挖掉一颗矿就扫它的 6 邻域
+ *       ⇒ 矿脉深处的格顺着队列一层层进队，直到**触及范围**或**每单元上限**为止。
+ *       尺寸不再写死：{@code config/alice-fishbone.toml}（主巷 / 中心距 / 支巷长 / 侧向 / 净高 / 上限）。</li>
  * </ul>
  *
  * <h2>分层（本项目的红线，不是风格问题）</h2>
@@ -112,6 +117,16 @@ public final class FishboneJob implements Job {
     /** 停滞护栏：这么多 tick 一格没推进 ⇒ `no_progress`（不让作业悄悄空转）。 */
     public static final int STALL_TICKS = 400;
 
+    /**
+     * **"顺手挖"允许的站位微调上限（格，切比雪夫）**。
+     *
+     * <p>依据 = 2026-09-25 真机实测（`latest.log` 12:16:45 `ore_moved 顺手挖把 bot 带离了原位
+     * -96, 47, 149 → -96, 47, 148`，正好 1 格）：`MineTask` 会先走到"目标正下方"这个**更优站位**
+     * 再挖顶棚矿 ⇒ **1 格的微调是它的正常工作方式，不是"我们走过去了"**。
+     * 超过这个数才说明"为了这颗矿真的移动过" ⇒ 记 `oreWalkedAway`（计划 §10.1 的"不必移动"被破坏）。
+     */
+    public static final int ORE_STAND_ADJUST_MAX = 1;
+
     /** 返回段/支巷退路段的段数上限（`PathRetryRunner` 的重规划次数；与其它调用点同口径）。 */
     private static final int RETURN_MAX_REPLANS = 2;
 
@@ -131,7 +146,7 @@ public final class FishboneJob implements Job {
             MineCandidateSource.Target.ofTag(TagKey.create(Registries.BLOCK,
                     new ResourceLocation("forge", "ores")));
 
-    private enum Phase { PREPARE, EXCAVATE, SPUR_RETURN, IN_PLACE, COLLECT, RETURN, DONE }
+    private enum Phase { PREPARE, EXCAVATE, SPUR_RETURN, IN_PLACE_APPROACH, IN_PLACE, COLLECT, RETURN, DONE }
 
     private final BotPlayer bot;
     private final FishboneTemplate template;
@@ -155,7 +170,7 @@ public final class FishboneJob implements Job {
     private int mined;              // 我方真的挖掉的**模板**格数
     private int ticks;
     private int stallTicks;
-    private int lastProgressMark = -1;
+    private long lastProgressMark = -1L;
     private boolean excavationFailed;
     private String terminalReason = "";
     private Task.Status terminalStatus = Task.Status.FAILED;
@@ -170,16 +185,65 @@ public final class FishboneJob implements Job {
 
     // ---- 切片 2：露头矿顺手挖 ----
     private final Deque<BlockPos> oreQueue = new ArrayDeque<>();
-    private final Set<BlockPos> oreSeen = new LinkedHashSet<>();
+    /**
+     * **已结案**的候选格：要么已入队/已挖掉，要么 ① 不是矿、② 不是我们挖出来的面。
+     *
+     * <p>⚠️ 切片 4 起**不再**包含"③ 现在够不着"的格（那些进 {@link #chasePending}）——
+     * 用同一个集合记两种语义，会让"站远了一点点"变成永久放弃。
+     */
+    private final Set<BlockPos> oreSettled = new LinkedHashSet<>();
+    /**
+     * ⭐ **本次作业挖出来的面**（切片 4，`D-439`）= 已挖通的**模板单元格** ∪ 已挖掉的**矿格**。
+     *
+     * <p>为什么条件②必须用**这个集合**而不是 {@code template.cellSet()}：
+     * 2026-09-25 真机实测（截图 + `latest.log`）—— 矿簇**只挖掉贴巷道那一层**就停了。
+     * 结构原因：矿挖掉第一格之后，第二格旁边挨着的是**刚挖出来的矿洞**、**不是模板格**
+     * ⇒ 用模板格当"暴露面"时②**必然不成立** ⇒ 矿簇永远只挖一层。
+     * 计划 §10.1 早就裁定了正确的口径：「⭐ 追踪整个矿簇，上限 = 目标额度」——
+     * 本集合就是那句裁定的**唯一判据**：**我们挖出来的面**才算暴露面（不是"看到矿就去挖"）。
+     */
+    private final Set<BlockPos> dugCells = new LinkedHashSet<>();
+    /**
+     * ①+② 成立、但**当前站位够不着**（③ 为假）的矿格。
+     *
+     * <p>⚠️ 这些格**不永久否**（`oreSeen` 只记"已结案"的格）：站到更好的位置之后要能重评 ——
+     * 2026-09-25 夹具实测（`D-439`）：矿脉第二层在 bot 站在**身后一格**时视线被巷道壁挡住，
+     * 站进刚挖完的那一格就够得着了。集合非空 ⇒ 下一次单元收尾会先走"游走段"。
+     */
+    private final Set<BlockPos> chasePending = new LinkedHashSet<>();
+    private PathRetryRunner chaseApproach;
+    private FishboneTemplate.Unit chaseApproachUnit;
     private MineTask oreTask;
     private BlockPos oreStartFeet;
     /** 本颗露头矿的**破坏是否已完成**（用于"位移"只在破坏那一刻量；见 {@link #inPlace()}）。 */
     private boolean oreBroken;
     private int scannedUnits;
+    /** 走位之后的**重扫**次数（切片 4；与 `scannedUnits` 分开 ⇒ `C9` 的口径不被追簇偷改）。 */
+    private int rescans;
     private int oreFound;
+    /** **真的挖掉的矿格数**（= 世界改动，在**破坏那一刻**记账；收集成败另记 `oreUncollected`）。 */
     private int oreMined;
     private int oreDeferred;
     private int oreWalkedAway;
+    /**
+     * 每个模板单元最多消费几个候选（`FishboneConfig.oreBudgetPerUnit`）——**构造时读一次**。
+     *
+     * <p>为什么读进字段而不是每 tick 查配置：作业跑起来之后配置不该再变（改了也要下一次右键才生效），
+     * 而"作业中途预算忽然变了"会让同一轮作业的前后段不可比。
+     */
+    private final int oreBudgetPerUnit;
+    /** 本单元已经消费掉几个候选（`oreBudgetPerUnit` 的分子；每单元开始清零）。 */
+    private int oreBudgetUsed;
+    /** 触发 `ore_budget_exhausted` 的次数（护栏生效的证据；0 = 自然上界比护栏更紧）。 */
+    private int oreBudgetExhausted;
+    /**
+     * **挖掉了但掉落物没进包**的矿格数（= 目标变空气了、但 `MineTask` 的收集段失败）。
+     *
+     * <p>⚠️ 与 `oreDeferred` **分开**：`oreDeferred` = "**没挖**"（复检不达标 / 任务失败），
+     * `oreUncollected` = "**挖了、东西可能留在洞里**"。把这两件事压成一个数，
+     * 真机归因就会把"没挖"说成"丢了"，或反过来。
+     */
+    private int oreUncollected;
 
     // ---- 切片 2：收集 ----
     private int itemsBefore;
@@ -195,8 +259,14 @@ public final class FishboneJob implements Job {
     private boolean summaryEmitted;
     private PathingStats.Scale scaleAtStart = new PathingStats.Scale(0L, 0L, 0L, 0L);
     private long gameTimeAtStart;
-    /** 本次作业真的挖掉的**露头矿**格（`SUMMARY` 的 `outside=` 白名单要用）。 */
-    private final Set<BlockPos> oreMinedCells = new LinkedHashSet<>();
+    /**
+     * 本次作业真的挖掉的**露头矿/追簇矿**格（`SUMMARY` 的 `outside=` 白名单要用）。
+     *
+     * <p>⚠️ 切片 4 起改成**在破坏那一刻**登记（原来在 `MineTask` 成功返回时才登记）：
+     * 追簇的深格矿常常"挖得掉、捡不回" ⇒ 收集段失败也会让任务 FAILED，而**世界已经改了**。
+     * 白名单必须描述"世界被我们改成了什么样"，不是"任务成功了几次"。
+     */
+    private final Set<BlockPos> oreBrokenCells = new LinkedHashSet<>();
 
     public FishboneJob(BotPlayer bot, FishboneTemplate template, ScopeBuffer scope, int maxTicks) {
         this.bot = Objects.requireNonNull(bot, "bot");
@@ -212,6 +282,7 @@ public final class FishboneJob implements Job {
         // 捡起**（脚下就是掉落点），等到 `COLLECT` 相位再取基线 ⇒ 增量恒为 0（首版实测：
         // `COLLECT 开始 … 产物=3` ⇒ `产物=+0`，而背包里明明躺着 3 个原铁）。
         this.itemsBefore = countProductItems();
+        this.oreBudgetPerUnit = FishboneConfig.oreBudgetPerUnit();
     }
 
     /** 世界写入的 requester（`WritePolicyMatrix.PREFIX_RULES` 里登记为 `MINING` 类）。 */
@@ -264,6 +335,7 @@ public final class FishboneJob implements Job {
             case PREPARE -> prepare();
             case EXCAVATE -> excavate();
             case SPUR_RETURN -> spurReturn();
+            case IN_PLACE_APPROACH -> chaseApproach();
             case IN_PLACE -> inPlace();
             case COLLECT -> collectPhase();
             case RETURN -> returnPhase();
@@ -386,7 +458,24 @@ public final class FishboneJob implements Job {
         unitIndex++;
         cellInUnit = 0;
         stallTicks = 0;
+        oreBudgetUsed = 0;      // ⭐ 切片 4：每单元上限的分母按单元重置
+
         emitProgress(unit);
+        // ⭐ 切片 4：追簇的**游走段** —— 队列里有货（或有"够不着"的候选）时，先走进**刚挖完的那一格**
+        // 再消费。为什么必须走这一步（夹具实测的硬事实，不是推测）：设计上每个单元都是"站在身后一格挖"，
+        // 于是消费队列时 bot 站在**矿脉列的后一格** ⇒ 视线被巷道壁挡住 ⇒ 矿脉第二层 ③ 判"够不着"
+        //（`ore_eval pos=3763,80,2402 exposed=true reachable=false feet=3762,80,2400`）。
+        // 走进那一格之后视线顺着矿脉轴 ⇒ 一层层往里追得到。
+        ServerLevel level = bot.serverLevel();
+        boolean wantWorkCell = !oreQueue.isEmpty() || !chasePending.isEmpty();
+        if (wantWorkCell && !MovementHelper.footCell(level, bot).equals(unit.foot())
+                && MovementHelper.canStandCentered(level, unit.foot())) {
+            chaseApproachUnit = unit;
+            chaseApproach = null;
+            pendingSpurReturn = lastOfSpur ? unit : null;
+            phase = Phase.IN_PLACE_APPROACH;
+            return;
+        }
         if (!oreQueue.isEmpty()) {
             // 顺手挖排在"下一个推进动作"之前；支巷退路**记着**，等队列空了再做（`IN_PLACE` 出口处理）。
             pendingSpurReturn = lastOfSpur ? unit : null;
@@ -401,7 +490,12 @@ public final class FishboneJob implements Job {
 
     /** 停滞护栏（`no_progress`）：**按"有没有推进"记账**，不按"tick 有没有跑"。 */
     private void stallGuard() {
-        int mark = unitIndex * 10000 + cellInUnit * 1000 + mined + skipped;
+        // ⚠️ 切片 4：**暴露矿的活动必须计入"推进"** —— 追簇会在一个单元里连挖十几颗矿，
+        // 那段时间 `unitIndex/cellInUnit/mined` 全都不变 ⇒ 旧算式会把"正在好好追矿"报成
+        // `no_progress`（400 tick 护栏）。记的是"有没有发生事"，不是"单元有没有前进"。
+        long mark = (long) unitIndex * 100_000_000L + (long) cellInUnit * 10_000_000L
+                + (long) mined * 10_000L + (long) skipped * 100L
+                + (long) oreMined * 10L + oreDeferred;
         if (mark != lastProgressMark) {
             lastProgressMark = mark;
             stallTicks = 0;
@@ -516,42 +610,46 @@ public final class FishboneJob implements Job {
     // ==================== 切片 2：露头矿顺手挖（§10.1） ====================
 
     /**
-     * ⭐ **露头矿判定的唯一真源**（计划 §10.1 三条件，全部**复用生产谓词**）。
+     * ⭐ **暴露矿判定的唯一真源**（计划 §10.1 三条件，全部**复用生产谓词**）。
      *
      * <p>为什么是 `public static`：夹具要能**逐条件隔离**地断言它（否则"①②③任一"只能靠行为臂间接验证）。
-     * 它**不读任何 Job 状态** ⇒ 是纯谓词（同输入同输出），夹具可以喂"把 bot 传送走""换一份模板"这类
-     * 真实输入把某一条单独打红。
+     * 它**不读任何 Job 状态**（暴露面集合由调用方显式传入）⇒ 是纯谓词（同输入同输出），
+     * 夹具可以喂"把 bot 传送走""换一份暴露面集合"这类真实输入把某一条单独打红。
      *
-     * @param template 用来判条件②（暴露面是否**本次作业挖出来的**）
+     * @param exposedCells 条件②的**暴露面集合**：本次作业**已经挖出来的格**
+     *                     （模板单元格 ∪ 已挖掉的矿格 —— 见 {@link #dugCells}）。
+     *                     ⚠️ 切片 4 起**不再只传模板格**：那样矿簇只能挖一层（`D-439` 的真机证据）。
      */
     public static boolean opportunisticTarget(ServerLevel level, BotPlayer bot, BlockPos pos,
-                                              FishboneTemplate template) {
+                                              Set<BlockPos> exposedCells) {
         // ① 是矿（不新增第二份矿物清单）
         if (!DEFAULT_ORE_TARGET.matches(level.getBlockState(pos))) {
             return false;
         }
-        // ② 是本次作业挖出来的暴露面：6 邻域里至少有一格**既是模板格、又已经通行**
-        if (!exposedByOurTunnel(level, pos, template)) {
+        // ② 是本次作业挖出来的暴露面
+        if (!exposedByOurExcavation(level, pos, exposedCells)) {
             return false;
         }
-        // ③ 顺手 = 不必移动（与 `D-365` 就地挖**同一对谓词**：视线通 + 触及）
+        // ③ 顺手 = 从**当前站位**不必走过去（与 `D-365` 就地挖**同一对谓词**：视线通 + 触及）
         return MineBlockRunner.inPlaceReachable(level, bot, pos);
     }
 
     /**
-     * 条件②：该格 6 邻域里至少有一格是模板格**且现在已通行**（= 我们真的挖出来的面）。
+     * 条件②：该格 6 邻域里至少有一格**属于本次作业挖出来的面**、且现在**确实通行**。
      *
      * <p>⚠️ 判"这一格已经挖开"用的是**单格**通行 `canWalkThrough`，**不是** `bodyPassable`
      * （后者还要求"它上面那格也通"）—— 第一版用 `bodyPassable` 实测当场红：**顶棚矿**
      * （模板头位格的正上方那格）会让头位格的 `bodyPassable` 变 false，于是"我们自己挖出来的暴露面"
      * 反而判不出来（`ore_found=0`，2026-09-25 `fishbone_slice2` 首跑）。语义上正确的是
      * "这一格是空的了"（脚位格上方是矿时，脚位格照样是挖空的）。
+     *
+     * <p>⚠️ **两个条件必须同时成立**（集合里有 + 世界确实是通的）：只信集合就是"自报值"，
+     * 只信世界就变成"任何空处旁边的矿都挖"（会把别人挖的洞、天然洞穴算进来）。
      */
-    public static boolean exposedByOurTunnel(ServerLevel level, BlockPos pos, FishboneTemplate template) {
-        Set<BlockPos> cells = template.cellSet();
+    public static boolean exposedByOurExcavation(ServerLevel level, BlockPos pos, Set<BlockPos> exposedCells) {
         for (Direction d : Direction.values()) {
             BlockPos n = pos.relative(d);
-            if (cells.contains(n) && MovementHelper.canWalkThrough(level, n)) {
+            if (exposedCells.contains(n) && MovementHelper.canWalkThrough(level, n)) {
                 return true;
             }
         }
@@ -559,36 +657,162 @@ public final class FishboneJob implements Job {
     }
 
     /**
-     * **扫一个单元的 6 邻域**（计划 §10.1：只在单元挖完那一 tick、只扫自己的邻域、不重复扫）。
+     * **扫一格自己的 6 邻域**（计划 §10.1：O(6)/格、不全局扫、不周期扫）。
      *
-     * <p>代价 O(6 × 净高)/单元；`oreSeen` 保证每个候选格**只判一次**（跨单元重叠的邻格不再复判）。
+     * <p>切片 4 起这个方法被**两处**调用，语义完全相同（这就是"追簇"的全部机制）：
+     * <ol>
+     *   <li>{@link #scanForOre} —— 每个模板单元挖完时，扫它的每一格；</li>
+     *   <li>{@link #inPlace} —— **每挖掉一颗矿**，扫那一格 ⇒ 矿脉深处的新暴露面自然进队（传递闭包）。</li>
+     * </ol>
+     * `oreSettled` 保证每个候选格**至多入队一次**（①② 结案）；③ 够不着的进 `chasePending` 等重评。
+     *
+     * @param origin 日志用的来源说明（"单元 k/n" / "追簇"）
      */
-    private void scanForOre(FishboneTemplate.Unit unit) {
+    private void scanAround(BlockPos cell, String origin) {
+        if (oreBudgetPerUnit <= 0) {
+            return;     // 配置 = 0 ⇒ 关闭暴露矿（连扫都不扫：别为关掉的功能付 O(6)）
+        }
         ServerLevel level = bot.serverLevel();
-        scannedUnits++;
-        for (int dy = 0; dy < template.height(); dy++) {
-            BlockPos cell = unit.foot().above(dy);
-            for (Direction d : Direction.values()) {
-                BlockPos candidate = cell.relative(d);
-                if (!oreSeen.add(candidate)) {
-                    continue;
-                }
-                if (opportunisticTarget(level, bot, candidate, template)) {
-                    oreFound++;
-                    oreQueue.add(candidate);
-                    BotLog.info("[Fishbone] ore_found pos={}（单元 {}/{} 的暴露面；顺手挖队列 depth={}）",
-                            candidate.toShortString(), unitIndex + 1, units.size(), oreQueue.size());
-                }
+        for (Direction d : Direction.values()) {
+            BlockPos candidate = cell.relative(d);
+            // ⚠️⚠️ **顺序就是要害**（第一版在这里踩过）：`oreSettled.add` 必须**只在真正结案时**调用。
+            // 第一版把它放在循环第一行 ⇒ 每个候选第一次被看到就永久结案 ⇒ "③ 不永久否"根本没生效
+            //（夹具实测：矿脉第二层被记成"看过了"，走位之后再也不重评，`oreFound` 卡在 3/5）。
+            if (oreSettled.contains(candidate) || oreQueue.contains(candidate)) {
+                continue;
             }
+            // ① 不是矿 ⇒ 结案（与站位无关）
+            if (!DEFAULT_ORE_TARGET.matches(level.getBlockState(candidate))) {
+                oreSettled.add(candidate);
+                continue;
+            }
+            // ② 不是"本次作业挖出来的面" ⇒ 结案（同样与站位无关）
+            if (!exposedByOurExcavation(level, candidate, dugCells)) {
+                oreSettled.add(candidate);
+                continue;
+            }
+            // ③ 现在够不着 ⇒ **不结案**：进 `chasePending`，等走位之后重评（切片 4 的追簇）
+            if (!MineBlockRunner.inPlaceReachable(level, bot, candidate)) {
+                if (chasePending.add(candidate)) {
+                    BotLog.info("[Fishbone] ore_reach_deferred pos={} origin={} feet={}"
+                                    + "（①+②成立、③现在够不着 ⇒ 等走位后重评，不丢）",
+                            candidate.toShortString(), origin,
+                            MovementHelper.footCell(level, bot).toShortString());
+                }
+                continue;
+            }
+            oreSettled.add(candidate);
+            chasePending.remove(candidate);
+            oreFound++;
+            oreQueue.add(candidate);
+            BotLog.info("[Fishbone] ore_found pos={} origin={}（候选队列={}）",
+                    candidate.toShortString(), origin, oreQueue.size());
         }
     }
 
     /**
-     * `IN_PLACE`：逐个消费顺手挖队列（计划 §10.1「在下一个推进动作之前」）。
+     * **扫一个模板单元**（计划 §10.1：只在单元挖完那一 tick、只扫自己的邻域、不重复扫）。
+     *
+     * <p>代价 O(6 × 净高)/单元；`scannedUnits` 满足判据 `C9`（扫描次数 == 单元数）。
+     */
+    private void scanForOre(FishboneTemplate.Unit unit) {
+        scanUnit(unit, true);
+    }
+
+    /**
+     * 扫一个单元的每一格。
+     *
+     * @param primary `true` = 单元收尾时的常规扫描（计进 `scannedUnits`，判据 `C9` 的口径
+     *                "扫描次数 == 单元数"）；`false` = **走位之后的重扫**（切片 4 的追簇游走段），
+     *                单独计 {@link #rescans} —— 不与常规扫描混在一个计数器里，
+     *                否则 `C9` 会被追簇悄悄改口径。
+     */
+    private void scanUnit(FishboneTemplate.Unit unit, boolean primary) {
+        ServerLevel level = bot.serverLevel();
+        if (primary) {
+            scannedUnits++;
+        } else {
+            rescans++;
+        }
+        for (int dy = 0; dy < template.height(); dy++) {
+            BlockPos cell = unit.foot().above(dy);
+            // ⭐ 先登记"这一格是我们挖出来的面"再扫（顺序不能反：否则本单元内部的邻格判不出来）
+            dugCells.add(cell);
+            scanAround(cell, "单元 " + (unitIndex + 1) + "/" + units.size());
+        }
+    }
+
+    /**
+     * ⭐ **追簇游走段**（切片 4，`D-439`）：先走进**刚挖完的那一格**，再消费暴露矿队列。
+     *
+     * <p><b>为什么需要这一步</b>（夹具实测的硬事实，不是推测）：鱼骨的每个单元都是
+     * 「站在身后一格挖」⇒ 单元挖完时 bot 还站在**后一格**。而矿脉是从巷道壁往**侧向**长的，
+     * 站在后一格时视线会被未挖的巷道壁切掉 ⇒ 矿脉第二层虽然 ② 成立，③ 却判"够不着"
+     *（实测：`ore_eval pos=3763,80,2402 exposed=true reachable=false feet=3762,80,2400`）。
+     * 走进刚挖完的那一格之后，视线顺着矿脉轴 ⇒ 一层层能追进去。
+     *
+     * <p><b>为什么这是允许的</b>：计划 §10.1 对追簇**明确允许游走**（「游走段按'支巷'级处置」
+     * 「模板外改动 ⊆ 簇游走区域」）；「不许走去挖」管的是**露头矿的顺手挖那一档**（第一层），
+     * 那一档仍然要求 `inPlaceReachable`（本方法只在队列非空/有够不着的候选时才走，
+     * 且**纯通行、零破坏**）。
+     *
+     * <p>走不过去**不判失败**：用当前站位继续，③ 会在消费时如实拒绝（`ore_deferred`）。
+     * 走成功则**重扫**这一格 —— 原本"够不着"的候选现在可能够得着（`rescans` 单独计数）。
+     */
+    private Task.Status chaseApproach() {
+        if (chaseApproach == null) {
+            BlockPos work = chaseApproachUnit.foot();
+            chaseApproach = new PathRetryRunner(bot,
+                    PathRequest.of(bot.getUUID().toString(), bot.blockPosition(), work, REQUESTER + "-chase"),
+                    RETURN_MAX_REPLANS, REQUESTER + "-chase");
+            BotLog.info("[Fishbone] CHASE_APPROACH 走进刚挖完的那一格 {}（追簇游走段；纯通行、零破坏。"
+                            + "为什么必须走：站在身后一格时矿脉第二层被巷道壁挡住视线）",
+                    work.toShortString());
+        }
+        PathRetryRunner.State state = chaseApproach.tick();
+        if (state == PathRetryRunner.State.RUNNING) {
+            return Task.Status.RUNNING;
+        }
+        boolean arrived = state == PathRetryRunner.State.DONE && chaseApproach.result() != null
+                && chaseApproach.result().completed();
+        chaseApproach = null;
+        if (!arrived) {
+            BotLog.info("[Fishbone] CHASE_APPROACH 走不过去 ⇒ 用当前站位继续（③ 会在消费时如实拒绝）");
+        } else {
+            // 站好了 ⇒ 重扫一次：原本"够不着"的候选现在可能够得着（③ 不永久否，见 `chasePending`）
+            chasePending.removeIf(pos -> !DEFAULT_ORE_TARGET.matches(bot.serverLevel().getBlockState(pos)));
+            scanUnit(chaseApproachUnit, false);
+        }
+        chaseApproachUnit = null;
+        if (oreQueue.isEmpty()) {
+            if (pendingSpurReturn != null) {
+                beginSpurReturn(pendingSpurReturn);
+            } else {
+                phase = Phase.EXCAVATE;
+            }
+        } else {
+            oreTask = null;
+            phase = Phase.IN_PLACE;
+        }
+        return Task.Status.RUNNING;
+    }
+
+    /**
+     * `IN_PLACE`：逐个消费暴露矿队列（计划 §10.1「在下一个推进动作之前」）。
      *
      * <p>⚠️ **不许走去挖**：消费前**再用同一对谓词复检**（站位可能已经变了）—— 不达标就
-     * `ore_deferred` 并**丢弃**（那是"跟随/探洞"的事，不是鱼骨）。真的移动了也如实记账
-     *（{@link #oreWalkedAway()} ⇒ 夹具断言必须为 0）。
+     * `ore_deferred` 并**丢弃**（那是"跟随/探洞"的事，不是鱼骨）。
+     * 真的移动了也如实记账（{@link #oreWalkedAway()}）。
+     *
+     * <p>⭐ <b>切片 4 的两处机制（`D-439`）</b>：
+     * <ol>
+     *   <li><b>追簇</b>：矿**破坏成功那一刻**就把这一格登记成新的暴露面，并**立刻扫它的 6 邻域**
+     *       ⇒ 矿脉深处的格自然接着进队（一层 → 两层 → …），直到**触及范围**或**每单元上限**为止。
+     *       这是"追踪整个矿簇"（计划 §10.1，2026-09-21 用户裁定）的**最小落地形态**；</li>
+     *   <li><b>记账在破坏那一刻</b>：`oreMined`（世界改动）与"收集段是否成功"**分开算** ——
+     *       深格矿常常"挖得掉、捡不回"（`MineTask` 的收集段会失败），把这两件事压成一个数
+     *       会让 `SUMMARY` 的 `ores=` 说谎。</li>
+     * </ol>
      */
     private Task.Status inPlace() {
         if (oreQueue.isEmpty()) {
@@ -599,18 +823,30 @@ public final class FishboneJob implements Job {
             }
             return Task.Status.RUNNING;
         }
+        if (oreBudgetUsed >= oreBudgetPerUnit) {
+            // 护栏（计划 §10.1）：本单元不再消费 —— 记一次、清空队列、**照常推进**（不停任务）。
+            int dropped = oreQueue.size();
+            oreQueue.clear();
+            oreBudgetExhausted++;
+            BotLog.warn("[Fishbone] ore_budget_exhausted 单元 {} 已消费 {} 个暴露矿（上限 {}）⇒ 丢弃剩余 {} 个"
+                            + "候选、继续推进（护栏生效；配置键 fishbone.oreBudgetPerUnit）",
+                    unitIndex + 1, oreBudgetUsed, oreBudgetPerUnit, dropped);
+            return Task.Status.RUNNING;
+        }
         BlockPos ore = oreQueue.peek();
         ServerLevel level = bot.serverLevel();
         if (oreTask == null) {
             if (level.getBlockState(ore).isAir()) {
                 oreQueue.poll();    // 还没轮到它就没了（连锁模组/上一格带掉）
+                oreBudgetUsed++;
                 return Task.Status.RUNNING;
             }
-            if (!opportunisticTarget(level, bot, ore, template)) {
+            if (!opportunisticTarget(level, bot, ore, dugCells)) {
                 BotLog.info("[Fishbone] ore_deferred pos={}（复检不达标：站位/视线变了 ⇒ 不走去挖，丢弃）",
                         ore.toShortString());
                 oreDeferred++;
                 oreQueue.poll();
+                oreBudgetUsed++;
                 return Task.Status.RUNNING;
             }
             oreStartFeet = MovementHelper.footCell(level, bot);
@@ -628,28 +864,54 @@ public final class FishboneJob implements Job {
         Task.Status status = oreTask.tick();
         if (!oreBroken && level.getBlockState(ore).isAir()) {
             oreBroken = true;
+            // ⭐ 切片 4：这一格现在是我们的暴露面（追簇的传递跳板）+ 白名单（世界改动已发生）
+            dugCells.add(ore.immutable());
+            oreBrokenCells.add(ore.immutable());
+            chasePending.remove(ore);
+            oreMined++;
             // ⭐ 只在**破坏完成的那一刻**量位移：那之前的位移 = "走去站位"（不合法，"顺手"要求不必移动），
             // 那之后的位移 = 捡自己刚挖下来的掉落物（合法，"顺手挖"本来就带收集）。
-            if (!MovementHelper.footCell(level, bot).equals(oreStartFeet)) {
+            BlockPos nowFeet = MovementHelper.footCell(level, bot);
+            int adjusted = maxAxisDistance(nowFeet, oreStartFeet);
+            if (adjusted > ORE_STAND_ADJUST_MAX) {
                 oreWalkedAway++;
-                BotLog.warn("[Fishbone] ore_moved 顺手挖把 bot 带离了原位 {} → {}（本不该发生）",
-                        oreStartFeet.toShortString(), MovementHelper.footCell(level, bot).toShortString());
+                BotLog.warn("[Fishbone] ore_moved 顺手挖把 bot 带离了原位 {} → {}（{} 格）",
+                        oreStartFeet.toShortString(), nowFeet.toShortString(), adjusted);
+            } else if (adjusted > 0) {
+                // 2026-09-25 真机实测：这一档**必然出现**（`MineTask` 会先走到"目标正下方"这个更优站位再挖
+                // 顶棚矿）⇒ 它不是缺陷，是 `MineTask` 的正常站位选择；只有 > 1 格才说明"真的走过去了"。
+                BotLog.info("[Fishbone] ore_stand_adjust 站位微调 {} → {}（{} 格，`MineTask` 选更优站位，正常）",
+                        oreStartFeet.toShortString(), nowFeet.toShortString(), adjusted);
             }
+            // ⭐ 追簇：把这一格带出来的新暴露面入队（本方法会在队列非空时继续被 tick ⇒ 传递闭包）
+            scanAround(ore, "追簇·来自 " + ore.toShortString());
         }
         if (status == Task.Status.RUNNING) {
             return Task.Status.RUNNING;
         }
-        if (status == Task.Status.DONE) {
-            oreMined++;
-            oreMinedCells.add(ore.immutable());     // 切片 3：`SUMMARY` 的 `outside=` 白名单
-        } else {
-            BotLog.info("[Fishbone] ore_deferred pos={} reason={}（顺手挖失败 ⇒ 不重试不追）",
-                    ore.toShortString(), oreTask.failureReason());
-            oreDeferred++;
+        if (status != Task.Status.DONE) {
+            if (oreBroken) {
+                // 挖掉了、但收集段失败 ⇒ **世界已经改了**，账已记在 oreMined；掉落物交给收尾 COLLECT。
+                oreUncollected++;
+                BotLog.warn("[Fishbone] ore_drop_left pos={} reason={}（矿已挖掉、收集段没把掉落物拿回来"
+                                + " ⇒ 交给收尾 COLLECT；`oreMined` 照记，不撒谎）",
+                        ore.toShortString(), oreTask.failureReason());
+            } else {
+                BotLog.info("[Fishbone] ore_deferred pos={} reason={}（顺手挖失败 ⇒ 不重试不追）",
+                        ore.toShortString(), oreTask.failureReason());
+                oreDeferred++;
+            }
         }
         oreTask = null;
         oreQueue.poll();
+        oreBudgetUsed++;
         return Task.Status.RUNNING;
+    }
+
+    /** 两格之间的**切比雪夫距离**（"挪了几格"按格算，不按欧氏距离）。 */
+    private static int maxAxisDistance(BlockPos a, BlockPos b) {
+        return Math.max(Math.abs(a.getX() - b.getX()),
+                Math.max(Math.abs(a.getY() - b.getY()), Math.abs(a.getZ() - b.getZ())));
     }
 
     // ==================== 切片 2：收集（C2） ====================
@@ -817,7 +1079,7 @@ public final class FishboneJob implements Job {
     private void emitSummary() {
         PathingStats.Scale delta = PathingStats.scale().delta(scaleAtStart);
         Set<BlockPos> whitelist = new LinkedHashSet<>(template.cellSet());
-        whitelist.addAll(oreMinedCells);
+        whitelist.addAll(oreBrokenCells);
         int inside = 0;
         int outside = 0;
         for (WriteAudit.Entry entry : WriteAudit.snapshot()) {
@@ -835,11 +1097,11 @@ public final class FishboneJob implements Job {
         }
         String ret = !excavationStarted ? "n/a" : (returnedHome ? "ok" : "no");
         BotLog.info("[Fishbone] SUMMARY dir={} main={}/{} spurs={}/{} abandoned={} mined={} skipped={}"
-                        + " ores={}/{} collected={}/{} searchNodes={} searchLimit={} return={}"
+                        + " ores={}/{} uncollected={} collected={}/{} searchNodes={} searchLimit={} return={}"
                         + " worldChangesInside={} outside={} ticks={} → {}",
                 dirLetter(template.dir()), mainUnitsDone, template.mainLength(),
                 template.spurBranches() - spursAbandoned, template.spurBranches(), spursAbandoned,
-                mined, skipped, oreMined, oreFound, collectedProducts, oreMined,
+                mined, skipped, oreMined, oreFound, oreUncollected, collectedProducts, oreMined,
                 delta.nodes(), delta.searchLimits(), ret, inside, outside, ticks,
                 terminalStatus == Task.Status.DONE ? "PASS" : "FAIL");
     }
@@ -901,9 +1163,24 @@ public final class FishboneJob implements Job {
         return oreFound;
     }
 
-    /** **夹具只读**：真的挖掉并进包的露头矿数（`C2` 的分母）。 */
+    /**
+     * **夹具只读**：真的**挖掉**的暴露矿格数（`C2` 的分母）。
+     *
+     * <p>⚠️ 切片 4 起口径 = **世界改动**（破坏那一刻记账），不再要求"掉落物也进了包" ——
+     * 追簇的深格矿常常"挖得掉、捡不回"，两者的差额单独记 {@link #oreUncollected()}。
+     */
     public int oreMined() {
         return oreMined;
+    }
+
+    /** **夹具只读**：挖掉了但**掉落物没进包**的矿格数（`MineTask` 收集段失败）。 */
+    public int oreUncollected() {
+        return oreUncollected;
+    }
+
+    /** **夹具只读**：触发 `ore_budget_exhausted` 的次数（每单元上限护栏生效的证据）。 */
+    public int oreBudgetExhausted() {
+        return oreBudgetExhausted;
     }
 
     /** **夹具只读**：复检不达标 / 挖失败而**丢弃**的候选数（"不走去挖"的代价，如实记账）。 */

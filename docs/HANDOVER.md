@@ -1084,3 +1084,76 @@ bash tools/dsh-context-usage.sh                       # 上下文线（只报一
    ⇒ `n/a`。凡是"完成度"类的布尔读数，都要问一句"这一项在**从未开始**时是什么"。
 4. ⚠️ 夹具新增判据要**调生产工厂**（`FishboneJobItem.templateFor`）而不是照常量另抄一份 ——
    否则"常量抄错"这件事在离线永远测不出来（抄的那份当然与抄的来源一致）。
+
+# 断点⑫：切片 4（形状可配置 + 矿簇追挖）落地 —— **下一轮是你的第二次客户端验收**（2026-09-25 下午）
+
+## 1. 收工状态（逐条可核）
+
+| 项 | 值 |
+|---|---|
+| 触发 | `J-1.5` 真机第一轮结果：你反馈「**有矿簇没有收集完**（沿着矿簇挖了一两个，洞壁和洞顶没有完全挖完）」+ 形状三条裁定（**左右对称** / **每根鱼骨间隔两格** = 中心距 3 / **子巷 ≥32 格**）+ 「主巷深和子巷深做成**可配置**」「夹具缩小、物品保持大」「可随时终止」 |
+| 本轮交付 | ① `config/FishboneConfig` + `AliceMod` 注册（`config/alice-fishbone.toml`：`mainLength`/`spurSpacing`/`spurLength`/`side`/`height`/`oreBudgetPerUnit`）；物品改读配置，`MAX_TICKS` 改**推导**；默认形状 = **`BOTH` + 中心距 3 + 支巷 32** ⇒ 12 条肋 / 404 单元 / 808 格（真机 ≈16 分钟）<br>② **追簇**：`dugCells`（暴露面 = 本次作业挖出来的面）+ 破矿后扫邻域（传递闭包）+ `chasePending`（③ 不永久否）+ **`CHASE_APPROACH` 游走段**（走进刚挖完的那一格）+ 记账拆 `oreMined`/`oreUncollected` + `SUMMARY` 加 `uncollected=` + `ORE_STAND_ADJUST_MAX=1` + 停滞护栏计入矿活动<br>③ 夹具臂④ `ORE_VEIN_CHASE` + 诱饵矿上移一格 + 第二层隔离判据改断条件②本身 |
+| 裁定/记录 | **`D-439`**（真机取证 / 根因 / 形状与配置 / 追簇七条 / 判据与两条红臂 / **我自己的两个错** / 诚实边界）；台账 **`1.4d` ✅**、`1.4` 交棒 `1.5` |
+| 绿 | `single:fishbone_slice2` = **`checks=76 failures=0`**（54 → 76，3 臂 → 4 臂；臂④ 矿脉 **5/5 格变空气**、`oreMined=5 oreFound=5 oreUncollected=0 collectedProducts=5 auditOutsideExpected=0`）· `single:fishbone_slice1` = PASS · **CORE 电池 = PASS**（243 s） |
+| 红臂（判据真的会红） | **J1**（把暴露面退回只有模板格）⇒ 臂④ `oreMined=2`、矿脉 **2/5**、`failures=5`（= **真机缺陷的离线复现**）；**J2**（拿掉"破矿后继续扫邻域"）⇒ 同样 `2/5 failures=5` |
+| ⭐ 真机取证（不是推测） | `[fixed-client]/logs/latest.log` 12:16–12:18：**47 tick/单元**（≈2.35 s；与夹具 46 一致）· `ore_found` 5 次 / `ores=5/5` / `oreDeferred=0` ⇒ 缺陷在"**没找到**"不在"挖不动" · 截图 `screenshots/2026-09-25_12.17.49.png` 见巷道左上壁**钻石矿**与壁上**铜矿**尚在 · ⚠️ `ore_moved` 1 格 WARN = **假警报**（`MineTask` 的正常站位选择，已按证据改判据） |
+| 工件 | `build/libs/alice-1.0.0-1.20.1.jar`（`sha256` 见 §4），已 `mirror-windows-workspace.sh` + `sync-windows-artifact.sh` 同步进固定客户端 `mods/` |
+
+## 2. 下一轮的固定顺序（= `J-1.5` 第二轮客户端验收）
+
+```
+① 重启固定客户端（jar 已同步；`config/alice-fishbone.toml` 首次运行会自动生成）
+② /give @s alice:fishbone_job
+③ 站到你真想挖的位置、朝你想挖的方向，右键（聊天会报形状/单元数/预计分钟数）
+④ 想停就停（关客户端 / 退存档都行；已挖的部分留在世界里，**没有断点续跑**）
+⑤ 回来贴：聊天两行 + 日志里的 `[Fishbone] SUMMARY` 那行
+```
+
+**这一轮要看什么**（三条，缺一不可）：
+
+| 看什么 | 判据 |
+|---|---|
+| ⭐ **形状对不对** | 主巷两侧**都有**肋（`spurs=12/12`）· 同侧两根肋**中间空 2 格** · 每条肋**深 32 格** |
+| ⭐ **矿簇挖干净没**（本轮的正题） | 巷道壁上/顶上的矿**整团**被挖掉（而不是只挖贴壁那一层）；日志里 `ores=` 与 `uncollected=` |
+| 观感 + 安全 | 巷道直不直 · 卡不卡 · 掉落物捡没捡 · 有没有把自己埋了 · `outside=0`（没乱挖） |
+
+⚠️ 若出现 `goal_timeout`：**先看 `[Fishbone] advance=` 停在哪一格**再决定抬预算还是查地形（别直接调大 `maxTicks`）。
+
+## 3. 配置怎么改（不改代码、不重编译）
+
+`config/alice-fishbone.toml`（改完**重启客户端**生效）：
+
+| 键 | 默认 | 说明 |
+|---|---|---|
+| `mainLength` | 20 | 主巷长度（格） |
+| `spurSpacing` | 3 | 支巷**中心距**（两根之间空 2 格）；`0` = 不开支巷；**1 非法**（会被拒绝并告诉你原因） |
+| `spurLength` | 32 | 支巷长度（格） |
+| `side` | `BOTH` | `LEFT`/`RIGHT`/`ALTERNATE`/`BOTH`（`BOTH` = 左右对称） |
+| `height` | 2 | 净高（2 或 3） |
+| `oreBudgetPerUnit` | 16 | 每个单元最多追几格暴露矿（`0` = 关闭顺手挖/追簇） |
+
+⚠️ **形状变大 ⇒ 时间线性变长**：真机实测 **47 tick/单元（≈2.35 s）** ⇒ `单元数 × 2.35 s` 就是大致时长；
+`maxTicks` 由代码按 `200×单元数 + 6000` 自动推导，**不用你算**。
+
+## 4. 工件与同步
+
+```
+JAR  = build/libs/alice-1.0.0-1.20.1.jar
+sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（size 2,718,588）  (size 2.7 MB 级)
+镜像 = tools/mirror-windows-workspace.sh   → /mnt/d/JAVA_projects/alice/
+同步 = tools/sync-windows-artifact.sh $JAR /mnt/d/JAVA_projects/alice \
+        /mnt/d/JAVA_projects/worldedit-test/versions/1.20.1-Forge_47.4.10/mods
+```
+
+## 5. 本轮踩的坑（下次更快认出）
+
+1. **`oreSettled.add` 放在循环第一行 = 语义错误**：它让每个候选**第一次被看到就永久结案** ⇒ 我写的
+   「③ 够不着不永久否」**完全没生效**（夹具读数卡在 3/5）。**去重集合的位置就是语义**：「看过」≠「结案」。
+2. **一次注入是空操作**：替换的字符串在重写后**已不存在** ⇒ 什么也没改 ⇒ 跑出 PASS，差点得出
+   「判据不咬人」的**错误结论**。⇒ 注入必须 **`assert count==1` + `diff` 确认落地**，再解读结果。
+3. **判据断错了东西**：「第二层矿」的隔离判据原本断**三合一谓词**，而它其实是因为**视线**为假 ⇒
+   「因为别的原因恰好为假」= `D-425`⑤ 的假达标。改成断**条件②本身**。
+4. **诱饵矿会过期**：追簇一上线，原来"永远不在 6 邻域里"的诱饵矿就**被吃掉了** ⇒ 上移一格，
+   改成考「**追簇不会凭空扩散**」（比原来更强）。
+5. **临时探针要删**：本轮加的 `[Fishbone][probe] ore_eval` 已在定案后删除（本轮代码里**没有**探针残留）。
+

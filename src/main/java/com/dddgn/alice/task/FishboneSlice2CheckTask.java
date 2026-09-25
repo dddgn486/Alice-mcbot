@@ -2,6 +2,7 @@ package com.dddgn.alice.task;
 
 import com.dddgn.alice.action.WriteAudit;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.config.FishboneConfig;
 import com.dddgn.alice.item.FishboneJobItem;
 import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.job.fishbone.FishboneJob;
@@ -95,6 +96,18 @@ public final class FishboneSlice2CheckTask implements Task {
     /** 臂③：哪几个主巷单元的顶棚嵌铁矿（1-based）。 */
     private static final int[] ORE_UNITS = {1, 3, 5};
 
+    /** 臂④：矿脉所在的**主巷单元**（1-based）。 */
+    private static final int VEIN_UNIT = 3;
+    /** 臂④：矿脉从巷道壁往里伸的**深度**（格）—— ≥2 格就是"只挖贴壁那一层"时代挖不到的部分。 */
+    private static final int VEIN_DEPTH = 3;
+    /**
+     * 臂④的矿脉方向 = **南**侧。
+     *
+     * <p>⚠️ 必须避开模板格：`SIDE=LEFT` 且行进方向是东 ⇒ 支巷在北侧（`getCounterClockWise()`），
+     * 所以矿脉放南侧，才可能是"**只有追簇才会挖到**"的格。
+     */
+    private static final Direction VEIN_SIDE = Direction.SOUTH;
+
     /** 整盒边界（建场景 / 期望表 / 断言**共用**）。 */
     private static final int BOX_MIN_DX = -2;
     private static final int BOX_MAX_DX = MAIN_LENGTH + 3;
@@ -112,7 +125,7 @@ public final class FishboneSlice2CheckTask implements Task {
     private static final int NODES_PER_ADVANCE = 40;
     private static final int TICK_COST_REPORT_ONLY = 250;
 
-    private enum Arm { SPUR_TUNNEL, SPUR_ABANDONED, ORE_IN_PLACE }
+    private enum Arm { SPUR_TUNNEL, SPUR_ABANDONED, ORE_IN_PLACE, ORE_VEIN_CHASE }
 
     private enum Phase { SETUP_ARM, SETTLE, RUN, ASSERT, CLEANUP, DONE }
 
@@ -210,9 +223,37 @@ public final class FishboneSlice2CheckTask implements Task {
         return ORIGIN.relative(DIR, unit).above(HEIGHT);
     }
 
-    /** 臂③的**诱饵矿**：在第一个顶棚矿的**正上方** —— 永远不在任何单元的 6 邻域里。 */
+    /**
+     * 臂③的**诱饵矿**：在第一个顶棚矿的**正上方第二格**。
+     *
+     * <p>⚠️ 切片 4 把它从"正上方一格"**上移了一格**，原因是一条真事实：
+     * 追簇会挖掉"我们已挖掉的矿格"的相邻矿 ⇒ 原来那一格（正上方一格）**现在会被挖掉**，
+     * 它已经不是诱饵了。上移之后它与任何已挖格都**不相邻**（中间隔着石头）⇒ ② 必然不达标。
+     * 这条诱饵因此反而更强了：它现在考的是「**追簇不会凭空扩散**」（不只是"模板邻域之外"）。
+     */
     private BlockPos decoyCell() {
-        return oreCell(ORE_UNITS[0]).above();
+        return oreCell(ORE_UNITS[0]).above(2);
+    }
+
+    /**
+     * 臂④的**矿脉**：从主巷单元 {@link #VEIN_UNIT} 的南侧壁往里伸 {@link #VEIN_DEPTH} 格。
+     *
+     * <p>形状刻意做成不规则的团（真实矿脉就是这样）：贴着巷道的前两列**两格高**，
+     * 最里面那列只有脚位那一格。
+     *
+     * <p>为什么第一列要两格高：矿挖掉之后 bot 得能**走进去捡**（1 格高的洞站不进去 ⇒
+     * 掉落物永远捡不回）。这条不是"为夹具方便"，而是**真机上也成立**的约束。
+     */
+    private Set<BlockPos> veinCells() {
+        BlockPos junction = ORIGIN.relative(DIR, VEIN_UNIT);
+        Set<BlockPos> out = new LinkedHashSet<>();
+        for (int d = 1; d <= VEIN_DEPTH; d++) {
+            out.add(junction.relative(VEIN_SIDE, d));
+            if (d <= 2) {
+                out.add(junction.relative(VEIN_SIDE, d).above(1));
+            }
+        }
+        return out;
     }
 
     /** 臂②里**不会变成空气**的支巷格（基岩那格 + 它之后的格）—— 期望表要用。 */
@@ -241,16 +282,22 @@ public final class FishboneSlice2CheckTask implements Task {
                 out.add(oreCell(unit));
             }
         }
+        if (arm == Arm.ORE_VEIN_CHASE) {
+            out.addAll(veinCells());
+        }
         return out;
     }
 
-    /** `C5` 的白名单 = 模板格 ∪ 露头矿格（臂③）；其余臂 = 模板格。 */
+    /** `C5` 的白名单 = 模板格 ∪ 暴露矿格（臂③露头矿 / 臂④整条矿脉）；其余臂 = 模板格。 */
     private Set<BlockPos> writeWhitelist(Arm arm) {
         Set<BlockPos> out = new LinkedHashSet<>(templateFor(arm).cellSet());
         if (arm == Arm.ORE_IN_PLACE) {
             for (int unit : ORE_UNITS) {
                 out.add(oreCell(unit));
             }
+        }
+        if (arm == Arm.ORE_VEIN_CHASE) {
+            out.addAll(veinCells());
         }
         return out;
     }
@@ -296,6 +343,13 @@ public final class FishboneSlice2CheckTask implements Task {
             if (arm == Arm.SPUR_ABANDONED) {
                 sceneOk = sceneOk && level.getBlockState(bedrockCell()).is(Blocks.BEDROCK);
             }
+            if (arm == Arm.ORE_VEIN_CHASE) {
+                boolean veinOk = true;
+                for (BlockPos p : veinCells()) {
+                    veinOk = veinOk && level.getBlockState(p).is(Blocks.IRON_ORE);
+                }
+                sceneOk = sceneOk && veinOk;
+            }
         }
         check("前提（" + arm + "）：场景已落地（起点空气 + 脚下实心 + 本臂特有要素就位）", sceneOk);
 
@@ -325,6 +379,11 @@ public final class FishboneSlice2CheckTask implements Task {
         // 起点口袋（实心体之外那一格必须空，否则 bot 站不进去）
         level.setBlock(ORIGIN, Blocks.AIR.defaultBlockState(), 3);
         level.setBlock(ORIGIN.above(), Blocks.AIR.defaultBlockState(), 3);
+        if (arm == Arm.ORE_VEIN_CHASE) {
+            for (BlockPos p : veinCells()) {
+                level.setBlock(p, Blocks.IRON_ORE.defaultBlockState(), 3);
+            }
+        }
         if (arm == Arm.SPUR_ABANDONED) {
             level.setBlock(bedrockCell(), Blocks.BEDROCK.defaultBlockState(), 3);
         }
@@ -372,11 +431,13 @@ public final class FishboneSlice2CheckTask implements Task {
         ticksPerAdvance = job.advancedUnits() == 0 ? -1 : job.elapsedTicks() / job.advancedUnits();
         BotLog.info("[Fishbone2] RUN arm={} verdict={} status={} ticks={} advance={}/{} mined={} skipped={}"
                         + " spursAbandoned={} spurUnitsSkipped={} spurReturns={} scanned={}"
-                        + " oreMined={} oreFound={} oreDeferred={} oreWalkedAway={} collectedProducts={}"
+                        + " oreMined={} oreFound={} oreDeferred={} oreUncollected={} budgetExhausted={}"
+                        + " oreWalkedAway={} collectedProducts={}"
                         + " auditBreaks={} auditOutsideExpected={} scale={} ticksPerAdvance={}",
                 ARMS[armIndex], armVerdict, status, job.elapsedTicks(), job.advancedUnits(), job.unitCount(),
                 job.minedCells(), job.skippedCells(), job.spursAbandoned(), job.spurUnitsSkipped(),
                 job.spurReturns(), job.scannedUnits(), job.oreMined(), job.oreFound(), job.oreDeferred(),
+                job.oreUncollected(), job.oreBudgetExhausted(),
                 job.oreWalkedAway(), job.collectedProducts(), auditDeltaBreaks, auditOutsideExpected,
                 scaleDelta.describe(), ticksPerAdvance);
         phase = Phase.ASSERT;
@@ -394,6 +455,7 @@ public final class FishboneSlice2CheckTask implements Task {
             case SPUR_TUNNEL -> assertSpurTunnel(level);
             case SPUR_ABANDONED -> assertSpurAbandoned(level);
             case ORE_IN_PLACE -> assertOreInPlace(level);
+            case ORE_VEIN_CHASE -> assertVeinChase(level);
         }
 
         // 两条公共判据（**每一臂**都过）
@@ -552,6 +614,44 @@ public final class FishboneSlice2CheckTask implements Task {
     }
 
     /**
+     * ⭐ **臂④：矿脉追挖（切片 4 / `D-439`）—— 用户 2026-09-25 真机报告的缺陷的正面判据**。
+     *
+     * <p>真机原话：「沿着矿簇挖了一两个，但是**洞壁和洞顶没有完全挖完**」（附截图：巷道左上壁的
+     * 钻石矿、中段壁上的铜矿都还在）。结构原因：条件②只认**模板格**当暴露面 ⇒ 矿挖掉第一格之后，
+     * 第二格旁边挨着的是刚挖出来的**矿洞**、不是模板格 ⇒ ② 必然不成立 ⇒ **矿簇永远只挖一层**。
+     */
+    private void assertVeinChase(ServerLevel level) {
+        Set<BlockPos> vein = veinCells();
+        long air = vein.stream().filter(pos -> level.getBlockState(pos).isAir()).count();
+        check("④ ⭐**矿脉整簇挖干净**（" + air + "/" + vein.size() + " 格为空气）—— 才是对"
+                        + "「洞壁和洞顶没有完全挖完」的正面回答",
+                air == vein.size());
+        check("④ ⭐破坏账 = 世界改动：`oreMined=" + job.oreMined() + "` == 矿脉 " + vein.size()
+                        + " 格（破坏那一刻记账，不是「收集段成功了几次」）",
+                job.oreMined() == vein.size());
+        check("④ `oreFound=" + job.oreFound() + "` ≥ " + vein.size() + "（每一格都进过候选队列）",
+                job.oreFound() >= vein.size());
+        check("④ ⭐`oreDeferred=" + job.oreDeferred() + "` == 0（没有一格因为「够不着」被丢掉 —— "
+                        + "触及范围才是追簇的自然上界）",
+                job.oreDeferred() == 0);
+        check("④ ⭐`oreUncollected=" + job.oreUncollected() + "` == 0（**挖得掉也要捡得回**；"
+                        + "矿脉第一列两格高就是为了让 bot 走进去捡）",
+                job.oreUncollected() == 0);
+        check("④ `oreBudgetExhausted=" + job.oreBudgetExhausted() + "` == 0（" + vein.size()
+                        + " 格矿脉不该碰到每单元上限 " + FishboneConfig.oreBudgetPerUnit() + "）",
+                job.oreBudgetExhausted() == 0);
+        check("④ `oreWalkedAway=" + job.oreWalkedAway() + "` == 0（≤ " + FishboneJob.ORE_STAND_ADJUST_MAX
+                        + " 格的站位微调不算「走过去」，见 `D-439` 的真机证据）",
+                job.oreWalkedAway() == 0);
+        int gained = countProducts() - productsBefore;
+        check("④ ⭐`C2` **矿簇进包**：夹具独立清点原铁 +" + gained + " ≥ " + vein.size()
+                        + "（不读任务自报值）", gained >= vein.size());
+        check("④ 终态 = `template_complete`（实际 " + armVerdict + "）",
+                FishboneJob.TEMPLATE_COMPLETE.equals(armVerdict));
+        isolateOrePredicate(level);
+    }
+
+    /**
      * ⭐ **用真实输入把 `opportunisticTarget` 的三个条件逐个隔离**（不是真值表 —— 真值表会把
      * "谓词被绕过"这种错法放过；这里每条都是世界事实 + 真实 bot 位置）。
      *
@@ -560,34 +660,54 @@ public final class FishboneSlice2CheckTask implements Task {
      */
     private void isolateOrePredicate(ServerLevel level) {
         BlockPos test = oreCell(MAIN_LENGTH);
+        BlockPos second = test.above();     // "矿脉第二层"：只挨着已挖掉的矿格，不挨任何模板格
         level.setBlock(test, Blocks.IRON_ORE.defaultBlockState(), 3);
+        level.setBlock(second, Blocks.IRON_ORE.defaultBlockState(), 3);
+        Set<BlockPos> exposed = template.cellSet();
+        Set<BlockPos> afterFirstOre = new LinkedHashSet<>(exposed);
+        afterFirstOre.add(test);
         try {
             // ③ 隔离：是同一种矿、相邻模板格也已通行，但 bot 在 5 格外 ⇒ 够不着 ⇒ 必须 false
             teleport(level, ORIGIN);
             check("③ ⭐条件③隔离：矿与暴露面都成立，但 bot 在 " + MAIN_LENGTH
                             + " 格外 ⇒ **不算顺手**（不许凭空挖远处的矿）",
-                    !FishboneJob.opportunisticTarget(level, bot, test, template));
+                    !FishboneJob.opportunisticTarget(level, bot, test, exposed));
 
             // 站到第 5 格（已挖通）⇒ 视线与触及都成立
             teleport(level, ORIGIN.relative(DIR, MAIN_LENGTH - 1));
 
-            // ② 隔离：换一份**不含**相邻模板格的模板（挪到 60 格外）⇒ 必须 false
+            // ② 隔离：换一份**不含**相邻模板格的暴露面（挪到 60 格外）⇒ 必须 false
             FishboneTemplate elsewhere = FishboneTemplate.main(ORIGIN.offset(60, 0, 0), DIR, MAIN_LENGTH);
-            check("③ ⭐条件②隔离：矿与 bot 都就位，但相邻的模板格**不属于本作业** ⇒ 不达标"
+            check("③ ⭐条件②隔离：矿与 bot 都就位，但相邻的格**不属于本作业挖出来的面** ⇒ 不达标"
                             + "（计划 §10.1：范围锁死在「我们自己的作业面」，不做「看到矿就去挖」）",
-                    !FishboneJob.opportunisticTarget(level, bot, test, elsewhere));
+                    !FishboneJob.opportunisticTarget(level, bot, test, elsewhere.cellSet()));
 
             // ④ 三条件齐备 ⇒ true
-            check("③ ⭐三条件齐备 ⇒ 判为顺手挖候选（① 是矿 ② 本次作业的暴露面 ③ 视线通 + 触及）",
-                    FishboneJob.opportunisticTarget(level, bot, test, template));
+            check("③ ⭐三条件齐备 ⇒ 判为暴露矿候选（① 是矿 ② 本次作业的暴露面 ③ 视线通 + 触及）",
+                    FishboneJob.opportunisticTarget(level, bot, test, exposed));
 
             // ① 隔离：同一位置的**非矿**（侧墙石头，与已挖通的模板格相邻、视线触及都成立）⇒ 必须 false
             BlockPos wall = ORIGIN.relative(DIR, MAIN_LENGTH - 1).relative(Direction.NORTH);
-            check("③ ⭐条件①隔离：把候选换成石头（相邻模板格已通行、视线与触及都成立）⇒ 不达标"
+            check("③ ⭐条件①隔离：把候选换成石头（相邻格已通行、视线与触及都成立）⇒ 不达标"
                             + "（**不许顺手挖掉非矿的阻挡** —— 与 `C5` 是同一件事）",
-                    !FishboneJob.opportunisticTarget(level, bot, wall, template));
+                    !FishboneJob.opportunisticTarget(level, bot, wall, exposed));
+
+            // ⭐⭐ 切片 4 的核心（这一段就是 `D-439` 的判据本体）：
+            // 先把第一层矿"挖掉"（置空气）—— 这样下面两条的差别**只可能**来自条件②
+            // （视线已通、触及也够；否则判据就是"因为别的原因恰好为假"，那是 `D-425`⑤ 的假达标）。
+            level.setBlock(test, Blocks.AIR.defaultBlockState(), 3);
+            // ⚠️ 这里断的是**条件②本身**（`exposedByOurExcavation`），不是整个三合一谓词 ——
+            // 第一版用三合一谓词，结果它是因为**视线**（而非②）为假 ⇒ 判据"因为别的原因恰好为假"
+            // （`D-425` ⑤ 的假达标）。端到端那一层由 arm ④ 的行为判据（矿脉 5/5 格变空气）承担。
+            check("④ ⭐⭐**矿脉第二层**：暴露面只传**模板格** ⇒ ②**不成立**"
+                            + " —— 这正是真机「矿簇只挖贴壁那一层」的结构原因（第二格旁边挨着的是矿洞，不是模板格）",
+                    !FishboneJob.exposedByOurExcavation(level, second, exposed));
+            check("④ ⭐⭐**矿脉第二层**：把**已被我们挖掉的第一层矿格**并进暴露面 ⇒ ②**成立**"
+                            + "（暴露面 = **本次作业挖出来的面**，不是只有模板格 ⇒ 追簇能一层层往里走）",
+                    FishboneJob.exposedByOurExcavation(level, second, afterFirstOre));
         } finally {
             level.setBlock(test, Blocks.AIR.defaultBlockState(), 3);
+            level.setBlock(second, Blocks.AIR.defaultBlockState(), 3);
             teleport(level, ORIGIN);
         }
     }
@@ -657,26 +777,77 @@ public final class FishboneSlice2CheckTask implements Task {
     }
 
     /**
-     * ⭐ **切片 3（`D-438`）：真机入口的默认模板必须是合法且符合计划 §8 的形状**。
+     * ⭐ **真机入口 `alice:fishbone_job` 的模板必须是合法且符合裁定的形状**（`D-438` / `D-439`）。
      *
-     * <p>为什么夹具要管这件事：`alice:fishbone_job` 是本片唯一的**真机**入口，它的常量写错
-     * （比如 `spurSpacing` 抄成 1 ⇒ 构造抛异常、或 `mainLength` 抄成 0）**在离线就该咬住** ——
+     * <p>为什么夹具要管这件事：它是本片唯一的**真机**入口，形状写错（间距抄成 1 ⇒ 构造抛异常、
+     * 侧向抄成 `LEFT` ⇒ 左右不对称、支巷抄短 ⇒ 挖不到 32 格）**在离线就该咬住** ——
      * 等到你右键那一刻才发现，等于白烧一个客户端轮。这里调的是**生产代码的工厂**
      * （`FishboneJobItem.templateFor`），不是照常量另抄一份。
+     *
+     * <p>⚠️ 切片 4 起尺寸来自 `config/alice-fishbone.toml` ⇒ 判据分两层：
+     * <ol>
+     *   <li><b>默认值层</b>（用户 2026-09-25 的三条裁定，钉在常量上）：`BOTH` / 中心距 3 / 支巷 ≥ 32
+     *       —— 这是**用户裁定的钉子**，将来改裁定要**同时**改这里（否则静默回退会没人发现）；</li>
+     *   <li><b>结构层</b>（跟配置走）：尺寸自洽（条数/单元/格数三个数必须互相对得上）+ **左右对称**
+     *       + 沿主巷每 `spurSpacing` 格一个位置 + 每条支巷真的有 `spurLength` 格。
+     *       ⇒ 你把配置改大改小都不会把夹具判红，但**形状坏了**一定红。</li>
+     * </ol>
      */
     private void liveEntryChecks() {
+        // ① 用户裁定的默认值（钉子）
+        check("真机默认配置 = 用户 2026-09-25 裁定的形状：" + FishboneConfig.DEFAULT_SIDE + "（左右对称）· 中心距 "
+                        + FishboneConfig.DEFAULT_SPUR_SPACING + " 格（两根之间空 2 格）· 支巷 ≥ 32 格（实际 "
+                        + FishboneConfig.DEFAULT_SPUR_LENGTH + "）",
+                FishboneConfig.DEFAULT_SIDE == FishboneTemplate.SpurSide.BOTH
+                        && FishboneConfig.DEFAULT_SPUR_SPACING == 3
+                        && FishboneConfig.DEFAULT_SPUR_LENGTH >= 32);
+
+        // ② 四个方向的模板都合法、且三个数互相对得上
         for (Direction d : new Direction[]{Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST}) {
             FishboneTemplate live = FishboneJobItem.templateFor(ORIGIN, d);
-            check("真机入口默认（dir=" + d.getName() + "）：主巷 " + live.mainLength() + " · 支巷 "
-                            + live.spurBranches() + " 条 × " + live.spurLength() + " 格 · 净高 " + live.height()
+            check("真机入口（dir=" + d.getName() + "）：主巷 " + live.mainLength() + " · 中心距 "
+                            + live.spurSpacing() + " · 支巷 " + live.spurBranches() + " 条 × "
+                            + live.spurLength() + " 格（" + live.side() + "）· 净高 " + live.height()
                             + " ⇒ 单元 " + live.advanceCells() + " · 模板格 " + live.cells().size(),
-                    live.mainLength() == 20 && live.spurBranches() == 4 && live.spurLength() == 5
-                            && live.height() == 2 && live.advanceCells() == 40 && live.cells().size() == 80);
-            check("真机入口默认（dir=" + d.getName() + "）：作用域半径 " + live.scopeRadius()
-                            + " ≥ 作业包围盒对角 ⇒ `C2` 在真机也成立（`D-346`）",
-                    live.scopeRadius() >= live.mainLength() + live.spurLength()
-                            && live.scopeRadius() == live.mainLength() + live.spurLength() + 2);
+                    live.mainLength() == FishboneConfig.mainLength()
+                            && live.spurSpacing() == FishboneConfig.spurSpacing()
+                            && live.spurLength() == FishboneConfig.spurLength()
+                            && live.side() == FishboneConfig.side()
+                            && live.height() == FishboneConfig.height()
+                            && live.advanceCells() == live.mainLength() + live.spurBranches() * live.spurLength()
+                            && live.cells().size() == live.advanceCells() * live.height()
+                            && live.scopeRadius() == live.mainLength()
+                                    + (live.hasSpurs() ? live.spurLength() : 0) + 2);
         }
+
+        // ③ 三条结构不变式（只看一个方向就够：它们与方向无关）
+        FishboneTemplate live = FishboneJobItem.templateFor(ORIGIN, DIR);
+        // ⚠️ 数的是**条**（每条支巷的起点格 `spurStep == 1`），不是格 —— 第一版数成了格
+        //（192 vs 192 看着"相等"，其实是 6 条 × 32 格），于是判据自己把自己判红。
+        long left = live.units().stream().filter(u -> u.isSpur() && u.spurStep() == 1
+                && u.spurDir() == DIR.getCounterClockWise()).count();
+        long right = live.units().stream().filter(u -> u.isSpur() && u.spurStep() == 1
+                && u.spurDir() == DIR.getClockWise()).count();
+        boolean bothSides = live.side() == FishboneTemplate.SpurSide.BOTH;
+        check("真机形状 ⭐**左右对称**：行进方向左手侧 " + left + " 条 / 右手侧 " + right + " 条"
+                        + "（共 " + live.spurBranches() + " 条）。用户裁定「主巷左右两边对称」——"
+                        + (bothSides ? "当前 `BOTH` ⇒ 两侧必须**逐格相等**"
+                        : "当前 side=" + live.side() + " **不是** `BOTH` ⇒ 本条只查总数自洽；"
+                                + "对称性由上面的默认值判据钉住"),
+                left + right == live.spurBranches() && (!bothSides || (left > 0 && left == right)));
+        check("真机形状 ⭐**沿主巷每 " + live.spurSpacing() + " 格一个位置**：位置数 " + live.spurCount()
+                        + " == 主巷 " + live.mainLength() + " / " + live.spurSpacing()
+                        + "（用户裁定「间隔两格」= 中心距 3）",
+                !live.hasSpurs() || live.spurCount() == live.mainLength() / live.spurSpacing());
+        int deepest = 0;
+        for (FishboneTemplate.Unit u : live.units()) {
+            if (u.isSpur()) {
+                deepest = Math.max(deepest, u.spurStep());
+            }
+        }
+        check("真机形状 ⭐**每条支巷真的挖到 " + deepest + " 格深**（分母 " + live.spurLength()
+                        + "；用户裁定「起码 32 格」⇒ 默认配置已由第 1 条判据钉住）",
+                !live.hasSpurs() || deepest == live.spurLength());
     }
 
     private void check(String name, boolean ok) {

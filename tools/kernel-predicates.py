@@ -1604,6 +1604,9 @@ def rule_fishbone_live_log_shape():
     而 0 是歧义的 ⇒ 会误判成"没跑起来"）。这正是 `D-425` ⑤ 家族里"判据/契约悄悄消失"的一类。
 
     断言（改任一处 ⇒ 红）：三行的**行首标签**存在，且各自的**键**齐全。
+
+    ⚠️ `D-439` 加了 `uncollected=`（挖掉了但掉落物没进包的矿格数）—— 它与 `ores=` 的分子
+    （= 破坏数）是**两件事**：追簇的深格矿常常"挖得掉、捡不回"，压成一个数就会让 `ores=` 说谎。
     """
     problems = []
     job = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "fishbone"
@@ -1620,8 +1623,8 @@ def rule_fishbone_live_log_shape():
         ("推进行", "[Fishbone] advance=",
          ["cell=", "mined=", "spurs=", "ores=", "searchNodes=", "products="]),
         ("收尾行", "[Fishbone] SUMMARY dir=",
-         ["main=", "spurs=", "abandoned=", "mined=", "ores=", "collected=", "searchNodes=",
-          "searchLimit=", "return=", "outside=", "→ "]),
+         ["main=", "spurs=", "abandoned=", "mined=", "ores=", "uncollected=", "collected=",
+          "searchNodes=", "searchLimit=", "return=", "outside=", "→ "]),
     ]
     for label, head, keys in lines:
         idx = src.find(head)
