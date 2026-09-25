@@ -1420,3 +1420,4 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
   —— 真机那轮它们本来就没捡到（`retire stack=3`）⇒ 净收益 = 作业 FAILED→PASS，实得一件不少。
 - **下一步**：真机客户端轮（入口不变：那个鱼骨作业工具）；看 `segment_stall` 保持 0、`return=ok`、
   以及 `[Ledger] skip … 区外` 不再伴随"自己的通道格被填"。
+- **jar**：`build/libs/alice-1.0.0-1.20.1.jar` sha256 `5b76cb2f2a6dafe0ee5ab5838fff32be17a7bab78c97cbdd925e472efcf04996`（已镜像到 `D:\JAVA_projects\alice\build\libs\` 与固定客户端 `mods/`）。commit `414818b`。
