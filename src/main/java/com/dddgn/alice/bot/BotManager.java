@@ -1015,6 +1015,33 @@ public final class BotManager {
         return nearest;
     }
 
+    /**
+     * 在 `around` 附近找一格**现成可站**的位置来放 bot（`D-441`）：4 个水平邻居 → 4 个斜角 →
+     * 最后才退回 `around` 自己；都不可站返回 {@code null}。
+     *
+     * <p><b>为什么需要它</b>（`D-441` 真机裁定）：把 bot 放进**玩家自己站的那一格**是错的 ——
+     * 玩家不可被推（`fake player` 挤不动真人）⇒ bot 既站不稳、"站得正"也保不住（就地挖的硬前提），
+     * 用户原话：「bot 想到我这个位置，又推不动我」。两个入口都用这一份：
+     * `alice:fishbone_job`（生成新 bot 时）与 `/alice come`（叫它过来）—— 叫过来 = **送到你旁边**。
+     *
+     * <p>判据与寻路同一份：{@link MovementHelper#canStandCentered}（脚位 + 头位 + 脚下支撑）。
+     */
+    public static BlockPos standableCellNear(ServerLevel level, BlockPos around) {
+        for (net.minecraft.core.Direction d : net.minecraft.core.Direction.Plane.HORIZONTAL) {
+            BlockPos cell = around.relative(d);
+            if (MovementHelper.canStandCentered(level, cell)) {
+                return cell;
+            }
+        }
+        for (net.minecraft.core.Direction d : net.minecraft.core.Direction.Plane.HORIZONTAL) {
+            BlockPos cell = around.relative(d).relative(d.getClockWise());
+            if (MovementHelper.canStandCentered(level, cell)) {
+                return cell;
+            }
+        }
+        return MovementHelper.canStandCentered(level, around) ? around : null;
+    }
+
     /** 广播当前任务目标给所有客户端(透视高亮用;null = 清除高亮)。 */
     public static void broadcastTarget(TaskTarget target) {
         TargetPacket packet = target == null

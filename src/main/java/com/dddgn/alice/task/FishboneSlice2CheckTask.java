@@ -8,6 +8,7 @@ import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.job.fishbone.FishboneJob;
 import com.dddgn.alice.job.fishbone.FishboneTemplate;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.search.PathingStats;
 import com.dddgn.alice.perception.ScopeBuffer;
 import net.minecraft.core.BlockPos;
@@ -906,6 +907,9 @@ public final class FishboneSlice2CheckTask implements Task {
      *       + 沿主巷每 `spurSpacing` 格一个位置 + 每条支巷真的有 `spurLength` 格。
      *       ⇒ 你把配置改大改小都不会把夹具判红，但**形状坏了**一定红。</li>
      * </ol>
+     *
+     * <p>⭐ 第 ④ 组是**起点裁定**（`D-441`）：模板起点 = **bot 自己的脚位** + bot 站不住就**拒绝开工**。
+     * 它要看世界（`canStandCentered`），所以只能在夹具里跑（前 ③ 组是纯静态的）。
      */
     private void liveEntryChecks() {
         // ① 用户裁定的默认值（钉子）
@@ -962,6 +966,27 @@ public final class FishboneSlice2CheckTask implements Task {
         check("真机形状 ⭐**每条支巷真的挖到 " + deepest + " 格深**（分母 " + live.spurLength()
                         + "；用户裁定「起码 32 格」⇒ 默认配置已由第 1 条判据钉住）",
                 !live.hasSpurs() || deepest == live.spurLength());
+
+        // ④ 起点裁定（`D-441`，用户 2026-09-25 真机裁定）—— 这一条要看**世界**，所以放在夹具里跑：
+        //   「模板起点 = **bot 自己的脚位**」（切片 3 的"你站的那一格"作废：bot 被放到玩家那格后挤不动玩家）
+        //   + 「bot 站不住 ⇒ **拒绝开工**」（不猜、不夹取、不传送）
+        ServerLevel level = bot.serverLevel();
+        teleport(level, ORIGIN); // 夹具纪律：先复位到统一起点，再判
+        BlockPos liveOrigin = FishboneJobItem.originFor(level, bot);
+        check("真机入口起点 ⭐**= bot 自己的脚位**（不是玩家那一格）：originFor = "
+                        + (liveOrigin == null ? "null" : liveOrigin.toShortString())
+                        + "，bot 实际站在 " + MovementHelper.footCell(level, bot).toShortString()
+                        + "（用户裁定：bot 挤不动玩家 ⇒ 不许再把 bot 送到玩家那格）",
+                ORIGIN.equals(liveOrigin));
+        // 反证：把地板抽掉一格 ⇒ "站不住"的人造事实必须让 originFor 返回 null（判据必须可红）
+        level.setBlock(ORIGIN.below(), Blocks.AIR.defaultBlockState(), 3);
+        BlockPos floating = FishboneJobItem.originFor(level, bot);
+        check("bot 悬空（脚下没支撑）时 `originFor` 必须返回 null ⇒ 入口拒绝开工，"
+                        + "而不是把作业开到站不住的地方（实测返回 "
+                        + (floating == null ? "null" : floating.toShortString()) + "）",
+                floating == null);
+        level.setBlock(ORIGIN.below(), Blocks.STONE.defaultBlockState(), 3); // 失败路径同样复位
+        teleport(level, ORIGIN);
     }
 
     private void check(String name, boolean ok) {

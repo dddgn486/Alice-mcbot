@@ -1672,6 +1672,56 @@ def _strip_block_comments(text: str) -> str:
     return "".join(out)
 
 
+def rule_fishbone_entry_origin():
+    """`D-441` **鱼骨真机入口的起点来源**（2026-09-25 用户真机裁定）。
+
+    为什么这条规则该存在：切片 3 的入口把 **玩家站的那一格**当模板起点，并把 bot 传送过去 ——
+    真机实测撞墙：玩家就占着那一格，bot 挤不动玩家（玩家不可推）⇒ 它既站不稳也回不了起点。
+    用户当场裁定「就以 bot 位置为起点」。这条裁定如果只写在注释里，下一次「顺手把 bot 摆到玩家面前」
+    就会静默回到旧行为，而**夹具测不出**（夹具里没有真人玩家可以站进那一格 ⇒ 反证造不出来）。
+
+    断言（改任一处 ⇒ 红）：
+    ① `FishboneJobItem` 里**不许**出现 `teleportTo(`（入口不再搬动 bot）；
+    ② 起点必须取自 `MovementHelper.footCell(`（**bot 脚位**；`D-105`：不许拿原版 `blockPosition()` 顶替）；
+    ③ 起点必须过 `canStandCentered(`（站不住 ⇒ **拒绝开工**，与 `PREPARE` 同一谓词 ⇒ 不留"开出去再失败"）；
+    ④ `start(...)` 必须**真把 `originFor(...)` 的结果**交给 `templateFor(...)`（起点与 bot 位置不许脱钩）。
+
+    ⚠️ 先剥块注释再断言（`D-438` 的教训：本仓的 javadoc 会把被禁的写法原样抄一遍 ⇒ 判据被自己的注释满足）。
+    ⚠️ 并且 ②③④ 都**位置化**到 `originFor(...)` / `start(...)` 的方法体内 —— 第一版是全文件找子串，
+    **注入臂实测照样全绿**：把 `originFor` 里的 `footCell` 换成 `bot.blockPosition()`、把可站判据整个删掉，
+    判据依然满足（`start` 的报错文案里还留着 `footCell`、`spawnCellNear` 里还留着 `canStandCentered`）
+    —— 这正是 `D-425` ⑤ 家族"判据被长得像的东西满足"（第 5 例）。
+    """
+    problems = []
+    item = ROOT / "src/main/java/com/dddgn/alice/item/FishboneJobItem.java"
+    if not item.exists():
+        return ["`FishboneJobItem.java` 不见了（鱼骨真机入口）"]
+    src = code_only(_strip_block_comments(item.read_text(encoding="utf-8")))
+    if "teleportTo(" in src:
+        problems.append("真机入口里出现 `teleportTo(` ⇒ 又把 bot 送到玩家占着的那一格"
+                        "（`D-441` 实测：bot 挤不动玩家 ⇒ 站不稳、回不到起点）")
+    origin = code_only(method_body(src, "public static BlockPos originFor("))
+    if not origin.strip():
+        problems.append("找不到 `originFor(...)` 的方法体 ⇒ 起点裁定无处可查（`D-441`）")
+    else:
+        if "MovementHelper.footCell(" not in origin:
+            problems.append("`originFor(...)` 的起点不是从 **bot 脚位**取的（`MovementHelper.footCell(`）"
+                            "⇒ 半砖/台阶上会取错格，也可能又变回「玩家那一格」")
+        if "canStandCentered(" not in origin:
+            problems.append("`originFor(...)` 没用 `canStandCentered(` 判「起步那格能不能站」"
+                            "⇒ bot 悬空时照样开工，然后以 `start_unreachable` 白烧一个客户端轮")
+    entry = code_only(method_body(src, "private void start("))
+    if not entry.strip():
+        problems.append("找不到 `start(...)` 的方法体 ⇒ 真机入口的起点来源无处可查（`D-441`）")
+    else:
+        if "originFor(level, bot)" not in entry:
+            problems.append("`start(...)` 没有调 `originFor(level, bot)` ⇒ 模板起点与 **bot 的位置**脱钩")
+        if "templateFor(origin" not in entry:
+            problems.append("`start(...)` 没有把 `originFor` 的结果交给 `templateFor(origin, dir)`"
+                            "⇒ 起点另有出处（`D-441`：起点必须是 bot 自己的脚位）")
+    return problems
+
+
 def rule_movement_contract_agreement():
     """`D-366` **移动契约三方一致**（2026-09-20 真机崩服换来的规则）。
 
@@ -4428,6 +4478,7 @@ def main() -> int:
     support = rule_support_and_cluster_order()
     inplace = rule_mine_in_place_before_walk()
     fbshape = rule_fishbone_live_log_shape()
+    fbentry = rule_fishbone_entry_origin()
     contract = rule_movement_contract_agreement()
     searchbudget = rule_search_budget_is_tick_aware()
     searchbackoff = rule_mine_job_search_limit_backoff()
@@ -4534,6 +4585,8 @@ def main() -> int:
         print(f"[D-365·视线内就地挖] {line}")
     for line in fbshape:
         print(f"[D-438·鱼骨真机日志形状] {line}")
+    for line in fbentry:
+        print(f"[D-441·鱼骨入口起点=bot脚位] {line}")
     for line in contract:
         print(f"[D-366·移动契约一致] {line}")
     for line in searchbudget:
@@ -4601,10 +4654,10 @@ def main() -> int:
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not fbshape and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b and not a3 and not p7 and not p3 and not pl1 and not diagside and not psparity and not pillarwater and not fallparity) and not tlb
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not fbshape and not fbentry and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b and not a3 and not p7 and not p3 and not pl1 and not diagside and not psparity and not pillarwater and not fallparity) and not tlb
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 鱼骨真机日志形状={len(fbshape)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / tick负载预算={len(tlb)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 鱼骨真机日志形状={len(fbshape)} / 鱼骨入口起点={len(fbentry)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / tick负载预算={len(tlb)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
           f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 不可逆写入记账={len(rc3)} / 击杀产物归属={len(a3)} / 非PASS步单列={len(p7)} / 作业级收集授权={len(p3)} / 写入真相同源={len(rc4)} / 重放有界={len(p2b)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)} / 过期证明重评={len(pl1)} / 对角侧格单源={len(diagside)} / 搭石族两侧谓词={len(psparity)} / 水柱起跳门控={len(pillarwater)} / 落点三层同源={len(fallparity)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1

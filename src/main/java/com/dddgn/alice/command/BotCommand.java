@@ -1618,14 +1618,23 @@ public final class BotCommand {
             source.sendFailure(Component.literal("[alice] bot_unavailable"));
             return 0;
         }
-        BlockPos foot = player.blockPosition().immutable();
+        // ⭐ `D-441`：叫它过来 = 送到**你旁边那一格**，**不是**塞进你那一格 ——
+        // 玩家不可被推（`fake player` 挤不动真人）⇒ 同格时 bot 会被挤开、也保不住"站得正"。
+        BlockPos foot = BotManager.standableCellNear(source.getLevel(), player.blockPosition());
+        if (foot == null) {
+            source.sendFailure(Component.literal("[alice] 你附近没有可站的位置给它 ⇒ 让开 / 清一块空地再叫"));
+            return 0;
+        }
         // 摆位传送（允许）：带头部同步的重载，避免头身不一致
         bot.teleportTo(source.getLevel(), foot.getX() + 0.5D, foot.getY(), foot.getZ() + 0.5D,
                 java.util.Set.of(), bot.getYRot(), bot.getXRot());
         bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
         bot.controller().stopMovement();
         final String name = bot.getName().getString();
-        source.sendSuccess(() -> Component.literal("[alice] " + name + " 已到位 " + foot.toShortString()), false);
+        final boolean onPlayer = foot.equals(player.blockPosition());
+        final String where = foot.toShortString();
+        source.sendSuccess(() -> Component.literal("[alice] " + name + " 已到位 " + where
+                + (onPlayer ? "（只有你这一格能站 ⇒ 你让开一格）" : "（在你旁边）")), false);
         return 1;
     }
 
