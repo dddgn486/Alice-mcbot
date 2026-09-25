@@ -1275,3 +1275,48 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 ⑤ 顺带留意：`SUMMARY` 的 `collected=` 与日志里的 `[CollectDrops] collected=N/N` 对不对得上
    （对不上就是 `D-442 §五.1` 那条幻影读数，把两个数一起贴给我）
 ```
+
+---
+
+# 断点⑯：鱼骨真机第三轮取证 + `survey/34` 评审 → **八条裁定落盘（`D-443`）**，开工片 A（2026-09-25 晚）
+
+## 1. 本轮做了什么
+
+1. **真机第三轮取证**（`latest.log` 2026-09-25 16:20–16:22，用户 `/alice stop-task` 停在 `unit=80/404`）：
+   两条支巷被放弃（`放弃剩余 28 + 29 = 57/404 单元 = 14%`），根因两条：
+   - **A1**：下一格是空气 + 头位实心（追簇挖了地板 `break -66,51,182`/`-65,51,182`，`collect-drops` 又挖穿了那格本身
+     `break -65,52,182 by=…:PATH_ACCESS`）⇒ `no_valid_standing_point faceStandable=0/6 belowSolid=false` ⇒ 弃巷；
+   - **A2**：bot 被追簇带到 `y=55`（通道层 `y=52`）⇒ 挖掘站位的接近请求被夹成**纯通行**
+     （`MiningPlanner.java:366-367` 用 `PathRequest.of`）⇒ `no_reachable_standing_point`；**同一 tick** 鱼骨自己的走位
+     （`withPlacement`）却 `REACHED`。
+2. **写了草案** `docs/plans/2026-09-25-通道施工器草案.md`（`edeeab9`）⇒ 用户带走给勘测员。
+3. **勘测报告** `survey/34`（`342f2fe`）+ 我方**核对** `docs/reviews/2026-09-25-survey34-核对.md`（`0ff8602`/`981a96a`）：
+   勘测侧四个锚点全成立、**A1 真根因更正为"判据有两个来源"**（`:527 bodyPassable` vs `:647 canWalkThrough`）；
+   我方**一处异议**（`I5` 不挂 `ZoneAuthority`）+ **一处自我更正**（`A14` 是**作业累计** 40 块，不是每次走位）。
+4. **八条裁定落盘**：见 `docs/AI_DECISIONS.md` **`D-443`**；台账新增 `1.4h`/`1.4i`/`1.4j` 三片。
+
+## 2. 裁定摘要（八条，逐条已拍）
+
+| # | 裁定 |
+|---|---|
+| 1a | 顺序 = `P0.5 → P0 → P1(+L2)`，**`L3` 等第二个消费者**（放弃"先建施工层"） |
+| 1b | **`C8` 尾款绑进片 A**（`P0.5` 会让补地板更频繁，而 `C8` 三件未落 ⇒ 大矿洞会"一格一格搭过去"） |
+| 1c | `P0.5` + `P0` **同一 jar 轮次**（两个独立提交、各自红臂） |
+| 2 | `L3` **缓建**（抽象在第二个消费者出现时才提炼） |
+| 3 | **不排 `parkour-place`**；改为片 B 的**归因四分类**（① 横向缺格 ② 能力不对称 ③ 判据误判 ④ 真挖不动） |
+| 4 | `road/` **只登记退役候选 + 只读审计，不动代码**（它是接线中的功能：物品/命令/网络包/客户端渲染） |
+| 5 | `L2` **就地**（`job/fishbone/`）做唯一判据；**接口与包往后提** |
+| 6 | 矿上限"**丢弃 ⇒ 有界延后**"（片 B） |
+| 7a/7b | 搭路预算合成一个数 `max(16, advanceCells/10)`；**用尽 ⇒ 如实放弃/失败**（`C8` 语义，取代 `A14` 的"退回纯通行继续走"） |
+| 8 | `I5` = **作业形状驱动 + 作业作用域载体**（不挂 `ZoneAuthority`） |
+
+## 3. 下一步（片 A，`1.4h`）
+
+```
+① MiningProfile 加"接近能力"字段（默认 = PathRequest.of ⇒ 其它消费者零变化）
+② MiningPlanner:367 改成"问 profile 要工厂"；鱼骨那处调用点传 withPlacement
+③ C8 三件：单段悬空 ≤ maxGapLength(4) / 前瞻无地板 ⇒ big_cavern_ahead 放弃 / 额度用尽 ⇒ 放弃
+④ 预算对账：一个名字 bridgeBlockBudget = max(16, advanceCells/10)
+⑤ 夹具：造 A2 处境（bot 高 3 格）⇒ 绿；红臂 = 接近集退回 of ⇒ 红；大矿洞超限 ⇒ 放弃，窗口调无限 ⇒ 红
+⑥ 回归：fishbone_slice1 / fishbone_slice2 绿 · CORE 绿 · kernel-predicates 绿
+```
