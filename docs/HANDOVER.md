@@ -992,3 +992,54 @@ bash tools/dsh-context-usage.sh                       # 上下文线（只报一
    测"搜索跑完的归因"必须临时 `setLimits(0,0,0)` 关掉三条轴（测闸门是 BURN 臂的事）。
 6. ⚠️ **`mined`/`breaks` 别用 `block_break_done` 去 grep**（两份真机日志里都是 0 ⇒ 那是错的字符串，
    真正要看 `[Job] terminal … breaks=N` / `MineSurvey SUMMARY`）。
+
+---
+
+# 断点⑩：切片 2 第二步（行为臂）落地（2026-09-25 中午）
+
+## 1. 收工状态（逐条可核）
+
+| 项 | 值 |
+|---|---|
+| 本轮交付 | ⭐ **切片 2 第二步 = 行为臂**：`FishboneJob` 的 `SPUR_RETURN`/`IN_PLACE`/`COLLECT` 三相位 + **单元化记账** + `FishboneTemplate.units()/record Unit`（几何唯一真源）+ **新步 `fishbone_slice2`**（新夹具，三臂）+ 门禁 `D-365·视线内就地挖` 收紧 |
+| 裁定/记录 | **`D-437`**（六条设计裁定 + 三臂红绿对照 + 三条诚实边界 + 四条读数教训）；台账新增 **`1.4b` ✅**、`1.4` 改判为"两小步均已落盘" |
+| 绿 | `single:fishbone_slice2` = **`checks=46 failures=0`**（① `advance=12/12 mined=24 spurReturns=2` ② ⭐`template_complete_spurs_abandoned=1` + DONE，`spurUnitsSkipped=2` ③ `oreFound=3 oreMined=3 oreWalkedAway=0`，夹具**独立清点**原铁 3；破坏数 **24/20/15 精确**） |
+| 红臂 | A（**两档合并**：支巷失败走主巷失败路径）⇒ 臂② **7 条红**（`main_blocked:TARGET_NOT_BREAKABLE`+FAILED、`advance=4/12`、第 2 条支巷没挖）；B（去掉显式支巷退路）⇒ 臂①② 各 1 条红（`spurReturns`），**其余全绿** |
+| 回归 | `single:fishbone_slice1` 仍 **PASS `checks=42`**（臂① `ticks=291 plans=20`，加 COLLECT 后 +16 tick/+1 plan）；**CORE 电池 `verdict=PASS`**（235 s）；`check-all` = **`pass=19→21 warning=2 failed=2→0`**（两个 FAIL 是本轮引入的**门禁漂移**，已修，见 §3） |
+| 门禁 | `kernel-predicates` PASS；**新形状的两条注入臂都红**（J1 `canMineInPlace` 自己另写公式 / J2 `FishboneJob` 不用同一对谓词） |
+| 工件 | ⚠️ jar **仍未重同步**（客户端 `mods/` 里还是 `7d58d33f…`）—— 但**几何/行为改动不影响任何现游戏内入口**（`FishboneJob` 还没有游戏内入口，切片 3 才有）⇒ 下次客户端轮前 build+sync 即可 |
+
+## 2. 下一轮的固定顺序
+
+```
+① 切片 3【1 轮】：零参数真机入口 `alice:fishbone_job`（照 `MineJobItem`：玩家当前位置 + 朝向 ⇒ 零坐标参数）
+                  + `[Fishbone]` 结构化日志（计划 §8）
+② J-1.5【1 客户端轮】：真机鱼骨验收（只做鱼骨；`latest.log` 的 `[Fishbone]` 系列）
+   ⚠️ 客户端轮前必须 `./gradlew build` + `tools/sync-windows-artifact.sh`
+③ 切片 2 尾款【1 轮，按需】：追簇/`oreQuota`、大矿洞三条上限（`maxGapLength`/`bridgeBlockBudget`）、
+   `C10` 满包、`main_floor_missing`、`C2` 负例臂 —— 见 `D-437 §五`
+④ 待裁：`P4-深矿`（50 ms 是否太紧 ⇒ 临时 200 的对照轮）；`Q-1`（`J-2` 前置）
+```
+
+## 3. 本轮新踩的坑（别重踩）
+
+1. ⭐⭐ **"目标空了" ≠ "任务完了"**：`MineTask` 破坏完成后还有一段**收集掉落物**相位（那时目标必然是空气）
+   ⇒ 在 `inPlace()` 里把"目标已空气 ⇒ 提前出队"放在最前面，把 3 个露头矿的 `MineTask` **全部腰斩在收集相位**
+   —— 现象极具欺骗性：**产物确实进了包**（夹具独立清点 3 个原铁）、破坏数也对，**只有 `oreMined=0`**。
+   正解：**有子任务在跑就必须把它 tick 到自己的终态**；"那个方块还在不在"不是完成判据。
+2. ⭐ **判"这一格已被挖开"要选对谓词**：`bodyPassable(foot) = canWalkThrough(foot) && canWalkThrough(foot.above())`
+   ⇒ **顶棚矿**会让头位格的"上方那格"不通 ⇒ 用它判"我们自己挖出来的暴露面"时 **`ore_found=0`**（首跑现场）。
+   语义是"这一格空了"就必须用单格 `canWalkThrough`。
+3. ⚠️ **产物基线取得太晚 ⇒ 增量恒 0**：掉落物常在**挖掉那一 tick 就被脚下的 bot 捡走**，
+   等 `COLLECT` 相位再取基线 ⇒ `产物=+0`（而背包里躺着 3 个原铁）。⇒ 基线在**构造时**取（与 `MineJob` 同口径）。
+   （`silent-measurement-failure` 同宗：看到 0 先问"基线什么时候取的"。）
+4. ⚠️ **`printf` 风格日志的占位符必须逐个数**：夹具 `RUN` 行多写了一个 `deferred={}` 标签 ⇒ **整行读数串位**
+   （`collected=24` 其实是 `auditDeltaBreaks`、`ticksPerAdvance={}` 字面输出）—— 串位后**看起来仍像真值**。
+5. ⚠️ **门禁会因为"把判据抽成公共方法"而漂**（本轮 `check-all` 的两个 FAIL 都是这一类，**不是运行期缺陷**）：
+   ① `D-365·视线内就地挖` 原来在 `canMineInPlace()` 的**方法体**里找 `checkFromEye(`+`getBlockReach()`
+   ⇒ 我把这一对抽成 `inPlaceReachable(...)` 后它抓不到了 ⇒ 已改成"委派 + 全文件只许两处（`tickBreak` 闸门 +
+   `inPlaceReachable` 预检）+ `FishboneJob` 也必须调它"，**两条新注入臂都红**；
+   ② `docs/CAPABILITY_LIST.md` 是**生成物**，新增步骤后必须 `python3 tools/capability-list.py --write`。
+   ⇒ **规律：改了方法结构/加了步骤，收工前必须跑一次 `check-all`**（本轮先跑 CORE 才跑门禁，顺序反而对）。
+6. ⚠️ **夹具的 `ARM` 行不能用累计 `failures.isEmpty()`** 判本臂成败（前一臂的红会算到后一臂头上，
+   日志里出现"`ARM X FAIL` 但本臂 0 失败"）⇒ 已改成本臂增量口径。

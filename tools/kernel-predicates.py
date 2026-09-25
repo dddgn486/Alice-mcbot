@@ -1543,7 +1543,11 @@ def rule_mine_in_place_before_walk():
 
     断言（改任一处 ⇒ 红）：
     ① `MineBlockRunner.tick()` 里 `canMineInPlace()` 必须**在走路闸门之前**被问（否则等于没修）；
-    ② 判据必须用**执行期同一套**（`checkFromEye(` + `getBlockReach()`）—— 不许自己另写一套视线/触及公式；
+    ② 判据必须用**执行期同一套**（`checkFromEye(` + `getBlockReach()`）—— 不许自己另写一套视线/触及公式。
+       ⭐ `D-437`（2026-09-25）把这一对谓词抽成 `public static inPlaceReachable(...)` 作**唯一出处**
+       （切片 2 的**露头矿顺手挖**要用同一对谓词筛候选）⇒ 本规则随之收紧成**全文件恰好 1 份出处**：
+       `inPlaceReachable` 里有这一对 + `canMineInPlace()` 只能**委派**给它 + 全仓**只许两处**用它
+       （`tickBreak()` 执行期闸门 + `inPlaceReachable()` 预检）+ `FishboneJob` 的露头矿筛选也必须调它（否则"顺手挖"会悄悄长出第二份公式，而夹具的隔离断言**测不出**这种漂移 —— 公式一样就照样过）；
     ③ 判据里**不得**要求「这格适合站位」（`canStandCentered`/`isStandable`）：bot 已经在上面了，
        "适不适合站位"是寻路问题 —— 真机里正是这种错位让 bot 放着眼前的矿不挖、去挖隧道；
     ④ 用户明确要求保留的那条：**会丢的掉落物仍要先处理**（计划要求垫方块且还没垫 ⇒ 先按计划走）。
@@ -1553,15 +1557,39 @@ def rule_mine_in_place_before_walk():
               / "MineBlockRunner.java").read_text(encoding="utf-8")
     tick = code_only(method_body(runner, "public Status tick()"))
     judge = code_only(method_body(runner, "private boolean canMineInPlace()"))
+    source = code_only(method_body(runner, "public static boolean inPlaceReachable("))
     if "canMineInPlace()" not in tick:
         problems.append("`tick()` 里没有 `canMineInPlace()` ⇒ 就地挖没接上（`D-365` 未生效）")
     elif tick.index("canMineInPlace()") > tick.index("if (runner != null)"):
         problems.append("`canMineInPlace()` 出现在走路闸门**之后** ⇒ 永远先走路，等于没修")
-    if "checkFromEye(" not in judge or "getBlockReach()" not in judge:
-        problems.append("就地挖判据没有用执行期同一套（`checkFromEye(` + `getBlockReach()`）"
-                        "⇒ 自己另写视线/触及公式，会出现「预检说能挖、真挖被拒」")
+    if "checkFromEye(" not in source or "getBlockReach()" not in source:
+        problems.append("就地挖的**唯一出处** `MineBlockRunner.inPlaceReachable(...)` 里没有执行期同一套"
+                        "（`checkFromEye(` + `getBlockReach()`）⇒ 自己另写视线/触及公式，"
+                        "会出现「预检说能挖、真挖被拒」")
+    if "inPlaceReachable(" not in judge:
+        problems.append("`canMineInPlace()` 没有委派给 `inPlaceReachable(...)` ⇒ 就地挖又长出了一份视线/触及公式")
+    # 全仓**只许两处**用这对谓词：`tickBreak()`（执行期闸门）+ `inPlaceReachable()`（唯一预检出处）。
+    # 第三处 = 又一个"预检说能挖、真挖被拒"的入口。
+    impl = code_only(runner)
+    gate = code_only(method_body(runner, "private Status tickBreak()"))
+    if "checkFromEye(" not in gate or "getBlockReach()" not in gate:
+        problems.append("`tickBreak()`（执行期闸门）里没有 `checkFromEye(` + `getBlockReach()` "
+                        "⇒ 预检与执行期脱钩，正是 `D-365` 要防的那件事")
+    if impl.count("checkFromEye(") != 2:
+        problems.append(f"`MineBlockRunner` 里 `checkFromEye(` 有 {impl.count('checkFromEye(')} 处"
+                        "（**只许两处**：`tickBreak()` 执行期闸门 + `inPlaceReachable()` 唯一预检出处）"
+                        "⇒ 多出来的那处就是「预检说能挖、真挖被拒」的新入口")
+    fishbone = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "fishbone"
+                / "FishboneJob.java")
+    if fishbone.exists():
+        fb = fishbone.read_text(encoding="utf-8")
+        if "MineBlockRunner.inPlaceReachable(" not in code_only(fb):
+            problems.append("`FishboneJob` 的露头矿顺手挖没有调 `MineBlockRunner.inPlaceReachable(...)`"
+                            "⇒ 第二份「能不能看见/够得着」公式（`D-437`：夹具的隔离断言测不出这种漂移）")
     if "canStandCentered" in judge or "isStandable" in judge:
         problems.append("就地挖判据里要求了「这格适合站位」⇒ 真机里正是这条错位让 bot 放着眼前的矿不挖、去挖隧道")
+    if "canStandCentered" in source or "isStandable" in source:
+        problems.append("就地挖的**唯一出处**里要求了「这格适合站位」⇒ 同上（真机错位的同一处）")
     if "supportPlacementPos()" not in judge or "supportPlaced" not in judge:
         problems.append("就地挖判据没有保留「会丢的掉落物要先接住」⇒ 用户明确要求不能跳过这条")
     return problems

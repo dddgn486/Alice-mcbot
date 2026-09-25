@@ -8,6 +8,7 @@ import com.dddgn.alice.job.mine.MineJob;
 import com.dddgn.alice.job.policy.NearestPolicy;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.task.FishboneSlice1CheckTask;
+import com.dddgn.alice.task.FishboneSlice2CheckTask;
 import com.dddgn.alice.task.MineCourseDiagnosticTask;
 import com.dddgn.alice.task.MineMenuCheckTask;
 import com.dddgn.alice.task.MineReachProbeTask;
@@ -242,7 +243,17 @@ public final class MiningModule implements CheckModule {
                 CheckStep.of("fishbone_slice1", CheckProfile.EXTRA, List.of(), null,
                         // ⚠️ harness 预算是**兜底**，必须比夹具自己的 `BUDGET_TICKS`（3600）**宽** ——
                         // `PL-1` 实测过反例（预算写窄了 ⇒ 夹具内部的预算与读数根本没机会打印）。
-                        () -> new FishboneSlice1CheckTask(bot, observer, scope), 4000));
+                        () -> new FishboneSlice1CheckTask(bot, observer, scope), 4000),
+                // ⭐⭐ `D-437`（2026-09-25，`J-1.2` 切片 2 第二步）：**鱼骨切片 2（支巷 + 顺手挖 + 收集）**
+                // —— 判据 `C1`（含支巷）/`C2`（露头矿进包）/`C5`（不越界、不连锁）。
+                // 三臂：① 支巷全挖穿（24 格全空 + 每条支巷退回主巷一次）② **支巷遇基岩 ⇒ 放弃该子巷、
+                // 主巷继续**（§10.2 的两档：与切片 1 臂② 的"主巷基岩 ⇒ FAILED"构成判别性对照）
+                // ③ 顶棚嵌 3 铁矿 + 1 诱饵 ⇒ 产物进包 + 诱饵原封不动 + 顺手挖**不带位移**。
+                // 场景 = **整盒填实心石**（切片 1 是"石体 + 盒外空气"）⇒「模板外改动 = 0」是逐格枚举。
+                // EXTRA（自建孤立石盒 + 三臂作业，不进 CORE）；自带场景 ⇒ 不依赖前序模块 ✓
+                CheckStep.of("fishbone_slice2", CheckProfile.EXTRA, List.of(), null,
+                        // 兜底必须宽于夹具自己的 `BUDGET_TICKS`（5000）—— 同 `fishbone_slice1` 的坑。
+                        () -> new FishboneSlice2CheckTask(bot, observer, scope), 5600));
     }
 
     /** 传送到统一起点（与电池 `teleportBot` 逐字段一致 ✓；顺带起"先热区块再 fill"的作用 ✓）。 */

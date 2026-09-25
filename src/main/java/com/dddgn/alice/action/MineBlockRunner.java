@@ -12,6 +12,7 @@ import com.dddgn.alice.task.mining.MiningPlan;
 import com.dddgn.alice.task.mining.StandingPointSelector;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
@@ -214,13 +215,29 @@ public final class MineBlockRunner {
     }
 
     /**
-     * `D-365`：**现在这一格就能挖到目标吗**（可见 + 触及）。
+     * `D-365`：**现在这一格就能挖到目标吗**（可见 + 触及）—— ⭐ **唯一出处**（`D-437`）。
      *
      * <p>为什么不复用 `StandingPointSelector.isValidStandingPoint`：那个函数被**寻路**用，它额外要求
      * 「这格适合站位」（`canStandCentered`）。而这里 bot **已经在**这一格上，"适不适合站位"是寻路问题，
      * 与"现在能不能挖"无关 —— 真机里正是这种错位让 bot 放着眼前的矿不挖、去挖 11 格隧道。
      * 这里用的是**执行期同一套判据**（`tickBreak` 的前置），因此不会出现"预检说能挖、真挖被拒"。
+     *
+     * <p>⭐ 为什么抽成 `public static`：切片 2 的**露头矿顺手挖**（计划 §10.1 条件③"顺手 = 不必移动"）
+     * 必须在**开矿任务之前**用**同一对谓词**筛一遍 —— 否则会造出第二份"能不能看见/够得着"的实现，
+     * 两份迟早分叉（本项目反复吃过的亏）。抽出后 {@link #canMineInPlace()} 与
+     * `FishboneJob` 的露头矿筛选**调用的是同一段代码**。
+     *
+     * <p>⚠️ 与 {@link #canMineInPlace()} **不等价**：那个还带"只走位模式/支撑块未垫/已经在计划站位上"
+     * 三条**本次动作的**前提；这里只有**物理**的可见 + 触及。
      */
+    public static boolean inPlaceReachable(ServerLevel level, ServerPlayer bot, BlockPos target) {
+        LineOfSightChecker.LineOfSightResult los =
+                LineOfSightChecker.checkFromEye(level, bot.getEyePosition(), target);
+        return los.isClear()
+                && bot.getEyePosition().distanceTo(los.getSuccessfulSample()) <= bot.getBlockReach();
+    }
+
+    /** 本次挖掘动作能不能改成"就地挖"（= 物理可行 **且** 本次动作的三条前提都满足）。 */
     private boolean canMineInPlace() {
         if (walkOnly) {
             return false;
@@ -231,10 +248,7 @@ public final class MineBlockRunner {
         if (MovementHelper.footCell(level, bot).equals(plan.standingFoot())) {
             return false;   // 已经在计划站位点上 ⇒ 走老路径
         }
-        LineOfSightChecker.LineOfSightResult los =
-                LineOfSightChecker.checkFromEye(level, bot.getEyePosition(), target);
-        return los.isClear()
-                && bot.getEyePosition().distanceTo(los.getSuccessfulSample()) <= bot.getBlockReach();
+        return inPlaceReachable(level, bot, target);
     }
 
     private Status tickSupportPlacement() {

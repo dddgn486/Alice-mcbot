@@ -134,28 +134,56 @@ public record FishboneTemplate(BlockPos startFoot, Direction dir, int mainLength
     }
 
     /**
-     * **单元脚位格序列**（纯几何、不读世界、确定性、可复算）：
+     * 一个**推进单元**（脚位格 + 它归属哪条主巷单元 + 它是不是支巷的第几格）。
+     *
+     * <p>⭐ **切片 2 第二步的消费者就是 `FishboneJob`**：它必须能分辨"这一格是主巷还是支巷"，
+     * 因为 `§10.2`（用户 2026-09-21 裁定）对两者是**两档处置**：
+     * <b>支巷</b>遇不可挖/液体 ⇒ 放弃这条子巷、原路退回主巷继续；<b>主巷</b>遇 ⇒ 如实失败 + 先回家。
+     * 光有脚位坐标分不出这两档（`cells()` 是平铺的）⇒ 归属信息必须由**几何真源**给出，
+     * 不许让 `FishboneJob` 自己用坐标反推（那就等于第二份几何实现）。
+     *
+     * @param foot     脚位格
+     * @param mainUnit 它挂靠的主巷单元（1-based；主巷单元自己 =  它自己）
+     * @param spurDir  支巷方向；**`null` = 这是主巷单元**
+     * @param spurStep 支巷里的第几格（1..`spurLength`）；主巷单元 = 0
+     */
+    public record Unit(BlockPos foot, int mainUnit, Direction spurDir, int spurStep) {
+
+        /** 是不是支巷单元（`spurDir != null`）。 */
+        public boolean isSpur() {
+            return spurDir != null;
+        }
+    }
+
+    /**
+     * **单元序列**（纯几何、不读世界、确定性、可复算）：
      * 主巷第 `i` 个单元之后，紧接着它分叉出去的那些支巷单元（由近到远）。
      *
-     * <p>这是"逐格推进"的**唯一顺序真源** —— `FishboneJob` 按它取下一个待挖单元。
+     * <p>这是"逐格推进"的**唯一顺序真源** —— `FishboneJob` 按它取下一个待挖单元；
+     * {@link #unitFoots()} 只是它的投影（**不许各写一份**）。
      */
-    public List<BlockPos> unitFoots() {
-        List<BlockPos> out = new ArrayList<>(mainLength + spurCount() * spurLength);
+    public List<Unit> units() {
+        List<Unit> out = new ArrayList<>(mainLength + spurCount() * spurLength);
         int k = 0;
         for (int i = 1; i <= mainLength; i++) {
             BlockPos mainFoot = startFoot.relative(dir, i);
-            out.add(mainFoot);
+            out.add(new Unit(mainFoot, i, null, 0));
             if (!hasSpurs() || i % spurSpacing != 0) {
                 continue;
             }
             k++;
             for (Direction sideDir : sidesAt(k)) {
                 for (int j = 1; j <= spurLength; j++) {
-                    out.add(mainFoot.relative(sideDir, j));
+                    out.add(new Unit(mainFoot.relative(sideDir, j), i, sideDir, j));
                 }
             }
         }
         return List.copyOf(out);
+    }
+
+    /** **单元脚位格序列**（{@link #units()} 的投影；顺序与它逐格一致）。 */
+    public List<BlockPos> unitFoots() {
+        return units().stream().map(Unit::foot).toList();
     }
 
     /**

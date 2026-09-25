@@ -19614,3 +19614,99 @@ CORE 的搜索最大只 4–5 ms（`P2` 备忘记过），而真机那三次 `Ca
   ⇒ **判据真的会咬**，不是恒真。
 - ⚠️ **只声明有消费者的字段**：计划 §2 的另几个（`maxGapLength`/`bridgeBlockBudget`/`oreQuota`/`oreTarget`）
   **仍不声明** —— 消费者在第二步/切片 4 才出现（"声明了没人用"是缺陷，门禁 `J5-P1`）。
+
+---
+
+### D-437：`J-1.2` 切片 2 **第二步（行为臂）** —— 支巷退路 + 支巷放弃 + 露头矿顺手挖 + 收集（2026-09-25）
+
+📋 依据：`D-436 §二`（切片 2 拆两步，第二步 = 行为臂）+ 用户 2026-09-25「继续切片 2」。
+计划原文：`docs/plans/2026-09-21-鱼骨挖矿计划.md` §3（状态机）/§6（判据）/§7-2 /§10.1（暴露矿）/§10.2（支巷放弃 vs 主巷失败）。
+
+#### 一、这一轮**没有**改 `fishbone_slice1`（一条绿臂也没碰）
+
+⭐ **新建了独立的步骤与夹具** `fishbone_slice2`（`CheckProfile.EXTRA`，`MiningModule`）+ `FishboneSlice2CheckTask`：
+`D-436 §一.3` 已裁定"不动 `mine_vein_propagation` 那类历史夹具 ⇒ 历史读数不作废"，同一条纪律在这里更硬 ——
+切片 1 的三臂**已绿且被钉住**（`D-433`），**不许为了让新行为通过而改它们**。代价 = 动了注册面
+（`MiningModule` + `RegressionBatteryTask.CURATION` + 本表 + `AI_TEST_MATRIX` + `BATTERY_CURATION`），
+收益 = 两片可**分开跑、分开红**（`single:fishbone_slice1` / `single:fishbone_slice2`），且切片 1 的 `checks=42` 一字未动。
+
+#### 二、六条设计裁定（都会在后面的"实测教训"里再出现一次）
+
+1. **`FishboneTemplate.units()` 是几何唯一真源**（新增 `record Unit(foot, mainUnit, spurDir, spurStep)`），
+   `unitFoots()` 改成它的投影。为什么必须由**几何层**给出归属：`§10.2` 对主巷/支巷是**两档**处置，
+   光有平铺的脚位坐标分不出这两档 ⇒ 若让 `FishboneJob` 用坐标反推，就等于**第二份几何实现**。
+2. **终态词表新增 `template_complete_spurs_abandoned=<n>`**（状态 **DONE**）。为什么不沿用 `template_complete`：
+   主巷做完了但有 `n` 条支巷没挖（那部分 `C1` 不成立），只说 `template_complete` 会让决策层以为"全挖完了"
+   —— 与 `MineJob.deriveTopLevelReason`（"总括码把真因盖掉"）是同一个病。为什么不报 `main_blocked:`：
+   `§10.2` 用户裁定的原话就是**两档**（子巷放弃 / 主巷如实失败），合并即错。每条支巷的**具体理由**仍按
+   注册码 `spur_abandoned:<码>` 打 WARN，并可由 `firstSpurAbandonReason()` 读出。
+3. **条件②（暴露面）判"这一格已被挖开"用单格 `canWalkThrough`，不用 `bodyPassable`。**
+   `bodyPassable(foot) = canWalkThrough(foot) && canWalkThrough(foot.above())` —— 而**顶棚矿**恰恰会让
+   头位格的"上方那格"不通 ⇒ 用 `bodyPassable` 时"我们自己挖出来的暴露面"反而判不出来（实测 `ore_found=0`）。
+4. ⭐ **"目标空了" ≠ "任务完了"**：`MineTask` 破坏完成后还有一段**收集掉落物**相位，那时目标必然是空气。
+   ⇒ `inPlace()` 里"目标已空气 ⇒ 提前出队"只能放在**还没有任务**的时候；**有任务在跑就必须把它 tick 到终态**。
+5. **产物基线在 `FishboneJob` 构造时取**（与 `MineJob` 同口径），不在 `COLLECT` 相位取 ——
+   掉落物常常在挖掉那一 tick 就被脚下的 bot 捡走，晚取 ⇒ 增量恒 0。
+6. **"顺手挖不带位移"只在破坏完成的那一刻量**：那之前的位移 = "走去站位"（非法，`§10.1` 要求不必移动），
+   那之后的位移 = 捡自己刚挖下来的掉落物（合法）。`oreWalkedAway()` 是**如实记账**，不是"静默容忍"。
+   条件③（视线通 + 触及）**抽成 `MineBlockRunner.inPlaceReachable(level, bot, target)` 唯一出处**，
+   `canMineInPlace()` 与 `FishboneJob.opportunisticTarget()` **调的是同一段代码**（否则就是第二份"能不能挖"）。
+
+#### 三、判据与红/绿对照（`SERVER_TESTED`）
+
+**绿：`checks=46 failures=0`，三臂全 PASS**（场景 = **整盒填实心石**，切片 1 是"石体 + 盒外空气"⇒
+「模板外改动 = 0」从"没超预算"升级成**逐格枚举**）：
+
+| 臂 | 终态 | 关键读数 | 判据 |
+|---|---|---|---|
+| ① `SPUR_TUNNEL`（主巷 6 + 间距 3 ⇒ 2 条支巷 ×3 格，全 LEFT） | `template_complete` | `ticks=553 advance=12/12 mined=24 spurReturns=2 scanned=12 plans=38 nodes=62 ticksPerAdvance=46 auditBreaks=24（**精确**）outside=0` | `C1`（24 格全空 + 逐格期望表差 0）/ `C3`（零 `SEARCH_LIMIT`、plans/nodes 与推进格数成正比）/ `C4`（回起点）/ **支巷真的被挖穿（12/12）**/ 每条支巷各退回主巷一次 |
+| ② `SPUR_ABANDONED`（第 1 条支巷第 2 格换成基岩） | ⭐ `template_complete_spurs_abandoned=1`（**DONE**） | `ticks=483 advance=10/12 mined=20 spursAbandoned=1 spurUnitsSkipped=2 spurReturns=2` | `§10.2` 两档：基岩格**零改动**、**主巷照常挖完**且**第 2 条支巷照常挖完**（"放弃一条子巷"不许退化成"整个作业停了"）、无 `main_*` 失败码 |
+| ③ `ORE_IN_PLACE`（纯主巷 6 + 顶棚 3 铁矿 + 1 诱饵） | `template_complete` | `ticks=367 oreFound=3 oreMined=3 oreDeferred=0 oreWalkedAway=0 collectedProducts=3 auditBreaks=15（12+3 **精确**）outside=0` | ⭐`C2`（**夹具独立清点**背包原铁 3 ≥ 3，不信任务自报）/ `C5`（破坏 ⊆ 模板 ∪ 露头矿）/ 诱饵**原封不动** / 顺手挖**不带位移** |
+
+**条件①②③逐条隔离**（不是真值表 —— 真值表会把"谓词被绕过"放过；这里每条都是**世界事实 + 真实 bot 位置**）：
+① 换成石头（相邻模板格已通行、视线触及都成立）⇒ 必须 false；② 换一份**不含**相邻模板格的模板 ⇒ 必须 false；
+③ 矿与暴露面都成立但 bot 在 6 格外 ⇒ 必须 false；三条件齐备 ⇒ 必须 true。四条都按预期。
+
+**两条红臂（逐条单独开火，实测都咬住）**：
+- **A：两档合并**（把 `if (unit.isSpur())` 那一档拿掉，支巷失败也走主巷失败路径）⇒ 臂② **`FAIL`，7 条红**：
+  `verdict=main_blocked:TARGET_NOT_BREAKABLE` + `status=FAILED`、`advance=4/12`、`spursAbandoned=0`/
+  `spurUnitsSkipped=0`、**第 2 条支巷一格没挖**、期望表差 12 格；**臂① 仍 PASS**（说明红的定位准确）。
+- **B：去掉显式支巷退路**（`beginSpurReturn` 不再被调用）⇒ 臂①② 各 **1 条红**（`spurReturns=0 != 2` /
+  `1 != 2`），其余全绿。
+
+#### 四、⭐ 诚实边界（这一轮实测暴露的三件事，都写下来）
+
+1. **条件②③ 在本片的扫描设计下是"结构性成立"的**：扫描集 = **刚挖完那个单元的 6 邻域**，
+   而 bot 就在该单元旁边 ⇒ 该集合里任何一格必然"贴着已挖通的模板格 + 视线够得着"。
+   ⇒ 真正在**运行期**筛掉候选的是**条件①（是不是矿）**；②③ 是**安全阀**（一旦扫描被放宽就立刻生效），
+   靠上面那组**逐条隔离判据**钉住。**不假装三条都在咬。**
+2. **显式"原路退回主巷"对"能不能完成"不是必需**：红臂 B 的读数证明 —— 去掉它之后作业**照样完成**
+   （`advance=12/12 mined=24`、期望表差 0），只是 `spurReturns` 变了、`plans` 从 38 涨到 43。
+   它的价值 = **设计一致性**（计划 §3 的 `SPUR` 相位、"规划距离恒 1 格"的卖点）+ 让"放弃支巷后回主巷"
+   这条路径**可观测、可断言**。⇒ **钉住它的是 `spurReturns` 这一条判据**，没有第二条。
+3. **`C1` 的严格措辞与"支巷放弃"在字面上冲突**，本片口径：终态词按设计（`DONE` + 具名终态），
+   `C1` 按**可挖子集**断言（基岩格与之后的格 = "零改动"而不是"必须空气"）。这条冲突**登记在案**，
+   不靠改用户裁定来消解。
+
+#### 五、仍未做（下一步候选，按依赖排序）
+
+- **`oreQuota` / 追簇**（`§10.1`：沿簇挖干净、`oresMined ≤ quota`、`C9` 扫描次数对账）—— 本片只做"贴壁那一层"；
+- **大矿洞三条上限**（`§10.3`：`maxGapLength`/`bridgeBlockBudget`/搭路方块不足 ⇒ `no_throwaway_blocks`）⇒ 字段仍未声明；
+- **满包处置 `C10`**（`§10.4` `JunkPolicy`）；
+- **`main_floor_missing`**（`§3` 终态表里有、`§9` 待拍板①）：脚位下方悬空/水 ⇒ 补一格地板 or 如实失败；
+- **`C2` 的负例臂**（`D-436 §一.2` 登记：脚位悬空且不搭地板 ⇒ 如实 `product_not_collected`）；
+- 切片 3（零参数游戏内入口 `alice:fishbone_job` + `[Fishbone]` 结构化日志）/ 切片 4（`Kind.FISHBONE` + `JobKindContract`）。
+
+#### 六、本轮踩到的四条"读数/判据"教训（都可复用）
+
+1. **"目标空了 ⇒ 提前出队"腰斩了带后续相位的子任务**（`oreMined=0` 而产物已进包）—— 完成判据必须问
+   **子任务的终态**，不能问"我关心的那个方块还在不在"。
+2. **基线取得太晚 ⇒ 增量恒 0**（`COLLECT 开始 … 产物=3` ⇒ `产物=+0`）—— 与 `silent-measurement-failure`
+   同宗：0 是歧义的，先问"基线是什么时候取的"。
+3. **判"这一格通了"要选对谓词**（`bodyPassable` vs `canWalkThrough`）：一个含头位、一个不含；
+   语义是"这一格空了"就必须用不含头位的那个。
+4. **夹具的 `RUN` 日志格式串多了一个占位符 ⇒ 整行读数**串位**（`collected=24` 其实是 `auditDeltaBreaks`）——
+   `printf` 风格日志的参数/占位符**必须逐个数**；一旦读数串位，看起来仍然"像真值"（`D-425` ⑤ 的同族）。
+
+**取证**：`run/headless-logs/20260925-110318-single_fishbone_slice2.log`（绿）·
+`…-110510-…`（红臂 A）· `…-110725-…`（红臂 B）· `…-110838-single_fishbone_slice1.log`（切片 1 回归绿）。
