@@ -170,6 +170,10 @@ public final class AliceItems {
     public static final RegistryObject<Item> MINE_JOB =
             ITEMS.register("mine_job", () -> new MineJobItem(new Item.Properties()));
 
+    /** ⭐ 切片 3（`D-438`）：鱼骨作业入口（零参数，**真机存档**；模板 = 你当前位置 + 朝向）。 */
+    public static final RegistryObject<Item> FISHBONE_JOB =
+            ITEMS.register("fishbone_job", () -> new FishboneJobItem(new Item.Properties()));
+
     /** J4 伐木失败语义自检：五条终止路径各一个用例。 */
     public static final RegistryObject<Item> LUMBER_FAILURE_CHECK =
             ITEMS.register("lumber_failure_check", () -> new LumberFailureCheckItem(new Item.Properties()));

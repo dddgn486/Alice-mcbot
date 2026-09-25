@@ -1043,3 +1043,44 @@ bash tools/dsh-context-usage.sh                       # 上下文线（只报一
    ⇒ **规律：改了方法结构/加了步骤，收工前必须跑一次 `check-all`**（本轮先跑 CORE 才跑门禁，顺序反而对）。
 6. ⚠️ **夹具的 `ARM` 行不能用累计 `failures.isEmpty()`** 判本臂成败（前一臂的红会算到后一臂头上，
    日志里出现"`ARM X FAIL` 但本臂 0 失败"）⇒ 已改成本臂增量口径。
+
+---
+
+# 断点⑪：切片 3（真机入口）落地 —— **下一轮就是你的客户端验收**（2026-09-25 下午）
+
+## 1. 收工状态（逐条可核）
+
+| 项 | 值 |
+|---|---|
+| 本轮交付 | ⭐ **`alice:fishbone_job`**（零参数：模板 = **你脚位 + 你朝向**；默认 主巷 20 / 间距 5 / 支巷 5 / `ALTERNATE` / 净高 2）+ `BotManager.assignFishboneJob` + `[Fishbone] start/advance/SUMMARY` **结构化日志**（计划 §8 逐字）+ 夹具 8 条真机默认判据 + 门禁 `[D-438·鱼骨真机日志形状]` |
+| 裁定/记录 | **`D-438`**（入口/日志契约/判据与红绿/诚实边界/`J-1.5` 怎么做）；台账 **`1.4c` ✅**、`1.4` 全部落盘 |
+| 绿 | `single:fishbone_slice2` = **`checks=54 failures=0`**（原 46 + 8）· `single:fishbone_slice1` = PASS（回归）· **CORE 电池 = PASS**（242 s）· `check-all` = `pass=21 warning=2 failed=0` |
+| 门禁 | `kernel-predicates` PASS；**新规则注入臂红**（`outside=` 改名 ⇒ `收尾行缺键 ['outside=']`） |
+| ⭐ 真机日志实证（夹具跑出来的同一条 job） | `[Fishbone] start template=dir=E main=6 spacing=3 spur=3 side=LEFT height=2 start=3760, 80, 2400`<br>`[Fishbone] advance=4/6 cell=3764, 80, 2400 mined=14 spurs=1/2 ores=0/0 searchNodes=31 products=0`<br>`[Fishbone] SUMMARY dir=E main=6/6 spurs=2/2 abandoned=0 mined=24 skipped=0 ores=0/0 collected=0/0 searchNodes=64 searchLimit=0 return=ok worldChangesInside=24 outside=0 ticks=557 → PASS` |
+| 工件 | ⚠️ **jar 还没同步到客户端**（下一步第一件事就是它 —— 本片的意义只在真机，**必须先 sync 再测**） |
+
+## 2. 下一轮的固定顺序（= `J-1.5` 客户端验收）
+
+```
+① ./gradlew build --offline && tools/mirror-windows-workspace.sh && tools/sync-windows-artifact.sh
+② 客户端里 `/give @s alice:fishbone_job`
+③ 走到**你想挖的地方**、**朝你想挖的方向**（模板 = 你脚位 + 你朝向；只挖水平四向）
+④ 右键 ⇒ 聊天两行 + 日志 `[Fishbone]` 三行；看 `SUMMARY` 那行：
+   `main=20/20 spurs=4/4`（模板=事实）· `outside=0`（没乱挖）· `searchLimit=0` + `searchNodes` 量级（卖点）· `return=ok`
+⑤ FAIL 的话贴三行 + 出现 WARN 的 `[Fishbone]`/`main_blocked:` 行给我
+```
+
+## 3. 本轮新踩的坑（别重踩）
+
+1. ⭐⭐ **我自己的新门禁第一版没咬**：`[D-438·鱼骨真机日志形状]` 在全文件里找 `outside=` 等键名 ——
+   而 `emitSummary` 的 **javadoc 里正好抄了一遍键名** ⇒ 注入臂实测 **PASS**。
+   ⇒ 两处修：① `code_only()` **只去 `//`，块注释里的标识符照样算命中** ⇒ 新增 `_strip_block_comments()`；
+   ② 判据必须**位置化**（从行首标签到该 `BotLog.info(...)` 的 `");` 的实参区间里找）。
+   ⇒ **`D-425` ⑤ 家族第 4 例**（`PL-1` → `D-425`⑤ → `P1-d` → 本条）。**规律：凡"断言某段字面量在代码里"的判据，
+   先问一句「注释里有没有同一串」。**
+2. ⚠️ **给用户看的日志形状就是契约**：`[Fishbone] SUMMARY` 是计划 §8 写死的键名 ⇒ 改名会让"按旧键名 grep"
+   静默得到 0 行，而 **0 是歧义的**（会误判成"没跑起来"）⇒ 这正是新门禁要挡的东西。
+3. ⚠️ **`return=` 要做成三态**：`start_unreachable` 时 bot **从没离开起点**，报 `no` 会把"没开始"说成"回不来"
+   ⇒ `n/a`。凡是"完成度"类的布尔读数，都要问一句"这一项在**从未开始**时是什么"。
+4. ⚠️ 夹具新增判据要**调生产工厂**（`FishboneJobItem.templateFor`）而不是照常量另抄一份 ——
+   否则"常量抄错"这件事在离线永远测不出来（抄的那份当然与抄的来源一致）。

@@ -47,5 +47,6 @@
   "key.categories.alice": "Alice",
   "key.alice.permission_allow": "允许 Alice 请示",
   "key.alice.permission_deny": "拒绝 Alice 请示",
-  "item.alice.craft_goal_check": "决策层合成自检"
+  "item.alice.craft_goal_check": "决策层合成自检",
+  "item.alice.fishbone_job": "鱼骨作业启动器（真机）"
 }

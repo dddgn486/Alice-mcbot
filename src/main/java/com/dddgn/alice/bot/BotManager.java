@@ -698,6 +698,29 @@ public final class BotManager {
     }
 
     /**
+     * ⭐ 切片 3（`D-438`）：**鱼骨作业入口**（零参数游戏内物品 `alice:fishbone_job` 的唯一后端）。
+     *
+     * <p>与 {@link #assignMineJob} 的分工：那个是"**选目标**"型作业（扫描 + 配额 + 策略），
+     * 这个是"**按模板开挖**"型作业（不选目标、不搜索、模板就是真值 —— 计划 §0）。
+     * 共同点：都只复用已验收的 L2 链路，且都**只在这一个地方**建 `BotSession`。
+     *
+     * @param template 模板（由调用方按"玩家当前位置 + 朝向"构造 —— 计划 §8）
+     * @param maxTicks 作业自己的预算（`goal_timeout` 的判据；**不是** harness 的兜底预算）
+     */
+    public static boolean assignFishboneJob(BotPlayer bot,
+                                            com.dddgn.alice.job.fishbone.FishboneTemplate template,
+                                            int maxTicks) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
+        com.dddgn.alice.job.fishbone.FishboneJob job =
+                new com.dddgn.alice.job.fishbone.FishboneJob(bot, template, session.scope(), maxTicks);
+        session.beginTask(job, TaskTarget.block(template.startFoot()));
+        broadcastTarget(session.target);
+        return true;
+    }
+
+    /**
      * 触发一次作用域恢复（J6-b 的**命令兜底**）：拆掉我方放置的临时方块并销账。
      *
      * <p>正常路径是"任务收尾自动追加恢复任务"；本命令用于处理**历史遗留**（例如崩溃/重启留下的

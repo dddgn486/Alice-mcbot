@@ -231,6 +231,19 @@ public record FishboneTemplate(BlockPos startFoot, Direction dir, int mainLength
     }
 
     /**
+     * **支巷条数**（= 会真正分叉出去的**通道**条数；`BOTH` 时每个位置两条）。
+     *
+     * <p>⭐ 切片 3（`D-438`）的消费者 = 真机取样的 `SUMMARY` 行（计划 §8 的 `spurs=4/4`）：
+     * 分母必须是"该有几条支巷"，分子是"真的挖通了几条"（= 条数 − 放弃数）。
+     */
+    public int spurBranches() {
+        if (!hasSpurs()) {
+            return 0;
+        }
+        return spurCount() * (side == SpurSide.BOTH ? 2 : 1);
+    }
+
+    /**
      * **作业作用域半径**（计划 §3 `COLLECT` 的纪律：半径必须**从模板推导**，不许沿用默认 32 —— `D-346`
      * 的教训是"追取上限 < 作业直径 ⇒ 判据永不成立"）。
      *

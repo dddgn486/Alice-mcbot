@@ -19710,3 +19710,82 @@ CORE 的搜索最大只 4–5 ms（`P2` 备忘记过），而真机那三次 `Ca
 
 **取证**：`run/headless-logs/20260925-110318-single_fishbone_slice2.log`（绿）·
 `…-110510-…`（红臂 A）· `…-110725-…`（红臂 B）· `…-110838-single_fishbone_slice1.log`（切片 1 回归绿）。
+
+---
+
+### D-438：切片 3 —— **鱼骨真机入口**（`alice:fishbone_job`，零参数）+ `[Fishbone]` 结构化日志（2026-09-25）
+
+📋 依据：计划 §8（"真机取样怎么给你（按你的口径：不建景）"）+ 用户 2026-09-25「继续切片 3」。
+`D-437` 把鱼骨的行为做进了离线夹具，**但鱼骨的全部价值（按模板开挖、不搜索）只有在真实地形里才看得出来**
+⇒ 本片是"最后一次交接"：把一轮客户端测试的准备成本压到**一次右键**。
+
+#### 一、入口（零参数是硬要求，`AGENTS.md` 客户端测试规则）
+
+| 项 | 值 |
+|---|---|
+| 物品 | `alice:fishbone_job`（右键 / 对块右键都行；`/give @s alice:fishbone_job`） |
+| 模板 | ⭐ **`startFoot = 玩家当前脚位`，`dir = 玩家朝向`**（`Player#getDirection` 只给水平四向 ⇒ 天然满足"只许四向"） |
+| 尺寸 | 计划 §8 的保守默认：**主巷 20 / 支巷间距 5 / 支巷 5 / `ALTERNATE` / 净高 2** ⇒ 4 条支巷、40 单元、80 格 |
+| 预算 | `MAX_TICKS = 8000`（依据：夹具实测 **≈46 tick/单元** × 40 单元 ≈ 1840 ⇒ **4 倍余量**） |
+| 装置 | 照 `MineJobItem`：送 bot 到模板起点（**你站的那一格**）+ `FixtureToolKit.ensurePickaxe` + `Driver.set(FIXTURE)`（否则 LLM 会插进来改目标） |
+| 后端 | `BotManager.assignFishboneJob(bot, template, maxTicks)` —— **唯一**建 `BotSession` 的地方（与 `assignMineJob` 同形） |
+| 模板工厂 | ⭐ `FishboneJobItem.templateFor(start, dir)` 是**唯一出处**：物品与离线夹具**调同一段代码** ⇒ 夹具断言的就是运行时那个模板 |
+
+#### 二、日志形状 = 与用户之间的契约（计划 §8 逐字落地）
+
+```
+[Fishbone] start template=dir=E main=20 spacing=5 spur=5 side=ALTERNATE height=2 start=3760, 80, 2400
+[Fishbone] advance=10/20 cell=… mined=… spurs=1/4 ores=0/1 searchNodes=… products=…
+[Fishbone] SUMMARY dir=E main=20/20 spurs=4/4 abandoned=0 mined=… skipped=… ores=…/… collected=…/…
+           searchNodes=… searchLimit=0 return=ok worldChangesInside=… outside=0 ticks=… → PASS/FAIL
+```
+
+四条读数的口径（**逐字**，别让它们悄悄变义）：
+
+- **`searchNodes`/`searchLimit`** = `PathingStats.scale()` 相对**本作业第一 tick**的增量（`CorePathPlanner` 是唯一漏斗）；
+- **`outside=`/`worldChangesInside=`** = 自本作业第一 tick 起，`WriteAudit` 里 requester = `fishbone` 的**破坏**条目中，
+  位置**不在**（模板格 ∪ 本次真的挖掉的露头矿格）里的条数 / 在内的条数 ⇒ **别人的破坏不算**（按 `grant().requester()` 过滤）；
+- **`return=`** 是**三态**（不是布尔）：`ok` 成功回起点 · `no` 该回没回 · ⭐ `n/a` **根本没开过挖**
+  （`start_unreachable` 时 bot 从没离开 ⇒ 报 `no` 会把"没开始"说成"回不来"）；
+- **`spurs=`** 的分子 = 支巷条数 − 放弃条数（**挖通的**），放弃的另报 `abandoned=<n>` ⇒ `§10.2` 的两档在日志里也分得开。
+
+**形状的实现纪律**：`SUMMARY` 由 `finishTerminal()` **唯一出口**打印（`summaryEmitted` 保证只打一次）⇒
+成功/失败**都**有一行，不会出现"失败了就没 SUMMARY"（那会让用户以为没跑起来）。
+
+#### 三、判据与红/绿对照
+
+- **夹具新增 8 条环境无关判据**（`FishboneSlice2CheckTask.liveEntryChecks()`，只在臂①跑一次）：
+  对**四个方向**各断言真机默认模板 = 主巷 20 / 支巷 4 条 × 5 格 / 净高 2 / 单元 40 / 模板格 80，
+  且 `scopeRadius == mainLength + spurLength + 2`（`C2` 在真机也要成立，`D-346`）。
+  ⇒ 它调的是**生产工厂** `FishboneJobItem.templateFor`（不是照常量另抄一份）⇒ 常量抄错在**离线**就咬住。
+- **新门禁规则 `[D-438·鱼骨真机日志形状]`**：三行的行首标签 + 各自键名齐全 + 收尾行有 `→ PASS/FAIL`。
+  **注入臂**：把 `outside=` 改名 ⇒ **红**（`收尾行缺键 ['outside=']`）。
+- ⚠️⚠️ **这条规则的第一版没咬**（我自己的新判据当场踩了同一个坑）：第一版在**全文件**里找 `outside=` 等键，
+  而 `emitSummary` 的 **javadoc 里正好抄了一遍键名** ⇒ 注入臂实测 **PASS**。
+  修法：① 新增 `_strip_block_comments()`（`code_only()` 只去 `//`，**块注释里的标识符照样算命中**）；
+  ② 改成**位置化**判据 —— 从行首标签起、到该 `BotLog.info(...)` 的 `");` 为止的**实参区间**里找键。
+  ⇒ **`D-425` ⑤ 家族的第 4 例**（`PL-1` 正则跨步 → `D-425`⑤ 只咬名字 → `P1-d` 同名子串 → 本条 javadoc）。
+
+#### 四、诚实边界
+
+1. **本片没有跑过真机**（`SERVER_TESTED` 而非 `WINDOWS_CLIENT`）：入口是"零参数物品 + 一行 SUMMARY"，
+   它的**行为**等价于夹具已经跑绿的同一个 `FishboneJob`；差别只在"谁给模板"（玩家位置/朝向 vs 夹具常量）
+   与"在哪挖"（真实存档 vs 自建石盒）。⇒ 真机的新增风险面 = ① 真实地形（液体/沙砾/认领区 ⇒ 计划 §9 已登记）
+   ② 收集半径在真实地形里够不够 ③ 观感（直不直、卡不卡）。**这三条只能由你看。**
+2. **`MAX_TICKS = 8000` 是外推**：夹具是"自建石盒 + 钻石镐 + 46 tick/单元"，真机可能慢得多
+   ⇒ 若真机出现 `goal_timeout`，**先看 `[Fishbone] advance=` 停在哪一格**再决定是抬预算还是查地形（别直接调大）。
+3. **`Driver.set(FIXTURE)` 会留到作业结束之后**（与 `MineJobItem` 同一处置）：那是本项目的既定口径
+   （夹具/真机入口不该被 LLM 抢目标），但**你自己知道**——跑完想恢复决策层要另说。
+4. **`advance` 只在主巷单元收尾时报**：支巷里的进度看 `spurs=`。这是**刻意的**（否则 `advance` 会连着十几行不动）。
+
+#### 五、下一步（`J-1.5`：真机验收怎么做）
+
+```
+① ./gradlew build --offline && tools/mirror-windows-workspace.sh && tools/sync-windows-artifact.sh
+② 客户端 `/give @s alice:fishbone_job` ⇒ 走到你想挖的地方、**朝你想挖的方向** ⇒ 右键
+③ 看聊天两行 + 日志 `[Fishbone]` 三行；重点是 `SUMMARY` 那一行（`main=20/20 spurs=4/4` /
+   `outside=0` / `searchLimit=0` / `return=ok`）+ 观感
+④ 若 FAIL：贴 `[Fishbone] start`/`advance`/`SUMMARY` 三行 + 出现 WARN 的 `[Fishbone]`/`main_blocked:` 行
+```
+
+**取证**：本轮的夹具/门禁读数见 `D-438 §三`；`run/headless-logs/20260925-11*.log`（切片 2 绿 + 三条红臂）。

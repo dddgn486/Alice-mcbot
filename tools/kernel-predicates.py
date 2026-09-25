@@ -1595,6 +1595,80 @@ def rule_mine_in_place_before_walk():
     return problems
 
 
+def rule_fishbone_live_log_shape():
+    """`D-438` **鱼骨真机入口的日志形状**（计划 §8，2026-09-25 切片 3）。
+
+    为什么这条规则该存在：`[Fishbone] start/advance/SUMMARY` 这三行是**与用户之间的契约** ——
+    `docs/plans/2026-09-21-鱼骨挖矿计划.md` §8 把"你只要贴这一行"写死了（`main=…/… spurs=…/… outside=…`、
+    `searchLimit=0`、`return=ok`）。键名一改，**真机验收的指令就静默失效**（用户按旧键名 grep 到 0 行，
+    而 0 是歧义的 ⇒ 会误判成"没跑起来"）。这正是 `D-425` ⑤ 家族里"判据/契约悄悄消失"的一类。
+
+    断言（改任一处 ⇒ 红）：三行的**行首标签**存在，且各自的**键**齐全。
+    """
+    problems = []
+    job = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "fishbone"
+           / "FishboneJob.java")
+    if not job.exists():
+        return ["`FishboneJob.java` 不见了（鱼骨真机入口的后端）"]
+    # ⚠️⚠️ **必须剥掉块注释再判**：本规则的第一版在全文件里找 `outside=` 等键 —— 而 `emitSummary`
+    # 的 javadoc 里正好抄了一遍键名（"`main=`/`spurs=`/`outside=`…"），于是**注入臂实测没红**。
+    # ⇒ 先剥 `/* */`，再**位置化**取自 `BotLog.info(...)` 的**实参区间**（行首标签 → 该语句的 `");`）。
+    src = code_only(_strip_block_comments(job.read_text(encoding="utf-8")))
+    lines = [
+        ("开始行", "[Fishbone] start template=dir=",
+         ["main=", "spacing=", "spur=", "side=", "height=", "start="]),
+        ("推进行", "[Fishbone] advance=",
+         ["cell=", "mined=", "spurs=", "ores=", "searchNodes=", "products="]),
+        ("收尾行", "[Fishbone] SUMMARY dir=",
+         ["main=", "spurs=", "abandoned=", "mined=", "ores=", "collected=", "searchNodes=",
+          "searchLimit=", "return=", "outside=", "→ "]),
+    ]
+    for label, head, keys in lines:
+        idx = src.find(head)
+        if idx < 0:
+            problems.append(f"{label}的行首标签 `{head}` 不见了（计划 §8 的固定形状）")
+            continue
+        end = src.find('");', idx)
+        if end < 0:
+            problems.append(f"{label}的 `BotLog.info(...)` 语句找不到收尾 `\");` ⇒ 判据无法定位实参区间")
+            continue
+        args = src[idx:end + 3]
+        missing = [k for k in keys if k not in args]
+        if missing:
+            problems.append(f"{label}缺键 {missing} ⇒ 真机验收按旧键名 grep 会得到 0 行（而 0 是歧义的）")
+    idx = src.find("[Fishbone] SUMMARY dir=")
+    if idx >= 0 and '"PASS" : "FAIL"' not in src[idx:src.find('");', idx) + 3]:
+        problems.append("收尾行没有 `→ PASS/FAIL`（用户一眼判成败的字段）")
+    return problems
+
+
+def _strip_block_comments(text: str) -> str:
+    """去掉 `/* … */`（含 javadoc）。
+
+    ⚠️ 为什么需要它（`D-438` 实测）：`code_only()` 只去 `//`，**块注释里的键名/标识符照样算命中** ——
+    本规则第一版就是这么被自己的 javadoc 满足的（注入臂没红）。凡"断言某段字面量出现在代码里"的判据，
+    都要先问一句：**注释里有没有同一串**（`D-425` ⑤ 家族的第 4 例）。
+    """
+    out = []
+    depth = 0
+    i = 0
+    while i < len(text):
+        if depth == 0 and text.startswith("/*", i):
+            depth = 1
+            i += 2
+            continue
+        if depth > 0:
+            if text.startswith("*/", i):
+                depth = 0
+                i += 2
+                continue
+            i += 1
+            continue
+        out.append(text[i])
+        i += 1
+    return "".join(out)
+
+
 def rule_movement_contract_agreement():
     """`D-366` **移动契约三方一致**（2026-09-20 真机崩服换来的规则）。
 
@@ -4350,6 +4424,7 @@ def main() -> int:
     breakcost = rule_cost_includes_break()
     support = rule_support_and_cluster_order()
     inplace = rule_mine_in_place_before_walk()
+    fbshape = rule_fishbone_live_log_shape()
     contract = rule_movement_contract_agreement()
     searchbudget = rule_search_budget_is_tick_aware()
     searchbackoff = rule_mine_job_search_limit_backoff()
@@ -4454,6 +4529,8 @@ def main() -> int:
         print(f"[D-364·垫方块与簇顺序] {line}")
     for line in inplace:
         print(f"[D-365·视线内就地挖] {line}")
+    for line in fbshape:
+        print(f"[D-438·鱼骨真机日志形状] {line}")
     for line in contract:
         print(f"[D-366·移动契约一致] {line}")
     for line in searchbudget:
@@ -4521,10 +4598,10 @@ def main() -> int:
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b and not a3 and not p7 and not p3 and not pl1 and not diagside and not psparity and not pillarwater and not fallparity) and not tlb
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not fbshape and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b and not a3 and not p7 and not p3 and not pl1 and not diagside and not psparity and not pillarwater and not fallparity) and not tlb
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / tick负载预算={len(tlb)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 鱼骨真机日志形状={len(fbshape)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / tick负载预算={len(tlb)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
           f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 不可逆写入记账={len(rc3)} / 击杀产物归属={len(a3)} / 非PASS步单列={len(p7)} / 作业级收集授权={len(p3)} / 写入真相同源={len(rc4)} / 重放有界={len(p2b)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)} / 过期证明重评={len(pl1)} / 对角侧格单源={len(diagside)} / 搭石族两侧谓词={len(psparity)} / 水柱起跳门控={len(pillarwater)} / 落点三层同源={len(fallparity)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1

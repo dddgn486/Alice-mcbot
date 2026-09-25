@@ -1,6 +1,7 @@
 package com.dddgn.alice.job.fishbone;
 
 import com.dddgn.alice.action.MineBlockRunner;
+import com.dddgn.alice.action.WriteAudit;
 import com.dddgn.alice.action.WriteGrant;
 import com.dddgn.alice.action.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
@@ -12,6 +13,7 @@ import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.search.CorePathPlanner;
 import com.dddgn.alice.pathing.core.search.PathPlan;
 import com.dddgn.alice.pathing.core.search.PathRequest;
+import com.dddgn.alice.pathing.core.search.PathingStats;
 import com.dddgn.alice.pathing.core.search.PlanningStatus;
 import com.dddgn.alice.perception.ScopeBuffer;
 import com.dddgn.alice.task.CollectDropsTask;
@@ -183,6 +185,19 @@ public final class FishboneJob implements Job {
     private int itemsBefore;
     private int collectedProducts;
 
+    // ---- 切片 3：真机取样用的结构化日志读数（计划 §8）----
+    /** 已完整处理（挖穿/本来就通）的**主巷**单元数（= 日志里 `advance=` 的分子）。 */
+    private int mainUnitsDone;
+    /** 是否真的开过挖（`start_unreachable` 时没开过 ⇒ `return=n/a`）。 */
+    private boolean excavationStarted;
+    /** `RETURN` 段是否成功回到起点。 */
+    private boolean returnedHome;
+    private boolean summaryEmitted;
+    private PathingStats.Scale scaleAtStart = new PathingStats.Scale(0L, 0L, 0L, 0L);
+    private long gameTimeAtStart;
+    /** 本次作业真的挖掉的**露头矿**格（`SUMMARY` 的 `outside=` 白名单要用）。 */
+    private final Set<BlockPos> oreMinedCells = new LinkedHashSet<>();
+
     public FishboneJob(BotPlayer bot, FishboneTemplate template, ScopeBuffer scope, int maxTicks) {
         this.bot = Objects.requireNonNull(bot, "bot");
         this.template = Objects.requireNonNull(template, "template");
@@ -267,6 +282,9 @@ public final class FishboneJob implements Job {
     private Task.Status prepare() {
         ServerLevel level = bot.serverLevel();
         BlockPos start = template.startFoot();
+        // ⭐ 切片 3（计划 §8）：`searchNodes`/`outside=` 两个读数的**窗口起点** —— 从本作业第一 tick 起算。
+        scaleAtStart = PathingStats.scale();
+        gameTimeAtStart = level.getGameTime();
         if (!MovementHelper.canStandCentered(level, start)) {
             BotLog.warn("[Fishbone] start_unreachable 起点不可站 start={}（零世界改动）", start.toShortString());
             return finishFail("start_unreachable");
@@ -285,6 +303,8 @@ public final class FishboneJob implements Job {
         scope.begin(start, template.scopeRadius(), bot.getUUID());
         BotLog.info("[Fishbone] start template={} scopeRadius={} maxTicks={}",
                 template.describe(), template.scopeRadius(), maxTicks);
+        excavationStarted = true;
+        emitStart();
         phase = Phase.EXCAVATE;
         return Task.Status.RUNNING;
     }
@@ -358,11 +378,15 @@ public final class FishboneJob implements Job {
      */
     private void finishUnit(FishboneTemplate.Unit unit) {
         advanced++;
+        if (!unit.isSpur()) {
+            mainUnitsDone++;
+        }
         scanForOre(unit);
         boolean lastOfSpur = unit.isSpur() && unit.spurStep() == template.spurLength();
         unitIndex++;
         cellInUnit = 0;
         stallTicks = 0;
+        emitProgress(unit);
         if (!oreQueue.isEmpty()) {
             // 顺手挖排在"下一个推进动作"之前；支巷退路**记着**，等队列空了再做（`IN_PLACE` 出口处理）。
             pendingSpurReturn = lastOfSpur ? unit : null;
@@ -617,6 +641,7 @@ public final class FishboneJob implements Job {
         }
         if (status == Task.Status.DONE) {
             oreMined++;
+            oreMinedCells.add(ore.immutable());     // 切片 3：`SUMMARY` 的 `outside=` 白名单
         } else {
             BotLog.info("[Fishbone] ore_deferred pos={} reason={}（顺手挖失败 ⇒ 不重试不追）",
                     ore.toShortString(), oreTask.failureReason());
@@ -701,6 +726,7 @@ public final class FishboneJob implements Job {
         }
         boolean returned = state == PathRetryRunner.State.DONE && returnRunner.result() != null
                 && returnRunner.result().completed();
+        returnedHome = returned;
         if (!returned) {
             String code = returnRunner.result() == null ? "no_result"
                     : returnRunner.result().failureCode();
@@ -715,24 +741,107 @@ public final class FishboneJob implements Job {
                     terminalReason, progressSummary());
             return finishFail(terminalReason);
         }
-        terminalStatus = Task.Status.DONE;
         // ⭐ 支巷被放弃时**换一个终态词**（`§10.2`）：只说 `template_complete` 会让决策层以为
         // "全挖完了" —— 而事实上主巷做完了、有 n 条支巷没挖（`C1` 的那部分不成立）。
         terminalReason = spursAbandoned == 0
                 ? TEMPLATE_COMPLETE
                 : TEMPLATE_COMPLETE + "_spurs_abandoned=" + spursAbandoned;
         BotLog.info("[Fishbone] {} progress={} ticks={}", terminalReason, progressSummary(), ticks);
-        phase = Phase.DONE;
-        return Task.Status.DONE;
+        return finishOk();
     }
 
     // ==================== 收尾 ====================
 
+    private Task.Status finishOk() {
+        terminalStatus = Task.Status.DONE;
+        return finishTerminal();
+    }
+
     private Task.Status finishFail(String reason) {
         terminalReason = reason;
         terminalStatus = Task.Status.FAILED;
+        return finishTerminal();
+    }
+
+    /** **唯一终态出口**：无论成功/失败都从这里落地（`SUMMARY` 只打一次）。 */
+    private Task.Status finishTerminal() {
+        if (!summaryEmitted) {
+            summaryEmitted = true;
+            emitSummary();
+        }
         phase = Phase.DONE;
-        return Task.Status.FAILED;
+        return terminalStatus;
+    }
+
+    // ==================== 切片 3：真机取样的结构化日志（计划 §8） ====================
+
+    /** `dir=` 的取值（计划 §8 的形状 = 单字母 N/S/E/W；模板方向只许水平四向）。 */
+    private static String dirLetter(Direction dir) {
+        return dir.getName().substring(0, 1).toUpperCase(java.util.Locale.ROOT);
+    }
+
+    /**
+     * ⭐ **开始行**（计划 §8）—— 真机取样时你只要贴这一行，就知道 bot 打算挖什么。
+     */
+    private void emitStart() {
+        BotLog.info("[Fishbone] start template=dir={} main={} spacing={} spur={} side={} height={} start={}",
+                dirLetter(template.dir()), template.mainLength(), template.spurSpacing(),
+                template.spurLength(), template.side(), template.height(),
+                template.startFoot().toShortString());
+    }
+
+    /**
+     * ⭐ **推进行**（计划 §8）—— 只在**主巷**单元收尾时报（`advance` 每次都真的 +1；
+     * 支巷单元也报的话，`advance` 会连着十几行不动，读数反而更难读）。支巷进度看 `spurs=`。
+     */
+    private void emitProgress(FishboneTemplate.Unit unit) {
+        if (unit.isSpur()) {
+            return;
+        }
+        PathingStats.Scale delta = PathingStats.scale().delta(scaleAtStart);
+        BotLog.info("[Fishbone] advance={}/{} cell={} mined={} spurs={}/{} ores={}/{} searchNodes={}"
+                        + " products={}",
+                mainUnitsDone, template.mainLength(), unit.foot().toShortString(), mined,
+                spurReturns, template.spurBranches(), oreMined, oreFound,
+                delta.nodes(), countProductItems() - itemsBefore);
+    }
+
+    /**
+     * ⭐ **收尾行**（计划 §8）—— 真机验收的四条读数全在这一行：
+     * `main=`/`spurs=`（模板=事实）、`outside=`（没乱挖）、`searchNodes=`/`searchLimit=`（鱼骨的卖点）、
+     * `return=`（回得来）。
+     *
+     * <p>⚠️ `outside=` 的口径**逐字**是：自本作业第一 tick 起、`WriteAudit` 里 requester = `fishbone`
+     * 的**破坏**条目中，位置**不在**（模板格 ∪ 本次挖掉的露头矿格）里的条数。别人的破坏不算。
+     */
+    private void emitSummary() {
+        PathingStats.Scale delta = PathingStats.scale().delta(scaleAtStart);
+        Set<BlockPos> whitelist = new LinkedHashSet<>(template.cellSet());
+        whitelist.addAll(oreMinedCells);
+        int inside = 0;
+        int outside = 0;
+        for (WriteAudit.Entry entry : WriteAudit.snapshot()) {
+            if (!"break".equals(entry.action()) || entry.tick() < gameTimeAtStart) {
+                continue;
+            }
+            if (!REQUESTER.equals(entry.grant().requester())) {
+                continue;
+            }
+            if (whitelist.contains(entry.pos())) {
+                inside++;
+            } else {
+                outside++;
+            }
+        }
+        String ret = !excavationStarted ? "n/a" : (returnedHome ? "ok" : "no");
+        BotLog.info("[Fishbone] SUMMARY dir={} main={}/{} spurs={}/{} abandoned={} mined={} skipped={}"
+                        + " ores={}/{} collected={}/{} searchNodes={} searchLimit={} return={}"
+                        + " worldChangesInside={} outside={} ticks={} → {}",
+                dirLetter(template.dir()), mainUnitsDone, template.mainLength(),
+                template.spurBranches() - spursAbandoned, template.spurBranches(), spursAbandoned,
+                mined, skipped, oreMined, oreFound, collectedProducts, oreMined,
+                delta.nodes(), delta.searchLimits(), ret, inside, outside, ticks,
+                terminalStatus == Task.Status.DONE ? "PASS" : "FAIL");
     }
 
     // ==================== 夹具只读（判据 C1/C2/C3/C4/C5） ====================

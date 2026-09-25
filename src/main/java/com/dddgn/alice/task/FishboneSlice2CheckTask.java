@@ -2,6 +2,7 @@ package com.dddgn.alice.task;
 
 import com.dddgn.alice.action.WriteAudit;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.item.FishboneJobItem;
 import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.job.fishbone.FishboneJob;
 import com.dddgn.alice.job.fishbone.FishboneTemplate;
@@ -274,6 +275,10 @@ public final class FishboneSlice2CheckTask implements Task {
 
         template = templateFor(arm);
         productsBefore = countProducts();
+        // ⭐ 切片 3（`D-438`）：真机入口 `alice:fishbone_job` 的默认模板 —— 环境无关、只跑一次
+        if (armIndex == 0) {
+            liveEntryChecks();
+        }
 
         // ⭐ 前提自断言（`alice-scene-based-testing` §6.9.1）：场景没落地 ⇒ 后面所有判据都不可解读
         boolean sceneOk = level.getBlockState(ORIGIN).isAir()
@@ -649,6 +654,29 @@ public final class FishboneSlice2CheckTask implements Task {
     /** 本臂新增的失败条数（`ARM` 行用它判本臂成败 —— 累计口径会把前一臂的红算到后一臂头上）。 */
     private int armFailures() {
         return failures.size() - failuresAtArmStart;
+    }
+
+    /**
+     * ⭐ **切片 3（`D-438`）：真机入口的默认模板必须是合法且符合计划 §8 的形状**。
+     *
+     * <p>为什么夹具要管这件事：`alice:fishbone_job` 是本片唯一的**真机**入口，它的常量写错
+     * （比如 `spurSpacing` 抄成 1 ⇒ 构造抛异常、或 `mainLength` 抄成 0）**在离线就该咬住** ——
+     * 等到你右键那一刻才发现，等于白烧一个客户端轮。这里调的是**生产代码的工厂**
+     * （`FishboneJobItem.templateFor`），不是照常量另抄一份。
+     */
+    private void liveEntryChecks() {
+        for (Direction d : new Direction[]{Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST}) {
+            FishboneTemplate live = FishboneJobItem.templateFor(ORIGIN, d);
+            check("真机入口默认（dir=" + d.getName() + "）：主巷 " + live.mainLength() + " · 支巷 "
+                            + live.spurBranches() + " 条 × " + live.spurLength() + " 格 · 净高 " + live.height()
+                            + " ⇒ 单元 " + live.advanceCells() + " · 模板格 " + live.cells().size(),
+                    live.mainLength() == 20 && live.spurBranches() == 4 && live.spurLength() == 5
+                            && live.height() == 2 && live.advanceCells() == 40 && live.cells().size() == 80);
+            check("真机入口默认（dir=" + d.getName() + "）：作用域半径 " + live.scopeRadius()
+                            + " ≥ 作业包围盒对角 ⇒ `C2` 在真机也成立（`D-346`）",
+                    live.scopeRadius() >= live.mainLength() + live.spurLength()
+                            && live.scopeRadius() == live.mainLength() + live.spurLength() + 2);
+        }
     }
 
     private void check(String name, boolean ok) {
