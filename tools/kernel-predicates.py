@@ -1189,15 +1189,29 @@ def rule_search_limit_not_unreachable():
     if "inconclusiveReason(path)" not in planner_code:
         problems.append("没有任何腿走 `inconclusiveReason(path)` 这个唯一出处"
                         " ⇒ 「有没有结论」被各腿各判一遍")
+    # ⚠️ **锚点跟着结构走**（2026-09-25，`D-443` 裁定 1a）：聚合入口从 4 参
+    # `plan(…, standableOnly)` 变成 6 参 `plan(…, standableOnly, approach, requester)`
+    # （4 参版现在只是一行委托 ⇒ 它 **不再** 是聚合体）。**不变量没变**：聚合三条腿时必须
+    # 单独识别 `SEARCH_INCOMPLETE`。红臂在本文件 `--inject` 里照旧（见下方 §注入臂）。
     aggregate = method_body(
         planner_code,
-        "public Result plan(ServerPlayer bot, BlockPos target, MiningBudget budget, boolean standableOnly) {")
+        "public Result plan(ServerPlayer bot, BlockPos target, MiningBudget budget, boolean standableOnly,\n"
+        "                       MiningProfile.Approach approach, String requester) {")
+    # ⚠️ **必须是"同一个 `if` 条件里的三条腿合取"**（位置化），**不是**"方法体里出现过这三个子串"
+    # —— 后者会被同一方法体里的 `standableOnly` 早返回（`if (SEARCH_INCOMPLETE.equals(direct…))`）
+    # 满足：2026-09-25 实测，**把 `direct` 那条腿从合取里删掉，门禁仍 PASS**（= 没有牙）。
+    # 修法 = 直接钉那条合取表达式的形状（`D-425` ⑤ 同一族：位置化 > 子串）。
+    conjunction = re.search(
+        r"SEARCH_INCOMPLETE\.equals\(direct\.failureReason\(\)\)\s*\|\|\s*"
+        r"SEARCH_INCOMPLETE\.equals\(tunnel\.failureReason\(\)\)\s*\|\|\s*"
+        r"SEARCH_INCOMPLETE\.equals\(enter\.failureReason\(\)\)",
+        aggregate, re.S)
     if not aggregate:
-        problems.append("`MiningPlanner` 找不到聚合入口 `plan(…, standableOnly)`（结构变了 ⇒ 规则要跟着改）")
-    elif not all(f"SEARCH_INCOMPLETE.equals({leg}.failureReason())" in aggregate
-                 for leg in ("direct", "tunnel", "enter")):
+        problems.append("`MiningPlanner` 找不到聚合入口 `plan(…, standableOnly, approach, requester)`"
+                        "（结构变了 ⇒ 规则要跟着改）")
+    elif not conjunction:
         problems.append("`MiningPlanner.plan` 聚合三条腿时没有把 `SEARCH_INCOMPLETE` 单独识别"
-                        " ⇒ 任一条腿被限流仍会整体报 `found_but_unminable`（= 不可挖）")
+                        "（三条腿的合取缺项）⇒ 任一条腿被限流仍会整体报 `found_but_unminable`（= 不可挖）")
     mine_more = code_only(mine)
     mine_body = method_body(mine_more, "private Task.Status mine() {")
     if not mine_body:
