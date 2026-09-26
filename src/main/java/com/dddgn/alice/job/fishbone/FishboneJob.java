@@ -1386,6 +1386,13 @@ public final class FishboneJob implements Job {
      * 打捞只做一次（`salvageDone`）。
      */
     private void beginReturn() {
+        // ⭐⭐ `1.4z-d`（2026-09-26 夹具逼出来的第二半）：**读数在"回家那一刻"无条件结算**。
+        // 为什么必须无条件：产物常常在**追簇结束的那次周期收集**里就收走了 ⇒ 失败返航时地上**一件都没有**
+        // ⇒ `hasProductDropOnGround()` 为假 ⇒ 一次收集都不跑 ⇒ 若只在收集里结算，`collectedProducts`
+        // **永远停在 0**，SUMMARY 又打出 `collected=0/N`（夹具 `SALVAGE_ON_FAIL` 实测：`collected=0 ores=1
+        // 地上剩余产物=0 终态=goal_timeout` —— 真机那轮 `collected=0/32` 就是这个形态）。
+        // 口径是背包增量（绝对值）⇒ 重复调用幂等，放在这里不会与收集档的结算互相污染。
+        collectedProducts = countProductItems() - itemsBefore;
         if (!salvageDone && hasProductDropOnGround()) {
             startCollect(CollectKind.SALVAGE);
             return;

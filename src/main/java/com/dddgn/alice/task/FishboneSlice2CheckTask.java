@@ -142,6 +142,17 @@ public final class FishboneSlice2CheckTask implements Task {
 
     private static final int BUDGET_TICKS = 5000;
     private static final int JOB_MAX_TICKS = 2000;
+
+    /**
+     * ⭐ `1.4z-d`（2026-09-26）：**失败前打捞 / 失败路径结算读数**那一臂的作业预算。
+     *
+     * <p>刻意掐在「**至少挖到一颗顶棚矿 + 那趟周期收集跑完，但整条巷远没挖完**」之间 ⇒ 作业以
+     * `goal_timeout` 失败，而 `collected` 必须**已结算**（改前只有收尾档结算 ⇒ 失败时恒为 0，
+     * 真机就打出过 `collected=0/32` 这种"没算过"却被读成"一件没捡"的数）。
+     */
+    private static final int SALVAGE_JOB_MAX_TICKS = 160;   // 实测：矿 +20 tick、它的周期收集 +40 完成、整模板 ~240 ⇒ 160 必失败且已收到产物
+    /** ⭐ `1.4z-d`：本臂的顶棚露头矿占哪个主巷单元（离起点最近 ⇒ 预算掐短也能挖到）。 */
+    private static final int[] SALVAGE_ORE_UNITS = {1};
     private static final int SETTLE_CAP = 40;
 
     /** `C3` 的两条规模上界（与切片 1 同口径；多出的支巷退路/收集是**常数**级开销）。 */
@@ -149,11 +160,16 @@ public final class FishboneSlice2CheckTask implements Task {
     private static final int NODES_PER_ADVANCE = 40;
     private static final int TICK_COST_REPORT_ONLY = 250;
 
-    private enum Arm { SPUR_TUNNEL, SPUR_ABANDONED, ORE_IN_PLACE, ORE_VEIN_CHASE }
+    private enum Arm { SPUR_TUNNEL, SPUR_ABANDONED, ORE_IN_PLACE, ORE_VEIN_CHASE, SALVAGE_ON_FAIL }
 
     private enum Phase { SETUP_ARM, SETTLE, RUN, ASSERT, CLEANUP, DONE }
 
     private static final Arm[] ARMS = Arm.values();
+
+    /** ⭐ `1.4z-d`：本臂的作业预算（只有打捞臂掐短 ⇒ 故意让它失败）。 */
+    private static int jobMaxTicks(Arm arm) {
+        return arm == Arm.SALVAGE_ON_FAIL ? SALVAGE_JOB_MAX_TICKS : JOB_MAX_TICKS;
+    }
 
     // ==================== 运行态 ====================
 
@@ -341,6 +357,11 @@ public final class FishboneSlice2CheckTask implements Task {
         if (arm == Arm.ORE_VEIN_CHASE) {
             out.addAll(sideVeinCells());
         }
+        if (arm == Arm.SALVAGE_ON_FAIL) {
+            for (int unit : SALVAGE_ORE_UNITS) {
+                out.add(oreCell(unit));
+            }
+        }
         return out;
     }
 
@@ -383,6 +404,11 @@ public final class FishboneSlice2CheckTask implements Task {
         if (arm == Arm.ORE_VEIN_CHASE) {
             out.addAll(veinCells());
         }
+        if (arm == Arm.SALVAGE_ON_FAIL) {
+            for (int unit : SALVAGE_ORE_UNITS) {
+                out.add(oreCell(unit));
+            }
+        }
         return out;
     }
 
@@ -414,7 +440,15 @@ public final class FishboneSlice2CheckTask implements Task {
         // ⭐ 前提自断言（`alice-scene-based-testing` §6.9.1）：场景没落地 ⇒ 后面所有判据都不可解读
         boolean sceneOk = level.getBlockState(ORIGIN).isAir()
                 && level.getBlockState(ORIGIN.below()).is(Blocks.STONE);
-        if (arm == Arm.ORE_IN_PLACE) {
+        if (arm == Arm.SALVAGE_ON_FAIL) {
+            // ⭐ `1.4z-d`：本臂的前方是石头、**顶棚是矿**（与臂③同形态），作业预算掐短 ⇒ 必以失败收场
+            boolean oreOk = true;
+            for (int unit : SALVAGE_ORE_UNITS) {
+                oreOk = oreOk && level.getBlockState(oreCell(unit)).is(Blocks.IRON_ORE);
+            }
+            sceneOk = sceneOk && oreOk
+                    && level.getBlockState(ORIGIN.relative(DIR, 1)).is(Blocks.STONE);
+        } else if (arm == Arm.ORE_IN_PLACE) {
             // 本臂的"前方那一格"是石头，但**它上面那格是矿**（这正是"顶棚露头矿"的形态）
             sceneOk = sceneOk
                     && level.getBlockState(ORIGIN.relative(DIR, MAIN_LENGTH)).is(Blocks.STONE)
@@ -477,6 +511,12 @@ public final class FishboneSlice2CheckTask implements Task {
             }
             level.setBlock(decoyCell(), Blocks.IRON_ORE.defaultBlockState(), 3);
         }
+        if (arm == Arm.SALVAGE_ON_FAIL) {
+            // ⭐ `1.4z-d`：一盏顶棚露头矿 ⇒ 追簇会挖掉它并产出**产物**（铁矿石 ⇒ 粗铁）
+            for (int unit : SALVAGE_ORE_UNITS) {
+                level.setBlock(oreCell(unit), Blocks.IRON_ORE.defaultBlockState(), 3);
+            }
+        }
     }
 
     // ==================== 跑作业 ====================
@@ -485,7 +525,7 @@ public final class FishboneSlice2CheckTask implements Task {
         settleTicks++;
         bot.controller().stopMovement();
         if (FixturePremise.settledOnGround(bot, settleTicks) || settleTicks > SETTLE_CAP) {
-            job = new FishboneJob(bot, template, scope, JOB_MAX_TICKS);
+            job = new FishboneJob(bot, template, scope, jobMaxTicks(ARMS[armIndex]));
             phase = Phase.RUN;
         }
         return Task.Status.RUNNING;
@@ -540,6 +580,45 @@ public final class FishboneSlice2CheckTask implements Task {
 
     // ==================== 断言 ====================
 
+    /**
+     * ⭐ `1.4z-d`（2026-09-26 真机驱动）：**失败路径上「产物不许滞留 + `collected` 必须已结算」**。
+     *
+     * <pre>
+     * ① 前提：作业**真的失败**了（`goal_timeout`）—— 否则本臂什么都没考
+     * ② 前提：真的挖到过产物（`oreMined ≥ 1`）—— 否则"地上没剩东西"是空的
+     * ③ ⭐⭐ `collected` **已结算且对得上**（`collectedProducts ≥ oreMined`）—— 改前只有收尾档结算
+     *    ⇒ 失败返航时打的 `collected=0/N` 是"没算过"（真机 `SUMMARY … collected=0/32 → FAIL` 就这形态）
+     * ④ ⭐⭐ **失败结束时地上没有剩余的产物落物** —— 覆盖两条路：追簇结束的周期收集、失败前的打捞
+     *    （`beginReturn()` ⇒ `CollectKind.SALVAGE`）
+     * </pre>
+     */
+    private void assertSalvageOnFail(ServerLevel level) {
+        check("（" + Arm.SALVAGE_ON_FAIL + "）前提：作业**真的失败**了（终态=" + armVerdict
+                        + "，预算 " + SALVAGE_JOB_MAX_TICKS + " tick 掐短）",
+                "goal_timeout".equals(armVerdict));
+        check("（" + Arm.SALVAGE_ON_FAIL + "）前提：真的挖到过**产物**（oreMined=" + job.oreMined()
+                        + " ≥ 1）—— 否则下面两条是空的", job.oreMined() >= 1);
+        check("（" + Arm.SALVAGE_ON_FAIL + "）⭐⭐失败路径上 `collected` **已结算且对得上**"
+                        + "（collected=" + job.collectedProducts() + " ≥ ores=" + job.oreMined()
+                        + "；改前只有收尾档结算 ⇒ 这里会是 0）",
+                job.collectedProducts() >= job.oreMined());
+        int left = productDropsOnGround(level);
+        check("（" + Arm.SALVAGE_ON_FAIL + "）⭐⭐失败结束时**地上没有剩余产物落物**（实测 " + left
+                        + " 件）—— 覆盖「追簇结束的周期收集」与「失败前的打捞」两条路", left == 0);
+        BotLog.info("[Fishbone2] 打捞臂读数 collected={} ores={} collects={} 地上剩余产物={} 终态={}",
+                job.collectedProducts(), job.oreMined(), -1, left, armVerdict);
+    }
+
+    /** 盒内**产物**落物件数（判据 = 生产过滤器 `MineProductFilter`，不另写一份）。 */
+    private int productDropsOnGround(ServerLevel level) {
+        com.dddgn.alice.job.mine.MineProductFilter filter =
+                com.dddgn.alice.job.mine.MineProductFilter.forTag(null);
+        net.minecraft.world.phys.AABB box = new net.minecraft.world.phys.AABB(ORIGIN)
+                .inflate(MAIN_LENGTH + 6, HEIGHT + 4, BOX_HALF_DZ + 2);
+        return level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, box,
+                e -> e.isAlive() && filter.matches(e.getItem())).size();
+    }
+
     private Task.Status assertArm() {
         ServerLevel level = bot.serverLevel();
         Arm arm = ARMS[armIndex];
@@ -550,13 +629,18 @@ public final class FishboneSlice2CheckTask implements Task {
             case SPUR_ABANDONED -> assertSpurAbandoned(level);
             case ORE_IN_PLACE -> assertOreInPlace(level);
             case ORE_VEIN_CHASE -> assertVeinChase(level);
+            case SALVAGE_ON_FAIL -> assertSalvageOnFail(level);
         }
 
         // 两条公共判据（**每一臂**都过）
+        // ⭐ `1.4z-d`：本臂**故意中途失败**（预算掐短）⇒ 模板必然没挖完 ⇒「逐格一致」对本臂不适用。
+        // 本臂改考的是**失败路径的收尾行为**（地上无滞留产物 + `collected` 已结算 + 白名单外=0）。
+        if (arm != Arm.SALVAGE_ON_FAIL) {
         check("（" + arm + "）⭐`C1` 场景与期望表**逐格一致**（差异格=" + worldDiff
                         + "）—— 期望表 = 整盒石头，**除模板格 / 挖掉的露头矿 / 起点口袋以外一格不变**"
                         + "（这是「模板外改动 = 0」的最强形态：不是「没超预算」，是「逐格枚举」）",
                 worldDiff == 0);
+        }
         check("（" + arm + "）⭐`C5` 世界写入全部落在白名单内（破坏 " + auditDeltaBreaks + " 条，白名单外 "
                         + auditOutsideExpected + " 条）—— 白名单 = 模板格" + (arm == Arm.ORE_IN_PLACE
                         ? " ∪ 露头矿格（**不许**顺手挖掉非矿的阻挡）" : ""),
