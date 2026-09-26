@@ -1500,3 +1500,44 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
   ② **第二刀「脱离→挖簇→回归」不进当前排期**（`R1`/`R2`/`R3` 只在第二刀触发）。
 - ⚠️ **`survey/36 R8`（最要紧的实操风险 = 唯一顺序性建议）**：**先把当前 jar 测掉再叠改造** ——
   否则真机红了不知是 `I5` 还是新状态机 ⇒ 已排成 `J-★` **第 1 段**。
+
+---
+
+## 13. 2026-09-26 补记⑨：**第 2 段「最便宜的一刀」全部落地**（四件 + 一条新门禁 + 一条新电池步）
+
+- **用户对「挡下一轮的 ① 组四条」的裁定（逐条 = 推荐项，A/A/A/A）**：① **先跑真机、AI 并行做第 2 段** ·
+  ② `D-450` 补格额度**与 `C8` 共用同一份** · ③ `J-1` 退出条件用存档里连跑 15 分钟不失败 + 三计数与日志
+  逐条对账（**原文**已写进台账 `J-★` 块，含"键名口径 = 改后的 `spursAbandoned`"） · ④ **采纳"切两刀"**
+  （登记为 **`D-452`**；第二刀「脱离→挖簇→回归」**本轮不做**）。
+
+- **四件落地（`J-★` 第 2 段 2.1–2.4；`compileJava` 绿 · `check-all` 23 PASS/1 WARN（电池那条）/0 FAIL）**：
+  1. ✅ **`1.4u`** `SUMMARY` 的误导标签 `spurs=<未放弃>/<总数>` + 重复的 `abandoned=` ⇒ **并成
+     `spursAbandoned=<放弃>/<总数>`**。⭐ **契约门禁实测先红后绿**：`tools/kernel-predicates.py` 的
+     `rule_fishbone_live_log_shape` 把旧键名钉着 ⇒ 改一边必红（这就是它存在的意义）；同步改计划 `§8`
+     与 `FishboneJobItem` 的取样说明。⚠️ **真机测试卡要用新键名**（旧键名 grep 得 0 行，而 0 是歧义的）。
+  2. ✅ **`1.4w`** `MiningPlanner` 的 `standableOnly` 早返回**不再改写腿的理由** —— 改成"**腿给了理由就
+     原样上抛**，只有什么都没说时才用总括码兜底" ⇒ `no_valid_standing_point`（= "缺一格地板"）
+     不再被伪装成 `no_reachable_standing_point`。⭐ **`D-329` 门禁也先红**（它原来钉死"只放行
+     `SEARCH_INCOMPLETE`"这个字面形状）⇒ 已升级为更强的两条断言，**两条臂实测都红**。
+     电池：`single:fishbone_slice1` **PASS**（398 tick）· `single:fishbone_slice2` **PASS**（2235 tick）。
+  3. ✅ **`1.4x`** 重力方块（沙砾/沙）**挖掘期暂停**：`MineBlockRunner.tickBreak()` 开头加闸
+     （目标格里有在飞的 `FallingBlockEntity` ⇒ 本 tick **不挖**；逐字对照 Baritone `Movement.java:157-160`）。
+     三条纪律：**只暂停不失败** · **不 tick `breakSession`**（不推进度、不吃 60 s 预算、不重复扣账）·
+     **成本模型刻意不动**（`includeFalling` 属另一案）。⭐ **新电池步 `mine_falling_pause`（MAIN ⇒ 进 CORE）**
+     四臂：暂停（**直接证据** = `pausedForFallingBlock()` + 窗口内一格没挖动）/ **恢复（同一个 runner）** 挖穿 /
+     两个**负对照**（落体在目标上方 2 格、侧向 2 格 ⇒ 不许暂停）。`single:mine_falling_pause` **PASS**
+     （141 tick · 16 判据 · 0 失败）。
+  4. ✅ **`1.4r`** `TaskTargetProtection.begin*` 的安装点从**构造器**挪到**首 tick**（`MineJob.tickOnce` 的
+     `scopeStarted` 块 · `LumberJob` 新增 `protectionStarted` 块 · `FishboneJob.prepare()` 本就是同一形状）
+     ⇒ 生产侧「清障不得吃任务目标」这条护栏**第一次真的生效**（此前 `beginTask` 的清空落在装之后，
+     整个作业保护为空；电池直驱 ⇒ 结构性看不见）。⭐ **新门禁 `tools/check-protection-install-point.py`**
+     （自带 6 条合成红臂 + 实测真树红臂；已挂 `check-all.sh`）。
+
+- ⚠️ **两条必须记住的诚实边界**：
+  ① **`1.4x` 的夹具把落体"钉"在格子里** ⇒ 它验的是**判据本身**，**不是**原版"沙砾 2 tick 才落"的时间线
+  —— 那条仍只能由真机观察回答（`1.4x` 行里那条测量陷阱）；
+  ② **第 2 段对"鱼骨完成度"无可测提升**（`survey/35 §9.4`）：它便宜、且是前置，真正挡住鱼骨的是
+  桶2 那四条（`1.4t`/`1.4s`/`1.4r`/`1.4i`）⇒ **不许把第 2 段读成"鱼骨进展"**。
+
+- **下一步（`J-★` 第 1 段 + 第 3 段）**：① 你真机测当前 jar（入口 `alice:fishbone_job`；看 `spursAbandoned`/
+  `advance`/沙砾段是否落回）；② 之后开第 3 段第一刀（补路动作 + 归因码 ⇒ 记录图 ⇒ 沿单元返程）。

@@ -204,6 +204,12 @@ public final class LumberJob implements Job {
      */
     private int sweepTicks;
     private boolean sweepStarted;
+    /**
+     * ⭐ `1.4r`（2026-09-26）：任务保护作用域是否已在**首 tick** 装上。
+     * 与 `MineJob.scopeStarted` 同形状（那次是收集授权，这次是保护作用域）—— 两者都必须在首 tick 装，
+     * 因为 `BotSession.beginTask` 会清空按 botId 记的所有作用域，而它跑在构造器之后。
+     */
+    private boolean protectionStarted;
     private boolean sweptUpThisTree;
     private boolean scaffoLeftReported;
     private String terminalReason = "";
@@ -225,12 +231,10 @@ public final class LumberJob implements Job {
         this.source = source;
         this.policy = policy;
         this.logsBefore = countLogs();
-        // ⭐ `D-362`：伐木是同一个坑（§清障吃目标）——**所有原木都是本任务的目标**，清障（`PATH_ACCESS`）
-        // 一格都不许挖。这里**不需要豁免"当前那一格"**：砍树走的是 `EXPECTED_TARGET`（MineTask），
-        // 从来没有"用清障权限把原木挖开"这条合法路径。
-        com.dddgn.alice.action.TaskTargetProtection.begin(bot, jobName(),
-                pos -> pos != null && bot.serverLevel().hasChunkAt(pos)
-                        && bot.serverLevel().getBlockState(pos).is(net.minecraft.tags.BlockTags.LOGS));
+        // ⚠️ `D-362` 的任务保护作用域**不在这里装**（`1.4r`，2026-09-26）：构造器早于
+        // `BotSession.beginTask`，而后者会**按 botId 清空**这份作用域 ⇒ 生产侧"装上即被清"、
+        // 整条作业保护为空（真机路径逐字取证见台账 `1.4r`）。安装点已移到**首 tick**
+        // （见 `tickOnce()` 的 `protectionStarted` 块）。结构门禁：`tools/check-protection-install-point.py`。
     }
 
     @Override
@@ -327,6 +331,17 @@ public final class LumberJob implements Job {
             terminalReason = "goal_timeout";
             failure = terminalReason;
             return finish(Task.Status.FAILED);
+        }
+        // ⭐ `D-362` + `1.4r`（2026-09-26）：伐木是同一个坑（§清障吃目标）——**所有原木都是本任务的目标**，
+        // 清障（`PATH_ACCESS`）一格都不许挖。这里**不需要豁免"当前那一格"**：砍树走的是
+        // `EXPECTED_TARGET`（MineTask），从来没有"用清障权限把原木挖开"这条合法路径。
+        // ⚠️ **为什么在首 tick 而不是构造器**：`BotSession.beginTask`（`BotManager:1998`）按 botId 清空
+        // 作用域，且跑在构造器之后 ⇒ 构造器装的必然被清（生产侧护栏一直是空的）。
+        if (!protectionStarted) {
+            protectionStarted = true;
+            com.dddgn.alice.action.TaskTargetProtection.begin(bot, jobName(),
+                    pos -> pos != null && bot.serverLevel().hasChunkAt(pos)
+                            && bot.serverLevel().getBlockState(pos).is(net.minecraft.tags.BlockTags.LOGS));
         }
         // 前置检查（§6.2c③）：背包放不下原木时**直接收工**，不要先砍一棵再发现装不下
         if (!hasRoomForLogs(bot)) {

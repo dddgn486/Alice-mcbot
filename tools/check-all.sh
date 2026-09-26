@@ -149,6 +149,11 @@ run_gate             "check-far-goal-usage"   bash tools/check-far-goal-usage.sh
 run_gate             "check-exec-record"      bash tools/check-exec-record.sh
 run_gate             "check-policy-matrix"      bash tools/check-policy-matrix.sh
 run_gate             "check-authz-registry"     bash tools/check-authz-registry.sh
+# 保护作用域安装点（`1.4r`，2026-09-26）：`TaskTargetProtection.begin*` 不许装在构造器里 ——
+# `BotManager:1998` 的 `beginTask` 会在构造器之后按 botId 清空它 ⇒ 生产侧护栏一直是空的，
+# 而电池**直驱子任务**（不过 `beginTask`）看不到 ⇒ 判据只能是静态门禁（`D-425`）。
+# 自带 6 条合成红臂（构造器 / `if` 嵌构造器 / 静态块 / 注释假命中 / `tickOnce` / 类名别名）。
+run_gate             "check-protection-install-point" python3 tools/check-protection-install-point.py
 # 回迁（2026-09-24）：`tools/dsh-session-rollback.mjs` 决定"云端哪些字节要搬回本机" ——
 # 决定错了**不会响**（本机会安静地留一个半截会话）⇒ 自检必须进构建：
 # 分叉判 suffix（只搬前缀之后那段）/ 逐字节相同判 skip / 无公共前缀判 whole / 重建 sha256 必须对得上 /

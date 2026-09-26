@@ -184,7 +184,14 @@ public final class MiningPlanner {
             // ⭐ `P1-d`：**"没算完"不许被写成"站不住"** —— 这条腿原来**无条件**改写 direct 的理由
             // ⇒ 直接吃掉 `search_incomplete`（`MiningProfile.STANDABLE_ONLY` 走的正是这条分支，
             // 鱼骨逐格 `MineTask` 用的就是它）。
-            if (SEARCH_INCOMPLETE.equals(direct.failureReason())) {
+            // ⭐⭐ `1.4w`（2026-09-26，`survey/35 §9` 桶3-3「最省力收益最大的一刀」）：同一条纪律**通用化** ——
+            // 原本只放行 `search_incomplete`，**其余一律改写成总括码** `no_reachable_standing_point`，
+            // 于是 `planDirect` 的真理由 `no_valid_standing_point`（`:255`，恰恰是**信息量最大**的那一个）
+            // 永远到不了上游。真机实证（`docs/reviews/archive/2026-09-26-真机第五轮-自检报告-空气与通道成品规格.md`
+            // §3.4）：`belowSolid=false`（缺一格地板）被伪装成"站位找不到"⇒ 归因四分类（`1.4i`）无从下手。
+            // ⇒ 修法 = **腿给出了理由就原样上抛**，只有"腿什么都没说"时才用总括码兜底。
+            String directReason = direct.failureReason();
+            if (directReason != null && !directReason.isEmpty()) {
                 return direct;
             }
             return new Result(null, null, "no_reachable_standing_point");

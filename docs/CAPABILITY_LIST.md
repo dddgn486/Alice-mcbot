@@ -15,7 +15,7 @@
 | 作业种类（它**能接什么活**） | 5 | §2 |
 | 移动原语（它**能怎么动**） | 10（其中改世界 5） | §3 |
 | 自检模块 | 21 | §4.1 |
-| 自检步（能力清单用它证明自己） | 101 = BASELINE 15 + MAIN 26 + EXTRA 60（**CORE 实跑 41**） | §4.2 |
+| 自检步（能力清单用它证明自己） | 102 = BASELINE 15 + MAIN 27 + EXTRA 60（**CORE 实跑 42**） | §4.2 |
 | 机器类型（上游已登记） | 59 行 | §5 |
 | 玩家能调的开关 | 3 | §6 |
 | 底线（**任何玩家入口都不许出现**） | 3 | §7 |
@@ -81,7 +81,7 @@
 | `decision` | 决策 / 观测 / 归因 | `PASS` | 5 | ✅ |
 | `craft` | 合成 / 工作站（只读查询 → 随身 2×2 → 工作台 → 自放站 → 网格发现 → 熔炉） | `PASS` | 13 | ✅ |
 | `machine` | 机器路线（自述只读 → 站点只读 → 单机闭环 → 生产入口） | `PASS` | 4 | ✅ |
-| `mining` | 挖掘（执行器回归 / 周期复评 / 候选契约 / 生产入口 / 归因三连） | `PASS` | 17 | ✅ |
+| `mining` | 挖掘（执行器回归 / 周期复评 / 候选契约 / 生产入口 / 归因三连） | `PASS` | 18 | ✅ |
 | `lumber` | 伐木（失败归因五连 / 生产闭环 / 区域常驻 + 补种） | `PASS` | 6 | ✅ |
 | `transfer` | 传输（4 夹具：主流程/端点选择/选择器事件/命令解析 + 端到端） | `PASS` | 1 | ✅ |
 | `survival` | 维生（决策表 / 出口可达 / 脚位口径 / 掉血可见 / 逃生准备金上限） | `PASS` | 5 | ✅ |
@@ -97,7 +97,7 @@
 | `ownership` | 假人归属（创建者登记 / 认领单向 / 存档往返 / 老存档不猜） | `PASS` | 1 | ✅ |
 | `break_refused` | 破坏被拒（世界事实判定 / 冒险模式 / FTB 认领 / 不许谎报成功） | `PASS` | 1 | ✅ |
 
-### §4.2 电池步（101 步；`#` = CORE 运行序，`—` = 只在 FULL 跑）
+### §4.2 电池步（102 步；`#` = CORE 运行序，`—` = 只在 FULL 跑）
 
 | # | 步名 | 档位 | 来源 |
 |---|---|---|---|
@@ -130,14 +130,15 @@
 | — | `mine_vein_propagation` | EXTRA | mining |
 | — | `fishbone_slice1` | EXTRA | mining |
 | — | `fishbone_slice2` | EXTRA | mining |
-| 13 | `hazard_aversion_plan` | MAIN | (内联) |
-| 14 | `container_access_profile` | MAIN | decision |
-| 15 | `driver_label` | MAIN | decision |
-| 16 | `risk_profile_frozen` | MAIN | decision |
-| 17 | `damage_event_visible` | MAIN | decision |
-| 18 | `mine_failure_visible` | MAIN | decision |
-| 19 | `break_enter_head_blocked` | MAIN | pathing |
-| 20 | `coarse_goal_prefix` | MAIN | pathing |
+| 13 | `mine_falling_pause` | MAIN | mining |
+| 14 | `hazard_aversion_plan` | MAIN | (内联) |
+| 15 | `container_access_profile` | MAIN | decision |
+| 16 | `driver_label` | MAIN | decision |
+| 17 | `risk_profile_frozen` | MAIN | decision |
+| 18 | `damage_event_visible` | MAIN | decision |
+| 19 | `mine_failure_visible` | MAIN | decision |
+| 20 | `break_enter_head_blocked` | MAIN | pathing |
+| 21 | `coarse_goal_prefix` | MAIN | pathing |
 | — | `break_traverse_footing` | EXTRA | pathing |
 | — | `place_step_descend_clearance` | EXTRA | pathing |
 | — | `head_blocked_route_closure` | EXTRA | pathing |
@@ -149,14 +150,14 @@
 | — | `pillar_execute` | EXTRA | pathing |
 | — | `contrast_timer` | EXTRA | pathing |
 | — | `tick_budget_bench` | EXTRA | pathing |
-| 21 | `death_persistence` | MAIN | death |
+| 22 | `death_persistence` | MAIN | death |
 | — | `death_kill_bot` | EXTRA | death |
-| 22 | `speech_channel` | MAIN | contracts |
-| 23 | `decision_contract` | MAIN | contracts |
+| 23 | `speech_channel` | MAIN | contracts |
+| 24 | `decision_contract` | MAIN | contracts |
 | — | `decision_trace` | EXTRA | contracts |
-| 24 | `craft_check` | MAIN | craft |
+| 25 | `craft_check` | MAIN | craft |
 | — | `craft_action` | EXTRA | craft |
-| 25 | `craft_table` | MAIN | craft |
+| 26 | `craft_table` | MAIN | craft |
 | — | `craft_station` | EXTRA | craft |
 | — | `restore_underfoot_safety` | EXTRA | craft |
 | — | `craft_probe_inventory` | EXTRA | craft |
@@ -164,18 +165,18 @@
 | — | `craft_probe_upgradetab` | EXTRA | craft |
 | — | `craft_station_provision` | EXTRA | craft |
 | — | `craft_station_craft` | EXTRA | craft |
-| 26 | `craft_furnace` | MAIN | craft |
-| 27 | `craft_cooking` | MAIN | craft |
-| 28 | `craft_goal` | MAIN | craft |
+| 27 | `craft_furnace` | MAIN | craft |
+| 28 | `craft_cooking` | MAIN | craft |
+| 29 | `craft_goal` | MAIN | craft |
 | — | `machine_route` | EXTRA | machine |
 | — | `machine_station` | EXTRA | machine |
 | — | `machine_cycle` | EXTRA | machine |
-| 29 | `craft_machine` | MAIN | machine |
-| 30 | `transfer` | BASELINE | transfer |
-| 31 | `partial_search` | BASELINE | gates |
-| 32 | `capability_gate` | BASELINE | gates |
-| 33 | `tool_supply` | BASELINE | tools |
-| 34 | `llm_contract` | MAIN | llm |
+| 30 | `craft_machine` | MAIN | machine |
+| 31 | `transfer` | BASELINE | transfer |
+| 32 | `partial_search` | BASELINE | gates |
+| 33 | `capability_gate` | BASELINE | gates |
+| 34 | `tool_supply` | BASELINE | tools |
+| 35 | `llm_contract` | MAIN | llm |
 | — | `permission_gate` | EXTRA | llm |
 | — | `scope_pending_grace` | EXTRA | pickup |
 | — | `pickup_gate` | EXTRA | pickup |
@@ -186,25 +187,25 @@
 | — | `job_area_grant` | EXTRA | pickup |
 | — | `recipes_dump` | EXTRA | telemetry |
 | — | `event_thresholds` | EXTRA | telemetry |
-| 35 | `recoverability` | BASELINE | write |
-| 36 | `write_policy` | BASELINE | write |
-| 37 | `pathing` | BASELINE | (内联) |
+| 36 | `recoverability` | BASELINE | write |
+| 37 | `write_policy` | BASELINE | write |
+| 38 | `pathing` | BASELINE | (内联) |
 | — | `survival_idle_drown` | EXTRA | survival |
 | — | `survival_shore_escape` | EXTRA | survival |
 | — | `survival_escape_air` | EXTRA | survival |
 | — | `survival_stop_in_hazard` | EXTRA | survival |
-| 38 | `survival_exit` | BASELINE | survival |
-| 39 | `protection_zones` | MAIN | protection |
+| 39 | `survival_exit` | BASELINE | survival |
+| 40 | `protection_zones` | MAIN | protection |
 | — | `safe_return` | EXTRA | protection |
 | — | `task_zone` | EXTRA | protection |
-| 40 | `bot_ownership` | MAIN | ownership |
+| 41 | `bot_ownership` | MAIN | ownership |
 | — | `bot_pair_no_recurse` | EXTRA | (内联) |
-| 41 | `break_refused` | MAIN | break_refused |
+| 42 | `break_refused` | MAIN | break_refused |
 | — | `far_path_bench` | EXTRA | (内联) |
 | — | `path_retry_bench` | EXTRA | (内联) |
 
 > 档位语义（`docs/BATTERY_CURATION.md` §1）：`BASELINE` = 坏了就不能信任 bot 的任何动作；`MAIN` = 当前主线；`EXTRA` = 已验收/与主线无关/贵 ⇒ 默认不跑（`/alice battery full` 才跑）。
-> **CORE = BASELINE + MAIN = 41 步**。
+> **CORE = BASELINE + MAIN = 42 步**。
 
 ## §5 机器级：它**能运营什么机器**（`MachineMap`）
 

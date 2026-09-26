@@ -1337,8 +1337,11 @@ public final class FishboneJob implements Job {
 
     /**
      * ⭐ **收尾行**（计划 §8）—— 真机验收的四条读数全在这一行：
-     * `main=`/`spurs=`（模板=事实）、`outside=`（没乱挖）、`searchNodes=`/`searchLimit=`（鱼骨的卖点）、
+     * `main=`/`spursAbandoned=`（模板=事实）、`outside=`（没乱挖）、`searchNodes=`/`searchLimit=`（鱼骨的卖点）、
      * `return=`（回得来）。
+     *
+     * <p>⚠️ `spursAbandoned=` 的**键名口径**见本方法内的 `1.4u` 注释：分子是**放弃数**（不是"未放弃数"）。
+     * 键名是与用户的契约，改它必须同步 `tools/kernel-predicates.py` 的 `rule_fishbone_live_log_shape`。
      *
      * <p>⚠️ `outside=` 的口径**逐字**是：自本作业第一 tick 起、`WriteAudit` 里 requester = `fishbone`
      * 的**破坏**条目中，位置**不在**（模板格 ∪ 本次挖掉的露头矿格）里的条数。别人的破坏不算。
@@ -1363,11 +1366,18 @@ public final class FishboneJob implements Job {
             }
         }
         String ret = !excavationStarted ? "n/a" : (returnedHome ? "ok" : "no");
-        BotLog.info("[Fishbone] SUMMARY dir={} main={}/{} spurs={}/{} abandoned={} mined={} skipped={}"
+        // ⭐ `1.4u`（2026-09-26，`F3`）：键名从 `spurs=<未放弃>/<总数>` 改成 `spursAbandoned=<放弃>/<总数>`。
+        // 病灶（真机实测）：原键名打印的是 `spurBranches()-spursAbandoned / spurBranches()` = **未放弃数/总数**，
+        // 于是"主巷只走了 1 格（`main=1/20`）"与"子巷一条都没开挖（`spurs=12/12`）"**并排出现** ⇒
+        // `12/12` 极易被读成"12 条子巷全挖完了"。改后**分子就是放弃数**、含义唯一，
+        // 且与紧挨着的 `abandoned=` 重复 ⇒ 顺手把重复字段去掉（一个数一个键）。
+        // ⚠️ 键名是与用户的**契约**（计划 §8）：本行改动 **必须** 同步 `tools/kernel-predicates.py`
+        // 的 `rule_fishbone_live_log_shape`（改一处不改另一处 ⇒ 门禁红，这正是它存在的意义）。
+        BotLog.info("[Fishbone] SUMMARY dir={} main={}/{} spursAbandoned={}/{} mined={} skipped={}"
                         + " ores={}/{} uncollected={} collected={}/{} searchNodes={} searchLimit={} return={}"
                         + " worldChangesInside={} outside={} ticks={} → {}",
                 dirLetter(template.dir()), mainUnitsDone, template.mainLength(),
-                template.spurBranches() - spursAbandoned, template.spurBranches(), spursAbandoned,
+                spursAbandoned, template.spurBranches(),
                 mined, skipped, oreMined, oreFound, oreUncollected, collectedProducts, oreMined,
                 delta.nodes(), delta.searchLimits(), ret, inside, outside, ticks,
                 terminalStatus == Task.Status.DONE ? "PASS" : "FAIL");

@@ -60,6 +60,11 @@ public final class MineBlockRunner {
     private boolean retryable;
     private BlockPos mineStartPos;
     private double mineStartEyeDist;
+    /**
+     * ⭐ `1.4x`（`K1` 前半，2026-09-26）：是否正因"目标格里有在飞的重力方块"而**暂停挖掘**。
+     * 只用于把暂停/恢复各打**一行**日志（每 tick 刷屏会把真机日志淹掉）。
+     */
+    private boolean pausedForFallingBlock;
     /** 本次挖掘的授权（D-082）：目标破坏用自身理由，放支撑块派生 SUPPORT_PLACEMENT。 */
     private final WriteGrant grant;
 
@@ -163,6 +168,17 @@ public final class MineBlockRunner {
     /** 供夹具/终态归因：本格是否出现过「垫不上」（`D-364`）。 */
     public boolean supportSkipped() {
         return supportSkipped;
+    }
+
+    /**
+     * ⭐ `1.4x` **供夹具/终态归因**：本格此刻是否正因"目标格里有在飞的重力方块"而暂停挖掘。
+     *
+     * <p>为什么必须暴露它：暂停的**物理后果**（"方块还没被挖掉"）在**没暂停**的实现里也成立
+     * （只要 tick 数不够）⇒ 光断言"方块还在"是**假的判据**。夹具要能把"走了暂停分支"这件事本身
+     * 变成断言（先例：`mineInPlace()` / `supportSkipped()` 同样只读）。
+     */
+    public boolean pausedForFallingBlock() {
+        return pausedForFallingBlock;
     }
 
     public void cancel() {
@@ -281,6 +297,32 @@ public final class MineBlockRunner {
     }
 
     private Status tickBreak() {
+        // ⭐ `1.4x`（2026-09-26，`survey/35 §9` 桶3-4 / 缺口清单 `K1` 的**前半**）：
+        // **重力方块挖掘期暂停** —— 逐字对照 Baritone `pathing/movement/Movement.java:157-160`
+        // （`prepared()` 里：`positionsToBreak` 任一格有 `FallingBlockEntity` 且
+        // `pauseMiningForFallingBlocks` ⇒ **return false** ⇒ 本 tick 不发挖掘输入）。
+        //
+        // 病灶：挖掉一格沙砾/沙后**它要 2 tick 才落完**；Alice 此前在这 2 tick 里照样对着同一格推进度、
+        // 或已经走开 ⇒ 落体正好把刚挖通的格填回，回程路当场消失。与 `F1` 同族：`F1` 是**空间**维度判据错位，
+        // 本条是**时间**维度判据失同步。
+        //
+        // 纪律（三条，都不许省）：① **只暂停、不失败**（返回 `MINING`，不是 `fail(...)`）；
+        // ② **不 tick `breakSession`** ⇒ 不推进进度、**不消耗** `MAX_BREAK_TICKS` 那 60 秒预算、不重复扣账；
+        // ③ **成本模型刻意不动** —— `includeFalling`（桶3-5）是另一案，本条绝不碰搜索代价。
+        if (fallingBlockInTargetCell()) {
+            if (!pausedForFallingBlock) {
+                pausedForFallingBlock = true;
+                BotLog.info("[MineRunner] pause_falling target={}（目标格里有在飞的重力方块 ⇒ 本 tick 不挖，"
+                                + "等它落地；Baritone Movement.java:157-160）", target.toShortString());
+            }
+            status = Status.MINING;
+            return status;
+        }
+        if (pausedForFallingBlock) {
+            pausedForFallingBlock = false;
+            BotLog.info("[MineRunner] resume_falling target={}（目标格已无落体 ⇒ 继续挖掘）",
+                    target.toShortString());
+        }
         if (breakSession == null) {
             if (!BlockInteraction.breakable(bot, level, target, grant)) {
                 return fail("TARGET_NOT_BREAKABLE", "precondition", false);
@@ -330,6 +372,23 @@ public final class MineBlockRunner {
         }
         status = Status.MINING;
         return status;
+    }
+
+    /**
+     * ⭐ `1.4x` 的**唯一出处**：目标格里是否已经有**在飞的落体方块实体**。
+     *
+     * <p>逐字对照 Baritone `Movement.java:157-159` 的盒子：
+     * {@code new AABB(0, 0, 0, 1, 1.1, 1).move(blockPos)} —— Y 方向多出的 `0.1` 是为了罩住
+     * "正落进这一格、AABB 还没对齐"的实体（原版 `FallingBlockEntity` 的碰撞箱约 0.98³）。
+     *
+     * <p>⚠️ 与 `road/RoadBuilder:136`、`task/RoadBuildTask:234` 那两处**刻意不合并**：那两处的盒是
+     * "单元 ±1.5 格 × 净空高度"的**区域**扫描（造路要等整段稳定），本条是**单格**判据（挖掘期暂停）。
+     * 合成一个反而要加一个"是单格还是区域"的参数 —— 那才是同一判据两个出处。
+     */
+    private boolean fallingBlockInTargetCell() {
+        return !level.getEntitiesOfClass(net.minecraft.world.entity.item.FallingBlockEntity.class,
+                new net.minecraft.world.phys.AABB(0.0D, 0.0D, 0.0D, 1.0D, 1.1D, 1.0D)
+                        .move(target.getX(), target.getY(), target.getZ())).isEmpty();
     }
 
     private Status fail(String reason, String phase, boolean retryable) {

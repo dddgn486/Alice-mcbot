@@ -55,7 +55,8 @@ import net.minecraft.world.level.Level;
  * 或 `/alice come` 叫它到你**旁边**，再按一次右键。
  *
  * <p><b>你要看什么</b>（计划 §8）：`[Fishbone] SUMMARY` 一行里的
- * `main=…/… spurs=…/…`（模板 = 事实）· `outside=0`（没乱挖）· `searchLimit=0` +
+ * `main=…/… spursAbandoned=…/…`（模板 = 事实；键名口径见 `1.4u`：分子**就是**放弃数）·
+ * `outside=0`（没乱挖）· `searchLimit=0` +
  * `searchNodes` 量级（鱼骨的卖点）· `return=ok`（回得来）；外加观感（巷道直不直、卡不卡、
  * 矿簇挖干净没、掉落物捡没捡）。
  *

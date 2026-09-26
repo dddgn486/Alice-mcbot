@@ -279,10 +279,11 @@ public final class MineJob implements Job {
         this.kindPlan = MineKindPlan.resolve(bot.serverLevel(), spec.kindQuotas());
         this.minedByKind = new int[kindPlan.entries().size()];
         this.itemsBefore = countTargetItems();
-        // ⭐ `D-362`：把"**这些格是本任务的目标**"登记到唯一的世界写入闸门上（`BlockInteraction`）——
-        // 于是清障（`PATH_ACCESS`）**再也不会吃掉任务矿**：开路时规划器只能绕行，绕不过去就**如实失败**。
-        // 真机实测的靶子：第一轮第 8 个目标为了站上 `479,68,104` 把那一格的煤当障碍挖了（它本身就是同簇候选）。
-        com.dddgn.alice.action.TaskTargetProtection.begin(bot, jobName(), this::protectedFromClearance);
+        // ⚠️ `D-362` 的任务保护作用域**不在这里装**（`1.4r`，2026-09-26）：构造器早于
+        // `BotSession.beginTask`，而后者会**按 botId 清空**这份作用域 ⇒ 生产侧"装上即被清"、
+        // 整条作业保护为空（真机路径逐字取证见台账 `1.4r`）。安装点已移到**首 tick**
+        // （见 `tickOnce()` 里的 `scopeStarted` 块）⇒ `beginTask` 的清空天然落在装之前。
+        // 结构门禁：`tools/check-protection-install-point.py`（构造器体内出现 `begin*` ⇒ 红）。
         BotLog.info("[MineJob] productFilter={}（J-6：目标驱动，不再硬编码原版矿物）",
                 productFilter.describe());
         if (kindPlan.active()) {
@@ -398,6 +399,14 @@ public final class MineJob implements Job {
         if (!scopeStarted) {
             scopeStarted = true;
             scope.begin(spec.center(), spec.radius(), bot.getUUID());
+            // ⭐ `D-362` + `1.4r`（2026-09-26）：把"**这些格是本任务的目标**"登记到唯一的世界写入闸门上
+            // （`BlockInteraction`）—— 于是清障（`PATH_ACCESS`）**再也不会吃掉任务矿**：开路时规划器只能绕行，
+            // 绕不过去就**如实失败**。真机实测的靶子：第一轮第 8 个目标为了站上 `479,68,104` 把那一格的煤
+            // 当障碍挖了（它本身就是同簇候选）。
+            // ⚠️ **为什么必须在首 tick、不能回构造器**：`BotSession.beginTask`（`BotManager:1998`）会按 botId
+            // **清空**这份作用域，而它跑在 `create() → beginTask()` 之间 ⇒ 构造器装的必然被清（生产侧护栏一直是空的，
+            // 而电池"直驱子任务"看不到 = 结构性盲区）。放这里 ⇒ 清空天然在装之前，顺序不可能再错。
+            com.dddgn.alice.action.TaskTargetProtection.begin(bot, jobName(), this::protectedFromClearance);
             // ⭐ `P3`（用户 2026-09-22 裁定）：给本作业一条**「本作业声明范围内 + 只认本作业目标产物」**
             // 的收集授权 —— 作业自己挖出来的落物即使**没配上破坏事件**（连锁模组缓冲/延迟生成/窗口错过）
             // 也收得起来；而**范围内的玩家丢的东西**仍是 `FOREIGN`（被动闸门照旧拦）。

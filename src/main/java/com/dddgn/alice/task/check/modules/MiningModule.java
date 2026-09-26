@@ -253,7 +253,18 @@ public final class MiningModule implements CheckModule {
                 // EXTRA（自建孤立石盒 + 三臂作业，不进 CORE）；自带场景 ⇒ 不依赖前序模块 ✓
                 CheckStep.of("fishbone_slice2", CheckProfile.EXTRA, List.of(), null,
                         // 兜底必须宽于夹具自己的 `BUDGET_TICKS`（5000）—— 同 `fishbone_slice1` 的坑。
-                        () -> new FishboneSlice2CheckTask(bot, observer, scope), 5600));
+                        () -> new FishboneSlice2CheckTask(bot, observer, scope), 5600),
+                // ⭐⭐ `1.4x`（2026-09-26，`survey/35 §9` 桶3-4 / 缺口清单 `K1` 前半）：**重力方块的
+                // 「挖掘期暂停」**——目标格里有在飞的 `FallingBlockEntity` ⇒ 本 tick 不挖
+                // （逐字对照 Baritone `Movement.java:157-160`）。病灶 = 挖通一格后沙砾 2 tick 才落完，
+                // 落体正好把刚挖的格填回、回程路当场消失。
+                // 四臂：暂停（直接证据 + 窗口内一格没挖动）/ 恢复（挖穿，暂停不许永久）/ 两个**负对照**
+                // （落体在目标上方 2 格 / 侧向 2 格 ⇒ **不许**暂停）。
+                // **进 CORE（`MAIN`）的理由**：① 便宜（自建 11×11×6 石盒 + 3 次真破坏，约 150 tick）；
+                // ② 它护的是一条**新加进内核的行为**，删掉/退化它**静态门禁看不出来**（`pausedForFallingBlock`
+                // 只在执行期产生）⇒ 放 EXTRA 等于"下次改坏了没人知道"（同 `break_enter_head_blocked` 的理由）。
+                CheckStep.of("mine_falling_pause", CheckProfile.MAIN, List.of(), null,
+                        () -> new com.dddgn.alice.task.FallingPauseCheckTask(bot, observer), 900));
     }
 
     /** 传送到统一起点（与电池 `teleportBot` 逐字段一致 ✓；顺带起"先热区块再 fill"的作用 ✓）。 */

@@ -1170,16 +1170,28 @@ def rule_search_limit_not_unreachable():
     # **聚合闸门**里也有一份（`plan()` 的三腿合取）⇒ 只查"仓库里有没有这个子串"会被它满足，
     # 回退 `standableOnly` 的掩蔽点照样 PASS（本规则第一版**实测就是这样漏的**，注入臂 B 没红）。
     # ⇒ 改成"在 `if (standableOnly) {` 之后的第一个 `no_reachable_standing_point` 之前必须出现"。
+    # ⭐⭐ `1.4w`（2026-09-26）**把这条断言从"只认 `SEARCH_INCOMPLETE`"升级为"一律原样上抛"**：
+    # 原来这里钉的是那个字面子串，于是"只放行 `search_incomplete`、其余一律改写成总括码"被**固化**成
+    # 合格形状 —— 而真机第五轮的病灶恰恰是总括码吃掉了 `no_valid_standing_point`（缺地板被伪装成
+    # "站位找不到"）。现在钉的不变量**更强**：① 腿给出的理由**原样上抛**（`return direct;`）；
+    # ② 兜底码 `no_reachable_standing_point` **必须受"腿没给出理由"保护**（`.isEmpty()`）。
+    # `SEARCH_INCOMPLETE` 是真子集（它非空 ⇒ 照旧被上抛），所以这条更强且不含例外。
     standable = re.search(
-        r"if \(standableOnly\) \{(.{0,800}?)"
+        r"if \(standableOnly\) \{(.{0,1500}?)"
         r"return new Result\(null, null, \"no_reachable_standing_point\"\);",
         planner_code, re.S)
     if not standable:
         problems.append("`MiningPlanner.plan` 的 `standableOnly` 早返回结构变了 ⇒ 本规则要跟着改")
-    elif "SEARCH_INCOMPLETE.equals(direct.failureReason())" not in standable.group(1):
-        problems.append("`standableOnly` 早返回没有保留 `SEARCH_INCOMPLETE`"
-                        " ⇒ `MiningProfile.STANDABLE_ONLY`（鱼骨逐格 `MineTask` 用的就是它）上"
-                        "「没算完」仍会被改写成「站不住」（`P1-d`）")
+    else:
+        block = standable.group(1)
+        if "return direct;" not in block:
+            problems.append("`standableOnly` 早返回不再**原样上抛**腿给出的理由"
+                            " ⇒ `MiningProfile.STANDABLE_ONLY`（鱼骨逐格 `MineTask` 用的就是它）上"
+                            "「没算完」与「没站位」都会被改写成总括码（`P1-d` / `1.4w`）")
+        elif ".isEmpty()" not in block:
+            problems.append("`standableOnly` 的兜底码 `no_reachable_standing_point` 不再受"
+                            "「腿到底有没有给出理由」保护 ⇒ 真理由（如 `no_valid_standing_point`："
+                            "缺一格地板）会被总括码吃掉（`1.4w`，`survey/35 §9` 桶3-3）")
     if "SEARCH_INCOMPLETE.equals(result.failureReason())" not in planner_code:
         problems.append("`planTunnel` 结尾不再逐字保留 `SEARCH_INCOMPLETE`"
                         " ⇒ `P1-b` 的修法被回退")
@@ -1619,6 +1631,10 @@ def rule_fishbone_live_log_shape():
 
     断言（改任一处 ⇒ 红）：三行的**行首标签**存在，且各自的**键**齐全。
 
+    ⭐ `1.4u`（2026-09-26）：收尾行的 `spurs=<未放弃>/<总数>` + 重复的 `abandoned=` 已并成
+    **`spursAbandoned=<放弃>/<总数>`**（原键名与 `main=1/20` 并排时会被读成"子巷全挖完了"）。
+    这条断言正是"改标签必须同时改契约"的那道闸门 —— 只改一边 ⇒ 这里红。
+
     ⚠️ `D-439` 加了 `uncollected=`（挖掉了但掉落物没进包的矿格数）—— 它与 `ores=` 的分子
     （= 破坏数）是**两件事**：追簇的深格矿常常"挖得掉、捡不回"，压成一个数就会让 `ores=` 说谎。
     """
@@ -1637,7 +1653,7 @@ def rule_fishbone_live_log_shape():
         ("推进行", "[Fishbone] advance=",
          ["cell=", "mined=", "spurs=", "ores=", "searchNodes=", "products="]),
         ("收尾行", "[Fishbone] SUMMARY dir=",
-         ["main=", "spurs=", "abandoned=", "mined=", "ores=", "uncollected=", "collected=",
+         ["main=", "spursAbandoned=", "mined=", "ores=", "uncollected=", "collected=",
           "searchNodes=", "searchLimit=", "return=", "outside=", "→ "]),
     ]
     for label, head, keys in lines:
