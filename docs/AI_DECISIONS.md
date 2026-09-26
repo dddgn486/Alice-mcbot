@@ -20362,7 +20362,7 @@ oreMined=7 oreFound=7 oreDeferred=0 places=1`，日志逐字
 **不能让他直接把空气当通道一部分吗**」+「主巷有一格空的……理论上应该自动补上主巷的空位」
 ⇒ 本条落地的是**前半句**（空气就是通道的一部分 ⇒ 该跳过的必须跳过）；**后半句（补格 vs 放弃）留给 `F2`**（需一次裁定，台账 `1.4t`）。
 
-**事实（第五轮真机 4/4，逐字见 `docs/reviews/2026-09-26-真机第五轮-自检报告-空气与通道成品规格.md`）**：
+**事实（第五轮真机 4/4，逐字见 `docs/reviews/archive/2026-09-26-真机第五轮-自检报告-空气与通道成品规格.md`）**：
 4 次启动**每次都死在单元的 `cell=2/2`（头位格）**；探针
 `no_valid_standing_point target=-75,72,233 faceStandable=0/6 footPassable=true headPassable=false belowSolid=false`
 —— `footPassable = canWalkThrough(target)` ⇒ **作业在要求 `MineTask` 挖一格已经是空气的格子**。
