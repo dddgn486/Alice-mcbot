@@ -49,7 +49,11 @@ if [[ -f "${target}" ]]; then
   cp -p "${target}" "${backup}"
 fi
 
-cp -f "${ARTIFACT}" "${target}"
+# ⭐ 原子替换（2026-09-26 真机崩溃的硬化）：**不许 `cp -f` 就地覆写运行中的 jar**。
+#     Forge/ModLauncher 启动时只读一次 zip 中央目录，之后按**偏移**懒加载类 ⇒ 被覆写后
+#     第一个没加载过的类会 `NoClassDefFoundError`（实测 19:00:42 崩在 SelfWriteConsistency）。
+#     同目录 `mv` 换的是目录项、不动旧 inode ⇒ 运行中的客户端仍读旧数据，崩溃不可能发生。
+cp -f "${ARTIFACT}" "${target}.new" && mv -f "${target}.new" "${target}"
 target_hash="$(sha256sum "${target}" | awk '{print $1}')"
 if [[ "${source_hash}" != "${target_hash}" ]]; then
   echo "ERROR: repository artifact hash mismatch" >&2
@@ -68,7 +72,8 @@ if [[ -n "${RUNTIME_MODS}" ]]; then
   if [[ -f "${runtime_target}" ]]; then
     cp -p "${runtime_target}" "${runtime_target}.bak.$(date +%Y%m%d-%H%M%S)"
   fi
-  cp -f "${ARTIFACT}" "${runtime_target}"
+  # ⭐ 原子替换（同上）：运行中的客户端持有旧 inode ⇒ 不崩
+  cp -f "${ARTIFACT}" "${runtime_target}.new" && mv -f "${runtime_target}.new" "${runtime_target}"
   runtime_hash="$(sha256sum "${runtime_target}" | awk '{print $1}')"
   if [[ "${source_hash}" != "${runtime_hash}" ]]; then
     echo "ERROR: runtime artifact hash mismatch" >&2
