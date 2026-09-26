@@ -1441,3 +1441,4 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 - **仍未做**：`F2`（缺地板 补 vs 放弃，需裁定）· `F3`（`SUMMARY spurs=` 标签，台账 `1.4u`）·
   `I5` 破坏面（`1.4s`）· `1.4r`（`D-362` 安装点疑似被 `beginTask` 清掉，缺一行运行时确认）·
   "F1 之后能否越过 `belowSolid=false` 处"（属 `F2`）。
+- **jar（`F1` 轮）**：sha256 `d04f5afa98108e38646d7119f5a4eb8b11b9378b0d400a025f96a98b31f4b1b8`（已镜像到 `D:\JAVA_projects\alice\build\libs\` 与固定客户端 `mods/`）。commit `8f86dc3`。
