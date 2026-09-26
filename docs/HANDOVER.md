@@ -1421,3 +1421,23 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 - **下一步**：真机客户端轮（入口不变：那个鱼骨作业工具）；看 `segment_stall` 保持 0、`return=ok`、
   以及 `[Ledger] skip … 区外` 不再伴随"自己的通道格被填"。
 - **jar**：`build/libs/alice-1.0.0-1.20.1.jar` sha256 `5b76cb2f2a6dafe0ee5ab5838fff32be17a7bab78c97cbdd925e472efcf04996`（已镜像到 `D:\JAVA_projects\alice\build\libs\` 与固定客户端 `mods/`）。commit `414818b`。
+
+## 10. 2026-09-26 补记⑥：`F1` 落地（`D-447`）—— 「空气就是通道的一部分」
+
+- **用户请求**：「现在 bot 启动还是要起点旁边要有一堵墙才行，不然不让启动，**不能让他直接把空气当通道一部分吗**」
+  （+「主巷有一格空的……理论上应该自动补上主巷的空位」⇒ 后半句是 `F2`，**未做**，台账 `1.4t`）。
+- **一条改动**：`FishboneJob.isAlreadyPassable` = `MovementHelper.canWalkThrough(level, cell)`
+  （原为 `bodyPassable` = 本格 ∧ **上面一格**）。判据 `public static` 以便夹具复用同一处出处。
+- **为什么这一条就够**：`cells()` 本来就逐格展开 ⇒ ① 脚位空 ⇒ 跳；② 头位空 ⇒ 跳（不再产生"挖空气"的请求）；
+  ③ 脚位空 + 头位实（半成品格）⇒ 脚位跳、**头位照常挖**（`I3`）。
+- **真机症状（第五轮 4/4）**：每次都死在 `cell=2/2`（头位格）+ 探针 `footPassable=true`（在挖空气）
+  ⇒ `no_valid_standing_point` ⇒ 主巷整作业失败。旧判据被问头位格时实际在问「头位 + 天花板」，天花板恒实心。
+- **证据（全部 `ALICE_BATTERY_NO_CACHE=1`）**：新步 `corridor_skip_predicate` 绿 `9/0`
+  （`DUG new=[true/true] old=[true/false]` = 真机签名逐字复现）· 红臂（退回旧谓词）`failures=2` ·
+  `fishbone_slice1/2 = 42/0 · 88/0`（计数一字未变）· **CORE PASS（246 s）** · 提交与 sha 见下。
+- ⚠️ **夹具自身事故一条**：首版把 bot 传送到 `ORIGIN`（FRESH 单元的**脚位石**）⇒ 被塞进实心方块 ⇒
+  维生监测判 `SUFFOCATING` 打断整台电池（`verdict=no_verdict exit=3`）⇒ 改为**先建盒 → 凿 bot 站位 → 最后传送**，
+  并把"站位可站"写成前提断言。
+- **仍未做**：`F2`（缺地板 补 vs 放弃，需裁定）· `F3`（`SUMMARY spurs=` 标签，台账 `1.4u`）·
+  `I5` 破坏面（`1.4s`）· `1.4r`（`D-362` 安装点疑似被 `beginTask` 清掉，缺一行运行时确认）·
+  "F1 之后能否越过 `belowSolid=false` 处"（属 `F2`）。

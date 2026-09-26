@@ -594,13 +594,41 @@ public final class FishboneJob implements Job {
     }
 
     /**
-     * 一格是否**已经可通行**（跳过、不重复挖）。
+     * 一格是否**已经可通行**（跳过、不重复挖）。⭐ **判据是单格的**（`F1` / `1.4j①` / `D-443` 片 C `P1`）。
      *
-     * <p>用 `bodyPassable` 而不是"是不是空气"：1 格高的洞、水、草这类**非空气但可通行**的格也算通
-     *（判据 C1 只要求"模板格为空气"，但**跳过**的语义是"不用挖"）⇒ 两件事分开表达，别混。
+     * <p>⚠️ **2026-09-26 真机第五轮把这个判据钉死了（4/4）**：本方法原先返回
+     * {@link MovementHelper#bodyPassable}（= 本格 **∧ 上面一格**），而调用方给的是
+     * {@code cells()} **逐格**展开的格子 ⇒ 判据与粒度不匹配，两个后果：
+     * <ul>
+     *   <li><b>被问的是头位格时</b>（`cell=2/2`，本轮 4/4 次失败都在这一格），判据实际在问
+     *       "头位 + **天花板**"，而通道天花板**恒为实心**（本轮任务只挖 `cells()`，从不碰天花板）
+     *       ⇒ 头位格**永远不被判成"已通"** ⇒ 去 {@code MineTask} 挖一格**已经是空气**的格子
+     *       ⇒ `LineOfSightChecker` 永远看不见空气 ⇒ `no_valid_standing_point`
+     *       ⇒ 主巷 ⇒ **整个作业失败**（用户报的「主巷有一格空的，他就放弃了」）；</li>
+     *   <li><b>被问的是脚位格，且该格是"半成品格"时</b>（脚位已空 + 头位实心），同样问成两格 ⇒
+     *       去挖空气 ⇒ 同一条死路。</li>
+     * </ul>
+     * <p>用户的现场感受就是「**要起点旁边有一堵墙才能启动**」—— 因为只有"前方第一格是实心"
+     * 才会走"正常挖"那条路；前方若已是空气（本轮的已开采区里是常态）⇒ 5 tick 内必死。
+     *
+     * <h3>为什么单格谓词就自洽（三步同时成立）</h3>
+     * 因为 `cells()` 本来就**逐格**展开（每单元 = 脚位格 + 头位格），所以：
+     * <ol>
+     *   <li>脚位格空气 ⇒ 跳过；头位格空气 ⇒ 跳过 ⇒ 单元完成（**不再产生"挖空气"的请求**）；</li>
+     *   <li>脚位格实心 ⇒ 照常 `MineTask`（新走廊照挖，**没把正常路径禁掉**）；</li>
+     *   <li>⭐ **半成品格**（脚位空 + 头位实）⇒ 脚位跳过、**头位格照常被挖** ⇒ 单元补齐 ——
+     *       这就是 `I3`（不留半成品格）在**同一处判据**下的落地形态；`F1` 的红臂第三条专钉它。</li>
+     * </ol>
+     *
+     * <p>判据仍是"**不用挖**"而不是"是不是空气"（保留 1 格高洞 / 草 / 水那类**非空气但可通行**的格）——
+     * 但**再看本格自己**：`canWalkThrough(cell)`，不看上面那一格（那属于"两格身位"的语义，
+     * 由 `MovementHelper.bodyPassable` 表达，两者刻意分开）。
+     *
+     * <p>⚠️ 公开为 `static` 是给夹具复用**同一处出处**用的（先例：`advanceRefusalIsHard`，
+     * `FishboneSlice2CheckTask` 直接判生产判据，不在夹具里照抄一份 `if`）。
      */
-    private boolean isAlreadyPassable(ServerLevel level, BlockPos cell) {
-        return MovementHelper.bodyPassable(level, cell);
+    public static boolean isAlreadyPassable(ServerLevel level, BlockPos cell) {
+        return MovementHelper.canWalkThrough(level, cell);
     }
 
     // ==================== 切片 2：支巷（§10.2 两档处置） ====================

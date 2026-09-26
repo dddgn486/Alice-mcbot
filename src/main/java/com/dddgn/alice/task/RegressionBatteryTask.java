@@ -260,6 +260,11 @@ public final class RegressionBatteryTask implements Task {
             // 本步含**负对照**（撤掉作用域必须看得见那条边）⇒ 判据不会永远绿。
             // EXTRA：自建并还原一个 6×9×6 实心盒 + 2 次规划 + 2 次候选生成（规划级、毫秒级）。
             Map.entry("channel_place_guard", Profile.EXTRA),
+            // ⭐ `F1`/`1.4j①`（2026-09-26 真机第五轮 4/4）：鱼骨「这一格算不算已经通」必须是**单格判据**。
+            // 真机形态：每次死在 `cell=2/2`（头位格）+ 探针 `footPassable=true`（在挖空气）⇒ 主巷整作业失败。
+            // 三几何（FRESH/DUG/HALF）+ **旧谓词负对照**（防"永远绿"）；红臂 = 判据退回 `bodyPassable`。
+            // EXTRA：自建并还原一个实心石盒（3 单元 × 约 300 格），纯谓词判定（毫秒级）。
+            Map.entry("corridor_skip_predicate", Profile.EXTRA),
             // D-336：斜向上升那一格（规划级：能力 + 信封）
             Map.entry("place_step_diagonal", Profile.EXTRA),
             // ⭐ `D-374`（2026-09-21）：**脚位空、头位实**的目的地必须有入边（内核图完整性；

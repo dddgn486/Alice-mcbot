@@ -87,6 +87,11 @@ public final class PathingModule implements CheckModule {
                 CheckStep.of("channel_place_guard", CheckProfile.EXTRA, List.of(), null,
                         () -> new com.dddgn.alice.task.ChannelPlaceGuardCheckTask(bot, ctx.observer()),
                         400),
+                // ⭐ `F1`/`1.4j①`（2026-09-26 真机第五轮 4/4）：鱼骨「这格算不算已经通」= **单格判据**。
+                // 三几何 + 旧谓词负对照；真机探针签名（footPassable=true / headPassable=false）逐字复现。
+                CheckStep.of("corridor_skip_predicate", CheckProfile.EXTRA, List.of(), null,
+                        () -> new com.dddgn.alice.task.CorridorSkipPredicateCheckTask(bot, ctx.observer()),
+                        300),
                 // D-336（2026-09-19）：**斜向上升那一格**（规划级）—— 能力 + 信封两用例，互为反证。
                 CheckStep.of("place_step_diagonal", CheckProfile.EXTRA, List.of(), null,
                         () -> new PlaceStepDiagonalCheckTask(bot, ctx.observer()), 400),
