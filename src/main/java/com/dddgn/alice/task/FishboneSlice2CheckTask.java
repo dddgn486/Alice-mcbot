@@ -132,11 +132,15 @@ public final class FishboneSlice2CheckTask implements Task {
      */
     private static final int FLOOR_VEIN_DEPTH = 1;
 
-    /** 整盒边界（建场景 / 期望表 / 断言**共用**）。 */
+    /** 整盒边界（建场景 / 期望表 / 断言**共用**）。⭐ 东界按**本臂的主巷长度**推导（额度臂长 20 ⇒ 盒也要跟着长）。 */
     private static final int BOX_MIN_DX = -2;
-    private static final int BOX_MAX_DX = MAIN_LENGTH + 3;
     private static final int BOX_MIN_DY = -2;
     private static final int BOX_MAX_DY = HEIGHT + 2;
+
+    private static int boxMaxDx(Arm arm) {
+        return mainLength(arm) + 3;
+    }
+
     /** 支巷长 3 格（`dz = -1..-3`）+ 一圈石壳（`-4`）+ 余量 ⇒ 5。 */
     private static final int BOX_HALF_DZ = 5;
 
@@ -153,6 +157,53 @@ public final class FishboneSlice2CheckTask implements Task {
     private static final int SALVAGE_JOB_MAX_TICKS = 160;   // 实测：矿 +20 tick、它的周期收集 +40 完成、整模板 ~240 ⇒ 160 必失败且已收到产物
     /** ⭐ `1.4z-d`：本臂的顶棚露头矿占哪个主巷单元（离起点最近 ⇒ 预算掐短也能挖到）。 */
     private static final int[] SALVAGE_ORE_UNITS = {1};
+
+    /**
+     * ⭐ 臂⑥ `CHANNEL_FLOOR_FILLED` / 臂⑦ `CHANNEL_FLOOR_BUDGET`（`F2` / `D-450` / `I2`）：
+     * **主巷行走层的支撑格缺失**（真机第五轮那一幕）。
+     *
+     * <p>哪几个主巷单元的**脚位格正下方**被凿成空洞（0-based 单元下标；0 = 起点自己的脚位，留给 bot 站）。
+     */
+    private static final int[] FLOOR_GAP_UNITS = {1, 2, 3, 4, 5};
+
+    /**
+     * 空洞**深度**（格）。
+     *
+     * <p>⚠️ **必须 ≥2**（依据是臂④已经实测过的同一条边界，不是推测）：只缺 1 格时那一格自己就是**坑底** ——
+     * bot 可以**站进坑里**（`canWalkOn(坑格)` 为真）斜向上够到目标 ⇒ **不致命**。
+     * 臂④的 `floorVeinCells()` 注释逐字记着这件事（"只挖掉 1 格时 bot 站在洞里还能斜向上够到下一格"）。
+     * 深度 2 ⇒ 坑里也没有支撑（下面就是盒外空气）⇒ 真机那一幕（`belowSolid=false` + `faceStandable=0/6`）才成立。
+     */
+    private static final int FLOOR_GAP_DEPTH = 2;
+
+    /**
+     * ⭐ 臂⑦（**额度臂**）的主巷长度：**必须长到把搭路额度吃光**。
+     *
+     * <p>额度 = `max(16, 单元数/10)`（`D-443` 裁定 7a）⇒ 主巷 20 ⇒ 单元 20 / 格 40 ⇒
+     * `max(16, 4)` = **16** ⇒ 20 个缺口单元**必然**超过额度 ⇒ 推进到一半就该「额度用尽 ⇒ 如实放弃」。
+     *
+     * <p>为什么用"额度用尽"而不是"没原料"来造这条臂（第一版实测教训）：想让 bot **拿不到**一次性方块，
+     * 得让它挖出来的掉落物**够不着**；但原版拾取用的是「AABB 各向外扩 1 格（垂直 0.5）」，
+     * 而挖掘站位必然贴着目标 ⇒ **头位格的掉落物在 10 tick 拾取延迟里正好落在那只扩充盒里**被捡走
+     * （实测：洞挖到 10 格深，`[WRITE] place … cobblestone` 照样出现）⇒ "没原料"在这套几何里**造不出来**。
+     * 额度用尽则是**计数事实**（`D-443` 7b 明写它才是主巷该停的那一档），确定性好得多。
+     */
+    private static final int BUDGET_MAIN_LENGTH = 20;
+
+    /** 收尾要清的**最大**盒子（各臂盒长不同，收尾按最大的那个清）。 */
+    private static final int CLEANUP_MAX_DX = BUDGET_MAIN_LENGTH + 3;
+
+    /**
+     * 臂⑦的**期望额度**（独立写死，不调生产）：`max(16, 单元数/10)`，单元 20 ⇒ 格 40 ⇒ `max(16, 4)` = 16。
+     *
+     * <p>⚠️ 必须**独立**给出：调生产的 `bridgeBlockBudget()` 会让判据自指（生产把额度改错也照样绿）。
+     */
+    private static final int FLOOR_BUDGET_EXPECTED = 16;
+
+    /** 臂⑥给 bot 的**一次性方块**数（补格的原料；臂⑦给更多，免得"没料"混进额度判决里）。 */
+    private static final int FLOOR_REPAIR_BLOCKS = 16;
+    private static final int FLOOR_REPAIR_BLOCKS_BUDGET = 32;
+
     private static final int SETTLE_CAP = 40;
 
     /** `C3` 的两条规模上界（与切片 1 同口径；多出的支巷退路/收集是**常数**级开销）。 */
@@ -160,7 +211,16 @@ public final class FishboneSlice2CheckTask implements Task {
     private static final int NODES_PER_ADVANCE = 40;
     private static final int TICK_COST_REPORT_ONLY = 250;
 
-    private enum Arm { SPUR_TUNNEL, SPUR_ABANDONED, ORE_IN_PLACE, ORE_VEIN_CHASE, SALVAGE_ON_FAIL }
+    private enum Arm {
+        SPUR_TUNNEL, SPUR_ABANDONED, ORE_IN_PLACE, ORE_VEIN_CHASE, SALVAGE_ON_FAIL,
+        /** ⭐ `F2`（`D-450`）：缺支撑格 + 有原料 ⇒ **既有的走位补路机制**必须把它补回来。 */
+        CHANNEL_FLOOR_FILLED,
+        /** ⭐ `F2` 负例 A：缺口长到吃光搭路额度 ⇒ 用尽之后必须走「独立归因码如实放弃」。 */
+        CHANNEL_FLOOR_BUDGET,
+        /** ⭐ `F2` 负例 B（**归因**那条）：盒子是**干草**（掉小麦 ⇒ 永远没有一次性方块）⇒ 站位类失败必须
+         *  说出「地板没了」。 */
+        CHANNEL_FLOOR_NO_MATERIAL
+    }
 
     private enum Phase { SETUP_ARM, SETTLE, RUN, ASSERT, CLEANUP, DONE }
 
@@ -249,9 +309,80 @@ public final class FishboneSlice2CheckTask implements Task {
     // ==================== 模板（每臂一份；几何真源只有 `FishboneTemplate`） ====================
 
     private FishboneTemplate templateFor(Arm arm) {
-        return arm == Arm.ORE_IN_PLACE
-                ? FishboneTemplate.main(ORIGIN, DIR, MAIN_LENGTH)
+        return mainOnly(arm)
+                ? FishboneTemplate.main(ORIGIN, DIR, mainLength(arm))
                 : FishboneTemplate.spurs(ORIGIN, DIR, MAIN_LENGTH, SPUR_SPACING, SPUR_LENGTH, SIDE);
+    }
+
+    /** 本臂的主巷长度（额度臂刻意长到把额度吃光；其余与切片 2 的其他臂一致）。 */
+    private static int mainLength(Arm arm) {
+        return arm == Arm.CHANNEL_FLOOR_BUDGET ? BUDGET_MAIN_LENGTH : MAIN_LENGTH;
+    }
+
+    /** ⭐ `F2` 臂⑦的缺口单元 = **整条主巷**（⇒ 必然超过额度 16）。 */
+    private int[] floorGapUnits(Arm arm) {
+        if (arm != Arm.CHANNEL_FLOOR_BUDGET) {
+            return FLOOR_GAP_UNITS;
+        }
+        int[] all = new int[mainLength(arm)];
+        for (int i = 0; i < all.length; i++) {
+            all[i] = i + 1;
+        }
+        return all;
+    }
+
+    /**
+     * 臂⑧的**盒材质** = 干草（`F2` 负例 B）。
+     *
+     * <p>为什么是干草：本臂要构造「**bot 永远拿不到一次性方块**」这个前提，而它只能靠"挖出来的东西不可放"
+     * 来实现 —— 普通石头掉圆石（可放）、精准采集掉石头（也可放）；**干草掉小麦**（`Item` 而非 `BlockItem`
+     * ⇒ `findPlaceableSlot` 永远选不到）✓ 且干草是**不透明整方块**（视线/支撑语义与石头一致，
+     * 不像玻璃会让 `ClipContext` 的判定变得可疑）。前提仍然在夹具里**自断言**（`findPlaceableSlot < 0`）。
+     */
+    private static net.minecraft.world.level.block.Block boxMaterial(Arm arm) {
+        return arm == Arm.CHANNEL_FLOOR_NO_MATERIAL ? Blocks.HAY_BLOCK : Blocks.STONE;
+    }
+
+    /** 本臂用**纯主巷**模板（不带支巷）：几何越简单，"缺一格地板"这件事越不可能被支巷逻辑掩盖。 */
+    private static boolean mainOnly(Arm arm) {
+        return arm == Arm.ORE_IN_PLACE || floorGapArm(arm);
+    }
+
+    /** ⭐ `F2` 三条臂共用同一套几何（`CHANNEL_FLOOR_NO_MATERIAL` 只换了盒材质与给料）。 */
+
+    /** ⭐ `F2` 的两条臂（正例 + 负例）共用同一套"缺支撑格"几何（**只有长度不同**）。 */
+    private static boolean floorGapArm(Arm arm) {
+        return arm == Arm.CHANNEL_FLOOR_FILLED || arm == Arm.CHANNEL_FLOOR_BUDGET
+                || arm == Arm.CHANNEL_FLOOR_NO_MATERIAL;
+    }
+
+    /**
+     * ⭐ 臂⑥/⑦**被凿空**的格 = 那几格的脚位正下方 `1..FLOOR_GAP_DEPTH`。
+     *
+     * <p>建场景、期望表、断言**共用**这一个集合（§6.9.1 ①）。
+     */
+    private Set<BlockPos> floorGapCells(Arm arm) {
+        Set<BlockPos> out = new LinkedHashSet<>();
+        if (!floorGapArm(arm)) {
+            return out;
+        }
+        for (int unit : floorGapUnits(arm)) {
+            for (int down = 1; down <= FLOOR_GAP_DEPTH; down++) {
+                out.add(ORIGIN.relative(DIR, unit).below(down));
+            }
+        }
+        return out;
+    }
+
+    /** ⭐ 臂⑥/⑦里**补格的目标格**（= 支撑格本体 = 正下方 1 格）：断言"这一格必须被补回来"。 */
+    private Set<BlockPos> floorRepairTargets(Arm arm) {
+        Set<BlockPos> out = new LinkedHashSet<>();
+        for (BlockPos p : floorGapCells(arm)) {
+            if (p.getY() == ORIGIN.getY() - 1) {
+                out.add(p);
+            }
+        }
+        return out;
     }
 
     /** 臂②的基岩格 = 第 1 条支巷的第 {@link #SPUR_BEDROCK_STEP} 格。 */
@@ -362,6 +493,9 @@ public final class FishboneSlice2CheckTask implements Task {
                 out.add(oreCell(unit));
             }
         }
+        // ⭐ `F2` 臂⑥/⑦：凿空的支撑格**本来就该是空气**（补格把正下方那一格变成圆石 ⇒
+        // 那一条由 `diffExpected` 的"空气或圆石"分支处理，与臂④的地板矿脉同一口径）。
+        out.addAll(floorGapCells(arm));
         return out;
     }
 
@@ -422,12 +556,23 @@ public final class FishboneSlice2CheckTask implements Task {
         if (entryFoot == null) {
             entryFoot = bot.blockPosition();
         }
-        clearBox(level);
+        clearBox(level, boxMaxDx(arm));
         buildSolidBox(level, arm);
 
         teleport(level, ORIGIN);
         FixtureToolKit.resetInventory(bot);
         FixtureToolKit.ensurePickaxe(bot);
+        if (floorGapArm(arm)) {
+            // ⭐ `F2` 两条臂的**原料**：补格要一次性方块。**显式给料**而不是"指望挖石头掉圆石" ——
+            // 后者要看拾取/收集有没有跑过（§6.9.1 ② 的世界假设）。臂⑦给得更多：它要让"额度用尽"
+            // 成为**唯一**的停手理由，不许"没料"混进判决里。
+            if (arm != Arm.CHANNEL_FLOOR_NO_MATERIAL) {
+                int blocks = arm == Arm.CHANNEL_FLOOR_BUDGET
+                        ? FLOOR_REPAIR_BLOCKS_BUDGET : FLOOR_REPAIR_BLOCKS;
+                FixtureToolKit.ensureHotbarStack(bot, () -> new ItemStack(Items.COBBLESTONE),
+                        stack -> stack.is(Items.COBBLESTONE), blocks, "cobblestone（补格原料）");
+            }
+        }
         bot.controller().stopMovement();
 
         template = templateFor(arm);
@@ -439,7 +584,7 @@ public final class FishboneSlice2CheckTask implements Task {
 
         // ⭐ 前提自断言（`alice-scene-based-testing` §6.9.1）：场景没落地 ⇒ 后面所有判据都不可解读
         boolean sceneOk = level.getBlockState(ORIGIN).isAir()
-                && level.getBlockState(ORIGIN.below()).is(Blocks.STONE);
+                && level.getBlockState(ORIGIN.below()).is(boxMaterial(arm));
         if (arm == Arm.SALVAGE_ON_FAIL) {
             // ⭐ `1.4z-d`：本臂的前方是石头、**顶棚是矿**（与臂③同形态），作业预算掐短 ⇒ 必以失败收场
             boolean oreOk = true;
@@ -456,8 +601,8 @@ public final class FishboneSlice2CheckTask implements Task {
                     && level.getBlockState(decoyCell()).is(Blocks.IRON_ORE);
         } else {
             sceneOk = sceneOk
-                    && level.getBlockState(ORIGIN.relative(DIR, 1)).is(Blocks.STONE)
-                    && level.getBlockState(ORIGIN.relative(DIR, 1).above(HEIGHT)).is(Blocks.STONE);
+                    && level.getBlockState(ORIGIN.relative(DIR, 1)).is(boxMaterial(arm))
+                    && level.getBlockState(ORIGIN.relative(DIR, 1).above(HEIGHT)).is(boxMaterial(arm));
             if (arm == Arm.SPUR_ABANDONED) {
                 sceneOk = sceneOk && level.getBlockState(bedrockCell()).is(Blocks.BEDROCK);
             }
@@ -470,6 +615,28 @@ public final class FishboneSlice2CheckTask implements Task {
             }
         }
         check("前提（" + arm + "）：场景已落地（起点空气 + 脚下实心 + 本臂特有要素就位）", sceneOk);
+
+        if (floorGapArm(arm)) {
+            int missing = 0;
+            for (int unit : floorGapUnits(arm)) {       // ⚠️ 不许写常量：额度臂的缺口是**整条主巷**
+                if (FishboneJob.channelFloorMissing(level, ORIGIN.relative(DIR, unit))) {
+                    missing++;
+                }
+            }
+            int gapUnits = floorGapUnits(arm).length;
+            check("前提（" + arm + "）：主巷这几格的**行走层支撑格真的缺失**（不可站 " + missing + "/"
+                            + gapUnits + " 格 · 深度 " + FLOOR_GAP_DEPTH + "）—— 判据 = 生产谓词 "
+                            + "`FishboneJob.channelFloorMissing`（与真机探针的 `belowSolid` **同一处出处**）",
+                    missing == gapUnits);
+            boolean hasBlocks = BlockInteraction.findPlaceableSlot(bot) >= 0;
+            check("前提（" + arm + "）：bot 手里"
+                            + (arm == Arm.CHANNEL_FLOOR_NO_MATERIAL
+                            ? "**没有**、而且**这辈子也拿不到**一次性方块（盒材质 = 干草 ⇒ 掉落物是小麦）"
+                            + "—— 本臂考的就是这一支的归因"
+                            : "**有**一次性方块（补格的原料）—— 否则量到的是「没原料」而不是「补格/额度」，"
+                            + "本臂的判决就不可解读"),
+                    arm == Arm.CHANNEL_FLOOR_NO_MATERIAL ? !hasBlocks : hasBlocks);
+        }
 
         failuresAtArmStart = failures.size();
         scaleBefore = PathingStats.scale();
@@ -487,10 +654,10 @@ public final class FishboneSlice2CheckTask implements Task {
      * <p>只有三处例外：起点口袋（2 格空气）、臂②的基岩、臂③的矿（3 露头 + 1 诱饵）。
      */
     private void buildSolidBox(ServerLevel level, Arm arm) {
-        for (int dx = BOX_MIN_DX; dx <= BOX_MAX_DX; dx++) {
+        for (int dx = BOX_MIN_DX; dx <= boxMaxDx(arm); dx++) {
             for (int dy = BOX_MIN_DY; dy <= BOX_MAX_DY; dy++) {
                 for (int dz = -BOX_HALF_DZ; dz <= BOX_HALF_DZ; dz++) {
-                    level.setBlock(ORIGIN.offset(dx, dy, dz), Blocks.STONE.defaultBlockState(), 3);
+                    level.setBlock(ORIGIN.offset(dx, dy, dz), boxMaterial(arm).defaultBlockState(), 3);
                 }
             }
         }
@@ -516,6 +683,10 @@ public final class FishboneSlice2CheckTask implements Task {
             for (int unit : SALVAGE_ORE_UNITS) {
                 level.setBlock(oreCell(unit), Blocks.IRON_ORE.defaultBlockState(), 3);
             }
+        }
+        // ⭐ `F2` 臂⑥/⑦：把主巷这几格的**行走层支撑格凿成空洞**（真机第五轮那一幕）
+        for (BlockPos p : floorGapCells(arm)) {
+            level.setBlock(p, Blocks.AIR.defaultBlockState(), 3);
         }
     }
 
@@ -564,14 +735,16 @@ public final class FishboneSlice2CheckTask implements Task {
         BotLog.info("[Fishbone2] RUN arm={} verdict={} status={} ticks={} advance={}/{} mined={} skipped={}"
                         + " spursAbandoned={} spurUnitsSkipped={} spurReturns={} scanned={}"
                         + " oreMined={} oreFound={} oreDeferred={} oreUncollected={} budgetExhausted={}"
-                        + " oreWalkedAway={} collectedProducts={}"
+                        + " oreWalkedAway={} collectedProducts={} floorRepairs={} unrepaired={}"
                         + " auditBreaks={} auditOutsideExpected={} places={} placesOutside={}"
                         + " scale={} ticksPerAdvance={}",
                 ARMS[armIndex], armVerdict, status, job.elapsedTicks(), job.advancedUnits(), job.unitCount(),
                 job.minedCells(), job.skippedCells(), job.spursAbandoned(), job.spurUnitsSkipped(),
                 job.spurReturns(), job.scannedUnits(), job.oreMined(), job.oreFound(), job.oreDeferred(),
                 job.oreUncollected(), job.oreBudgetExhausted(),
-                job.oreWalkedAway(), job.collectedProducts(), auditDeltaBreaks, auditOutsideExpected,
+                job.oreWalkedAway(), job.collectedProducts(),
+                job.channelFloorRepairs(), job.channelFloorUnrepaired(),
+                auditDeltaBreaks, auditOutsideExpected,
                 auditDeltaPlaces, auditOutsidePlaces,
                 scaleDelta.describe(), ticksPerAdvance);
         phase = Phase.ASSERT;
@@ -619,6 +792,145 @@ public final class FishboneSlice2CheckTask implements Task {
                 e -> e.isAlive() && filter.matches(e.getItem())).size();
     }
 
+    /**
+     * ⭐⭐ 臂⑥ `CHANNEL_FLOOR_FILLED`（`F2` / `D-450` / `I2`，2026-09-26）：
+     * **缺支撑格 + 有原料 ⇒ 它必须被补回来，而且推进照常**。
+     *
+     * <pre>
+     * ① ⭐ 主巷**挖穿了**（终态 `template_complete`）
+     * ② ⭐ **逐格枚举**：每一格的支撑格都真的补回来了（`channelFloorMissing == false`）
+     * ③ ⭐⭐ 读数 `channelFloorRepairs()` = 格数 —— 它 = 「落在**单元脚位格正下方**的放置数」
+     *    （`D-450` 推论要的分项计数），证明补这件事是**走位补路机制**干的、且**记进了同一份额度**
+     * ④ ⭐ 归因里**不该**出现 `channel_floor_missing`（补得回来就不该报缺格）
+     * </pre>
+     *
+     * <p>⚠️ 本臂的**红臂** = 拿掉 `finishUnit()` 里 `workCellNotStandable` 那一项（= 不再走进刚挖完的那一格）
+     * ⇒ 地板不会被补 ⇒ ②③ 红。它钉住的是**既有能力不许悄悄退化**（不是新功能）。
+     */
+    private void assertChannelFloorFilled(ServerLevel level) {
+        check("（" + Arm.CHANNEL_FLOOR_FILLED + "）⭐主巷**挖穿了**（终态=" + armVerdict + "）",
+                "template_complete".equals(armVerdict));
+        int repaired = 0;
+        for (int unit : FLOOR_GAP_UNITS) {
+            if (!FishboneJob.channelFloorMissing(level, ORIGIN.relative(DIR, unit))) {
+                repaired++;
+            }
+        }
+        check("（" + Arm.CHANNEL_FLOOR_FILLED + "）⭐每一格的行走层支撑格都**补回来了**（逐格枚举 "
+                        + repaired + "/" + FLOOR_GAP_UNITS.length + " 格现在可站）—— 不用聚合计数式断言",
+                repaired == FLOOR_GAP_UNITS.length);
+        check("（" + Arm.CHANNEL_FLOOR_FILLED + "）⭐⭐读数 `channelFloorRepairs()` = "
+                        + job.channelFloorRepairs() + " = 格数 " + FLOOR_GAP_UNITS.length
+                        + "（= 落在**单元脚位格正下方**的放置数）—— 补这件事由**既有的走位补路**"
+                        + "（`D-440` 的 `workCellNotStandable` 走位 + `PLACE_STEP_AND_TRAVERSE`）完成，"
+                        + "且 requester 前缀是 `fishbone` ⇒ **本来就记在同一份额度里**",
+                job.channelFloorRepairs() == FLOOR_GAP_UNITS.length);
+        check("（" + Arm.CHANNEL_FLOOR_FILLED + "）⭐归因里**没有** `" + FishboneJob.CHANNEL_FLOOR_MISSING
+                        + "`（补得回来就不该报缺格）：终态=" + armVerdict
+                        + "｜unrepaired=" + job.channelFloorUnrepaired(),
+                !armVerdict.contains(FishboneJob.CHANNEL_FLOOR_MISSING)
+                        && job.channelFloorUnrepaired() == 0);
+        BotLog.info("[Fishbone2] 补格臂读数 channelFloorRepairs={} unrepaired={} 逐格可站={}/{} 终态={}",
+                job.channelFloorRepairs(), job.channelFloorUnrepaired(), repaired,
+                FLOOR_GAP_UNITS.length, armVerdict);
+    }
+
+    /**
+     * ⭐⭐ 臂⑦ `CHANNEL_FLOOR_BUDGET`（`F2` 的**负例**，`D-450` / `D-443` 7b）：
+     * **缺口长到吃光搭路额度 ⇒ 用尽之后如实放弃，而且理由要说清是「地板 + 额度用尽」**。
+     *
+     * <pre>
+     * ① ⭐⭐ 归因码以 `channel_floor_missing:` 为**主因**（改前 = `main_unreachable:no_reachable_standing_point`）
+     * ② ⭐ cause = `bridge_budget_exhausted`（`D-443` 7b：主巷**唯一**该停的那一档 = 计数事实）
+     * ③ ⭐⭐ 补地板的放置数**正好等于自动额度 16**（= `max(16, 单元数/10)`：单元 20 / 格 40 ⇒ `max(16,4)`）
+     *    —— 这一条直接钉住 `D-450` 的额度裁定：**补地板与搭桥共用同一份**，不是两份
+     * ④ ⭐ 剩下那几格的支撑格**仍然缺**（没补上就是没补上，如实）+ `unrepaired ≥ 1`
+     * </pre>
+     *
+     * <p>⚠️ 为什么用"额度用尽"而不是"没原料"造这条臂（第一版实测教训）：要让 bot **拿不到**一次性方块，
+     * 得让它挖出来的掉落物够不着；但原版拾取用的是「AABB 各向外扩 1 格（垂直 0.5）」，而挖掘站位必然贴着目标
+     * ⇒ **头位格的掉落物在 10 tick 拾取延迟里正好落在那只扩充盒里**被捡走（实测：洞挖到 10 格深，
+     * `[WRITE] place … cobblestone` 照样出现）⇒ "没原料"在这套几何里**造不出来**。
+     * 额度用尽则是**计数事实**（`D-443` 7b 明写它才是主巷该停的那一档），确定性好得多。
+     */
+    private void assertChannelFloorBudget(ServerLevel level) {
+        Arm arm = Arm.CHANNEL_FLOOR_BUDGET;
+        int[] gapUnits = floorGapUnits(arm);
+        check("（" + arm + "）前提：缺口单元数 " + gapUnits.length + " **超过**自动额度 "
+                        + FLOOR_BUDGET_EXPECTED + "（否则这条臂考不到「用尽」那一档）",
+                gapUnits.length > FLOOR_BUDGET_EXPECTED);
+        check("（" + arm + "）⭐⭐终态 = `main_unreachable:bridge_budget_exhausted`（实测 " + armVerdict
+                        + "）—— ⭐ **这条臂顺带证明了一件事**：额度用尽是在**单元开头的推进门**"
+                        + "（`advanceRefusal`）停的，而那个码**本来就是**计数事实 ⇒ 这一支**不需要**地板归因，"
+                        + "只有「站位类失败」那一支才需要（见臂⑧）。所以本臂 `unrepaired` 必须是 0",
+                armVerdict.equals("main_unreachable:bridge_budget_exhausted"));
+        check("（" + arm + "）⭐本臂**不该**触发地板归因（`unrepaired=` " + job.channelFloorUnrepaired()
+                        + " = 0）：它是被推进门停的，压根没走到站位失败",
+                job.channelFloorUnrepaired() == 0);
+        check("（" + arm + "）⭐⭐补地板的放置数 = 自动额度（实测 `channelFloorRepairs()`="
+                        + job.channelFloorRepairs() + "，期望 " + FLOOR_BUDGET_EXPECTED
+                        + " = `max(16, 单元数/10)`，单元 20 ⇒ 40 格）—— **补地板与搭桥共用同一份额度**"
+                        + "（`D-450` 裁定），不是两份",
+                job.channelFloorRepairs() == FLOOR_BUDGET_EXPECTED);
+        int stillMissing = 0;
+        for (int unit : gapUnits) {
+            if (FishboneJob.channelFloorMissing(level, ORIGIN.relative(DIR, unit))) {
+                stillMissing++;
+            }
+        }
+        check("（" + arm + "）⭐额度用尽之后剩下的格子**仍然缺**（逐格枚举 " + stillMissing + "/"
+                        + gapUnits.length + " 仍不可站）—— 没补上就是没补上，如实",
+                stillMissing >= 1);
+        BotLog.info("[Fishbone2] 额度臂读数 channelFloorRepairs={} unrepaired={} 仍缺={}/{} 终态={}",
+                job.channelFloorRepairs(), job.channelFloorUnrepaired(), stillMissing,
+                gapUnits.length, armVerdict);
+    }
+
+    /**
+     * ⭐⭐ 臂⑧ `CHANNEL_FLOOR_NO_MATERIAL`（`F2` 的**归因负例**，`D-450` / `1.4t`）：
+     * **盒材质 = 干草（掉小麦 ⇒ 永远没有一次性方块）⇒ 站位类失败必须说出「地板没了」**。
+     *
+     * <p>这条臂复现的是**真机第五轮的形态**：`places=0`（一个方块都没放）⇒ `PLACE_STEP_AND_TRAVERSE`
+     * 补不了 ⇒ 站位候选恒空 ⇒ 改前落 **`main_unreachable:no_reachable_standing_point`**
+     * （把「地板没了」伪装成「站位找不到」）；改后 `channel_floor_missing:no_throwaway_blocks`。
+     *
+     * <p>⚠️ 为什么用干草盒而不是"把洞挖深"造"没原料"：原版拾取用的是「AABB 各向外扩 1 格（垂直 0.5）」，
+     * 而挖掘站位必然贴着目标 ⇒ 头位格的掉落物在 10 tick 拾取延迟里**正好落在那只扩充盒里**被捡走
+     * （实测：洞挖到 10 格深，`[WRITE] place … cobblestone` 照样出现）⇒ 几何上造不出"没原料"。
+     */
+    private void assertChannelFloorNoMaterial(ServerLevel level) {
+        Arm arm = Arm.CHANNEL_FLOOR_NO_MATERIAL;
+        check("（" + arm + "）前提：作业**真的失败**了、且是主巷那一档（终态=" + armVerdict + "）",
+                armVerdict.startsWith("main_unreachable:"));
+        check("（" + arm + "）前提：到断言时**仍然**没有一次性方块（干草掉小麦 ⇒ `findPlaceableSlot` 选不到）"
+                        + "｜placeableSlot=" + BlockInteraction.findPlaceableSlot(bot),
+                BlockInteraction.findPlaceableSlot(bot) < 0);
+        check("（" + arm + "）⭐⭐归因码以 `" + FishboneJob.CHANNEL_FLOOR_MISSING + ":` 为**主因**（终态="
+                        + armVerdict + "）—— 改前（= 红臂）是 `main_unreachable:"
+                        + MiningPlanner.STANDING_NO_REACHABLE + "`：把「地板没了」伪装成「站位找不到」",
+                armVerdict.startsWith("main_unreachable:" + FishboneJob.CHANNEL_FLOOR_MISSING + ":"));
+        check("（" + arm + "）⭐⭐cause = `no_throwaway_blocks`（**放置原语自己的码** —— 判据只有一个出处，"
+                        + "作业侧不另造一个名字）",
+                armVerdict.contains("no_throwaway_blocks"));
+        check("（" + arm + "）⭐一格都没补上（`channelFloorRepairs()`=" + job.channelFloorRepairs()
+                        + " = 0）—— 没原料就是没原料，不许假装",
+                job.channelFloorRepairs() == 0);
+        check("（" + arm + "）⭐`unrepaired=` " + job.channelFloorUnrepaired() + " ≥ 1（如实归因过一次）",
+                job.channelFloorUnrepaired() >= 1);
+        int stillMissing = 0;
+        for (int unit : floorGapUnits(arm)) {
+            if (FishboneJob.channelFloorMissing(level, ORIGIN.relative(DIR, unit))) {
+                stillMissing++;
+            }
+        }
+        check("（" + arm + "）⭐地板在断言时**仍然**缺（逐格枚举 " + stillMissing + "/"
+                        + floorGapUnits(arm).length + " 仍不可站）—— 如实",
+                stillMissing >= 1);
+        BotLog.info("[Fishbone2] 没原料臂读数 channelFloorRepairs={} unrepaired={} 仍缺={}/{} 终态={}",
+                job.channelFloorRepairs(), job.channelFloorUnrepaired(), stillMissing,
+                floorGapUnits(arm).length, armVerdict);
+    }
+
     private Task.Status assertArm() {
         ServerLevel level = bot.serverLevel();
         Arm arm = ARMS[armIndex];
@@ -630,12 +942,16 @@ public final class FishboneSlice2CheckTask implements Task {
             case ORE_IN_PLACE -> assertOreInPlace(level);
             case ORE_VEIN_CHASE -> assertVeinChase(level);
             case SALVAGE_ON_FAIL -> assertSalvageOnFail(level);
+            case CHANNEL_FLOOR_FILLED -> assertChannelFloorFilled(level);
+            case CHANNEL_FLOOR_BUDGET -> assertChannelFloorBudget(level);
+            case CHANNEL_FLOOR_NO_MATERIAL -> assertChannelFloorNoMaterial(level);
         }
 
         // 两条公共判据（**每一臂**都过）
-        // ⭐ `1.4z-d`：本臂**故意中途失败**（预算掐短）⇒ 模板必然没挖完 ⇒「逐格一致」对本臂不适用。
+        // ⭐ `1.4z-d`：打捞臂**故意中途失败**（预算掐短）⇒ 模板必然没挖完 ⇒「逐格一致」对它不适用。
         // 本臂改考的是**失败路径的收尾行为**（地上无滞留产物 + `collected` 已结算 + 白名单外=0）。
-        if (arm != Arm.SALVAGE_ON_FAIL) {
+        // ⭐ `F2` 负例臂同理：它**故意**因为没有原料而推进不下去 ⇒ 模板也没挖完。
+        if (expectsFullTemplate(arm)) {
         check("（" + arm + "）⭐`C1` 场景与期望表**逐格一致**（差异格=" + worldDiff
                         + "）—— 期望表 = 整盒石头，**除模板格 / 挖掉的露头矿 / 起点口袋以外一格不变**"
                         + "（这是「模板外改动 = 0」的最强形态：不是「没超预算」，是「逐格枚举」）",
@@ -1173,8 +1489,9 @@ public final class FishboneSlice2CheckTask implements Task {
     private int diffExpected(ServerLevel level, Arm arm) {
         Set<BlockPos> air = expectedAir(arm);
         Set<BlockPos> floorVein = floorVeinCells(arm);
+        Set<BlockPos> repairTargets = floorRepairTargets(arm);
         int bad = 0;
-        for (int dx = BOX_MIN_DX; dx <= BOX_MAX_DX; dx++) {
+        for (int dx = BOX_MIN_DX; dx <= boxMaxDx(arm); dx++) {
             for (int dy = BOX_MIN_DY; dy <= BOX_MAX_DY; dy++) {
                 for (int dz = -BOX_HALF_DZ; dz <= BOX_HALF_DZ; dz++) {
                     BlockPos pos = ORIGIN.offset(dx, dy, dz);
@@ -1186,10 +1503,15 @@ public final class FishboneSlice2CheckTask implements Task {
                         ok = state.is(Blocks.IRON_ORE);
                     } else if (floorVein.contains(pos)) {
                         ok = state.isAir() || state.is(Blocks.COBBLESTONE);
+                    } else if (repairTargets.contains(pos)) {
+                        // ⭐ `F2`：补格的目标 = **空气或圆石**（补上 ⇒ 圆石；没补上 ⇒ 空气）。
+                        // 这一条**故意两头都接受**：考的是"作业有没有**读到**这件事"由
+                        // `channelFloorRepairs()` 那条独立读数负责，不把两件事压成一个断言（臂④先例）。
+                        ok = state.isAir() || state.is(Blocks.COBBLESTONE);
                     } else if (air.contains(pos)) {
                         ok = state.isAir();
                     } else {
-                        ok = state.is(Blocks.STONE);
+                        ok = state.is(boxMaterial(arm));
                     }
                     if (!ok) {
                         bad++;
@@ -1208,13 +1530,14 @@ public final class FishboneSlice2CheckTask implements Task {
 
     private Task.Status cleanup() {
         ServerLevel level = bot.serverLevel();
-        clearBox(level);
+        clearBox(level, CLEANUP_MAX_DX);          // 各臂盒长不同 ⇒ 收尾按最大的那个清
         forceload(level, false);
         bot.controller().stopMovement();
         if (entryFoot != null) {
             teleport(level, entryFoot);
         }
-        check("收尾：场地清回空气（残留非空气格=" + countNonAir(level) + "）", countNonAir(level) == 0);
+        int residue = countNonAir(level, CLEANUP_MAX_DX);
+        check("收尾：场地清回空气（残留非空气格=" + residue + "）", residue == 0);
         boolean pass = failures.isEmpty();
         BotLog.info("[Fishbone2] SUMMARY checks={} failures={} arms={} pass={} → {}｜失败项：{}",
                 checks, failures.size(), ARMS.length, pass, pass ? "PASS" : "FAIL", failures);
@@ -1232,6 +1555,18 @@ public final class FishboneSlice2CheckTask implements Task {
     /** 本臂新增的失败条数（`ARM` 行用它判本臂成败 —— 累计口径会把前一臂的红算到后一臂头上）。 */
     private int armFailures() {
         return failures.size() - failuresAtArmStart;
+    }
+
+    /**
+     * 本臂是否**期望模板被完整挖完**（⇒ 适用「逐格一致」`C1`）。
+     *
+     * <p>两条臂**故意**不满足它：`SALVAGE_ON_FAIL`（预算掐短 ⇒ 必然中途失败）、
+     * `CHANNEL_FLOOR_BUDGET`（额度用尽 ⇒ 推进不下去，如实失败）。它们的判据在各自的方法里
+     * （"失败路径的收尾行为" / "归因码是不是独立的那一个"）。
+     */
+    private static boolean expectsFullTemplate(Arm arm) {
+        return arm != Arm.SALVAGE_ON_FAIL && arm != Arm.CHANNEL_FLOOR_BUDGET
+                && arm != Arm.CHANNEL_FLOOR_NO_MATERIAL;
     }
 
     /**
@@ -1359,8 +1694,8 @@ public final class FishboneSlice2CheckTask implements Task {
         return Math.abs(bot.getX() - (ORIGIN.getX() + 0.5D)) + Math.abs(bot.getZ() - (ORIGIN.getZ() + 0.5D));
     }
 
-    private void clearBox(ServerLevel level) {
-        for (int dx = BOX_MIN_DX; dx <= BOX_MAX_DX; dx++) {
+    private void clearBox(ServerLevel level, int maxDx) {
+        for (int dx = BOX_MIN_DX; dx <= maxDx; dx++) {
             for (int dy = BOX_MIN_DY; dy <= BOX_MAX_DY; dy++) {
                 for (int dz = -BOX_HALF_DZ; dz <= BOX_HALF_DZ; dz++) {
                     level.setBlock(ORIGIN.offset(dx, dy, dz), Blocks.AIR.defaultBlockState(), 3);
@@ -1369,9 +1704,9 @@ public final class FishboneSlice2CheckTask implements Task {
         }
     }
 
-    private int countNonAir(ServerLevel level) {
+    private int countNonAir(ServerLevel level, int maxDx) {
         int total = 0;
-        for (int dx = BOX_MIN_DX; dx <= BOX_MAX_DX; dx++) {
+        for (int dx = BOX_MIN_DX; dx <= maxDx; dx++) {
             for (int dy = BOX_MIN_DY; dy <= BOX_MAX_DY; dy++) {
                 for (int dz = -BOX_HALF_DZ; dz <= BOX_HALF_DZ; dz++) {
                     if (!level.getBlockState(ORIGIN.offset(dx, dy, dz)).isAir()) {
@@ -1386,7 +1721,7 @@ public final class FishboneSlice2CheckTask implements Task {
     /** forceload（**建/拆对称**：它是全局世界状态，泄漏会污染后续步）。 */
     private void forceload(ServerLevel level, boolean on) {
         int minX = ORIGIN.getX() + BOX_MIN_DX;
-        int maxX = ORIGIN.getX() + BOX_MAX_DX;
+        int maxX = ORIGIN.getX() + CLEANUP_MAX_DX;
         int minZ = ORIGIN.getZ() - BOX_HALF_DZ;
         int maxZ = ORIGIN.getZ() + BOX_HALF_DZ;
         for (int cx = minX >> 4; cx <= maxX >> 4; cx++) {

@@ -1,5 +1,6 @@
 package com.dddgn.alice.job.fishbone;
 
+import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.action.MineBlockRunner;
 import com.dddgn.alice.action.WriteAudit;
 import com.dddgn.alice.action.WriteGrant;
@@ -20,9 +21,11 @@ import com.dddgn.alice.perception.ScopeBuffer;
 import com.dddgn.alice.task.CollectDropsTask;
 import com.dddgn.alice.task.MineTask;
 import com.dddgn.alice.task.PathRetryRunner;
+import com.dddgn.alice.task.PlaceTask;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
 import com.dddgn.alice.task.mining.MiningBudget;
+import com.dddgn.alice.task.mining.MiningPlanner;
 import com.dddgn.alice.task.mining.MiningProfile;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -312,6 +315,10 @@ public final class FishboneJob implements Job {
     private int itemsBefore;
     private int collectedProducts;
 
+    // ---- `F2`（`D-450`）：通道行走层支撑格的**归因**与**额度分项** ----
+    /** 支撑格缺失**且**站位类失败、已按 `channel_floor_missing:<cause>` 如实归因的次数。 */
+    private int channelFloorUnrepaired;
+
     // ---- 切片 3：真机取样用的结构化日志读数（计划 §8）----
     /** 已完整处理（挖穿/本来就通）的**主巷**单元数（= 日志里 `advance=` 的分子）。 */
     private int mainUnitsDone;
@@ -351,6 +358,31 @@ public final class FishboneJob implements Job {
 
     /** 世界写入的 requester（`WritePolicyMatrix.PREFIX_RULES` 里登记为 `MINING` 类）。 */
     public static final String REQUESTER = "fishbone";
+
+    /**
+     * ⭐ **`F2` 独立归因码**（`D-450` 裁定 A）：通道行走层的**支撑格缺失**（`I2`）。
+     *
+     * <p>存在理由**只有一个**：真机那个码是 `no_reachable_standing_point`，而它**把"地板没了"
+     * 伪装成"站位找不到"** —— 于是归因四分类（`1.4i`）无从下手、用户也读不出该补什么。
+     * 本码把这件事**单独说出来**，并带上**真实原因**（`<code>:<cause>`，cause ∈
+     * `bridge_budget_exhausted` / `no_throwaway_blocks` / 原始理由码 —— 由
+     * {@link #standingFailureCode} 按**事实优先**决定）。
+     */
+    public static final String CHANNEL_FLOOR_MISSING = "channel_floor_missing";
+
+    /**
+     * ⭐ **通道行走层的支撑格是不是缺了**（`I2` 的判据本体，`D-450` 裁定 A）。
+     *
+     * <p>口径与钻机探针的 `belowSolid` **同一个谓词**（真机逐字：
+     * `[MiningPlanner探针] no_valid_standing_point faceStandable=0/6 belowSolid=false` ⇒
+     * 报告 `docs/reviews/archive/2026-09-26-真机第五轮-自检报告-空气与通道成品规格.md` §3.3）。
+     *
+     * <p>⚠️ 公开为 `static` 是给夹具复用**同一处出处**用的（先例：`isAlreadyPassable` /
+     * `advanceRefusalIsHard`）—— 夹具**不许**照抄一份 `!isSolid(foot.below())`。
+     */
+    public static boolean channelFloorMissing(ServerLevel level, BlockPos footPos) {
+        return !MovementHelper.canWalkOn(level, footPos);
+    }
 
     // ==================== Job 契约 ====================
 
@@ -557,11 +589,11 @@ public final class FishboneJob implements Job {
         String reason = current.failureReason();
         current = null;
         if (unit.isSpur()) {
-            abandonSpur(unit, reason);
+            abandonSpur(unit, standingFailureCode(unit, reason));
             return Task.Status.RUNNING;
         }
         String code = (MineTask.isHardTargetRefusal(reason)
-                ? "main_blocked:" : "main_unreachable:") + reason;
+                ? "main_blocked:" : "main_unreachable:") + standingFailureCode(unit, reason);
         BotLog.warn("[Fishbone] {} 主巷单元 {} 挖不动 target={} reason={} ⇒ 先沿主巷返回起点再失败",
                 code, unitIndex + 1, unit.foot().toShortString(), reason);
         terminalReason = code;
@@ -679,6 +711,51 @@ public final class FishboneJob implements Job {
      */
     public static boolean isAlreadyPassable(ServerLevel level, BlockPos cell) {
         return MovementHelper.canWalkThrough(level, cell);
+    }
+
+    // ==================== `F2`（`D-450`）：地板缺格的**归因**与额度分项 ====================
+
+    /**
+     * ⭐⭐ **把「行走层支撑格没了」从「站位找不到」里分出来**（`F2` / `D-450` / `1.4t`）。
+     *
+     * <p><b>先说结论：这里只需要归因，不需要新机制</b>（2026-09-26 实测，免得下次又去造一台机器）。
+     * `D-450` 裁定的「作业下发补这一格」**今天已经存在**：`finishUnit()` 的 `workCellNotStandable`
+     * 会让作业**走进刚挖完的那一格**（`D-440`），而那次走位用的是 `PathRequest.withPlacement`
+     * （`PLACE_STEP_AND_TRAVERSE`）⇒ **走的过程中自然把缺的地板补上**。夹具臂 `CHANNEL_FLOOR_FILLED`
+     * 实测逐字（`fishbone_slice2`）：
+     * <pre>[WRITE] place 3761, 79, 2400 minecraft:cobblestone by=fishbone-chase:attempt0:STEP_PLACEMENT</pre>
+     * ⇒ requester 前缀 `fishbone` ⇒ **本来就算在同一份额度里**（{@link #placementsUsed()}）。
+     * 再叠一层"补格"只会是同一件事的**第二个实现**（反补丁红线）。
+     *
+     * <p><b>仍然缺的是归因</b>：真机那一幕落的是 `no_reachable_standing_point`，它让"地板缺格"看起来像
+     * "站位找不到"（真机第五轮 §3.3/§3.4）⇒ 归因四分类（`1.4i`）无从下手。本方法只在**两个事实同时成立**时改码：
+     * ① 失败理由是**站位类**（{@link MiningPlanner#isStandingPointRefusal}，判据只有一处）；
+     * ② 该单元的行走层支撑格**真的缺**（{@link #channelFloorMissing}）。
+     * 任一不成立 ⇒ **原样返回**（不许把无关失败也改名叫地板问题 —— 那是"改判据掩盖缺陷"）。
+     *
+     * <p>cause 的选择是**事实优先**：额度真的用尽 ⇒ `bridge_budget_exhausted`（`D-443` 7b 的**计数事实**）；
+     * 手里真的一次性方块都没有 ⇒ `no_throwaway_blocks`（**放置原语自己的码**，见 {@link #advanceRefusal}
+     * 的第 3 条 —— 不另造一个名字）；否则把**原始理由码原样上抛**（`D-329`/`1.4w`：腿给了理由就原样上抛）。
+     */
+    private String standingFailureCode(FishboneTemplate.Unit unit, String reason) {
+        if (!MiningPlanner.isStandingPointRefusal(reason)
+                || !channelFloorMissing(bot.serverLevel(), unit.foot())) {
+            return reason;
+        }
+        channelFloorUnrepaired++;
+        String cause;
+        if (placementsUsed() >= bridgeBlockBudget()) {
+            cause = "bridge_budget_exhausted";
+        } else if (BlockInteraction.findPlaceableSlot(bot) < 0) {
+            cause = "no_throwaway_blocks";
+        } else {
+            cause = reason;
+        }
+        BotLog.warn("[Fishbone] {} 归因：单元 {}/{} 的行走层支撑格缺失（{}）**且**站位类失败（{}）"
+                        + "⇒ 主因记成地板，不再伪装成「站位找不到」（`D-450` / `1.4t`）",
+                CHANNEL_FLOOR_MISSING, unitIndex + 1, units.size(),
+                unit.foot().below().toShortString(), reason);
+        return CHANNEL_FLOOR_MISSING + ":" + cause;
     }
 
     // ==================== 切片 2：支巷（§10.2 两档处置） ====================
@@ -1015,13 +1092,64 @@ public final class FishboneJob implements Job {
      * 而 `[WRITE] place … by=fishbone-chase:attempt0:STEP_PLACEMENT` 明明在日志里（数错了，不是没放）。
      */
     private int placementsUsed() {
+        return countPlacements(null);
+    }
+
+    /**
+     * ⭐ `D-450` **推论**（额度共用同一份 ⇒ 用尽时必须**分得清是谁吃掉的**）：
+     * **补通道地板**吃掉的额度 / **搭桥走位**吃掉的额度。
+     *
+     * <p>分开的依据 = 那一格**落在哪**：直接落在某个单元脚位格的**正下方** ⇒ 它补的就是行走层支撑格
+     * （`I2`）；其余（`PILLAR` 垫脚 / 台阶 / 别的支撑）⇒ 搭桥。判据复用 {@link FishboneTemplate#units()}
+     * （几何唯一真源），不另造一份坐标表。
+     *
+     * <p>⚠️ `requester` 分不出这两者 —— 两者**都是** `fishbone-chase`/`-spur`/`-return`
+     * （走位工厂一个出口），所以只能按**位置**分。
+     */
+    private int placementsUsedByFloor() {
+        return countPlacements(Boolean.TRUE);
+    }
+
+    private int placementsUsedByBridge() {
+        return countPlacements(Boolean.FALSE);
+    }
+
+    /**
+     * @param floorOnly {@code TRUE} = 只数补地板 · {@code FALSE} = 只数搭桥 · {@code null} = 全部
+     */
+    private int countPlacements(Boolean floorOnly) {
         int n = 0;
         for (WriteAudit.Entry entry : WriteAudit.snapshot()) {
-            if ("place".equals(entry.action()) && isOurs(entry.grant().requester())) {
-                n++;
+            if (!"place".equals(entry.action()) || !isOurs(entry.grant().requester())) {
+                continue;
             }
+            // ⚠️ **必须按本作业的时间窗过滤**（`D-450` 落地时实测到的既有缺陷）：`WriteAudit` 是**进程级**
+            // 环形缓冲（`MAX_ENTRIES=512`）⇒ 不过滤时，**上一条作业/上一条夹具臂**的放置会算进本次额度，
+            // 于是"额度还剩多少"是个历史累计数（电池里同一个进程连着跑 7 条臂 ⇒ 直接串账）。
+            if (entry.tick() < gameTimeAtStart) {
+                continue;
+            }
+            if (floorOnly != null && floorOnly != isChannelSupportCell(entry.pos())) {
+                continue;
+            }
+            n++;
         }
         return n;
+    }
+
+    /**
+     * 这一格是不是**通道行走层的支撑格**（= 某个单元脚位格的正下方）。
+     *
+     * <p>判据 = {@link FishboneTemplate#units()}（几何唯一真源），与 {@link #channelFloorMissing} 问的是
+     * 同一件事（那个谓词问"这一列有没有支撑"，本方法问"刚才放的那一格是不是那个支撑"）。
+     */
+    private boolean isChannelSupportCell(BlockPos pos) {
+        for (FishboneTemplate.Unit unit : units) {
+            if (unit.foot().below().equals(pos)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 这条写入是不是**本次鱼骨作业**发起的（`requester` 前缀 = {@value #REQUESTER}）。 */
@@ -1053,8 +1181,9 @@ public final class FishboneJob implements Job {
         }
         if (!placeBudgetExhaustedLogged) {
             placeBudgetExhaustedLogged = true;
-            BotLog.info("[Fishbone] place_budget_exhausted used={}/{} ⇒ 走位退回纯通行"
-                            + "（阶梯/坑不再补；想要更多就调形状或看 `D-440`）", used, budget);
+            BotLog.info("[Fishbone] place_budget_exhausted used={}/{}（**搭桥 {} + 补格 {}**）⇒ 走位退回纯通行"
+                            + "（阶梯/坑不再补；想要更多就调形状或看 `D-440`）", used, budget,
+                    placementsUsedByBridge(), placementsUsedByFloor());
         }
         return PathRequest.of(bot.getUUID().toString(), bot.blockPosition(), goal, REQUESTER + suffix);
     }
@@ -1552,12 +1681,15 @@ public final class FishboneJob implements Job {
         // ⚠️ 键名是与用户的**契约**（计划 §8）：本行改动 **必须** 同步 `tools/kernel-predicates.py`
         // 的 `rule_fishbone_live_log_shape`（改一处不改另一处 ⇒ 门禁红，这正是它存在的意义）。
         BotLog.info("[Fishbone] SUMMARY dir={} main={}/{} spursAbandoned={}/{} mined={} skipped={}"
-                        + " ores={}/{} uncollected={} collected={}/{} collects={} searchNodes={} searchLimit={} return={}"
+                        + " ores={}/{} uncollected={} collected={}/{} collects={} unrepaired={}"
+                        + " places={}/{} searchNodes={} searchLimit={} return={}"
                         + " worldChangesInside={} outside={} ticks={} → {}",
                 dirLetter(template.dir()), mainUnitsDone, template.mainLength(),
                 spursAbandoned, template.spurBranches(),
                 mined, skipped, oreMined, oreFound, oreUncollected, collectedProducts, oreMined,
-                batchCollects, delta.nodes(), delta.searchLimits(), ret, inside, outside, ticks,
+                batchCollects, channelFloorUnrepaired,
+                placementsUsedByBridge(), placementsUsedByFloor(),
+                delta.nodes(), delta.searchLimits(), ret, inside, outside, ticks,
                 terminalStatus == Task.Status.DONE ? "PASS" : "FAIL");
     }
 
@@ -1576,6 +1708,21 @@ public final class FishboneJob implements Job {
     /** **夹具只读**：我方真的挖掉的**模板**格数。 */
     public int minedCells() {
         return mined;
+    }
+
+    /** **夹具只读**：真的补回来的**通道行走层支撑格**数（`F2` / `D-450`）。
+     *
+     *  <p>= 本作业落在"单元脚位格正下方"的放置数（{@link #placementsUsedByFloor()}）——
+     * 补这件事**由既有的走位补路机制完成**（`D-440` 的 `workCellNotStandable` 走位），
+     * 本类**不另设一条补格流程**（见 {@link #standingFailureCode} 的说明）。
+     */
+    public int channelFloorRepairs() {
+        return placementsUsedByFloor();
+    }
+
+    /** **夹具只读**：行走层支撑格缺失**且**站位类失败、已按 `channel_floor_missing:` 如实归因的次数。 */
+    public int channelFloorUnrepaired() {
+        return channelFloorUnrepaired;
     }
 
     /** **夹具只读**：本来就通行、被跳过的模板格数。 */

@@ -194,7 +194,7 @@ public final class MiningPlanner {
             if (directReason != null && !directReason.isEmpty()) {
                 return direct;
             }
-            return new Result(null, null, "no_reachable_standing_point");
+            return new Result(null, null, STANDING_NO_REACHABLE);
         }
         Result tunnel = planTunnel(bot, level, immutableTarget, startFoot, reach, budget);
         if (tunnel.success()) {
@@ -259,7 +259,7 @@ public final class MiningPlanner {
                     MovementHelper.canWalkThrough(level, target),
                     MovementHelper.canWalkThrough(level, target.above()),
                     MovementHelper.canWalkOn(level, target.below()));
-            return new Result(null, null, "no_valid_standing_point");
+            return new Result(null, null, STANDING_NO_VALID);
         }
 
         boolean dropLost = dropWouldBeLost(level, target);
@@ -295,7 +295,23 @@ public final class MiningPlanner {
         if (best.plan() != null || SEARCH_INCOMPLETE.equals(best.failureReason())) {
             return best;
         }
-        return new Result(null, null, "no_reachable_standing_point");
+        return new Result(null, null, STANDING_NO_REACHABLE);
+    }
+
+    /**
+     * **"找不到站位"的两种码**（`F2` / `D-450`，2026-09-26）：判据**只有一处** —— 本类就是这两个码的产地。
+     *
+     * <p>为什么要收敛成常量 + 谓词：作业层（`FishboneJob.standingFailureCode`）与夹具都要判
+     * "这次失败是不是**站位类**"，而它们**不许**各自照抄一份字符串（`J-6` 的纪律：同一份判据只有一个出处）。
+     */
+    public static final String STANDING_NO_VALID = "no_valid_standing_point";
+
+    /** 见 {@link #STANDING_NO_VALID}。 */
+    public static final String STANDING_NO_REACHABLE = "no_reachable_standing_point";
+
+    /** 这个失败理由是不是**站位类**（找不到 / 到不了站位点）。 */
+    public static boolean isStandingPointRefusal(String reason) {
+        return STANDING_NO_VALID.equals(reason) || STANDING_NO_REACHABLE.equals(reason);
     }
 
     // ==================== 模式 B / 兜底 ====================

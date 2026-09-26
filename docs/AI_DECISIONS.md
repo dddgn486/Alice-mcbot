@@ -20667,3 +20667,64 @@ granite 22 + gravel 2`），而**每一件都要付 ~9 tick 的等待**（落地
   不是常规路径（常规路径 = 结构边界的周期收集）。
 - **回收条件**：若真机出现「`collected` 有值但地上仍有产物」⇒ 说明结算早于打捞（或打捞没跑）⇒ 回来查
   `beginReturn()` 的顺序（结算 → 打捞 → 回家）。
+
+---
+
+### D-454：`F2`（`I2` 行走层支撑格）—— **「补格」早已存在**，真正缺的是**归因**与**额度分项**（2026-09-26）
+
+**起因**：`D-450` 裁定 A（作业下发「补这一格」+ 额度用尽/无材料 ⇒ 独立归因码如实放弃）尚未落地。
+本条是它的落地 —— 但**落地形态与 `D-450` 的字面不同**，差异**由实测决定**。
+
+**⭐ 实测一：`D-450` 的「补」今天已经存在，不需要新机制。**
+`finishUnit()` 的 `workCellNotStandable`（`D-440`）会让作业**走进刚挖完的那一格**，而那次走位用的是
+`PathRequest.withPlacement`（`PLACE_STEP_AND_TRAVERSE`）⇒ **走的过程中就把缺的地板补上了**。
+夹具臂 `CHANNEL_FLOOR_FILLED` 逐字（`fishbone_slice2`）：
+`[WRITE] place 3761, 79, 2400 minecraft:cobblestone by=fishbone-chase:attempt0:STEP_PLACEMENT` +
+`[PlaceStepAndTraverse] placed pos=3761, 79, 2400 from=3760, 80, 2400 to=3761, 80, 2400`；
+requester 前缀 `fishbone` ⇒ **本来就算在同一份额度里**（`placementsUsed()`）。
+⇒ 第一版实现（新增 `Phase.CHANNEL_FLOOR` + 用 `PlaceTask` 主动下发补格）**按此实测整体回退** —
+同一件事的第二个实现 = 反补丁红线（`alice-baritone-kernel-alignment` §5）。
+
+**⭐ 实测二：真机 `places=0` 的机理链**：缺地板 ⇒ 挖出来的方块**掉进洞里** ⇒ 拿不到一次性方块 ⇒
+`PLACE_STEP_AND_TRAVERSE` 补不了 ⇒ 站位候选恒空 ⇒ `no_reachable_standing_point`。
+（旁证：想用「把洞挖深」造「没原料」**造不出来** —— 原版拾取是「AABB 各向外扩 1 格、垂直 0.5」，
+而挖掘站位必然贴着目标 ⇒ 头位格的掉落物在 10 tick 拾取延迟里**正好落在那只扩充盒里**；
+实测洞挖到 **10 格深**，`[WRITE] place … cobblestone` 照样出现。夹具改用**干草盒**（掉小麦 ⇒
+`findPlaceableSlot` 永远选不到）才把这一支确定性地造出来。）
+
+**落地（两条，都是归因/读数，不加机制）**：
+1. **把「地板没了」从「站位找不到」里分出来** —— `FishboneJob.standingFailureCode`：**仅当**两个事实同时成立
+   ① 失败理由是**站位类**（`MiningPlanner.isStandingPointRefusal`，新常量 + 谓词 = 那两个码的**唯一产地**）
+   ② 该单元的行走层支撑格**真的缺**（`FishboneJob.channelFloorMissing`，与真机探针 `belowSolid` **同一谓词**）
+   ⇒ 主因码改成 `channel_floor_missing:<cause>`。cause **事实优先**：额度真用尽 ⇒ `bridge_budget_exhausted`（计数事实）；
+   手里真没一次性方块 ⇒ `no_throwaway_blocks`（**放置原语自己的码**，不另造名字）；否则**原样上抛**原始理由
+   （`D-329` / `1.4w`：腿给了理由就原样上抛）。任一条件不成立 ⇒ **原样返回**
+   （不许把无关失败也改名叫地板问题 —— 那是「改判据掩盖缺陷」）。
+   ⚠️ 额度用尽那一支**不需要**这条映射：它是在**单元开头的推进门**（`advanceRefusal`）停的，
+   码本来就是计数事实（夹具臂 `CHANNEL_FLOOR_BUDGET` 实测 `main_unreachable:bridge_budget_exhausted` + `unrepaired=0`）。
+2. **`D-450` 推论（额度分项）**：`SUMMARY` 增 `places=<搭桥>/<补地板>` 与 `unrepaired=<次数>`；
+   分项按**位置**分（落点是不是「某单元脚位格的正下方」，判据复用 `FishboneTemplate.units()` 这个几何唯一真源）。
+   额度仍是**一份**：`placementsUsed()` / `bridgeBlockBudget()` 与 `D-443` 的 `C8` 同一个出处（`D-450` 已拍「同一份」）。
+
+**⭐ 顺带修一条既有缺陷**（`silent-measurement-failure` 那一类）：`placementsUsed()` 原先**不按作业时间窗过滤**，
+而 `WriteAudit` 是**进程级**环形缓冲（`MAX_ENTRIES=512`）⇒ 电池里同一个进程连跑 8 条臂时，
+**上一条臂的放置会算进本次额度**（「额度还剩多少」变成历史累计数）。修法 = `entry.tick() >= gameTimeAtStart`
+（与 `emitSummary` 统计破坏数**同一口径**）。
+
+**与 `D-450` 的差异（诚实登记）**：`D-450` 字面的「作业在下发挖之前先判支撑、缺则下发补这一格」**没有按字面落地**；
+等价物 = **既有的走位补路**。`D-450` 的判据「(a) 补上且 `advance` 前进」由夹具臂 `CHANNEL_FLOOR_FILLED` 钉住。
+
+**证据（先红后绿，全部 `ALICE_BATTERY_NO_CACHE=1`）**：`fishbone_slice2 PASS(140s)` **8 臂 / `checks=131 failures=0`**；
+三条新臂读数逐字：
+- `CHANNEL_FLOOR_FILLED`：`channelFloorRepairs=5 unrepaired=0 逐格可站=5/5 终态=template_complete`
+- `CHANNEL_FLOOR_BUDGET`：`channelFloorRepairs=16 unrepaired=0 仍缺=4/20 终态=main_unreachable:bridge_budget_exhausted`
+  （⭐ 16 = `max(16, 40/10)` ⇒ **补地板与搭桥共用同一份额度**，直接钉住 `D-450` 的额度裁定）
+- `CHANNEL_FLOOR_NO_MATERIAL`：`channelFloorRepairs=0 unrepaired=1 仍缺=5/5 终态=main_unreachable:channel_floor_missing:no_throwaway_blocks`
+
+**两条红臂**：① 撤掉 `standingFailureCode` 的映射 ⇒ **只有** `NO_MATERIAL` 臂红（3 条），终态退回
+`main_unreachable:no_valid_standing_point`（= 真机那个「把地板没了伪装成站位找不到」的形态），其余 7 臂仍绿；
+② 拿掉 `finishUnit` 的 `workCellNotStandable` ⇒ 依赖「走进刚挖完那一格」的臂转红（`FILLED` 等）。
+回归：`fishbone_slice1` · `core` · `tools/check-all.sh`。
+
+**回收条件**：若真机出现「走位补路补不到、但作业仍需推进」（例如洞宽到走位无法成链）⇒ 回到 `D-450` 的字面形态
+（作业主动下发补格）。

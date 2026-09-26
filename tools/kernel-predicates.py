@@ -1176,9 +1176,14 @@ def rule_search_limit_not_unreachable():
     # "站位找不到"）。现在钉的不变量**更强**：① 腿给出的理由**原样上抛**（`return direct;`）；
     # ② 兜底码 `no_reachable_standing_point` **必须受"腿没给出理由"保护**（`.isEmpty()`）。
     # `SEARCH_INCOMPLETE` 是真子集（它非空 ⇒ 照旧被上抛），所以这条更强且不含例外。
+    # ⭐ `D-454`（2026-09-26）：**站位类的两个码收敛成常量**了（`MiningPlanner.STANDING_NO_VALID` /
+    # `STANDING_NO_REACHABLE`，作业层要用 `isStandingPointRefusal` 判"这次失败是不是站位类"）。
+    # ⇒ 锚点必须**跟着结构走**（否则把字面量换成常量就静默失效 —— 这正是本规则第一版自己的教训）。
+    # 两种写法都认，但**必须**出现其中之一。
     standable = re.search(
         r"if \(standableOnly\) \{(.{0,1500}?)"
-        r"return new Result\(null, null, \"no_reachable_standing_point\"\);",
+        r"return new Result\(null, null, (?:STANDING_NO_REACHABLE"
+        r"|\"no_reachable_standing_point\")\);",
         planner_code, re.S)
     if not standable:
         problems.append("`MiningPlanner.plan` 的 `standableOnly` 早返回结构变了 ⇒ 本规则要跟着改")
@@ -1654,6 +1659,7 @@ def rule_fishbone_live_log_shape():
          ["cell=", "mined=", "spurs=", "ores=", "searchNodes=", "products="]),
         ("收尾行", "[Fishbone] SUMMARY dir=",
          ["main=", "spursAbandoned=", "mined=", "ores=", "uncollected=", "collected=", "collects=",
+          "unrepaired=", "places=",
           "searchNodes=", "searchLimit=", "return=", "outside=", "→ "]),
     ]
     for label, head, keys in lines:
