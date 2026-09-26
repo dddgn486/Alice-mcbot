@@ -58,7 +58,9 @@ import java.util.UUID;
 public final class CollectDropsTask implements Task {
 
     /** 任务总预算（tick）。 */
-    private static final int DEFAULT_TOTAL_BUDGET_TICKS = 600;
+    /** 默认收集预算（tick）。⚠️ `1.4z` 起**公开**：作业侧的批量收集要显式给预算，
+     * 复制一份常量就会变成两个出处。 */
+    public static final int DEFAULT_TOTAL_BUDGET_TICKS = 600;
     /** 单个簇的扫描预算（tick，含走位与等待）。 */
     private static final int CLUSTER_BUDGET_TICKS = 200;
 
@@ -525,6 +527,14 @@ public final class CollectDropsTask implements Task {
         if (members.stream().anyMatch(this::inPickupRange)) {
             if (++waitTicks >= PICKUP_WAIT_TICKS) {
                 if (reanchors < MAX_REANCHORS) {
+                    // ⭐ `1.4z-C`（2026-09-26 真机取证）：3-b/D2 的"排除这一格"只补在下面
+                    // `// 3) 到位但够不到` 那一支，**这一支漏了**（"模型说已经进入拾取范围、等满
+                    // `PICKUP_WAIT_TICKS` 却没进包"）。真机逐字（子巷）：`簇起 anchor=-144,50,242`
+                    // → 走 6 格 → 站 40 tick → `reanchor cluster_anchor=-144,50,242 reanchors=1/2`
+                    // （**同一个格**）→ 再站 40 tick → `retire pickup_timeout` `delta=0 ticks=148`
+                    // = **7.4 秒白跑**，而下一个收集任务还会把同一格从头再来一遍。
+                    // 与 3) 同一处置：排除该格 ⇒ 换次优格，或如实退休（`D-375`）。
+                    excludeFailedGoal();
                     if (reanchor(members)) {
                         return Status.RUNNING;
                     }

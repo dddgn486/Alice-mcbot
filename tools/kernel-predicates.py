@@ -1653,7 +1653,7 @@ def rule_fishbone_live_log_shape():
         ("推进行", "[Fishbone] advance=",
          ["cell=", "mined=", "spurs=", "ores=", "searchNodes=", "products="]),
         ("收尾行", "[Fishbone] SUMMARY dir=",
-         ["main=", "spursAbandoned=", "mined=", "ores=", "uncollected=", "collected=",
+         ["main=", "spursAbandoned=", "mined=", "ores=", "uncollected=", "collected=", "collects=",
           "searchNodes=", "searchLimit=", "return=", "outside=", "→ "]),
     ]
     for label, head, keys in lines:

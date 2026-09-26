@@ -29,6 +29,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
@@ -159,6 +160,32 @@ public final class FishboneJob implements Job {
     private Phase phase = Phase.PREPARE;
     private MineTask current;
     private CollectDropsTask collector;
+
+    // ==================== ⭐ `1.4z-B`（2026-09-26）：批量收集 ====================
+
+    /** **一段活干完了**（支巷完工 / 追簇队列清空）⇒ 下一次"手上没活在飞"的 tick 起一次批量收集。 */
+    private boolean collectDue;
+    /** 本次收集是**收尾**（`true`：做 `product_not_collected` 判定后回家）还是**周期**（`false`：收完回工地）。 */
+    private boolean collectIsFinal;
+    /** 周期收集收完回哪个相位。 */
+    private Phase collectReturnPhase = Phase.EXCAVATE;
+    /** 本作业起了几趟**周期**收集（进 `SUMMARY` 的 `collects=`；真机/夹具靠它看"是不是还在逐格收"）。 */
+    private int batchCollects;
+    /** 安全下限的评估节流（`liveDrops()` 不必每 tick 扫）。 */
+    private int nextAgeCheckTick;
+
+    /**
+     * ⭐ `1.4z-B`：**最老的产物落物在地上躺够多少 tick 就必须收一次**（**安全下限**，唯一出处）。
+     *
+     * <p>出处 = 原版 despawn 常数 − 一趟收集的余量（同 `D-346` 的 `chaseLimit`：口径由事实派生）：
+     * `6000`（`ItemEntity.tick()` 里 `age >= 6000 ⇒ discard`，1.20.1 字节码 `sipush 6000` 实测）
+     * − `2400`（2 分钟余量：单簇预算 200 tick + 走位，实测最坏一趟 ≈150 tick）⇒ `3600`。
+     * ⚠️ **不许 ≥6000**（那等于"等它消失再收"，产物必丢）。
+     *
+     * <p><b>主判据仍是结构边界</b>（{@link #requestBatchCollect}）—— 本条只是**下限**：作业预算
+     * `maxTicks` 默认 86800（≈72 分钟），一段活可能比 5 分钟长。
+     */
+    private static final int COLLECT_BEFORE_DESPAWN_TICKS = 3600;
     private PathRetryRunner returnRunner;
     private PathRetryRunner spurReturnRunner;
 
@@ -360,6 +387,14 @@ public final class FishboneJob implements Job {
                 beginReturn();
             }
         }
+        // ⭐⭐ `1.4z-B`：**批量收集的唯一触发点**（判据只有 `batchCollectDue()` 一处）。
+        // 改前是"每挖一格收一趟"（`MineTask` 自带收集段）—— 真机实测：拾取簇 199 趟 = 25% 的 tick，
+        // 且逐格收集**必须站在原地等**那一格的落物（落地 + 原版 10 tick 拾取延迟，每趟 ~9 tick）
+        // ⇒ 子巷 65 s 里只挖掉 4 格、却起了 12 个收集簇（7 个白跑）、收集占 81% 时间。
+        if (batchCollectDue()) {
+            startCollect(false);
+            return Task.Status.RUNNING;
+        }
         return switch (phase) {
             case PREPARE -> prepare();
             case EXCAVATE -> excavate();
@@ -430,7 +465,7 @@ public final class FishboneJob implements Job {
 
     private Task.Status excavate() {
         if (unitIndex >= units.size()) {
-            startCollect();
+            startCollect(true);
             return Task.Status.RUNNING;
         }
         FishboneTemplate.Unit unit = units.get(unitIndex);
@@ -481,7 +516,10 @@ public final class FishboneJob implements Job {
                     unitIndex + 1, units.size(), cellInUnit + 1, template.height(),
                     cell.toShortString(), unit.isSpur() ? unit.spurDir().getName() + unit.spurStep() : "-");
             current = new MineTask(bot, cell, scope,
-                    MiningBudget.forTarget(bot, level, cell, true),
+                    // ⭐ `1.4z-B`：**逐格收集关掉**（`collectDrops=false`）—— 收集改由本作业在
+                    // **结构边界**批量做（`batchCollectDue()`）。关掉只跳过"拾取"这一段：
+                    // `MineTask.enterCollection()` 会走 `enterRestoreOrDone()` ⇒ 支撑块建拆照旧。
+                    MiningBudget.forTarget(bot, level, cell, false),
                     // 站位只用**现成可站**的格：鱼骨的站位永远在身后一格 ⇒ 不需要规划器自己挖隧道
                     //（`STANDABLE_ONLY` = 计划 §5 方案 A 的"每格 1 次、距离恒 1 格"）。
                     // ⭐ `D-443` 裁定 1a（2026-09-25）：**接近能力**升到「补一块再走」（与 `A14` 同一集合）——
@@ -570,6 +608,7 @@ public final class FishboneJob implements Job {
             return;
         }
         if (lastOfSpur) {
+            requestBatchCollect("spur_done");   // ⭐ `1.4z-B`：支巷完工 = 一段活干完
             beginSpurReturn(unit);
         }
     }
@@ -1054,6 +1093,7 @@ public final class FishboneJob implements Job {
         }
         chaseApproachUnit = null;
         if (oreQueue.isEmpty()) {
+            requestBatchCollect("chase_done");  // ⭐ `1.4z-B`：追簇队列空了 = 一整簇挖完
             if (pendingSpurReturn != null) {
                 beginSpurReturn(pendingSpurReturn);
             } else {
@@ -1085,6 +1125,7 @@ public final class FishboneJob implements Job {
      */
     private Task.Status inPlace() {
         if (oreQueue.isEmpty()) {
+            requestBatchCollect("vein_done");   // ⭐ `1.4z-B`：矿脉挖完 = 一整簇挖完
             if (pendingSpurReturn != null) {
                 beginSpurReturn(pendingSpurReturn);
             } else {
@@ -1121,7 +1162,9 @@ public final class FishboneJob implements Job {
             oreStartFeet = MovementHelper.footCell(level, bot);
             oreBroken = false;
             oreTask = new MineTask(bot, ore, scope,
-                    MiningBudget.forTarget(bot, level, ore, true),
+                    // ⭐ `1.4z-B`：追簇的逐格收集同样关掉（同一处置）。⚠️ 记账不受影响：`oreMined++`
+                    // 判的是"目标格变空气那一瞬"，`oreWalkedAway` 量的也是那一瞬的位移 ⇒ 与"什么时候捡"无关。
+                    MiningBudget.forTarget(bot, level, ore, false),
                     cellProfile(), grant,
                     // ⭐ `1.4z`：**主动拾取清单 = 产物过滤器**（与 `countProductItems()` 同一个 `PRODUCT_FILTER`
                     // ⇒ 判据只有一个出处）。石头族落物不进候选：真机实测那 61% 的石头点名声就是它的代价。
@@ -1188,19 +1231,97 @@ public final class FishboneJob implements Job {
 
     // ==================== 切片 2：收集（C2） ====================
 
-    /** 全模板处理完 ⇒ 起一次收集（半径已由 `prepare` 里的 `scopeRadius` 决定）。 */
-    private void startCollect() {
-        collector = new CollectDropsTask(bot, template.startFoot(), scope, List.of(), true,
-                PRODUCT_FILTER::matches);   // ⭐ `1.4z`：主动拾取清单 = 产物（同上）
-        BotLog.info("[Fishbone] COLLECT 开始 origin={} scopeRadius={} oreMined={} 产物基线={}"
-                        + "（半径从模板推导；追取上限 = max(32, 2×半径)，`D-346`）",
-                template.startFoot().toShortString(), scope.currentRadius(), oreMined, itemsBefore);
+    /**
+     * 起一次收集。`isFinal` = **收尾**（全模板处理完 ⇒ 做 `product_not_collected` 判定后回家）；
+     * `false` = **周期**（{@link #requestBatchCollect} 那些结构边界 ⇒ 收完回工地）。
+     *
+     * <p>⭐ `1.4z-B`+`D-453`：两档都 **`allowWorldModification=false`**（`D-375`：够不着就如实退休，
+     * 不许为捡东西挖穿地形 —— 真机实测那 18 格 `collect-drops:PATH_ACCESS` + 10 次 `PICKUP_DETOUR`
+     * 就是它），清单 = `PRODUCT_FILTER::matches`（与 `countProductItems()` **同一个入口**）。
+     */
+    private void startCollect(boolean isFinal) {
+        collectIsFinal = isFinal;
+        collectReturnPhase = phase;
+        if (!isFinal) {
+            batchCollects++;
+        }
+        collector = new CollectDropsTask(bot, template.startFoot(), scope, List.of(), false,
+                CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS,
+                com.dddgn.alice.task.mining.MiningProfile.STANDABLE_ONLY, null,
+                PRODUCT_FILTER::matches);
+        BotLog.info("[Fishbone] COLLECT 开始 round={} kind={} origin={} scopeRadius={} oreMined={} 产物基线={}"
+                        + "（半径从模板推导；追取上限 = max(32, 2×半径)，`D-346`；worldMod=false）",
+                batchCollects, isFinal ? "final" : "periodic", template.startFoot().toShortString(),
+                scope.currentRadius(), oreMined, itemsBefore);
         phase = Phase.COLLECT;
+    }
+
+    /**
+     * ⭐ `1.4z-B`：**该不该起一次批量收集** —— 判据只有这一处。
+     *
+     * <p><b>主判据 = 一段活干完了</b>（`collectDue`，由 {@link #requestBatchCollect} 在三处**结构边界**
+     * 置位：支巷完工 / 追簇队列清空）；<b>下限 = 最老的产物落物已躺够
+     * {@link #COLLECT_BEFORE_DESPAWN_TICKS}</b>（否则它会**消失在世界上**，原版常数派生）。
+     *
+     * <p>守卫：**手上没有在飞的子任务** ⇒ 不打断半截挖掘；只在 `EXCAVATE`/`SPUR_RETURN` 切相位
+     * （追簇中途不切，免得搅乱 `oreQueue`/`pendingSpurReturn` 那套状态）。
+     */
+    private boolean batchCollectDue() {
+        if (collector != null || current != null || oreTask != null) {
+            return false;   // 有活在飞：不打断
+        }
+        if (phase != Phase.EXCAVATE && phase != Phase.SPUR_RETURN) {
+            return false;
+        }
+        if (!collectDue && ticks >= nextAgeCheckTick) {
+            nextAgeCheckTick = ticks + 20;      // 节流：每 20 tick 量一次最老产物落物的年龄
+            collectDue = oldestProductDropAge() >= COLLECT_BEFORE_DESPAWN_TICKS;
+        }
+        if (!collectDue) {
+            return false;
+        }
+        collectDue = false;
+        return true;
+    }
+
+    /** 作用域在册落物里**产物**的最老年龄（tick；没有产物 ⇒ −1）。判据 = 同一个 `PRODUCT_FILTER`。 */
+    private int oldestProductDropAge() {
+        int oldest = -1;
+        for (ItemEntity item : scope.liveDrops()) {
+            if (PRODUCT_FILTER.matches(item.getItem()) && item.tickCount > oldest) {
+                oldest = item.tickCount;
+            }
+        }
+        return oldest;
+    }
+
+    /**
+     * ⭐ `1.4z-B`：**一段活干完了** ⇒ 置位，真正切相位由 {@link #batchCollectDue()} 那一处决定。
+     *
+     * <p>三处调用点都是**结构边界**（同一概念的三个入口，不是三份判据）：支巷完工
+     * （`finishUnit` 的 `lastOfSpur`）、追簇队列清空（`chaseApproach`/`inPlace` 的两个出口）。
+     */
+    private void requestBatchCollect(String why) {
+        if (collectDue) {
+            return;
+        }
+        collectDue = true;
+        BotLog.info("[Fishbone] collect_due 段完工 why={} 单元={}/{} 追簇队列={} 已挖={} 周期收集趟数={}",
+                why, unitIndex, units.size(), oreQueue.size(), mined, batchCollects);
     }
 
     private Task.Status collectPhase() {
         Task.Status status = collector.tick();
         if (status == Task.Status.RUNNING) {
+            return Task.Status.RUNNING;
+        }
+        if (!collectIsFinal) {
+            // ⭐ `1.4z-B`：**周期收集收完就回工地** —— 产物齐不齐**只在收尾那次判**（否则"这一趟没把
+            // 全部产物收回来"会被误报成 `product_not_collected`；真机实测单趟收不回全部是常态，
+            // 落物会掉进够不着的空洞 = `D-375` 那一档）。
+            collector = null;
+            phase = collectReturnPhase;
+            BotLog.info("[Fishbone] COLLECT 完成（周期 #{}）⇒ 回 {} 继续", batchCollects, phase);
             return Task.Status.RUNNING;
         }
         collectedProducts = countProductItems() - itemsBefore;
@@ -1381,12 +1502,12 @@ public final class FishboneJob implements Job {
         // ⚠️ 键名是与用户的**契约**（计划 §8）：本行改动 **必须** 同步 `tools/kernel-predicates.py`
         // 的 `rule_fishbone_live_log_shape`（改一处不改另一处 ⇒ 门禁红，这正是它存在的意义）。
         BotLog.info("[Fishbone] SUMMARY dir={} main={}/{} spursAbandoned={}/{} mined={} skipped={}"
-                        + " ores={}/{} uncollected={} collected={}/{} searchNodes={} searchLimit={} return={}"
+                        + " ores={}/{} uncollected={} collected={}/{} collects={} searchNodes={} searchLimit={} return={}"
                         + " worldChangesInside={} outside={} ticks={} → {}",
                 dirLetter(template.dir()), mainUnitsDone, template.mainLength(),
                 spursAbandoned, template.spurBranches(),
                 mined, skipped, oreMined, oreFound, oreUncollected, collectedProducts, oreMined,
-                delta.nodes(), delta.searchLimits(), ret, inside, outside, ticks,
+                batchCollects, delta.nodes(), delta.searchLimits(), ret, inside, outside, ticks,
                 terminalStatus == Task.Status.DONE ? "PASS" : "FAIL");
     }
 
