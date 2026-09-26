@@ -10,6 +10,7 @@ import com.dddgn.alice.task.mining.MiningProfile;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.AABB;
 
 import java.util.ArrayDeque;
@@ -137,6 +138,25 @@ public final class CollectDropsTask implements Task {
      * ⭐ `D-344`：候选来源（`null` = `scope.liveDrops()`）。见带 `liveDropsSource` 的构造器注释。
      */
     private final java.util.function.Supplier<List<ItemEntity>> liveDropsSource;
+
+    /**
+     * ⭐ `1.4z`（2026-09-26，用户口径）：**主动拾取清单** —— 只有清单内的落物才**值得专门跑一趟**
+     * （进候选、被追、被等）。清单外的落物是**白名单**：掉在地上不专门去捡，**顺手路过被原版吸取**即可。
+     *
+     * <p><b>用户原话</b>：「掉的石头是可捡拾物，但不是主动捡拾物，这个任务里，默认只有矿物是主动拾取物」
+     * —— 真机实测（2026-09-26，345 s / 208 个收集簇）：登记的落物 **213 件里 132 件（61%）是石头族**
+     * （`cobblestone 43 + diorite 38 + andesite 27 + granite 22 + gravel 2`），而**每一件都要付
+     * ~9 tick 的等待**（落地 + 原版 10 tick 拾取延迟）⇒ 那 61% 是纯负担。
+     *
+     * <p><b>为什么必须由调用方注入而不是本类内置"是不是矿"</b>：本类是**通用**收集器，被
+     * `MineJob` / `LumberJob` / `CollectJob` / 多个夹具共用 —— 伐木的"产物"是原木与树苗，
+     * 清障的"产物"就是石头本身。**判据只有一个出处**：调用方自己的产物谓词
+     * （矿类作业传 {@code MineProductFilter} 的入口，夹具已钉"产物口径来自生产过滤器"，
+     * 见 `JobAreaGrantCheckTask:335`）。
+     *
+     * <p>{@code null} = **全部落物**（既有行为**逐字不变**）。
+     */
+    private final java.util.function.Predicate<ItemStack> activePickup;
     private final boolean allowWorldModification;
     /**
      * 收集阶段的**能力信封**（D-116）：掉落物在头顶够不到时，允许用同一份"原地加高"能力上去拿。
@@ -268,6 +288,30 @@ public final class CollectDropsTask implements Task {
                             List<UUID> expectedIds, boolean allowWorldModification, int totalBudgetTicks,
                             com.dddgn.alice.task.mining.MiningProfile gainProfile,
                             java.util.function.Supplier<List<ItemEntity>> liveDropsSource) {
+        this(bot, origin, scope, expectedIds, allowWorldModification, totalBudgetTicks, gainProfile,
+                liveDropsSource, null);
+    }
+
+    /**
+     * ⭐ `1.4z`（2026-09-26）：带**主动拾取清单**的便捷重载（其余全用默认：预算 `DEFAULT_TOTAL_BUDGET_TICKS`
+     * / `STANDABLE_ONLY` / 候选 = 作用域在册落物）。见 {@link #activePickup} 字段的注释。
+     */
+    public CollectDropsTask(BotPlayer bot, BlockPos origin, ScopeBuffer scope,
+                            List<UUID> expectedIds, boolean allowWorldModification,
+                            java.util.function.Predicate<ItemStack> activePickup) {
+        this(bot, origin, scope, expectedIds, allowWorldModification, DEFAULT_TOTAL_BUDGET_TICKS,
+                com.dddgn.alice.task.mining.MiningProfile.STANDABLE_ONLY, null, activePickup);
+    }
+
+    /**
+     * @param activePickup **主动拾取清单**（`null` = 全部落物 ⇒ 既有行为逐字不变）；
+     *                     清单外的落物**不进候选、不进账**（"顺手捡"由原版吸取范围负责，不需要本类做事）
+     */
+    public CollectDropsTask(BotPlayer bot, BlockPos origin, ScopeBuffer scope,
+                            List<UUID> expectedIds, boolean allowWorldModification, int totalBudgetTicks,
+                            com.dddgn.alice.task.mining.MiningProfile gainProfile,
+                            java.util.function.Supplier<List<ItemEntity>> liveDropsSource,
+                            java.util.function.Predicate<ItemStack> activePickup) {
         this.gainProfile = gainProfile == null
                 ? com.dddgn.alice.task.mining.MiningProfile.STANDABLE_ONLY : gainProfile;
         this.bot = bot;
@@ -277,6 +321,7 @@ public final class CollectDropsTask implements Task {
         this.allowWorldModification = allowWorldModification;
         this.totalBudgetTicks = Math.max(40, totalBudgetTicks);
         this.liveDropsSource = liveDropsSource;
+        this.activePickup = activePickup;
     }
 
     @Override
@@ -767,6 +812,11 @@ public final class CollectDropsTask implements Task {
         for (ItemEntity item : source == null ? List.<ItemEntity>of() : source) {
             UUID id = item.getUUID();
             if (consumed.contains(id) || retired.contains(id)) {
+                continue;
+            }
+            // ⭐ `1.4z`：**主动拾取清单**以外的落物不进候选（也不进 `known`/`expected` 账 —— 让本类的
+            // 计数口径与作业的"产物进包"口径对齐）。"顺手捡"由原版吸取范围负责，不需要我们做任何动作。
+            if (activePickup != null && !activePickup.test(item.getItem())) {
                 continue;
             }
             known.add(id);

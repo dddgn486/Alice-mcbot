@@ -487,7 +487,10 @@ public final class FishboneJob implements Job {
                     // ⭐ `D-443` 裁定 1a（2026-09-25）：**接近能力**升到「补一块再走」（与 `A14` 同一集合）——
                     // 真机实测：追簇把 bot 带到通道层之外时，挖掘站位曾因「接近 = 纯通行」判
                     // `no_reachable_standing_point` 而整条支巷被放弃，而**同一 tick** 鱼骨自己的走位却 `REACHED`。
-                    cellProfile(), grant);
+                    cellProfile(), grant,
+                    // ⭐ `1.4z`：**主动拾取清单 = 产物过滤器**（与 `countProductItems()` 同一个 `PRODUCT_FILTER`
+                    // ⇒ 判据只有一个出处）。石头族落物不进候选：真机实测那 61% 的石头点名声就是它的代价。
+                    PRODUCT_FILTER::matches);
             return Task.Status.RUNNING;
         }
 
@@ -1119,7 +1122,10 @@ public final class FishboneJob implements Job {
             oreBroken = false;
             oreTask = new MineTask(bot, ore, scope,
                     MiningBudget.forTarget(bot, level, ore, true),
-                    cellProfile(), grant);
+                    cellProfile(), grant,
+                    // ⭐ `1.4z`：**主动拾取清单 = 产物过滤器**（与 `countProductItems()` 同一个 `PRODUCT_FILTER`
+                    // ⇒ 判据只有一个出处）。石头族落物不进候选：真机实测那 61% 的石头点名声就是它的代价。
+                    PRODUCT_FILTER::matches);
             return Task.Status.RUNNING;
         }
         // ⚠️⚠️ **有任务在跑就必须把它跑到终态**，哪怕目标**已经是空气**了 ——
@@ -1184,7 +1190,8 @@ public final class FishboneJob implements Job {
 
     /** 全模板处理完 ⇒ 起一次收集（半径已由 `prepare` 里的 `scopeRadius` 决定）。 */
     private void startCollect() {
-        collector = new CollectDropsTask(bot, template.startFoot(), scope, List.of(), true);
+        collector = new CollectDropsTask(bot, template.startFoot(), scope, List.of(), true,
+                PRODUCT_FILTER::matches);   // ⭐ `1.4z`：主动拾取清单 = 产物（同上）
         BotLog.info("[Fishbone] COLLECT 开始 origin={} scopeRadius={} oreMined={} 产物基线={}"
                         + "（半径从模板推导；追取上限 = max(32, 2×半径)，`D-346`）",
                 template.startFoot().toShortString(), scope.currentRadius(), oreMined, itemsBefore);

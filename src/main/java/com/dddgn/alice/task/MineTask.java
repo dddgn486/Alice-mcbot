@@ -92,6 +92,12 @@ public final class MineTask implements Task {
     /** 世界写入授权（D-082）。 */
     private final WriteGrant grant;
 
+    /**
+     * ⭐ `1.4z`（2026-09-26）：**主动拾取清单**，透传给本任务自带的收集段
+     * （`null` = 全部落物 ⇒ 既有调用方行为逐字不变）。判据出处 = 调用方自己的产物谓词。
+     */
+    private final java.util.function.Predicate<ItemStack> activePickup;
+
     private MineBlockRunner miner;
     private MiningPlan currentPlan;
     private Phase phase = Phase.EVALUATING;
@@ -181,12 +187,27 @@ public final class MineTask implements Task {
      */
     public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope, MiningBudget budget,
                     MiningProfile profile, WriteGrant grant) {
+        this(bot, target, scope, budget, profile, grant, null);
+    }
+
+    /**
+     * ⭐ `1.4z`（2026-09-26）：`activePickup` = **主动拾取清单**（见
+     * {@link CollectDropsTask#CollectDropsTask(com.dddgn.alice.bot.BotPlayer, BlockPos, ScopeBuffer, List,
+     * boolean, java.util.function.Predicate)}）；`null` = 全部落物 ⇒ 既有 17 个调用点**逐字不变**。
+     *
+     * <p>为什么挂在 `MineTask` 上：本任务是**逐格**动作，它自带的那一段收集
+     * （{@link #enterCollection()}）是"这一格的落物"的收集入口 ⇒ 清单必须能从这里传下去。
+     */
+    public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope, MiningBudget budget,
+                    MiningProfile profile, WriteGrant grant,
+                    java.util.function.Predicate<ItemStack> activePickup) {
         this.profile = profile;
         this.grant = grant;
         this.bot = bot;
         this.target = target.immutable();
         this.scope = scope;
         this.budget = budget;
+        this.activePickup = activePickup;
         // D-119：只做**只读**工具判定，绝不改背包（详见 toolRefusal 的注释）。
         this.toolRefusal = toolRefusal(bot, this.target);
         if (this.toolRefusal == null) {
@@ -504,7 +525,7 @@ public final class MineTask implements Task {
         if (!(bot instanceof com.dddgn.alice.bot.BotPlayer botPlayer)) {
             throw new IllegalStateException("MineTask requires BotPlayer");
         }
-        collector = new CollectDropsTask(botPlayer, target, scope, List.of(), true);
+        collector = new CollectDropsTask(botPlayer, target, scope, List.of(), true, activePickup);
         BotLog.info("挖掘阶段完成,进入拾取阶段: target={}", target.toShortString());
         return Status.RUNNING;
     }
