@@ -27,6 +27,9 @@ import net.minecraft.world.phys.Vec3;
  * A 目标正下方是岩浆源 ⇒ `MiningPlanner` 必须**硬拒**（reason=fluid_risk_lava），
  *   且 MineTask 不许再去"清障/加高"（clearedBlocks/gainedSteps 必须都是 0）
  * B 正对照：同一平台上普通石头目标 ⇒ 正常挖完并入包（证明检查不会误伤正常挖掘）
+ * C/D ⭐ `1.4z-a`（2026-09-26 真机裁定「挖到水 ⇒ 停/换格，不挖穿」）：**水**也必须硬拒 ——
+ *   C 目标**上方**是水源（挖掉 ⇒ 水直接落进来，正是真机那一幕）·
+ *   D 目标**水平邻格**是水源（挖掉 ⇒ 水横着漫进来）
  * </pre>
  */
 public class FluidMineCheckTask implements Task {
@@ -37,6 +40,10 @@ public class FluidMineCheckTask implements Task {
     public static final BlockPos TARGET_OVER_LAVA = new BlockPos(66, 64, 104);
     /** 正对照目标：平台上的普通石头。 */
     public static final BlockPos TARGET_NORMAL = new BlockPos(64, 64, 106);
+    /** ⭐ `1.4z-a` 水臂 C：**正上方 (68,65,104) 是水源**（封闭水囊，挖掉目标 ⇒ 水落下来）。 */
+    public static final BlockPos TARGET_UNDER_WATER = new BlockPos(68, 64, 104);
+    /** ⭐ `1.4z-a` 水臂 D：**水平邻格 (69,64,106) 是水源**（挖掉目标 ⇒ 水漫进来）。 */
+    public static final BlockPos TARGET_BESIDE_WATER = new BlockPos(68, 64, 106);
 
     private static final int RUN_BUDGET_TICKS = 1200;
 
@@ -44,9 +51,13 @@ public class FluidMineCheckTask implements Task {
     private final ServerPlayer observer;
     private final ScopeBuffer scope;
 
-    private enum Phase { SETUP, RUN_REFUSE, RUN_CONTROL, DONE }
+    private enum Phase { SETUP, RUN_REFUSE, RUN_WATER_ABOVE, RUN_WATER_SIDE, RUN_CONTROL, DONE }
 
     private Phase phase = Phase.SETUP;
+    private String planWaterAbove = "-";
+    private String planWaterSide = "-";
+    private boolean waterAboveOk;
+    private boolean waterSideOk;
     private int ticks;
     private MineTask inner;
     /** 规划层断言：探针必须**在任何站位/隧道规划之前**就拒掉。 */
@@ -85,6 +96,8 @@ public class FluidMineCheckTask implements Task {
         return switch (phase) {
             case SETUP -> setup();
             case RUN_REFUSE -> runRefuse();
+            case RUN_WATER_ABOVE -> runWater(TARGET_UNDER_WATER, true);
+            case RUN_WATER_SIDE -> runWater(TARGET_BESIDE_WATER, false);
             case RUN_CONTROL -> runControl();
             case DONE -> passed() ? Status.DONE : Status.FAILED;
         };
@@ -111,6 +124,11 @@ public class FluidMineCheckTask implements Task {
         planRefuse = planned.success() ? "PLANNED(未拒绝!)" : planned.failureReason();
         BotLog.info("[FluidMineCheck] A 规划层 target={} success={} reason={}",
                 TARGET_OVER_LAVA.toShortString(), planned.success(), planRefuse);
+        // ⭐ `1.4z-a`：水臂的**规划层**先验（同一个入口 `MiningPlanner` ⇒ 判据不会两处）
+        planWaterAbove = planRefuseReason(level, TARGET_UNDER_WATER);
+        planWaterSide = planRefuseReason(level, TARGET_BESIDE_WATER);
+        BotLog.info("[FluidMineCheck] C/D 规划层 上方水囊={} 水平水囊={}（都应=fluid_risk_water）",
+                planWaterAbove, planWaterSide);
         phase = Phase.RUN_REFUSE;
         return Status.RUNNING;
     }
@@ -135,7 +153,7 @@ public class FluidMineCheckTask implements Task {
         runRefuse = (hardRefused ? "FAILED_fluid_risk_lava" : status + "/" + reason)
                 + " no_clear_gain=" + noClearNoGain;
         inner = null;
-        phase = Phase.RUN_CONTROL;
+        phase = Phase.RUN_WATER_ABOVE;   // ⭐ `1.4z-a`：接着跑水两档，最后才跑正对照
         return Status.RUNNING;
     }
 
@@ -162,6 +180,8 @@ public class FluidMineCheckTask implements Task {
         phase = Phase.DONE;
         boolean pass = passed();
         String summary = "plan_refuse=" + planRefuse + " run_refuse=" + runRefuse
+                + " plan_water_above=" + planWaterAbove + " water_above_ok=" + waterAboveOk
+                + " plan_water_side=" + planWaterSide + " water_side_ok=" + waterSideOk
                 + " control=" + control + " → " + (pass ? "PASS" : "FAIL");
         BotLog.info("[FluidMineCheck] SUMMARY {}", summary);
         if (observer != null) {
@@ -170,10 +190,52 @@ public class FluidMineCheckTask implements Task {
         return pass ? Status.DONE : Status.FAILED;
     }
 
+    /** 规划层硬拒码（同一个 `MiningPlanner` 入口 —— 夹具不另写判据）。 */
+    private String planRefuseReason(ServerLevel level, BlockPos target) {
+        MiningPlanner.Result planned = new MiningPlanner().plan(bot, target,
+                MiningBudget.forTarget(bot, level, target, false));
+        return planned.success() ? "PLANNED(未拒绝!)" : planned.failureReason();
+    }
+
+    /**
+     * ⭐ `1.4z-a` 水臂：目标格本身不是水，但**上方 / 水平邻格**是水源 ⇒ 必须**硬拒**
+     * （`fluid_risk_water`），且不许清障/加高（与岩浆那条同一形状的断言）。
+     */
+    private Status runWater(BlockPos target, boolean above) {
+        if (inner == null) {
+            inner = new MineTask(bot, target, scope,
+                    MiningBudget.forTarget(bot, bot.serverLevel(), target, false),
+                    com.dddgn.alice.task.mining.MiningProfile.TUNNEL_ALLOWED,
+                    WriteGrant.of(taskName(), WriteReason.EXPECTED_TARGET));
+        }
+        Status status = inner.tick();
+        if (status == Status.RUNNING) {
+            return Status.RUNNING;
+        }
+        String reason = inner.failureReason() == null ? "" : inner.failureReason();
+        boolean ok = status == Status.FAILED && reason.contains("fluid_risk_water")
+                && inner.clearedBlocks() == 0 && inner.gainedSteps() == 0;
+        BotLog.info("[FluidMineCheck] {} target={} 终态 status={} reason={} cleared={} gained={} ⇒ {}",
+                above ? "C 水（上方）" : "D 水（水平邻格）", target.toShortString(), status, reason,
+                inner.clearedBlocks(), inner.gainedSteps(), ok ? "OK" : "缺陷");
+        inner = null;
+        if (above) {
+            waterAboveOk = ok;
+            phase = Phase.RUN_WATER_SIDE;
+        } else {
+            waterSideOk = ok;
+            phase = Phase.RUN_CONTROL;
+        }
+        return Status.RUNNING;
+    }
+
     private boolean passed() {
         return "fluid_risk_lava".equals(planRefuse)
                 && runRefuse.contains("FAILED_fluid_risk_lava")
                 && runRefuse.contains("no_clear_gain=true")
+                // ⭐ `1.4z-a`：水两档（规划层 + 运行期 + 零清障加高）
+                && "fluid_risk_water".equals(planWaterAbove) && waterAboveOk
+                && "fluid_risk_water".equals(planWaterSide) && waterSideOk
                 && controlStatus.equals("DONE");
     }
 }

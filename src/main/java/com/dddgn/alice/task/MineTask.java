@@ -665,6 +665,7 @@ public final class MineTask implements Task {
     public static boolean isHardTargetRefusal(String reason) {
         return "unbreakable_block".equals(reason)
                 || "fluid_risk_lava".equals(reason)
+                || "fluid_risk_water".equals(reason)   // ⭐ `1.4z-a`：挖到水也是硬拒绝（停/换格，不挖穿）
                 || "TARGET_NOT_BREAKABLE".equals(reason)
                 || "BREAK_REFUSED".equals(reason)
                 || reason.startsWith("protected_");

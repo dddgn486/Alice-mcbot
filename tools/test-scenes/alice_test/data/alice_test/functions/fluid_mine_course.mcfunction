@@ -19,3 +19,22 @@ setblock 66 64 104 minecraft:stone
 
 # 正对照目标：普通石头（平台本身 y=63 是石头，这里在脚位层再放一格石头目标）
 setblock 64 64 106 minecraft:stone
+
+# ⭐ `1.4z-a`（2026-09-26）：**水**两档 —— 目标上方有水源 / 水平邻格有水源
+# 水囊都**封闭**（四壁+顶），免得水漫出去污染其它臂（尤其正对照）
+# C 目标 (68,64,104)：上方 (68,65,104) 是水源
+setblock 68 64 104 minecraft:stone
+setblock 68 65 104 minecraft:water
+setblock 67 65 104 minecraft:stone
+setblock 69 65 104 minecraft:stone
+setblock 68 65 103 minecraft:stone
+setblock 68 65 105 minecraft:stone
+setblock 68 66 104 minecraft:stone
+
+# D 目标 (68,64,106)：水平邻格 (69,64,106) 是水源
+setblock 68 64 106 minecraft:stone
+setblock 69 64 106 minecraft:water
+setblock 69 65 106 minecraft:stone
+setblock 69 64 105 minecraft:stone
+setblock 69 64 107 minecraft:stone
+setblock 70 64 106 minecraft:stone

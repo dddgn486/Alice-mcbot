@@ -204,6 +204,9 @@ public final class RegressionBatteryTask implements Task {
             Map.entry("machine_cycle", Profile.EXTRA),
             // M1（G1）：挖矿候选菜单契约 —— `mine` 不许猜位置（矿石场景 + 复用 MineCandidateSource）。
             // 放 MAIN（CORE 跑）而不是 EXTRA：它是"**不猜语义**"这条红线的门禁，必须每次改动都跑得到。
+            // ⭐ `1.4z-a`（2026-09-26）：**挖到水 ⇒ 硬拒**（目标上方/水平邻格是水源）。
+            // 真机那一幕让整轮作业作废（挖穿 ⇒ 水灌进来 ⇒ 被冲离站位 ⇒ 401 tick 零推进 ⇒ `no_progress`）。
+            Map.entry("fluid_mine", Profile.MAIN),
             Map.entry("mine_menu", Profile.MAIN),
             // M2（G2）：长作业周期复评 —— "自主"的物理载体（无进度 ⇒ 报一次 NO_PROGRESS）。
             // 放 MAIN（CORE 跑）：它是停止条件 A1「中途自己发现问题」的必要条件。

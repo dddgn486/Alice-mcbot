@@ -89,6 +89,13 @@ public final class MiningModule implements CheckModule {
                 CheckStep.of("mine_regression", CheckProfile.BASELINE, List.of(),
                         () -> to(bot, MineCourseDiagnosticTask.START_FOOT),
                         () -> new MineRegressionTask(bot, observer, scope), 3200),
+                // ⭐ `1.4z-a`（2026-09-26 真机裁定「挖到水 ⇒ 停/换格，不挖穿」）：**挖到水必须硬拒**。
+                // 真机那一幕：挖穿一格 ⇒ 瀑布灌进通道 ⇒ 水流持续把 bot 推离站位 ⇒ `PathRetry` 无限
+                // `REACHED → STALE` ⇒ 连续 401 tick 零推进 ⇒ 整轮作业作废（`main=3/20 collected=0/32`）。
+                // 夹具自带场景（`alice_test:fluid_mine_course`）⇒ `course=List.of()`、无前置传送。
+                // 判据出处 = `FluidRiskPolicy.miningRefusal`（与岩浆同一条），夹具只跑生产入口。
+                CheckStep.of("fluid_mine", CheckProfile.MAIN, List.of(), null,
+                        () -> new com.dddgn.alice.task.FluidMineCheckTask(bot, observer, scope), 1200),
                 // M2（G2）：长作业周期复评（窗口 40 tick，夹具自己造停滞与"重新武装"）
                 CheckStep.of("no_progress", CheckProfile.MAIN, ore, toOre,
                         () -> new NoProgressCheckTask(bot, observer), 400),

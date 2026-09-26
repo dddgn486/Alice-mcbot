@@ -165,8 +165,16 @@ public final class FishboneJob implements Job {
 
     /** **一段活干完了**（支巷完工 / 追簇队列清空）⇒ 下一次"手上没活在飞"的 tick 起一次批量收集。 */
     private boolean collectDue;
-    /** 本次收集是**收尾**（`true`：做 `product_not_collected` 判定后回家）还是**周期**（`false`：收完回工地）。 */
-    private boolean collectIsFinal;
+    /**
+     * ⭐ `1.4z-d`：本次收集的**档位**（判据/处置各只有一处）：
+     * {@code PERIODIC} 结构边界的周期收集（收完回工地）· {@code FINAL} 收尾（做 `product_not_collected`
+     * 判定后回家）· {@code SALVAGE} **失败前打捞**（结算读数后回家，**不覆盖**已经定下的终态）。
+     */
+    private enum CollectKind { PERIODIC, FINAL, SALVAGE }
+
+    private CollectKind collectKind = CollectKind.PERIODIC;
+    /** 打捞只做一次（防"收不干净 ⇒ 再打捞"递归）。 */
+    private boolean salvageDone;
     /** 周期收集收完回哪个相位。 */
     private Phase collectReturnPhase = Phase.EXCAVATE;
     /** 本作业起了几趟**周期**收集（进 `SUMMARY` 的 `collects=`；真机/夹具靠它看"是不是还在逐格收"）。 */
@@ -392,7 +400,7 @@ public final class FishboneJob implements Job {
         // 且逐格收集**必须站在原地等**那一格的落物（落地 + 原版 10 tick 拾取延迟，每趟 ~9 tick）
         // ⇒ 子巷 65 s 里只挖掉 4 格、却起了 12 个收集簇（7 个白跑）、收集占 81% 时间。
         if (batchCollectDue()) {
-            startCollect(false);
+            startCollect(CollectKind.PERIODIC);
             return Task.Status.RUNNING;
         }
         return switch (phase) {
@@ -465,7 +473,7 @@ public final class FishboneJob implements Job {
 
     private Task.Status excavate() {
         if (unitIndex >= units.size()) {
-            startCollect(true);
+            startCollect(CollectKind.FINAL);
             return Task.Status.RUNNING;
         }
         FishboneTemplate.Unit unit = units.get(unitIndex);
@@ -1239,10 +1247,10 @@ public final class FishboneJob implements Job {
      * 不许为捡东西挖穿地形 —— 真机实测那 18 格 `collect-drops:PATH_ACCESS` + 10 次 `PICKUP_DETOUR`
      * 就是它），清单 = `PRODUCT_FILTER::matches`（与 `countProductItems()` **同一个入口**）。
      */
-    private void startCollect(boolean isFinal) {
-        collectIsFinal = isFinal;
+    private void startCollect(CollectKind kind) {
+        collectKind = kind;
         collectReturnPhase = phase;
-        if (!isFinal) {
+        if (kind == CollectKind.PERIODIC) {
             batchCollects++;
         }
         collector = new CollectDropsTask(bot, template.startFoot(), scope, List.of(), false,
@@ -1251,7 +1259,8 @@ public final class FishboneJob implements Job {
                 PRODUCT_FILTER::matches);
         BotLog.info("[Fishbone] COLLECT 开始 round={} kind={} origin={} scopeRadius={} oreMined={} 产物基线={}"
                         + "（半径从模板推导；追取上限 = max(32, 2×半径)，`D-346`；worldMod=false）",
-                batchCollects, isFinal ? "final" : "periodic", template.startFoot().toShortString(),
+                batchCollects, collectKind.name().toLowerCase(java.util.Locale.ROOT),
+                template.startFoot().toShortString(),
                 scope.currentRadius(), oreMined, itemsBefore);
         phase = Phase.COLLECT;
     }
@@ -1315,7 +1324,7 @@ public final class FishboneJob implements Job {
         if (status == Task.Status.RUNNING) {
             return Task.Status.RUNNING;
         }
-        if (!collectIsFinal) {
+        if (collectKind == CollectKind.PERIODIC) {
             // ⭐ `1.4z-B`：**周期收集收完就回工地** —— 产物齐不齐**只在收尾那次判**（否则"这一趟没把
             // 全部产物收回来"会被误报成 `product_not_collected`；真机实测单趟收不回全部是常态，
             // 落物会掉进够不着的空洞 = `D-375` 那一档）。
@@ -1324,7 +1333,19 @@ public final class FishboneJob implements Job {
             BotLog.info("[Fishbone] COLLECT 完成（周期 #{}）⇒ 回 {} 继续", batchCollects, phase);
             return Task.Status.RUNNING;
         }
+        // ⭐ `1.4z-d`：**三档都结算读数** —— 改前只有 `FINAL` 结算，于是失败返航时 `SUMMARY` 打的
+        // `collected=0/N` 是"没算过"，不是"一件没捡"（真机 21:05 那一轮就这么误导过：8 趟周期收集
+        // 跑过，读数仍是 `collected=0/32`）。
         collectedProducts = countProductItems() - itemsBefore;
+        if (collectKind == CollectKind.SALVAGE) {
+            BotLog.info("[Fishbone] COLLECT 完成（失败前打捞）产物=+{} / 露头矿={} ⇒ 回家"
+                            + "（终态仍是 {}，打捞不覆盖它）",
+                    collectedProducts, oreMined, terminalReason == null ? "-" : terminalReason);
+            collector = null;
+            salvageDone = true;
+            beginReturn();
+            return Task.Status.RUNNING;
+        }
         if (collectedProducts >= oreMined) {
             BotLog.info("[Fishbone] COLLECT 完成 产物=+{} 露头矿={}（`C2` 满足）", collectedProducts, oreMined);
             beginReturn();
@@ -1356,9 +1377,31 @@ public final class FishboneJob implements Job {
 
     // ==================== RETURN ====================
 
+    /**
+     * 回家（失败与成功都走这里 —— <b>唯一入口</b>）。
+     *
+     * <p>⭐ `1.4z-d`（2026-09-26 真机）：**回家前先把地上的产物打捞一遍**。改前失败路径直接 `RETURN`
+     * （纯通行、不再收集），于是已经挖出来的产物**留在地上**，而 `SUMMARY` 的 `collected=0/N` 又是
+     * "没算过" ⇒ 看起来像"一件没捡"。判据 = 作用域里还有**产物**落物（同一个 `PRODUCT_FILTER`）；
+     * 打捞只做一次（`salvageDone`）。
+     */
     private void beginReturn() {
+        if (!salvageDone && hasProductDropOnGround()) {
+            startCollect(CollectKind.SALVAGE);
+            return;
+        }
         phase = Phase.RETURN;
         returnRunner = null;
+    }
+
+    /** 作用域在册落物里还有**产物**吗（判据 = 同一个 `PRODUCT_FILTER`）。 */
+    private boolean hasProductDropOnGround() {
+        for (ItemEntity item : scope.liveDrops()) {
+            if (PRODUCT_FILTER.matches(item.getItem())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
