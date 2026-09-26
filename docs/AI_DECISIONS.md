@@ -18402,6 +18402,10 @@ wildSkippedSince 窗口内被跳过的区外放置次数
   ③ 三张表**都非空** + 每条理由 ≥ 20 字（**人口**）；④ 命令面 `riskSwitch(..., "name", …)` 的每个名字必须已分类，
   且 `command/` 里**不许**出现底线名；⑤ `src/` 里**不许**出现 `ForgeConfigSpec`/`ModConfigSpec`
   —— 今天 Alice **没有配置面**（这是**事实**，把它钉住而不是假设它）。
+   ⚠️ **2026-09-26 更正（事实变更，不是解释）**：断言⑤ 的原口径是「Alice **没有**配置面」；现在
+   `python3 tools/risk-surface.py` 实跑为 `配置面 = 存在 12 处（已断言不含底线名）` ⇒ 该断言已改成
+   **「配置面存在，但其中不得出现底线名」**（底线守住、形态放宽）。**引用本条时以门禁实跑输出为准**，
+   不要再引「没有配置面」这句话。
 - **实测事实**：可选开关 = `descend_overshoot`/`container_access`/`hazard_aversion`；**命令面只暴露 `descend_overshoot`**；
   底线 = `pathing_pure_traversal`/`server_authoritative_state`/`unknown_mod_read_only`（**显式空集/人口都断言**）。
 - **注入证明（四臂全红）**：① 加 `extra_knob` 不登记分类 ⇒ 红；② 底线名进 `KNOWN` ⇒ 红；
