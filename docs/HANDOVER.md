@@ -2069,3 +2069,19 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 **⑤ 回归**：`core` 43/43（256 s）· ⭐ core 日志里 **`[MineTask重规划探针]` 1 次 + `why=runtime:line_of_sight_blocked` 1 次**
 （两条路在 CORE 里都有覆盖）· 逐步 diff 对 `…191750-core.log`：38 步 tick 不变，`mine_regression` 251 → 321，
 另四项在抖动带内，**判决 0 变化** · `check-all` = **`pass=32 warning=0 failed=0`**。
+
+## ⏸ 断点（2026-09-27，用户要求「先处理断点，等我压缩完一个一个拍」）
+
+**已完成并已推**（落后 `github/master` = 0）：`f58133e`（HANDOVER 两处过期指针更正）· `95d2927`（`D-473` 闩锁机制半边）·
+`31b6e05`（`D-474` 路由半边）· `d2c9978`（`D-475` 运行期清障 + `lumber_job` 抖动登记）。
+`core` **43/43 PASS**（`run/headless-logs/20260927-193302-core.log`）· `check-all` **pass=32 warning=0 failed=0** ·
+客户端 jar = `394a042976a7d1a5…`（已同步）· ⭐ **`O6` 可做部分全部关闭**（① 随 `D-471` 冻结 · ② `D-474` · ③ `D-475`）。
+
+**⏳ 压缩后的第一件事 = 逐条拍 `P1`–`P10`**：
+⭐ **全文 = `docs/reviews/2026-09-27-Job层机制与簇挖掘-现状与待拍.md`**（现状对照 + 每条提案/推荐/代价/出处 + 诚实边界），
+台账指针 = `J-★` 第 6 段内的「⏳ 待用户逐条拍：Job 层机制与簇级连续挖掘」块。
+**最有影响的两条**：**P1**（目标粒度：`ScanSelectTreeStep` 返回**簇** → `ChopClusterStep` 小编排）与
+**P2** ⭐（**`MineTask` 该不该丢** ⇒ 是，但"被搬空之后自然消失"，前提 = goal 化后授权重挂 + movement 层接得住清障/加高）。
+
+**之后**：`5b`（拆 `CollectDropsTask`，含 `step 2b`）—— ⚠️ 它**不依赖** P1–P10，但 **P1/P9 会改它的形态** ⇒ 建议先拍再开。
+**没有 active goal**（无需 `pause`/`resume`）。
