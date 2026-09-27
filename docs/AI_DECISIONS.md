@@ -21343,3 +21343,159 @@ Job = ① 有 Kind（进 JobRequest.Kind）
 
 **回归**：`single:mine_regression` **PASS**（`passed=1/1` · `run/headless-logs/20260927-155600-single_mine_regression.log`）·
 `core` **PASS**（240 s · 指纹 `6b205107a511` · `run/headless-logs/20260927-160051-core.log`）。
+
+### D-466：**`step 5a` 拆法九条裁定** —— 边界「按语句切」· 门禁五条 · 夹具先行（2026-09-27）
+
+**来源**：用户 2026-09-27 逐条拍九条（九问九答，**九次全选甲**）＋ 落盘范围另拍一次（甲）。
+**前置** = `D-463`（读数门禁 · 4 个读数的单一定义）· `D-464`（`5a-0` 相位转换唯一出口）· `D-465`（`5a-1` 半程）。
+**基线**：`src/main/java/com/dddgn/alice/task/MineTask.java` sha256
+`414c78c4eebd5599f420c2e52b435d79ce4c9346759a615841dff5430e093f51`（**997 行** · `Phase` 8 · 额度词 71 · 构造器 4 · 方法 49 · `Phase.` 引用 22 —— 口径见 `D-463`）。
+⚠️ **本条一律以方法名为锚**，行号只当"今天在哪"（`5a-0` 已让 970 → 997；`D-463` 的前置块已立过"行号会腐烂"的规矩）。
+
+#### 一、这一刀治的病（事实）
+
+`MineTask` 今天同时干三件性质不同的事：
+
+| # | 干什么 | 性质 | 证据（方法名锚） |
+|---|---|---|---|
+| ① | 跑一次破坏：算站位 → 走位 → `MineBlockRunner.tick()` → 终态 | **原子** | `evaluateStandingPoint` 前半 · `startMining` · `tickOnce` 的 MINING 段 |
+| ② | 相位机编排：清障候选循环 · 加高 · 连锁 · 收集 · 建拆 · 重规划/升档 | **编排** | `tickOnce` 的两个分叉 · `tryClear` · `startClear` · `tryGainHeight` · `beginChain` · `tickChain` · `enterCollection` · `enterRestoreOrDone` · `tryReplan` · `escalateFailure` |
+| ③ | **自己造子任务** | ⚠️ **编排长在原语里** | `startClear` 与 `tryGainHeight` 里的 `new MineTask(...)` |
+
+⇒ `plan §5.2` 的原语三条判据（**单一成功判据 ＋ 单一失败归因 ＋ 不自带额度**）**今天三条都不满足**：
+失败归因散在 `failureReason` / `lastFailureReport` / `escalateFailure` 三条路；类内另有 2 个额度常量（见 §二.4）。
+
+#### 二、⭐ 本轮新事实（两条判据直接被它们改掉，所以必须写进裁定）
+
+**1. ⚠️ 边界不是"方法级"的 —— 有两个方法各自"半原子半编排"。**
+
+| 方法 | 前半（**原子**） | 后半（**编排**） |
+|---|---|---|
+| `evaluateStandingPoint()` | `miningPlanner.plan(bot, target, budget, profile.standableOnly(), profile.approach(), grant.requester())` → `currentPlan` / `optimalStandingPoint` / `useChain` | `isHardTargetRefusal(...)` → `escalateFailure(...)`；`hasStandingCandidateNow()` ? `tryGainHeight(...)` : `tryClear(...)` |
+| `tickOnce()` 的 MINING 段 | `miner.tick()` → `MINING` / `MOVING` / `DONE` / 失败 | `DONE` → `beginChain()` / `enterCollection()`；失败 → `tryClearLineOfSight()` / `escalateFailure()` / `tryReplan()` |
+
+⇒ **"整块归属"不存在**：整块搬走会把编排留在原语里（**= 本刀要治的病**），整块留下则原语里仍是"规划器 ＋ 分叉"缠绕。
+
+**2. ⚠️ 判据 D 原稿是"判据推导错误"。** 设计取证原稿写「原语里**额度消费点**
+（`MiningPlanner.plan(` / `MiningBudget.forTarget\|collecting(`）**== 0**」，并自己警告「D 若原语保留 `MiningPlanner` 必然假红」。
+但 `⑧③` 逐字是「**不自带额度**（额度须**构造注入**）」—— 它的对象是**额度的来源**，不是"原语不许碰额度"：
+**一个从不消费任何额度的"原语"什么都做不了**。⇒ 原稿把「不自带」推成「不消费」，**第一条判据会被本刀的目标判据判红**。
+
+**3. 连锁的缝已经在原语边界上（好消息）。** `action/MineBlockRunner.java` 的构造器已是
+`MineBlockRunner(BotPlayer, MiningPlan, boolean walkOnly, WriteGrant)`，其 `:77` 注释逐字
+「只走到站位（不破坏目标），用于任务层接管破坏动作的场景」⇒ `useChain` **不需要新造接口**。
+
+**4. 两个类内常量在实质上**是**额度常量，但读数门禁数不到它们。**
+`MAX_RECOVERY_ATTEMPTS = 2`（卡 `tryReplan`）与 `CHAIN_TIMEOUT_TICKS = 200`（卡 `tickChain`）的名字里
+没有 `budget\|grant\|quota\|额度`，而门禁的"额度词数"是**按名字**匹配的 ⇒ 那个 `71` 看起来像"额度词总数"，
+实际是"**名字里带这几个词**的标识符出现次数"。同族还在 `CollectDropsTask`：`MAX_SETTLE_TICKS` / `MAX_REANCHORS` /
+`PICKUP_WAIT_TICKS` / `MAX_CHASE_DISTANCE` / `SWEEP_*_TICKS` **全部数不到**。
+⇒ 记入 `silent-measurement-failure` 家族（本会话第 7 次）。
+
+**5. ⚠️ 台账 `2b` 行的过期读数**：那里写「`MiningBudget.forTarget` 加一参 ⇒ **14 处**调用点」，
+今天实测 **29 处**（`grep -c "MiningBudget.forTarget("` ⇒ 29）。
+
+#### 三、裁定十条
+
+| # | 拍点 | 裁定 | 内容 |
+|---|---|---|---|
+| 1 | 边界判定 | **甲：按语句切** | 原子 = 计划段 ＋ `startMining` ＋ `miner.tick()` ＋ 终态闩锁 ＋ **单格结论**；编排保留**两个分叉** |
+| 2 | 切法与提交边界 | **甲：一刀一提交** | 新建 `MineStep`（完整原子）＋ `MineTask` 改委托，一次提交；**两个终态闩锁各自持有**（`MineTask` 的 `D-175` 闩锁逐字不动）|
+| 3 | 判据 D 形态 | **甲：D1 硬 ＋ D2 具名清单** | D1 = 原语里**额度的来源**必须是构造参数（`forTarget\|collecting\|new MiningBudget` ＋ 类内默认额度常量 == 0）；D2 = 原语里**消费**额度的点写成具名清单、**条目数恰好 = 1**（今天 = `MineStep` 里那一处 `miningPlanner.plan(`）|
+| 4 | 两个类内常量 | **甲：随编排留下、不注入** | 判定为额度常量（实质上）但属**编排策略** ⇒ 随编排留 `MineTask`，本刀**不注入**（注入要穿调用点，而那个接口正在被本刀重画）；读数门禁**加一条"只打印"读数**（列出原语与编排器里**全部 `static final` 常量**：名字＋值），让词汇漏洞藏不住但**不做断言**；`D1` 的范围**只管原语** |
+| 5 | 门禁判据面 | **甲：五条全上** | A（原语无相位机：`MineStep` 里 `Phase`/`phase` 引用 == 0 **＋ 文件存在断言**）· B（成功出口 **== 1** **＋ 正向人口断言**）· C（**改写**：原语 0 处 `new MineTask(` ＋ `MineTask` 委托点 ≥1）· D1＋D2 · E（同刀改 `check-primitive-budget-injection.py` 的 docstring 与**红臂 #6**）|
+| 6 | `useChain` 归属 | **甲：留计划段并导出** | 判定留**计划段**（同一 tick 读 `targetState`，行为逐字不变）并由 `MineStep` 作为**计划结论**导出；`chainTriggered` 留**编排器**；`walkOnly` 当**参数**传下去 ⇒ 落到 `MineBlockRunner` **现成的那个布尔参数**上 |
+| 7 | 盲区安全阀 | **甲：夹具先行** | **先补完 EXECUTE 侧（密封夹具）＋ 修 O1/O2/O4，再开主体刀**。四件一起：场景 ＋ `SafeZoneData.claim` ＋ `TaskZoneRegistry.declare` 任务区 ＋ **三者对称清理（必须在 `finally` 里）** |
+| 8 | `step 2b` 落点 | **甲：落 `5b`** | 仍是 `step 5`（不推翻"并入 `step 5`"）；2b 的对象是 `CollectDropsTask` 自己的便捷构造，而 `5b` 正是重画它 ⇒ 同一接口**只改一次**；`5a` 不碰收集预算 ⇒ **保住"18 个 `new MineTask(` 调用点 0 处要改"** |
+| 9 | 类名 | **甲：`MineStep`** | 落 `task/mining/`；层次 = `MineTask`（编排）→ `MineStep`（一格的一次作业）→ `MineBlockRunner`（破坏机制）→ `BlockBreakSession`（方块）|
+| 10 | 落盘范围 | **甲：`D-466` ＋ 台账 `5` 行 ＋ `HANDOVER`** | 只落进既有的**三个出处**（裁定/状态/断点各一个，`survey/35 §10`），不另开第 4 个文件 |
+
+#### 四、⭐ 两条派生结论（第 1/2 拍的直接后果，必须一起执行）
+
+**1. 判据 C 必须改写。** 设计取证原稿的「`task/**` 不得 import 编排器（0 命中）」**作废** ——
+它的前提是"`MineTask` = 原语"，而**第 1 拍拍的是搬原子** ⇒ `MineTask` 是**编排器** ⇒
+**编排器造编排器是合法的**。C 改成：**「`task/mining/MineStep.java` 里 `new MineTask(` == 0」**（原语不许造子任务）
+**＋「`MineTask` 里有委托点 ≥1」**。
+
+**2. ⭐ 两个造子任务点原地不动。** `startClear` / `tryGainHeight` 里的 `new MineTask(...)` **保留**：
+子任务要"计划 → 破坏 → 收落物 → 加高 ≤1"，它本来就是**小编排**，不是单格原子
+（`profile.nestedSubTask()` / `STANDABLE_ONLY` 是它的信封）。⇒ **"原语里不再出现 `new MineTask(`"这个目标，
+落点是 `MineStep`，不是 `MineTask`。**
+
+#### 五、方法级边界表（以方法名为锚）
+
+| 归属 | 方法 / 成员 |
+|---|---|
+| **搬进 `MineStep`（原子）** | `evaluateStandingPoint` 的**计划段** · `startMining` · `tickOnce` 的 `miner.tick()` 调用与 `MINING`/`MOVING` 判定 · **`D-175` 终态闩锁**（`tick()` 里的幂等闸）· `miningPlanner` 字段 · `miner` 字段 · `currentPlan` · `optimalStandingPoint` · `useChain` 判定行 |
+| **留 `MineTask`（编排）** | `tickOnce` 的两个分叉 · `enterRestoreOrDone` · `tickRestore` · `enterCollection` · `beginChain` · `tickChain` · `tryReplan` · `escalateFailure` · `recordRecovery` · `tryClear` · `tryClearLineOfSight` · `startClear` · `hasStandingCandidateNow` · `tickClear` · `tryGainHeight` · `tickGainClear` · `tickGain` · `MAX_RECOVERY_ATTEMPTS` · `CHAIN_TIMEOUT_TICKS` · `chainTriggered` · 4 个构造器（**签名逐字不动**）· 全部访问器（**逐字不动**）· `toolRefusal` · `isHardTargetRefusal` |
+| **两边都不进** | `StandingPointSelector` / `LineOfSightChecker` / `MiningPlanner` 本体（`task/mining/`，内核侧）；`CollectDropsTask`（`5b`）|
+
+⚠️ **`D-175` 闩锁必须两个类各有一个**：`MineTask` 的逐字不动（字段注释里记着它**打死过一次服务端 tick 循环**），
+`MineStep` 自己一个（⑧③ 的"单一成功判据"要求它有唯一终态）。
+
+#### 六、`MineStep` 接口草案（实现时可再调，但三条不许动）
+
+- **构造**：`MineStep(ServerPlayer bot, BlockPos target, ScopeBuffer scope, MiningBudget budget, MiningProfile profile, WriteGrant grant)`
+  —— 与 `MineTask` 的 7 参构造同形（`collectDrops` 等已在 `budget` 里）。
+- **`tick()` 返回"单格结论"**（不是 `Status`）：`RUNNING` / `DONE` / `FAILED(reason, leg)`，`leg ∈ {PLANNING, EXECUTION}`
+  ⇒ **这就是"单一成功判据 ＋ 单一失败归因"的载体**（编排器拿到的永远是一个 reason ＋ 一个腿标记）。
+- **显式的 `walkOnly` 入口**（第 6 拍）：`useChain` 由计划段算出并**导出**（`planned()` 之后可读）；`chainTriggered` 由编排器持有。
+  ⚠️ 传递方式实现时定，但**必须落在 `MineBlockRunner` 现成的那个布尔参数上**，不许在 `MineStep` 里新造一套。
+  ⚠️ 实现时注意一条**真分支**：`startMining` 的两处调用点里，计划成功那处 `chainTriggered` 必为 false，
+  连锁回落那处 `useChain` 刚被置 false ⇒ **`chainTriggered` 唯一真正起作用的是"连锁之后又重规划"**那条路，
+  而它属于 `tryReplan`（**B4：今天 0 覆盖**）。
+- **不许有**：相位枚举（判据 A）· 类内默认额度常量（`D1`）· `new MineTask(`（判据 C）· 任何收集/建拆/连锁调度。
+
+#### 七、⭐ 终态登记：「`MineTask` 最终 = `L1` 单格挖掘原语」
+
+用户 2026-09-27 确认的信息（**本节只登记事实，不排期、不改工期**）：
+
+- **终态有出处**：`docs/plans/2026-09-25-通道施工器草案.md §3`（标题逐字「抽象边界（三层，`MineTask` 一行不改）」）
+  = `L1 MineTask` **单格挖掘原语** / `L2 PassageShape`（形状＋不变式）/ `L3 PassageExecutor`（施工顺序＋站位策略＋地板维护＋失败升档）；
+  草案一句话逐字：「把『**按形状开挖/修路**』从『**挖单格**』里分出来 —— `MineTask` **退回它本来的职责**（达成**一格**的挖掘）」。
+- ⚠️ **但 `L1` 化本身没有 `D` 编号**：那份三层草案经 `survey/34` 评审后被**否掉一半**，
+  `D-443` §一 #1a 逐字「**放弃草案"先建 `L2`＋`L3` 施工层"原方案**」、#2「`L3` **缓建**（等第二个消费者）」、#5「`L2` **就地**（`job/fishbone/`）」。
+  ⇒ **"`MineTask` 最终是 `L1` 原语"是草案框架 ＋ 勘测侧认可的方向，不是已裁定的事实。**
+- **站位选优的架构取舍**（`survey/35 §8.7` 逐字「⭐ **把 A 留下、把 B 交出去。**」·`§8.1` B 冗余 ·`§8.3` B 没有 LOS 门）
+  = 台账**第 4 段** `4.1`/`4.2` 的架构债；`B` 交给内核需要 `K2`（`GoalAdjacent`），而 Alice 的 `Goal` 族今天**只有** `GoalFoot`/`GoalNearXZ`。
+- ⚠️ **"清障不会存在"有更早的裁定**：`docs/MINING_STAND_SELECTION_DESIGN.md` 逐字「**切换（Q1 已裁定）**：A 无解 → **立刻** B。
+  **不再有"清障后重试 A"**」。⚠️ 但清障有**两半** —— **规划期**（`tryClear`/`startClear` 候选循环）= 已裁掉；
+  **运行期**（`D-115` `tryClearLineOfSight`）= 就是该文档 `§6 Q5′` 那条**至今标着"待评估"**的问题。
+- ⇒ ⭐ **`step 5a` 不是 `L1` 化的第一步，它是"让 `L1` 化成为可能"的前置**：编排先集中到**一个可搬的单元**，将来才搬得动。
+
+#### 八、开工顺序（第 7 拍定）与盲区
+
+```
+① 补完 EXECUTE 侧密封夹具（场景 + 认领 + 任务区 + finally 对称清理）→ 修 O1 / O2 / O4 → 跑 single:mine_regression + core
+② 落新门禁 check-task-orchestration-split.py（五条判据 + 红臂，含真树红臂）+ 读数门禁的 static final 清单读数
+③ 主体刀：新建 MineStep + MineTask 改委托（一刀一提交）
+④ 同刀更新 check-primitive-budget-injection.py 的 docstring 与红臂 #6
+   （⚠️ 那条绿臂逐字编码了 startClear 造子任务的写法 ⇒ 搬包后它放行一个已不存在的形状，"绿"的含义会漂移）
+⑤ core 逐步 diff（D-201 附注一）+ check-all + 推送/镜像/同步
+```
+
+**盲区（B1–B14；第 7 拍裁定"先补夹具"覆盖的是 B2/B10/O1，其余仍然零覆盖，必须显式声明）**：
+`CHAIN` 整相位（`oreexcavation` 不在客户端 22 个 jar 里）· `GAIN_CLEAR`（`gain_clear` 0 行）·
+`tryReplan`/`recoveryAttempts`（`[MineTask重规划探针]` 0 行、实测只有 `0/2`）· `clear_exhausted` ·
+`tryClearLineOfSight`/`why=runtime:` · `tool_in_main_inventory` · `restoreTask 缺失` · `gain_refused` ·
+`failureReport()` 整体（1080 份语料里 `lastFailure=*@*` 只有 `no_suitable_tool@EVALUATING`）·
+`[CollectDrops]` 失败路径 · `activePickup`（无任何外部调用方传非 null）· `/alice mine` 顶层 `MineTask` 路径。
+
+#### 九、成本
+
+| 项 | 估计 |
+|---|---|
+| `task/MineTask.java` | 997 → **≈600–650**（编排全留）|
+| 新 `task/mining/MineStep.java` | **≈300–400**（原子）|
+| `new MineTask(` 调用点改动 | **0**（签名逐字不动）|
+| 夹具改动 | EXECUTE 侧夹具为**新增**（第 7 拍）；既有夹具 **0 改动** |
+| 门禁 | +1 新文件 `check-task-orchestration-split.py`；改 2 处（读数门禁加"只打印"读数 · `check-primitive-budget-injection.py` 的 docstring 与红臂 #6）；`check-all` +1 行 |
+| 电池 | `core`（有 `src/` 改动必跑）· 夹具刀与主体刀**各一轮** |
+| 客户端轮 | **不必要**（无客户端可观察变化）|
+
+#### 十、复核触发
+
+- 主体刀若发现 `MineStep` 的"单格结论"不得不**回头读 `MineStep` 内部字段**（而不是只靠 `tick()` 的返回值）⇒ 说明第 1 拍的语句切分**没切干净**，须重审 §二.1 的两张表；
+- 若真机出现**连锁之后又重规划**的路径（`chainTriggered` 真正起作用的那条）⇒ `B4` 的零覆盖必须立即升级为"先补夹具"；
+- 若第 7 拍补完的 EXECUTE 侧夹具**认领泄漏**给后续电池步（尝试② 已实测到一次）⇒ 立即改用"每用例独立密封 ＋ `finally` 还原 `SafeZoneData` 快照"，不许靠顺序；
+- 若将来 `K2`（`GoalAdjacent`）落地 ⇒ 本条的 §七 必须重审（`B` 交出去之后 `清障`/`clear` 的归属会变）。

@@ -1770,3 +1770,24 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 ⏭ **下一步 = `step 5`**（拆 `MineTask` / `CollectDropsTask`；它**还背着 `step 2b`** =
 `CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS` 清零）。⚠️ 这是**大**刀且**判据面最宽**（相位三条禁令 +
 原语三条判据 + 真机第六轮的 `collected=0` 读数），**开工前先按台账 `5` 行把验收读数定下来**。
+
+### ✅ `step 5a` 拆法九条已拍（2026-09-27，`D-466`）—— 断点就在这里
+
+- 用户逐条拍九条 + 落盘范围一条，**十次全选甲**。裁定原文 = `AI_DECISIONS.md` 的 `D-466`；
+  状态 = 台账 `5` 行下方的「九条已拍」块。**本处只写断点，不抄内容。**
+- 一句话：**边界「按语句切」· `MineTask` 留编排（含造子任务）· 原子提成 `MineStep`（`task/mining/`）·
+  一刀一提交 · 夹具先行 · `step 2b` 落 `5b`**。
+- **基线**（开工前对一次）：`MineTask.java` sha256 `414c78c4eebd5599f420c2e52b435d79ce4c9346759a615841dff5430e093f51`（997 行）。
+  `HEAD` = `1484797`；worktree 干净；`master` 与 `github/master` 同步。
+- ⏭ **接着做的第一件事 = `D-466` §八 的第 ① 步**：补完 EXECUTE 侧**密封夹具**
+  （场景 ＋ `SafeZoneData.claim` ＋ `TaskZoneRegistry.declare` 任务区 ＋ **三者对称清理，必须在 `finally` 里**），
+  同刀修 **O1**（`supportOk`/`restoredOk` 恒真）＋ **O4**（`supportRestored` 弱判据：要断言"确实放过 + 确实拆回"）。
+  ⚠️ 这不是可选项：`D-466` §八 已把它定为**开工前置**（安全网不能破在 `D-175` 那个历史崩溃点上）。
+- ⚠️ **本轮顺手抓到的两条过期/错误读数**（写下来防再犯）：① 台账 `2b` 行的 `MiningBudget.forTarget`「14 处」→ 实测 **29 处**；
+  ② 设计取证稿的判据 D「额度消费点 == 0」把 `⑧③` 的「**不自带**」推成了「**不消费**」⇒ 会被本刀的目标判据判红。
+- ⚠️ **拆完必须显式声明无覆盖的通路**（`D-466` §八）：`CHAIN` · `GAIN_CLEAR` · `tryReplan`/`recoveryAttempts` ·
+  `clear_exhausted` · 运行期清障 · `failureReport()` 整体 · `activePickup` · `/alice mine` 顶层路径。
+- ⭐ **同轮确认的一条终态事实**（只登记，不改工期）：记录里 `MineTask` 的终态是 **`L1` 单格挖掘原语**
+  （出处 `docs/plans/2026-09-25-通道施工器草案.md §3`：「三层，`MineTask` 一行不改」），
+  ⚠️ **但 `L1` 化没有 `D` 编号** —— 那份三层草案被 `D-443` 否掉一半（`L3` 缓建、`L2` 就地）。
+  ⇒ **`step 5a` 不是 `L1` 化的第一步，它是"让 `L1` 化成为可能"的前置。**
