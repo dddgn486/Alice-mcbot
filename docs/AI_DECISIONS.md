@@ -20773,3 +20773,53 @@ requester 前缀 `fishbone` ⇒ **本来就算在同一份额度里**（`placeme
 
 **回收条件**：若"只改注释不改类名"在真实使用中造成持续混淆（例如新会话反复把 `action/` 当原语层）⇒
 再评估改名，但**必须先给出锚点全量清单**（`survey/42 §3.3` 的五组计数）。
+
+---
+
+### D-456：**「什么算 Job」的准入规则** —— `Kind` + **契约三栏** + **可列出**，三件齐才算 Job（2026-09-27，`J-★` 第 6 段 **step 0.5**）
+
+**裁定来源**：`survey/42 §4.3`（勘测侧提案）+ 用户 2026-09-27「按排期走」⇒ 落**规则文本**（`src/` 零改动）。
+**为什么先落它**：它是"Job 框架"（step 1）的**第一块** —— 没有"什么算 Job"，框架就没有**准入判据**，
+重构一动就只能靠人记得（本项目 2026-09-26 已有一次"门禁静默变绿"的实测教训，见 `D-329`）。
+
+#### 规则（一句话）
+
+```
+Job = ① 有 Kind（进 JobRequest.Kind）
+    + ② 有契约三栏（JobKindContract：成功判据 / 读世界事实的方法 / 不一致时怎么办）
+    + ③ 能被 CandidateMenu 列出（玩家/决策层看得见、点得到）
+    ⇒ 缺任一项 ⇒ 它只是 task（动作原语序列），不是 job
+```
+
+#### 现状盘点（2026-09-27 实测，逐条 `file:line`）
+
+| 件 | 现状 |
+|---|---|
+| ① `Kind` | **5 个值**：`LUMBER` / `MINE` / `REGION_LUMBER` / `COLLECT` / `CRAFT`（`job/JobRequest.java:40-52`） |
+| ② 契约三栏 | **5/5 都有行**（`job/JobKindContract.java`，`Contract(successCriterion, queryRef, onMismatch)`）；⭐ **已有门禁** `tools/check-job-kind-contracts.sh`（挂在 `check-all`）核对「每个 `Kind` 值都有行 + 三栏非空 + `queryRef` 指向的方法**真的存在**」⇒ **声明钉在真代码上**（`D-349`） |
+| ③ 可列出 | `CandidateMenu.Entry.kind` 的字面量**实测 5 个**：`lumber`(:139) / `collect`(:169) / `mine`(:204) / `region_lumber`(:216) / ⭐ **`craftable`**(:370) |
+
+⭐ **③ 顺手照出一个真问题（同一个概念的第 3 种写法）**：`Kind.CRAFT` 在菜单里的写法是 **`craftable`**，
+**不是** `craft`/`CRAFT` 的机械变换 —— 而"同一概念的多种写法"在本项目已经咬过一次
+（`D-342`：受理侧 `Kind.name()` 大写 vs 终态 `taskName()` 小写 ⇒ `startsWith` 恒假 ⇒ **静默不记账**）。
+⇒ **③ 想做成门禁，必须先定"归一规则"**（显式映射表或统一写法），否则门禁要么假红、要么假绿。
+
+⚠️ **例外面（不许静默）**：`FishboneJob`（`job/fishbone/`）有 `MAX_TICKS`、终态、`SUMMARY`，**但至今没有 `Kind`**
+（`Kind.FISHBONE` 不存在）⇒ **按本规则它只是 task，不是 job**（"进不了菜单的 Job"）。
+这不是新缺口 —— 台账 `1.6` 早已挂账，**由第 6 段 step 1 接管**：补 `Kind.FISHBONE` + 契约行 + 菜单可见，
+**或**明写"鱼骨不是 Job"（两种都行，**不许留着不说**）。
+
+#### 判据（可执行部分 + 待拍部分）
+
+- ① / ② **今天就可执行**：`tools/check-job-kind-contracts.sh`（`check-all` 内，当前 **PASS**）。
+- ③ **待拍**（= `survey/42 §5` 第 3 条：*这条规则是否做成门禁*）。若采纳，形态建议：
+  `tools/check-job-menu-listable.sh`（挂在 `check-all`）断言「`CandidateMenu` 的 kind 字面量集合 ⊇ `Kind` 值集合」，
+  并且 ⭐ **必须自带注入臂**（删掉一个 `Entry` 的 kind 字面量 ⇒ 必须红）—— 否则重构一动它就**静默变绿**（`D-329`）。
+  ⚠️ 上这道门禁**之前**必须先定归一口径（见上），否则 `CRAFT` 会假红。
+
+#### 不做什么
+
+不改 `Kind`（`Kind.FISHBONE` 属 step 1）· 不改 `CandidateMenu` · 不改夹具 · **本步 `src/` 零改动**。
+
+**回收条件**：若 step 1 落地时证明「可列出」这条是伪需求（例如 Job 只有 LLM 派活、没有玩家菜单入口）
+⇒ 记录后删该子句、保留 ①②（其余不动）。
