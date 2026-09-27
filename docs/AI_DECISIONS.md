@@ -23167,3 +23167,56 @@ exec_runtime_los=FAIL status=DONE/targetGone=true/clearedBlocks=0/raceFired=true
 | **复活条件** | ⭐ 当要验证「**主动安排获取材料**」的能力时（= `P15` 阶梯落地后，要跑"**空背包 / 缺料 ⇒ 自主把材料搞到手**"这条路） —— 届时它是**第一段挡路的东西**，必须先解，或显式裁定"这种情况一律请示玩家" |
 
 ⚠️ 两者不矛盾：**现在不改行为，将来按复活条件改**。
+
+### D-489：`P6/A` **第一刀落地** —— 扩 `check-provision-containment`（**不新建门禁**）+ 查出 `BotManager` **12 处** legacy 造物（2026-09-27）
+
+#### ⭐ 关键判断：**不新建门禁，扩既有的**
+
+`tools/check-provision-containment.sh`（`T1`/`R-2`，2026-09-14）**已经做了 `P6/A` 的绝大部分**，而且它头部**逐字记着为什么不能写宽**：
+
+> 「第一版把范围写成"只有 `JobLauncher` 能造物"，结果列出 **80+ 行夹具命中、毫无信号** —— **断言写宽和写松一样是废的**。」
+
+⇒ 新建第二份口径会撞上本项目已被坑过的那条（`D-460`/`D-461`/`D-463`「同一口径写两份然后漂移」）。
+
+#### 落地内容（**只改 `tools/` 一个文件，`src/` 零改动**）
+
+新增两条断言：
+- **④ `job/` 包除 `JobLauncher` 外零命中**（今天 `job/` 只有 `JobLauncher` 一个命中者 ⇒ **零误报**；它挡的是**将来**任何人在 `job/` 里引入造物）。
+- **⑤ `bot/` 包的命中必须在带理由的 `BOT_EXEMPT` 清单里**；⭐ **豁免得手（不再命中）也 FAIL** ⇒ 强制"修好时同步删条目"，不许白名单漂移成永久漏洞（照 `check-frozen-code` 的白名单纪律）。
+
+⭐ **匹配前必须去掉 javadoc 的 `{@link …}`**：`task/MineTask:225` 只用 `{@link com.dddgn.alice.item.FixtureToolKit}` 做**文档引用**
+（**不是代码依赖**）⇒ 不去注释会把文档当依赖误报。同源教训 = `check-phase-transition-outlet.py`「解析函数必须同源、必须 strip comments/strings」。
+
+**范围不覆盖 `task/`**：那是**混装包**（生产任务与自检夹具同包）⇒ 宽断言 = 54 行命中 = 无信号（沿用该门禁自己写下的教训）。
+`task/` 的解法是**包分离**，已登记为结构待办。
+
+#### 判据实测
+
+| 项 | 结果 |
+|---|---|
+| **绿** | `bash tools/check-provision-containment.sh` ⇒ PASS：`job/ 除 JobLauncher 外零命中（JobLauncher 造物=9）；bot/ 命中=1 全部带理由豁免=1` |
+| **红臂 ①（④）** | `job/Job.java` 注入 `import …FixtureToolKit;` ⇒ **精确报文件+行号**；还原后 sha 逐字一致（`8a14c4de9499d736`） |
+| **红臂 ②（⑤）** | 豁免路径改名 ⇒ **同时**触发「未登记豁免」（列出 `BotManager` **12 行**命中）+「豁免得手」 |
+| **红臂 ③（⑥）** | 追加一条假豁免 ⇒ **只**触发「豁免得手」 |
+| **全套** | `ALICE_HEADLESS=1 bash tools/check-all.sh` ⇒ **`pass=32 warning=0 failed=0`**；headless 电池 `verdict=PASS`（250 s） |
+
+⚠️ **更正 `D-479` 的预期**：`check-all` 计数**仍是 32**（**不是 33**）—— 本刀是**扩既有一道门禁**，不是新增门禁。
+
+#### ⭐ 处置时新发现（比 `D-479` 记载的大得多）⇒ 台账 `O7`
+
+`D-479` 只记了 `assignMineJob:686` **一处**；实测 `bot/BotManager.java` 有 **12 处**造物，分布在 **6 个 legacy `assign*` 入口**：
+`assignLumberJob:602-604` · `assignMineJob:686` · `assignFishboneJob:715` · `assignRestore:735` ·
+`assignRegionLumber:765-767,785` · 内部匿名类 `2168,2182`。
+
+⚠️ **其中三条同时服务玩家命令**（`BotCommand:825` / `:843` / `:1199`）⇒ **`D-479` 里"它只服务手动测试物品"的假设不成立**。
+这些入口**不走** `provision` / `create` / `refusalReason` / `JobKindContract` / `ManualTestLock` **五道闸门**，
+且**凭空造物**（钻石镐 / 钻石斧 / 圆石）。
+
+**保守处置（本刀行为零变化）**：豁免清单里**带理由响亮挂账**（`O7`）；**不**在本刀改行为。
+⏳ **待用户裁**：三条玩家命令入口算**夹具口**还是**生产口**？后者 = 玩家命令**不再白送工具**（**行为变化** ⇒ 另开一刀 + `core` 判据）。
+
+#### ⭐ 自抓一处解析 bug（值得记，`silent-measurement-failure` 同族）
+
+`files_with_real_refs` 第一版用 `grep -q`：它一命中就退出 ⇒ 上游 `sed` 收 SIGPIPE ⇒ `set -o pipefail`
+把「**命中**」判成「**未命中**」（`bot/BotManager` 被判成 **0 命中**）。
+⭐ **是门禁自己的 ⑥「gate is live」靶子断言当场抓到的** —— 修法 = 把上游输出**读完**（命令替换），不让管道提前关闭。
