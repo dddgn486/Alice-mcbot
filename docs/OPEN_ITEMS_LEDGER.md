@@ -2415,6 +2415,46 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 >
 > ⏭ **下一步 = `step 5a`（用户 2026-09-27 拍 甲：先拆 `MineTask`）** —— 拆「**编排 vs 原子**」边界。
 
+> #### ⭐ `step 5a` 前置事实（2026-09-27 实测；**`src/` 零改动**）—— 拆 `MineTask` 的「编排 vs 原子」
+>
+> **① 子任务制造点只有 2 处**（`MineTask` 内部）：`:732 clearTask = new MineTask(bot, blocker, …)` ·
+> `:815 gainClearer = new MineTask(bot, cell, …)`。类外另有 **17 个调用方**（`RoadBuildTask` · `MineJob` ·
+> `LumberJob` · `FishboneJob` · `BotManager` · `RestoreScopeTask` · 夹具若干）。
+>
+> **② ⭐ 关键实测：子任务其实"已经是原子的"—— 但这是 profile 的副作用，不是结构事实。**
+> 两个子任务用的信封完全不同，且**都把所有编排预算归零**：
+>
+> | 子任务 | 用的 profile | 清障 | 加高 | 建拆 | 收集 |
+> |---|---|---|---|---|---|
+> | `:732 clearTask`（清阻挡） | `profile.nestedSubTask()` | **0**（`nestedSubTask` 第 4 参 = 0） | **≤1**（`min(父,1)`） | **false** | false（`budget.collectDrops()=false`） |
+> | `:815 gainClearer`（清头顶） | `MiningProfile.STANDABLE_ONLY` | **0** | **0** | **false** | false |
+>
+> ⇒ 子任务今天**跑不到** CLEAR / COLLECTING / RESTORE；`clearTask` 最多跑 1 次 `GAIN_CLEAR`/`GAIN`。
+> **本刀的收益 = 把这个"副作用事实"变成"结构事实"**（原语里不再出现 `new MineTask(`）。
+>
+> **③ ⚠️ 唯一的例外（拆分时不许"顺手改掉"）**：`useChain` **不由 profile 管** ——
+> 它在 `startMining():936` 由配置算（`ChainMining.shouldChain(MiningTuning.chainMode(), 目标方块)`）
+> ⇒ **子任务今天也能连锁**（清一个矿石阻挡格时可能触发整条矿脉）。
+> 而且 `core` 电池里 chain 是**关的**：实测 `run/headless-logs/20260927-151600-core.log` 里
+> `[ChainMine]` **0 行** ⇒ **这条路径既没被设计、也没被覆盖**。
+> ⇒ 结论：本刀**逐字保持**今天的连锁行为（或**单独立一条带判据的刀**），**不许**在拆分里默认关掉。
+>
+> **④ 电池覆盖实测（同一份日志）**：`clear_start` **11 次**/轮（⇒ 子任务路径**有**覆盖，这是好消息）·
+> `gain_start` 4 次 · `gain_clear` **0 次** · `[ChainMine]` **0 次** ⇒ **加高清障与连锁是盲区**。
+> 逐字样本：`[MineTask] clear_start target=6, 64, 64 blocker=5, 65, 64 used=1/4 attempt=1 why=planning:no_valid_standing_point`。
+>
+> **⑤ `Phase` 8 值的归属（我的判定，待设计评审）**：
+> 「原子」= `EVALUATING`（找站位）+ `MINING`（跑 `MineBlockRunner`）+ `CHAIN`（连锁，见 ③）+ `GAIN`/`GAIN_CLEAR`
+> （够得着的前置动作，≤ `profile.maxGainSteps`）；
+> 「编排」= `CLEAR`（**候选循环** + `failedBlockers` + 用尽判定）+ `COLLECTING`（收落物）+ `RESTORE`（建拆同权）
+> + 失败**策略**（`tryReplan` / `escalateFailure` / `tryClearLineOfSight` 的取舍与次数上限）。
+> ⚠️ 这只是**我的判定**：`CHAIN` 与 `GAIN` 落哪边是真正的设计分叉（`MINING` 的 `walkOnly` 与 `chainTriggered` 互相咬）。
+>
+> **⑥ 用户的判据不许动**：单一成功判据 + 单一失败归因 + 不自带额度（`D-459` 已落）；相位降级为报告词汇、
+> **不要求值数 = 0**（plan §2.2 裁定 A）；**不改包名、不改名**（`D-455` 窗口纪律）。
+>
+> **⑦ 读数基线（改前，可复现）**：`python3 tools/check-primitive-readings.py` ⇒
+> `MineTask` 970 行 / `Phase` 8 / 额度词 71 / 构造器 4 / 方法 48 / `Phase.` 引用 22（sha `e83c8cee40229c01`）。
 #### J-0 收口（**先做，1 轮**）：把开口的决策点一次性裁掉，并给内核线设关门线
 
 | # | 事项 | 目标 | 判据 | 成本 | 依赖 |
