@@ -2360,8 +2360,8 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 
 > ⚠️ **它是当前唯一主线**（鱼骨已冻结）。**0 / 0.5 / 1 三步 `src/` 零改动** ⇒ 不碰夹具与门禁。
 > 纪律：**一刀一 `D-编号` + 一刀一判据 + 一刀一提交**；任何 `src/` 改动**必须跑 `core`**。
-> **进度（2026-09-27）**：**0 ✅ · 0.5 ✅（+ 门禁）· 1 ✅ · 1.5 ✅（`D-458`）· 2a ✅（`D-459`）** · **2b ✅ 裁定 = 甲（并入 `step 5`，**落 `5b` 那半**，见 `D-466`）** · **3 ✅ 收口（3a `D-460` + 3b `D-461`）** · **4 ✅（`D-462`）** · **5 · 前置 ✅（读数门禁 `D-463`）· ⭐ `5a` 拆法 ✅ 九条全拍（`D-466`）· `5a-0` ✅（相位转换唯一出口 `D-464`）· `5a-1` 🔶 半程（PLAN ✅ / EXECUTE ⛔ `D-465`）· 主体未开工**。
-> ⏭ **`5a` 的开工顺序（`D-466` §八）**：① 补完 EXECUTE 侧密封夹具 + 修 O1/O2/O4 → ② 落新门禁 `check-task-orchestration-split.py` → ③ 主体刀（`MineStep` + `MineTask` 改委托，一刀一提交）→ ④ 同刀改 `check-primitive-budget-injection.py` 的 docstring 与**红臂 #6** → ⑤ `core` 逐步 diff + `check-all`。
+> **进度（2026-09-27）**：**0 ✅ · 0.5 ✅（+ 门禁）· 1 ✅ · 1.5 ✅（`D-458`）· 2a ✅（`D-459`）** · **2b ✅ 裁定 = 甲（并入 `step 5`，**落 `5b` 那半**，见 `D-466`）** · **3 ✅ 收口（3a `D-460` + 3b `D-461`）** · **4 ✅（`D-462`）** · **5 · 前置 ✅（读数门禁 `D-463`）· ⭐ `5a` 拆法 ✅ 九条全拍（`D-466`）· `5a-0` ✅（相位转换唯一出口 `D-464`）· `5a-1` ✅ 收口（PLAN `D-465` + **EXECUTE 密封夹具 `D-467`**，`O1`/`O2`/`O4` 同刀修复）· 主体未开工**。
+> ⏭ **`5a` 的开工顺序（`D-466` §八）**：**① ✅ 密封夹具（`D-467`）** → ② 落新门禁 `check-task-orchestration-split.py` → ③ 主体刀（`MineStep` + `MineTask` 改委托，一刀一提交）→ ④ 同刀改 `check-primitive-budget-injection.py` 的 docstring 与**红臂 #6** → ⑤ `core` 逐步 diff + `check-all`。
 > ⚠️ **`1.5` 起开始动 `src/`** ⇒ 其后每一刀都必须跑 `core`。
 
 | 序 | 动作 | 成本 | 判据 / 备注 |
@@ -2423,14 +2423,26 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 > CLEAR 11 · COLLECTING 10 · GAIN 1` ⇒ **5/8 个相位值第一次有运行期证据**；而 `GAIN_CLEAR`/`CHAIN`/`RESTORE`
 > **显式为 0** ⇒ 盲区从"看不见"变成"可测量的 0"。⚠️ 禁令③ 只是**载体就位**，不是已满足。
 >
-> ⚠️⚠️ **同轮取证发现的三个观测项（都没修，各自带复活条件）**：
+> ✅ **`5a-1` 已收口（`D-465` + `D-467`，2026-09-27）**：`D-465` 落了 **PLAN 侧**（新场景 `support_course` +
+> 用例 `support_plan` ⇒ 全仓第一个非 `-` 的 `support=` 读数）；`D-467` 把 **EXECUTE 侧**做完 ——
+> 关键发现是 **`task/FixtureZone.java` 早就在仓里**（7 个夹具在用：认领区块 + `declare` 任务区 + **幂等 `release()`**）
+> ⇒ `D-465` 尝试② 失败的原因是**四件里只手做了一件**（裸 `claim`：没任务区 ⇒ `protected_area` 拒写；没清理 ⇒ 泄漏）。
+> 落成 = 新用例 **`exec_support`**（第一条 `expectSupport=true` 的 EXECUTE 用例）＋ 前提摆在 `scope.begin` **之后**
+> ＋ 还原在 `finishCase()`（所有终态的唯一出口）。⭐ **一次落地同时收掉 `O1`/`O2`/`O4`**：
+> `[WRITE] place … SUPPORT_PLACEMENT` + `[Ledger] place … [TEMP]` ⇒ `restore_start pending=1` → `restore_end status=DONE`
+> ⇒ `/supportRestored=true/ledgerRestored=1/scaffoldLeft=0`（这三项**第一次打印**）。
+> ⚠️ 一落地就暴露**三条"判据本身不成立"**（与 `O1` 同族）：`noDropsLeft==0` 对支撑类不可能成立（拆回的材料掉在收集之后）、
+> `countOk` 的 delta 那一条**与它自己的注释矛盾**、`CaseDef` 里"净 +1"的公式对真悬空是错的。**详见 `D-467`。**
+>
+> ⚠️⚠️ **同轮取证发现的观测项**（`O1`/`O2`/`O4` 已由 `D-467` 修掉；`O3` 未修；`O5` 是 `D-467` 新发现的）：
 >
 > | # | 观测 | 事实 | 复活条件 |
 > |---|---|---|---|
-> | O1 | **`MineRegressionTask` 两条断言恒真（空判据）** ⚠️ `2026-09-27` 只完成**一半**（`D-465`：PLAN 侧 ✅ `support_plan` / EXECUTE 侧 ⛔ 同 O2） | `supportOk`（`D-112` 支撑块用完即拆）与 `restoredOk`（材料闭环）都写成 `!current.expectSupport() \|\| …`，而 **13 条用例的 `expectSupport` 全是 `false`**（`plan()` 与 `execute()` 两个便捷构造都硬写 `false`）⇒ 两条断言**永远为真**，`/ledgerRestored=` `/scaffoldLeft=` **从不打印** | 与 O2 合并处理：补一条 `expectSupport=true` 的用例（那是"垫了 → 用完即拆 → 材料闭环"的正例） |
-> | O2 | **`RESTORE` 相位零覆盖** | 11 次 `restore_skip pending=0`（`places=0`）⇒ 本相位 `to=RESTORE` **0 次** | ⭐⭐ **机制已定（`D-465`，2026-09-27 实测，推翻原先说法）**：**不是**「没有临时放置」，而是**无头世界没有区域上下文** —— ① **不认领** ⇒ `[Ledger] skip …（区外：D-398 R1/R2 不记账、不恢复）` + `inZone=0 wildSkipped=+1` ⇒ 无回收义务；② **认领** ⇒ `[WRITE-REFUSED] … reason=protected_area`（`ZoneAuthority`：保护区内的写入需要**生效的任务区**覆盖该格）⇒ 连自己的 bot 都拒写。⇒ 要跑通需**四件一起对**：场景 + 认领 + `TaskZoneRegistry.declare` 任务区 + 三者对称清理（尝试② 已实测到认领**泄漏**给下一条用例）。**复活条件** = 值得为此写一个带清理的夹具时（它是**唯一有过服务端崩溃史**的通路） |
+> | O1 | **`MineRegressionTask` 两条断言恒真（空判据）** ✅ **已修（`D-467`，2026-09-27）** | ~~`supportOk`（`D-112` 支撑块用完即拆）与 `restoredOk`（材料闭环）都写成 `!current.expectSupport() \|\| …`，而 **13 条用例的 `expectSupport` 全是 `false`**（`plan()` 与 `execute()` 两个便捷构造都硬写 `false`）⇒ 两条断言**永远为真**，`/ledgerRestored=` `/scaffoldLeft=` **从不打印**~~ ⇒ 修法 = 新增**第一条 `expectSupport=true` 的 EXECUTE 用例** `exec_support`（`D-467`）；`restoredOk` **并入** `supportOk`（原合取逐字等价 ⇒ 既有 13 条判决不变）。实测 `/supportRestored=true/ledgerRestored=1/scaffoldLeft=0` **第一次打印** | —— |
+> | O2 | **`RESTORE` 相位零覆盖** ✅ **已修（`D-467`，2026-09-27）** | ~~11 次 `restore_skip pending=0`（`places=0`）⇒ 本相位 `to=RESTORE` **0 次**~~ ⇒ 修法 = **密封前提**（`FixtureZone`：认领区块 + `declare` L2 任务区 + **幂等 `release()`**，摆在 `scope.begin` 之后、还原在 `finishCase()`）+ `exec_support`。实测 `[WRITE] place … SUPPORT_PLACEMENT` + `[Ledger] place … [TEMP SUPPORT_PLACEMENT]` + `restore_start pending=1` + `restore_end status=DONE restored=1`；`release` 后后续用例回到"区外" ⇒ **无泄漏**。⚠️ 仍**未覆盖**的是：`restoreTask == null` 那条 `D-175` 第二层防御（`restoreTask 缺失` 全语料 0 次）| 那条崩溃防线仍无正例 ⇒ 需要一次"收尾时 `restoreTask` 已被清空又被 tick"的场景（历史上是 `SCOPE_REOPEN` 那条路） |
 > | O3 | **`CHAIN` 相位零覆盖** | `ChainMining.available()` = `Class.forName("oreexcavation.…")`，而客户端 22 个 jar 里**没有 oreexcavation** ⇒ `exec_chain`/`exec_chain_budget_refused` 在 CORE 里 `= SKIP（模组不在场）`；最后真跑 = `20260920-174203-core.log` | 存在带 oreexcavation 的测试环境时；或 `step 5a` 拆到连锁回落分支（`:539-543`/`:600-603`）时**必须显式声明"无覆盖"** |
-> | O4 | **`supportRestored` 是弱判据** | `D-465` 尝试② 里它报 `true`，而那一次**支撑块根本没放**（`writes[…] places=0`）—— 它是「`target.below()` 是空气」的检查，**空操作也能满足** | 补 EXECUTE 侧时**同刀加强**（同时断言「确实放过 + 确实拆回」） |
+> | O4 | **`supportRestored` 是弱判据** ✅ **已修（`D-467`，2026-09-27）** | ~~`D-465` 尝试② 里它报 `true`，而那一次**支撑块根本没放**（`writes[…] places=0`）—— 它是「`target.below()` 是空气」的检查，**空操作也能满足**~~ ⇒ 加强为**世界事实 且 账本闭环**：`下面是空气 && restoredBlocks() ≥ 1 && scaffoldLeft() == 0`（`restoredBlocks ≥ 1` 同时证明"确实放过 + 确实拆回"）| —— |
+> | O5 | ⭐ **`Restore` 的材料回收**不确定**（`D-467` 新发现，2026-09-27）** | 同场景、同世界母本、同 jar 两次跑：run A `recovered=0 / dropsLeft=1 / delta=0`，run B `recovered=1 / dropsLeft=0 / delta=1`；两次的 `[Restore] … 向下拆 不通 → 改为侧拆兜底（不挖地形）` **逐字相同** ⇒ 差别在**侧拆之后那件材料捡不捡得回**（时序相关）| 本刀的两条判据（`dropsLeft` 上界 + 不断 delta）在**两种结果下都稳定** ⇒ 没把不确定性带进判据。**复活条件** = 它稳定停在 `recovered=0`，或 `RestoreScopeTask` 因别的原因要动时 |
 >
 > ⏭ **下一步 = `step 5a` 主体（用户 2026-09-27 拍 甲：先拆 `MineTask`）** —— 拆「**编排 vs 原子**」边界。
 > ⚠️ 设计已出（两份只读取证），但**三处待拍**：① 编排器落点（`task/` 还是 `job/` —— ⚠️ `task/ → job/` 是**向上**依赖，若落 `job/` 需要显式破例）② 原语是否保留 `MiningPlanner` ③

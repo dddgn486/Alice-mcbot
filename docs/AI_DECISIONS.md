@@ -21499,3 +21499,116 @@ Job = ① 有 Kind（进 JobRequest.Kind）
 - 若真机出现**连锁之后又重规划**的路径（`chainTriggered` 真正起作用的那条）⇒ `B4` 的零覆盖必须立即升级为"先补夹具"；
 - 若第 7 拍补完的 EXECUTE 侧夹具**认领泄漏**给后续电池步（尝试② 已实测到一次）⇒ 立即改用"每用例独立密封 ＋ `finally` 还原 `SafeZoneData` 快照"，不许靠顺序；
 - 若将来 `K2`（`GoalAdjacent`）落地 ⇒ 本条的 §七 必须重审（`B` 交出去之后 `清障`/`clear` 的归属会变）。
+
+### D-467：**`step 5a` 第 ① 步落地** —— EXECUTE 侧密封夹具（`O1`/`O2`/`O4` 同刀修复）（2026-09-27）
+
+**来源**：用户 2026-09-27 拍 `D-466` 第 7 条（**甲：夹具先行**）。
+**前置** = `D-465`（`5a-1` 半程 + `O2` 机制更正）· `D-464`（`5a-0`）· `D-463`（读数门禁）。
+**性质**：**只动夹具**（`task/MineRegressionTask.java`）—— 生产代码零改动，`MineTask` 一行没碰。
+
+#### 一、⭐ 为什么这次一落地就成了（关键发现：助手早就在仓里）
+
+`D-465` 把 `O2` 的复活条件写成"**四件一起对**：场景 ＋ 认领 ＋ `TaskZoneRegistry.declare` 任务区 ＋ 三者对称清理"，
+而**这四件里除了场景，早有现成实现**：`src/main/java/com/dddgn/alice/task/FixtureZone.java`（174 行，**7 个夹具已在用**：
+`CraftStation` / `LossyWriteAccounted` / `BreakRefused` / `ScaffoldLifecycle` / `LedgerZoneScope` / `RestoreUnderfootSafety`）。
+
+它逐字做的就是那三件：① 认领区块（**只记"本夹具自己新加的"**，本来就是我们的地不还）；
+② 在**已打开的作用域**上 `declare` 任务区（`playerDriven=true`，按 `LUMBER ⇒ L2 工作面`）；
+③ `release()` —— **幂等**、还它自己加的那些区块 + 解任务区 + （仅当自己开的作用域才）关作用域。
+
+⇒ ⭐ **`D-465` 尝试② 之所以红，不是"这条路走不通"，而是那条路只手做了四件里的一件**
+（裸 `SafeZoneData.claim`，既没声明任务区 ⇒ `ZoneAuthority` 只能判 `protected_area`，
+又没对称清理 ⇒ **认领泄漏给下一条用例**）。
+
+#### 二、改动（`task/MineRegressionTask.java`，夹具侧）
+
+| # | 改动 | 为什么 |
+|---|---|---|
+| 1 | 新字段 `FixtureZone.Handle zone` ＋ 常量 `SUPPORT_MIN/SUPPORT_MAX`（= 场景盒子 `x 17..31, y 44..76, z 205..223`）| 认领是**区块级、不分高度**（`D-313`）⇒ 这两个角只决定认领 `cx=1, cz=12..13` 两个区块，不碰别的用例（它们的 z 都 ≤190）|
+| 2 | 新用例 **`exec_support`** = **第一条 `expectSupport=true` 的 EXECUTE 用例** | `O1` 的根因就是"13 条用例的 `expectSupport` 全是 false"|
+| 3 | 摆前提的位置 = `scope.begin(...)` **之后** | `TaskZoneRegistry.declare` 的硬约束逐字"任务区必须挂在**打开的作用域**上（不许在任务之外造授权封套）"⇒ 早一行就是 `NO_SCOPE` |
+| 4 | 还原位置 = `finishCase()` | 它是**所有**用例终态的唯一出口（正常 / 超时 / settle / 连锁 / 前提失败）⇒ **失败路径同样走**（夹具纪律；`chainModeBefore` 的恢复也在这里，同一模式）|
+| 5 | 前提没摆成 ⇒ `record(current, false, "zone_premise_failed …")` | **如实判红**，不默默继续（否则"前提缺失"会被读成"支撑没垫"）|
+| 6 | 起手 `WorldModLedger.dropStale(level)` | 场景函数把这块地重铺过 ⇒ 账本里可能留上一轮的**幽灵条目**（`CraftStationCheckTask` 同款处置）|
+| 7 | `supportOk` 加强（**`O4`**）；`restoredOk` **并入它**（消掉两个名字一个谓词）| 见 §四.1 |
+| 8 | `noDropsLeft` / `countOk` 对**支撑类**改判据 | 见 §四.2/§四.3 |
+
+#### 三、实测（判据逐条；`run/headless-logs/20260927-165945-single_mine_regression.log`）
+
+```
+[TaskZone] declared（声明任务区） scope=…#2:Regression:mine_regression owner=… kind=region_lumber
+           level=L2 chunks=2 area(block)=285 [17..31,205..223] conflicts=0
+[FixtureZone] 夹具前提 = 保护区 + region_lumber 任务区 ｜ 新认领区块=2 任务区=DECLARED/L2 chunks=2
+[WRITE] place 23, 64, 212 minecraft:cobblestone by=MineRegressionTask:SUPPORT_PLACEMENT
+[Ledger] place 23, 64, 212 minecraft:cobblestone←minecraft:air [TEMP SUPPORT_PLACEMENT scope=…]   ← ⭐ 区内**记账**
+[MineRunner] support_placed target=23, 65, 212 pos=23, 64, 212 feet=21, 64, 212                ← 是 placed，不是 skipped
+[MineTask] restore_start target=23, 65, 212 pending=1 scope=…（用完即拆）                        ← ⭐⭐ O2：RESTORE 第一个真覆盖
+[Restore] SUMMARY scope=… restored=1 skipped=0 reconciled=0 remaining=0 recovered=1 … → DONE
+[MineTask] restore_end target=23, 65, 212 status=DONE restored=1 remaining=0
+[MineRegression] exec_support=PASS status=DONE/targetGone=true/collected=1/1/inventoryDelta=1(期望0)/
+   dropsLeft=0/idempotent=true/foreignOk=true/supportRestored=true/ledgerRestored=1/scaffoldLeft=0
+[TaskZone] released scope=…        [FixtureZone] 前提已还原：取消认领 2 个区块 + 解任务区
+```
+
+- **`O2` 修复证据**：此前 11 次全是 `restore_skip pending=0`（`places=0`）⇒ `to=RESTORE` **一次都到不了**；
+  现在 `restore_start pending=1` + `restore_end status=DONE`。
+- **`O1` 修复证据**：`/supportRestored=` `/ledgerRestored=` `/scaffoldLeft=` **第一次打印**（此前从不打印）。
+- **无泄漏证据**：`release` 之后 `exec_chain` / `no_tool_refuses` / `scope_reopen_keeps_drops` 全部照常，
+  且它们的 `[MineTask] restore_skip …（区外写入不入账 = D-398 R2）` 说明**世界回到了"无认领"基线**。
+- **`O4` 修复证据**：`supportRestored=true` 这一次是**真的**（`support_placed` + `ledgerRestored=1` + `scaffoldLeft=0`），
+  不再能被空操作满足。
+
+#### 四、⭐ 一落地就暴露的**三条"判据本身不成立"**（与 `O1` 同族）
+
+**1. `supportOk` 原判据只查"目标下方那格是空气" ⇒ 空操作也能满足（这就是 `O4`）。**
+`D-465` 尝试② 实测它报 `true` 而支撑块**根本没放**（`writes[…] places=0`）。
+加强 = **世界事实 且 账本闭环**：`下面是空气 && restoredBlocks() ≥ 1 && scaffoldLeft() == 0`。
+其中 `restoredBlocks() ≥ 1` **同时**证明"确实放过 + 确实拆回"——"拆回一个没放过的东西"是不可能的。
+⚠️ 这个合取**恰好等于**原来 `supportOk && restoredOk` 的合取 ⇒ 对既有 13 条用例**判决逐字不变**
+（两边都短路为 true），所以 `restoredOk` 被**并入**（两个名字一个谓词 = 冗余）。
+
+**2. `noDropsLeft == 0` 对支撑类用例**不可能成立**。**
+拆回支撑块必然产生一件材料掉落，**而它发生在收集阶段结束之后**；真悬空场景里这件材料还会掉进竖井
+（实测 `[Restore] 仍有 1 个掉落物没收回（可能落在够不到的地方）` + `recovered=0`）。
+⇒ 支撑类改**上界**：`dropsLeft <= restoredBlocks()`（多余的掉落物**只许**来自"拆回来的支撑块"）；非支撑类仍是零残留。
+
+**3. ⚠️ `countOk` 的 delta 那一条与它自己的注释矛盾。**
+代码上方逐字写着「支撑类用例的净增量混了"放置消耗 + 拆回 + 可能的夹具补料"，**不是不变量**」，
+**而下一行仍在断言 `delta >= expectedCollected`** ⇒ 一落地就红（实测 `inventoryDelta=0` vs 要求 ≥1）。
+一直没人发现，正是因为 `expectSupport` 从来没真过（= `O1` 空判据的同一族）。
+⇒ 支撑类**去掉 delta 那一条**（保留 `collected` 下界）。同时更正 `CaseDef.expectedDelta` 的 javadoc：
+那个「用完即拆后回收支撑 +1 ⇒ 净 +1」的公式**只在材料捡得回来时成立**，真悬空场景里净是 **0**。
+
+#### 五、⚠️ 新观测 `O5`：`Restore` 的材料回收**不确定**（不修）
+
+同一场景、同一世界母本、同一 jar，**两次跑的读数不同**：
+
+| | `recovered=` | `dropsLeft=` | `inventoryDelta=` |
+|---|---|---|---|
+| run A（`…-165815`）| **0** | **1** | **0** |
+| run B（`…-165945`）| **1** | **0** | **1** |
+
+两次的 `[Restore] 23, 64, 212 ：向下拆 不通 → 改为侧拆兜底（不挖地形）` **逐字相同**
+⇒ 差别在**侧拆之后那件材料捡不捡得回**（时序相关）。
+⭐ 本刀的两条判据（`dropsLeft` 上界 + 不再断 delta）在**两种结果下都稳定** ⇒ 没有把不确定性带进判据。
+⇒ 记为 **`O5`**（新观测项，**不修** —— `RestoreScopeTask` 不在本刀范围）。
+
+#### 六、回归
+
+- `single:mine_regression` **PASS**（`passed=1/1` · `run/headless-logs/20260927-165945-single_mine_regression.log`）。
+  ⚠️ 第一次跑是 **FAIL**（上面 §四.2/§四.3 两条判据错），改判据后 PASS —— **判据错不是行为错**。
+- `core` **PASS**（241 s · `run/headless-logs/20260927-170408-core.log`）：
+  **43/43 PASS**；可逐字对比的 **40 条 `step=… ticks=` 行全部 PASS、零位移**；
+  只有 tick 抖动，且**改动前两次 core 之间本来就在同一批步上抖**
+  （`clear_guard` 184↔175 · `lumber_job` 629↔626 · `mine_regression` 127↔120）
+  ⇒ 抖动是**既有的**；`mine_regression` 120 → 222 是新用例的预期增量。
+- `check-all` = `pass=28 warning=1 failed=0`。
+- ⚠️ 本轮用 `ALICE_BATTERY_NO_CACHE=1` ⇒ 脚本**没有**打印 core 指纹（缓存路径被绕过）⇒ 本条的回归锚 = **日志文件名**。
+- ⚠️ **无客户端可观察行为变化**（只动夹具）⇒ 客户端轮**不必要**。
+
+#### 七、复核触发
+
+- 若 `Restore` 的材料回收在**更长的跑动**里稳定停在 `recovered=0` ⇒ `O5` 升级为待查（今天的两次差异说明它至少不稳定）；
+- 若将来有**第二个**需要"真放置 + 真拆回"的用例 ⇒ 直接把 `FixtureZone` 那段抽成 `MineRegressionTask` 的小助手（今天只有一处，不抽）；
+- 若 `SUPPORT_MIN/SUPPORT_MAX` 覆盖的区块与**别的用例**重叠（新增用例挪坐标时最可能）⇒ `FixtureZone.ok()` 会因"没新认领到区块"而**判红**，别把它读成"保护区坏了"；
+- `D-466` §八 的第 ②–⑤ 步（新门禁 / 主体刀 / 同刀改红臂 #6 / `core` 逐步 diff）仍未开始。

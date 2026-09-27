@@ -1791,3 +1791,30 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
   （出处 `docs/plans/2026-09-25-通道施工器草案.md §3`：「三层，`MineTask` 一行不改」），
   ⚠️ **但 `L1` 化没有 `D` 编号** —— 那份三层草案被 `D-443` 否掉一半（`L3` 缓建、`L2` 就地）。
   ⇒ **`step 5a` 不是 `L1` 化的第一步，它是"让 `L1` 化成为可能"的前置。**
+
+### ✅ `step 5a` 第 ① 步落地（2026-09-27，`D-467`）—— EXECUTE 侧密封夹具，`O1`/`O2`/`O4` 同刀修复
+
+- **只动夹具**（`task/MineRegressionTask.java`）：生产代码零改动，`MineTask` 一行没碰。
+- ⭐ **关键发现（本刀省了整轮工作）**：`D-465` 说的"四件一起对"（认领 + `declare` 任务区 + 对称清理）
+  **早就有现成助手** —— `src/main/java/com/dddgn/alice/task/FixtureZone.java`（174 行，**7 个夹具在用**）。
+  ⇒ `D-465` 尝试② 失败的原因是**四件里只手做了一件**（裸 `SafeZoneData.claim`：没任务区 ⇒ `protected_area` 拒写；
+  没清理 ⇒ 认领**泄漏**给下一条用例）。
+- 落成 = 新用例 **`exec_support`**（**第一条 `expectSupport=true` 的 EXECUTE 用例**）＋ 前提摆在 `scope.begin`
+  **之后**（`declare` 的硬约束）＋ 还原在 **`finishCase()`**（所有终态的唯一出口 ⇒ 失败路径同样走）。
+- ⭐⭐ **一次落地同时收掉三项观测**：
+  - `O2` `RESTORE` 零覆盖 → `[WRITE] place … SUPPORT_PLACEMENT` + `[Ledger] place … [TEMP]` ⇒
+    **`restore_start pending=1` → `restore_end status=DONE restored=1`**（此前 11 次全是 `restore_skip pending=0`）；
+  - `O1` 空判据 → `/supportRestored=true/ledgerRestored=1/scaffoldLeft=0` **第一次打印**；
+  - `O4` 弱判据 → `supportOk` 加强成「世界事实 **且** 账本闭环」；`restoredOk` **并入**（原合取逐字等价 ⇒ 既有判决不变）。
+- ⚠️ 一落地就暴露**三条"判据本身不成立"**（与 `O1` 同族，**不是行为错**）：`noDropsLeft==0` 对支撑类不可能成立
+  （拆回的材料掉在**收集阶段之后**）、`countOk` 的 delta 那一条**与它自己的注释矛盾**、
+  `CaseDef` 的"净 +1"公式对真悬空是错的。**详见 `D-467` §四。**
+- ⚠️ 新增观测 **`O5`**：`Restore` 的材料回收**不确定** —— 同场景同 jar 两次跑 `recovered=0` 与 `recovered=1`
+  （两次的 `向下拆 不通 → 改侧拆兜底` 逐字相同）⇒ 差别在"侧拆之后那件材料捡不捡得回"。**不修**。
+- **回归**：`single:mine_regression` PASS（`…-165945-single_mine_regression.log`）· `core` **PASS**（241 s ·
+  `…-170408-core.log`）**40 条带 ticks 的逐步判决行全部 PASS、零位移**（tick 抖动是既有的：改动前两次 core
+  之间在同一批步上抖）· `check-all pass=28 warning=1 failed=0`。
+  ⚠️ 用 `ALICE_BATTERY_NO_CACHE=1` 跑的 ⇒ **没有** core 指纹，回归锚 = 日志文件名。
+  ⚠️ **无客户端可观察行为变化**（只动夹具）⇒ 客户端轮不必要。
+- ⏭ **下一步 = `D-466` §八 的第 ② 步**：落新门禁 `tools/check-task-orchestration-split.py`（五条判据 + 红臂），
+  然后才是主体刀（`MineStep` + `MineTask` 改委托）。

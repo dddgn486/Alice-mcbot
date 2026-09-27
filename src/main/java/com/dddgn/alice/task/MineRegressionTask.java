@@ -77,6 +77,10 @@ public final class MineRegressionTask implements Task {
      * @param expectedDelta  背包净增量。**D-112 建拆同权后算式变了**：悬空目标
      *                       = 放支撑 −1 ＋ 目标掉落 +1 ＋ **用完即拆后回收支撑 +1** = **净 +1**
      *                       （旧语义是"支撑留在世界里"⇒ 净 0；那条期望随 D-112 一起作废）。
+     *                       ⚠️ `D-467`（2026-09-27）修正：那个"回收 +1"**只在材料捡得回来时成立** ——
+     *                       真悬空场景（下方 ≥8 格空气）里拆回的方块**掉进竖井**（实测 `recovered=0`）
+     *                       ⇒ 净 = **0**。而且**支撑类用例现在根本不看这个字段**（`expectSupport`
+     *                       走另一条分支，见 `countOk` 处的注释），它只作为"当时的算法记录"留着。
      */
     private record CaseDef(String name, String terrain, BlockPos start, BlockPos target,
                            Kind kind, List<MiningPlan.Mode> expectedModes,
@@ -92,6 +96,16 @@ public final class MineRegressionTask implements Task {
     /** ⭐ `D-464` 的 O1/O2 修复：**真悬空**场景（目标下方 ≥8 格空气 ⇒ 必须放支撑块 + 用完即拆）。 */
     private static final BlockPos SUPPORT_START = new BlockPos(21, 64, 212);
     private static final BlockPos SUPPORT_TARGET = new BlockPos(23, 65, 212);
+    /**
+     * ⭐ `D-467`：`support_course` 场景的外框（与
+     * {@code tools/test-scenes/alice_test/data/alice_test/functions/support_course_terrain.mcfunction}
+     * 里那个孤立盒子逐字一致：`x 17..31, y 44..76, z 205..223`）。
+     *
+     * <p>认领按**区块**生效（`SafeZoneData` 是区块级、**不分高度**，`D-313`）⇒ 这两个角只决定
+     * 认领哪几个区块（实测 = `cx=1`、`cz=12..13`），**不会**碰到别的用例（它们的 z 都在 190 以下）。
+     */
+    private static final BlockPos SUPPORT_MIN = new BlockPos(17, 44, 205);
+    private static final BlockPos SUPPORT_MAX = new BlockPos(31, 76, 223);
 
     private static CaseDef plan(String name, String terrain, BlockPos start, BlockPos target,
                                 MiningPlan.Mode... modes) {
@@ -135,16 +149,27 @@ public final class MineRegressionTask implements Task {
                     Kind.EXECUTE, List.of(), 1, Items.COBBLESTONE, true, false, 1),
             // ⭐ `D-464` 的 O1/O2 修复（2026-09-27）：**真悬空**（下方 ≥8 格空气）⇒ 断言
             // 规划器必须给出 `supportPlacementPos == target.below()`（`D-078`）。
-            // ⛔ 执行侧（`exec_support`）**已试过并撤回**：不认领 ⇒ `D-398` 判"区外"不记账（无回收义务）；
+            // ⛔ 执行侧（`exec_support`）第一次试过并撤回：不认领 ⇒ `D-398` 判"区外"不记账（无回收义务）；
             //    认领 ⇒ `ZoneAuthority` 判 `protected_area` **拒写**（保护区内的写入需要"生效的任务区"覆盖该格）
-            // ⚠️ 只到 PLAN 侧：**EXECUTE 侧（真放支撑 + 用完即拆）在无头电池里做不到**，见下方注释与 `D-465`。
-            // ⚠️ 这两条判据（`supportOk`/`restoredOk`）**仍然是恒真的空判据** ——
-            //    13 条用例的 `expectSupport` 全是 `false`（`plan()`/`execute()` 两个便捷构造都硬写 `false`），
-            //    于是 `/ledgerRestored=` `/scaffoldLeft=` 从不打印、两条断言永远为真（假绿）。
+            // ⭐ `D-467`（2026-09-27）：**两件一起对**之后 EXECUTE 侧落地 —— 用现成的夹具助手
+            //    `FixtureZone.protect(...)`（认领区块 + 声明 L2 任务区封套 + **幂等 release**，
+            //    仓里已有 6 个夹具在用）⇒ 见下面的 `exec_support`。
+            // `support_plan` 只到 PLAN 侧：断言规划器必须给出 `supportPlacementPos == target.below()`（`D-078`）。
             // 与 `exec_floating` 的区别：那条的竖井 **1 格深** ⇒ 掉落物捡得回 ⇒ 断言"**不垫**"（`D-364` 口径）。
             new CaseDef("support_plan", "support_course", SUPPORT_START, SUPPORT_TARGET,
                     Kind.PLAN, List.of(MiningPlan.Mode.CURRENT, MiningPlan.Mode.DIRECT),
                     0, null, true, true, 0),
+            // ⭐ `D-467`（2026-09-27）：**EXECUTE 侧的支撑块正例** —— 它同时修掉三个观测项：
+            //    ① `O1` 空判据：这是**第一条** `expectSupport=true` 的 EXECUTE 用例 ⇒
+            //       `supportOk`/`restoredOk` 第一次真的会咬、`/ledgerRestored=` `/scaffoldLeft=` 第一次打印；
+            //    ② `O2` RESTORE 零覆盖：区内真放置 ⇒ 账本有 TEMP ⇒ `enterRestoreOrDone` 走 `pending>0`
+            //       ⇒ `to=RESTORE` 第一次非 0（此前 11 次全是 `restore_skip pending=0`）；
+            //    ③ `O4` 弱判据：`supportOk` 同刀加强（见本文件 `supportOk` 处的注释）。
+            //    期望值：目标是一格石头 ⇒ 掉落圆石 1 件。⚠️ `expectedDelta` 填 **0** 而不是 javadoc 那个
+            //    "+1"：实测净增量 = 放支撑 −1 ＋ 目标掉落 +1 ＋ **拆回材料掉进竖井捡不回** +0 = **0**
+            //    （`[Restore] … recovered=0／仍有 1 个掉落物没收回`）。支撑类的 `countOk` 今天不看 delta。
+            new CaseDef("exec_support", "support_course", SUPPORT_START, SUPPORT_TARGET,
+                    Kind.EXECUTE, List.of(), 1, Items.COBBLESTONE, true, true, 0),
             new CaseDef("exec_chain", "chain_mine_course", CHAIN_START, CHAIN_TARGET,
                     Kind.CHAIN, List.of(), 9, Items.RAW_IRON, true, false, 9),
             // G3：同一场景、**预算压到 1 次破坏** ⇒ 连锁必须当场停 + 如实报 `chain_budget_refused`
@@ -174,6 +199,16 @@ public final class MineRegressionTask implements Task {
     private int caseTicks;
     private boolean prepared;
     private MineTask mineTask;
+    /**
+     * ⭐ `D-467`（2026-09-27）：**密封的"保护区 + 任务区"前提**（`FixtureZone`），只在
+     * {@code expectSupport=true} 的 **EXECUTE** 用例上摆，并在 {@link #finishCase()} 里**幂等还原**。
+     *
+     * <p>为什么必须摆：`D-398` 把写入责任收窄到保护区 —— **区外不记账 ⇒ 无回收义务**
+     * （`MineTask` 走 `restore_skip pending=0` 早退，`RESTORE` 相位一次都到不了；`D-465` 尝试① 实测）。
+     * 而**只认领不声明任务区**会被 `ZoneAuthority` 判 `protected_area` 拒写
+     * （尝试② 实测 `support_skipped result=ZONE_DENIED`）⇒ **两件一起对**才谈得上"真放支撑 + 用完即拆"。
+     */
+    private FixtureZone.Handle zone;
     private Item expectedItem;
     private int inventoryBefore;
     /**
@@ -256,6 +291,25 @@ public final class MineRegressionTask implements Task {
                 }
             }
             scope.begin(current.target(), 16, bot.getUUID());
+            // ⭐ `D-467`：**密封前提必须在 `scope.begin` 之后** —— `TaskZoneRegistry.declare`
+            // 的硬约束是"任务区必须挂在**打开的作用域**上"（不许在任务之外造授权封套），
+            // 所以 `FixtureZone` 只有在作用域已开时才**借**用现成 scope（不会另开一个、也不会替我们关）。
+            if (current.expectSupport() && current.kind() == Kind.EXECUTE) {
+                zone = FixtureZone.protect(bot.serverLevel(), bot.getUUID(),
+                        SUPPORT_MIN, SUPPORT_MAX, "region_lumber");
+                if (!zone.ok()) {
+                    // 前提没摆成 ⇒ **如实判红**，别默默继续（那会把"前提缺失"伪装成"支撑没垫"）
+                    record(current, false, "zone_premise_failed " + zone.describe());
+                    finishCase();
+                    return index >= CASES.size() ? finish() : Status.RUNNING;
+                }
+                // 场景函数把这块地重铺过 ⇒ 账本里可能留着**上一轮的幽灵条目**；不销掉的话
+                // 下面的 `restore_*` 会去拆一个已经不存在的格（`CraftStationCheckTask` 同款处置）。
+                int stale = com.dddgn.alice.ledger.WorldModLedger.dropStale(bot.serverLevel());
+                if (stale > 0) {
+                    BotLog.info("[MineRegression] case={} 起手销掉 {} 条幽灵账目", current.name(), stale);
+                }
+            }
             expectedItem = current.expectedItem();
             // D-124：作用域重开用例**先不收集**（collectDrops=false）——掉落物留在世界里才谈得上"重开后还在不在账上"
             MiningBudget budget = MiningBudget.forTarget(bot, bot.serverLevel(), current.target(),
@@ -368,12 +422,18 @@ public final class MineRegressionTask implements Task {
         int collected = mineTask.collectedItems();
         boolean targetGone = bot.serverLevel().getBlockState(current.target()).isAir();
         // D-112 建拆同权：悬空目标的支撑块**用完即拆**（旧断言"支撑仍在"是改造前的语义）
+        // ⭐ `D-467`（`O4` 修复）：原判据**只**查"目标下方那格是空气" ⇒ **空操作也能满足** ——
+        //   `D-465` 尝试② 实测：支撑块**根本没放**（`writes[…] places=0`），而它报了 `true`。
+        //   加强 = **世界事实 且 账本闭环**：
+        //     ① 下面是空气（没留残）；② `restoredBlocks ≥ 1`（**只有真的放过、且真的拆回了**才会 ≥1
+        //     —— "拆回一个没放过的东西"是不可能的，所以这一条同时证明"确实放过"）；
+        //     ③ `scaffoldLeft == 0`（没留残架）。
+        //   ⚠️ 这三条的合取**恰好等于**原来 `supportOk && restoredOk` 的合取（对 `expectSupport=false`
+        //   的用例两边都短路为 true）⇒ 对既有 13 条用例**判决逐字不变**，只对新的 `exec_support` 生效。
         boolean supportOk = !current.expectSupport()
-                || bot.serverLevel().getBlockState(current.target().below()).isAir();
-        // 支撑类用例的**材料闭环**用账本事实判（比背包净增量稳）：
-        //   restoredBlocks ≥ 1（确实拆回了自己放的方块）&& scaffoldLeft == 0（没留残）
-        boolean restoredOk = !current.expectSupport()
-                || (mineTask.restoredBlocks() >= 1 && mineTask.scaffoldLeft() == 0);
+                || (bot.serverLevel().getBlockState(current.target().below()).isAir()
+                        && mineTask.restoredBlocks() >= 1
+                        && mineTask.scaffoldLeft() == 0);
         // 掉落物判据改用**世界事实**：拆除阶段会 scope.end()，缓冲视图会变成空集（假通过）。
         // 2026-09-13：只数**本用例新增**的掉落物（基线 UUID 见 `prepare`）——历史残留不算数。
         int dropsInBox = 0;
@@ -386,13 +446,24 @@ public final class MineRegressionTask implements Task {
             }
         }
         int dropsLeft = dropsInBox - foreignDrops;
-        boolean noDropsLeft = dropsLeft == 0;
+        // ⭐ `D-467`：**"零残留掉落物"对支撑类用例不是正确判据** —— 拆回支撑块必然产生一件材料掉落，
+        //   而它发生在**收集阶段结束之后**；真悬空场景里这件材料还会掉进竖井、捡不回来
+        //   （实测 `[Restore] 仍有 1 个掉落物没收回（可能落在够不到的地方）` + `recovered=0`）。
+        //   ⇒ 支撑类改成**上界**：多余的掉落物**只许**来自"拆回来的支撑块"（`restoredBlocks()`）；
+        //   非支撑类仍是**零残留**（严格）。
+        boolean noDropsLeft = current.expectSupport()
+                ? dropsLeft <= mineTask.restoredBlocks()
+                : dropsLeft == 0;
         int delta = countInInventory(expectedItem) - inventoryBefore;
         // 精确净增量只在**不涉及支撑块**的用例上成立（那时净增量=掉落物本身，稳定）；
         // 支撑类用例的净增量混了"放置消耗 + 拆回 + 可能的夹具补料"，**不是不变量**
-        // （2026-09-11 三轮实测同一用例出现过 2 / 0 / 2）→ 改判账本事实 restoredOk + 下界。
+        // （2026-09-11 三轮实测同一用例出现过 2 / 0 / 2）→ 改判**账本闭环+世界事实**（见上面 `supportOk`）+ 下界。
+        // ⭐ `D-467`：**上面这句注释从一开始就与代码矛盾**（代码仍在断言 `delta >= expectedCollected`）——
+        //   一直没人发现，是因为 `expectSupport` 从来是 `false`（= `O1` 空判据同族）。
+        //   实测（`exec_support`）：放支撑 −1 ＋ 目标掉落 +1 ＋ 拆回材料**掉进竖井捡不回** +0 = **0**
+        //   ⇒ 支撑类**去掉 delta 那一条**（保留 `collected` 下界）。
         boolean countOk = current.expectSupport()
-                ? collected >= current.expectedCollected() && delta >= current.expectedCollected()
+                ? collected >= current.expectedCollected()
                 : (current.exactCollected()
                         ? collected == current.expectedCollected() && delta == current.expectedDelta()
                         : collected >= current.expectedCollected()
@@ -402,7 +473,7 @@ public final class MineRegressionTask implements Task {
         // ⑦ D-168 活断言：夹具播下的外来掉落物必须**真的被排除**（否则 `noDropsLeft` 是靠"恰好没残留"通过的）
         boolean foreignOk = !expectedForeignDrop || foreignDrops >= 1;
         boolean pass = status == Status.DONE && targetGone && noDropsLeft && countOk && supportOk
-                && restoredOk && idempotent && foreignOk;
+                && idempotent && foreignOk;
         record(current, pass, "status=" + status
                 + "/targetGone=" + targetGone
                 + "/collected=" + collected + "/" + current.expectedCollected()
@@ -558,6 +629,13 @@ public final class MineRegressionTask implements Task {
             MiningTuning.setChainMode(chainModeBefore);
             BotLog.info("[MineRegression] 恢复 chain={}", chainModeBefore);
             chainModeBefore = null;
+        }
+        // ⭐ `D-467`：**密封前提的对称还原**（夹具纪律：每条终态路径都要复位，失败路径同样走）。
+        // 放在这里是因为 `finishCase()` 是**所有**用例终态的唯一出口（正常 / 超时 / settle / 连锁 / 前提失败）。
+        // `release()` 幂等，且只还"本夹具**自己新认领**的区块"—— 本来就是我们的地不还。
+        if (zone != null) {
+            zone.release();
+            zone = null;
         }
         mineTask = null;
         advance();
