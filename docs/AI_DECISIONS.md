@@ -20917,3 +20917,55 @@ Job = ① 有 Kind（进 JobRequest.Kind）
 
 **回归**：`single:job_abort_hook` PASS · `core` PASS · `check-all` PASS（见提交）。
 **未做/边界**：鱼骨接钩子（冻结）· `DecisionTrace.terminal` 的 2 处归并（step 5）· 延后权（N1 挂账）· Job 级挂起（N2）。
+
+---
+
+### D-459：**`step 2a` 落地 —— 「原语不自带额度」把 `MineTask` 的自造额度入口删掉 + 新门禁**（2026-09-27，`D-457` 第 6 件）
+
+**裁定链**：`D-457` 八件契约**第 6 件**（额度归 `Job`：原语不自带额度/完成度）+ `plan §5.2` ⑧ 用户裁定 **A**
+（⑧③「额度**必须由构造参数注入**；类内**不得有默认额度常量**」）⇒ 本条是 `J-★` 第 6 段 **`step 2` 的前半刀**（`2a`）。
+
+#### 实测（本刀的依据；都是当场读码/扫描，不是回忆）
+
+| 事实 | 出处（2026-09-27 实测） |
+|---|---|
+| `MineTask` 原有 **5 个**构造器，其中**唯一**不带额度形参的那个（4 参 `bot,target,scope,grant`）**自己造额度**：`MiningBudget.forTarget(bot, (ServerLevel) bot.level(), target, true)` | `task/MineTask.java`（`D-459` 删掉的那一处） |
+| 它的**唯一**调用方 = `RoadBuildTask` **2 处** ⇒ 这两处**从不知道**自己拿到的是 `collectDrops=true`（"在目标下方放支撑块 + 收掉落物"）那一档 —— **是便利构造器替它们决定的** | `task/RoadBuildTask.java`（今 `:164`/`:190`） |
+| 全仓 `task/` 顶层 **141** 个 `.java` 里，"构造器体内制造额度" **实测只有这 1 处** | `tools/check-primitive-budget-injection.py` 的扫描 |
+| 带额度形参的 `public` 构造器 **8** 个（`MineTask` 4 · `CollectDropsTask` 4） | 同上（门禁的人口下限就是它） |
+
+#### 做了什么
+
+1. **删** `MineTask` 的 4 参构造器 ⇒ 额度**只能**由构造参数注入。
+2. `RoadBuildTask` 两处**显式声明**额度：`MiningBudget.forTarget(bot, level, plan.second(), true)`。
+   ⚠️ **值逐字保留**（`collectDrops=true`）—— 本刀**不改行为**；但"造路挖目标格要不要收掉落物 / 放支撑块"
+   因此**第一次浮出水面** ⇒ 记**观察项**（未裁，`task/RoadBuildTask.java:164`/`:190`）。
+3. 新门禁 `tools/check-primitive-budget-injection.py`（挂在 `tools/check-all.sh`，`pass=24→25`）。
+
+#### 判据（静态门禁，自带 6 条合成红臂；**判据只能是静态门禁**，先例 `D-425`）
+
+- **断言**：`task/` 顶层的**额度制造**必须出现在**某个非构造器的方法体**里 ——
+  构造器体内 ⇒ 红 · 不在任何方法体里（字段初始化 / 静态初始化块）⇒ 红。
+  ⚠️ 解析**跳过 `if`/`for`/`while`/匿名类帧**（否则 `ctor { if (…) { …forTarget… } }` 会**假绿**；
+  同款教训见 `tools/check-protection-install-point.py`）。
+- **人口下限**（防"把额度参数整个删掉 ⇒ 门禁假绿"）：扫描 ≥ **130** 文件 · 带额度形参的构造器 ≥ **6**（实测 8）·
+  两个**具名原语**（`MineTask` · `CollectDropsTask`）各 ≥ 1。
+- ⭐ **真树红臂**（不是合成臂）：把删掉的构造器**注入回去** —— 先证明文件**真的变了**
+  （sha `62b73166…` → `bc2cb4a1…`，`diff` 逐行可见）⇒ 门禁精确报
+  `com/dddgn/alice/task/MineTask.java:164 `MiningBudget.forTarget(` 造在**构造器** `MineTask(...)` 里`；
+  还原后 sha **逐字回到 `62b73166…`**、门禁复绿。
+  （教训沿用 `D-456` ③：**注入臂自己会静默失败** ⇒ 注入前必须先证明文件真的变了。）
+
+#### ⚠️ 边界（**写在门禁里**，防"绿 = ⑧③ 全合规"的误读）
+
+- **不含"类内默认额度常量"** —— 那是同一条判据的另一半。实测今天的违规面：
+  `CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS`（`public`，`:63`，被 `:253`/`:304` 两个便捷构造器当默认值）
+  + `CLUSTER_BUDGET_TICKS`（`private` 分段，`:65`）。清零它们要重设计那个 1250 行原语
+  ⇒ 排期 **`step 2b` / `step 5`**（台账第 6 段）。
+- **不含"方法体内为子任务派生额度"**：`MineTask.startClear:733` / `tryGainHeight:816` 是**父原语给子 `MineTask`**
+  算额度，形状 = `profile.nestedSubTask()` 的"**子信封 ⊆ 父信封**" ⇒ 不是"调用方不说也能用"的默认入口。
+  ⚠️ 但记一条**不对称观察（未裁）**：`MiningProfile` 有"子信封 ⊆ 父信封"，而 `MiningBudget` **没有**对应的
+  "子额度 ⊆ 父额度"这一层 ⇒ 将来若要把子任务额度也归 `Job`，得先补这层关系。
+
+**回归**：`core` **PASS**（240 s · 指纹 `7e17f8ea0889` · 日志 `run/headless-logs/20260927-142245-core.log`，`lumber_job=PASS` 等 43 步判决逐字不变）· `check-all` **pass=25 warning=1 failed=0**。
+**未做**：`step 2b`（`CollectDropsTask` 的类内默认额度常量清零 —— 要用户先拍"**600 住哪**"：见台账第 6 段 `2b`）。

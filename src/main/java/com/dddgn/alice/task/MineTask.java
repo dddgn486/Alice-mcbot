@@ -160,11 +160,6 @@ public final class MineTask implements Task {
     /** 触发连锁前的目标方块状态（用于判断连锁是否真的把它挖掉了）。 */
     private BlockState chainTargetState;
 
-    public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope, WriteGrant grant) {
-        this(bot, target, scope, MiningBudget.forTarget(
-                bot, (net.minecraft.server.level.ServerLevel) bot.level(), target, true), false, grant);
-    }
-
     /** D-067 批次 3：`collectDrops` 为必要参数（false 时跳过放支撑块与收集）。 */
     public MineTask(ServerPlayer bot, BlockPos target, ScopeBuffer scope, MiningBudget budget,
                     WriteGrant grant) {

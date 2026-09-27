@@ -155,6 +155,12 @@ run_gate             "check-authz-registry"     bash tools/check-authz-registry.
 # 而电池**直驱子任务**（不过 `beginTask`）看不到 ⇒ 判据只能是静态门禁（`D-425`）。
 # 自带 6 条合成红臂（构造器 / `if` 嵌构造器 / 静态块 / 注释假命中 / `tickOnce` / 类名别名）。
 run_gate             "check-protection-install-point" python3 tools/check-protection-install-point.py
+# 额度归 Job（`J-★` 第 6 段 step 2a / `D-459`，2026-09-27）：**任务不许自带额度** ——
+# `MineTask` 曾有一个"调用方不说额度也能用"的便利构造器（自己 `MiningBudget.forTarget(..., true)`
+# ⇒ `RoadBuildTask` 从不知道自己是"收掉落物 + 放支撑块"那一档）= 原语自带额度的入口。
+# 断言 = 额度制造必须出现在**非构造器的方法体**里；自带 6 条合成红臂 + 人口下限（防抽空即假绿）。
+# ⚠️ 边界写在门禁里：**不含**"类内默认额度常量"（= step 2b / step 5），别把绿读成 ⑧③ 全合规。
+run_gate             "check-primitive-budget-injection" python3 tools/check-primitive-budget-injection.py
 # 回迁（2026-09-24）：`tools/dsh-session-rollback.mjs` 决定"云端哪些字节要搬回本机" ——
 # 决定错了**不会响**（本机会安静地留一个半截会话）⇒ 自检必须进构建：
 # 分叉判 suffix（只搬前缀之后那段）/ 逐字节相同判 skip / 无公共前缀判 whole / 重建 sha256 必须对得上 /

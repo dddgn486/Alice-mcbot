@@ -5,6 +5,7 @@ import com.dddgn.alice.action.WriteGrant;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.perception.ScopeBuffer;
 import com.dddgn.alice.road.RoadPlan;
+import com.dddgn.alice.task.mining.MiningBudget;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -161,6 +162,7 @@ public final class RoadBuildTask implements Task {
             // 最终支撑格的上方就是仍存在的目标方块，不能强制把 bot 移入该格。
             // bot 此时已在倒数第二个缓冲单元，直接交给 MineTask 从当前可挖站位处理目标。
             targetTask = new MineTask(bot, plan.second(), scope,
+                    MiningBudget.forTarget(bot, level, plan.second(), true),
                     BULK_GRANT.with(WriteReason.EXPECTED_TARGET));
             phase = Phase.MINE_TARGET;
         } else {
@@ -186,6 +188,7 @@ public final class RoadBuildTask implements Task {
             bot.fallDistance = 0.0F;
             if (destinationIndex == unitIndex && unitIndex + 1 >= plan.units().size()) {
                 targetTask = new MineTask(bot, plan.second(), scope,
+                    MiningBudget.forTarget(bot, level, plan.second(), true),
                     BULK_GRANT.with(WriteReason.EXPECTED_TARGET));
                 phase = Phase.MINE_TARGET;
             } else {
