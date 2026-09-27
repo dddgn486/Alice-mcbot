@@ -2374,7 +2374,40 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 | **3a** | ⭐ **「触及站位」搬出 `task/mining/`** ⇒ 新顶层包 **`reach/`**（`StandingPointSelector` · `LineOfSightChecker` · **`MiningPlan`** · **`MiningTuning`** —— 后两个是"只搬一个会造出新循环"的**闭包**，不是可选项） | ✅ **已落地（2026-09-27，`D-460`）** | **0.4 轮**（`git mv` + `package` 行 + import；**只搬包、不改名** —— ⑤-⑦ = B）。⚠️ **先纠一条实测**：台账原话"唯一真实反向 import 只有一个纯函数"**不成立** —— `action/` 对 `task/` 的 import **一共 4 条**（全在 `MineBlockRunner`：`PathRetryRunner` 整类 · `LineOfSightChecker` 2 处 · `MiningPlan` 字段+构造器 · `StandingPointSelector` **只用了 `eyeAt`**）⇒ **登记的判据（grep = 0）不可能只靠搬 2 个类达成**。⭐ 新门禁 `tools/check-layer-direction.py`（`check-all pass=25→26`）：① `reach/**` 不许 import `task\|action\|job` ② `action/**` → `task/` 只许剩**表里登记的欠账**（今天 1 条 = 3b）③ 人口下限 + **6 条合成红臂** + ⭐ **2 条真树红臂**（注入后各自精确报，还原 sha 逐字回 `0eefae08552a94e7`/`4db05116d14b1330`）。⚠️ **迁移陷阱**：**不能全局替换包前缀**（`task.mining.` 也是 `MiningPlanner`/`MiningProfile`/`MiningBudget` 的前缀 ⇒ 第一版 66 个错误）。回归：`core` **PASS**（241 s · 指纹 `6ef2c2a63ea2`，43 步判决逐字不变）· `check-all pass=26 warning=1 failed=0` |
 | **3b** | ⭐ **`PathRetryRunner` → `pathing/`**（唯一还在拉反向依赖的类；它只 import `bot`/`log`/`pathing.core.*`） | ✅ **已落地（2026-09-27，`D-461`）** | 判据达成：`grep -rn "import com.dddgn.alice.task" src/main/java/com/dddgn/alice/action/` ⇒ **0 命中**（无条件）；门禁 `check-layer-direction.py` 的 `ALLOWED_REVERSE` 表**清空**、红臂 6→**7**。⭐ **真耦合与反向对照**：内核门禁 `tools/kernel-predicates.py` 的 `P2b·重放有界` **硬写路径** `task/PathRetryRunner.java` ⇒ 同步改 `pathing/`；**改回旧路径 ⇒ 门禁 exit=1（那条规则真会咬）**。⚠️ **读数更正**：第一版写的 39 个文件引用是**提到过它**的文件数（多数在注释里）⇒ 真引用面 = 显式 import **5** + FQN **7 处/4 文件** + **16** 个同包文件要补 import（`silent-measurement-failure` 形态：数字对了、口径错了）。⚠️ **没解决的**：`action ↔ pathing` 的**包级环**今天仍在（`pathing/` 14 文件 import `action/`，先于本刀存在；不是 `D-455` 三层意义上的越界）⇒ 别把「全仓唯一循环依赖」读成「仓里没有环了」。回归：`core` PASS（242 s · 指纹 `d58f01c4cbd4`）· `check-all pass=26 warning=1 failed=0` |
 | **4** | 写入授权从 `action/` 拆出（**独立一刀，只动 import**） | ✅ **已落地（2026-09-27，`D-462`）** | ✅ **包名已拍（用户 2026-09-27）= `write/`**（与六个 `Write*` 类同词根；**不暗示"只是授权"** —— 含 `WriteBudget` 额度 / `WriteAudit` 审计 / `TaskTargetProtection` 保护）。**只动 import、不与改名同批**（`WriteGrant` 65 文件面）。**结果**：`action/` **12 → 6**（纯微操作）· `write/` **6** 个（`TaskTargetProtection`192 · `WriteAudit`106 · `WriteBudget`605 · `WriteGrant`54 · `WritePolicyMatrix`1017 · `WriteReason`169 行）；import/FQN 改写命中 **84 文件** + **3 个微操作**（原同包隐式可见）补 import。**判据**（静态门禁，同 `D-425`）加宽进 `check-layer-direction.py`：① `write/**` 不许 import `{task,action,job}`（**单向**：`action/`→`write/` 绿、反向红）② 6 个别名类在 `action/` 里再出现定义即红 + 6 个必须都在 `write/` ③ 人口下限（`action/`≥6 · `write/`≥6）。**红臂 7 → 14**（import 11 + 新增"定义"臂 3）· **真树红臂 3 条**。⭐⭐ **最贵的发现**：门禁里"搬包要同步"的硬写路径**共 8 处，第一版只找到 3 处**（grep 形态太窄，漏了 `action / "X.java"` 这种 `pathlib` 除法写法）—— **靠反向对照抓出来，而且第一版的反向对照给的是"错因红"**（`exit=1` 是另一条规则 `FileNotFoundError` 崩溃，不是要测的那条）⇒ **教训：反向对照要核对"红的理由是不是那一条"**。8 处已逐个反向对照（改回 `action/` 各自响亮红 + 还原 sha 逐字一致）；另补 **2 处"覆盖面无声明缩小"**（`RC4` 臂④ / `OURS_KILL` 臂④ 的"扫生产目录"要加 `write/`）。⚠️ **它不解循环**（循环来自微操作类的 `MineBlockRunner`）—— 别把它当 step 3 的替代。回归：`core` PASS · `check-all` **pass=26 warning=1 failed=0** |
-| **5** | 才谈拆 `MineTask` / `CollectDropsTask` | 大 | 前置 = 1 + 2；⭐ **相位验收面（用户 2026-09-27 裁定 A，plan §2.2）**：相位**降级为报告词汇** ⇒ 验收 = **三条禁令的可执行判据**（① 不承载编排正确性：主流程必须能读成"原语序列 + 额度 + 终态" ② 不承载额度/权限/完成度 ③ 每个值有外部可验证的进出条件）+ 主流程可读性 review；⚠️ **不要求"值数 = 0"**（数量判据易被绕过；值数下降是结果不是目标）。⭐ **原语判据（用户 2026-09-27 拍 A，plan §5.2）**：单一成功判据 + 单一失败归因 + **不自带额度**（额度须构造注入）⇒ 验收读数（单一定义）= `Phase 值数 / 额度词数 / 构造器数 / 行数`，今天两个胖原语 = `MineTask 8/47/5/975`、`CollectDropsTask 0/16/6/1250`（目标值等 step 2 落地时按实测定）。⚠️ **`task/` 不是最终译名**（用户补注：将来有整体改名）⇒ 判据不许把包名钉死 |
+| **5** | 才谈拆 `MineTask` / `CollectDropsTask` | 大 | 前置 = 1 + 2；⭐ **相位验收面（用户 2026-09-27 裁定 A，plan §2.2）**：相位**降级为报告词汇** ⇒ 验收 = **三条禁令的可执行判据**（① 不承载编排正确性：主流程必须能读成"原语序列 + 额度 + 终态" ② 不承载额度/权限/完成度 ③ 每个值有外部可验证的进出条件）+ 主流程可读性 review；⚠️ **不要求"值数 = 0"**（数量判据易被绕过；值数下降是结果不是目标）。⭐ **原语判据（用户 2026-09-27 拍 A，plan §5.2）**：单一成功判据 + 单一失败归因 + **不自带额度**（额度须构造注入）⇒ 验收读数（单一定义）= `Phase 值数 / 额度词数 / 构造器数 / 行数`。⚠️ **开工前置已于 2026-09-27 实测**：台账原登记的 `MineTask 8/47/5/975`、`CollectDropsTask 0/16/6/1250` **不可复现**（试了 11 种口径都得不到 47/16；且 975/5 是 **2a 删构造器之前**的数）⇒ 重测结果与**定义**见本表下方的「step 5 开工前置」块（别再用旧数）。⚠️ **`task/` 不是最终译名**（用户补注：将来有整体改名）⇒ 判据不许把包名钉死 |
+
+> #### ⭐ `step 5` 开工前置（2026-09-27 实测；**`src/` 零改动**）
+>
+> **① 旧读数作废**：台账 `5` 行原登记的 `MineTask 8/47/5/975` / `CollectDropsTask 0/16/6/1250` **不可复现** ——
+> 试了 **11 种口径**（原文/代码 · 行数/出现次数/去重标识符 · 大小写/词边界…）**都得不到 47 / 16**；
+> 且 `975` 行 / `5` 构造器是 **`step 2a` 删掉"自造额度"构造器之前**的数。⇒ 与 `D-460`/`D-461` 的"读数口径错"同族
+> （`silent-measurement-failure`：**数字像真的、但没有定义**），此后一律用下面的定义。
+>
+> **② 单一定义（照抄进任何后续读数）**：
+> `行数` = `wc -l` · `Phase 值数` = **类内嵌 `enum Phase` 的常量数**（⚠️ `MineTask:43` 是**一行写完**的枚举
+> ⇒ 按"每个常量一行"写的正则**静默返回 1**，本刀第一次就踩了，必须按 `{...}` 内容切分）·
+> `额度词数` = **代码里**（去注释/去字符串字面量）标识符**含** `budget|grant|quota|额度`（不分大小写）的**出现次数** ·
+> `构造器数` = 成员位置的 `ClassName(` 声明数。
+>
+> **③ 实测（2026-09-27，`step 2a` 之后）**：
+>
+> | 原语 | 行数 | `Phase` 值数 | 额度词数 | 构造器数 |
+> |---|---|---|---|---|
+> | `MineTask` | **970** | **8**（`EVALUATING, CLEAR, GAIN_CLEAR, GAIN, MINING, CHAIN, COLLECTING, RESTORE`） | **71** | **4**（全部要求注入 `MiningBudget`） |
+> | `CollectDropsTask` | **1251** | **0** | **18** | **6** |
+>
+> **④ 三条禁令的现成探针（plan §2.2 的可 grep 形态）今天读数**：
+> `Phase` 与 `budget|grant|quota|completed` **同行 = 0 处**（两个文件都是）。
+> ⚠️ **别把它读成已有成绩** —— 它是"一行一语句"这个**格式的副产品**，不是"相位不承载额度"的证明；
+> 真正要证的是禁令①（主流程能读成"原语序列 + 额度 + 终态"）与③（每个值有外部可验证的进出条件）。
+> `Phase` 的用法形态：`MineTask` = 赋值 **15** / 比较 **7** / 其它 **5**；`CollectDropsTask` = **0**。
+>
+> **⑤ 本步还背着 `step 2b`**：`CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS`（`:63`，被 `:253`/`:304` 两个便捷构造器当默认值）
+> 清零 —— 用户 2026-09-27 已拍 **甲（并入 `step 5`）**，理由是清零它必须给 `MineTask:523` 那份"内部逐格收落物"找到额度来源，
+> 而"逐格顺手收落物"正是本步要重画的东西（见 `2b` 行）。
+>
+> ⏳ **待用户拍（开工前）**：这套定义要不要落成 `tools/` 的**读数门禁**（照 `check-primitive-budget-injection.py` 形状：
+> **打印这 4 个读数** + 只断言"文件存在 / 下限"这类不会假红的量，**不**断言目标值）？还是先只在文档里当口径用？
 
 #### J-0 收口（**先做，1 轮**）：把开口的决策点一次性裁掉，并给内核线设关门线
 
