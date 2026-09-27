@@ -89,6 +89,34 @@ public final class MineRegressionTask implements Task {
          * 的另一半，仍缺覆盖；本用例只保证"真走到了也一定是对的"。
          */
         LATCH,
+        /**
+         * ⭐ **重规划路（`tryReplan`）第一次被真正走到**（`D-474`；台账 `O6` 的**路由半边**）。
+         *
+         * <p>为什么需要它：`D-473` 量清了"电池里**唯一**的执行段失败是 `WRITE_BUDGET_EXHAUSTED`，
+         * 而它是 `retryable=false`"⇒ `tryReplan` 在整轮电池里**结构上到不了**
+         * （`[MineTask重规划探针]` **0 行**、`recoveryAttempts` 永远 `0/2`）。本用例造一条**会失败的路**：
+         *
+         * <pre>
+         * 目标放在起点**够不着**处（前提自证：`inPlaceReachable == false` ⇒ 必须走位）
+         *   ↓ 计划算完（规划器选中站位 S）
+         * ⭐ 夹具把 S 那一列**砌死**（脚位 + 头位）—— **确定性竞态**：计划之后、执行器开始走位之前
+         *   ↓ 走到 S 的路径变成 `UNREACHABLE` ⇒ `MOVE_UNREACHABLE`（`retryable=true`，非硬拒绝）
+         *   ↓ `tryReplan` ⇒ 重算计划（换一个站位）⇒ `recoveryAttempts` **0 → 1**
+         *   ↓ 拆墙（竞态使命完成）⇒ 走到新站位 ⇒ **目标真的被挖掉**
+         * </pre>
+         *
+         * <p>⚠️ **这是合成竞态，必须说清楚**：真实世界里它对应"计划算完之后世界被别人改过"
+         * （别的玩家放方块 / 沙砾落下 / 水流改地形）。它**不是**自然地形推出的场景 —— 之所以要这样造，
+         * 是因为"规划器选中一个它自己认为可达、而执行器到不了的站位"在离线几何里**没有确定性构造法**。
+         *
+         * <p>⭐ **判据的承重点是 `recoveryAttempts() >= 1`** —— 全仓**只有** `MineTask.tryReplan` 递增它
+         * （`D-473` 已核），所以它是"重规划这条路真的走到了"的**精确**见证，不是相关性证据。
+         * 再加"目标真的变空 + 任务 `DONE`" ⇒ 覆盖的是**整条路**（走到 + 走通），不是只走到。
+         *
+         * <p>⚠️ **反空集断言**：竞态**必须真的开火**（`raceFired`）且真的砌了墙，否则整条用例会以
+         * "没跑到"伪装成"重规划没问题"（`Z4` 的空集假绿家族）。
+         */
+        REPLAN,
     }
 
     /**
@@ -138,6 +166,17 @@ public final class MineRegressionTask implements Task {
                                    int expectedCollected, Item item, boolean exactCollected) {
         return new CaseDef(name, terrain, start, target, Kind.EXECUTE, List.of(),
                 expectedCollected, item, exactCollected, false, expectedCollected);
+    }
+
+    /**
+     * ⭐ `D-474`：**"按 EXECUTE 口径断言"的用例种类**（`EXECUTE` 本身 + `REPLAN`）。
+     *
+     * <p>为什么用谓词而不是再加一个 `CaseDef` 字段：`REPLAN` 与 `EXECUTE` 的**断言口径完全相同**
+     * （任务 `DONE` / 目标变空 / 收集件数 / 无残留掉落物 / 幂等），差别只在"跑的过程中夹具**额外**
+     * 把规划器选中的站位砌死一次"⇒ 那是**过程注入**，不该混进"期望值"那张表（`CaseDef` 的字段全是期望值）。
+     */
+    private static boolean assertsLikeExecute(Kind kind) {
+        return kind == Kind.EXECUTE || kind == Kind.REPLAN;
     }
 
     private static final List<CaseDef> CASES = List.of(
@@ -205,7 +244,13 @@ public final class MineRegressionTask implements Task {
             // 目标与 `free` 同一格（起点就能触及 ⇒ 规划器给 `CURRENT`/`DIRECT`）—— 选它是为了让
             // 第一次执行走 `walkOnly=true` 时**原地即到位**，从而在"不碰目标"的前提下拿到一个终态结论。
             new CaseDef("step_latch_relaunch", "mine_course", MINE_START, new BlockPos(23, 64, 140),
-                    Kind.LATCH, List.of(), 0, null, true, false, 0));
+                    Kind.LATCH, List.of(), 0, null, true, false, 0),
+            // ⭐ `D-474`（`O6` 路由半边）：**让 `tryReplan` 第一次真的被走到**。
+            // 目标离起点 **7 格**（远超触及 4.5）⇒ 步骤自证"要求走位"；x=21 这一列避开了场景里
+            // `wall`/`blocked`/`headroom` 那几簇（它们在 x 22..24、z 131..138）。
+            // 期望值：是一格石头 ⇒ 掉落圆石 1 件（与 `exec_direct` 同口径）。
+            new CaseDef("exec_replan_race", "mine_course", MINE_START, new BlockPos(21, 64, 133),
+                    Kind.REPLAN, List.of(), 1, Items.COBBLESTONE, true, false, 1));
 
     /** 单用例预算与任务总预算（tick）。 */
     private static final int CASE_BUDGET_TICKS = 320;
@@ -281,6 +326,16 @@ public final class MineRegressionTask implements Task {
     private boolean latchMined;
     private boolean latchIdempotent;
 
+    // ---- `D-474`：`exec_replan_race`（`REPLAN`）的确定性竞态 ----
+    /** 竞态**是否真的开火**（把规划器选中的站位砌死了）—— 反空集断言（`Z4` 家族）。 */
+    private boolean raceFired;
+    /** 被砌死的格（**只记原本是空气的格**）—— 收尾按这张表还原。 */
+    private final List<BlockPos> raceWall = new java.util.ArrayList<>();
+    /** 竞态开火时规划器选的站位（读数用；收尾仍按 {@link #raceWall} 还原）。 */
+    private BlockPos raceStanding;
+    /** 竞态开火后 `recoveryAttempts` 的首次非零取值（读数用）。 */
+    private int raceRecovery;
+
     public MineRegressionTask(BotPlayer bot, ServerPlayer observer, ScopeBuffer scope) {
         this.bot = bot;
         this.observer = observer;
@@ -325,7 +380,7 @@ public final class MineRegressionTask implements Task {
             // ⭐ `D-467`：**密封前提必须在 `scope.begin` 之后** —— `TaskZoneRegistry.declare`
             // 的硬约束是"任务区必须挂在**打开的作用域**上"（不许在任务之外造授权封套），
             // 所以 `FixtureZone` 只有在作用域已开时才**借**用现成 scope（不会另开一个、也不会替我们关）。
-            if (current.expectSupport() && current.kind() == Kind.EXECUTE) {
+            if (current.expectSupport() && assertsLikeExecute(current.kind())) {
                 zone = FixtureZone.protect(bot.serverLevel(), bot.getUUID(),
                         SUPPORT_MIN, SUPPORT_MAX, "region_lumber");
                 if (!zone.ok()) {
@@ -405,6 +460,15 @@ public final class MineRegressionTask implements Task {
             return index >= CASES.size() ? finish() : Status.RUNNING;
         }
         Status status = mineTask.tick();
+        if (current.kind() == Kind.REPLAN) {
+            fireReplanRaceOnce(current);
+            // 重规划**已经发生** ⇒ 竞态使命完成，立刻拆墙（免得它挡住后面的收集走位）。
+            // `recoveryAttempts` 只由 `MineTask.tryReplan` 递增（`D-473` 已核）⇒ 它是精确见证。
+            if (raceFired && !raceWall.isEmpty() && mineTask.recoveryAttempts() >= 1) {
+                raceRecovery = mineTask.recoveryAttempts();
+                clearRaceWall();
+            }
+        }
         if (status == Status.RUNNING) {
             return Status.RUNNING;
         }
@@ -499,8 +563,13 @@ public final class MineRegressionTask implements Task {
         //   满足**（方块确实被拆掉了、材料甚至能在下落途中捡到）⇒ 判据把违规判成 PASS。
         //   ⚠️ 只对 `expectSupport` 用例断言（其余用例没有深坑，起点 y 不是"不许低于"的语义）。
         boolean noFall = !current.expectSupport() || lowestFootY >= caseStartFootY;
+        // ⭐ `D-474`（`O6` 路由半边）：**重规划这条路必须真的被走到**。
+        //   `recoveryAttempts` 全仓只有 `MineTask.tryReplan` 递增 ⇒ 它是"走到了"的精确见证；
+        //   `raceFired` 是**反空集**断言（竞态没开火 ⇒ 本用例什么都没测到 ⇒ 如实红，不许假绿）。
+        boolean replanOk = current.kind() != Kind.REPLAN
+                || (raceFired && mineTask.recoveryAttempts() >= 1);
         boolean pass = status == Status.DONE && targetGone && noDropsLeft && countOk && supportOk
-                && idempotent && foreignOk && noFall;
+                && idempotent && foreignOk && noFall && replanOk;
         record(current, pass, "status=" + status
                 + "/targetGone=" + targetGone
                 + "/collected=" + collected + "/" + current.expectedCollected()
@@ -517,6 +586,12 @@ public final class MineRegressionTask implements Task {
                         + "/scaffoldLeft=" + mineTask.scaffoldLeft() : "")
                 + (current.expectSupport() ? "/noFall=" + noFall
                         + "(loweredTo=" + lowestFootY + "/start=" + caseStartFootY + ")" : "")
+                // 砌了几格不在这里印：此刻墙已被拆掉（`raceWall` 已清空）⇒ 印 "0 格" 是**误导**。
+                // 砌墙细节在开火那条日志里（"已砌死（N 格）"），这里只报判据要用的两个量。
+                + (current.kind() == Kind.REPLAN ? "/raceFired=" + raceFired
+                        + "/raceStanding=" + (raceStanding == null ? "-" : raceStanding.toShortString())
+                        + "/recoveryAttempts=" + mineTask.recoveryAttempts()
+                        + "(竞态时=" + raceRecovery + ")" : "")
                 + "/ticks=" + caseTicks
                 + (status == Status.DONE ? "" : "/reason=" + mineTask.failureReason()));
         finishCase();
@@ -547,7 +622,7 @@ public final class MineRegressionTask implements Task {
         // 也不会干扰 `inventoryDelta`，只会被当作 `foreignDrops` 排除。EXECUTE 用例断言
         // `foreignDrops >= 1` ⇒ 断言"残留真的被排除了"，而不是"恰好没有残留"。
         expectedForeignDrop = false;
-        if (current.kind() == Kind.EXECUTE) {
+        if (assertsLikeExecute(current.kind())) {
             // 播种点必须**同时**满足：① 落在 `dropsBox(target)`（判据用的测量盒，以 target 为中心 ±6）内；
             // ② 该格是空气、下方有支撑（不然掉落物会掉出盒外/穿进方块）。
             // 2026-09-13 实测教训：原先固定用 `start+Z1`，对 target 偏北的用例（exec_blocked，
@@ -598,6 +673,33 @@ public final class MineRegressionTask implements Task {
         BotLog.info("[MineRegression] case={} kind={} terrain={} start={} target={}",
                 current.name(), current.kind(), current.terrain(),
                 current.start().toShortString(), current.target().toShortString());
+        if (current.kind() == Kind.REPLAN) {
+            raceFired = false;
+            raceStanding = null;
+            raceRecovery = 0;
+            raceWall.clear();
+            // ⭐ 目标**由夹具摆**（场景函数只负责地面与周边几何 —— `mine_course` 在 x=21 那一列
+            //   本来什么都没有）。不摆的话 `MineBlockRunner` 第一 tick 就因"目标已是空气"报 `DONE`
+            //   ⇒ **整条用例退化成空跑**（第一次实测逐字：`ticks=3/targetGone=true/collected=0`；
+            //   它照实判了 FAIL，但失败理由会指向"没收到东西"，而不是"前提没摆成"）。
+            bot.serverLevel().setBlockAndUpdate(current.target(),
+                    net.minecraft.world.level.block.Blocks.STONE.defaultBlockState());
+            if (!bot.serverLevel().getBlockState(current.target())
+                    .is(net.minecraft.world.level.block.Blocks.STONE)) {
+                record(current, false, "premise_failed 目标方块没摆上（场景函数把它清掉了？）");
+                finishCase();
+                return;
+            }
+            // ⭐ 前提自证（`D-474`）：本用例要求"起点够不着目标" ⇒ 执行器**必须走位**
+            //   ⇒ 才有"走到那个被砌死的站位"这条路。若起点就能就地挖，竞态永远不开火
+            //   ⇒ 整条用例会以"没跑到"伪装成"重规划没问题"（`Z4` 的空集假绿家族）。
+            if (com.dddgn.alice.action.MineBlockRunner.inPlaceReachable(
+                    bot.serverLevel(), bot, current.target())) {
+                record(current, false, "premise_failed 起点就能就地挖（本用例要求够不着 ⇒ 必须走位）");
+                finishCase();
+                return;
+            }
+        }
         if (current.kind() == Kind.LATCH) {
             // `D-473`：直接驱动原语（不构造 `MineTask`）。额度按生产口径**构造注入**
             // （`MineStep` 自己不许造额度 —— 判据 D1）；工具与 `MineTask` 用例同源。
@@ -648,6 +750,60 @@ public final class MineRegressionTask implements Task {
                 + (current.expectSupport() ? "/support=" + (plan == null || plan.supportPlacementPos() == null
                         ? "-" : plan.supportPlacementPos().toShortString()) : "")
                 + "/reason=" + result.failureReason());
+    }
+
+    /**
+     * ⭐ `D-474`：**在计划与执行之间制造一次确定性竞态** —— 把规划器刚选中的站位那一列砌死。
+     *
+     * <p>时刻是安全的（时序可核）：`MineTask.tickEvaluating()` 在**同一个 tick** 里
+     * `step().plan()` + `startExecution()` 然后返回 ⇒ 而执行器要到**下一个 tick** 才会
+     * `new PathRetryRunner(...)` 去规划路径（`MineBlockRunner.tickMovement()` 的惰性创建）
+     * ⇒ 夹具在本 tick 内砌墙，**一定早于**那条路径被算出来。
+     *
+     * <p>⚠️ 只砌**原本是空气**的格（`raceWall` 就是还原清单）；若规划器选的站位**就是 bot 自己那格**
+     * （`mode=CURRENT`），说明几何不满足"够不着"的前提 ⇒ 不砌（`prepare` 那条自证本该先拦住它）。
+     */
+    private void fireReplanRaceOnce(CaseDef current) {
+        if (raceFired) {
+            return;
+        }
+        MiningPlan plan = mineTask.currentPlan();
+        if (plan == null || plan.standingFoot() == null) {
+            return;   // 本 tick 还没算出计划（或在计划段就失败了）
+        }
+        BlockPos standing = plan.standingFoot().immutable();
+        if (standing.equals(com.dddgn.alice.pathing.MovementHelper.footCell(bot.serverLevel(), bot))) {
+            BotLog.warn("[MineRegression] case={} 竞态**没开火**：规划器选的站位就是 bot 自己那格 {}"
+                    + "（几何不满足'够不着'前提）⇒ 本次断言会如实判红", current.name(),
+                    standing.toShortString());
+            return;
+        }
+        raceFired = true;
+        raceStanding = standing;
+        for (BlockPos cell : List.of(standing, standing.above())) {
+            if (bot.serverLevel().getBlockState(cell).isAir()) {
+                bot.serverLevel().setBlockAndUpdate(cell,
+                        net.minecraft.world.level.block.Blocks.STONE.defaultBlockState());
+                raceWall.add(cell);
+            }
+        }
+        BotLog.info("[MineRegression] case={} ⭐ 竞态开火：规划器选中站位 {} 已砌死（{} 格，脚位+头位）"
+                        + "⇒ 走到它的路径必然 UNREACHABLE ⇒ 执行段失败（可重试）⇒ `tryReplan`",
+                current.name(), standing.toShortString(), raceWall.size());
+    }
+
+    /** 拆掉竞态砌的墙（幂等；`finishCase()` 与"重规划已发生"两处都调）。 */
+    private void clearRaceWall() {
+        if (raceWall.isEmpty()) {
+            return;
+        }
+        for (BlockPos cell : raceWall) {
+            bot.serverLevel().setBlockAndUpdate(cell,
+                    net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+        }
+        BotLog.info("[MineRegression] 竞态拆墙：还原 {} 格 {}", raceWall.size(),
+                raceWall.stream().map(BlockPos::toShortString).toList());
+        raceWall.clear();
     }
 
     /**
@@ -743,6 +899,9 @@ public final class MineRegressionTask implements Task {
             zone.release();
             zone = null;
         }
+        // ⭐ `D-474`：**竞态砌的墙在每条终态路径上都要还**（正常 / 超时 / 前提失败 / 断言失败）。
+        // 与 `zone.release()` 同形 —— `finishCase()` 是用例终态的唯一出口，幂等。
+        clearRaceWall();
         mineTask = null;
         advance();
     }

@@ -2003,3 +2003,35 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 （后者随 `D-471` 冻结）。
 
 **复核触发**：谁动了 `MineStep.startExecution()` 的闩锁清理 ⇒ 本用例必红；若没红，查 `tickLatchCase` 相位机。
+
+## `D-474`（2026-09-27）：⭐⭐ **`O6` 路由半边** —— `tryReplan` 第一次真的被走到（电池史首次 `[MineTask重规划探针]`）
+
+> **一句话**：`D-473` 量清了"电池里到不了 `tryReplan`"（唯一的执行段失败是 `retryable=false` 的
+> `WRITE_BUDGET_EXHAUSTED`）；本刀造出**第一条会失败的路**，让那条探针**第一次有行**。
+
+**① 做法（确定性竞态，不是自然几何）**：`mine_regression` 第 15 条用例 `exec_replan_race` ——
+目标离起点 7 格（前提自证 `inPlaceReachable == false` ⇒ 必须走位）→ 计划算完后**把规划器选中的站位那一列砌死**
+→ 执行器下一个 tick 才规划路径 ⇒ `UNREACHABLE` ⇒ `MOVE_MOVEMENT_FAILED(retryable=true)`
+→ `tryReplan` 换站位 ⇒ 拆墙 ⇒ 真挖到。⚠️ 合成竞态，对应"计划之后世界被别人改过"。
+
+**② 判据承重点**：`recoveryAttempts() >= 1`（全仓**只有** `tryReplan` 递增它）+ `raceFired`（反空集）
++ 目标真空 + 任务 `DONE` + 收集对。**③ 绿读数**（`…20260927-191047-…`）：
+`[MineTask重规划探针] … recoveryAttempt=1/2 oldStanding=21, 64, 136 newStanding=22, 64, 136 mode=DIRECT newPathStatus=REACHED`
+· `exec_replan_race=PASS … collected=1/1/recoveryAttempts=1/ticks=43`。
+
+**④ 两条红臂（各自精确）**：**路由红臂**（`MAX_RECOVERY_ATTEMPTS=2→0`）⇒ **恰好 1 条红**
+（`recoveryAttempts=0` · `…-191202-…`）；**闩锁红臂**（删 `MineStep.startExecution()` 的 `terminal = null;`）
+⇒ **恰好 2 条红**（`exec_replan_race` + `step_latch_relaunch`），且读数 `recoveryAttempts=**2**(竞态时=1)`
+= **恢复机制整体空转**的离线形态（`…-191313-…`）。注入文件均按 sha 逐字还原
+（`MineStep` `4a616b588011b8c2` · `MineTask` `70303d41df9c1d07`）。
+
+**⑤ 回归**：`core` **43/43 PASS**（253 s · `…20260927-191750-core.log`）· ⭐ **core 日志里该探针也出现 1 次**
+⇒ 路由在 CORE 里就有覆盖 · 逐步 diff：38 步 tick 不变，`mine_regression` 221 → 251，另四项在历史抖动带内 ·
+**判决 0 变化** · `check-all` = **`pass=32 warning=0 failed=0`**。
+
+**⑥ 踩坑留档**：第一版**忘了由夹具摆目标方块**（场景函数在那一列什么都没有）⇒ 目标一开局就是空气
+⇒ 用例 3 tick 就 `DONE`（`collected=0/1`）。它**照实判红**了，但失败理由指向"没收到东西"而不是"前提没摆成"
+⇒ 修法 = 夹具摆目标 + **断言它真的摆上了**。📌 **"目标格在不在场景里"必须由夹具自证**。
+
+**⛔ 仍未覆盖**：③ 运行期清障（`LINE_OF_SIGHT_BLOCKED` / `B6` 盲区）；其他可重试失败码
+（`OUT_OF_REACH` / `BREAK_*`）。⇒ 台账 `O6` 现为「**机制 ✅ + 路由 ✅ · ③ ⏳**」。

@@ -22317,3 +22317,111 @@ step_latch_relaunch=FAIL first=DONE/targetKeptAfterFirst=true/second=DONE/target
 - `step 5b`（拆 `CollectDropsTask`）**也要动 `MineStep`/`MineTask` 这一带** ⇒ 动完必跑
   `single:mine_regression`（本用例在 `core` 里，故 `core` 天然覆盖）。
 - 若有人把 `LATCH` 用例改成"走 `MineTask`" ⇒ 本刀的证据作废（两件事会混在一起），**要另立判据**。
+
+### D-474：⭐ **`O6` 的**路由**半边** —— `tryReplan` 第一次真的被走到（电池史首次出现 `[MineTask重规划探针]`）（2026-09-27）
+
+> 承 `D-473`。`D-473` 把"闩锁被清掉"钉进了电池，但**同时量清**了另一半缺口：
+> 电池里**唯一**的执行段失败是 `WRITE_BUDGET_EXHAUSTED`（`retryable=false`）
+> ⇒ `tryReplan` **结构上到不了** ⇒ `[MineTask重规划探针]` **0 行**、`recoveryAttempts` 永远 `0/2`。
+> 本刀造出**第一条会失败的路**，让 `O6` ② 的判据（"该路的日志行第一次出现 + `recoveryAttempts` 推进到 `1/2`"）**第一次被满足**。
+
+#### 一、做法：一条**确定性竞态**（不是自然几何）
+
+新用例 `exec_replan_race`（`mine_regression` 第 15 条，`Kind.REPLAN`）：
+
+```
+目标摆在起点**够不着**处（7 格 > 触及 4.5）—— 前提自证：`inPlaceReachable == false`（必须走位）
+  ↓ `MineTask.tickEvaluating()` 在**同一 tick** 里 plan() + startExecution()
+⭐ 夹具把规划器**刚选中**的站位那一列砌死（脚位 + 头位 = 2 格石）
+  ↓ 执行器到**下一个 tick** 才惰性创建 `PathRetryRunner` 去规划路径 ⇒ 它看到的一定是砌死后的世界
+     ⇒ `status=UNREACHABLE` ⇒ `MOVE_MOVEMENT_FAILED`（`retryable=true`，非硬拒绝）
+  ↓ `tryReplan` ⇒ 重算计划（换站位）⇒ `recoveryAttempts` **0 → 1**
+  ↓ 拆墙（竞态使命完成，免得挡住后面的收集走位）⇒ 走到新站位 ⇒ 目标真的被挖掉
+```
+
+⭐ **时刻安全性可核**（不是"运气好"）：计划与 `startExecution()` 同在 `tickEvaluating()` 内完成
+（`MineTask:977-979`），而路径规划发生在 **下一个 tick** 的 `MineBlockRunner.tickMovement()`（惰性创建）
+⇒ 夹具在**本 tick 内**砌墙，**必然早于**那条路径被算出来。
+
+⚠️ **诚实边界**：这是**合成竞态**，对应现实里的"计划算完之后世界被别人改过"
+（别的玩家放方块 / 沙砾落下 / 水流改地形）——**不是**自然地形推出来的场景。
+之所以要这样造：**"规划器选中一个它自己认为可达、而执行器到不了的站位"在离线几何里没有确定性构造法**。
+
+#### 二、判据（承重点 = `recoveryAttempts`，它是**精确**见证）
+
+| # | 判据 | 为什么它不是相关性证据 |
+|---|---|---|
+| ① | `raceFired == true`（竞态真的开火） | **反空集**：没开火 ⇒ 本用例什么都没测到 ⇒ 如实红（`Z4` 家族） |
+| ② | ⭐ `recoveryAttempts() >= 1` | 全仓**只有** `MineTask.tryReplan` 递增它（`D-473` 已核）⇒ 它**就是**"这条路走到了" |
+| ③ | 目标**真的变空** + 任务 `DONE` + 收集件数对 + 无残留掉落物 | 覆盖**整条路**（走到**且**走通），不是只走到 |
+
+#### 三、实测（绿）：机制链**逐行**可读
+
+`single:mine_regression` = **`PASS passed=1/1`**（`run/headless-logs/20260927-191047-single_mine_regression.log`）：
+
+```
+[MineRegression] case=exec_replan_race ⭐ 竞态开火：规划器选中站位 21, 64, 136 已砌死（2 格，脚位+头位）
+[MineRunner] walk_start target=21, 64, 133 stand=21, 64, 136 mode=DIRECT feet=21, 64, 140
+[PathingStats] status=UNREACHABLE goal=21, 64, 136
+[PathRetry] plan_failed attempt=0 status=UNREACHABLE
+[MineRunner] failed reason=MOVE_MOVEMENT_FAILED phase=movement retryable=true
+[MineTask计划失败报告] attempt=1 reason=MOVE_MOVEMENT_FAILED retryable=true currentPlanRetained=true
+[MiningPlanner] mode=DIRECT candidates=25 chosen=22, 64, 136 cost=4.330 pathSize=4 los=true
+[MineTask重规划探针] target=21, 64, 133 recoveryAttempt=1/2 oldStanding=21, 64, 136 newStanding=22, 64, 136 mode=DIRECT newPathStatus=REACHED
+[MineTask探针] 创建 MineBlockRunner: … stand=22, 64, 136 attempt=2      ← ⭐ 第二次执行（闩锁被清掉的那一次）
+[MineRegression] 竞态拆墙：还原 2 格 [21, 64, 136, 21, 65, 136]
+exec_replan_race=PASS status=DONE/targetGone=true/collected=1/1/inventoryDelta=1/dropsLeft=0/idempotent=true/foreignOk=true/
+     raceFired=true/raceStanding=21, 64, 136/recoveryAttempts=1(竞态时=1)/ticks=43
+```
+
+⭐⭐ **`[MineTask重规划探针]` 是电池史上第一次出现**（`D-473` §一 实测过：它此前一直是 0 行）。
+
+#### 四、两条红臂（都**恰好只红该红的**，其余用例全绿）
+
+| 红臂 | 注入 | 读数（逐字） | 红了几条 |
+|---|---|---|---|
+| **② 路由红臂**（本刀的核心判据） | `MineTask.MAX_RECOVERY_ATTEMPTS = 2 → 0`（让 `tryReplan` **结构上到不了**） | `exec_replan_race=FAIL status=FAILED/targetGone=false/collected=0/1/raceFired=true/recoveryAttempts=0/ticks=2/reason=MOVE_MOVEMENT_FAILED` | **恰好 1 条**（另 13 条 PASS）· `…-191202-…` |
+| **① 闩锁红臂**（`D-473` 的同一处注入） | `MineStep.startExecution()` 里删 `terminal = null;` | `exec_replan_race=FAIL status=FAILED/targetGone=false/recoveryAttempts=**2**(竞态时=1)/ticks=4/reason=MOVE_MOVEMENT_FAILED` + `step_latch_relaunch=FAIL` | **恰好 2 条**（另 12 条 PASS）· `…-191313-…` |
+
+⭐ **闩锁红臂的读数值得单独说**：`recoveryAttempts=2(竞态时=1)` —— 旧结论被回放 ⇒ 编排器**又进了一次 `tryReplan`**
+（1 → 2）然后升级失败。这正是 `O6` 原文说的「**恢复机制整体空转**」的离线形态。
+⇒ 同一个注入同时红掉两条用例 ⇒ **"重规划这条路"确实依赖闩锁清理**，两件事在电池里被连起来了。
+
+⚠️ 两个注入文件都按 **sha 逐字还原**：`MineStep.java` = `4a616b588011b8c2` ·
+`MineTask.java` = `70303d41df9c1d07`（`git status` 事后只剩 `MineRegressionTask.java` 一个改动）。
+
+#### 五、⚠️ 本刀**踩到的第一个坑**（留档：空跑型假绿的前一步）
+
+第一版**忘了由夹具摆目标方块**（`mine_course` 在 `x=21, z=133` 那一列本来什么都没有）⇒
+`MineBlockRunner` 第一 tick 就因"目标已是空气"报 `DONE`：
+`exec_replan_race=FAIL status=DONE/targetGone=true/collected=0/1/raceFired=true/recoveryAttempts=0/ticks=3`。
+⇒ ⭐ 它**照实判了红**（不是假绿），但失败理由指向"没收到东西"而不是"前提没摆成"。
+修法 = 夹具自己 `setBlockAndUpdate` 摆目标 + **断言它真的摆上了**（前提显式化）。
+📌 教训：**"目标格在不在场景里"这种事必须由夹具自证** —— 场景函数只负责地面与周边几何。
+
+#### 六、验证
+
+| 项 | 结果 | 取证 |
+|---|---|---|
+| `single:mine_regression` 绿 | **PASS `passed=1/1`** · 15 条用例全 `PASS` | `run/headless-logs/20260927-191047-single_mine_regression.log` |
+| ⭐ 路由**第一次被覆盖** | `[MineTask重规划探针] … recoveryAttempt=1/2` | 上表 §三 |
+| 两条红臂 | 1 条 / 2 条，各自**精确** | §四 |
+| `core` | **43/43 PASS**（253 s）· **`[MineTask重规划探针]` 在 core 日志里也出现 1 次** | `run/headless-logs/20260927-191750-core.log` |
+| `core` 逐步 diff（对 `…190456-core.log`） | **38 步 tick 不变**；`mine_regression` 221 → **251** · `scaffold` 321 → 360 · `lumber_job` 602 → 620 · `clear_guard` 181 → 173 · `mine_job` 237 → 234（后四项在历史抖动带内）；**判决 0 变化**（两侧 43/43）；总 tick `4472 → 4550` | 同上 |
+| `check-all` | `pass=32 warning=0 failed=0` | —— |
+
+#### 七、代价与残余
+
+- **代价**：`mine_regression` 步 +30 tick（≈1.5 s）；CORE 总 tick +78（≈4 s）。
+- **残余（如实登记）**：
+  - ❌ 运行期清障（`LINE_OF_SIGHT_BLOCKED` / `B6`）**仍零覆盖** —— `O6` ③ 未补。
+  - ❌ 本用例的**世界扰动是夹具直接改方块**（不经 `WriteGrant`）⇒ 它**不覆盖**"写入闸门"那一层
+    （那层由 `write_budget`/`write_policy` 步覆盖）。
+  - ⚠️ 竞态造出的失败码是 `MOVE_MOVEMENT_FAILED`；其他可重试码（`OUT_OF_REACH` / `BREAK_*`）**仍未覆盖**。
+
+#### 八、复核触发
+
+- 谁把 `MAX_RECOVERY_ATTEMPTS` 改成 0 / 把 `tryReplan` 的调用点拿掉 ⇒ 本用例必红（路由红臂）。
+- 谁动了 `MineStep.startExecution()` 的闩锁清理 ⇒ 本用例**与** `step_latch_relaunch` 同时红。
+- `PathRetryRunner` 的可达性语义若变化（例如"目标格是实心"改成可到达）⇒ 竞态不再产生失败
+  ⇒ 表现是 `exec_replan_race=FAIL`（`recoveryAttempts=0`）⇒ 回来重造那条"会失败的路"。
