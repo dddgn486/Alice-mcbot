@@ -22697,3 +22697,58 @@ exec_runtime_los=FAIL status=DONE/targetGone=true/clearedBlocks=0/raceFired=true
 #### 仍未拍（本条更新 `D-478` 末尾列表）
 
 `P7` 归仓 step · `P8` 收集授权 · `P9` 相位只读化 · `P1` 的两个子项（配额算**棵**还是**根** · 一棵砍 7/10 根算 **0** 还是 **7**）· 新增 `P14`/`P15`/`P16`。
+
+### D-480：Job 层裁定（续）—— **`P7/A` 归仓 = 「Job 标记存放点 + 框架执行存放」**（2026-09-27）
+
+#### 出处（**是登记提前，不是新提案**）
+
+`survey/39-阶段一任务清单与收口标准-20260926.md`：**§5 第 4 行**「产物存放 ❌ **Job 侧零** —— 背包满就是**收工**」·
+同表第 5 行「背包管理」同一件事 · **§7 条件 1**「⭐ **产物有去处**（不再"背包满就收工"）」= **唯一一条能单独卡住第一层收口的条件**。
+
+#### 现状（本刀核实，行号已更新）
+
+| 事实 | 出处 |
+|---|---|
+| `inventory_full` = **DONE（收工）**，共 **3 处** | `LumberJob:375`（⭐ **首 tick** 前置："放不下任何原木 ⇒ 直接结束，未动世界"）· `LumberJob:657`（每棵树后）· `MineJob:419` |
+| **搬运是独立子系统，不是 `JobRequest.Kind`**（5 个 kind 无搬运） | `BotManager.assignTransfer` + `task/TransferTask`；`grep -rl 'transfer\.' job/` 只命中 `TransferTask`/`TransferCheckTask`/`CapabilityGateCheckTask` ⇒ **Job 侧完全不碰搬运**（"产物存放"要接进来 = **新增接线**） |
+| 端点类型名是 **`Chest`** 不是 `Container` | `transfer/ChestEndpointRef.java` ⇒ 只切了一小半 |
+| ⭐ **容器写入授权已有现成答案** | `WriteReason.CONTAINER_TRANSFER`（`container()==true` 唯一真源）+ `WriteBudget.consumeContainerWrite`；**样板 = `CraftJob.containerGrant()`（`:463-475`）+ `allowContainerWrite`（`:467`）** |
+| ⭐ **"哪些方块算容器"已有唯一真源** | `action/ContainerSemantics.of(state)` + `WorldModLedger.CONTAINER_CONTENTS` ⇒ **未知模组默认只读**（登记制，不猜槽位） |
+| ⚠️ **不得复活 `UNTIL_FULL`** | `D-290` 删过；门禁 `tools/kernel-predicates.py:906`（`J5-P1`） |
+| ⭐ **LLM 菜单今天没有容器候选** | `CandidateMenu` 的 `Entry.kind` 只有 `tree@` / `drops@` / `block@` / `region:saved` / `craftable`（`:139/:170/:204/:216/:370`）⇒「LLM 从菜单选箱子」**今天不存在，需新增一类候选** |
+
+⇒ 三件待定里「容器写入授权」**已有答案**；真正没答案的只有**存放点从哪来**。
+
+#### `P7/A` ✅ 裁定
+
+归仓 = **「Job 标记存放点 + 框架执行存放」**（与 `P8` 同构：**Job 声明、框架判定**）：
+
+1. 归仓 = Job 编排里的**一个显式步骤**（`Phase.DEPOSIT` 一类），**不是新原语、不是新 Job kind**。
+2. **存放点由 Job 标记（外部声明）**；执行复用 `transfer/`（`CONTAINER_TRANSFER` + `consumeContainerWrite` + `ContainerSemantics` + 台账）。
+3. ⭐ **bot 不自主扩大搜索范围找箱子**（"自主找仓库"= 第一层「存储交互 job」那一整块）。
+4. 归仓**失败 ⇒ 逐字回到 `DONE inventory_full`**（不比现状更糟）；⚠️ `terminalReason` **不加后缀**（它是对账口径，`JobKindContract` 读它）⇒ 失败原因**只进日志 + `progressSummary`**。
+5. ⚠️ **只接 `LumberJob:657` / `MineJob:419` 这两处"满了"**；**首 tick 那条（`LumberJob:375`）不动** —— 那是"开局就没空间 ⇒ 不空转"，归仓无从谈起。
+6. ⚠️ **落地顺序**：要给 `JobRequest` 加"存放点"栏 ⇒ 与 **`P12/A`（`JobRequest` = 外部请求面）同刀或在其后**。
+
+**判据**（夹具断次数、时间只进日志 —— `P4/A` 铁律）：
+1. 夹具：**背包塞满 + 有声明存放点** ⇒ 必须观察到进入 `DEPOSIT` 且**终态不是 `inventory_full`**，产物进目标容器（按**次数**断言：`consumeContainerWrite` 计数 + 容器内 item 计数）。
+2. **红臂**：去掉 `DEPOSIT` 分支 ⇒ 复现逐字 `DONE inventory_full`。
+3. **行为零变化臂**：**无声明存放点** ⇒ 逐字 `DONE inventory_full`（与基线对账，证明没偷偷改既有语义）。
+4. `core` 逐行 diff：除新夹具外**零变化**。
+
+#### ⭐ 用户当场补充（本条一并记）：存放点**可能是「仓库」，也可能是「临时容器」**
+
+⇒ 两类**归属性质不同、权限路不同**，必须分类，不能只放一个裸坐标：
+
+| 性质 | 含义 | 权限路（推荐口径） |
+|---|---|---|
+| **仓库**（长期/自有） | 反复使用的储物点（区域声明或玩家划选一次） | `CONTAINER_TRANSFER` + `consumeContainerWrite`；归属 = **我方** ⇒ 可 `AUTO`，但仍**必须记账**（台账 `TransferLedgerData.Movement`） |
+| **临时容器**（就地/可能第三方） | 顺手那个箱子，**可能是别人的** | 同样是容器写入（**不是**破坏/放置），但归属**第三方** ⇒ 与 `DropPolicy.CAP_FOREIGN` **同族**，**默认 ASK**（把东西塞进玩家箱子同样是改玩家资产） |
+
+⚠️ **与 `UNTIL_FULL` 的边界（必须写进落地注释）**：
+`UNTIL_FULL` 是**目标语义**（"挖到满为止"）；归仓是**步骤**（满之前先腾空、**目标不变**）。
+⇒ **完成判据（quota）永远不读"放下了多少"** —— 放进去 ≠ 已获得。这条是 `J5-P1` 天然守住的结构理由。
+
+#### ⏳ 仍未拍（**本条新增子项**）
+
+**`P7.1` 存放点从哪来**（两条来源分别定；见 `reviews §2ter` 的 `P7.1` 小节）· 另 `P8` · `P9` · `P1` 两子项 · `P14`/`P15`/`P16`。
