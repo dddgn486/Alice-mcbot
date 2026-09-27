@@ -2502,6 +2502,7 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 >
 > ✅ **`step 5a` 主体已落地（`D-469`，2026-09-27）** —— 「**编排 vs 原子**」边界 = `MineStep`（`task/mining/`）+ `MineTask` 编排器；三处原待拍点已由 `D-466` 九拍收口（编排器留 `task/` · 原语**保留** `MiningPlanner` · 两个常量随编排留下不注入）。
 > ⏭ **下一步 = `step 5b`**（拆 `CollectDropsTask`，含 **`step 2b`** 的类内默认额度常量清零）· 前置建议 = 先补 `O6` 那三条零覆盖路中的任一条。
+> ⭐ **`step 5b` 拆法六拍点（⏳ 待用户拍，2026-09-27 拟定）全文 = `docs/reviews/2026-09-27-step5b拆法待拍.md`** —— 实测：`CollectDropsTask` **1251 行** · **14 个 `static final`** · **6 个构造器** · **14 个 `new CollectDropsTask(` 调用点** · `Phase` 引用 **0**（无相位机）⇒ 与 `5a` **同一量级**，故拆法必须先拍（`D-466` 那九条**只覆盖 `MineTask`**）。⭐ 额度消费面已量清：`DEFAULT_TOTAL_BUDGET_TICKS`（`:64` `public`）**只被自己的 2 个便捷构造器当默认值** ⇒ 「调用方不说也能用」只有 **4 处**（`MineTask:548` · `LumberJob:546` · `MineJob:660` · `ChainMineDiagnosticTask:182`）；`SWEEP_*` 三个 `public` 是**公式系数**（非对外口）。
 > **O5 原记录（⚠️ 机制判断是错的，保留供追溯，别照它做）**：原始症状 = `exec_support` 的收尾「不确定」；⚠️ 当时那次「更正」**仍然把 PASS 轮读成「拆干净了」** —— 实际是「**bot 站上去 → 就地拆脚下那格 → 掉进 12 格深坑**」（`[WRITE] break … feet=23, 65, 212` → 恢复期 `feet=23, 59, 212`）⇒ **判据把违规判成 PASS、把正确放弃判成 FAIL**（`D-472` §一）。⇒ 当时列的三个方案（甲 判据认放弃路径 / 乙 改场景站位 / 丙 先走开再拆）**全部作废**。
 
 > #### ⭐ `step 5a` 前置事实（2026-09-27 实测；**`src/` 零改动**）—— 拆 `MineTask` 的「编排 vs 原子」
