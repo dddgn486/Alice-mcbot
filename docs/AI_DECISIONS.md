@@ -23037,3 +23037,42 @@ exec_runtime_los=FAIL status=DONE/targetGone=true/clearedBlocks=0/raceFired=true
 5. ⭐ **声明正在收敛成"作业契约"**：预期产物（是什么 / 数量 / **单位**）· 产物识别（判据 / 范围）· 资源清单 · **超额策略**
    —— 四栏同属一份 `JobDeclaration`；**每一栏都必须有消费者**（`D-478` 的 `P10` 门禁）。
 6. `quota_met` 仍是对账口径；**实得量进 `progressSummary` 与 `expected` 的比对**（如 `logs=39/32`）⇒ 归 `P1-3` 的终态语义分立。
+
+### D-486：Job 层裁定（续）—— **`CraftJob` 语义收窄为「合成」+ 熔炼独立成 job**（2026-09-27）
+
+#### 用户原话（本条起因）
+
+> 「现在要明确 `CraftJob` 的语义了，是"**制作**"还是"**合成**"？如果是**制作**的话，包含熔炼也合理，
+> 但是**就不止熔炼了**，语义要扩张到**配方能识别的所有制作途径**，我觉得**不是现在做**，适合**只当"合成"**，
+> 限定**工作台的合成任务**，以及**使用扩展的类工作台合成**，这样就**该把熔炼独立成 job**」
+
+#### `CraftJob` 语义 ✅ 裁定 = **「合成」（窄语义）**
+
+- ⭐ **分类轴 = 配方族，不是方块种类** —— 这是本条最要紧的一处分寸：
+  - **合成族** = `CraftingRecipe`；代码里已经有**逐字判据**：`InventoryCraft:137` `!(recipe instanceof CraftingRecipe)` ⇒ 不做。
+  - 范围 = **随身 2×2**（`InventoryCraft`）· **工作台 3×3**（`TableCraft`）· **模组的"类工作台"合成页签**（`CraftMenuIntrospection` / `GridDiscovery` 的菜单内网格发现）。
+- ⚠️ **反例（说明为什么必须按配方族而不是按方块）**：精妙的"**熔炼升级页签**"是**在工作台类方块里做烹饪**；
+  若按方块分类就会把它判成合成。`CraftJob` 今天正是把这两条**合在一个相位机里**（`WAIT` / `waitSmelt()` / `doCooking()` / `SMELT_TIMEOUT`）。
+- ✅ **`JobRequest.Kind.CRAFT` 不需要改名** —— 用户的裁决让这个**既有的名字变准了**（本来它只描述了所干两件事中的一件）。
+
+#### `P15.1/B` ✅ 熔炼**独立成 job**
+
+- ⭐ **成本比"从零做熔炼"低得多**：`FurnaceStation` **已经是一个独立类**
+  （`task/craft/FurnaceStation.java`：3 格烹饪槽、`discover/placeOne/stackAt`、`Codes.NO_FURNACE`），
+  燃料由 `ForgeHooks.getBurnTime` 给事实（不写死煤）。
+  ⇒ 独立 = **新 `SmeltJob` 复用 `FurnaceStation`** + **`CraftJob` 删掉烧炼相位**。
+- ⚠️ **一处必须跟着分的核对项**：`CraftJob` 的**容器写入授权**今天**同时**服务两条路 ——
+  `containerGrant()` = `WriteGrant.of(NAME, WriteReason.CONTAINER_TRANSFER)`（`:463-465`），
+  烧炼路径 `:492`/`:505` 用它（`FurnaceStation.placeOne(..., containerGrant())`）。
+  拆开后：**烧炼那条保留容器写入**（`CONTAINER_TRANSFER`），**合成那条只剩 `CRAFT_GRID`**（`WriteReason.menuWrite()` 家族，
+  即"菜单内搬运、非世界容器、不吃容器写入预算"）⇒ **权限面变细，两边的夹具要跟着分**。
+- ⚠️ 代价 = 新增 `SMELT` kind ⇒ `JobRequest.Kind` **5 → 6** + `JobLauncher` **三处穷举 switch**（`:49` 发料 / `:95` 搬运 / `:145` 工厂）
+  + `JobKindContract` 声明（判据 / 对账方法 / 不一致时怎么办）+ 能力名清单。**这一圈本来就要付。**
+
+#### ⭐ 登记（后话，**现在不做**）：宽语义「制作」
+
+= **配方能识别的所有制作途径**（不止熔炼：切石 / 锻造 / 酿造 / 模组机器配方…）。
+今天的地基是 `decision/MachineMap.java`：`Row(typeId, blockIds, SiteKind, hostTypeId, …)` +
+`SiteKind{SINGLE, SHARED, MULTIBLOCK, UNLOCATED}` + `Capability{READ_ONLY, EXECUTABLE}`（含 `check-machine-map.sh` 门禁），
+以及 `task/craft/MachineCycle.java`（读方块实体的 `getRecipeType()`）。
+⇒ **登记**，用户明确"**不是现在做**"。
