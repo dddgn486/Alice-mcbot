@@ -23275,3 +23275,65 @@ bot 没工具时 Job 会**如实失败 `tool_missing`**。⭐ **这是裁定的�
 #### 一个设计生效的观察
 
 `P6/A`-1（`D-489`）里 ⑤ 的「**豁免得手也 FAIL**」**正好会在 `-2a` 落地时自动逼我删掉 `BOT_EXEMPT` 条目** —— 设计生效。
+
+### D-491：⭐ **「夹具」这个概念在仓库里其实不存在** —— 三类混装实测 + 一条**可机械化的判据**（2026-09-27，用户提问起因）
+
+#### 用户原话（本条起因）
+
+> 「现在"夹具"到底在干嘛，**调试工具和测试工具不是一个概念** —— 调试工具在有发行包后，**玩家也可以使用来做调试**，
+> 但测试工具或者说夹具应该**完全只用于开发时的测试**，是用来**验证**，而不是**调整调试**，为什么现在混在一个包里？」
+
+#### 实测一：`task/` 顶层 **140** 个 `*.java` 的构成
+
+| 名模式 | 数 |
+|---|---|
+| `*CheckTask` | **87** |
+| `*DiagnosticTask` | **13** |
+| `*ProbeTask` | **5** |
+| 其余 | **35** —— 混着三样：**生产任务**（`MineTask` · `CollectDropsTask` · `RestoreScopeTask` · `RoadBuildTask` · `TransferTask` · `ToolMaintenanceTask` · `WalkToTask` · `PlaceTask` · `FollowTask` · `FarWalkTask` · `SafeReturnTask` · `SurvivalExitTask` · `SurvivalFloatTask`）· **任务接口/结构**（`Task` · `TaskNode` · `TaskTarget`）· **夹具基础设施**（`FixturePremise` · `FixtureScript` · `FixtureThirdParty` · `FixtureZone` · `PremiseGateTask` · `CleanupWrappedTask`）· **回归/电池**（`RegressionBatteryTask` · `MineRegressionTask` · `PathingRegressionTask` · `PathingBatteryTask`）· **课程锚点**（`LumberCourseAnchor` · `OreCourseAnchor` · `SurvivalCourseAnchor` · `TransferCourseAnchor`） |
+
+⭐ **"夹具"今天唯一的定义是一个门禁的正则**：`tools/fixture-hygiene.py:57`
+`FIXTURE_NAME = re.compile(r"(Check|Probe)\w*Task\.java$")` ⇒ 87 + 5 = **92**。
+⇒ 它**排除**了 13 个 `*DiagnosticTask`、`RegressionBatteryTask`、`Fixture*`、课程锚点
+⇒ **正则 ≠ 概念**，这正是"混在一个包里"的机制性原因（从来没有一条架构判据说"谁算夹具"）。
+
+#### ⭐ 实测二：用户的两条定义**是可机械化的**（本刀量出来的）
+
+**判据** = **只被验证代码（电池/自检）引用 ⇒ 开发期测试夹具；被玩家入口（`item/` / `command/`）引用 ⇒ 调试面。**
+
+对 87 个 `*CheckTask` 实测：
+
+| | 数 |
+|---|---|
+| 被 `item/` 或 `command/` 引用（**玩家可触发**） | **13** |
+| 被电池（`task/check/` + `RegressionBatteryTask`）引用 | **85** |
+| ⭐ **两边都有（身兼两职）** | **11** |
+| ⇒ **纯开发期夹具**（任何玩家入口都到不了） | **74** |
+
+⇒ **混装的实体证据就是那 11 个**；而 **74 个是纯验证用的**。用户的两个概念由此变成**两个可计算的集合**，不需要人肉分类。
+
+#### ⭐ 三桶（按用户定义）
+
+| 桶 | 内容 | 判据 |
+|---|---|---|
+| **生产** | `task/` 的真任务 + `Task`/`TaskNode`/`TaskTarget` | 被生产路径调用、**无玩家测试入口** |
+| **调试面**（⭐ **发行后玩家可用 ⇒ 产品面**） | 13 个双向可达的 `*CheckTask` + 13 `*DiagnosticTask` + 5 `*ProbeTask` + `item/*Item`（`/give` 可得）+ `command/` 测试命令 | **被玩家入口（`item/`/`command/`）引用** |
+| **开发期测试夹具**（验证用） | **74** 个纯电池夹具 + `task/check/`（harness + 21 modules）+ `MineRegressionTask`/`PathingRegressionTask`/`PathingBatteryTask` + `Fixture*`/`PremiseGateTask`/`CleanupWrappedTask` + 课程锚点 | **只被验证代码引用** |
+
+⚠️ **调试面那一桶不该再叫 `fixture`** —— 它是**产品面**（发行后玩家可用）；名字上必须分开（如 `debug/`）。
+
+#### ⚠️ 一个机械约束（决定"发行包能不能物理剔掉夹具"）
+
+`tools/headless-battery.sh` 默认跑在**生产服务端**上（`--install` 装 Forge 服务端；`--dev` 才退回 `gradlew runServer`）
+⇒ ⭐ **夹具必须在 mod jar 里，否则电池跑不了**。已有先例：`-Dalice.headless.*` 系统属性 + `HeadlessBattery` 的运行期开关。
+
+三条可落地的路（⏳ **待拍**）：
+- **(a) 包分离 + 门禁**（最小）：按桶搬包，门禁按**包边界**；**发行包仍含** ⇒ 满足"概念分开"，**不满足"物理不含"**。
+- **(b) 包分离 + 双产物**：release jar 不含 dev 夹具，电池装 dev jar ⇒ 代价：构建/发布复杂化。
+- **(c) 包分离 + 运行期 dev 守卫**：类在 jar 里，但**只有 dev 模式能触发** ⇒ 与既有 `-Dalice.headless.*` 同源。
+
+#### 对既有计划的影响
+
+- **`-3`（"夹具另开包"）不是"92 个文件搬进 `fixture/`"**，而是：**先立三桶判据 → 再按桶搬**（74 纯夹具 / 13 调试面 / 生产留下），且**门禁从"文件名正则"升级为"包边界"**。
+- **`-2a`（删 `BotManager` 的 12 处造物）不受影响**，但它说的"夹具调用方自己发料"里，**调试面那一桶（`item/*Item`）也是发料者** —— 这与"调试面是产品面"**不冲突**（玩家用调试物品时，物品自己发料 = 明确的测试意图）。
+- ⚠️ 已在 AGENTS.md 记着的同族 wart：`build.gradle:95-97` 仍在宣传**已被删除**的 `BotSelftest`（2026-09-13）—— 调试面的**入口文档化**本来就欠账。
