@@ -22634,3 +22634,66 @@ exec_runtime_los=FAIL status=DONE/targetGone=true/clearedBlocks=0/raceFired=true
 #### 仍未拍
 
 `P6` 工具供给拆名 · `P7` 归仓 step · `P8` 收集授权 · `P9` 相位只读化 · `P1` 的两个子项（配额算**棵**还是**根** · 一棵砍 7/10 根算 **0** 还是 **7**）。
+
+### D-479：Job 层裁定（续）—— **P6/A（只加门禁、不重命名）** + 「获取」两条途径的登记（2026-09-27）
+
+#### 先纠正事实：生产入口**本来就不是「先获取」**
+
+`D-476` 讨论里我把 P6 写成「工具供给拆名」，这个措辞**是坏的、已作废**。核实结果：
+
+- 生产入口 `BotManager.assignJob`（`:641-676`）顺序 = `ManualTestLock.refusalFor` → `JobLauncher.refusalReason`（`:654`，M1 请求级前置拒绝）→ `JobLauncher.provision`（`:659`）→ `create`（`:664`）→ `beginTask`（`:674`）。
+- 生产分支 `provisionFromExisting` → `ToolSupply.promoteFromMain` = **背包内移动**：返回码只有
+  `already_in_hotbar` / `moved_to_empty` / `swapped_with_worn` / `no_tool` / `hotbar_full_no_swap`，**零创建**。
+- **「凭空创造」只存在于 `fixtureProvision=true` 分支**（`FixtureToolKit.ensureAxe/ensurePickaxe/ensureHotbarStack`，快捷栏满时**强制覆盖**已有物品）。
+
+⇒ P6 的真内容**只有一条**：把「创造」用**编译期**手段关进夹具包。
+
+#### `P6/A` ✅ 裁定：只加门禁，不重命名
+
+1. **新门禁**：**生产代码不得 `import com.dddgn.alice.item.FixtureToolKit`**（形态对齐 `check-layer-direction.py`；
+   生产包 = `job/` `bot/` `decision/` + **非夹具** `task/`）。
+2. **现存三个调用面逐个表态**（不留"以后再说"）：
+   - `JobLauncher` 的 `fixtureProvision=true` 分支 ⇒ **白名单保留**（它本身就是夹具口）。
+   - ⭐ `BotManager.assignMineJob:686`（**生产类里直接调 `ensurePickaxe`**）⇒ 必须是**表态项**：登记为夹具口（并写清它只服务手动测试物品）**或**改走 `provision`。
+   - `task/*CheckTask`（`FixtureToolKit` 命中最多的一类）⇒ **按包整包放行**（自检即夹具）。
+3. **不重命名**（`P6/B` 不采纳）：重命名是外观，门禁才是本质；且 `ToolSupply` 这个名字已经准确表达"供给 = 搬运"。
+   （`P6/C` 把发料挪到 `BotSession.beginTask` 亦不采纳：动的是 `P2/A` 注定要重写的层。）
+
+**判据**：
+- `ALICE_HEADLESS=1 ALICE_BATTERY_NO_CACHE=1 tools/headless-battery.sh core` 与基线**逐行 diff 零变化**（本刀**不改行为**，只加门禁）。
+- **红臂** = 在 `job/` 下任一文件加一行 `import com.dddgn.alice.item.FixtureToolKit;` ⇒ 门禁**必须红**；删回 ⇒ 绿。
+- `tools/check-all.sh` 计数同步（预期 `pass=32` → **33**）。
+
+#### ⭐ 用户当场补充（本条**登记**，本刀内不改任何代码）
+
+**第一层目标已明确**：**仓库交互 job** · **工作台合成 job** · **熔炉熔炼 job** · 以及**一定程度的模组扩展**。
+⇒ 因此「**提前发布任务去获取**」有**两个实际途径**：**① 从仓库取**；**② 自己去合成**。
+
+**徒手伐木：登记不改。** `LumberJob:386 hasChoppingTool`（只看快捷栏 `slot<9` 的 `ItemTags.AXES`）⇒
+空背包时链是**闭环死锁**（要原木要斧头 → 要斧头要木板+木棍 → 要木板要原木）。
+用户裁定原话：「**伐木任务要斧头，不能直接空手挖，现在不适合直接改，登记就行，这些是后面的计划**」
+⇒ **J7 Step 4（不许徒手砍：徒手 61 tick/根 vs 6~8）保持有效**，不许被任何"获取阶梯"顺手放松。
+
+**同轮核实的三条现状事实**（防后续答错）：
+- **熔炼已经存在**（不是从零）：`CraftJob` 内含 `FurnaceStation` 路径 —— 原版熔炉与精妙"熔炼升级页签"**同一套判据**；
+  `SMELT_TIMEOUT`、燃料由 `ForgeHooks.getBurnTime` 给事实（不写死煤）⇒ 第一层的「熔炉熔炼 job」是**"是否要独立出来"**的问题。
+- **仓库交互已存在、但不是自主的**：`transfer/` 一整套（`TransferRequest` + `TransferLedgerData` + `CapacityPreflight` +
+  `TransferSelectionLifecycle`），但**创建者只有** `BotCommand:432`（玩家命令）与 `TransferSelectionSubmission`（玩家划选）
+  ⇒ **无 LLM action、无 Job kind**，bot 不会自己找箱子。
+- **合成已存在但结构性不够**：`CraftJob`（`JobRequest.Kind.CRAFT` + LLM 动作 `craft`），
+  但 item 必须已在 `CandidateMenu.craftable`，而菜单按**手上现有材料**算 ⇒ **解决不了"没材料"**。
+
+#### 由此新增三项待拍（编号顺延，**排位 = `P7`–`P9` + `P1` 两子项之后**）
+
+- **`P14` 前置可行性判定**：`refusalReason` 读**声明**（`P5.1/A` 资源清单）vs 实际持有，缺则如实拒绝 + 回读
+  （`lastRefusal` 通道已在：`GoalDirector.execute` → `noteRefusal`）。⚠️ **依赖 `P5.1`/`P12` 落地**。
+  ⚠️ **硬约束**：**不得遮住 job 侧前置检查** —— 否则当场打破两条已验收红线
+  （`LumberFailureCheckTask`（清空背包 ⇒ 生产侧**如实 `tool_missing`**）· `MiningModule` M3/G3（缺工具**不许被总括码盖掉**））
+  ⇒ 拒绝码**必须与 `tool_missing` 不同**（如 `preflight_tool_missing:axe`），两条红色判据**分别咬**。
+- **`P15` 获取途径**：= **让 LLM 能在起 job 前调用第一层的三个 job 补齐资源**（**不是新造阶梯**）⇒ 依赖第一层三 job 落地。
+- **`P16` 请示带选项**：把"报告 + 问玩家"合成**一次**，选项 = {我能自己搞（`P15` 之后才为真）/ 你给我 / 告诉我箱子在哪}。
+  `PermissionGate.CAP_FETCH_TOOLS` 默认 `Policy.ASK` 是**结构性**的（今天除玩家**无第二源**），不是保守。
+
+#### 仍未拍（本条更新 `D-478` 末尾列表）
+
+`P7` 归仓 step · `P8` 收集授权 · `P9` 相位只读化 · `P1` 的两个子项（配额算**棵**还是**根** · 一棵砍 7/10 根算 **0** 还是 **7**）· 新增 `P14`/`P15`/`P16`。
