@@ -20858,4 +20858,5 @@ Job = ① 有 Kind（进 JobRequest.Kind）
   ⭐ 第 3 件的**修法形状已收窄**：框架本来就在问 `task.terminalReason()`（`BotManager:2755`）⇒ 只加一个 `Task` default 回调
   （先例 = `TransferTask.survivalInterrupted`，把特例升成契约），**不重排终态路径**。
 - ③ = **A：相位降级为"报告词汇"**（plan §2.2 三条禁令 + 可 grep 判据）。⭐ 依据：相位今天**没有框架级耦合**（引用全在各 Job 自己类里），对外只有 `progressSummary()` 的**人读字符串**，而"值数 ≤1"这个口径**不成立**（单值枚举 = 布尔）；⇒ **不要求值数 = 0**（数量判据易被"把状态机藏进别的字段"绕过），改为钉**用途边界**。
-- ④ ⑤ = ⏳ 仍待拍。
+- ④ = **A：终态读数两行分工写死**（plan §2.3）：框架 `task_execution_terminal` + `task_terminal_reason` = **通用判据下限**（任何任务、任何终态必有，含中止/维生/顶替）· Job 领域行（`SUMMARY` 等）= **领域判据**且**含中止必须能打**（= `step 1.5` 的验收面）· ❌ **禁止新增第三种终态行**（口径三分正是本次真机"SUMMARY 0 行 ⇒ 不知读哪一行"的成因）；step 5 顺手归并 `DecisionTrace.terminal` 的 2 处调用点。
+- ⑤ = ⏳ 待拍（含 4 小项：③/⑥/⑦/⑧）。
