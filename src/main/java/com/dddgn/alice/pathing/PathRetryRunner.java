@@ -1,4 +1,4 @@
-package com.dddgn.alice.task;
+package com.dddgn.alice.pathing;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;

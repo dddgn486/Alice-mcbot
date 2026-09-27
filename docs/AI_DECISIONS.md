@@ -21058,3 +21058,44 @@ Job = ① 有 Kind（进 JobRequest.Kind）
 
 **回归**：`core` **PASS**（241 s · 指纹 `6ef2c2a63ea2` · 日志 `run/headless-logs/20260927-144303-core.log`，
 43 步判决与上一轮逐字相同）· `check-all` **pass=26 warning=1 failed=0**。
+
+---
+
+### D-461：**`step 3b` 落地 —— `PathRetryRunner` 搬进 `pathing/`（`action/ → task/` 欠账清零，判据升级为无条件）**（2026-09-27，`J-★` 第 6 段 step 3 收口）
+
+**裁定链**：`D-460` 登记的 `step 3b` + 用户 2026-09-27 选 **甲**（搬 `pathing/` **并同步改内核门禁那行硬写路径**）。
+⇒ ⭐ **`step 3` 到此收口**：`action/ → task/` 的 import = **0 命中**（无条件）。
+
+#### 做了什么（纯搬包 + 一处门禁路径）
+
+1. `git mv task/PathRetryRunner.java → pathing/PathRetryRunner.java`（只改 `package` 行）。
+   搬它**零反向依赖**：它原本只 import `bot.BotPlayer` · `log.BotLog` · `pathing.core.{search,session}.*`。
+2. **引用面实测（本刀当场重测，纠正 `D-460` 第一版的错读数）**：
+   显式 import **5 → 5 个文件**（`MineBlockRunner` · `MachineCycle` · `GainStepRunner` · `LumberJob` · `FishboneJob`）·
+   FQN 写法 **7 处 / 4 个文件** · 其余 **16 个同包文件**（`WalkToTask`/`PlaceTask`/`FollowTask`/`TransferTask`/
+   `CollectDropsTask`/`RestoreScopeTask`/`ScaffoldLifecycleTask`/`SafeReturnTask`/`FarWalkTask` + 7 个 `*DiagnosticTask`
+   /夹具）原本**不用 import**（同包）⇒ 搬完要**补上**。⚠️ 登记里写的"39 个文件引用"是**提到过它**的文件数
+   （绝大多数在注释里）—— **这就是 `silent-measurement-failure` 的形态：数字对了、口径错了。**
+3. ⭐ **真耦合（`D-460` 当场查出来的）**：内核门禁 `tools/kernel-predicates.py` 的 `P2b·重放有界` **硬写路径**
+   `base / "task/PathRetryRunner.java"` ⇒ 已改成 `pathing/PathRetryRunner.java`。
+   ⭐ **反向对照做了**：把那一行改回 `task/...` ⇒ 门禁红（`[P2b·重放有界] PathRetryRunner.java 不存在（改名？同步本规则 P2b）`
+   · `exit=1`）；改回 `pathing/...` ⇒ `exit=0` ⇒ **那行不是装饰**（它就是"搬包要同步"的那一半）。
+4. `check-layer-direction.py` 的 `ALLOWED_REVERSE` 表**清空** ⇒ 断言② 从"带欠账"升级为**无条件 0 命中**；
+   PASS 行改印 `欠账 0 条「无（step 3b 后已是无条件 0 命中）」`；红臂 **6 → 7 条**（把"表内那个 ⇒ 绿"换成
+   "已搬走的 `task.PathRetryRunner` ⇒ 红" + "`pathing.PathRetryRunner` ⇒ 绿"）。
+5. 两处**层措辞**跟上：`WalkToTask` 的 javadoc、`PathSession:550` 的注释（原文写"**任务层** `PathRetryRunner`"，
+   搬完这句就是错的 ⇒ 改成"`step 3b` 起与本类同包 `pathing/`"）。
+
+#### ⚠️ 诚实边界（**没有**被这次搬包解决的东西）
+
+- ⚠️ **`action ↔ pathing` 的包级环今天仍在**，而且**先于本刀就存在**：`pathing/` 有 **14 个文件** import `action/`
+  （内核执行器用 `action.BlockInteraction`/`WriteGrant`/`BlockBreakSession` —— `D-076` 的设计），`action/` 侧有
+  2 个文件 import `pathing/`。⚠️ **它不是 `D-455` 三层意义上的越界**（`pathing/` 与 `action/` 都不是对方的上层），
+  所以**不在 step 3 的判据内**；但按"全仓唯一循环依赖"这句台账原话去读会**误以为仓里已经没有包级环了**
+  ⇒ 记在这里，**别把本刀的绿读成"仓里没有环"**。
+- ⚠️ **`reach/` 的定位**：它是**内核侧几何层**（触及站位 / 视线 / 计划），今天的实测是"它不 import `task|action|job`"，
+  **不是**"它与 `pathing/` 一样谁都不依赖"（`pathing/` 本身就依赖 `action/`）⇒ 门禁的注释已按实测写。
+
+**回归**：`core` **PASS**（242 s · 指纹 `d58f01c4cbd4` · 日志 `run/headless-logs/20260927-150214-core.log`，
+43 步判决逐字不变）· `check-all` **pass=26 warning=1 failed=0** · `kernel-predicates` PASS · 层方向判据
+`grep -rn "import com.dddgn.alice.task" src/main/java/com/dddgn/alice/action/` ⇒ **0 命中**。

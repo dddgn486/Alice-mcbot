@@ -17,6 +17,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
+import com.dddgn.alice.pathing.PathRetryRunner;
 
 /**
  * FALL（落差 2~3 格）诊断任务：一次右键验证规划、两条守卫与执行（D-058）。

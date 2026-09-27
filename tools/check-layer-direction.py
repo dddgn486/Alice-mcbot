@@ -26,9 +26,10 @@
    `com.dddgn.alice.{task, action, job}` 的 import ⇒ 红。
    ⭐ 这是「**只搬一个会造出新循环**」的防线：`StandingPointSelector` 拖着 `MiningTuning`、
    `MiningPlan` 拖着 `LineOfSightChecker` ⇒ 漏搬一个，循环就**换个方向长回来**。
-2. **`action/` 不许依赖 `task/`**，**除了下表列明的欠账**：`src/main/java/com/dddgn/alice/action/**`
-   里对 `com.dddgn.alice.task.*` 的 import 必须**逐条**在 `ALLOWED_REVERSE` 里（带到期条件）。
-   今天表里只有一条（`step 3b`）⇒ 欠账**写在门禁里**，不藏在谁也不知道的地方。
+2. **`action/` 不许依赖 `task/`**（`step 3b` 后**无条件**）：`src/main/java/com/dddgn/alice/action/**`
+   里对 `com.dddgn.alice.task.*` 的 import 必须**逐条**在 `ALLOWED_REVERSE` 里 ——
+   ⭐ 该表**今天为空**（`step 3a` 剩的最后 1 条 = `PathRetryRunner`，已由 `step 3b` 搬进 `pathing/`）。
+   留这张表是为了：将来若真出现欠账，**必须带到期条件显式登记**，不许静默。
 3. **人口下限**（防"把包搬空 ⇒ 门禁假绿"）：扫描 `.java` ≥ `MIN_SCANNED_FILES` ·
    `reach/` 文件数 ≥ `MIN_REACH_FILES` · `action/` 文件数 ≥ `MIN_ACTION_FILES`。
 
@@ -57,10 +58,8 @@ REACH_FORBIDDEN = ("com.dddgn.alice.task.", "com.dddgn.alice.action.", "com.dddg
 #: `action/` 对 `task/` 的**已登记欠账**（`文件: import 的类 → 到期条件`）。
 #: ⚠️ 只许**减少**；新增一条 = 必须显式改本文件（这就是"响亮"）。
 ALLOWED_REVERSE: dict[str, dict[str, str]] = {
-    f"{PKG}/action/MineBlockRunner.java": {
-        "com.dddgn.alice.task.PathRetryRunner":
-            "step 3b（`PathRetryRunner` 是寻路重试器，家在 `pathing/`；实测 import 面 5 文件 + 7 处 FQN ⇒ 单独一刀）",
-    },
+    # ⭐ `step 3b`（2026-09-27）之后**本表为空** —— `PathRetryRunner` 已搬去 `pathing/`
+    # ⇒ `action/ → task/` 是**无条件** 0 命中。留这张表是为了"将来若真出现欠账，必须带到期条件显式登记"。
 }
 
 #: 实测 510+（2026-09-27）；留足余量，只用来抓"扫描根被搬空 / 解析崩塌"。
@@ -109,9 +108,12 @@ SELFTEST_CASES: list[tuple[str, str, str, bool]] = [
     ("`action/` import 没登记的 `task` 类 ⇒ 红",
      _MB,
      "import com.dddgn.alice.task.SomeNewHelper;", True),
-    ("`action/` import 表内那个 ⇒ 绿（欠账已登记）",
+    ("`action/` import 已搬走的 `task.PathRetryRunner` ⇒ 红（`step 3b` 之后它家在 `pathing/`）",
      _MB,
-     "import com.dddgn.alice.task.PathRetryRunner;", False),
+     "import com.dddgn.alice.task.PathRetryRunner;", True),
+    ("`action/` import `pathing`（同层/更下层）⇒ 绿",
+     _MB,
+     "import com.dddgn.alice.pathing.PathRetryRunner;", False),
     ("`reach/` import `pathing` / `log` ⇒ 绿（同层/更下层）",
      f"{PKG}/reach/LineOfSightChecker.java",
      "import com.dddgn.alice.pathing.MovementHelper;\nimport com.dddgn.alice.log.BotLog;", False),
@@ -171,7 +173,7 @@ def main() -> int:
     debt = " · ".join(f"{rel.split('/')[-1]}→{','.join(i.split('.')[-1] for i in hits)}"
                       for rel, hits in sorted(debt_hits.items()) if hits)
     print(f"LAYER_DIRECTION_RESULT PASS: `reach/` 反向依赖 0 · `action/` → `task/` 欠账 "
-          f"{sum(len(v) for v in debt_hits.values())} 条「{debt or '无'}」 · "
+          f"{sum(len(v) for v in debt_hits.values())} 条「{debt or '无（step 3b 后已是无条件 0 命中）'}」 · "
           f"reach {len(reach_files)} 文件 / action {len(action_files)} 文件 / 扫描 {len(files)} · "
           f"红臂 {len(SELFTEST_CASES)}/{len(SELFTEST_CASES)}")
     return 0

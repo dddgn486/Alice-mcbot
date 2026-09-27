@@ -11,6 +11,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 
 import java.util.UUID;
+import com.dddgn.alice.pathing.PathRetryRunner;
 
 /**
  * R4 PathSession 诊断任务：由任务层驱动「规划 → 逐段执行 → 重试」。

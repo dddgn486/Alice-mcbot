@@ -10,6 +10,7 @@ import com.dddgn.alice.pathing.core.search.PathRequest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import com.dddgn.alice.pathing.PathRetryRunner;
 
 /**
  * DOWNWARD（垂直下落 1 格）诊断任务（D-048）：一次右键验证执行与守卫两条路径。

@@ -8,6 +8,7 @@ import com.dddgn.alice.pathing.core.session.PathExecutionResult;
 import com.dddgn.alice.pathing.core.session.PathSessionStatus;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import com.dddgn.alice.pathing.PathRetryRunner;
 
 /**
  * 轻量硬路径移动任务（**D-060：已迁移到新内核 R3/R4**）：只把 Bot 移动到指定脚位，不挖掘、不放置。
@@ -16,7 +17,7 @@ import net.minecraft.server.level.ServerLevel;
  * <ul>
  *   <li>规划：legacy `SurfacePathfinder`（零启发 Dijkstra）→ 新内核 `CorePathPlanner`（真 A*，D-040 标定）；</li>
  *   <li>执行：legacy `PathExecutor` → 新内核 `PathSession`（D-026/D-027 契约、D-047 重同步、D-052 连续推进）；</li>
- *   <li>重试：任务层 `PathRetryRunner`（D-043），每次从当前脚位重规划；</li>
+ *   <li>重试：`PathRetryRunner`（D-043；`step 3b` 后住 `pathing/`），每次从当前脚位重规划；</li>
  *   <li>请求类型：`PathRequest.of` = 纯通行（TRAVERSE/DIAGONAL/ASCEND/DESCEND），保持"不挖掘、不放置"语义；</li>
  *   <li>失败码保留 legacy 语义：`walk_target_not_safe` / `walk_no_path` / `walk_search_limit` /
  *       `walk_blocked` / `walk_timeout` / `walk_stale` / `walk_invalid_precondition` / `walk_execution_failed`。</li>

@@ -18,6 +18,7 @@ import net.minecraft.world.phys.Vec3;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import com.dddgn.alice.pathing.PathRetryRunner;
 
 /**
  * 独立方块放置任务（**D-063：已迁移到新内核**）：走到目标旁的站位，在目标格放置一个一次性方块。

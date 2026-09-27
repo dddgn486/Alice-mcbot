@@ -12,6 +12,7 @@ import net.minecraft.server.level.ServerPlayer;
 
 import java.util.Locale;
 import java.util.UUID;
+import com.dddgn.alice.pathing.PathRetryRunner;
 
 /**
  * 跟随任务（**D-062：已迁移到新内核 R3/R4**）：跟随同维度在线玩家，保持约 2 格距离。

@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Predicate;
+import com.dddgn.alice.pathing.PathRetryRunner;
 
 /**
  * **机制 B：任务失败后"回安全区"的兜底**（`D-327` ①，2026-09-19 用户裁定执行）：

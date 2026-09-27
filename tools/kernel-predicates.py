@@ -4317,7 +4317,7 @@ def rule_replay_bounded():
     """
     base = ROOT / "src/main/java/com/dddgn/alice"
     session = base / "pathing/core/session/PathSession.java"
-    runner = base / "task/PathRetryRunner.java"
+    runner = base / "pathing/PathRetryRunner.java"
 
     def code(path):
         if not path.exists():

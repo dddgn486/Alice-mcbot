@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import com.dddgn.alice.pathing.PathRetryRunner;
 
 /**
  * **用现成工作台合成自检**（阶段 3-A / A3，D-188）：一次右键跑完，输出 `SUMMARY key=VALUE`。
@@ -52,7 +53,7 @@ public class CraftTableCheckTask implements Task {
     private int phaseTicks;
     private BlockPos table;
     private BlockPos standPoint;
-    private com.dddgn.alice.task.PathRetryRunner runner;
+    private com.dddgn.alice.pathing.PathRetryRunner runner;
     private MenuSession session;
     private int furnaceBefore;
 

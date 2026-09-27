@@ -8,7 +8,7 @@ import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.decision.MachineMap;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.core.search.PathRequest;
-import com.dddgn.alice.task.PathRetryRunner;
+import com.dddgn.alice.pathing.PathRetryRunner;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;

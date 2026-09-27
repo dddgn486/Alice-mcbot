@@ -20,7 +20,7 @@ import com.dddgn.alice.pathing.core.search.PlanningStatus;
 import com.dddgn.alice.perception.ScopeBuffer;
 import com.dddgn.alice.task.CollectDropsTask;
 import com.dddgn.alice.task.MineTask;
-import com.dddgn.alice.task.PathRetryRunner;
+import com.dddgn.alice.pathing.PathRetryRunner;
 import com.dddgn.alice.task.PlaceTask;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;

@@ -6,7 +6,7 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.pathing.core.session.PathExecutionResult;
-import com.dddgn.alice.task.PathRetryRunner;
+import com.dddgn.alice.pathing.PathRetryRunner;
 import com.dddgn.alice.reach.LineOfSightChecker;
 import com.dddgn.alice.reach.MiningPlan;
 import com.dddgn.alice.reach.StandingPointSelector;

@@ -165,7 +165,7 @@ run_gate             "check-primitive-budget-injection" python3 tools/check-prim
 # 而 `survey/42 §1.2` 实测**全仓唯一的循环依赖**就是 `action/MineBlockRunner ↔ task/mining/*`。
 # step 3a = 把「触及站位」件搬进新顶层包 `reach/`（与 `pathing/` 同级：谁都能依赖它、它谁都不依赖）。
 # 断言 = ① `reach/` 不许 import `task|action|job`（防"漏搬一个，循环换个方向长回来"）
-# ② `action/` → `task/` 只许剩**表里登记的欠账**（今天 1 条 = step 3b 的 `PathRetryRunner`）。
+# ② `action/` → `task/` 只许剩**表里登记的欠账**（step 3b 后**表空 = 无条件 0 命中**）。
 # 自带 6 条合成红臂 + 人口下限（reach ≥4 / action ≥10 / 扫描 ≥480）。
 run_gate             "check-layer-direction"     python3 tools/check-layer-direction.py
 # 回迁（2026-09-24）：`tools/dsh-session-rollback.mjs` 决定"云端哪些字节要搬回本机" ——

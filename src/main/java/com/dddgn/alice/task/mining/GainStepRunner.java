@@ -8,7 +8,7 @@ import com.dddgn.alice.pathing.core.MovementType;
 import com.dddgn.alice.pathing.core.search.CorePathPlanner;
 import com.dddgn.alice.pathing.core.search.PathPlan;
 import com.dddgn.alice.pathing.core.search.PathRequest;
-import com.dddgn.alice.task.PathRetryRunner;
+import com.dddgn.alice.pathing.PathRetryRunner;
 import net.minecraft.core.BlockPos;
 
 /**

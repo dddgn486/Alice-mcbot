@@ -11,6 +11,7 @@ import net.minecraft.server.level.ServerLevel;
 
 import java.util.ArrayList;
 import java.util.List;
+import com.dddgn.alice.pathing.PathRetryRunner;
 
 /**
  * **远距离旅行任务**（`D-337 附注二` 的执行侧）：把 bot 送到远处目标的 **XZ 邻域**，

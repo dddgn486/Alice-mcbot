@@ -14,6 +14,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
+import com.dddgn.alice.pathing.PathRetryRunner;
 
 /**
  * BREAK_AND_ENTER 诊断任务（D-068）：一次右键验证规划与执行。

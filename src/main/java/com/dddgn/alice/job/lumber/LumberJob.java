@@ -15,7 +15,7 @@ import com.dddgn.alice.perception.ScopeBuffer;
 import com.dddgn.alice.task.CollectDropsTask;
 import com.dddgn.alice.task.MineTask;
 import com.dddgn.alice.task.mining.MiningProfile;
-import com.dddgn.alice.task.PathRetryRunner;
+import com.dddgn.alice.pathing.PathRetryRunner;
 import com.dddgn.alice.task.RestoreScopeTask;
 import com.dddgn.alice.pathing.core.MovementType;
 import com.dddgn.alice.pathing.core.search.CorePathPlanner;

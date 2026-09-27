@@ -1662,9 +1662,21 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
   `MiningProfile` / `MiningBudget` 等**没搬**的类的前缀 ⇒ 第一版把 `task.mining.MiningPlanner` 改成了
   `reach.MiningPlanner`（`66 个错误`）⇒ 修法 = 按**标识符**判定，只有那 4 个名字才换前缀。
 
-⏭ **下一步 = `step 3b`（`PathRetryRunner` → `pathing/`，纯搬包）**（⚠️ **实测 import 面 = 5 个文件 + 7 处 FQN**；
-第一版写的"39 个文件引用"是**提到过它**的文件数，多数在注释里 —— 就地更正。
-⚠️ **另一个真耦合**：内核门禁 `tools/kernel-predicates.py:4320` **硬写着路径** `task/PathRetryRunner.java`
-（`rule_replay_bounded`）⇒ 搬它**必须同时改那一行**） ⇒ 搬完
-`action/ → task/` 才真正 **0 命中**、门禁的 `ALLOWED_REVERSE` 表清空（判据从"带欠账"升级为无条件）。
-`step 4`（拆 `write/`，只动 import）与它互不阻塞。
+### ✅ `step 3b` 已落地（2026-09-27，`D-461`）—— `PathRetryRunner` 进 `pathing/`，`step 3` 收口
+
+- `git mv task/PathRetryRunner.java → pathing/PathRetryRunner.java`（只改 `package` 行）。引用面实测：
+  显式 import **5** 文件 · FQN **7 处 / 4 文件** · **16 个同包文件**原本不用 import（搬完补上）。
+  ⚠️ 第一版写的"39 个文件引用"**口径错了**（那是**提到过它**的文件数，多数在注释里）—— 已就地更正。
+- ⭐ **真耦合 + 反向对照**：内核门禁 `tools/kernel-predicates.py` 的 `P2b·重放有界` 硬写路径 ⇒ 同步改成 `pathing/`；
+  **把那一行改回 `task/` ⇒ 门禁 `exit=1`**（`[P2b·重放有界] PathRetryRunner.java 不存在（改名？同步本规则 P2b）`），
+  改回 ⇒ `exit=0` ⇒ 那行不是装饰。
+- 门禁 `check-layer-direction.py` 的 `ALLOWED_REVERSE` 表**清空** ⇒ `action/ → task/` 是**无条件 0 命中**；红臂 6→**7**。
+- 回归：`core` **PASS**（242 s · 指纹 `d58f01c4cbd4` · `run/headless-logs/20260927-150214-core.log`）·
+  `check-all` **pass=26 warning=1 failed=0** · 判据 `grep -rn "import com.dddgn.alice.task" src/main/java/com/dddgn/alice/action/` = **0**。
+
+⚠️ **没解决的（别读错）**：`action ↔ pathing` 的**包级环今天仍在**（`pathing/` 14 文件 import `action/`，**先于本刀存在**，
+是 `D-076` 的设计）；它不是 `D-455` 三层意义上的越界 ⇒ **别把「全仓唯一循环依赖」读成「仓里没有环了」**。
+
+⏭ **下一步 = `step 4`（写入授权从 `action/` 拆到新包 `write/`，只动 import；包名已拍、无需再裁）** ——
+`action/` 今天 = **12 文件**（6 微操作 + 6 写入治理：`TaskTargetProtection` · `WriteAudit` · `WriteBudget` ·
+`WriteGrant` · `WritePolicyMatrix` · `WriteReason`）；⚠️ `WriteGrant` **65 文件引用** ⇒ 只动 import、**不与改名同批**。

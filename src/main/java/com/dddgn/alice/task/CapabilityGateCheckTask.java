@@ -255,7 +255,7 @@ public class CapabilityGateCheckTask implements Task {
                                 bot.blockPosition().east(), "safe_cancel_check")
                         .allowedMovementTypes(),
                 com.dddgn.alice.pathing.core.search.SearchBudget.UNLIMITED, "safe_cancel_check");
-        var idleRunner = new com.dddgn.alice.task.PathRetryRunner(bot, request, 0, "safe-cancel-check");
+        var idleRunner = new com.dddgn.alice.pathing.PathRetryRunner(bot, request, 0, "safe-cancel-check");
         check("safe_cancel_wiring", defaultTrue && idleRunner.safeToCancel(),
                 "defaultTrue=" + defaultTrue + " idleRunnerSafe=" + idleRunner.safeToCancel());
     }

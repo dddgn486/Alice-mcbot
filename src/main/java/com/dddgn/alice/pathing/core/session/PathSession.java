@@ -547,7 +547,7 @@ public final class PathSession {
 
     /**
      * 段失败路由（D-043 分层）：本段失败不再由会话重规划或吸附，直接按语义上报，
-     * 由任务层 `PathRetryRunner` 决定是否重规划。
+     * 由 `PathRetryRunner`（`step 3b` 起与本类同包 `pathing/`）决定是否重规划。
      */
     private void handleFailure(String code) {
         String failure = code == null ? "MOVEMENT_FAILED" : code;

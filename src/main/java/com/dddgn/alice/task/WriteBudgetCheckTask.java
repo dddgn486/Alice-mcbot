@@ -56,7 +56,7 @@ public final class WriteBudgetCheckTask implements Task {
     private final BotPlayer bot;
     private final com.dddgn.alice.perception.ScopeBuffer scope;
     private Phase phase = Phase.SETUP;
-    private com.dddgn.alice.task.PathRetryRunner runner;
+    private com.dddgn.alice.pathing.PathRetryRunner runner;
     private int ticks;
     private String failure = "";
     private String resultStatus = "-";
@@ -113,10 +113,10 @@ public final class WriteBudgetCheckTask implements Task {
         BotLog.info("[WriteBudget] CHECK setup start={} goal={} caps={} {}",
                 START_FOOT.toShortString(), GOAL_FOOT.toShortString(), CAP_BREAKS,
                 WriteBudget.describe(bot));
-        runner = new com.dddgn.alice.task.PathRetryRunner(bot,
+        runner = new com.dddgn.alice.pathing.PathRetryRunner(bot,
                 PathRequest.withWorldModification(bot.getUUID().toString(), START_FOOT, GOAL_FOOT,
                         "write-budget-check"),
-                com.dddgn.alice.task.PathRetryRunner.DEFAULT_MAX_REPLANS, "writebudget");
+                com.dddgn.alice.pathing.PathRetryRunner.DEFAULT_MAX_REPLANS, "writebudget");
         phase = Phase.RUN;
         return Task.Status.RUNNING;
     }
@@ -130,7 +130,7 @@ public final class WriteBudgetCheckTask implements Task {
             return Task.Status.RUNNING;
         }
         var state = runner.tick();
-        if (state == com.dddgn.alice.task.PathRetryRunner.State.RUNNING) {
+        if (state == com.dddgn.alice.pathing.PathRetryRunner.State.RUNNING) {
             return Task.Status.RUNNING;
         }
         var result = runner.result();

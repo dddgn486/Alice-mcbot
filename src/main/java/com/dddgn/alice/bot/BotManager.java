@@ -573,7 +573,7 @@ public final class BotManager {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
         session.beginTask(new PathSessionDiagnosticTask(bot, goalFoot, true,
-                        0, 0, 0, wallTick, com.dddgn.alice.task.PathRetryRunner.DEFAULT_MAX_REPLANS),
+                        0, 0, 0, wallTick, com.dddgn.alice.pathing.PathRetryRunner.DEFAULT_MAX_REPLANS),
                 TaskTarget.block(goalFoot));
         broadcastTarget(session.target);
         return true;
