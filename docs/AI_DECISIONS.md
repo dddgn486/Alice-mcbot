@@ -21291,3 +21291,55 @@ Job = ① 有 Kind（进 JobRequest.Kind）
 
 **回归**：`core` **PASS**（242 s · 指纹 `f0a3085a75ea` · 43 步判决逐字不变）·
 `check-all` **pass=28 warning=1 failed=0**。
+
+### D-465：**`step 5a-1` —— 支撑块正例（PLAN 侧落地；EXECUTE 侧试过后撤回，因为无头电池里结构性做不到）**（2026-09-27）
+
+**起因**：用户 2026-09-27 拍 **甲：先补一条最小夹具（restore/支撑块正例），再拆 `MineTask`**。
+动机是 O1 —— `MineRegressionTask` 的 `supportOk`（`D-112` 建拆同权）与 `restoredOk`（材料闭环）
+写成 `!current.expectSupport() || …`，而**13 条用例的 `expectSupport` 全是 `false`**
+（`plan()`/`execute()` 两个便捷构造都硬写 `false`）⇒ 两条断言**恒真**、`/ledgerRestored=` `/scaffoldLeft=` **从不打印**。
+
+#### ✅ 落地（PLAN 侧）
+
+1. 新场景 **`support_course`**（`tools/test-scenes/.../support_course_{terrain,reset}.mcfunction`）：
+   真悬空 —— 目标 `(23,65,212)` 正下方 **y 52..63 全空**（≥8 格）
+   ⇒ 命中 `MiningPlanner.dropWouldBeLost`（`DROP_FALL_SEARCH = 8`）⇒ 规划器**必须**给支撑。
+   ⚠️ 与 `floating_course`（竖井 **1 格深**，`D-364` 收紧后的口径 = 掉落物捡得回 ⇒ **不垫**）
+   **各锁一种语义，谁也不许改对方** —— 改错任何一边都是把一条真判据换成另一条。
+2. 已注册进 `tools/check-scene-connectivity.py` 的场景清单（含 `goals=[(23,65,212)]`）：
+   `可达站位 81 格；搁浅 0 格；目标格 1 个` ⇒ **可规划性离线可查**。
+3. 新用例 **`support_plan`**（`Kind.PLAN`，`expectSupport = true`）：断言
+   `plan.supportPlacementPos().equals(target.below())`（`D-078`）。
+   ⭐ 实测 `support_plan=PASS mode=CURRENT/stand=21, 64, 212/cost=0.00/support=23, 64, 212`
+   —— 这是**全仓第一个非 `-` 的 `support=` 读数**（此前每一条规划日志都是 `support=-`）。
+
+#### ⛔ 试过并**撤回**（EXECUTE 侧：真放支撑 + 用完即拆）—— 两次失败本身就是结论
+
+| 尝试 | 做法 | 实测逐字 | 机制 |
+|---|---|---|---|
+| ① | 直接加 `exec_support` | `[Ledger] skip 23, 64, 212 place=minecraft:cobblestone by=…:SUPPORT_PLACEMENT（区外：D-398 R1/R2 不记账、不恢复）` · `[Ledger] 闭合 … inZone=0 wildSkipped=+1` · `supportRestored=false` | ⭐ **无头夹具世界一个认领都没有**（`D-409/D-413` 清 FTB 认领的副作用）⇒ **每一笔写入都被 `D-398` 判"区外"** ⇒ 无回收义务 |
+| ② | 夹具先 `SafeZoneData.claim(目标区块)` | `[WRITE-REFUSED] place pos=23, 64, 212 by=…:SUPPORT_PLACEMENT reason=protected_area` · `[MineRunner] support_skipped … result=ZONE_DENIED（垫不上 ⇒ 照挖，不判死）` · 随后 `TARGET_NOT_BREAKABLE` | `ZoneAuthority.authorize` 的白纸黑字规则：**保护区内的写入需要「生效的任务区」覆盖这一格**（`protected_area`）。认领是**全局区块集、无 owner** ⇒ 保护层拒写自己的 bot |
+
+⭐⭐ **由此得到 O2 的真正机制（推翻我原先的说法）**：`RESTORE` 相位在无头电池里**结构性不可达**，
+原因**不是**"`D-364` 之后没有临时放置了"，而是 **无头世界没有区域上下文**：
+**不认领 ⇒ `D-398` 不记账；认领 ⇒ `ZoneAuthority` 拒写**。两者都让"建拆同权"这条路走不到。
+
+⛔ 要让 EXECUTE 侧跑通，夹具需要 **4 件一起对**：场景 + `SafeClaim` + `TaskZoneRegistry.declare` 任务区
++ 三者的**对称清理**（认领/任务区泄漏会给后面的电池步改变 `D-398` 行为 —— 尝试② 里就实测到
+`support_plan` 的认领**泄漏**给了 `exec_support`：`认领 ⇒ false`）。⇒ **不在本刀做**，登记为 O2 的复活条件。
+
+#### ⚠️ 顺带发现的第三个缺陷：`supportRestored` 是**弱判据**
+
+尝试② 里它报 **`true`**，而那一次**支撑块根本没放**（`writes[…] places=0`）——
+它是"`target.below()` 是空气"的检查，**空操作也能满足**。
+⇒ 将来补 EXECUTE 侧时**必须同时加强这条判据**（不能只看空气，要同时断言"确实放过 + 确实拆回"）。
+
+#### ⚠️ 诚实边界
+
+- **用户 2026-09-27 拍的那条（补 restore/支撑块正例）只完成了一半**：PLAN 侧 ✅、EXECUTE 侧 ⛔。
+  ⇒ O1/O2/O3 三条观测项**仍然全部未修**（`supportOk`/`restoredOk` 对 EXECUTE 分支仍是恒真）。
+- 本刀**没有**给 `expectSupport=true` 的 EXECUTE 用例留"静默跳过"：**直接不加**该用例，
+  而不是加一条永远 SKIP 的用例（后者会把"没验证"伪装成"验证过"）。
+
+**回归**：`single:mine_regression` **PASS**（`passed=1/1` · `run/headless-logs/20260927-155600-single_mine_regression.log`）·
+`core` **PASS**（240 s · 指纹 `6b205107a511` · `run/headless-logs/20260927-160051-core.log`）。

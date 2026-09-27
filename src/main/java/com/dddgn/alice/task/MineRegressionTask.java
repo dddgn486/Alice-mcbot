@@ -89,6 +89,9 @@ public final class MineRegressionTask implements Task {
     private static final BlockPos CHAIN_TARGET = new BlockPos(23, 64, 172);
     private static final BlockPos FLOAT_START = new BlockPos(21, 64, 190);
     private static final BlockPos FLOAT_TARGET = new BlockPos(23, 65, 190);
+    /** ⭐ `D-464` 的 O1/O2 修复：**真悬空**场景（目标下方 ≥8 格空气 ⇒ 必须放支撑块 + 用完即拆）。 */
+    private static final BlockPos SUPPORT_START = new BlockPos(21, 64, 212);
+    private static final BlockPos SUPPORT_TARGET = new BlockPos(23, 65, 212);
 
     private static CaseDef plan(String name, String terrain, BlockPos start, BlockPos target,
                                 MiningPlan.Mode... modes) {
@@ -130,6 +133,18 @@ public final class MineRegressionTask implements Task {
             // ⇒ 这条期望在两种语义下都成立，不用改）
             new CaseDef("exec_floating", "floating_course", FLOAT_START, FLOAT_TARGET,
                     Kind.EXECUTE, List.of(), 1, Items.COBBLESTONE, true, false, 1),
+            // ⭐ `D-464` 的 O1/O2 修复（2026-09-27）：**真悬空**（下方 ≥8 格空气）⇒ 断言
+            // 规划器必须给出 `supportPlacementPos == target.below()`（`D-078`）。
+            // ⛔ 执行侧（`exec_support`）**已试过并撤回**：不认领 ⇒ `D-398` 判"区外"不记账（无回收义务）；
+            //    认领 ⇒ `ZoneAuthority` 判 `protected_area` **拒写**（保护区内的写入需要"生效的任务区"覆盖该格）
+            // ⚠️ 只到 PLAN 侧：**EXECUTE 侧（真放支撑 + 用完即拆）在无头电池里做不到**，见下方注释与 `D-465`。
+            // ⚠️ 这两条判据（`supportOk`/`restoredOk`）**仍然是恒真的空判据** ——
+            //    13 条用例的 `expectSupport` 全是 `false`（`plan()`/`execute()` 两个便捷构造都硬写 `false`），
+            //    于是 `/ledgerRestored=` `/scaffoldLeft=` 从不打印、两条断言永远为真（假绿）。
+            // 与 `exec_floating` 的区别：那条的竖井 **1 格深** ⇒ 掉落物捡得回 ⇒ 断言"**不垫**"（`D-364` 口径）。
+            new CaseDef("support_plan", "support_course", SUPPORT_START, SUPPORT_TARGET,
+                    Kind.PLAN, List.of(MiningPlan.Mode.CURRENT, MiningPlan.Mode.DIRECT),
+                    0, null, true, true, 0),
             new CaseDef("exec_chain", "chain_mine_course", CHAIN_START, CHAIN_TARGET,
                     Kind.CHAIN, List.of(), 9, Items.RAW_IRON, true, false, 9),
             // G3：同一场景、**预算压到 1 次破坏** ⇒ 连锁必须当场停 + 如实报 `chain_budget_refused`
@@ -539,10 +554,6 @@ public final class MineRegressionTask implements Task {
     }
 
     private void finishCase() {
-        // G3 兜底：即使 CHAIN_STARVED 用例超时/异常提前收尾，也不许把 bot 的破坏预算留在 1
-        com.dddgn.alice.write.WriteBudget.setCaps(
-                com.dddgn.alice.write.WriteBudget.scopeOf(bot),
-                com.dddgn.alice.write.WriteBudget.Caps.DEFAULT);
         if (chainModeBefore != null) {
             MiningTuning.setChainMode(chainModeBefore);
             BotLog.info("[MineRegression] 恢复 chain={}", chainModeBefore);

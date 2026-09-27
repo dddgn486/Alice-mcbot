@@ -2360,7 +2360,7 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 
 > ⚠️ **它是当前唯一主线**（鱼骨已冻结）。**0 / 0.5 / 1 三步 `src/` 零改动** ⇒ 不碰夹具与门禁。
 > 纪律：**一刀一 `D-编号` + 一刀一判据 + 一刀一提交**；任何 `src/` 改动**必须跑 `core`**。
-> **进度（2026-09-27）**：**0 ✅ · 0.5 ✅（+ 门禁）· 1 ✅ · 1.5 ✅（`D-458`）· 2a ✅（`D-459`）** · **2b ✅ 裁定 = 甲（并入 `step 5`）** · **3 ✅ 收口（3a `D-460` + 3b `D-461`）** · **4 ✅（`D-462`）** · **5 · 前置 ✅（读数门禁 `D-463`）· `5a-0` ✅（相位转换唯一出口 `D-464`）· 主体未开工（它现在背着 `step 2b`）。**
+> **进度（2026-09-27）**：**0 ✅ · 0.5 ✅（+ 门禁）· 1 ✅ · 1.5 ✅（`D-458`）· 2a ✅（`D-459`）** · **2b ✅ 裁定 = 甲（并入 `step 5`）** · **3 ✅ 收口（3a `D-460` + 3b `D-461`）** · **4 ✅（`D-462`）** · **5 · 前置 ✅（读数门禁 `D-463`）· `5a-0` ✅（相位转换唯一出口 `D-464`）· `5a-1` 🔶 半程（支撑块正例 PLAN ✅ / EXECUTE ⛔ `D-465`）· 主体未开工（它现在背着 `step 2b`）。**
 > ⚠️ **`1.5` 起开始动 `src/`** ⇒ 其后每一刀都必须跑 `core`。
 
 | 序 | 动作 | 成本 | 判据 / 备注 |
@@ -2426,9 +2426,10 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 >
 > | # | 观测 | 事实 | 复活条件 |
 > |---|---|---|---|
-> | O1 | **`MineRegressionTask` 两条断言恒真（空判据）** | `supportOk`（`D-112` 支撑块用完即拆）与 `restoredOk`（材料闭环）都写成 `!current.expectSupport() \|\| …`，而 **13 条用例的 `expectSupport` 全是 `false`**（`plan()` 与 `execute()` 两个便捷构造都硬写 `false`）⇒ 两条断言**永远为真**，`/ledgerRestored=` `/scaffoldLeft=` **从不打印** | 与 O2 合并处理：补一条 `expectSupport=true` 的用例（那是"垫了 → 用完即拆 → 材料闭环"的正例） |
-> | O2 | **`RESTORE` 相位零覆盖** | 11 次 `restore_skip pending=0`（`places=0`）⇒ `restore_start/end` 在 190 份 `core` 里最后出现于 `20260920-202006-core.log`（`D-364` 收紧 `exec_floating` 的 `expectSupport` 之后**再无临时放置**）⇒ 本相位今天 `to=RESTORE` **0 次** | ⭐ **优先**：它是**唯一有过服务端崩溃史**的通路（`MineTask` 字段区注释记的 `D-175` 第二层防御）；`step 5a` 主拆分前补一条最小夹具 |
+> | O1 | **`MineRegressionTask` 两条断言恒真（空判据）** ⚠️ `2026-09-27` 只完成**一半**（`D-465`：PLAN 侧 ✅ `support_plan` / EXECUTE 侧 ⛔ 同 O2） | `supportOk`（`D-112` 支撑块用完即拆）与 `restoredOk`（材料闭环）都写成 `!current.expectSupport() \|\| …`，而 **13 条用例的 `expectSupport` 全是 `false`**（`plan()` 与 `execute()` 两个便捷构造都硬写 `false`）⇒ 两条断言**永远为真**，`/ledgerRestored=` `/scaffoldLeft=` **从不打印** | 与 O2 合并处理：补一条 `expectSupport=true` 的用例（那是"垫了 → 用完即拆 → 材料闭环"的正例） |
+> | O2 | **`RESTORE` 相位零覆盖** | 11 次 `restore_skip pending=0`（`places=0`）⇒ 本相位 `to=RESTORE` **0 次** | ⭐⭐ **机制已定（`D-465`，2026-09-27 实测，推翻原先说法）**：**不是**「没有临时放置」，而是**无头世界没有区域上下文** —— ① **不认领** ⇒ `[Ledger] skip …（区外：D-398 R1/R2 不记账、不恢复）` + `inZone=0 wildSkipped=+1` ⇒ 无回收义务；② **认领** ⇒ `[WRITE-REFUSED] … reason=protected_area`（`ZoneAuthority`：保护区内的写入需要**生效的任务区**覆盖该格）⇒ 连自己的 bot 都拒写。⇒ 要跑通需**四件一起对**：场景 + 认领 + `TaskZoneRegistry.declare` 任务区 + 三者对称清理（尝试② 已实测到认领**泄漏**给下一条用例）。**复活条件** = 值得为此写一个带清理的夹具时（它是**唯一有过服务端崩溃史**的通路） |
 > | O3 | **`CHAIN` 相位零覆盖** | `ChainMining.available()` = `Class.forName("oreexcavation.…")`，而客户端 22 个 jar 里**没有 oreexcavation** ⇒ `exec_chain`/`exec_chain_budget_refused` 在 CORE 里 `= SKIP（模组不在场）`；最后真跑 = `20260920-174203-core.log` | 存在带 oreexcavation 的测试环境时；或 `step 5a` 拆到连锁回落分支（`:539-543`/`:600-603`）时**必须显式声明"无覆盖"** |
+> | O4 | **`supportRestored` 是弱判据** | `D-465` 尝试② 里它报 `true`，而那一次**支撑块根本没放**（`writes[…] places=0`）—— 它是「`target.below()` 是空气」的检查，**空操作也能满足** | 补 EXECUTE 侧时**同刀加强**（同时断言「确实放过 + 确实拆回」） |
 >
 > ⏭ **下一步 = `step 5a` 主体（用户 2026-09-27 拍 甲：先拆 `MineTask`）** —— 拆「**编排 vs 原子**」边界。
 > ⚠️ 设计已出（两份只读取证），但**三处待拍**：① 编排器落点（`task/` 还是 `job/` —— ⚠️ `task/ → job/` 是**向上**依赖，若落 `job/` 需要显式破例）② 原语是否保留 `MiningPlanner` ③

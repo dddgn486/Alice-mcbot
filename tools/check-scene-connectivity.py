@@ -75,6 +75,9 @@ SCENES = {
     "mine_course":       dict(scenes=["mine_course_terrain"], start=(21, 64, 140)),
     "chain_mine_course": dict(scenes=["chain_mine_course_terrain"], start=(23, 64, 170)),
     "floating_course":   dict(scenes=["floating_course_terrain"], start=(21, 64, 190)),
+    # ⭐ `D-464`（2026-09-27）：真悬空（下方 ≥8 格空气）⇒ 放支撑 + 用完即拆；与 1 格深的 `floating_course` 各锁一种语义
+    "support_course":    dict(scenes=["support_course_terrain"], start=(21, 64, 212),
+                              goals=[(23, 65, 212)]),
     "clear_guard_course": dict(scenes=["clear_guard_terrain"], start=(44, 64, 158)),
     "scaffold_course":   dict(scenes=["scaffold_course_terrain"], start=(38, 64, 46)),
     "break_course":      dict(scenes=["break_course_terrain"], start=(0, 64, 66),

@@ -1723,6 +1723,27 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 - 基线读数见 `AI_DECISIONS.md` 的 `D-463` 表（`MineTask` 970 / 8 / 71 / 4 / 48 · `CollectDropsTask` 1251 / 无 / 18 / 6 / 48）。
 - ⚠️ 本刀**只碰 `tools/`**（`src/` 零改动）⇒ **不跑 `core`**（同 `D-425`）。
 
+### 🔶 `step 5a-1` 半程落地（2026-09-27，`D-465`）—— 支撑块正例：PLAN 侧 ✅ / EXECUTE 侧 ⛔
+
+- 用户拍 **甲：先补 restore/支撑块正例**（动机 = 修 O1 空判据）。**只完成一半**，如实记：
+- ✅ **PLAN 侧**：新场景 `support_course`（真悬空：目标正下方 y52..63 ≥8 格空气 ⇒ 命中
+  `dropWouldBeLost` 的 `DROP_FALL_SEARCH=8`）+ 新用例 `support_plan`（`expectSupport=true`）
+  ⇒ 实测 `support=23, 64, 212`（**全仓第一个非 `-` 的 `support=` 读数**）。
+  场景已进 `check-scene-connectivity` 清单（`goals`）⇒ 可规划性离线可查。
+  ⚠️ 与 `floating_course`（1 格深 ⇒ **不垫**，`D-364`）**各锁一种语义**，谁也不许改对方。
+- ⛔ **EXECUTE 侧（真放支撑 + 用完即拆）试过两次，都撤回**，两次失败就是结论：
+  - **不认领** ⇒ `[Ledger] skip …（区外：D-398 R1/R2 不记账、不恢复）`、`inZone=0 wildSkipped=+1`
+    ⇒ 无回收义务（`supportRestored=false`）。
+  - **认领** ⇒ `[WRITE-REFUSED] … reason=protected_area` ⇒ `support_skipped result=ZONE_DENIED`
+    ⇒ 随后 `TARGET_NOT_BREAKABLE`（`ZoneAuthority`：保护区内的写入需要**生效的任务区**覆盖该格）。
+  - ⭐⭐ **O2 的真正机制由此推翻原先说法**：`RESTORE` 在无头电池里不可达**不是**"没有临时放置"，
+    而是**无头世界没有区域上下文**（不认领不记账 / 认领就拒写）。要跑通需**四件一起对**
+    （场景 + 认领 + `TaskZoneRegistry.declare` 任务区 + 三者对称清理；尝试② 已实测到认领**泄漏**给下一条用例）。
+- ⚠️ 新增 **O4**：`supportRestored` 是**弱判据** —— 尝试② 里它报 `true` 而**支撑块根本没放**
+  （它是"`target.below()` 是空气"的检查，空操作也能满足）。
+- 本刀**没有**加一条"永远 SKIP"的用例来充数（那会把"没验证"伪装成"验证过"）。
+- 回归：`single:mine_regression` PASS（`passed=1/1`）· `core` PASS（240 s · `6b205107a511`）。
+
 ### ✅ `step 5a-0` 已落地（2026-09-27，`D-464`）—— 相位转换唯一出口（禁令③ 的载体）
 
 - 实测 `plan §2.2` **禁令③ 今天不成立**：`phase=` 只在 `miner.tick()` 之后与失败报告里打印
