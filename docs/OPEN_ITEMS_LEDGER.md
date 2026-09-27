@@ -2360,7 +2360,7 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 
 > ⚠️ **它是当前唯一主线**（鱼骨已冻结）。**0 / 0.5 / 1 三步 `src/` 零改动** ⇒ 不碰夹具与门禁。
 > 纪律：**一刀一 `D-编号` + 一刀一判据 + 一刀一提交**；任何 `src/` 改动**必须跑 `core`**。
-> **进度（2026-09-27）**：**0 ✅ · 0.5 ✅（+ 门禁）· 1 ✅ · 1.5 ✅（`D-458`）· 2a ✅（`D-459`）** · **2b ✅ 裁定 = 甲（并入 `step 5`）** · **3 ✅ 收口（3a `D-460` + 3b `D-461`）** · **4 ✅（`D-462`）** · **5 · 前置 ✅（读数门禁 `D-463`，2026-09-27）· 主体未开工（它现在背着 `step 2b`）。**
+> **进度（2026-09-27）**：**0 ✅ · 0.5 ✅（+ 门禁）· 1 ✅ · 1.5 ✅（`D-458`）· 2a ✅（`D-459`）** · **2b ✅ 裁定 = 甲（并入 `step 5`）** · **3 ✅ 收口（3a `D-460` + 3b `D-461`）** · **4 ✅（`D-462`）** · **5 · 前置 ✅（读数门禁 `D-463`）· `5a-0` ✅（相位转换唯一出口 `D-464`）· 主体未开工（它现在背着 `step 2b`）。**
 > ⚠️ **`1.5` 起开始动 `src/`** ⇒ 其后每一刀都必须跑 `core`。
 
 | 序 | 动作 | 成本 | 判据 / 备注 |
@@ -2413,12 +2413,33 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 > 与"语句行不算方法"—— 宽正则曾把 `MineTask` 量成 151 个"方法"，真值 48）+ **真树红臂 4 条**（命门 = 声明改名而引用还在 ⇒ 必须报"解析失败"）。
 > ⚠️ 本刀**只碰 `tools/`**（`src/` 零改动）⇒ 不跑 `core`；⛔ 门禁**不阻止** `Phase` 值数下降（那是本步目标）。
 >
-> ⏭ **下一步 = `step 5a`（用户 2026-09-27 拍 甲：先拆 `MineTask`）** —— 拆「**编排 vs 原子**」边界。
+> ✅ **`5a-0` 已落地（`D-464`，2026-09-27）**：`plan §2.2` 禁令③ 的**载体**。
+> 实测该禁令**今天不成立**（`phase=` 只在 `miner.tick()` 之后与失败报告里打印；1080 份语料里除
+> `no_suitable_tool@EVALUATING` 外**没有任何 `Phase` 枚举名**）⇒ 把散在 **14 处**的直接赋值收成
+> `enterPhase(Phase)`（`MineTask` 970 → 998 行，**行为不变**）。新门禁
+> `tools/check-phase-transition-outlet.py`（挂 `check-all`，`pass=27→28`），4 条断言 + 11 条红臂 + 1 条真树红臂。
+> ⭐ **落地读数**（`run/headless-logs/20260927-154237-core.log`，75 行新增）：`to=MINING 41 · EVALUATING 12 ·
+> CLEAR 11 · COLLECTING 10 · GAIN 1` ⇒ **5/8 个相位值第一次有运行期证据**；而 `GAIN_CLEAR`/`CHAIN`/`RESTORE`
+> **显式为 0** ⇒ 盲区从"看不见"变成"可测量的 0"。⚠️ 禁令③ 只是**载体就位**，不是已满足。
+>
+> ⚠️⚠️ **同轮取证发现的三个观测项（都没修，各自带复活条件）**：
+>
+> | # | 观测 | 事实 | 复活条件 |
+> |---|---|---|---|
+> | O1 | **`MineRegressionTask` 两条断言恒真（空判据）** | `supportOk`（`D-112` 支撑块用完即拆）与 `restoredOk`（材料闭环）都写成 `!current.expectSupport() \|\| …`，而 **13 条用例的 `expectSupport` 全是 `false`**（`plan()` 与 `execute()` 两个便捷构造都硬写 `false`）⇒ 两条断言**永远为真**，`/ledgerRestored=` `/scaffoldLeft=` **从不打印** | 与 O2 合并处理：补一条 `expectSupport=true` 的用例（那是"垫了 → 用完即拆 → 材料闭环"的正例） |
+> | O2 | **`RESTORE` 相位零覆盖** | 11 次 `restore_skip pending=0`（`places=0`）⇒ `restore_start/end` 在 190 份 `core` 里最后出现于 `20260920-202006-core.log`（`D-364` 收紧 `exec_floating` 的 `expectSupport` 之后**再无临时放置**）⇒ 本相位今天 `to=RESTORE` **0 次** | ⭐ **优先**：它是**唯一有过服务端崩溃史**的通路（`MineTask` 字段区注释记的 `D-175` 第二层防御）；`step 5a` 主拆分前补一条最小夹具 |
+> | O3 | **`CHAIN` 相位零覆盖** | `ChainMining.available()` = `Class.forName("oreexcavation.…")`，而客户端 22 个 jar 里**没有 oreexcavation** ⇒ `exec_chain`/`exec_chain_budget_refused` 在 CORE 里 `= SKIP（模组不在场）`；最后真跑 = `20260920-174203-core.log` | 存在带 oreexcavation 的测试环境时；或 `step 5a` 拆到连锁回落分支（`:539-543`/`:600-603`）时**必须显式声明"无覆盖"** |
+>
+> ⏭ **下一步 = `step 5a` 主体（用户 2026-09-27 拍 甲：先拆 `MineTask`）** —— 拆「**编排 vs 原子**」边界。
+> ⚠️ 设计已出（两份只读取证），但**三处待拍**：① 编排器落点（`task/` 还是 `job/` —— ⚠️ `task/ → job/` 是**向上**依赖，若落 `job/` 需要显式破例）② 原语是否保留 `MiningPlanner` ③
+> `MAX_RECOVERY_ATTEMPTS`/`CHAIN_TIMEOUT_TICKS` 算不算判据③ 的"类内额度常量"。
 
 > #### ⭐ `step 5a` 前置事实（2026-09-27 实测；**`src/` 零改动**）—— 拆 `MineTask` 的「编排 vs 原子」
 >
-> **① 子任务制造点只有 2 处**（`MineTask` 内部）：`:732 clearTask = new MineTask(bot, blocker, …)` ·
-> `:815 gainClearer = new MineTask(bot, cell, …)`。类外另有 **17 个调用方**（`RoadBuildTask` · `MineJob` ·
+> ⚠️ **本块里的行号一律会腐烂**（`step 5a-0` 已经让 `MineTask` 970 → 998 行）：**以方法名为准**，行号只当「今天的位置」。
+>
+> **① 子任务制造点只有 2 处**（`MineTask` 内部）：`startClear` 里的 `clearTask = new MineTask(bot, blocker, …)` ·
+> `tryGainHeight` 里的 `gainClearer = new MineTask(bot, cell, …)`。类外另有 **17 个调用方**（`RoadBuildTask` · `MineJob` ·
 > `LumberJob` · `FishboneJob` · `BotManager` · `RestoreScopeTask` · 夹具若干）。
 >
 > **② ⭐ 关键实测：子任务其实"已经是原子的"—— 但这是 profile 的副作用，不是结构事实。**

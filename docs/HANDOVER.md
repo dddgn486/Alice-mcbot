@@ -1723,6 +1723,29 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 - 基线读数见 `AI_DECISIONS.md` 的 `D-463` 表（`MineTask` 970 / 8 / 71 / 4 / 48 · `CollectDropsTask` 1251 / 无 / 18 / 6 / 48）。
 - ⚠️ 本刀**只碰 `tools/`**（`src/` 零改动）⇒ **不跑 `core`**（同 `D-425`）。
 
+### ✅ `step 5a-0` 已落地（2026-09-27，`D-464`）—— 相位转换唯一出口（禁令③ 的载体）
+
+- 实测 `plan §2.2` **禁令③ 今天不成立**：`phase=` 只在 `miner.tick()` 之后与失败报告里打印
+  ⇒ `CLEAR/GAIN_CLEAR/GAIN/CHAIN/COLLECTING/RESTORE` 不会以 `phase=` 出现在成功路径；
+  ⭐ 1080 份语料里除 `no_suitable_tool@EVALUATING` 外**没有任何 `Phase` 枚举名**。
+  根因 = 转换点散在 **14 处**直接赋值（3 处连专用日志都没有）。
+- 改动（**行为不变**）：新增 `enterPhase(Phase next)`（`from != to` 时一行读数）+ 14 处赋值全改走它；
+  `MineTask` 970 → 998 行。⭐ 收益 = 转换点从 14 个散点变成 **1 个可 grep 的形状**
+  ⇒ `step 5a` 搬编排时的安全带。
+- 新门禁 `tools/check-phase-transition-outlet.py`（`check-all` `pass=27→28`）：4 条断言 + 11 条红臂 + 1 条真树红臂。
+  解析函数**从 `D-463` 的门禁导入**（不开第二份口径）。
+- ⭐ 落地读数（`run/headless-logs/20260927-154237-core.log`）：`to=MINING 41 / EVALUATING 12 / CLEAR 11 /
+  COLLECTING 10 / GAIN 1` ⇒ **5/8 相位值首次有运行期证据**；`GAIN_CLEAR`/`CHAIN`/`RESTORE` **显式为 0**。
+- 回归：`core` PASS（242 s · `f0a3085a75ea`）· `check-all pass=28 warning=1 failed=0`。
+
+#### ⚠️ 同轮取证发现的三个观测项（**都没修**，见台账 `5` 行的 O1/O2/O3）
+- **O1 空判据**：`MineRegressionTask` 的 `supportOk` / `restoredOk` 两条断言**恒真** ——
+  13 条用例的 `expectSupport` **全是 false**（`plan()`/`execute()` 两个便捷构造都硬写 `false`）
+  ⇒ `/ledgerRestored=` `/scaffoldLeft=` 从不打印。**这是"假绿"，与 `D-460`/`D-461` 的读数口径错同族。**
+- **O2 `RESTORE` 零覆盖**（⭐ 优先）：`D-364` 收紧 `exec_floating` 后**再无临时放置** ⇒ `to=RESTORE` 0 次；
+  而它是**唯一有过服务端崩溃史**的通路（`D-175` 第二层防御）⇒ 主拆分前应补最小夹具。
+- **O3 `CHAIN` 零覆盖**：`oreexcavation` 不在客户端 22 个 jar 里 ⇒ 两条用例 `= SKIP（模组不在场）`。
+
 ⏭ **下一步 = `step 5`**（拆 `MineTask` / `CollectDropsTask`；它**还背着 `step 2b`** =
 `CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS` 清零）。⚠️ 这是**大**刀且**判据面最宽**（相位三条禁令 +
 原语三条判据 + 真机第六轮的 `collected=0` 读数），**开工前先按台账 `5` 行把验收读数定下来**。

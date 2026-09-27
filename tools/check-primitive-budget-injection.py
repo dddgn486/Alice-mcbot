@@ -41,7 +41,7 @@
   + 若干**内部机制档**（`CLUSTER_BUDGET_TICKS` 等 —— ⑧③ 的字面只点名"**默认**额度常量"，机制档是否在内待裁）。
   清零默认口要重设计那个 1250 行原语 ⇒ 排期在 **`step 2b`**（甲口径 = 并入 `step 5`；台账第 6 段 `2b` 有四个口径）。
   ⚠️ **不许**把本门禁的绿读成"⑧③ 已经全部合规"。
-- **不覆盖"方法体内为子任务派生额度"**（`MineTask.startClear:733` / `tryGainHeight:816` = 父原语给
+- **不覆盖"方法体内为子任务派生额度"**（`MineTask.startClear` / `tryGainHeight` 里那两个 `new MineTask(...)` = 父原语给
   **子** `MineTask` 算额度，形状 = `profile.nestedSubTask()` 的"子信封 ⊆ 父信封"）。
   它们**是**方法体、不是"调用方不说也能用"的默认入口 ⇒ 不在本规则里；
   但它与 `MiningProfile` 的"子信封"关系**不对称**（`MiningBudget` 没有"子额度 ⊆ 父额度"这一层），

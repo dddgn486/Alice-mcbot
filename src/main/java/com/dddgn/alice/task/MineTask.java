@@ -351,6 +351,33 @@ public final class MineTask implements Task {
         return status;
     }
 
+    /**
+     * ⭐ `step 5a-0`（`D-464`，2026-09-27）：**相位转换的唯一出口** —— `plan §2.2` 禁令③ 的载体。
+     *
+     * <p>为什么必须收成一处：相位转换原先散在 **14 处**直接赋值里，其中 **3 处**（清障收尾回
+     * {@code EVALUATING}、加高清障收尾回 {@code EVALUATING}、加高收尾回 {@code EVALUATING}）**没有任何日志**
+     * ⇒ 禁令③「每个相位值有**外部可验证**的进出条件」在真机上**读不出来**：`phase=` 这个字段只有在
+     * `miner.tick()` 之后（本类那条按 `(phase,status)` 去重的探针）与失败报告里才打印
+     * ⇒ `CLEAR` / `GAIN_CLEAR` / `GAIN` / `CHAIN` / `COLLECTING` / `RESTORE` **不会**以 `phase=`
+     * 的形式出现在成功路径的日志里（它们各自另有一条「专用」日志，例如 `clear_start`/`gain_start`，
+     * 但**口径不统一**，而 `GAIN_CLEAR` 的**退出**连专用日志都没有）。
+     *
+     * <p>收成一处之后：① 每次转换**恰好一行**读数（`from`/`to`/`target`），禁令③ 的「进出条件」有了统一出处；
+     * ② 过渡点变成**一个可 grep 的形状**（`phase` 的直接赋值只许出现在本方法内）
+     * ⇒ 将来搬编排时，判据可以断言「过渡点没有被顺手改掉」。
+     *
+     * <p>⚠️ 不让它刷屏（`D-177`）：相位转换是**事件驱动**的（一个目标总数 ≤ 十余次），不是每 tick；
+     * 每 tick 的状态行仍归 {@link #tickOnce()} 里那条去重探针。`from == to` 时不打印
+     * （`Phase.MINING` 有多处入口，重入同一相位不产生新信息）。
+     */
+    private void enterPhase(Phase next) {
+        if (phase != next) {
+            BotLog.info("[MineTask] phase target={} from={} to={}",
+                    target.toShortString(), phase, next);
+        }
+        this.phase = next;
+    }
+
     private Status tickOnce() {
         // S-3（P1-B，2026-09-12）：**不再自调维生**。`BotManager` 的调度循环每 tick 已经
         // `SurvivalSystem.tick(...)` 并把 `HazardState` 交给 `BotSession.tick(hazard)`；
@@ -472,7 +499,7 @@ public final class MineTask implements Task {
         BotLog.info("[MineTask] restore_start target={} pending={} scope={}（用完即拆）",
                 target.toShortString(), pending, scopeId);
         restoreTask = new RestoreScopeTask(botPlayer, scope, scopeId);
-        phase = Phase.RESTORE;
+        enterPhase(Phase.RESTORE);
         return Status.RUNNING;
     }
 
@@ -516,7 +543,7 @@ public final class MineTask implements Task {
                     target.toShortString());
             return enterRestoreOrDone();
         }
-        phase = Phase.COLLECTING;
+        enterPhase(Phase.COLLECTING);
         if (!(bot instanceof com.dddgn.alice.bot.BotPlayer botPlayer)) {
             throw new IllegalStateException("MineTask requires BotPlayer");
         }
@@ -539,12 +566,12 @@ public final class MineTask implements Task {
             useChain = false;
             miner = null;
             startMining();
-            phase = Phase.MINING;
+            enterPhase(Phase.MINING);
             return Status.RUNNING;
         }
         chainTicks = 0;
         lastChainMined = ChainMining.minedCount(bot);
-        phase = Phase.CHAIN;
+        enterPhase(Phase.CHAIN);
         BotLog.info("[ChainMine] prod_trigger target={} state={} mode={} settings={} mined0={}",
                 target.toShortString(), chainTargetState.getBlock(), MiningTuning.chainMode(),
                 ChainMining.settingsSummary(), lastChainMined);
@@ -600,7 +627,7 @@ public final class MineTask implements Task {
         useChain = false;
         miner = null;
         startMining();
-        phase = Phase.MINING;
+        enterPhase(Phase.MINING);
         return Status.RUNNING;
     }
 
@@ -628,7 +655,7 @@ public final class MineTask implements Task {
                 target.toShortString(), recoveryAttempts, MAX_RECOVERY_ATTEMPTS,
                 previousPlan.standingFoot().toShortString(), currentPlan.standingFoot().toShortString(),
                 currentPlan.mode(), currentPlan.path().status());
-        phase = Phase.MINING;
+        enterPhase(Phase.MINING);
         startMining();
         return true;
     }
@@ -733,7 +760,7 @@ public final class MineTask implements Task {
                 MiningBudget.forTarget(bot, bot.serverLevel(), blocker, false),
                 subProfile,
                 grant.with(com.dddgn.alice.write.WriteReason.LINE_OF_SIGHT));
-        phase = Phase.CLEAR;
+        enterPhase(Phase.CLEAR);
         return true;
     }
 
@@ -769,7 +796,7 @@ public final class MineTask implements Task {
         clearingBlocker = null;
         clearTask = null;
         standingPointEvaluated = false;
-        phase = Phase.EVALUATING;
+        enterPhase(Phase.EVALUATING);
         return Status.RUNNING;
     }
 
@@ -815,7 +842,7 @@ public final class MineTask implements Task {
                 gainClearer = new MineTask(bot, cell, scope,
                         MiningBudget.forTarget(bot, bot.serverLevel(), cell, false),
                         MiningProfile.STANDABLE_ONLY, clearGrant);
-                phase = Phase.GAIN_CLEAR;
+                enterPhase(Phase.GAIN_CLEAR);
                 return true;
             }
         }
@@ -827,7 +854,7 @@ public final class MineTask implements Task {
         BotLog.info("[MineTask] gain_start target={} from={} to={} steps={}/{} profile={}",
                 target.toShortString(), foot.toShortString(), goal.toShortString(),
                 gainSteps + 1, profile.maxGainSteps(), profile.describe());
-        phase = Phase.GAIN;
+        enterPhase(Phase.GAIN);
         return true;
     }
 
@@ -844,7 +871,7 @@ public final class MineTask implements Task {
         }
         gainClearer = null;
         standingPointEvaluated = false;
-        phase = Phase.EVALUATING;
+        enterPhase(Phase.EVALUATING);
         return Status.RUNNING;
     }
 
@@ -868,7 +895,7 @@ public final class MineTask implements Task {
                     gainSteps, profile.maxGainSteps());
         }
         standingPointEvaluated = false;
-        phase = Phase.EVALUATING;
+        enterPhase(Phase.EVALUATING);
         return Status.RUNNING;
     }
 
@@ -894,7 +921,7 @@ public final class MineTask implements Task {
 
     private Status evaluateStandingPoint() {
         if (standingPointEvaluated) {
-            phase = Phase.MINING;
+            enterPhase(Phase.MINING);
             startMining();
             return Status.RUNNING;
         }
@@ -948,7 +975,7 @@ public final class MineTask implements Task {
                 currentPlan.supportPlacementPos() == null ? "-" : currentPlan.supportPlacementPos().toShortString(),
                 result.score() == null ? "-"
                         : String.format(java.util.Locale.ROOT, "%.3f", result.score().getScore()));
-        phase = Phase.MINING;
+        enterPhase(Phase.MINING);
         startMining();
         return Status.RUNNING;
     }

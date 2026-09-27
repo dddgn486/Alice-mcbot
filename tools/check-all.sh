@@ -161,6 +161,14 @@ run_gate             "check-protection-install-point" python3 tools/check-protec
 # 断言 = 额度制造必须出现在**非构造器的方法体**里；自带 6 条合成红臂 + 人口下限（防抽空即假绿）。
 # ⚠️ 边界写在门禁里：**不含**"类内默认额度常量"（= step 2b / step 5），别把绿读成 ⑧③ 全合规。
 run_gate             "check-primitive-budget-injection" python3 tools/check-primitive-budget-injection.py
+# 相位转换唯一出口（`J-★` 第 6 段 step 5a-0 / `D-464`，2026-09-27）：
+# `plan §2.2` 禁令③（每个相位值有外部可验证的进出条件）今天**不成立** —— `phase=` 这个字段只在
+# `miner.tick()` 之后与失败报告里打印 ⇒ CLEAR/GAIN_CLEAR/GAIN/CHAIN/COLLECTING/RESTORE 不会以 `phase=`
+# 出现（语料 1080 份里除 `no_suitable_tool@EVALUATING` 之外，没有任何 Phase 枚举名出现过）。
+# 根因 = 转换点散在 14 处直接赋值（其中 3 处连专用日志都没有）⇒ 收成一个 `enterPhase(Phase)`。
+# 断言 = `MineTask` 里 `phase = Phase.X;` 的直接赋值 **0 处** + `enterPhase(` 调用点 ≥8 + 方法体真赋值
+# （防"掏空"假绿）。自带 11 条红臂。⚠️ 它同时是 step 5a 搬编排时的安全带（过渡点缺/多一个会红）。
+run_gate             "check-phase-transition-outlet" python3 tools/check-phase-transition-outlet.py
 # 原语读数（`J-★` 第 6 段 step 5 / `D-463`，2026-09-27）：拆 `MineTask` / `CollectDropsTask` 前，
 # **先把 4 个验收读数的定义钉死**（`Phase 值数 / 额度词数 / 构造器数 / 行数`）——
 # 实测发现台账原登记的那组数（`8/47/5/975` · `0/16/6/1250`）**11 种口径都复现不出来**。
