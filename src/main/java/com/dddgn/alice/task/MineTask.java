@@ -550,9 +550,15 @@ public final class MineTask implements Task {
         return Status.RUNNING;
     }
 
+    // ==================== ⏸ 连锁挖掘（模组兼容交付内容）—— 已冻结（2026-09-27，用户裁定）====================
     /**
      * 站到站位后触发模组连锁（D-077）。任何失败都**如实回落**到单格挖掘，
      * 不让"模组不在场/被占用"变成任务失败。
+     *
+     * <p>⏸ **冻结（2026-09-27，用户裁定）**：本段（`beginChain` / `tickChain` 与它们的字段、
+     * `[ChainMine] prod_*` 日志）属于**模组兼容交付内容**，是一个**提前太多**的实验性产物
+     * ⇒ 暂停新开发，且**将来重构本类时必须逐字保留**（不许顺手清理）；
+     * 要动**先解冻**。守门 = `tools/check-frozen-code.py`（登记在 `FREEZE_REGISTRY.chain_executor`）。
      */
     private Status beginChain() {
         chainTriggered = true;

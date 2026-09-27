@@ -180,6 +180,16 @@ run_gate             "check-phase-transition-outlet" python3 tools/check-phase-t
 # D2 额度消费点**恰好 1** 且必须是具名的那一处（`miningPlanner.plan(`）。
 # 自带 19 条红臂（每臂只打一条判据 ⇒ "红"必然红在那一条上）。
 run_gate             "check-task-orchestration-split" python3 tools/check-task-orchestration-split.py
+# 冻结项（用户 2026-09-27 裁定：「**冻结连锁挖掘执行器** —— 它属于模组兼容交付内容，
+# 只是一个提前太多的实验性产物」）：
+# ⚠️ 必须门禁化，因为那段代码**长得像死代码** —— `MiningTuning.chainMode` 默认 `OFF`、
+# 电池里 `[ChainMine]` 0 行、夹具里的连选用例已撤出（`D-470`）⇒ 下一个会话做 `5b`/`L1` 时
+# **最可能顺手把它清理掉**，而那不是清理，是销毁一份将来要交付的实验产物。
+# 断言（对登记表里每条冻结项）= ① 每个**声明形**符号仍命中（防"静默消失"；⚠️ 只写 `foo(` 会被
+# **调用点**满足 ⇒ 真树红臂 R1 实测过这个假绿）② 冻结的功能仍**默认关闭**（改成 AUTO ⇒ 红）
+# ③ 提到它的文件**恰好**是登记的那 5 个（多一个 = 冻结期间又长出去了）。
+# 自带 5 条合成红臂 + 3 条真树红臂。
+run_gate             "check-frozen-code" python3 tools/check-frozen-code.py
 # 原语读数（`J-★` 第 6 段 step 5 / `D-463`，2026-09-27）：拆 `MineTask` / `CollectDropsTask` 前，
 # **先把 4 个验收读数的定义钉死**（`Phase 值数 / 额度词数 / 构造器数 / 行数`）——
 # 实测发现台账原登记的那组数（`8/47/5/975` · `0/16/6/1250`）**11 种口径都复现不出来**。

@@ -49,6 +49,9 @@ public final class MiningTuning {
      *   <li>{@code AUTO}：模组在场且目标属**矿石/原木**时才连锁（玩家手动启用后的默认档）；</li>
      *   <li>{@code FORCE}：模组在场即连锁（仅测试/诊断用，绕过白名单）。</li>
      * </ul>
+     *
+     * <p>⏸ **冻结（2026-09-27，用户裁定）**：连锁执行器属于模组兼容交付内容 ⇒ 本枚举与其**默认值**
+     * 一并不动（默认 `OFF` 被 `tools/check-frozen-code.py` 钉住：把它改成 `AUTO`/`FORCE` ⇒ 构建红）。
      */
     public enum ChainMode {
         OFF, AUTO, FORCE
