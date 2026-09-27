@@ -2361,7 +2361,7 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 > ⚠️ **它是当前唯一主线**（鱼骨已冻结）。**0 / 0.5 / 1 三步 `src/` 零改动** ⇒ 不碰夹具与门禁。
 > 纪律：**一刀一 `D-编号` + 一刀一判据 + 一刀一提交**；任何 `src/` 改动**必须跑 `core`**。
 > **进度（2026-09-27）**：**0 ✅ · 0.5 ✅（+ 门禁）· 1 ✅ · 1.5 ✅（`D-458`）· 2a ✅（`D-459`）** · **2b ✅ 裁定 = 甲（并入 `step 5`，**落 `5b` 那半**，见 `D-466`）** · **3 ✅ 收口（3a `D-460` + 3b `D-461`）** · **4 ✅（`D-462`）** · **5 · 前置 ✅（读数门禁 `D-463`）· ⭐ `5a` 拆法 ✅ 九条全拍（`D-466`）· `5a-0` ✅（相位转换唯一出口 `D-464`）· `5a-1` ✅ 收口（PLAN `D-465` + **EXECUTE 密封夹具 `D-467`**，`O1`/`O2`/`O4` 同刀修复）· 主体未开工**。
-> ⏭ **`5a` 的开工顺序（`D-466` §八）**：**① ✅ 密封夹具（`D-467`）** → ② 落新门禁 `check-task-orchestration-split.py` → ③ 主体刀（`MineStep` + `MineTask` 改委托，一刀一提交）→ ④ 同刀改 `check-primitive-budget-injection.py` 的 docstring 与**红臂 #6** → ⑤ `core` 逐步 diff + `check-all`。
+> ⏭ **`5a` 的开工顺序（`D-466` §八）**：**① ✅ 密封夹具（`D-467`）** · **② 🔶 半程**（读数门禁的 `static final` 清单读数 ✅ `D-468`；⚠️ **另一半「新门禁 `check-task-orchestration-split.py`」必须与主体刀同刀落** —— 它的断言对象 `MineStep` 还不存在，提前落会**立刻红**、挂不上 `check-all`）→ ③ 主体刀（`MineStep` + `MineTask` 改委托，一刀一提交）→ ④ 同刀改 `check-primitive-budget-injection.py` 的 docstring 与**红臂 #6** → ⑤ `core` 逐步 diff + `check-all`。
 > ⚠️ **`1.5` 起开始动 `src/`** ⇒ 其后每一刀都必须跑 `core`。
 
 | 序 | 动作 | 成本 | 判据 / 备注 |
