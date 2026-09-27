@@ -292,6 +292,33 @@ public final class LumberJob implements Job {
     }
 
     /**
+     * ⭐ **被框架中止时的"说话权"**（`D-457` 第 3 件 / `J-★` 第 6 段 **step 1.5**）。
+     *
+     * <p>三条框架发起的中止（显式停止 / 维生打断 / 被顶替）**都不经过**本类的 `finish(...)` ⇒
+     * 不接这个钩子的话：`terminalReason` 是空串、`[Job] lumber SUMMARY` 一行都不打。
+     * 真机实测的签名正是这样（用户按停止 ⇒ `task_terminal_reason … terminalReason=` **空**；
+     * 不是框架没问，是**任务没被告知**）。
+     *
+     * <p>这里做**如实记账**：理由 = `aborted:<框架结果码>` + **当时的进度**（"到哪了"），
+     * 并走**同一个收尾出口** `finish(...)`（撤目标保护 + 停动作 + 打终态行 + `SUMMARY`）。
+     *
+     * <p>**幂等**：自己已经收过尾（`terminated`）直接返回 —— 否则"任务自己终态 + 框架再中止"会重复说话
+     * （`Task.onTerminated` 的契约要求）。
+     */
+    @Override
+    public void onTerminated(com.dddgn.alice.bot.TaskExecutionRecord.TerminalStatus status, String resultCode) {
+        if (terminated) {
+            return;
+        }
+        terminalReason = "aborted:" + resultCode + " " + progressSummary();
+        failure = failure.isBlank() ? resultCode : failure;
+        // 与 `tick()` 的终态闩锁等价：定住终态 + 逐出所有相位 ⇒ 之后即使被多 tick 一次也不会再进相位机。
+        terminalStatus = Task.Status.FAILED;
+        phase = Phase.DONE;
+        finish(Task.Status.FAILED);
+    }
+
+    /**
      * J-4：**Job 也要给决策层一份领域化的失败报告**（默认实现只给 `phase=unknown` + 空 details，
      * 于是 LLM 拿到 `lastTerminal` 也不知道"卡在哪一步、当时什么进度"）。
      */

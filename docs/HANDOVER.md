@@ -1605,3 +1605,20 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 
 ⏳ **下一步 = `step 1.5`（中止回调 / Job 的"说话权"）** —— 按排期纪律已登记（前置/判据/红臂/成本），可直接开工。
 ⚠️ **鱼骨不当定义来源**；**冻结状态不变**（三症状只登记为 `1.4i` / `D-442 §五` 的复活输入）。
+
+### ✅ `step 1.5` 已落地（2026-09-27，`D-458`）—— **Job 的「说话权」**（第一次动 `src/`）
+
+- **3 个生产文件**：① `task/Task.java` 加 `default onTerminated(TerminalStatus, String)`（契约写进 javadoc：**必须在
+  `recordTerminal` 之前**调 · 幂等 · 不许抛异常 · 只收尾上报）② `bot/BotManager.java` 加**唯一调用点**
+  `notifyTaskTerminated`（**异常吞掉并留痕**，绝不连累记账）+ **三处接线**（`immediateStop` /
+  `complete(...)` 仅当 `SURVIVAL_INTERRUPTED` / `replaceTaskIfRunning`）③ `job/lumber/LumberJob.java` 接钩子
+  （`aborted:<码> + 进度`，走**同一个收尾出口** `finish(...)`）。⭐ **鱼骨没动**（冻结 ⇒ 它接钩子 = 解冻后 3 行）。
+- **新电池步** `job_abort_hook`（EXTRA，`ContractsModule`）= **探针假人**被停（**不停电池自己**，`D-169` 事故形态）
+  ⇒ 18 判据全绿（含"记录里的 `terminalReason` **非空且 = 任务说的那句话**"= 顺序证明）；
+  ⭐ **红臂**（注释掉回调调用）⇒ `FAIL` **恰 4 条红** + 框架行复现**真机签名** `terminalReason=` **空**。
+- 证据：`run/headless-logs/20260927-140330-single_job_abort_hook.log`（绿 · `checks=18 hookCalls=1 failures=[]`）·
+  `…20260927-140411-…`（红）。回归：`core` PASS · `check-all` PASS。
+- ⚠️ 红臂顺带抓出**一条空转判据**（两个空串 `equals` 恒真）⇒ 已收紧为「非空 且 相等」；另修了首版
+  "直接 `advance(DONE)` ⇒ **SUMMARY 一行不打**"（判决绿但判据不可读）。
+
+⏭ **下一步 = `step 2`（额度归 `job/` ⇒ `MineTask` 自己瘦）**；可与 `step 4`（`write/` 拆包，只动 import）并行。

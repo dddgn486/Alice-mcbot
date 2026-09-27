@@ -1351,6 +1351,34 @@ public final class BotManager {
         return session.taskKind;
     }
 
+    /**
+     * ⭐ **中止回调的唯一调用点**（`D-457` 第 3 件 / `J-★` 第 6 段 **step 1.5**）：见
+     * {@link Task#onTerminated} 的契约。三条框架发起的中止路径都从这里过。
+     *
+     * <p>⚠️ **两条硬性要求**（都在夹具里被断言）：
+     * <ol>
+     *   <li>**必须在 `recordTerminal(...)` 之前调** —— 它当场读 `task.terminalReason()`（`BotManager:2755`），
+     *       所以"记完再问"等于白问（真机签名：`task_terminal_reason … terminalReason=` 空）；</li>
+     *   <li>**异常必须吞掉并留痕** —— 回调抛异常时丢的只是"任务自己的话"，
+     *       **绝不能连累终态记账/清任务**（那会把一个可诊断的中止变成静默失踪）。</li>
+     * </ol>
+     *
+     * <p>**为什么是 public**：夹具要和生产**同一出处**（`D-425`/陷阱 #6：判据提成共用函数，夹具不许另写一份）；
+     * 见 `JobAbortHookCheckTask`。
+     */
+    public static void notifyTaskTerminated(Task task, TaskExecutionRecord.TerminalStatus status,
+                                            String resultCode) {
+        if (task == null) {
+            return;
+        }
+        try {
+            task.onTerminated(status, resultCode);
+        } catch (RuntimeException e) {
+            BotLog.warn("[alice] 任务的中止回调抛异常（已吞掉，终态记账照旧）：task={} status={} code={} err={}",
+                    task.taskName(), status, resultCode, e);
+        }
+    }
+
 
     /**
      * **实体 tick 看门狗（D-176）**：只在"该 tick 没 tick 过"时告警，用于抓"物理冻结"的第一现场。
@@ -2051,6 +2079,9 @@ public final class BotManager {
                 return false;
             }
             if (task != null) {
+                // ⭐ `D-457`/step 1.5：被顶替也是一种"框架发起的中止" ⇒ 同样先给一次说话机会
+                notifyTaskTerminated(task, TaskExecutionRecord.TerminalStatus.CANCELLED_REPLACED,
+                        "cancelled:replaced");
                 recordTerminal(taskKind, taskTargetDescription, taskStartTick,
                         TaskExecutionRecord.TerminalStatus.CANCELLED_REPLACED,
                         "cancelled:replaced", "idle_after_cleanup");
@@ -2200,6 +2231,10 @@ public final class BotManager {
         /** 立即停止（原 `stopTask` 主体）；`forced` = 在不安全时刻被强制停。 */
         String immediateStop(String reason, boolean forced) {
             String kind = taskKind;
+            // ⭐ `D-457`/step 1.5：**先给任务一次说话的机会，再记账** —— `recordTerminal` 当场读
+            // `terminalReason()`（`:2755`）⇒ 顺序反了就还是空串（真机实测）。
+            notifyTaskTerminated(task, TaskExecutionRecord.TerminalStatus.CANCELLED_BY_USER,
+                    "cancelled:" + (reason == null ? "user" : reason));
             recordTerminal(taskKind, taskTargetDescription, taskStartTick,
                     TaskExecutionRecord.TerminalStatus.CANCELLED_BY_USER,
                     "cancelled:" + (reason == null ? "user" : reason), "idle_after_cleanup");
@@ -2654,6 +2689,11 @@ public final class BotManager {
             boolean wasReturnTask = task instanceof com.dddgn.alice.task.SafeReturnTask;
             if (mineTask != null) {
                 lastMineStartPos = mineTask.mineStartPos();
+            }
+            // ⭐ `D-457`/step 1.5：**只有框架发起的中止**才回调 —— 维生打断这条路径**不经过**任务自己的终态出口；
+            // 而 `COMPLETED`/`FAILED` 是任务自己走到终态的（它已经说过话了）⇒ 再回调就是**重复说话**（违幂等契约）。
+            if (terminalStatus == TaskExecutionRecord.TerminalStatus.SURVIVAL_INTERRUPTED) {
+                notifyTaskTerminated(task, terminalStatus, resultCode);
             }
             recordTerminal(taskKind, taskTargetDescription, taskStartTick, terminalStatus,
                     resultCode, "idle_after_cleanup",

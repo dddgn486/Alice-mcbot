@@ -268,6 +268,10 @@ public final class RegressionBatteryTask implements Task {
             // 三几何（FRESH/DUG/HALF）+ **旧谓词负对照**（防"永远绿"）；红臂 = 判据退回 `bodyPassable`。
             // EXTRA：自建并还原一个实心石盒（3 单元 × 约 300 格），纯谓词判定（毫秒级）。
             Map.entry("corridor_skip_predicate", Profile.EXTRA),
+            // ⭐ `D-457`/step 1.5：**中止回调（Job 的「说话权」）** —— 探针假人被停 ⇒
+            // 钩子恰好一次 + 框架记录里的 terminalReason = 任务说的话（顺序证明）+ 事件环 STOP；
+            // 另一臂：钩子抛异常也不连累终态记账。自建并还原 3×3 平台（隔离场地）。
+            Map.entry("job_abort_hook", Profile.EXTRA),
             // ⭐⭐ `1.4x`（2026-09-26）：**重力方块（沙砾/沙）的挖掘期暂停** —— 目标格里有在飞的
             // `FallingBlockEntity` ⇒ 本 tick 不挖（Baritone `Movement.java:157-160`）。病灶 = 挖通一格后
             // 沙砾 2 tick 才落完 ⇒ 落体把刚挖的格填回、回程路消失。

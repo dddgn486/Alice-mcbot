@@ -1,5 +1,6 @@
 package com.dddgn.alice.task;
 
+import com.dddgn.alice.bot.TaskExecutionRecord;
 import com.dddgn.alice.bot.TaskFailureReport;
 
 import java.util.List;
@@ -64,6 +65,39 @@ public interface Task {
      */
     default boolean safeToCancel() {
         return true;
+    }
+
+    /**
+     * ⭐ **中止回调 —— 框架发起的中止，给任务一次"说话"的机会**（`D-457` 第 3 件 / `J-★` 第 6 段 **step 1.5**）。
+     *
+     * <p>**为什么需要**：{@link Status} 只有 `RUNNING/DONE/FAILED` —— **"我被人打断了"不在任务的词汇表里**。
+     * 框架侧的中止有三条路径，它们**都不经过任务自己的终态出口**：
+     * <ul>
+     *   <li>显式停止（`BotManager.immediateStop`：玩家 `/alice stop-task`、`region stop`、LLM `stop_current`、延后到安全点）；</li>
+     *   <li>维生打断（`complete(…, SURVIVAL_INTERRUPTED)`）；</li>
+     *   <li>被新任务顶替（`replaceTaskIfRunning` ⇒ `CANCELLED_REPLACED`）。</li>
+     * </ul>
+     * ⇒ 任务来不及写 {@link #terminalReason()}、也来不及打自己的领域摘要。**真机实测**（2026-09-27）：
+     * 用户按停止 ⇒ `[Fishbone] SUMMARY` **0 行**，且框架行 `task_terminal_reason … terminalReason=` **是空的**
+     * —— 不是框架没问（`recordTerminal` 当场读 `terminalReason()`），而是**任务没被告知、无话可说**。
+     *
+     * <p>⭐ **调用时机是契约的一部分**：框架必须在 `recordTerminal(...)` **之前**调用本方法。
+     * 返回之后框架照旧记账/清任务 —— 本回调**不改"谁有权停"、不改安全点延后**（K-3 那套一行不动）。
+     *
+     * <p>**实现方要求**：① **幂等**（被打断与自己的终态路径重叠时只说话一次）；② **不许抛异常**
+     * （框架已 try/catch 兜底，但抛了就等于放弃这次说话机会）；③ **只做收尾与上报** ——
+     * 不许改世界、不许启新任务、不许再 tick 子任务。
+     *
+     * <p>**明确不做**（`D-457 §2.1` N1/N2/N3，用户已拍）：不给"延后权"、不做 Job 级通用挂起协议、
+     * 不改停止路径的三处记账（不叫决策层 / 不走安全区兜底 / 不记循环账）。
+     *
+     * <p>先例 = `TransferTask.survivalInterrupted(String)`（`TransferTask:477`）—— 原来**只有传输任务**接了线
+     * （`BotManager` 三处 `instanceof TransferTask` 特判），本方法把它**从特例升成契约**。
+     *
+     * @param status     框架记账用的终态档（`CANCELLED_BY_USER` / `SURVIVAL_INTERRUPTED` / `CANCELLED_REPLACED`）
+     * @param resultCode 与框架记录同字面的结果码（如 `cancelled:command` / `failed:survival_drowning`）
+     */
+    default void onTerminated(TaskExecutionRecord.TerminalStatus status, String resultCode) {
     }
 
     /**

@@ -62,7 +62,14 @@ public final class ContractsModule implements CheckModule {
                         () -> to(bot, LumberCourseAnchor.START_FOOT),
                         () -> new DecisionContractCheckTask(bot, observer), 200),
                 CheckStep.of("decision_trace", CheckProfile.EXTRA, List.of(), null,
-                        () -> new DecisionTraceCheckTask(bot, observer), 200));
+                        () -> new DecisionTraceCheckTask(bot, observer), 200),
+                // ⭐ `D-457` 第 3 件 / step 1.5：**中止回调（Job 的「说话权」）** ——
+                // 框架发起的中止必须在 `recordTerminal` **之前**回调任务，否则 `terminalReason` 是空串、
+                // 任务自己的领域摘要一行不打（真机签名：用户按停止 ⇒ `[Fishbone] SUMMARY` 0 行）。
+                // 两臂：正常中止（钩子一次 + 记录里理由=任务说的话 + 事件环 STOP + 收尾跑了）·
+                // 回调抛异常（**记账照旧**）。用**探针假人**停（不能停电池自己，`D-169`）。
+                CheckStep.of("job_abort_hook", CheckProfile.EXTRA, List.of(), null,
+                        () -> new com.dddgn.alice.task.JobAbortHookCheckTask(bot, observer), 200));
     }
 
     /** 传送到统一起点（与电池 `teleportBot` 逐字段一致 ✓；顺带起"先热区块再 fill"的作用 ✓）。 */

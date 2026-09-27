@@ -144,6 +144,9 @@ SUMMARY 会打印 `PROFILE=core baseline=… main=… extra_skipped=…`：
 
 ### EXTRA —— 理由叙述（逐条清单见 `docs/CAPABILITY_LIST.md` §4）
 `lumber_failure`、`region_maintain`（区域常驻 Job，耗时）、`decision_contract`、`decision_trace`、
+`job_abort_hook`（`D-458`/step 1.5：**中止回调「说话权」** —— 探针假人被停 ⇒ 钩子**恰好一次** + 框架记录里的
+`terminalReason` **非空且 = 任务说的那句话**（证明「先说话、后记账」的顺序）+ 事件环 `STOP` + 收尾痕迹；
+另一臂：**钩子抛异常也不连累终态记账**。⚠️ 用探针假人停，**不停电池自己**（`D-169`），自建并还原 3×3 平台）、
 `permission_gate`、`pickup_gate`、`collect_job`、`recipes_dump`、`event_thresholds`、
 `bot_pair_no_recurse`（2026-09-18，D-320：两假人相邻不爆栈）、
 `far_path_bench`（**测量基准**，D-328：距离→节点/毫秒曲线 + 加载边界 + 执行器行走；

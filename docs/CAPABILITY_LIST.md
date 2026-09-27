@@ -15,7 +15,7 @@
 | 作业种类（它**能接什么活**） | 5 | §2 |
 | 移动原语（它**能怎么动**） | 10（其中改世界 5） | §3 |
 | 自检模块 | 21 | §4.1 |
-| 自检步（能力清单用它证明自己） | 103 = BASELINE 15 + MAIN 28 + EXTRA 60（**CORE 实跑 43**） | §4.2 |
+| 自检步（能力清单用它证明自己） | 104 = BASELINE 15 + MAIN 28 + EXTRA 61（**CORE 实跑 43**） | §4.2 |
 | 机器类型（上游已登记） | 59 行 | §5 |
 | 玩家能调的开关 | 3 | §6 |
 | 底线（**任何玩家入口都不许出现**） | 3 | §7 |
@@ -92,12 +92,12 @@
 | `pickup` | 掉落物（归属闸门 / 收集 Job 最小闭环） | `PASS` | 7 | ✅ |
 | `telemetry` | 观测与转储（配方转储 / 事件阈值报到且只报一次） | `PASS` | 2 | ✅ |
 | `write` | 写入与可回收性（可回收性真的被评估 / 写入策略表 + 越权负例） | `PASS` | 2 | ✅ |
-| `contracts` | 决策契约（说话通道只出不进 / 决策层契约 / trace 跨重启） | `PASS` | 3 | ✅ |
+| `contracts` | 决策契约（说话通道只出不进 / 决策层契约 / trace 跨重启） | `PASS` | 4 | ✅ |
 | `protection` | 保护区（区块级认领 + 全高度 + 迁移 + 黑名单回归） | `PASS` | 3 | ✅ |
 | `ownership` | 假人归属（创建者登记 / 认领单向 / 存档往返 / 老存档不猜） | `PASS` | 1 | ✅ |
 | `break_refused` | 破坏被拒（世界事实判定 / 冒险模式 / FTB 认领 / 不许谎报成功） | `PASS` | 1 | ✅ |
 
-### §4.2 电池步（103 步；`#` = CORE 运行序，`—` = 只在 FULL 跑）
+### §4.2 电池步（104 步；`#` = CORE 运行序，`—` = 只在 FULL 跑）
 
 | # | 步名 | 档位 | 来源 |
 |---|---|---|---|
@@ -156,6 +156,7 @@
 | 24 | `speech_channel` | MAIN | contracts |
 | 25 | `decision_contract` | MAIN | contracts |
 | — | `decision_trace` | EXTRA | contracts |
+| — | `job_abort_hook` | EXTRA | contracts |
 | 26 | `craft_check` | MAIN | craft |
 | — | `craft_action` | EXTRA | craft |
 | 27 | `craft_table` | MAIN | craft |

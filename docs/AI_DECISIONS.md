@@ -20874,3 +20874,46 @@ Job = ① 有 Kind（进 JobRequest.Kind）
   **⑦** = B **本窗口只搬包不改名**（`reach/StandingPointSelector` + **`LineOfSightChecker` 一起搬**，否则造新循环；改名 `ReachStanding` = 窗口后独立一刀）· **⑧** = A **原语判据全条采纳**（单一成功判据 + 单一失败归因 + 不自带额度，各给可执行形态；收敛读数 `Phase/额度词/构造器/行数`，两个胖原语 = `MineTask 8/47/5/975` · `CollectDropsTask 0/16/6/1250`）。
   ⚠️ **勘测侧的 `MineTask`「3 相位 / 40 额度 / 4 构造器」三处与实测不符**（`:43` 是 **8 个相位值**；**5 个构造器**；额度词是口径差异 47 vs 40）⇒ **基线按重测值走**。
   ⭐ **用户补注**：**`task/` 不是"动作原语"的最终译名**，将来还有**整体改名**（不属本窗口）⇒ 判据/文档**不许把包名钉死**。
+
+---
+
+### D-458：**`step 1.5` 落地 —— 中止回调（Job 的「说话权」）**（2026-09-27，`D-457` 第 3 件）
+
+**裁定链**：`D-457` 的八件契约第 3 件 + 用户 2026-09-27 三条子问题**全选 A**（plan §5.1）⇒ 本条目是**第一次动 `src/`** 的一刀。
+
+#### 做了什么（3 个生产文件 + 1 个新夹具）
+
+1. **`task/Task.java`** 新增 `default void onTerminated(TaskExecutionRecord.TerminalStatus, String resultCode)` —— 契约直接写在 javadoc 里：
+   ① ⭐ **必须在 `recordTerminal(...)` 之前调用**（它当场读 `terminalReason()`，`BotManager:2755`）；② 实现方**幂等**；
+   ③ **不许抛异常**；④ **只做收尾与上报**（不改世界、不启新任务、不再 tick 子任务）。
+   ⚠️ **明确不做**（`D-457 §2.1` N1–N3）：不给延后权 · 不做 Job 级通用挂起协议 · 不改停止路径三处记账。
+2. **`bot/BotManager.java`**：新增**唯一调用点** `public static notifyTaskTerminated(...)`
+   （**异常吞掉并留痕** —— 抛异常丢的只能是"任务自己的话"，**绝不连累终态记账**）+ 三处接线：
+   `immediateStop`（`CANCELLED_BY_USER`）· `complete(...)` 里**仅当** `SURVIVAL_INTERRUPTED`
+   （`COMPLETED`/`FAILED` 是任务自己走到终态的 ⇒ 再回调就是**重复说话**，违幂等契约）· `replaceTaskIfRunning`（`CANCELLED_REPLACED`）。
+   ⭐ `public` 的理由：夹具要和生产**同一出处**（陷阱 #6：判据提成共用函数，夹具不许另写一份）。
+3. **`job/lumber/LumberJob.java`** 接钩子（决策点 ① 指定的"干净样本"）：`terminalReason = "aborted:" + resultCode + " " + 进度`、
+   `phase = DONE`、`terminalStatus = FAILED`，并走**同一个收尾出口** `finish(...)`（撤目标保护 + 停动作 + `[Job] terminal` + `SUMMARY`）。
+   ⭐ **鱼骨没动**（冻结）；它接钩子 = 解冻后 3 行，已记台账。
+   ⭐ **先例升格**：`TransferTask.survivalInterrupted`（原来只有传输任务接线）⇒ 现在**所有任务**都能说话。
+
+#### 判据（新电池步 `job_abort_hook`，EXTRA，挂 `ContractsModule`）
+
+- ⚠️ **形态由 skill 的 `D-169` 事故决定**：夹具请求"停止"停的是**顶层任务**，而夹具自己就是电池的步 ⇒ 照
+  `SurvivalStopInHazardCheckTask` 的先例用**探针假人**（停**它**的任务、读**它**的记录），**电池本体一步不动**。
+- 前提（§6.9.1 逐条自断言）：几何（先 `getChunkAt` 强制加载再建 3×3 平台 —— 否则 `setBlock` 静默 0 改动，陷阱 #4）+
+  探针有任务且就是夹具装的那个 + **请求发生在已落地时**（空中的请求会走 K-3 的延后档，那是另一个夹具的用例）。
+- ⭐ 绿：`run/headless-logs/20260927-140330-single_job_abort_hook.log` ⇒
+  `[AbortHook] SUMMARY checks=18 hookCalls=1 grounded=true verdict=PASS failures=[]`；
+  日志逐字 `task_terminal_reason kind=ProbeTask … terminalReason=aborted_at:CANCELLED_BY_USER:cancelled:abort_hook_fixture`
+  —— **真机那个空字段现在有值了**。
+- ⭐ **红臂（反向对照）**：把 `immediateStop` 的回调调用注释掉 ⇒ `verdict=FAIL exit=1`，**恰 4 条红**：
+  ① 钩子恰好一次（实际 0）· ② 记录理由非空（实际「」）· ④ 收尾没跑 · 臂 B 钩子被调用过（实际 0）；
+  框架行同时复现**真机签名** `task_terminal_reason … terminalReason=` **空**（`…/20260927-140411-…`）。
+- ⭐ **红臂顺带抓出一条空转判据**：`said.equals(rec.terminalReason())` 在**两个空串**时恒真（红臂里它照样绿）
+  ⇒ 已收紧为「**非空** 且 相等」。这条是"判据自己必须先被反向对照"的又一次现场（陷阱 #6 同族）。
+- ⚠️ **首版还踩了一个**：结尾直接 `advance(Phase.DONE)` 而没走 `finish(...)` ⇒ 判决 PASS 但 **`SUMMARY` 一行不打**
+  （`checks=` 与失败明细全看不见 = 判据不可读）⇒ 已改成 `finish("done")`。
+
+**回归**：`single:job_abort_hook` PASS · `core` PASS · `check-all` PASS（见提交）。
+**未做/边界**：鱼骨接钩子（冻结）· `DecisionTrace.terminal` 的 2 处归并（step 5）· 延后权（N1 挂账）· Job 级挂起（N2）。
