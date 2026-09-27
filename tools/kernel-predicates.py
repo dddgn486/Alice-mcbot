@@ -27,9 +27,10 @@ SEARCH_BUDGET_CEILING_MILLIS = 60
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CORE = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing" / "core"
 
-# `A1′`：全仓终态闩锁站点的**人口下限**（= `task/MineTask.java` + `D-410` 统一的 6 处）。
+# `A1′`：全仓终态闩锁站点的**人口下限**（= `task/MineTask.java` + `D-410` 统一的 6 处
+# + `step 5a` 切出来的 `task/mining/MineStep.java` 那一个 = 8）。
 # 低于它 ⇒ `rule_terminal_latch_replays_status` 会红：判据不许在"没有站点"时静默通过。
-LATCH_SITES_MIN = 7
+LATCH_SITES_MIN = 8
 
 # ⭐ P4（2026-09-24）：**tick 负载预算的人口规则** —— 全仓所有"毫秒预算常量"必须要么 ≤ `SEARCH_BUDGET_CEILING_MILLIS`
 # （= 一个 tick 的量级），要么在这里**具名登记理由与复核触发**。出处：`docs/OPEN_ITEMS_LEDGER.md §11 P4`
@@ -109,9 +110,14 @@ def rule_terminal_latch_replays_status():
     ⇒ **失败被记成通过**（`D-408 §二` 的 `CleanupWrappedTask` 是同一族）。全仓曾**同时存在 6 处**。
 
     两条断言（**带人口**，防空集真 —— `Z4` 的教训）：
-      ① 任何 `src/` 文件都不得出现"终态守卫直接返回硬编码 DONE/FAILED"的形状；
-      ② 声明了 `Task.Status terminalStatus` 字段的文件，必须同时有回放行；
+      ① 任何 `src/` 文件都不得出现"终态守卫直接返回硬编码终态"的形状；
+      ② 声明了闩锁字段的文件，必须同时有回放行（**两种形状各自成对**，见下面两组正则）；
       ③ 闩锁站点数不得低于 `LATCH_SITES_MIN`（否则判据在"没有站点"时静默通过）。
+
+    ⭐ `step 5a`（`D-469`，2026-09-27）：新原语 `task/mining/MineStep.java` 带**第二种形状**的闩锁 ——
+    它回放的是"单格结论" `private Conclusion terminal;`（不是 `Task.Status`）⇒ 只认 `terminalStatus`
+    的正则**看不见它**。不显式登记的话，"原语把 FAILED 回放成 DONE/成功"在构建里就是**隐形**的，
+    而那正是本条规则存在的理由本身（`D-178`：失败被下一 tick 记成通过）。
 
     ⚠️ **两处必须避开的读错（本规则第一版各踩一次，2026-09-23）**：
       · 注释里**提到旧写法**不算违规 ⇒ 必须连**块注释/javadoc**一起去掉（共享的 `code_only` 只去 `//`）；
@@ -157,7 +163,15 @@ def rule_terminal_latch_replays_status():
     # ⇒ 第一版只认单行 ⇒ 7 个站点全被误报（对着真代码验才发现）。
     replay = re.compile(r"if\s*\(\s*terminalStatus\s*!=\s*null\s*\)\s*\{?\s*"
                         r"return\s+terminalStatus\s*;")
+    # ⭐ 第二种形状（`step 5a` / `D-469`）：新原语 `MineStep` 回放的是**单格结论**
+    # （`private Conclusion terminal;`）而不是 `Task.Status` ⇒ 上面那两条正则**扫不到它**。
+    # 硬编码形态同理：`if (terminal != null) return Conclusion.success();`（把失败回放成成功）。
+    step_field = re.compile(r"private\s+Conclusion\s+terminal\s*;")
+    step_replay = re.compile(r"if\s*\(\s*terminal\s*!=\s*null\s*\)\s*\{?\s*return\s+terminal\s*;")
+    step_hardcoded = re.compile(r"if\s*\(\s*terminal\s*!=\s*null\s*\)\s*\{?\s*"
+                                r"return\s+Conclusion\.")
     latch_sites = []
+    step_sites = []
     for path in sorted(alice.rglob("*.java")):
         code = strip_comments(path.read_text(encoding="utf-8", errors="replace"))
         for m in hardcoded.finditer(code):
@@ -172,10 +186,23 @@ def rule_terminal_latch_replays_status():
                 problems.append(f"{path.name} 声明了 `Task.Status terminalStatus` 字段，"
                                 f"但缺 `if (terminalStatus != null) return terminalStatus;` 回放行"
                                 f"⇒ 闩锁没接上（终态会被下一 tick 覆盖）")
-    if len(latch_sites) < LATCH_SITES_MIN:
-        problems.append(f"终态闩锁站点只剩 {len(latch_sites)} 个（< {LATCH_SITES_MIN}）"
-                        f"⇒ 本判据退化成空集真：真源={sorted(latch_sites)}"
-                        f"（已知站点 = `MineTask` + `D-410` 统一的 6 处 = 7）")
+        for m in step_hardcoded.finditer(code):
+            line_no = code[:m.start()].count("\n") + 1
+            problems.append(f"{path.name}:{line_no} 单格结论闩锁**直接返回硬编码结论**"
+                            f"（`{m.group(0).strip()}`）⇒ 终态是 FAILED 时下一 tick 会改口成成功"
+                            f"（违反 D-178；`D-469` 把新原语纳进本规则）")
+        if step_field.search(code):
+            if step_replay.search(code):
+                step_sites.append(path.name)
+            else:
+                problems.append(f"{path.name} 声明了 `Conclusion terminal` 字段，"
+                                f"但缺 `if (terminal != null) return terminal;` 回放行"
+                                f"⇒ 单格结论闩锁没接上（终态会被下一 tick 覆盖）")
+    total_sites = len(latch_sites) + len(step_sites)
+    if total_sites < LATCH_SITES_MIN:
+        problems.append(f"终态闩锁站点只剩 {total_sites} 个（< {LATCH_SITES_MIN}）"
+                        f"⇒ 本判据退化成空集真：真源={sorted(latch_sites + step_sites)}"
+                        f"（已知站点 = `MineTask` + `D-410` 统一的 6 处 + `MineStep` = 8）")
     return problems
 
 

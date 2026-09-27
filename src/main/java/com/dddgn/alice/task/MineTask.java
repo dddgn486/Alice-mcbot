@@ -8,9 +8,9 @@ import com.dddgn.alice.bot.RecoveryStage;
 import com.dddgn.alice.bot.TaskFailureReport;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
+import com.dddgn.alice.task.mining.MineStep;
 import com.dddgn.alice.task.mining.MiningBudget;
 import com.dddgn.alice.reach.MiningPlan;
-import com.dddgn.alice.task.mining.MiningPlanner;
 import com.dddgn.alice.task.mining.MiningProfile;
 import com.dddgn.alice.reach.MiningTuning;
 import net.minecraft.core.BlockPos;
@@ -29,8 +29,13 @@ import java.util.List;
  * <ul>
  *   <li>规划层 `MiningPlanner`：两模式站位选择 + 成本估算 + top-K 精算 + 预算（A→B→兜底）；</li>
  *   <li>动作层 {@link MineBlockRunner}：走到站位 → 放支撑块 → 破坏目标；</li>
- *   <li>任务层（本类）：编排"评估/规划 → 挖掘 → 收集"，失败重试（≤2）与如实上报。</li>
+ *   <li>⭐ **原语层 {@link MineStep}**（`step 5a`，`D-469`）：**一格的一次作业** —— 计划段 + 走位/破坏 +
+ *       **单格结论**（单一成功判据 + 单一失败归因 + 不自带额度）；</li>
+ *   <li>任务层（本类 = **编排器**）：编排"评估/规划 → 挖掘 → 收集"，失败重试（≤2）与如实上报。</li>
  * </ul>
+ *
+ * <p>⚠️ `step 5a` 之后本类**不再亲自执行**任何一格；两个**造子任务**的点（{@link #tryClear} /
+ * {@link #tryGainHeight}）**原地不动**（子任务是小编排，不是单格原语 —— `D-466` §四.2）。
  *
  * <p>不再有独立清障：挡路方块由规划器的模式 B（`BREAK_AND_ENTER` 等）在到达过程中处理。
  * 深埋目标是否可挖由 `MiningBudget` 决定（超预算 → `found_but_unminable`）。
@@ -52,7 +57,6 @@ public final class MineTask implements Task {
     private final BlockPos target;
     private final ScopeBuffer scope;
     private final MiningBudget budget;
-    private final MiningPlanner miningPlanner = new MiningPlanner();
     /** true = 只允许"现成可站站位"（伐木用；禁止挖隧道/破坏进入，见 MiningPlanner#plan）。 */
     /** **能力信封**（D-111）：允许什么手段 + 各自预算；由 L3 构造、本层只读。 */
     private final MiningProfile profile;
@@ -98,8 +102,9 @@ public final class MineTask implements Task {
      */
     private final java.util.function.Predicate<ItemStack> activePickup;
 
-    private MineBlockRunner miner;
-    private MiningPlan currentPlan;
+    /** ⭐ `step 5a`（`D-469`）：**单格挖掘原语** —— 一格的一次作业（它自带终态闩锁）。惰性创建，
+     * 见 {@link #step()}；判"计划还在不在"要用 {@link #currentPlanRetained()}（计划失败时它也非 null）。 */
+    private MineStep step;
     private Phase phase = Phase.EVALUATING;
     private CollectDropsTask collector;
     /** 工具前置判定结果（D-119）：非 null 时本任务一 tick 内如实失败，不再动世界。 */
@@ -120,11 +125,6 @@ public final class MineTask implements Task {
     private int executionAttempts;
     private RecoveryStage recoveryStage = RecoveryStage.NONE;
     private final List<RecoveryStage> recoveryEvents = new ArrayList<>();
-    private MineBlockRunner.Status lastProbeStatus;
-    /** D-177：配合 `lastProbeStatus` 做 (phase,status) 去重，避免 MOVING↔MINING 跳变刷屏。 */
-    private Phase lastProbePhase;
-    private BlockPos optimalStandingPoint;
-    private boolean standingPointEvaluated;
 
     // ---- 连锁挖掘（D-077）----
     /** 本任务是否走模组连锁（规划期一次性判定，回落时置 false）。 */
@@ -280,8 +280,9 @@ public final class MineTask implements Task {
         return TaskTarget.block(target);
     }
 
+    /** 委托 {@link MineStep}（本类是编排器，执行器的状态住在原语里）。 */
     public BlockPos mineStartPos() {
-        return miner != null ? miner.mineStartPos() : null;
+        return step != null ? step.mineStartPos() : null;
     }
 
     @Override
@@ -316,12 +317,14 @@ public final class MineTask implements Task {
         return Collections.unmodifiableList(new ArrayList<>(recoveryEvents));
     }
 
+    /** 本任务**当前还持有一份可用的计划**（诊断口径；计划住在 {@link MineStep} 里）。 */
     public boolean currentPlanRetained() {
-        return currentPlan != null;
+        return step != null && step.currentPlan() != null;
     }
 
+    /** 委托 {@link MineStep}（`BotManager` 的进度指纹消费它）。 */
     public MiningPlan currentPlan() {
-        return currentPlan;
+        return step == null ? null : step.currentPlan();
     }
 
     /** 收集阶段实际进背包的物品数（未进入收集阶段时为 0；D-076 起为**物品个数**口径）。 */
@@ -356,8 +359,8 @@ public final class MineTask implements Task {
      *
      * <p>为什么必须收成一处：相位转换原先散在 **14 处**直接赋值里，其中 **3 处**（清障收尾回
      * {@code EVALUATING}、加高清障收尾回 {@code EVALUATING}、加高收尾回 {@code EVALUATING}）**没有任何日志**
-     * ⇒ 禁令③「每个相位值有**外部可验证**的进出条件」在真机上**读不出来**：`phase=` 这个字段只有在
-     * `miner.tick()` 之后（本类那条按 `(phase,status)` 去重的探针）与失败报告里才打印
+     * ⇒ 禁令③「每个相位值有**外部可验证**的进出条件」在真机上**读不出来**：`phase=` 当年只有那条去重探针
+     * 在印（`step 5a` 后它搬进 {@link MineStep} 且不再印相位 ⇒ 本方法这行成了**唯一**出处）
      * ⇒ `CLEAR` / `GAIN_CLEAR` / `GAIN` / `CHAIN` / `COLLECTING` / `RESTORE` **不会**以 `phase=`
      * 的形式出现在成功路径的日志里（它们各自另有一条「专用」日志，例如 `clear_start`/`gain_start`，
      * 但**口径不统一**，而 `GAIN_CLEAR` 的**退出**连专用日志都没有）。
@@ -367,7 +370,7 @@ public final class MineTask implements Task {
      * ⇒ 将来搬编排时，判据可以断言「过渡点没有被顺手改掉」。
      *
      * <p>⚠️ 不让它刷屏（`D-177`）：相位转换是**事件驱动**的（一个目标总数 ≤ 十余次），不是每 tick；
-     * 每 tick 的状态行仍归 {@link #tickOnce()} 里那条去重探针。`from == to` 时不打印
+     * 每 tick 的状态行仍归 {@link MineStep} 里那条去重探针。`from == to` 时不打印
      * （`Phase.MINING` 有多处入口，重入同一相位不产生新信息）。
      */
     private void enterPhase(Phase next) {
@@ -392,7 +395,7 @@ public final class MineTask implements Task {
         }
 
         if (phase == Phase.EVALUATING) {
-            return evaluateStandingPoint();
+            return tickEvaluating();
         }
 
         if (phase == Phase.CLEAR) {
@@ -420,30 +423,25 @@ public final class MineTask implements Task {
             return status == Status.DONE ? enterRestoreOrDone() : status;
         }
 
-        MineBlockRunner.Status status = miner.tick();
-        // D-177（审查结论 · 日志规矩）：原实现按 `status` 变化打点，而 MOVING↔MINING 会来回跳
-        // ⇒ 实测**最高 6 行/秒**、单轮电池 212 行（"验证后应删探针"的规矩）。改成
-        // **只在 (phase,status) 组合首次出现**时打一行（典型 3~6 行/用例），
-        // 保留诊断价值、去掉刷屏；真正的终态信息仍在 `[MineRunner] done` / `restore_*` 等行里。
-        if (status != lastProbeStatus || phase != lastProbePhase) {
-            BotLog.info("[MineTask] 挖掘状态: target={} phase={} status={} botPos={} stand={} failure={}",
-                    target.toShortString(), phase, status, bot.blockPosition().toShortString(),
-                    optimalStandingPoint == null ? "-" : optimalStandingPoint.toShortString(),
-                    miner.failureReason().isEmpty() ? "-" : miner.failureReason());
-            lastProbeStatus = status;
-            lastProbePhase = phase;
-        }
-        if (status == MineBlockRunner.Status.MINING || status == MineBlockRunner.Status.MOVING) {
+        // 八个相位里只有 `MINING` 会落到这里（其余全被上面显式分派）⇒ 这一段就是"执行段的编排面"。
+        return tickMining();
+    }
+
+    /** ⭐ `step 5a`（`D-469`）：**执行段的编排** —— 推进 {@link MineStep} 一步，然后只做**两个分叉**。
+     * 原子面全在 `MineStep.tick()` 里；判据 = 这里只读**结论**，不读原语内部字段。 */
+    private Status tickMining() {
+        MineStep.Conclusion conclusion = step.tick();
+        if (conclusion.isRunning()) {
             return Status.RUNNING;
         }
-        if (status == MineBlockRunner.Status.DONE) {
+        if (conclusion.isDone()) {
             if (useChain && !chainTriggered) {
                 return beginChain();
             }
             return enterCollection();
         }
 
-        MineBlockRunner.FailureReport report = miner.failureReport();
+        MineBlockRunner.FailureReport report = conclusion.report();
         lastFailureReport = report;
         BotLog.warn("[MineTask计划失败报告] target={} attempt={} reason={} phase={} retryable={} currentPlanRetained={}",
                 target.toShortString(), executionAttempts, report.reason(), report.phase(),
@@ -564,8 +562,8 @@ public final class MineTask implements Task {
             BotLog.warn("[ChainMine] prod_fallback target={} reason={} → 回落单格挖掘",
                     target.toShortString(), result);
             useChain = false;
-            miner = null;
-            startMining();
+            // 原文的 `miner = null;` 是死存 ⇒ 随 `step 5a` 删除（`D-469` §二.3）。
+            startExecution();
             enterPhase(Phase.MINING);
             return Status.RUNNING;
         }
@@ -590,7 +588,7 @@ public final class MineTask implements Task {
                         target.toShortString(), mined, chainTicks);
                 // ⚠️ T1 / R-1（2026-09-14）：**模组连锁的破坏必须进 Alice 的破坏预算**。
                 // 为什么必须在这里补：`useChain=true` 时 `MineBlockRunner` 是以 `walkOnly=true` 构造的
-                // （见 `startMining()`）⇒ Alice 自己的破坏原语 `BlockInteraction.beginBreak`（唯一闸门
+                // （见 `startExecution()`）⇒ Alice 自己的破坏原语 `BlockInteraction.beginBreak`（唯一闸门
                 // `WriteBudget.consumeBreak` 的挂点）**一次都不执行**，破坏由模组自己的调度器
                 // （`player.gameMode.destroyBlock`）完成 ⇒ **唯一的模组兼容破坏路径完全无计数上限**
                 // （3×3 连锁发生在 `DEFAULT_MAX_BREAKS=64` 之外；三路审计 §3.1 R-1 实证）。
@@ -625,38 +623,44 @@ public final class MineTask implements Task {
         BotLog.warn("[ChainMine] prod_target_remains target={} mined={} → 回落单格挖掘",
                 target.toShortString(), mined);
         useChain = false;
-        miner = null;
-        startMining();
+        // 同 `beginChain()`：`miner = null;` 是死存 ⇒ 删除（`D-469` §二.3）。
+        startExecution();
         enterPhase(Phase.MINING);
         return Status.RUNNING;
     }
 
+    /**
+     * **重试机制（编排）**：重算一次计划并重试**同一格**（≤ {@link #MAX_RECOVERY_ATTEMPTS} 次）。
+     *
+     * <p>⭐ `step 5a`（`D-469`）：计划段住在 `MineStep.plan()` ⇒ 在**同一个**原语上再调一次（失败时旧计划
+     * 必须保留）。⚠️ 这条路**不重判连锁**（改造前也不重读 `useChain`）⇒ 不看 {@code outcome.chainArmed()}。
+     */
     private boolean tryReplan(MineBlockRunner.FailureReport report) {
-        if (currentPlan == null || report == null || recoveryAttempts >= MAX_RECOVERY_ATTEMPTS) {
+        // ⚠️ `step.currentPlan() == null` 逐字对应改造前的守卫（今天已被 `step == null` 蕴含，留着是防 NPE）。
+        if (step == null || step.currentPlan() == null || report == null
+                || recoveryAttempts >= MAX_RECOVERY_ATTEMPTS) {
             return false;
         }
         recoveryAttempts++;
-        MiningPlan previousPlan = currentPlan;
+        MiningPlan previousPlan = step.currentPlan();
         // ⭐ `D-443` 裁定 1a：接近能力由**本任务的 profile** 声明；归因串用**本任务的 grant.requester**
         // ⇒ 模式 A 里「补一块再走」的放置会记在作业名下（作业侧的累计额度才看得见它）。
-        MiningPlanner.Result result = miningPlanner.plan(bot, target, budget, profile.standableOnly(),
-                profile.approach(), grant.requester());
-        if (!result.success()) {
+        MineStep.PlanOutcome outcome = step.plan();
+        if (!outcome.ok()) {
             BotLog.warn("[MineTask重规划探针] target={} recoveryAttempt={}/{} oldStanding={} result=FAILED reason={}",
                     target.toShortString(), recoveryAttempts, MAX_RECOVERY_ATTEMPTS,
-                    previousPlan.standingFoot().toShortString(), result.failureReason());
+                    previousPlan.standingFoot().toShortString(), outcome.reason());
             return false;
         }
-        currentPlan = result.plan();
+        MiningPlan replanned = outcome.plan();
         recordRecovery(RecoveryStage.MINETASK_REPLAN);
-        optimalStandingPoint = currentPlan.standingFoot();
         lastFailureReport = report;
         BotLog.info("[MineTask重规划探针] target={} recoveryAttempt={}/{} oldStanding={} newStanding={} mode={} newPathStatus={}",
                 target.toShortString(), recoveryAttempts, MAX_RECOVERY_ATTEMPTS,
-                previousPlan.standingFoot().toShortString(), currentPlan.standingFoot().toShortString(),
-                currentPlan.mode(), currentPlan.path().status());
+                previousPlan.standingFoot().toShortString(), replanned.standingFoot().toShortString(),
+                replanned.mode(), replanned.path().status());
         enterPhase(Phase.MINING);
-        startMining();
+        startExecution();
         return true;
     }
 
@@ -795,7 +799,7 @@ public final class MineTask implements Task {
                 clearAttempts, failedBlockers.size(), clearExhausted);
         clearingBlocker = null;
         clearTask = null;
-        standingPointEvaluated = false;
+        // 原文的 `standingPointEvaluated = false;` 只喂那段**不可达**的短路 ⇒ 删除（`D-469` §二.1）。
         enterPhase(Phase.EVALUATING);
         return Status.RUNNING;
     }
@@ -870,7 +874,6 @@ public final class MineTask implements Task {
             return Status.RUNNING;
         }
         gainClearer = null;
-        standingPointEvaluated = false;
         enterPhase(Phase.EVALUATING);
         return Status.RUNNING;
     }
@@ -894,7 +897,6 @@ public final class MineTask implements Task {
                             .footCell(bot.serverLevel(), bot).toShortString(),
                     gainSteps, profile.maxGainSteps());
         }
-        standingPointEvaluated = false;
         enterPhase(Phase.EVALUATING);
         return Status.RUNNING;
     }
@@ -919,79 +921,79 @@ public final class MineTask implements Task {
         return clearedBlocks;
     }
 
-    private Status evaluateStandingPoint() {
-        if (standingPointEvaluated) {
-            enterPhase(Phase.MINING);
-            startMining();
-            return Status.RUNNING;
-        }
-
+    /** 阶段 1（**编排**）：要一次计划（{@link MineStep#plan()}），再按失败原因分叉。
+     * ⚠️ 改造前开头的 `if (standingPointEvaluated)` 短路是**死代码** ⇒ 不搬（`D-469`）。 */
+    private Status tickEvaluating() {
         // ⭐ `D-443` 裁定 1a：接近能力由**本任务的 profile** 声明；归因串用**本任务的 grant.requester**
         // ⇒ 模式 A 里「补一块再走」的放置会记在作业名下（作业侧的累计额度才看得见它）。
-        MiningPlanner.Result result = miningPlanner.plan(bot, target, budget, profile.standableOnly(),
-                profile.approach(), grant.requester());
-        if (!result.success()) {
+        MineStep.PlanOutcome outcome = step().plan();
+        if (!outcome.ok()) {
             BotLog.warn("[MiningPlanner探针] planning failed target={} reason={} budget={} profile={}",
-                    target.toShortString(), result.failureReason(), budget.describe(), profile.describe());
+                    target.toShortString(), outcome.reason(), budget.describe(), profile.describe());
             // S-4（P0-C，2026-09-12 接线）：**硬拒绝**（流体风险 / 保护 / 不可破坏）不是"站位没找好" ——
             // 绝不允许再去加高或清障：在岩浆旁搭柱子、或把挡路方块清掉，等于**主动把自己送进危险**
             // （清障/加高各自还会起一个嵌套 `MineTask`，而那正是"挖穿后邻格岩浆涌入"的场景）。
             // 判据沿用既有清单 `isHardTargetRefusal`（它本来就列了 `fluid_risk_lava`，只是此前没有生产者）。
-            if (isHardTargetRefusal(result.failureReason())) {
+            if (isHardTargetRefusal(outcome.reason())) {
                 return escalateFailure(new MineBlockRunner.FailureReport(
-                        result.failureReason(), "planning", false));
+                        outcome.reason(), "planning", false));
             }
             // **与改造前的伐木行为一致（D-115 修正）**：这不是"先清障后加高"的串联，而是**二选一**——
             //   站位候选**存在**（在触及范围内）但路径不通 ⇒ **加高**（抬高后候选变可达，实测高云杉）；
             //   站位候选**不存在**（超出触及）⇒ **清障**（开一个站位/通视线），清障失败即放弃本目标。
             // 串联会把"该放弃的树"也拿去搭柱子（实测 gainedBlocks=10，改造前只有 1）。
             if (hasStandingCandidateNow()) {
-                if (tryGainHeight(result.failureReason())) {
+                if (tryGainHeight(outcome.reason())) {
                     return Status.RUNNING;
                 }
-            } else if (tryClear(result.failureReason())) {
+            } else if (tryClear(outcome.reason())) {
                 return Status.RUNNING;
             }
             return escalateFailure(new MineBlockRunner.FailureReport(
-                    result.failureReason(), "planning", false));
+                    outcome.reason(), "planning", false));
         }
 
-        currentPlan = result.plan();
-        optimalStandingPoint = currentPlan.standingFoot();
-        standingPointEvaluated = true;
-        BlockState targetState = bot.level().getBlockState(target);
-        useChain = ChainMining.shouldChain(MiningTuning.chainMode(), targetState);
+        MiningPlan plan = outcome.plan();
+        // 连锁判定由**计划段**导出（`MineStep.plan()`）；此处的重读只为打 `prod_armed`（同一 tick 同一格）。
+        useChain = outcome.chainArmed();
         if (useChain) {
+            BlockState targetState = bot.level().getBlockState(target);
             BotLog.info("[ChainMine] prod_armed target={} state={} mode={} chainable={} settings={}",
                     target.toShortString(), targetState.getBlock(), MiningTuning.chainMode(),
                     ChainMining.isChainable(targetState), ChainMining.settingsSummary());
         }
         BotLog.info("[MiningPlanner探针] planned target={} startFoot={} standingFoot={} mode={} pathStatus={} pathSize={} pathCost={} visibility={} executable={} support={} score={}",
-                currentPlan.target().toShortString(), currentPlan.startFoot().toShortString(),
-                currentPlan.standingFoot().toShortString(), currentPlan.mode(),
-                currentPlan.path().status(), currentPlan.path().movements().size(),
-                String.format(java.util.Locale.ROOT, "%.3f", currentPlan.path().totalCost()),
-                currentPlan.visibility().isClear(), currentPlan.isExecutable(),
-                currentPlan.supportPlacementPos() == null ? "-" : currentPlan.supportPlacementPos().toShortString(),
-                result.score() == null ? "-"
-                        : String.format(java.util.Locale.ROOT, "%.3f", result.score().getScore()));
+                plan.target().toShortString(), plan.startFoot().toShortString(),
+                plan.standingFoot().toShortString(), plan.mode(),
+                plan.path().status(), plan.path().movements().size(),
+                String.format(java.util.Locale.ROOT, "%.3f", plan.path().totalCost()),
+                plan.visibility().isClear(), plan.isExecutable(),
+                plan.supportPlacementPos() == null ? "-" : plan.supportPlacementPos().toShortString(),
+                outcome.result().score() == null ? "-"
+                        : String.format(java.util.Locale.ROOT, "%.3f", outcome.result().score().getScore()));
         enterPhase(Phase.MINING);
-        startMining();
+        startExecution();
         return Status.RUNNING;
     }
 
-    private void startMining() {
-        executionAttempts++;
-        if (!(bot instanceof com.dddgn.alice.bot.BotPlayer botPlayer)) {
-            throw new IllegalStateException("MineTask requires BotPlayer");
+    /** 原语惰性入口（`D-466` §五）：**同一个实例贯穿本任务**（{@link #tryReplan} 要在它上面重算）。 */
+    private MineStep step() {
+        if (step == null) {
+            step = new MineStep(bot, target, scope, budget, profile, grant);
         }
+        return step;
+    }
+
+    /** 启动一次执行尝试（编排）：`executionAttempts` 是**任务级**记账 ⇒ 留本类（`D-469`）。 */
+    private void startExecution() {
+        executionAttempts++;
         // useChain=true 时只走到站位（walkOnly），破坏由任务层触发模组连锁
-        miner = new MineBlockRunner(botPlayer, currentPlan, useChain && !chainTriggered, grant);
-        lastProbeStatus = null;
-        lastProbePhase = null;
+        boolean walkOnly = useChain && !chainTriggered;
+        step.startExecution(walkOnly);
+        MiningPlan plan = step.currentPlan();
         BotLog.info("[MineTask探针] 创建 MineBlockRunner: target={} mode={} stand={} botPos={} attempt={}",
-                target.toShortString(), currentPlan.mode(),
-                currentPlan.standingFoot().toShortString(), bot.blockPosition().toShortString(),
+                target.toShortString(), plan.mode(),
+                plan.standingFoot().toShortString(), bot.blockPosition().toShortString(),
                 executionAttempts);
     }
 }

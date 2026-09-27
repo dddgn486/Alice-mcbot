@@ -21672,3 +21672,211 @@ Job = ① 有 Kind（进 JobRequest.Kind）
 `python3 tools/check-primitive-readings.py` = **PASS**（39/39 臂）· `check-all` = `pass=28 warning=1 failed=0`
 （⚠️ **门禁总数不变 28** —— 这是**扩展已有门禁**，不是新增一条，与 `D-462` 的做法一致）·
 `src/` 零改动 ⇒ 不跑 `core` · ⚠️ 无客户端可观察变化。
+
+### D-469：**`step 5a` 第 ③④ 步落地** —— 单格原语 `MineStep` 切出来 + `MineTask` 改为编排器（同刀落五条判据门禁）（2026-09-27）
+
+**来源**：用户 2026-09-27 拍 `D-466` 第 2 / 5 / 9 条（**甲：一刀一提交 · 五条判据全上 · 类名 `MineStep`**）+ §八 的开工顺序 ③④。
+**前置** = `D-466`（拆法九条）· `D-467`（EXECUTE 密封夹具）· `D-468`（读数门禁的 `static final` 清单读数）。
+**性质**：`src/` 有改动 ⇒ **跑了 `core`**（§八）。**无客户端可观察变化** ⇒ 不需要真机轮。
+
+#### 一、落地形状：三段 + 两个分叉
+
+| 归属 | 载体 |
+|---|---|
+| **原语（新）** | `task/mining/MineStep.java`（**247 行**）—— `plan()` 计划段 · `startExecution(boolean walkOnly)` · `tick()` 单格结论 · **它自己的**终态闩锁 |
+| **编排器（本类）** | `task/MineTask.java`（**997 行**）—— `tickEvaluating()`（计划失败的四个分叉）· `tickMining()`（执行段的两个分叉）· 与 `D-466` §五「留」表逐条对齐 |
+| **两边都不进（一行未改）** | `MiningPlanner` · `StandingPointSelector` · `LineOfSightChecker` · `MineBlockRunner` · `BlockBreakSession` · `CollectDropsTask`（`5b`）|
+
+**`MineStep` 的调用面恰好 6 个**：`MineStep(bot, target, scope, budget, profile, grant)` ·
+`plan()` → `PlanOutcome(result, chainArmed)` · `startExecution(boolean walkOnly)` ·
+`tick()` → `Conclusion(outcome, leg, reason, report)` · `currentPlan()` · `mineStartPos()`。
+（后两个只服务 `MineTask` 的**既有诊断访问器**，见 §六。）
+
+⭐ **编排器只读「返回值」就能做完所有分叉** ⇒ `D-466` §十 的复核触发**未命中**：
+- 计划失败 ⇒ 读 `PlanOutcome.reason()`；执行成功/失败 ⇒ 读 `Conclusion.isDone()` / `Conclusion.report()`。
+- `MineTask` 对原语的**两次**内部读（`currentPlan()` / `mineStartPos()`）**都不进控制流** ——
+  一处喂 `[MineTask计划失败报告]` 的 `currentPlanRetained=` 字段、一处喂
+  `tryReplan` 的 `oldStanding=` 日志、两处喂 `BotManager:1996/2691` 的既有访问器。
+  ⇒ 判定：**"回头读内部字段"没有被用来做决定** ⇒ 第 1 拍的**语句级**切分在这一点上是干净的。
+
+⭐ **`useChain` 的归属按第 6 拍落地**：判定式 `ChainMining.shouldChain(chainMode, targetState)`
+搬进 `MineStep.plan()`（**同一 tick 读 `targetState`**），经 `PlanOutcome.chainArmed()` **导出**；
+`chainTriggered` 与 `useChain` 的**标志本身**留编排器（两条回落路要清它）；
+`walkOnly` 由编排器算好当**参数**传下去，落在 `MineBlockRunner` **现成的**那个布尔参数上（未新造接口）。
+
+#### 二、⭐ 本刀在既有代码里挖出四条「已经死了的形状」（全部逐点核过，方向相反的两类）
+
+| # | 形状 | 判定依据 | 本刀动作 |
+|---|---|---|---|
+| 1 | `evaluateStandingPoint()` 开头的 `if (standingPointEvaluated) { … }` 短路 | 写 `true` 的唯一位置紧接着就进 `MINING`；而进 `EVALUATING` 的**三条路**（`tickClear`/`tickGainClear`/`tickGain` 收尾）各自**先**写 `false` ⇒ `phase == EVALUATING ⟹ !standingPointEvaluated` | **不搬**（字段连同三处写一并删） |
+| 2 | 字段 `optimalStandingPoint` | 两处赋值都紧跟在 `currentPlan = …` 之后、值恒为 `currentPlan.standingFoot()` ⇒ **恒等冗余** | **删**（改用 `currentPlan.standingFoot()`） |
+| 3 | `beginChain()` / `tickChain()` 回落路里的 `miner = null;` | 紧接着的 `startMining()` 立刻覆盖它 ⇒ **死存** | **删** |
+| 4 | ⚠️ `beginChain()` / `tickChain()` 回落路里的 `useChain = false;` | `chainTriggered` **只在 `beginChain()` 开头被写成 `true`、全仓无复位**；而 `useChain` 的读点只有两处、**都写成 `&& !chainTriggered`** ⇒ 两条回落路上该赋值**不可观测** | ⚠️ **发现但不删**（本刀是搬运，不做顺手优化；登记在此，见 §九 复核触发） |
+
+⇒ 第 1–3 条是**同向**的（删掉不改变行为），第 4 条**故意留下**：删它要动的是
+"连锁调度"这块本刀不该碰的语义（`D-466` §六 已把 `chainTriggered` 判给编排器）。
+
+#### 三、⭐⭐ `D-466` §九 的**成本估计不成立**（本刀最该记住的一条）
+
+§九 写「`task/MineTask.java` 997 → **≈600–650**」。**实测做不到，而且差距不是手艺问题**：
+
+| 读数（口径见 `D-463`） | 改造前 | 改造后 | 说明 |
+|---|---|---|---|
+| `MineTask` 行数（`\n` 计数） | **997** | **999** | **+2**（加的注释多于删的代码） |
+| `MineTask` **代码行**（去注释+字符串后非空行） | **685** | **663** | **−22** |
+| `MineTask` 额度词数 | 71 | **68** | −3 |
+| `MineTask` 方法数 | 49 | **51** | +2（`tickEvaluating` + `tickMining` + `step()` + `startExecution()` − `evaluateStandingPoint` − `startMining`）|
+| `MineTask` `Phase.` 引用 | 22 | **21** | −1 |
+| `MineTask` `static final` | 2 | 2 | 不变（第 4 条裁定：随编排留下） |
+| `MineStep`（新） | — | **255 行 / 129 代码行 / 9 方法 / 额度词 16 / 构造器 1 / `Phase.` 引用 0 / `static final` 0** | 见下 |
+| `MineTask` sha256（前 16） | `414c78c4eebd5599` | `4e249765079e5912` | — |
+
+**根因（事实）**：`MineTask` 的**原子段只有约 40 行代码**（计划段 8 行 + `startMining` 3 行 +
+执行段状态机约 25 行 + 4 个字段），而 §九 的估计隐含"原子段 ≈ 350 行" ⇒ 那个数**不可能**达到。
+⇒ ⚠️ **别再用 §九 那组数当验收面**；`step 5a` 的产出是**边界**（一个被门禁钉住的独立单元），
+**不是**行数下降。
+⚠️ 我**第一版把 `MineTask` 写成 1044 行（+47）—— 全是我自己加的散文**；把理由搬到本条、
+代码里只留指针之后落回 999（`MineStep` 255 行里也有 126 行是注释/空行）。
+⇒ 教训与 `AGENTS.md` 的"长期记忆只放指针、不抄原文"是同一条：**散文写进 `D`，代码只留指针**。
+
+#### 四、判据与门禁（第 5 条「五条全上」）
+
+**新门禁 `tools/check-task-orchestration-split.py`**（挂在 `check-all.sh`，紧跟 `check-phase-transition-outlet`）：
+
+| # | 断言 | 实测 |
+|---|---|---|
+| **A** | `MineStep` 存在，且**剥注释/字符串后** `\bPhase\b` 与 `\bphase\b` 各 **0** 处 | `Phase` 0 · `phase` 0 ✅ |
+| **B** | `Conclusion.success()` 产出点**恰好 1** + 四个结论工厂**各有且仅有 1 个定义**（正向人口） | 成功出口 **1** · 工厂定义 4 · 结论产出点 4 ✅ |
+| **C** | ① 原语里 `new MineTask(` **0** 处；② 编排器里 `step.` **≥ 5**（实测 **8**） | 0 · 8 ✅ |
+| **D1** | 原语里额度**制造** **0** 处 + 类内**额度词命名**的 `static final` **0** 条 | 0 · 0 ✅ |
+| **D2** | 被识别的"额度消费"点**恰好 1** 且必须是具名那处（`miningPlanner.plan(`）+ `WriteBudget.` **0** | 1 · 0 ✅ |
+
+- **合成红臂 19 条**：A 4 + B 3 + C① 2 + C② 2 + D1 4 + D2 4。
+  ⭐ **每臂只打一条判据函数** —— 本仓"臂打错地方"已复发 3 次（`D-464`×2 + `D-468`），
+  所以臂**不许跨判据**：红必然是"红在那一条"。
+- **真树红臂 6 条**（逐条核对"红的理由就是那一条"，sha 逐字还原）：
+
+| # | 注入 | 期望 |
+|---|---|---|
+| 1 | `MineStep` 里加 `private Phase phase;` | exit 1，报"相位机痕迹" ✅ |
+| 2 | 加第二个 `Conclusion.success()` 产出点 | exit 1，报"成功出口有 2 处" ✅ |
+| 3 | `MineStep` 里加一处 `new MineTask(` | exit 1，报"原子单元造编排器" ✅ |
+| 4 | `MineTask` 里把 `step.` 全改名（模拟"搬回去"） | exit 1，报"委托 0 处 / 原语被架空" ✅ |
+| 5 | `MineStep` 里加一处 `MiningBudget.forTarget(` | exit 1，报"额度制造" ✅ |
+| 6 | `MineStep` 里加第二处 `miningPlanner.plan(` | exit 1，报"额度消费 2 处" ✅ |
+
+⭐ **D1 与既有门禁的关系（故意更严）**：`check-primitive-budget-injection.py` 把
+"**方法体里**为子任务派生额度"**显式列为绿**（那是编排器给子编排器算额度，合法）；
+本条的靶子是**原语自己**，而原语**不造子任务**（判据 C①）⇒ 它里面**任何**制造额度的写法都红。
+两条门禁**不冲突**：一条管"是不是默认入口"，一条管"谁在造"。
+
+**第 ④ 步（同刀）改 `check-primitive-budget-injection.py`**：
+- docstring：① 人口表里那两个**不再是"两个具名原语"**（`MineTask` 现在是编排器，它的 4 个构造器
+  **签名逐字不动** ⇒ 仍在额度**注入面**上）；② 显式写出**边界**：本门禁扫描根是**平的**
+  （`TASK_DIR.glob("*.java")`）⇒ **`task/mining/MineStep.java` 不在它射程内**，由新门禁的 D1/D2 覆盖；
+  ③ 「方法体内造额度」那条边界的语义更正为"**编排器**给**子编排器**"。
+- **红臂 #6** 重写：标签改为「**编排器**在方法体里为子编排器造 ⇒ 绿」，片段**逐字**取自
+  `MineTask.startClear` 今天的写法（含 `bot.serverLevel()` 与 `grant.with(...)`），
+  并加注释说明"本门禁**判不出谁在造**"。
+
+**⭐ 超范围的一处（必须显式声明）**：本刀还**扩了 `tools/kernel-predicates.py` 的 `A1′`**
+（`D-410`/`D-178 的"终态闩锁必须回放、不许硬编码"）。理由：`MineStep` 的闩锁回放的是
+**单格结论** `private Conclusion terminal;` 而**不是** `Task.Status` ⇒ 旧正则**扫不到它**，
+于是"原语把 FAILED 回放成成功"这条本规则**存在的理由本身**在新原语上是**隐形**的。
+落地 = 第二种形状成对登记 + `LATCH_SITES_MIN` **7 → 8** + 真树红臂 2 条（硬编码 `Conclusion.success()`
+⇒ 报"直接返回硬编码结论"；回放行缺失 ⇒ 报"闩锁没接上"**且**人口掉到 7）。
+⚠️ 这超出了 `D-466` §五 的"A–E 五条"范围，按"同刀改既有门禁"（§八 ④ 已开此先例）处理，**可由用户否决**。
+
+#### 五、日志口径：**只改了一行**
+
+| 日志 | 变化 | 理由 |
+|---|---|---|
+| `[MineTask] 挖掘状态: target= … phase={} status= …` | → **`[MineStep] 挖掘状态: target= … status= …`**（前缀改名 + **去掉 `phase=`**） | 它跟着执行段搬走；⚠️ 而那条路上 `phase` **恒为 `MINING`**（`tickOnce` 的 8 个相位全被显式分派，只有 `MINING` 落到执行段）⇒ 该字段**不携带信息**，去掉它 `D-177` 的 `(phase,status)` 去重**逐字等价**（`phase` 那一维不可能新） |
+| **其余全部不变** | `[MineTask计划失败报告]`（含 `report.phase()`）· `[MineTask探针] 创建 MineBlockRunner`（含 `attempt=`）· `[MiningPlanner探针] planning failed/planned` · `[ChainMine] prod_armed` · `[MineTask重规划探针]` / `[MineTask升级决策探针]` / 全部 `restore_*` `collect_*` `clear_*` `gain_*` | ⭐ `[MineTask计划失败报告]` **必须**留编排侧：`report.phase()` 是**执行器**的阶段串，而判据 A 要求 `MineStep` 里 `phase` 0 处 ⇒ 这是判据 A 与日志口径的一次**真实冲突**，解法 = **日志归编排**（它读的是结论，不是内部字段） |
+
+⚠️ 一处异常串随语义改名：`startMining` 的 `IllegalStateException("MineTask requires BotPlayer")`
+⇒ 现在是 `MineStep.startExecution` 的 `"MineStep requires BotPlayer"`。
+实测**全仓没有任何代码/门禁断言这两个串**（只有抛出处自己）。
+
+#### 六、⚠️ `D-466` §六 草案的一处调整（**请用户裁**）
+
+§六 的构造签名 `MineStep(bot, target, scope, budget, profile, grant)` 我**按逐字保留**了 `scope`，
+但 ⚠️ **它今天在 `MineStep` 里没有任何消费者** —— 收集/建拆都在编排侧，而 `MineBlockRunner`
+只吃 `(BotPlayer, MiningPlan, walkOnly, WriteGrant)`。⇒ 它是本刀**唯一的 0 消费者形参**。
+我按"裁定项默认照做"保留了它（删它是 1 行改动，随时可做），**但这是需要用户拍的一条**：
+留（保持与 `MineTask` 7 参构造同形、为将来留位）还是去（`净增≈0` + 不许死形状）。
+
+#### 七、盲区（**显式声明，零覆盖就是零覆盖**）
+
+- **新增一处零覆盖**：`MineStep.tickOnce()` 的 `runner_missing` 分支
+  （第二层防御，同 `MineTask.tickRestore` 的 `restoreTask 缺失`）—— 今天**结构上不可达**
+  （每条进 `MINING` 的路都紧接着 `startExecution()`）。⇒ 与 `restoreTask 缺失` 同族：**记零覆盖**。
+- `D-466` §八 的 **B1–B14 一条都没被本刀覆盖**，其中与本刀直接相关的三条：
+  **`CHAIN` 整相位**（`oreexcavation` 不在客户端 22 个 jar 里）· **`tryReplan`/`recoveryAttempts`**
+  （本刀动过它的内部实现，但电池仍然只走到 `0/2`）· **`GAIN_CLEAR`**（`gain_clear` 0 行）。
+  ⚠️ 即：**"搬运没改行为"的保证来自 `core` 逐步 diff，不是来自"覆盖了这些分支"**。
+- `MineStep` 的 `D-175` 闩锁**回放**本身也没有正向用例（电池里没有"终态后再 tick"的场景）。
+
+#### 八、回归证据
+
+- `./gradlew compileJava --offline` ✅（唯一警告是既有的 `FishboneJob:152` 过时 API）。
+- `single:mine_regression` ✅ `passed=1/1 skipped=0 ticks=214`（`…-173207-single_mine_regression.log`）。
+- `core` ✅ **43/43 步全 PASS**（243 s · `…-173622-core.log`），与改造前基线（`…-170408-core.log`）
+  **逐步 diff**（`D-201` 附注一）：**38 步 `ticks` 完全相同**，5 步不同 ——
+  ⚠️ **5 步全部落在各自的历史抖动带内**（用 **193 份历史 core 日志**统计，不是"看起来像抖动"）：
+
+| 步 | 基线 | 本轮 | 历史带（193 份） |
+|---|---|---|---|
+| `scaffold` | 321 | **365** | 取值 11 个：`321`×172，另有 **359–373 的离群簇共 21 次** ⇒ 365 在簇内 |
+| `clear_guard` | 179 | 192 | `90–201`（极差 111）|
+| `lumber_job` | 627 | 617 | `0–1356`（极差 1356）|
+| `mine_job` | 237 | 236 | `218–243` |
+| `mine_regression` | 222 | 207 | `114–264`（本步自带夹具，`D-467` 新用例）|
+
+  判决项逐条一致（66 项，**无一项从 PASS 变别的**）。
+- `tools/check-all.sh` = **`pass=29 warning=1 failed=0`**（门禁数 28 → **29**，新增那一条；
+  `warning=1` = `check-headless-battery` 未设 `ALICE_HEADLESS=1` ⇒ **未执行**，不是通过）。
+- 六条新门禁真树红臂 + `A1′` 两条真树红臂：逐条核对"红的理由就是那一条" + **sha 逐字还原**。
+- ⚠️ 用 `ALICE_BATTERY_NO_CACHE=1` 跑 ⇒ **没有 core 指纹**，回归锚 = 日志文件名。
+
+#### 九、⭐⭐ 本刀最危险的一处：**闩锁会把「重新执行」拦掉**（三条路电池全零覆盖）
+
+我按 `D-466` §五 给 `MineStep` 装了**它自己的**终态闩锁（`tick()` 首行回放 `terminal`）。
+⚠️ 装上之后，编排器有**三条路会在拿到一个终态结论之后、再开一次执行**：
+
+| 路 | 触发条件 | 电池覆盖 |
+|---|---|---|
+| `beginChain()` / `tickChain()` 的**连锁回落**（`ChainMining.start` 不在场 ⇒ 置 `useChain=false` 后回头重挖） | `useChain == true` | **0** —— `shouldChain()` 在 `!available()` 时**直接返回 `false`** ⇒ 电池里 `useChain` 恒为 false；基线 core 日志 `[ChainMine]` **0 行** |
+| `tryReplan()` 的**重规划** | 可重试的执行失败 | **0** —— 基线 core 日志 `[MineTask重规划探针]` **0 行**（`recoveryAttempts` 只到 `0/2`） |
+| **运行期清视线**（`tryClearLineOfSight` → `CLEAR` → `EVALUATING` → 再进 `MINING`） | `LINE_OF_SIGHT_BLOCKED` | **0**（`§七` 的 `B6` 盲区） |
+
+**不清闩锁的后果**（两条都已在代码里逐句推过）：
+1. **连锁回落那条最坏**：`tick()` 立刻回放**上一次的 `DONE`** ⇒ 编排器以为这一格**已经挖完** ⇒
+   进收集 ⇒ 收完（其实一个都没挖）⇒ **任务报成功**。即"**静默假成功**" —— `D-178` 家族的变体。
+2. **重规划那条**：又一次拿到**同一个失败** ⇒ `recoveryAttempts` 烧完两次后升档 ⇒
+   **恢复机制整体变成空转**（本该重试的格直接判失败）。
+3. 运行期清视线那条：清完回到执行段，拿到的仍是旧失败 ⇒ 清障**白清**，随后升档失败。
+
+⭐ **`core` 逐步 diff 对这三条完全无感**（三条路都在电池射程外）⇒ 这是本刀**唯一一处靠
+"读代码 + 推状态"而不是靠电池保住的语义**。修法 = `startExecution()` **显式清 `terminal`**
+（"又开一次作业"在语义上就是"还没有结论"；闩锁只该拦"**没有新执行**的重复 tick"）。
+
+⭐⭐ 它同时**证明 `D-466` §七/§八 的盲区登记是有用的**：那 14 条零覆盖不是"文档礼貌"，
+而是**这次真的会漏掉东西的地方**。⇒ 台账已把「`CHAIN` 回落 + `tryReplan` + 运行期清障」
+升为**高优先级待补夹具**（复核触发 = 下一次动这三处任一处）。
+
+⚠️ 附带一条口径：`MineStep` 的闩锁**不覆盖**"编排器拿到终态后又开一次"这种情况 ——
+那是 `startExecution()` 的职责；`MineStep.tick()` 的闩锁只覆盖"**没有新执行**的重复 tick"
+（`D-175` 的原始场景：夹具多 tick 了内层任务几 tick）。
+
+#### 十、复核触发
+
+- **若 `MineStep` 的单格结论不得不新增字段**（编排器开始读它做决定）⇒ 说明第 1 拍的**语句切分**
+  在这一点上没切干净，重审 `D-466` §二.1 的两张表 + 本条 §一 的第二段。
+- **若真机出现"连锁之后又重规划"**（`chainTriggered` 真正起作用的那条）⇒ `B4` 的零覆盖
+  立即升级为"先补夹具"；那也正是**删 §二 第 4 条那两处死赋值**的安全前置。
+- **若 `scope` 形参被拍"去"** ⇒ 本条 §六 与 `MineStep` 构造签名同步修改（1 行 + 1 调用点）。
+- **⭐ 高优先级：先补「`CHAIN` 回落 / `tryReplan` / 运行期清障」三条路任一条的夹具** ——
+  §九 实测这三条路**零覆盖**，而本刀最危险的一处语义漂移**正藏在它们里面**（靠推理而非电池保住）。
+- **若有人要动 `MineStep.tick()` 的终态分支** ⇒ 先看 `A1′` 的第二种形状（本条 §四 的超范围项）
+  是否还在；它若被改名/搬走，`LATCH_SITES_MIN = 8` 会先红。

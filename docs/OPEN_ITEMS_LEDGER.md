@@ -2360,8 +2360,10 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 
 > ⚠️ **它是当前唯一主线**（鱼骨已冻结）。**0 / 0.5 / 1 三步 `src/` 零改动** ⇒ 不碰夹具与门禁。
 > 纪律：**一刀一 `D-编号` + 一刀一判据 + 一刀一提交**；任何 `src/` 改动**必须跑 `core`**。
-> **进度（2026-09-27）**：**0 ✅ · 0.5 ✅（+ 门禁）· 1 ✅ · 1.5 ✅（`D-458`）· 2a ✅（`D-459`）** · **2b ✅ 裁定 = 甲（并入 `step 5`，**落 `5b` 那半**，见 `D-466`）** · **3 ✅ 收口（3a `D-460` + 3b `D-461`）** · **4 ✅（`D-462`）** · **5 · 前置 ✅（读数门禁 `D-463`）· ⭐ `5a` 拆法 ✅ 九条全拍（`D-466`）· `5a-0` ✅（相位转换唯一出口 `D-464`）· `5a-1` ✅ 收口（PLAN `D-465` + **EXECUTE 密封夹具 `D-467`**，`O1`/`O2`/`O4` 同刀修复）· 主体未开工**。
-> ⏭ **`5a` 的开工顺序（`D-466` §八）**：**① ✅ 密封夹具（`D-467`）** · **② 🔶 半程**（读数门禁的 `static final` 清单读数 ✅ `D-468`；⚠️ **另一半「新门禁 `check-task-orchestration-split.py`」必须与主体刀同刀落** —— 它的断言对象 `MineStep` 还不存在，提前落会**立刻红**、挂不上 `check-all`）→ ③ 主体刀（`MineStep` + `MineTask` 改委托，一刀一提交）→ ④ 同刀改 `check-primitive-budget-injection.py` 的 docstring 与**红臂 #6** → ⑤ `core` 逐步 diff + `check-all`。
+> **进度（2026-09-27）**：**0 ✅ · 0.5 ✅（+ 门禁）· 1 ✅ · 1.5 ✅（`D-458`）· 2a ✅（`D-459`）** · **2b ✅ 裁定 = 甲（并入 `step 5`，**落 `5b` 那半**，见 `D-466`）** · **3 ✅ 收口（3a `D-460` + 3b `D-461`）** · **4 ✅（`D-462`）** · **5 · 前置 ✅（读数门禁 `D-463`）· ⭐ `5a` 拆法 ✅ 九条全拍（`D-466`）· `5a-0` ✅（相位转换唯一出口 `D-464`）· `5a-1` ✅ 收口（PLAN `D-465` + **EXECUTE 密封夹具 `D-467`**，`O1`/`O2`/`O4` 同刀修复）· ⭐⭐ `5a` 主体 ✅ 落地（`D-469`：`MineStep` 单格原语切出来 + `MineTask` 改编排器 + 五条判据门禁）· `5b` 未开工**。
+> ⏭ **`5a` 的开工顺序（`D-466` §八）—— 已全部落地**：**① ✅ 密封夹具（`D-467`）** · **② ✅ 两半**（读数门禁的 `static final` 清单读数 `D-468`；⭐ **新门禁 `check-task-orchestration-split.py` 与主体刀同刀落** —— `D-468` 时已判定它**不能提前落**，因为断言对象 `MineStep` 还不存在；`D-469` 兑现）→ **③ ✅ 主体刀（`D-469`，一刀一提交）** → **④ ✅ 同刀改** `check-primitive-budget-injection.py` 的 docstring 与**红臂 #6**（+ ⭐ **超范围一处**：扩 `kernel-predicates.py` 的 `A1′` 到第二种闩锁形状）→ **⑤ ✅ `core` 逐步 diff + `check-all`**。
+> ⚠️ **`5a` 落地后的读数（`D-469` §三）**：`MineTask` **997 → 999 行**（代码行 **685 → 663**）· `Phase.` 引用 22 → 21 · 新原语 `MineStep` **255 行 / 9 方法 / 额度词 16**。⚠️ **`D-466` §九 的「997 → ≈600–650」不成立**（原子段实际只有约 40 行代码）⇒ **别再拿那组数当验收面**。
+> ⭐⭐ **`5a` 最危险的一处（`D-469` §九）**：`MineStep` 的终态闩锁会把编排器的**"重新执行"**拦掉，而三条受害路（**`CHAIN` 回落 / `tryReplan` / 运行期清障**）在电池里**全部零覆盖** ⇒ 修法（`startExecution()` 清闩锁）是**靠推理而不是靠电池**保住的。⇒ 台账**升级待办**：**先补这三条路任一条的夹具**（高优先级，见下表 `5a-B` 行）。
 > ⚠️ **`1.5` 起开始动 `src/`** ⇒ 其后每一刀都必须跑 `core`。
 
 | 序 | 动作 | 成本 | 判据 / 备注 |
@@ -2440,13 +2442,13 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 > |---|---|---|---|
 > | O1 | **`MineRegressionTask` 两条断言恒真（空判据）** ✅ **已修（`D-467`，2026-09-27）** | ~~`supportOk`（`D-112` 支撑块用完即拆）与 `restoredOk`（材料闭环）都写成 `!current.expectSupport() \|\| …`，而 **13 条用例的 `expectSupport` 全是 `false`**（`plan()` 与 `execute()` 两个便捷构造都硬写 `false`）⇒ 两条断言**永远为真**，`/ledgerRestored=` `/scaffoldLeft=` **从不打印**~~ ⇒ 修法 = 新增**第一条 `expectSupport=true` 的 EXECUTE 用例** `exec_support`（`D-467`）；`restoredOk` **并入** `supportOk`（原合取逐字等价 ⇒ 既有 13 条判决不变）。实测 `/supportRestored=true/ledgerRestored=1/scaffoldLeft=0` **第一次打印** | —— |
 > | O2 | **`RESTORE` 相位零覆盖** ✅ **已修（`D-467`，2026-09-27）** | ~~11 次 `restore_skip pending=0`（`places=0`）⇒ 本相位 `to=RESTORE` **0 次**~~ ⇒ 修法 = **密封前提**（`FixtureZone`：认领区块 + `declare` L2 任务区 + **幂等 `release()`**，摆在 `scope.begin` 之后、还原在 `finishCase()`）+ `exec_support`。实测 `[WRITE] place … SUPPORT_PLACEMENT` + `[Ledger] place … [TEMP SUPPORT_PLACEMENT]` + `restore_start pending=1` + `restore_end status=DONE restored=1`；`release` 后后续用例回到"区外" ⇒ **无泄漏**。⚠️ 仍**未覆盖**的是：`restoreTask == null` 那条 `D-175` 第二层防御（`restoreTask 缺失` 全语料 0 次）| 那条崩溃防线仍无正例 ⇒ 需要一次"收尾时 `restoreTask` 已被清空又被 tick"的场景（历史上是 `SCOPE_REOPEN` 那条路） |
-> | O3 | **`CHAIN` 相位零覆盖** | `ChainMining.available()` = `Class.forName("oreexcavation.…")`，而客户端 22 个 jar 里**没有 oreexcavation** ⇒ `exec_chain`/`exec_chain_budget_refused` 在 CORE 里 `= SKIP（模组不在场）`；最后真跑 = `20260920-174203-core.log` | 存在带 oreexcavation 的测试环境时；或 `step 5a` 拆到连锁回落分支（`:539-543`/`:600-603`）时**必须显式声明"无覆盖"** |
+> | O3 | **`CHAIN` 相位零覆盖** | `ChainMining.available()` = `Class.forName("oreexcavation.…")`，而客户端 22 个 jar 里**没有 oreexcavation** ⇒ `exec_chain`/`exec_chain_budget_refused` 在 CORE 里 `= SKIP（模组不在场）`；最后真跑 = `20260920-174203-core.log` | ⭐ **升级（2026-09-27）**：`step 5a`（`D-469`）**已经在连锁回落分支上动过代码**，且那一刀最危险的语义漂移**正藏在这条零覆盖的路里**（见下表 `O6`）⇒ 复活条件 = **补一条能走到连锁回落的夹具**（模组在场，或让 `ChainMining.start` 返回非 OK 的注入路径）|
 > | O4 | **`supportRestored` 是弱判据** ✅ **已修（`D-467`，2026-09-27）** | ~~`D-465` 尝试② 里它报 `true`，而那一次**支撑块根本没放**（`writes[…] places=0`）—— 它是「`target.below()` 是空气」的检查，**空操作也能满足**~~ ⇒ 加强为**世界事实 且 账本闭环**：`下面是空气 && restoredBlocks() ≥ 1 && scaffoldLeft() == 0`（`restoredBlocks ≥ 1` 同时证明"确实放过 + 确实拆回"）| —— |
 > | O5 | ⭐ **`Restore` 的材料回收**不确定**（`D-467` 新发现，2026-09-27）** | 同场景、同世界母本、同 jar 两次跑：run A `recovered=0 / dropsLeft=1 / delta=0`，run B `recovered=1 / dropsLeft=0 / delta=1`；两次的 `[Restore] … 向下拆 不通 → 改为侧拆兜底（不挖地形）` **逐字相同** ⇒ 差别在**侧拆之后那件材料捡不捡得回**（时序相关）| 本刀的两条判据（`dropsLeft` 上界 + 不断 delta）在**两种结果下都稳定** ⇒ 没把不确定性带进判据。**复活条件** = 它稳定停在 `recovered=0`，或 `RestoreScopeTask` 因别的原因要动时 |
+> | O6 | ⭐⭐ **三条"重新执行"的路全部零覆盖**（`D-469` 新发现，2026-09-27）** | `D-469` 给 `MineStep` 装了终态闩锁后，编排器有**三条路会在拿到终态结论之后再开一次执行**：**① `CHAIN` 回落**（`beginChain`/`tickChain`，实测基线 core 日志 `[ChainMine]` **0 行**）**② `tryReplan`**（实测 `[MineTask重规划探针]` **0 行**，`recoveryAttempts` 只到 `0/2`）**③ 运行期清空前视线**（`B6` 盲区）。⚠️ 不清闩锁 ⇒ ① 那格**根本没挖**却报成功（静默假成功）② 恢复机制**整体空转**。⭐ `core` 逐步 diff 对这三条**完全无感** | **高优先级**：补这三条路**任一条**的夹具（判据 = 该路的日志行第一次出现 + 目标方块真的被破坏 / `recoveryAttempts` 真的推进到 `1/2` 以上）。⚠️ 下一刀若再动这三处，**必须先补** |
 >
-> ⏭ **下一步 = `step 5a` 主体（用户 2026-09-27 拍 甲：先拆 `MineTask`）** —— 拆「**编排 vs 原子**」边界。
-> ⚠️ 设计已出（两份只读取证），但**三处待拍**：① 编排器落点（`task/` 还是 `job/` —— ⚠️ `task/ → job/` 是**向上**依赖，若落 `job/` 需要显式破例）② 原语是否保留 `MiningPlanner` ③
-> `MAX_RECOVERY_ATTEMPTS`/`CHAIN_TIMEOUT_TICKS` 算不算判据③ 的"类内额度常量"。
+> ✅ **`step 5a` 主体已落地（`D-469`，2026-09-27）** —— 「**编排 vs 原子**」边界 = `MineStep`（`task/mining/`）+ `MineTask` 编排器；三处原待拍点已由 `D-466` 九拍收口（编排器留 `task/` · 原语**保留** `MiningPlanner` · 两个常量随编排留下不注入）。
+> ⏭ **下一步 = `step 5b`**（拆 `CollectDropsTask`，含 **`step 2b`** 的类内默认额度常量清零）· 前置建议 = 先补 `O6` 那三条零覆盖路中的任一条。
 
 > #### ⭐ `step 5a` 前置事实（2026-09-27 实测；**`src/` 零改动**）—— 拆 `MineTask` 的「编排 vs 原子」
 >

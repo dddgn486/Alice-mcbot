@@ -168,7 +168,18 @@ run_gate             "check-primitive-budget-injection" python3 tools/check-prim
 # 根因 = 转换点散在 14 处直接赋值（其中 3 处连专用日志都没有）⇒ 收成一个 `enterPhase(Phase)`。
 # 断言 = `MineTask` 里 `phase = Phase.X;` 的直接赋值 **0 处** + `enterPhase(` 调用点 ≥8 + 方法体真赋值
 # （防"掏空"假绿）。自带 11 条红臂。⚠️ 它同时是 step 5a 搬编排时的安全带（过渡点缺/多一个会红）。
+# ⚠️ step 5a 落地后的读数：转换点 **14 → 13**（`tickOnce` 里那条执行段尾巴被切成
+# `tickEvaluating` / `tickMining` 两半，`enterPhase(MINING)` 随执行段归位）。
 run_gate             "check-phase-transition-outlet" python3 tools/check-phase-transition-outlet.py
+# 原子/编排分家（`J-★` 第 6 段 step 5a / `D-466` 十拍 + `D-469` 落地，2026-09-27）：
+# `MineTask` 里"跑一格"的那一段切进了新原语 `task/mining/MineStep.java`。边界**不能靠读代码守**
+# （本仓 `D-178` 的"终态硬编码"曾同时存在 6 处而无人发现）⇒ 写成五条可失败断言：
+# A 原语无相位机（`Phase`/`phase` 各 0）· B 成功出口**恰好 1** + 四个结论工厂正向人口 ·
+# C① 原语 `new MineTask(` 0 处 · C② 编排器委托点 ≥5（防把原语架空）·
+# D1 原语额度只来自构造参数（比 `check-primitive-budget-injection` 更严：方法体里造也红）·
+# D2 额度消费点**恰好 1** 且必须是具名的那一处（`miningPlanner.plan(`）。
+# 自带 19 条红臂（每臂只打一条判据 ⇒ "红"必然红在那一条上）。
+run_gate             "check-task-orchestration-split" python3 tools/check-task-orchestration-split.py
 # 原语读数（`J-★` 第 6 段 step 5 / `D-463`，2026-09-27）：拆 `MineTask` / `CollectDropsTask` 前，
 # **先把 4 个验收读数的定义钉死**（`Phase 值数 / 额度词数 / 构造器数 / 行数`）——
 # 实测发现台账原登记的那组数（`8/47/5/975` · `0/16/6/1250`）**11 种口径都复现不出来**。

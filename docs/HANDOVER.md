@@ -1818,3 +1818,56 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
   ⚠️ **无客户端可观察行为变化**（只动夹具）⇒ 客户端轮不必要。
 - ⏭ **下一步 = `D-466` §八 的第 ② 步**：落新门禁 `tools/check-task-orchestration-split.py`（五条判据 + 红臂），
   然后才是主体刀（`MineStep` + `MineTask` 改委托）。
+
+---
+
+## `D-469`（2026-09-27）：`step 5a` 第 ③④ 步 —— 单格原语 `MineStep` 切出来
+
+- **一句话**：`MineTask` 里"**跑一格**"的那一段搬进新原语 `task/mining/MineStep.java`；
+  `MineTask` 变成**编排器**（相位机 + 两个分叉）；五条判据新门禁同刀落地。
+- **新增**：`src/main/java/com/dddgn/alice/task/mining/MineStep.java`（255 行 / 9 方法）·
+  `tools/check-task-orchestration-split.py`（五条判据 A/B/C①/C②/D1/D2 + 19 条红臂，挂 `check-all`）。
+- **改动**：`task/MineTask.java`（997 → 999 行；**代码行 685 → 663**）·
+  `tools/check-primitive-budget-injection.py`（docstring + 红臂 #6）·
+  `tools/kernel-predicates.py`（`A1′` 加第二种闩锁形状，`LATCH_SITES_MIN` 7 → 8）·
+  `tools/check-phase-transition-outlet.py`（读数 14 → 13）· `tools/check-all.sh`（+1 门禁）。
+
+### ⭐⭐ 本刀最该记住的一条：**闩锁会把"重新执行"拦掉**（靠推理，不靠电池）
+
+`MineStep` 按 `D-466` §五 装了**它自己的**终态闩锁；但编排器有**三条路会在拿到终态结论之后再开一次执行**，
+而这三条路在无头电池里**全部零覆盖**：**① `CHAIN` 回落**（基线 core 日志 `[ChainMine]` **0 行**）·
+**② `tryReplan`**（`[MineTask重规划探针]` **0 行**）· **③ 运行期清视线**（`B6` 盲区）。
+不清闩锁 ⇒ ① 那格**根本没挖**却报成功（**静默假成功**）② 恢复机制**整体空转**。
+修法 = `startExecution()` 显式清 `terminal`。⇒ 台账新增 **`O6`（高优先级待补夹具）**，并升级 `O3`。
+
+### 顺手挖出的四条「已经死了的形状」（全部逐点核过）
+
+`standingPointEvaluated` 短路（不可达）· `optimalStandingPoint`（与 `currentPlan.standingFoot()` 恒等）·
+两处 `miner = null;`（死存）—— 三条**本刀删掉**；⚠️ 第四条 `useChain = false`（两条回落路上不可观测，
+因为 `chainTriggered` 全仓无复位）**故意不删**（那是连锁调度语义，不在本刀范围）。
+
+### ⚠️ `D-466` §九 的成本估计不成立
+
+§九 写「997 → ≈600–650」。实测 `MineTask` 的**原子段只有约 40 行代码** ⇒ 那个数**不可能**达到。
+**别再拿那组数当验收面**：`step 5a` 的产出是**边界**（一个被门禁钉住的独立单元），不是行数下降。
+
+### 回归
+
+- `single:mine_regression` **PASS**（`…-173207-single_mine_regression.log` · `passed=1/1` · `ticks=214`）
+- `core` **PASS**（243 s · `…-173622-core.log`）—— **43/43 步全 PASS**；与改造前基线
+  （`…-170408-core.log`）逐步 diff：**38 步 ticks 完全相同**，5 步不同且**全部落在各自的历史抖动带内**
+  （`scaffold` 321→365 落在既有 359–373 离群簇：193 份 core 里该簇出现 21 次；`clear_guard`/`lumber_job`/
+  `mine_job`/`mine_regression` 同为既有抖动）。
+- `check-all` = **`pass=29 warning=1 failed=0`**（门禁 28 → 29）· 六条新门禁真树红臂 + `A1′` 两条真树红臂
+  逐条核对"红的理由" + **sha 逐字还原**。
+- ⚠️ 用 `ALICE_BATTERY_NO_CACHE=1` ⇒ **没有** core 指纹，回归锚 = 日志文件名。
+- ⚠️ **无客户端可观察行为变化**（唯一日志变化：`[MineTask] 挖掘状态` → `[MineStep] 挖掘状态`，且去掉了
+  恒为 `MINING` 的 `phase=`）⇒ **客户端轮不必要**。
+
+### ⏭ 下一步
+
+1. **建议先补 `O6`**（`CHAIN` 回落 / `tryReplan` / 运行期清障三条路任一条的夹具）—— 这是本刀唯一
+   "靠推理保住语义"的地方；
+2. 然后才是 **`step 5b`**（拆 `CollectDropsTask`，含 **`step 2b`** 的类内默认额度常量清零）；
+3. ⏳ **待用户裁一条**：`MineStep` 构造签名里的 `scope`（`D-466` §六 逐字保留）**今天 0 消费者**
+   —— 留还是去（见 `D-469` §六）。

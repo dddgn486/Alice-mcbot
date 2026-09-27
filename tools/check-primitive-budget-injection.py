@@ -32,17 +32,25 @@
 2. **额度注入面的人口下限**（防"把额度参数整个删掉 ⇒ 门禁假绿"）：
    - 扫描到的顶层 `task/*.java` ≥ `MIN_SCANNED_FILES`；
    - 带额度形参（`budget`/`quota` 词根）的 `public` 构造器全仓 ≥ `MIN_QUOTA_CTORS`；
-   - 两个**具名原语**（`MineTask` · `CollectDropsTask`）各 ≥1 个 —— 它们今天各有 4 个（删一个必须显式改本文件）。
+   - 人口表里具名的那两个文件（`MineTask.java` · `CollectDropsTask.java`）各 ≥1 个 —— 它们今天各有 4 个
+     （删一个必须显式改本文件）。
+     ⚠️ `step 5a`（`D-469`）之后 `MineTask.java` **是编排器**、不再是原语，但它的 4 个构造器
+     **签名逐字不动**（`D-466` §五）⇒ 它仍是额度**注入面**上的一环，留在人口表里是对的。
 
 ## ⚠️ 本门禁**不**覆盖什么（边界写在门禁里，防"绿 = 合规"的误读）
 
+- ⚠️ **扫描根是平的**（`TASK_DIR.glob("*.java")`，只要 `task/` 顶层）⇒ **`step 5a` 切出来的新原语
+  `task/mining/MineStep.java` 不在本门禁的射程内**。它的额度来源（必须构造注入 + 类内不得有额度词命名的
+  常量 + 消费点恰好 1）由 `tools/check-task-orchestration-split.py` 的判据 **D1/D2** 断言（同刀落地）。
+  本门禁的"具名原语"`MineTask` 现在只是**编排器**，它的额度**转发**给原语与子任务。
 - **不覆盖"类内自带默认额度常量"** —— 那是同一条判据的另一半（`D-455` ⑧③"类内不得有默认额度常量"）
   ⇒ 实测今天的违规面 = `CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS`（`public`，被两个便捷构造器当默认值）
   + 若干**内部机制档**（`CLUSTER_BUDGET_TICKS` 等 —— ⑧③ 的字面只点名"**默认**额度常量"，机制档是否在内待裁）。
   清零默认口要重设计那个 1250 行原语 ⇒ 排期在 **`step 2b`**（甲口径 = 并入 `step 5`；台账第 6 段 `2b` 有四个口径）。
   ⚠️ **不许**把本门禁的绿读成"⑧③ 已经全部合规"。
-- **不覆盖"方法体内为子任务派生额度"**（`MineTask.startClear` / `tryGainHeight` 里那两个 `new MineTask(...)` = 父原语给
-  **子** `MineTask` 算额度，形状 = `profile.nestedSubTask()` 的"子信封 ⊆ 父信封"）。
+- **不覆盖"方法体内为子任务派生额度"** —— `step 5a` 之后那两个点（`MineTask.startClear` /
+  `tryGainHeight` 里的 `new MineTask(...)`）的语义是"**编排器**给**子编排器**算额度"
+  （`D-466` §四.2：子任务要"计划 → 破坏 → 收落物 → 加高 ≤1"，它本来就是小编排）。
   它们**是**方法体、不是"调用方不说也能用"的默认入口 ⇒ 不在本规则里；
   但它与 `MiningProfile` 的"子信封"关系**不对称**（`MiningBudget` 没有"子额度 ⊆ 父额度"这一层），
   记为观察项，未裁。
@@ -261,11 +269,18 @@ class MineTask {
     }
 }
 """, False),
-    ("方法体里为子任务造 ⇒ 绿（本门禁的**边界**：不是「默认入口」）", """
+    # ⚠️ `step 5a`（`D-469`）之后这条臂的**含义变了**（形状没变，**谁在造**变了）：
+    # 片段**逐字**取自 `MineTask.startClear`（今天仍是这样写的），而 `MineTask` 现在是**编排器** ⇒
+    # 这条绿的含义 = 「**编排器**在方法体里为子编排器派生额度」合法（`D-466` §四.2）。
+    # ⚠️ 本门禁**判不出"谁在造"**（它只看"是不是默认入口"）—— "原语自己造额度"由
+    # `tools/check-task-orchestration-split.py` 判据 **D1** 单独管（同刀落地）。
+    ("编排器在方法体里为子编排器造 ⇒ 绿（本门禁的**边界**：不是「默认入口」）", """
 class MineTask {
     private boolean startClear(BlockPos blocker) {
         clearTask = new MineTask(bot, blocker, scope,
-                MiningBudget.forTarget(bot, level, blocker, false), subProfile, grant);
+                MiningBudget.forTarget(bot, bot.serverLevel(), blocker, false),
+                subProfile,
+                grant.with(com.dddgn.alice.write.WriteReason.LINE_OF_SIGHT));
         return true;
     }
 }
