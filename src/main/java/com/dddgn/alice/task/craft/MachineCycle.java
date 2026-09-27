@@ -1,9 +1,9 @@
 package com.dddgn.alice.task.craft;
 
 import com.dddgn.alice.action.MenuSession;
-import com.dddgn.alice.action.WriteBudget;
-import com.dddgn.alice.action.WriteGrant;
-import com.dddgn.alice.action.WriteReason;
+import com.dddgn.alice.write.WriteBudget;
+import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.decision.MachineMap;
 import com.dddgn.alice.log.BotLog;

@@ -1,7 +1,7 @@
 package com.dddgn.alice.task;
 
-import com.dddgn.alice.action.WriteReason;
-import com.dddgn.alice.action.WriteGrant;
+import com.dddgn.alice.write.WriteReason;
+import com.dddgn.alice.write.WriteGrant;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.compat.ChainMining;
 import com.dddgn.alice.log.BotLog;
@@ -233,11 +233,11 @@ public final class MineRegressionTask implements Task {
                         current.name(), chainModeBefore);
                 if (current.kind() == Kind.CHAIN_STARVED) {
                     // **确定性**触发：3×3 矿脉 ≫ 1 次破坏 ⇒ 第二次增量必被拒（不必造 65 格的场景）
-                    com.dddgn.alice.action.WriteBudget.setCaps(
-                            com.dddgn.alice.action.WriteBudget.scopeOf(bot),
-                            new com.dddgn.alice.action.WriteBudget.Caps(1, 0, 0));
+                    com.dddgn.alice.write.WriteBudget.setCaps(
+                            com.dddgn.alice.write.WriteBudget.scopeOf(bot),
+                            new com.dddgn.alice.write.WriteBudget.Caps(1, 0, 0));
                     BotLog.info("[MineRegression] {} 破坏预算压到 1（夹具专用 setCaps）remaining={}",
-                            current.name(), com.dddgn.alice.action.WriteBudget.remainingBreaks(bot));
+                            current.name(), com.dddgn.alice.write.WriteBudget.remainingBreaks(bot));
                 }
             }
             scope.begin(current.target(), 16, bot.getUUID());
@@ -317,15 +317,15 @@ public final class MineRegressionTask implements Task {
             boolean flagged = mineTask.chainRefusedByBudget();
             boolean reported = "chain_budget_refused".equals(mineTask.terminalReason());
             boolean stopped = !ChainMining.isRunning(bot);
-            int remaining = com.dddgn.alice.action.WriteBudget.remainingBreaks(bot);
+            int remaining = com.dddgn.alice.write.WriteBudget.remainingBreaks(bot);
             record(current, flagged && reported && stopped && remaining == 0,
                     "refused=" + flagged + "/terminalReason=" + mineTask.terminalReason()
                             + "/chainStopped=" + stopped + "/remainingBreaks=" + remaining
                             + "/status=" + status);
             // 复原上限，**不许污染后续用例/后续电池步**
-            com.dddgn.alice.action.WriteBudget.setCaps(
-                    com.dddgn.alice.action.WriteBudget.scopeOf(bot),
-                    com.dddgn.alice.action.WriteBudget.Caps.DEFAULT);
+            com.dddgn.alice.write.WriteBudget.setCaps(
+                    com.dddgn.alice.write.WriteBudget.scopeOf(bot),
+                    com.dddgn.alice.write.WriteBudget.Caps.DEFAULT);
             finishCase();
             return index >= CASES.size() ? finish() : Status.RUNNING;
         }
@@ -540,9 +540,9 @@ public final class MineRegressionTask implements Task {
 
     private void finishCase() {
         // G3 兜底：即使 CHAIN_STARVED 用例超时/异常提前收尾，也不许把 bot 的破坏预算留在 1
-        com.dddgn.alice.action.WriteBudget.setCaps(
-                com.dddgn.alice.action.WriteBudget.scopeOf(bot),
-                com.dddgn.alice.action.WriteBudget.Caps.DEFAULT);
+        com.dddgn.alice.write.WriteBudget.setCaps(
+                com.dddgn.alice.write.WriteBudget.scopeOf(bot),
+                com.dddgn.alice.write.WriteBudget.Caps.DEFAULT);
         if (chainModeBefore != null) {
             MiningTuning.setChainMode(chainModeBefore);
             BotLog.info("[MineRegression] 恢复 chain={}", chainModeBefore);

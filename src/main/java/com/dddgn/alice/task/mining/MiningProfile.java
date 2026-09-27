@@ -155,8 +155,8 @@ public record MiningProfile(boolean standableOnly, int maxGainSteps, int gainBlo
     }
 
     /** 加高产生的放置用的理由（归因串里的 requester 仍取自任务的 {@code WriteGrant}）。 */
-    public com.dddgn.alice.action.WriteReason gainReason() {
-        return com.dddgn.alice.action.WriteReason.STANDING_SPACE;
+    public com.dddgn.alice.write.WriteReason gainReason() {
+        return com.dddgn.alice.write.WriteReason.STANDING_SPACE;
     }
 
     public String describe() {

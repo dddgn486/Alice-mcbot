@@ -2,7 +2,7 @@ package com.dddgn.alice.task;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.bot.TaskMetrics;
-import com.dddgn.alice.action.WriteBudget;
+import com.dddgn.alice.write.WriteBudget;
 import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.job.GoalSpec;
 import com.dddgn.alice.job.mine.MineCandidateSource;

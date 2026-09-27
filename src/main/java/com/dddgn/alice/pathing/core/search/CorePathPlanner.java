@@ -105,8 +105,8 @@ public final class CorePathPlanner {
         //（`BotManager.java:1809` 直接调 `task.tick()`）⇒ 让异常逃逸会打断服务端 tick。
         // 授权违规要"响亮失败 + 可归因"，不是"崩服务器"。
         try {
-            com.dddgn.alice.action.WritePolicyMatrix.requireMovementsGranted(level, request);
-        } catch (com.dddgn.alice.action.WritePolicyMatrix.Violation violation) {
+            com.dddgn.alice.write.WritePolicyMatrix.requireMovementsGranted(level, request);
+        } catch (com.dddgn.alice.write.WritePolicyMatrix.Violation violation) {
             com.dddgn.alice.log.BotLog.warn("[WritePolicy] plan_refused code={} requester={} goal={} detail={}",
                     violation.code(), request.requester(), request.goal().goalFoot().toShortString(),
                     violation.getMessage());

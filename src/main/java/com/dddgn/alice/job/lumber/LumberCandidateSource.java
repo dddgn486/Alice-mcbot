@@ -1,7 +1,7 @@
 package com.dddgn.alice.job.lumber;
 
-import com.dddgn.alice.action.WriteReason;
-import com.dddgn.alice.action.WriteGrant;
+import com.dddgn.alice.write.WriteReason;
+import com.dddgn.alice.write.WriteGrant;
 import com.dddgn.alice.job.Candidate;
 import com.dddgn.alice.job.CandidateSet;
 import com.dddgn.alice.job.CandidateSource;
@@ -71,7 +71,7 @@ public final class LumberCandidateSource implements CandidateSource {
             String protection = com.dddgn.alice.protection.ZoneAuthority.candidateRefusal(level, bot.getUUID(),
                     tree.base(),
                     SafeZoneData.get(level.getServer()).protectionReason(level, tree.base()),
-                    com.dddgn.alice.action.WriteReason.EXPECTED_TARGET);
+                    com.dddgn.alice.write.WriteReason.EXPECTED_TARGET);
             if (protection != null) {
                 rejected.add(id + ":" + protection);
                 continue;

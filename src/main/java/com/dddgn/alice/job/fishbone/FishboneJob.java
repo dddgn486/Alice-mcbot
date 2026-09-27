@@ -2,9 +2,9 @@ package com.dddgn.alice.job.fishbone;
 
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.action.MineBlockRunner;
-import com.dddgn.alice.action.WriteAudit;
-import com.dddgn.alice.action.WriteGrant;
-import com.dddgn.alice.action.WriteReason;
+import com.dddgn.alice.write.WriteAudit;
+import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.config.FishboneConfig;
 import com.dddgn.alice.job.Job;
@@ -490,7 +490,7 @@ public final class FishboneJob implements Job {
         // `new FishboneJob(...)` **先求值**、再 `session.beginTask(job, ...)`，而后者函数体里会
         // `TaskTargetProtection.end(bot)` ⇒ 构造器里装的作用域会被**同 tick 清掉**。
         Set<BlockPos> channelCells = template.cellSet();
-        com.dddgn.alice.action.TaskTargetProtection.beginChannel(bot, jobName(), channelCells::contains);
+        com.dddgn.alice.write.TaskTargetProtection.beginChannel(bot, jobName(), channelCells::contains);
         BotLog.info("[Fishbone] channel_reserved cells={}（I5 放置面：本作业自己的通道层格不许被放方块）",
                 channelCells.size());
         BotLog.info("[Fishbone] start template={} scopeRadius={} maxTicks={}",
@@ -1600,7 +1600,7 @@ public final class FishboneJob implements Job {
     private Task.Status finishTerminal() {
         // `I5` 放置面：作业自己的作用域自己撤（`BotManager` 下个任务开始时也会清一次 —— 双保险：
         // 泄漏的后果是"这个 bot 以后都不能在别处放方块"，比多撤一次危险得多）。
-        com.dddgn.alice.action.TaskTargetProtection.end(bot);
+        com.dddgn.alice.write.TaskTargetProtection.end(bot);
         if (!summaryEmitted) {
             summaryEmitted = true;
             emitSummary();

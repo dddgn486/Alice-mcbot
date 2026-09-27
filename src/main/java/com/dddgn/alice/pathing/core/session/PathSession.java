@@ -1,7 +1,7 @@
 package com.dddgn.alice.pathing.core.session;
 
-import com.dddgn.alice.action.WriteGrant;
-import com.dddgn.alice.action.WriteReason;
+import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
@@ -774,7 +774,7 @@ public final class PathSession {
 
             @Override
             public boolean hasWriteBudget(boolean breaking) {
-                return com.dddgn.alice.action.WriteBudget.plannedWritesAllowed(bot,
+                return com.dddgn.alice.write.WriteBudget.plannedWritesAllowed(bot,
                         breaking ? 1 : 0, breaking ? 0 : 1);
             }
 

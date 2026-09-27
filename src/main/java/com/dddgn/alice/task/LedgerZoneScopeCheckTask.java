@@ -1,8 +1,8 @@
 package com.dddgn.alice.task;
 
 import com.dddgn.alice.action.BlockInteraction;
-import com.dddgn.alice.action.WriteGrant;
-import com.dddgn.alice.action.WriteReason;
+import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.ledger.WorldModLedger;
@@ -273,7 +273,7 @@ public final class LedgerZoneScopeCheckTask implements Task {
                 ProtectionZones.isProtected(level, ZONE_TARGET));
         check("臂③ 前提：封套等级 = L2 工作面（拆/放都放行）",
                 zone.declaredZone() != null && zone.declaredZone().level()
-                        == com.dddgn.alice.action.WritePolicyMatrix.Level.L2_WORKFACE);
+                        == com.dddgn.alice.write.WritePolicyMatrix.Level.L2_WORKFACE);
     }
 
     /** 臂 ③：**区内放置 ⇒ 必有条目 + 回收真的发生**。 */

@@ -1,6 +1,6 @@
 package com.dddgn.alice.task.mining;
 
-import com.dddgn.alice.action.WriteGrant;
+import com.dddgn.alice.write.WriteGrant;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;

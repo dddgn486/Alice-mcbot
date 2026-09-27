@@ -647,8 +647,8 @@ public final class CollectDropsTask implements Task {
                 nearest.getUUID(), nearest.blockPosition().toShortString(),
                 bot.blockPosition().toShortString(), gainSteps + 1, gainProfile.maxGainSteps());
         gainRunner = new com.dddgn.alice.task.mining.GainStepRunner(bot, gainProfile,
-                com.dddgn.alice.action.WriteGrant.of("collect-drops",
-                        com.dddgn.alice.action.WriteReason.STEP_PLACEMENT));
+                com.dddgn.alice.write.WriteGrant.of("collect-drops",
+                        com.dddgn.alice.write.WriteReason.STEP_PLACEMENT));
         return true;
     }
 

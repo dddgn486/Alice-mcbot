@@ -1,8 +1,8 @@
 package com.dddgn.alice.ledger;
 
 import com.dddgn.alice.action.ContainerSemantics;
-import com.dddgn.alice.action.WriteGrant;
-import com.dddgn.alice.action.WritePolicyMatrix;
+import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.WritePolicyMatrix;
 import com.dddgn.alice.log.BotLog;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;

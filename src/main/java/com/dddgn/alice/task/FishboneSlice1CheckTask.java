@@ -1,6 +1,6 @@
 package com.dddgn.alice.task;
 
-import com.dddgn.alice.action.WriteAudit;
+import com.dddgn.alice.write.WriteAudit;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.job.fishbone.FishboneJob;

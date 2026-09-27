@@ -1,4 +1,4 @@
-package com.dddgn.alice.action;
+package com.dddgn.alice.write;
 
 import java.util.Objects;
 

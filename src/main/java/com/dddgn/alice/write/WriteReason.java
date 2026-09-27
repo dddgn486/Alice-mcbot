@@ -1,4 +1,4 @@
-package com.dddgn.alice.action;
+package com.dddgn.alice.write;
 
 /**
  * 世界写入理由（结构化词表，D-082）。

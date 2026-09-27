@@ -1,6 +1,6 @@
 package com.dddgn.alice.task;
 
-import com.dddgn.alice.action.WriteBudget;
+import com.dddgn.alice.write.WriteBudget;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.core.search.PathRequest;

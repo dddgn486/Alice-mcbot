@@ -35,7 +35,7 @@ public final class TransferTask implements Task {
     private int menuSourceSlot = -1;
     private int menuPlayerSlot = -1;
     private int menuDestinationSlot = -1;
-    private com.dddgn.alice.action.WriteGrant activeGrant;
+    private com.dddgn.alice.write.WriteGrant activeGrant;
 
     /** 菜单路线的子阶段（比相位更细：一次写入要跨多 tick）。 */
     private enum MenuStage { NONE, OPENING, PICK, PLACE }
@@ -195,9 +195,9 @@ public final class TransferTask implements Task {
     }
 
     /** 容器写入的**授权**（2026-09-13 用户裁定：容器写入算世界改动）。 */
-    private static com.dddgn.alice.action.WriteGrant containerGrant() {
-        return com.dddgn.alice.action.WriteGrant.of("transfer",
-                com.dddgn.alice.action.WriteReason.CONTAINER_TRANSFER);
+    private static com.dddgn.alice.write.WriteGrant containerGrant() {
+        return com.dddgn.alice.write.WriteGrant.of("transfer",
+                com.dddgn.alice.write.WriteReason.CONTAINER_TRANSFER);
     }
 
     // ==================== L2：菜单路线（真实 openMenu + 菜单点击） ====================
@@ -218,9 +218,9 @@ public final class TransferTask implements Task {
         }
         if (menuStage == MenuStage.NONE) {
             activeGrant = containerGrant();
-            if (com.dddgn.alice.action.WriteBudget.consumeContainerWrite(bot,
+            if (com.dddgn.alice.write.WriteBudget.consumeContainerWrite(bot,
                     request.source().position(), activeGrant)
-                    == com.dddgn.alice.action.WriteBudget.Verdict.REFUSED) {
+                    == com.dddgn.alice.write.WriteBudget.Verdict.REFUSED) {
                 return suspend(TransferCodes.CONTAINER_BUDGET_EXHAUSTED, TransferLedgerData.Location.NOT_MOVED);
             }
             transition(TransferLedgerData.State.SOURCE_LEG_PRE, TransferLedgerData.Location.NOT_MOVED, "", false);
@@ -288,9 +288,9 @@ public final class TransferTask implements Task {
         }
         if (menuStage == MenuStage.NONE) {
             activeGrant = containerGrant();
-            if (com.dddgn.alice.action.WriteBudget.consumeContainerWrite(bot,
+            if (com.dddgn.alice.write.WriteBudget.consumeContainerWrite(bot,
                     request.destination().position(), activeGrant)
-                    == com.dddgn.alice.action.WriteBudget.Verdict.REFUSED) {
+                    == com.dddgn.alice.write.WriteBudget.Verdict.REFUSED) {
                 return suspend(TransferCodes.CONTAINER_BUDGET_EXHAUSTED, TransferLedgerData.Location.BOT_INVENTORY);
             }
             transition(TransferLedgerData.State.DESTINATION_LEG_PRE, TransferLedgerData.Location.BOT_INVENTORY, "", false);
@@ -424,9 +424,9 @@ public final class TransferTask implements Task {
             return sourceWriteViaMenu();
         }
         // 授权 + 预算（容器写入纳入"世界改动"体系；超限即拒绝）
-        com.dddgn.alice.action.WriteGrant grant = containerGrant();
-        if (com.dddgn.alice.action.WriteBudget.consumeContainerWrite(bot,
-                request.source().position(), grant) == com.dddgn.alice.action.WriteBudget.Verdict.REFUSED) {
+        com.dddgn.alice.write.WriteGrant grant = containerGrant();
+        if (com.dddgn.alice.write.WriteBudget.consumeContainerWrite(bot,
+                request.source().position(), grant) == com.dddgn.alice.write.WriteBudget.Verdict.REFUSED) {
             return suspend(TransferCodes.CONTAINER_BUDGET_EXHAUSTED, TransferLedgerData.Location.NOT_MOVED);
         }
         transition(TransferLedgerData.State.SOURCE_LEG_PRE, TransferLedgerData.Location.NOT_MOVED, "", false);
@@ -446,9 +446,9 @@ public final class TransferTask implements Task {
         if (TransferRoutes.route() == TransferRoutes.Route.MENU) {
             return destinationWriteViaMenu();
         }
-        com.dddgn.alice.action.WriteGrant grant = containerGrant();
-        if (com.dddgn.alice.action.WriteBudget.consumeContainerWrite(bot,
-                request.destination().position(), grant) == com.dddgn.alice.action.WriteBudget.Verdict.REFUSED) {
+        com.dddgn.alice.write.WriteGrant grant = containerGrant();
+        if (com.dddgn.alice.write.WriteBudget.consumeContainerWrite(bot,
+                request.destination().position(), grant) == com.dddgn.alice.write.WriteBudget.Verdict.REFUSED) {
             return suspend(TransferCodes.CONTAINER_BUDGET_EXHAUSTED, TransferLedgerData.Location.BOT_INVENTORY);
         }
         transition(TransferLedgerData.State.DESTINATION_LEG_PRE, TransferLedgerData.Location.BOT_INVENTORY, "", false);

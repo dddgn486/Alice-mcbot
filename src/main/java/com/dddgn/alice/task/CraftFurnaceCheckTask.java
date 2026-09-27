@@ -256,16 +256,16 @@ public class CraftFurnaceCheckTask implements Task {
      * 能拒它的只有预算耗尽，那必须如实上报（不许绕过）。
      */
     /** 容器写入的授权对象（与 {@link #allowContainerWrite} **同一份口径**）—— 供写入原语做编译期强制（T1/R-5）。 */
-    private com.dddgn.alice.action.WriteGrant containerGrant() {
-        return com.dddgn.alice.action.WriteGrant.of(
-                taskName(), com.dddgn.alice.action.WriteReason.CONTAINER_TRANSFER);
+    private com.dddgn.alice.write.WriteGrant containerGrant() {
+        return com.dddgn.alice.write.WriteGrant.of(
+                taskName(), com.dddgn.alice.write.WriteReason.CONTAINER_TRANSFER);
     }
 
     private boolean allowContainerWrite(String what) {
-        com.dddgn.alice.action.WriteGrant grant = containerGrant();
-        com.dddgn.alice.action.WriteBudget.Verdict verdict =
-                com.dddgn.alice.action.WriteBudget.consumeContainerWrite(bot, furnace, grant);
-        if (verdict == com.dddgn.alice.action.WriteBudget.Verdict.REFUSED) {
+        com.dddgn.alice.write.WriteGrant grant = containerGrant();
+        com.dddgn.alice.write.WriteBudget.Verdict verdict =
+                com.dddgn.alice.write.WriteBudget.consumeContainerWrite(bot, furnace, grant);
+        if (verdict == com.dddgn.alice.write.WriteBudget.Verdict.REFUSED) {
             record("container_write_refused", what);
             check("container_write_allowed", false,
                     what + " 被策略/预算拒绝（grant=" + grant.describe() + "）");
@@ -526,10 +526,10 @@ public class CraftFurnaceCheckTask implements Task {
         // `Z1` 之后区外不记账 ⇒ 光看账本证明不了"外面也收干净了" ⇒ 把**覆盖度**印出来：
         // `writes` = 本步闸门计数的真实写入次数；`writes > ledgerInZone` 的差额落在区外，
         // 本判据**覆盖不到**（`D-398` R1/R2：那里没有义务、也没有账）。
-        int writes = com.dddgn.alice.action.WriteBudget.writeCount(bot);
+        int writes = com.dddgn.alice.write.WriteBudget.writeCount(bot);
         // 用 `check(...)`（它同时 record + 打日志 + 记账失败）⇒ 覆盖度进日志，判决不变
         check("no_block_writes", pending == 0, "writes=" + writes + " ledgerEntries=" + pending
-                + " " + com.dddgn.alice.action.WriteBudget.population(bot));
+                + " " + com.dddgn.alice.write.WriteBudget.population(bot));
         StringBuilder summary = new StringBuilder();
         for (Map.Entry<String, String> entry : facts.entrySet()) {
             if (!summary.isEmpty()) {

@@ -179,11 +179,11 @@ public final class MiningModule implements CheckModule {
                 // 否则 `WriteBudget.scopeOf(bot)` 会指到孤儿作用域 ⇒ 预算没生效 ⇒ 本步以超时红 ✗（D-301）。
                 CheckStep.of("mine_budget", CheckProfile.MAIN, ore, () -> {
                     staged.run();
-                    com.dddgn.alice.action.WriteBudget.setCaps(
-                            com.dddgn.alice.action.WriteBudget.scopeOf(bot),
-                            new com.dddgn.alice.action.WriteBudget.Caps(0, 0));
+                    com.dddgn.alice.write.WriteBudget.setCaps(
+                            com.dddgn.alice.write.WriteBudget.scopeOf(bot),
+                            new com.dddgn.alice.write.WriteBudget.Caps(0, 0));
                     BotLog.info("[Mining] mine_budget 夹具：本作用域写入预算压到 0 破坏 / 0 放置（scope={}）",
-                            com.dddgn.alice.action.WriteBudget.scopeOf(bot));
+                            com.dddgn.alice.write.WriteBudget.scopeOf(bot));
                 }, () -> new MineJob(bot,
                         GoalSpec.mineBlocks(OreCourseAnchor.START_FOOT,
                                 MineCandidateSource.SCAN_RADIUS, 1, 600),
@@ -193,7 +193,7 @@ public final class MiningModule implements CheckModule {
                         new NearestPolicy()),
                         400)
                         .withDoneWhen(task -> task instanceof MineJob job
-                                && com.dddgn.alice.action.WriteBudget.EXHAUSTED_CODE
+                                && com.dddgn.alice.write.WriteBudget.EXHAUSTED_CODE
                                         .equals(job.terminalReason())),
                 // ⭐ `D-346`（2026-09-20）：**收集的追取上限必须覆盖本作业自己的作用域** —— 旧实现把
                 // `MAX_CHASE_DISTANCE` 写死 32，比 `MineJob` 自己的作用域直径（`2 × SCAN_RADIUS(24)` = 48）

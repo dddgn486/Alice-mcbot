@@ -172,6 +172,6 @@ public record MovementContext(
         if (bot == null) {
             return true;   // 无 bot 的纯规划（headless 回归）不做预算剪枝
         }
-        return com.dddgn.alice.action.WriteBudget.plannedWritesAllowed(bot, breaks, places);
+        return com.dddgn.alice.write.WriteBudget.plannedWritesAllowed(bot, breaks, places);
     }
 }

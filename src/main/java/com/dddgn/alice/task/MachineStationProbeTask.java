@@ -380,9 +380,9 @@ public class MachineStationProbeTask implements Task {
         // ⭐ `Z4`（2026-09-23）：账本口径在野外是空集（`Z1` 起区外不记账）⇒ 同时判**闸门计数的
         // 真实写入次数**（与区无关、更强），并把人口印进读数。
         int pending = WorldModLedger.pendingForOwner(bot.serverLevel().getServer(), bot.getUUID()).size();
-        int writes = com.dddgn.alice.action.WriteBudget.writeCount(bot);
+        int writes = com.dddgn.alice.write.WriteBudget.writeCount(bot);
         record("no_writes", String.valueOf(pending == 0 && writes == 0)
-                + "(" + com.dddgn.alice.action.WriteBudget.population(bot) + ")");
+                + "(" + com.dddgn.alice.write.WriteBudget.population(bot) + ")");
         if (pending != 0) {
             failures.add("no_writes");
         }

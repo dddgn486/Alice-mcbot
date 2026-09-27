@@ -21099,3 +21099,71 @@ Job = ① 有 Kind（进 JobRequest.Kind）
 **回归**：`core` **PASS**（242 s · 指纹 `d58f01c4cbd4` · 日志 `run/headless-logs/20260927-150214-core.log`，
 43 步判决逐字不变）· `check-all` **pass=26 warning=1 failed=0** · `kernel-predicates` PASS · 层方向判据
 `grep -rn "import com.dddgn.alice.task" src/main/java/com/dddgn/alice/action/` ⇒ **0 命中**。
+
+### D-462：**`step 4` 落地 —— 写入治理从 `action/` 拆进新顶层包 `write/`（层方向变成单向；8 处硬写路径同步）**（2026-09-27，`J-★` 第 6 段 step 4）
+
+**裁定链**：`D-455` 三层（`action/` < `task/` < `job/`）+ 计划 §5.2 **⑥ = A：拆到 `write/` 包**
+（用户 2026-09-27 拍；⚠️ ⑤-⑥ 同时定了两条纪律：**只动 import** · **不与任何改名同批**）。
+⇒ 本刀**不新增门禁文件**，而是**加宽** `tools/check-layer-direction.py`（`pass=26` 不变）。
+
+#### 做了什么
+
+1. `git mv` **6 个写入治理类** 出 `action/` → 新顶层包 `write/`（只改 `package` 行）：
+   `TaskTargetProtection`（192 行）· `WriteAudit`（106）· `WriteBudget`（605）· `WriteGrant`（54）·
+   `WritePolicyMatrix`（1017）· `WriteReason`（169）。`action/` **12 → 6**（纯微操作：
+   `BlockBreakSession` · `BlockInteraction` · `ContainerSemantics` · `MenuCodes` · `MenuSession` · `MineBlockRunner`）。
+2. **引用面实测**：本次 import/FQN 改写命中 **84 个文件**（按**类名锚定**替换，见下方陷阱）+
+   **3 个微操作**（`BlockBreakSession` 补 `WriteBudget` · `BlockInteraction` 补 5 个 ·
+   `MineBlockRunner` 补 `WriteReason`）**原本靠同包隐式可见、搬完必须补 import**。
+   逐类 import 文件数（搬前实测）：`WriteGrant` 41 · `WriteReason` 39 · `WriteBudget` 8 ·
+   `WritePolicyMatrix` 5 · `WriteAudit` 3 · `TaskTargetProtection` 1。
+3. ⚠️ **迁移陷阱（与 `step 3a` 同族，但这次不是它咬人）**：**不能**做包前缀全局替换 ——
+   `com.dddgn.alice.action.` 这个前缀下还留着 6 个微操作；本刀用的是
+   `com.dddgn.alice.action.<六个类名之一>` 的**类名锚定**替换（84 个文件零误伤，编译一次过）。
+4. ⭐⭐ **本刀最贵的发现：门禁里"搬包要同步"的硬写路径一共 8 处，第一版只找到 3 处。**
+   - 找漏的原因 = **grep 形态太窄**：第一版搜的是字面 `action/WriteBudget`，
+     而实际写法有 `action / "WriteBudget.java"`（`pathlib` 除法，空格 + 分开的字符串）⇒ **漏 5 处**。
+   - ⭐ **是"反向对照"把它抓出来的**：把 `WriteBudget` 那两行改回 `action/` 跑内核门禁 ⇒
+     `exit=1`，但**红的理由是另一条规则在 `TaskTargetProtection.java` 上 `FileNotFoundError` 崩溃**
+     （= **错因红**，不是"我要测的那条红"）；顺着崩溃栈才发现 `kernel-predicates.py` 的 `RC2` 规则
+     也硬写了 `TaskTargetProtection`。⇒ **教训：反向对照必须核对"红的理由是不是那一条"**，
+     否则 `exit=1` 会被当成通过（`silent-measurement-failure` 形态：结果对了、理由错了）。
+   - 8 处清单：`kernel-predicates.py` ×5（`RC2` 的 `TaskTargetProtection` · `D-372` 的 `WriteBudget` ·
+     `Z*` 的 `WriteBudget` · `RC4` 的 `WriteBudget` · `Z4` 的 `population(`）· `authz-map.py` ×1（`WriteReason`）·
+     `policy-map.py` ×2（`MATRIX_JAVA`/`REASON_JAVA`）。**8 处逐个反向对照**：改回 `action/` ⇒ 各自**响亮红**、
+     还原后 sha **逐字一致**。
+   - ⭐ 另有 **2 处"覆盖面无声明地缩小"**（比崩溃更危险，它**不会报错**）：`RC4` 臂④ 与
+     `OURS_KILL` 臂④ 都是"扫生产目录 `perception/`+`action/`+`task/`+`job/`"——
+     `action/` 一缩，覆盖面就**静默变小** ⇒ 两处都补上 `write/`（补完仍 PASS，实测 `write/` 里 0 命中）。
+5. **门禁加宽**（`check-layer-direction.py`，本刀判据）；顺手清掉一个**过期读数**：
+   `check-primitive-budget-injection.py` 的 docstring 写"实测 141"——它随 `step 3b`
+   （`task/PathRetryRunner.java` → `pathing/`）已变成 **140** ⇒ 改成 140 + 注明"这个数会随搬包变，判据是下限"。
+
+#### 判据（静态门禁 —— 搬包不改行为，同 `D-425`）
+
+| # | 断言 | 今天实测 |
+|---|---|---|
+| ① | `write/**` 不许 import `com.dddgn.alice.{task, action, job}`（**方向只许单向**：`action/` → `write/` 允许，反之禁止） | **0 命中** |
+| ② | `action/{TaskTargetProtection,WriteAudit,WriteBudget,WriteGrant,WritePolicyMatrix,WriteReason}.java` 存在即红；且这 6 个**必须都在** `write/`（"拆包"不等于"删掉"） | 6/6 在位 |
+| ③ | 人口下限：扫描 ≥480（实测 **512**）· `action/` ≥6（实测 6）· `write/` ≥6（实测 6）· `reach/` ≥4 | 全过 |
+
+⭐ **红臂 7 → 14 条**：import 臂 11（新增 `write/`→`action` 红 · `write/`→`job` 红 · `write/`→`pathing` 绿 ·
+`action/`→`write/` 绿）+ ⭐ **"定义"臂 3**（`action/WriteGrant.java` 红 · `action/MineBlockRunner.java` 绿 ·
+`write/WriteGrant.java` 绿 —— 新增 `scan_definition()`，与 import 臂分开走）。
+⭐ **真树红臂 3 条**（都做了 sha 前后对照并逐字还原）：① `write/WriteBudget` 里注入 `import action.BlockInteraction`
+⇒ 精确报该文件；② 在 `action/` 里造第二份 `WriteGrant` 定义 ⇒ 定义臂红；③ 把 `write/WriteReason.java` 挪走
+⇒ **同时**报"`write/` 只有 5 个文件"+"缺 `WriteReason`"（证明 ② 真会咬）。
+
+#### ⚠️ 诚实边界
+
+- ⚠️ **本刀不解循环**（台账 `4` 行原话，已复核为真）：包级环来自**微操作** `MineBlockRunner`
+  （`action/` → `pathing/`，`D-076` 设计）⇒ `step 4` 与它无关，**别把本刀读成 `step 3` 的替代**。
+  实测量级：`pathing/` **14 个文件** import `action/`（`D-461` 已记），本刀**没有**改变这个数。
+- ⚠️ **未改名**（⑤-⑥ 明令）：包名 `write/` 与类名 `WriteGrant`/`WriteBudget`… 都保持不变；
+  改名是窗口结束后的**独立一刀**（`WriteGrant` 的 65 文件面是那时才付的账）。
+- ⚠️ **`WriteGrant`/`WriteBudget` 的 javadoc 里仍以 `{@code}`/`{@link}` 提到微操作类名**（如
+  `TaskTargetProtection` 提到 `BlockInteraction`）—— **注解链接不算 import 依赖**，断言① 只判 import，
+  这正是"方向单向"想要的口径（治理层可以**在文档里说明**谁调它，但**不许在代码里反向依赖**）。
+
+**回归**：`core` **PASS**（242 s · 指纹 `65623a3f8986` · 日志 `run/headless-logs/20260927-151600-core.log` · 43 步判决逐字不变）· `check-all` **pass=26 warning=1 failed=0** ·
+`kernel-predicates` PASS · `authz-registry` PASS · `policy-map --check` PASS（24 行 / 15 理由 / 7 工厂）。

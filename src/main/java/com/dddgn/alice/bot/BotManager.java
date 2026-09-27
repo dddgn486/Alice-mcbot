@@ -2023,7 +2023,7 @@ public final class BotManager {
             com.dddgn.alice.pathing.core.WriteEnvelopes.clear(bot.getUUID().toString());
             // `D-362`：同一个道理，**任务目标保护作用域也必须逐任务重立** —— 否则上一个挖掘任务装的
             // "这些格是任务目标"会留到下个任务，把那个 bot 的所有清障开路全拦掉（失败模式很隐蔽）。
-            com.dddgn.alice.action.TaskTargetProtection.end(bot);
+            com.dddgn.alice.write.TaskTargetProtection.end(bot);
             task = assignedTask;
             target = assignedTarget;
             // **J-3（2026-09-16 复核）**：终态记录的 `taskKind` 改用任务**自己声明的稳定名字**
@@ -2186,8 +2186,8 @@ public final class BotManager {
                             com.dddgn.alice.task.mining.MiningBudget
                                     .forTarget(bot, bot.serverLevel(), newTarget.blockPos(), true),
                             com.dddgn.alice.task.mining.MiningProfile.TUNNEL_ALLOWED.withRestore(),
-                            com.dddgn.alice.action.WriteGrant.of("command",
-                                    com.dddgn.alice.action.WriteReason.EXPECTED_TARGET)), newTarget);
+                            com.dddgn.alice.write.WriteGrant.of("command",
+                                    com.dddgn.alice.write.WriteReason.EXPECTED_TARGET)), newTarget);
                 }
                 case ENTITY -> {
                     BotLog.warn("实体目标任务尚未实现: target={}", newTarget.describe());
@@ -2840,7 +2840,7 @@ public final class BotManager {
                 String closedScope = com.dddgn.alice.ledger.WorldModLedger.closeScope(
                         bot.getServer(), bot.getUUID());
                 // 执行期写入预算收尾（D-106）：一行可观测摘要（breaks/places 对上限、豁免、拒绝次数）
-                com.dddgn.alice.action.WriteBudget.closeScope(closedScope);
+                com.dddgn.alice.write.WriteBudget.closeScope(closedScope);
                 // **任务区随作用域解除**（`D-338` 附注二第 2 条"取消任务自动解除"）：显式打断
                 // （`/alice region stop`）走的是这条路、不经过 Job 的 `finish()` ⇒ 两处都要收，
                 // 否则会留下一个"没有任务对应的授权封套"。

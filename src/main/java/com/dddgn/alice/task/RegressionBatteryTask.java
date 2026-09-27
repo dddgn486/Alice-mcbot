@@ -948,7 +948,7 @@ public final class RegressionBatteryTask implements Task {
         // → 销掉现场已非我方方块的条目 → 关作用域缓冲（下一步的子任务会自己 begin）
         String closed = com.dddgn.alice.ledger.WorldModLedger.closeScope(
                 bot.getServer(), bot.getUUID());
-        com.dddgn.alice.action.WriteBudget.closeScope(closed);
+        com.dddgn.alice.write.WriteBudget.closeScope(closed);
         // 任务区同样随作用域解除（D-338 附注二第 2 条）—— 电池每一步一个作用域，
         // 步结束还留着任务区 = "没有任务对应的授权封套" ⇒ 结构性禁止。
         com.dddgn.alice.protection.TaskZoneRegistry.release(closed);

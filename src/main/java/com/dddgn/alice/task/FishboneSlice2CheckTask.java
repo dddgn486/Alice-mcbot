@@ -1,7 +1,7 @@
 package com.dddgn.alice.task;
 
 import com.dddgn.alice.action.BlockInteraction;
-import com.dddgn.alice.action.WriteAudit;
+import com.dddgn.alice.write.WriteAudit;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.config.FishboneConfig;
 import com.dddgn.alice.item.FishboneJobItem;

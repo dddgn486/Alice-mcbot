@@ -339,7 +339,7 @@ public final class PathingRegressionTask implements Task {
                         + "｜{}（`Z4`：区外写入不入账 ⇒ 本清理**覆盖不到**它们）",
                 scene.scene(), removed, foreign, stale,
                 com.dddgn.alice.ledger.WorldModLedger.pendingTemporary(server, scope).size(),
-                com.dddgn.alice.action.WriteBudget.population(bot));
+                com.dddgn.alice.write.WriteBudget.population(bot));
     }
 
     /** 建地形 + 传送 + 装备（放置/破坏场景需要圆石与石镐）。 */

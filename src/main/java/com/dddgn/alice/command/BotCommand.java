@@ -914,18 +914,18 @@ public final class BotCommand {
 
         // L3 执行期：写入预算与拒绝计数（D-106）。**无作用域时闸门根本没生效**，
         // 此时不能打印各桶"余量"（那会把未生效的上限当成真实额度）——只报未生效 + 作用域内默认上限。
-        final String scopeId = com.dddgn.alice.action.WriteBudget.scopeOf(bot);
+        final String scopeId = com.dddgn.alice.write.WriteBudget.scopeOf(bot);
         final String budget = scopeId != null
                 ? "scope=" + scopeId
-                        + "；破坏 余" + com.dddgn.alice.action.WriteBudget.remainingBreaks(bot)
-                        + "（已拒 " + com.dddgn.alice.action.WriteBudget.refusedBreaks(bot) + "）"
-                        + " / 放置 余" + com.dddgn.alice.action.WriteBudget.remainingPlaces(bot)
-                        + "（已拒 " + com.dddgn.alice.action.WriteBudget.refusedPlaces(bot) + "）"
-                        + " / 容器写入 余" + com.dddgn.alice.action.WriteBudget.remainingContainerWrites(bot)
+                        + "；破坏 余" + com.dddgn.alice.write.WriteBudget.remainingBreaks(bot)
+                        + "（已拒 " + com.dddgn.alice.write.WriteBudget.refusedBreaks(bot) + "）"
+                        + " / 放置 余" + com.dddgn.alice.write.WriteBudget.remainingPlaces(bot)
+                        + "（已拒 " + com.dddgn.alice.write.WriteBudget.refusedPlaces(bot) + "）"
+                        + " / 容器写入 余" + com.dddgn.alice.write.WriteBudget.remainingContainerWrites(bot)
                 : "无作用域 ⇒ 闸门未生效（不计数、不拦截，仅 [WriteBudget] no_scope 留痕）；"
-                        + "默认上限（仅作用域内生效）破坏" + com.dddgn.alice.action.WriteBudget.DEFAULT_MAX_BREAKS
-                        + "/放置" + com.dddgn.alice.action.WriteBudget.DEFAULT_MAX_PLACES
-                        + "/容器" + com.dddgn.alice.action.WriteBudget.DEFAULT_MAX_CONTAINER_WRITES;
+                        + "默认上限（仅作用域内生效）破坏" + com.dddgn.alice.write.WriteBudget.DEFAULT_MAX_BREAKS
+                        + "/放置" + com.dddgn.alice.write.WriteBudget.DEFAULT_MAX_PLACES
+                        + "/容器" + com.dddgn.alice.write.WriteBudget.DEFAULT_MAX_CONTAINER_WRITES;
 
         // L4 收尾期：账本 pending（只记放置）+ 保护区判定
         final int pendingMine = com.dddgn.alice.ledger.WorldModLedger
@@ -950,10 +950,10 @@ public final class BotCommand {
         // L2 规划期：写入集中策略表（D-207 ①）。表是**唯一出处**，视图 docs/authz/POLICY_MATRIX.csv；
         // 未登记 requester / 未登记组合是"记为错误"的留痕计数（不据此拒绝，但必须可见）。
         final java.util.Map<String, Integer> policyUnregistered =
-                com.dddgn.alice.action.WritePolicyMatrix.unregisteredSeen();
+                com.dddgn.alice.write.WritePolicyMatrix.unregisteredSeen();
         final java.util.Map<String, Integer> policyUndeclared =
-                com.dddgn.alice.action.WritePolicyMatrix.undeclaredSeen();
-        final String policy = com.dddgn.alice.action.WritePolicyMatrix.describe()
+                com.dddgn.alice.write.WritePolicyMatrix.undeclaredSeen();
+        final String policy = com.dddgn.alice.write.WritePolicyMatrix.describe()
                 + (policyUnregistered.isEmpty() ? "" : "；**未登记 requester**=" + policyUnregistered)
                 + (policyUndeclared.isEmpty() ? "" : "；**未登记组合**=" + policyUndeclared);
         source.sendSuccess(() -> Component.literal("[alice] L2 规划期策略表：" + policy), false);

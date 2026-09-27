@@ -1,7 +1,7 @@
 package com.dddgn.alice.job.lumber;
 
-import com.dddgn.alice.action.WriteReason;
-import com.dddgn.alice.action.WriteGrant;
+import com.dddgn.alice.write.WriteReason;
+import com.dddgn.alice.write.WriteGrant;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.job.Candidate;
 import com.dddgn.alice.job.CandidateSet;
@@ -366,7 +366,7 @@ public final class LumberJob implements Job {
         // 作用域，且跑在构造器之后 ⇒ 构造器装的必然被清（生产侧护栏一直是空的）。
         if (!protectionStarted) {
             protectionStarted = true;
-            com.dddgn.alice.action.TaskTargetProtection.begin(bot, jobName(),
+            com.dddgn.alice.write.TaskTargetProtection.begin(bot, jobName(),
                     pos -> pos != null && bot.serverLevel().hasChunkAt(pos)
                             && bot.serverLevel().getBlockState(pos).is(net.minecraft.tags.BlockTags.LOGS));
         }
@@ -557,7 +557,7 @@ public final class LumberJob implements Job {
      * <p>⭐ `Z4`（2026-09-23）：**只数保护区内条目**（`D-398` R2：区外一定不恢复 ⇒ 也不欠账）。
      * 用裸视图会把"区外/旧存档遗留"算成"还没拆"，而那个东西**本来就不该去拆**。
      * ⚠️ 因此本读数在野外**恒为 0**，这是设计：判断"这次到底写没写世界"要看
-     * {@link com.dddgn.alice.action.WriteBudget#population}（闸门计数，与区无关）。
+     * {@link com.dddgn.alice.write.WriteBudget#population}（闸门计数，与区无关）。
      */
     private int pendingTemp() {
         String scopeId = com.dddgn.alice.ledger.WorldModLedger
@@ -812,7 +812,7 @@ public final class LumberJob implements Job {
         if (!terminated) {
             terminated = true;
             // `D-362`：任务结束撤销目标保护（`BotManager` 换任务时也会兜底清一次）
-            com.dddgn.alice.action.TaskTargetProtection.end(bot);
+            com.dddgn.alice.write.TaskTargetProtection.end(bot);
             bot.controller().stopMovement();
             // J7 Step 2：攀爬与"建拆同权"的账一起进终态（爬了几次、花了几块、还剩没拆的）
             // J7 Step 4（D-128）：顶层码优先按"所有失败是否同一根因"上抛（§13.3 的表格口径），
@@ -826,7 +826,7 @@ public final class LumberJob implements Job {
                     terminalReason, progressSummary() + " inventoryDelta=" + (countLogs() - logsBefore)
                             + " gainedTrees=" + gainedTrees + " gainedBlocks=" + gainedBlocksTotal
                             + " scaffoldLeft=" + scaffoldLeft
-                            + " " + com.dddgn.alice.action.WriteAudit.summary(),
+                            + " " + com.dddgn.alice.write.WriteAudit.summary(),
                     ticks);
             BotLog.info("[Job] lumber SUMMARY gainedTrees={} gainedBlocks={} scaffoldLeft={}",
                     gainedTrees, gainedBlocksTotal, scaffoldLeft);

@@ -4,9 +4,9 @@ import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.decision.MachineMap;
 import com.dddgn.alice.job.Job;
 import com.dddgn.alice.action.MenuSession;
-import com.dddgn.alice.action.WriteBudget;
-import com.dddgn.alice.action.WriteGrant;
-import com.dddgn.alice.action.WriteReason;
+import com.dddgn.alice.write.WriteBudget;
+import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.task.TaskTarget;
 import com.dddgn.alice.task.craft.CraftStation;
@@ -438,7 +438,7 @@ public final class CraftJob implements Job {
         InventoryCraft.ProductCounter counter =
                 item -> StationProvision.countLandedProduct(menu, bot, item, grid.spec());
         InventoryCraft.Result crafted = InventoryCraft.craft(bot, menu, recipe, count, grid.spec(), counter,
-                com.dddgn.alice.action.WriteGrant.of("craft-job", com.dddgn.alice.action.WriteReason.CRAFT_GRID));
+                com.dddgn.alice.write.WriteGrant.of("craft-job", com.dddgn.alice.write.WriteReason.CRAFT_GRID));
         BotLog.info("[CraftJob] craft {} → {}", grid.describe().substring(0, Math.min(60,
                 grid.describe().length())), crafted.describe());
         if (!crafted.ok()) {

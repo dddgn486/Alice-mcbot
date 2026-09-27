@@ -1,8 +1,8 @@
 package com.dddgn.alice.task;
 
 import com.dddgn.alice.action.BlockInteraction;
-import com.dddgn.alice.action.WriteGrant;
-import com.dddgn.alice.action.WriteReason;
+import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;

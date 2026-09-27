@@ -1,7 +1,7 @@
 package com.dddgn.alice.protection;
 
-import com.dddgn.alice.action.WritePolicyMatrix;
-import com.dddgn.alice.action.WritePolicyMatrix.Level;
+import com.dddgn.alice.write.WritePolicyMatrix;
+import com.dddgn.alice.write.WritePolicyMatrix.Level;
 import com.dddgn.alice.ledger.WorldModLedger;
 import com.dddgn.alice.log.BotLog;
 import net.minecraft.core.BlockPos;

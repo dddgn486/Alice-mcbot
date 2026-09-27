@@ -1,4 +1,4 @@
-package com.dddgn.alice.action;
+package com.dddgn.alice.write;
 
 import com.dddgn.alice.bot.TaskMetrics;
 import com.dddgn.alice.log.BotLog;

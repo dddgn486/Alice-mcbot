@@ -519,7 +519,7 @@ public final class FurnaceStation {
 
     /** 把 {@code item} 放 1 个进指定格（从玩家背包取；走菜单协议）。 */
     public static boolean placeOne(BotPlayer bot, AbstractContainerMenu menu, Found found, int address,
-                                   net.minecraft.world.item.Item item, com.dddgn.alice.action.WriteGrant grant) {
+                                   net.minecraft.world.item.Item item, com.dddgn.alice.write.WriteGrant grant) {
         Integer source = findInventoryAddress(bot, menu, item);
         if (source == null) {
             BotLog.warn("[Furnace] 背包里没有 {}", item);
@@ -538,7 +538,7 @@ public final class FurnaceStation {
 
     /** 取走某格的产出（shift-click 回背包）。 */
     public static boolean takeAll(BotPlayer bot, AbstractContainerMenu menu, int address,
-                                  com.dddgn.alice.action.WriteGrant grant) {
+                                  com.dddgn.alice.write.WriteGrant grant) {
         return click(bot, menu, address, net.minecraft.world.inventory.ClickType.QUICK_MOVE, 0, grant);
     }
 
@@ -568,7 +568,7 @@ public final class FurnaceStation {
     /** 菜单点击（只拒负数；地址合法性由"发现出来的槽位集合"保证 —— 见 D-192 附注一/三）。 */
     private static boolean click(BotPlayer bot, AbstractContainerMenu menu, int address,
                                  net.minecraft.world.inventory.ClickType type, int button,
-                                 com.dddgn.alice.action.WriteGrant grant) {
+                                 com.dddgn.alice.write.WriteGrant grant) {
         if (menu == null || address < 0) {
             return false;
         }

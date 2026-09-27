@@ -1,8 +1,8 @@
 package com.dddgn.alice.task;
 
 import com.dddgn.alice.action.BlockInteraction;
-import com.dddgn.alice.action.WriteGrant;
-import com.dddgn.alice.action.WriteReason;
+import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
@@ -213,7 +213,7 @@ public final class ClearGuardCheckTask implements Task {
         guardBaselineAllowed = BlockInteraction.breakable(bot, level, ORE_PLUG_LOW,
                 WriteGrant.of(taskName(), WriteReason.PATH_ACCESS));
         // ② 装作用域：本任务的目标 = 铁矿石
-        com.dddgn.alice.action.TaskTargetProtection.begin(bot, taskName(),
+        com.dddgn.alice.write.TaskTargetProtection.begin(bot, taskName(),
                 pos -> pos != null && level.hasChunkAt(pos) && level.getBlockState(pos).is(PLUG_ORE));
         guardReason = BlockInteraction.breakRefusal(bot, level, ORE_PLUG_LOW,
                 WriteGrant.of(taskName(), WriteReason.PATH_ACCESS));
@@ -256,11 +256,11 @@ public final class ClearGuardCheckTask implements Task {
         ServerLevel level = bot.serverLevel();
         boolean oreIntact = level.getBlockState(ORE_PLUG_LOW).is(PLUG_ORE)
                 && level.getBlockState(ORE_PLUG_HIGH).is(PLUG_ORE);
-        com.dddgn.alice.action.TaskTargetProtection.end(bot);
+        com.dddgn.alice.write.TaskTargetProtection.end(bot);
         // ⑤ 撤销之后必须恢复可破坏（否则这个 bot 之后所有开路清障都会被拦 —— 泄漏比 bug 更隐蔽）
         boolean noLeak = BlockInteraction.breakable(bot, level, ORE_PLUG_LOW,
                 WriteGrant.of(taskName(), WriteReason.PATH_ACCESS));
-        boolean reasonOk = com.dddgn.alice.action.TaskTargetProtection.CODE.equals(guardReason);
+        boolean reasonOk = com.dddgn.alice.write.TaskTargetProtection.CODE.equals(guardReason);
         boolean pass = guardBaselineAllowed && guardPathRefused && guardExpectedAllowed
                 && oreIntact && noLeak && reasonOk;
         BotLog.info("[ClearGuard] SUMMARY guard_baseline_allowed={} guard_path_refused={} guard_reason={} "
@@ -282,7 +282,7 @@ public final class ClearGuardCheckTask implements Task {
                 Set.of(), bot.getYRot(), bot.getXRot());
         bot.setDeltaMovement(Vec3.ZERO);
         bot.controller().stopMovement();
-        com.dddgn.alice.action.TaskTargetProtection.reset();
+        com.dddgn.alice.write.TaskTargetProtection.reset();
         terminated = true;
         phase = Phase.DONE;
         return pass ? Task.Status.DONE : Task.Status.FAILED;

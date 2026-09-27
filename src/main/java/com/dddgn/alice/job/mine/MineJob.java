@@ -1,7 +1,7 @@
 package com.dddgn.alice.job.mine;
 
-import com.dddgn.alice.action.WriteGrant;
-import com.dddgn.alice.action.WriteReason;
+import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.job.Candidate;
 import com.dddgn.alice.job.CandidateSet;
@@ -406,7 +406,7 @@ public final class MineJob implements Job {
             // ⚠️ **为什么必须在首 tick、不能回构造器**：`BotSession.beginTask`（`BotManager:1998`）会按 botId
             // **清空**这份作用域，而它跑在 `create() → beginTask()` 之间 ⇒ 构造器装的必然被清（生产侧护栏一直是空的，
             // 而电池"直驱子任务"看不到 = 结构性盲区）。放这里 ⇒ 清空天然在装之前，顺序不可能再错。
-            com.dddgn.alice.action.TaskTargetProtection.begin(bot, jobName(), this::protectedFromClearance);
+            com.dddgn.alice.write.TaskTargetProtection.begin(bot, jobName(), this::protectedFromClearance);
             // ⭐ `P3`（用户 2026-09-22 裁定）：给本作业一条**「本作业声明范围内 + 只认本作业目标产物」**
             // 的收集授权 —— 作业自己挖出来的落物即使**没配上破坏事件**（连锁模组缓冲/延迟生成/窗口错过）
             // 也收得起来；而**范围内的玩家丢的东西**仍是 `FOREIGN`（被动闸门照旧拦）。
@@ -711,7 +711,7 @@ public final class MineJob implements Job {
             return "tool_missing";
         }
         if (codes.stream().allMatch(BUDGET_CODES::contains)) {
-            return com.dddgn.alice.action.WriteBudget.EXHAUSTED_CODE;
+            return com.dddgn.alice.write.WriteBudget.EXHAUSTED_CODE;
         }
         if (codes.size() == 1 && codes.contains("target_replaced")) {
             return "stale_target";
@@ -740,7 +740,7 @@ public final class MineJob implements Job {
 
     private static final java.util.Set<String> BUDGET_CODES = java.util.Set.of(
             "WRITE_BUDGET_EXHAUSTED",
-            com.dddgn.alice.action.WriteBudget.EXHAUSTED_CODE,   // ← 唯一出处（Z3）
+            com.dddgn.alice.write.WriteBudget.EXHAUSTED_CODE,   // ← 唯一出处（Z3）
             "prod_budget_exhausted");
 
     /** 配额未达成：有产出 → `partial_quota`，一个没挖成 → `no_reachable_candidate`。 */
@@ -1007,7 +1007,7 @@ public final class MineJob implements Job {
         if (!terminated) {
             terminated = true;
             // `D-362`：任务结束必须撤销目标保护（`BotManager` 换任务时也会兜底清一次）
-            com.dddgn.alice.action.TaskTargetProtection.end(bot);
+            com.dddgn.alice.write.TaskTargetProtection.end(bot);
             // ⭐ `P3`：**权限窗口 = 作业时长** —— 四条终态路径（配额达成/候选穷尽/背包满/超时）全过这里
             // ⇒ 撤销点只写一处；漏掉的话 TTL 兜底，但那就是权限多活一段时间（不许靠它）。
             if (areaGrant != null) {
@@ -1017,7 +1017,7 @@ public final class MineJob implements Job {
             bot.controller().stopMovement();
             DecisionTrace.terminal(jobName(), status == Task.Status.DONE ? "DONE" : "FAILED",
                     terminalReason, progressSummary() + " inventoryDelta=" + (countTargetItems() - itemsBefore)
-                            + " " + com.dddgn.alice.action.WriteAudit.summary(),
+                            + " " + com.dddgn.alice.write.WriteAudit.summary(),
                     ticks);
             // ⭐ `D-360`：手动实测的采集**收口在这一个地方** —— `MineJob` 的终态有四条路径
             // （配额达成 / 候选穷尽 / 背包满 / 超时），在这里打点才不会出现"某条路径静默无数据"。

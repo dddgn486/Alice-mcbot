@@ -160,7 +160,7 @@ public class RecoverabilityCheckTask implements Task {
         notes.add("report[" + RecoverabilityReport.describe() + "]");
         // ⭐ `Z4`：`residues=0` 在野外是**空读数**（唯一喂数点只认区内条目）⇒ 把账本人口一并印出来
         notes.add("residues[" + RecoverabilityReport.describeResidues() + "]"
-                + " ledger[" + com.dddgn.alice.action.WriteBudget.population(bot) + "]");
+                + " ledger[" + com.dddgn.alice.write.WriteBudget.population(bot) + "]");
 
         String summary = "table_nondeterministic=" + verdict("nondeterministic_table")
                 + " per_type=" + verdict("per_type")

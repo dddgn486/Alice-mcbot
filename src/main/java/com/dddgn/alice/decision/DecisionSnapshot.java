@@ -202,11 +202,11 @@ public final class DecisionSnapshot {
         JsonObject world = new JsonObject();
         world.addProperty("pendingTemporaryBlocks", pendingTemp);
         world.addProperty("pendingScope",
-                com.dddgn.alice.action.WriteBudget.scopeOf(bot) == null ? "" : "open");
+                com.dddgn.alice.write.WriteBudget.scopeOf(bot) == null ? "" : "open");
         world.addProperty("writesThisScope",
-                com.dddgn.alice.action.WriteBudget.writeCount(bot));
+                com.dddgn.alice.write.WriteBudget.writeCount(bot));
         world.addProperty("writePopulation",
-                com.dddgn.alice.action.WriteBudget.population(bot));
+                com.dddgn.alice.write.WriteBudget.population(bot));
         world.addProperty("note",
                 "pendingTemporaryBlocks 只数**保护区内**义务条目；区外修改不入账也不恢复（D-398）"
                         + " ⇒ 判断\"bot 有没有改世界\"请看 writesThisScope");

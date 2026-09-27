@@ -1,6 +1,6 @@
 package com.dddgn.alice.pathing.core;
 
-import com.dddgn.alice.action.WriteGrant;
+import com.dddgn.alice.write.WriteGrant;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 

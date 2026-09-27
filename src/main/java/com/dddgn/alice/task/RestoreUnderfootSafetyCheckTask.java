@@ -443,15 +443,15 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
                     // ⚠️ requester 必须含**派生前缀**（`tools/policy-map.py` 的 derived_markers：
                     // check/probe/dump/diagnostic/regression/battery/demo）⇒ 否则 `check-policy-matrix` 报
                     // "未登记的 requester 字面量"（2026-09-22 我第一版用了 `c2-fixture` ⇒ 门禁红了一次）。
-                    com.dddgn.alice.action.WriteGrant.of("check:c2-underfoot",
-                            com.dddgn.alice.action.WriteReason.STEP_PLACEMENT),
+                    com.dddgn.alice.write.WriteGrant.of("check:c2-underfoot",
+                            com.dddgn.alice.write.WriteReason.STEP_PLACEMENT),
                     pos, Blocks.AIR.defaultBlockState(), Blocks.COBBLESTONE.defaultBlockState());
         }
         // ⭐ `RC1` 臂②（`D-403` 保留条件之②「现场仍是我方」）：账本记 `COBBLESTONE`，现场是 `DIRT`
         // ⇒ 回收**必须**当场放弃 + 点名 `not_ours`，而且**绝不许拆**（世界事实断言：DIRT 原封不动）。
         WorldModLedger.recordPlacement(level, bot.getUUID(),
-                com.dddgn.alice.action.WriteGrant.of("check:c2-underfoot",
-                        com.dddgn.alice.action.WriteReason.STEP_PLACEMENT),
+                com.dddgn.alice.write.WriteGrant.of("check:c2-underfoot",
+                        com.dddgn.alice.write.WriteReason.STEP_PLACEMENT),
                 NOT_OURS_POS, Blocks.AIR.defaultBlockState(), Blocks.COBBLESTONE.defaultBlockState());
         restore = new RestoreScopeTask(bot, scope, scopeId);
         BotLog.info("[C2] 账本播种 {} 块（自下而上）+ 臂②现场 {} 实际={} ｜ scope={} pending={}", PILLAR_H,
@@ -479,8 +479,8 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
         farScopeId = WorldModLedger.openScope(level.getServer(), bot.getUUID(), "c2_chunk_not_loaded");
         // ⚠️ **不碰世界**：`recordPlacement` 只写账本（`previous/placed` 由入参给出，不读方块）。
         WorldModLedger.recordPlacement(level, bot.getUUID(),
-                com.dddgn.alice.action.WriteGrant.of("check:c2-underfoot",
-                        com.dddgn.alice.action.WriteReason.STEP_PLACEMENT),
+                com.dddgn.alice.write.WriteGrant.of("check:c2-underfoot",
+                        com.dddgn.alice.write.WriteReason.STEP_PLACEMENT),
                 farPos(), Blocks.AIR.defaultBlockState(), Blocks.COBBLESTONE.defaultBlockState());
         check("⭐ 臂③ 前提：{} 所在区块**本来就没加载**（实测 isLoaded="
                 + level.isLoaded(farPos()) + "，chunk=(" + (farPos().getX() >> 4) + ","

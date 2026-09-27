@@ -327,7 +327,7 @@ def check(rows):
     types = enum_values(mt)
     missing_types = [t for t in types if t not in reg_text]
     # ③ WriteReason 全覆盖
-    wr = open(os.path.join(ROOT, "src/main/java/com/dddgn/alice/action/WriteReason.java"), encoding="utf-8").read()
+    wr = open(os.path.join(ROOT, "src/main/java/com/dddgn/alice/write/WriteReason.java"), encoding="utf-8").read()
     reasons = enum_values(wr)
     missing_reasons = [x for x in reasons if x not in reg_text]
     print("AUTHZ_CHECK 扫描文件=%d 拒绝码=%d（族=%d）MovementType=%d WriteReason=%d 显式豁免=%d"

@@ -1,8 +1,8 @@
 package com.dddgn.alice.job.mine;
 
 import com.dddgn.alice.action.BlockInteraction;
-import com.dddgn.alice.action.WriteReason;
-import com.dddgn.alice.action.WriteGrant;
+import com.dddgn.alice.write.WriteReason;
+import com.dddgn.alice.write.WriteGrant;
 import com.dddgn.alice.job.Candidate;
 import com.dddgn.alice.job.CandidateSet;
 import com.dddgn.alice.job.CandidateSource;
@@ -459,8 +459,8 @@ public final class MineCandidateSource implements CandidateSource {
             // 终态失败列表里 `block@164,91,158:unbreakable…` 全是这种），把"已空"说成"挖不动"。
             // 顺序：保护区 → **预算**（保 `mine_budget` 的 `write_budget_exhausted` 归因）→ 具体拒绝码。
             WriteGrant grant = WriteGrant.of("mine-plan", WriteReason.EXPECTED_TARGET);
-            if (!com.dddgn.alice.action.WriteBudget.breakAllowed(bot, grant)) {
-                return com.dddgn.alice.action.WriteBudget.EXHAUSTED_CODE;
+            if (!com.dddgn.alice.write.WriteBudget.breakAllowed(bot, grant)) {
+                return com.dddgn.alice.write.WriteBudget.EXHAUSTED_CODE;
             }
             String refusal = BlockInteraction.breakRefusal(bot, level, pos, grant);
             if (refusal != null) {

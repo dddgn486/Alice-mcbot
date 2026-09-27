@@ -1680,3 +1680,35 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 ⏭ **下一步 = `step 4`（写入授权从 `action/` 拆到新包 `write/`，只动 import；包名已拍、无需再裁）** ——
 `action/` 今天 = **12 文件**（6 微操作 + 6 写入治理：`TaskTargetProtection` · `WriteAudit` · `WriteBudget` ·
 `WriteGrant` · `WritePolicyMatrix` · `WriteReason`）；⚠️ `WriteGrant` **65 文件引用** ⇒ 只动 import、**不与改名同批**。
+
+### ✅ `step 4` 已落地（2026-09-27，`D-462`）—— 写入治理进新顶层包 `write/`，层方向变单向
+
+- `git mv` **6 个写入治理类**：`action/` → `write/`（只改 `package` 行）。`action/` **12 → 6**（纯微操作）。
+  import/FQN 改写命中 **84 文件** + **3 个微操作**（`BlockBreakSession`/`BlockInteraction`/`MineBlockRunner`
+  原来靠**同包隐式可见**，搬完必须补 import）。⚠️ **按类名锚定替换**，不做包前缀全局替换。
+- 判据（**静态门禁**，搬包不改行为 ⇒ 同 `D-425`）**加宽** `tools/check-layer-direction.py`（不新增门禁文件，
+  `check-all` 仍 `pass=26`）：① `write/**` 不许 import `{task,action,job}`（**单向**：`action/`→`write/` 绿、反向红）
+  ② 6 个类在 `action/` 里再出现定义即红 + 6 个必须都在 `write/`（拆包≠删除）③ 人口下限。
+  红臂 **7 → 14**（import 11 + 新增 `scan_definition` 定义臂 3）· **真树红臂 3 条**（各带 sha 前后对照并逐字还原）。
+- ⭐⭐ **最贵的发现：门禁里"搬包要同步"的硬写路径共 8 处，第一版只找到 3 处。**
+  漏因 = grep 形态太窄（漏了 `action / "X.java"` 这种 **`pathlib` 除法**写法）。
+  ⭐ **是反向对照抓出来的，而且第一版的反向对照给的是"错因红"**：`exit=1` 的真实原因是另一条规则
+  （`RC2` 的 `TaskTargetProtection`）`FileNotFoundError` 崩溃，**不是我要测的那条** ⇒
+  **教训：反向对照必须核对"红的理由是不是那一条"**，否则 `exit=1` 会被当通过。
+  8 处 = `kernel-predicates.py`×5（`RC2` `TaskTargetProtection` · `D-372` `WriteBudget` · `Z*` `WriteBudget` ·
+  `RC4` `WriteBudget` · `Z4` `population(`）+ `authz-map.py`×1（`WriteReason`）+ `policy-map.py`×2（两个常量）
+  ⇒ **逐个反向对照**：改回 `action/` 各自响亮红、还原 sha 逐字一致。
+- ⭐ 另补 **2 处"覆盖面无声明地缩小"**（不报错，比崩溃更危险）：`RC4` 臂④ 与 `OURS_KILL` 臂④ 都是
+  "扫生产目录"⇒ `action/` 一缩覆盖面就静默变小 ⇒ 两处都加上 `write/`（补完仍 PASS，`write/` 里 0 命中）。
+- 顺手清一个**过期读数**：`check-primitive-budget-injection.py` docstring 写"实测 141" ⇒
+  `step 3b` 把 `task/PathRetryRunner.java` 搬走后已是 **140**（已在注释里注明"这个数随搬包变，判据是下限"）。
+- 回归：`core` **PASS** · `check-all` **pass=26 warning=1 failed=0** · `kernel-predicates` / `authz-registry` /
+  `policy-map --check` 全 PASS。
+
+⚠️ **没解决的（别读错）**：① `action ↔ pathing` 包级环保留（14 文件，见上）；② **未改名**（⑤-⑥ 明令
+"只动 import，不与改名同批"）——`write/` 包名与 `WriteGrant` 等类名都不变；③ 治理类 javadoc 里仍以
+`{@code}` 提到微操作类名（**注解链接不算依赖**，断言① 只判 import）。
+
+⏭ **下一步 = `step 5`**（拆 `MineTask` / `CollectDropsTask`；它**还背着 `step 2b`** =
+`CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS` 清零）。⚠️ 这是**大**刀且**判据面最宽**（相位三条禁令 +
+原语三条判据 + 真机第六轮的 `collected=0` 读数），**开工前先按台账 `5` 行把验收读数定下来**。

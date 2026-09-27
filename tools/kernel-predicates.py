@@ -1443,9 +1443,11 @@ def rule_clearance_never_eats_task_target():
     ④ 生产侧必须真的有人装：`MineJob` / `LumberJob` 都要 `begin(` + `end(`（否则规则空转）。
     """
     problems = []
-    action = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "action"
-    bi = (action / "BlockInteraction.java").read_text(encoding="utf-8")
-    guard = (action / "TaskTargetProtection.java").read_text(encoding="utf-8")
+    pkg = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
+    # ⚠️ `step 4`（`D-462`）之后这两个类**不同包**：`BlockInteraction` 是微操作（留 `action/`），
+    # `TaskTargetProtection` 是写入治理（搬去 `write/`）—— 别再共用一个 `action` 变量
+    bi = (pkg / "action" / "BlockInteraction.java").read_text(encoding="utf-8")
+    guard = (pkg / "write" / "TaskTargetProtection.java").read_text(encoding="utf-8")
     manager = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "bot"
                / "BotManager.java").read_text(encoding="utf-8")
     mine = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "mine"
@@ -2120,7 +2122,7 @@ def rule_write_caps_default_open_protection_kept():
        `protectionReason(...)`（`protected_area` / `protected_block`）——放开默认上限**不许顺手拆掉它**。
     """
     problems = []
-    budget = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "action"
+    budget = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "write"
               / "WriteBudget.java").read_text(encoding="utf-8")
     gate = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing" / "core"
             / "CapabilityGate.java").read_text(encoding="utf-8")
@@ -3593,7 +3595,10 @@ def rule_kill_drop_attributed():
     # 它的判据（`*CheckTask`/`*ProbeTask`，与 `tools/fixture-hygiene.py` 的命名口径同源）。
     fixture_name = re.compile(r"(Check|Probe)\w*Task\.java$")
     allowed = {"perception/ScopeBuffer.java", "decision/DropPolicy.java"}
+    # ⚠️ `step 4`（`D-462`）把 6 个写入治理类搬进 `write/` ⇒ 本臂（扫"生产目录"）同步加宽，
+    # 否则 `action/` 一缩，覆盖面会**静默缩小**（同 `RC4` 臂④）。
     for path in sorted((base / "perception").rglob("*.java")) + sorted((base / "action").rglob("*.java")) \
+            + sorted((base / "write").rglob("*.java")) \
             + sorted((base / "task").rglob("*.java")) + sorted((base / "job").rglob("*.java")):
         rel = path.relative_to(base).as_posix()
         if fixture_name.search(path.name):
@@ -4214,11 +4219,14 @@ def rule_write_truth_single_source():
        （"失败不占额度"）—— 破坏那一侧要补齐的就是这条原则；
     ③ **义务口径唯一**：`WriteBudget` **不得**提供"待收/残留"类 API（待收只许问账本）；
     ④ **计数读数只许在夹具/探针**：`WriteBudget.breaks|places|writeCount|population` 不得出现在
-       生产决策目录（`action/`（`WriteBudget` 自身除外）/`pathing/`/`job/`/`bot/`）——
+       生产决策目录（`action/`/`write/`/`pathing/`/`job/`/`bot/`）——
+       ⚠️ `WriteBudget` 自身除外；它随 `J-★` 第 6 段 **step 4**（`D-462`，2026-09-27）搬进 `write/`，
+       本臂的扫描目录**同步加宽**（`write/` 由"不在名单"变成"在名单"）—— 否则搬包会让本臂
+       **静默缩小**覆盖面（`WriteBudget` 一搬家，它原先所属的扫描单元 `action/` 就被抽空了）。
        `describe(` 是允许的（它是"上限 + 计数"的证据行，`Z3` 已把它钉成同源）。
     """
     base = ROOT / "src/main/java/com/dddgn/alice"
-    budget = base / "action/WriteBudget.java"
+    budget = base / "write/WriteBudget.java"
     session = base / "action/BlockBreakSession.java"
     interact = base / "action/BlockInteraction.java"
 
@@ -4281,7 +4289,7 @@ def rule_write_truth_single_source():
     # ---- 臂④ 计数读数只许在夹具/探针 ----
     counted = ("WriteBudget.breaks(", "WriteBudget.places(", "WriteBudget.writeCount(",
                "WriteBudget.population(")
-    for sub in ("action", "pathing", "job", "bot"):
+    for sub in ("action", "write", "pathing", "job", "bot"):
         for path in sorted((base / sub).rglob("*.java")):
             if path.name == "WriteBudget.java":
                 continue
@@ -4401,7 +4409,7 @@ def rule_write_budget_zone_and_container_exception():
     <p>另断言判据还在：`WriteBudgetCheckTask` 必须保留**野外前提自证**与 `capForEscape` 对比臂
     （否则"区外无额度"这条判据会退化成一句注释）。
     """
-    budget_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "action"
+    budget_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "write"
                    / "WriteBudget.java")
     fixture_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
                     / "WriteBudgetCheckTask.java")
@@ -4552,7 +4560,7 @@ def rule_vacuous_assertions_carry_population():
         problems.append("喂给 LLM 的世界事实（`DecisionSnapshot.worldMod`）既没把义务口径收成区内，"
                         "也没真的发出 `writesThisScope` 属性 ⇒ 那个零会被读成「没改过世界」")
 
-    if "public static String population(" not in stripped("action/WriteBudget.java"):
+    if "public static String population(" not in stripped("write/WriteBudget.java"):
         problems.append("`WriteBudget.population(...)` 不在了 ⇒ `Z4` 的人口读数工具没了")
     return problems
 

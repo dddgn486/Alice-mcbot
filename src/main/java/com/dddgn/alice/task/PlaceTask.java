@@ -1,7 +1,7 @@
 package com.dddgn.alice.task;
 
-import com.dddgn.alice.action.WriteReason;
-import com.dddgn.alice.action.WriteGrant;
+import com.dddgn.alice.write.WriteReason;
+import com.dddgn.alice.write.WriteGrant;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
@@ -115,9 +115,9 @@ public final class PlaceTask implements Task {
         BlockInteraction.PlaceResult result = BlockInteraction.placeAt(bot, level, target, false,
                 WriteGrant.of(taskName(), WriteReason.STEP_PLACEMENT));
         if (result == BlockInteraction.PlaceResult.BUDGET_EXHAUSTED) {
-            failure = com.dddgn.alice.action.WriteBudget.EXHAUSTED_CODE;
+            failure = com.dddgn.alice.write.WriteBudget.EXHAUSTED_CODE;
             BotLog.warn("[PlaceTask] place_refused_budget target={} {}", target.toShortString(),
-                    com.dddgn.alice.action.WriteBudget.describe(bot));
+                    com.dddgn.alice.write.WriteBudget.describe(bot));
             return Status.FAILED;
         }
         if (result != BlockInteraction.PlaceResult.PLACED) {

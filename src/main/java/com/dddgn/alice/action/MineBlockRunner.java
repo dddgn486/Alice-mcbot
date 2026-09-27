@@ -1,15 +1,16 @@
 package com.dddgn.alice.action;
 
-import com.dddgn.alice.action.WriteGrant;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
+import com.dddgn.alice.pathing.PathRetryRunner;
 import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.pathing.core.session.PathExecutionResult;
-import com.dddgn.alice.pathing.PathRetryRunner;
 import com.dddgn.alice.reach.LineOfSightChecker;
 import com.dddgn.alice.reach.MiningPlan;
 import com.dddgn.alice.reach.StandingPointSelector;
+import com.dddgn.alice.write.WriteGrant;
+import com.dddgn.alice.write.WriteReason;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;

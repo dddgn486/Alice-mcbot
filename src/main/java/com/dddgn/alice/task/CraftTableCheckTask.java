@@ -185,10 +185,10 @@ public class CraftTableCheckTask implements Task {
         // 真实写入次数 = 0**（每一次写入都必须过闸门 ⇒ 与区无关、且比"账本空"更强），
         // 并把账本口径一并印出来（覆盖度可读）。
         var pending = WorldModLedger.pendingTemporaryInCurrentScope(bot.serverLevel().getServer(), bot.getUUID());
-        int writes = com.dddgn.alice.action.WriteBudget.writeCount(bot);
+        int writes = com.dddgn.alice.write.WriteBudget.writeCount(bot);
         check("no_world_write", writes == 0 && pending.isEmpty(),
                 "writes=" + writes + " ledgerInZone=" + pending.size() + " "
-                        + com.dddgn.alice.action.WriteBudget.population(bot));
+                        + com.dddgn.alice.write.WriteBudget.population(bot));
         session = null;
         return advance(Phase.NO_TABLE_CASE);
     }

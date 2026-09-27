@@ -1,7 +1,7 @@
 package com.dddgn.alice.task;
 
-import com.dddgn.alice.action.WriteBudget;
-import com.dddgn.alice.action.WriteGrant;
+import com.dddgn.alice.write.WriteBudget;
+import com.dddgn.alice.write.WriteGrant;
 import com.dddgn.alice.action.MineBlockRunner;
 import com.dddgn.alice.compat.ChainMining;
 import com.dddgn.alice.bot.RecoveryStage;
@@ -462,7 +462,7 @@ public final class MineTask implements Task {
             // 挖矿用的脚手架在野外会留在原地。把人口印出来，读日志的人不必去猜是哪一种。
             BotLog.info("[MineTask] restore_skip pending=0（{}）⇒ 无回收义务"
                             + "（区外写入不入账 = `D-398` R2 的设计；`Z4`）",
-                    com.dddgn.alice.action.WriteBudget.population(bot));
+                    com.dddgn.alice.write.WriteBudget.population(bot));
             return Status.DONE;
         }
         if (!(bot instanceof com.dddgn.alice.bot.BotPlayer botPlayer)) {
@@ -687,7 +687,7 @@ public final class MineTask implements Task {
         BlockPos blocker = com.dddgn.alice.task.mining.BlockerClearPlanner.nextClearStep(
                 bot.serverLevel(), bot, target, bot.getBlockReach(),
                 profile.clearBudget() - clearSteps,
-                grant.with(com.dddgn.alice.action.WriteReason.LINE_OF_SIGHT),
+                grant.with(com.dddgn.alice.write.WriteReason.LINE_OF_SIGHT),
                 failedBlockers);
         if (blocker == null) {
             // R2：**候选都用过了**才放弃（而不是"失败一次就放弃"）
@@ -716,7 +716,7 @@ public final class MineTask implements Task {
     private boolean startClear(BlockPos blocker, String why) {
         if (blocker == null
                 || !com.dddgn.alice.task.mining.BlockerClearPlanner.clearable(bot, bot.serverLevel(),
-                        blocker, grant.with(com.dddgn.alice.action.WriteReason.LINE_OF_SIGHT))) {
+                        blocker, grant.with(com.dddgn.alice.write.WriteReason.LINE_OF_SIGHT))) {
             return false;
         }
         clearSteps++;
@@ -732,7 +732,7 @@ public final class MineTask implements Task {
         clearTask = new MineTask(bot, blocker, scope,
                 MiningBudget.forTarget(bot, bot.serverLevel(), blocker, false),
                 subProfile,
-                grant.with(com.dddgn.alice.action.WriteReason.LINE_OF_SIGHT));
+                grant.with(com.dddgn.alice.write.WriteReason.LINE_OF_SIGHT));
         phase = Phase.CLEAR;
         return true;
     }

@@ -1,6 +1,6 @@
 package com.dddgn.alice.protection;
 
-import com.dddgn.alice.action.WriteReason;
+import com.dddgn.alice.write.WriteReason;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;

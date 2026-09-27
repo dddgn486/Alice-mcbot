@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """写入策略表（R1 / D-207 ①）的**视图生成 + 一致性断言**（零依赖，只用标准库）。
 
-单一出处是**代码**（`action/WritePolicyMatrix.java`）——这是 Forge 模组，运行期必须有一张
+单一出处是**代码**（`write/WritePolicyMatrix.java`）——这是 Forge 模组，运行期必须有一张
 编译进 jar 的表；docs 里的 CSV 是**给人看的视图**（可被覆盖，不要手改）。
 
 ``--check`` 断言（任一不成立即非零退出 + 打印 ``POLICY_MATRIX_CHECK_RESULT FAIL``）：
@@ -27,8 +27,11 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "src", "main", "java", "com", "dddgn", "alice")
-MATRIX_JAVA = os.path.join(SRC, "action", "WritePolicyMatrix.java")
-REASON_JAVA = os.path.join(SRC, "action", "WriteReason.java")
+# ⚠️ `step 4`（`D-462`，2026-09-27）：这两个类搬进了 `write/`（同批还有 `WriteGrant`/`WriteBudget`/
+# `WriteAudit`/`TaskTargetProtection`）—— 搬包时必须**逐条**找这种硬写路径，本刀第一版就漏了一处
+# （`kernel-predicates` 的 `TaskTargetProtection`），靠"反向对照"才抓到。
+MATRIX_JAVA = os.path.join(SRC, "write", "WritePolicyMatrix.java")
+REASON_JAVA = os.path.join(SRC, "write", "WriteReason.java")
 REQUEST_JAVA = os.path.join(SRC, "pathing", "core", "search", "PathRequest.java")
 OUT_CSV = os.path.join(ROOT, "docs", "authz", "POLICY_MATRIX.csv")
 SITES_CSV = os.path.join(ROOT, "docs", "authz", "CONTAINER_WRITE_SITES.csv")

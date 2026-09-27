@@ -950,10 +950,10 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
                             + "（放置预算**未被消耗**：校验已在扣账之前）", spot.toShortString());
             return null;
         }
-        var grant = com.dddgn.alice.action.WriteGrant.of(jobName(),
-                com.dddgn.alice.action.WriteReason.REGION_REPLANT);
-        var verdict = com.dddgn.alice.action.WriteBudget.consumePlace(bot, level, spot, grant);
-        if (verdict == com.dddgn.alice.action.WriteBudget.Verdict.REFUSED) {
+        var grant = com.dddgn.alice.write.WriteGrant.of(jobName(),
+                com.dddgn.alice.write.WriteReason.REGION_REPLANT);
+        var verdict = com.dddgn.alice.write.WriteBudget.consumePlace(bot, level, spot, grant);
+        if (verdict == com.dddgn.alice.write.WriteBudget.Verdict.REFUSED) {
             BotLog.warn("[Job] maintain 补种被写入预算拒绝 {}（D-106：超限即硬停，不越界改世界）",
                     spot.toShortString());
             return null;

@@ -1,6 +1,6 @@
 package com.dddgn.alice.task.mining;
 
-import com.dddgn.alice.action.WriteGrant;
+import com.dddgn.alice.write.WriteGrant;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.reach.LineOfSightChecker;

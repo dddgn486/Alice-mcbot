@@ -71,7 +71,9 @@ MANUFACTURE_RE = re.compile(
 #: 具名原语（`plan §5.2 ⑧` 的读数表前 5 个里**带额度**的 2 个）：各须 ≥1 个带额度形参的构造器。
 EXPECTED_PRIMITIVES = {"MineTask.java", "CollectDropsTask.java"}
 
-#: 实测 141（2026-09-27）；留足余量，只用来抓"扫描根被搬空 / 解析崩塌"。
+#: 实测 140（2026-09-27）；留足余量，只用来抓"扫描根被搬空 / 解析崩塌"。
+#: ⚠️ 这个数会**随搬包变**：`step 2a` 落地时是 141，`step 3b` 把 `PathRetryRunner.java` 搬去
+#: `pathing/` 之后就是 140 —— 判据是下面这个**下限**，不是这个数本身。
 MIN_SCANNED_FILES = 130
 #: 实测 8（`MineTask` 4 · `CollectDropsTask` 4，2026-09-27）；留余量。
 MIN_QUOTA_CTORS = 6

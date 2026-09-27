@@ -323,7 +323,7 @@ public final class CheckHarness {
         // —— 作用域由编排器开，不收就变成**残留作用域**（`BotManager` 有残留检查 ⇒ 后续判据会红 ✗）。
         // ⚠️ 任务仍在跑时**不能收**（`stopTask` 有 K-3 安全点，可能延后）⇒ 只在空闲时收 ✓。
         if (stepScope != null && !BotManager.isBusy(bot)) {
-            com.dddgn.alice.action.WriteBudget.closeScope(
+            com.dddgn.alice.write.WriteBudget.closeScope(
                     WorldModLedger.closeScope(server, bot.getUUID()));
             stepScope = null;
         }

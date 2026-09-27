@@ -1,7 +1,7 @@
 package com.dddgn.alice.pathing.core;
 
-import com.dddgn.alice.action.WriteReason;
-import com.dddgn.alice.action.WriteGrant;
+import com.dddgn.alice.write.WriteReason;
+import com.dddgn.alice.write.WriteGrant;
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.pathing.MovementHelper;
 import net.minecraft.core.BlockPos;
