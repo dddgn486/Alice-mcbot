@@ -1541,3 +1541,35 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 
 - **下一步（`J-★` 第 1 段 + 第 3 段）**：① 你真机测当前 jar（入口 `alice:fishbone_job`；看 `spursAbandoned`/
   `advance`/沙砾段是否落回）；② 之后开第 3 段第一刀（补路动作 + 归因码 ⇒ 记录图 ⇒ 沿单元返程）。
+
+---
+
+## 2026-09-27 断点：鱼骨暂停 → 分层重构线（`survey/42`）
+
+- **已落地（上一段）**：`F2`/`1.4t` —— `D-454`，提交 **`acdba75`**（已推 `github`、已镜像、jar 已同步客户端）。
+  内容：地板缺格从"站位找不到"里分出来（`channel_floor_missing:<cause>`）+ 额度分项 `places=<搭桥>/<补地板>`
+  + 修 `placementsUsed()` 时间窗；夹具 `fishbone_slice2` **8 臂 `checks=131 failures=0`**、两红臂精确、
+  `core PASS(249s)`、门禁 `pass=23 warning=1 failed=0`。
+- **⏸ 冻结（用户裁定：「马上要改动的很多，鱼骨开发要先停了」）**：鱼骨线全部 —— `1.4i` · `1.4s`（口径 `D-451` 已定）
+  · `3.2` 记录图 / `3.3` 沿单元返程 · `1.6` 切片 4 ⇒ 全部**挂账 + 复活条件**，见台账 `J-★` **冻结声明**。
+  ⚠️ **③（`3.2` 施工记录图）未开工**（原本是下一片）。
+- **新主线**：台账 `J-★` **第 6 段 · 分层重构线**（依据 `survey/42 §4.2`，0→5）。
+  ✅ 步骤 0 = `D-455`（分层定论）**已落**；⏳ 步骤 0.5 = 「什么算 Job」规则（待拍）；步骤 1 = Job 框架定型。
+  ⚠️ **0/0.5/1 三步 `src/` 零改动** ⇒ 夹具与门禁不受影响。
+
+### 待办：未测的 jar（含 `D-446` + `F1` + `D-454`）—— **先测一轮再停**
+
+- **入口**：右键 `alice:fishbone_job`（**零参数**；起点 = bot 自己脚位，方向 = 你的朝向）。
+- **看 `SUMMARY`（键名已改，旧键名 grep 会 0 行）**：
+  `main=` · `spursAbandoned=` · `mined=` · `ores=` · `uncollected=` · `collected=` · `collects=` ·
+  `unrepaired=` · ⭐ **`places=<搭桥>/<补地板>`** · `outside=` · `return=` · `→ PASS/FAIL`。
+- **三批要了结的事**：① `D-446`（不再因**自己放的方块**把 `SPUR_RETURN`/`RETURN` 变成 `UNREACHABLE`）；
+  ② `F1`（`main_unreachable:no_reachable_standing_point` 不再出现；`cell=2/2` 挖空气那类行消失）；
+  ③ `D-454`（不出现"地板问题伪装成站位问题"；`places=` 有分项；`collected=` 不是幻影 0）。
+- **反馈要给的**：预期 vs 实际 · 复现频率 · 截图 · `latest.log` 片段（按 `AGENTS.md` 的询问清单）。
+- **已知噪声**：每格一行 `[MineTask] collect_skipped … reason=collectDrops=false`（未处理）。
+
+### 下一步（等真机结果 + 用户拍 `survey/42 §5` 其余条目）
+
+第 6 段 **0.5**（「什么算 Job」规则，纯文档）→ **1**（Job 框架定型，拿 `LumberJob` 当干净样本）。
+⚠️ **鱼骨不当定义来源**（它那 8 个相位正是要被消灭的）。
