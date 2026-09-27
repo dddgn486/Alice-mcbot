@@ -429,6 +429,44 @@ public final class MovementHelper {
         return isStandableSupport(level, raw, here) ? raw.above() : raw;
     }
 
+    /**
+     * ⭐ `D-399` C / `D-472`：**"拆掉它会让自己掉下去"的唯一判据**（一个判据，一处定义）。
+     *
+     * <p>成立 = 目标**就是 bot 脚下踩着的那一格**（`footCell(bot).below()`）**且**拆完之后
+     * **没有落脚面**（`canWalkOn(level, target)` 读的正是 `target.below()`）。
+     *
+     * <h2>为什么形状是这样（对照 Baritone）</h2>
+     * 抄 {@code MovementDownward.java:61}（Baritone 1.20.1）的
+     * {@code if (!MovementHelper.canWalkOn(context, x, y - 2, z)) return COST_INF;} ——
+     * Baritone 的"下降并拆掉脚下那格"**在 Movement 代价值里就要求落点可站**；落点不可站 ⇒
+     * 那条 Movement 根本不可用。Alice 的"站上去 → 向下拆"（`RestoreScopeTask`）与
+     * `MineProcess.java:299`（向下目标 = `GoalBlock(loc.below())`）**同形**，所以这不是偏离，
+     * 而是**把 Alice 特有的旁路补齐同一条前置**：`D-365` 的"就地挖"（`MineBlockRunner.mineInPlace`）
+     * 会跳过 Movement 层，若不带这个前置，它就成了一条**绕过内核安全前置**的通道
+     * （`D-472` 实测：bot 站上去 → 就地拆 → 掉进 12 格深坑，脚位 y 64 → 59）。
+     *
+     * <h2>两个口径决定</h2>
+     * <ul>
+     *   <li>用 {@code footCell(...).below()} 而不是原版 {@code blockPosition().below()}：
+     *       站在半砖/箱子这类"顶面不足一格"的支撑上时两者相差一格（见 {@link #footCell} 的说明）；
+     *       `D-399` C 一直用 `footCell`，本判据是它的唯一出处，口径必须跟它一致。</li>
+     *   <li>**只问"拆完有没有落脚面"，不问"bot 是否正踩着"**：站上去再拆是回收/向下挖的**正常流程**
+     *       （`D-399` §一），1 格自落不拦；拦的是**掉进虚空/深坑**。</li>
+     * </ul>
+     *
+     * <p>⚠️ **为什么定义在内核层**：`pathing → protection` 已经存在（本类要问"可破坏吗"）
+     * ⇒ 定义放进 `protection/BlockBreakSafety` 会造出仓里第二个包级环（`survey/42 §1.2` 那类）。
+     *
+     * <p>⚠️ 与 `BlockBreakSafety.requiresReposition`（`D-097` 时期声明、**全仓零调用点**，
+     * `D-472` 删除）的口径差别：那条只问"是否在脚下"，本条还要求"拆完没落脚面" ——
+     * 按前者接线会让**每一次向下挖**都被迫先走到侧面站位（`D-472` 实测日志里
+     * `mine_in_place` 共 2475 次、其中"目标就在脚下"129 次，绝大多数是正常向下挖）。
+     */
+    public static boolean underfootUnsafe(ServerLevel level,
+            net.minecraft.server.level.ServerPlayer bot, BlockPos target) {
+        return target.equals(footCell(level, bot).below()) && !canWalkOn(level, target);
+    }
+
     /** 平地移动(从 from 脚位水平走到 to 脚位)。 */
     public static boolean canTraverse(ServerLevel level, BlockPos from, BlockPos to) {
         // 目标脚位可站,目标身体格与头格可穿过（K-4/D-167：共用唯一定义）

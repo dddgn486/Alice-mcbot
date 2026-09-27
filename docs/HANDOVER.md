@@ -133,6 +133,9 @@
 >
 > **⛔ 队列 = 唯一排期来源**：`docs/OPEN_ITEMS_LEDGER.md` **§11**（A 安全/责任 · A2 回收 · B 能力 · C 尺子 · D 架构/产品 · E 观察项）。
 > **下一步 = `Z1`**（账本/回收**收窄到保护区内**）→ `Z2`（`J6` 收窄+门禁）→ `Z3`（区外取消格数额度）→ 守卫**挪到破块前**+侧拆/先撤离 → 夹具 `restore_underfoot_safety` **几何重做**（现在是假绿）。
+> ⭐ **2026-09-27 更新**：`Z1`（`D-407`）已完成；**后两项（守卫挪到破块前 + 侧拆/先撤离 + 夹具几何重做）已于 `D-472` 收口**
+> —— 判据收敛成唯一出处 `MovementHelper.underfootUnsafe` 并用在**三个动作点**（含**动作那一刻**），
+> 夹具臂① 改断言能力、**新臂④** 覆盖"换不到 ⇒ 如实 `underfoot_unsafe`"。本行的链条**只剩 `Z2`/`Z3` 未做**。
 >
 > **用户最新裁定（必须逐字遵守）**
 > | 决定 | 一句话 |
@@ -1922,3 +1925,46 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
   **乙** 改场景/站位让 bot 不在支撑块顶上 · **丙** 产品侧"先走开再拆"（⚠️ 与 `D-403` 冲突，须先解 `D-403`）。
   ⚠️ 无论选哪个，**先补一条能稳定复现 `underfoot_unsafe` 的场景**（红臂先行）。
   之后才是 **`step 5b`**（拆 `CollectDropsTask`）。
+
+---
+
+## `D-472`（2026-09-27）：⭐ **脚下安全判据收敛成唯一出处 + 挪到动作那一刻** —— `D-406` §四.1/§四.2 收口
+
+- **用户裁定**：「**甲′ = `D-406` §四.1 完整版**」+「**连带重做 `restore_underfoot_safety`，同一刀**」。
+- ⭐⭐ **先更正 `O5` 的机制（我上一轮读错了，方向是反的）**：`exec_support` 的 3/4 次 PASS **不是**
+  "拆干净了"，而是「**bot 站上去 → 就地拆脚下那格 → 掉进 12 格深坑**」——
+  `[WRITE] break 23, 64, 212 … SCAFFOLD_RESTORE` 时 `feet=23, 65, 212`，恢复期 `[CollectDrops] … feet=23, 59, 212`
+  （平台在 y=64）⇒ **判据把违规判成 PASS、把正确放弃判成 FAIL**。`D-471` §七 的"甲"若照做 = 把掉坑写成成功判据。
+- **根因两条（都不是新发现）**：① **`D-406` §三「检查的时机错了」**（判据在 `pickNext()` 取件那一刻求值，
+  而危险是 `APPROACH`「站上去」**之后**造的；`D-407` §四.1 早列为"未做"，`HANDOVER.md:135` 的链里就有它）；
+  ② **`D-365` 的"就地挖"跳过 Movement 层**（Baritone `MovementDownward.java:61` 在**代价值**里就要求
+  `canWalkOn(x, y-2, z)`）⇒ Alice 特有的这条优化成了绕过内核安全闸的旁路。
+   ⭐ 修法的关键事实：**规划器本来就避开"目标那一列"**（`MiningPlanner` 的 `isSameColumn`），实测 `chosen=24, 65, 212`
+   —— **是 `mine_in_place` 把规划器算对的答案丢掉了**。
+- **改动（4 处 src + 1 处删除）**：① 新 `pathing/MovementHelper.underfootUnsafe`（判据**唯一出处**；
+  ⚠️ 定义必须在**内核层** —— `pathing → protection` 已存在，放 `protection` 会造出全仓第二个包级环）；
+  ② `MineBlockRunner.canMineInPlace()` 谓词成立 ⇒ **不就地挖**，走规划器的安全站位；
+  ③ `RestoreScopeTask.pickNext()` 取件时**不站上去**、直接交侧拆；④ `startSideBreak()` 在**动作那一刻**再判一次，
+  执行器**换不到**站位才放弃并归因 `underfoot_unsafe`（`D-403` 三条不变：不延后/不重试/不留待办）；
+  ⑤ 删掉零调用点的死 API `BlockBreakSafety.requiresReposition`（口径并入新谓词，原处留指针）。
+- **判据**：① `exec_support` 新增「收尾期间**不许掉下平台**」（逐 tick `lowestFootY`）——**先红 3/3**
+  （`noFall=false(loweredTo=59/start=64)`，而 `supportRestored=true/ledgerRestored=1/scaffoldLeft=0` **全绿** ⇒
+  这就是"夹具是反的"的直接证据）→ **后绿 4/4**（`noFall=true(loweredTo=64/start=64)`）；
+  ② **新门禁 `tools/check-underfoot-safety.py`**（挂 `check-all`，**30 → 31**）：判据唯一出处 + **三个动作点**
+  （`canMineInPlace`/`pickNext`/`startSideBreak`）+ 旧内联口径 0 处 + 判据本体必须同时问"在脚下"与"拆完没落脚面"；
+  合成臂 **8/8** + **真树红臂 3/3**（摘 `canMineInPlace` 判据 ⇒ 红在 B；删声明 ⇒ 红在 A；`pickNext` 退回硬放弃 ⇒
+  红在 C1），三条 **sha 逐字还原**；③ `restore_underfoot_safety` **口径重做**（臂① 改"换得到 ⇒ 一格都不许剩"，
+  **新臂④** 覆盖"换不到 ⇒ 如实 `underfoot_unsafe`"，并补 `biggestLandingDrop` 这个**看得见慢速自落**的度量）。
+- **回归**：`single:mine_regression` 4/4 PASS · `single:restore_underfoot_safety` **2/2 PASS（`checks=13 failures=0`）** ·
+  `core` **43/43 PASS**（`run/headless-logs/20260927-184047-core.log`，253 s），与基线 `…-175504-core.log`
+  逐步 diff：**38 步 ticks 完全相同**，5 步不同（`scaffold -52` / `mine_regression +19` / `clear_guard -4` /
+  `lumber_job +3` / `mine_job +3`）**全在历史抖动带内**，判决 0 变化。
+  ⭐ **回归面实测**：全轮 `no_mine_in_place` 命中 **4 次**（**全在 `mine_regression`**）；各步 `mine_in_place`
+  次数只有 `mine_regression` 变了（**19 → 18**，其余步逐字不变）⇒ **生产挖矿路径零回归**。
+- ⚠️ **代价/残余**：`mine_in_place` 的行为面变了（全仓日志 2475 次里 129 次"目标在脚下"，其中**落点不安全**的才受影响）；
+  臂④ 的"换不到"是**行为反推**（bot 没动 + 方块没拆 + 手里有镐），没有直接断言规划器的失败码；本门禁**判不出**
+  "第三处该用而没用"的破坏路径（复核触发 = 再观测到一次"拆掉自己脚下的方块并掉下去"）。
+- ⏭ **下一步 = `step 5b`**（拆 `CollectDropsTask`，含 `step 2b` 的类内默认额度常量清零）；
+  ⚠️ 动 `MineTask`/`MineBlockRunner` 时**连锁段逐字保留**（`D-471` 冻结）且**必跑** `check-underfoot-safety` +
+  `single:mine_regression`（`D-472` §八 复核触发）。
+  ⚠️ 仍待办：`O6` 的两条零覆盖路（`tryReplan` / 运行期清视线）。

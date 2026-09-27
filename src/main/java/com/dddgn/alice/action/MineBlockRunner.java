@@ -265,6 +265,22 @@ public final class MineBlockRunner {
         if (MovementHelper.footCell(level, bot).equals(plan.standingFoot())) {
             return false;   // 已经在计划站位点上 ⇒ 走老路径
         }
+        // ⭐ `D-472`（承接 `D-399` C + `D-406` §三「守卫时机错」）：**不许"就地拆"自己脚下那格** ——
+        //   当拆掉它会让自己**掉进虚空/深坑**时（`MovementHelper.underfootUnsafe`），
+        //   必须改走规划器给的**安全站位点**（`plan.standingFoot()`；`StandingPointSelector` 本就把
+        //   "目标那一列"分流出去 ⇒ 规划器的答案天然避开了"站在目标上"）。
+        //   ⚠️ 这是补 Baritone 同形前置（`MovementDownward.java:61` 的 `canWalkOn(x, y-2, z)`），
+        //   不是新机制：`D-365` 的就地挖**跳过了 Movement 层**，缺了这条前置它就是绕过内核安全闸的旁路。
+        //   实测（`D-472`，`exec_support`）：bot 站上去 → 就地拆 → 掉进 12 格深坑（脚位 y 64 → 59），
+        //   而规划器当时已经给出安全站位 `chosen=24, 65, 212`（只是被这一步覆盖掉了）。
+        //   ⚠️ 只拦"拆完没落脚面"（掉深坑）；"1 格自落"是向下挖/回收的正常流程，照旧就地挖。
+        if (MovementHelper.underfootUnsafe(level, bot, target)) {
+            BotLog.info("[MineRunner] no_mine_in_place target={} feet={} planStand={}"
+                            + "（拆了自己会掉下去 ⇒ 走去安全站位，D-472）",
+                    target.toShortString(), MovementHelper.footCell(level, bot).toShortString(),
+                    plan.standingFoot().toShortString());
+            return false;
+        }
         return inPlaceReachable(level, bot, target);
     }
 

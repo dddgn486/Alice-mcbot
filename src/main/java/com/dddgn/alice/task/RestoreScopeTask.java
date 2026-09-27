@@ -94,6 +94,12 @@ public final class RestoreScopeTask implements Task {
     private PathRetryRunner runner;
     /** 侧拆兜底用的挖掘子任务（第二条路）。 */
     private MineTask miner;
+    /**
+     * ⭐ `D-472`：交给侧拆执行器的那一刻，`current` 是否满足 `MovementHelper.underfootUnsafe`
+     * （= "拆了它会让自己掉下去"）⇒ 执行器**换不到安全站位**而失败时，归因必须是
+     * `underfoot_unsafe`（而不是笼统的 `side_break_failed`）—— `D-403` 要求**如实归因，绝不静默**。
+     */
+    private boolean underfootRefused;
     /** 收尾收集（J6-b1b）：把拆下来的方块收回背包。 */
     private CollectDropsTask collector;
     private boolean collectStarted;
@@ -301,21 +307,27 @@ public final class RestoreScopeTask implements Task {
                         pos.toShortString(), entry.placed(), nowId);
                 continue;
             }
-            // ⭐⭐ `D-399`（C）：**不许拆掉自己正踩着的支撑**。
-            // 形状对照 Baritone `MovementDownward.java:61` 的 `canWalkOn(x, y-2, z)` —— 任何"让自己
-            // 往下掉"的动作，都必须先证明**下面那格站得住**。这里 bot 脚位 = `pos.above()`，拆完脚位
-            // 落到 `pos` ⇒ 判据 = `canWalkOn(level, pos)`（该谓词读的是 `pos.below()`，与 Baritone 同形）。
-            BlockPos footNow = com.dddgn.alice.pathing.MovementHelper.footCell(level, bot);
-            if (pos.equals(footNow.below())
-                    && !com.dddgn.alice.pathing.MovementHelper.canWalkOn(level, pos)) {
-                // ⭐ `D-403`（用户 2026-09-22）：**保留自动拆除，条件不满足就当场放弃** ——
-                // **不延后、不重试、不留待办**（那套机制被判为冗余）；但**必须如实归因，绝不静默**。
-                BotLog.warn("[Restore] 放弃 {}：bot 正踩着它、拆了会掉下去（不满足安全条件）",
+            // ⭐⭐ `D-472`（承接 `D-406` §三「**检查的时机错了**」+ §四.1；`D-399` C 的判据出处
+            // 已收敛到 `MovementHelper.underfootUnsafe`）：**不原地拆"拆了自己会掉下去"的脚下格**。
+            //
+            // 旧写法在这里**当场放弃**（`D-399` C + `D-403`）。`D-472` 取证实测它有两个后果：
+            //   ① **危险是这一步自己造的**：取件时 bot 还在平台上（子句为假 ⇒ 放行）⇒ `APPROACH`
+            //      「站上去」⇒ `DESCEND` 拆不动 ⇒ 侧拆兜底**从头顶拆掉自己正踩的那格** ⇒ 掉进深坑
+            //      （`exec_support` 实测脚位 64 → 59；`[WRITE] break … feet=23, 65, 212`）。
+            //      判据（下面空气 + `restoredBlocks≥1` + `scaffoldLeft==0`）**恰好被这次掉落满足** ⇒ 假绿。
+            //   ② "目标在脚下"**不等于**"拆不了"：换个侧面站位就能安全拆 —— 规划器本来就避开目标那一列
+            //      （`MiningPlanner` 的 `isSameColumn` 分流）⇒ **规划器的答案是对的**。
+            //
+            // ⇒ 新口径 = `BlockBreakSafety.requiresReposition` 那句话的落地（口径收窄成"拆完没落脚面"）：
+            //   **交给执行器换安全站位再拆**；执行器**换不到**（失败）时才放弃，并在 `tickMiner()` 里
+            //   按 `underfoot_unsafe` **如实归因**。`D-403` 三条不变：不延后、不重试、不留待办
+            //   （换站位是**走位**，不是把这一格记成待办延后做）。
+            if (com.dddgn.alice.pathing.MovementHelper.underfootUnsafe(level, bot, pos)) {
+                current = pos;
+                stage = Stage.SIDE_BREAK;
+                BotLog.info("[Restore] {}：目标就在脚下且拆完没落脚面 ⇒ 不原地拆，改侧面站位再拆（D-472）",
                         pos.toShortString());
-                skipped++;
-                unresolved.add(pos);
-                notes.add(pos.toShortString() + ":underfoot_unsafe");
-                continue;
+                return startSideBreak();
             }
             current = pos;
             stage = Stage.APPROACH;
@@ -425,6 +437,10 @@ public final class RestoreScopeTask implements Task {
      * 且 `standableOnly=true`——**恢复一律不许挖地形**。
      */
     private Task.Status startSideBreak() {
+        // ⭐ `D-472`：**判据用在动作这一刻**（`D-406` §三的教训：危险是"之后"才产生的，取件时判不算）。
+        // 记下"交给执行器时它是否在脚下且拆完没落脚面" ⇒ 执行器**换不到安全站位**时按此如实归因。
+        underfootRefused = com.dddgn.alice.pathing.MovementHelper.underfootUnsafe(
+                bot.serverLevel(), bot, current);
         // `collectDrops=false`（**关键**）：它同时关掉"悬空目标先在下方放支撑块"——
         // 于是恢复**不需要任何材料**。实测反例：桥面方块是悬空的 → MineTask 要放支撑 →
         // `PLACE_RESOURCE_UNAVAILABLE`（bot 刚把方块全用掉，正在等着被收回）→ 鸡生蛋。
@@ -452,10 +468,19 @@ public final class RestoreScopeTask implements Task {
             }
             return Task.Status.RUNNING;
         }
-        notes.add(pos.toShortString() + ":side_break_failed");
+        // ⭐ `D-472`：归因分两种 —— ① 交出去时"拆了会掉下去"且**换不到安全站位** ⇒ `underfoot_unsafe`
+        // （`D-403` 的放弃路径，必须点名，`RestoreUnderfootSafetyCheckTask` 臂① 就吃这个名字）；
+        // ② 其余侧拆失败 ⇒ 原样 `side_break_failed`。
+        String why = underfootRefused ? "underfoot_unsafe" : "side_break_failed";
+        notes.add(pos.toShortString() + ":" + why);
         skipped++;
         unresolved.add(pos);
-        BotLog.warn("[Restore] 侧拆兜底也失败 {}（不挖地形，如实记录）", pos.toShortString());
+        if (underfootRefused) {
+            BotLog.warn("[Restore] 放弃 {}：就在脚下且**没有安全站位可换**（不挖地形，如实记录）",
+                    pos.toShortString());
+        } else {
+            BotLog.warn("[Restore] 侧拆兜底也失败 {}（不挖地形，如实记录）", pos.toShortString());
+        }
         return Task.Status.RUNNING;
     }
 

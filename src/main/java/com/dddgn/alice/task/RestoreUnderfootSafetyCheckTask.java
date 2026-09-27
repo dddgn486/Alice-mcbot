@@ -33,18 +33,30 @@ import java.util.Map;
  *       ⇒ bot **全程不掉**；<b>守卫不在</b> ⇒ 柱顶被拆 ⇒ bot 从 `柱顶+1` **摔到地面**（≥2 格）⇒ **红**。</li>
  * </ol>
  *
- * <h2>判据（`RC1` 后：`D-403` 三条保留条件**每条都有臂**，红臂都能变红）</h2>
+ * <h2>判据（`D-472` 后重做；红臂都能变红）</h2>
  * <ol>
- *   <li>⭐ `biggestFall <= 1`（单 tick 坠落 ≤ 1 格 = 没摔）；</li>
- *   <li>⭐ 臂①**不摔 bot**（条件之③）：`notes` 必须点名 `underfoot_unsafe` + 账本恰好剩「脚下那格」；</li>
+ *   <li>⭐ `biggestFall <= 1`（单 tick 坠落 ≤ 1 格）+ ⭐ 臂④ 的**落地落差 ≤ 1 格**。⚠️ 前者对**慢速
+ *       1~3 格自落是钝的**（脚位格子每 tick 最多差 1）——`D-472` 实测：旧代码把 bot 踩着的中间那格
+ *       拆掉、bot 从 y=101 掉到 99，`biggestFall` 照样是 `1` ⇒ 补"落地到落地"的度量（见 `sample`）；</li>
+ *   <li>⭐ 臂①**换得到安全站位 ⇒ 全拆干净**（`D-472` 新语义）：世界事实 = `PILLAR_H` 格全是空气、
+ *       账本清空。⚠️ **红臂** = 去掉 `MineBlockRunner.canMineInPlace` 的 `underfootUnsafe` 前置
+ *       （或退回旧的"当场放弃"）⇒ 必红；</li>
  *   <li>⭐ 臂②**现场仍是我方**（条件之②）：账本记 `COBBLESTONE`、现场是 `DIRT` ⇒ 必须点名 `not_ours`
  *       且**世界事实**里那格 `DIRT` 原封不动（"绝不拆不是自己放的方块"）；</li>
- *   <li>⭐ 臂③**已加载**（条件之①，`RC1` 新增）：条目落在 `+512` 格（从未加载）⇒ 必须点名
+ *   <li>⭐ 臂③**已加载**（条件之①）：条目落在 `+512` 格（从未加载）⇒ 必须点名
  *       `chunk_not_loaded`，且**跑完仍未加载**（这条世界事实就是"不许为了回收去开图"）；</li>
+ *   <li>⭐ 臂④**换不到安全站位 ⇒ 当场放弃 + 如实 `underfoot_unsafe`**（`D-472` 新增；`D-403` 的
+ *       放弃路径**唯一正例**）：孤悬方块 ⇒ 执行器给不出站位 ⇒ 点名 `underfoot_unsafe` +
+ *       世界事实"那格原封不动" + bot **一格都没动** + 账本仍挂 1 条；</li>
  *   <li>收尾 `endSupported`（bot 结束时脚下有支撑）。</li>
  * </ol>
  *
- * <p>⚠️ 臂①②③**分两次** `RestoreScopeTask` 跑（臂③单独一次）：理由见 `startFarArm`。
+ * <p>⚠️ 四臂**分三次** `RestoreScopeTask` 跑（臂①② / 臂③ / 臂④ 各一次）：理由见 `startFarArm`
+ * 与 `startFloatArm`。
+ *
+ * <p>⚠️ **本夹具不覆盖什么**（如实登记）："换不到"这条前提是**行为反推**的（bot 没动 + 方块没被拆 +
+ * 手里有镐 ⇒ 执行器给不出站位），没有直接断言"规划器返回了 `no_reachable_standing_point`"
+ * （那个失败码不在本夹具的读面上）。
  */
 public final class RestoreUnderfootSafetyCheckTask implements Task {
 
@@ -80,13 +92,29 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
      * 真机里能拆的也正是**脚手架阶梯**（每级上方是空气）。
      */
     private static final int PILLAR_H = 3;
+    /**
+     * ⭐ `D-472` 臂④（**换不到安全站位** ⇒ 必须当场放弃 + 如实 `underfoot_unsafe`）：
+     * 一块**孤悬在高处**的我方方块 —— 正下方是空气（⇒ 拆了必掉），而**四周没有任何触及得到的可站面**
+     * （地板在 {@code FLOOR_Y = 98}，方块在 {@code FLOOR_Y + 10} ⇒ 从地板脚位到方块中心 ≈ 10 格，
+     * 远超触及）⇒ 规划器**必然给不出站位点**。
+     *
+     * <p>为什么必须补这一臂：臂① 的旧语义（"脚下那格必须被守卫拒绝"）在 `D-472` 之后**不再成立** ——
+     * 阶梯几何里**换得到**侧面站位（规划器给 `4001,101,2600`），于是现在三格**全部被安全拆掉**。
+     * `underfoot_unsafe` 这条**放弃路径**必须另有正例，否则 `D-403`/`D-399` C 的"如实归因、绝不静默"
+     * 就重新变成零覆盖。
+     */
+    private static final int FLOAT_DX = 6;
+    private static final int FLOAT_DY = 10;
+    private static final int FLOAT_DZ = 6;
+    /** 地板向东延伸到的 dx（必须罩住臂④那根柱子正下方，免得"没摔"时 bot 落在世界地形上）。 */
+    private static final int FLOOR_DX_MAX = FLOAT_DX + 1;
     private static final int BUDGET_TICKS = 1200;
 
     /**
-     * 两个阶段 = 两次 `RestoreScopeTask`（臂①②一次、臂③一次；理由见 `startFarArm`）：
-     * {@code SETUP → RUN_A → SETUP_B → RUN_B → DONE}。
+     * 三个阶段 = 三次 `RestoreScopeTask`（臂①②一次、臂③一次、臂④一次；理由见 `startFarArm`）：
+     * {@code SETUP → RUN_A → SETUP_B → RUN_B → SETUP_C → RUN_C → DONE}。
      */
-    private enum Phase { SETUP, RUN_A, SETUP_B, RUN_B, DONE }
+    private enum Phase { SETUP, RUN_A, SETUP_B, RUN_B, SETUP_C, RUN_C, DONE }
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -103,6 +131,18 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
     private int biggestFall;
     private int unsupportedTicks;
     private int lastFootY = Integer.MIN_VALUE;
+    /**
+     * ⭐ `D-472`：**"落地到落地"的落差**（只在"脚下有支撑"的 tick 上比较脚位 y）。
+     *
+     * <p>为什么必须补这个量：`biggestFall` 是**单 tick 的格子差** ⇒ 对**慢速 1~3 格自落是钝的**
+     * （脚位格子每 tick 最多差 1）。`D-472` 取证实测：旧代码在阶梯几何里把 bot 踩着的中间那格拆掉、
+     * bot 从 y=101 掉到 99（**2 格**），而 `biggestFall` 照样是 `1`、判据照样绿。
+     */
+    private int biggestLandingDrop;
+    private int lastSupportedFootY = Integer.MIN_VALUE;
+    /** 臂④ 开跑时的基线（该臂只认**本臂**产生的落差，不与臂①的走位混算）。 */
+    private int landingDropBaseC;
+    private int unsupportedBaseC;
     private boolean endSupported;
     private String terminal = "-";
     private String notes = "-";
@@ -115,10 +155,20 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
     private int skippedFar = -1;
     private int remainingFar = -1;
     private java.util.Set<BlockPos> leftFar = java.util.Set.of();
+    /** ⭐ `D-472` 臂④（换不到安全站位）的读数：与前三臂分开记。 */
+    private String terminalC = "-";
+    private String notesC = "-";
+    private int skippedC = -1;
+    private int remainingC = -1;
+    private java.util.Set<BlockPos> leftC = java.util.Set.of();
+    /** 臂④ 开跑时 bot 的脚位 y（用来断言"执行器一步都没动"）。 */
+    private int floatFootYAtStart = Integer.MIN_VALUE;
     /** ⭐ `RC1` 臂②：现场"变成别人的方块"是否已经发生（避免重复写）。 */
     private boolean notOursSwapped;
     /** ⭐ `RC1` 臂③：远区块那条目用的**内层作用域**（见 `startFarArm`）。 */
     private String farScopeId = "-";
+    /** ⭐ `D-472` 臂④：孤悬方块那条目用的**内层作用域**（见 `startFloatArm`）。 */
+    private String floatScopeId = "-";
     /**
      * ⭐ **夹具卫生（2026-09-24 由 `A2′` 的组合点名实测抓出）**：进场景**之前** bot 的脚位。
      * 收尾必须回**这里**，不许回"自己的场景原点" —— 场景方块已还原成原始地形，原点常常是**空中**
@@ -242,6 +292,32 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
                     skippedFar = restore.skippedCount();
                     leftFar = pendingPositions(farScopeId);
                     remainingFar = leftFar.size();
+                    phase = Phase.SETUP_C;
+                    phaseTicks = 0;
+                }
+                return Task.Status.RUNNING;
+            }
+            // ⭐ `D-472` 臂④：**换不到安全站位** ⇒ 必须当场放弃 + 如实 `underfoot_unsafe`
+            case SETUP_C -> {
+                if (phaseTicks == 1) {
+                    startFloatArm(level);
+                }
+                if (phaseTicks >= 3) {
+                    phase = Phase.RUN_C;
+                    phaseTicks = 0;
+                }
+                return Task.Status.RUNNING;
+            }
+            case RUN_C -> {
+                sample(level);
+                Task.Status status = restore.tick();
+                if (status != Task.Status.RUNNING) {
+                    terminalC = String.valueOf(restore.terminalReason());
+                    List<String> n = restore.notes();
+                    notesC = n.isEmpty() ? "-" : String.join(" | ", n);
+                    skippedC = restore.skippedCount();
+                    leftC = pendingPositions(floatScopeId);
+                    remainingC = leftC.size();
                     phase = Phase.DONE;
                     phaseTicks = 0;
                 }
@@ -256,17 +332,26 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
         }
     }
 
-    /** 逐 tick 采样：脚位是否有支撑 + 单 tick 最大坠落。 */
+    /** 逐 tick 采样：脚位是否有支撑 + 单 tick 最大坠落 + **落地到落地的落差**（`D-472`）。 */
     private void sample(ServerLevel level) {
         BlockPos foot = com.dddgn.alice.pathing.MovementHelper.footCell(level, bot);
-        if (!com.dddgn.alice.pathing.MovementHelper.canWalkOn(level, foot)) {
+        boolean supported = com.dddgn.alice.pathing.MovementHelper.canWalkOn(level, foot);
+        if (!supported) {
             unsupportedTicks++;
         }
         if (lastFootY != Integer.MIN_VALUE) {
             biggestFall = Math.max(biggestFall, lastFootY - foot.getY());
         }
         lastFootY = foot.getY();
-        endSupported = com.dddgn.alice.pathing.MovementHelper.canWalkOn(level, foot);
+        // ⭐ `D-472`：只在"脚下真的有支撑"的 tick 之间比落差 —— 这才是"我踩着的方块没了"的度量。
+        // 走下一级台阶（-1）与"方块被抽掉"（-N）在这里可分；`biggestFall` 分不出。
+        if (supported) {
+            if (lastSupportedFootY != Integer.MIN_VALUE) {
+                biggestLandingDrop = Math.max(biggestLandingDrop, lastSupportedFootY - foot.getY());
+            }
+            lastSupportedFootY = foot.getY();
+        }
+        endSupported = supported;
     }
 
     private Task.Status finish(ServerLevel level) {
@@ -278,29 +363,30 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
                 com.dddgn.alice.pathing.MovementHelper.footCell(level, bot));
         check("⭐ 回收不许把 bot 摔下去（单 tick 坠落 ≤ 1 格，实测 biggestFall=" + biggestFall + "）",
                 biggestFall <= 1);
-        // ⚠️ 口径再修正（`A4`，2026-09-23 当场复测）：本夹具此前**只钉了两条**判据，实测读数：
-        //   `restored=0 skipped=3 notes=4002,101,2600:underfoot_unsafe | 4001,100,2600:side_break_failed
-        //    | 4000,99,2600:side_break_failed`
-        // ⇒ ① 守卫**确实开火了**（`underfoot_unsafe` ✓）；② 但**柱底/中段的两次回收都失败了**
-        // （`side_break_failed`）⇒ 本类 javadoc 声称的"拆柱底/中段：⇒ 都拆掉"**从未发生**，
-        // 于是"不许摔"那条在这个现场是**空跑**（什么都没拆，当然不会摔）。
-        // ⇒ 更糟的是旧判据②（`skipped > 0 && notes != "-"`）**认任何理由** —— 把守卫删掉它照样绿
-        // （另两条 `side_break_failed` 就满足了）⇒ 那是**太弱**，不是"能红"。
-        // 修法（本次）：② 收紧为**点名 `underfoot_unsafe`**；③ 新增**正向对照**（世界事实）：
-        // 回收结束后账本只该剩"bot 正踩着的那格"⇒ 逼回收路径真的拆掉另外 PILLAR_H-1 格。
-        // ⚠️ `A4` 注入实测（2026-09-23）：旧写法 `!terminal.contains("restore_partial") || (…)` 在
-        // **守卫被关掉**时会变 `restore_done` ⇒ 第一个析取项直接为真 ⇒ **断言空过**（判据太弱）。
-        // ⇒ 改成**无条件点名**：脚下那格**必须**被守卫拒绝并留下 `underfoot_unsafe`。守卫不在 ⇒ 它必然红。
-        check("⭐ 臂① 脚下那格必须被守卫**点名**拒绝（实测 skipped=" + skippedCount
-                        + " terminal=" + terminal + " notes=" + notes + "）",
-                notes.contains("underfoot_unsafe") && skippedCount >= 1);
+        // ⭐⭐ `D-472`（2026-09-27）**口径重做**：本臂原判据是"脚下那格必须被守卫**拒绝**并点名
+        // `underfoot_unsafe`"。那条语义在 `D-472` 之后**不再成立** —— `RestoreScopeTask` 不再当场放弃，
+        // 而是**换安全站位再拆**（`D-406` §三「守卫时机错」的修法；阶梯几何里规划器给的是 `4001,101,2600`）
+        // ⇒ 三格**全部被安全拆掉**。实测（`single:restore_underfoot_safety`，2026-09-27）：
+        //   旧代码 `restored=2 … remaining=1`（且 bot 从 y=101 掉到 99 —— `biggestFall` 看不见）；
+        //   新代码 `restored=3 … remaining=0`。
+        // ⇒ 臂① 现在断言的是**能力**：换得到站位 ⇒ **一格都不许剩**（世界事实 + 账本清空）；
+        //   `underfoot_unsafe` 那条**放弃路径**改由**臂④**（孤悬、换不到）覆盖。
+        // ⚠️ **红臂**：把 `canMineInPlace` 的 `underfootUnsafe` 前置去掉（或退回旧的当场放弃）⇒
+        //   这一臂必红（`remainingAfter=1` / 脚下那格还在）。
+        boolean stepsGone = true;
+        StringBuilder stepIds = new StringBuilder();
+        for (int i = 0; i < PILLAR_H; i++) {
+            String id = blockIdAt(level, stepPos(i));
+            stepIds.append(stepPos(i).toShortString()).append('=').append(id).append(' ');
+            stepsGone &= id.equals("minecraft:air");
+        }
+        check("⭐ 臂① 换得到安全站位 ⇒ " + PILLAR_H + " 格必须**全部安全拆掉**（世界事实：" + stepIds
+                        + "｜terminal=" + terminal + " notes=" + notes + "）",
+                stepsGone && !terminal.contains("nothing_to_restore"));
         // ③ 臂①的正向对照：世界事实（账本里还挂着几条）—— 回收没真的拆掉东西时必然红。
-        // ⭐ `RC1`（2026-09-24）：读数改为**收尾那一刻**取的 `leftA`（见 `pendingPositions` 的警告），
-        // 并把口径收紧成**集合相等**（旧写法只数条数 ⇒ 换成"别的条目凑数"也能过）。
-        check("⭐ 臂① 正向对照：扣除「bot 正踩着的那格」外，其余 " + (PILLAR_H - 1)
-                        + " 格必须真的被拆掉，且账本**恰好**剩「脚下那格」（实测仍挂 " + remainingAfter
-                        + " 条：" + leftA + "）",
-                remainingAfter == 1 && leftA.equals(java.util.Set.of(stepPos(PILLAR_H - 1))));
+        // ⭐ `D-472`：口径从"恰好剩脚下那格"改成"**一条都不剩**"（同上理由）。
+        check("⭐ 臂① 正向对照：账本必须**清空**（实测仍挂 " + remainingAfter + " 条：" + leftA + "）",
+                remainingAfter == 0 && leftA.isEmpty());
         // ④ `RC1` 臂②（`D-403` 保留条件之②「现场仍是我方」）：必须点名 `not_ours` 且**绝不拆**。
         String notOursNow = blockIdAt(level, NOT_OURS_POS);
         check("⭐ 臂② 现场已非我方 ⇒ 必须点名 `not_ours` 且**绝不拆**（实测 notes=" + notes
@@ -316,14 +402,36 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
         check("⭐ 臂③ 正向对照：未加载那条**必须留在账本里**等下次（实测仍挂 " + remainingFar
                         + " 条：" + leftFar + "）",
                 remainingFar == 1 && leftFar.equals(java.util.Set.of(farPos())));
+        // ⭐⭐ `D-472` 臂④（**换不到安全站位** ⇒ 必须当场放弃 + 如实 `underfoot_unsafe` + 绝不摔）：
+        // 这是 `underfoot_unsafe` 这条放弃路径**唯一的正例**（臂① 的旧语义已随 `D-472` 作废）。
+        String floatId = blockIdAt(level, floatPos());
+        boolean floatMoved = Math.abs((int) Math.floor(bot.getY()) - floatFootYAtStart) > 0;
+        check("⭐ 臂④ 换不到安全站位 ⇒ 必须点名 `underfoot_unsafe` 且**一格都没动**（实测 notesC="
+                        + notesC + " skippedC=" + skippedC + " footY=" + (int) Math.floor(bot.getY())
+                        + "(起点 " + floatFootYAtStart + ")）",
+                notesC.contains("underfoot_unsafe") && skippedC >= 1 && !floatMoved);
+        check("⭐ 臂④ 正向对照（世界事实）：孤悬那格**必须原封不动**（实测 " + floatPos().toShortString()
+                        + "=" + floatId + " ｜terminalC=" + terminalC + " remainingC=" + remainingC + "）",
+                floatId.equals("minecraft:cobblestone") && remainingC == 1
+                        && leftC.equals(java.util.Set.of(floatPos())));
+        // ⭐ `D-472`：**"落地到落地的落差"** —— 臂④ 的现场（脚下是 10 格空气）里，只要真拆了那格，
+        // bot 必然长距离坠落 ⇒ 这个量会直接 > 1。`biggestFall`（单 tick 格子差）在这里**也能红**，
+        // 但臂④ 用"落地落差"更直接：它问的是"我踩着的方块没了之后我落在哪"。
+        int dropC = biggestLandingDrop - landingDropBaseC;
+        int unsupportedC = unsupportedTicks - unsupportedBaseC;
+        check("⭐ 臂④ 不许把 bot 摔下去（本臂落地落差 ≤ 1 格，实测 dropC=" + dropC
+                        + " unsupportedC=" + unsupportedC + " endSupported=" + endSupported + "）",
+                dropC <= 1);
         check("收尾 bot 脚下必须有支撑（实测 endSupported=" + endSupported + "）", endSupported);
         cleanup(level);
-        BotLog.info("[C2] SUMMARY checks={} failures={} biggestFall={} unsupportedTicks={}"
-                        + " endSupported={} terminal={} skipped={} remaining={} notes={}"
-                        + " terminalFar={} skippedFar={} remainingFar={} notesFar={} ticks={} → {}",
-                checks, failures.size(), biggestFall, unsupportedTicks, endSupported, terminal,
-                skippedCount, remainingAfter, notes, terminalFar, skippedFar, remainingFar, notesFar,
-                totalTicks, failures.isEmpty() ? "PASS" : "FAIL");
+        BotLog.info("[C2] SUMMARY checks={} failures={} biggestFall={} biggestLandingDrop={}"
+                        + " unsupportedTicks={} endSupported={} terminal={} skipped={} remaining={}"
+                        + " notes={} terminalFar={} skippedFar={} remainingFar={} notesFar={}"
+                        + " terminalC={} skippedC={} remainingC={} notesC={} ticks={} → {}",
+                checks, failures.size(), biggestFall, biggestLandingDrop, unsupportedTicks, endSupported,
+                terminal, skippedCount, remainingAfter, notes, terminalFar, skippedFar, remainingFar,
+                notesFar, terminalC, skippedC, remainingC, notesC, totalTicks,
+                failures.isEmpty() ? "PASS" : "FAIL");
         for (String line : findings) {
             BotLog.info("[C2]   {}", line);
         }
@@ -346,8 +454,8 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
         if (entryFoot == null) {
             entryFoot = com.dddgn.alice.pathing.MovementHelper.footCell(level, bot).immutable();
         }
-        // 地板（覆盖阶梯 + 南向延伸到臂②那格）—— 摔下来落这里
-        for (int dx = -1; dx <= PILLAR_H + 1; dx++) {
+        // 地板（覆盖阶梯 + 南向延伸到臂②那格 + 东向延伸到臂④那根柱子正下方）—— 摔下来落这里
+        for (int dx = -1; dx <= FLOOR_DX_MAX; dx++) {
             for (int dz = -1; dz <= FLOOR_DZ; dz++) {
                 place(level, new BlockPos(ORIGIN.getX() + dx, FLOOR_Y, ORIGIN.getZ() + dz), Blocks.STONE);
             }
@@ -378,6 +486,11 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
     /** 臂③的远区块坐标（`+512` 格 ⇒ 远超 `view-distance=10`）。 */
     private static BlockPos farPos() {
         return new BlockPos(ORIGIN.getX() + FAR_OFFSET_X, FLOOR_Y + 1, ORIGIN.getZ());
+    }
+
+    /** ⭐ `D-472` 臂④：孤悬在高处的那块（正下方空气 + 四周无可站面）。 */
+    private static BlockPos floatPos() {
+        return new BlockPos(ORIGIN.getX() + FLOAT_DX, FLOOR_Y + FLOAT_DY, ORIGIN.getZ() + FLOAT_DZ);
     }
 
     /**
@@ -492,6 +605,54 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
                 WorldModLedger.pendingTemporary(level.getServer(), farScopeId).size());
     }
 
+    /**
+     * ⭐ `D-472` 臂④（**换不到安全站位**）：第三次 `RestoreScopeTask`，队列里**只有**孤悬的那一块。
+     *
+     * <h2>为什么这一臂必须存在</h2>
+     * 臂① 的旧语义是"脚下那格必须被守卫**拒绝**"（`notes` 点名 `underfoot_unsafe`）。`D-472` 之后
+     * 那条语义**不再成立**：阶梯几何里**换得到**侧面站位（规划器给 `4001,101,2600`）⇒ 三格
+     * **全部被安全拆掉**（实测 `restored=3 remaining=0`）。⇒ `underfoot_unsafe` 这条**放弃路径**
+     * 要另找正例，否则"如实归因、绝不静默"（`D-403`）重新变成零覆盖。
+     *
+     * <h2>几何（为什么它必然"换不到"）</h2>
+     * 方块孤悬在 {@code FLOOR_Y + 10}：① 正下方是空气 ⇒ 拆了必掉；② 地板在 {@code FLOOR_Y}，
+     * 从地板脚位（{@code FLOOR_Y+1}）到方块中心 ≈ 10 格，**远超触及**；③ 四周全是空气 ⇒
+     * **规划器必然给不出任何站位点** ⇒ 执行器只能失败 ⇒ 必须按 `underfoot_unsafe` 如实归因。
+     */
+    private void startFloatArm(ServerLevel level) {
+        place(level, floatPos(), Blocks.COBBLESTONE);
+        // bot 站到**它上面**（这一步是"取件时就在目标上"，与臂① 的时序互补）
+        bot.teleportTo(level, floatPos().getX() + 0.5D, floatPos().getY() + 1, floatPos().getZ() + 0.5D,
+                0.0F, 0.0F);
+        bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+        bot.controller().stopMovement();
+        floatScopeId = WorldModLedger.openScope(level.getServer(), bot.getUUID(), "c2_no_safe_stand");
+        // ⚠️ 账本记的是"我方放置"（`recordPlacement` 只写账本，`previous/placed` 由入参给出）。
+        WorldModLedger.recordPlacement(level, bot.getUUID(),
+                com.dddgn.alice.write.WriteGrant.of("check:c2-underfoot",
+                        com.dddgn.alice.write.WriteReason.STEP_PLACEMENT),
+                floatPos(), Blocks.AIR.defaultBlockState(), Blocks.COBBLESTONE.defaultBlockState());
+        // 前提断言（防空跑）：落点确实不安全 + bot 确实站在它上面 + 手里确实有镐（不许拿"没工具"当借口）
+        check("⭐ 臂④ 前提：孤悬方块 " + floatPos().toShortString() + " 正下方是空气（落点不安全）"
+                        + " 且 bot 正踩在它上面（实测 canWalkOn(target)="
+                        + com.dddgn.alice.pathing.MovementHelper.canWalkOn(level, floatPos())
+                        + " foot=" + com.dddgn.alice.pathing.MovementHelper.footCell(level, bot)
+                        .toShortString() + "）",
+                !com.dddgn.alice.pathing.MovementHelper.canWalkOn(level, floatPos())
+                        && floatPos().equals(com.dddgn.alice.pathing.MovementHelper.footCell(level, bot)
+                        .below()));
+        check("⭐ 臂④ 前提：bot 手里有镐（不许把「没工具」当成「换不到站位」）",
+                com.dddgn.alice.action.BlockInteraction.hasCorrectTool(bot, floatPos()));
+        landingDropBaseC = biggestLandingDrop;
+        unsupportedBaseC = unsupportedTicks;
+        floatFootYAtStart = (int) Math.floor(bot.getY());
+        scope = new ScopeBuffer();
+        restore = new RestoreScopeTask(bot, scope, floatScopeId);
+        BotLog.info("[C2] 臂④ SETUP 孤悬方块 {}（脚下空气、四周无可站面）scope={} pending={}",
+                floatPos().toShortString(), floatScopeId,
+                WorldModLedger.pendingTemporary(level.getServer(), floatScopeId).size());
+    }
+
     private void place(ServerLevel level, BlockPos pos, net.minecraft.world.level.block.Block block) {
         BlockPos key = pos.immutable();
         touched.putIfAbsent(key, level.getBlockState(key));
@@ -506,7 +667,10 @@ public final class RestoreUnderfootSafetyCheckTask implements Task {
         // ⭐ `RC1`（2026-09-24）：断言已取 ⇒ 把"注定留在账本里"的条目销掉。不是洁癖：
         // 臂③那条指向**未加载**区块，谁在后面跑一次 `dropStale` 都等于替它开图（正是本条要防的事）。
         WorldModLedger.forget(level, NOT_OURS_POS);
+        // ⭐ `D-472`：臂① 现在会把三格全拆掉（不再留"脚下那格"）⇒ 下面这条只是**兜底销账**；
+        // 臂④ 那条（孤悬那格）是**故意留着**的（断言已取），一并销掉。
         WorldModLedger.forget(level, stepPos(PILLAR_H - 1));
+        WorldModLedger.forget(level, floatPos());
         WorldModLedger.forget(level, farPos());
         if (zone != null) {
             zone.release();   // 夹具纪律：结束复位（含失败路径）

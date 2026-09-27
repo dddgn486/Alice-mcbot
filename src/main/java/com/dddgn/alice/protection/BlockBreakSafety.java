@@ -102,11 +102,20 @@ public final class BlockBreakSafety {
         return null;
     }
 
-    /** 目标当前在脚下时不能原地开挖，但可以换到侧面站位后作为明确目标挖掘。 */
-    public static boolean requiresReposition(ServerPlayer bot, BlockPos target) {
-        return isUnderfoot(bot, target);
-    }
-
+    /**
+     * ⭐ `D-472` 起：**"目标在脚下"这件事的唯一判据搬到了
+     * {@code pathing/MovementHelper.underfootUnsafe(level, bot, target)}** ——
+     * 本类原来的 {@code requiresReposition(bot, target)}（`D-097` 时期声明、
+     * **全仓零调用点**、且用 {@code blockPosition().below()} 与 `D-399` C 的
+     * {@code footCell(...).below()} 口径不一致）已删除。
+     *
+     * <p>为什么**不能**留在本类：判据要用 `footCell`/`canWalkOn`（内核层几何），
+     * 而 `pathing → protection` 已经存在（`MovementHelper` 要问"可破坏吗"）
+     * ⇒ 放这里会造出仓里第二个包级环。
+     *
+     * <p>⚠️ 口径**不是**"是否在脚下"，而是"脚下 **且** 拆完没有落脚面"
+     * （站上去再向下拆是回收/向下挖的正常流程，`D-399` §一）。
+     */
     private static boolean isUnderfoot(ServerPlayer bot, BlockPos target) {
         return target.equals(bot.blockPosition().below());
     }

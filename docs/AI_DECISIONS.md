@@ -22067,6 +22067,12 @@ Job = ① 有 Kind（进 JobRequest.Kind）
 
 #### 七、⚠️ 本刀**暴露**（不是引入）的一条"电池假红"路 —— 待裁
 
+> ⛔ **本节已于 2026-09-27 作废并更正，见 `D-472`**（同日晚些时候）：用户裁定 **甲′ = `D-406` §四.1 完整版**。
+> **下面是当时的原文（保留供追溯，别照它做）** —— 它的**机制判断是错的**：`D-472` 逐字取证后，
+> `exec_support` 的 3/4 次 PASS **不是**"拆干净了"，而是"bot 站上去 → 就地拆脚下那格 → **掉进 12 格深坑**"
+> （`[WRITE] break … feet=23, 65, 212` → 恢复期 `feet=23, 59, 212`）⇒ **判据把违规判成 PASS、把正确放弃判成 FAIL**。
+> 所以下面的"甲（判据认放弃路径）"若照做，等于**把掉进坑的路径写成成功判据**。
+
 `D-467` 加强后的 `supportOk` 要求 `restoredBlocks() ≥ 1 && scaffoldLeft() == 0`；而
 **`D-403` 允许"bot 正踩着支撑块"时当场放弃** ⇒ 收尾开始时 bot 的脚位恰好落在支撑块顶上时，
 该判据**必然假红**。实测失败率 **≈11%**（9 轮 1 次）。
@@ -22087,3 +22093,119 @@ Job = ① 有 Kind（进 JobRequest.Kind）
 - 若**交付模组兼容** ⇒ 解冻，并按交付项补证据；届时 `O3` / `G3` / `R1-残` 三行一起销账。
 - 若将来要**清理**连锁段（例如确定不交付该模组）⇒ **先删本门禁的登记项**（解冻动作必须响亮）。
 - ⚠️ 若 `ChainMode` 的默认被改成 `AUTO`/`FORCE`（哪怕是为了调试）⇒ 门禁会红，**这是故意的**。
+
+### D-472：⭐ **回收/挖掘的"脚下安全"判据收敛成唯一出处，并把它挪到动作那一刻** —— `D-406` §四.1 + §四.2 收口（2026-09-27）
+
+**触发**：裁决 `D-471` §七 的 `O5`（"`exec_support` 的收尾是不确定的"）。用户 2026-09-27 裁定：
+**甲′ = `D-406` §四.1 完整版**，且**连带重做 `restore_underfoot_safety` 几何**（同一刀）。
+
+#### 一、⭐ 先更正 `O5` 的机制（我上一轮读错了，而且是**反过来**的）
+
+`D-471` 把 `O5` 记成"判据在 `D-403` 允许的放弃路径上必然假红"。**逐字取证后不成立**。
+`exec_support`（`D-467` 新加）在 4 次 `core` 日志里是 **3 PASS / 1 FAIL**，而**3 次 PASS 走的是同一条违规路**
+（`20260927-175504-core.log` 逐字）：
+
+```
+[Restore] 23, 64, 212 ：向下拆 不通 → 改为侧拆兜底（不挖地形）
+[MineRunner] mine_in_place target=23, 64, 212 feet=23, 65, 212 …   ← 站在支撑块**顶上**，拆脚下的它
+[WRITE] break 23, 64, 212 minecraft:cobblestone by=RestoreScope:SCAFFOLD_RESTORE
+[CollectDrops] sweep_start … feet=23, 59, 212                       ← 平台在 y=64 ⇒ bot 已掉进 12 格深坑
+```
+
+⇒ **判据把"违反 `D-399` C2（回收不许把 bot 摔下去）"的行为判成 PASS，把"正确放弃"判成 FAIL** ——
+这条夹具是**反的**。`D-471` §七 的"甲（判据认放弃路径）"若照做，等于**把掉进坑的路径写成成功判据** ⇒ 撤回。
+
+#### 二、根因两条（都不是新发现，是**早定过根因、排了期、没人接**）
+
+| # | 根因 | 出处（逐字） |
+|---|---|---|
+| 1 | **检查的时机错了**：守卫在 `pickNext()` 取件那一刻判 `pos == foot.below()`，而 bot 是**之后由 `APPROACH`「站上去」**才踩上目标的 ⇒ 取件时子句为假 ⇒ 放行 | `D-406` §一（2026-09-22）；`D-407` §四.1 列为"未做"；`HANDOVER.md:135` 的下一步链里就有它 |
+| 2 | **Alice 特有的旁路**：`D-365` 的"就地挖"（`MineBlockRunner.mineInPlace`）**跳过 Movement 层** —— Baritone 在**代价值**里就有同形前置（`MovementDownward.java:61`：`if (!MovementHelper.canWalkOn(context, x, y - 2, z)) return COST_INF;`）⇒ 缺了它，这条优化就是绕过内核安全闸的通道 | 对照 + `D-365` |
+
+⭐ **连带事实（决定了修法）**：规划器**本来就把"目标那一列"分流出去**（`MiningPlanner` 的 `isSameColumn`），
+实测 `chosen=24, 65, 212`（安全邻石顶）—— **是 `mine_in_place` 把规划器算对的答案丢掉了**。
+而"目标在脚下**且**拆完没落脚面"这条判据的语义，仓里**早就写着但零调用点**：
+`BlockBreakSafety.requiresReposition`（`D-097` 时期声明）javadoc 逐字「目标当前在脚下时不能原地开挖，
+**但可以换到侧面站位后作为明确目标挖掘**」。
+
+#### 三、修法（四刀，全部落地）
+
+| # | 位置 | 改动 | 理由 |
+|---|---|---|---|
+| 1 | **新** `pathing/MovementHelper.underfootUnsafe(level, bot, target)` | 判据**唯一出处** = `target.equals(footCell(level,bot).below()) && !canWalkOn(level, target)` | 一个判据一处定义（旧代码有两套口径：`blockPosition().below()` vs `footCell().below()`，站在半砖上会差一格）。⚠️ **定义放内核层是硬约束**：`pathing → protection` 已存在（`MovementHelper` 要问"可破坏吗"）⇒ 放 `protection/BlockBreakSafety` 会造出全仓第二个包级环 |
+| 2 | `action/MineBlockRunner.canMineInPlace()` | 谓词成立 ⇒ **不就地挖**，改走规划器给的安全站位 | 补 Baritone 同形前置；**不是新机制**，是把规划器的答案还给规划器 |
+| 3 | `task/RestoreScopeTask.pickNext()` | 取件时的**硬放弃**改成"**不站上去**，直接交侧拆"（`stage = SIDE_BREAK`） | `D-406` §三 修法①（判据挪到动作前）± `D-405` 方案 C（不站上去） |
+| 4 | `task/RestoreScopeTask.startSideBreak()` / `tickMiner()` | **动作那一刻**再判一次；执行器**换不到安全站位**而失败 ⇒ 归因 `underfoot_unsafe`（否则原样 `side_break_failed`） | `D-403` 三条**不变**：不延后、不重试、不留待办；**但必须如实归因、绝不静默**。"换站位"是**走位**，不是把这一格记成待办延后做 |
+| 5 | `protection/BlockBreakSafety.requiresReposition` | **删除**（零调用点的死 API，javadoc 已并入新谓词，并在原处留指针） | 两套近似口径是给下一个会话挖的坑（`D-469` 同款处置：死形状删掉） |
+
+#### 四、判据（三条，全部先红后绿）
+
+| 断言 | 现场 | 红臂 |
+|---|---|---|
+| ⭐ `exec_support` **收尾期间不许掉下平台**（新增逐 tick 采样 `lowestFootY`，`expectSupport` 用例上断言 `lowestFootY >= caseStartFootY`） | ⚠️ **先红实测 3/3**：`supportRestored=true/ledgerRestored=1/scaffoldLeft=0/noFall=false(loweredTo=59/start=64)` —— **旧判据全绿、新断言才红**，这就是"夹具是反的"的直接证据 | 掉坑（脚位 64 → 59） |
+| ⭐ 门禁 `tools/check-underfoot-safety.py`（挂 `check-all`，30 → **31**）：判据**唯一出处** + **三个动作点**（`canMineInPlace` / `pickNext` / `startSideBreak`）+ 旧内联口径 `pos.equals(footNow.below())` **0 处** + 判据本体必须同时问"在脚下"与"拆完没落脚面" | `UNDERFOOT_SAFETY_RESULT PASS`（动作点 3 处）+ 合成臂 **8/8** + **真树红臂 3/3**（摘 `canMineInPlace` 判据 ⇒ 红在 B；删声明 ⇒ 红在 A；`pickNext` 退回硬放弃 ⇒ 红在 C1），三条都 **sha 逐字还原** | 见左 |
+| ⭐ `restore_underfoot_safety` **口径重做**（连带，见 §五） | `checks=13 failures=0`，2/2 PASS | 见 §五 |
+
+**判据形态的一课（第 5 次同族）**：门禁里"符号还在不在"必须用**声明形**（`public static boolean underfootUnsafe(`），
+且 `MineBlockRunner` 那一条必须取**方法体**（花括号配对）而不是"整个文件里出现过" —— 因为 `mineInPlace` 的
+**日志字符串**里也含 `underfootUnsafe`，用"文件级子串"就会被那句日志满足（`D-469` 的 `tickChain(` 同款陷阱）。
+
+#### 五、⚠️ 连带：`restore_underfoot_safety` 的臂① **重做**（原判据随本刀作废）
+
+原臂① 断言「脚下那格**必须被守卫拒绝**并点名 `underfoot_unsafe`」+「账本恰好剩「脚下那格」」。
+本刀之后**阶梯几何里换得到**安全站位（规划器给 `4001,101,2600`）⇒ 三格**全部被安全拆掉** ⇒ 原两条必然红。
+实测（同一场景，修前/修后）：
+
+```
+修前（181530 轮）：restored=2 skipped=2 remaining=1 notes=…4002,101,2600:underfoot_unsafe | …:not_ours
+修后（183021 轮）：restored=3 skipped=1 remaining=0 notes=…4001,99,2605:not_ours
+```
+
+⇒ 臂① 改成断言**能力**（"换得到 ⇒ 一格都不许剩"：世界事实 3 格全是空气 + 账本清空）；
+`underfoot_unsafe` 那条**放弃路径**改由**新臂④**覆盖：孤悬在 `FLOOR_Y+10` 的一块（正下方空气 +
+四周无可站面 ⇒ 规划器必然给不出站位）⇒ 断言"点名 `underfoot_unsafe` + 那格原封不动 +
+bot **一格都没动** + 账本仍挂 1 条"。
+
+⭐ **同时修掉一个测量盲区**：`biggestFall`（单 tick 脚位格子差）**看不见慢速 1~3 格自落**
+（每 tick 最多差 1）。修前的阶梯几何里 bot 正踩着的中间那格被拆掉 ⇒ 从 y=101 掉到 99（**2 格**），
+而 `biggestFall` 照样是 `1`、判据照样绿。⇒ 补 **`biggestLandingDrop`**（只在"脚下真的有支撑"的 tick
+之间比落差）。实测：修后全局 `biggestLandingDrop=1`、臂④ `dropC=0`。
+
+#### 六、验证
+
+- **红臂先行**：只加夹具断言、未改产品代码 ⇒ `single:mine_regression` **3/3 FAIL**，逐字
+  `exec_support=FAIL … supportRestored=true/ledgerRestored=1/scaffoldLeft=0/noFall=false(loweredTo=59/start=64)`。
+- **修后**：`single:mine_regression` **4/4 PASS**，逐字 `noFall=true(loweredTo=64/start=64)`；
+  日志里两条路都出现且**都收敛到同一个安全结果**（`planStand=24, 65, 212` = 规划器的答案）：
+  - `[Restore] 23, 64, 212：目标就在脚下且拆完没落脚面 ⇒ 不原地拆，改侧面站位再拆（D-472）`（**取件时就在目标上**那条路 —— 就是修前 1/4 次红的那条）
+  - `[MineRunner] no_mine_in_place …（拆了自己会掉下去 ⇒ 走去安全站位，D-472）`（**站上去之后**那条路 —— 就是修前 3/4 次走旁路的那条）
+- `single:restore_underfoot_safety`：**2/2 PASS**（`checks=13 failures=0`）。
+- `check-all.sh`：`pass=31 warning=1 failed=0`（warning = 电池门禁需 `ALICE_HEADLESS=1`，与既有口径一致）。
+- CORE 全量 + 逐步 diff：`core` **43/43 PASS**（`run/headless-logs/20260927-184047-core.log`，253 s），
+  与基线 `…-175504-core.log` 逐步 diff = **38 步 ticks 完全相同**、5 步不同（`scaffold` 373→321 ·
+  `mine_regression` 200→219 · `clear_guard` 180→176 · `lumber_job` 624→627 · `mine_job` 237→240）
+  **全在 `D-469` §六 建立的历史抖动带内**（`scaffold` 321 与 373 都在既有簇内 · `clear_guard` 90–201 ·
+  `lumber_job` 0–1356 · `mine_job` 218–243 · `mine_regression` 114–264），**判决 0 变化**。
+  ⭐ **回归面实测**：全轮 `no_mine_in_place` 命中 **4 次**，**全部落在 `mine_regression` 步内**；
+  各步 `[MineRunner] mine_in_place` 次数只有 `mine_regression` 变了（**19 → 18**），
+  `lumber_job`/`clear_guard`/`mine_job`/`clear_retry`/`mine_menu`/`mine_budget` **逐字不变**
+  ⇒ **生产挖矿路径零回归**（§七.1 的预判由此**实测确认**，不再是估计）。
+
+#### 七、⚠️ 代价与残余（如实登记）
+
+1. **`mine_in_place` 的行为面变了**：凡"目标就在脚下 **且** 拆完没落脚面"的那一格，从"就地挖"改成
+   "走 1~N 步到安全站位再挖"。全仓日志统计：`mine_in_place` 共 **2475** 次，其中"目标就在脚下"**129** 次
+   （≈5.2%）；**其中落点不安全的那部分才真受影响**（正常向下挖的落点是实心 ⇒ `canWalkOn` 为真 ⇒ 不受影响）。
+   ⚠️ 我**不预判**回归面，靠 CORE 逐步 diff 实测（jitter 带见 `D-469` §六）。
+2. **`ScopeBuffer` 之外的第二个"第二套口径"仍可能存在**：本刀只收敛了"脚下安全"这一条。
+3. **`restore_underfoot_safety` 臂④ 的前提是"行为反推"**：断言的是"bot 没动 + 方块没被拆 + 手里有镐"
+   （⇒ 执行器确实无站位可用），**没有**直接断言规划器返回了 `no_reachable_standing_point`
+   （那个失败码不在本夹具读面上）。已写进类 javadoc 的"不覆盖什么"。
+4. **`D-366`/`D-374` 等既有契约**本轮**未复审**：本刀只动"破坏前的前置"，不动移动契约。
+
+#### 八、复核触发
+
+- 若在**野外/保护区**再见到一次"bot 拆掉自己脚下的方块并掉下去" ⇒ 说明还有**第三处**破坏路径没接判据
+  （门禁只断言已登记的三处，判不出"该用而没用"）。
+- 若 `mine_in_place` 的 129 次里出现**落点不安全却仍就地挖**的日志行 ⇒ 门禁 B 没咬住，回来查方法体提取。
+- `Step 5b` / 挖矿线 `L1` 化**都要动 `MineBlockRunner`** ⇒ 动完必跑 `check-underfoot-safety` + `single:mine_regression`。

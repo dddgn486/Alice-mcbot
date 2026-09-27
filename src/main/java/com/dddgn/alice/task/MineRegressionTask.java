@@ -191,6 +191,18 @@ public final class MineRegressionTask implements Task {
     private int index;
     private int ticks;
     private int caseTicks;
+    /**
+     * ⭐ `D-472`：本用例**逐 tick 采样到的脚位最低 y**（基准见 {@link #caseStartFootY}）。
+     *
+     * <p>用途 = 把 `D-399` C2 的硬不变量「**回收不许把 bot 摔下去**」搬进 CORE：`exec_support` 的平台
+     * 在 y=64、目标正下方是 12 格深坑 ⇒ 脚位**只要低于用例起点 y**，就只可能是**从平台上掉下去了**。
+     *
+     * <p>⚠️ 为什么不用"单 tick 下落格数"（`RestoreUnderfootSafetyCheckTask` 的 `biggestFall`）：那个量
+     * 对**慢速 1~3 格自落是钝的**（脚位格子每 tick 最多差 1）——`D-472` 取证时实测确认过。
+     */
+    private int lowestFootY;
+    /** 本用例起点脚位 y（{@code prepare} 传送之后采一次）—— 掉落判据的基准。 */
+    private int caseStartFootY;
     private boolean prepared;
     private MineTask mineTask;
     /**
@@ -257,6 +269,9 @@ public final class MineRegressionTask implements Task {
             prepared = true;
             caseTicks = 0;
             settleUntilTick = 0;
+            // ⭐ `D-472`：起点脚位 y = 掉落判据的基准（`prepare` 刚把 bot 传送到统一起点）
+            caseStartFootY = (int) Math.floor(bot.getY());
+            lowestFootY = caseStartFootY;
             if (current.kind() == Kind.PLAN) {
                 runPlanCase(current);
                 advance();
@@ -306,6 +321,10 @@ public final class MineRegressionTask implements Task {
             inventoryBefore = countInInventory(expectedItem);
             return Status.RUNNING;
         }
+
+        // ⭐ `D-472`：逐 tick 采样脚位最低 y（判据在 `expectSupport` 用例上生效 —— 见下面 `noFall`）。
+        // 采样点选在"本用例已开跑"之后、任何早退之前，保证每一个 tick 都被看到。
+        lowestFootY = Math.min(lowestFootY, (int) Math.floor(bot.getY()));
 
         if (++caseTicks > CASE_BUDGET_TICKS) {
             record(current, false, "case_timeout ticks=" + caseTicks);
@@ -426,8 +445,15 @@ public final class MineRegressionTask implements Task {
         boolean idempotent = tickTwiceAssertIdempotent() == status;
         // ⑦ D-168 活断言：夹具播下的外来掉落物必须**真的被排除**（否则 `noDropsLeft` 是靠"恰好没残留"通过的）
         boolean foreignOk = !expectedForeignDrop || foreignDrops >= 1;
+        // ⭐ `D-472`（承接 `D-399` C2「回收不许把 bot 摔下去」）：**收尾期间 bot 的脚位不许低于用例起点**。
+        //   为什么这条必须在这里：`exec_support` 的支撑块是**悬空**的（`target.below()` 下方 12 格空气）
+        //   ⇒ `MineBlockRunner` 若"就地拆"自己踩着的那一格，bot 必然掉进深坑（实测脚位 64 → 59）。
+        //   而旧判据（`supportOk` = 下面空气 + `restoredBlocks≥1` + `scaffoldLeft==0`）**恰好被这次掉落
+        //   满足**（方块确实被拆掉了、材料甚至能在下落途中捡到）⇒ 判据把违规判成 PASS。
+        //   ⚠️ 只对 `expectSupport` 用例断言（其余用例没有深坑，起点 y 不是"不许低于"的语义）。
+        boolean noFall = !current.expectSupport() || lowestFootY >= caseStartFootY;
         boolean pass = status == Status.DONE && targetGone && noDropsLeft && countOk && supportOk
-                && idempotent && foreignOk;
+                && idempotent && foreignOk && noFall;
         record(current, pass, "status=" + status
                 + "/targetGone=" + targetGone
                 + "/collected=" + collected + "/" + current.expectedCollected()
@@ -442,6 +468,8 @@ public final class MineRegressionTask implements Task {
                 + (current.expectSupport() ? "/supportRestored=" + supportOk : "")
                 + (current.expectSupport() ? "/ledgerRestored=" + mineTask.restoredBlocks()
                         + "/scaffoldLeft=" + mineTask.scaffoldLeft() : "")
+                + (current.expectSupport() ? "/noFall=" + noFall
+                        + "(loweredTo=" + lowestFootY + "/start=" + caseStartFootY + ")" : "")
                 + "/ticks=" + caseTicks
                 + (status == Status.DONE ? "" : "/reason=" + mineTask.failureReason()));
         finishCase();

@@ -198,6 +198,12 @@ run_gate             "check-frozen-code" python3 tools/check-frozen-code.py
 # 断言只覆盖**不会假红**的量（存在 / 下限 / 解析与引用自洽 / 口径自证）⇒ 用户 2026-09-27 拍：
 # **不断言目标值**（值数下降是结果不是判据）。自带 13 条合成红臂。
 run_gate             "check-primitive-readings" python3 tools/check-primitive-readings.py
+# 脚下安全判据（`D-472`，2026-09-27）：`D-399` C 的"拆了它会让自己掉下去"必须**唯一出处**
+# （`MovementHelper.underfootUnsafe`）且用在**三个动作点**上（`MineBlockRunner.canMineInPlace` /
+# `RestoreScopeTask.pickNext` / `RestoreScopeTask.startSideBreak`）。
+# 为什么门禁化：`D-365` 的"就地挖"跳过 Movement 层（Baritone `MovementDownward.java:61` 同形前置），
+# 且 `D-406` §三 的"时机错"实测过一次真摔（`exec_support`：脚位 64 → 59，旧判据还判 PASS）。
+run_gate             "check-underfoot-safety"   python3 tools/check-underfoot-safety.py
 # 层方向（`J-★` 第 6 段 step 3a / `D-460`，2026-09-27）：`D-455` 定了三层（`action/` < `task/` < `job/`），
 # 而 `survey/42 §1.2` 实测**全仓唯一的循环依赖**就是 `action/MineBlockRunner ↔ task/mining/*`。
 # step 3a = 把「触及站位」件搬进新顶层包 `reach/`（与 `pathing/` 同级：谁都能依赖它、它谁都不依赖）。
