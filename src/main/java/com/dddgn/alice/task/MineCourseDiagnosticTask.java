@@ -3,7 +3,7 @@ package com.dddgn.alice.task;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.task.mining.MiningBudget;
-import com.dddgn.alice.task.mining.MiningPlan;
+import com.dddgn.alice.reach.MiningPlan;
 import com.dddgn.alice.task.mining.MiningPlanner;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;

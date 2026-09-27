@@ -1,4 +1,4 @@
-package com.dddgn.alice.task.mining;
+package com.dddgn.alice.reach;
 
 /**
  * 挖掘站位选优的可调参数（D-067 批次 2）。

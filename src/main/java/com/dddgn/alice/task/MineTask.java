@@ -9,10 +9,10 @@ import com.dddgn.alice.bot.TaskFailureReport;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
 import com.dddgn.alice.task.mining.MiningBudget;
-import com.dddgn.alice.task.mining.MiningPlan;
+import com.dddgn.alice.reach.MiningPlan;
 import com.dddgn.alice.task.mining.MiningPlanner;
 import com.dddgn.alice.task.mining.MiningProfile;
-import com.dddgn.alice.task.mining.MiningTuning;
+import com.dddgn.alice.reach.MiningTuning;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
@@ -704,7 +704,7 @@ public final class MineTask implements Task {
         if (clearExhausted || !profile.mayClear() || clearSteps >= profile.clearBudget()) {
             return false;
         }
-        BlockPos blocker = com.dddgn.alice.task.mining.LineOfSightChecker
+        BlockPos blocker = com.dddgn.alice.reach.LineOfSightChecker
                 .checkFromEye(bot.serverLevel(), bot.getEyePosition(), target).getFirstBlocker();
         if (blocker != null && failedBlockers.contains(blocker)) {
             // R2：这一格刚失败过 ⇒ 不原地重试，走"换下一个候选"的规划器路径
@@ -739,7 +739,7 @@ public final class MineTask implements Task {
 
     /** 现在是否存在"触及范围内"的站位候选（改造前 Job 的 `hasStandNow` 口径，用于二分加高/清障）。 */
     private boolean hasStandingCandidateNow() {
-        return !com.dddgn.alice.task.mining.StandingPointSelector
+        return !com.dddgn.alice.reach.StandingPointSelector
                 .generateCandidates(bot.serverLevel(), target,
                         com.dddgn.alice.pathing.MovementHelper.footCell(bot.serverLevel(), bot),
                         bot.getBlockReach())
@@ -796,7 +796,7 @@ public final class MineTask implements Task {
                 .footCell(bot.serverLevel(), bot);
         // D-179 守卫：**加高只能在目标附近用**（加高改善"够不够得着"，不能把 bot 送到远处目标那里）。
         // 缺了它：被传送/漂移到 198 格外的 bot 会就地搭柱子（实测 12 格圆石，位置与目标无因果关系）。
-        if (!com.dddgn.alice.task.mining.MiningTuning.gainHorizontallyReachable(bot, target)) {
+        if (!com.dddgn.alice.reach.MiningTuning.gainHorizontallyReachable(bot, target)) {
             BotLog.warn("[MineTask] gain_refused target={} foot={} reason=target_out_of_range"
                             + "（水平超出触及 ⇒ 拒绝异地加高；交由上层换目标/挂起，绝不在无关位置写世界）",
                     target.toShortString(), foot.toShortString());

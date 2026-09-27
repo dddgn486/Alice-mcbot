@@ -636,7 +636,7 @@ public final class CollectDropsTask implements Task {
         }
         // D-179（与 MineTask 同一守卫）：**加高只能在目标附近用**。原判据只看"在头顶"（竖直），
         // 远处高处的掉落物也满足 ⇒ 会在与它无关的位置搭柱子。这里补水平前提（判据单一定义在 MiningTuning）。
-        if (!com.dddgn.alice.task.mining.MiningTuning
+        if (!com.dddgn.alice.reach.MiningTuning
                 .gainHorizontallyReachable(bot, nearest.blockPosition())) {
             BotLog.warn("[CollectDrops] gain_refused item={} 水平超出触及 ⇒ 不异地加高",
                     nearest.blockPosition().toShortString());
@@ -760,7 +760,7 @@ public final class CollectDropsTask implements Task {
 
     /** 可站：脚下有支撑 + 脚位/头位可穿过（与挖掘站位同一口径）。 */
     private boolean isStandableCell(BlockPos cell) {
-        return com.dddgn.alice.task.mining.StandingPointSelector
+        return com.dddgn.alice.reach.StandingPointSelector
                 .isStandable(bot.serverLevel(), cell);
     }
 

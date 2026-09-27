@@ -1,6 +1,7 @@
 package com.dddgn.alice.task.mining;
 
 import net.minecraft.core.BlockPos;
+import com.dddgn.alice.reach.LineOfSightChecker;
 
 /**
  * 站位评分（D-067 批次 2 重写）：**只按"到达站位的路径成本"排序**。

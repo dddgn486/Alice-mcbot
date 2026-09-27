@@ -325,9 +325,9 @@ public class CapabilityGateCheckTask implements Task {
      */
     private void checkGainProximityGuard() {
         BlockPos foot = bot.blockPosition();
-        boolean nearOk = com.dddgn.alice.task.mining.MiningTuning
+        boolean nearOk = com.dddgn.alice.reach.MiningTuning
                 .gainHorizontallyReachable(bot, foot.east());
-        boolean farRefused = !com.dddgn.alice.task.mining.MiningTuning
+        boolean farRefused = !com.dddgn.alice.reach.MiningTuning
                 .gainHorizontallyReachable(bot, foot.offset(40, 0, 40));
         check("gain_requires_proximity", nearOk && farRefused,
                 "near=" + nearOk + " farRefused=" + farRefused

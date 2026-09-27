@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
+import com.dddgn.alice.reach.MiningTuning;
 
 /**
  * 候选站位成本估算（D-067 批次 2；方案见 {@link MiningTuning.EstimateMode}）。

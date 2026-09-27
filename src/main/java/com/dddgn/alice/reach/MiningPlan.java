@@ -1,4 +1,4 @@
-package com.dddgn.alice.task.mining;
+package com.dddgn.alice.reach;
 
 import com.dddgn.alice.pathing.core.search.PathPlan;
 import net.minecraft.core.BlockPos;

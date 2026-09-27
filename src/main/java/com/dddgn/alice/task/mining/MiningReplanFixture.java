@@ -19,6 +19,7 @@ import net.minecraftforge.network.PacketDistributor;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import com.dddgn.alice.reach.MiningPlan;
 
 /** 开发期可视动态障碍夹具；只放置真实石头，不控制 MineTask 的恢复逻辑。 */
 public final class MiningReplanFixture {

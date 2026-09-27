@@ -161,6 +161,13 @@ run_gate             "check-protection-install-point" python3 tools/check-protec
 # 断言 = 额度制造必须出现在**非构造器的方法体**里；自带 6 条合成红臂 + 人口下限（防抽空即假绿）。
 # ⚠️ 边界写在门禁里：**不含**"类内默认额度常量"（= step 2b / step 5），别把绿读成 ⑧③ 全合规。
 run_gate             "check-primitive-budget-injection" python3 tools/check-primitive-budget-injection.py
+# 层方向（`J-★` 第 6 段 step 3a / `D-460`，2026-09-27）：`D-455` 定了三层（`action/` < `task/` < `job/`），
+# 而 `survey/42 §1.2` 实测**全仓唯一的循环依赖**就是 `action/MineBlockRunner ↔ task/mining/*`。
+# step 3a = 把「触及站位」件搬进新顶层包 `reach/`（与 `pathing/` 同级：谁都能依赖它、它谁都不依赖）。
+# 断言 = ① `reach/` 不许 import `task|action|job`（防"漏搬一个，循环换个方向长回来"）
+# ② `action/` → `task/` 只许剩**表里登记的欠账**（今天 1 条 = step 3b 的 `PathRetryRunner`）。
+# 自带 6 条合成红臂 + 人口下限（reach ≥4 / action ≥10 / 扫描 ≥480）。
+run_gate             "check-layer-direction"     python3 tools/check-layer-direction.py
 # 回迁（2026-09-24）：`tools/dsh-session-rollback.mjs` 决定"云端哪些字节要搬回本机" ——
 # 决定错了**不会响**（本机会安静地留一个半截会话）⇒ 自检必须进构建：
 # 分叉判 suffix（只搬前缀之后那段）/ 逐字节相同判 skip / 无公共前缀判 whole / 重建 sha256 必须对得上 /

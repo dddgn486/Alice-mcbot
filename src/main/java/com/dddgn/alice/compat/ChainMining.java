@@ -51,14 +51,14 @@ public final class ChainMining {
     }
 
     /** 是否应走连锁：OFF 永否；AUTO 需模组在场 + 目标属矿石/原木；FORCE 只要求模组在场。 */
-    public static boolean shouldChain(com.dddgn.alice.task.mining.MiningTuning.ChainMode mode, BlockState state) {
-        if (mode == null || mode == com.dddgn.alice.task.mining.MiningTuning.ChainMode.OFF) {
+    public static boolean shouldChain(com.dddgn.alice.reach.MiningTuning.ChainMode mode, BlockState state) {
+        if (mode == null || mode == com.dddgn.alice.reach.MiningTuning.ChainMode.OFF) {
             return false;
         }
         if (!available()) {
             return false;
         }
-        return mode == com.dddgn.alice.task.mining.MiningTuning.ChainMode.FORCE || isChainable(state);
+        return mode == com.dddgn.alice.reach.MiningTuning.ChainMode.FORCE || isChainable(state);
     }
 
     /** 默认只连锁**矿石与原木**（D-075 用户裁定）。 */

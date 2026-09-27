@@ -16,6 +16,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
+import com.dddgn.alice.reach.StandingPointSelector;
+import com.dddgn.alice.reach.LineOfSightChecker;
+import com.dddgn.alice.reach.MiningPlan;
+import com.dddgn.alice.reach.MiningTuning;
 
 /**
  * 挖掘领域规划器（D-067 批次 2/3）：目标方块 → 两模式站位选择 → 成本估算 → top-K 精算 → MiningPlan。

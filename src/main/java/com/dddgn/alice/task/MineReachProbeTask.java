@@ -9,7 +9,7 @@ import com.dddgn.alice.pathing.core.search.PlanningStatus;
 import com.dddgn.alice.pathing.core.search.SearchBudget;
 import com.dddgn.alice.pathing.core.search.SearchTickBudget;
 import com.dddgn.alice.task.mining.MiningBudget;
-import com.dddgn.alice.task.mining.StandingPointSelector;
+import com.dddgn.alice.reach.StandingPointSelector;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 

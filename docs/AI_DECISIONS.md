@@ -20993,3 +20993,65 @@ Job = ① 有 Kind（进 JobRequest.Kind）
 - ⏳ **仍未裁**（`survey/43 §6.1`，与本条同族）：**"引不引前置裁定"要不要有牙**（今天没有门禁
   ⇒ `D-455` 漏引 `D-080` 就是这么发生的）。**用户 2026-09-27 只裁了"补那一行"**（见 `D-455` 的前置裁定块），
   **没有**裁定要不要把"新落一条 `D` 必须引前置裁定"做成可执行判据。
+
+---
+
+### D-460：**`step 3a` 落地 —— 「触及站位」搬出 `task/` 进新顶层包 `reach/` + 层方向门禁**（2026-09-27，`J-★` 第 6 段 step 3）
+
+**裁定链**：`D-455` 三层（`action/` 微操作 < `task/` 动作原语 < `job/`）+ `survey/42 §1.2`（**全仓唯一的循环依赖**）
++ 用户 2026-09-27 拍 **⑤-⑦ = B**（搬 `StandingPointSelector` **+ `LineOfSightChecker` 一起**进 `reach/`；**只搬包、不改名**）。
+
+#### ⚠️ 先纠一条**实测事实**（勘测侧的登记里写反了范围）
+
+台账 step 3 的原话是「⚠️ 实测：唯一真实反向 import **只用了一个纯函数**（`action/MineBlockRunner:414` `eyeAt`）
+⇒ 存在更小的一刀」。**实测不是这样** —— `action/` 对 `task/` 的 import **一共 4 条，全在同一个文件**：
+
+| # | import | 真用在哪 |
+|---|---|---|
+| 1 | `task.PathRetryRunner` | `new PathRetryRunner(...)` + `PathRetryRunner.State`（走位重试，**整类**） |
+| 2 | `task.mining.LineOfSightChecker` →（今）`reach.LineOfSightChecker` | `checkFromEye(...)` **2 处** |
+| 3 | `task.mining.MiningPlan` → `reach.MiningPlan` | 字段 + 两个构造器 + `MiningPlan.Mode` |
+| 4 | `task.mining.StandingPointSelector` → `reach.StandingPointSelector` | **只有** `eyeAt`（唯一那条对的口径） |
+
+⇒ ⭐ **推论：登记的那条判据（`grep -rn "import com.dddgn.alice.task" src/main/java/com/dddgn/alice/action/` = 0）
+不可能只靠"搬 2 个类"达成** —— 见下面的 `step 3b`。
+
+#### 做了什么（`step 3a`：**只搬包、不改名**）
+
+1. **新顶层包 `com.dddgn.alice.reach`**（与 `pathing/` 同级 = 内核侧几何层：**谁都能依赖它、它谁都不依赖**），
+   从 `task/mining/` `git mv` **4 个类**（`git mv` ⇒ 历史不断）：
+   `StandingPointSelector` · `LineOfSightChecker` · **`MiningPlan`** · **`MiningTuning`**。
+   ⚠️ **后两个是"闭包"不是可选项**（`survey` 的"只搬一个会造出新循环"在这两个上演）：
+   `StandingPointSelector:85` 用 `MiningTuning.reachMargin()`、`MiningPlan:19` 的公共签名带
+   `LineOfSightChecker.LineOfSightResult` ⇒ 漏搬任一个，循环就**换个方向长回 `reach/ → task/`**。
+2. **只改 `package` 行 + import**（无改名、无逻辑改动；连 `BotCommand` 的用户可见文案也没动）——
+   29 个文件被触碰（其中 4 个是 `git mv`，4 个在 `task/mining/` 里补 import，其余是 FQN/import 重写）。
+   ⚠️ **迁移陷阱（记下来）**：**不能把包前缀全局替换** —— `com.dddgn.alice.task.mining.` 同时是
+   `MiningPlanner` / `MiningProfile` / `MiningBudget` 等**没搬**的类的前缀 ⇒ 第一版把
+   `task.mining.MiningPlanner` 改成了 `reach.MiningPlanner`（`66 个错误`，编译器精确点名）⇒ 修法 =
+   按**标识符**判定（只有那 4 个名字才换前缀）。
+3. **新门禁 `tools/check-layer-direction.py`**（挂 `tools/check-all.sh`，`pass=25→26`）。
+
+#### 判据（静态门禁；⚠️ **搬包不改行为 ⇒ 行为夹具结构性无感**，同 `D-425`）
+
+- **断言①**：`reach/**` 不许 import `com.dddgn.alice.{task, action, job}` —— 这是"漏搬一个，循环长回来"的防线。
+- **断言②**：`action/**` 对 `com.dddgn.alice.task.*` 的 import 必须**逐条**在门禁里的 `ALLOWED_REVERSE` 表
+  （带到期条件）—— **欠账写在门禁里**，不藏在谁也不知道的地方。今天表里 **1 条**（= `step 3b`）。
+- **断言③ 人口下限**：扫描 `.java` ≥480（实测 512）· `reach/` ≥4 · `action/` ≥10（实测 12）。
+- **自带 6 条合成红臂** + ⭐ **真树红臂 2 条**（各自单独开火，均先证明文件**真的变了**）：
+  ① 往 `reach/LineOfSightChecker` 注入 `import …task.mining.MiningBudget` ⇒ 精确报"层方向倒了"；
+  ② 往 `action/WriteBudget` 注入 `import …task.MineTask` ⇒ 精确报"必须显式登记进 `ALLOWED_REVERSE`"；
+  还原后**两个 sha 逐字回到注入前**（`0eefae08552a94e7` / `4db05116d14b1330`）、门禁复绿。
+- **实测读数**：`reach/` 反向依赖 **0** · `action/ → task/` **欠账 1 条**（`MineBlockRunner → PathRetryRunner`）·
+  `action/ → task.mining` **0 命中**。
+
+#### ⏳ `step 3b`（**本刀登记，未做**）
+
+`PathRetryRunner`（`task/PathRetryRunner.java`，39 个文件引用）**家在 `pathing/`**：它只 import
+`bot/` · `log/` · `pathing.core.{search,session}` ⇒ 搬过去**零反向依赖**；搬完 `action/ → task/` 才真正 **0 命中**
+（`ALLOWED_REVERSE` 表随之清空 —— 表空 = 判据从"带欠账"升级为"无条件"）。
+⚠️ **为什么本刀不做**：它**不属于"触及站位"**（是寻路重试器），且 39 个文件的 import 面是**另一件事**；
+一刀一判据（台账 step 3 那一行只授权"触及站位"）。⚠️ 门禁的 `ALLOWED_REVERSE` 表就是它的**到期条件**。
+
+**回归**：`core` **PASS**（241 s · 指纹 `6ef2c2a63ea2` · 日志 `run/headless-logs/20260927-144303-core.log`，
+43 步判决与上一轮逐字相同）· `check-all` **pass=26 warning=1 failed=0**。

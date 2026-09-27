@@ -1,4 +1,4 @@
-package com.dddgn.alice.task.mining;
+package com.dddgn.alice.reach;
 
 import com.dddgn.alice.log.BotLog;
 import net.minecraft.core.BlockPos;
