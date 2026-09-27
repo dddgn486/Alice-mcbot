@@ -2035,3 +2035,37 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 
 **⛔ 仍未覆盖**：③ 运行期清障（`LINE_OF_SIGHT_BLOCKED` / `B6` 盲区）；其他可重试失败码
 （`OUT_OF_REACH` / `BREAK_*`）。⇒ 台账 `O6` 现为「**机制 ✅ + 路由 ✅ · ③ ⏳**」。
+
+## `D-475`（2026-09-27）：⭐ **`O6` 的最后一条路 —— 运行期清障第一次被走到** + `lumber_job` 抖动如实登记
+
+> **一句话**：`D-473` 实测 `LINE_OF_SIGHT_BLOCKED` 在整轮电池里 **0 行**；本刀用**同一套竞态换个方向**
+> 把它走通 ⇒ ⭐ **`O6` 可做部分全部关闭**（① 随 `D-471` 冻结 · ② `D-474` · ③ `D-475`）。
+
+**① 做法**：新用例 `exec_runtime_los`（第 16 条，`Kind.LOS_CLEAR`）—— 计划算完后把
+**站位朝目标方向的第一格**（脚位+头位）砌死 ⇒ **走得到、看不见** ⇒ `LINE_OF_SIGHT_BLOCKED`
+（在 `retryable` 判断**之前**被 `tryClearLineOfSight` 接走）⇒ 清障子任务 ⇒ 回 `MINING` ⇒ 挖到。
+⚠️ 砌两格是因为 `LineOfSightChecker` **多点采样**（上沿走头位格、下沿走脚位格）。
+⚠️ **清障信封必须显式给**：`TUNNEL_ALLOWED.clearBudget = 0` ⇒ 该路**结构上到不了**；本用例 `.withClear(4)`
+（生产先例 `LumberJob:465`）。⚠️ 本用例**不走标准 EXECUTE 断言**（清障产生的掉落物与目标产物同族、无法区分 ⇒
+`collected`/`delta`/零残留不是不变量），自定义判据 = `raceFired` + `clearedBlocks>=1` + `DONE` + 目标真空。
+
+**② 绿读数**（`…20260927-192143-…`）：`[MineRunner] failed reason=LINE_OF_SIGHT_BLOCKED`
+→ `[MineTask] clear_start … why=runtime:line_of_sight_blocked` → `clear_end status=DONE cleared=1`
+→ `exec_runtime_los=PASS … clearedBlocks=1/ticks=81`。
+**③ 红臂**（关掉 `tickMining()` 里那个分支）⇒ **恰好 1 条红**，且读数很值得读：
+`status=DONE/targetGone=true/**clearedBlocks=0**` —— 目标**照样被挖到**（`tryReplan` 换了看得见的站位），
+**唯一红的是"清障没发生"** ⇒ 本用例测的是**那条路被走到**，不是"目标被挖到"。
+
+**④ ⚠️ 同轮 CORE 第一轮 `lumber_job=FAIL`（如实登记，与本刀无因果）**：
+- **时序**：`lumber_job` 是 **step 5/43**（19:24:29→19:25:13 判红），本刀改的 `mine_regression` 是 **step 6/43**
+  （19:25:13 才开始）⇒ 失败的步子**在本刀那一步之前**跑完，本刀只动一个**之后才加载**的类。
+- **签名 = 已登记抖动**：`reason=partial_quota`（`trees 3/4 logs 19/23`）+ `trunk_too_tall`/`already_attempted`
+  = `1.4o` 与 `D-410 §四`（「这一步是**刀尖上的**」）登记过的**位置敏感脆判据**。
+- **频率**：近 **13** 轮 core 只红这 **1** 次。
+- ⇒ **第 2 轮 `core` = 43/43 PASS**（`…20260927-193302-core.log`）；两轮都写进 `D-475 §四`，不藏。
+- 📌 **排期信号**：`1.4o`（0.5 轮，原标"低优先"）现在**有了一次实测红** ⇒ 建议提到待开工队列前部
+  （否则下次红在别人的刀上，又是一次归因不清）。
+
+**⑤ 回归**：`core` 43/43（256 s）· ⭐ core 日志里 **`[MineTask重规划探针]` 1 次 + `why=runtime:line_of_sight_blocked` 1 次**
+（两条路在 CORE 里都有覆盖）· 逐步 diff 对 `…191750-core.log`：38 步 tick 不变，`mine_regression` 251 → 321，
+另四项在抖动带内，**判决 0 变化** · `check-all` = **`pass=32 warning=0 failed=0`**。

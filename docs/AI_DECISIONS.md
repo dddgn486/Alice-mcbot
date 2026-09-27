@@ -22425,3 +22425,116 @@ exec_replan_race=PASS status=DONE/targetGone=true/collected=1/1/inventoryDelta=1
 - 谁动了 `MineStep.startExecution()` 的闩锁清理 ⇒ 本用例**与** `step_latch_relaunch` 同时红。
 - `PathRetryRunner` 的可达性语义若变化（例如"目标格是实心"改成可到达）⇒ 竞态不再产生失败
   ⇒ 表现是 `exec_replan_race=FAIL`（`recoveryAttempts=0`）⇒ 回来重造那条"会失败的路"。
+
+### D-475：⭐ **`O6` 的最后一条路：运行期清障（`LINE_OF_SIGHT_BLOCKED`）第一次被走到** + `lumber_job` 抖动的如实登记（2026-09-27）
+
+> 承 `D-473`（机制）/ `D-474`（路由 ②）。本刀补 `O6` **③**（`B6` 盲区）：
+> `D-473` 实测 `LINE_OF_SIGHT_BLOCKED` 在整轮电池里 **0 行** ⇒ 那条"清障 → 回挖掘 → 再 `startExecution()`"
+> 的路**从来没被走过**，而它同样会把终态闩锁那件事走一遍。
+
+#### 一、做法：同一套竞态的**第二个方向**
+
+新用例 `exec_runtime_los`（`mine_regression` 第 16 条，`Kind.LOS_CLEAR`）——与 `D-474` **同一套时刻论证**，
+只换"砌哪儿"：
+
+| | `D-474`（`REPLAN`） | **`D-475`（`LOS_CLEAR`）** |
+|---|---|---|
+| 砌的格 | 规划器选中的**站位那一列**（脚位+头位） | 站位**朝目标方向的第一格**（脚位+头位） |
+| 执行期的表现 | 走不过去 ⇒ `MOVE_MOVEMENT_FAILED` | **走得到、看不见** ⇒ `LINE_OF_SIGHT_BLOCKED` |
+| 被谁接走 | `tryReplan`（`recoveryAttempts++`） | `tryClearLineOfSight`（**在 `retryable` 判断之前**） |
+| 判据见证 | `recoveryAttempts() >= 1` | ⭐ `clearedBlocks() >= 1` |
+
+⭐ **为什么砌两格（脚位 + 头位）**：`LineOfSightChecker` 对目标可见面**多点采样** —— 到上沿的采样走头位格、
+到下沿的走脚位格 ⇒ 只砌一格可能留下另一条通路（判据会时红时绿）。这是从"多点采样"直接推出来的，不是试出来的。
+
+⚠️ ⭐ **清障信封必须显式给**：`MiningProfile.TUNNEL_ALLOWED` 的 `clearBudget = 0`（`MiningProfile:66`）
+⇒ `mayClear()` 为假 ⇒ **清障路径结构上走不到**。生产先例 = `LumberJob:465`（`TARGET_PROFILE.withClear(...)`）
+⇒ 本用例显式 `.withClear(4)`（与 `MAX_CLEAR_PER_TREE` / `clear_retry` 同量级）。**这是能力信封的声明，不是顺手放宽。**
+
+⚠️ **本用例不走标准 EXECUTE 断言**：清障本身破坏方块、**产生与目标产物同族的额外掉落物**
+（无法区分）⇒ `collected == N` / `delta == N` / 零残留那三条**在这里不是不变量**
+（写了就是假判据）。⇒ 自定义判据 = `raceFired` + `clearedBlocks >= 1` + 任务 `DONE` + 目标真空
+（见 `assertLosClearCase`）。
+
+#### 二、实测（绿）：机制链逐行可读
+
+`single:mine_regression` **PASS**（`run/headless-logs/20260927-192143-single_mine_regression.log`）：
+
+```
+[MineRegression] case=exec_runtime_los ⭐ 竞态开火（视线）：站位 21, 64, 136 朝目标的第一格已砌死（2 格 = 脚位+头位）
+[MineRunner] failed reason=LINE_OF_SIGHT_BLOCKED phase=precondition retryable=true feet=21, 64, 136
+[MineTask计划失败报告] attempt=1 reason=LINE_OF_SIGHT_BLOCKED retryable=true currentPlanRetained=true
+[MineTask] clear_start target=21, 64, 133 blocker=21, 65, 135 used=1/4 attempt=1 why=runtime:line_of_sight_blocked
+[MineTask] clear_end   target=21, 64, 133 status=DONE cleared=1 used=1/4 attempts=1 failed=0 exhausted=false
+exec_runtime_los=PASS status=DONE/targetGone=true/clearedBlocks=1/raceFired=true/raceStanding=21, 64, 136/ticks=81
+```
+
+⇒ `LINE_OF_SIGHT_BLOCKED` + `clear_start … why=runtime:line_of_sight_blocked` 在电池里**第一次出现**。
+
+#### 三、红臂（关掉那条路 ⇒ **恰好 1 条红**，且读数精确指向"清障没发生"）
+
+注入 = 把 `tickMining()` 的 `if ("LINE_OF_SIGHT_BLOCKED".equals(...) && tryClearLineOfSight())` 关掉：
+
+```
+exec_runtime_los=FAIL status=DONE/targetGone=true/clearedBlocks=0/raceFired=true/raceStanding=21, 64, 136/ticks=58
+```
+
+⭐⭐ **这条红臂特别值得读**：`status=DONE` **且** `targetGone=true` —— 目标**照样被挖到了**
+（关掉清障之后，`tryReplan` 换了个看得见目标的站位就把它挖了）；**唯一红的是 `clearedBlocks=0`**。
+⇒ 本用例测的**不是**"目标有没有被挖到"（那是别的用例的事），而是**"清障那条路真的被走到"**。
+
+#### 四、⚠️ CORE 第一轮 `lumber_job=FAIL` —— 如实登记（**与本刀无因果**）
+
+| 轮 | 结果 | 取证 |
+|---|---|---|
+| 第 1 轮 | ❌ `lumber_job=FAIL`（`mine_regression=PASS`） | `run/headless-logs/20260927-192757-core.log` |
+| 第 2 轮 | ✅ **43/43 PASS** | `run/headless-logs/20260927-193302-core.log` |
+
+**为什么可以判定与本刀无因果（两条独立证据）**：
+1. ⭐ **时序**：`lumber_job` 是 **step 5/43**（`19:24:29` 起跑、`19:25:13` 判红），
+   `mine_regression` 是 **step 6/43**（`19:25:13` 才开始）—— 失败的步子**在**本刀改的步子**之前 44 秒跑完**，
+   而本刀**只动 `MineRegressionTask`**（一个在它之后才被加载的类）。
+2. 失败签名 = **已登记的抖动**：`[Job] terminal job=lumber result=FAILED reason=partial_quota
+   progress=trees 3/4 logs 19/23 … cleared=6` + 归因 `tree@22,64,218:trunk_too_tall,33, 64, 208:already_attempted`
+   —— 正是 `1.4o`（「砍完高树之后伐木 job 砍不动下一棵树」）与 `D-410 §四`（「这一步是**刀尖上的**」）
+   登记过的**位置敏感脆判据**形态。
+3. **频率**：近 **13** 轮 core 里 `lumber_job` 只红这 **1** 次（其余 12 轮 PASS）⇒ 是抖动，不是确定性回归。
+
+📌 **由此产生的排期信号（不是本刀的活）**：`1.4o` 目前是 `⏳ 待开工（0.5 轮，低优先）`。
+它现在**有了一次实测红**（唯一一次），⇒ 符合本项目"内核/判据只接受三种输入"里的**真机或回归实测红**这一类 ⇒
+**建议把它从'低优先'提到待开工队列前部**（否则下一次它红在别人的刀上，又是一次"归因不清"）。
+
+#### 五、验证
+
+| 项 | 结果 | 取证 |
+|---|---|---|
+| `single:mine_regression` | **PASS `passed=1/1`**（15 → **16** 条用例全 PASS） | `…20260927-192143-…` |
+| ⭐ `O6` ③ 第一次被覆盖 | `LINE_OF_SIGHT_BLOCKED` + `clear_start why=runtime:line_of_sight_blocked` | 同上 |
+| 红臂 | **恰好 1 条红**，且 `clearedBlocks=0` 精确指向清障没发生 | `…20260927-192300-…` |
+| `core`（第 2 轮） | **43/43 PASS**（256 s）· core 日志里 **`[MineTask重规划探针]` 1 次 + `why=runtime:line_of_sight_blocked` 1 次** ⇒ **两条路在 CORE 里都有覆盖** | `…20260927-193302-core.log` |
+| `core` 逐步 diff（对 `…191750-core.log`） | **38 步 tick 不变**；`mine_regression` 251 → **321**（+70 = 新用例 ≈55 tick + 抖动）· `scaffold` 360 → 321 · `clear_guard` 173 → 191 · `lumber_job` 620 → 614 · `mine_job` 234 → 237（后四项在历史抖动带内）；**判决 0 变化**；总 tick `4550 → 4596` | 同上 |
+| `check-all` | 见 §五末（本刀只动 `src/` 的夹具与 `docs/`） | —— |
+
+#### 六、`O6` 至此的状态
+
+| 三条路 | 状态 |
+|---|---|
+| ① `CHAIN` 回落 | ⛔ 随 `D-471` **冻结挂账**（模组不在场） |
+| ② `tryReplan` | ✅ `D-474`（路由红臂恰好红 1 条） |
+| ③ 运行期清障 | ✅ **`D-475`**（路由红臂恰好红 1 条） |
+
+⇒ `O6` 的**可做部分全部关闭**；`D-469` §九 那句「本刀唯一一处靠推理而不是靠电池保住的语义」**已作废**
+（三条路里两条有电池、第三条按裁定冻结）。
+
+#### 七、残余（如实）
+
+- ❌ 其他可重试失败码（`OUT_OF_REACH` / `BREAK_*`）仍未覆盖 —— 它们与 `MOVE_*` 走**同一条**
+  `tryReplan` 路由（`D-474` 已覆盖该路由本身）⇒ 边际信息低，登记不排期。
+- ⚠️ 两条用例的扰动都是**夹具直接改方块**（不经 `WriteGrant`）⇒ 不覆盖"写入闸门"那一层。
+- ⚠️ 清障那条路的**预算打满**分支（`clear_exhausted` / `budget exhausted`）仍未覆盖。
+
+#### 八、复核触发
+
+- 关掉/挪走 `tickMining()` 的 `LINE_OF_SIGHT_BLOCKED` 分支 ⇒ `exec_runtime_los` 必红（`clearedBlocks=0`）。
+- 谁把 `TUNNEL_ALLOWED` 的 `clearBudget` 从 0 改成非 0 ⇒ 本用例的"显式信封"那句注释要同步（否则语义分叉）。
+- `lumber_job` 再红一次（不论是谁的刀）⇒ 按 §四 的结论直接做 `1.4o`，不要再归因到当轮改动。

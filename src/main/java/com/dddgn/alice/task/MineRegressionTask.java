@@ -117,6 +117,26 @@ public final class MineRegressionTask implements Task {
          * "没跑到"伪装成"重规划没问题"（`Z4` 的空集假绿家族）。
          */
         REPLAN,
+        /**
+         * ⭐ **运行期清障第一次被走到**（`D-475`；台账 `O6` **③** / `B6` 盲区）。
+         *
+         * <p>`tickMining()` 的第二条"重新开一次执行"的路：`report.reason() == "LINE_OF_SIGHT_BLOCKED"`
+         * ⇒ `tryClearLineOfSight()` ⇒ 起一个**清障子任务** ⇒ 清完回到 `MINING` ⇒ 再 `startExecution()`。
+         * `D-473` 实测该路在整轮电池里 **0 行**（`LINE_OF_SIGHT_BLOCKED` 零命中）。
+         *
+         * <p>造法（与 {@link #REPLAN} 同一套竞态机制，只换"砌哪儿"）：计划算完之后，把
+         * **站位格朝目标方向的第一格**（脚位 + 头位）砌死 ⇒ 走到站位时**视线被挡**
+         * ⇒ `LINE_OF_SIGHT_BLOCKED`（`retryable=true`，但它在 `retryable` 判断**之前**就被
+         * `tryClearLineOfSight` 接走）⇒ 清障 ⇒ 回 `MINING` ⇒ 挖到目标。
+         *
+         * <p>⭐ **判据的承重点是 `clearedBlocks() >= 1`** —— 全仓只有 `MineTask.tickClear()` 的
+         * `DONE` 分支递增它 ⇒ 它是"清障子任务真的跑完了一格"的精确见证。
+         *
+         * <p>⚠️ **本用例不走标准 EXECUTE 断言**（`collected == N` / `delta == N` / 零残留掉落物）：
+         * 清障本身会破坏方块、**产生额外掉落物**（与目标产物同族、无法区分）⇒ 那些精确计数
+         * 在这里**不是不变量**。本用例只断言"清障路走到了 + 目标真被挖到"（详见 `assertLosClearCase`）。
+         */
+        LOS_CLEAR,
     }
 
     /**
@@ -250,11 +270,21 @@ public final class MineRegressionTask implements Task {
             // `wall`/`blocked`/`headroom` 那几簇（它们在 x 22..24、z 131..138）。
             // 期望值：是一格石头 ⇒ 掉落圆石 1 件（与 `exec_direct` 同口径）。
             new CaseDef("exec_replan_race", "mine_course", MINE_START, new BlockPos(21, 64, 133),
-                    Kind.REPLAN, List.of(), 1, Items.COBBLESTONE, true, false, 1));
+                    Kind.REPLAN, List.of(), 1, Items.COBBLESTONE, true, false, 1),
+            // ⭐ `D-475`（`O6` ③ / `B6`）：**运行期清障**那条路。同一个目标、另一处竞态
+            // （砌"站位朝目标的第一格"⇒ 视线被挡）。⚠️ 本用例**不走标准 EXECUTE 断言**（见 `Kind.LOS_CLEAR`）。
+            new CaseDef("exec_runtime_los", "mine_course", MINE_START, new BlockPos(21, 64, 133),
+                    Kind.LOS_CLEAR, List.of(), 0, null, true, false, 0));
 
     /** 单用例预算与任务总预算（tick）。 */
     private static final int CASE_BUDGET_TICKS = 320;
     private static final int MAX_TASK_TICKS = 2600;
+    /**
+     * ⭐ `D-475`：`LOS_CLEAR` 用例的清障信封。取 **4** 与生产先例同量级
+     * （`LumberJob.MAX_CLEAR_PER_TREE` / `clear_retry` 夹具都是 4）；本用例最多需要 2 步
+     * （视线可能被脚位、头位两格分别挡住 ⇒ 两次 `tryClearLineOfSight`）。
+     */
+    private static final int LOS_CLEAR_BUDGET = 4;
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -409,8 +439,16 @@ public final class MineRegressionTask implements Task {
                 com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
             }
             // D-112：本自检就是"会话所有者" → 断言"用完即拆"
+            // ⭐ `D-475`：`TUNNEL_ALLOWED` 的 `clearBudget = 0`（`MiningProfile:66`）⇒ **清障路径结构上
+            //   走不到**（`mayClear()` 为假）。生产侧的先例是 `LumberJob:465`（`TARGET_PROFILE.withClear(...)`）
+            //   ⇒ 本用例显式给一个清障信封（这是**能力信封**的声明，不是"顺手放宽"）。
+            com.dddgn.alice.task.mining.MiningProfile execProfile =
+                    com.dddgn.alice.task.mining.MiningProfile.TUNNEL_ALLOWED.withRestore();
+            if (current.kind() == Kind.LOS_CLEAR) {
+                execProfile = execProfile.withClear(LOS_CLEAR_BUDGET);
+            }
             mineTask = new MineTask(bot, current.target(), scope, budget,
-                    com.dddgn.alice.task.mining.MiningProfile.TUNNEL_ALLOWED.withRestore(),
+                    execProfile,
                     WriteGrant.of(taskName(), WriteReason.EXPECTED_TARGET));
             // **顺序（2026-09-11 修正 / D-119 再修正）**：补镐 → 构造 MineTask → 补一次性方块
             // → **再采基线**。原实现把补料放在基线之后，于是"补了多少圆石"直接进了 inventoryDelta
@@ -468,6 +506,11 @@ public final class MineRegressionTask implements Task {
                 raceRecovery = mineTask.recoveryAttempts();
                 clearRaceWall();
             }
+        } else if (current.kind() == Kind.LOS_CLEAR) {
+            fireLosRaceOnce(current);
+            // ⚠️ **这里绝不拆墙**：那两格正是清障子任务要挖的东西 —— 夹具把它们设成空气会
+            //   让 `MineBlockRunner` 第一 tick 就报 DONE（"目标已是空气"）⇒ `clearedBlocks` 变成
+            //   **夹具自己造的**，判据当场变成假的。⇒ 只让 bot 挖，`finishCase()` 再兜底还原。
         }
         if (status == Status.RUNNING) {
             return Status.RUNNING;
@@ -502,6 +545,9 @@ public final class MineRegressionTask implements Task {
             com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
             finishCase();
             return index >= CASES.size() ? finish() : Status.RUNNING;
+        }
+        if (current.kind() == Kind.LOS_CLEAR) {
+            return assertLosClearCase(current, status);
         }
         int collected = mineTask.collectedItems();
         boolean targetGone = bot.serverLevel().getBlockState(current.target()).isAir();
@@ -673,7 +719,7 @@ public final class MineRegressionTask implements Task {
         BotLog.info("[MineRegression] case={} kind={} terrain={} start={} target={}",
                 current.name(), current.kind(), current.terrain(),
                 current.start().toShortString(), current.target().toShortString());
-        if (current.kind() == Kind.REPLAN) {
+        if (current.kind() == Kind.REPLAN || current.kind() == Kind.LOS_CLEAR) {
             raceFired = false;
             raceStanding = null;
             raceRecovery = 0;
@@ -750,6 +796,81 @@ public final class MineRegressionTask implements Task {
                 + (current.expectSupport() ? "/support=" + (plan == null || plan.supportPlacementPos() == null
                         ? "-" : plan.supportPlacementPos().toShortString()) : "")
                 + "/reason=" + result.failureReason());
+    }
+
+    /**
+     * ⭐ `D-475`：**竞态之二 —— 砌住"站位朝目标方向的第一格"（脚位 + 头位）**，让视线在**运行期**被挡。
+     *
+     * <p>与 {@link #fireReplanRaceOnce} 同一套时刻论证（计划与 `startExecution()` 同在
+     * `tickEvaluating()` 内，而路径规划在下一个 tick）——**只换"砌哪儿"**：
+     * 砌站位 ⇒ 走不过去（`MOVE_*`）；砌"站位与目标之间那一格" ⇒ **走得到、但看不见**（`LINE_OF_SIGHT_BLOCKED`）。
+     *
+     * <p>⚠️ 为什么砌**脚位 + 头位两格**：`LineOfSightChecker` 对目标的可见面**多点采样**，
+     * 到目标上沿的采样走**头位格**、到下沿的走**脚位格** ⇒ 只砌一格可能留下另一条通路
+     * （判据就会时红时绿）。这是从"多点采样"这件事直接推出来的，不是试出来的。
+     *
+     * @return 是否真的开火（同 {@link #raceFired}）
+     */
+    private boolean fireLosRaceOnce(CaseDef current) {
+        if (raceFired) {
+            return true;
+        }
+        MiningPlan plan = mineTask.currentPlan();
+        if (plan == null || plan.standingFoot() == null) {
+            return false;   // 本 tick 还没算出计划
+        }
+        BlockPos standing = plan.standingFoot().immutable();
+        int dx = Integer.signum(current.target().getX() - standing.getX());
+        int dz = Integer.signum(current.target().getZ() - standing.getZ());
+        if (dx == 0 && dz == 0) {
+            // 站位与目标**同一列**（只差 y）⇒ "朝目标的第一格"没有定义 ⇒ 不猜，如实把前提判红
+            BotLog.warn("[MineRegression] case={} 竞态**没开火**：站位 {} 与目标 {} 同列（只差 y）"
+                    + "⇒ 本用例的几何前提不成立 ⇒ 断言会如实判红", current.name(),
+                    standing.toShortString(), current.target().toShortString());
+            return false;
+        }
+        raceFired = true;
+        raceStanding = standing;
+        BlockPos step = standing.offset(dx, 0, dz);
+        for (BlockPos cell : List.of(step, step.above())) {
+            if (cell.equals(current.target())) {
+                continue;   // 不砌目标本身（那会变成另一回事）
+            }
+            if (bot.serverLevel().getBlockState(cell).isAir()) {
+                bot.serverLevel().setBlockAndUpdate(cell,
+                        net.minecraft.world.level.block.Blocks.STONE.defaultBlockState());
+                raceWall.add(cell);
+            }
+        }
+        BotLog.info("[MineRegression] case={} ⭐ 竞态开火（视线）：站位 {} 朝目标的第一格已砌死"
+                        + "（{} 格 = 脚位+头位）⇒ 走得到、看不见 ⇒ `LINE_OF_SIGHT_BLOCKED`"
+                        + " ⇒ `tryClearLineOfSight` ⇒ 清障子任务",
+                current.name(), standing.toShortString(), raceWall.size());
+        return true;
+    }
+
+    /**
+     * ⭐ `D-475`：`LOS_CLEAR` 用例的判据 —— **不走标准 EXECUTE 断言**（见 {@link Kind#LOS_CLEAR}）。
+     *
+     * <p>三条（都要，且都是可读的事实）：
+     * ① 竞态**真的开火**（`raceFired`；否则整条用例什么都没测到 ⇒ 如实红）；
+     * ② ⭐ `clearedBlocks() >= 1` —— 全仓只有 `MineTask.tickClear()` 的 `DONE` 分支递增它
+     *    ⇒ 它是"清障子任务真的跑完了一格"的精确见证；
+     * ③ 任务 `DONE` **且目标真的变空** —— 覆盖"清障之后**回到挖掘并挖到**"这后半截。
+     */
+    private Status assertLosClearCase(CaseDef current, Status status) {
+        boolean targetGone = bot.serverLevel().getBlockState(current.target()).isAir();
+        int cleared = mineTask.clearedBlocks();
+        boolean pass = raceFired && cleared >= 1 && status == Status.DONE && targetGone;
+        record(current, pass, "status=" + status
+                + "/targetGone=" + targetGone
+                + "/clearedBlocks=" + cleared
+                + "/raceFired=" + raceFired
+                + "/raceStanding=" + (raceStanding == null ? "-" : raceStanding.toShortString())
+                + "/ticks=" + caseTicks
+                + (status == Status.DONE ? "" : "/reason=" + mineTask.failureReason()));
+        finishCase();
+        return index >= CASES.size() ? finish() : Status.RUNNING;
     }
 
     /**
