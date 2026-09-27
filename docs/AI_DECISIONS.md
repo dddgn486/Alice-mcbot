@@ -22912,3 +22912,68 @@ exec_runtime_los=FAIL status=DONE/targetGone=true/clearedBlocks=0/raceFired=true
 4. ⚠️ **不许过度承诺**：本刀只保证「转换点唯一」，**不保证每个相位都以 `phase=` 出现在日志里** ——
    `MineTask` 的经验（门禁 docstring：探针只在 `tick()` 之后可达 ⇒ `CLEAR`/`GAIN`/`CHAIN` 等**从不出现**）
    在 `job/` 同源存在。修它 = **独立小项**，不混进这一刀。
+
+### D-484：Job 层裁定（收口）—— **`P1/A′` 配额单位成为声明的一栏（`unit`）** + 半棵树 + 两套判据（2026-09-27）
+
+#### 现状（代码逐字）
+
+- `LumberJob:646-650`：`gained = countLogs() - logsBeforeThisTree` · `allChopped = failedLogs.isEmpty() && choppedLogs == queue.size() && !queue.isEmpty()`
+  · **`harvested = allChopped && gained >= tree.logCount()`（全或无）**。
+- `LumberJob:653`：`if (treesDone >= spec.quota())` ⇒ **配额单位 = 棵**；`tried():670` ⇒ `choppedTotal += choppedLogs`（**已累计，但不参与判定**）。
+- `withoutAttempted():706-718` ⇒ 命中 `attempted` 记 `rejected.add(... + ":already_attempted")` = **永久**了结。
+- ⚠️ **配额单位从未告诉过 LLM**（`GoalDirector.VOCABULARY` 第 1 条只有 `quota`，无单位）。
+
+#### 起因：用户追问
+
+> 「不能对 job 进行方法重写吗，对不同参数做两个实现，但是**这不是 java 代码上的重写**，怎么让 LLM 能选择不同的单位」
+
+✅ 裁定为 **「声明驱动的口径分派」（criterion dispatch）** —— 不是 Java 重写。
+
+**先例（已存在，不是新机制）**：
+`JobLauncher.create` 的 `MineJob` 分支 = `request.kindQuotas().isEmpty() ? GoalSpec.mineBlocks(...) : GoalSpec.mineKinds(...)`
+⇒ **同一个 Job 类、两条口径、由参数选**；同处 `CostOptimalPolicy` vs `NearestPolicy`（`D-329`）同一手法。
+
+#### `P1-1C′` ✅ 裁定
+
+1. `unit` 成为**声明的一栏**，取值 `trees` | `logs`（外部面 `JobRequest` —— 与 `P12/A` 一致；内部 `JobDeclaration`）。
+2. 判据按 `unit` **分派**，用**策略对象**手法（`NearestPolicy`/`CostOptimalPolicy` 同形）⇒ ⚠️ **不加 Job kind、不加 Job 类**
+   （`JobRequest.Kind` 是活的 5 值枚举 + `JobLauncher` 三处穷举 switch + `JobKindContract` + 能力名清单 ⇒ 加 kind 要动一圈门禁）。
+3. ⚠️ **缺单位 ⇒ 拒绝** —— 照 `M1` 的**逐字先例**（mine 请求没 `productTag` 是**拒绝**，不许回落到默认矿物，`JobLauncher.refusalReason:195`）。
+4. LLM 词汇表加 `unit` 栏；`GoalAction.parseStartJob` 解析，**未知/缺失 ⇒ `Refused`**。
+5. `DecisionSnapshot.expected`（`P13/A`）承载**单位** ⇒ 事前可读、事后比对（单位不必让 LLM 记）。
+6. ⚠️ **按根的计数口径 = `choppedLogs`（砍掉的方块），绝不用背包增量** —— `CollectDropsTask` 的守恒交叉校验**自己承认**
+   背包增量会被干扰（同类型**他人拾取** / 重复生成 / **背包满** ⇒ 记 `MISMATCH`，且它本身 **best-effort 不判 FAILED**）。
+7. ⭐ **关键前提已存在**（本刀核实）：`LumberCandidateSource.features()`（`:198-206`）产出 **`logs`**（`tree.logCount()`）、
+   `height`、`species`、`canopy`、`visible`；`CandidateMenu:139-148` 把 **`logs=`** 塞进树候选的 `extra`，`toJson()` 原样发 LLM
+   ⇒ **LLM 今天就能看到每棵树有几根** ⇒ **按根是可规划的**（能挑 `logs` 之和 ≥ quota 的树）。
+
+#### 同套（用户以「走 `P1-1C′`」一并采纳）：`P1-2C` 半棵树 ⇒ **有界回头补砍**
+
+按根 ⇒ 砍到第 N 根会**停在某棵树中间**，半棵树状态**躲不掉**。
+裁定：把 `attempted` 的**永久**了结改成**有界重试**（同族先例 = `MineJob` 的 `PL-1` 陈旧证明重评估，**上限 3**）。
+🔗 这是 `1.4o` 那条实测抖动的**直接原因**：`FAILED reason=partial_quota tree@22,64,218:trunk_too_tall,33,64,208:already_attempted`；
+`MineJob:813` 已把该形状命名为「**`already_attempted` 把"当时无解"当成"永远无解"**」。
+
+#### 同套：`P1-3` 两套判据 ⇒ **夹具与终态语义分立**
+
+`quota_met` / `partial_quota` / `progress` 文本按 `unit` **分叉** ⇒ 夹具与电池断言**按单位分别断言**（不许一条断言覆盖两种单位）。
+门禁：**"声明了单位，就必须有判据读它"**（`D-478` 的 `P10` / `P13` 同族）。
+
+#### 判据
+
+1. 夹具：`unit=trees` 与 `unit=logs` **各一条**，分别断言 `quota_met`；`unit=logs` 且一棵砍 7/10 根 ⇒ 计 **7**（**不读背包增量**）。
+2. **红臂①**：把计数改回 `countLogs()` 增量 ⇒ 在"背包满 / 他人拾取"臂下必须红。
+3. **红臂②**：缺 `unit` 的请求 ⇒ 必须 `Refused`（不许默认按棵）。
+4. 有界回头：失败的树在额度内必须被**再尝试**（上限 3），超限后才进 `already_attempted`。
+5. 门禁：声明了单位无消费者 ⇒ 红。
+
+#### ⏭ 落地顺序（本条自带，**待实现时确认**）
+
+⚠️ 「缺单位 ⇒ 拒绝」一旦生效，**所有今天没写 `unit` 的调用点会当场被拒**（夹具 / 命令 / `RegionLumberJob` / 电池步）。
+⇒ 推荐**两步走**：**第一刀**「加栏 + 全部调用点显式补 `unit=trees`」（**行为零变化**，`core` 逐行 diff 作判据）+
+门禁「声明了单位必须有消费者」；**第二刀** 才让「缺单位 ⇒ 拒绝」生效（红臂②）。
+⚠️ 理由同 `D-468`/`D-483`：**门禁与改造必须同刀**，不许提前落。
+
+#### 仍未拍（`P1`–`P13` 全部收口后，队列只剩新增三项）
+
+**`P14`** 前置可行性判定 · **`P15`** 获取途径 · **`P16`** 请示带选项。
