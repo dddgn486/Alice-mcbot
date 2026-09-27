@@ -23220,3 +23220,58 @@ exec_runtime_los=FAIL status=DONE/targetGone=true/clearedBlocks=0/raceFired=true
 `files_with_real_refs` 第一版用 `grep -q`：它一命中就退出 ⇒ 上游 `sed` 收 SIGPIPE ⇒ `set -o pipefail`
 把「**命中**」判成「**未命中**」（`bot/BotManager` 被判成 **0 命中**）。
 ⭐ **是门禁自己的 ⑥「gate is live」靶子断言当场抓到的** —— 修法 = 把上游输出**读完**（命令替换），不让管道提前关闭。
+
+### D-490：`P6/A` 续 —— **`BotCommand` = 生产口**；**夹具口另开包**（用户 2026-09-27 裁定）+ 一个实现上的发现
+
+#### 用户裁定
+
+> 「`BotCommand`，应该算**生产口**，**夹具口要另开包**」
+
+⇒ ① 三条同时服务玩家命令的 legacy 入口（`BotCommand:825` / `:843` / `:1199`）**属生产** ⇒ **不许造物**；
+② **夹具要有自己的包**（包边界取代"文件名模式 + 长白名单"）。
+
+#### ⭐ 实现上的发现：**"给入口加 `fixtureProvision` 形参"做不到裁定要求的效果**
+
+最直觉的做法是照 `assignJob` 的先例给 5–8 个 legacy 入口加 `boolean fixtureProvision` 形参，然后在方法体里
+`if (fixtureProvision) { FixtureToolKit.ensurePickaxe(bot); }`。
+⚠️ **但那会让 `BotManager` 继续 `import` 夹具包** ⇒ `BOT_EXEMPT` **永远清不掉** ⇒ 与"生产口"与"夹具另开包"两条裁定**自相矛盾**。
+
+⇒ 正确方向只有一条：**发料责任从 `BotManager` 搬走**（`bot/` 变成**零 `FixtureToolKit` 引用**）。
+
+#### 两条路线
+
+| 路线 | 内容 | 代价 / 判据 |
+|---|---|---|
+| **`-2a`** ⭐推荐（小） | **删掉 legacy 入口里的造物调用**（12 处）：**夹具调用方自己发料**（`item/*Item` 在 `item/`，本就是夹具入口、允许 `FixtureToolKit`）；**玩家命令口不造物** ⇒ 缺工具由 Job 如实报 `tool_missing`（= 裁定的生产语义） | ⚠️ **会触碰 `D-122` 的立论**（"发料放任务/入口，不能只放在物品里"，理由是防"LLM 起的 Job 徒手砍树"）⇒ **必须当场点明**：`D-122` 管的是**生产唯一入口 `assignJob`**，而它的 `provisionFromExisting`（只搬运）**不动**；本刀删的只是**legacy 旁路**的**创造**部分 ⇒ `D-122` 的靶子（LLM 起 Job 徒手砍树）**不受影响** |
+| **`-2b`**（中） | 三条玩家命令**改走 `BotManager.assignJob`（唯一生产入口）**：`command/` 不再调 legacy `assign*`；legacy 只留夹具调用方 | 更彻底（顺带消掉旁路），但要动命令的 Job 构造方式（legacy 用 `Target` 直接 new `MineJob`）⇒ 另开一刀 |
+
+⇒ 建议：**先 `-2a`（判据干净、可红）**，`-2b` 登记为后续。
+
+#### 现状计量（本刀核实）
+
+| 项 | 数 |
+|---|---|
+| `BotManager` 造物点 | **12**（`assignLumberJob:602-604` · `assignMineJob:686` · `assignFishboneJob:715` · `assignRestore:735` · `assignRegionLumber:765-767,785` · **`BotSession` 嵌套类 `2168`/`2182`** —— 它也服务玩家命令 `BotCommand:1813`(road build)） |
+| 调用点 | 8（**3 条玩家命令** + **5 个测试物品**）+ `BotSession` 便捷入口的内部调用（`:462`/`:936`/`:1788`） |
+
+#### ⚠️ 用户可见的行为变化（必须点明）
+
+`BotCommand` 判为生产口后：`/alice mine …` / `restore …` / `region …` **不再白送钻石镐/斧/圆石**；
+bot 没工具时 Job 会**如实失败 `tool_missing`**。⭐ **这是裁定的本意**，但界面上会像 bug ⇒
+**建议**：玩家命令口加一行**只读提示**（"生产口不发料；要测试请用测试物品或先给工具"）。⚠️ 本刀**先不做**，登记为可选后续（避免把只读提示混进本刀的判据）。
+
+#### 夹具另开包（`-3`，结构大件）的成本（本刀实测）
+
+- `fixture/` 现**只有 4 个文件**；`task/` 有 **顶层 140 个 `*.java`**（+ 子包 `check/` `craft/` `mining/`），
+  其中 `check-fixture-hygiene` 认 **92 个夹具** ⇒ 要搬**约 92 个文件**。
+- ⚠️ **爆炸半径 = 12 个 `tools/` 文件**：`capability-list.py`（"步 104（CORE 43）· 模块 21"）·
+  `check-primitive-budget-injection.py`（"顶层 `task/*.java` **140** 个"）· `fixture-hygiene.py` ·
+  `check-phase-transition-outlet.py` · `check-frozen-code.py` · `check-underfoot-safety.py` · `kernel-predicates.py` ·
+  `machine-map.py` · `policy-map.py` · `module-selftest.sh` · `check-scene-connectivity.py` · `transfer-clock.py`。
+- ⚠️ **`item/*Item` 是"夹具入口物品"**（注册在 `item/`）⇒ 它们**搬不走**（注册表位置），
+  所以包级门禁仍需一个"**入口物品 = 夹具口**"的识别口径。
+⇒ `-3` 建议作为**独立批次**，且**先切包边界、再升级门禁**（同刀原则）。
+
+#### 一个设计生效的观察
+
+`P6/A`-1（`D-489`）里 ⑤ 的「**豁免得手也 FAIL**」**正好会在 `-2a` 落地时自动逼我删掉 `BOT_EXEMPT` 条目** —— 设计生效。
