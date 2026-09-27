@@ -3,13 +3,11 @@ package com.dddgn.alice.task;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.write.WriteGrant;
 import com.dddgn.alice.bot.BotPlayer;
-import com.dddgn.alice.compat.ChainMining;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
 import com.dddgn.alice.task.mining.MiningBudget;
 import com.dddgn.alice.reach.MiningPlan;
 import com.dddgn.alice.task.mining.MiningPlanner;
-import com.dddgn.alice.reach.MiningTuning;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -34,8 +32,16 @@ import java.util.Set;
  *   <li>规划：`free` / `wall` / `headroom` → 模式 A（DIRECT/CURRENT）；`blocked` → 模式 B（TUNNEL）；
  *       `buried` → 模式 B 或 `found_but_unminable`（预算不足也必须**如实**报，不许静默挖隧道）；</li>
  *   <li>执行：`exec_direct`（露天目标挖+收）、`exec_blocked`（被包围目标走模式 B 挖+收）；</li>
- *   <li>兼容：`exec_chain`（模组在场 → 3x3 铁矿脉连锁挖 + 收 9 件；模组缺失 → `SKIP`，不算 FAIL）。</li>
+ *   <li>⚠️ 连锁用例**已撤出**（2026-09-27）—— 它恒 `SKIP` ⇒ 不是覆盖，见下。</li>
  * </ul>
+ *
+ * <p>⚠️ **连锁（模组兼容档）已于 2026-09-27 从本夹具撤出**（用户裁定）：`exec_chain` /
+ * `exec_chain_budget_refused` 两条用例在**模组不在场**时恒为 `SKIP`，而"恒 SKIP 的用例"会把
+ * **未验证伪装成已验证**（本仓明令禁止）⇒ 连同它们专用的一套机器（临时 `chain=AUTO`、
+ * `CHAIN_STARVED` 的 1 次破坏预算 `setCaps`、`chainModeBefore` 复原）一并删除。
+ * ⇒ 连锁改为 **`L1`（单格挖掘原语）交付时的验收测试项**（台账 `O3`）。
+ * ⚠️ 数据包场景 `alice_test:chain_mine_course` **保留** —— 它同时是**客户端手工测试入口**，
+ * 自带"① `chain off` 只挖 1 格 → ② `chain auto` 整条脉"的对照步骤。
  *
  * <p>执行用例的通过条件（四项同时成立）：任务 `DONE`、目标方块已空、`MineTask.collectedItems()`
  * 等于期望件数、作用域内**无剩余存活掉落物**。
@@ -47,8 +53,6 @@ public final class MineRegressionTask implements Task {
         PLAN,
         /** 规划 + 执行 + 收集断言。 */
         EXECUTE,
-        /** 模组连锁：执行 + 收集断言；模组缺失时 SKIP。 */
-        CHAIN,
         /**
          * 工具负例（D-119）：**故意不给工具**去挖"必须正确工具才掉落"的方块，
          * 断言任务如实失败 {@code no_suitable_tool}、目标未被破坏、且**没有变出工具**。
@@ -60,12 +64,6 @@ public final class MineRegressionTask implements Task {
          * （`liveDrops() ≥ 1`）。修前 `begin()` 会清空登记 ⇒ 这里必然是 0。
          */
         SCOPE_REOPEN,
-
-        /**
-         * **G3/R1-残（2026-09-16）**：把破坏预算压低后跑同一条连锁矿脉 —— 断言"预算把连锁截断"
-         * 这件事**如实上报**（`chainRefusedByBudget` 原先只写不读，下游分不清"砍短"与"挖完"）。
-         */
-        CHAIN_STARVED
     }
 
     /**
@@ -89,8 +87,6 @@ public final class MineRegressionTask implements Task {
     }
 
     private static final BlockPos MINE_START = MineCourseDiagnosticTask.START_FOOT;
-    private static final BlockPos CHAIN_START = new BlockPos(23, 64, 170);
-    private static final BlockPos CHAIN_TARGET = new BlockPos(23, 64, 172);
     private static final BlockPos FLOAT_START = new BlockPos(21, 64, 190);
     private static final BlockPos FLOAT_TARGET = new BlockPos(23, 65, 190);
     /** ⭐ `D-464` 的 O1/O2 修复：**真悬空**场景（目标下方 ≥8 格空气 ⇒ 必须放支撑块 + 用完即拆）。 */
@@ -170,11 +166,9 @@ public final class MineRegressionTask implements Task {
             //    （`[Restore] … recovered=0／仍有 1 个掉落物没收回`）。支撑类的 `countOk` 今天不看 delta。
             new CaseDef("exec_support", "support_course", SUPPORT_START, SUPPORT_TARGET,
                     Kind.EXECUTE, List.of(), 1, Items.COBBLESTONE, true, true, 0),
-            new CaseDef("exec_chain", "chain_mine_course", CHAIN_START, CHAIN_TARGET,
-                    Kind.CHAIN, List.of(), 9, Items.RAW_IRON, true, false, 9),
-            // G3：同一场景、**预算压到 1 次破坏** ⇒ 连锁必须当场停 + 如实报 `chain_budget_refused`
-            new CaseDef("exec_chain_budget_refused", "chain_mine_course", CHAIN_START, CHAIN_TARGET,
-                    Kind.CHAIN_STARVED, List.of(), 0, Items.RAW_IRON, false, false, 0),
+            // ⚠️ `exec_chain` / `exec_chain_budget_refused` 已于 2026-09-27 撤出：
+            //    它们在模组不在场时恒为 `SKIP` ⇒ **不是覆盖**（恒 SKIP = 把未验证伪装成已验证）。
+            //    连锁改为 `L1`（单格挖掘原语）**交付时的验收测试项**，见台账 `O3`。
             // D-119 负例：同一格圆石，但**清空背包**后开工 —— 必须如实失败、不破坏方块、不变出工具
             new CaseDef("no_tool_refuses", "mine_course", MINE_START, new BlockPos(23, 64, 140),
                     Kind.TOOL_REFUSAL, List.of(), 0, Items.COBBLESTONE, true, false, 0),
@@ -220,7 +214,6 @@ public final class MineRegressionTask implements Task {
      * （约 10 tick，否则会被 bot 顺手捡走）。
      */
     private int settleUntilTick;
-    private String chainModeBefore;
     private String failure = "";
     /**
      * 用例开始时测量盒内的掉落物 UUID（2026-09-13）：判据只数**新增**的掉落物，
@@ -268,27 +261,6 @@ public final class MineRegressionTask implements Task {
                 runPlanCase(current);
                 advance();
                 return index >= CASES.size() ? finish() : Status.RUNNING;
-            }
-            if (current.kind() == Kind.CHAIN || current.kind() == Kind.CHAIN_STARVED) {
-                if (!ChainMining.available()) {
-                    results.put(current.name(), "SKIP");
-                    details.put(current.name(), "chain_mod=absent");
-                    BotLog.info("[MineRegression] {} = SKIP（模组不在场）", current.name());
-                    advance();
-                    return index >= CASES.size() ? finish() : Status.RUNNING;
-                }
-                chainModeBefore = MiningTuning.chainMode().name();
-                MiningTuning.setChainMode("auto");
-                BotLog.info("[MineRegression] {} 临时启用 chain=AUTO（原 {}）",
-                        current.name(), chainModeBefore);
-                if (current.kind() == Kind.CHAIN_STARVED) {
-                    // **确定性**触发：3×3 矿脉 ≫ 1 次破坏 ⇒ 第二次增量必被拒（不必造 65 格的场景）
-                    com.dddgn.alice.write.WriteBudget.setCaps(
-                            com.dddgn.alice.write.WriteBudget.scopeOf(bot),
-                            new com.dddgn.alice.write.WriteBudget.Caps(1, 0, 0));
-                    BotLog.info("[MineRegression] {} 破坏预算压到 1（夹具专用 setCaps）remaining={}",
-                            current.name(), com.dddgn.alice.write.WriteBudget.remainingBreaks(bot));
-                }
             }
             scope.begin(current.target(), 16, bot.getUUID());
             // ⭐ `D-467`：**密封前提必须在 `scope.begin` 之后** —— `TaskZoneRegistry.declare`
@@ -379,24 +351,6 @@ public final class MineRegressionTask implements Task {
                 settleUntilTick = caseTicks + 5;
             }
             return Status.RUNNING;   // 等待期间不 tick 内层（见上面的 D-175 注释）
-        }
-        if (current.kind() == Kind.CHAIN_STARVED) {
-            // G3 断言四条：① 拒绝被记下（字段终于有读者）② 终态理由如实上报（D-134 通路）
-            // ③ 连锁真的停了 ④ 预算确实被打满（证明这个"拒绝"来自预算，不是别的原因）
-            boolean flagged = mineTask.chainRefusedByBudget();
-            boolean reported = "chain_budget_refused".equals(mineTask.terminalReason());
-            boolean stopped = !ChainMining.isRunning(bot);
-            int remaining = com.dddgn.alice.write.WriteBudget.remainingBreaks(bot);
-            record(current, flagged && reported && stopped && remaining == 0,
-                    "refused=" + flagged + "/terminalReason=" + mineTask.terminalReason()
-                            + "/chainStopped=" + stopped + "/remainingBreaks=" + remaining
-                            + "/status=" + status);
-            // 复原上限，**不许污染后续用例/后续电池步**
-            com.dddgn.alice.write.WriteBudget.setCaps(
-                    com.dddgn.alice.write.WriteBudget.scopeOf(bot),
-                    com.dddgn.alice.write.WriteBudget.Caps.DEFAULT);
-            finishCase();
-            return index >= CASES.size() ? finish() : Status.RUNNING;
         }
         if (current.kind() == Kind.TOOL_REFUSAL) {
             // D-119 负例断言：如实失败 + 目标未动 + **没有变出工具**
@@ -515,10 +469,10 @@ public final class MineRegressionTask implements Task {
         // **⑦ 让 D-168 的"残留不计入"分支每次都被真实触发**（审查结论）：该分支此前只靠推理成立
         // （从未有残留时跑过）。这里由夹具**主动播下**一件外来掉落物（模拟"上一轮遗留/玩家丢的"），
         // 位置在 bot 起点侧后方、测量盒内：被动拾取闸门会把 FOREIGN 拦下 ⇒ 它不会进背包、
-        // 也不会干扰 `inventoryDelta`，只会被当作 `foreignDrops` 排除。EXECUTE/CHAIN 用例断言
+        // 也不会干扰 `inventoryDelta`，只会被当作 `foreignDrops` 排除。EXECUTE 用例断言
         // `foreignDrops >= 1` ⇒ 断言"残留真的被排除了"，而不是"恰好没有残留"。
         expectedForeignDrop = false;
-        if (current.kind() == Kind.EXECUTE || current.kind() == Kind.CHAIN) {
+        if (current.kind() == Kind.EXECUTE) {
             // 播种点必须**同时**满足：① 落在 `dropsBox(target)`（判据用的测量盒，以 target 为中心 ±6）内；
             // ② 该格是空气、下方有支撑（不然掉落物会掉出盒外/穿进方块）。
             // 2026-09-13 实测教训：原先固定用 `start+Z1`，对 target 偏北的用例（exec_blocked，
@@ -625,11 +579,6 @@ public final class MineRegressionTask implements Task {
     }
 
     private void finishCase() {
-        if (chainModeBefore != null) {
-            MiningTuning.setChainMode(chainModeBefore);
-            BotLog.info("[MineRegression] 恢复 chain={}", chainModeBefore);
-            chainModeBefore = null;
-        }
         // ⭐ `D-467`：**密封前提的对称还原**（夹具纪律：每条终态路径都要复位，失败路径同样走）。
         // 放在这里是因为 `finishCase()` 是**所有**用例终态的唯一出口（正常 / 超时 / settle / 连锁 / 前提失败）。
         // `release()` 幂等，且只还"本夹具**自己新认领**的区块"—— 本来就是我们的地不还。

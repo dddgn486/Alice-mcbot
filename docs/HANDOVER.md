@@ -1871,3 +1871,30 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 2. 然后才是 **`step 5b`**（拆 `CollectDropsTask`，含 **`step 2b`** 的类内默认额度常量清零）；
 3. ⏳ **待用户裁一条**：`MineStep` 构造签名里的 `scope`（`D-466` §六 逐字保留）**今天 0 消费者**
    —— 留还是去（见 `D-469` §六）。
+
+---
+
+## `D-470`（2026-09-27）：`step 5a` 收口 —— 连锁撤出夹具 + `MineStep` 去 `scope`
+
+- **两条用户裁定**：①「把连锁清出夹具吧，未来交付第一层目标的时候再当成交付测试项」
+  ②「`MineStep` 构造签名里的 `scope` 按你推荐的来」。
+- **连锁撤出**（`MineRegressionTask.java` **−66 行**）：撤掉 `exec_chain` / `exec_chain_budget_refused`
+  两条用例 + `Kind.CHAIN`/`CHAIN_STARVED` + `CHAIN_START`/`CHAIN_TARGET` + 整套机器
+  （临时 `chain=AUTO` · `setCaps` 压预算 · `chainModeBefore` 复原 · 两个 import）。
+  理由：它们在模组不在场时**恒为 `SKIP`**，而恒 SKIP 的用例**把未验证伪装成已验证**。
+  实测夹具 **15 → 13 例**、日志 `= SKIP` **0 处**。
+- ⚠️ **保留**：数据包场景 `alice_test:chain_mine_course`（它同时是**客户端手工入口**，自带
+  "① `chain off` 挖 1 格 → ② `chain auto` 整条脉"对照）⇒ 连锁改为 **`L1` 交付验收项**。
+- ⭐⭐ **连带后果（已登记三处）**：`exec_chain_budget_refused` 还是 **`G3`/`D-260` 判据的唯一可执行证据**
+  ⇒ 撤出后那条判据**重新变成"无执行证据"**（代码在、有读者，但没测过）。台账 `O3` + `G3` 行 + `R1-残` 行同步。
+- **`scope` 形参**：草案 6 参里 `scope` **0 消费者**（原语 = 计划 + 执行 + 单格结论；收集/建拆在编排侧；
+  `MineBlockRunner` 只吃 `WriteGrant`）⇒ 按"不许死形状 + 净增≈0"落成 **5 参**
+  `MineStep(bot, target, budget, profile, grant)`；这是对 `D-466` §六 草案的**显式偏离**（已记录）。
+- ⚠️ **本刀自曝一次操作失误**：批量按行号改夹具时一行错位的 `rep()` 把 `finishCase()` 的签名删了
+  （编译器发现），另有 2 处被写成空操作 ⇒ 逐字还原后重做。**批量文本手术是本会话重复出错最多的地方。**
+- **回归**：`single:mine_regression` PASS（`ticks=198`）· `core` **43/43 PASS**（243 s ·
+  `…-175504-core.log`），与 `D-469` 那轮逐步 diff **38 步 ticks 完全相同**、5 步不同且**全在历史抖动带内**
+  · `check-scene-connectivity --all` 24 场景 PASS · 五条判据/相位/额度/读数门禁全 PASS。
+- ⏭ **下一步**：`step 5b`（拆 `CollectDropsTask`，含 `step 2b` 的类内默认额度常量清零）；
+  前置建议 = 先补 `O6` 剩下的两条路（`tryReplan` / 运行期清障）任一条的夹具（`CHAIN` 那半已改判为
+  `L1` 交付验收项）。

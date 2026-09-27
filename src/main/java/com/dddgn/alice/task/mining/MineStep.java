@@ -4,7 +4,6 @@ import com.dddgn.alice.action.MineBlockRunner;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.compat.ChainMining;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.perception.ScopeBuffer;
 import com.dddgn.alice.reach.MiningPlan;
 import com.dddgn.alice.reach.MiningTuning;
 import com.dddgn.alice.write.WriteGrant;
@@ -110,8 +109,6 @@ public final class MineStep {
 
     private final ServerPlayer bot;
     private final BlockPos target;
-    /** ⚠️ 见类注释与 `D-466` §六：本刀**没有**消费者（收集/建拆留编排侧），按裁定保留形参。 */
-    private final ScopeBuffer scope;
     private final MiningBudget budget;
     private final MiningProfile profile;
     private final WriteGrant grant;
@@ -136,18 +133,20 @@ public final class MineStep {
     private Conclusion terminal;
 
     /**
+     * <p>⚠️ **没有 `ScopeBuffer`**（`D-466` §六 的草案里有）：原语的职责是"计划 + 执行 + 单格结论"，
+     * 收集/建拆都在编排侧，而 `MineBlockRunner` 只吃 `{@link WriteGrant}` ⇒ 那个形参**一个消费者都没有**。
+     * 按实现期调整落成 5 参（`D-470`）。
+     *
      * @param bot     执行者（必须是 {@link BotPlayer}，见 {@link #startExecution(boolean)}）
      * @param target  目标方块（调用方已 `immutable()`）
-     * @param scope   ⚠️ 本刀无消费者（裁定保留；见字段注释）
      * @param budget  挖这一格的额度 —— **构造注入**，本类不造额度（判据 D1）
      * @param profile 这一格的能力信封（能否加高/清障/建拆同权…）
      * @param grant   世界写入授权（`D-082`）
      */
-    public MineStep(ServerPlayer bot, BlockPos target, ScopeBuffer scope, MiningBudget budget,
+    public MineStep(ServerPlayer bot, BlockPos target, MiningBudget budget,
                     MiningProfile profile, WriteGrant grant) {
         this.bot = bot;
         this.target = target;
-        this.scope = scope;
         this.budget = budget;
         this.profile = profile;
         this.grant = grant;

@@ -979,7 +979,7 @@ public final class MineTask implements Task {
     /** 原语惰性入口（`D-466` §五）：**同一个实例贯穿本任务**（{@link #tryReplan} 要在它上面重算）。 */
     private MineStep step() {
         if (step == null) {
-            step = new MineStep(bot, target, scope, budget, profile, grant);
+            step = new MineStep(bot, target, budget, profile, grant);
         }
         return step;
     }

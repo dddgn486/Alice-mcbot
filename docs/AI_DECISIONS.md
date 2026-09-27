@@ -21779,13 +21779,31 @@ Job = ① 有 Kind（进 JobRequest.Kind）
   `MineTask.startClear` 今天的写法（含 `bot.serverLevel()` 与 `grant.with(...)`），
   并加注释说明"本门禁**判不出谁在造**"。
 
-**⭐ 超范围的一处（必须显式声明）**：本刀还**扩了 `tools/kernel-predicates.py` 的 `A1′`**
-（`D-410`/`D-178 的"终态闩锁必须回放、不许硬编码"）。理由：`MineStep` 的闩锁回放的是
-**单格结论** `private Conclusion terminal;` 而**不是** `Task.Status` ⇒ 旧正则**扫不到它**，
-于是"原语把 FAILED 回放成成功"这条本规则**存在的理由本身**在新原语上是**隐形**的。
-落地 = 第二种形状成对登记 + `LATCH_SITES_MIN` **7 → 8** + 真树红臂 2 条（硬编码 `Conclusion.success()`
-⇒ 报"直接返回硬编码结论"；回放行缺失 ⇒ 报"闩锁没接上"**且**人口掉到 7）。
-⚠️ 这超出了 `D-466` §五 的"A–E 五条"范围，按"同刀改既有门禁"（§八 ④ 已开此先例）处理，**可由用户否决**。
+**⭐ 超范围的一处（决策点，2026-09-27 用户要求展开讲清）**：本刀还**扩了 `tools/kernel-predicates.py` 的 `A1′`**
+（`D-410`/`D-178` 的「终态闩锁必须回放、不许硬编码」）。
+
+**事实基础**：`MineStep` 的闩锁回放的是**单格结论** `private Conclusion terminal;`，**不是**
+`Task.Status terminalStatus` ⇒ `A1′` 那两条正则**扫不到它** ⇒ 有人把回放写成
+`if (terminal != null) return Conclusion.success();`（把 FAILED 回放成成功）时，**构建照样是绿的**
+—— 而那正是这条规则**存在的理由本身**。
+
+**四个替代方案**（按代价排序）：
+
+| 方案 | 内容 | 代价 | 我为什么不选 / 为什么选 |
+|---|---|---|---|
+| **甲（我选的）** | `A1′` 加**第二种形状成对登记**（字段 `private Conclusion terminal;` + 回放行 + 硬编码形态）+ `LATCH_SITES_MIN` **7 → 8** + 真树红臂 2 条 | `kernel-predicates.py` **+43 / −2 行**；**0 电池成本**（tools-only） | ✅ 判据的**语义归属**就是"终态闩锁必须回放"；同一条规则**只有一处定义**（`J-6`：不许长出第二份清单） |
+| 乙 | 不动 `A1′`，把这条写成**新门禁的第六条判据** | 新门禁 +~20 行 | ✗ 会把"终态闩锁回放"这个语义**劈成两处定义**（`A1′` 一处、新门禁一处）；且与 `D-466` §五 裁定的"A–E 五条"不符 |
+| 丙 | 不门禁化，只在 `D-469` 登记为"已知空白 + 复核触发" | 0 | ✗ 违反本仓准入尺子的第 1 问（"它能让构建失败吗？"）—— **答案是能** ⇒ 应当门禁化，否则靠人记得 |
+| 丁 | 让 `MineStep` 的闩锁字段也叫 `terminalStatus`，蹭旧正则 | 0 | ✗ **不可行**：旧正则要求类型是 `(?:Task\.)?Status`，而原语回放的是 `Conclusion`；改名只会制造"名字像而类型不同"的陷阱 |
+
+**否决成本（若你不同意）**：回滚 = `tools/kernel-predicates.py` 的**一个 hunk**（`LATCH_SITES_MIN` 回到 7 + 删掉
+第二种形状那 12 行）；**`src/` 不受影响 ⇒ 不触发 `core`**。
+
+**⚠️ 残余弱点（这是我要请你确认的点，不藏着）**：甲方案靠**字段名 `terminal` + 类型 `Conclusion`** 匹配。
+把字段改名（例如 `terminalConclusion`）⇒ 正则不再识别它 ⇒ 该文件不再贡献站点 ⇒ 总数掉到 **7 < 8**
+⇒ **仍然会红**，只是红在**人口断言**上，而不是红在"形状不对"上（报错文本会指向"站点数不足"，
+读的人要自己想明白是改名引起的）。⇒ 实测的净效果是 **改名即红**，代价是**报错不够直白**。
+若你更希望"改名直接红在形状上"，那就改选乙（把判据落在新门禁里，与新原语同文件、同生共死）。
 
 #### 五、日志口径：**只改了一行**
 
@@ -21880,3 +21898,84 @@ Job = ① 有 Kind（进 JobRequest.Kind）
   §九 实测这三条路**零覆盖**，而本刀最危险的一处语义漂移**正藏在它们里面**（靠推理而非电池保住）。
 - **若有人要动 `MineStep.tick()` 的终态分支** ⇒ 先看 `A1′` 的第二种形状（本条 §四 的超范围项）
   是否还在；它若被改名/搬走，`LATCH_SITES_MIN = 8` 会先红。
+
+### D-470：**`step 5a` 收口两件** —— 连锁撤出夹具（改为 `L1` 交付验收项）+ `MineStep` 去 `scope` 形参（2026-09-27）
+
+**来源**：用户 2026-09-27 两条裁定 —— ①「**把连锁清出夹具吧，未来交付第一层目标的时候再当成交付测试项**」
+②「`MineStep` 构造签名里的 `scope` **按你推荐的来**」。
+**前置** = `D-469`（`step 5a` 主体落地）。**性质**：`src/` 有改动 ⇒ **跑了 `core`**（§五）。
+
+#### 一、连锁撤出夹具（裁定 ①）
+
+**撤出清单**（`task/MineRegressionTask.java`，共 **−66 行**）：
+
+| 类别 | 内容 |
+|---|---|
+| 用例 ×2 | `exec_chain`（模组在场 ⇒ 3×3 铁矿脉连锁 + 收 9 件）· `exec_chain_budget_refused`（`setCaps` 压到 1 次破坏 ⇒ 断言"拒绝被如实上报"）|
+| 枚举 ×2 | `Kind.CHAIN` · `Kind.CHAIN_STARVED`（含各自 javadoc）|
+| 常量 ×2 | `CHAIN_START` / `CHAIN_TARGET` |
+| 机器 ×1 套 | 临时 `MiningTuning.setChainMode("auto")` + `chainModeBefore` 保存/复原 · `CHAIN_STARVED` 的 `WriteBudget.setCaps(...)` 与四断言验证块 · 预算上限复原 · `Kind.CHAIN` 的掉落物播种分支 · `ChainMining`/`MiningTuning` 两个 import · 类 javadoc 的"兼容档"条目 |
+
+**为什么撤**：这两条在**模组不在场**时**恒为 `SKIP`**，而"恒 SKIP 的用例"把**未验证伪装成已验证**
+（本仓明令禁止）。⚠️ `docs/reviews/2026-09-22-CORE步表梳理与剔除建议.md:182` **早就点出过**这件事
+（「CORE 轮里 `exec_chain`/`exec_chain_budget_refused` 两例 SKIP ⇒ 实际只跑到 11 例；用例级 SKIP 不上报」）——
+本刀就是那条建议的收口。落地实测：夹具用例 **15 → 13**，日志里 `= SKIP` **0 处**（撤出前每轮 2 处）。
+
+**⚠️ 保留什么**：数据包场景 `alice_test:chain_mine_course`（+ `_terrain` / `_reset`）**不删** ——
+它同时是**客户端手工测试入口**，自带"① `chain off` 只挖 1 格 → ② `chain auto` 整条脉"的对照步骤，
+正是"将来交付 `L1` 时当成交付测试项"要用的那个入口。`check-scene-connectivity --all` 实测
+**24 个场景全部 PASS**（该场景仍被计入、连通性不变）。
+
+⭐⭐ **必须显式登记的连带后果（本刀最该记住的一条）**：`exec_chain_budget_refused` **不只是"连锁覆盖"** ——
+它还是 **`D-260`/G3 那条判据的唯一可执行证据**（`WriteBudget.consumeBreak` 拒绝 ⇒ `chainRefusedByBudget`
+⇒ `terminalReason()=="chain_budget_refused"`；当时的反向对照是"拆掉 `terminalReason()` 的返回 ⇒
+`mine_regression=FAIL`"）。⇒ 撤出之后：**这条判据的代码仍在（且不再是"死哨兵"—— 它有读者了），
+但它重新变成"无执行证据"**。台账 `O3` + `G3` 行 + `R1-残` 行**三处同步登记**，
+并把"连锁"整体改为 **`L1` 交付时的验收测试项**。
+
+#### 二、`MineStep` 去 `scope` 形参（裁定 ② = 采本人推荐）
+
+`D-466` §六 的草案签名是 **6 参**（`bot, target, scope, budget, profile, grant`）。我按逐字落地后发现
+**`scope` 一个消费者都没有**：原语的职责 = 计划 + 执行 + 单格结论，收集/建拆在编排侧，
+而 `MineBlockRunner` 只吃 `WriteGrant` ⇒ 它是那个类里**唯一的死形参**。
+
+**我的推荐 = 删**，两条理由：
+1. 本仓的准入尺子（`AGENTS.md`）明写"**净增 ≈ 0**"与不许留死形状 —— 一个 0 消费者的形参正是"死形状"；
+2. `D-466` §六 自己留了口子：「实现时可再调，但**三条不许动**」，而**签名不在那三条里**。
+
+⇒ 落成 **5 参** `MineStep(bot, target, budget, profile, grant)`；`ScopeBuffer` 连 `import` 一起删。
+⚠️ 这是对 `D-466` §六 草案的一处**偏离**，记在此处（`D-469` §六 记的是"待裁"状态）。
+
+#### 三、⚠️ 本刀自己的一个操作失误（固化，第 10 次同族）
+
+第一版批量改夹具的脚本里混进了一行**错位的** `rep(627, 632, [])` ⇒ **把 `finishCase()` 的签名一起删了**
+（编译器报"需要 class、interface、enum 或 record"才发现）。同一脚本里还有两处 `rep(...)` 被我写成了
+`cut(...) if False else None`（**空操作**）⇒ 那两处「想改没改成」也一并暴露。
+⇒ 教训：**按行号批量改代码时，每一处都要断言"改了没有"，且改完立刻编译**；
+本次靠 `git checkout -- <file>` 逐字还原后重做（**没有**基于半截状态继续）。
+⇒ 与 `D-468` §五 的三条同族：**批量文本手术是本会话重复出错最多的地方**。
+
+#### 四、门禁与场景检查
+
+- `check-task-orchestration-split` **PASS**（原语 5 参后：相位痕迹 0 · 成功出口 1 · `new MineTask(` 0 ·
+  额度制造 0 · 消费点 1 · 委托点 9）· `check-phase-transition-outlet` **PASS** · `check-primitive-budget-injection`
+  **PASS** · `check-primitive-readings` **PASS** · `check-scene-connectivity --all` **PASS（24 场景）**。
+- ⚠️ `MineStep` 的 `ScopeBuffer` import 一并删除 ⇒ 新门禁的 D1/D2 与"未使用 import"都不受影响（tools 无此判据）。
+
+#### 五、回归
+
+- `single:mine_regression` ✅ `…-175051-single_mine_regression.log`（`passed=1/1` · `ticks=198` ·
+  ⚠️ `K4` 的 `写入类例外=6 → 5`：撤掉 `exec_chain` 后少了一个播种外来掉落物的用例，**非缺陷**）。
+- `core` ✅ **43/43 步全 PASS**（243 s · `…-175504-core.log`），与 `D-469` 那一轮（`…-173622-core.log`）
+  逐步 diff：**38 步 `ticks` 完全相同**，5 步不同且**全部仍在各自的历史抖动带内**
+  （`scaffold` 365→373 仍在该步既有的 **359–373 离群簇**；`clear_guard`/`lumber_job`/`mine_job`/
+  `mine_regression` 同前）⇒ **夹具撤出 2 条用例后，其余 13 条的行为一点没动**。
+- ⚠️ 用 `ALICE_BATTERY_NO_CACHE=1` ⇒ 没有 core 指纹，回归锚 = 日志文件名。
+- ⚠️ **无客户端可观察行为变化**（夹具 + 构造签名）⇒ 客户端轮不必要。
+
+#### 六、复核触发
+
+- **若将来交付 `L1`** ⇒ 连锁按本节 §一 升为**交付验收项**（用 `alice_test:chain_mine_course` 那个手工入口，
+  或补一条 `ChainMining.start` 返回非 OK 的注入路径）；届时 `O3`/`G3`/`R1-残` 三行一起销账。
+- **若有人想恢复 `scope` 形参** ⇒ 它必须先有消费者（原语一旦要碰作用域，说明"收集/建拆留在编排侧"
+  这条边界已经变了 ⇒ 那时该重审的是 `D-466` §五 的表，不是加一个形参）。
