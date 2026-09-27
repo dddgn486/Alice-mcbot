@@ -1971,3 +1971,35 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
   ⚠️ 动 `MineTask`/`MineBlockRunner` 时**连锁段逐字保留**（`D-471` 冻结）且**必跑** `check-underfoot-safety` +
   `single:mine_regression`（`D-472` §八 复核触发）。
   ⚠️ 仍待办：`O6` 的两条零覆盖路（`tryReplan` / 运行期清视线）。
+
+## `D-473`（2026-09-27）：⭐ **`O6` 的**机制**半边落进电池** —— 原语终态闩锁 + `startExecution()` 清闩锁
+
+> **一句话**：`D-469` §九 说「`startExecution()` 必须清闩锁」是**唯一一处靠推理保住的语义** ⇒
+> 本刀把它变成一条**会红的用例**（`mine_regression` 第 14 条 `step_latch_relaunch`）。
+
+**① 为什么必须补（先量清楚"零覆盖"到什么程度）** —— 新一版 core 日志逐项 grep：
+`[MineTask重规划探针]` **0 行** · `LINE_OF_SIGHT_BLOCKED` **0 行** ·
+`[MineRunner] failed` 只有 **1 条**（`reason=WRITE_BUDGET_EXHAUSTED`，而它在 `MineBlockRunner:369` 是
+`retryable=false` ⇒ `tickMining()` 在 `tryReplan` **之前**就升级失败）⇒
+**电池里那唯一一条执行段失败，结构上不可能走到 `tryReplan`**。这不是"恰好没跑到"。
+
+**② 判据（新用例怎么跑）**：直接驱动 `MineStep`（**不构造 `MineTask`**）：
+`plan()` → `startExecution(true)`（`walkOnly` ⇒ 终态 `DONE` 而**目标没动**）→ `startExecution(false)`
+→ `tick()` ⇒ **目标必须真的被挖掉**（世界事实）+ 终态再 `tick()` 幂等。
+
+**③ 实测**（绿）：`single:mine_regression` = `passed=1/1`，
+`step_latch_relaunch=PASS first=DONE/targetKeptAfterFirst=true/second=DONE/targetMinedAfterSecond=true/idempotent=true/ticks=10`
+（`run/headless-logs/20260927-185913-single_mine_regression.log`）。
+**④ 红臂**（删 `MineStep.startExecution()` 的 `terminal = null;`）逐字：
+`step_latch_relaunch=FAIL first=DONE/targetKeptAfterFirst=true/second=DONE/targetMinedAfterSecond=false/idempotent=true/ticks=5`
+= **第二次执行报 `DONE` 而方块还在**（"静默假成功"的离线复现）；⭐ **恰好只红这一条**，另 13 条全绿；
+注入文件按 sha 逐字还原（`4a616b588011b8c2`）。
+**⑤ 回归**：`core` **43/43 PASS**（248 s · `…20260927-190456-core.log`）· 逐步 diff：39 步 tick 不变，
+`mine_regression` 219 → **221**，另三步在历史抖动带内 · **判决 0 变化** ·
+`ALICE_HEADLESS=1 tools/check-all.sh` = **`pass=32 warning=0 failed=0`**。
+
+**⛔ 本刀没有覆盖**：`MineTask.tryReplan` 的**路由**（该路日志第一次出现 + `recoveryAttempts` 推到 `1/2`）
+仍零覆盖 ⇒ 台账 `O6` 从"高优先级待补"改成「**机制半边 ✅ · 路由半边 ⏳**」；运行期清障与 `CHAIN` 回落同理
+（后者随 `D-471` 冻结）。
+
+**复核触发**：谁动了 `MineStep.startExecution()` 的闩锁清理 ⇒ 本用例必红；若没红，查 `tickLatchCase` 相位机。

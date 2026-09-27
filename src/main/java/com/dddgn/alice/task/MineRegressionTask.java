@@ -5,6 +5,7 @@ import com.dddgn.alice.write.WriteGrant;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
+import com.dddgn.alice.task.mining.MineStep;
 import com.dddgn.alice.task.mining.MiningBudget;
 import com.dddgn.alice.reach.MiningPlan;
 import com.dddgn.alice.task.mining.MiningPlanner;
@@ -32,6 +33,8 @@ import java.util.Set;
  *   <li>规划：`free` / `wall` / `headroom` → 模式 A（DIRECT/CURRENT）；`blocked` → 模式 B（TUNNEL）；
  *       `buried` → 模式 B 或 `found_but_unminable`（预算不足也必须**如实**报，不许静默挖隧道）；</li>
  *   <li>执行：`exec_direct`（露天目标挖+收）、`exec_blocked`（被包围目标走模式 B 挖+收）；</li>
+ *   <li>⭐ 原语契约：`step_latch_relaunch`（`D-473`）—— **终态闩锁 + 再开一次作业**：
+ *       `walkOnly` 拿一个终态而目标没动 → 再开一次 ⇒ **目标必须真的被挖掉**（见 {@link Kind#LATCH}）；</li>
  *   <li>⚠️ 连锁用例**已撤出**（2026-09-27）—— 它恒 `SKIP` ⇒ 不是覆盖，见下。</li>
  * </ul>
  *
@@ -64,6 +67,28 @@ public final class MineRegressionTask implements Task {
          * （`liveDrops() ≥ 1`）。修前 `begin()` 会清空登记 ⇒ 这里必然是 0。
          */
         SCOPE_REOPEN,
+        /**
+         * ⭐ **原语终态闩锁 + `startExecution()` 清闩锁**（`D-473`；台账 `O6` 的**机制半边**）。
+         *
+         * <p>为什么必须有这一条：`D-469` 给 {@link MineStep} 装了终态闩锁（"返回过终态之后，后续
+         * `tick()` 幂等回放同一结论"），而"`startExecution()` **必须清掉它**"这句话当时**只有推理、
+         * 没有电池** —— 三条会在拿到终态之后再开一次作业的路（连锁回落 · `tryReplan` · 运行期清障）
+         * 在无头电池里**全是零覆盖**（`D-469` §九 自己登记的）。本用例把**机制**钉住：
+         *
+         * <pre>
+         * plan() → startExecution(true)  ⇒ 走 `walkOnly`：**原地即到位 ⇒ DONE**，而目标一根毫毛没动
+         *        → startExecution(false) ⇒ 又开一次作业
+         *        → tick()                 ⇒ **必须真的把目标挖掉**（不用走位：已在计划站位上）
+         * </pre>
+         *
+         * <p>⚠️ **红臂**（写进本类 javadoc 供手工复核）= 删掉 {@code MineStep.startExecution} 里的
+         * `terminal = null;` ⇒ 第二次 `tick()` 回放旧结论（`DONE`）⇒ 编排器/用例以为这一格已经挖完，
+         * 而**方块还在世界里** = `D-469` §九 说的「静默假成功」的离线复现。
+         *
+         * <p>⚠️ 它**不覆盖**编排器的**路由**（`MineTask.tryReplan` 到底有没有被走到）—— 那是 `O6` ②
+         * 的另一半，仍缺覆盖；本用例只保证"真走到了也一定是对的"。
+         */
+        LATCH,
     }
 
     /**
@@ -175,7 +200,12 @@ public final class MineRegressionTask implements Task {
             // D-124：挖出掉落物 → 重开作用域 → 掉落物必须**仍在账上**（修前 begin() 会清空登记）
             new CaseDef("scope_reopen_keeps_drops", "mine_course", MINE_START,
                     new BlockPos(23, 64, 140), Kind.SCOPE_REOPEN, List.of(), 0,
-                    Items.COBBLESTONE, true, false, 0));
+                    Items.COBBLESTONE, true, false, 0),
+            // ⭐ `D-473`（`O6` 机制半边）：**原语的终态闩锁 + 重新开一次作业**。
+            // 目标与 `free` 同一格（起点就能触及 ⇒ 规划器给 `CURRENT`/`DIRECT`）—— 选它是为了让
+            // 第一次执行走 `walkOnly=true` 时**原地即到位**，从而在"不碰目标"的前提下拿到一个终态结论。
+            new CaseDef("step_latch_relaunch", "mine_course", MINE_START, new BlockPos(23, 64, 140),
+                    Kind.LATCH, List.of(), 0, null, true, false, 0));
 
     /** 单用例预算与任务总预算（tick）。 */
     private static final int CASE_BUDGET_TICKS = 320;
@@ -236,6 +266,20 @@ public final class MineRegressionTask implements Task {
     private boolean expectedForeignDrop;
     /** 内层任务上一次返回的终态（D-175 幂等断言用）。 */
     private Status lastInnerTerminal;
+
+    // ---- `D-473`：`step_latch_relaunch`（`LATCH`）的状态机 ----
+    /**
+     * 被直接驱动的原语。⚠️ `LATCH` 用例**不构造 `MineTask`** —— 本条测的就是**原语自己的**闩锁，
+     * 走编排器会把"原语是否幂等"和"编排器怎么用它"两件事混在一起（`D-466` 的边界纪律）。
+     */
+    private MineStep latchStep;
+    /** 0=待规划 · 1=待开第一次作业 · 2=第一次执行中 · 3=待开第二次作业 · 4=第二次执行中。 */
+    private int latchPhase;
+    private String latchFirst = "-";
+    private boolean latchTargetKept;
+    private String latchSecond = "-";
+    private boolean latchMined;
+    private boolean latchIdempotent;
 
     public MineRegressionTask(BotPlayer bot, ServerPlayer observer, ScopeBuffer scope) {
         this.bot = bot;
@@ -330,6 +374,9 @@ public final class MineRegressionTask implements Task {
             record(current, false, "case_timeout ticks=" + caseTicks);
             finishCase();
             return index >= CASES.size() ? finish() : Status.RUNNING;
+        }
+        if (current.kind() == Kind.LATCH) {
+            return tickLatchCase(current);
         }
         // D-175：SCOPE_REOPEN 用例在"内层任务已终态"之后还要等 5 tick（等 ScopeBuffer flush），
         // 但**那段时间绝不能再 tick 内层任务** —— 旧实现在等待期间每 tick 都先 `mineTask.tick()`，
@@ -551,6 +598,21 @@ public final class MineRegressionTask implements Task {
         BotLog.info("[MineRegression] case={} kind={} terrain={} start={} target={}",
                 current.name(), current.kind(), current.terrain(),
                 current.start().toShortString(), current.target().toShortString());
+        if (current.kind() == Kind.LATCH) {
+            // `D-473`：直接驱动原语（不构造 `MineTask`）。额度按生产口径**构造注入**
+            // （`MineStep` 自己不许造额度 —— 判据 D1）；工具与 `MineTask` 用例同源。
+            com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
+            latchStep = new MineStep(bot, current.target(),
+                    MiningBudget.forTarget(bot, bot.serverLevel(), current.target(), false),
+                    com.dddgn.alice.task.mining.MiningProfile.TUNNEL_ALLOWED,
+                    WriteGrant.of(taskName(), WriteReason.EXPECTED_TARGET));
+            latchPhase = 0;
+            latchFirst = "-";
+            latchSecond = "-";
+            latchTargetKept = false;
+            latchMined = false;
+            latchIdempotent = false;
+        }
     }
 
     /** 掉落物判据的测量盒（用例起点的基线与结束时的计数**必须同盒**，否则基线无效）。 */
@@ -586,6 +648,73 @@ public final class MineRegressionTask implements Task {
                 + (current.expectSupport() ? "/support=" + (plan == null || plan.supportPlacementPos() == null
                         ? "-" : plan.supportPlacementPos().toShortString()) : "")
                 + "/reason=" + result.failureReason());
+    }
+
+    /**
+     * ⭐ `D-473`（`O6` 机制半边）：**终态闩锁 + 再开一次作业** —— `LATCH` 用例的状态机。
+     *
+     * <p>四个动作、三条判据（每条都带**世界事实**，不是"读它自己的字段"）：
+     * <ol>
+     *   <li>`plan()` 必须成功（**前提自证**：算不出计划就如实红，绝不静默跳过 —— `Z4` 的空集假绿教训）；</li>
+     *   <li>第一次执行用 `walkOnly=true`（**生产形状**：`MineTask` 在连锁回落那条路上就这么传）⇒
+     *       终态 `DONE`，而**目标方块还在**（世界事实）；</li>
+     *   <li>再 `startExecution(false)` ⇒ 第二次执行必须把**目标真的挖掉**（世界事实）—— 这就是
+     *       "闩锁被清掉了"的唯一可信证据；</li>
+     *   <li>额外把 `MineStep` 自己的**终态幂等**也断言一次（`D-175`/`D-178` 同形状）。</li>
+     * </ol>
+     *
+     * <p>为什么"目标还在"这条断言不可省：`walkOnly=true` 的语义就是"只走位、不动方块" ——
+     * 若不查它，第 ③ 条在"第一次其实已经挖掉了"的情况下也会通过（判据变成空的）。
+     */
+    private Status tickLatchCase(CaseDef current) {
+        if (latchPhase == 0) {
+            MineStep.PlanOutcome plan = latchStep.plan();
+            if (!plan.ok()) {
+                // 前提没摆成 ⇒ 如实判红（否则整条用例会以"没跑到"伪装成"闩锁没问题"）
+                record(current, false, "premise_failed 计划不成功 reason=" + plan.reason());
+                finishCase();
+                return index >= CASES.size() ? finish() : Status.RUNNING;
+            }
+            latchPhase = 1;
+            BotLog.info("[MineRegression] step_latch_relaunch 计划就绪 mode={} stand={}",
+                    plan.plan().mode(), plan.plan().standingFoot().toShortString());
+            return Status.RUNNING;
+        }
+        if (latchPhase == 1) {
+            latchStep.startExecution(true);      // walkOnly ⇒ 走到站位即 DONE（不挖）
+            latchPhase = 2;
+            return Status.RUNNING;
+        }
+        if (latchPhase == 3) {
+            // ⭐ 本用例的全部意义：**拿到终态之后再开一次作业**（= `tryReplan` / 连锁回落 /
+            //   运行期清障 三条路共同的那一个动作）。
+            latchStep.startExecution(false);
+            latchPhase = 4;
+            return Status.RUNNING;
+        }
+        MineStep.Conclusion conclusion = latchStep.tick();
+        if (conclusion.isRunning()) {
+            return Status.RUNNING;
+        }
+        if (latchPhase == 2) {
+            latchFirst = conclusion.outcome().name();
+            latchTargetKept = !bot.serverLevel().getBlockState(current.target()).isAir();
+            BotLog.info("[MineRegression] step_latch_relaunch 第一次终态={} 目标仍在={}（walkOnly 不该动方块）",
+                    latchFirst, latchTargetKept);
+            latchPhase = 3;
+            return Status.RUNNING;
+        }
+        latchSecond = conclusion.outcome().name();
+        latchMined = bot.serverLevel().getBlockState(current.target()).isAir();
+        MineStep.Conclusion again = latchStep.tick();   // 终态再 tick 必须幂等（不改口、不崩）
+        latchIdempotent = again.outcome() == conclusion.outcome();
+        boolean pass = "DONE".equals(latchFirst) && latchTargetKept
+                && "DONE".equals(latchSecond) && latchMined && latchIdempotent;
+        record(current, pass, "first=" + latchFirst + "/targetKeptAfterFirst=" + latchTargetKept
+                + "/second=" + latchSecond + "/targetMinedAfterSecond=" + latchMined
+                + "/idempotent=" + latchIdempotent + "/ticks=" + caseTicks);
+        finishCase();
+        return index >= CASES.size() ? finish() : Status.RUNNING;
     }
 
     /** 结束一个执行用例：恢复连锁档位、清理子任务。 */

@@ -22209,3 +22209,111 @@ bot **一格都没动** + 账本仍挂 1 条"。
   （门禁只断言已登记的三处，判不出"该用而没用"）。
 - 若 `mine_in_place` 的 129 次里出现**落点不安全却仍就地挖**的日志行 ⇒ 门禁 B 没咬住，回来查方法体提取。
 - `Step 5b` / 挖矿线 `L1` 化**都要动 `MineBlockRunner`** ⇒ 动完必跑 `check-underfoot-safety` + `single:mine_regression`。
+
+### D-473：⭐ **补 `O6` 的**机制**半边** —— 原语终态闩锁 + `startExecution()` 清闩锁，第一次有电池证据（2026-09-27）
+
+> 台账来源：`O6`（`D-469` 新发现，标为**高优先级**）。原文：`MineStep` 装了终态闩锁后，
+> 编排器有**三条路会在拿到终态结论之后再开一次执行**（① `CHAIN` 回落 ② `tryReplan` ③ 运行期清障），
+> 而这三条路在无头电池里**全部零覆盖** ⇒ `D-469` §九 把「`startExecution()` 必须清闩锁」记为
+> **「本刀唯一一处靠推理而不是靠电池保住的语义」**。本刀把这句话从推理变成判据。
+
+#### 一、先量清楚"零覆盖"到什么程度（读数，不是印象）
+
+新一版 `core` 日志（`run/headless-logs/20260927-184047-core.log`）逐项 grep：
+
+| 探针 | 命中 | 含义 |
+|---|---|---|
+| `[MineTask重规划探针]` | **0** | `tryReplan` **一次都没被走到** |
+| `LINE_OF_SIGHT_BLOCKED` | **0** | 运行期清障那条路也没走到 |
+| `[MineRunner] failed …` | **1**（`reason=WRITE_BUDGET_EXHAUSTED`） | 整轮电池**唯一的执行段失败** |
+| `[MineTask升级决策探针]` | **5** | 其中 4 条是**计划段**失败；唯一那条执行段失败 `recoveryAttempts=0/2` |
+
+⭐ **机制解释（可核）**：`WRITE_BUDGET_EXHAUSTED` 在 `MineBlockRunner:369` 是 `retryable=false`
+⇒ `tickMining()` 在 `tryReplan` **之前**就 `escalateFailure()`。⇒ 电池里"执行段失败"这条唯一的样本
+**结构上不可能**走到 `tryReplan`。这不是"恰好没跑到"，是**判据面缺一条会失败的路**。
+
+#### 二、本刀做了什么（只动夹具，生产代码零改动）
+
+`MineRegressionTask` 新增**第 14 条用例** `step_latch_relaunch`（新 `Kind.LATCH`）：
+**不构造 `MineTask`**，直接驱动 `MineStep`（本条测的就是**原语自己的**闩锁），四步：
+
+```
+plan()                    ⇒ 必须成功（前提自证；算不出计划就如实红）
+startExecution(true)      ⇒ walkOnly：原地即到位 ⇒ 终态 DONE，而目标方块一根毫毛没动（世界事实）
+startExecution(false)     ⇒ ⭐ 再开一次作业（= 三条路共同的那一个动作）
+tick() × n                ⇒ 目标必须**真的被挖掉**（世界事实）
+```
+
+⭐ **为什么 `walkOnly=true` 是"生产形状"而不是夹具发明的**：`MineTask` 在**连锁回落**那条路上
+就是这么传的（`useChain && !chainTriggered`）—— 它本来就是"拿一个终态、但这一格还没挖"的合法形态。
+
+#### 三、判据（先绿后红，两侧都有实测）
+
+| # | 判据 | 绿（本刀装好后） | 红（删 `MineStep` 的 `terminal = null;`） |
+|---|---|---|---|
+| ① | 第一次终态是 `DONE`（`walkOnly` 语义） | ✅ `first=DONE` | ✅ 同样 `DONE`（**这条在红臂里也成立** ⇒ 它不是判据的承重点） |
+| ② | 第一次之后**目标仍在**（世界事实） | ✅ `targetKeptAfterFirst=true` | ✅ 同样 `true` |
+| ③ | ⭐ 第二次**真的把目标挖掉** | ✅ `second=DONE/targetMinedAfterSecond=true` | ❌ **`second=DONE` 而 `targetMinedAfterSecond=false`** |
+| ④ | 原语终态再 `tick()` 幂等（`D-175`/`D-178` 形状） | ✅ `idempotent=true` | ✅ 同样 `true`（回放的正是那个假 `DONE`） |
+
+⭐⭐ **红臂逐字**（`run/headless-logs/20260927-190021-single_mine_regression.log`）：
+
+```
+step_latch_relaunch=FAIL first=DONE/targetKeptAfterFirst=true/second=DONE/targetMinedAfterSecond=false/idempotent=true/ticks=5
+```
+
+⇒ **第二次执行报 `DONE`，而方块还在世界里** = `D-469` §九 那句「那格根本没挖却报成功（静默假成功）」
+的**离线确定性复现**。⚠️ 注意 `ticks=5`（绿臂是 `10`）：闩锁不清时第二次执行**一 tick 就"完成"**了
+—— "太快"本身就是这条缺陷的指纹。
+
+⚠️ **红臂的精确性**（不是"红一片"）：同一轮里另外 **13 条用例全部 PASS**
+（`free/wall/blocked/headroom/buried/exec_direct/exec_blocked/floating_plan/exec_floating/support_plan/exec_support/no_tool_refuses/scope_reopen_keeps_drops`），
+**只有 `step_latch_relaunch` 一条红** ⇒ 这条判据咬的就是闩锁这一件事。
+红臂注入落在 `src/`（`MineStep.java`），**用完立刻按 sha 还原**：
+注入前 `4a616b588011b8c2` → 还原后 `4a616b588011b8c2`（逐字一致，`git status` 只剩本刀两个文件）。
+
+#### 四、验证
+
+| 项 | 结果 | 取证 |
+|---|---|---|
+| `COMPILES` | ✅ | `./gradlew compileJava --offline` |
+| `single:mine_regression` 绿 | **PASS · `passed=1/1` · 228 tick** | `run/headless-logs/20260927-185913-single_mine_regression.log` |
+| ⭐ 新用例读数（绿） | `first=DONE/targetKeptAfterFirst=true/second=DONE/targetMinedAfterSecond=true/idempotent=true/ticks=10` | 同上 `:567` |
+| 现场日志（前提） | `计划就绪 mode=CURRENT stand=21, 64, 140` ⇒ "原地即到位"如设计 | 同上 `:556` |
+| **红臂** | **FAIL，恰好 1 条，且失败理由逐字是"目标没被挖掉"** | `…-190021-…log:629` |
+| `core` | 见 §五（`src/` 有改动 ⇒ 必跑） | —— |
+
+#### 五、`core` 与回归面
+
+（本刀只加了一条**用例**，生产代码零改动 ⇒ 预期是"只有 `mine_regression` 那一步的 tick 数变"。）
+
+- `core` = **43/43 PASS**（248 s），日志 `run/headless-logs/20260927-190456-core.log`。
+- 逐步 diff 对基线 `20260927-184047-core.log`（口径：按 `[Regression] <step>=<verdict> ticks=N` 逐行 `join`）：
+  **39 步 tick 逐字不变**；4 步不同 —— **`mine_regression` 219 → 221（+2 = 本刀唯一意图内的变化）** ·
+  `clear_guard` 176 → 181 · `lumber_job` 627 → 602 · `mine_job` 240 → 237。
+  ⚠️ 后三步在**历史抖动带内**，不是本刀造成的：同代码近三轮 core 的取值分别是
+  `clear_guard` 180 / 176 / 181、`lumber_job` 624 / 627 / 602、`mine_job` 237 / 240 / 237。
+- ⭐ **判决 0 变化**（两侧 43 步全 `PASS`，`passed=43/43 skipped=0`）；总 tick `4495 → 4472`。
+- ⚠️ **踩过一次测量坑（留档）**：第一版 diff 脚本用 `awk -F'[= ]' '{print $1"\t"$3}'` 提数列 ⇒
+  两个文件都提成字面量 `ticks` ⇒ `join` 逐行相等 ⇒ **报"43 步完全一致"**（而 `mine_regression`
+  实际是 219 vs 221）。⇒ 与 `D-469` §三 同族：**口径写错时，diff 会给出"没有变化"这个最危险的答案**。
+  正解 = `sed -nE` 带捕获组提取，且**先 `head -3` 看一眼提取结果**再相信 diff。
+
+#### 六、⚠️ 本刀**没有**覆盖什么（不许把它读成 `O6` 已关闭）
+
+- ❌ **编排器的路由**：`MineTask.tryReplan` **到底有没有被走到**仍然零覆盖
+  —— §一 已给出机制：电池里唯一那条执行段失败是 `retryable=false`，**结构上到不了**。
+  ⇒ `O6` 的**另一半**（"该路的日志行第一次出现 + `recoveryAttempts` 推进到 `1/2`"）**仍未达成**。
+- ❌ **运行期清障**（`LINE_OF_SIGHT_BLOCKED`）与 **`CHAIN` 回落**同样零覆盖（后者随 `D-471` 冻结挂账）。
+- ❌ 本用例**不经过 `MineTask`** ⇒ 它证明的是"真走到了也一定是对的"，**不证明**"编排器会走到"。
+
+⇒ 台账 `O6` 由「高优先级待补」降级为「**机制半边 ✅（`D-473`）· 路由半边 ⏳**」，
+消掉的是 `D-469` §九 自己点名的那处"靠推理"。
+
+#### 七、复核触发
+
+- 若将来谁把 `MineStep.startExecution()` 里的 `terminal = null;` 挪走/删掉 ⇒ **本用例必红**
+  （这是它存在的唯一理由；若它没红，说明 `LATCH` 用例被短路了，回来查 `tickLatchCase` 的相位机）。
+- `step 5b`（拆 `CollectDropsTask`）**也要动 `MineStep`/`MineTask` 这一带** ⇒ 动完必跑
+  `single:mine_regression`（本用例在 `core` 里，故 `core` 天然覆盖）。
+- 若有人把 `LATCH` 用例改成"走 `MineTask`" ⇒ 本刀的证据作废（两件事会混在一起），**要另立判据**。
