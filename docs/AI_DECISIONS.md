@@ -21047,11 +21047,14 @@ Job = ① 有 Kind（进 JobRequest.Kind）
 
 #### ⏳ `step 3b`（**本刀登记，未做**）
 
-`PathRetryRunner`（`task/PathRetryRunner.java`，39 个文件引用）**家在 `pathing/`**：它只 import
+`PathRetryRunner`（`task/PathRetryRunner.java`）**家在 `pathing/`** —— ⚠️ **实测 import 面 = 5 个文件 + 7 处 FQN**（"39"是提到过它的文件数，多数在注释里；第一版写错了，就地更正）：它只 import
 `bot/` · `log/` · `pathing.core.{search,session}` ⇒ 搬过去**零反向依赖**；搬完 `action/ → task/` 才真正 **0 命中**
 （`ALLOWED_REVERSE` 表随之清空 —— 表空 = 判据从"带欠账"升级为"无条件"）。
-⚠️ **为什么本刀不做**：它**不属于"触及站位"**（是寻路重试器），且 39 个文件的 import 面是**另一件事**；
-一刀一判据（台账 step 3 那一行只授权"触及站位"）。⚠️ 门禁的 `ALLOWED_REVERSE` 表就是它的**到期条件**。
+⚠️ **为什么本刀不做**：它**不属于"触及站位"**（是寻路重试器）；一刀一判据（台账 step 3 那一行只授权"触及站位"）。
+⚠️ 门禁的 `ALLOWED_REVERSE` 表就是它的**到期条件**。
+⭐⭐ **而真做时还有一个真耦合（本刀当场查出来的）**：内核门禁 `tools/kernel-predicates.py:4320` **硬写着路径**
+`base / "task/PathRetryRunner.java"`（`rule_replay_bounded`）⇒ **搬它必须同时改那一行** ——
+⇒ 这把 `3b` 从"纯搬包"变成"**要碰内核侧门禁**"，按 `D-430`（内核关门线）**属于要用户裁的范围**（见台账 `3b`）。
 
 **回归**：`core` **PASS**（241 s · 指纹 `6ef2c2a63ea2` · 日志 `run/headless-logs/20260927-144303-core.log`，
 43 步判决与上一轮逐字相同）· `check-all` **pass=26 warning=1 failed=0**。

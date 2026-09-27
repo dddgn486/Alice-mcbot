@@ -1662,6 +1662,9 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
   `MiningProfile` / `MiningBudget` 等**没搬**的类的前缀 ⇒ 第一版把 `task.mining.MiningPlanner` 改成了
   `reach.MiningPlanner`（`66 个错误`）⇒ 修法 = 按**标识符**判定，只有那 4 个名字才换前缀。
 
-⏭ **下一步 = `step 3b`（`PathRetryRunner` → `pathing/`，39 个文件引用，纯搬包）** ⇒ 搬完
+⏭ **下一步 = `step 3b`（`PathRetryRunner` → `pathing/`，纯搬包）**（⚠️ **实测 import 面 = 5 个文件 + 7 处 FQN**；
+第一版写的"39 个文件引用"是**提到过它**的文件数，多数在注释里 —— 就地更正。
+⚠️ **另一个真耦合**：内核门禁 `tools/kernel-predicates.py:4320` **硬写着路径** `task/PathRetryRunner.java`
+（`rule_replay_bounded`）⇒ 搬它**必须同时改那一行**） ⇒ 搬完
 `action/ → task/` 才真正 **0 命中**、门禁的 `ALLOWED_REVERSE` 表清空（判据从"带欠账"升级为无条件）。
 `step 4`（拆 `write/`，只动 import）与它互不阻塞。

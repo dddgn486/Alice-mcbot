@@ -59,7 +59,7 @@ REACH_FORBIDDEN = ("com.dddgn.alice.task.", "com.dddgn.alice.action.", "com.dddg
 ALLOWED_REVERSE: dict[str, dict[str, str]] = {
     f"{PKG}/action/MineBlockRunner.java": {
         "com.dddgn.alice.task.PathRetryRunner":
-            "step 3b（`PathRetryRunner` 是寻路重试器，家在 `pathing/`；39 个文件引用 ⇒ 单独一刀）",
+            "step 3b（`PathRetryRunner` 是寻路重试器，家在 `pathing/`；实测 import 面 5 文件 + 7 处 FQN ⇒ 单独一刀）",
     },
 }
 
