@@ -161,6 +161,14 @@ run_gate             "check-protection-install-point" python3 tools/check-protec
 # 断言 = 额度制造必须出现在**非构造器的方法体**里；自带 6 条合成红臂 + 人口下限（防抽空即假绿）。
 # ⚠️ 边界写在门禁里：**不含**"类内默认额度常量"（= step 2b / step 5），别把绿读成 ⑧③ 全合规。
 run_gate             "check-primitive-budget-injection" python3 tools/check-primitive-budget-injection.py
+# 原语读数（`J-★` 第 6 段 step 5 / `D-463`，2026-09-27）：拆 `MineTask` / `CollectDropsTask` 前，
+# **先把 4 个验收读数的定义钉死**（`Phase 值数 / 额度词数 / 构造器数 / 行数`）——
+# 实测发现台账原登记的那组数（`8/47/5/975` · `0/16/6/1250`）**11 种口径都复现不出来**。
+# ⭐ 命门：`MineTask:43` 的枚举是**一行写完**的 ⇒ 按"每常量一行"写的正则**静默返回 1**；
+# 而"相位值数下降"正是本步目标 ⇒ **解析崩了与真的为零会印出同一个 0**（`silent-measurement-failure`）。
+# 断言只覆盖**不会假红**的量（存在 / 下限 / 解析与引用自洽 / 口径自证）⇒ 用户 2026-09-27 拍：
+# **不断言目标值**（值数下降是结果不是判据）。自带 13 条合成红臂。
+run_gate             "check-primitive-readings" python3 tools/check-primitive-readings.py
 # 层方向（`J-★` 第 6 段 step 3a / `D-460`，2026-09-27）：`D-455` 定了三层（`action/` < `task/` < `job/`），
 # 而 `survey/42 §1.2` 实测**全仓唯一的循环依赖**就是 `action/MineBlockRunner ↔ task/mining/*`。
 # step 3a = 把「触及站位」件搬进新顶层包 `reach/`（与 `pathing/` 同级：谁都能依赖它、它谁都不依赖）。
