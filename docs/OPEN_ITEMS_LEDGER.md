@@ -2370,7 +2370,7 @@ Baritone `MovementPillar.java:150-161`（"swimming up a water column"）+ `:77-8
 | **2** | ⭐ **额度归 `job/`** ⇒ `MineTask` 自己瘦（40 处额度引用外移） | 中 | 自然结果；`D-454` 的 `places=` 分项由这里接管 |
 | **3** | ⭐ **触及站位搬出 `task/mining/`** ⇒ 解开**全仓唯一循环依赖** | 中 | 判据可静态断言：`grep -rn "import com.dddgn.alice.task" src/main/java/com/dddgn/alice/action/` ⇒ **0 命中** |
 | **4** | 写入授权从 `action/` 拆出（**独立一刀，只动 import**） | 中 | 可与 3 并行；⚠️ `WriteGrant` 65 个文件引用 ⇒ 不与改名同批 |
-| **5** | 才谈拆 `MineTask` / `CollectDropsTask` | 大 | 前置 = 1 + 2 |
+| **5** | 才谈拆 `MineTask` / `CollectDropsTask` | 大 | 前置 = 1 + 2；⭐ **相位验收面（用户 2026-09-27 裁定 A，plan §2.2）**：相位**降级为报告词汇** ⇒ 验收 = **三条禁令的可执行判据**（① 不承载编排正确性：主流程必须能读成"原语序列 + 额度 + 终态" ② 不承载额度/权限/完成度 ③ 每个值有外部可验证的进出条件）+ 主流程可读性 review；⚠️ **不要求"值数 = 0"**（数量判据易被绕过；值数下降是结果不是目标） |
 
 #### J-0 收口（**先做，1 轮**）：把开口的决策点一次性裁掉，并给内核线设关门线
 
