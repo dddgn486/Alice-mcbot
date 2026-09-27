@@ -15,7 +15,7 @@
                 bot, (ServerLevel) bot.level(), target, true), false, grant);
     }
 
-⇒ 两个后果：① 调用方（`RoadBuildTask:163/188`）**从不知道**自己给出去的是
+⇒ 两个后果：① 调用方（`RoadBuildTask:164/190`）**从不知道**自己给出去的是
 `collectDrops=true` 的额度（"在目标下方放支撑块 + 收掉落物"），那是便利构造器**替它决定**的；
 ② `Job` 那层"额度归我"的说法**无法成立** —— 只要存在"调用方不说也能用"的入口，额度就有一份
 住在原语里。
@@ -38,7 +38,8 @@
 
 - **不覆盖"类内自带默认额度常量"** —— 那是同一条判据的另一半（`D-455` ⑧③"类内不得有默认额度常量"）
   ⇒ 实测今天的违规面 = `CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS`（`public`，被两个便捷构造器当默认值）
-  + `CLUSTER_BUDGET_TICKS`（私有分段）。清零它要重设计那个 1250 行原语 ⇒ 排期在 **step 5**（台账第 6 段 `2b`）。
+  + 若干**内部机制档**（`CLUSTER_BUDGET_TICKS` 等 —— ⑧③ 的字面只点名"**默认**额度常量"，机制档是否在内待裁）。
+  清零默认口要重设计那个 1250 行原语 ⇒ 排期在 **`step 2b`**（甲口径 = 并入 `step 5`；台账第 6 段 `2b` 有四个口径）。
   ⚠️ **不许**把本门禁的绿读成"⑧③ 已经全部合规"。
 - **不覆盖"方法体内为子任务派生额度"**（`MineTask.startClear:733` / `tryGainHeight:816` = 父原语给
   **子** `MineTask` 算额度，形状 = `profile.nestedSubTask()` 的"子信封 ⊆ 父信封"）。
