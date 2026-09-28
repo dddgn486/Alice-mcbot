@@ -5,7 +5,7 @@ Alice 是 Minecraft Forge 1.20.1 项目。这里的规则用于帮助 AI 在会�
 ## 每次会话先做
 
 1. 确认仓库路径和 Git 状态；
-2. 阅读 `docs/AI_DEVELOPMENT_PLAYBOOK.md`、`docs/AI_TEST_MATRIX.md` 与 `docs/AI_PROJECT_STATE.md`（⚠️ 后者头部"更新时间"已落后于内容 ⇒ **"当前状态"以 `docs/HANDOVER.md` 断点 + `docs/OPEN_ITEMS_LEDGER.md` 进度行为准**）；⭐ `docs/AI_DECISIONS.md` **23,616 行 / 1.23M 字符 ⇒ 读不完（超窗）** ⇒ **改读生成物 `docs/DECISIONS_INDEX.md`**（492 条决策的索引：找到编号 ⇒ 只读那一条正文），有门禁 `check-decisions-index`；
+2. 阅读 `docs/AI_DEVELOPMENT_PLAYBOOK.md`、`docs/AI_TEST_MATRIX.md` 与 `docs/AI_PROJECT_STATE.md`（⚠️ 后者头部"更新时间"已落后于内容 ⇒ **"当前状态"以 `docs/HANDOVER.md` 断点 + `docs/OPEN_ITEMS_LEDGER.md` 进度行为准**）；⭐ `docs/AI_DECISIONS.md` **两万余行 / 1.2M+ 字符 ⇒ 读不完（超窗）** ⇒ **改读生成物 `docs/DECISIONS_INDEX.md`**（⚠️ 读数**不写死**：由生成器每次打印，写死必然腐烂；有门禁 `check-decisions-index`）；
 3. 根据技术领域读取 `.alice-supervision/skills/` 中相关 skill：
    - 设计/修改测试入口、测试物品、数据包场景、自检夹具 → **`alice-scene-based-testing`（必读）**
    - 设计/修复寻路、移动、路径执行、自愈、超时、世界交互 → **`alice-baritone-kernel-alignment`（必读）**
@@ -37,9 +37,8 @@ Alice 是 Minecraft Forge 1.20.1 项目。这里的规则用于帮助 AI 在会�
 **配套硬约束**：
 - **`AGENTS.md` + `AI_DEVELOPMENT_PLAYBOOK.md` + `AI_PROJECT_STATE.md` 总行数冻结在 1,476 行**：
   新增必须同时删旧的，**净增 ≤ 0**。
-- 任何新的验证手段**必须挂在已有命令上**（`./gradlew build` 或 `tools/check-all.sh`），
-  否则不许建 —— 挂在旁边的验证 = 下一个 `BotSelftest`（它 2026-09-13 被删，
-  而 `build.gradle` 那句宣传**靠人发现**才被清 —— 这正是"没有门禁的验证手段"的下场）。
+- 任何新的验证手段**必须挂在已有命令上**（`./gradlew build` 或 `tools/check-all.sh`），否则不许建 ——
+  挂在旁边的验证 = 下一个 `BotSelftest`（2026-09-13 被删；`build.gradle` 那句宣传**靠人发现**才被清 = "没有门禁的验证手段"的下场）。
 
 **只看一个指标（不要用规则数量管理）**：
 | | 现在 | 目标 |
@@ -56,7 +55,8 @@ Alice 是 Minecraft Forge 1.20.1 项目。这里的规则用于帮助 AI 在会�
 - **寻路红线（D-076）：寻路请求默认纯通行（`PathRequest.of`）；破坏/放置只能由上层任务显式授权并受预算闸门约束**
   ——挖掘站位用 `PathRequest.miningApproach` + `MiningBudget`（⚠️ 垂直能力以 `D-366b` 的**临时让步**为准：
   **已取消**原先对 `PILLAR/FALL/DOWNWARD` 的禁用），掉落物收集是否可改世界由**作业声明**决定（`allowWorldModification`）；
-  禁止寻路器自行挖穿地形、禁止把 `SEARCH_LIMIT` 当授权、禁止实验性移动模式隐式接入正式任务；`[gate: check-authz-registry.sh,check-policy-matrix.sh]`
+  禁止寻路器自行挖穿地形、禁止把 `SEARCH_LIMIT` 当授权；`[gate: check-authz-registry.sh,check-policy-matrix.sh]`
+- **未加载区块红线（`D-132`，措辞 2026-09-28 用户调整）：内核**不得静默**加载区块** —— 读未加载区块 = 同步生成 / 磁盘 I/O 落在 tick 线程上；判据 = `MovementContext.chunkLoaded` 绝不加载 + 读脚印闸门 + `GOAL_NOT_LOADED`；⚠️ 原措辞「内核**从不**加载区块」**不是**高确定性方案（任务层预检曾绕过它，`D-331`/`D-337`）。`[gate: check-far-goal-usage.sh（部分：只挡「裸粗目标进生产」这一条已知会触发加载的路径）]` `[用户确认: 2026-09-28]`
 - 未知模组能力默认只读，不让 AI 猜槽位、配方或写入语义。`[gate: check-machine-map.sh（部分：只挡「映射缺行/未映射」）]`
 - **模组适配是「需求驱动」而非「覆盖率驱动」（D-219，2026-09-14 用户采纳 `survey/07` §3.5）**：只为**当前存档真正用到**的东西适配 —— **不因"这模组有名／已在 `mods/`／表里该凑齐全量"就登记它** ⇒ 开销上限 = 用户实际玩到哪，"永远有下一个模组"不是待办队列。`[未门禁: 「不做某事」的政策没有可执行对象；复核触发: 出现一次为凑覆盖率而登记的模组/能力]`
 - **内核路线（D-036）：Alice = Baritone 兼容内核**。非 Alice 目标差异部分（搜索 / Movement / 执行器状态机 / 自愈 / 段超时 / 成本模型 / 跳跃门控）一律先对照 `/home/fb486/projects/reference/baritone-1.20.1/` 再实现（⚠️ 工作区有**两棵**树，**只认带 `-1.20.1` 后缀那棵**；另一棵是 MC **1.21.4**、**不可用**。`check-redline-gates` 第二颗牙按 `minecraft_version` 复算 ⇒ **别在本文件里写出那棵坏树的路径**），禁止自制替代内核和补丁堆叠；必须偏离时在 `docs/AI_DECISIONS.md` 登记（Baritone `文件:行` + Alice 特有约束）。`[gate: check-kernel-predicates.sh（部分：K4-P1 工厂谓词统一 + D-374 目的地整体通行 + D-366 移动契约一致）]`

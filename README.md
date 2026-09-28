@@ -10,7 +10,7 @@ Alice 是一个 Minecraft Forge 1.20.1 模组：在服务端运行一个客户�
 1. **LLM 只做目标级决策**：语言模型负责选择目标，不直接输出逐 tick 移动、背包写入或世界修改。
 2. **确定性执行器负责落地**：任务状态机、寻路、库存验证和失败回收由服务端执行，并输出稳定结果码。
 3. **服务端权威**：Bot、任务、库存、容器和世界变化均以服务端事实为准；客户端只负责显示与交互。
-4. **寻路红线（D-076）**：寻路请求**默认纯通行**（`PathRequest.of`）；破坏/放置只能由上层任务**显式授权**并受**预算闸门**约束——挖掘站位用 `PathRequest.miningApproach` + `MiningBudget`（禁用 `PILLAR/FALL/DOWNWARD`），掉落物收集需调用方显式 `allowWorldModification=true`。禁止寻路器自行挖穿地形、禁止把 `SEARCH_LIMIT` 当授权、禁止实验性移动模式隐式接入正式任务。
+4. **寻路红线（D-076）**：寻路请求**默认纯通行**（`PathRequest.of`）；破坏/放置只能由上层任务**显式授权**并受**预算闸门**约束——挖掘站位用 `PathRequest.miningApproach` + `MiningBudget`（⚠️ 垂直能力以 `D-366b` 的临时让步为准：**已取消**原先对 `PILLAR/FALL/DOWNWARD` 的禁用），掉落物收集需调用方显式 `allowWorldModification=true`。禁止寻路器自行挖穿地形、禁止把 `SEARCH_LIMIT` 当授权。**未加载区块红线（D-132）**：内核**不得静默**加载区块（读未加载区块 = 同步生成/磁盘 I/O 落在 tick 线程上），判据 = `MovementContext.chunkLoaded` + 读脚印闸门 + `GOAL_NOT_LOADED`；⚠️ 原措辞「内核从不加载区块」不是高确定性方案（`D-331`/`D-337` 各绕过一次）。
 5. **未知模组能力默认只读**：不猜槽位、配方或写入语义；模组兼容必须走可验证的软依赖适配器（如 `compat/ChainMining`）。
 
 ## 文档入口

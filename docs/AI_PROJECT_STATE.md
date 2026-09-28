@@ -270,8 +270,9 @@ Windows 测试目录：`D:\JAVA_projects\alice\`
 - 服务端是世界、bot、任务、权限和库存的真相。
 - **寻路红线（D-076，取代 `HARD_PATH` 旧语句）**：寻路请求默认纯通行（`PathRequest.of`）；
   破坏/放置只能由上层任务**显式授权**并受**预算闸门**约束（挖掘站位 `miningApproach` + `MiningBudget`；
-  收集 `allowWorldModification=true`）；禁止寻路器自行挖穿地形、禁止把 `SEARCH_LIMIT` 当授权、
-  禁止实验性移动模式隐式接入正式任务。
+  收集 `allowWorldModification=true`）；禁止寻路器自行挖穿地形、禁止把 `SEARCH_LIMIT` 当授权。
+- **未加载区块红线（`D-132`，措辞 2026-09-28 用户调整）**：内核**不得静默**加载区块（读未加载区块 = 同步生成 / 磁盘 I/O 落在 tick 线程上）；
+  判据 = `MovementContext.chunkLoaded` 绝不加载 + 读脚印闸门 + `GOAL_NOT_LOADED`（⚠️ 原措辞「内核**从不**加载」不是高确定性方案，`D-331`/`D-337`）。
 - `SEARCH_LIMIT` 不等于 `UNREACHABLE`，不自动授权挖隧道。
 - **Movement 落差红线（D-024）：Bot 不允许超过一格的落差**；Descend 过冲落点列必须与目标同层落脚，更深一律拒绝。
 - **假人台阶高度 = 0.6，对齐真实玩家（D-025）**；一格方块必须跳跃才能上，`BotPlayer` 构造显式 `setMaxUpStep(0.6F)`，禁止改回 1.0。

@@ -139,12 +139,12 @@ best-effort：收集不到不判 FAILED，只记日志 + 摘要。理由：掉�
 
 1. **默认**：`MineTask` 的到站位路径用 `PathRequest.of`（TRAVERSE/DIAGONAL/ASCEND/DESCEND）；
 2. **挖掘站位的授权例外**：模式 B / 浮动目标支撑用 `PathRequest.miningApproach`
-   （允许 `BREAK_AND_TRAVERSE / BREAK_AND_ENTER / PLACE_STEP_AND_TRAVERSE`，**禁用 `PILLAR / FALL / DOWNWARD`**），
+   （允许 `BREAK_AND_TRAVERSE / BREAK_AND_ENTER / PLACE_STEP_AND_TRAVERSE`；⚠️ 垂直能力以 `D-366b` 的临时让步为准：**已取消**原先对 `PILLAR / FALL / DOWNWARD` 的禁用），
    受 `MiningBudget.maxExtraBreakTicks` 限制；超预算 → `found_but_unminable`（如实失败，不静默挖隧道）；
 3. **动作层分离**：破坏由 `BlockBreakSession`（目标 + 有限清障）执行，寻路器不得自己挖；
 4. **收集子任务**：`CollectDropsTask` 默认 `PathRequest.of`，只有调用方显式 `allowWorldModification=true`
    才走 `withWorldModification`——这是**显式授权**，不与红线冲突；
-5. 禁止把 `SEARCH_LIMIT` 当授权、把不可达当"那就挖过去"、把实验性移动模式接入正式任务。
+5. 禁止把 `SEARCH_LIMIT` 当授权、把不可达当"那就挖过去"。
 
 ---
 
