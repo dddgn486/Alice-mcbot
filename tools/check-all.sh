@@ -145,6 +145,15 @@ run_gate             "check-ref-integrity"     bash tools/check-ref-integrity.sh
 run_gate             "check-step-names"       bash tools/check-step-names.sh
 run_gate             "check-job-kind-contracts" bash tools/check-job-kind-contracts.sh
 run_gate             "check-job-menu-listable" bash tools/check-job-menu-listable.sh
+# 同名类（`survey/46 §8.1`，2026-09-28 用户拍「按乙来」）：`src/main/java` 下**同名类 ⇒ 红**。
+# 起因：术语审计三轮（`survey/44/45/46`）挖到 ⚠️ **`src/` 里真的存在同名类** ——
+# `GoalSpec`（`job/` record vs `pathing/core/search/` interface）· `DecisionTrace`（`decision/` vs `job/`）。
+# ⚠️ 危险在"**靠名字找东西静默多给一半结果**"：`grep 类名` 不报错；而 `pathing` 那个只在同包里用
+#（同包 ⇒ 无 `import`）⇒ **`grep import` 根本看不见它**。
+# ⚠️ 时效：`D-478` 的 `P12/A` 要改 `job/GoalSpec` 的名字 ⇒ 改完重名"自然消失"而牙不会长出来
+# ⇒ **趁改名之前挂**（此刻有活的真树反例可验）。豁免**逐字比对路径集合** + **豁免得手也 FAIL**
+#（改名后条目得手 ⇒ 红 ⇒ 逼人删条目）。自带 1 对照臂 + 6 红臂（含 R5 `package-info` 必须**过**）。
+run_gate             "check-duplicate-class-names" python3 tools/check-duplicate-class-names.py
 run_gate             "check-far-goal-usage"   bash tools/check-far-goal-usage.sh
 # 终态执行记录接线（D-258 复核发现的 J-1/J-3）：taskKind 必须用 taskName()；terminalReason/botId 必须进快照。
 run_gate             "check-exec-record"      bash tools/check-exec-record.sh
