@@ -2249,6 +2249,54 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 
 **无 active goal**（无需 `pause`/`resume`）。上下文 42.4%（未过 50% 线）。
 
+### ⏸ 断点六（2026-09-28 · 第六次；`5b` 刀② **开工前侦察**，`src/` 未动）
+
+**本轮性质**：**只落盘计划**（`src/` 零改动 ⇒ jar 不变）。上下文当时 **52.2%**（过 50% 线）。
+⭐ **为什么先落盘不直接动码**：刀② 要动 **1314 行**的类 + **16 个调用点**（12 个文件），且 `D-493` 判 2 = **一刀一提交**
+（`2乙`「先清额度再切类」两刀已被否）⇒ 这是**一次提交**的长活。中途被压缩会丢逐字事实，所以先把侦察与形态钉住。
+
+#### ⚠️ 三处与 `D-493` 概述**不符**的实测（`HEAD = 6c479943`）
+
+| 项 | `D-493` 概述 | **实测** |
+|---|---|---|
+| `new CollectDropsTask(` 调用点 | 14 | **16**（刀① 的夹具自己添了 2 处：`fixture/CollectConservationCheckTask:501/:507`） |
+| "**4 处**调用点显式给额度" | `MineTask:548`·`LumberJob:546`·`MineJob:660`·`ChainMineDiagnosticTask:182` | ⚠️ **把"谁依赖默认"数错了**：真传 6 参（=显式额度）的只有 **3 处** = `MineTask:548`·`RestoreScopeTask:357`·`MineDropRangeCheckTask:401`；**13 处走 5 参默认**；而 `FishboneJob:1386` 是**显式传那个常量**（第 4 类） |
+| `D-495` 的 3 个硬编码 `600` | "javadoc 却说那常量是私有" | ⚠️ **javadoc 写错了**：`DEFAULT_TOTAL_BUDGET_TICKS` **本来就是 `public`**（`CollectDropsTask:64`）。所以那 3 条注释的**前提是假的**，要连口径一起改 |
+
+**`DEFAULT_TOTAL_BUDGET_TICKS` 的完整引用面**（删它要动这些）：定义 `:64` · 两个便捷构造器当默认值 `:265`/`:316` ·
+**`job/fishbone/FishboneJob.java:1386` 显式传** · **6 处 javadoc**（`CollectDropsTask:41` · `WritePolicyCheckTask:126` ·
+`CollectOffcenterRetryCheckTask:102` · `CollectSlotApproachCheckTask:150` · `MineDropRangeCheckTask:155` · `write/WriteBudget.java:80`）。
+**`SWEEP_*` 三个常量**：✅ **实测 0 外部引用**（4 处全在 `CollectDropsTask` 内）⇒ `public`→`private` **安全**。
+
+#### 形态（按 `D-493` 六甲；签名是我据判决定的两条）
+
+- **`4甲` 收敛成 2 个构造器**：
+  **① 全参 9 参** `(bot, origin, scope, expectedIds, allowWorldModification, totalBudgetTicks, gainProfile, liveDropsSource, activePickup)`
+  —— ⚠️ **尾部 5 参逐字保持现状**（形状门禁锚的就是这 5 个）⇒ 门禁**不该红**；
+  **② 便捷 7 参** `(…前 5…, totalBudgetTicks, activePickup)`（内部填 `STANDABLE_ONLY` + `liveDropsSource=null`）
+  ⇒ 删掉 `:265`/`:267`/`:290`/`:302` 四个。
+- ⚠️ **16 个调用点全部要显式给额度**（默认口没了）⇒ 12 个文件逐个显式化。
+- **`3甲`**：删 `DEFAULT_TOTAL_BUDGET_TICKS` ⇒ `FishboneJob:1386` 换成**具名值**（不写字面量）；`SWEEP_*` 3 个降 `private`。
+- **`6甲`**：新建 `task/collecting/CollectStep`（原子 = **一簇的一次作业**：走到簇锚点 + 等这簇被吸走 + 计数 + 该簇锚点重试）· `CollectDropsTask` 改委托 · 主类名不动。
+- **`D-495` 处置**：3 处照抄值改成**各自的具名常量**（常量将被删 ⇒ 不能再声称"照抄"）并改注释口径。
+
+#### ⚠️ 两道网怎么处置（`D-497` 刀① 留下的）
+
+1. `arg[5]` 非空但**不认常量名** ⇒ 把 `FishboneJob:1386` 的常量换成具名值 ⇒ **不会假红**（设计如此 ✓）。
+2. 形状门禁**从右锚定 5 个尾参** ⇒ 我**保持** 9 参全参构造器的尾部**逐字不变** ⇒ **不该红**。
+   **若它红了 = 我确实改了形状** ⇒ 那不是故障，是逼我显式决定"新形状还保不保得住那 5 条"，确认保住就同步更新门禁并写明理由。
+
+#### 拆完必须显式声明的未覆盖清单（照 `D-466` §八）
+
+**批量收集**（`1.4y-B/C`；⚠️ 覆盖它要驱动**已冻结的鱼骨线** ⇒ **仍待裁**）· **锚点放弃路**（`retire`/`unreachable`）·
+**`SWEEP_*` 预算公式路**（`:89`）· `ChainMineDiagnosticTask:182` 走默认额度那条（模组不在场 ⇒ 恒 SKIP）· `/alice mine` 顶层路径。
+
+#### 动完必跑（`D-493` 收口 + 硬约束）
+
+`core` **逐步 diff 零变化** · `ALICE_HEADLESS=1 tools/check-all.sh` · `single:mine_regression` · `check-underfoot-safety` ·
+⚠️ **`D-466` §八**：**动 `MineTask` 时连锁段必须逐字保留**（`D-471` 冻结）；`D-466` 判 3（D1/D2）要求额度**来源=构造参数**、
+**消费点=具名清单且条目数恰好 1** ⇒ `CollectStep` 里要给出那一处。
+
 ### ⚠️ 断点五之后的**插曲**（2026-09-28，用户「中间穿插一下，看看勘测报告」）
 
 用户让先拉取 ⇒ 远端来了 **4 个提交**：勘测侧的**术语审计三轮** `survey/44/45/46`（`44 §8` 是**当天追记 `D-497`** 的）。
