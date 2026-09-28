@@ -1,5 +1,10 @@
 # 交接断点（HANDOVER）—— 2026-09-23 晚 收口（`B3` 能力清单 + `D-420` 裁定）
 
+> ⚠️ **消歧（2026-09-28，台账 `O12`）**：本文件是**断点日志**（每把刀更新），**与下面那两个不是一回事** ——
+> `docs/archive/legacy-workflow/HANDOVER.md`（439 行）与 `docs/archive/legacy-workflow/SUPERVISOR_HANDOFF.md`
+> 是 **agent-bus 监督工作流**的旧交接文档，已随 `D-008`（状态：稳定）**归档**。
+> ⚠️ 全仓「`HANDOVER`」共 **107 处**引用，含义依上下文而定；**活的那个 = 本文件**。
+
 > # ▶▶▶ 压缩后**先读这一段**（2026-09-23；最后提交见 `git log -1`）
 >
 > **⚙ 状态**：**CORE = 41 步**（BASELINE 15 + MAIN 26 · EXTRA 52）。最新一轮 CORE = **`passed=41/41 skipped=0 → PASS`**

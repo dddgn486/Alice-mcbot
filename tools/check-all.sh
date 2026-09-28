@@ -129,6 +129,16 @@ run_gate             "check-risk-surface" bash tools/check-risk-surface.sh
 # 起因：`survey/29 §3.8⑥` 要求"结构上不可能分叉"，而活体反例就在 `docs/BATTERY_CURATION.md` §2
 #（手写清单的小节计数 15/35/15 vs 真值 15/26/52，靠人读才发现）。
 run_gate             "check-capability-list" bash tools/check-capability-list.sh
+# 决策索引不许与 `AI_DECISIONS.md` 分叉（台账 `O12`，2026-09-28 用户拍「③ 入口一刀」）。
+# 起因：`AGENTS.md` 原文让每个会话「先读 `AI_DECISIONS.md`」，而它是 **23,616 行 / 1,225,967 字符**
+# ⇒ 粗估 **0.6M–1.2M tokens** ⇒ **读不进 512K 窗口** ⇒ **那条启动指令按字面不可满足**；
+# 而它又是**唯一**的规则出处（找不到前置裁定 ⇒ 重复立法，活例 `D-455` 漏引 `D-080`）。
+# ⚠️ 两个它**不是**：① 不是"规则的替代"（是索引，正文仍去 `AI_DECISIONS.md`）
+# ② 不是"哪些决策已废弃"的权威（`状态` 只覆盖 **18%**，`—` = 没写，**不等于废弃**）。
+# 牙齿 = 人口下限（解析崩塌即红）+ 逐字节新鲜度（陈旧即红）。
+# ⚠️ 顺带钉住一个数字：**决策编号 492 个**（`##` 独有 114 + `###` 独有 331 + 两者都有 47）
+#   —— 只数 `###` 会**漏 114 个**；⚠️ 那个错勘测侧犯过、**我在 `O12` 初版也犯了一次**。
+run_gate             "check-decisions-index" bash tools/check-decisions-index.sh
   # G3（2026-09-21 用户裁定「这不是小事」）：架构红线必须带门禁指针，或带**复核触发**的「未门禁」标记。
   # 起因：6 条红线里只有 D-076 真被门禁覆盖，而 D-374 恰落在零门禁的 D-036 上 ⇒ 没人会因此变红。
 run_gate             "check-redline-gates"   bash tools/check-redline-gates.sh

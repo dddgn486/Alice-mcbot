@@ -5,7 +5,7 @@ Alice 是 Minecraft Forge 1.20.1 项目。这里的规则用于帮助 AI 在会�
 ## 每次会话先做
 
 1. 确认仓库路径和 Git 状态；
-2. 阅读 `docs/AI_PROJECT_STATE.md`、`docs/AI_DEVELOPMENT_PLAYBOOK.md`、`docs/AI_DECISIONS.md` 和 `docs/AI_TEST_MATRIX.md`；
+2. 阅读 `docs/AI_DEVELOPMENT_PLAYBOOK.md`、`docs/AI_TEST_MATRIX.md` 与 `docs/AI_PROJECT_STATE.md`（⚠️ 后者头部"更新时间"已落后于内容 ⇒ **"当前状态"以 `docs/HANDOVER.md` 断点 + `docs/OPEN_ITEMS_LEDGER.md` 进度行为准**）；⭐ `docs/AI_DECISIONS.md` **23,616 行 / 1.23M 字符 ⇒ 读不完（超窗）** ⇒ **改读生成物 `docs/DECISIONS_INDEX.md`**（492 条决策的索引：找到编号 ⇒ 只读那一条正文），有门禁 `check-decisions-index`；
 3. 根据技术领域读取 `.alice-supervision/skills/` 中相关 skill：
    - 设计/修改测试入口、测试物品、数据包场景、自检夹具 → **`alice-scene-based-testing`（必读）**
    - 设计/修复寻路、移动、路径执行、自愈、超时、世界交互 → **`alice-baritone-kernel-alignment`（必读）**
@@ -25,8 +25,8 @@ Alice 是 Minecraft Forge 1.20.1 项目。这里的规则用于帮助 AI 在会�
 
 ## 规则与流程的准入尺子（2026-09-14 用户确认，**净增≈0**）
 
-> 背景：`docs/` 已 **28,877 行**（≈主代码 47%）、**30% 的 commit 只碰文档/规则**、而**有牙的判定只有 34 项**（= `check-all` 一次跑完的检查项；其中 `tools/check-*` 门禁脚本 **31** 道，不含 runner `check-all.sh` 自己）
-> ⇒ **这 34 项之外的规则，全部靠"人记得"**（⚠️ 原句「139 条规则对 8 道门禁 ⇒ ≈95%」的**两个数今天都不可复算**：`8` 只是过期、`139` **从来没有口径** ⇒ **不再给比例**）。散文规则成本随规则总数**线性增长**（注意力是常数）；可执行规则不失败时成本为 **0**
+> 背景：`docs/` 已 **28,877 行**（≈主代码 47%）、**30% 的 commit 只碰文档/规则**、而**有牙的判定只有 35 项**（= `check-all` 一次跑完的检查项；其中 `tools/check-*` 门禁脚本 **32** 道，不含 runner `check-all.sh` 自己）
+> ⇒ **这 35 项之外的规则，全部靠"人记得"**（⚠️ 原句「139 条规则对 8 道门禁 ⇒ ≈95%」的**两个数今天都不可复算**：`8` 只是过期、`139` **从来没有口径** ⇒ **不再给比例**）。散文规则成本随规则总数**线性增长**（注意力是常数）；可执行规则不失败时成本为 **0**
 > ⇒ 本项目**不再默认增加散文规则**。
 
 **一条规则该不该存在，问三问**（三条都不满足 ⇒ 不加，且下次整理时默认删除）：
