@@ -2195,3 +2195,45 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 批 1–4（声明面重构 → 逐项消费 → 结构大件 → 第一层目标）· **批 5 三桶分离**（规矩 R1–R6 已定，**R4 今天起生效**，迁移一口气做）。
 
 **无 active goal**（无需 `pause`/`resume`）。⚠️ 上下文已过 50% 线，用户将 `/compact` ⇒ **压缩后直接从"刀① 两项"开工**。
+
+## ⏸ 断点（2026-09-28 · 第五次；用户：「都按你推荐的方案来」= 四叉全甲）
+
+**本轮性质**：`src/` **有改动** ⇒ **jar 变了、客户端需重同步**（`./tools/mirror-windows-workspace.sh` + `sync-windows-artifact.sh`）。
+**一刀一提交**：本条对应 `D-497`。⚠️ **本刀的验证只到 `SERVER_TESTED`** —— 夹具在无头服务端 4 次实测（3 红 + 1 绿）全在服务端，
+**客户端未测**（也不需要：本刀不改行为、无渲染/物理/交互面）。
+
+### ✅ `5b` 刀①（夹具先行）**已完成** —— `D-497`
+
+四项落地（`A甲`/`B甲`/`C甲`/`D甲` 全甲）：
+
+| 项 | 产物 |
+|---|---|
+| `A甲` | `CollectDropsTask`：`public record ConservationReading(delta, expected, startSum, remaining, mismatch)` + `lastConservation()` + `mismatchTotal()`；`endCluster` **判定与读数同源** |
+| `B甲` | `fixture/CollectConservationCheckTask`（**四臂**：丢落物 / 塞背包 / **负对照** / 与生产同形状）· 新步 `collect_conservation`（EXTRA，挂 `PickupModule`）+ `CURATION` |
+| `C甲` | `tools/check-collect-callsite-shape.py`（1 对照臂 + 7 合成红臂）⇒ `check-all` **32 → 33** |
+| `D甲` | 夹具进 `fixture/`（`R4` 首次适用）+ `fixture-hygiene.py` 的 `SOURCE_ROOTS` 加 `fixture/` ⇒ 夹具 **92 → 93** |
+
+**验收（全部实测）**：绿跑 `single:collect_conservation` `verdict=PASS`（106 tick，四臂读数逐条对上）·
+红臂 `R-a`（去结构化记录）**恰好 4 条**红 · 红臂 `R-b`（去计数）**恰好 2 条**红 —— **互不替代**（`D-497` §红臂）·
+`ALICE_HEADLESS=1 bash tools/check-all.sh` ⇒ **`pass=33 warning=0 failed=0`** ·
+`core` **43 步逐条 verdict 相同**（SUMMARY 只差 `extra_skipped 61→62`（必然）与 `ticks 4600→4591`（抖动））。
+
+⭐ **刀① 顺带修掉 3 个静默失败**（全在夹具侧）：`scope.begin` 默认 `inheritDrops=true` 的继承语义 ·
+造物点落在场地外（报错指错方向）· 我自己的 `SUMMARY` 标签错位。三条都写进 `D-497`，其中
+`scope.begin` 那条登记为台账 **`O9`**（**观察，不处置**；复核触发 = 一次「我方产物收不到且查不出原因」的实测）。
+
+### ⏭ 下一步 = `5b` 刀②（**主体刀**，未开工）
+
+新建 `task/collecting/CollectStep` + `CollectDropsTask` 改委托 + 额度清零 + **构造器 6 → 2**（`D-493` 六甲）。
+⚠️ **两道新网会参与刀②，都要显式处置**：
+1. 形状门禁断言「`arg[5]` 非空」但**不认常量名** ⇒ 删 `DEFAULT_TOTAL_BUDGET_TICKS` **不会**让它假红（**这是设计**，`C甲` 的边界）；
+2. 形状门禁**从右锚定 5 个尾参** ⇒ 若 `4甲` 重排构造器形状，它会红 —— **那是特性不是故障**（逼人显式决定"新形状是否还保得住那 5 条"；确认保住就同步更新门禁并写明为什么）。
+⚠️ 硬约束：`D-466` §八（**动 `MineTask` 时连锁段逐字保留** · `D-471` 冻结）；动完必跑 `check-underfoot-safety` + `single:mine_regression`。
+⚠️ `3甲` 还要一并处置 `D-495` 查出的「**3 个夹具照抄 `600`**」（javadoc 却说那常量是私有）—— 读真值或删副本。
+
+### 其余队列（不变）
+
+`-2a`（删 `BotManager` 12 处创造；`BotCommand` = 生产口已裁）· 批 0 其余（`P9/A` · `P16-1` · `P11/A` · `P4.1/A`）·
+批 1–4（声明面重构 → 逐项消费 → 结构大件 → 第一层目标）· **批 5 三桶分离**（规矩 R1–R6 已定，**R4 已首次生效**，迁移一口气做）。
+
+**无 active goal**（无需 `pause`/`resume`）。上下文 42.4%（未过 50% 线）。

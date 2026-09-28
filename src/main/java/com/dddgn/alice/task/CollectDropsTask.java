@@ -188,6 +188,17 @@ public final class CollectDropsTask implements Task {
     private int unreachableCount;
     private int pickupTimeoutCount;
     private int mismatchCount;
+    /**
+     * ⭐ **最近一次结束的簇的守恒读数**（`step 5b` 刀①，2026-09-27）。
+     *
+     * <p><b>为什么必须有它</b>：`mismatchCount` 是**累计**的，只能回答"记过几笔"，
+     * 回答不了"记的那笔**数的是不是那件事**"。而在此之前，这两个量的**唯一**读取路径是
+     * {@link #finish(String)} 拼出来的 `SUMMARY` **展示串** —— 正是 `D-329 ⑤.3` 明令禁止
+     * 判定去读的那种（展示串可以随文案调整而变，判定不能跟着变）。
+     *
+     * <p>{@code null} = 本任务还没有任何簇结束过（不是"守恒成立"—— 那要读 {@code mismatch=false}）。
+     */
+    private ConservationReading lastConservation;
     /** 被 `DropPolicy` 拒绝而留下的掉落物数（J-10：与 unreachable/timeout 分开记）。 */
     private int policyBlockedCount;
     /**
@@ -378,6 +389,54 @@ public final class CollectDropsTask implements Task {
      */
     public int goalExcludedTotal() {
         return goalExcludedCount;
+    }
+
+    /**
+     * ⭐ `step 5b` 刀①（2026-09-27）：**守恒校验的累计命中次数**（`delta != expected` 的簇数）。
+     *
+     * <p>与 {@link #lastConservation()} 是**两个不同的问题**，夹具两条都要断言：
+     * 本方法答"**记过几笔**"，后者答"**记的那笔数的是不是那件事**"。
+     * 只断言本方法 ⇒ 一个"每簇无脑 +1"的实现照样全绿（`silent-measurement-failure` 规则 3）。
+     */
+    public int mismatchTotal() {
+        return mismatchCount;
+    }
+
+    /**
+     * ⭐ `step 5b` 刀①（2026-09-27）：**最近一次结束的簇**的守恒读数（没结束过簇 ⇒ `null`）。
+     *
+     * <p><b>为什么不是"总和"而是"最近一次"</b>：守恒式 `增量 == 起始 stack 总和 − 结束剩余 stack 总和`
+     * 是**逐簇**成立的（`clusterStartSum` / `remaining` 每簇重建），把它们跨簇相加没有物理含义。
+     * 需要跨簇累计就看 {@link #mismatchTotal()}。
+     *
+     * <p>这是**判定面**，不是展示面：`SUMMARY` 那行字符串与本读数**同源**（同一处构造），
+     * 所以不存在"日志说 A、判定读 B"的缺口（`D-329 ⑤.3`）。
+     */
+    public ConservationReading lastConservation() {
+        return lastConservation;
+    }
+
+    /**
+     * **一次簇扫描结束时的守恒读数**（`step 5b` 刀①）。
+     *
+     * <p>守恒式：`delta == expected`，其中 `expected = startSum - remaining`。
+     *
+     * <p>三项失配的物理含义（真机语料里三种都出现过，`47 / 1121` 份日志带 `MISMATCH`）：
+     * <ul>
+     *   <li>`delta &lt; expected`：有东西**没进包就消失了**（被他人/他 bot 拾取、实体被合并、被清除）
+     *       —— 真机样本 `delta=0 expected=1 startSum=3 remaining=2`；</li>
+     *   <li>`delta &gt; expected`：**同类型物品从别的渠道进了包**（另一条链路/上一个任务的残留）
+     *       —— 真机样本 `delta=5 expected=4 startSum=4 remaining=0`；</li>
+     *   <li>相等：守恒成立（**这才是负对照**，见 `CollectConservationCheckTask` 臂③）。</li>
+     * </ul>
+     *
+     * @param delta     背包增量口径的**实际**进包数（各类型 `countInInventory` 增量之和）
+     * @param expected  守恒式算出的**应收**数（`startSum - remaining`）
+     * @param startSum  本簇开始时全部成员的 stack 数量之和
+     * @param remaining 本簇结束时**仍在 `liveById` 里**的成员 stack 数量之和
+     * @param mismatch  `delta != expected`（= 判定本体；与 `mismatchTotal()` 用的是同一个谓词）
+     */
+    public record ConservationReading(int delta, int expected, int startSum, int remaining, boolean mismatch) {
     }
 
     /**
@@ -986,7 +1045,11 @@ public final class CollectDropsTask implements Task {
         int expectedGain = clusterStartSum - remaining;
         collectedItems += Math.max(0, delta);
         clustersSwept++;
-        if (delta != expectedGain) {
+        // ⭐ `step 5b` 刀①：**判定与读数同源** —— 下面这一个 record 既是日志/SUMMARY 的来源，
+        // 也是夹具/门禁断言的来源 ⇒ 两边不可能各自漂移（`D-329 ⑤.3`）。
+        lastConservation = new ConservationReading(delta, expectedGain, clusterStartSum, remaining,
+                delta != expectedGain);
+        if (lastConservation.mismatch()) {
             mismatchCount++;
             BotLog.warn("[CollectDrops] MISMATCH anchor={} delta={} expected={} startSum={} remaining={}"
                             + "（同类型被他人拾取/重复生成/背包满/统计漏洞）",

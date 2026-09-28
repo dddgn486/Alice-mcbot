@@ -23538,3 +23538,79 @@ fixture/（开发期）→ 可引用 debug/              ← 夹具复用调试�
 | ✅ **守恒 `MISMATCH` 结构化 + 夹具** | 把 `MISMATCH`（`CollectDropsTask:991` 今天只是 `BotLog.warn`）**提为结构化读数**（计数器/字段），**再由夹具断言该读数** —— 照 `D-329 ⑤.3`（**判定永不读展示串**）。触发设计：夹具在收集过程中 **`discard()` 掉一件地面落物**（⇒ `delta=0` 而 `expected≥1`）或**给背包塞一件同类**（⇒ `delta>expected`）。 |
 | ✅ **`丙` 形状 pin** | 静态门禁 + 形状夹具（见上） |
 | ❌ `activePickup` | **不补**（`D-494` 已纠正：`PickupGateCheckTask` 主动臂**已有正臂 + 负对照**） |
+
+### D-497：`5b` 刀① 落地 —— 守恒读数结构化 + 四臂夹具 + 调用点形状门禁（`A甲`/`B甲`/`C甲`/`D甲` 全甲）
+
+> 用户 2026-09-27：「这些我都看完了，**都按你推荐的方案来**」（= 四个子叉全甲）
+
+#### ⚠️ 前提纠正（推翻 `D-496` 里那句「`MISMATCH` 今天只是 `BotLog.warn`」）
+
+`MISMATCH` 的**计数器早就在**：`CollectDropsTask:190` `private int mismatchCount;` · `:990` `mismatchCount++`。
+缺的**不是计数器**，是**结构化读取口** —— 它唯一的读取路径是 `:1235` 把它拼进 `SUMMARY` 的**展示串**，
+正是 `D-329 ⑤.3` 明令禁止判定去读的那种。⇒ 本刀工作量比 `D-496` 写的小。
+（教训与 `D-495` 同族：**「只是 `BotLog.warn`」这种断言也必须先读生成方**。）
+
+#### 落地内容
+
+| 子叉 | 落地 |
+|---|---|
+| `A甲` | `CollectDropsTask` 新增 `public record ConservationReading(int delta, int expected, int startSum, int remaining, boolean mismatch)` + `lastConservation()`（没结束过簇 ⇒ `null`）+ `mismatchTotal()`；`endCluster` 改成**判定与读数同源**（`lastConservation.mismatch()` 同时驱动 `mismatchCount++` 与那行 warn）⇒ 展示串与判定面**不可能各自漂移**。record 取 `public`（夹具在 `fixture/` 包外 ⇒ 不能照 `ApproachReading` 那样用包可见） |
+| `B甲` | 新夹具 `com.dddgn.alice.fixture.CollectConservationCheckTask`（**四臂**：① `DISCARD` 丢远的那件 ⇒ `delta < expected` ② `INJECT` 塞 3 件同类进背包 ⇒ `delta > expected` ③ `CONTROL` **负对照** ⇒ 必须**不报** ④ `SHAPE` 与生产调用点**同形状**）· 挂 `PickupModule` 新步 `collect_conservation`（EXTRA）+ `CURATION` 登记 |
+| `C甲` | 新门禁 `tools/check-collect-callsite-shape.py`（9 实参 + **从右锚定** 5 个形状：`false` / 非空额度 / `STANDABLE_ONLY` / `null` / `PRODUCT_FILTER::matches`）· **1 对照臂 + 7 合成红臂** ⇒ `check-all` **32 → 33** |
+| `D甲` | 夹具进 `com.dddgn.alice.fixture`（**R4 首次适用**）+ `tools/fixture-hygiene.py` 的 `SOURCE_ROOTS` **加 `fixture/`**（否则新夹具**逃出**夹具卫生门禁；实测既有 `fixture/transfer/*.java` 不匹配 `(Check|Probe)\w*Task\.java$` ⇒ 不改变今天的命中数）⇒ 夹具 **92 → 93** |
+
+#### ✅ 红臂实测（`D-254`：判据自己必须先被反向对照）
+
+| 注入 | 结果（**精确归因**） |
+|---|---|
+| `R-a` 去掉 `lastConservation = …`（保留 `mismatchCount++`） | **FAIL**，红的**恰好 4 条** = 臂①②③「读数拿得到」+ 臂④「守恒成立」 |
+| `R-b` 去掉 `mismatchCount++`（保留 record） | **FAIL**，红的**恰好 2 条** = 臂①/②「累计失配计数 = 1」 |
+
+⇒ ⭐ **两半测的是不同的事**（这正是 `A甲` 要 record 而不止要计数器的理由）：
+`R-a` 红时「计数」那两条**仍绿**、`R-b` 红时「读数」那四条**仍绿** —— 谁也不能替代谁。
+⇒ ⭐ 顺带实证 **臂③ 单独不足以杀死坏计数器**：`R-b` 下臂③「计数 = 0」**依然绿**（空绿）——
+它只有配上臂①② 才有意义。这就是 `B甲` 坚持三臂的原因，现在是实测数字而不是推理。
+
+#### 🐛 本刀实测踩到并修好的**三个静默失败**（全部在夹具侧，生产代码未受损）
+
+1. **`scope.begin(center, radius, owner)` 默认 `inheritDrops = true`**（最贵的一个，连续两轮假红）。
+   `D-124` 的继承语义只搬 `spawnedItems` + `itemOrigins`；夹具**每臂**重开区间 ⇒ 第 2 臂起：
+   `/summon` 造出的落物**已被生成事件登记进 `spawnedItems`**（但还没配到 `itemOrigins`）
+   ⇒ 被「继承」进新窗口 ⇒ ① `adoptExistingDrops` 见它已在 `known` 里 ⇒ **静默跳过**（`adopted=0`）
+   ② `liveDrops()` 要求 `itemOrigins != null` ⇒ **看不见它**（臂④ `clusters=0`）
+   ③ 没有 `OURS_DIRECT` ⇒ `DropPolicy` 拦拾取（`policy_blocked=1`、物品留地上 `remaining=1`）。
+   第 1 臂因 `active == false`（无旧窗口可继承）而**侥幸通过** ⇒ 表现成「三条臂假红」。
+   **修** = 显式 `begin(..., false)`（= `D-124` javadoc 自己说的那个**「干净区间」**语义）。
+2. **造物点落在场地外**：第一版把臂④ 的圆石放在 `+7` 格（`FLOOR_HALF_X = 6`）
+   ⇒ ① 那一列**没有地板**、落物直接掉出场景 ② 也超出计数盒（盒 maxX = `+7`，物品中心在 `+7.5`）
+   ⇒ 夹具报的是「**落物没落地**（实际 1/应 2）」——**指错方向**。
+   **修** = 改成沿 **z** 偏 3 格 + 新增几何前提自证 `cellsInArena()`（`§6.9.1` ① 那条
+   "放种子的位置必须**落在盒内**，不是按'起点+偏移'想当然"，即 `D-179` 同族）。
+3. **我自己的 `SUMMARY` 标签错位**：`mismatchByArm.add(arm() + …)` 写在 `armIndex++` **之后**
+   ⇒ 每个标签指向**下一臂**（实测打出 `[INJECT=1,CONTROL=1,SHAPE=0,SHAPE=0]`，而真相是
+   `[DISCARD=1,INJECT=1,CONTROL=0,SHAPE=0]`）。**数是对的、标签是错的** —— `silent-measurement-failure` 那一族。
+   **修** = 标签在自增前取。另加跨臂累计字段（原先 `SUMMARY` 读的是**每臂复位**的字段 ⇒
+   打出 `discarded=0`，把「臂① 明明丢了落物」读成「根本没干扰」）。
+
+#### 判据与验收（全部实测）
+
+- 绿跑：`single:collect_conservation` **`verdict=PASS`**（106 tick）· 四臂读数逐条对上
+  （`discard(delta=1,expected=2)` · `inject(delta=4,expected=1)` · `control(delta=1,expected=1)` ·
+  `shape(iron=1,cobble=0,cobble_left=1)`）· 收尾三条（方块还原 / 落物收回 / 背包复位）全绿。
+- `ALICE_HEADLESS=1 bash tools/check-all.sh` ⇒ **`pass=33 warning=0 failed=0`**（32 → 33）。
+- `core` **逐步 diff 零变化**：43 个 CORE 步**逐条 verdict 相同**；SUMMARY 里只有两个差
+  （`extra_skipped=61 → 62` = 多一个 EXTRA 步被跳过的**必然**结果；`ticks 4600 → 4591` = 既有的计时抖动）。
+
+#### 未覆盖声明（照 `D-496` 要求写进夹具类注释）
+
+批量收集的**结构边界触发时机**（`requestBatchCollect` / `batchCollectDue` / `CollectKind.PERIODIC`）·
+`SWEEP_*` 额度公式路径（`:89`）· 锚点退役路径（`retire`/`unreachable`）·
+`ChainMineDiagnosticTask:182` 默认额度路径（模组缺席 ⇒ 永久 SKIP）· `/alice mine` 顶层路径 —— **均未覆盖**。
+
+#### 观察（登记，**本刀不处置**）
+
+`begin(inheritDrops = true)` 会把 `spawnedItems` 里**没有 `itemOrigins`** 的项一并搬进新窗口
+（`begin` 清 `itemOrigins`、但 `itemProvenance` 只在 `get`/`put` 侧累积而**不清**）
+⇒ 那些项在新窗口里对 `liveDrops()` 与 `adoptExistingDrops` **都不可见**（两者都要求 origin）。
+本刀只把它当作「夹具必须显式要干净区间」的理由；**它是不是生产侧问题，本刀没有证据**。
+**复核触发** = 出现一次「我方落的产物收不到、且查不出原因」的实测。

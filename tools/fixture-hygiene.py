@@ -50,8 +50,13 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+# ⭐ `D-492` R4（新写的测试类**直接放对包**）+ `D-496` 丙（用户 2026-09-27 拍「全甲」）：
+# 第一批夹具落进 `com.dddgn.alice.fixture` ⇒ 若不同步加这一行，它们会**逃出本门禁**
+#（"夹具必须 `return` DONE/FAILED、命名像夹具"这些断言就管不到新夹具了）。
+# 实测（2026-09-27）既有 `fixture/transfer/*.java` **不匹配**下面的 `FIXTURE_NAME` ⇒ 加进来不改变今天的命中数。
 SOURCE_ROOTS = [ROOT / "src/main/java/com/dddgn/alice/task",
-                ROOT / "src/main/java/com/dddgn/alice/job"]
+                ROOT / "src/main/java/com/dddgn/alice/job",
+                ROOT / "src/main/java/com/dddgn/alice/fixture"]
 
 # 自检夹具的命名形态（它们产出 SUMMARY、被电池当一步跑）
 FIXTURE_NAME = re.compile(r"(Check|Probe)\w*Task\.java$")

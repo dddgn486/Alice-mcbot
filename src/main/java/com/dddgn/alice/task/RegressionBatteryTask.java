@@ -370,6 +370,12 @@ public final class RegressionBatteryTask implements Task {
             // 的那一格、但**离心 0.49** 站着（真机第七/八轮那一幕）⇒ 必须排除该格、取次优、真的捡回来；
             // 顺带钉 `approach_probe` 与 `pickupGoalFor` **枚举同一批格**（含 `dy=-1` 层，真机误读的成因）。
             Map.entry("collect_offcenter_retry", Profile.EXTRA),
+            // ⭐ `step 5b` 刀①（`D-496` 丙，2026-09-27）：**掉落物守恒（`MISMATCH`）的结构化读数**。
+            // 四臂：① 丢落物（`delta < expected`）② 塞同类进背包（`delta > expected`）
+            // ③ **负对照**（不干扰 ⇒ 必须不报）④ **与生产调用点同形状**（清单内收得到/清单外不专门收）。
+            // ⚠️ 臂③ 不可省：①② 只断言「记了」，一个「每簇无脑 +1」的实现也全绿。
+            // EXTRA（自建空中孤岛、自己传送、失败路径也复位）。
+            Map.entry("collect_conservation", Profile.EXTRA),
             Map.entry("recipes_dump", Profile.EXTRA),
             Map.entry("event_thresholds", Profile.EXTRA),
             // **D-319**：假人归属（创建者登记）—— 它是将来"继承创建者身份/权限"的地基，错了会以

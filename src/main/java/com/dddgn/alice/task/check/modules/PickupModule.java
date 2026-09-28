@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * **掉落物模块（R-2 第十五片，3 步）**：⭐ `scope_pending_grace`(EXTRA) · `pickup_gate`(EXTRA)
+ * **掉落物模块（R-2 第十五片）**：⭐ `scope_pending_grace`(EXTRA) · `pickup_gate`(EXTRA)
  * · `collect_job`(EXTRA) —— 都是 **EXTRA**；`scope_pending_grace` = `D-348`（登记被推迟的现场取证）。
  *
  * <ul>
@@ -114,7 +114,17 @@ public final class PickupModule implements CheckModule {
                 // （范围内玩家丢的东西、范围外的产物都必须仍不碰），臂④ 钉"撤销即关"。
                 CheckStep.of("job_area_grant", CheckProfile.EXTRA, List.of(), null,
                         () -> new com.dddgn.alice.task.JobAreaGrantCheckTask(bot, observer),
-                        900));
+                        900),
+                // ⭐ `step 5b` 刀①（`D-496` 丙，用户 2026-09-27 拍「全甲」）：**掉落物守恒
+                // （`MISMATCH`）的结构化读数**。四条臂：① 丢掉一件落物（`delta < expected`）
+                // ② 往背包塞同类（`delta > expected`）③ **负对照**（不干扰 ⇒ 必须不报 ——
+                // 没有它，一个「每簇无脑 +1」的实现也全绿）④ **与生产调用点同形状**那条
+                // （清单内收得到 / 清单外不专门收）。自建空中孤岛 + 自己传送 + 失败路径也复位
+                // ⇒ `List.of()`。⚠️ 它**不覆盖**「批量收集的触发时机」，也**不覆盖**「生产实参被改坏」
+                // —— 后者由 `tools/check-collect-callsite-shape.py` 那半条静态门禁钉住。
+                CheckStep.of("collect_conservation", CheckProfile.EXTRA, List.of(), null,
+                        () -> new com.dddgn.alice.fixture.CollectConservationCheckTask(bot, observer, scope),
+                        1800));
     }
 
     /** 传送到统一起点（与电池 `teleportBot` 逐字段一致 ✓；顺带起"先热区块再 fill"的作用 ✓）。 */

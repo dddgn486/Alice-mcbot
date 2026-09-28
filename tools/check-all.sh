@@ -190,6 +190,14 @@ run_gate             "check-task-orchestration-split" python3 tools/check-task-o
 # ③ 提到它的文件**恰好**是登记的那 5 个（多一个 = 冻结期间又长出去了）。
 # 自带 5 条合成红臂 + 3 条真树红臂。
 run_gate             "check-frozen-code" python3 tools/check-frozen-code.py
+# 批量收集调用点的**实参形状**（`step 5b` 刀① / `D-496` 丙①，2026-09-27）：`FishboneJob` 起批量收集时
+# 传的 5 个实参（`worldMod=false` / 显式额度 / `STANDABLE_ONLY` / 候选源 `null` / 清单 `PRODUCT_FILTER::matches`）
+# 每一个被改坏都**照样编译、照样跑、没有一行报错**，而**行为夹具抓不到**（夹具传的是它自己的实参：
+# 生产改成 `true`，`CollectConservationCheckTask` 臂④ 照样绿）⇒ 这一半只能靠**读文本**。
+# ⚠️ 命门：`FishboneJob` 里 `PRODUCT_FILTER::matches` 有 **3 处**，其中 `:571`/`:1308` 是 `MineTask` 的实参
+#（形状几乎一样）⇒ 锚错就会被它们满足 = **假绿**。合成红臂 R6 专门钉这一条；另有 R1~R5/R7 + 1 对照臂。
+# ⛔ 不断言额度的值/常量名（`3甲` 要删那个常量）、不断言调用时机、不断言行为。
+run_gate             "check-collect-callsite-shape" python3 tools/check-collect-callsite-shape.py
 # 原语读数（`J-★` 第 6 段 step 5 / `D-463`，2026-09-27）：拆 `MineTask` / `CollectDropsTask` 前，
 # **先把 4 个验收读数的定义钉死**（`Phase 值数 / 额度词数 / 构造器数 / 行数`）——
 # 实测发现台账原登记的那组数（`8/47/5/975` · `0/16/6/1250`）**11 种口径都复现不出来**。
