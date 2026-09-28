@@ -78,8 +78,11 @@ PRIMITIVES = ("MineTask", "CollectDropsTask")
 
 #: 防"文件被搬走 / 被截断 / 正则崩了"（实测 970 / 1251）。
 MIN_LINES = 200
-#: 防"方法正则崩了"（**实测 48 / 48** —— ⚠️ 这个数曾被宽正则量成 151/175，别退回宽式）。
-MIN_METHODS = 30
+#: 防"方法正则崩了"（⚠️ 这个数曾被宽正则量成 151/175，别退回宽式）。
+#: ⚠️ **它会随拆类下降**（`step 5b` 刀②：`CollectDropsTask` 从 48 掉到 26 —— 方法搬进了新原语
+#: `task/collecting/CollectStep`）⇒ 它是**下限**（"正则崩了会量出 ~0"），不是"这个数本身"。
+#: 实测（2026-09-27，`5b` 刀② 后）：`MineTask 48` · `CollectDropsTask 26`。
+MIN_METHODS = 20
 
 #: 额度词：**标识符里含**这些子串（不分大小写）⇒ `MiningBudget` / `WriteGrant` / `clearBudget` 都算。
 BUDGET_SUBSTR = re.compile(r"(budget|grant|quota|额度)", re.I)

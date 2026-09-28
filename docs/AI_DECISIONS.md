@@ -23614,3 +23614,91 @@ fixture/（开发期）→ 可引用 debug/              ← 夹具复用调试�
 ⇒ 那些项在新窗口里对 `liveDrops()` 与 `adoptExistingDrops` **都不可见**（两者都要求 origin）。
 本刀只把它当作「夹具必须显式要干净区间」的理由；**它是不是生产侧问题，本刀没有证据**。
 **复核触发** = 出现一次「我方落的产物收不到、且查不出原因」的实测。
+
+### D-498：`step 5b` 刀② **落地** —— `CollectStep` 原语切出 + 默认额度口清零（`D-493` 六甲执行）（2026-09-28）
+
+> 拍点全文 = `D-493`（六条全甲）· 开工前侦察 = `docs/HANDOVER.md` 断点六 · 拆法评审稿 = `docs/reviews/2026-09-27-step5b拆法待拍.md`。
+> 本条是**落地记录**：六甲怎么执行的 · 实测与概述**不符**的地方 · 门禁**为什么**跟着改了。
+
+#### 六甲执行对照
+
+| 拍点 | 裁定 | 实测落地 |
+|---|---|---|
+| 1 边界 | `1甲` 原子 = 一簇的一次作业 | ✅ 新 `task/collecting/CollectStep.java`（**一簇**：锚点规范化 ＋ 换锚点重试 ＋ 等落定 ＋ 等原版吸附 ＋ 加高 ＋ 簇预算 ＋ 症状上报）；编排器留**候选收集 ＋ 聚类 ＋ 逐簇迭代 ＋ 总预算 ＋ 守恒交叉校验 ＋ 摘要** |
+| 2 切法 | `2甲` 一刀一提交 | ✅ **一次提交**；主类名 `CollectDropsTask` 未动；两个终态闩锁各自持有（编排器的 `finish()` ＋ 原语的 `Outcome.FINISHED`） |
+| 3 额度 | `3甲` 只清默认口 | ✅ 删 `DEFAULT_TOTAL_BUDGET_TICKS`；`SWEEP_*` 三个 `public → private`；**17** 个调用点逐个显式给额度；private 机制档（`CLUSTER_BUDGET_TICKS` 等）**不动** |
+| 4 构造器 | `4甲` 收成 2 个 | ✅ ① 全参 9 参（**尾部 5 参逐字保留**）＋ ② 便捷 7 参（`STANDABLE_ONLY` ＋ 候选源 `null` ＋ `activePickup`）；**其余 4 个删除** |
+| 5 前置 | `5甲` 夹具先行 | ✅ 已由刀①（`D-497`）满足 |
+| 6 类名 | `6甲` `CollectStep` @ `task/collecting/` | ✅ 与 `task/mining/MineStep` 对称 |
+
+**效果读数**（`tools/check-primitive-readings.py` 逐字）：`CollectDropsTask` **1314 → 629 行** · 方法 **48 → 26** ·
+构造器 **6 → 2** · `Phase` 引用 **0**（改造前后都没相位机）· 额度词 **16 → 9**；
+`MineTask` 1016 行（**+11**：多了 `COLLECT_BUDGET_TICKS` —— 额度从原语的默认口搬到**作业侧显式声明**）。
+
+#### ⚠️ 与 `D-493` / 断点六**不符**或**新发现**的实测（全部记下）
+
+1. ⚠️ **调用点不是 16 个，是 17 个** —— 断点六（以及更早的 `D-493`「14 处」）用的是
+   `grep "new CollectDropsTask("`，而 **`RegionLumberJob:1161` 写的是全限定名**
+   `new com.dddgn.alice.task.CollectDropsTask(` ⇒ **被漏掉**。本刀编译期才撞出来
+   （`找不到合适的构造器`）。⇒ **本会话第 4 次「度量口径造出来的假事实」**（前三次：把 `###` 当全部标题 ⇒ 378/492 ·
+   把 32 门禁读成「没被调用」· 用**行数**估 token）。**教训：数调用点要按被调方名字数，且要容忍全限定名**。
+2. ⚠️ **`3甲` 的"4 处调用点显式给额度"分类是错的**（`D-495` 已纠正一次，本次按**真形状**再核）：
+   真传 6 参的 **3** 处（`MineTask:548` · `RestoreScopeTask:357` · `MineDropRangeCheckTask:401`）·
+   **13** 处走 5 参默认 · `FishboneJob:1385` 是**显式传那个常量**（第 4 类）——
+   本刀把这 4 类**全部收成"调用点自己声明额度"**（各自新增 `COLLECT_BUDGET_TICKS = 600`，值逐字等于原默认值）。
+3. ⚠️ **`D-495` 记的 3 个夹具 javadoc「那个常量是私有的 ⇒ 照抄值」前提是假的**（它是 `public`）⇒
+   本刀把口径一并改掉：默认口已删 ⇒ 那个值**不再是谁的副本**，就是**夹具自己的额度**（`D-495` 命名的那族静默脱钩随之消失）。
+4. ✅ **两道网的预测都成立**（断点六写下的"不该红 / 会红才是特性"）：
+   形状门禁锚的**尾部 5 参逐字保留** ⇒ **不红**（实测 `arg[4..8]` 全绿，`:1394`）；`arg[5]` **不认常量名** ⇒
+   换常量**不假红**。⇒ 形状门禁**一行断言都没改**（只更新了那条引用已删常量的**合成对照臂**文字）。
+
+#### 原语与编排器之间的那条边（本刀唯一的设计决定）
+
+原语**不 import 编排器**（同 `MineStep`），只通过一个**窄接口** `CollectStep.Host` 拿三样：
+`liveIndex()`（读候选索引）· `retire(id, reason)`（**唯一的失败归因出口**）· 三个**展示用**进度读数
+（`collectedTotal`/`expectedTotal`/`taskTicks`，只出现在 `PICKUP_SLOW` 文案里，判定一概不读 ⇒ `D-329 ⑤.3`）。
+实现方是编排器里的**匿名类**（不让那五个口出现在 `CollectDropsTask` 的公开方法表上）。
+
+⚠️ **为什么 `retire` 住在编排器而不是原语**（两条都是真实的）：① 它的计数
+（`unreachable`/`no_approach`/`pickup_timeout`/`policy_blocked`）是 `SUMMARY` 的输入，而 `SUMMARY` 归编排器；
+② 编排器自己的候选过滤（`too_far`）也走**同一个出口** —— 两份实现必定漂移。
+
+⚠️ **额度的两半各有落点**（`D-466` 判 3 · D1/D2）：
+**任务级** = 构造参数 `totalBudgetTicks`（**无默认口**），消费点恰好 1 处（`++ticks > totalBudgetTicks`）；
+**簇级** = 编排器的 private 机制档 `CLUSTER_BUDGET_TICKS = 200`（`D-466` 第 4 条：机制档随编排留下）
+**注入**进原语（`D-466` 判 3 · D1：原语额度只来自构造参数），原语在**具名方法**
+`sweepBudgetExhausted()` 里消费它 —— **恰好 1 处**。
+（簇级预算改成注入之后，「这一簇在磨」的阈值必须**从注入值派生**（`sweepBudgetTicks / 2`）——
+写死 100 就会与注入的预算脱钩。）
+
+#### 门禁随形状改了 5 处（⚠️ 改门禁必须显式说明；**没有一处是放松**）
+
+| 门禁 | 改什么 | 为什么 |
+|---|---|---|
+| `tools/kernel-predicates.py` · `rule_collect_goal_standable` | 靶子文件 `task/CollectDropsTask.java → task/collecting/CollectStep.java`（判据 ⑧ 的夹具字符串同步改名） | 该规则的 ①–⑦ 判据（相交本体唯一 / 不许退回不可站格 / 两个决策层信号 / 世界改动基线）**整段随原语搬走** ⇒ 不跟着搬就是把规则留在空文件上（**静默失效**）。判据一条没放松 |
+| 同上 · `rule_write_caps_default_open_protection_kept` | 「收集器有时间预算常量」→ **两半**：`int totalBudgetTicks`（构造参数，**注入面**）＋ `private static final int CLUSTER_BUDGET_TICKS`（**落点**）＋ 消费点恰好 1 处 | `D-372` 要的语义是「**只限制时间防止空转**」。默认口删掉后，那个语义的落点形状变了（口径从"常量名"改成"形状"），**判据按形状重写、没有变松** |
+| `tools/check-task-orchestration-split.py` | 新增 `5b` 四条（C①/C②/D1/D2）＋ 11 条红臂 | `D-493` 硬约束逐字要求「`5b` 必须给出 `D-466` 判 3 的**对应物**（`CollectStep` 里的那一处消费点）」⇒ 不给就是欠账。⚠️ **只给四条**（不套 `5a` 的 A/B）：那两个判据的落点是 `MineStep` 的 `Conclusion` 工厂，`CollectStep` 的对应物是 `Outcome` + `Reading`，硬套会把判据变成"抄格式" |
+| `tools/check-primitive-readings.py` | `MIN_METHODS` **30 → 20** | 防解析崩塌的**下限**；拆类**合法地**让方法数从 48 降到 26（26 < 30 ⇒ 假红）。新下限仍在"正则崩了会量出 ~0"之上 |
+| `tools/check-primitive-budget-injection.py` | 只改注释（实测 8 → 6，**余量已用尽 ⇒ 再少一个就红**） | 人口下限 `MIN_QUOTA_CTORS = 6` **一个字没动**（现在恰好等于 6 ⇒ 任何一次删除都会响亮失败） |
+
+#### 动完必跑（`D-493` 收口 + 硬约束）—— 逐项结果
+
+`./gradlew compileJava` ✅ · `tools/check-all.sh`（无电池）**pass=34 warning=1 failed=0**（= 基线）·
+`ALICE_HEADLESS=1 tools/check-all.sh` ⏳（见断点七）· `single:mine_regression` ⏳ · `check-underfoot-safety` ✅（随套件）·
+⚠️ `D-466` §八：本刀**动了 `MineTask`**（新增一个常量 ＋ 收落物那行加额度实参）⇒
+**连锁段逐字保留**（`D-471` 冻结）：`tools/check-frozen-code.py` ✅ PASS（符号 24 条全在、默认仍 `OFF`、消费者恰好 5 个文件）。
+
+#### 未覆盖清单（**显式声明**，照 `D-466` §八 体例）
+
+**批量收集**（`1.4y-B/C`：`requestBatchCollect`/`batchCollectDue`/`CollectKind.PERIODIC`）的**结构边界触发时机** ·
+`activePickup`（`1.4z`）· 守恒 `MISMATCH` 的两条失配方向 · **锚点放弃路**（`retire`/`unreachable`）·
+**`SWEEP_*` 预算公式路** · `ChainMineDiagnosticTask` 那条（模组不在场 ⇒ 恒 SKIP）· `/alice mine` 顶层路径 ·
+⭐ **新增**：`CollectStep` **还没进** `tools/check-primitive-readings.py` 的 `PRIMITIVES`（该门禁的路径写死
+`task/{name}.java`；`MineStep` 早在 `5a` 就记了同一个缺口）⇒ 新原语的**常量清单没被打印**，
+与 `check-task-orchestration-split.py` 的 `5b` 四条**不是**同一件事（后者已覆盖额度形状）。
+⚠️ 上一行**不是**"新欠账"：它是**已登记缺口**（台账 `5` 行）的同类项，本刀只把它写得更明确。
+
+#### 与既有裁定的接口（`D-493` §硬约束 复核）
+
+⚠️ `D-466` §八（连锁逐字保留）✅ · ⚠️ `D-466` 判 3（D1/D2）✅（见上「额度的两半」）·
+`D-483`（`P9/A`）**无交集** ✅（收集侧 `Phase` 引用仍为 0）· ⚠️ `D-471` 冻结 ✅（未借机改连锁段）。

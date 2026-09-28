@@ -324,7 +324,7 @@ public final class ScaffoldLifecycleTask implements Task {
             sweepBudgetTicks = com.dddgn.alice.task.CollectDropsTask.suggestedSweepTicks(
                     scope.liveDrops().size(), null);
             collector = new CollectDropsTask(bot, TARGET, scope, java.util.List.of(), false,
-                    sweepBudgetTicks);
+                    sweepBudgetTicks, null);
             BotLog.info("[Scaffold] sweep_up_start anchor={} foot={} live_drops={} budgetTicks={}"
                             + "（仍在架上，就地收）",
                     TARGET.toShortString(),
@@ -411,7 +411,7 @@ public final class ScaffoldLifecycleTask implements Task {
                     MovementHelper.footCell(level, bot).toShortString(),
                     scope.liveDrops().size());
             collector = new CollectDropsTask(bot, DROP_ANCHOR, scope, java.util.List.of(), false,
-                    COLLECT_BUDGET_TICKS);
+                    COLLECT_BUDGET_TICKS, null);
             ticks = 0;
             return Task.Status.RUNNING;
         }

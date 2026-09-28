@@ -168,6 +168,15 @@ public final class LumberJob implements Job {
     private int gainedBlocksTotal;
     /** 每棵树的加高预算（交给 L2 的能力信封；用户 2026-09-11 裁定 3 次/棵）。 */
     private static final int MAX_GAIN_PER_TREE = 3;
+
+    /**
+     * ⭐ **收集阶段的额度**（tick）—— `D-493` 拍点 3 `3甲`「删默认口」的接法。
+     *
+     * <p>改造前这些调用点**不说额度**、靠 `CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS`（600）兜底；
+     * 用户 2026-09-27 裁定清掉那个默认口（`J-★` 第 6 段 step 2a：**额度归 Job**）⇒ 调用点自己声明。
+     * 值逐字等于原默认值 ⇒ **行为零变化**（变的是「这个数住在哪里」）。
+     */
+    private static final int COLLECT_BUDGET_TICKS = 600;
     /** 目标原木的能力信封：只用现成可站站位 + 允许原地加高（D-111 切片 A）。 */
     private static final com.dddgn.alice.task.mining.MiningProfile TARGET_PROFILE =
             com.dddgn.alice.task.mining.MiningProfile.STANDABLE_ONLY.withGain(MAX_GAIN_PER_TREE);
@@ -543,7 +552,8 @@ public final class LumberJob implements Job {
             return Task.Status.RUNNING;
         }
         phase = Phase.COLLECT;
-        collector = new CollectDropsTask(bot, tree.base(), scope, List.of(), true);
+        collector = new CollectDropsTask(bot, tree.base(), scope, List.of(), true,
+                COLLECT_BUDGET_TICKS, null);
         DecisionTrace.step(jobName(), "COLLECT", tree.base().toShortString(),
                 "chopped=" + choppedLogs + "/" + queue.size() + " failed=" + failedLogs.size()
                         + (clearedTotal > 0 ? " cleared=" + clearedTotal : "")
@@ -580,7 +590,7 @@ public final class LumberJob implements Job {
             sweepBudgetTicks = CollectDropsTask.suggestedSweepTicks(
                     scope.liveDrops().size(), sweepProfile);
             collector = new CollectDropsTask(bot, bot.blockPosition(), scope, List.of(), false,
-                    sweepBudgetTicks, sweepProfile);
+                    sweepBudgetTicks, sweepProfile, null, null);
             BotLog.info("[Job] lumber sweep_up_start foot={} live_drops={} trunkHeight={}"
                             + " gain<={} blockBudget={} budgetTicks={}（仍在架上）",
                     MovementHelper.footCell(bot.serverLevel(), bot).toShortString(),

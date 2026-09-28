@@ -45,6 +45,23 @@
 每条判据各带**红/绿两臂**，且每臂**只打一个判据函数** ⇒ "红"必然红在**那一条**上
 （本仓"臂打错地方"已复发 3 次，所以臂不许跨判据）。
 
+## `step 5b`（`D-493`）的对应物：同一个规则，第二个原语
+
+`D-466` 判 3（D1/D2）把"**额度来源 = 构造参数 · 消费点 = 具名清单且恰好 1**"立成规则，
+而 `D-493` 的硬约束逐字要求「`5b` 必须给出它的对应物（`CollectStep` 里的那一处消费点）」
+⇒ 本文件在原有五条（`MineStep`）之外，为 `task/collecting/CollectStep` 加**四条**：
+
+| # | 判据 | 形状 |
+|---|---|---|
+| **C①** | 原语**不造**编排器 | `CollectStep` 里 `new CollectDropsTask(` **0** 处 |
+| **C②** | 编排器**真在委托** | `CollectDropsTask` 里对原语的调用 `step.` **≥ `MIN_DELEGATIONS_5B`** |
+| **D1** | 原语的额度**只来自构造参数** | `CollectStep` 里额度制造 **0** 处；类内**额度词命名**的 `static final` **0** 条 |
+| **D2** | 原语消费额度的点**恰好 1 个、且是具名的那个** | `sweepTicks > sweepBudgetTicks` 这类比较**恰好 1** 处，且它必须**在具名方法** `sweepBudgetExhausted()` 体内；`WriteBudget.` **0** 处 |
+
+⚠️ **为什么 `5b` 只有四条**（不套 5a 的 A/B）：`A`（无相位机）与 `B`（单一成功出口）的落点是
+`MineStep` 的 `Conclusion` 工厂 —— `CollectStep` 的对应物是 `Outcome` + `Reading`，形状不同，
+硬套会把"判据"变成"抄格式"（判据要跟着**设计**走，不是跟着上一个原语的模板走）。
+
 跑法：`python3 tools/check-task-orchestration-split.py`（已挂在 `tools/check-all.sh`）。
 """
 
@@ -90,6 +107,26 @@ BUDGET_CONSUMPTION = (
     r"\.\s*consumePlace\s*\(",
 )
 WRITE_BUDGET = re.compile(r"WriteBudget\s*\.")
+
+# ==================== `step 5b`（`D-493`）：收集侧的第二个原语 ====================
+
+STEP_5B = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
+           / "task" / "collecting" / "CollectStep.java")
+ORCH_5B = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
+           / "task" / "CollectDropsTask.java")
+
+#: 判据 C② 的下限（实测 **16**，2026-09-28；判据是**下限**，不是这个数本身）。
+MIN_DELEGATIONS_5B = 3
+
+#: 判据 D2 的**具名清单**：`CollectStep` 里唯一允许的"额度消费"点（簇预算）。
+NAMED_BUDGET_SITES_5B = ("sweepBudgetExhausted()",)
+#: 判据 D2 的"额度消费"识别面（**全部**形态都要数，不只数具名那一处）。
+SWEEP_BUDGET_CONSUMPTION = (
+    r"sweepTicks\s*[><]=?\s*sweepBudgetTicks",
+    r"sweepBudgetTicks\s*[><]=?\s*sweepTicks",
+)
+NEW_ORCHESTRATOR_5B = re.compile(r"new\s+CollectDropsTask\s*\(")
+DELEGATION_5B = re.compile(r"\bstep\s*\.")
 
 
 def strip_comments_and_strings(text: str) -> str:
@@ -214,6 +251,92 @@ def check_d2_named_consumption_sites(code: str) -> list[str]:
     return problems
 
 
+# ==================== `step 5b` 的四条判据（每条一个函数 ⇒ 臂只能打在自己那条上） ====================
+
+def body_after(code: str, decl: str) -> str:
+    """`decl` 之后第一个**配对** `{...}` 体（取不到 ⇒ 空串；不抛）。"""
+    idx = code.find(decl)
+    if idx < 0:
+        return ""
+    start = code.find("{", idx)
+    if start < 0:
+        return ""
+    depth = 0
+    for i in range(start, len(code)):
+        if code[i] == "{":
+            depth += 1
+        elif code[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return code[start + 1:i]
+    return ""
+
+
+def check_5b_c1_primitive_creates_no_orchestrator(code: str) -> list[str]:
+    """判据 C①：**原语不造编排器**（`new CollectDropsTask(` 0 处）。"""
+    hits = len(NEW_ORCHESTRATOR_5B.findall(code))
+    if hits:
+        return [f"`CollectStep` 里有 {hits} 处 `new CollectDropsTask(` ⇒ **原子单元造编排器** = 编排长回原语里"
+                f"（`D-466` §四.1 的落点是**原语**：编排器造编排器才合法）"]
+    return []
+
+
+def check_5b_c2_orchestrator_delegates(code: str) -> list[str]:
+    """判据 C②：**编排器真在委托**（对原语的调用点 ≥ `MIN_DELEGATIONS_5B`）。"""
+    hits = len(DELEGATION_5B.findall(code))
+    if hits < MIN_DELEGATIONS_5B:
+        return [f"`CollectDropsTask` 里对原语的调用 `step.` 只有 {hits} 处（下限 {MIN_DELEGATIONS_5B}）"
+                f"⇒ 原语被架空（搬回去了 / 变成只 new 不用的死代码）"]
+    return []
+
+
+def check_5b_d1_budget_is_injected(code: str) -> list[str]:
+    """判据 D1：原语的额度**只来自构造参数**（制造 0 处 + 额度词命名的类内常量 0 条）。"""
+    problems: list[str] = []
+    hits = len(BUDGET_MANUFACTURE.findall(code))
+    if hits:
+        problems.append(f"`CollectStep` 里有 {hits} 处额度**制造**（`MiningBudget.forTarget|collecting` /"
+                        f"`new MiningBudget`）⇒ 原语的额度必须**构造注入**（`D-466` 判 3 · D1）")
+    named = [m.group(0).strip() for m in STATIC_FINAL.finditer(code)]
+    quota = [line for line in named if QUOTA_WORD.search(line)]
+    if quota:
+        problems.append(f"`CollectStep` 类内有**额度词命名**的 `static final`：{quota}"
+                        f"⇒ 类内默认额度常量（`D-455` ⑧③；机制档常量归**编排器**，值由构造参数下来）")
+    return problems
+
+
+def check_5b_d2_named_consumption_sites(code: str) -> list[str]:
+    """判据 D2：消费额度的点**恰好 1 个、且是具名的那一个**（在具名方法体内）。"""
+    problems: list[str] = []
+    found = 0
+    for pattern in SWEEP_BUDGET_CONSUMPTION:
+        found += len(re.findall(pattern, code))
+    if found != 1:
+        problems.append(f"`CollectStep` 里被识别为「额度消费」的点有 {found} 处（**必须恰好 1**）"
+                        f"⇒ 具名清单 = {list(NAMED_BUDGET_SITES_5B)}"
+                        f"（多了 = 额度在别处也被烧，少了 = 原语什么都不消费 / 清单过期）")
+    name = NAMED_BUDGET_SITES_5B[0]
+    body = body_after(code, f"private boolean {name}")
+    if not body:
+        problems.append(f"`CollectStep` 里找不到具名的额度消费方法 `private boolean {name}` "
+                        f"⇒ 判据 D2 的人口没了（不是「通过」，是「扫不到」）")
+    elif found == 1 and not any(re.search(p, body) for p in SWEEP_BUDGET_CONSUMPTION):
+        problems.append(f"`CollectStep` 里那唯一一处额度消费**不在**具名方法 `{name}` 体内"
+                        f"⇒ 清单与代码对不上（消费点必须有名字，否则「恰好一处」不可读）")
+    write_hits = len(WRITE_BUDGET.findall(code))
+    if write_hits:
+        problems.append(f"`CollectStep` 里出现 {write_hits} 处 `WriteBudget.` ⇒ 写入额度的消费点"
+                        f"属于执行机制，不该长在原语里")
+    return problems
+
+
+def inspect_step_5b(code: str) -> list[str]:
+    """`5b` 原语侧的三条（C①/ D1 / D2）。"""
+    return (check_5b_c1_primitive_creates_no_orchestrator(code)
+            + check_5b_d1_budget_is_injected(code)
+            + check_5b_d2_named_consumption_sites(code))
+
+
 def inspect_step(code: str) -> list[str]:
     """原语侧的四条（A/B/C①/D1/D2）。"""
     return (check_a_no_phase_machine(code)
@@ -291,6 +414,46 @@ SELFTEST_CASES: list[tuple[str, str, str, bool]] = [
      "    void f() { var r = miningPlanner.plan(bot, target, budget, p, a); }\n", False),
 ]
 
+# ---- `step 5b` 的四条判据各带红/绿两臂（同上：每臂只打一个判据函数）----
+SELFTEST_CASES_5B: list[tuple[str, str, str, bool]] = [
+    # ---- C① ----
+    ("C① 红：原语里 `new CollectDropsTask(`", "c1",
+     "    void f() { t = new CollectDropsTask(bot, o, s, List.of(), false, 600, null); }\n", True),
+    ("C① 绿：原语不造任何任务", "c1",
+     "    void f() { runner = new PathRetryRunner(bot, req, 2, \"x\"); }\n", False),
+    # ---- C② ----
+    ("C② 红：编排器把原语架空（0 处委托）", "c2",
+     "    private CollectStep step;\n    void f() { step = new CollectStep(bot, false, p, 200, host); }\n", True),
+    ("C② 绿：编排器反复委托", "c2",
+     "    void f() { step.begin(ids); if (step.tick(live) == FINISHED) { endCluster(); }"
+     " var r = step.reading(); step.cancel(); }\n", False),
+    # ---- D1 ----
+    ("D1 红：原语自己造额度（方法体里也不行）", "d1b",
+     "    void f() { budget = MiningBudget.collecting(bot, level, target); }\n", True),
+    ("D1 红：类内默认额度常量（额度词命名）", "d1b",
+     "    private static final int SWEEP_BUDGET_TICKS = 200;\n", True),
+    ("D1 绿：额度只当构造参数（实例字段不算常量）", "d1b",
+     "    private final int sweepBudgetTicks;\n    void f() { plan(bot, target, sweepBudgetTicks); }\n", False),
+    # ---- D2 ----
+    ("D2 红：额度消费点 0 处（原语什么都不烧）", "d2b",
+     "    private boolean sweepBudgetExhausted() {\n        return false;\n    }\n", True),
+    ("D2 红：额度消费点 2 处", "d2b",
+     "    private boolean sweepBudgetExhausted() {\n        return sweepTicks > sweepBudgetTicks;\n    }\n"
+     "    private boolean again() {\n        return sweepTicks > sweepBudgetTicks;\n    }\n", True),
+    ("D2 红：比较在具名方法**外**（消费点没名字）", "d2b",
+     "    private boolean sweepBudgetExhausted() {\n        return false;\n    }\n"
+     "    private boolean used() {\n        return sweepTicks > sweepBudgetTicks;\n    }\n", True),
+    ("D2 绿：恰好一处、就在具名方法体内", "d2b",
+     "    private boolean sweepBudgetExhausted() {\n        return sweepTicks > sweepBudgetTicks;\n    }\n", False),
+]
+
+_CRITERIA_5B = {
+    "c1": check_5b_c1_primitive_creates_no_orchestrator,
+    "c2": check_5b_c2_orchestrator_delegates,
+    "d1b": check_5b_d1_budget_is_injected,
+    "d2b": check_5b_d2_named_consumption_sites,
+}
+
 _CRITERIA = {
     "a": check_a_no_phase_machine,
     "b": check_b_single_success_exit,
@@ -303,12 +466,13 @@ _CRITERIA = {
 
 def selftest() -> list[str]:
     problems: list[str] = []
-    for label, key, snippet, expect_red in SELFTEST_CASES:
-        found = _CRITERIA[key](strip_comments_and_strings(snippet))
-        is_red = bool(found)
-        if is_red != expect_red:
-            problems.append(f"红臂失配：{label} ⇒ 期望{'红' if expect_red else '绿'}、实得"
-                            f"{'红' if is_red else '绿'}（{found}）")
+    for cases, criteria in ((SELFTEST_CASES, _CRITERIA), (SELFTEST_CASES_5B, _CRITERIA_5B)):
+        for label, key, snippet, expect_red in cases:
+            found = criteria[key](strip_comments_and_strings(snippet))
+            is_red = bool(found)
+            if is_red != expect_red:
+                problems.append(f"红臂失配：{label} ⇒ 期望{'红' if expect_red else '绿'}、实得"
+                                f"{'红' if is_red else '绿'}（{found}）")
     return problems
 
 
@@ -326,10 +490,25 @@ def main() -> int:
             print(f"  ✗ {problem}")
         return 1
 
+    if not STEP_5B.exists():
+        problems.append(f"找不到 {STEP_5B.relative_to(ROOT)} ⇒ `5b` 的原语被改名/搬走？"
+                        f"同步本门禁（`D-493` 拍点 6 `6甲` 的落点是 `task/collecting/CollectStep.java`）")
+    if not ORCH_5B.exists():
+        problems.append(f"找不到 {ORCH_5B.relative_to(ROOT)} ⇒ `5b` 的编排器被改名/搬走？同步本门禁")
+    if problems:
+        print("TASK_ORCHESTRATION_SPLIT_RESULT FAIL")
+        for problem in problems:
+            print(f"  ✗ {problem}")
+        return 1
+
     step_code = strip_comments_and_strings(STEP.read_text(encoding="utf-8"))
     orch_code = strip_comments_and_strings(ORCH.read_text(encoding="utf-8"))
     problems.extend(inspect_step(step_code))
     problems.extend(check_c_orchestrator_delegates(orch_code))
+    step_5b = strip_comments_and_strings(STEP_5B.read_text(encoding="utf-8"))
+    orch_5b = strip_comments_and_strings(ORCH_5B.read_text(encoding="utf-8"))
+    problems.extend(inspect_step_5b(step_5b))
+    problems.extend(check_5b_c2_orchestrator_delegates(orch_5b))
 
     if problems:
         print("TASK_ORCHESTRATION_SPLIT_RESULT FAIL")
@@ -346,6 +525,14 @@ def main() -> int:
           f"（{NAMED_BUDGET_SITES[0]}） · "
           f"编排器委托点 {len(DELEGATION.findall(orch_code))}（下限 {MIN_DELEGATIONS}） · "
           f"红臂 {len(SELFTEST_CASES)}/{len(SELFTEST_CASES)}（A 4 + B 3 + C① 2 + C② 2 + D1 4 + D2 4）")
+    print(f"  · `task/collecting/CollectStep.java`（`5b`）—— "
+          f"`new CollectDropsTask(` {len(NEW_ORCHESTRATOR_5B.findall(step_5b))} · "
+          f"额度制造 {len(BUDGET_MANUFACTURE.findall(step_5b))} · "
+          f"具名额度消费点 "
+          f"{sum(len(re.findall(p, step_5b)) for p in SWEEP_BUDGET_CONSUMPTION)}"
+          f"（{NAMED_BUDGET_SITES_5B[0]}） · "
+          f"编排器委托点 {len(DELEGATION_5B.findall(orch_5b))}（下限 {MIN_DELEGATIONS_5B}） · "
+          f"红臂 {len(SELFTEST_CASES_5B)}/{len(SELFTEST_CASES_5B)}（C① 2 + C② 2 + D1 3 + D2 4）")
     print("  ⇒ 边界在构建里：原语不许长相位/子任务/额度，编排器不许把原语架空")
     return 0
 

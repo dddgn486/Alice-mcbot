@@ -53,6 +53,16 @@ public final class MineTask implements Task {
     /** 连锁挖掘等待上限（tick）；超时即停止连锁并如实处理（D-077）。 */
     private static final int CHAIN_TIMEOUT_TICKS = 200;
 
+    /**
+     * ⭐ **收集阶段的额度**（tick）—— `D-493` 拍点 3 `3甲`「删默认口」的接法。
+     *
+     * <p>改造前这一处**不说额度**、靠 `CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS`（600）兜底。
+     * 用户 2026-09-27 裁定**清掉那个默认口**（`J-★` 第 6 段 step 2a / `D-455` ⑧③：**额度归 Job**）⇒
+     * 每个调用点必须**自己说出**这个数。本常量**逐字等于**原默认值 ⇒ **行为零变化**，
+     * 变的是"这个数住在哪里"：从原语内部的默认口，搬到调用方（作业侧）显式声明。
+     */
+    private static final int COLLECT_BUDGET_TICKS = 600;
+
     private final ServerPlayer bot;
     private final BlockPos target;
     private final ScopeBuffer scope;
@@ -545,7 +555,8 @@ public final class MineTask implements Task {
         if (!(bot instanceof com.dddgn.alice.bot.BotPlayer botPlayer)) {
             throw new IllegalStateException("MineTask requires BotPlayer");
         }
-        collector = new CollectDropsTask(botPlayer, target, scope, List.of(), true, activePickup);
+        collector = new CollectDropsTask(botPlayer, target, scope, List.of(), true,
+                COLLECT_BUDGET_TICKS, activePickup);
         BotLog.info("挖掘阶段完成,进入拾取阶段: target={}", target.toShortString());
         return Status.RUNNING;
     }

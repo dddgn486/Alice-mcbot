@@ -77,7 +77,7 @@ public final class WriteBudget {
          * **不设格数上限**（`D-372`，用户 2026-09-21 裁定：**保护区外世界修改全部放开**）。
          *
          * <p>区外不再用格数当闸门 —— 闸门改为**时间预算**（防空转）：任务/作业层的 tick 预算
-         * （`CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS`、`MiningBudget.maxExtraBreakTicks`、
+         * （收集器的**调用方声明** tick 预算、`MiningBudget.maxExtraBreakTicks`、
          * 作业 `maxTicks`、`no_progress` 看门狗）继续生效，计数**照记**（SUMMARY/审计不看丢）。
          */
         /**

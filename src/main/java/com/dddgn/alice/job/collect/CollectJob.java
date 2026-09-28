@@ -182,7 +182,7 @@ public final class CollectJob implements Job {
                 anchor.toShortString(), ids.size(),
                 String.format(java.util.Locale.ROOT, "%.1f", Math.sqrt(bestDistance)), blockedCandidates);
         current = new CollectDropsTask(bot, anchor, scope, ids, true,
-                Math.max(200, spec.maxTicks() - ticks));
+                Math.max(200, spec.maxTicks() - ticks), null);
         phase = Phase.COLLECT;
         return Task.Status.RUNNING;
     }

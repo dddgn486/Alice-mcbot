@@ -2249,6 +2249,66 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 
 **无 active goal**（无需 `pause`/`resume`）。上下文 42.4%（未过 50% 线）。
 
+### ⏸ 断点七（2026-09-28 · 第七次；⭐ **`5b` 刀② 落地** —— 一次提交，`src/` 有改动）
+
+**本轮性质**：`D-493` 六甲**主体刀**执行完毕（`D-498` 落地记录）。**一次提交**（`2甲`）；两个终态闩锁各自持有。
+
+#### 交付物
+
+| 项 | 内容 |
+|---|---|
+| ⭐ 新原语 | `src/main/java/com/dddgn/alice/task/collecting/CollectStep.java` —— **一簇的一次作业**：锚点规范化 / 换锚点重试 / 等落定 / 等原版吸附 / 加高 / 簇预算 / 症状上报（`PICKUP_SLOW`/`PICKUP_DETOUR`）/ 拾取盒几何（`reachesFrom`·`withinPickupReach`·`approachCandidates`，已公开给夹具复用） |
+| 编排器 | `task/CollectDropsTask.java` **重写**：候选收集 ＋ 聚类（BFS）＋ 逐簇迭代 ＋ 总预算 ＋ 守恒交叉校验 ＋ `SUMMARY` ＋ **唯一的失败归因出口 `retire()`** |
+| 那条边 | 原语**不 import 编排器**（同 `MineStep`），只走窄接口 `CollectStep.Host`：`liveIndex()` · `retire(id, reason)` · 三个**展示用**进度读数（判定一概不读 ⇒ `D-329 ⑤.3`）；实现方 = 编排器里的匿名类 |
+| 额度两半 | **任务级** = 构造参数 `totalBudgetTicks`（**默认口已删**），消费点恰好 1 处（`++ticks > totalBudgetTicks`）；**簇级** = 编排器 private 机制档 `CLUSTER_BUDGET_TICKS = 200` **注入**原语，原语在**具名方法** `sweepBudgetExhausted()` 里消费它（恰好 1 处） |
+| 构造器 | **6 → 2**：① 全参 9 参（⚠️ **尾部 5 参逐字未动**）＋ ② 便捷 7 参（`STANDABLE_ONLY` ＋ 候选源 `null` ＋ `activePickup`） |
+
+#### 读数（`tools/check-primitive-readings.py` 逐字）
+
+`CollectDropsTask` **1314 → 629 行** · 方法 **48 → 26** · 构造器 **6 → 2** · 额度词 **16 → 9** · `Phase` 引用 0（改造前后都无相位机）。
+`MineTask` 1016 行（**+11** —— 多了 `COLLECT_BUDGET_TICKS`：额度从原语的默认口搬到**作业侧显式声明**）。
+
+#### ⚠️ 实测更正（全部已写进 `D-498`）
+
+1. ⚠️ **调用点是 17 个，不是 16** —— 断点六 / `D-493` 用 `grep "new CollectDropsTask("` 数，
+   而 `job/lumber/RegionLumberJob.java:1161` 写的是**全限定名** `new com.dddgn.alice.task.CollectDropsTask(` ⇒ **一直被漏**，
+   本刀**编译期**才撞出来。⇒ **本会话第 4 次「度量口径造出来的假事实」**（前三次：`grep "^###"` 数决策 378/492 ·
+   把 32 道门禁读成「没被调用」· 用**行数**估 token）。**教训：数构造点要按被调方名字数，且要容忍全限定名。**
+2. ⚠️ `D-495` 记的「3 个夹具 javadoc 说那个常量是私有的」**前提是假的**（它是 `public`）⇒ 口径一并改掉：
+   默认口已删 ⇒ 那个值**不再是谁的副本**，就是**夹具自己的额度**（静默脱钩那一族消失）。
+3. ✅ **断点六预测的两道网行为全部成立**：形状门禁**尾部 5 参逐字保留 ⇒ 不红**（`arg[4..8]` 实测全绿）；
+   `arg[5]` **不认常量名 ⇒ 换常量不假红**。⇒ **形状门禁一行断言都没改**（只更新了合成对照臂里引用的那个已删常量名）。
+
+#### 门禁随形状改 5 处（⚠️ **没有一处放松**；逐条理由在 `D-498`）
+
+`kernel-predicates.py` ① `rule_collect_goal_standable` 靶子文件 → `CollectStep.java`（判据随代码走，**不跟就是把规则留在空文件上**）
+② `rule_write_caps_default_open_protection_kept` 的「时间预算」判据 → 按**形状**重写（注入面 + 落点 + 消费点恰好 1）
+③ `check-task-orchestration-split.py` **新增 `5b` 四条（C①/C②/D1/D2）+ 11 条红臂**（`D-493` 硬约束要求的「代表物」）
+④ `check-primitive-readings.py` `MIN_METHODS` **30 → 20**（拆类合法让方法数 48 → 26 ⇒ 原下限假红；新下限仍在「正则崩了会量出 ~0」之上）
+⑤ `check-primitive-budget-injection.py` **只改注释**（`MIN_QUOTA_CTORS = 6` 一个字没动，现在**恰好等于 6 ⇒ 再少一个就红**）。
+
+#### 动完必跑 —— 逐项结果
+
+`./gradlew compileJava` ✅ · `tools/check-all.sh`（无电池）**pass=34 warning=1 failed=0**（= 基线）·
+`ALICE_HEADLESS=1 tools/check-all.sh` **pass=35 warning=0 failed=0** ✅ ·
+⭐ **`core` 真跑 43/43 PASS**（`run/headless-logs/20260928-125051-core.log`，262 s，`skipped=0`，
+`mine_regression=PASS` —— **逐步 diff 零变化**）· `check-underfoot-safety` ✅ · `check-frozen-code` ✅
+（`MineTask` 的连锁段符号 24 条全在、默认仍 `OFF`、消费者恰好 5 文件 —— `D-471` 冻结未破）。
+
+#### 未覆盖清单（**显式声明**，照 `D-466` §八；全文在 `D-498`）
+
+批量收集（`1.4y-B/C`）的**结构边界触发时机** · `activePickup`（`D-494` 已纠正为"有覆盖，不补"） ·
+守恒 `MISMATCH` 两条失配方向 · **锚点放弃路**（`retire`/`unreachable`）· `SWEEP_*` 预算公式路 ·
+`ChainMineDiagnosticTask`（模组不在场 ⇒ 恒 SKIP）· `/alice mine` 顶层路径 ·
+⭐ **新增（同族，非新欠账）**：`CollectStep` **还没进** `check-primitive-readings.py` 的 `PRIMITIVES`
+（该门禁路径写死 `task/{name}.java`；`MineStep` 早在 `5a` 就记了同一缺口）。
+
+#### ⏭ 下一步
+
+⭐ **三大改革 ①「站位选优退化 + Baritone Goal + 新簇挖掘」**（= `J-★` 第 3/4 段 与 主排期批 **3.2 `P2/A`** —— 同一件事的两处登记；**离 MC 能力目标最近**）。
+⚠️ **三条大改革不许并行**（`survey/42 §3`）：③ 入口一刀 ✅ → **`5b` 刀② ✅（本断点）** → **①** → ②（夹具/测试工具三桶分离）。
+⚠️ 别把 `docs/` 的动作算成能力进展（`method-vs-goal-drift`；`O12` 自述"这是手段不是目标"）。
+
 ### ⏸ 断点六（2026-09-28 · 第六次；`5b` 刀② **开工前侦察**，`src/` 未动）
 
 **本轮性质**：**只落盘计划**（`src/` 零改动 ⇒ jar 不变）。上下文当时 **52.2%**（过 50% 线）。

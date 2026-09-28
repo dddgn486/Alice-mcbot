@@ -218,9 +218,12 @@ def judge(snippet: str) -> list[str]:
 # ==================== 合成臂（口径自证：判据自己先被反向对照）====================
 # 每一臂只改**一处**，且必须如预期地 通过 / 失败 —— 否则本门禁的判定逻辑本身是坏的。
 
+# ⚠️ `5b` 刀②（`D-493` 拍点 3 `3甲`）之后 `DEFAULT_TOTAL_BUDGET_TICKS` **已被删除** ⇒ 这条对照臂
+# 用**调用方自己的具名额度**（真树现在就是这样：`FishboneJob.COLLECT_BUDGET_TICKS`）。
+# 判据口径**没变**：`arg[5]` 只要求非空、**不认常量名**（不然 `3甲` 那一刀会把本门禁假红）。
 GOOD = """
         collector = new CollectDropsTask(bot, template.startFoot(), scope, List.of(), false,
-                CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS,
+                COLLECT_BUDGET_TICKS,
                 com.dddgn.alice.task.mining.MiningProfile.STANDABLE_ONLY, null,
                 PRODUCT_FILTER::matches);
 """
@@ -240,8 +243,8 @@ ARMS: list[tuple[str, str, bool]] = [
     ("R2 能力信封改成别的档", GOOD.replace("STANDABLE_ONLY", "FULL_GAIN"), False),
     ("R3 候选源换成自定义", GOOD.replace("null,\n                PRODUCT_FILTER", "this::liveItem,\n                PRODUCT_FILTER"), False),
     ("R4 主动清单改成 null", GOOD.replace("PRODUCT_FILTER::matches", "null"), False),
-    ("R5 省略额度（走 8 参重载）",
-     GOOD.replace("CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS,\n                ", ""), False),
+    ("R5 省略额度（走 7 参便捷重载）",
+     GOOD.replace("COLLECT_BUDGET_TICKS,\n                ", ""), False),
     ("R6 `MineTask` 的形状（含 PRODUCT_FILTER::matches，但**不是**收集器调用）", MINETASK_SHAPE, False),
     ("R7 两个收集器调用点（靶子不唯一）", GOOD + GOOD, False),
 ]

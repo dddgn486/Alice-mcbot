@@ -2147,6 +2147,12 @@ def rule_write_caps_default_open_protection_kept():
        "1 格"用例继续有效；容器轴（别人的存储）**不随本次放开**，仍回退 `Caps.DEFAULT`；
     ③ **保护区权限层必须还在**：约束不在格数上限里，而在 `CapabilityGate` 的
        `protectionReason(...)`（`protected_area` / `protected_block`）——放开默认上限**不许顺手拆掉它**。
+
+    ⭐ **`5b` 刀②（`D-493` 拍点 3 `3甲`）之后"时间预算"的落点形状变了，判据随之改、**不放松**：**
+    改造前 = 收集器类内 `public static final int DEFAULT_TOTAL_BUDGET_TICKS`（"不说也能用"的默认口）；
+    现在 = **构造参数** `totalBudgetTicks`（额度归调用方）+ 类内**机制档** `CLUSTER_BUDGET_TICKS`。
+    两半都要在：预算必须**注入得进来**，且任务级的消费点**恰好一处**（`++ticks > totalBudgetTicks`）
+    —— 否则"额度"就只剩一句口号（`D-466` 判 3 · D2 同族）。
     """
     problems = []
     budget = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "write"
@@ -2183,8 +2189,16 @@ def rule_write_caps_default_open_protection_kept():
     if "facts.protectionReason(" not in code_only(gate):
         problems.append("`CapabilityGate` 不再查 `protectionReason(...)` ⇒ **保护区权限层被拆掉了**"
                         "（放开默认上限 ≠ 放开保护区：用户明确要求「保持权限管理」）")
-    if not re.search(r"(?:public|private) static final int DEFAULT_TOTAL_BUDGET_TICKS\s*=\s*[0-9_]+", collector):
-        problems.append("收集器没有时间预算常量 ⇒ 「只限制时间防止空转」这条没有落点")
+    # ⭐ `5b` 刀②（`D-493` 拍点 3 `3甲`）：见本规则 docstring —— 判据跟着**形状**走，不跟着常量名走。
+    if not re.search(r"int\s+totalBudgetTicks\b", collector):
+        problems.append("收集器的**任务级时间预算不再是构造参数** ⇒ 「只限制时间防止空转」"
+                        "没有注入面（`D-493 3甲`：默认口已删，额度必须由调用方给）")
+    if not re.search(r"private static final int CLUSTER_BUDGET_TICKS\s*=\s*[0-9_]+", collector):
+        problems.append("收集器没有**簇级**时间预算常量（`CLUSTER_BUDGET_TICKS`）"
+                        "⇒ 「只限制时间防止空转」这条没有落点")
+    if len(re.findall(r"\+\+ticks\s*>\s*totalBudgetTicks", collector)) != 1:
+        problems.append("收集器任务级时间预算的**消费点不是恰好一处**（`++ticks > totalBudgetTicks`）"
+                        "⇒ 额度可能被别处也扣掉（`D-466` 判 3 · D2 同族）")
     return problems
 
 
@@ -2705,7 +2719,7 @@ def rule_collect_goal_standable():
     一个都没有时不许规划，更不许退回「物品自身格」**。
 
     事故原文（真机，逐字见 `docs/reviews/2026-09-21-掉落物在洞里被瞬退.md` §10）：
-    `CollectDropsTask.pickupGoalFor` 的「够得着吗」是**粗判**（逐轴 1.2），而真实拾取盒的逐轴上界是
+    `CollectStep.pickupGoalFor` 的「够得着吗」是**粗判**（逐轴 1.2），而真实拾取盒的逐轴上界是
     `0.125 + 0.3 + 1.0 = 1.425` ⇒ 存在一段「**真够得着、却被规划期否掉**」的位置；真机上那件落物
     正好落在里面 ⇒ 搜索一圈没找到 ⇒ 静默 `best == null → return itemCell` 把**站不住的物品自身格**
     当目标（**一行日志都没有**）⇒ 走到那种格只能靠同层 `BREAK_AND_ENTER` ⇒ 唯一可行路线是
@@ -2714,7 +2728,8 @@ def rule_collect_goal_standable():
     断言（改任一处 ⇒ 红）：
     ① 相交本体只能是**一个** `reachesFrom(playerBox, item)`（`item.getBoundingBox()` + 共享外扩常量 +
        `intersects`），且 `withinPickupReach`（建模）与 `inPickupRange`（执行）**都必须调它**
-       —— 3-b/`D-381` 起它还被抽成包可见 `static`，夹具可两边都用生产定义断言；
+       —— 3-b/`D-381` 起它还被抽成 `static`，`5b` 刀②（`D-493`）起**随原语搬进
+       `task/collecting/CollectStep` 并公开**，夹具可两边都用生产定义断言；
     ② 旧粗判形态 `Math.abs(cell.getX() + 0.5D - item.getX()) <= 1.2D` 不许复活；
     ③ 不许再出现写死的 `inflate(1.0D, 0.5D, 1.0D)`，也不许任一侧自己写 `intersects(`；
     ④ `pickupGoalFor` 不许「找不到就退回物品自身格」（`best == null ? itemCell : best` 形态）；
@@ -2724,11 +2739,14 @@ def rule_collect_goal_standable():
        的增量**（`TaskMetrics.snapshot().delta(簇基线).worldChanges()`）—— 自检实测：读"走位执行过的
        Movement 类型"会漏（`executedMovementTypes()` 要等某一段**成功**才追加，而"为捡一件东西挖一格"
        常常正好是最后一段 ⇒ 破了 2 格石墙、事件计数仍是 0）；运行账是"真的扣了写入预算那一刻"记的；
-    ⑧ 夹具必须**复用生产谓词**（`CollectSlotApproachCheckTask` 里出现 `CollectDropsTask.withinPickupReach(`）
+    ⑧ 夹具必须**复用生产谓词**（`CollectSlotApproachCheckTask` 里出现 `CollectStep.withinPickupReach(`）
        —— 夹具自己另写一份近似判据 = 自己骗自己。
     """
     problems = []
-    task_file = ROOT / "src/main/java/com/dddgn/alice/task/CollectDropsTask.java"
+    # ⭐ `5b` 刀②（`D-493` 拍点 1 `1甲`）：本规则的靶子**整段随原语搬进了** `task/collecting/CollectStep`
+    # （簇内几何 + 锚点 + 症状上报 + 世界改动基线；守恒/摘要/候选留在编排器里 ⇒ 那里没有本规则的判据）。
+    # 判据一条没放松：只是**锚点跟着代码走**（不跟就是把规则留在空文件上 ⇒ 静默失效）。
+    task_file = ROOT / "src/main/java/com/dddgn/alice/task/collecting/CollectStep.java"
     text = code_only(task_file.read_text(encoding="utf-8"))
     shared_inflate = "inflate(PICKUP_INFLATE_XZ, PICKUP_INFLATE_Y, PICKUP_INFLATE_XZ)"
 
@@ -2741,7 +2759,7 @@ def rule_collect_goal_standable():
     # ⇒ 断言随之加强：本体只能有一个，两边都**必须调它**，不许再各自写一份相交。
     shared_reach = method_body(text, "static boolean reachesFrom(AABB playerBox, ItemEntity item) {")
     if not shared_reach:
-        problems.append("找不到 `CollectDropsTask.reachesFrom`（相交本体没了 ⇒ 规划期与执行期会各写一份"
+        problems.append("找不到 `CollectStep.reachesFrom`（相交本体没了 ⇒ 规划期与执行期会各写一份"
                         "「够得着」）")
     else:
         if "intersects(" not in shared_reach or "item.getBoundingBox()" not in shared_reach:
@@ -2752,7 +2770,7 @@ def rule_collect_goal_standable():
 
     reach = method_body(text, "static boolean withinPickupReach(BlockPos cell, ItemEntity item) {")
     if not reach:
-        problems.append("找不到 `CollectDropsTask.withinPickupReach`（结构变了 ⇒ 本规则要跟着改）")
+        problems.append("找不到 `CollectStep.withinPickupReach`（结构变了 ⇒ 本规则要跟着改）")
     elif "reachesFrom(" not in reach or "AABB" not in reach:
         problems.append("`withinPickupReach` 没有走「格中心 → 玩家盒 → 共享相交本体 `reachesFrom`」"
                         "⇒ 规划期与执行期的「够得着」各写一份")
@@ -2815,13 +2833,13 @@ def rule_collect_goal_standable():
     fixture = ROOT / "src/main/java/com/dddgn/alice/task/CollectSlotApproachCheckTask.java"
     if not fixture.exists():
         problems.append("夹具 `CollectSlotApproachCheckTask` 不存在 ⇒ D-375 没有判据（只能靠真人踩到）")
-    elif ("premiseGoalReachable = CollectDropsTask.withinPickupReach(goal, item);"
+    elif ("premiseGoalReachable = CollectStep.withinPickupReach(goal, item);"
           not in code_only(fixture.read_text(encoding="utf-8"))):
         # ⚠️ 判据要钉**有效表达式**，不能只钉"文件里出现过这个名字"：
         # 实测（2026-09-21 注入 ⑧）把正例那条前提换成夹具自写的 `roughReach(...)` 时，
         # 文件里**别处**（起点/最近站格那两条）还留着同名调用 ⇒ 只查"出现过"的门禁**静默绿** ✗
         problems.append("夹具的「真够得着」前提**不是**生产谓词算出来的"
-                        "（缺 `premiseGoalReachable = CollectDropsTask.withinPickupReach(goal, item);`）"
+                        "（缺 `premiseGoalReachable = CollectStep.withinPickupReach(goal, item);`）"
                         "⇒ 它用另一套判据自己骗自己（与「可规划即可执行」同一条纪律）")
 
     return problems

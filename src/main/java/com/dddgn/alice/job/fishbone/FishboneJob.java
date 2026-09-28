@@ -197,6 +197,15 @@ public final class FishboneJob implements Job {
      * `maxTicks` 默认 86800（≈72 分钟），一段活可能比 5 分钟长。
      */
     private static final int COLLECT_BEFORE_DESPAWN_TICKS = 3600;
+
+    /**
+     * ⭐ **收集阶段的额度**（tick）—— `D-493` 拍点 3 `3甲`「删默认口」的接法。
+     *
+     * <p>改造前这些调用点**不说额度**、靠 `CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS`（600）兜底；
+     * 用户 2026-09-27 裁定清掉那个默认口（`J-★` 第 6 段 step 2a：**额度归 Job**）⇒ 调用点自己声明。
+     * 值逐字等于原默认值 ⇒ **行为零变化**（变的是「这个数住在哪里」）。
+     */
+    private static final int COLLECT_BUDGET_TICKS = 600;
     private PathRetryRunner returnRunner;
     private PathRetryRunner spurReturnRunner;
 
@@ -1383,7 +1392,7 @@ public final class FishboneJob implements Job {
             batchCollects++;
         }
         collector = new CollectDropsTask(bot, template.startFoot(), scope, List.of(), false,
-                CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS,
+                COLLECT_BUDGET_TICKS,
                 com.dddgn.alice.task.mining.MiningProfile.STANDABLE_ONLY, null,
                 PRODUCT_FILTER::matches);
         BotLog.info("[Fishbone] COLLECT 开始 round={} kind={} origin={} scopeRadius={} oreMined={} 产物基线={}"

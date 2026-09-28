@@ -354,7 +354,8 @@ public final class RestoreScopeTask implements Task {
     private Task.Status startCollect() {
         collectStarted = true;
         BlockPos origin = firstRestored != null ? firstRestored : bot.blockPosition();
-        collector = new CollectDropsTask(bot, origin, scope, List.of(), true, COLLECT_BUDGET_TICKS);
+        collector = new CollectDropsTask(bot, origin, scope, List.of(), true, COLLECT_BUDGET_TICKS,
+                null);
         BotLog.info("[Restore] 开始回收材料 origin={}（restored={}）", origin.toShortString(), restored);
         return Task.Status.RUNNING;
     }

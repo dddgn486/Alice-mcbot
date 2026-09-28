@@ -83,7 +83,9 @@ EXPECTED_PRIMITIVES = {"MineTask.java", "CollectDropsTask.java"}
 #: ⚠️ 这个数会**随搬包变**：`step 2a` 落地时是 141，`step 3b` 把 `PathRetryRunner.java` 搬去
 #: `pathing/` 之后就是 140 —— 判据是下面这个**下限**，不是这个数本身。
 MIN_SCANNED_FILES = 130
-#: 实测 8（`MineTask` 4 · `CollectDropsTask` 4，2026-09-27）；留余量。
+#: 实测 6（`MineTask` 4 · `CollectDropsTask` 2 —— `5b` 刀② 把收集器的 6 个构造器收成 2 个，
+#: 2026-09-27）。⚠️ **余量已用尽**：再少一个（比如把额度形参整个删掉）**就会红** —— 这是故意的，
+#: 本下限的用途正是"防把额度注入面抽空 ⇒ 门禁假绿"。
 MIN_QUOTA_CTORS = 6
 
 #: 长得像 `name(...)` 但**不是**方法声明的帧（`if (x) {` / `for (...) {` …）。

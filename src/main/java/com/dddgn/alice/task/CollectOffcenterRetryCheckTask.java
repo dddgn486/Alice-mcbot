@@ -4,6 +4,7 @@ import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
+import com.dddgn.alice.task.collecting.CollectStep;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -99,7 +100,13 @@ public final class CollectOffcenterRetryCheckTask implements Task {
 
     /** 产物物品：**本夹具独有**（与 `collect_slot_approach` 同一个理由：别污染别人的背包增量）。 */
     private static final String PRODUCT = "minecraft:amethyst_shard";
-    /** 收集器自带的总预算（`CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS`，照抄值）。 */
+    /**
+     * 本夹具**自己声明**的收集额度（tick）—— `D-493` 拍点 3 `3甲` 之后额度**归调用方**，
+     * 原语不再有默认口。
+     *
+     * <p>历史（`D-495`）：改造前这里是「照抄 `CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS` 的值」，
+     * 而默认口已删 ⇒ 它不再是谁的副本，就是**本夹具自己的额度**（值仍逐字 600 ⇒ 行为零变化）。
+     */
     private static final int COLLECTOR_BUDGET_TICKS = 600;
     /** 作用域半径（覆盖整个场景）。 */
     private static final int SCOPE_RADIUS = 12;
@@ -316,13 +323,13 @@ public final class CollectOffcenterRetryCheckTask implements Task {
             // 世界修改授权 = true（= 生产里挖掘/回收作业的真实口径，`D-372`）
             collector = new CollectDropsTask(bot, ORIGIN, scope, List.of(), true,
                     COLLECTOR_BUDGET_TICKS, com.dddgn.alice.task.mining.MiningProfile.STANDABLE_ONLY,
-                    this::liveItem);
+                    this::liveItem, null);
         }
         // 观测：只要目标还是"bot 自己那一格"，真实拾取范围就**不许**成立（否则本夹具没复现出偏差）
         if (collector.goalExcludedTotal() == 0) {
             pinnedCellTicks++;
             if (item != null && !item.isRemoved()
-                    && CollectDropsTask.reachesFrom(bot.getBoundingBox(), item)) {
+                    && CollectStep.reachesFrom(bot.getBoundingBox(), item)) {
                 everInActualRangeWhileGoalWasSelf = true;
             }
         }
@@ -370,10 +377,10 @@ public final class CollectOffcenterRetryCheckTask implements Task {
         // ---- ⭐ `D0`：探针的层/环 = 搜索的层/环 ----
         if (item != null && collector != null) {
             check("⭐ `D0`：候选枚举**含两层**（`dy=0` + `dy=-1`）—— 环 1 应 8×2=16 格（实际 "
-                            + CollectDropsTask.approachCandidates(itemCell(), 1).size()
+                            + CollectStep.approachCandidates(itemCell(), 1).size()
                             + "）—— 第八轮真机那份误导读数（`standable=0`）正是因为探针只扫 `dy=0`",
-                    CollectDropsTask.approachCandidates(itemCell(), 1).size() == 16);
-            CollectDropsTask.ApproachReading reading = collector.approachReading(item);
+                    CollectStep.approachCandidates(itemCell(), 1).size() == 16);
+            CollectStep.ApproachReading reading = collector.approachReading(item);
             check("⭐ `D0`：探针读数里**必须**有 `dy=-1` 层里那格「够得着」的记录 `(1,-1,0)stand=0/reach=1`"
                             + "（= 真机里 bot 自己站着的那一层；旧探针根本打不出这条）",
                     reading.ring().contains("(1,-1,0)stand=0/reach=1"));
@@ -412,8 +419,8 @@ public final class CollectOffcenterRetryCheckTask implements Task {
         premiseItemCellStandable = canStand(level, itemCell());
         BlockPos selfCell = bot.blockPosition().immutable();
         premiseSelfCellStandable = canStand(level, selfCell);
-        premiseModelReachFromBotCell = item != null && CollectDropsTask.withinPickupReach(selfCell, item);
-        premiseActualMissFromBot = item != null && !CollectDropsTask.reachesFrom(bot.getBoundingBox(), item);
+        premiseModelReachFromBotCell = item != null && CollectStep.withinPickupReach(selfCell, item);
+        premiseActualMissFromBot = item != null && !CollectStep.reachesFrom(bot.getBoundingBox(), item);
         if (item != null) {
             premiseModelAxisDistance = Math.abs(selfCell.getX() + 0.5D - item.getX());
             premiseActualAxisDistance = Math.abs(bot.getX() - item.getX());

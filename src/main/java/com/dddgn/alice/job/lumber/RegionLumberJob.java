@@ -1160,7 +1160,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         // 换成来源**不放松授权**：能不能捡仍由 `DropPolicy.mayCollect` 把关（`FOREIGN` 要靠 ①的授权）。
         sweepTask = new com.dddgn.alice.task.CollectDropsTask(bot, nearest.blockPosition(), scope,
                 ids, false, budget, com.dddgn.alice.task.mining.MiningProfile.STANDABLE_ONLY,
-                () -> listDropsInRegion(LumberRegionState.get(bot.getServer())));
+                () -> listDropsInRegion(LumberRegionState.get(bot.getServer())), null);
         sweepTargets = targets.size();
         workedThisPatrol = true;      // `D-344` ②：起了扫描 = 有活
         BotLog.info("[Job] maintain sweep 开始 目标={} 清单={} 预算={} tick（按落物数缩放，不设人为上限）",

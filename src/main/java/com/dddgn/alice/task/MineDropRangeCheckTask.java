@@ -152,7 +152,14 @@ public final class MineDropRangeCheckTask implements Task {
     /** 产物物品（挖矿产物的代表；只要能被 `adoptExistingDrops` 登记即可，与具体物品无关）。 */
     private static final String PRODUCT = "minecraft:raw_iron";
 
-    /** 收集器自带的总预算（`CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS`，那个常量是私有的 ⇒ 照抄值）。 */
+    /**
+     * 本夹具**自己声明**的收集额度（tick）—— `D-493` 拍点 3 `3甲` 之后额度**归调用方**，
+     * 原语不再有默认口。
+     *
+     * <p>历史（`D-495`）：改造前这里写的是「那个常量**是私有的** ⇒ 照抄值」—— ⚠️ 前提是假的
+     * （它当时是 `public`），且默认口已删 ⇒ 现在它不再是谁的副本，就是**本夹具自己的额度**
+     * （值仍逐字 600 ⇒ 行为零变化）。
+     */
     private static final int COLLECTOR_BUDGET_TICKS = 600;
 
     /** 本步预算（收集器自带 600 tick 预算 ⇒ 夹具护栏要高一点）。 */
@@ -399,7 +406,7 @@ public final class MineDropRangeCheckTask implements Task {
         // 能不能捡仍由 `DropPolicy.mayCollect` 把关，而归属已由上面的 `registerAsOurs` 设成
         // `OURS_DIRECT`（与生产"破坏事件配对"同一状态）⇒ 与生产路径的**唯一**差别只是候选从哪来。
         collector = new CollectDropsTask(bot, center, scope, List.of(), false, COLLECTOR_BUDGET_TICKS,
-                com.dddgn.alice.task.mining.MiningProfile.STANDABLE_ONLY, () -> candidates);
+                com.dddgn.alice.task.mining.MiningProfile.STANDABLE_ONLY, () -> candidates, null);
         BotLog.info("[MineDropRange] CHECK 起收集 bot={} 候选={}（收集器第一 tick 就会按上面的距离决定退不退休）",
                 bot.blockPosition().toShortString(), candidates.size());
         phase = Phase.RUN;

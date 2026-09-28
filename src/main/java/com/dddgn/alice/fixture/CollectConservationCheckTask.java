@@ -149,11 +149,11 @@ public final class CollectConservationCheckTask implements Task {
     /** 单臂里收集器该在多少 tick 内结束（护栏，不判失败码 —— 超了如实报红）。 */
     private static final int RUN_CAP = 400;
     /**
-     * 夹具自己给收集器的额度。
+     * 夹具自己给收集器的额度（`D-493` 拍点 3 `3甲` 落地后，**每个调用点都必须自己声明**它）。
      *
-     * <p>⚠️ **故意不引用 `CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS`**：那个常量是 `D-493 3甲`
-     * 要清掉的「默认口」，夹具若引用它就会在刀② 被连带改坏 —— 而 `D-495` 记的正是
-     * 「3 个夹具照抄了那个值、javadoc 却说它是私有」的静默脱钩族。
+     * <p>历史（`D-495`）：改造前这里是「照抄 `CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS` 的值」，
+     * 而 javadoc 还错说那个常量是私有的。默认口已删 ⇒ 这里**不再是副本**，而是调用方自己的额度
+     * —— 静默脱钩那一族随之消失（值仍逐字 600 ⇒ 行为零变化）。
      */
     private static final int ARM_COLLECT_BUDGET_TICKS = 600;
     /** 臂② 往背包塞的同类件数。 */
@@ -505,7 +505,7 @@ public final class CollectConservationCheckTask implements Task {
         // 臂①②③：候选源换成"这块地里的落物"（`D-344` 的既有接缝）
         // ⇒ 干扰只可能来自**夹具自己**，不可能是作用域/归属/清单造成的。
         return new CollectDropsTask(bot, ORIGIN, scope, List.of(), false,
-                ARM_COLLECT_BUDGET_TICKS, MiningProfile.STANDABLE_ONLY, this::armSource);
+                ARM_COLLECT_BUDGET_TICKS, MiningProfile.STANDABLE_ONLY, this::armSource, null);
     }
 
     /**

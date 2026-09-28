@@ -123,7 +123,7 @@ public class WritePolicyCheckTask implements Task {
      * <p>所以语义是三条，缺一不可：
      * <ol>
      *   <li>**默认（无显式上限）⇒ 不限格数**：世界修改放开，闸门换成**时间预算**防空转
-     *       （`CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS` / `MiningBudget.maxExtraBreakTicks` /
+     *       （收集器的**调用方声明** tick 预算 / `MiningBudget.maxExtraBreakTicks` /
      *       作业 `maxTicks` / `no_progress` 看门狗）；</li>
      *   <li>**显式装订的上限照旧强制**（`setCaps` / `capForEscape`）—— `D-241` 逃生准备金、
      *       以及各夹具刻意压到 1 格的用例都靠它；</li>

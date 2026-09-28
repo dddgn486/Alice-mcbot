@@ -48,6 +48,15 @@ public final class ChainMineDiagnosticTask implements Task {
     /** 任务总超时（tick）。 */
     private static final int TOTAL_TIMEOUT_TICKS = 800;
 
+    /**
+     * ⭐ **收集阶段的额度**（tick）—— `D-493` 拍点 3 `3甲`「删默认口」的接法。
+     *
+     * <p>改造前这些调用点**不说额度**、靠 `CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS`（600）兜底；
+     * 用户 2026-09-27 裁定清掉那个默认口（`J-★` 第 6 段 step 2a：**额度归 Job**）⇒ 调用点自己声明。
+     * 值逐字等于原默认值 ⇒ **行为零变化**（变的是「这个数住在哪里」）。
+     */
+    private static final int COLLECT_BUDGET_TICKS = 600;
+
     private final BotPlayer bot;
     private final ServerPlayer observer;
     private final ScopeBuffer scope;
@@ -179,7 +188,8 @@ public final class ChainMineDiagnosticTask implements Task {
         inventoryGain = countIron() - ironBefore;
         BotLog.info("[ChainMine] 连锁采样 mined={} broken={} drops={} inventoryGain={}",
                 minedPeak, brokenCount, dropsSeen, inventoryGain);
-        collector = new CollectDropsTask(bot, SEED, scope, java.util.List.of(), false);
+        collector = new CollectDropsTask(bot, SEED, scope, java.util.List.of(), false,
+                COLLECT_BUDGET_TICKS, null);
         phase = 4;
     }
 

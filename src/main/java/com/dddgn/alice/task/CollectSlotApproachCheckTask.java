@@ -4,6 +4,7 @@ import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
+import com.dddgn.alice.task.collecting.CollectStep;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -66,7 +67,7 @@ import java.util.UUID;
  * 不是"没授权所以改不了"。
  *
  * <h2>怎么保证"可规划即可执行"（判据复用同一定义）</h2>
- * 前提里的"够得着吗"**直接调生产代码那一个谓词**（{@code CollectDropsTask.withinPickupReach}，包可见），
+ * 前提里的"够得着吗"**直接调生产代码那一个谓词**（{@code CollectStep.withinPickupReach}，包可见），
  * 不自己复写一份近似判据 —— 夹具若用另一套判据，就会自己骗自己。
  *
  * <h2>几何前提（§6.9.1 ①：盒子以谁为中心、多大，全部写下来并自断言）</h2>
@@ -147,7 +148,14 @@ public final class CollectSlotApproachCheckTask implements Task {
     /** `PickupDelay` 永久值（原版的"永不拾取"哨兵值）。 */
     private static final String PICKUP_NEVER = "32767s";
 
-    /** 收集器自带的总预算（`CollectDropsTask.DEFAULT_TOTAL_BUDGET_TICKS`，私有常量 ⇒ 照抄值）。 */
+    /**
+     * 本夹具**自己声明**的收集额度（tick）—— `D-493` 拍点 3 `3甲` 之后额度**归调用方**，
+     * 原语不再有默认口。
+     *
+     * <p>历史（`D-495`）：改造前这里写的是「`DEFAULT_TOTAL_BUDGET_TICKS` **是私有常量** ⇒ 照抄值」
+     * —— ⚠️ 那句**前提就是假的**（它当时是 `public`，`D-495` 已纠正），且默认口已删
+     * ⇒ 现在它不再是谁的副本，就是**本夹具自己的额度**（值仍逐字 600 ⇒ 行为零变化）。
+     */
     private static final int COLLECTOR_BUDGET_TICKS = 600;
     /** 作用域半径（覆盖整个场景：最远对角 √(7²+6²) ≈ 9.2）。 */
     private static final int SCOPE_RADIUS = 12;
@@ -455,7 +463,7 @@ public final class CollectSlotApproachCheckTask implements Task {
             // 世界修改授权 = `true`（= 生产里挖掘/伐木/回收作业的真实口径，`D-372`）
             collector = new CollectDropsTask(bot, ORIGIN, scope, List.of(), true,
                     COLLECTOR_BUDGET_TICKS, com.dddgn.alice.task.mining.MiningProfile.STANDABLE_ONLY,
-                    this::liveItem);
+                    this::liveItem, null);
         }
         collectorStatus = collector.tick();
         if (collectorStatus != Task.Status.RUNNING) {
@@ -602,7 +610,7 @@ public final class CollectSlotApproachCheckTask implements Task {
             case SLOT_REACH -> {
                 BlockPos goal = current.itemCell().east();
                 premiseGoalStandable = canStand(level, goal);
-                premiseGoalReachable = CollectDropsTask.withinPickupReach(goal, item);
+                premiseGoalReachable = CollectStep.withinPickupReach(goal, item);
                 premiseGoalDistance = Math.abs(goal.getX() + 0.5D - item.getX());
             }
             case UNREACHABLE -> {
@@ -613,7 +621,7 @@ public final class CollectSlotApproachCheckTask implements Task {
                         }
                     }
                 }
-                premiseNearestOutOfReach = !CollectDropsTask.withinPickupReach(current.itemCell().west(2), item);
+                premiseNearestOutOfReach = !CollectStep.withinPickupReach(current.itemCell().west(2), item);
             }
             case SEALED_ROOM -> {
                 for (int dx = -1; dx <= 1; dx++) {
@@ -639,7 +647,7 @@ public final class CollectSlotApproachCheckTask implements Task {
                         + "，实际 " + (item == null ? "-" : item.blockPosition().toShortString()) + "）",
                 item != null && item.blockPosition().equals(current.itemCell()));
         check("前提：起点**不在**拾取范围内（否则「必须走过去」不成立）",
-                item != null && !CollectDropsTask.withinPickupReach(current.botStart(), item));
+                item != null && !CollectStep.withinPickupReach(current.botStart(), item));
 
         switch (current.kind()) {
             case SLOT_REACH -> {
