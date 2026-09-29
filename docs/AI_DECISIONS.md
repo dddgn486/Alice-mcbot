@@ -24696,7 +24696,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 | 件 | 实测尺寸 | 前置 | 卡点 |
 |---|---|---|---|
 | **A① 丢弃清障（`DS-7`）** | **中且有界**：6 载体 · **生产消费者恰好 1 个** | ✅ `D-011` 的"内核能破坏"**已随 `D-520` 落地** | ⚠️ `GoalAdjacent` 到达集**含"正下方"** ⇒ 伐木丢 `standableOnly` 时会重新踩 2026-09-10「往地里挖一格站进去」 |
-| **A② `PILLAR` 回到到位集合** | **小**，⭐ 且**一半已随 `D-520` 落地** | ⚠️ **授权来源没落地** | ⛔ `D-500` §IV 的**机械替换没做**：`job/JobWriteDeclaration`（`D-511`）**唯一消费者 = 夹具**（`task/K2AdjacentGoalCheckTask:301`） |
+| **A② `PILLAR` 回到到位集合** | **小**，⭐ 且**一半已随 `D-520` 落地** | ⚠️ **授权来源没落地** | ⛔ `D-500` §IV 的**机械替换没做**：`job/JobWriteDeclaration`（`D-511`）**唯一消费者 = 夹具**（`task/K2AdjacentGoalCheckTask:465`） |
 | **件② `A` → 触及站位选择器（`DS-5` 解体）** | **最大**：625 行 / 9 件 / 7 新家 | ✅ `DS-5` 已裁 | ⚠️ 设计文档**低估成本**（见 §二 `N1`） |
 
 **排序 = 1 件②（唯一无前置）· 2 A①（前置刚满足，但缺"到达集约束"的调用方声明载体）· 3 A②（剩下一半卡在没排期的载体替换上）。**
@@ -24710,7 +24710,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 | **`N2`** | ⭐ **A② 的一半已落地**：`D-520` 新建的目标级腿用 `PathRequest.adjacentApproach`，其能力集 = `MINING_APPROACH_MOVEMENTS`（`PathRequest:146-150`，**含 `PILLAR`**）⇒「加高 = 搜索的一个维度」**在目标级腿上今天已成立**；`MineJob` 用 `TUNNEL_ALLOWED`（`standableOnly=false`）⇒ 挖掘侧**已经会走它** | 读 `PathRequest` + `MineJob:573` |
 | **`N3`** | ⭐ **生产侧「清障」<u>只有一个</u>消费者** = `LumberJob:474` `withClear(...)`。`MineJob:573`（`TUNNEL_ALLOWED`）· `FishboneJob:278/286` · `RegionLumberJob:1162` 的 `clearBudget` **都是 0** ⇒ `mayClear()` 恒假 ⇒ 挖掘侧清障通路**结构不可达**。⇒ 裁定 `#4` 第 1 句「归零」= **改动点只有 1 处** | `grep -n withClear src/main/java` |
 | **`N4`** | ⚠️ `GoalAdjacent.isInGoal`（`:115-129`）只排除「目标格 / 上方 / 排除集」⇒ **到达集 = 4 水平邻格 + 正下方 1 格**。对**贴地原木**，"正下方"= 地里 ⇒ 内核可 `DOWNWARD`/`BREAK_*` 挖进去站 ⇒ ⭐ **丢清障与开目标级腿在伐木上是同一个开关**；拦法用现成的 `GoalAdjacent.excluded`（`D-517` 就是为"必须从某一面接近"建的） | 读 `GoalAdjacent` |
-| **`N5`** | ⚠️⚠️ **`D-502` 丙′（"Goal 找路 ⇒ 假设眼位 `D-066` 预检 ⇒ 不通 ⇒ 排除该格 ⇒ 有界重搜"）在生产侧<u>零实现</u>**：`MiningPlanner.planGoalApproach:288` 传 `excluded = null`；`GoalAdjacent.excluding(`/`excluded` 与 `JobWriteDeclaration.maxFootRetries()` 的**唯一消费者都是夹具**（`K2AdjacentGoalCheckTask:302/354`）⇒ ⭐ **A①/A② 缺的那个"到达集约束"载体，裁定与现成件都在，只是没接线** | `grep -rn "excluding(\|maxFootRetries" src/main/java` |
+| **`N5`** | ⚠️⚠️ **`D-502` 丙′（"Goal 找路 ⇒ 假设眼位 `D-066` 预检 ⇒ 不通 ⇒ 排除该格 ⇒ 有界重搜"）在生产侧<u>零实现</u>**：`MiningPlanner.planGoalApproach:288` 传 `excluded = null`；`GoalAdjacent.excluding(`/`excluded` 与 `JobWriteDeclaration.maxFootRetries()` 的**唯一消费者都是夹具**（`K2AdjacentGoalCheckTask:466/656`）⇒ ⭐ **A①/A② 缺的那个"到达集约束"载体，裁定与现成件都在，只是没接线** | `grep -rn "excluding(\|maxFootRetries" src/main/java` |
 
 ### 三、本轮**落地**（开工第一件 = 件②「搬空第一批」，`IMPLEMENTED`/`COMPILES`/`SERVER_TESTED` 见 §四）
 
@@ -25226,7 +25226,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
   | ③ | `D-520` **§八**「到达集收窄」分析 | 作废重写（旧集 8+N 格 vs 新集 5 格那套对比，是在 `GoalAdjacent` 下算的） |
   | ④ | `MiningPlanner`/`GoalAdjacent` 的 javadoc | 「新到达集 = Baritone 自己的 `GoalAdjacent`」等句须随实现改 |
   | ⑤ | `K2AdjacentGoalCheckTask` + 电池步 `adjacent_goal_exclusion` | 断言面是 `GoalAdjacent` 的排除字段 ⇒ 随形状改 |
-  | ⑥ | 两处**过期文字**（`D-520` 之后"零生产消费者"已不成立） | `task/K2AdjacentGoalCheckTask.java:55` · `tools/check-far-goal-usage.py` 登记表 `reason` 字段（⚠️ 门禁只核 `exact_foot` 取值、**不核这段文字**） |
+  | ⑥ | 两处**过期文字**（`D-520` 之后"零生产消费者"已不成立） | `task/K2AdjacentGoalCheckTask.java:55` · `tools/check-far-goal-usage.py` 登记表 `reason` 字段（✅ `1-1b₃` 已改：该夹具类头**整段重写**，那句「零生产消费者」**已不存在**）（⚠️ 门禁只核 `exact_foot` 取值、**不核这段文字**） |
 - ⚠️ **未落在本裁定里的（留给下一轮）**：
   - `GoalAdjacent` 与 `GoalTwoBlocks` 的**真机**行为差异（`O26` ⑥：全是静态读码＋文档比对）；
   - `GoalTwoBlocks` 与 `MineProcess.internalMiningGoal`/`GoalComposite` 的关系（簇挖掘要的是"**多目标合成一个 Goal**"，

@@ -1,11 +1,13 @@
 package com.dddgn.alice.task;
 
+import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.job.JobWriteDeclaration;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.search.CorePathPlanner;
 import com.dddgn.alice.pathing.core.search.GoalAdjacent;
+import com.dddgn.alice.pathing.core.search.GoalColumnBlocks;
 import com.dddgn.alice.pathing.core.search.PathPlan;
 import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.pathing.core.search.PlanningStatus;
@@ -24,14 +26,24 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * ⭐ `K2` 第一刀 ＋ `1a`=甲（`D-517`）：**相邻目标（`GoalAdjacent`）与"换脚格"排除集的夹具**。
+ * ⭐⭐ **goal 形状夹具**（`K2` 第一刀 ＋ `1a`=甲 `D-517` ⇒ `1-1b₃` 扩成三种形状，2026-09-29）。
  *
- * <h2>它钉的三条（`K2` 甲 的验证列逐字）</h2>
+ * <p>⚠️ **名字仍是 `K2Adjacent…`**（`1-1b₃` 起它管的已经不止"相邻"）：改名会动**名字锚定的门禁**
+ * （电池步名 `adjacent_goal_exclusion`、`PathingModule` 的注册、多处文档引用）而**不增加正确性**
+ * （`1-0b` 对 `GoalAdjacent` 的同一条理由）；撤销触发 = 用户点名要改（改名 + 改步名 + 改引用**同刀**）。
+ *
+ * <h2>它钉的三组（⛔ 三组都在**规划层**，一次右键跑完）</h2>
  * <ol>
- *   <li><b>能搜到路</b> —— 新目标形状接上真规划器（不是只有数据结构），且**到达的脚位真的满足目标**；</li>
- *   <li><b>排除集生效</b> —— 排除上一轮到达的那个脚位后，规划器**换一个**到达脚位（`1a`=甲 的重试单位 = 换脚格）；</li>
- *   <li><b>`exactFoot()==false`</b> —— 断言它的取值本身（⚠️ **"已登记"由 `tools/check-far-goal-usage.py` 断**：
- *       本夹具断**取值**，门禁断**登记表**；两者合起来才是"被登记"）。</li>
+ *   <li><b>A · 侧面形状（`GoalAdjacent`）＋"换脚格"排除集</b>（`K2` 甲 的验证列逐字）：
+ *       能搜到路（到达脚位真的满足目标）· 排除集生效（换一个到达脚位）· `exactFoot()==false` 的**取值**
+ *       （⚠️ "已登记"由 `tools/check-far-goal-usage.py` 断：本夹具断取值、门禁断登记表）；</li>
+ *   <li><b>B · 同列形状（`GoalColumnBlocks`，`1-0a` 落地／`1-1b₂` 起是腿 1）</b>：
+ *       深度由**触及几何**推导 · 整根到达柱逐层真值 · **目标格自身算到达**（与 A **取值相反**，
+ *       这是两个形状的唯一实质分歧）· `exactFoot()==true` · **接得上真规划器**
+ *       （走 `PathRequest.miningApproach(… GoalSpec …)` 那个形状自由重载）；</li>
+ *   <li><b>C · 侧面兜底（洞壁凸出）</b>：柱内**全部不可破坏**（基岩，前提自断言 `estimateBreakTicks == +∞`）
+ *       ⇒ **同列腿必须 `UNREACHABLE`**、而**侧面腿必须 `REACHED`**，且它的落点
+ *       **不在同列到达集里** ⇒ ⭐「**腿 2 不是死代码**」的直接证据。</li>
  * </ol>
  *
  * <h2>⚠️ `§6.9.1` 三问（自己答，别在心里假设）</h2>
@@ -39,11 +51,16 @@ import java.util.Set;
  *   <li><b>测的是哪一层</b>：⭐ **规划层**（`CorePathPlanner.plan` 的到达判定 + 边生成）。
  *       ⛔ **不测执行层** —— 不 tick 任何移动、不调 `assign*`/`beginTask`
  *       ⇒ **不替换正在跑的电池步**（`D-254` 的坑）、**零副作用**。</li>
- *   <li><b>依赖的世界/模组/几何假设</b>：⛔ **不依赖世界地形** —— 本夹具**自建**一块孤立平台
- *       （`ORIGIN` 段 = 4000，其它夹具用 3600/3700/3800/3900 ⇒ **不撞段**）＋ 一根目标方块柱。
- *       ⚠️ 前提**自断言**：跑之前 bot 脚位必须 == `ORIGIN` 且脚下有支撑（不满足 ⇒ `PRECONDITION_FAILED`，不静默）。</li>
+ *   <li><b>依赖的世界/模组/几何假设</b>：⛔ **不依赖世界地形** —— 本夹具**自建**三个孤立场景：
+ *       `4000`（A · 侧面形状）· `4100 / dz 2600`（B · 同列，目标下面做实心石柱）·
+ *       `4100 / dz 2620`（C · 兜底，基岩柱）。其它夹具用 3600/3700/3800/3900 ⇒ **不撞段**。
+ *       ⚠️ **前提全部自断言**（脚位 == 场景原点 · 脚下有支撑 · 柱内不可破坏 · 侧面有现成可站格），
+ *       不满足 ⇒ 判红（**不静默**）。⭐ 新场景一律走「**先传送 → 等区块加载 → 再 `setBlock`**」
+ *       （未加载区块里 `setBlock` 会**静默 0 改动**，`D-244`）。</li>
  *   <li><b>失败时用户看到什么 / 判据在哪一行</b>：聊天 + `[K2Adjacent] SUMMARY …→ FAIL`，
- *       逐条 `✗` 在紧随其后的 warn 行。键：`plan1/plan2/plan3/attempts/bound/arrivalChanged/exclusionScoped/exactFoot/remaining`。</li>
+ *       逐条 `✗` 在紧随其后的 warn 行。键：`plan1/plan2/plan3/attempts/bound/arrivalChanged/exclusionScoped/exactFoot`
+ *       ＋ `reachK/columnPlan/columnArrival/fbColumn/fbSide/fbArrival/fbOutsideColumn/fbBedrock`
+ *       ＋ `snapshots/remaining/ms`。</li>
  * </ol>
  *
  * <h2>⚠️ `§6.9.2` 副作用边界</h2>
@@ -51,8 +68,9 @@ import java.util.Set;
  * 判据里含 `remaining=0`（`touched` 必须被全部还原）。
  *
  * <h2>⚠️ 它**不**证明什么（诚实边界）</h2>
- * ⛔ 不证明"执行器能真的走到那个脚位"（那要客户端/执行层）；⛔ 不证明"接线后 `B` 分支可以删"
- * （本刀**生产路径零改动**：`adjacentApproach` 今天只有本夹具一个消费者）。
+ * ⛔ 不证明"执行器能真的走到那个脚位"（那要客户端/执行层）；⛔ 不证明 `planGoalApproach` **内部**的
+ * 腿序（那是私有编排 ⇒ 顺序的证据在 `MineMenuCheckTask` 的 A2：一次规划调用发起的搜索次数上界）；
+ * ⛔ C 组的"目标"**刻意**是基岩 ⇒ 不证明"基岩可挖"，只证明「柱不可进入时侧面兜底有解」。
  */
 public final class K2AdjacentGoalCheckTask implements Task {
 
@@ -64,7 +82,21 @@ public final class K2AdjacentGoalCheckTask implements Task {
     private static final int TARGET_DX = 3;
     private static final int BUDGET_TICKS = 240;
 
-    private enum Phase { SETUP, PLAN, DONE }
+    /*
+     * ⭐ `1-1b₃`（2026-09-29）：本夹具从"**侧面形状**夹具"扩成"**形状夹具**"（同列 ＋ 侧面 ＋ 兜底），
+     * 两个**新增场景**都放在**同一个新段 = 4100**（`dz` 相差 20 格 ⇒ 互不干扰），
+     * ⛔ **刻意不碰 4000 那个老场景** —— 它的 18 条既有断言的行为**一个字都不该变**（`D-254` 的教训）。
+     * ⚠️ 每个新场景都走「**先传送 → 等区块加载 → 再 `setBlock` → 再等 → 才规划**」：
+     * `setBlock` 在未加载区块里会**静默 0 改动**（`D-244`），而玩家传送会同步加载区块。
+     */
+    /** 同列成功场景的原点（段 4100 · `dz 2600`）。 */
+    private static final BlockPos COL_ORIGIN = new BlockPos(4100, 100, 2600);
+    /** 兜底场景的原点（段 4100 · `dz 2620`）。 */
+    private static final BlockPos FB_ORIGIN = new BlockPos(4100, 100, 2620);
+    /** 柱子往下做多深：比最深到达层再多 2 层（让"更深一层"那条断言也有实体支撑可言）。 */
+    private static final int PILLAR_EXTRA = 2;
+
+    private enum Phase { SETUP, PLAN, SETUP_COLUMN, PLAN_COLUMN, SETUP_FALLBACK, PLAN_FALLBACK, DONE }
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
@@ -88,6 +120,15 @@ public final class K2AdjacentGoalCheckTask implements Task {
     private int snapshots = -1;
     private int remaining = -1;
     private long msTotal;
+    // ---- `1-1b₃` 新增：同列形状 / 兜底场景的读数（进 SUMMARY，便于真机与日志核对）----
+    private int reachK = -1;
+    private String columnPlan = "-";
+    private String columnArrival = "-";
+    private String fbColumn = "-";
+    private String fbSide = "-";
+    private String fbArrival = "-";
+    private boolean fbSideOutsideColumn;
+    private int fbBedrockCells = -1;
 
     public K2AdjacentGoalCheckTask(BotPlayer bot, ServerPlayer observer) {
         this.bot = bot;
@@ -150,6 +191,48 @@ public final class K2AdjacentGoalCheckTask implements Task {
             case PLAN -> {
                 if (phaseTicks >= 1) {
                     probe(level);
+                    // ⭐ `1-1b₃`：段 4100 的两个新场景**先传送**（玩家 ticket 同步加载区块），
+                    // 等到 `SETUP_*` 里区块真的加载好之后才 `setBlock`（`D-244`）。
+                    bot.teleportTo(level, COL_ORIGIN.getX() + 0.5D, COL_ORIGIN.getY(),
+                            COL_ORIGIN.getZ() + 0.5D, -90.0F, 0.0F);
+                    phase = Phase.SETUP_COLUMN;
+                    phaseTicks = 0;
+                }
+                return Task.Status.RUNNING;
+            }
+            case SETUP_COLUMN -> {
+                if (phaseTicks == 4) {
+                    buildColumnScene(level);
+                }
+                if (phaseTicks >= 8) {
+                    phase = Phase.PLAN_COLUMN;
+                    phaseTicks = 0;
+                }
+                return Task.Status.RUNNING;
+            }
+            case PLAN_COLUMN -> {
+                if (phaseTicks >= 1) {
+                    probeColumn(level);
+                    bot.teleportTo(level, FB_ORIGIN.getX() + 0.5D, FB_ORIGIN.getY(),
+                            FB_ORIGIN.getZ() + 0.5D, -90.0F, 0.0F);
+                    phase = Phase.SETUP_FALLBACK;
+                    phaseTicks = 0;
+                }
+                return Task.Status.RUNNING;
+            }
+            case SETUP_FALLBACK -> {
+                if (phaseTicks == 4) {
+                    buildFallbackScene(level);
+                }
+                if (phaseTicks >= 8) {
+                    phase = Phase.PLAN_FALLBACK;
+                    phaseTicks = 0;
+                }
+                return Task.Status.RUNNING;
+            }
+            case PLAN_FALLBACK -> {
+                if (phaseTicks >= 1) {
+                    probeFallback(level);
                     phase = Phase.DONE;
                     phaseTicks = 0;
                 }
@@ -165,9 +248,13 @@ public final class K2AdjacentGoalCheckTask implements Task {
                         remaining == 0);
                 BotLog.info("[K2Adjacent] SUMMARY checks={} failures={} plan1={} plan2={} plan3={}"
                                 + " attempts={} bound={} arrivalChanged={} exclusionScoped={}"
-                                + " exactFoot={} snapshots={} remaining={} ms={} → {}",
+                                + " exactFoot={} reachK={} columnPlan={} columnArrival={}"
+                                + " fbColumn={} fbSide={} fbArrival={} fbOutsideColumn={} fbBedrock={}"
+                                + " snapshots={} remaining={} ms={} → {}",
                         checks, failures.size(), plan1, plan2, plan3, attempts, bound,
-                        arrivalChanged, exclusionScoped, exactFoot, snapshots, remaining, msTotal,
+                        arrivalChanged, exclusionScoped, exactFoot, reachK, columnPlan, columnArrival,
+                        fbColumn, fbSide, fbArrival, fbSideOutsideColumn, fbBedrockCells,
+                        snapshots, remaining, msTotal,
                         failures.isEmpty() ? "PASS" : "FAIL");
                 for (String line : findings) {
                     BotLog.info("[K2Adjacent]   {}", line);
@@ -220,6 +307,83 @@ public final class K2AdjacentGoalCheckTask implements Task {
         BlockPos key = pos.immutable();
         touched.putIfAbsent(key, level.getBlockState(key));
         level.setBlock(key, block.defaultBlockState(), 3);
+    }
+
+    // ============ `1-1b₃` 新增场景（段 4100；⛔ 不碰 4000 那个老场景） ============
+
+    /**
+     * **同列成功场景**（段 4100 · `dz 2600`）：与老场景同形（孤立平台 ＋ `+X 3` 的目标），
+     * ⭐ 差别 = 目标下面**做实心石柱**（一直做到最深到达层再往下 {@link #PILLAR_EXTRA} 层）。
+     *
+     * <p>**为什么必须做实心柱**：同列到达集是 `y .. y−depth`（`depth` 由触及推导，实参 `4.5` ⇒ **5**），
+     * 每一格都要"**站进去**"才算到达。若柱内是空气（平台只有一层），最深那几层**没有地板**，
+     * 规划器只能靠 `PILLAR`/`FALL` 之类去够 ⇒ 到达与否**依赖平台之外的世界地形**，断言会 flaky。
+     * 做实心柱之后：**每一格都恰好需要 1 次破坏、且脚下都有支撑** ⇒ 走哪一层都对，与环境无关。
+     */
+    private void buildColumnScene(ServerLevel level) {
+        int k = GoalColumnBlocks.maxDepthForReach(bot.getBlockReach());
+        BlockPos target = COL_ORIGIN.offset(TARGET_DX, 0, 0);
+        for (int dx = -1; dx <= FLOOR_MAX_X; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                place(level, COL_ORIGIN.offset(dx, -1, dz), Blocks.STONE);
+            }
+        }
+        for (int dx = -1; dx <= FLOOR_MAX_X + 1; dx++) {
+            for (int dz = -2; dz <= 2; dz++) {
+                for (int dy = 0; dy <= 1; dy++) {
+                    place(level, COL_ORIGIN.offset(dx, dy, dz), Blocks.AIR);
+                }
+            }
+        }
+        for (int d = 1; d <= k + PILLAR_EXTRA; d++) {
+            place(level, target.below(d), Blocks.STONE);
+        }
+        place(level, target, Blocks.STONE);
+        BotLog.info("[K2Adjacent] SETUP_COLUMN origin={} target={} reachK={} pillarTo={}",
+                COL_ORIGIN.toShortString(), target.toShortString(), k,
+                target.below(k + PILLAR_EXTRA).toShortString());
+    }
+
+    /**
+     * **兜底场景**（段 4100 · `dz 2620`）：目标是一根**基岩柱的顶**，而它**四个水平邻格**都是
+     * 现成的可站格（空气 ＋ 石地板）。
+     *
+     * <p>**为什么这么摆**：同列到达集的每一格都必须"站进去"，而基岩 `getDestroySpeed < 0`
+     * ⇒ `BlockInteraction.estimateBreakTicks` 返回 `+∞`（与 Baritone `getMiningDurationTicks:588-590`
+     * 「流体不可挖 → 代价无穷」同一口径，也与 `BreakEnterHeadBlockedCheckTask` 的 `UNBREAKABLE` 用例同前提）
+     * ⇒ 那些边**结构上不可能**被选中 ⇒ **同列腿无解**；而侧面到达集里有**零破坏**就能站的格 ⇒ **侧面腿有解**。
+     * ⚠️ 本场景的"目标"**刻意**是基岩：⛔ 它**不**证明"基岩可挖"，只证明
+     * 「**柱不可进入时，侧面兜底真的给得出方案**」。
+     */
+    private void buildFallbackScene(ServerLevel level) {
+        int k = GoalColumnBlocks.maxDepthForReach(bot.getBlockReach());
+        BlockPos target = FB_ORIGIN.offset(TARGET_DX, 0, 0);
+        for (int dx = -1; dx <= FLOOR_MAX_X; dx++) {
+            place(level, FB_ORIGIN.offset(dx, -1, 0), Blocks.STONE);
+        }
+        for (int dx = -1; dx <= FLOOR_MAX_X + 1; dx++) {
+            for (int dz = -2; dz <= 2; dz++) {
+                for (int dy = 0; dy <= 1; dy++) {
+                    place(level, FB_ORIGIN.offset(dx, dy, dz), Blocks.AIR);
+                }
+            }
+        }
+        // 目标那 4 个水平邻格的**地板**（让它们"现成可站"）—— ⛔ 不含目标正下方那格（它属于基岩柱）。
+        for (BlockPos foot : horizontalNeighbours(target)) {
+            place(level, foot.below(), Blocks.STONE);
+        }
+        // 基岩柱：从目标层一直往下 PILLAR_EXTRA 层（放在最后 ⇒ 覆盖上面铺的那些地板）。
+        for (int d = 0; d <= k + PILLAR_EXTRA; d++) {
+            place(level, target.below(d), Blocks.BEDROCK);
+        }
+        BotLog.info("[K2Adjacent] SETUP_FALLBACK origin={} target={} reachK={} bedrockCells={}",
+                FB_ORIGIN.toShortString(), target.toShortString(), k, k + PILLAR_EXTRA + 1);
+    }
+
+    /** 目标的 4 个水平邻格（与 `GoalAdjacent` 到达集里那 4 格**同形**）。 */
+    private static List<BlockPos> horizontalNeighbours(BlockPos target) {
+        return List.of(target.offset(1, 0, 0), target.offset(-1, 0, 0),
+                target.offset(0, 0, 1), target.offset(0, 0, -1));
     }
 
     // ==================== 断言 ====================
@@ -315,6 +479,144 @@ public final class K2AdjacentGoalCheckTask implements Task {
         check("副作用边界：本夹具只写它自己记录过的格（`snapshots` = " + snapshots + "；"
                         + "⭐ 真正的 **`remaining == 0`** 判据在 `DONE` 相位、`cleanup` 之后才断 —— "
                         + "两把键**语义不同**，别混读）", snapshots > 0);
+    }
+
+    // ============ `1-1b₃` 断言组：同列形状（`GoalColumnBlocks`） ============
+
+    /**
+     * **同列形状**（`1-0a` 落地、`1-1b₂` 起是目标腿的**腿 1**）的判据组：
+     * 到达判据真值 ＋ 与侧面形状的差异 ＋ **接得上真规划器**（走 `1-1b₁` 那个形状自由重载）。
+     */
+    private void probeColumn(ServerLevel level) {
+        long t0 = System.nanoTime();
+        BlockPos start = MovementHelper.footCell(level, bot).immutable();
+        BlockPos target = COL_ORIGIN.offset(TARGET_DX, 0, 0);
+        GoalColumnBlocks column = GoalColumnBlocks.forReach(target, bot.getBlockReach());
+        reachK = column.depth();
+
+        check("同列形状：前提 —— bot 脚位必须 == " + COL_ORIGIN.toShortString()
+                        + "（实测 " + start.toShortString() + "）", start.equals(COL_ORIGIN));
+        check("同列形状：深度由**触及几何**推导（`forReach(reach)` ⇒ depth=" + reachK
+                        + "，必须 == `maxDepthForReach(getBlockReach())` 且 ≥ `MIN_DEPTH`="
+                        + GoalColumnBlocks.MIN_DEPTH + "）",
+                reachK >= GoalColumnBlocks.MIN_DEPTH
+                        && reachK == GoalColumnBlocks.maxDepthForReach(bot.getBlockReach()));
+        check("同列形状：到达层数 == depth + 1（实测 " + column.arrivalLevels() + "）",
+                column.arrivalLevels() == reachK + 1);
+        check("同列形状：目标格**自身**算到达（`isInGoal(target)=true`）—— ⚠️ 与侧面形状**正好相反**"
+                        + "（`GoalAdjacent` 第一条就排除目标格）⇒ 这是两个形状的**唯一实质分歧**，"
+                        + "也是 Baritone `GoalTwoBlocks` 的语义「破坏并站进去」",
+                column.isInGoal(target));
+        check("同列形状：目标**正上方**不算到达（`isInGoal(target.above())=false`）",
+                !column.isInGoal(target.above()));
+        boolean wholeColumn = true;
+        for (int k = 0; k <= reachK; k++) {
+            wholeColumn &= column.isInGoal(target.below(k));
+        }
+        check("同列形状：整根到达柱 `y .. y−" + reachK + "`（**含目标层**）逐层 `isInGoal` 必须全 `true`",
+                wholeColumn);
+        check("同列形状：再深一层（`y−" + (reachK + 1) + "`）必须**不**算到达（深度上界真的生效）",
+                !column.isInGoal(target.below(reachK + 1)));
+        check("同列形状：**同层水平邻格**不算到达（`isInGoal(target.offset(1,0,0))=false`）"
+                        + " —— ⭐ 横向那一圈**归侧面形状**，这就是「两条腿互补」的几何依据",
+                !column.isInGoal(target.offset(1, 0, 0)));
+        check("同列形状：`exactFoot()` 必须 == `true`（实测 " + column.exactFoot() + "）—— 候选脚位与目标"
+                        + "**共享 XZ** ⇒ 同一区块 ⇒ 一次预检覆盖整个到达集（所以它**不进** "
+                        + "`check-far-goal-usage.py` 登记表；⚠️ 与侧面形状那条断言的**取值相反**）",
+                column.exactFoot());
+
+        PathPlan pc = plan(level, start, PathRequest.miningApproach(
+                bot.getUUID().toString(), start, column, "adjacent-goal-check"));
+        columnPlan = String.valueOf(pc.status());
+        BlockPos ac = arrivalFoot(pc);
+        columnArrival = ac.toShortString();
+        check("同列形状：必须接得上真规划器（走 `PathRequest.miningApproach(… GoalSpec …)` 那个"
+                        + "**形状自由重载**；status 必须 == REACHED，实测 " + columnPlan + "）",
+                pc.status() == PlanningStatus.REACHED);
+        check("同列形状：到达脚位必须**真的**满足目标（`isInGoal(arrival)`，arrival=" + columnArrival + "）",
+                column.isInGoal(ac));
+        check("同列形状：到达脚位不许是起点（真的走了一步以上，实测 movements=" + pc.movements().size() + "）",
+                pc.status() != PlanningStatus.REACHED || !ac.equals(start));
+        // ⭐ **如实记一条会进日志的行为读数**（⛔ 不作断言：它取决于代价，不是不变量）：
+        // 同列到达集**含目标格自身**（Baritone `GoalTwoBlocks` 的语义）⇒ 只要目标**可破坏**，
+        // 规划就常会选「**破进目标格**」那一格 ⇒ `arrival == target`。⚠️ 这不是危险形状
+        // （`action/MineBlockRunner.tick()` 开头有「目标已空 ⇒ `DONE`」，`:113-117`），
+        // 但它**是**本刀的行为差异面 ⇒ 真机核对的第一个读数就是这一行。
+        if (ac.equals(target)) {
+            BotLog.info("[K2Adjacent] 同列形状：落点 == **目标格自身**（破进目标格）⇒ 真机请核对"
+                    + "「approach 期就把目标挖掉 ⇒ runner 直接 DONE」这条读数（台账 `O39`）");
+        }
+        msTotal += (System.nanoTime() - t0) / 1_000_000L;
+    }
+
+    // ============ `1-1b₃` 断言组：侧面兜底（洞壁凸出） ============
+
+    /**
+     * **兜底场景**：证明「**同列腿给不出方案时，侧面腿给得出、而且落在同列腿永远不接受的那一格上**」。
+     *
+     * <p>⛔ <b>它不证明什么</b>：不断言 `planGoalApproach` 内部的**先后顺序**（那是私有编排，
+     * 本夹具只到规划层；顺序的证据在 `MineMenuCheckTask` 的 A2 = 一次规划调用发起的搜索次数上界）。
+     */
+    private void probeFallback(ServerLevel level) {
+        long t0 = System.nanoTime();
+        BlockPos start = MovementHelper.footCell(level, bot).immutable();
+        BlockPos target = FB_ORIGIN.offset(TARGET_DX, 0, 0);
+        GoalColumnBlocks column = GoalColumnBlocks.forReach(target, bot.getBlockReach());
+        GoalAdjacent side = GoalAdjacent.of(target);
+
+        check("兜底：前提 —— bot 脚位必须 == " + FB_ORIGIN.toShortString()
+                        + "（实测 " + start.toShortString() + "）", start.equals(FB_ORIGIN));
+        // ⭐ 场景的承重前提：柱内每一格都**不可破坏** ⇒ 每一格都站不进去。
+        // 不满足 ⇒ 场景没摆好，此时**如实判红**比"断言一条假结论"诚实（同 `§6.9.1` 的前提自断言纪律）。
+        int bedrock = 0;
+        boolean allInfinite = true;
+        for (int k = 0; k <= column.depth() + PILLAR_EXTRA; k++) {
+            bedrock++;
+            allInfinite &= Double.isInfinite(
+                    BlockInteraction.estimateBreakTicks(bot, level, target.below(k)));
+        }
+        fbBedrockCells = bedrock;
+        check("兜底：前提 —— 柱内 " + bedrock + " 格**全部不可破坏**（`estimateBreakTicks == +∞`；"
+                        + "与 Baritone `MovementHelper.getMiningDurationTicks:588-590` 的"
+                        + "「流体不可挖 → 代价无穷」同一口径）⇒ 柱内哪一格都**站不进去**", allInfinite);
+        boolean sideStandable = false;
+        for (BlockPos foot : horizontalNeighbours(target)) {
+            sideStandable |= level.getBlockState(foot).isAir()
+                    && !level.getBlockState(foot.below()).isAir();
+        }
+        check("兜底：前提 —— 至少 1 个**水平邻格**是现成的可站格（空气 ＋ 脚下实心）", sideStandable);
+
+        PathPlan pc = plan(level, start, PathRequest.miningApproach(
+                bot.getUUID().toString(), start, column, "adjacent-goal-check"));
+        fbColumn = String.valueOf(pc.status());
+        check("兜底：**同列腿必须给不出方案** ⇒ 必须 `UNREACHABLE`（实测 " + fbColumn
+                        + "；⚠️ 若这里是 `SEARCH_LIMIT`/`PARTIAL`，那是**没评价完**、不是不可达 —— "
+                        + "本夹具按红线口径 `SEARCH_LIMIT ≠ UNREACHABLE` **如实判红**）",
+                pc.status() == PlanningStatus.UNREACHABLE);
+
+        PathPlan ps = plan(level, start, PathRequest.adjacentApproach(
+                bot.getUUID().toString(), start, target, null, "adjacent-goal-check"));
+        fbSide = String.valueOf(ps.status());
+        BlockPos af = arrivalFoot(ps);
+        fbArrival = af.toShortString();
+        check("兜底：**侧面腿必须有方案**（水平邻格是现成的 ⇒ 必须 `REACHED`，实测 " + fbSide + "）",
+                ps.status() == PlanningStatus.REACHED);
+        check("兜底：侧面腿的到达脚位必须真的满足**它自己的**目标（`GoalAdjacent.isInGoal(arrival)`）",
+                side.isInGoal(af));
+        fbSideOutsideColumn = !column.isInGoal(af);
+        check("⭐ 兜底：侧面腿给出的落点**不在同列到达集里**（`!GoalColumnBlocks.isInGoal(arrival)`，"
+                        + "arrival=" + fbArrival + "）⇒ **腿 2 不是死代码**：它给的正是腿 1 永远不接受的那一格",
+                fbSideOutsideColumn);
+        msTotal += (System.nanoTime() - t0) / 1_000_000L;
+    }
+
+    /** 跑一次**真规划**（给定请求）—— `1-1b₃` 起既有"工厂 + 精确脚位"的请求，也有"工厂 + 形状"的重载请求。 */
+    private PathPlan plan(ServerLevel level, BlockPos start, PathRequest request) {
+        PathPlan plan = new CorePathPlanner().plan(bot, level, request);
+        BotLog.info("[K2Adjacent] plan goal={} start={} status={} movements={} nodes={} ms={} arrival={}",
+                request.goal().describe(), start.toShortString(), plan.status(), plan.movements().size(),
+                plan.nodesExpanded(), plan.elapsedMillis(), arrivalFoot(plan).toShortString());
+        return plan;
     }
 
     /**
