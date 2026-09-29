@@ -3226,3 +3226,36 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 **(a) 拆信封到底**（推荐）· (b) `reach/` 只收纯几何 · (c) 保留 `task/` 侧门面（与甲「类消失」字面冲突）。
 
 **⑤ 判据**：`tools/check-all.sh` **`pass=34 warning=1 failed=0`** · 侦察件 `check-ref-integrity` ✅（10 处 `文件:行` 全在界内）· 侦察轮**只读**（`src/`、`tools/` 零改动）。
+
+---
+
+### ✅ 断点二十四（2026-09-29 · 第二十四次；**改革 ① 主体 `①-0`「拆信封」** —— `Approach` → `reach/ApproachCapability`）
+
+> ⚠️ **本节追加在文件末尾、❗ 未插入上方断点序列**（原因同前九次：本文件有 14 处 ≥2258 的自指行号引用）。
+> 📌 决策 = `D-527` · 前置 = 断点二十三（`D-526` 侦察）· 台账 = `O23` · 授权 = 用户对 `D-526` §五 选 **(a) 拆信封到底**。
+
+**① 本刀在链条里的位置**：`DS-5` 甲·解体的**第一刀**（`①-0`），作用是**先把类型出处合法化**，
+让后面「把『选』搬进 `reach/`」不至于撞层方向门禁。⚠️ **本刀零行为变化**。
+
+**② 做了什么**：新类 `reach/ApproachCapability`（`PURE_PASSAGE` / `PLACEMENT_ALLOWED`，**同序**）；
+`MiningProfile` 删嵌套枚举（留**墓碑指针**）＋ record 组件换类型；`MiningPlanner` 4 处形参 ＋ 1 处常量；
+夹具 1 个文件 2 处；`reach/MiningPlan` javadoc 一处旧限定名 + 一处**理由已不成立**的旧注（只加指针）。
+总计 **5 文件改动（94 / 35）＋ 1 个新文件**。
+
+**③ ⭐ 门禁**（`rule_search_limit_not_unreachable`）：**改锚**（那条锚点是**逐字**的聚合入口签名 ⇒ 类型一改就失配）
+＋ **5 颗牙**（新家真的定义 / 两个取值都在 / 原处不许再声明嵌套枚举 / 全仓不许再出现旧限定名 / 锚点自身），
+**5/5 注入验证变红后四个文件 sha 逐字还原**。
+⭐ 一条值得记的：本刀**自己的墓碑**里就写着 `public enum Approach { … }` ⇒ 不剥注释的话那颗牙会**假红**
+⇒ 判据改成"先剥注释再判"（与 `D-524` 那次"该剥未剥"**方向相反**，但都指向同一条：**判据的主语是代码，不是文本**）。
+
+**④ 判据**：`compileJava` **绿**（⚠️ 先红了 2 处 = `planDirect`/`selectBest` 的私有形参，**编译器抓的**）·
+`kernel-predicates` **PASS**（`搜索受限≠没有=0`；耗时 0.93 → **1.39 s**）· `check-all` **`pass=34 warning=1 failed=0`** ·
+`check-layer-direction` **PASS**（`reach/` **8 文件**）· `headless-battery core` **`verdict=PASS`**（指纹 **`1b263fe5db6d`** · **250 s** · 非缓存命中）。
+
+**⑤ ⚠️ 与侦察件的一处口径修正**：侦察件 §6 把 `①-0` 写成「`Approach` 定新家 ＋ `canPlaceSupport` 入参」两件 ——
+**实际只做前一件**：给形参加 `canPlaceSupport` **只有在选择器真的搬进 `reach/` 时才有意义**（现在它还在 `task/mining/`）
+⇒ 挪到 `①-2`，与"搬进 `reach/`"同一刀（两者不可分）。
+
+**⑥ ⏭ 下一步（无前置，不需要拍板）**：`①-1` = `R8` 归因码（3 个码 ＋ `isStandingPointRefusal`）独立成类落 `reach/`；
+生产消费者**只有一个**（`FishboneJob:28/:750`）。
+⛔ **`①-0` 只解了 3 处上层依赖里的 1 处**：`findPlaceableSlot`（`MiningPlanner:222`）与 `MiningBudget`（自己 import `action`）仍在。

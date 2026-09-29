@@ -28,6 +28,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
+import com.dddgn.alice.reach.ApproachCapability;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -1118,9 +1119,9 @@ public final class FishboneSlice2CheckTask implements Task {
 
         MiningBudget budget = MiningBudget.forTarget(bot, level, target, true);
         MiningPlanner.Result pure = new MiningPlanner().plan(bot, target, budget, true,
-                MiningProfile.Approach.PURE_PASSAGE, "fishbone-approach-check");
+                ApproachCapability.PURE_PASSAGE, "fishbone-approach-check");
         MiningPlanner.Result placement = new MiningPlanner().plan(bot, target, budget, true,
-                MiningProfile.Approach.PLACEMENT_ALLOWED, "fishbone-approach-check");
+                ApproachCapability.PLACEMENT_ALLOWED, "fishbone-approach-check");
         // 对照读数（`survey/34 §2.1` 的那个不对称）：**同一段起点→候选格**，走位工厂能不能到？
         PathPlan walk = new CorePathPlanner().plan(bot, level, PathRequest.withPlacement(
                 bot.getUUID().toString(), bot.blockPosition(), candidateFoot, "fishbone-approach-check"));

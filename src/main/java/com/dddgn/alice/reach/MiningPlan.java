@@ -36,7 +36,7 @@ public record MiningPlan(
      * ⇒ 现在改成：**规划器在产生计划的那一行显式写死取值**，执行期**只读、零反推**
      * （`MineBlockRunner` 是穷尽 {@code switch}，新增取值即编译不过）。
      *
-     * <p><b>⭐ 顺带修掉一处同族既有缺陷</b>：A 腿（`planDirect`）在 `MiningProfile.Approach.PLACEMENT_ALLOWED`
+     * <p><b>⭐ 顺带修掉一处同族既有缺陷</b>：A 腿（`planDirect`）在 {@link ApproachCapability#PLACEMENT_ALLOWED}
      * 下用 {@code PathRequest.withPlacement} 规划（`D-443` 裁定 1a，鱼骨"补一块再走"），
      * 而执行期一律按 {@code of} 重走 ⇒ 规划期到得了、执行期到不了。分开 {@link #DIRECT_PURE_PASSAGE}
      * 与 {@link #DIRECT_PLACEMENT_ALLOWED} 之后，执行期能**逐字复现**规划期用的那个工厂。
@@ -49,6 +49,12 @@ public record MiningPlan(
      * <p>⚠️ **刻意不叫 {@code Approach}**：`task.mining.MiningProfile.Approach` 已存在，
      * 而 `tools/check-duplicate-class-names.py` 是**有牙的门禁** ⇒ 不许造同名两物
      * （`GoalSpec` 的教训，设计讨论 `§12.1.2`）。
+     *
+     * <p>📌 **2026-09-29 更新（`D-527`，只加指针、上文原文不改）**：那个曾与它同名的嵌套枚举
+     * **已经不存在了** —— `MiningProfile.Approach` 被提出来、落成 {@link ApproachCapability}
+     * （`①-0`「拆信封」，为的是让「选」能搬进 `reach/`）。⇒ 上面那条"不许同名两物"的理由
+     * **今天不再成立**；本枚举仍然叫 {@code Arrival}，因为改名是**另一件事**（锚在名字上的门禁会静默失效，
+     * `survey/42 §3.3`），不在本刀范围内。
      */
     public enum Arrival {
         /** 当前站位即可挖掘（无走位）⇒ `PathRequest.of`。 */

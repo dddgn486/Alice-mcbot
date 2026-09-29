@@ -32,6 +32,9 @@ import com.dddgn.alice.reach.StandingPointEvaluator;
 // ⚠️ 只搬了"要不要垫"的**判据**；"**垫一块**"这个**动作**归谁仍是待裁问题（`plans §4.2`⑤ 逐字），
 // 本刀不动 A 腿的选路/垫块编排（那是 `R2`）。
 import com.dddgn.alice.reach.DropCatchment;
+// ⭐ 2026-09-29（改革 ① 主体 · `①-0`「拆信封」，`D-527`）：接近能力枚举提到 `reach/` 成为独立类型
+// ⇒ 本类与 `MiningProfile` 都改成引用它（`task/` → `reach/` 是合法方向）。
+import com.dddgn.alice.reach.ApproachCapability;
 
 /**
  * 挖掘领域规划器（D-067 批次 2/3）：目标方块 → 两模式站位选择 → 成本估算 → top-K 精算 → MiningPlan。
@@ -117,7 +120,7 @@ public final class MiningPlanner {
      *                      需要清障时由**上层 Job** 显式做（限次 + 预算），不由规划器偷偷挖。
      */
     public Result plan(ServerPlayer bot, BlockPos target, MiningBudget budget, boolean standableOnly) {
-        return plan(bot, target, budget, standableOnly, MiningProfile.Approach.PURE_PASSAGE, "mining-planner");
+        return plan(bot, target, budget, standableOnly, ApproachCapability.PURE_PASSAGE, "mining-planner");
     }
 
     /**
@@ -129,13 +132,15 @@ public final class MiningPlanner {
      * 能力是**作业**的属性（鱼骨的 `A14` 已经授权"补一块再走"），所以由调用方的
      * {@link MiningProfile} 带入，而不是规划器替所有消费者猜。
      *
-     * @param approach  {@link MiningProfile.Approach#PURE_PASSAGE}（默认，= 精确现状）或
-     *                  {@link MiningProfile.Approach#PLACEMENT_ALLOWED}（只放不拆）
+     * @param approach  {@link ApproachCapability#PURE_PASSAGE}（默认，= 精确现状）或
+     *                  {@link ApproachCapability#PLACEMENT_ALLOWED}（只放不拆）
+     *                  ⚠️ 类型住在 **`reach/`**（`D-527` 从嵌套枚举提出来），不再是 `MiningProfile.Approach`
+     *                  —— 理由 = `plans §4.2`① 要把「选」搬进 `reach/`，而 `reach/` 不许 import `task/`。
      * @param requester 接近走位的归因串（**必须传作业自己的**，否则 `WriteAudit` 里
      *                  这条放置会记到别的名下 ⇒ 作业侧的累计额度看不见它）
      */
     public Result plan(ServerPlayer bot, BlockPos target, MiningBudget budget, boolean standableOnly,
-                       MiningProfile.Approach approach, String requester) {
+                       ApproachCapability approach, String requester) {
         ServerLevel level = bot.serverLevel();
         BlockPos immutableTarget = target.immutable();
         BlockPos startFoot = MovementHelper.footCell(bot.serverLevel(), bot).immutable();
@@ -204,7 +209,7 @@ public final class MiningPlanner {
     // ==================== 模式 A ====================
 
     private Result planDirect(ServerPlayer bot, ServerLevel level, BlockPos target, BlockPos startFoot,
-                              double reach, MiningBudget budget, MiningProfile.Approach approach,
+                              double reach, MiningBudget budget, ApproachCapability approach,
                               String requester) {
         LineOfSightChecker.LineOfSightResult currentLos =
                 StandingPointSelector.isValidStandingPoint(level, target, startFoot, reach);
@@ -416,7 +421,7 @@ public final class MiningPlanner {
     /** 模式 A：候选 → 估算 → top-K 精确规划（纯通行请求）。 */
     private Result selectBest(ServerPlayer bot, ServerLevel level, BlockPos target, BlockPos startFoot,
                               List<StandingPointSelector.Candidate> candidates,
-                              BlockPos supportPos, double extraCost, MiningProfile.Approach approach,
+                              BlockPos supportPos, double extraCost, ApproachCapability approach,
                               String requester) {
         if (candidates.isEmpty()) {
             return new Result(null, null, "no_candidate");
@@ -431,7 +436,7 @@ public final class MiningPlanner {
         //（连归因串 `"mining-planner"` 都保持原样，避免动到既有判据/账本口径）。
         String requesterForApproach = requester == null || requester.isBlank()
                 ? "mining-planner" : requester;
-        boolean placementAllowed = approach == MiningProfile.Approach.PLACEMENT_ALLOWED;
+        boolean placementAllowed = approach == ApproachCapability.PLACEMENT_ALLOWED;
         // ⭐⭐ `D-520`：**到位形状在这里派生、并在紧邻一行决定请求工厂** —— 两件事同一出处；
         // 执行期 `MineBlockRunner` 只读 `plan.arrival()` 复现同一个工厂（⛔ 不再由任何值反推）。
         // 旧形状的病灶：规划期用 `withPlacement`（`D-443` 裁定 1a，鱼骨「补一块再走」）、

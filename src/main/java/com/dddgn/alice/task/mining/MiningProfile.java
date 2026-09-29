@@ -1,5 +1,10 @@
 package com.dddgn.alice.task.mining;
 
+// ⭐ 2026-09-29（改革 ① 主体 · `①-0`「拆信封」，`D-527`）：接近能力枚举从本文件的**嵌套枚举**
+// 提出来、独立成类并落 `reach/`（`plans §4.2`① 要把「选」搬进 `reach/`，而 `reach/` 不许 import `task/`
+// ⇒ 一个住在 `task/` 里的嵌套类型会把新家再次拖回循环）。本类**反向引用**它 —— `task/` → `reach/` 是合法方向。
+import com.dddgn.alice.reach.ApproachCapability;
+
 /**
  * **挖掘能力信封**（D-111，切片 A）：一个目标"允许用什么手段去够到它"。
  *
@@ -31,40 +36,35 @@ package com.dddgn.alice.task.mining;
  *                               原先把请求**硬编码**成 {@code PathRequest.of}（纯通行），于是出现了
  *                               "**同一个 bot、同一 tick，走位说 `REACHED`、挖掘站位说 `unreachable`**"
  *                               的真机读数（`survey/34 §2.1`）—— 能力本该由**调用方**声明，而不是由
- *                               规划器替所有消费者写死。默认 {@link Approach#PURE_PASSAGE} = **精确现状**，
- *                               所以既有调用点一行不改、行为不变。
+ *                               规划器替所有消费者写死。默认 {@link ApproachCapability#PURE_PASSAGE}
+ *                               = **精确现状**，所以既有调用点一行不改、行为不变。
+ *                               ⚠️ 类型 {@link ApproachCapability} 住在 **`reach/`**（`D-527`），不再是嵌套枚举。
  */
 public record MiningProfile(boolean standableOnly, int maxGainSteps, int gainBlockBudget,
-                            int clearBudget, boolean restoreOwnPlacements, Approach approach) {
+                            int clearBudget, boolean restoreOwnPlacements, ApproachCapability approach) {
 
-    /**
-     * 模式 A"走到站位格"的**接近能力**（`D-443` 裁定 1a）。
-     *
-     * <ul>
-     *   <li>{@link #PURE_PASSAGE}（默认）= {@code PathRequest.of}：只走，不改世界（`D-076` 默认）；</li>
-     *   <li>{@link #PLACEMENT_ALLOWED} = {@code PathRequest.withPlacement}：**只放不拆**
-     *       （`PLACE_STEP_AND_TRAVERSE` + `PILLAR` + `FALL`）—— 与鱼骨的 `A14` **同一个集合**，
-     *       所以**不扩大任何写入授权面**（`D-443` 裁定 7b：额度用尽 ⇒ 如实放弃，不静默降级）。</li>
-     * </ul>
-     *
-     * ⚠️ 消费方（今天的唯一消费者 = 鱼骨）必须自己持有预算与上限：本枚举只表达"**允许**"，
-     * 不表达"**放多少**"（`C8` 的三条上限 + `A14` 的作业累计额度仍在作业侧）。
+    /*
+     * ⚠️ 2026-09-29（`D-527`）：这里原来有一个**嵌套** `public enum Approach { PURE_PASSAGE, PLACEMENT_ALLOWED }`
+     * （连同它那段"⭐ 为什么单列一个字段"的 javadoc）。**已整体搬走** ⇒ 新家 =
+     * `com.dddgn.alice.reach.ApproachCapability`（同包名类名一一对应，取值与默认值**逐字未改**）。
+     * ⛔ 别把它读成"接近能力没了"：本 record 的 `approach` 组件**照旧存在**，只是类型换了出处；
+     * ⛔ 也别在原处放回一个同名嵌套枚举 —— 门禁 `rule_search_limit_not_unreachable` 的
+     * `D-527` 牙正是挡它的（"原处不许再声明 `enum Approach`" ＋ "生产代码里不许再出现
+     * 旧的限定名"）。
+     * 📌 为什么必须搬：`reach/` **不许** import `task/`（`check-layer-direction` 断言①），
+     * 而 `plans §4.2`① 要求把「选」搬进 `reach/` ⇒ 嵌套在 `task/` 里的类型会把新家拖回循环。
      */
-    public enum Approach {
-        PURE_PASSAGE,
-        PLACEMENT_ALLOWED
-    }
 
     /** 加高方块预算默认值（用户 2026-09-11 裁定：12，砍树够用；模组超高树不在范围）。 */
     public static final int DEFAULT_GAIN_BLOCK_BUDGET = 12;
 
     /** 只用现成可站站位、且**不许加高**（伐木 J1–J5 的原行为）。 */
     public static final MiningProfile STANDABLE_ONLY =
-            new MiningProfile(true, 0, 0, 0, false, Approach.PURE_PASSAGE);
+            new MiningProfile(true, 0, 0, 0, false, ApproachCapability.PURE_PASSAGE);
 
     /** 允许规划器自己挖隧道/挖地进站（挖掘 Job 的原行为）。 */
     public static final MiningProfile TUNNEL_ALLOWED =
-            new MiningProfile(false, 0, 0, 0, false, Approach.PURE_PASSAGE);
+            new MiningProfile(false, 0, 0, 0, false, ApproachCapability.PURE_PASSAGE);
 
     public MiningProfile {
         if (maxGainSteps < 0 || gainBlockBudget < 0 || clearBudget < 0) {
@@ -113,7 +113,7 @@ public record MiningProfile(boolean standableOnly, int maxGainSteps, int gainBlo
      */
     public MiningProfile withPlacementApproach() {
         return new MiningProfile(standableOnly, maxGainSteps, gainBlockBudget, clearBudget,
-                restoreOwnPlacements, Approach.PLACEMENT_ALLOWED);
+                restoreOwnPlacements, ApproachCapability.PLACEMENT_ALLOWED);
     }
 
     /** **嵌套子任务的信封**（R2 / D-121）：子任务的能力必须是父信封的**子集**。
@@ -161,7 +161,7 @@ public record MiningProfile(boolean standableOnly, int maxGainSteps, int gainBlo
 
     public String describe() {
         return "standableOnly=" + standableOnly
-                + (approach == Approach.PURE_PASSAGE ? "" : " approach=" + approach)
+                + (approach == ApproachCapability.PURE_PASSAGE ? "" : " approach=" + approach)
                 + (mayGain() ? " gain<=" + maxGainSteps + " blocks<=" + gainBlockBudget : " gain=none")
                 + (mayClear() ? " clear<=" + clearBudget : " clear=none")
                 + (restoreOwnPlacements ? " restore=own" : "");

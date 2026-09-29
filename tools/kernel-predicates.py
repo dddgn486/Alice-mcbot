@@ -1281,10 +1281,16 @@ def rule_search_limit_not_unreachable():
     # `plan(…, standableOnly)` 变成 6 参 `plan(…, standableOnly, approach, requester)`
     # （4 参版现在只是一行委托 ⇒ 它 **不再** 是聚合体）。**不变量没变**：聚合三条腿时必须
     # 单独识别 `SEARCH_INCOMPLETE`。红臂在本文件 `--inject` 里照旧（见下方 §注入臂）。
+    # ⚠️ **锚点再跟一次结构**（2026-09-29，`D-527` = 改革 ① 主体 `①-0`「拆信封」）：
+    # 第 5 个形参的类型从 `MiningProfile.Approach`（**嵌套**枚举）换成 **`reach/ApproachCapability`**
+    # —— 理由 = `plans §4.2`① 要把「选」搬进 `reach/`，而 `reach/` **不许** import `task/`
+    # （`check-layer-direction` 断言①）⇒ 一个住在 `task/` 里的嵌套类型会把新家再次拖回循环。
+    # ⭐ 类型一改，下面这条位置化锚点**立刻失配** ⇒ 本规则**响亮地**报"结构变了"（预期行为，
+    # 不是回归）—— 这正是 `D-524`/`D-525` 记的"每次搬空都会同时碰到内核门禁"的同一件事。
     aggregate = method_body(
         planner_code,
         "public Result plan(ServerPlayer bot, BlockPos target, MiningBudget budget, boolean standableOnly,\n"
-        "                       MiningProfile.Approach approach, String requester) {")
+        "                       ApproachCapability approach, String requester) {")
     # ⚠️ **必须是"同一个 `if` 条件里的三条腿合取"**（位置化），**不是**"方法体里出现过这三个子串"
     # —— 后者会被同一方法体里的 `standableOnly` 早返回（`if (SEARCH_INCOMPLETE.equals(direct…))`）
     # 满足：2026-09-25 实测，**把 `direct` 那条腿从合取里删掉，门禁仍 PASS**（= 没有牙）。
@@ -1301,6 +1307,47 @@ def rule_search_limit_not_unreachable():
     elif not conjunction:
         problems.append("`MiningPlanner.plan` 聚合两条腿时没有把 `SEARCH_INCOMPLETE` 单独识别"
                         "（合取缺项 ⇒ 任一条腿被限流仍会整体报 `found_but_unminable`（= 不可挖））")
+    # ⭐ `D-527`（2026-09-29，改革 ① 主体 `①-0`「拆信封」）：**接近能力枚举搬出 `task/`、落 `reach/`**。
+    # 上面那条位置化锚点里的形参类型已经从 `MiningProfile.Approach` 换成 `ApproachCapability`
+    # ⇒ 搬完必须**钉住"搬干净"**，否则下一次有人把嵌套枚举放回去，锚点会**因类型名相同而静默复用**
+    #（本刀之前它就叫 `Approach`，新名也叫 `Approach…` ⇒ 只改一半最容易骗过眼睛）。
+    # 三颗牙：① 新家真的定义它且两个取值都在；② 原处不许再声明嵌套 `enum Approach`；③ 全仓生产代码
+    # 不许再出现旧的限定名 `MiningProfile.Approach`。
+    # ⚠️ 判据一律先**剥注释**（`//` 与 `/* … */`）—— 墓碑/迁移说明里提到旧名字**不算违规**：
+    # 本刀自己的墓碑就写着 `public enum Approach { … }`，不剥注释的话那颗牙会**假红**（已实测）。
+    def without_comments(text: str) -> str:
+        stripped = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+        return "\n".join(line.split("//")[0] for line in stripped.split("\n"))
+
+    capability = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "reach"
+                  / "ApproachCapability.java")
+    if not capability.exists():
+        problems.append("找不到 `reach/ApproachCapability.java` ⇒ 接近能力的**唯一出处**不在了"
+                        "（`D-527`：它必须住 `reach/`，否则「选」搬不进去 —— 层方向门禁断言①）")
+    else:
+        capability_code = without_comments(capability.read_text(encoding="utf-8"))
+        if "public enum ApproachCapability" not in capability_code:
+            problems.append("`reach/ApproachCapability` 里没有 `public enum ApproachCapability` 的**定义** ⇒ "
+                            "搬走了但没落地")
+        for value in ("PURE_PASSAGE", "PLACEMENT_ALLOWED"):
+            if value not in capability_code:
+                problems.append(f"`ApproachCapability` 少了取值 `{value}` ⇒ 接近能力不全"
+                                "（`D-443` 裁定 1a：默认纯通行 + 鱼骨「补一块再走」都在用）")
+    profile_code = without_comments((ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
+                                     / "task" / "mining" / "MiningProfile.java")
+                                    .read_text(encoding="utf-8"))
+    if "enum Approach" in profile_code:
+        problems.append("`MiningProfile` 里又**声明**了 `enum Approach` ⇒ 它已搬进 `reach/ApproachCapability`"
+                        "（`D-527`）：不许在原处复活、也不许留转发壳（`J-6` 同一份判据只有一个出处；"
+                        "`check-duplicate-class-names` 也会撞）")
+    if "ApproachCapability" not in profile_code:
+        problems.append("`MiningProfile` 没有引用 `ApproachCapability` ⇒ 能力信封的类型出处不明"
+                        "（`D-527`：本 record 的 `approach` 组件必须换成 `reach/` 的那个类型）")
+    for path in sorted((ROOT / "src" / "main" / "java").rglob("*.java")):
+        if "MiningProfile.Approach" in without_comments(path.read_text(encoding="utf-8")):
+            problems.append(f"{path.relative_to(ROOT)} 的**生产代码**里仍用旧的限定名 "
+                            "`MiningProfile.Approach` ⇒ 它已不存在（`D-527`）："
+                            "要么改成 `ApproachCapability`，要么那是一份**第二处**接近能力")
     mine_more = code_only(mine)
     mine_body = method_body(mine_more, "private Task.Status mine() {")
     if not mine_body:

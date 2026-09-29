@@ -24955,3 +24955,83 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 - ⛔ §二 ④/⑤ **只登记不处置**；"要不要给 `code_ref` 行号加判据"属于**新规则**（`AGENTS.md` 准入尺子第 1 问），须用户显式同意。
 - ⚠️ 本件**不覆盖**「簇挖掘 step / 有界循环器」那一批（`D-519` 已把它们移出改革 ① 主体）。
 - 📌 **指针**：侦察件 = `docs/reviews/2026-09-29-①选-解体-开工前侦察.md` · 断点 = `HANDOVER.md` 断点二十三 · 台账 = `O22`。
+
+---
+
+## D-527：改革 ① 主体 **`①-0`「拆信封」** —— 接近能力枚举 `Approach` 提到 `reach/ApproachCapability`（2026-09-29，接 `D-526` §五）
+
+- 授权 = 用户 2026-09-29 对 `D-526` §五 的**过层形状三选一**选 **(a) 拆信封到底**（并要求「先只读侦察，再动刀」已于 `D-526` 完成）。
+- 依据 = `plans §4.2`①「①「选」→ **`reach/`**」＋ `check-layer-direction` 断言①（`reach/**` 不许 import `task/action/job`）＋
+  `D-460` 逐字「漏搬一个，循环就**换个方向长回来**」。
+- ⚠️ **本刀的行为变化 = 0**（纯类型搬家；取值、默认值、`ordinal` 顺序、`describe()` 输出全部逐字不变）。
+
+### 一、落地
+
+| # | 内容 | 读数 |
+|---|---|---|
+| 1 | 新类 **`reach/ApproachCapability.java`**（`public enum`，33 行）—— `PURE_PASSAGE` / `PLACEMENT_ALLOWED`，**同序**（`ordinal` 不变） | 新文件 |
+| 2 | `task/mining/MiningProfile`：**删掉嵌套 `public enum Approach`**（连带它那段 javadoc → 搬进新类）＋ 留**墓碑指针**；record 组件类型 `Approach` → `ApproachCapability`；4 处取值引用改 `ApproachCapability.*` | 48 行改动 |
+| 3 | `task/mining/MiningPlanner`：**4 处**（2 处公开形参 + `planDirect`/`selectBest` 两个私有形参）+ 1 处常量引用 + javadoc `@param` | 19 行改动 |
+| 4 | `task/FishboneSlice2CheckTask`（夹具）：2 处取值 + import | 5 行改动 |
+| 5 | `reach/MiningPlan`：① javadoc 里的旧限定名 → `{@link ApproachCapability#PLACEMENT_ALLOWED}`；② 那条"刻意不叫 `Approach`"的理由**已不成立**（旧嵌套枚举没了）⇒ **只加指针、原文不改** | 8 行改动 |
+| 6 | 门禁 `rule_search_limit_not_unreachable`：**改锚** ＋ **5 颗牙**（§二） | 49 行改动 |
+
+**总计**：5 个文件改动（94 插入 / 35 删除）＋ 1 个新文件。
+
+### 二、⭐ 门禁：改锚 ＋ 5 颗牙（全部做过注入验证）
+
+**为什么必须动它**：该规则有一条**位置化**锚点 = 聚合入口的完整签名，**逐字**包含
+`MiningProfile.Approach approach, String requester) {` ⇒ 类型一改，它会**响亮地**报"结构变了"（预期行为，不是回归）。
+这正是 `O20` ⑥ 记的「件② 每次搬空都会同时碰到内核侧门禁」。
+
+| 牙 | 判据 | 挡什么 | 注入验证 |
+|---|---|---|---|
+| **重锚** | 聚合入口签名改成 `ApproachCapability approach, String requester) {` | 锚点过期后**静默失配**（旧串不在了，谁也不会发现规则变成了空转） | 注入"把形参类型改回旧名" ⇒ 精确报「找不到聚合入口 …（结构变了 ⇒ 规则要跟着改）」 |
+| **①** | 新家必须**真的定义** `public enum ApproachCapability` | 搬走了没落地 / 被删 | 改名注入 ⇒ 精确报红 |
+| **②** | 新家必须**两个取值都在**（`PURE_PASSAGE` / `PLACEMENT_ALLOWED`） | 顺手删一个取值（`D-443` 裁定 1a 两种都在用） | 改一个取值名 ⇒ 精确报红 |
+| **③** | `MiningProfile` **不许再声明** `enum Approach` | 原处复活 / **转发壳** | 注入一个真的嵌套枚举 ⇒ 精确报红 |
+| **④** | **全仓**生产代码不许再出现旧的限定名 `MiningProfile.Approach` | 只改一半（留一处旧类型引用 ⇒ 编译过、但那是一份**第二处**接近能力） | 把夹具一处改回旧名 ⇒ 精确报红并**点名文件** |
+
+**⚠️ 一条自我验证的细节（值得记）**：本刀自己的墓碑里就写着 `public enum Approach { … }`（在 `/* */` 块注释里）
+⇒ 如果那颗牙按**裸文本**判，它会**假红**。⇒ 判据改成**先剥注释**（`//` 与 `/* … */`）再判，
+跑绿本身就是"剥注释生效"的证据。⚠️ 而这条陷阱与 `D-524` 的自我纠正（新类 javadoc 里的字面量被计数牙抓）**方向相反**：
+那次是**该剥未剥**、这次是**剥了才对** —— 两者都指向同一条纪律：**判据的主语必须是"代码"，不是"文本"**。
+
+### 三、判据
+
+| 判据 | 读数 |
+|---|---|
+| 注入台（5 颗牙） | **5/5 按预期变红**，四个文件 **sha 逐字还原**（`ApproachCapability` `27b186a9271d8e71` · `MiningProfile` `ed9345764535d436` · `MiningPlanner` `428243e865ca3b25` · `FishboneSlice2CheckTask` `01ca2ea25141e4a5`） |
+| `./gradlew compileJava --no-daemon` | **BUILD SUCCESSFUL**（⚠️ 中途先红了 **2 处**：`planDirect` / `selectBest` 的私有形参也该换 —— **是编译器抓的**，不是我复查出来的，已如实记） |
+| `python3 tools/kernel-predicates.py` | **PASS**（`搜索受限≠没有=0`）；耗时 **0.93 s → 1.39 s**（新增的"全仓扫旧限定名"那颗牙要走 522 个 `.java`） |
+| `tools/check-all.sh` | **`pass=34 warning=1 failed=0`** |
+| `tools/headless-battery.sh core` | **`verdict=PASS`**（`exit=0`）· 指纹 **`1b263fe5db6d`** · 耗时 **250 s** · 30 步 `SUMMARY` 全 `PASS`；⚠️ **不是缓存命中**（脚本报"缓存指纹=`b17dba5fdc70` ⇒ 真跑"，那个是 `D-525` 那轮的指纹） |
+| `check-layer-direction` | **PASS**（`reach/` **7 → 8 文件** · 反向依赖 0 · 红臂 14/14） |
+
+### 四、⚠️ 与侦察件的一处口径修正（**现场细看后改的，如实登记**）
+
+侦察件 §6 把 `①-0` 写成「`Approach` 定新家 **＋ `canPlaceSupport` 改成入参**」两件。
+**实际只做了前一件** —— 理由：给形参加一个 `canPlaceSupport` 参数，**只有在选择器真的搬进 `reach/` 时才有意义**
+（现在它还在 `task/mining/`，多一个参数只是纯噪声，造出一个没有收益的中间态）。
+⇒ `findPlaceableSlot` 的入参改造**挪到 `①-2`**（与"搬进 `reach/`"同一刀，两者不可分）。
+📌 这也把 `①-0` 压成了一把**零行为变化**的小刀（正是它在链条里的作用：先让类型出处合法化）。
+
+### 五、未做 / 下一步
+
+1. ⏳ **`①-1`（下一刀，无前置）**：`R8` 归因码（`STANDING_NO_VALID` / `STANDING_NO_REACHABLE` / `ADJACENT_NO_REACHABLE` / `isStandingPointRefusal`）
+   独立成类落 `reach/`；生产消费者**只有一个**（`FishboneJob:28/:750`），其余在夹具。
+2. ⏳ **`①-2`**：`R2`+`R5`（含 `Result`）搬进 `reach/` **＋ `canPlaceSupport` 入参**；同刀改 **4 条门禁的锚**
+   （`rule_arrival_declared_and_consumed` · `rule_search_limit_not_unreachable` · `rule_support_and_cluster_order` ①c · `rule_cost_includes_break`）。
+3. ⏳ **`①-3`**：`R1` 收口（3 个便捷重载去留 ＋ **流体前置单独安置** ＋ `MineTask:948/982` 的 `[MiningPlanner探针]` 遗留）。
+
+### 六、诚实边界
+
+- ⛔ **本刀不证明任何行为变化** —— 它是**纯类型搬家**：取值集合、默认值、`ordinal` 顺序、`describe()` 输出**全部逐字不变**；
+  ⚠️ 因此**没有客户端可观察变化**，本轮**不需要**客户端测试，jar **未同步**（没有可测的东西）。电池 PASS 是"没碰坏"的证据，不是"改对了"的证据。
+- ⛔ **`docs/` 里仍有 11 处历史提及 `MiningProfile.Approach` 未改**（`OPEN_ITEMS_LEDGER` 1 · 三份 `reviews` 5 · `HANDOVER` 2 · `AI_DECISIONS` 3）
+  —— 那是**历史记录**（当时它确实住那儿），按"原文不改、只加指针"的纪律保留；⚠️ **别把它们读成今天的结构**。
+- ⚠️ **新增门禁耗时 +0.46 s**（0.93 → 1.39 s）：那颗"全仓扫旧限定名"的牙是**唯一**需要遍历 522 个文件的新判据；
+  ⚠️ 若将来门禁总时长成为问题，第一个该被讨论的就是它（可改成只扫已知的 5 个文件 —— 代价是**漏掉"新文件里长出的第二处"**）。
+- ⚠️ **`①-0` 只解决了 3 处上层依赖里的 1 处**：`action.BlockInteraction.findPlaceableSlot`（`MiningPlanner:222`）与
+  `MiningBudget`（`MiningBudget.java:3` 自己 import `action`）**仍在** ⇒ 现在**还不能**把「选」搬进 `reach/`。
+- 📌 **指针**：侦察件 = `docs/reviews/2026-09-29-①选-解体-开工前侦察.md`（§2 是本节的前置）· 断点 = `HANDOVER.md` 断点二十四 · 台账 = `O23` · 门禁 = `tools/kernel-predicates.py` 的 `rule_search_limit_not_unreachable`。
