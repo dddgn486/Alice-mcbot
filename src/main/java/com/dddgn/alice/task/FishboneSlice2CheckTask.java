@@ -21,6 +21,7 @@ import com.dddgn.alice.reach.LineOfSightChecker;
 import com.dddgn.alice.task.mining.MiningBudget;
 import com.dddgn.alice.reach.StandingPointSelector;
 import com.dddgn.alice.task.mining.MiningPlanner;
+import com.dddgn.alice.reach.StandingPlanResult;
 import com.dddgn.alice.task.mining.MiningProfile;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -1119,9 +1120,9 @@ public final class FishboneSlice2CheckTask implements Task {
                 candidateLos != null);
 
         MiningBudget budget = MiningBudget.forTarget(bot, level, target, true);
-        MiningPlanner.Result pure = new MiningPlanner().plan(bot, target, budget, true,
+        StandingPlanResult pure = new MiningPlanner().plan(bot, target, budget, true,
                 ApproachCapability.PURE_PASSAGE, "fishbone-approach-check");
-        MiningPlanner.Result placement = new MiningPlanner().plan(bot, target, budget, true,
+        StandingPlanResult placement = new MiningPlanner().plan(bot, target, budget, true,
                 ApproachCapability.PLACEMENT_ALLOWED, "fishbone-approach-check");
         // 对照读数（`survey/34 §2.1` 的那个不对称）：**同一段起点→候选格**，走位工厂能不能到？
         PathPlan walk = new CorePathPlanner().plan(bot, level, PathRequest.withPlacement(

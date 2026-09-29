@@ -8,6 +8,7 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
 import com.dddgn.alice.task.mining.MiningBudget;
 import com.dddgn.alice.task.mining.MiningPlanner;
+import com.dddgn.alice.reach.StandingPlanResult;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -119,7 +120,7 @@ public class FluidMineCheckTask implements Task {
                 stack -> stack.is(Items.COBBLESTONE), 4, "cobblestone");
         scope.begin(TARGET_OVER_LAVA, 12, bot.getUUID());
         // 用例 A 的**规划层**断言：探针必须在任何站位/隧道规划之前就拒掉
-        MiningPlanner.Result planned = new MiningPlanner().plan(bot, TARGET_OVER_LAVA,
+        StandingPlanResult planned = new MiningPlanner().plan(bot, TARGET_OVER_LAVA,
                 MiningBudget.forTarget(bot, level, TARGET_OVER_LAVA, false));
         planRefuse = planned.success() ? "PLANNED(未拒绝!)" : planned.failureReason();
         BotLog.info("[FluidMineCheck] A 规划层 target={} success={} reason={}",
@@ -192,7 +193,7 @@ public class FluidMineCheckTask implements Task {
 
     /** 规划层硬拒码（同一个 `MiningPlanner` 入口 —— 夹具不另写判据）。 */
     private String planRefuseReason(ServerLevel level, BlockPos target) {
-        MiningPlanner.Result planned = new MiningPlanner().plan(bot, target,
+        StandingPlanResult planned = new MiningPlanner().plan(bot, target,
                 MiningBudget.forTarget(bot, level, target, false));
         return planned.success() ? "PLANNED(未拒绝!)" : planned.failureReason();
     }

@@ -9,6 +9,7 @@ import com.dddgn.alice.task.mining.MineStep;
 import com.dddgn.alice.task.mining.MiningBudget;
 import com.dddgn.alice.reach.MiningPlan;
 import com.dddgn.alice.task.mining.MiningPlanner;
+import com.dddgn.alice.reach.StandingPlanResult;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -771,7 +772,7 @@ public final class MineRegressionTask implements Task {
     /** 规划断言（与 `mine_course` 同口径）。 */
     private void runPlanCase(CaseDef current) {
         MiningBudget budget = MiningBudget.forTarget(bot, bot.serverLevel(), current.target(), true);
-        MiningPlanner.Result result = planner.plan(bot, current.target(), budget);
+        StandingPlanResult result = planner.plan(bot, current.target(), budget);
         MiningPlan plan = result.plan();
         boolean pass;
         if ("buried".equals(current.name())) {

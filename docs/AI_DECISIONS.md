@@ -24710,7 +24710,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 | **`N2`** | ⭐ **A② 的一半已落地**：`D-520` 新建的目标级腿用 `PathRequest.adjacentApproach`，其能力集 = `MINING_APPROACH_MOVEMENTS`（`PathRequest:146-150`，**含 `PILLAR`**）⇒「加高 = 搜索的一个维度」**在目标级腿上今天已成立**；`MineJob` 用 `TUNNEL_ALLOWED`（`standableOnly=false`）⇒ 挖掘侧**已经会走它** | 读 `PathRequest` + `MineJob:573` |
 | **`N3`** | ⭐ **生产侧「清障」<u>只有一个</u>消费者** = `LumberJob:474` `withClear(...)`。`MineJob:573`（`TUNNEL_ALLOWED`）· `FishboneJob:278/286` · `RegionLumberJob:1162` 的 `clearBudget` **都是 0** ⇒ `mayClear()` 恒假 ⇒ 挖掘侧清障通路**结构不可达**。⇒ 裁定 `#4` 第 1 句「归零」= **改动点只有 1 处** | `grep -n withClear src/main/java` |
 | **`N4`** | ⚠️ `GoalAdjacent.isInGoal`（`:93-107`）只排除「目标格 / 上方 / 排除集」⇒ **到达集 = 4 水平邻格 + 正下方 1 格**。对**贴地原木**，"正下方"= 地里 ⇒ 内核可 `DOWNWARD`/`BREAK_*` 挖进去站 ⇒ ⭐ **丢清障与开目标级腿在伐木上是同一个开关**；拦法用现成的 `GoalAdjacent.excluded`（`D-517` 就是为"必须从某一面接近"建的） | 读 `GoalAdjacent` |
-| **`N5`** | ⚠️⚠️ **`D-502` 丙′（"Goal 找路 ⇒ 假设眼位 `D-066` 预检 ⇒ 不通 ⇒ 排除该格 ⇒ 有界重搜"）在生产侧<u>零实现</u>**：`MiningPlanner.planGoalApproach:385` 传 `excluded = null`；`GoalAdjacent.excluding(`/`excluded` 与 `JobWriteDeclaration.maxFootRetries()` 的**唯一消费者都是夹具**（`K2AdjacentGoalCheckTask:302/354`）⇒ ⭐ **A①/A② 缺的那个"到达集约束"载体，裁定与现成件都在，只是没接线** | `grep -rn "excluding(\|maxFootRetries" src/main/java` |
+| **`N5`** | ⚠️⚠️ **`D-502` 丙′（"Goal 找路 ⇒ 假设眼位 `D-066` 预检 ⇒ 不通 ⇒ 排除该格 ⇒ 有界重搜"）在生产侧<u>零实现</u>**：`MiningPlanner.planGoalApproach:288` 传 `excluded = null`；`GoalAdjacent.excluding(`/`excluded` 与 `JobWriteDeclaration.maxFootRetries()` 的**唯一消费者都是夹具**（`K2AdjacentGoalCheckTask:302/354`）⇒ ⭐ **A①/A② 缺的那个"到达集约束"载体，裁定与现成件都在，只是没接线** | `grep -rn "excluding(\|maxFootRetries" src/main/java` |
 
 ### 三、本轮**落地**（开工第一件 = 件②「搬空第一批」，`IMPLEMENTED`/`COMPILES`/`SERVER_TESTED` 见 §四）
 
@@ -25113,3 +25113,85 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 - ⚠️ **`ADJACENT_NO_REACHABLE` 到今天仍然没有生产消费者**（只有日志与夹具的字面量断言）——
   本刀**只是**把它搬了个家并**加了牙**钉住"不许顺手并进谓词"，⛔ **没有**给它找消费者（那不是本刀的范围）。
 - 📌 **指针**：断点 = `HANDOVER.md` 断点二十五 · 台账 = `O24` · 门禁 = `tools/kernel-predicates.py` 的 `rule_search_limit_not_unreachable`（`D-528` 那半）。
+
+## D-529：改革 ① 主体 **`①-2a`** —— 结果载体 `Result` 从 `MiningPlanner` 提出来落 `reach/StandingPlanResult`（2026-09-29，接 `D-528`）
+
+- 授权 = 用户「件② 一路做下去」（`HANDOVER.md` 断点十九 §③）＋ `D-526` 的 **甲 · 解体** ＋ 侦察件
+  `docs/reviews/2026-09-29-①选-解体-开工前侦察.md` §6 的 `①-2`。**本刀无前置**（A①/A② 仍按用户裁定 **丙** 挂着）。
+- 事实（改动面，口径 = 剥 `//` 与 `/* … */` 后按代码数）：`MiningPlanner.Result` **19 处 / 10 文件**；
+  ⚠️ 同一次作者用**裸文本**数是 **119 处**（含注释）⇒ 两个口径别混（`O19` ⑥ 的 107 也是裸文本）。
+- 做了什么：新家 `reach/StandingPlanResult`（`public record`，**三个组件的顺序与名字、`success()` 的判据逐字未改**）；
+  `MiningPlanner` 删掉嵌套 record 并留墓碑；10 个消费者改类型引用。
+  ⚠️ **替换顺序有坑**：`com.dddgn.alice.task.mining.MiningPlanner.Result` 这类**全限定名**必须先替换，
+  否则短名规则会把它截成 `com.dddgn.alice.task.mining.StandingPlanResult`（不存在的类型）。
+- 为什么必须搬：生产它的那段逻辑（候选枚举 → 排序 → top-K → 择优）**就是** `plans §4.2`① 要搬进 `reach/` 的那一件；
+  载体住 `task/`、逻辑住 `reach/` ⇒ 逻辑反过来依赖上层（`check-layer-direction` 断言①）。今天**先搬载体**是为了让 `①-2b` 能编译。
+- ⭐ **纠正侦察件 §4 表格的一处预测**（事实登记，不是打补丁）：该表写「`rule_cost_includes_break` … ⚠️ **类名一变它就红**」——
+  **实测不会**：本刀**不改 `MiningPlanner` 的类名**（解体的是它肚子里的件），`PlanRefinedCostProvider` 里
+  `new MiningPlanner()` ＋ `.plan(` 照旧出现 ⇒ 那条规则**不需要改锚**。
+- 门禁：`rule_search_limit_not_unreachable` **4 处锚点失配并改锚**（`exactTopK` / `planGoalApproach` 的签名、
+  `standableOnly` 早返回里的 `new Result(`、聚合入口的返回值类型）＋ **新增 6 颗牙**：
+  ① 新家必须在且是 `record`；② 三个组件**逐字**（含顺序）；③ `success()` 判据仍是 `plan != null`
+  （⛔ 不许改成看 `failureReason` 空不空 —— 成功时它就是空串）；④ `MiningPlanner` 不许回原地再声明 `record Result(`；
+  ⑤ 全仓生产代码不许再出现旧限定名；⑥ **反向**：生产点必须还在（`new StandingPlanResult(`）。
+  ⚠️ 判据一律**剥块注释** —— 本刀自己的墓碑逐字写着 `record Result(`，不剥会**假红**（`D-527`/`D-528` 同一条教训，第三次）。
+- ⚠️ 顺带保住 **3 条会变成"死牙"的断言**：`rule_arrival_declared_and_consumed` ③ 的
+  `private Result selectBestApproach(` / `private Result planTunnel(` / `private Result planEnterTarget(` ——
+  类型改名后这三个串**结构上永远匹配不到**（= 假绿）⇒ 同刀换成当前类型名。
+- 判据：`compileJava` 绿 · `check-all` **`pass=34 warning=1 failed=0`** · 注入验证 **13/13 变红**
+  （6 颗新牙 ＋ 5 条改锚锚点 ＋ 2 条死牙复核），sha256 逐字还原。
+- ⛔ **本刀不是行为改动**（纯类型搬迁 ⇒ 行为夹具结构性无感，`D-425` 口径）；电池与 `D-530` 同轮（见下）。
+- 📌 指针：门禁 = `tools/kernel-predicates.py` 的 `rule_search_limit_not_unreachable`（`①-2a` 那段）·
+  注入台 = `/tmp/inject-d529-teeth.py`（会话内临时件，非入库物）。
+
+## D-530：改革 ① 主体 **`①-2b`** —— `R2`「A 腿」＋ `R5`「精算 / top-K / 选择」搬进 `reach/StandingPlanSelector`（2026-09-29，接 `D-529`）
+
+- 授权同 `D-529`。本刀 = 侦察件 §6 的 `①-2` 主体；⚠️ 也是这条链上**第一把会动行为边界**的刀。
+- 做了什么：新类 `reach/StandingPlanSelector`（**无状态**、私有构造、静态方法 —— 照 `reach/` house style）收五件：
+  `selectDirect`（原 `planDirect`）· `selectBest` · `exactTopK` · `cheaper` · `planPath`（改 `public static`；
+  仍留在老文件的目标腿 `planGoalApproach` 也改调它 ⇒ **只有一份定义**）。
+  `MiningPlanner` **574 行 → 380 行**（`reach/` 9 → **11 文件**），只剩：4 个 `plan()` 重载 ＋ 流体前置 ＋ `standableOnly` 早返回
+  ＋ `P1-b`/`P1-d` 合取闸门 ＋ 目标腿 `planGoalApproach`（即 `R1` 编排，`①-3` 才处置）。
+- ⭐ **只搬家、不改逻辑（可复算，方式独立于构造脚本）**：从 `git show HEAD:…MiningPlanner.java` 抽出五个方法体，
+  与 `StandingPlanSelector.java` 逐字 diff ⇒ **除签名行外全等**（含方法内部注释）。
+  两边的差异**只有**三处、且**全部由过层带来**：① `MiningBudget budget` 形参 → `boolean collectDrops` ＋ `boolean canPlaceSupport`；
+  ② `budget.collectDrops()` → `collectDrops`；③ `com.dddgn.alice.action.BlockInteraction.findPlaceableSlot(bot) >= 0` → `canPlaceSupport`。
+- 为什么这三处是"由过层带来"：`reach/` **不许** import `task/`/`action/`/`job/`（`D-460` ＋ `check-layer-direction` 断言①）。
+  `MiningBudget` 自己 `import com.dddgn.alice.action.BlockInteraction`（`MiningBudget.java:3`）⇒ 整个 record 进不了 `reach/`；
+  `findPlaceableSlot` 更是 `action/` 的**库存查询** ⇒ **库存这件事留在作业侧**，由调用方算好传进去
+  （与 `D-500` §IV「授权来源 = **作业级声明**」同向；这对 `A①/A②` 缺的那个载体也是同一方向的证据）。
+- ⚠️⚠️ **本刀唯一的行为增量（如实登记，别当意外）**：`findPlaceableSlot(bot)` 现在**每次 `plan()` 都算一次**，
+  原来只在「CURRENT 快路径成功 **且** 前三个条件都成立」时才查。实测代价 = 最多 **9 次快捷栏读取的纯读**
+  （`BlockInteraction.findPlaceableSlot` 只扫槽位 0..8：`stack.isEmpty()` / `instanceof BlockItem` / `is(THROWAWAY)`；
+  **无副作用、无日志、不写账本**）⇒ 量级远低于同一次调用里必然发生的 A\* 搜索。
+  ⛔ 侦察件 §2(a) 选定的形状就是「`canPlaceSupport` **由调用方算好传进来**」＝紧急值，本刀照此；**没有**改用懒求值。
+- ⚠️ **搬走的 4 条日志逐字未改，前缀仍是 `[MiningPlanner]`**：真机记录与 `docs/` 大量按此前缀检索
+  ⇒ 前缀的**去留是 `①-3` 的议题**（侦察件 §6 已把它列进 `①-3`），⛔ 不在本刀里顺手改。
+- 门禁：**3 条规则改锚 / 扩面**（`①-2a` 与 `①-2b` 落同一提交，两组改动一起验）——
+  | 规则 | 改了什么 | 为什么必须改 |
+  |---|---|---|
+  | `rule_support_and_cluster_order` | ①b 扫描面 → **两个文件**；①c 由「调用点必须在 `MiningPlanner`」改成「**必须在 `StandingPlanSelector`**」；①d 扫描面 → **三个文件**；`DROP_FALL_SEARCH` 判据加词边界 | A 腿换家 ⇒ 旧锚点对新家是**盲的**。⚠️ ①c 刻意**不**写成"两个文件里随便哪个有就行"—— 那会让"搬走之后再没人问它"重新变绿 |
+  | `rule_arrival_declared_and_consumed` | ① 的"生产点"从单文件改成**穷举的生产者集合**（`MiningPlanner` ＋ `StandingPlanSelector`，任一文件缺失即红）；③ 死形状扫描面 → 两个文件 | `IN_PLACE` 与两个 `DIRECT_*` 随 `selectDirect`/`selectBest` 搬走，只剩 `MINING_APPROACH` 留在老文件 |
+  | `rule_search_limit_not_unreachable` | A 腿 `exactTopK` 与 `planDirect` 结尾这两条判据改锚到新家；**加**一颗"原处不许留 `exactTopK` 转发壳"的牙 | 同上 —— `P1-b`/`P1-d` 的**不变量一字未变**，只换主语 |
+  ⚠️ `rule_cost_includes_break` **未改**（理由见 `D-529`）。
+- ⭐⭐ **注入验证抓到的两处"假绿"（本刀最重要的副产品，都不是我复查出来的）**：
+  1. **牙咬裸子串**：`rule_arrival_declared_and_consumed` ① 原本是 `f"Arrival.{name}" in code` ⇒
+     `Arrival.DIRECT_PURE_PASSAGEX` **仍然包含** `Arrival.DIRECT_PURE_PASSAGE` ⇒ 那颗牙照旧报绿。
+     修法 = `re.search(rf"\bArrival\.{name}\b", code)`（`\b` 在 `_` 前不成立 ⇒ `…PASSAGE_2` 同样照咬）。
+     **同一族第 4 例**（前三 = `D-524` 位置化断言 · `D-525` `dropWouldBeLost(` · `D-528` `STANDING_NO_REACHABLE`）。
+  2. **牙带死了修饰符**：③ 的死形状清单写的是 `private Result selectBestApproach(`（`D-520` 时 `MiningPlanner` 是**实例**类）——
+     而新家是**静态工具类** ⇒ 形状若在新家复活，最可能写成 `private static StandingPlanResult selectBestApproach(` ⇒ 旧串**咬不到**（假绿）。
+     修法 = 只留结构性部分：`MAX_APPROACH_PLANS` / `selectBestApproach(` / `planTunnel(` / `planEnterTarget(`。
+  ⇒ 这两处是注进"**必须变红**"的探针时暴露的：**注入台的价值在本刀得到实证**（第一轮 7/14，修完后 14/14）。
+- ⚠️ **必须如实记的一处失误**：`①-2a` 的电池轮次**作废** —— 我在它跑的过程中改了源码，违反
+  「**测量期间源文件必须冻结**」（`silent-measurement-failure` 铁律三）⇒ 已 `job_kill`，改为**树冻结后重跑一轮**。
+- 判据：`compileJava` 绿 · `check-all` **`pass=34 warning=1 failed=0`** · `check-layer-direction` PASS（`reach/` **11 文件**，
+  反向依赖 0）· 注入验证 **14/14 变红** · 电池 `verdict=PASS`（`①-2a`＋`①-2b` **同轮**，指纹见断点二十六）。
+- ⚠️ **本刀让 3 处文档行号引用过期并同刀修**（`check-ref-integrity` 抓的）：`MiningPlanner.java` 625 → 380 行 ⇒
+  2 处**活指针**（`O19` ⑤ 与 `D-523` 的 `N5` 行，都指 `planGoalApproach` 里那个 `excluded = null`）改成 `:288`；
+  1 处是 `docs/reviews/2026-09-28-断点十一-开工前复盘与计划.md` 的**历史快照**（`:433-486`，指的是已被 `D-520` 删掉的
+  `selectBestApproach`）⇒ **标注为历史快照**，⛔ **不**伪造新行号（那会让读者以为今天还能在那儿找到它）。
+- ⚠️ **未做 / 不属本刀**：`R1` 收口（3 个便捷重载的去留 ＋ **流体前置单独安置** ＋ `MineTask:948/982` 的 `[MiningPlanner探针]` 遗留
+  ＋ `[MiningPlanner]` 前缀去留）= `①-3`；⭐「**垫一块**」这个**动作**归谁 = `plans §4.2`⑤ 明写的"**另一个要单独裁的问题**"
+  —— 本刀只搬了"选哪条路"的编排（`side`/`below` 两组候选比"放支撑 ＋ 侧面站位"与"只从正下方挖"），**没有**裁定那个动作的归属。
+- 📌 指针：断点 = `HANDOVER.md` 断点二十六 · 台账 = `O25` · 注入台 = `/tmp/inject-d530-teeth.py`（会话内临时件）。

@@ -4,6 +4,7 @@ import com.dddgn.alice.job.Candidate;
 import com.dddgn.alice.job.JobDeclaration;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.task.mining.MiningPlanner;
+import com.dddgn.alice.reach.StandingPlanResult;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.ArrayList;
@@ -198,7 +199,7 @@ public final class PlanRefinedCostProvider implements CandidateCostProvider {
         if (refineCost != null) {
             return refineCost.apply(bot, candidate);
         }
-        MiningPlanner.Result result = new MiningPlanner().plan(bot, candidate.anchor());
+        StandingPlanResult result = new MiningPlanner().plan(bot, candidate.anchor());
         return result.success() ? result.score().getScore() : Double.POSITIVE_INFINITY;
     }
 

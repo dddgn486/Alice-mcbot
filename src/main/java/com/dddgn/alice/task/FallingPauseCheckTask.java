@@ -9,6 +9,7 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.task.mining.MiningBudget;
 import com.dddgn.alice.reach.MiningPlan;
 import com.dddgn.alice.task.mining.MiningPlanner;
+import com.dddgn.alice.reach.StandingPlanResult;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -221,7 +222,7 @@ public final class FallingPauseCheckTask implements Task {
     private void startArm(ServerLevel level, BlockPos target, String label) {
         prepareArm(level, target);
         MiningBudget budget = MiningBudget.forTarget(bot, level, target, true);
-        MiningPlanner.Result result = new MiningPlanner().plan(bot, target, budget);
+        StandingPlanResult result = new MiningPlanner().plan(bot, target, budget);
         MiningPlan plan = result.plan();
         if (plan == null) {
             check("前提（" + label + "）：生产规划器给出可执行计划（实际 null，reason="

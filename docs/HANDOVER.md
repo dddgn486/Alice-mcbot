@@ -3291,3 +3291,52 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 
 **⑥ ⚠️ 刻意没做的**：常量名还是 `STANDING_…`（`D-460` 的「只搬包、不改名」口径）⇒ 新家读起来有重复感，
 改名是**另一刀**（锚在名字上的门禁会静默失效）；`ADJACENT_NO_REACHABLE` **仍然没有生产消费者**，本刀没给它找。
+
+### ✅ 断点二十六（2026-09-29 · 第二十六次；**改革 ① 主体 `①-2`** —— 结果载体 ＋ `R2`/`R5` 选择逻辑搬进 `reach/`）
+
+> ⚠️ **本节追加在文件末尾、❗ 未插入上方断点序列**（原因同前十四次：本文件有多处自指行号引用）。
+> 📌 决策 = `D-529`（`①-2a` 载体）＋ `D-530`（`①-2b` 逻辑）· 前置 = 断点二十五（`D-528`）· 台账 = `O25` ·
+> 授权 = 用户「件② 一路做下去」＋ `D-526` 的 **甲 · 解体** ＋ 侦察件 `docs/reviews/2026-09-29-①选-解体-开工前侦察.md` §6。
+
+**① 本刀在链条里的位置**：`DS-5` 甲·解体的**第三刀**（`①-2`，含 `①-2a`/`①-2b` 两半）。
+⚠️ 它是这条链上**第一把会动行为边界**的刀 —— 实测**只有一处行为增量**，见 ④。
+
+**② 做了什么**（两半落在**同一个提交**里：它们同时改 `MiningPlanner.java` 与 `tools/kernel-predicates.py`，
+⚠️ 按文件切不开 ⇒ ⛔ 别按"应该有两个 commit"去核对，理由记在 `D-530`）：
+
+- **`①-2a`**：新类 `reach/StandingPlanResult`（33 行，`public record`，三组件与 `success()` **逐字**）——
+  原 `MiningPlanner` 的**嵌套** record `Result`；10 个消费者改类型引用（19 处；⚠️ 全限定名要先替换）。
+- **`①-2b`**：新类 `reach/StandingPlanSelector`（282 行，无状态 + 静态方法）收 `R2`＋`R5` 五件：
+  `selectDirect`（原 `planDirect`）· `selectBest` · `exactTopK` · `cheaper` · `planPath`。
+  `MiningPlanner` **574 → 380 行**，只剩 `R1` 编排 ＋ 目标腿 `planGoalApproach`。`reach/` **9 → 11 文件**。
+  ⭐ 五个方法体**逐字复制**（独立复核：`git show HEAD:…` 抽出后逐字 diff ⇒ 除签名行外全等）。
+
+**③ ⭐ 门禁**：**3 条规则改锚 / 扩面**（`rule_support_and_cluster_order` ①b/①c/①d · `rule_arrival_declared_and_consumed` ①/③ ·
+`rule_search_limit_not_unreachable` 的 A 腿两条 ＋ 新牙）· 注入验证 **13/13（`①-2a`）＋ 14/14（`①-2b`）变红**，sha 逐字还原。
+⚠️ `rule_cost_includes_break` **不需要改锚**（侦察件预测它会红 —— **实测是预测错了**，理由见 `D-529`）。
+⭐ 另发现并保住 **3 条会变成死牙的断言**（类型改名后 `private Result selectBestApproach(` 等永远匹配不到）。
+
+**④ ⚠️ 本刀唯一的行为增量（如实登记）**：`BlockInteraction.findPlaceableSlot(bot)` 从"极少调用"变成
+**每次 `plan()` 一次**（`reach/` 不许自己问库存 ⇒ 由调用方算好传入）。代价 = 最多 **9 次快捷栏读取的纯读**
+（无副作用/无日志/不写账本），量级远低于同一次调用里的 A\* 搜索。⛔ 侦察件 §2(a) 选定的就是紧急值形状，本刀照此。
+
+**⑤ ⭐⭐ 注入验证抓到两处「假绿」（本刀最重要的副产品，**都不是我复查出来的**）**：
+① `Arrival.{name}` 用**裸子串**判断 ⇒ `Arrival.DIRECT_PURE_PASSAGEX` 仍含旧子串 ⇒ 加 `\b`（**同族第四例**）；
+② 死形状清单带死了修饰符（`private Result selectBestApproach(`）而新家是**静态工具类** ⇒ 复活会写成 `private static …` 而咬不到 ⇒ 只留"方法名 + 左括号"。
+首轮注入 **7/14**，修完后 **14/14** ⇒ 注入台的价值在本刀得到实证。
+
+**⑥ ⚠️ 一处必须如实记的失误**：`①-2a` 的电池轮次**作废** —— 我在它跑的过程中改了源码，违反
+「**测量期间源文件必须冻结**」（`silent-measurement-failure` 铁律三）。已 `job_kill`，改为**树冻结后重跑**。
+
+**⑦ 判据**：`compileJava` 绿 · `check-all` **`pass=34 warning=1 failed=0`** · `check-layer-direction` **PASS**（`reach/` **11 文件**）·
+`check-ref-integrity` **PASS**（⚠️ 本刀让 `MiningPlanner.java` 缩到 380 行 ⇒ 抓出 **3 处文档行号过期**并同刀修：
+2 处活指针 → `:288`，1 处 `docs/reviews/2026-09-28-断点十一…md` 的**历史快照**标注为历史、
+⛔ **不**伪造新行号）· `headless-battery core` **`verdict=PASS`**（指纹见 `D-530` / 台账 `O25`）。
+
+**⑧ ⏭ 下一步（无前置，不需要拍板）**：`①-3` = **`R1` 收口** —— `plan()` 的 3 个便捷重载去留 ·
+**流体前置（`FluidRiskPolicy.miningRefusal`）单独安置** · `MineTask:948/982` 的 `[MiningPlanner探针]` 遗留
+（⚠️ 必须与 `docs/AI_TEST_MATRIX.md:117` **同刀**改）· **`[MiningPlanner]` 日志前缀的去留** · 复核 `rule_tick_search_account_enforced`。
+
+**⑨ ⚠️ 刻意没做的**：⭐「**垫一块**」这个**动作**归谁 —— `plans §4.2`⑤ 逐字说它是"**另一个要单独裁的问题**"；
+本刀只搬了"选哪条路"的编排（`side`/`below` 分流），**没有**裁定那个动作的归属。
+`A①/A②` 仍按用户裁定 **丙** 挂着（都卡在"调用方声明的到达集约束"载体上）。

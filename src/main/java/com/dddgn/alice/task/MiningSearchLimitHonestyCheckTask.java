@@ -11,6 +11,7 @@ import com.dddgn.alice.pathing.core.search.PlanningStatus;
 import com.dddgn.alice.pathing.core.search.SearchConclusion;
 import com.dddgn.alice.pathing.core.search.SearchTickBudget;
 import com.dddgn.alice.task.mining.MiningPlanner;
+import com.dddgn.alice.reach.StandingPlanResult;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -321,7 +322,7 @@ public final class MiningSearchLimitHonestyCheckTask implements Task {
         check("前提：本 tick 搜索额度确已到线（`tryAcquire()` 必须为 false）", !acquired,
                 "tryAcquire=" + acquired + " · " + SearchTickBudget.describe());
 
-        MiningPlanner.Result result = new MiningPlanner().plan(bot, TARGET);
+        StandingPlanResult result = new MiningPlanner().plan(bot, TARGET);
         burnReason = String.valueOf(result.failureReason());
         burnPlan = result.plan() == null ? "null" : "有计划";
         check("A1 拒绝 ⇒ 理由必须是**瞬时**的 `search_incomplete`（实测 " + burnReason + "）",
@@ -335,7 +336,7 @@ public final class MiningSearchLimitHonestyCheckTask implements Task {
     /** REPLAN：等 tick 边界后**同一目标**再规划 ⇒ 必须成功（这才是 `SEARCH_LIMIT ≠ UNREACHABLE`）。 */
     private void replan(ServerLevel level) {
         SearchTickBudget.handleTick(level.getGameTime());
-        MiningPlanner.Result result = new MiningPlanner().plan(bot, TARGET);
+        StandingPlanResult result = new MiningPlanner().plan(bot, TARGET);
         replanReason = String.valueOf(result.failureReason());
         replanPlan = result.plan() == null ? "null" : "有计划";
         check("预算恢复后**同一目标**必须能规划出来（实测 " + replanPlan + " / reason=" + replanReason + "）",
@@ -462,7 +463,7 @@ public final class MiningSearchLimitHonestyCheckTask implements Task {
             SearchTickBudget.setLimits(0L, 0, 0);
             int searchesBefore = SearchTickBudget.tickSearches();
             long millisBefore = SearchTickBudget.tickMillis();
-            MiningPlanner.Result result = new MiningPlanner().plan(bot, PARTIAL_TARGET);
+            StandingPlanResult result = new MiningPlanner().plan(bot, PARTIAL_TARGET);
             partialSearchDelta = SearchTickBudget.tickSearches() - searchesBefore;
             partialMillisDelta = SearchTickBudget.tickMillis() - millisBefore;
             partialReason = String.valueOf(result.failureReason());

@@ -5,6 +5,7 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.task.mining.MiningBudget;
 import com.dddgn.alice.reach.MiningPlan;
 import com.dddgn.alice.task.mining.MiningPlanner;
+import com.dddgn.alice.reach.StandingPlanResult;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -97,7 +98,7 @@ public final class MineCourseDiagnosticTask implements Task {
 
     private boolean checkMode(String key, BlockPos target, MiningPlan.Arrival... expected) {
         teleport(START);
-        MiningPlanner.Result result = plan(target);
+        StandingPlanResult result = plan(target);
         MiningPlan.Arrival mode = result.plan() == null ? null : result.plan().arrival();
         boolean pass = mode != null;
         if (pass) {
@@ -119,7 +120,7 @@ public final class MineCourseDiagnosticTask implements Task {
 
     private boolean checkHeadroom() {
         teleport(START);
-        MiningPlanner.Result result = plan(HEADROOM_TARGET);
+        StandingPlanResult result = plan(HEADROOM_TARGET);
         boolean pass = result.plan() != null
                 && result.plan().standingFoot().getY() == HEADROOM_TARGET.getY() - 1;
         BotLog.info("[MineCourse] headroom={} mode={} stand={} cost={} reason={}",
@@ -132,7 +133,7 @@ public final class MineCourseDiagnosticTask implements Task {
 
     private boolean checkBuried() {
         teleport(START);
-        MiningPlanner.Result result = plan(BURIED_TARGET);
+        StandingPlanResult result = plan(BURIED_TARGET);
         boolean pass = (result.plan() != null && result.plan().arrival() == MiningPlan.Arrival.MINING_APPROACH)
                 || "found_but_unminable".equals(result.failureReason());
         BotLog.info("[MineCourse] buried={} mode={} reason={}",
@@ -141,7 +142,7 @@ public final class MineCourseDiagnosticTask implements Task {
         return pass;
     }
 
-    private MiningPlanner.Result plan(BlockPos target) {
+    private StandingPlanResult plan(BlockPos target) {
         MiningBudget budget = MiningBudget.forTarget(bot, bot.serverLevel(), target, true);
         return new MiningPlanner().plan(bot, target, budget);
     }

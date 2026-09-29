@@ -12,6 +12,7 @@ import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.pathing.core.search.PlanningStatus;
 import com.dddgn.alice.pathing.core.search.SearchTickBudget;
 import com.dddgn.alice.task.mining.MiningPlanner;
+import com.dddgn.alice.reach.StandingPlanResult;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -801,7 +802,7 @@ public class MineMenuCheckTask implements Task {
     }
 
     private static net.minecraft.core.BlockPos supportPos(
-            com.dddgn.alice.task.mining.MiningPlanner.Result result) {
+            com.dddgn.alice.reach.StandingPlanResult result) {
         return result == null || result.plan() == null ? null : result.plan().supportPlacementPos();
     }
 
@@ -1416,7 +1417,7 @@ public class MineMenuCheckTask implements Task {
             // ⚠️ A1 的闸门要**让开**：本段量的是"A2 发起了几次"，不是"允不允许发起"
             SearchTickBudget.setLimits(60_000L, 1_000, 1_000);
             SearchTickBudget.resetForFixture();
-            MiningPlanner.Result a2 = new MiningPlanner().plan(bot, ore);
+            StandingPlanResult a2 = new MiningPlanner().plan(bot, ore);
             int issued = SearchTickBudget.tickSearches();
             BotLog.info("[MineMenu] A2 判别性事实：target={} arrival={} failure={} issuedSearches={}",
                     ore.toShortString(), a2.plan() == null ? "-" : a2.plan().arrival(),
