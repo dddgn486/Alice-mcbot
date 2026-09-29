@@ -123,7 +123,17 @@ public final class PathingModule implements CheckModule {
                 // `Can't keep up!`（原版阈值 = 单 tick 落后 >2000 ms），而闸门开着时在算术上够不到。
                 // EXTRA：**故意制造一次 2.4 s 的 tick** ⇒ 绝不进 CORE。预算 400 > 台架自己的 300（PL-1 教训）。
                 CheckStep.of("tick_budget_bench", CheckProfile.EXTRA, List.of(), null,
-                        () -> new TickBudgetBenchTask(bot, ctx.observer()), 400));
+                        () -> new TickBudgetBenchTask(bot, ctx.observer()), 400),
+                // ⭐ `1-2`（批次 1，`D-533`）：`D1`（破坏危险邻接 = Baritone `avoidBreaking:68-82`
+                // ＋ `avoidAdjacentBreaking:84-108`）＋ `D2`（**正上方**落体 ⇒ **计价累加**，
+                // Baritone `getMiningDurationTicks:600-605` 的 `includeFalling`）。
+                // ⭐ 它钉的是**分工**那一句：**正上方是"钱"、侧邻是"命"**（把正上方也做成禁止 =
+                // 砍掉"拆一格、上面那块自己掉下来"这条正常挖掘流程的下半段）；以及
+                // "搜索与执行同一入口"（`SurfaceMovementProvider` 三处都先问 `BlockInteraction.breakable`）。
+                // MAIN（进 CORE）：安全相关 ＋ 便宜（自建小场景、零搜索、零移动，约 20 tick）。
+                // ⚠️ 按 `D-309` 口径**追加在末位** ⇒ 既有步的次序一个格子都不动。
+                CheckStep.of("break_hazard", CheckProfile.MAIN, List.of(), null,
+                        () -> new com.dddgn.alice.task.BreakHazardCheckTask(bot, ctx.observer()), 200));
     }
 
     /** 与电池 `teleportBot` **逐字段一致** ✓（模块不能调它的私有方法 ✗ ⇒ 这里复制同一套 ✓）。 */

@@ -192,17 +192,20 @@ public final class SurfaceMovementProvider implements MovementProvider {
         if (blockers.isEmpty()) {
             return;
         }
-        double breakTicks = 0.0D;
         for (BlockPos blocker : blockers) {
             if (context.bot() == null || !BlockInteraction.breakable(context.bot(), level, blocker,
                     WriteGrant.of(context.request().requester(), WriteReason.PATH_ACCESS))) {
                 return;
             }
-            double ticks = BlockInteraction.estimateBreakTicks(context.bot(), level, blocker);
-            if (!Double.isFinite(ticks)) {
-                return;
-            }
-            breakTicks += ticks;
+        }
+        // ⭐ `1-2` · `D2`：一列破坏格里**只有最高那一格**累加正上方落体
+        // （Baritone `MovementTraverse:106/110`：脚位 `false`、头位 `true` —— 原话
+        // 「only include falling on the upper block to break」）。
+        // `blockers` 的顺序 = 躯干优先、再头位（`BreakAndEnterExecution.collectBlockers:69-78`）。
+        // ⚠️ `blockers` 非空（上面已判），且任一格 `bot()==null` 时已返回 ⇒ 这里 `bot()` 必非空。
+        double breakTicks = BlockInteraction.estimateColumnBreakTicks(context.bot(), level, blockers);
+        if (!Double.isFinite(breakTicks)) {
+            return;
         }
         double cost = context.cost(MovementType.TRAVERSE, from, to)
                 + (breakTicks + CostModel.BREAK_PENALTY_TICKS) / CostModel.WALK_ONE_BLOCK_TICKS;
@@ -343,6 +346,8 @@ public final class SurfaceMovementProvider implements MovementProvider {
                 WriteGrant.of(context.request().requester(), WriteReason.DESCEND_FOOT))) {
             return;
         }
+        // ⚠️ `1-2` · `D2` **刻意不接**：Baritone `MovementDownward:70` 传的就是 `includeFalling=false`
+        // —— 拆脚下那一格时，正上方落体掉进挖出的洞里是**期望行为**，不是成本。
         double breakTicks = BlockInteraction.estimateBreakTicks(context.bot(), level, to);
         if (!Double.isFinite(breakTicks)) {
             return;
@@ -422,14 +427,15 @@ public final class SurfaceMovementProvider implements MovementProvider {
             PathingStats.recordTotal(code);
             return;
         }
-        double breakTicks = 0.0D;
         for (BlockPos blocker : blockers) {
             if (context.bot() == null || !BlockInteraction.breakable(context.bot(), level, blocker,
                     WriteGrant.of(context.request().requester(), WriteReason.PATH_ACCESS))) {
                 return;
             }
-            breakTicks += BlockInteraction.estimateBreakTicks(context.bot(), level, blocker);
         }
+        // ⭐ `1-2` · `D2`：同上 —— 只有最高的那一格累加正上方落体
+        // （Baritone `MovementDescend:83/87/91` = 脚位 `false` / 中位 `false` / 顶位 `true`）。
+        double breakTicks = BlockInteraction.estimateColumnBreakTicks(context.bot(), level, blockers);
         if (!Double.isFinite(breakTicks)) {
             return;
         }

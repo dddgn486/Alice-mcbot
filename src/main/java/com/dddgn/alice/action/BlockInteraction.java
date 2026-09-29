@@ -20,6 +20,7 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
@@ -509,6 +510,53 @@ public final class BlockInteraction {
         // ⇒ 极软方块也不会把惩罚吃掉。
         double ticks = seconds * 20.0D * stateBreakPenaltyMultiplier(bot);
         return Math.max(1.0D, ticks);
+    }
+
+    /**
+     * ⭐ `1-2` · `D2`：**正上方重力方块 ⇒ 计价累加**（对照 Baritone
+     * `MovementHelper.getMiningDurationTicks:600-605` 的 `includeFalling`）。
+     *
+     * <p>语义逐字：挖掉本格之后，**正上方**的落体会掉进来（随后还得挖它 / 它改变落脚面）
+     * ⇒ 这一段代价必须计入「挖这一格」的成本。⚠️ **不是禁止** —— 禁止只给**水平邻格**的
+     * 未支撑落体（`BlockBreakSafety.hazardRefusal` 的 `unsupported_falling_neighbour`）；
+     * Baritone 那两条的分工就在 `avoidAdjacentBreaking:90-96` 的 `!directlyAbove` 上。
+     *
+     * <p>⚠️ **为什么是参数而不是默认行为**：`includeFalling=true` **只给一列破坏格里<u>最高</u>的那一格**
+     * 用（Baritone 逐 Movement 传参：`MovementTraverse:106/110` 脚位 false、头位 true ·
+     * `MovementDownward:70` false · `MovementDescend:83/87/91` false/false/true）——
+     * 否则同一列会被重复计价。一列请走 {@link #estimateColumnBreakTicks}。
+     *
+     * <p>⚠️ **三项刻意不接线**（如实登记）：`MiningBudget`（那是**额度**不是计价）·
+     * `MiningWaterBreakCostCheckTask`（它是 `estimateBreakTicks` 与 vanilla 执行侧 tick 的
+     * **逐状态对照**，按定义必须拿**不带落体**的基准值）· `StandingPointSelector`（随 `1-3` 删除）。
+     */
+    public static double estimateBreakTicks(ServerPlayer bot, ServerLevel level, BlockPos pos,
+                                            boolean includeFalling) {
+        double ticks = estimateBreakTicks(bot, level, pos);
+        if (!includeFalling || !Double.isFinite(ticks)) {
+            return ticks;
+        }
+        BlockPos above = pos.above();
+        // Baritone `:600-605`：只看**正上方那一格是不是落体**，是则把它自己的成本（递归）加上。
+        // ⚠️ 不看"它此刻有没有支撑"—— 拆掉本格之后它就会掉，这正是要计的那一段。
+        if (level.getBlockState(above).getBlock() instanceof FallingBlock) {
+            return ticks + estimateBreakTicks(bot, level, above, true);
+        }
+        return ticks;
+    }
+
+    /**
+     * 一列破坏格的**规划期**总 tick（`1-2` · `D2`）：
+     * 只有 y 最大那一格按 `includeFalling=true` 计价（Baritone 逐 Movement 的口径）。
+     */
+    public static double estimateColumnBreakTicks(ServerPlayer bot, ServerLevel level,
+                                                  List<BlockPos> column) {
+        int topY = column.stream().mapToInt(BlockPos::getY).max().orElse(Integer.MIN_VALUE);
+        double total = 0.0D;
+        for (BlockPos pos : column) {
+            total += estimateBreakTicks(bot, level, pos, pos.getY() == topY);
+        }
+        return total;
     }
 
     /**

@@ -5,6 +5,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.FallingBlock;
+import net.minecraft.world.level.block.InfestedBlock;
+import net.minecraft.world.level.block.LiquidBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
@@ -64,6 +67,92 @@ public final class BlockBreakSafety {
         }
         if (isUnbreakable(level, target)) {
             return "unbreakable_block";
+        }
+        // ⭐ `1-2` · `D1`：Baritone `avoidBreaking:68-82` 的**公共谓词化**（③冰 ④虫蚀 ⑤侧邻危险）。
+        // 放在**这一层**（而不是只放清障层）⇒ 搜索（`SurfaceMovementProvider` 三处都先问
+        // `BlockInteraction.breakable`）与执行（`BreakAnd*Execution` / `PathSession` 复检）**同一处**生效。
+        // 对照 Baritone：同一个判据也在 `MineProcess:489`（**任务目标**那一侧）上跑 ⇒ 目标与清障同口径。
+        return hazardRefusal(level, target);
+    }
+
+    /**
+     * ⭐ `1-2` · `D1`：**破坏的危险邻接**（Baritone `MovementHelper.avoidBreaking:68-82` ＋
+     * `avoidAdjacentBreaking:84-108` 的公共谓词化）。
+     *
+     * <p>逐条对照（Baritone → Alice 稳定码）：
+     * <ul>
+     *   <li>③ `b == Blocks.ICE`（冰会变水，把路弄乱）⇒ {@code ice_clearing_block}；</li>
+     *   <li>④ `b instanceof InfestedBlock`（虫蚀方块，敲开会放虫）⇒ {@code infested_clearing_block}；</li>
+     *   <li>⑤ 正上方 + 四个水平邻格的 {@code avoidAdjacentBreaking} ⇒ {@code liquid_above_neighbour}
+     *       / {@code liquid_source_neighbour} / {@code liquid_neighbour} /
+     *       {@code unsupported_falling_neighbour}（见 {@link #neighbourHazard}）。</li>
+     * </ul>
+     *
+     * <p>⭐ **分工逐字**（Baritone `getMiningDurationTicks:600-605` 的 `includeFalling` 与
+     * `avoidAdjacentBreaking:90-96` 的 `!directlyAbove` 两条合起来的语义）：
+     * **正上方**的落体是**计价**问题（`BlockInteraction.estimateBreakTicks(bot, level, pos, true)`），
+     * **侧邻**的未支撑落体是**禁止**问题（本方法的 {@code unsupported_falling_neighbour}）。
+     * 两者不是同一条判据，别合并。
+     *
+     * <p>⚠️ **未镜像的两条**（如实登记，理由）：
+     * <ol>
+     *   <li>Baritone `:69-71` 的 {@code worldBorder.canPlaceAt} —— Alice 没有世界边界感知的规划面；</li>
+     *   <li>Baritone 的两个设置项（`blocksToDisallowBreaking` / `avoidUpdatingFallingBlocks`）——
+     *       Alice 无设置系统 ⇒ 等价于「名单为空 ＋ 开关恒开」（后者 Baritone 默认即开）。</li>
+     * </ol>
+     *
+     * @return null = 允许；非 null = 拒绝原因（稳定码，供日志与夹具断言）
+     */
+    public static String hazardRefusal(ServerLevel level, BlockPos target) {
+        BlockState state = level.getBlockState(target);
+        if (state.is(Blocks.ICE)) {
+            return "ice_clearing_block";
+        }
+        if (state.getBlock() instanceof InfestedBlock) {
+            return "infested_clearing_block";
+        }
+        // 邻接顺序逐字照 Baritone `:77-81`：先正上方，再 +x / -x / +z / -z。
+        String above = neighbourHazard(level, target.above(), true);
+        if (above != null) {
+            return above;
+        }
+        for (BlockPos neighbour : new BlockPos[] {
+                target.east(), target.west(), target.north(), target.south() }) {
+            String hazard = neighbourHazard(level, neighbour, false);
+            if (hazard != null) {
+                return hazard;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 单个邻格的危险性（Baritone `avoidAdjacentBreaking:84-108` 的逐句对照）。
+     *
+     * <p>⚠️ `directlyAbove` 这个参数就是 Baritone 的 `!directlyAbove` 开关：**正上方**时不看落体
+     * （"拆一块、上面那块落体掉下来"是正常流程，代价另行计价），只把**液体**当危险；
+     * **水平邻格**时，未支撑落体与液体的判定都生效。
+     */
+    private static String neighbourHazard(ServerLevel level, BlockPos pos, boolean directlyAbove) {
+        BlockState state = level.getBlockState(pos);
+        net.minecraft.world.level.block.Block block = state.getBlock();
+        // Baritone `:90-96`：水平方向 + 是落体 + 它下面无支撑（会流/塌过来）⇒ 危险。
+        if (!directlyAbove
+                && block instanceof FallingBlock
+                && FallingBlock.isFree(level.getBlockState(pos.below()))) {
+            return "unsupported_falling_neighbour";
+        }
+        if (block instanceof LiquidBlock) {
+            // Baritone `:99-108`：只认纯液体（waterlogged 方块有封闭侧面，不算）。
+            if (directlyAbove) {
+                return "liquid_above_neighbour";
+            }
+            if (state.getValue(LiquidBlock.LEVEL) == 0) {
+                return "liquid_source_neighbour";   // 源头会向水平方向流
+            }
+            // 非源头 ⇒ 它会更愿意往下流；**下面仍是液体**时才当静态、放行。
+            return level.getBlockState(pos.below()).getBlock() instanceof LiquidBlock
+                    ? null : "liquid_neighbour";
         }
         return null;
     }

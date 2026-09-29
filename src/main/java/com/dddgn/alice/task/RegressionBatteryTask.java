@@ -394,7 +394,11 @@ public final class RegressionBatteryTask implements Task {
             // `P4′` 的 A/B 台架（2026-09-24）：故意让一个 tick 烧 ≥2 s ⇒ 只 `single:` 跑，绝不进 CORE
             Map.entry("tick_budget_bench", Profile.EXTRA),
             // D-328 附注：失败重试节奏基准（**测量**）—— EXTRA：要造一个封死的房间并驱动真的 WalkToTask 去撞
-            Map.entry("path_retry_bench", Profile.EXTRA));
+            Map.entry("path_retry_bench", Profile.EXTRA),
+            // ⭐ `1-2`（批次 1，`D-533`）：`D1` 破坏危险邻接（Baritone `avoidBreaking:68-82`）＋ `D2`
+            // **正上方落体 ⇒ 计价**（`includeFalling`）。安全相关 ＋ 便宜（自建小场景、零搜索、零移动）
+            // ⇒ MAIN（规则 1：新能力默认进 MAIN）；⚠️ 按 `D-309` 追加在**末位**，既有步次序不动。
+            Map.entry("break_hazard", Profile.MAIN));
 
     /** 归属表摘要（`/alice battery list` + 文档用）：按档位分组打印，一眼看清电池里有什么、为什么。 */
     public static List<String> curationSummary() {

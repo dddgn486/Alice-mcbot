@@ -3892,3 +3892,57 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
   对照 Baritone `MovementHelper.java:68-100`）＋ `D2`（**正上方**重力方块 ⇒ **计价**累加，⛔ 不是禁止；对照 `:580-606` 的 `includeFalling`）
   ＋ 竖向抵扣 **`0.33/步`** 复核。
 - 之后 **`1-3`**（含**同刀义务** ＋ B 门禁同刀）→ **`1-4`**（含预期红清单）→ **`1-5`**。
+
+---
+
+## 断点三十六 —— 批次 1 `1-2` 落地：代价模型补两项（`D1`/`D2`）＋ 判据夹具（2026-09-29）
+
+**基线**：`ebd52ead`（本断点写入前，即 `D-533` 那笔裁定提交）。本刀**只动内核与夹具**，⛔ 没碰客户端/电池。
+
+### ① 这一刀做了什么（`D-533` §二 之后的**第一刀施工**）
+
+- **`D1`**（`protection/BlockBreakSafety`）＝ Baritone `MovementHelper.avoidBreaking:68-82` ＋
+  `avoidAdjacentBreaking:84-108` 的**公共谓词化**：③冰 ④虫蚀 ⑤侧邻危险（液体 / 未支撑落体），六个稳定码；
+  接在 `explicitTargetRefusal` 末尾 ⇒ **清障面与任务目标面同一处**
+  （依据：同一个 `avoidBreaking` 在 Baritone 也在 `MineProcess:489` 的任务目标侧上跑）。
+- **`D2`**（`action/BlockInteraction`）＝ Baritone `getMiningDurationTicks:600-605` 的 `includeFalling`：
+  **正上方**落体 ⇒ **计价累加**（递归）。做成**带参重载**，⛔ 三参基线逐字不动
+  （`MiningWaterBreakCostCheckTask` 断的是「基线 == vanilla 执行侧每格进度」，改基线它会红）。
+  一列只给**最高那格**计价（`estimateColumnBreakTicks`），对应 Baritone 逐 Movement 的传参口径
+  （`MovementTraverse:106/110` 脚 false/头 true · `MovementDownward:70` false · `MovementDescend:83/87/91`）。
+- ⭐ **语义一句话（本刀最该被记住的）**：**正上方是「钱」、侧邻是「命」** ——
+  Baritone 的 `!directlyAbove` 就是这条分界线；把正上方也做成禁止 = 砍掉「拆一格、上面那块自己掉下来」的下半段。
+- **新夹具**：`task/BreakHazardCheckTask`（段 4200，⛔ 不碰 `K2` 的 4000/4100）＋ 电池步 `break_hazard`（**MAIN**，
+  `CURATION` 末位追加 ⇒ 既有步零位移）。
+- 详细侦察与落地实况：设计单 **§13**（`docs/reviews/2026-09-29-内核改革-施工设计单.md`）。
+
+### ② 门禁与验证等级（如实）
+
+- `./gradlew compileJava --no-daemon` **绿**（仅 3 条既有 `ResourceLocation` 过时告警）。
+- `bash tools/check-all.sh` ⇒ **`pass=34 warning=1 failed=0`**（warning = headless 未跑，既有）。
+- ⚠️ **首轮红 2 处，且修法由门禁自己给出**：`rule_module_step_inventory`「步 `break_hazard` 有提供者但**不在 CURATION 里**」
+  ＋ `check-capability-list`「生成物陈旧」⇒ 补 `CURATION` ＋ 重跑生成器 ⇒ 双绿。
+  ⭐ 这就是「新增步必须过归属表」那颗牙在干活（改名/加步漏登记 = **构建红**，不靠人记得）。
+- ⚠️⚠️ **夹具从未真跑**：`check-headless-battery` 仍是 `warning`（生产服务端未 `--install` **且** `D-532` §九 冻结电池）
+  ⇒ 本刀等级 = **`IMPLEMENTED` ＋ `COMPILES` ＋ 门禁绿**，⛔ **不是 `SERVER_TESTED`**。
+  它会在**批次 1 收口那次整体回归**里第一次执行；要提前拿证据 ⇒ `--install` ＋ `single:break_hazard`。
+
+### ③ ⚠️ 顺手读到的一处新「假绿」（登记 `O43`，⛔ 本刀不改）
+
+`task/K2AdjacentGoalCheckTask`（`1-1b₃` 刚落的那把）的 `DONE` 相位：**先** `cleanup`（内部 `touched.clear()`）
+**再** `remaining = touched.size()` ⇒ `remaining` **恒 0** ⇒ 那条「收尾后 `remaining == 0`」**永远绿**。
+⚠️ 同族第 **6** 例，且它是**本轮整改中新引入的**（⛔ 不是历史遗留）⇒ 归**批次 2 夹具改革**修
+（✅ 本刀的新夹具已按正解写：还原后**逐格读回来跟快照比**）。同类还有 `:403` 的**标签说谎**（快照数冒充「未还原数」）。
+
+### ④ ⚠️ 一条如实登记的缺口（不是没做，是做不出稳定场景）
+
+`D1` ⑤ 的 `unsupported_falling_neighbour`（侧邻**无支撑**落体）在稳定世界存不住 ——
+`FallingBlock.isFree(下方)` 一旦成立，那格落体**自己就会掉**（原版 `FallingBlock.onPlace` 排 2 tick）
+⇒ 夹具只能「同一 tick 摆完就问」= **用竞态测竞态** ⇒ ⛔ 不做夹具（`O42` ④）。留证 = Baritone `:90-96` 逐字 ＋ 读码。
+
+### ⑤ ⏭ 下一步（不变）
+
+- **`1-3`**：删站位挖掘 **5 文件/688 行** ＋ 消费者迁移 ＋ 3 条 rule 重锚 ＋ `MiningTuning` 调参面清理
+  ＋ ⭐ **同刀义务**（`D-533` §三：**同一刀内**改写指向被删符号的引用）＋ ⭐ **`B` 门禁同刀**（`D-533` §二：退役零残留）。
+- 之后 `1-4`（`R1` 收口 ＋ **预期红清单**）→ `1-5`（改名）。
+- 仍挂着：`O41`（「完整的框架」项目级终点，复核触发 = `1-3` 落地）· `O43`（夹具改革）· `S13` 需另立执行层夹具。
