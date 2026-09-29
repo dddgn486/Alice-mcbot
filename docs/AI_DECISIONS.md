@@ -23757,7 +23757,7 @@ fixture/（开发期）→ 可引用 debug/              ← 夹具复用调试�
 ## D-500：两条红线的**范围裁定**（2026-09-28，用户同意「IV = 乙 · V = 甲」）
 
 - 状态：**裁定已落；机械替换待 `K2` 同刀**（⚠️ 本刀**不动代码**，`AGENTS.md` 只加 ⚠️ 指针、**行数不变**）
-- 起因：改革 ① 的方向定为「**走到目标位置即是破坏目标**」（Baritone `GoalTwoBlocks` 形状）
+- 起因：改革 ① 的方向定为「**走到目标位置即是破坏目标**」（Baritone `GoalTwoBlocks` 形状） ⭐ **该形状的落地裁定 = `D-531`（2026-09-29）**；⚠️ `D-517` 曾落地为 `GoalAdjacent`（形状不符），处置见 `D-531`
   ⇒ 触发两条红线的**范围复核**。裁定全文与实测依据 =
   `docs/plans/2026-09-28-站位选优形态-设计讨论.md` §15 / §16。
 
@@ -25196,3 +25196,45 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
   ＋ `[MiningPlanner]` 前缀去留）= `①-3`；⭐「**垫一块**」这个**动作**归谁 = `plans §4.2`⑤ 明写的"**另一个要单独裁的问题**"
   —— 本刀只搬了"选哪条路"的编排（`side`/`below` 两组候选比"放支撑 ＋ 侧面站位"与"只从正下方挖"），**没有**裁定那个动作的归属。
 - 📌 指针：断点 = `HANDOVER.md` 断点二十六 · 台账 = `O25` · 注入台 = `/tmp/inject-d530-teeth.py`（会话内临时件）。
+
+## D-531：⭐ **goal 到达集裁定 = 只取 `GoalTwoBlocks`（「走进去」）** —— `D-517` 落地的 `GoalAdjacent`（「走到旁边」）**形状不符，须重做**（2026-09-29，接 `O26`）
+
+- **用户原话（2026-09-29，针对 `O26` 的核查结果）**：
+  「**goal 到达集只取 `GoalTwoBlocks`**，`coalesce` 式的挑选是什么，这个替换掉 B 的 goal 挖掘的目的就是，
+  **要能达到 Baritone 的效率、稳定性、兼容性**；其他两条按你给的方案来。」
+- **裁定**：
+  1. ⭐ **到达集 = `GoalTwoBlocks` 且只有它**。语义（逐字读 `reference/baritone-1.20.1/api/pathing/goals/GoalTwoBlocks.java`）：
+     `isInGoal(x,y,z) = x == this.x && (y == this.y || y == this.y - 1) && z == this.z`
+     ⇒ ⭐ **「脚或头进那一格」** ⇒ **两个取值都要求目标格已经是空气** ⇒ **到达即隐含"它已被破坏"**。
+     这就是 `plans §15:1159` 那句「**走到目标位置即是破坏目标**」的确切技术含义。
+  2. ⛔ **不做 `coalesce` 式的形状挑选**（Baritone 默认会在 `GoalThreeBlocks` / `GoalTwoBlocks` 之间挑，
+     `forceInternalMining=true` 时还有 4 种组合 —— 见 `MineProcess.coalesce:260-295` 与 `plans:262`）。
+     ⇒ `GoalThreeBlocks`（脚 ∈ {y, y−1, y−2}）· `GoalBlock` · checkerboard 分支**一律不取**。
+  3. ⭐ **本改革这一件的目的（用户逐字）= 达到 Baritone 的「效率、稳定性、兼容性」** ⇒ 后续验收面按这三项立。
+- **⚠️ 与已落地实现的冲突（这是本裁定的实质）**：`D-517` 落地的是 `GoalAdjacent`
+  （模板 = **`BuilderProcess.GoalAdjacent:892`，建造用**的嵌套类；第①条 `if (foot.equals(target)) return false;`
+  ⛔ **明确排除"脚进目标格"**）⇒ **到达不隐含破坏** ⇒ **与本裁定不符**。
+  `D-520` 把它接进生产，并在 javadoc 逐字写「新到达集 = **Baritone 自己的 `GoalAdjacent`**」。
+  ⛔ **根因（`O26` ②，如实记）**：方向句（`plans §15`，第四轮）当时标着「待正式落裁定」且**只住在设计讨论文档**；
+  施工侧四份文档（断点十一复盘 / ③站位枚举退化侦察件 / 第一刀施工设计 / `AI_DECISIONS`）里
+  `GoalTwoBlocks` 出现 **0 次** ⇒ 施工时手上没有这条方向。**责任在 AI 侧（`D-517`/`D-520` 是 AI 写的）。**
+- **要重做的（用户「其他两条按你给的方案来」= 采纳 AI 的判断）**：
+  | # | 件 | 处置 |
+  |---|---|---|
+  | ① | `pathing/core/search/` 的 `GoalSpec` 实现 | 新增 `GoalTwoBlocks` 形状的实现（**纯算术、不读世界** ⇒ `exactFoot()==false` ⇒ **必须登记**进 `check-far-goal-usage.py` 的远目标登记表，同 `GoalAdjacent` 待遇） |
+  | ② | ②（目标腿）的**尾巴** | `planGoalApproach` 里「落点 → 视线 → 评分」那 3 行**只在"站到旁边"下才需要** ⇒ 需重新裁决去留（⛔ 不许顺手删：它是 `MineBlockRunner` 的 `visibility` 来源与评分口径，动它要连带 `MineBlockRunner` 的复核面） |
+  | ③ | `D-520` **§八**「到达集收窄」分析 | 作废重写（旧集 8+N 格 vs 新集 5 格那套对比，是在 `GoalAdjacent` 下算的） |
+  | ④ | `MiningPlanner`/`GoalAdjacent` 的 javadoc | 「新到达集 = Baritone 自己的 `GoalAdjacent`」等句须随实现改 |
+  | ⑤ | `K2AdjacentGoalCheckTask` + 电池步 `adjacent_goal_exclusion` | 断言面是 `GoalAdjacent` 的排除字段 ⇒ 随形状改 |
+  | ⑥ | 两处**过期文字**（`D-520` 之后"零生产消费者"已不成立） | `task/K2AdjacentGoalCheckTask.java:55` · `tools/check-far-goal-usage.py` 登记表 `reason` 字段（⚠️ 门禁只核 `exact_foot` 取值、**不核这段文字**） |
+- ⚠️ **未落在本裁定里的（留给下一轮）**：
+  - `GoalAdjacent` 与 `GoalTwoBlocks` 的**真机**行为差异（`O26` ⑥：全是静态读码＋文档比对）；
+  - `GoalTwoBlocks` 与 `MineProcess.internalMiningGoal`/`GoalComposite` 的关系（簇挖掘要的是"**多目标合成一个 Goal**"，
+    Baritone 的载体 = `GoalComposite(locs2.stream().map(loc -> coalesce(...)))`，`MineProcess:188`）
+    ⇒ ⭐ 这是**簇挖掘第二种形式**（`plans:490` `C-10`「`MineStep` + 有界循环器」vs「簇挖掘小编排」）的垫脚石。
+- ⚠️ **第 ③ 条（我上一轮提的）<u>随本裁定自动消失</u>**：`D-500` 的 `IV` 理由文字「破坏是**目标形状的必然结果**」
+  在 `GoalTwoBlocks` 下**成立**（到达即隐含破坏）⇒ ⛔ **不需要给 `D-500` 加更正指针**。
+  ✅ 只加一条**前向**指针（不是更正）：本裁定是那条前提形状的**落地裁定**，而 `D-517` 曾落地为另一形状。
+- **状态**：⏳ **裁定已落，实现未做**（`src/` 零改动；本刀只写 docs）。⛔ 不许把本条读成"`K2` 已完成"——
+  ⚠️ `plans §30.1` 逐字「**小编排待 `K2` 落地后按实测再判**（判据仍待定）」⇒ **簇挖掘第二种形式的判据挂在 `K2` 真正落地之后**。
+- 📌 指针：核查全文 = `docs/reviews/2026-09-29-goal形状分歧-走进去vs走到旁边.md` · 台账 = `O26` · 断点 = `HANDOVER.md` 断点二十七。
