@@ -1176,22 +1176,45 @@ def rule_search_limit_not_unreachable():
                         f"{planner_code.count(chr(34) + 'search_incomplete' + chr(34))} 次（应为 1：常量声明处）"
                         " ⇒ 唯一出处被绕过（比较/返回各写一遍 ⇒ 改一处漏一处）")
 
+    # ⚠️ **锚点跟着结构走**（`D-520`，2026-09-29）：改革 ① 主体第一刀把 B 腿（`selectBestApproach`
+    # + 13 格候选穷举）整条删掉，A 腿之外只剩**一次** `GoalAdjacent` 搜索。所以本段的两个锚点分开钉：
+    #   ① **候选精算**（A 腿 `exactTopK`）仍必须区分「没跑」（`neverRan`）与「跑了没算完」
+    #      （`inconclusive`）—— 这条**逐字不变**，只是主语从 `selectBestApproach` 换成 `exactTopK`；
+    #   ② **目标腿**（`planGoalApproach`）只发起一次搜索 ⇒ 两种形态都收在唯一出处
+    #      `inconclusiveReason(path)` 里，且**必须先判"有没有结论"再判"到没到"**（位置化断言）。
+    #      ⛔ 不许退回"只认 `SEARCH_LIMIT`"（`P1-d`：真机 502 次撞线里 **480 次是 `PARTIAL`**）。
     approach = method_body(
         planner_code,
-        "private Result selectBestApproach(ServerPlayer bot, ServerLevel level, BlockPos target,")
+        "private Result exactTopK(ServerPlayer bot, ServerLevel level, BlockPos target, BlockPos startFoot,")
     if not approach:
-        problems.append("`MiningPlanner` 找不到 `selectBestApproach`（结构变了 ⇒ 本规则要跟着改）")
+        problems.append("`MiningPlanner` 找不到 A 腿的候选精算 `exactTopK`（结构变了 ⇒ 本规则要跟着改）")
     else:
-        if "neverRan(path.status())" not in approach or "searchLimited = true;" not in approach:
-            problems.append("`selectBestApproach` 不再区分「这次搜索**没跑**」（缺 `neverRan(path.status())`"
-                            " + 置标志）⇒ 「本 tick 被限流」会被写进 `no_reachable_candidate`"
-                            "（S3：`SEARCH_LIMIT ≠ UNREACHABLE`）")
-        if "inconclusive(path.status())" not in approach:
-            problems.append("`selectBestApproach` 没有把 `PARTIAL`（**跑了但没算完**）也算进「本轮没评价完」"
-                            "（`P1-d`）⇒ 真机那 480/502 会被写成永久理由")
+        if "inconclusive(path.status())" not in approach or "searchLimited = true;" not in approach:
+            problems.append("`exactTopK` 没有把「本轮没评价完」（`SEARCH_LIMIT` = 没跑 / `PARTIAL` = "
+                            "跑了没算完）置进 `searchLimited` ⇒ 被限流的候选会被写进 "
+                            "`no_reachable_candidate`（S3：`SEARCH_LIMIT ≠ UNREACHABLE`；`P1-d`："
+                            "真机 502 次撞线里 480 次是 `PARTIAL`）")
         if "SEARCH_INCOMPLETE" not in approach:
-            problems.append("`selectBestApproach` 全失败时没有 `SEARCH_INCOMPLETE` 分支"
+            problems.append("`exactTopK` 全失败时没有 `SEARCH_INCOMPLETE` 分支"
                             " ⇒ 输出端仍然分不出「没评价完」")
+    goal_leg = method_body(planner_code,
+                           "private Result planGoalApproach(ServerPlayer bot, ServerLevel level,"
+                           " BlockPos target,")
+    if not goal_leg:
+        problems.append("`MiningPlanner` 找不到目标腿 `planGoalApproach`（结构变了 ⇒ 本规则要跟着改）")
+    else:
+        at_inconclusive = goal_leg.find("inconclusiveReason(path)")
+        at_reached = goal_leg.find("if (!path.reached())")
+        if at_inconclusive < 0:
+            problems.append("目标腿 `planGoalApproach` 不走唯一出处 `inconclusiveReason(path)`"
+                            " ⇒ 「有没有结论」被就地另判一遍（`P1-d`）")
+        elif at_reached >= 0 and at_inconclusive > at_reached:
+            problems.append("目标腿 `planGoalApproach` **先判到达、后判结论** ⇒ 被限流/只拿到前缀的搜索"
+                            "会被写成 `no_reachable_adjacent_standing_point`（永久理由）"
+                            "（S3 红线：`SEARCH_LIMIT ≠ UNREACHABLE`；真机 377 次 `found_but_unminable` 就是这么来的）")
+        if "return new Result(null, null, inconclusive);" not in goal_leg:
+            problems.append("目标腿 `planGoalApproach` 没有把 `inconclusive` **原样上抛**"
+                            " ⇒ `P1-b` 的修法被回退（合取闸门再也看不到「没评价完」）")
     # ⭐ `P1-d` ④：两条腿**把「没评价完」改写成「不可达」**的掩蔽点必须堵上
     # ⚠️ 判据必须**位置化**：`SEARCH_INCOMPLETE.equals(direct.failureReason())` 这个子串在
     # **聚合闸门**里也有一份（`plan()` 的三腿合取）⇒ 只查"仓库里有没有这个子串"会被它满足，
@@ -1224,9 +1247,6 @@ def rule_search_limit_not_unreachable():
             problems.append("`standableOnly` 的兜底码 `no_reachable_standing_point` 不再受"
                             "「腿到底有没有给出理由」保护 ⇒ 真理由（如 `no_valid_standing_point`："
                             "缺一格地板）会被总括码吃掉（`1.4w`，`survey/35 §9` 桶3-3）")
-    if "SEARCH_INCOMPLETE.equals(result.failureReason())" not in planner_code:
-        problems.append("`planTunnel` 结尾不再逐字保留 `SEARCH_INCOMPLETE`"
-                        " ⇒ `P1-b` 的修法被回退")
     if "best.plan() != null || SEARCH_INCOMPLETE.equals(best.failureReason())" not in planner_code:
         problems.append("`planDirect` 结尾把 `exactTopK` 的 `SEARCH_INCOMPLETE` 改写成了"
                         " `no_reachable_standing_point`（`P1-d`）")
@@ -1245,17 +1265,18 @@ def rule_search_limit_not_unreachable():
     # —— 后者会被同一方法体里的 `standableOnly` 早返回（`if (SEARCH_INCOMPLETE.equals(direct…))`）
     # 满足：2026-09-25 实测，**把 `direct` 那条腿从合取里删掉，门禁仍 PASS**（= 没有牙）。
     # 修法 = 直接钉那条合取表达式的形状（`D-425` ⑤ 同一族：位置化 > 子串）。
+    # ⚠️ `D-520`：腿数从 3 变 2（`tunnel`+`enter` 合成 `goalApproach`）⇒ 合取式跟着改。
+    # 仍然是**位置化**断言（钉同一条 `if` 里的合取表达式），不是"方法体里出现过这些子串"。
     conjunction = re.search(
         r"SEARCH_INCOMPLETE\.equals\(direct\.failureReason\(\)\)\s*\|\|\s*"
-        r"SEARCH_INCOMPLETE\.equals\(tunnel\.failureReason\(\)\)\s*\|\|\s*"
-        r"SEARCH_INCOMPLETE\.equals\(enter\.failureReason\(\)\)",
+        r"SEARCH_INCOMPLETE\.equals\(goalApproach\.failureReason\(\)\)",
         aggregate, re.S)
     if not aggregate:
         problems.append("`MiningPlanner` 找不到聚合入口 `plan(…, standableOnly, approach, requester)`"
                         "（结构变了 ⇒ 规则要跟着改）")
     elif not conjunction:
-        problems.append("`MiningPlanner.plan` 聚合三条腿时没有把 `SEARCH_INCOMPLETE` 单独识别"
-                        "（三条腿的合取缺项）⇒ 任一条腿被限流仍会整体报 `found_but_unminable`（= 不可挖）")
+        problems.append("`MiningPlanner.plan` 聚合两条腿时没有把 `SEARCH_INCOMPLETE` 单独识别"
+                        "（合取缺项 ⇒ 任一条腿被限流仍会整体报 `found_but_unminable`（= 不可挖））")
     mine_more = code_only(mine)
     mine_body = method_body(mine_more, "private Task.Status mine() {")
     if not mine_body:
@@ -2278,46 +2299,109 @@ def rule_tick_search_account_enforced():
     return problems
 
 
-def rule_approach_plans_bounded():
-    """**A2（2026-09-21）：模式 B 的站位候选穷举必须有界**（真机 2.4 s/tick 的直接来源）。
+def rule_arrival_declared_and_consumed():
+    """**到位形状必须显式声明、每个取值都必须有人生产**（`D-520`，替代旧的 `rule_approach_plans_bounded`）。
 
-    事实：`MiningPlanner.selectBestApproach` 原来对 `tunnelCandidates` **全部**候选各跑一次
-    `PathRequest.miningApproach` 全预算 A\\*（`WALK_BUDGET` = 20 000 节点 / 200 ms）。
-    真机实测 `candidates=13 planned=13` ⇒ 一次规划 **≈2.4 s**（且发生在 tick 线程上）。
+    旧规则治的病（历史事实，不许删）：`MiningPlanner.selectBestApproach` 曾对 `tunnelCandidates`
+    **全部**候选各跑一次全预算 `PathRequest.miningApproach` A\\*（真机 `candidates=13 planned=13`
+    ⇒ 一次规划 ≈2.4 s，而它发生在**服务端 tick 线程**上 ⇒ `[Job] step` 间隔被实测为 2.4 s ≈ 0.4 TPS）。
+    `D-520`（改革 ① 主体第一刀）把那条腿**整条删掉**，换成**一次** `GoalAdjacent` 搜索
+    （`PathRequest.adjacentApproach`）⇒ 旧断言的**主语**不存在了，但**牙必须留下**：
+    下面每一条都是"下次有人把候选枚举、或把写授权交回给某个值去反推，就红"。
 
-    断言（改任一处 ⇒ 红）：
-    ① 上限常量存在；② **上限检查必须出现在 `planPath(` 调用之前**（写在调用之后 = 一点都没省）；
-    ③ 截断必须是 `break`（`continue` 只跳过本次，等于没截断）；④ 夹具按**实测量**断言
-       （一次模式 B 规划发起的搜索次数），且用**字面量 3** 钉住 —— 用常量断言等于"改大常量就自动变绿"。
+    断言（每条都能用一次注入变红）：
+    ① `MiningPlan.Arrival` 的**每个**枚举常量都必须在 `MiningPlanner` 里有**生产点**。
+       为什么这条最要紧：一个"没人生产"的取值 = 执行期 `switch` 会**静默**落到别的分支
+       —— 这正是 `D-520` 要杀的那条静默失效陷阱的形状（旧 `Mode` 被"收窄/换语义"而两个值没删
+       ⇒ `plan.mode()` 恒不等于它们 ⇒ 三元恒走纯通行 ⇒ **破坏能力被悄悄拿掉**，
+       症状表现为"站不到站位"而不是"权限被拒"，**编译器与任何门禁都不报**）。
+    ② `action/MineBlockRunner` 必须**按 `plan.arrival()` 穷尽 `switch`** 建请求，且旧载体不许回流
+       （该文件的**代码**里不许再出现 `MiningPlan.Mode` / `plan.mode()`）。
+    ③ 候选穷举形状不许回归：`MiningPlanner` 里不许再有 `MAX_APPROACH_PLANS` 声明 /
+       `selectBestApproach` / `planTunnel` / `planEnterTarget`；且 A 腿之外必须真的在用
+       `PathRequest.adjacentApproach`（`DS-4`：**替换** B，不是并存）。
+    ④ A2 夹具仍按**字面量** + **实测量**（`SearchTickBudget.tickSearches()`）断言
+       "一次规划调用最多发起 N 次全预算搜索"（用常量断言 = 把常数改大就自动变绿）。
     """
     problems = []
-    planner = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task" / "mining"
-               / "MiningPlanner.java").read_text(encoding="utf-8")
-    if "MAX_APPROACH_PLANS" not in planner:
-        problems.append("`MiningPlanner` 没有模式 B 的穷举上限常量（`MAX_APPROACH_PLANS`）")
-    body = code_only(method_body(planner, "private Result selectBestApproach("))
-    cap = body.find("planned >= MAX_APPROACH_PLANS")
-    call = body.find("planPath(bot, startFoot, foot,")
-    if cap < 0:
-        problems.append("`selectBestApproach` 没有上限检查（`planned >= MAX_APPROACH_PLANS`）"
-                        "⇒ 13 个候选各跑一次全预算搜索 = 2.4 s/tick 的根因原样回来")
-    elif call < 0:
-        problems.append("找不到 `selectBestApproach` 里的 `planPath(` 调用 ⇒ 判据无法定位（代码形状变了？）")
-    elif cap > call:
-        problems.append("上限检查出现在 `planPath(` **之后** ⇒ 搜索已经跑过了，一点都没省")
-    elif "break;" not in body[cap:cap + 200]:
-        problems.append("上限处不是 `break`（`continue` 只跳过本次 ⇒ 等于没有上限）")
-    fixture = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
-               / "MineMenuCheckTask.java").read_text(encoding="utf-8")
-    fbody = code_only(method_body(fixture, "private void runSearchBudgetChecks()"))
-    if "issued == 3" not in fbody:
-        problems.append("A2 夹具没有用**字面量 3** 断言「一次模式 B 规划最多发起 3 次全预算搜索」"
-                        "⇒ 把 `MAX_APPROACH_PLANS` 改大就会自动变绿（判据太弱）")
-    if "SearchTickBudget.tickSearches()" not in fbody:
-        problems.append("A2 夹具没有按**实测量**（`SearchTickBudget.tickSearches()`）断言搜索次数"
-                        "⇒ 它量的会是常量而不是真实行为")
-    return problems
 
+    def no_comments(text: str) -> str:
+        """去掉 `//` 与 `/* ... */`（含 javadoc）—— 判据只看**代码**；注释里提旧写法不算违规。"""
+        stripped = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+        return "\n".join(line.split("//")[0] for line in stripped.split("\n"))
+
+    plan_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "reach"
+                 / "MiningPlan.java")
+    planner_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task" / "mining"
+                    / "MiningPlanner.java")
+    runner_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "action"
+                   / "MineBlockRunner.java")
+    for path in (plan_path, planner_path, runner_path):
+        if not path.exists():
+            problems.append(f"找不到 {path.relative_to(ROOT)} ⇒ 本规则无法定位（文件被挪走了？）")
+    if problems:
+        return problems
+
+    plan_src = plan_path.read_text(encoding="utf-8")
+    planner_code = no_comments(planner_path.read_text(encoding="utf-8"))
+    runner_code = no_comments(runner_path.read_text(encoding="utf-8"))
+
+    # ---- ① Arrival 的每个取值必须有生产点 ----
+    enum_match = re.search(r"public enum Arrival \{(.*?)\n    \}", plan_src, re.S)
+    if not enum_match:
+        problems.append("`reach/MiningPlan.java` 里找不到 `public enum Arrival { ... }`"
+                        "⇒ **到位形状的单一出处**不在了（改名？挪走？）—— 先修本规则再谈别的")
+    else:
+        names = re.findall(r"^\s+([A-Z][A-Z0-9_]*)\s*,?\s*$", enum_match.group(1), re.M)
+        if not names:
+            problems.append("`Arrival` 枚举里解析不出任何常量（形状变了 ⇒ 本规则的空转，先修规则）")
+        for name in names:
+            if f"Arrival.{name}" not in planner_code:
+                problems.append(f"`Arrival.{name}` **没有任何生产点**（`MiningPlanner` 的代码里不出现）"
+                                f"⇒ 它会永远不被生产，而执行期 `switch` 会**静默**落到别的分支"
+                                f"（`D-520` 要杀的就是这个形状：写授权被悄悄拿掉、编译器和门禁都不报）")
+
+    # ---- ② 执行期穷尽 switch、旧载体不许回流 ----
+    if "switch (plan.arrival())" not in runner_code:
+        problems.append("`action/MineBlockRunner.java` 里没有 `switch (plan.arrival())`"
+                        "⇒ 走位请求的写能力不是从**显式字段**读的（`D-520`：⛔ 不许由任何别的值反推）")
+    for legacy in ("MiningPlan.Mode", "plan.mode()"):
+        if legacy in runner_code:
+            problems.append(f"`MineBlockRunner` 的代码里又出现旧载体 `{legacy}` ⇒ 旧形状回流"
+                            f"（它就是那条静默失效陷阱的载体）")
+
+    # ---- ③ 候选穷举形状不许回归 ----
+    for dead in ("public static final int MAX_APPROACH_PLANS",
+                 "private Result selectBestApproach(",
+                 "private Result planTunnel(",
+                 "private Result planEnterTarget("):
+        if dead in planner_code:
+            problems.append(f"`MiningPlanner` 里又出现 `{dead}` ⇒ 被 `D-520` 删掉的候选穷举形状回归"
+                            f"（真机 ≈2.4 s/tick 的来源）")
+    if "PathRequest.adjacentApproach" not in planner_code:
+        problems.append("`MiningPlanner` 没有用 `PathRequest.adjacentApproach`"
+                        "⇒ B 腿没有交给内核（`DS-4`：**替换** B，不是并存）")
+
+    # ---- ④ A2 夹具仍按字面量 + 实测量断言 ----
+    fixture = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
+               / "MineMenuCheckTask.java")
+    if not fixture.exists():
+        problems.append("找不到 `task/MineMenuCheckTask.java`（A2 夹具的家）⇒ 本规则无法定位")
+    else:
+        fbody = no_comments(method_body(fixture.read_text(encoding="utf-8"),
+                                       "private void runSearchBudgetChecks()"))
+        if not fbody.strip():
+            problems.append("找不到 `MineMenuCheckTask.runSearchBudgetChecks()` ⇒ A2 的行为级判据没了"
+                            "（本规则无法定位；改名/挪走都要同步改本规则）")
+        else:
+            if not re.search(r"issued == \d+", fbody):
+                problems.append("A2 夹具没有用**字面量**断言「一次规划调用最多发起几次全预算搜索」"
+                                "⇒ 用常量断言等于"
+                                "把常数改大就自动变绿")
+            if "SearchTickBudget.tickSearches()" not in fbody:
+                problems.append("A2 夹具没有按**实测量**（`SearchTickBudget.tickSearches()`）断言搜索次数"
+                                "⇒ 它量的会是常量而不是真实行为")
+    return problems
 
 def rule_edge_destination_body_clearance():
     """`D-374`（2026-09-21 真机实测 + 存档取证）：**边生成器的「目的地」闸门必须查整体通行**。
@@ -4685,7 +4769,7 @@ def main() -> int:
     writecaps = rule_write_caps_default_open_protection_kept()
     ticksearch = rule_tick_search_account_enforced()
     tlb = rule_tick_load_budget_declared()
-    approachbound = rule_approach_plans_bounded()
+    approachbound = rule_arrival_declared_and_consumed()
     bodyclear = rule_edge_destination_body_clearance()
     collectgoal = rule_collect_goal_standable()
     sweepclearance = rule_height_change_sweep()
@@ -4806,7 +4890,7 @@ def main() -> int:
     for line in tlb:
         print(f"[P4·tick负载预算] {line}")
     for line in approachbound:
-        print(f"[A2·模式B穷举有界] {line}")
+        print(f"[A2·到位形状有生产点] {line}")
     for line in bodyclear:
         print(f"[D-374·目的地整体通行] {line}")
     for line in hazardnotgated:
@@ -4859,7 +4943,7 @@ def main() -> int:
           and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not fbshape and not fbentry and not fbrev and not fbc8 and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b and not a3 and not p7 and not p3 and not pl1 and not diagside and not psparity and not pillarwater and not fallparity) and not tlb
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 鱼骨真机日志形状={len(fbshape)} / 鱼骨入口起点={len(fbentry)} / 补路走位可逆={len(fbrev)} / C8搭路上限={len(fbc8)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / tick负载预算={len(tlb)} / 模式B穷举有界={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 鱼骨真机日志形状={len(fbshape)} / 鱼骨入口起点={len(fbentry)} / 补路走位可逆={len(fbrev)} / C8搭路上限={len(fbc8)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / tick负载预算={len(tlb)} / 到位形状有生产点={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
           f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 不可逆写入记账={len(rc3)} / 击杀产物归属={len(a3)} / 非PASS步单列={len(p7)} / 作业级收集授权={len(p3)} / 写入真相同源={len(rc4)} / 重放有界={len(p2b)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)} / 过期证明重评={len(pl1)} / 对角侧格单源={len(diagside)} / 搭石族两侧谓词={len(psparity)} / 水柱起跳门控={len(pillarwater)} / 落点三层同源={len(fallparity)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1

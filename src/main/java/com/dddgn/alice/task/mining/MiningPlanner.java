@@ -26,37 +26,37 @@ import com.dddgn.alice.reach.MiningTuning;
  *
  * <p>流程（`docs/MINING_STAND_SELECTION_DESIGN.md` v7）：
  * <ol>
- *   <li><b>模式 A</b>（{@link MiningPlan.Mode#CURRENT}/{@link MiningPlan.Mode#DIRECT}）：
+ *   <li><b>A 腿</b>（{@link MiningPlan.Arrival#IN_PLACE}/{@link MiningPlan.Arrival#DIRECT_PURE_PASSAGE}）：
  *       当前站位能挖 → 直接用；否则现成可站的多角度候选 + 可挖掘面前提 + 路径成本排序；</li>
  *   <li><b>目标下方无支撑</b>：按成本比较"在目标下方放支撑块 + 侧面站位"与"只从正下方挖"（仅当需要收集掉落物）；</li>
- *   <li><b>模式 B</b>（{@link MiningPlan.Mode#TUNNEL}）：A 无解 → 固定几何集（4 面 × {y,y−1} + 正下方），
- *       到达允许破坏/放置（`PathRequest.miningApproach`；`D-366b` 起**放开** PILLAR/FALL/DOWNWARD，见 `D-366`）；</li>
- *   <li><b>兜底</b>（{@link MiningPlan.Mode#ENTER_TARGET}）：以目标格为终点破坏进入，
+ *   <li><b>目标级一次搜索</b>（`K2` 接线，`D-520`，改革 ①）：A 无解 → 把目标交给**内核**
+ *       （{@link com.dddgn.alice.pathing.core.search.GoalAdjacent} = "站到目标格的某一面"），
+ *       落脚点由 A* 自己找；到达允许破坏/放置
+ *       （{@link PathRequest#adjacentApproach}；`D-366b` 起**放开** PILLAR/FALL/DOWNWARD，见 `D-366`），
  *       受 {@link MiningBudget#maxExtraBreakTicks()} 限制，超预算即 `found_but_unminable`。</li>
  * </ol>
+ *
+ * <p>⭐ <b>`D-520`（改革 ① 主体第一刀）删掉了原来的两条腿</b>：
+ * 旧「模式 B（{@code Mode.TUNNEL}：固定 13 格站位枚举 → 逐个 top-K 全预算 A*）」与
+ * 旧「兜底（{@code Mode.ENTER_TARGET}：以目标格为终点破坏进入）」**合成上面这一条**。
+ * 动机是 `DS-4`（**替换** B，不是并存）与 `DS-9`（简化"完成挖掘被掩埋的目标"），
+ * 副产品是 `A2` 那个"13 个候选各跑一次全预算搜索 ≈ 2.4 s/tick"的问题**结构性消失**
+ * （一次规划调用只发起**一次**目标级搜索）。
+ *
+ * <p>⚠️ 三条**逐字保留**的契约（改革不许碰）：① `standableOnly` 的早返回；
+ * ② `P1-b`/`P1-d` 的 `search_incomplete` 合取闸门（`SEARCH_LIMIT ≠ UNREACHABLE`）；
+ * ③ 站位类失败码的**原样上抛**（`1.4w`，腿给了理由就不许改写成总括码）。
  */
 public final class MiningPlanner {
 
-    /**
-     * ⭐ **A2（2026-09-21）模式 B 的"有界穷举"上限** —— 一次规划调用最多对几个站位候选做**全预算精算**。
-     *
-     * <p>为什么必须有（真机第四轮取证，`docs/reviews/2026-09-21-客户端第四轮-深矿搜索卡顿.md` + 日志复算）：
-     * `selectBestApproach` 原来对 `tunnelCandidates` **全部**候选各跑一次
-     * `PathRequest.miningApproach` 全预算 A\*（`WALK_BUDGET` = 20 000 节点 / 200 ms）。
-     * 真机实测 `candidates=13 planned=13` ⇒ **一次规划调用 ≈ 13 × 185 ms ≈ 2.4 s**，
-     * 而它发生在**服务端 tick 线程**上 ⇒ `[Job] step` 间隔被实测为 **2.4 s**（≈0.4 TPS，持续 57.6 s）。
-     *
-     * <p>为什么"可以"截断（这是**有界**而不是"换成贪心"）：候选按
-     * {@code GoalFoot.heuristic(startFoot)} **由近到远排序**，而 13 个候选来自同一目标的同一个小几何集
-     * （4 面 × {y, y−1} + 正下方）⇒ **它们的可达性高度相关**：真机实测 13/13 全部 `!reached()`
-     * （`reason=no_reachable`），即"近的那几个过不去，远的也过不去"。
-     *
-     * <p>⚠️ **代价与回收条件**（不许当成"已经没问题了"）：截断会丢掉"第 4~13 个候选里恰好有一个可行"的情形。
-     * 因此本常量是**临时止血**，回收条件 = 出现一次「前 {@value} 个候选全失败、但更多候选能成功」的实测反例，
-     * 届时正确做法是**把穷举摊到多个 tick**（记住进度、下 tick 继续），而不是把上限调大。
+    /*
+     * ⚠️ `D-520`（改革 ① 主体第一刀）：这里原来有 `MAX_APPROACH_PLANS = 3`（`A2`「模式 B 的有界穷举」上限）。
+     * 它连同 `selectBestApproach` 一起**删除**了 —— 不是"把上限调大"，而是那个形状**结构性消失**：
+     * 旧模式 B 要对固定 13 格站位枚举逐个跑全预算 A\*（真机 ≈2.4 s/tick 的来源），
+     * 现在改成**一次**目标级搜索（内核 `GoalAdjacent`，落脚点由 A\* 自己找）⇒ 没有"候选穷举"可限。
+     * 牙没有丢：`tools/kernel-predicates.py` 的老规则 `rule_approach_plans_bounded` 已**替换**为
+     * `rule_arrival_declared_and_consumed`（见该函数 docstring 的三条断言）。
      */
-    public static final int MAX_APPROACH_PLANS = 3;
-
     /**
      * ⭐⭐ **`P1-d`（2026-09-25）：这次搜索**有没有得出可达性结论**。
      *
@@ -76,7 +76,8 @@ public final class MiningPlanner {
      * （实测 `found_but_unminable` **307** : `search_incomplete` **87**）⇒ mine 循环每 tick 重烧
      * 4 × 50 ms ≈ 200 ms。取证 = `docs/reviews/2026-09-25-mine循环198ms拆解.md`。
      *
-     * <p><b>⚠️ 两种形态在 A2 计数上不同</b>（`MAX_APPROACH_PLANS` 只数**真的评价过**的候选）：
+     * <p><b>⚠️ 两种形态在"算不算真的评价过"上不同</b>（`D-520` 之前由 `MAX_APPROACH_PLANS` 的 A2
+     * 计数体现，该常量已随模式 B 一起删除；`exactTopK` 的 `planned` 计数仍是同一口径）：
      * `SEARCH_LIMIT` 不计入；`PARTIAL` **计入**（预算真花了）。所以调用点不是一个 `if` 能合并的
      * —— 本谓词只回答"结论是否可信"，**不回答**"算不算评价过"。
      */
@@ -84,14 +85,14 @@ public final class MiningPlanner {
         return status == PlanningStatus.SEARCH_LIMIT || status == PlanningStatus.PARTIAL;
     }
 
-    /**
-     * 每 tick 总账拒绝 ⇒ 这次搜索**没跑** ⇒ 什么都不知道（**不是**"不可达"）。
-     *
-     * <p>单独一个方法而不是直接比较状态：调用点需要区分"没跑"（不计入 A2）与"跑了但没算完"（计入 A2）。
+    /*
+     * ⚠️ `D-520`（改革 ① 主体第一刀）：这里原来有 `private static boolean neverRan(PlanningStatus)` ——
+     * 它的**唯一**调用点是被删掉的 `selectBestApproach`，用途是 A2 的 `planned` 计数
+     * （「没跑」不计入「真的评价过」，因为那次候选穷举会对每个候选各跑一次全预算搜索）。
+     * 候选穷举没了 ⇒ A2 的计数口径也没了 ⇒ 它成了零调用者的私有方法，**随之删除**。
+     * A 腿 `exactTopK` 不需要它：那里 `inconclusive(path.status())` 已经把
+     * `SEARCH_LIMIT`（没跑）与 `PARTIAL`（跑了没算完）**一起**置进 `searchLimited`。
      */
-    private static boolean neverRan(PlanningStatus status) {
-        return status == PlanningStatus.SEARCH_LIMIT;
-    }
 
     /**
      * ⭐ 瞬时理由码（**唯一出处**）："这次没得出可达性结论" ⇒ 调用方**不许**把这个目标永久了结
@@ -200,27 +201,28 @@ public final class MiningPlanner {
             }
             return new Result(null, null, STANDING_NO_REACHABLE);
         }
-        Result tunnel = planTunnel(bot, level, immutableTarget, startFoot, reach, budget);
-        if (tunnel.success()) {
-            return tunnel;
+        // ⭐ `D-520`（改革 ① 主体第一刀）：原来这里是**两条腿**（`planTunnel` + `planEnterTarget`），
+        // 现在合成**一条**：把目标交给内核（`GoalAdjacent` = "站到目标格的某一面"，落脚点由 A* 自己找）。
+        // 旧 `no_tunnel_standing_point` / `no_reachable_tunnel_standing_point` / `enter_target_unreachable`
+        // 三个理由码随之消失（全仓无生产消费者，实测仅本类自己写）；**预算闸门那一半保留**
+        // （`enter_target_over_budget` → `approach_over_budget`，见 `planGoalApproach`，`D-076` 不许静默丢）。
+        Result goalApproach = planGoalApproach(bot, level, immutableTarget, startFoot, budget);
+        if (goalApproach.success()) {
+            return goalApproach;
         }
-        Result enter = planEnterTarget(bot, level, immutableTarget, startFoot, budget);
-        if (enter.success()) {
-            return enter;
-        }
-        // P1：三条腿里**任一条**是「本轮没评价完」⇒ 整体**不许**报成不可挖（`SEARCH_LIMIT ≠ UNREACHABLE`）
+        // P1：两条腿里**任一条**是「本轮没评价完」⇒ 整体**不许**报成不可挖（`SEARCH_LIMIT ≠ UNREACHABLE`）
+        // ⚠️ 逐字保留 `P1-b`/`P1-d` 的合取闸门（改革 ① 不许碰这三条契约，见类注释）。
         if (SEARCH_INCOMPLETE.equals(direct.failureReason())
-                || SEARCH_INCOMPLETE.equals(tunnel.failureReason())
-                || SEARCH_INCOMPLETE.equals(enter.failureReason())) {
-            BotLog.warn("[MiningPlanner] search_incomplete target={} direct={} tunnel={} enter={}"
+                || SEARCH_INCOMPLETE.equals(goalApproach.failureReason())) {
+            BotLog.warn("[MiningPlanner] search_incomplete target={} direct={} approach={}"
                             + "（本轮搜索被限流 ⇒ 目标**不许**被永久了结）",
-                    immutableTarget.toShortString(), direct.failureReason(), tunnel.failureReason(),
-                    enter.failureReason());
+                    immutableTarget.toShortString(), direct.failureReason(),
+                    goalApproach.failureReason());
             return new Result(null, null, SEARCH_INCOMPLETE);
         }
-        BotLog.warn("[MiningPlanner] found_but_unminable target={} direct={} tunnel={} enter={} budget={}",
-                immutableTarget.toShortString(), direct.failureReason(), tunnel.failureReason(),
-                enter.failureReason(), budget.describe());
+        BotLog.warn("[MiningPlanner] found_but_unminable target={} direct={} approach={} budget={}",
+                immutableTarget.toShortString(), direct.failureReason(),
+                goalApproach.failureReason(), budget.describe());
         return new Result(null, null, "found_but_unminable");
     }
 
@@ -245,11 +247,11 @@ public final class MiningPlanner {
                     && com.dddgn.alice.action.BlockInteraction.findPlaceableSlot(bot) >= 0) {
                 supportPos = target.below();
             }
-            BotLog.info("[MiningPlanner] mode=CURRENT target={} stand={} cost=0 support={}",
+            BotLog.info("[MiningPlanner] arrival=IN_PLACE target={} stand={} cost=0 support={}",
                     target.toShortString(), startFoot.toShortString(),
                     supportPos == null ? "-" : supportPos.toShortString());
             return new Result(new MiningPlan(target, startFoot, startFoot, path, currentLos,
-                    MiningPlan.Mode.CURRENT, supportPos), score, "");
+                    MiningPlan.Arrival.IN_PLACE, supportPos), score, "");
         }
 
         List<StandingPointSelector.Candidate> candidates =
@@ -278,21 +280,21 @@ public final class MiningPlanner {
                     side.add(candidate);
                 }
             }
-            Result withSupport = selectBest(bot, level, target, startFoot, side, MiningPlan.Mode.DIRECT,
+            Result withSupport = selectBest(bot, level, target, startFoot, side,
                     target.below(), com.dddgn.alice.pathing.core.search.CostModel.PLACE_ONE_BLOCK_COST,
                     approach, requester);
-            Result fromBelow = selectBest(bot, level, target, startFoot, below, MiningPlan.Mode.DIRECT,
+            Result fromBelow = selectBest(bot, level, target, startFoot, below,
                     null, 0.0D, approach, requester);
             Result chosen = cheaper(withSupport, fromBelow);
             if (chosen != null) {
                 BotLog.info("[MiningPlanner] support_needed target={} supportOption={} belowOption={} chosen={}",
                         target.toShortString(), withSupport.failureReason().isEmpty() ? "ok" : "-",
                         fromBelow.failureReason().isEmpty() ? "ok" : "-",
-                        chosen.plan() == null ? "-" : chosen.plan().mode());
+                        chosen.plan() == null ? "-" : chosen.plan().arrival());
                 return chosen;
             }
         }
-        Result best = selectBest(bot, level, target, startFoot, candidates, MiningPlan.Mode.DIRECT,
+        Result best = selectBest(bot, level, target, startFoot, candidates,
                 null, 0.0D, approach, requester);
         // ⭐ `P1-d`：`exactTopK` 已经如实判过"本轮没评价完"（`SEARCH_LIMIT` 或 `PARTIAL`）
         // ⇒ **不许**在这一层被改写成"站不住"。原来这里无条件改写 ⇒ `P1-b`/`P1-d` 的信号在模式 A 上全丢。
@@ -318,43 +320,73 @@ public final class MiningPlanner {
         return STANDING_NO_VALID.equals(reason) || STANDING_NO_REACHABLE.equals(reason);
     }
 
-    // ==================== 模式 B / 兜底 ====================
+    /**
+     * 目标级一次搜索（`GoalAdjacent`）**到不了目标旁边**（`D-520`，改革 ① 第一刀）。
+     *
+     * <p>它是旧两个码 {@code no_reachable_tunnel_standing_point} 与 {@code enter_target_unreachable}
+     * 的**合并**（两条腿合成一条 ⇒ 两个「到不了」不再有区别）。实测这两个旧码在全仓**无生产消费者**
+     * （只有日志与夹具里的字面量断言）⇒ 合并是安全的，不是静默删除。
+     *
+     * <p>⚠️ **刻意不进 {@link #isStandingPointRefusal}**：旧码也不在
+     * （「站位枚举 + 破坏进站」的失败 ≠ 「找不到 / 到不了现成站位」）。
+     * 顺手把它加进去会**改变作业侧的分类行为**，那不是这一刀的范围（`D-011`）。
+     */
+    public static final String ADJACENT_NO_REACHABLE = "no_reachable_adjacent_standing_point";
 
-    private Result planTunnel(ServerPlayer bot, ServerLevel level, BlockPos target, BlockPos startFoot,
-                              double reach, MiningBudget budget) {
-        List<BlockPos> candidates = StandingPointSelector.tunnelCandidates(
-                bot, level, target, reach, budget.maxExtraBreakTicks());
-        if (candidates.isEmpty()) {
-            return new Result(null, null, "no_tunnel_standing_point");
-        }
-        Result result = selectBestApproach(bot, level, target, startFoot, candidates,
-                MiningPlan.Mode.TUNNEL);
-        if (result.plan() != null) {
-            return result;
-        }
-        // ⭐ `P1-b`（2026-09-22 真机根因）：**逐字保留** `search_incomplete`。
-        // 病灶：这里原来无条件改写成 `no_reachable_tunnel_standing_point` ⇒ `plan()` 的 P1 合取闸门
-        // （三条腿任一为 `search_incomplete` 就整体降级）**永不触发** ⇒ 报 `found_but_unminable`
-        // （永久性理由）⇒ `MineJob` 把候选写进 `attempted` **永久了结**。
-        // 真机实测（2026-09-22 客户端 `latest.log`）：`found_but_unminable` 377 次、`search_incomplete` 206 次、
-        // A1 拒绝 ~235 次（`[Search] 超 tick 预算` 234 次）⇒ 目标 `336,62,190` 从未被挖却已 `already_attempted`。
-        if (SEARCH_INCOMPLETE.equals(result.failureReason())) {
-            return result;
-        }
-        return new Result(null, null, "no_reachable_tunnel_standing_point");
-    }
+    // ==================== 目标级一次搜索（改革 ①，`D-520`） ====================
 
-    private Result planEnterTarget(ServerPlayer bot, ServerLevel level, BlockPos target,
-                                   BlockPos startFoot, MiningBudget budget) {
-        // 兜底：以目标格为终点（破坏进入），破坏成本受预算限制
+    /**
+     * ⭐⭐ **目标级一次搜索**（`K2` 接线，`D-520`）：把"走到被掩埋的目标旁边"交给**内核**。
+     *
+     * <p><b>它替谁</b>：替掉旧的两条腿 ——
+     * ① 模式 B（旧 `planTunnel`）：{@code StandingPointSelector.tunnelCandidates} 枚举**固定 13 格**
+     * （4 面 × {y, y−1} + 正下方），再对每个候选跑一次**全预算** A\*
+     * （`MAX_APPROACH_PLANS = 3` 截断之前，真机实测 `candidates=13 planned=13` ⇒ ≈2.4 s/tick，
+     * 而它发生在**服务端 tick 线程**上）；
+     * ② 兜底（旧 `planEnterTarget`）：以**目标格本身**为终点"破坏进入"。
+     * 现在只有一句话：{@link com.dddgn.alice.pathing.core.search.GoalAdjacent}
+     * =「与目标格曼哈顿相邻、不站进目标格、不站在它上方」⇒ **落脚点由 A\* 自己找**
+     * （模板 = Baritone `BuilderProcess.GoalAdjacent extends GoalGetToBlock`，`D-036`）。
+     *
+     * <p>⭐ <b>与旧两条腿的关系（逐条实测，⛔ 不夸大）</b>：
+     * <ul>
+     *   <li><b>能力集逐字相同</b>：{@link PathRequest#MINING_APPROACH_MOVEMENTS}
+     *       （含 `BREAK_AND_TRAVERSE`/`BREAK_AND_ENTER`/`PILLAR`/`FALL`/`DOWNWARD`）—— 所以旧 ②「破坏进入」
+     *       在新请求下**仍然可能**，只是到达判据从"站进目标格"改成"站到它旁边"。</li>
+     *   <li>⚠️ <b>到达集是<u>收窄</u>的，不是超集</b> —— 实测两边集合：
+     *       新 = `GoalAdjacent` 的 **5 格**（4 个水平邻格 + 正下方 1 格；曼哈顿 ≤1，且不许站目标格、不许站它上方）；
+     *       旧 = `tunnelCandidates` 的 **8 格**（4 面 × {y, y−1}）+ **正下方一列**（y−2 起、按触及深度与破坏预算延伸）。
+     *       ⇒ 旧集里**曼哈顿 2 的落点**（y−1 那一圈水平格）与**更深的竖直落点**在新形态下**不再是落点**
+     *       （A\* 仍然可以**挖出**一格合法的落点，或落在"正下方"那一格上）。</li>
+     *   <li>✅ <b>为什么这是对的</b>：新到达集 = **Baritone 自己的 `GoalAdjacent`**
+     *       （`BuilderProcess.GoalAdjacent extends GoalGetToBlock`，曼哈顿 ≤1 ＋ 排除"站到方块上方"，
+     *       `reference/baritone-1.20.1/…/BuilderProcess.java:892`）⇒ 这次收窄是**向参照实现对齐**（`D-036`），
+     *       而旧那套 8＋N 格几何是 Alice 自造的枚举。
+     *       ⚠️ 代价已登记：`D-520` §八（真实行为差异，客户端实测时优先看"实心脉 / 完全被包住"那类目标）。</li>
+     * </ul>
+     *
+     * <p>⚠️ <b>三条逐字保留的契约</b>：
+     * <ol>
+     *   <li>{@code P1-b}/{@code P1-d}：**先看"有没有结论"再看到达** —— {@link #inconclusiveReason(PathPlan)}
+     *       非空（`SEARCH_LIMIT` = 根本没跑 / `PARTIAL` = 跑了没算完）⇒ 原样上抛
+     *       {@link #SEARCH_INCOMPLETE}，⛔ **不许**改写成"到不了"（否则整体被记成
+     *       `found_but_unminable`（**永久理由**）⇒ `MineJob` 把目标写进 `attempted` 永久了结；
+     *       真机实测过 377 次，取证 `docs/reviews/2026-09-25-mine循环198ms拆解.md`）；</li>
+     *   <li>**预算闸门**（`D-076`）：代价超过 {@link MiningBudget#maxExtraBreakTicks()} ⇒ **如实拒绝**
+     *       （`approach_over_budget`，旧名 `enter_target_over_budget`）——
+     *       这是旧 ② 腿独有的那半，腿合并时**不许静默丢掉**；</li>
+     *   <li>失败码 = {@link #ADJACENT_NO_REACHABLE}（旧两码合并；实测全仓**无生产消费者**，
+     *       只有日志与夹具的字面量断言）。</li>
+     * </ol>
+     */
+    private Result planGoalApproach(ServerPlayer bot, ServerLevel level, BlockPos target,
+                                    BlockPos startFoot, MiningBudget budget) {
         PathPlan path = planPath(bot, startFoot, target,
-                PathRequest.miningApproach(bot.getUUID().toString(), startFoot, target, "mining-planner"));
-        // ⭐ `P1-b`/`P1-d`：**先看"有没有结论"再看到达** —— `!reached()` 里既有 `SEARCH_LIMIT`
-        // （本 tick 搜索额度已用尽 ⇒ 根本没跑），也有 `PARTIAL`（跑了、烧完预算、只有前缀）。
-        // 两者都不是"到不了"。原来直接返回 `enter_target_unreachable` ⇒ 整体被记成 `found_but_unminable`。
+                PathRequest.adjacentApproach(bot.getUUID().toString(), startFoot, target, null,
+                        "mining-planner"));
         String inconclusive = inconclusiveReason(path);
         if (!inconclusive.isEmpty()) {
-            BotLog.warn("[MiningPlanner] mode=ENTER_TARGET target={} startFoot={} status={} "
+            BotLog.warn("[MiningPlanner] arrival=MINING_APPROACH target={} startFoot={} status={} "
                             + "reason={} searchLimited=true"
                             + "（本轮没评价完，不是「不可达」：`SEARCH_LIMIT ≠ UNREACHABLE`；"
                             + "`PARTIAL` = 预算烧完只拿到前缀，`P1-d`）",
@@ -362,28 +394,35 @@ public final class MiningPlanner {
             return new Result(null, null, inconclusive);
         }
         if (!path.reached()) {
-            return new Result(null, null, "enter_target_unreachable");
+            return new Result(null, null, ADJACENT_NO_REACHABLE);
         }
-        double breakCost = path.totalCost();
+        // ⭐ 落点 = 路径**实际到达**的那一格，⛔ **不是** `path.goalFoot()`
+        // （对 `GoalAdjacent` 来说它返回的是**目标方块本身**，不是脚位；见 `PathPlan.finalFoot()`）。
+        // 这与 `MiningPlan` 紧凑构造器里的不变量是**同一条**（那里会再校验一次，抛 IAE 就说明这里传错了）。
+        BlockPos standingFoot = path.finalFoot();
+        double approachCost = path.totalCost();
         double budgetCost = budget.maxExtraBreakTicks()
                 / com.dddgn.alice.pathing.core.search.CostModel.WALK_ONE_BLOCK_TICKS;
-        if (breakCost > budgetCost) {
-            BotLog.warn("[MiningPlanner] enter_target_over_budget target={} cost={} budget={}",
+        if (approachCost > budgetCost) {
+            BotLog.warn("[MiningPlanner] approach_over_budget target={} cost={} budget={} stand={}",
                     target.toShortString(),
-                    String.format(java.util.Locale.ROOT, "%.2f", breakCost),
-                    String.format(java.util.Locale.ROOT, "%.2f", budgetCost));
-            return new Result(null, null, "enter_target_over_budget");
+                    String.format(java.util.Locale.ROOT, "%.2f", approachCost),
+                    String.format(java.util.Locale.ROOT, "%.2f", budgetCost),
+                    standingFoot.toShortString());
+            return new Result(null, null, "approach_over_budget");
         }
         LineOfSightChecker.LineOfSightResult los = LineOfSightChecker.checkFromEye(
-                level, StandingPointSelector.eyeAt(startFoot), target);
+                level, StandingPointSelector.eyeAt(standingFoot), target);
         StandingPointEvaluator.StandingPointScore score =
-                StandingPointEvaluator.of(startFoot, path.totalCost(), path.totalCost(), los);
-        BotLog.info("[MiningPlanner] mode=ENTER_TARGET target={} startFoot={} cost={}",
-                target.toShortString(), startFoot.toShortString(),
-                String.format(java.util.Locale.ROOT, "%.3f", path.totalCost()));
-        return new Result(new MiningPlan(target, startFoot, target, path, los,
-                MiningPlan.Mode.ENTER_TARGET, null), score, "");
+                StandingPointEvaluator.of(standingFoot, approachCost, approachCost, los);
+        BotLog.info("[MiningPlanner] arrival=MINING_APPROACH target={} startFoot={} stand={} cost={} "
+                        + "movements={}",
+                target.toShortString(), startFoot.toShortString(), standingFoot.toShortString(),
+                String.format(java.util.Locale.ROOT, "%.3f", approachCost), path.movements().size());
+        return new Result(new MiningPlan(target, startFoot, standingFoot, path, los,
+                MiningPlan.Arrival.MINING_APPROACH, null), score, "");
     }
+
 
     /** ⭐ P5 诊断探针（2026-09-24，临时：定位完成后删）：目标 6 面邻格里「现成可站」的个数（0 = 真被包住）。 */
     private static int countStandableFaces(ServerLevel level, BlockPos target) {
@@ -400,7 +439,7 @@ public final class MiningPlanner {
 
     /** 模式 A：候选 → 估算 → top-K 精确规划（纯通行请求）。 */
     private Result selectBest(ServerPlayer bot, ServerLevel level, BlockPos target, BlockPos startFoot,
-                              List<StandingPointSelector.Candidate> candidates, MiningPlan.Mode mode,
+                              List<StandingPointSelector.Candidate> candidates,
                               BlockPos supportPos, double extraCost, MiningProfile.Approach approach,
                               String requester) {
         if (candidates.isEmpty()) {
@@ -416,100 +455,28 @@ public final class MiningPlanner {
         //（连归因串 `"mining-planner"` 都保持原样，避免动到既有判据/账本口径）。
         String requesterForApproach = requester == null || requester.isBlank()
                 ? "mining-planner" : requester;
-        boolean includeUnestimated = approach == MiningProfile.Approach.PLACEMENT_ALLOWED;
-        return exactTopK(bot, level, target, startFoot, feet, losByFoot, mode, supportPos, extraCost,
-                approach == MiningProfile.Approach.PLACEMENT_ALLOWED
+        boolean placementAllowed = approach == MiningProfile.Approach.PLACEMENT_ALLOWED;
+        // ⭐⭐ `D-520`：**到位形状在这里派生、并在紧邻一行决定请求工厂** —— 两件事同一出处；
+        // 执行期 `MineBlockRunner` 只读 `plan.arrival()` 复现同一个工厂（⛔ 不再由任何值反推）。
+        // 旧形状的病灶：规划期用 `withPlacement`（`D-443` 裁定 1a，鱼骨「补一块再走」）、
+        // 执行期一律用 `of`（纯通行）⇒ 规划说到得了、执行说到不了（同一 tick 两个相反答案）。
+        MiningPlan.Arrival arrival = placementAllowed
+                ? MiningPlan.Arrival.DIRECT_PLACEMENT_ALLOWED
+                : MiningPlan.Arrival.DIRECT_PURE_PASSAGE;
+        boolean includeUnestimated = placementAllowed;
+        return exactTopK(bot, level, target, startFoot, feet, losByFoot, arrival, supportPos, extraCost,
+                placementAllowed
                         ? (from, to) -> PathRequest.withPlacement(bot.getUUID().toString(), from, to,
                                 requesterForApproach)
                         : (from, to) -> PathRequest.of(bot.getUUID().toString(), from, to,
                                 requesterForApproach), includeUnestimated);
     }
 
-    /**
-     * 模式 B：候选通常 ≤ 11 个，且**都需要破坏/放置才能到达**——
-     * 纯通行估算（S1/S2）对它们无意义（不在纯通行成本场里），因此**全部候选精确规划**，
-     * 只用一个廉价下界做展开顺序（D-070 修正）。
-     */
-    private Result selectBestApproach(ServerPlayer bot, ServerLevel level, BlockPos target,
-                                      BlockPos startFoot, List<BlockPos> feet, MiningPlan.Mode mode) {
-        List<BlockPos> ordered = new ArrayList<>(feet);
-        ordered.sort(Comparator.comparingDouble(
-                foot -> new com.dddgn.alice.pathing.core.search.GoalFoot(foot).heuristic(startFoot)));
-        StandingPointEvaluator.StandingPointScore best = null;
-        PathPlan bestPath = null;
-        int planned = 0;
-        boolean searchLimited = false;
-        for (BlockPos foot : ordered) {
-            // ⭐ **A2 有界穷举**：见 {@link #MAX_APPROACH_PLANS}。截断事实**必须进日志**，
-            // 否则"只试了 3 个"与"试了 13 个全失败"在事后看来一模一样（`capped=` 字段就是为此）。
-            if (planned >= MAX_APPROACH_PLANS) {
-                break;
-            }
-            PathPlan path = planPath(bot, startFoot, foot,
-                    PathRequest.miningApproach(bot.getUUID().toString(), startFoot, foot, "mining-planner"));
-            // P1（D-374，2026-09-21）：SEARCH_LIMIT = 「这一格本轮还没被评价」，**不是**「没有路」。
-            // 它不计入 planned（A2 的 cap 只该数真的评价过的候选），并把事实带上去 —— 否则
-            // 「本 tick 搜索预算被占满」会被写进 no_reachable_candidate，再被 MineJob 永久了结
-            // （真机实测：目标 436,82,229 **从未被挖**却已 already_attempted）。
-            if (neverRan(path.status())) {
-                searchLimited = true;
-                continue;
-            }
-            // ⭐ `P1-d`：`PARTIAL` = 搜索**跑了、烧光了自己的预算、只拿到前缀** ⇒ 两件事同时成立：
-            // ① 结论不可信 ⇒ 置 `searchLimited`（结尾**不许**报 `no_reachable`）；
-            // ② 预算**真花了** ⇒ 仍然计入 `planned`（A2 的上限数的是"几次全预算精算"，不是"几次有结论"）。
-            if (inconclusive(path.status())) {
-                searchLimited = true;
-            }
-            planned++;
-            if (!path.reached()) {
-                // ⭐ P5 诊断探针（2026-09-24，临时：定位完成后删）：模式 B 每个候选**逐个**记状态，
-                // 配合目标格的脚位/头位读数，才能分清「候选本身站不住」与「路被断在某类边上」。
-                BotLog.warn("[MiningPlanner探针] mode={} target={} candidate={} status={} reached=false "
-                                + "candFootPassable={} candHeadPassable={}",
-                        mode, target.toShortString(), foot.toShortString(), path.status(),
-                        MovementHelper.canWalkThrough(level, foot),
-                        MovementHelper.canWalkThrough(level, foot.above()));
-                continue;
-            }
-            double cost = path.totalCost();
-            if (best == null || cost < best.getScore()) {
-                best = StandingPointEvaluator.of(foot, cost, cost, LineOfSightChecker.checkFromEye(
-                        level, StandingPointSelector.eyeAt(foot), target));
-                bestPath = path;
-            }
-        }
-        if (best == null && searchLimited) {
-            BotLog.warn("[MiningPlanner] mode={} target={} startFoot={} candidates={} planned={} capped={}"
-                            + " reason=search_incomplete searchLimited=true"
-                            + "（**本轮没评价完**，不是「不可达」：`SEARCH_LIMIT ≠ UNREACHABLE`）",
-                    mode, target.toShortString(), startFoot.toShortString(), ordered.size(), planned,
-                    planned < ordered.size());
-            return new Result(null, null, SEARCH_INCOMPLETE);
-        }
-        if (best == null) {
-            BotLog.warn("[MiningPlanner] mode={} target={} startFoot={} candidates={} planned={} capped={}"
-                            + " reason=no_reachable",
-                    mode, target.toShortString(), startFoot.toShortString(), ordered.size(), planned,
-                    planned < ordered.size());
-            return new Result(null, null, "no_reachable_candidate");
-        }
-        BotLog.info("[MiningPlanner] mode={} target={} startFoot={} candidates={} estimate=EXHAUSTIVE planned={}"
-                        + " capped={} chosen={} cost={} pathSize={} los={}",
-                mode, target.toShortString(), startFoot.toShortString(), ordered.size(), planned,
-                planned < ordered.size(),
-                best.getPosition().toShortString(),
-                String.format(java.util.Locale.ROOT, "%.3f", best.getScore()),
-                bestPath.movements().size(), best.getLineOfSightResult().isClear());
-        MiningPlan plan = new MiningPlan(target, startFoot, best.getPosition(), bestPath,
-                best.getLineOfSightResult(), mode, null);
-        return new Result(plan, best, "");
-    }
 
     private Result exactTopK(ServerPlayer bot, ServerLevel level, BlockPos target, BlockPos startFoot,
                              List<BlockPos> feet,
                              Map<BlockPos, LineOfSightChecker.LineOfSightResult> losByFoot,
-                             MiningPlan.Mode mode, BlockPos supportPos, double extraCost,
+                             MiningPlan.Arrival arrival, BlockPos supportPos, double extraCost,
                              BiFunction<BlockPos, BlockPos, PathRequest> requestFactory,
                              boolean includeUnestimated) {
         StandingCostEstimator.Result estimate = StandingCostEstimator.estimate(bot, level, feet);
@@ -576,17 +543,17 @@ public final class MiningPlanner {
 
         if (best == null) {
             if (searchLimited) {
-                BotLog.warn("[MiningPlanner] mode={} target={} startFoot={} candidates={} planned={}"
+                BotLog.warn("[MiningPlanner] arrival={} target={} startFoot={} candidates={} planned={}"
                                 + " reason=search_incomplete searchLimited=true"
                                 + "（本轮没评价完，不是「不可达」：`SEARCH_LIMIT ≠ UNREACHABLE`）",
-                        mode, target.toShortString(), startFoot.toShortString(), feet.size(), planned);
+                        arrival, target.toShortString(), startFoot.toShortString(), feet.size(), planned);
                 return new Result(null, null, SEARCH_INCOMPLETE);
             }
             return new Result(null, null, "no_reachable_candidate");
         }
-        BotLog.info("[MiningPlanner] mode={} target={} startFoot={} candidates={} estimate={} nodes={} ms={}"
+        BotLog.info("[MiningPlanner] arrival={} target={} startFoot={} candidates={} estimate={} nodes={} ms={}"
                         + " planned={} chosen={} cost={} pathSize={} support={} los={}",
-                mode, target.toShortString(), startFoot.toShortString(), feet.size(), estimate.mode(),
+                arrival, target.toShortString(), startFoot.toShortString(), feet.size(), estimate.mode(),
                 estimate.nodesExpanded(), estimate.elapsedMillis(), planned,
                 best.getPosition().toShortString(),
                 String.format(java.util.Locale.ROOT, "%.3f", best.getScore()),
@@ -594,7 +561,7 @@ public final class MiningPlanner {
                 supportPos == null ? "-" : supportPos.toShortString(),
                 best.getLineOfSightResult().isClear());
         MiningPlan plan = new MiningPlan(target, startFoot, best.getPosition(), bestPath,
-                best.getLineOfSightResult(), mode, supportPos);
+                best.getLineOfSightResult(), arrival, supportPos);
         return new Result(plan, best, "");
     }
 

@@ -39,12 +39,16 @@ import java.util.Map;
  * **覆盖成永久性理由** ⇒ `plan()` 的 P1 合取闸门永不触发 ⇒ `MineJob` 把候选写进 `attempted` **永久了结**
  * ⇒ 矿簇挖不干净。本夹具把这条链**关在小盒子里**复现，并给出可红的判据。
  *
+ * <p>⚠️ **上面那两条腿的名字是历史事实**（真机日志逐字，不许改）：`D-520`（改革 ① 主体第一刀）
+ * 之后它们已合并成 `MiningPlanner.planGoalApproach`（`PathRequest.adjacentApproach`）⇒
+ * 今天可能覆盖 `SEARCH_LIMIT` 的只剩 `exactTopK`（A 腿）与 `planGoalApproach`（目标腿）。
+ *
  * <h2>三个臂（本夹具的核心设计）</h2>
  * <ol>
  *   <li><b>BURN</b>：同一 tick 内先用公开 API 把本 tick 的搜索额度**占满**
  *       （`recordMillis(EXPENSIVE_SEARCH_MILLIS)` ⇒ 主判据「烧预算的搜索 ≥ 1」到线），
  *       再规划 ⇒ 断言理由是 `search_incomplete`（**瞬时**），**不是** `found_but_unminable` /
- *       `no_reachable_candidate` / `no_reachable_tunnel_standing_point`（**永久**）。</li>
+ *       `no_reachable_candidate` / `no_reachable_adjacent_standing_point`（**永久**）。</li>
  *   <li><b>REPLAN</b>：等 tick 边界（`handleTick` 自动清零）后**规划同一个目标、同一个世界**
  *       ⇒ 断言**规划成功**。这一步才是 `SEARCH_LIMIT ≠ UNREACHABLE` 的**行为级**证明：
  *       同一个目标、同一个几何，只差"本 tick 还有没有搜索额度"。</li>
@@ -60,9 +64,10 @@ import java.util.Map;
  *
  * <h2>反向对照（红臂）</h2>
  * <ul>
- *   <li>`P1-b` 臂：把 `MiningPlanner.planTunnel` 结尾的 `search_incomplete` 逐字保留改回无条件
- *       `no_reachable_tunnel_standing_point`（或去掉 `planEnterTarget` 的 `SEARCH_LIMIT` 分支）
- *       ⇒ BURN 相位必须**红**（理由是 `found_but_unminable`）。</li>
+ *   <li>`P1-b` 臂（`D-520` 之后的新形状）：把 `MiningPlanner.planGoalApproach` 里
+ *       `inconclusiveReason(path)` 那一支的 `search_incomplete` **原样上抛**改回无条件
+ *       `no_reachable_adjacent_standing_point`（旧形状的对应改法 = `planTunnel` 结尾 / `planEnterTarget`
+ *       的 `SEARCH_LIMIT` 分支）⇒ BURN 相位必须**红**（理由是 `found_but_unminable`）。</li>
  *   <li>⭐ `P1-d` 臂：把 `MiningPlanner.inconclusive(...)` 里的 `PlanningStatus.PARTIAL` 去掉
  *       （回到"只认 `SEARCH_LIMIT`"）⇒ `P1-d` 相位必须**红**（理由是 `found_but_unminable`）。</li>
  * </ul>
@@ -321,7 +326,7 @@ public final class MiningSearchLimitHonestyCheckTask implements Task {
         check("A1 拒绝 ⇒ 理由必须是**瞬时**的 `search_incomplete`（实测 " + burnReason + "）",
                 "search_incomplete".equals(burnReason),
                 "不许是永久理由：found_but_unminable / no_reachable_candidate / "
-                        + "no_reachable_tunnel_standing_point（真机 377 次 found_but_unminable 就是这么来的）");
+                        + "no_reachable_adjacent_standing_point（真机 377 次 found_but_unminable 就是这么来的）");
         check("A1 拒绝 ⇒ 本次确实没能给出计划（burnPlan=null）", result.plan() == null,
                 "plan=" + burnPlan);
     }
@@ -469,7 +474,7 @@ public final class MiningSearchLimitHonestyCheckTask implements Task {
                             + "`search_incomplete`（实测 " + partialReason + "）",
                     MiningPlanner.SEARCH_INCOMPLETE.equals(partialReason),
                     "不许是 found_but_unminable / no_reachable_candidate / no_reachable_standing_point"
-                            + " / enter_target_unreachable");
+                            + " / no_reachable_adjacent_standing_point");
         } else {
             BotLog.warn("[SearchLimitHonesty] P1-d 行为臂**本环境不适用**（探针 status={} 不是 PARTIAL；"
                             + "诊断={}）⇒ 该形态是否出现取决于外部地形/加载状态，"

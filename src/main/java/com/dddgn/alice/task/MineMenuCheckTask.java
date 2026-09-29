@@ -499,7 +499,7 @@ public class MineMenuCheckTask implements Task {
             String pitFacts = "【坑底几何】target=" + ore.toShortString() + " startFoot="
                     + (pitPlan == null ? "-" : pitPlan.startFoot().toShortString())
                     + " standingFoot=" + (pitPlan == null ? "-" : pitPlan.standingFoot().toShortString())
-                    + " mode=" + (pitPlan == null ? "-" : pitPlan.mode())
+                    + " arrival=" + (pitPlan == null ? "-" : pitPlan.arrival())
                     + " pathSize=" + (pitPlan == null ? -1 : pitPlan.path().movements().size())
                     + " pathStatus=" + (pitPlan == null ? "-" : pitPlan.path().status())
                     + " failure=" + pitResult.failureReason();
@@ -529,7 +529,7 @@ public class MineMenuCheckTask implements Task {
             var flatPlan = flatResult.plan();
             BotLog.info("[MineMenu] D-370 判别性事实（R3·同层对照）：target={} standingFoot={} mode={} pathSize={}",
                     flatOre.toShortString(), flatPlan == null ? "-" : flatPlan.standingFoot().toShortString(),
-                    flatPlan == null ? "-" : flatPlan.mode(),
+                    flatPlan == null ? "-" : flatPlan.arrival(),
                     flatPlan == null ? -1 : flatPlan.path().movements().size());
             if (flatPlan != null) {
                 double distance = Math.sqrt(flatPlan.standingFoot().distSqr(flatOre));
@@ -717,7 +717,7 @@ public class MineMenuCheckTask implements Task {
             BotLog.info("[MineMenu] D-364 判别性事实：临时矿={} · 浅坑 plan={} mode={} support={} · "
                             + "深坑 plan={} support={} · 岩浆 plan={} support={}（期望 {}）",
                     ore.toShortString(),
-                    shallow.success(), shallow.success() ? shallow.plan().mode() : "-",
+                    shallow.success(), shallow.success() ? shallow.plan().arrival() : "-",
                     supportPos(shallow),
                     deep.success(), supportPos(deep), lava.success(), supportPos(lava),
                     ore.below().toShortString());
@@ -755,7 +755,7 @@ public class MineMenuCheckTask implements Task {
             var planned = new com.dddgn.alice.task.mining.MiningPlanner().plan(bot, ore,
                     com.dddgn.alice.task.mining.MiningBudget.forTarget(bot, level, ore, true));
             boolean planOk = planned.success() && !planned.plan().standingFoot().equals(nearFoot);
-            check("就地挖：远处先得到真计划（mode=" + (planned.success() ? planned.plan().mode() : "-")
+            check("就地挖：远处先得到真计划（arrival=" + (planned.success() ? planned.plan().arrival() : "-")
                             + " stand=" + (planned.success()
                             ? planned.plan().standingFoot().toShortString() : "-")
                             + "，且不等于我们将要站的那格）", planOk);
@@ -1301,17 +1301,22 @@ public class MineMenuCheckTask implements Task {
     }
 
     /**
-     * ⭐⭐ **A1/A2（2026-09-21）：每 tick 搜索总账 + 模式 B 有界穷举** —— 真机"57.6 秒掉刻（0.4 TPS）"的两条止血判据。
+     * ⭐⭐ **A1/A2（2026-09-21）：每 tick 搜索总账 + 一次规划的搜索次数上界** —— 真机"57.6 秒掉刻（0.4 TPS）"的两条止血判据。
      *
      * <p>为什么必须是**电池步**而不是"实现完看一眼"（真机第四轮日志复算，`docs/reviews/2026-09-21-客户端第四轮-深矿搜索卡顿.md`）：
-     * `MiningPlanner.planTunnel` 对 13 个站位候选各跑一次全预算 A\*（`WALK_BUDGET` = 20 000 节点 / 200 ms）
+     * 当时 `MiningPlanner.planTunnel` 对 13 个站位候选各跑一次全预算 A\*（`WALK_BUDGET` = 20 000 节点 / 200 ms）
      * ⇒ **单个 tick 花掉 ≈2.4 s**；`[Job] step` 间隔被实测为 **2.4 s（= 一个 tick）** ⇒ **0.4 TPS 持续 57.6 s**、
      * `[Search] 超 tick 预算` **376 条**（最大一波 336 条）、决策层在这段时间里**无法接管**。
      * ⇒ "每个消费者都以为自己在一个预算内、但预算不在同一个账上"这件事只有断言能防复发。
      *
-     * <p>⚠️ **本组刻意用字面量 `3` 断言 A2**（不是 `MiningPlanner.MAX_APPROACH_PLANS`）：
-     * 用常量断言等于"把常数改大就自动变绿"，而这条判据的意义正是"**一次规划不许发起很多次全预算搜索**"。
-     * 要改上限的人**必须**同时改这一行 —— 那正是我们想要的摩擦（同 `D-366`/`D-368` 的"钉住有效表达式"纪律）。
+     * <p>⭐ **`D-520`（改革 ① 主体第一刀）之后 A2 换了主语**：那个 13 候选穷举**根本不存在了**
+     * （模式 B 被删，改成**一次**目标级搜索 `GoalAdjacent`）⇒ 字面量从 `3` 改成 **`1`**：
+     * <b>一次规划调用最多发起一次全预算搜索</b>。这不是"上限放宽了"，而是形状变了 ——
+     * 所以判据**必须留在原地**（删掉它就等于下次有人重新引入候选枚举时没有牙）。
+     *
+     * <p>⚠️ **本组刻意用字面量断言 A2**（旧 `3` / 今 `1`，不是任何常量）：
+     * 用常量断言等于"把常数改大就自动变绿"。要动这个数的人**必须**同时改这一行 ——
+     * 那正是我们想要的摩擦（同 `D-366`/`D-368` 的"钉住有效表达式"纪律）。
      */
     private void runSearchBudgetChecks() {
         final net.minecraft.server.level.ServerLevel level = bot.serverLevel();
@@ -1389,11 +1394,12 @@ public class MineMenuCheckTask implements Task {
             SearchTickBudget.resetForFixture();
         }
 
-        // ---- 第 3 段：A2 有界穷举（**实测量**：一次模式 B 规划到底发起了几次全预算搜索）----
+        // ---- 第 3 段：A2（**实测量**：一次规划调用到底发起了几次全预算搜索）----
         try {
             // 场景：矿石被实心石体**完全包住**、bot 站在石体顶上
             //   ⇒ 模式 A 必然 `no_valid_standing_point`（与真机第四轮的 `direct=no_valid_standing_point` **同形**）
-            //   ⇒ 走模式 B，`tunnelCandidates` 给出 4 面 × {y, y−1} + 正下方 那组几何候选
+            //   ⇒ 走目标级一次搜索（`PathRequest.adjacentApproach` = `GoalAdjacent`），
+            //     **只有一次**搜索（旧模式 B 的 13 格候选枚举在 `D-520` 已删）
             final BlockPos ore = new BlockPos(62, 68, 132);
             for (int dx = -2; dx <= 2; dx++) {
                 for (int dy = -2; dy <= 2; dy++) {
@@ -1412,13 +1418,13 @@ public class MineMenuCheckTask implements Task {
             SearchTickBudget.resetForFixture();
             MiningPlanner.Result a2 = new MiningPlanner().plan(bot, ore);
             int issued = SearchTickBudget.tickSearches();
-            BotLog.info("[MineMenu] A2 判别性事实：target={} mode={} failure={} issuedSearches={}",
-                    ore.toShortString(), a2.plan() == null ? "-" : a2.plan().mode(),
+            BotLog.info("[MineMenu] A2 判别性事实：target={} arrival={} failure={} issuedSearches={}",
+                    ore.toShortString(), a2.plan() == null ? "-" : a2.plan().arrival(),
                     a2.failureReason(), issued);
-            check("A2①：一次模式 B 规划最多发起 **3** 次全预算搜索（实测 issued=" + issued
-                            + "；真机 13 次 ≈ 2.4 s/tick ≈ 0.4 TPS。⚠️ 这里的 3 是**字面量**，"
-                            + "改 `MAX_APPROACH_PLANS` 必须同时改这条判据）",
-                    issued == 3);
+            check("A2①：一次规划调用最多发起 **1** 次全预算搜索（实测 issued=" + issued
+                            + "；旧形状是 13 次 ≈ 2.4 s/tick ≈ 0.4 TPS，`D-520` 已把候选穷举整条删掉。"
+                            + "⚠️ 这里的 1 是**字面量**，不是任何常量）",
+                    issued == 1);
         } finally {
             SearchTickBudget.restoreDefaults();
             SearchTickBudget.resetForFixture();

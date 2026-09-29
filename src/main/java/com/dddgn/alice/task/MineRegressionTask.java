@@ -154,7 +154,7 @@ public final class MineRegressionTask implements Task {
      *                       走另一条分支，见 `countOk` 处的注释），它只作为"当时的算法记录"留着。
      */
     private record CaseDef(String name, String terrain, BlockPos start, BlockPos target,
-                           Kind kind, List<MiningPlan.Mode> expectedModes,
+                           Kind kind, List<MiningPlan.Arrival> expectedModes,
                            int expectedCollected, Item expectedItem, boolean exactCollected,
                            boolean expectSupport, int expectedDelta) {
     }
@@ -177,7 +177,7 @@ public final class MineRegressionTask implements Task {
     private static final BlockPos SUPPORT_MAX = new BlockPos(31, 76, 223);
 
     private static CaseDef plan(String name, String terrain, BlockPos start, BlockPos target,
-                                MiningPlan.Mode... modes) {
+                                MiningPlan.Arrival... modes) {
         return new CaseDef(name, terrain, start, target, Kind.PLAN, List.of(modes), 0, null,
                 true, false, 0);
     }
@@ -201,13 +201,13 @@ public final class MineRegressionTask implements Task {
 
     private static final List<CaseDef> CASES = List.of(
             plan("free", "mine_course", MINE_START, new BlockPos(23, 64, 140),
-                    MiningPlan.Mode.DIRECT, MiningPlan.Mode.CURRENT),
+                    MiningPlan.Arrival.DIRECT_PURE_PASSAGE, MiningPlan.Arrival.IN_PLACE),
             plan("wall", "mine_course", MINE_START, new BlockPos(23, 64, 137),
-                    MiningPlan.Mode.DIRECT, MiningPlan.Mode.CURRENT),
+                    MiningPlan.Arrival.DIRECT_PURE_PASSAGE, MiningPlan.Arrival.IN_PLACE),
             plan("blocked", "mine_course", MINE_START, new BlockPos(23, 64, 134),
-                    MiningPlan.Mode.TUNNEL),
+                    MiningPlan.Arrival.MINING_APPROACH),
             plan("headroom", "mine_course", MINE_START, new BlockPos(23, 65, 131),
-                    MiningPlan.Mode.DIRECT, MiningPlan.Mode.CURRENT),
+                    MiningPlan.Arrival.DIRECT_PURE_PASSAGE, MiningPlan.Arrival.IN_PLACE),
             plan("buried", "mine_course", MINE_START, new BlockPos(23, 64, 128)),
             execute("exec_direct", "mine_course", MINE_START, new BlockPos(23, 64, 140),
                     1, Items.COBBLESTONE, true),
@@ -221,7 +221,7 @@ public final class MineRegressionTask implements Task {
             // 所以这两条用例现在断言的是：**不垫** + 照常挖到 + 掉落物收到。
             // 模式仍合法为 CURRENT（起点就能触及）或 DIRECT。
             new CaseDef("floating_plan", "floating_course", FLOAT_START, FLOAT_TARGET,
-                    Kind.PLAN, List.of(MiningPlan.Mode.CURRENT, MiningPlan.Mode.DIRECT),
+                    Kind.PLAN, List.of(MiningPlan.Arrival.IN_PLACE, MiningPlan.Arrival.DIRECT_PURE_PASSAGE),
                     0, null, true, false, 0),
             // 不垫方块 ⇒ 净增量 = 掉落物本身 = +1（与旧语义「放支撑 −1 ＋ 掉落 +1 ＋ 拆回 +1」同值
             // ⇒ 这条期望在两种语义下都成立，不用改）
@@ -237,7 +237,7 @@ public final class MineRegressionTask implements Task {
             // `support_plan` 只到 PLAN 侧：断言规划器必须给出 `supportPlacementPos == target.below()`（`D-078`）。
             // 与 `exec_floating` 的区别：那条的竖井 **1 格深** ⇒ 掉落物捡得回 ⇒ 断言"**不垫**"（`D-364` 口径）。
             new CaseDef("support_plan", "support_course", SUPPORT_START, SUPPORT_TARGET,
-                    Kind.PLAN, List.of(MiningPlan.Mode.CURRENT, MiningPlan.Mode.DIRECT),
+                    Kind.PLAN, List.of(MiningPlan.Arrival.IN_PLACE, MiningPlan.Arrival.DIRECT_PURE_PASSAGE),
                     0, null, true, true, 0),
             // ⭐ `D-467`（2026-09-27）：**EXECUTE 侧的支撑块正例** —— 它同时修掉三个观测项：
             //    ① `O1` 空判据：这是**第一条** `expectSupport=true` 的 EXECUTE 用例 ⇒
@@ -775,21 +775,21 @@ public final class MineRegressionTask implements Task {
         MiningPlan plan = result.plan();
         boolean pass;
         if ("buried".equals(current.name())) {
-            pass = (plan != null && plan.mode() == MiningPlan.Mode.TUNNEL)
+            pass = (plan != null && plan.arrival() == MiningPlan.Arrival.MINING_APPROACH)
                     || "found_but_unminable".equals(result.failureReason());
         } else if ("headroom".equals(current.name())) {
             pass = plan != null && plan.standingFoot().getY() == current.target().getY() - 1;
             if (plan != null && !current.expectedModes().isEmpty()) {
-                pass = pass && current.expectedModes().contains(plan.mode());
+                pass = pass && current.expectedModes().contains(plan.arrival());
             }
         } else {
-            pass = plan != null && current.expectedModes().contains(plan.mode());
+            pass = plan != null && current.expectedModes().contains(plan.arrival());
         }
         if (current.expectSupport()) {
             pass = pass && plan != null && plan.supportPlacementPos() != null
                     && plan.supportPlacementPos().equals(current.target().below());
         }
-        record(current, pass, "mode=" + (plan == null ? "-" : plan.mode())
+        record(current, pass, "arrival=" + (plan == null ? "-" : plan.arrival())
                 + "/stand=" + (plan == null ? "-" : plan.standingFoot().toShortString())
                 + "/cost=" + (result.score() == null ? "-"
                         : String.format(java.util.Locale.ROOT, "%.2f", result.score().getScore()))
@@ -954,7 +954,7 @@ public final class MineRegressionTask implements Task {
             }
             latchPhase = 1;
             BotLog.info("[MineRegression] step_latch_relaunch 计划就绪 mode={} stand={}",
-                    plan.plan().mode(), plan.plan().standingFoot().toShortString());
+                    plan.plan().arrival(), plan.plan().standingFoot().toShortString());
             return Status.RUNNING;
         }
         if (latchPhase == 1) {

@@ -230,11 +230,11 @@ public final class FallingPauseCheckTask implements Task {
             return;
         }
         check("前提（" + label + "）：模式 = CURRENT（**就地挖**；否则测到的是走路而不是暂停）"
-                        + "（实际 " + plan.mode() + "）",
-                plan.mode() == MiningPlan.Mode.CURRENT);
+                        + "（实际 " + plan.arrival() + "）",
+                plan.arrival() == MiningPlan.Arrival.IN_PLACE);
         runner = new MineBlockRunner(bot, plan,
                 WriteGrant.of(taskName(), WriteReason.EXPECTED_TARGET));
-        findings.add(label + ":plan=" + plan.mode()
+        findings.add(label + ":plan=" + plan.arrival()
                 + " support=" + (plan.supportPlacementPos() == null ? "-"
                         : plan.supportPlacementPos().toShortString()));
     }

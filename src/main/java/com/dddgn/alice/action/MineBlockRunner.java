@@ -23,8 +23,8 @@ import net.minecraft.world.level.block.state.BlockState;
  * <p>与 `BotMiner` 的分工：站位选择、视线前提、路径成本、两模式编排都已在规划层完成
  * （`MiningPlanner`），本类只做确定性动作，不再有站位候选/评分逻辑。
  * <ul>
- *   <li>走位：`PathRetryRunner`；到达请求按 mode 选择——`TUNNEL`/`ENTER_TARGET` 用
- *       {@link PathRequest#miningApproach}（允许破坏/放置），其余用 {@link PathRequest#of}（纯通行）；</li>
+ *   <li>走位：`PathRetryRunner`；到达请求**只由** {@link MiningPlan#arrival()} 决定
+ *       （`D-520`：穷尽 `switch`，⛔ 不由任何别的值反推 —— 见 {@link #approachRequest()}）；</li>
  *   <li>破坏：统一走 {@link BlockBreakSession}（工具选择 / 进度广播 / ABORT / 超时）；</li>
  *   <li>运行期视线复核：到位后若目标不可见 → `LINE_OF_SIGHT_BLOCKED`（任务层据此重试/换站位）。</li>
  * </ul>
@@ -202,18 +202,43 @@ public final class MineBlockRunner {
 
     // ==================== 内部阶段 ====================
 
+    /**
+     * ⭐⭐ **到位请求的唯一出处**（`D-520`，改革 ① 主体第一刀）：能力**只从** {@link MiningPlan#arrival()} 读。
+     *
+     * <p><b>它替谁</b>：替掉这里原来的三元判断 ——
+     * {@code plan.mode() == TUNNEL || plan.mode() == ENTER_TARGET ? miningApproach(...) : of(...)}。
+     * 那个形状把两件事压在一个枚举上：「规划模式记录」与「**这一趟走位能否改写世界**」
+     * （`D-076` 红线的最后一处接力），于是产生一条**静默失效陷阱** —— 只要 `Mode` 被"收窄/换语义"
+     * 而两个枚举值没被删，三元就恒走纯通行 ⇒ **破坏能力被悄悄拿掉**，
+     * 症状表现为「**站不到站位**」而不是「权限被拒」，**编译器与门禁都不报**。
+     *
+     * <p>现在：取值由**规划器在产生计划的那一行显式写死**（`MiningPlanner` 的两条腿各写各的），
+     * 执行期**穷尽 `switch`、零反推** ⇒ 新增一个取值就**编译不过**（这才是把静默失效变成编译失败）。
+     *
+     * <p>⭐ 顺带修掉一处同族既有缺陷：A 腿在 {@code PLACEMENT_ALLOWED}（`D-443` 裁定 1a，
+     * 鱼骨「补一块再走」）下是**只放不拆**，而旧代码在这里一律给纯通行 ⇒ 规划期到得了、执行期到不了。
+     *
+     * <p>⚠️ 归因串仍是 {@code "mine-runner"}（逐字保留 `D-443` 裁定 1a 的既有口径，
+     * 免得动到 `WriteAudit` 的既有账本口径）。
+     */
+    private PathRequest approachRequest() {
+        String botId = bot.getUUID().toString();
+        BlockPos from = MovementHelper.footCell(bot.serverLevel(), bot);
+        BlockPos to = plan.standingFoot();
+        return switch (plan.arrival()) {
+            case IN_PLACE, DIRECT_PURE_PASSAGE -> PathRequest.of(botId, from, to, "mine-runner");
+            case DIRECT_PLACEMENT_ALLOWED -> PathRequest.withPlacement(botId, from, to, "mine-runner");
+            case MINING_APPROACH -> PathRequest.miningApproach(botId, from, to, "mine-runner");
+        };
+    }
+
     private Status tickMovement() {
         if (runner == null) {
-            PathRequest request = plan.mode() == MiningPlan.Mode.TUNNEL
-                    || plan.mode() == MiningPlan.Mode.ENTER_TARGET
-                    ? PathRequest.miningApproach(bot.getUUID().toString(), MovementHelper.footCell(bot.serverLevel(), bot),
-                            plan.standingFoot(), "mine-runner")
-                    : PathRequest.of(bot.getUUID().toString(), MovementHelper.footCell(bot.serverLevel(), bot),
-                            plan.standingFoot(), "mine-runner");
+            PathRequest request = approachRequest();
             runner = new PathRetryRunner(bot, request, PathRetryRunner.DEFAULT_MAX_REPLANS,
                     "mine-" + target.getX() + "_" + target.getY() + "_" + target.getZ());
-            BotLog.info("[MineRunner] walk_start target={} stand={} mode={} feet={}",
-                    target.toShortString(), plan.standingFoot().toShortString(), plan.mode(),
+            BotLog.info("[MineRunner] walk_start target={} stand={} arrival={} feet={}",
+                    target.toShortString(), plan.standingFoot().toShortString(), plan.arrival(),
                     bot.blockPosition().toShortString());
         }
         PathRetryRunner.State state = runner.tick();
@@ -372,7 +397,7 @@ public final class MineBlockRunner {
             mineStartEyeDist = eyeDistance;
             BotLog.info("[MineRunner] break_start target={} stand={} eyeDist={} mode={}",
                     target.toShortString(), plan.standingFoot().toShortString(),
-                    String.format(java.util.Locale.ROOT, "%.2f", eyeDistance), plan.mode());
+                    String.format(java.util.Locale.ROOT, "%.2f", eyeDistance), plan.arrival());
         }
         BlockBreakSession.Status result = breakSession.tick();
         if (result == BlockBreakSession.Status.DONE) {

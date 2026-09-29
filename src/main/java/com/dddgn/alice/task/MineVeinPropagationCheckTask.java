@@ -296,7 +296,7 @@ public final class MineVeinPropagationCheckTask implements Task {
                     }
                     BotLog.info("[VeinProp复评探针] pos={} ok={} mode={} reason={}",
                             cell.toShortString(), result.success(),
-                            result.plan() == null ? "-" : result.plan().mode(), result.failureReason());
+                            result.plan() == null ? "-" : result.plan().arrival(), result.failureReason());
                 }
             }
         }

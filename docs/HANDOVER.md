@@ -2943,3 +2943,53 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 ⚠️ **落盘时的一次事故（我自己犯的，登记不删）**：写本节时我用 `io.open(path,'w')` **直接覆盖** `HANDOVER.md`，而内容里有一个**代理对转义**（`\ud83d\udd34`）在**编码阶段**抛 `UnicodeEncodeError` ⇒ **文件先被 `'w'` 截断为 0 字节、内容全丢**（实测 `wc -l` = 0）。
 ✅ **已从 `HEAD` 恢复**（断点十五 已在 `d75a3456` 里 ⇒ 零损失），并改用「**先 `encode` 成功 → 写临时文件 → `os.replace`**」的原子写法。
 ⭐ **可复用纪律**：批量改写既有文档时**不许直接 `'w'` 覆盖**，必须**先把内容算好再原子替换**（同族：`A-1`「删半句/整行在 diff 里看不出来」）。
+---
+
+### ✅ 断点十七（2026-09-29 · 第十七次；⭐⭐⭐ **改革 ① 主体 第一刀 已落地** —— `src/` 9 文件 + `tools/` 1 文件）
+
+> ⚠️ **本节追加在文件末尾、❗ 未插入上方断点序列**（原因同断点十五/十六：本文件有 **14 处 ≥2258 的自指行号引用** ⇒ 中途插入会让它们静默漂移）。
+> 📌 **决策与施工设计**：`D-520`（`docs/AI_DECISIONS.md`）· `docs/reviews/2026-09-29-第一刀-施工设计.md`（五行任务卡 + 逐文件清单 + 边界）· 侦察 = 断点十六 / `O17`。
+
+#### ① 用户四裁（2026-09-29「好，这几个点我都同意你的推荐方案」）
+
+| # | 裁定 |
+|---|---|
+| **①** | **乙** —— 同刀切**两条**腿（`planTunnel` + `planEnterTarget`） |
+| **②** | **丙＋补判据** —— 同刀**删** `MiningPlan.Mode.TUNNEL`/`ENTER_TARGET`（借**编译器**列出全部点位）＋ 执行期写授权改**显式字段** ＋ 补**可红**判据 |
+| **③** | 清障丢弃（`DS-7`）**进 改革 ① 主体，硬前置 = 紧接第一刀之后** |
+| **④** | **甲** —— `D-476` `P2/A` 顺序句**原地 inline 更正**（⛔ 原文不改、0 行净增） |
+
+#### ② 落了什么
+
+- **`PathPlan.finalFoot()`**（新增）：落点 = `projectedFootPath()` **末项**。⭐ **它是这条链的枢轴** —— 旧 `MiningPlan` 不变量读 `path.goalFoot()`，而 `GoalAdjacent.goalFoot()` 返回的是**目标方块本身**（不是脚位）⇒ **换成 `GoalAdjacent` 后每一个合法计划都会抛 `IAE`**（施工期实测，侦察文档里没有这条）。
+- **`reach/MiningPlan.Mode` → `Arrival`**（4 值，**无损合并**旧的"规划模式记录"与"写授权"两义）+ 不变量改成"**落点一致**"（比原来**更强**）。
+- **`task/mining/MiningPlanner`**：删 `planTunnel`/`planEnterTarget`/`selectBestApproach`/`MAX_APPROACH_PLANS`/`neverRan`；新增 `planGoalApproach`（`PathRequest.adjacentApproach`）；`Arrival` 由 `selectBest` **一处派生**（同一行决定请求工厂）。
+- **`action/MineBlockRunner`**：运行时三元 → **穷尽 `switch (plan.arrival())`**（新增取值即**编译不过**）+ 新 `approachRequest()` 单一出处。
+- **门禁**：新 `rule_arrival_declared_and_consumed`（4 条断言）替换 `rule_approach_plans_bounded`；`rule_search_limit_not_unreachable` 三处锚点跟着结构改（腿数 3 → 2）。
+- **夹具**：A2 的字面量 `issued == 3` → **`== 1`**（A2 换了主语：候选穷举**结构性消失**）；其余是 `Mode.*` → `Arrival.*` 的机械改名。
+
+#### ③ ⭐⭐ 施工期实测出的三条**新事实**（写在这里省下一次重挖）
+
+1. **`MiningPlan` 的不变量会直接抛异常**（见上）—— 解法 = `PathPlan.finalFoot()`。
+2. **🔴 A 腿上的同族静默失效今天已存在**：规划期 `PLACEMENT_ALLOWED` ⇒ `PathRequest.withPlacement`，而 `MineBlockRunner` 在本刀之前**一律**给 `PathRequest.of` ⇒ 鱼骨「补一块再走」**规划期到得了、执行期到不了**。`D-443` 裁定 1a 当时**只治了规划侧**。⇒ 本刀的显式字段**顺带修掉执行侧那一半**。
+3. **`§12.7 #7` 的登记要更正**：它写「`rule_approach_plans_bounded` 随 B 一起**删**」，而实际处置是「**替换**」—— 直接删会**丢掉 A2 的牙**（那个 ≈2.4 s/tick 的形状下次被带回来就没人拦）。
+4. ⚠️ **到达集是<u>收窄</u>的（不是超集）** —— 新 `GoalAdjacent` = **5 格**（4 水平邻格 + 正下方），旧 `tunnelCandidates` = **8 格**（4 面 × {y, y−1}）+ **正下方一列** ⇒ 旧集里**曼哈顿 2 的落点**与**更深的竖直落点**不再是落点（能力集逐字相同 ⇒ A\* 仍可**挖出**合法落点）。
+   ✅ 方向是对的（新到达集 = **Baritone 自己的 `GoalAdjacent`**，`BuilderProcess.java:892` ⇒ 向参照实现对齐，`D-036`），但**代价是真实行为差异** ⇒ 全文与复核触发见 `D-520` **§八**。
+   ⚠️ **我第一版 javadoc 把这个说成了"超集"，复核时当场改正**（登记不删）。
+
+#### ④ 验证等级（**逐项标注，别当成同一件事**）
+
+| 层 | 状态 |
+|---|---|
+| `IMPLEMENTED` | ✅ 全部 11 处改动已落 |
+| `COMPILES` | ✅ `./gradlew compileJava` 通过 |
+| 门禁 | ✅ `tools/check-all.sh` = **`pass=34 warning=1 failed=0`**（warning = 电池未由 check-all 执行，非通过）· `tools/kernel-predicates.py` **PASS** |
+| 核心电池 | ✅ `tools/headless-battery.sh core` = **`verdict=PASS`**（指纹 **`72d7d19900da`**，251 s）· 新腿真被走到（`arrival=MINING_APPROACH` ×8）· 旧 `mode=TUNNEL/ENTER_TARGET` 字样 = **0** · 预算闸门仍活（`approach_over_budget` ×4） |
+| A2 实测量 | ✅ `issuedSearches=`**`1`**（旧形状 **13** ⇒ 问题**结构性消失**） |
+| 优先复核场景（`D-520` §八 的收窄） | ✅ `single:mine_vein_propagation` = **PASS** / **`mined 30/30`**（上次同夹具读数也是 30/30 ⇒ **没退化**；⚠️ `ticks` 4455→4623 **不能**单独归因于本刀） |
+| `WINDOWS_CLIENT` | ❌ **未验** —— 用户下一步动作 |
+
+#### ⑤ ⏭ 下一步（用户动作）
+
+**下一刀 = 清障丢弃（`DS-7`）**（决策点 ③ 已裁：进 改革 ① 主体、紧接本刀之后）。
+客户端要看的现象：**被掩埋的目标仍被挖到**（本刀删掉的正是"固定 13 格站位枚举 + 破坏进入"那条兜底链，换成内核一次搜索）——⚠️ 归因串与日志形状都变了：`[MiningPlanner] arrival=MINING_APPROACH …` / `[MineRunner] walk_start … arrival=…`（旧 `mode=…` 不再出现），**读日志时别按旧字面量 grep**。

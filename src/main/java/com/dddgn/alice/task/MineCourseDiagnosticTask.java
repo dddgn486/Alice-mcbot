@@ -64,15 +64,15 @@ public final class MineCourseDiagnosticTask implements Task {
         ensureStonePickaxe();
         switch (phase) {
             case 0 -> {
-                freePass = checkMode("free", FREE_TARGET, MiningPlan.Mode.DIRECT, MiningPlan.Mode.CURRENT);
+                freePass = checkMode("free", FREE_TARGET, MiningPlan.Arrival.DIRECT_PURE_PASSAGE, MiningPlan.Arrival.IN_PLACE);
                 phase = 1;
             }
             case 1 -> {
-                wallPass = checkMode("wall", WALL_TARGET, MiningPlan.Mode.DIRECT, MiningPlan.Mode.CURRENT);
+                wallPass = checkMode("wall", WALL_TARGET, MiningPlan.Arrival.DIRECT_PURE_PASSAGE, MiningPlan.Arrival.IN_PLACE);
                 phase = 2;
             }
             case 2 -> {
-                blockedPass = checkMode("blocked", BLOCKED_TARGET, MiningPlan.Mode.TUNNEL);
+                blockedPass = checkMode("blocked", BLOCKED_TARGET, MiningPlan.Arrival.MINING_APPROACH);
                 phase = 3;
             }
             case 3 -> {
@@ -95,14 +95,14 @@ public final class MineCourseDiagnosticTask implements Task {
         return failure;
     }
 
-    private boolean checkMode(String key, BlockPos target, MiningPlan.Mode... expected) {
+    private boolean checkMode(String key, BlockPos target, MiningPlan.Arrival... expected) {
         teleport(START);
         MiningPlanner.Result result = plan(target);
-        MiningPlan.Mode mode = result.plan() == null ? null : result.plan().mode();
+        MiningPlan.Arrival mode = result.plan() == null ? null : result.plan().arrival();
         boolean pass = mode != null;
         if (pass) {
             pass = false;
-            for (MiningPlan.Mode candidate : expected) {
+            for (MiningPlan.Arrival candidate : expected) {
                 if (candidate == mode) {
                     pass = true;
                     break;
@@ -123,7 +123,7 @@ public final class MineCourseDiagnosticTask implements Task {
         boolean pass = result.plan() != null
                 && result.plan().standingFoot().getY() == HEADROOM_TARGET.getY() - 1;
         BotLog.info("[MineCourse] headroom={} mode={} stand={} cost={} reason={}",
-                pass ? "PASS" : "FAIL", result.plan() == null ? "-" : result.plan().mode(),
+                pass ? "PASS" : "FAIL", result.plan() == null ? "-" : result.plan().arrival(),
                 result.plan() == null ? "-" : result.plan().standingFoot().toShortString(),
                 result.score() == null ? "-" : String.format(java.util.Locale.ROOT, "%.2f", result.score().getScore()),
                 result.failureReason());
@@ -133,11 +133,11 @@ public final class MineCourseDiagnosticTask implements Task {
     private boolean checkBuried() {
         teleport(START);
         MiningPlanner.Result result = plan(BURIED_TARGET);
-        boolean pass = (result.plan() != null && result.plan().mode() == MiningPlan.Mode.TUNNEL)
+        boolean pass = (result.plan() != null && result.plan().arrival() == MiningPlan.Arrival.MINING_APPROACH)
                 || "found_but_unminable".equals(result.failureReason());
         BotLog.info("[MineCourse] buried={} mode={} reason={}",
                 pass ? "PASS" : "FAIL",
-                result.plan() == null ? "-" : result.plan().mode(), result.failureReason());
+                result.plan() == null ? "-" : result.plan().arrival(), result.failureReason());
         return pass;
     }
 

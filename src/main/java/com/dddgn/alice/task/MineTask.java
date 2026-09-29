@@ -675,7 +675,7 @@ public final class MineTask implements Task {
         BotLog.info("[MineTask重规划探针] target={} recoveryAttempt={}/{} oldStanding={} newStanding={} mode={} newPathStatus={}",
                 target.toShortString(), recoveryAttempts, MAX_RECOVERY_ATTEMPTS,
                 previousPlan.standingFoot().toShortString(), replanned.standingFoot().toShortString(),
-                replanned.mode(), replanned.path().status());
+                replanned.arrival(), replanned.path().status());
         enterPhase(Phase.MINING);
         startExecution();
         return true;
@@ -981,7 +981,7 @@ public final class MineTask implements Task {
         }
         BotLog.info("[MiningPlanner探针] planned target={} startFoot={} standingFoot={} mode={} pathStatus={} pathSize={} pathCost={} visibility={} executable={} support={} score={}",
                 plan.target().toShortString(), plan.startFoot().toShortString(),
-                plan.standingFoot().toShortString(), plan.mode(),
+                plan.standingFoot().toShortString(), plan.arrival(),
                 plan.path().status(), plan.path().movements().size(),
                 String.format(java.util.Locale.ROOT, "%.3f", plan.path().totalCost()),
                 plan.visibility().isClear(), plan.isExecutable(),
@@ -1009,7 +1009,7 @@ public final class MineTask implements Task {
         step.startExecution(walkOnly);
         MiningPlan plan = step.currentPlan();
         BotLog.info("[MineTask探针] 创建 MineBlockRunner: target={} mode={} stand={} botPos={} attempt={}",
-                target.toShortString(), plan.mode(),
+                target.toShortString(), plan.arrival(),
                 plan.standingFoot().toShortString(), bot.blockPosition().toShortString(),
                 executionAttempts);
     }

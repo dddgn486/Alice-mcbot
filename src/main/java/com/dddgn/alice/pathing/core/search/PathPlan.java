@@ -39,6 +39,27 @@ public record PathPlan(
         return status == PlanningStatus.REACHED;
     }
 
+    /**
+     * ⭐ **路径实际到达的落点脚位**（`D-520`，改革 ① 第一刀）：{@link #projectedFootPath()} 的**末项**。
+     *
+     * <p><b>为什么必须与 {@link #goalFoot()} 分开</b>：{@code goalFoot()} 是 **{@link GoalSpec} 自报的锚点**，
+     * 对精确目标（{@link GoalFoot}）它**恰好**就是落点，于是两者长期被当成一回事；
+     * 但对**谓词目标**（{@link GoalAdjacent}）它是 **目标方块本身**，根本不是脚位
+     * （`GoalAdjacent.goalFoot()` javadoc 逐字：「返回的是**目标方块**，不是"规范脚位"」）⇒
+     * 任何需要"落到哪一格"的消费者（`MiningPlan` 的不变量、执行期的走位终点）**不许**读 {@code goalFoot()}。
+     * 改革 ① 把 B 腿换成 {@code GoalAdjacent} 之后，这个区分从"将来时"变成"编译期就会撞上"。
+     *
+     * <p><b>取值是纯派生，不新增字段</b>：{@link #projectedFootPath()} 的第一项是起点、其后每条边追加一个
+     * {@code toFoot()}（`AStarMovementSearch.projectedFootPath`）⇒ **末项 = 落点**，与 `goalFoot()` 无关。
+     *
+     * @return 落点脚位；{@code projectedFootPath} 为空（失败 / 无计划）⇒ {@code null}
+     */
+    public BlockPos finalFoot() {
+        return projectedFootPath.isEmpty()
+                ? null
+                : projectedFootPath.get(projectedFootPath.size() - 1);
+    }
+
     /** K-1：**只到前缀**（未到达目标、但有可执行的边）。调用方可用它"先走一段再重规划"。 */
     public boolean partial() {
         return status == PlanningStatus.PARTIAL;

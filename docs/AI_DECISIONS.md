@@ -22560,7 +22560,7 @@ exec_runtime_los=FAIL status=DONE/targetGone=true/clearedBlocks=0/raceFired=true
 #### P2/A：`MineTask` **该丢**，但按 `4.2` 的顺序
 
 - **目标态 = 丢**：它的 8 相位里 **6 个是"站位选优的补丁"**（`EVALUATING`/`CLEAR`/`GAIN_CLEAR`/`GAIN` + `tryReplan`）；`COLLECTING`→`CollectDropsTask`、`RESTORE`→`RestoreScopeTask` 已各自独立 ⇒ 挖空后**只剩「聚合单格结论 + 终态闩锁」**，由 `BoundedLoop`（P1/A）接。
-- **顺序**（用户叮嘱「注意好排期」）：`5b`（不依赖）→ `4.2` 的 **② Goal 化**（`K2 GoalAdjacent` + 目标级一次搜索）→ **③ 站位枚举退化** → **逐项搬空** → 删。
+- **顺序**（用户叮嘱「注意好排期」）：`5b`（不依赖）→ `4.2` 的 **② Goal 化**（`K2 GoalAdjacent` + 目标级一次搜索）→ **③ 站位枚举退化** → **逐项搬空** → 删。 ⚠️ **2026-09-29 更正（`D-520` ④甲）**：本句里的 **③「站位枚举退化」是幽灵步骤** —— 它是「把 B 交出去」的**自动结果**（`D-506` 已裁 `4.2③` 作废；设计讨论逐字「`4.2` ③ 字面「站位枚举 A/B」**随 B 交出去自动作废**」）⇒ 改革 ① 主体的第一刀**就是** `K2` 的接线那半边（该刀已于 2026-09-29 落地 = `D-520`）。⛔ 原文不改，只加指针。
 - **两个前提**：(a) goal 化后"允许破坏/放置"授权从**规划器**重挂到**目标**（`D-076`；`4.2` 明写"不是免费的"）；(b) **movement 层先接得住**清障/加高/搭桥/下落（今天 movement 是**纯通行**）。
 - ⚠️ **两样不许跟着一起丢**：`D-471` 冻结的连锁段（逐字保留）· **终态闩锁 + `restoreTask 缺失`/`runner_missing` 两处第二层防御**（`D-175`/`D-178` 载体，搬走要一起搬）。
 - ⚠️ **排期缺口（本轮发现，落排期时必须补）**：`K2`/`4.x` 现在挂在"站位选优架构取舍"块里，在 `J-★` 上**没有自己的排期位** ⇒ P2 的"顺序"今天**无处可依**。
@@ -24444,3 +24444,131 @@ Goal（纯算术谓词，零世界访问）找路
 ⭐ 用户 2026-09-29 的裁定 = **相反**（簇挖掘 step **连设计带落地**移入框架批）。
 ⚠️ 但那条建议的**方法**是对的 —— 它自己写了「**这不是本鱼替你选，是提示"这里有第二个排期读者"**」（同 `plans §27.5` 的「**必须报，不许我替你选**」）⇒ **报得对、选得不同**。
 ⇒ 已在 `survey/47` **文件末尾追加**一节登记否决（勘测侧纪律 = **只增不改**）。
+---
+
+## D-520：改革 ① 主体 **第一刀** 落地 —— B 腿（`TUNNEL`/`ENTER_TARGET`）换成 `GoalAdjacent` ＋ 写授权改**显式字段**（2026-09-29，用户「好，这几个点我都同意你的推荐方案」）
+
+> 裁定来源 = `O17`（`docs/reviews/2026-09-29-③站位枚举退化-开工前侦察.md`）＋ 用户 2026-09-29 逐条拍板：
+> **①乙 · ②丙+补判据 · ③进主体 · ④甲**。施工设计单 = `docs/reviews/2026-09-29-第一刀-施工设计.md`。
+
+### 一、四条裁定（逐字口径）
+
+| # | 裁定 | 内容 |
+|---|---|---|
+| **①** | **乙** | 同刀切**两条**腿（`planTunnel` + `planEnterTarget`）。理由：它们是**同一条降级链的相邻两档**（`MiningPlanner:331`/`:385` 同函数、共享 `MAX_APPROACH_PLANS` 与 `StandingPointSelector`），只切一条会留一个"半新半旧"的夹缝期 —— 而那正是下面 ② 那个陷阱最容易咬人的窗口 |
+| **②** | **丙＋补判据** | 同刀**删** `MiningPlan.Mode.TUNNEL`/`ENTER_TARGET` 两个枚举值（让**编译器**列出全部点位），并把执行期写授权改成**显式字段**；同刀补一条**可红**判据 |
+| **③** | **进主体，紧接第一刀之后** | 清障丢弃（`DS-7`）进改革 ① 主体，**硬前置 = 排在第一刀之后**（侦察 §4：能力集那一半今天已具备，缺的是接线；满足 `D-011`） |
+| **④** | **甲** | `D-476` `P2/A` 的顺序句**原地加 inline 更正指针**（⛔ 不动原文，0 行净增） |
+
+### 二、⭐⭐ 施工期实测出的三条**新事实**（侦察文档里没有）
+
+1. **`MiningPlan` 的不变量会直接抛异常（不是"可能"）** ——
+   `AStarMovementSearch:322` 用 `goal.goalFoot()` 填 `PathPlan.goalFoot`，而
+   `GoalAdjacent.goalFoot()` **返回目标方块本身**（不是脚位，其 javadoc 逐字写了）；
+   旧不变量 `path.goalFoot().equals(standingFoot)` 在 `GoalFoot`（精确脚位）下才恰好重合
+   ⇒ **换成 `GoalAdjacent` 后每一个合法计划都会被判非法**。
+   ✅ 解法（纯派生、不新增字段）：新增 `PathPlan.finalFoot()` = `projectedFootPath()` **末项**
+   （`AStarMovementSearch.projectedFootPath` 逐字：起点 + 每条边的 `toFoot()`）；不变量改写成
+   **更强**的形态：`standingFoot` 必须等于**路径实际落点**。
+2. **🔴 同族静默失效在 A 腿上**已经存在**（不是将来时）** ——
+   规划期按 `MiningProfile.Approach.PLACEMENT_ALLOWED` 用 `PathRequest.withPlacement`（`D-443` 裁定 1a），
+   而 `MineBlockRunner` 在本刀**之前**一律给 `PathRequest.of`（纯通行）
+   ⇒ 鱼骨「补一块再走」的计划**规划期到得了、执行期到不了**。
+   ⭐ `D-443` 裁定 1a 当时**只治了规划侧**（`survey/34 §2.1` 那条"同一 tick 两个相反答案"），
+   执行侧那一半**一直没治** ⇒ 本刀的显式字段**顺带修掉它**（同一个 bug 类，隔一个字段）。
+3. **带牙的门禁必须同刀改（两处）** ——
+   ① `tools/kernel-predicates.py` 的 `rule_approach_plans_bounded` 钉死 `MAX_APPROACH_PLANS` +
+   `selectBestApproach` 的形状 + 夹具 `issued == 3`；
+   ② 同一文件 `rule_search_limit_not_unreachable`（`D-329` S3 的牙）有三处锚点钉在 `selectBestApproach` / `planTunnel` / **三条腿合取**上。
+   ⇒ ⚠️ **`§12.7 #7` 原写"`rule_approach_plans_bounded` 随 B 一起删" —— 实际处置是「替换」而不是「删」**：
+   直接删掉会**丢掉 A2 的牙**（那个 ≈2.4 s/tick 的形状下次有人带回来就没人拦）。
+   登记为**对登记表的更正**（不是对用户裁定的偏离）。
+
+### 三、落地内容（`src/` 9 文件 + `tools/` 1 文件）
+
+| # | 文件 | 改动 |
+|---|---|---|
+| 1 | `pathing/core/search/PathPlan.java` | **新增** `finalFoot()`（落点 = 投影末项；空 ⇒ `null`） |
+| 2 | `reach/MiningPlan.java` | `Mode` → **`Arrival`**（4 值：`IN_PLACE`/`DIRECT_PURE_PASSAGE`/`DIRECT_PLACEMENT_ALLOWED`/`MINING_APPROACH`，**无损合并**旧的"模式 + 授权"两义）；不变量改成"落点一致"；⛔ **删掉**一个**从落地起就没有调用者**的 5 参便捷构造器 |
+| 3 | `task/mining/MiningPlanner.java` | 删 `planTunnel`/`planEnterTarget`/`selectBestApproach`/`MAX_APPROACH_PLANS`/`neverRan`（后者随之**零调用者**）；**新增** `planGoalApproach`（`PathRequest.adjacentApproach`）；`Arrival` 由 `selectBest` **一处派生**（同一行决定请求工厂）；新常量 `ADJACENT_NO_REACHABLE` |
+| 4 | `action/MineBlockRunner.java` | 运行时三元 → **穷尽 `switch (plan.arrival())`**（新增取值即编译不过）；新增 `approachRequest()` 单一出处 |
+| 5–9 | `MineRegressionTask` / `MineCourseDiagnosticTask` / `FallingPauseCheckTask` / `MineMenuCheckTask` / `MineVeinPropagationCheckTask` / `MineTask` | `Mode.*` → `Arrival.*`；`plan.mode()` → `plan.arrival()`（**只改接收者是 `MiningPlan` 的**，`estimate.mode()`/`costs.mode()` 不碰）；A2 夹具字面量 `issued == 3` → **`== 1`**（A2 换了主语：候选穷举**结构性消失**） |
+| 10 | `MiningSearchLimitHonestyCheckTask` | 理由码改名 + 红臂配方改指 `planGoalApproach`（历史真机日志行**逐字保留**） |
+| 11 | `tools/kernel-predicates.py` | `rule_approach_plans_bounded` → **`rule_arrival_declared_and_consumed`**（四条断言）；`rule_search_limit_not_unreachable` 三处锚点跟着结构改（腿数 3 → 2，候选精算主语 → `exactTopK`） |
+
+**⚠️ 刻意不动**：`reach/StandingPointSelector.tunnelCandidates`（`OS-1` 已裁 `A` 的定位 = 乙，**枚举留在 A**；今天真实消费者 = 诊断探针 `MineReachProbeTask:147`）· `MiningProfile`（**一点不改**，`standableOnly` 语义逐字保留）· `JobWriteDeclaration` · 内核 `GoalSpec`/`PathRequest`/`GoalAdjacent`（`K2` 甲已落，零改动）。
+
+### 四、⭐ `Arrival` 的形状与**为什么合并成一个枚举**
+
+```java
+IN_PLACE                  → PathRequest.of            （原 Mode.CURRENT）
+DIRECT_PURE_PASSAGE       → PathRequest.of            （原 Mode.DIRECT + PURE_PASSAGE）
+DIRECT_PLACEMENT_ALLOWED  → PathRequest.withPlacement （原 Mode.DIRECT + PLACEMENT_ALLOWED）⭐ 修掉上面 §二·2
+MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mode.ENTER_TARGET 合一）
+```
+- **为什么合并**：`CURRENT` 与 `DIRECT` 的差别**只有诊断价值**，而"授权形状"与"是不是当前站位"在这 4 个取值上**无损**（实测 `planDirect` 的 CURRENT 分支写死 `PathRequest.of`）⇒ 一个字段 = 一处出处，不产生两份可漂移的名单。
+- ⚠️ **刻意不叫 `Approach`**：`task.mining.MiningProfile.Approach` 已存在，而 `tools/check-duplicate-class-names.py` 是**有牙的门禁** ⇒ 不许造同名两物（`GoalSpec` 的教训，`plans §12.1.2`）。
+- ⚠️ **取值不是"授权本体"**：授权来源仍是**作业级声明**（`D-500` §IV，临时载体 `JobWriteDeclaration`）＋ `MiningBudget` 闸门。本字段只保证"规划期用了什么、执行期就用什么"，⛔ 不扩大也不缩小任何授权面。
+
+### 五、⭐ 新判据 `rule_arrival_declared_and_consumed`（四条断言，每条都能一次注入变红）
+
+1. **`Arrival` 的每个枚举常量必须在 `MiningPlanner` 里有生产点** ——
+   一个"没人生产"的取值 = 执行期 `switch` **静默**落到别的分支，**这正是本刀要杀的那条陷阱的形状**；
+2. **`MineBlockRunner` 必须按 `plan.arrival()` 穷尽 `switch`**，且该文件**代码里**不许再出现 `MiningPlan.Mode` / `plan.mode()`（旧载体不许回流）；
+3. **候选穷举形状不许回归**：`MiningPlanner` 里不许再有 `MAX_APPROACH_PLANS` 声明 / `selectBestApproach` / `planTunnel` / `planEnterTarget`，且必须真的在用 `PathRequest.adjacentApproach`（`DS-4`：**替换**不是并存）；
+4. **A2 夹具仍按字面量 + 实测量断言**（`issued == 1` + `SearchTickBudget.tickSearches()`）。
+
+⚠️ 判据里自己带一个 `no_comments()`（同时剥 `//` 与 `/* */`）——
+因为 `code_only()` **只剥行注释**，而本刀在 `MiningPlanner` 里留了**墓碑注释**（写明了被删的理由与去向），
+不剥块注释会让判据**假红**。这是一条可复用的教训（判据锚点与代码注释同文档时）。
+
+### 六、失败理由码的处置（`D-011`：不能未经验证直接删）
+
+| 旧码 | 处置 | 实测依据 |
+|---|---|---|
+| `no_tunnel_standing_point` | **删** | 全仓**无生产消费者**（只有本类自己写） |
+| `no_reachable_tunnel_standing_point` | **删**，并入新码 `no_reachable_adjacent_standing_point` | 同上（另在 2 个夹具的消息串里出现过） |
+| `enter_target_unreachable` | **删**，并入同一个新码 | 同上（两条腿合成一条 ⇒ 两个"到不了"不再有区别） |
+| `enter_target_over_budget` | **保留语义**，改名 `approach_over_budget` | ⚠️ 这是**预算闸门**（`D-076` 红线的一半）⇒ 腿合并时**不许静默丢掉** |
+
+⚠️ 新码**刻意不进** `isStandingPointRefusal`（旧码也不在）—— 顺手加进去会**改变作业侧分类行为**，不属本刀范围。
+
+### 七、边界（本刀**不**做）
+
+簇挖掘 step（`P1/A`）· `BoundedLoop`（`P3/A` ①）· 删 `MineTask` · `A-3` 冻结门禁处置（**全部已在 `D-519` 乙 移入 job 框架批**）·
+`planDirect` 的"选最优移出 `A`"（`D-503` ③）· 清障丢弃（`DS-7`，= **下一刀**，决策点 ③）· `MiningBudget`/`WriteBudget`/`CostModel`（零改动）。
+### 八、⚠️ 一条**真实的到达集收窄**（登记，不是"应该没事"）
+
+复核时发现自己第一版 javadoc **说过头了**（写「这一条是那两条腿的超集」）—— 当场实测两边的到达集：
+
+| | 集合 | 大小 |
+|---|---|---|
+| **新**（`GoalAdjacent`） | 曼哈顿 ≤1 且不站目标格、不站它上方 ⇒ 4 个水平邻格 + **正下方 1 格** | **5 格** |
+| **旧**（`StandingPointSelector.tunnelCandidates:102-129`） | 4 面 × {y, y−1} = 8 格 ＋ **正下方一列**（`k = 2 … ⌊reach+1.54⌋`，按破坏预算延伸） | **8 + N 格** |
+
+⇒ ⚠️ **收窄的两处**：① 旧集里**曼哈顿 2 的落点**（`y−1` 那一圈水平格）**不再是落点**；
+② **更深的竖直落点**（`y−2` 及以下）**不再是落点**。
+（能力集**逐字相同** ⇒ A\* 仍可**挖出**一格合法落点，或落在「正下方」那一格；旧 ②「破坏进入」的能力没有丢。）
+
+✅ **为什么这样是对的**：新到达集 = **Baritone 自己的 `GoalAdjacent`**
+（`BuilderProcess.GoalAdjacent extends GoalGetToBlock`，曼哈顿 ≤1 ＋ 排除"站到方块上方"；
+`reference/baritone-1.20.1/src/main/java/baritone/process/BuilderProcess.java:892`）
+⇒ 这次收窄是**向参照实现对齐**（`D-036`），而旧的 8＋N 格几何是 **Alice 自造的枚举**。
+
+⚠️ **代价与复核触发**：这是**真实行为差异**，CORE 电池**不能**证明它无害（`mine_regression` / `mine_menu` / `mine_job` 全 PASS 只说明已覆盖的场景没退化）。
+**复核触发 = 客户端实测里出现一次「本来能挖到的被掩埋目标现在挖不到」**（症状 = `no_reachable_adjacent_standing_point` / `found_but_unminable` 成片）
+⇒ 届时的正确修法**不是**恢复那套几何枚举，而是按 `D-036` 先查 Baritone 在"目标被完全包住"时的做法（`GoalAdjacent` 的排除字段 / `BuilderProcess.GoalBreak` 的取向），再决定是否扩到达判据。
+⚠️ 优先复核场景 = **实心矿脉**（台账 `P5-复测` 那条：`mine_vein_propagation` 仍 `mined 12/30`，失败理由当时是"三条路径全灭"）。
+### 九、⭐ 直接证据：无头电池（`SERVER_TESTED`）
+
+| 项 | 读数 | 说明 |
+|---|---|---|
+| **CORE 电池** | `verdict=PASS`（指纹 **`72d7d19900da`**，用时 251 s） | `mine_regression` / `mine_menu` / `mine_job` / `lumber_job` / `break_enter_head_blocked` / `coarse_goal_prefix` / `adjacent_goal_exclusion` 全 PASS |
+| **新腿真的被走到** | `[MiningPlanner] arrival=MINING_APPROACH` **×8** · `[MineRunner] walk_start … arrival=…` | ⭐ 不是"编译通过"，是产线路径真的在新形态上跑 |
+| **旧日志形状已消失** | `mode=TUNNEL` / `mode=ENTER_TARGET` = **0 次** | 归因串换名生效 |
+| **预算闸门仍活着** | `approach_over_budget` **×4** | 旧 `enter_target_over_budget` 的那半没有被静默丢掉 |
+| **新失败码被生产** | `no_reachable_adjacent_standing_point` **×1** | 常量不是死代码 |
+| **A2 实测量** | `A2 判别性事实：target=62,68,132 arrival=MINING_APPROACH failure= issuedSearches=`**`1`** | ⭐ 旧形状是 **13** 次全预算搜索 ⇒ **A2 的问题结构性消失**（不是"上限调大"） |
+| ⭐ **优先复核场景（`§八`）** | `single:mine_vein_propagation` = **PASS**，`mined` **`30/30`** | ⚠️ 上一次同夹具的读数（2026-09-24 12:26）= 也是 **`30/30`** PASS ⇒ **实心脉这一档没有退化**；`ticks` 4455 → 4623（⚠️ 两次运行之间还有别的提交 ⇒ 这个差**不能**单独归因于本刀） |
+
+⚠️ 归因边界：`mined 12/30` 那些读数是 **2026-09-22 / 09-24** 的（当时 `MIN_MINED` 还是低位、且 `PL-1`「过期证明重评」尚未落地）⇒ **不许**把它当成"本刀把 12 提到 30"的对照。
