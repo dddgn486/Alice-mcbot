@@ -287,6 +287,10 @@ public final class RegressionBatteryTask implements Task {
             // `D-390`：粗目标 + 滚动重规划的核心断言（远目标不许 GOAL_NOT_LOADED/UNREACHABLE，
             // 必须给出前缀，且不许读未加载区块）。
             Map.entry("coarse_goal_prefix", Profile.MAIN),
+            // ⭐⭐ `K2` 第一刀 ＋ `1a`=甲（`D-517`）：**相邻目标**（`GoalAdjacent`）＋ **换脚格排除集**。
+            // 规划级、自建孤立平台（不依赖世界地形）、零副作用 ⇒ 进 CORE：它守的是
+            // "内核目标插件点仍然可用"＋"`exactFoot()==false` 的取值没被悄悄改"这两条不变式。
+            Map.entry("adjacent_goal_exclusion", Profile.MAIN),
             // D-327 机制 B（2026-09-19）：任务失败后回安全区的兜底（无区 ⇒ 诚实码 / 200 格 ⇒ 分段走回 /
             // 封死格 ⇒ 如实失败且站定不动）。EXTRA：会临时认领一个区块 + 建/还原一个封盒 ⇒ 只单跑。
             Map.entry("safe_return", Profile.EXTRA),

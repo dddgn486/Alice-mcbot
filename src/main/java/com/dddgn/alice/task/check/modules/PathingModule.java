@@ -4,6 +4,7 @@ import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.task.BreakEnterHeadBlockedCheckTask;
 import com.dddgn.alice.task.CoarseGoalPrefixCheckTask;
 import com.dddgn.alice.task.CleanupWrappedTask;
+import com.dddgn.alice.task.K2AdjacentGoalCheckTask;
 import com.dddgn.alice.task.EdgeCompletenessCheckTask;
 import com.dddgn.alice.task.ContrastTimerCheckTask;
 import com.dddgn.alice.task.FallDiagnosticTask;
@@ -53,6 +54,13 @@ public final class PathingModule implements CheckModule {
                 // 跑完未加载区仍未被读（`D-132`）。场景自建 8 格走廊 ⇒ 前缀有确定落脚点（不依赖世界地形）。
                 CheckStep.of("coarse_goal_prefix", CheckProfile.MAIN, List.of(), null,
                         () -> new CoarseGoalPrefixCheckTask(bot, ctx.observer()), 300),
+                // ⭐⭐ `K2` 第一刀 ＋ `1a`=甲（`D-517`）：**相邻目标**（`GoalAdjacent`，第 3 个 `GoalSpec`
+                // 实现）＋ **换脚格排除集**。规划级（4 次 `CorePathPlanner` 规划 + 目标谓词逐条真值），
+                // **自建孤立平台**（不依赖电池世界地形）⇒ 便宜、确定性，守的是"**内核目标插件点仍然可用**"
+                // 这条图完整性不变式（同 `break_enter_head_blocked` 的理由）⇒ MAIN（CORE 跑）。
+                // ⚠️ 它**不执行**路径（不 tick 移动）⇒ 零副作用、不替换正在跑的电池步（`D-254`）。
+                CheckStep.of("adjacent_goal_exclusion", CheckProfile.MAIN, List.of(), null,
+                        () -> new K2AdjacentGoalCheckTask(bot, ctx.observer()), 240),
                 // ⭐ `D-379`（2026-09-21 第八轮真机）：**「破坏通行」破掉的中间列是 bot 要踩过去的一格
                 // ⇒ 它必须立得住**（`canWalkOn(mid)`）。真机 = 破掉中间格后从中间列掉进水里 → 沉底 → 溺水。
                 // 规划级（边生成层 + 执行工厂准入，两侧同谓词），3 用例（悬空+水 / 悬空+浅坑 / 立在地板上）。

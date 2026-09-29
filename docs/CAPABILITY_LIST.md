@@ -15,7 +15,7 @@
 | 作业种类（它**能接什么活**） | 5 | §2 |
 | 移动原语（它**能怎么动**） | 10（其中改世界 5） | §3 |
 | 自检模块 | 21 | §4.1 |
-| 自检步（能力清单用它证明自己） | 105 = BASELINE 15 + MAIN 28 + EXTRA 62（**CORE 实跑 43**） | §4.2 |
+| 自检步（能力清单用它证明自己） | 106 = BASELINE 15 + MAIN 29 + EXTRA 62（**CORE 实跑 44**） | §4.2 |
 | 机器类型（上游已登记） | 59 行 | §5 |
 | 玩家能调的开关 | 3 | §6 |
 | 底线（**任何玩家入口都不许出现**） | 3 | §7 |
@@ -77,7 +77,7 @@
 |---|---|---|---|---|
 | `ledger` | 账本 / 写入预算 / 场景清理 | `PASS` | 6 | ✅ |
 | `harness_self` | 编排器自检（故意被外部命令打断两次） | `FAIL` | 3 | ❌（豁免：整模块 expectedVerdict=FAIL（故意被打断两次）⇒ 只由 module:harness_self 单独跑，不进电池） |
-| `pathing` | 移动执行（落差 / 竖井 / 停表） | `PASS` | 13 | ✅ |
+| `pathing` | 移动执行（落差 / 竖井 / 停表） | `PASS` | 14 | ✅ |
 | `decision` | 决策 / 观测 / 归因 | `PASS` | 5 | ✅ |
 | `craft` | 合成 / 工作站（只读查询 → 随身 2×2 → 工作台 → 自放站 → 网格发现 → 熔炉） | `PASS` | 13 | ✅ |
 | `machine` | 机器路线（自述只读 → 站点只读 → 单机闭环 → 生产入口） | `PASS` | 4 | ✅ |
@@ -97,7 +97,7 @@
 | `ownership` | 假人归属（创建者登记 / 认领单向 / 存档往返 / 老存档不猜） | `PASS` | 1 | ✅ |
 | `break_refused` | 破坏被拒（世界事实判定 / 冒险模式 / FTB 认领 / 不许谎报成功） | `PASS` | 1 | ✅ |
 
-### §4.2 电池步（105 步；`#` = CORE 运行序，`—` = 只在 FULL 跑）
+### §4.2 电池步（106 步；`#` = CORE 运行序，`—` = 只在 FULL 跑）
 
 | # | 步名 | 档位 | 来源 |
 |---|---|---|---|
@@ -140,6 +140,7 @@
 | 20 | `mine_failure_visible` | MAIN | decision |
 | 21 | `break_enter_head_blocked` | MAIN | pathing |
 | 22 | `coarse_goal_prefix` | MAIN | pathing |
+| 23 | `adjacent_goal_exclusion` | MAIN | pathing |
 | — | `break_traverse_footing` | EXTRA | pathing |
 | — | `place_step_descend_clearance` | EXTRA | pathing |
 | — | `head_blocked_route_closure` | EXTRA | pathing |
@@ -151,15 +152,15 @@
 | — | `pillar_execute` | EXTRA | pathing |
 | — | `contrast_timer` | EXTRA | pathing |
 | — | `tick_budget_bench` | EXTRA | pathing |
-| 23 | `death_persistence` | MAIN | death |
+| 24 | `death_persistence` | MAIN | death |
 | — | `death_kill_bot` | EXTRA | death |
-| 24 | `speech_channel` | MAIN | contracts |
-| 25 | `decision_contract` | MAIN | contracts |
+| 25 | `speech_channel` | MAIN | contracts |
+| 26 | `decision_contract` | MAIN | contracts |
 | — | `decision_trace` | EXTRA | contracts |
 | — | `job_abort_hook` | EXTRA | contracts |
-| 26 | `craft_check` | MAIN | craft |
+| 27 | `craft_check` | MAIN | craft |
 | — | `craft_action` | EXTRA | craft |
-| 27 | `craft_table` | MAIN | craft |
+| 28 | `craft_table` | MAIN | craft |
 | — | `craft_station` | EXTRA | craft |
 | — | `restore_underfoot_safety` | EXTRA | craft |
 | — | `craft_probe_inventory` | EXTRA | craft |
@@ -167,18 +168,18 @@
 | — | `craft_probe_upgradetab` | EXTRA | craft |
 | — | `craft_station_provision` | EXTRA | craft |
 | — | `craft_station_craft` | EXTRA | craft |
-| 28 | `craft_furnace` | MAIN | craft |
-| 29 | `craft_cooking` | MAIN | craft |
-| 30 | `craft_goal` | MAIN | craft |
+| 29 | `craft_furnace` | MAIN | craft |
+| 30 | `craft_cooking` | MAIN | craft |
+| 31 | `craft_goal` | MAIN | craft |
 | — | `machine_route` | EXTRA | machine |
 | — | `machine_station` | EXTRA | machine |
 | — | `machine_cycle` | EXTRA | machine |
-| 31 | `craft_machine` | MAIN | machine |
-| 32 | `transfer` | BASELINE | transfer |
-| 33 | `partial_search` | BASELINE | gates |
-| 34 | `capability_gate` | BASELINE | gates |
-| 35 | `tool_supply` | BASELINE | tools |
-| 36 | `llm_contract` | MAIN | llm |
+| 32 | `craft_machine` | MAIN | machine |
+| 33 | `transfer` | BASELINE | transfer |
+| 34 | `partial_search` | BASELINE | gates |
+| 35 | `capability_gate` | BASELINE | gates |
+| 36 | `tool_supply` | BASELINE | tools |
+| 37 | `llm_contract` | MAIN | llm |
 | — | `permission_gate` | EXTRA | llm |
 | — | `scope_pending_grace` | EXTRA | pickup |
 | — | `pickup_gate` | EXTRA | pickup |
@@ -190,25 +191,25 @@
 | — | `collect_conservation` | EXTRA | pickup |
 | — | `recipes_dump` | EXTRA | telemetry |
 | — | `event_thresholds` | EXTRA | telemetry |
-| 37 | `recoverability` | BASELINE | write |
-| 38 | `write_policy` | BASELINE | write |
-| 39 | `pathing` | BASELINE | (内联) |
+| 38 | `recoverability` | BASELINE | write |
+| 39 | `write_policy` | BASELINE | write |
+| 40 | `pathing` | BASELINE | (内联) |
 | — | `survival_idle_drown` | EXTRA | survival |
 | — | `survival_shore_escape` | EXTRA | survival |
 | — | `survival_escape_air` | EXTRA | survival |
 | — | `survival_stop_in_hazard` | EXTRA | survival |
-| 40 | `survival_exit` | BASELINE | survival |
-| 41 | `protection_zones` | MAIN | protection |
+| 41 | `survival_exit` | BASELINE | survival |
+| 42 | `protection_zones` | MAIN | protection |
 | — | `safe_return` | EXTRA | protection |
 | — | `task_zone` | EXTRA | protection |
-| 42 | `bot_ownership` | MAIN | ownership |
+| 43 | `bot_ownership` | MAIN | ownership |
 | — | `bot_pair_no_recurse` | EXTRA | (内联) |
-| 43 | `break_refused` | MAIN | break_refused |
+| 44 | `break_refused` | MAIN | break_refused |
 | — | `far_path_bench` | EXTRA | (内联) |
 | — | `path_retry_bench` | EXTRA | (内联) |
 
 > 档位语义（`docs/BATTERY_CURATION.md` §1）：`BASELINE` = 坏了就不能信任 bot 的任何动作；`MAIN` = 当前主线；`EXTRA` = 已验收/与主线无关/贵 ⇒ 默认不跑（`/alice battery full` 才跑）。
-> **CORE = BASELINE + MAIN = 43 步**。
+> **CORE = BASELINE + MAIN = 44 步**。
 
 ## §5 机器级：它**能运营什么机器**（`MachineMap`）
 

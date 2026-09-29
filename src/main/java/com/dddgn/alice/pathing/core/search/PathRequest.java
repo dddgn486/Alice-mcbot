@@ -136,6 +136,20 @@ public record PathRequest(
     }
 
     /**
+     * 挖掘到达类请求的**能力集**（`D-366b` 的那一套）。
+     *
+     * <p>⭐ **单一出处**（2026-09-29，`D-517`）：{@link #miningApproach} 与 {@link #adjacentApproach}
+     * 共用它 —— 两者只是**目标形状**不同（精确脚位 vs 相邻面），"允许哪些动作"逐字相同。
+     * ⛔ 别在别处再抄一份字面集合（本项目已因"两份名单漂移"吃过亏；且 `Set` 的迭代顺序会影响
+     * 成本选择 —— 见 {@link #pureTraversal} 的注释）。
+     */
+    private static final Set<MovementType> MINING_APPROACH_MOVEMENTS =
+            Set.of(MovementType.TRAVERSE, MovementType.DIAGONAL, MovementType.ASCEND,
+                    MovementType.DESCEND, MovementType.PILLAR, MovementType.FALL,
+                    MovementType.DOWNWARD, MovementType.BREAK_AND_TRAVERSE,
+                    MovementType.BREAK_AND_ENTER, MovementType.PLACE_STEP_AND_TRAVERSE);
+
+    /**
      * 挖掘到达请求（D-067 ㉘）：允许破坏进入 / 破坏通行 / 放置台阶。
      *
      * <p>⭐ **D-366b（2026-09-20 用户裁定，临时让步）**：**取消**原先对 `PILLAR` / `FALL` / `DOWNWARD`
@@ -154,11 +168,33 @@ public record PathRequest(
     public static PathRequest miningApproach(String botId, BlockPos startFoot, BlockPos goalFoot,
                                              String requester) {
         return new PathRequest(botId, startFoot, new GoalFoot(goalFoot),
-                Set.of(MovementType.TRAVERSE, MovementType.DIAGONAL, MovementType.ASCEND,
-                        MovementType.DESCEND, MovementType.PILLAR, MovementType.FALL,
-                        MovementType.DOWNWARD, MovementType.BREAK_AND_TRAVERSE,
-                        MovementType.BREAK_AND_ENTER, MovementType.PLACE_STEP_AND_TRAVERSE),
-                WALK_BUDGET, requester);
+                MINING_APPROACH_MOVEMENTS, WALK_BUDGET, requester);
+    }
+
+    /**
+     * ⭐ **相邻到达请求**（`K2` 第一刀 ＋ `1a`=甲，`D-517`）：目标 = **站到某方块的某一面**
+     * （{@link GoalAdjacent}），而**不是**"某个规范脚位"。
+     *
+     * <p><b>它替谁</b>：替掉 `B` 分支那条「站位枚举（固定 13 格）→ 逐个 top-K 全预算 `A*`
+     * （`MAX_APPROACH_PLANS = 3`）→ `MiningPlan.Mode.TUNNEL`」—— 目标交给内核，落脚点由 A\* 自己找。
+     * ⛔ **本工厂落地的这一刀<u>不接线</u>**（生产路径零改动）：今天的消费者是**夹具**；
+     * 真正把 `planTunnel` 切过来是**下一刀**（`甲` 的字面范围：只加能用的新件，拒绝未接线）。
+     *
+     * <p><b>能力集</b> = {@link #MINING_APPROACH_MOVEMENTS}，与 {@link #miningApproach} **逐字相同**。
+     * 刻意不新造一套：**"目标形状"与"允许写世界"是两件事**（`DS-9`）——
+     * 后者仍由**作业级声明**决定（`D-500` §IV），本工厂不改变授权来源。
+     *
+     * <p><b>`excluded` 的纪律</b>（`§49.2` 第 3 条，与 `C-5` 同一条不变式）：
+     * **只在一次规划调用内有效** —— ⛔ 不许跨 tick 累积成"永久拉黑"
+     * （"当时无解" ≠ "永远无解"）。调用方每次规划**新传**一份集合。
+     *
+     * @param target   目标方块（到达 = 与它曼哈顿相邻且不站它上方）
+     * @param excluded 额外排除的脚位（可为 `null` = 无）—— 见上面的时效纪律
+     */
+    public static PathRequest adjacentApproach(String botId, BlockPos startFoot, BlockPos target,
+                                               Set<BlockPos> excluded, String requester) {
+        return new PathRequest(botId, startFoot, new GoalAdjacent(target, excluded),
+                MINING_APPROACH_MOVEMENTS, WALK_BUDGET, requester);
     }
 
     /**

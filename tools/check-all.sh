@@ -165,7 +165,11 @@ run_gate             "check-job-menu-listable" bash tools/check-job-menu-listabl
 # 豁免条目**按"得手也 FAIL"当场判红** ⇒ 逼人同刀删条目 —— ⭐ **本牙第一次在真树上生效**。
 # 豁免**逐字比对路径集合** + **豁免得手也 FAIL**。自带 1 对照臂 + 6 红臂（含 R5 `package-info` 必须**过**）。
 run_gate             "check-duplicate-class-names" python3 tools/check-duplicate-class-names.py
-run_gate             "check-far-goal-usage"   bash tools/check-far-goal-usage.sh
+# ⭐ 粗目标**分类判据**（`D-500` §V，2026-09-29 `D-517` 落地）：**旧口径是点名白名单**
+# （只抓字面 `GoalNearXZ.around(`）⇒ ⭐ **新类能从它下面走过去**。
+# 新口径 = 凡 `exactFoot() == false` 的实现**必须登记**，且登记表**记录取值**（取值本身是红线开关）。
+# ⚠️ Py 重写**同时保留**旧的字面断言作**第二颗牙**（互补：分类管**实现**，字面管**调用点**）。
+run_gate             "check-far-goal-usage"   python3 tools/check-far-goal-usage.py
 # 终态执行记录接线（D-258 复核发现的 J-1/J-3）：taskKind 必须用 taskName()；terminalReason/botId 必须进快照。
 run_gate             "check-exec-record"      bash tools/check-exec-record.sh
 run_gate             "check-policy-matrix"      bash tools/check-policy-matrix.sh

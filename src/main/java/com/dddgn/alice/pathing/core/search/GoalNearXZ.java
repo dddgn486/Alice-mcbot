@@ -45,9 +45,19 @@ public record GoalNearXZ(int centerX, int centerZ, int radius, BlockPos anchor) 
 
     @Override
     public double heuristic(BlockPos pos) {
+        return horizontalOctileToRadius(pos.getX(), pos.getZ(), centerX, centerZ, radius);
+    }
+
+    /**
+     * 到「(`centerX`,`centerZ`) 的 Chebyshev `radius` 邻域」的 **octile 下界**（忽略竖向）。
+     * ⭐ **公式单一出处**：{@link GoalAdjacent} 也调它 —— 它的到达集是**本邻域的子集**
+     * ⇒ "到超集的距离"仍是它真剩余成本的**下界**（可采纳 ✓），于是两份目标不会各写一份公式而漂移。
+     * 区域内 ⇒ 0。单价取实测值 {@link CostModel#TRAVERSE_COST}/{@link CostModel#DIAGONAL_COST}。
+     */
+    static double horizontalOctileToRadius(int x, int z, int centerX, int centerZ, int radius) {
         // 投影到区域最近格（超出部分才算距离）：区域内 ⇒ 0
-        int dx = Math.max(0, Math.abs(pos.getX() - centerX) - radius);
-        int dz = Math.max(0, Math.abs(pos.getZ() - centerZ) - radius);
+        int dx = Math.max(0, Math.abs(x - centerX) - radius);
+        int dz = Math.max(0, Math.abs(z - centerZ) - radius);
         int straight = Math.max(dx, dz) - Math.min(dx, dz);
         int diagonal = Math.min(dx, dz);
         return straight * CostModel.TRAVERSE_COST + diagonal * CostModel.DIAGONAL_COST;

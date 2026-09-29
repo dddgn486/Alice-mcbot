@@ -221,7 +221,19 @@ public final class WritePolicyMatrix {
          * 修的是"脚位格失去支撑 ⇒ 站位搜索 0 候选 ⇒ `spur_abandoned`"（真机 2026-09-25 实测）。
          * 与 {@link #WITH_WORLD_MODIFICATION} 的区别就是那句"**能修路，不能开路**"。
          */
-        PLACEMENT_REPAIR("withPlacement");
+        PLACEMENT_REPAIR("withPlacement"),
+        /**
+         * ⭐ **相邻到达**（`K2` 第一刀 ＋ `1a`=甲，`D-517`）：能力集与 {@link #MINING_APPROACH} **逐字相同**
+         * （单一出处 `PathRequest.MINING_APPROACH_MOVEMENTS`），差的是**目标形状** ——
+         * 目标 = `GoalAdjacent`（"站到某方块的某一面"）而不是"某个规范脚位"。
+         *
+         * <p>⚠️ **它今天没有生产调用点**（`甲` = 只加能用的新件、**拒绝未接线**）：唯一消费者是夹具
+         * `task/K2AdjacentGoalCheckTask.java`。⛔ 但**登记不能省** —— `D-076` 的口径是
+         * 「写能力必须走**显式登记的入口**」，而本工厂发出的集合**含 `BREAK_*`/`PILLAR`/`DOWNWARD`**
+         * ⇒ 它就是一条**新的写授权入口**（这是 `check-policy-matrix` 的"工厂词表无孤儿"那颗牙抓出来的）。
+         * ⇒ 真正的接线（把 `B` 分支切过来）在**下一刀**，届时本行与 `P-02` 的关系才从"允许"变成"在用"。
+         */
+        ADJACENT_APPROACH("adjacentApproach");
 
         private final String factory;
 
@@ -246,6 +258,8 @@ public final class WritePolicyMatrix {
                 case WITH_WORLD_MODIFICATION -> PathRequest.withWorldModification(PROBE, zero, zero, PROBE);
                 case SURVIVAL_ESCAPE -> PathRequest.survivalEscape(PROBE, zero, zero, PROBE);
                 case PLACEMENT_REPAIR -> PathRequest.withPlacement(PROBE, zero, zero, PROBE);
+                // `D-517`：目标形状不同、能力集与 `MINING_APPROACH` 同一份 ⇒ 这里也**问工厂要**。
+                case ADJACENT_APPROACH -> PathRequest.adjacentApproach(PROBE, zero, zero, Set.of(), PROBE);
             };
             return probe.allowedMovementTypes();
         }
@@ -310,7 +324,8 @@ public final class WritePolicyMatrix {
                             + "移动集刻意**不含** withWorldModification（D-076 红线的可执行版本）"),
             new Row("P-02", Zone.EXTERNAL, Task.MINING, Obligation.REASON_DEFAULT,
                     Set.of(MovementGrant.OF, MovementGrant.PURE_TRAVERSAL, MovementGrant.MINING_APPROACH,
-                            MovementGrant.CLIMB_APPROACH, MovementGrant.PLACEMENT_REPAIR),
+                            MovementGrant.CLIMB_APPROACH, MovementGrant.PLACEMENT_REPAIR,
+                            MovementGrant.ADJACENT_APPROACH),
                     Set.of(WriteReason.EXPECTED_TARGET, WriteReason.STANDING_SPACE, WriteReason.PATH_ACCESS,
                             WriteReason.SUPPORT_PLACEMENT, WriteReason.STEP_PLACEMENT,
                             WriteReason.SCAFFOLD_RESTORE),

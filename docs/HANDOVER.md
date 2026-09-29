@@ -2255,6 +2255,73 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 
 **无 active goal**（无需 `pause`/`resume`）。上下文 42.4%（未过 50% 线）。
 
+### ✅ 断点十四（2026-09-29 · 第十四次；⭐⭐ **`K2` 第一刀「甲」落地** —— 改革 ① 的**第一步真施工**，7 工作流一刀）
+
+> 用户「**开工吧**」→ 本模型先纠正自己上一轮的范围少报，用户随即拍「**甲：一刀全量 7 工作流（严格照 ③）**」时落。
+> ⭐ **决策编号 = `D-517`**（`docs/AI_DECISIONS.md` 末尾）· 台账 = **`O15`**。**只读入口 = `D-517` 本身。**
+
+#### ① ⚠️ 先纠正我自己的少报（范围散落在两节）
+
+我的"收口点"把 `K2` 甲 报成 **4 件**（照断点十一 ② 的字母表）；⚠️ **少了 3 件** —— 它们在**同一节的 ③「必须同刀」**里：
+`AGENTS.md` **两处机械替换** · `#16` **最小授权载体** · `1b` **上界默认值**。⇒ 已按 **7 件**落地。
+⭐ **可复用纪律**：一节里同时有"选项表"与"必须同刀"两段时，**范围要读两段之和**（同 `A-2` 那族）。
+
+#### ② 七件逐条（全部实测）
+
+| # | 件 | 落点 |
+|---|---|---|
+| A | 第 3 个 `GoalSpec` 实现 | `pathing/core/search/GoalAdjacent.java`（到达判据四条合取；`exactFoot()==false`） |
+| B | `PathRequest` 工厂 | `adjacentApproach(...)`；能力集抽成单一出处 `MINING_APPROACH_MOVEMENTS` |
+| C | 夹具 | `task/K2AdjacentGoalCheckTask.java` + 电池步 **`adjacent_goal_exclusion`**（**MAIN ⇒ CORE**） |
+| D | 门禁 点名→分类 | `tools/check-far-goal-usage.py`（旧 `.sh` 已删留痕）；**8 条合成臂**；旧字面断言**保留为第二颗牙** |
+| E | `AGENTS.md` 两处替换 | ⚠️ **是文档替换**（`D-500` 的两处"机械替换"）；**逐行等量** ⇒ 冻结预算 **1476 行未变** |
+| F | `#16` 最小载体 | `job/JobWriteDeclaration.java`（让步范围 + 「（临时）」 + 回收条件齐备） |
+| G | `1b` 上界默认值 | `JobWriteDeclaration.maxFootRetries`（`private static final` ⇒ **刻意不独立立常量**），消费者 = 夹具的重试回路 |
+
+#### ③ ⭐ 三条**新发现**（已登记 `O15`；第 1 条最重要）
+
+1. 🔴 **`K2` 甲 的"生产路径零改动"只对"行为"成立，对"授权面"不成立** —— 新工厂发出的集合含
+   `BREAK_*`/`PILLAR`/`DOWNWARD` ⇒ 按 `D-076` 它就是**新的写授权入口**，**必须登记**。
+   ⭐ **是门禁抓出来的**：`check-policy-matrix` 报「工厂词表无孤儿」+「未登记的 requester 字面量」
+   ⇒ 已补 `MovementGrant.ADJACENT_APPROACH` + `P-02` 行 + `WORLD_WRITE_AUTHORIZATION.md` **A15**。
+   ⚠️ **教训**：新增任何 `PathRequest` 工厂**都要同时想授权登记**，别只看"行为变没变"。
+2. 🟡 **`D-511` 的回收条件字面已过期**：原文写「`P12/A`/`P4/A` 落地时」并进 `JobDeclaration`，
+   而 `P12/A` 的甲 = **只做纯改名**、已先落地 ⇒ 照字面读，`JobWriteDeclaration` 的回收条件**在它出生前就到期**。
+   ⇒ **正确触发 = "拆两层"那一刀**（`D-517` §五 即勘误，`D-511` 原文不删）。
+3. 🟡 **`#16` 载体今天没有生产消费者**（唯一消费者 = 夹具）—— `D-290`「声明了没人用 ⇒ 删」的形状，`D-511` 甲 是明知代价选的。
+   另：`exactFoot()` 的**名字**（"钉死在一个脚位"）与**机械作用**（开关第 1 道红线守卫）**已分家**（`A-5` 说的"错两处"就是这个）。
+
+#### ④ ✅ 判据与证据（`K2` 甲 的验证列逐字 = `core` 断言 + 夹具，**不需要客户端**）
+
+| 证 | 结果 |
+|---|---|
+| `./gradlew compileJava --no-daemon` | ✅ **BUILD SUCCESSFUL** |
+| `tools/check-all.sh` | ✅ **`pass=34 warning=1 failed=0`**（warning = 电池未由 `check-all` 执行） |
+| `tools/check-far-goal-usage.py` | ✅ PASS：3 实现 · **粗目标 2 个全登记** · 取值相符 · 合成臂 **8/8** |
+| 能力清单 | ✅ `步 106（CORE 44）`（由 43→44） |
+| 写入策略表 | ✅ PASS（`grant=9`）—— ⭐ **就是这颗牙抓出"新工厂未登记"** |
+| ⭐ `core` 电池（真跑两次） | ✅ **`verdict=PASS`（251s）· 44/44 步全 PASS** |
+| ⭐ 新步 | `adjacent_goal_exclusion=PASS ticks=5`；`[K2Adjacent] SUMMARY checks=18 failures=0 plan1=REACHED plan2=REACHED plan3=REACHED attempts=4 bound=4 arrivalChanged=true exclusionScoped=true exactFoot=false snapshots=101 remaining=0 ms=2 → PASS` |
+
+⚠️ **两次真跑的差别（诚实记）**：第一次 `remaining=101` ⇒ 我发现自己把**快照数**叫成了 `remaining`
+（而账本纪律里 `remaining` = **没还原**的格数、必须 0）⇒ **这是静默误读的形状** ⇒ 当场改名
+（`snapshots` vs `remaining`）并**重跑电池**验证（第二次 `checks=18`、`remaining=0`）。
+
+#### ⑤ ⏭ 下一步
+
+`K2` 之后 = **③ 站位枚举退化** → 逐项搬空 `MineTask` → 删 `MineTask` → 鱼骨 job 重构（`DS-20`）。
+⚠️ **本刀不接线** ⇒ `B` 分支（`planTunnel`/`tunnelCandidates`/`selectBestApproach`）**一字未动**，
+`adjacentApproach` 的**生产消费者为零**（只有夹具）⇒ ⛔ **不能**读成"B 已经可以删"。
+⚠️ 动 `MineTask` 前**必查** `A-3`（`check-frozen-code` 登记表）与 `O14③`/`survey/47 #6`（9 个工具文件硬编码 `MineTask`）。
+
+#### ⑥ ⚠️ 诚实边界
+
+- ⚠️ 夹具是**规划级** ⇒ 证明"**规划器能到达**"，⛔ **不证明**"执行器能走到"（执行层/客户端未测）。
+- ⚠️ `GoalAdjacent` 的**运行期**效果（会不会静默加载区块）**没有行为断言** —— 登记表只断"已登记 + 取值"，
+  运行期仍靠**读脚印闸门**兜；复核条件照 `D-500` §V（登记了但仍静默加载 ⇒ 升级为电池侧 `newlyLoaded` 采样）。
+- ⚠️ 未做任何客户端测试（本刀不涉渲染/物理/GUI/同步 ⇒ `WINDOWS_CLIENT` 不适用）。
+- ⚠️ **无 active goal**？❌ 本段**有**：`goal-0c275807`（`K2` 甲）—— 落地后按口径 `complete`。
+
 ### ✅ 断点十三（2026-09-29 · 第十三次；⭐ **`D-478` `P12/A` 纯改名落地** —— 改革 ① 的**前置第 0 步完成**；`src/` **只动标识符**）
 
 > 用户「**压缩完了，开工吧**」时落。⭐ **性质：改革 ① 的第一次真实施工**（不再是设计/复盘）。
