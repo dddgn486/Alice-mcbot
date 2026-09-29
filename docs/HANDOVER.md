@@ -3611,3 +3611,53 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 
 **批次 1 `1-0` 刀** = **新 goal 形状先落地**（同列按触及深化 ＋ 侧面形状），⛔ **先不动站位挖掘**；
 判据 = 编译绿 ＋ `check-all failed=0` ＋ 新旧并存可编译；⭐ **每条内核改动必须给 Baritone 对照（`文件:行`）**（替代闸门）。
+
+---
+
+## 断点三十二 · ⭐⭐⭐ 批次 1 开工：`1-0a` 新 goal 形状落地 ＋ `1-0b` 侧面形状定性更正
+
+日期：2026-09-29 · 台账行：**`O33`** · 决策依据：`D-532` §二「乙」＋ 施工设计单 §4/§10
+提交：`bdcff3c3`（`1-0a`）＋ 本断点所在的提交（`1-0b` ＋ 引用修复）
+
+### ① 一句话
+
+批次 0 已收口（清账 `O32`）⇒ **批次 1 开刀**：`1-0` 是"**新形状先落地、⛔ 先不动站位挖掘**"那把刀，
+**两半都完成**，⭐ **零行为变化**（`1-0a` 零消费者；`1-0b` 只有注释/登记文案/行号引用）。
+
+### ② 落地
+
+| 半 | 内容 | 关键读数 |
+|---|---|---|
+| **`1-0a`** | 新类 **`pathing/core/search/GoalColumnBlocks`**：到达判据纯算术 `x == tx && z == tz && ty - depth <= y <= ty`。`depth = 1` **逐字** = Baritone `GoalTwoBlocks.isInGoal`；`depth = 2` **逐字** = `GoalThreeBlocks.isInGoal`（`MineProcess` 嵌套类）⇒ **两个手写档的参数化** | 命名 ⛔ **不叫** `GoalTwoBlocks`（参照树已有同名文件 ⇒ 裸引用会被 `ref-integrity` **静默核销**）；工厂 `maxDepthForReach(reach) = max(1, floor(reach + 眼高 − 0.5))` ⇒ `reach = 4.5` ⇒ **`K = 5`**（与设计单写法 5 个采样点全一致）；`exactFoot() == true`（候选脚位与目标**共享 XZ** ⇒ 同一区块 ⇒ 一次预检覆盖整个到达集）⇒ ⛔ 不进 far-goal 登记表；门禁读数 = `GoalSpec` 实现 **3 → 4**、粗目标仍 **2** 个全登记 |
+| **`1-0b`** | `GoalAdjacent` 类头**定性更正** + 登记表 `reason` 同步更正 | 原文逐字"新到达集 = Baritone 自己的 `GoalAdjacent`"**是错的**（Baritone 的**挖掘**侧从不含侧面格：`MineProcess.coalesce` **七分支全在目标那一列**；`GoalGetToBlock`/`GoalAdjacent` 只在 `FarmProcess`/`BuilderProcess`）⇒ 更正为 **Alice 特有的侧面兜底形状**，角色 = **第二条搜索**；登记表里"今天不接线／消费者只有夹具"**已过期**（`D-520` 起生产消费者 = `MiningPlanner` 目标级腿） |
+
+### ③ 本轮实测**新发现**（2 条）
+
+1. ⚠️⚠️ **给源码 javadoc 加内容 ⇒ 指向该文件的 `文件:行` 引用静默漂移** —— `ref-integrity` **只抓"超界"**，
+   文件**变长**时旧行号仍在界内 ⇒ **假绿**。本刀 `GoalAdjacent.java` **151 → 173** 行 ⇒ **8 处失效，逐条已修**
+   （台账 `O26`/`O29` 两行 · `AI_DECISIONS.md` 的 `D-517` 条 · 4 份 `docs/reviews/*` 件 · 施工设计单）。
+   ⭐ **可复用纪律**：**动任何被引用的源文件前先 `grep` 指向它的 `文件:行`，改完复算**。
+   ⏳ **建议（等用户点头）**：给 `ref-integrity` 加牙 —— 带符号名的引用（`Class.method:行`，实测 **748** 处）
+   断言"该行号落在**那个方法**体内" ⇒ 同时抓住**漂移**与 `O14-a` 的**同名核销**。
+2. ⚠️ **竖向抵扣的既有偏差（如实登记，⛔ 不写"已证明"）**：`GoalColumnBlocks` 的竖向增量取
+   `ASCEND − TRAVERSE = 0.67`（= `GoalFoot` 既有标定），而**严格下界**在**斜向上升**合成下应是
+   `ASCEND − DIAGONAL = 0.34`（`SurfaceMovementProvider` 对"斜向 + 竖向"发的就是 `ASCEND`，单价同为 1.67）
+   ⇒ **可能高 0.33/步**；内核用**加权 A\***（`COEFFICIENTS = {1.5 … 10}`）⇒ 最优性本就不由严格可采纳性背书。
+   ⇒ **归刀 = 随 `1-2`**（代价模型刀）。
+
+### ④ 两处**偏离**（都登记在 `O33`，用户可否决）
+
+1. **命名**：叫 `GoalColumnBlocks` 而不是设计单字面的 `GoalTwoBlocks`（后者与参照树**同名** ⇒ 引用会被静默核销）；
+2. **否决"改名" `GoalAdjacent`**（设计单 §4b 曾建议）：名字描述的是**到达谓词**、描述准确，改名只动门禁**登记键**
+   而无正确性收益（`D-529`/`D-530` 同族）⇒ 撤销触发 = 用户点名要改（改名 + 登记键 + 夹具引用**同刀**）。
+
+### ⑤ 判据
+
+`compileJava` **绿** · `check-all` **`pass=34 warning=1 failed=0`** · `check-far-goal-usage` **PASS**
+（实现 4 / 粗目标 2 全登记 / 合成臂 8-8）· `check-ref-integrity` **PASS**。
+⛔ **零行为变化 ⇒ 本轮不需要客户端测试**（jar 未同步：没有可测的东西）。
+
+### ⑥ ⏭ 下一步 = `1-1`
+
+`planGoalApproach` 接到新形状（**同列 ∪ 侧面兜底 = 两次搜索**）＋ `SearchConclusion` 补第三形态 `GOAL_NOT_LOADED`
+＋ `planGoalApproach` 尾巴（落点 → 视线 → 评分 3 行）**重裁** ＋ ⭐ **每条内核改动必须给 Baritone 对照（`文件:行`）**。

@@ -20,6 +20,28 @@ import java.util.Set;
  * ⚠️ Baritone 那个是 **`BuilderProcess` 的嵌套类**（**不在** `api/pathing/goals/` 下）。
  * Alice 把它落成**顶层 record**，排除项从单个 `no` 扩成**排除集**（`1a`=甲 的重试单位 = 换脚格）。
  *
+ * <p>⭐⭐ <b>定性更正（批次 1 · `1-0b`，2026-09-29；`D-532` §二）—— 本类<u>不是</u>
+ * "Baritone 挖掘的到达集"</b>：
+ * <ul>
+ *   <li>Baritone 的**挖掘**侧**从不含侧面格** —— `MineProcess.coalesce` 的全部七个返回分支都在目标那一列
+ *       （`reference/baritone-1.20.1/src/main/java/baritone/process/MineProcess.java:260-300`），
+ *       连"原地挖"快路径也只作用于自己那一列、且只往上（同文件 `:117-121`）；
+ *       `GoalGetToBlock` / `GoalAdjacent` 只出现在 `FarmProcess` / `BuilderProcess`（农业与**建造**）；</li>
+ *   <li>⇒ 本类是 **Alice 特有的侧面兜底形状**（按 `D-036` 必须**显式登记偏离**；
+ *       `D-430` 已失效 ⇒ **登记即准入**）。<b>Alice 特有理由</b>：Alice 的原地挖本就不限同列
+ *       （`action/MineBlockRunner.inPlaceReachable` 只要求"真眼位 ＋ 裸触及 ＋ 视线"，⛔ 无列约束）；</li>
+ *   <li>⭐ <b>它在「乙」里的角色 = 第二条搜索</b>：先问**同列形状**（{@link GoalColumnBlocks}，
+ *       含按触及深化的 `y−2 … y−K`），**它拿不出方案时**才问本形状 ⇒ 侧面视线由**执行期复核**
+ *       （`action/MineBlockRunner` 的 `LINE_OF_SIGHT_BLOCKED` / `OUT_OF_REACH`，可重试）
+ *       ⇒ 全程**零枚举、零规划期射线、最多 2 次搜索**；</li>
+ *   <li>⚠️ 与同列形状**只共有 1 格**（{@code target.below()}）—— 兜底时那格已被第一条搜索否定，重叠无害。</li>
+ * </ul>
+ * ⚠️ <b>本处原文曾逐字写「新到达集 = Baritone 自己的 `GoalAdjacent`」</b>（`D-517` 时期）——
+ * 那句把**建造**用的形状当成了**挖掘**的形状 ⇒ 已随 `D-532` 落地更正（台账 `O33`）。
+ * ⛔ <b>不改名</b>：`GoalAdjacent` 描述的是**到达谓词**（曼哈顿 ≤1、不站目标格、不站上方），描述**准确**；
+ * 改名只会动 `tools/check-far-goal-usage.py` 的登记键（"名字锚定的门禁会**静默**失效"，`D-529`/`D-530` 同族）
+ * 而**不增加正确性** ⇒ 本项**偏离**设计单 `§4b` 的"改名"建议，理由与撤销条件登记在台账 `O33`（可供用户否决）。
+ *
  * <p><b>到达判据（逐字，四条合取）</b>：
  * <ol>
  *   <li>{@code manhattan(foot, target) <= 1}；</li>
