@@ -12,5 +12,5 @@ public interface SelectionPolicy {
 
     String name();
 
-    Selection select(ServerPlayer bot, GoalSpec spec, CandidateSet candidates);
+    Selection select(ServerPlayer bot, JobDeclaration spec, CandidateSet candidates);
 }

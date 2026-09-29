@@ -13,18 +13,24 @@
 
 | 同名 | 两个是什么 |
 |---|---|
-| `GoalSpec` | `job/GoalSpec.java` **record**（目标级任务的全部外部输入） vs `pathing/core/search/GoalSpec.java` **interface**（规划目标，对齐 Baritone `Goal`） |
+| `GoalSpec` ✅**已消除** | `job/GoalSpec.java` **record**（目标级任务的全部外部输入）—— **2026-09-29 按 `D-478`/`P12/A` 改名 `job/JobDeclaration.java`** vs `pathing/core/search/GoalSpec.java` **interface**（规划目标，对齐 Baritone `Goal`） |
 | `DecisionTrace` | `decision/DecisionTrace.java`（**决策层**的 trace） vs `job/DecisionTrace.java`（**L3 决策缝之四** / L3 的唯一日志出口） |
 
 ⚠️ `DecisionTrace` 那组更危险：**两个都与"决策"有关** ⇒ 读者**无法从名字判断**指哪一个。
 ⚠️ 而且 `pathing` 那个只在同包 6 个文件里用（**同包 ⇒ 无 `import`**）⇒ **`grep import` 根本看不见它**。
 
-## ⭐ 它的时效性（为什么"现在挂"最便宜）
+## ⭐ 它的时效性（为什么"当时挂"最对）—— ✅ **已实测生效一次**
 
-`D-478` 的 `P12/A` 计划把 `job/GoalSpec` **改名为 `JobDeclaration`** ⇒ 改完之后重名会**自然地**消失，
+`D-478` 的 `P12/A` 把 `job/GoalSpec` **改名成 `JobDeclaration`** ⇒ 重名会**自然地**消失，
 **而牙不会因此长出来**（下一个重名照样没人知道）。
-⇒ **趁改名之前挂**：此刻有**活的真树反例**可验（见下面的"真树红臂"），改名之后只剩合成臂。
+⇒ 当时**趁改名之前挂**：那一刻有**活的真树反例**可验（见下面的"真树红臂"）。
 > 勘测侧原话（`survey/46 §1.1`）：「**重名不是靠"记得改"解决，是靠"改名时它会疼"解决** —— 而今天**它不疼**。」
+
+⭐⭐ **2026-09-29 实测（本牙第一次在真树上生效，不是推演）**：改名落地时，`GoalSpec` 那条豁免
+**按断言 ③ 得手判红**（原文：「豁免 `GoalSpec` **已不再是重名** ⇒ 必须删掉白名单条目」）
+⇒ **强迫同刀删除**（`D-516`）。⇒ 这颗牙从"提案"变成"**确实拦住过一次**"。
+⚠️ 此后 `GoalSpec` 那组只剩**合成臂**（真树反例已随改名消失）—— 这也说明下一条重名
+仍然需要"**趁改名之前挂**"。
 
 ## 断言（任一不成立 ⇒ 非零退出）
 
@@ -67,15 +73,13 @@ RULE_EXCLUDED = {"package-info"}
 
 # ---- 白名单：**只放真欠账**，每条必须带理由；路径集合逐字比对 ----
 DUP_EXEMPT: dict[str, dict] = {
-    "GoalSpec": {
-        "paths": [
-            "src/main/java/com/dddgn/alice/job/GoalSpec.java",
-            "src/main/java/com/dddgn/alice/pathing/core/search/GoalSpec.java",
-        ],
-        "reason": "record(job/, 目标级任务的全部外部输入) vs interface(pathing/, 规划目标/Baritone Goal 对齐) "
-                  "—— 计划由 D-478 的 P12/A 把 job/ 那个改名为 JobDeclaration；"
-                  "⚠️ 改完本条目会**自动变红**（豁免得手 ⇒ FAIL）⇒ 那时删掉它（牙的第二次生效）",
-    },
+    # ⭐ **2026-09-29 删除留痕**（不许静默消失）：这里原有 `"GoalSpec"` 一条
+    #    （`job/GoalSpec.java` record vs `pathing/core/search/GoalSpec.java` interface）。
+    #    `D-478` 的 `P12/A` 把 `job/GoalSpec` **改名成 `JobDeclaration`** ⇒ 断言 ③ **得手判红**
+    #    ⇒ 按纪律**同刀删除**（`D-516`）。⭐ **这是本牙第一次在真树上生效**
+    #    （`survey/46 §1.1`：「重名不是靠"记得改"解决，是靠"改名时它会疼"解决」）。
+    #    ⛔ **别再加回来**：`GoalSpec` 现在**不再重名** ⇒ 再登记会**立刻**触发断言 ③。
+    #    旧条目原文见 `git show 2517ebe5:tools/check-duplicate-class-names.py`。
     "DecisionTrace": {
         "paths": [
             "src/main/java/com/dddgn/alice/decision/DecisionTrace.java",
@@ -91,7 +95,8 @@ DUP_EXEMPT: dict[str, dict] = {
 def group(paths: list[str]) -> dict[str, list[str]]:
     """按**简单类名**分组 —— ⚠️ 最后一个 `/` 之后、**并去掉 `.java`**。
 
-    ⚠️ 去后缀是承重的：本文件第一版把键写成 `Foo.java`，于是豁免键（`GoalSpec`）与它**永不相等**
+    ⚠️ 去后缀是承重的：本文件第一版把键写成 `Foo.java`，于是豁免键（当时是 `GoalSpec`，
+    2026-09-29 已随改名删除）与它**永不相等**
     ⇒ 真树上同时报出"两个都未豁免" **和** "两个豁免条目都已得手"（自相矛盾的 4 条）——
     **是合成臂 R1 先红的**（`D-254`：判据自己必须先被反向对照）。
     """

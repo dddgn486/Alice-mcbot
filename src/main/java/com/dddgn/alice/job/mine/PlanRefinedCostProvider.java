@@ -1,7 +1,7 @@
 package com.dddgn.alice.job.mine;
 
 import com.dddgn.alice.job.Candidate;
-import com.dddgn.alice.job.GoalSpec;
+import com.dddgn.alice.job.JobDeclaration;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.task.mining.MiningPlanner;
 import net.minecraft.server.level.ServerPlayer;
@@ -115,7 +115,7 @@ public final class PlanRefinedCostProvider implements CandidateCostProvider {
     }
 
     @Override
-    public Result estimate(ServerPlayer bot, GoalSpec spec, List<Candidate> candidates) {
+    public Result estimate(ServerPlayer bot, JobDeclaration spec, List<Candidate> candidates) {
         Result estimated = base.estimate(bot, spec, candidates);
         if (candidates.isEmpty() || refinePerSelect == 0) {
             return estimated;

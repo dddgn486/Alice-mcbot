@@ -5,7 +5,7 @@ import com.dddgn.alice.write.WriteGrant;
 import com.dddgn.alice.job.Candidate;
 import com.dddgn.alice.job.CandidateSet;
 import com.dddgn.alice.job.CandidateSource;
-import com.dddgn.alice.job.GoalSpec;
+import com.dddgn.alice.job.JobDeclaration;
 import com.dddgn.alice.protection.SafeZoneData;
 import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.reach.LineOfSightChecker;
@@ -51,7 +51,7 @@ public final class LumberCandidateSource implements CandidateSource {
     }
 
     @Override
-    public CandidateSet candidates(ServerPlayer bot, GoalSpec spec) {
+    public CandidateSet candidates(ServerPlayer bot, JobDeclaration spec) {
         ServerLevel level = bot.serverLevel();
         lastScan = TreeScanner.scan(level, spec.center(), spec.radius());
         double reach = bot.getBlockReach();

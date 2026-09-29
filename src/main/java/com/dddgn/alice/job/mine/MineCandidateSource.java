@@ -6,7 +6,7 @@ import com.dddgn.alice.write.WriteGrant;
 import com.dddgn.alice.job.Candidate;
 import com.dddgn.alice.job.CandidateSet;
 import com.dddgn.alice.job.CandidateSource;
-import com.dddgn.alice.job.GoalSpec;
+import com.dddgn.alice.job.JobDeclaration;
 import com.dddgn.alice.protection.SafeZoneData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
@@ -268,7 +268,7 @@ public final class MineCandidateSource implements CandidateSource {
             this.recordMemory = recordMemory;
             this.intent = intent == null ? MineIntent.none() : intent;
             this.targets = List.copyOf(targets);
-            // 扫描范围口径与既有实现**逐字相同**：来源半径与 GoalSpec 半径取小
+            // 扫描范围口径与既有实现**逐字相同**：来源半径与 JobDeclaration 半径取小
             this.scan = Math.min(Math.max(1, sourceRadius), Math.max(1, specRadius));
             this.center = center.immutable();
             this.perCallBudget = Math.max(1, perCallBudget);
@@ -566,7 +566,7 @@ public final class MineCandidateSource implements CandidateSource {
     }
 
     /** 一次扫描多目标（菜单/单目标共用）：**一次跑完整卷**（配额与旧行为逐字一致）。 */
-    public static MultiScan candidatesForTargets(ServerPlayer bot, GoalSpec spec,
+    public static MultiScan candidatesForTargets(ServerPlayer bot, JobDeclaration spec,
                                                  List<Target> targets, int sourceRadius) {
         ScanSession session = new ScanSession(targets, sourceRadius, Math.max(1, spec.radius()),
                 spec.center(), Integer.MAX_VALUE, Integer.MAX_VALUE, false, spec.intent());
@@ -577,13 +577,13 @@ public final class MineCandidateSource implements CandidateSource {
 
     /** 单目标路径（Job 用）：与多目标共用同一份扫描逻辑。 */
     @Override
-    public CandidateSet candidates(ServerPlayer bot, GoalSpec spec) {
+    public CandidateSet candidates(ServerPlayer bot, JobDeclaration spec) {
         MultiScan res = candidatesForTargets(bot, spec, List.of(target), radius);
         return res.sets().get(0);
     }
 
     /** ⭐ `S4`：**分片扫描会话**（`MineJob` 用它，逐 tick 推进、不再一 tick 全量）。 */
-    public ScanSession newSession(GoalSpec spec) {
+    public ScanSession newSession(JobDeclaration spec) {
         return new ScanSession(List.of(target), radius, Math.max(1, spec.radius()), spec.center(),
                 CELL_BUDGET_PER_TICK, cellBudgetTotal, true, spec.intent());
     }
@@ -594,7 +594,7 @@ public final class MineCandidateSource implements CandidateSource {
      * <p>判据必须能**确定性**地压小预算 —— 否则 `S3`（截断）、`S4`（分片）两条分支要么跑不到，
      * 要么得造一个有 24 万格的世界才能跑到（那就不叫判据，叫碰运气）。
      */
-    public ScanSession newSession(GoalSpec spec, int perCallBudget, int totalBudget) {
+    public ScanSession newSession(JobDeclaration spec, int perCallBudget, int totalBudget) {
         return new ScanSession(List.of(target), radius, Math.max(1, spec.radius()), spec.center(),
                 perCallBudget, totalBudget, true, spec.intent());
     }

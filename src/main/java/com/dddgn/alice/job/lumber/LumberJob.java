@@ -6,7 +6,7 @@ import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.job.Candidate;
 import com.dddgn.alice.job.CandidateSet;
 import com.dddgn.alice.job.DecisionTrace;
-import com.dddgn.alice.job.GoalSpec;
+import com.dddgn.alice.job.JobDeclaration;
 import com.dddgn.alice.job.Job;
 import com.dddgn.alice.job.Selection;
 import com.dddgn.alice.job.SelectionPolicy;
@@ -84,7 +84,7 @@ public final class LumberJob implements Job {
     private static final int MAX_CLEAR_PER_TREE = LumberCandidateSource.MAX_CLEAR_PER_TREE;
 
     private final BotPlayer bot;
-    private final GoalSpec spec;
+    private final JobDeclaration spec;
     private final ScopeBuffer scope;
     private final LumberCandidateSource source;
     private final SelectionPolicy policy;
@@ -232,7 +232,7 @@ public final class LumberJob implements Job {
      */
     private Task.Status terminalStatus;
 
-    public LumberJob(BotPlayer bot, GoalSpec spec, ScopeBuffer scope,
+    public LumberJob(BotPlayer bot, JobDeclaration spec, ScopeBuffer scope,
                      LumberCandidateSource source, SelectionPolicy policy) {
         this.bot = bot;
         this.spec = spec;

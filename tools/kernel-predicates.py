@@ -903,9 +903,9 @@ def rule_replant_sweep_bounded():
 
 
 def rule_no_until_full():
-    """J5-P1（2026-09-17 用户裁定「删」）：**`GoalSpec.Kind.UNTIL_FULL` 不得复活**。
+    """J5-P1（2026-09-17 用户裁定「删」）：**`JobDeclaration.Kind.UNTIL_FULL` 不得复活**。
 
-    事实（裁定依据）：该常量全仓**只有声明、没有任何调用方**（grep 仅命中 `GoalSpec` 自身）⇒
+    事实（裁定依据）：该常量全仓**只有声明、没有任何调用方**（grep 仅命中记录自身）⇒
     与 S-8（`policyVersion`）、S-10（`PlanningDependency`）同类：**声明了没人用** ⇒ 删。
     将来要做「采集到背包满」：**从消费者设计**（谁请求、判据是什么、怎么断言），不要先把常量加回来。
     """
@@ -1324,25 +1324,32 @@ def rule_intent_before_viability():
     ① `MineIntent` 里 `outside_work_area` 是**唯一**的区域外理由码；
     ② `MineCandidateSource.visit(...)` 与 `revalidate(...)` 里，`intent.refusalFor(...)` 必须**出现在**
        `viabilityRefusal(...)` **之前**（顺序即语义）；
-    ③ `GoalSpec` 真的把意图当**输入**（组件在）。
+    ③ `JobDeclaration` 真的把意图当**输入**（组件在）。
     """
     problems = []
     base = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job"
+    # ⚠️ 存在性守卫（2026-09-29 用户拍）：本规则**按文件名**读记录 ⇒ 改名会让它找不到文件。
+    #    第一版是**无守卫读** ⇒ 直接 `FileNotFoundError` **崩**（不是可读的红）——
+    #    `D-478` `P12/A` 改名当天（`GoalSpec.java` → `JobDeclaration.java`）实测撞上。
+    #    补成与下方 `rule_cluster_is_pure_geometry` 同款口径：缺文件 ⇒ 返回**可读的红**。
+    spec_path = base / "JobDeclaration.java"
+    if not spec_path.exists():
+        return ["`job/JobDeclaration.java` 不在了（改名或结构变了 ⇒ 本规则要跟着改）"]
     src = (base / "mine" / "MineCandidateSource.java").read_text(encoding="utf-8")
     intent = (base / "mine" / "MineIntent.java").read_text(encoding="utf-8")
-    spec = (base / "GoalSpec.java").read_text(encoding="utf-8")
+    spec = spec_path.read_text(encoding="utf-8")
 
     if 'OUTSIDE = "outside_work_area"' not in intent:
         problems.append("`MineIntent` 里没有 `outside_work_area` 这个区域外理由码"
                         "（拒绝必须带**显式码**，不许静默丢弃 —— `D-341` 口径）")
     # ⚠️ 只看**记录头**：工厂方法里也会出现同一个类型名（第一版就是这么被"绿"过去的）
-    header_start = spec.find("public record GoalSpec(")
+    header_start = spec.find("public record JobDeclaration(")
     header_end = spec.find(") {", header_start) if header_start >= 0 else -1
     header = spec[header_start:header_end] if header_start >= 0 and header_end > header_start else ""
     if not header:
-        problems.append("找不到 `public record GoalSpec(` 的记录头（结构变了 ⇒ 本规则要跟着改）")
+        problems.append("找不到 `public record JobDeclaration(` 的记录头（结构变了 ⇒ 本规则要跟着改）")
     elif "com.dddgn.alice.job.mine.MineIntent intent" not in header:
-        problems.append("`GoalSpec` 的**记录头**里没有意图组件（组件不在 ⇒ 意图只能靠散装字段传，迟早漂）")
+        problems.append("`JobDeclaration` 的**记录头**里没有意图组件（组件不在 ⇒ 意图只能靠散装字段传，迟早漂）")
 
     for signature, label in [
         ("private void visit(ServerLevel level, ServerPlayer bot, SafeZoneData safeZones, BlockPos pos) {", "visit"),
@@ -1390,7 +1397,7 @@ def rule_cluster_is_pure_geometry():
     if "public static boolean isNeighbour(" not in text:
         problems.append("找不到唯一的相邻判定出处 `isNeighbour(...)`")
     # ⚠️ 只看**声明处**（`FACE` / `DEFAULT_EXTRA_SEARCH_BUDGET` 这些名字在别处也会出现；
-    #    同名子串会把"删掉常量声明"这种注入放绿 —— 本项目当天已在 GoalSpec 上踩过同一个坑）
+    #    同名子串会把"删掉常量声明"这种注入放绿 —— 本项目当天已在 `GoalSpec`（今 `JobDeclaration`）上踩过同一个坑）
     enum_start = text.find("public enum Connectivity {")
     enum_end = text.find("\n    }", enum_start) if enum_start >= 0 else -1
     enum_body = text[enum_start:enum_end] if enum_start >= 0 and enum_end > enum_start else ""
@@ -2411,7 +2418,7 @@ def rule_value_is_only_a_cost_component():
         if banned in policy:
             problems.append("`CostOptimalPolicy` 里出现 `%s` ⇒ 策略**读了世界**"
                             "（价值必须取自候选快照；世界变化交给身份复检）" % banned)
-    body = method_body(policy, "public Selection select(ServerPlayer bot, GoalSpec spec, "
+    body = method_body(policy, "public Selection select(ServerPlayer bot, JobDeclaration spec, "
                                "CandidateSet candidates) {")
     if not body:
         problems.append("找不到 `select(...)`（结构变了 ⇒ 本规则要跟着改）")

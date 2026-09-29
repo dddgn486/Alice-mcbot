@@ -13,5 +13,5 @@ public interface CandidateSource {
     /** 来源名（进决策日志）。 */
     String name();
 
-    CandidateSet candidates(ServerPlayer bot, GoalSpec spec);
+    CandidateSet candidates(ServerPlayer bot, JobDeclaration spec);
 }

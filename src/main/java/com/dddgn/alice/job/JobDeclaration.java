@@ -7,7 +7,7 @@ import net.minecraft.world.item.Item;
 import java.util.Objects;
 
 /**
- * 目标级任务的**全部外部输入**（D-080）：一个 {@code GoalSpec} 驱动一个 {@link Job}。
+ * 目标级任务的**全部外部输入**（D-080）：一个 {@code JobDeclaration} 驱动一个 {@link Job}。
  *
  * <p>设计依据 `docs/JOB_LAYER_DESIGN.md` §4。要点：
  * <ul>
@@ -19,7 +19,7 @@ import java.util.Objects;
  *       不要先把常量加回来（门禁 **J5-P1** 会红 ✓）。</li>
  * </ul>
  */
-public record GoalSpec(Kind kind, int quota, BlockPos center, int radius, int maxTicks,
+public record JobDeclaration(Kind kind, int quota, BlockPos center, int radius, int maxTicks,
                        TagKey<Item> productTag,
                        /**
                         * ⭐ **作业区 / 意图**（`D-329` §3，阶段 1.5）："在哪挖、挖到什么程度"的**声明式**输入。
@@ -46,7 +46,7 @@ public record GoalSpec(Kind kind, int quota, BlockPos center, int radius, int ma
         HARVEST_UNITS
     }
 
-    public GoalSpec {
+    public JobDeclaration {
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(center, "center");
         center = center.immutable();
@@ -64,8 +64,8 @@ public record GoalSpec(Kind kind, int quota, BlockPos center, int radius, int ma
     }
 
     /** 伐木：在 center 半径内砍完 quota 棵。 */
-    public static GoalSpec harvestUnits(BlockPos center, int radius, int units, int maxTicks) {
-        return new GoalSpec(Kind.HARVEST_UNITS, units, center, radius, maxTicks, null, null, null);
+    public static JobDeclaration harvestUnits(BlockPos center, int radius, int units, int maxTicks) {
+        return new JobDeclaration(Kind.HARVEST_UNITS, units, center, radius, maxTicks, null, null, null);
     }
 
     /**
@@ -74,28 +74,28 @@ public record GoalSpec(Kind kind, int quota, BlockPos center, int radius, int ma
      * <p>与伐木同用 {@link Kind#HARVEST_UNITS}——"一个方块"就是一个单位，
      * 于是挖掘与伐木共用同一套配额/终止语义（J5 的"同一套 Job/Trace 复用"）。
      */
-    public static GoalSpec mineBlocks(BlockPos center, int radius, int blocks, int maxTicks) {
-        return new GoalSpec(Kind.HARVEST_UNITS, blocks, center, radius, maxTicks, null, null, null);
+    public static JobDeclaration mineBlocks(BlockPos center, int radius, int blocks, int maxTicks) {
+        return new JobDeclaration(Kind.HARVEST_UNITS, blocks, center, radius, maxTicks, null, null, null);
     }
 
     /** 挖掘 + **作业区/意图**（阶段 1.5）：`intent` 只影响候选取舍与顺序（见 {@code MineIntent} 的告警）。 */
-    public static GoalSpec mineBlocks(BlockPos center, int radius, int blocks, int maxTicks,
+    public static JobDeclaration mineBlocks(BlockPos center, int radius, int blocks, int maxTicks,
                                       com.dddgn.alice.job.mine.MineIntent intent) {
-        return new GoalSpec(Kind.HARVEST_UNITS, blocks, center, radius, maxTicks, null, intent, null);
+        return new JobDeclaration(Kind.HARVEST_UNITS, blocks, center, radius, maxTicks, null, intent, null);
     }
 
     /** 挖掘 + **种类分配**（`D-361`）：`quota` 由调用方按 `sumQuota()` 给，仍是硬上限。 */
-    public static GoalSpec mineKinds(BlockPos center, int radius, int blocks, int maxTicks,
+    public static JobDeclaration mineKinds(BlockPos center, int radius, int blocks, int maxTicks,
                                      TagKey<Item> productTag, java.util.List<String> kindQuotas,
                                      com.dddgn.alice.job.mine.MineIntent intent) {
-        return new GoalSpec(Kind.HARVEST_UNITS, blocks, center, radius, maxTicks, productTag, intent,
+        return new JobDeclaration(Kind.HARVEST_UNITS, blocks, center, radius, maxTicks, productTag, intent,
                 kindQuotas);
     }
 
     /** 采集：在 center 半径内收集 quota 个匹配 `tag` 的产物。 */
-    public static GoalSpec collectItems(BlockPos center, int radius, int items,
+    public static JobDeclaration collectItems(BlockPos center, int radius, int items,
                                         TagKey<Item> tag, int maxTicks) {
-        return new GoalSpec(Kind.COLLECT_ITEMS, items, center, radius, maxTicks, tag, null, null);
+        return new JobDeclaration(Kind.COLLECT_ITEMS, items, center, radius, maxTicks, tag, null, null);
     }
 
     public String describe() {

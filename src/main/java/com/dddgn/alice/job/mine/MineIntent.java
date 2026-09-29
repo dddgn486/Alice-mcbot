@@ -6,7 +6,7 @@ import net.minecraft.core.BlockPos;
  * **挖矿作业区 / 意图**（`D-329` §3，阶段 1.5）：回答"**在哪挖、挖到什么程度**"，与执行层（怎么过去、怎么挖）分离。
  *
  * <p>**为什么需要**（`D-329` ④）：向下的偏置不来自加载策略，而来自 ① 成本函数形状（向下最近、挖一格就自我扩张候选）、
- * ② `GoalSpec.center` 固定（候选吃干即 `no_reachable_candidate`，不会自己换地方）、③ 可见性偏差（只扫"已存在"的方块）。
+ * ② `JobDeclaration.center` 固定（候选吃干即 `no_reachable_candidate`，不会自己换地方）、③ 可见性偏差（只扫"已存在"的方块）。
  * 作业区/层位意图正是用来消这个偏置的**声明式**手段：把"在哪片地方挖"从"算法恰好先扫到哪"里拿出来。
  *
  * <p>⚠️⭐ **意图是"搜索偏好"，不是"可挖承诺"**（用户 2026-09-20 点出的陷阱）：一个符合意图的作业区里
@@ -37,7 +37,7 @@ public record MineIntent(BlockPos areaCenter, int halfExtentXZ, int yMin, int yM
         }
     }
 
-    /** 没有意图（= 今天的行为：以 `GoalSpec.center/radius` 为界，不额外约束）。 */
+    /** 没有意图（= 今天的行为：以 `JobDeclaration.center/radius` 为界，不额外约束）。 */
     public static MineIntent none() {
         return new MineIntent(null, 0, Integer.MIN_VALUE, Integer.MAX_VALUE);
     }

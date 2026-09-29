@@ -6,7 +6,7 @@ import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.job.Candidate;
 import com.dddgn.alice.job.CandidateSet;
 import com.dddgn.alice.job.DecisionTrace;
-import com.dddgn.alice.job.GoalSpec;
+import com.dddgn.alice.job.JobDeclaration;
 import com.dddgn.alice.job.Job;
 import com.dddgn.alice.job.Selection;
 import com.dddgn.alice.job.SelectionPolicy;
@@ -34,7 +34,7 @@ import java.util.Set;
  *
  * <p>与 {@code LumberJob} 共用同一套骨架——{@link com.dddgn.alice.job.CandidateSource}
  * 产出 {@link CandidateSet}、{@link SelectionPolicy} 做选择、{@link DecisionTrace} 出可判读决策、
- * {@link GoalSpec} 承载配额与超时、§6.2c 同一组终止理由。
+ * {@link JobDeclaration} 承载配额与超时、§6.2c 同一组终止理由。
  * 差别只在领域：目标从"一棵树的原木队列"变成"一组目标方块"，子任务仍是已验收的 L2
  * （{@link MineTask} + {@link CollectDropsTask}）。
  *
@@ -62,7 +62,7 @@ public final class MineJob implements Job {
     private enum Phase { SELECT, MINE, COLLECT, DONE }
 
     private final BotPlayer bot;
-    private final GoalSpec spec;
+    private final JobDeclaration spec;
     private final ScopeBuffer scope;
     private final MineCandidateSource source;
     private final SelectionPolicy policy;
@@ -92,7 +92,7 @@ public final class MineJob implements Job {
      */
     private final java.util.function.Predicate<BlockPos> identityCheckOverride;
     private final int itemsBefore;
-    /** 产物判定口径（J-6）：由 `GoalSpec.productTag` 决定，见 {@link MineProductFilter}。 */
+    /** 产物判定口径（J-6）：由 `JobDeclaration.productTag` 决定，见 {@link MineProductFilter}。 */
     private final MineProductFilter productFilter;
 
     /**
@@ -270,13 +270,13 @@ public final class MineJob implements Job {
      */
     private Task.Status terminalStatus;
 
-    public MineJob(BotPlayer bot, GoalSpec spec, ScopeBuffer scope,
+    public MineJob(BotPlayer bot, JobDeclaration spec, ScopeBuffer scope,
                    MineCandidateSource source, SelectionPolicy policy) {
         this(bot, spec, scope, source, policy, null);
     }
 
     /** **夹具专用构造**（M3b）：`identityCheck` 恒 false ⇒ 每个候选都被判成"决策后已被改动"。 */
-    public MineJob(BotPlayer bot, GoalSpec spec, ScopeBuffer scope, MineCandidateSource source,
+    public MineJob(BotPlayer bot, JobDeclaration spec, ScopeBuffer scope, MineCandidateSource source,
                    SelectionPolicy policy, java.util.function.Predicate<BlockPos> identityCheck) {
         this.identityCheckOverride = identityCheck;
         this.bot = bot;

@@ -1,7 +1,7 @@
 package com.dddgn.alice.job.collect;
 
 import com.dddgn.alice.bot.BotPlayer;
-import com.dddgn.alice.job.GoalSpec;
+import com.dddgn.alice.job.JobDeclaration;
 import com.dddgn.alice.job.Job;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
@@ -48,7 +48,7 @@ public final class CollectJob implements Job {
     private enum Phase { SCAN, COLLECT, DONE }
 
     private final BotPlayer bot;
-    private final GoalSpec spec;
+    private final JobDeclaration spec;
     private final ScopeBuffer scope;
     private final int radius;
     /** 被策略拦下的候选数（报告/日志用：说明"地上有东西但没资格捡"）。 */
@@ -70,7 +70,7 @@ public final class CollectJob implements Job {
      */
     private Task.Status terminalStatus;
 
-    public CollectJob(BotPlayer bot, GoalSpec spec, ScopeBuffer scope) {
+    public CollectJob(BotPlayer bot, JobDeclaration spec, ScopeBuffer scope) {
         this.bot = bot;
         this.spec = spec;
         this.scope = scope;

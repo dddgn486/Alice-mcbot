@@ -1,7 +1,7 @@
 package com.dddgn.alice.task;
 
 import com.dddgn.alice.bot.BotPlayer;
-import com.dddgn.alice.job.GoalSpec;
+import com.dddgn.alice.job.JobDeclaration;
 import com.dddgn.alice.job.lumber.LumberCandidateSource;
 import com.dddgn.alice.job.lumber.LumberRegionState;
 import com.dddgn.alice.job.lumber.RegionLumberJob;
@@ -619,7 +619,7 @@ public final class TaskZoneCheckTask implements Task {
         for (int dy = 0; dy < 3; dy++) {
             setBlockTracked(level, AUTH_TREE_BASE.above(dy), Blocks.OAK_LOG.defaultBlockState());
         }
-        var treeSpec = GoalSpec.harvestUnits(AUTH_TREE_BASE, 6, 1, 200);
+        var treeSpec = JobDeclaration.harvestUnits(AUTH_TREE_BASE, 6, 1, 200);
         TaskZoneRegistry.release(WorldModLedger.currentScope(server, owner));
         List<String> noZoneRejected = new LumberCandidateSource().candidates(bot, treeSpec).rejected();
         check("⑨候选扫描（第三处消费）：**无任务区** ⇒ 被认领区块里的树在候选期就被拒（`:protected_area`）",

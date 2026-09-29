@@ -1,7 +1,7 @@
 package com.dddgn.alice.job.mine;
 
 import com.dddgn.alice.job.Candidate;
-import com.dddgn.alice.job.GoalSpec;
+import com.dddgn.alice.job.JobDeclaration;
 import com.dddgn.alice.task.mining.StandingCostEstimator;
 import com.dddgn.alice.reach.StandingPointSelector;
 import net.minecraft.core.BlockPos;
@@ -50,7 +50,7 @@ public final class StandingCostField implements CandidateCostProvider {
     }
 
     @Override
-    public Result estimate(ServerPlayer bot, GoalSpec spec, List<Candidate> candidates) {
+    public Result estimate(ServerPlayer bot, JobDeclaration spec, List<Candidate> candidates) {
         if (candidates.isEmpty()) {
             return Result.empty("dijkstra cells=0（无候选）");
         }

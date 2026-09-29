@@ -131,7 +131,7 @@ public final class CandidateMenu {
         // 递给 LLM —— 2026-09-12 实测就发生了（菜单给了 `tree@22,64,218`，Job 报 `no_reachable_candidate`）。
         // 这就是项目既有规矩："夹具/菜单的候选必须复用规划器 provider（可规划即可执行）"。
         var lumberSource = new com.dddgn.alice.job.lumber.LumberCandidateSource();
-        var probe = com.dddgn.alice.job.GoalSpec.harvestUnits(botPos, SCAN_RADIUS, 1, 3600);
+        var probe = com.dddgn.alice.job.JobDeclaration.harvestUnits(botPos, SCAN_RADIUS, 1, 3600);
         var candidates = lumberSource.candidates(bot, probe);
         candidates.viable().stream()
                 .sorted(java.util.Comparator.comparingDouble(c -> c.anchor().distSqr(botPos)))
@@ -180,7 +180,7 @@ public final class CandidateMenu {
         //    矿石清单**只能**来自 `MiningBudget.COMMON_ORE_TAGS` / `RARE_ORES`（J-6：不许长出第二份）。
         //    扫描半径比树小（`MINE_SCAN_RADIUS`）：菜单是**有界感知**，不是作业搜索；
         //    条目里的 `block=` 是**确定性层算出的方块 id**，动作解析只许用它，不许 LLM 自己写。
-        var mineProbe = com.dddgn.alice.job.GoalSpec.mineBlocks(botPos, MINE_SCAN_RADIUS, 1, 3600);
+        var mineProbe = com.dddgn.alice.job.JobDeclaration.mineBlocks(botPos, MINE_SCAN_RADIUS, 1, 3600);
         List<com.dddgn.alice.job.Candidate> mineCandidates = new ArrayList<>();
         // **队列第②项（2026-09-17）**：原先对 11 个目标**各扫一整遍世界**（11 × (2r+1)³ 次读取；
         // 勘测 11 实测"菜单 30~90ms"的来源）⇒ 现在**一遍扫描、结果分发**，候选集逐字不变。

@@ -2,7 +2,7 @@ package com.dddgn.alice.task.check.modules;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.item.FixtureToolKit;
-import com.dddgn.alice.job.GoalSpec;
+import com.dddgn.alice.job.JobDeclaration;
 import com.dddgn.alice.job.mine.MineCandidateSource;
 import com.dddgn.alice.job.mine.MineJob;
 import com.dddgn.alice.job.policy.NearestPolicy;
@@ -105,7 +105,7 @@ public final class MiningModule implements CheckModule {
                 // 挖掘 Job：同上（ore_course + 复刻 MineJobItem 的发料）
                 CheckStep.of("mine_job", CheckProfile.BASELINE, ore, staged,
                         () -> new MineJob(bot,
-                                GoalSpec.mineBlocks(OreCourseAnchor.START_FOOT,
+                                JobDeclaration.mineBlocks(OreCourseAnchor.START_FOOT,
                                         MineCandidateSource.SCAN_RADIUS, MINE_QUOTA, 3600),
                                 scope,
                                 new MineCandidateSource(MineCandidateSource.Target.ofBlock(Blocks.IRON_ORE),
@@ -129,7 +129,7 @@ public final class MiningModule implements CheckModule {
                     FixtureToolKit.resetInventory(bot);   // 有意不发任何工具
                     BotLog.info("[Mining] mine_no_tool 夹具：已清空背包且**不发镐**（验归因，不是验挖掘）");
                 }, () -> new MineJob(bot,
-                        GoalSpec.mineBlocks(OreCourseAnchor.START_FOOT,
+                        JobDeclaration.mineBlocks(OreCourseAnchor.START_FOOT,
                                 MineCandidateSource.SCAN_RADIUS, 2, 1200),
                         scope,
                         new MineCandidateSource(MineCandidateSource.Target.ofBlock(Blocks.IRON_ORE),
@@ -163,7 +163,7 @@ public final class MiningModule implements CheckModule {
                     staged.run();
                     BotLog.info("[Mining] mine_stale 夹具：身份复检恒 false（构造 target_replaced 竞态）");
                 }, () -> new MineJob(bot,
-                        GoalSpec.mineBlocks(OreCourseAnchor.START_FOOT,
+                        JobDeclaration.mineBlocks(OreCourseAnchor.START_FOOT,
                                 MineCandidateSource.SCAN_RADIUS, 1, 600),
                         scope,
                         new MineCandidateSource(MineCandidateSource.Target.ofBlock(Blocks.IRON_ORE),
@@ -185,7 +185,7 @@ public final class MiningModule implements CheckModule {
                     BotLog.info("[Mining] mine_budget 夹具：本作用域写入预算压到 0 破坏 / 0 放置（scope={}）",
                             com.dddgn.alice.write.WriteBudget.scopeOf(bot));
                 }, () -> new MineJob(bot,
-                        GoalSpec.mineBlocks(OreCourseAnchor.START_FOOT,
+                        JobDeclaration.mineBlocks(OreCourseAnchor.START_FOOT,
                                 MineCandidateSource.SCAN_RADIUS, 1, 600),
                         scope,
                         new MineCandidateSource(MineCandidateSource.Target.ofBlock(Blocks.IRON_ORE),

@@ -4,7 +4,7 @@ import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.bot.TaskMetrics;
 import com.dddgn.alice.write.WriteBudget;
 import com.dddgn.alice.item.FixtureToolKit;
-import com.dddgn.alice.job.GoalSpec;
+import com.dddgn.alice.job.JobDeclaration;
 import com.dddgn.alice.job.mine.MineCandidateSource;
 import com.dddgn.alice.job.mine.MineJob;
 import com.dddgn.alice.job.policy.NearestPolicy;
@@ -362,7 +362,7 @@ public final class MineRunMetricsCheckTask implements Task {
         }
         // 起本轮的 Job（真作业 / 反向对照）
         boolean control = runIndex >= RUNS;
-        GoalSpec spec = GoalSpec.mineBlocks(center, SCAN_RADIUS, control ? 1 : QUOTA, 3600);
+        JobDeclaration spec = JobDeclaration.mineBlocks(center, SCAN_RADIUS, control ? 1 : QUOTA, 3600);
         MineCandidateSource source = new MineCandidateSource(
                 MineCandidateSource.Target.ofBlock(control ? Blocks.DIAMOND_ORE : Blocks.IRON_ORE),
                 SCAN_RADIUS);

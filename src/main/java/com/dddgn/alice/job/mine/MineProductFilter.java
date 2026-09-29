@@ -58,7 +58,7 @@ public final class MineProductFilter {
         this.declaredSibling = declaredSibling;
     }
 
-    /** 按 `GoalSpec.productTag` 构造（null = 未指定 ⇒ 走标签族兜底）。 */
+    /** 按 `JobDeclaration.productTag` 构造（null = 未指定 ⇒ 走标签族兜底）。 */
     public static MineProductFilter forTag(TagKey<Item> productTag) {
         if (productTag == null) {
             return new MineProductFilter(null, null);

@@ -3,7 +3,7 @@ package com.dddgn.alice.task;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.decision.EventThresholds;
 import com.dddgn.alice.item.FixtureToolKit;
-import com.dddgn.alice.job.GoalSpec;
+import com.dddgn.alice.job.JobDeclaration;
 import com.dddgn.alice.job.policy.NearestPolicy;
 import com.dddgn.alice.job.mine.MineCandidateSource;
 import com.dddgn.alice.job.mine.MineJob;
@@ -105,7 +105,7 @@ public class MineFailureVisibilityCheckTask implements Task {
             FixtureToolKit.ensurePickaxe(bot);
             scope = new ScopeBuffer();
             job = new MineJob(bot,
-                    GoalSpec.mineBlocks(OreCourseAnchor.START_FOOT, SCAN_RADIUS, 1, 400),
+                    JobDeclaration.mineBlocks(OreCourseAnchor.START_FOOT, SCAN_RADIUS, 1, 400),
                     scope,
                     new MineCandidateSource(MineCandidateSource.Target.ofBlock(Blocks.IRON_ORE), SCAN_RADIUS),
                     new NearestPolicy(),

@@ -2,7 +2,7 @@ package com.dddgn.alice.job.policy;
 
 import com.dddgn.alice.job.Candidate;
 import com.dddgn.alice.job.CandidateSet;
-import com.dddgn.alice.job.GoalSpec;
+import com.dddgn.alice.job.JobDeclaration;
 import com.dddgn.alice.job.Selection;
 import com.dddgn.alice.job.SelectionPolicy;
 import com.dddgn.alice.job.mine.CandidateCostProvider;
@@ -85,7 +85,7 @@ public final class CostOptimalPolicy implements SelectionPolicy {
     }
 
     @Override
-    public Selection select(ServerPlayer bot, GoalSpec spec, CandidateSet candidates) {
+    public Selection select(ServerPlayer bot, JobDeclaration spec, CandidateSet candidates) {
         List<String> rejected = new ArrayList<>(candidates.rejected());
         if (candidates.isEmpty()) {
             lastResult = CandidateCostProvider.Result.empty("无候选");

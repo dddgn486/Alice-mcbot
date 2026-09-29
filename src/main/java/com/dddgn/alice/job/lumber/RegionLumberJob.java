@@ -3,7 +3,7 @@ package com.dddgn.alice.job.lumber;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.job.Candidate;
 import com.dddgn.alice.job.CandidateSet;
-import com.dddgn.alice.job.GoalSpec;
+import com.dddgn.alice.job.JobDeclaration;
 import com.dddgn.alice.job.Selection;
 import com.dddgn.alice.job.SelectionPolicy;
 import com.dddgn.alice.ledger.WorldModLedger;
@@ -20,7 +20,7 @@ import java.util.UUID;
 /**
  * **`MAINTAIN` 区域型伐木 Job**（J8 / §13）：不追求"跑完即结束"，而是**持续维持区域不变量**。
  *
- * <p>与一次性伐木的关系（§13 的裁定）：**同一个 Job 家族 + 不同 `GoalSpec`/策略**，
+ * <p>与一次性伐木的关系（§13 的裁定）：**同一个 Job 家族 + 不同 `JobDeclaration`/策略**，
  * 而不是两套任务。落地方式：本 Job 只做"**巡查 → 挑一棵 → 派活 → 回来继续巡查**"的编排，
  * 真正的砍伐**原样复用** {@link LumberJob}（每次给它 {quota=1, center=那棵树}），
  * 因此清障预算、建拆同权、攀爬兜底、失败语义全部沿用已验证的那一套 —— 没有第二份实现。
@@ -533,7 +533,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         }
         var server = bot.serverLevel().getServer();
         LumberRegionState state = LumberRegionState.get(server);
-        var spec = GoalSpec.harvestUnits(region.center(), region.coverRadius(), 1, maxTicks);
+        var spec = JobDeclaration.harvestUnits(region.center(), region.coverRadius(), 1, maxTicks);
         CandidateSet raw = source.candidates(bot, spec);
 
         state.markPatrol(bot.getUUID(), server.getTickCount());
@@ -740,7 +740,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
         }
         BotLog.info("[Job] maintain pick tree@{} reason={} candidates={}",
                 picked.anchor().toShortString(), selection.reason(), inRegion.size());
-        var treeSpec = GoalSpec.harvestUnits(picked.anchor(), localRadius, 1, maxTicks);
+        var treeSpec = JobDeclaration.harvestUnits(picked.anchor(), localRadius, 1, maxTicks);
         current = new LumberJob(bot, treeSpec, scope, source, policy);
         workedThisPatrol = true;      // `D-344` ②：挑了树 = 有活 ⇒ 下一轮用配置间隔
         return com.dddgn.alice.task.Task.Status.RUNNING;

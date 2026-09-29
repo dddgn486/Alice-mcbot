@@ -2,7 +2,7 @@ package com.dddgn.alice.task;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.item.FixtureToolKit;
-import com.dddgn.alice.job.GoalSpec;
+import com.dddgn.alice.job.JobDeclaration;
 import com.dddgn.alice.job.lumber.LumberCandidateSource;
 import com.dddgn.alice.job.lumber.LumberJob;
 import com.dddgn.alice.job.mine.MineCandidateSource;

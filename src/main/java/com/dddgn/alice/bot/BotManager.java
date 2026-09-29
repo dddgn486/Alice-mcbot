@@ -610,12 +610,12 @@ public final class BotManager {
         // 配额 = 可行树数；场景变了配额自动跟上，日志里如实打出推导结果。
         com.dddgn.alice.job.lumber.LumberCandidateSource source =
                 new com.dddgn.alice.job.lumber.LumberCandidateSource();
-        com.dddgn.alice.job.GoalSpec probe = com.dddgn.alice.job.GoalSpec.harvestUnits(
+        com.dddgn.alice.job.JobDeclaration probe = com.dddgn.alice.job.JobDeclaration.harvestUnits(
                 com.dddgn.alice.task.LumberCourseAnchor.START_FOOT, 16, 1, 300);
         int feasible = source.candidates(bot, probe).viable().size();
         int quota = Math.max(1, feasible);
         BotLog.info("[Job] lumber 场景可行树={} ⇒ 配额={}（T5：配额随场景推导）", feasible, quota);
-        com.dddgn.alice.job.GoalSpec spec = com.dddgn.alice.job.GoalSpec.harvestUnits(
+        com.dddgn.alice.job.JobDeclaration spec = com.dddgn.alice.job.JobDeclaration.harvestUnits(
                 com.dddgn.alice.task.LumberCourseAnchor.START_FOOT, 16, quota, 3600);
         com.dddgn.alice.job.lumber.LumberJob job = new com.dddgn.alice.job.lumber.LumberJob(
                 bot, spec, session.scope(), source,
@@ -688,7 +688,7 @@ public final class BotManager {
                 bot.blockPosition(), radius, quota, 3600, target.describe());
         // 用调用方给的具体 Target（而不是重新解析字符串）：语义完全等价，避免二次解析差异
         com.dddgn.alice.job.Job job = new com.dddgn.alice.job.mine.MineJob(
-                bot, com.dddgn.alice.job.GoalSpec.mineBlocks(bot.blockPosition(), radius, quota, 3600),
+                bot, com.dddgn.alice.job.JobDeclaration.mineBlocks(bot.blockPosition(), radius, quota, 3600),
                 session.scope(), new com.dddgn.alice.job.mine.MineCandidateSource(target, radius),
                 new com.dddgn.alice.job.policy.NearestPolicy());
         com.dddgn.alice.job.JobLauncher.logLaunch(bot, request);

@@ -1,7 +1,7 @@
 package com.dddgn.alice.task;
 
 import com.dddgn.alice.bot.BotPlayer;
-import com.dddgn.alice.job.GoalSpec;
+import com.dddgn.alice.job.JobDeclaration;
 import com.dddgn.alice.job.lumber.LumberCandidateSource;
 import com.dddgn.alice.job.lumber.LumberJob;
 import com.dddgn.alice.job.policy.NearestPolicy;
@@ -194,13 +194,13 @@ public final class LumberFailureCheckTask implements Task {
         replacedArmed = false;
         replacedPos = null;
 
-        GoalSpec spec = switch (current) {
-            case NO_CANDIDATES -> GoalSpec.harvestUnits(LumberCourseAnchor.START_FOOT, 2, 1, 300);
-            case ALL_REJECTED -> GoalSpec.harvestUnits(new BlockPos(22, 64, 218), 4, 1, 300);
-            case INVENTORY_FULL -> GoalSpec.harvestUnits(LumberCourseAnchor.START_FOOT, 16, 1, 400);
-            case GOAL_TIMEOUT -> GoalSpec.harvestUnits(LumberCourseAnchor.START_FOOT, 16, 1, 40);
-            case LOG_REPLACED -> GoalSpec.harvestUnits(LumberCourseAnchor.START_FOOT, 16, 1, 600);
-            case TOOL_MISSING -> GoalSpec.harvestUnits(LumberCourseAnchor.START_FOOT, 16, 1, 300);
+        JobDeclaration spec = switch (current) {
+            case NO_CANDIDATES -> JobDeclaration.harvestUnits(LumberCourseAnchor.START_FOOT, 2, 1, 300);
+            case ALL_REJECTED -> JobDeclaration.harvestUnits(new BlockPos(22, 64, 218), 4, 1, 300);
+            case INVENTORY_FULL -> JobDeclaration.harvestUnits(LumberCourseAnchor.START_FOOT, 16, 1, 400);
+            case GOAL_TIMEOUT -> JobDeclaration.harvestUnits(LumberCourseAnchor.START_FOOT, 16, 1, 40);
+            case LOG_REPLACED -> JobDeclaration.harvestUnits(LumberCourseAnchor.START_FOOT, 16, 1, 600);
+            case TOOL_MISSING -> JobDeclaration.harvestUnits(LumberCourseAnchor.START_FOOT, 16, 1, 300);
             // 纯函数用例在上面 `prepare()` 已 `return` ⇒ 走到这里说明"枚举加了成员却没接线"
             case TAXONOMY_ALL_TOOL, TAXONOMY_MIXED, TAXONOMY_CLIMB, TAXONOMY_NO_EVIDENCE,
                  TAXONOMY_SUCCESS_GUARD ->

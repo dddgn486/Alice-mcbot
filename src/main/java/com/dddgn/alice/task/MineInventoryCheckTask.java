@@ -2,7 +2,7 @@ package com.dddgn.alice.task;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.item.FixtureToolKit;
-import com.dddgn.alice.job.GoalSpec;
+import com.dddgn.alice.job.JobDeclaration;
 import com.dddgn.alice.job.mine.MineCandidateSource;
 import com.dddgn.alice.job.mine.MineJob;
 import com.dddgn.alice.job.policy.NearestPolicy;
@@ -146,7 +146,7 @@ public final class MineInventoryCheckTask implements Task {
         } else {
             fillInventory(1);      // 只留一个空位：第 1 格产物就能占满它
         }
-        GoalSpec spec = GoalSpec.mineBlocks(OreCourseAnchor.START_FOOT,
+        JobDeclaration spec = JobDeclaration.mineBlocks(OreCourseAnchor.START_FOOT,
                 MineCandidateSource.SCAN_RADIUS, MINE_QUOTA, 3600);
         job = new MineJob(bot, spec, scope,
                 new MineCandidateSource(MineCandidateSource.Target.ofBlock(Blocks.IRON_ORE),

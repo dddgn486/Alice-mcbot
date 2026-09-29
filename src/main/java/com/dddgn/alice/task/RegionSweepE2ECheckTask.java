@@ -437,7 +437,7 @@ public final class RegionSweepE2ECheckTask implements Task {
      */
     private int countViableTreesInRegion() {
         var region = LumberCourseAnchor.region();
-        var spec = com.dddgn.alice.job.GoalSpec.harvestUnits(region.center(), region.coverRadius(),
+        var spec = com.dddgn.alice.job.JobDeclaration.harvestUnits(region.center(), region.coverRadius(),
                 1, BUDGET_TICKS);
         var raw = new LumberCandidateSource().candidates(bot, spec);
         int total = 0;

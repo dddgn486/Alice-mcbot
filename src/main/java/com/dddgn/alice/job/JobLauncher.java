@@ -144,7 +144,7 @@ public final class JobLauncher {
                 : null;
         return switch (request.kind()) {
             case LUMBER -> new com.dddgn.alice.job.lumber.LumberJob(bot,
-                    GoalSpec.harvestUnits(request.center(), request.radius(), request.quota(),
+                    JobDeclaration.harvestUnits(request.center(), request.radius(), request.quota(),
                             request.maxTicks()),
                     scope, new com.dddgn.alice.job.lumber.LumberCandidateSource(), policy);
             case MINE -> new com.dddgn.alice.job.mine.MineJob(bot,
@@ -152,9 +152,9 @@ public final class JobLauncher {
                     // 非空 ⇒ `productTag` 仍传 null（产物口径走标签族兜底：多**种类**任务里
                     // "只认某一个标签"会把另一类产物漏掉 —— 那正是 J-6 修过的坑）。
                     request.kindQuotas().isEmpty()
-                            ? GoalSpec.mineBlocks(request.center(), request.radius(), request.quota(),
+                            ? JobDeclaration.mineBlocks(request.center(), request.radius(), request.quota(),
                                     request.maxTicks())
-                            : GoalSpec.mineKinds(request.center(), request.radius(), request.quota(),
+                            : JobDeclaration.mineKinds(request.center(), request.radius(), request.quota(),
                                     request.maxTicks(), null, request.kindQuotas(), null),
                     scope,
                     new com.dddgn.alice.job.mine.MineCandidateSource(
@@ -163,7 +163,7 @@ public final class JobLauncher {
             case CRAFT -> new com.dddgn.alice.job.craft.CraftJob(bot, request.productTag(),
                     request.quota(), request.maxTicks());
             case COLLECT -> new com.dddgn.alice.job.collect.CollectJob(bot,
-                    GoalSpec.collectItems(request.center(), request.radius(), request.quota(), null,
+                    JobDeclaration.collectItems(request.center(), request.radius(), request.quota(), null,
                             request.maxTicks()),
                     scope);
             case REGION_LUMBER -> {

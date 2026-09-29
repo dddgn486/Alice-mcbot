@@ -1,7 +1,7 @@
 package com.dddgn.alice.job.mine;
 
 import com.dddgn.alice.job.Candidate;
-import com.dddgn.alice.job.GoalSpec;
+import com.dddgn.alice.job.JobDeclaration;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.HashMap;
@@ -44,7 +44,7 @@ public interface CandidateCostProvider {
         }
     }
 
-    Result estimate(ServerPlayer bot, GoalSpec spec, List<Candidate> candidates);
+    Result estimate(ServerPlayer bot, JobDeclaration spec, List<Candidate> candidates);
 
     /** 夹具用：脚本化成本（确定性，不读世界）。 */
     static CandidateCostProvider scripted(Map<Long, Double> costsByAnchor) {

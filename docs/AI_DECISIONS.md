@@ -24123,3 +24123,122 @@ Goal（纯算术谓词，零世界访问）找路
 - ⚠️ 本条**唯一**的文档改动 = `D-499` 两行**逐字恢复**（`A-7`）；其余 9 条**只登记**，⛔ **未施工**。
 - ⚠️ **未核实的**（6 条）见报告附录 B，其中最重要的一条：**`A-3` 的 8 个符号能否逐字搬到新家"无法在开工前判定"**（新家未定）。
 - ⚠️ 顺带发现**设计文档自身的数**有一处不可复算（报告附录 C）：`§2.5`/`HANDOVER.md:2357` 的「`kernel-predicates.py` **43 处**」**换任何口径都得不到 43**（实测 25 / 38 行 / 50 / 57）；可靠的是"**5 条具名规则**"与"`rule_approach_plans_bounded` 随 B 删"。⇒ **改动面必须开工时重新实测，不许沿用 `43`/`10`**。
+
+---
+
+## D-516：`D-478` `P12/A` **纯改名落地**（`job.GoalSpec` → `JobDeclaration`）—— 撞出 3 处**门禁耦合** + 1 处**无守卫读** + 揭出 1 处**假绿**（2026-09-29，用户「开工吧」）
+
+**裁定依据**：`D-478` 的 `P12/A` ＋ 设计讨论 `§45` **甲 = 先做"纯改名"**（用户 2026-09-28 第六轮「甲」）。
+⛔ **瘦身 / 字段搬家 / `P5.1/A` / `P13/A` / `P10` 一律未做**（留"job 框架机制补齐"）。
+**顺序**：用户 2026-09-29 复核后的排期 = **改革① → job 框架机制补齐 → ②/③ 往后排**；本刀是改革① 的**第 0 步（前置）**。
+
+### 一、做了什么（`src/` **只动标识符**）
+
+`git mv src/main/java/com/dddgn/alice/job/GoalSpec.java → job/JobDeclaration.java` ＋ **33 个文件**里
+`\bGoalSpec\b → JobDeclaration`（`job/` 全部 · `task/` 夹具 14 个 · `bot/BotManager` · `decision/CandidateMenu` · `item/LumberPolicyCheckItem`）。
+`pathing/core/search/GoalSpec.java`（内核规划目标，对齐 Baritone `Goal`）**一动未动** ——
+它**只在同包 6 个文件里出现、不产生 `import`**（这正是 `survey/46` 说"`grep import` 看不见它"的原因）。
+⇒ 改后 `src/` 里 `GoalSpec` **只剩** `pathing/core/search/` 那 6 个文件（判定 = `grep -rn 'GoalSpec' src/main/java | grep -v core/search/` ⇒ 0）。
+
+### 二、⭐ 三处**门禁耦合**：**"纯改名"不是纯机械**（本条的实测价值）
+
+`tools/kernel-predicates.py` 用**两种**方式钉住了这个类，改文件名/改签名**都会打红**：
+
+| # | 位置 | 钉的是什么 | 不改的后果 |
+|---|---|---|---|
+| 1 | `tools/kernel-predicates.py:1335`（`rule_intent_before_viability`） | **文件名**：`base / "JobDeclaration.java"`（`base = .../alice/job`），且**原本无存在性守卫** | `FileNotFoundError` ⇒ **硬崩**，不是可读的红 |
+| 2 | `tools/kernel-predicates.py:1346` | **记录头逐字**：`"public record JobDeclaration("` | 报「找不到记录头（结构变了 ⇒ 本规则要跟着改）」 |
+| 3 | `tools/kernel-predicates.py:2421`（`rule_value_is_only_a_cost_component`） | `CostOptimalPolicy.select` 的**签名逐字**（含参数类型名） | `method_body` 返回空 ⇒ 规则判红 |
+
+⇒ **同刀修三处字面量**（＋规则头散文）⇒ 改完 `check-kernel-predicates` **PASS**（`意图先于可挖性=0` · `价值只是成本分量=0`）。
+⭐ **可推广教训**：`kernel-predicates.py` 的耦合有**两类** —— 「**按什么名字找文件**」与「**按逐字文本找结构**」。
+它们与 `A-4` **同族但方向相反**：`A-4` 是**假绿**（判据面与改动面不相交 ⇒ 空结果冒充真结果），
+这里是**真红/真崩**（判据面**过宽地**咬住实现细节）。
+⇒ ⚠️ 台账 `O13`/`survey/47` `#6` 记的 `tools/check-phase-transition-outlet.py:60` 硬编码 `task/MineTask.java`
+**是同一族** ⇒ **"逐项搬空 / 删 `MineTask`"那把刀会同样疼**，不是新问题。
+
+### 三、✅ 那颗牙的**第二次生效**（实测，不是推演）
+
+`tools/check-duplicate-class-names.py` 的 `GoalSpec` 豁免条目**按断言 ③ 得手判红**：
+> 「豁免 `GoalSpec` **已不再是重名** ⇒ 必须删掉白名单条目（豁免得手也 FAIL）」
+
+⇒ **已同刀删除**；⛔ 但**不静默消失** —— 删除**留痕**写在 `tools/check-duplicate-class-names.py:76-82`
+（含旧条目取回命令 `git show 2517ebe5:tools/check-duplicate-class-names.py`）。
+⇒ `survey/46 §1.1` 的「**重名不是靠"记得改"解决，是靠"改名时它会疼"解决**」**第一次被真树证实**。
+✅ 改后该门禁 **PASS**：真树同名组 **2 → 1**（只剩 `DecisionTrace`），文件数 **517**，合成臂 **7/7**。
+
+### 四、两处"靠人工发现才没出事"的地方
+
+1. **无守卫读**（上表 #1）：同文件的 `rule_cluster_is_pure_geometry` **有**
+   `if not path.exists(): return [...]`，而 `rule_intent_before_viability` **没有**。
+   ✅ **用户 2026-09-29 拍「补」** ⇒ 已加同款守卫（`tools/kernel-predicates.py:1337`：缺文件 ⇒ 返回**可读的红**）。
+   ⚠️ **未补全**：同函数另两处读（`mine/MineCandidateSource.java` · `mine/MineIntent.java`）**仍无守卫** ——
+   它们的文件名**今天不动**，按规定**只补撞到的那一处**（不夹带）。
+2. ⭐ **`[Regression] SUMMARY` 总级行被截断**（**新发现**，已登记台账 `O14`）：`core` 实跑 **43 项**，
+   而总级 `SUMMARY` 行**只有 606 字符、末尾断在 `decis`** ⇒ **约 1/3 步的判决在总览行里看不见**。
+   ⚠️ 本条的判据恰恰是"逐步 diff" ⇒ **我差点读成"只有 24 步"**。
+   真数据在**每步独立行** `[Regression] <step>=PASS ticks=N idempotent=true`（**不截断**）⇒ 基线必须取它。
+
+### 五、⭐ 揭出一处**早就存在的假绿**（`check-ref-integrity`）
+
+改名后 `check-ref-integrity` 判红：
+> `docs/reviews/2026-09-28-断点十一-开工前复盘与计划.md` → 对 `GoalSpec.java` 的 `:41` 报"超界"（候选都装不下：`GoalSpec.java`=37 行）
+
+**根因不是改名，是那条引用**改名前**就是错的**，而它的绿是**假绿**：
+
+| # | 事实 | 证据 |
+|---|---|---|
+| a | 报告 `:502` 挂在 `GoalSpec.java` 名下的行号区间 **`31`–`41`** ⇒ **行号不存在** | core 版 `pathing/core/search/GoalSpec.java` **只有 37 行**；那段 javadoc 实际在 **`:23-33`**（具体断言 `:26-29`） |
+| b | 它改名前**是绿的**（当时读数 1550 处 / 超界 0） | 改名前 `src/` 里**有两个** `GoalSpec.java`：job 版 **108 行**、core 版 37 行。门禁口径 = "**候选都装不下才算错**" ⇒ `31-41` **被 job 版满足了** ⇒ **它把一个本意指 core 的引用，静默核销到了 job 文件上** |
+| c | 载体也写错了 | 那段自述在 **`GoalSpec` 接口**的 `exactFoot()` javadoc 里；`GoalNearXZ.java` 的 javadoc **没有**这段 |
+
+⇒ ⭐ **改名顺手把这颗假绿揭出来了**（**同名文件的"候选集"缩到 1 ⇒ 假绿无处藏身**）。
+⇒ 处置：报告已就地**勘误留痕**（新增「附录 A 勘误」小节，**原文保留不改**）＋ 该行改为**包限定**引用；
+⇒ `check-ref-integrity` **PASS**（1552 处 / **行号超界 0**）。
+⚠️ **门禁口径问题已登记台账 `O14`**：裸文件名 `X.java:NN` 会被**任意**同名文件满足 ⇒
+**行号落在同名文件的范围内时，指向错文件也不报错**（本次纯属行号越界才暴露）。
+
+### 六、✅ 判据（设计讨论 `§45.3` 逐字 =「纯改名不改语义 ⇒ 判据 = `core` 逐步 diff **零变化**」）—— **三重证据**
+
+| 证 | 方法 | 结果 |
+|---|---|---|
+| ① **源码级** | 33 个改名文件把新名/旧名**归一化成同一记号**后与 `HEAD` **逐字节比对** | ✅ **33/33 相同**（记录本体 `:1-108` 亦相同） |
+| ② **字节码级** | `javap -p -c` 归一化类名后比对；取"**二进制里真引用了新名**"的 **31 个类** | ✅ **31/31 相同**，差异 **0** |
+| ③ **电池级（⭐ 裁定判据）** | `ALICE_BATTERY_NO_CACHE=1 tools/headless-battery.sh core`，**改名前后各真跑一次** | ✅ 见下 |
+
+**电池实测**：改名**前** `verdict=PASS`（**250s** / 43 步）· 改名**后** `verdict=PASS`（**252s** / 43 步）；
+**逐步 verdict 43/43 全 PASS，零变化**（基线取自**每步独立行** `[Regression] <step>=PASS ticks=N idempotent=true`，**不是**被截断的 `SUMMARY`）。
+
+⚠️ **口径必须说准**：`§45.3` 那句「`core` 逐步 diff **零变化**」**不能**按含 `ticks=` 的字面 diff 理解 ——
+实测**确有 4 步的 `ticks=` 变了**（`clear_guard` 175→202 · `lumber_job` 624→619 · `mine_job` 234→240 · `mine_regression` 331→335）。
+⭐ **已证伪"是本刀引起的"**（决定性证据 = **改名前的两次连续真跑本身就在这 4 步上抖**）：
+
+| 步 | `20260928-125051` | `20260928-125651` | 本轮改名**前** | 本轮改名**后** |
+|---|---|---|---|---|
+| `clear_guard` | 177 | 182 | 175 | 202 |
+| `lumber_job` | 607 | 604 | 624 | 619 |
+| `mine_job` | 237 | 238 | 234 | 240 |
+| `mine_regression` | 301 | 313 | 331 | 335 |
+
+⇒ **正确的判据口径 = "Verdict 逐步零变化"**（`ticks=` 是**运行间抖动**，不是回归信号）。
+⚠️ 这是本刀对**判据措辞**的修正，请后续会话照此读，**别**把 `ticks=` 差异当回归。
+
+### 七、文档面（用户 2026-09-29 拍「**乙**」）
+
+- ✅ **只在 `docs/JOB_LAYER_DESIGN.md` 顶部加一段"命名路标"**：声明下文指内部作业声明的 `GoalSpec`
+  **已改名 `JobDeclaration`**、**读作新名**，且 ⛔ **不指** `pathing/core/search/GoalSpec.java`；**原文 8 处一律保留**。
+- ⛔ **不改**：`docs/MINE_TASK_DESIGN.md`（4 处）· `docs/AI_PROJECT_STATE.md`（2 处）—— ⚠️ **已知代价**：
+  这两份里的旧名会继续让 `grep GoalSpec docs/` 产生歧义（**登记为改革③ 文档整顿的输入**）。
+- ⛔ **历史档案一律不改**（改了就是伪造）：`AI_DECISIONS.md` · `HANDOVER.md` · `survey/` · `docs/reviews/` · `docs/plans/`。
+  ⚠️ **唯一例外** = 上节那处**引用勘误**（它**本来就错**、且挂门禁）。
+
+### 八、⚠️ 诚实边界
+
+- ⚠️ 本刀**不改语义** ⇒ `core` 的"零变化"是**预期结果**，**不是**"回归覆盖充分"的证据：
+  `5a` 遗留的**三条零覆盖路**（`CHAIN` 回落 / `tryReplan` / 运行期清障）在 `core` 里**仍无覆盖**（`D-469` §九）。
+- ⚠️ **未做任何客户端测试**（本刀不涉渲染/物理/GUI/同步 ⇒ **无客户端面**，`WINDOWS_CLIENT` 不适用）。
+- ⚠️ **`JobDeclaration` 今天与改名前逐字段相同**（8 栏：`kind, quota, center, radius, maxTicks, productTag, intent, kindQuotas`）
+  ⇒ `D-478` 说的**瘦身/字段搬家**一点没做，`JobDeclaration` **还不是**那个"内部作业声明"的终态。
+- ⚠️ `D-478` 自述「**必须与 `P5.1/A` 同刀落地**」**未兑现** —— 本刀是**用户明确拍过的例外**（先做纯改名），
+  ⇒ **`P5.1/A` 落地时必须重新审 `JobDeclaration` 的栏位**，不许把"已改名"当成"已拆两层"。
+- ⚠️ 顺带发现一个**入库的临时脚本**：`.tmp-fix9.py`（仓库根，**已被 git 跟踪**）—— 已登记台账 `O14`，⛔ 本刀**未删**。

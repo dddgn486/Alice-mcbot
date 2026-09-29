@@ -2,7 +2,7 @@ package com.dddgn.alice.task;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.item.FixtureToolKit;
-import com.dddgn.alice.job.GoalSpec;
+import com.dddgn.alice.job.JobDeclaration;
 import com.dddgn.alice.job.mine.MineCandidateSource;
 import com.dddgn.alice.job.mine.MineJob;
 import com.dddgn.alice.job.policy.NearestPolicy;
@@ -345,7 +345,7 @@ public final class MineVeinPropagationCheckTask implements Task {
         FixtureToolKit.ensurePickaxe(bot);
         scope = new ScopeBuffer();
         job = new MineJob(bot,
-                GoalSpec.mineBlocks(ORIGIN.offset(1, 0, 0), SCAN_RADIUS, ORE_COUNT, JOB_MAX_TICKS),
+                JobDeclaration.mineBlocks(ORIGIN.offset(1, 0, 0), SCAN_RADIUS, ORE_COUNT, JOB_MAX_TICKS),
                 scope,
                 new MineCandidateSource(MineCandidateSource.Target.ofBlock(Blocks.IRON_ORE), SCAN_RADIUS),
                 new NearestPolicy());

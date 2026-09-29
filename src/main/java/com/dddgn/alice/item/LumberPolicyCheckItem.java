@@ -4,7 +4,7 @@ import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.job.Candidate;
 import com.dddgn.alice.job.CandidateSet;
-import com.dddgn.alice.job.GoalSpec;
+import com.dddgn.alice.job.JobDeclaration;
 import com.dddgn.alice.job.Selection;
 import com.dddgn.alice.job.SelectionPolicy;
 import com.dddgn.alice.job.lumber.LumberCandidateSource;
@@ -76,7 +76,7 @@ public class LumberPolicyCheckItem extends Item {
         bot.setDeltaMovement(Vec3.ZERO);
         bot.controller().stopMovement();
 
-        GoalSpec spec = GoalSpec.harvestUnits(LumberCourseAnchor.START_FOOT, 16, 3, 2400);
+        JobDeclaration spec = JobDeclaration.harvestUnits(LumberCourseAnchor.START_FOOT, 16, 3, 2400);
         CandidateSet set = new LumberCandidateSource().candidates(bot, spec);
 
         BotLog.info("[PolicyCheck] candidates={} rejected={}", set.viable().size(), set.rejected());

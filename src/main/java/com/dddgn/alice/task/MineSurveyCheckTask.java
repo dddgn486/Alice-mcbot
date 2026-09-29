@@ -142,7 +142,7 @@ public final class MineSurveyCheckTask implements Task {
                                 new net.minecraft.resources.ResourceLocation("forge", "ores"))),
                 SURVEY_RADIUS);
         job = new com.dddgn.alice.job.mine.MineJob(bot,
-                com.dddgn.alice.job.GoalSpec.mineBlocks(bot.blockPosition(), SURVEY_RADIUS, SURVEY_QUOTA,
+                com.dddgn.alice.job.JobDeclaration.mineBlocks(bot.blockPosition(), SURVEY_RADIUS, SURVEY_QUOTA,
                         900),
                 scope, source, com.dddgn.alice.job.policy.CostOptimalPolicy.production());
         check("手动入口起任务（直接建真 Job：标签目标 + 成本最优策略）", job != null);

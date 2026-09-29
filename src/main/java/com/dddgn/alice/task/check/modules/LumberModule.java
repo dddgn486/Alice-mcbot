@@ -2,7 +2,7 @@ package com.dddgn.alice.task.check.modules;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.item.FixtureToolKit;
-import com.dddgn.alice.job.GoalSpec;
+import com.dddgn.alice.job.JobDeclaration;
 import com.dddgn.alice.job.lumber.LumberCandidateSource;
 import com.dddgn.alice.job.lumber.LumberJob;
 import com.dddgn.alice.job.lumber.LumberRegionState;
@@ -93,7 +93,7 @@ public final class LumberModule implements CheckModule {
                 // 伐木 Job：手动场景（terrain + 手写树）⇒ 电池自己跑场景函数 + 复刻 LumberJobItem 的发料
                 CheckStep.skippable("lumber_job", CheckProfile.BASELINE, course, tools,
                         guarded(bot, "lumber_job", () -> new LumberJob(bot,
-                                GoalSpec.harvestUnits(LumberCourseAnchor.START_FOOT, 16, 4, 3600),
+                                JobDeclaration.harvestUnits(LumberCourseAnchor.START_FOOT, 16, 4, 3600),
                                 scope, new LumberCandidateSource(), new NearestPolicy())),
                         1500, LumberModule::premiseFailed),
                 // J8 可持续伐木区（MAINTAIN）：同一个伐木场景，但走"巡查 → 砍 → 继续巡查"的区域型 Job

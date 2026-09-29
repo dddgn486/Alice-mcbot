@@ -124,7 +124,7 @@ public class MineMenuCheckTask implements Task {
         com.dddgn.alice.job.mine.MineCandidateSource.resetUnscanned();
         com.dddgn.alice.job.mine.MineCandidateSource.resetBlockReads();
         var farScan = com.dddgn.alice.job.mine.MineCandidateSource.candidatesForTargets(
-                bot, com.dddgn.alice.job.GoalSpec.mineBlocks(farCenter, 8, 1, 3600), List.of(), 8);
+                bot, com.dddgn.alice.job.JobDeclaration.mineBlocks(farCenter, 8, 1, 3600), List.of(), 8);
         long farCells = 17L * 17L * 17L;
         check("远距离扫描必须只记「未扫」、一个方块都不读（读=" + farScan.blockReads()
                         + " 未加载跳过=" + farScan.unscanned() + " 体积=" + farCells
@@ -354,8 +354,8 @@ public class MineMenuCheckTask implements Task {
      * ④ 精算失败（∞）也记账，**不许挡住轮转**，且**不许据此拒绝候选**。
      */
     private void runRefineAmortizationChecks() {
-        // 本组不读世界地形（base 是 scripted ⇒ 忽略 spec），但接口需要一份 GoalSpec
-        final var amortSpec = com.dddgn.alice.job.GoalSpec.mineBlocks(
+        // 本组不读世界地形（base 是 scripted ⇒ 忽略 spec），但接口需要一份 JobDeclaration
+        final var amortSpec = com.dddgn.alice.job.JobDeclaration.mineBlocks(
                 new net.minecraft.core.BlockPos(0, 62, 100),
                 com.dddgn.alice.job.mine.MineCandidateSource.SCAN_RADIUS, 1, 600);
         final var anchors = new java.util.ArrayList<com.dddgn.alice.job.Candidate>();
@@ -564,7 +564,7 @@ public class MineMenuCheckTask implements Task {
                 com.dddgn.alice.job.mine.MineCandidateSource.Target.ofBlock(
                         net.minecraft.world.level.block.Blocks.IRON_ORE),
                 com.dddgn.alice.job.mine.MineCandidateSource.SCAN_RADIUS);
-        var spec = com.dddgn.alice.job.GoalSpec.mineBlocks(center,
+        var spec = com.dddgn.alice.job.JobDeclaration.mineBlocks(center,
                 com.dddgn.alice.job.mine.MineCandidateSource.SCAN_RADIUS, 1, 600);
         // ⚠️ 必须用**真实预算**建会话：第一版传了 `Integer.MAX_VALUE` ⇒ 一次 `advance` 把 117649 格全扫了
         // （实测 `本次=117649`），完全测不出"每 tick 一格"的界。作业里用的就是这两个常量。
@@ -609,7 +609,7 @@ public class MineMenuCheckTask implements Task {
         final BlockPos ore = new BlockPos(52, 63, 128);
         final var shell = List.of(ore.offset(1, 0, 0), ore.offset(-1, 0, 0), ore.offset(0, 0, 1),
                 ore.offset(0, 0, -1), ore.above(), ore.below());
-        final var spec = com.dddgn.alice.job.GoalSpec.mineBlocks(ore, 8, 1, 600);
+        final var spec = com.dddgn.alice.job.JobDeclaration.mineBlocks(ore, 8, 1, 600);
         final var candidate = new com.dddgn.alice.job.Candidate(ore, "block",
                 java.util.Map.of("block", "minecraft:iron_ore", "d", "0",
                         "y", String.valueOf(ore.getY())));
@@ -830,7 +830,7 @@ public class MineMenuCheckTask implements Task {
         final long volume = (long) (2 * r + 1) * (2 * r + 1) * (2 * r + 1);
         final var stone = com.dddgn.alice.job.mine.MineCandidateSource.Target
                 .ofBlock(net.minecraft.world.level.block.Blocks.STONE);
-        final var spec = com.dddgn.alice.job.GoalSpec.mineBlocks(center, r, 1, 600);
+        final var spec = com.dddgn.alice.job.JobDeclaration.mineBlocks(center, r, 1, 600);
         final var source = new com.dddgn.alice.job.mine.MineCandidateSource(stone, r);
         final var memory = com.dddgn.alice.job.mine.MineScanMemoryData.get(bot.getServer());
 
@@ -983,7 +983,7 @@ public class MineMenuCheckTask implements Task {
         // （首版取 `center.getY()` ⇒ 区内可行=0，判据当场红 —— 这就是"意图只是一层过滤"的直接证据）
         final var intent = com.dddgn.alice.job.mine.MineIntent
                 .area(center, 2, center.getY() - 1, center.getY() - 1);
-        final var intentSpec = com.dddgn.alice.job.GoalSpec.mineBlocks(center, r, 1, 600, intent);
+        final var intentSpec = com.dddgn.alice.job.JobDeclaration.mineBlocks(center, r, 1, 600, intent);
         var intentSession = source.newSession(intentSpec, Integer.MAX_VALUE, Integer.MAX_VALUE);
         intentSession.advance(bot);
         var intentSet = intentSession.sets().get(0);
@@ -1033,14 +1033,14 @@ public class MineMenuCheckTask implements Task {
         final var farIntent = com.dddgn.alice.job.mine.MineIntent.area(center.offset(1000, 0, 0), 2,
                 Integer.MIN_VALUE, Integer.MAX_VALUE);
         var farSession = source.newSession(
-                com.dddgn.alice.job.GoalSpec.mineBlocks(center, r, 1, 600, farIntent),
+                com.dddgn.alice.job.JobDeclaration.mineBlocks(center, r, 1, 600, farIntent),
                 Integer.MAX_VALUE, Integer.MAX_VALUE);
         farSession.advance(bot);
         check("1.5 反向对照：意图指到远处 ⇒ 可行候选=0（意图**真的**参与取舍，不是装饰）",
                 farSession.sets().get(0).viable().isEmpty());
         // 正向对照：没有意图 ⇒ 与上面"无意图"那次逐字相同（意图不是隐形默认打开）
         var noneSession = source.newSession(
-                com.dddgn.alice.job.GoalSpec.mineBlocks(center, r, 1, 600), Integer.MAX_VALUE, Integer.MAX_VALUE);
+                com.dddgn.alice.job.JobDeclaration.mineBlocks(center, r, 1, 600), Integer.MAX_VALUE, Integer.MAX_VALUE);
         noneSession.advance(bot);
         check("1.5 对照：`MineIntent.none()` ⇒ 候选集与基线逐字相同（意图默认关闭）",
                 noneSession.sets().get(0).viable().stream().map(c -> c.anchor().asLong()).sorted().toList()
@@ -1110,7 +1110,7 @@ public class MineMenuCheckTask implements Task {
                 com.dddgn.alice.job.mine.MineCandidateSource.Target.ofBlock(
                         net.minecraft.world.level.block.Blocks.IRON_ORE),
                 com.dddgn.alice.job.mine.MineCandidateSource.SCAN_RADIUS)
-                .newSession(com.dddgn.alice.job.GoalSpec.mineBlocks(center,
+                .newSession(com.dddgn.alice.job.JobDeclaration.mineBlocks(center,
                         com.dddgn.alice.job.mine.MineCandidateSource.SCAN_RADIUS, 1, 600),
                         Integer.MAX_VALUE, Integer.MAX_VALUE);
         oreScan.advance(bot);
@@ -1133,7 +1133,7 @@ public class MineMenuCheckTask implements Task {
                 com.dddgn.alice.job.mine.MineCandidateSource.Target.ofBlock(
                         net.minecraft.world.level.block.Blocks.IRON_ORE),
                 com.dddgn.alice.job.mine.MineCandidateSource.SCAN_RADIUS);
-        var costSpec = com.dddgn.alice.job.GoalSpec.mineBlocks(center,
+        var costSpec = com.dddgn.alice.job.JobDeclaration.mineBlocks(center,
                 com.dddgn.alice.job.mine.MineCandidateSource.SCAN_RADIUS, 1, 600);
         long tShard = System.nanoTime();
         var costSession = costSource.newSession(costSpec, Integer.MAX_VALUE, Integer.MAX_VALUE);
