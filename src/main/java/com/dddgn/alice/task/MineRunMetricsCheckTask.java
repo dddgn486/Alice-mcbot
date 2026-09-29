@@ -494,7 +494,7 @@ public final class MineRunMetricsCheckTask implements Task {
         check("⭐ 反向对照：**没有到达**（到达增量=" + (control == null ? "-" : control.arrivedDelta())
                         + " == 0）且**没改世界**（破坏增量=" + (control == null ? "-" : control.breaksDelta())
                         + " == 0）⇒ 本次窗口的到达率 = " + RUNS + "/" + (RUNS + 1)
-                        + " = **真的小于 1**（这条证明判据能咬人；把 `MineJob` 里那句 `arrived(...)` 挪到"
+                        + " = **真的小于 1**（这条证明判据能拦截；把 `MineJob` 里那句 `arrived(...)` 挪到"
                         + "「选出了候选」处，这里会变成 1 ⇒ 夹具红）",
                 control != null && control.arrivedDelta() == 0 && control.breaksDelta() == 0);
 
