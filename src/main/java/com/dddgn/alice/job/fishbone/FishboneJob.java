@@ -25,7 +25,7 @@ import com.dddgn.alice.task.PlaceTask;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
 import com.dddgn.alice.task.mining.MiningBudget;
-import com.dddgn.alice.task.mining.MiningPlanner;
+import com.dddgn.alice.reach.StandingPointRefusal;
 import com.dddgn.alice.task.mining.MiningProfile;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -738,7 +738,7 @@ public final class FishboneJob implements Job {
      *
      * <p><b>仍然缺的是归因</b>：真机那一幕落的是 `no_reachable_standing_point`，它让"地板缺格"看起来像
      * "站位找不到"（真机第五轮 §3.3/§3.4）⇒ 归因四分类（`1.4i`）无从下手。本方法只在**两个事实同时成立**时改码：
-     * ① 失败理由是**站位类**（{@link MiningPlanner#isStandingPointRefusal}，判据只有一处）；
+     * ① 失败理由是**站位类**（{@link StandingPointRefusal#isStandingPointRefusal}，判据只有一处）；
      * ② 该单元的行走层支撑格**真的缺**（{@link #channelFloorMissing}）。
      * 任一不成立 ⇒ **原样返回**（不许把无关失败也改名叫地板问题 —— 那是"改判据掩盖缺陷"）。
      *
@@ -747,7 +747,7 @@ public final class FishboneJob implements Job {
      * 的第 3 条 —— 不另造一个名字）；否则把**原始理由码原样上抛**（`D-329`/`1.4w`：腿给了理由就原样上抛）。
      */
     private String standingFailureCode(FishboneTemplate.Unit unit, String reason) {
-        if (!MiningPlanner.isStandingPointRefusal(reason)
+        if (!StandingPointRefusal.isStandingPointRefusal(reason)
                 || !channelFloorMissing(bot.serverLevel(), unit.foot())) {
             return reason;
         }

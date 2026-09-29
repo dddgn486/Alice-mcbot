@@ -35,6 +35,9 @@ import com.dddgn.alice.reach.DropCatchment;
 // ⭐ 2026-09-29（改革 ① 主体 · `①-0`「拆信封」，`D-527`）：接近能力枚举提到 `reach/` 成为独立类型
 // ⇒ 本类与 `MiningProfile` 都改成引用它（`task/` → `reach/` 是合法方向）。
 import com.dddgn.alice.reach.ApproachCapability;
+// ⭐ 2026-09-29「①-1」（`plans §4.2`④）：`R8`「归因码」独立成类搬进 `reach/`
+// ⇒ 本类改为**引用**它（`StandingPointRefusal.…`），常量名与字面量逐字未改。
+import com.dddgn.alice.reach.StandingPointRefusal;
 
 /**
  * 挖掘领域规划器（D-067 批次 2/3）：目标方块 → 两模式站位选择 → 成本估算 → top-K 精算 → MiningPlan。
@@ -179,7 +182,7 @@ public final class MiningPlanner {
             if (directReason != null && !directReason.isEmpty()) {
                 return direct;
             }
-            return new Result(null, null, STANDING_NO_REACHABLE);
+            return new Result(null, null, StandingPointRefusal.STANDING_NO_REACHABLE);
         }
         // ⭐ `D-520`（改革 ① 主体第一刀）：原来这里是**两条腿**（`planTunnel` + `planEnterTarget`），
         // 现在合成**一条**：把目标交给内核（`GoalAdjacent` = "站到目标格的某一面"，落脚点由 A* 自己找）。
@@ -250,7 +253,7 @@ public final class MiningPlanner {
              * ⛔ **别把"这条日志消失"读成"那个判据没了"**：`STANDING_NO_VALID` 本身照旧返回。
              * ⛔ 也别把它读成"诊断探针以后都不许加" —— 纪律是**用完即删**，不是不许加。
              */
-            return new Result(null, null, STANDING_NO_VALID);
+            return new Result(null, null, StandingPointRefusal.STANDING_NO_VALID);
         }
 
         boolean dropLost = DropCatchment.dropWouldBeLost(level, target);
@@ -286,37 +289,25 @@ public final class MiningPlanner {
         if (best.plan() != null || SearchConclusion.SEARCH_INCOMPLETE.equals(best.failureReason())) {
             return best;
         }
-        return new Result(null, null, STANDING_NO_REACHABLE);
+        return new Result(null, null, StandingPointRefusal.STANDING_NO_REACHABLE);
     }
 
-    /**
-     * **"找不到站位"的两种码**（`F2` / `D-450`，2026-09-26）：判据**只有一处** —— 本类就是这两个码的产地。
+    /*
+     * ⚠️ 2026-09-29「①-1」（改革 ① 主体 · `DS-5` 解体，`plans §4.2`④ 逐字「跟着 **①** 走」）：
+     * **`R8`「归因码」整个搬走了** ⇒ 新家 = `com.dddgn.alice.reach.StandingPointRefusal`：
+     *   `STANDING_NO_VALID`（字面量 = `no_valid_standing_point`）·
+     *   `STANDING_NO_REACHABLE`（字面量 = `no_reachable_standing_point`）·
+     *   `isStandingPointRefusal(reason)` ·
+     *   `ADJACENT_NO_REACHABLE`（字面量 = `no_reachable_adjacent_standing_point`，`D-520` 加的第三个码）
+     * —— 四件**逐字未改**（名字、字符串字面量、谓词语义全保持原样；`D-460` 的"**只搬包、不改名**"口径）。
      *
-     * <p>为什么要收敛成常量 + 谓词：作业层（`FishboneJob.standingFailureCode`）与夹具都要判
-     * "这次失败是不是**站位类**"，而它们**不许**各自照抄一份字符串（`J-6` 的纪律：同一份判据只有一个出处）。
+     * ⛔ **别把"这里没这几个常量了"读成"站位类归因没了"**：判据照旧生效，本类只是**引用**它
+     * （`StandingPointRefusal.…`）。
+     * ⛔ 也别在原处放回同名常量 —— 门禁 `rule_search_limit_not_unreachable` 的 `D-528` 牙正是挡它的。
+     * 📌 为什么必须搬：它们的消费者在**作业层**（`FishboneJob:750`）与夹具，而"是不是站位类"这件事
+     * 被 import 一个**挖掘**规划器来判是**错位**；`reach/` 的定位本来就是「触及站位 / 视线 / 计划」
+     * （`D-460`）⇒ 作业层可以只依赖 `reach/`，不必认识 `task/mining/`。
      */
-    public static final String STANDING_NO_VALID = "no_valid_standing_point";
-
-    /** 见 {@link #STANDING_NO_VALID}。 */
-    public static final String STANDING_NO_REACHABLE = "no_reachable_standing_point";
-
-    /** 这个失败理由是不是**站位类**（找不到 / 到不了站位点）。 */
-    public static boolean isStandingPointRefusal(String reason) {
-        return STANDING_NO_VALID.equals(reason) || STANDING_NO_REACHABLE.equals(reason);
-    }
-
-    /**
-     * 目标级一次搜索（`GoalAdjacent`）**到不了目标旁边**（`D-520`，改革 ① 第一刀）。
-     *
-     * <p>它是旧两个码 {@code no_reachable_tunnel_standing_point} 与 {@code enter_target_unreachable}
-     * 的**合并**（两条腿合成一条 ⇒ 两个「到不了」不再有区别）。实测这两个旧码在全仓**无生产消费者**
-     * （只有日志与夹具里的字面量断言）⇒ 合并是安全的，不是静默删除。
-     *
-     * <p>⚠️ **刻意不进 {@link #isStandingPointRefusal}**：旧码也不在
-     * （「站位枚举 + 破坏进站」的失败 ≠ 「找不到 / 到不了现成站位」）。
-     * 顺手把它加进去会**改变作业侧的分类行为**，那不是这一刀的范围（`D-011`）。
-     */
-    public static final String ADJACENT_NO_REACHABLE = "no_reachable_adjacent_standing_point";
 
     // ==================== 目标级一次搜索（改革 ①，`D-520`） ====================
 
@@ -360,7 +351,7 @@ public final class MiningPlanner {
      *   <li>**预算闸门**（`D-076`）：代价超过 {@link MiningBudget#maxExtraBreakTicks()} ⇒ **如实拒绝**
      *       （`approach_over_budget`，旧名 `enter_target_over_budget`）——
      *       这是旧 ② 腿独有的那半，腿合并时**不许静默丢掉**；</li>
-     *   <li>失败码 = {@link #ADJACENT_NO_REACHABLE}（旧两码合并；实测全仓**无生产消费者**，
+     *   <li>失败码 = {@link StandingPointRefusal#ADJACENT_NO_REACHABLE}（旧两码合并；实测全仓**无生产消费者**，
      *       只有日志与夹具的字面量断言）。</li>
      * </ol>
      */
@@ -379,7 +370,7 @@ public final class MiningPlanner {
             return new Result(null, null, inconclusive);
         }
         if (!path.reached()) {
-            return new Result(null, null, ADJACENT_NO_REACHABLE);
+            return new Result(null, null, StandingPointRefusal.ADJACENT_NO_REACHABLE);
         }
         // ⭐ 落点 = 路径**实际到达**的那一格，⛔ **不是** `path.goalFoot()`
         // （对 `GoalAdjacent` 来说它返回的是**目标方块本身**，不是脚位；见 `PathPlan.finalFoot()`）。

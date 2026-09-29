@@ -3259,3 +3259,35 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 **⑥ ⏭ 下一步（无前置，不需要拍板）**：`①-1` = `R8` 归因码（3 个码 ＋ `isStandingPointRefusal`）独立成类落 `reach/`；
 生产消费者**只有一个**（`FishboneJob:28/:750`）。
 ⛔ **`①-0` 只解了 3 处上层依赖里的 1 处**：`findPlaceableSlot`（`MiningPlanner:222`）与 `MiningBudget`（自己 import `action`）仍在。
+
+---
+
+### ✅ 断点二十五（2026-09-29 · 第二十五次；**改革 ① 主体 `①-1`** —— `R8` 归因码搬进 `reach/StandingPointRefusal`）
+
+> ⚠️ **本节追加在文件末尾、❗ 未插入上方断点序列**（原因同前十次：本文件有 14 处 ≥2258 的自指行号引用）。
+> 📌 决策 = `D-528` · 前置 = 断点二十四（`D-527`）· 台账 = `O24` · 授权 = `plans §4.2`④ 逐字「跟着 **①** 走」。
+
+**① 本刀在链条里的位置**：`DS-5` 甲·解体的**第二刀**（`①-1`）· ⚠️ **零行为变化**（常量名与字面量逐字未改）。
+
+**② 做了什么**：新类 `reach/StandingPointRefusal`（51 行）收 `R8` 四件（三个码 ＋ 谓词，**逐字**）；
+`MiningPlanner` 交出它们（留**墓碑指针**）＋ 4 处引用改限定名；
+⭐ `FishboneJob` 的 `import task.mining.MiningPlanner` → `import reach.StandingPointRefusal`
+⇒ **作业层不再认识那个挖掘规划器**；夹具 `FishboneSlice2CheckTask` 1 处。
+⛔ **但作业层仍依赖 `task/mining`**（`MiningBudget` / `MiningProfile`）—— 本刀只掐掉了**规划器**这一条。
+总计 **4 文件（90 / 41）＋ 1 个新文件**。
+
+**③ ⭐ 门禁**（`rule_search_limit_not_unreachable`）：**改锚**（裸子串 `STANDING_NO_REACHABLE` → 限定名
+`StandingPointRefusal.STANDING_NO_REACHABLE`，并删掉"裸字面量"那个分支）＋ **7 颗牙**，**7/7 注入验证变红后两文件 sha 逐字还原**。
+⚠️ 这是**同一族「假绿」的第三次**（`D-524` 位置化断言 · `D-525` `dropWouldBeLost(` · 本刀裸常量名）——
+搬包后旧锚点**都**会因"子串恰好还在"继续报绿 ⇒ **每次搬空都必须把锚点改成限定名**。
+⭐ 顺手把本规则里的 `without_comments()` **提到函数开头只留一份**（`D-527` 已证明裸文本判据会把墓碑里的旧名字判成**假红**）。
+
+**④ 判据**：`compileJava` **一次过** · `kernel-predicates` **PASS** · `check-all` **`pass=34 warning=1 failed=0`** ·
+`check-layer-direction` **PASS**（`reach/` **9 文件**）· `headless-battery core` **`verdict=PASS`**（指纹 **`d2d78e9c615d`** · **249 s** · 非缓存命中）。
+
+**⑤ ⏭ 下一步（无前置，不需要拍板）**：`①-2` = `R2`＋`R5`（含 `Result`）搬进 `reach/` **＋ `canPlaceSupport` 入参**
+（`D-527` §五.1 记的另外两处上层依赖）＋ **4 条门禁改锚**。
+⚠️ 它是这条链上**第一把会动行为边界**的刀。
+
+**⑥ ⚠️ 刻意没做的**：常量名还是 `STANDING_…`（`D-460` 的「只搬包、不改名」口径）⇒ 新家读起来有重复感，
+改名是**另一刀**（锚在名字上的门禁会静默失效）；`ADJACENT_NO_REACHABLE` **仍然没有生产消费者**，本刀没给它找。

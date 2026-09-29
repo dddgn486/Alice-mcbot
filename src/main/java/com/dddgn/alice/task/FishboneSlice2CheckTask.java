@@ -29,6 +29,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import com.dddgn.alice.reach.ApproachCapability;
+import com.dddgn.alice.reach.StandingPointRefusal;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -908,7 +909,7 @@ public final class FishboneSlice2CheckTask implements Task {
                 BlockInteraction.findPlaceableSlot(bot) < 0);
         check("（" + arm + "）⭐⭐归因码以 `" + FishboneJob.CHANNEL_FLOOR_MISSING + ":` 为**主因**（终态="
                         + armVerdict + "）—— 改前（= 红臂）是 `main_unreachable:"
-                        + MiningPlanner.STANDING_NO_REACHABLE + "`：把「地板没了」伪装成「站位找不到」",
+                        + StandingPointRefusal.STANDING_NO_REACHABLE + "`：把「地板没了」伪装成「站位找不到」",
                 armVerdict.startsWith("main_unreachable:" + FishboneJob.CHANNEL_FLOOR_MISSING + ":"));
         check("（" + arm + "）⭐⭐cause = `no_throwaway_blocks`（**放置原语自己的码** —— 判据只有一个出处，"
                         + "作业侧不另造一个名字）",

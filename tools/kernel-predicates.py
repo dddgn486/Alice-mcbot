@@ -1164,6 +1164,14 @@ def rule_search_limit_not_unreachable():
                                  / "pathing" / "core" / "search" / "SearchConclusion.java")
                                 .read_text(encoding="utf-8"))
 
+    # ⚠️ 本规则多条判据要看的是**代码**：统一先剥注释（墓碑/迁移说明里提到旧写法不算违规）。
+    # 2026-09-29 实测教训（`D-527`）：本刀自己的墓碑里写着 `public enum Approach { … }`，
+    # 不剥注释的话那颗牙会**假红**。
+    def without_comments(text: str) -> str:
+        """去 `//` 与 `/* … */`（含 javadoc）—— 只看**代码**。"""
+        stripped = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+        return "\n".join(line.split("//")[0] for line in stripped.split("\n"))
+
     # ⭐ `P1-d` ①：唯一谓词必须**同时**覆盖两种"没得出可达性结论"
     inconclusive_fn = method_body(conclusion_code,
                                   "public static boolean inconclusive(PlanningStatus status) {")
@@ -1254,10 +1262,14 @@ def rule_search_limit_not_unreachable():
     # `STANDING_NO_REACHABLE`，作业层要用 `isStandingPointRefusal` 判"这次失败是不是站位类"）。
     # ⇒ 锚点必须**跟着结构走**（否则把字面量换成常量就静默失效 —— 这正是本规则第一版自己的教训）。
     # 两种写法都认，但**必须**出现其中之一。
+    # ⭐ `D-528`（2026-09-29，改革 ① 主体 `①-1`）：三个归因码 ＋ `isStandingPointRefusal` 搬进 `reach/`
+    # （`StandingPointRefusal`）⇒ 锚点必须改成**限定名**。⚠️ 旧写法咬的是**裸子串**
+    # `STANDING_NO_REACHABLE`，而 `StandingPointRefusal.STANDING_NO_REACHABLE` **仍然包含它**
+    # ⇒ 不改锚就会**继续报绿**（与 `D-524`/`D-525` 同一族「假绿」）。
+    # ⚠️ 同时**去掉**裸字面量那个分支：字面量从此只许出现在新家里（下面那颗牙管）。
     standable = re.search(
         r"if \(standableOnly\) \{(.{0,1500}?)"
-        r"return new Result\(null, null, (?:STANDING_NO_REACHABLE"
-        r"|\"no_reachable_standing_point\")\);",
+        r"return new Result\(null, null, StandingPointRefusal\.STANDING_NO_REACHABLE\);",
         planner_code, re.S)
     if not standable:
         problems.append("`MiningPlanner.plan` 的 `standableOnly` 早返回结构变了 ⇒ 本规则要跟着改")
@@ -1271,6 +1283,55 @@ def rule_search_limit_not_unreachable():
             problems.append("`standableOnly` 的兜底码 `no_reachable_standing_point` 不再受"
                             "「腿到底有没有给出理由」保护 ⇒ 真理由（如 `no_valid_standing_point`："
                             "缺一格地板）会被总括码吃掉（`1.4w`，`survey/35 §9` 桶3-3）")
+    # ⭐ `D-528`（2026-09-29，改革 ① 主体 `①-1`）：**`R8`「归因码」搬进 `reach/StandingPointRefusal`**
+    # （`plans §4.2`④ 逐字「跟着 **①** 走」）。上面那条 `standable` 锚点已改成**限定名**（理由见那里的注释）。
+    # 以下牙钉住"搬干净 ＋ 语义没被顺手改"：
+    #   ① 新家必须**逐字**定义三个码（名字 ＋ 字面量都要对 —— 字面量是**归因串**，被改过等于换了一套码）；
+    #   ② 谓词必须**只含两个站位码**，⛔ **不含** `ADJACENT_NO_REACHABLE`（`D-520` 逐字「刻意不进」：
+    #      顺手加进去 = **改变作业侧的分类行为**）；
+    #   ③ `MiningPlanner` 里不许再声明这三个常量、也不许再出现那三个**字面量**（挡复活 / 转发壳）。
+    # ⚠️ 判据用 `without_comments`：本刀自己在 `MiningPlanner` 留的墓碑是 `/* … */` 块注释，
+    # 里面就点着这三个名字 ⇒ 不剥注释会**假红**（`D-527` 的同一条教训）。
+    refusal = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "reach"
+               / "StandingPointRefusal.java")
+    if not refusal.exists():
+        problems.append("找不到 `reach/StandingPointRefusal.java` ⇒ 站位类归因码的**唯一出处**不在了"
+                        "（`D-528`：`plans §4.2`④「跟着 ① 走」）")
+    else:
+        refusal_code = without_comments(refusal.read_text(encoding="utf-8"))
+        for name, literal in (("STANDING_NO_VALID", "no_valid_standing_point"),
+                              ("STANDING_NO_REACHABLE", "no_reachable_standing_point"),
+                              ("ADJACENT_NO_REACHABLE", "no_reachable_adjacent_standing_point")):
+            if f'public static final String {name} = "{literal}";' not in refusal_code:
+                problems.append(f"`reach/StandingPointRefusal` 里没有 `{name} = \"{literal}\"` 这条"
+                                "**逐字**声明 ⇒ 归因串被改过（作业侧与夹具按字符串比对 ⇒ 等于换了码）")
+        predicate = method_body(refusal_code,
+                                "public static boolean isStandingPointRefusal(String reason) {")
+        if not predicate:
+            problems.append("`StandingPointRefusal.isStandingPointRefusal` 不在了 ⇒ "
+                            "「这次失败是不是站位类」的**唯一谓词**没了")
+        else:
+            for name in ("STANDING_NO_VALID", "STANDING_NO_REACHABLE"):
+                if name not in predicate:
+                    problems.append(f"`isStandingPointRefusal` 少了 `{name}` ⇒ "
+                                    "那一类站位失败不再被认出来（作业侧会当普通失败去重试）")
+            if "ADJACENT_NO_REACHABLE" in predicate:
+                problems.append("`isStandingPointRefusal` 里出现了 `ADJACENT_NO_REACHABLE` ⇒ "
+                                "把「站位枚举 + 破坏进站」的失败也算成站位类 = **改变作业侧分类行为**"
+                                "（`D-520` 逐字「刻意不进」，`D-011`）")
+    planner_nc = without_comments((ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
+                                   / "task" / "mining" / "MiningPlanner.java")
+                                  .read_text(encoding="utf-8"))
+    for name in ("STANDING_NO_VALID", "STANDING_NO_REACHABLE", "ADJACENT_NO_REACHABLE"):
+        if f"public static final String {name}" in planner_nc:
+            problems.append(f"`MiningPlanner` 里又**声明**了 `{name}` ⇒ 它已搬进 "
+                            "`reach/StandingPointRefusal`（`D-528`）：不许在原处复活、也不许留转发壳"
+                            "（`J-6`：同一份判据只有一个出处）")
+    for literal in ("no_valid_standing_point", "no_reachable_standing_point",
+                    "no_reachable_adjacent_standing_point"):
+        if f'"{literal}"' in planner_nc:
+            problems.append(f"`MiningPlanner` 里又出现字面量 `\"{literal}\"` ⇒ 归因码的唯一出处被绕过"
+                            "（`J-6`；`D-528`：字面量只许出现在 `reach/StandingPointRefusal`）")
     if "best.plan() != null || SearchConclusion.SEARCH_INCOMPLETE.equals(best.failureReason())" not in planner_code:
         problems.append("`planDirect` 结尾把 `exactTopK` 的 `SEARCH_INCOMPLETE` 改写成了"
                         " `no_reachable_standing_point`（`P1-d`）")
@@ -1315,10 +1376,6 @@ def rule_search_limit_not_unreachable():
     # 不许再出现旧的限定名 `MiningProfile.Approach`。
     # ⚠️ 判据一律先**剥注释**（`//` 与 `/* … */`）—— 墓碑/迁移说明里提到旧名字**不算违规**：
     # 本刀自己的墓碑就写着 `public enum Approach { … }`，不剥注释的话那颗牙会**假红**（已实测）。
-    def without_comments(text: str) -> str:
-        stripped = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
-        return "\n".join(line.split("//")[0] for line in stripped.split("\n"))
-
     capability = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "reach"
                   / "ApproachCapability.java")
     if not capability.exists():

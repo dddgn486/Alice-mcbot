@@ -25035,3 +25035,81 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 - ⚠️ **`①-0` 只解决了 3 处上层依赖里的 1 处**：`action.BlockInteraction.findPlaceableSlot`（`MiningPlanner:222`）与
   `MiningBudget`（`MiningBudget.java:3` 自己 import `action`）**仍在** ⇒ 现在**还不能**把「选」搬进 `reach/`。
 - 📌 **指针**：侦察件 = `docs/reviews/2026-09-29-①选-解体-开工前侦察.md`（§2 是本节的前置）· 断点 = `HANDOVER.md` 断点二十四 · 台账 = `O23` · 门禁 = `tools/kernel-predicates.py` 的 `rule_search_limit_not_unreachable`。
+
+---
+
+## D-528：改革 ① 主体 **`①-1`** —— `R8`「归因码」搬进 `reach/StandingPointRefusal`（2026-09-29，接 `D-527`）
+
+- 授权 = `plans §4.2`④ 逐字「④「归因码 R8」| 两个站位码 + `isStandingPointRefusal` | **跟着 ① 走**」＋ ① 的新家 = `reach/`（`§4.2`①）；
+  用户 2026-09-29 选的 **(a) 拆信封到底**路径下，`①-1` 是**无前置**的下一刀（`D-527` §五.1 已登记）。
+- ⚠️ **本刀的行为变化 = 0**：**常量名、字符串字面量、谓词语义全部逐字未改**（沿用 `D-460` 的「**只搬包、不改名**」口径）。
+
+### 一、落地
+
+| # | 内容 | 读数 |
+|---|---|---|
+| 1 | 新类 **`reach/StandingPointRefusal.java`**（51 行 · `final` + 私有构造）：`STANDING_NO_VALID` · `STANDING_NO_REACHABLE` · `isStandingPointRefusal(String)` · `ADJACENT_NO_REACHABLE` —— **四件逐字搬入**（连各自那段 javadoc，含"`ADJACENT` 刻意不进谓词"那条） | 新文件 |
+| 2 | `task/mining/MiningPlanner`：交出这四个成员（**留墓碑指针**）；4 处生产引用改**限定名**；一处失效的 `{@link #ADJACENT_NO_REACHABLE}` 改成 `{@link StandingPointRefusal#…}` | 53 行改动 |
+| 3 | ⭐ `job/fishbone/FishboneJob`：`import task.mining.MiningPlanner` → `import reach.StandingPointRefusal`（`isStandingPointRefusal` 调用点 + javadoc `{@link}` 一起换） ⇒ **作业层不再认识那个挖掘规划器** | 6 行改动 |
+| 4 | `task/FishboneSlice2CheckTask`（夹具）：1 处引用 + import | 3 行改动 |
+| 5 | 门禁 `rule_search_limit_not_unreachable`：**改锚** ＋ **7 颗牙**（§三） | 69 行改动 |
+
+**总计**：4 个文件改动（90 插入 / 41 删除）＋ 1 个新文件。
+
+**⭐ 为什么落 `reach/`**：这三个码说的全是**触及/站位**这件事（`D-460` 给 `reach/` 的定位逐字是「内核侧**几何层**（触及站位 / 视线 / 计划）」），
+而它们的消费者在**作业层**与夹具 —— 让作业层 import「`task/mining/` 里的**挖掘**规划器」只为判一句"是不是站位类"，正是设计文档反复点名的**错位**。
+⛔ **别把它读成"作业层已经不依赖 `task/mining` 了"**：`FishboneJob` **仍然** import `task/mining/{MiningBudget,MiningProfile}`
+（能力信封与预算；它们的归属见 `①-2`/`①-3`）—— 本刀只掐掉了**规划器**这一条。
+
+### 二、⭐ 门禁：为什么必须改锚（**同一族的「假绿」第三次出现**）
+
+该规则有一条位置化锚点（`standableOnly` 早返回的形状），它**两选一**地接受：
+① 裸常量名 `STANDING_NO_REACHABLE`，或 ② 裸字面量 `"no_reachable_standing_point"`。
+⇒ 搬包之后，`MiningPlanner` 里写的是 `StandingPointRefusal.STANDING_NO_REACHABLE` —— **它仍然包含裸子串** `STANDING_NO_REACHABLE`
+⇒ **不改锚，这条断言会继续报绿**（与 `D-524` 的位置化断言、`D-525` 的 `dropWouldBeLost(` 是同一族）。
+⇒ 修法：锚点改成**限定名**（`StandingPointRefusal\.STANDING_NO_REACHABLE`），并**删掉**裸字面量那个分支（字面量从此只许出现在新家）。
+
+### 三、门禁的 7 颗牙（全部做过注入验证）
+
+| 牙 | 判据 | 挡什么 | 注入验证 |
+|---|---|---|---|
+| **重锚** | `standableOnly` 早返回必须写 **`StandingPointRefusal.STANDING_NO_REACHABLE`** | 锚点过期后**静默失配** | 改回裸常量名 ⇒ 精确报「结构变了 ⇒ 规则要跟着改」 |
+| **①** | 新家必须**逐字**声明三个码（**名字 + 字面量**都要对） | 归因串被改过（作业侧/夹具按**字符串**比对 ⇒ 等于换了一套码）；顺手删一个码 | 两次注入（改 `STANDING_NO_VALID` 的字面量 / 改 `ADJACENT` 的字面量）⇒ 各自精确报红 |
+| **②** | 谓词必须**只含两个站位码** | 漏认（作业侧会把站位失败当普通失败去重试） | 删掉 `STANDING_NO_VALID` 那一项 ⇒ 精确报红 |
+| **③** | ⛔ 谓词**不许**含 `ADJACENT_NO_REACHABLE` | 「顺手把它加进去」= **改变作业侧分类行为**（`D-520` 逐字「刻意不进」） | 注入那一项 ⇒ 精确报红 |
+| **④** | `MiningPlanner` 不许再**声明**这三个常量 | 原处复活 / **转发壳** | 注入三个 `public static final String …` ⇒ 精确报红 |
+| **⑤** | `MiningPlanner` 的**代码**里不许再出现那三个字面量 | 绕过唯一出处（`J-6`） | 注入一个字面量常量 ⇒ 精确报红 |
+
+⭐ **一条工程化改进（顺手做的）**：本规则里那条 `without_comments()` 辅助函数**提到了函数开头只留一份**，
+因为 `D-527` 已证明"裸文本判据会把**墓碑里的旧名字**判成违规 ⇒ **假红**"。⚠️ 本刀在 `MiningPlanner` 留的墓碑就是 `/* … */` 块注释、
+里面点着这三个常量名 ⇒ 不剥注释必假红（已在注入台里如实体现）。
+
+### 四、判据
+
+| 判据 | 读数 |
+|---|---|
+| 注入台（7 颗牙） | **7/7 按预期变红** ＋ 两个文件 **sha 逐字还原**（`StandingPointRefusal` `823d88a8263317eb` · `MiningPlanner` `4e7fe448b1e6496c`） |
+| `./gradlew compileJava --no-daemon` | **BUILD SUCCESSFUL**（**一次过** —— 与 `D-527` 不同，那次是先红了 2 处才补齐） |
+| `python3 tools/kernel-predicates.py` | **PASS**（`搜索受限≠没有=0`） |
+| `tools/check-all.sh` | **`pass=34 warning=1 failed=0`** |
+| `python3 tools/check-layer-direction.py` | **PASS**：`reach/` **8 → 9 文件** · 反向依赖 0 · 红臂 14/14 |
+| `tools/headless-battery.sh core` | **`verdict=PASS`**（`exit=0`）· 指纹 **`d2d78e9c615d`** · 耗时 **249 s** · `SUMMARY` 30 步全 `PASS` · ⚠️ **非缓存命中**（上一轮 = `1b263fe5db6d`） |
+
+### 五、未做 / 下一步
+
+1. ⏳ **`①-2`（下一刀，无前置）**：`R2` ＋ `R5`（含 `MiningPlanner.Result`）搬进 `reach/` **＋ `canPlaceSupport` 改成入参**
+   （`D-527` §五.1 记的那**另外两处**上层依赖：`action.BlockInteraction.findPlaceableSlot` 与 `MiningBudget` 的 `import action`）；
+   同刀改 **4 条门禁的锚**（`rule_arrival_declared_and_consumed` · `rule_search_limit_not_unreachable` · `rule_support_and_cluster_order` ①c · `rule_cost_includes_break`）。
+   ⚠️ 它是这条链上**第一把会动行为边界**的刀 ⇒ 取值校验收紧到"电池 + 夹具读数"。
+2. ⏳ **`①-3`**：`R1` 收口（3 个便捷重载去留 ＋ **流体前置单独安置** ＋ `MineTask:948/982` 的 `[MiningPlanner探针]` 遗留）。
+
+### 六、诚实边界
+
+- ⛔ **本刀不证明任何行为变化**：三个归因串**逐字未改**，谓词逻辑逐字未改 ⇒ 作业侧的分类结果**不变**；
+  ⚠️ **没有客户端可观察变化**，本轮**不需要**客户端测试，jar **未同步**（没有可测的东西）。
+- ⛔ **`D-460` 的"只搬包、不改名"口径意味着常量名还是 `STANDING_…`** ⇒ 新家读起来是
+  `StandingPointRefusal.STANDING_NO_VALID`（**有重复感**）。⚠️ 把它改名（如 `NO_VALID`）是**另一刀**：
+  锚在名字上的门禁会**静默失效**（`survey/42 §3.3`），不该混进搬家刀 —— 本刀**刻意不动**它。
+- ⚠️ **`ADJACENT_NO_REACHABLE` 到今天仍然没有生产消费者**（只有日志与夹具的字面量断言）——
+  本刀**只是**把它搬了个家并**加了牙**钉住"不许顺手并进谓词"，⛔ **没有**给它找消费者（那不是本刀的范围）。
+- 📌 **指针**：断点 = `HANDOVER.md` 断点二十五 · 台账 = `O24` · 门禁 = `tools/kernel-predicates.py` 的 `rule_search_limit_not_unreachable`（`D-528` 那半）。
