@@ -25186,7 +25186,8 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 - ⚠️ **必须如实记的一处失误**：`①-2a` 的电池轮次**作废** —— 我在它跑的过程中改了源码，违反
   「**测量期间源文件必须冻结**」（`silent-measurement-failure` 铁律三）⇒ 已 `job_kill`，改为**树冻结后重跑一轮**。
 - 判据：`compileJava` 绿 · `check-all` **`pass=34 warning=1 failed=0`** · `check-layer-direction` PASS（`reach/` **11 文件**，
-  反向依赖 0）· 注入验证 **14/14 变红** · 电池 `verdict=PASS`（`①-2a`＋`①-2b` **同轮**，指纹见断点二十六）。
+  反向依赖 0）· 注入验证 **14/14 变红** · 电池 `verdict=PASS`（`①-2a`＋`①-2b` **同轮** · 指纹 **`4fd5954af60d`** ·
+  **238 s** · ⚠️ **非缓存命中**（缓存里是上一刀的 `d2d78e9c615d`）· `passed=44/44 skipped=0` · `ticks=4503`）。
 - ⚠️ **本刀让 3 处文档行号引用过期并同刀修**（`check-ref-integrity` 抓的）：`MiningPlanner.java` 625 → 380 行 ⇒
   2 处**活指针**（`O19` ⑤ 与 `D-523` 的 `N5` 行，都指 `planGoalApproach` 里那个 `excluded = null`）改成 `:288`；
   1 处是 `docs/reviews/2026-09-28-断点十一-开工前复盘与计划.md` 的**历史快照**（`:433-486`，指的是已被 `D-520` 删掉的

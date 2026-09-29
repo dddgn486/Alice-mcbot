@@ -3331,7 +3331,8 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 **⑦ 判据**：`compileJava` 绿 · `check-all` **`pass=34 warning=1 failed=0`** · `check-layer-direction` **PASS**（`reach/` **11 文件**）·
 `check-ref-integrity` **PASS**（⚠️ 本刀让 `MiningPlanner.java` 缩到 380 行 ⇒ 抓出 **3 处文档行号过期**并同刀修：
 2 处活指针 → `:288`，1 处 `docs/reviews/2026-09-28-断点十一…md` 的**历史快照**标注为历史、
-⛔ **不**伪造新行号）· `headless-battery core` **`verdict=PASS`**（指纹见 `D-530` / 台账 `O25`）。
+⛔ **不**伪造新行号）· `headless-battery core` **`verdict=PASS`**（指纹 **`4fd5954af60d`** · **238 s** ·
+⚠️ **非缓存命中**（缓存里是断点二十五那轮的 `d2d78e9c615d`）· `passed=44/44 skipped=0` · `ticks=4503`）。
 
 **⑧ ⏭ 下一步（无前置，不需要拍板）**：`①-3` = **`R1` 收口** —— `plan()` 的 3 个便捷重载去留 ·
 **流体前置（`FluidRiskPolicy.miningRefusal`）单独安置** · `MineTask:948/982` 的 `[MiningPlanner探针]` 遗留
