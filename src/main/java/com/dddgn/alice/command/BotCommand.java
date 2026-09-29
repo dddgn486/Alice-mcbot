@@ -342,7 +342,20 @@ public final class BotCommand {
                         .executes(ctx -> batteryCommand(ctx.getSource(), "list"))
                         .then(Commands.literal("core").executes(ctx -> batteryCommand(ctx.getSource(), "core")))
                         .then(Commands.literal("full").executes(ctx -> batteryCommand(ctx.getSource(), "full")))
-                        .then(Commands.literal("list").executes(ctx -> batteryCommand(ctx.getSource(), "list"))))
+                        .then(Commands.literal("list").executes(ctx -> batteryCommand(ctx.getSource(), "list")))
+                        // ⭐ `D-521` **单步**：只跑一步 + 把观察者传到现场（名字可 Tab 补全，也可从
+                        // `/alice battery list` 的清单里点 —— 两者都**不需要记/不需要输入坐标**）
+                        .then(Commands.literal("single")
+                                .then(Commands.argument("step", StringArgumentType.word())
+                                        .suggests((ctx, builder) -> {
+                                            for (String stepName : com.dddgn.alice.task
+                                                    .RegressionBatteryTask.knownStepNames()) {
+                                                builder.suggest(stepName);
+                                            }
+                                            return builder.buildFuture();
+                                        })
+                                        .executes(ctx -> batteryCommand(ctx.getSource(),
+                                                "single:" + StringArgumentType.getString(ctx, "step"))))))
                 .then(Commands.literal("recipes")
                         .executes(ctx -> recipesDump(ctx.getSource(), "alice-recipes.json"))
                         .then(Commands.argument("file", StringArgumentType.word())
@@ -1222,7 +1235,40 @@ public final class BotCommand {
             for (String line : curation) {
                 source.sendSuccess(() -> Component.literal("[alice] " + line), false);
             }
+            // ⭐⭐ `D-521` **可点击的单步清单**（用户 2026-09-29：「每个单元测试隔得距离太远，
+            // 用电池不好观察」）⇒ 点一下名字 = 只跑那一步 + **把你传到现场**，跑完送回原处。
+            // 为什么用"聊天里可点"而不是做 GUI：零参数、零新界面、零网络协议，成本差一个量级。
+            var names = new java.util.ArrayList<>(
+                    com.dddgn.alice.task.RegressionBatteryTask.knownStepNames());
+            java.util.Collections.sort(names);
+            source.sendSuccess(() -> Component.literal(
+                    "[alice] ↓ 点步名 = 只跑这一步（会把你传到现场，跑完送回原处）；共 "
+                            + names.size() + " 步："), false);
+            // 每行 4 个，避免一行长得没法点
+            for (int i = 0; i < names.size(); i += 4) {
+                net.minecraft.network.chat.MutableComponent row = Component.literal("[alice]   ");
+                for (int j = i; j < Math.min(i + 4, names.size()); j++) {
+                    String stepName = names.get(j);
+                    row.append(Component.literal("[" + stepName + "]").withStyle(style -> style
+                            .withClickEvent(new net.minecraft.network.chat.ClickEvent(
+                                    net.minecraft.network.chat.ClickEvent.Action.RUN_COMMAND,
+                                    "/alice battery single " + stepName))
+                            .withHoverEvent(new net.minecraft.network.chat.HoverEvent(
+                                    net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT,
+                                    Component.literal("只跑 " + stepName + "（点一下即开始）")))));
+                    row.append(Component.literal("  "));
+                }
+                source.sendSuccess(() -> row, false);
+            }
             return 1;
+        }
+        // ⭐ `D-521` `single:<step>`：只跑名单里的那一步（复用无头通道的 `setOnlySteps` 定向机制）。
+        String onlyStep = action.startsWith("single:") ? action.substring("single:".length()) : null;
+        if (onlyStep != null
+                && !com.dddgn.alice.task.RegressionBatteryTask.knownStepNames().contains(onlyStep)) {
+            source.sendFailure(Component.literal("[alice] 不认识的步名「" + onlyStep
+                    + "」⇒ 先 `/alice battery list` 看清单（Tab 也能补全）"));
+            return 0;
         }
         boolean full = "full".equals(action);
         if (BotManager.isBusy(bot)) {
@@ -1234,12 +1280,20 @@ public final class BotCommand {
         // 与物品入口保持一致：**能拿到玩家就传玩家**。
         ServerPlayer batteryObserver = source.getEntity() instanceof ServerPlayer sp ? sp : null;
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.IN_GAME_PLAYER);
+        // ⚠️ `onlySteps` 是**静态**的（无头通道的机制）⇒ 两条路都必须显式设定，否则会**串味**：
+        // 上一轮单步留下的名单会让这一轮 `/alice battery core` 只跑那一步（静默）。
+        com.dddgn.alice.task.RegressionBatteryTask.setOnlySteps(
+                onlyStep == null ? null : java.util.List.of(onlyStep));
         if (!BotManager.assignRegressionBattery(bot, batteryObserver, full)) {
+            com.dddgn.alice.task.RegressionBatteryTask.setOnlySteps(null);
             source.sendFailure(Component.literal("[alice] " + BotManager.busyMessage(bot)));
             return 0;
         }
-        source.sendSuccess(() -> Component.literal("[alice] 回归电池已开始（"
-                + (full ? "FULL：全部项" : "CORE：必要基础 + 当前主线") + "）⇒ 看 [Regression] SUMMARY"), false);
+        source.sendSuccess(() -> Component.literal(onlyStep == null
+                ? "[alice] 回归电池已开始（" + (full ? "FULL：全部项" : "CORE：必要基础 + 当前主线")
+                        + "）⇒ 看 [Regression] SUMMARY"
+                : "[alice] 单步已开始：**" + onlyStep + "** ⇒ 已把你传到现场，跑完送回原处；"
+                        + "读数看日志 [Regression] SUMMARY"), false);
         return 1;
     }
 

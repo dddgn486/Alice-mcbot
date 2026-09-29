@@ -24572,3 +24572,84 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 | ⭐ **优先复核场景（`§八`）** | `single:mine_vein_propagation` = **PASS**，`mined` **`30/30`** | ⚠️ 上一次同夹具的读数（2026-09-24 12:26）= 也是 **`30/30`** PASS ⇒ **实心脉这一档没有退化**；`ticks` 4455 → 4623（⚠️ 两次运行之间还有别的提交 ⇒ 这个差**不能**单独归因于本刀） |
 
 ⚠️ 归因边界：`mined 12/30` 那些读数是 **2026-09-22 / 09-24** 的（当时 `MIN_MINED` 还是低位、且 `PL-1`「过期证明重评」尚未落地）⇒ **不许**把它当成"本刀把 12 提到 30"的对照。
+---
+
+## D-521：**单步观察器** —— 只跑一个用例 ＋ 自动把观察者传到现场（2026-09-29，用户「给我单测工具，主要是每个单元测试隔得距离太远，用电池不好观察」）
+
+### 一、问题（用户口径）与实测事实
+
+用户逐字：**「给我单测工具，主要是每个单元测试隔得距离太远，用电池不好观察」**。
+
+实测（`src/main/java/com/dddgn/alice/task/*.java` 的 `START_FOOT` 常量）：
+
+| 步 | 起点 |
+|---|---|
+| `clear_retry` | `(6, 64, 67)` |
+| `write_budget` | `(0, 64, 66)` |
+| `scaffold` | `(38, 64, 46)` |
+| `mine_regression` | `(21, 64, 140)` |
+| `ore_course` | `(56, 63, 132)` |
+| `chain_mine` | `(23, 64, 152)` |
+| `clear_guard` | `(44, 64, 158)` |
+| `lumber_course` | `(23, 64, 207)` |
+| `partial_search` | `(16, 64, 245)` |
+| ⚠️ `mine_reach_probe`（round4） | `(432, 84, 428)` ← **400 格外** |
+
+⇒ 跨度 `z=46…245`（≈200 格），另有一个孤点在 `432/428`；而**观察者此前从不被传送**
+⇒ 一轮 CORE 电池里 bot 满世界跑，人只能看到最后一步。
+
+### 二、⭐ 判断：**不挪场景，改传送观察者**（附代价）
+
+**为什么不挪场景**：5 个 CORE 步（`clear_retry` / `write_budget` / `scaffold` / `clear_guard` /
+`mine_regression`）**既无场景函数也无 provision**，完全依赖那些绝对坐标处**已存在的世界地形**
+（`tools/headless-battery.sh` 头部逐字写了这件事：世界必须是客户端存档的副本，否则这 5 步出**假红**）
+⇒ 挪坐标 = 重建世界 + 重写夹具，代价与风险都远大于传送。
+
+### 三、落地（3 文件 + 1 文档）
+
+| 文件 | 改动 |
+|---|---|
+| `task/RegressionBatteryTask.java` | ① 新 `moveObserverToStep()`：**每步真的开始时**（落地同步之后、场景已建好）把观察者传到现场；② 新 `observationSpot()`：同层、半径 **4→8**、方向顺序确定的第一个 `canStandCentered` 格，兜底 `bot+(0,4,0)`；③ 新 `restoreObserver()`：`finish()` 里送回**出发地**（跨维度也行）；④ `finish()` **清 `onlySteps`**；⑤ 新 `lastOnlySteps()`（与 `onlySteps` **刻意分开**，理由见下） |
+| `command/BotCommand.java` | ① `/alice battery single <step>`（名字 **Tab 补全**，非法名字响亮拒绝）；② `/alice battery list` 的清单变成**可点击**（每行 4 个，点了就 `run_command` 那一步）；③ **两条路都显式设定 `onlySteps`**（single 设、core/full 清） |
+| `item/RegressionBatteryItem.java` | **Shift+右键 = 重跑上一个单步**（零参数）；⚠️ 没跑过单步时**不猜**、不许静默退化成跑整轮 CORE |
+| `docs/TESTING_GUIDE.md` | 追加一节（用法 / 观察点 / 验证分工 / 为什么不挪场景） |
+
+### 四、⭐ 两条设计理由（都来自本项目已经吃过的亏）
+
+1. **观察点 = 半径 4~8 的可站格，⛔ 不是"贴着 bot 站"** ——
+   ① 挡在 bot 路线上 ⇒ **改变被测行为**（寻路/绕障/清障步全会受影响）；
+   ② 掉落物吸附半径约 1 格 ⇒ 站近了会把夹具要数的掉落物**捡走**
+   （`dropsLeft`/`collected` 类判据的经典假失败，`D-168`/`D-179` 都吃过）。
+2. **`lastOnlySteps` 与 `onlySteps` 分开，且 `finish()` 必须清 `onlySteps`** ——
+   `onlySteps` 是**静态**的（无头通道的既有机制）；不清的话下一次 `/alice battery core`
+   会**只跑那一步**，而日志看起来一切正常 = **静默的「看起来跑了 30 项其实 1 项」**。
+   物品的"重跑上一个单步"需要一个**不被清空**的记忆 ⇒ 两者缺一不可。
+
+### 五、验证（逐级）
+
+| 层 | 结果 |
+|---|---|
+| `IMPLEMENTED` | ✅ 3 文件 + 1 文档 |
+| `COMPILES` | ✅ `compileJava` |
+| `SERVER_TESTED` | ✅ `single:mine_regression,adjacent_goal_exclusion` = **PASS 2/2**，**47 s**（CORE 一轮 250+ s）· ⭐ **传送真的发生了**：`[Regression] observer step=mine_regression bot=21,64,140 spot=25,64,140 offset=(4,0,0)` 与 `… spot=20,64,137 offset=(0,0,4)`（半径 4 的确定性环、跳过不可站格、落在场景平台上）· CORE 全轮 PASS（见下） |
+| `WINDOWS_CLIENT` | ❌ **未验** —— 真人只看得到的三件事：**视角是否真在场景旁** / **有没有卡在方块里** / **聊天里点步名好不好点** |
+
+⭐ **关键发现（写在这里省一次重挖）**：无头通道**不是** `observer=null` ——
+`HeadlessBattery` 有 `syntheticObserver()`（合成的第二个玩家实体，`HeadlessBattery:284` 起）
+⇒ **传送路径在无头就被走到了**，不必等客户端（这与该文件头部那条"observer=null"的注释**已经不符**，
+按纪律登记：⛔ 不改它的原文，只记事实）。
+### 六、⭐⭐ 收尾实测：**44 步里 2 步没被传送** ⇒ 查出并修好（这就是"重跑才发现"的那一条）
+
+第一轮 CORE（`observer` 传送已生效）读数：**44 步，42 步有 `[Regression] observer …` 行，2 步没有**
+（`comm` 求出 = `adjacent_goal_exclusion` · `hazard_aversion_plan`）。
+
+**根因（有日志证据，不是猜）**：`startStep` 有**两条出口** ——
+① 正常路径（落地同步通过后）；
+② `awaitGrounding` 的**超时兜底**（等 >{@code MAX_PREMISE_WAIT_TICKS} = 40 tick 仍不落地 ⇒ "如实继续"）。
+第一版只在 ① 调了 `moveObserverToStep()` ⇒ 走 ② 的那两步**漏掉传送**。
+⭐ 判别证据：这两步正是日志里 `[Regression] premise step=… 起步时未落地 ⇒ 等待落地（最多 40 tick）`
+并且**等满**的那两条（另有 7 步也报了未落地、但在后续 tick 恢复走 ① ⇒ 传送正常）。
+⚠️ 这条**不是靠读码发现的**，是靠"42 ≠ 44"这个差数去核对的 —— 登记为一条可复用方法：
+**新加一个"每步都该发生一次"的副作用时，判据要写成"发生次数 == 实跑步数"，不能只写"至少发生过"。**
+
+修正 = 两条出口**行为一致**（方法本身按 `index` 幂等 ⇒ 重入/两处调用都安全）。

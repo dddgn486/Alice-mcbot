@@ -2993,3 +2993,54 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 
 **下一刀 = 清障丢弃（`DS-7`）**（决策点 ③ 已裁：进 改革 ① 主体、紧接本刀之后）。
 客户端要看的现象：**被掩埋的目标仍被挖到**（本刀删掉的正是"固定 13 格站位枚举 + 破坏进入"那条兜底链，换成内核一次搜索）——⚠️ 归因串与日志形状都变了：`[MiningPlanner] arrival=MINING_APPROACH …` / `[MineRunner] walk_start … arrival=…`（旧 `mode=…` 不再出现），**读日志时别按旧字面量 grep**。
+---
+
+### ✅ 断点十八（2026-09-29 · 第十八次；⭐⭐ **单步观察器** —— 客户端可跑单个用例并自动把观察者传到现场）
+
+> ⚠️ **本节追加在文件末尾、❗ 未插入上方断点序列**（原因同前三次：本文件有 14 处 ≥2258 的自指行号引用）。
+> 📌 决策 = `D-521`（`docs/AI_DECISIONS.md`，含 §五 验证 / §六 收尾实测）· 使用说明 = `docs/TESTING_GUIDE.md` 末尾新增一节。
+
+#### ① 用户诉求与判断
+
+用户逐字：「**给我单测工具，主要是每个单元测试隔得距离太远，用电池不好观察**」。
+实测场景坐标散布在 `z=46…245`（另有一个探针步在 `432/428`），而**观察者此前从不被传送**。
+⭐ 判断 = **不挪场景、改传送观察者** —— 5 个 CORE 步（`clear_retry`/`write_budget`/`scaffold`/`clear_guard`/`mine_regression`）
+**既无场景函数也无 provision**，完全依赖那些绝对坐标处**已存在的世界地形** ⇒ 挪坐标要重建世界 + 重写夹具。
+
+#### ② 落了什么（3 文件 + 1 文档）
+
+| 入口 | 形式 |
+|---|---|
+| 看清单 + 点一个 | `/alice battery list` ⇒ **聊天里可点击**的步名（每行 4 个，点了 `run_command` 那一步） |
+| 只跑某一步 | `/alice battery single <步名>`（名字 **Tab 补全**；非法名响亮拒绝） |
+| 反复调同一个 | `alice:regression_battery` **Shift+右键 = 重跑上一个单步**（零参数；没跑过时不猜、不静默退化成跑整轮） |
+
+**观察点** = 同层、离 bot **半径 4→8**、方向顺序确定的第一个 `canStandCentered` 格；兜底 `bot+(0,4,0)`（清 `fallDistance`）。
+⛔ **不是"贴着 bot 站"**：① 挡路线 ⇒ **改变被测行为**；② 掉落物吸附 ~1 格 ⇒ 会把夹具要数的掉落物捡走
+（`dropsLeft`/`collected` 类假失败，`D-168`/`D-179` 都吃过）。**整轮结束**送回出发地（跨维度也行）。
+
+#### ③ ⭐⭐ 收尾实测抓到的真缺陷（**不靠读码、靠差数**）
+
+第一轮 CORE：**44 步，42 步有 `[Regression] observer …` 行** ⇒ `comm` 求差 = `adjacent_goal_exclusion`、`hazard_aversion_plan`。
+根因：`startStep` 有**两条出口**（正常 / `awaitGrounding` 的 40-tick 超时兜底），第一版只在一处调了搬移。
+修好后复跑 = **44/44**。
+⭐ **可复用方法**：新加一个"每步都该发生一次"的副作用时，判据要写成「**发生次数 == 实跑步数**」，
+⛔ 不能只写「至少发生过」。
+
+#### ④ ⚠️ 两条与文档不符的事实（登记，⛔ 只改被碰到的那些）
+
+1. `docs/TESTING_GUIDE.md:91` 写「**CORE 30 / FULL 40**」= **过期**（实测 **CORE 44 项 / 总 106 项**）
+   ⇒ 已**原地更正**（0 行净增）。
+2. `headless/HeadlessBattery.java:24` 写「`observer=null`」= **与现实不符** ——
+   该类早就有 `syntheticObserver()`（`FakePlayerFactory.getMinecraft` 造的**合成第二玩家**）
+   ⇒ **传送路径其实在无头就被走到了**（这也是本轮 `SERVER_TESTED` 能给出 `observer` 行的原因）
+   ⇒ 已原地更正该句（⛔ 不改语义）。
+
+#### ⑤ 验证等级
+
+| 层 | 结果 |
+|---|---|
+| `COMPILES` | ✅ |
+| 门禁 | ✅ `check-all` = **`pass=34 warning=1 failed=0`**（**连跑三次逐项相同**；⚠️ 中途一次 `failed=1` = 我自己在同一命令行里**先审计后生成**索引 ⇒ `check-decisions-index` 如实判红，**不是门禁不稳**）· `ref-integrity` PASS(1581) · `decisions-index` PASS(516/622) |
+| `SERVER_TESTED` | ✅ `single:mine_regression,adjacent_goal_exclusion` = **PASS 2/2，45~47 s**（CORE 一轮 250+ s）· CORE 全轮 **`verdict=PASS`（指纹 `8c1e809580c5`）** · ⭐ **传送 44/44** |
+| `WINDOWS_CLIENT` | ❌ **未验** —— 真人只看得到三件事：**视角是否真在场景旁 / 有没有卡在方块里 / 聊天里点步名好不好点** |

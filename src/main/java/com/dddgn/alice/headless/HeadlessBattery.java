@@ -21,8 +21,10 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
  * </pre>
  *
  * <p>它只做四件事：① 起服后生成一只假人；② 走**与游戏内物品完全相同**的入口
- * （{@link BotManager#assignRegressionBattery}，`observer=null` —— 86 处 `observer` 调用点全部有
- * `observer != null` 守卫，所以"没有真人观察者"是既有设计支持的，不是本入口的补丁）；
+ * （{@link BotManager#assignRegressionBattery} —— ⚠️ 原文写「`observer=null`」，但**现实已不是**：
+ * 本类早在 `syntheticObserver()`（见其 javadoc）里用 `FakePlayerFactory.getMinecraft` 造了
+ * **合成的第二个玩家实体**充当 `observer`（`CapabilityGateCheckTask` 的 `foreign_break_attribution`
+ * 需要"另一个玩家实体"）；取不到才退回 `null`。2026-09-29（`D-521`）核实并原地更正，⛔ 不改语义）；
  * ③ 等电池跑完读 {@link com.dddgn.alice.task.RegressionBatteryTask#lastVerdict()}；
  * ④ 把判决翻成**进程退出码**并 `System.exit`，让 CI 能判红。
  *

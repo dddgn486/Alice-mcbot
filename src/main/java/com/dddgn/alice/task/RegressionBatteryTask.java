@@ -445,8 +445,26 @@ public final class RegressionBatteryTask implements Task {
         return CURATION.keySet();
     }
 
+    /**
+     * ⭐ `D-521`：最近一次**定向名单**（`single:<step>` / 物品重跑用）。
+     *
+     * <p>⚠️ 与 {@link #onlySteps} **刻意分开**：`onlySteps` 在 {@link #finish()} 里会被清空
+     * （不清的话下一次 `/alice battery core` 会**只跑那一步** —— 静默的"看起来跑了 30 项其实 1 项"），
+     * 而物品需要一个"上一轮跑的是哪一步"来重跑 ⇒ 清空**不**影响它。
+     */
+    private static volatile java.util.List<String> lastOnlySteps;
+
+    /** 见 {@link #lastOnlySteps}；空列表 = 还没跑过任何定向步。 */
+    public static java.util.List<String> lastOnlySteps() {
+        return lastOnlySteps == null ? java.util.List.of() : lastOnlySteps;
+    }
+
     public static void setOnlySteps(java.util.Collection<String> names) {
-        onlySteps = (names == null || names.isEmpty()) ? null : java.util.Set.copyOf(names);
+        boolean clear = names == null || names.isEmpty();
+        onlySteps = clear ? null : java.util.Set.copyOf(names);
+        if (!clear) {
+            lastOnlySteps = java.util.List.copyOf(names);
+        }
     }
 
     /** 最近一次电池判决（见 {@link #lastVerdict}）。 */
@@ -459,6 +477,16 @@ public final class RegressionBatteryTask implements Task {
 
     private final BotPlayer bot;
     private final ServerPlayer observer;
+    /**
+     * ⭐⭐ **单步观察器**（`D-521`）：观察者被搬到现场**之前**的位置（`null` = 还没搬过）。
+     *
+     * <p>只在 {@link #finish()} 里送回去一次 ⇒ 一轮电池看完，玩家回到出发地，不用自己走回来。
+     * 无头通道 `observer == null` ⇒ 本机制**整体不参与**（零行为变化）。
+     */
+    private net.minecraft.world.phys.Vec3 observerHomePos;
+    private net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> observerHomeDim;
+    /** 已经为哪个 `index` 搬过观察者（{@link #startStep} 会因等落地被重复进入 ⇒ 不能重复搬）。 */
+    private int observerMovedForIndex = -1;
     private final ScopeBuffer scope;
     private final List<Step> steps = new ArrayList<>();
     private final Map<String, String> results = new LinkedHashMap<>();
@@ -893,6 +921,11 @@ public final class RegressionBatteryTask implements Task {
                     step.name(), premiseWaitTicks);
             premiseWaitTicks = 0;
         }
+        // ⭐⭐ `D-521`：**把观察者搬到本步现场** —— 这是用户「每个单元测试隔得距离太远，用电池不好观察」
+        // 的直接修法（场景坐标实测散布在 z=46…245，另有一个在 432/428；观察者此前**从不被传送**）。
+        // 位置 = "本步真的开始了"这一刻（落地同步之后）⇒ 搬过去时现场已经是**建好的场景**。
+        // 幂等：方法内按 `index` 去重（`startStep` 会因等落地被重复进入）。
+        moveObserverToStep();
         stepTicks = 0;
         stepStarted = true;
         // **F1 地基**：本步由**自检夹具**驱动（与"玩家让做的/LLM 决定的"区分开）——
@@ -900,6 +933,106 @@ public final class RegressionBatteryTask implements Task {
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
         current = step.factory().get();
         return Status.RUNNING;
+    }
+
+    /**
+     * ⭐⭐ **单步观察器**（`D-521`）：把观察者搬到**本步现场**。
+     *
+     * <p><b>它解决什么</b>（用户 2026-09-29 逐字：「给我单测工具，主要是每个单元测试隔得距离太远，
+     * 用电池不好观察」）：CORE 电池 30 步的场景是**硬编码的世界坐标**，实测散布在
+     * `z=46…245`（`clear_retry` 6/64/67 · `scaffold` 38/64/46 · `mine_regression` 23/64/140 ·
+     * `lumber` 23/64/207 · `partial_search` 16/64/245），还有一个探针步在 `432/84/428`；
+     * 而观察者（真人玩家）**此前从不被传送** ⇒ 一轮电池里 bot 满世界跑，人只能看到最后一步。
+     *
+     * <p><b>为什么不是"把场景挪近"</b>：5 个 CORE 步（`clear_retry` / `write_budget` /
+     * `scaffold` / `clear_guard` / `mine_regression`）**既无场景函数也无 provision**，
+     * 完全依赖那些绝对坐标处**已存在的世界地形** ⇒ 挪坐标等于重建世界与夹具，代价与风险都远大于传送。
+     *
+     * <p><b>幂等</b>：按 {@code index} 去重 —— {@link #startStep} 会因"等落地"被重复进入。
+     * 无头通道 {@code observer == null} ⇒ 整个机制不参与（零行为变化，指纹不变的原因）。
+     */
+    private void moveObserverToStep() {
+        if (observer == null || observerMovedForIndex == index) {
+            return;
+        }
+        observerMovedForIndex = index;
+        if (observerHomePos == null) {
+            observerHomePos = observer.position();
+            observerHomeDim = observer.level().dimension();
+        }
+        net.minecraft.server.level.ServerLevel level = bot.serverLevel();
+        BlockPos botFoot = com.dddgn.alice.pathing.MovementHelper.footCell(level, bot);
+        BlockPos spot = observationSpot(level, botFoot);
+        observer.teleportTo(level, spot.getX() + 0.5D, spot.getY(), spot.getZ() + 0.5D,
+                Set.of(), observer.getYRot(), observer.getXRot());
+        observer.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+        // 兜底观察点是**悬空**的（见 `observationSpot`）⇒ 清坠落距离，免得为了看测试摔一下。
+        observer.fallDistance = 0.0F;
+        BotLog.info("[Regression] observer step={} bot={} spot={} offset=({},{},{})",
+                steps.get(index).name(), botFoot.toShortString(), spot.toShortString(),
+                spot.getX() - botFoot.getX(), spot.getY() - botFoot.getY(),
+                spot.getZ() - botFoot.getZ());
+        observer.sendSystemMessage(net.minecraft.network.chat.Component.literal(
+                "[alice] ▶ " + (index + 1) + "/" + steps.size() + " " + steps.get(index).name()
+                        + " @ " + botFoot.toShortString()
+                        + "（已把你移到现场；结束后送回原处）"));
+    }
+
+    /**
+     * **观察点** = 同层、离 bot **半径 4~8** 的第一个「可站」格（{@code canStandCentered} 是"能站"的
+     * **唯一定义**，见 `D-167`）。
+     *
+     * <p>⚠️ 为什么**不是**"贴着 bot 站"（两个都不会报错、但都会让夹具说谎）：
+     * ① 挡在 bot 的路线上 ⇒ **改变了被测行为**（寻路/绕障/清障步全会受影响）；
+     * ② 掉落物吸附半径约 1 格 ⇒ 站近了会把夹具要数的掉落物**捡走**
+     * （`dropsLeft` / `collected` 类判据的经典假失败，`D-168`/`D-179` 都吃过）。
+     * 半径 4 起跳把两者都挡在门外；场景实测都只有十几格宽 ⇒ 4~8 格**看得见**。
+     *
+     * <p>兜底：环上找不到可站格（例如 bot 在半空/水里/竖井里）⇒ 用 {@code bot + (0,4,0)}（悬空 ⇒
+     * 会落到地面），调用方把 {@code fallDistance} 清 0。
+     */
+    private static BlockPos observationSpot(net.minecraft.server.level.ServerLevel level, BlockPos botFoot) {
+        // 确定性顺序（正前 → 左 → 后 → 右 → 四个斜角）⇒ 同一个起点每次给同一个观察点（可复现）。
+        int[][] dirs = {{0, 1}, {1, 0}, {0, -1}, {-1, 0}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
+        for (int radius = 4; radius <= 8; radius++) {
+            for (int[] d : dirs) {
+                for (int dy : new int[]{0, 1, -1}) {
+                    BlockPos candidate = botFoot.offset(d[0] * radius, dy, d[1] * radius);
+                    if (com.dddgn.alice.pathing.MovementHelper.canStandCentered(level, candidate)) {
+                        return candidate;
+                    }
+                }
+            }
+        }
+        return botFoot.above(4);
+    }
+
+    /**
+     * **把观察者送回出发地**（`D-521`）：只在 {@link #finish()} 里调一次。
+     *
+     * <p>{@code observer == null}（无头通道）或从没搬过 ⇒ no-op。
+     * 跨维度也送得回去（用出发时记下的 {@code observerHomeDim}）。
+     */
+    private void restoreObserver(String verdict) {
+        if (observer == null || observerHomePos == null) {
+            return;
+        }
+        net.minecraft.server.level.ServerLevel home = observer.getServer() == null
+                ? null
+                : observer.getServer().getLevel(observerHomeDim);
+        if (home != null) {
+            observer.teleportTo(home, observerHomePos.x, observerHomePos.y, observerHomePos.z,
+                    Set.of(), observer.getYRot(), observer.getXRot());
+            observer.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+            observer.fallDistance = 0.0F;
+            observer.sendSystemMessage(net.minecraft.network.chat.Component.literal(
+                    "[alice] 电池结束（" + verdict + "）⇒ 已把你送回原处。完整读数看日志 [Regression] SUMMARY"));
+        } else {
+            observer.sendSystemMessage(net.minecraft.network.chat.Component.literal(
+                    "[alice] 电池结束（" + verdict + "），但原维度已不可用 ⇒ 无法送回原处"));
+        }
+        observerHomePos = null;
+        observerMovedForIndex = -1;
     }
 
     /**
@@ -944,6 +1077,9 @@ public final class RegressionBatteryTask implements Task {
         } else {
             return Status.RUNNING;
         }
+        // ⭐ `D-521`：**超时兜底这条路也要搬观察者**（`startStep` 的两条出口必须行为一致）。
+        // 幂等（按 `index` 去重）⇒ 与正常路径重复调用无副作用。
+        moveObserverToStep();
         stepTicks = 0;
         stepStarted = true;
         // **F1 地基**：本步由**自检夹具**驱动（与"玩家让做的/LLM 决定的"区分开）——
@@ -1089,6 +1225,13 @@ public final class RegressionBatteryTask implements Task {
             BotLog.warn("[Regression] 电池归属表与实跑项不一致：{} {}（见 docs/BATTERY_CURATION.md）",
                     curationError, phantom.isEmpty() ? "" : "phantom=" + phantom);
         }
+        // ⭐ `D-521` 两件收尾（顺序有意义：先送回观察者，再清定向名单）。
+        // ① 送回原处：一轮电池跑完不用自己走回来（`observer == null` 时是 no-op）；
+        // ② **清 `onlySteps`**：⚠️ 不清的话下一次 `/alice battery core` 会**只跑那一步**，
+        //    而日志看起来一切正常 —— 正是"静默的看起来跑了 30 项其实 1 项"那一类。
+        //    （`lastOnlySteps` 刻意**不**清：物品的"重跑上一个单步"要点名它。）
+        restoreObserver(verdict);
+        onlySteps = null;
         // DEGRADED 仍返回 DONE：**运行本身完成了**（"环境不具备"不是电池的失败）；
         // 判决的严重性由那一行 `→ DEGRADED(...)` 承载，绝不冒充 PASS。
         return allPass || degraded ? Status.DONE : Status.FAILED;
