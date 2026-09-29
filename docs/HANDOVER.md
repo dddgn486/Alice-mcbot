@@ -3990,3 +3990,60 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 
 `O41`（「完整的框架」项目级终点，复核触发 = `1-3` 落地 —— ⚠️ 因本断点而顺延）· `O43`（`K2` 夹具假绿，批次 2）·
 `O42` ④（`unsupported_falling_neighbour` 做不出稳定场景）· `S13`（需另立执行层夹具）· 台账 `O40` ③ 的牙排期张力已关闭。
+
+---
+
+## 断点三十八 —— 批次 1 `1-3` 落地：**成员级退役**（用户裁甲）＋ 新门禁 `rule_standing_retirement_no_residue`（2026-09-29）
+
+**基线**：`2a8a1c76`（`1-3` 开工前侦察）。
+
+### ① 一句话结论
+
+用户裁 **甲** ⇒ `1-3` 的真实形状 = **A 腿搬家（`StandingPlanSelector` → `reach/DirectArrivalPlanner`）＋ 两个载体退役
+（`StandingPointEvaluator` / `StandingPlanResult` → `reach/ReachOutcome`）＋ `StandingPointSelector` 拆分 ＋
+选择成本链与 `MiningTuning` 旋钮**移出**`；⛔ **不是**设计单 `§1` 写的"5 文件 688 行按文件删"。
+
+### ② 落地实况（逐件 → 设计单 `§14.5`，台账 `O44`）
+
+| 件 | 结果 |
+|---|---|
+| A 腿 | 新家 `reach/DirectArrivalPlanner`（逐字搬家；`planPath` 死参数包装**内联**）· 旧类删除 |
+| 评分载体 | `StandingPointEvaluator` **删除** ⇒ A 腿就地用局部量 `bestFoot`/`bestCost`（= `path.totalCost() + extraCost`，与旧 `score` 同一个数） |
+| 结果载体 | `ReachOutcome(MiningPlan plan, String failureReason)`（两组件）· 旧三组件 record 删除 · **11 个消费者**同刀改名 |
+| `StandingPointSelector` | 删 `tunnelCandidates`（＋其唯一消费者探针 `MineReachProbeTask`，`O45`）· 删 `Candidate.los`（`Candidate` → 只含脚位）· **留**谓词与 `generateCandidates` |
+| `MiningPlan` | 7 组件 → **6**（去规划期 LOS）＋ 新增导出量 `totalCost()`（取代 score） |
+| 移出项 | 选择成本链（`StandingCostEstimator`/`StandingCostField`）· `MiningTuning` 四旋钮 · 改名 `ReachPlan` ⇒ 台账 `O46` |
+
+### ③ ⭐ 新门禁 = `D-533` §二 B 的**成员级**改锚（`rule_standing_retirement_no_residue`）
+
+退役名 4（`StandingPlanSelector`/`StandingPlanResult`/`StandingPointEvaluator`/`StandingPointScore`）＋
+退役成员 3 类（`tunnelCandidates` · `Candidate` 第二组件/`.los()` · `MiningPlan.visibility`/组件数=6/`MiningPlan.Mode`）＋
+**回归护栏**（`TUNNEL`/`ENTER_TARGET` 代码面 0 命中 —— ⚠️ 角色是护栏，实测它**今天就已经是 0**）＋
+**反空转**（人口下限 400 文件 · 新家在场 · 留守成员还在）。
+⚠️ 判据一律**剥注释**（本刀自己的墓碑逐字点着旧名字，不剥会全假红 —— `D-527`/`D-528` 同族教训，这是第 4/5 次）。
+⭐ **三条注入臂实测都会红**（伪造退役名引用 / 把 `Candidate` 第二组件加回去 / 塞含 `TUNNEL` 的字符串），撤掉后 `[B·…]` 输出 0 行。
+
+### ④ 判据读数
+
+`compileJava` **绿** · `check-all` **`pass=34 warning=1 failed=0`** · `check-ref-integrity` **PASS**（1742 处 / 超界 0）·
+`check-capability-list` **PASS**（步 107 → **106**）· `check-layer-direction` **PASS** · `check-step-names` **PASS**
+（另新登记 `RETIRED`：6 处历史 `single:mine_reach_probe` 引用**逐条打印不失败**）。
+⚠️ **等级 = `IMPLEMENTED` ＋ `COMPILES` ＋ 门禁绿**；⛔ **不是 `SERVER_TESTED`**（电池按 `D-532` §九 冻结）。
+⚠️ 本刀**有行为面改动**（规划期 LOS 不再随计划传递 · `[MiningPlanner探针]` 少两读数）⇒ 随批次 1 收口整体回归。
+
+### ⑤ ⚠️ 首轮红 3 处，修法都由门禁/工具自己给出（记录）
+
+① `check-kernel-predicates` 3 条 rule 报"结构变了"（**预期**：锚点跟着结构走）⇒ 重锚；
+② `check-capability-list` 报 CURATION 有 `mine_reach_probe` 而代码没有 ⇒ ⚠️ **根因是我的墓碑注释里逐字写了
+`Map.entry("mine_reach_probe", Profile.EXTRA)`**，被解析器当成真登记 ⇒ 墓碑改成不含该字面形状（**教训：写墓碑时要避开门禁的解析面**）；
+③ `check-ref-integrity` 报 `docs/reviews/2026-09-29-站位选优成本与捡拾归属-核查.md` 里那处
+`StandingPointSelector.java` 的**行号区间**超界（文件从 148 行 → 140 行）⇒ 该节的 `文件:行` 锚点
+**全改成符号名**（本项目的既有教训：⛔ 不按行号定位）。⚠️ **本断点自己第一版也踩了同一个坑**：
+上面这句原本**逐字写了那个越界行号** ⇒ 新断点自己把门禁弄红了（修法同上）。
+
+### ⑥ ⏭ 其他仍挂着
+
+`O41`（「完整的框架」项目级终点 —— ⚠️ **复核触发 = `1-3` 落地，今天已到**：用户可随时说"现在就谈"）·
+`O43`（`K2` 夹具假绿，批次 2）· `O46`（移出项两条修订）· `1-4`（`R1` 收口 ＋ 预期红清单）·
+`1-5`（改名 `ReachPlan`）· `S13`（执行层夹具）。
+

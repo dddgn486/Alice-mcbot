@@ -4,7 +4,7 @@ import com.dddgn.alice.job.Candidate;
 import com.dddgn.alice.job.JobDeclaration;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.task.mining.MiningPlanner;
-import com.dddgn.alice.reach.StandingPlanResult;
+import com.dddgn.alice.reach.ReachOutcome;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.ArrayList;
@@ -199,8 +199,10 @@ public final class PlanRefinedCostProvider implements CandidateCostProvider {
         if (refineCost != null) {
             return refineCost.apply(bot, candidate);
         }
-        StandingPlanResult result = new MiningPlanner().plan(bot, candidate.anchor());
-        return result.success() ? result.score().getScore() : Double.POSITIVE_INFINITY;
+        ReachOutcome result = new MiningPlanner().plan(bot, candidate.anchor());
+        // ⚠️ `1-3`（`§4e` 甲）：评分载体退役 ⇒ 读**计划自己的成本**（唯一出处 `MiningPlan.totalCost()`）。
+        // 与旧 `score.getScore()` 同一个数（旧值就是 `path.totalCost() + extraCost`）。
+        return result.success() ? result.plan().totalCost() : Double.POSITIVE_INFINITY;
     }
 
     /**

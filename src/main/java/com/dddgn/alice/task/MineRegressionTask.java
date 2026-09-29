@@ -9,7 +9,7 @@ import com.dddgn.alice.task.mining.MineStep;
 import com.dddgn.alice.task.mining.MiningBudget;
 import com.dddgn.alice.reach.MiningPlan;
 import com.dddgn.alice.task.mining.MiningPlanner;
-import com.dddgn.alice.reach.StandingPlanResult;
+import com.dddgn.alice.reach.ReachOutcome;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -772,7 +772,7 @@ public final class MineRegressionTask implements Task {
     /** 规划断言（与 `mine_course` 同口径）。 */
     private void runPlanCase(CaseDef current) {
         MiningBudget budget = MiningBudget.forTarget(bot, bot.serverLevel(), current.target(), true);
-        StandingPlanResult result = planner.plan(bot, current.target(), budget);
+        ReachOutcome result = planner.plan(bot, current.target(), budget);
         MiningPlan plan = result.plan();
         boolean pass;
         if ("buried".equals(current.name())) {
@@ -792,8 +792,8 @@ public final class MineRegressionTask implements Task {
         }
         record(current, pass, "arrival=" + (plan == null ? "-" : plan.arrival())
                 + "/stand=" + (plan == null ? "-" : plan.standingFoot().toShortString())
-                + "/cost=" + (result.score() == null ? "-"
-                        : String.format(java.util.Locale.ROOT, "%.2f", result.score().getScore()))
+                + "/cost=" + (result.plan() == null ? "-"
+                        : String.format(java.util.Locale.ROOT, "%.2f", result.plan().totalCost()))
                 + (current.expectSupport() ? "/support=" + (plan == null || plan.supportPlacementPos() == null
                         ? "-" : plan.supportPlacementPos().toShortString()) : "")
                 + "/reason=" + result.failureReason());

@@ -11,7 +11,6 @@ import com.dddgn.alice.task.FishboneSlice1CheckTask;
 import com.dddgn.alice.task.FishboneSlice2CheckTask;
 import com.dddgn.alice.task.MineCourseDiagnosticTask;
 import com.dddgn.alice.task.MineMenuCheckTask;
-import com.dddgn.alice.task.MineReachProbeTask;
 import com.dddgn.alice.task.MineRegressionTask;
 import com.dddgn.alice.task.MineRunMetricsCheckTask;
 import com.dddgn.alice.task.MineVeinPropagationCheckTask;
@@ -209,14 +208,13 @@ public final class MiningModule implements CheckModule {
                 // ⇒ **到达率 3/4 是"量出来的"而不是恒等式**。EXTRA（自建地形 + 4 次运行）⇒ 不进 CORE。
                 CheckStep.of("mine_run_metrics", CheckProfile.EXTRA, List.of(), null,
                         () -> new MineRunMetricsCheckTask(bot, observer, scope), 4800),
-                // ⭐ **B（2026-09-21）：深矿可达性判据探针** —— 回答 `survey/24 §2.4` 第 3 问 /
-                // `survey/25 §2.3` 第 1 问「给 100× 预算，这个深矿到底能不能到？」。
-                // 真机第四轮只留下 `SEARCH_LIMIT`（= 预算耗尽、**可达性未知**）⇒ 证据同时兼容
-                // 「预算不够」与「根本没有路/表示不了」两种解释，而这两种解释指向**完全不同的修法**。
-                // ⚠️ **必须跑在真机那次的存档上**（`saves/新的世界 (2)`）；EXTRA（不进 CORE）⇒
-                // 只由 `single:mine_reach_probe` 显式跑。本探针**不设通过/失败**（记事实，判读由人做）。
-                CheckStep.of("mine_reach_probe", CheckProfile.EXTRA, List.of(), null,
-                        () -> new MineReachProbeTask(bot, observer), 400),
+                // ⚠️ 2026-09-29（批次 1 `1-3`）：这里原来是 `mine_reach_probe` 那一步的 `CheckStep`
+                // 声明（档位 `EXTRA`）—— **已删**（探针整份退休）。理由：它的候选集来自
+                // `StandingPointSelector.tunnelCandidates`（4 面 × {y,y−1} ＋ 竖井预算），
+                // 而那个形状**已被 `D-520` 整条替换**（`GoalColumnBlocks` / `adjacentApproach` 两次顺序搜索）
+                // ⇒ 保留它 = 留着一份死形状的第二出处（`rule_arrival_declared_and_consumed` 的复活面）。
+                // ⛔ 不是"结论作废"：那 100× 预算实验的结论固化在
+                // `docs/reviews/2026-09-21-B-深矿可达性判据实验.md`；要重问，按**新形状**重建夹具。
                 // ⭐ `D-385`（2026-09-21）：**规划期的挖掘成本必须等于执行侧真值** ——
                 // 执行侧走 vanilla，而 vanilla 有"眼在水里 ÷5""离地 ÷5"两项状态惩罚，
                 // 旧 `estimateBreakTicks` 只等于「陆地 + 在地面」那一档 ⇒ 水下/离地乐观 5×~25×。

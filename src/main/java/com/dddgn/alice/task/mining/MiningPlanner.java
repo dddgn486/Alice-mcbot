@@ -4,6 +4,7 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
 // ⭐ 批次 1 `1-1b₂`（2026-09-29）：目标腿的**第一条搜索**用同列形状 ⇒ 本类成为
 // `GoalColumnBlocks` 的**唯一生产消费者**（`1-0a` 落地时它是"零消费者"，那句已在类头更正）。
+import com.dddgn.alice.pathing.core.search.CorePathPlanner;
 import com.dddgn.alice.pathing.core.search.GoalColumnBlocks;
 import com.dddgn.alice.pathing.core.search.PathPlan;
 import com.dddgn.alice.pathing.core.search.PathRequest;
@@ -14,24 +15,24 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
-import com.dddgn.alice.reach.StandingPointSelector;
-import com.dddgn.alice.reach.LineOfSightChecker;
 import com.dddgn.alice.reach.MiningPlan;
-import com.dddgn.alice.reach.StandingPointEvaluator;
 // ⭐ 2026-09-29（改革 ① 主体 · `①-0`「拆信封」，`D-527`）：接近能力枚举提到 `reach/` 成为独立类型
 // ⇒ 本类与 `MiningProfile` 都改成引用它（`task/` → `reach/` 是合法方向）。
 import com.dddgn.alice.reach.ApproachCapability;
 // ⭐ 2026-09-29「①-1」（`plans §4.2`④）：`R8`「归因码」独立成类搬进 `reach/`
 // ⇒ 本类改为**引用**它（`StandingPointRefusal.…`），常量名与字面量逐字未改。
 import com.dddgn.alice.reach.StandingPointRefusal;
-// ⭐ 2026-09-29「①-2a」：结果载体 `Result` 搬进 `reach/` 成为独立类型 `StandingPlanResult`
+// ⭐ 2026-09-29「①-2a」：结果载体 `Result` 搬进 `reach/` 成为独立类型 `ReachOutcome`
 // （理由见本类里那条墓碑；`task/` → `reach/` 是合法方向）。
-import com.dddgn.alice.reach.StandingPlanResult;
-// ⭐ 2026-09-29「①-2b」（`plans §4.2`①）：**A 腿（`R2`＋`R5`）搬进 `reach/StandingPlanSelector`**
+import com.dddgn.alice.reach.ReachOutcome;
+// ⭐ 2026-09-29「①-2b」（`plans §4.2`①）：**A 腿（`R2`＋`R5`）搬出本类**（当时落 `reach/StandingPlanSelector`）
 // ⇒ 本类改为**调用**它，并把信封拆开传原始值（见 `selectDirect` 调用点那段注释）。
-// ⚠️ 本刀顺带删掉了因搬家而变成**零消费者**的 import（`CorePathPlanner` / `StandingCostEstimator` /
+// ⚠️ 本刀顺带删掉了因搬家而变成**零消费者**的 import（`StandingCostEstimator` /
 // `MiningTuning` / `DropCatchment` 以及整套 `java.util` 集合）—— 这不改行为，只是别让悬空 import 撒谎。
-import com.dddgn.alice.reach.StandingPlanSelector;
+// ⭐⭐ 2026-09-29「批次 1 `1-3`」（甲①）：A 腿**再搬一次**，新家 = `reach/DirectArrivalPlanner`
+// （旧名把它说成"待退休的站位挖掘"，而 `MiningPlan.Arrival` 的三个取值正是它生产的）。
+// ⇒ 本类只换引用的类名，调用点形状**一字未改**。
+import com.dddgn.alice.reach.DirectArrivalPlanner;
 
 /**
  * 挖掘领域规划器（D-067 批次 2/3）：目标方块 → 两模式站位选择 → 成本估算 → top-K 精算 → MiningPlan。
@@ -95,8 +96,8 @@ public final class MiningPlanner {
 
     /*
      * ⚠️ 2026-09-29「①-2a」（改革 ① 主体 · `DS-5` 解体）：这里原来有一个**嵌套** record
-     * `public record StandingPlanResult(MiningPlan, StandingPointEvaluator.StandingPointScore, String)`。
-     * **已搬到** {@link com.dddgn.alice.reach.StandingPlanResult}（`plans §4.2`①：「选」→ `reach/`）。
+     * `public record ReachOutcome(MiningPlan, StandingPointEvaluator.StandingPointScore, String)`。
+     * **已搬到** {@link com.dddgn.alice.reach.ReachOutcome}（`plans §4.2`①：「选」→ `reach/`）。
      * 依据：它的三个组件的家本来就在 `reach/`（`MiningPlan` / `StandingPointScore` / 归因串），
      * 而生产它的那段逻辑（候选枚举 → 排序 → top-K → 择优）正是 `§4.2`① 要搬进 `reach/` 的那一件
      * ⇒ 载体留在 `task/`、逻辑搬进 `reach/` = 逻辑反过来依赖上层（`check-layer-direction` 断言①）。
@@ -107,11 +108,11 @@ public final class MiningPlanner {
      */
 
     /** 兼容入口（批次 2 调用点）：默认收集掉落物预算。 */
-    public StandingPlanResult plan(ServerPlayer bot, BlockPos target) {
+    public ReachOutcome plan(ServerPlayer bot, BlockPos target) {
         return plan(bot, target, MiningBudget.collecting(bot, bot.serverLevel(), target));
     }
 
-    public StandingPlanResult plan(ServerPlayer bot, BlockPos target, MiningBudget budget) {
+    public ReachOutcome plan(ServerPlayer bot, BlockPos target, MiningBudget budget) {
         return plan(bot, target, budget, false);
     }
 
@@ -122,7 +123,7 @@ public final class MiningPlanner {
      *                      （2026-09-10 客户端实测：bot 往地里挖一格站进去，随后爬不出来、2/4 根原木失败）。
      *                      需要清障时由**上层 Job** 显式做（限次 + 预算），不由规划器偷偷挖。
      */
-    public StandingPlanResult plan(ServerPlayer bot, BlockPos target, MiningBudget budget, boolean standableOnly) {
+    public ReachOutcome plan(ServerPlayer bot, BlockPos target, MiningBudget budget, boolean standableOnly) {
         return plan(bot, target, budget, standableOnly, ApproachCapability.PURE_PASSAGE, "mining-planner");
     }
 
@@ -142,7 +143,7 @@ public final class MiningPlanner {
      * @param requester 接近走位的归因串（**必须传作业自己的**，否则 `WriteAudit` 里
      *                  这条放置会记到别的名下 ⇒ 作业侧的累计额度看不见它）
      */
-    public StandingPlanResult plan(ServerPlayer bot, BlockPos target, MiningBudget budget, boolean standableOnly,
+    public ReachOutcome plan(ServerPlayer bot, BlockPos target, MiningBudget budget, boolean standableOnly,
                        ApproachCapability approach, String requester) {
         ServerLevel level = bot.serverLevel();
         BlockPos immutableTarget = target.immutable();
@@ -159,18 +160,19 @@ public final class MiningPlanner {
         if (fluidRefusal != null) {
             BotLog.warn("[MiningPlanner] fluid_refusal target={} reason={}（邻格岩浆会涌入，S-4/P0-C）",
                     immutableTarget.toShortString(), fluidRefusal);
-            return new StandingPlanResult(null, null, fluidRefusal);
+            return new ReachOutcome(null, fluidRefusal);
         }
 
         // ⭐ `①-2b`（2026-09-29，改革 ① 主体 · `DS-5` 解体，`plans §4.2`①）：A 腿（`R2`＋`R5`）
-        // 已搬进 `reach/StandingPlanSelector` ⇒ **本类负责把信封拆开**，只传原始值：
+        // 已搬进 `reach/`（`①-2b` → `StandingPlanSelector`，`1-3` → `reach/DirectArrivalPlanner`）
+        // ⇒ **本类负责把信封拆开**，只传原始值：
         //   · `collectDrops` 从预算里取出（`MiningBudget` 进不了 `reach/`：它自己 import `action/`）；
         //   · `canPlaceSupport` = **作业侧的库存能力声明**（`findPlaceableSlot` 是 `action/` 的查询）
         //     ⇒ `reach/` 不许自己去问库存（那样等于把 `action/` 拖下层，`check-layer-direction` 断言①）。
         // ⚠️ **实测口径差异（本刀唯一的行为增量，已登记 `D-530`）**：它现在**每次 `plan()` 都算一次**
         // （原来只在 CURRENT 快路径成功、且前三个条件都成立时才查）—— 代价 = 最多 9 次快捷栏读取的
         // **纯读**（`BlockInteraction.findPlaceableSlot` 无副作用、无日志、不写账本）。
-        StandingPlanResult direct = StandingPlanSelector.selectDirect(bot, level, immutableTarget, startFoot,
+        ReachOutcome direct = DirectArrivalPlanner.selectDirect(bot, level, immutableTarget, startFoot,
                 reach, budget.collectDrops(),
                 com.dddgn.alice.action.BlockInteraction.findPlaceableSlot(bot) >= 0,
                 approach, requester);
@@ -193,14 +195,14 @@ public final class MiningPlanner {
             if (directReason != null && !directReason.isEmpty()) {
                 return direct;
             }
-            return new StandingPlanResult(null, null, StandingPointRefusal.STANDING_NO_REACHABLE);
+            return new ReachOutcome(null, StandingPointRefusal.STANDING_NO_REACHABLE);
         }
         // ⭐ `D-520`（改革 ① 主体第一刀）：原来这里是**两条腿**（`planTunnel` + `planEnterTarget`），
         // 现在合成**一条**：把目标交给内核（`GoalAdjacent` = "站到目标格的某一面"，落脚点由 A* 自己找）。
         // 旧 `no_tunnel_standing_point` / `no_reachable_tunnel_standing_point` / `enter_target_unreachable`
         // 三个理由码随之消失（全仓无生产消费者，实测仅本类自己写）；**预算闸门那一半保留**
         // （`enter_target_over_budget` → `approach_over_budget`，见 `planGoalApproach`，`D-076` 不许静默丢）。
-        StandingPlanResult goalApproach = planGoalApproach(bot, level, immutableTarget, startFoot, budget);
+        ReachOutcome goalApproach = planGoalApproach(bot, level, immutableTarget, startFoot, budget);
         if (goalApproach.success()) {
             return goalApproach;
         }
@@ -212,15 +214,15 @@ public final class MiningPlanner {
                             + "（本轮搜索被限流 ⇒ 目标**不许**被永久了结）",
                     immutableTarget.toShortString(), direct.failureReason(),
                     goalApproach.failureReason());
-            return new StandingPlanResult(null, null, SearchConclusion.SEARCH_INCOMPLETE);
+            return new ReachOutcome(null, SearchConclusion.SEARCH_INCOMPLETE);
         }
         BotLog.warn("[MiningPlanner] found_but_unminable target={} direct={} approach={} budget={}",
                 immutableTarget.toShortString(), direct.failureReason(),
                 goalApproach.failureReason(), budget.describe());
-        return new StandingPlanResult(null, null, "found_but_unminable");
+        return new ReachOutcome(null, "found_but_unminable");
     }
 
-    // ============ 模式 A（`R2`＋`R5`）→ 已搬 `reach/StandingPlanSelector`（`①-2b`） ============
+    // ============ 模式 A（`R2`＋`R5`）→ 已搬 `reach/DirectArrivalPlanner`（`①-2b` → `1-3`） ============
 
 
     /*
@@ -310,7 +312,7 @@ public final class MiningPlanner {
      *       ⚠️ 名字里的 `ADJACENT` 是 `D-520` 时期的遗留 —— 今天它覆盖**两条腿**，改名留在批次 2。</li>
      * </ol>
      */
-    private StandingPlanResult planGoalApproach(ServerPlayer bot, ServerLevel level, BlockPos target,
+    private ReachOutcome planGoalApproach(ServerPlayer bot, ServerLevel level, BlockPos target,
                                     BlockPos startFoot, MiningBudget budget) {
         final String botId = bot.getUUID().toString();
         // ---- 腿 1：同列（`GoalColumnBlocks`）----
@@ -320,29 +322,30 @@ public final class MiningPlanner {
         // ⛔ 刻意**不**减 `MiningTuning.reachMargin`：那个规划期余量属于**站位挖掘**的调参面
         // （本期退休中，`1-3` 删）⇒ 在这里引它 = 给待删的旋钮**新增一个消费者**，正好反着来。
         String leg = "column";
-        // ⚠️ `planPath` 的**第 3 个实参**（`standingFoot`）在它体内**根本没被读**
-        // （`StandingPlanSelector.planPath` 只把它转成 `new CorePathPlanner().plan(bot, level, request)`）
-        // ⇒ 这里照旧传 `target` 只为与既有调用点同形；⛔ 死参数的清理随 `1-3`（那个文件整份退休）。
-        PathPlan path = StandingPlanSelector.planPath(bot, startFoot, target,
+        // ⚠️ `1-3`（甲①）：旧写法是 `StandingPlanSelector.planPath(bot, startFoot, target, request)` ——
+        // 那个包装的第 3 个实参（`standingFoot`）**体内从来没被读过**，它只做
+        // `new CorePathPlanner().plan(bot, level, request)`（`1-1b₂` 的注释已点过这个死参数）
+        // ⇒ 随包装一起内联到此处，两处调用点都改成直呼内核。
+        PathPlan path = new CorePathPlanner().plan(bot, level,
                 PathRequest.miningApproach(botId, startFoot,
                         GoalColumnBlocks.forReach(target, bot.getBlockReach()), "mining-planner"));
         String inconclusive = SearchConclusion.inconclusiveReason(path);
         if (!inconclusive.isEmpty()) {
             warnInconclusive(leg, target, startFoot, path, inconclusive);
-            return new StandingPlanResult(null, null, inconclusive);
+            return new ReachOutcome(null, inconclusive);
         }
         if (!path.reached()) {
             // ---- 腿 2：侧面兜底（`GoalAdjacent`）—— ⛔ 只在"腿 1 确实到不了"时才问 ----
             leg = "side";
-            path = StandingPlanSelector.planPath(bot, startFoot, target,
+            path = new CorePathPlanner().plan(bot, level,
                     PathRequest.adjacentApproach(botId, startFoot, target, null, "mining-planner"));
             inconclusive = SearchConclusion.inconclusiveReason(path);
             if (!inconclusive.isEmpty()) {
                 warnInconclusive(leg, target, startFoot, path, inconclusive);
-                return new StandingPlanResult(null, null, inconclusive);
+                return new ReachOutcome(null, inconclusive);
             }
             if (!path.reached()) {
-                return new StandingPlanResult(null, null, StandingPointRefusal.ADJACENT_NO_REACHABLE);
+                return new ReachOutcome(null, StandingPointRefusal.ADJACENT_NO_REACHABLE);
             }
         }
         // ⭐ 落点 = 路径**实际到达**的那一格，⛔ **不是** `path.goalFoot()`
@@ -358,25 +361,28 @@ public final class MiningPlanner {
                     String.format(java.util.Locale.ROOT, "%.2f", approachCost),
                     String.format(java.util.Locale.ROOT, "%.2f", budgetCost),
                     standingFoot.toShortString());
-            return new StandingPlanResult(null, null, "approach_over_budget");
+            return new ReachOutcome(null, "approach_over_budget");
         }
-        LineOfSightChecker.LineOfSightResult los = LineOfSightChecker.checkFromEye(
-                level, StandingPointSelector.eyeAt(standingFoot), target);
-        StandingPointEvaluator.StandingPointScore score =
-                StandingPointEvaluator.of(standingFoot, approachCost, approachCost, los);
+        // ⚠️ `1-3`（甲 · `§4e` 甲裁定）：这里原来算两件**规划期遥测** ——
+        //   `LineOfSightChecker.checkFromEye(level, StandingPointSelector.eyeAt(standingFoot), target)`
+        //   ＋ `StandingPointEvaluator.of(standingFoot, approachCost, approachCost, los)`
+        // 两件**都删了**：LOS 的唯一读者是 `task/MineTask` 的一行日志，而执行期 `MineBlockRunner`
+        // **自己在运行期**复核视线（可重试）⇒ **行为承重 = 零**；`score` 等于 `approachCost`
+        // （= `path.totalCost()`）⇒ 冗余包装，改成计划自己的 `MiningPlan.totalCost()`。
+        // ⛔ 别把 `approachCost`（预算闸门与日志都在用）一起删掉。
         BotLog.info("[MiningPlanner] arrival=MINING_APPROACH target={} leg={} startFoot={} stand={} cost={} "
                         + "movements={}",
                 target.toShortString(), leg, startFoot.toShortString(), standingFoot.toShortString(),
                 String.format(java.util.Locale.ROOT, "%.3f", approachCost), path.movements().size());
-        return new StandingPlanResult(new MiningPlan(target, startFoot, standingFoot, path, los,
-                MiningPlan.Arrival.MINING_APPROACH, null), score, "");
+        return new ReachOutcome(new MiningPlan(target, startFoot, standingFoot, path,
+                MiningPlan.Arrival.MINING_APPROACH, null), "");
     }
 
     /**
      * 「本轮没评价完」的**唯一日志形**（`P1-b`/`P1-d` 的取证读数）：两条腿共用，`leg=` 区分是腿 1 还是腿 2。
      *
      * <p>⚠️ 它**只记日志**：上抛仍由调用点**逐字**写成
-     * {@code return new StandingPlanResult(null, null, inconclusive);} ——
+     * {@code return new ReachOutcome(null, inconclusive);} ——
      * 门禁 `rule_search_limit_not_unreachable` 咬的就是那一行（⛔ 别把上抛挪进本方法）。
      */
     private static void warnInconclusive(String leg, BlockPos target, BlockPos startFoot,
@@ -400,7 +406,7 @@ public final class MiningPlanner {
      * ⚠️ 2026-09-29「①-2b」（改革 ① 主体 · `DS-5` 解体）：这里原来装着 **`R2`「A 腿」**（CURRENT 快路径 ＋
      * 候选枚举 ＋ 同一竖列/侧面的分流 ＋ 排序）与 **`R5`「精算 / top-K / 选择」**
      * （`selectBest` / `exactTopK` / `cheaper`）＋ 那个 `planPath` 小工具。
-     * **已搬到** {@link com.dddgn.alice.reach.StandingPlanSelector}（`plans §4.2`①：
+     * **已搬到** `com.dddgn.alice.reach.StandingPlanSelector`（`1-3` 起 = `reach/DirectArrivalPlanner`）（`plans §4.2`①：
      * 「CURRENT 快路径 ＋ 候选枚举 ＋ LOS/触及过滤 ＋ 排序 ＋ 最优」→ **`reach/`**）。
      * 依据：它的同族**早就住在 `reach/`**（`StandingPointSelector` / `StandingPointEvaluator` /
      * `LineOfSightChecker` / `MiningTuning` / `MiningPlan`）⇒ 只剩这一段还在 `task/mining/`，
@@ -411,7 +417,7 @@ public final class MiningPlanner {
      * ⛔ **别在这里放回同名方法，也别留转发壳**：那会让"往哪个站"长出第二处
      * （门禁 `rule_search_limit_not_unreachable` 的 `①-2b` 牙正是挡它的）。
      * 📌 `planPath` 也跟着搬了（它是纯内核转调），仍留在本类的目标腿改调
-     * {@link com.dddgn.alice.reach.StandingPlanSelector#planPath} —— 只有一份定义。
+     * `com.dddgn.alice.reach.StandingPlanSelector#planPath`（该包装已在 `1-3` 内联） —— 只有一份定义。
      */
 
 
@@ -426,7 +432,7 @@ public final class MiningPlanner {
      *   两段 javadoc 的归属也摆正了：描述谓词的那段原来被夹在常量上面）。
      * ⇒ **本类今天连调用点都没有了** —— `①-2b` 把 A 腿整段搬进 `reach/` 之后，
      * `DropCatchment.dropWouldBeLost(` / `isSameColumn(` 的调用点住在
-     * {@link com.dddgn.alice.reach.StandingPlanSelector}（门禁 `rule_support_and_cluster_order`
+     * `com.dddgn.alice.reach.StandingPlanSelector`（`1-3` 起 = `reach/DirectArrivalPlanner`）（门禁 `rule_support_and_cluster_order`
      * 的断言①c 已跟着改锚到那里）。
      *
      * ⛔ **别把"这里没这几个符号了"读成"垫方块的口径没了"**：判据照旧生效；

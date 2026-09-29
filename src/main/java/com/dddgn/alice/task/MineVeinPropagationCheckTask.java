@@ -19,7 +19,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import com.dddgn.alice.reach.StandingPlanResult;
+import com.dddgn.alice.reach.ReachOutcome;
 
 /**
  * ⭐ `D-389`（2026-09-22 用户裁定）的**行为级判据**：**沿脉传播**必须真的发生，且矿簇必须被挖穿。
@@ -288,7 +288,7 @@ public final class MineVeinPropagationCheckTask implements Task {
                         continue;
                     }
                     orphanCount++;
-                    com.dddgn.alice.reach.StandingPlanResult result = planner.plan(bot, cell,
+                    com.dddgn.alice.reach.ReachOutcome result = planner.plan(bot, cell,
                             com.dddgn.alice.task.mining.MiningBudget.forTarget(bot, level, cell, true), false);
                     if (result.success()) {
                         orphanPlannable++;

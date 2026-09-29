@@ -3,7 +3,6 @@ package com.dddgn.alice.reach;
 import com.dddgn.alice.pathing.MovementHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
@@ -16,11 +15,19 @@ import java.util.List;
  * <ul>
  *   <li>**候选范围**：眼位可触及目标任一面的格子（`bot.getBlockReach()` 决定），不再是"水平最多 1 格"；</li>
  *   <li>**垂直规则**：y+1 / y / y−1 全水平展开；**y−2 … y−4 只允许正下方**（向上挖）；</li>
- *   <li>**只收"现成可站"**：无支撑 / 头脚空间不足的格子归模式 B（批次 3），A 不放置、不破坏；</li>
+ *   <li>**只收"现成可站"**：无支撑 / 头脚空间不足的格子**不进候选**（A 腿不放置、不破坏）；
+ *       ⚠️ 旧文这里写"归模式 B（批次 3）" —— 模式 B（`tunnelCandidates` ＋ 13 格枚举）**已于
+ *       2026-09-29 `1-3` 删除**（`D-520` 已把那条腿整条换成内核的目标级搜索），见下方墓碑；</li>
  *   <li>**排除**：目标自身、目标正上方（挖掉自己支撑）、`target.above(2)`（脚下支撑必然挡视线，无效候选）；</li>
  *   <li>**硬前提（可挖掘面）**：从该站位的假设眼位能看到目标至少一个面（内缩多面体采样），
  *       且该可见采样点在触及距离内——"看得到但打不到"不算能挖（D-066）。</li>
  * </ul>
+ *
+ * <p>⚠️ <b>本类是 `reach/` 的**触及/站位几何原语**，不是"站位挖掘"本体</b>（`D-460` 的层定位）：
+ * 它今天的活消费者有 `action/MineBlockRunner` · `task/mining/BlockerClearPlanner` ·
+ * `task/mining/MiningPlanner` · `job/lumber/LumberCandidateSource` ·
+ * `task/MineTask.hasStandingCandidateNow` · `job/mine/StandingCostField` · `task/collecting/CollectStep`
+ * ⇒ ⛔ **别按文件删它**（开工前侦察 `§14` 实测：那是"按文件删会立刻坏"的五条证据之一）。
  */
 public final class StandingPointSelector {
     /** Bot 眼睛高度（脚底到眼睛）。 */
@@ -28,8 +35,16 @@ public final class StandingPointSelector {
     /** 正下方候选层数：y−2 … y−(1+BELOW_LEVELS)。 */
     private static final int BELOW_LEVELS = 3;
 
-    /** 候选站位：脚位 + 该站位的视线结果（供计划快照与日志复用）。 */
-    public record Candidate(BlockPos foot, LineOfSightChecker.LineOfSightResult los) {
+    /**
+     * 候选站位：**脚位**。
+     *
+     * <p>⚠️ <b>2026-09-29 `1-3`（甲④）：原来的第二个组件（该站位的视线结果）已删</b> ——
+     * 它的**唯一**读者是 A 腿里那张 `losByFoot` map，而那张 map 又只喂"评分载体"
+     * （`§4e` 甲已退役 `StandingPointEvaluator`）与 `MiningPlan.visibility`（同刀退役）
+     * ⇒ 零读者。⚠️ **视线过滤本身没变**：{@link #generateCandidates} 仍然**只收**
+     * `isValidStandingPoint` 通过的格（判据照旧，只是不再把结果**带出来**）。
+     */
+    public record Candidate(BlockPos foot) {
     }
 
     private StandingPointSelector() {
@@ -89,44 +104,20 @@ public final class StandingPointSelector {
     }
 
     /**
-     * 模式 B 候选（D-067 批次 3）：**固定几何集，不看当前是否可站**。
+     * ⚠️ <b>2026-09-29 `1-3`（甲④）：`tunnelCandidates`（模式 B 的固定几何集 ＋ 竖井预算）已删。</b>
      *
-     * <pre>
-     * 4 面 × {y, y−1}          = 8 格
-     * + 正下方 y−2 … 眼位可达深度
-     * </pre>
-     *
-     * 正下方范围"取到保证能挖到的范围内"（`k ≤ reach + 1.54`，眼位到目标底面），
-     * 但**遇到第一个实心方块时按预算决定是否继续**（避免在实心岩里规划长竖井）。
+     * <p><b>为什么删得掉</b>：它的**唯一**消费者是诊断夹具 `task/MineReachProbeTask`
+     * （`§14.1` 实测：生产代码里零消费者）。而那个探针量的是 `D-520` 之前的形状
+     * （"13 个候选各跑一次全预算 A\*"）—— 那条腿**已经被 `D-520` 整条替换**成
+     * `GoalColumnBlocks` / `PathRequest.adjacentApproach` 两次顺序搜索
+     * ⇒ 留着它 = 留着一份**死形状的第二出处**（正是 `rule_arrival_declared_and_consumed`
+     * 要挡的复活面）。探针本身随同刀退休（`O45`），它的结论早已固化在
+     * `docs/reviews/2026-09-21-B-深矿可达性判据实验.md`。
+     * ⚠️ 这**取代**了 `AI_DECISIONS.md` 里 `OS-1` 那条"枚举留在 A"的旧裁定（本刀有用户裁定背书）。
+     * ⛔ 别把 `generateCandidates` 也一起删 —— 现成可站候选有三个**活**生产消费者
+     * （`task/MineTask.hasStandingCandidateNow` · `job/lumber/LumberCandidateSource` ·
+     * `job/mine/StandingCostField`）。
      */
-    public static List<BlockPos> tunnelCandidates(ServerPlayer bot, ServerLevel level, BlockPos target,
-                                                  double reach, double maxExtraBreakTicks) {
-        List<BlockPos> result = new ArrayList<>();
-        int[][] faces = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-        for (int[] d : faces) {
-            result.add(target.offset(d[0], 0, d[1]).immutable());
-            result.add(target.offset(d[0], -1, d[1]).immutable());
-        }
-        int maxDepth = (int) Math.floor(reach + 1.54D);
-        double accumulated = 0.0D;
-        for (int k = 2; k <= maxDepth; k++) {
-            BlockPos cell = target.below(k).immutable();
-            if (!MovementHelper.canWalkThrough(level, cell)) {
-                double ticks = bot == null
-                        ? Double.POSITIVE_INFINITY
-                        : com.dddgn.alice.action.BlockInteraction.estimateBreakTicks(bot, level, cell);
-                if (!Double.isFinite(ticks)) {
-                    break;
-                }
-                accumulated += ticks;
-                if (accumulated > maxExtraBreakTicks) {
-                    break;
-                }
-            }
-            result.add(cell);
-        }
-        return result;
-    }
 
     /** 现成可站：脚下有支撑 + 脚位/头位可通行（K-4/D-167：委托内核唯一定义）。 */
     public static boolean isStandable(ServerLevel level, BlockPos pos) {
@@ -135,9 +126,10 @@ public final class StandingPointSelector {
 
     private static void addCandidate(ServerLevel level, BlockPos target, BlockPos pos, double reach,
                                      List<Candidate> out) {
-        LineOfSightChecker.LineOfSightResult los = isValidStandingPoint(level, target, pos, reach);
-        if (los != null) {
-            out.add(new Candidate(pos.immutable(), los));
+        // ⚠️ `1-3`（甲④）：判据照旧跑（**只收**视线通过且在触及内的格），但结果不再被带出来 ——
+        // 全仓已无读者（见 `Candidate` 的注释）。
+        if (isValidStandingPoint(level, target, pos, reach) != null) {
+            out.add(new Candidate(pos.immutable()));
         }
     }
 

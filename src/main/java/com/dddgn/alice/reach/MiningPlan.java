@@ -1,5 +1,6 @@
 package com.dddgn.alice.reach;
 
+import com.dddgn.alice.pathing.core.search.CostModel;
 import com.dddgn.alice.pathing.core.search.PathPlan;
 import net.minecraft.core.BlockPos;
 
@@ -10,13 +11,31 @@ import java.util.Objects;
  * 不包含挖掘进度、任务生命周期、目标访问清障或掉落物拾取状态。
  *
  * <p>D-064：路径类型由 legacy `SurfacePathfinder.Result` 换成新内核 {@link PathPlan}（R3/R4）。
+ *
+ * <p>⭐ <b>2026-09-29 `1-3`（批次 1 改革 ① 主体 · 甲）「组件定型」：7 组件 → 6 组件</b>
+ * —— 去掉的是 <b>规划期视线</b>（{@code LineOfSightResult visibility}），依据 = 施工设计单
+ * `§4e` 甲（2026-09-29 用户裁定「**删规划期 LOS ＋ 退役 score 冗余载体**」）：
+ * <ol>
+ *   <li>它的**唯一**消费者是 `task/MineTask` 的一行遥测日志
+ *       （`[MiningPlanner探针] … visibility=…`）⇒ **行为承重 = 零**；</li>
+ *   <li>执行期 `action/MineBlockRunner` **自己在运行期**复核视线
+ *       （`LINE_OF_SIGHT_BLOCKED` / `OUT_OF_REACH`，可重试）⇒ **从不读**这一份；</li>
+ *   <li>⇒ 留在计划里等于让“规划那一刻的视线”被误当成**执行期事实**（`D-348` 同一条纪律：
+ *       快照是历史，不是现在）。</li>
+ * </ol>
+ * ⚠️ 代价如实记：真机取证时少一个 `visibility=` 读数。
+ *
+ * <p>⭐ 同刀把“评分”从**载体**（旧的 `StandingPointEvaluator.StandingPointScore`）降级成
+ * **本 record 的导出量** {@link #totalCost()}：那个 score 的四个字段里三个冗余
+ * （`position` == {@link #standingFoot}、`lineOfSightResult` == 上面刚退役的 `visibility`、
+ * `estimate` 全仓无读者）⇒ 只剩“成本”这一件真信息，而它按定义等于
+ * `path.totalCost()` ＋（要垫支撑块时）那一次放置的计价。详见 {@link ReachOutcome}。
  */
 public record MiningPlan(
         BlockPos target,
         BlockPos startFoot,
         BlockPos standingFoot,
         PathPlan path,
-        LineOfSightChecker.LineOfSightResult visibility,
         Arrival arrival,
         BlockPos supportPlacementPos
 ) {
@@ -77,7 +96,6 @@ public record MiningPlan(
         startFoot = Objects.requireNonNull(startFoot, "startFoot").immutable();
         standingFoot = Objects.requireNonNull(standingFoot, "standingFoot").immutable();
         path = Objects.requireNonNull(path, "path");
-        visibility = Objects.requireNonNull(visibility, "visibility");
         arrival = Objects.requireNonNull(arrival, "arrival");
         supportPlacementPos = supportPlacementPos == null ? null : supportPlacementPos.immutable();
         // ⭐ `D-520`：不变量收在**路径实际落点**上，而不是 `path.goalFoot()`。
@@ -101,6 +119,25 @@ public record MiningPlan(
 
     /** 仅表示规划快照满足正常直接挖掘的基础前置条件，不替代运行时验证。 */
     public boolean isExecutable() {
-        return path.reached() && visibility.isClear();
+        return path.reached();
+    }
+
+    /**
+     * 本计划的**选择成本**（走路格数口径）：路径成本 ＋ 若这一趟要垫支撑块则加那一次放置的计价。
+     *
+     * <p>⭐ 它是旧 `StandingPointEvaluator.StandingPointScore#getScore()` 的**唯一真信息**
+     * （另三个字段全是冗余，见类注释）⇒ 从“载体里的一个字段”变成“计划自己的导出量”：
+     * ⛔ **唯一出处**就在这里，⛔ 别在消费者侧再写一遍
+     * （`PlanRefinedCostProvider` 与 A 腿的择优比较都读它）。
+     *
+     * <p>⚠️ 与旧 `score` 的**唯一差**：`Arrival.IN_PLACE` 且这一趟确实要垫支撑块时，
+     * 旧值恒为 `0.0`（`selectDirect` 快路径那条构造点传的死值），而这里如实算上放置成本。
+     * 该字段的读者只有日志、`PlanRefinedCostProvider`（排序用估算）与 A 腿的**同组内**择优
+     * （同组 extraCost 相同 ⇒ 相减抵消）⇒ 不改变任何分支选择；`IN_PLACE` 也不参与
+     * 跨组比较（`cheaper`）。已登记在 `docs/reviews/2026-09-29-内核改革-施工设计单.md` §14.5。
+     */
+    public double totalCost() {
+        return path.totalCost()
+                + (supportPlacementPos == null ? 0.0D : CostModel.PLACE_ONE_BLOCK_COST);
     }
 }

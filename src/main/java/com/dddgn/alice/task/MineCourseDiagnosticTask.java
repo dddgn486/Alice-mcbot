@@ -5,7 +5,7 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.task.mining.MiningBudget;
 import com.dddgn.alice.reach.MiningPlan;
 import com.dddgn.alice.task.mining.MiningPlanner;
-import com.dddgn.alice.reach.StandingPlanResult;
+import com.dddgn.alice.reach.ReachOutcome;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -98,7 +98,7 @@ public final class MineCourseDiagnosticTask implements Task {
 
     private boolean checkMode(String key, BlockPos target, MiningPlan.Arrival... expected) {
         teleport(START);
-        StandingPlanResult result = plan(target);
+        ReachOutcome result = plan(target);
         MiningPlan.Arrival mode = result.plan() == null ? null : result.plan().arrival();
         boolean pass = mode != null;
         if (pass) {
@@ -113,27 +113,27 @@ public final class MineCourseDiagnosticTask implements Task {
         BotLog.info("[MineCourse] {}={} mode={} stand={} cost={} reason={}",
                 key, pass ? "PASS" : "FAIL", mode,
                 result.plan() == null ? "-" : result.plan().standingFoot().toShortString(),
-                result.score() == null ? "-" : String.format(java.util.Locale.ROOT, "%.2f", result.score().getScore()),
+                result.plan() == null ? "-" : String.format(java.util.Locale.ROOT, "%.2f", result.plan().totalCost()),
                 result.failureReason());
         return pass;
     }
 
     private boolean checkHeadroom() {
         teleport(START);
-        StandingPlanResult result = plan(HEADROOM_TARGET);
+        ReachOutcome result = plan(HEADROOM_TARGET);
         boolean pass = result.plan() != null
                 && result.plan().standingFoot().getY() == HEADROOM_TARGET.getY() - 1;
         BotLog.info("[MineCourse] headroom={} mode={} stand={} cost={} reason={}",
                 pass ? "PASS" : "FAIL", result.plan() == null ? "-" : result.plan().arrival(),
                 result.plan() == null ? "-" : result.plan().standingFoot().toShortString(),
-                result.score() == null ? "-" : String.format(java.util.Locale.ROOT, "%.2f", result.score().getScore()),
+                result.plan() == null ? "-" : String.format(java.util.Locale.ROOT, "%.2f", result.plan().totalCost()),
                 result.failureReason());
         return pass;
     }
 
     private boolean checkBuried() {
         teleport(START);
-        StandingPlanResult result = plan(BURIED_TARGET);
+        ReachOutcome result = plan(BURIED_TARGET);
         boolean pass = (result.plan() != null && result.plan().arrival() == MiningPlan.Arrival.MINING_APPROACH)
                 || "found_but_unminable".equals(result.failureReason());
         BotLog.info("[MineCourse] buried={} mode={} reason={}",
@@ -142,7 +142,7 @@ public final class MineCourseDiagnosticTask implements Task {
         return pass;
     }
 
-    private StandingPlanResult plan(BlockPos target) {
+    private ReachOutcome plan(BlockPos target) {
         MiningBudget budget = MiningBudget.forTarget(bot, bot.serverLevel(), target, true);
         return new MiningPlanner().plan(bot, target, budget);
     }

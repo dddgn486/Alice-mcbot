@@ -12,7 +12,7 @@ import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.pathing.core.search.PlanningStatus;
 import com.dddgn.alice.pathing.core.search.SearchTickBudget;
 import com.dddgn.alice.task.mining.MiningPlanner;
-import com.dddgn.alice.reach.StandingPlanResult;
+import com.dddgn.alice.reach.ReachOutcome;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -632,11 +632,14 @@ public class MineMenuCheckTask implements Task {
                     .estimate(bot, spec, only);
             double cost = refined.travel(candidate);
             var planner = new com.dddgn.alice.task.mining.MiningPlanner().plan(bot, ore);
-            double plannerCost = planner.success() ? planner.score().getScore()
+            // ⚠️ `1-3`（`§4e` 甲）：评审载体退役 ⇒ 读计划自己的成本（旧 `score` 与它是同一个数）。
+            double plannerCost = planner.success() ? planner.plan().totalCost()
                     : Double.POSITIVE_INFINITY;
             check("break 分量：精算后有有限成本（travel=" + cost + " · " + refined.note() + "）",
                     Double.isFinite(cost));
-            check("break 分量：精算值 == 规划器 score（" + cost + " vs " + plannerCost
+            // ⚠️ 标签里的 `score` 已随 `1-3`（`§4e` 甲）改成"计划成本"：判据两边现在都读
+            // `MiningPlan.totalCost()`（旧 `score.getScore()` 就是它）⇒ 不变量**一字未改**。
+            check("break 分量：精算值 == 规划器计划成本（" + cost + " vs " + plannerCost
                             + "；规划器路径成本含破坏 tick 折算）",
                     planner.success() && Math.abs(cost - plannerCost) < 1.0E-6D);
 
@@ -802,7 +805,7 @@ public class MineMenuCheckTask implements Task {
     }
 
     private static net.minecraft.core.BlockPos supportPos(
-            com.dddgn.alice.reach.StandingPlanResult result) {
+            com.dddgn.alice.reach.ReachOutcome result) {
         return result == null || result.plan() == null ? null : result.plan().supportPlacementPos();
     }
 
@@ -1418,7 +1421,7 @@ public class MineMenuCheckTask implements Task {
             // ⚠️ A1 的闸门要**让开**：本段量的是"A2 发起了几次"，不是"允不允许发起"
             SearchTickBudget.setLimits(60_000L, 1_000, 1_000);
             SearchTickBudget.resetForFixture();
-            StandingPlanResult a2 = new MiningPlanner().plan(bot, ore);
+            ReachOutcome a2 = new MiningPlanner().plan(bot, ore);
             int issued = SearchTickBudget.tickSearches();
             BotLog.info("[MineMenu] A2 判别性事实：target={} arrival={} failure={} issuedSearches={}",
                     ore.toShortString(), a2.plan() == null ? "-" : a2.plan().arrival(),

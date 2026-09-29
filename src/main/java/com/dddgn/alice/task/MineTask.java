@@ -979,15 +979,17 @@ public final class MineTask implements Task {
                     target.toShortString(), targetState.getBlock(), MiningTuning.chainMode(),
                     ChainMining.isChainable(targetState), ChainMining.settingsSummary());
         }
-        BotLog.info("[MiningPlanner探针] planned target={} startFoot={} standingFoot={} mode={} pathStatus={} pathSize={} pathCost={} visibility={} executable={} support={} score={}",
+        // ⚠️ 2026-09-29 `1-3`（甲 · `§4e` 甲裁定）：`visibility=` 与 `score=` **两个字段随载体退役**
+        // （规划期 LOS 与评分载体都不存在了）⇒ 本行少两个读数，其余**逐字未改**。
+        // ⛔ 本行还剩的两件遗留（`mode=` 打的是 `plan.arrival()` 的**说谎标签**、以及
+        // `docs/AI_TEST_MATRIX.md:117`）**仍归 `1-4`（`R1` 收口）**，⛔ 不在本刀顺手动。
+        BotLog.info("[MiningPlanner探针] planned target={} startFoot={} standingFoot={} mode={} pathStatus={} pathSize={} pathCost={} executable={} support={}",
                 plan.target().toShortString(), plan.startFoot().toShortString(),
                 plan.standingFoot().toShortString(), plan.arrival(),
                 plan.path().status(), plan.path().movements().size(),
                 String.format(java.util.Locale.ROOT, "%.3f", plan.path().totalCost()),
-                plan.visibility().isClear(), plan.isExecutable(),
-                plan.supportPlacementPos() == null ? "-" : plan.supportPlacementPos().toShortString(),
-                outcome.result().score() == null ? "-"
-                        : String.format(java.util.Locale.ROOT, "%.3f", outcome.result().score().getScore()));
+                plan.isExecutable(),
+                plan.supportPlacementPos() == null ? "-" : plan.supportPlacementPos().toShortString());
         enterPhase(Phase.MINING);
         startExecution();
         return Status.RUNNING;

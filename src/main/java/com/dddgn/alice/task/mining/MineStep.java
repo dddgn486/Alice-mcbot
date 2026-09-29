@@ -10,7 +10,7 @@ import com.dddgn.alice.write.WriteGrant;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.state.BlockState;
-import com.dddgn.alice.reach.StandingPlanResult;
+import com.dddgn.alice.reach.ReachOutcome;
 
 /**
  * **单格挖掘原语**（`step 5a`，`D-466`）：**一个目标方块的一次作业** —— 计划段 → 走位/破坏 → 单格结论。
@@ -92,13 +92,20 @@ public final class MineStep {
      * ⚠️ 判定结果**不落本类字段**：它只经这个记录**导出**给编排器 —— 否则 `tryReplan` 那条路会
      * 意外重判一次（旧实现不重判），变成"顺手改了行为"。
      */
-    public record PlanOutcome(StandingPlanResult result, boolean chainArmed) {
+    public record PlanOutcome(ReachOutcome result, boolean chainArmed) {
 
         public boolean ok() {
             return result.success();
         }
 
-        /** 失败理由（成功时是 `null`）。 */
+        /**
+         * 失败理由。
+         *
+         * <p>⚠️ **勘误（2026-09-29，批次 1 `1-3`，原文不改只加这段）**：旧文这行逐字写
+         * 「成功时是 `null`」——**反了**。真实契约（`ReachOutcome` 类注释契约 1）是
+         * 「**成功时是 `""`**（⛔ 不是 `null`）」：调用方按 `isEmpty()` 判"这条腿到底有没有
+         * 给出理由"（`P1-d` / `1.4w` 的**原样上抛**纪律）。⛔ 别按旧文去写 `== null` 判据。
+         */
         public String reason() {
             return result.failureReason();
         }
@@ -166,7 +173,7 @@ public final class MineStep {
      * ⇒ 模式 A 里「补一块再走」的放置会记在作业名下（作业侧的累计额度才看得见它）。
      */
     public PlanOutcome plan() {
-        StandingPlanResult result = miningPlanner.plan(bot, target, budget, profile.standableOnly(),
+        ReachOutcome result = miningPlanner.plan(bot, target, budget, profile.standableOnly(),
                 profile.approach(), grant.requester());
         if (!result.success()) {
             return new PlanOutcome(result, false);
