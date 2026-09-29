@@ -3686,3 +3686,20 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
    ⇒ 同抓**漂移**与**同名核销**；⏳ 与第 1 条同刀（批次 3），⚠️ **实施前先量会红多少**（防"指向调用点"的引用假红）。
 3. ✅ **`1-1b` 硬前置解除**：尾巴 3 行 = **甲**（删规划期 LOS ＋ 退役 score 冗余载体，**落地在 `1-3`**）。
    读码证据见 `O35` ③；⚠️ 顺带**勘误我自己**：施工设计单 §4e 原述（"那 3 行是 `MineBlockRunner.visibility` 与评分口径的来源"）**被读码证伪**。
+
+### ⑨ 追加：`1-1b` 开工前**只读侦察**（台账 `O36`）
+
+全文 = `docs/reviews/2026-09-29-1-1b-接线-开工前侦察.md`。三条要害：
+
+1. ⭐⭐ **没有任何 `PathRequest` 工厂能承载同列形状** —— 两个工厂把目标**写死在方法体里**
+   （`PathRequest.java:170` `new GoalFoot(goalFoot)` / `:196` `new GoalAdjacent(target, excluded)`），能力集却**逐字同一出处**
+   （`MINING_APPROACH_MOVEMENTS`）⇒ 接线**必须新增工厂** ⇒ 连带 **4 处授权登记**（`D-076`/`O15-a`）。
+2. ⚠️ **既有隐性分歧**：规划用 `adjacentApproach`、执行用 `miningApproach`（`MineBlockRunner.java:231`）—— 今天无害，但属"规划/执行不同工厂"的形状。
+3. ⛔ **两条门禁会打到**：`rule_arrival_declared_and_consumed` ③（`kernel-predicates.py:2700` 要求 `MiningPlanner` 用 `adjacentApproach`）**必须重锚**；
+   `rule_search_limit_not_unreachable`（`:1266`/`:1272`/`:1275`）是**位置化**断言 ⇒ **两次搜索时每条腿都要"先判结论、后判到达"**。
+
+⭐ **新岔路（⛔ 待用户裁）**：**顺序两次搜索（甲，`D-532` 字面）vs 一次复合搜索（乙，Baritone `GoalComposite`）** ——
+乙在**成本最优性**上更强（顺序可能先接受"贵但可达"的同列方案），甲在**挖掘语义**（优先挖进那一列）与**改动面**（`Arrival`/`MineBlockRunner` 零改动）上更优。
+⭐ AI 建议**仍走甲**，乙登记为"真机出现绕远时的候选"。
+
+**改动面 = 7 面 / 约 9 文件**（含 4 处授权登记）⇒ 建议拆 **`1-1b₁`（工厂 + 授权，先不接线）** ＋ **`1-1b₂`（接线 + 门禁重锚 + 夹具）**。
