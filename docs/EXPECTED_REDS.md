@@ -53,3 +53,10 @@
 - ⚠️ **`mine_regression` 的定点归因**（同 profile ＋ 同世界母本的 CORE 对照）：`286e7793`（`1-1b₁`，接线前）
   **全 PASS**；`0415d8de`（接线后）· `af2fbeb7`（`+1-2`）· HEAD（`+1-3`）**同样 FAIL**
   ⇒ 红由 **`1-1b₂`** 引入，⛔ 不是 `1-2`/`1-3`。
+- ⭐⭐ **批次 1 `1-5` 之后的完整轮（= 批次 1 回收条件 ①「电池整体回归」）**：`run/headless-logs/20260929-212257-core.log`
+  —— `verdict=FAIL exit=1`（**⛔ 不是 `no_verdict`**）、`PROFILE=CORE`、**45 步**、`passed=43/45`、`skipped=0`、用时 **237 s**。
+  两个红 = 本表**两行逐字命中**（`mine_regression` · `survival_exit`），⛔ **清单外零红**。
+  ⭐ 同轮 `adjacent_goal_exclusion=PASS` · `break_hazard=PASS` · `fluid_mine=PASS`。
+  门禁读数 = `check-expected-reds` **PASS**（`实际红 ⊆ 清单`，2 行全部命中）·
+  汇总行 `CHECK_ALL_RESULT PASS_WITH_REGISTERED_REDS: pass=36 warning=0 failed=0`（**37 项**：36 PASS ＋ 1 FAIL＝电池）。
+  ⚠️ 本轮跑之前**源已冻结**（提交 `db64d985` ＋ `b2495223`，工作树干净）⇒ ⛔ 无 `O53` 那种"测量期间改脚本"的自伤。
