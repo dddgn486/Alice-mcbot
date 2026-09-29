@@ -72,6 +72,10 @@ import java.util.Map;
  *       的 `SEARCH_LIMIT` 分支）⇒ BURN 相位必须**红**（理由是 `found_but_unminable`）。</li>
  *   <li>⭐ `P1-d` 臂：把 `SearchConclusion.inconclusive(...)` 里的 `PlanningStatus.PARTIAL` 去掉
  *       （回到"只认 `SEARCH_LIMIT`"）⇒ `P1-d` 相位必须**红**（理由是 `found_but_unminable`）。</li>
+ *   <li>⭐ `1-1a` 第三形态臂：把 `SearchConclusion.inconclusive(...)` 里的
+ *       `PlanningStatus.GOAL_NOT_LOADED` 去掉 ⇒ ① 本夹具的真值表那一条必须**红**
+ *       （`GOAL_NOT_LOADED` 会返回空串）· ② 门禁 `rule_search_limit_not_unreachable` 也必须**红**
+ *       （那条牙的期望清单里有它）。</li>
  * </ul>
  *
  * <h2>场景</h2>
@@ -409,6 +413,18 @@ public final class MiningSearchLimitHonestyCheckTask implements Task {
                 500, 10, 3L, "fixture", "unreachable-fixture");
         PathPlan reached = PathPlan.failure(PlanningStatus.REACHED, foot, PARTIAL_TARGET,
                 5, 2, 1L, "fixture", "reached-fixture");
+        // ⭐ 第三形态（批次 1 · `1-1a`，2026-09-29）：目标区块没加载 ⇒ 搜索**根本没跑**
+        //（第 0 步的目标准入守卫早退）⇒ 与 `SEARCH_LIMIT` 同类，⛔ 不许被当成"不可达"
+        PathPlan goalNotLoaded = PathPlan.failure(PlanningStatus.GOAL_NOT_LOADED, foot, PARTIAL_TARGET,
+                0, 0, 0L, "fixture", "goal-not-loaded-fixture");
+
+        check("⭐ `1-1a` 第三形态（与环境无关）：`GOAL_NOT_LOADED` ⇒ 必须判成 `search_incomplete`（实测 "
+                        + SearchConclusion.inconclusiveReason(goalNotLoaded) + "）",
+                SearchConclusion.SEARCH_INCOMPLETE.equals(
+                        SearchConclusion.inconclusiveReason(goalNotLoaded)),
+                "`GOAL_NOT_LOADED` = **目标区块没加载**、第 0 步守卫早退 ⇒ 这次搜索**根本没跑**"
+                        + "（与 `SEARCH_LIMIT` 同类：一个被配额拒、一个被目标准入守卫拒）"
+                        + "⇒ 下游若把它当「不可达」，就是给一个**加载问题**写下**永久理由**");
 
         check("⭐ `P1-d`（与环境无关）：`PARTIAL` ⇒ 必须判成 `search_incomplete`（实测 "
                         + SearchConclusion.inconclusiveReason(partial) + "）",

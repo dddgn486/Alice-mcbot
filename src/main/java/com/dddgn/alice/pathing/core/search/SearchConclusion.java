@@ -3,13 +3,20 @@ package com.dddgn.alice.pathing.core.search;
 /**
  * ⭐⭐ **搜索结论的诚实读数**（`P1-b` / `P1-d`；红线 **`SEARCH_LIMIT ≠ UNREACHABLE`**）—— **唯一出处**。
  *
- * <p>它只回答**一个问题**：「这一次搜索**有没有得出可达性结论**？」两种"没得出"的形态**都必须**与
+ * <p>它只回答**一个问题**：「这一次搜索**有没有得出可达性结论**？」三种"没得出"的形态**都必须**与
  * 「不可达」分开：
  * <ul>
  *   <li>{@link PlanningStatus#SEARCH_LIMIT}：<b>A1 每 tick 总账拒绝</b> ⇒ 这次搜索**根本没跑**
  *       （{@code CorePathPlanner.planInternal} 的 {@code tryAcquire()} 返回 false）⇒ 什么都不知道；</li>
  *   <li>{@link PlanningStatus#PARTIAL}：搜索**跑了、烧光了自己的预算**（`D-388` 的 50 ms），
  *       交出了 best-so-far **前缀**但 {@code reached() == false} ⇒ **没算完**。</li>
+ *   <li>⭐ <b>第三形态（批次 1 · `1-1a`，2026-09-29，`D-532`）</b>{@link PlanningStatus#GOAL_NOT_LOADED}：
+ *       <b>第 0 步的目标准入守卫早退</b>（{@code AStarMovementSearch} 的
+ *       {@code goal.exactFoot() && !context.chunkLoaded(goal.goalFoot())}）⇒ 这次搜索也**根本没跑**，
+ *       与 `SEARCH_LIMIT` **同类**（都是"没跑"，区别只在**谁**拒的：A1 配额 / 目标区块未加载）。
+ *       ⚠️ 它**不等于** `UNREACHABLE`：目标区加载了照样可能到得了（`D-132` 的三层防线；`D-517` 只覆盖
+ *       `exactFoot()==false` 的实现，而 `exactFoot()==true` 的实现**真会**撞到它 —— 例：
+ *       {@code pathing/core/search/GoalColumnBlocks} 与 {@link GoalFoot}）。</li>
  * </ul>
  *
  * <p><b>为什么必须收口成一处</b>（`P1-b` 的洞，`D-434 §三`）：`P1-b`（2026-09-22）修好了 `SEARCH_LIMIT`
@@ -20,8 +27,9 @@ package com.dddgn.alice.pathing.core.search;
  * （实测 `found_but_unminable` **307** : `search_incomplete` **87**）⇒ mine 循环每 tick 重烧
  * 4 × 50 ms ≈ 200 ms。取证 = `docs/reviews/2026-09-25-mine循环198ms拆解.md`。
  *
- * <p><b>⚠️ 本类<u>不</u>回答"算不算真的评价过"</b>：两种形态在这件事上**不同** ——
- * `SEARCH_LIMIT` **不计入**（根本没跑）；`PARTIAL` **计入**（预算真花了）。所以调用点不是一个 `if`
+ * <p><b>⚠️ 本类<u>不</u>回答"算不算真的评价过"</b>：三种形态在这件事上**不同** ——
+ * `SEARCH_LIMIT` 与 `GOAL_NOT_LOADED` **不计入**（都没跑：一个被配额拒、一个被目标准入守卫拒）；
+ * `PARTIAL` **计入**（预算真花了）。所以调用点不是一个 `if`
  * 能合并的：本类只回答"结论是否可信"，**不回答**"算不算评价过"（那个计数在调用方，
  * 例如 A 腿的 `planned`）。
  *
@@ -74,13 +82,16 @@ public final class SearchConclusion {
     /**
      * ⭐⭐ **`P1-d`（2026-09-25）：这次搜索**有没有得出可达性结论**。
      *
-     * <p>见类头：两种"没得出"（{@link PlanningStatus#SEARCH_LIMIT} = 根本没跑 /
-     * {@link PlanningStatus#PARTIAL} = 跑了没算完）**都必须**与「不可达」分开。
+     * <p>见类头：三种"没得出"（{@link PlanningStatus#SEARCH_LIMIT} = 根本没跑（配额） /
+     * {@link PlanningStatus#PARTIAL} = 跑了没算完 / {@link PlanningStatus#GOAL_NOT_LOADED} = 根本没跑
+     * （目标准入守卫））**都必须**与「不可达」分开。
      *
      * @return true ⇒ 结论**不可信**，调用方**不许**把它当成"不可达"（红线 `SEARCH_LIMIT ≠ UNREACHABLE`）
      */
     public static boolean inconclusive(PlanningStatus status) {
-        return status == PlanningStatus.SEARCH_LIMIT || status == PlanningStatus.PARTIAL;
+        return status == PlanningStatus.SEARCH_LIMIT
+                || status == PlanningStatus.PARTIAL
+                || status == PlanningStatus.GOAL_NOT_LOADED;
     }
 
     /**

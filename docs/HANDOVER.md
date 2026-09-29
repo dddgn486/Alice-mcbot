@@ -3661,3 +3661,18 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 
 `planGoalApproach` 接到新形状（**同列 ∪ 侧面兜底 = 两次搜索**）＋ `SearchConclusion` 补第三形态 `GOAL_NOT_LOADED`
 ＋ `planGoalApproach` 尾巴（落点 → 视线 → 评分 3 行）**重裁** ＋ ⭐ **每条内核改动必须给 Baritone 对照（`文件:行`）**。
+
+### ⑦ 追加：`1-1a`（`SearchConclusion` 第三形态 `GOAL_NOT_LOADED`）
+
+台账行 **`O34`**。施工设计单 §5「丙」：把 `SearchConclusion.inconclusive` 从"两种没得出"扩到**三种**。
+
+- ⭐ **这是漏洞收口，不是新功能**：`exactFoot()==true` 的实现（`GoalFoot` / 新落的 `GoalColumnBlocks`）**真会**撞到
+  `GOAL_NOT_LOADED`，而此前它被判成"有结论" ⇒ 下游把**加载问题**写成**永久理由**（`P1-b`/`P1-d` 红线的第三个形态）。
+- **同刀补牙**：`tools/kernel-predicates.py` 的 `rule_search_limit_not_unreachable` 期望清单 2 → 3 项；
+  ⭐ **注入实测**：删掉那一半 ⇒ 门禁精确报红、还原后 sha **逐字一致**（`2ada0219a78847fa`）。
+- **夹具**：`MiningSearchLimitHonestyCheckTask` 真值表多一条（`GOAL_NOT_LOADED ⇒ search_incomplete`）⇒ `checks=` **14 → 15**
+  （`docs/AI_TEST_MATRIX.md` 已加指针；⚠️ 该文件**整块重复**，两处都改了 ⇒ 见 `O34` ④，**归批次 3 文档整顿**）。
+- ⚠️ **本刀有行为变化**（⛔ 不是零行为）：`GOAL_NOT_LOADED` 从此走 `search_incomplete` ⇒ `MineJob` 冷却生效。
+  ⛔ **不需要客户端测试**（判据 = 纯函数真值表 ＋ 静态门禁）。
+- ⏭ **下一步 = `1-1b`**：`planGoalApproach` 接线（同列 ∪ 侧面兜底 = 两次搜索），
+  ⚠️ **硬前置 = 用户裁"尾巴 3 行（落点 → 视线 → 评分）去留"**（施工设计单 `§4e`/`§11` 第 2 条）。

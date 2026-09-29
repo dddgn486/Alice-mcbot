@@ -1179,7 +1179,13 @@ def rule_search_limit_not_unreachable():
         problems.append("`SearchConclusion.inconclusive(PlanningStatus)` 唯一谓词不存在"
                         " ⇒ `P1-b`/`P1-d` 的收口点没了（判据只能咬字面量）")
     else:
-        for status_name in ("PlanningStatus.SEARCH_LIMIT", "PlanningStatus.PARTIAL"):
+        # ⭐ 第三形态（批次 1 · `1-1a`，2026-09-29，施工设计单 §5「丙」）：`GOAL_NOT_LOADED` =
+        # **目标区块没加载** ⇒ 第 0 步的准入守卫早退 ⇒ 这次搜索**根本没跑**（与 `SEARCH_LIMIT` 同类：
+        # 一个被 A1 配额拒、一个被目标准入守卫拒）⇒ ⛔ 不许被下游当成"不可达"。
+        # ⚠️ 这条牙**必须**有：`exactFoot()==true` 的实现（`GoalFoot` / `GoalColumnBlocks`）真会撞到它，
+        # 而 `D-517` 那条分类门禁只管 `exactFoot()==false` 的实现。
+        for status_name in ("PlanningStatus.SEARCH_LIMIT", "PlanningStatus.PARTIAL",
+                            "PlanningStatus.GOAL_NOT_LOADED"):
             if status_name not in inconclusive_fn:
                 problems.append(f"`SearchConclusion.inconclusive` 少了 `{status_name}`"
                                 " ⇒ 那种「没得出可达性结论」会被当成不可达"
