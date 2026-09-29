@@ -3946,3 +3946,47 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
   ＋ ⭐ **同刀义务**（`D-533` §三：**同一刀内**改写指向被删符号的引用）＋ ⭐ **`B` 门禁同刀**（`D-533` §二：退役零残留）。
 - 之后 `1-4`（`R1` 收口 ＋ **预期红清单**）→ `1-5`（改名）。
 - 仍挂着：`O41`（「完整的框架」项目级终点，复核触发 = `1-3` 落地）· `O43`（夹具改革）· `S13` 需另立执行层夹具。
+
+---
+
+## 断点三十七 —— `1-3` 开工前侦察：**「5 文件/688 行」按文件删做不到**（2026-09-29）
+
+**基线**：`af2fbeb7`（`1-2` 那笔）。⛔ 本断点**不改任何 `src/`**，只登记侦察结论与待裁项。
+
+### ① ⚠️⚠️ 一句话结论
+
+设计单 `§1` 的「退休候选 = 5 文件 / 688 行」里，**三个文件仍被生产代码直接调用** ⇒
+`1-3`（「站位挖掘整套删除」）的真实形状只能是**成员级退役 ＋ 消费者迁移 ＋ 新家裁定**，⛔ 不是文件级 `rm`。
+
+### ② 三条硬证据（详见设计单 `§14`，全部可 `grep` 复算）
+
+1. ⭐ **A 腿在跑**：`StandingPlanSelector.selectDirect` ← `task/mining/MiningPlanner.java:173`（`plan()` 的第一条腿，
+   成功即 `return`）—— 而 `MiningPlan.Arrival` 的 `IN_PLACE`/`DIRECT_PURE_PASSAGE`/`DIRECT_PLACEMENT_ALLOWED`
+   **三个取值正是它产出的** ⇒ 它是**新框架的一部分**，只是住错了楼。删它 = 静默拿掉「直接站着挖」这条路。
+2. **几何谓词被 `action/` 与清障链用**：`StandingPointSelector.eyeAt/isStandable/isValidStandingPoint`
+   ← `action/MineBlockRunner.java:456` · `task/mining/BlockerClearPlanner.java:78/156/159/183`
+   （而 `BlockerClearPlanner` 又被 `task/MineTask.java:735/766/884` 与 `job/lumber/LumberCandidateSource.java:98` 用）。
+3. **选择成本链是生产**：`StandingCostEstimator` ← `job/mine/StandingCostField.java:85` ←
+   `job/mine/PlanRefinedCostProvider.production():115` ⇒ 删它 = **改作业级选择成本**（`job/` 的活，⛔ 不在 `§10` 给 `1-3` 的范围）。
+
+### ③ 连带：`D-533` §二 **B** 的判据要改锚（⏳ 待裁时一并定）
+
+- 「`Standing*` 五个类名 0 命中」在「谓词保留」下**不成立** ⇒ 改成**成员级清单**；
+- 「`Mode.TUNNEL`/`ENTER_TARGET` 0 命中」**今天代码面已经是 0**（实测 7＋4 处**全在注释/字符串**）⇒
+  它只能当**回归护栏**（剥注释后 0 命中），⛔ 不能当「退役进度」读数。
+
+### ④ ⏳ 待用户裁：三条路（设计单 `§14.4`）
+
+**甲（推荐）** 成员级退役：A 腿**搬新家**（不删）＋ `planPath` 内联 ＋ 删 `StandingPointEvaluator` ＋
+`StandingPlanResult` 换成 `MiningPlan` ＋ 理由 ＋ `StandingPointSelector` **拆**（谓词留 / `tunnelCandidates` 删 /
+`generateCandidates` 留）＋ **选择成本链移出 `1-3`**；
+**乙** 一次拆到底（连 A 腿、选择成本链、`generateCandidates` 三个消费者一起重做 —— 跨 4 包 ＋ 动冻结缺口 `LumberCandidateSource`）；
+**丙** 只做无争议三件（载体替换 ＋ 删 `StandingPointEvaluator` ＋ 删 `tunnelCandidates`）。
+
+⭐ **裁前不动手**（`O22` 的纪律：大刀先出侦察；⛔ 不许按「会删掉活代码」的清单施工）。
+裁完 ⇒ **同刀**改 `§1`/`§10` 措辞 ＋ `D-533` B 改锚 ＋ `§8` 的 3 条 rule 重锚。
+
+### ⑤ ⏭ 其他仍挂着
+
+`O41`（「完整的框架」项目级终点，复核触发 = `1-3` 落地 —— ⚠️ 因本断点而顺延）· `O43`（`K2` 夹具假绿，批次 2）·
+`O42` ④（`unsupported_falling_neighbour` 做不出稳定场景）· `S13`（需另立执行层夹具）· 台账 `O40` ③ 的牙排期张力已关闭。
