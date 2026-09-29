@@ -3703,3 +3703,18 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 ⭐ AI 建议**仍走甲**，乙登记为"真机出现绕远时的候选"。
 
 **改动面 = 7 面 / 约 9 文件**（含 4 处授权登记）⇒ 建议拆 **`1-1b₁`（工厂 + 授权，先不接线）** ＋ **`1-1b₂`（接线 + 门禁重锚 + 夹具）**。
+
+### ⑩ 追加：`1-1b₁` 落地（台账 `O37`）—— 授权面**零改动** ＋ 选型自我更正
+
+用户裁 **甲（顺序两次搜索）**。本刀只做"**新件先落地、不接线**"那半：
+
+- ⭐ `pathing/core/search/PathRequest` 新增**重载** `miningApproach(botId, startFoot, GoalSpec goal, requester)`
+  —— 能力集**逐字复用** `MINING_APPROACH_MOVEMENTS`，差别**只在目标形状**。
+- ⭐⭐ **推翻侦察 `O36` §3 的选型**：我当初写"重载会打乱 `WritePolicyMatrix` 的 probe 口径"⇒ 推荐新工厂（＋4 处授权登记）。
+  **读门禁源码后证伪**：授权对象是**能力**（`MovementGrant.types()` 问工厂要集合）· `policy-map.py:189-191` 的工厂盘点**按名字收成集合**
+  ⇒ 重载不新增词表项 · 孤儿判据 `:472-477` 不咬它 · probe 传 `BlockPos` 无二义 · `kernel-predicates.py:2254` 锚点咬逐字签名不受影响。
+  ⇒ **`MovementGrant` / `POLICY_MATRIX.csv` / `WORLD_WRITE_AUTHORIZATION.md` 零改动**。
+  📌 **可复用教训**：**别在侦察里凭印象给"代价"**（那个"代价"读一次源码就没了）。
+- 判据：编译绿 · `check-policy-matrix` PASS（**`8 工厂` 未变**，与预测一致）· `check-all pass=34 warning=1 failed=0` · `ref-integrity` PASS（1724 处）。
+  ⛔ 零行为变化 ⇒ 不需要客户端测试。
+- ⏭ **下一步 = `1-1b₂`**：两条腿顺序搜索 ＋ 两条门禁重锚（**每条腿先判结论后判到达** / `:2700` 改锚）＋ 夹具改新形状（＋`S13`）。

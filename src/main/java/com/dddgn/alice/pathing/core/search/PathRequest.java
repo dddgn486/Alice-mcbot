@@ -172,6 +172,35 @@ public record PathRequest(
     }
 
     /**
+     * ⭐ **同能力集的"形状自由"重载**（批次 1 · `1-1b₁`，2026-09-29，`D-532` §二「乙」）：能力集**逐字复用**
+     * {@link #MINING_APPROACH_MOVEMENTS}（⛔ 不新造集合），差别**只在目标形状**（{@link GoalSpec} 由调用方给）。
+     *
+     * <p><b>为什么是重载、不是新工厂名</b>（台账 `O36` §3 的**自我更正**，读码后改的）：
+     * 本项目的**授权对象是能力** —— `write/WritePolicyMatrix.MovementGrant.types()` 返回的就是"这个工厂发出的
+     * Movement 集合"，`docs/authz/POLICY_MATRIX.csv` 的 `movements` 列也是它。本重载发出的集合与
+     * {@link #miningApproach(String, BlockPos, BlockPos, String)} **逐字相同** ⇒ **授权面没有任何新增**
+     * （`D-076` 要登记的是"**新的写能力入口**"，不是"新的目标形状"）。
+     * ⚠️ 而 `tools/policy-map.py:189-191` 的工厂盘点**按名字**（`public static PathRequest (\w+)\(` ⇒ 收成集合），
+     * 孤儿判据在同文件 `:472-477` ⇒ 重载**不新增词表项、也不会被判成孤儿工厂**。
+     * ⭐ 因此 `MovementGrant` / `POLICY_MATRIX.csv` / `WORLD_WRITE_AUTHORIZATION.md` **本刀零改动**
+     * —— 对比：`D-517` 的 `adjacentApproach` 是**新名字** ⇒ 那一次必须补 **4 处**登记（`O15-a` ①）。
+     *
+     * <p>⚠️ **目标形状由调用方负责**（`D-076` 的分工不变）：本重载**不检查** `goal` 是不是挖掘形状 ——
+     * ① 粗目标（`exactFoot()==false`）仍由 `tools/check-far-goal-usage.py` 的登记表管
+     * （`D-500` §V：**实现**必须登记 ⇒ 绕不过去）；② `D-366b` 的临时让步（放开 `PILLAR`/`FALL`/`DOWNWARD`）
+     * 与其**回收条件**照旧挂在上面那个工厂的 javadoc 上（**同一份集合 ⇒ 同一份让步**）。
+     * ③ `PathRequest` 是 record、规范构造器 **public** ⇒ "只能走工厂"本来就是**门禁维护的约定**
+     * （`check-policy-matrix` 的工厂词表），本重载**没有放宽**任何既有可达面。
+     *
+     * @param goal 到达集形状（`1-0a` 起：同列形状 = `pathing/core/search/GoalColumnBlocks`；
+     *             侧面兜底 = {@link GoalAdjacent}）
+     */
+    public static PathRequest miningApproach(String botId, BlockPos startFoot, GoalSpec goal,
+                                             String requester) {
+        return new PathRequest(botId, startFoot, goal, MINING_APPROACH_MOVEMENTS, WALK_BUDGET, requester);
+    }
+
+    /**
      * ⭐ **相邻到达请求**（`K2` 第一刀 ＋ `1a`=甲，`D-517`）：目标 = **站到某方块的某一面**
      * （{@link GoalAdjacent}），而**不是**"某个规范脚位"。
      *
