@@ -5233,6 +5233,177 @@ def rule_vacuous_assertions_carry_population():
     return problems
 
 
+def _blank_comments(text: str) -> str:
+    """把 `//` 与 `/* … */` 的内容换成**等长空格**（保留换行）⇒ 偏移与行号仍与原文逐一对应。"""
+    out = list(text)
+    i, n = 0, len(text)
+    while i < n:
+        if text.startswith("//", i):
+            j = text.find("\n", i)
+            j = n if j < 0 else j
+            for k in range(i, j):
+                out[k] = " "
+            i = j
+        elif text.startswith("/*", i):
+            j = text.find("*/", i + 2)
+            j = n if j < 0 else j + 2
+            for k in range(i, j):
+                if out[k] != "\n":
+                    out[k] = " "
+            i = j
+        else:
+            i += 1
+    return "".join(out)
+
+
+def _blank_strings(text: str) -> str:
+    """把 `"…"` 字面量的**内容**换成空格（保留引号与长度）⇒ 挡"字符串里恰好写着某个调用"的假命中。"""
+    out = list(text)
+    i, n = 0, len(text)
+    while i < n:
+        if text[i] == '"':
+            j = i + 1
+            while j < n and text[j] != '"':
+                j += 2 if text[j] == "\\" else 1
+            for k in range(i + 1, min(j, n)):
+                if out[k] != "\n":
+                    out[k] = " "
+            i = min(j + 1, n)
+        else:
+            i += 1
+    return "".join(out)
+
+
+def _enclosing_block(text: str, idx: int):
+    """`idx` 所在**最内层 `{}` 块**的 `(开括号下标, 闭括号下标)`；找不到 ⇒ `(-1, -1)`。
+
+    ⚠️ 口径：`text` 必须是**已把注释与字符串变成空格**的版本（否则注释里的 `{` 会把块切错）。
+    """
+    depth = 0
+    open_idx = -1
+    for i in range(idx, -1, -1):
+        ch = text[i]
+        if ch == "}":
+            depth += 1
+        elif ch == "{":
+            if depth == 0:
+                open_idx = i
+                break
+            depth -= 1
+    if open_idx < 0:
+        return (-1, -1)
+    depth = 0
+    for i in range(open_idx, len(text)):
+        ch = text[i]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return (open_idx, i)
+    return (open_idx, len(text) - 1)
+
+
+def _line_of(text: str, idx: int) -> int:
+    return text.count("\n", 0, idx) + 1
+
+
+def rule_fluid_precheck_before_planning():
+    """`P0-C`/`S-4` —— **流体前置**：顺序 ＋ 拒码同源（`D-535` §四 明列的 **4a 待补牙**，2026-09-29 落地）。
+
+    两处失效**都是静默的**，这就是它们必须有牙的理由：
+
+    ① **顺序**：`FluidRiskPolicy.miningRefusal(bot, target)` 必须是 `MiningPlanner.plan(...)`
+       （六参那个重载）里**先于任何规划**的那一步。有人把它挪到规划之后 ⇒ **照样编译、照样"能跑"**，
+       差别是「为注定不能挖的目标白做一次规划」＋「岩浆涌入的窗口」。
+       `D-535` §四 逐字登记过：这条顺序**今天只有代码位置与注释，没有机器判据**。
+
+    ② **拒码同源**：生产者 `FluidRiskPolicy` 返回 `fluid_risk_lava` / `fluid_risk_water`，
+       消费者 `MineTask.isHardTargetRefusal` 逐字认这两个码。**任一侧改名 ⇒ 另一侧静默失配**
+       ⇒ 硬拒绝退化成普通失败 ⇒ `MineTask` 会去**清障/加高**（那个分支的注释逐字写着
+       「在岩浆旁搭柱子、或把挡路方块清掉 = 主动把自己送进危险」）⇒ **编译器不报错、门禁也不报错**。
+
+    四条断言：
+      ① 生产者在场且**真的返回拒码**（非空集合）；
+      ② **单一出处**：`src/` 里 `miningRefusal(` 恰好 **2** 处（声明 1 ＋ 调用 1）；
+      ③ **顺序**：调用点下标 < 同一方法块内**任何**规划调用（`selectDirect(` / `planGoalApproach(` /
+         `new CorePathPlanner`）的下标；
+      ④ **拒码同源**：消费者 `isHardTargetRefusal` 认得的字面量**包含**生产者产出的每一个拒码。
+    """
+    problems = []
+    src = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
+    producer_path = src / "survival" / "FluidRiskPolicy.java"
+    planner_path = src / "task" / "mining" / "MiningPlanner.java"
+    consumer_path = src / "task" / "MineTask.java"
+
+    # ---- ① 生产者在场 ＋ 取拒码集合 ----
+    if not producer_path.exists():
+        problems.append("`survival/FluidRiskPolicy.java` 不在了 ⇒ 流体前置的**唯一生产者**没了")
+        return problems
+    producer_body = method_body(_blank_comments(producer_path.read_text(encoding="utf-8")),
+                                "String miningRefusal(")
+    if not producer_body:
+        problems.append("`FluidRiskPolicy` 里找不到 `miningRefusal(...)` ⇒ 生产者改名/搬走了"
+                        "（⛔ 别只改本规则：消费者 `MineTask.isHardTargetRefusal` 会静默失配）")
+        return problems
+    codes = set(re.findall(r'return\s+"([A-Za-z0-9_]+)"', producer_body))
+    if not codes:
+        problems.append("`FluidRiskPolicy.miningRefusal` 一个拒码都不返回了 ⇒ `MineTask` 认的那两个码"
+                        "**永远不可能命中**（硬拒绝静默退化成普通失败）")
+
+    # ---- ② 单一出处 ----
+    sites = 0
+    for path in src.rglob("*.java"):
+        sites += len(re.findall(r"miningRefusal\(", _blank_comments(path.read_text(encoding="utf-8"))))
+    if sites != 2:
+        problems.append(f"`miningRefusal(` 在 `src/` 里出现 {sites} 处（应为 **2**：声明 1 ＋ 调用 1）"
+                        " ⇒ 要么多了一处调用（授权面扩散），要么调用点被删了（流体前置**不再生效**）")
+
+    # ---- ③ 顺序：调用点必须先于任何规划 ----
+    if not planner_path.exists():
+        problems.append("`task/mining/MiningPlanner.java` 不在了 ⇒ 本规则要跟着改（⛔ 别删规则）")
+    else:
+        planner_code = _blank_strings(_blank_comments(planner_path.read_text(encoding="utf-8")))
+        call_idx = planner_code.find("miningRefusal(")
+        if call_idx < 0:
+            problems.append("`MiningPlanner` 里找不到 `miningRefusal(` 调用 ⇒ **流体前置不再生效**"
+                            "（`D-535` §四 裁定它留在 `plan()` 首位；要搬请先改本规则并说明新载体）")
+        else:
+            open_idx, close_idx = _enclosing_block(planner_code, call_idx)
+            planning = [name for name in ("selectDirect(", "planGoalApproach(", "new CorePathPlanner")
+                        if open_idx >= 0 and open_idx < planner_code.find(name, open_idx) < close_idx]
+            if open_idx < 0 or not planning:
+                problems.append("`MiningPlanner` 里定位不到「流体前置所在的方法块 ＋ 其中的规划调用」"
+                                " ⇒ 形状变了（本规则要跟着改，⛔ 别删规则）")
+            else:
+                first_plan_idx = min(planner_code.find(name, open_idx) for name in planning)
+                if call_idx > first_plan_idx:
+                    problems.append(
+                        f"流体前置**被挪到规划之后**：`miningRefusal(` 在第 {_line_of(planner_code, call_idx)} 行，"
+                        f"而规划调用在第 {_line_of(planner_code, first_plan_idx)} 行（={'/'.join(planning)}）"
+                        " ⇒ 会为「注定不能挖」的目标先做一次规划"
+                        "（`D-535` §四：前置的意义就是**在任何规划之前**）")
+
+    # ---- ④ 拒码同源：消费者必须认得生产者产出的每一个码 ----
+    if not consumer_path.exists():
+        problems.append("`task/MineTask.java` 不在了 ⇒ 本规则要跟着改（⛔ 别删规则）")
+    elif codes:
+        consumer_body = method_body(_blank_comments(consumer_path.read_text(encoding="utf-8")),
+                                    "boolean isHardTargetRefusal(")
+        if not consumer_body:
+            problems.append("`MineTask.isHardTargetRefusal(...)` 不在了 ⇒ **硬拒绝**判据没了"
+                            "（流体拒码会退化成普通失败 ⇒ 触发清障/加高 ＝ 在岩浆旁主动冒险）")
+        else:
+            known = set(re.findall(r'"([A-Za-z0-9_]+)"', consumer_body))
+            missing = sorted(codes - known)
+            if missing:
+                problems.append(f"**拒码失配**：`FluidRiskPolicy` 产 {sorted(codes)}，"
+                                f"而 `isHardTargetRefusal` 只认 {sorted(known)}"
+                                f" ⇒ 这些码**永远不会被判成硬拒绝**：{missing}"
+                                "（静默：编译器不报错，行为退化成「换站位再试 / 清障」）")
+    return problems
+
+
 def grep_symbol_exists(name):
     """该符号是否在 src/main/java 下真实出现（防"编造出处"）。"""
     needle = name + "("
@@ -5326,6 +5497,7 @@ def main() -> int:
     fallparity = rule_fall_landing_parity()
     latch = rule_terminal_latch_replays_status()
     retire = rule_standing_retirement_no_residue()
+    fluidpre = rule_fluid_precheck_before_planning()
     for line in k4:
         print(f"[K4·谓词统一] {line}")
     for line in k5:
@@ -5462,6 +5634,8 @@ def main() -> int:
         print(f"[A1′·终态闩锁回放] {line}")
     for line in retire:
         print(f"[B·退役零残留] {line}")
+    for line in fluidpre:
+        print(f"[P0-C·流体前置与拒码同源] {line}")
     for line in pl1:
         print(f"[PL-1·过期证明重评] {line}")
     for line in diagside:
@@ -5475,11 +5649,12 @@ def main() -> int:
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
-          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not fbshape and not fbentry and not fbrev and not fbc8 and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b and not a3 and not p7 and not p3 and not pl1 and not diagside and not psparity and not pillarwater and not fallparity and not retire) and not tlb
+          and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not fbshape and not fbentry and not fbrev and not fbc8 and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b and not a3 and not p7 and not p3 and not pl1 and not diagside and not psparity and not pillarwater and not fallparity and not retire and not fluidpre) and not tlb
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
           f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 鱼骨真机日志形状={len(fbshape)} / 鱼骨入口起点={len(fbentry)} / 补路走位可逆={len(fbrev)} / C8搭路上限={len(fbc8)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / tick负载预算={len(tlb)} / 到位形状有生产点={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
           f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 不可逆写入记账={len(rc3)} / 击杀产物归属={len(a3)} / 非PASS步单列={len(p7)} / 作业级收集授权={len(p3)} / 写入真相同源={len(rc4)} / 重放有界={len(p2b)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)} / 过期证明重评={len(pl1)} / 对角侧格单源={len(diagside)} / 搭石族两侧谓词={len(psparity)} / 水柱起跳门控={len(pillarwater)} / 落点三层同源={len(fallparity)} / 站位退役零残留={len(retire)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
+          f" / 流体前置与拒码同源={len(fluidpre)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")
     return 0 if ok else 1
 
