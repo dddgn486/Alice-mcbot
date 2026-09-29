@@ -254,6 +254,39 @@ run_gate             "check-scene-connectivity" python3 tools/check-scene-connec
 run_headless_battery
 run_doc_budget
 
+# 预期红清单（`D-532` §三 横切闸门②）：**实际红 ⊆ `docs/EXPECTED_REDS.md`**。
+# 为什么与电池**同条件**（`ALICE_HEADLESS=1` 才跑）：闸门② 的对象**就是电池的判决** ——
+# 电池没跑时根本没有"实际红"可比，再记一条 WARN 只会把已有的那条（"电池未执行"）
+# 稀释成两条同义告警 ⇒ 这里**不另记**，而是明确挂在电池那一轮里。
+# 三态：0 = 集合相等（且清单无陈旧行）· 2 = 断言未执行（无日志/整轮中止/陈旧/SKIP）· 其它 = 红。
+# ⚠️ 本函数定义**贴在最底部**（在其调用点之前）是刻意的：`check-*` 的位置若前移，会把本文件
+# 后面所有行号推走，而 `docs/` 有 6 处按 `tools/check-all.sh:NN` 检索（`ref-integrity` 只抓越界、
+# **抓不出"界内但指错"**）⇒ 新门禁一律往**尾部**挂，⛔ 不插在中间。
+run_expected_reds() {
+  if [ "${ALICE_HEADLESS:-0}" != "1" ]; then return; fi
+  local out rc
+  out="$(python3 tools/check-expected-reds.py 2>&1)"; rc=$?
+  case "$rc" in
+    0)
+      PASSED=$((PASSED + 1))
+      printf '  [PASS] %-30s %s\n' "check-expected-reds" \
+        "$(printf '%s' "$out" | grep -E 'EXPECTED_REDS_RESULT' | tail -1 | cut -c1-110)"
+      ;;
+    2)
+      WARNED=$((WARNED + 1))
+      printf '  [WARN] %-30s %s\n' "check-expected-reds" \
+        "断言未执行（无电池日志 / 整轮中止 / 日志陈旧 / 清单里的步本轮 SKIP）"
+      printf '%s\n' "$out" | grep -E 'EXPECTED_REDS_RESULT' | sed 's/^/         /'
+      ;;
+    *)
+      FAILED=$((FAILED + 1))
+      printf '  [FAIL] %-30s exit=%d\n' "check-expected-reds" "$rc"
+      printf '%s\n' "$out" | tail -n 12 | sed 's/^/         /'
+      ;;
+  esac
+}
+run_expected_reds
+
 hr
 if [ "$FAILED" -eq 0 ]; then
   if [ "$WARNED" -gt 0 ]; then
