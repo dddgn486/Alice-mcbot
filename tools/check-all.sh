@@ -242,6 +242,7 @@ run_gate             "check-underfoot-safety"   python3 tools/check-underfoot-sa
 # 断言 = ① `reach/` 不许 import `task|action|job`（防"漏搬一个，循环换个方向长回来"）
 # ② `action/` → `task/` 只许剩**表里登记的欠账**（step 3b 后**表空 = 无条件 0 命中**）。
 # 自带 6 条合成红臂 + 人口下限（reach ≥4 / action ≥10 / 扫描 ≥480）。
+run_gate             "check-baritone-anchor"    python3 tools/check-baritone-anchor.py
 run_gate             "check-layer-direction"     python3 tools/check-layer-direction.py
 # 回迁（2026-09-24）：`tools/dsh-session-rollback.mjs` 决定"云端哪些字节要搬回本机" ——
 # 决定错了**不会响**（本机会安静地留一个半截会话）⇒ 自检必须进构建：
