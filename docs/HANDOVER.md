@@ -4370,3 +4370,21 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
   那条**分支**本身（挂分支，属柱 ②③ 后续）。
 - ⏳ **下一步（柱 ②③）**：通用 `Step` 接口 ＋ **门禁自动枚举**（`N3`）→ 这是**闸门④ 第二半能被补牙**的前提；
   ＋ `N2` 待你定名/定去留（AI 倾向：等外部声明来源出现再说，理由 = 今天外部消费者 = 0）。
+
+### 补记 6：`4a` 柱②③ 第一刀 —— `Step` 注册口 ＋ `start_job` 的 `kind` 锁（`D-539`）
+
+- **用户裁定**：`N3` = 「一个通用 `Step` 接口 ＋ 门禁自动枚举」·「按 `O63` 的形状做」（job/step 的注册面）。
+- ✅ **`step` 半边**：新增 `src/main/java/com/dddgn/alice/task/Step.java`（**标记接口**）；
+  `MineStep`/`CollectStep` 实现它；`check-task-orchestration-split.py` 改成 **`rglob` 自动枚举** ⇒
+  ⭐ **新加一个 step 自动被覆盖**（真树臂②实测：新 `FooStep implements Step` 且造任务 ⇒ 被枚举并精确报
+  `new *Task(`）。逐类判 6 条 ＋ 反向牙 ＋ 豁免表**双向** ＋ 红臂 12（合计 42）。
+  ⇒ **横切闸门④ 第二半的前提就位**（`O41` §3 那句"与 job 契约一起定执行器/step 扩展点"**兑现**）。
+- ✅ **`job` 半边（最便宜那颗牙）**：`goal-vocabulary.py` 加 `start_job` 的 **kind** 判据
+  （广告 ⊆ 接受；接受面多出的必须 `KIND_ALIASES` 具名登记＋理由，双向核）。
+  读数：广告 `[collect,lumber,mine,region_lumber]` · 接受 `[…+region]` · 别名 `[region]`。
+- ⚠️ **更正 `O59` 一处事实错**：`CheckStep` **不是**原语（它是电池步的描述 record）⇒ 真原语**2 个**，
+  `CheckStep` 是**同名两物**（已具名豁免登记）。
+- ⚠️ **两次自伤（如实记，已固化纪律）**：① 注入臂用 `git checkout --` 还原**未提交**的门禁 ⇒ 把本轮改动
+  一起还原 ⇒ **先提交再注入**；② `a96d6468` **先 commit 后跑 `check-all`** ⇒ 提交时 anchor 门禁红
+  ⇒ **提交前先跑 `check-all`**。
+- ⏳ **job 半边剩下两件**：把 `MAPPING` 从 bash 变量搬回代码 · 生成视图 ＋ 双向防漂移门禁（照 `MachineMap` 形状）。

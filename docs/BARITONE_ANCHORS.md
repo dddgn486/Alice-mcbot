@@ -47,3 +47,4 @@
 > 它量化了"这个内核有多少东西**没有 Baritone 参照物**"（正是 `survey/48` §1.1 指出的病根）。
 > ⛔ 别把它读成"7 笔都合规所以没事"：它只说明**每笔都登记了理由**，理由站不站得住要人核。
 | `db64d985` | `1-5` · `reach/MiningPlan` → `reach/ReachPlan`（＋ `task/` `bot/` 引用面） | **Alice 特有**：本刀**零行为增量** —— 只把类型的**名字**从 `MiningPlan` 改成 `ReachPlan`（与同包 `ReachOutcome` 对齐），⛔ 无任何搜索/Movement/执行器/自愈/成本/跳跃门控的增量。⭐ **命名不在** `D-036` 列举的差异面内 ⇒ 无需 Baritone 对照（⚠️ Baritone 那边根本没有这个类型，它是 Alice 自己的到达腿计划载体） |
+| `8652ef42` | `4a` 柱② · `task/mining/MineStep` ＋ `task/collecting/CollectStep` 实现新注册口 `task/Step` | **Alice 特有**：本刀**零行为增量** —— 只是给两个原语加一个**标记接口**（`implements Step`），并把门禁的"原语集合"从**写死路径**改成 `rglob` **自动枚举**。⭐ **扩展点／注册面不在** `D-036` 列举的差异面（搜索 / Movement / 执行器状态机 / 自愈 / 段超时 / 成本模型 / 跳跃门控）内 —— Baritone 那边没有"原语注册口"这个概念（它的 Movement 是按枚举分派的）⇒ 无需对照 |
