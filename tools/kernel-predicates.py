@@ -1154,27 +1154,51 @@ def rule_search_limit_not_unreachable():
     # （实测 `found_but_unminable` 307 : `search_incomplete` 87）。取证 = `docs/reviews/2026-09-25-mine循环198ms拆解.md`。
     planner_code = code_only((ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
                               / "mining" / "MiningPlanner.java").read_text(encoding="utf-8"))
+    # ⭐ 2026-09-29（改革 ① 主体「搬空第二批」，`D-523`）：**R7「诚实读数」已搬出挖掘包** ——
+    # 它的三个成员（`inconclusive` / `inconclusiveReason` / `SEARCH_INCOMPLETE`）现在住在**内核侧**
+    # `SearchConclusion`（`plans §4.2`③：「⭐ **必须活下来**，落 `reach/` 或内核侧」＋
+    # 「⚠️ 它描述的是**内核搜索配额**，放在挖掘包里是**错位**」）。
+    # ⇒ 本规则**关于 R7 的那半改锚到新家**（`plans §2.5` 逐字：「关于 R7 的那半**必须活下来**（**只改锚**）」），
+    # 并且**牙多两颗**（③′/③″）：搬走之后不许在 `MiningPlanner` 里复活成第二处。
+    conclusion_code = code_only((ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
+                                 / "pathing" / "core" / "search" / "SearchConclusion.java")
+                                .read_text(encoding="utf-8"))
 
     # ⭐ `P1-d` ①：唯一谓词必须**同时**覆盖两种"没得出可达性结论"
-    inconclusive_fn = method_body(planner_code, "public static boolean inconclusive(PlanningStatus status) {")
+    inconclusive_fn = method_body(conclusion_code,
+                                  "public static boolean inconclusive(PlanningStatus status) {")
     if not inconclusive_fn:
-        problems.append("`MiningPlanner.inconclusive(PlanningStatus)` 唯一谓词不存在"
+        problems.append("`SearchConclusion.inconclusive(PlanningStatus)` 唯一谓词不存在"
                         " ⇒ `P1-b`/`P1-d` 的收口点没了（判据只能咬字面量）")
     else:
         for status_name in ("PlanningStatus.SEARCH_LIMIT", "PlanningStatus.PARTIAL"):
             if status_name not in inconclusive_fn:
-                problems.append(f"`MiningPlanner.inconclusive` 少了 `{status_name}`"
+                problems.append(f"`SearchConclusion.inconclusive` 少了 `{status_name}`"
                                 " ⇒ 那种「没得出可达性结论」会被当成不可达"
                                 "（`P1-d`：真机撞限搜 502 次里 **480 次是 PARTIAL**）")
     # ⭐ `P1-d` ②：唯一出处（夹具要能拿真 `PathPlan` 对象做与环境无关的断言）
-    if "public static String inconclusiveReason(PathPlan plan) {" not in planner_code:
-        problems.append("`MiningPlanner.inconclusiveReason(PathPlan)` 唯一出处不存在"
+    if "public static String inconclusiveReason(PathPlan plan) {" not in conclusion_code:
+        problems.append("`SearchConclusion.inconclusiveReason(PathPlan)` 唯一出处不存在"
                         " ⇒ 夹具只能断言方法名/字面量（`D-425` ⑤：恒真也能过）")
     # ⭐ `P1-d` ③：`SEARCH_INCOMPLETE` 必须是**唯一出处**，不许再写字符串字面量
-    if planner_code.count('"search_incomplete"') != 1:
-        problems.append("`MiningPlanner` 里 `\"search_incomplete\"` 字面量出现 "
-                        f"{planner_code.count(chr(34) + 'search_incomplete' + chr(34))} 次（应为 1：常量声明处）"
+    if conclusion_code.count('"search_incomplete"') != 1:
+        problems.append("`SearchConclusion` 里 `\"search_incomplete\"` 字面量出现 "
+                        f"{conclusion_code.count(chr(34) + 'search_incomplete' + chr(34))} 次（应为 1：常量声明处）"
                         " ⇒ 唯一出处被绕过（比较/返回各写一遍 ⇒ 改一处漏一处）")
+    # ⭐ ③′（2026-09-29 新增，`D-523`）：**搬走之后不许在原处复活** ——
+    # 之前"唯一出处"只在 `MiningPlanner` 内部可断言；搬出去之后，**原处必须零命中**才叫搬干净。
+    if planner_code.count('"search_incomplete"') != 0:
+        problems.append("`MiningPlanner` 里又出现 `\"search_incomplete\"` 字面量 "
+                        f"{planner_code.count(chr(34) + 'search_incomplete' + chr(34))} 次"
+                        " ⇒ R7 已搬进 `SearchConclusion`（`plans §4.2`③）⇒『唯一出处』变成两处")
+    # ⭐ ③″（2026-09-29 新增，`D-523`）：也不许留**转发壳**（同名薄方法/常量重新声明）——
+    # 那是最隐蔽的"第二处"：编译过、行为不变，但唯一出处已经名存实亡。
+    for member in ("public static boolean inconclusive(",
+                   "public static String inconclusiveReason(",
+                   "public static final String SEARCH_INCOMPLETE"):
+        if member in planner_code:
+            problems.append(f"`MiningPlanner` 里又声明了 `{member}…` ⇒ R7 已搬进 `SearchConclusion`"
+                            "（`plans §4.2`③）⇒ ⛔ 不许留转发壳（唯一出处会变两处）")
 
     # ⚠️ **锚点跟着结构走**（`D-520`，2026-09-29）：改革 ① 主体第一刀把 B 腿（`selectBestApproach`
     # + 13 格候选穷举）整条删掉，A 腿之外只剩**一次** `GoalAdjacent` 搜索。所以本段的两个锚点分开钉：
@@ -1189,12 +1213,12 @@ def rule_search_limit_not_unreachable():
     if not approach:
         problems.append("`MiningPlanner` 找不到 A 腿的候选精算 `exactTopK`（结构变了 ⇒ 本规则要跟着改）")
     else:
-        if "inconclusive(path.status())" not in approach or "searchLimited = true;" not in approach:
+        if "SearchConclusion.inconclusive(path.status())" not in approach or "searchLimited = true;" not in approach:
             problems.append("`exactTopK` 没有把「本轮没评价完」（`SEARCH_LIMIT` = 没跑 / `PARTIAL` = "
                             "跑了没算完）置进 `searchLimited` ⇒ 被限流的候选会被写进 "
                             "`no_reachable_candidate`（S3：`SEARCH_LIMIT ≠ UNREACHABLE`；`P1-d`："
                             "真机 502 次撞线里 480 次是 `PARTIAL`）")
-        if "SEARCH_INCOMPLETE" not in approach:
+        if "SearchConclusion.SEARCH_INCOMPLETE" not in approach:
             problems.append("`exactTopK` 全失败时没有 `SEARCH_INCOMPLETE` 分支"
                             " ⇒ 输出端仍然分不出「没评价完」")
     goal_leg = method_body(planner_code,
@@ -1203,10 +1227,10 @@ def rule_search_limit_not_unreachable():
     if not goal_leg:
         problems.append("`MiningPlanner` 找不到目标腿 `planGoalApproach`（结构变了 ⇒ 本规则要跟着改）")
     else:
-        at_inconclusive = goal_leg.find("inconclusiveReason(path)")
+        at_inconclusive = goal_leg.find("SearchConclusion.inconclusiveReason(path)")
         at_reached = goal_leg.find("if (!path.reached())")
         if at_inconclusive < 0:
-            problems.append("目标腿 `planGoalApproach` 不走唯一出处 `inconclusiveReason(path)`"
+            problems.append("目标腿 `planGoalApproach` 不走唯一出处 `SearchConclusion.inconclusiveReason(path)`"
                             " ⇒ 「有没有结论」被就地另判一遍（`P1-d`）")
         elif at_reached >= 0 and at_inconclusive > at_reached:
             problems.append("目标腿 `planGoalApproach` **先判到达、后判结论** ⇒ 被限流/只拿到前缀的搜索"
@@ -1247,11 +1271,11 @@ def rule_search_limit_not_unreachable():
             problems.append("`standableOnly` 的兜底码 `no_reachable_standing_point` 不再受"
                             "「腿到底有没有给出理由」保护 ⇒ 真理由（如 `no_valid_standing_point`："
                             "缺一格地板）会被总括码吃掉（`1.4w`，`survey/35 §9` 桶3-3）")
-    if "best.plan() != null || SEARCH_INCOMPLETE.equals(best.failureReason())" not in planner_code:
+    if "best.plan() != null || SearchConclusion.SEARCH_INCOMPLETE.equals(best.failureReason())" not in planner_code:
         problems.append("`planDirect` 结尾把 `exactTopK` 的 `SEARCH_INCOMPLETE` 改写成了"
                         " `no_reachable_standing_point`（`P1-d`）")
-    if "inconclusiveReason(path)" not in planner_code:
-        problems.append("没有任何腿走 `inconclusiveReason(path)` 这个唯一出处"
+    if "SearchConclusion.inconclusiveReason(path)" not in planner_code:
+        problems.append("没有任何腿走 `SearchConclusion.inconclusiveReason(path)` 这个唯一出处"
                         " ⇒ 「有没有结论」被各腿各判一遍")
     # ⚠️ **锚点跟着结构走**（2026-09-25，`D-443` 裁定 1a）：聚合入口从 4 参
     # `plan(…, standableOnly)` 变成 6 参 `plan(…, standableOnly, approach, requester)`
@@ -1268,8 +1292,8 @@ def rule_search_limit_not_unreachable():
     # ⚠️ `D-520`：腿数从 3 变 2（`tunnel`+`enter` 合成 `goalApproach`）⇒ 合取式跟着改。
     # 仍然是**位置化**断言（钉同一条 `if` 里的合取表达式），不是"方法体里出现过这些子串"。
     conjunction = re.search(
-        r"SEARCH_INCOMPLETE\.equals\(direct\.failureReason\(\)\)\s*\|\|\s*"
-        r"SEARCH_INCOMPLETE\.equals\(goalApproach\.failureReason\(\)\)",
+        r"SearchConclusion\.SEARCH_INCOMPLETE\.equals\(direct\.failureReason\(\)\)\s*\|\|\s*"
+        r"SearchConclusion\.SEARCH_INCOMPLETE\.equals\(goalApproach\.failureReason\(\)\)",
         aggregate, re.S)
     if not aggregate:
         problems.append("`MiningPlanner` 找不到聚合入口 `plan(…, standableOnly, approach, requester)`"

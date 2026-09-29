@@ -8,6 +8,7 @@ import com.dddgn.alice.pathing.core.search.CorePathPlanner;
 import com.dddgn.alice.pathing.core.search.PathPlan;
 import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.pathing.core.search.PlanningStatus;
+import com.dddgn.alice.pathing.core.search.SearchConclusion;
 import com.dddgn.alice.pathing.core.search.SearchTickBudget;
 import com.dddgn.alice.task.mining.MiningPlanner;
 import net.minecraft.core.BlockPos;
@@ -68,7 +69,7 @@ import java.util.Map;
  *       `inconclusiveReason(path)` 那一支的 `search_incomplete` **原样上抛**改回无条件
  *       `no_reachable_adjacent_standing_point`（旧形状的对应改法 = `planTunnel` 结尾 / `planEnterTarget`
  *       的 `SEARCH_LIMIT` 分支）⇒ BURN 相位必须**红**（理由是 `found_but_unminable`）。</li>
- *   <li>⭐ `P1-d` 臂：把 `MiningPlanner.inconclusive(...)` 里的 `PlanningStatus.PARTIAL` 去掉
+ *   <li>⭐ `P1-d` 臂：把 `SearchConclusion.inconclusive(...)` 里的 `PlanningStatus.PARTIAL` 去掉
  *       （回到"只认 `SEARCH_LIMIT`"）⇒ `P1-d` 相位必须**红**（理由是 `found_but_unminable`）。</li>
  * </ul>
  *
@@ -409,19 +410,19 @@ public final class MiningSearchLimitHonestyCheckTask implements Task {
                 5, 2, 1L, "fixture", "reached-fixture");
 
         check("⭐ `P1-d`（与环境无关）：`PARTIAL` ⇒ 必须判成 `search_incomplete`（实测 "
-                        + MiningPlanner.inconclusiveReason(partial) + "）",
-                MiningPlanner.SEARCH_INCOMPLETE.equals(MiningPlanner.inconclusiveReason(partial)),
+                        + SearchConclusion.inconclusiveReason(partial) + "）",
+                SearchConclusion.SEARCH_INCOMPLETE.equals(SearchConclusion.inconclusiveReason(partial)),
                 "`PARTIAL` = 搜索**跑了**、烧光自己的预算、只交出前缀 ⇒ **没得出可达性结论**，"
                         + "必须与 `SEARCH_LIMIT` 同等对待（真机 09-24：撞限 502 次里 **480 次是 PARTIAL**）");
         check("`P1-d`：`SEARCH_LIMIT` ⇒ `search_incomplete`（`P1-b` 的既有语义，不得回退）",
-                MiningPlanner.SEARCH_INCOMPLETE.equals(MiningPlanner.inconclusiveReason(limit)),
-                "实测=" + MiningPlanner.inconclusiveReason(limit));
+                SearchConclusion.SEARCH_INCOMPLETE.equals(SearchConclusion.inconclusiveReason(limit)),
+                "实测=" + SearchConclusion.inconclusiveReason(limit));
         check("`P1-d`：**真**不可达（`UNREACHABLE`）⇒ 空串（不许被本改动吞掉，如实报）",
-                MiningPlanner.inconclusiveReason(unreachable).isEmpty(),
-                "实测=" + MiningPlanner.inconclusiveReason(unreachable));
+                SearchConclusion.inconclusiveReason(unreachable).isEmpty(),
+                "实测=" + SearchConclusion.inconclusiveReason(unreachable));
         check("`P1-d`：`REACHED` ⇒ 空串（有结论）",
-                MiningPlanner.inconclusiveReason(reached).isEmpty(),
-                "实测=" + MiningPlanner.inconclusiveReason(reached));
+                SearchConclusion.inconclusiveReason(reached).isEmpty(),
+                "实测=" + SearchConclusion.inconclusiveReason(reached));
 
         // ============ ② 条件式行为判据（环境允许产出 PARTIAL 时才咬） ============
         // ⚠️ `PARTIAL` 能不能被造出来**取决于外部地形/加载状态**（`CoarseGoalPrefixCheckTask` 2026-09-22
@@ -472,7 +473,7 @@ public final class MiningSearchLimitHonestyCheckTask implements Task {
                             + "账目=" + SearchTickBudget.describe());
             check("⭐ `P1-d`（行为级：本环境**确实产出了** `PARTIAL`）：规划器理由必须是 "
                             + "`search_incomplete`（实测 " + partialReason + "）",
-                    MiningPlanner.SEARCH_INCOMPLETE.equals(partialReason),
+                    SearchConclusion.SEARCH_INCOMPLETE.equals(partialReason),
                     "不许是 found_but_unminable / no_reachable_candidate / no_reachable_standing_point"
                             + " / no_reachable_adjacent_standing_point");
         } else {

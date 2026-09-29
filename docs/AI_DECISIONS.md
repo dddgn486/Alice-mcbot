@@ -24749,3 +24749,68 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 - ⛔ **`N3`/`N4` 都还没有客户端证据**：N3 是静态读码（`clearBudget` 常量值 + `mayClear()` 恒假），N4 是 `GoalAdjacent` 的算术定义。**它们的客户端后果（伐木到底会不会往地里挖）本轮没有测。**
 - ⛔ **`N5` 的"零实现"是 `grep` 判据**，不是行为判据：我没有跑过任何"预检不通 ⇒ 换脚格"的场景 ⇒ 它只能说明"生产调用点一次都没传过排除集"。
 - 📌 **指针**：侦察正文 = `docs/reviews/2026-09-29-三件开工前侦察-排序.md`；台账 = `O19`；断点 = `HANDOVER.md` 断点二十。
+
+---
+
+## D-524：改革 ① 主体 **「搬空第二批」** —— `R7`「诚实读数」搬出挖掘包，落内核侧 `SearchConclusion`（2026-09-29，用户「丙：件② 一路做下去」）
+
+- 起因 = `D-523` 的排序结论（件② 是三件里**唯一无前置**的）＋ 用户 2026-09-29 对 `O19` 载体那一问的选择：**丙 = 件② 一路做下去，A①/A② 继续挂着**。
+- 依据（**设计已裁，不是本刀新造**）= `plans §4.2`③ 逐字：「⭐ **必须活下来**，落 `reach/` 或内核侧；⚠️ **红线判据**，不许跟着 `MiningPlanner` 一起消失；且它本属**内核配额**语义」
+  ＋ `plans §2.2` 的 R7 逐字：「⚠️ 它描述的是**内核搜索配额**，放在挖掘包里是**错位**」。
+
+### 一、落地（`git`；**只搬不改语义**）
+
+| # | 动作 |
+|---|---|
+| 1 | **新类** `pathing/core/search/SearchConclusion.java`（内核侧）—— 收纳 R7 三件：`inconclusive(PlanningStatus)` · `inconclusiveReason(PathPlan)` · `SEARCH_INCOMPLETE` |
+| 2 | `task/mining/MiningPlanner` **交出**这三个成员（原 javadoc 的"为什么必须收口成一处"整段**随件搬走**），本文件所有引用改 `SearchConclusion.*`；`PlanningStatus` 的 import 随之不再需要 |
+| 3 | `task/MiningSearchLimitHonestyCheckTask`（夹具）改引用新家（`SEARCH_INCOMPLETE` ×3 · `inconclusiveReason` ×8 ⇒ 现均 0） |
+| 4 | `tools/kernel-predicates.py` 的 `rule_search_limit_not_unreachable`：**关于 R7 的那半改锚**到新类（`plans §2.5` 逐字「**必须活下来**（**只改锚**）」）＋ **三颗新牙** |
+
+⚠️ **只搬不改语义**：判据、理由码**字面量**、成员名**逐字保留** ⇒ 行为**零变化**。
+⛔ **刻意不做**：不在 `MiningPlanner` 留"转发用的"同名薄方法（那会让"唯一出处"**名存实亡**）—— 并且**加了牙**专门挡它（§二 ③″）。
+
+### 二、门禁：重锚 ＋ **新牙三颗**（每颗都做过注入验证）
+
+| 牙 | 内容 | 注入验证（实测） |
+|---|---|---|
+| **重锚**（①②③） | `inconclusive` 唯一谓词 / `inconclusiveReason` 唯一出处 / `SEARCH_INCOMPLETE` 字面量恰好 1 次 —— 三者**主语从 `MiningPlanner` 换成 `SearchConclusion`** | 把 `PARTIAL` 从谓词里删掉 ⇒ 精确报「`SearchConclusion.inconclusive` 少了 `PlanningStatus.PARTIAL`」 |
+| ⭐ **③′（新）** | **`MiningPlanner` 里 `"search_incomplete"` 字面量必须 0 次** —— 搬走之后**不许在原处复活** | 在原处注入 `private static final String LEAK = "search_incomplete";` ⇒ 精确报「又出现 1 次 ⇒『唯一出处』变成两处」 |
+| ⭐ **③″（新）** | **`MiningPlanner` 里不许再声明 R7 的三个成员**（`inconclusive(` / `inconclusiveReason(` / `SEARCH_INCOMPLETE`）—— 挡**转发壳** | 注入一个转发方法 ⇒ 精确报「又声明了 `public static boolean inconclusive(…` ⇒ 不许留转发壳」 |
+
+⚠️ **`plans §2.5` 预言的正是这件事**：「其中 4 条断言会**失去对象**，但**关于 R7 的那半必须活下来**（只改锚）」。
+⭐ **另一处顺带加强**：`exactTopK` / `planGoalApproach` / 聚合闸门那三条位置化断言**原来是裸 `SEARCH_INCOMPLETE`／`inconclusiveReason(path)` 子串**，
+搬包后它们**仍会因"子串恰好还在"而报绿** ⇒ 已**逐条改成限定名**（`SearchConclusion.…`）—— 否则就是"指针真实存在 ≠ 指对了东西"。
+⚠️ **一个自我纠正**：新类的类 javadoc 里我原本写了带双引号的 `"search_incomplete"`，被**自己的新计数牙**当场判红（计数 2 而非 1）⇒ 改成反引号写法。**是门禁抓出来的，不是我复查出来的**。
+
+### 三、判据（全部实跑）
+
+| 判据 | 读数 |
+|---|---|
+| `python3 tools/kernel-predicates.py` | **PASS**（`搜索受限≠没有=0`）· 三颗牙注入验证各自变红后**还原，两个 sha 逐字回到注入前**（`MiningPlanner` `d18493c07c58ac67` · `SearchConclusion` `4640f01541a673d9`） |
+| `./gradlew compileJava --no-daemon` | **BUILD SUCCESSFUL** |
+| `tools/check-all.sh` | **`pass=34 warning=1 failed=0`**（基线） |
+| `tools/headless-battery.sh core` | 见 §四 |
+
+### 四、未做 / 下一步
+
+1. ⛔ **`DS-5` 的实质仍未推进**：`MiningPlanner` **还有 `R1`/`R2`/`R5`/`R6`/`R8`**（`R3`/`R4` 已随第一刀消失、`R7` 本刀搬走、`R9` 第一批删掉）。
+2. ⏳ **件② 内部下一刀（仍无前置）**：**`R6`（掉落承接 `dropWouldBeLost` / `DROP_FALL_SEARCH`）独立出来** —— `plans §4.2`⑤ 逐字「⭐ **独立出来**」；
+   ⚠️ 同刀处置 `rule_support_and_cluster_order`；⚠️ 而「**垫一块**」这个**动作**该由谁做**仍是另一个待裁问题**（`§4.2`⑤ 自己写明）。
+3. ⏳ **`R8`（两个站位码 + `isStandingPointRefusal`）**跟着 ①「选」走（`§4.2`④：`D-454` 判据只有一处），⇒ 排在搬 `MiningPlanner` 本体那一刀。
+4. ⚠️ **本刀暴露的一处现存不一致（已登记，⛔ 本刀不处置）**：`job/mine/MineJob` 有**两处**自己写 `search_incomplete` **字面量**
+   （`transientFailure` 的 `startsWith` ＋ `shortfallReason` 的返回），而门禁 `rule_search_limit_not_unreachable` **要求**它那样写
+   ⇒ 所以「`SEARCH_INCOMPLETE` 是唯一出处」这句话的**准确范围只是 `SearchConclusion` 自己**，`MineJob` 那两处是**第二、第三个产地**。
+   要不要把它们也收口到新家 = **未裁**（收口要同时改那条门禁的 `MineJob` 断言）。
+5. 📌 **一条可复用观察**：件② 的**每一次**"搬空"都会**同时碰到内核侧门禁**（`tools/kernel-predicates.py`）——
+   这和 `D-460` 记的 `step 3b`（搬 `PathRetryRunner` ⇒ 必须改内核门禁 ⇒ 按 `D-430` 要用户裁）是**同一件事**；
+   而 `plans §4.3` 甲 早就把「**5 条门禁规则同刀处置**」写成了**解体的自带成本** ⇒ **两者不矛盾**：`D-430` 管的是"主动给内核加东西"，
+   件② 的搬空是**已裁改革的既定施工面**。⚠️ 但**下一次**若要动内核门禁，先看这一条 —— 用户对件② 的"一路做下去"就是它的授权。
+
+### 五、诚实边界
+
+- ⛔ **本刀不证明 R7 的判据更强** —— 它只证明"这三件搬到内核侧之后，牙还在，且多了两颗挡复活的"。判据本身**一个字没改**。
+- ⛔ **`SearchConclusion` 的层归属只有静态判据**（`check-layer-direction` 对它**无额外断言** —— 它不像 `reach/` 有"不许 import 上层"的专门检查；
+  它靠的是"`pathing/` 谁都不依赖"这条既有约定 ⇒ ⚠️ 若将来它 import 了 `task/`，**今天的门禁不会红**）。
+- ⛔ **`MineJob` 那两个字面量仍是活的第二产地**（§四.4）—— 所以"唯一出处"这个说法**今天只在 `SearchConclusion` 内部成立**。
+- 📌 **指针**：决策 = 本条 · 断点 = `HANDOVER.md` 断点二十一 · 台账 = `O19`（状态列追加）· 门禁 = `tools/kernel-predicates.py:1155-1201`。

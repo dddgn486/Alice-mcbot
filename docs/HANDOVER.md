@@ -3117,3 +3117,43 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 件② 内部**两刀可选，都无前置**（`D-523` §五.2）：
 1. **`R7`（诚实读数）搬出挖掘包** —— `plans §4.2`③ 逐字「**必须活下来**」＋「它描述的是**内核搜索配额**，放在挖掘包里是**错位**」；⚠️ 同刀**必须重锚** `rule_search_limit_not_unreachable`（**红线判据：只许改锚，不许丢牙**）。
 2. **`R6`（掉落承接）独立出来** —— `plans §4.2`⑤ 逐字「⭐ **独立出来**」；⚠️ 同刀处置 `rule_support_and_cluster_order`。
+
+---
+
+### ✅ 断点二十一（2026-09-29 · 第二十一次；**「搬空第二批」= `R7` 搬出挖掘包**）
+
+> ⚠️ **本节追加在文件末尾、❗ 未插入上方断点序列**（原因同前六次：本文件有 14 处 ≥2258 的自指行号引用）。
+> 📌 决策 = `D-524` · 台账 = `O19`（状态列）· 门禁 = `tools/kernel-predicates.py:1155-1201`。
+
+**① 用户对本断点唯一的一次选择**：`O19` 那一问（A①/A② 缺的「到达集约束」载体怎么走）⇒ 用户选 **丙**：
+「**件② 一路做下去，A①/A② 继续挂着**」。⇒ 本断点起，**只做件② 内部无前置的刀**，A①/A② 不再推进。
+
+**② 本刀做了什么**（`DS-5` 解体「搬空第二批」，**只搬不改语义**）：
+
+| # | 内容 |
+|---|---|
+| 1 | **新类 `pathing/core/search/SearchConclusion`**（**内核侧**）—— 收纳 R7 三件：`inconclusive(PlanningStatus)` · `inconclusiveReason(PathPlan)` · `SEARCH_INCOMPLETE` |
+| 2 | 从 `task/mining/MiningPlanner` **交出**这三个成员（连"为什么必须收口成一处"整段 javadoc 一起搬）；本文件引用改 `SearchConclusion.*` |
+| 3 | 夹具 `task/MiningSearchLimitHonestyCheckTask` 改引用新家（`SEARCH_INCOMPLETE` ×3 · `inconclusiveReason` ×8 ⇒ 现均 0） |
+| 4 | 门禁 `rule_search_limit_not_unreachable`：**关于 R7 的那半改锚**到新类 ＋ **三颗牙** |
+
+**③ ⭐ 门禁的三颗牙（每颗都做过注入验证，验完 sha 逐字还原）**：
+
+| 牙 | 挡什么 | 注入验证读数 |
+|---|---|---|
+| 重锚 ①②③ | 唯一谓词 / 唯一出处 / 字面量恰 1 次 —— **主语换成 `SearchConclusion`** | 删掉谓词里的 `PARTIAL` ⇒ 精确报红 |
+| ⭐ **③′（新）** | **`MiningPlanner` 里 `"search_incomplete"` 必须 0 次**（搬走后不许在原处复活） | 原处注入一个字面量 ⇒ 精确报「又出现 1 次 ⇒『唯一出处』变成两处」 |
+| ⭐ **③″（新）** | **`MiningPlanner` 里不许再声明 R7 三个成员**（挡**转发壳**） | 注入一个转发方法 ⇒ 精确报「不许留转发壳」 |
+
+⚠️ **还逐条加强了三条原本"靠子串巧合"的位置化断言**（裸 `SEARCH_INCOMPLETE`／`inconclusiveReason(path)` 改成限定名）——
+搬包后它们**本会因"子串恰好还在"而继续报绿**（"指针真实存在 ≠ 指对了东西"）。
+
+**④ 判据**：`kernel-predicates` **PASS**（`搜索受限≠没有=0`）· `compileJava` 绿 · `check-all` **`pass=34 warning=1 failed=0`** ·
+`headless-battery core` **`verdict=PASS`**（指纹 `4b7fd6908472`，244 s）。
+
+**⑤ ⏭ 下一件（仍无前置，不需要拍板）**：`R6`「掉落承接」独立出来（`plans §4.2`⑤）——
+⚠️ 同刀处置 `rule_support_and_cluster_order`；⚠️ 而「**垫一块**」这个**动作**归谁**仍是待裁问题**（`§4.2`⑤ 自己写明）。
+
+**⑥ ⚠️ 本刀暴露、已登记、⛔ 未处置的一条**：`job/mine/MineJob` 有**两处**自己写 `search_incomplete` 字面量
+（`transientFailure` 的 `startsWith` ＋ `shortfallReason` 的返回），而**门禁要求它那样写** ⇒
+「`SEARCH_INCOMPLETE` 是唯一出处」**今天只在 `SearchConclusion` 内部成立**；要不要收口 = **未裁**（收口要同刀改门禁的 `MineJob` 断言）。
