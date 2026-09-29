@@ -15,7 +15,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
-import com.dddgn.alice.reach.MiningPlan;
+import com.dddgn.alice.reach.ReachPlan;
 // ⭐ 2026-09-29（改革 ① 主体 · `①-0`「拆信封」，`D-527`）：接近能力枚举提到 `reach/` 成为独立类型
 // ⇒ 本类与 `MiningProfile` 都改成引用它（`task/` → `reach/` 是合法方向）。
 import com.dddgn.alice.reach.ApproachCapability;
@@ -30,16 +30,16 @@ import com.dddgn.alice.reach.ReachOutcome;
 // ⚠️ 本刀顺带删掉了因搬家而变成**零消费者**的 import（`StandingCostEstimator` /
 // `MiningTuning` / `DropCatchment` 以及整套 `java.util` 集合）—— 这不改行为，只是别让悬空 import 撒谎。
 // ⭐⭐ 2026-09-29「批次 1 `1-3`」（甲①）：A 腿**再搬一次**，新家 = `reach/DirectArrivalPlanner`
-// （旧名把它说成"待退休的站位挖掘"，而 `MiningPlan.Arrival` 的三个取值正是它生产的）。
+// （旧名把它说成"待退休的站位挖掘"，而 `ReachPlan.Arrival` 的三个取值正是它生产的）。
 // ⇒ 本类只换引用的类名，调用点形状**一字未改**。
 import com.dddgn.alice.reach.DirectArrivalPlanner;
 
 /**
- * 挖掘领域规划器（D-067 批次 2/3）：目标方块 → 两模式站位选择 → 成本估算 → top-K 精算 → MiningPlan。
+ * 挖掘领域规划器（D-067 批次 2/3）：目标方块 → 两模式站位选择 → 成本估算 → top-K 精算 → ReachPlan。
  *
  * <p>流程（`docs/MINING_STAND_SELECTION_DESIGN.md` v7）：
  * <ol>
- *   <li><b>A 腿</b>（{@link MiningPlan.Arrival#IN_PLACE}/{@link MiningPlan.Arrival#DIRECT_PURE_PASSAGE}）：
+ *   <li><b>A 腿</b>（{@link ReachPlan.Arrival#IN_PLACE}/{@link ReachPlan.Arrival#DIRECT_PURE_PASSAGE}）：
  *       当前站位能挖 → 直接用；否则现成可站的多角度候选 + 可挖掘面前提 + 路径成本排序；</li>
  *   <li><b>目标下方无支撑</b>：按成本比较"在目标下方放支撑块 + 侧面站位"与"只从正下方挖"（仅当需要收集掉落物）；</li>
  *   <li><b>目标级到达</b>（`K2` 接线 `D-520` ＋ 批次 1 `1-1b₂`）：A 无解 → 把目标交给**内核**，
@@ -96,9 +96,9 @@ public final class MiningPlanner {
 
     /*
      * ⚠️ 2026-09-29「①-2a」（改革 ① 主体 · `DS-5` 解体）：这里原来有一个**嵌套** record
-     * `public record ReachOutcome(MiningPlan, StandingPointEvaluator.StandingPointScore, String)`。
+     * `public record ReachOutcome(ReachPlan, StandingPointEvaluator.StandingPointScore, String)`。
      * **已搬到** {@link com.dddgn.alice.reach.ReachOutcome}（`plans §4.2`①：「选」→ `reach/`）。
-     * 依据：它的三个组件的家本来就在 `reach/`（`MiningPlan` / `StandingPointScore` / 归因串），
+     * 依据：它的三个组件的家本来就在 `reach/`（`ReachPlan` / `StandingPointScore` / 归因串），
      * 而生产它的那段逻辑（候选枚举 → 排序 → top-K → 择优）正是 `§4.2`① 要搬进 `reach/` 的那一件
      * ⇒ 载体留在 `task/`、逻辑搬进 `reach/` = 逻辑反过来依赖上层（`check-layer-direction` 断言①）。
      * ⚠️ **只搬不改语义**：组件顺序、组件名、访问器名、`success()` 的判据**一字未改**。
@@ -350,7 +350,7 @@ public final class MiningPlanner {
         }
         // ⭐ 落点 = 路径**实际到达**的那一格，⛔ **不是** `path.goalFoot()`
         // （两条腿的 `goalFoot()` 返回的都是**目标方块本身**，不是脚位；见 `PathPlan.finalFoot()`）。
-        // 这与 `MiningPlan` 紧凑构造器里的不变量是**同一条**（那里会再校验一次，抛 IAE 就说明这里传错了）。
+        // 这与 `ReachPlan` 紧凑构造器里的不变量是**同一条**（那里会再校验一次，抛 IAE 就说明这里传错了）。
         BlockPos standingFoot = path.finalFoot();
         double approachCost = path.totalCost();
         double budgetCost = budget.maxExtraBreakTicks()
@@ -368,14 +368,14 @@ public final class MiningPlanner {
         //   ＋ `StandingPointEvaluator.of(standingFoot, approachCost, approachCost, los)`
         // 两件**都删了**：LOS 的唯一读者是 `task/MineTask` 的一行日志，而执行期 `MineBlockRunner`
         // **自己在运行期**复核视线（可重试）⇒ **行为承重 = 零**；`score` 等于 `approachCost`
-        // （= `path.totalCost()`）⇒ 冗余包装，改成计划自己的 `MiningPlan.totalCost()`。
+        // （= `path.totalCost()`）⇒ 冗余包装，改成计划自己的 `ReachPlan.totalCost()`。
         // ⛔ 别把 `approachCost`（预算闸门与日志都在用）一起删掉。
         BotLog.info("[MiningPlanner] arrival=MINING_APPROACH target={} leg={} startFoot={} stand={} cost={} "
                         + "movements={}",
                 target.toShortString(), leg, startFoot.toShortString(), standingFoot.toShortString(),
                 String.format(java.util.Locale.ROOT, "%.3f", approachCost), path.movements().size());
-        return new ReachOutcome(new MiningPlan(target, startFoot, standingFoot, path,
-                MiningPlan.Arrival.MINING_APPROACH, null), "");
+        return new ReachOutcome(new ReachPlan(target, startFoot, standingFoot, path,
+                ReachPlan.Arrival.MINING_APPROACH, null), "");
     }
 
     /**
@@ -409,7 +409,7 @@ public final class MiningPlanner {
      * **已搬到** `com.dddgn.alice.reach.StandingPlanSelector`（`1-3` 起 = `reach/DirectArrivalPlanner`）（`plans §4.2`①：
      * 「CURRENT 快路径 ＋ 候选枚举 ＋ LOS/触及过滤 ＋ 排序 ＋ 最优」→ **`reach/`**）。
      * 依据：它的同族**早就住在 `reach/`**（`StandingPointSelector` / `StandingPointEvaluator` /
-     * `LineOfSightChecker` / `MiningTuning` / `MiningPlan`）⇒ 只剩这一段还在 `task/mining/`，
+     * `LineOfSightChecker` / `MiningTuning` / `ReachPlan`）⇒ 只剩这一段还在 `task/mining/`，
      * 于是 `reach/` 侧的东西反过来被 `task/` 编排着用（`D-460` 的层定位）。
      * ⚠️ **只搬家、不改逻辑**：方法体逐字复制；三处改动**全部**由过层带来（`MiningBudget` 形参 →
      * `boolean collectDrops` ＋ `boolean canPlaceSupport`；`budget.collectDrops()` → `collectDrops`；

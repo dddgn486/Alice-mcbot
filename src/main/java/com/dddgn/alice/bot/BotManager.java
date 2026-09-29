@@ -1176,9 +1176,9 @@ public final class BotManager {
     }
 
     /** 只读获取当前 MineTask 计划，供开发期测试夹具观察，不修改任务。 */
-    public static com.dddgn.alice.reach.MiningPlan currentMiningPlan(BotPlayer bot) {
+    public static com.dddgn.alice.reach.ReachPlan currentReachPlan(BotPlayer bot) {
         BotSession session = BOTS.get(bot.getUUID());
-        return session == null ? null : session.currentMiningPlan();
+        return session == null ? null : session.currentReachPlan();
     }
 
     /** 取最近一次挖掘任务「开始挖掘时的 bot 位置」(隔空挖断言用;从未开始挖则为 null)。 */
@@ -1992,7 +1992,7 @@ public final class BotManager {
             return task instanceof com.dddgn.alice.job.Job job ? job.progressSummary() : null;
         }
 
-        public com.dddgn.alice.reach.MiningPlan currentMiningPlan() {
+        public com.dddgn.alice.reach.ReachPlan currentReachPlan() {
             return task instanceof MineTask mineTask ? mineTask.currentPlan() : null;
         }
 

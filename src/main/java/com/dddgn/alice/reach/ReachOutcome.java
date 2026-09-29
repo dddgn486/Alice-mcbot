@@ -7,24 +7,29 @@ import java.util.Objects;
  * （{@link #plan()} 非空），要么只有一条失败理由。
  *
  * <p>⭐ <b>2026-09-29 `1-3`（批次 1 改革 ① 主体 · 甲「成员级退役」）</b>：
- * 它替掉 {@code reach/ReachOutcome}（`①-2a` 从 `MiningPlanner` 搬出来的那个三组件 record）。
+ * 它替掉 {@code reach/StandingPlanResult}（`①-2a` 从 `MiningPlanner` 搬出来的那个三组件 record）。
+ * <br>⚠️ **`1-5` 顺带修的字面错误**：本行原写「它替掉 {@code reach/ReachOutcome}」—— **它替掉它自己**，
+ * 是 `1-3`（提交 `123566bc`）落下的笔误（真实前身是 `StandingPlanResult`，见
+ * `tools/kernel-predicates.py` 的 `rule_reach_outcome_two_components` 报错文案与设计单 `§4e` 甲）。
  * 三处改动，逐条给理由：
  * <ol>
  *   <li><b>退役 `score` 组件</b>（施工设计单 `§4e` 甲，2026-09-29 用户裁定）：那个 record 的四个字段
- *       里三个是冗余的 —— `position` == {@link MiningPlan#standingFoot()}、
+ *       里三个是冗余的 —— `position` == {@link ReachPlan#standingFoot()}、
  *       `lineOfSightResult` == 计划里那份规划期视线（本刀一并退役，见 ②）、
  *       `estimate` **全仓无读者**、`score` == 计划**自己**的成本
  *       ⇒ “评分”不再需要**载体**：它就是计划的一个**导出量**
- *       （{@link MiningPlan#totalCost()}，唯一出处）。</li>
+ *       （{@link ReachPlan#totalCost()}，唯一出处）。</li>
  *   <li><b>退役规划期视线（LOS）</b>（同一裁定）：它的**唯一**消费者是 `task/MineTask` 的一行
  *       **遥测**日志，而执行期 `action/MineBlockRunner` **自己在运行期**复核视线
  *       （`LINE_OF_SIGHT_BLOCKED` / `OUT_OF_REACH`，可重试）⇒ 规划期那一份的
- *       **行为承重 = 零** ⇒ 从 {@link MiningPlan} 的组件表里去掉
+ *       **行为承重 = 零** ⇒ 从 {@link ReachPlan} 的组件表里去掉
  *       （⚠️ 代价如实记：真机取证时少一个 `visibility=` 读数）。</li>
  *   <li><b>名字里不再有 `Standing`</b>：它描述的是**任何一条到达腿**的结论 ——
  *       A 腿（现成站位直接到达）与目标腿（同列 / 侧面两次搜索）都走它，所以旧名把
- *       “目标级到达”那条腿也说成了“站位”。⚠️ 与 {@link MiningPlan} 的命名**暂时不一致**
- *       （后者改名 `ReachPlan` 是 `1-5`）—— `§3c` 建议同刀做，⛔ **未获裁**，本刀不做。</li>
+ *       “目标级到达”那条腿也说成了“站位”。✅ **2026-09-29 `1-5` 已把命名对齐**：本行原文逐字曾是
+ *       「⚠️ 与 `MiningPlan` 的命名**暂时不一致**（后者改名 `ReachPlan` 是 `1-5`）——
+ *       `§3c` 建议同刀做，⛔ **未获裁**，本刀不做」；`1-5` 执行后该偏离**关闭**
+ *       （台账 `O46` ③ 的复核触发就是这一刀）。</li>
  * </ol>
  *
  * <p>⚠️ <b>三条逐字保留的契约</b>（改革不许碰）：
@@ -40,7 +45,7 @@ import java.util.Objects;
  * @param plan          选出来的计划；{@code null} = 这条腿没产生可用计划（见 {@code failureReason}）
  * @param failureReason 失败归因串；**成功时为 `""`**（见上面契约 1）
  */
-public record ReachOutcome(MiningPlan plan, String failureReason) {
+public record ReachOutcome(ReachPlan plan, String failureReason) {
 
     public ReachOutcome {
         Objects.requireNonNull(failureReason, "failureReason");

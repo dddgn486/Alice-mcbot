@@ -25698,3 +25698,59 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 - ⛔ **不覆盖**清单里的红**该不该存在** —— 那是人的判断（`D-535` §五 已写明本牙不判内容）。
 - ⚠️ **AI 裁定的部分如实标注**：这是本刀为让批次 1 可关门而做的**工程裁定**；用户可一句话否决
   （否决 ⇒ 回到"电池红 ⇒ `check-all` 红"，那时 `D-532` §六 需要改成"未登记失败>0"的文字口径）。
+
+---
+
+## D-537：批次 1 `1-5` —— `MiningPlan` 改名 `ReachPlan`（**零行为改动**）＋ `survey/42 §3.3` 的**第一例实测**
+
+- 状态：**已实施**（2026-09-29，`D-532` §九 批次 1 的最后一把刀；依据 = 施工设计单 `§10` 切法建议 ＋ `§3c`）
+- 性质：⛔ **不是功能刀、不是判据刀** —— **零行为改动**，只动名字。它推进的是「**名字不再说谎**」，
+  ⛔ **不推进**任何"判据能红"。如实标注为**手段**，⛔ 不算批次 1 的关门进展（关门判据见设计单 `§2`）。
+
+### 一 · 做了什么（逐字 · 带量）
+
+| # | 改动 | 量（实测） |
+|---|---|---|
+| ① | `reach/MiningPlan.java` → `reach/ReachPlan.java`（`git mv` ＋ `public record ReachPlan(` ＋ 紧凑构造器 ＋ 两条 IAE 文案） | 1 文件改名 |
+| ② | `src/` 里该类型的标识符/引用逐字替换（`\bMiningPlan\b` ⇒ `ReachPlan`） | **19 文件**编辑 ＋ 1 改名 = **20 文件** · `ReachPlan` 出现 **89 处** |
+| ③ | `BotManager.currentMiningPlan(…)` → `currentReachPlan(…)`（**同刀对齐**：它就是这个类型的访问器；无门禁锚、无冻结登记） | **4 处 / 2 文件** |
+| ④ | 门禁锚点同步：`tools/kernel-predicates.py`（3 条 rule 的路径／组件字面量／`Arrival` 检测）＋ `tools/check-layer-direction.py`（`reach/` 人口下限路径表） | **2 文件** |
+| ⑤ | 诚实化：`ReachOutcome` javadoc 与 `kernel-predicates.py` 里那两处「命名暂时不一致」的偏离改 ✅ 关闭 | 2 处 |
+
+### 二 · ⭐⭐ 本刀**最有价值的产出** = `survey/42 §3.3` 的**第一例实测**（不是改名本身）
+
+- `survey/42 §3.3` 的论断：**「名字锚定的门禁会静默失效」**（`D-529`/`D-530` 已引）。
+- **本刀实测命中**：`tools/kernel-predicates.py` 里检测旧 `Mode` 回流的那条断言，源码逐字是
+  `if re.search(r"\bMiningPlan\.Mode\b", …)`。
+  ⚠️ **平凡的全局改名抓不到它** —— 模式串里 `\b` 的**下一个字符是字面量 `b`**（word 字符）
+  ⇒ `\bMiningPlan\b` 的词边界在 `b|M` 之间**不成立** ⇒ 机械替换**漏过**。
+  漏过的后果**不是报错**，而是**那颗牙静默失效**：以后有人把 `Mode` 加回 `ReachPlan`，门禁**照样绿**。
+- **它是怎么被发现的（这才是可复用的部分）**：不是靠"小心"，是靠**两道独立检查** ——
+  ① 改完后再做一次**普通子串** grep（`grep -rn 'MiningPlan' tools/ src/ | grep -v MiningPlanner`），
+  ⛔ **不用 `\b` 形态**（`\b` 恰好会漏掉转义/正则字面量里的名字，正是本例）；
+  ② 跑门禁并**逐条核对"红的理由是不是那一条"**。
+- ⇒ **纪律（已固化为本刀的口径）**：**改名后必须再做一次普通子串扫描**，`\b` 只用于替换、⛔ 不用于验收。
+- 该处已留**逐字**登记（`tools/kernel-predicates.py` 的 `1-5` 段），台账 `O54`。
+
+### 三 · 判据（逐条带读数）
+
+- `./gradlew compileJava --no-daemon` ⇒ **绿**（6 条 warning 全是先存 deprecation，本刀零新增）。
+- `bash tools/check-all.sh` ⇒ `pass=35 warning=1 failed=0` ⇒ **与改名前逐字同一读数**（唯一 `warning` = 离线不跑电池）。
+- ⛔ **不声称**高于 `COMPILES` 的等级：零行为改动 ⇒ **客户端轮不必要**，但**也没有**新的运行期证据。
+
+### 四 · 顺带修掉的一处**字面错误**（`1-3` 落下的，`1-5` 才发现）
+
+- `reach/ReachOutcome.java` 类注释原写「它替掉 `{@code reach/ReachOutcome}`」—— **它替掉它自己**。
+  真实前身 = `reach/StandingPlanResult`（见 `kernel-predicates` 对应规则的报错文案 ＋ 设计单 `§4e` 甲）。
+  来源 = 提交 `123566bc`（`1-3`）。已在原处改正 ＋ 注明来源与提交号，⛔ 不改写任何别的历史文字。
+
+### 五 · 诚实边界（三条）
+
+- ⛔ 本刀**没有**碰 `docs/` 的历史记录（`AI_DECISIONS` 旧条目 · 台账旧行 · `AI_CHANGELOG` ·
+  `HANDOVER` 旧断点 · `archive/` · `.alice-supervision/client-tests/**/evidence/` 里的**真机日志原文**）——
+  口径 = 「**原文不改，只加指针**」：那些文字**当时是真的**。
+- ⛔ 本刀**没有**清理 `docs/MINE_TASK_DESIGN.md` / `docs/MINE_MIGRATION_DESIGN.md` 里的旧类名：
+  它们**在本刀之前就已过期**（写的是 `task/mining/MiningPlan`，而 `1-3` 已把它搬到 `reach/`）
+  ⇒ 归**批次 3 文档整顿**。⛔ 不在这把刀里顺手改 —— 否则"文档整顿"这个批次会被一刀刀掏空。
+- ⚠️ **设计单原注「与 `1-3` 同刀更省」未获裁，事实是没同刀** ⇒ 独立成刀成本更高
+  （20 文件 ＋ 2 门禁），如实登记在台账 `O54`。

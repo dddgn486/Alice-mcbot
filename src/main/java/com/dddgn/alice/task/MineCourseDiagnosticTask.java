@@ -3,7 +3,7 @@ package com.dddgn.alice.task;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.task.mining.MiningBudget;
-import com.dddgn.alice.reach.MiningPlan;
+import com.dddgn.alice.reach.ReachPlan;
 import com.dddgn.alice.task.mining.MiningPlanner;
 import com.dddgn.alice.reach.ReachOutcome;
 import net.minecraft.core.BlockPos;
@@ -65,15 +65,15 @@ public final class MineCourseDiagnosticTask implements Task {
         ensureStonePickaxe();
         switch (phase) {
             case 0 -> {
-                freePass = checkMode("free", FREE_TARGET, MiningPlan.Arrival.DIRECT_PURE_PASSAGE, MiningPlan.Arrival.IN_PLACE);
+                freePass = checkMode("free", FREE_TARGET, ReachPlan.Arrival.DIRECT_PURE_PASSAGE, ReachPlan.Arrival.IN_PLACE);
                 phase = 1;
             }
             case 1 -> {
-                wallPass = checkMode("wall", WALL_TARGET, MiningPlan.Arrival.DIRECT_PURE_PASSAGE, MiningPlan.Arrival.IN_PLACE);
+                wallPass = checkMode("wall", WALL_TARGET, ReachPlan.Arrival.DIRECT_PURE_PASSAGE, ReachPlan.Arrival.IN_PLACE);
                 phase = 2;
             }
             case 2 -> {
-                blockedPass = checkMode("blocked", BLOCKED_TARGET, MiningPlan.Arrival.MINING_APPROACH);
+                blockedPass = checkMode("blocked", BLOCKED_TARGET, ReachPlan.Arrival.MINING_APPROACH);
                 phase = 3;
             }
             case 3 -> {
@@ -96,14 +96,14 @@ public final class MineCourseDiagnosticTask implements Task {
         return failure;
     }
 
-    private boolean checkMode(String key, BlockPos target, MiningPlan.Arrival... expected) {
+    private boolean checkMode(String key, BlockPos target, ReachPlan.Arrival... expected) {
         teleport(START);
         ReachOutcome result = plan(target);
-        MiningPlan.Arrival mode = result.plan() == null ? null : result.plan().arrival();
+        ReachPlan.Arrival mode = result.plan() == null ? null : result.plan().arrival();
         boolean pass = mode != null;
         if (pass) {
             pass = false;
-            for (MiningPlan.Arrival candidate : expected) {
+            for (ReachPlan.Arrival candidate : expected) {
                 if (candidate == mode) {
                     pass = true;
                     break;
@@ -134,7 +134,7 @@ public final class MineCourseDiagnosticTask implements Task {
     private boolean checkBuried() {
         teleport(START);
         ReachOutcome result = plan(BURIED_TARGET);
-        boolean pass = (result.plan() != null && result.plan().arrival() == MiningPlan.Arrival.MINING_APPROACH)
+        boolean pass = (result.plan() != null && result.plan().arrival() == ReachPlan.Arrival.MINING_APPROACH)
                 || "found_but_unminable".equals(result.failureReason());
         BotLog.info("[MineCourse] buried={} mode={} reason={}",
                 pass ? "PASS" : "FAIL",

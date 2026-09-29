@@ -19,7 +19,7 @@ import net.minecraftforge.network.PacketDistributor;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import com.dddgn.alice.reach.MiningPlan;
+import com.dddgn.alice.reach.ReachPlan;
 
 /** 开发期可视动态障碍夹具；只放置真实石头，不控制 MineTask 的恢复逻辑。 */
 public final class MiningReplanFixture {
@@ -158,7 +158,7 @@ public final class MiningReplanFixture {
                 fail(entry.getKey(), session, "TASK_NOT_RUNNING");
                 continue;
             }
-            MiningPlan plan = BotManager.currentMiningPlan(session.bot());
+            ReachPlan plan = BotManager.currentReachPlan(session.bot());
             if (plan == null) continue;
             if (!plan.path().reached()) {
                 fail(entry.getKey(), session, "INITIAL_PATH_" + plan.path().status());

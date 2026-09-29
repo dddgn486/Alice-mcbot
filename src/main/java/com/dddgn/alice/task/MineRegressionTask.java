@@ -7,7 +7,7 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
 import com.dddgn.alice.task.mining.MineStep;
 import com.dddgn.alice.task.mining.MiningBudget;
-import com.dddgn.alice.reach.MiningPlan;
+import com.dddgn.alice.reach.ReachPlan;
 import com.dddgn.alice.task.mining.MiningPlanner;
 import com.dddgn.alice.reach.ReachOutcome;
 import net.minecraft.core.BlockPos;
@@ -155,7 +155,7 @@ public final class MineRegressionTask implements Task {
      *                       走另一条分支，见 `countOk` 处的注释），它只作为"当时的算法记录"留着。
      */
     private record CaseDef(String name, String terrain, BlockPos start, BlockPos target,
-                           Kind kind, List<MiningPlan.Arrival> expectedModes,
+                           Kind kind, List<ReachPlan.Arrival> expectedModes,
                            int expectedCollected, Item expectedItem, boolean exactCollected,
                            boolean expectSupport, int expectedDelta) {
     }
@@ -178,7 +178,7 @@ public final class MineRegressionTask implements Task {
     private static final BlockPos SUPPORT_MAX = new BlockPos(31, 76, 223);
 
     private static CaseDef plan(String name, String terrain, BlockPos start, BlockPos target,
-                                MiningPlan.Arrival... modes) {
+                                ReachPlan.Arrival... modes) {
         return new CaseDef(name, terrain, start, target, Kind.PLAN, List.of(modes), 0, null,
                 true, false, 0);
     }
@@ -202,13 +202,13 @@ public final class MineRegressionTask implements Task {
 
     private static final List<CaseDef> CASES = List.of(
             plan("free", "mine_course", MINE_START, new BlockPos(23, 64, 140),
-                    MiningPlan.Arrival.DIRECT_PURE_PASSAGE, MiningPlan.Arrival.IN_PLACE),
+                    ReachPlan.Arrival.DIRECT_PURE_PASSAGE, ReachPlan.Arrival.IN_PLACE),
             plan("wall", "mine_course", MINE_START, new BlockPos(23, 64, 137),
-                    MiningPlan.Arrival.DIRECT_PURE_PASSAGE, MiningPlan.Arrival.IN_PLACE),
+                    ReachPlan.Arrival.DIRECT_PURE_PASSAGE, ReachPlan.Arrival.IN_PLACE),
             plan("blocked", "mine_course", MINE_START, new BlockPos(23, 64, 134),
-                    MiningPlan.Arrival.MINING_APPROACH),
+                    ReachPlan.Arrival.MINING_APPROACH),
             plan("headroom", "mine_course", MINE_START, new BlockPos(23, 65, 131),
-                    MiningPlan.Arrival.DIRECT_PURE_PASSAGE, MiningPlan.Arrival.IN_PLACE),
+                    ReachPlan.Arrival.DIRECT_PURE_PASSAGE, ReachPlan.Arrival.IN_PLACE),
             plan("buried", "mine_course", MINE_START, new BlockPos(23, 64, 128)),
             execute("exec_direct", "mine_course", MINE_START, new BlockPos(23, 64, 140),
                     1, Items.COBBLESTONE, true),
@@ -222,7 +222,7 @@ public final class MineRegressionTask implements Task {
             // 所以这两条用例现在断言的是：**不垫** + 照常挖到 + 掉落物收到。
             // 模式仍合法为 CURRENT（起点就能触及）或 DIRECT。
             new CaseDef("floating_plan", "floating_course", FLOAT_START, FLOAT_TARGET,
-                    Kind.PLAN, List.of(MiningPlan.Arrival.IN_PLACE, MiningPlan.Arrival.DIRECT_PURE_PASSAGE),
+                    Kind.PLAN, List.of(ReachPlan.Arrival.IN_PLACE, ReachPlan.Arrival.DIRECT_PURE_PASSAGE),
                     0, null, true, false, 0),
             // 不垫方块 ⇒ 净增量 = 掉落物本身 = +1（与旧语义「放支撑 −1 ＋ 掉落 +1 ＋ 拆回 +1」同值
             // ⇒ 这条期望在两种语义下都成立，不用改）
@@ -238,7 +238,7 @@ public final class MineRegressionTask implements Task {
             // `support_plan` 只到 PLAN 侧：断言规划器必须给出 `supportPlacementPos == target.below()`（`D-078`）。
             // 与 `exec_floating` 的区别：那条的竖井 **1 格深** ⇒ 掉落物捡得回 ⇒ 断言"**不垫**"（`D-364` 口径）。
             new CaseDef("support_plan", "support_course", SUPPORT_START, SUPPORT_TARGET,
-                    Kind.PLAN, List.of(MiningPlan.Arrival.IN_PLACE, MiningPlan.Arrival.DIRECT_PURE_PASSAGE),
+                    Kind.PLAN, List.of(ReachPlan.Arrival.IN_PLACE, ReachPlan.Arrival.DIRECT_PURE_PASSAGE),
                     0, null, true, true, 0),
             // ⭐ `D-467`（2026-09-27）：**EXECUTE 侧的支撑块正例** —— 它同时修掉三个观测项：
             //    ① `O1` 空判据：这是**第一条** `expectSupport=true` 的 EXECUTE 用例 ⇒
@@ -773,10 +773,10 @@ public final class MineRegressionTask implements Task {
     private void runPlanCase(CaseDef current) {
         MiningBudget budget = MiningBudget.forTarget(bot, bot.serverLevel(), current.target(), true);
         ReachOutcome result = planner.plan(bot, current.target(), budget);
-        MiningPlan plan = result.plan();
+        ReachPlan plan = result.plan();
         boolean pass;
         if ("buried".equals(current.name())) {
-            pass = (plan != null && plan.arrival() == MiningPlan.Arrival.MINING_APPROACH)
+            pass = (plan != null && plan.arrival() == ReachPlan.Arrival.MINING_APPROACH)
                     || "found_but_unminable".equals(result.failureReason());
         } else if ("headroom".equals(current.name())) {
             pass = plan != null && plan.standingFoot().getY() == current.target().getY() - 1;
@@ -816,7 +816,7 @@ public final class MineRegressionTask implements Task {
         if (raceFired) {
             return true;
         }
-        MiningPlan plan = mineTask.currentPlan();
+        ReachPlan plan = mineTask.currentPlan();
         if (plan == null || plan.standingFoot() == null) {
             return false;   // 本 tick 还没算出计划
         }
@@ -889,7 +889,7 @@ public final class MineRegressionTask implements Task {
         if (raceFired) {
             return;
         }
-        MiningPlan plan = mineTask.currentPlan();
+        ReachPlan plan = mineTask.currentPlan();
         if (plan == null || plan.standingFoot() == null) {
             return;   // 本 tick 还没算出计划（或在计划段就失败了）
         }

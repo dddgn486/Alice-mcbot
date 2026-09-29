@@ -200,7 +200,7 @@ public final class PlanRefinedCostProvider implements CandidateCostProvider {
             return refineCost.apply(bot, candidate);
         }
         ReachOutcome result = new MiningPlanner().plan(bot, candidate.anchor());
-        // ⚠️ `1-3`（`§4e` 甲）：评分载体退役 ⇒ 读**计划自己的成本**（唯一出处 `MiningPlan.totalCost()`）。
+        // ⚠️ `1-3`（`§4e` 甲）：评分载体退役 ⇒ 读**计划自己的成本**（唯一出处 `ReachPlan.totalCost()`）。
         // 与旧 `score.getScore()` 同一个数（旧值就是 `path.totalCost() + extraCost`）。
         return result.success() ? result.plan().totalCost() : Double.POSITIVE_INFINITY;
     }

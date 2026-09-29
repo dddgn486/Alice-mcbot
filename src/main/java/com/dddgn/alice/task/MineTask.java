@@ -10,7 +10,7 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
 import com.dddgn.alice.task.mining.MineStep;
 import com.dddgn.alice.task.mining.MiningBudget;
-import com.dddgn.alice.reach.MiningPlan;
+import com.dddgn.alice.reach.ReachPlan;
 import com.dddgn.alice.task.mining.MiningProfile;
 import com.dddgn.alice.reach.MiningTuning;
 import net.minecraft.core.BlockPos;
@@ -333,7 +333,7 @@ public final class MineTask implements Task {
     }
 
     /** 委托 {@link MineStep}（`BotManager` 的进度指纹消费它）。 */
-    public MiningPlan currentPlan() {
+    public ReachPlan currentPlan() {
         return step == null ? null : step.currentPlan();
     }
 
@@ -659,7 +659,7 @@ public final class MineTask implements Task {
             return false;
         }
         recoveryAttempts++;
-        MiningPlan previousPlan = step.currentPlan();
+        ReachPlan previousPlan = step.currentPlan();
         // ⭐ `D-443` 裁定 1a：接近能力由**本任务的 profile** 声明；归因串用**本任务的 grant.requester**
         // ⇒ 模式 A 里「补一块再走」的放置会记在作业名下（作业侧的累计额度才看得见它）。
         MineStep.PlanOutcome outcome = step.plan();
@@ -669,7 +669,7 @@ public final class MineTask implements Task {
                     previousPlan.standingFoot().toShortString(), outcome.reason());
             return false;
         }
-        MiningPlan replanned = outcome.plan();
+        ReachPlan replanned = outcome.plan();
         recordRecovery(RecoveryStage.MINETASK_REPLAN);
         lastFailureReport = report;
         BotLog.info("[MineTask重规划探针] target={} recoveryAttempt={}/{} oldStanding={} newStanding={} arrival={} newPathStatus={}",
@@ -970,7 +970,7 @@ public final class MineTask implements Task {
                     outcome.reason(), "planning", false));
         }
 
-        MiningPlan plan = outcome.plan();
+        ReachPlan plan = outcome.plan();
         // 连锁判定由**计划段**导出（`MineStep.plan()`）；此处的重读只为打 `prod_armed`（同一 tick 同一格）。
         useChain = outcome.chainArmed();
         if (useChain) {
@@ -1009,7 +1009,7 @@ public final class MineTask implements Task {
         // useChain=true 时只走到站位（walkOnly），破坏由任务层触发模组连锁
         boolean walkOnly = useChain && !chainTriggered;
         step.startExecution(walkOnly);
-        MiningPlan plan = step.currentPlan();
+        ReachPlan plan = step.currentPlan();
         BotLog.info("[MineTask探针] 创建 MineBlockRunner: target={} mode={} stand={} botPos={} attempt={}",
                 target.toShortString(), plan.arrival(),
                 plan.standingFoot().toShortString(), bot.blockPosition().toShortString(),

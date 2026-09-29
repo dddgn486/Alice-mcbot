@@ -4,7 +4,7 @@ import com.dddgn.alice.action.MineBlockRunner;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.compat.ChainMining;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.reach.MiningPlan;
+import com.dddgn.alice.reach.ReachPlan;
 import com.dddgn.alice.reach.MiningTuning;
 import com.dddgn.alice.write.WriteGrant;
 import net.minecraft.core.BlockPos;
@@ -110,7 +110,7 @@ public final class MineStep {
             return result.failureReason();
         }
 
-        public MiningPlan plan() {
+        public ReachPlan plan() {
             return result.plan();
         }
     }
@@ -126,7 +126,7 @@ public final class MineStep {
     /** 本次作业的执行器（`startExecution()` 之后非 null）。 */
     private MineBlockRunner miner;
     /** 最近一次**成功**的计划（计划失败时**保留旧值**，与改造前逐字一致）。 */
-    private MiningPlan currentPlan;
+    private ReachPlan currentPlan;
 
     /**
      * `D-177`（审查结论 · 日志规矩）：**只在 `status` 变化时打一行**，绝不按 tick 打。
@@ -251,7 +251,7 @@ public final class MineStep {
     }
 
     /** 最近一次成功算出的计划（诊断口径：`MineTask.currentPlan()` 的委托源）。 */
-    public MiningPlan currentPlan() {
+    public ReachPlan currentPlan() {
         return currentPlan;
     }
 

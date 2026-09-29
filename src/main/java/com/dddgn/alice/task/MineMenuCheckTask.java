@@ -638,7 +638,7 @@ public class MineMenuCheckTask implements Task {
             check("break 分量：精算后有有限成本（travel=" + cost + " · " + refined.note() + "）",
                     Double.isFinite(cost));
             // ⚠️ 标签里的 `score` 已随 `1-3`（`§4e` 甲）改成"计划成本"：判据两边现在都读
-            // `MiningPlan.totalCost()`（旧 `score.getScore()` 就是它）⇒ 不变量**一字未改**。
+            // `ReachPlan.totalCost()`（旧 `score.getScore()` 就是它）⇒ 不变量**一字未改**。
             check("break 分量：精算值 == 规划器计划成本（" + cost + " vs " + plannerCost
                             + "；规划器路径成本含破坏 tick 折算）",
                     planner.success() && Math.abs(cost - plannerCost) < 1.0E-6D);

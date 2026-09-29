@@ -1230,7 +1230,7 @@ def rule_search_limit_not_unreachable():
     # ⚠️ **锚点第三次跟结构**（2026-09-29，批次 1 `1-3` · 甲①）：A 腿**再搬一次** ——
     # `reach/StandingPlanSelector` → `reach/DirectArrivalPlanner`。理由 = 旧名把"新框架自己的
     # 第一条腿"说成待退休的"站位挖掘的『选』"（开工前侦察 `§14`：按文件删会立刻坏 ——
-    # `MiningPlan.Arrival` 的 `IN_PLACE`/两个 `DIRECT_*` 正由它生产）。
+    # `ReachPlan.Arrival` 的 `IN_PLACE`/两个 `DIRECT_*` 正由它生产）。
     # ⇒ **不变量仍然一字未变**（`searchLimited` 覆盖三种"没结论"、全失败走 `SEARCH_INCOMPLETE`、
     # 结尾原样上抛），只是主语文件换了名字。
     selector_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "reach"
@@ -1449,10 +1449,12 @@ def rule_search_limit_not_unreachable():
     #      `position` == `plan.standingFoot()`、`lineOfSightResult` == `plan.visibility()`、
     #      `estimate` **全仓无读者** ⇒ 只剩"成本"这一件真信息，而它按定义 = `plan.totalCost()`
     #      （`§4e` 甲逐字：「退役 score **冗余载体**」）；
-    #   ② 规划期 LOS（`MiningPlan.visibility` 组件）退役：唯一读者是 `MineTask` 的一行**遥测**日志，
+    #   ② 规划期 LOS（`ReachPlan.visibility` 组件）退役：唯一读者是 `MineTask` 的一行**遥测**日志，
     #      而执行期 `MineBlockRunner` **自己在运行期**复核视线 ⇒ **行为承重 = 零**（`§4e` 甲：「删规划期 LOS」）。
-    #   ③ ⚠️ 与 `MiningPlan` 的**命名**暂时不一致（后者改名 `ReachPlan` 是 `1-5`，⛔ 本刀不做）——
-    #      这是**已登记的偏离**，别把它读成"两个类名里有一个是笔误"。
+    #   ③ ✅ **命名偏离已消除**（`1-5`，2026-09-29）：本行原文逐字曾是
+    #      「⚠️ 与 `MiningPlan` 的**命名**暂时不一致（后者改名 `ReachPlan` 是 `1-5`，⛔ 本刀不做）——
+    #      这是**已登记的偏离**」。`1-5` 已把 `MiningPlan` 改名 `ReachPlan` ⇒ 与 `ReachOutcome` 对齐，
+    #      该偏离**关闭**（台账 `O46` ③ 的复核触发就是 `1-5`）。⛔ 这不改变本规则任何一颗牙的语义。
     # 六颗牙钉住"新家真在 ＋ 新形状没被改窄 ＋ 旧处不许复活"：
     #   ① 新家真的在、且是 `record`；② 两个组件**逐字**（含顺序 —— `plan` 是本类型的核心语义）；
     #   ③ `success()` 的判据仍是 `plan != null`（⛔ 不许改成"看 `failureReason` 空不空"：
@@ -1475,7 +1477,7 @@ def rule_search_limit_not_unreachable():
         if "public record ReachOutcome(" not in result_code:
             problems.append("`reach/ReachOutcome` 不是 `public record` ⇒ 载体换家但没落地"
                             "（换成 class 会让 `plan()`/`failureReason()` 的访问器语义变样）")
-        for component in ("MiningPlan plan,", "String failureReason) {"):
+        for component in ("ReachPlan plan,", "String failureReason) {"):
             if component not in result_code:
                 problems.append(f"`reach/ReachOutcome` 的组件表里没有 `{component}` ⇒ "
                                 "载体形状被改动了（本刀的口径 = **退役两个冗余组件**，其余逐字保留）")
@@ -2649,7 +2651,7 @@ def rule_arrival_declared_and_consumed():
     下面每一条都是"下次有人把候选枚举、或把写授权交回给某个值去反推，就红"。
 
     断言（每条都能用一次注入变红）：
-    ① `MiningPlan.Arrival` 的**每个**枚举常量都必须在它的**生产者**里有**生产点**
+    ① `ReachPlan.Arrival` 的**每个**枚举常量都必须在它的**生产者**里有**生产点**
        （`①-2b`/`D-530` 之后生产者有**两个**出处：`task/mining/MiningPlanner` 与
        `reach/StandingPlanSelector`；集合是穷举的，不是"随手列几个文件"）。
        为什么这条最要紧：一个"没人生产"的取值 = 执行期 `switch` 会**静默**落到别的分支
@@ -2657,7 +2659,7 @@ def rule_arrival_declared_and_consumed():
        ⇒ `plan.mode()` 恒不等于它们 ⇒ 三元恒走纯通行 ⇒ **破坏能力被悄悄拿掉**，
        症状表现为"站不到站位"而不是"权限被拒"，**编译器与任何门禁都不报**）。
     ② `action/MineBlockRunner` 必须**按 `plan.arrival()` 穷尽 `switch`** 建请求，且旧载体不许回流
-       （该文件的**代码**里不许再出现 `MiningPlan.Mode` / `plan.mode()`）。
+       （该文件的**代码**里不许再出现 `ReachPlan.Mode` / `plan.mode()`）。
     ③ 候选穷举形状不许回归：`MiningPlanner` 里不许再有 `MAX_APPROACH_PLANS` 声明 /
        `selectBestApproach` / `planTunnel` / `planEnterTarget`；且 A 腿之外必须真的在用
        `PathRequest.adjacentApproach`（`DS-4`：**替换** B，不是并存）。
@@ -2672,7 +2674,7 @@ def rule_arrival_declared_and_consumed():
         return "\n".join(line.split("//")[0] for line in stripped.split("\n"))
 
     plan_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "reach"
-                 / "MiningPlan.java")
+                 / "ReachPlan.java")
     planner_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task" / "mining"
                     / "MiningPlanner.java")
     runner_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "action"
@@ -2704,7 +2706,7 @@ def rule_arrival_declared_and_consumed():
     # ---- ① Arrival 的每个取值必须有生产点 ----
     enum_match = re.search(r"public enum Arrival \{(.*?)\n    \}", plan_src, re.S)
     if not enum_match:
-        problems.append("`reach/MiningPlan.java` 里找不到 `public enum Arrival { ... }`"
+        problems.append("`reach/ReachPlan.java` 里找不到 `public enum Arrival { ... }`"
                         "⇒ **到位形状的单一出处**不在了（改名？挪走？）—— 先修本规则再谈别的")
     else:
         names = re.findall(r"^\s+([A-Z][A-Z0-9_]*)\s*,?\s*$", enum_match.group(1), re.M)
@@ -2726,7 +2728,7 @@ def rule_arrival_declared_and_consumed():
     if "switch (plan.arrival())" not in runner_code:
         problems.append("`action/MineBlockRunner.java` 里没有 `switch (plan.arrival())`"
                         "⇒ 走位请求的写能力不是从**显式字段**读的（`D-520`：⛔ 不许由任何别的值反推）")
-    for legacy in ("MiningPlan.Mode", "plan.mode()"):
+    for legacy in ("ReachPlan.Mode", "plan.mode()"):
         if legacy in runner_code:
             problems.append(f"`MineBlockRunner` 的代码里又出现旧载体 `{legacy}` ⇒ 旧形状回流"
                             f"（它就是那条静默失效陷阱的载体）")
@@ -2862,7 +2864,7 @@ def rule_standing_retirement_no_residue():
         elif [c.strip() for c in candidate.group(1).split(",") if c.strip()] != ["BlockPos foot"]:
             problems.append(f"`Candidate` 的组件表不再是 `(BlockPos foot)`（现在是 "
                             f"`({candidate.group(1).strip()})`）⇒ `1-3` 退役的那个**视线结果字段**"
-                            "回流了（它的唯一读者是已退役的评分载体与 `MiningPlan.visibility`）")
+                            "回流了（它的唯一读者是已退役的评分载体与 `ReachPlan.visibility`）")
         los_calls = [path for path, code in codes.items() if ".los()" in code]
         if los_calls:
             problems.append(f"生产代码里又出现 `.los()` 访问器（{len(los_calls)} 处，"
@@ -2882,22 +2884,27 @@ def rule_standing_retirement_no_residue():
                                 "「零残留」被拿「删功能」换来了（" + why + "）—— 那是**另一件事**，"
                                 "要单独裁")
 
-    plan_path = src_root / "com/dddgn/alice/reach/MiningPlan.java"
+    plan_path = src_root / "com/dddgn/alice/reach/ReachPlan.java"
     plan_code = codes.get(plan_path, "")
     if plan_code:
         if re.search(r"\bvisibility\b", plan_code):
-            problems.append("`reach/MiningPlan` 的代码里又出现 `visibility` ⇒ 规划期 LOS 组件回流"
+            problems.append("`reach/ReachPlan` 的代码里又出现 `visibility` ⇒ 规划期 LOS 组件回流"
                             "（`§4e` 甲：它的唯一读者是一行遥测日志，执行期自己复核视线）")
-        header = re.search(r"public record MiningPlan\((.*?)\)\s*\{", plan_code, re.S)
+        header = re.search(r"public record ReachPlan\((.*?)\)\s*\{", plan_code, re.S)
         if not header:
-            problems.append("`reach/MiningPlan` 的组件表解析不出来（结构变了 ⇒ 本规则要跟着改）")
+            problems.append("`reach/ReachPlan` 的组件表解析不出来（结构变了 ⇒ 本规则要跟着改）")
         else:
             comps = [c.strip() for c in header.group(1).split(",") if c.strip()]
             if len(comps) != 6:
-                problems.append(f"`reach/MiningPlan` 的组件数是 {len(comps)}（应为 **6**："
+                problems.append(f"`reach/ReachPlan` 的组件数是 {len(comps)}（应为 **6**："
                                 "`1-3` 定型 = 7 − 规划期 LOS）⇒ 组件表被顺手改了")
-    if re.search(r"\bMiningPlan\.Mode\b", "".join(codes.values())):
-        problems.append("全仓生产代码里又出现旧载体 `MiningPlan.Mode` ⇒ 旧形状回流"
+    # ⚠️⚠️ `1-5` 改名时**差点丢的一颗牙**（诚实登记，2026-09-29）：本行原文逐字是
+    # `r"\bMiningPlan\.Mode\b"` —— 机械改名（`\bMiningPlan\b`）**抓不到它**，因为
+    # `\b` 前面那个字符是 `b`（字面量 `\b` 的 `b`，是 word 字符）⇒ 词边界不成立，
+    # 换成 `ReachPlan` 之后这条断言会**静默失去牙齿**（有人把 `Mode` 加回 `ReachPlan` 也不红）。
+    # 这正是 `survey/42 §3.3`「名字锚定的门禁会静默失效」的**实测第一例** ⇒ 记在 `O54`。
+    if re.search(r"\bReachPlan\.Mode\b", "".join(codes.values())):
+        problems.append("全仓生产代码里又出现旧载体 `ReachPlan.Mode` ⇒ 旧形状回流"
                         "（`D-520`：写授权只能从 `plan.arrival()` 读，⛔ 不许由任何别的值反推）")
 
     # ---- ③ 回归护栏（`D-533` §二 B 第二半）：⛔ 不是"退役进度"读数 ----
@@ -2915,7 +2922,7 @@ def rule_standing_retirement_no_residue():
               "private static ReachOutcome exactTopK(",
               "private static ReachOutcome cheaper(")),
             ("com/dddgn/alice/reach/ReachOutcome.java",
-             ("public record ReachOutcome(MiningPlan plan, String failureReason) {",)),
+             ("public record ReachOutcome(ReachPlan plan, String failureReason) {",)),
     ):
         path = src_root / rel
         if path not in codes:

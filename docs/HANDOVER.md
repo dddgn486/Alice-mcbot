@@ -4265,3 +4265,57 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
   （电池 `WARN`→`FAIL` ＋ 新增 `check-expected-reds=PASS`）；离线默认路径**不变**（`pass=35 warning=1 failed=0` = 36 项）。
 - ⚠️ **如实记一次自伤**：中间有一轮印 `pass=35`，**不可采信** —— 我在那一轮**运行期间改了 `tools/check-all.sh`**
   （bash 边读边执行 ⇒ 中途改脚本会污染该轮）⇒ 以最后一次全量捕获为准。同族 = `O25` ⑧「测量期间源必须冻结」。
+
+## 断点四十二 —— 批次 1 **`1-5`**：`MiningPlan` → `ReachPlan`（零行为改动）＋ 「名字锚」隐患的**第一例实测**（2026-09-29）
+
+- **决策号**：`D-537` · **台账**：`O54` · **设计单**：`§10` 的 `1-5` 行已标 ✅、`§3c` 已加 ✅ 指针。
+- **性质（先说清）**：⛔ 不是功能刀、不是判据刀 —— **零行为改动**，只动名字。
+  它推进「**名字不再说谎**」，⛔ **不推进**任何"判据能红"⇒ 如实标为**手段**，
+  **不算批次 1 的关门进展**（关门判据是设计单 `§2` 的 A/B/C′ ＋ 横切闸门①，**本刀之前就全 ✅**）。
+
+### 做了什么（带量）
+
+- `reach/MiningPlan.java` → **`reach/ReachPlan.java`**（`git mv` ＋ record 名 ＋ 紧凑构造器 ＋ 两条 IAE 文案）；
+- `src/` **20 文件 / 89 处**逐字替换；`BotManager.currentMiningPlan` → **`currentReachPlan`**（4 处 / 2 文件，同刀对齐）；
+- 门禁锚点 **2 文件**：`tools/kernel-predicates.py`（3 条 rule 的路径/组件字面量/`Arrival` 检测）＋
+  `tools/check-layer-direction.py`（`reach/` 人口下限路径表）；
+- 两处「命名暂时不一致」的偏离改 ✅ 关闭（`ReachOutcome` javadoc ＋ `kernel-predicates.py`）。
+
+### ⭐⭐ 本刀**最有价值的产出**（不是改名本身）
+
+`survey/42 §3.3`「**名字锚定的门禁会静默失效**」在本刀**实测命中第一例**：
+`kernel-predicates.py` 检测旧 `Mode` 回流的断言源码逐字是 `r"\bMiningPlan\.Mode\b"` ——
+⚠️ **平凡的全局改名抓不到它**（`\b` 之后那个字符是字面量 `b`＝word 字符 ⇒ 词边界在 `b|M` 之间**不成立**）
+⇒ 若只做机械替换，**那颗牙静默失效**（有人把 `Mode` 加回 `ReachPlan`，门禁照样绿）。
+
+**可复用的发现手段（两道独立检查）**：① 改完后**再做一次普通子串** grep
+（`grep -rn 'MiningPlan' tools/ src/ | grep -v MiningPlanner`）—— ⛔ **不用 `\b` 形态**，它恰好会漏掉
+转义/正则字面量里的名字；② 跑门禁并**逐条核对"红的理由是不是那一条"**。
+⇒ **纪律**：`\b` 只用于**替换**，**验收必须用普通子串扫描**。
+
+### 判据（读数）
+
+- `./gradlew compileJava --no-daemon` ⇒ **绿**（6 条 warning 全是先存 deprecation）；
+- `bash tools/check-all.sh` ⇒ `pass=35 warning=1 failed=0` ⇒ **与改名前逐字同一读数**（唯一 `warning` = 离线不跑电池）；
+- ⛔ **不声称**高于 `COMPILES`：零行为改动 ⇒ 客户端轮不必要，但**也没有**新运行期证据。
+
+### 顺带修掉的一处字面错误（`1-3` 落下的）
+
+`reach/ReachOutcome.java` 类注释原写「它替掉 `{@code reach/ReachOutcome}`」= **它替掉它自己**；
+真实前身 = `reach/StandingPlanResult`（来源提交 `123566bc`）⇒ 已原地改正 ＋ 注明来源。
+
+### ⚠️ 诚实边界（三条）
+
+- ⛔ **不碰任何 `docs/` 历史文字与真机日志原文**（`AI_DECISIONS` 旧条目 / 台账旧行 / `AI_CHANGELOG` /
+  `HANDOVER` 旧断点 / `archive/` / `.alice-supervision/client-tests/**/evidence/`）——
+  口径「**原文不改，只加指针**」，那些文字**当时是真的**；
+- ⛔ **不顺手**清理 `docs/MINE_TASK_DESIGN.md` / `docs/MINE_MIGRATION_DESIGN.md` 里**本就过期**的旧类名
+  （写的是 `task/mining/MiningPlan`，而 `1-3` 已搬到 `reach/`）⇒ 归**批次 3 文档整顿**；
+- ⚠️ 设计单原注「与 `1-3` 同刀更省」**未获裁，事实是没同刀** ⇒ 独立成刀更贵（20 文件 ＋ 2 门禁）。
+
+### 下一步
+
+- **批次 1 回收条件**（`D-532` §六）：① 电池**整体回归** ② `D-430` **立即恢复** ③ 受影响模块**逐个重交付**
+  ④ 编译红 / `check-all failed>0`（= **未登记**失败）**立即中止**。
+- 之后按用户裁定：**维生系统设计单**（草案 §5 的四条契约）＝「批次 1 收口后第一件」·
+  **4a**（job 契约 ＋ 闸门④ 第二半补牙）＝「批次 1 收口后立刻做」。

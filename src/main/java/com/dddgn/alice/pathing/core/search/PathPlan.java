@@ -46,7 +46,7 @@ public record PathPlan(
      * 对精确目标（{@link GoalFoot}）它**恰好**就是落点，于是两者长期被当成一回事；
      * 但对**谓词目标**（{@link GoalAdjacent}）它是 **目标方块本身**，根本不是脚位
      * （`GoalAdjacent.goalFoot()` javadoc 逐字：「返回的是**目标方块**，不是"规范脚位"」）⇒
-     * 任何需要"落到哪一格"的消费者（`MiningPlan` 的不变量、执行期的走位终点）**不许**读 {@code goalFoot()}。
+     * 任何需要"落到哪一格"的消费者（`ReachPlan` 的不变量、执行期的走位终点）**不许**读 {@code goalFoot()}。
      * 改革 ① 把 B 腿换成 {@code GoalAdjacent} 之后，这个区分从"将来时"变成"编译期就会撞上"。
      *
      * <p><b>取值是纯派生，不新增字段</b>：{@link #projectedFootPath()} 的第一项是起点、其后每条边追加一个

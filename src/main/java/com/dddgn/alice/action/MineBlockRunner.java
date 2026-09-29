@@ -7,7 +7,7 @@ import com.dddgn.alice.pathing.PathRetryRunner;
 import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.pathing.core.session.PathExecutionResult;
 import com.dddgn.alice.reach.LineOfSightChecker;
-import com.dddgn.alice.reach.MiningPlan;
+import com.dddgn.alice.reach.ReachPlan;
 import com.dddgn.alice.reach.StandingPointSelector;
 import com.dddgn.alice.write.WriteGrant;
 import com.dddgn.alice.write.WriteReason;
@@ -17,13 +17,13 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * 挖掘动作原语（D-071，D-067 批次 4 第 1 步）：消费 {@link MiningPlan}，执行
+ * 挖掘动作原语（D-071，D-067 批次 4 第 1 步）：消费 {@link ReachPlan}，执行
  * **走到站位 → （必要时）在目标下方放支撑块 → 破坏目标**。
  *
  * <p>与 `BotMiner` 的分工：站位选择、视线前提、路径成本、两模式编排都已在规划层完成
  * （`MiningPlanner`），本类只做确定性动作，不再有站位候选/评分逻辑。
  * <ul>
- *   <li>走位：`PathRetryRunner`；到达请求**只由** {@link MiningPlan#arrival()} 决定
+ *   <li>走位：`PathRetryRunner`；到达请求**只由** {@link ReachPlan#arrival()} 决定
  *       （`D-520`：穷尽 `switch`，⛔ 不由任何别的值反推 —— 见 {@link #approachRequest()}）；</li>
  *   <li>破坏：统一走 {@link BlockBreakSession}（工具选择 / 进度广播 / ABORT / 超时）；</li>
  *   <li>运行期视线复核：到位后若目标不可见 → `LINE_OF_SIGHT_BLOCKED`（任务层据此重试/换站位）。</li>
@@ -43,7 +43,7 @@ public final class MineBlockRunner {
 
     private final BotPlayer bot;
     private final ServerLevel level;
-    private final MiningPlan plan;
+    private final ReachPlan plan;
     private final BlockPos target;
     /** 只走到站位、不破坏目标（破坏由任务层接管；D-077 连锁兼容）。 */
     private final boolean walkOnly;
@@ -69,7 +69,7 @@ public final class MineBlockRunner {
     /** 本次挖掘的授权（D-082）：目标破坏用自身理由，放支撑块派生 SUPPORT_PLACEMENT。 */
     private final WriteGrant grant;
 
-    public MineBlockRunner(BotPlayer bot, MiningPlan plan, WriteGrant grant) {
+    public MineBlockRunner(BotPlayer bot, ReachPlan plan, WriteGrant grant) {
         this(bot, plan, false, grant);
     }
 
@@ -77,7 +77,7 @@ public final class MineBlockRunner {
      * @param walkOnly 只走到站位（不破坏目标），用于任务层接管破坏动作的场景
      *                 （例如连锁挖掘模组兼容，D-077）。到位后返回 {@link Status#DONE}。
      */
-    public MineBlockRunner(BotPlayer bot, MiningPlan plan, boolean walkOnly, WriteGrant grant) {
+    public MineBlockRunner(BotPlayer bot, ReachPlan plan, boolean walkOnly, WriteGrant grant) {
         this.walkOnly = walkOnly;
         this.grant = grant;
         this.bot = bot;
@@ -203,7 +203,7 @@ public final class MineBlockRunner {
     // ==================== 内部阶段 ====================
 
     /**
-     * ⭐⭐ **到位请求的唯一出处**（`D-520`，改革 ① 主体第一刀）：能力**只从** {@link MiningPlan#arrival()} 读。
+     * ⭐⭐ **到位请求的唯一出处**（`D-520`，改革 ① 主体第一刀）：能力**只从** {@link ReachPlan#arrival()} 读。
      *
      * <p><b>它替谁</b>：替掉这里原来的三元判断 ——
      * {@code plan.mode() == TUNNEL || plan.mode() == ENTER_TARGET ? miningApproach(...) : of(...)}。

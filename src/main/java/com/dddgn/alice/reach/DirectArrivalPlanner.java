@@ -23,11 +23,11 @@ import java.util.function.BiFunction;
  * <p>⭐ <b>2026-09-29 `1-3`（批次 1 改革 ① 主体 · 甲「成员级退役」）—— 本文件是搬家的落点</b>：
  * 它逐字来自 `reach/StandingPlanSelector`（后者又逐字来自 `task/mining/MiningPlanner` 的
  * `DS-5` 解体，`①-2b`）。搬家的**理由**（而不是"删掉它"）：
- * {@link MiningPlan.Arrival} 的 `IN_PLACE` / `DIRECT_PURE_PASSAGE` / `DIRECT_PLACEMENT_ALLOWED`
+ * {@link ReachPlan.Arrival} 的 `IN_PLACE` / `DIRECT_PURE_PASSAGE` / `DIRECT_PLACEMENT_ALLOWED`
  * **三个取值就是它生产的**，而它是 `MiningPlanner.plan()` 的**第一条腿**（成功即返回）
  * ⇒ 它是**新框架的一部分**，只是旧名字（`StandingPlanSelector` = "站位挖掘的『选』"）
  * 把它说成了待退休的东西。开工前侦察（施工设计单 `§14`）实测：**按文件删会立刻坏**
- * （③ `MiningPlan.Arrival` 的三个取值失去唯一生产点）。
+ * （③ `ReachPlan.Arrival` 的三个取值失去唯一生产点）。
  *
  * <p>⚠️ <b>本刀**只搬家 ＋ 两处退役**，逻辑逐字未改</b>：
  * <ol>
@@ -40,7 +40,7 @@ import java.util.function.BiFunction;
  *       ⛔ 它不是新载体（没有跨方法传递、没有进 {@link ReachOutcome}）。</li>
  * </ol>
  * ⚠️ 顺带被删掉的还有 {@code losByFoot} 那张 map —— 它的**唯一**读者是评分载体
- * （`score.lineOfSightResult`）与已退役的 `MiningPlan.visibility`（`§4e` 甲）⇒ 零读者。
+ * （`score.lineOfSightResult`）与已退役的 `ReachPlan.visibility`（`§4e` 甲）⇒ 零读者。
  *
  * <p>⚠️ <b>两条逐字保留的纪律</b>（改革不许碰）：
  * <ol>
@@ -95,8 +95,8 @@ public final class DirectArrivalPlanner {
             BotLog.info("[MiningPlanner] arrival=IN_PLACE target={} stand={} cost=0 support={}",
                     target.toShortString(), startFoot.toShortString(),
                     supportPos == null ? "-" : supportPos.toShortString());
-            return new ReachOutcome(new MiningPlan(target, startFoot, startFoot, path,
-                    MiningPlan.Arrival.IN_PLACE, supportPos), "");
+            return new ReachOutcome(new ReachPlan(target, startFoot, startFoot, path,
+                    ReachPlan.Arrival.IN_PLACE, supportPos), "");
         }
 
         List<StandingPointSelector.Candidate> candidates =
@@ -174,9 +174,9 @@ public final class DirectArrivalPlanner {
         // 执行期 `MineBlockRunner` 只读 `plan.arrival()` 复现同一个工厂（⛔ 不再由任何值反推）。
         // 旧形状的病灶：规划期用 `withPlacement`（`D-443` 裁定 1a，鱼骨「补一块再走」）、
         // 执行期一律用 `of`（纯通行）⇒ 规划说到得了、执行说到不了（同一 tick 两个相反答案）。
-        MiningPlan.Arrival arrival = placementAllowed
-                ? MiningPlan.Arrival.DIRECT_PLACEMENT_ALLOWED
-                : MiningPlan.Arrival.DIRECT_PURE_PASSAGE;
+        ReachPlan.Arrival arrival = placementAllowed
+                ? ReachPlan.Arrival.DIRECT_PLACEMENT_ALLOWED
+                : ReachPlan.Arrival.DIRECT_PURE_PASSAGE;
         boolean includeUnestimated = placementAllowed;
         return exactTopK(bot, level, target, startFoot, feet, arrival, supportPos, extraCost,
                 placementAllowed
@@ -188,7 +188,7 @@ public final class DirectArrivalPlanner {
 
     private static ReachOutcome exactTopK(ServerPlayer bot, ServerLevel level, BlockPos target, BlockPos startFoot,
                                           List<BlockPos> feet,
-                                          MiningPlan.Arrival arrival, BlockPos supportPos, double extraCost,
+                                          ReachPlan.Arrival arrival, BlockPos supportPos, double extraCost,
                                           BiFunction<BlockPos, BlockPos, PathRequest> requestFactory,
                                           boolean includeUnestimated) {
         StandingCostEstimator.Result estimate = StandingCostEstimator.estimate(bot, level, feet);
@@ -272,12 +272,12 @@ public final class DirectArrivalPlanner {
                 String.format(java.util.Locale.ROOT, "%.3f", bestCost),
                 bestPath.movements().size(),
                 supportPos == null ? "-" : supportPos.toShortString());
-        MiningPlan plan = new MiningPlan(target, startFoot, bestFoot, bestPath, arrival, supportPos);
+        ReachPlan plan = new ReachPlan(target, startFoot, bestFoot, bestPath, arrival, supportPos);
         return new ReachOutcome(plan, "");
     }
 
     /**
-     * 两组候选的择优：**比的是计划自己的成本**（{@link MiningPlan#totalCost()}），
+     * 两组候选的择优：**比的是计划自己的成本**（{@link ReachPlan#totalCost()}），
      * ⛔ 不是那个已退役的"评分载体"。
      *
      * <p>⚠️ 两组各自由 {@code selectBest} 带着自己的 `extraCost`（垫支撑块那一组 = 一次放置计价）

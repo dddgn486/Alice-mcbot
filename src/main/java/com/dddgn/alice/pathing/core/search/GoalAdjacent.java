@@ -11,7 +11,7 @@ import java.util.Set;
  *
  * <p><b>它解决什么</b>：此前"走到被掩埋的目标旁边"被拆成
  * 「站位枚举（`StandingPointSelector`，固定 13 格）→ 逐个 top-K 全预算 `A*`（`MAX_APPROACH_PLANS = 3`）
- * → `MiningPlan.Mode.TUNNEL`」那一整条 `B` 分支。本目标把它收回内核一句话：
+ * → `ReachPlan.Mode.TUNNEL`」那一整条 `B` 分支。本目标把它收回内核一句话：
  * **"与目标格曼哈顿相邻，且不站在目标格、不站在它上方"** ⇒ 落脚点由 A* 自己找。
  *
  * <p><b>对照 Baritone</b>（`D-036`）：模板 = `BuilderProcess.GoalAdjacent extends GoalGetToBlock`

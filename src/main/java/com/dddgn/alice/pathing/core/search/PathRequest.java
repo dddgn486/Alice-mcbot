@@ -205,7 +205,7 @@ public record PathRequest(
      * （{@link GoalAdjacent}），而**不是**"某个规范脚位"。
      *
      * <p><b>它替谁</b>：替掉 `B` 分支那条「站位枚举（固定 13 格）→ 逐个 top-K 全预算 `A*`
-     * （`MAX_APPROACH_PLANS = 3`）→ `MiningPlan.Mode.TUNNEL`」—— 目标交给内核，落脚点由 A\* 自己找。
+     * （`MAX_APPROACH_PLANS = 3`）→ `ReachPlan.Mode.TUNNEL`」—— 目标交给内核，落脚点由 A\* 自己找。
      * ⛔ **本工厂落地的这一刀<u>不接线</u>**（生产路径零改动）：今天的消费者是**夹具**；
      * 真正把 `planTunnel` 切过来是**下一刀**（`甲` 的字面范围：只加能用的新件，拒绝未接线）。
      *

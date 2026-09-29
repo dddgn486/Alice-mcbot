@@ -7,7 +7,7 @@ import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.task.mining.MiningBudget;
-import com.dddgn.alice.reach.MiningPlan;
+import com.dddgn.alice.reach.ReachPlan;
 import com.dddgn.alice.task.mining.MiningPlanner;
 import com.dddgn.alice.reach.ReachOutcome;
 import net.minecraft.core.BlockPos;
@@ -223,7 +223,7 @@ public final class FallingPauseCheckTask implements Task {
         prepareArm(level, target);
         MiningBudget budget = MiningBudget.forTarget(bot, level, target, true);
         ReachOutcome result = new MiningPlanner().plan(bot, target, budget);
-        MiningPlan plan = result.plan();
+        ReachPlan plan = result.plan();
         if (plan == null) {
             check("前提（" + label + "）：生产规划器给出可执行计划（实际 null，reason="
                     + result.failureReason() + "）", false);
@@ -232,7 +232,7 @@ public final class FallingPauseCheckTask implements Task {
         }
         check("前提（" + label + "）：模式 = CURRENT（**就地挖**；否则测到的是走路而不是暂停）"
                         + "（实际 " + plan.arrival() + "）",
-                plan.arrival() == MiningPlan.Arrival.IN_PLACE);
+                plan.arrival() == ReachPlan.Arrival.IN_PLACE);
         runner = new MineBlockRunner(bot, plan,
                 WriteGrant.of(taskName(), WriteReason.EXPECTED_TARGET));
         findings.add(label + ":plan=" + plan.arrival()

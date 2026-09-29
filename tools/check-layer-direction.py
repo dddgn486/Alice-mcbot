@@ -6,7 +6,7 @@
 `D-455` 定了三层（`action/` 微操作 < `task/` 动作原语 < `job/` 高级任务），
 `survey/42 §1.2` 实测**全仓唯一的循环依赖**就在这里：
 
-    action/MineBlockRunner → task/mining/{StandingPointSelector, LineOfSightChecker, MiningPlan}
+    action/MineBlockRunner → task/mining/{StandingPointSelector, LineOfSightChecker, ReachPlan}
     task/**                → action/{WriteGrant, WriteBudget, BlockInteraction, …}
 
 ⇒ 微操作**反过来**依赖比它高一层的原语 ⇒ `action/` 自己的边界「不许编排」**没有可执行判据**
@@ -38,7 +38,7 @@
 1. **`reach/` 不许依赖上层**：`src/main/java/com/dddgn/alice/reach/**` 里不得出现对
    `com.dddgn.alice.{task, action, job}` 的 import ⇒ 红。
    ⭐ 这是「**只搬一个会造出新循环**」的防线：`StandingPointSelector` 拖着 `MiningTuning`、
-   `MiningPlan` 拖着 `LineOfSightChecker` ⇒ 漏搬一个，循环就**换个方向长回来**。
+   `ReachPlan` 拖着 `LineOfSightChecker` ⇒ 漏搬一个，循环就**换个方向长回来**。
 2. **`action/` 不许依赖 `task/`**（`step 3b` 后**无条件**）：`src/main/java/com/dddgn/alice/action/**`
    里对 `com.dddgn.alice.task.*` 的 import 必须**逐条**在 `ALLOWED_REVERSE` 里 ——
    ⭐ 该表**今天为空**（`step 3a` 剩的最后 1 条 = `PathRetryRunner`，已由 `step 3b` 搬进 `pathing/`）。
@@ -94,7 +94,7 @@ ALLOWED_REVERSE: dict[str, dict[str, str]] = {
 
 #: 实测 510+（2026-09-27）；留足余量，只用来抓"扫描根被搬空 / 解析崩塌"。
 MIN_SCANNED_FILES = 480
-#: `step 3a` 实测 4 个（`StandingPointSelector` / `LineOfSightChecker` / `MiningPlan` / `MiningTuning`）。
+#: `step 3a` 实测 4 个（`StandingPointSelector` / `LineOfSightChecker` / `ReachPlan` / `MiningTuning`）。
 MIN_REACH_FILES = 4
 #: `step 4`（`D-462`）之后 `action/` = 实测 **6** 个（纯微操作；原 12 = 6 微操作 + 6 写入治理）。
 MIN_ACTION_FILES = 6
@@ -153,7 +153,7 @@ SELFTEST_CASES: list[tuple[str, str, str, bool]] = [
      f"{PKG}/reach/StandingPointSelector.java",
      "import com.dddgn.alice.task.mining.MiningTuning;", True),
     ("`reach/` import `job` ⇒ 红",
-     f"{PKG}/reach/MiningPlan.java",
+     f"{PKG}/reach/ReachPlan.java",
      "import com.dddgn.alice.job.mine.MineJob;", True),
     ("`action/` import 没登记的 `task` 类 ⇒ 红",
      _MB,

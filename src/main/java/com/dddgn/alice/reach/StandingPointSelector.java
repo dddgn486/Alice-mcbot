@@ -40,7 +40,7 @@ public final class StandingPointSelector {
      *
      * <p>⚠️ <b>2026-09-29 `1-3`（甲④）：原来的第二个组件（该站位的视线结果）已删</b> ——
      * 它的**唯一**读者是 A 腿里那张 `losByFoot` map，而那张 map 又只喂"评分载体"
-     * （`§4e` 甲已退役 `StandingPointEvaluator`）与 `MiningPlan.visibility`（同刀退役）
+     * （`§4e` 甲已退役 `StandingPointEvaluator`）与 `ReachPlan.visibility`（同刀退役）
      * ⇒ 零读者。⚠️ **视线过滤本身没变**：{@link #generateCandidates} 仍然**只收**
      * `isValidStandingPoint` 通过的格（判据照旧，只是不再把结果**带出来**）。
      */

@@ -13,7 +13,7 @@ import net.minecraft.server.level.ServerLevel;
  *
  * <p>为什么落 `reach/`：它问的是**目标下方那一列的世界状态**（纯几何查询），
  * 与「站位选优」无关（`plans §4.2`⑤ 逐字），而它算出来的答案要填进
- * {@link MiningPlan#supportPlacementPos()} —— **载体就在本包**（`reach/`，
+ * {@link ReachPlan#supportPlacementPos()} —— **载体就在本包**（`reach/`，
  * `D-460` 定的「内核侧几何层：触及站位 / 视线 / 计划」）。本类不依赖任何上层包。
  *
  * <p>⚠️ **本类只回答"要不要垫"，不回答"谁去垫"**：`plans §4.2`⑤ 逐字「而"**垫一块**"这个

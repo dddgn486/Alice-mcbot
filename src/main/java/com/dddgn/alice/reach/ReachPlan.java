@@ -10,6 +10,15 @@ import java.util.Objects;
  * 单个原始挖掘目标的规划快照：从规划起点前往挖掘站位的方案。
  * 不包含挖掘进度、任务生命周期、目标访问清障或掉落物拾取状态。
  *
+ * <p>⭐ <b>2026-09-29 `1-5`：本类型原名 {@code MiningPlan}，本刀改名 {@code ReachPlan}</b>
+ * （施工设计单 `§10` 的 `1-5`）—— 直接理由 = 与同包的 {@link ReachOutcome} 对齐：`1-3` 把到达腿的
+ * 结果载体改成了 `Reach*` 家族，而计划本身还叫 `Mining*`，命名不一致是**已登记的偏离**
+ * （台账 `O46` ③，复核触发就是本刀）。⚠️ 更硬的理由在 `survey/42 §3.3`「**锚在名字上的门禁会静默失效**」
+ * —— 本刀实测抓到第一例：`tools/kernel-predicates.py` 的旧 `Mode` 检测写成
+ * {@code r"\bMiningPlan\.Mode\b"}，**平凡的全局改名抓不到它**（`\b` 前是字面量 `b`）⇒
+ * 若只做机械替换，那颗牙会静默失效（该文件里有逐字的诚实登记）。
+ * ⛔ 本刀**零行为改动**：只动名字（类型名 ＋ `BotManager.currentMiningPlan` → `currentReachPlan`）。
+ *
  * <p>D-064：路径类型由 legacy `SurfacePathfinder.Result` 换成新内核 {@link PathPlan}（R3/R4）。
  *
  * <p>⭐ <b>2026-09-29 `1-3`（批次 1 改革 ① 主体 · 甲）「组件定型」：7 组件 → 6 组件</b>
@@ -31,7 +40,7 @@ import java.util.Objects;
  * `estimate` 全仓无读者）⇒ 只剩“成本”这一件真信息，而它按定义等于
  * `path.totalCost()` ＋（要垫支撑块时）那一次放置的计价。详见 {@link ReachOutcome}。
  */
-public record MiningPlan(
+public record ReachPlan(
         BlockPos target,
         BlockPos startFoot,
         BlockPos standingFoot,
@@ -42,7 +51,7 @@ public record MiningPlan(
     /**
      * ⭐⭐ **"怎么到位" = 执行期写授权的唯一出处**（`D-520`，改革 ① 主体第一刀）。
      *
-     * <p><b>它替谁</b>：替掉旧的 {@code MiningPlan.Mode}。旧枚举把**两件事压在一个字段里** ——
+     * <p><b>它替谁</b>：替掉旧的 {@code ReachPlan.Mode}。旧枚举把**两件事压在一个字段里** ——
      * "规划模式记录"（诊断用）与"**这一趟走位能否改写世界**"（`D-076` 红线的最后一处接力）。
      * 只有后者是承重的：`action/MineBlockRunner` 在**运行时**靠 {@code mode} 值决定要不要把走位请求
      * 建成 {@code PathRequest.miningApproach}（含 {@code BREAK_*}/{@code PILLAR}）还是
@@ -91,7 +100,7 @@ public record MiningPlan(
         MINING_APPROACH
     }
 
-    public MiningPlan {
+    public ReachPlan {
         target = Objects.requireNonNull(target, "target").immutable();
         startFoot = Objects.requireNonNull(startFoot, "startFoot").immutable();
         standingFoot = Objects.requireNonNull(standingFoot, "standingFoot").immutable();
@@ -105,11 +114,11 @@ public record MiningPlan(
         // 它要求 `standingFoot` 是这条路径**真的走到**的那一格，而不是调用方"以为"的那一格。
         BlockPos landed = path.finalFoot();
         if (landed == null) {
-            throw new IllegalArgumentException("MiningPlan requires a path that has a landing foot"
+            throw new IllegalArgumentException("ReachPlan requires a path that has a landing foot"
                     + " (status=" + path.status() + ")");
         }
         if (!landed.equals(standingFoot)) {
-            throw new IllegalArgumentException("MiningPlan standingFoot must be the path's landing foot"
+            throw new IllegalArgumentException("ReachPlan standingFoot must be the path's landing foot"
                     + " standingFoot=" + standingFoot.toShortString()
                     + " landed=" + landed.toShortString()
                     + " goalFoot=" + path.goalFoot().toShortString()
