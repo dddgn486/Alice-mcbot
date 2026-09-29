@@ -6,6 +6,8 @@ import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.PathRetryRunner;
 import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.pathing.core.session.PathExecutionResult;
+// ⭐ `4a` 柱②（用户 2026-09-29 裁 `N3`）：`Step` = **原语注册口**（接口即注册）
+import com.dddgn.alice.task.Step;
 import com.dddgn.alice.task.mining.GainStepRunner;
 import com.dddgn.alice.task.mining.MiningProfile;
 import net.minecraft.core.BlockPos;
@@ -48,7 +50,7 @@ import java.util.UUID;
  * **不造**额度（只来自构造参数）· 类内**没有**"额度词命名"的 `static final` ·
  * 消费额度的点**恰好 1 处**且具名（{@link #sweepBudgetExhausted()}）。
  */
-public final class CollectStep {
+public final class CollectStep implements Step {
 
     /** 一簇作业的两种形态（终态只有一个：{@link Outcome#FINISHED}）。 */
     public enum Outcome { RUNNING, FINISHED }

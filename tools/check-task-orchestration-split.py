@@ -129,6 +129,157 @@ NEW_ORCHESTRATOR_5B = re.compile(r"new\s+CollectDropsTask\s*\(")
 DELEGATION_5B = re.compile(r"\bstep\s*\.")
 
 
+# ==================== 柱② 「注册口」（`4a`；用户 2026-09-29 裁 `N3`） ====================
+#
+# 出处：`O41` §1c.3 柱②（目标形态 = 「新功能 = 新执行器 ＋ 新 step」）· `O59` §3（实测：**没有**通用
+# `Step` 接口，唯一的 step 门禁**逐类写死路径**）· `O63`（AI 建议：注册口就是**接口本身**）。
+#
+# 为什么必须有这一段：在此之前「哪些类是原语」由 `STEP` / `STEP_5B` **两个写死的路径常量**回答
+# ⇒ ⚠️ **新加一个 step，本门禁不会覆盖它**（同族教训已在本仓发生过：`PRIMITIVES` 清单漏掉
+# `MineStep` 的常量读数）。改成 `rglob` **自动枚举全部 `implements Step`** 之后，下面这几条对
+# **新 step 自动生效**。这也是横切闸门④ 第二半（「新功能必须落在内核路径之外」）能长出牙的前提：
+# 没有扩展点 ⇒ 没有"实现了扩展点"这个**可检查的事实**。
+
+ALICE_DIR = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
+TASK_DIR = ALICE_DIR / "task"
+#: 注册口**本身**（接口声明文件）——反向牙必须跳过它（它的文件名也以 `Step` 结尾）。
+STEP_INTERFACE = TASK_DIR / "Step.java"
+#: ⚠️ `implements … Step`（覆盖 `implements Step` / `implements Step, Xxx` / `implements A, Step`）。
+IMPL_STEP = re.compile(r"\bimplements\b[^{;]*\bStep\b")
+TICK_DECL = re.compile(r"\btick\s*\(")
+#: 「造任务」的**通用**形态（`MineTask` / `CollectDropsTask` / 任何 `*Task`）——原语一个都不许造。
+NEW_ANY_TASK = re.compile(r"new\s+\w+Task\s*\(")
+#: 「制造额度」的**通用**形态（`new *Budget(` / `*Budget.for*`）——原语的额度只能来自构造参数。
+BUDGET_ANY = re.compile(r"new\s+\w*Budget\s*\(|\bBudget\s*\.\s*for\w+\s*\(")
+#: 反空转人口下限（**实测 2**：`MineStep` / `CollectStep`）。⛔ 别把它当"目标值"，也别调低来消红。
+STEP_IMPL_MIN = 2
+#: ⚠️ **同名两物豁免**（反向牙的具名登记；**双向**：条目必须仍存在、且必须**仍不实现** `Step`）。
+STEP_NAMESAKE_EXEMPT = {
+    "task/check/CheckStep.java":
+        "**同名两物**：它是**电池/自检步的描述 record**（场景＋发料＋任务工厂＋预算＋判据），"
+        "**不是**本门禁意义上的原语（`task/Step` 接口指后者）⇒ 刻意不实现它。"
+        "复核触发 = 它被改名/换形状那一刀（届时删本行）",
+}
+#: 夹具文件名标记 —— **唯一真源 = `Task.SELF_CHECK_MARKERS`**（不在这里另写一份约定）。
+FIXTURE_MARKERS = ("check", "probe", "dump", "diagnostic", "regression", "battery", "demo")
+
+
+def looks_like_fixture_file(name: str) -> bool:
+    """按 `Task.SELF_CHECK_MARKERS` 判断文件名是不是夹具（夹具不参与注册口的反向牙）。"""
+    low = name.lower()
+    return any(marker in low for marker in FIXTURE_MARKERS)
+
+
+def check_reg_implements_step(code: str) -> list[str]:
+    """注册口 ⑤（反向牙）：`task/**\\*Step.java` 必须 `implements Step`。"""
+    if not IMPL_STEP.search(code):
+        return ["名字以 `Step` 结尾、住在 `task/` 下，却**没有** `implements Step` ⇒ 注册口漏登记"
+                "（要么实现它，要么进 `STEP_NAMESAKE_EXEMPT` 并写理由）"]
+    return []
+
+
+def check_reg_declares_tick(code: str) -> list[str]:
+    """注册口 ④：注册的 step 必须**自己有 `tick(`**（原语的定义 = 逐 tick 推进到单格结论）。"""
+    if not TICK_DECL.search(code):
+        return ["注册的 step 里找不到 `tick(` ⇒ 它不像是「逐 tick 推进」的原语"
+                "（形状真的变了？那要改本判据，⛔ 别删）"]
+    return []
+
+
+def check_reg_no_phase(code: str) -> list[str]:
+    """注册口 ⑥（判据 A 的通用版）：注册的 step **不许有相位机**。"""
+    hits = len(PHASE_TYPE.findall(code)) + len(PHASE_WORD.findall(code))
+    if hits:
+        return [f"注册的 step 里出现相位机痕迹 {hits} 处（`Phase` / `phase`）"
+                "⇒ 相位机归编排器（`D-466` §五）"]
+    return []
+
+
+def check_reg_no_task_construction(code: str) -> list[str]:
+    """注册口 ①（判据 C① 的通用版）：注册的 step **不许造任何任务/编排器**。"""
+    hits = NEW_ANY_TASK.findall(code)
+    if hits:
+        return [f"注册的 step 里出现 {len(hits)} 处 `new *Task(` ⇒ 原语不许造任务"
+                "（编排器造编排器是合法的，原语造任何任务都不是）"]
+    return []
+
+
+def check_reg_budget_injected(code: str) -> list[str]:
+    """注册口 ②（判据 D1 的通用版）：注册的 step 的额度**只来自构造参数**。"""
+    hits = BUDGET_ANY.findall(code)
+    if hits:
+        return [f"注册的 step 里**制造额度** {len(hits)} 处（`new *Budget(` / `*Budget.for*`）"
+                "⇒ 额度只能来自构造参数"]
+    return []
+
+
+def check_reg_no_quota_constant(code: str) -> list[str]:
+    """注册口 ③（判据 D1 后半的通用版）：注册的 step 里**不许有额度词命名的 `static final`**。"""
+    problems = []
+    for line in STATIC_FINAL.findall(code):
+        if QUOTA_WORD.search(line):
+            problems.append(f"注册的 step 里有**额度词命名**的 `static final`：{line.strip()[:70]}"
+                            "⇒ 额度常量只能由调用方注入")
+    return problems
+
+
+def check_step_registration() -> tuple[list[str], dict]:
+    """柱② 注册口：**自动枚举** `implements Step` 的类（= 原语集合），逐类判形状 ＋ 反向牙。
+
+    ⚠️ 判据是**结构**，⛔ 不判"行为没变"（那归无头电池的逐步 diff）。
+    """
+    problems: list[str] = []
+    impls: dict[str, Path] = {}
+    for path in sorted(ALICE_DIR.rglob("*.java")):
+        code = strip_comments_and_strings(path.read_text(encoding="utf-8"))
+        if IMPL_STEP.search(code):
+            impls[path.relative_to(ROOT).as_posix()] = path
+
+    # ① 反空转：人口下限（⛔ 不许调低来消红）
+    if len(impls) < STEP_IMPL_MIN:
+        problems.append(f"实现了 `Step` 的类只有 {len(impls)} 个（下限 {STEP_IMPL_MIN}）"
+                        "⇒ 解析崩塌、或注册口被绕过（`4a` 柱② 的登记面消失了）")
+
+    # ② 逐类：层位置 ＋ 五条形状（⛔ 一条都不许因为"这个类特殊"而跳过）
+    for rel, path in impls.items():
+        code = strip_comments_and_strings(path.read_text(encoding="utf-8"))
+        # ⚠️ 层位置判据用**包内相对路径**：`rel` 是仓库相对路径（前缀里带着 `src/main/java/…`），
+        #    本门禁第一版就是拿它去 `startswith("task/")`，于是两个原语全被误报（已实测踩过）。
+        if not path.relative_to(ALICE_DIR).as_posix().startswith("task/"):
+            problems.append(f"`{rel}` 实现了 `Step` 但**不住在 `task/` 下**"
+                            "⇒ 原语的层位置变了（本判据要跟着改，⛔ 别删）")
+        for p in (check_reg_declares_tick(code)
+                  + check_reg_no_phase(code)
+                  + check_reg_no_task_construction(code)
+                  + check_reg_budget_injected(code)
+                  + check_reg_no_quota_constant(code)):
+            problems.append(f"`{rel}`：{p}")
+
+    # ③ 反向牙：`task/**\*Step.java` 里"名字像 step、又不是夹具"的，必须在 `impls` 或豁免表里
+    for path in sorted(TASK_DIR.rglob("*Step.java")):
+        if path == STEP_INTERFACE:
+            continue                      # ⚠️ 注册口**本身**：它的文件名也以 `Step` 结尾
+        if "interface Step" in path.read_text(encoding="utf-8"):
+            continue                      # 任何"声明 `Step` 接口"的文件都不参与反向牙
+        rel = path.relative_to(ROOT).as_posix()
+        if rel in impls or rel in STEP_NAMESAKE_EXEMPT or looks_like_fixture_file(path.name):
+            continue
+        problems.append(f"`{rel}` 名字以 `Step` 结尾且住在 `task/` 下，却**既没实现 `Step`、"
+                        "也没登记豁免** ⇒ 注册口漏登记（实现它，或加一条具名豁免 ＋ 理由）")
+
+    # ④ 豁免表**双向**：条目必须仍存在 ＋ 必须**仍不实现** `Step`（陈条目 ⇒ 红）
+    for rel, reason in STEP_NAMESAKE_EXEMPT.items():
+        path = ALICE_DIR / rel
+        if not path.exists():
+            problems.append(f"豁免表里的 `{rel}` 不存在了 ⇒ 陈旧条目（理由原文：{reason[:40]}…）")
+        elif rel in impls:
+            problems.append(f"豁免表里的 `{rel}` 现在**已经实现** `Step` ⇒ 陈旧条目，请删掉它")
+        elif not reason.strip():
+            problems.append(f"豁免表里的 `{rel}` 没写理由 ⇒ 豁免必须具名说明为什么它不是原语")
+
+    return problems, {"impls": sorted(impls), "exempt": len(STEP_NAMESAKE_EXEMPT)}
+
+
 def strip_comments_and_strings(text: str) -> str:
     r"""去 `//`、`/* */`、字符串与字符字面量（**保留换行**，行号仍可算）。
 
@@ -463,10 +614,55 @@ _CRITERIA = {
     "d2": check_d2_named_consumption_sites,
 }
 
+# ==================== 注册口的红臂（`4a` 柱②；每臂只打一条判据） ====================
+
+SELFTEST_CASES_REG: list[tuple[str, str, str, bool]] = [
+    # ---- ⑤ 反向牙：名字像 step 必须实现 ----
+    ("注册⑤ 红：`*Step` 类的声明里没有 `implements Step`", "reg_impl",
+     "public final class FooStep {\n}\n", True),
+    ("注册⑤ 绿：`implements Step`", "reg_impl",
+     "public final class FooStep implements Step {\n}\n", False),
+    # ---- ④ 必须有 tick ----
+    ("注册④ 红：注册的 step 里没有 `tick(`", "reg_tick",
+     "    public void advance() { }\n", True),
+    ("注册④ 绿：有 `tick(`", "reg_tick",
+     "    public Outcome tick(java.util.List<Object> live) { return null; }\n", False),
+    # ---- ⑥ 不许有相位机 ----
+    ("注册⑥ 红：注册的 step 里长出相位字段", "reg_phase",
+     "    private Phase phase;\n", True),
+    ("注册⑥ 绿：注释里提到相位不算命中（剥注释后）", "reg_phase",
+     "/** 本类没有 Phase，也没有 phase 字段。 */\n    private int x;\n", False),
+    # ---- ① 不许造任务 ----
+    ("注册① 红：注册的 step 里 `new FooTask(`", "reg_task",
+     "    void f() { inner = new FooTask(bot, scope); }\n", True),
+    ("注册① 绿：只造执行器（`MineBlockRunner` 不以 `Task` 结尾）", "reg_task",
+     "    void f() { miner = new MineBlockRunner(bot, plan, false, grant); }\n", False),
+    # ---- ② 额度只来自构造参数 ----
+    ("注册② 红：注册的 step 里 `new MiningBudget(`", "reg_budget",
+     "    void f() { b = new MiningBudget(1, 2, true, 3); }\n", True),
+    ("注册② 绿：只**读**构造注入的额度", "reg_budget",
+     "    void f() { n = budget.maxExtraBreakTicks(); }\n", False),
+    # ---- ③ 不许有额度词命名的常量 ----
+    ("注册③ 红：额度词命名的 `static final`", "reg_const",
+     "    private static final int sweepBudgetTicks = 40;\n", True),
+    ("注册③ 绿：非额度词的 `static final`（`CollectStep` 实测那 4 条就是这样）", "reg_const",
+     "    private static final double PICKUP_INFLATE_XZ = 1.0D;\n", False),
+]
+
+_CRITERIA_REG = {
+    "reg_impl": check_reg_implements_step,
+    "reg_tick": check_reg_declares_tick,
+    "reg_phase": check_reg_no_phase,
+    "reg_task": check_reg_no_task_construction,
+    "reg_budget": check_reg_budget_injected,
+    "reg_const": check_reg_no_quota_constant,
+}
+
 
 def selftest() -> list[str]:
     problems: list[str] = []
-    for cases, criteria in ((SELFTEST_CASES, _CRITERIA), (SELFTEST_CASES_5B, _CRITERIA_5B)):
+    for cases, criteria in ((SELFTEST_CASES, _CRITERIA), (SELFTEST_CASES_5B, _CRITERIA_5B),
+                            (SELFTEST_CASES_REG, _CRITERIA_REG)):
         for label, key, snippet, expect_red in cases:
             found = criteria[key](strip_comments_and_strings(snippet))
             is_red = bool(found)
@@ -510,6 +706,10 @@ def main() -> int:
     problems.extend(inspect_step_5b(step_5b))
     problems.extend(check_5b_c2_orchestrator_delegates(orch_5b))
 
+    # ⭐ `4a` 柱② 注册口（**自动枚举** `implements Step` 的全部类）
+    reg_problems, reg_info = check_step_registration()
+    problems.extend(reg_problems)
+
     if problems:
         print("TASK_ORCHESTRATION_SPLIT_RESULT FAIL")
         for problem in problems:
@@ -534,6 +734,13 @@ def main() -> int:
           f"编排器委托点 {len(DELEGATION_5B.findall(orch_5b))}（下限 {MIN_DELEGATIONS_5B}） · "
           f"红臂 {len(SELFTEST_CASES_5B)}/{len(SELFTEST_CASES_5B)}（C① 2 + C② 2 + D1 3 + D2 4）")
     print("  ⇒ 边界在构建里：原语不许长相位/子任务/额度，编排器不许把原语架空")
+    print(f"  · ⭐ 柱② **注册口**（`4a`，用户 2026-09-29 裁 `N3`）—— 自动枚举 `implements Step`："
+          f"{len(reg_info['impls'])} 个（下限 {STEP_IMPL_MIN}）："
+          + ", ".join(r.split('/')[-1] for r in reg_info['impls']))
+    print("    逐类判：有 `tick(` · 无相位机 · 无 `new *Task(` · 无额度制造 · 无额度词 "
+          "`static final` · 住 `task/` ｜ 反向牙：`task/**/*Step.java` 未实现且未豁免 ⇒ 红"
+          f"（豁免 {reg_info['exempt']} 条，**双向**核对）"
+          f" ｜ 红臂 {len(SELFTEST_CASES_REG)}/{len(SELFTEST_CASES_REG)}")
     return 0
 
 

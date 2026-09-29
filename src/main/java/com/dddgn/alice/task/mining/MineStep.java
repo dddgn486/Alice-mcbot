@@ -6,6 +6,9 @@ import com.dddgn.alice.compat.ChainMining;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.reach.ReachPlan;
 import com.dddgn.alice.reach.MiningTuning;
+// ⭐ `4a` 柱②（用户 2026-09-29 裁 `N3`）：`Step` = **原语注册口**（接口即注册）
+// ⇒ 本类实现它之后，`tools/check-task-orchestration-split.py` 的判据从"逐类写死路径"改成**自动枚举**。
+import com.dddgn.alice.task.Step;
 import com.dddgn.alice.write.WriteGrant;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
@@ -34,7 +37,7 @@ import com.dddgn.alice.reach.ReachOutcome;
  *
  * <p>⚠️ 本类**不认识** `MineTask`：它不引用编排器的任何类型，也不知道自己被谁用。
  */
-public final class MineStep {
+public final class MineStep implements Step {
 
     /** 单格结论的三种形态（`D-466` §六）。 */
     public enum Outcome { RUNNING, DONE, FAILED }
