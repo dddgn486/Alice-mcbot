@@ -3695,8 +3695,8 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
    （`PathRequest.java:170` `new GoalFoot(goalFoot)` / `:196` `new GoalAdjacent(target, excluded)`），能力集却**逐字同一出处**
    （`MINING_APPROACH_MOVEMENTS`）⇒ 接线**必须新增工厂** ⇒ 连带 **4 处授权登记**（`D-076`/`O15-a`）。
 2. ⚠️ **既有隐性分歧**：规划用 `adjacentApproach`、执行用 `miningApproach`（`MineBlockRunner.java:231`）—— 今天无害，但属"规划/执行不同工厂"的形状。
-3. ⛔ **两条门禁会打到**：`rule_arrival_declared_and_consumed` ③（`kernel-predicates.py:2700` 要求 `MiningPlanner` 用 `adjacentApproach`）**必须重锚**；
-   `rule_search_limit_not_unreachable`（`:1266`/`:1272`/`:1275`）是**位置化**断言 ⇒ **两次搜索时每条腿都要"先判结论、后判到达"**。
+3. ⛔ **两条门禁会打到**：`rule_arrival_declared_and_consumed` ③（`kernel-predicates.py:2729` 要求 `MiningPlanner` 用 `adjacentApproach`）**必须重锚**；
+   `rule_search_limit_not_unreachable`（`:1266`/`:1272`/`:1275`）是**位置化**断言 ⇒ **两次搜索时每条腿都要"先判结论、后判到达"**（⚠️ 这三个行号 = **动刀前**快照；落地后见断点三十三／侦察件 `§11`）。
 
 ⭐ **新岔路（⛔ 待用户裁）**：**顺序两次搜索（甲，`D-532` 字面）vs 一次复合搜索（乙，Baritone `GoalComposite`）** ——
 乙在**成本最优性**上更强（顺序可能先接受"贵但可达"的同列方案），甲在**挖掘语义**（优先挖进那一列）与**改动面**（`Arrival`/`MineBlockRunner` 零改动）上更优。
@@ -3712,9 +3712,56 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
   —— 能力集**逐字复用** `MINING_APPROACH_MOVEMENTS`，差别**只在目标形状**。
 - ⭐⭐ **推翻侦察 `O36` §3 的选型**：我当初写"重载会打乱 `WritePolicyMatrix` 的 probe 口径"⇒ 推荐新工厂（＋4 处授权登记）。
   **读门禁源码后证伪**：授权对象是**能力**（`MovementGrant.types()` 问工厂要集合）· `policy-map.py:189-191` 的工厂盘点**按名字收成集合**
-  ⇒ 重载不新增词表项 · 孤儿判据 `:472-477` 不咬它 · probe 传 `BlockPos` 无二义 · `kernel-predicates.py:2254` 锚点咬逐字签名不受影响。
+  ⇒ 重载不新增词表项 · 孤儿判据 `:472-477` 不咬它 · probe 传 `BlockPos` 无二义 · `kernel-predicates.py:2275` 锚点咬逐字签名不受影响。
   ⇒ **`MovementGrant` / `POLICY_MATRIX.csv` / `WORLD_WRITE_AUTHORIZATION.md` 零改动**。
   📌 **可复用教训**：**别在侦察里凭印象给"代价"**（那个"代价"读一次源码就没了）。
 - 判据：编译绿 · `check-policy-matrix` PASS（**`8 工厂` 未变**，与预测一致）· `check-all pass=34 warning=1 failed=0` · `ref-integrity` PASS（1724 处）。
   ⛔ 零行为变化 ⇒ 不需要客户端测试。
 - ⏭ **下一步 = `1-1b₂`**：两条腿顺序搜索 ＋ 两条门禁重锚（**每条腿先判结论后判到达** / `:2700` 改锚）＋ 夹具改新形状（＋`S13`）。
+
+---
+
+## 断点三十三：批次 1 `1-1b₂` 落地（`planGoalApproach` 接线 = 甲 · 两条腿顺序搜索）
+
+台账 `O38`。**用户裁 甲**（顺序两次搜索）；本刀 = **接线 ＋ 两条门禁重锚 ＋ A2 夹具上界诚实化**。
+
+### ① 接线（`task/mining/MiningPlanner.planGoalApproach`）
+
+- 腿 1 = **同列**：`PathRequest.miningApproach(botId, startFoot, GoalColumnBlocks.forReach(target, bot.getBlockReach()), "mining-planner")`
+  —— `1-1b₁` 那个形状自由重载的**首个生产消费者**；
+- 腿 2 = **侧面兜底**：腿 1 **确实到不了**时才问 `PathRequest.adjacentApproach`（⭐ 所以 `O36` §2 #1 的"③ 必须重锚"**预测偏保守** —— 旧牙天然继续成立）；
+- ⭐ 深度实参 = **执行期同一个** `bot.getBlockReach()`（`MineBlockRunner` 的 `LINE_OF_SIGHT_BLOCKED`/`OUT_OF_REACH` 用的就是它）；
+  ⛔ 刻意**不**减 `MiningTuning.reachMargin`（那是**待删**的调参面，引它 = 给待删旋钮新增消费者）；
+- ⭐ **每条腿都"先判结论、后判到达"**；⛔ **不许**拿"腿 1 没结论"去试腿 2（那会把「本轮没评价完」降级成「这个形状到不了」）；
+- ⭐ 预算闸门（`D-076`）保持**单一站点**在腿结构之外 ⇒ 只对"已给出方案的那条腿"判；
+- 日志加 `leg=column|side`（「没评价完」的唯一日志形收口进 `warnInconclusive`）。
+
+### ② 门禁（`tools/kernel-predicates.py`）
+
+1. `rule_search_limit_not_unreachable` 的位置化断言**从"咬第一对"改成"逐腿配对"**
+   （第 k 次「判结论」必须早于第 k 次「判到达」＋ 两种判定必须**成对**；`:1281`/`:1283`，`goal_leg` 在 `:1275`）。
+   ⚠️ **旧写法对第二条腿完全盲** ⇒ 这正是 `O20`③「指针存在 ≠ 指对了东西」那一族。判据同时改用**剥块注释**的源码
+   （本刀在方法体上方写了逐字引用那两个符号的长 javadoc）。
+2. `rule_arrival_declared_and_consumed` ③：**原牙保留**（`:2729`）＋ ⭐ **加一颗牙**：同列腿必须真的在用
+   `GoalColumnBlocks.forReach(`（限定调用形，`:2733`）—— 否则退回"只有侧面一条腿"时 `1-0a`/`1-1` 整条链会**静默**变死件。
+3. 同规则 ④ 的**比较符放宽**成 `==` 或 `<=`（`:2754`；**字面量**要求不变）。
+
+### ③ A2 夹具诚实化（`task/MineMenuCheckTask` 第 3 段）
+
+`issued == 1` → `issued >= 1 && issued <= 2` ＋ 场景注释更新：甲让"一次规划发起几次"从常量 1 变成 **1 或 2** ⇒ 正确断言形是**上界**。
+
+### ④ ⚠️ 行号引用复算（第二次踩到 ⇒ 纪律再次兑现）
+
+本刀改的两个文件都被大量 `文件:行` 引用。实测位移：`MiningPlanner.java` **+4**（旧 `≤241` 段）· **+62**（旧 `≥242` 段尾部；
+被重写的方法体内不适用置换）· `kernel-predicates.py` **+21 / +29 / +38**（分段）。
+⇒ 修为活指针 **8 处**（`MiningPlanner.java:146→150` ×2 · `:288→338` ×1 · `kernel-predicates.py:2700→2729` ×3 · `:2254→2275` ×3）。
+⚠️ 另发现 **≥20 处"界内但指错"的老引用**（历史快照用当日行号；`ref-integrity` 只抓超界 ⇒ 结构性看不见）⇒ 归 `O35` ② 那颗牙（批次 3）。
+
+### ⑤ 判据与下一步
+
+- `compileJava` **绿** · `check-all` **`pass=34 warning=1 failed=0`** · `check-kernel-predicates` **PASS** ·
+  `check-ref-integrity` **PASS**（1729 处 / 超界 0）· `check-policy-matrix` **PASS**（`8 工厂` 未变）。
+- ⚠️ **本刀有行为变化**（到达集：侧面 5 格 → 同列 6 层 ∪ 侧面 4 格）⇒ 电池/客户端**按裁定冻结**，批次 1 收口整体回归。
+- ⏭ **下一步** = `1-1b₃`（夹具 `K2AdjacentGoalCheckTask` 新形状覆盖：同列深化 ＋ 侧面兜底）或 `1-2`（代价模型 `D1`/`D2`）。
+- ⚠️⚠️ **`S13` 归属更正**：设计单 §9 把它列在 `K2AdjacentGoalCheckTask` 名下，但那个夹具**按设计就是纯规划层**
+  （"⛔ 不测执行层"）⇒ **S13（执行期破坏被拒 ⇒ 可重规划）原理上测不了** ⇒ 需**另一个执行层夹具**，⛔ 不是本夹具的活。

@@ -53,9 +53,12 @@ import java.util.Objects;
  * ⭐ 机械后果：本类**不进** `tools/check-far-goal-usage.py` 的 `FAR_GOAL_REGISTRY`
  * （登记表的判据 = "`exactFoot() == false` 的实现必须登记"）。
  *
- * <p>⚠️ <b>本类今天不接线</b>（批次 1 `1-0` 只让形状落地）：生产消费者 **0**，
- * 接线走 `1-1`（`task/mining/MiningPlanner.planGoalApproach`）。⛔ 在那之前
- * **不许**把它接进任何生产路径。
+ * <p>⭐ <b>已接线</b>（批次 1 `1-1b₂`，2026-09-29）：**唯一生产消费者** =
+ * `task/mining/MiningPlanner.planGoalApproach` 的**腿 1**（`GoalColumnBlocks.forReach(target, bot.getBlockReach())`），
+ * 即「甲 · 顺序两次搜索」里**先问的那一条**；拿不出方案才轮到侧面形状
+ * {@link GoalAdjacent}（同一把刀的腿 2）。
+ * ⚠️ 本类落地时（`1-0a`）逐字写的是「今天不接线／生产消费者 0」—— **那句已随接线作废**，
+ * 保留在此只为让读旧笔记的人看到同一条指针（台账 `O33`/`O38`）。
  *
  * @param target 目标方块（到达判据只认它与脚位的算术关系）
  * @param depth  **目标层以下**还允许算到达的层数（见类头的两个逐字实例）；必须 ≥ {@link #MIN_DEPTH}

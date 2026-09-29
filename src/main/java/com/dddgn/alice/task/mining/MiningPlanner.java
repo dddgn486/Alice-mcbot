@@ -2,6 +2,9 @@ package com.dddgn.alice.task.mining;
 
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
+// ⭐ 批次 1 `1-1b₂`（2026-09-29）：目标腿的**第一条搜索**用同列形状 ⇒ 本类成为
+// `GoalColumnBlocks` 的**唯一生产消费者**（`1-0a` 落地时它是"零消费者"，那句已在类头更正）。
+import com.dddgn.alice.pathing.core.search.GoalColumnBlocks;
 import com.dddgn.alice.pathing.core.search.PathPlan;
 import com.dddgn.alice.pathing.core.search.PathRequest;
 // ⭐ 2026-09-29「搬空第二批」：R7「诚实读数」搬进内核侧（`plans §4.2`③）—— 本类改为引用它，
@@ -38,10 +41,11 @@ import com.dddgn.alice.reach.StandingPlanSelector;
  *   <li><b>A 腿</b>（{@link MiningPlan.Arrival#IN_PLACE}/{@link MiningPlan.Arrival#DIRECT_PURE_PASSAGE}）：
  *       当前站位能挖 → 直接用；否则现成可站的多角度候选 + 可挖掘面前提 + 路径成本排序；</li>
  *   <li><b>目标下方无支撑</b>：按成本比较"在目标下方放支撑块 + 侧面站位"与"只从正下方挖"（仅当需要收集掉落物）；</li>
- *   <li><b>目标级一次搜索</b>（`K2` 接线，`D-520`，改革 ①）：A 无解 → 把目标交给**内核**
- *       （{@link com.dddgn.alice.pathing.core.search.GoalAdjacent} = "站到目标格的某一面"），
- *       落脚点由 A* 自己找；到达允许破坏/放置
- *       （{@link PathRequest#adjacentApproach}；`D-366b` 起**放开** PILLAR/FALL/DOWNWARD，见 `D-366`），
+ *   <li><b>目标级到达</b>（`K2` 接线 `D-520` ＋ 批次 1 `1-1b₂`）：A 无解 → 把目标交给**内核**，
+ *       落脚点由 A* 自己找 —— ⭐ **两条腿顺序搜索**（`D-532` §二「甲」）：
+ *       先问 {@link GoalColumnBlocks}（**同列**，"站进目标那一列"），拿不出方案再问
+ *       {@link com.dddgn.alice.pathing.core.search.GoalAdjacent}（**侧面兜底**，"站到目标格的某一面"）；
+ *       到达允许破坏/放置（`D-366b` 起**放开** PILLAR/FALL/DOWNWARD，见 `D-366`），
  *       受 {@link MiningBudget#maxExtraBreakTicks()} 限制，超预算即 `found_but_unminable`。</li>
  * </ol>
  *
@@ -50,7 +54,7 @@ import com.dddgn.alice.reach.StandingPlanSelector;
  * 旧「兜底（{@code Mode.ENTER_TARGET}：以目标格为终点破坏进入）」**合成上面这一条**。
  * 动机是 `DS-4`（**替换** B，不是并存）与 `DS-9`（简化"完成挖掘被掩埋的目标"），
  * 副产品是 `A2` 那个"13 个候选各跑一次全预算搜索 ≈ 2.4 s/tick"的问题**结构性消失**
- * （一次规划调用只发起**一次**目标级搜索）。
+ * （一次规划调用只发起**≤2 次**目标级搜索 —— `D-520` 时是 1 次，`1-1b₂` 起最多 2 次）。
  *
  * <p>⚠️ 三条**逐字保留**的契约（改革不许碰）：① `standableOnly` 的早返回；
  * ② `P1-b`/`P1-d` 的 `search_incomplete` 合取闸门（`SEARCH_LIMIT ≠ UNREACHABLE`）；
@@ -236,10 +240,10 @@ public final class MiningPlanner {
      * （`D-460`）⇒ 作业层可以只依赖 `reach/`，不必认识 `task/mining/`。
      */
 
-    // ==================== 目标级一次搜索（改革 ①，`D-520`） ====================
+    // ============ 目标级到达：两条腿顺序搜索（改革 ① `D-520` ＋ 批次 1 `1-1b₂` 甲） ============
 
     /**
-     * ⭐⭐ **目标级一次搜索**（`K2` 接线，`D-520`）：把"走到被掩埋的目标旁边"交给**内核**。
+     * ⭐⭐ **目标级到达**（`K2` 接线 `D-520` ＋ 批次 1 `1-1b₂`）：把"走到被掩埋的目标旁边"交给**内核**。
      *
      * <p><b>它替谁</b>：替掉旧的两条腿 ——
      * ① 模式 B（旧 `planTunnel`）：{@code StandingPointSelector.tunnelCandidates} 枚举**固定 13 格**
@@ -247,68 +251,110 @@ public final class MiningPlanner {
      * （`MAX_APPROACH_PLANS = 3` 截断之前，真机实测 `candidates=13 planned=13` ⇒ ≈2.4 s/tick，
      * 而它发生在**服务端 tick 线程**上）；
      * ② 兜底（旧 `planEnterTarget`）：以**目标格本身**为终点"破坏进入"。
-     * 现在只有一句话：{@link com.dddgn.alice.pathing.core.search.GoalAdjacent}
-     * =「与目标格曼哈顿相邻、不站进目标格、不站在它上方」⇒ **落脚点由 A\* 自己找**
-     * （模板 = Baritone `BuilderProcess.GoalAdjacent extends GoalGetToBlock`，`D-036`）。
+     * 现在只有两句话：先问 {@link GoalColumnBlocks}（**同列**），拿不出方案再问
+     * {@link com.dddgn.alice.pathing.core.search.GoalAdjacent}（**侧面兜底**，Alice 特有形状，
+     * `1-0b` 已定性更正）⇒ **落脚点由 A\* 自己找**。
      *
-     * <p>⭐ <b>与旧两条腿的关系（逐条实测，⛔ 不夸大）</b>：
+     * <p>⭐⭐ <b>形状 = 「甲 · 顺序两次搜索」（`D-532` §二，用户 2026-09-29 裁定）</b>：
+     * <pre>
+     *   腿 1（同列）`GoalColumnBlocks.forReach(target, bot.getBlockReach())`
+     *     ├ 没结论（`SEARCH_LIMIT`/`PARTIAL`/`GOAL_NOT_LOADED`）⇒ **原样上抛**（⛔ 不许去试腿 2）
+     *     ├ 到不了 ⇒ 问腿 2
+     *     └ 到了   ⇒ 用这一条
+     *   腿 2（侧面）`PathRequest.adjacentApproach`（`GoalAdjacent`）
+     *     ├ 没结论 ⇒ 原样上抛；├ 到不了 ⇒ `ADJACENT_NO_REACHABLE`；└ 到了 ⇒ 用这一条
+     * </pre>
+     * ⇒ **最多 2 次全预算搜索**（旧形状是 13 次）。⛔ 「同列 ∪ 侧面」**不**改成一次复合搜索
+     * （Baritone 用的是 `GoalComposite`，`reference/baritone-1.20.1/src/main/java/baritone/process/MineProcess.java:188`）——
+     * `D-532` §二 已裁：**对挖掘而言"挖进那一列"本身就是目标**，"先到先得"是**意图**不是缺陷。
+     * ⚠️ <b>代价已登记</b>：先到先得**不比较谁更便宜** ⇒ 若真机出现"到得了但绕远／挖了很多不必要的方块"，
+     * 那就是这个顺序的病 ⇒ 届时换 `GoalComposite`（**改动可局部化**：两条腿换成一次复合，其余不动）。
+     *
+     * <p>⭐ <b>两条腿的到达集（逐条实测，⛔ 不夸大）</b>：
      * <ul>
-     *   <li><b>能力集逐字相同</b>：{@link PathRequest#MINING_APPROACH_MOVEMENTS}
-     *       （含 `BREAK_AND_TRAVERSE`/`BREAK_AND_ENTER`/`PILLAR`/`FALL`/`DOWNWARD`）—— 所以旧 ②「破坏进入」
-     *       在新请求下**仍然可能**，只是到达判据从"站进目标格"改成"站到它旁边"。</li>
-     *   <li>⚠️ <b>到达集是<u>收窄</u>的，不是超集</b> —— 实测两边集合：
-     *       新 = `GoalAdjacent` 的 **5 格**（4 个水平邻格 + 正下方 1 格；曼哈顿 ≤1，且不许站目标格、不许站它上方）；
-     *       旧 = `tunnelCandidates` 的 **8 格**（4 面 × {y, y−1}）+ **正下方一列**（y−2 起、按触及深度与破坏预算延伸）。
-     *       ⇒ 旧集里**曼哈顿 2 的落点**（y−1 那一圈水平格）与**更深的竖直落点**在新形态下**不再是落点**
-     *       （A\* 仍然可以**挖出**一格合法的落点，或落在"正下方"那一格上）。</li>
-     *   <li>✅ <b>为什么这是对的</b>：新到达集 = **Baritone 自己的 `GoalAdjacent`**
-     *       （`BuilderProcess.GoalAdjacent extends GoalGetToBlock`，曼哈顿 ≤1 ＋ 排除"站到方块上方"，
-     *       `reference/baritone-1.20.1/…/BuilderProcess.java:892`）⇒ 这次收窄是**向参照实现对齐**（`D-036`），
-     *       而旧那套 8＋N 格几何是 Alice 自造的枚举。
-     *       ⚠️ 代价已登记：`D-520` §八（真实行为差异，客户端实测时优先看"实心脉 / 完全被包住"那类目标）。</li>
+     *   <li><b>腿 1 = 同列</b> {@code x==tx && z==tz && ty-depth <= y <= ty}（`depth = 5`，由**触及几何**推导）
+     *       —— 与 Baritone `GoalTwoBlocks`（`depth=1`，
+     *       `src/api/java/baritone/api/pathing/goals/GoalTwoBlocks.java:60`）与 `GoalThreeBlocks`
+     *       （`depth=2`，`MineProcess.java:310`）**逐字同构**，Alice 只是把深度**参数化**
+     *       （偏离已登记在 `GoalColumnBlocks` 类头）；</li>
+     *   <li><b>腿 2 = 侧面</b> 曼哈顿 ≤1 且不站目标格、不站它上方 ⇒ **4 个水平邻格 ＋ 正下方 1 格**；</li>
+     *   <li>⇒ 两集**只共有 1 格**（{@code target.below()}）—— 兜底时那格已被腿 1 否定，重叠无害；
+     *       腿 2 净增的只有那 4 个水平邻格；</li>
+     *   <li>⚠️ 腿 1 含**目标格自身**（{@code y == ty}）—— 那是 Baritone 的语义（"破坏并站进去"），
+     *       ⛔ 不是笔误；与旧 ②「破坏进入」同源。</li>
      * </ul>
+     *
+     * <p>⭐ <b>与旧两条腿的关系</b>：<b>能力集逐字相同</b>（{@link PathRequest#MINING_APPROACH_MOVEMENTS}，
+     * 含 `BREAK_AND_TRAVERSE`/`BREAK_AND_ENTER`/`PILLAR`/`FALL`/`DOWNWARD`）⇒ 到达判据从
+     * "枚举出来的那一格"改成**形状本身的算术**（`D-532` §二：零枚举、零规划期射线）。
+     * ⚠️ 但**到达集不再收窄**：`D-520` 时期那句「新到达集 = Baritone 自己的 `GoalAdjacent`、是**收窄**的」
+     * 只对**腿 2** 成立；腿 1 把**整列（含 `y−2 … y−K`）**拿回来，正好覆盖旧 `tunnelCandidates`
+     * 的"y−1 那一圈竖直落点"所服务的那类目标（`U3`：**必须挖穿才能到 `y−2`**）。
      *
      * <p>⚠️ <b>三条逐字保留的契约</b>：
      * <ol>
-     *   <li>{@code P1-b}/{@code P1-d}：**先看"有没有结论"再看到达** —— {@link SearchConclusion#inconclusiveReason(PathPlan)}
-     *       非空（`SEARCH_LIMIT` = 根本没跑 / `PARTIAL` = 跑了没算完）⇒ 原样上抛
-     *       {@link SearchConclusion#SEARCH_INCOMPLETE}，⛔ **不许**改写成"到不了"（否则整体被记成
-     *       `found_but_unminable`（**永久理由**）⇒ `MineJob` 把目标写进 `attempted` 永久了结；
-     *       真机实测过 377 次，取证 `docs/reviews/2026-09-25-mine循环198ms拆解.md`）；</li>
+     *   <li>{@code P1-b}/{@code P1-d}：**每条腿都先看"有没有结论"再看"到没到"** ——
+     *       {@link SearchConclusion#inconclusiveReason(PathPlan)} 非空
+     *       （`SEARCH_LIMIT` = 根本没跑 / `PARTIAL` = 跑了没算完 / `GOAL_NOT_LOADED` = 目标区没加载）
+     *       ⇒ 原样上抛 {@link SearchConclusion#SEARCH_INCOMPLETE}，⛔ **不许**改写成"到不了"
+     *       （否则整体被记成 `found_but_unminable`（**永久理由**）⇒ `MineJob` 把目标写进 `attempted`
+     *       永久了结；真机实测过 377 次，取证 `docs/reviews/2026-09-25-mine循环198ms拆解.md`）；
+     *       ⚠️ 也**不许**拿"腿 1 没结论"当"同列不行"的理由去试腿 2 ——
+     *       那会把「本轮没评价完」偷偷降级成「这个形状到不了」；</li>
      *   <li>**预算闸门**（`D-076`）：代价超过 {@link MiningBudget#maxExtraBreakTicks()} ⇒ **如实拒绝**
      *       （`approach_over_budget`，旧名 `enter_target_over_budget`）——
-     *       这是旧 ② 腿独有的那半，腿合并时**不许静默丢掉**；</li>
-     *   <li>失败码 = {@link StandingPointRefusal#ADJACENT_NO_REACHABLE}（旧两码合并；实测全仓**无生产消费者**，
-     *       只有日志与夹具的字面量断言）。</li>
+     *       ⚠️ 它是**单一站点**（在腿结构之外）：只对"已经给出方案的那条腿"判，
+     *       ⛔ 不因"另一条腿也许更便宜"而回退（那会让 `approach_over_budget` 的含义随搜索顺序漂）；</li>
+     *   <li>失败码 = {@link StandingPointRefusal#ADJACENT_NO_REACHABLE}（**两条腿都到不了**时的那个码；
+     *       旧两码合并；实测全仓**无生产消费者**，只有日志与夹具的字面量断言）。
+     *       ⚠️ 名字里的 `ADJACENT` 是 `D-520` 时期的遗留 —— 今天它覆盖**两条腿**，改名留在批次 2。</li>
      * </ol>
      */
     private StandingPlanResult planGoalApproach(ServerPlayer bot, ServerLevel level, BlockPos target,
                                     BlockPos startFoot, MiningBudget budget) {
+        final String botId = bot.getUUID().toString();
+        // ---- 腿 1：同列（`GoalColumnBlocks`）----
+        // ⚠️ 深度按**触及几何**推导，实参用**执行期同一个** `bot.getBlockReach()`
+        // （`action/MineBlockRunner` 的 `LINE_OF_SIGHT_BLOCKED` / `OUT_OF_REACH` 复核用的就是它）
+        // ⇒ "规划说到得了"与"执行够得着"是**同一个口径**。
+        // ⛔ 刻意**不**减 `MiningTuning.reachMargin`：那个规划期余量属于**站位挖掘**的调参面
+        // （本期退休中，`1-3` 删）⇒ 在这里引它 = 给待删的旋钮**新增一个消费者**，正好反着来。
+        String leg = "column";
+        // ⚠️ `planPath` 的**第 3 个实参**（`standingFoot`）在它体内**根本没被读**
+        // （`StandingPlanSelector.planPath` 只把它转成 `new CorePathPlanner().plan(bot, level, request)`）
+        // ⇒ 这里照旧传 `target` 只为与既有调用点同形；⛔ 死参数的清理随 `1-3`（那个文件整份退休）。
         PathPlan path = StandingPlanSelector.planPath(bot, startFoot, target,
-                PathRequest.adjacentApproach(bot.getUUID().toString(), startFoot, target, null,
-                        "mining-planner"));
+                PathRequest.miningApproach(botId, startFoot,
+                        GoalColumnBlocks.forReach(target, bot.getBlockReach()), "mining-planner"));
         String inconclusive = SearchConclusion.inconclusiveReason(path);
         if (!inconclusive.isEmpty()) {
-            BotLog.warn("[MiningPlanner] arrival=MINING_APPROACH target={} startFoot={} status={} "
-                            + "reason={} searchLimited=true"
-                            + "（本轮没评价完，不是「不可达」：`SEARCH_LIMIT ≠ UNREACHABLE`；"
-                            + "`PARTIAL` = 预算烧完只拿到前缀，`P1-d`）",
-                    target.toShortString(), startFoot.toShortString(), path.status(), inconclusive);
+            warnInconclusive(leg, target, startFoot, path, inconclusive);
             return new StandingPlanResult(null, null, inconclusive);
         }
         if (!path.reached()) {
-            return new StandingPlanResult(null, null, StandingPointRefusal.ADJACENT_NO_REACHABLE);
+            // ---- 腿 2：侧面兜底（`GoalAdjacent`）—— ⛔ 只在"腿 1 确实到不了"时才问 ----
+            leg = "side";
+            path = StandingPlanSelector.planPath(bot, startFoot, target,
+                    PathRequest.adjacentApproach(botId, startFoot, target, null, "mining-planner"));
+            inconclusive = SearchConclusion.inconclusiveReason(path);
+            if (!inconclusive.isEmpty()) {
+                warnInconclusive(leg, target, startFoot, path, inconclusive);
+                return new StandingPlanResult(null, null, inconclusive);
+            }
+            if (!path.reached()) {
+                return new StandingPlanResult(null, null, StandingPointRefusal.ADJACENT_NO_REACHABLE);
+            }
         }
         // ⭐ 落点 = 路径**实际到达**的那一格，⛔ **不是** `path.goalFoot()`
-        // （对 `GoalAdjacent` 来说它返回的是**目标方块本身**，不是脚位；见 `PathPlan.finalFoot()`）。
+        // （两条腿的 `goalFoot()` 返回的都是**目标方块本身**，不是脚位；见 `PathPlan.finalFoot()`）。
         // 这与 `MiningPlan` 紧凑构造器里的不变量是**同一条**（那里会再校验一次，抛 IAE 就说明这里传错了）。
         BlockPos standingFoot = path.finalFoot();
         double approachCost = path.totalCost();
         double budgetCost = budget.maxExtraBreakTicks()
                 / com.dddgn.alice.pathing.core.search.CostModel.WALK_ONE_BLOCK_TICKS;
         if (approachCost > budgetCost) {
-            BotLog.warn("[MiningPlanner] approach_over_budget target={} cost={} budget={} stand={}",
-                    target.toShortString(),
+            BotLog.warn("[MiningPlanner] approach_over_budget target={} leg={} cost={} budget={} stand={}",
+                    target.toShortString(), leg,
                     String.format(java.util.Locale.ROOT, "%.2f", approachCost),
                     String.format(java.util.Locale.ROOT, "%.2f", budgetCost),
                     standingFoot.toShortString());
@@ -318,12 +364,28 @@ public final class MiningPlanner {
                 level, StandingPointSelector.eyeAt(standingFoot), target);
         StandingPointEvaluator.StandingPointScore score =
                 StandingPointEvaluator.of(standingFoot, approachCost, approachCost, los);
-        BotLog.info("[MiningPlanner] arrival=MINING_APPROACH target={} startFoot={} stand={} cost={} "
+        BotLog.info("[MiningPlanner] arrival=MINING_APPROACH target={} leg={} startFoot={} stand={} cost={} "
                         + "movements={}",
-                target.toShortString(), startFoot.toShortString(), standingFoot.toShortString(),
+                target.toShortString(), leg, startFoot.toShortString(), standingFoot.toShortString(),
                 String.format(java.util.Locale.ROOT, "%.3f", approachCost), path.movements().size());
         return new StandingPlanResult(new MiningPlan(target, startFoot, standingFoot, path, los,
                 MiningPlan.Arrival.MINING_APPROACH, null), score, "");
+    }
+
+    /**
+     * 「本轮没评价完」的**唯一日志形**（`P1-b`/`P1-d` 的取证读数）：两条腿共用，`leg=` 区分是腿 1 还是腿 2。
+     *
+     * <p>⚠️ 它**只记日志**：上抛仍由调用点**逐字**写成
+     * {@code return new StandingPlanResult(null, null, inconclusive);} ——
+     * 门禁 `rule_search_limit_not_unreachable` 咬的就是那一行（⛔ 别把上抛挪进本方法）。
+     */
+    private static void warnInconclusive(String leg, BlockPos target, BlockPos startFoot,
+                                        PathPlan path, String inconclusive) {
+        BotLog.warn("[MiningPlanner] arrival=MINING_APPROACH leg={} target={} startFoot={} status={} "
+                        + "reason={} searchLimited=true"
+                        + "（本轮没评价完，不是「不可达」：`SEARCH_LIMIT ≠ UNREACHABLE`；"
+                        + "`PARTIAL` = 预算烧完只拿到前缀，`P1-d`；`GOAL_NOT_LOADED` = 目标区没加载）",
+                leg, target.toShortString(), startFoot.toShortString(), path.status(), inconclusive);
     }
 
 

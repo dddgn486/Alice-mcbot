@@ -1263,21 +1263,42 @@ def rule_search_limit_not_unreachable():
         if "SearchConclusion.SEARCH_INCOMPLETE" not in approach:
             problems.append("`exactTopK` 全失败时没有 `SEARCH_INCOMPLETE` 分支"
                             " ⇒ 输出端仍然分不出「没评价完」")
-    goal_leg = method_body(planner_code,
+    # ⭐ `1-1b₂`（2026-09-29）：目标腿从**一条搜索**变成**两条顺序搜索**（甲 = `D-532` §二：
+    # 「同列 `GoalColumnBlocks` 先、侧面 `GoalAdjacent` 兜底」）⇒ 位置化断言**改锚成「逐腿配对」**。
+    # ⚠️ 旧写法只咬**第一个** `inconclusiveReason` 与**第一个** `if (!path.reached())`
+    # ⇒ 接上第二条腿之后它对**第二条腿**完全**盲**（`O20`③「指针存在 ≠ 指对了东西」那一族）。
+    # 新判据 = **第 k 次「判结论」必须早于第 k 次「判到达」**（每条腿各一对）＋
+    # **两种判定必须成对**（有腿只写了一半 ⇒ 结构变了，响亮地红）。
+    # ⚠️ 判据看的是**代码**：用**剥掉块注释**的那一份（`planner_nc_leg`）—— 本刀在方法体上方写了很长的
+    # javadoc，里面**逐字**引了这两个符号 ⇒ 只剥 `//` 的 `code_only` 会把注释里的引用也算进来
+    # ⇒ `finditer` 的位置与条数全错（`D-527` 的同一条教训：判据的主语是代码，先剥注释再判）。
+    goal_leg = method_body(planner_nc_leg,
                            "private StandingPlanResult planGoalApproach(ServerPlayer bot, ServerLevel level,"
                            " BlockPos target,")
     if not goal_leg:
         problems.append("`MiningPlanner` 找不到目标腿 `planGoalApproach`（结构变了 ⇒ 本规则要跟着改）")
     else:
-        at_inconclusive = goal_leg.find("SearchConclusion.inconclusiveReason(path)")
-        at_reached = goal_leg.find("if (!path.reached())")
-        if at_inconclusive < 0:
+        inc_at = [m.start() for m in
+                  re.finditer(re.escape("SearchConclusion.inconclusiveReason(path)"), goal_leg)]
+        reached_at = [m.start() for m in re.finditer(re.escape("if (!path.reached())"), goal_leg)]
+        if not inc_at:
             problems.append("目标腿 `planGoalApproach` 不走唯一出处 `SearchConclusion.inconclusiveReason(path)`"
                             " ⇒ 「有没有结论」被就地另判一遍（`P1-d`）")
-        elif at_reached >= 0 and at_inconclusive > at_reached:
-            problems.append("目标腿 `planGoalApproach` **先判到达、后判结论** ⇒ 被限流/只拿到前缀的搜索"
-                            "会被写成 `no_reachable_adjacent_standing_point`（永久理由）"
-                            "（S3 红线：`SEARCH_LIMIT ≠ UNREACHABLE`；真机 377 次 `found_but_unminable` 就是这么来的）")
+        elif len(inc_at) != len(reached_at):
+            problems.append(f"目标腿 `planGoalApproach` 的「判结论」有 {len(inc_at)} 处、"
+                            f"「判到达」有 {len(reached_at)} 处 ⇒ 两种判定**不成对**"
+                            "（有腿只写了一半：要么先判到达后判结论，要么根本没判结论）"
+                            " —— 结构变了 ⇒ 本规则要跟着改")
+        else:
+            for k in range(len(reached_at)):
+                if inc_at[k] > reached_at[k]:
+                    problems.append(f"目标腿 `planGoalApproach` 的**第 {k + 1} 条腿先判到达、后判结论**"
+                                    f"（位置 {reached_at[k]} < {inc_at[k]}）"
+                                    " ⇒ 被限流/只拿到前缀的搜索会被写成 "
+                                    "`no_reachable_adjacent_standing_point`（永久理由）"
+                                    "（S3 红线：`SEARCH_LIMIT ≠ UNREACHABLE`；"
+                                    "真机 377 次 `found_but_unminable` 就是这么来的）")
+                    break
         if "return new StandingPlanResult(null, null, inconclusive);" not in goal_leg:
             problems.append("目标腿 `planGoalApproach` 没有把 `inconclusive` **原样上抛**"
                             " ⇒ `P1-b` 的修法被回退（合取闸门再也看不到「没评价完」）")
@@ -2697,9 +2718,22 @@ def rule_arrival_declared_and_consumed():
             if dead in code:
                 problems.append(f"{label} 里又出现 `{dead}` ⇒ 被 `D-520` 删掉的候选穷举形状回归"
                                 f"（真机 ≈2.4 s/tick 的来源）")
+    # ⚠️ `1-1b₂`（2026-09-29）**重锚**：目标腿现在是**两条顺序搜索**（甲 = `D-532` §二：
+    # 「同列 `GoalColumnBlocks` 先、侧面 `GoalAdjacent` 兜底」）⇒ 原来那句"B 腿没有交给内核"的
+    # 主语从"唯一那条腿"变成"**侧面兜底腿**"，**断言本身一字未改**（它照样必须真的在用
+    # `adjacentApproach`：⛔ 有人把兜底腿删掉、只留同列腿 ⇒ 目标一被包住就只能报永久理由）。
+    # ⭐ 并**加一颗牙**：同列腿（`GoalColumnBlocks`）必须真的在用 —— ⛔ 否则有人把目标腿退回
+    # "只有侧面一条腿"，`1-0a`/`1-1` 整条链会**静默**变成死件，而上面那颗 `adjacentApproach` 的牙
+    # **照样绿**（它正是兜底腿）。⚠️ 锚点取**限定调用形**（`GoalColumnBlocks.forReach(`），
+    # ⛔ 不用裸类名 —— 裸子串会被 javadoc/别的用法满足（`D-524`/`D-525`/`D-528` 同族的假绿教训）。
     if "PathRequest.adjacentApproach" not in planner_code:
         problems.append("`MiningPlanner` 没有用 `PathRequest.adjacentApproach`"
-                        "⇒ B 腿没有交给内核（`DS-4`：**替换** B，不是并存）")
+                        "⇒ **侧面兜底腿**没有交给内核（`DS-4`：**替换** B，不是并存；"
+                        "`1-1b₂` 起它 = 甲的腿 2）")
+    if "GoalColumnBlocks.forReach(" not in planner_code:
+        problems.append("`MiningPlanner` 没有用同列形状 `GoalColumnBlocks.forReach(`"
+                        "⇒ 目标腿退化成只有侧面一条腿（`D-532` §二：先同列、再侧面兜底）"
+                        "⇒ `1-0a`/`1-1` 的整条链会**静默**变成死件")
 
     # ---- ④ A2 夹具仍按字面量 + 实测量断言 ----
     fixture = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
@@ -2713,7 +2747,11 @@ def rule_arrival_declared_and_consumed():
             problems.append("找不到 `MineMenuCheckTask.runSearchBudgetChecks()` ⇒ A2 的行为级判据没了"
                             "（本规则无法定位；改名/挪走都要同步改本规则）")
         else:
-            if not re.search(r"issued == \d+", fbody):
+            # ⚠️ `1-1b₂`（2026-09-29）**放宽比较符**（`==` 或 `<=`）：目标腿变成**两条顺序搜索**
+            # ⇒ 一次规划调用发起的次数**不再恒等于 1**（腿 1 给出方案就是 1，要兜底才是 2）
+            # ⇒ 夹具**正确**的断言形是**上界**。⛔ 放宽的**只是比较符**：**字面量**要求一字未动
+            #（"用常量断言 = 把常数改大就自动变绿"那颗牙照旧）。
+            if not re.search(r"issued\s*(?:==|<=)\s*\d+", fbody):
                 problems.append("A2 夹具没有用**字面量**断言「一次规划调用最多发起几次全预算搜索」"
                                 "⇒ 用常量断言等于"
                                 "把常数改大就自动变绿")

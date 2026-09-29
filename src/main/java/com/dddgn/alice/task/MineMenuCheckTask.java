@@ -1399,8 +1399,9 @@ public class MineMenuCheckTask implements Task {
         try {
             // 场景：矿石被实心石体**完全包住**、bot 站在石体顶上
             //   ⇒ 模式 A 必然 `no_valid_standing_point`（与真机第四轮的 `direct=no_valid_standing_point` **同形**）
-            //   ⇒ 走目标级一次搜索（`PathRequest.adjacentApproach` = `GoalAdjacent`），
-            //     **只有一次**搜索（旧模式 B 的 13 格候选枚举在 `D-520` 已删）
+            //   ⇒ 走目标级到达（`1-1b₂` 起是**两条腿顺序搜索**：腿 1 同列 `GoalColumnBlocks`、
+            //     拿不出方案才问腿 2 侧面 `GoalAdjacent`）
+            //   ⇒ **最多 2 次**全预算搜索（旧模式 B 的 13 格候选枚举在 `D-520` 已删）
             final BlockPos ore = new BlockPos(62, 68, 132);
             for (int dx = -2; dx <= 2; dx++) {
                 for (int dy = -2; dy <= 2; dy++) {
@@ -1422,10 +1423,14 @@ public class MineMenuCheckTask implements Task {
             BotLog.info("[MineMenu] A2 判别性事实：target={} arrival={} failure={} issuedSearches={}",
                     ore.toShortString(), a2.plan() == null ? "-" : a2.plan().arrival(),
                     a2.failureReason(), issued);
-            check("A2①：一次规划调用最多发起 **1** 次全预算搜索（实测 issued=" + issued
+            check("A2①：一次规划调用**至少 1 次、最多 2 次**全预算搜索（实测 issued=" + issued
                             + "；旧形状是 13 次 ≈ 2.4 s/tick ≈ 0.4 TPS，`D-520` 已把候选穷举整条删掉。"
-                            + "⚠️ 这里的 1 是**字面量**，不是任何常量）",
-                    issued == 1);
+                            + "⚠️ `1-1b₂` 起目标腿是**两条顺序搜索**（甲 = 先同列 `GoalColumnBlocks`、"
+                            + "拿不出方案才问侧面 `GoalAdjacent`）⇒ 上界由 1 变 2，**实测 1 或 2 都合法**"
+                            + "（本场景里同列腿**会**先给出方案 ⇒ 通常是 1；≥1 是为了挡"
+                            + "「目标腿压根没跑 ⇒ 0 次也算过」）。"
+                            + "⚠️ 这里的 1/2 是**字面量**，不是任何常量）",
+                    issued >= 1 && issued <= 2);
         } finally {
             SearchTickBudget.restoreDefaults();
             SearchTickBudget.resetForFixture();
