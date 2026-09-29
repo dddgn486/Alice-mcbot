@@ -4118,3 +4118,26 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 
 ⇒ **下一件 = `1-4`**（`R1` 收口：探针遗留三件同刀 ＋ `[MiningPlanner]` 前缀去留 ＋ **预期红清单（含 `blocked`/`exec_blocked`，归属 `1-1b₂`）** ＋ **K2 段 `4100` 窒息修复**），
 并与用户对 `O41` 草案的逐条批改并行（互不依赖）。
+
+---
+
+## 断点四十 —— `1-4` 起手：K2 段 `4100` **窒息修复**（已实跑验证）（2026-09-29）
+
+- **根因（坐实，非推测）**：世界母本 `run/world-pristine/level.dat` 的生成器是 **`minecraft:flat`**
+  （地表 `y=-60`），且段 `4100` 的区块**尚未生成**（`region/r.256.162.mca` 不存在）⇒ `y=100` 处**是空空气**。
+  `1-1b₃` 新场景走「**先传送 → 等区块加载 → 再 `setBlock`**」（`D-244`）⇒ 那 4 tick 里 bot 从 `y=100`
+  **自由下落**，随后 `buildColumnScene` 把地板铺在 `y=99` ⇒ **铺进 bot 身体** ⇒ `hazard=SUFFOCATING`
+  ⇒ 维生中断 ⇒ 整轮 `verdict=no_verdict`（断点三十九 ②）。
+- **修法（最小，且与老场景逐字同形）**：`buildColumnScene` / `buildFallbackScene` 末尾各加一行
+  **建完立刻再传送一次** —— A 组的 `buildScene` 本来就是「铺完地板 ⇒ 传送」（同一个类里的既有顺序）。
+  ⛔ 段 `4000` 的老场景**一个字没动**（`D-254` 的教训）。
+- ✅ **实跑验证**（`ALICE_HEADLESS=1 tools/headless-battery.sh single:adjacent_goal_exclusion`，归档
+  `run/headless-logs/20260929-191803-single_adjacent_goal_exclusion.log`）：
+  **`hazard=SUFFOCATING` 0 次**（原 3 次）· `SUMMARY checks=39 failures=0`
+  （`columnPlan=REACHED columnArrival=4103,100,2600` · `fbColumn=UNREACHABLE fbSide=REACHED
+  fbArrival=4102,100,2620 fbBedrock=8` · `snapshots=101 remaining=0`）· 步 `PASS`，`ticks=30`。
+- ⭐ **附带事实**：**这是 `1-1b₃` 两个新场景第一次真跑**（该刀当时只到 `COMPILES`，因为电池按裁定冻结）
+  ⇒ 两个新场景**本来就通过**；唯一的缺陷是"先传送"那段窗口。⚠️ `1-1b₃` 提交信息记 `checks 18 → 37`，
+  **实测 39** ⇒ 若 `AI_TEST_MATRIX.md` 记了该数，`1-4` 同刀核一次。
+- ⏭ **`1-4` 剩余**：`R1` 收口（`MineTask` 探针遗留三件同刀：`mode=` 说谎标签 ＋ `AI_TEST_MATRIX.md:117` ＋
+  复核真机报告 · `[MiningPlanner]` 前缀去留）＋ **预期红清单**（`blocked`/`exec_blocked`，归属 `1-1b₂`）。

@@ -339,6 +339,14 @@ public final class K2AdjacentGoalCheckTask implements Task {
             place(level, target.below(d), Blocks.STONE);
         }
         place(level, target, Blocks.STONE);
+        // ⭐ `1-4` 修复（2026-09-29，台账 `O47` ②）：**建完立刻再传送一次** —— 与 A 组 `buildScene` 的
+        // 「铺完地板 ⇒ 传送」**逐字同形**（那两行就在本类上一个方法里）。
+        // ⚠️ 根因（实测，非推测）：无头世界母本是**超平坦（地表 `y=-60`）**
+        // 、且段 `4100` 的区块**尚未生成** ⇒ PLAN 阶段那次“先传送”只为加载区块（`D-244`），
+        // bot 会从 `y=100` **自由下落**；4 tick 后本方法把地板铺在 `y=99`
+        // —— 正好铺进 bot 身体里 ⇒ `hazard=SUFFOCATING` ⇒ 维生中断
+        // ⇒ **整轮 `verdict=no_verdict`**（台账 `O47` ② 的日志证据）。
+        bot.teleportTo(level, COL_ORIGIN.getX() + 0.5D, COL_ORIGIN.getY(), COL_ORIGIN.getZ() + 0.5D, -90.0F, 0.0F);
         BotLog.info("[K2Adjacent] SETUP_COLUMN origin={} target={} reachK={} pillarTo={}",
                 COL_ORIGIN.toShortString(), target.toShortString(), k,
                 target.below(k + PILLAR_EXTRA).toShortString());
@@ -376,6 +384,14 @@ public final class K2AdjacentGoalCheckTask implements Task {
         for (int d = 0; d <= k + PILLAR_EXTRA; d++) {
             place(level, target.below(d), Blocks.BEDROCK);
         }
+        // ⭐ `1-4` 修复（2026-09-29，台账 `O47` ②）：**建完立刻再传送一次** —— 与 A 组 `buildScene` 的
+        // 「铺完地板 ⇒ 传送」**逐字同形**（那两行就在本类上一个方法里）。
+        // ⚠️ 根因（实测，非推测）：无头世界母本是**超平坦（地表 `y=-60`）**
+        // 、且段 `4100` 的区块**尚未生成** ⇒ PLAN 阶段那次“先传送”只为加载区块（`D-244`），
+        // bot 会从 `y=100` **自由下落**；4 tick 后本方法把地板铺在 `y=99`
+        // —— 正好铺进 bot 身体里 ⇒ `hazard=SUFFOCATING` ⇒ 维生中断
+        // ⇒ **整轮 `verdict=no_verdict`**（台账 `O47` ② 的日志证据）。
+        bot.teleportTo(level, FB_ORIGIN.getX() + 0.5D, FB_ORIGIN.getY(), FB_ORIGIN.getZ() + 0.5D, -90.0F, 0.0F);
         BotLog.info("[K2Adjacent] SETUP_FALLBACK origin={} target={} reachK={} bedrockCells={}",
                 FB_ORIGIN.toShortString(), target.toShortString(), k, k + PILLAR_EXTRA + 1);
     }
