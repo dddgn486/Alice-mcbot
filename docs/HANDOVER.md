@@ -3172,7 +3172,7 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 | # | 内容 |
 |---|---|
 | 1 | **新类 `reach/DropCatchment`**（84 行）—— `DROP_FALL_SEARCH`（= 8）· `dropWouldBeLost(level, target)` · `isSameColumn(pos, target)` **逐字搬入** |
-| 2 | `task/mining/MiningPlanner` **596 → 578 行**；4 处调用点改引用；原处留**墓碑指针**（写明"别读成判据没了 / 别放回转发壳"） |
+| 2 | `task/mining/MiningPlanner` **596 → 578 行**；4 处调用点改引用；原处留**退役说明指针**（写明"别读成判据没了 / 别放回转发壳"） |
 | 3 | 门禁 `rule_support_and_cluster_order` 断言① **改锚到新家**（判据从**裸子串**改成**定义形状**）＋ **加牙** |
 
 ⭐ **为什么必须改锚**：旧断言咬的是 `MiningPlanner` 里的 `dropWouldBeLost(` —— 搬走之后**调用点里仍有这个子串**
@@ -3238,14 +3238,14 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 让后面「把『选』搬进 `reach/`」不至于撞层方向门禁。⚠️ **本刀零行为变化**。
 
 **② 做了什么**：新类 `reach/ApproachCapability`（`PURE_PASSAGE` / `PLACEMENT_ALLOWED`，**同序**）；
-`MiningProfile` 删嵌套枚举（留**墓碑指针**）＋ record 组件换类型；`MiningPlanner` 4 处形参 ＋ 1 处常量；
+`MiningProfile` 删嵌套枚举（留**退役说明指针**）＋ record 组件换类型；`MiningPlanner` 4 处形参 ＋ 1 处常量；
 夹具 1 个文件 2 处；`reach/MiningPlan` javadoc 一处旧限定名 + 一处**理由已不成立**的旧注（只加指针）。
 总计 **5 文件改动（94 / 35）＋ 1 个新文件**。
 
 **③ ⭐ 门禁**（`rule_search_limit_not_unreachable`）：**改锚**（那条锚点是**逐字**的聚合入口签名 ⇒ 类型一改就失配）
 ＋ **5 颗牙**（新家真的定义 / 两个取值都在 / 原处不许再声明嵌套枚举 / 全仓不许再出现旧限定名 / 锚点自身），
 **5/5 注入验证变红后四个文件 sha 逐字还原**。
-⭐ 一条值得记的：本刀**自己的墓碑**里就写着 `public enum Approach { … }` ⇒ 不剥注释的话那颗牙会**假红**
+⭐ 一条值得记的：本刀**自己的退役说明**里就写着 `public enum Approach { … }` ⇒ 不剥注释的话那颗牙会**假红**
 ⇒ 判据改成"先剥注释再判"（与 `D-524` 那次"该剥未剥"**方向相反**，但都指向同一条：**判据的主语是代码，不是文本**）。
 
 **④ 判据**：`compileJava` **绿**（⚠️ 先红了 2 处 = `planDirect`/`selectBest` 的私有形参，**编译器抓的**）·
@@ -3270,7 +3270,7 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 **① 本刀在链条里的位置**：`DS-5` 甲·解体的**第二刀**（`①-1`）· ⚠️ **零行为变化**（常量名与字面量逐字未改）。
 
 **② 做了什么**：新类 `reach/StandingPointRefusal`（51 行）收 `R8` 四件（三个码 ＋ 谓词，**逐字**）；
-`MiningPlanner` 交出它们（留**墓碑指针**）＋ 4 处引用改限定名；
+`MiningPlanner` 交出它们（留**退役说明指针**）＋ 4 处引用改限定名；
 ⭐ `FishboneJob` 的 `import task.mining.MiningPlanner` → `import reach.StandingPointRefusal`
 ⇒ **作业层不再认识那个挖掘规划器**；夹具 `FishboneSlice2CheckTask` 1 处。
 ⛔ **但作业层仍依赖 `task/mining`**（`MiningBudget` / `MiningProfile`）—— 本刀只掐掉了**规划器**这一条。
@@ -3280,7 +3280,7 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 `StandingPointRefusal.STANDING_NO_REACHABLE`，并删掉"裸字面量"那个分支）＋ **7 颗牙**，**7/7 注入验证变红后两文件 sha 逐字还原**。
 ⚠️ 这是**同一族「假绿」的第三次**（`D-524` 位置化断言 · `D-525` `dropWouldBeLost(` · 本刀裸常量名）——
 搬包后旧锚点**都**会因"子串恰好还在"继续报绿 ⇒ **每次搬空都必须把锚点改成限定名**。
-⭐ 顺手把本规则里的 `without_comments()` **提到函数开头只留一份**（`D-527` 已证明裸文本判据会把墓碑里的旧名字判成**假红**）。
+⭐ 顺手把本规则里的 `without_comments()` **提到函数开头只留一份**（`D-527` 已证明裸文本判据会把退役说明里的旧名字判成**假红**）。
 
 **④ 判据**：`compileJava` **一次过** · `kernel-predicates` **PASS** · `check-all` **`pass=34 warning=1 failed=0`** ·
 `check-layer-direction` **PASS**（`reach/` **9 文件**）· `headless-battery core` **`verdict=PASS`**（指纹 **`d2d78e9c615d`** · **249 s** · 非缓存命中）。
@@ -4020,7 +4020,7 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 退役成员 3 类（`tunnelCandidates` · `Candidate` 第二组件/`.los()` · `MiningPlan.visibility`/组件数=6/`MiningPlan.Mode`）＋
 **回归护栏**（`TUNNEL`/`ENTER_TARGET` 代码面 0 命中 —— ⚠️ 角色是护栏，实测它**今天就已经是 0**）＋
 **反空转**（人口下限 400 文件 · 新家在场 · 留守成员还在）。
-⚠️ 判据一律**剥注释**（本刀自己的墓碑逐字点着旧名字，不剥会全假红 —— `D-527`/`D-528` 同族教训，这是第 4/5 次）。
+⚠️ 判据一律**剥注释**（本刀自己的退役说明逐字点着旧名字，不剥会全假红 —— `D-527`/`D-528` 同族教训，这是第 4/5 次）。
 ⭐ **三条注入臂实测都会红**（伪造退役名引用 / 把 `Candidate` 第二组件加回去 / 塞含 `TUNNEL` 的字符串），撤掉后 `[B·…]` 输出 0 行。
 
 ### ④ 判据读数
@@ -4034,8 +4034,8 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 ### ⑤ ⚠️ 首轮红 3 处，修法都由门禁/工具自己给出（记录）
 
 ① `check-kernel-predicates` 3 条 rule 报"结构变了"（**预期**：锚点跟着结构走）⇒ 重锚；
-② `check-capability-list` 报 CURATION 有 `mine_reach_probe` 而代码没有 ⇒ ⚠️ **根因是我的墓碑注释里逐字写了
-`Map.entry("mine_reach_probe", Profile.EXTRA)`**，被解析器当成真登记 ⇒ 墓碑改成不含该字面形状（**教训：写墓碑时要避开门禁的解析面**）；
+② `check-capability-list` 报 CURATION 有 `mine_reach_probe` 而代码没有 ⇒ ⚠️ **根因是我的退役说明注释里逐字写了
+`Map.entry("mine_reach_probe", Profile.EXTRA)`**，被解析器当成真登记 ⇒ 退役说明改成不含该字面形状（**教训：写退役说明时要避开门禁的解析面**）；
 ③ `check-ref-integrity` 报 `docs/reviews/2026-09-29-站位选优成本与捡拾归属-核查.md` 里那处
 `StandingPointSelector.java` 的**行号区间**超界（文件从 148 行 → 140 行）⇒ 该节的 `文件:行` 锚点
 **全改成符号名**（本项目的既有教训：⛔ 不按行号定位）。⚠️ **本断点自己第一版也踩了同一个坑**：

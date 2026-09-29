@@ -24519,7 +24519,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 4. **A2 夹具仍按字面量 + 实测量断言**（`issued == 1` + `SearchTickBudget.tickSearches()`）。
 
 ⚠️ 判据里自己带一个 `no_comments()`（同时剥 `//` 与 `/* */`）——
-因为 `code_only()` **只剥行注释**，而本刀在 `MiningPlanner` 里留了**墓碑注释**（写明了被删的理由与去向），
+因为 `code_only()` **只剥行注释**，而本刀在 `MiningPlanner` 里留了**退役说明注释**（写明了被删的理由与去向），
 不剥块注释会让判据**假红**。这是一条可复用的教训（判据锚点与代码注释同文档时）。
 
 ### 六、失败理由码的处置（`D-011`：不能未经验证直接删）
@@ -24830,7 +24830,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 |---|---|---|
 | 1 | 新类 **`src/main/java/com/dddgn/alice/reach/DropCatchment.java`** | 84 行（含新类 javadoc） |
 | 2 | 三件**逐字搬入**：`DROP_FALL_SEARCH`（= 8，用户 2026-09-22 裁定）· `dropWouldBeLost(level, target)` · `isSameColumn(pos, target)` | 只把 `private` 放宽成 `public`；**代码体一字未改** |
-| 3 | `task/mining/MiningPlanner`：**596 → 578 行**（−18），4 处调用点改引用（谓词 ×2 · 同竖列 ×2），原处留**墓碑指针** | `git diff --stat` = `66 ++++----` |
+| 3 | `task/mining/MiningPlanner`：**596 → 578 行**（−18），4 处调用点改引用（谓词 ×2 · 同竖列 ×2），原处留**退役说明指针** | `git diff --stat` = `66 ++++----` |
 
 **⭐ 为什么落 `reach/`**（不是拍脑袋）：① `plans §4.2`⑤ 逐字说它与「站位选优」**无关**，但 `reach/` 的定义是 `D-460` ＋
 `check-layer-direction.py:77` 的「**内核侧几何层**（触及站位 / 视线 / 计划）」—— 本谓词问的是**目标下方那一列的世界状态**（纯几何查询）；
@@ -24900,7 +24900,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 - ⚠️ **新增实测事实（本刀附带发现，⛔ 不处置）**：`docs/authz/POLICY_MATRIX.csv` 的 `code_ref` 列有**行号**
   （`task/mining/MiningPlanner.java:182,241`），但**没有任何门禁核对它** —— `check-policy-matrix.sh` → `policy-map.py` 只把该列
   **当字符串搬进生成物**（`policy-map.py:419`），`check-ref-integrity` 的扫描范围是 `docs/**/*.md` ＋ `AGENTS.md`（**不含 `.csv`**）
-  ⇒ ⭐ **该列漂了也没人知道**。（实测：`:182` 今天落在 `D-520` 的注释里，`:241` 落在 R9 墓碑注释里；两处**在 `D-520` 之后就已经不对**，
+  ⇒ ⭐ **该列漂了也没人知道**。（实测：`:182` 今天落在 `D-520` 的注释里，`:241` 落在 R9 退役说明注释里；两处**在 `D-520` 之后就已经不对**，
   与本刀无关 —— 本刀只是又让它 **+5 行**。）⇒ 要不要给它加判据 = **未裁**（`AGENTS.md` 的准入尺子第 1 问：它能让构建失败吗 ⇒ 能，但那是**新规则**，须用户显式同意）。
 - 📌 **指针**：断点 = `HANDOVER.md` 断点二十二 · 台账 = `O21` · 门禁 = `tools/kernel-predicates.py` 的 `rule_support_and_cluster_order`。
 
@@ -24970,7 +24970,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 | # | 内容 | 读数 |
 |---|---|---|
 | 1 | 新类 **`reach/ApproachCapability.java`**（`public enum`，33 行）—— `PURE_PASSAGE` / `PLACEMENT_ALLOWED`，**同序**（`ordinal` 不变） | 新文件 |
-| 2 | `task/mining/MiningProfile`：**删掉嵌套 `public enum Approach`**（连带它那段 javadoc → 搬进新类）＋ 留**墓碑指针**；record 组件类型 `Approach` → `ApproachCapability`；4 处取值引用改 `ApproachCapability.*` | 48 行改动 |
+| 2 | `task/mining/MiningProfile`：**删掉嵌套 `public enum Approach`**（连带它那段 javadoc → 搬进新类）＋ 留**退役说明指针**；record 组件类型 `Approach` → `ApproachCapability`；4 处取值引用改 `ApproachCapability.*` | 48 行改动 |
 | 3 | `task/mining/MiningPlanner`：**4 处**（2 处公开形参 + `planDirect`/`selectBest` 两个私有形参）+ 1 处常量引用 + javadoc `@param` | 19 行改动 |
 | 4 | `task/FishboneSlice2CheckTask`（夹具）：2 处取值 + import | 5 行改动 |
 | 5 | `reach/MiningPlan`：① javadoc 里的旧限定名 → `{@link ApproachCapability#PLACEMENT_ALLOWED}`；② 那条"刻意不叫 `Approach`"的理由**已不成立**（旧嵌套枚举没了）⇒ **只加指针、原文不改** | 8 行改动 |
@@ -24992,7 +24992,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 | **③** | `MiningProfile` **不许再声明** `enum Approach` | 原处复活 / **转发壳** | 注入一个真的嵌套枚举 ⇒ 精确报红 |
 | **④** | **全仓**生产代码不许再出现旧的限定名 `MiningProfile.Approach` | 只改一半（留一处旧类型引用 ⇒ 编译过、但那是一份**第二处**接近能力） | 把夹具一处改回旧名 ⇒ 精确报红并**点名文件** |
 
-**⚠️ 一条自我验证的细节（值得记）**：本刀自己的墓碑里就写着 `public enum Approach { … }`（在 `/* */` 块注释里）
+**⚠️ 一条自我验证的细节（值得记）**：本刀自己的退役说明里就写着 `public enum Approach { … }`（在 `/* */` 块注释里）
 ⇒ 如果那颗牙按**裸文本**判，它会**假红**。⇒ 判据改成**先剥注释**（`//` 与 `/* … */`）再判，
 跑绿本身就是"剥注释生效"的证据。⚠️ 而这条陷阱与 `D-524` 的自我纠正（新类 javadoc 里的字面量被计数牙抓）**方向相反**：
 那次是**该剥未剥**、这次是**剥了才对** —— 两者都指向同一条纪律：**判据的主语必须是"代码"，不是"文本"**。
@@ -25049,7 +25049,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 | # | 内容 | 读数 |
 |---|---|---|
 | 1 | 新类 **`reach/StandingPointRefusal.java`**（51 行 · `final` + 私有构造）：`STANDING_NO_VALID` · `STANDING_NO_REACHABLE` · `isStandingPointRefusal(String)` · `ADJACENT_NO_REACHABLE` —— **四件逐字搬入**（连各自那段 javadoc，含"`ADJACENT` 刻意不进谓词"那条） | 新文件 |
-| 2 | `task/mining/MiningPlanner`：交出这四个成员（**留墓碑指针**）；4 处生产引用改**限定名**；一处失效的 `{@link #ADJACENT_NO_REACHABLE}` 改成 `{@link StandingPointRefusal#…}` | 53 行改动 |
+| 2 | `task/mining/MiningPlanner`：交出这四个成员（**留退役说明指针**）；4 处生产引用改**限定名**；一处失效的 `{@link #ADJACENT_NO_REACHABLE}` 改成 `{@link StandingPointRefusal#…}` | 53 行改动 |
 | 3 | ⭐ `job/fishbone/FishboneJob`：`import task.mining.MiningPlanner` → `import reach.StandingPointRefusal`（`isStandingPointRefusal` 调用点 + javadoc `{@link}` 一起换） ⇒ **作业层不再认识那个挖掘规划器** | 6 行改动 |
 | 4 | `task/FishboneSlice2CheckTask`（夹具）：1 处引用 + import | 3 行改动 |
 | 5 | 门禁 `rule_search_limit_not_unreachable`：**改锚** ＋ **7 颗牙**（§三） | 69 行改动 |
@@ -25081,7 +25081,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 | **⑤** | `MiningPlanner` 的**代码**里不许再出现那三个字面量 | 绕过唯一出处（`J-6`） | 注入一个字面量常量 ⇒ 精确报红 |
 
 ⭐ **一条工程化改进（顺手做的）**：本规则里那条 `without_comments()` 辅助函数**提到了函数开头只留一份**，
-因为 `D-527` 已证明"裸文本判据会把**墓碑里的旧名字**判成违规 ⇒ **假红**"。⚠️ 本刀在 `MiningPlanner` 留的墓碑就是 `/* … */` 块注释、
+因为 `D-527` 已证明"裸文本判据会把**退役说明里的旧名字**判成违规 ⇒ **假红**"。⚠️ 本刀在 `MiningPlanner` 留的退役说明就是 `/* … */` 块注释、
 里面点着这三个常量名 ⇒ 不剥注释必假红（已在注入台里如实体现）。
 
 ### 四、判据
@@ -25121,7 +25121,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 - 事实（改动面，口径 = 剥 `//` 与 `/* … */` 后按代码数）：`MiningPlanner.Result` **19 处 / 10 文件**；
   ⚠️ 同一次作者用**裸文本**数是 **119 处**（含注释）⇒ 两个口径别混（`O19` ⑥ 的 107 也是裸文本）。
 - 做了什么：新家 `reach/StandingPlanResult`（`public record`，**三个组件的顺序与名字、`success()` 的判据逐字未改**）；
-  `MiningPlanner` 删掉嵌套 record 并留墓碑；10 个消费者改类型引用。
+  `MiningPlanner` 删掉嵌套 record 并留退役说明；10 个消费者改类型引用。
   ⚠️ **替换顺序有坑**：`com.dddgn.alice.task.mining.MiningPlanner.Result` 这类**全限定名**必须先替换，
   否则短名规则会把它截成 `com.dddgn.alice.task.mining.StandingPlanResult`（不存在的类型）。
 - 为什么必须搬：生产它的那段逻辑（候选枚举 → 排序 → top-K → 择优）**就是** `plans §4.2`① 要搬进 `reach/` 的那一件；
@@ -25134,7 +25134,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
   ① 新家必须在且是 `record`；② 三个组件**逐字**（含顺序）；③ `success()` 判据仍是 `plan != null`
   （⛔ 不许改成看 `failureReason` 空不空 —— 成功时它就是空串）；④ `MiningPlanner` 不许回原地再声明 `record Result(`；
   ⑤ 全仓生产代码不许再出现旧限定名；⑥ **反向**：生产点必须还在（`new StandingPlanResult(`）。
-  ⚠️ 判据一律**剥块注释** —— 本刀自己的墓碑逐字写着 `record Result(`，不剥会**假红**（`D-527`/`D-528` 同一条教训，第三次）。
+  ⚠️ 判据一律**剥块注释** —— 本刀自己的退役说明逐字写着 `record Result(`，不剥会**假红**（`D-527`/`D-528` 同一条教训，第三次）。
 - ⚠️ 顺带保住 **3 条会变成"死牙"的断言**：`rule_arrival_declared_and_consumed` ③ 的
   `private Result selectBestApproach(` / `private Result planTunnel(` / `private Result planEnterTarget(` ——
   类型改名后这三个串**结构上永远匹配不到**（= 假绿）⇒ 同刀换成当前类型名。

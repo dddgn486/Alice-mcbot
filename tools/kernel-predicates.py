@@ -1164,8 +1164,8 @@ def rule_search_limit_not_unreachable():
                                  / "pathing" / "core" / "search" / "SearchConclusion.java")
                                 .read_text(encoding="utf-8"))
 
-    # ⚠️ 本规则多条判据要看的是**代码**：统一先剥注释（墓碑/迁移说明里提到旧写法不算违规）。
-    # 2026-09-29 实测教训（`D-527`）：本刀自己的墓碑里写着 `public enum Approach { … }`，
+    # ⚠️ 本规则多条判据要看的是**代码**：统一先剥注释（退役说明/迁移说明里提到旧写法不算违规）。
+    # 2026-09-29 实测教训（`D-527`）：本刀自己的退役说明里写着 `public enum Approach { … }`，
     # 不剥注释的话那颗牙会**假红**。
     def without_comments(text: str) -> str:
         """去 `//` 与 `/* … */`（含 javadoc）—— 只看**代码**。"""
@@ -1242,7 +1242,7 @@ def rule_search_limit_not_unreachable():
     else:
         selector_code = without_comments(selector_path.read_text(encoding="utf-8"))
     # ⚠️ 这里另取一份**剥块注释**的 `MiningPlanner`（本函数里的 `planner_nc` 在下面才定义）：
-    # 本刀自己在那个文件里留的 ①-2b 墓碑是 `/* … */` 块，里面点着 `selectBest` / `exactTopK` / `cheaper`
+    # 本刀自己在那个文件里留的 ①-2b 退役说明是 `/* … */` 块，里面点着 `selectBest` / `exactTopK` / `cheaper`
     # ⇒ 不剥块注释的话，下面那颗"转发壳"牙会**假红**（`D-527`/`D-528` 的同一条教训）。
     planner_nc_leg = without_comments((ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
                                        / "task" / "mining" / "MiningPlanner.java")
@@ -1351,7 +1351,7 @@ def rule_search_limit_not_unreachable():
     #   ② 谓词必须**只含两个站位码**，⛔ **不含** `ADJACENT_NO_REACHABLE`（`D-520` 逐字「刻意不进」：
     #      顺手加进去 = **改变作业侧的分类行为**）；
     #   ③ `MiningPlanner` 里不许再声明这三个常量、也不许再出现那三个**字面量**（挡复活 / 转发壳）。
-    # ⚠️ 判据用 `without_comments`：本刀自己在 `MiningPlanner` 留的墓碑是 `/* … */` 块注释，
+    # ⚠️ 判据用 `without_comments`：本刀自己在 `MiningPlanner` 留的退役说明是 `/* … */` 块注释，
     # 里面就点着这三个名字 ⇒ 不剥注释会**假红**（`D-527` 的同一条教训）。
     refusal = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "reach"
                / "StandingPointRefusal.java")
@@ -1462,7 +1462,7 @@ def rule_search_limit_not_unreachable():
     #   ⑥ 反向：生产点必须还在（`new ReachOutcome(`）—— 挡"载体换家了、生产被换成 null"。
     # ⚠️ "**`StandingPlanResult` / `StandingPointEvaluator` 这两个名字不许回来**"那几颗牙**不在本规则里**
     # —— 它们在 `rule_standing_retirement_no_residue`（`D-533` §二 B 的**成员级退役清单**，与 `1-3` 同刀落地）。
-    # ⚠️ 判据一律**剥注释**：本刀自己在 `MiningPlanner` 留的墓碑（逐字写着 `record Result(`）与
+    # ⚠️ 判据一律**剥注释**：本刀自己在 `MiningPlanner` 留的退役说明（逐字写着 `record Result(`）与
     # `ReachOutcome` 的 javadoc 都点着旧名字 ⇒ 不剥注释会**假红**
     # （`D-527`/`D-528` 的同一条教训，这是第四次）。
     result_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "reach"
@@ -1504,8 +1504,8 @@ def rule_search_limit_not_unreachable():
     #（本刀之前它就叫 `Approach`，新名也叫 `Approach…` ⇒ 只改一半最容易骗过眼睛）。
     # 三颗牙：① 新家真的定义它且两个取值都在；② 原处不许再声明嵌套 `enum Approach`；③ 全仓生产代码
     # 不许再出现旧的限定名 `MiningProfile.Approach`。
-    # ⚠️ 判据一律先**剥注释**（`//` 与 `/* … */`）—— 墓碑/迁移说明里提到旧名字**不算违规**：
-    # 本刀自己的墓碑就写着 `public enum Approach { … }`，不剥注释的话那颗牙会**假红**（已实测）。
+    # ⚠️ 判据一律先**剥注释**（`//` 与 `/* … */`）—— 退役说明/迁移说明里提到旧名字**不算违规**：
+    # 本刀自己的退役说明就写着 `public enum Approach { … }`，不剥注释的话那颗牙会**假红**（已实测）。
     capability = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "reach"
                   / "ApproachCapability.java")
     if not capability.exists():
@@ -2794,7 +2794,7 @@ def rule_standing_retirement_no_residue():
     **旧名字/旧成员被顺手留着**：注释里写着"已删"、代码里还留一个转发壳或一个同名常量。
     编译过、行为不变，但**唯一出处**名存实亡（`J-6`），而下一次读码的人会以为它还在生效。
 
-    ⚠️ **判据必须剥注释**：本刀自己的墓碑**逐字**点着这些旧名字（"已搬到 …"）——
+    ⚠️ **判据必须剥注释**：本刀自己的退役说明**逐字**点着这些旧名字（"已搬到 …"）——
     不剥注释 ⇒ 全部假红（`D-527`/`D-528` 的同一条教训，本刀是第 4/5 次）。
 
     ⚠️ **清单口径（`D-533` §二 B 的第一半，已按实测改锚）**：原来那句是

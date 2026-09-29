@@ -23,7 +23,7 @@ import com.dddgn.alice.reach.ApproachCapability;
 // ⇒ 本类改为**引用**它（`StandingPointRefusal.…`），常量名与字面量逐字未改。
 import com.dddgn.alice.reach.StandingPointRefusal;
 // ⭐ 2026-09-29「①-2a」：结果载体 `Result` 搬进 `reach/` 成为独立类型 `ReachOutcome`
-// （理由见本类里那条墓碑；`task/` → `reach/` 是合法方向）。
+// （理由见本类里那条退役说明；`task/` → `reach/` 是合法方向）。
 import com.dddgn.alice.reach.ReachOutcome;
 // ⭐ 2026-09-29「①-2b」（`plans §4.2`①）：**A 腿（`R2`＋`R5`）搬出本类**（当时落 `reach/StandingPlanSelector`）
 // ⇒ 本类改为**调用**它，并把信封拆开传原始值（见 `selectDirect` 调用点那段注释）。

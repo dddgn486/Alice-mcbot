@@ -225,7 +225,7 @@ public final class RegressionBatteryTask implements Task {
             // 是量出来的、且**到达率真的会小于 1**。EXTRA（自建地形 + 4 次运行）⇒ 不进 CORE。
             Map.entry("mine_run_metrics", Profile.EXTRA),
             // ⚠️ 2026-09-29（批次 1 `1-3`）：这里原来登记着 `mine_reach_probe`（档位 `EXTRA`）
-            // —— **已删**（探针与其步一并退休，理由见 `MiningModule` 原处的墓碑与台账 `O45`）：
+            // —— **已删**（探针与其步一并退休，理由见 `MiningModule` 原处的退役说明与台账 `O45`）：
             // 它量的 `StandingPointSelector.tunnelCandidates`（13 格候选各跑一次全预算 A\*）
             // 是 `D-520` **已经整条替换掉**的形状，而那个枚举本身随本刀删除
             // ⇒ 留着这条步 = 一条**永远跑不动的** EXTRA（或更糟：跑起来量的是死形状）。
