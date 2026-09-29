@@ -672,7 +672,7 @@ public final class MineTask implements Task {
         MiningPlan replanned = outcome.plan();
         recordRecovery(RecoveryStage.MINETASK_REPLAN);
         lastFailureReport = report;
-        BotLog.info("[MineTask重规划探针] target={} recoveryAttempt={}/{} oldStanding={} newStanding={} mode={} newPathStatus={}",
+        BotLog.info("[MineTask重规划探针] target={} recoveryAttempt={}/{} oldStanding={} newStanding={} arrival={} newPathStatus={}",
                 target.toShortString(), recoveryAttempts, MAX_RECOVERY_ATTEMPTS,
                 previousPlan.standingFoot().toShortString(), replanned.standingFoot().toShortString(),
                 replanned.arrival(), replanned.path().status());
@@ -945,7 +945,7 @@ public final class MineTask implements Task {
         // ⇒ 模式 A 里「补一块再走」的放置会记在作业名下（作业侧的累计额度才看得见它）。
         MineStep.PlanOutcome outcome = step().plan();
         if (!outcome.ok()) {
-            BotLog.warn("[MiningPlanner探针] planning failed target={} reason={} budget={} profile={}",
+            BotLog.warn("[MiningPlanner] planning failed target={} reason={} budget={} profile={}",
                     target.toShortString(), outcome.reason(), budget.describe(), profile.describe());
             // S-4（P0-C，2026-09-12 接线）：**硬拒绝**（流体风险 / 保护 / 不可破坏）不是"站位没找好" ——
             // 绝不允许再去加高或清障：在岩浆旁搭柱子、或把挡路方块清掉，等于**主动把自己送进危险**
@@ -981,9 +981,9 @@ public final class MineTask implements Task {
         }
         // ⚠️ 2026-09-29 `1-3`（甲 · `§4e` 甲裁定）：`visibility=` 与 `score=` **两个字段随载体退役**
         // （规划期 LOS 与评分载体都不存在了）⇒ 本行少两个读数，其余**逐字未改**。
-        // ⛔ 本行还剩的两件遗留（`mode=` 打的是 `plan.arrival()` 的**说谎标签**、以及
-        // `docs/AI_TEST_MATRIX.md:117`）**仍归 `1-4`（`R1` 收口）**，⛔ 不在本刀顺手动。
-        BotLog.info("[MiningPlanner探针] planned target={} startFoot={} standingFoot={} mode={} pathStatus={} pathSize={} pathCost={} executable={} support={}",
+        // ⭐ 2026-09-29 `1-4`（`R1` 收口）：`mode=` 是**说谎标签**（实参是 `plan.arrival()`）⇒ 改成 `arrival=`；
+        // 前缀里的「探针」也去掉（本行是**终态**：计划成功，⛔ 不是临时诊断日志）。
+        BotLog.info("[MiningPlanner] planned target={} startFoot={} standingFoot={} arrival={} pathStatus={} pathSize={} pathCost={} executable={} support={}",
                 plan.target().toShortString(), plan.startFoot().toShortString(),
                 plan.standingFoot().toShortString(), plan.arrival(),
                 plan.path().status(), plan.path().movements().size(),

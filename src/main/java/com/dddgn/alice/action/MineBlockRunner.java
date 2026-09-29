@@ -395,7 +395,7 @@ public final class MineBlockRunner {
             }
             mineStartPos = bot.blockPosition().immutable();
             mineStartEyeDist = eyeDistance;
-            BotLog.info("[MineRunner] break_start target={} stand={} eyeDist={} mode={}",
+            BotLog.info("[MineRunner] break_start target={} stand={} eyeDist={} arrival={}",
                     target.toShortString(), plan.standingFoot().toShortString(),
                     String.format(java.util.Locale.ROOT, "%.2f", eyeDistance), plan.arrival());
         }
