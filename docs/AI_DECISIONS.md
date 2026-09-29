@@ -26499,3 +26499,36 @@ AI 候选：**「非空断言」**〔首推，与"判据失效"对偶〕·「人
 | `假绿` | 全称 = 「判据失效的虚假通过」· 简称 = 「无效通过」 | ⏳ **归批次 3** |
 | `归零` | ✅ **保留**（全是字面义，非行话） | ✅ 无动作 |
 | `作业空转` | ✅ **保留** | ✅ 无动作 |
+
+---
+
+### D-549：`Kind ↔ 菜单 kind` 的**单一真源**放在**代码里的 switch 表达式**（批 `4a` 柱③，用户 2026-09-29 裁「回归主线」后落地）
+
+#### 一、裁/定的是什么
+
+`O62` ④ 实测：把 `JobRequest.Kind` ↔ 菜单 kind 串起来的**唯一载体**是
+`tools/check-job-menu-listable.sh:38-42` 的 **bash 变量 `MAPPING`**（住在**门禁壳脚本**里）。
+`O63` 定的修法 = 「照 `MachineMap` 形状：单一真源（代码）→ 生成视图 → 双向防漂移门禁」。
+
+**落地形状（本裁定的实质）**：
+
+| 环节 | 载体 | 判据 |
+|---|---|---|
+| **单一真源** | **`job/JobMenuKinds.menuKind(Kind)`** —— **`switch` <u>表达式</u>且<u>无 `default`</u>** | ⭐ **新增一个 Kind 而没给分支 ⇒ <u>编译不过</u>**（javac 逐字：`switch 表达式不包含所有可能的输入值` / `the switch expression does not cover all possible input values`） |
+| **生成物** | `docs/JOB_KIND_VIEW.csv`（`tools/job-kind-view.py --write` 生成，入库） | Java ↔ CSV 双向核（缺行 / 陈旧行 / 逐行值不等 / 文本不等 ⇒ 红） |
+| **实物** | `decision/CandidateMenu.java` 里 `new Entry(...)` 的**第 2 实参**（位置化） | CSV ↔ 菜单字面量双向核（`check-job-menu-listable.sh` ②③，**逐字保留**） |
+
+#### 二、⛔ 三条被**明确否决**的替代方案（附代价，防后人重开）
+
+| 方案 | 为什么否决 |
+|---|---|
+| **给 `JobRequest.Kind` 加负载**（`LUMBER("lumber")`） | ⚠️ **会惊动两个既有解析器**：`check-job-kind-contracts.sh:37` 与 `check-job-menu-listable.sh:54` 都按 `^\s*([A-Z][A-Z0-9_]*)\s*,?\s*$` 逐行取常量名 ⇒ 加了负载**一行都取不到**（门禁会以"枚举里一个值都没解析出来"红） |
+| **往 `JobKindContract.Contract` 里插一个 `menuKind` 分量** | ⚠️ 它的门禁按 `new Contract(JobRequest.Kind.X\s*,(.*?)\)` **位置化**取字段 ⇒ 插分量会**挪动既有字段序**（险而无所获） |
+| **运行期注册表（`Map<String,String>` / `register(...)`）** | ⛔ `O63` 已否决 —— 「= 第二份真相 ＋ **丢掉编译期穷尽性**」 |
+
+#### 三、⭐ 顺带落地的一条新词族用法（`D-547` 的当场应用）
+
+`tools/job-kind-view.py` 里对**每个解析步骤**都放了 **`非空检查`**（`D-547` 刚定的词）：
+解析出 0 条 ⇒ **红**，⛔ 不许读成"没有要检查的"；并设**人口下限 `MIN_ROWS = 5`**
+（今天 `Kind` = 5 个）⇒ 防"正则只匹配到一半"。**真实动机**：`check-job-kind-contracts.sh:37`
+那种解析一旦因重构失效，门禁会**静默变绿**（本项目 2026-09-26 实测教训）。

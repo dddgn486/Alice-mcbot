@@ -4879,3 +4879,57 @@ AI 建议 = **必改 `空转`（拆词）** · ✅ **已执行 `咬人`→`拦�
 
 1. 把 `MAPPING` 从 `tools/check-job-menu-listable.sh:38-42` 的 **bash 变量搬回代码**（单一真源）；
 2. 做 **生成视图 ＋ 双向防漂移门禁**（照 `decision/MachineMap` 形状）。
+
+---
+
+## 补记 15 · ⭐⭐ `4a` 柱③ 剩两件**已落地**（单一真源搬回代码 ＋ 生成视图/双向防漂移）
+
+日期：2026-09-29 · 台账行：**`O75`** · 决策：**`D-549`** · 提交 **`eeb9e1e4`** · 用户逐字「**回归主线**」
+
+### ① 第 1 件 · 把 `MAPPING` 搬回代码（单一真源）
+
+- 新增 **`src/main/java/com/dddgn/alice/job/JobMenuKinds.java`**：
+  `menuKind(Kind)` = **`switch` <u>表达式</u>且<u>无 `default`</u>**
+  ⇒ ⭐ **新增一个 `Kind` 而这里没给分支 ⇒ <u>编译不过</u>**（臂① javac 逐字
+  「`switch 表达式不包含所有可能的输入值`」）—— `Map` 表做不到这件事。
+- ⛔ **刻意不动 `JobRequest.Kind` 的形状**：`check-job-kind-contracts.sh:37` 与
+  `check-job-menu-listable.sh:54` 都按 `^\s*([A-Z][A-Z0-9_]*)\s*,?\s*$` 逐行取常量名，
+  加负载 ⇒ **一行都取不到**。
+- ⛔ **也不动 `JobKindContract.Contract`**：其门禁按 `new Contract(JobRequest.Kind.X, …)`
+  **位置化**取字段，插分量会挪动既有字段序。
+
+### ② 第 2 件 · 生成视图 ＋ 双向防漂移门禁
+
+- 新增 **`tools/job-kind-view.py`**：`--write` 生成 **`docs/JOB_KIND_VIEW.csv`**；
+  无参 = 门禁（Java↔CSV 双向核 ＋ Kind 覆盖双向 ＋ ⭐ **非空检查**（0 条 ⇒ 红，`MIN_ROWS=5`）
+  ＋ ⭐ **拒 `default`**）。
+- `tools/check-job-menu-listable.sh`：映射来源从**自身 bash 变量**换成**读生成视图**
+  （旧 `MAPPING="LUMBER=lumber…"` 已删）；②③ 的**位置化**判据**逐字保留**；
+  **读数与旧版逐字相同**（`映射=5` · `lumber@139, mine@204, region_lumber@216, collect@169, craftable@370`）。
+- `tools/check-all.sh`：新门禁**排在 `check-job-menu-listable` 之前**
+  （后者读这张视图 ⇒ "视图陈旧"必须先被点名）。
+
+**链条**：`JobMenuKinds.java`（单一真源）→ `JOB_KIND_VIEW.csv`（生成物）→ `CandidateMenu` 实参（实物）。
+
+### ③ ⭐ 真树红臂 **7/7 全部成立**（`cp` 备份，还原后 sha 逐字一致 `2e84b5f4826f635f`）
+
+| 臂 | 注入 | 期望 | 实测 |
+|---|---|---|---|
+| ① | 新增 `Kind` 不给分支 | 编译不过 | ✅ `compileJava exit=1`，javac 报"switch 表达式不包含所有可能的输入值" |
+| ② | 改真源不重生成视图 | 门禁红 | ✅ `LUMBER: 真源=lumberX 视图=lumber` |
+| ③ | 只改视图 | 门禁红 | ✅ `CRAFT: 真源=craftable 视图=craft` |
+| ④ | 加 `default` | 门禁红 | ✅ "编译期穷尽性被破坏" |
+| ⑤ | 打坏 `case` 正则 | 门禁红（**⛔ 不许静默通过**） | ✅ **非空检查**生效 |
+| ⑥ | 改 `CandidateMenu` 字面量 | 位置化门禁红 | ✅ `找不到对应的 Entry 实参：lumber` |
+| ⑦ | — | 全仓无活着的硬编码映射 | ✅ 仅剩历史指针注释与 javadoc 引用 |
+
+### ④ 验收读数
+
+`./gradlew compileJava` 绿 · **`check-all` = `pass=36 warning=1 failed=0`**（36 = 旧 35 ＋ 本门禁）
+· 提交 `eeb9e1e4` 已推送 `github master` ＋ 镜像 Windows。
+
+### ⑤ ⏭ 边界（防误读）
+
+- ✅ **`4a` 柱③ 到此完成**（`O59` 定的两件 = 本补记的两件）。
+- ⚠️ **`4a` 的其余柱**（② job 契约冻结的剩余面 · ④⑤）**⛔ 不在本次范围**，按 `O41` §3 归属与用户排期走。
+- ⚠️ 术语债（`腿`/`红绿`/`空转`/`反空转`/`假绿`）仍按 `D-548` §二 **归批次 3**，⛔ 本轮未动。
