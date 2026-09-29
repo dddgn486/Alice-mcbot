@@ -3157,3 +3157,48 @@ sha256 = `4e68d1214e7e8ac950f3e14b06cc9b6666a3c0fb15432440bc84398133b58635`（si
 **⑥ ⚠️ 本刀暴露、已登记、⛔ 未处置的一条**：`job/mine/MineJob` 有**两处**自己写 `search_incomplete` 字面量
 （`transientFailure` 的 `startsWith` ＋ `shortfallReason` 的返回），而**门禁要求它那样写** ⇒
 「`SEARCH_INCOMPLETE` 是唯一出处」**今天只在 `SearchConclusion` 内部成立**；要不要收口 = **未裁**（收口要同刀改门禁的 `MineJob` 断言）。
+
+---
+
+### ✅ 断点二十二（2026-09-29 · 第二十二次；**「搬空第三批」= `R6` 独立成 `reach/DropCatchment`**）
+
+> ⚠️ **本节追加在文件末尾、❗ 未插入上方断点序列**（原因同前七次：本文件有 14 处 ≥2258 的自指行号引用）。
+> 📌 决策 = `D-525` · 台账 = `O21` · 授权 = `plans §4.2`⑤（逐字「⭐ **独立出来**」）＋ 用户对 `O19` 那一问选的 **丙**。
+
+**① 本断点是 `DS-5` 解体的第三刀**（第一批 = 两个站位件进 `reach/` + 删 R9 探针 · 第二批 = `R7` 进内核侧 `SearchConclusion`）。
+
+**② 本刀做了什么**（**只搬不改语义**）：
+
+| # | 内容 |
+|---|---|
+| 1 | **新类 `reach/DropCatchment`**（84 行）—— `DROP_FALL_SEARCH`（= 8）· `dropWouldBeLost(level, target)` · `isSameColumn(pos, target)` **逐字搬入** |
+| 2 | `task/mining/MiningPlanner` **596 → 578 行**；4 处调用点改引用；原处留**墓碑指针**（写明"别读成判据没了 / 别放回转发壳"） |
+| 3 | 门禁 `rule_support_and_cluster_order` 断言① **改锚到新家**（判据从**裸子串**改成**定义形状**）＋ **加牙** |
+
+⭐ **为什么必须改锚**：旧断言咬的是 `MiningPlanner` 里的 `dropWouldBeLost(` —— 搬走之后**调用点里仍有这个子串**
+⇒ 它会**继续报绿**（`O20` ③ 同一族「假绿」）。
+
+**③ ⭐ 门禁的牙（11 颗，全部做过注入验证）**：
+
+| 牙组 | 数量 | 挡什么 |
+|---|---|---|
+| ①a | 5 | 新家没定义谓词 / 四条语义分支（深度常量 · 岩浆 · 可落面 · `D-331` 未加载区块）各被删一条 |
+| ①b | 3 | 原处复活 / **转发壳** / `DROP_FALL_SEARCH` 长出第二处出处 |
+| ①c | 2 | **反向**：两处调用点被拿掉（新家有实现却没人问它 = 功能被静默搬没） |
+| ①d | 1 | 旧判据 `!hasSupportBelow(level, target)` 出现在**任一个**文件 —— ⭐ **本刀扩的面**（旧断言只看 `MiningPlanner`） |
+
+**④ 判据**：注入台 **11/11 变红 ＋ 两个文件 sha 逐字还原**（`bd91d2002f75fb20` / `4a29d23100d91258`）·
+`kernel-predicates` **PASS**（`垫方块与簇顺序=0`）· `compileJava` 绿 · `check-all` **`pass=34 warning=1 failed=0`** ·
+`check-layer-direction` **PASS**（`reach/` **7 文件** · 红臂 14/14）· `headless-battery core` ⇒ **见本断点 §⑥**。
+
+**⑤ ⏭ 件② 还剩的两件都不是小刀**：`plans §4.2`①「**选**」（`MiningPlanner` 本体 → `reach/`，带 `R2`/`R5`/`R8`）
+与 ⑥「`R1` 编排」（腿没了 ⇒ 编排不需要；⚠️ **流体前置要单独安置**）。
+⚠️「① 选」的改动面 = `src/main/java` **107 处 / 23 文件**（真用 **11 文件**）· `tools/` **29** · `docs/` **251**
+⇒ ⏳ **建议下一轮先做一次只读侦察，再决定切法**（`O19` ⑥ 的口径；不需要拍板）。
+
+**⑥ 判据（CORE 无头电池）**：`tools/headless-battery.sh core` ⇒ **`verdict=PASS`**（`exit=0`）·
+指纹 **`b17dba5fdc70`** · 耗时 **237 s** · 服务端 `SUMMARY` **30 步全 `PASS`**（读数**唯一出处** = `D-525` §四）。
+⚠️ 本轮**不是缓存命中**：脚本逐字报「缓存不可用（缓存指纹=`4b7fd6908472` 判决=PASS）⇒ 真跑」——
+`4b7fd6908472` 是**第二刀**（`D-524`）那一轮的指纹；指纹覆盖 `src` ＋ `tools` ⇒ 它变了**正说明本刀真的改了源码**（含门禁）。
+⭐ 该轮覆盖 `support_plan`（场景 `support_course`：目标正下方 ≥8 格空气 ⇒ 命中 `DROP_FALL_SEARCH = 8`）与
+`mine_regression` 的 shallow / deep / lava 三条（`MineMenuCheckTask`）⇒ **搬包后"要不要垫"的判据行为不变**。

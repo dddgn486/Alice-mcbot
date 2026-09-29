@@ -1613,7 +1613,14 @@ def rule_support_and_cluster_order():
       层内横跳；单矿只挖 12 tick（0.6s）而走到下一站位点要 9s ⇒ 用户看到「挖一半突然跑出几格又跑回来」。
 
     断言（改任一处 ⇒ 红）：
-    ① `MiningPlanner` 必须按**真会丢**判（`dropWouldBeLost(`），**不得**再出现旧的 `!hasSupportBelow(level, target)` 判据；
+    ① ⭐ **判据本体已搬进新家**（2026-09-29「搬空第三批」`D-525`，`plans §4.2`⑤ 逐字「⭐ **独立出来**」）：
+       `reach/DropCatchment` 必须**定义**该谓词且**四条语义分支**都在（深度常量 / 岩浆 / 可落面 /
+       未加载区块）；`MiningPlanner` 只许**调用**它 —— **不许回原地定义**（含"转发壳"）、
+       **不许再提 `DROP_FALL_SEARCH`**（深度只许一个出处）；反过来**调用点必须还在**
+       （否则等于把功能静默拿掉）；且两个文件的**代码**里都不得再有旧的
+       `!hasSupportBelow(level, target)` 判据。
+       ⚠️ 判据用**定义形状**（`boolean dropWouldBeLost(`）而**不是裸子串** —— 搬走后调用点里
+       仍有 `dropWouldBeLost(`，裸子串会让这条牙**假绿**（`O20`③ 同类教训：指针存在 ≠ 指对了东西）；
     ② `MineBlockRunner.tickSupportPlacement` **不得**再把「垫不上」变成目标失败（不许 `fail("SUPPORT_PLACE_FAILED"`）
        且必须留下 `supportSkipped = true`（可归因）；
     ③ `TargetClusters.queueFor` 必须用 `graphDistance(`（BFS 图距）排序 —— 仍是**纯几何**。
@@ -1625,12 +1632,58 @@ def rule_support_and_cluster_order():
               / "MineBlockRunner.java").read_text(encoding="utf-8")
     clusters = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "mine"
                 / "TargetClusters.java").read_text(encoding="utf-8")
+    drop_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "reach"
+                 / "DropCatchment.java")
+    if not drop_path.exists():
+        problems.append("找不到 `src/main/java/com/dddgn/alice/reach/DropCatchment.java` ⇒ "
+                        "`R6`「掉落承接」的新家不在了（`plans §4.2`⑤；本规则要跟着改，别静默放过）")
+        return problems
 
-    if "dropWouldBeLost(" not in planner:
-        problems.append("`MiningPlanner` 没有 `dropWouldBeLost(` ⇒ 垫方块又变成「下方那格不是实心就垫」"
-                        "（真机实测会把挖矿自己挖出的坑当悬空 ⇒ 目标被垫方块毁掉）")
-    if "!hasSupportBelow(level, target)" in planner:
-        problems.append("`MiningPlanner` 里仍以 `!hasSupportBelow(level, target)` 作判据 ⇒ `D-364` 的口径回退")
+    def without_comments(text: str) -> str:
+        """去 `//` 与 `/* … */`（含 javadoc）—— 这几条判据只看**代码**；注释里提旧写法不算违规。"""
+        stripped = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+        return "\n".join(line.split("//")[0] for line in stripped.split("\n"))
+
+    planner_code = without_comments(planner)
+    drop_code = without_comments(drop_path.read_text(encoding="utf-8"))
+
+    # ---- ①a 新家必须真的在判（判据本体 + 四条语义分支） ----
+    if "boolean dropWouldBeLost(" not in drop_code:
+        problems.append("`reach/DropCatchment` 里没有 `dropWouldBeLost(` 的**定义** ⇒ "
+                        "`R6` 的判据搬走了但没落到新家")
+    for token, why in (
+            ("DROP_FALL_SEARCH", "「至少要下方悬空 8 格」的深度口径没了唯一出处（用户 2026-09-22 裁定）"),
+            ("FluidTags.LAVA", "不再看岩浆 ⇒ 掉落物落进岩浆不再判「会丢」"),
+            ("getCollisionShape", "不再找可落面 ⇒ 又变成「下方那格不是实心就垫」（`D-364` 治的就是这个）"),
+            ("hasChunkAt", "不再查区块加载 ⇒ 未加载区块会被读（`D-331`：不得静默加载区块）"),
+    ):
+        if token not in drop_code:
+            problems.append(f"`reach/DropCatchment` 里缺 `{token}` ⇒ {why}")
+
+    # ---- ①b 原处不许回原地定义（含"转发壳"）· 深度常量只许一个出处 ----
+    # ⚠️ 判据必须是**定义形状**：搬走后调用点里 `dropWouldBeLost(` 仍在 ⇒ 裸子串会让这条牙假绿。
+    for member, what in (("boolean dropWouldBeLost(", "`R6` 的谓词"),
+                         ("boolean isSameColumn(", "`R6` 的同竖列判定")):
+        if member in planner_code:
+            problems.append(f"`MiningPlanner` 里又**定义**了 {what} ⇒ 它已搬进 `reach/DropCatchment`，"
+                            f"不许在原处复活、也不许留一个转发壳（`J-6`：同一份判据只有一个出处）")
+    if "DROP_FALL_SEARCH" in planner_code:
+        problems.append("`MiningPlanner` 里又出现 `DROP_FALL_SEARCH` ⇒ 深度常量长出了第二处"
+                        "（唯一出处 = `reach/DropCatchment`）")
+
+    # ---- ①c 反过来：调用点必须还在（挡"顺手把功能一起拿掉"） ----
+    if "dropWouldBeLost(" not in planner_code:
+        problems.append("`MiningPlanner` 不再调用 `dropWouldBeLost(` ⇒ 垫方块的判据被架空"
+                        "（搬包不该把功能搬没：新家有实现、却没人问它）")
+    if "isSameColumn(" not in planner_code:
+        problems.append("`MiningPlanner` 不再调用 `isSameColumn(` ⇒ 「同竖列免垫 / 正下方分流」被架空")
+
+    # ---- ①d 旧判据在两个文件的**代码**里都不许出现 ----
+    for label, src in (("`MiningPlanner`", planner_code), ("`reach/DropCatchment`", drop_code)):
+        if "!hasSupportBelow(level, target)" in src:
+            problems.append(f"{label} 的代码里仍以 `!hasSupportBelow(level, target)` 作判据 ⇒ "
+                            f"`D-364` 的口径回退")
+
     placement = code_only(method_body(runner, "private Status tickSupportPlacement()"))
     if 'fail("SUPPORT_PLACE_FAILED"' in placement:
         problems.append("`tickSupportPlacement` 仍把「垫不上」变成目标失败 ⇒ 实测会毁掉整层矿石"

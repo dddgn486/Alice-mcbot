@@ -24814,3 +24814,92 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
   它靠的是"`pathing/` 谁都不依赖"这条既有约定 ⇒ ⚠️ 若将来它 import 了 `task/`，**今天的门禁不会红**）。
 - ⛔ **`MineJob` 那两个字面量仍是活的第二产地**（§四.4）—— 所以"唯一出处"这个说法**今天只在 `SearchConclusion` 内部成立**。
 - 📌 **指针**：决策 = 本条 · 断点 = `HANDOVER.md` 断点二十一 · 台账 = `O19`（状态列追加）· 门禁 = `tools/kernel-predicates.py:1155-1201`。
+
+---
+
+## D-525：改革 ① 主体 **「搬空第三批」** —— `R6`「掉落承接」独立成 `reach/DropCatchment`（2026-09-29，承接 `D-524`）
+
+- 授权 = `plans §4.2`⑤ 逐字「**⑤「掉落承接 R6」** … ⭐ **独立出来**」＋ `plans §4.1` 逐字「R6 / R7 ⭐ **本来就不属于它**」；
+  用户 2026-09-29 对 `O19` 那一问选 **丙**（「件② 一路做下去」）⇒ 该授权覆盖「件② 每次搬空都会同刀改内核侧门禁」这件自带成本（`O20` ⑥）。
+- 口径 = `D-522`（⛔ 本条目**不许**用「验收面 = 砍树 job」当任何理由）；`D-011`（本刀**不做**的 A①/A② 仍挂账）。
+- 本刀 = `DS-5` 解体的**第三批**（第一批 = 两个站位件 + 删 R9 探针 · 第二批 = `R7` 诚实读数）。
+
+### 一、落地（只搬不改语义）
+
+| # | 内容 | 读数 |
+|---|---|---|
+| 1 | 新类 **`src/main/java/com/dddgn/alice/reach/DropCatchment.java`** | 84 行（含新类 javadoc） |
+| 2 | 三件**逐字搬入**：`DROP_FALL_SEARCH`（= 8，用户 2026-09-22 裁定）· `dropWouldBeLost(level, target)` · `isSameColumn(pos, target)` | 只把 `private` 放宽成 `public`；**代码体一字未改** |
+| 3 | `task/mining/MiningPlanner`：**596 → 578 行**（−18），4 处调用点改引用（谓词 ×2 · 同竖列 ×2），原处留**墓碑指针** | `git diff --stat` = `66 ++++----` |
+
+**⭐ 为什么落 `reach/`**（不是拍脑袋）：① `plans §4.2`⑤ 逐字说它与「站位选优」**无关**，但 `reach/` 的定义是 `D-460` ＋
+`check-layer-direction.py:77` 的「**内核侧几何层**（触及站位 / 视线 / 计划）」—— 本谓词问的是**目标下方那一列的世界状态**（纯几何查询）；
+② 它算出来的答案要填进 **`MiningPlan.supportPlacementPos()`，而 `MiningPlan` 就在 `reach/`** ⇒ 谓词与载体同包；
+③ ⭐ 与 `D-524` 的 `SearchConclusion` **不同**，本新类**有**层方向判据 —— `check-layer-direction` 断言①覆盖 `reach/**`（实测 PASS）。
+
+**⭐ 一处顺手的摆正（文字逐字未改）**：原文件里 `dropWouldBeLost` 的 javadoc 与「深度常量」的 javadoc
+**两段叠在常量上面**（⇒ 描述谓词的那段**没挂到任何成员**，是僵尸 javadoc）。搬入新类时把归属摆正
+（常量段贴常量、谓词段贴谓词）。⛔ 这不是改语义：两段文字**一个字没动**。
+
+### 二、门禁（`tools/kernel-predicates.py` · `rule_support_and_cluster_order` 断言①：改锚 + 加牙）
+
+**为什么必须动它**（不是"顺手"）：它原来断言 `MiningPlanner` 里有 `dropWouldBeLost(`。搬走之后
+**调用点里仍有这个子串** ⇒ 那条断言会**继续报绿** —— 与 `O20` ③ 同一族「假绿」（指针存在 ≠ 指对了东西）。
+⇒ 判据一律改成**定义形状**＋剥注释（`//` 与 `/* … */`）。
+
+| 牙 | 判据 | 挡什么 | 注入验证（各 1 次） |
+|---|---|---|---|
+| **①a** | 新家必须有**定义** `boolean dropWouldBeLost(`；且**四条语义分支**都在：`DROP_FALL_SEARCH` / `FluidTags.LAVA` / `getCollisionShape` / `hasChunkAt` | 搬走了但没落地；或落地时把某条语义**悄悄删掉**（含 `D-331` 的未加载区块守卫） | 5 次（谓词改名 + 4 条语义各删一条）⇒ 各自精确报红 |
+| **①b** | `MiningPlanner` **不许再定义** `boolean dropWouldBeLost(` / `boolean isSameColumn(`；**不许出现 `DROP_FALL_SEARCH`** | 在原处复活 · 留**转发壳** · 深度常量长出**第二处出处** | 3 次（两个转发壳 + 一个常量声明）⇒ 各自精确报红 |
+| **①c** | 反向：`MiningPlanner` **必须仍在调用** `dropWouldBeLost(` / `isSameColumn(` | 「搬包把功能一起搬没」—— 新家有实现、却没人问它 | 2 次（两处调用点各拿掉）⇒ 各自精确报红 |
+| **①d** | **两个文件**的**代码**里都不许再出现 `!hasSupportBelow(level, target)` | `D-364` 的口径回退。⭐ **本刀扩的面**：旧断言**只看 `MiningPlanner`** ⇒ 旧判据若出现在**新家**，它**抓不到** | 1 次（把旧判据写进新家代码）⇒ 精确报红 |
+
+### 三、判据（全部实跑）
+
+| 判据 | 读数 |
+|---|---|
+| 注入验证台（11 颗牙） | **11/11 按预期变红**，且两个文件 **sha 逐字还原**：`MiningPlanner` `bd91d2002f75fb20` · `DropCatchment` `4a29d23100d91258`（**注入前后一致**） |
+| `python3 tools/kernel-predicates.py` | **PASS**（`垫方块与簇顺序=0`） |
+| `./gradlew compileJava --no-daemon` | 绿（`2 个警告` = `ResourceLocation(String,String)` 过时，两处都在 `FishboneJob.java:152` / `MineMenuCheckTask.java:294` —— **改动前就有，与本刀无关**） |
+| `tools/check-all.sh` | **`pass=34 warning=1 failed=0`**（`warning=1` = `check-headless-battery` 本轮未执行；基线） |
+| `python3 tools/check-layer-direction.py` | **PASS**：`reach/` 反向依赖 0 · **`reach/` 7 文件**（下限 `MIN_REACH_FILES=4`）· 红臂 **14/14** |
+| `bash tools/check-decisions-index.sh` | **PASS**（本条目入库后须重生成，见 §四） |
+| `tools/headless-battery.sh core` | 见 §四 |
+
+### 四、判据：CORE 无头电池 ＋ 索引
+
+- `tools/headless-battery.sh core` ⇒ **`verdict=PASS`**（`exit=0`）· 指纹 **`b17dba5fdc70`** · 耗时 **237 s** ·
+  服务端 `SUMMARY` **30 步全 `PASS`**（`clear_retry` … `mine_regression` … `adjacent_goal_exclusion` … `death_persistence` …）。
+  ⚠️ **不是缓存命中**：脚本报「缓存不可用（缓存指纹=`4b7fd6908472` 判决=PASS）⇒ 真跑」（`4b7fd6908472` = `D-524` 那轮）；
+  指纹含 `src` ＋ `tools` ⇒ 变号即证明**本刀真的改了源码**（含门禁）。
+  ⭐ 覆盖 `support_plan`（`support_course`：正下方 ≥8 格空气 ⇒ 命中 `DROP_FALL_SEARCH = 8`）与 shallow / deep / lava 三条
+  ⇒ **搬包后"要不要垫"的判据行为不变**。
+- `DECISIONS_INDEX.md` 须重生成（本条目 +1 决策 / 标题数随标题变化）。
+
+### 五、未做 / 下一步
+
+1. ⛔ **`DS-5` 的实质仍剩 `R1` / `R2` / `R5` / `R8`**（`R3`/`R4` 随第一批消失 · `R6`/`R7` 已搬 · `R9` 已删）。
+2. ⏳ **件② 内部还剩的两件都不是"小刀"**：`plans §4.2`①「**选**」（`MiningPlanner` 本体 → `reach/`，带 `R2`/`R5`/`R8`）
+   与 ⑥「`R1` 编排」（腿没了 ⇒ 编排**不再需要**；⚠️ 但其中的**流体前置**要**单独安置**）。
+   ⚠️「① 选」的改动面实测 = `src/main/java` **107 处 / 23 文件**（真用 **11 文件** = 生产 3 + 夹具 8）· `tools/` **29** · `docs/` **251**
+   （`O19` ⑥ 第三次重测的口径）⇒ ⏳ **下一轮建议先做一次只读侦察再开工**（不拍板、不改 `src/`）。
+3. ⚠️ **「垫一块」这个动作归谁 = 仍是待裁问题**（`plans §4.2`⑤ 自己写明）。本刀**只搬了"要不要垫"的判据**；
+   A 腿里的 `supportPos` 构造（`side`/`below` 分流 + `selectBest` ×2 + `PLACE_ONE_BLOCK_COST`）**仍在 `MiningPlanner`** —— 那是 `R2`。
+4. ⚠️ **一处与设计表的口径差（如实登记）**：`plans §4.2`⑤（`:95`）把 `supportPos` 构造 `:242-247`/`:269-294` **也算进 `R6`**
+   ⇒ 本刀**只认了后一半**（`isSameColumn`），前半（选路编排）随 `R2` 走。理由 = 前半不是"掉落承接"，它是**A 腿的选路**（`§4.2`①）；
+   把它切出来会要求 `selectBest` 下沉或回调，那是 `R2` 的活，硬塞进本刀只会造出第 4 个中间态。
+
+### 六、诚实边界
+
+- ⛔ **本刀不证明判据更强 / 更对**：`dropWouldBeLost` 与 `isSameColumn` **代码体一字未改**，行为**零变化** ⇒
+  ⛔ **没有客户端可观察行为变化**（本轮**不需要**客户端测试；jar 也**未同步**，因为没有可测的东西）。
+- ⛔ **11/11 只证明"牙会红"**，不证明"牙覆盖全"：`①c` 只挡"整条调用被删"，**挡不住**「调用点被改成 `DropCatchment.dropWouldBeLost(level, target) && false`」这类**同义弱化**
+  （那需要行为判据，不是静态门禁 —— 归 `D-430` 的内核关门线管）。
+- ⚠️ **`①a` 的四条语义是"关键子串存在"级判据**，不是语义等价判据：把 `getCollisionShape` 换成另一种"面"查询它**看不出来**
+  （同 `check-frozen-code` 的自我声明："不判语义等价"）。
+- ⚠️ **新增实测事实（本刀附带发现，⛔ 不处置）**：`docs/authz/POLICY_MATRIX.csv` 的 `code_ref` 列有**行号**
+  （`task/mining/MiningPlanner.java:182,241`），但**没有任何门禁核对它** —— `check-policy-matrix.sh` → `policy-map.py` 只把该列
+  **当字符串搬进生成物**（`policy-map.py:419`），`check-ref-integrity` 的扫描范围是 `docs/**/*.md` ＋ `AGENTS.md`（**不含 `.csv`**）
+  ⇒ ⭐ **该列漂了也没人知道**。（实测：`:182` 今天落在 `D-520` 的注释里，`:241` 落在 R9 墓碑注释里；两处**在 `D-520` 之后就已经不对**，
+  与本刀无关 —— 本刀只是又让它 **+5 行**。）⇒ 要不要给它加判据 = **未裁**（`AGENTS.md` 的准入尺子第 1 问：它能让构建失败吗 ⇒ 能，但那是**新规则**，须用户显式同意）。
+- 📌 **指针**：断点 = `HANDOVER.md` 断点二十二 · 台账 = `O21` · 门禁 = `tools/kernel-predicates.py` 的 `rule_support_and_cluster_order`。

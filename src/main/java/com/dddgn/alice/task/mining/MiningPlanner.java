@@ -27,6 +27,11 @@ import com.dddgn.alice.reach.MiningTuning;
 // 才是解体真正要处置的对象（`plans §4.2`①）。
 import com.dddgn.alice.reach.StandingCostEstimator;
 import com.dddgn.alice.reach.StandingPointEvaluator;
+// ⭐ 2026-09-29 搬包（改革 ① 主体 · `DS-5` 解体第三批）：`R6`「掉落承接」独立成 `reach/DropCatchment`
+// （`plans §4.2`⑤ 逐字「⭐ **独立出来**」）—— 本类改为**调用**它（`dropWouldBeLost` / `isSameColumn`）。
+// ⚠️ 只搬了"要不要垫"的**判据**；"**垫一块**"这个**动作**归谁仍是待裁问题（`plans §4.2`⑤ 逐字），
+// 本刀不动 A 腿的选路/垫块编排（那是 `R2`）。
+import com.dddgn.alice.reach.DropCatchment;
 
 /**
  * 挖掘领域规划器（D-067 批次 2/3）：目标方块 → 两模式站位选择 → 成本估算 → top-K 精算 → MiningPlan。
@@ -212,8 +217,8 @@ public final class MiningPlanner {
             // 即使当前站位就能挖，也要先在目标下方放支撑块。当前站位**就在目标正下方**时属于"从下方挖"策略，无需支撑。
             // 手上没有一次性方块时不强行要求支撑（避免把"没资源"变成任务失败），维持原行为。
             BlockPos supportPos = null;
-            if (dropWouldBeLost(level, target) && budget.collectDrops()
-                    && !isSameColumn(startFoot, target)
+            if (DropCatchment.dropWouldBeLost(level, target) && budget.collectDrops()
+                    && !DropCatchment.isSameColumn(startFoot, target)
                     && com.dddgn.alice.action.BlockInteraction.findPlaceableSlot(bot) >= 0) {
                 supportPos = target.below();
             }
@@ -243,13 +248,13 @@ public final class MiningPlanner {
             return new Result(null, null, STANDING_NO_VALID);
         }
 
-        boolean dropLost = dropWouldBeLost(level, target);
+        boolean dropLost = DropCatchment.dropWouldBeLost(level, target);
         boolean needSupportBlock = dropLost && budget.collectDrops();
         if (needSupportBlock) {
             List<StandingPointSelector.Candidate> side = new ArrayList<>();
             List<StandingPointSelector.Candidate> below = new ArrayList<>();
             for (StandingPointSelector.Candidate candidate : candidates) {
-                if (isSameColumn(candidate.foot(), target)) {
+                if (DropCatchment.isSameColumn(candidate.foot(), target)) {
                     below.add(candidate);
                 } else {
                     side.add(candidate);
@@ -548,46 +553,23 @@ public final class MiningPlanner {
         return secondOk ? second : null;
     }
 
-    private static boolean isSameColumn(BlockPos pos, BlockPos target) {
-        return pos.getX() == target.getX() && pos.getZ() == target.getZ();
-    }
-
-    /**
-     * **掉落物真的会丢**才需要垫（`D-364`）—— 真机实测（2026-09-20）暴露了原判据与注释的错位：
-     * 注释写的是"否则掉落物会掉进**虚空/岩浆/深坑**"，而实现是 `!hasSupportBelow`（下方那格不是实心就垫）
-     * ⇒ **挖矿自己挖出来的坑也满足条件**：先挖 y=72、再挖 y=73 时，下方正是刚挖空的空气
-     * ⇒ 每个上层矿石都要求垫方块 ⇒ **垫不上就把那个目标判死**（实测 9 次 `SUPPORT_PLACE_FAILED`，
-     * 于是整层 y=73 的煤被留下、bot 跑去远处挖），而且垫下去的方块**会挡住相邻矿石的视线**
-     * （实测 `LINE_OF_SIGHT_BLOCKED`）。现在按注释的原意判：**N 格内没有可落面**（深坑/虚空）
-     * 或**先撞上岩浆**才算"会丢"。
-     */
-    /**
-     * 「掉落承接面」的搜索深度 ⭐ 用户 2026-09-22 裁定（**先 5 后改为 8**，以 8 为准）：
-     * **至少要下方悬空 8 格**才算"掉落物会丢"。
+    /*
+     * ⚠️ 2026-09-29「搬空第三批」：`R6`「掉落承接」**整个搬走了**（改革 ① 主体 · `DS-5` 解体，
+     * `plans §4.2`⑤ 逐字「⭐ **独立出来**」）⇒ 新家 = `com.dddgn.alice.reach.DropCatchment`：
+     *   `DROP_FALL_SEARCH`（= 8，用户 2026-09-22 裁定）· `dropWouldBeLost(level, target)` ·
+     *   `isSameColumn(pos, target)` —— 三件**逐字未改**（只把 `private` 放宽成 `public`；
+     *   两段 javadoc 的归属也摆正了：描述谓词的那段原来被夹在常量上面）。
+     * ⇒ 本类只剩**调用**它（`DropCatchment.dropWouldBeLost(` ×2 / `DropCatchment.isSameColumn(` ×2）。
      *
-     * <p>原来 = 4 ⇒ 真机上"目标下面只空 3~4 格、再往下就是实心"的**普通矿洞**被当成深坑 ⇒
-     * 触发了"在目标下方垫方块"这条会写世界的动作（用户看到的是"莫名其妙跑到目标下面垫石头"）。
-     * 8 格口径：**只有掉落物真会掉 ≥8 格（或下方是岩浆/虚空）才垫** ⇒ 普通矿洞一律不写世界。
+     * ⛔ **别把"这里没这几个符号了"读成"垫方块的口径没了"**：判据照旧生效；
+     * 门禁 `rule_support_and_cluster_order` 的断言①已**改锚**到新家，并加了"原处不许复活 /
+     * 不许留转发壳"的牙。
+     * ⛔ 也别把这里当成"可以放回一个转发壳"的位置 —— 那条牙正是挡它的。
+     *
+     * ⚠️ **仍在原地、本刀故意不动的**：A 腿的选路 + 垫块编排（`R2`，本文件 `planDirect`）——
+     * 用 `side` / `below` 两组候选比"放支撑块 + 侧面站位"与"只从正下方挖"。
+     * `plans §4.2`⑤ 逐字：**"垫一块"这个动作该由谁做，是另一个要单独裁的问题**。
      */
-    private static final int DROP_FALL_SEARCH = 8;
-
-    private static boolean dropWouldBeLost(ServerLevel level, BlockPos target) {
-        BlockPos cursor = target.below();
-        for (int depth = 0; depth < DROP_FALL_SEARCH; depth++) {
-            if (!level.hasChunkAt(cursor)) {
-                return false;       // 未加载 ⇒ 不判"会丢"（保守：不写世界；D-331）
-            }
-            var state = level.getBlockState(cursor);
-            if (state.getFluidState().is(net.minecraft.tags.FluidTags.LAVA)) {
-                return true;        // 掉落物落到岩浆 = 销毁
-            }
-            if (!state.getCollisionShape(level, cursor).isEmpty()) {
-                return false;       // 找到可落面 ⇒ 捡得回来
-            }
-            cursor = cursor.below();
-        }
-        return true;                // N 格内都没有可落面 ⇒ 按"深坑/虚空"处理
-    }
 
     private static PathPlan planPath(ServerPlayer bot, BlockPos startFoot, BlockPos standingFoot,
                                      PathRequest request) {
