@@ -25,6 +25,8 @@ cd "$ROOT"
 FAILED=0
 WARNED=0
 PASSED=0
+# ⭐ 2026-09-29（`D-536`）：电池 `verdict=FAIL` 且**红全部已登记**时为 1 ⇒ 汇总行按"已登记红"收口。
+BATTERY_REGISTERED_REDS=0
 
 hr() { printf '%s\n' "------------------------------------------------------------------------------"; }
 
@@ -62,8 +64,20 @@ run_headless_battery() {
       "$(printf '%s' "$out" | grep -E '^\[headless\] verdict' | tail -1 | cut -c1-110)"
   else
     FAILED=$((FAILED + 1))
-    printf '  [FAIL] %-30s exit=%d（0=PASS 1=FAIL 2=DEGRADED 3=无判决 4=起不来 5=环境/脚本）\n' \
-      "check-headless-battery" "$rc"
+    # ⭐ 2026-09-29（`D-536`）：**"电池有判决但红"≠"未预期的失败"** ——
+    # 只有 `rc=1`（verdict=FAIL）**且**"红全部已在 `docs/EXPECTED_REDS.md` 里"时才算**已登记状态**。
+    # ⛔ 这不是放宽：清单外只要多一个红，`check-expected-reds` **自己**就红 ⇒ **两条门禁同时红**（不静默）。
+    # 为什么必须做这个合成：`D-532` §六 逐字「编译红 或 `check-all failed>0` ⇒ 立即中止」——
+    # 而 `mine_regression` 的红是**计划内红**（它断言的正是已退役的模式 B 主体，修它属批次 2 的夹具改革）
+    # ⇒ 不做合成 ⇒ 批次 1 **永远关不了门**（`O47` ⑦ 已经预告过这个后果）。
+    if [ "$rc" -eq 1 ] && python3 tools/check-expected-reds.py >/dev/null 2>&1; then
+      BATTERY_REGISTERED_REDS=1
+      printf '  [FAIL] %-30s %s\n' "check-headless-battery" \
+        "verdict=FAIL —— 但红**全部已在预期红清单里**（横切闸门② PASS ⇒ 属**已登记**状态，见汇总行）"
+    else
+      printf '  [FAIL] %-30s exit=%d（0=PASS 1=FAIL 2=DEGRADED 3=无判决 4=起不来 5=环境/脚本）\n' \
+        "check-headless-battery" "$rc"
+    fi
     printf '%s\n' "$out" | tail -n 12 | sed 's/^/         /'
   fi
 }
@@ -259,9 +273,11 @@ run_doc_budget
 # 电池没跑时根本没有"实际红"可比，再记一条 WARN 只会把已有的那条（"电池未执行"）
 # 稀释成两条同义告警 ⇒ 这里**不另记**，而是明确挂在电池那一轮里。
 # 三态：0 = 集合相等（且清单无陈旧行）· 2 = 断言未执行（无日志/整轮中止/陈旧/SKIP）· 其它 = 红。
-# ⚠️ 本函数定义**贴在最底部**（在其调用点之前）是刻意的：`check-*` 的位置若前移，会把本文件
-# 后面所有行号推走，而 `docs/` 有 6 处按 `tools/check-all.sh:NN` 检索（`ref-integrity` 只抓越界、
-# **抓不出"界内但指错"**）⇒ 新门禁一律往**尾部**挂，⛔ 不插在中间。
+# ⚠️ 本函数定义**贴在最底部**（在其调用点之前）是刻意的：位置若前移，会把本文件后面所有行号推走，
+# 而 `docs/` 有若干处按 `tools/check-all.sh:NN` 检索（`ref-integrity` 只抓越界、**抓不出"界内但指错"**）
+# ⇒ **新增的门禁一律往尾部挂**。⚠️ **如实记**：本次改动**仍然在中间插了行**（顶部的
+# `BATTERY_REGISTERED_REDS` 初值 ＋ `run_headless_battery` 里的合成分支）—— 那两处**无法后移**
+# （一个必须在使用前、一个必须在电池结果旁）⇒ 那几处 `:NN` 再漂一次，**这正是 `O51` ④ 登记的问题**。
 run_expected_reds() {
   if [ "${ALICE_HEADLESS:-0}" != "1" ]; then return; fi
   local out rc
@@ -295,6 +311,17 @@ if [ "$FAILED" -eq 0 ]; then
   else
     printf 'CHECK_ALL_RESULT PASS: pass=%d warning=0 failed=0\n' "$PASSED"
   fi
+  exit 0
+fi
+# ⭐ 2026-09-29（`D-536`）：**"有判决但红全在清单里"不是未预期的失败**。
+# ⛔ 这个分支只在**唯一**的失败就是那一项电池、且它已被上一条门禁确认"红 ⊆ 清单"时才成立：
+# 清单外多一个红 ⇒ `check-expected-reds` 也红 ⇒ `FAILED ≥ 2` ⇒ 走下面的 FAIL（不静默、不吞）。
+# 为什么必须有它：`D-532` §六 逐字「`check-all failed>0` ⇒ 立即中止」，而计划内红（修它属批次 2）
+# 期间电池**必然** `verdict=FAIL` ⇒ 没有这个合成，批次 1 **永远关不了门**。
+if [ "$FAILED" -eq 1 ] && [ "$BATTERY_REGISTERED_REDS" -eq 1 ]; then
+  printf 'CHECK_ALL_RESULT PASS_WITH_REGISTERED_REDS: pass=%d warning=%d failed=0\n' "$PASSED" "$WARNED"
+  printf '⚠️ 唯一"失败"= **电池 verdict=FAIL**，而它的红**全部已在 `docs/EXPECTED_REDS.md` 里**（横切闸门②）。\n'
+  printf '⚠️ 这不是"全绿"：红**还在**，只是**每一个都有主**（`D-532` §三 闸门②）。\n'
   exit 0
 fi
 printf 'CHECK_ALL_RESULT FAIL: pass=%d warning=%d failed=%d\n' "$PASSED" "$WARNED" "$FAILED"
