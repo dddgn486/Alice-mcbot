@@ -16,7 +16,7 @@ import java.util.Objects;
  * （台账 `O46` ③，复核触发就是本刀）。⚠️ 更硬的理由在 `survey/42 §3.3`「**锚在名字上的门禁会静默失效**」
  * —— 本刀实测抓到第一例：`tools/kernel-predicates.py` 的旧 `Mode` 检测写成
  * {@code r"\bMiningPlan\.Mode\b"}，**平凡的全局改名抓不到它**（`\b` 前是字面量 `b`）⇒
- * 若只做机械替换，那颗牙会静默失效（该文件里有逐字的诚实登记）。
+ * 若只做机械替换，那项检查会静默失效（该文件里有逐字的诚实登记）。
  * ⛔ 本刀**零行为改动**：只动名字（类型名 ＋ `BotManager.currentMiningPlan` → `currentReachPlan`）。
  *
  * <p>D-064：路径类型由 legacy `SurfacePathfinder.Result` 换成新内核 {@link PathPlan}（R3/R4）。
@@ -75,7 +75,7 @@ public record ReachPlan(
      * "规划期用了什么、执行期就用什么"，⛔ 不扩大也不缩小任何授权面。
      *
      * <p>⚠️ **刻意不叫 {@code Approach}**：`task.mining.MiningProfile.Approach` 已存在，
-     * 而 `tools/check-duplicate-class-names.py` 是**有牙的门禁** ⇒ 不许造同名两物
+     * 而 `tools/check-duplicate-class-names.py` 是**有检查的门禁** ⇒ 不许造同名两物
      * （`GoalSpec` 的教训，设计讨论 `§12.1.2`）。
      *
      * <p>📌 **2026-09-29 更新（`D-527`，只加指针、上文原文不改）**：那个曾与它同名的嵌套枚举

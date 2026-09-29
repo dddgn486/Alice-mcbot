@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-r"""⭐ **粗目标分类门禁**（红线 `D-132` 的牙；`D-500` §V：**点名白名单 → 分类判据**，2026-09-29 落地）。
+r"""⭐ **粗目标分类门禁**（红线 `D-132` 的检查；`D-500` §V：**点名白名单 → 分类判据**，2026-09-29 落地）。
 
 ## 为什么这条规则该存在
 
@@ -45,7 +45,7 @@ r"""⭐ **粗目标分类门禁**（红线 `D-132` 的牙；`D-500` §V：**点�
    —— 条目"得手"（不再成立）⇒ 红（逼改名/改取值时同步改登记表）。
 4. **登记条目必须带理由**（≥ `MIN_REASON` 字符 ⇒ 挡 `# TODO` 占位符）。
 5. ⭐ **认不出来的 `exactFoot()` 体 ⇒ 红**（不许把"解析不了"当"默认 true"放绿）。
-6. （**第二颗牙，保留**）生产代码里出现字面 `GoalNearXZ.around(` ⇒ 红。
+6. （**第二项检查，保留**）生产代码里出现字面 `GoalNearXZ.around(` ⇒ 红。
    ⚠️ 它与断言 2 是**互补的两面**：2 管**实现**（新类绕不过去），6 管**调用点**
    （谁在生产路径上真的构造了一个粗目标）。⇒ 保留 6 **比裁定更强，不是更弱**（`D-517` 已登记）。
 
@@ -90,7 +90,7 @@ FAR_GOAL_REGISTRY: dict[str, dict] = {
     },
 }
 
-# ---- 第二颗牙：生产代码里的字面粗目标（保留，见 docstring 断言 6）----
+# ---- 第二项检查：生产代码里的字面粗目标（保留，见 docstring 断言 6）----
 PRODUCTION_NEEDLE = "GoalNearXZ.around("
 NEEDLE_ALLOW_SUFFIX = (
     "pathing/core/search/FarTravelHop.java",   # 合法的"夹到已加载边界"层
@@ -181,7 +181,7 @@ def judge_impls(all_impls: dict[str, dict], registry: dict[str, dict], exists, f
         if len(reason) < MIN_REASON:
             problems.append(f"登记 `{rel}` 的理由太短（{len(reason)} < {MIN_REASON}）⇒ 占位符不算理由")
 
-    # ⑥ 第二颗牙：生产代码里的字面粗目标
+    # ⑥ 第二项检查：生产代码里的字面粗目标
     for hit in (needle_hits or []):
         problems.append(f"生产代码里出现**字面粗目标** `{PRODUCTION_NEEDLE}`：{hit} ⇒ "
                         "会让内核搜索读未加载区块（红线 `D-132`）。正确做法：远距离走 `FarTravelHop`"
@@ -299,7 +299,7 @@ def main() -> int:
           f"登记表 {len(FAR_GOAL_REGISTRY)} 条，取值逐字相符")
     for rel in far:
         print(f"    · 粗目标 {rel}")
-    print(f"  第二颗牙（字面 `{PRODUCTION_NEEDLE}`）：全仓 {needle_total} 处，"
+    print(f"  第二项检查（字面 `{PRODUCTION_NEEDLE}`）：全仓 {needle_total} 处，"
           f"**全在允许层**（`FarTravelHop` 夹边界层 / 工厂自身 / 夹具）")
     print(f"  合成臂 {len(ARMS)}/{len(ARMS)}（含 R3 豁免得手必须红 · R4 占位符理由必须红 · "
           f"R5 取值认不出来必须红）")

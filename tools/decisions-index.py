@@ -182,7 +182,7 @@ def render(entries: list[dict], heading_total: int, refs: dict[str, Counter]) ->
     lines.append(f"| 决策**编号**数 | **{len(declared)}**（{level_note}，标题共 {heading_total} 个） |")
     lines.append(f"| 追加条目（`附注`/`修正`/`验收`…） | **{followups}** 个（占标题 {followups / heading_total * 100:.0f}%） |")
     lines.append(f"| 写了 `状态：` 的条目 | **{with_status} / {len(declared)}**（{with_status / len(declared) * 100:.0f}%）⚠️ 其余显示 `—` = **没写**，**不等于废弃** |")
-    lines.append(f"| ⚠️ **一条别的决策都没引**（`引前 = 0`） | **{len(no_cite)}** 条（= 决策点 3「新落 `D` 应引前置裁定」**今天完全没有牙**的人口） |")
+    lines.append(f"| ⚠️ **一条别的决策都没引**（`引前 = 0`） | **{len(no_cite)}** 条（= 决策点 3「新落 `D` 应引前置裁定」**今天完全没有检查**的人口） |")
     lines.append("")
     lines.append("## 表（**门禁逐字节比对的就是这一段**：编号 / 标题 / 状态 / 追加 / 引前）")
     lines.append("")

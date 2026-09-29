@@ -75,7 +75,7 @@ import java.util.Map;
  *   <li>⭐ `1-1a` 第三形态臂：把 `SearchConclusion.inconclusive(...)` 里的
  *       `PlanningStatus.GOAL_NOT_LOADED` 去掉 ⇒ ① 本夹具的真值表那一条必须**红**
  *       （`GOAL_NOT_LOADED` 会返回空串）· ② 门禁 `rule_search_limit_not_unreachable` 也必须**红**
- *       （那条牙的期望清单里有它）。</li>
+ *       （那条检查的期望清单里有它）。</li>
  * </ul>
  *
  * <h2>场景</h2>

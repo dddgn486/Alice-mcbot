@@ -1159,14 +1159,14 @@ def rule_search_limit_not_unreachable():
     # `SearchConclusion`（`plans §4.2`③：「⭐ **必须活下来**，落 `reach/` 或内核侧」＋
     # 「⚠️ 它描述的是**内核搜索配额**，放在挖掘包里是**错位**」）。
     # ⇒ 本规则**关于 R7 的那半改锚到新家**（`plans §2.5` 逐字：「关于 R7 的那半**必须活下来**（**只改锚**）」），
-    # 并且**牙多两颗**（③′/③″）：搬走之后不许在 `MiningPlanner` 里复活成第二处。
+    # 并且**检查多两颗**（③′/③″）：搬走之后不许在 `MiningPlanner` 里复活成第二处。
     conclusion_code = code_only((ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
                                  / "pathing" / "core" / "search" / "SearchConclusion.java")
                                 .read_text(encoding="utf-8"))
 
     # ⚠️ 本规则多条判据要看的是**代码**：统一先剥注释（退役说明/迁移说明里提到旧写法不算违规）。
     # 2026-09-29 实测教训（`D-527`）：本刀自己的退役说明里写着 `public enum Approach { … }`，
-    # 不剥注释的话那颗牙会**假红**。
+    # 不剥注释的话那项检查会**假红**。
     def without_comments(text: str) -> str:
         """去 `//` 与 `/* … */`（含 javadoc）—— 只看**代码**。"""
         stripped = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
@@ -1182,7 +1182,7 @@ def rule_search_limit_not_unreachable():
         # ⭐ 第三形态（批次 1 · `1-1a`，2026-09-29，施工设计单 §5「丙」）：`GOAL_NOT_LOADED` =
         # **目标区块没加载** ⇒ 第 0 步的准入守卫早退 ⇒ 这次搜索**根本没跑**（与 `SEARCH_LIMIT` 同类：
         # 一个被 A1 配额拒、一个被目标准入守卫拒）⇒ ⛔ 不许被下游当成"不可达"。
-        # ⚠️ 这条牙**必须**有：`exactFoot()==true` 的实现（`GoalFoot` / `GoalColumnBlocks`）真会撞到它，
+        # ⚠️ 这条检查**必须**有：`exactFoot()==true` 的实现（`GoalFoot` / `GoalColumnBlocks`）真会撞到它，
         # 而 `D-517` 那条分类门禁只管 `exactFoot()==false` 的实现。
         for status_name in ("PlanningStatus.SEARCH_LIMIT", "PlanningStatus.PARTIAL",
                             "PlanningStatus.GOAL_NOT_LOADED"):
@@ -1226,7 +1226,7 @@ def rule_search_limit_not_unreachable():
     # （`plans §4.2`①「CURRENT 快路径 ＋ 候选枚举 ＋ LOS/触及过滤 ＋ 排序 ＋ 最优」→ `reach/`）。
     # ⇒ 下面两条**关于 A 腿**的判据改锚到新家（**不变量一字未变**：`searchLimited` 仍必须同时覆盖
     # `SEARCH_LIMIT` 与 `PARTIAL`、全失败仍必须走 `SEARCH_INCOMPLETE`、结尾仍必须原样上抛）；
-    # ⚠️ 并**反向**加一颗牙：原处不许留 `exactTopK` 的转发壳（那会让"唯一谓词"名存实亡）。
+    # ⚠️ 并**反向**加一项检查：原处不许留 `exactTopK` 的转发壳（那会让"唯一谓词"名存实亡）。
     # ⚠️ **锚点第三次跟结构**（2026-09-29，批次 1 `1-3` · 甲①）：A 腿**再搬一次** ——
     # `reach/StandingPlanSelector` → `reach/DirectArrivalPlanner`。理由 = 旧名把"新框架自己的
     # 第一条腿"说成待退休的"站位挖掘的『选』"（开工前侦察 `§14`：按文件删会立刻坏 ——
@@ -1243,7 +1243,7 @@ def rule_search_limit_not_unreachable():
         selector_code = without_comments(selector_path.read_text(encoding="utf-8"))
     # ⚠️ 这里另取一份**剥块注释**的 `MiningPlanner`（本函数里的 `planner_nc` 在下面才定义）：
     # 本刀自己在那个文件里留的 ①-2b 退役说明是 `/* … */` 块，里面点着 `selectBest` / `exactTopK` / `cheaper`
-    # ⇒ 不剥块注释的话，下面那颗"转发壳"牙会**假红**（`D-527`/`D-528` 的同一条教训）。
+    # ⇒ 不剥块注释的话，下面那颗"转发壳"检查会**假红**（`D-527`/`D-528` 的同一条教训）。
     planner_nc_leg = without_comments((ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
                                        / "task" / "mining" / "MiningPlanner.java")
                                       .read_text(encoding="utf-8"))
@@ -1327,7 +1327,7 @@ def rule_search_limit_not_unreachable():
     # （`StandingPointRefusal`）⇒ 锚点必须改成**限定名**。⚠️ 旧写法咬的是**裸子串**
     # `STANDING_NO_REACHABLE`，而 `StandingPointRefusal.STANDING_NO_REACHABLE` **仍然包含它**
     # ⇒ 不改锚就会**继续报绿**（与 `D-524`/`D-525` 同一族「假绿」）。
-    # ⚠️ 同时**去掉**裸字面量那个分支：字面量从此只许出现在新家里（下面那颗牙管）。
+    # ⚠️ 同时**去掉**裸字面量那个分支：字面量从此只许出现在新家里（下面那项检查管）。
     standable = re.search(
         r"if \(standableOnly\) \{(.{0,1500}?)"
         r"return new ReachOutcome\(null, StandingPointRefusal\.STANDING_NO_REACHABLE\);",
@@ -1346,7 +1346,7 @@ def rule_search_limit_not_unreachable():
                             "缺一格地板）会被总括码吃掉（`1.4w`，`survey/35 §9` 桶3-3）")
     # ⭐ `D-528`（2026-09-29，改革 ① 主体 `①-1`）：**`R8`「归因码」搬进 `reach/StandingPointRefusal`**
     # （`plans §4.2`④ 逐字「跟着 **①** 走」）。上面那条 `standable` 锚点已改成**限定名**（理由见那里的注释）。
-    # 以下牙钉住"搬干净 ＋ 语义没被顺手改"：
+    # 以下检查钉住"搬干净 ＋ 语义没被顺手改"：
     #   ① 新家必须**逐字**定义三个码（名字 ＋ 字面量都要对 —— 字面量是**归因串**，被改过等于换了一套码）；
     #   ② 谓词必须**只含两个站位码**，⛔ **不含** `ADJACENT_NO_REACHABLE`（`D-520` 逐字「刻意不进」：
     #      顺手加进去 = **改变作业侧的分类行为**）；
@@ -1418,7 +1418,7 @@ def rule_search_limit_not_unreachable():
     # —— 理由同 `①-0`：载体住 `task/`、生产它的逻辑要住 `reach/` ⇒ 逻辑反过来依赖上层（断言①）。
     # ⭐ 本规则这条聚合入口的**结构**（4 参形参表 ＋ 那个 `SEARCH_INCOMPLETE` 合取式）**一字未动**，
     # 失配的只有返回类型名 ⇒ 这正是 `D-529` 记的"判据要锚在**被保护的不变量**上，不是锚在顺手出现的
-    # 类型名上"；改锚后牙照旧（下方注入臂逐条复核）。
+    # 类型名上"；改锚后检查照旧（下方注入臂逐条复核）。
     aggregate = method_body(
         planner_code,
         "public ReachOutcome plan(ServerPlayer bot, BlockPos target, MiningBudget budget,"
@@ -1426,7 +1426,7 @@ def rule_search_limit_not_unreachable():
         "                       ApproachCapability approach, String requester) {")
     # ⚠️ **必须是"同一个 `if` 条件里的三条腿合取"**（位置化），**不是**"方法体里出现过这三个子串"
     # —— 后者会被同一方法体里的 `standableOnly` 早返回（`if (SEARCH_INCOMPLETE.equals(direct…))`）
-    # 满足：2026-09-25 实测，**把 `direct` 那条腿从合取里删掉，门禁仍 PASS**（= 没有牙）。
+    # 满足：2026-09-25 实测，**把 `direct` 那条腿从合取里删掉，门禁仍 PASS**（= 没有检查）。
     # 修法 = 直接钉那条合取表达式的形状（`D-425` ⑤ 同一族：位置化 > 子串）。
     # ⚠️ `D-520`：腿数从 3 变 2（`tunnel`+`enter` 合成 `goalApproach`）⇒ 合取式跟着改。
     # 仍然是**位置化**断言（钉同一条 `if` 里的合取表达式），不是"方法体里出现过这些子串"。
@@ -1454,15 +1454,15 @@ def rule_search_limit_not_unreachable():
     #   ③ ✅ **命名偏离已消除**（`1-5`，2026-09-29）：本行原文逐字曾是
     #      「⚠️ 与 `MiningPlan` 的**命名**暂时不一致（后者改名 `ReachPlan` 是 `1-5`，⛔ 本刀不做）——
     #      这是**已登记的偏离**」。`1-5` 已把 `MiningPlan` 改名 `ReachPlan` ⇒ 与 `ReachOutcome` 对齐，
-    #      该偏离**关闭**（台账 `O46` ③ 的复核触发就是 `1-5`）。⛔ 这不改变本规则任何一颗牙的语义。
-    # 六颗牙钉住"新家真在 ＋ 新形状没被改窄 ＋ 旧处不许复活"：
+    #      该偏离**关闭**（台账 `O46` ③ 的复核触发就是 `1-5`）。⛔ 这不改变本规则任何一项检查的语义。
+    # 六项检查钉住"新家真在 ＋ 新形状没被改窄 ＋ 旧处不许复活"：
     #   ① 新家真的在、且是 `record`；② 两个组件**逐字**（含顺序 —— `plan` 是本类型的核心语义）；
     #   ③ `success()` 的判据仍是 `plan != null`（⛔ 不许改成"看 `failureReason` 空不空"：
     #      成功时 `failureReason` 就是 `""`，而失败路径里 `""` 也会出现 ⇒ 那个判据把失败读成成功）；
     #   ④ `MiningPlanner` 不许回原地再声明 `record Result(`（含转发壳）；
     #   ⑤ 全仓生产代码不许再出现旧限定名 `MiningPlanner.Result`；
     #   ⑥ 反向：生产点必须还在（`new ReachOutcome(`）—— 挡"载体换家了、生产被换成 null"。
-    # ⚠️ "**`StandingPlanResult` / `StandingPointEvaluator` 这两个名字不许回来**"那几颗牙**不在本规则里**
+    # ⚠️ "**`StandingPlanResult` / `StandingPointEvaluator` 这两个名字不许回来**"那几项检查**不在本规则里**
     # —— 它们在 `rule_standing_retirement_no_residue`（`D-533` §二 B 的**成员级退役清单**，与 `1-3` 同刀落地）。
     # ⚠️ 判据一律**剥注释**：本刀自己在 `MiningPlanner` 留的退役说明（逐字写着 `record Result(`）与
     # `ReachOutcome` 的 javadoc 都点着旧名字 ⇒ 不剥注释会**假红**
@@ -1504,10 +1504,10 @@ def rule_search_limit_not_unreachable():
     # 上面那条位置化锚点里的形参类型已经从 `MiningProfile.Approach` 换成 `ApproachCapability`
     # ⇒ 搬完必须**钉住"搬干净"**，否则下一次有人把嵌套枚举放回去，锚点会**因类型名相同而静默复用**
     #（本刀之前它就叫 `Approach`，新名也叫 `Approach…` ⇒ 只改一半最容易骗过眼睛）。
-    # 三颗牙：① 新家真的定义它且两个取值都在；② 原处不许再声明嵌套 `enum Approach`；③ 全仓生产代码
+    # 三项检查：① 新家真的定义它且两个取值都在；② 原处不许再声明嵌套 `enum Approach`；③ 全仓生产代码
     # 不许再出现旧的限定名 `MiningProfile.Approach`。
     # ⚠️ 判据一律先**剥注释**（`//` 与 `/* … */`）—— 退役说明/迁移说明里提到旧名字**不算违规**：
-    # 本刀自己的退役说明就写着 `public enum Approach { … }`，不剥注释的话那颗牙会**假红**（已实测）。
+    # 本刀自己的退役说明就写着 `public enum Approach { … }`，不剥注释的话那项检查会**假红**（已实测）。
     capability = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "reach"
                   / "ApproachCapability.java")
     if not capability.exists():
@@ -1856,7 +1856,7 @@ def rule_support_and_cluster_order():
        （否则等于把功能静默拿掉）；且两个文件的**代码**里都不得再有旧的
        `!hasSupportBelow(level, target)` 判据。
        ⚠️ 判据用**定义形状**（`boolean dropWouldBeLost(`）而**不是裸子串** —— 搬走后调用点里
-       仍有 `dropWouldBeLost(`，裸子串会让这条牙**假绿**（`O20`③ 同类教训：指针存在 ≠ 指对了东西）；
+       仍有 `dropWouldBeLost(`，裸子串会让这条检查**假绿**（`O20`③ 同类教训：指针存在 ≠ 指对了东西）；
     ② `MineBlockRunner.tickSupportPlacement` **不得**再把「垫不上」变成目标失败（不许 `fail("SUPPORT_PLACE_FAILED"`）
        且必须留下 `supportSkipped = true`（可归因）；
     ③ `TargetClusters.queueFor` 必须用 `graphDistance(`（BFS 图距）排序 —— 仍是**纯几何**。
@@ -1883,15 +1883,15 @@ def rule_support_and_cluster_order():
     planner_code = without_comments(planner)
     drop_code = without_comments(drop_path.read_text(encoding="utf-8"))
     # ⭐ `①-2b`（2026-09-29，`D-530`）：**调用点换家了** —— A 腿（`R2`）原本住在 `MiningPlanner`，
-    # 现在住在 `reach/StandingPlanSelector`。断言①的三颗牙（不许回原地定义 / 调用点必须还在 /
+    # 现在住在 `reach/StandingPlanSelector`。断言①的三项检查（不许回原地定义 / 调用点必须还在 /
     # 旧判据不许回流）**跟着结构走**：
     #   · ①b 从"`MiningPlanner` 里不许定义"扩成"**两个文件都不许定义**"；
     #   · ①c 从"调用点必须在 `MiningPlanner`"改成"**必须在 A 腿的新家**"——
-    #     ⚠️ 注意这**不是**把牙放松：换成"两个文件里随便哪个有就行"会让"搬走之后再没人问它"
-    #     重新变成绿（新家有实现、却没人调用），那正是这颗牙存在的理由；
+    #     ⚠️ 注意这**不是**把检查放松：换成"两个文件里随便哪个有就行"会让"搬走之后再没人问它"
+    #     重新变成绿（新家有实现、却没人调用），那正是这项检查存在的理由；
     #   · ①d 的旧判据扫描面同样扩到三个文件。
     # ⚠️ `1-3`（2026-09-29，批次 1 · 甲①）：A 腿**再搬一次家** —— `reach/StandingPlanSelector`
-    # → `reach/DirectArrivalPlanner` ⇒ 下面三颗牙的**主语文件**跟着换，**判据一字未改**
+    # → `reach/DirectArrivalPlanner` ⇒ 下面三项检查的**主语文件**跟着换，**判据一字未改**
     # （它们咬的是"判据本体只许住 `reach/DropCatchment`、调用点必须在 A 腿里、旧判据不许回流"）。
     selector_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "reach"
                      / "DirectArrivalPlanner.java")
@@ -1915,7 +1915,7 @@ def rule_support_and_cluster_order():
             problems.append(f"`reach/DropCatchment` 里缺 `{token}` ⇒ {why}")
 
     # ---- ①b 原处不许回原地定义（含"转发壳"）· 深度常量只许一个出处 ----
-    # ⚠️ 判据必须是**定义形状**：搬走后调用点里 `dropWouldBeLost(` 仍在 ⇒ 裸子串会让这条牙假绿。
+    # ⚠️ 判据必须是**定义形状**：搬走后调用点里 `dropWouldBeLost(` 仍在 ⇒ 裸子串会让这条检查假绿。
     # ⚠️ `①-2b`（`D-530`）：被判的**范围是两个文件** —— 判据本体只许住在 `reach/DropCatchment`，
     # 所以 `MiningPlanner` 与 A 腿的新家（`1-3` 起 = `reach/DirectArrivalPlanner`）**都不许**
     # 重新定义它（在哪边复活都不行）。
@@ -1940,7 +1940,7 @@ def rule_support_and_cluster_order():
                         "「同竖列免垫 / 正下方分流」被架空")
 
     # ---- ①d 旧判据在三个文件的**代码**里都不许出现 ----
-    # ⚠️ `①-2b`：扫描面跟着结构扩到新家（原来只有两个文件 ⇒ 搬走之后这条牙对新家是盲的）。
+    # ⚠️ `①-2b`：扫描面跟着结构扩到新家（原来只有两个文件 ⇒ 搬走之后这条检查对新家是盲的）。
     for label, src in (("`MiningPlanner`", planner_code),
                        ("`reach/DirectArrivalPlanner`", selector_code),
                        ("`reach/DropCatchment`", drop_code)):
@@ -2647,7 +2647,7 @@ def rule_arrival_declared_and_consumed():
     **全部**候选各跑一次全预算 `PathRequest.miningApproach` A\\*（真机 `candidates=13 planned=13`
     ⇒ 一次规划 ≈2.4 s，而它发生在**服务端 tick 线程**上 ⇒ `[Job] step` 间隔被实测为 2.4 s ≈ 0.4 TPS）。
     `D-520`（改革 ① 主体第一刀）把那条腿**整条删掉**，换成**一次** `GoalAdjacent` 搜索
-    （`PathRequest.adjacentApproach`）⇒ 旧断言的**主语**不存在了，但**牙必须留下**：
+    （`PathRequest.adjacentApproach`）⇒ 旧断言的**主语**不存在了，但**检查必须留下**：
     下面每一条都是"下次有人把候选枚举、或把写授权交回给某个值去反推，就红"。
 
     断言（每条都能用一次注入变红）：
@@ -2683,7 +2683,7 @@ def rule_arrival_declared_and_consumed():
     # ⇒ **生产点不再只在一个文件里**：`IN_PLACE` 与两个 `DIRECT_*` 随 `selectDirect`/`selectBest`
     # 搬走，只有 `MINING_APPROACH` 还留在本类的目标腿。
     # ⚠️ 断言① 因此从"在某一个文件里"改成"在**生产者集合**里的某一个"——**不是放宽**：
-    # 集合是**穷举**的（漏登记一个生产者 ⇒ 那条取值就真的没有任何生产点），且下方另有一颗牙
+    # 集合是**穷举**的（漏登记一个生产者 ⇒ 那条取值就真的没有任何生产点），且下方另有一项检查
     # 钉住两个文件都必须在场（文件没了/改名了要**响亮地**红，不许静默退化成"只剩一半生产者在查"）。
     # ⚠️ `1-3`（2026-09-29，批次 1 · 甲①）：A 腿**再搬一次家** ⇒ `StandingPlanSelector` →
     # `DirectArrivalPlanner`。**生产者集合与断言一字未改**，只是路径与标签换了名字
@@ -2715,7 +2715,7 @@ def rule_arrival_declared_and_consumed():
         for name in names:
             # ⚠️ 判据必须带**词边界**：`f"Arrival.{name}" in code` 会被**同前缀的兄弟取值**
             # 满足（`Arrival.DIRECT_PURE_PASSAGEX` 里就含 `Arrival.DIRECT_PURE_PASSAGE`）
-            # ⇒ 那颗牙**假绿**。`①-2b` 的注入台实测抓到的（`O20`③「指针存在 ≠ 指对了东西」**第四例**，
+            # ⇒ 那项检查**假绿**。`①-2b` 的注入台实测抓到的（`O20`③「指针存在 ≠ 指对了东西」**第四例**，
             # 前三例 = `D-524` / `D-525` / `D-528`）。`\b` 在 `_` 前不成立 ⇒ `…PASSAGE_2` 同样照咬。
             if not any(re.search(rf"\bArrival\.{name}\b", code) for _, code in producers):
                 problems.append(f"`Arrival.{name}` **没有任何生产点**（"
@@ -2736,11 +2736,11 @@ def rule_arrival_declared_and_consumed():
     # ---- ③ 候选穷举形状不许回归 ----
     # ⚠️ `①-2b`（`D-530`）：被判的**范围扩到两个生产者文件** —— A 腿现在住 `reach/StandingPlanSelector`，
     # 那套被删掉的候选穷举**在那个文件里复活同样不许**（原来只查 `MiningPlanner` ⇒ 搬包之后
-    # 这条牙对着新家**盲**，属于 `O20`③「指针存在 ≠ 指对了东西」那一族）。
+    # 这条检查对着新家**盲**，属于 `O20`③「指针存在 ≠ 指对了东西」那一族）。
     # ⚠️ 判据**不带修饰符与返回类型**：`①-2b` 把 A 腿搬进了一个**静态工具类**
     # ⇒ 那套形状若在新家复活，最可能写成 `private static StandingPlanResult selectBestApproach(`
     # 而旧串只认 `private StandingPlanResult selectBestApproach(` ⇒ **假绿**
-    #（`①-2b` 注入台实测：把新家的复活写成 `private static …` 时那颗牙没被咬到）。
+    #（`①-2b` 注入台实测：把新家的复活写成 `private static …` 时那项检查没被咬到）。
     # ⇒ 只留"**方法名 ＋ 左括号**"这个结构性部分（`MAX_APPROACH_PLANS` 留裸名，常量无括号）。
     for dead in ("MAX_APPROACH_PLANS", "selectBestApproach(", "planTunnel(", "planEnterTarget("):
         for label, code in producers:
@@ -2751,8 +2751,8 @@ def rule_arrival_declared_and_consumed():
     # 「同列 `GoalColumnBlocks` 先、侧面 `GoalAdjacent` 兜底」）⇒ 原来那句"B 腿没有交给内核"的
     # 主语从"唯一那条腿"变成"**侧面兜底腿**"，**断言本身一字未改**（它照样必须真的在用
     # `adjacentApproach`：⛔ 有人把兜底腿删掉、只留同列腿 ⇒ 目标一被包住就只能报永久理由）。
-    # ⭐ 并**加一颗牙**：同列腿（`GoalColumnBlocks`）必须真的在用 —— ⛔ 否则有人把目标腿退回
-    # "只有侧面一条腿"，`1-0a`/`1-1` 整条链会**静默**变成死件，而上面那颗 `adjacentApproach` 的牙
+    # ⭐ 并**加一项检查**：同列腿（`GoalColumnBlocks`）必须真的在用 —— ⛔ 否则有人把目标腿退回
+    # "只有侧面一条腿"，`1-0a`/`1-1` 整条链会**静默**变成死件，而上面那颗 `adjacentApproach` 的检查
     # **照样绿**（它正是兜底腿）。⚠️ 锚点取**限定调用形**（`GoalColumnBlocks.forReach(`），
     # ⛔ 不用裸类名 —— 裸子串会被 javadoc/别的用法满足（`D-524`/`D-525`/`D-528` 同族的假绿教训）。
     if "PathRequest.adjacentApproach" not in planner_code:
@@ -2779,7 +2779,7 @@ def rule_arrival_declared_and_consumed():
             # ⚠️ `1-1b₂`（2026-09-29）**放宽比较符**（`==` 或 `<=`）：目标腿变成**两条顺序搜索**
             # ⇒ 一次规划调用发起的次数**不再恒等于 1**（腿 1 给出方案就是 1，要兜底才是 2）
             # ⇒ 夹具**正确**的断言形是**上界**。⛔ 放宽的**只是比较符**：**字面量**要求一字未动
-            #（"用常量断言 = 把常数改大就自动变绿"那颗牙照旧）。
+            #（"用常量断言 = 把常数改大就自动变绿"那项检查照旧）。
             if not re.search(r"issued\s*(?:==|<=)\s*\d+", fbody):
                 problems.append("A2 夹具没有用**字面量**断言「一次规划调用最多发起几次全预算搜索」"
                                 "⇒ 用常量断言等于"
@@ -2806,7 +2806,7 @@ def rule_standing_retirement_no_residue():
     每条都带"为什么它算退役"。
 
     ⚠️ **第二半（`Mode.TUNNEL` / `ENTER_TARGET`）是回归护栏、不是退役进度读数**：
-    实测它们在**代码面今天就已经是 0**（命中全在注释/字符串里）⇒ 这颗牙只挡"旧形状回归"，
+    实测它们在**代码面今天就已经是 0**（命中全在注释/字符串里）⇒ 这项检查只挡"旧形状回归"，
     ⛔ 别把它读成"还有一个取值没退役"。
 
     ⚠️ **反空转（`Z4`）**：清单带**人口下限**，且**新家必须在场** —— 否则「零残留」可以靠
@@ -2854,7 +2854,7 @@ def rule_standing_retirement_no_residue():
             problems.append("`reach/StandingPointSelector` 里又出现 `tunnelCandidates`"
                             "（`1-3`/甲④ 已删：唯一消费者是随同刀退休的探针，"
                             "而 `D-520` 早已把那条腿换成内核的目标级搜索）")
-        # ⚠️ 这颗牙咬的是**载体形状**，⛔ 不是裸词 `los`：`isValidStandingPoint` **体内**本来
+        # ⚠️ 这项检查咬的是**载体形状**，⛔ 不是裸词 `los`：`isValidStandingPoint` **体内**本来
         # 就有一个活局部变量 `los`（过滤判据本体要读 `isClear()` 与 `getSuccessfulSample()`）
         # —— 那是**该留的**；被退役的是"把它**带出**方法、装进候选"这件事。
         candidate = re.search(r"public record Candidate\(([^)]*)\)", selector_code)
@@ -2898,10 +2898,10 @@ def rule_standing_retirement_no_residue():
             if len(comps) != 6:
                 problems.append(f"`reach/ReachPlan` 的组件数是 {len(comps)}（应为 **6**："
                                 "`1-3` 定型 = 7 − 规划期 LOS）⇒ 组件表被顺手改了")
-    # ⚠️⚠️ `1-5` 改名时**差点丢的一颗牙**（诚实登记，2026-09-29）：本行原文逐字是
+    # ⚠️⚠️ `1-5` 改名时**差点丢的一项检查**（诚实登记，2026-09-29）：本行原文逐字是
     # `r"\bMiningPlan\.Mode\b"` —— 机械改名（`\bMiningPlan\b`）**抓不到它**，因为
     # `\b` 前面那个字符是 `b`（字面量 `\b` 的 `b`，是 word 字符）⇒ 词边界不成立，
-    # 换成 `ReachPlan` 之后这条断言会**静默失去牙齿**（有人把 `Mode` 加回 `ReachPlan` 也不红）。
+    # 换成 `ReachPlan` 之后这条断言会**静默失去强制力**（有人把 `Mode` 加回 `ReachPlan` 也不红）。
     # 这正是 `survey/42 §3.3`「名字锚定的门禁会静默失效」的**实测第一例** ⇒ 记在 `O54`。
     if re.search(r"\bReachPlan\.Mode\b", "".join(codes.values())):
         problems.append("全仓生产代码里又出现旧载体 `ReachPlan.Mode` ⇒ 旧形状回流"
@@ -5309,9 +5309,9 @@ def _line_of(text: str, idx: int) -> int:
 
 
 def rule_fluid_precheck_before_planning():
-    """`P0-C`/`S-4` —— **流体前置**：顺序 ＋ 拒码同源（`D-535` §四 明列的 **4a 待补牙**，2026-09-29 落地）。
+    """`P0-C`/`S-4` —— **流体前置**：顺序 ＋ 拒码同源（`D-535` §四 明列的 **4a 待补检查**，2026-09-29 落地）。
 
-    两处失效**都是静默的**，这就是它们必须有牙的理由：
+    两处失效**都是静默的**，这就是它们必须有检查的理由：
 
     ① **顺序**：`FluidRiskPolicy.miningRefusal(bot, target)` 必须是 `MiningPlanner.plan(...)`
        （六参那个重载）里**先于任何规划**的那一步。有人把它挪到规划之后 ⇒ **照样编译、照样"能跑"**，

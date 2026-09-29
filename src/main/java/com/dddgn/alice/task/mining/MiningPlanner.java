@@ -68,7 +68,7 @@ public final class MiningPlanner {
      * 它连同 `selectBestApproach` 一起**删除**了 —— 不是"把上限调大"，而是那个形状**结构性消失**：
      * 旧模式 B 要对固定 13 格站位枚举逐个跑全预算 A\*（真机 ≈2.4 s/tick 的来源），
      * 现在改成**一次**目标级搜索（内核 `GoalAdjacent`，落脚点由 A\* 自己找）⇒ 没有"候选穷举"可限。
-     * 牙没有丢：`tools/kernel-predicates.py` 的老规则 `rule_approach_plans_bounded` 已**替换**为
+     * 检查没有丢：`tools/kernel-predicates.py` 的老规则 `rule_approach_plans_bounded` 已**替换**为
      * `rule_arrival_declared_and_consumed`（见该函数 docstring 的三条断言）。
      */
     /*
@@ -81,7 +81,7 @@ public final class MiningPlanner {
      * ⇒ 本类**不再持有**这三个成员：本文件里所有引用都改成 `SearchConclusion.*`。
      * ⚠️ **只搬不改语义**：判据、理由码字面量、成员名**逐字保留**。
      * ⚠️ **同刀已重锚** `tools/kernel-predicates.py` 的 `rule_search_limit_not_unreachable`
-     * （`plans §2.5`：关于 R7 的那半「**必须活下来**（只改锚）」）—— 红线的**牙一颗没丢**。
+     * （`plans §2.5`：关于 R7 的那半「**必须活下来**（只改锚）」）—— 红线的**检查①颗没丢**。
      * ⛔ 别在这里重新加一个"转发用的"同名薄方法：那会让"唯一出处"重新变成两处。
      */
     /*
@@ -236,7 +236,7 @@ public final class MiningPlanner {
      *
      * ⛔ **别把"这里没这几个常量了"读成"站位类归因没了"**：判据照旧生效，本类只是**引用**它
      * （`StandingPointRefusal.…`）。
-     * ⛔ 也别在原处放回同名常量 —— 门禁 `rule_search_limit_not_unreachable` 的 `D-528` 牙正是挡它的。
+     * ⛔ 也别在原处放回同名常量 —— 门禁 `rule_search_limit_not_unreachable` 的 `D-528` 检查正是挡它的。
      * 📌 为什么必须搬：它们的消费者在**作业层**（`FishboneJob:750`）与夹具，而"是不是站位类"这件事
      * 被 import 一个**挖掘**规划器来判是**错位**；`reach/` 的定位本来就是「触及站位 / 视线 / 计划」
      * （`D-460`）⇒ 作业层可以只依赖 `reach/`，不必认识 `task/mining/`。
@@ -415,7 +415,7 @@ public final class MiningPlanner {
      * `boolean collectDrops` ＋ `boolean canPlaceSupport`；`budget.collectDrops()` → `collectDrops`；
      * `findPlaceableSlot(bot) >= 0` → `canPlaceSupport`），见新类的类注释。
      * ⛔ **别在这里放回同名方法，也别留转发壳**：那会让"往哪个站"长出第二处
-     * （门禁 `rule_search_limit_not_unreachable` 的 `①-2b` 牙正是挡它的）。
+     * （门禁 `rule_search_limit_not_unreachable` 的 `①-2b` 检查正是挡它的）。
      * 📌 `planPath` 也跟着搬了（它是纯内核转调），仍留在本类的目标腿改调
      * `com.dddgn.alice.reach.StandingPlanSelector#planPath`（该包装已在 `1-3` 内联） —— 只有一份定义。
      */
@@ -437,8 +437,8 @@ public final class MiningPlanner {
      *
      * ⛔ **别把"这里没这几个符号了"读成"垫方块的口径没了"**：判据照旧生效；
      * 门禁 `rule_support_and_cluster_order` 的断言①已**改锚**到新家，并加了"原处不许复活 /
-     * 不许留转发壳"的牙。
-     * ⛔ 也别把这里当成"可以放回一个转发壳"的位置 —— 那条牙正是挡它的。
+     * 不许留转发壳"的检查。
+     * ⛔ 也别把这里当成"可以放回一个转发壳"的位置 —— 那条检查正是挡它的。
      *
      * ⚠️ **`R2` 那一半的待裁问题仍然挂着**（`plans §4.2`⑤ 逐字：**"垫一块"这个动作该由谁做，
      * 是另一个要单独裁的问题**）：`①-2b` 只搬了"选哪条路"的编排（`side`/`below` 两组候选比

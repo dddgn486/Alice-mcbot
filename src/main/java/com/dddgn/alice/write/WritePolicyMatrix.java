@@ -43,7 +43,7 @@ import java.util.Set;
  * 上层显式授权如 {@code BULK_EDIT}/{@code MANUAL} 不受默认区约束"）与"工作区只是**允许**
  * {@code KEEP} 类理由"的必然结果：EXTERNAL 与 WORKSPACE 今天对每个理由解析结果**相同**，
  * 该等式由 {@code workspace_equiv} 断言守着（谁让它不相等，就必须同时补一条决策记录）。
- * 本轮真正带上牙齿的是**移动授权**：纯通行任务（{@code walk-to} 这类）今天起**不能再**规划出会写世界的移动
+ * 本轮真正带上强制力的是**移动授权**：纯通行任务（{@code walk-to} 这类）今天起**不能再**规划出会写世界的移动
  * ——这正是 D-076 红线的可执行版本，也是 R2/R3 要用到的挂点。
  *
  * <p><b>不变量（自检断言，见 {@code WritePolicyCheckTask}）</b>：
@@ -230,7 +230,7 @@ public final class WritePolicyMatrix {
          * <p>⚠️ **它今天没有生产调用点**（`甲` = 只加能用的新件、**拒绝未接线**）：唯一消费者是夹具
          * `task/K2AdjacentGoalCheckTask.java`。⛔ 但**登记不能省** —— `D-076` 的口径是
          * 「写能力必须走**显式登记的入口**」，而本工厂发出的集合**含 `BREAK_*`/`PILLAR`/`DOWNWARD`**
-         * ⇒ 它就是一条**新的写授权入口**（这是 `check-policy-matrix` 的"工厂词表无孤儿"那颗牙抓出来的）。
+         * ⇒ 它就是一条**新的写授权入口**（这是 `check-policy-matrix` 的"工厂词表无孤儿"那项检查抓出来的）。
          * ⇒ 真正的接线（把 `B` 分支切过来）在**下一刀**，届时本行与 `P-02` 的关系才从"允许"变成"在用"。
          */
         ADJACENT_APPROACH("adjacentApproach");
@@ -741,7 +741,7 @@ public final class WritePolicyMatrix {
      * <p><b>为什么容器写入要有自己的判定</b>：放置类写入的"执行期复验"挂在账本
      * （{@link #ledgerPolicy}，由 {@code WorldModLedger.record} 调用）；而**容器写入不产生账本条目**
      * （它改的是容器内容，不是方块）⇒ 到今天为止 {@code P-06/P-17} 行登记的
-     * {@code CONTAINER_TRANSFER}/{@code STATION_PROVISION} **没有任何读者**：表在，牙齿不在。
+     * {@code CONTAINER_TRANSFER}/{@code STATION_PROVISION} **没有任何读者**：表在，强制力不在。
      * 本方法的挂点是 {@link WriteBudget#consumeContainerWrite} —— **所有**已接线的容器写入的必经之处
      * （与"移动授权挂在 {@code CorePathPlanner.plan}"同一个理由：一处管住全部）。
      *

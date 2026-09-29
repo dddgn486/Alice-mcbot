@@ -49,7 +49,7 @@ public record MiningProfile(boolean standableOnly, int maxGainSteps, int gainBlo
      * `com.dddgn.alice.reach.ApproachCapability`（同包名类名一一对应，取值与默认值**逐字未改**）。
      * ⛔ 别把它读成"接近能力没了"：本 record 的 `approach` 组件**照旧存在**，只是类型换了出处；
      * ⛔ 也别在原处放回一个同名嵌套枚举 —— 门禁 `rule_search_limit_not_unreachable` 的
-     * `D-527` 牙正是挡它的（"原处不许再声明 `enum Approach`" ＋ "生产代码里不许再出现
+     * `D-527` 检查正是挡它的（"原处不许再声明 `enum Approach`" ＋ "生产代码里不许再出现
      * 旧的限定名"）。
      * 📌 为什么必须搬：`reach/` **不许** import `task/`（`check-layer-direction` 断言①），
      * 而 `plans §4.2`① 要求把「选」搬进 `reach/` ⇒ 嵌套在 `task/` 里的类型会把新家拖回循环。

@@ -8647,7 +8647,7 @@ the user must resume it"）。这**正好符合** D-205 的意图（"恢复只�
   越权抛 `WRITE_POLICY_MOVEMENT_DENIED`，在规划器入口转成"如实失败的 plan"，**不让异常逃逸**打断服务端 tick）
   + **执行期**复验（`WorldModLedger.recordPlacement:126`）+ 自检 `write_policy`（含"越权必须被拒"的负例）
   + 视图 `docs/authz/POLICY_MATRIX.csv` + 断言脚本 `tools/check-policy-matrix.sh`；authz 注册表加 `L2-5`。
-- **本轮不改变任何默认行为**（A + ⓑ 的必然结果）；真正带上牙齿的是**移动授权**：
+- **本轮不改变任何默认行为**（A + ⓑ 的必然结果）；真正带上强制力的是**移动授权**：
   纯通行任务（`walk-to` 等）今天起不能再规划出会写世界的移动——这是 D-076 红线的可执行版本。
 
 ### D-208：自检夹具的终态必须传播 verdict —— **禁止静默绿**（2026-09-14 实测确立）
@@ -8741,7 +8741,7 @@ the user must resume it"）。这**正好符合** D-205 的意图（"恢复只�
 - **审计发现的真事实**（不是猜测）：`WritePolicyMatrix` 到今天**从没经手过容器写入** ——
   `noteUnregistered` 只在 `requireMovementsGranted`（寻路）与 `ledgerPolicy`（放置）里被调；
   而容器写入**不产生账本条目** ⇒ 放置类的"执行期复验"在容器侧**没有对应物**，
-  `P-06/P-17` 登记的 `CONTAINER_TRANSFER`/`STATION_PROVISION` **零读者**（表在，牙齿不在）。
+  `P-06/P-17` 登记的 `CONTAINER_TRANSFER`/`STATION_PROVISION` **零读者**（表在，强制力不在）。
 - **决定**：挂点 = `WriteBudget.consumeContainerWrite`（所有已接线的容器写入的必经之处，一处管住全部），
   顺序**先策略、后预算**（策略拒 ⇒ 不进预算计数：两层账各自归因，不互相冒充）。口径与移动授权**对齐**：
   requester 未登记 ⇒ **留痕不拒**（那是登记缺口）；已登记但该行**没声明**这个理由 ⇒ **硬拒**。
@@ -18445,7 +18445,7 @@ wildSkippedSince 窗口内被跳过的区外放置次数
 
 #### 一、判据的形状（**直接沿用 `A2`/`D-417` 的教训**）
 
-⭐ 「生成的文档 == 生成的文档」是**同义反复**（重新生成必然一致）⇒ 不算判据。真牙齿是**跨出处**：
+⭐ 「生成的文档 == 生成的文档」是**同义反复**（重新生成必然一致）⇒ 不算判据。真强制力是**跨出处**：
 每一对回答「**同一个事实有没有两个家**」。八族断言（`A1`–`A9`）：
 
 | # | 断言 | 为什么今天值得存在 |
@@ -20745,7 +20745,7 @@ requester 前缀 `fishbone` ⇒ **本来就算在同一份额度里**（`placeme
 > （补三层分工 + "动作原语"一词归 `task/`），**不是一条取代它的新决策**。
 > ⚠️ **为什么补这一行**：`survey/43 §10.2` 实测 `D-455` 全文**不引 `D-080` / `JOB_LAYER_DESIGN.md`**
 > ⇒ 同一件事两个 `D` 编号、而新的**不知道旧的**（正是 `D-419` 花 264 行门禁去防的"第二真相源"）。
-> ⚠️ 而它**至今没有牙**（"引不引前置裁定"没有门禁）⇒ `survey/43 §6.1` 那张表据此加了一行，**⏳ 待裁**。
+> ⚠️ 而它**至今没有检查**（"引不引前置裁定"没有门禁）⇒ `survey/43 §6.1` 那张表据此加了一行，**⏳ 待裁**。
 
 **用户口径（逐字，`survey/42 §1.1`）**：
 「**job 应该就包含动作原语的编排序列，job 就是一个固定的执行动作的序列，并用重试机制、权限等来管理这些动作**」·
@@ -20995,7 +20995,7 @@ Job = ① 有 Kind（进 JobRequest.Kind）
   **到期条件 = `step 5` 开工**；本门禁的 PASS 行与 docstring **已把这条边界写在门禁里**
   （"不含「类内默认额度常量」= step 2b / step 5"）⇒ 不会有人把绿读成 ⑧③ 全合规。
 - ⇒ `step 2` 以 **`2a` 收口**（`D-459`）。
-- ⏳ **仍未裁**（`survey/43 §6.1`，与本条同族）：**"引不引前置裁定"要不要有牙**（今天没有门禁
+- ⏳ **仍未裁**（`survey/43 §6.1`，与本条同族）：**"引不引前置裁定"要不要有检查**（今天没有门禁
   ⇒ `D-455` 漏引 `D-080` 就是这么发生的）。**用户 2026-09-27 只裁了"补那一行"**（见 `D-455` 的前置裁定块），
   **没有**裁定要不要把"新落一条 `D` 必须引前置裁定"做成可执行判据。
 
@@ -21177,7 +21177,7 @@ Job = ① 有 Kind（进 JobRequest.Kind）
 
 **裁定链**：`D-457` §5.2 ⑧（原语判据）+ 用户 2026-09-27 二次拍板：
 ① `step 5` 的拆法 = **甲：先拆 `MineTask` 的「编排 vs 原子」边界**；
-② 读数要不要有牙 = **甲：落成 `tools/` 读数门禁**，形状照 `check-primitive-budget-injection.py`。
+② 读数要不要有检查 = **甲：落成 `tools/` 读数门禁**，形状照 `check-primitive-budget-injection.py`。
 
 #### 为什么必须先有这个门禁（不是"顺便加个工具"）
 
@@ -23741,7 +23741,7 @@ fixture/（开发期）→ 可引用 debug/              ← 夹具复用调试�
   但它实际只挡「`GoalNearXZ.around` 出现在生产文件里」这一条**已知会触发加载的路径**
   ⇒ 指针按项目惯例带「**部分：**」限定（与 `check-goal-vocabulary.sh` / `check-machine-map.sh` 同款式）。
   它**不**是"内核不读未加载区块"的通用判据。
-- **准入标记**：`[用户确认: 2026-09-28]`（§准入尺子要求；同时满足 `check-redline-gates` 牙③）。
+- **准入标记**：`[用户确认: 2026-09-28]`（§准入尺子要求；同时满足 `check-redline-gates` 检查③）。
 - **行数守恒（实测，非估算）**：`AGENTS.md` **142 → 142**（+1 新红线、-1 = 把「新的验证手段」段 3 行压成 2 行）·
   `AI_PROJECT_STATE.md` **640 → 641**（净 +1：删掉「禁止实验性移动模式」整行、新增 `D-132` 两行）
   ⇒ 三项合计 **1,476 行 = 冻结线**（`check-doc-budget` PASS，**余额 0**）。
@@ -24081,7 +24081,7 @@ Goal（纯算术谓词，零世界访问）找路
 |---|---|
 | `A-7` | **`AI_DECISIONS.md` 里 `D-499` 尾部被误删两行**（第 1 行截断成未闭合半句、第 2 行整行消失）。**误删者 = `97dbb7d2`**（`D-500` 那条提交；逐提交复算：`971ea86b` 完整、`97dbb7d2` 已坏）。⚠️ **不是** `49632be9` —— 那次修的是**另一处**（`D-500` 自己一段"拼接错乱 + 过期断言"，`:23798-23801`），**两处是不同的编辑事故**。 |
 | 处置 | 按 `971ea86b:docs/AI_DECISIONS.md` 的原文**逐字恢复**两行，并加一条补记指向本条。**未改语义，只补完事故**。可复算：`git show 971ea86b:docs/AI_DECISIONS.md \| grep "漏抄到派生文档）："` |
-| 为什么静默 | `check-ref-integrity` **只查"行号越界"，查不出半句**；`check-decisions-index` 的牙齿是"人口下限 + 逐字节新鲜度"、**不比语义** ⇒ 一条**看起来完整、实则残缺**的裁定。 |
+| 为什么静默 | `check-ref-integrity` **只查"行号越界"，查不出半句**；`check-decisions-index` 的强制力是"人口下限 + 逐字节新鲜度"、**不比语义** ⇒ 一条**看起来完整、实则残缺**的裁定。 |
 
 ⇒ ⭐ **可复用纪律（第二次同类）**：**"删掉半句/整行"在 diff 里看不出来**（`D-472` 对"删一行 `if`"说过同一句话）。
 凡是"**修一处拼接错乱/过期断言**"的编辑，落盘后必须**按行数核对邻行**（本次：`git show <parent>:<file> | sed -n 'N-3,N+3p'` 对照）。
@@ -24162,7 +24162,7 @@ Goal（纯算术谓词，零世界访问）找路
 ⇒ ⚠️ 台账 `O13`/`survey/47` `#6` 记的 `tools/check-phase-transition-outlet.py:60` 硬编码 `task/MineTask.java`
 **是同一族** ⇒ **"逐项搬空 / 删 `MineTask`"那把刀会同样疼**，不是新问题。
 
-### 三、✅ 那颗牙的**第二次生效**（实测，不是推演）
+### 三、✅ 那项检查的**第二次生效**（实测，不是推演）
 
 `tools/check-duplicate-class-names.py` 的 `GoalSpec` 豁免条目**按断言 ③ 得手判红**：
 > 「豁免 `GoalSpec` **已不再是重名** ⇒ 必须删掉白名单条目（豁免得手也 FAIL）」
@@ -24269,7 +24269,7 @@ Goal（纯算术谓词，零世界访问）找路
 | **A** | 第 3 个 `GoalSpec` 实现 | `pathing/core/search/GoalAdjacent.java`（**新文件**）。到达判据**四条合取**：曼哈顿 ≤1 · ⛔ 不站目标格 · ⛔ 不站**上方**（Baritone `GoalBreak` 逐字给过理由：方块可能悬空、站上去挖不动）· ⛔ 不在排除集。模板 = `BuilderProcess.GoalAdjacent`（`:892`，⚠️ 是 `BuilderProcess` 的**嵌套类**，**不在** `api/pathing/goals/` 下） |
 | **B** | `PathRequest` 工厂 | `PathRequest.adjacentApproach(botId, startFoot, target, excluded, requester)`。能力集**抽成单一出处** `MINING_APPROACH_MOVEMENTS`（`miningApproach` 也改用它 —— 避免两份字面集合漂移） |
 | **C** | 夹具断言 | `task/K2AdjacentGoalCheckTask.java` + 注册为电池步 **`adjacent_goal_exclusion`**（`PathingModule` `CheckProfile.MAIN` + `RegressionBatteryTask` `Profile.MAIN`）。**规划级**（4 次 `CorePathPlanner` 规划 + 目标谓词逐条真值）· **自建孤立平台**（段 `4000`，不依赖世界地形）· ⛔ **不执行**路径 ⇒ 零副作用、**不替换正在跑的电池步**（`D-254`）· 失败路径也 `cleanup` |
-| **D** | 门禁 `点名 → 分类判据` | `tools/check-far-goal-usage.py`（**新**，旧 `.sh` 已 `git rm`，留痕见本条的 docstring）。判据 = **凡 `exactFoot()==false` 的实现必须登记，且登记表记录取值**。⭐ **旧的字面断言保留为第二颗牙**（互补：分类管**实现**，字面管**调用点**）⇒ 比裁定**更强**。自带 **8 条合成臂**（含"豁免得手必须红""取值漂了必须红""取值认不出来必须红"） |
+| **D** | 门禁 `点名 → 分类判据` | `tools/check-far-goal-usage.py`（**新**，旧 `.sh` 已 `git rm`，留痕见本条的 docstring）。判据 = **凡 `exactFoot()==false` 的实现必须登记，且登记表记录取值**。⭐ **旧的字面断言保留为第二项检查**（互补：分类管**实现**，字面管**调用点**）⇒ 比裁定**更强**。自带 **8 条合成臂**（含"豁免得手必须红""取值漂了必须红""取值认不出来必须红"） |
 | **E** | `AGENTS.md` 两处替换 | ⚠️ **是文档替换，不是代码**（`D-500` 的两处"机械替换"）。**逐行等量改** ⇒ 冻结预算 `AGENTS+PLAYBOOK+STATE = 1476` **行数未变**：`D-076` 那条把「**待 `K2` 同刀替换**」改成已落的事实（并点名 `JobWriteDeclaration`）；`D-132` 那条把 `[gate: …sh]` 换成 `…py` 并写清新判据 |
 | **F** | `#16` 最小授权载体（`D-511`） | `job/JobWriteDeclaration.java`（**新**）。只装 `K2` 需要那两栏（**授权来源** + **预算闸门量**）。三件齐备：① **让步范围**（逐条列 ⛔ 不含 `P5/A` 资源清单 / 归因码表 / `P13/A` 预期产物 / `P1/A′` `unit`）② 代码自述「**（临时）**」③ **回收条件**。⚠️ 已在类头写明**它不得成为第二真相源**（今天的活真相源仍是 `WriteEnvelopes` + `MiningBudget`） |
 | **G** | `1b` 上界默认值（`D-502`） | 落成 `JobWriteDeclaration` 的一栏 `maxFootRetries`，默认值 `private static final` = **刻意不独立立常量**（`D-502` 丙 的字面要求）。消费者 = 夹具的"换脚格"重试回路（`1a`=甲），⚠️ **判据断"次数"，时间只进日志**（`P4/A` 铁律） |
@@ -24322,7 +24322,7 @@ Goal（纯算术谓词，零世界访问）找路
 | `tools/check-all.sh`（静态） | ✅ **`pass=34 warning=1 failed=0`**（warning = 电池未由 `check-all` 执行） |
 | `tools/check-far-goal-usage.py` | ✅ PASS：3 个实现 · **粗目标 2 个全登记** · 取值逐字相符 · 合成臂 **8/8** |
 | 能力清单 | ✅ `步 106（CORE 44）`（`adjacent_goal_exclusion` 进 CORE，由 43→44）· `check-capability-list` PASS |
-| 写入策略表 | ✅ PASS（`grant=9`，新 `ADJACENT_APPROACH` 已登记）—— ⭐ **这颗牙就是抓出"新工厂未登记"的那一颗** |
+| 写入策略表 | ✅ PASS（`grant=9`，新 `ADJACENT_APPROACH` 已登记）—— ⭐ **这项检查就是抓出"新工厂未登记"的那一颗** |
 | `core` 电池（真跑） | 见断点十四（`ALICE_BATTERY_NO_CACHE=1 tools/headless-battery.sh core`） |
 
 ### 七、⚠️ 诚实边界
@@ -24481,12 +24481,12 @@ Goal（纯算术谓词，零世界访问）找路
    ⇒ 鱼骨「补一块再走」的计划**规划期到得了、执行期到不了**。
    ⭐ `D-443` 裁定 1a 当时**只治了规划侧**（`survey/34 §2.1` 那条"同一 tick 两个相反答案"），
    执行侧那一半**一直没治** ⇒ 本刀的显式字段**顺带修掉它**（同一个 bug 类，隔一个字段）。
-3. **带牙的门禁必须同刀改（两处）** ——
+3. **带检查的门禁必须同刀改（两处）** ——
    ① `tools/kernel-predicates.py` 的 `rule_approach_plans_bounded` 钉死 `MAX_APPROACH_PLANS` +
    `selectBestApproach` 的形状 + 夹具 `issued == 3`；
-   ② 同一文件 `rule_search_limit_not_unreachable`（`D-329` S3 的牙）有三处锚点钉在 `selectBestApproach` / `planTunnel` / **三条腿合取**上。
+   ② 同一文件 `rule_search_limit_not_unreachable`（`D-329` S3 的检查）有三处锚点钉在 `selectBestApproach` / `planTunnel` / **三条腿合取**上。
    ⇒ ⚠️ **`§12.7 #7` 原写"`rule_approach_plans_bounded` 随 B 一起删" —— 实际处置是「替换」而不是「删」**：
-   直接删掉会**丢掉 A2 的牙**（那个 ≈2.4 s/tick 的形状下次有人带回来就没人拦）。
+   直接删掉会**丢掉 A2 的检查**（那个 ≈2.4 s/tick 的形状下次有人带回来就没人拦）。
    登记为**对登记表的更正**（不是对用户裁定的偏离）。
 
 ### 三、落地内容（`src/` 9 文件 + `tools/` 1 文件）
@@ -24512,7 +24512,7 @@ DIRECT_PLACEMENT_ALLOWED  → PathRequest.withPlacement （原 Mode.DIRECT + PLA
 MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mode.ENTER_TARGET 合一）
 ```
 - **为什么合并**：`CURRENT` 与 `DIRECT` 的差别**只有诊断价值**，而"授权形状"与"是不是当前站位"在这 4 个取值上**无损**（实测 `planDirect` 的 CURRENT 分支写死 `PathRequest.of`）⇒ 一个字段 = 一处出处，不产生两份可漂移的名单。
-- ⚠️ **刻意不叫 `Approach`**：`task.mining.MiningProfile.Approach` 已存在，而 `tools/check-duplicate-class-names.py` 是**有牙的门禁** ⇒ 不许造同名两物（`GoalSpec` 的教训，`plans §12.1.2`）。
+- ⚠️ **刻意不叫 `Approach`**：`task.mining.MiningProfile.Approach` 已存在，而 `tools/check-duplicate-class-names.py` 是**有检查的门禁** ⇒ 不许造同名两物（`GoalSpec` 的教训，`plans §12.1.2`）。
 - ⚠️ **取值不是"授权本体"**：授权来源仍是**作业级声明**（`D-500` §IV，临时载体 `JobWriteDeclaration`）＋ `MiningBudget` 闸门。本字段只保证"规划期用了什么、执行期就用什么"，⛔ 不扩大也不缩小任何授权面。
 
 ### 五、⭐ 新判据 `rule_arrival_declared_and_consumed`（四条断言，每条都能一次注入变红）
@@ -24742,7 +24742,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 
 1. ⛔ **本刀没有推进 `DS-5` 的实质**：`MiningPlanner` 625 行、`R1`~`R9` **一件没搬**。本刀只把**已经属于 `reach/` 的两块**送回 `reach/`，并**把那句写错的文档变成事实**。
 2. ⏳ **接下来在件② 里可选的两刀**（都**无前置**）：
-   - **`R7`（诚实读数：`inconclusive`/`inconclusiveReason`/`SEARCH_INCOMPLETE`）搬出挖掘包** —— `plans §4.2`③ 逐字「**必须活下来**」＋「⚠️ 它描述的是**内核搜索配额**，放在挖掘包里是**错位**」；⚠️ 同刀必须重锚 `rule_search_limit_not_unreachable`（红线判据，只许改锚不许丢牙）。
+   - **`R7`（诚实读数：`inconclusive`/`inconclusiveReason`/`SEARCH_INCOMPLETE`）搬出挖掘包** —— `plans §4.2`③ 逐字「**必须活下来**」＋「⚠️ 它描述的是**内核搜索配额**，放在挖掘包里是**错位**」；⚠️ 同刀必须重锚 `rule_search_limit_not_unreachable`（红线判据，只许改锚不许丢检查）。
    - **`R6`（掉落承接 `dropWouldBeLost`/`DROP_FALL_SEARCH`）独立出来** —— `plans §4.2`⑤ 逐字「⭐ **独立出来**」；⚠️ 同刀处置 `rule_support_and_cluster_order`。
 3. ⛔ **A①/A② 现在**<u>不能</u>**开工**（这是本轮的排序结论，不是排期结论）：两者的第一段都需要一个「**调用方声明的到达集约束**」载体，而**唯一已裁的载体**（`DS-19` 作业级声明 / `JobWriteDeclaration`）**造好了但没接线**（`N5`），且**没有排期位**（`D-476` `P2/A` 的顺序句里没有它）。
    ⇒ ⚠️ 若在 `MiningProfile` 上就地加档，就是**在 `D-500` §IV 判定为「过期」的能力白名单载体上继续加**（`plans §24.3` 逐字）⇒ **需要一句裁定**（先接线 `JobWriteDeclaration`，还是允许局部扩展 `MiningProfile` 并带回收条件）。
@@ -24770,14 +24770,14 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 | 1 | **新类** `pathing/core/search/SearchConclusion.java`（内核侧）—— 收纳 R7 三件：`inconclusive(PlanningStatus)` · `inconclusiveReason(PathPlan)` · `SEARCH_INCOMPLETE` |
 | 2 | `task/mining/MiningPlanner` **交出**这三个成员（原 javadoc 的"为什么必须收口成一处"整段**随件搬走**），本文件所有引用改 `SearchConclusion.*`；`PlanningStatus` 的 import 随之不再需要 |
 | 3 | `task/MiningSearchLimitHonestyCheckTask`（夹具）改引用新家（`SEARCH_INCOMPLETE` ×3 · `inconclusiveReason` ×8 ⇒ 现均 0） |
-| 4 | `tools/kernel-predicates.py` 的 `rule_search_limit_not_unreachable`：**关于 R7 的那半改锚**到新类（`plans §2.5` 逐字「**必须活下来**（**只改锚**）」）＋ **三颗新牙** |
+| 4 | `tools/kernel-predicates.py` 的 `rule_search_limit_not_unreachable`：**关于 R7 的那半改锚**到新类（`plans §2.5` 逐字「**必须活下来**（**只改锚**）」）＋ **三颗新检查** |
 
 ⚠️ **只搬不改语义**：判据、理由码**字面量**、成员名**逐字保留** ⇒ 行为**零变化**。
-⛔ **刻意不做**：不在 `MiningPlanner` 留"转发用的"同名薄方法（那会让"唯一出处"**名存实亡**）—— 并且**加了牙**专门挡它（§二 ③″）。
+⛔ **刻意不做**：不在 `MiningPlanner` 留"转发用的"同名薄方法（那会让"唯一出处"**名存实亡**）—— 并且**加了检查**专门挡它（§二 ③″）。
 
-### 二、门禁：重锚 ＋ **新牙三颗**（每颗都做过注入验证）
+### 二、门禁：重锚 ＋ **新检查③颗**（每颗都做过注入验证）
 
-| 牙 | 内容 | 注入验证（实测） |
+| 检查 | 内容 | 注入验证（实测） |
 |---|---|---|
 | **重锚**（①②③） | `inconclusive` 唯一谓词 / `inconclusiveReason` 唯一出处 / `SEARCH_INCOMPLETE` 字面量恰好 1 次 —— 三者**主语从 `MiningPlanner` 换成 `SearchConclusion`** | 把 `PARTIAL` 从谓词里删掉 ⇒ 精确报「`SearchConclusion.inconclusive` 少了 `PlanningStatus.PARTIAL`」 |
 | ⭐ **③′（新）** | **`MiningPlanner` 里 `"search_incomplete"` 字面量必须 0 次** —— 搬走之后**不许在原处复活** | 在原处注入 `private static final String LEAK = "search_incomplete";` ⇒ 精确报「又出现 1 次 ⇒『唯一出处』变成两处」 |
@@ -24786,13 +24786,13 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 ⚠️ **`plans §2.5` 预言的正是这件事**：「其中 4 条断言会**失去对象**，但**关于 R7 的那半必须活下来**（只改锚）」。
 ⭐ **另一处顺带加强**：`exactTopK` / `planGoalApproach` / 聚合闸门那三条位置化断言**原来是裸 `SEARCH_INCOMPLETE`／`inconclusiveReason(path)` 子串**，
 搬包后它们**仍会因"子串恰好还在"而报绿** ⇒ 已**逐条改成限定名**（`SearchConclusion.…`）—— 否则就是"指针真实存在 ≠ 指对了东西"。
-⚠️ **一个自我纠正**：新类的类 javadoc 里我原本写了带双引号的 `"search_incomplete"`，被**自己的新计数牙**当场判红（计数 2 而非 1）⇒ 改成反引号写法。**是门禁抓出来的，不是我复查出来的**。
+⚠️ **一个自我纠正**：新类的类 javadoc 里我原本写了带双引号的 `"search_incomplete"`，被**自己的新计数检查**当场判红（计数 2 而非 1）⇒ 改成反引号写法。**是门禁抓出来的，不是我复查出来的**。
 
 ### 三、判据（全部实跑）
 
 | 判据 | 读数 |
 |---|---|
-| `python3 tools/kernel-predicates.py` | **PASS**（`搜索受限≠没有=0`）· 三颗牙注入验证各自变红后**还原，两个 sha 逐字回到注入前**（`MiningPlanner` `d18493c07c58ac67` · `SearchConclusion` `4640f01541a673d9`） |
+| `python3 tools/kernel-predicates.py` | **PASS**（`搜索受限≠没有=0`）· 三项检查注入验证各自变红后**还原，两个 sha 逐字回到注入前**（`MiningPlanner` `d18493c07c58ac67` · `SearchConclusion` `4640f01541a673d9`） |
 | `./gradlew compileJava --no-daemon` | **BUILD SUCCESSFUL** |
 | `tools/check-all.sh` | **`pass=34 warning=1 failed=0`**（基线） |
 | `tools/headless-battery.sh core` | 见 §四 |
@@ -24814,7 +24814,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 
 ### 五、诚实边界
 
-- ⛔ **本刀不证明 R7 的判据更强** —— 它只证明"这三件搬到内核侧之后，牙还在，且多了两颗挡复活的"。判据本身**一个字没改**。
+- ⛔ **本刀不证明 R7 的判据更强** —— 它只证明"这三件搬到内核侧之后，检查还在，且多了两颗挡复活的"。判据本身**一个字没改**。
 - ⛔ **`SearchConclusion` 的层归属只有静态判据**（`check-layer-direction` 对它**无额外断言** —— 它不像 `reach/` 有"不许 import 上层"的专门检查；
   它靠的是"`pathing/` 谁都不依赖"这条既有约定 ⇒ ⚠️ 若将来它 import 了 `task/`，**今天的门禁不会红**）。
 - ⛔ **`MineJob` 那两个字面量仍是活的第二产地**（§四.4）—— 所以"唯一出处"这个说法**今天只在 `SearchConclusion` 内部成立**。
@@ -24846,13 +24846,13 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 **两段叠在常量上面**（⇒ 描述谓词的那段**没挂到任何成员**，是僵尸 javadoc）。搬入新类时把归属摆正
 （常量段贴常量、谓词段贴谓词）。⛔ 这不是改语义：两段文字**一个字没动**。
 
-### 二、门禁（`tools/kernel-predicates.py` · `rule_support_and_cluster_order` 断言①：改锚 + 加牙）
+### 二、门禁（`tools/kernel-predicates.py` · `rule_support_and_cluster_order` 断言①：改锚 + 加检查）
 
 **为什么必须动它**（不是"顺手"）：它原来断言 `MiningPlanner` 里有 `dropWouldBeLost(`。搬走之后
 **调用点里仍有这个子串** ⇒ 那条断言会**继续报绿** —— 与 `O20` ③ 同一族「假绿」（指针存在 ≠ 指对了东西）。
 ⇒ 判据一律改成**定义形状**＋剥注释（`//` 与 `/* … */`）。
 
-| 牙 | 判据 | 挡什么 | 注入验证（各 1 次） |
+| 检查 | 判据 | 挡什么 | 注入验证（各 1 次） |
 |---|---|---|---|
 | **①a** | 新家必须有**定义** `boolean dropWouldBeLost(`；且**四条语义分支**都在：`DROP_FALL_SEARCH` / `FluidTags.LAVA` / `getCollisionShape` / `hasChunkAt` | 搬走了但没落地；或落地时把某条语义**悄悄删掉**（含 `D-331` 的未加载区块守卫） | 5 次（谓词改名 + 4 条语义各删一条）⇒ 各自精确报红 |
 | **①b** | `MiningPlanner` **不许再定义** `boolean dropWouldBeLost(` / `boolean isSameColumn(`；**不许出现 `DROP_FALL_SEARCH`** | 在原处复活 · 留**转发壳** · 深度常量长出**第二处出处** | 3 次（两个转发壳 + 一个常量声明）⇒ 各自精确报红 |
@@ -24863,7 +24863,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 
 | 判据 | 读数 |
 |---|---|
-| 注入验证台（11 颗牙） | **11/11 按预期变红**，且两个文件 **sha 逐字还原**：`MiningPlanner` `bd91d2002f75fb20` · `DropCatchment` `4a29d23100d91258`（**注入前后一致**） |
+| 注入验证台（11 项检查） | **11/11 按预期变红**，且两个文件 **sha 逐字还原**：`MiningPlanner` `bd91d2002f75fb20` · `DropCatchment` `4a29d23100d91258`（**注入前后一致**） |
 | `python3 tools/kernel-predicates.py` | **PASS**（`垫方块与簇顺序=0`） |
 | `./gradlew compileJava --no-daemon` | 绿（`2 个警告` = `ResourceLocation(String,String)` 过时，两处都在 `FishboneJob.java:152` / `MineMenuCheckTask.java:294` —— **改动前就有，与本刀无关**） |
 | `tools/check-all.sh` | **`pass=34 warning=1 failed=0`**（`warning=1` = `check-headless-battery` 本轮未执行；基线） |
@@ -24898,7 +24898,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 
 - ⛔ **本刀不证明判据更强 / 更对**：`dropWouldBeLost` 与 `isSameColumn` **代码体一字未改**，行为**零变化** ⇒
   ⛔ **没有客户端可观察行为变化**（本轮**不需要**客户端测试；jar 也**未同步**，因为没有可测的东西）。
-- ⛔ **11/11 只证明"牙会红"**，不证明"牙覆盖全"：`①c` 只挡"整条调用被删"，**挡不住**「调用点被改成 `DropCatchment.dropWouldBeLost(level, target) && false`」这类**同义弱化**
+- ⛔ **11/11 只证明"检查会红"**，不证明"检查覆盖全"：`①c` 只挡"整条调用被删"，**挡不住**「调用点被改成 `DropCatchment.dropWouldBeLost(level, target) && false`」这类**同义弱化**
   （那需要行为判据，不是静态门禁 —— 归 `D-430` 的内核关门线管）。
 - ⚠️ **`①a` 的四条语义是"关键子串存在"级判据**，不是语义等价判据：把 `getCollisionShape` 换成另一种"面"查询它**看不出来**
   （同 `check-frozen-code` 的自我声明："不判语义等价"）。
@@ -24956,7 +24956,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 ### 六、诚实边界
 
 - ⛔ 本条目**不证明**那 4 刀可行：**未编译、未试搬**，是**建议**；真正开工时以现场为准。
-- ⛔ `①-1`/`①-2` 要改的 4 条门禁**只核对了锚点形状，没做过注入验证**（与 `D-524`/`D-525` 不同：那两刀的牙都验过）。
+- ⛔ `①-1`/`①-2` 要改的 4 条门禁**只核对了锚点形状，没做过注入验证**（与 `D-524`/`D-525` 不同：那两刀的检查都验过）。
 - ⛔ §二 ④/⑤ **只登记不处置**；"要不要给 `code_ref` 行号加判据"属于**新规则**（`AGENTS.md` 准入尺子第 1 问），须用户显式同意。
 - ⚠️ 本件**不覆盖**「簇挖掘 step / 有界循环器」那一批（`D-519` 已把它们移出改革 ① 主体）。
 - 📌 **指针**：侦察件 = `docs/reviews/2026-09-29-①选-解体-开工前侦察.md` · 断点 = `HANDOVER.md` 断点二十三 · 台账 = `O22`。
@@ -24979,17 +24979,17 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 | 3 | `task/mining/MiningPlanner`：**4 处**（2 处公开形参 + `planDirect`/`selectBest` 两个私有形参）+ 1 处常量引用 + javadoc `@param` | 19 行改动 |
 | 4 | `task/FishboneSlice2CheckTask`（夹具）：2 处取值 + import | 5 行改动 |
 | 5 | `reach/MiningPlan`：① javadoc 里的旧限定名 → `{@link ApproachCapability#PLACEMENT_ALLOWED}`；② 那条"刻意不叫 `Approach`"的理由**已不成立**（旧嵌套枚举没了）⇒ **只加指针、原文不改** | 8 行改动 |
-| 6 | 门禁 `rule_search_limit_not_unreachable`：**改锚** ＋ **5 颗牙**（§二） | 49 行改动 |
+| 6 | 门禁 `rule_search_limit_not_unreachable`：**改锚** ＋ **5 项检查**（§二） | 49 行改动 |
 
 **总计**：5 个文件改动（94 插入 / 35 删除）＋ 1 个新文件。
 
-### 二、⭐ 门禁：改锚 ＋ 5 颗牙（全部做过注入验证）
+### 二、⭐ 门禁：改锚 ＋ 5 项检查（全部做过注入验证）
 
 **为什么必须动它**：该规则有一条**位置化**锚点 = 聚合入口的完整签名，**逐字**包含
 `MiningProfile.Approach approach, String requester) {` ⇒ 类型一改，它会**响亮地**报"结构变了"（预期行为，不是回归）。
 这正是 `O20` ⑥ 记的「件② 每次搬空都会同时碰到内核侧门禁」。
 
-| 牙 | 判据 | 挡什么 | 注入验证 |
+| 检查 | 判据 | 挡什么 | 注入验证 |
 |---|---|---|---|
 | **重锚** | 聚合入口签名改成 `ApproachCapability approach, String requester) {` | 锚点过期后**静默失配**（旧串不在了，谁也不会发现规则变成了空转） | 注入"把形参类型改回旧名" ⇒ 精确报「找不到聚合入口 …（结构变了 ⇒ 规则要跟着改）」 |
 | **①** | 新家必须**真的定义** `public enum ApproachCapability` | 搬走了没落地 / 被删 | 改名注入 ⇒ 精确报红 |
@@ -24998,17 +24998,17 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 | **④** | **全仓**生产代码不许再出现旧的限定名 `MiningProfile.Approach` | 只改一半（留一处旧类型引用 ⇒ 编译过、但那是一份**第二处**接近能力） | 把夹具一处改回旧名 ⇒ 精确报红并**点名文件** |
 
 **⚠️ 一条自我验证的细节（值得记）**：本刀自己的退役说明里就写着 `public enum Approach { … }`（在 `/* */` 块注释里）
-⇒ 如果那颗牙按**裸文本**判，它会**假红**。⇒ 判据改成**先剥注释**（`//` 与 `/* … */`）再判，
-跑绿本身就是"剥注释生效"的证据。⚠️ 而这条陷阱与 `D-524` 的自我纠正（新类 javadoc 里的字面量被计数牙抓）**方向相反**：
+⇒ 如果那项检查按**裸文本**判，它会**假红**。⇒ 判据改成**先剥注释**（`//` 与 `/* … */`）再判，
+跑绿本身就是"剥注释生效"的证据。⚠️ 而这条陷阱与 `D-524` 的自我纠正（新类 javadoc 里的字面量被计数检查抓）**方向相反**：
 那次是**该剥未剥**、这次是**剥了才对** —— 两者都指向同一条纪律：**判据的主语必须是"代码"，不是"文本"**。
 
 ### 三、判据
 
 | 判据 | 读数 |
 |---|---|
-| 注入台（5 颗牙） | **5/5 按预期变红**，四个文件 **sha 逐字还原**（`ApproachCapability` `27b186a9271d8e71` · `MiningProfile` `ed9345764535d436` · `MiningPlanner` `428243e865ca3b25` · `FishboneSlice2CheckTask` `01ca2ea25141e4a5`） |
+| 注入台（5 项检查） | **5/5 按预期变红**，四个文件 **sha 逐字还原**（`ApproachCapability` `27b186a9271d8e71` · `MiningProfile` `ed9345764535d436` · `MiningPlanner` `428243e865ca3b25` · `FishboneSlice2CheckTask` `01ca2ea25141e4a5`） |
 | `./gradlew compileJava --no-daemon` | **BUILD SUCCESSFUL**（⚠️ 中途先红了 **2 处**：`planDirect` / `selectBest` 的私有形参也该换 —— **是编译器抓的**，不是我复查出来的，已如实记） |
-| `python3 tools/kernel-predicates.py` | **PASS**（`搜索受限≠没有=0`）；耗时 **0.93 s → 1.39 s**（新增的"全仓扫旧限定名"那颗牙要走 522 个 `.java`） |
+| `python3 tools/kernel-predicates.py` | **PASS**（`搜索受限≠没有=0`）；耗时 **0.93 s → 1.39 s**（新增的"全仓扫旧限定名"那项检查要走 522 个 `.java`） |
 | `tools/check-all.sh` | **`pass=34 warning=1 failed=0`** |
 | `tools/headless-battery.sh core` | **`verdict=PASS`**（`exit=0`）· 指纹 **`1b263fe5db6d`** · 耗时 **250 s** · 30 步 `SUMMARY` 全 `PASS`；⚠️ **不是缓存命中**（脚本报"缓存指纹=`b17dba5fdc70` ⇒ 真跑"，那个是 `D-525` 那轮的指纹） |
 | `check-layer-direction` | **PASS**（`reach/` **7 → 8 文件** · 反向依赖 0 · 红臂 14/14） |
@@ -25035,7 +25035,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
   ⚠️ 因此**没有客户端可观察变化**，本轮**不需要**客户端测试，jar **未同步**（没有可测的东西）。电池 PASS 是"没碰坏"的证据，不是"改对了"的证据。
 - ⛔ **`docs/` 里仍有 11 处历史提及 `MiningProfile.Approach` 未改**（`OPEN_ITEMS_LEDGER` 1 · 三份 `reviews` 5 · `HANDOVER` 2 · `AI_DECISIONS` 3）
   —— 那是**历史记录**（当时它确实住那儿），按"原文不改、只加指针"的纪律保留；⚠️ **别把它们读成今天的结构**。
-- ⚠️ **新增门禁耗时 +0.46 s**（0.93 → 1.39 s）：那颗"全仓扫旧限定名"的牙是**唯一**需要遍历 522 个文件的新判据；
+- ⚠️ **新增门禁耗时 +0.46 s**（0.93 → 1.39 s）：那颗"全仓扫旧限定名"的检查是**唯一**需要遍历 522 个文件的新判据；
   ⚠️ 若将来门禁总时长成为问题，第一个该被讨论的就是它（可改成只扫已知的 5 个文件 —— 代价是**漏掉"新文件里长出的第二处"**）。
 - ⚠️ **`①-0` 只解决了 3 处上层依赖里的 1 处**：`action.BlockInteraction.findPlaceableSlot`（`MiningPlanner:222`）与
   `MiningBudget`（`MiningBudget.java:3` 自己 import `action`）**仍在** ⇒ 现在**还不能**把「选」搬进 `reach/`。
@@ -25057,7 +25057,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 | 2 | `task/mining/MiningPlanner`：交出这四个成员（**留退役说明指针**）；4 处生产引用改**限定名**；一处失效的 `{@link #ADJACENT_NO_REACHABLE}` 改成 `{@link StandingPointRefusal#…}` | 53 行改动 |
 | 3 | ⭐ `job/fishbone/FishboneJob`：`import task.mining.MiningPlanner` → `import reach.StandingPointRefusal`（`isStandingPointRefusal` 调用点 + javadoc `{@link}` 一起换） ⇒ **作业层不再认识那个挖掘规划器** | 6 行改动 |
 | 4 | `task/FishboneSlice2CheckTask`（夹具）：1 处引用 + import | 3 行改动 |
-| 5 | 门禁 `rule_search_limit_not_unreachable`：**改锚** ＋ **7 颗牙**（§三） | 69 行改动 |
+| 5 | 门禁 `rule_search_limit_not_unreachable`：**改锚** ＋ **7 项检查**（§三） | 69 行改动 |
 
 **总计**：4 个文件改动（90 插入 / 41 删除）＋ 1 个新文件。
 
@@ -25074,9 +25074,9 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 ⇒ **不改锚，这条断言会继续报绿**（与 `D-524` 的位置化断言、`D-525` 的 `dropWouldBeLost(` 是同一族）。
 ⇒ 修法：锚点改成**限定名**（`StandingPointRefusal\.STANDING_NO_REACHABLE`），并**删掉**裸字面量那个分支（字面量从此只许出现在新家）。
 
-### 三、门禁的 7 颗牙（全部做过注入验证）
+### 三、门禁的 7 项检查（全部做过注入验证）
 
-| 牙 | 判据 | 挡什么 | 注入验证 |
+| 检查 | 判据 | 挡什么 | 注入验证 |
 |---|---|---|---|
 | **重锚** | `standableOnly` 早返回必须写 **`StandingPointRefusal.STANDING_NO_REACHABLE`** | 锚点过期后**静默失配** | 改回裸常量名 ⇒ 精确报「结构变了 ⇒ 规则要跟着改」 |
 | **①** | 新家必须**逐字**声明三个码（**名字 + 字面量**都要对） | 归因串被改过（作业侧/夹具按**字符串**比对 ⇒ 等于换了一套码）；顺手删一个码 | 两次注入（改 `STANDING_NO_VALID` 的字面量 / 改 `ADJACENT` 的字面量）⇒ 各自精确报红 |
@@ -25093,7 +25093,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 
 | 判据 | 读数 |
 |---|---|
-| 注入台（7 颗牙） | **7/7 按预期变红** ＋ 两个文件 **sha 逐字还原**（`StandingPointRefusal` `823d88a8263317eb` · `MiningPlanner` `4e7fe448b1e6496c`） |
+| 注入台（7 项检查） | **7/7 按预期变红** ＋ 两个文件 **sha 逐字还原**（`StandingPointRefusal` `823d88a8263317eb` · `MiningPlanner` `4e7fe448b1e6496c`） |
 | `./gradlew compileJava --no-daemon` | **BUILD SUCCESSFUL**（**一次过** —— 与 `D-527` 不同，那次是先红了 2 处才补齐） |
 | `python3 tools/kernel-predicates.py` | **PASS**（`搜索受限≠没有=0`） |
 | `tools/check-all.sh` | **`pass=34 warning=1 failed=0`** |
@@ -25116,7 +25116,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
   `StandingPointRefusal.STANDING_NO_VALID`（**有重复感**）。⚠️ 把它改名（如 `NO_VALID`）是**另一刀**：
   锚在名字上的门禁会**静默失效**（`survey/42 §3.3`），不该混进搬家刀 —— 本刀**刻意不动**它。
 - ⚠️ **`ADJACENT_NO_REACHABLE` 到今天仍然没有生产消费者**（只有日志与夹具的字面量断言）——
-  本刀**只是**把它搬了个家并**加了牙**钉住"不许顺手并进谓词"，⛔ **没有**给它找消费者（那不是本刀的范围）。
+  本刀**只是**把它搬了个家并**加了检查**钉住"不许顺手并进谓词"，⛔ **没有**给它找消费者（那不是本刀的范围）。
 - 📌 **指针**：断点 = `HANDOVER.md` 断点二十五 · 台账 = `O24` · 门禁 = `tools/kernel-predicates.py` 的 `rule_search_limit_not_unreachable`（`D-528` 那半）。
 
 ## D-529：改革 ① 主体 **`①-2a`** —— 结果载体 `Result` 从 `MiningPlanner` 提出来落 `reach/StandingPlanResult`（2026-09-29，接 `D-528`）
@@ -25135,16 +25135,16 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
   **实测不会**：本刀**不改 `MiningPlanner` 的类名**（解体的是它肚子里的件），`PlanRefinedCostProvider` 里
   `new MiningPlanner()` ＋ `.plan(` 照旧出现 ⇒ 那条规则**不需要改锚**。
 - 门禁：`rule_search_limit_not_unreachable` **4 处锚点失配并改锚**（`exactTopK` / `planGoalApproach` 的签名、
-  `standableOnly` 早返回里的 `new Result(`、聚合入口的返回值类型）＋ **新增 6 颗牙**：
+  `standableOnly` 早返回里的 `new Result(`、聚合入口的返回值类型）＋ **新增 6 项检查**：
   ① 新家必须在且是 `record`；② 三个组件**逐字**（含顺序）；③ `success()` 判据仍是 `plan != null`
   （⛔ 不许改成看 `failureReason` 空不空 —— 成功时它就是空串）；④ `MiningPlanner` 不许回原地再声明 `record Result(`；
   ⑤ 全仓生产代码不许再出现旧限定名；⑥ **反向**：生产点必须还在（`new StandingPlanResult(`）。
   ⚠️ 判据一律**剥块注释** —— 本刀自己的退役说明逐字写着 `record Result(`，不剥会**假红**（`D-527`/`D-528` 同一条教训，第三次）。
-- ⚠️ 顺带保住 **3 条会变成"死牙"的断言**：`rule_arrival_declared_and_consumed` ③ 的
+- ⚠️ 顺带保住 **3 条会变成"死检查"的断言**：`rule_arrival_declared_and_consumed` ③ 的
   `private Result selectBestApproach(` / `private Result planTunnel(` / `private Result planEnterTarget(` ——
   类型改名后这三个串**结构上永远匹配不到**（= 假绿）⇒ 同刀换成当前类型名。
 - 判据：`compileJava` 绿 · `check-all` **`pass=34 warning=1 failed=0`** · 注入验证 **13/13 变红**
-  （6 颗新牙 ＋ 5 条改锚锚点 ＋ 2 条死牙复核），sha256 逐字还原。
+  （6 颗新检查 ＋ 5 条改锚锚点 ＋ 2 条死检查复核），sha256 逐字还原。
 - ⛔ **本刀不是行为改动**（纯类型搬迁 ⇒ 行为夹具结构性无感，`D-425` 口径）；电池与 `D-530` 同轮（见下）。
 - 📌 指针：门禁 = `tools/kernel-predicates.py` 的 `rule_search_limit_not_unreachable`（`①-2a` 那段）·
   注入台 = `/tmp/inject-d529-teeth.py`（会话内临时件，非入库物）。
@@ -25177,14 +25177,14 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
   |---|---|---|
   | `rule_support_and_cluster_order` | ①b 扫描面 → **两个文件**；①c 由「调用点必须在 `MiningPlanner`」改成「**必须在 `StandingPlanSelector`**」；①d 扫描面 → **三个文件**；`DROP_FALL_SEARCH` 判据加词边界 | A 腿换家 ⇒ 旧锚点对新家是**盲的**。⚠️ ①c 刻意**不**写成"两个文件里随便哪个有就行"—— 那会让"搬走之后再没人问它"重新变绿 |
   | `rule_arrival_declared_and_consumed` | ① 的"生产点"从单文件改成**穷举的生产者集合**（`MiningPlanner` ＋ `StandingPlanSelector`，任一文件缺失即红）；③ 死形状扫描面 → 两个文件 | `IN_PLACE` 与两个 `DIRECT_*` 随 `selectDirect`/`selectBest` 搬走，只剩 `MINING_APPROACH` 留在老文件 |
-  | `rule_search_limit_not_unreachable` | A 腿 `exactTopK` 与 `planDirect` 结尾这两条判据改锚到新家；**加**一颗"原处不许留 `exactTopK` 转发壳"的牙 | 同上 —— `P1-b`/`P1-d` 的**不变量一字未变**，只换主语 |
+  | `rule_search_limit_not_unreachable` | A 腿 `exactTopK` 与 `planDirect` 结尾这两条判据改锚到新家；**加**一颗"原处不许留 `exactTopK` 转发壳"的检查 | 同上 —— `P1-b`/`P1-d` 的**不变量一字未变**，只换主语 |
   ⚠️ `rule_cost_includes_break` **未改**（理由见 `D-529`）。
 - ⭐⭐ **注入验证抓到的两处"假绿"（本刀最重要的副产品，都不是我复查出来的）**：
-  1. **牙咬裸子串**：`rule_arrival_declared_and_consumed` ① 原本是 `f"Arrival.{name}" in code` ⇒
-     `Arrival.DIRECT_PURE_PASSAGEX` **仍然包含** `Arrival.DIRECT_PURE_PASSAGE` ⇒ 那颗牙照旧报绿。
+  1. **检查咬裸子串**：`rule_arrival_declared_and_consumed` ① 原本是 `f"Arrival.{name}" in code` ⇒
+     `Arrival.DIRECT_PURE_PASSAGEX` **仍然包含** `Arrival.DIRECT_PURE_PASSAGE` ⇒ 那项检查照旧报绿。
      修法 = `re.search(rf"\bArrival\.{name}\b", code)`（`\b` 在 `_` 前不成立 ⇒ `…PASSAGE_2` 同样照咬）。
      **同一族第 4 例**（前三 = `D-524` 位置化断言 · `D-525` `dropWouldBeLost(` · `D-528` `STANDING_NO_REACHABLE`）。
-  2. **牙带死了修饰符**：③ 的死形状清单写的是 `private Result selectBestApproach(`（`D-520` 时 `MiningPlanner` 是**实例**类）——
+  2. **检查带死了修饰符**：③ 的死形状清单写的是 `private Result selectBestApproach(`（`D-520` 时 `MiningPlanner` 是**实例**类）——
      而新家是**静态工具类** ⇒ 形状若在新家复活，最可能写成 `private static StandingPlanResult selectBestApproach(` ⇒ 旧串**咬不到**（假绿）。
      修法 = 只留结构性部分：`MAX_APPROACH_PLANS` / `selectBestApproach(` / `planTunnel(` / `planEnterTarget(`。
   ⇒ 这两处是注进"**必须变红**"的探针时暴露的：**注入台的价值在本刀得到实证**（第一轮 7/14，修完后 14/14）。
@@ -25465,7 +25465,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 
 **状态：**生效**（2026-09-29 用户逐字「我同意你的推荐方案」⇒ 甲/甲/甲 全部采纳）**
 
-**标题**：整改期终点（**批次 1 关门线**）＋ 四条牙排期（**同刀义务**）＋ 预期红清单 —— 对 `survey/48` 的处置
+**标题**：整改期终点（**批次 1 关门线**）＋ 四条检查排期（**同刀义务**）＋ 预期红清单 —— 对 `survey/48` 的处置
 
 ### 一 · 起因
 
@@ -25482,29 +25482,29 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 |---|---|---|
 | **A · 结构** | `compileJava` 绿 ＋ `check-all failed=0` ＋ **Baritone 对照（`文件:行`）覆盖率 100%**（`D-532` §八 裁定 2 已定此口径） |
 | **B · 退役** | 退休集在 `src/` **零残留** —— 新门禁断言 5 个 `Standing*` 类名 ＋ `TUNNEL`/`ENTER_TARGET` **0 命中**（2026-09-29 实测基线 = 2/15/5/5/13 文件 ＋ **44** 处命中 ⇒ 判据**今天就能红**）；⚠️ **与 `1-3` 同刀落地**（那一刀正是删这 5 个类的刀） |
-| **C′ · 债** | **清账率 100%** ＋ **§5 四条牙「已排期且有主」**（⚠️ 原提案是四条牙**落地** ⇒ **改写**：牙的建成挂批次 3/2，若要求「落地」则批次 1 **永远关不了门**） |
+| **C′ · 债** | **清账率 100%** ＋ **§5 四条检查「已排期且有主」**（⚠️ 原提案是四条检查**落地** ⇒ **改写**：检查的建成挂批次 3/2，若要求「落地」则批次 1 **永远关不了门**） |
 
 > 📌 **2026-09-29 `1-3` 落地时的口径更正（只加指针，上文原文不改）**：§二 **B** 的第一半
 > 「5 个 `Standing*` 类名 0 命中」**按文件删做不到**（开工前只读侦察：其中 **3 个有活生产消费者** ——
 > `StandingPlanSelector` = 新框架自己的 **A 腿**、`StandingPointSelector` = 触及/站位几何原语、
 > `StandingCostEstimator` = 作业级选择成本底座）⇒ 判据**改锚成成员级清单**，落地为
 > `tools/kernel-predicates.py` 的**新规则** `rule_standing_retirement_no_residue`
-> （退役名 4 个 ＋ 退役成员 3 类 ＋ 回归护栏 ＋ 新家在场/反空转牙；三条注入臂实测都会红）。
+> （退役名 4 个 ＋ 退役成员 3 类 ＋ 回归护栏 ＋ 新家在场/反空转检查；三条注入臂实测都会红）。
 > B 的第二半「`TUNNEL`/`ENTER_TARGET` 0 命中」**今天代码面就已经是 0** ⇒ 它在门禁里的角色明确为
 > **回归护栏**，⛔ 不是"退役进度"读数。§三 那句「删那 5 个 `Standing*` **文件**」同此更正
 > （实际是**搬家 ＋ 成员级退役**）；交付实况与移出项见设计单 `§14.5` 与台账 `O44`/`O45`/`O46`。
 
-### 三 · 四条牙的排期 = **同刀义务**（⛔ 不提前建牙）
+### 三 · 四条检查的排期 = **同刀义务**（⛔ 不提前建检查）
 
-- **不提前**建四牙；改为**同刀义务**：`1-3` 删那 5 个 `Standing*` 文件时，**同一刀内**改写指向
-  **被删符号**的引用 —— 真正会腐烂的只是这一部分；⚠️ 提前建牙＝解冻 `D-532` 已冻结的主线。
-- 牙的**建成**仍挂批次 3（牙三 `code_ref` 去行号原挂**批次 2**）。
-- ⚠️ **牙四落地时必须钉 `reference/baritone-1.20.1` 那棵树**：`tools/ref-integrity.py` 的 `_baritone_roots()`
+- **不提前**建四检查；改为**同刀义务**：`1-3` 删那 5 个 `Standing*` 文件时，**同一刀内**改写指向
+  **被删符号**的引用 —— 真正会腐烂的只是这一部分；⚠️ 提前建检查＝解冻 `D-532` 已冻结的主线。
+- 检查的**建成**仍挂批次 3（检查③ `code_ref` 去行号原挂**批次 2**）。
+- ⚠️ **检查④落地时必须钉 `reference/baritone-1.20.1` 那棵树**：`tools/ref-integrity.py` 的 `_baritone_roots()`
   会 glob **两棵树**（2026-09-29 实测：`MovementHelper.java` = **863** 行 / 另一棵 = **869** 行，Alice = **597** 行）
   ⇒ 不钉就会把**那棵不可用的**（另一 MC 版本）算进「同名候选最大行数」。
-- ⚠️ 牙一（决策「状态」字段）／牙二（`superseded_by`）＝ `survey/48` **新提、未拍**，挂批次 3 讨论。
+- ⚠️ 检查①（决策「状态」字段）／检查②（`superseded_by`）＝ `survey/48` **新提、未拍**，挂批次 3 讨论。
 
-### 四 · 新牙：**预期红清单**（`survey/48` §6.4 的缺口，采纳）
+### 四 · 新检查：**预期红清单**（`survey/48` §6.4 的缺口，采纳）
 
 - `D-532` §三 允许「计划内红」，但**「红的步与摘掉的功能一一对应」今天没有载体**（2026-09-29 实测：全仓无此物）
   ⇒ 做成**文件**（预期红的步 ＋ 理由 ＋ 对应哪一刀）＋ 门禁断言「**实际红 ⊆ 预期红清单**」。
@@ -25517,7 +25517,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 - §3「现在**不要**增加新设计」⇒ 采纳为**自律判据**：新增设计文档必须能回答
   「**它替代了哪一份 / 它让哪一条能被删**」，回答不了 ⇒ 先不写（记进断点一句话）。
 - ⚠️ 该判据**对 `survey/48` 自身成立**：它 §5.1/§5.2 就是**新提两条设计** ⇒ 用它的尺子反问
-  「牙一替代了哪一份？」答案是「**不替代**」⇒ 这也是牙一/牙二只挂讨论、不随本裁定落地的一个理由。
+  「检查①替代了哪一份？」答案是「**不替代**」⇒ 这也是检查①/检查②只挂讨论、不随本裁定落地的一个理由。
 
 ### 六 · ⚠️ 未决（用户 2026-09-29 明确点名）
 
@@ -25540,8 +25540,8 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 - 它把用户逐字「**后期对架构只做维护**」从**愿望**变成**流程**；`survey/48` §1.1 的病根正是
   "**每来一类目标都改内核**"（站位枚举被改无数次，因为**没有一处**说得出它该长什么样）。
 - ⚠️ **诚实边界（当场点出）**：这一条闸门的**两半强度不同** ——
-  **①「改内核必须过 A③」已有牙**（`tools/check-baritone-anchor.py`，`D-532` §八 裁定 2 的载体）；
-  **②「新功能必须落在内核路径之外」今天只有散文、没有牙** ⇒ 登记为**待补牙**，归属 **4a**
+  **①「改内核必须过 A③」已有检查**（`tools/check-baritone-anchor.py`，`D-532` §八 裁定 2 的载体）；
+  **②「新功能必须落在内核路径之外」今天只有散文、没有检查** ⇒ 登记为**待补检查**，归属 **4a**
   （与 job 契约一起定"执行器 / step 的扩展点"）。⛔ 别把这一条读成"已经有完整闸门"。
 
 ### 二 · 批次 4 拆成 **4a / 4b**（4a 提前）
@@ -25579,12 +25579,12 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 
 - `D-532` §九 的批次序、冻结清单、`D-430` 的恢复时机**均不改**（本裁定只动 §九 里的"批次 4"一格）。
 
-## D-535：批次 1 `1-4`（`R1` 收口）—— 三处 `mode=` 诚实化 ＋ 预期红清单**牙已建** ＋ 三条去留裁定
+## D-535：批次 1 `1-4`（`R1` 收口）—— 三处 `mode=` 诚实化 ＋ 预期红清单**检查已建** ＋ 三条去留裁定
 
 - 状态：**已实施**（`D-532` §九 批次 1 的 `1-4` 刀；用户 2026-09-29 裁 `O47` = **甲**：
   「两个红写进预期红清单 ＋ K2 窒息在 `1-4` 修」）
 - 出处：施工设计单 `§7 戊`（4 项）· 侦察件 `docs/reviews/2026-09-29-①选-解体-开工前侦察.md` §5.2 · 台账 `O47`/`O50`
-- 提交：`61a52b1e`（`src/` 诚实化）＋ 本批文档/工具（预期红清单牙 ＋ 矩阵重写 ＋ 对照登记）
+- 提交：`61a52b1e`（`src/` 诚实化）＋ 本批文档/工具（预期红清单检查 ＋ 矩阵重写 ＋ 对照登记）
 
 ### 一 · `mode=` 是说谎标签 —— 实测**三处**（设计单只点名一处）
 
@@ -25635,12 +25635,12 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
   ⇒ 退化成"**靠人记得**"，与 `D-532` §1b 的判据**相反**。
 - ⭐ **单一出处已成立**：生产者只有 `FluidRiskPolicy.miningRefusal` 一处；消费它的硬拒码
   （`fluid_risk_lava` / `fluid_risk_water`）由 `MineTask.isHardTargetRefusal` 认。
-- ⚠️ **未加牙**（诚实登记）：顺序（"先于任何规划"）今天**没有机器判据**，只有代码位置与注释
-  ⇒ 归 **4a**（与"执行器 / step 的扩展点"一起定），⛔ 不假装它已经有牙。
+- ⚠️ **未加检查**（诚实登记）：顺序（"先于任何规划"）今天**没有机器判据**，只有代码位置与注释
+  ⇒ 归 **4a**（与"执行器 / step 的扩展点"一起定），⛔ 不假装它已经有检查。
 
-### 五 · ⭐ 预期红清单的**牙已建**（横切闸门② 第一次有载体）
+### 五 · ⭐ 预期红清单的**检查已建**（横切闸门② 第一次有载体）
 
-- 载体 = `docs/EXPECTED_REDS.md`（步 ＋ 读数 ＋ **归属刀** ＋ 复核触发）；牙 = `tools/check-expected-reds.py`
+- 载体 = `docs/EXPECTED_REDS.md`（步 ＋ 读数 ＋ **归属刀** ＋ 复核触发）；检查 = `tools/check-expected-reds.py`
   （挂进 `tools/check-all.sh`，与电池**同条件**：`ALICE_HEADLESS=1` 才跑 ⇒ **默认路径的 36 项不变**）。
 - 判据：**PASS** = 日志**新于** `src/main/java` 最近改动 且 `实际红 ⊆ 清单` 且无陈旧行；
   **WARN(2)** = 断言未执行（无日志 / 整轮中止无 `SUMMARY` / 日志陈旧 / 清单里的步本轮 `SKIP`）；
@@ -25651,15 +25651,15 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
   已单独重跑，如实登记 —— 同一族"**测量期间输入没被隔离**"）。
 - ⛔ **本门禁不判"这个红该不该存在"**（机器只判集合是否相等）；理由站不站得住仍要人核。
 
-### 六 · ⭐⭐ 新牙的**真数据验证**（`1-4` 起手那轮：为验证新牙而跑，⛔ 不是恢复 `D-430`）
+### 六 · ⭐⭐ 新检查的**真数据验证**（`1-4` 起手那轮：为验证新检查而跑，⛔ 不是恢复 `D-430`）
 
 - `ALICE_HEADLESS=1 bash tools/check-all.sh` ⇒ `run/headless-logs/20260929-204340-core.log`：
   `verdict=FAIL exit=1`（**⛔ 不是 `no_verdict`**）· `PROFILE=CORE` · **45 步** · `passed=43/45 skipped=0`
   ⇒ ⭐ **横切闸门①（电池必须能产生判决）第一次成立** —— `O47` ② 的整轮中止**已消失**。
-- ⭐ **新牙第一次跑就抓到一条未登记的红**：`survival_exit=FAIL`
+- ⭐ **新检查第一次跑就抓到一条未登记的红**：`survival_exit=FAIL`
   （`场景自建生效：竖坑所在的实心石块（fill 改动方块数 128，期望 ≥ 990）`· `checks=126 failures=1`）。
   ⚠️ **它此前被两层掩盖**：14:44 那轮恰好区块已生成（同一 WARN **0 次**）· `O47` 那轮第 23/45 步就中止
-  ⇒ **根本没跑到第 42 步**。⇒ 这正是"**没有载体 ⇒ 新红被老红的预期盖掉**"的实例，也正是本牙存在的理由。
+  ⇒ **根本没跑到第 42 步**。⇒ 这正是"**没有载体 ⇒ 新红被老红的预期盖掉**"的实例，也正是本检查存在的理由。
 - ⭐⭐ **归因（证据）**：**⛔ 不是任何批次 1 刀引入**，而是夹具旧假设在**超平坦世界母本**上不成立 ——
   「传送加载」只加载**中心附近**（玩家 ticket 半径），大方块四角仍未生成，`/fill` 在未生成区块里**静默少改**。
   ⇒ **同一个根因两种形态**：K2 段 `4100` 窒息中止（已修）· `survival_exit` premise 假红（本条）——
@@ -25667,7 +25667,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 - ⭐ **`mine_regression` 的机制第二次独立复现**（数值不同、机制同）：本轮 `cost=16.14 budget=9.38
   target=56,64,158`（`O47` 那轮 `10.81/9.38`）⇒ **数值不是基线、机制才是**（"新同列腿给得出方案但超预算"）。
 - ⇒ 两个红已各有主（`docs/EXPECTED_REDS.md` 两行）⇒ 门禁 **PASS**（`实际红 ⊆ 清单`）。
-- ⛔ **本轮的边界**：它是**为验证新牙**而跑的，⛔ **不是**恢复 `D-430`；电池与客户端仍按 `D-532` §九 冻结。
+- ⛔ **本轮的边界**：它是**为验证新检查**而跑的，⛔ **不是**恢复 `D-430`；电池与客户端仍按 `D-532` §九 冻结。
 
 ## D-536：`check-all` 的**判定合成** —— 「电池有判决但红全在清单里」不是未预期的失败
 
@@ -25700,7 +25700,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 
 - ⛔ **不是**"电池绿了"：红**还在**（`verdict=FAIL`），只是每一个都有主。汇总行**逐字印出这句话**。
 - ⛔ **不是**恢复 `D-430`：它只影响 `check-all` 怎么读电池结果；"内核加东西要不要实测"仍按 `D-532` §八 裁定 2。
-- ⛔ **不覆盖**清单里的红**该不该存在** —— 那是人的判断（`D-535` §五 已写明本牙不判内容）。
+- ⛔ **不覆盖**清单里的红**该不该存在** —— 那是人的判断（`D-535` §五 已写明本检查不判内容）。
 - ⚠️ **AI 裁定的部分如实标注**：这是本刀为让批次 1 可关门而做的**工程裁定**；用户可一句话否决
   （否决 ⇒ 回到"电池红 ⇒ `check-all` 红"，那时 `D-532` §六 需要改成"未登记失败>0"的文字口径）。
 
@@ -25729,7 +25729,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
   `if re.search(r"\bMiningPlan\.Mode\b", …)`。
   ⚠️ **平凡的全局改名抓不到它** —— 模式串里 `\b` 的**下一个字符是字面量 `b`**（word 字符）
   ⇒ `\bMiningPlan\b` 的词边界在 `b|M` 之间**不成立** ⇒ 机械替换**漏过**。
-  漏过的后果**不是报错**，而是**那颗牙静默失效**：以后有人把 `Mode` 加回 `ReachPlan`，门禁**照样绿**。
+  漏过的后果**不是报错**，而是**那项检查静默失效**：以后有人把 `Mode` 加回 `ReachPlan`，门禁**照样绿**。
 - **它是怎么被发现的（这才是可复用的部分）**：不是靠"小心"，是靠**两道独立检查** ——
   ① 改完后再做一次**普通子串** grep（`grep -rn 'MiningPlan' tools/ src/ | grep -v MiningPlanner`），
   ⛔ **不用 `\b` 形态**（`\b` 恰好会漏掉转义/正则字面量里的名字，正是本例）；
@@ -25762,16 +25762,16 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 
 ---
 
-## D-538：`4a` 第一件 —— **流体前置的牙**（顺序 ＋ 拒码同源），`D-535` §四 那条「没有机器判据」闭合
+## D-538：`4a` 第一件 —— **流体前置的检查**（顺序 ＋ 拒码同源），`D-535` §四 那条「没有机器判据」闭合
 
 - 状态：**已实施**（2026-09-29；用户裁 `N4` = 「**现在单独落**（前置顺序 ＋ `isHardTargetRefusal` 同刀）」）
-- 性质：**待补牙落地**，⛔ 不是新功能、⛔ 不改任何行为。它让 `D-535` §四 逐字登记的那句
+- 性质：**待补检查落地**，⛔ 不是新功能、⛔ 不改任何行为。它让 `D-535` §四 逐字登记的那句
   「『**必须先于任何规划**』这个顺序今天**没有机器判据**，只有代码位置＋注释」**第一次可以红**。
 - 载体：`tools/kernel-predicates.py` 的新 rule `rule_fluid_precheck_before_planning`
   （打印标签 `[P0-C·流体前置与拒码同源]`）。
   ⭐ **没有新增门禁脚本**（扩展既有门禁）⇒ `AGENTS.md` 的「`tools/check-*` 门禁脚本 34 道」**不变**。
 
-### 一 · 为什么这两件事必须有牙：**两处失效都是静默的**
+### 一 · 为什么这两件事必须有检查：**两处失效都是静默的**
 
 1. **顺序**：`FluidRiskPolicy.miningRefusal(bot, target)`（`survival/FluidRiskPolicy.java`）是
    `MiningPlanner.plan(...)` 六参重载里**先于任何规划**的那一步（今天在 `MiningPlanner.java:159`）。
@@ -25812,7 +25812,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 - ⛔ **它只判代码结构**，⛔ 不判"该不该挖"、⛔ 不判岩浆/水的真实物理 —— 行为面归电池步
   **`fluid_mine`**（`FluidMineCheckTask`，它走**同一个生产入口**，夹具不另写判据）。
 - ⛔ **它不覆盖**「硬拒绝 ⇒ 不许清障/加高」那条**分支**本身（今天只有 `MineTask:708` 的名单 ＋ 注释）；
-  那条的牙要挂在**分支**上，属 `4a` **柱 ②③** 的后续（`O59` 已登记）。
+  那条的检查要挂在**分支**上，属 `4a` **柱 ②③** 的后续（`O59` 已登记）。
 - ⚠️ ③ 的规划调用名单是**硬编码**的（`selectDirect(` / `planGoalApproach(` / `new CorePathPlanner`）——
   今天全中；新加第三种规划入口时**本规则要跟着改**（规则里已写明「⛔ 别删规则」）。
 
@@ -25830,7 +25830,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
    由 `tools/check-task-orchestration-split.py` 的**两个写死路径常量**回答 ⇒ ⚠️ **新加一个 step，门禁不会覆盖它**
    （同族教训本仓已发生过：`PRIMITIVES` 清单漏掉 `MineStep` 的常量读数）。
 2. ⇒ **横切闸门④ 第二半**（「新功能必须落在内核路径之外」= 新 step / 执行器）因此**拿不到"可检查的事实"**
-   ⇒ 那颗牙只能退化成"提交信息里有没有某个词"（又一个靠人记得）。
+   ⇒ 那项检查只能退化成"提交信息里有没有某个词"（又一个靠人记得）。
    ⭐ **本刀就是 `O41` §3 逐字「归属 4a：与 job 契约一起定'执行器/step 的扩展点'」的兑现。**
 
 ### 二 · `step` 半边：注册口 = **接口本身**（⛔ 不建运行时注册表）
@@ -25842,17 +25842,17 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 - `task/mining/MineStep` · `task/collecting/CollectStep` 实现它。
 - 门禁改成 `rglob` **自动枚举 `implements Step`**，逐类判：**有 `tick(`** · **无相位机** ·
   **无 `new *Task(`** · **无额度制造** · **无额度词 `static final`** · **住 `task/`**；＋反空转人口下限 **2**。
-- **反向牙**：`task/**/*Step.java` 未实现且未豁免 ⇒ 红；**豁免表双向**核对（条目必须仍存在、
+- **反向检查**：`task/**/*Step.java` 未实现且未豁免 ⇒ 红；**豁免表双向**核对（条目必须仍存在、
   且必须**仍不实现** `Step`）。
 - ⚠️ **同名两物已显式登记**：`task/check/CheckStep.java` 是**电池/自检步的描述 record**
   （场景＋发料＋任务工厂＋预算＋判据），**不是**原语 ⇒ 进 `STEP_NAMESAKE_EXEMPT` 并写理由＋复核触发。
 - **红臂 12 条**（每臂只打一条判据）；该门禁红臂总数 **19 ＋ 11 ＋ 12 = 42**。
-- **真树注入臂 4 条**（提交后跑，还原 sha 逐字一致）：① 新加 `FooStep` 不实现 `Step` ⇒ 反向牙精确报它；
+- **真树注入臂 4 条**（提交后跑，还原 sha 逐字一致）：① 新加 `FooStep` 不实现 `Step` ⇒ 反向检查精确报它；
   ② ⭐ 新加 `FooStep implements Step` 且造任务 ⇒ **被自动枚举并精确报 `new *Task(`**
   （**这就是本刀的核心承诺**：新 step 自动被覆盖）；③ 豁免表陈旧条目 ⇒ 红；
   ④ 把枚举正则打坏 ⇒ **红臂自己先响**（`注册⑤ 绿` 失配）＋ 人口下限。
 
-### 三 · `job` 半边：先落**最便宜、最高价值**的那颗牙
+### 三 · `job` 半边：先落**最便宜、最高价值**的那项检查
 
 - `O62` §⑤ 实测的静默缺口：`tools/goal-vocabulary.py` **只解析 `"action"`**，不解析 `"kind"`
   ⇒ 改一处忘另一处 ⇒ **LLM 的合法选择被静默拒**（`Refused("unknown_job_kind:…")`），而**构建全绿**。
@@ -25969,7 +25969,7 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 ### D-542：维生三词 **八条裁定** ＋ `D-430` 恢复口径 = 甲（用户 2026-09-29）
 
 📋 **用户裁定原话**（逐段）：「**② 我同意你的乙方案，③ 建议口径采纳** · NOTIFY 的定义相当于
-**静默选默认项**是吗？**字面描述确实要改一次**啊，**`PAUSE`「只定义不实现」需要一颗牙我也同意** ·
+**静默选默认项**是吗？**字面描述确实要改一次**啊，**`PAUSE`「只定义不实现」需要一项检查我也同意** ·
 scope 闭合① **改名可以采纳，但是"收尾"不太准确**，既然是**入账的补偿性行动**，应该叫**销账**之类的
 名字，或者干脆整个改成**逃生造成的额外修改与修复**，这个"**额外**"很重要，因为**本身记账的消费面
 就很小** ②**建议口径采纳** ③**按你的意思来** · **D-430 恢复口径我同意你的甲方案** ·
@@ -25982,7 +25982,7 @@ scope 闭合① **改名可以采纳，但是"收尾"不太准确**，既然是*
 | **1** | **契约2 的层级 = 乙**（**两个面分开**） | **作业级** = 写授权（含**逃生写权**）⇒ 符合 `D-500 §IV`「授权来源 = 作业级声明」；**任务级** = **危险容忍**（`SurvivalSystem.java:217-219` 那行硬编码的归属） | `O56` §4 契约2 候选 B 保留，但**载体分两层**；⚠️ 必须**显式写明"两个面"**（⛔ 不是"以后可以统一"） |
 | **2** | **契约2 的默认方向 = 「未声明 ⇒ 取<u>今天的行为</u>；声明<u>只能放宽</u>」** | 取代"默认 = 最保守级"的歧义读法。⭐ 这样「默认保守」与「**零回归**」**同时成立**（"最保守" = **不追加任何权限**） | `O56` §4 契约2"要裁的第三件"收口；⛔ 字面"默认 `STOP`"作废 ⇒ **不需要行为刀** |
 | **3** | **`NOTIFY` 保留名字，改<u>字面描述</u>一次** | 新描述 = 「**不改变任务状态（＝采取默认动作），但<u>必须留痕</u>（`WARN` ＋ 一个 `DANGER` 事件）**」；⛔ **不是**"什么都不动"（`BotManager.java:2370-2377` 实测两处留痕） | `O56` §4 契约1 的候选表描述行；⚠️ 用户问"是不是静默选默认项"⇒ 答见 §二-1 |
-| **4** | **`PAUSE`「只定义不实现」加一颗牙** | 判据 = 门禁断言「**`PAUSE` 的生产者集合为空**」——今天绿；**有人实现 ⇒ 构建红** ⇒ 强制走一次设计对话。⛔ 否则它与被否的 `Q1 乙`（只写文档）**没有机械差别** | 落地挂现有命令（`tools/` 门禁）；`O56` §4 契约1 判据草案补一项 |
+| **4** | **`PAUSE`「只定义不实现」加一项检查** | 判据 = 门禁断言「**`PAUSE` 的生产者集合为空**」——今天绿；**有人实现 ⇒ 构建红** ⇒ 强制走一次设计对话。⛔ 否则它与被否的 `Q1 乙`（只写文档）**没有机械差别** | 落地挂现有命令（`tools/` 门禁）；`O56` §4 契约1 判据草案补一项 |
 | **5** | **契约4 改名采纳，但"收尾"不准确 ⇒ 用「销账」类名字**；用户给的另一个候选 = **「逃生造成的额外修改与修复」**，⭐ 并强调「**额外**」很重要（因为**记账的消费面本身很小**） | ⭐⭐ **「销账」不是新造词 —— 它是本仓既有词汇**：`WorldModLedger.dropStale` 逐字「**销掉**不该留在账本里的条目」（`:201`）＋ 日志 `[Ledger] 销掉 {} 条…`（`:263`/`:268`）。⇒ 建议定名 **「逃生额外修改与销账」**（保留你的两个关键词：**额外** · **销账**；去掉不准的"收尾"）。⚠️ **最终措辞待你确认** | `O56` §4 契约4 标题 |
 | **6** | **契约4 的口径 = 按 `D-398` 分区**（采纳） | **区内** = 登账 ＋ 销账（读数 = `Closure.inZone`）；**区外** = ⛔ 不记不收，但**必须报人口**（`recordedSince`/`wildSkippedSince`/`lossyWritesSince`）⇒ ⛔ **不许只看 `empty()`**（否则野外**恒为 0** 的断言 = `Z2` 的空集真） | `O56` §4 契约4 判据草案；⚠️ `O56` §3 **边界表要补 `D-398` 一行**（本轮发现它缺席） |
 | **7** | **契约4 判据的字段名按 `Closure` 真实字段**（用户：「③ 按你的意思来」） | ⛔ 作废 `restored=` / `outstanding=`（**本仓不存在**）；改用 `inZone` · `wildInLedger` · `recordedSince` · `wildSkippedSince` · `lossyWritesSince` · `lossyRefusalsSince`（`WorldModLedger.java:588-589`）；「provenance」改写成 `Entry` 的 `reason`/`policy`/`scopeId`（⛔ 避开 `DropPolicy.Provenance` 的同名两义） | `O56` §4 契约4 判据草案 |
@@ -25998,7 +25998,7 @@ scope 闭合① **改名可以采纳，但是"收尾"不太准确**，既然是*
      答案是"不否决"，而这件事**必须留下痕迹** —— 否则日志上只看到"bot 在淹死/在烧，什么都没发生"，
      **无法区分"判据没生效"和"判据生效了、判断是继续跑"**」。
    - ⇒ 所以裁定 3 的新描述必须**同时**写两半：**"状态不动"＋"必须留痕"**。
-   - ⚠️ **顺手登记一个可选补牙**：「必须留痕」今天**没有牙**（靠自觉写两行日志）⇒ 若要它有牙，
+   - ⚠️ **顺手登记一个可选补检查**：「必须留痕」今天**没有检查**（靠自觉写两行日志）⇒ 若要它有检查，
      判据 = 「`HOLD_NO_EXIT` 那一档没打出 `[Survival] … decision=continue` ＋ `DANGER` 事件 ⇒ 红」，
      读它可以挂**已有的**夹具步（`survival_stop_in_hazard` / `survival_exit`）。
 2. **「`job 可声明策略` ① 是定义问题吗？」** ⇒ **是定义问题，而且它<u>不是</u>一个独立的待裁项 ——

@@ -138,7 +138,7 @@ run_gate             "check-transfer-clock"    bash tools/check-transfer-clock.s
 run_gate             "check-kernel-predicates" bash tools/check-kernel-predicates.sh
 run_gate             "check-risk-surface" bash tools/check-risk-surface.sh
 # B3 / Q-22（2026-09-23）：「它知道的自己」= **从代码生成的能力清单**（`docs/CAPABILITY_LIST.md`）。
-# 牙齿是**跨出处**双向断言（步声明↔CURATION / 模块档位↔CURATION / 注册表↔电池成员 /
+# 强制力是**跨出处**双向断言（步声明↔CURATION / 模块档位↔CURATION / 注册表↔电池成员 /
 # Kind↔契约表 / MovementType↔changesWorld）+ 人口下限 + 解析崩塌即红。
 # 起因：`survey/29 §3.8⑥` 要求"结构上不可能分叉"，而活体反例就在 `docs/BATTERY_CURATION.md` §2
 #（手写清单的小节计数 15/35/15 vs 真值 15/26/52，靠人读才发现）。
@@ -149,7 +149,7 @@ run_gate             "check-capability-list" bash tools/check-capability-list.sh
 # 而它又是**唯一**的规则出处（找不到前置裁定 ⇒ 重复立法，活例 `D-455` 漏引 `D-080`）。
 # ⚠️ 两个它**不是**：① 不是"规则的替代"（是索引，正文仍去 `AI_DECISIONS.md`）
 # ② 不是"哪些决策已废弃"的权威（`状态` 只覆盖 **18%**，`—` = 没写，**不等于废弃**）。
-# 牙齿 = 人口下限（解析崩塌即红）+ 逐字节新鲜度（陈旧即红）。
+# 强制力 = 人口下限（解析崩塌即红）+ 逐字节新鲜度（陈旧即红）。
 # ⚠️ 顺带钉住一个数字：**决策编号 492 个**（`##` 独有 114 + `###` 独有 331 + 两者都有 47）
 #   —— 只数 `###` 会**漏 114 个**；⚠️ 那个错勘测侧犯过、**我在 `O12` 初版也犯了一次**。
 run_gate             "check-decisions-index" bash tools/check-decisions-index.sh
@@ -176,13 +176,13 @@ run_gate             "check-job-menu-listable" bash tools/check-job-menu-listabl
 # ⚠️ 危险在"**靠名字找东西静默多给一半结果**"：`grep 类名` 不报错；而 `pathing` 那个只在同包里用
 #（同包 ⇒ 无 `import`）⇒ **`grep import` 根本看不见它**。
 # ✅ **时效已兑现（`D-516`）**：`D-478` 的 `P12/A` 把 `job/GoalSpec` 改名 `JobDeclaration` ⇒
-# 豁免条目**按"得手也 FAIL"当场判红** ⇒ 逼人同刀删条目 —— ⭐ **本牙第一次在真树上生效**。
+# 豁免条目**按"得手也 FAIL"当场判红** ⇒ 逼人同刀删条目 —— ⭐ **本检查第一次在真树上生效**。
 # 豁免**逐字比对路径集合** + **豁免得手也 FAIL**。自带 1 对照臂 + 6 红臂（含 R5 `package-info` 必须**过**）。
 run_gate             "check-duplicate-class-names" python3 tools/check-duplicate-class-names.py
 # ⭐ 粗目标**分类判据**（`D-500` §V，2026-09-29 `D-517` 落地）：**旧口径是点名白名单**
 # （只抓字面 `GoalNearXZ.around(`）⇒ ⭐ **新类能从它下面走过去**。
 # 新口径 = 凡 `exactFoot() == false` 的实现**必须登记**，且登记表**记录取值**（取值本身是红线开关）。
-# ⚠️ Py 重写**同时保留**旧的字面断言作**第二颗牙**（互补：分类管**实现**，字面管**调用点**）。
+# ⚠️ Py 重写**同时保留**旧的字面断言作**第二项检查**（互补：分类管**实现**，字面管**调用点**）。
 run_gate             "check-far-goal-usage"   python3 tools/check-far-goal-usage.py
 # 终态执行记录接线（D-258 复核发现的 J-1/J-3）：taskKind 必须用 taskName()；terminalReason/botId 必须进快照。
 run_gate             "check-exec-record"      bash tools/check-exec-record.sh

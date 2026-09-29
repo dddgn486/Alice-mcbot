@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 台账 `O12`（2026-09-28）：**决策索引不许与 `AI_DECISIONS.md` 分叉**。
 #
-# 断言（真正的牙齿在 `tools/decisions-index.py` 的 `ASSERTIONS` 与 `--check` 的逐字节比对）：
+# 断言（真正的强制力在 `tools/decisions-index.py` 的 `ASSERTIONS` 与 `--check` 的逐字节比对）：
 #   · **人口下限**：决策编号数 ≥ 300、标题数 ≥ 400 —— 解析崩塌（正则写坏 / 标题格式变了）⇒ **响亮失败**，
 #     不许"少读一截还照样绿"（`docs/BATTERY_CURATION.md` 的小节计数曾漂到 15/35/15 而无人发现）；
 #   · **文档不陈旧**：重新生成 ⇒ **逐字节相同**（陈旧 ⇒ 红，并指出首个不同的行）。

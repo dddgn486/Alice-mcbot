@@ -137,12 +137,12 @@ DELEGATION_5B = re.compile(r"\bstep\s*\.")
 # 为什么必须有这一段：在此之前「哪些类是原语」由 `STEP` / `STEP_5B` **两个写死的路径常量**回答
 # ⇒ ⚠️ **新加一个 step，本门禁不会覆盖它**（同族教训已在本仓发生过：`PRIMITIVES` 清单漏掉
 # `MineStep` 的常量读数）。改成 `rglob` **自动枚举全部 `implements Step`** 之后，下面这几条对
-# **新 step 自动生效**。这也是横切闸门④ 第二半（「新功能必须落在内核路径之外」）能长出牙的前提：
+# **新 step 自动生效**。这也是横切闸门④ 第二半（「新功能必须落在内核路径之外」）能长出检查的前提：
 # 没有扩展点 ⇒ 没有"实现了扩展点"这个**可检查的事实**。
 
 ALICE_DIR = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
 TASK_DIR = ALICE_DIR / "task"
-#: 注册口**本身**（接口声明文件）——反向牙必须跳过它（它的文件名也以 `Step` 结尾）。
+#: 注册口**本身**（接口声明文件）——反向检查必须跳过它（它的文件名也以 `Step` 结尾）。
 STEP_INTERFACE = TASK_DIR / "Step.java"
 #: ⚠️ `implements … Step`（覆盖 `implements Step` / `implements Step, Xxx` / `implements A, Step`）。
 IMPL_STEP = re.compile(r"\bimplements\b[^{;]*\bStep\b")
@@ -153,7 +153,7 @@ NEW_ANY_TASK = re.compile(r"new\s+\w+Task\s*\(")
 BUDGET_ANY = re.compile(r"new\s+\w*Budget\s*\(|\bBudget\s*\.\s*for\w+\s*\(")
 #: 反空转人口下限（**实测 2**：`MineStep` / `CollectStep`）。⛔ 别把它当"目标值"，也别调低来消红。
 STEP_IMPL_MIN = 2
-#: ⚠️ **同名两物豁免**（反向牙的具名登记；**双向**：条目必须仍存在、且必须**仍不实现** `Step`）。
+#: ⚠️ **同名两物豁免**（反向检查的具名登记；**双向**：条目必须仍存在、且必须**仍不实现** `Step`）。
 STEP_NAMESAKE_EXEMPT = {
     "task/check/CheckStep.java":
         "**同名两物**：它是**电池/自检步的描述 record**（场景＋发料＋任务工厂＋预算＋判据），"
@@ -165,13 +165,13 @@ FIXTURE_MARKERS = ("check", "probe", "dump", "diagnostic", "regression", "batter
 
 
 def looks_like_fixture_file(name: str) -> bool:
-    """按 `Task.SELF_CHECK_MARKERS` 判断文件名是不是夹具（夹具不参与注册口的反向牙）。"""
+    """按 `Task.SELF_CHECK_MARKERS` 判断文件名是不是夹具（夹具不参与注册口的反向检查）。"""
     low = name.lower()
     return any(marker in low for marker in FIXTURE_MARKERS)
 
 
 def check_reg_implements_step(code: str) -> list[str]:
-    """注册口 ⑤（反向牙）：`task/**\\*Step.java` 必须 `implements Step`。"""
+    """注册口 ⑤（反向检查）：`task/**\\*Step.java` 必须 `implements Step`。"""
     if not IMPL_STEP.search(code):
         return ["名字以 `Step` 结尾、住在 `task/` 下，却**没有** `implements Step` ⇒ 注册口漏登记"
                 "（要么实现它，要么进 `STEP_NAMESAKE_EXEMPT` 并写理由）"]
@@ -224,7 +224,7 @@ def check_reg_no_quota_constant(code: str) -> list[str]:
 
 
 def check_step_registration() -> tuple[list[str], dict]:
-    """柱② 注册口：**自动枚举** `implements Step` 的类（= 原语集合），逐类判形状 ＋ 反向牙。
+    """柱② 注册口：**自动枚举** `implements Step` 的类（= 原语集合），逐类判形状 ＋ 反向检查。
 
     ⚠️ 判据是**结构**，⛔ 不判"行为没变"（那归无头电池的逐步 diff）。
     """
@@ -255,12 +255,12 @@ def check_step_registration() -> tuple[list[str], dict]:
                   + check_reg_no_quota_constant(code)):
             problems.append(f"`{rel}`：{p}")
 
-    # ③ 反向牙：`task/**\*Step.java` 里"名字像 step、又不是夹具"的，必须在 `impls` 或豁免表里
+    # ③ 反向检查：`task/**\*Step.java` 里"名字像 step、又不是夹具"的，必须在 `impls` 或豁免表里
     for path in sorted(TASK_DIR.rglob("*Step.java")):
         if path == STEP_INTERFACE:
             continue                      # ⚠️ 注册口**本身**：它的文件名也以 `Step` 结尾
         if "interface Step" in path.read_text(encoding="utf-8"):
-            continue                      # 任何"声明 `Step` 接口"的文件都不参与反向牙
+            continue                      # 任何"声明 `Step` 接口"的文件都不参与反向检查
         rel = path.relative_to(ROOT).as_posix()
         if rel in impls or rel in STEP_NAMESAKE_EXEMPT or looks_like_fixture_file(path.name):
             continue
@@ -617,7 +617,7 @@ _CRITERIA = {
 # ==================== 注册口的红臂（`4a` 柱②；每臂只打一条判据） ====================
 
 SELFTEST_CASES_REG: list[tuple[str, str, str, bool]] = [
-    # ---- ⑤ 反向牙：名字像 step 必须实现 ----
+    # ---- ⑤ 反向检查：名字像 step 必须实现 ----
     ("注册⑤ 红：`*Step` 类的声明里没有 `implements Step`", "reg_impl",
      "public final class FooStep {\n}\n", True),
     ("注册⑤ 绿：`implements Step`", "reg_impl",
@@ -738,7 +738,7 @@ def main() -> int:
           f"{len(reg_info['impls'])} 个（下限 {STEP_IMPL_MIN}）："
           + ", ".join(r.split('/')[-1] for r in reg_info['impls']))
     print("    逐类判：有 `tick(` · 无相位机 · 无 `new *Task(` · 无额度制造 · 无额度词 "
-          "`static final` · 住 `task/` ｜ 反向牙：`task/**/*Step.java` 未实现且未豁免 ⇒ 红"
+          "`static final` · 住 `task/` ｜ 反向检查：`task/**/*Step.java` 未实现且未豁免 ⇒ 红"
           f"（豁免 {reg_info['exempt']} 条，**双向**核对）"
           f" ｜ 红臂 {len(SELFTEST_CASES_REG)}/{len(SELFTEST_CASES_REG)}")
     return 0

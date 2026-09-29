@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """`G3`（2026-09-21 用户裁定「这不是小事」）+ **`G3-b`（2026-09-28 用户裁定「甲+丙」）**。
 
-## 牙① 结构牙（`G3`，原有）：架构红线必须带门禁指针，或带复核触发的「未门禁」标记
+## 检查① 结构检查（`G3`，原有）：架构红线必须带门禁指针，或带复核触发的「未门禁」标记
 
 背景（可复核的计数）：`AGENTS.md` §不可悄悄改变的架构边界 有 6 条红线——**只有 `D-076` 一条真正被门禁覆盖**，
 其余完全靠人记得。本次事故（`D-374`：一格高夹缝在整张图里没有入边）正好落在**零门禁**的那条上。
@@ -9,18 +9,18 @@
 ② `[未门禁: <原因>；复核触发: <条件>]`；③ ❌ 什么都没有 ⇒ 判红。
 反模式：**别把「未门禁」当免死金牌** —— 没有 `复核触发:` 的 `[未门禁: …]` 一律判红。
 
-## 牙② 内容牙（`G3-b` 新增）：**指针指向的东西必须与项目自身一致**
+## 检查② 内容检查（`G3-b` 新增）：**指针指向的东西必须与项目自身一致**
 
-⚠️ 为什么需要它（2026-09-28 实测的**活反例**，就在真树上）：`牙①` 只能验「有没有指针」，**验不了正文还对不对**。
+⚠️ 为什么需要它（2026-09-28 实测的**活反例**，就在真树上）：`检查①` 只能验「有没有指针」，**验不了正文还对不对**。
 于是两条硬伤同时存在而门禁全绿：
   · `AGENTS.md` 的 `D-036` 条指向 `reference/baritone/` —— 那是 **MC 1.21.4** 的树，而本项目是 **1.20.1**
     （正解 = `reference/baritone-1.20.1/`）⇒ **照它办事会读错版本的源码**；
   · `D-076` 条写「`miningApproach` 禁用 `PILLAR/FALL/DOWNWARD`」—— 与代码相反（`D-366b` 已取消该禁用）。
-⇒ 本牙把「版本钉」做成可复算：**`AGENTS.md` 里出现的 `reference/baritone*` 路径，其 `gradle.properties`
+⇒ 本检查把「版本钉」做成可复算：**`AGENTS.md` 里出现的 `reference/baritone*` 路径，其 `gradle.properties`
 的 `minecraft_version` 必须等于本项目 `gradle.properties` 的 `minecraft_version`。**
 新增一颗钉子 = 往 `PINS` 加一行（表驱动，不散落判断）。
 
-## 牙③ 准入锁（`G3-b` 新增）：**只收高确定性方案，且只许经用户显式同意写入**
+## 检查③ 准入锁（`G3-b` 新增）：**只收高确定性方案，且只许经用户显式同意写入**
 
 用户 2026-09-28 原话：「**在这个文件里只有被判定高确定性方案，且要经过我显式同意，才能写入**」，
 以及当场质问：「**tm 怎么 `AGENTS.md` 也有散文规则**」——
@@ -49,7 +49,7 @@ GATE = re.compile(r"\[gate:\s*([^\]]*)\]")
 UNENFORCED = re.compile(r"\[未门禁:\s*([^\]]*)\]")
 SCRIPT = re.compile(r"([A-Za-z0-9_.-]+\.(?:sh|py))")
 
-# ==================== 牙② 的钉表（表驱动：新增一颗钉子 = 加一行） ====================
+# ==================== 检查② 的钉表（表驱动：新增一颗钉子 = 加一行） ====================
 #
 # (AGENTS.md 里要抓的路径模式, 用来对齐的 gradle.properties 键)
 # ⚠️ 路径可能是**绝对**的（Baritone 两棵树在仓库外：`<workspace>/reference/baritone*`）
@@ -58,7 +58,7 @@ PINS: tuple[tuple[str, str], ...] = (
     (r"(?:/[A-Za-z0-9_./\-]*)?reference/baritone[A-Za-z0-9_.\-]*", "minecraft_version"),
 )
 
-# ==================== 牙③ 的基线（2026-09-28 全文件实测：23 条目 / 17 条散文） ====================
+# ==================== 检查③ 的基线（2026-09-28 全文件实测：23 条目 / 17 条散文） ====================
 #
 # ⚠️ **这是一份"欠账白名单"**：指纹 = 条目首行的前 20 个字符（`- ` 之后，逐字）。
 # 它**只许变短**：条目被升级（补上 `[gate: …]` 等标记）时不必改它（指纹仍在，见 `missing` 的算法）；
@@ -147,7 +147,7 @@ def gradle_property(path: pathlib.Path, key: str) -> str | None:
 
 
 def check_boundary(text: str) -> tuple[list[str], int, int, int]:
-    """牙①：红线小节的结构。返回 (problems, 红线数, 有门禁数, 未门禁数)。"""
+    """检查①：红线小节的结构。返回 (problems, 红线数, 有门禁数, 未门禁数)。"""
     problems: list[str] = []
     gated = 0
     unenforced = 0
@@ -187,7 +187,7 @@ def resolve_pin(path_text: str) -> pathlib.Path:
 
 
 def check_pins(text: str, project_version: str | None) -> tuple[list[str], int]:
-    """牙②：内容牙 —— 钉住的路径其版本必须与项目一致。返回 (problems, 钉数)。"""
+    """检查②：内容检查 —— 钉住的路径其版本必须与项目一致。返回 (problems, 钉数)。"""
     problems: list[str] = []
     if project_version is None:
         problems.append(f"读不到本项目 {PROJECT_PROPS} 的 `minecraft_version` ⇒ 版本钉无法复算"
@@ -207,13 +207,13 @@ def check_pins(text: str, project_version: str | None) -> tuple[list[str], int]:
         elif pinned != project_version:
             problems.append(f"`AGENTS.md` 钉的路径 `{path_text}` 是 **{key}={pinned}**，"
                             f"而本项目是 **{key}={project_version}** ⇒ **照它办事会读错版本的源码**"
-                            "（内容牙：指针真实存在 ≠ 指对了东西）")
+                            "（内容检查：指针真实存在 ≠ 指对了东西）")
     return problems, len(found)
 
 
 def check_admission(text: str,
                     baseline: frozenset[str] = BASELINE_PROSE) -> tuple[list[str], int, int, int]:
-    """牙③：准入锁。返回 (problems, 条目总数, 散文条目数, 已有标记数)。`baseline` 可注入（自检用）。"""
+    """检查③：准入锁。返回 (problems, 条目总数, 散文条目数, 已有标记数)。`baseline` 可注入（自检用）。"""
     problems: list[str] = []
     blocks = all_bullets(text)
     seen: set[str] = set()
@@ -243,7 +243,7 @@ def check_admission(text: str,
 
 def check_all(agents_text: str, project_version: str | None,
               baseline: frozenset[str] = BASELINE_PROSE) -> tuple[list[str], str]:
-    """跑三颗牙，返回 (problems, 读数行)。`baseline` 可注入（自检用）。"""
+    """跑三项检查，返回 (problems, 读数行)。`baseline` 可注入（自检用）。"""
     p1, redlines, gated, unenforced = check_boundary(agents_text)
     p2, pins = check_pins(agents_text, project_version)
     p3, entries, prose, marked = check_admission(agents_text, baseline)
@@ -322,8 +322,8 @@ def main() -> int:
     ok = not problems
     print(f"REDLINE_GATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: {reading}"
           f" · problems={len(problems)}"
-          f"（牙①结构：指针必须真实存在 · 牙②内容：版本钉必须与本项目一致 · "
-          f"牙③准入：只许经显式同意新增、旧条目不许静默消失）")
+          f"（检查①结构：指针必须真实存在 · 检查②内容：版本钉必须与本项目一致 · "
+          f"检查③准入：只许经显式同意新增、旧条目不许静默消失）")
     return 0 if ok else 1
 
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # `B3` / `Q-22`（2026-09-23）：**能力清单不许与代码分叉**。
 #
-# 断言（真正的牙齿是**跨出处**的双向，见 `tools/capability-list.py` 的 `ASSERTIONS`）：
+# 断言（真正的强制力是**跨出处**的双向，见 `tools/capability-list.py` 的 `ASSERTIONS`）：
 #   · 文档不陈旧（重新生成 ⇒ 逐字节相同）；
 #   · 步声明 ↔ `RegressionBatteryTask.CURATION`（双向，无豁免）；
 #   · 模块 `CheckProfile` ↔ `CURATION` 档位；`CheckModules.ALL` ↔ 电池成员（缺席须带理由）；
