@@ -1,4 +1,4 @@
-package com.dddgn.alice.task.mining;
+package com.dddgn.alice.reach;
 
 import com.dddgn.alice.pathing.MovementHelper;
 import com.dddgn.alice.pathing.core.search.GoalFoot;
@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
-import com.dddgn.alice.reach.MiningTuning;
 
 /**
  * 候选站位成本估算（D-067 批次 2；方案见 {@link MiningTuning.EstimateMode}）。
@@ -34,7 +33,17 @@ import com.dddgn.alice.reach.MiningTuning;
  *       得到半径内每个可达格的**真实纯通行成本**——现成可站候选零损失。</li>
  * </ul>
  *
- * <p>两者都只做"排序用的估算"；最终对 top-K 候选做精确规划（{@link MiningPlanner}）。
+ * <p>两者都只做"排序用的估算"；最终对 top-K 候选做精确规划（`MiningPlanner`，在 `task/mining/`）。
+ *
+ * <p>⭐ <b>2026-09-29 搬包（改革 ① 主体 · `MiningPlanner` 解体 `DS-5` 的 <u>第一批</u>）</b>：
+ * 本类原来住在 `task/mining/`，现在搬进 `reach/`（内核侧几何层，`D-460` 的层定位）。
+ * ⚠️ **只搬包、不改名、不改行为** ⇒ 判据只能是**静态门禁**（`tools/check-layer-direction.py` 断言①）
+ * ＋ 编译 ＋ `tools/check-all.sh`；行为夹具对本刀**结构性无感**（同 `D-425`）。
+ * ⚠️ 依据 = `plans §4.2`①「「选」这一族的新家在 `reach/`」—— 而 `plans §4.2:176` / `§12.1:702`
+ * 逐字写「`StandingPointEvaluator`/`StandingCostEstimator` **全在 `reach/`**」，**实测不成立**
+ * （两个都还在 `task/mining/`，`D-460` 只搬了 4 个类）⇒ 本刀把那句话**变成事实**。
+ * 📌 `{@link MiningPlanner}` 这个 javadoc 链接**刻意降级成 `{@code}`**：`reach/` 不许反向依赖
+ * `task/`，文档层也不开这个口子。
  */
 public final class StandingCostEstimator {
 

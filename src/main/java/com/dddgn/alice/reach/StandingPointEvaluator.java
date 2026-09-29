@@ -1,7 +1,6 @@
-package com.dddgn.alice.task.mining;
+package com.dddgn.alice.reach;
 
 import net.minecraft.core.BlockPos;
-import com.dddgn.alice.reach.LineOfSightChecker;
 
 /**
  * 站位评分（D-067 批次 2 重写）：**只按"到达站位的路径成本"排序**。
@@ -13,6 +12,15 @@ import com.dddgn.alice.reach.LineOfSightChecker;
  *   <li>拾取距离 / 可见面数量 / 安全性单独计分**都不进评分**；</li>
  *   <li>`score` = 精确规划得到的路径成本（含破坏/放置）；`estimate` = 估算成本（仅用于排序）。</li>
  * </ul>
+ *
+ * <p>⭐ <b>2026-09-29 搬包（改革 ① 主体 · `MiningPlanner` 解体 `DS-5` 的 <u>第一批</u>）</b>：
+ * 本类原来住在 `task/mining/`，现在搬进 `reach/`（内核侧几何层，`D-460` 的层定位）。
+ * ⚠️ **只搬包、不改名、不改行为** ⇒ 判据只能是**静态门禁**（`tools/check-layer-direction.py` 断言①）
+ * ＋ 编译 ＋ `tools/check-all.sh`。
+ * ⚠️ **实测事实（写在这里是因为它决定本类下一刀的去向）**：本类的消费者**全在 `MiningPlanner` 内部**
+ * （`plans §4.1:168` 逐字：「消费者**全在它内部**」⇒ 它本来就是"要合并删掉"的对象）——
+ * 所以本刀**只是把它搬到正确的层**，**不是**把它定成长期形态；`DS-5` 解体真正落地时，
+ * 它要么并进触及站位选择器、要么消失（`plans §4.2`①）。
  */
 public final class StandingPointEvaluator {
 

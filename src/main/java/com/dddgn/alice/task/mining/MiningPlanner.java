@@ -20,6 +20,11 @@ import com.dddgn.alice.reach.StandingPointSelector;
 import com.dddgn.alice.reach.LineOfSightChecker;
 import com.dddgn.alice.reach.MiningPlan;
 import com.dddgn.alice.reach.MiningTuning;
+// ⭐ 2026-09-29 搬包（改革 ① 主体 · `DS-5` 解体第一批）：这两个从本包搬进 `reach/`（`D-460` 的层定位）。
+// ⚠️ 它们是本类**仅有的两个同包依赖**；它们一走，本包剩下的 `MiningPlanner`/`MiningProfile`/`MiningBudget`
+// 才是解体真正要处置的对象（`plans §4.2`①）。
+import com.dddgn.alice.reach.StandingCostEstimator;
+import com.dddgn.alice.reach.StandingPointEvaluator;
 
 /**
  * 挖掘领域规划器（D-067 批次 2/3）：目标方块 → 两模式站位选择 → 成本估算 → top-K 精算 → MiningPlan。
@@ -257,14 +262,19 @@ public final class MiningPlanner {
         List<StandingPointSelector.Candidate> candidates =
                 StandingPointSelector.generateCandidates(level, target, startFoot, reach);
         if (candidates.isEmpty()) {
-            // ⭐ P5 诊断探针（2026-09-24，临时：定位完成后删）：模式 A 零候选时，把**几何事实**记下来 ——
-            // 否则「被同族矿石包住」只能靠读码推断（`D-391` 三-2 的教训：先补读数，不猜）。
-            BotLog.warn("[MiningPlanner探针] no_valid_standing_point target={} faceStandable={}/6 "
-                            + "footPassable={} headPassable={} belowSolid={}",
-                    target.toShortString(), countStandableFaces(level, target),
-                    MovementHelper.canWalkThrough(level, target),
-                    MovementHelper.canWalkThrough(level, target.above()),
-                    MovementHelper.canWalkOn(level, target.below()));
+            /*
+             * ⚠️ 2026-09-29「搬空第一批」：这里原来有一个 P5 诊断探针（2026-09-24 加，
+             * 注释自称"定位完成后删"，`plans §2.2` 实测它"**今天无预期读者**"）：
+             *   `[MiningPlanner探针] no_valid_standing_point target=… faceStandable=n/6
+             *    footPassable=… headPassable=… belowSolid=…`
+             * **已删** —— 依据 = `plans §4.2`⑦（R9「**删**（与解体选哪条路无关，本来就该删）」）
+             * ＋ 诊断探针纪律（用完即删）。
+             * ⚠️ 它当年产出过一次**真根因读数**（`faceStandable=0/6 belowSolid=false`）；那份读数**已固化在文档里**，
+             * 不随探针删除而丢：`HANDOVER.md:1178` · `AI_DECISIONS.md:19929`/`:19930` ·
+             * `plans/2026-09-25-通道施工器草案.md:56`。
+             * ⛔ **别把"这条日志消失"读成"那个判据没了"**：`STANDING_NO_VALID` 本身照旧返回。
+             * ⛔ 也别把它读成"诊断探针以后都不许加" —— 纪律是**用完即删**，不是不许加。
+             */
             return new Result(null, null, STANDING_NO_VALID);
         }
 
@@ -424,16 +434,12 @@ public final class MiningPlanner {
     }
 
 
-    /** ⭐ P5 诊断探针（2026-09-24，临时：定位完成后删）：目标 6 面邻格里「现成可站」的个数（0 = 真被包住）。 */
-    private static int countStandableFaces(ServerLevel level, BlockPos target) {
-        int standable = 0;
-        for (net.minecraft.core.Direction direction : net.minecraft.core.Direction.values()) {
-            if (StandingPointSelector.isStandable(level, target.relative(direction))) {
-                standable++;
-            }
-        }
-        return standable;
-    }
+    /*
+     * ⚠️ 2026-09-29「搬空第一批」：这里原来是 P5 探针的辅助函数
+     * `private static int countStandableFaces(ServerLevel, BlockPos)`（目标 6 面邻格里"现成可站"的个数）。
+     * 它与上面那个探针是**同一件东西的两半** ⇒ 同刀删除（唯一的调用者就是那个探针）。
+     * ⚠️ 它**不是**"站位枚举"的一部分：`StandingPointSelector.isStandable` 照旧在用，删掉的只是这个**计数**。
+     */
 
     // ==================== 选择与精算 ====================
 

@@ -2,7 +2,7 @@ package com.dddgn.alice.job.mine;
 
 import com.dddgn.alice.job.Candidate;
 import com.dddgn.alice.job.JobDeclaration;
-import com.dddgn.alice.task.mining.StandingCostEstimator;
+import com.dddgn.alice.reach.StandingCostEstimator;
 import com.dddgn.alice.reach.StandingPointSelector;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;

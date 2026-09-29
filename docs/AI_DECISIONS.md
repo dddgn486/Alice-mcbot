@@ -24682,3 +24682,70 @@ MINING_APPROACH           → PathRequest.miningApproach（原 Mode.TUNNEL + Mod
 ### 三、不再犯的表述纪律
 
 ⛔ 不再用"**验收面**"作为 改革 ① 主体 任何一件的施工理由；凡提它，**必须同时写清时点 = job 框架机制补齐之后**。
+
+---
+
+## D-523：改革 ① 主体 —— **剩下三件开工前侦察** ＋ **「搬空第一批」落地**（2026-09-29，只读侦察 → 用户「好，继续开工」）
+
+- 起因 = `HANDOVER.md` 断点十九 §③（**压缩后第一件事**）：对剩下三件各做一次只读侦察，按「最小可验证」排序报用户，然后开工第一件。
+- 侦察正文（**唯一出处**）= `docs/reviews/2026-09-29-三件开工前侦察-排序.md`（**只读，`src/` 零改动**）。
+- 口径 = `D-522`（⛔ 本条目**不许**用"验收面"当任何理由）。
+
+### 一、三件逐条（实测，不引文档结论）
+
+| 件 | 实测尺寸 | 前置 | 卡点 |
+|---|---|---|---|
+| **A① 丢弃清障（`DS-7`）** | **中且有界**：6 载体 · **生产消费者恰好 1 个** | ✅ `D-011` 的"内核能破坏"**已随 `D-520` 落地** | ⚠️ `GoalAdjacent` 到达集**含"正下方"** ⇒ 伐木丢 `standableOnly` 时会重新踩 2026-09-10「往地里挖一格站进去」 |
+| **A② `PILLAR` 回到到位集合** | **小**，⭐ 且**一半已随 `D-520` 落地** | ⚠️ **授权来源没落地** | ⛔ `D-500` §IV 的**机械替换没做**：`job/JobWriteDeclaration`（`D-511`）**唯一消费者 = 夹具**（`task/K2AdjacentGoalCheckTask:301`） |
+| **件② `A` → 触及站位选择器（`DS-5` 解体）** | **最大**：625 行 / 9 件 / 7 新家 | ✅ `DS-5` 已裁 | ⚠️ 设计文档**低估成本**（见 §二 `N1`） |
+
+**排序 = 1 件②（唯一无前置）· 2 A①（前置刚满足，但缺"到达集约束"的调用方声明载体）· 3 A②（剩下一半卡在没排期的载体替换上）。**
+⇒ ⭐ **开工第一件 = 件②**（理由：它是三件里**唯一没有任何未决前置的**；且 `D-476` `P2/A` 把它登记为「逐项搬空」＝当前环）。
+
+### 二、⭐ 本轮实测的 **5 条新事实**（都可复算，**登记不删**）
+
+| # | 事实 | 复算方式 |
+|---|---|---|
+| **`N1`** | ⚠️ **设计文档写错了**：`plans §4.2:176` / `§12.1:702` 逐字称 `StandingPointEvaluator`/`StandingCostEstimator`「**全在 `reach/`**」——**实测两个都还在 `task/mining/`**（`D-460` 只搬了 4 个类）⇒ 件② 的成本被文档**低估 208 行** | `ls src/main/java/com/dddgn/alice/reach/` |
+| **`N2`** | ⭐ **A② 的一半已落地**：`D-520` 新建的目标级腿用 `PathRequest.adjacentApproach`，其能力集 = `MINING_APPROACH_MOVEMENTS`（`PathRequest:146-150`，**含 `PILLAR`**）⇒「加高 = 搜索的一个维度」**在目标级腿上今天已成立**；`MineJob` 用 `TUNNEL_ALLOWED`（`standableOnly=false`）⇒ 挖掘侧**已经会走它** | 读 `PathRequest` + `MineJob:573` |
+| **`N3`** | ⭐ **生产侧「清障」<u>只有一个</u>消费者** = `LumberJob:474` `withClear(...)`。`MineJob:573`（`TUNNEL_ALLOWED`）· `FishboneJob:278/286` · `RegionLumberJob:1162` 的 `clearBudget` **都是 0** ⇒ `mayClear()` 恒假 ⇒ 挖掘侧清障通路**结构不可达**。⇒ 裁定 `#4` 第 1 句「归零」= **改动点只有 1 处** | `grep -n withClear src/main/java` |
+| **`N4`** | ⚠️ `GoalAdjacent.isInGoal`（`:93-107`）只排除「目标格 / 上方 / 排除集」⇒ **到达集 = 4 水平邻格 + 正下方 1 格**。对**贴地原木**，"正下方"= 地里 ⇒ 内核可 `DOWNWARD`/`BREAK_*` 挖进去站 ⇒ ⭐ **丢清障与开目标级腿在伐木上是同一个开关**；拦法用现成的 `GoalAdjacent.excluded`（`D-517` 就是为"必须从某一面接近"建的） | 读 `GoalAdjacent` |
+| **`N5`** | ⚠️⚠️ **`D-502` 丙′（"Goal 找路 ⇒ 假设眼位 `D-066` 预检 ⇒ 不通 ⇒ 排除该格 ⇒ 有界重搜"）在生产侧<u>零实现</u>**：`MiningPlanner.planGoalApproach:385` 传 `excluded = null`；`GoalAdjacent.excluding(`/`excluded` 与 `JobWriteDeclaration.maxFootRetries()` 的**唯一消费者都是夹具**（`K2AdjacentGoalCheckTask:302/354`）⇒ ⭐ **A①/A② 缺的那个"到达集约束"载体，裁定与现成件都在，只是没接线** | `grep -rn "excluding(\|maxFootRetries" src/main/java` |
+
+### 三、本轮**落地**（开工第一件 = 件②「搬空第一批」，`IMPLEMENTED`/`COMPILES`/`SERVER_TESTED` 见 §四）
+
+| # | 动作 | 依据 |
+|---|---|---|
+| 1 | `git mv task/mining/StandingCostEstimator.java → reach/`（139 行；外部消费者 1 个：`job/mine/StandingCostField`） | `plans §4.2`①「①「选」的新家 = `reach/`」 |
+| 2 | `git mv task/mining/StandingPointEvaluator.java → reach/`（69 行；消费者**全在 `MiningPlanner` 内部**） | 同上 ＋ `plans §4.1:168` |
+| 3 | **删 `R9` 探针**：`planDirect` 里 `[MiningPlanner探针] no_valid_standing_point …` ＋ 它的辅助函数 `countStandableFaces` | `plans §4.2`⑦（R9「**删**（与解体选哪条路无关，本来就该删）」） |
+| 4 | `StandingCostEstimator` 的 javadoc `{@link MiningPlanner}` **降级成 `{@code}`** | `reach/` 不许反向依赖 `task/` ⇒ **文档层也不开口子** |
+
+⚠️ **只搬包、不改名、不改行为** ⇒ 判据只能是**静态门禁** ＋ 编译 ＋ `check-all`；行为夹具对本刀**结构性无感**（同 `D-425`/`D-460`）。
+⚠️ **`reach/` 只有两个同包依赖被切掉**（`MiningPlanner` 现在是唯一 import 它们的类）；本包真正要处置的 `MiningPlanner`/`MiningProfile`/`MiningBudget` **一个都没动**。
+
+### 四、判据（全部实跑）
+
+| 判据 | 读数 |
+|---|---|
+| `./gradlew compileJava --no-daemon` | **BUILD SUCCESSFUL**（2 个 `ResourceLocation` 过时警告 = **既有**，与本刀无关） |
+| `python3 tools/check-layer-direction.py` | **PASS**：`reach/` 反向依赖 **0** · `action/`→`task/` 欠账 **0** · **reach 6 文件**（原 4）· 扫描 520 · 红臂 **14/14** |
+| `tools/check-all.sh` | **`pass=34 warning=1 failed=0`**（= 基线；warning 仍是"无头电池未由 check-all 执行"） |
+| `tools/headless-battery.sh core` | 见 §五（行为无变化的**保险**，不是本刀的判据 —— 纯搬包对它结构性无感） |
+
+### 五、未做 / 下一步（登记，⛔ 不许静默消失）
+
+1. ⛔ **本刀没有推进 `DS-5` 的实质**：`MiningPlanner` 625 行、`R1`~`R9` **一件没搬**。本刀只把**已经属于 `reach/` 的两块**送回 `reach/`，并**把那句写错的文档变成事实**。
+2. ⏳ **接下来在件② 里可选的两刀**（都**无前置**）：
+   - **`R7`（诚实读数：`inconclusive`/`inconclusiveReason`/`SEARCH_INCOMPLETE`）搬出挖掘包** —— `plans §4.2`③ 逐字「**必须活下来**」＋「⚠️ 它描述的是**内核搜索配额**，放在挖掘包里是**错位**」；⚠️ 同刀必须重锚 `rule_search_limit_not_unreachable`（红线判据，只许改锚不许丢牙）。
+   - **`R6`（掉落承接 `dropWouldBeLost`/`DROP_FALL_SEARCH`）独立出来** —— `plans §4.2`⑤ 逐字「⭐ **独立出来**」；⚠️ 同刀处置 `rule_support_and_cluster_order`。
+3. ⛔ **A①/A② 现在**<u>不能</u>**开工**（这是本轮的排序结论，不是排期结论）：两者的第一段都需要一个「**调用方声明的到达集约束**」载体，而**唯一已裁的载体**（`DS-19` 作业级声明 / `JobWriteDeclaration`）**造好了但没接线**（`N5`），且**没有排期位**（`D-476` `P2/A` 的顺序句里没有它）。
+   ⇒ ⚠️ 若在 `MiningProfile` 上就地加档，就是**在 `D-500` §IV 判定为「过期」的能力白名单载体上继续加**（`plans §24.3` 逐字）⇒ **需要一句裁定**（先接线 `JobWriteDeclaration`，还是允许局部扩展 `MiningProfile` 并带回收条件）。
+4. ⚠️ **改动面第三次重测**（`O13` 附录 C 要求"开工时重测，不许沿用 `43`/`10`"）：`MiningPlanner` 引用 = `src/main/java` **107 处 / 23 文件**（**真用 11 文件**：生产 3 + 夹具 8）· `tools/` **29 处** · `docs/` **251 处**；夹具（口径 = `*CheckTask`/`*RegressionTask`/`*DiagnosticTask`/`*BenchTask`/`*ProbeTask`）= **11 个**（⚠️ 设计写 **10**、`O17` 写 **9** —— 三个数都不同且口径未记 ⇒ **本表只报本次口径**）。
+
+### 六、诚实边界
+
+- ⛔ **本刀不证明 `DS-5` 解体可行** —— 只证明"这 2 个类的层归属是对的、删掉那个探针不改变任何运行行为"。
+- ⛔ **`N3`/`N4` 都还没有客户端证据**：N3 是静态读码（`clearBudget` 常量值 + `mayClear()` 恒假），N4 是 `GoalAdjacent` 的算术定义。**它们的客户端后果（伐木到底会不会往地里挖）本轮没有测。**
+- ⛔ **`N5` 的"零实现"是 `grep` 判据**，不是行为判据：我没有跑过任何"预检不通 ⇒ 换脚格"的场景 ⇒ 它只能说明"生产调用点一次都没传过排除集"。
+- 📌 **指针**：侦察正文 = `docs/reviews/2026-09-29-三件开工前侦察-排序.md`；台账 = `O19`；断点 = `HANDOVER.md` 断点二十。
