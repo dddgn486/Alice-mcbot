@@ -168,6 +168,10 @@ run_gate             "check-ref-integrity"     bash tools/check-ref-integrity.sh
 # SH-P1（2026-09-17）：文档/脚本里的 `single:<步名>` 必须真的存在（本轮实测：写错步名会白跑 200 tick）。
 run_gate             "check-step-names"       bash tools/check-step-names.sh
 run_gate             "check-job-kind-contracts" bash tools/check-job-kind-contracts.sh
+# ⭐ `4a` 柱③ 第 2 件：`Kind ↔ 菜单 kind` 的**生成视图 ＋ 双向防漂移**。
+# ⚠️ 必须排在 `check-job-menu-listable` **之前** —— 后者读这张生成视图当映射表，
+#    所以"视图陈旧"要先被本门禁点名（否则两条门禁一起红，读数会指向错的地方）。
+run_gate             "check-job-kind-view"     python3 tools/job-kind-view.py
 run_gate             "check-job-menu-listable" bash tools/check-job-menu-listable.sh
 # 同名类（`survey/46 §8.1`，2026-09-28 用户拍「按乙来」）：`src/main/java` 下**同名类 ⇒ 红**。
 # 起因：术语审计三轮（`survey/44/45/46`）挖到 ⚠️ **`src/` 里真的存在同名类** ——

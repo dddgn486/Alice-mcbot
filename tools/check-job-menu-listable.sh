@@ -2,7 +2,8 @@
 # `D-456` ③「可列出」（用户 2026-09-27 拍 **A**：做成 tools-only 结构门禁）
 #
 # 三条可执行规则（任一不满足 ⇒ 非零退出 ⇒ `check-all` 红）：
-#   ① 每个 `JobRequest.Kind` 值，都要在本脚本的**显式映射表**里有一行（Kind → 菜单 kind 字面量）；
+#   ① 每个 `JobRequest.Kind` 值，都要在**生成视图** `docs/JOB_KIND_VIEW.csv` 里有一行
+#      （Kind → 菜单 kind 字面量；⭐ `4a` 柱③ 第 1 件：映射表**搬回代码**，⛔ 不再是本脚本的 bash 变量）；
 #   ② 映射的每个值，都必须在 `CandidateMenu.java` 里**真的**作为 `new Entry(...)` 的 **kind 实参**出现
 #      —— ⭐ **位置化**断言（只认第 2 个实参，不看全文件找字面量；照 `D-441` 的教训：
 #      第一版"全文件找字面量"会被报错文案/别的用法满足，注入臂全绿）；
@@ -11,12 +12,16 @@
 #
 # 为什么要它：`D-456` 的三件准入里 ①② 已有门禁（`check-job-kind-contracts.sh`），**③ 没有** ⇒
 # 重构一动它就**静默变绿**（本项目 2026-09-26 实测教训：字面量换成常量后 `D-329` 规则静默变绿）。
-# ⚠️ 映射表就是契约：改它必须同时改这里（口径同 `D-454` 的"键名 = 与用户的契约"）。
+# ⚠️ 映射表就是契约：改它必须改**单一真源** `job/JobMenuKinds.java` 并**重新生成视图**
+#    （`python3 tools/job-kind-view.py --write`；口径同 `D-454` 的"键名 = 与用户的契约"）。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 KINDS_SRC="$ROOT/src/main/java/com/dddgn/alice/job/JobRequest.java"
 MENU_SRC="$ROOT/src/main/java/com/dddgn/alice/decision/CandidateMenu.java"
+# ⭐ 映射表的来源 = **生成视图**（`4a` 柱③ 第 1 件：单一真源搬回代码）——
+#    ⛔ 不再住在本壳脚本里（旧版是 `MAPPING="LUMBER=lumber…"` 一个 bash 变量）。
+VIEW="$ROOT/docs/JOB_KIND_VIEW.csv"
 
 fail() {
   echo "JOB_MENU_LISTABLE_CHECK_RESULT FAIL: $*"
@@ -26,19 +31,17 @@ fail() {
 [[ -f "$KINDS_SRC" ]] || fail "找不到 $KINDS_SRC"
 [[ -f "$MENU_SRC" ]] || fail "找不到 $MENU_SRC"
 
-# ---- 显式映射表（`Kind` → 菜单 `Entry.kind` 字面量）----
+# ---- 映射表来源 = **生成视图**（`Kind` → 菜单 `Entry.kind` 字面量）----
+# ⭐ 单一真源 = `job/JobMenuKinds.menuKind(...)`（switch 表达式 ⇒ **新增 Kind 编译不过**）；
+#    `docs/JOB_KIND_VIEW.csv` 是它的生成视图（`tools/job-kind-view.py --write`）。
 # ⚠️ `CRAFT → "craftable"` 是**有意**的：同一个概念在菜单侧的第 3 种写法（`D-342` 同族），
 #    正是本门禁要钉住的东西 —— 不许"机械小写化"通过。
-MAPPING="LUMBER=lumber
-MINE=mine
-REGION_LUMBER=region_lumber
-COLLECT=collect
-CRAFT=craftable"
+[[ -f "$VIEW" ]] || fail "找不到 docs/JOB_KIND_VIEW.csv（跑 python3 tools/job-kind-view.py --write 生成）"
 
-python3 - "$KINDS_SRC" "$MENU_SRC" "$MAPPING" <<'PY' || exit 1
+python3 - "$KINDS_SRC" "$MENU_SRC" "$VIEW" <<'PY' || exit 1
 import re, sys
 
-kinds_src, menu_src, mapping_text = sys.argv[1], sys.argv[2], sys.argv[3]
+kinds_src, menu_src, view_path = sys.argv[1], sys.argv[2], sys.argv[3]
 
 def fail(msg):
     print("JOB_MENU_LISTABLE_CHECK_RESULT FAIL: " + msg)
@@ -55,15 +58,23 @@ kinds = [n.strip() for n in re.findall(r"^\s*([A-Z][A-Z0-9_]*)\s*,?\s*$", body, 
 if not kinds:
     fail("enum Kind 里一个值都没解析出来")
 
+# ---- 映射表：从**生成视图**读（⭐ 不再是本脚本的 bash 变量）----
 mapping = {}
-for line in mapping_text.splitlines():
+for i, line in enumerate(open(view_path, encoding="utf-8").read().splitlines(), 1):
     line = line.strip()
-    if not line or "=" not in line:
+    if not line or line.startswith("#"):
         continue
-    k, v = line.split("=", 1)
+    if i == 1 and line.lower().startswith("kind"):
+        continue
+    if "," not in line:
+        fail("生成视图第 {} 行不是 `kind,menu_kind`：{}".format(i, line[:60]))
+    k, v = line.split(",", 1)
+    if k.strip() in mapping:
+        fail("生成视图里 kind 重复：{}".format(k.strip()))
     mapping[k.strip()] = v.strip()
+# ⭐ 非空检查：视图为空 / 解析崩塌 ⇒ 红（⛔ 不许读成"没有要检查的映射"）
 if not mapping:
-    fail("本脚本的映射表是空的")
+    fail("docs/JOB_KIND_VIEW.csv 里一条映射都没读到（⭐ 非空检查：解析崩塌 ⇒ 红）")
 
 missing = [k for k in kinds if k not in mapping]
 extra = [k for k in mapping if k not in kinds]
