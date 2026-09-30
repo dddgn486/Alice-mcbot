@@ -5312,7 +5312,9 @@ AI 建议 = **必改 `空转`（拆词）** · ✅ **已执行 `咬人`→`拦�
   新增 `action/package-info.java` 与 `compat/package-info.java`（后者写死 `compat/` 的**新定义**）。
 - ⭐ **同刀门禁**（`R4`）：`check-layer-direction.py` **3 条断言 ＋ 5 条红臂**（**29 → 34**）＋ **2 次真树注入实测**（还原逐字节干净）。
 - ✅ `COMPILES`（`BUILD SUCCESSFUL`）· ✅ `pass=40 warning=1 failed=0` ·
-  ✅ **`SERVER_TESTED` 行为零变化** —— 电池 `core` 真跑 261s，**163 个判定 token 逐字节与基线一致**。
+  ✅ **`SERVER_TESTED` 行为零变化** —— 电池 `core` 真跑 261s，**判定 token 逐字节与基线一致**
+  （全日志 **163 个 `*=PASS|FAIL`**；聚合行 **114 个**判定 token 在 A／B／C 三次运行完全相同。
+  ⚠️ 精确边界：聚合行的**计数器** `ticks=`／`写入类例外=` **会变**，但**同代码对照组 A vs B 同样会变** ⇒ 噪声，⛔ 非本刀效果）。
 - ⭐ **补上了 `D-561` 缺的同代码对照组**：同代码两次运行差异 **318** 行（噪声地板）· 基线 vs 本刀差异 **314** 行 ⇒ 本刀 **≤ 噪声**。
 - ⚠️ **我上一轮的错（已扣下，如实记）**：`GainStepRunner` **不随本刀搬** —— 它拖着 `MiningProfile`（住 `task/mining/`），
   搬了会让 `action/mining/` → `task/mining/` **当场违反**断言 2；⚠️ 这个耦合**只靠 import 扫描看不见**（同包简单名）。
