@@ -17,7 +17,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-FIXTURE="src/main/java/com/dddgn/alice/task/MachineCycleCheckTask.java"
+FIXTURE="src/main/java/com/dddgn/alice/fixture/MachineCycleCheckTask.java"
 EXECUTOR="src/main/java/com/dddgn/alice/task/craft/MachineCycle.java"
 PRODUCTION_JOB="src/main/java/com/dddgn/alice/job/craft/CraftJob.java"
 

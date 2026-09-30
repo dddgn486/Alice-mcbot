@@ -69,7 +69,7 @@
 
 ## §4 自证级：它**能证明自己什么**（自检模块 × 电池步）
 
-出处：`task/check/CheckModules.java#ALL + modules/*.java 的 CheckStep 声明` + `task/RegressionBatteryTask.java#CURATION（+ buildSteps 顺序）`。
+出处：`fixture/check/CheckModules.java#ALL + modules/*.java 的 CheckStep 声明` + `fixture/RegressionBatteryTask.java#CURATION（+ buildSteps 顺序）`。
 
 ### §4.1 自检模块（21 个）
 

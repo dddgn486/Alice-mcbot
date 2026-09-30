@@ -47,7 +47,7 @@ self_intact() {
 
 EXTRA_ARGS=()
 WANTED=()
-MODDIR="src/main/java/com/dddgn/alice/task/check/modules"
+MODDIR="src/main/java/com/dddgn/alice/fixture/check/modules"
 CHANGED=0
 LIST_ONLY=0
 for arg in "$@"; do
@@ -63,12 +63,12 @@ done
 # ---- `--changed`：本轮碰过的模块（见文件头 D-304 的选法）----
 CHANGED_IDS=()
 if [ "$CHANGED" = 1 ]; then
-    FRAMEWORK=("src/main/java/com/dddgn/alice/task/check/CheckHarness.java"
-               "src/main/java/com/dddgn/alice/task/check/CheckStep.java"
-               "src/main/java/com/dddgn/alice/task/check/CheckModule.java"
-               "src/main/java/com/dddgn/alice/task/check/CheckContext.java"
+    FRAMEWORK=("src/main/java/com/dddgn/alice/fixture/check/CheckHarness.java"
+               "src/main/java/com/dddgn/alice/fixture/check/CheckStep.java"
+               "src/main/java/com/dddgn/alice/fixture/check/CheckModule.java"
+               "src/main/java/com/dddgn/alice/fixture/check/CheckContext.java"
                "src/main/java/com/dddgn/alice/bot/BotManager.java"
-               "src/main/java/com/dddgn/alice/task/FixturePremise.java")
+               "src/main/java/com/dddgn/alice/fixture/FixturePremise.java")
     DIRTY="$( { git status --porcelain | awk '{print $NF}'; git diff --name-only HEAD; } | sort -u )"
     ALL_OF_THEM=0
     for f in "${FRAMEWORK[@]}"; do
@@ -85,26 +85,26 @@ if [ "$CHANGED" = 1 ]; then
             esac
         done <<< "$DIRTY"
         # CheckModules 注册表：只认**新增**的 `new XxxModule()`（否则每次注册都跑全量，批量验收失去意义）
-        if printf '%s\n' "$DIRTY" | grep -qx "src/main/java/com/dddgn/alice/task/check/CheckModules.java"; then
+        if printf '%s\n' "$DIRTY" | grep -qx "src/main/java/com/dddgn/alice/fixture/check/CheckModules.java"; then
             while IFS= read -r cls; do
                 [ -z "$cls" ] && continue
                 f="$MODDIR/$cls.java"
                 if [ -f "$f" ]; then
                     # **只认 HEAD 里还没有的类**：给上一行补个逗号也会让 `new MiningModule()` 出现在 + 行里，
                     # 那不是"新增模块" ⇒ 先查 HEAD 的注册表里有没有它（自查时实测踩到过这个假阳性 ✓）
-                    if git show HEAD:src/main/java/com/dddgn/alice/task/check/CheckModules.java \
+                    if git show HEAD:src/main/java/com/dddgn/alice/fixture/check/CheckModules.java \
                             | grep -q "new $cls()"; then
                         continue
                     fi
                     id="$(grep -oE 'return "[a-z0-9_]+";' "$f" | head -1 | sed 's/return "//; s/";//')"
                     [ -n "$id" ] && CHANGED_IDS+=("$id")
                 fi
-            done < <(git diff HEAD -- src/main/java/com/dddgn/alice/task/check/CheckModules.java \
+            done < <(git diff HEAD -- src/main/java/com/dddgn/alice/fixture/check/CheckModules.java \
                      | grep -E '^\+.*new [A-Za-z]+Module\(\)' | grep -oE 'new [A-Za-z]+Module' | sed 's/new //')
         fi
         # ⚠️ **失败安全补丁（2026-09-18 实测假阴性）**：改动落在别的 Java 源（**夹具本体** / 生产类）时，
         # 上面两条规则一条都不命中 ⇒ 会打印「没有检测到受影响的模块 ⇒ 无事可做 ✓」并**静默跑 0 个**。
-        # 实测：改了 `task/ProtectionZoneCheckTask.java`（保护区夹具本体）后正是这个结果 ——
+        # 实测：改了 `fixture/ProtectionZoneCheckTask.java`（保护区夹具本体）后正是这个结果 ——
         # 而"这个模块会跑这个夹具"⇒ 必须跑它。判不出来就跑全部（文件头承诺：绝不静默跑 0 个 ✗）。
         #
         # ⚠️⚠️ 归属判据必须是**强引用**（`new X(` / `X::` / `X.class`），不能是"文件里出现过这个名字"：

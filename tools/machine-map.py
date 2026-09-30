@@ -363,13 +363,13 @@ def tier_a(rows: list[dict], unmapped: list[dict], problems: list[str]) -> None:
 
 # 只扫**做上游反射适配**的文件（不是全仓 grep：那会把业务代码里的同名字符串也算进来）
 CAPABILITY_FILES = [
-    "src/main/java/com/dddgn/alice/task/craft/MachineRecipeFacts.java",
+    "src/main/java/com/dddgn/alice/fixture/craft/MachineRecipeFacts.java",
     "src/main/java/com/dddgn/alice/task/craft/MachineCycle.java",
-    "src/main/java/com/dddgn/alice/task/craft/CraftMenuIntrospection.java",
+    "src/main/java/com/dddgn/alice/fixture/craft/CraftMenuIntrospection.java",
     "src/main/java/com/dddgn/alice/task/craft/GridDiscovery.java",
     "src/main/java/com/dddgn/alice/task/craft/FurnaceStation.java",
     "src/main/java/com/dddgn/alice/fixture/CraftStationCraftCheckTask.java",
-    "src/main/java/com/dddgn/alice/task/MachineStationProbeTask.java",
+    "src/main/java/com/dddgn/alice/fixture/MachineStationProbeTask.java",
     "src/main/java/com/dddgn/alice/compat/ChainMining.java",
 ]
 

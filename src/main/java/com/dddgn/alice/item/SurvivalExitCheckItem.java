@@ -14,6 +14,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
+import com.dddgn.alice.fixture.SurvivalCourseAnchor;
 
 /**
  * **维生出口自检启动器**（{@code alice:survival_exit_check}，S-1 / P1-C）：普通右键，零参数。
@@ -80,8 +81,8 @@ public class SurvivalExitCheckItem extends Item {
         boolean onFire = player != null && player.isShiftKeyDown();
         // ⚠️ 软危险**不能**站进压顶那一格：`classify` 的顺序是 岩浆 → 窒息 → 缺氧 → 着火 ⇒
         // 那里永远只会被判成 SUFFOCATING，着火那条通路根本轮不到。所以软危险站在**安全的角格**上。
-        BlockPos hazardFoot = onFire ? com.dddgn.alice.task.SurvivalCourseAnchor.PLATFORM_FOOT
-                : com.dddgn.alice.task.SurvivalCourseAnchor.HAZARD_FOOT;
+        BlockPos hazardFoot = onFire ? com.dddgn.alice.fixture.SurvivalCourseAnchor.PLATFORM_FOOT
+                : com.dddgn.alice.fixture.SurvivalCourseAnchor.HAZARD_FOOT;
         BotPlayer bot = BotManager.firstInLevel(level);
         if (bot == null) {
             bot = BotManager.firstOrSpawn(level, hazardFoot);
@@ -103,7 +104,7 @@ public class SurvivalExitCheckItem extends Item {
         }
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
         if (!BotManager.assignSurvivalExitCheck(bot, player instanceof ServerPlayer sp ? sp : null,
-                com.dddgn.alice.task.SurvivalCourseAnchor.DUMMY_GOAL)) {
+                com.dddgn.alice.fixture.SurvivalCourseAnchor.DUMMY_GOAL)) {
             // A（§5.9）：**不许静默成功** —— 说清是"忙"还是"被未结清传输挡住"（后者以前会打印"就位"骗人）
             String blocked = BotManager.assignmentBlockReason(bot);
             say(player, blocked.isEmpty()

@@ -32,7 +32,13 @@ SRC_REL = "src/main/java/"
 TASK_TOP = SRC_REL + "com/dddgn/alice/task"
 FREEZE = ROOT / "docs/TASK_TOP_LEVEL_FREEZE.txt"
 
-MIN_LINES = 100          # 人口下限：今天 142；掉到 100 以下 ⇒ 名单被截断或解析器坏了
+#: ⭐ 2026-09-30（夹具波同刀）：人口下限从**写死的常数**改成**跨源对账**。
+#: 理由 —— `task/` 顶层是批次 2 ① 里**设计成单调走向 0** 的数（`D-550` §2b：`142 → 0`），
+#: 静态下限（原 `MIN_LINES = 100`）在**第二波**（103 → 20）当场变假红发生器。
+#: ⇒ 判据改成「名单行数 **==** 顶层实物数 **==** `docs/TASK_RETIREMENT_MAP.csv` 里**顶层**行数」
+#: —— 三源里任一被截断 / 解析崩塌 ⇒ 报；且**没有会腐烂的手写数**。
+#: ⚠️ `P4` 关门（顶层 == 0）之后本条随门禁一起退役，⛔ 那时不许靠 `0 == 0` 空过。
+MAP_CSV = ROOT / "docs/TASK_RETIREMENT_MAP.csv"
 
 
 def current_top_level() -> list[str]:
@@ -62,9 +68,18 @@ def main() -> int:
     frozen = read_freeze()
     problems: list[str] = []
 
-    if len(frozen) < MIN_LINES:
-        problems.append(f"名单只有 {len(frozen)} 行（下限 {MIN_LINES}）⇒ 被截断或没建好"
-                        f"（⛔ 空名单不许读成「没有要检查的」）")
+    # ⭐ 跨源对账（取代写死的下限）：`P0` 台账里**顶层**的行数必须与名单一致。
+    if not MAP_CSV.exists():
+        problems.append(f"缺 `{MAP_CSV.relative_to(ROOT)}` ⇒ 顶层人口**没有对账源**")
+    else:
+        lines = [ln for ln in MAP_CSV.read_text(encoding="utf-8").split("\n") if ln.strip()]
+        top_rows = [ln for ln in lines[1:] if ln.split(",")[1].startswith(TASK_TOP + "/")
+                    and ln.split(",")[1].count("/") == TASK_TOP.count("/") + 1]
+        if not top_rows:
+            problems.append("`P0` 台账里**顶层行 0 条** ⇒ 台账被清空或解析崩塌（⛔ 空集不许读成通过）")
+        elif len(top_rows) != len(frozen):
+            problems.append(f"两源不一致：名单 {len(frozen)} 行 vs `P0` 台账顶层 {len(top_rows)} 行"
+                            f" ⇒ 名单被截断 / 台账陈旧（忘了 `--write`？）")
     if frozen != sorted(frozen):
         problems.append("名单**未排序**（`git diff` 才有意义；手改时请保持字典序）")
     if len(set(frozen)) != len(frozen):

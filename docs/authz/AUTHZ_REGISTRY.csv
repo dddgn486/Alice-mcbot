@@ -22,8 +22,8 @@ L4-2,L4 收尾期,硬约束,只拆自己放的（比对账本，不匹配即销�
 L4-3,L4 收尾期,机制,两条拆除路径：①站上去向下拆（DOWNWARD）②侧拆兜底（SIDE_BREAK）,①下方有支撑 ②悬空桥面/走不到正上方,restore_done / restore_partial / nothing_to_restore,task/RestoreScopeTask.java,按世界事实选路,—
 L4-4,L4 收尾期,闭环,物质闭环：拆除掉落物回收（ScopeBuffer + CollectDropsTask）,拆除后掉落物,—,task/RestoreScopeTask.java,必须回收（D-099 教训）,—
 L4-5,L4 收尾期,账本,ScopeBuffer：世界**实际发生**了什么（含外部玩家）,Forge 事件,—,ledger/ScopeBuffer,与 WriteAudit 交叉校验,—
-L5-1,L5 验证层,自证,电池步（CORE 27 / FULL 37；CURATION 唯配置入口）,每个自检任务,PASS / FAIL / SKIP,task/RegressionBatteryTask.java; docs/BATTERY_CURATION.md,分档唯一出处,—
-L5-2,L5 验证层,自证,FixturePremise 前提断言,夹具关键点,premise_own_menu / station_menu_open / on_ground / no_observer,task/FixturePremise.java,前提不成立即红,—
+L5-1,L5 验证层,自证,电池步（CORE 27 / FULL 37；CURATION 唯配置入口）,每个自检任务,PASS / FAIL / SKIP,fixture/RegressionBatteryTask.java; docs/BATTERY_CURATION.md,分档唯一出处,—
+L5-2,L5 验证层,自证,FixturePremise 前提断言,夹具关键点,premise_own_menu / station_menu_open / on_ground / no_observer,fixture/FixturePremise.java,前提不成立即红,—
 L5-3,L5 验证层,自证,夹具自带传送 + 结束复位（§5.0d）,场景夹具,reset=true,PLAYBOOK §5.0d,强制（失败路径同走）,—
-L5-4,L5 验证层,自证,零写入自证,探针 / 只读夹具,no_writes=true / 背包逐槽未变,task/MachineStationProbeTask.java 等,强制,—
+L5-4,L5 验证层,自证,零写入自证,探针 / 只读夹具,no_writes=true / 背包逐槽未变,fixture/MachineStationProbeTask.java 等,强制,—
 L5-5,L5 验证层,自证,负例前提运行时自证,无配方负例等,no_recipe / firstUnproducibleItem,fixture/CraftCheckTask.java,强制（写死会过期）,—

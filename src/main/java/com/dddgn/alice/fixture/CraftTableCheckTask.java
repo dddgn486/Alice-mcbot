@@ -7,7 +7,7 @@ import com.dddgn.alice.ledger.WorldModLedger;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.task.craft.RecipeQuery;
-import com.dddgn.alice.task.craft.TableCraft;
+import com.dddgn.alice.fixture.craft.TableCraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;

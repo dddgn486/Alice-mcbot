@@ -8,7 +8,7 @@ import com.dddgn.alice.pathing.core.search.PathRequest;
 import com.dddgn.alice.pathing.core.session.PathExecutionResult;
 // ⭐ `4a` 柱②（用户 2026-09-29 裁 `N3`）：`Step` = **原语注册口**（接口即注册）
 import com.dddgn.alice.task.Step;
-import com.dddgn.alice.task.mining.GainStepRunner;
+import com.dddgn.alice.fixture.mining.GainStepRunner;
 import com.dddgn.alice.task.mining.MiningProfile;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.item.ItemEntity;

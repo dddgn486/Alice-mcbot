@@ -18,6 +18,7 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.Set;
 import com.dddgn.alice.pathing.PathRetryRunner;
+import com.dddgn.alice.fixture.FixtureZone;
 
 /**
  * J7 Step 1：**脚手架生命周期闭环**（§12.3 / §11-① 要素①–④）。

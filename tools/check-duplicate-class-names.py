@@ -117,7 +117,7 @@ DUP_EXEMPT: dict[str, dict] = {
     "Step": {
         "paths": [
             "src/main/java/com/dddgn/alice/compat/ftbteams/FtbPartyBinder.java",
-            "src/main/java/com/dddgn/alice/task/RegressionBatteryTask.java",
+            "src/main/java/com/dddgn/alice/fixture/RegressionBatteryTask.java",
             "src/main/java/com/dddgn/alice/task/Step.java",
         ],
         "reason": "`task/Step.java` 是 **step 原语注册口**（`D-539`）；另两处是**各自的局部数据载体**："

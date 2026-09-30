@@ -15,7 +15,7 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.List;
-import com.dddgn.alice.task.SurvivalCourseAnchor;
+import com.dddgn.alice.fixture.SurvivalCourseAnchor;
 import com.dddgn.alice.task.SurvivalExitTask;
 import com.dddgn.alice.task.SurvivalFloatTask;
 import com.dddgn.alice.task.Task;

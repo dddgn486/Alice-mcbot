@@ -44,7 +44,7 @@ VERIFY_SIDE = {"task", "fixture", "headless", "tools"}   # 验证侧的**一级�
 
 def is_verify_side(pkg: str) -> bool:
     """⚠️ 必须按**前缀**判，⛔ 不能拿整串去 `set` 里比 —— `rel_pkg()` 对子包返回**路径式**
-    （`task/check/modules`），早期写成 `refset <= {"task", …}` ⇒ 全部落空，
+    （`fixture/check/modules`），早期写成 `refset <= {"task", …}` ⇒ 全部落空，
     实测把 110 个夹具误判成"生产"。"""
     head = pkg.split("/")[0]
     return head in VERIFY_SIDE
@@ -55,7 +55,11 @@ ENTRY_SIDE = {"command"}
 DEV_ENTRY_SIDE = {"item"}
 DESTS = ("step", "debug", "fixture", "生产")
 HEADER = "task_class,task_path,dest,reason"
-MIN_ROWS = 150          # 人口下限：今天 190；掉到 150 以下 ⇒ 解析器静默失效
+#: ⭐ 2026-09-30（夹具波同刀）：人口下限从**写死的常数**改成**跨源对账**（同 `check-task-top-freeze.py`）：
+#: `task/` 顶层是**设计成走向 0** 的数 ⇒ 静态下限（原 `MIN_ROWS = 150`）在第二波当场变假红发生器。
+#: ⇒ 判据 = 「本台账的**顶层**行数 **==** `docs/TASK_TOP_LEVEL_FREEZE.txt` 行数」。
+#: ⚠️ `P4` 关门后随门禁退役，⛔ 不许靠 `0 == 0` 空过。
+FREEZE_TXT = ROOT / "docs/TASK_TOP_LEVEL_FREEZE.txt"
 DEST_PKG = {"debug": SRC_REL + "com/dddgn/alice/debug",
             "fixture": SRC_REL + "com/dddgn/alice/fixture",
             "step": SRC_REL + "com/dddgn/alice/step"}
@@ -108,7 +112,7 @@ def strip_comments(text: str) -> str:
 
 
 def rel_pkg(path: Path) -> str:
-    """⇒ `task` / `task/check/modules` / `item` / `tools` …（相对 `com/dddgn/alice/`）"""
+    """⇒ `task` / `fixture/check/modules` / `item` / `tools` …（相对 `com/dddgn/alice/`）"""
     try:
         rel = path.relative_to(ROOT / SRC_REL).parts
     except ValueError:
@@ -261,7 +265,17 @@ def build_rows() -> list[tuple[str, str, str, str]]:
         rows.append((cls, repo_path, dest, reason))
 
     rows.sort()
-    assert len(rows) >= MIN_ROWS, f"只得到 {len(rows)} 行（下限 {MIN_ROWS}）⇒ 解析器静默失效"
+    # ⭐ 跨源对账（取代写死的下限）：顶层行数必须 == `P2` 单向阀的名单行数。
+    if not FREEZE_TXT.exists():
+        raise SystemExit(f"TASK_RETIREMENT_MAP_RESULT FAIL: 缺 `{FREEZE_TXT.relative_to(ROOT)}`"
+                         f" ⇒ 顶层人口**没有对账源**")
+    _frozen = [x for x in FREEZE_TXT.read_text(encoding="utf-8").split("\n") if x.strip()]
+    _top = [r for r in rows if r[1].startswith(TASK_DIR + "/") and r[1].count("/") == TASK_DIR.count("/") + 1]
+    if not _top:
+        raise SystemExit("TASK_RETIREMENT_MAP_RESULT FAIL: 顶层行 0 条 ⇒ 解析器静默失效（⛔ 空集不是通过）")
+    if len(_top) != len(_frozen):
+        raise SystemExit(f"TASK_RETIREMENT_MAP_RESULT FAIL: 两源不一致 —— 台账顶层 {len(_top)} 行 "
+                         f"vs 冻结名单 {len(_frozen)} 行（忘了 `--write`？）")
     REFSET.clear()
     REFSET.update(refs_by_cls)
     return rows

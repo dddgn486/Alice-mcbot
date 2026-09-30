@@ -41,6 +41,8 @@ import java.util.UUID;
 
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.registries.ForgeRegistries;
+import com.dddgn.alice.fixture.RegressionBatteryTask;
+import com.dddgn.alice.fixture.ShoreEscapeFixture;
 
 /**
  * M0 测试命令入口(后续 M4 将被 AI 工具调用取代)。
@@ -348,7 +350,7 @@ public final class BotCommand {
                         .then(Commands.literal("single")
                                 .then(Commands.argument("step", StringArgumentType.word())
                                         .suggests((ctx, builder) -> {
-                                            for (String stepName : com.dddgn.alice.task
+                                            for (String stepName : com.dddgn.alice.fixture
                                                     .RegressionBatteryTask.knownStepNames()) {
                                                 builder.suggest(stepName);
                                             }
@@ -1231,7 +1233,7 @@ public final class BotCommand {
             return 0;
         }
         if ("list".equals(action)) {
-            var curation = com.dddgn.alice.task.RegressionBatteryTask.curationSummary();
+            var curation = com.dddgn.alice.fixture.RegressionBatteryTask.curationSummary();
             for (String line : curation) {
                 source.sendSuccess(() -> Component.literal("[alice] " + line), false);
             }
@@ -1239,7 +1241,7 @@ public final class BotCommand {
             // 用电池不好观察」）⇒ 点一下名字 = 只跑那一步 + **把你传到现场**，跑完送回原处。
             // 为什么用"聊天里可点"而不是做 GUI：零参数、零新界面、零网络协议，成本差一个量级。
             var names = new java.util.ArrayList<>(
-                    com.dddgn.alice.task.RegressionBatteryTask.knownStepNames());
+                    com.dddgn.alice.fixture.RegressionBatteryTask.knownStepNames());
             java.util.Collections.sort(names);
             source.sendSuccess(() -> Component.literal(
                     "[alice] ↓ 点步名 = 只跑这一步（会把你传到现场，跑完送回原处）；共 "
@@ -1265,7 +1267,7 @@ public final class BotCommand {
         // ⭐ `D-521` `single:<step>`：只跑名单里的那一步（复用无头通道的 `setOnlySteps` 定向机制）。
         String onlyStep = action.startsWith("single:") ? action.substring("single:".length()) : null;
         if (onlyStep != null
-                && !com.dddgn.alice.task.RegressionBatteryTask.knownStepNames().contains(onlyStep)) {
+                && !com.dddgn.alice.fixture.RegressionBatteryTask.knownStepNames().contains(onlyStep)) {
             source.sendFailure(Component.literal("[alice] 不认识的步名「" + onlyStep
                     + "」⇒ 先 `/alice battery list` 看清单（Tab 也能补全）"));
             return 0;
@@ -1282,10 +1284,10 @@ public final class BotCommand {
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.IN_GAME_PLAYER);
         // ⚠️ `onlySteps` 是**静态**的（无头通道的机制）⇒ 两条路都必须显式设定，否则会**串味**：
         // 上一轮单步留下的名单会让这一轮 `/alice battery core` 只跑那一步（静默）。
-        com.dddgn.alice.task.RegressionBatteryTask.setOnlySteps(
+        com.dddgn.alice.fixture.RegressionBatteryTask.setOnlySteps(
                 onlyStep == null ? null : java.util.List.of(onlyStep));
         if (!BotManager.assignRegressionBattery(bot, batteryObserver, full)) {
-            com.dddgn.alice.task.RegressionBatteryTask.setOnlySteps(null);
+            com.dddgn.alice.fixture.RegressionBatteryTask.setOnlySteps(null);
             source.sendFailure(Component.literal("[alice] " + BotManager.busyMessage(bot)));
             return 0;
         }
@@ -2109,12 +2111,12 @@ public final class BotCommand {
      * `/alice shore-escape-test`（零参数）：建**孤立**场景 + 把 bot 放进池底 + 清任务 + 按住决策层。
      *
      * <p>它验的是"无任务的水下 bot 会先浮、再走到 8 格内的干站位"（用户 2026-09-21 第十二轮裁定）；
-     * 场景与判据见 {@link com.dddgn.alice.task.ShoreEscapeFixture} 的注释，离线判据见电池步
+     * 场景与判据见 {@link com.dddgn.alice.fixture.ShoreEscapeFixture} 的注释，离线判据见电池步
      * `survival_shore_escape`。
      */
     private static int shoreEscapeTest(CommandSourceStack source) {
         try {
-            String armed = com.dddgn.alice.task.ShoreEscapeFixture.arm(source.getPlayerOrException());
+            String armed = com.dddgn.alice.fixture.ShoreEscapeFixture.arm(source.getPlayerOrException());
             source.sendSuccess(() -> Component.literal("[alice] 「浮起来后自己上岸」已武装：" + armed), false);
             source.sendSuccess(() -> Component.literal("[alice] 应当看到：① bot 立刻浮到水面；"
                     + "② 头出水后**自己走到平台干格**上（日志 `[Survival] … ⇒ 找岸（**纯通行**、零写权）`）；"

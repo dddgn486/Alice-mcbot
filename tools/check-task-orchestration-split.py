@@ -155,7 +155,7 @@ BUDGET_ANY = re.compile(r"new\s+\w*Budget\s*\(|\bBudget\s*\.\s*for\w+\s*\(")
 STEP_IMPL_MIN = 2
 #: ⚠️ **同名两物豁免**（反向检查的具名登记；**双向**：条目必须仍存在、且必须**仍不实现** `Step`）。
 STEP_NAMESAKE_EXEMPT = {
-    "task/check/CheckStep.java":
+    "fixture/check/CheckStep.java":
         "**同名两物**：它是**电池/自检步的描述 record**（场景＋发料＋任务工厂＋预算＋判据），"
         "**不是**本门禁意义上的原语（`task/Step` 接口指后者）⇒ 刻意不实现它。"
         "复核触发 = 它被改名/换形状那一刀（届时删本行）",

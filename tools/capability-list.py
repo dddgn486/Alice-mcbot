@@ -165,13 +165,13 @@ def parse_movements() -> tuple[list[str], set[str], str]:
 
 def parse_modules() -> tuple[dict[str, dict], str]:
     """模块注册表（`CheckModules.ALL`）→ 每个模块的 id/标题/期望判决/步声明。"""
-    reg = read(JAVA / "task" / "check" / "CheckModules.java")
+    reg = read(JAVA / "fixture" / "check" / "CheckModules.java")
     m = re.search(r"List<CheckModule> ALL = List\.of\((.*?)\);", reg, re.S)
     if not m:
         fail("[解析崩塌] CheckModules.ALL 没找到（形状变了？）")
-        return {}, "task/check/CheckModules.java#ALL"
+        return {}, "fixture/check/CheckModules.java#ALL"
     classes = re.findall(r"new\s+([A-Za-z0-9_]+)\(\)", m.group(1))
-    mod_dir = JAVA / "task" / "check" / "modules"
+    mod_dir = JAVA / "fixture" / "check" / "modules"
     out: dict[str, dict] = {}
     for cls in classes:
         src = read(mod_dir / f"{cls}.java")
@@ -202,16 +202,16 @@ def parse_modules() -> tuple[dict[str, dict], str]:
         }
     if not out:
         fail("[解析崩塌] 一个模块都没解析出来")
-    return out, "task/check/CheckModules.java#ALL + modules/*.java 的 CheckStep 声明"
+    return out, "fixture/check/CheckModules.java#ALL + modules/*.java 的 CheckStep 声明"
 
 
 def parse_battery() -> tuple[dict, str]:
     """电池：`CURATION` 归属表 + 内联步 + 模块使用序（= CORE 的真实运行序）。"""
-    text = read(JAVA / "task" / "RegressionBatteryTask.java")
+    text = read(JAVA / "fixture" / "RegressionBatteryTask.java")
     marker = "private static final Map<String, Profile> CURATION"
     if marker not in text:
         fail("[解析崩塌] 找不到 CURATION（归属表是档位的唯一出处）")
-        return {}, "task/RegressionBatteryTask.java#CURATION"
+        return {}, "fixture/RegressionBatteryTask.java#CURATION"
     region = text[text.index(marker):]
     entries = re.findall(r'Map\.entry\(\s*"([A-Za-z0-9_]+)"\s*,\s*Profile\.([A-Z]+)\s*\)', region)
     if len(re.findall(r"Map\.entry\(", region)) != len(entries):
@@ -224,7 +224,11 @@ def parse_battery() -> tuple[dict, str]:
     build = text[text.index("private void buildSteps()"):text.index("// ==================== 执行 ====================")]
     # buildSteps 里的**顺序**：模块 take-all 与内联步交替出现，顺序即真实运行序
     order: list[tuple[str, str]] = []   # (kind, payload)
-    for m in re.finditer(r'new com\.dddgn\.alice\.task\.check\.modules\.([A-Za-z0-9_]+)\(\)\.steps\(|'
+    # ⚠️ 2026-09-30：原本把模块包路径**硬写成全限定名** `com\.dddgn\.alice\.task\.check\.modules\.`
+    # ⇒ `task/` 整包退役（夹具波搬去 `fixture/check/modules/`）时它**静默失配** ⇒ `order` 丢掉全部模块
+    # ⇒ 下游 A1/A3 报成"步声明全没了 / 模块电池不跑"（症状离根因很远）。
+    # ⇒ 改成**前缀无关**（只认 `new …XxxModule().steps(` 这个形状），搬家不再能骗过它。
+    for m in re.finditer(r'new (?:com\.dddgn\.alice\.)?(?:[\w]+\.)*([A-Za-z0-9_]+)\(\)\.steps\(|'
                          r'\bstep\(\s*"([A-Za-z0-9_]+)"', build):
         if m.group(1):
             order.append(("module", m.group(1)))
@@ -235,7 +239,7 @@ def parse_battery() -> tuple[dict, str]:
     return {
         "curation": dict(entries),
         "order": order,
-    }, "task/RegressionBatteryTask.java#CURATION（+ buildSteps 顺序）"
+    }, "fixture/RegressionBatteryTask.java#CURATION（+ buildSteps 顺序）"
 
 
 def parse_machine_rows() -> tuple[list[dict], str]:

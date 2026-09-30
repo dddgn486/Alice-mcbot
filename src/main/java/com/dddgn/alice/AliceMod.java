@@ -2,8 +2,8 @@ package com.dddgn.alice;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.config.FishboneConfig;
-import com.dddgn.alice.task.mining.MiningReplanFixture;
-import com.dddgn.alice.task.mining.MiningSceneFixture;
+import com.dddgn.alice.fixture.mining.MiningReplanFixture;
+import com.dddgn.alice.fixture.mining.MiningSceneFixture;
 import com.dddgn.alice.gui.ModMenuTypes;
 import com.dddgn.alice.item.AliceItems;
 import com.dddgn.alice.network.AliceNetwork;

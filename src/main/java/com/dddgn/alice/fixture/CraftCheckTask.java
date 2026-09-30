@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
+import com.dddgn.alice.fixture.craft.MachineRecipeFacts;
 
 /**
  * **只读配方查询自检**（阶段 3-A / A1，D-185）：一次右键跑完，输出 `SUMMARY key=VALUE`。
@@ -178,7 +179,7 @@ public class CraftCheckTask implements Task {
                 producible.add(net.minecraft.core.registries.BuiltInRegistries.ITEM
                         .getKey(result.getItem()).toString());
             }
-            for (var item : com.dddgn.alice.task.craft.MachineRecipeFacts.read(recipe, access).outputs()) {
+            for (var item : com.dddgn.alice.fixture.craft.MachineRecipeFacts.read(recipe, access).outputs()) {
                 producible.add(net.minecraft.core.registries.BuiltInRegistries.ITEM
                         .getKey(item.getItem()).toString());
             }

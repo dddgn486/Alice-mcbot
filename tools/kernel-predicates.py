@@ -122,7 +122,7 @@ def rule_terminal_latch_replays_status():
     ⚠️ **两处必须避开的读错（本规则第一版各踩一次，2026-09-23）**：
       · 注释里**提到旧写法**不算违规 ⇒ 必须连**块注释/javadoc**一起去掉（共享的 `code_only` 只去 `//`）；
       · `terminalStatus` 这个名字**有两处含义**：本规则管的是 `Task.Status terminalStatus` **字段**，
-        而 `TaskExecutionRecord.terminalStatus()` 是**另一个**东西（`task/mining/MiningSceneFixture.java`
+        而 `TaskExecutionRecord.terminalStatus()` 是**另一个**东西（`fixture/mining/MiningSceneFixture.java`
         只是在调那个方法）⇒ 必须按**字段声明**匹配，不能按"出现过这个词"匹配。
     """
     alice = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
@@ -934,8 +934,8 @@ def rule_harness_step_hygiene():
     `CraftStation.select(bot, "auto")`。少任何一侧 ⇒ 构建红（这一条的价值就在于"哪一侧被删掉都当场知道"）。
     """
     targets = {
-        ROOT / "src/main/java/com/dddgn/alice/task/RegressionBatteryTask.java": "电池 endStep",
-        ROOT / "src/main/java/com/dddgn/alice/task/check/CheckHarness.java": "编排器 endStepHygiene",
+        ROOT / "src/main/java/com/dddgn/alice/fixture/RegressionBatteryTask.java": "电池 endStep",
+        ROOT / "src/main/java/com/dddgn/alice/fixture/check/CheckHarness.java": "编排器 endStepHygiene",
     }
     needle = 'CraftStation.select(bot, "auto")'
     problems = []
@@ -960,8 +960,8 @@ def rule_module_step_inventory():
     `CheckStep.of("X")`/`CheckStep.skippable("X")`/`CheckStep.keeping("X")` ⇒ 三者必须**逐一对应**。
     """
     import re as _re
-    battery = (ROOT / "src/main/java/com/dddgn/alice/task/RegressionBatteryTask.java")
-    modules_dir = (ROOT / "src/main/java/com/dddgn/alice/task/check/modules")
+    battery = (ROOT / "src/main/java/com/dddgn/alice/fixture/RegressionBatteryTask.java")
+    modules_dir = (ROOT / "src/main/java/com/dddgn/alice/fixture/check/modules")
     text = battery.read_text(encoding="utf-8")
     start = text.index("private static final Map<String, Profile> CURATION")
     # 归属表可能以**单独一行的 `);`** 结束，也可能最后一行就是 `Map.entry(...));`
@@ -1012,8 +1012,8 @@ def rule_step_boundary_parity():
     （账本/写入预算的 `close*` 不在此列 —— 那些由会话任务生命周期负责 ✓）。
     """
     import re as _re
-    battery = ROOT / "src/main/java/com/dddgn/alice/task/RegressionBatteryTask.java"
-    harness = ROOT / "src/main/java/com/dddgn/alice/task/check/CheckHarness.java"
+    battery = ROOT / "src/main/java/com/dddgn/alice/fixture/RegressionBatteryTask.java"
+    harness = ROOT / "src/main/java/com/dddgn/alice/fixture/check/CheckHarness.java"
     if not battery.exists() or not harness.exists():
         return ["电池或编排器文件不存在（改名？同步本规则）"]
 
@@ -2278,7 +2278,7 @@ def rule_movement_contract_agreement():
                 / "search" / "SurfaceMovementProvider.java").read_text(encoding="utf-8")
     session = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing" / "core"
                / "session" / "PathSession.java").read_text(encoding="utf-8")
-    fixture = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
+    fixture = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "fixture"
                / "PlaceStepDiagonalCheckTask.java").read_text(encoding="utf-8")
     request = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing" / "core"
                / "search" / "PathRequest.java").read_text(encoding="utf-8")
@@ -2450,7 +2450,7 @@ def rule_standing_point_detour_bounded():
        看着"完美"其实是非法状态下的错判）。
     """
     problems = []
-    fixture = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
+    fixture = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "fixture"
                / "MineMenuCheckTask.java").read_text(encoding="utf-8")
     marker = "private void runStandingPointChoiceChecks()"
     if marker not in fixture:
@@ -2486,7 +2486,7 @@ def rule_scan_advances_every_select():
     problems = []
     job = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "mine"
            / "MineJob.java").read_text(encoding="utf-8")
-    fixture = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
+    fixture = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "fixture"
                / "MineMenuCheckTask.java").read_text(encoding="utf-8")
     body = code_only(method_body(job, "private Task.Status select()"))
     advance = body.find("session.advance(")
@@ -2626,7 +2626,7 @@ def rule_tick_search_account_enforced():
     if "expensiveSearches++" in external:
         problems.append("`recordExternal`（选择期成本场）在吃主判据的额度 ⇒ 成本场会把挖矿规划挤掉"
                         "（真机实测成本场单次 `ms=69`，与路径搜索争同一个 tick）")
-    fixture = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
+    fixture = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "fixture"
                / "MineMenuCheckTask.java").read_text(encoding="utf-8")
     if "runSearchBudgetChecks();" not in code_only(fixture):
         problems.append("A1/A2 夹具没有被调用（夹具在但不跑 = 等于没有）")
@@ -2765,10 +2765,10 @@ def rule_arrival_declared_and_consumed():
                         "⇒ `1-0a`/`1-1` 的整条链会**静默**变成死件")
 
     # ---- ④ A2 夹具仍按字面量 + 实测量断言 ----
-    fixture = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
+    fixture = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "fixture"
                / "MineMenuCheckTask.java")
     if not fixture.exists():
-        problems.append("找不到 `task/MineMenuCheckTask.java`（A2 夹具的家）⇒ 本规则无法定位")
+        problems.append("找不到 `fixture/MineMenuCheckTask.java`（A2 夹具的家）⇒ 本规则无法定位")
     else:
         fbody = no_comments(method_body(fixture.read_text(encoding="utf-8"),
                                        "private void runSearchBudgetChecks()"))
@@ -3184,8 +3184,8 @@ def rule_height_change_sweep():
     problems = []
     provider = ROOT / "src/main/java/com/dddgn/alice/pathing/core/search/SurfaceMovementProvider.java"
     factory = ROOT / "src/main/java/com/dddgn/alice/pathing/core/PlaceStepAndTraverseExecutionFactory.java"
-    fixture = ROOT / "src/main/java/com/dddgn/alice/task/PlaceStepDescendClearanceCheckTask.java"
-    module = ROOT / "src/main/java/com/dddgn/alice/task/check/modules/PathingModule.java"
+    fixture = ROOT / "src/main/java/com/dddgn/alice/fixture/PlaceStepDescendClearanceCheckTask.java"
+    module = ROOT / "src/main/java/com/dddgn/alice/fixture/check/modules/PathingModule.java"
 
     for path in (provider, factory, fixture, module):
         if not path.exists():
@@ -3262,8 +3262,8 @@ def rule_hazard_not_task_gated():
     problems = []
     manager = ROOT / "src/main/java/com/dddgn/alice/bot/BotManager.java"
     survival = ROOT / "src/main/java/com/dddgn/alice/survival/SurvivalSystem.java"
-    fixture = ROOT / "src/main/java/com/dddgn/alice/task/SurvivalIdleDrownCheckTask.java"
-    module = ROOT / "src/main/java/com/dddgn/alice/task/check/modules/SurvivalModule.java"
+    fixture = ROOT / "src/main/java/com/dddgn/alice/fixture/SurvivalIdleDrownCheckTask.java"
+    module = ROOT / "src/main/java/com/dddgn/alice/fixture/check/modules/SurvivalModule.java"
     for path in (manager, survival, fixture, module):
         if not path.exists():
             problems.append(f"缺文件：{path.relative_to(ROOT)}")
@@ -3453,7 +3453,7 @@ def rule_collect_goal_standable():
     if "worldChangesBefore = com.dddgn.alice.bot.TaskMetrics.snapshot();" not in text:
         problems.append("换簇时没有重取「世界改动」基线 ⇒ 上一簇（甚至上一步）的改动会算进下一簇")
 
-    fixture = ROOT / "src/main/java/com/dddgn/alice/task/CollectSlotApproachCheckTask.java"
+    fixture = ROOT / "src/main/java/com/dddgn/alice/fixture/CollectSlotApproachCheckTask.java"
     if not fixture.exists():
         problems.append("夹具 `CollectSlotApproachCheckTask` 不存在 ⇒ D-375 没有判据（只能靠真人踩到）")
     elif ("premiseGoalReachable = CollectStep.withinPickupReach(goal, item);"
@@ -3498,9 +3498,9 @@ def rule_head_blocked_route_closure():
        （`RegressionBatteryTask` 的 `CURATION`；漏登记 = 构建红）。
     """
     problems = []
-    fixture = ROOT / "src/main/java/com/dddgn/alice/task/HeadBlockedRouteClosureCheckTask.java"
-    module = ROOT / "src/main/java/com/dddgn/alice/task/check/modules/PathingModule.java"
-    battery = ROOT / "src/main/java/com/dddgn/alice/task/RegressionBatteryTask.java"
+    fixture = ROOT / "src/main/java/com/dddgn/alice/fixture/HeadBlockedRouteClosureCheckTask.java"
+    module = ROOT / "src/main/java/com/dddgn/alice/fixture/check/modules/PathingModule.java"
+    battery = ROOT / "src/main/java/com/dddgn/alice/fixture/RegressionBatteryTask.java"
     step = "head_blocked_route_closure"
 
     for path in (fixture, module, battery):
@@ -3590,9 +3590,9 @@ def rule_break_traverse_footing():
     problems = []
     provider = ROOT / "src/main/java/com/dddgn/alice/pathing/core/search/SurfaceMovementProvider.java"
     factory = ROOT / "src/main/java/com/dddgn/alice/pathing/core/BreakAndTraverseExecutionFactory.java"
-    fixture = ROOT / "src/main/java/com/dddgn/alice/task/BreakTraverseFootingCheckTask.java"
-    module = ROOT / "src/main/java/com/dddgn/alice/task/check/modules/PathingModule.java"
-    battery = ROOT / "src/main/java/com/dddgn/alice/task/RegressionBatteryTask.java"
+    fixture = ROOT / "src/main/java/com/dddgn/alice/fixture/BreakTraverseFootingCheckTask.java"
+    module = ROOT / "src/main/java/com/dddgn/alice/fixture/check/modules/PathingModule.java"
+    battery = ROOT / "src/main/java/com/dddgn/alice/fixture/RegressionBatteryTask.java"
     step = "break_traverse_footing"
 
     for path in (provider, factory, fixture, module, battery):
@@ -3678,9 +3678,9 @@ def rule_break_cost_state_penalty():
     problems = []
     interaction = ROOT / "src/main/java/com/dddgn/alice/action/BlockInteraction.java"
     session = ROOT / "src/main/java/com/dddgn/alice/action/BlockBreakSession.java"
-    fixture = ROOT / "src/main/java/com/dddgn/alice/task/MiningWaterBreakCostCheckTask.java"
-    module = ROOT / "src/main/java/com/dddgn/alice/task/check/modules/MiningModule.java"
-    battery = ROOT / "src/main/java/com/dddgn/alice/task/RegressionBatteryTask.java"
+    fixture = ROOT / "src/main/java/com/dddgn/alice/fixture/MiningWaterBreakCostCheckTask.java"
+    module = ROOT / "src/main/java/com/dddgn/alice/fixture/check/modules/MiningModule.java"
+    battery = ROOT / "src/main/java/com/dddgn/alice/fixture/RegressionBatteryTask.java"
     step = "mining_water_break_cost"
 
     for path in (interaction, session, fixture, module, battery):
@@ -3970,8 +3970,8 @@ def rule_ledger_closure_zone_scoped():
     """
     base = ROOT / "src/main/java/com/dddgn/alice"
     ledger = base / "ledger/WorldModLedger.java"
-    battery = base / "task/RegressionBatteryTask.java"
-    harness = base / "task/check/CheckHarness.java"
+    battery = base / "fixture/RegressionBatteryTask.java"
+    harness = base / "fixture/check/CheckHarness.java"
     manager = base / "bot/BotManager.java"
     item = base / "item/RestoreCheckItem.java"
 
@@ -4267,7 +4267,8 @@ def rule_kill_drop_attributed():
     # 否则 `action/` 一缩，覆盖面会**静默缩小**（同 `RC4` 臂④）。
     for path in sorted((base / "perception").rglob("*.java")) + sorted((base / "action").rglob("*.java")) \
             + sorted((base / "write").rglob("*.java")) \
-            + sorted((base / "task").rglob("*.java")) + sorted((base / "job").rglob("*.java")):
+            + sorted((base / "task").rglob("*.java")) + sorted((base / "job").rglob("*.java")) \
+            + sorted((base / "fixture").rglob("*.java")) + sorted((base / "debug").rglob("*.java")):
         rel = path.relative_to(base).as_posix()
         if fixture_name.search(path.name):
             continue
@@ -4294,7 +4295,7 @@ def rule_battery_nonpass_steps_listed():
     ③ **不许**用「非空才印」的守卫把 0 条那一行藏起来（注入 B：包进 `if (!nonPass.isEmpty())` ⇒ 红）；
     ④ 必须带 `details` 明细，且 FAIL 走 `BotLog.warn`（注入 C：去掉 details ⇒ 红）。
     """
-    bat_path = ROOT / "src/main/java/com/dddgn/alice/task/RegressionBatteryTask.java"
+    bat_path = ROOT / "src/main/java/com/dddgn/alice/fixture/RegressionBatteryTask.java"
     if not bat_path.exists():
         return [f"{bat_path.name} 不存在（改名？同步本规则 `P7`）"]
     text = code_only(bat_path.read_text(encoding="utf-8"))
@@ -4426,8 +4427,8 @@ def rule_stale_proof_replan():
     base = ROOT / "src/main/java/com/dddgn/alice"
     minejob = base / "job/mine/MineJob.java"
     minetask = base / "task/MineTask.java"
-    module = base / "task/check/modules/MiningModule.java"
-    fixture = base / "task/MineVeinPropagationCheckTask.java"
+    module = base / "fixture/check/modules/MiningModule.java"
+    fixture = base / "fixture/MineVeinPropagationCheckTask.java"
 
     def code(path):
         return code_only(path.read_text(encoding="utf-8")) if path.exists() else None
@@ -4525,7 +4526,7 @@ def rule_diagonal_side_single_source():
     base = ROOT / "src/main/java/com/dddgn/alice"
     factory = base / "pathing/core/DiagonalExecutionFactory.java"
     helper = base / "pathing/MovementHelper.java"
-    fixture = base / "task/PlaceStepDiagonalCheckTask.java"
+    fixture = base / "fixture/PlaceStepDiagonalCheckTask.java"
 
     def code(path):
         return code_only(path.read_text(encoding="utf-8")) if path.exists() else None
@@ -5176,15 +5177,15 @@ def rule_vacuous_assertions_carry_population():
     zero_write = {
         "fixture/CraftTableCheckTask.java": "craft_table（只用现成工作台）",
         "fixture/CraftGridProbeTask.java": "合成网格探针",
-        "task/MachineProbeTask.java": "机器探针",
-        "task/MachineStationProbeTask.java": "机器站点探针",
+        "fixture/MachineProbeTask.java": "机器探针",
+        "fixture/MachineStationProbeTask.java": "机器站点探针",
     }
     leftovers = {
         "fixture/CraftStationCraftCheckTask.java": "合成站（摆 / 收工作站）",
         "fixture/CraftStationProvisionCheckTask.java": "工作站部署检查",
         "fixture/CraftFurnaceCheckTask.java": "熔炉检查",
-        "task/PathingRegressionTask.java": "寻路回归的场景清理",
-        "task/CleanupWrappedTask.java": "诊断包装器的收尾",
+        "fixture/PathingRegressionTask.java": "寻路回归的场景清理",
+        "fixture/CleanupWrappedTask.java": "诊断包装器的收尾",
         "fixture/RecoverabilityCheckTask.java": "可回收性残留读数",
     }
     problems = []

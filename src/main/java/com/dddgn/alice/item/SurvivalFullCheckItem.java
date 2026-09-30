@@ -12,6 +12,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
+import com.dddgn.alice.fixture.SurvivalCourseAnchor;
 
 /**
  * **维生全套自检启动器**（{@code alice:survival_full_check}，D-229 新增）。普通右键，零参数。
@@ -48,7 +49,7 @@ public class SurvivalFullCheckItem extends Item {
     private void start(Player player, ServerLevel level) {
         BotPlayer bot = BotManager.firstInLevel(level);
         if (bot == null) {
-            bot = BotManager.firstOrSpawn(level, com.dddgn.alice.task.SurvivalCourseAnchor.PLATFORM_FOOT);
+            bot = BotManager.firstOrSpawn(level, com.dddgn.alice.fixture.SurvivalCourseAnchor.PLATFORM_FOOT);
         }
         if (bot == null || BotManager.isBusy(bot)) {
             say(player, bot == null ? "[alice] bot 生成失败" : "[alice] " + BotManager.busyMessage(bot));
@@ -56,9 +57,9 @@ public class SurvivalFullCheckItem extends Item {
         }
         // ⚠️ **先传送、后建场景**：`/fill`（数据包函数同理）在**未加载的区块**里会静默什么都不做
         // （2026-09-15 踩过两次：水/雪没放上）。传送会让玩家区块票据把区块加载起来。
-        bot.teleportTo(level, com.dddgn.alice.task.SurvivalCourseAnchor.PLATFORM_FOOT.getX() + 0.5D,
-                com.dddgn.alice.task.SurvivalCourseAnchor.PLATFORM_FOOT.getY(),
-                com.dddgn.alice.task.SurvivalCourseAnchor.PLATFORM_FOOT.getZ() + 0.5D,
+        bot.teleportTo(level, com.dddgn.alice.fixture.SurvivalCourseAnchor.PLATFORM_FOOT.getX() + 0.5D,
+                com.dddgn.alice.fixture.SurvivalCourseAnchor.PLATFORM_FOOT.getY(),
+                com.dddgn.alice.fixture.SurvivalCourseAnchor.PLATFORM_FOOT.getZ() + 0.5D,
                 java.util.Set.of(), bot.getYRot(), bot.getXRot());
         var server = level.getServer();
         server.getCommands().performPrefixedCommand(server.createCommandSourceStack(),
@@ -81,7 +82,7 @@ public class SurvivalFullCheckItem extends Item {
         }
         BotLog.info("[SurvivalFullCheck] 就位 bot={}（平台角 {}）；期望：整套维生夹具跑完并打一行 SUMMARY",
                 bot.getName().getString(),
-                com.dddgn.alice.task.SurvivalCourseAnchor.PLATFORM_FOOT.toShortString());
+                com.dddgn.alice.fixture.SurvivalCourseAnchor.PLATFORM_FOOT.toShortString());
         say(player, "[alice] 维生**全套**自检开始（约 15~20 秒，含：决策表 / 无出口不乱否决 / 真实着火 / 掉血 / "
                 + "入水空气消耗 / **细雪冻结**）。结束时会在这里打一行 "
                 + "「[Survival] SUMMARY checks=… failures=… → PASS/FAIL」；"

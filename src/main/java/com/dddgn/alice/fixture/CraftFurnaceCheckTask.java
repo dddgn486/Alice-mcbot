@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import com.dddgn.alice.task.FixturePremise;
+import com.dddgn.alice.fixture.FixturePremise;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
 

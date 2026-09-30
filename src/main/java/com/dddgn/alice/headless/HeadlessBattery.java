@@ -10,6 +10,9 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import com.dddgn.alice.fixture.ClearRetryCheckTask;
+import com.dddgn.alice.fixture.check.CheckHarness;
+import com.dddgn.alice.fixture.check.CheckModules;
+import com.dddgn.alice.fixture.RegressionBatteryTask;
 
 /**
  * **无头电池入口（T2）**：把"游戏内右键 `alice:regression_battery`"这条验收路径搬到无需真人的服务端。
@@ -26,7 +29,7 @@ import com.dddgn.alice.fixture.ClearRetryCheckTask;
  * 本类早在 `syntheticObserver()`（见其 javadoc）里用 `FakePlayerFactory.getMinecraft` 造了
  * **合成的第二个玩家实体**充当 `observer`（`CapabilityGateCheckTask` 的 `foreign_break_attribution`
  * 需要"另一个玩家实体"）；取不到才退回 `null`。2026-09-29（`D-521`）核实并原地更正，⛔ 不改语义）；
- * ③ 等电池跑完读 {@link com.dddgn.alice.task.RegressionBatteryTask#lastVerdict()}；
+ * ③ 等电池跑完读 {@link com.dddgn.alice.fixture.RegressionBatteryTask#lastVerdict()}；
  * ④ 把判决翻成**进程退出码**并 `System.exit`，让 CI 能判红。
  *
  * <p><b>退出码</b>（脚本 `tools/headless-battery.sh` 直接透传）：`0`=PASS、`1`=FAIL、`2`=DEGRADED
@@ -108,10 +111,10 @@ public final class HeadlessBattery {
         }
         if ("list-modules".equals(mode)) {
             // **R-2 验收入口**：模块 id 的**唯一出处**在 `CheckModules` ✓ —— 脚本据此逐个单跑，不靠手抄 ✗
-            String ids = String.join(",", com.dddgn.alice.task.check.CheckModules.knownIds());
+            String ids = String.join(",", com.dddgn.alice.fixture.check.CheckModules.knownIds());
             System.out.println("[Headless] MODULES ids=" + ids);
             System.out.println("[Headless] MODULES expected="
-                    + com.dddgn.alice.task.check.CheckModules.expectedVerdicts());
+                    + com.dddgn.alice.fixture.check.CheckModules.expectedVerdicts());
             System.out.flush();
             BotLog.info("[Headless] MODULES ids={}", ids);
             exit(event.getServer(), 0, "list_modules");
@@ -134,7 +137,7 @@ public final class HeadlessBattery {
             // **快速失败（2026-09-17）**：写错步名原先要**白跑 200 tick** 才报 `battery_never_ran`（本轮实测踩到）。
             // 步名唯一出处 = `CURATION`（构造期自校验与步骤表一一对应）⇒ 起跑前就能判。
             // ⚠️ 多步点名时**逐个**校验：任一个未知 ⇒ 整轮不跑（不许"跑一半再报错"）。
-            java.util.Set<String> known = com.dddgn.alice.task.RegressionBatteryTask.knownStepNames();
+            java.util.Set<String> known = com.dddgn.alice.fixture.RegressionBatteryTask.knownStepNames();
             for (String name : names) {
                 if (known.contains(name)) {
                     continue;
@@ -148,12 +151,12 @@ public final class HeadlessBattery {
                 exit(event.getServer(), 6, "unknown_step");
                 return;
             }
-            com.dddgn.alice.task.RegressionBatteryTask.setOnlySteps(names);
+            com.dddgn.alice.fixture.RegressionBatteryTask.setOnlySteps(names);
             BotLog.info("[Headless] 定向模式：只跑 {} 步 {}", names.size(), names);
         } else if (mode.startsWith("module:")) {
             // **R-2（Phase 1b）**：模块单跑 —— 这是"一个模块保证可以单独测"的验收入口 ✓
             String id = mode.substring("module:".length()).trim();
-            java.util.Set<String> known = com.dddgn.alice.task.check.CheckModules.knownIds();
+            java.util.Set<String> known = com.dddgn.alice.fixture.check.CheckModules.knownIds();
             if (!known.contains(id)) {
                 BotLog.warn("[Headless] 未知模块 module:{}（已知 {}）⇒ 立即失败", id, known);
                 exit(event.getServer(), 6, "unknown_module");
@@ -199,7 +202,7 @@ public final class HeadlessBattery {
             ServerPlayer observer = syntheticObserver(server.overworld());
             com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
             if (moduleId != null) {
-                if (com.dddgn.alice.task.check.CheckHarness.start(server, bot, observer, moduleId)) {
+                if (com.dddgn.alice.fixture.check.CheckHarness.start(server, bot, observer, moduleId)) {
                     assigned = true;
                     BotLog.info("[Headless] 模块单跑已启动 module={}（编排器不在会话任务里 ✓）", moduleId);
                 } else {
@@ -228,8 +231,8 @@ public final class HeadlessBattery {
         }
 
         if (moduleId != null) {
-            if (com.dddgn.alice.task.check.CheckHarness.isFinished()) {
-                String harnessVerdict = com.dddgn.alice.task.check.CheckHarness.lastVerdict();
+            if (com.dddgn.alice.fixture.check.CheckHarness.isFinished()) {
+                String harnessVerdict = com.dddgn.alice.fixture.check.CheckHarness.lastVerdict();
                 if (harnessVerdict == null) {
                     exit(server, 3, "harness_no_verdict");
                     return;
@@ -247,7 +250,7 @@ public final class HeadlessBattery {
         }
 
         if (!BotManager.isBusy(bot)) {
-            String verdict = com.dddgn.alice.task.RegressionBatteryTask.lastVerdict();
+            String verdict = com.dddgn.alice.fixture.RegressionBatteryTask.lastVerdict();
             if (verdict == null) {
                 exit(server, 3, "no_verdict");
                 return;

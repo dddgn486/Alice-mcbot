@@ -1,6 +1,6 @@
 package com.dddgn.alice.item;
 
-import com.dddgn.alice.task.mining.MiningReplanFixture;
+import com.dddgn.alice.fixture.mining.MiningReplanFixture;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;

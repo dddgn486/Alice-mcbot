@@ -6,6 +6,7 @@ import net.minecraft.core.BlockPos;
 
 import java.util.List;
 import com.dddgn.alice.debug.PathSessionDiagnosticTask;
+import com.dddgn.alice.fixture.PathingRegressionTask;
 
 /**
  * **场景夹具的共用原语**（D-220 附注）。

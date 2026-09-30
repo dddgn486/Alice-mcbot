@@ -14,7 +14,7 @@ import com.dddgn.alice.debug.DiagonalDiagnosticTask;
 import com.dddgn.alice.debug.AscendDiagnosticTask;
 import com.dddgn.alice.debug.ChainDiagnosticTask;
 import com.dddgn.alice.debug.DescendDiagnosticTask;
-import com.dddgn.alice.task.PathingBatteryTask;
+import com.dddgn.alice.fixture.PathingBatteryTask;
 import com.dddgn.alice.debug.PathSessionDiagnosticTask;
 import com.dddgn.alice.transfer.TransferCodes;
 import com.dddgn.alice.transfer.TransferLedgerData;
@@ -77,10 +77,15 @@ import com.dddgn.alice.fixture.PillarDiagnosticTask;
 import com.dddgn.alice.fixture.RecoverabilityCheckTask;
 import com.dddgn.alice.fixture.SurvivalExitCheckTask;
 import com.dddgn.alice.fixture.ToolSupplyCheckTask;
-import com.dddgn.alice.task.TransferCheckTask;
+import com.dddgn.alice.fixture.TransferCheckTask;
 import com.dddgn.alice.fixture.VerticalDiagnosticTask;
 import com.dddgn.alice.fixture.WalkToDiagnosticTask;
 import com.dddgn.alice.fixture.WriteBudgetCheckTask;
+import com.dddgn.alice.fixture.check.CheckHarness;
+import com.dddgn.alice.fixture.LumberCourseAnchor;
+import com.dddgn.alice.fixture.MineRegressionTask;
+import com.dddgn.alice.fixture.PathingRegressionTask;
+import com.dddgn.alice.fixture.RegressionBatteryTask;
 
 /**
  * 假人管理器：负责 Bot 的生命周期和任务调度。
@@ -568,7 +573,7 @@ public final class BotManager {
     public static boolean assignPathingRegression(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.task.PathingRegressionTask(bot, observer),
+        session.beginTask(new com.dddgn.alice.fixture.PathingRegressionTask(bot, observer),
                 TaskTarget.block(new BlockPos(0, 64, 46)));
         broadcastTarget(session.target);
         return true;
@@ -645,16 +650,16 @@ public final class BotManager {
         com.dddgn.alice.job.lumber.LumberCandidateSource source =
                 new com.dddgn.alice.job.lumber.LumberCandidateSource();
         com.dddgn.alice.job.JobDeclaration probe = com.dddgn.alice.job.JobDeclaration.harvestUnits(
-                com.dddgn.alice.task.LumberCourseAnchor.START_FOOT, 16, 1, 300);
+                com.dddgn.alice.fixture.LumberCourseAnchor.START_FOOT, 16, 1, 300);
         int feasible = source.candidates(bot, probe).viable().size();
         int quota = Math.max(1, feasible);
         BotLog.info("[Job] lumber 场景可行树={} ⇒ 配额={}（T5：配额随场景推导）", feasible, quota);
         com.dddgn.alice.job.JobDeclaration spec = com.dddgn.alice.job.JobDeclaration.harvestUnits(
-                com.dddgn.alice.task.LumberCourseAnchor.START_FOOT, 16, quota, 3600);
+                com.dddgn.alice.fixture.LumberCourseAnchor.START_FOOT, 16, quota, 3600);
         com.dddgn.alice.job.lumber.LumberJob job = new com.dddgn.alice.job.lumber.LumberJob(
                 bot, spec, session.scope(), source,
                 new com.dddgn.alice.job.policy.NearestPolicy());
-        session.beginTask(job, TaskTarget.block(com.dddgn.alice.task.LumberCourseAnchor.START_FOOT));
+        session.beginTask(job, TaskTarget.block(com.dddgn.alice.fixture.LumberCourseAnchor.START_FOOT));
         broadcastTarget(session.target);
         return true;
     }
@@ -865,9 +870,9 @@ public final class BotManager {
     public static boolean assignRegressionBattery(BotPlayer bot, ServerPlayer observer, boolean full) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.task.RegressionBatteryTask(bot, observer, session.scope(),
-                        full ? com.dddgn.alice.task.RegressionBatteryTask.Mode.FULL
-                             : com.dddgn.alice.task.RegressionBatteryTask.Mode.CORE),
+        session.beginTask(new com.dddgn.alice.fixture.RegressionBatteryTask(bot, observer, session.scope(),
+                        full ? com.dddgn.alice.fixture.RegressionBatteryTask.Mode.FULL
+                             : com.dddgn.alice.fixture.RegressionBatteryTask.Mode.CORE),
                 TaskTarget.block(bot.blockPosition()));
         broadcastTarget(session.target);
         return true;
@@ -898,7 +903,7 @@ public final class BotManager {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
         session.beginTask(new com.dddgn.alice.fixture.LumberFailureCheckTask(bot, session.scope()),
-                TaskTarget.block(com.dddgn.alice.task.LumberCourseAnchor.START_FOOT));
+                TaskTarget.block(com.dddgn.alice.fixture.LumberCourseAnchor.START_FOOT));
         broadcastTarget(session.target);
         return true;
     }
@@ -907,7 +912,7 @@ public final class BotManager {
     public static boolean assignMineRegression(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.task.MineRegressionTask(bot, observer, session.scope()),
+        session.beginTask(new com.dddgn.alice.fixture.MineRegressionTask(bot, observer, session.scope()),
                 TaskTarget.block(com.dddgn.alice.fixture.MineCourseDiagnosticTask.START_FOOT));
         broadcastTarget(session.target);
         return true;
@@ -1237,7 +1242,7 @@ public final class BotManager {
         }
         // **R-2 Phase 1b**：自检编排器由**服务器 tick** 驱动（不在任何会话任务里 ✓）
         // ⇒ 外部命令/`stopTask` 再也不会把它顶掉或杀掉 ✓（这是"电池脱离任务管理束缚"的那一步）。
-        com.dddgn.alice.task.check.CheckHarness.tickAll(event.getServer());
+        com.dddgn.alice.fixture.check.CheckHarness.tickAll(event.getServer());
         // §5.9-③：**不能用 `getTickCount()`**（进程内计数，重启后归零 ⇒ 与落章的世界时间差恒为负
         // ⇒ 运行中产生的挂起永不过期）。统一走 `TransferLedgerData.clockNow`。
         TransferLedgerData.get(event.getServer()).expireSuspensions(event.getServer(),
@@ -1635,7 +1640,7 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
-        session.beginTask(new com.dddgn.alice.task.TransferCheckTask(bot, observer),
+        session.beginTask(new com.dddgn.alice.fixture.TransferCheckTask(bot, observer),
                 TaskTarget.block(bot.blockPosition()));
         broadcastTarget(session.target);
         return true;

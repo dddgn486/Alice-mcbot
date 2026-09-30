@@ -20,6 +20,7 @@ import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import com.dddgn.alice.fixture.craft.MachineRecipeFacts;
 
 /**
  * **只读配方查询原语**（阶段 3-A / A1，D-185）。

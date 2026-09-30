@@ -17,7 +17,7 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-BATTERY = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
+BATTERY = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "fixture"
            / "RegressionBatteryTask.java")
 # 扫这些地方（说明性文本最可能写步名）
 SCAN_DIRS = [ROOT / "docs", ROOT / "AGENTS.md", ROOT / ".alice-supervision" / "skills", ROOT / "tools"]

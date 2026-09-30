@@ -4,7 +4,7 @@ import com.dddgn.alice.action.MenuSession;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.ledger.WorldModLedger;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.task.craft.CraftMenuIntrospection;
+import com.dddgn.alice.fixture.craft.CraftMenuIntrospection;
 import com.dddgn.alice.task.craft.CraftStation;
 import com.dddgn.alice.task.craft.GridDiscovery;
 import net.minecraft.core.BlockPos;

@@ -4,7 +4,7 @@ import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.job.mine.MineCandidateSource;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.task.OreCourseAnchor;
+import com.dddgn.alice.fixture.OreCourseAnchor;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;

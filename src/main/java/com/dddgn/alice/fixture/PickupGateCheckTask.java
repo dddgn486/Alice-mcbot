@@ -18,7 +18,7 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
 import com.dddgn.alice.task.CollectDropsTask;
-import com.dddgn.alice.task.LumberCourseAnchor;
+import com.dddgn.alice.fixture.LumberCourseAnchor;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
 import com.dddgn.alice.task.WalkToTask;
@@ -36,11 +36,11 @@ import com.dddgn.alice.task.WalkToTask;
 public class PickupGateCheckTask implements Task {
 
     /** 掉落物落点（bot 起点东侧 4 格，同平台）。 */
-    public static final BlockPos DROP_A = com.dddgn.alice.task.LumberCourseAnchor.START_FOOT.offset(4, 0, 0);
+    public static final BlockPos DROP_A = com.dddgn.alice.fixture.LumberCourseAnchor.START_FOOT.offset(4, 0, 0);
     /** 外来掉落物落点（更远一点，避免两批混在一起）。 */
-    public static final BlockPos DROP_B = com.dddgn.alice.task.LumberCourseAnchor.START_FOOT.offset(6, 0, 0);
+    public static final BlockPos DROP_B = com.dddgn.alice.fixture.LumberCourseAnchor.START_FOOT.offset(6, 0, 0);
     /** **授权区**里的外来掉落物落点（S3.5 第二步：授权后应放行）。 */
-    public static final BlockPos DROP_C = com.dddgn.alice.task.LumberCourseAnchor.START_FOOT.offset(2, 0, 3);
+    public static final BlockPos DROP_C = com.dddgn.alice.fixture.LumberCourseAnchor.START_FOOT.offset(2, 0, 3);
 
     private enum Phase { SETUP, WALK_A, ASSERT_A, WALK_B, ASSERT_B, WALK_C, ASSERT_C,
                          ACTIVE_BLOCKED_SETUP, ACTIVE_BLOCKED_RUN, ACTIVE_BLOCKED_ASSERT,
@@ -117,9 +117,9 @@ public class PickupGateCheckTask implements Task {
         var server = level.getServer();
         var source = server.createCommandSourceStack().withSuppressedOutput();
         server.getCommands().performPrefixedCommand(source, "function alice_test:lumber_course");
-        bot.teleportTo(level, com.dddgn.alice.task.LumberCourseAnchor.START_FOOT.getX() + 0.5D,
-                com.dddgn.alice.task.LumberCourseAnchor.START_FOOT.getY(),
-                com.dddgn.alice.task.LumberCourseAnchor.START_FOOT.getZ() + 0.5D,
+        bot.teleportTo(level, com.dddgn.alice.fixture.LumberCourseAnchor.START_FOOT.getX() + 0.5D,
+                com.dddgn.alice.fixture.LumberCourseAnchor.START_FOOT.getY(),
+                com.dddgn.alice.fixture.LumberCourseAnchor.START_FOOT.getZ() + 0.5D,
                 java.util.Set.of(), bot.getYRot(), bot.getXRot());
         bot.setDeltaMovement(Vec3.ZERO);
         bot.controller().stopMovement();

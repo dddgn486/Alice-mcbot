@@ -6,7 +6,7 @@
 `RegressionBatteryTask` 判定一步是否通过的口径是**唯一**的：
 
     skipped ? "SKIP" : ((status == Status.DONE && idempotent) ? "PASS" : "FAIL")
-    （task/RegressionBatteryTask.java:558）
+    （fixture/RegressionBatteryTask.java:558）
 
 它**不看夹具自己打印的 `verdict=`**。所以夹具内部红了、却写死 `return Status.DONE` 时，
 日志里会同时出现：

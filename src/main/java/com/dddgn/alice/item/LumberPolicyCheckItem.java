@@ -11,7 +11,7 @@ import com.dddgn.alice.job.lumber.LumberCandidateSource;
 import com.dddgn.alice.job.policy.NearestExposedPolicy;
 import com.dddgn.alice.job.policy.NearestPolicy;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.task.LumberCourseAnchor;
+import com.dddgn.alice.fixture.LumberCourseAnchor;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
