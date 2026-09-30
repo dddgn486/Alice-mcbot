@@ -2,7 +2,7 @@ package com.dddgn.alice.task.check.modules;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.task.DecisionContractCheckTask;
-import com.dddgn.alice.task.DecisionTraceCheckTask;
+import com.dddgn.alice.debug.DecisionTraceCheckTask;
 import com.dddgn.alice.task.LumberCourseAnchor;
 import com.dddgn.alice.task.OreCourseAnchor;
 import com.dddgn.alice.task.SpeechChannelCheckTask;

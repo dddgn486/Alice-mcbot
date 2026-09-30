@@ -11,6 +11,10 @@ import net.minecraft.server.level.ServerPlayer;
 
 import java.util.ArrayList;
 import java.util.List;
+import com.dddgn.alice.task.Task;
+import com.dddgn.alice.task.TaskTarget;
+import com.dddgn.alice.task.TransferCourseAnchor;
+import com.dddgn.alice.task.TransferTask;
 
 /**
  * **传输模块自检**（R2，2026-09-13）：一次右键跑完传输的**全部 4 个夹具**，约 1~2 秒。

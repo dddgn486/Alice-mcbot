@@ -9,13 +9,13 @@ import com.dddgn.alice.task.PlaceTask;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
 import com.dddgn.alice.task.TransferTask;
-import com.dddgn.alice.task.TraverseDiagnosticTask;
-import com.dddgn.alice.task.DiagonalDiagnosticTask;
-import com.dddgn.alice.task.AscendDiagnosticTask;
-import com.dddgn.alice.task.ChainDiagnosticTask;
-import com.dddgn.alice.task.DescendDiagnosticTask;
+import com.dddgn.alice.debug.TraverseDiagnosticTask;
+import com.dddgn.alice.debug.DiagonalDiagnosticTask;
+import com.dddgn.alice.debug.AscendDiagnosticTask;
+import com.dddgn.alice.debug.ChainDiagnosticTask;
+import com.dddgn.alice.debug.DescendDiagnosticTask;
 import com.dddgn.alice.task.PathingBatteryTask;
-import com.dddgn.alice.task.PathSessionDiagnosticTask;
+import com.dddgn.alice.debug.PathSessionDiagnosticTask;
 import com.dddgn.alice.transfer.TransferCodes;
 import com.dddgn.alice.transfer.TransferLedgerData;
 import com.dddgn.alice.transfer.TransferRequest;
@@ -47,6 +47,40 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import com.dddgn.alice.debug.BreakEnterDiagnosticTask;
+import com.dddgn.alice.debug.CapabilityGateCheckTask;
+import com.dddgn.alice.debug.ChainMineDiagnosticTask;
+import com.dddgn.alice.debug.ChunkGuardCheckTask;
+import com.dddgn.alice.debug.ClearGuardCheckTask;
+import com.dddgn.alice.debug.ClearRetryCheckTask;
+import com.dddgn.alice.debug.CraftActionCheckTask;
+import com.dddgn.alice.debug.CraftCheckTask;
+import com.dddgn.alice.debug.CraftFurnaceCheckTask;
+import com.dddgn.alice.debug.CraftGoalCheckTask;
+import com.dddgn.alice.debug.CraftGridProbeTask;
+import com.dddgn.alice.debug.CraftStationCheckTask;
+import com.dddgn.alice.debug.CraftStationCraftCheckTask;
+import com.dddgn.alice.debug.CraftStationProvisionCheckTask;
+import com.dddgn.alice.debug.CraftTableCheckTask;
+import com.dddgn.alice.debug.DecisionTraceCheckTask;
+import com.dddgn.alice.debug.EventThresholdCheckTask;
+import com.dddgn.alice.debug.FallDiagnosticTask;
+import com.dddgn.alice.debug.FluidMineCheckTask;
+import com.dddgn.alice.debug.K3StopCheckTask;
+import com.dddgn.alice.debug.LlmContractCheckTask;
+import com.dddgn.alice.debug.LumberFailureCheckTask;
+import com.dddgn.alice.debug.MenuProbeTask;
+import com.dddgn.alice.debug.MineCourseDiagnosticTask;
+import com.dddgn.alice.debug.PartialSearchCheckTask;
+import com.dddgn.alice.debug.PickupGateCheckTask;
+import com.dddgn.alice.debug.PillarDiagnosticTask;
+import com.dddgn.alice.debug.RecoverabilityCheckTask;
+import com.dddgn.alice.debug.SurvivalExitCheckTask;
+import com.dddgn.alice.debug.ToolSupplyCheckTask;
+import com.dddgn.alice.task.TransferCheckTask;
+import com.dddgn.alice.debug.VerticalDiagnosticTask;
+import com.dddgn.alice.debug.WalkToDiagnosticTask;
+import com.dddgn.alice.debug.WriteBudgetCheckTask;
 
 /**
  * 假人管理器：负责 Bot 的生命周期和任务调度。
@@ -465,8 +499,8 @@ public final class BotManager {
     public static boolean assignWalkToDiagnostic(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.task.WalkToDiagnosticTask(bot, observer),
-                TaskTarget.block(com.dddgn.alice.task.WalkToDiagnosticTask.OVER_WALL_GOAL));
+        session.beginTask(new com.dddgn.alice.debug.WalkToDiagnosticTask(bot, observer),
+                TaskTarget.block(com.dddgn.alice.debug.WalkToDiagnosticTask.OVER_WALL_GOAL));
         broadcastTarget(session.target);
         return true;
     }
@@ -583,7 +617,7 @@ public final class BotManager {
     public static boolean assignMineCourseDiagnostic(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.task.MineCourseDiagnosticTask(bot, observer),
+        session.beginTask(new com.dddgn.alice.debug.MineCourseDiagnosticTask(bot, observer),
                 TaskTarget.block(new net.minecraft.core.BlockPos(23, 64, 140)));
         broadcastTarget(session.target);
         return true;
@@ -801,8 +835,8 @@ public final class BotManager {
     public static boolean assignClearGuardCheck(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.task.ClearGuardCheckTask(bot, session.scope()),
-                TaskTarget.block(com.dddgn.alice.task.ClearGuardCheckTask.START_FOOT));
+        session.beginTask(new com.dddgn.alice.debug.ClearGuardCheckTask(bot, session.scope()),
+                TaskTarget.block(com.dddgn.alice.debug.ClearGuardCheckTask.START_FOOT));
         broadcastTarget(session.target);
         return true;
     }
@@ -843,8 +877,8 @@ public final class BotManager {
     public static boolean assignClearRetryCheck(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.task.ClearRetryCheckTask(bot, session.scope()),
-                TaskTarget.block(com.dddgn.alice.task.ClearRetryCheckTask.START_FOOT));
+        session.beginTask(new com.dddgn.alice.debug.ClearRetryCheckTask(bot, session.scope()),
+                TaskTarget.block(com.dddgn.alice.debug.ClearRetryCheckTask.START_FOOT));
         broadcastTarget(session.target);
         return true;
     }
@@ -853,8 +887,8 @@ public final class BotManager {
     public static boolean assignWriteBudgetCheck(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.task.WriteBudgetCheckTask(bot, session.scope()),
-                TaskTarget.block(com.dddgn.alice.task.WriteBudgetCheckTask.START_FOOT));
+        session.beginTask(new com.dddgn.alice.debug.WriteBudgetCheckTask(bot, session.scope()),
+                TaskTarget.block(com.dddgn.alice.debug.WriteBudgetCheckTask.START_FOOT));
         broadcastTarget(session.target);
         return true;
     }
@@ -863,7 +897,7 @@ public final class BotManager {
     public static boolean assignLumberFailureCheck(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.task.LumberFailureCheckTask(bot, session.scope()),
+        session.beginTask(new com.dddgn.alice.debug.LumberFailureCheckTask(bot, session.scope()),
                 TaskTarget.block(com.dddgn.alice.task.LumberCourseAnchor.START_FOOT));
         broadcastTarget(session.target);
         return true;
@@ -874,7 +908,7 @@ public final class BotManager {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
         session.beginTask(new com.dddgn.alice.task.MineRegressionTask(bot, observer, session.scope()),
-                TaskTarget.block(com.dddgn.alice.task.MineCourseDiagnosticTask.START_FOOT));
+                TaskTarget.block(com.dddgn.alice.debug.MineCourseDiagnosticTask.START_FOOT));
         broadcastTarget(session.target);
         return true;
     }
@@ -883,8 +917,8 @@ public final class BotManager {
     public static boolean assignChainMineDiagnostic(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.task.ChainMineDiagnosticTask(bot, observer, session.scope()),
-                TaskTarget.block(com.dddgn.alice.task.ChainMineDiagnosticTask.SEED));
+        session.beginTask(new com.dddgn.alice.debug.ChainMineDiagnosticTask(bot, observer, session.scope()),
+                TaskTarget.block(com.dddgn.alice.debug.ChainMineDiagnosticTask.SEED));
         broadcastTarget(session.target);
         return true;
     }
@@ -892,8 +926,8 @@ public final class BotManager {
     public static boolean assignBreakEnterDiagnostic(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.task.BreakEnterDiagnosticTask(bot, observer),
-                TaskTarget.block(com.dddgn.alice.task.BreakEnterDiagnosticTask.GOAL_A));
+        session.beginTask(new com.dddgn.alice.debug.BreakEnterDiagnosticTask(bot, observer),
+                TaskTarget.block(com.dddgn.alice.debug.BreakEnterDiagnosticTask.GOAL_A));
         broadcastTarget(session.target);
         return true;
     }
@@ -901,8 +935,8 @@ public final class BotManager {
     public static boolean assignFallDiagnostic(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.task.FallDiagnosticTask(bot, observer),
-                TaskTarget.block(com.dddgn.alice.task.FallDiagnosticTask.DROP3_GOAL));
+        session.beginTask(new com.dddgn.alice.debug.FallDiagnosticTask(bot, observer),
+                TaskTarget.block(com.dddgn.alice.debug.FallDiagnosticTask.DROP3_GOAL));
         broadcastTarget(session.target);
         return true;
     }
@@ -910,8 +944,8 @@ public final class BotManager {
     public static boolean assignPillarDiagnostic(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.task.PillarDiagnosticTask(bot, observer),
-                TaskTarget.block(com.dddgn.alice.task.PillarDiagnosticTask.RIM_GOAL));
+        session.beginTask(new com.dddgn.alice.debug.PillarDiagnosticTask(bot, observer),
+                TaskTarget.block(com.dddgn.alice.debug.PillarDiagnosticTask.RIM_GOAL));
         broadcastTarget(session.target);
         return true;
     }
@@ -919,8 +953,8 @@ public final class BotManager {
     public static boolean assignVerticalDiagnostic(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.task.VerticalDiagnosticTask(bot, observer),
-                TaskTarget.block(com.dddgn.alice.task.VerticalDiagnosticTask.OPEN_GOAL));
+        session.beginTask(new com.dddgn.alice.debug.VerticalDiagnosticTask(bot, observer),
+                TaskTarget.block(com.dddgn.alice.debug.VerticalDiagnosticTask.OPEN_GOAL));
         broadcastTarget(session.target);
         return true;
     }
@@ -1446,12 +1480,12 @@ public final class BotManager {
     /** **被动拾取闸门自检**（S3.5 / D-143）：我方掉落物应捡、外来掉落物应被拦下。 */
     /** K-3 安全点停止自检（确定性夹具：升空后请求停止）。 */
     public static boolean assignK3StopCheck(BotPlayer bot, ServerPlayer observer,
-                                            com.dddgn.alice.task.K3StopCheckTask.Mode mode) {
+                                            com.dddgn.alice.debug.K3StopCheckTask.Mode mode) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) {
             return false;
         }
-        session.beginTask(new com.dddgn.alice.task.K3StopCheckTask(bot, observer, mode),
+        session.beginTask(new com.dddgn.alice.debug.K3StopCheckTask(bot, observer, mode),
                 TaskTarget.block(bot.blockPosition()));
         broadcastTarget(session.target);
         return true;
@@ -1464,7 +1498,7 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
-        session.beginTask(new com.dddgn.alice.task.CraftTableCheckTask(bot, observer),
+        session.beginTask(new com.dddgn.alice.debug.CraftTableCheckTask(bot, observer),
                 TaskTarget.block(bot.blockPosition()));
         broadcastTarget(session.target);
         return true;
@@ -1482,7 +1516,7 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
-        session.beginTask(new com.dddgn.alice.task.CraftGoalCheckTask(bot, observer),
+        session.beginTask(new com.dddgn.alice.debug.CraftGoalCheckTask(bot, observer),
                 TaskTarget.block(bot.blockPosition()));
         broadcastTarget(session.target);
         return true;
@@ -1494,7 +1528,7 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
-        session.beginTask(new com.dddgn.alice.task.CraftFurnaceCheckTask(bot, observer, true),
+        session.beginTask(new com.dddgn.alice.debug.CraftFurnaceCheckTask(bot, observer, true),
                 TaskTarget.block(bot.blockPosition()));
         broadcastTarget(session.target);
         return true;
@@ -1506,7 +1540,7 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
-        session.beginTask(new com.dddgn.alice.task.CraftFurnaceCheckTask(bot, observer),
+        session.beginTask(new com.dddgn.alice.debug.CraftFurnaceCheckTask(bot, observer),
                 TaskTarget.block(bot.blockPosition()));
         broadcastTarget(session.target);
         return true;
@@ -1518,7 +1552,7 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
-        session.beginTask(new com.dddgn.alice.task.CraftStationCraftCheckTask(bot, observer),
+        session.beginTask(new com.dddgn.alice.debug.CraftStationCraftCheckTask(bot, observer),
                 TaskTarget.block(bot.blockPosition()));
         broadcastTarget(session.target);
         return true;
@@ -1530,7 +1564,7 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
-        session.beginTask(new com.dddgn.alice.task.CraftStationProvisionCheckTask(bot, observer),
+        session.beginTask(new com.dddgn.alice.debug.CraftStationProvisionCheckTask(bot, observer),
                 TaskTarget.block(bot.blockPosition()));
         broadcastTarget(session.target);
         return true;
@@ -1542,7 +1576,7 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
-        session.beginTask(new com.dddgn.alice.task.CraftGridProbeTask(bot, observer),
+        session.beginTask(new com.dddgn.alice.debug.CraftGridProbeTask(bot, observer),
                 TaskTarget.block(bot.blockPosition()));
         broadcastTarget(session.target);
         return true;
@@ -1554,7 +1588,7 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
-        session.beginTask(new com.dddgn.alice.task.CraftStationCheckTask(bot, observer),
+        session.beginTask(new com.dddgn.alice.debug.CraftStationCheckTask(bot, observer),
                 TaskTarget.block(bot.blockPosition()));
         broadcastTarget(session.target);
         return true;
@@ -1566,7 +1600,7 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
-        session.beginTask(new com.dddgn.alice.task.CraftActionCheckTask(bot, observer),
+        session.beginTask(new com.dddgn.alice.debug.CraftActionCheckTask(bot, observer),
                 TaskTarget.block(bot.blockPosition()));
         broadcastTarget(session.target);
         return true;
@@ -1578,7 +1612,7 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
-        session.beginTask(new com.dddgn.alice.task.CraftCheckTask(bot, observer),
+        session.beginTask(new com.dddgn.alice.debug.CraftCheckTask(bot, observer),
                 TaskTarget.block(bot.blockPosition()));
         broadcastTarget(session.target);
         return true;
@@ -1589,7 +1623,7 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
-        session.beginTask(new com.dddgn.alice.task.MenuProbeTask(bot, observer),
+        session.beginTask(new com.dddgn.alice.debug.MenuProbeTask(bot, observer),
                 TaskTarget.block(bot.blockPosition()));
         broadcastTarget(session.target);
         return true;
@@ -1613,7 +1647,7 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
-        session.beginTask(new com.dddgn.alice.task.PartialSearchCheckTask(bot, observer),
+        session.beginTask(new com.dddgn.alice.debug.PartialSearchCheckTask(bot, observer),
                 TaskTarget.block(bot.blockPosition()));
         broadcastTarget(session.target);
         return true;
@@ -1625,7 +1659,7 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
-        session.beginTask(new com.dddgn.alice.task.CapabilityGateCheckTask(bot, observer),
+        session.beginTask(new com.dddgn.alice.debug.CapabilityGateCheckTask(bot, observer),
                 TaskTarget.block(bot.blockPosition()));
         broadcastTarget(session.target);
         return true;
@@ -1637,7 +1671,7 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
-        session.beginTask(new com.dddgn.alice.task.ToolSupplyCheckTask(bot, observer),
+        session.beginTask(new com.dddgn.alice.debug.ToolSupplyCheckTask(bot, observer),
                 TaskTarget.block(bot.blockPosition()));
         broadcastTarget(session.target);
         return true;
@@ -1662,7 +1696,7 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
-        session.beginTask(new com.dddgn.alice.task.LlmContractCheckTask(bot, observer),
+        session.beginTask(new com.dddgn.alice.debug.LlmContractCheckTask(bot, observer),
                 TaskTarget.block(bot.blockPosition()));
         broadcastTarget(session.target);
         return true;
@@ -1674,7 +1708,7 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
-        session.beginTask(new com.dddgn.alice.task.DecisionTraceCheckTask(bot, observer),
+        session.beginTask(new com.dddgn.alice.debug.DecisionTraceCheckTask(bot, observer),
                 TaskTarget.block(bot.blockPosition()));
         broadcastTarget(session.target);
         return true;
@@ -1686,7 +1720,7 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
-        session.beginTask(new com.dddgn.alice.task.RecoverabilityCheckTask(bot, observer),
+        session.beginTask(new com.dddgn.alice.debug.RecoverabilityCheckTask(bot, observer),
                 TaskTarget.block(bot.blockPosition()));
         broadcastTarget(session.target);
         return true;
@@ -1698,8 +1732,8 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
-        session.beginTask(new com.dddgn.alice.task.EventThresholdCheckTask(bot, observer),
-                TaskTarget.block(com.dddgn.alice.task.PillarDiagnosticTask.SHAFT_START));
+        session.beginTask(new com.dddgn.alice.debug.EventThresholdCheckTask(bot, observer),
+                TaskTarget.block(com.dddgn.alice.debug.PillarDiagnosticTask.SHAFT_START));
         broadcastTarget(session.target);
         return true;
     }
@@ -1727,8 +1761,8 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
-        session.beginTask(new com.dddgn.alice.task.PickupGateCheckTask(bot, observer),
-                TaskTarget.block(com.dddgn.alice.task.PickupGateCheckTask.DROP_B));
+        session.beginTask(new com.dddgn.alice.debug.PickupGateCheckTask(bot, observer),
+                TaskTarget.block(com.dddgn.alice.debug.PickupGateCheckTask.DROP_B));
         broadcastTarget(session.target);
         return true;
     }
@@ -1751,7 +1785,7 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
-        session.beginTask(new com.dddgn.alice.task.ChunkGuardCheckTask(bot, observer),
+        session.beginTask(new com.dddgn.alice.debug.ChunkGuardCheckTask(bot, observer),
                 TaskTarget.block(bot.blockPosition()));
         broadcastTarget(session.target);
         return true;
@@ -1763,8 +1797,8 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
-        session.beginTask(new com.dddgn.alice.task.FluidMineCheckTask(bot, observer, session.scope()),
-                TaskTarget.block(com.dddgn.alice.task.FluidMineCheckTask.TARGET_OVER_LAVA));
+        session.beginTask(new com.dddgn.alice.debug.FluidMineCheckTask(bot, observer, session.scope()),
+                TaskTarget.block(com.dddgn.alice.debug.FluidMineCheckTask.TARGET_OVER_LAVA));
         broadcastTarget(session.target);
         return true;
     }
@@ -1797,7 +1831,7 @@ public final class BotManager {
 
     /**
      * **维生全套夹具自检**（`alice:survival_full_check`，D-229 新增）：把
-     * {@link com.dddgn.alice.task.SurvivalExitCheckTask} 挂成会话任务 —— 它会把 S-5 决策表、
+     * {@link com.dddgn.alice.debug.SurvivalExitCheckTask} 挂成会话任务 —— 它会把 S-5 决策表、
      * 封闭场景（无出口）、真实着火、入水空气消耗、**细雪冻结**全跑一遍，并在聊天里打一行 SUMMARY。
      *
      * <p>为什么要有这个入口：D-229 的冻结相位此前只能靠"疾跑+右键"触发，而**原版站着不动进不了疾跑**
@@ -1810,7 +1844,7 @@ public final class BotManager {
         if (session == null || session.task != null) {
             return false;
         }
-        return session.assignFixtureTask(new com.dddgn.alice.task.SurvivalExitCheckTask(bot, observer),
+        return session.assignFixtureTask(new com.dddgn.alice.debug.SurvivalExitCheckTask(bot, observer),
                 TaskTarget.block(bot.blockPosition()));
     }
 

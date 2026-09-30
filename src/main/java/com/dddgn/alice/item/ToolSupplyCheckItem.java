@@ -11,11 +11,12 @@ import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import com.dddgn.alice.debug.ToolSupplyCheckTask;
 
 /**
  * **工具供给自检**（{@code alice:tool_supply_check}，基-9）：普通右键，零参数，约 2 秒。
  *
- * <p>三个用例 + 一个负例（见 {@link com.dddgn.alice.task.ToolSupplyCheckTask}）：换更好的 / 没得换要如实报 /
+ * <p>三个用例 + 一个负例（见 {@link com.dddgn.alice.debug.ToolSupplyCheckTask}）：换更好的 / 没得换要如实报 /
  * **不能凭空变出工具**。判据 `[ToolSupply] SUMMARY`。
  *
  * <p>注意：它会**临时改写 bot 背包**，收尾会复原成"一把镐 + 一把斧"。

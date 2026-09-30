@@ -11,12 +11,13 @@ import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import com.dddgn.alice.debug.RecoverabilityCheckTask;
 
 /**
  * **可回收性自检**（{@code alice:recoverability_check}，基-1 / P0-B）：普通右键，零参数，约 1 秒。
  *
  * <p>纯计算、不动世界、不动 bot ⇒ 也适合反复点（结论应完全一致）。判据见
- * {@link com.dddgn.alice.task.RecoverabilityCheckTask} 的 `[Recover] SUMMARY`。
+ * {@link com.dddgn.alice.debug.RecoverabilityCheckTask} 的 `[Recover] SUMMARY`。
  */
 public class RecoverabilityCheckItem extends Item {
 

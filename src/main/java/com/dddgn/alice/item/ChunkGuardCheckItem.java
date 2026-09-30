@@ -11,12 +11,13 @@ import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import com.dddgn.alice.debug.ChunkGuardCheckTask;
 
 /**
  * 未加载区块 / 世界边界准入自检启动器（{@code alice:chunk_guard_check}，S-2 / P1-A）：普通右键，零参数。
  *
  * <p>纯无头规划，**不需要场景**（就地取材：bot 站的地方就是起点）。三个用例见
- * {@link com.dddgn.alice.task.ChunkGuardCheckTask}，输出 {@code [ChunkGuard] SUMMARY …}。
+ * {@link com.dddgn.alice.debug.ChunkGuardCheckTask}，输出 {@code [ChunkGuard] SUMMARY …}。
  */
 public class ChunkGuardCheckItem extends Item {
 
@@ -60,7 +61,7 @@ public class ChunkGuardCheckItem extends Item {
         }
         // 先离开危险格：否则维生会在任务第 1 tick 就把它中断掉（2026-09-12 实测：
         // 上一轮 survival_exit_check 之后 bot 还卡在压顶格里，chunk_guard 直接被 SURVIVAL_INTERRUPTED）
-        var clean = com.dddgn.alice.task.ChunkGuardCheckTask.findCleanStandNear(level, bot);
+        var clean = com.dddgn.alice.debug.ChunkGuardCheckTask.findCleanStandNear(level, bot);
         if (clean != null) {
             bot.teleportTo(level, clean.getX() + 0.5D, clean.getY(), clean.getZ() + 0.5D,
                     java.util.Set.of(), bot.getYRot(), bot.getXRot());

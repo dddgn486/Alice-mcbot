@@ -1,7 +1,7 @@
 package com.dddgn.alice.task.check.modules;
 
 import com.dddgn.alice.bot.BotPlayer;
-import com.dddgn.alice.task.EventThresholdCheckTask;
+import com.dddgn.alice.debug.EventThresholdCheckTask;
 import com.dddgn.alice.task.RecipesDumpCheckTask;
 import com.dddgn.alice.task.check.CheckContext;
 import com.dddgn.alice.task.check.CheckModule;

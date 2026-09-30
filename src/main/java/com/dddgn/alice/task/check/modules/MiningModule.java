@@ -9,7 +9,7 @@ import com.dddgn.alice.job.policy.NearestPolicy;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.task.FishboneSlice1CheckTask;
 import com.dddgn.alice.task.FishboneSlice2CheckTask;
-import com.dddgn.alice.task.MineCourseDiagnosticTask;
+import com.dddgn.alice.debug.MineCourseDiagnosticTask;
 import com.dddgn.alice.task.MineMenuCheckTask;
 import com.dddgn.alice.task.MineRegressionTask;
 import com.dddgn.alice.task.MineRunMetricsCheckTask;
@@ -29,6 +29,7 @@ import net.minecraft.world.level.block.Blocks;
 
 import java.util.List;
 import java.util.Set;
+import com.dddgn.alice.debug.FluidMineCheckTask;
 
 /**
  * **挖掘模块（R-2 第五片，10 步）**：`mine_regression` · `no_progress` · `mine_menu` · `mine_job`
@@ -94,7 +95,7 @@ public final class MiningModule implements CheckModule {
                 // 夹具自带场景（`alice_test:fluid_mine_course`）⇒ `course=List.of()`、无前置传送。
                 // 判据出处 = `FluidRiskPolicy.miningRefusal`（与岩浆同一条），夹具只跑生产入口。
                 CheckStep.of("fluid_mine", CheckProfile.MAIN, List.of(), null,
-                        () -> new com.dddgn.alice.task.FluidMineCheckTask(bot, observer, scope), 1200),
+                        () -> new com.dddgn.alice.debug.FluidMineCheckTask(bot, observer, scope), 1200),
                 // M2（G2）：长作业周期复评（窗口 40 tick，夹具自己造停滞与"重新武装"）
                 CheckStep.of("no_progress", CheckProfile.MAIN, ore, toOre,
                         () -> new NoProgressCheckTask(bot, observer), 400),

@@ -30,7 +30,8 @@
      `public MineTask(...) { if (x) { MiningBudget.forTarget(...); } }` 会把 `if` 当封闭方法 ⇒ **假绿**
      （`tools/check-protection-install-point.py` 的同款教训）。
 2. **额度注入面的人口下限**（防"把额度参数整个删掉 ⇒ 门禁假绿"）：
-   - 扫描到的顶层 `task/*.java` ≥ `MIN_SCANNED_FILES`；
+   - ⭐ 扫到的顶层 `task/*.java` 数 **==** `docs/TASK_TOP_LEVEL_FREEZE.txt` 行数（两源对账 —— 换掉了
+     原来写死的下限 `MIN_SCANNED_FILES`，因为 `task/` 顶层是**设计成走向 0** 的数）；
    - 带额度形参（`budget`/`quota` 词根）的 `public` 构造器全仓 ≥ `MIN_QUOTA_CTORS`；
    - 人口表里具名的那两个文件（`MineTask.java` · `CollectDropsTask.java`）各 ≥1 个 —— 它们今天各有 4 个
      （删一个必须显式改本文件）。
@@ -79,10 +80,13 @@ MANUFACTURE_RE = re.compile(
 #: 具名原语（`plan §5.2 ⑧` 的读数表前 5 个里**带额度**的 2 个）：各须 ≥1 个带额度形参的构造器。
 EXPECTED_PRIMITIVES = {"MineTask.java", "CollectDropsTask.java"}
 
-#: 实测 140（2026-09-27）；留足余量，只用来抓"扫描根被搬空 / 解析崩塌"。
-#: ⚠️ 这个数会**随搬包变**：`step 2a` 落地时是 141，`step 3b` 把 `PathRetryRunner.java` 搬去
-#: `pathing/` 之后就是 140 —— 判据是下面这个**下限**，不是这个数本身。
-MIN_SCANNED_FILES = 130
+#: ⭐ 顶层人口的**对账源**（2026-09-30 `P1` 立家刀把写死的下限换成它）：
+#: `docs/TASK_TOP_LEVEL_FREEZE.txt` **就是**「允许住在 `task/` 顶层的全集」（`P2` 单向阀，
+#: 每波搬迁**同刀删行**）。⇒ 判据 = 「扫到的顶层文件数 **==** 名单行数」。
+#: ⚠️ 为什么必须换：`task/` 顶层是批次 2 ① 里**设计成单调走向 0** 的那个数（`D-550` §2b：`142 → 0`），
+#: 而静态下限（原 `MIN_SCANNED_FILES = 130`）在**第一波搬迁**（142 → 103）当场变假红。
+#: 换后判据**更强**（两源对账：漏扫 / 绕过单向阀加文件 都报），且**没有会腐烂的手写数**。
+FREEZE = ROOT / "docs" / "TASK_TOP_LEVEL_FREEZE.txt"
 #: 实测 6（`MineTask` 4 · `CollectDropsTask` 2 —— `5b` 刀② 把收集器的 6 个构造器收成 2 个，
 #: 2026-09-27）。⚠️ **余量已用尽**：再少一个（比如把额度形参整个删掉）**就会红** —— 这是故意的，
 #: 本下限的用途正是"防把额度注入面抽空 ⇒ 门禁假绿"。
@@ -319,9 +323,22 @@ def main() -> int:
             quota_ctors[path.name] = count
 
     total_ctors = sum(quota_ctors.values())
-    if len(files) < MIN_SCANNED_FILES:
-        problems.append(f"只扫到 {len(files)} 个顶层 `task/*.java`（下限 {MIN_SCANNED_FILES}）⇒ "
-                        f"扫描根被搬空 / 解析崩塌")
+    # ⭐ 2026-09-30（`P1` 立家刀）：人口下限从**写死的常数**改成**对账**。
+    #   理由 —— `task/` 顶层是批次 2 ① 里**设计成要单调走向 0** 的那个数
+    #   （`D-550` §2b：进度表 = 顶层计数 `142 → 0`），而静态下限 `MIN_SCANNED_FILES = 130`
+    #   因此在**第一波搬迁**（`debug/` 首批 39 类 ⇒ 顶层 142 → 103）当场变成**假红发生器**。
+    #   ⇒ 改判「扫到的顶层文件数 == `docs/TASK_TOP_LEVEL_FREEZE.txt` 行数」——
+    #   那份名单**就是**「允许住在 `task/` 顶层的全集」（`P2` 单向阀，同刀维护）。
+    #   判据**更强**（两源对账，任一被截断/解析崩塌 ⇒ 报）且**不再有会腐烂的手写数**。
+    #   ⚠️ `P4` 关门（顶层 == 0）之后本条随门禁一起退役，⛔ 那时不许靠 `0 == 0` 空过。
+    if not FREEZE.exists():
+        problems.append(f"`{FREEZE.relative_to(ROOT)}` 不存在 ⇒ 顶层人口**没有对账源**"
+                        f"（`P2` 单向阀的名单就是允许住在 `task/` 顶层的全集）")
+    else:
+        frozen = [x for x in FREEZE.read_text(encoding="utf-8").split("\n") if x.strip()]
+        if len(files) != len(frozen):
+            problems.append(f"顶层 `task/*.java` 扫到 {len(files)} 个，而冻结名单有 {len(frozen)} 行 ⇒ "
+                            f"两源不一致（漏扫 / 有人绕过 `P2` 单向阀往 `task/` 顶层加文件）")
     if total_ctors < MIN_QUOTA_CTORS:
         problems.append(f"全仓只有 {total_ctors} 个带额度形参的构造器（下限 {MIN_QUOTA_CTORS}）⇒ "
                         f"额度注入面被抽空（把参数删掉就能让门禁假绿）")

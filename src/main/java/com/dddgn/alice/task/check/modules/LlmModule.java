@@ -1,7 +1,7 @@
 package com.dddgn.alice.task.check.modules;
 
 import com.dddgn.alice.bot.BotPlayer;
-import com.dddgn.alice.task.LlmContractCheckTask;
+import com.dddgn.alice.debug.LlmContractCheckTask;
 import com.dddgn.alice.task.PermissionContractCheckTask;
 import com.dddgn.alice.task.check.CheckContext;
 import com.dddgn.alice.task.check.CheckModule;

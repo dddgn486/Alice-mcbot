@@ -368,7 +368,7 @@ CAPABILITY_FILES = [
     "src/main/java/com/dddgn/alice/task/craft/CraftMenuIntrospection.java",
     "src/main/java/com/dddgn/alice/task/craft/GridDiscovery.java",
     "src/main/java/com/dddgn/alice/task/craft/FurnaceStation.java",
-    "src/main/java/com/dddgn/alice/task/CraftStationCraftCheckTask.java",
+    "src/main/java/com/dddgn/alice/debug/CraftStationCraftCheckTask.java",
     "src/main/java/com/dddgn/alice/task/MachineStationProbeTask.java",
     "src/main/java/com/dddgn/alice/compat/ChainMining.java",
 ]

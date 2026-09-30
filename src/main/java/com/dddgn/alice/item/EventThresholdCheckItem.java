@@ -2,7 +2,7 @@ package com.dddgn.alice.item;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
-import com.dddgn.alice.task.PillarDiagnosticTask;
+import com.dddgn.alice.debug.PillarDiagnosticTask;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -13,6 +13,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
+import com.dddgn.alice.debug.EventThresholdCheckTask;
 
 /**
  * **事件阈值自检**（{@code alice:event_threshold_check}，S4 / D-150）：普通右键，零参数，约 25 秒。
@@ -20,7 +21,7 @@ import net.minecraft.world.phys.Vec3;
  * <p>它同时是电池第 15 步的**单跑版**：电池跑满一轮要 4~6 分钟，而 S4 的现场（bot 在竖井里顶壁）
  * 只有站近才看得到 —— 所以给一个能单独重跑、且能盯着看的入口。
  *
- * <p>四例（判据见 {@link com.dddgn.alice.task.EventThresholdCheckTask}）：
+ * <p>四例（判据见 {@link com.dddgn.alice.debug.EventThresholdCheckTask}）：
  * A 工具压到 15% ⇒ **一条** `TOOL_LOW`；B 修满再压 ⇒ **再一条**；C 竖井顶壁 ⇒ **一条** `STUCK`；
  * D 继续顶 ⇒ **不再增加**。
  */

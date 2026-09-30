@@ -11,11 +11,12 @@ import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import com.dddgn.alice.debug.DecisionTraceCheckTask;
 
 /**
  * **决策 trace / 跨重启语义自检**（{@code alice:decision_trace_check}，基-4）：普通右键，零参数，约 1 秒。
  *
- * <p>四例见 {@link com.dddgn.alice.task.DecisionTraceCheckTask}；判据 `[DecisionTrace] SUMMARY`。
+ * <p>四例见 {@link com.dddgn.alice.debug.DecisionTraceCheckTask}；判据 `[DecisionTrace] SUMMARY`。
  */
 public class DecisionTraceCheckItem extends Item {
 

@@ -1,15 +1,15 @@
 package com.dddgn.alice.task.check.modules;
 
 import com.dddgn.alice.bot.BotPlayer;
-import com.dddgn.alice.task.CraftActionCheckTask;
-import com.dddgn.alice.task.CraftCheckTask;
-import com.dddgn.alice.task.CraftFurnaceCheckTask;
-import com.dddgn.alice.task.CraftGoalCheckTask;
-import com.dddgn.alice.task.CraftGridProbeTask;
-import com.dddgn.alice.task.CraftStationCheckTask;
-import com.dddgn.alice.task.CraftStationCraftCheckTask;
-import com.dddgn.alice.task.CraftStationProvisionCheckTask;
-import com.dddgn.alice.task.CraftTableCheckTask;
+import com.dddgn.alice.debug.CraftActionCheckTask;
+import com.dddgn.alice.debug.CraftCheckTask;
+import com.dddgn.alice.debug.CraftFurnaceCheckTask;
+import com.dddgn.alice.debug.CraftGoalCheckTask;
+import com.dddgn.alice.debug.CraftGridProbeTask;
+import com.dddgn.alice.debug.CraftStationCheckTask;
+import com.dddgn.alice.debug.CraftStationCraftCheckTask;
+import com.dddgn.alice.debug.CraftStationProvisionCheckTask;
+import com.dddgn.alice.debug.CraftTableCheckTask;
 import com.dddgn.alice.task.check.CheckContext;
 import com.dddgn.alice.task.check.CheckModule;
 import com.dddgn.alice.task.check.CheckProfile;

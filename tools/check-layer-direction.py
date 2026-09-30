@@ -217,7 +217,7 @@ SELFTEST_CASES: list[tuple[str, str, str, bool]] = [
      f"{PKG}/debug/SomeDebugTool.java",
      "import com.dddgn.alice.fixture.transfer.TransferFixture;", True),
     ("`task/`（被退役的包，**暂排除**）import `fixture/` ⇒ 绿（去留由退役台账管）",
-     f"{PKG}/task/TransferCheckTask.java",
+     f"{PKG}/task/K2AdjacentGoalCheckTask.java",
      "import com.dddgn.alice.fixture.transfer.TransferFixture;", False),
     ("`write/` import `job` ⇒ 红",
      f"{PKG}/write/WriteGrant.java",

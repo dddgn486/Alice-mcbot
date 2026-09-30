@@ -4806,7 +4806,7 @@ def rule_pillar_water_admission():
     factory = base / "pathing/core/PillarExecutionFactory.java"
     execution = base / "pathing/core/PillarExecution.java"
     provider = base / "pathing/core/search/SurfaceMovementProvider.java"
-    fixture = base / "task/PillarDiagnosticTask.java"
+    fixture = base / "debug/PillarDiagnosticTask.java"
     problems = []
     for path in (factory, execution, provider, fixture):
         if not path.exists():
@@ -5079,7 +5079,7 @@ def rule_write_budget_zone_and_container_exception():
     """
     budget_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "write"
                    / "WriteBudget.java")
-    fixture_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
+    fixture_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "debug"
                     / "WriteBudgetCheckTask.java")
     if not budget_path.exists() or not fixture_path.exists():
         return ["`WriteBudget.java` 或 `WriteBudgetCheckTask.java` 不存在（改名？同步本规则）"]
@@ -5174,18 +5174,18 @@ def rule_vacuous_assertions_carry_population():
     """
     base = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
     zero_write = {
-        "task/CraftTableCheckTask.java": "craft_table（只用现成工作台）",
-        "task/CraftGridProbeTask.java": "合成网格探针",
+        "debug/CraftTableCheckTask.java": "craft_table（只用现成工作台）",
+        "debug/CraftGridProbeTask.java": "合成网格探针",
         "task/MachineProbeTask.java": "机器探针",
         "task/MachineStationProbeTask.java": "机器站点探针",
     }
     leftovers = {
-        "task/CraftStationCraftCheckTask.java": "合成站（摆 / 收工作站）",
-        "task/CraftStationProvisionCheckTask.java": "工作站部署检查",
-        "task/CraftFurnaceCheckTask.java": "熔炉检查",
+        "debug/CraftStationCraftCheckTask.java": "合成站（摆 / 收工作站）",
+        "debug/CraftStationProvisionCheckTask.java": "工作站部署检查",
+        "debug/CraftFurnaceCheckTask.java": "熔炉检查",
         "task/PathingRegressionTask.java": "寻路回归的场景清理",
         "task/CleanupWrappedTask.java": "诊断包装器的收尾",
-        "task/RecoverabilityCheckTask.java": "可回收性残留读数",
+        "debug/RecoverabilityCheckTask.java": "可回收性残留读数",
     }
     problems = []
 

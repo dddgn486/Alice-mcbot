@@ -76,7 +76,7 @@ FREEZE_REGISTRY: tuple[dict[str, object], ...] = (
                 "private static final int CHAIN_TIMEOUT_TICKS = 200;",
                 "Phase.CHAIN", "chain_budget_refused", "prod_fallback",
             ),
-            "com/dddgn/alice/task/ChainMineDiagnosticTask.java": (
+            "com/dddgn/alice/debug/ChainMineDiagnosticTask.java": (
                 "class ChainMineDiagnosticTask", "chain_mod=absent",
             ),
             "com/dddgn/alice/task/mining/MineStep.java": ("ChainMining.shouldChain(",),
@@ -181,7 +181,7 @@ SELFTEST_CASES: list[tuple[str, dict[str, str], dict[str, list[str]], bool]] = (
     ("绿：登记项全在 + 默认关闭 + 消费者恰好", {
         "com/dddgn/alice/compat/ChainMining.java": "class ChainMining enum StartResult public static boolean shouldChain( public static StartResult start( public static boolean available( public static boolean isRunning( public static int minedCount( public static void stop( oreexcavation.handlers.MiningScheduler",
         "com/dddgn/alice/task/MineTask.java": "private Status beginChain() { private Status tickChain() { private boolean chainTriggered; private boolean chainRefusedByBudget; public boolean chainRefusedByBudget() { private static final int CHAIN_TIMEOUT_TICKS = 200; Phase.CHAIN chain_budget_refused prod_fallback",
-        "com/dddgn/alice/task/ChainMineDiagnosticTask.java": "class ChainMineDiagnosticTask chain_mod=absent",
+        "com/dddgn/alice/debug/ChainMineDiagnosticTask.java": "class ChainMineDiagnosticTask chain_mod=absent",
         "com/dddgn/alice/task/mining/MineStep.java": "ChainMining.shouldChain(",
         "com/dddgn/alice/reach/MiningTuning.java": "enum ChainMode chainMode = ChainMode.OFF",
         "com/dddgn/alice/command/BotCommand.java": "private static int chainMode( literal(\"chain\")",
@@ -197,7 +197,7 @@ SELFTEST_CASES: list[tuple[str, dict[str, str], dict[str, list[str]], bool]] = (
     ("红：长出**新消费者**（冻结期间又扩出去）", {
         "com/dddgn/alice/compat/ChainMining.java": "class ChainMining enum StartResult public static boolean shouldChain( public static StartResult start( public static boolean available( public static boolean isRunning( public static int minedCount( public static void stop( oreexcavation.handlers.MiningScheduler",
         "com/dddgn/alice/task/MineTask.java": "private Status beginChain() { private Status tickChain() { private boolean chainTriggered; private boolean chainRefusedByBudget; public boolean chainRefusedByBudget() { private static final int CHAIN_TIMEOUT_TICKS = 200; Phase.CHAIN chain_budget_refused prod_fallback",
-        "com/dddgn/alice/task/ChainMineDiagnosticTask.java": "class ChainMineDiagnosticTask chain_mod=absent",
+        "com/dddgn/alice/debug/ChainMineDiagnosticTask.java": "class ChainMineDiagnosticTask chain_mod=absent",
         "com/dddgn/alice/task/mining/MineStep.java": "ChainMining.shouldChain(",
         "com/dddgn/alice/reach/MiningTuning.java": "enum ChainMode chainMode = ChainMode.OFF",
         "com/dddgn/alice/command/BotCommand.java": "private static int chainMode( literal(\"chain\")",

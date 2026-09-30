@@ -2,7 +2,7 @@ package com.dddgn.alice.item;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
-import com.dddgn.alice.task.WriteBudgetCheckTask;
+import com.dddgn.alice.debug.WriteBudgetCheckTask;
 import com.dddgn.alice.task.TaskTarget;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;

@@ -1,7 +1,7 @@
 package com.dddgn.alice.task.check.modules;
 
 import com.dddgn.alice.bot.BotPlayer;
-import com.dddgn.alice.task.RecoverabilityCheckTask;
+import com.dddgn.alice.debug.RecoverabilityCheckTask;
 import com.dddgn.alice.task.WritePolicyCheckTask;
 import com.dddgn.alice.task.check.CheckContext;
 import com.dddgn.alice.task.check.CheckModule;
