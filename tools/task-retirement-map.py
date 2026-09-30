@@ -159,8 +159,10 @@ def load_dispatch() -> dict[str, str]:
     return out
 
 
-# `R3` 允许 `item/`/`command/`（注册位置）与验证侧引用；其余一级包都算**生产包**
-NON_PROD = VERIFY_SIDE | {"item", "command"}
+# `R3` 的**注册位置**（用户 2026-09-30 裁「乙」把 `bot/` 加进来；`<root>` = 模组入口 `AliceMod`）
+# ＋ 验证侧 ⇒ 这两类引用**不算** `R3` 风险。⚠️ 与 `tools/check-layer-direction.py` 的
+# `REGISTRATION_POSITIONS` **必须保持同一套**（改一处就得改另一处，判据在那边执行）。
+NON_PROD = VERIFY_SIDE | {"item", "command", "bot", "<root>"}
 
 
 def r3_risks(rows: list[tuple[str, str, str, str]], refs_by_cls: dict[str, set[str]]) -> list[str]:
@@ -316,6 +318,9 @@ def main(argv: list[str]) -> int:
     print("TASK_RETIREMENT_MAP_RESULT PASS: %d 行 · %s · 0 条不一致 · 未建成的目的地包：%s" % (
         len(rows), " / ".join(f"{d}={dist[d]}" for d in DESTS),
         "、".join(missing) if missing else "无"))
+    if not risks:
+        print(f"  ✅ `R3` 风险 **0 条**（**注册位置** {sorted(NON_PROD - VERIFY_SIDE)} 与验证侧都不算生产包；"
+              f"`task/` 是**被退役的包**、暂排除 ⇒ 其去留看本台账）")
     if risks:
         print(f"  ⚠️ `P1` 立家待办 —— {len(risks)} 个类的目的地是 debug/fixture/step，却被**生产包**引用"
               f"（搬过去即违反 `R3`，⛔ 今天不是红）：")

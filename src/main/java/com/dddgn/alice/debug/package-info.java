@@ -38,5 +38,15 @@
  * 现存 13 个 `*DiagnosticTask` / 5 个 `*ProbeTask` / 双向可达的 `*CheckTask` 待迁移时按桶搬入。
  *
  * <p>⚠️ <b>`item/` 与 `command/` 是「注册位置」，搬不动</b> ⇒ 规则是：它们**只做入口**（调用本包），**逻辑住在本包**。
+ *
+ * <h2>⚠️ 2026-09-30 修订（用户裁「乙」，`D-551`／`D-552`）：`bot/` 也算「注册位置」</h2>
+ * <p>「注册位置」= **允许**依赖本包的位置（它们只做注册／派发，逻辑住在本包）。
+ * 原表只有 {@code item/} 与 {@code command/}；2026-09-30 用户裁定把 {@code bot/} 加进来 ——
+ * 依据（实测）：{@code bot/BotManager} 的 {@code assignXxx} 才是**真正的派发枢纽**（它自己 {@code new} 夹具），
+ * 与 {@code item/}／{@code command/} 在"注册"这件事上是**同一角色**；模组入口（根包 {@code AliceMod}，
+ * 做 {@code EVENT_BUS.register(X.class)}）同理。
+ * <p>⚠️ 这条修订把「{@code bot/} 引用本包」从**违规**变成**已登记**，
+ * 但⛔ <b>没有</b>放宽 `debug/` ✗→ `fixture/`，也⛔ 没有放宽 `task/` 之外其它生产包
+ * —— 判据已可执行：{@code tools/check-layer-direction.py} 的 {@code REGISTRATION_POSITIONS}（4 条合成臂盯着）。
  */
 package com.dddgn.alice.debug;

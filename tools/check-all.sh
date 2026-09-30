@@ -30,6 +30,12 @@ BATTERY_REGISTERED_REDS=0
 
 hr() { printf '%s\n' "------------------------------------------------------------------------------"; }
 
+# 按**字符**截断到 110（⛔ 不用 `cut -c1-110`）：`cut -c` 在 **C/POSIX locale** 下按**字节**切，
+# 会把中文切成半个字 ⇒ **整份聚合输出不是合法 UTF-8** ⇒ 之后任何人 `grep <pattern> check-all 输出`
+# 只会得到 `binary file matches` 而**不打印匹配行**（读数**静默丢失**）。
+# 2026-09-30 实测踩到（台账 `O78`），故改用 python3 按字符切（locale 无关）。
+trunc110() { python3 -c 'import sys; sys.stdout.write(sys.stdin.read()[:110])'; }
+
 # 普通门禁：0 = PASS，其它 = FAIL
 run_gate() {
   local label="$1"; shift
@@ -37,7 +43,7 @@ run_gate() {
   out="$("$@" 2>&1)"; rc=$?
   if [ "$rc" -eq 0 ]; then
     PASSED=$((PASSED + 1))
-    printf '  [PASS] %-30s %s\n' "$label" "$(printf '%s' "$out" | grep -E '_RESULT|_CHECK ' | tail -1 | cut -c1-110)"
+    printf '  [PASS] %-30s %s\n' "$label" "$(printf '%s' "$out" | grep -E '_RESULT|_CHECK ' | tail -1 | trunc110)"
   else
     FAILED=$((FAILED + 1))
     printf '  [FAIL] %-30s exit=%d\n' "$label" "$rc"
@@ -61,7 +67,7 @@ run_headless_battery() {
   if [ "$rc" -eq 0 ]; then
     PASSED=$((PASSED + 1))
     printf '  [PASS] %-30s %s\n' "check-headless-battery" \
-      "$(printf '%s' "$out" | grep -E '^\[headless\] verdict' | tail -1 | cut -c1-110)"
+      "$(printf '%s' "$out" | grep -E '^\[headless\] verdict' | tail -1 | trunc110)"
   else
     FAILED=$((FAILED + 1))
     # ⭐ 2026-09-29（`D-536`）：**"电池有判决但红"≠"未预期的失败"** ——
@@ -109,7 +115,7 @@ run_machine_map() {
   case "$rc" in
     0)
       PASSED=$((PASSED + 1))
-      printf '  [PASS] %-30s %s\n' "check-machine-map" "$(printf '%s' "$out" | tail -1 | cut -c1-110)"
+      printf '  [PASS] %-30s %s\n' "check-machine-map" "$(printf '%s' "$out" | tail -1 | trunc110)"
       ;;
     2)
       WARNED=$((WARNED + 1))
@@ -297,7 +303,7 @@ run_expected_reds() {
     0)
       PASSED=$((PASSED + 1))
       printf '  [PASS] %-30s %s\n' "check-expected-reds" \
-        "$(printf '%s' "$out" | grep -E 'EXPECTED_REDS_RESULT' | tail -1 | cut -c1-110)"
+        "$(printf '%s' "$out" | grep -E 'EXPECTED_REDS_RESULT' | tail -1 | trunc110)"
       ;;
     2)
       WARNED=$((WARNED + 1))

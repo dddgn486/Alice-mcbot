@@ -21,6 +21,10 @@
  * <pre>
  *   task/（生产）    ✗→ fixture/     ← 生产<b>不得</b>引用本包（`P6/A` 的包级推广）
  *   debug/（产品面） ✗→ fixture/     ← 产品面不得依赖开发期物
+ *   ⚠️ **「注册位置」例外**（用户 2026-09-30 裁「乙」，`D-552`）：`item/` · `command/` · `bot/` ·
+ *      模组入口（根包 `AliceMod`）**允许**依赖 `debug/`（它们只做注册／派发）——
+ *      但⛔ **不**允许依赖本包（`fixture/`）：{@code bot/BotManager} 里 `CheckHarness.tickAll` 那处
+ *      生产引用就是 `P1` 立家时要处理的一条。判据已可执行：`tools/check-layer-direction.py`
  *   fixture/（本包） →  可引用 debug/ ← 夹具复用调试工具是自然的
  * </pre>
  *

@@ -92,6 +92,23 @@ ALLOWED_REVERSE: dict[str, dict[str, str]] = {
     # ⇒ `action/ → task/` 是**无条件** 0 命中。留这张表是为了"将来若真出现欠账，必须带到期条件显式登记"。
 }
 
+#: ⭐ `R3`（`D-492`）的**注册位置** —— 这些位置**允许**依赖 `debug/`（产品面）。
+#: 用户 2026-09-30 裁「**乙**」：把 `bot/` 加进来（`bot/BotManager` 的 `assignXxx` 是真正的派发枢纽，
+#: 它自己 `new` 夹具；与 `item/`／`command/` 在"注册"这件事上是**同一角色**）。
+#: `<root>` = 模组入口（`AliceMod`）—— 它做的是 `EVENT_BUS.register(X.class)`，同属注册。
+REGISTRATION_POSITIONS = {"item", "command", "bot", "<root>"}
+#: ⛔ **暂排除**：`task/` 是**被退役的那个包**，其内容的去留由 `docs/TASK_RETIREMENT_MAP.csv` 管；
+#: `debug/`／`fixture/` 是目的地自身；`headless/`／`tools/` 是验证侧。
+R3_EXCLUDED = {"task", "debug", "fixture", "headless", "tools"}
+DEBUG_FIXTURE_PREFIXES = ("com.dddgn.alice.debug.", "com.dddgn.alice.fixture.")
+
+
+def top_pkg(rel: str) -> str:
+    """`rel`（相对 `src/main/java`）⇒ 一级包名；根包文件（`…/alice/AliceMod.java`）⇒ `<root>`。"""
+    parts = rel.split("/")
+    return parts[3] if len(parts) > 4 else "<root>"
+
+
 #: 实测 510+（2026-09-27）；留足余量，只用来抓"扫描根被搬空 / 解析崩塌"。
 MIN_SCANNED_FILES = 480
 #: `step 3a` 实测 4 个（`StandingPointSelector` / `LineOfSightChecker` / `ReachPlan` / `MiningTuning`）。
@@ -131,6 +148,21 @@ def scan_imports(rel: str, text: str) -> list[str]:
             if imported.startswith("com.dddgn.alice.task.") and imported not in allowed:
                 problems.append(f"{rel} 的 `action/` import 了 `{imported}` ⇒ 微操作依赖上层原语。"
                                 f"若这是**新欠账**，必须带到期条件显式登记进本文件的 `ALLOWED_REVERSE`")
+
+    # ⭐ `R3`（`D-492`＋`D-551` 乙）：生产包 ✗→ `debug/`／`fixture/`；`debug/`（产品面）✗→ `fixture/`。
+    tp = top_pkg(rel)
+    if tp == "debug":
+        for imported in imports_of(text):
+            if imported.startswith("com.dddgn.alice.fixture."):
+                problems.append(f"{rel} 的 `debug/`（**产品面**）import 了 `{imported}` ⇒ "
+                                f"违反 `R3`：`debug/` ✗→ `fixture/`（产品面不许依赖开发期物）")
+    elif tp not in REGISTRATION_POSITIONS and tp not in R3_EXCLUDED:
+        for imported in imports_of(text):
+            if imported.startswith(DEBUG_FIXTURE_PREFIXES):
+                problems.append(f"{rel} 的 `{tp}/`（**生产包**）import 了 `{imported}` ⇒ "
+                                f"违反 `R3`（生产 ✗→ `debug/`／`fixture/`）。"
+                                f"若 `{tp}/` 确属**注册位置**，必须显式加进本文件的 `REGISTRATION_POSITIONS`"
+                                f"（⛔ 不许靠「它其实不算生产」含糊过去）")
     return problems
 
 
@@ -174,6 +206,19 @@ SELFTEST_CASES: list[tuple[str, str, str, bool]] = [
     ("`write/` import `action`（调用它的微操作）⇒ 红（方向只许单向）",
      f"{PKG}/write/WriteBudget.java",
      "import com.dddgn.alice.action.BlockInteraction;", True),
+    # ---- `D-551`（用户 2026-09-30 裁「乙」）新增：`R3` 生产 ✗→ debug/fixture ----
+    ("⭐ `job/`（生产包）import `debug/` ⇒ 红",
+     f"{PKG}/job/mine/MineJob.java",
+     "import com.dddgn.alice.debug.SomeDebugTool;", True),
+    ("⭐ `bot/`（**注册位置**，用户裁「乙」）import `debug/` ⇒ **绿**",
+     f"{PKG}/bot/BotManager.java",
+     "import com.dddgn.alice.debug.SomeDebugTool;", False),
+    ("⭐ `debug/`（产品面）import `fixture/` ⇒ 红",
+     f"{PKG}/debug/SomeDebugTool.java",
+     "import com.dddgn.alice.fixture.transfer.TransferFixture;", True),
+    ("`task/`（被退役的包，**暂排除**）import `fixture/` ⇒ 绿（去留由退役台账管）",
+     f"{PKG}/task/TransferCheckTask.java",
+     "import com.dddgn.alice.fixture.transfer.TransferFixture;", False),
     ("`write/` import `job` ⇒ 红",
      f"{PKG}/write/WriteGrant.java",
      "import com.dddgn.alice.job.lumber.LumberJob;", True),
@@ -266,7 +311,8 @@ def main() -> int:
     print(f"LAYER_DIRECTION_RESULT PASS: `reach/` 反向依赖 0 · `write/` 反向依赖 0 · `action/` → `task/` 欠账 "
           f"{sum(len(v) for v in debt_hits.values())} 条「{debt or '无（step 3b 后已是无条件 0 命中）'}」 · "
           f"reach {len(reach_files)} 文件 / action {len(action_files)} 文件 / write {len(write_files)} 文件 "
-          f"（写入治理 6 个全在）· 扫描 {len(files)} · 红臂 {arms}/{arms}"
+          f"（写入治理 6 个全在）· `R3` 注册位置 {sorted(REGISTRATION_POSITIONS)} 零违规 · "
+          f"扫描 {len(files)} · 红臂 {arms}/{arms}"
           f"（import {len(SELFTEST_CASES)} + 定义 {len(SELFTEST_DEF_CASES)}）")
     return 0
 
