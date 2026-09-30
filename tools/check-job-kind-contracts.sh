@@ -86,3 +86,50 @@ if problems:
 print(f'JOB_KIND_CONTRACT_CHECK_RESULT PASS: {len(kinds)} 个 kind 全部有契约，'
       f'且 queryRef 指向的方法都真实存在（{", ".join(kinds)}）')
 PY
+
+# ---- ④ ⭐ `O96` ⓐ 反向断言（gate is live）：**每个 Job 构造点都必须过受理闸** ----
+#  为什么加：此前「kind 缺契约 ⇒ 拒绝」**只写在 `JobLauncher.create` 里** ⇒ `BotManager` 里那些
+#  inline `new …Job(` 的 legacy 入口**完全绕过它**（`D-512` ⓐ 登记的活洞）。
+#  本断言把"过闸"从**约定**变成**能红**：构造点所在方法体内没有 `admit(` ⇒ 红。
+python3 - "$ROOT/src/main/java" <<'PY'
+import re, sys, pathlib
+src_root = pathlib.Path(sys.argv[1])
+#: 带理由的豁免（`<Job 类名>|<理由>`）—— 新增条目 = 显式表态，⛔ 不许静默放行。
+EXEMPT = {
+    'FishboneJob': '`JobRequest.Kind` 值域 = 5（LUMBER/MINE/REGION_LUMBER/COLLECT/CRAFT）**不含 fishbone** '
+                   '⇒ 它没有 kind ⇒ 没有 `JobKindContract` 行可查 ⇒ 本闸**结构上不适用**（不是漏过）',
+}
+CTOR = re.compile(r'new\s+com\.dddgn\.alice\.job\.[a-z]+\.(\w+Job)\s*\(')
+problems = []
+scanned = 0
+for path in sorted(src_root.rglob('*.java')):
+    src = path.read_text(encoding='utf-8')
+    if not CTOR.search(src):
+        continue
+    rel = path.relative_to(src_root).as_posix()
+    # 按 **4 空格缩进的顶层方法签名** 切块（本项目全仓一致；切不出块 ⇒ 响亮失败，⛔ 不静默放行）
+    chunks, cur = [], []
+    for line in src.splitlines():
+        if cur and re.match(r'^    (public|private|protected|static|final).*\w\s*\(', line):
+            chunks.append('\n'.join(cur)); cur = []
+        cur.append(line)
+    chunks.append('\n'.join(cur))
+    if len(chunks) < 2:
+        problems.append(f'{rel}: 切不出方法块（缩进风格变了？）⇒ 本断言**没有真正执行**')
+        continue
+    for ch in chunks:
+        for m in CTOR.finditer(ch):
+            cls = m.group(1)
+            if cls in EXEMPT:
+                continue
+            scanned += 1
+            if 'admit(' not in ch:
+                sig = next((l.strip() for l in ch.splitlines()
+                            if re.match(r'^    (public|private|protected|static|final)', l)), '?')
+                problems.append(f'{rel}: `{cls}` 的构造点所在方法内**没有** `admit(` ⇒ 绕过 `D-349` 受理闸（{sig[:70]}）')
+if problems:
+    print('JOB_KIND_CONTRACT_CHECK_RESULT FAIL: ' + '；'.join(problems))
+    sys.exit(1)
+print(f'  ⭐ 第④条：Job 构造点 {scanned} 处**全部**过 `admit(` 受理闸'
+      f'（豁免 {len(EXEMPT)} 个：{", ".join(EXEMPT)} —— 均附理由）')
+PY

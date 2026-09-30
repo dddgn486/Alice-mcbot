@@ -27055,3 +27055,57 @@ AI 候选：**「非空断言」**〔首推，与"判据失效"对偶〕·「人
 
 ⇒ **`item/` 何时搬 = 单独一刀**（⛔ 不跟本裁定混 —— `R5`「一口气搬，不零散搬」）。
 ⚠️ 同族实例：`network/MiningReplanFixturePacket`（自述"**开发期**挖掘测试高亮"）住在协议包里。
+
+---
+
+### D-559：`O96` ⓐ（活洞）—— `D-349` 受理闸抽成**唯一出处** `JobLauncher.admit(...)`，legacy 构造点全部过闸
+
+- 状态：**已实施**（2026-09-30；`JobLauncher` · `BotManager` · `MineSurveyCheckTask` ＋ `check-job-kind-contracts.sh` 第④条）·
+  台账 `O97` · 承接 `D-512` ⓐ · `D-349`。
+- 触发：`O96` ② 复核实测「`D-512` 自己登记的四项同刀义务**全部仍开着**」，其中 ⓐ 是一条**活洞**：
+  **`D-349`「kind 缺世界事实对账契约 ⇒ 拒绝」只写在 `JobLauncher.create` 里** ⇒ `BotManager` 里
+  inline `new …Job(` 的 legacy 入口**完全绕过它**。
+
+#### 一、做法：**按目的做，不按字面做 —— 并且把"为什么不按字面"写下来**
+
+`D-512` ⓐ 逐字要求「inline `new` Job **收回 `JobLauncher.create`**」。⚠️ 实测**对 `assignMineJob` 逐字不成立**：
+该方法自己的注释逐字说「用调用方给的具体 `Target`（而不是重新解析字符串）：语义完全等价，**避免二次解析差异**」，
+而 `create` 只能吃 `JobRequest` ⇒ **收回即等于把 `target.describe()` 二次解析回 `Target`**（正是它刻意避开的）。
+
+⇒ 本刀改为 **抽闸**：`public static boolean admit(JobRequest.Kind)` 成为该闸的**唯一出处**
+（`create` 也调它），legacy 入口**在构造前**调它。**只过闸、不动构造** ⇒ **零语义变化**
+（该闸今天本就是**不改变行为的**：5 个 kind 全部齐全）。
+
+#### 二、实测范围（`D-512` ⓐ 只点了 **2** 处，实测 **4** 处真构造点 ＋ 门禁补抓 1 处）
+
+| 处 | 入口 | kind | 处置 |
+|---|---|---|---|
+| `BotManager:659` | `assignLumberJob` | `LUMBER` | ✅ 过闸 —— ⚠️ **`D-512` ⓐ 漏点了这一处** |
+| `BotManager:729` | `assignMineJob` | `MINE` | ✅ 过闸（只过闸，⛔ 不收回 `create`，理由见 §一） |
+| `BotManager:845` | `assignRegionLumber` | `REGION_LUMBER` | ✅ 过闸 |
+| `BotManager:756` | `assignFishboneJob` | ⛔ **无 kind** | ⚠️ **本闸结构上不适用** —— `JobRequest.Kind` 值域 = **5**（`LUMBER`/`MINE`/`REGION_LUMBER`/`COLLECT`/`CRAFT`）**不含 fishbone** ⇒ 没有契约行可查 ⇒ 门禁里**带理由豁免** |
+| `fixture/MineSurveyCheckTask:146` | 自检夹具（**门禁第④条当场抓到的第 5 处**） | `MINE` | ✅ 过闸 |
+
+#### 三、同刀门禁：`check-job-kind-contracts.sh` 新增**第 ④ 条反向断言**（gate is live）
+
+> 「每个 `new com.dddgn.alice.job.<x>.<Y>Job(` 构造点**所在方法体内**必须有 `admit(`」
+
+＋ **带理由的豁免清单**（**1 条**：`FishboneJob` —— 无 kind，结构上不适用）。
+⚠️ 第④条自带「**切不出方法块 ⇒ 红**」（⛔ 不静默放行 —— 缩进风格一改就必须有人来处理）。
+**实测读数**：扫到 **9 处构造点全部过闸** · 豁免 1。
+
+#### 四、验证
+
+**真树注入臂 7/7**（⭐ 每臂**先断言"注入确实生效"**：`sha256` 前后比 —— 上一轮就是栽在"注入是空操作"）：
+① 抽掉 `assignMineJob` 的 `admit` ⇒ **红** ② 抽掉 `fixture/MineSurveyCheckTask` 那处 ⇒ **红**（**证明覆盖面含 `fixture/`**）
+③ 负臂：豁免项 `FishboneJob` ⇒ **仍绿** ④ 四文件还原后 `sha256` 逐字一致。
+
+#### 五、⚠️ 本刀**未做**与**做不到**的（诚实边界）
+
+1. ⛔ **未做**：`D-512` ⓐ 的**另一半 = 统一构造路径**（让 legacy 入口也走 `create`，使"决策层起的 Job
+   与夹具起的 Job 行为相同"）。本刀**只关了"活洞"那一半**；统一构造路径**会改构造语义**（见 §一）
+   ⇒ **单独一刀**，⛔ 不与本刀混（`R5`「不零散搬」的反面同理：**不半改**）。
+2. ⚠️ **第④条做不到**：它只能断言"构造点所在方法内**有** `admit(`"，⛔ **不能断言调用方没忽略返回值**
+   （`admit` 返回 `false` 而调用方照常继续，门禁**看不见**）。⇒ 该形态今天靠人工评审，**已登记**。
+3. ⛔ **本刀未动** `D-512` 的其余三项同刀义务（ⓑ `assignRestore` · ⓒ `ManualTestLock` 的坏 `{@link}` ·
+   ④ `@param` 口径）—— 见 `O97`。

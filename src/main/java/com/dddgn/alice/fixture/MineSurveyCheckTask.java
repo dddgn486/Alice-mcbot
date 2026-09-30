@@ -143,6 +143,13 @@ public final class MineSurveyCheckTask implements Task {
                         net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.BLOCK,
                                 new net.minecraft.resources.ResourceLocation("forge", "ores"))),
                 SURVEY_RADIUS);
+        // ⭐ `O96` ⓐ / `D-349`：本夹具**直接建 Job** ⇒ 与 legacy `assign*` 入口是同一形状，
+        //    同样必须过受理闸（`JobKindContract`）。门禁 `check-job-kind-contracts.sh` 第 ④ 条
+        //    会核对"每个构造点所在方法内都有 `admit(`" ⇒ 这里漏了会当场红。
+        if (!com.dddgn.alice.job.JobLauncher.admit(com.dddgn.alice.job.JobRequest.Kind.MINE)) {
+            check("受理闸：kind 缺世界事实对账契约 ⇒ **不起** Job（`D-349`）", false);
+            return;
+        }
         job = new com.dddgn.alice.job.mine.MineJob(bot,
                 com.dddgn.alice.job.JobDeclaration.mineBlocks(bot.blockPosition(), SURVEY_RADIUS, SURVEY_QUOTA,
                         900),

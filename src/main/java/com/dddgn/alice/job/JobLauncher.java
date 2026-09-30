@@ -116,17 +116,36 @@ public final class JobLauncher {
                 request.kind(), line);
     }
 
+    /**
+     * ⭐ `D-349`（勘测侧 Pit 1）：**"成功必须能用世界事实对账"的受理闸** —— **唯一出处**。
+     *
+     * <p>提案 `§11` 判据 1 只查"有没有 `successCriterion`"（存在性）；这里补上**可判定性**的一半：
+     * 每个 kind 必须在 `JobKindContract` 里声明「判据 / 读世界事实的方法 / 不一致时怎么办」，
+     * 且门禁 `tools/check-job-kind-contracts.sh` 会核对那个方法**真的存在**（否则构建红）。
+     * 今天 5 个 kind 全部齐全 ⇒ 本闸**不改变行为**（一旦有人新增 kind 忘了声明，这里会当场拒绝入队）。
+     *
+     * <p>⚠️⚠️ **为什么必须是"唯一出处"而不是只写在 {@link #create} 里**（`O96` ⓐ 的活洞）：
+     * 此前本闸**只**在 {@link #create} 里 ⇒ **`BotManager` 里那些 inline `new …Job(` 的 legacy 入口
+     * 完全绕过它** ⇒ 「kind 缺契约 ⇒ 拒绝」对它们**永远不生效**。
+     * ⇒ 现在把它抽成独立方法，{@link #create} 与那几处 legacy 入口**都调它**；
+     * 并由门禁 `tools/check-job-kind-contracts.sh` 的**第 ④ 条**反向断言"每个构造点都过闸"，
+     * ⛔ 不许再退回"只有 `create` 过闸"的形态。
+     *
+     * @return `true` = 允许入队；`false` = 已留痕并**必须拒绝**（⛔ 调用方不许忽略返回值）
+     */
+    public static boolean admit(com.dddgn.alice.job.JobRequest.Kind kind) {
+        if (com.dddgn.alice.job.JobKindContract.isComplete(kind)) {
+            return true;
+        }
+        com.dddgn.alice.log.BotLog.warn("[Job] 拒绝入队：kind={} 缺世界事实对账契约（{}）—— "
+                        + "新增 kind 必须在 `JobKindContract` 声明 判据/对账方法/不一致时怎么办（`D-349`）",
+                kind, com.dddgn.alice.job.JobKindContract.describe());
+        return false;
+    }
+
     /** 构造 `Job`（不发料、不登记会话——那是 `BotManager.assignJob` 的事）。 */
     public static Job create(BotPlayer bot, ScopeBuffer scope, JobRequest request) {
-        // ⭐ `D-349`（勘测侧 Pit 1）：**"成功必须能用世界事实对账"的受理闸**。
-        // 提案 `§11` 判据 1 只查"有没有 successCriterion"（存在性）；这里补上**可判定性**的一半：
-        // 每个 kind 必须在 `JobKindContract` 里声明「判据 / 读世界事实的方法 / 不一致时怎么办」，
-        // 且门禁 `tools/check-job-kind-contracts.sh` 会核对那个方法**真的存在**（否则构建红）。
-        // 今天 5 个 kind 全部齐全 ⇒ 本闸是**不改变行为的**（一旦有人新增 kind 忘了声明，这里会当场拒绝入队）。
-        if (!com.dddgn.alice.job.JobKindContract.isComplete(request.kind())) {
-            com.dddgn.alice.log.BotLog.warn("[Job] 拒绝入队：kind={} 缺世界事实对账契约（{}）—— "
-                            + "新增 kind 必须在 `JobKindContract` 声明 判据/对账方法/不一致时怎么办（`D-349`）",
-                    request.kind(), com.dddgn.alice.job.JobKindContract.describe());
+        if (!admit(request.kind())) {
             return null;
         }
         var policy = new com.dddgn.alice.job.policy.NearestPolicy();

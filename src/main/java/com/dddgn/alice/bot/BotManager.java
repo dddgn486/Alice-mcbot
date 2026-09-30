@@ -656,6 +656,12 @@ public final class BotManager {
         BotLog.info("[Job] lumber 场景可行树={} ⇒ 配额={}（T5：配额随场景推导）", feasible, quota);
         com.dddgn.alice.job.JobDeclaration spec = com.dddgn.alice.job.JobDeclaration.harvestUnits(
                 com.dddgn.alice.fixture.LumberCourseAnchor.START_FOOT, 16, quota, 3600);
+        // ⭐ `O96` ⓐ / `D-349`：legacy 入口**也必须过受理闸**（`JobKindContract`）——
+        // 此前 inline `new` 绕过它 ⇒ 「kind 缺契约 ⇒ 拒绝」对本入口**永远不生效**。
+        if (!com.dddgn.alice.job.JobLauncher.admit(com.dddgn.alice.job.JobRequest.Kind.LUMBER)) {
+            BotLog.warn("[Job] 不起 Job：kind 缺世界事实对账契约（assignLumberJob）");
+            return false;
+        }
         com.dddgn.alice.job.lumber.LumberJob job = new com.dddgn.alice.job.lumber.LumberJob(
                 bot, spec, session.scope(), source,
                 new com.dddgn.alice.job.policy.NearestPolicy());
@@ -726,6 +732,14 @@ public final class BotManager {
         com.dddgn.alice.job.JobRequest request = com.dddgn.alice.job.JobRequest.mine(
                 bot.blockPosition(), radius, quota, 3600, target.describe());
         // 用调用方给的具体 Target（而不是重新解析字符串）：语义完全等价，避免二次解析差异
+        // ⭐ `O96` ⓐ / `D-349`：legacy 入口**也必须过受理闸**（`JobKindContract`）——
+        // 此前 inline `new` 绕过它 ⇒ 「kind 缺契约 ⇒ 拒绝」对本入口**永远不生效**。
+        // ⚠️ 这里**只过闸、不动构造**：若改走 `JobLauncher.create` 就得把 `target.describe()`
+        //    **二次解析**回 Target —— 那正是本方法刻意避开的东西（见上一行注释）。
+        if (!com.dddgn.alice.job.JobLauncher.admit(com.dddgn.alice.job.JobRequest.Kind.MINE)) {
+            BotLog.warn("[Job] 不起 Job：kind 缺世界事实对账契约（assignMineJob）");
+            return false;
+        }
         com.dddgn.alice.job.Job job = new com.dddgn.alice.job.mine.MineJob(
                 bot, com.dddgn.alice.job.JobDeclaration.mineBlocks(bot.blockPosition(), radius, quota, 3600),
                 session.scope(), new com.dddgn.alice.job.mine.MineCandidateSource(target, radius),
@@ -828,6 +842,12 @@ public final class BotManager {
         BotLog.info("[Job] region_lumber 区域={} saplingItem={}（补种树苗由用户选择，见 /alice region）",
                 region.describe(), state.saplingItem(bot.getUUID()) == null
                         ? "-" : state.saplingItem(bot.getUUID()));
+        // ⭐ `O96` ⓐ / `D-349`：legacy 入口**也必须过受理闸**（`JobKindContract`）——
+        // 此前 inline `new` 绕过它 ⇒ 「kind 缺契约 ⇒ 拒绝」对本入口**永远不生效**。
+        if (!com.dddgn.alice.job.JobLauncher.admit(com.dddgn.alice.job.JobRequest.Kind.REGION_LUMBER)) {
+            BotLog.warn("[Job] 不起 Job：kind 缺世界事实对账契约（assignRegionLumber）");
+            return false;
+        }
         session.beginTask(new com.dddgn.alice.job.lumber.RegionLumberJob(bot, region,
                         session.scope(), new com.dddgn.alice.job.lumber.LumberCandidateSource(),
                         new com.dddgn.alice.job.policy.NearestPolicy(), 40, 24000, observer),
