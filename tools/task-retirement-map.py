@@ -4,7 +4,9 @@
 ## 判据（`R1′` 四桶，优先级 **`step` > `debug` > `fixture` > `生产`**）
 
 1. **`step`** —— 结构性事实优先：`task/Step.java`（注册口本身）或声明里 `implements … Step`
-   ⇒ 原语，家 = 包 `com.dddgn.alice.step`（今天**待建**）。
+   ⇒ 原语，家 = 包 `com.dddgn.alice.step`。
+   ✅ **2026-09-30 `P1` 立家已建包** —— 同刀把 `P0` **判据②**（目的地 ∈ **已建成的包**）
+   从「只印」变成**能红**：`step/` · `debug/` · `fixture/` 任一不存在 ⇒ 红。
 2. **`debug`** —— 玩家可达：**(a)** 被 `item/` 或 `command/` **直接**引用（剥注释），或
    **(b)** 在**派发表**（`docs/TASK_DISPATCH_TABLE.csv`）里 `entry_reachable=yes`。
    ⛔ (b) 不能自己猜 —— 它是 `丙` 方案（`D-551`）的产物，`BotManager` 才是真派发枢纽。
@@ -304,6 +306,15 @@ def main(argv: list[str]) -> int:
             problems.append(f"交叉核失败：`{cls}` 判进 `debug/` 却**证明不了玩家可达**"
                             f"（既不在派发表的可达集里，也没有 item/command 直接引用）")
 
+    # ⭐ `P1` 立家（`D-550` §2b 的 `P0` **判据②**）：目的地必须是**已建成的包** ⇒ 「指空」即红。
+    # ⚠️ 加这一条之前它**只印不判**（`missing` 只进 PASS 那行的文案）⇒ `P1` 一直是「待办」而不是
+    #    「能红」。今天三个包都在场 ⇒ **绿**；只有在有人删掉目的地包时才红
+    #    （同 `D-551` ① 的 `P2` 提前上线口径：今天绿且只对**新违规**红 ⇒ 不撞 `R4`）。
+    missing = [d for d in DEST_PKG if not (ROOT / DEST_PKG[d]).is_dir()]
+    if missing:
+        problems.append("目的地包**不存在**：" + "、".join(f"`com.dddgn.alice.{d}/`" for d in missing)
+                        + " ⇒ `P1` 立家未完成（`P0` 判据② = 目的地 ∈ **已建成的包**）")
+
     if problems:
         print("TASK_RETIREMENT_MAP_RESULT FAIL: 台账与实物不一致（**双向核** ＋ 交叉核）")
         for p in problems[:20]:
@@ -314,7 +325,6 @@ def main(argv: list[str]) -> int:
 
     dist = Counter(r[2] for r in rows)
     risks = r3_risks(rows, REFSET)
-    missing = [d for d in ("step", "debug", "fixture") if not (ROOT / DEST_PKG[d]).is_dir()]
     print("TASK_RETIREMENT_MAP_RESULT PASS: %d 行 · %s · 0 条不一致 · 未建成的目的地包：%s" % (
         len(rows), " / ".join(f"{d}={dist[d]}" for d in DESTS),
         "、".join(missing) if missing else "无"))
