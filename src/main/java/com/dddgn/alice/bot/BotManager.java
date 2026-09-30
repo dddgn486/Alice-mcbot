@@ -9,13 +9,6 @@ import com.dddgn.alice.task.PlaceTask;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
 import com.dddgn.alice.task.TransferTask;
-import com.dddgn.alice.debug.TraverseDiagnosticTask;
-import com.dddgn.alice.debug.DiagonalDiagnosticTask;
-import com.dddgn.alice.debug.AscendDiagnosticTask;
-import com.dddgn.alice.debug.ChainDiagnosticTask;
-import com.dddgn.alice.debug.DescendDiagnosticTask;
-import com.dddgn.alice.fixture.PathingBatteryTask;
-import com.dddgn.alice.debug.PathSessionDiagnosticTask;
 import com.dddgn.alice.transfer.TransferCodes;
 import com.dddgn.alice.transfer.TransferLedgerData;
 import com.dddgn.alice.transfer.TransferRequest;
@@ -47,45 +40,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import com.dddgn.alice.fixture.BreakEnterDiagnosticTask;
-import com.dddgn.alice.fixture.CapabilityGateCheckTask;
-import com.dddgn.alice.fixture.ChainMineDiagnosticTask;
-import com.dddgn.alice.fixture.ChunkGuardCheckTask;
-import com.dddgn.alice.fixture.ClearGuardCheckTask;
-import com.dddgn.alice.fixture.ClearRetryCheckTask;
-import com.dddgn.alice.fixture.CraftActionCheckTask;
-import com.dddgn.alice.fixture.CraftCheckTask;
-import com.dddgn.alice.fixture.CraftFurnaceCheckTask;
-import com.dddgn.alice.fixture.CraftGoalCheckTask;
-import com.dddgn.alice.fixture.CraftGridProbeTask;
-import com.dddgn.alice.fixture.CraftStationCheckTask;
-import com.dddgn.alice.fixture.CraftStationCraftCheckTask;
-import com.dddgn.alice.fixture.CraftStationProvisionCheckTask;
-import com.dddgn.alice.fixture.CraftTableCheckTask;
-import com.dddgn.alice.fixture.DecisionTraceCheckTask;
-import com.dddgn.alice.fixture.EventThresholdCheckTask;
-import com.dddgn.alice.fixture.FallDiagnosticTask;
-import com.dddgn.alice.fixture.FluidMineCheckTask;
-import com.dddgn.alice.fixture.K3StopCheckTask;
-import com.dddgn.alice.fixture.LlmContractCheckTask;
-import com.dddgn.alice.fixture.LumberFailureCheckTask;
-import com.dddgn.alice.fixture.MenuProbeTask;
-import com.dddgn.alice.fixture.MineCourseDiagnosticTask;
-import com.dddgn.alice.fixture.PartialSearchCheckTask;
-import com.dddgn.alice.fixture.PickupGateCheckTask;
-import com.dddgn.alice.fixture.PillarDiagnosticTask;
-import com.dddgn.alice.fixture.RecoverabilityCheckTask;
-import com.dddgn.alice.fixture.SurvivalExitCheckTask;
-import com.dddgn.alice.fixture.ToolSupplyCheckTask;
-import com.dddgn.alice.fixture.TransferCheckTask;
-import com.dddgn.alice.fixture.VerticalDiagnosticTask;
-import com.dddgn.alice.fixture.WalkToDiagnosticTask;
-import com.dddgn.alice.fixture.WriteBudgetCheckTask;
-import com.dddgn.alice.fixture.check.CheckHarness;
-import com.dddgn.alice.fixture.LumberCourseAnchor;
-import com.dddgn.alice.fixture.MineRegressionTask;
-import com.dddgn.alice.fixture.PathingRegressionTask;
-import com.dddgn.alice.fixture.RegressionBatteryTask;
 
 /**
  * 假人管理器：负责 Bot 的生命周期和任务调度。
@@ -501,148 +455,29 @@ public final class BotManager {
         return session.assignWalkTo(goalFoot);   // A（§5.9）：拒绝必须**向外可见**，不许吞掉
     }
 
-    public static boolean assignWalkToDiagnostic(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.fixture.WalkToDiagnosticTask(bot, observer),
-                TaskTarget.block(com.dddgn.alice.fixture.WalkToDiagnosticTask.OVER_WALL_GOAL));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** Assigns the focused R2-B one-step Traverse diagnostic. */
-    public static boolean assignTraverseDiagnostic(BotPlayer bot, BlockPos goalFoot) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) return false;
-        session.beginTask(new TraverseDiagnosticTask(bot, goalFoot), TaskTarget.block(goalFoot));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** Assigns the focused R2-C one-step Diagonal diagnostic. */
-    public static boolean assignDiagonalDiagnostic(BotPlayer bot, BlockPos goalFoot) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) return false;
-        session.beginTask(new DiagonalDiagnosticTask(bot, goalFoot), TaskTarget.block(goalFoot));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** Assigns the focused R2-C one-step Ascend diagnostic. */
-    public static boolean assignAscendDiagnostic(BotPlayer bot, BlockPos goalFoot) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) return false;
-        session.beginTask(new AscendDiagnosticTask(bot, goalFoot), TaskTarget.block(goalFoot));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** Assigns the focused R2-C one-step Descend diagnostic. */
-    public static boolean assignDescendDiagnostic(BotPlayer bot, BlockPos goalFoot) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) return false;
-        session.beginTask(new DescendDiagnosticTask(bot, goalFoot), TaskTarget.block(goalFoot));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** Assigns the focused R2-C multi-segment chain diagnostic (P0 链接验收). */
-    public static boolean assignChainDiagnostic(BotPlayer bot, java.util.List<BlockPos> plannedFoot) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) return false;
-        BlockPos goal = plannedFoot.get(plannedFoot.size() - 1);
-        session.beginTask(new ChainDiagnosticTask(bot, plannedFoot), TaskTarget.block(goal));
-        broadcastTarget(session.target);
-        return true;
-    }
 
     /**
-     * Assigns the R3 one-action self-test battery (plan + all movements + chain).
+     * 伐木 Job（L3/D-080，切片 J1）：在起点附近选一棵树砍完并收集。
      *
-     * @param hubFoot 测试起点脚位；任务开始与每项开始前会把 bot 锚定到此处
+     * @param anchor ⭐ 刀 2：**场景起点由调用方传**（原先写死夹具锚点 ⇒ `bot/` 反向依赖 `fixture/`）。
+     *               开发期入口传 `fixture/LumberCourseAnchor.START_FOOT`（行为与刀 2 之前逐字相同）。
+     * @param provisioning ⭐ 刀 2：**发料策略由调用方传**（`D-512`）
      */
-    public static boolean assignPathingBattery(BotPlayer bot, BlockPos hubFoot) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) return false;
-        session.beginTask(new PathingBatteryTask(bot, hubFoot), TaskTarget.block(hubFoot));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** Assigns the chained multi-scene regression (one action, all scenes). */
-    public static boolean assignPathingRegression(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.fixture.PathingRegressionTask(bot, observer),
-                TaskTarget.block(new BlockPos(0, 64, 46)));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** Assigns the R4 plan→session execution diagnostic. */
-    public static boolean assignPathSessionDiagnostic(BotPlayer bot, BlockPos goalFoot) {
-        return assignPathSessionDiagnostic(bot, goalFoot, false);
-    }
-
-    /** Assigns the R4 plan→session diagnostic with a deterministic disturbance (自愈验证夹具). */
-    public static boolean assignPathSessionDiagnostic(BotPlayer bot, BlockPos goalFoot,
-                                                      boolean allowWorldModification,
-                                                      int disturbTick, int disturbDx, int disturbDz) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) return false;
-        session.beginTask(new PathSessionDiagnosticTask(bot, goalFoot, allowWorldModification,
-                disturbTick, disturbDx, disturbDz), TaskTarget.block(goalFoot));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** Assigns the R4/R5 plan→session diagnostic；allowWorldModification 授权 PATH_ACCESS 破坏。 */
-    public static boolean assignPathSessionDiagnostic(BotPlayer bot, BlockPos goalFoot,
-                                                      boolean allowWorldModification) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) return false;
-        session.beginTask(new PathSessionDiagnosticTask(bot, goalFoot, allowWorldModification),
-                TaskTarget.block(goalFoot));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** Assigns the D-043 replan fixture: block the path 2 segments ahead at a fixed tick. */
-    public static boolean assignPathingWaller(BotPlayer bot, BlockPos goalFoot, int wallTick) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) return false;
-        session.beginTask(new PathSessionDiagnosticTask(bot, goalFoot, true,
-                        0, 0, 0, wallTick, com.dddgn.alice.pathing.PathRetryRunner.DEFAULT_MAX_REPLANS),
-                TaskTarget.block(goalFoot));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** Assigns the DOWNWARD diagnostic (execute + guard). */
-    public static boolean assignMineCourseDiagnostic(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.fixture.MineCourseDiagnosticTask(bot, observer),
-                TaskTarget.block(new net.minecraft.core.BlockPos(23, 64, 140)));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** 伐木 Job（L3/D-080，切片 J1）：在起点附近选一棵树砍完并收集。 */
-    public static boolean assignLumberJob(BotPlayer bot, ServerPlayer observer) {
+    public static boolean assignLumberJob(BotPlayer bot, ServerPlayer observer,
+                                          net.minecraft.core.BlockPos anchor,
+                                          com.dddgn.alice.tool.ToolProvision provisioning) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
         // J3：配额 = 4 棵。夹具里 4 棵同型橡树（各需清障 2~3 格）⇒ 累计清障 **≥9 格**，
         // 跨过 MAX_CLEAR_PER_TREE(8) ⇒ 这才是「按棵预算重置」（D-085③）的**真回归**：
         // 若计数器是 job 级，第 3~4 棵必在 clear_budget 失败。
         // （教训：3 棵时实测累计只有 8 格，正好压在阈值上、未触发——见 D-092 附注。）
-        // D-119/D-122：夹具职责——入口发料（生产 MineTask 不再兜底发工具）。物品入口已发过，
-        // 这里再保证一次，让**任何**调用者（含串联回归电池）都不会徒手砍树。
-        com.dddgn.alice.item.FixtureToolKit.ensureAxe(bot);
-        com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
-        com.dddgn.alice.item.FixtureToolKit.ensureHotbarStack(bot,
-                () -> new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.COBBLESTONE),
-                stack -> stack.is(net.minecraft.world.item.Items.COBBLESTONE), 12, "cobblestone");
+        // D-119/D-122：**入口发料**（生产 MineTask 不再兜底发工具）。物品入口已发过，这里再保证一次，
+        // 让**任何**调用者（含串联回归电池）都不会徒手砍树。⭐ 刀 2：发料强度由 `provisioning` 决定
+        //（开发期 = 造物；生产 = 只搬运已存在的 —— 见 `tool/ToolProvision`）。
+        provisioning.axe(bot);
+        provisioning.pickaxe(bot);
+        provisioning.cobblestone(bot, 12);
         // **T5（D-125）：配额随场景推导**，不再写死 4 —— 原来「夹具可行树数(4) 与 Job 默认配额(4)」
         // 互相标定，场景里任何一棵树变得不可行都会表现为 `partial_quota`，看起来像代码 bug
         // （2026-09-11 为此花了两轮客户端）。现在用**同一套候选源**数一遍可行树（too_large 已进 rejected），
@@ -650,12 +485,12 @@ public final class BotManager {
         com.dddgn.alice.job.lumber.LumberCandidateSource source =
                 new com.dddgn.alice.job.lumber.LumberCandidateSource();
         com.dddgn.alice.job.JobDeclaration probe = com.dddgn.alice.job.JobDeclaration.harvestUnits(
-                com.dddgn.alice.fixture.LumberCourseAnchor.START_FOOT, 16, 1, 300);
+                anchor, 16, 1, 300);
         int feasible = source.candidates(bot, probe).viable().size();
         int quota = Math.max(1, feasible);
         BotLog.info("[Job] lumber 场景可行树={} ⇒ 配额={}（T5：配额随场景推导）", feasible, quota);
         com.dddgn.alice.job.JobDeclaration spec = com.dddgn.alice.job.JobDeclaration.harvestUnits(
-                com.dddgn.alice.fixture.LumberCourseAnchor.START_FOOT, 16, quota, 3600);
+                anchor, 16, quota, 3600);
         // ⭐ `O96` ⓐ / `D-349`：legacy 入口**也必须过受理闸**（`JobKindContract`）——
         // 此前 inline `new` 绕过它 ⇒ 「kind 缺契约 ⇒ 拒绝」对本入口**永远不生效**。
         if (!com.dddgn.alice.job.JobLauncher.admit(com.dddgn.alice.job.JobRequest.Kind.LUMBER)) {
@@ -665,7 +500,7 @@ public final class BotManager {
         com.dddgn.alice.job.lumber.LumberJob job = new com.dddgn.alice.job.lumber.LumberJob(
                 bot, spec, session.scope(), source,
                 new com.dddgn.alice.job.policy.NearestPolicy());
-        session.beginTask(job, TaskTarget.block(com.dddgn.alice.fixture.LumberCourseAnchor.START_FOOT));
+        session.beginTask(job, TaskTarget.block(anchor));
         broadcastTarget(session.target);
         return true;
     }
@@ -684,7 +519,8 @@ public final class BotManager {
      * 现在都走这里，避免"决策层起的 Job 与夹具起的 Job 行为不同"。
      */
     public static boolean assignJob(BotPlayer bot, ServerPlayer observer,
-                                    com.dddgn.alice.job.JobRequest request, boolean fixtureProvision) {
+                                    com.dddgn.alice.job.JobRequest request,
+                                    com.dddgn.alice.tool.ToolProvision provisioning) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) {
             return false;
@@ -701,7 +537,7 @@ public final class BotManager {
             BotLog.warn("[Job] launch 拒绝 {}（{}）—— 不起 Job", request.describe(), refusal);
             return false;
         }
-        if (!com.dddgn.alice.job.JobLauncher.provision(bot, request, fixtureProvision)) {
+        if (!com.dddgn.alice.job.JobLauncher.provision(bot, request, provisioning)) {
             BotLog.warn("[Job] launch 发料失败 ⇒ 不起 Job（{}）", request.describe());
             return false;
         }
@@ -723,12 +559,14 @@ public final class BotManager {
 
     public static boolean assignMineJob(BotPlayer bot, ServerPlayer observer,
                                         com.dddgn.alice.job.mine.MineCandidateSource.Target target,
-                                        int quota, int radius) {
+                                        int quota, int radius,
+                                        com.dddgn.alice.tool.ToolProvision provisioning) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
         // D-134：统一走 JobLauncher（发料 + 构造）；tag 由 Target 的 describe 反推不方便，
         // 这里直接把 Target 交给一条等价的 JobRequest（productTag 仅用于日志/决策层可读）
-        com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
+        // ⭐ 刀 2：发料强度由调用方传（`D-512`），本类不再认识造物工具。
+        provisioning.pickaxe(bot);
         com.dddgn.alice.job.JobRequest request = com.dddgn.alice.job.JobRequest.mine(
                 bot.blockPosition(), radius, quota, 3600, target.describe());
         // 用调用方给的具体 Target（而不是重新解析字符串）：语义完全等价，避免二次解析差异
@@ -762,10 +600,11 @@ public final class BotManager {
      */
     public static boolean assignFishboneJob(BotPlayer bot,
                                             com.dddgn.alice.job.fishbone.FishboneTemplate template,
-                                            int maxTicks) {
+                                            int maxTicks,
+                                            com.dddgn.alice.tool.ToolProvision provisioning) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
-        com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
+        provisioning.pickaxe(bot);
         com.dddgn.alice.job.fishbone.FishboneJob job =
                 new com.dddgn.alice.job.fishbone.FishboneJob(bot, template, session.scope(), maxTicks);
         session.beginTask(job, TaskTarget.block(template.startFoot()));
@@ -780,12 +619,17 @@ public final class BotManager {
      * 脚手架，或升级前账本里已有的条目）。
      *
      * @param all true = 恢复账本里全部待恢复的 TEMP；false = 仅当前打开的作用域
+     * @param provisioning ⭐ 刀 2：发料策略由调用方传（`D-512`）
+     *                     ⚠️ `D-512` ⓑ 记在案：本入口起的是 **`Task`**（`RestoreScopeTask`），
+     *                     ⛔ 不是 `Job` ⇒ 它**不过** `JobLauncher` 的四道受理闸。这是既成口径，
+     *                     本刀**只写明、不改语义**（改语义属独立一刀）。
      */
-    public static boolean assignRestore(BotPlayer bot, ServerPlayer observer, boolean all) {
+    public static boolean assignRestore(BotPlayer bot, ServerPlayer observer, boolean all,
+                                        com.dddgn.alice.tool.ToolProvision provisioning) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
         // D-119：拆我方圆石需要镐；工具由**入口**准备（生产 MineTask 不再兜底发工具）
-        com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
+        provisioning.pickaxe(bot);
         com.dddgn.alice.ledger.WorldModLedger.dropStale(bot.serverLevel());
         // ⭐ `Z2`（2026-09-23）：入口只认**保护区内**的待恢复项（`D-398` R2「区外一定不恢复」）。
         // 用裸视图会把 bot 传送到一个**永远不会被恢复**的区外方块旁边（`RestoreScopeTask` 的取件
@@ -812,14 +656,13 @@ public final class BotManager {
      * （跨会话记得"这片区域该长什么样"），以及入口发料（D-119 起生产任务不发工具）。
      */
     public static boolean assignRegionLumber(BotPlayer bot, ServerPlayer observer,
-                                             com.dddgn.alice.job.lumber.LumberRegionState.Region region) {
+                                             com.dddgn.alice.job.lumber.LumberRegionState.Region region,
+                                             com.dddgn.alice.tool.ToolProvision provisioning) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null || session.task != null) return false;
-        com.dddgn.alice.item.FixtureToolKit.ensureAxe(bot);
-        com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
-        com.dddgn.alice.item.FixtureToolKit.ensureHotbarStack(bot,
-                () -> new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.COBBLESTONE),
-                stack -> stack.is(net.minecraft.world.item.Items.COBBLESTONE), 12, "cobblestone");
+        provisioning.axe(bot);
+        provisioning.pickaxe(bot);
+        provisioning.cobblestone(bot, 12);
         com.dddgn.alice.job.lumber.LumberRegionState state =
                 com.dddgn.alice.job.lumber.LumberRegionState.get(bot.getServer());
         state.setRegion(bot.getUUID(), region);
@@ -835,8 +678,7 @@ public final class BotManager {
         var saplingItem = saplingId == null ? null
                 : net.minecraft.core.registries.BuiltInRegistries.ITEM.get(saplingId);
         if (saplingItem != null && saplingItem != net.minecraft.world.item.Items.AIR) {
-            com.dddgn.alice.item.FixtureToolKit.ensureHotbarStack(bot,
-                    () -> new net.minecraft.world.item.ItemStack(saplingItem),
+            provisioning.hotbarStack(bot, () -> new net.minecraft.world.item.ItemStack(saplingItem),
                     stack -> stack.is(saplingItem), 8, "sapling(" + state.saplingItem(bot.getUUID()) + ")");
         }
         BotLog.info("[Job] region_lumber 区域={} saplingItem={}（补种树苗由用户选择，见 /alice region）",
@@ -856,16 +698,6 @@ public final class BotManager {
         return true;
     }
 
-    /** J6-b2：容器绕行自检（断言 bot 不为取目标而拆箱子，D-095）。 */
-    public static boolean assignClearGuardCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.fixture.ClearGuardCheckTask(bot, session.scope()),
-                TaskTarget.block(com.dddgn.alice.fixture.ClearGuardCheckTask.START_FOOT));
-        broadcastTarget(session.target);
-        return true;
-    }
-
     /** 脚手架生命周期自检（J7 Step 1）：搭柱子爬上去 → 高处干活 → 仍在顶上拆掉 → 落地。 */
     public static boolean assignScaffoldCheck(BotPlayer bot, ServerPlayer observer) {
         BotSession session = BOTS.get(bot.getUUID());
@@ -876,123 +708,20 @@ public final class BotManager {
         return true;
     }
 
-    /** 串联回归电池（D-122）：一次跑完 9 项常用回归，每项独立复位、失败不中断。 */
-    public static boolean assignRegressionBattery(BotPlayer bot, ServerPlayer observer) {
-        return assignRegressionBattery(bot, observer, false);
-    }
 
-    /**
-     * 指派回归电池（D-197）。
-     *
-     * @param full false = **CORE**（必要基础 + 当前主线，默认；用户要求"电池不要太长"）；
-     *             true  = **FULL**（额外含已验收/无关/耗时项，`/alice battery full` 用）
-     */
-    public static boolean assignRegressionBattery(BotPlayer bot, ServerPlayer observer, boolean full) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.fixture.RegressionBatteryTask(bot, observer, session.scope(),
-                        full ? com.dddgn.alice.fixture.RegressionBatteryTask.Mode.FULL
-                             : com.dddgn.alice.fixture.RegressionBatteryTask.Mode.CORE),
-                TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
 
-    /** R2 限次清障"换候选"自检：一个候选失败要换下一个，而不是放弃整棵树。 */
-    public static boolean assignClearRetryCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.fixture.ClearRetryCheckTask(bot, session.scope()),
-                TaskTarget.block(com.dddgn.alice.fixture.ClearRetryCheckTask.START_FOOT));
-        broadcastTarget(session.target);
-        return true;
-    }
 
-    /** 写入预算自检（D-106）：任务级破坏上限压到 1 格，断言"用满即停、如实失败"。 */
-    public static boolean assignWriteBudgetCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.fixture.WriteBudgetCheckTask(bot, session.scope()),
-                TaskTarget.block(com.dddgn.alice.fixture.WriteBudgetCheckTask.START_FOOT));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** 伐木失败语义自检（切片 J4）：五条终止路径各一个用例。 */
-    public static boolean assignLumberFailureCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.fixture.LumberFailureCheckTask(bot, session.scope()),
-                TaskTarget.block(com.dddgn.alice.fixture.LumberCourseAnchor.START_FOOT));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** 挖掘专项串联回归（批次 5）。 */
-    public static boolean assignMineRegression(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.fixture.MineRegressionTask(bot, observer, session.scope()),
-                TaskTarget.block(com.dddgn.alice.fixture.MineCourseDiagnosticTask.START_FOOT));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** 模组兼容自检：Ore Excavation 连锁挖掘的掉落物捕获与收集。 */
-    public static boolean assignChainMineDiagnostic(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.fixture.ChainMineDiagnosticTask(bot, observer, session.scope()),
-                TaskTarget.block(com.dddgn.alice.fixture.ChainMineDiagnosticTask.SEED));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    public static boolean assignBreakEnterDiagnostic(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.fixture.BreakEnterDiagnosticTask(bot, observer),
-                TaskTarget.block(com.dddgn.alice.fixture.BreakEnterDiagnosticTask.GOAL_A));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    public static boolean assignFallDiagnostic(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.fixture.FallDiagnosticTask(bot, observer),
-                TaskTarget.block(com.dddgn.alice.fixture.FallDiagnosticTask.DROP3_GOAL));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    public static boolean assignPillarDiagnostic(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.fixture.PillarDiagnosticTask(bot, observer),
-                TaskTarget.block(com.dddgn.alice.fixture.PillarDiagnosticTask.RIM_GOAL));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    public static boolean assignVerticalDiagnostic(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) return false;
-        session.beginTask(new com.dddgn.alice.fixture.VerticalDiagnosticTask(bot, observer),
-                TaskTarget.block(com.dddgn.alice.fixture.VerticalDiagnosticTask.OPEN_GOAL));
-        broadcastTarget(session.target);
-        return true;
-    }
 
     /* legacy movement experiment entry removed; retain core task APIs only */
     /** 给假人分配 Bot 专用道路施工任务。 */
-    public static void assignRoadBuild(BotPlayer bot, com.dddgn.alice.road.RoadPlan plan) {
+    public static void assignRoadBuild(BotPlayer bot, com.dddgn.alice.road.RoadPlan plan,
+                                       com.dddgn.alice.tool.ToolProvision provisioning) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null) {
             BotLog.warn("assignRoadBuild 失败: bot 不存在 uuid={}", bot.getUUID());
             return;
         }
-        session.assignRoadBuild(plan);
+        session.assignRoadBuild(plan, provisioning);
     }
 
     /** Creates the only approved transfer task entry point. */
@@ -1024,21 +753,23 @@ public final class BotManager {
 
     /** 给假人分配「挖掘指定方块」任务(命令/selftest 兼容入口)。 */
     /** Mine 已迁移到新内核（D-064 批次 1），不再走 legacy 门禁。 */
-    public static boolean assignMine(BotPlayer bot, BlockPos target) {
-        assignTarget(bot, TaskTarget.block(target));
+    public static boolean assignMine(BotPlayer bot, BlockPos target,
+                                     com.dddgn.alice.tool.ToolProvision provisioning) {
+        assignTarget(bot, TaskTarget.block(target), provisioning);
         BotLog.info("分配挖掘任务: bot={} target={}",
                 bot.getName().getString(), target.toShortString());
         return true;
     }
 
     /** 任务入口(测试工具/决策层共用):按目标类型创建对应 Task 并开始执行。 */
-    public static void assignTarget(BotPlayer bot, TaskTarget target) {
+    public static void assignTarget(BotPlayer bot, TaskTarget target,
+                                    com.dddgn.alice.tool.ToolProvision provisioning) {
         BotSession session = BOTS.get(bot.getUUID());
         if (session == null) {
             BotLog.warn("assignTarget 失败: bot 不存在 uuid={}", bot.getUUID());
             return;
         }
-        session.assign(target);
+        session.assign(target, provisioning);
     }
 
     /** 直接分配任务对象给 bot（用于自定义任务如伐木）。 */
@@ -1053,6 +784,49 @@ public final class BotManager {
         // （全局开关中途被改，也不会让同一份计划的两段用两套口径）。
         com.dddgn.alice.pathing.risk.RiskProfile.freeze(bot);
         BotLog.info("assignTask: bot={} task={}", bot.getName().getString(), task.getClass().getSimpleName());
+    }
+
+    /**
+     * ⭐ 刀 2（`D-512`）：**「空闲即起任务」通用桥**（唯一出处）。
+     *
+     * <p>形状与原先 47 个 `assign*` 入口**逐字一致**：
+     * <pre>
+     *   guard busy ⇒ false → beginTask → broadcastTarget → true
+     * </pre>
+     * ⛔ **不是** {@link BotSession#assignFixtureTask}：那个走 {@code replaceTaskIfRunning}
+     * （**会顶替在跑的任务**），语义不同。
+     *
+     * <p>⭐ {@code factory} **只在 bot 确实空闲时才被调用** ⇒ 与旧写法的次序逐字相同
+     * （旧写法也是先判忙、再 `new` 任务对象）—— 这条不是洁癖：部分构造器会读
+     * {@code session.scope()}（8 个入口如此），忙时白构造会**改变可观察行为**。
+     *
+     * @param factory 由调用方给的任务工厂（开发期派发器在 {@code fixture/FixtureDispatch}）
+     * @return 真的起了任务 = true；bot 不存在 / 正忙 = false
+     */
+    /**
+     * ⭐ 刀 4（`D-560` 第 4 条）：**给"发料"留痕的安全口**。
+     *
+     * <p>⛔ **空安全是必须的**，不是洁癖：打标点在**发料工具内部**（{@link com.dddgn.alice.item.FixtureToolKit} /
+     * `ToolSupply.promoteFromMain`），而那里**没有**"bot 一定有会话"的前置 —— 留痕失败
+     * ⛔ 不该把发料本身炸掉（那会把"记一笔"变成新的故障源）。
+     *
+     * @param label `DEV_CREATE`（凭空造）／`PROMOTE_ONLY`（只搬运）
+     */
+    public static void markProvision(BotPlayer bot, String label) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session != null) {
+            session.markProvision(label);
+        }
+    }
+
+    public static boolean beginIdleTask(BotPlayer bot,
+                                        java.util.function.Function<BotSession, Task> factory,
+                                        TaskTarget target) {
+        BotSession session = BOTS.get(bot.getUUID());
+        if (session == null || session.task != null) return false;
+        session.beginTask(factory.apply(session), target);
+        broadcastTarget(session.target);
+        return true;
     }
 
     /** 查找最近的 bot（用于工具自动选择 bot）。 */
@@ -1262,7 +1036,12 @@ public final class BotManager {
         }
         // **R-2 Phase 1b**：自检编排器由**服务器 tick** 驱动（不在任何会话任务里 ✓）
         // ⇒ 外部命令/`stopTask` 再也不会把它顶掉或杀掉 ✓（这是"电池脱离任务管理束缚"的那一步）。
-        com.dddgn.alice.fixture.check.CheckHarness.tickAll(event.getServer());
+        // ⭐ 刀 2（`D-512`）：这里**不再直接认识夹具** —— 改走**中立挂点**（`ServerTickHooks`）。
+        // ⚠️ 触发语句在**原调用点的逐字位置**（tick 顺序零变化）：编排器由
+        //    `fixture/check/CheckHarness` 自己在 `ServerStartedEvent` 时挂上来；
+        //    `bot/` 不知道挂载者是谁、挂了几个（⛔ 不许自订阅 `ServerTickEvent`：同优先级监听器的
+        //    相对次序由 Forge 类扫描顺序决定 ⇒ 会不可控地改变 tick 顺序，理由见 `ServerTickHooks` 类注释）。
+        ServerTickHooks.fireServerEndTick(event.getServer());
         // §5.9-③：**不能用 `getTickCount()`**（进程内计数，重启后归零 ⇒ 与落章的世界时间差恒为负
         // ⇒ 运行中产生的挂起永不过期）。统一走 `TransferLedgerData.clockNow`。
         TransferLedgerData.get(event.getServer()).expireSuspensions(event.getServer(),
@@ -1502,205 +1281,6 @@ public final class BotManager {
                 .pendingTemporaryProtected(bot.serverLevel(), null).size();
     }
 
-    /** **被动拾取闸门自检**（S3.5 / D-143）：我方掉落物应捡、外来掉落物应被拦下。 */
-    /** K-3 安全点停止自检（确定性夹具：升空后请求停止）。 */
-    public static boolean assignK3StopCheck(BotPlayer bot, ServerPlayer observer,
-                                            com.dddgn.alice.fixture.K3StopCheckTask.Mode mode) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.fixture.K3StopCheckTask(bot, observer, mode),
-                TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** L2 菜单协议最小验证探针（开真菜单 → 菜单点击搬物品 → 关闭）。 */
-    /** **现成工作台 3×3 合成自检**（阶段 3-A / A3，D-188）：找台→走位→开菜单→合成 + 零写入断言。 */
-    public static boolean assignCraftTableCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.fixture.CraftTableCheckTask(bot, observer),
-                TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    // 阶段 3-B / S1／S2／S4 的**临时探针入口**（`alice:machine_probe`、`alice:machine_station_probe`、
-    // `alice:machine_cycle_check`）已按 **S5 收口**回收 —— 三支任务全部转为**电池步**
-    // （`machine_route` / `machine_station` / `machine_cycle`，见 `RegressionBatteryTask.CURATION`），
-    // 对应 `assign*` 方法一并删除（`assignMachineProbe` / `assignMachineStationProbe` 在回收后已无调用点
-    // = 死代码，2026-09-14 一并清掉）。要单跑某一步请用电池档位，不要再复活临时物品。
-
-    /** A5：决策层合成自检（`alice:craft_goal_check`）。 */
-    public static boolean assignCraftGoalCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.fixture.CraftGoalCheckTask(bot, observer),
-                TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** **熔炼页签自检**（阶段 3-A / A4b，D-198）：菜单型炉子（装升级→烧→取→拆回）。 */
-    public static boolean assignCraftCookingCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.fixture.CraftFurnaceCheckTask(bot, observer, true),
-                TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** **熔炉自检**（阶段 3-A / A4，D-196）：认炉子→放料→等烧→取产物（另一种执行形状）。 */
-    public static boolean assignCraftFurnaceCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.fixture.CraftFurnaceCheckTask(bot, observer),
-                TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** **模组站点真合成自检**（阶段 3-A / C，D-195）：装升级→用页签合成→拆回。 */
-    public static boolean assignCraftStationCraftCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.fixture.CraftStationCraftCheckTask(bot, observer),
-                TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** **工作站装配自检**（阶段 3-A / L2，D-194）：装升级→能力验证→取回复原。 */
-    public static boolean assignCraftStationProvisionCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.fixture.CraftStationProvisionCheckTask(bot, observer),
-                TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** **合成网格探针**（阶段 3-A / S1-3，D-192）：只读打开当前工作站并打印网格/槽位事实。 */
-    public static boolean assignCraftGridProbe(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.fixture.CraftGridProbeTask(bot, observer),
-                TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** **自放工作站合成自检**（阶段 3-A / A3b，D-190）：放台→合成→**拆回**，验"建拆同权"。 */
-    public static boolean assignCraftStationCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.fixture.CraftStationCheckTask(bot, observer),
-                TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** **随身 2×2 合成自检**（阶段 3-A / A2，D-186）：真消耗真产物 + 缺料如实失败 + 网格清理。 */
-    public static boolean assignCraftActionCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.fixture.CraftActionCheckTask(bot, observer),
-                TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** **只读配方查询自检**（阶段 3-A / A1，D-185）：正例/负例/边界 + "背包未变"硬断言。 */
-    public static boolean assignCraftCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.fixture.CraftCheckTask(bot, observer),
-                TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    public static boolean assignMenuProbe(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.fixture.MenuProbeTask(bot, observer),
-                TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** R2 传输模块自检：跑 4 个夹具（主流程/端点选择/选择器事件/命令解析）。 */
-    public static boolean assignTransferCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.fixture.TransferCheckTask(bot, observer),
-                TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** 基-7 前缀搜索自检（K-1，纯规划）：PARTIAL 前缀 / 同目标可达 / 真失败不给前缀。 */
-    public static boolean assignPartialSearchCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.fixture.PartialSearchCheckTask(bot, observer),
-                TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** 基-8 能力闸门自检（D-157，纯逻辑）：保护区/资源/工具/预算/声明一致性。 */
-    public static boolean assignCapabilityGateCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.fixture.CapabilityGateCheckTask(bot, observer),
-                TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** 基-9 工具供给自检：换更好的 / 没得换如实报 / 不能凭空变出工具。 */
-    public static boolean assignToolSupplyCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.fixture.ToolSupplyCheckTask(bot, observer),
-                TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
 
     /** 基-9 工具维护（决策层动作 `maintain_tool`）：把已拥有的同类工具弄到手上（只动背包）。 */
     public static boolean assignToolMaintenance(BotPlayer bot, ServerPlayer observer,
@@ -1711,54 +1291,6 @@ public final class BotManager {
         }
         session.beginTask(new com.dddgn.alice.task.ToolMaintenanceTask(bot, observer, kind),
                 TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** 基-5 LLM 上抛契约自检（D-155）：Job 失败报告 / 产物判定口径 / 结构化拒绝回读。 */
-    public static boolean assignLlmContractCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.fixture.LlmContractCheckTask(bot, observer),
-                TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** 基-4 决策 trace / 跨重启语义自检（D-154）：落盘 / 内存尾 / NBT 往返 / 重启报告只报一次。 */
-    public static boolean assignDecisionTraceCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.fixture.DecisionTraceCheckTask(bot, observer),
-                TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** 基-1 可回收性自检（D-151，纯计算）：规则表/逐类型/负例/转换点四例。 */
-    public static boolean assignRecoverabilityCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.fixture.RecoverabilityCheckTask(bot, observer),
-                TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** S4 事件阈值自检（D-150）：工具见底 / 卡住 两类病症的"上报 + 只报一次"。 */
-    public static boolean assignEventThresholdCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.fixture.EventThresholdCheckTask(bot, observer),
-                TaskTarget.block(com.dddgn.alice.fixture.PillarDiagnosticTask.SHAFT_START));
         broadcastTarget(session.target);
         return true;
     }
@@ -1781,16 +1313,6 @@ public final class BotManager {
         return "bot 正忙：正在跑 " + kind + "。要打断用 /alice stop（或等它自己结束）";
     }
 
-    public static boolean assignPickupGateCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.fixture.PickupGateCheckTask(bot, observer),
-                TaskTarget.block(com.dddgn.alice.fixture.PickupGateCheckTask.DROP_B));
-        broadcastTarget(session.target);
-        return true;
-    }
 
     /** **请示通道演示**（S3 / D-140）：起 `PermissionDemoTask`（发起 demo_ask 请示并轮询结论）。 */
     public static boolean assignPermissionDemo(BotPlayer bot, ServerPlayer observer, int maxTicks) {
@@ -1800,30 +1322,6 @@ public final class BotManager {
         }
         session.beginTask(new com.dddgn.alice.task.PermissionDemoTask(bot, observer, maxTicks),
                 TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** **未加载区块/世界边界门控自检**（S-2 / P1-A）：无头规划三个用例，不改世界（边界临时改后立刻还原）。 */
-    public static boolean assignChunkGuardCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.fixture.ChunkGuardCheckTask(bot, observer),
-                TaskTarget.block(bot.blockPosition()));
-        broadcastTarget(session.target);
-        return true;
-    }
-
-    /** **挖掘前流体风险自检**（S-4 / P0-C）：目标下方是岩浆必须硬拒，普通目标必须挖完。 */
-    public static boolean assignFluidMineCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        session.beginTask(new com.dddgn.alice.fixture.FluidMineCheckTask(bot, observer, session.scope()),
-                TaskTarget.block(com.dddgn.alice.fixture.FluidMineCheckTask.TARGET_OVER_LAVA));
         broadcastTarget(session.target);
         return true;
     }
@@ -1852,25 +1350,6 @@ public final class BotManager {
         }
         broadcastTarget(session.target);
         return true;
-    }
-
-    /**
-     * **维生全套夹具自检**（`alice:survival_full_check`，D-229 新增）：把
-     * {@link com.dddgn.alice.fixture.SurvivalExitCheckTask} 挂成会话任务 —— 它会把 S-5 决策表、
-     * 封闭场景（无出口）、真实着火、入水空气消耗、**细雪冻结**全跑一遍，并在聊天里打一行 SUMMARY。
-     *
-     * <p>为什么要有这个入口：D-229 的冻结相位此前只能靠"疾跑+右键"触发，而**原版站着不动进不了疾跑**
-     * ⇒ 那个入口根本点不到（设计错误，2026-09-15 实测发现）。
-     *
-     * @return 真的派上了活（false ⇒ 调用方必须如实上报，别打印"就位"）
-     */
-    public static boolean assignSurvivalFixtureCheck(BotPlayer bot, ServerPlayer observer) {
-        BotSession session = BOTS.get(bot.getUUID());
-        if (session == null || session.task != null) {
-            return false;
-        }
-        return session.assignFixtureTask(new com.dddgn.alice.fixture.SurvivalExitCheckTask(bot, observer),
-                TaskTarget.block(bot.blockPosition()));
     }
 
     /** **派不上活的原因**（空串 = 没被挡住；§5.9：给命令/物品入口用，把静默失效变成可读的话）。 */
@@ -1974,6 +1453,17 @@ public final class BotManager {
         private final BotPlayer bot;
         private Task task;
         private TaskTarget target;
+        /**
+         * ⭐ 刀 4（`D-560` 第 4 条）：**发料留痕** —— 进终态记录（与 `driver` 并列）。
+         *
+         * <p>打标处**只有两处**（发料动作本身，⛔ 不是调用方手写）：
+         * {@link com.dddgn.alice.item.FixtureToolKit} 真的**造物**那一刻 ⇒ `DEV_CREATE`；
+         * `bot/ToolSupply.promoteFromMain` ⇒ `PROMOTE_ONLY`。
+         * ⚠️ 判据出处 = 用户逐字「**不是不能白送工具，只是不应该被白送工具的行为污染结果**」。
+         */
+        private String taskProvision = "none";
+        /** 任务**还没起**时的发料标记（`beginTask` 时收编进 {@link #taskProvision}）。 */
+        private String pendingProvision = "none";
         /**
          * ⭐ `Z2`：本任务开始时的人口基线（记账次数 + 区外跳过次数）—— 任务收尾时用它算出
          * **本任务期间的人口**（区外放置不入账 ⇒ 只看账本分不清"没写世界"和"写了但全在区外"）。
@@ -2085,6 +1575,9 @@ public final class BotManager {
             com.dddgn.alice.write.TaskTargetProtection.end(bot);
             task = assignedTask;
             target = assignedTarget;
+            // ⭐ 刀 4：把**入口期**的发料标记收编进本任务（忙时打标落在 {@link #taskProvision}，见 `markProvision`）。
+            taskProvision = pendingProvision;
+            pendingProvision = "none";
             // **J-3（2026-09-16 复核）**：终态记录的 `taskKind` 改用任务**自己声明的稳定名字**
             // （`Task.taskName()`：默认=类名，Job/夹具可覆写成 `lumber`/`region_lumber` 这类稳定标识）。
             // 原先取 `getClass().getSimpleName()` ⇒ 换实现类就换名字 ⇒ 多 bot 归因与 LLM 侧按 kind 分派不可靠。
@@ -2201,6 +1694,32 @@ public final class BotManager {
             return true;
         }
 
+        /**
+         * ⭐ 刀 4：**给"发料"留痕**（`D-560` 第 4 条：「不应该被白送工具的行为污染结果」）。
+         *
+         * <p>⚠️ 打标的是**发料动作自己**（{@link com.dddgn.alice.item.FixtureToolKit} 真正造物那一刻 / `ToolSupply.promoteFromMain`），
+         * ⛔ 不是调用方手写一句 —— 手写必然会漏（漏了就是"结果被污染却查不出来"，正是本维要防的）。
+         *
+         * <p>落在哪一格取决于**打标时有没有任务在跑**：
+         * 有 ⇒ 记到**当前任务**（任务中途发料的正确归属）；没有 ⇒ 记到**下一个任务**
+         * （入口在 `beginTask` 之前发料，这是常态）。
+         */
+        public void markProvision(String label) {
+            if (label == null || label.isBlank()) {
+                return;
+            }
+            if (task != null) {
+                taskProvision = label;
+            } else {
+                pendingProvision = label;
+            }
+        }
+
+        /** 当前任务期间的发料留痕（`none` = 没发过料）。 */
+        public String taskProvision() {
+            return taskProvision;
+        }
+
         /** @return 真的派上了活（false = 被未结清传输挡住 ⇒ 调用方**必须**如实上报，不许当成功） */
         public boolean assignWalkTo(BlockPos goalFoot) {
             if (!replaceTaskIfRunning()) return false;
@@ -2210,7 +1729,8 @@ public final class BotManager {
             return true;
         }
 
-        public void assignRoadBuild(com.dddgn.alice.road.RoadPlan plan) {
+        public void assignRoadBuild(com.dddgn.alice.road.RoadPlan plan,
+                                    com.dddgn.alice.tool.ToolProvision provisioning) {
             if (!replaceTaskIfRunning()) return;
             if (!plan.isComplete() || plan.level() != bot.level()) {
                 lastTaskResult = "failed:road_plan_invalid";
@@ -2224,12 +1744,13 @@ public final class BotManager {
             TaskTarget assignedTarget = TaskTarget.block(plan.second());
             scope.begin(plan.second(), 8);
             // D-119：`/alice road` 同样是开发/测试入口 —— 修路会破方块，工具在这里给
-            com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
+            // ⭐ 刀 2：给不给、给什么强度，由调用方传的策略决定（`D-512`）。
+            provisioning.pickaxe(bot);
             beginTask(new com.dddgn.alice.task.RoadBuildTask(bot, plan, scope), assignedTarget);
             broadcastTarget(this.target);
         }
 
-        public void assign(TaskTarget newTarget) {
+        public void assign(TaskTarget newTarget, com.dddgn.alice.tool.ToolProvision provisioning) {
             if (!replaceTaskIfRunning()) return; // in-transit transfer refuses unrelated replacement
             switch (newTarget.type()) {
                 case BLOCK -> {
@@ -2238,7 +1759,7 @@ public final class BotManager {
                     scope.begin(newTarget.blockPos(), 16, bot.getUUID());
                     // D-119：`/alice mine` 是**开发/测试入口** —— 工具在这里给（生产 MineTask 不再发），
                     // 否则挖石头/矿石会如实失败 `no_suitable_tool`（原版徒手不掉落）。
-                    com.dddgn.alice.item.FixtureToolKit.ensurePickaxe(bot);
+                    provisioning.pickaxe(bot);
                     // 单目标默认只走真实可通行曲面的 A*；通道规划后续仅在曲面不可达时显式接入。
                     // D-112：这是顶层"会话所有者"（一条 /alice mine 指令 = 一次使用会话）→ 用完即拆
                     beginTask(new MineTask(bot, newTarget.blockPos(), scope,
@@ -2856,11 +2377,14 @@ public final class BotManager {
             // **F1 地基（D-267）**：驱动者也一起落进终态记录 —— 只有 `botId` 时无法区分
             // "玩家让做的 / LLM 自己决定的 / 夹具跑的"（`survey/16 §3` 的整条线都要这一维）。
             String driver = com.dddgn.alice.decision.Driver.of(bot);
+            // ⭐ 刀 4（`D-560` 第 4 条）：**发料事实进结果** —— 事后能读"这次调试结果是被发过料的"，
+            // ⛔ 不必靠人记得。取值由 `markProvision` 打（造物 / 只搬运 / 没发过）。
+            String provision = taskProvision;
             TaskOutcome outcome = new TaskOutcome(kind, targetDescription, terminalStatus, resultCode,
-                    terminalPos, failureReport, botId, terminalReason, driver);
+                    terminalPos, failureReport, botId, terminalReason, driver, provision);
             lastExecutionRecord = new TaskExecutionRecord(kind, targetDescription, startTick, serverTick(),
                     terminalStatus, resultCode, terminalPos, recoveryState, recoveryStage, recoveryEvents, outcome,
-                    botId, terminalReason, driver);
+                    botId, terminalReason, driver, provision);
             TaskFailureReport failure = outcome.failure();
             BotLog.info("task_execution_terminal kind={} target={} startTick={} endTick={} durationTicks={}"
                             + " terminal={} code={} pos={} recovery={} recoveryStage={} recoveryEvents={}"
@@ -2875,6 +2399,10 @@ public final class BotManager {
             BotLog.info("task_terminal_reason kind={} botId={} driver={} terminalReason={}",
                     lastExecutionRecord.taskKind(), lastExecutionRecord.botId(),
                     lastExecutionRecord.driver(), lastExecutionRecord.terminalReason());
+            // ⭐ 刀 4：**发料留痕单独一行**（`provision=` 是门禁 `check-exec-record` R4 的靶子）——
+            // 与 `driver` 一样，它是"这次结果的可信度前提"，不该埋在别的行里等人去扒。
+            BotLog.info("task_terminal_provision kind={} provision={}",
+                    lastExecutionRecord.taskKind(), lastExecutionRecord.provision());
             // ⭐ `D-347`（运行账）：**终态记账就钉在这里**（`TaskExecutionRecord` 的唯一构造点），
             // 因为"终态"有**两条**路径而它们**不共用** `complete()`：`immediateStop`（玩家 `/alice stop-task`、
             // `stop_current`、`doneWhen` 步、延后到安全点）自己 `recordTerminal + clearTask` 就返回了

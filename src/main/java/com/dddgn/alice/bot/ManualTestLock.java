@@ -13,7 +13,9 @@ import com.dddgn.alice.log.BotLog;
  * <p>口径：
  * <ul>
  *   <li>锁上时，**生产入口一律拒绝**（`assignJob`）并且**响亮可见**（日志 + 事件环 `REFUSED`）；</li>
- *   <li>**唯一**的绕过口是 {@link BotManager#assignManualTestJob}（名字里带 `ManualTest` ⇒ 谁在别处调它一眼能看出错）；</li>
+ *   <li>**唯一**的绕过口是 {@link ManualTestLock#beginManualWindow()}（名字里带 `Manual` ⇒ 谁在别处调它一眼能看出错；
+ *       ⚠️ 刀 5 改正：原写作 `{@code BotManager#assignManualTestJob}`（当时写成 `{@link}`）—— 那是**全仓 0 命中的不存在符号**，
+ *       而它逐字说"唯一绕过口是它" ⇒ 那句断言当时**没有任何载体**；新门禁 `check-doc-links` 从此盯住这类坏链）；</li>
  *   <li>锁**只挡"起新任务"**，不挡观察、不挡停止 —— 它不是一个"静默模式"，而是一道准入闸。</li>
  * </ul>
  *

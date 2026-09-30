@@ -2,6 +2,7 @@ package com.dddgn.alice.item;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.fixture.FixtureDispatch;
 import com.dddgn.alice.fixture.LumberCourseAnchor;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -68,7 +69,7 @@ public class LumberFailureCheckItem extends Item {
 
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
-        if (!BotManager.assignLumberFailureCheck(bot, observer)) {
+        if (!FixtureDispatch.assignLumberFailureCheck(bot, observer)) {
             say(player, "[alice] 自检启动失败（bot 忙）");
             return;
         }

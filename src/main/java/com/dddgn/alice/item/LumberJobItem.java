@@ -104,7 +104,7 @@ public class LumberJobItem extends Item {
 
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
-        if (!BotManager.assignLumberJob(bot, observer)) {
+        if (!BotManager.assignLumberJob(bot, observer, LumberCourseAnchor.START_FOOT, com.dddgn.alice.fixture.DevCreateProvision.INSTANCE)) {
             if (player != null) {
                 player.sendSystemMessage(Component.literal("[alice] " + BotManager.busyMessage(bot)));
             }

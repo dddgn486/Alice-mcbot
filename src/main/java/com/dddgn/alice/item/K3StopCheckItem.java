@@ -2,6 +2,7 @@ package com.dddgn.alice.item;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.fixture.FixtureDispatch;
 import com.dddgn.alice.fixture.K3StopCheckTask;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -66,7 +67,7 @@ public class K3StopCheckItem extends Item {
             return;
         }
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
-        if (!BotManager.assignK3StopCheck(bot, player instanceof ServerPlayer sp ? sp : null, mode)) {
+        if (!FixtureDispatch.assignK3StopCheck(bot, player instanceof ServerPlayer sp ? sp : null, mode)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }

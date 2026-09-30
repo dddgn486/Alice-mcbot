@@ -2,6 +2,7 @@ package com.dddgn.alice.headless;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.fixture.FixtureDispatch;
 import com.dddgn.alice.log.BotLog;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -25,7 +26,7 @@ import com.dddgn.alice.fixture.RegressionBatteryTask;
  * </pre>
  *
  * <p>它只做四件事：① 起服后生成一只假人；② 走**与游戏内物品完全相同**的入口
- * （{@link BotManager#assignRegressionBattery} —— ⚠️ 原文写「`observer=null`」，但**现实已不是**：
+ * （{@link com.dddgn.alice.fixture.FixtureDispatch#assignRegressionBattery} —— ⚠️ 原文写「`observer=null`」，但**现实已不是**：
  * 本类早在 `syntheticObserver()`（见其 javadoc）里用 `FakePlayerFactory.getMinecraft` 造了
  * **合成的第二个玩家实体**充当 `observer`（`CapabilityGateCheckTask` 的 `foreign_break_attribution`
  * 需要"另一个玩家实体"）；取不到才退回 `null`。2026-09-29（`D-521`）核实并原地更正，⛔ 不改语义）；
@@ -210,7 +211,7 @@ public final class HeadlessBattery {
                 }
                 return;
             }
-            if (BotManager.assignRegressionBattery(bot, observer, fullProfile)) {
+            if (FixtureDispatch.assignRegressionBattery(bot, observer, fullProfile)) {
                 assigned = true;
                 BotLog.info("[Headless] 电池已指派（入口与游戏内物品完全相同；observer={}）",
                         observer == null ? "null（无合成玩家）" : "合成第二玩家 " + observer.getUUID());

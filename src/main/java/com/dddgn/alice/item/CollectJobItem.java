@@ -95,7 +95,8 @@ public class CollectJobItem extends Item {
         int adopted = session.scope().adoptExistingDrops(level, DROP_CENTER, 12);
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
         if (!BotManager.assignJob(bot, player instanceof ServerPlayer sp ? sp : null,
-                JobRequest.collect(DROP_CENTER, 16, 8 * STACKS, 1200), true)) {
+                JobRequest.collect(DROP_CENTER, 16, 8 * STACKS, 1200),
+                com.dddgn.alice.fixture.DevCreateProvision.INSTANCE)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }

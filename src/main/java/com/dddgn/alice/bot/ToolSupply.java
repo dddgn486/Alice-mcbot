@@ -188,6 +188,9 @@ public final class ToolSupply {
      * @return 结果码：`already_in_hotbar` / `moved_to_empty` / `swapped_with_held` / `no_tool_in_main` / `hotbar_full_no_swap`
      */
     public static String promoteFromMain(BotPlayer bot, Kind kind) {
+        // ⭐ 刀 4（`D-560` 第 4 条）：**"只搬运"也留痕** —— 它同样是"这次结果的前提"，
+        // 只是强度不同（`PROMOTE_ONLY` 不创造任何东西）。取值口径见 `TaskExecutionRecord#provision()`。
+        BotManager.markProvision(bot, "PROMOTE_ONLY");
         var inventory = bot.getInventory();
         Slot main = bestInMain(bot, kind);
         if (main.slot() < 0) {

@@ -2,6 +2,7 @@ package com.dddgn.alice.item;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.fixture.FixtureDispatch;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -65,7 +66,7 @@ public class PathingBatteryItem extends Item {
             return InteractionResult.SUCCESS;
         }
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
-        if (!BotManager.assignPathingBattery(bot, anchor)) {
+        if (!FixtureDispatch.assignPathingBattery(bot, anchor)) {
             if (player != null) {
                 player.sendSystemMessage(Component.literal("[alice] " + BotManager.busyMessage(bot)));
             }

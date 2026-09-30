@@ -99,6 +99,10 @@ public final class FixtureToolKit {
         int slot = firstEmptyHotbarSlot(inventory);
         if (slot >= 0) {
             inventory.setItem(slot, withCount(sample, need));
+            // ⭐ 刀 4（`D-560` 第 4 条）：**"凭空造物"这一刻打标** ⇒ 进终态记录（`provision=DEV_CREATE`）。
+            // ⚠️ 只在**真的造了**才打：上面的"快捷栏已够"/"从主背包搬入"**不是**造物，⛔ 不许打标
+            //（否则 `provision` 维会把"只搬运"误报成"被发料污染"，那比不记还坏）。
+            com.dddgn.alice.bot.BotManager.markProvision(bot, "DEV_CREATE");
             BotLog.info("[FixtureTool] {} 放入快捷栏空格 slot={} ×{}", label, slot, need);
             return;
         }
@@ -106,6 +110,7 @@ public final class FixtureToolKit {
         ItemStack displaced = inventory.getItem(slot);
         boolean stashed = stashIntoMain(inventory, displaced);
         inventory.setItem(slot, withCount(sample, need));
+        com.dddgn.alice.bot.BotManager.markProvision(bot, "DEV_CREATE");
         BotLog.warn("[FixtureTool] 快捷栏已满：slot={} 的 {} 被 {}×{} **强制覆盖**（{}）",
                 slot, displaced.isEmpty() ? "空" : displaced.getHoverName().getString(),
                 label, need, stashed ? "旧物已存入主背包" : "主背包也满，旧物丢弃");

@@ -2,6 +2,7 @@ package com.dddgn.alice.item;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.fixture.FixtureDispatch;
 import com.dddgn.alice.fixture.LumberCourseAnchor;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -63,7 +64,7 @@ public class PickupGateCheckItem extends Item {
         bot.setDeltaMovement(Vec3.ZERO);
         bot.controller().stopMovement();
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
-        if (!BotManager.assignPickupGateCheck(bot, player instanceof ServerPlayer sp ? sp : null)) {
+        if (!FixtureDispatch.assignPickupGateCheck(bot, player instanceof ServerPlayer sp ? sp : null)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }

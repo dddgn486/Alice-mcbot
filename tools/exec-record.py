@@ -8,6 +8,8 @@
 R1（J-3）`BotManager` 里给 `taskKind` 赋值的**那条语句**必须引用 `taskName()`（稳定标识）。
 R2（J-1）`DecisionSnapshot.lastTerminalJson` 必须写出 `terminalReason` 与 `botId` 两个键。
 R3（J-1）`TaskExecutionRecord`/`TaskOutcome` 的构造器必须带 `terminalReason`/`botId` 形参。
+R6（`D-560` 第 4 条，刀 4）**发料维可见**：`provision` 必须①进记录分量 ②由**发料动作**打标
+   （不是调用方手写常量）③进终态日志 ④有"真的会发生"的反空转靶子。
 """
 from __future__ import annotations
 
@@ -137,8 +139,60 @@ def rule_r5():
     return problems
 
 
+def rule_r6():
+    """R6（`D-560` 第 4 条，刀 4）：**发料事实必须进结果，且必须真的会被打上**。
+
+    用户原话：「**不是不能白送工具，只是不应该被白送工具的行为污染结果**」——
+    这句话唯一能执行的形式 = **把"这次发过料"写进结果**（`bot/TaskExecutionRecord.provision`）。
+    ⚠️ 只加一个字段**不算做到**：它必须是**发料动作自己**打的标（⛔ 不是调用方手写），
+    否则手写点必然漏，而漏掉的形态正是"结果被污染却查不出来"——本规则防的就是这个假绿。
+
+    四问（每条都有一个可执行断言）：
+      ① 记录分量在？(`String provision`)
+      ② 打标处**是发料动作**？(`FixtureToolKit` 真造物处 / `ToolSupply.promoteFromMain` 各 ≥1 处)
+      ③ 进终态日志？（`task_terminal_provision` 行里要有 `provision=`）
+      ④ **反空转**：`BotSession` 必须真的从 `pendingProvision`/`taskProvision` 取值
+         （若 `recordTerminal` 写死 `"none"`，前三条仍可全绿 ⇒ 必须有这条）。
+    """
+    problems = []
+    record = read("bot/TaskExecutionRecord.java")
+    manager = read("bot/BotManager.java")
+    tool_supply = read("bot/ToolSupply.java")
+    fixture_kit = SRC / "item" / "FixtureToolKit.java"
+    if "String provision" not in record:
+        problems.append("TaskExecutionRecord 没有 `provision` 分量（`D-560` 第 4 条：发料事实必须进结果）")
+    if "provision=" not in manager or "task_terminal_provision" not in manager:
+        problems.append("BotManager 的终态日志里找不到 `task_terminal_provision ... provision=`（留痕读不到）")
+    # ③ 进快照？（决策层看不到就白做 —— 与 R5 的 `driver` 同一条理由）
+    snapshot = read("decision/DecisionSnapshot.java")
+    if 'addProperty("provision"' not in snapshot:
+        problems.append("DecisionSnapshot.lastTerminalJson 没把 `provision` 写进快照"
+                        "（`D-560` 第 4 条：决策层读不到就白留痕）")
+    # ② 打标处必须是**发料动作**：两个漏斗各至少一处
+    if '"PROMOTE_ONLY")' not in tool_supply:
+        problems.append("ToolSupply.promoteFromMain 没有 `markProvision(\"PROMOTE_ONLY\")`"
+                        "（只搬运也是发料，必须留痕）")
+    if not fixture_kit.exists():
+        problems.append("缺 item/FixtureToolKit.java（改名？同步本规则）")
+    else:
+        fk = fixture_kit.read_text(encoding="utf-8")
+        if fk.count('"DEV_CREATE")') < 2:
+            problems.append(f"FixtureToolKit 的**造物**分支只有 {fk.count(chr(34)+'DEV_CREATE'+chr(34))} 处打标"
+                            "（两条造物路径：填充空格 ＋ 强制覆盖，都必须打；"
+                            "⚠️ 而「快捷栏已够」/「从主背包搬入」**不是**造物，⛔ 不许打）")
+    # ④ 反空转：记录里的 provision 必须**从会话取**，不许写死
+    if "String provision = taskProvision;" not in manager:
+        problems.append("BotManager 的终态记录没有从会话取 `taskProvision`"
+                        "（若写死 `\"none\"` ⇒ 本维永远空白，前三条仍会全绿）")
+    if "pendingProvision" not in manager or "public void markProvision(" not in manager \
+            or "public static void markProvision(BotPlayer bot, String label)" not in manager:
+        problems.append("BotManager/BotSession 没有 `markProvision(...)`（空安全静态口 ＋ 实例口都必须在）"
+                        " / `pendingProvision`（打标入口缺失）")
+    return problems
+
+
 def main() -> int:
-    r1, r2, r3, r4, r5 = rule_r1(), rule_r2(), rule_r3(), rule_r4(), rule_r5()
+    r1, r2, r3, r4, r5, r6 = rule_r1(), rule_r2(), rule_r3(), rule_r4(), rule_r5(), rule_r6()
     for line in r1:
         print(f"[R1·J-3 稳定标识] {line}")
     for line in r2 + r3:
@@ -147,12 +201,15 @@ def main() -> int:
         print(f"[R4·J-3 Job 稳定标识] {line}")
     for line in r5:
         print(f"[R5·F1 驱动者身份] {line}")
-    ok = not (r1 or r2 or r3 or r4 or r5)
+    for line in r6:
+        print(f"[R6·D-560 发料留痕] {line}")
+    ok = not (r1 or r2 or r3 or r4 or r5 or r6)
     print(f"EXEC_RECORD_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"taskKind 接线={len(r1)} / 快照字段={len(r2)} / 记录字段={len(r3)} / Job 稳定标识={len(r4)}"
-          f" / 驱动者身份={len(r5)}"
+          f" / 驱动者身份={len(r5)} / 发料留痕={len(r6)}"
           f"（R1 = taskKind 必须用 taskName()；R2/R3 = terminalReason+botId 必须进快照与记录；"
-          f"R4 = 声明 NAME 的 Job 必须覆写 taskName()）")
+          f"R4 = 声明 NAME 的 Job 必须覆写 taskName()；R5 = driver 维端到端；"
+          f"R6 = `D-560` 第 4 条：发料事实必须进结果且由**发料动作**打标）")
     return 0 if ok else 1
 
 

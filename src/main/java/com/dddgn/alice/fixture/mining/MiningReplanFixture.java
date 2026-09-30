@@ -124,7 +124,7 @@ public final class MiningReplanFixture {
                     .withStyle(ChatFormatting.RED));
             return;
         }
-        BotManager.assignTarget(bot, TaskTarget.block(immutableTarget));
+        BotManager.assignTarget(bot, TaskTarget.block(immutableTarget), com.dddgn.alice.fixture.DevCreateProvision.INSTANCE);
         SESSIONS.put(player.getUUID(), new Session(player, bot, immutableTarget, obstacle,
                 bot.blockPosition(), level.getServer().getTickCount(), false));
         sync(player, true, immutableTarget, obstacle, bot.blockPosition(), "ARMED");

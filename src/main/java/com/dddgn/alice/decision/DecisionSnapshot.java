@@ -279,6 +279,9 @@ public final class DecisionSnapshot {
         last.addProperty("botId", record.botId());
         // **F1 地基**：驱动者（llm / fixture / in_game_player / system=未归因）
         last.addProperty("driver", record.driver());
+        // ⭐ 刀 4（`D-560` 第 4 条）：**发料留痕**（DEV_CREATE / PROMOTE_ONLY / none）——
+        // 与 `driver` 并列：决策层读到"这个结果是发过料的"才算真的"不被污染地读"。
+        last.addProperty("provision", record.provision());
         last.addProperty("durationTicks", record.durationTicks());
         last.addProperty("botPos", record.terminalBotPos().toShortString());
         if (record.outcome() != null && record.outcome().failure() != null) {

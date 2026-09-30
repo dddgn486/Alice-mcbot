@@ -171,6 +171,10 @@ run_gate             "check-station-mapping"   bash tools/check-station-mapping.
 # 引用完整性（队列第⑦项）：文档里的 `文件:行` 不得过期（行号超界 = 必然过期；
 # "文件不存在"只提示不失败 —— 历史记录/提案会合法引用已删文档与未实现文件）
 run_gate             "check-ref-integrity"     bash tools/check-ref-integrity.sh
+# ⭐ 刀 5（`D-512` ⓒ 的建议）：`{@link}` **指向的符号必须存在**。
+# ⚠️ 与上一行的分工：`check-ref-integrity` 管**文档里的 `文件:行` 行号**，
+# ⛔ 它**不解析 `{@link}`** —— `ManualTestLock` 那句"唯一绕过口"就这样假了两个多月。
+run_gate             "check-doc-links"         python3 tools/check-doc-links.py
 # SH-P1（2026-09-17）：文档/脚本里的 `single:<步名>` 必须真的存在（本轮实测：写错步名会白跑 200 tick）。
 run_gate             "check-step-names"       bash tools/check-step-names.sh
 run_gate             "check-job-kind-contracts" bash tools/check-job-kind-contracts.sh

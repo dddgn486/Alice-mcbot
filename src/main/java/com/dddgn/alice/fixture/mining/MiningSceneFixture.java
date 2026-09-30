@@ -80,7 +80,7 @@ public final class MiningSceneFixture {
             return;
         }
 
-        BotManager.assignTarget(bot, TaskTarget.block(target));
+        BotManager.assignTarget(bot, TaskTarget.block(target), com.dddgn.alice.fixture.DevCreateProvision.INSTANCE);
         SESSIONS.put(player.getUUID(), new Session(scene, player, bot, target.immutable(),
                 botStart.immutable(), level.getServer().getTickCount()));
         sync(player, true, target, botStart, "SCENE_" + scene + "_RUNNING");

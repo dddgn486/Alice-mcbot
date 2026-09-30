@@ -12,6 +12,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import com.dddgn.alice.fixture.DecisionTraceCheckTask;
+import com.dddgn.alice.fixture.FixtureDispatch;
 
 /**
  * **决策 trace / 跨重启语义自检**（{@code alice:decision_trace_check}，基-4）：普通右键，零参数，约 1 秒。
@@ -55,7 +56,7 @@ public class DecisionTraceCheckItem extends Item {
             return;
         }
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
-        if (!BotManager.assignDecisionTraceCheck(bot, player instanceof ServerPlayer sp ? sp : null)) {
+        if (!FixtureDispatch.assignDecisionTraceCheck(bot, player instanceof ServerPlayer sp ? sp : null)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }

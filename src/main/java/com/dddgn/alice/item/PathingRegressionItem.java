@@ -2,6 +2,7 @@ package com.dddgn.alice.item;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.fixture.FixtureDispatch;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -55,7 +56,7 @@ public class PathingRegressionItem extends Item {
         }
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
-        if (!BotManager.assignPathingRegression(bot, observer)) {
+        if (!FixtureDispatch.assignPathingRegression(bot, observer)) {
             if (player != null) {
                 player.sendSystemMessage(Component.literal("[alice] " + BotManager.busyMessage(bot)));
             }

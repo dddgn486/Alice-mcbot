@@ -396,11 +396,14 @@ public class LlmContractCheckTask implements Task {
         String botId = bot.getUUID().toString();
         // F1：夹具合成的终态记录必须**带上驱动者**（且用夹具自己的身份，别谎称玩家/LLM）
         String driver = com.dddgn.alice.decision.Driver.FIXTURE;
+        // ⭐ 刀 4：发料维也一起带上（本合成记录**没有**发过料 ⇒ `none`）；
+        // ⚠️ 口径同一：`provision` 取值见 `TaskExecutionRecord#provision()`。
+        String provision = "none";
         TaskOutcome outcome = new TaskOutcome("MineJob", "block@5,65,67", status, "failed:selfcheck",
-                BlockPos.ZERO, failure, botId, "no_reachable_candidate", driver);
+                BlockPos.ZERO, failure, botId, "no_reachable_candidate", driver, provision);
         return new TaskExecutionRecord("MineJob", "block@5,65,67", 0L, 10L, status, "failed:selfcheck",
                 BlockPos.ZERO, "idle_after_cleanup", RecoveryStage.NONE, List.of(), outcome, botId,
-                "no_reachable_candidate", driver);
+                "no_reachable_candidate", driver, provision);
     }
 
     private String text(JsonObject json, String key) {

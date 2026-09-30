@@ -2,6 +2,7 @@ package com.dddgn.alice.item;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.fixture.FixtureDispatch;
 import com.dddgn.alice.fixture.MineCourseDiagnosticTask;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -58,7 +59,7 @@ public class MineRegressionItem extends Item {
         }
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
-        if (!BotManager.assignMineRegression(bot, observer)) {
+        if (!FixtureDispatch.assignMineRegression(bot, observer)) {
             if (player != null) {
                 player.sendSystemMessage(Component.literal("[alice] " + BotManager.busyMessage(bot)));
             }

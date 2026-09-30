@@ -2,6 +2,7 @@ package com.dddgn.alice.item;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.fixture.FixtureDispatch;
 import com.dddgn.alice.fixture.RegressionBatteryTask;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -77,7 +78,7 @@ public class RegressionBatteryItem extends Item {
         }
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
-        if (!BotManager.assignRegressionBattery(bot, observer)) {
+        if (!FixtureDispatch.assignRegressionBattery(bot, observer)) {
             RegressionBatteryTask.setOnlySteps(null);
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;

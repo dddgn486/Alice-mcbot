@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""`丙` 方案：把 `bot/BotManager` 的**派发表**生成成显式清单（`D-551` 裁定）。
+"""`丙` 方案：把**派发枢纽**（`bot/BotManager` ＋ `fixture/FixtureDispatch`）的**派发表**生成成显式清单（`D-551` 裁定）。
 
 ## 为什么需要它（`O76` §4c）
 
@@ -19,11 +19,14 @@
 
 ## 口径
 
-- **构造点** = `BotManager.java` 里 `new <类>(`，且 `<类>` 的**简单名**在
-  `task/` · `debug/` · `fixture/` 三棵树里存在（⇒ 迁移后 FQN 变了也照样认）。
-- **派发方法** = 该构造点往上最近的方法签名。
-- **入口可达** = 该派发方法在 **`item/`／`command/` 调用闭包**内
-  （`BotManager.<方法>(` 为一跳种子，再在 `BotManager` 内部做**传递闭包**）。
+- **构造点** = **任一派发枢纽**（`DISPATCH_HUBS`：`bot/BotManager` ＋ `fixture/FixtureDispatch`）
+  里 `new <类>(`，且 `<类>` 的**简单名**在 `task/` · `debug/` · `fixture/` 三棵树里存在
+  （⇒ 迁移后 FQN 变了也照样认）。
+  ⚠️ **刀 2 起枢纽有两个**（`D-512`：47 个开发期入口搬去 `fixture/FixtureDispatch`）——
+  ⛔ 加宽扫描源必须与搬家**同刀**，否则本表静默缩水。
+- **派发方法** = 该构造点往上最近的方法签名（**在本枢纽内**）。
+- **入口可达** = 该派发方法在 **`item/`／`command/`／`debug/` 调用闭包**内
+  （`<枢纽类名>.<方法>(` 为一跳种子，再**在该枢纽内部**做**传递闭包**；⭐ 种子与闭包**都按枢纽分开**）。
 - ⚠️ **本表是「过近似」，方向是安全的**（实测两条近似，如实登记）：
   **(a) 同名合并** —— `BotManager.assignXxx`（静态派发）与 `BotSession.assignXxx`（实例，
   真正 `new`）**同名** ⇒ 图按**方法名**合并节点（这恰好让"静态入口 ↔ 实例构造"连上）；
@@ -48,6 +51,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "src/main/java"
 BOT_MANAGER = SRC / "com/dddgn/alice/bot/BotManager.java"
+#: ⭐ **刀 2（`D-512`）**：派发枢纽**不止一个** —— 47 个开发期入口搬去了 `fixture/FixtureDispatch`
+#: （`bot/` 里零夹具/调试引用）。⚠️ 若不同刀加宽扫描源，本表会从 61 行**掉到 15 行**
+#: （`MIN_ROWS` 会响，但读数已经"绿着变坏"过一次了）⇒ 两个枢纽一起扫，`dispatcher` 列仍是**裸方法名**。
+FIXTURE_DISPATCH = SRC / "com/dddgn/alice/fixture/FixtureDispatch.java"
+DISPATCH_HUBS = (BOT_MANAGER, FIXTURE_DISPATCH)
 OUT = ROOT / "docs/TASK_DISPATCH_TABLE.csv"
 
 SRC_REL = "src/main/java/"
@@ -148,17 +156,17 @@ def brace_depths(lines: list[str]) -> list[int]:
     return depths
 
 
-def parse_bot_manager(known: set[str]) -> tuple[list[tuple[str, str]], dict[str, set[str]],
-                                                list[tuple[int, int, str]]]:
+def parse_hub(hub: Path, known: set[str]) -> tuple[list[tuple[str, str]], dict[str, set[str]],
+                                                   list[tuple[int, int, str]]]:
     """⇒ (构造点 [(类, 派发方法)], 方法→本类方法调用, 方法 span [(起, 止, 名)])
 
     ⚠️ **归属靠括号深度，不靠"最近的前 4 空格签名行"**（本工具第一次写就踩了）：
-    `BotManager` 里有**嵌套类 `BotSession`**，它的方法缩进是 **8 空格** ⇒ 只认 4 空格的正则
+    枢纽里有**嵌套类 `BotSession`**，它的方法缩进是 **8 空格** ⇒ 只认 4 空格的正则
     会把嵌套类里的构造点（如 `new MineTask(`）**全挂到上一个外层方法**（实测 9 行被挂到
     `stableTaskKind`，而那个方法体里一个 `new` 都没有）。⇒ 改判据：构造点归属 = 它前面
     **签名深度 < 本行深度**的那个**最近**方法。
     """
-    raw = BOT_MANAGER.read_text(encoding="utf-8")
+    raw = hub.read_text(encoding="utf-8")
     src = strip_comments_keep_lines(raw)
     lines = src.split("\n")
     depths = brace_depths(lines)
@@ -208,14 +216,17 @@ def parse_bot_manager(known: set[str]) -> tuple[list[tuple[str, str]], dict[str,
     return sites, graph, spans
 
 
-def seeds_from(trees: tuple[str, ...]) -> set[str]:
+def seeds_from(trees: tuple[str, ...], hub_simple: str, required: bool = True) -> set[str]:
+    """某个枢纽在入口树里被调用过的方法名（⭐ **按枢纽分别取种子**：两个枢纽的方法名集合
+    不互相污染 —— 跨枢纽按名字合并会把可达性**无端放大或缩小**）。"""
     seeds: set[str] = set()
-    pat = re.compile(r"BotManager\s*\.\s*(\w+)\s*\(")
+    pat = re.compile(re.escape(hub_simple) + r"\s*\.\s*(\w+)\s*\(")
     for tree in trees:
         for p in listed(ALICE + tree):
             for m in pat.finditer(strip_comments_keep_lines(p.read_text(encoding="utf-8"))):
                 seeds.add(m.group(1))
-    assert seeds, f"入口侧（{trees}）一个 `BotManager.<方法>(` 都没找到 ⇒ 解析器坏了"
+    if required:
+        assert seeds, f"入口侧（{trees}）一个 `{hub_simple}.<方法>(` 都没找到 ⇒ 解析器坏了"
     return seeds
 
 
@@ -233,12 +244,29 @@ def reachable_methods(graph: dict[str, set[str]], seeds: set[str]) -> set[str]:
 
 def build_rows() -> list[tuple[str, str, str, str]]:
     known = known_task_classes()
-    sites, graph, _ = parse_bot_manager(known)
-    reach = reachable_methods(graph, seeds_from(ENTRY_TREES))
-    cmd_reach = reachable_methods(graph, seeds_from(CMD_TREES))
-    rows = sorted({(cls, disp, "yes" if disp in reach else "no",
-                    "yes" if disp in cmd_reach else "no") for cls, disp in sites})
-    return rows
+    reach: set[tuple[str, str]] = set()
+    cmd_reach: set[tuple[str, str]] = set()
+    rows: set[tuple[str, str, str, str]] = set()
+    for hub in DISPATCH_HUBS:
+        if not hub.exists():
+            raise SystemExit(f"空集！派发枢纽不存在 {hub.relative_to(ROOT)} ⇒ "
+                             f"搬了家就要同刀改本文件的 `DISPATCH_HUBS`（⛔ 不许静默少扫一个枢纽）")
+        stem = hub.stem
+        sites, graph, _ = parse_hub(hub, known)
+        entry_seeds = seeds_from(ENTRY_TREES, stem, required=False)
+        # ⭐ 每个枢纽**都必须**被入口树调到过（否则它要么死了、要么种子正则坏了）。
+        assert entry_seeds, (f"枢纽 {stem} 在入口树 {ENTRY_TREES} 里一个调用点都没有 ⇒ "
+                             f"要么它已死、要么种子正则坏了（⛔ 不许静默当成空集）")
+        for m in reachable_methods(graph, entry_seeds):
+            reach.add((stem, m))
+        # ⚠️ 产品面命令树（`CMD_TREES`）**可以**调不到某个枢纽（`fixture/FixtureDispatch`
+        #    正是如此：开发期派发器按 `D-560` 就不该被产品面命令可达）⇒ 这里 **required=False**。
+        for m in reachable_methods(graph, seeds_from(CMD_TREES, stem, required=False)):
+            cmd_reach.add((stem, m))
+        for cls, disp in sites:
+            rows.add((cls, disp, "yes" if (stem, disp) in reach else "no",
+                      "yes" if (stem, disp) in cmd_reach else "no"))
+    return sorted(rows)
 
 
 def render(rows: list[tuple[str, str, str, str]]) -> str:
@@ -265,7 +293,8 @@ def main(argv: list[str]) -> int:
     rows = build_rows()
     if len(rows) < MIN_ROWS:
         print(f"TASK_DISPATCH_TABLE_RESULT FAIL: 只得到 {len(rows)} 行（下限 {MIN_ROWS}）⇒ "
-              f"`BotManager` 的构造点解析**静默失效**（非空检查不通过）")
+              f"派发枢纽（{[h.stem for h in DISPATCH_HUBS]}）的构造点解析**静默失效**"
+              f"（非空检查不通过；搬了家就同刀改 `DISPATCH_HUBS`）")
         return 1
 
     if "--write" in argv:

@@ -12,6 +12,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import com.dddgn.alice.fixture.ChunkGuardCheckTask;
+import com.dddgn.alice.fixture.FixtureDispatch;
 
 /**
  * 未加载区块 / 世界边界准入自检启动器（{@code alice:chunk_guard_check}，S-2 / P1-A）：普通右键，零参数。
@@ -69,7 +70,7 @@ public class ChunkGuardCheckItem extends Item {
             bot.controller().stopMovement();
         }
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
-        if (!BotManager.assignChunkGuardCheck(bot, player instanceof ServerPlayer sp ? sp : null)) {
+        if (!FixtureDispatch.assignChunkGuardCheck(bot, player instanceof ServerPlayer sp ? sp : null)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }

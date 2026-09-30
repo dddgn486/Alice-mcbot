@@ -2,6 +2,7 @@ package com.dddgn.alice.item;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.fixture.FixtureDispatch;
 import com.dddgn.alice.fixture.FluidMineCheckTask;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -62,7 +63,7 @@ public class FluidMineCheckItem extends Item {
         bot.setDeltaMovement(Vec3.ZERO);
         bot.controller().stopMovement();
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
-        if (!BotManager.assignFluidMineCheck(bot, player instanceof ServerPlayer sp ? sp : null)) {
+        if (!FixtureDispatch.assignFluidMineCheck(bot, player instanceof ServerPlayer sp ? sp : null)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }

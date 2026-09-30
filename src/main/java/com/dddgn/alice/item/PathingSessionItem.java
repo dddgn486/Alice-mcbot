@@ -2,6 +2,7 @@ package com.dddgn.alice.item;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.fixture.FixtureDispatch;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -65,7 +66,7 @@ public class PathingSessionItem extends Item {
         bot.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
         bot.controller().stopMovement();
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
-        if (!BotManager.assignPathSessionDiagnostic(bot, COURSE_GOAL_FOOT)) {
+        if (!FixtureDispatch.assignPathSessionDiagnostic(bot, COURSE_GOAL_FOOT)) {
             if (player != null) {
                 player.sendSystemMessage(Component.literal("[alice] " + BotManager.busyMessage(bot)));
             }

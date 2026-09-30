@@ -70,7 +70,7 @@
 `action/` 里 import 一个**没登记**的 `task` 类（红）· `action/` 里 import 表内那个（绿）·
 `reach/` 里 import `pathing`/`log`（绿，内核层本来就该能用）· `write/` 里 import `action`（红）·
 `write/` 里 import `job`（红）· `write/` 里 import `pathing`（绿）·
-`job/` import `debug/`（红）· `bot/`（注册位置）import `debug/`（绿）· `debug/`（`D-560` 起是**开发期桶**）import `fixture/`（**绿**）·
+`job/` import `debug/`（红）· ⭐ `bot/`（**刀 2 起不再是注册位置**）import `debug/`（**红** —— 断言**收窄**）· `debug/`（`D-560` 起是**开发期桶**）import `fixture/`（**绿**）·
 ⭐ `command/`（`D-560` 起是**真产品面**）import `fixture/`（**红** —— 断言由 `debug/` **搬家**到此，净效果**收窄**）·
 ⭐ `task/` 的**生产类**在**代码里**用 `fixture/`（红）· ⭐ `task/FixtureScript` 的**纯 javadoc/import**（绿））。
 另 3 条**定义**臂：`action/WriteGrant.java`（红）· `action/MineBlockRunner.java`（绿）·
@@ -109,14 +109,19 @@ ALLOWED_REVERSE: dict[str, dict[str, str]] = {
 }
 
 #: ⭐ `R3`（`D-492`）的**注册位置** —— 这些位置**允许**依赖 `debug/`／`fixture/`。
-#: 用户 2026-09-30 裁「**乙**」：把 `bot/` 加进来（`bot/BotManager` 的 `assignXxx` 是真正的派发枢纽，
-#: 它自己 `new` 夹具；与 `item/` 在"注册"这件事上是**同一角色**）。
 #: `<root>` = 模组入口（`AliceMod`）—— 它做的是 `EVENT_BUS.register(X.class)`，同属注册。
+#: ⭐⭐ **`bot/` 已于刀 2（`D-512`，2026-09-30）移出本表** —— 用户裁「乙」时把它加进来，是因为
+#: `bot/BotManager` 的 47 个 `assignXxx` 自己 `new` 夹具、**看起来**与 `item/` 是同一角色。
+#: ⚠️ 但那不是"注册"，是**内核里的派发枢纽**：刀 2 把那 48 个入口搬去
+#: `fixture/FixtureDispatch`（走 `bot/BotManager.beginIdleTask` 桥），`bot/` 现在**零开发期引用**
+#: ⇒ 豁免理由消失 ⇒ 移出本表 = 断言**收窄**（`bot/` 与任何生产包同等对待）。
+#: ⚠️ 同一条理由也让 `check-provision-containment.sh` 的 `BOT_EXEMPT` 白名单**删掉**了
+#: （旧白名单自己写着"豁免得手也要 FAIL"）。
 #: ⭐⭐ **`command/` 已于 `D-560`（2026-09-30 用户裁定）移出本表** —— 开发期/调试子命令已劈去 `debug/`，
 #: `command/` 现在是**真产品面**（`D-554`：发行包玩家调试面 = 命令 ＋ GUI）⇒ 它**不许**依赖开发期物。
 #: ⚠️ 这**不是放宽**而是**收窄**：原先 `debug/` 被当作产品面（故禁其依赖 `fixture/`），现在该断言
 #: 改管 `command/`（真产品面），`debug/` 按 `D-560` 归**开发期桶**（见下方 `debug/` 分支）。
-REGISTRATION_POSITIONS = {"item", "bot", "<root>"}
+REGISTRATION_POSITIONS = {"item", "<root>"}
 #: ⛔ **暂排除**：`task/` 是**被退役的那个包**，其内容的去留由 `docs/TASK_RETIREMENT_MAP.csv` 管；
 #: `debug/`／`fixture/` 是**开发期桶**（`D-560`：`debug/` 住开发期/调试子命令 ⇒ 允许依赖夹具）；
 #: `headless/`／`tools/` 是验证侧。
@@ -271,18 +276,16 @@ def scan_imports(rel: str, text: str) -> list[str]:
         pass
     elif tp == "command":
         # ⭐ `D-560`：真产品面 = `command/`。开发期/调试子命令已劈去 `debug/` ⇒ 产品面**不许**依赖开发期物。
-        for imported in imports_of(text):
-            if imported.startswith(DEBUG_FIXTURE_PREFIXES):
-                problems.append(f"{rel} 的 `command/`（**产品面**）import 了 `{imported}` ⇒ "
-                                f"违反 `R3`／`D-560`：`command/` ✗→ `debug/`／`fixture/`"
-                                f"（开发期命令请放 `debug/`，⛔ 不许长回产品面）")
+        # ⭐ 刀 2：判据从「只扫 import」升到 **`debug_fixture_code_use`（代码级：行内 FQN ＋ import＋简单名）**
+        # —— 只挡 import 会漏 `new com.dddgn.alice.fixture.X()` 这一形态（`O90`/`D-557` 的教训）。
+        for why in debug_fixture_code_use(rel, text):
+            problems.append(f"{why} ⇒ 违反 `R3`／`D-560`：`command/`（**真产品面**）✗→ `debug/`／`fixture/`"
+                            f"（开发期命令请放 `debug/`，⛔ 不许长回产品面）")
     elif tp not in REGISTRATION_POSITIONS and tp not in R3_EXCLUDED:
-        for imported in imports_of(text):
-            if imported.startswith(DEBUG_FIXTURE_PREFIXES):
-                problems.append(f"{rel} 的 `{tp}/`（**生产包**）import 了 `{imported}` ⇒ "
-                                f"违反 `R3`（生产 ✗→ `debug/`／`fixture/`）。"
-                                f"若 `{tp}/` 确属**注册位置**，必须显式加进本文件的 `REGISTRATION_POSITIONS`"
-                                f"（⛔ 不许靠「它其实不算生产」含糊过去）")
+        for why in debug_fixture_code_use(rel, text):
+            problems.append(f"{why} ⇒ 违反 `R3`：`{tp}/`（**生产包**）✗→ `debug/`／`fixture/`。"
+                            f"若 `{tp}/` 确属**注册位置**，必须显式加进本文件的 `REGISTRATION_POSITIONS`"
+                            f"（⛔ 不许靠「它其实不算生产」含糊过去）")
     return problems
 
 
@@ -327,20 +330,30 @@ SELFTEST_CASES: list[tuple[str, str, str, bool]] = [
      f"{PKG}/write/WriteBudget.java",
      "import com.dddgn.alice.action.BlockInteraction;", True),
     # ---- `D-551`（用户 2026-09-30 裁「乙」）新增：`R3` 生产 ✗→ debug/fixture ----
-    ("⭐ `job/`（生产包）import `debug/` ⇒ 红",
+    ("⭐ `job/`（生产包）import `debug/` **并在代码里用简单名** ⇒ 红",
      f"{PKG}/job/mine/MineJob.java",
-     "import com.dddgn.alice.debug.SomeDebugTool;", True),
-    ("⭐ `bot/`（**注册位置**，用户裁「乙」）import `debug/` ⇒ **绿**",
-     f"{PKG}/bot/BotManager.java",
+     "import com.dddgn.alice.debug.SomeDebugTool;\nclass A { SomeDebugTool t; }", True),
+    ("⭐ `job/`（生产包）**只 import、代码里没用**（纯 javadoc/import 形态）⇒ **绿**"
+     "（`D-556` (c) 口径：文档引用/未用 import **不是**依赖）",
+     f"{PKG}/job/mine/MineJob.java",
      "import com.dddgn.alice.debug.SomeDebugTool;", False),
+    # ⭐ 刀 2（`D-512`）：`bot/` 移出 `REGISTRATION_POSITIONS` ⇒ 本臂由**绿改红**（断言收窄，
+    # 与 `check-provision-containment.sh` 删 `BOT_EXEMPT` 是同一件事的两半）。
+    ("⭐ `bot/`（**刀 2 起不再是注册位置**）import `debug/` **并在代码里用简单名** ⇒ **红**"
+     "（刀 2 已把 48 个开发期入口搬去 `fixture/FixtureDispatch` ⇒ 豁免理由消失）",
+     f"{PKG}/bot/BotManager.java",
+     "import com.dddgn.alice.debug.SomeDebugTool;\nclass A { SomeDebugTool t; }", True),
+    ("⭐ `bot/` 用**行内 FQN** 引用 `fixture/` ⇒ **红**（只挡 import 会漏这一形态）",
+     f"{PKG}/bot/BotManager.java",
+     "Object t = new com.dddgn.alice.fixture.ClearGuardCheckTask();", True),
     ("⭐ `debug/`（`D-560` 起是**开发期桶**）import `fixture/` ⇒ **绿**"
      "（原先它被当作产品面故为红 —— `D-560` 之后那条断言**改管 `command/`**，见下一臂）",
      f"{PKG}/debug/SomeDebugTool.java",
      "import com.dddgn.alice.fixture.transfer.TransferFixture;", False),
-    ("⭐ `command/`（`D-560` 起是**真产品面**）import `fixture/` ⇒ **红**"
+    ("⭐ `command/`（`D-560` 起是**真产品面**）import `fixture/` **并在代码里用简单名** ⇒ **红**"
      "（断言**搬家**不是删除 ⇒ 净效果是**收窄**：原先管一个包，现在还管产品面那个包）",
      f"{PKG}/command/BotCommand.java",
-     "import com.dddgn.alice.fixture.transfer.TransferFixture;", True),
+     "import com.dddgn.alice.fixture.transfer.TransferFixture;\nclass A { TransferFixture f; }", True),
     # ⚠️ 本条原先的 rel 写的是 `task/…` 而实际测的是 `fixture/…`（**标签在说谎**）⇒ `D-557` 一并改正：
     # `fixture/` 是**目的地自身**（`R3_EXCLUDED`），它与 `fixture/` 之间的引用本来就合法。
     ("`fixture/`（**目的地自身**，`R3_EXCLUDED`）import `fixture/` ⇒ 绿",
@@ -392,6 +405,10 @@ SELFTEST_DEF_CASES: list[tuple[str, str, bool]] = [
 
 def selftest() -> list[str]:
     problems: list[str] = []
+    # ⚠️ 合成红臂会往 `_JAVADOC_ONLY` 里塞**假条目**（如 `MineJob.java→SomeDebugTool`）⇒
+    #    它会污染 PASS 行的"纯 javadoc/import 不计：N 处"读数（读起来像真代码）。
+    #    ⇒ 红臂期间**快照并还原**这个诊断清单（红臂只判红绿，不产出读数）。
+    _javadoc_snapshot = list(_JAVADOC_ONLY)
     for label, rel, body, expect_red in SELFTEST_CASES:
         found = scan_imports(rel, body)
         is_red = bool(found)
@@ -404,6 +421,7 @@ def selftest() -> list[str]:
         if is_red != expect_red:
             problems.append(f"定义臂失配：{label} ⇒ 期望{'红' if expect_red else '绿'}、实得"
                             f"{'红' if is_red else '绿'}（{found}）")
+    _JAVADOC_ONLY[:] = _javadoc_snapshot
     return problems
 
 

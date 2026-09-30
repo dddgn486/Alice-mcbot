@@ -3,6 +3,7 @@ package com.dddgn.alice.decision;
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.tool.ToolProvision;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -645,7 +646,8 @@ public final class GoalDirector {
                 tell(bot, state, "[alice] 决策层：**拒绝**再起同一个任务（" + loop + "）（触发=" + trigger + "）");
                 return;
             }
-            boolean ok = BotManager.assignJob(bot, state.observer, start.request(), false);
+            boolean ok = BotManager.assignJob(bot, state.observer, start.request(),
+                    ToolProvision.PROMOTE_ONLY);
             if (ok) {
                 noteAttempt(bot, start.request().kind().name(), targetIdOf(start.request()));
             }
@@ -672,7 +674,8 @@ public final class GoalDirector {
             // 站点由玩家的选择决定（请求里不带站点）；世界写入（按需装配）在 Job 里走预算闸门。
             var request = com.dddgn.alice.job.JobRequest.craft(bot.blockPosition(),
                     craft.item(), craft.count(), 3600);
-            boolean ok = BotManager.assignJob(bot, state.observer, request, false);
+            boolean ok = BotManager.assignJob(bot, state.observer, request,
+                    ToolProvision.PROMOTE_ONLY);
             BotLog.info("[Goal] execute action=craft ok={} trigger={} raw={}", ok, trigger, craft.note());
             DecisionTrace.result(bot, trigger, "craft", ok ? "executed" : "refused",
                     request.describe(), 0L);

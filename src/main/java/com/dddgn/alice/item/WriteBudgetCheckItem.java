@@ -2,6 +2,7 @@ package com.dddgn.alice.item;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.fixture.FixtureDispatch;
 import com.dddgn.alice.fixture.WriteBudgetCheckTask;
 import com.dddgn.alice.task.TaskTarget;
 import net.minecraft.network.chat.Component;
@@ -61,7 +62,7 @@ public class WriteBudgetCheckItem extends Item {
         bot.controller().stopMovement();
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
-        if (!BotManager.assignWriteBudgetCheck(bot, observer)) {
+        if (!FixtureDispatch.assignWriteBudgetCheck(bot, observer)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }

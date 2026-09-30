@@ -3,6 +3,7 @@ package com.dddgn.alice.item;
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.fixture.ClearGuardCheckTask;
+import com.dddgn.alice.fixture.FixtureDispatch;
 import com.dddgn.alice.task.TaskTarget;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -59,7 +60,7 @@ public class ClearGuardCheckItem extends Item {
         bot.controller().stopMovement();
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
-        if (!BotManager.assignClearGuardCheck(bot, observer)) {
+        if (!FixtureDispatch.assignClearGuardCheck(bot, observer)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }

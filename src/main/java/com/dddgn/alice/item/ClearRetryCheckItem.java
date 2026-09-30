@@ -3,6 +3,7 @@ package com.dddgn.alice.item;
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.fixture.ClearRetryCheckTask;
+import com.dddgn.alice.fixture.FixtureDispatch;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -43,7 +44,7 @@ public class ClearRetryCheckItem extends Item {
             return;
         }
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
-        if (!BotManager.assignClearRetryCheck(bot, player instanceof ServerPlayer sp ? sp : null)) {
+        if (!FixtureDispatch.assignClearRetryCheck(bot, player instanceof ServerPlayer sp ? sp : null)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }

@@ -4,6 +4,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.ItemStack;
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.fixture.FixtureDispatch;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -69,7 +70,7 @@ public class PathingBreakerItem extends Item {
         // 夹具：确保 bot 有石镐（否则徒手挖石墙 7.5 秒/块，测试过慢且不体现工具选择）
         ensureStonePickaxe(bot);
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
-        if (!BotManager.assignPathSessionDiagnostic(bot, COURSE_GOAL_FOOT, true)) {
+        if (!FixtureDispatch.assignPathSessionDiagnostic(bot, COURSE_GOAL_FOOT, true)) {
             if (player != null) {
                 player.sendSystemMessage(Component.literal("[alice] " + BotManager.busyMessage(bot)));
             }

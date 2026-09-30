@@ -28,20 +28,36 @@ public record TaskExecutionRecord(
          */
         String terminalReason,
         /** **F1 地基**：谁驱动的（见 `Driver`；`system` = 未归因）。 */
-        String driver) {
+        String driver,
+        /**
+         * ⭐ **刀 4（`D-560` 第 4 条）**：**本次任务有没有被"发料"污染**。
+         *
+         * <p>用户原话：「**不是不能白送工具，只是不应该被白送工具的行为污染结果**」——
+         * 这句判据**唯一**能执行的形式 = **把"这次发过料"写进结果**。
+         *
+         * <p>取值（由**发料动作本身**打标，⛔ 不是调用方手写）：
+         * <ul>
+         *   <li>{@code "DEV_CREATE"} —— 用过 {@link com.dddgn.alice.item.FixtureToolKit} **凭空造物**（开发期策略）；</li>
+         *   <li>{@code "PROMOTE_ONLY"} —— 用过 {@code ToolSupply.promoteFromMain}（**只搬运**已存在的）；</li>
+         *   <li>{@code "none"} —— 本任务期间没有任何发料动作（默认）。</li>
+         * </ul>
+         * ⚠️ **本维只解决"可见"，不解决"该不该"**：事后能读「这次调试结果是被发过料的」，
+         * ⛔ 不必靠人记得。合法性判据见 `tools/check-provision-containment.sh`。
+         */
+        String provision) {
 
     public TaskExecutionRecord(String taskKind, String targetDescription, long startServerTick,
                                long endServerTick, TerminalStatus terminalStatus, String resultCode,
                                BlockPos terminalBotPos, String recoveryState) {
         this(taskKind, targetDescription, startServerTick, endServerTick, terminalStatus, resultCode,
-                terminalBotPos, recoveryState, RecoveryStage.NONE, List.of(), null, null, null, null);
+                terminalBotPos, recoveryState, RecoveryStage.NONE, List.of(), null, null, null, null, null);
     }
 
     public TaskExecutionRecord(String taskKind, String targetDescription, long startServerTick,
                                long endServerTick, TerminalStatus terminalStatus, String resultCode,
                                BlockPos terminalBotPos, String recoveryState, RecoveryStage recoveryStage) {
         this(taskKind, targetDescription, startServerTick, endServerTick, terminalStatus, resultCode,
-                terminalBotPos, recoveryState, recoveryStage, List.of(), null, null, null, null);
+                terminalBotPos, recoveryState, recoveryStage, List.of(), null, null, null, null, null);
     }
 
     public TaskExecutionRecord(String taskKind, String targetDescription, long startServerTick,
@@ -49,7 +65,7 @@ public record TaskExecutionRecord(
                                BlockPos terminalBotPos, String recoveryState, RecoveryStage recoveryStage,
                                List<RecoveryStage> recoveryEvents) {
         this(taskKind, targetDescription, startServerTick, endServerTick, terminalStatus, resultCode,
-                terminalBotPos, recoveryState, recoveryStage, recoveryEvents, null, null, null, null);
+                terminalBotPos, recoveryState, recoveryStage, recoveryEvents, null, null, null, null, null);
     }
 
     public TaskExecutionRecord {
@@ -63,8 +79,9 @@ public record TaskExecutionRecord(
         botId = botId == null ? "" : botId;
         terminalReason = terminalReason == null ? "" : terminalReason;
         driver = driver == null || driver.isBlank() ? "system" : driver;
+        provision = provision == null || provision.isBlank() ? "none" : provision;
         outcome = outcome == null ? new TaskOutcome(taskKind, targetDescription, terminalStatus,
-                resultCode, terminalBotPos, null, botId, terminalReason, driver) : outcome;
+                resultCode, terminalBotPos, null, botId, terminalReason, driver, provision) : outcome;
     }
 
     public long durationTicks() {

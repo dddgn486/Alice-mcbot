@@ -17,7 +17,10 @@ public record TaskOutcome(
         /** 任务自己报的终止理由（Job 层；非 Job 为空串）—— 决策层据此区分"达成"与"提前收工"。 */
         String terminalReason,
         /** **F1 地基**：谁驱动的（`llm` / `fixture` / `in_game_player` / `system`=未归因）。 */
-        String driver) {
+        String driver,
+        /** ⭐ 刀 4（`D-560` 第 4 条）：本次任务有没有被发料污染（`DEV_CREATE`/`PROMOTE_ONLY`/`none`）。
+         *  取值口径与打标处见 {@link TaskExecutionRecord#provision()}。 */
+        String provision) {
 
     public TaskOutcome {
         taskKind = taskKind == null ? "unknown" : taskKind;
@@ -29,6 +32,7 @@ public record TaskOutcome(
         botId = botId == null ? "" : botId;
         terminalReason = terminalReason == null ? "" : terminalReason;
         driver = driver == null || driver.isBlank() ? "system" : driver;
+        provision = provision == null || provision.isBlank() ? "none" : provision;
     }
 
     public boolean succeeded() {

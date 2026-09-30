@@ -80,7 +80,8 @@ public class MineJobItem extends Item {
         ServerPlayer observer = player instanceof ServerPlayer sp ? sp : null;
         var target = MineCandidateSource.Target.ofBlock(net.minecraft.world.level.block.Blocks.IRON_ORE);
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
-        if (!BotManager.assignMineJob(bot, observer, target, QUOTA, MineCandidateSource.SCAN_RADIUS)) {
+        if (!BotManager.assignMineJob(bot, observer, target, QUOTA, MineCandidateSource.SCAN_RADIUS,
+                com.dddgn.alice.fixture.DevCreateProvision.INSTANCE)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }

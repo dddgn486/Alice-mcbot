@@ -3,6 +3,7 @@ package com.dddgn.alice.item;
 import net.minecraft.world.item.Items;
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.fixture.FixtureDispatch;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -68,7 +69,7 @@ public class PathingWallerItem extends Item {
         bot.controller().stopMovement();
         ensureCobblestone(bot, 8);
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
-        if (!BotManager.assignPathingWaller(bot, COURSE_GOAL_FOOT, WALL_TICK)) {
+        if (!FixtureDispatch.assignPathingWaller(bot, COURSE_GOAL_FOOT, WALL_TICK)) {
             if (player != null) {
                 player.sendSystemMessage(Component.literal("[alice] " + BotManager.busyMessage(bot)));
             }

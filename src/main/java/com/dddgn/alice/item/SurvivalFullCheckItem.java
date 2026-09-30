@@ -2,6 +2,7 @@ package com.dddgn.alice.item;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.fixture.FixtureDispatch;
 import com.dddgn.alice.log.BotLog;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -70,7 +71,7 @@ public class SurvivalFullCheckItem extends Item {
         bot.setTicksFrozen(0);
         bot.removeAllEffects();
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
-        if (!BotManager.assignSurvivalFixtureCheck(bot, player instanceof ServerPlayer sp ? sp : null)) {
+        if (!FixtureDispatch.assignSurvivalFixtureCheck(bot, player instanceof ServerPlayer sp ? sp : null)) {
             // §5.9：不许静默成功 —— 说清是"忙"还是"手上有未结清传输"
             String blocked = BotManager.assignmentBlockReason(bot);
             say(player, blocked.isEmpty()

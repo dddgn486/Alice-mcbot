@@ -12,6 +12,9 @@ import net.minecraft.server.level.ServerPlayer;
 import java.util.ArrayList;
 import java.util.List;
 import com.dddgn.alice.fixture.FixturePremise;
+import net.minecraftforge.event.server.ServerStartedEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
 import com.dddgn.alice.task.craft.CraftStation;
 
 /**
@@ -28,6 +31,7 @@ import com.dddgn.alice.task.craft.CraftStation;
  * <p><b>v0 的诚实边界</b>：只支持**不需要场景/发料**的模块（账本模块即此类 ✓）；场景/发料/前提等待
  * 在 v1 补齐（登记在案 ✓）。判据：`module:ledger` 单独跑通 ⇒ **"一个模块可以单独测"** 这条硬要求第一次成立 ✓。
  */
+@Mod.EventBusSubscriber(modid = "alice", bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class CheckHarness {
 
     /** 同时只允许一个编排器（与电池同理：无头/游戏内都不会并行跑两份 ✓）。 */
@@ -105,6 +109,30 @@ public final class CheckHarness {
         BotLog.info("[Harness] 启动模块单跑 module={}「{}」步数={}（不在会话任务里 ✓ 每步按普通任务起 ✓）",
                 module.id(), module.title(), steps.size());
         return true;
+    }
+
+    /**
+     * ⭐ 刀 2（`D-512`）：**编排器自己挂到服务器 tick 上** —— ⛔ 不再由 `bot/BotManager` 反向认识夹具。
+     *
+     * <p>⚠️ **为什么是"启动时注册到挂点"，⛔ 不是"自订阅 `ServerTickEvent`"**：
+     * 同优先级（`NORMAL`）监听器的相对次序由 Forge 的**类扫描顺序**决定（不可证）⇒ 自订阅会让
+     * `tickAll` 相对 `road/RoadBuilder`、`fixture/mining/*Fixture` 的次序**不可控地改变**；
+     * 而挂点位置**逐字**是原来那一行 ⇒ **tick 顺序零变化**。理由全文见 `bot/ServerTickHooks` 类注释。
+     *
+     * <p>⚠️ `registered` 是**幂等闸**：`ServerStartedEvent` 每次启服都触发，而**不保证只一次**
+     * （集成服/重载路径）⇒ 重复注册 = 每 tick 跑两遍 ⇒ 必须挡住。
+     */
+    private static volatile boolean registered;
+
+    @SubscribeEvent
+    public static void onServerStarted(ServerStartedEvent event) {
+        if (registered) {
+            return;
+        }
+        registered = true;
+        com.dddgn.alice.bot.ServerTickHooks.onServerEndTick(CheckHarness::tickAll);
+        BotLog.info("[Harness] 已挂到服务器 tick 末挂点（ServerTickHooks 挂载数={}）",
+                com.dddgn.alice.bot.ServerTickHooks.hookCount());
     }
 
     /** 服务器 tick 驱动（与任何会话任务无关 ✓）。 */

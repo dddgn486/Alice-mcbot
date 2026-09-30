@@ -5186,3 +5186,62 @@ AI 建议 = **必改 `空转`（拆词）** · ✅ **已执行 `咬人`→`拦�
 
 - **刀 2–刀 5 是否按上表一口气推**（已获"乙"授权 ⇒ 默认**继续推**，⛔ 不需要再确认）。
 - 台账 `O94` A 串其余 5 项（`move`/`exec` · `unit/` 包名 · `spec/` 是否单立 · `ledger`/`compat`/`transfer` 归位）**仍未裁**。
+
+## 断点四十八 · ⭐⭐⭐ **刀 2–刀 5 全部落地；序 1 重裁（`D-512` 具名策略）收口**（2026-09-30）
+
+> ⚠️ **这是"接着从哪继续"的唯一入口**（断点四十六/四十七 的表格由本断点接管）。
+> 细节全在台账 **`O98`–`O105`** ＋ `docs/reviews/2026-09-30-序1重裁-最终草案.md`（§8 = v2 更正）。
+
+### ① 现在在哪（一句话）
+
+**刀 1 · 1c · 2 · 3 · 4 · 5 六刀全部落地**：
+`D-512`「⛔ 入口不分类，**发料策略由调用方传**」有了**具名载体**（`tool/ToolProvision` ＋
+`fixture/DevCreateProvision`）；`bot/` **零开发期引用**（40 处 `fixture/` import ＋ 6 处 `debug/` import
+＋ 47 个构造点 ＋ 12 处 `FixtureToolKit` **全部清零**）；`BOT_EXEMPT` 白名单**删除**；
+发料事实进终态结果（`provision` 维）；`{@link}` 符号存在性**新门禁**。
+`check-all` = **`pass=40 warning=1 failed=0`** · `compileJava` 绿 · 无头电池 **45 步逐步判决与基线逐条一致**。
+
+### ② ⭐ 关键读数（都在台账里，别手抄）
+
+| 项 | 值 | 出处 |
+|---|---|---|
+| `command/BotCommand.java` | **761 行**（产品面 **13** 条） | `O101` ⑥ |
+| `debug/DebugCommands.java` | 1758 行（开发期 **29** 条） | `O101` ⑥ |
+| `bot/BotManager.java` | **2485 行**（原 2976） | `O102` |
+| **新** `fixture/FixtureDispatch.java` | 368 行 / **49 个派发方法** | `O102` ③ |
+| **新** `tool/ToolProvision.java` | 生产包（接口 ＋ `PROMOTE_ONLY`） | `O102` ① |
+| **新** `fixture/DevCreateProvision.java` | 开发期包（凭空造） | `O102` ① |
+| **新** `bot/ServerTickHooks.java` | 中立 tick 挂点（⛔ 不是自订阅） | `O102` ⑤ |
+| **新** `tools/check-doc-links.py` | `{@link}` 符号存在性门禁 | `O105` ③ |
+
+### ③ ✅ 序 1（`D-512`）四个同刀义务的最终状态
+
+| # | 义务 | 状态 |
+|---|---|---|
+| ⓐ | legacy `inline new Job` 不走受理闸 | ✅ **已关**（`O97`/`D-559`：抽闸 `JobLauncher.admit`）；⛔ 「统一走 `create`」那一半**仍未做**（会改构造语义，单独一刀） |
+| ⓑ | `assignRestore` 起 `Task` 不是 `Job` | ✅ **已写明口径**（`O105` ①） |
+| ⓒ | `ManualTestLock` 的坏 `{@link}` | ✅ **已修 ＋ 补门禁**（`O105` ②③） |
+| ④ | `JobLauncher.provision` 的 `@param` 口径与实测不符 | ✅ **已重写**（刀 2：`JobLauncher.provision` 现在只有一行，`@param provisioning` 由调用方传） |
+
+### ④ ⚠️ 压缩后必须知道的四个事实（免得重犯）
+
+1. **`/alice` 由两个类各自 `register`**（`command/BotCommand` ＋ `debug/DebugCommands`）。Brigadier
+   `addChild` 对同名子节点**只合并 children/command，⛔ 不复制 `requires`** ⇒ **两侧都必须带
+   `.requires(...)`**。门禁 **`alice根带权限`** 已钉住。
+2. **`bot/` 现在是普通生产包**（⛔ 不在 `REGISTRATION_POSITIONS` 里）：它**不许**出现
+   `com.dddgn.alice.fixture.`／`debug.`／`FixtureToolKit`（`check-layer-direction` ＋
+   `check-provision-containment` ⑤ 双门禁）。开发期派发一律走
+   `fixture/FixtureDispatch` → `BotManager.beginIdleTask` 桥。
+3. **发料策略由调用方传**：生产（`decision/GoalDirector`）传 `ToolProvision.PROMOTE_ONLY`；
+   开发期（`item/`、`debug/`、`headless/`）传 `DevCreateProvision.INSTANCE`。
+   ⚠️ **`D-512` 之后没有布尔可翻** ⇒ 若有人想"临时放开"，改的是**调用点**，一眼可见。
+4. **`{@link}` 也会被门禁扫**（`check-doc-links`）：写"历史遗留的坏符号"请用 `{@code}`，⛔ 别用 `{@link}`。
+
+### ⑤ 待你一句话的
+
+- 台账 `O94` A 串其余 5 项（`move`/`exec` · `unit/` 包名 · `spec/` 是否单立 · `ledger`/`compat`/`transfer` 归位）**仍未裁**。
+- `O96`/`O99`/`O101` 遗留：**「夹具必须自备工具」仍无门禁** · 环检盲区 · `O41` §1c.3 柱② 勘误。
+- ⚠️ **既有红照旧**：无头电池 `mine_regression` / `survival_exit` 两步（自 **2026-09-29 18:40** 起连续多轮，
+  ⛔ 与本线零交集，**单独登记待查**）。
+- ⚠️ **本线全部是"零行为改动"的结构重排** ⇒ 按 `I1` **不需要真机确认**；
+  但若你要眼验"命令面没变"，客户端敲 `/alice` 看补全列表（应为 42 条顶层子命令）即可。

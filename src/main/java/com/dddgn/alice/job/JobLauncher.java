@@ -1,7 +1,6 @@
 package com.dddgn.alice.job;
 
 import com.dddgn.alice.bot.BotPlayer;
-import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
 import net.minecraft.world.item.ItemStack;
@@ -23,97 +22,25 @@ public final class JobLauncher {
     }
 
     /**
-     * 按请求**发料**（幂等：有就不重复给）。
+     * 按请求**发料**（幂等：有就不重复给）—— ⭐ **策略由调用方传**（`D-512`）。
      *
-     * <p><b>⚠️ 2026-09-14（T1 / R-2）：必须显式声明"这是夹具入口还是生产入口"。</b>
-     * 此前只有一个无参版本，它调 {@link FixtureToolKit} **凭空造出**钻石镐/钻石斧/12 圆石
-     * （快捷栏满时还会**强制覆盖**已有物品）。而 `BotManager.assignJob` 是**决策层唯一的生产入口**
-     * （`decision/GoalDirector` 起 Job 就走它）⇒ **LLM 起的每个 Job 都白得一套钻石工具**，
-     * 与"不许凭空给物品"直接冲突（`CASE CRAFT` 的注释自己写着这是同族铁律）。
+     * <p>⚠️ **2026-09-14（T1 / R-2）的原始事故**：此前本方法只有一个无参版本，它调
+     * {@link com.dddgn.alice.item.FixtureToolKit} **凭空造出**钻石镐/钻石斧/12 圆石（快捷栏满时还会**强制覆盖**已有物品）。
+     * 而 `BotManager.assignJob` 是**决策层唯一的生产入口**（`decision/GoalDirector` 起 Job 就走它）
+     * ⇒ **LLM 起的每个 Job 都白得一套钻石工具**，与"不许凭空给物品"直接冲突。
      *
-     * <p>现在按入口分流：
-     * <ul>
-     *   <li><b>生产（`fixtureProvision=false`）</b>：**只搬运、不创造** —— 走
-     *       {@link com.dddgn.alice.bot.ToolSupply#promoteFromMain}，把**已有**工具从主背包挪进快捷栏；
-     *       没有就**如实不造**，让 Job 自己报 `tool_missing`（诚实失败优于凭空成功）。</li>
-     *   <li><b>夹具（`fixtureProvision=true`）</b>：保留原行为（测试世界是白板，夹具必须能自证前提）。</li>
-     * </ul>
+     * <p>⭐ **刀 2 起本方法不认识"夹具"这个词**：它只把请求交给调用方传进来的
+     * {@link com.dddgn.alice.tool.ToolProvision}。两个实现：
+     * {@link com.dddgn.alice.tool.ToolProvision#PROMOTE_ONLY}（✅ 生产：只搬运已存在的，缺就如实留缺）·
+     * `fixture/` 侧的**开发期实现**（⚠️ 凭空造；`job/` 不认识它，只认识本接口）。
+     * ⇒ ⛔ `job/` 与 `bot/` **再也不出现**`fixture.` 引用（`item/` 的造物工具也不出现）。
      *
-     * @param fixtureProvision 本次入口是否为**测试夹具**（只有游戏内测试物品/自检任务可传 true）
+     * @param provisioning ⭐ **由调用方传**的发料策略（`D-512`：⛔ 入口既不是夹具口也不是生产口）
      * @return 发料失败（例如区域型缺选定树苗）时返回 false —— 由调用方决定是否还起 Job
      */
-    public static boolean provision(BotPlayer bot, JobRequest request, boolean fixtureProvision) {
-        if (!fixtureProvision) {
-            return provisionFromExisting(bot, request);
-        }
-        switch (request.kind()) {
-            case LUMBER -> {
-                FixtureToolKit.ensureAxe(bot);
-                FixtureToolKit.ensurePickaxe(bot);
-                FixtureToolKit.ensureHotbarStack(bot,
-                        () -> new ItemStack(Items.COBBLESTONE),
-                        stack -> stack.is(Items.COBBLESTONE), 12, "cobblestone");
-            }
-            case MINE -> FixtureToolKit.ensurePickaxe(bot);
-            case COLLECT -> {
-                // 捡拾不需要工具/材料（纯通行 + 原版拾取），无需发料
-            }
-            case CRAFT -> {
-                // **不发料**：合成只真消耗真产物（"不许凭空给物品"是同族铁律）。
-                // 材料从哪来由玩家/世界决定；缺料由 CraftJob 如实报 missing_ingredients。
-            }
-            case REGION_LUMBER -> {
-                FixtureToolKit.ensureAxe(bot);
-                FixtureToolKit.ensurePickaxe(bot);
-                FixtureToolKit.ensureHotbarStack(bot,
-                        () -> new ItemStack(Items.COBBLESTONE),
-                        stack -> stack.is(Items.COBBLESTONE), 12, "cobblestone");
-                String saplingId = request.region() == null ? null
-                        : com.dddgn.alice.job.lumber.LumberRegionState.get(bot.getServer())
-                        .saplingItem(bot.getUUID());
-                var id = saplingId == null ? null : net.minecraft.resources.ResourceLocation.tryParse(saplingId);
-                var item = id == null ? null : net.minecraft.core.registries.BuiltInRegistries.ITEM.get(id);
-                if (item != null && item != Items.AIR) {
-                    FixtureToolKit.ensureHotbarStack(bot, () -> new ItemStack(item),
-                            stack -> stack.is(item), 8, "sapling(" + saplingId + ")");
-                }
-            }
-        }
-        return true;
-    }
-
-    /**
-     * **生产入口的"发料" = 只搬运已存在的工具**（T1 / R-2）。
-     *
-     * <p>不做任何创造、不覆盖任何已有物品；缺什么就**如实留缺**，由 Job 报 `tool_missing`
-     * （`LumberJob`/`MineJob` 已有该上抛路径）。这样"LLM 起的 Job"与"真人用手玩"是同一条物质约束。
-     *
-     * <p>区域型还需要**选定树苗**：只在背包里已经有该树苗时把它挪进快捷栏（`ensureHotbarStack` 的
-     * 非创造等价物不存在，所以这里直接查 `countInInventory` 后如实记录"有/没有"）。
-     */
-    private static boolean provisionFromExisting(BotPlayer bot, JobRequest request) {
-        switch (request.kind()) {
-            case LUMBER, REGION_LUMBER -> promote(bot, request, com.dddgn.alice.bot.ToolSupply.Kind.AXE,
-                    com.dddgn.alice.bot.ToolSupply.Kind.PICKAXE);
-            case MINE -> promote(bot, request, com.dddgn.alice.bot.ToolSupply.Kind.PICKAXE);
-            case COLLECT, CRAFT -> {
-                // 与夹具分支同一口径：不发料
-            }
-        }
-        return true;
-    }
-
-    private static void promote(BotPlayer bot, JobRequest request, com.dddgn.alice.bot.ToolSupply.Kind... kinds) {
-        StringBuilder line = new StringBuilder();
-        for (com.dddgn.alice.bot.ToolSupply.Kind kind : kinds) {
-            String result = com.dddgn.alice.bot.ToolSupply.promoteFromMain(bot, kind);
-            if (!line.isEmpty()) {
-                line.append(' ');
-            }
-            line.append(kind.label()).append('=').append(result);
-        }
-        BotLog.info("[Job] 生产入口只搬运不发料（{}）：{} ⇒ 缺工具时由 Job 自己如实报 tool_missing",
-                request.kind(), line);
+    public static boolean provision(BotPlayer bot, JobRequest request,
+                                    com.dddgn.alice.tool.ToolProvision provisioning) {
+        return provisioning.provisionFor(bot, request);
     }
 
     /**

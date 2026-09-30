@@ -55,7 +55,7 @@ public class TargetSelector extends Item {
         ServerLevel serverLevel = (ServerLevel) level;
         BotPlayer bot = BotManager.firstOrSpawn(serverLevel, clicked);
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
-        BotManager.assignTarget(bot, TaskTarget.block(clicked));
+        BotManager.assignTarget(bot, TaskTarget.block(clicked), com.dddgn.alice.fixture.DevCreateProvision.INSTANCE);
         if (player != null) {
             player.sendSystemMessage(Component.literal(
                     "[alice] 已指派挖掘目标 " + clicked.toShortString() + " → " + bot.getName().getString()));

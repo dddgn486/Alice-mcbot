@@ -2,6 +2,7 @@ package com.dddgn.alice.item;
 
 import com.dddgn.alice.bot.BotManager;
 import com.dddgn.alice.bot.BotPlayer;
+import com.dddgn.alice.fixture.FixtureDispatch;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -69,7 +70,7 @@ public class PathingDisturberItem extends Item {
         bot.controller().stopMovement();
         ensureCobblestone(bot, 8);
         com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.FIXTURE);
-        if (!BotManager.assignPathSessionDiagnostic(bot, COURSE_GOAL_FOOT, true,
+        if (!FixtureDispatch.assignPathSessionDiagnostic(bot, COURSE_GOAL_FOOT, true,
                 DISTURB_TICK, 0, DISTURB_DZ)) {
             if (player != null) {
                 player.sendSystemMessage(Component.literal("[alice] " + BotManager.busyMessage(bot)));

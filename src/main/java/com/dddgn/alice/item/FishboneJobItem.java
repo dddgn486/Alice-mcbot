@@ -164,7 +164,7 @@ public class FishboneJobItem extends Item {
         // 决策层切 FIXTURE：否则 LLM 的决策会插进来改目标（与 `MineJobItem` 同一处置）
         Driver.set(bot, Driver.FIXTURE);
 
-        if (!BotManager.assignFishboneJob(bot, template, maxTicks)) {
+        if (!BotManager.assignFishboneJob(bot, template, maxTicks, com.dddgn.alice.fixture.DevCreateProvision.INSTANCE)) {
             say(player, "[alice] " + BotManager.busyMessage(bot));
             return;
         }
