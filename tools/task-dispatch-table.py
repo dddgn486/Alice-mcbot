@@ -55,9 +55,12 @@ ALICE = "com/dddgn/alice/"
 # 任务类的**家**（迁移后类会从 task/ 搬到 debug/、fixture/、step/ ⇒ 三处都认）
 TASK_TREES = ("com/dddgn/alice/task", "com/dddgn/alice/debug", "com/dddgn/alice/fixture")
 ENTRY_TREES = ("item", "command")
+#: ⭐ **命令面**（2026-09-30 用户裁「甲」）：发行包的"玩家调试面"载体 = **命令 ＋ GUI 按钮（按钮调命令）**，
+#: ⛔ `/give` 物品退为**开发期入口** ⇒ 两个可达面必须**分开报**（`entry_reachable` 与 `cmd_reachable`）。
+CMD_TREES = ("command",)
 
 MIN_ROWS = 40          # 人口下限（非空检查）：今天 60+ 行；掉到 40 以下 ⇒ 解析器坏了
-HEADER = "task_class,dispatcher,entry_reachable"
+HEADER = "task_class,dispatcher,entry_reachable,cmd_reachable"
 
 
 def listed(directory: str, suffix: str = ".java") -> list[Path]:
@@ -201,14 +204,14 @@ def parse_bot_manager(known: set[str]) -> tuple[list[tuple[str, str]], dict[str,
     return sites, graph, spans
 
 
-def entry_seeds() -> set[str]:
+def seeds_from(trees: tuple[str, ...]) -> set[str]:
     seeds: set[str] = set()
     pat = re.compile(r"BotManager\s*\.\s*(\w+)\s*\(")
-    for tree in ENTRY_TREES:
+    for tree in trees:
         for p in listed(ALICE + tree):
             for m in pat.finditer(strip_comments_keep_lines(p.read_text(encoding="utf-8"))):
                 seeds.add(m.group(1))
-    assert seeds, "入口侧一个 `BotManager.<方法>(` 都没找到 ⇒ 解析器坏了"
+    assert seeds, f"入口侧（{trees}）一个 `BotManager.<方法>(` 都没找到 ⇒ 解析器坏了"
     return seeds
 
 
@@ -224,19 +227,21 @@ def reachable_methods(graph: dict[str, set[str]], seeds: set[str]) -> set[str]:
     return seen
 
 
-def build_rows() -> list[tuple[str, str, str]]:
+def build_rows() -> list[tuple[str, str, str, str]]:
     known = known_task_classes()
     sites, graph, _ = parse_bot_manager(known)
-    reach = reachable_methods(graph, entry_seeds())
-    rows = sorted({(cls, disp, "yes" if disp in reach else "no") for cls, disp in sites})
+    reach = reachable_methods(graph, seeds_from(ENTRY_TREES))
+    cmd_reach = reachable_methods(graph, seeds_from(CMD_TREES))
+    rows = sorted({(cls, disp, "yes" if disp in reach else "no",
+                    "yes" if disp in cmd_reach else "no") for cls, disp in sites})
     return rows
 
 
-def render(rows: list[tuple[str, str, str]]) -> str:
+def render(rows: list[tuple[str, str, str, str]]) -> str:
     return "\n".join([HEADER] + [",".join(r) for r in rows]) + "\n"
 
 
-def read_csv(path: Path) -> tuple[str, list[tuple[str, str, str]]]:
+def read_csv(path: Path) -> tuple[str, list[tuple[str, str, str, str]]]:
     text = path.read_text(encoding="utf-8") if path.exists() else ""
     lines = [ln for ln in text.split("\n") if ln.strip()]
     if not lines:
@@ -245,10 +250,10 @@ def read_csv(path: Path) -> tuple[str, list[tuple[str, str, str]]]:
     rows = []
     for ln in body:
         parts = ln.split(",")
-        if len(parts) != 3:
-            rows.append(tuple(parts + ["<列数不对>"] * (3 - len(parts)))[:3])  # type: ignore[arg-type]
+        if len(parts) != 4:
+            rows.append(tuple(parts + ["<列数不对>"] * (4 - len(parts)))[:4])  # type: ignore[arg-type]
             continue
-        rows.append((parts[0], parts[1], parts[2]))
+        rows.append((parts[0], parts[1], parts[2], parts[3]))
     return head, rows
 
 
@@ -262,8 +267,9 @@ def main(argv: list[str]) -> int:
     if "--write" in argv:
         OUT.write_text(render(rows), encoding="utf-8")
         yes = sum(1 for r in rows if r[2] == "yes")
-        print(f"TASK_DISPATCH_TABLE_RESULT WROTE: {len(rows)} 行（入口可达 {yes} / 不可达 {len(rows) - yes}）"
-              f" → {OUT.relative_to(ROOT)}")
+        cyes = sorted({r[0] for r in rows if r[3] == "yes"})
+        print(f"TASK_DISPATCH_TABLE_RESULT WROTE: {len(rows)} 行（入口可达 {yes} / 不可达 {len(rows) - yes}"
+              f" · ⭐ **命令可达类 {len(cyes)}**）→ {OUT.relative_to(ROOT)}")
         return 0
 
     head, old = read_csv(OUT)
@@ -274,7 +280,8 @@ def main(argv: list[str]) -> int:
         problems.append("CSV 是空的或不存在（⛔ 空表不许读成「没有要检查的」）")
     new_set, old_set = set(rows), set(old)
     for r in sorted(new_set - old_set):
-        problems.append(f"**实物有、CSV 缺**：`{r[0]}` ← `{r[1]}`（entry_reachable={r[2]}）⇒ 忘了 `--write`？")
+        problems.append(f"**实物有、CSV 缺**：`{r[0]}` ← `{r[1]}`（entry_reachable={r[2]} · "
+                        f"cmd_reachable={r[3]}）⇒ 忘了 `--write`？")
     for r in sorted(old_set - new_set):
         problems.append(f"**CSV 有、实物无**（陈旧行）：`{r[0]}` ← `{r[1]}`")
     if problems:
@@ -286,8 +293,10 @@ def main(argv: list[str]) -> int:
         return 1
 
     yes = sorted({r[0] for r in rows if r[2] == "yes"})
+    cyes = sorted({r[0] for r in rows if r[3] == "yes"})
     print(f"TASK_DISPATCH_TABLE_RESULT PASS: 构造点 {len(rows)} 行 · 派发方法 "
-          f"{len({r[1] for r in rows})} 个 · **入口可达类 {len(yes)}** · 不可达类 "
+          f"{len({r[1] for r in rows})} 个 · 入口可达类 {len(yes)} · "
+          f"⭐ **命令可达类 {len(cyes)}**（{cyes}）· 不可达类 "
           f"{len({r[0] for r in rows if r[2] == 'no'})}（0 条不一致）")
     return 0
 

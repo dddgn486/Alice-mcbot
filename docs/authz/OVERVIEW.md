@@ -79,7 +79,7 @@
 | `L5-2` | 自证 | FixturePremise 前提断言 | 夹具关键点 | premise_own_menu / station_menu_open / on_ground / no_observer | `task/FixturePremise.java` | 前提不成立即红 | — |
 | `L5-3` | 自证 | 夹具自带传送 + 结束复位（§5.0d） | 场景夹具 | reset=true | `PLAYBOOK §5.0d` | 强制（失败路径同走） | — |
 | `L5-4` | 自证 | 零写入自证 | 探针 / 只读夹具 | no_writes=true / 背包逐槽未变 | `task/MachineStationProbeTask.java 等` | 强制 | — |
-| `L5-5` | 自证 | 负例前提运行时自证 | 无配方负例等 | no_recipe / firstUnproducibleItem | `debug/CraftCheckTask.java` | 强制（写死会过期） | — |
+| `L5-5` | 自证 | 负例前提运行时自证 | 无配方负例等 | no_recipe / firstUnproducibleItem | `fixture/CraftCheckTask.java` | 强制（写死会过期） | — |
 
 ## 其它视图
 

@@ -13,7 +13,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
-import com.dddgn.alice.debug.LumberFailureCheckTask;
+import com.dddgn.alice.fixture.LumberFailureCheckTask;
 
 /**
  * 伐木失败语义自检启动器（{@code alice:lumber_failure_check}，切片 J4）：普通右键，零参数。

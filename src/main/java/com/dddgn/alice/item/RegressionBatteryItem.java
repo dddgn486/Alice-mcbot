@@ -9,7 +9,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.Level;
-import com.dddgn.alice.debug.ClearRetryCheckTask;
+import com.dddgn.alice.fixture.ClearRetryCheckTask;
 
 /**
  * 串联回归电池启动器（{@code alice:regression_battery}，D-122）：**零参数**。
@@ -57,7 +57,7 @@ public class RegressionBatteryItem extends Item {
                        boolean rerunOnly) {
         BotPlayer bot = BotManager.firstInLevel(level);
         if (bot == null) {
-            bot = BotManager.firstOrSpawn(level, com.dddgn.alice.debug.ClearRetryCheckTask.START_FOOT);
+            bot = BotManager.firstOrSpawn(level, com.dddgn.alice.fixture.ClearRetryCheckTask.START_FOOT);
         }
         if (bot == null || BotManager.isBusy(bot)) {
             say(player, bot == null ? "[alice] bot 生成失败" : "[alice] " + BotManager.busyMessage(bot));

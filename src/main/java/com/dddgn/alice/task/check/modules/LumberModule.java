@@ -10,7 +10,7 @@ import com.dddgn.alice.job.lumber.RegionLumberJob;
 import com.dddgn.alice.job.policy.NearestPolicy;
 import com.dddgn.alice.task.FixtureThirdParty;
 import com.dddgn.alice.task.LumberCourseAnchor;
-import com.dddgn.alice.debug.LumberFailureCheckTask;
+import com.dddgn.alice.fixture.LumberFailureCheckTask;
 import com.dddgn.alice.task.PremiseGateTask;
 import com.dddgn.alice.task.RegionSweepCheckTask;
 import com.dddgn.alice.task.RegionSweepE2ECheckTask;

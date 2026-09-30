@@ -48,5 +48,27 @@
  * <p>⚠️ 这条修订把「{@code bot/} 引用本包」从**违规**变成**已登记**，
  * 但⛔ <b>没有</b>放宽 `debug/` ✗→ `fixture/`，也⛔ 没有放宽 `task/` 之外其它生产包
  * —— 判据已可执行：{@code tools/check-layer-direction.py} 的 {@code REGISTRATION_POSITIONS}（4 条合成臂盯着）。
+ *
+ * <h2>⚠️ 2026-09-30 修订（用户裁「甲」）：本包的判据 = <b>命令可达</b>，⛔ 不再是「`/give` 物品可达」</h2>
+ * <p>用户逐字：「<b>真正在发行包会用到的一般都是调试指令</b>，或者我们在 GUI 加调用调试指令的按钮」
+ * ＋ 对那 36 个 `/give` 调试物品的裁定：「<b>留，但只当开发期入口</b>」。
+ * <p>⇒ <b>发行包的「玩家调试面」载体 = 命令（＋ GUI 按钮，而按钮调的就是命令）</b>；
+ * {@code item/}（{@code /give} 可得）退为<b>开发期入口</b> ⇒ ⛔ <b>不再</b>把引用者提升到本包。
+ * <ul>
+ *   <li><b>入桶判据（新）</b>：带 {@code R2} 枚举标记 且 <b>命令可达</b>
+ *       （{@code command/} 直接引用，或该类的 {@code BotManager} 派发方法<b>被 {@code command/} 调用</b>
+ *       ⇒ 派发表 {@code docs/TASK_DISPATCH_TABLE.csv} 的 <b>{@code cmd_reachable=yes}</b>）⇒ 住<b>本包</b>；</li>
+ *   <li>带标记但<b>只被 {@code item/}／`bot/` 派发／验证侧</b>够到 ⇒ 那是开发期物 ⇒ 住 {@code fixture/}（<b>可剔除</b>）。</li>
+ * </ul>
+ * <p>⭐ <b>落地的读数（这批裁定的直接后果）</b>：原本判入本包的 <b>40</b> 个类里，
+ * <b>命令可达只有 6 个</b>（{@code Ascend} / {@code Chain} / {@code Descend} / {@code Diagonal} /
+ * {@code PathSession} / {@code Traverse} {@code DiagnosticTask} —— 全是<b>寻路诊断</b>，
+ * 挂在 {@code /alice pathing {…}} 下）；其余 <b>33</b> 个只有 {@code /give` 物品一条路
+ * ⇒ 已改判 {@code fixture/}（1 个 {@code TransferCheckTask} 留在 {@code task/} 待夹具波）。
+ * <p>⚠️ <b>副产品</b>：{@code debug/ ✗→ fixture/}（{@code R3}）的冲突因此<b>大幅自消</b> ——
+ * 搬走的那些不再需要夹具支撑；<b>仍残留 1 条</b>：{@code PathSessionDiagnosticTask} 引用
+ * {@code task.FixtureScript}（夹具波搬它时会红，⛔ 已登记、未裁）。
+ * <p>⚠️ {@code R2} 表里那句「{@code *CheckTask}／{@code *ProbeTask}／{@code *DiagnosticTask} 三类且玩家可达」
+ * <b>仍然成立</b>，改的只是「玩家可达」的<b>判据</b>（物品 ⇒ 命令）。
  */
 package com.dddgn.alice.debug;

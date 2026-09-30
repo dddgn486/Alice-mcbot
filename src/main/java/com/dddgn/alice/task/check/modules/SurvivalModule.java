@@ -2,7 +2,7 @@ package com.dddgn.alice.task.check.modules;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.task.SurvivalCourseAnchor;
-import com.dddgn.alice.debug.SurvivalExitCheckTask;
+import com.dddgn.alice.fixture.SurvivalExitCheckTask;
 import com.dddgn.alice.task.check.CheckContext;
 import com.dddgn.alice.task.check.CheckModule;
 import com.dddgn.alice.task.check.CheckProfile;

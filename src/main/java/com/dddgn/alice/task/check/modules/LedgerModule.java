@@ -1,11 +1,11 @@
 package com.dddgn.alice.task.check.modules;
 
-import com.dddgn.alice.debug.ClearGuardCheckTask;
-import com.dddgn.alice.debug.ClearRetryCheckTask;
+import com.dddgn.alice.fixture.ClearGuardCheckTask;
+import com.dddgn.alice.fixture.ClearRetryCheckTask;
 import com.dddgn.alice.task.LedgerZoneScopeCheckTask;
 import com.dddgn.alice.task.LossyWriteAccountedCheckTask;
 import com.dddgn.alice.task.ScaffoldLifecycleTask;
-import com.dddgn.alice.debug.WriteBudgetCheckTask;
+import com.dddgn.alice.fixture.WriteBudgetCheckTask;
 import com.dddgn.alice.task.check.CheckContext;
 import com.dddgn.alice.task.check.CheckModule;
 import com.dddgn.alice.task.check.CheckProfile;

@@ -9,7 +9,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import com.dddgn.alice.debug.ClearRetryCheckTask;
+import com.dddgn.alice.fixture.ClearRetryCheckTask;
 
 /**
  * **无头电池入口（T2）**：把"游戏内右键 `alice:regression_battery`"这条验收路径搬到无需真人的服务端。
@@ -59,7 +59,7 @@ public final class HeadlessBattery {
     private static net.minecraft.core.BlockPos harnessSpawnFoot() {
         String raw = System.getProperty(PROP_BOT_FOOT);
         if (raw == null || raw.isBlank()) {
-            return com.dddgn.alice.debug.ClearRetryCheckTask.START_FOOT;
+            return com.dddgn.alice.fixture.ClearRetryCheckTask.START_FOOT;
         }
         String[] parts = raw.trim().split(",");
         if (parts.length != 3) {

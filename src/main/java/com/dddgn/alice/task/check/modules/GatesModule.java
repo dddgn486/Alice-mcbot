@@ -1,8 +1,8 @@
 package com.dddgn.alice.task.check.modules;
 
 import com.dddgn.alice.bot.BotPlayer;
-import com.dddgn.alice.debug.CapabilityGateCheckTask;
-import com.dddgn.alice.debug.PartialSearchCheckTask;
+import com.dddgn.alice.fixture.CapabilityGateCheckTask;
+import com.dddgn.alice.fixture.PartialSearchCheckTask;
 import com.dddgn.alice.task.check.CheckContext;
 import com.dddgn.alice.task.check.CheckModule;
 import com.dddgn.alice.task.check.CheckProfile;

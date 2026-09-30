@@ -8,7 +8,8 @@
    ✅ **2026-09-30 `P1` 立家已建包** —— 同刀把 `P0` **判据②**（目的地 ∈ **已建成的包**）
    从「只印」变成**能红**：`step/` · `debug/` · `fixture/` 任一不存在 ⇒ 红。
 2. **`debug`** —— 玩家可达：**(a)** 被 `item/` 或 `command/` **直接**引用（剥注释），或
-   **(b)** 在**派发表**（`docs/TASK_DISPATCH_TABLE.csv`）里 `entry_reachable=yes`。
+   **(b)** 在**派发表**（`docs/TASK_DISPATCH_TABLE.csv`）里 **`cmd_reachable=yes`**（⭐ 2026-09-30 改口径：
+   产品面 = **命令可达**；`entry_reachable` 含 `item/` 种子 ⇒ ⛔ 不再当产品面判据）。
    ⛔ (b) 不能自己猜 —— 它是 `丙` 方案（`D-551`）的产物，`BotManager` 才是真派发枢纽。
 3. **`fixture`** —— **只**被验证侧引用：引用者全落在 `task/**` · `fixture/**` · `headless/**` · `tools/**`。
 4. **`生产`** —— 其余（被生产层引用）⇒ 逐类在**波 4** 定到具体层，⛔ 今天不假装知道。
@@ -18,7 +19,7 @@
 - **不记行号**：本台账是生成物，行号会随无关编辑腐烂（`code_ref` 的债，批次 2 ③）⇒
   键 = `类名`，另存 `task_path`（**全仓相对**）。
 - **双向防漂移**：漏行、陈旧行、路径不符、`dest` 非法 ⇒ **红**；并做**交叉核** ——
-  派发表里 `entry_reachable=yes` 的类在台账里**必须**是 `debug`，否则红。
+  派发表里 **`cmd_reachable=yes`** 的类在台账里**必须**是 `debug`，否则红。
 
 用法：
     python3 tools/task-retirement-map.py --write   # 重新生成 docs/TASK_RETIREMENT_MAP.csv
@@ -47,7 +48,11 @@ def is_verify_side(pkg: str) -> bool:
     实测把 110 个夹具误判成"生产"。"""
     head = pkg.split("/")[0]
     return head in VERIFY_SIDE
-ENTRY_SIDE = {"item", "command"}
+#: ⭐ **产品面入口**（2026-09-30 用户裁「甲」）= **只有 `command/`**；
+#: `/give` 物品（`item/`）退为**开发期入口** ⇒ ⛔ 不再把引用者提升到 `debug/`。
+ENTRY_SIDE = {"command"}
+#: 开发期入口（保留识别，只为 `reason` 可读）：被它引用的类**不因此进 `debug/`**。
+DEV_ENTRY_SIDE = {"item"}
 DESTS = ("step", "debug", "fixture", "生产")
 HEADER = "task_class,task_path,dest,reason"
 MIN_ROWS = 150          # 人口下限：今天 190；掉到 150 以下 ⇒ 解析器静默失效
@@ -140,8 +145,13 @@ def is_step_primitive(path: Path) -> bool:
     return bool(STEP_DECL.search(strip_comments(path.read_text(encoding="utf-8"))))
 
 
-def load_dispatch() -> dict[str, str]:
-    """⇒ {类名: 'yes'|'no'}；⛔ 表缺失/空 ⇒ 响亮失败（不许静默当成"全不可达"）。"""
+def load_dispatch() -> dict[str, tuple[str, str]]:
+    """⇒ {类名: (entry_reachable, cmd_reachable)}；⛔ 表缺失/空 ⇒ 响亮失败（不许静默当成"全不可达"）。
+
+    ⭐ 2026-09-30（用户裁「甲」）：**判"产品面"只看 `cmd_reachable`** —— 发行包的玩家调试面载体
+    = **命令 ＋ GUI 按钮（按钮调命令）**，而 `/give` 物品退为**开发期入口**。
+    ⚠️ `entry_reachable` 的种子**包含 `item/`** ⇒ 它**不能**再当"产品面可达性"用（那正是旧口径的词）。
+    """
     if not DISPATCH.exists():
         raise SystemExit(f"TASK_RETIREMENT_MAP_RESULT FAIL: 缺 `{DISPATCH.relative_to(ROOT)}` "
                          f"⇒ 先跑 `tools/task-dispatch-table.py --write`")
@@ -149,15 +159,16 @@ def load_dispatch() -> dict[str, str]:
     if len(lines) < 20:
         raise SystemExit(f"TASK_RETIREMENT_MAP_RESULT FAIL: 派发表只有 {len(lines)} 行（下限 20）"
                          f" ⇒ 读不动或已被清空")
-    out: dict[str, str] = {}
+    out: dict[str, tuple[str, str]] = {}
     for ln in lines[1:]:
         parts = ln.split(",")
-        if len(parts) != 3:
+        if len(parts) != 4:
             continue
-        cls, _disp, reach = parts
-        if out.get(cls) == "yes":
-            continue
-        out[cls] = reach
+        cls, _disp, entry, cmd = parts
+        cur = out.get(cls, ("no", "no"))
+        # 同一类可能挂在多个派发方法下 ⇒ 取"或"（任一方法可达即算可达）
+        out[cls] = ("yes" if (entry == "yes" or cur[0] == "yes") else "no",
+                    "yes" if (cmd == "yes" or cur[1] == "yes") else "no")
     return out
 
 
@@ -224,7 +235,9 @@ def build_rows() -> list[tuple[str, str, str, str]]:
         refs_by_cls[cls] = refset
         repo_path = str(p.relative_to(ROOT))
 
-        player_reachable = direct_entry is not None or dispatch.get(cls) == "yes"
+        entry_reach, cmd_reach = dispatch.get(cls, ("no", "no"))
+        # ⭐ 产品面可达性 = **命令可达**（`command/` 直接引用，或该类的派发方法被 `command/` 调用）。
+        player_reachable = direct_entry is not None or cmd_reach == "yes"
         if is_step_primitive(p):
             reason = "step:Step.java(注册口)" if cls == "Step" else "step:implements Step"
             dest = "step"
@@ -234,7 +247,7 @@ def build_rows() -> list[tuple[str, str, str, str]]:
             # 但它们不是调试面（早期把"被玩家入口引用"当充要条件 ⇒ 实测 20 个生产类误入 debug）。
             dest = "debug"
             reason = ("debug:A:" + direct_entry) if direct_entry is not None \
-                else "debug:B:BotManager 派发（entry_reachable=yes）"
+                else "debug:B:命令可达（cmd_reachable=yes）"
         elif is_debug_mark(cls) or is_fixture_mark(cls) or all(is_verify_side(x) for x in refset):
             dest = "fixture"
             if all(is_verify_side(x) for x in refset):
@@ -302,7 +315,8 @@ def main(argv: list[str]) -> int:
     # 14 条**假红**，那正是"把 `R1` 的一个桶读成充要条件"的错。
     dispatch = load_dispatch()
     for cls, path, dest, reason in rows:
-        if dest == "debug" and not (reason.startswith("debug:A:") or dispatch.get(cls) == "yes"):
+        if dest == "debug" and not (reason.startswith("debug:A:")
+                                    or dispatch.get(cls, ("no", "no"))[1] == "yes"):
             problems.append(f"交叉核失败：`{cls}` 判进 `debug/` 却**证明不了玩家可达**"
                             f"（既不在派发表的可达集里，也没有 item/command 直接引用）")
 

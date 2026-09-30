@@ -13,14 +13,14 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
-import com.dddgn.alice.debug.PickupGateCheckTask;
+import com.dddgn.alice.fixture.PickupGateCheckTask;
 
 /**
  * **被动拾取闸门自检**（{@code alice:pickup_gate_check}，S3.5 / D-143）：普通右键，零参数。
  *
  * <p>两个用例：① 我方掉落物（收养）⇒ 走过去**应捡到**；② 外来掉落物（不登记 ⇒ FOREIGN）
  * ⇒ 走过去**应被拦下**（`[Pickup] blocked …`，东西仍留在地上）。判据见
- * {@link com.dddgn.alice.debug.PickupGateCheckTask} 的 `[PickupGateCheck] SUMMARY`。
+ * {@link com.dddgn.alice.fixture.PickupGateCheckTask} 的 `[PickupGateCheck] SUMMARY`。
  */
 public class PickupGateCheckItem extends Item {
 

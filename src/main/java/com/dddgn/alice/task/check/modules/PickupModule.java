@@ -5,7 +5,7 @@ import com.dddgn.alice.item.CollectJobItem;
 import com.dddgn.alice.job.JobLauncher;
 import com.dddgn.alice.job.JobRequest;
 import com.dddgn.alice.task.LumberCourseAnchor;
-import com.dddgn.alice.debug.PickupGateCheckTask;
+import com.dddgn.alice.fixture.PickupGateCheckTask;
 import com.dddgn.alice.task.check.CheckContext;
 import com.dddgn.alice.task.check.CheckModule;
 import com.dddgn.alice.task.check.CheckProfile;
