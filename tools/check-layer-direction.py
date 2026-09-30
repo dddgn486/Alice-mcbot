@@ -51,13 +51,27 @@
    ⇒ 红；且这 6 个文件必须**都**在 `write/` 里（否则"拆包"可以是"删掉"）。
 5. **人口下限**（防"把包搬空 ⇒ 门禁假绿"）：扫描 `.java` ≥ `MIN_SCANNED_FILES` ·
    `reach/` ≥ `MIN_REACH_FILES` · `action/` ≥ `MIN_ACTION_FILES` · `write/` ≥ `MIN_WRITE_FILES`。
+6. ⭐ **`task/` 里 `dest ∈ {生产, step}` 的类，不得在代码里依赖 `debug/`／`fixture/`**（`D-557`）。
+   `R3_EXCLUDED` 整包排除 `task/` 的理由是「**别管那 100+ 个还没搬的夹具**」，
+   ⛔ **不是**「生产类可以依赖可剔除物」—— 那正是 `R6` 要防的。实测代价（`O90`）：
+   `task/MineTask.java` 一度是 `private com.dddgn.alice.fixture.mining.GainStepRunner gainRunner;`
+   （1 处 import ＋ 6 处**行内 FQN**）而 **`check-all` 全绿** —— 当时这类错误**只有 `P0` 台账一条防线**。
+   ⭐ **判据 = 代码里的使用**（同 `D-556` (c)）：剥块注释／行注释／**字符串字面量** ＋ 去掉 `import` 行后，
+   ① 出现 `com.dddgn.alice.(debug|fixture).`（**行内 FQN**），或 ② 有 `debug/`／`fixture/` 的 import
+   **且该简单名在代码里被用**（import 型依赖，FQN 扫描**看不见**它）⇒ 红。
+   ⛔ 纯 `{@link}`／`import` 不做引用 ⇒ 今天**零豁免表**。
+   ⚠️ **本条随 `task/` 一起退役**（`P4` 关门后 `task/` 为空 ⇒ 本规则退化成空真）——
+   ⛔ 不许靠"空过"留着（同 `O85` §② 两条）。**反空转判据**：`task/` 里**有** `.java` 却读不出任何
+   `生产/step` 行 ⇒ 红（读不到台账 **响亮失败**；⛔ 不许静默当成"没有生产类"）。
 
 ## 红臂（`--selftest`，每次运行都跑）
 
-合成片段 8 条：`reach/` 里 import `task`（红）· `reach/` 里 import `job`（红）·
+合成片段（`reach/` 里 import `task`（红）· `reach/` 里 import `job`（红）·
 `action/` 里 import 一个**没登记**的 `task` 类（红）· `action/` 里 import 表内那个（绿）·
 `reach/` 里 import `pathing`/`log`（绿，内核层本来就该能用）· `write/` 里 import `action`（红）·
-`write/` 里 import `job`（红）· `write/` 里 import `pathing`（绿）。
+`write/` 里 import `job`（红）· `write/` 里 import `pathing`（绿）·
+`job/` import `debug/`（红）· `bot/`（注册位置）import `debug/`（绿）· `debug/` import `fixture/`（红）·
+⭐ `task/` 的**生产类**在**代码里**用 `fixture/`（红）· ⭐ `task/FixtureScript` 的**纯 javadoc/import**（绿））。
 另 3 条**定义**臂：`action/WriteGrant.java`（红）· `action/MineBlockRunner.java`（绿）·
 `write/WriteGrant.java`（绿）。
 
@@ -66,6 +80,7 @@
 
 from __future__ import annotations
 
+import csv
 import re
 import sys
 from pathlib import Path
@@ -101,6 +116,87 @@ REGISTRATION_POSITIONS = {"item", "command", "bot", "<root>"}
 #: `debug/`／`fixture/` 是目的地自身；`headless/`／`tools/` 是验证侧。
 R3_EXCLUDED = {"task", "debug", "fixture", "headless", "tools"}
 DEBUG_FIXTURE_PREFIXES = ("com.dddgn.alice.debug.", "com.dddgn.alice.fixture.")
+
+#: ⭐ `D-557`：`task/` 里**这些 `dest`** 的类，按 `R3` 同等对待（生产执行路径 ✗→ `debug/`／`fixture/`）。
+#: ⛔ 其余 `dest`（`fixture`／`debug`）是**目的地自身**，本来就该互相引用 ⇒ 不在规则内。
+TASK_PROD_DESTS = {"生产", "step"}
+#: `P0` 台账（生成物）—— 本规则**只读它**，⛔ 不自己判"谁是生产类"（那是 `task-retirement-map.py` 的活）。
+LEDGER = ROOT / "docs" / "TASK_RETIREMENT_MAP.csv"
+#: `debug/`／`fixture/` 的 import（**静态 import 也算**）。
+DF_IMPORT_RE = re.compile(
+    r"^\s*import\s+(?:static\s+)?com\.dddgn\.alice\.(?:debug|fixture)\.([\w.]+)\s*;", re.M)
+#: 行内 FQN（**行内**写法没有 import 行 ⇒ 只扫 import 会整类漏掉，`O90` 就是这么漏的）。
+DF_FQN_RE = re.compile(r"com\.dddgn\.alice\.(?:debug|fixture)\.")
+
+_STR_RE = re.compile(r'"(?:\\.|[^"\\])*"')
+_IMPORT_LINE_RE = re.compile(r"\s*import\s")
+
+
+def strip_to_code(text: str) -> str:
+    """只留**代码里的使用**（`D-556` (c) 的判据）：剥块注释／行注释／**字符串字面量** ＋ 去掉 `import` 行。
+
+    ⚠️ 字符串字面量必须剥 —— 本项目多处用**类名字符串**做日志／登记（`"com.dddgn.alice.fixture.X"`），
+    那不是依赖；不剥会造出**假红**（同族 = `O76` §4a「引用必须剥注释／字符串」）。
+    """
+    s = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
+    s = re.sub(r"//[^\n]*", " ", s)
+    s = _STR_RE.sub('""', s)
+    return "\n".join(l for l in s.splitlines() if not _IMPORT_LINE_RE.match(l))
+
+
+_LEDGER_LOADED = False
+#: `类名 → dest`（**全树**，含子包 ⇒ 键是**裸类名**，与 `P0` 台账的键一致）。
+_PROD_DESTS: dict[str, str] = {}
+#: 诊断用：只有 `import`、代码里没用到的（**不是违规** —— 纯 javadoc 链接，`D-556` (c)）。
+_JAVADOC_ONLY: list[str] = []
+
+
+def load_ledger() -> None:
+    """读 `P0` 台账。⚠️ ⛔ **不许静默空集**（那会让本规则空过）⇒ 读不到就**响亮失败**。"""
+    global _LEDGER_LOADED
+    if not LEDGER.is_file():
+        print(f"LAYER_DIRECTION_RESULT FAIL: 找不到 `P0` 台账 `{LEDGER.relative_to(ROOT)}` ⇒ "
+              f"`task/` 生产类的 `R3` 子规则**读不到判据**。⛔ 不许静默当成"
+              f"「没有生产类」（那会让本规则空过）")
+        sys.exit(1)
+    with LEDGER.open(encoding="utf-8", newline="") as fh:
+        for row in csv.reader(fh):
+            if len(row) < 3 or row[0] == "task_class":
+                continue
+            if row[2] in TASK_PROD_DESTS:
+                _PROD_DESTS[row[0]] = row[2]
+    _LEDGER_LOADED = True
+
+
+def _is_prod_task(rel: str) -> bool:
+    """`rel` 是 `task/` 下的类，且在台账里 `dest ∈ {生产, step}`？"""
+    if not rel.startswith(PKG + "/task/"):
+        return False
+    if not _LEDGER_LOADED:
+        raise RuntimeError("load_ledger() 未调用 —— ⛔ 本规则不许在「没有判据」的情况下静默跑（`D-557`）")
+    stem = rel.rsplit("/", 1)[-1][: -len(".java")]
+    return _PROD_DESTS.get(stem) in TASK_PROD_DESTS
+
+
+def debug_fixture_code_use(rel: str, text: str) -> list[str]:
+    """`text` 是否**在代码里**依赖 `debug/`／`fixture/`？⇒ 违规理由（空 = 绿）。
+
+    ①② 两种写法都要抓，缺一即漏：
+      ① **行内 FQN** —— `private com.dddgn.alice.fixture.mining.GainStepRunner g;`（`O90` 的形状，**没有** import 行）
+      ② **import ＋ 简单名** —— `import …fixture.mining.GainStepRunner;` 然后在代码里写 `GainStepRunner`
+         ⚠️ 只扫 FQN 会**整类漏掉** `②`（这才是最常见的写法）。
+    """
+    code = strip_to_code(text)
+    reasons: list[str] = []
+    if DF_FQN_RE.search(code):
+        reasons.append(f"{rel} 的代码里出现 `com.dddgn.alice.debug.`／`fixture.` 的**行内全限定名**")
+    for m in DF_IMPORT_RE.finditer(text):
+        simple = m.group(1).split(".")[-1]
+        if re.search(r"\b" + re.escape(simple) + r"\b", code):
+            reasons.append(f"{rel} 的代码里用了 `{m.group(0).strip()}` 的简单名 `{simple}`")
+        else:
+            _JAVADOC_ONLY.append(f"{rel.rsplit('/', 1)[-1]}→{simple}")
+    return reasons
 
 
 def top_pkg(rel: str) -> str:
@@ -150,8 +246,16 @@ def scan_imports(rel: str, text: str) -> list[str]:
                                 f"若这是**新欠账**，必须带到期条件显式登记进本文件的 `ALLOWED_REVERSE`")
 
     # ⭐ `R3`（`D-492`＋`D-551` 乙）：生产包 ✗→ `debug/`／`fixture/`；`debug/`（产品面）✗→ `fixture/`。
+    # ⭐ `D-557`：`task/` 里 `dest ∈ {生产, step}` 的类**同等对待** —— `R3_EXCLUDED` 整包排除 `task/`
+    # 是为了"别管那 100+ 个还没搬的夹具"，⛔ 不是"生产类可以依赖可剔除物"（`O90` 的 `MineTask` 就这么漏过去）。
     tp = top_pkg(rel)
-    if tp == "debug":
+    if tp == "task":
+        if _is_prod_task(rel):
+            for why in debug_fixture_code_use(rel, text):
+                problems.append(f"{why} ⇒ 违反 `R3`／`R6`：**生产执行路径** ✗→ `debug/`／`fixture/`"
+                                f"（`D-557`）。`task/` 的 `dest` 由 `docs/TASK_RETIREMENT_MAP.csv` 定；"
+                                f"若该类其实**不是**生产类，改台账（⛔ 不许靠含糊过去）")
+    elif tp == "debug":
         for imported in imports_of(text):
             if imported.startswith("com.dddgn.alice.fixture."):
                 problems.append(f"{rel} 的 `debug/`（**产品面**）import 了 `{imported}` ⇒ "
@@ -216,9 +320,33 @@ SELFTEST_CASES: list[tuple[str, str, str, bool]] = [
     ("⭐ `debug/`（产品面）import `fixture/` ⇒ 红",
      f"{PKG}/debug/SomeDebugTool.java",
      "import com.dddgn.alice.fixture.transfer.TransferFixture;", True),
-    ("`task/`（被退役的包，**暂排除**）import `fixture/` ⇒ 绿（去留由退役台账管）",
+    # ⚠️ 本条原先的 rel 写的是 `task/…` 而实际测的是 `fixture/…`（**标签在说谎**）⇒ `D-557` 一并改正：
+    # `fixture/` 是**目的地自身**（`R3_EXCLUDED`），它与 `fixture/` 之间的引用本来就合法。
+    ("`fixture/`（**目的地自身**，`R3_EXCLUDED`）import `fixture/` ⇒ 绿",
      f"{PKG}/fixture/K2AdjacentGoalCheckTask.java",
      "import com.dddgn.alice.fixture.transfer.TransferFixture;", False),
+    # ---- `D-557` 新增：`task/` 里 `dest ∈ {生产, step}` 的类 ✗→ debug/fixture ----
+    ("⭐ `task/MineTask`（`dest=生产`）**代码里**出现 `fixture/` 的**行内 FQN** ⇒ 红"
+     "（`O90` 的原始形状：**没有** import 行，只扫 import 抓不到）",
+     f"{PKG}/task/MineTask.java",
+     "private com.dddgn.alice.fixture.mining.GainStepRunner gainRunner;", True),
+    ("⭐ `task/MineTask`（`dest=生产`）**import ＋ 简单名使用** ⇒ 红"
+     "（最常见写法；**只扫 FQN 会整类漏掉**）",
+     f"{PKG}/task/MineTask.java",
+     "import com.dddgn.alice.fixture.mining.GainStepRunner;\n"
+     "class A { GainStepRunner g; }", True),
+    ("⭐ `task/FixtureScript`（`dest=生产`）**只有 import ＋ `{@link}`**、代码里零使用 ⇒ 绿"
+     "（`D-556` (c)：`import` 行／javadoc 不算引用）",
+     f"{PKG}/task/FixtureScript.java",
+     "import com.dddgn.alice.debug.PathSessionDiagnosticTask;\n"
+     "/** 见 {@link PathSessionDiagnosticTask}。 */\nclass A {\n}",
+     False),
+    ("⭐ `task/FixtureScript` 把同一个类名放进**字符串字面量** ⇒ 绿（不是引用）",
+     f"{PKG}/task/FixtureScript.java",
+     "class A { String s = \"com.dddgn.alice.fixture.mining.GainStepRunner\"; }", False),
+    ("⭐ `task/FixtureScript` 在**行注释**里提到 `com.dddgn.alice.fixture.X` ⇒ 绿（剥注释）",
+     f"{PKG}/task/FixtureScript.java",
+     "class A {\n    // 曾经用过 com.dddgn.alice.fixture.mining.GainStepRunner\n}", False),
     ("`write/` import `job` ⇒ 红",
      f"{PKG}/write/WriteGrant.java",
      "import com.dddgn.alice.job.lumber.LumberJob;", True),
@@ -258,6 +386,8 @@ def selftest() -> list[str]:
 
 
 def main() -> int:
+    # ⚠️ 先读 `P0` 台账 —— 红臂与真扫都要用它（`D-557`）；读不到就**响亮失败**。
+    load_ledger()
     problems = [f"[红臂] {p}" for p in selftest()]
 
     if not SRC.is_dir():
@@ -297,6 +427,16 @@ def main() -> int:
     if missing:
         problems.append(f"`write/` 里缺 {missing} ⇒ 「拆包」不成立（拆包不是删除；`step 4`/`D-462`）")
 
+    # ⭐ `D-557` **反空转**（跨源对账，⛔ 不写死人口数）：`task/` 里还有 `.java`、
+    # 却一条 `生产/step` 都读不出来 ⇒ 判据读空了 ⇒ 红。
+    # ⚠️ 本条**随 `task/` 一起退役**：`P4` 关门后 `task_files` 为空 ⇒ 条件自然不成立，
+    # 届时本子规则（连这条反空转）必须**同刀删除**，⛔ 不许靠"空过"留着（`O85` §②）。
+    task_files = under("task")
+    if task_files and not _PROD_DESTS:
+        problems.append(f"`task/` 里还有 {len(task_files)} 个 `.java`，但 `P0` 台账"
+                        f"（`{LEDGER.relative_to(ROOT)}`）读不出任何 `dest ∈ {sorted(TASK_PROD_DESTS)}` 的行 "
+                        f"⇒ 判据读空了（`D-557` 的反空转）。⚠️ 先进 `task-retirement-map.py` 看台账为何为空")
+
     if problems:
         print("LAYER_DIRECTION_RESULT FAIL")
         for problem in problems:
@@ -308,10 +448,14 @@ def main() -> int:
     debt = " · ".join(f"{rel.split('/')[-1]}→{','.join(i.split('.')[-1] for i in hits)}"
                       for rel, hits in sorted(debt_hits.items()) if hits)
     arms = len(SELFTEST_CASES) + len(SELFTEST_DEF_CASES)
+    javadoc_only = sorted(set(_JAVADOC_ONLY))
     print(f"LAYER_DIRECTION_RESULT PASS: `reach/` 反向依赖 0 · `write/` 反向依赖 0 · `action/` → `task/` 欠账 "
           f"{sum(len(v) for v in debt_hits.values())} 条「{debt or '无（step 3b 后已是无条件 0 命中）'}」 · "
           f"reach {len(reach_files)} 文件 / action {len(action_files)} 文件 / write {len(write_files)} 文件 "
           f"（写入治理 6 个全在）· `R3` 注册位置 {sorted(REGISTRATION_POSITIONS)} 零违规 · "
+          f"⭐ `task/` 生产类（{len(_PROD_DESTS)} 个 `dest ∈ {{生产, step}}`）✗→ `debug/`／`fixture/` "
+          f"**代码级** 0 命中"
+          f"（纯 javadoc/import 不计：{len(javadoc_only)} 处 {javadoc_only or '无'} —— `D-556` (c)） · "
           f"扫描 {len(files)} · 红臂 {arms}/{arms}"
           f"（import {len(SELFTEST_CASES)} + 定义 {len(SELFTEST_DEF_CASES)}）")
     return 0
