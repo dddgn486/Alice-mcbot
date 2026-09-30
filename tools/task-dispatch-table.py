@@ -54,9 +54,13 @@ SRC_REL = "src/main/java/"
 ALICE = "com/dddgn/alice/"
 # 任务类的**家**（迁移后类会从 task/ 搬到 debug/、fixture/、step/ ⇒ 三处都认）
 TASK_TREES = ("com/dddgn/alice/task", "com/dddgn/alice/debug", "com/dddgn/alice/fixture")
-ENTRY_TREES = ("item", "command")
-#: ⭐ **命令面**（2026-09-30 用户裁「甲」）：发行包的"玩家调试面"载体 = **命令 ＋ GUI 按钮（按钮调命令）**，
-#: ⛔ `/give` 物品退为**开发期入口** ⇒ 两个可达面必须**分开报**（`entry_reachable` 与 `cmd_reachable`）。
+#: ⭐ **开发期入口树**（`D-560`，2026-09-30 用户裁定「现有 `/alice` 命令全是开发期入口」）：
+#: 刀 1 把 28 条开发期子命令劈去 `debug/DebugCommands.java` ⇒ `debug/` **必须**算入口树，
+#: 否则"只被开发期命令可达"的任务类会**从表里消失**（覆盖面静默缩水 —— 实测曾一次掉 24 行）。
+ENTRY_TREES = ("item", "command", "debug")
+#: ⭐ **产品面命令树**（2026-09-30 用户裁「甲」）：发行包的"玩家调试面"载体 = **命令 ＋ GUI 按钮**；
+#: ⛔ `/give` 物品退为**开发期入口** ⇒ 两个可达面**分开报**（`entry_reachable` 与 `cmd_reachable`）。
+#: ⚠️ 刀 1 之后本表**才有粒度**：劈分前 `command/` 混装产品与开发期命令 ⇒ 两列几乎同值。
 CMD_TREES = ("command",)
 
 MIN_ROWS = 40          # 人口下限（非空检查）：今天 60+ 行；掉到 40 以下 ⇒ 解析器坏了

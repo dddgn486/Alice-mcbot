@@ -81,7 +81,7 @@ FREEZE_REGISTRY: tuple[dict[str, object], ...] = (
             ),
             "com/dddgn/alice/task/mining/MineStep.java": ("ChainMining.shouldChain(",),
             "com/dddgn/alice/reach/MiningTuning.java": ("enum ChainMode",),
-            "com/dddgn/alice/command/BotCommand.java": (
+            "com/dddgn/alice/debug/DebugCommands.java": (
                 "private static int chainMode(", 'literal("chain")'),
         },
         # 冻结的功能必须**默认关闭**：文件 → 必须仍然命中的子串
@@ -92,7 +92,7 @@ FREEZE_REGISTRY: tuple[dict[str, object], ...] = (
         "consumer_needle": "ChainMining",
         "consumers_allowlist": (
             "MineTask.java", "ChainMineDiagnosticTask.java", "MineStep.java",
-            "ChainMining.java", "BotCommand.java",
+            "ChainMining.java", "DebugCommands.java",
         ),
     },
 )
@@ -184,9 +184,9 @@ SELFTEST_CASES: list[tuple[str, dict[str, str], dict[str, list[str]], bool]] = (
         "com/dddgn/alice/fixture/ChainMineDiagnosticTask.java": "class ChainMineDiagnosticTask chain_mod=absent",
         "com/dddgn/alice/task/mining/MineStep.java": "ChainMining.shouldChain(",
         "com/dddgn/alice/reach/MiningTuning.java": "enum ChainMode chainMode = ChainMode.OFF",
-        "com/dddgn/alice/command/BotCommand.java": "private static int chainMode( literal(\"chain\")",
+        "com/dddgn/alice/debug/DebugCommands.java": "private static int chainMode( literal(\"chain\")",
      }, {"ChainMining": ["MineTask.java", "ChainMineDiagnosticTask.java", "MineStep.java",
-                         "ChainMining.java", "BotCommand.java"]}, False),
+                         "ChainMining.java", "DebugCommands.java"]}, False),
     ("红：`tickChain(` 被删（静默消失）", {
         "com/dddgn/alice/task/MineTask.java": "private Status beginChain() { private Status tickChain() { private boolean chainTriggered; private boolean chainRefusedByBudget; public boolean chainRefusedByBudget() { private static final int CHAIN_TIMEOUT_TICKS = 200; Phase.CHAIN chain_budget_refused prod_fallback",
      }, {"ChainMining": ["MineTask.java"]}, True),
@@ -200,9 +200,9 @@ SELFTEST_CASES: list[tuple[str, dict[str, str], dict[str, list[str]], bool]] = (
         "com/dddgn/alice/fixture/ChainMineDiagnosticTask.java": "class ChainMineDiagnosticTask chain_mod=absent",
         "com/dddgn/alice/task/mining/MineStep.java": "ChainMining.shouldChain(",
         "com/dddgn/alice/reach/MiningTuning.java": "enum ChainMode chainMode = ChainMode.OFF",
-        "com/dddgn/alice/command/BotCommand.java": "private static int chainMode( literal(\"chain\")",
+        "com/dddgn/alice/debug/DebugCommands.java": "private static int chainMode( literal(\"chain\")",
      }, {"ChainMining": ["MineTask.java", "ChainMineDiagnosticTask.java", "MineStep.java",
-                         "ChainMining.java", "BotCommand.java", "SomeNewJob.java"]}, True),
+                         "ChainMining.java", "DebugCommands.java", "SomeNewJob.java"]}, True),
 )
 
 

@@ -70,7 +70,8 @@
 `action/` 里 import 一个**没登记**的 `task` 类（红）· `action/` 里 import 表内那个（绿）·
 `reach/` 里 import `pathing`/`log`（绿，内核层本来就该能用）· `write/` 里 import `action`（红）·
 `write/` 里 import `job`（红）· `write/` 里 import `pathing`（绿）·
-`job/` import `debug/`（红）· `bot/`（注册位置）import `debug/`（绿）· `debug/` import `fixture/`（红）·
+`job/` import `debug/`（红）· `bot/`（注册位置）import `debug/`（绿）· `debug/`（`D-560` 起是**开发期桶**）import `fixture/`（**绿**）·
+⭐ `command/`（`D-560` 起是**真产品面**）import `fixture/`（**红** —— 断言由 `debug/` **搬家**到此，净效果**收窄**）·
 ⭐ `task/` 的**生产类**在**代码里**用 `fixture/`（红）· ⭐ `task/FixtureScript` 的**纯 javadoc/import**（绿））。
 另 3 条**定义**臂：`action/WriteGrant.java`（红）· `action/MineBlockRunner.java`（绿）·
 `write/WriteGrant.java`（绿）。
@@ -107,13 +108,18 @@ ALLOWED_REVERSE: dict[str, dict[str, str]] = {
     # ⇒ `action/ → task/` 是**无条件** 0 命中。留这张表是为了"将来若真出现欠账，必须带到期条件显式登记"。
 }
 
-#: ⭐ `R3`（`D-492`）的**注册位置** —— 这些位置**允许**依赖 `debug/`（产品面）。
+#: ⭐ `R3`（`D-492`）的**注册位置** —— 这些位置**允许**依赖 `debug/`／`fixture/`。
 #: 用户 2026-09-30 裁「**乙**」：把 `bot/` 加进来（`bot/BotManager` 的 `assignXxx` 是真正的派发枢纽，
-#: 它自己 `new` 夹具；与 `item/`／`command/` 在"注册"这件事上是**同一角色**）。
+#: 它自己 `new` 夹具；与 `item/` 在"注册"这件事上是**同一角色**）。
 #: `<root>` = 模组入口（`AliceMod`）—— 它做的是 `EVENT_BUS.register(X.class)`，同属注册。
-REGISTRATION_POSITIONS = {"item", "command", "bot", "<root>"}
+#: ⭐⭐ **`command/` 已于 `D-560`（2026-09-30 用户裁定）移出本表** —— 开发期/调试子命令已劈去 `debug/`，
+#: `command/` 现在是**真产品面**（`D-554`：发行包玩家调试面 = 命令 ＋ GUI）⇒ 它**不许**依赖开发期物。
+#: ⚠️ 这**不是放宽**而是**收窄**：原先 `debug/` 被当作产品面（故禁其依赖 `fixture/`），现在该断言
+#: 改管 `command/`（真产品面），`debug/` 按 `D-560` 归**开发期桶**（见下方 `debug/` 分支）。
+REGISTRATION_POSITIONS = {"item", "bot", "<root>"}
 #: ⛔ **暂排除**：`task/` 是**被退役的那个包**，其内容的去留由 `docs/TASK_RETIREMENT_MAP.csv` 管；
-#: `debug/`／`fixture/` 是目的地自身；`headless/`／`tools/` 是验证侧。
+#: `debug/`／`fixture/` 是**开发期桶**（`D-560`：`debug/` 住开发期/调试子命令 ⇒ 允许依赖夹具）；
+#: `headless/`／`tools/` 是验证侧。
 R3_EXCLUDED = {"task", "debug", "fixture", "headless", "tools"}
 DEBUG_FIXTURE_PREFIXES = ("com.dddgn.alice.debug.", "com.dddgn.alice.fixture.")
 
@@ -245,7 +251,10 @@ def scan_imports(rel: str, text: str) -> list[str]:
                 problems.append(f"{rel} 的 `action/` import 了 `{imported}` ⇒ 微操作依赖上层原语。"
                                 f"若这是**新欠账**，必须带到期条件显式登记进本文件的 `ALLOWED_REVERSE`")
 
-    # ⭐ `R3`（`D-492`＋`D-551` 乙）：生产包 ✗→ `debug/`／`fixture/`；`debug/`（产品面）✗→ `fixture/`。
+    # ⭐ `R3`（`D-492`＋`D-551` 乙）：生产包 ✗→ `debug/`／`fixture/`；
+    # ⭐ `D-560`（2026-09-30 用户裁定「现有 `/alice` 命令全是开发期入口」）：**真产品面 = `command/`**
+    #    ✗→ `debug/`／`fixture/`。⚠️ 原先这条断言管 `debug/`（当时把它当产品面）⇒ 现在是**搬家＋收窄**：
+    #    `debug/` 归**开发期桶**（住 28 条开发期命令）⇒ 允许依赖夹具；`command/` 接任"产品面"角色。
     # ⭐ `D-557`：`task/` 里 `dest ∈ {生产, step}` 的类**同等对待** —— `R3_EXCLUDED` 整包排除 `task/`
     # 是为了"别管那 100+ 个还没搬的夹具"，⛔ 不是"生产类可以依赖可剔除物"（`O90` 的 `MineTask` 就这么漏过去）。
     tp = top_pkg(rel)
@@ -256,10 +265,17 @@ def scan_imports(rel: str, text: str) -> list[str]:
                                 f"（`D-557`）。`task/` 的 `dest` 由 `docs/TASK_RETIREMENT_MAP.csv` 定；"
                                 f"若该类其实**不是**生产类，改台账（⛔ 不许靠含糊过去）")
     elif tp == "debug":
+        # ⭐ `D-560`（2026-09-30 用户裁定）：`debug/` 是**开发期/调试入口桶**（住那 28 条开发期命令）
+        # ⇒ **允许**依赖 `fixture/`（原来的"`debug/` ✗→ `fixture/`"断言**已改管 `command/`**，
+        # 见下方 `command/` 分支 —— 断言是**搬家**不是删除，净效果是**收窄**）。
+        pass
+    elif tp == "command":
+        # ⭐ `D-560`：真产品面 = `command/`。开发期/调试子命令已劈去 `debug/` ⇒ 产品面**不许**依赖开发期物。
         for imported in imports_of(text):
-            if imported.startswith("com.dddgn.alice.fixture."):
-                problems.append(f"{rel} 的 `debug/`（**产品面**）import 了 `{imported}` ⇒ "
-                                f"违反 `R3`：`debug/` ✗→ `fixture/`（产品面不许依赖开发期物）")
+            if imported.startswith(DEBUG_FIXTURE_PREFIXES):
+                problems.append(f"{rel} 的 `command/`（**产品面**）import 了 `{imported}` ⇒ "
+                                f"违反 `R3`／`D-560`：`command/` ✗→ `debug/`／`fixture/`"
+                                f"（开发期命令请放 `debug/`，⛔ 不许长回产品面）")
     elif tp not in REGISTRATION_POSITIONS and tp not in R3_EXCLUDED:
         for imported in imports_of(text):
             if imported.startswith(DEBUG_FIXTURE_PREFIXES):
@@ -317,8 +333,13 @@ SELFTEST_CASES: list[tuple[str, str, str, bool]] = [
     ("⭐ `bot/`（**注册位置**，用户裁「乙」）import `debug/` ⇒ **绿**",
      f"{PKG}/bot/BotManager.java",
      "import com.dddgn.alice.debug.SomeDebugTool;", False),
-    ("⭐ `debug/`（产品面）import `fixture/` ⇒ 红",
+    ("⭐ `debug/`（`D-560` 起是**开发期桶**）import `fixture/` ⇒ **绿**"
+     "（原先它被当作产品面故为红 —— `D-560` 之后那条断言**改管 `command/`**，见下一臂）",
      f"{PKG}/debug/SomeDebugTool.java",
+     "import com.dddgn.alice.fixture.transfer.TransferFixture;", False),
+    ("⭐ `command/`（`D-560` 起是**真产品面**）import `fixture/` ⇒ **红**"
+     "（断言**搬家**不是删除 ⇒ 净效果是**收窄**：原先管一个包，现在还管产品面那个包）",
+     f"{PKG}/command/BotCommand.java",
      "import com.dddgn.alice.fixture.transfer.TransferFixture;", True),
     # ⚠️ 本条原先的 rel 写的是 `task/…` 而实际测的是 `fixture/…`（**标签在说谎**）⇒ `D-557` 一并改正：
     # `fixture/` 是**目的地自身**（`R3_EXCLUDED`），它与 `fixture/` 之间的引用本来就合法。
@@ -335,7 +356,8 @@ SELFTEST_CASES: list[tuple[str, str, str, bool]] = [
      f"{PKG}/task/MineTask.java",
      "import com.dddgn.alice.fixture.mining.GainStepRunner;\n"
      "class A { GainStepRunner g; }", True),
-    ("⭐ `task/FixtureScript`（`dest=生产`）**只有 import ＋ `{@link}`**、代码里零使用 ⇒ 绿"
+    ("⭐ `task/FixtureScript`（`D-560` 后 `dest=fixture`；此前为 `生产`）**只有 import ＋ `{@link}`**、"
+     "代码里零使用 ⇒ 绿"
      "（`D-556` (c)：`import` 行／javadoc 不算引用）",
      f"{PKG}/task/FixtureScript.java",
      "import com.dddgn.alice.debug.PathSessionDiagnosticTask;\n"

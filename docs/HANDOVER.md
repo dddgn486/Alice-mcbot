@@ -5107,3 +5107,43 @@ AI 建议 = **必改 `空转`（拆词）** · ✅ **已执行 `咬人`→`拦�
 **§④ 的 3 条**与**两张生成物的路径**（`docs/TASK_DISPATCH_TABLE.csv` · `docs/TASK_RETIREMENT_MAP.csv` ·
 `docs/TASK_TOP_LEVEL_FREEZE.txt`）；缺了就用 `node tools/dsh-session-log.mjs --shadowed last` ＋ `--seq a-b` 取回，
 补一行事实进 docs。
+
+---
+
+## 断点四十六 · ⭐⭐⭐ 压缩断点（2026-09-30 晚）—— **序 1 重裁定案「乙」＋ 刀 1 已落地**
+
+> ⚠️ **这是"接着从哪继续"的唯一入口**。细节全部在台账 **`O98`/`O99`** ＋
+> `docs/reviews/2026-09-30-序1重裁-最终草案.md`（§8 = v2 更正），⛔ 本断点不重抄。
+
+### ① 现在在哪（一句话）
+
+用户裁 **「乙」**（一次到底）后，**刀 1 已落地**：`command/BotCommand.java` 2386 行**
+一分为二** ⇒ `command/`（14 条产品面子命令）＋ **新** `debug/DebugCommands.java`（28 条开发期子命令）；
+42 条命令名逐字一致 · 同刀改了 **8 个工具脚本** · 门禁 `pass=39 warning=1 failed=0`。
+
+### ② 接下来按这个顺序（草案 §2，⛔ 不跳刀）
+
+| 刀 | 内容 | 关键约束 |
+|---|---|---|
+| ✅ **刀 1** | 劈 `BotCommand` → `command/` ＋ `debug/` | 已完成（`O99`） |
+| ⏭ **刀 2（乙）** | `ToolProvision{PROMOTE_ONLY, DEV_CREATE}` 具名策略、**由调用方传**；把 `bot/` 里的夹具引用**全部**搬走：**38 个派发方法（≈450 行）＋ 40 处 import ＋ 38 个构造点**，另加 `assignLumberJob` 锚点参数化 · `CheckHarness` **自订阅 `ServerTickEvent`**（删 `bot/` 的 `:1265` 钩子）· 1 处 javadoc `{@link}` | 范围 = 8 签名 ＋ 18 调用点（`assignJob` 5 · 6 个具名 legacy 9 · `assignMine`/`assignTarget` 一族 4）；⚠️ **唯一有行为风险的是 tick 顺序** ⇒ 用无头电池验 |
+| ⏭ **刀 3** | 门禁同刀：`check-provision-containment` 断言③ 改写 · **删 `BOT_EXEMPT`** · `JobLauncher.provision` 的 `@param` 重写；新增「`bot/` 不许出现 `fixture.`」「`command/` 不许 import `fixture/`」 | 刀 1 后 `command/` 对 `fixture/` 的边已是 **0** |
+| ⏭ **刀 4** | `bot/TaskExecutionRecord` 加 **`provision` 维**（与 `driver` 并列，`:31`）＋ 一条"进发行包的路径 provision 必须可见"的门禁 | 这是 `D-560` 第 4 条（"不污染结果"）**唯一**可执行形式 |
+| ⏭ **刀 5** | `D-512` 剩余：ⓑ `assignRestore` 起 `Task` 不是 `Job` · ⓒ `ManualTestLock.java:16` 的坏 `{@link}` ＋ **补 `{@link}` 符号存在性门禁** | ⛔ ⓐ 的另一半（统一构造路径）**不在本线内**（会改构造语义） |
+
+### ③ ⚠️ 压缩后必须知道的三个事实（免得重犯）
+
+1. **`/alice` 现在由两个类各自 `register`**（`command/BotCommand` ＋ `debug/DebugCommands`）。Brigadier
+   `CommandNode.addChild` 对同名子节点**只合并 children/command，⛔ 不复制 `requires`** ⇒
+   **两侧都必须带 `.requires(...)`**，否则**先注册的那一侧**决定权限（实测反序 ⇒ 权限丢失）。
+   门禁 **`alice根带权限`** 已钉住。
+2. **`D-560`**（用户 2026-09-30）：现有 `/alice` 命令**今天全是开发期入口**（判据 = `debug/` 里没有够格给
+   发行包当严格调试工具的指令）⇒ **允许白送工具**；**取代** `D-490` 对 `mine`/`restore`/`region` 的
+   "生产口"分类 ⇒ **行为变化不发生 ⇒ 本线不需要真机确认**（I1）。
+3. **`check-layer-direction` 的 `debug/` 断言已改管 `command/`**（搬家＋收窄，红臂 24/24）。
+   台账读数已变：`TASK_RETIREMENT_MAP` = **`step=3`/`debug=0`/`fixture=1`/`生产=35`**（`FixtureScript` 降级）。
+
+### ④ 待你一句话的
+
+- **刀 2–刀 5 是否按上表一口气推**（已获"乙"授权 ⇒ 默认**继续推**，⛔ 不需要再确认）。
+- 台账 `O94` A 串其余 5 项（`move`/`exec` · `unit/` 包名 · `spec/` 是否单立 · `ledger`/`compat`/`transfer` 归位）**仍未裁**。

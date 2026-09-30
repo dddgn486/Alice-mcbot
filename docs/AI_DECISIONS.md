@@ -14325,7 +14325,7 @@ cross_spelling_accounting=false`，其余五条仍 true = 归因精确）+ 内�
   ③ 给 `RoadObstaclePolicy` 接上 `ZoneAuthority`。（另一条链断言"文本在不在"不够 —— 顺序/结构断言才拦得住 `&& false` 类绕过，`D-341` 的老教训。）
 
 **裁定③ 新发现：单独立项，不在本弧处理**
-- 道路任务**不声明任务区**，`RoadBuilder.start` 只由玩家命令（`BotCommand.java:1726`）触发
+- 道路任务**不声明任务区**，`RoadBuilder.start` 只由玩家命令（`DebugCommands.java:1215`）触发
   ⇒ **玩家显式在自己认领区修路，目前也做不了**（写入闸门拒 `protected_area`）。
   按阶梯 `BUILD ⇒ L3`（玩家显式本该可开）这算**缺口** ⇒ 登记为台账 `§5.12` **第 20 项**（不借②顺手放宽）。
 

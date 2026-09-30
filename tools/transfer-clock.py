@@ -124,14 +124,15 @@ def rule_gate():
 
 def rule_confirm():
     """R3：`/alice transfer-resolve` 必须要求**字面量 `confirm`**（解除 = 放弃追踪，不许手滑触发）。"""
-    path = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "command" / "BotCommand.java"
+    # ⭐ `D-560`（刀 1）：`transfer-resolve` 是**开发期/调试**命令 ⇒ 随劈分搬到 `debug/DebugCommands.java`。
+    path = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "debug" / "DebugCommands.java"
     text = path.read_text(encoding="utf-8")
     idx = text.find('literal("transfer-resolve")')
     if idx < 0:
-        return ["BotCommand.java 找不到 `transfer-resolve` 子命令（改名？同步本规则）"]
+        return ["DebugCommands.java 找不到 `transfer-resolve` 子命令（改名？同步本规则）"]
     window = text[idx:idx + 600]
     if 'literal("confirm")' not in window:
-        return ["BotCommand.java `transfer-resolve` 没有要求字面量 `confirm`（人工解除必须显式确认）"]
+        return ["DebugCommands.java `transfer-resolve` 没有要求字面量 `confirm`（人工解除必须显式确认）"]
     return []
 
 

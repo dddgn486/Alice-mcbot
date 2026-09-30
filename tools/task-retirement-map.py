@@ -66,14 +66,18 @@ def _is_prod_ref_impl(tag: str, prod_task: frozenset[str]) -> bool:
     return head not in VERIFY_SIDE and head not in REG_POS
 
 
-#: ⭐ **产品面入口**（2026-09-30 用户裁「甲」）= **只有 `command/`**；
-#: `/give` 物品（`item/`）退为**开发期入口** ⇒ ⛔ 不再把引用者提升到 `debug/`。
+#: ⭐ **产品面入口**（2026-09-30 用户裁「甲」）= **只有 `command/`**；⚠️ 刀 1（`D-560`）之后
+#: `command/` 里只剩 **14 条产品面命令**（28 条开发期子命令已劈去 `debug/`）⇒ 本表**这才名副其实**。
 ENTRY_SIDE = {"command"}
 #: 开发期入口（保留识别，只为 `reason` 可读）：被它引用的类**不因此进 `debug/`**。
-DEV_ENTRY_SIDE = {"item"}
+#: ⭐ `D-560`（刀 1）：**`debug/` 也是开发期入口**（28 条开发期/调试子命令住那里）——
+#: 它引用某类**不足以**证明那个类在生产执行路径上，⚠️ 但也**必须被认出来**，否则只经开发期命令
+#: 可达的类会静默掉出"玩家可达"口径。
+DEV_ENTRY_SIDE = {"item", "debug"}
 #: **注册位置**（`D-552`）：它们引用某类**不足以**证明那个类是"生产执行路径"上的 ——
 #: 它们只做注册／派发（`/give` 物品、`/alice` 命令、`BotManager.assignXxx`、模组入口）。
-REG_POS = {"item", "command", "bot", "<root>"}
+#: ⭐ `D-560`（刀 1）：`debug/` 同属"注册／派发"位置。
+REG_POS = {"item", "command", "debug", "bot", "<root>"}
 
 
 def is_prod_ref(tag: str, prod_task: frozenset[str]) -> bool:
@@ -209,7 +213,10 @@ def load_dispatch() -> dict[str, tuple[str, str]]:
 # `R3` 的**注册位置**（用户 2026-09-30 裁「乙」把 `bot/` 加进来；`<root>` = 模组入口 `AliceMod`）
 # ＋ 验证侧 ⇒ 这两类引用**不算** `R3` 风险。⚠️ 与 `tools/check-layer-direction.py` 的
 # `REGISTRATION_POSITIONS` **必须保持同一套**（改一处就得改另一处，判据在那边执行）。
-NON_PROD = VERIFY_SIDE | {"item", "command", "bot", "<root>"}
+# ⚠️⚠️ `D-560`（刀 1）之后两边**故意不同**：那边已把 `command/` 移出（它现在是**真产品面**，
+# ⛔ 不许依赖开发期物）；本表是"这条引用算不算生产风险"的口径，`command/` 仍然只做注册／派发
+# ⇒ 留在这里。⭐ `debug/` 两边都新增。
+NON_PROD = VERIFY_SIDE | {"item", "command", "debug", "bot", "<root>"}
 
 
 def r3_risks(rows: list[tuple[str, str, str, str]], refs_by_cls: dict[str, set[str]]) -> list[str]:

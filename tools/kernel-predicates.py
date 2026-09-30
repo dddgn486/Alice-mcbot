@@ -448,9 +448,11 @@ def rule_progress_switch():
     ⇒ `survey/16 §1.3/§12.1` 的"推送频率够不够 / 桌面 AI RTT"**没有观测手段**（本轮核实发现）。
     本规则钉住：命令层必须提供 `/alice progress [<ticks>]` 且真的接到那个 setter 上。
     """
-    cmd = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "command" / "BotCommand.java"
+    # ⭐ `D-560`（2026-09-30 用户裁定「现有 `/alice` 命令全是开发期入口」）⇒ `progress` 这道
+    # **开发期**命令随刀 1 劈去 `debug/DebugCommands.java`（⛔ 判据不变，只是换了家）。
+    cmd = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "debug" / "DebugCommands.java"
     if not cmd.exists():
-        return ["找不到 BotCommand.java（同步本规则）"]
+        return ["找不到 debug/DebugCommands.java（同步本规则）"]
     code = re.sub(r"/\*.*?\*/", "", cmd.read_text(encoding="utf-8"), flags=re.S)
     code = re.sub(r"//[^\n]*", "", code)
     problems = []
@@ -498,7 +500,9 @@ def rule_driver_attribution():
     problems = []
     import re as _re
     assign = _re.compile(r"\.assign[A-Z]\w*\(")
-    for sub in ("command", "item"):
+    # ⭐ `D-560`（刀 1）：**`debug/` 也是玩家可达的命令面**（28 条开发期命令住那里）⇒ 必须一并扫，
+    # 否则"劈去 debug 的命令忘了标归因"**静默漏检**（覆盖面只增不减）。
+    for sub in ("command", "debug", "item"):
         for path in sorted((alice / sub).glob("*.java")):
             lines = path.read_text(encoding="utf-8").split("\n")
             for i, line in enumerate(lines):
@@ -507,6 +511,41 @@ def rule_driver_attribution():
                 recent = "\n".join(lines[max(0, i - 8):i])
                 if "Driver.set" not in recent:
                     problems.append(f"{sub}/{path.name}:{i + 1} 指派点未标归因（前面 8 行没有 Driver.set）")
+    return problems
+
+
+def rule_alice_root_requires():
+    """`D-560`（刀 1）：**每一个 `/alice` 根注册都必须带 `.requires(...)`**。
+
+    为什么必须有这条（刀 1 引入的新风险，实测过）：劈分之后 `/alice` 由**两个类各自**
+    `dispatcher.register(...)` 注册（`command/BotCommand` 产品面 ＋ `debug/DebugCommands` 开发期
+    28 条）。Brigadier 的 `CommandNode.addChild` 对**同名子节点只合并**（保留既有节点、并入孙节点），
+    ⛔ **不复制 `requires`** ⇒ 只要**任意一侧漏了**，且它**恰好先注册**，`/alice` 整棵树就**对所有玩家开放**
+    —— 一次静默的权限回归（用 Brigadier 1.1.8 本体实测：单侧带 ⇒ 与顺序有关；两侧都带 ⇒ 两种顺序都保住）。
+    """
+    problems: list[str] = []
+    needle = 'Commands.literal("alice")'
+    scanned = 0
+    java_root = ROOT / "src" / "main" / "java"
+    for path in sorted(java_root.rglob("*.java")):
+        text = path.read_text(encoding="utf-8")
+        if needle not in text:
+            continue
+        lines = text.split("\n")
+        for i, line in enumerate(lines):
+            if needle not in line:
+                continue
+            scanned += 1
+            window = "\n".join(lines[i:i + 3])
+            if ".requires(" not in window:
+                problems.append(
+                    f"{path.name}:{i + 1} 的 `/alice` 根注册**没有** `.requires(...)` ⇒ "
+                    f"若它先注册，整棵 `/alice` 树对权限失守（Brigadier 合并**不复制** `requires`）")
+    if scanned == 0:
+        problems.append('全仓找不到 `Commands.literal("alice")` ⇒ 本规则人口为 0（解析器坏了？）')
+    elif scanned < 2:
+        problems.append(f"`/alice` 根注册只扫到 {scanned} 处（刀 1 之后应为 2 处：产品面 ＋ 开发期）"
+                        f"—— 若确实又合并回一处，同步本规则（⛔ 不许静默）")
     return problems
 
 
@@ -3129,11 +3168,12 @@ def rule_manual_test_lock_blocks_llm():
         count = text.count("beginManualWindow()")
         if count:
             callers.append(f"{path.name}×{count}")
-    if callers != ["BotCommand.java×1"]:
+    # ⭐ `D-560`（刀 1）：手动测试命令（`/alice mine here`）是**开发期**命令 ⇒ 随劈分搬到 `debug/`。
+    if callers != ["DebugCommands.java×1"]:
         problems.append("`beginManualWindow()` 的调用点必须恰好是手动测试命令一处（实测 %s）"
                         % (", ".join(callers) if callers else "0 处"))
-    command = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "command"
-               / "BotCommand.java").read_text(encoding="utf-8")
+    command = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "debug"
+               / "DebugCommands.java").read_text(encoding="utf-8")
     if "beginManualWindow();" in command:
         window_at = command.find("beginManualWindow();")
         tail = command[window_at:window_at + 400]
@@ -5439,6 +5479,7 @@ def main() -> int:
     prog = rule_progress_switch()
     s10 = rule_no_planning_dependency()
     f1 = rule_driver_attribution()
+    rootreq = rule_alice_root_requires()
     j5 = rule_no_until_full()
     r2 = rule_harness_step_hygiene()
     r2p2 = rule_module_step_inventory()
@@ -5561,6 +5602,8 @@ def main() -> int:
         print(f"[D-359·世界侧拒绝要归因] {line}")
     for line in lock:
         print(f"[D-360·实测锁要挡LLM] {line}")
+    for line in rootreq:
+        print(f"[D-560·alice根带权限] {line}")
     for line in kinds:
         print(f"[D-361·种类分配] {line}")
     for line in clearance:
@@ -5649,11 +5692,12 @@ def main() -> int:
         print(f"[P2·落点三层同源] {line}")
     ok = (not k4 and not k5 and not s8 and not walk and not np and not risk and not speech
           and not perm and not death and not dmg and not prog and not s10 and not f1
+          and not rootreq
           and not prog_default and not j5 and not r2 and not r2p2 and not r2p3 and not ring
           and not noperm and not loop and not bwg and not d344 and not attr and not s3 and not s5 and not intent and not clusters and not value and not refused and not lock and not kinds and not clearance and not breakcost and not support and not inplace and not fbshape and not fbentry and not fbrev and not fbc8 and not contract and not searchbudget and not searchbackoff and not detour and not scan and not writecaps and not ticksearch and not approachbound and not bodyclear and not collectgoal and not sweepclearance and not hazardnotgated and not routeclosure and not btfooting and not d385 and not capability and not z2 and not z3 and not z4 and not latch and not rc3 and not rc4 and not p2b and not a3 and not p7 and not p3 and not pl1 and not diagside and not psparity and not pillarwater and not fallparity and not retire and not fluidpre) and not tlb
     print(f"KERNEL_PREDICATE_CHECK_RESULT {'PASS' if ok else 'FAIL'}: "
           f"工厂谓词漂移={len(k4)} / 死状态={len(k5)} / 死字段复活={len(s8)} / 行走无界={len(walk)} / 失败当进度={len(np)} / 风险画像未接={len(risk)}"
-          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 鱼骨真机日志形状={len(fbshape)} / 鱼骨入口起点={len(fbentry)} / 补路走位可逆={len(fbrev)} / C8搭路上限={len(fbc8)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / tick负载预算={len(tlb)} / 到位形状有生产点={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
+          f" / 编排器步边界={len(r2)} / 步清单={len(r2p2)} / 步边界对齐={len(r2p3)} / 结构化归因={len(attr)} / 搜索受限≠没有={len(s3)} / 扫描记忆无位置={len(s5)} / 意图先于可挖性={len(intent)} / 簇只做几何={len(clusters)} / 价值只是成本分量={len(value)} / 世界侧拒绝要归因={len(refused)} / 实测锁要挡LLM={len(lock)} / alice根带权限={len(rootreq)} / 种类分配={len(kinds)} / 清障不吃任务目标={len(clearance)} / break进成本={len(breakcost)} / 垫方块与簇顺序={len(support)} / 视线内就地挖={len(inplace)} / 鱼骨真机日志形状={len(fbshape)} / 鱼骨入口起点={len(fbentry)} / 补路走位可逆={len(fbrev)} / C8搭路上限={len(fbc8)} / 移动契约一致={len(contract)} / 搜索预算={len(searchbudget)} / 搜索受限摊销={len(searchbackoff)} / 不许绕远={len(detour)} / 扫描推进={len(scan)} / 写上限={len(writecaps)} / 每tick搜索总账={len(ticksearch)} / tick负载预算={len(tlb)} / 到位形状有生产点={len(approachbound)} / 目的地整体通行={len(bodyclear)} / 收集目标可站={len(collectgoal)} / 高度变化查过渡空间={len(sweepclearance)} / 危险处理不挂任务={len(hazardnotgated)} / 夹缝路线收口={len(routeclosure)} / 破通行要站得住={len(btfooting)} / 挖矿成本含状态惩罚={len(d385)}"
           f" / 准入来源单一={len(capability)} / 账本闭合口径={len(z2)} / 不可逆写入记账={len(rc3)} / 击杀产物归属={len(a3)} / 非PASS步单列={len(p7)} / 作业级收集授权={len(p3)} / 写入真相同源={len(rc4)} / 重放有界={len(p2b)} / 额度同源与容器例外={len(z3)} / 空集断言人口={len(z4)} / 过期证明重评={len(pl1)} / 对角侧格单源={len(diagside)} / 搭石族两侧谓词={len(psparity)} / 水柱起跳门控={len(pillarwater)} / 落点三层同源={len(fallparity)} / 站位退役零残留={len(retire)}（未指名能力类="    f"{rule_k4_capability_provenance.unresolved}/{CAPABILITY_UNRESOLVED_BUDGET}，总准入码={rule_k4_capability_provenance.total}）"
           f" / 流体前置与拒码同源={len(fluidpre)}"
           f"（K4-P1/K5-P1/S8-P1/W-P1/NP-P1/S6-P1/F4-P1/R2-P1/R2-P2/R2-P3/M4-P1 —— 见各规则头部的注释）")

@@ -33,6 +33,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 ALICE = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
 SWITCHES = ALICE / "pathing" / "risk" / "RiskSwitches.java"
 COMMAND_DIR = ALICE / "command"
+#: ⭐ `D-560`（刀 1）：开发期/调试子命令的家（同样是**玩家可达的命令面** ⇒ 一并扫）。
+DEBUG_DIR = ALICE / "debug"
 MIN_RATIONALE = 20
 PLACEHOLDERS = {"pathing_pure_traversal", "server_authoritative_state", "unknown_mod_read_only"}
 
@@ -118,7 +120,9 @@ def command_surface() -> tuple[set[str], list[str]]:
     """命令面上真正被 `riskSwitch(...)` 写的开关名 + 命令目录里出现的底线名。"""
     names: set[str] = set()
     hits: list[str] = []
-    for path in sorted(COMMAND_DIR.rglob("*.java")):
+    # ⭐ `D-560`（刀 1）：`debug/` 也住**玩家可达的命令**（28 条开发期子命令）⇒ 必须一并扫，
+    # 否则 `riskSwitch` 的调用点与"底线名不许出现在命令面"两条断言**静默漏检**。
+    for path in sorted(list(COMMAND_DIR.rglob("*.java")) + list(DEBUG_DIR.rglob("*.java"))):
         code = strip_comments(path.read_text(encoding="utf-8"))
         names |= set(re.findall(r'riskSwitch\s*\(\s*[^,]+,\s*"([a-z_0-9]+)"', code))
         for line in code.split("\n"):
