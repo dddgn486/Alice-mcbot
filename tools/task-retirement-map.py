@@ -42,17 +42,47 @@ DISPATCH = ROOT / "docs/TASK_DISPATCH_TABLE.csv"
 VERIFY_SIDE = {"task", "fixture", "headless", "tools"}   # 验证侧的**一级包**
 
 
-def is_verify_side(pkg: str) -> bool:
+def is_verify_side(pkg: str, prod_task: frozenset[str] = frozenset()) -> bool:
     """⚠️ 必须按**前缀**判，⛔ 不能拿整串去 `set` 里比 —— `rel_pkg()` 对子包返回**路径式**
     （`fixture/check/modules`），早期写成 `refset <= {"task", …}` ⇒ 全部落空，
-    实测把 110 个夹具误判成"生产"。"""
+    实测把 110 个夹具误判成"生产"。
+
+    ⭐ 2026-09-30（夹具波实测踩到，本次修）：`task/` **不再整体**算验证侧 ——
+    `task/` 里同时住着**生产/原语**类，而"只被 `task/` 引用 ⇒ `fixture/`"会把
+    **生产执行路径上的类**判成"可剔除"。实测受害者 **4 个**：`GainStepRunner`（被 `MineTask`+`CollectStep`）·
+    `FixtureZone`（被 `ScaffoldLifecycleTask`）· `MachineRecipeFacts`（被 `RecipeQuery`）·
+    `TableCraft`（被 `CraftStation`+`MachineCycle`）。
+    ⇒ 引用者若是 `task/` 下的 `.java`，引用**按类**记成 `task:<Stem>` 标签，
+    本函数再按那个类的**判定的 dest** 回判（`prod_task` = 已判为 `生产`/`step` 的类集合）⇒ **迭代到不动点**。
+    """
+    if pkg.startswith("task:"):
+        return pkg[len("task:"):] not in prod_task
     head = pkg.split("/")[0]
-    return head in VERIFY_SIDE
+    return head in VERIFY_SIDE and head != "task"
+def _is_prod_ref_impl(tag: str, prod_task: frozenset[str]) -> bool:
+    if tag.startswith("task:"):
+        return tag[len("task:"):] in prod_task
+    head = tag.split("/")[0]
+    return head not in VERIFY_SIDE and head not in REG_POS
+
+
 #: ⭐ **产品面入口**（2026-09-30 用户裁「甲」）= **只有 `command/`**；
 #: `/give` 物品（`item/`）退为**开发期入口** ⇒ ⛔ 不再把引用者提升到 `debug/`。
 ENTRY_SIDE = {"command"}
 #: 开发期入口（保留识别，只为 `reason` 可读）：被它引用的类**不因此进 `debug/`**。
 DEV_ENTRY_SIDE = {"item"}
+#: **注册位置**（`D-552`）：它们引用某类**不足以**证明那个类是"生产执行路径"上的 ——
+#: 它们只做注册／派发（`/give` 物品、`/alice` 命令、`BotManager.assignXxx`、模组入口）。
+REG_POS = {"item", "command", "bot", "<root>"}
+
+
+def is_prod_ref(tag: str, prod_task: frozenset[str]) -> bool:
+    """这条引用是否来自**生产执行路径**（⇒ 被引用的类**不可能**是"可剔除"的，`R6`）。
+
+    ⚠️ 2026-09-30（夹具波实测）：判据原来只看"是不是夹具命名"，于是 **`FixtureZone`**（名字带 `Fixture`）
+    即使被**生产**类 `ScaffoldLifecycleTask` 引用也仍判 `fixture/` —— 而它在生产执行路径上。
+    ⭐ `R6` 逐字：「要物理剔除，剔的是 `fixture/`」⇒ **被生产引用的东西不可能同时是"可剔除"的**。
+    """
 DESTS = ("step", "debug", "fixture", "生产")
 HEADER = "task_class,task_path,dest,reason"
 #: ⭐ 2026-09-30（夹具波同刀）：人口下限从**写死的常数**改成**跨源对账**（同 `check-task-top-freeze.py`）：
@@ -203,7 +233,13 @@ def build_rows() -> list[tuple[str, str, str, str]]:
         for p in listed(directory, ".java" if directory.startswith("src") else ".py") + \
                 (listed(directory, ".sh") if directory == "tools" else []):
             try:
-                pool.append((p, strip_comments(p.read_text(encoding="utf-8", errors="replace"))))
+                body = strip_comments(p.read_text(encoding="utf-8", errors="replace"))
+                # ⚠️ 2026-09-30（夹具波实测）：**`import` 行不算"引用"**。
+                # 实测受害者：`task/FixtureScript.java` 对 `fixture/PathingRegressionTask` 只有
+                # javadoc `{@link}` ＋ 为它补的一行 import（⛔ 零运行期依赖），却因此被判成"生产引用"
+                # ⇒ 把一个纯夹具判成"不可剔除"。⇒ 判据改成「**代码里的使用**」。
+                pool.append((p, "\n".join(l for l in body.splitlines()
+                                          if not l.strip().startswith("import "))))
             except OSError as e:                                   # 读不动 ⇒ 响亮失败
                 raise SystemExit(f"TASK_RETIREMENT_MAP_RESULT FAIL: 读不动 {p}: {e}") from e
     assert len(pool) > 400, f"引用者池只有 {len(pool)} 个文件 ⇒ 收集器坏了"
@@ -212,12 +248,16 @@ def build_rows() -> list[tuple[str, str, str, str]]:
         rel = path.relative_to(ROOT / SRC_REL)
         return ".".join(rel.with_suffix("").parts)
 
-    rows: list[tuple[str, str, str, str]] = []
     refs_by_cls: dict[str, set[str]] = {}
+    tagged_by_cls: dict[str, set[str]] = {}
+    repo_paths: dict[str, str] = {}
+    path_by_cls: dict[str, Path] = {}
+    entries: dict[str, str | None] = {}
     for p in listed(TASK_DIR):
         cls = p.stem
         pat = re.compile(rf"\b{re.escape(cls)}\b")
         refs: list[str] = []
+        tagged: list[str] = []
         direct_entry: str | None = None
         for q, body in pool:
             if q == p:
@@ -233,38 +273,70 @@ def build_rows() -> list[tuple[str, str, str, str]]:
             if pat.search(body):
                 pk = rel_pkg(q)
                 refs.append(pk)
+                # ⭐ 分类用标签：`task/` 下按**类**记，供"生产 task 类"回判（见 `is_verify_side`）
+                tagged.append("task:" + q.stem if pk == "task" or pk.startswith("task/") else pk)
                 if direct_entry is None and pk in ENTRY_SIDE:
                     direct_entry = f"{SRC_REL}{q.relative_to(ROOT / SRC_REL)}"
-        refset = set(refs)
-        refs_by_cls[cls] = refset
-        repo_path = str(p.relative_to(ROOT))
+        refs_by_cls[cls] = set(refs)
+        tagged_by_cls[cls] = set(tagged)
+        repo_paths[cls] = str(p.relative_to(ROOT))
+        path_by_cls[cls] = p
+        entries[cls] = direct_entry
 
-        entry_reach, cmd_reach = dispatch.get(cls, ("no", "no"))
-        # ⭐ 产品面可达性 = **命令可达**（`command/` 直接引用，或该类的派发方法被 `command/` 调用）。
-        player_reachable = direct_entry is not None or cmd_reach == "yes"
-        if is_step_primitive(p):
-            reason = "step:Step.java(注册口)" if cls == "Step" else "step:implements Step"
-            dest = "step"
-        elif player_reachable and is_debug_mark(cls):
-            # ⭐ `debug/` 只收 `R2` 枚举的那三类 —— ⛔ "被玩家触发"不足以进调试面：
-            # `MineTask`/`WalkToTask`/`TaskTarget` 这些**生产任务**玩家也能触发（走 job/命令），
-            # 但它们不是调试面（早期把"被玩家入口引用"当充要条件 ⇒ 实测 20 个生产类误入 debug）。
-            dest = "debug"
-            reason = ("debug:A:" + direct_entry) if direct_entry is not None \
-                else "debug:B:命令可达（cmd_reachable=yes）"
-        elif is_debug_mark(cls) or is_fixture_mark(cls) or all(is_verify_side(x) for x in refset):
-            dest = "fixture"
-            if all(is_verify_side(x) for x in refset):
-                reason = "fixture:只被验证侧引用"
+    def classify(prod_task: frozenset[str]) -> list[tuple[str, str, str, str]]:
+        """按 `prod_task`（已判为 `生产`/`step` 的类集）算一遍 ⇒ 迭代到**不动点**。"""
+        out: list[tuple[str, str, str, str]] = []
+        for cls in sorted(tagged_by_cls):
+            repo_path = repo_paths[cls]
+            refset = refs_by_cls[cls]
+            tagset = tagged_by_cls[cls]
+            direct_entry = entries[cls]
+            def is_ver(x: str) -> bool:
+                return is_verify_side(x, prod_task)
+            entry_reach, cmd_reach = dispatch.get(cls, ("no", "no"))
+            # ⭐ 产品面可达性 = **命令可达**（`command/` 直接引用，或该类的派发方法被 `command/` 调用）。
+            player_reachable = direct_entry is not None or cmd_reach == "yes"
+            if is_step_primitive(path_by_cls[cls]):
+                reason = "step:Step.java(注册口)" if cls == "Step" else "step:implements Step"
+                dest = "step"
+            elif player_reachable and is_debug_mark(cls):
+                # ⭐ `debug/` 只收 `R2` 枚举的那三类 —— ⛔ "被玩家触发"不足以进调试面：
+                # `MineTask`/`WalkToTask`/`TaskTarget` 这些**生产任务**玩家也能触发（走 job/命令），
+                # 但它们不是调试面（早期把"被玩家入口引用"当充要条件 ⇒ 实测 20 个生产类误入 debug）。
+                dest = "debug"
+                reason = ("debug:A:" + direct_entry) if direct_entry is not None \
+                    else "debug:B:命令可达（cmd_reachable=yes）"
+            elif is_debug_mark(cls) or is_fixture_mark(cls) or all(is_ver(x) for x in tagset):
+                prodrefs = sorted(x for x in tagset if _is_prod_ref_impl(x, prod_task))
+                if prodrefs:
+                    # ⭐ `R6`：被**生产执行路径**引用 ⇒ 不可能"可剔除" ⇒ 判生产（即使名字带 `Fixture`）
+                    pretty = sorted({x[5:] if x.startswith("task:") else x for x in prodrefs})
+                    dest = "生产"
+                    reason = "生产:有标记但被生产引用(" + ",".join(pretty)[:100] + ")"
+                else:
+                    dest = "fixture"
+                    if all(is_ver(x) for x in tagset):
+                        reason = "fixture:只被验证侧引用"
+                    else:
+                        other = sorted({x for x in refset if not is_ver(x)})
+                        reason = "fixture:命名标记+外部引用(" + ",".join(other)[:80] + ")"
             else:
-                other = sorted({x for x in refset if not is_verify_side(x)})
-                reason = "fixture:命名标记+外部引用(" + ",".join(other)[:80] + ")"
-        else:
-            outside = sorted({x for x in refset if not is_verify_side(x)})
-            dest, reason = "生产", "生产:refs=" + ",".join(outside)[:120]
-        rows.append((cls, repo_path, dest, reason))
+                outside = sorted({x for x in refset if not is_ver(x)})
+                dest, reason = "生产", "生产:refs=" + ",".join(outside)[:120]
+            out.append((cls, repo_path, dest, reason))
+        return sorted(out)
 
-    rows.sort()
+    # ⭐ 迭代到不动点（`task/` 里的生产类会随判定变化而进入 `prod_task`）
+    prod_task: frozenset[str] = frozenset()
+    rows: list[tuple[str, str, str, str]] = []
+    for _ in range(6):
+        rows = classify(prod_task)
+        nxt = frozenset(r[0] for r in rows if r[2] in ("生产", "step"))
+        if nxt == prod_task:
+            break
+        prod_task = nxt
+    else:
+        raise SystemExit("TASK_RETIREMENT_MAP_RESULT FAIL: 分类迭代 6 轮仍未收敛 ⇒ 判据自相矛盾")
     # ⭐ 跨源对账（取代写死的下限）：顶层行数必须 == `P2` 单向阀的名单行数。
     if not FREEZE_TXT.exists():
         raise SystemExit(f"TASK_RETIREMENT_MAP_RESULT FAIL: 缺 `{FREEZE_TXT.relative_to(ROOT)}`"

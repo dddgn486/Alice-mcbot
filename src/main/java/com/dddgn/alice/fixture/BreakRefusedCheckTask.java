@@ -26,6 +26,7 @@ import java.util.UUID;
 import com.dddgn.alice.task.MineTask;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
+import com.dddgn.alice.task.FixtureZone;
 
 /**
  * **被拒绝的破坏不许被记成成功**自检（`D-323`）—— 电池步 `break_refused`。

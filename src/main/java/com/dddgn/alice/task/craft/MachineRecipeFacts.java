@@ -1,4 +1,4 @@
-package com.dddgn.alice.fixture.craft;
+package com.dddgn.alice.task.craft;
 
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;

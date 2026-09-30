@@ -27,6 +27,7 @@ import java.util.Map;
 import com.dddgn.alice.task.RestoreScopeTask;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
+import com.dddgn.alice.task.FixtureZone;
 
 /**
  * ⭐ `Z1` 的判据（`D-398` 落地）：**账本与恢复的地理范围 = "保护区及其子区域"**。

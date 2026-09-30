@@ -21,7 +21,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import com.dddgn.alice.fixture.mining.GainStepRunner;
+import com.dddgn.alice.task.mining.GainStepRunner;
 
 /**
  * 单目标挖掘编排任务（D-071，D-067 批次 4 第 2 步）。
@@ -102,7 +102,7 @@ public final class MineTask implements Task {
     private Status terminalStatus;
     /** 没拆干净的数量（如实上报，不静默）。 */
     private int scaffoldLeft;
-    private com.dddgn.alice.fixture.mining.GainStepRunner gainRunner;
+    private com.dddgn.alice.task.mining.GainStepRunner gainRunner;
     private MineTask gainClearer;
     /** 世界写入授权（D-082）。 */
     private final WriteGrant grant;
@@ -872,7 +872,7 @@ public final class MineTask implements Task {
             throw new IllegalStateException("MineTask requires BotPlayer");
         }
         // D-116：加高动作抽成**共享执行器**（收集侧也要用同一份实现，不再各写一遍）
-        gainRunner = new com.dddgn.alice.fixture.mining.GainStepRunner(botPlayer, profile, grant);
+        gainRunner = new com.dddgn.alice.task.mining.GainStepRunner(botPlayer, profile, grant);
         BotLog.info("[MineTask] gain_start target={} from={} to={} steps={}/{} profile={}",
                 target.toShortString(), foot.toShortString(), goal.toShortString(),
                 gainSteps + 1, profile.maxGainSteps(), profile.describe());
@@ -897,11 +897,11 @@ public final class MineTask implements Task {
     }
 
     private Status tickGain() {
-        com.dddgn.alice.fixture.mining.GainStepRunner.State state = gainRunner.tick();
-        if (state == com.dddgn.alice.fixture.mining.GainStepRunner.State.RUNNING) {
+        com.dddgn.alice.task.mining.GainStepRunner.State state = gainRunner.tick();
+        if (state == com.dddgn.alice.task.mining.GainStepRunner.State.RUNNING) {
             return Status.RUNNING;
         }
-        boolean ok = state == com.dddgn.alice.fixture.mining.GainStepRunner.State.DONE;
+        boolean ok = state == com.dddgn.alice.task.mining.GainStepRunner.State.DONE;
         gainRunner = null;
         if (!ok) {
             gainSteps = profile.maxGainSteps();   // 加高不可行 → 不再重试（避免原地打转）

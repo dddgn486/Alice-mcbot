@@ -1,4 +1,4 @@
-package com.dddgn.alice.fixture.mining;
+package com.dddgn.alice.task.mining;
 
 import com.dddgn.alice.write.WriteGrant;
 import com.dddgn.alice.bot.BotPlayer;

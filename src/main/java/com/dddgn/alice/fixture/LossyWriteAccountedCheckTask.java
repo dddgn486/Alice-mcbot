@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
+import com.dddgn.alice.task.FixtureZone;
 
 /**
  * ⭐ `RC3`（`docs/plans/2026-09-22-回收方案.md` §4.1 **C 类 `CANNOT_RECLAIM`**）：

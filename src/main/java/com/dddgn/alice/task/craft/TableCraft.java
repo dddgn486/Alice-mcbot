@@ -1,4 +1,4 @@
-package com.dddgn.alice.fixture.craft;
+package com.dddgn.alice.task.craft;
 
 import com.dddgn.alice.action.MenuSession;
 import com.dddgn.alice.bot.BotPlayer;

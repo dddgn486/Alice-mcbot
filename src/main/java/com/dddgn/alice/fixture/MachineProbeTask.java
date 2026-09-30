@@ -5,7 +5,7 @@ import com.dddgn.alice.decision.MachineMap;
 import com.dddgn.alice.decision.RecipeDump;
 import com.dddgn.alice.ledger.WorldModLedger;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.fixture.craft.MachineRecipeFacts;
+import com.dddgn.alice.task.craft.MachineRecipeFacts;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;

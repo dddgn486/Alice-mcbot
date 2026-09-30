@@ -26836,3 +26836,68 @@ AI 候选：**「非空断言」**〔首推，与"判据失效"对偶〕·「人
 全仓 `com.dddgn.alice.{task,debug}.<搬走的类>` 残留 **0** · 同刀改 **2** 处 `package-info`
 ＋ `kernel-predicates.py` **8** · `machine-map.py` **1** · `check-frozen-code.py` **3** ·
 `docs/authz/*` **10**。
+
+---
+
+### D-555：批次 2 ① **`P3` 波 2（夹具波）** —— `task/` → `fixture/` 116 类 ＋ **两处静态下限改跨源对账**
+
+- 状态：**已实施**（2026-09-30；提交 `3b88871c`）· 台账 `O88`／`O89` ·
+  承接 `D-550`（五段路径）· `D-554`（判据改为命令可达）· `O85` §②（静默下限族）。
+- 性质：**结构性搬迁**（`git mv` ＋ `package` 行 ＋ `import`）⇒ ⛔ 零行为改动。
+
+#### 一、读数（`task/` 退役进度：`142 → 103 → 21`）
+
+| 项 | 前 | 后 |
+|---|---|---|
+| `task/` **顶层** | 103 | **21** |
+| `task/` 全树 | 151 | **35** |
+| `fixture/` 全树 | 39 | **155** |
+| 冻结名单 | 103 | **21**（== 顶层实物） |
+| `P0` 台账 | 151 | **35**（`生产 31 / step 3 / fixture 1`） |
+
+保子包结构搬：顶层 **82** · `check/` **6** · `check/modules/` **22** · `craft/` **3** · `mining/` **3**。
+
+#### 二、⭐ 静默下限族：本波把剩下两处也换成**跨源对账**（`O85` §② 的 `(b)`/`(c)`）
+
+`task/` 顶层是批次 2 ① 的**进度表**（设计成走向 0），而三处门禁把它当**人口下限**写死
+⇒ 每波搬迁都制造假红。本波把最后两处改掉（第一处 `check-primitive-budget-injection.py` 已于 `O83` 改）：
+
+| 门禁 | 原判据 | 现判据 |
+|---|---|---|
+| `check-task-top-freeze.py` | `MIN_LINES = 100` | `名单行数 == 顶层实物数 == P0 台账顶层行数`（三源） |
+| `task-retirement-map.py` | `MIN_ROWS = 150` | 同上（同一套对账，从另一侧断言） |
+
+- ⚠️ **`P4` 关门后**这三条对账会退化成 `0 == 0` 空真 ⇒ **随 `task/` 一起退役**，⛔ 不许靠空过留着。
+- **真树注入臂 3/3**（本波）：① 名单删 1 行 ⇒ **两处都红**；② 顶层加一个**未跟踪**文件 ⇒ 红；
+  还原后 `sha256` 逐字一致 ＋ 两处回 `PASS`。
+
+#### 三、⚠️ 门禁面比前两波深：**四种路径书写形态**
+
+必须同刀覆盖：仓相对路径 · `alice/…` · **段式** `"task" / "check" / "modules" / "X.java"` ·
+**目录形态** `alice/task/check/modules` · **点号全限定名**（正则里带转义）。
+⇒ 共改 **10** 个 `tools/` 文件 ＋ **3** 处 `docs/authz/` 活登记表 ＋ 2 处 `package-info`。
+
+⭐ **两处"覆盖面静默缩小"风险，都已堵**：
+1. `kernel-predicates.py` **臂④ 的扫描根** —— 该臂**自己写着**「本臂同步加宽，否则覆盖面会静默缩小」；
+   搬走后 `(base/"task").rglob("*.java")` 少覆盖 100+ 文件，其中
+   `CheckModules`／`RegressionBatteryTask`／`GainStepRunner` 等**不匹配**夹具命名白名单
+   ⇒ 旧根下它们**是被扫的** ⇒ 补 `+ fixture/ + debug/`。
+2. `capability-list.py:227` 把模块包**硬写成全限定名** `com\.dddgn\.alice\.task\.check\.modules\.`
+   ⇒ 搬家后**静默失配** ⇒ `order` 丢掉**全部**模块 ⇒ 下游报成「步声明全没了／20 个模块电池不跑」
+   （⚠️ **症状离根因很远**）⇒ 改成**前缀无关**（只认 `new …XxxModule().steps(` 这个形状）。
+
+#### 四、⚠️ 三处 AI 自身失误（都被断言/门禁拦下，如实记）
+
+1. **集合用错**：段式替换的"搬动集合"拿 `git ls-tree` 的**仓相对**路径与 `Path.rglob()` 的
+   **绝对**路径比 ⇒ `not in` 恒真 ⇒ 把**没搬的** `MineTask`／`MiningPlanner`／`CollectStep`
+   也改成了 `fixture/` ⇒ 回退 5 个工具重做。
+2. **正则吃掉子包节**：`"task"` ＋ `mid` ＋ `(rest)` 的替换里 **`mid` 没进 group** ⇒
+   `"task" / "check" / "CheckModules.java"` 变成 `"fixture" / "CheckModules.java"`（丢了 `check/`）。
+3. **同包访问丢失**：搬出 `task/` 的文件**失去对"留在 `task/`"的类的同包访问**（`Task.Status` 之类）
+   ⇒ 补 **181** 处 import；且**跨行**全限定名（`com.dddgn.alice.task` 换行 `.X`）是行内正则的盲区
+   ⇒ 编译红才抓到（`BotCommand.java:354`）。
+
+#### 五、本件的机械判据
+
+`check-all` **`pass=39 warning=1 failed=0`** · `compileJava` 绿 ·
+全仓 `com.dddgn.alice.task.<搬走的 116 类>` 残留 **0** · 真树注入臂 3/3。
