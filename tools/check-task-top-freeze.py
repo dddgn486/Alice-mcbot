@@ -24,7 +24,6 @@
 """
 from __future__ import annotations
 
-import subprocess
 import sys
 from pathlib import Path
 
@@ -37,20 +36,19 @@ MIN_LINES = 100          # 人口下限：今天 142；掉到 100 以下 ⇒ 名
 
 
 def current_top_level() -> list[str]:
-    """⇒ `task/` **顶层**（不含子包）的 `.java`，全仓相对路径，已排序。"""
-    r = subprocess.run(["git", "-c", "core.quotePath=false", "ls-files", "--", TASK_TOP],
-                       cwd=ROOT, capture_output=True, text=True, check=True)
-    prefix_depth = TASK_TOP.count("/")
-    out = []
-    for ln in r.stdout.splitlines():
-        if not ln.endswith(".java"):
-            continue
-        if ln.count("/") != prefix_depth + 1:          # 顶层才收，子包不算
-            continue
-        out.append(ln)
+    """⇒ `task/` **顶层**（不含子包）的 `.java`，全仓相对路径，已排序。
+
+    ⚠️ **必须走文件系统，⛔ 不能用 `git ls-files`** —— 注入臂实测：`git ls-files` **只列已跟踪文件**，
+    于是"刚新建、还没 `git add` 的新类"**根本不在读数里** ⇒ 门禁**不红**（静默放过）。
+    而本阀的用途正是"**在提交前**拦住往 `task/` 顶层加文件"。
+    （顺带也不再受 `git ls-files` 把中文文件名按 C 风格转义之扰。）"""
+    base = ROOT / TASK_TOP
+    if not base.is_dir():
+        raise SystemExit(f"TASK_TOP_FREEZE_RESULT FAIL: 目录不存在：{TASK_TOP}")
+    out = sorted(str(p.relative_to(ROOT)) for p in base.glob("*.java"))
     if not out:
         raise SystemExit("TASK_TOP_FREEZE_RESULT FAIL: `task/` 顶层一个类都没扫到 ⇒ 收集器坏了")
-    return sorted(out)
+    return out
 
 
 def read_freeze() -> list[str]:

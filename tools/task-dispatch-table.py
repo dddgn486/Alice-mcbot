@@ -61,14 +61,20 @@ HEADER = "task_class,dispatcher,entry_reachable"
 
 
 def listed(directory: str, suffix: str = ".java") -> list[Path]:
-    """⛔ 不用 git 的 `**` 通配 —— 实测它会静默只匹配到一小部分（`O76` 教训之一）。
-    用 `core.quotePath=false` 防中文文件名被转义成 C 风格（`O69` 教训）。
-    ⚠️ git 的路径是**全仓相对**（`src/main/java/…`），不是包路径。"""
-    spec = directory if directory.startswith("src/") else SRC_REL + directory
-    r = subprocess.run(["git", "-c", "core.quotePath=false", "ls-files", "--", spec],
-                       cwd=ROOT, capture_output=True, text=True, check=True)
-    out = [ROOT / ln for ln in r.stdout.splitlines() if ln.strip() and ln.endswith(suffix)]
-    assert out, f"空集！目录={directory} 后缀={suffix}"
+    """⚠️ **走文件系统，⛔ 不用 `git ls-files`**（注入臂实测）：后者**只列已跟踪文件** ⇒
+    刚新建、还没 `git add` 的文件**不进读数** ⇒ 门禁静默放过。
+    ⚠️ 路径解析：**先按 `ROOT/` 原样找**（`src/main/java`、`tools`），找不到再按**包路径**拼
+    `src/main/java/`（`com/dddgn/alice/task`）—— 早期无条件拼前缀，把 `tools` 拼成
+    `src/main/java/tools` ⇒ **静默空集**（那时没有断言）⇒ `tools/**` 从未进过引用者池。
+    """
+    cand = ROOT / directory
+    if not cand.is_dir():
+        cand = ROOT / SRC_REL / directory     # 包路径（如 `com/dddgn/alice/task`）
+    if not cand.is_dir():
+        raise SystemExit(f"空集！目录={directory} ⇒ 路径解析失败（⛔ 不许静默返回空集）")
+    out = sorted(p for p in cand.rglob("*" + suffix) if p.is_file())
+    if not out:
+        raise SystemExit(f"空集！目录={directory} 后缀={suffix} ⇒ 收集器坏了")
     return out
 
 
