@@ -11880,7 +11880,7 @@ bash 是**按需读文件**的 ⇒ 我一边让 `module-selftest.sh` 跑着（8 
 | 已有的东西 | 内容（逐条复算） | 位置 |
 |---|---|---|
 | `protection/SafeZoneData` | `SavedData`（key `alice_safe_zones`）：**区域**（按维度隔离 · 水平圆形半径 · **覆盖该维度所有高度**）+ ⭐ **方块 ID 黑名单** + ⭐ **标签黑名单**（全世界通用） | `protection/SafeZoneData.java:22-24`、`:137-153` |
-| 保护区声明入口 | `/alice` 命令：加区域 `BotCommand.java:537` · 移除 `:544` · **增删方块/标签黑名单** `:572`（`changeBlockRule`）· 汇报 `:585` | `command/BotCommand.java` |
+| 保护区声明入口 | `/alice` 命令：加区域 `BotCommand.java:163` · 移除 `:173` · **增删方块/标签黑名单** `:301`（`changeBlockRule`）· 汇报 `:331` | `command/BotCommand.java` |
 | 已接在**破坏闸门**上（非装饰） | `BlockInteraction.java:462`（读 `protectionReason`）· `protection/BlockBreakSafety.java:47` · `pathing/core/CapabilityGate.java:69-74`（② 保护区分支 → `ZONE_*` 拒绝码）· `pathing/core/MovementCapabilities.java:51-53`（`requiresZoneAuthorization=true`，2026-09-12 修，注释写明"此前 false ⇒ 分支**永不触发**、字段退化成装饰"） | 多处 |
 | 已接在**候选源**上 | `job/mine/MineCandidateSource.java:139` · `job/lumber/LumberCandidateSource.java:68` · `road/RoadObstaclePolicy.java:54（`exactForbidden`）` · `pathing/core/session/PathSession.java:746` | 多处 |
 | ⭐ **模组机器已有专门保护** | `BlockBreakSafety.clearingRefusal:73-82`：`state.hasBlockEntity() → "block_entity"`，注释原文（**D-095**）"含方块实体的方块（箱子/熔炉/漏斗/告示牌/刷怪笼/**模组机器**）不得作为清障对象…**模组机器可能内容物直接蒸发**"，且"剔除之后**规划器会自动绕开**"（绕不开就如实 `found_but_unminable`，不需要新机制） | `protection/BlockBreakSafety.java` |
@@ -26895,7 +26895,7 @@ AI 候选：**「非空断言」**〔首推，与"判据失效"对偶〕·「人
    `"task" / "check" / "CheckModules.java"` 变成 `"fixture" / "CheckModules.java"`（丢了 `check/`）。
 3. **同包访问丢失**：搬出 `task/` 的文件**失去对"留在 `task/`"的类的同包访问**（`Task.Status` 之类）
    ⇒ 补 **181** 处 import；且**跨行**全限定名（`com.dddgn.alice.task` 换行 `.X`）是行内正则的盲区
-   ⇒ 编译红才抓到（`BotCommand.java:354`）。
+   ⇒ 编译红才抓到（`BotCommand.java:326`）。
 
 #### 五、本件的机械判据
 

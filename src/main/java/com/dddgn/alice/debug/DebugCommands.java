@@ -230,6 +230,33 @@ public final class DebugCommands {
                                 .then(Commands.literal("confirm")
                                         .executes(ctx -> transferResolve(ctx.getSource(),
                                                 StringArgumentType.getString(ctx, "request"))))))
+                .then(Commands.literal("region")
+                        .then(Commands.literal("info").executes(ctx -> regionInfo(ctx.getSource())))
+                        .then(Commands.literal("start").executes(ctx -> regionStart(ctx.getSource())))
+                        .then(Commands.literal("stop").executes(ctx -> regionStop(ctx.getSource())))
+                        .then(Commands.literal("clear").executes(ctx -> regionClear(ctx.getSource())))
+                        .then(Commands.literal("idle-stop")
+                                .then(Commands.argument("value", com.mojang.brigadier.arguments.BoolArgumentType.bool())
+                                        .executes(ctx -> regionIdleStop(ctx.getSource(),
+                                                com.mojang.brigadier.arguments.BoolArgumentType.getBool(ctx, "value")))))
+                        .then(Commands.literal("set")
+                                .then(Commands.argument("pos1", BlockPosArgument.blockPos())
+                                        .then(Commands.argument("pos2", BlockPosArgument.blockPos())
+                                                .executes(ctx -> regionSet(ctx.getSource(),
+                                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos1"),
+                                                        BlockPosArgument.getLoadedBlockPos(ctx, "pos2"))))))
+                        .then(Commands.literal("sapling")
+                                .then(Commands.argument("item", ResourceLocationArgument.id())
+                                        .executes(ctx -> regionSapling(ctx.getSource(),
+                                                ResourceLocationArgument.getId(ctx, "item").toString()))))
+                        // ⭐ `D-344` ⑤：**读主手**增删"可配置拾取清单"（零参数 ⇒ 不要求输注册名）
+                        .then(Commands.literal("pickup")
+                                .then(Commands.literal("add")
+                                        .executes(ctx -> regionPickup(ctx.getSource(), true)))
+                                .then(Commands.literal("remove")
+                                        .executes(ctx -> regionPickup(ctx.getSource(), false)))
+                                .then(Commands.literal("list")
+                                        .executes(ctx -> regionPickupList(ctx.getSource())))))
                 .then(Commands.literal("restore")
                         .executes(ctx -> restore(ctx.getSource(), true)))
                 .then(Commands.literal("ledger")
@@ -534,6 +561,273 @@ public final class DebugCommands {
                 + " 半径 " + radius + "（决策与终态见 [Job] 日志）";
         source.sendSuccess(() -> Component.literal("[alice] " + bot.getName().getString() + " " + resultMsg), false);
         return 1;
+    }
+
+
+    /**
+     * {@code /alice region set <pos1> <pos2>}：玩家**只划水平范围**（x/z 取两角），
+     * 竖直方向**自适应**（基准层取两角较低的 Y，上界由巡查按实测树高收紧）。
+     *
+     * <p>**重划区域**（与已保存的不同）会重置按旧区域积累的派生记账（目标棵数/界外苗/界外待补种），
+     * 见 {@code LumberRegionState#setRegion}；划**同一个**区域是幂等重入，不动记账。
+     */
+    private static int regionSet(CommandSourceStack source, net.minecraft.core.BlockPos a,
+                                 net.minecraft.core.BlockPos b) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendSuccess(() -> Component.literal("[alice] 没有可用 bot"), false);
+            return 0;
+        }
+        int baseY = Math.min(a.getY(), b.getY());
+        var region = new com.dddgn.alice.job.lumber.LumberRegionState.Region(
+                a.getX(), a.getZ(), b.getX(), b.getZ(), baseY,
+                com.dddgn.alice.job.lumber.LumberRegionState.DEFAULT_MAX_HEIGHT);
+        var state = com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer());
+        boolean redefined = state.region(bot.getUUID()) != null
+                && !state.region(bot.getUUID()).equals(region);
+        state.setRegion(bot.getUUID(), region);
+        // 正在跑的 Job 持有的是**启动时那一刻**的区域对象（§13.1 一次启动 = 一个区域）：
+        // 重划不回灌进运行中的任务，如实说清楚，免得玩家以为"改了没生效"
+        boolean running = BotManager.isBusy(bot);
+        source.sendSuccess(() -> Component.literal("[alice] 可持续伐木区已设定 " + region.describe()
+                + "（x/z 取自两角、baseY 取较低的那个 Y，竖直自适应"
+                + (redefined ? "；区域变了 ⇒ 目标棵数重新推导" : "")
+                + "；用 /alice region start 启动、/alice region stop 停止）"
+                + (running ? " —— 注意：当前有任务在跑，新区域在**下一次 /alice region start** 生效" : "")), false);
+        return 1;
+    }
+
+
+    /** {@code /alice region stop}：**显式打断**常驻任务（§13.1：常驻任务只由玩家/决策层打断）。 */
+    private static int regionStop(CommandSourceStack source) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendSuccess(() -> Component.literal("[alice] 没有可用 bot"), false);
+            return 0;
+        }
+        String stopped = BotManager.stopTask(bot, "region_stop");
+        if (stopped == null) {
+            source.sendSuccess(() -> Component.literal("[alice] 当前没有在跑的任务"), false);
+            return 1;
+        }
+        // 打断是常驻任务的正常结束方式，但可能停在"脚手架上/半棵树"的中间态：如实报出未闭合残留
+        int residue = BotManager.pendingTemporaryCount(bot);
+        source.sendSuccess(() -> Component.literal("[alice] 已停止 " + stopped + "（region_stop）"
+                + (residue == 0
+                        ? "；账本已闭合（无我方临时方块残留）"
+                        : "；**账本仍有 " + residue + " 条我方临时方块未拆**（/alice restore 可清理）")), false);
+        return 1;
+    }
+
+
+    /** {@code /alice region idle-stop <true|false>}：是否启用"连续无活即 IDLE_NO_WORK 收工"（默认关=常驻）。 */
+    private static int regionIdleStop(CommandSourceStack source, boolean value) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendSuccess(() -> Component.literal("[alice] 没有可用 bot"), false);
+            return 0;
+        }
+        com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer())
+                .setAutoIdleStop(bot.getUUID(), value);
+        source.sendSuccess(() -> Component.literal("[alice] 区域任务 idle-stop=" + value
+                + (value ? "（无活会自行 IDLE_NO_WORK 收工）" : "（常驻：只由玩家/决策层打断）")), false);
+        return 1;
+    }
+
+
+    /** {@code /alice region info}：读区域状态（区域/我种的苗/选定树苗/统计）。 */
+    /** {@code /alice region clear}：清掉**已选定区域**（测试/夹具收尾用；区域是玩家划的，只由玩家显式清）。 */
+    private static int regionClear(CommandSourceStack source) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendSuccess(() -> Component.literal("[alice] 没有可用 bot"), false);
+            return 0;
+        }
+        com.dddgn.alice.job.lumber.LumberRegionState state =
+                com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer());
+        boolean had = state.region(bot.getUUID()) != null;
+        state.clearRegion(bot.getUUID());
+        com.dddgn.alice.log.BotLog.info("region_clear: owner={} had={}", bot.getName().getString(), had);
+        source.sendSuccess(() -> Component.literal("[alice] 已清除选定区域（had=" + had + "）"
+                + " —— 决策菜单里不会再出现 region:saved"), false);
+        return had ? 1 : 0;
+    }
+
+
+    private static int regionInfo(CommandSourceStack source) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendSuccess(() -> Component.literal("[alice] 没有可用 bot"), false);
+            return 0;
+        }
+        var state = com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer());
+        var region = state.region(bot.getUUID());
+        source.sendSuccess(() -> Component.literal("[alice] 可持续伐木区 region="
+                + (region == null ? "-（未设定）" : region.describe())
+                + " baseline=" + state.baselineTrees(bot.getUUID())
+                + " mySaplings=" + state.mySaplingCount(bot.getUUID())
+                + " pendingReplant=" + state.pendingReplantCount(bot.getUUID())
+                + " saplingItem=" + (state.saplingItem(bot.getUUID()) == null
+                        ? "-（未选择，启动时默认 oak）" : state.saplingItem(bot.getUUID()))
+                + " chopped=" + state.treesChopped(bot.getUUID())
+                + " planted=" + state.saplingsPlanted(bot.getUUID())
+                + " patrols=" + state.patrols(bot.getUUID())
+                + " autoIdleStop=" + state.autoIdleStop(bot.getUUID())
+                + " lastPatrol=" + state.lastPatrolTick(bot.getUUID())), false);
+        // `D-338` 附注四②：**任务区预检**（纯查询，不改任何状态）—— 把"工作区域（方块级）⇒ 任务区
+        // （区块级最小覆盖）"和"会不会与安全区冲突"在**启动之前**摊给玩家看：
+        // 冲突在这里就该被看见，而不是等任务跑起来才失败。
+        if (region != null) {
+            var server = source.getServer();
+            var level = source.getLevel();
+            var area = new com.dddgn.alice.protection.TaskZoneRegistry.WorkArea(
+                    level.dimension().location(), region.minX(), region.minZ(),
+                    region.maxX(), region.maxZ());
+            var chunks = area.chunkCover();
+            var conflicts = com.dddgn.alice.protection.TaskZoneRegistry.safeZoneConflicts(
+                    SafeZoneData.get(server), level.dimension().location(), chunks);
+            var active = com.dddgn.alice.protection.TaskZoneRegistry.zoneOf(server, bot.getUUID());
+            source.sendSuccess(() -> Component.literal("[alice] 任务区（派生）：工作区域 " + area.describe()
+                    + " blocks=" + area.areaXZ() + " ⇒ 区块最小覆盖 chunks=" + chunks.size()
+                    + "（**单向派生**：工作区域 ⇒ 任务区）｜冲突="
+                    + (conflicts.isEmpty() ? "无（可覆盖保护区父类）"
+                            : "⛔ 安全区×" + conflicts.size() + " "
+                                    + com.dddgn.alice.protection.TaskZoneRegistry.describeChunks(conflicts)
+                                    + " ⇒ 任务会**如实失败**，先 /alice protect safe unclaim 那些区块（显式退化）")
+                    + "｜当前生效=" + (active == null ? "无（任务未在跑）"
+                            : active.kind() + " chunks=" + active.chunks().size()
+                                    + " scope=" + active.scopeId())), false);
+        }
+        return 1;
+    }
+
+
+    /**
+     * {@code /alice region pickup add|remove}：**读主手物品**增删"可配置拾取清单"（`D-344` ⑤ 裁定）。
+     *
+     * <p><b>为什么读主手而不是收参数</b>：项目纪律要求操作/测试入口**不许长参数串**（输注册名既难记又易错）
+     * —— 手里拿着什么就加什么，是零参数且**所见即所得**的做法（与 `alice:collect_grant` 物品同风格）。
+     *
+     * <p>⚠️ **移不掉"派生项"**（= 当前选定的树苗）：它是**算出来的**（显式项 ∪ 选定树苗），
+     * 换树苗要用 {@code /alice region sapling <item>}（`D-344` ④ 的实现方式）。
+     */
+    private static int regionPickup(CommandSourceStack source, boolean add) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendSuccess(() -> Component.literal("[alice] 没有可用 bot"), false);
+            return 0;
+        }
+        var runner = source.getPlayer();
+        if (runner == null) {
+            source.sendSuccess(() -> Component.literal(
+                    "[alice] 这条要**玩家**执行（指令台没有\u300c主手\u300d可读）"), false);
+            return 0;
+        }
+        var held = runner.getMainHandItem();
+        if (held.isEmpty()) {
+            source.sendSuccess(() -> Component.literal(
+                    "[alice] 你的主手是空的 —— 先拿一件要捡的东西（比如树苗/树枝）再执行"), false);
+            return 0;
+        }
+        String itemId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(held.getItem()).toString();
+        var state = com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer());
+        boolean changed = add
+                ? state.addPickupItem(bot.getUUID(), itemId)
+                : state.removePickupItem(bot.getUUID(), itemId);
+        var effective = state.effectivePickupItems(bot.getUUID());
+        com.dddgn.alice.log.BotLog.info("[alice] 拾取清单 {} item={} changed={} 生效={}",
+                add ? "add" : "remove", itemId, changed, effective);
+        String tail;
+        if (add) {
+            tail = changed ? "已加入" : "本来就在清单里（幂等，没重复加）";
+        } else {
+            tail = changed ? "已移出"
+                    : "没移掉：它要么本来就不在，要么是**默许项**（跟着 /alice region sapling 走）";
+        }
+        source.sendSuccess(() -> Component.literal("[alice] 拾取清单 " + tail + "：" + itemId
+                + "\n  生效清单=" + effective + "（区域作业\u300c扫地面\u300d时按它找地上的落物）"), false);
+        return 1;
+    }
+
+
+    /** {@code /alice region pickup list}：显示生效清单 + 每项来源（默认 / 手动加）。 */
+    private static int regionPickupList(CommandSourceStack source) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendSuccess(() -> Component.literal("[alice] 没有可用 bot"), false);
+            return 0;
+        }
+        var state = com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer());
+        var effective = state.effectivePickupItems(bot.getUUID());
+        StringBuilder text = new StringBuilder("[alice] 区域拾取清单（生效 " + effective.size() + " 项）");
+        for (String itemId : effective) {
+            text.append("\n  · ").append(itemId).append(state.pickupItemIsDefault(bot.getUUID(), itemId)
+                    ? "（默认：跟着 /alice region sapling 走）" : "（手动加：/alice region pickup remove 可移出）");
+        }
+        if (effective.isEmpty()) {
+            text.append("\n  （空 ⇒ 区域作业**不会**扫地面：既没选树苗、也没手动加）");
+        }
+        text.append("\n  手动加过的=").append(state.pickupItems(bot.getUUID()));
+        String out = text.toString();
+        source.sendSuccess(() -> Component.literal(out), false);
+        return 1;
+    }
+
+
+    /**
+     * {@code /alice region sapling <item>}：**选择补种用哪种树苗**（用户 2026-09-12 裁定：
+     * 不必与被砍的树一一对应）。写进持久化的区域状态，跨会话有效。
+     */
+    private static int regionSapling(CommandSourceStack source, String itemId) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendSuccess(() -> Component.literal("[alice] 没有可用 bot"), false);
+            return 0;
+        }
+        var id = net.minecraft.resources.ResourceLocation.tryParse(itemId);
+        var item = id == null ? null : net.minecraft.core.registries.BuiltInRegistries.ITEM.get(id);
+        if (item == null || item == net.minecraft.world.item.Items.AIR) {
+            source.sendSuccess(() -> Component.literal("[alice] 未知物品：" + itemId), false);
+            return 0;
+        }
+        boolean isSapling = new net.minecraft.world.item.ItemStack(item)
+                .is(net.minecraft.tags.ItemTags.SAPLINGS);
+        if (!isSapling) {
+            source.sendSuccess(() -> Component.literal("[alice] 只接受树苗类物品（saplings 标签）；"
+                    + "收到 " + itemId), false);
+            return 0;
+        }
+        var state = com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer());
+        state.setSaplingItem(bot.getUUID(), itemId);
+        com.dddgn.alice.log.BotLog.info("[alice] 区域补种树苗选择 = {}", itemId);
+        source.sendSuccess(() -> Component.literal("[alice] 区域补种树苗已设为 " + itemId
+                + "（欠树时按这个补种；与原来的树不必同种）"), false);
+        return 1;
+    }
+
+
+    /** {@code /alice region start}：用**已保存的区域**起区域型伐木 Job（停止：`/alice region stop`，或下其它 /alice 指令替换）。 */
+    private static int regionStart(CommandSourceStack source) {
+        BotPlayer bot = BotManager.firstInLevel(source.getLevel());
+        if (bot == null) {
+            source.sendSuccess(() -> Component.literal("[alice] 没有可用 bot"), false);
+            return 0;
+        }
+        var state = com.dddgn.alice.job.lumber.LumberRegionState.get(source.getServer());
+        var region = state.region(bot.getUUID());
+        if (region == null) {
+            source.sendSuccess(() -> Component.literal("[alice] 该 bot 还没有区域（用 alice:region_lumber "
+                    + "物品在场景里设定，或用命令另行设定）"), false);
+            return 0;
+        }
+        com.dddgn.alice.decision.Driver.set(bot, com.dddgn.alice.decision.Driver.IN_GAME_PLAYER);
+        boolean ok = com.dddgn.alice.bot.BotManager.assignRegionLumber(bot,
+                source.getEntity() instanceof net.minecraft.server.level.ServerPlayer sp ? sp : null,
+                region);
+        source.sendSuccess(() -> Component.literal(ok
+                ? "[alice] 可持续伐木区已启动 region=" + region.describe()
+                : "[alice] " + BotManager.busyMessage(bot)), false);
+        return ok ? 1 : 0;
     }
 
 

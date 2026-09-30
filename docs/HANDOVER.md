@@ -5148,3 +5148,41 @@ AI 建议 = **必改 `空转`（拆词）** · ✅ **已执行 `咬人`→`拦�
 
 - **刀 2–刀 5 是否按上表一口气推**（已获"乙"授权 ⇒ 默认**继续推**，⛔ 不需要再确认）。
 - 台账 `O94` A 串其余 5 项（`move`/`exec` · `unit/` 包名 · `spec/` 是否单立 · `ledger`/`compat`/`transfer` 归位）**仍未裁**。
+
+## 断点四十七 · ⭐⭐⭐ **刀 1c 已落地（`region` → `debug/`）；下一刀 = 刀 2（乙版）**（2026-09-30）
+
+> ⚠️ **这是"接着从哪继续"的唯一入口**（断点四十六 的 ② 表由本断点接管）。
+> 细节全在台账 **`O99`/`O100`/`O101`** ＋ `docs/reviews/2026-09-30-序1重裁-最终草案.md`（§8 = v2 更正）。
+
+### ① 现在在哪（一句话）
+
+**刀 1 ＋ 刀 1c 都已落地**：`command/BotCommand.java` **761 行 · 产品面 13 条**（方法 27）·
+`debug/DebugCommands.java` **1758 行 · 开发期 29 条**（方法 55）· 总数 **42** 条不变。
+`check-all` = **`pass=39 warning=1 failed=0`** · `compileJava` 绿 · 命令树 **156 条注册路径逐字不变**（`I1` 静态可证）。
+
+### ② 接下来按这个顺序（草案 §2，⛔ 不跳刀）
+
+| 刀 | 内容 | 关键约束 |
+|---|---|---|
+| ✅ **刀 1** | 劈 `BotCommand` → `command/` ＋ `debug/` | `O99` |
+| ✅ **刀 1c** | `region` 也搬 `debug/`（产品包结构上无法表达"凭空造物"） | `O100`/`O101`；现行指针见 `O101` ⑥ |
+| ⏭ **刀 2（乙）** | `ToolProvision{PROMOTE_ONLY, DEV_CREATE}` 具名策略、**由调用方传**；把 `bot/` 里的夹具引用**全部**搬走：**38 个派发方法（≈450 行）＋ 40 处 import ＋ 38 个构造点**，另加 `assignLumberJob` 锚点参数化 · `CheckHarness` **自订阅 `ServerTickEvent`**（删 `bot/` 的 `:1265` 钩子）· 1 处 javadoc `{@link}` | 范围 = 8 签名 ＋ 18 调用点；⭐ **38 个派发方法形状高度统一** ⇒ 可用**一个桥** `BotManager.beginFixtureTask(bot, Function<BotSession,Task>, TaskTarget)` 收口；⛔ **不可**改用现成 `BotSession.assignFixtureTask`（走 `replaceTaskIfRunning` ⇒ **会顶替在跑的任务**）；⚠️ **`task-dispatch-table.py` 的"构造点 = `BotManager.java` 里 `new`"会破**（表掉到 23 行 < `MIN_ROWS=40`）⇒ 同刀扩扫描源；⚠️ **唯一有行为风险的是 tick 顺序** ⇒ 无头电池逐步比对验 |
+| ⏭ **刀 3** | 门禁同刀：`check-provision-containment` 断言③ 改写 · **删 `BOT_EXEMPT`** · `JobLauncher.provision` 的 `@param` 重写；新增「`bot/` 不许出现 `fixture.`」「`command/` 不许 import `fixture/`」 | 刀 1 后 `command/` 对 `fixture/` 的边 = **0**（刀 1c 后仍 = 0） |
+| ⏭ **刀 4** | `bot/TaskExecutionRecord` 加 **`provision` 维**（与 `driver` 并列）＋ 一条"进发行包的路径 provision 必须可见"的门禁 | `D-560` 第 4 条（"不污染结果"）**唯一**可执行形式 |
+| ⏭ **刀 5** | `D-512` 剩余：ⓑ `assignRestore` 起 `Task` 不是 `Job` · ⓒ `ManualTestLock.java:16` 的坏 `{@link}` ＋ **补 `{@link}` 符号存在性门禁** | ⛔ ⓐ 的另一半（统一构造路径）**不在本线内** |
+
+### ③ ⚠️ 压缩后必须知道的三个事实（免得重犯）
+
+1. **`/alice` 由两个类各自 `register`**（`command/BotCommand` ＋ `debug/DebugCommands`）。Brigadier
+   `CommandNode.addChild` 对同名子节点**只合并 children/command，⛔ 不复制 `requires`** ⇒ **两侧都必须带
+   `.requires(...)`**（实测反序 ⇒ 权限丢失）。门禁 **`alice根带权限`** 已钉住。
+2. **`D-560`**：现有 `/alice` 命令**今天全是开发期入口** ⇒ **允许白送工具**；**取代** `D-490` 对
+   `mine`/`restore`/`region` 的分类 ⇒ **行为变化不发生 ⇒ 本线不需要真机确认**（`I1`）。
+3. **行号别再手抄**：刀 1/1c 之后 `BotCommand.java` 只剩 761 行、`DebugCommands.java` 1758 行；
+   **现行指针表 = 台账 `O101` ⑥**（唯一权威）。⚠️ `docs/reviews/2026-09-26-Baritone功能面缺口清单.md`
+   里 3 处裸行号是**故意保留的历史快照**（`O101` ⑦）。
+
+### ④ 待你一句话的
+
+- **刀 2–刀 5 是否按上表一口气推**（已获"乙"授权 ⇒ 默认**继续推**，⛔ 不需要再确认）。
+- 台账 `O94` A 串其余 5 项（`move`/`exec` · `unit/` 包名 · `spec/` 是否单立 · `ledger`/`compat`/`transfer` 归位）**仍未裁**。

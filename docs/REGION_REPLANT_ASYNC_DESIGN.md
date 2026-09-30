@@ -85,7 +85,7 @@ patrol()
     几何 = 玩家自己划的区域，随任务生灭。签名与既有用法**已查实**：
     `CollectGrants.add(server, minX, minZ, maxX, maxZ, PermissionGate.Scope.SESSION, "region_lumber", 20*600)`
     —— `Scope` 只有 `ONCE/SESSION/ALWAYS`（`PermissionGate.java:47-49`）；玩家划区用 `SESSION` +
-    `20*600`、永久用 `ALWAYS` + `-1`（`CollectGrantItem.java:83-87`、`BotCommand.java:674-687`）
+    `20*600`、永久用 `ALWAYS` + `-1`（`CollectGrantItem.java:83-87`、`DebugCommands.java:567-598`）
     ⇒ 本场景取 **`SESSION` + 任务时长并续期**，任务结束撤销。
   - **(B) 改全局策略** `drop.foreign` ⇒ ❌ **否决**：全世界放宽，与"只在玩家显式划的区里"口径相反。
   ⇒ **推荐 (A)**；但它**确实是"区内拾取权限的放宽"** ⇒ §8-① 请用户拍板。
