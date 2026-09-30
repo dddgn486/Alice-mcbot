@@ -29,10 +29,10 @@ import java.util.Set;
  *       `GoalGetToBlock` / `GoalAdjacent` 只出现在 `FarmProcess` / `BuilderProcess`（农业与**建造**）；</li>
  *   <li>⇒ 本类是 **Alice 特有的侧面兜底形状**（按 `D-036` 必须**显式登记偏离**；
  *       `D-430` 已失效 ⇒ **登记即准入**）。<b>Alice 特有理由</b>：Alice 的原地挖本就不限同列
- *       （`action/MineBlockRunner.inPlaceReachable` 只要求"真眼位 ＋ 裸触及 ＋ 视线"，⛔ 无列约束）；</li>
+ *       （`action/mining/MineBlockRunner.inPlaceReachable` 只要求"真眼位 ＋ 裸触及 ＋ 视线"，⛔ 无列约束）；</li>
  *   <li>⭐ <b>它在「乙」里的角色 = 第二条搜索</b>：先问**同列形状**（{@link GoalColumnBlocks}，
  *       含按触及深化的 `y−2 … y−K`），**它拿不出方案时**才问本形状 ⇒ 侧面视线由**执行期复核**
- *       （`action/MineBlockRunner` 的 `LINE_OF_SIGHT_BLOCKED` / `OUT_OF_REACH`，可重试）
+ *       （`action/mining/MineBlockRunner` 的 `LINE_OF_SIGHT_BLOCKED` / `OUT_OF_REACH`，可重试）
  *       ⇒ 全程**零枚举、零规划期射线、最多 2 次搜索**；</li>
  *   <li>⚠️ 与同列形状**只共有 1 格**（{@code target.below()}）—— 兜底时那格已被第一条搜索否定，重叠无害。</li>
  * </ul>

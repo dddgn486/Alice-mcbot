@@ -27203,3 +27203,82 @@ AI 候选：**「非空断言」**〔首推，与"判据失效"对偶〕·「人
 - `pathing/FootCellRuleCheck`（**唯一的用户是夹具**）⇒ `O106`，⛔ 不与本刀混。
 - `docs/authz/OVERVIEW.md`／`flow.svg`／`index.html` 的既有漂移（生成时间停在 2026-09-14）⇒ **本刀不夹带**。
 - ⭐ **主线排期不受影响**（用户「不要把主线排期抛弃了」）：本刀是**插入的支线**，只吃掉结构线里"`pathing` 三分"这一格。
+
+### D-562：刀 1 —— `action/mining/` 落地（`act/` 收敛的第一刀）＋ 「原语住根 · 域执行件住子包」变成三条可执行门禁
+
+- 状态：**已实施**（2026-10-01；详表 = `docs/reviews/2026-09-30-包结构与层序实测.md` **§36 裁定 / §37 落地**）·
+  台账 `O114` · 承接 `D-561`（`pathing/` 三分 = 同一条结构线的上一刀）· `D-455`（三层）· `D-462`（`step 4` 拆 `write/`）。
+- 性质：**结构重排 ＋ 同刀门禁**（`git mv` ＋ `package` 行 ＋ import/`{@link}`/路径指针改写）⇒ ⛔ **零行为改动**（证明见 §四）。
+- ⛔ **零 `src/` 行为改动**不等于零 `src/` 改动：本刀改了 20 个 `.java`（2 个搬家 + 18 个引用面）。
+
+#### 一、用户裁定（逐字要点，2026-10-01）
+
+> 「**出路：(甲) 我同意**」（= 承认 `pathing/` **跨两层**，层链改为**按子包声明**）
+> ＋「**顶包名：保持 `action/` 吧**」
+> ＋「**`task/` 是临时包，`task/` 概念将退休**」
+> ＋「**好，我同意你的这些方案**」（= `②` 不拆 `BlockInteraction` · `③` `ChainMining` 进 `action/mining/`、⛔ 不建 `mod/` · `④` `Ftb*` 三桥**留 `compat/`**）
+
+⭐ 本轮确立的**正定义**（取代我早先的"补集定义"）：
+**「`act/` 只装执行件，以及这些执行件的调用器」** ——
+「**维持单向依赖链**」是它的**机械可检形式**，⛔ 不是理由；
+「**有没有自己的专属包**」是它的**结果**，⛔ 不能当判据（否则成免罪符）。
+
+#### 二、落地形状
+
+```
+action/                          ← 根 = 跨域共享原语（5 个，刀 1 后人口 5）
+├── BlockInteraction             破坏/放置原语
+├── BlockBreakSession            破坏会话
+├── MenuSession / MenuCodes / ContainerSemantics
+└── mining/                      ← 域执行件（2 个）
+    ├── MineBlockRunner          （从 `action/` 根搬入）
+    └── ChainMining              （从 `compat/` 顶层搬入）
+```
+
+#### 三、⭐ 三条新判据（`tools/check-layer-direction.py`，同刀落地；红臂 29 → **34**）
+
+1. ⭐ **根 ✗→ 域子包**：`action/*.java`（**非递归**）不得引用 `com.dddgn.alice.action.<域>.`
+   —— 根是**跨域共享原语**，⛔ 不认识任何一个域执行件；反过来 **域子包 → 根 是允许的**。
+2. ⭐ **低层 ✗→ `action/<域>/`**：`pathing/` · `reach/` · `write/` · `log/` · `ledger/`
+   （层链里在 `action/` **之下**的那些）不得引用域子包。
+   ⚠️ 依据 = 用户 2026-10-01 前一轮的实测事实：**今天成立只是运气**（生产侧没有任何一处从下面调
+   `MineBlockRunner`）；没有门禁，`survey/42 §1.2` 那个环（`action ↔ pathing`）会**换个名字长回来**。
+3. ⭐ **人口下限 / 反空转**：`action/` 根 ≥ 5 · 每个域子包 ≥ 2 —— ⛔ 不许靠"把域搬空"让 ①② 空过。
+
+- 落地函数：`action_layer_edges()`（剥注释 ＋ **剥字符串字面量** ⇒ 路径指针字符串不是依赖，`D-556` (c)）。
+- ⭐ **真树注入实测**：① 往 `action/BlockInteraction.java` 塞 import `action.mining.MineBlockRunner` ⇒
+  当场 FAIL 并点名"根的原语引用了域子包"；② 往 `reach/ReachPlan.java` 塞同一 import ⇒ 当场 FAIL **两条**
+  （既有 `reach/` 反向依赖 ＋ 新断言②）。**两次还原后逐字节干净**。
+- 读数：`action/` 根 **5 文件** ✗→ 域子包 **0** · 低层 5 包 ✗→ `action/mining/` **0** · `action/mining/` **2 文件**。
+
+#### 四、⭐ 行为零改动的证明（比 `D-561` 那次更强 —— 带**同代码对照组**）
+
+无头电池 `core` 真跑 **261 s**，指纹 `f49c71429337`（`D-561` 那次是 `43c9a2094515`）。
+- ✅ **163 个判定 token 逐字节一致**（`clear_retry=PASS` … `mine_regression=FAIL` 等；非 PASS 仍是那两步既有红）。
+- ⭐ **量化对照**：把 `[alice]` 侧日志行归一化后排序比较 ——
+  **同代码两次运行 A vs B = 318 行差异**（= run-to-run 噪声地板：掉落物散点、区块加载线程次序），
+  **基线 B vs 本刀 C = 314 行差异** ⇒ 本刀的差异 **≤ 同代码自身噪声**。
+  ⛔ 这条对照组是本刀补上的：`D-561` 那次只报了"24 步一致"，**没量过噪声地板**，读者无法判断 318 行算不算异常。
+
+#### 五、⛔ 一处**必须扣下**的搬迁（我上一轮方案里的错，如实记）
+
+`GainStepRunner`（80 行）原计划随本刀进 `action/mining/` —— **改扣下**。原因：
+它**拖着 `MiningProfile`**（构造参数类型 ＋ `gainBlockBudget()` ＋ `describe()`），
+而 `MiningProfile` 住在 `task/mining/` ⇒ 搬它会让 `action/mining/` → `task/mining/`，
+**当场违反 `check-layer-direction` 断言 2（`action/` ✗→ `task/`，`ALLOWED_REVERSE` 无条件空）**。
+
+⚠️ 这个耦合**只靠 import 扫描看不见**（同包简单名，没有 import 行）—— 又是 `O108`⑤ 那一族的静默失效。
+⇒ **扣下不是"零散搬"（`R5`）**：`GainStepRunner` 的**可达闭包** = {`GainStepRunner`, `MiningProfile`}，
+而 `MiningProfile` 的归属是 `O111`（"`task/` 退休后挖掘语义面的落点"，用户 2026-10-01 同意**推迟**）
+⇒ 本刀搬的是**不越界的最大闭包**。
+⚠️ 另记一处**未来冲突**：`step/package-info.java` 已声明 `GainStepRunner` 要跟 `CollectStep` 一起搬
+（"这两个自己零 `task/` 依赖"—— 那句是**按 import 量的**，同包耦合看不见）⇒
+`GainStepRunner` 将来有**两套计划**（`act/` vs `step/`），必须在 `O111` 那一刀**一次性裁掉**。
+
+#### 六、⛔ 本刀不做（已登记）
+
+- `BlockInteraction` 的**查询半拆分**（`②`）：用户 2026-10-01 裁 **不拆** ⇒ 只留 4 个**生产 0 调用**的成员
+  （`blockReach` · `findBestToolSlot` · `isSolidForPlacement` · `findSlotForBlock`）作**独立一刀**（`D-425` 口径）。
+- `Ftb*` 三桥（`④`）：**留 `compat/`**。
+- `task/mining/` 的非执行件（`⑤`）⇒ `O111`，等 `task/` 退休同刀。
+- ⭐ **主线排期不受影响**：本刀仍属**结构线**。

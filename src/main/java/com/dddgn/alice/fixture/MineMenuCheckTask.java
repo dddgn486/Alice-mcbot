@@ -772,7 +772,7 @@ public class MineMenuCheckTask implements Task {
 
             // 正例：挪到"看得见也够得着"的另一格 ⇒ 必须就地挖
             teleport(nearFoot);
-            var inPlace = new com.dddgn.alice.action.MineBlockRunner(bot, planned.plan(),
+            var inPlace = new com.dddgn.alice.action.mining.MineBlockRunner(bot, planned.plan(),
                     com.dddgn.alice.write.WriteGrant.of(taskName(), com.dddgn.alice.write.WriteReason.EXPECTED_TARGET));
             inPlace.tick();
             boolean positive = inPlace.mineInPlace();
@@ -783,7 +783,7 @@ public class MineMenuCheckTask implements Task {
             level.setBlockAndUpdate(screen,
                     net.minecraft.world.level.block.Blocks.STONE.defaultBlockState());
             teleport(nearFoot);
-            var blocked = new com.dddgn.alice.action.MineBlockRunner(bot, planned.plan(),
+            var blocked = new com.dddgn.alice.action.mining.MineBlockRunner(bot, planned.plan(),
                     com.dddgn.alice.write.WriteGrant.of(taskName(), com.dddgn.alice.write.WriteReason.EXPECTED_TARGET));
             blocked.tick();
             boolean negative = !blocked.mineInPlace();

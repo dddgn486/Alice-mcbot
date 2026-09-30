@@ -111,9 +111,9 @@ public final class DebugCommands {
                             ctx.getSource().sendSystemMessage(Component.literal(
                                     "[alice] 连锁挖掘：" + com.dddgn.alice.reach.MiningTuning.chainMode()
                                             + "（默认 OFF=原版单格）"
-                                            + " mod=" + (com.dddgn.alice.compat.ChainMining.available()
+                                            + " mod=" + (com.dddgn.alice.action.mining.ChainMining.available()
                                                     ? "present" : "absent")
-                                            + " settings=" + com.dddgn.alice.compat.ChainMining.settingsSummary()
+                                            + " settings=" + com.dddgn.alice.action.mining.ChainMining.settingsSummary()
                                             + " 白名单=AUTO 时仅矿石/原木"));
                             return 1;
                         })
@@ -1739,7 +1739,7 @@ public final class DebugCommands {
         }
         String summary = "[alice] 连锁挖掘 = "
                 + com.dddgn.alice.reach.MiningTuning.chainMode()
-                + " mod=" + (com.dddgn.alice.compat.ChainMining.available() ? "present" : "absent");
+                + " mod=" + (com.dddgn.alice.action.mining.ChainMining.available() ? "present" : "absent");
         source.sendSystemMessage(Component.literal(summary));
         com.dddgn.alice.log.BotLog.info("[ChainMining] 策略切换 mode={} all={}",
                 mode, com.dddgn.alice.reach.MiningTuning.describe());

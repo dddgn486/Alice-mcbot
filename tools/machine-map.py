@@ -370,7 +370,7 @@ CAPABILITY_FILES = [
     "src/main/java/com/dddgn/alice/task/craft/FurnaceStation.java",
     "src/main/java/com/dddgn/alice/fixture/CraftStationCraftCheckTask.java",
     "src/main/java/com/dddgn/alice/fixture/MachineStationProbeTask.java",
-    "src/main/java/com/dddgn/alice/compat/ChainMining.java",
+    "src/main/java/com/dddgn/alice/action/mining/ChainMining.java",
 ]
 
 # 访问器形字面量：`getXxx`/`isXxx`/`hasXxx`（**只认这种形状**，避免把 "auto"/"in"/"out" 这类配置串扫进来）

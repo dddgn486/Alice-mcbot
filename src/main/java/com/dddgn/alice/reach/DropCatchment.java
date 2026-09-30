@@ -19,7 +19,7 @@ import net.minecraft.server.level.ServerLevel;
  * <p>⚠️ **本类只回答"要不要垫"，不回答"谁去垫"**：`plans §4.2`⑤ 逐字「而"**垫一块**"这个
  * **动作**该由谁做，**是另一个要单独裁的问题**（今天挂在 A 腿里，只有 A 成功才走到）」
  * ⇒ 选哪条腿 + 放支撑块的**动作**仍在 `MiningPlanner`（A 腿 = `R2`）与
- * `action/MineBlockRunner.tickSupportPlacement` 里，**本刀不动它们**。
+ * `action/mining/MineBlockRunner.tickSupportPlacement` 里，**本刀不动它们**。
  *
  * <p>⚠️ **深度口径是用户裁定**（见 {@link #DROP_FALL_SEARCH}）：不许在这里"顺手收紧/放宽"。
  */

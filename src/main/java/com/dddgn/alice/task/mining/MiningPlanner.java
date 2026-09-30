@@ -317,7 +317,7 @@ public final class MiningPlanner {
         final String botId = bot.getUUID().toString();
         // ---- 腿 1：同列（`GoalColumnBlocks`）----
         // ⚠️ 深度按**触及几何**推导，实参用**执行期同一个** `bot.getBlockReach()`
-        // （`action/MineBlockRunner` 的 `LINE_OF_SIGHT_BLOCKED` / `OUT_OF_REACH` 复核用的就是它）
+        // （`action/mining/MineBlockRunner` 的 `LINE_OF_SIGHT_BLOCKED` / `OUT_OF_REACH` 复核用的就是它）
         // ⇒ "规划说到得了"与"执行够得着"是**同一个口径**。
         // ⛔ 刻意**不**减 `MiningTuning.reachMargin`：那个规划期余量属于**站位挖掘**的调参面
         // （本期退休中，`1-3` 删）⇒ 在这里引它 = 给待删的旋钮**新增一个消费者**，正好反着来。

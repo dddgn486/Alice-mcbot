@@ -60,7 +60,7 @@ FREEZE_REGISTRY: tuple[dict[str, object], ...] = (
                   "或物品 `alice:chain_test_runner`）",
         # 每个文件里必须还在的**子串**（口径 = 存在性，不是哈希）
         "symbols": {
-            "com/dddgn/alice/compat/ChainMining.java": (
+            "com/dddgn/alice/action/mining/ChainMining.java": (
                 "class ChainMining", "enum StartResult",
                 # ⚠️ 一律用**声明形**：只写 `foo(` 会被**调用点**满足 —— 真树红臂 R1 实测过这件事
                 # （把 `private Status tickChain()` 改名，调用点 `tickChain()` 还在 ⇒ 假绿）。
@@ -89,10 +89,18 @@ FREEZE_REGISTRY: tuple[dict[str, object], ...] = (
             "com/dddgn/alice/reach/MiningTuning.java": ("chainMode = ChainMode.OFF",),
         },
         # 全仓提到这个符号的文件**恰好**只能是这些（多一个 ⇒ 冻结期间又长出去了）
+        # ⚠️ 判据是**裸子串扫描、按 `Path.name` 记**（含 javadoc ⇒ 注释也算命中）。
+        # ⭐ 2026-10-01（刀 1 · `O114`）**显式放宽一格**：`package-info.java` 入表 ——
+        #    刀 1 把 `ChainMining` 从 `compat/` 搬进 `action/mining/`，两个 `package-info.java`
+        #    （`com/dddgn/alice/action/` 与 `com/dddgn/alice/compat/`）为**记录这次搬迁**而提到了它。
+        #    ⛔ 这不是"又一个消费者"：`package-info.java` 是**纯文档**、没有可执行语句。
+        #    ⚠️ 代价（如实记）：放宽是**按文件名**的 ⇒ 以后**任何**目录下的 `package-info.java`
+        #    提到 `ChainMining` 都不再报 ⇒ 该洞**只覆盖文档面**，⛔ 覆盖不到任何 `.java` 代码文件。
+        #    ⛔ 若将来要让这个洞更紧（改成按**相对路径**白名单），必须同刀改本表的**全部**条目 —— 那是独立一刀。
         "consumer_needle": "ChainMining",
         "consumers_allowlist": (
             "MineTask.java", "ChainMineDiagnosticTask.java", "MineStep.java",
-            "ChainMining.java", "DebugCommands.java",
+            "ChainMining.java", "DebugCommands.java", "package-info.java",
         ),
     },
 )
@@ -179,14 +187,14 @@ def scan() -> tuple[dict[str, str], dict[str, list[str]]]:
 
 SELFTEST_CASES: list[tuple[str, dict[str, str], dict[str, list[str]], bool]] = (
     ("绿：登记项全在 + 默认关闭 + 消费者恰好", {
-        "com/dddgn/alice/compat/ChainMining.java": "class ChainMining enum StartResult public static boolean shouldChain( public static StartResult start( public static boolean available( public static boolean isRunning( public static int minedCount( public static void stop( oreexcavation.handlers.MiningScheduler",
+        "com/dddgn/alice/action/mining/ChainMining.java": "class ChainMining enum StartResult public static boolean shouldChain( public static StartResult start( public static boolean available( public static boolean isRunning( public static int minedCount( public static void stop( oreexcavation.handlers.MiningScheduler",
         "com/dddgn/alice/task/MineTask.java": "private Status beginChain() { private Status tickChain() { private boolean chainTriggered; private boolean chainRefusedByBudget; public boolean chainRefusedByBudget() { private static final int CHAIN_TIMEOUT_TICKS = 200; Phase.CHAIN chain_budget_refused prod_fallback",
         "com/dddgn/alice/fixture/ChainMineDiagnosticTask.java": "class ChainMineDiagnosticTask chain_mod=absent",
         "com/dddgn/alice/task/mining/MineStep.java": "ChainMining.shouldChain(",
         "com/dddgn/alice/reach/MiningTuning.java": "enum ChainMode chainMode = ChainMode.OFF",
         "com/dddgn/alice/debug/DebugCommands.java": "private static int chainMode( literal(\"chain\")",
      }, {"ChainMining": ["MineTask.java", "ChainMineDiagnosticTask.java", "MineStep.java",
-                         "ChainMining.java", "DebugCommands.java"]}, False),
+                         "ChainMining.java", "DebugCommands.java", "package-info.java"]}, False),
     ("红：`tickChain(` 被删（静默消失）", {
         "com/dddgn/alice/task/MineTask.java": "private Status beginChain() { private Status tickChain() { private boolean chainTriggered; private boolean chainRefusedByBudget; public boolean chainRefusedByBudget() { private static final int CHAIN_TIMEOUT_TICKS = 200; Phase.CHAIN chain_budget_refused prod_fallback",
      }, {"ChainMining": ["MineTask.java"]}, True),
@@ -195,7 +203,7 @@ SELFTEST_CASES: list[tuple[str, dict[str, str], dict[str, list[str]], bool]] = (
         "com/dddgn/alice/reach/MiningTuning.java": "enum ChainMode chainMode = ChainMode.AUTO",
      }, {"ChainMining": []}, True),
     ("红：长出**新消费者**（冻结期间又扩出去）", {
-        "com/dddgn/alice/compat/ChainMining.java": "class ChainMining enum StartResult public static boolean shouldChain( public static StartResult start( public static boolean available( public static boolean isRunning( public static int minedCount( public static void stop( oreexcavation.handlers.MiningScheduler",
+        "com/dddgn/alice/action/mining/ChainMining.java": "class ChainMining enum StartResult public static boolean shouldChain( public static StartResult start( public static boolean available( public static boolean isRunning( public static int minedCount( public static void stop( oreexcavation.handlers.MiningScheduler",
         "com/dddgn/alice/task/MineTask.java": "private Status beginChain() { private Status tickChain() { private boolean chainTriggered; private boolean chainRefusedByBudget; public boolean chainRefusedByBudget() { private static final int CHAIN_TIMEOUT_TICKS = 200; Phase.CHAIN chain_budget_refused prod_fallback",
         "com/dddgn/alice/fixture/ChainMineDiagnosticTask.java": "class ChainMineDiagnosticTask chain_mod=absent",
         "com/dddgn/alice/task/mining/MineStep.java": "ChainMining.shouldChain(",

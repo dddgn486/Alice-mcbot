@@ -6,7 +6,7 @@
 `D-455` 定了三层（`action/` 微操作 < `task/` 动作原语 < `job/` 高级任务），
 `survey/42 §1.2` 实测**全仓唯一的循环依赖**就在这里：
 
-    action/MineBlockRunner → task/mining/{StandingPointSelector, LineOfSightChecker, ReachPlan}
+    action/MineBlockRunner → task/mining/{StandingPointSelector, LineOfSightChecker, ReachPlan}   ← 历史（`step 3a`/`D-460` 已搬到 `reach/`）
     task/**                → action/{WriteGrant, WriteBudget, BlockInteraction, …}
 
 ⇒ 微操作**反过来**依赖比它高一层的原语 ⇒ `action/` 自己的边界「不许编排」**没有可执行判据**
@@ -27,7 +27,7 @@
 与 **6 个写入治理**（`TaskTargetProtection` · `WriteAudit` · `WriteBudget` · `WriteGrant` ·
 `WritePolicyMatrix` · `WriteReason`）。拆包后方向变成**单向**：
 
-    action/MineBlockRunner → write/WriteGrant        ✅ 允许（微操作调授权）
+    action/mining/MineBlockRunner → write/WriteGrant ✅ 允许（执行件调授权）
     write/**               → action/BlockInteraction ⛔ 禁止（写入治理不许认识调用它的人）
 
 ⚠️ **本刀不解循环**：`action ↔ pathing` 那个包级环来自**微操作** `MineBlockRunner`，
@@ -73,7 +73,7 @@
 `job/` import `debug/`（红）· ⭐ `bot/`（**刀 2 起不再是注册位置**）import `debug/`（**红** —— 断言**收窄**）· `debug/`（`D-560` 起是**开发期桶**）import `fixture/`（**绿**）·
 ⭐ `command/`（`D-560` 起是**真产品面**）import `fixture/`（**红** —— 断言由 `debug/` **搬家**到此，净效果**收窄**）·
 ⭐ `task/` 的**生产类**在**代码里**用 `fixture/`（红）· ⭐ `task/FixtureScript` 的**纯 javadoc/import**（绿））。
-另 3 条**定义**臂：`action/WriteGrant.java`（红）· `action/MineBlockRunner.java`（绿）·
+另 3 条**定义**臂：`action/WriteGrant.java`（红）· `action/mining/MineBlockRunner.java`（绿）·
 `write/WriteGrant.java`（绿）。
 
 跑法：`python3 tools/check-layer-direction.py`（已挂在 `tools/check-all.sh`）。
@@ -333,7 +333,7 @@ def scan_definition(rel: str) -> list[str]:
 
 # ==================== 红臂（每次运行都跑） ====================
 
-_MB = f"{PKG}/action/MineBlockRunner.java"
+_MB = f"{PKG}/action/mining/MineBlockRunner.java"
 SELFTEST_CASES: list[tuple[str, str, str, bool]] = [
     ("`reach/` import `task` ⇒ 红",
      f"{PKG}/reach/StandingPointSelector.java",
@@ -427,8 +427,8 @@ SELFTEST_CASES: list[tuple[str, str, str, bool]] = [
 #: 「定义」类红臂：`(label, rel, 期望红)` —— 走 `scan_definition`，与 import 臂分开。
 SELFTEST_DEF_CASES: list[tuple[str, str, bool]] = [
     ("`action/` 里又出现一份 `WriteGrant` 的定义 ⇒ 红", f"{PKG}/action/WriteGrant.java", True),
-    ("`action/` 里的微操作 `MineBlockRunner` ⇒ 绿（它本来就该在这层）",
-     f"{PKG}/action/MineBlockRunner.java", False),
+    ("`action/mining/` 里的域执行件 `MineBlockRunner` ⇒ 绿（刀 1 之后它家在域子包）",
+     f"{PKG}/action/mining/MineBlockRunner.java", False),
     ("`write/` 里的 `WriteGrant` ⇒ 绿（`step 4` 之后它的家）",
      f"{PKG}/write/WriteGrant.java", False),
 ]
@@ -445,6 +445,85 @@ SELFTEST_CALC_CASES: list[tuple[str, str, str, bool]] = [
     ("⭐ `pathing/movement/` 里出现写侧调用点 ⇒ **绿**（它就是干这个的）",
      f"{PKG}/pathing/movement/PillarExecution.java",
      "class A { void f(){ BlockInteraction.placeAt(bot, level, pos, false, grant); } }", False),
+]
+
+
+# ==================== ⭐ 2026-10-01 刀 1：`action/`「原语住根 · 域执行件住子包」 ====================
+# 用户 2026-10-01 裁定：① 层链出路 = **(甲)**（`pathing/` 跨两层，层链**按子包**声明）·
+# ② 顶包名**保持 `action/`** · ⭐ ③「**`act/` 只装执行件，以及这些执行件的调用器**」——
+# 「**维持单向依赖链**」是它的**机械可检形式**，⛔ 不是理由；「有没有专属包」只是**结果**，不能当判据。
+#
+# 落地 = `action/mining/`（域执行件：`MineBlockRunner` · `ChainMining`）＋ `action/` 根（跨域共享原语 5 个）。
+# 三条断言（每条都能用一次注入变红）：
+#   ① ⭐ **根 ✗→ 域子包**：`action/*.java`（**非递归**）不得引用 `com.dddgn.alice.action.<域>.`
+#      —— 根是**跨域共享原语**（`D-455` 的「微操作」），它⛔不认识任何一个域执行件；
+#      反过来 **域子包 → 根 是允许的**（执行件当然要用原语）。
+#   ② ⭐ **低层 ✗→ `action/<域>/`**：`pathing/`·`reach/`·`write/`·`log/`·`ledger/`（层链里在
+#      `action/` **之下**的那些）不得引用域子包。⚠️ 今天成立**只是运气** —— 实测生产侧**没有任何一处**
+#      从下面调 `MineBlockRunner`；没有门禁，`survey/42 §1.2` 那个环（`action ↔ pathing`）
+#      随时会**换个名字长回来**（`O110` ⑧ 逐字：「今天成立只是运气」）。
+#   ③ ⭐ **人口下限 / 反空转**：域子包必须真的存在且非空 —— ⛔ 不许靠"把域搬空"让 ①② 空过。
+ACTION_DIR = f"{PKG}/action/"
+#: `action/` 下的**域子包**（域执行件的家）。⛔ 加新域时同刀加人口下限。
+ACTION_DOMAINS = ("mining",)
+ACTION_DOMAIN_DIRS = tuple(f"{PKG}/action/{d}/" for d in ACTION_DOMAINS)
+#: `action/` **根**原语的实测人口（刀 1 之后 = 5；`step 4` 之后原 6 个里的 `MineBlockRunner` 进了 `mining/`）。
+MIN_ACTION_ROOT_FILES = 5
+#: 域子包人口下限（刀 1 实测 = 2：`MineBlockRunner` · `ChainMining`）。
+MIN_ACTION_DOMAIN_FILES = 2
+#: ⭐ 低层包（层链里在 `action/` **之下**）—— 它们 ✗→ `action/<域>/`。
+LOW_LAYERS = ("pathing", "reach", "write", "log", "ledger")
+#: `action/<域>` 的全限定名（**剥注释与字符串字面量后**再扫 ⇒ 路径指针字符串不算依赖，`D-556` (c)）。
+ACTION_DOMAIN_FQN_RE = re.compile(
+    r"com\.dddgn\.alice\.action\.(?:" + "|".join(ACTION_DOMAINS) + r")\.")
+
+
+def _domain_ref(text: str) -> tuple[list[str], bool]:
+    """⇒ (`action/<域>` 的 import 列表, 代码里有没有**行内** FQN)。注释/字符串都不算。"""
+    imports = [i for i in imports_of(text)
+               if any(i.startswith(f"com.dddgn.alice.action.{d}.") for d in ACTION_DOMAINS)]
+    inline = bool(ACTION_DOMAIN_FQN_RE.search(strip_to_code(text)))
+    return imports, inline
+
+
+def action_layer_edges(rel: str, text: str) -> list[str]:
+    """①②两条层序断言（`action/` 原语住根 · 域执行件住子包）。"""
+    imports, inline = _domain_ref(text)
+    if not imports and not inline:
+        return []
+    where = "、".join(f"`{i}`" for i in imports) if imports else \
+        "**行内**全限定名 `com.dddgn.alice.action.<域>.…`"
+    # ① 根（原语）✗→ 域子包
+    if rel.startswith(ACTION_DIR) and not rel.startswith(ACTION_DOMAIN_DIRS):
+        return [f"{rel}（`action/` **根**的原语）引用了域子包 {where} ⇒ 根是**跨域共享原语**，"
+                f"⛔ 不认识任何一个域执行件（2026-10-01 刀 1）；域内私有件请留在 `action/<域>/` 里"]
+    # ② 低层 ✗→ 域子包
+    tp = top_pkg(rel)
+    if tp in LOW_LAYERS:
+        return [f"{rel}（`{tp}/`）引用了 `action/<域>/` 的 {where} ⇒ 层方向倒了：域执行件只许"
+                f"**向上**被编排层（`task/`·`job/`·`bot/`）调用。⚠️ 若这是**新欠账**，"
+                f"必须带到期条件显式登记进本文件的 `ALLOWED_REVERSE` —— ⛔ 不许静默"]
+    return []
+
+
+SELFTEST_ACTION_CASES: list[tuple[str, str, str, bool]] = [
+    ("⭐ `action/` **根**的原语引用域子包 `action/mining/` ⇒ **红**",
+     f"{PKG}/action/BlockInteraction.java",
+     "import com.dddgn.alice.action.mining.MineBlockRunner;", True),
+    ("⭐ `action/mining/` 的域执行件引用**根**原语 ⇒ **绿**（执行件本来就该能用原语）",
+     f"{PKG}/action/mining/MineBlockRunner.java",
+     "import com.dddgn.alice.action.BlockInteraction;", False),
+    ("⭐ `pathing/`（**低层**）引用 `action/mining/` ⇒ **红**（层方向倒了）",
+     f"{PKG}/pathing/calc/CostModel.java",
+     "class A { void f(){ com.dddgn.alice.action.mining.MineBlockRunner g = null; } }", True),
+    ("⭐ `write/` 里**字符串字面量**写着 `action/mining/MineBlockRunner.java:158` ⇒ **绿**"
+     "（`D-556` (c)：路径指针字符串不是依赖）",
+     f"{PKG}/write/WritePolicyMatrix.java",
+     'class A { String s = "com.dddgn.alice.action.mining.MineBlockRunner"; }', False),
+    ("⭐ `reach/` 的**注释**里提到 `action/mining/MineBlockRunner` ⇒ **绿**"
+     "（`D-556` (c)：文档引用不是依赖）",
+     f"{PKG}/reach/ReachPlan.java",
+     "class A {\n    // 执行期 com.dddgn.alice.action.mining.MineBlockRunner 自己复核视线\n}", False),
 ]
 
 
@@ -471,6 +550,12 @@ def selftest() -> list[str]:
         is_red = bool(found)
         if is_red != expect_red:
             problems.append(f"calc 调用点臂失配：{label} ⇒ 期望{'红' if expect_red else '绿'}、实得"
+                            f"{'红' if is_red else '绿'}（{found}）")
+    for label, rel, body, expect_red in SELFTEST_ACTION_CASES:
+        found = action_layer_edges(rel, body)
+        is_red = bool(found)
+        if is_red != expect_red:
+            problems.append(f"action 层序臂失配：{label} ⇒ 期望{'红' if expect_red else '绿'}、实得"
                             f"{'红' if is_red else '绿'}（{found}）")
     _JAVADOC_ONLY[:] = _javadoc_snapshot
     return problems
@@ -501,6 +586,7 @@ def main() -> int:
         problems.extend(scan_imports(rel, text))
         problems.extend(scan_definition(rel))
         problems.extend(calc_callpoints(rel, text))
+        problems.extend(action_layer_edges(rel, text))
         if rel in ALLOWED_REVERSE:
             hits = [i for i in imports_of(text) if i in ALLOWED_REVERSE[rel]]
             debt_hits[rel] = hits
@@ -519,6 +605,16 @@ def main() -> int:
     if len(calc_files) < MIN_CALC_FILES:
         problems.append(f"`pathing/calc/` 只有 {len(calc_files)} 个文件（下限 {MIN_CALC_FILES}）⇒ "
                         f"2026-09-30「乙」拆出来的内核被搬回去/被删了")
+    # ⭐ 刀 1（2026-10-01）：`action/` 根原语人口 ＋ 每个域子包的人口（反空转 ③）
+    action_root_files = [p for p in action_files if not rels[p].startswith(ACTION_DOMAIN_DIRS)]
+    domain_counts = {d: len(under(f"action/{d}")) for d in ACTION_DOMAINS}
+    if len(action_root_files) < MIN_ACTION_ROOT_FILES:
+        problems.append(f"`action/` **根**只有 {len(action_root_files)} 个 `.java`（下限 "
+                        f"{MIN_ACTION_ROOT_FILES}）⇒ 跨域共享原语被搬走/被删（刀 1 之后根 = 5 个）")
+    for d, n in domain_counts.items():
+        if n < MIN_ACTION_DOMAIN_FILES:
+            problems.append(f"`action/{d}/` 只有 {n} 个 `.java`（下限 {MIN_ACTION_DOMAIN_FILES}）"
+                            f"⇒ 域子包被搬空 ⇒ 断言①②会**空过**（反空转 ③）")
     missing = [n for n in WRITE_GOVERNANCE if not (SRC / PKG / "write" / f"{n}.java").exists()]
     if missing:
         problems.append(f"`write/` 里缺 {missing} ⇒ 「拆包」不成立（拆包不是删除；`step 4`/`D-462`）")
@@ -543,7 +639,8 @@ def main() -> int:
 
     debt = " · ".join(f"{rel.split('/')[-1]}→{','.join(i.split('.')[-1] for i in hits)}"
                       for rel, hits in sorted(debt_hits.items()) if hits)
-    arms = len(SELFTEST_CASES) + len(SELFTEST_DEF_CASES) + len(SELFTEST_CALC_CASES)
+    arms = (len(SELFTEST_CASES) + len(SELFTEST_DEF_CASES) + len(SELFTEST_CALC_CASES)
+            + len(SELFTEST_ACTION_CASES))
     javadoc_only = sorted(set(_JAVADOC_ONLY))
     print(f"LAYER_DIRECTION_RESULT PASS: `reach/` 反向依赖 0 · `write/` 反向依赖 0 · `action/` → `task/` 欠账 "
           f"{sum(len(v) for v in debt_hits.values())} 条「{debt or '无（step 3b 后已是无条件 0 命中）'}」 · "
@@ -554,8 +651,12 @@ def main() -> int:
           f"（纯 javadoc/import 不计：{len(javadoc_only)} 处 {javadoc_only or '无'} —— `D-556` (c)） · "
           f"⭐ `pathing/calc/`（内核 {len(calc_files)} 文件）**零写侧调用点**"
           f"（用户 2026-09-30：「`core` 不加调用点是肯定的」） · "
+          f"⭐ `action/` 原语住根 · 域执行件住子包（2026-10-01 刀 1）：根 {len(action_root_files)} 文件 "
+          f"✗→ 域子包 **0** · 低层 {sorted(LOW_LAYERS)} ✗→ `action/<域>/` **0** · "
+          f"域子包 " + " · ".join(f"`action/{d}/` {n} 文件" for d, n in sorted(domain_counts.items())) + " · "
           f"扫描 {len(files)} · 红臂 {arms}/{arms}"
-          f"（import {len(SELFTEST_CASES)} + 定义 {len(SELFTEST_DEF_CASES)} + calc {len(SELFTEST_CALC_CASES)}）")
+          f"（import {len(SELFTEST_CASES)} + 定义 {len(SELFTEST_DEF_CASES)} + calc {len(SELFTEST_CALC_CASES)}"
+          f" + action 层序 {len(SELFTEST_ACTION_CASES)}）")
     return 0
 
 

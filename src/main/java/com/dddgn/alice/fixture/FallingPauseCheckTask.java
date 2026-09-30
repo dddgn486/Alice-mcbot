@@ -1,6 +1,6 @@
 package com.dddgn.alice.fixture;
 
-import com.dddgn.alice.action.MineBlockRunner;
+import com.dddgn.alice.action.mining.MineBlockRunner;
 import com.dddgn.alice.write.WriteGrant;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;

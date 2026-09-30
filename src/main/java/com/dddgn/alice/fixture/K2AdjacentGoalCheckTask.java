@@ -558,7 +558,7 @@ public final class K2AdjacentGoalCheckTask implements Task {
         // ⭐ **如实记一条会进日志的行为读数**（⛔ 不作断言：它取决于代价，不是不变量）：
         // 同列到达集**含目标格自身**（Baritone `GoalTwoBlocks` 的语义）⇒ 只要目标**可破坏**，
         // 规划就常会选「**破进目标格**」那一格 ⇒ `arrival == target`。⚠️ 这不是危险形状
-        // （`action/MineBlockRunner.tick()` 开头有「目标已空 ⇒ `DONE`」，`:113-117`），
+        // （`action/mining/MineBlockRunner.tick()` 开头有「目标已空 ⇒ `DONE`」，`:113-117`），
         // 但它**是**本刀的行为差异面 ⇒ 真机核对的第一个读数就是这一行。
         if (ac.equals(target)) {
             BotLog.info("[K2Adjacent] 同列形状：落点 == **目标格自身**（破进目标格）⇒ 真机请核对"

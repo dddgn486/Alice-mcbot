@@ -329,7 +329,7 @@ public final class WritePolicyMatrix {
                     Set.of(WriteReason.EXPECTED_TARGET, WriteReason.STANDING_SPACE, WriteReason.PATH_ACCESS,
                             WriteReason.SUPPORT_PLACEMENT, WriteReason.STEP_PLACEMENT,
                             WriteReason.SCAFFOLD_RESTORE),
-                    "task/mining/MiningPlanner.java:182,241、action/MineBlockRunner.java:158",
+                    "task/mining/MiningPlanner.java:182,241、action/mining/MineBlockRunner.java:158",
                     "挖掘站位用 miningApproach（D-067 ㉘ 禁用 PILLAR/FALL/DOWNWARD）；支撑块用完即拆；"
                             + "⭐ withPlacement（D-440 鱼骨切片 5）= **只放不拆**的「补一块再走」："
                             + "追簇挖空地板之后由规划器自己补回路面（额度由 Job 自己推导并封顶）"),

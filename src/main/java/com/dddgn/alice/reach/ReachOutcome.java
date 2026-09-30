@@ -20,7 +20,7 @@ import java.util.Objects;
  *       ⇒ “评分”不再需要**载体**：它就是计划的一个**导出量**
  *       （{@link ReachPlan#totalCost()}，唯一出处）。</li>
  *   <li><b>退役规划期视线（LOS）</b>（同一裁定）：它的**唯一**消费者是 `task/MineTask` 的一行
- *       **遥测**日志，而执行期 `action/MineBlockRunner` **自己在运行期**复核视线
+ *       **遥测**日志，而执行期 `action/mining/MineBlockRunner` **自己在运行期**复核视线
  *       （`LINE_OF_SIGHT_BLOCKED` / `OUT_OF_REACH`，可重试）⇒ 规划期那一份的
  *       **行为承重 = 零** ⇒ 从 {@link ReachPlan} 的组件表里去掉
  *       （⚠️ 代价如实记：真机取证时少一个 `visibility=` 读数）。</li>

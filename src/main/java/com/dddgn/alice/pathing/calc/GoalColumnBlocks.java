@@ -38,7 +38,7 @@ import com.dddgn.alice.pathing.movement.SurfaceMovementProvider;
  * Baritone 只有 {@code 1}（`GoalTwoBlocks`）与 {@code 2}（`GoalThreeBlocks`）两个手写档；
  * 本类把它推广成 {@code depth}，并给出口径明确的工厂 {@link #forReach} / {@link #maxDepthForReach}
  * （推导见那两处 javadoc）。<b>Alice 特有理由</b>：Alice 的原地挖**本来就不限同列**
- * （`action/MineBlockRunner.inPlaceReachable` 只要求"真眼位 + 裸触及 + 视线"，⛔ 无列约束）
+ * （`action/mining/MineBlockRunner.inPlaceReachable` 只要求"真眼位 + 裸触及 + 视线"，⛔ 无列约束）
  * ⇒ 形状若不跟着放宽，"规划说到得了、执行期够得着"这条**不变式**会在列方向上留缺口。
  * <b>为什么放宽是安全的</b>：深档不是"免费"，`CostModel` 对破坏与上升分别计价
  * （`BREAK_PENALTY_TICKS`、`ASCEND_COST`）⇒ 搜索**自然偏好最浅的可达档**；

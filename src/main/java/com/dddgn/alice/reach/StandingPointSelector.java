@@ -24,7 +24,7 @@ import java.util.List;
  * </ul>
  *
  * <p>⚠️ <b>本类是 `reach/` 的**触及/站位几何原语**，不是"站位挖掘"本体</b>（`D-460` 的层定位）：
- * 它今天的活消费者有 `action/MineBlockRunner` · `task/mining/BlockerClearPlanner` ·
+ * 它今天的活消费者有 `action/mining/MineBlockRunner` · `task/mining/BlockerClearPlanner` ·
  * `task/mining/MiningPlanner` · `job/lumber/LumberCandidateSource` ·
  * `task/MineTask.hasStandingCandidateNow` · `job/mine/StandingCostField` · `task/collecting/CollectStep`
  * ⇒ ⛔ **别按文件删它**（开工前侦察 `§14` 实测：那是"按文件删会立刻坏"的五条证据之一）。

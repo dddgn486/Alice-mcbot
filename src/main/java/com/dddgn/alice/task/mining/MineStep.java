@@ -1,8 +1,8 @@
 package com.dddgn.alice.task.mining;
 
-import com.dddgn.alice.action.MineBlockRunner;
+import com.dddgn.alice.action.mining.MineBlockRunner;
 import com.dddgn.alice.bot.BotPlayer;
-import com.dddgn.alice.compat.ChainMining;
+import com.dddgn.alice.action.mining.ChainMining;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.reach.ReachPlan;
 import com.dddgn.alice.reach.MiningTuning;

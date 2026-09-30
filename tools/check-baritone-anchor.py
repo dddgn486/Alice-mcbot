@@ -48,7 +48,7 @@ BASE = "48b5619b"
 KERNEL_PREFIXES = (
     "src/main/java/com/dddgn/alice/pathing/",
     "src/main/java/com/dddgn/alice/reach/",
-    "src/main/java/com/dddgn/alice/action/MineBlockRunner.java",
+    "src/main/java/com/dddgn/alice/action/mining/MineBlockRunner.java",
     "src/main/java/com/dddgn/alice/action/BlockInteraction.java",
     "src/main/java/com/dddgn/alice/task/mining/",
     "src/main/java/com/dddgn/alice/task/MineTask.java",

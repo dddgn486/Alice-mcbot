@@ -2281,7 +2281,7 @@ com.dddgn.alice.task.mining.MiningBudget
                     mineTask == null ? List.of() : mineTask.recoveryEvents(),
                     failureReportFor(terminalStatus, resultCode));
             if (mineTask != null) {
-                com.dddgn.alice.action.MineBlockRunner.FailureReport report = mineTask.lastFailureReport();
+                com.dddgn.alice.action.mining.MineBlockRunner.FailureReport report = mineTask.lastFailureReport();
                 BotLog.info("[MineTask终态计划证据] target={} attempts={} recoveryAttempts={} recoveryStage={} recoveryEvents={} currentPlanRetained={} reason={} phase={}",
                         taskTargetDescription, mineTask.executionAttempts(), mineTask.recoveryAttempts(), mineTask.recoveryStage(),
                         mineTask.recoveryEvents(), mineTask.currentPlanRetained(), report == null ? "-" : report.reason(),

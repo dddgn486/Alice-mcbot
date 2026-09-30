@@ -2,8 +2,8 @@ package com.dddgn.alice.task;
 
 import com.dddgn.alice.write.WriteBudget;
 import com.dddgn.alice.write.WriteGrant;
-import com.dddgn.alice.action.MineBlockRunner;
-import com.dddgn.alice.compat.ChainMining;
+import com.dddgn.alice.action.mining.MineBlockRunner;
+import com.dddgn.alice.action.mining.ChainMining;
 import com.dddgn.alice.bot.RecoveryStage;
 import com.dddgn.alice.bot.TaskFailureReport;
 import com.dddgn.alice.log.BotLog;

@@ -746,7 +746,7 @@ public final class MineRegressionTask implements Task {
             // ⭐ 前提自证（`D-474`）：本用例要求"起点够不着目标" ⇒ 执行器**必须走位**
             //   ⇒ 才有"走到那个被砌死的站位"这条路。若起点就能就地挖，竞态永远不开火
             //   ⇒ 整条用例会以"没跑到"伪装成"重规划没问题"（`Z4` 的空集假绿家族）。
-            if (com.dddgn.alice.action.MineBlockRunner.inPlaceReachable(
+            if (com.dddgn.alice.action.mining.MineBlockRunner.inPlaceReachable(
                     bot.serverLevel(), bot, current.target())) {
                 record(current, false, "premise_failed 起点就能就地挖（本用例要求够不着 ⇒ 必须走位）");
                 finishCase();

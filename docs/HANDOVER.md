@@ -5301,3 +5301,27 @@ AI 建议 = **必改 `空转`（拆词）** · ✅ **已执行 `咬人`→`拦�
 **下一步入口**：用户裁 `O110` ⑦ 的**余下三项**（`BlockInteraction` 查询半落点 · `ChainMining`/`FtbCommandRunner` · `Ftb*` 三桥）
 → 刀 1（`action/mining/` ＋ 三条门禁同刀）→ **然后处理 `write/`**（用户指定）。
 ⚠️ **主线排期不动**：以上全属结构线。
+
+---
+
+## 断点五十二（2026-10-01）⭐ **刀 1 已落地**：`action/mining/` ＋「原语住根 · 域执行件住子包」三条门禁
+
+**本轮做完的（`D-562` · 台账 `O114` · 报告 §37）**：
+- ⭐ **`action/` 收敛第一刀落地**：`git mv` 两件 ⇒ `action/mining/{MineBlockRunner, ChainMining}`；
+  `action/` 根留 **5** 个跨域共享原语。引用面改写 **18 文件 / 25 处**；
+  新增 `action/package-info.java` 与 `compat/package-info.java`（后者写死 `compat/` 的**新定义**）。
+- ⭐ **同刀门禁**（`R4`）：`check-layer-direction.py` **3 条断言 ＋ 5 条红臂**（**29 → 34**）＋ **2 次真树注入实测**（还原逐字节干净）。
+- ✅ `COMPILES`（`BUILD SUCCESSFUL`）· ✅ `pass=40 warning=1 failed=0` ·
+  ✅ **`SERVER_TESTED` 行为零变化** —— 电池 `core` 真跑 261s，**163 个判定 token 逐字节与基线一致**。
+- ⭐ **补上了 `D-561` 缺的同代码对照组**：同代码两次运行差异 **318** 行（噪声地板）· 基线 vs 本刀差异 **314** 行 ⇒ 本刀 **≤ 噪声**。
+- ⚠️ **我上一轮的错（已扣下，如实记）**：`GainStepRunner` **不随本刀搬** —— 它拖着 `MiningProfile`（住 `task/mining/`），
+  搬了会让 `action/mining/` → `task/mining/` **当场违反**断言 2；⚠️ 这个耦合**只靠 import 扫描看不见**（同包简单名）。
+  ⇒ 归 **`O111`**（用户同意推迟）。⚠️ 另记：`step/package-info.java` 也声明过 `GainStepRunner` 要跟 `CollectStep` 搬 ⇒ **两套计划**，将来一次性裁。
+- ⚠️ **环境坑（`O115`）**：本环境 `maven.minecraftforge.net` **不可达** ⇒ **`./gradlew` 会无限期卡死**（实测 888s 无进展）。
+  ✅ 用 **`./gradlew compileJava --offline --no-daemon`**（缓存 127 MB 够用，2m37s）。
+  ⚠️ 别用 `pkill -f 'GradleDaemon'`（会自匹配杀掉自己的 shell）。
+
+**用户本轮裁定（记住，别再问）**：① 层链 **(甲)**（按子包声明）· ② 顶包名**保持 `action/`** · ③ `ChainMining` → `action/mining/`（⛔ 不建 `mod/`）· ④ `Ftb*` 三桥**留 `compat/`** · ⑤ `BlockInteraction` **不拆**（4 个死码成员独立一刀）· ⑥ `task/` 退休后的挖掘语义面 ⇒ **推迟**（`O111`）。
+
+**下一步入口**（用户 2026-09-30 已指定顺序）：**处理 `write/`** —— 或先做那 4 个**生产 0 调用**的死码成员那一刀。
+⚠️ **主线排期不动**：以上全属结构线。

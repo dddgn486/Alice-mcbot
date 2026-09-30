@@ -26,7 +26,7 @@
 | # | 断言 | 咬什么 |
 |---|---|---|
 | **A** | `pathing/MovementHelper.java` 里**声明形**存在 `underfootUnsafe(`，且**全仓只有这一处定义** | 判据被复制成第二套（`D-472` 前的两套口径：`blockPosition()` vs `footCell()`） |
-| **B** | `action/MineBlockRunner.java` 的 **`canMineInPlace()` 方法体**里调用了它 | 就地挖的旁路重新打开（= 本门禁存在的首要理由） |
+| **B** | `action/mining/MineBlockRunner.java` 的 **`canMineInPlace()` 方法体**里调用了它 | 就地挖的旁路重新打开（= 本门禁存在的首要理由） |
 | **C1** | `task/RestoreScopeTask.java` 的 **`pickNext()` 方法体**里调用了它 | 取件闸被删 ⇒ 重新"站上去"（时机错） |
 | **C2** | 同文件的 **`startSideBreak()` 方法体**里调用了它 | **动作那一刻**的判定被删 ⇒ 失败时归因退回笼统的 `side_break_failed`（`D-403` 的"如实归因"丢失） |
 | **D** | 旧的重复形状 `pos.equals(footNow.below())` **全仓 0 处** | 第二套口径回来（A 的另一种失效形态） |
@@ -67,7 +67,7 @@ SHAPE_NEEDLES = ("footCell(", "canWalkOn(")
 DUPLICATE_SHAPE = "pos.equals(footNow.below())"
 
 MOVEMENT_HELPER = "com/dddgn/alice/pathing/MovementHelper.java"
-MINE_RUNNER = "com/dddgn/alice/action/MineBlockRunner.java"
+MINE_RUNNER = "com/dddgn/alice/action/mining/MineBlockRunner.java"
 RESTORE = "com/dddgn/alice/task/RestoreScopeTask.java"
 
 #: 动作点人口下限：`canMineInPlace` 1 + `pickNext` 1 + `startSideBreak` 1 = 3。

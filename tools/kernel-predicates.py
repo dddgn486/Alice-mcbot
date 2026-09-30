@@ -1946,7 +1946,7 @@ def rule_support_and_cluster_order():
     problems = []
     planner = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task" / "mining"
                / "MiningPlanner.java").read_text(encoding="utf-8")
-    runner = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "action"
+    runner = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "action" / "mining"
               / "MineBlockRunner.java").read_text(encoding="utf-8")
     clusters = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "job" / "mine"
                 / "TargetClusters.java").read_text(encoding="utf-8")
@@ -2064,7 +2064,7 @@ def rule_mine_in_place_before_walk():
     ④ 用户明确要求保留的那条：**会丢的掉落物仍要先处理**（计划要求垫方块且还没垫 ⇒ 先按计划走）。
     """
     problems = []
-    runner = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "action"
+    runner = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "action" / "mining"
               / "MineBlockRunner.java").read_text(encoding="utf-8")
     tick = code_only(method_body(runner, "public Status tick()"))
     judge = code_only(method_body(runner, "private boolean canMineInPlace()"))
@@ -2751,7 +2751,7 @@ def rule_arrival_declared_and_consumed():
                  / "ReachPlan.java")
     planner_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task" / "mining"
                     / "MiningPlanner.java")
-    runner_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "action"
+    runner_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "action" / "mining"
                    / "MineBlockRunner.java")
     # ⭐ `①-2b`（2026-09-29，`D-530`）：A 腿（`R2`＋`R5`）从 `MiningPlanner` 搬进 `reach/`
     # ⇒ **生产点不再只在一个文件里**：`IN_PLACE` 与两个 `DIRECT_*` 随 `selectDirect`/`selectBest`
@@ -2800,7 +2800,7 @@ def rule_arrival_declared_and_consumed():
 
     # ---- ② 执行期穷尽 switch、旧载体不许回流 ----
     if "switch (plan.arrival())" not in runner_code:
-        problems.append("`action/MineBlockRunner.java` 里没有 `switch (plan.arrival())`"
+        problems.append("`action/mining/MineBlockRunner.java` 里没有 `switch (plan.arrival())`"
                         "⇒ 走位请求的写能力不是从**显式字段**读的（`D-520`：⛔ 不许由任何别的值反推）")
     for legacy in ("ReachPlan.Mode", "plan.mode()"):
         if legacy in runner_code:

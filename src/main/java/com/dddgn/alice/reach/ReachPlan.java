@@ -27,7 +27,7 @@ import java.util.Objects;
  * <ol>
  *   <li>它的**唯一**消费者是 `task/MineTask` 的一行遥测日志
  *       （`[MiningPlanner探针] … visibility=…`）⇒ **行为承重 = 零**；</li>
- *   <li>执行期 `action/MineBlockRunner` **自己在运行期**复核视线
+ *   <li>执行期 `action/mining/MineBlockRunner` **自己在运行期**复核视线
  *       （`LINE_OF_SIGHT_BLOCKED` / `OUT_OF_REACH`，可重试）⇒ **从不读**这一份；</li>
  *   <li>⇒ 留在计划里等于让“规划那一刻的视线”被误当成**执行期事实**（`D-348` 同一条纪律：
  *       快照是历史，不是现在）。</li>
@@ -53,7 +53,7 @@ public record ReachPlan(
      *
      * <p><b>它替谁</b>：替掉旧的 {@code ReachPlan.Mode}。旧枚举把**两件事压在一个字段里** ——
      * "规划模式记录"（诊断用）与"**这一趟走位能否改写世界**"（`D-076` 红线的最后一处接力）。
-     * 只有后者是承重的：`action/MineBlockRunner` 在**运行时**靠 {@code mode} 值决定要不要把走位请求
+     * 只有后者是承重的：`action/mining/MineBlockRunner` 在**运行时**靠 {@code mode} 值决定要不要把走位请求
      * 建成 {@code PathRequest.miningApproach}（含 {@code BREAK_*}/{@code PILLAR}）还是
      * {@code PathRequest.of}（纯通行）。
      *

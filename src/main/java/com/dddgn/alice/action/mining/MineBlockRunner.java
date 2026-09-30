@@ -1,5 +1,7 @@
-package com.dddgn.alice.action;
+package com.dddgn.alice.action.mining;
 
+import com.dddgn.alice.action.BlockBreakSession;
+import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;

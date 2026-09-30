@@ -1,7 +1,7 @@
 package com.dddgn.alice.job.fishbone;
 
 import com.dddgn.alice.action.BlockInteraction;
-import com.dddgn.alice.action.MineBlockRunner;
+import com.dddgn.alice.action.mining.MineBlockRunner;
 import com.dddgn.alice.write.WriteAudit;
 import com.dddgn.alice.write.WriteGrant;
 import com.dddgn.alice.write.WriteReason;
