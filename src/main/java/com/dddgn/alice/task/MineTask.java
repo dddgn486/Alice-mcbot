@@ -911,7 +911,7 @@ public final class MineTask implements Task {
             gainSteps++;
             BotLog.info("[MineTask] gain_done target={} foot={} steps={}/{}",
                     target.toShortString(),
-                    com.dddgn.alice.pathing.MovementHelper
+com.dddgn.alice.pathing.MovementHelper
                             .footCell(bot.serverLevel(), bot).toShortString(),
                     gainSteps, profile.maxGainSteps());
         }

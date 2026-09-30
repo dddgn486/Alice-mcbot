@@ -256,15 +256,15 @@ public final class SurvivalShoreEscapeCheckTask implements Task {
         // 「`SEARCH_LIMIT` 也算可尝试」⇒ **同一格、同一代码、两次跑给出不同答案**（`true`/`false`）
         // ⇒ 拿它当前提 = 拿到一个**会随机红**的夹具。
         // 这里改用**节点预算 + 慷慨的时间预算**（确定性）直接问同一张图：
-        var dryRun = new com.dddgn.alice.pathing.core.search.CorePathPlanner().plan(probe,
-                bot.serverLevel(), com.dddgn.alice.pathing.core.search.PathRequest
+        var dryRun = new com.dddgn.alice.pathing.calc.CorePathPlanner().plan(probe,
+                bot.serverLevel(), com.dddgn.alice.pathing.calc.PathRequest
                         .of(probe.getUUID().toString(), foot, geometricNear
                                         ? SurvivalSystem.nearestSafeRefuge(probe, SurvivalSystem.REFUGE_RADIUS, foot)
                                         : foot.above(),
                                 "shore-premise")
-                        .withBudget(com.dddgn.alice.pathing.core.search.SearchBudget.of(500, 60_000L)));
+                        .withBudget(com.dddgn.alice.pathing.calc.SearchBudget.of(500, 60_000L)));
         boolean submergedUnreachable = geometricNear
-                && dryRun.status() == com.dddgn.alice.pathing.core.search.PlanningStatus.UNREACHABLE;
+                && dryRun.status() == com.dddgn.alice.pathing.calc.PlanningStatus.UNREACHABLE;
         // 生产预检的读数**只记录、不断言**（它就是上面那条不稳的东西）
         boolean plannableNow = SurvivalSystem.plannableRefuge(probe, HazardType.WATER_CONTACT, false) != null;
         findings.add("premise:case=" + caseName() + " foot=" + foot.toShortString()

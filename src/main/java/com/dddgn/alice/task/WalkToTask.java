@@ -3,12 +3,12 @@ package com.dddgn.alice.task;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
-import com.dddgn.alice.pathing.core.search.PathRequest;
-import com.dddgn.alice.pathing.core.session.PathExecutionResult;
-import com.dddgn.alice.pathing.core.session.PathSessionStatus;
+import com.dddgn.alice.pathing.calc.PathRequest;
+import com.dddgn.alice.pathing.path.PathExecutionResult;
+import com.dddgn.alice.pathing.path.PathSessionStatus;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
-import com.dddgn.alice.pathing.PathRetryRunner;
+import com.dddgn.alice.pathing.path.PathRetryRunner;
 
 /**
  * 轻量硬路径移动任务（**D-060：已迁移到新内核 R3/R4**）：只把 Bot 移动到指定脚位，不挖掘、不放置。

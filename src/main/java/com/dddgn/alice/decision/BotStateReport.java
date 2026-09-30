@@ -174,7 +174,7 @@ public final class BotStateReport {
         }
         // K-4 / D-167：谓词统一后的**累计**遥测。全为 0 ⇒ "规划期说到了、执行期 EXACT 到不了"
         // 这条缝在实战里没咬到（计数只在真的发生时出现，所以空 = 从未发生）。
-        String admission = com.dddgn.alice.pathing.core.search.PathingStats.describeTotals();
+        String admission = com.dddgn.alice.pathing.calc.PathingStats.describeTotals();
         lines.add("目标准入（K-4 累计）：" + (admission.isEmpty() ? "无异常计数" : admission));
         String refusal = GoalDirector.lastRefusal(bot);
         if (!refusal.isBlank()) {

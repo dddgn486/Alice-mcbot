@@ -143,6 +143,37 @@ _STR_RE = re.compile(r'"(?:\\.|[^"\\])*"')
 _IMPORT_LINE_RE = re.compile(r"\s*import\s")
 
 
+# ==================== ⭐ 2026-09-30「乙」：`pathing/calc/` 零写侧调用点 ====================
+# 用户 2026-09-30 逐字：「**`core` 不加调用点是肯定的**」。
+# 按 Baritone 拆成 `calc/`（内核 36）· `movement/`（执行器族 27）· `path/`（驱动器 4）之后，
+# 这句话的**可执行形式** = `pathing/calc/` 里不得出现**写侧调用点**
+# （带调用点的族在 `movement/`：实测 14 处 / 5 文件）。
+# ⚠️ 判据只看"**调用**"，⛔ 不禁止 `calc/` 依赖 `movement/` 的接口 —— Baritone 的 `calc/` 同样要问
+# `Moves`「你能做什么」（`AStarPathFinder` → `Moves`）⇒ 两包是**平级域**，方向由调用点划，不由 import 划。
+CALC_DIR = f"{PKG}/pathing/calc/"   # ⚠️ rel 是相对 SRC 的全路径（含 `com/dddgn/alice`），⛔ 不是包名
+MIN_CALC_FILES = 30
+WRITE_CALL_RE = re.compile(
+    r"(\.setBlockAndUpdate\(|\.setBlock\(|\.destroyBlock\(|\.removeBlock\(|\.setBlockState\("
+    r"|BlockInteraction\.(beginBreak|placeAt)\(|BlockBreakSession\."
+    r"|\.teleportTo\(|performPrefixedCommand|clickSlot|\.getController\("
+    r"|WorldModLedger\.(record|openScope|closeScope))")
+
+
+def calc_callpoints(rel: str, text: str) -> list[str]:
+    """`pathing/calc/` 里只许有计算，⛔ 不许有写侧调用点（注释/import 不算）。"""
+    if not rel.startswith(CALC_DIR):
+        return []
+    out = []
+    for ln, line in enumerate(text.split("\n"), 1):
+        s = line.strip()
+        if s.startswith(("*", "//", "import ")):
+            continue
+        if WRITE_CALL_RE.search(line):
+            out.append(f"{rel}:{ln} 出现写侧调用点 ⇒ `pathing/calc/` 是内核（无调用器），"
+                       f"带调用点的执行器族必须住 `pathing/movement/` —— {s[:70]}")
+    return out
+
+
 def strip_to_code(text: str) -> str:
     """只留**代码里的使用**（`D-556` (c) 的判据）：剥块注释／行注释／**字符串字面量** ＋ 去掉 `import` 行。
 
@@ -318,7 +349,7 @@ SELFTEST_CASES: list[tuple[str, str, str, bool]] = [
      "import com.dddgn.alice.task.PathRetryRunner;", True),
     ("`action/` import `pathing`（同层/更下层）⇒ 绿",
      _MB,
-     "import com.dddgn.alice.pathing.PathRetryRunner;", False),
+     "import com.dddgn.alice.pathing.path.PathRetryRunner;", False),
     ("`reach/` import `pathing` / `log` ⇒ 绿（同层/更下层）",
      f"{PKG}/reach/LineOfSightChecker.java",
      "import com.dddgn.alice.pathing.MovementHelper;\nimport com.dddgn.alice.log.BotLog;", False),
@@ -387,7 +418,7 @@ SELFTEST_CASES: list[tuple[str, str, str, bool]] = [
      "import com.dddgn.alice.job.lumber.LumberJob;", True),
     ("`write/` import `pathing` / `log`（更下层）⇒ 绿",
      f"{PKG}/write/WritePolicyMatrix.java",
-     "import com.dddgn.alice.pathing.core.search.PathRequest;\nimport com.dddgn.alice.log.BotLog;", False),
+     "import com.dddgn.alice.pathing.calc.PathRequest;\nimport com.dddgn.alice.log.BotLog;", False),
     ("`action/` import `write/`（微操作调授权）⇒ 绿（`step 4` 后的**正确**方向）",
      _MB,
      "import com.dddgn.alice.write.WriteGrant;", False),
@@ -400,6 +431,20 @@ SELFTEST_DEF_CASES: list[tuple[str, str, bool]] = [
      f"{PKG}/action/MineBlockRunner.java", False),
     ("`write/` 里的 `WriteGrant` ⇒ 绿（`step 4` 之后它的家）",
      f"{PKG}/write/WriteGrant.java", False),
+]
+
+
+SELFTEST_CALC_CASES: list[tuple[str, str, str, bool]] = [
+    ("⭐ `pathing/calc/` 里出现 `BlockInteraction.placeAt(...)` ⇒ **红**",
+     f"{PKG}/pathing/calc/CostModel.java",
+     "class A { void f(){ BlockInteraction.placeAt(bot, level, pos, false, grant); } }", True),
+    ("⭐ `pathing/calc/` 里只有**查询**（`BlockInteraction.breakable`）⇒ **绿**"
+     "（查询不是调用器；`calc/` 问 `movement/`「能不能」是合法的）",
+     f"{PKG}/pathing/calc/CostModel.java",
+     "class A { boolean f(){ return BlockInteraction.breakable(bot, level, pos, grant); } }", False),
+    ("⭐ `pathing/movement/` 里出现写侧调用点 ⇒ **绿**（它就是干这个的）",
+     f"{PKG}/pathing/movement/PillarExecution.java",
+     "class A { void f(){ BlockInteraction.placeAt(bot, level, pos, false, grant); } }", False),
 ]
 
 
@@ -421,6 +466,12 @@ def selftest() -> list[str]:
         if is_red != expect_red:
             problems.append(f"定义臂失配：{label} ⇒ 期望{'红' if expect_red else '绿'}、实得"
                             f"{'红' if is_red else '绿'}（{found}）")
+    for label, rel, body, expect_red in SELFTEST_CALC_CASES:
+        found = calc_callpoints(rel, body)
+        is_red = bool(found)
+        if is_red != expect_red:
+            problems.append(f"calc 调用点臂失配：{label} ⇒ 期望{'红' if expect_red else '绿'}、实得"
+                            f"{'红' if is_red else '绿'}（{found}）")
     _JAVADOC_ONLY[:] = _javadoc_snapshot
     return problems
 
@@ -441,6 +492,7 @@ def main() -> int:
         return [p for p in files if rels[p].startswith(f"{PKG}/{pkg}/")]
 
     reach_files, action_files, write_files = under("reach"), under("action"), under("write")
+    calc_files = under("pathing/calc")
     debt_hits: dict[str, list[str]] = {}
 
     for path in files:
@@ -448,6 +500,7 @@ def main() -> int:
         text = path.read_text(encoding="utf-8")
         problems.extend(scan_imports(rel, text))
         problems.extend(scan_definition(rel))
+        problems.extend(calc_callpoints(rel, text))
         if rel in ALLOWED_REVERSE:
             hits = [i for i in imports_of(text) if i in ALLOWED_REVERSE[rel]]
             debt_hits[rel] = hits
@@ -463,6 +516,9 @@ def main() -> int:
     if len(write_files) < MIN_WRITE_FILES:
         problems.append(f"`write/` 只有 {len(write_files)} 个文件（下限 {MIN_WRITE_FILES}）⇒ "
                         f"`step 4` 拆出来的写入治理被搬回去/被删了")
+    if len(calc_files) < MIN_CALC_FILES:
+        problems.append(f"`pathing/calc/` 只有 {len(calc_files)} 个文件（下限 {MIN_CALC_FILES}）⇒ "
+                        f"2026-09-30「乙」拆出来的内核被搬回去/被删了")
     missing = [n for n in WRITE_GOVERNANCE if not (SRC / PKG / "write" / f"{n}.java").exists()]
     if missing:
         problems.append(f"`write/` 里缺 {missing} ⇒ 「拆包」不成立（拆包不是删除；`step 4`/`D-462`）")
@@ -487,7 +543,7 @@ def main() -> int:
 
     debt = " · ".join(f"{rel.split('/')[-1]}→{','.join(i.split('.')[-1] for i in hits)}"
                       for rel, hits in sorted(debt_hits.items()) if hits)
-    arms = len(SELFTEST_CASES) + len(SELFTEST_DEF_CASES)
+    arms = len(SELFTEST_CASES) + len(SELFTEST_DEF_CASES) + len(SELFTEST_CALC_CASES)
     javadoc_only = sorted(set(_JAVADOC_ONLY))
     print(f"LAYER_DIRECTION_RESULT PASS: `reach/` 反向依赖 0 · `write/` 反向依赖 0 · `action/` → `task/` 欠账 "
           f"{sum(len(v) for v in debt_hits.values())} 条「{debt or '无（step 3b 后已是无条件 0 命中）'}」 · "
@@ -496,8 +552,10 @@ def main() -> int:
           f"⭐ `task/` 生产类（{len(_PROD_DESTS)} 个 `dest ∈ {{生产, step}}`）✗→ `debug/`／`fixture/` "
           f"**代码级** 0 命中"
           f"（纯 javadoc/import 不计：{len(javadoc_only)} 处 {javadoc_only or '无'} —— `D-556` (c)） · "
+          f"⭐ `pathing/calc/`（内核 {len(calc_files)} 文件）**零写侧调用点**"
+          f"（用户 2026-09-30：「`core` 不加调用点是肯定的」） · "
           f"扫描 {len(files)} · 红臂 {arms}/{arms}"
-          f"（import {len(SELFTEST_CASES)} + 定义 {len(SELFTEST_DEF_CASES)}）")
+          f"（import {len(SELFTEST_CASES)} + 定义 {len(SELFTEST_DEF_CASES)} + calc {len(SELFTEST_CALC_CASES)}）")
     return 0
 
 

@@ -3,15 +3,15 @@ package com.dddgn.alice.task;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
-import com.dddgn.alice.pathing.core.search.FarTravelHop;
-import com.dddgn.alice.pathing.core.search.PathRequest;
-import com.dddgn.alice.pathing.core.session.PathExecutionResult;
+import com.dddgn.alice.pathing.calc.FarTravelHop;
+import com.dddgn.alice.pathing.calc.PathRequest;
+import com.dddgn.alice.pathing.path.PathExecutionResult;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 
 import java.util.ArrayList;
 import java.util.List;
-import com.dddgn.alice.pathing.PathRetryRunner;
+import com.dddgn.alice.pathing.path.PathRetryRunner;
 
 /**
  * **远距离旅行任务**（`D-337 附注二` 的执行侧）：把 bot 送到远处目标的 **XZ 邻域**，

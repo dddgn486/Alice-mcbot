@@ -4,13 +4,13 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
 // ⭐ 批次 1 `1-1b₂`（2026-09-29）：目标腿的**第一条搜索**用同列形状 ⇒ 本类成为
 // `GoalColumnBlocks` 的**唯一生产消费者**（`1-0a` 落地时它是"零消费者"，那句已在类头更正）。
-import com.dddgn.alice.pathing.core.search.CorePathPlanner;
-import com.dddgn.alice.pathing.core.search.GoalColumnBlocks;
-import com.dddgn.alice.pathing.core.search.PathPlan;
-import com.dddgn.alice.pathing.core.search.PathRequest;
+import com.dddgn.alice.pathing.calc.CorePathPlanner;
+import com.dddgn.alice.pathing.calc.GoalColumnBlocks;
+import com.dddgn.alice.pathing.calc.PathPlan;
+import com.dddgn.alice.pathing.calc.PathRequest;
 // ⭐ 2026-09-29「搬空第二批」：R7「诚实读数」搬进内核侧（`plans §4.2`③）—— 本类改为引用它，
 // `PlanningStatus` 的 import 随之不再需要（本类只剩注释里提到它）。
-import com.dddgn.alice.pathing.core.search.SearchConclusion;
+import com.dddgn.alice.pathing.calc.SearchConclusion;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -45,7 +45,7 @@ import com.dddgn.alice.reach.DirectArrivalPlanner;
  *   <li><b>目标级到达</b>（`K2` 接线 `D-520` ＋ 批次 1 `1-1b₂`）：A 无解 → 把目标交给**内核**，
  *       落脚点由 A* 自己找 —— ⭐ **两条腿顺序搜索**（`D-532` §二「甲」）：
  *       先问 {@link GoalColumnBlocks}（**同列**，"站进目标那一列"），拿不出方案再问
- *       {@link com.dddgn.alice.pathing.core.search.GoalAdjacent}（**侧面兜底**，"站到目标格的某一面"）；
+ *       {@link com.dddgn.alice.pathing.calc.GoalAdjacent}（**侧面兜底**，"站到目标格的某一面"）；
  *       到达允许破坏/放置（`D-366b` 起**放开** PILLAR/FALL/DOWNWARD，见 `D-366`），
  *       受 {@link MiningBudget#maxExtraBreakTicks()} 限制，超预算即 `found_but_unminable`。</li>
  * </ol>
@@ -74,7 +74,7 @@ public final class MiningPlanner {
     /*
      * ⚠️ 2026-09-29「搬空第二批」（改革 ① 主体 · `DS-5` 解体）：这里原来装着 **R7「诚实读数」** 三件 ——
      * `inconclusive(PlanningStatus)` · `inconclusiveReason(PathPlan)` · `SEARCH_INCOMPLETE`。
-     * **已搬到内核侧** {@link com.dddgn.alice.pathing.core.search.SearchConclusion}（同包名下的新类）。
+     * **已搬到内核侧** {@link com.dddgn.alice.pathing.calc.SearchConclusion}（同包名下的新类）。
      * 依据（`plans §4.2`③ ＋ `§2.2` 的 R7 逐字）：
      *   ⭐「**必须活下来**，落 `reach/` 或内核侧」·「⚠️ **红线判据**，不许跟着 `MiningPlanner` 一起消失」·
      *   「⚠️ 它描述的是**内核搜索配额**，放在挖掘包里是**错位**」。
@@ -254,7 +254,7 @@ public final class MiningPlanner {
      * 而它发生在**服务端 tick 线程**上）；
      * ② 兜底（旧 `planEnterTarget`）：以**目标格本身**为终点"破坏进入"。
      * 现在只有两句话：先问 {@link GoalColumnBlocks}（**同列**），拿不出方案再问
-     * {@link com.dddgn.alice.pathing.core.search.GoalAdjacent}（**侧面兜底**，Alice 特有形状，
+     * {@link com.dddgn.alice.pathing.calc.GoalAdjacent}（**侧面兜底**，Alice 特有形状，
      * `1-0b` 已定性更正）⇒ **落脚点由 A\* 自己找**。
      *
      * <p>⭐⭐ <b>形状 = 「甲 · 顺序两次搜索」（`D-532` §二，用户 2026-09-29 裁定）</b>：
@@ -354,7 +354,7 @@ public final class MiningPlanner {
         BlockPos standingFoot = path.finalFoot();
         double approachCost = path.totalCost();
         double budgetCost = budget.maxExtraBreakTicks()
-                / com.dddgn.alice.pathing.core.search.CostModel.WALK_ONE_BLOCK_TICKS;
+                / com.dddgn.alice.pathing.calc.CostModel.WALK_ONE_BLOCK_TICKS;
         if (approachCost > budgetCost) {
             BotLog.warn("[MiningPlanner] approach_over_budget target={} leg={} cost={} budget={} stand={}",
                     target.toShortString(), leg,

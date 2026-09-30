@@ -2,13 +2,13 @@ package com.dddgn.alice.fixture;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.pathing.core.CapabilityGate;
-import com.dddgn.alice.pathing.core.MovementCapabilities;
-import com.dddgn.alice.pathing.core.MovementSpec;
-import com.dddgn.alice.pathing.core.MovementType;
-import com.dddgn.alice.pathing.core.RecoverabilityLevel;
-import com.dddgn.alice.pathing.core.search.PlannedMovement;
-import com.dddgn.alice.pathing.core.search.PlannedMovementSpecs;
+import com.dddgn.alice.pathing.calc.CapabilityGate;
+import com.dddgn.alice.pathing.calc.MovementCapabilities;
+import com.dddgn.alice.pathing.calc.MovementSpec;
+import com.dddgn.alice.pathing.calc.MovementType;
+import com.dddgn.alice.pathing.calc.RecoverabilityLevel;
+import com.dddgn.alice.pathing.calc.PlannedMovement;
+import com.dddgn.alice.pathing.movement.PlannedMovementSpecs;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -117,7 +117,7 @@ public class CapabilityGateCheckTask implements Task {
     private void runChecks() {
         MovementCapabilities pure = MovementCapabilities.pureTraversal(
                 RecoverabilityLevel.PATH_REVERSIBLE,
-                com.dddgn.alice.pathing.core.IntrinsicReversibility.REVERSIBLE);
+                com.dddgn.alice.pathing.calc.IntrinsicReversibility.REVERSIBLE);
         MovementCapabilities breaker = MovementCapabilities.pathAccess(RecoverabilityLevel.LOCAL_STEP);
         MovementCapabilities placer = MovementCapabilities.temporarySupport(RecoverabilityLevel.LOCAL_STEP);
         BlockPos pos = bot.blockPosition();
@@ -132,7 +132,7 @@ public class CapabilityGateCheckTask implements Task {
         // 2026-09-12 实测：当时 `pathAccess()` 声明 `requiresZoneAuthorization=false`，这条负例"放行"，
         // 暴露了"保护区永不触发"的真问题（已修工厂）；这里保持合成用例，保证断言不随工厂声明漂移。
         MovementCapabilities zoneAware = new MovementCapabilities(true, Set.of(),
-                false, false, com.dddgn.alice.pathing.core.IntrinsicReversibility.REVERSIBLE,
+                false, false, com.dddgn.alice.pathing.calc.IntrinsicReversibility.REVERSIBLE,
                 RecoverabilityLevel.LOCAL_STEP, 0, true, false, false, true, true);
         expect("zone_protected", CapabilityGate.check(zoneAware, MovementType.BREAK_AND_ENTER, pos,
                 new FakeFacts(false, "protected_area", 4, true, true, true)), "ZONE_PROTECTED_AREA");
@@ -249,15 +249,15 @@ public class CapabilityGateCheckTask implements Task {
      */
     private void checkSafeCancelWiring() {
         boolean defaultTrue = new com.dddgn.alice.fixture.ToolSupplyCheckTask(bot, null).safeToCancel();
-        var request = new com.dddgn.alice.pathing.core.search.PathRequest(
+        var request = new com.dddgn.alice.pathing.calc.PathRequest(
                 bot.getUUID().toString(), bot.blockPosition(),
-                new com.dddgn.alice.pathing.core.search.GoalFoot(bot.blockPosition().east()),
-                com.dddgn.alice.pathing.core.search.PathRequest
+                new com.dddgn.alice.pathing.calc.GoalFoot(bot.blockPosition().east()),
+com.dddgn.alice.pathing.calc.PathRequest
                         .of(bot.getUUID().toString(), bot.blockPosition(),
                                 bot.blockPosition().east(), "safe_cancel_check")
                         .allowedMovementTypes(),
-                com.dddgn.alice.pathing.core.search.SearchBudget.UNLIMITED, "safe_cancel_check");
-        var idleRunner = new com.dddgn.alice.pathing.PathRetryRunner(bot, request, 0, "safe-cancel-check");
+                com.dddgn.alice.pathing.calc.SearchBudget.UNLIMITED, "safe_cancel_check");
+        var idleRunner = new com.dddgn.alice.pathing.path.PathRetryRunner(bot, request, 0, "safe-cancel-check");
         check("safe_cancel_wiring", defaultTrue && idleRunner.safeToCancel(),
                 "defaultTrue=" + defaultTrue + " idleRunnerSafe=" + idleRunner.safeToCancel());
     }
@@ -276,7 +276,7 @@ public class CapabilityGateCheckTask implements Task {
      * </ul>
      */
     private void checkSessionStatusCoverage() {
-        var status = com.dddgn.alice.pathing.core.session.PathSessionStatus.class;
+        var status = com.dddgn.alice.pathing.path.PathSessionStatus.class;
         java.util.Map<String, Object> table = new java.util.LinkedHashMap<>();
         table.put("STALE_START", enumOf(status, "STALE"));
         table.put("SEGMENT_BLOCKED", enumOf(status, "BLOCKED"));
@@ -292,7 +292,7 @@ public class CapabilityGateCheckTask implements Task {
         boolean tableOk = true;
         java.util.Set<Object> covered = new java.util.HashSet<>();
         for (var entry : table.entrySet()) {
-            Object actual = com.dddgn.alice.pathing.core.session.PathSessionStatus
+            Object actual = com.dddgn.alice.pathing.path.PathSessionStatus
                     .classify(entry.getKey());
             covered.add(actual);
             boolean hit = actual == entry.getValue();
@@ -362,9 +362,9 @@ public class CapabilityGateCheckTask implements Task {
     private boolean expectCaps(BlockPos from, MovementType type, BlockPos to, boolean changesWorld,
                                boolean places, boolean breaks, StringBuilder detail) {
         PlannedMovement movement = new PlannedMovement(type, from, to, 1.0D,
-                com.dddgn.alice.pathing.core.RecoverabilityEvaluator.levelOf(type,
-                        com.dddgn.alice.pathing.core.RecoverabilityFacts.FALL_RETURN_VERIFIED),
-                com.dddgn.alice.pathing.core.RecoverabilityFacts.FALL_RETURN_VERIFIED);
+                com.dddgn.alice.pathing.calc.RecoverabilityEvaluator.levelOf(type,
+                        com.dddgn.alice.pathing.calc.RecoverabilityFacts.FALL_RETURN_VERIFIED),
+                com.dddgn.alice.pathing.calc.RecoverabilityFacts.FALL_RETURN_VERIFIED);
         MovementSpec spec = PlannedMovementSpecs.toSpec(movement, List.of("capability_check"));
         MovementCapabilities caps = spec.capabilities();
         boolean ok = caps.changesWorld() == changesWorld && caps.canPlaceBlocks() == places

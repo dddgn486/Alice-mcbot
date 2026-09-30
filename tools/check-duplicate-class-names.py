@@ -13,7 +13,7 @@
 
 | 同名 | 两个是什么 |
 |---|---|
-| `GoalSpec` ✅**已消除** | `job/GoalSpec.java` **record**（目标级任务的全部外部输入）—— **2026-09-29 按 `D-478`/`P12/A` 改名 `job/JobDeclaration.java`** vs `pathing/core/search/GoalSpec.java` **interface**（规划目标，对齐 Baritone `Goal`） |
+| `GoalSpec` ✅**已消除** | `job/GoalSpec.java` **record**（目标级任务的全部外部输入）—— **2026-09-29 按 `D-478`/`P12/A` 改名 `job/JobDeclaration.java`** vs `pathing/calc/GoalSpec.java` **interface**（规划目标，对齐 Baritone `Goal`） |
 | `DecisionTrace` | `decision/DecisionTrace.java`（**决策层**的 trace） vs `job/DecisionTrace.java`（**L3 决策缝之四** / L3 的唯一日志出口） |
 
 ⚠️ `DecisionTrace` 那组更危险：**两个都与"决策"有关** ⇒ 读者**无法从名字判断**指哪一个。
@@ -77,7 +77,7 @@ RULE_EXCLUDED = {"package-info"}
 # ---- 白名单：**只放真欠账**，每条必须带理由；路径集合逐字比对 ----
 DUP_EXEMPT: dict[str, dict] = {
     # ⭐ **2026-09-29 删除留痕**（不许静默消失）：这里原有 `"GoalSpec"` 一条
-    #    （`job/GoalSpec.java` record vs `pathing/core/search/GoalSpec.java` interface）。
+    #    （`job/GoalSpec.java` record vs `pathing/calc/GoalSpec.java` interface）。
     #    `D-478` 的 `P12/A` 把 `job/GoalSpec` **改名成 `JobDeclaration`** ⇒ 断言 ③ **得手判红**
     #    ⇒ 按纪律**同刀删除**（`D-516`）。⭐ **这是本检查第一次在真树上生效**
     #    （`survey/46 §1.1`：「重名不是靠"记得改"解决，是靠"改名时它会疼"解决」）。
@@ -107,10 +107,10 @@ DUP_EXEMPT: dict[str, dict] = {
     },
     "SearchNode": {
         "paths": [
-            "src/main/java/com/dddgn/alice/pathing/core/search/SearchNode.java",
+            "src/main/java/com/dddgn/alice/pathing/calc/SearchNode.java",
             "src/main/java/com/dddgn/alice/road/RoadPlan.java",
         ],
-        "reason": "`pathing/core/search/SearchNode.java` 是**搜索节点**（顶层）；`road/RoadPlan` 里"
+        "reason": "`pathing/calc/SearchNode.java` 是**搜索节点**（顶层）；`road/RoadPlan` 里"
                   "`SearchNode` 是道路规划的**本地节点**。**归属 = 批次 3 术语面收口**；"
                   "**复核触发 = 该组任一路径变化**。",
     },

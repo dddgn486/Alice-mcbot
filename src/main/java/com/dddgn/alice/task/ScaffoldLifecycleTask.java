@@ -6,10 +6,10 @@ import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.ledger.WorldModLedger;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
-import com.dddgn.alice.pathing.core.MovementType;
-import com.dddgn.alice.pathing.core.search.CorePathPlanner;
-import com.dddgn.alice.pathing.core.search.PathPlan;
-import com.dddgn.alice.pathing.core.search.PathRequest;
+import com.dddgn.alice.pathing.calc.MovementType;
+import com.dddgn.alice.pathing.calc.CorePathPlanner;
+import com.dddgn.alice.pathing.calc.PathPlan;
+import com.dddgn.alice.pathing.calc.PathRequest;
 import com.dddgn.alice.perception.ScopeBuffer;
 import com.dddgn.alice.task.mining.MiningBudget;
 import net.minecraft.core.BlockPos;
@@ -17,7 +17,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.Set;
-import com.dddgn.alice.pathing.PathRetryRunner;
+import com.dddgn.alice.pathing.path.PathRetryRunner;
 import com.dddgn.alice.task.FixtureZone;
 
 /**

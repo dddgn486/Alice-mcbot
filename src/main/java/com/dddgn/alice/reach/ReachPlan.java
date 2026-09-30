@@ -1,7 +1,7 @@
 package com.dddgn.alice.reach;
 
-import com.dddgn.alice.pathing.core.search.CostModel;
-import com.dddgn.alice.pathing.core.search.PathPlan;
+import com.dddgn.alice.pathing.calc.CostModel;
+import com.dddgn.alice.pathing.calc.PathPlan;
 import net.minecraft.core.BlockPos;
 
 import java.util.Objects;

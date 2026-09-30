@@ -1,0 +1,41 @@
+package com.dddgn.alice.pathing.calc;
+
+import com.dddgn.alice.pathing.calc.MovementType;
+import com.dddgn.alice.pathing.calc.RecoverabilityLevel;
+import net.minecraft.core.BlockPos;
+
+import java.util.Objects;
+
+/**
+ * 规划期的一条 Movement 边（搜索输出）。
+ *
+ * <p>比 {@code MovementSpec} 更轻：不含能力/依赖明细。执行期由 PathSession 依据
+ * 本记录重建 `MovementSpec` 并交给对应工厂校验（架构文档 §5.2/§5.3）。
+ */
+public record PlannedMovement(
+        MovementType movementType,
+        BlockPos fromFoot,
+        BlockPos toFoot,
+        double cost,
+        RecoverabilityLevel recoverability,
+        com.dddgn.alice.pathing.calc.RecoverabilityFacts recoverabilityFacts
+) {
+    /** 便捷构造：**什么都没验**（`RecoverabilityFacts.NONE`）。FALL 用它会保守降级。 */
+    public PlannedMovement(MovementType movementType, BlockPos fromFoot, BlockPos toFoot, double cost,
+                           RecoverabilityLevel recoverability) {
+        this(movementType, fromFoot, toFoot, cost, recoverability,
+                com.dddgn.alice.pathing.calc.RecoverabilityFacts.NONE);
+    }
+
+    public PlannedMovement {
+        recoverabilityFacts = recoverabilityFacts == null
+                ? com.dddgn.alice.pathing.calc.RecoverabilityFacts.NONE : recoverabilityFacts;
+        movementType = Objects.requireNonNull(movementType, "movementType");
+        fromFoot = Objects.requireNonNull(fromFoot, "fromFoot").immutable();
+        toFoot = Objects.requireNonNull(toFoot, "toFoot").immutable();
+        recoverability = Objects.requireNonNull(recoverability, "recoverability");
+        if (!Double.isFinite(cost) || cost < 0.0D) {
+            throw new IllegalArgumentException("cost must be finite and non-negative");
+        }
+    }
+}

@@ -1,12 +1,12 @@
 package com.dddgn.alice.reach;
 
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.pathing.core.search.CorePathPlanner;
-import com.dddgn.alice.pathing.core.search.CostModel;
-import com.dddgn.alice.pathing.core.search.GoalFoot;
-import com.dddgn.alice.pathing.core.search.PathPlan;
-import com.dddgn.alice.pathing.core.search.PathRequest;
-import com.dddgn.alice.pathing.core.search.SearchConclusion;
+import com.dddgn.alice.pathing.calc.CorePathPlanner;
+import com.dddgn.alice.pathing.calc.CostModel;
+import com.dddgn.alice.pathing.calc.GoalFoot;
+import com.dddgn.alice.pathing.calc.PathPlan;
+import com.dddgn.alice.pathing.calc.PathRequest;
+import com.dddgn.alice.pathing.calc.SearchConclusion;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;

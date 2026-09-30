@@ -3,18 +3,18 @@ package com.dddgn.alice.fixture;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
-import com.dddgn.alice.pathing.core.BreakAndTraverseExecutionFactory;
-import com.dddgn.alice.pathing.core.CompletionTolerance;
-import com.dddgn.alice.pathing.core.LiveExecutionContext;
-import com.dddgn.alice.pathing.core.MovementSpec;
-import com.dddgn.alice.pathing.core.MovementType;
-import com.dddgn.alice.pathing.core.RecoverabilityEvaluator;
-import com.dddgn.alice.pathing.core.search.MovementContext;
-import com.dddgn.alice.pathing.core.search.PathRequest;
-import com.dddgn.alice.pathing.core.search.PathingStats;
-import com.dddgn.alice.pathing.core.search.PlannedMovement;
-import com.dddgn.alice.pathing.core.search.PlannedMovementSpecs;
-import com.dddgn.alice.pathing.core.search.SurfaceMovementProvider;
+import com.dddgn.alice.pathing.movement.BreakAndTraverseExecutionFactory;
+import com.dddgn.alice.pathing.calc.CompletionTolerance;
+import com.dddgn.alice.pathing.movement.LiveExecutionContext;
+import com.dddgn.alice.pathing.calc.MovementSpec;
+import com.dddgn.alice.pathing.calc.MovementType;
+import com.dddgn.alice.pathing.calc.RecoverabilityEvaluator;
+import com.dddgn.alice.pathing.calc.MovementContext;
+import com.dddgn.alice.pathing.calc.PathRequest;
+import com.dddgn.alice.pathing.calc.PathingStats;
+import com.dddgn.alice.pathing.calc.PlannedMovement;
+import com.dddgn.alice.pathing.movement.PlannedMovementSpecs;
+import com.dddgn.alice.pathing.movement.SurfaceMovementProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -208,7 +208,7 @@ public final class BreakTraverseFootingCheckTask implements Task {
         boolean toStandable = MovementHelper.canStandCentered(level, to);
         boolean midBlocked = !MovementHelper.canWalkThrough(level, mid);
         boolean midFooting = MovementHelper.canWalkOn(level, mid);
-        List<BlockPos> blockers = com.dddgn.alice.pathing.core.BreakAndTraverseExecution
+        List<BlockPos> blockers = com.dddgn.alice.pathing.movement.BreakAndTraverseExecution
                 .collectBlockers(level, from, to);
         boolean writesAllowed = MovementContext.live(bot, level,
                 PathRequest.withWorldModification(bot.getUUID().toString(), from, to, "collect-drops"))
@@ -244,7 +244,7 @@ public final class BreakTraverseFootingCheckTask implements Task {
                 edge != null ? edge : new PlannedMovement(MovementType.BREAK_AND_TRAVERSE, from, to,
                         SYNTHETIC_COST, RecoverabilityEvaluator.levelOf(MovementType.BREAK_AND_TRAVERSE)),
                 List.of("session_segment", "target_support", "target_body_clear", "target_head_clear"));
-        com.dddgn.alice.pathing.core.MovementExecutionFactory.ValidationResult verdict =
+        com.dddgn.alice.pathing.movement.MovementExecutionFactory.ValidationResult verdict =
                 new BreakAndTraverseExecutionFactory().validate(spec,
                         new LiveExecutionContext(bot, level, "break-traverse-footing", 0L,
                                 CompletionTolerance.EXACT, "collect-drops"));

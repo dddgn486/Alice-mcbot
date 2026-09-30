@@ -3,9 +3,9 @@ package com.dddgn.alice.task;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
-import com.dddgn.alice.pathing.core.search.FarTravelHop;
-import com.dddgn.alice.pathing.core.search.PathRequest;
-import com.dddgn.alice.pathing.core.session.PathExecutionResult;
+import com.dddgn.alice.pathing.calc.FarTravelHop;
+import com.dddgn.alice.pathing.calc.PathRequest;
+import com.dddgn.alice.pathing.path.PathExecutionResult;
 import com.dddgn.alice.protection.ReturnPointData;
 import com.dddgn.alice.protection.SafeZoneData;
 import net.minecraft.core.BlockPos;
@@ -15,7 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Predicate;
-import com.dddgn.alice.pathing.PathRetryRunner;
+import com.dddgn.alice.pathing.path.PathRetryRunner;
 
 /**
  * **机制 B：任务失败后"回安全区"的兜底**（`D-327` ①，2026-09-19 用户裁定执行）：

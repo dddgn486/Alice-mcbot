@@ -27155,3 +27155,51 @@ AI 候选：**「非空断言」**〔首推，与"判据失效"对偶〕·「人
 见 `O98` 与「序 1 重裁 · 最终草案」v2（`docs/reviews/2026-09-30-序1重裁-最终草案.md` §8）：
 本裁定**解除了**"丙′-1（由调用方传策略）必然造成行为变化"这个互斥 ⇒ 具名策略载体可以做到
 **行为零变化 ＋ 开发期入口可造物**两全。
+
+---
+
+### D-561：「乙」落地 —— `pathing/` 按 Baritone 三分 ＋ 「`core` 不加调用点」变成可执行门禁
+
+- 状态：**已实施**（2026-09-30；详表 = `docs/reviews/2026-09-30-包结构与层序实测.md` **§33/§34**）· 台账 `O108` ·
+  承接 `D-460`/`D-461`（立 `pathing/`）· `D-462`（`step 4` 拆 `write/`）· `D-036`（Baritone 锚点）。
+- 性质：**结构重排 ＋ 同刀门禁**（`git mv` ＋ `package` 行 ＋ import/`{@link}`）⇒ ⛔ 零行为改动。
+
+#### 一、用户裁定（逐字要点）
+
+> 「**`pathing/movement/` 采纳**，本来就应该保留 `pathing` 相关的包层次」
+> ＋「**选项 A 马上做，不要把主线排期抛弃了**」
+> ＋「**`core` 不加调用点是肯定的**，所以一定不选丙」
+
+#### 二、落地：`pathing/core/`（71 个 `.java`）三分
+
+| 包 | 人口 | 装什么 |
+|---|---|---|
+| `pathing/calc/` | **36** | 搜索 / 几何 / 成本 / 目标族 ＋ 契约与规格 ＋ 可逆性/恢复族 ＋ `CapabilityGate`·`CompletionTolerance` |
+| `pathing/movement/` | **27** | 10 个 `*Execution` ＋ 10 个 `*ExecutionFactory` ＋ `MovementExecution`(基类)·`MovementExecutionFactory` ＋ `LiveExecutionContext`·`PlannedMovementSpecs`（Baritone `Moves`）·`SelfWriteConsistency`·`SurfaceMovementProvider` |
+| `pathing/path/` | **4** | `PathSession`（Baritone `path/PathExecutor`）·`PathRetryRunner`·`PathExecutionResult`·`PathSessionStatus` |
+| `pathing/` 根（未动） | 4 | `MovementHelper`·`FootCellRuleCheck`（`O106`）·`risk/` 2 |
+
+⚠️ **映射口径（零判断、可复算）**：`*Execution`／`*ExecutionFactory` → `movement/`；驱动器 → `path/`；其余（零上层依赖）→ `calc/`。
+
+#### 三、⭐ 新判据（`check-layer-direction.py`，同刀落地）
+
+> **`pathing/calc/` 零写侧调用点。**
+
+- 依据：用户「`core` 不加调用点是肯定的」⇒ 拆包后这句话**唯一可执行的形式**。
+- ⚠️ **只判"调用"，⛔ 不禁止 `calc/` 依赖 `movement/` 的接口** —— Baritone 的 `calc/`（`AStarPathFinder`）
+  同样要问 `Moves`「你能做什么」⇒ 两包是**平级域**，方向由**调用点**划，不由 import 划。
+- 落地：`calc_callpoints()` ＋ **3 条红臂**（红臂 26 → 29）· ⭐ **真树注入实测**：往 `calc/CostModel.java`
+  塞一行 `BlockInteraction.placeAt(...)` ⇒ 当场 FAIL 并点名 `:16`，还原后逐字节干净。
+- 读数：`calc/` **0 处** · `movement/` **14 处 / 5 文件** · `path/` **0 处**。
+
+#### 四、⚠️ 一处**故意保留的偏离**（`D-036` 要求登记）
+
+`MovementHelper` **留在 `pathing/` 根**，⛔ 不随 Baritone 放进 `movement/` —— 它**零 alice 依赖**却被
+**60+ 个文件**（`task`/`job`/`reach`/`protection`/`decision`/`action`/`write`/`survival`/`item`）当共享查询件用
+⇒ 放进 `movement/` 会让那 60+ 处集体变成"下层伸手到上层"。⭐ 按**依赖方向**而不是 Baritone 的字面位置归类。
+
+#### 五、⛔ 本刀不做（已登记）
+
+- `pathing/FootCellRuleCheck`（**唯一的用户是夹具**）⇒ `O106`，⛔ 不与本刀混。
+- `docs/authz/OVERVIEW.md`／`flow.svg`／`index.html` 的既有漂移（生成时间停在 2026-09-14）⇒ **本刀不夹带**。
+- ⭐ **主线排期不受影响**（用户「不要把主线排期抛弃了」）：本刀是**插入的支线**，只吃掉结构线里"`pathing` 三分"这一格。

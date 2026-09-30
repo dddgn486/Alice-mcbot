@@ -192,7 +192,7 @@ run_gate             "check-task-top-freeze"   python3 tools/check-task-top-free
 run_gate             "check-job-menu-listable" bash tools/check-job-menu-listable.sh
 # 同名类（`survey/46 §8.1`，2026-09-28 用户拍「按乙来」）：`src/main/java` 下**同名类 ⇒ 红**。
 # 起因：术语审计三轮（`survey/44/45/46`）挖到 ⚠️ **`src/` 里真的存在同名类** ——
-# `GoalSpec`（`job/` record vs `pathing/core/search/` interface **⚠️ 2026-09-29 已按 `P12/A` 消除**）·
+# `GoalSpec`（`job/` record vs `pathing/calc/` interface **⚠️ 2026-09-29 已按 `P12/A` 消除**）·
 # `DecisionTrace`（`decision/` vs `job/`）。
 # ⚠️ 危险在"**靠名字找东西静默多给一半结果**"：`grep 类名` 不报错；而 `pathing` 那个只在同包里用
 #（同包 ⇒ 无 `import`）⇒ **`grep import` 根本看不见它**。

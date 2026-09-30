@@ -6,7 +6,7 @@ import com.dddgn.alice.write.WriteGrant;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.task.mining.MiningBudget;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.pathing.core.search.PathRequest;
+import com.dddgn.alice.pathing.calc.PathRequest;
 import com.dddgn.alice.perception.ScopeBuffer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -15,7 +15,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import com.dddgn.alice.pathing.PathRetryRunner;
+import com.dddgn.alice.pathing.path.PathRetryRunner;
 
 /**
  * 作用域恢复任务（J6-b，D-081 §12「执行恢复」层）：把**我方放置的临时方块**拆掉并销账。
@@ -532,7 +532,7 @@ public final class RestoreScopeTask implements Task {
         // 而是"bot 没能干净地离开"。计数 + 结构化日志 + 事件（自检窗口内只记录不通知）。
         if (remaining > 0) {
             String causes = notes.isEmpty() ? "-" : String.join(" | ", notes);
-            com.dddgn.alice.pathing.core.RecoverabilityReport.recordResidue(scopeId, remaining, causes);
+            com.dddgn.alice.pathing.calc.RecoverabilityReport.recordResidue(scopeId, remaining, causes);
             BotLog.warn("[Recover] RESIDUE scope={} remaining={} causes={}",
                     scopeId == null ? "<all>" : scopeId, remaining, causes);
             com.dddgn.alice.decision.DecisionEvents.emit(bot, "RESIDUE", "warn",

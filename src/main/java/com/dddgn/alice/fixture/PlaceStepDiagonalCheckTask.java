@@ -4,17 +4,17 @@ import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
-import com.dddgn.alice.pathing.core.CompletionTolerance;
-import com.dddgn.alice.pathing.core.LiveExecutionContext;
-import com.dddgn.alice.pathing.core.MovementSpec;
-import com.dddgn.alice.pathing.core.MovementType;
-import com.dddgn.alice.pathing.core.RecoverabilityEvaluator;
-import com.dddgn.alice.pathing.core.search.CorePathPlanner;
-import com.dddgn.alice.pathing.core.search.PathPlan;
-import com.dddgn.alice.pathing.core.search.PathRequest;
-import com.dddgn.alice.pathing.core.search.PlannedMovement;
-import com.dddgn.alice.pathing.core.search.PlannedMovementSpecs;
-import com.dddgn.alice.pathing.core.search.SearchBudget;
+import com.dddgn.alice.pathing.calc.CompletionTolerance;
+import com.dddgn.alice.pathing.movement.LiveExecutionContext;
+import com.dddgn.alice.pathing.calc.MovementSpec;
+import com.dddgn.alice.pathing.calc.MovementType;
+import com.dddgn.alice.pathing.calc.RecoverabilityEvaluator;
+import com.dddgn.alice.pathing.calc.CorePathPlanner;
+import com.dddgn.alice.pathing.calc.PathPlan;
+import com.dddgn.alice.pathing.calc.PathRequest;
+import com.dddgn.alice.pathing.calc.PlannedMovement;
+import com.dddgn.alice.pathing.movement.PlannedMovementSpecs;
+import com.dddgn.alice.pathing.calc.SearchBudget;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -187,7 +187,7 @@ public final class PlaceStepDiagonalCheckTask implements Task {
         int placeStep = 0;
         int placeStepUp = 0;
         for (PlannedMovement m : plan.movements()) {
-            if (m.movementType() == com.dddgn.alice.pathing.core.MovementType.PLACE_STEP_AND_TRAVERSE) {
+            if (m.movementType() == com.dddgn.alice.pathing.calc.MovementType.PLACE_STEP_AND_TRAVERSE) {
                 placeStep++;
                 if (m.toFoot().getY() - m.fromFoot().getY() == 1) {
                     placeStepUp++;
@@ -256,7 +256,7 @@ public final class PlaceStepDiagonalCheckTask implements Task {
 
         // ① 两侧都空 ⇒ 两侧都必须接受
         boolean openPlan = MovementHelper.canTraverse(level, from, to);
-        com.dddgn.alice.pathing.core.MovementExecutionFactory.ValidationResult openVerdict =
+        com.dddgn.alice.pathing.movement.MovementExecutionFactory.ValidationResult openVerdict =
                 diagonalVerdict(level, from, to);
         check("① 两侧都空 ⇒ 规划侧 `canTraverse` 必须为真（实际 " + openPlan + "）", openPlan);
         check("① 两侧都空 ⇒ 执行侧必须接受（实际 valid=" + openVerdict.valid()
@@ -265,7 +265,7 @@ public final class PlaceStepDiagonalCheckTask implements Task {
         try {
             level.setBlockAndUpdate(sideX, Blocks.STONE.defaultBlockState());
             boolean planSide = MovementHelper.canTraverse(level, from, to);
-            com.dddgn.alice.pathing.core.MovementExecutionFactory.ValidationResult verdict =
+            com.dddgn.alice.pathing.movement.MovementExecutionFactory.ValidationResult verdict =
                     diagonalVerdict(level, from, to);
             String code = String.valueOf(verdict.failureCode());
             findings.add("diagonal_side:from=" + from.toShortString() + " to=" + to.toShortString()
@@ -289,13 +289,13 @@ public final class PlaceStepDiagonalCheckTask implements Task {
     }
 
     /** 造一个同高度对角的 `MovementSpec` 并跑执行工厂（与 `place_step_descend_clearance` 的 ascend 契约同形）。 */
-    private com.dddgn.alice.pathing.core.MovementExecutionFactory.ValidationResult diagonalVerdict(
+    private com.dddgn.alice.pathing.movement.MovementExecutionFactory.ValidationResult diagonalVerdict(
             ServerLevel level, BlockPos from, BlockPos to) {
         MovementSpec spec = PlannedMovementSpecs.toSpec(
                 new PlannedMovement(MovementType.DIAGONAL, from, to, SYNTHETIC_COST,
                         RecoverabilityEvaluator.levelOf(MovementType.DIAGONAL)),
                 List.of("session_segment"));
-        return new com.dddgn.alice.pathing.core.DiagonalExecutionFactory().validate(spec,
+        return new com.dddgn.alice.pathing.movement.DiagonalExecutionFactory().validate(spec,
                 new LiveExecutionContext(bot, level, "diagonal-side", 0L,
                         CompletionTolerance.EXACT, "mine"));
     }
@@ -306,10 +306,10 @@ public final class PlaceStepDiagonalCheckTask implements Task {
      * <p>返回空串 = 全部通过；否则返回第一条违反的 `type from→to` + 异常摘要。
      * **这正是 2026-09-20 崩服那一步**（`PathSession.startSegment` → `PlannedMovementSpecs.toSpec`）。
      */
-    private static String contractViolation(com.dddgn.alice.pathing.core.search.PathPlan plan) {
-        for (com.dddgn.alice.pathing.core.search.PlannedMovement movement : plan.movements()) {
+    private static String contractViolation(com.dddgn.alice.pathing.calc.PathPlan plan) {
+        for (com.dddgn.alice.pathing.calc.PlannedMovement movement : plan.movements()) {
             try {
-                com.dddgn.alice.pathing.core.search.PlannedMovementSpecs.toSpec(movement,
+                com.dddgn.alice.pathing.movement.PlannedMovementSpecs.toSpec(movement,
                         java.util.List.of("session_segment", "target_support", "target_body_clear",
                                 "target_head_clear"));
             } catch (RuntimeException exception) {

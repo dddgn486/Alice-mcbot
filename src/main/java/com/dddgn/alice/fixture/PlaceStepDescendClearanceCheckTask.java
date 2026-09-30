@@ -4,20 +4,20 @@ import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
-import com.dddgn.alice.pathing.core.AscendExecutionFactory;
-import com.dddgn.alice.pathing.core.CompletionTolerance;
-import com.dddgn.alice.pathing.core.DownwardExecutionFactory;
-import com.dddgn.alice.pathing.core.LiveExecutionContext;
-import com.dddgn.alice.pathing.core.MovementExecution;
-import com.dddgn.alice.pathing.core.MovementSpec;
-import com.dddgn.alice.pathing.core.MovementType;
-import com.dddgn.alice.pathing.core.PlaceStepAndTraverseExecutionFactory;
-import com.dddgn.alice.pathing.core.RecoverabilityEvaluator;
-import com.dddgn.alice.pathing.core.search.MovementContext;
-import com.dddgn.alice.pathing.core.search.PathRequest;
-import com.dddgn.alice.pathing.core.search.PlannedMovement;
-import com.dddgn.alice.pathing.core.search.PlannedMovementSpecs;
-import com.dddgn.alice.pathing.core.search.SurfaceMovementProvider;
+import com.dddgn.alice.pathing.movement.AscendExecutionFactory;
+import com.dddgn.alice.pathing.calc.CompletionTolerance;
+import com.dddgn.alice.pathing.movement.DownwardExecutionFactory;
+import com.dddgn.alice.pathing.movement.LiveExecutionContext;
+import com.dddgn.alice.pathing.movement.MovementExecution;
+import com.dddgn.alice.pathing.calc.MovementSpec;
+import com.dddgn.alice.pathing.calc.MovementType;
+import com.dddgn.alice.pathing.movement.PlaceStepAndTraverseExecutionFactory;
+import com.dddgn.alice.pathing.calc.RecoverabilityEvaluator;
+import com.dddgn.alice.pathing.calc.MovementContext;
+import com.dddgn.alice.pathing.calc.PathRequest;
+import com.dddgn.alice.pathing.calc.PlannedMovement;
+import com.dddgn.alice.pathing.movement.PlannedMovementSpecs;
+import com.dddgn.alice.pathing.movement.SurfaceMovementProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -381,7 +381,7 @@ public final class PlaceStepDescendClearanceCheckTask implements Task {
                 edge != null ? edge : new PlannedMovement(MovementType.PLACE_STEP_AND_TRAVERSE, from, to,
                         SYNTHETIC_COST, RecoverabilityEvaluator.levelOf(MovementType.PLACE_STEP_AND_TRAVERSE)),
                 List.of("session_segment", "target_support", "target_body_clear", "target_head_clear"));
-        com.dddgn.alice.pathing.core.MovementExecutionFactory.ValidationResult verdict = new PlaceStepAndTraverseExecutionFactory().validate(spec,
+        com.dddgn.alice.pathing.movement.MovementExecutionFactory.ValidationResult verdict = new PlaceStepAndTraverseExecutionFactory().validate(spec,
                 new LiveExecutionContext(bot, level, "place-step-clearance", 0L, CompletionTolerance.EXACT,
                         "collect-drops"));
 
@@ -465,7 +465,7 @@ public final class PlaceStepDescendClearanceCheckTask implements Task {
         boolean planSide = MovementHelper.canAscend(level, from, up);
         PlannedMovement movement = new PlannedMovement(MovementType.ASCEND, from, up, SYNTHETIC_COST,
                 RecoverabilityEvaluator.levelOf(MovementType.ASCEND));
-        com.dddgn.alice.pathing.core.MovementExecutionFactory.ValidationResult verdict =
+        com.dddgn.alice.pathing.movement.MovementExecutionFactory.ValidationResult verdict =
                 new AscendExecutionFactory().validate(
                         PlannedMovementSpecs.toSpec(movement, List.of("session_segment")),
                         new LiveExecutionContext(bot, level, "ascend-headroom", 0L,

@@ -3,15 +3,15 @@ package com.dddgn.alice.debug;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
-import com.dddgn.alice.pathing.core.search.CorePathPlanner;
-import com.dddgn.alice.pathing.core.search.PathRequest;
-import com.dddgn.alice.pathing.core.session.PathExecutionResult;
-import com.dddgn.alice.pathing.core.session.PathSession;
+import com.dddgn.alice.pathing.calc.CorePathPlanner;
+import com.dddgn.alice.pathing.calc.PathRequest;
+import com.dddgn.alice.pathing.path.PathExecutionResult;
+import com.dddgn.alice.pathing.path.PathSession;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Blocks;
 
 import java.util.UUID;
-import com.dddgn.alice.pathing.PathRetryRunner;
+import com.dddgn.alice.pathing.path.PathRetryRunner;
 import com.dddgn.alice.task.FixtureScript;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
@@ -201,7 +201,7 @@ public final class PathSessionDiagnosticTask implements Task {
                 : PathRequest.of(bot.getUUID().toString(), startFoot, goalFoot, "path-session-diagnostic");
         PathRequest request = new PathRequest(base.botId(), startFoot, base.goal(),
                 base.allowedMovementTypes(),
-                com.dddgn.alice.pathing.core.search.SearchBudget.of(
+                com.dddgn.alice.pathing.calc.SearchBudget.of(
                         CorePathPlanner.DEFAULT_MAX_NODES, CorePathPlanner.DEFAULT_MAX_MILLIS),
                 base.requester());
         runner = new PathRetryRunner(bot, request, maxReplans, sessionId);

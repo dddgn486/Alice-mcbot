@@ -70,13 +70,13 @@ MIN_REASON = 8     # 挡占位符
 # ==================== 登记表（`D-500` §V：粗目标实现必须在这里）====================
 # ⚠️ 键 = 相对 `src/main/java/` 的路径。`exact_foot` 必须与代码里的取值**逐字相符**。
 FAR_GOAL_REGISTRY: dict[str, dict] = {
-    "com/dddgn/alice/pathing/core/search/GoalNearXZ.java": {
+    "com/dddgn/alice/pathing/calc/GoalNearXZ.java": {
         "exact_foot": False,
         "reason": "粗目标（`D-337`，用户 2026-09-19 选 A）：到达 = 进 XZ 半径，**纯算术、不读方块** "
                   "⇒ 前置守卫对它不适用。⚠️ 它是「远距离」的**合法**形状，但必须**只经** `FarTravelHop` "
                   "夹到已加载边界内侧再规划（`D-337` 附注二），⛔ 不许在生产路径上直接构造。",
     },
-    "com/dddgn/alice/pathing/core/search/GoalAdjacent.java": {
+    "com/dddgn/alice/pathing/calc/GoalAdjacent.java": {
         "exact_foot": False,
         "reason": "相邻目标（`K2` 第一刀 ＋ `1a`=甲，`D-517`）：到达 = 与目标方块曼哈顿相邻，**纯算术** "
                   "⇒ 同上。⚠️ 它**没有唯一目标区块可预检**（候选脚位最多 5 个）⇒ 第 1 道守卫必然跳过 "
@@ -93,8 +93,8 @@ FAR_GOAL_REGISTRY: dict[str, dict] = {
 # ---- 第二项检查：生产代码里的字面粗目标（保留，见 docstring 断言 6）----
 PRODUCTION_NEEDLE = "GoalNearXZ.around("
 NEEDLE_ALLOW_SUFFIX = (
-    "pathing/core/search/FarTravelHop.java",   # 合法的"夹到已加载边界"层
-    "pathing/core/search/GoalNearXZ.java",     # 工厂自身
+    "pathing/calc/FarTravelHop.java",   # 合法的"夹到已加载边界"层
+    "pathing/calc/GoalNearXZ.java",     # 工厂自身
 )
 
 

@@ -2,8 +2,8 @@ package com.dddgn.alice.fixture;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.pathing.core.search.CorePathPlanner;
-import com.dddgn.alice.pathing.core.search.PathPlan;
+import com.dddgn.alice.pathing.calc.CorePathPlanner;
+import com.dddgn.alice.pathing.calc.PathPlan;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -43,7 +43,7 @@ import com.dddgn.alice.task.WalkToTask;
  * <p><b>后三个相位是"远距离怎么走"的判据（有红绿，`D-337`）</b>：
  * ④ `COARSE`（远粗目标）：不许被硬拒、必须给朝目标推进的前缀、**不许把未加载区块读进来**（红线 `D-132`）、
  *    被边界挡住时**不许报 `UNREACHABLE`**；对照：同位置精确目标仍 `GOAL_NOT_LOADED`；
- * ⑤ `HOP`（夹边界的一跳，{@link com.dddgn.alice.pathing.core.search.FarTravelHop}）：必须 `REACHED`
+ * ⑤ `HOP`（夹边界的一跳，{@link com.dddgn.alice.pathing.calc.FarTravelHop}）：必须 `REACHED`
  *    且**节点数线性**（不许整片洪泛）—— 与 ④ 在同一轮内构成 A/B；
  * ⑥ `FAR_WALK` + `FINAL_APPROACH`：生产任务 {@link FarWalkTask} 把 bot 真的送出去
  *    （跳数 ≥2 ⇒ 真分段），之后接 {@link WalkToTask} 精确落脚（组合 = Baritone `GoalNear`→`GoalBlock`）。
@@ -368,7 +368,7 @@ public final class FarPathBenchCheckTask implements Task {
 
     /**
      * ⭐ **粗目标**那一遍（`D-337`）：目标区**在加载半径之外**时，
-     * ① 粗目标（{@link com.dddgn.alice.pathing.core.search.GoalNearXZ}）必须**不被拒**、且给出**朝目标推进**的前缀；
+     * ① 粗目标（{@link com.dddgn.alice.pathing.calc.GoalNearXZ}）必须**不被拒**、且给出**朝目标推进**的前缀；
      * ② 同位置的**精确目标**必须仍然 `GOAL_NOT_LOADED`（0 节点）—— 两者对照才说明粗目标是"解锁"而不是"放宽"；
      * ③ 全程**区域区块不得被加载**（红线：内核从不加载区块）。
      */
@@ -381,12 +381,12 @@ public final class FarPathBenchCheckTask implements Task {
         // 若搜索在扩展时读了未加载方块，它会**一路把区块加载进来**，但停在中心之前（中心仍 false）。
         boolean[] probedBefore = sampleProbes(level, start);
         boolean loadedBefore = level.hasChunkAt(center);
-        var goal = com.dddgn.alice.pathing.core.search.GoalNearXZ.around(center, radius);
+        var goal = com.dddgn.alice.pathing.calc.GoalNearXZ.around(center, radius);
         PathPlan coarse = new CorePathPlanner().plan(bot, level,
-                new com.dddgn.alice.pathing.core.search.PathRequest(bot.getUUID().toString(), start, goal,
-                        com.dddgn.alice.pathing.core.search.PathRequest.of(bot.getUUID().toString(), start,
+                new com.dddgn.alice.pathing.calc.PathRequest(bot.getUUID().toString(), start, goal,
+                        com.dddgn.alice.pathing.calc.PathRequest.of(bot.getUUID().toString(), start,
                                 center, "pathing").allowedMovementTypes(),
-                        com.dddgn.alice.pathing.core.search.SearchBudget.of(
+                        com.dddgn.alice.pathing.calc.SearchBudget.of(
                                 CorePathPlanner.DEFAULT_MAX_NODES, CorePathPlanner.DEFAULT_MAX_MILLIS),
                         "pathing"));
         int bestProgress = -1;
@@ -404,7 +404,7 @@ public final class FarPathBenchCheckTask implements Task {
                 coarse.status(), coarse.nodesExpanded(), coarse.projectedFootPath().size(), bestProgress,
                 coarse.elapsedMillis(), loadedBefore, level.hasChunkAt(center), coarse.diagnostics());
         check("粗目标：目标区在加载半径外时**不许**被 `GOAL_NOT_LOADED` 拒（实际 status=" + coarse.status() + "）",
-                coarse.status() != com.dddgn.alice.pathing.core.search.PlanningStatus.GOAL_NOT_LOADED);
+                coarse.status() != com.dddgn.alice.pathing.calc.PlanningStatus.GOAL_NOT_LOADED);
         check("粗目标：必须给出朝目标推进的前缀（progress=" + bestProgress + " > 0，prefixLen="
                         + coarse.projectedFootPath().size() + "）",
                 bestProgress > 0);
@@ -425,7 +425,7 @@ public final class FarPathBenchCheckTask implements Task {
         // —— 那是"搜索空间穷尽、证明确实到不了"，而这里是"未知"（`D-076`：`SEARCH_LIMIT ≠ UNREACHABLE`）。
         check("粗目标：被加载边界挡住时不许报 UNREACHABLE（实际 status=" + coarse.status()
                         + "，期望 PARTIAL 前缀或 SEARCH_LIMIT）",
-                coarse.status() != com.dddgn.alice.pathing.core.search.PlanningStatus.UNREACHABLE);
+                coarse.status() != com.dddgn.alice.pathing.calc.PlanningStatus.UNREACHABLE);
 
         // 对照组：**同一位置用精确脚位目标** ⇒ 必须仍是硬拒（0 节点）
         PathPlan exact = new CorePathPlanner().planTo(bot, level, bot.getUUID().toString(), start, center, "pathing");
@@ -433,14 +433,14 @@ public final class FarPathBenchCheckTask implements Task {
         BotLog.info("[FarBench] coarse_control exactFoot status={} nodes={}", exact.status(), exact.nodesExpanded());
         check("对照组：精确脚位目标在未加载区必须仍 `GOAL_NOT_LOADED` 且 0 节点（实际 status="
                         + exact.status() + " nodes=" + exact.nodesExpanded() + "）",
-                exact.status() == com.dddgn.alice.pathing.core.search.PlanningStatus.GOAL_NOT_LOADED
+                exact.status() == com.dddgn.alice.pathing.calc.PlanningStatus.GOAL_NOT_LOADED
                         && exact.nodesExpanded() == 0);
         phase = Phase.HOP;
     }
 
     /**
      * ⭐ **分段 hop 那一遍**（`D-337 附注二`）：同一个远目标，改成"**夹到已加载边界内的一跳**"
-     * （{@link com.dddgn.alice.pathing.core.search.FarTravelHop}）后，搜索必须**回归线性**。
+     * （{@link com.dddgn.alice.pathing.calc.FarTravelHop}）后，搜索必须**回归线性**。
      *
      * <p>**A/B 就在同一轮里**：上一相位（`COARSE`）量的是"直接用远粗目标" ⇒ 目标区永远不可达
      * ⇒ 整片洪泛（`nodes=20000` = 预算上限）。本相位量"先夹再规划" ⇒ 目标永远可达 ⇒ 节点数 ≈ 一跳长度。
@@ -450,14 +450,14 @@ public final class FarPathBenchCheckTask implements Task {
         BlockPos start = noLoadStart;
         BlockPos target = start.offset(400, 0, 0);
         boolean[] probedBefore = sampleProbes(level, start);
-        var hop = com.dddgn.alice.pathing.core.search.FarTravelHop.compute(
+        var hop = com.dddgn.alice.pathing.calc.FarTravelHop.compute(
                 level, start, target,
-                com.dddgn.alice.pathing.core.search.FarTravelHop.DEFAULT_RADIUS,
-                com.dddgn.alice.pathing.core.search.FarTravelHop.MARGIN);
+                com.dddgn.alice.pathing.calc.FarTravelHop.DEFAULT_RADIUS,
+                com.dddgn.alice.pathing.calc.FarTravelHop.MARGIN);
         PathPlan plan = null;
         if (hop.feasible()) {
             plan = new CorePathPlanner().plan(bot, level,
-                    com.dddgn.alice.pathing.core.search.FarTravelHop.request(
+                    com.dddgn.alice.pathing.calc.FarTravelHop.request(
                             bot.getUUID().toString(), start, hop, "pathing"));
         }
         boolean[] probedAfter = sampleProbes(level, start);
@@ -475,7 +475,7 @@ public final class FarPathBenchCheckTask implements Task {
         check("分段 hop：目标被夹到已加载区内 ⇒ 一跳必须可行（" + hop.describe() + "）", hop.feasible());
         check("分段 hop：一跳必须 `REACHED`（不再靠边界前缀凑合，实际 "
                         + (plan == null ? "null" : plan.status()) + "）",
-                plan != null && plan.status() == com.dddgn.alice.pathing.core.search.PlanningStatus.REACHED);
+                plan != null && plan.status() == com.dddgn.alice.pathing.calc.PlanningStatus.REACHED);
         check("分段 hop：节点数必须**线性**（" + (plan == null ? -1 : plan.nodesExpanded())
                         + " ≤ " + linearBound + "）—— 不许再整片洪泛（A/B 对照见日志 coarseNodes="
                         + coarseNodes + "）",

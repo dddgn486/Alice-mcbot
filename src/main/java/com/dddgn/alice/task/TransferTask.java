@@ -10,7 +10,7 @@ import com.dddgn.alice.transfer.TransferRequest;
 import com.dddgn.alice.transfer.TransferRoutes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
-import com.dddgn.alice.pathing.PathRetryRunner;
+import com.dddgn.alice.pathing.path.PathRetryRunner;
 
 /** Narrow single-request orchestration. It consumes only existing HARD_PATH planning/execution. */
 public final class TransferTask implements Task {
@@ -123,8 +123,8 @@ public final class TransferTask implements Task {
                 return suspend(TransferCodes.ENDPOINT_NO_STANDING_POINT, inTransit
                         ? TransferLedgerData.Location.BOT_INVENTORY : TransferLedgerData.Location.NOT_MOVED);
             }
-            com.dddgn.alice.pathing.core.search.PathRequest request =
-                    com.dddgn.alice.pathing.core.search.PathRequest.of(
+            com.dddgn.alice.pathing.calc.PathRequest request =
+                    com.dddgn.alice.pathing.calc.PathRequest.of(
                             bot.getUUID().toString(), bot.blockPosition(), goal, "transfer");
             runner = new PathRetryRunner(bot, request, PathRetryRunner.DEFAULT_MAX_REPLANS,
                     "transfer-" + state);

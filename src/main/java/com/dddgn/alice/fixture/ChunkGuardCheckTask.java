@@ -3,10 +3,10 @@ package com.dddgn.alice.fixture;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
-import com.dddgn.alice.pathing.core.search.CorePathPlanner;
-import com.dddgn.alice.pathing.core.search.PathPlan;
-import com.dddgn.alice.pathing.core.search.PathRequest;
-import com.dddgn.alice.pathing.core.search.PlanningStatus;
+import com.dddgn.alice.pathing.calc.CorePathPlanner;
+import com.dddgn.alice.pathing.calc.PathPlan;
+import com.dddgn.alice.pathing.calc.PathRequest;
+import com.dddgn.alice.pathing.calc.PlanningStatus;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -208,7 +208,7 @@ public class ChunkGuardCheckTask implements Task {
             }
             // ① **谓词直断**（与地形无关，确定性）：距离 1 在界内、距离 2 在界外
             PathRequest probe = PathRequest.of(bot.getUUID().toString(), startFoot, outside, "chunk-guard-probe");
-            var context = com.dddgn.alice.pathing.core.search.MovementContext
+            var context = com.dddgn.alice.pathing.calc.MovementContext
                     .live(bot, level, probe);
             BlockPos insideCell = startFoot.offset(1, 0, 0);
             BlockPos borderCell = startFoot.offset(2, 0, 0);

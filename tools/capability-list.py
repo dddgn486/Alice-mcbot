@@ -144,11 +144,11 @@ def parse_job_contracts() -> tuple[dict[str, tuple[str, str, str]], str]:
 
 def parse_movements() -> tuple[list[str], set[str], str]:
     """移动原语 + 「改世界」的那一族（`changesWorld()` 的名单是**第二处**声明）。"""
-    text = read(JAVA / "pathing" / "core" / "MovementType.java")
+    text = read(JAVA / "pathing" / "calc" / "MovementType.java")
     m = re.search(r"public enum MovementType\s*\{(.*?)\n\}", text, re.S)
     if not m:
         fail("[解析崩塌] MovementType 枚举没找到（形状变了？）")
-        return [], set(), "pathing/core/MovementType.java"
+        return [], set(), "pathing/calc/MovementType.java"
     body = strip_comments(m.group(1))
     # 常量区 = 第一个 `;` 之前
     movements = enum_constants(body)
@@ -160,7 +160,7 @@ def parse_movements() -> tuple[list[str], set[str], str]:
         fail("[解析崩塌] MovementType.changesWorld() 没找到（它是规划期写入口径的单一出处）")
     if not movements:
         fail("[解析崩塌] MovementType 里一个常量都没解析出来")
-    return movements, changing, "pathing/core/MovementType.java#changesWorld"
+    return movements, changing, "pathing/calc/MovementType.java#changesWorld"
 
 
 def parse_modules() -> tuple[dict[str, dict], str]:

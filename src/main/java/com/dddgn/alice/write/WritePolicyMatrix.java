@@ -1,8 +1,8 @@
 package com.dddgn.alice.write;
 
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.pathing.core.MovementType;
-import com.dddgn.alice.pathing.core.search.PathRequest;
+import com.dddgn.alice.pathing.calc.MovementType;
+import com.dddgn.alice.pathing.calc.PathRequest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 

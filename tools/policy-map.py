@@ -32,7 +32,7 @@ SRC = os.path.join(ROOT, "src", "main", "java", "com", "dddgn", "alice")
 # （`kernel-predicates` 的 `TaskTargetProtection`），靠"反向对照"才抓到。
 MATRIX_JAVA = os.path.join(SRC, "write", "WritePolicyMatrix.java")
 REASON_JAVA = os.path.join(SRC, "write", "WriteReason.java")
-REQUEST_JAVA = os.path.join(SRC, "pathing", "core", "search", "PathRequest.java")
+REQUEST_JAVA = os.path.join(SRC, "pathing", "calc", "PathRequest.java")
 OUT_CSV = os.path.join(ROOT, "docs", "authz", "POLICY_MATRIX.csv")
 SITES_CSV = os.path.join(ROOT, "docs", "authz", "CONTAINER_WRITE_SITES.csv")
 

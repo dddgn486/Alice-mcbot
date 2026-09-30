@@ -44,11 +44,11 @@ public final class SurvivalExitTask extends WalkToTask implements SurvivalExit {
      * 才换成 {@code PathRequest.survivalEscape}（放置 + 破坏 + PILLAR，理由码 `ESCAPE_*`，上限 8/8）。
      */
     @Override
-    protected com.dddgn.alice.pathing.core.search.PathRequest buildRequest(BotPlayer walker, BlockPos goal) {
+    protected com.dddgn.alice.pathing.calc.PathRequest buildRequest(BotPlayer walker, BlockPos goal) {
         if (!withReserve) {
             return super.buildRequest(walker, goal);
         }
-        return com.dddgn.alice.pathing.core.search.PathRequest.survivalEscape(
+        return com.dddgn.alice.pathing.calc.PathRequest.survivalEscape(
                 walker.getUUID().toString(), com.dddgn.alice.pathing.MovementHelper.footCell(walker.serverLevel(), walker),
                 goal, "survival-escape");
     }

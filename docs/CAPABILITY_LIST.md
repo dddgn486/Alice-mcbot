@@ -52,7 +52,7 @@
 
 ## §3 移动级：它**能怎么动**（`MovementType`）
 
-出处：`pathing/core/MovementType.java#changesWorld`。**改世界**的那一族 = 规划期写入信封的唯一口径（`D-241`：`PathRequest.pureTraversal()` 与 `WriteEnvelopes` 都从这里取）。
+出处：`pathing/calc/MovementType.java#changesWorld`。**改世界**的那一族 = 规划期写入信封的唯一口径（`D-241`：`PathRequest.pureTraversal()` 与 `WriteEnvelopes` 都从这里取）。
 
 | Movement | 会改世界？ |
 |---|---|

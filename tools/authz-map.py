@@ -280,13 +280,19 @@ def check(rows):
     """断言注册表与代码一致（防过期）。返回 (missing_codes, missing_types, missing_reasons)。
 
     ⚠️ 2026-09-14（T0-a 堵假绿）两处修正（三路审计 E-5 实证）：
-    ① **递归**扫描 `pathing/core/**`。原 glob `pathing/core/*.java` **非递归** ⇒ `core/search/` 与
-       `core/session/` 共 **21 个文件从不被扫描**，其中的拒绝码永远不会被断言；
+    ① **递归**扫描 `pathing/**`（2026-09-30「乙」拆分后 `core/` 已不存在 ⇒ 改为 `pathing/**`，
+       覆盖面由 `case` 目录直接决定）。⚠️ 历史：原 glob `pathing/core/*.java` **非递归** ⇒
+       `core/search/` 与 `core/session/` 共 **21 个文件从不被扫描**，其中的拒绝码永远不会被断言；
     ② **去掉"家族前缀逃生"**（`c.split("_")[0] in reg_text`）⇒ 改为精确匹配，豁免只能写进 `FAMILY_OK`。
     """
     import glob
-    pattern = os.path.join(ROOT, "src/main/java/com/dddgn/alice/pathing/core/**/*.java")
-    files = glob.glob(pattern, recursive=True)
+    # ⚠️ `glob` **不支持花括号展开** ⇒ 逐个 pattern 收集，并断言非空（防"扫空 ⇒ 全码未覆盖"的假绿）。
+    files = []
+    for d in ("calc", "movement", "path"):
+        files += glob.glob(os.path.join(ROOT, f"src/main/java/com/dddgn/alice/pathing/{d}/**/*.java"),
+                          recursive=True)
+    if not files:
+        raise RuntimeError("authz-map：`pathing/{calc,movement,path}` 一个 .java 都没扫到 —— 路径又漂了")
     blob = " ".join(open(f, encoding="utf-8").read() for f in files)
     code_codes = set(CODE_RE.findall(blob))
     reg_text = " ".join(r[c] for r in rows for c in r)
@@ -323,7 +329,7 @@ def check(rows):
     if declared_total and declared_total != len(counted):
         code_problems.append("拒绝码**总数**不符：注册表声明 %d / 实际 %d" % (declared_total, len(counted)))
     # ② MovementType 枚举值全覆盖
-    mt = open(os.path.join(ROOT, "src/main/java/com/dddgn/alice/pathing/core/MovementType.java"), encoding="utf-8").read()
+    mt = open(os.path.join(ROOT, "src/main/java/com/dddgn/alice/pathing/calc/MovementType.java"), encoding="utf-8").read()
     types = enum_values(mt)
     missing_types = [t for t in types if t not in reg_text]
     # ③ WriteReason 全覆盖

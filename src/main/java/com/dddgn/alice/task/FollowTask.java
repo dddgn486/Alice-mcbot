@@ -3,16 +3,16 @@ package com.dddgn.alice.task;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
-import com.dddgn.alice.pathing.core.search.PathRequest;
-import com.dddgn.alice.pathing.core.session.PathExecutionResult;
-import com.dddgn.alice.pathing.core.session.PathSessionStatus;
+import com.dddgn.alice.pathing.calc.PathRequest;
+import com.dddgn.alice.pathing.path.PathExecutionResult;
+import com.dddgn.alice.pathing.path.PathSessionStatus;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.Locale;
 import java.util.UUID;
-import com.dddgn.alice.pathing.PathRetryRunner;
+import com.dddgn.alice.pathing.path.PathRetryRunner;
 
 /**
  * 跟随任务（**D-062：已迁移到新内核 R3/R4**）：跟随同维度在线玩家，保持约 2 格距离。

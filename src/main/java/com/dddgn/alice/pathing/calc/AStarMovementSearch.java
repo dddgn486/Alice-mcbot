@@ -1,0 +1,339 @@
+package com.dddgn.alice.pathing.calc;
+
+import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.pathing.MovementHelper;
+import com.dddgn.alice.pathing.calc.MovementType;
+import com.dddgn.alice.pathing.calc.RecoverabilityLevel;
+import net.minecraft.core.BlockPos;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import com.dddgn.alice.pathing.movement.SelfWriteConsistency;
+
+/**
+ * Movement-aware A*（对照 Baritone `AStarPathFinder`）。
+ *
+ * <p>特性：
+ * <ul>
+ *   <li>二叉堆开放集 + decrease-key；</li>
+ *   <li>加权启发式（多系数 best-so-far，用于预算耗尽时的诊断）；</li>
+ *   <li>预算与取消边界：节点数 / 墙钟毫秒 / 取消信号；</li>
+ *   <li>状态严格区分 {@code REACHED} / {@code UNREACHABLE} / {@code SEARCH_LIMIT} / {@code CANCELLED}。</li>
+ * </ul>
+ *
+ * <p>R3 为同步主线程搜索；异步（R7）只需把 {@link MovementContext} 的实时世界换成快照。
+ */
+public final class AStarMovementSearch {
+    public static final String PLANNER_NAME = "alice.astar.movement.v1";
+
+    /** 单次搜索"独占一个 tick"的告警阈值（tick 预算 50 ms；`D-369` 调参数据靠这条日志）。 */
+    private static final long TICK_BUDGET_WARN_MILLIS = 50L;
+
+    /** 加权 A* 系数（越大越贪心）；第 0 项用于最终路径。 */
+    private static final double[] COEFFICIENTS = {1.5D, 2.0D, 2.5D, 3.0D, 4.0D, 5.0D, 10.0D};
+
+    private final MovementProvider provider;
+
+    public AStarMovementSearch(MovementProvider provider) {
+        this.provider = provider;
+    }
+
+    public PathPlan search(MovementContext context) {
+        return search(context, java.util.Set.of());
+    }
+
+    /**
+     * D-250/②′：{@code forbiddenEdges} 是**路径无关**的"禁用具体边"集合（由 {@link SelfWriteConsistency}
+     * 校验出冲突后逐次加入，见 {@code CorePathPlanner} 的有界重搜）。
+     *
+     * <p>**为什么按路径过滤不行**：A\* 用位置做节点键 ⇒ 到达同一格的两条路只留更便宜那条；带挖掘前缀的
+     * 便宜路会把干净前缀挤掉，于是"干净前缀才成立的那条边"永远看不到 ⇒ 实测把灌水坑逃生从可解变成
+     * `UNREACHABLE`（D-250：`own_write_support=245`）。禁用**具体边**是路径无关的，不受节点合并影响。
+     */
+    public PathPlan search(MovementContext context, java.util.Set<SelfWriteConsistency.EdgeKey> forbiddenEdges) {
+        long startMillis = System.currentTimeMillis();
+        PathRequest request = context.request();
+        BlockPos startFoot = request.startFoot();
+        GoalSpec goal = request.goal();
+        SearchBudget budget = request.budget();
+
+        // S-2（P1-A / 审计 §3.A:181，2026-09-12）：**目标准入** —— 目标区块没加载就硬拒，
+        // 返回**独立状态** `GOAL_NOT_LOADED`（不是 UNREACHABLE、不是 SEARCH_LIMIT）。
+        // 理由：服务端读未加载区块会同步加载/生成并阻塞主线程；"没加载"也不等于"到不了"。
+        // 对照 Baritone：从不加载区块（`getChunk(..., FULL, false)`），执行期在
+        // `PathExecutor:188` "Pausing since destination is at edge of loaded chunks" 等区块。
+        // ⭐ `D-337`：**粗目标**（`exactFoot()==false`）跳过这条守卫 —— 它的到达判断是纯算术、
+        // 不读方块 ⇒ 守卫的立法目的（别读未加载方块）不存在；而它**正是为了**"目标区还没加载时
+        // 也能朝它推进"而存在（这是 `GOAL_NOT_LOADED` 死结的解药）。红线不变：搜索仍只在已加载区扩展。
+        if (goal.exactFoot() && !context.chunkLoaded(goal.goalFoot())) {
+            return PathPlan.failure(PlanningStatus.GOAL_NOT_LOADED, startFoot, goal.goalFoot(),
+                    0, 0, elapsed(startMillis), PLANNER_NAME,
+                    "goal_chunk_not_loaded goal=" + goal.goalFoot().toShortString()
+                            + " chunk=" + (goal.goalFoot().getX() >> 4) + ","
+                            + (goal.goalFoot().getZ() >> 4));
+        }
+
+        Map<Long, SearchNode> nodes = new HashMap<>();
+        BinaryHeapOpenSet openSet = new BinaryHeapOpenSet();
+        List<PlannedMovement> candidates = new ArrayList<>(16);
+
+        SearchNode startNode = nodeAt(nodes, startFoot, goal);
+        startNode.cost = 0.0D;
+        startNode.combinedCost = startNode.estimatedCostToGoal;
+        openSet.insert(startNode);
+
+        SearchNode[] bestSoFar = new SearchNode[COEFFICIENTS.length];
+        double[] bestHeuristic = new double[COEFFICIENTS.length];
+        for (int i = 0; i < COEFFICIENTS.length; i++) {
+            bestSoFar[i] = startNode;
+            bestHeuristic[i] = startNode.estimatedCostToGoal;
+        }
+
+        int expandedNodes = 0;
+        int movementsConsidered = 0;
+        // 门控计数（诚实报告用）：跳过多少条"会跨到未加载区块"或"越出世界边界"的边
+        int skippedUnloaded = 0;
+        int skippedBorder = 0;
+        // `D-337`：有多少个节点因为**读脚印伸进未加载区块**而拒绝扩展（= 搜索在加载边界收口）
+        int boundaryBlocked = 0;
+        int startEscape = 0;
+        // D-250/②′：被"禁用具体边"挡掉的候选数（只在校验冲突后的重搜里非 0）
+        int skippedForbidden = 0;
+        boolean budgetExhausted = false;
+
+        while (!openSet.isEmpty()) {
+            if (budget.isCancelled()) {
+                return PathPlan.failure(PlanningStatus.CANCELLED, startFoot, goal.goalFoot(),
+                        expandedNodes, movementsConsidered, elapsed(startMillis), PLANNER_NAME,
+                        "cancelled");
+            }
+            long elapsed = elapsed(startMillis);
+            if (budget.nodeBudgetExhausted(expandedNodes) || budget.timeBudgetExhausted(elapsed)) {
+                budgetExhausted = true;
+                break;
+            }
+
+            SearchNode current = openSet.removeLowest();
+            expandedNodes++;
+            BlockPos currentFoot = new BlockPos(current.x, current.y, current.z);
+
+            if (goal.isInGoal(currentFoot)) {
+                // K-4 / D-167：目标准入原先**只看离散格相等**，与执行期最终段的 EXACT
+                // （脚位 + 落地 + 距中心 ≤0.3）不是同一个谓词。规划期能查的那部分
+                // （世界是否可站）在这里**计数**（不改行为），因为有两类**合法**例外：
+                //  ① 起点即目标：合法的"已经在那儿"，硬拒不合适（但起点不可站本身是异常）；
+                //  ② 最后一条边是写入类（BREAK_AND_ENTER / DOWNWARD 等）：目标格本来就
+                //     "破坏之后才可站"（provider 两处宽谓词；挖掘 ENTER_TARGET 模式的目标格
+                //     就是矿块本身）⇒ 这类只记信息码。
+                // 只有**纯通行边**走进来的目标格不可站，才是真正的谓词矛盾（REACHED 但 EXACT
+                // 世界前提不成立）⇒ `goal_not_standable`。
+                // **收口（D-167）**：实测一轮完整电池 + 两轮部分电池里两类真异常码**均为 0**
+                // ⇒ 按收口义务删掉当时的临时告警行，只保留计数（进 `PathingStats` 单次规划摘要、
+                // 累计计数进 `alice:bot_report`）+ 电池 SUMMARY 的 `K4=` 自断言；
+                // 真异常再次出现时，电池会直接判 FAIL 并在 SUMMARY 里报数，不靠翻日志。
+                if (!MovementHelper.canStandCentered(context.level(), currentFoot)) {
+                    MovementType incoming = current.previousType;
+                    String code;
+                    if (incoming == null) {
+                        code = "goal_not_standable_start";
+                    } else if (MovementContext.plannedBreaks(incoming) > 0
+                            || MovementContext.plannedPlaces(incoming) > 0) {
+                        code = "goal_post_write_not_standable";
+                    } else {
+                        code = "goal_not_standable";
+                    }
+                    PathingStats.record(code);
+                    PathingStats.recordTotal(code);
+                }
+                return reachedPlan(startFoot, goal, current, expandedNodes, movementsConsidered,
+                        elapsed(startMillis));
+            }
+
+            // ⭐⭐ `D-337`：**读脚印闸门** —— 必须在 `appendCandidates` **之前**问。
+            // 为什么（2026-09-19 实测机制）：候选生成/成本计算会 `getBlockState`/`getFluidState`
+            // 读节点周围最多 `READ_FOOTPRINT_RADIUS` 格；这些读一旦落在**未加载**区块上，
+            // 服务端就 `getChunkAt` **同步加载/生成**（主线程阻塞 + 世界副作用）= 违反红线 `D-132`。
+            // 而下面的"跨区块才查"边闸门是**后置**的：加载已经发生 ⇒ 它随后看到"已加载"并放行
+            // ⇒ 旧写法会**自增强地**一路蚕食加载出去（实测粗目标把 224→384 的 6 个采样列、14 个区块读了进来）。
+            // 语义：`false` = 该节点**不扩展**（保守地"到此为止"），搜索在加载边界自然收口。
+            if (!context.readFootprintLoaded(currentFoot)) {
+                boundaryBlocked++;
+                continue;
+            }
+
+            candidates.clear();
+            provider.appendCandidates(context, currentFoot, candidates);
+            if (candidates.isEmpty() && current == startNode) {
+                // **起点脱困**（S-1 / D-133）：起点自身非法（头部被堵 / 泡在流体里）时，
+                // `canTraverse` 的扫掠包含起点体积 ⇒ 常规候选全被掐死，连"迈出一步"都规划不出来。
+                // 只对**起点**放宽成"只检查目的地"（执行器的前置条件本来就是这样 ⇒ 仍可规划即可执行）。
+                provider.appendStartEscapeCandidates(context, currentFoot, candidates);
+                if (!candidates.isEmpty()) {
+                    startEscape = candidates.size();
+                    BotLog.info("[Search] start_escape 起点非法 ⇒ 按目的地谓词生成 {} 条脱困候选"
+                            + "（S-1/D-133；Baritone Movement 只看目的地）", startEscape);
+                }
+            }
+            for (PlannedMovement movement : candidates) {
+                BlockPos toFoot = movement.toFoot();
+                // D-250/②′：**路径无关**的"禁用具体边"过滤（只在校验出冲突后的重搜里非空）
+                if (!forbiddenEdges.isEmpty() && forbiddenEdges.contains(
+                        new SelfWriteConsistency.EdgeKey(movement.movementType(),
+                                movement.fromFoot(), toFoot))) {
+                    skippedForbidden++;
+                    continue;
+                }
+                // S-2 节点级门控（对照 Baritone `AStarPathFinder:105-112`）：
+                // **只在跨越区块边界时**才查一次"目的地区块是否已加载"，未加载 ⇒ 跳过这条边
+                // （`continue`，不是把整条路径判死）。
+                // ⚠️ `D-337`：**这条门是后置的、拦不住"读"**（读在 `appendCandidates` 里已经发生，
+                // 见上面的**读脚印闸门**）—— 它现在的作用降级为**见证/断言**：修好后 `skippedUnloaded`
+                // 应恒为 0；若哪天又 > 0，说明 `MovementContext.READ_FOOTPRINT_RADIUS` 不够用了。
+                if ((toFoot.getX() >> 4) != (current.x >> 4)
+                        || (toFoot.getZ() >> 4) != (current.z >> 4)) {
+                    if (!context.chunkLoaded(toFoot)) {
+                        skippedUnloaded++;
+                        continue;
+                    }
+                }
+                // 世界边界（对照 Baritone `worldBorder.entirelyContains`）：越界的边一律不生成
+                if (!context.withinWorldBorder(toFoot)) {
+                    skippedBorder++;
+                    continue;
+                }
+                movementsConsidered++;
+                double tentativeCost = current.cost + movement.cost();
+                SearchNode neighbor = nodeAt(nodes, movement.toFoot(), goal);
+                if (tentativeCost >= neighbor.cost) {
+                    continue;
+                }
+                neighbor.previous = current;
+                neighbor.previousFoot = currentFoot;
+                neighbor.previousType = movement.movementType();
+                neighbor.previousCost = movement.cost();
+                neighbor.previousFacts = movement.recoverabilityFacts();
+                neighbor.cost = tentativeCost;
+                neighbor.combinedCost = tentativeCost + neighbor.estimatedCostToGoal;
+                if (neighbor.isOpen()) {
+                    openSet.update(neighbor);
+                } else {
+                    openSet.insert(neighbor);
+                }
+                for (int i = 0; i < COEFFICIENTS.length; i++) {
+                    double metric = neighbor.estimatedCostToGoal + neighbor.cost / COEFFICIENTS[i];
+                    if (metric < bestHeuristic[i]) {
+                        bestHeuristic[i] = metric;
+                        bestSoFar[i] = neighbor;
+                    }
+                }
+            }
+        }
+
+        long elapsed = elapsed(startMillis);
+        if (elapsed >= TICK_BUDGET_WARN_MILLIS) {
+            // `D-369`：本搜索**独占了一个 tick**（tick 预算 50 ms）。真机三次 `Can't keep up!`（2035/2632/2232 ms）
+            // 就是这类搜索。这条日志是"把默认预算调紧/调松"的**唯一数据来源**（超阈值才打，不刷屏）。
+            com.dddgn.alice.log.BotLog.info("[Search] 超 tick 预算（{}ms ≥ {}ms · tick 预算 50ms）"
+                            + "nodes={} open={} goal={} ⇒ 该次搜索独占了这个 tick",
+                    elapsed, TICK_BUDGET_WARN_MILLIS, expandedNodes, openSet.size(),
+                    goal.goalFoot().toShortString());
+        }
+        if (budgetExhausted) {
+            String budgetNote = "budget exhausted (why="
+                    + (budget.timeBudgetExhausted(elapsed) ? "time" : "nodes")
+                    + " maxNodes=" + budget.maxNodes() + ", maxMillis="
+                    + budget.maxMillis() + ", openSet=" + openSet.size() + ", best=" + bestSoFar[0].cost
+                    + ", skipped_unloaded=" + skippedUnloaded + " skipped_border=" + skippedBorder
+                    + " skipped_forbidden=" + skippedForbidden
+                    + " boundary_blocked=" + boundaryBlocked + ")";
+            // K-1：**预算耗尽可能只是"没算完"** —— 若 best-so-far 已经走出过一段（有前驱），
+            // 就把那段前缀交出来（PARTIAL），而不是报"一无所获"。注意：
+            //  · 只有**预算类**耗尽才给前缀；搜索空间真穷尽（下面的 UNREACHABLE）**不给**（那是证明到不了）；
+            //  · PARTIAL 的 `reached()` 仍为 false ⇒ 不会被误当到达。
+            List<PlannedMovement> prefix = prefixTo(bestSoFar[0]);
+            if (!prefix.isEmpty()) {
+                List<BlockPos> projected = projectedFootPath(startFoot, prefix);
+                return PathPlan.partial(startFoot, goal.goalFoot(), prefix, projected,
+                        bestSoFar[0].cost, expandedNodes, movementsConsidered, elapsed, PLANNER_NAME,
+                        budgetNote + " partialPrefix=" + prefix.size());
+            }
+            return PathPlan.failure(PlanningStatus.SEARCH_LIMIT, startFoot, goal.goalFoot(),
+                    expandedNodes, movementsConsidered, elapsed, PLANNER_NAME, budgetNote);
+        }
+        // ⭐ `D-337`：搜索空间穷尽**但原因不是"证明到不了"，而是"前面没加载"**。
+        // 语义（`D-076` 同宗：`SEARCH_LIMIT ≠ UNREACHABLE`）：**绝不许报 `UNREACHABLE`** ——
+        // 未加载 ≠ 到不了。有 best-so-far 前缀 ⇒ `PARTIAL`（消费者 `PathRetryRunner` 执行前缀再重规划
+        // = Baritone 式 hop，正是远距离**粗目标**要的行为）；空前缀 ⇒ `SEARCH_LIMIT`（可达性未知，
+        // 交给调用方随加载推进稍后重试）。
+        if (boundaryBlocked > 0) {
+            String boundaryNote = "boundary_unloaded blocked_nodes=" + boundaryBlocked
+                    + " skipped_unloaded=" + skippedUnloaded + " skipped_border=" + skippedBorder
+                    + " skipped_forbidden=" + skippedForbidden;
+            List<PlannedMovement> boundaryPrefix = prefixTo(bestSoFar[0]);
+            if (!boundaryPrefix.isEmpty()) {
+                List<BlockPos> projected = projectedFootPath(startFoot, boundaryPrefix);
+                return PathPlan.partial(startFoot, goal.goalFoot(), boundaryPrefix, projected,
+                        bestSoFar[0].cost, expandedNodes, movementsConsidered, elapsed, PLANNER_NAME,
+                        boundaryNote + " partialPrefix=" + boundaryPrefix.size());
+            }
+            return PathPlan.failure(PlanningStatus.SEARCH_LIMIT, startFoot, goal.goalFoot(),
+                    expandedNodes, movementsConsidered, elapsed, PLANNER_NAME, boundaryNote);
+        }
+        return PathPlan.failure(PlanningStatus.UNREACHABLE, startFoot, goal.goalFoot(),
+                expandedNodes, movementsConsidered, elapsed, PLANNER_NAME,
+                "open set exhausted; best=" + bestSoFar[0].cost
+                        + "; skipped_unloaded=" + skippedUnloaded + " skipped_border=" + skippedBorder
+                        + " skipped_forbidden=" + skippedForbidden
+                        + " start_escape=" + startEscape);
+    }
+
+    /** 从某节点回溯出**到起点的边序列**（正向），供"到达计划"与 K-1 的"前缀计划"共用。 */
+    private static List<PlannedMovement> prefixTo(SearchNode node) {
+        List<PlannedMovement> movements = new ArrayList<>();
+        SearchNode cursor = node;
+        while (cursor.previous != null) {
+            movements.add(new PlannedMovement(cursor.previousType, cursor.previousFoot,
+                    new BlockPos(cursor.x, cursor.y, cursor.z), cursor.previousCost,
+                    com.dddgn.alice.pathing.calc.RecoverabilityEvaluator.levelOf(
+                            cursor.previousType, cursor.previousFacts),
+                    cursor.previousFacts));
+            cursor = cursor.previous;
+        }
+        Collections.reverse(movements);
+        return movements;
+    }
+
+    /** 脚位投影（起点 + 每条边的终点）。 */
+    private static List<BlockPos> projectedFootPath(BlockPos startFoot, List<PlannedMovement> movements) {
+        List<BlockPos> projected = new ArrayList<>(movements.size() + 1);
+        projected.add(startFoot);
+        for (PlannedMovement movement : movements) {
+            projected.add(movement.toFoot());
+        }
+        return projected;
+    }
+
+    private PathPlan reachedPlan(BlockPos startFoot, GoalSpec goal, SearchNode goalNode,
+                                 int expandedNodes, int movementsConsidered, long elapsed) {
+        List<PlannedMovement> movements = prefixTo(goalNode);
+        List<BlockPos> projected = projectedFootPath(startFoot, movements);
+        return new PathPlan(PlanningStatus.REACHED, startFoot, goal.goalFoot(),
+                movements, projected, goalNode.cost, expandedNodes, movementsConsidered,
+                elapsed, PLANNER_NAME, "goal reached");
+    }
+
+    private static SearchNode nodeAt(Map<Long, SearchNode> nodes, BlockPos pos, GoalSpec goal) {
+        return nodes.computeIfAbsent(SearchNode.hash(pos.getX(), pos.getY(), pos.getZ()), key -> {
+            SearchNode created = new SearchNode(pos.getX(), pos.getY(), pos.getZ());
+            created.estimatedCostToGoal = goal.heuristic(pos);
+            return created;
+        });
+    }
+
+    private static long elapsed(long startMillis) {
+        return Math.max(0L, System.currentTimeMillis() - startMillis);
+    }
+}

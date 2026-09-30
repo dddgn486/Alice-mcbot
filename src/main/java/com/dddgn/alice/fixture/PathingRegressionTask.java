@@ -3,10 +3,10 @@ package com.dddgn.alice.fixture;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
-import com.dddgn.alice.pathing.core.MovementType;
-import com.dddgn.alice.pathing.core.search.CorePathPlanner;
-import com.dddgn.alice.pathing.core.search.PathPlan;
-import com.dddgn.alice.pathing.core.search.PathRequest;
+import com.dddgn.alice.pathing.calc.MovementType;
+import com.dddgn.alice.pathing.calc.CorePathPlanner;
+import com.dddgn.alice.pathing.calc.PathPlan;
+import com.dddgn.alice.pathing.calc.PathRequest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -18,7 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import com.dddgn.alice.pathing.PathRetryRunner;
+import com.dddgn.alice.pathing.path.PathRetryRunner;
 import com.dddgn.alice.debug.PathSessionDiagnosticTask;
 import com.dddgn.alice.task.FixtureScript;
 import com.dddgn.alice.task.Task;
@@ -76,7 +76,7 @@ public final class PathingRegressionTask implements Task {
     /**
      * **水里一格相对陆地的倍数 —— 判据侧的独立来源**（D-247 漂移门禁）。
      *
-     * <p>刻意**不引用** {@link com.dddgn.alice.pathing.core.search.CostModel#WATER_TRAVERSE_MULTIPLIER}：
+     * <p>刻意**不引用** {@link com.dddgn.alice.pathing.calc.CostModel#WATER_TRAVERSE_MULTIPLIER}：
      * 引用同一个常量会让判据变成自指（实测踩到：把常量改成 1.0，期望值跟着变成 5.00 ⇒ 判据照样 PASS）。
      * 这里是**第二次独立标定**（夹具 `water_course` 实测：陆地一格 5~7 tick、水里一格 42~45 tick
      * ⇒ 7.25×，2026-09-16）；两处不一致 ⇒ 本判据红（要改就一起改，属有意识动作）。
@@ -455,7 +455,7 @@ public final class PathingRegressionTask implements Task {
             case PLAN_FIRST_TRAVERSE -> record(scene,
                     plan.reached() && MovementType.TRAVERSE.name().equals(first), shape);
             case PLAN_SAFE_ROUTE -> {
-                java.util.List<BlockPos> contacts = com.dddgn.alice.pathing.core.search.PlanRouteSafety
+                java.util.List<BlockPos> contacts = com.dddgn.alice.pathing.calc.PlanRouteSafety
                         .lavaContacts(plan, bot.serverLevel());
                 record(scene, contacts.isEmpty(),
                         shape + "/lava_contacts=" + contacts.size()
@@ -474,8 +474,8 @@ public final class PathingRegressionTask implements Task {
                         landSteps++;
                     }
                 }
-                double expected = landSteps * com.dddgn.alice.pathing.core.search.CostModel.TRAVERSE_COST
-                        + waterSteps * com.dddgn.alice.pathing.core.search.CostModel.TRAVERSE_COST
+                double expected = landSteps * com.dddgn.alice.pathing.calc.CostModel.TRAVERSE_COST
+                        + waterSteps * com.dddgn.alice.pathing.calc.CostModel.TRAVERSE_COST
                         * MEASURED_WATER_MULTIPLIER;
                 record(scene, plan.reached() && waterSteps > 0 && plan.totalCost() >= expected * 0.9D,
                         shape + "/water_steps=" + waterSteps + "/land_steps=" + landSteps

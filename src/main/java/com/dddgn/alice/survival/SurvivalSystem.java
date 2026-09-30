@@ -296,25 +296,25 @@ public final class SurvivalSystem {
     private static boolean escapeWithReserve(ServerPlayer bot, BlockPos foot, BlockPos refuge) {
         com.dddgn.alice.write.WriteBudget.capForEscape(
                 com.dddgn.alice.write.WriteBudget.scopeOf(bot), ESCAPE_MAX_BREAKS, ESCAPE_MAX_PLACES);
-        var request = com.dddgn.alice.pathing.core.search.PathRequest
+        var request = com.dddgn.alice.pathing.calc.PathRequest
                 .survivalEscape(bot.getUUID().toString(), foot, refuge, "survival-escape");
-        var plan = new com.dddgn.alice.pathing.core.search.CorePathPlanner()
+        var plan = new com.dddgn.alice.pathing.calc.CorePathPlanner()
                 .plan(bot, bot.serverLevel(), request);
         BotLog.warn("[Survival] 纯通行去不了 {} ⇒ 改用**逃生准备金**（放置+破坏+PILLAR，上限 {} 破坏/{} 放置）"
                         + "重试：status={}", refuge.toShortString(), ESCAPE_MAX_BREAKS, ESCAPE_MAX_PLACES,
                 plan.status());
-        return plan.status() != com.dddgn.alice.pathing.core.search.PlanningStatus.UNREACHABLE;
+        return plan.status() != com.dddgn.alice.pathing.calc.PlanningStatus.UNREACHABLE;
     }
 
     /** 纯通行预检：这个落点**规划得到**吗（只有 `UNREACHABLE` 才算不可达）。 */
     private static boolean isPlannable(ServerPlayer bot, BlockPos refuge) {
-        var request = com.dddgn.alice.pathing.core.search.PathRequest
+        var request = com.dddgn.alice.pathing.calc.PathRequest
                 .of(bot.getUUID().toString(), footCell(bot), refuge, "survival-precheck")
-                .withBudget(com.dddgn.alice.pathing.core.search.SearchBudget
+                .withBudget(com.dddgn.alice.pathing.calc.SearchBudget
                         .of(PRECHECK_MAX_NODES, PRECHECK_MAX_MILLIS));
-        var plan = new com.dddgn.alice.pathing.core.search.CorePathPlanner()
+        var plan = new com.dddgn.alice.pathing.calc.CorePathPlanner()
                 .plan(bot, bot.serverLevel(), request);
-        if (plan.status() == com.dddgn.alice.pathing.core.search.PlanningStatus.UNREACHABLE) {
+        if (plan.status() == com.dddgn.alice.pathing.calc.PlanningStatus.UNREACHABLE) {
             BotLog.warn("[Survival] 落点 {} 几何上成立，但**规划不可达**（status={}）⇒ 按"
                             + "「没有出口」处理（别为一个走不到的落点杀任务）",
                     refuge.toShortString(), plan.status());

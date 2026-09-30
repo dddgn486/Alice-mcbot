@@ -25,7 +25,51 @@ import sys
 # 反向对照：把 `DEFAULT_MAX_MILLIS` 改回 200 ⇒ 本断言红（卡顿回归必须重新登记理由）。
 SEARCH_BUDGET_CEILING_MILLIS = 60
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-CORE = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing" / "core"
+# ⚠️ 2026-09-30「乙」拆分：`pathing/core/` 已按 Baritone 三分拆成 `calc/`（内核 36）·
+# `movement/`（执行器族 27）· `path/`（驱动器 4），另有 `risk/` 与根上两件未动。
+# ⇒ `CORE` 不再是目录，改为**按类名解析**（⛔ 找不到即响亮失败，不静默回退）。
+PATHING = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing"
+
+
+def cpath(name):
+    """按类名在 `pathing/` 的三包 + `risk/` + 根里解析。⛔ 找不到就炸。"""
+    for d in ("calc", "movement", "path", "risk", ""):
+        cand = (PATHING / d / name) if d else (PATHING / name)
+        if cand.exists():
+            return cand
+    raise FileNotFoundError(f"pathing/ 里找不到 {name} —— 拆包后请更新 kernel-predicates 的锚点")
+
+
+class _CorePath:
+    """兼容层：让旧的 `CORE / "x.java"` 与 `CORE / "search" / "x.java"` 写法继续可用。
+
+    `search` / `session` / `core` 这三个**已消失的旧子目录名**在此被忽略（语义等价）。
+    """
+
+    _SKIP = ("search", "session", "core")
+
+    def __init__(self, parts=()):
+        self._parts = parts
+
+    def glob(self, pat):
+        # ⚠️ 旧目录名已消失 ⇒ 三包 + risk + 根**逐个**搜集（⛔ glob 不支持花括号展开）
+        out = []
+        for d in ("calc", "movement", "path", "risk", ""):
+            out += sorted((PATHING / d).glob(pat)) if d else sorted(PATHING.glob(pat))
+        return out
+
+    rglob = glob
+
+    def __truediv__(self, part):
+        s = str(part)
+        if s in self._SKIP:
+            return _CorePath(self._parts)
+        if s.endswith(".java"):
+            return cpath(s)
+        return _CorePath(self._parts + (s,))
+
+
+CORE = _CorePath()
 
 # `A1′`：全仓终态闩锁站点的**人口下限**（= `task/MineTask.java` + `D-410` 统一的 6 处
 # + `step 5a` 切出来的 `task/mining/MineStep.java` 那一个 = 8）。
@@ -300,7 +344,7 @@ def rule_risk_profile():
         # D-291（2026-09-17）：容器访问策略的消费点 ⇒ 必须读**冻结画像**，不许直读全局开关
         (ROOT / "src/main/java/com/dddgn/alice/action/MenuSession.java"): "执行侧（容器访问策略）",
         # D-292（2026-09-17）：危险厌恶的消费点 ⇒ 必须读冻结画像
-        (ROOT / "src/main/java/com/dddgn/alice/pathing/core/search/MovementContext.java"): "搜索侧（危险邻接加价）",
+        (ROOT / "src/main/java/com/dddgn/alice/pathing/calc/MovementContext.java"): "搜索侧（危险邻接加价）",
     }
     problems = []
     for path, label in targets.items():
@@ -474,7 +518,7 @@ def rule_no_planning_dependency():
     """
     alice = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
     problems = []
-    doomed = alice / "pathing" / "core" / "PlanningDependency.java"
+    doomed = alice / "pathing" / "calc" / "PlanningDependency.java"   # 拆包后统一点名 calc（下面的 rglob 仍覆盖全部三包）
     if doomed.exists():
         problems.append("`PlanningDependency.java` 又出现了 —— 该类已按 S-10 裁定删除（要重启这条线请先改本规则并说明消费者）")
     hits = []
@@ -1199,8 +1243,7 @@ def rule_search_limit_not_unreachable():
     # 「⚠️ 它描述的是**内核搜索配额**，放在挖掘包里是**错位**」）。
     # ⇒ 本规则**关于 R7 的那半改锚到新家**（`plans §2.5` 逐字：「关于 R7 的那半**必须活下来**（**只改锚**）」），
     # 并且**检查多两颗**（③′/③″）：搬走之后不许在 `MiningPlanner` 里复活成第二处。
-    conclusion_code = code_only((ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
-                                 / "pathing" / "core" / "search" / "SearchConclusion.java")
+    conclusion_code = code_only((cpath("SearchConclusion.java"))
                                 .read_text(encoding="utf-8"))
 
     # ⚠️ 本规则多条判据要看的是**代码**：统一先剥注释（退役说明/迁移说明里提到旧写法不算违规）。
@@ -2278,7 +2321,7 @@ def rule_placement_walk_reversible():
     ⚠️ 但 `survivalEscape`（有 `PILLAR` 没 `FALL`）与本次事故是**同一形状**，值得单独复核 —— 已记在 `D-442 §复核触发`。
     """
     problems = []
-    path = ROOT / "src/main/java/com/dddgn/alice/pathing/core/search/PathRequest.java"
+    path = ROOT / "src/main/java/com/dddgn/alice/pathing/calc/PathRequest.java"
     if not path.exists():
         return ["`PathRequest.java` 不见了（通行集工厂的唯一出处）"]
     src = code_only(_strip_block_comments(path.read_text(encoding="utf-8")))
@@ -2313,14 +2356,11 @@ def rule_movement_contract_agreement():
     ④ `miningApproach` 的 D-366b 让步（放开 PILLAR/FALL/DOWNWARD）必须**显式标注回收条件**，不许隐形放宽红线。
     """
     problems = []
-    provider = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing" / "core"
-                / "search" / "SurfaceMovementProvider.java").read_text(encoding="utf-8")
-    session = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing" / "core"
-               / "session" / "PathSession.java").read_text(encoding="utf-8")
+    provider = (cpath("SurfaceMovementProvider.java")).read_text(encoding="utf-8")
+    session = (cpath("PathSession.java")).read_text(encoding="utf-8")
     fixture = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "fixture"
                / "PlaceStepDiagonalCheckTask.java").read_text(encoding="utf-8")
-    request = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing" / "core"
-               / "search" / "PathRequest.java").read_text(encoding="utf-8")
+    request = (cpath("PathRequest.java")).read_text(encoding="utf-8")
 
     if "for (int dy = 1; dy >= -1; dy--)" in code_only(provider):
         problems.append("`SurfaceMovementProvider` 又从 `dy = 1` 起生成 `PLACE_STEP_AND_TRAVERSE` ⇒ "
@@ -2396,10 +2436,8 @@ def rule_search_budget_is_tick_aware():
        否则"该调紧还是调松"只能靠猜。
     """
     problems = []
-    planner = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing" / "core"
-               / "search" / "CorePathPlanner.java").read_text(encoding="utf-8")
-    search = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing" / "core"
-              / "search" / "AStarMovementSearch.java").read_text(encoding="utf-8")
+    planner = (cpath("CorePathPlanner.java")).read_text(encoding="utf-8")
+    search = (cpath("AStarMovementSearch.java")).read_text(encoding="utf-8")
     match = re.search(r"DEFAULT_MAX_MILLIS\s*=\s*([0-9_]+)L", planner)
     if not match:
         problems.append("找不到 `DEFAULT_MAX_MILLIS` 的常量声明 ⇒ 搜索墙钟预算不可见（调度器可能无界）")
@@ -2565,8 +2603,7 @@ def rule_write_caps_default_open_protection_kept():
     problems = []
     budget = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "write"
               / "WriteBudget.java").read_text(encoding="utf-8")
-    gate = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing" / "core"
-            / "CapabilityGate.java").read_text(encoding="utf-8")
+    gate = (cpath("CapabilityGate.java")).read_text(encoding="utf-8")
     collector = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
                  / "CollectDropsTask.java").read_text(encoding="utf-8")
 
@@ -2629,10 +2666,8 @@ def rule_tick_search_account_enforced():
     ⑤ `recordExternal`（选择期成本场）**只许记毫秒、不许吃主判据的额度**（否则成本场会把挖矿规划挤掉）。
     """
     problems = []
-    planner = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing" / "core"
-               / "search" / "CorePathPlanner.java").read_text(encoding="utf-8")
-    account_path = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing" / "core"
-                    / "search" / "SearchTickBudget.java")
+    planner = (cpath("CorePathPlanner.java")).read_text(encoding="utf-8")
+    account_path = (cpath("SearchTickBudget.java"))
     if not account_path.exists():
         return ["`SearchTickBudget`（每 tick 搜索总账）不存在 ⇒ 掉刻的根因（预算不在同一个账上）没有落点"]
     account = account_path.read_text(encoding="utf-8")
@@ -3222,8 +3257,8 @@ def rule_height_change_sweep():
     ⑥ 步骤名 `place_step_descend_clearance` 必须注册进模块。
     """
     problems = []
-    provider = ROOT / "src/main/java/com/dddgn/alice/pathing/core/search/SurfaceMovementProvider.java"
-    factory = ROOT / "src/main/java/com/dddgn/alice/pathing/core/PlaceStepAndTraverseExecutionFactory.java"
+    provider = ROOT / "src/main/java/com/dddgn/alice/pathing/movement/SurfaceMovementProvider.java"
+    factory = ROOT / "src/main/java/com/dddgn/alice/pathing/movement/PlaceStepAndTraverseExecutionFactory.java"
     fixture = ROOT / "src/main/java/com/dddgn/alice/fixture/PlaceStepDescendClearanceCheckTask.java"
     module = ROOT / "src/main/java/com/dddgn/alice/fixture/check/modules/PathingModule.java"
 
@@ -3628,8 +3663,8 @@ def rule_break_traverse_footing():
     ⑧ 步骤名 `break_traverse_footing` 必须注册进模块**并**登记进电池归属表。
     """
     problems = []
-    provider = ROOT / "src/main/java/com/dddgn/alice/pathing/core/search/SurfaceMovementProvider.java"
-    factory = ROOT / "src/main/java/com/dddgn/alice/pathing/core/BreakAndTraverseExecutionFactory.java"
+    provider = ROOT / "src/main/java/com/dddgn/alice/pathing/movement/SurfaceMovementProvider.java"
+    factory = ROOT / "src/main/java/com/dddgn/alice/pathing/movement/BreakAndTraverseExecutionFactory.java"
     fixture = ROOT / "src/main/java/com/dddgn/alice/fixture/BreakTraverseFootingCheckTask.java"
     module = ROOT / "src/main/java/com/dddgn/alice/fixture/check/modules/PathingModule.java"
     battery = ROOT / "src/main/java/com/dddgn/alice/fixture/RegressionBatteryTask.java"
@@ -4564,7 +4599,7 @@ def rule_diagonal_side_single_source():
        + 断言码是 `DIAGONAL_INVALID_PRECONDITION`（注入 D 删掉夹具用例 ⇒ 红 —— 判据不许被悄悄撤掉）。
     """
     base = ROOT / "src/main/java/com/dddgn/alice"
-    factory = base / "pathing/core/DiagonalExecutionFactory.java"
+    factory = base / "pathing/movement/DiagonalExecutionFactory.java"
     helper = base / "pathing/MovementHelper.java"
     fixture = base / "fixture/PlaceStepDiagonalCheckTask.java"
 
@@ -4709,9 +4744,9 @@ def rule_fall_landing_parity():
     所以这里选**同步门禁**（`D-426` 的 `rule_place_step_parity` 同形），并把这个取舍写进 `D-428`。
     """
     base = ROOT / "src/main/java/com/dddgn/alice"
-    provider = base / "pathing/core/search/SurfaceMovementProvider.java"
-    factory = base / "pathing/core/FallExecutionFactory.java"
-    execution = base / "pathing/core/FallExecution.java"
+    provider = base / "pathing/movement/SurfaceMovementProvider.java"
+    factory = base / "pathing/movement/FallExecutionFactory.java"
+    execution = base / "pathing/movement/FallExecution.java"
     problems = []
     for path in (provider, factory, execution):
         if not path.exists():
@@ -4797,8 +4832,8 @@ def rule_place_step_parity():
     ② 人口：表本身不得短于 `PLACE_STEP_SHARED_PREDICATES_MIN`（注入 C 删表项 ⇒ 红）。
     """
     base = ROOT / "src/main/java/com/dddgn/alice"
-    exec_factory = base / "pathing/core/PlaceStepAndTraverseExecutionFactory.java"
-    provider = base / "pathing/core/search/SurfaceMovementProvider.java"
+    exec_factory = base / "pathing/movement/PlaceStepAndTraverseExecutionFactory.java"
+    provider = base / "pathing/movement/SurfaceMovementProvider.java"
     problems = []
     if len(PLACE_STEP_SHARED_PREDICATES) < PLACE_STEP_SHARED_PREDICATES_MIN:
         problems.append(f"共享谓词表只剩 {len(PLACE_STEP_SHARED_PREDICATES)} 条（下限 "
@@ -4844,9 +4879,9 @@ def rule_pillar_water_admission():
        **精确拒绝码**（注入 G 掏空 ⇒ 红）。
     """
     base = ROOT / "src/main/java/com/dddgn/alice"
-    factory = base / "pathing/core/PillarExecutionFactory.java"
-    execution = base / "pathing/core/PillarExecution.java"
-    provider = base / "pathing/core/search/SurfaceMovementProvider.java"
+    factory = base / "pathing/movement/PillarExecutionFactory.java"
+    execution = base / "pathing/movement/PillarExecution.java"
+    provider = base / "pathing/movement/SurfaceMovementProvider.java"
     fixture = base / "fixture/PillarDiagnosticTask.java"
     problems = []
     for path in (factory, execution, provider, fixture):
@@ -5033,8 +5068,8 @@ def rule_replay_bounded():
        不许把 `segmentTicks` 清零后继续跑（那正是"同一条计划无限重放"的另一种写法）。
     """
     base = ROOT / "src/main/java/com/dddgn/alice"
-    session = base / "pathing/core/session/PathSession.java"
-    runner = base / "pathing/PathRetryRunner.java"
+    session = base / "pathing/path/PathSession.java"
+    runner = base / "pathing/path/PathRetryRunner.java"
 
     def code(path):
         if not path.exists():

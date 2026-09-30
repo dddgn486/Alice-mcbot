@@ -1,13 +1,13 @@
 package com.dddgn.alice.reach;
 
 import com.dddgn.alice.pathing.MovementHelper;
-import com.dddgn.alice.pathing.core.search.GoalFoot;
-import com.dddgn.alice.pathing.core.search.MovementContext;
-import com.dddgn.alice.pathing.core.search.MovementProvider;
-import com.dddgn.alice.pathing.core.search.PathRequest;
-import com.dddgn.alice.pathing.core.search.PlannedMovement;
-import com.dddgn.alice.pathing.core.search.SearchTickBudget;
-import com.dddgn.alice.pathing.core.search.SurfaceMovementProvider;
+import com.dddgn.alice.pathing.calc.GoalFoot;
+import com.dddgn.alice.pathing.calc.MovementContext;
+import com.dddgn.alice.pathing.calc.MovementProvider;
+import com.dddgn.alice.pathing.calc.PathRequest;
+import com.dddgn.alice.pathing.calc.PlannedMovement;
+import com.dddgn.alice.pathing.calc.SearchTickBudget;
+import com.dddgn.alice.pathing.movement.SurfaceMovementProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;

@@ -4,8 +4,8 @@ import com.dddgn.alice.write.WritePolicyMatrix;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.pathing.core.MovementType;
-import com.dddgn.alice.pathing.core.search.PathRequest;
+import com.dddgn.alice.pathing.calc.MovementType;
+import com.dddgn.alice.pathing.calc.PathRequest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -207,12 +207,12 @@ public class WritePolicyCheckTask implements Task {
         runDefaultCapChecks();
         // D-241：**纯通行名单不许漂移** —— `PathRequest.pureTraversal()` 是字面集合，
         // `MovementType.changesWorld()` 是规划期唯一口径；两者必须互为补集（写错就红，不靠 review 眼睛）。
-        java.util.Set<com.dddgn.alice.pathing.core.MovementType> pureTraversalSet = com.dddgn.alice.pathing.core.search
+        java.util.Set<com.dddgn.alice.pathing.calc.MovementType> pureTraversalSet = com.dddgn.alice.pathing.calc
                 .PathRequest.of("probe", net.minecraft.core.BlockPos.ZERO,
                         net.minecraft.core.BlockPos.ZERO, "probe").pureTraversal()
                 .allowedMovementTypes();
-        java.util.Set<com.dddgn.alice.pathing.core.MovementType> pureExpected = java.util.Arrays
-                .stream(com.dddgn.alice.pathing.core.MovementType.values())
+        java.util.Set<com.dddgn.alice.pathing.calc.MovementType> pureExpected = java.util.Arrays
+                .stream(com.dddgn.alice.pathing.calc.MovementType.values())
                 .filter(type -> !type.changesWorld())
                 .collect(java.util.stream.Collectors.toSet());
         check("纯通行名单与 changesWorld() 互为补集（不许漂移）", pureTraversalSet.equals(pureExpected),
@@ -265,11 +265,11 @@ public class WritePolicyCheckTask implements Task {
         }
         // B2 接线后的**规划器层**：越权请求必须被转成 ERROR plan（而不是抛异常打断 tick）
         int ledgerBefore = com.dddgn.alice.ledger.WorldModLedger.size(bot.getServer());
-        com.dddgn.alice.pathing.core.search.PathPlan refused =
-                new com.dddgn.alice.pathing.core.search.CorePathPlanner()
+        com.dddgn.alice.pathing.calc.PathPlan refused =
+                new com.dddgn.alice.pathing.calc.CorePathPlanner()
                         .plan(bot, bot.serverLevel(), illegal);
         boolean plannerRefused = refused.status()
-                == com.dddgn.alice.pathing.core.search.PlanningStatus.ERROR
+                == com.dddgn.alice.pathing.calc.PlanningStatus.ERROR
                 && refused.diagnostics().contains("WRITE_POLICY_MOVEMENT_DENIED")
                 && refused.movements().isEmpty();
         check("planner_refuses_and_reports", plannerRefused,

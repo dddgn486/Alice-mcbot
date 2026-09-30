@@ -3,9 +3,9 @@ package com.dddgn.alice.task.collecting;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
-import com.dddgn.alice.pathing.PathRetryRunner;
-import com.dddgn.alice.pathing.core.search.PathRequest;
-import com.dddgn.alice.pathing.core.session.PathExecutionResult;
+import com.dddgn.alice.pathing.path.PathRetryRunner;
+import com.dddgn.alice.pathing.calc.PathRequest;
+import com.dddgn.alice.pathing.path.PathExecutionResult;
 // ⭐ `4a` 柱②（用户 2026-09-29 裁 `N3`）：`Step` = **原语注册口**（接口即注册）
 import com.dddgn.alice.task.Step;
 import com.dddgn.alice.task.mining.GainStepRunner;

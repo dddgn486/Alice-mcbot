@@ -2,10 +2,10 @@ package com.dddgn.alice.fixture;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.pathing.core.search.CorePathPlanner;
-import com.dddgn.alice.pathing.core.search.PathPlan;
-import com.dddgn.alice.pathing.core.search.PathRequest;
-import com.dddgn.alice.pathing.core.search.SearchBudget;
+import com.dddgn.alice.pathing.calc.CorePathPlanner;
+import com.dddgn.alice.pathing.calc.PathPlan;
+import com.dddgn.alice.pathing.calc.PathRequest;
+import com.dddgn.alice.pathing.calc.SearchBudget;
 import com.dddgn.alice.pathing.risk.RiskProfile;
 import com.dddgn.alice.pathing.risk.RiskSwitches;
 import net.minecraft.core.BlockPos;

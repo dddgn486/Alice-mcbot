@@ -2,11 +2,11 @@ package com.dddgn.alice.fixture;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.pathing.core.search.CorePathPlanner;
-import com.dddgn.alice.pathing.core.search.PathPlan;
-import com.dddgn.alice.pathing.core.search.PathRequest;
-import com.dddgn.alice.pathing.core.search.PlanningStatus;
-import com.dddgn.alice.pathing.core.search.SearchBudget;
+import com.dddgn.alice.pathing.calc.CorePathPlanner;
+import com.dddgn.alice.pathing.calc.PathPlan;
+import com.dddgn.alice.pathing.calc.PathRequest;
+import com.dddgn.alice.pathing.calc.PlanningStatus;
+import com.dddgn.alice.pathing.calc.SearchBudget;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -182,40 +182,40 @@ public class PartialSearchCheckTask implements Task {
         // D（K-1 收口，2026-09-16）：**前缀也会被执行** ⇒ 它必须和整条计划吃同一份自洽校验，
         // 而且它的最后一段**不是目标段**（容差按中间段）。这两条是"前缀被当成完整计划"的两个漏洞。
         check("partial_prefix_self_consistent",
-                tight.partial() && com.dddgn.alice.pathing.core.search.SelfWriteConsistency
+                tight.partial() && com.dddgn.alice.pathing.movement.SelfWriteConsistency
                         .firstConflict(bot.serverLevel(), tight.movements()) == null,
                 "前缀不得含「踩在自己挖掉的格子上」的边（D-250 同一份校验，规划器对 PARTIAL 也跑）");
 
         // 裁剪助手单测：合成"先挖掉 X、后面的边却要踩 X" ⇒ 必须裁到违规边之前（保留第一段）
         BlockPos stepA = from.offset(1, 0, 0);
         BlockPos stepB = from.offset(2, 0, 0);
-        var digEdge = new com.dddgn.alice.pathing.core.search.PlannedMovement(
-                com.dddgn.alice.pathing.core.MovementType.BREAK_AND_ENTER, from, stepA, 4.88D,
-                com.dddgn.alice.pathing.core.RecoverabilityLevel.PATH_REVERSIBLE);
-        var stepEdge = new com.dddgn.alice.pathing.core.search.PlannedMovement(
-                com.dddgn.alice.pathing.core.MovementType.TRAVERSE, stepA, stepB, 1.0D,
-                com.dddgn.alice.pathing.core.RecoverabilityLevel.PATH_REVERSIBLE);
-        var syntheticConflict = new com.dddgn.alice.pathing.core.search.SelfWriteConsistency.Conflict(
-                new com.dddgn.alice.pathing.core.search.SelfWriteConsistency.EdgeKey(
-                        com.dddgn.alice.pathing.core.MovementType.BREAK_AND_ENTER, from, stepA),
-                com.dddgn.alice.pathing.core.MovementType.TRAVERSE, stepB, stepA);
-        var safePrefix = com.dddgn.alice.pathing.core.search.SelfWriteConsistency
+        var digEdge = new com.dddgn.alice.pathing.calc.PlannedMovement(
+                com.dddgn.alice.pathing.calc.MovementType.BREAK_AND_ENTER, from, stepA, 4.88D,
+                com.dddgn.alice.pathing.calc.RecoverabilityLevel.PATH_REVERSIBLE);
+        var stepEdge = new com.dddgn.alice.pathing.calc.PlannedMovement(
+                com.dddgn.alice.pathing.calc.MovementType.TRAVERSE, stepA, stepB, 1.0D,
+                com.dddgn.alice.pathing.calc.RecoverabilityLevel.PATH_REVERSIBLE);
+        var syntheticConflict = new com.dddgn.alice.pathing.movement.SelfWriteConsistency.Conflict(
+                new com.dddgn.alice.pathing.movement.SelfWriteConsistency.EdgeKey(
+                        com.dddgn.alice.pathing.calc.MovementType.BREAK_AND_ENTER, from, stepA),
+                com.dddgn.alice.pathing.calc.MovementType.TRAVERSE, stepB, stepA);
+        var safePrefix = com.dddgn.alice.pathing.movement.SelfWriteConsistency
                 .safePrefixBefore(List.of(digEdge, stepEdge), syntheticConflict);
         check("prefix_truncated_before_conflict",
                 safePrefix.size() == 1
-                        && safePrefix.get(0).movementType() == com.dddgn.alice.pathing.core.MovementType.BREAK_AND_ENTER
-                        && com.dddgn.alice.pathing.core.search.SelfWriteConsistency
+                        && safePrefix.get(0).movementType() == com.dddgn.alice.pathing.calc.MovementType.BREAK_AND_ENTER
+                        && com.dddgn.alice.pathing.movement.SelfWriteConsistency
                         .safePrefixBefore(List.of(stepEdge), syntheticConflict).isEmpty(),
                 "裁到违规边之前（违规边在第一条时 ⇒ 空 = 没有可安全执行的前缀）");
 
         // 容差决策：**只有"最后一段 + 计划真的到达目标"**才用 EXACT；PARTIAL 前缀的最后一段按中间段口径
         check("prefix_tail_uses_column_tolerance",
-                com.dddgn.alice.pathing.core.session.PathSession
-                        .toleranceFor(true, false) == com.dddgn.alice.pathing.core.CompletionTolerance.COLUMN
-                        && com.dddgn.alice.pathing.core.session.PathSession
-                        .toleranceFor(true, true) == com.dddgn.alice.pathing.core.CompletionTolerance.EXACT
-                        && com.dddgn.alice.pathing.core.session.PathSession
-                        .toleranceFor(false, true) == com.dddgn.alice.pathing.core.CompletionTolerance.COLUMN,
+com.dddgn.alice.pathing.path.PathSession
+                        .toleranceFor(true, false) == com.dddgn.alice.pathing.calc.CompletionTolerance.COLUMN
+                        && com.dddgn.alice.pathing.path.PathSession
+                        .toleranceFor(true, true) == com.dddgn.alice.pathing.calc.CompletionTolerance.EXACT
+                        && com.dddgn.alice.pathing.path.PathSession
+                        .toleranceFor(false, true) == com.dddgn.alice.pathing.calc.CompletionTolerance.COLUMN,
                 "(final=false,reached=true)=COLUMN / (final=true,reached=true)=EXACT / (final=true,reached=false)=COLUMN");
 
         // C：真失败（未加载）**不给前缀**
@@ -257,7 +257,7 @@ public class PartialSearchCheckTask implements Task {
 
     private PathPlan plan(BlockPos from, BlockPos goal, SearchBudget budget, String requester) {
         PathRequest request = new PathRequest(bot.getUUID().toString(), from,
-                new com.dddgn.alice.pathing.core.search.GoalFoot(goal),
+                new com.dddgn.alice.pathing.calc.GoalFoot(goal),
                 PathRequest.of(bot.getUUID().toString(), from, goal, requester).allowedMovementTypes(),
                 budget, requester);
         return new CorePathPlanner().plan(bot, bot.serverLevel(), request);

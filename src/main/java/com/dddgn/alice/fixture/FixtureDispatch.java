@@ -122,7 +122,7 @@ public final class FixtureDispatch {
     /** Assigns the D-043 replan fixture: block the path 2 segments ahead at a fixed tick. */
     public static boolean assignPathingWaller(BotPlayer bot, BlockPos goalFoot, int wallTick) {
         return BotManager.beginIdleTask(bot, s -> new PathSessionDiagnosticTask(bot, goalFoot, true,
-                        0, 0, 0, wallTick, com.dddgn.alice.pathing.PathRetryRunner.DEFAULT_MAX_REPLANS), TaskTarget.block(goalFoot));
+                        0, 0, 0, wallTick, com.dddgn.alice.pathing.path.PathRetryRunner.DEFAULT_MAX_REPLANS), TaskTarget.block(goalFoot));
     }
 
 

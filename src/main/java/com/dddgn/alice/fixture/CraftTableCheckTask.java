@@ -5,7 +5,7 @@ import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.ledger.WorldModLedger;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.pathing.core.search.PathRequest;
+import com.dddgn.alice.pathing.calc.PathRequest;
 import com.dddgn.alice.task.craft.RecipeQuery;
 import com.dddgn.alice.task.craft.TableCraft;
 import net.minecraft.core.BlockPos;
@@ -17,7 +17,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import com.dddgn.alice.pathing.PathRetryRunner;
+import com.dddgn.alice.pathing.path.PathRetryRunner;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
 
@@ -55,7 +55,7 @@ public class CraftTableCheckTask implements Task {
     private int phaseTicks;
     private BlockPos table;
     private BlockPos standPoint;
-    private com.dddgn.alice.pathing.PathRetryRunner runner;
+    private com.dddgn.alice.pathing.path.PathRetryRunner runner;
     private MenuSession session;
     private int furnaceBefore;
 

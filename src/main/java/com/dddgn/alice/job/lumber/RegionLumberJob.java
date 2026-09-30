@@ -371,7 +371,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
             if (++driftTicks == 1 || driftTicks % 100 == 0) {
                 BotLog.warn("[Job] region_drifted foot={} region={} driftTicks={} ⇒ 挂起作业"
                                 + "（不选目标/不写世界；连续超过 {} tick 将如实失败 outside_region）",
-                        com.dddgn.alice.pathing.MovementHelper
+com.dddgn.alice.pathing.MovementHelper
                                 .footCell(bot.serverLevel(), bot).toShortString(),
                         region.describe(), driftTicks, MAX_DRIFT_TICKS);
             }
@@ -382,7 +382,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
             }
         } else if (driftTicks > 0) {
             BotLog.info("[Job] region_returned foot={} region={}（已回到作业区，恢复作业）",
-                    com.dddgn.alice.pathing.MovementHelper
+com.dddgn.alice.pathing.MovementHelper
                             .footCell(bot.serverLevel(), bot).toShortString(),
                     region.describe());
             driftTicks = 0;

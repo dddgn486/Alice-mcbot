@@ -21,7 +21,7 @@ import java.util.Objects;
  * <p>`§28` 逐字：甲 的代价 = 「⚠️ 可能造出"**第二个载体**"」——
  * 即 `D-419`（`B3` 能力清单单一真相源）所防的"**第二真相源**"病。
  * ⇒ <b>本类必须<u>不是</u>授权真相源</b>：今天的活真相源仍是
- * `pathing.core.WriteEnvelopes`（从 `allowedMovementTypes` **推导**出来的信封，
+ * `pathing.calc.WriteEnvelopes`（从 `allowedMovementTypes` **推导**出来的信封，
  * `PathRequest` 唯一构造点自动 `note`）与 `MiningBudget` / `WriteBudget`。
  * ⛔ **本类不得被接成"第二份授权名单"**；它的**唯一消费者今天 = 夹具**
  * （`task/K2AdjacentGoalCheckTask`，顺带跑 `1a`=甲 的"换脚格"回路）。

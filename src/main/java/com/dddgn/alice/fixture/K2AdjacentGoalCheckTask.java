@@ -5,12 +5,12 @@ import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.job.JobWriteDeclaration;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.pathing.MovementHelper;
-import com.dddgn.alice.pathing.core.search.CorePathPlanner;
-import com.dddgn.alice.pathing.core.search.GoalAdjacent;
-import com.dddgn.alice.pathing.core.search.GoalColumnBlocks;
-import com.dddgn.alice.pathing.core.search.PathPlan;
-import com.dddgn.alice.pathing.core.search.PathRequest;
-import com.dddgn.alice.pathing.core.search.PlanningStatus;
+import com.dddgn.alice.pathing.calc.CorePathPlanner;
+import com.dddgn.alice.pathing.calc.GoalAdjacent;
+import com.dddgn.alice.pathing.calc.GoalColumnBlocks;
+import com.dddgn.alice.pathing.calc.PathPlan;
+import com.dddgn.alice.pathing.calc.PathRequest;
+import com.dddgn.alice.pathing.calc.PlanningStatus;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -660,7 +660,7 @@ public final class K2AdjacentGoalCheckTask implements Task {
 
     /** 到达脚位 = 最后一段的 `toFoot()`；没有移动段 ⇒ 起点（已在目标内）。 */
     private static BlockPos arrivalFoot(PathPlan plan) {
-        List<com.dddgn.alice.pathing.core.search.PlannedMovement> ms = plan.movements();
+        List<com.dddgn.alice.pathing.calc.PlannedMovement> ms = plan.movements();
         return ms.isEmpty() ? plan.startFoot() : ms.get(ms.size() - 1).toFoot();
     }
 

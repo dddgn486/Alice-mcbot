@@ -1569,7 +1569,7 @@ public final class BotManager {
             }
             // D-241：**每个任务重新确立自己的信封**（"本任务期间有没有出现过写请求"）⇒
             // 逃生的写权不会从上一个任务泄漏过来。
-            com.dddgn.alice.pathing.core.WriteEnvelopes.clear(bot.getUUID().toString());
+            com.dddgn.alice.pathing.calc.WriteEnvelopes.clear(bot.getUUID().toString());
             // `D-362`：同一个道理，**任务目标保护作用域也必须逐任务重立** —— 否则上一个挖掘任务装的
             // "这些格是任务目标"会留到下个任务，把那个 bot 的所有清障开路全拦掉（失败模式很隐蔽）。
             com.dddgn.alice.write.TaskTargetProtection.end(bot);
@@ -1763,7 +1763,7 @@ public final class BotManager {
                     // 单目标默认只走真实可通行曲面的 A*；通道规划后续仅在曲面不可达时显式接入。
                     // D-112：这是顶层"会话所有者"（一条 /alice mine 指令 = 一次使用会话）→ 用完即拆
                     beginTask(new MineTask(bot, newTarget.blockPos(), scope,
-                            com.dddgn.alice.task.mining.MiningBudget
+com.dddgn.alice.task.mining.MiningBudget
                                     .forTarget(bot, bot.serverLevel(), newTarget.blockPos(), true),
                             com.dddgn.alice.task.mining.MiningProfile.TUNNEL_ALLOWED.withRestore(),
                             com.dddgn.alice.write.WriteGrant.of("command",
@@ -1934,7 +1934,7 @@ public final class BotManager {
             boolean escapeTask = task instanceof com.dddgn.alice.task.SurvivalExit;
             // D-241：**"这个任务改不改世界"是逃生写权的唯一闸门**（用户 Q1 定案）——
             // 信封里出现过写请求（挖掘站位/掉落物收集/脚手架…）才允许动用逃生准备金。
-            boolean escapeWrites = com.dddgn.alice.pathing.core.WriteEnvelopes.had(bot.getUUID().toString());
+            boolean escapeWrites = com.dddgn.alice.pathing.calc.WriteEnvelopes.had(bot.getUUID().toString());
             SurvivalSystem.Verdict verdict = SurvivalSystem.decide(bot, hazard, escapeWrites);
             if (hazard.type() != com.dddgn.alice.survival.HazardType.NONE && hazard.durationTicks() % 20 == 0) {
                 BotLog.warn("[SurvProbe] verdict={} type={} duration={} taskNull={} taskName={} escapeWrites={}",
@@ -2234,7 +2234,7 @@ public final class BotManager {
             BlockPos foot = SurvivalSystem.footCell(bot);
             // D-241：信封闸门（与 hazard 分支同一口径；这里单独取一次，因为本方法作用域不同）。
             boolean escapeWrites = !pureTraversal
-                    && com.dddgn.alice.pathing.core.WriteEnvelopes.had(bot.getUUID().toString());
+                    && com.dddgn.alice.pathing.calc.WriteEnvelopes.had(bot.getUUID().toString());
             // D-238：出逃生之前先做一次**可规划**预检（几何落点存在 ≠ 去得了）。
             BlockPos refuge = SurvivalSystem.plannableRefuge(bot, SurvivalSystem.current(bot).type(),
                     escapeWrites);

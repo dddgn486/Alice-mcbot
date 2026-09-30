@@ -562,7 +562,7 @@ public final class RegressionBatteryTask implements Task {
         this.scope = scope;
         // K-4 / D-167：记录"谓词不统一"计数的基线 ⇒ 收尾时按**本次电池的增量**断言
         // （进程累计会被电池之前的服务端活动污染，增量才是这次电池所有步骤的真实结果）。
-        this.k4Baseline = com.dddgn.alice.pathing.core.search.PathingStats.totalsSnapshot();
+        this.k4Baseline = com.dddgn.alice.pathing.calc.PathingStats.totalsSnapshot();
         buildSteps();
     }
 
@@ -1345,7 +1345,7 @@ public final class RegressionBatteryTask implements Task {
 
     /** 本次电池期间的累计计数增量。 */
     private int k4Delta(String code) {
-        Map<String, Integer> now = com.dddgn.alice.pathing.core.search.PathingStats.totalsSnapshot();
+        Map<String, Integer> now = com.dddgn.alice.pathing.calc.PathingStats.totalsSnapshot();
         return now.getOrDefault(code, 0) - k4Baseline.getOrDefault(code, 0);
     }
 

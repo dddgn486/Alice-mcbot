@@ -2,16 +2,16 @@ package com.dddgn.alice.fixture;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.pathing.core.IntrinsicReversibility;
-import com.dddgn.alice.pathing.core.MovementCapabilities;
-import com.dddgn.alice.pathing.core.MovementSpec;
-import com.dddgn.alice.pathing.core.MovementType;
-import com.dddgn.alice.pathing.core.RecoverabilityAssessment;
-import com.dddgn.alice.pathing.core.RecoverabilityEvaluator;
-import com.dddgn.alice.pathing.core.RecoverabilityLevel;
-import com.dddgn.alice.pathing.core.RecoverabilityReport;
-import com.dddgn.alice.pathing.core.search.PlannedMovement;
-import com.dddgn.alice.pathing.core.search.PlannedMovementSpecs;
+import com.dddgn.alice.pathing.calc.IntrinsicReversibility;
+import com.dddgn.alice.pathing.calc.MovementCapabilities;
+import com.dddgn.alice.pathing.calc.MovementSpec;
+import com.dddgn.alice.pathing.calc.MovementType;
+import com.dddgn.alice.pathing.calc.RecoverabilityAssessment;
+import com.dddgn.alice.pathing.calc.RecoverabilityEvaluator;
+import com.dddgn.alice.pathing.calc.RecoverabilityLevel;
+import com.dddgn.alice.pathing.calc.RecoverabilityReport;
+import com.dddgn.alice.pathing.calc.PlannedMovement;
+import com.dddgn.alice.pathing.movement.PlannedMovementSpecs;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -97,9 +97,9 @@ public class RecoverabilityCheckTask implements Task {
 
         // B 逐类型抽查（依据也要对：等级对但依据错说明规则表被改坏了）
         // FALL 是**条件性**的：带事实 = PATH_REVERSIBLE，不带事实 = 保守 LOCAL_STEP
-        expect(MovementType.FALL, com.dddgn.alice.pathing.core.RecoverabilityFacts.FALL_RETURN_VERIFIED,
+        expect(MovementType.FALL, com.dddgn.alice.pathing.calc.RecoverabilityFacts.FALL_RETURN_VERIFIED,
                 RecoverabilityLevel.PATH_REVERSIBLE, RecoverabilityEvaluator.BASIS_FALL_GUARD);
-        expect(MovementType.FALL, com.dddgn.alice.pathing.core.RecoverabilityFacts.NONE,
+        expect(MovementType.FALL, com.dddgn.alice.pathing.calc.RecoverabilityFacts.NONE,
                 RecoverabilityLevel.LOCAL_STEP, RecoverabilityEvaluator.BASIS_FALL_UNVERIFIED);
         expect(MovementType.TRAVERSE, RecoverabilityLevel.PATH_REVERSIBLE,
                 RecoverabilityEvaluator.BASIS_GEOMETRY_UNCHANGED);
@@ -129,7 +129,7 @@ public class RecoverabilityCheckTask implements Task {
         // D1 带事实的 FALL ⇒ 必须通过，且评估为 PATH_REVERSIBLE
         PlannedMovement guardedFall = new PlannedMovement(MovementType.FALL, from,
                 from.offset(1, -2, 0), 4.0D, RecoverabilityLevel.PATH_REVERSIBLE,
-                com.dddgn.alice.pathing.core.RecoverabilityFacts.FALL_RETURN_VERIFIED);
+                com.dddgn.alice.pathing.calc.RecoverabilityFacts.FALL_RETURN_VERIFIED);
         MovementSpec guardedSpec = PlannedMovementSpecs.toSpec(guardedFall, List.of("recoverability_check"));
         check("fall_with_fact_accepted",
                 guardedSpec.evaluatedRecoverability() == RecoverabilityLevel.PATH_REVERSIBLE,
@@ -152,11 +152,11 @@ public class RecoverabilityCheckTask implements Task {
 
         // E 策略表本身
         check("policy_table",
-                com.dddgn.alice.pathing.core.RecoverabilityPolicy
+com.dddgn.alice.pathing.calc.RecoverabilityPolicy
                         .requiredFor(MovementType.FALL) == RecoverabilityLevel.PATH_REVERSIBLE
-                        && com.dddgn.alice.pathing.core.RecoverabilityPolicy
+                        && com.dddgn.alice.pathing.calc.RecoverabilityPolicy
                         .requiredFor(MovementType.TRAVERSE) == RecoverabilityLevel.LOCAL_STEP,
-                com.dddgn.alice.pathing.core.RecoverabilityPolicy.describe());
+                com.dddgn.alice.pathing.calc.RecoverabilityPolicy.describe());
 
         // 统计：把"执行期真实统计"一并打出来（无执行则显示 movements=0，不算失败）
         notes.add("report[" + RecoverabilityReport.describe() + "]");
@@ -173,7 +173,7 @@ public class RecoverabilityCheckTask implements Task {
                 + " verdict=" + (failures.isEmpty() ? "PASS" : "FAIL");
         BotLog.info("[Recover] SUMMARY {} {}", summary, String.join(" ", notes));
         BotLog.info("[Recover] 规则表 {}", RecoverabilityEvaluator.table());
-        BotLog.info("[Recover] 策略表 {}", com.dddgn.alice.pathing.core.RecoverabilityPolicy.describe());
+        BotLog.info("[Recover] 策略表 {}", com.dddgn.alice.pathing.calc.RecoverabilityPolicy.describe());
         if (observer != null) {
             observer.sendSystemMessage(net.minecraft.network.chat.Component.literal(
                     "[Recover] " + summary));
@@ -190,7 +190,7 @@ public class RecoverabilityCheckTask implements Task {
                 RecoverabilityLevel.LOCAL_STEP, PlannedMovementSpecs.factoryKey(MovementType.TRAVERSE));
     }
 
-    private void expect(MovementType type, com.dddgn.alice.pathing.core.RecoverabilityFacts facts,
+    private void expect(MovementType type, com.dddgn.alice.pathing.calc.RecoverabilityFacts facts,
                         RecoverabilityLevel level, String basis) {
         RecoverabilityAssessment assessment = RecoverabilityEvaluator.evaluate(type, facts);
         check("per_type", assessment.level() == level && assessment.basis().equals(basis),

@@ -872,8 +872,8 @@ public final class DebugCommands {
 
         // L1 请求层：策略集合取**代码常量**（不抄文档）
         StringBuilder pure = new StringBuilder();
-        for (com.dddgn.alice.pathing.core.MovementType t
-                : com.dddgn.alice.pathing.core.CapabilityGate.PURE_TRAVERSAL_TYPES) {
+        for (com.dddgn.alice.pathing.calc.MovementType t
+                : com.dddgn.alice.pathing.calc.CapabilityGate.PURE_TRAVERSAL_TYPES) {
             if (pure.length() > 0) {
                 pure.append(", ");
             }
@@ -1176,15 +1176,15 @@ public final class DebugCommands {
             source.sendFailure(Component.literal("[alice] 诊断需要一只可用 bot（先用 /alice spawn）"));
             return 0;
         }
-        com.dddgn.alice.pathing.core.search.PathPlan plan = new com.dddgn.alice.pathing.core.search.CorePathPlanner()
-                .plan(bot, level, com.dddgn.alice.pathing.core.search.PathRequest.of(
+        com.dddgn.alice.pathing.calc.PathPlan plan = new com.dddgn.alice.pathing.calc.CorePathPlanner()
+                .plan(bot, level, com.dddgn.alice.pathing.calc.PathRequest.of(
                         bot.getUUID().toString(), start, goal, "command:diagnose"));
         String detail = "[alice] 寻路诊断 " + plan.status() + ": "
                 + start.toShortString() + " -> " + goal.toShortString()
                 + ", movements=" + plan.movements().size() + ", expanded=" + plan.nodesExpanded()
                 + ", " + plan.summary();
-        if (plan.status() == com.dddgn.alice.pathing.core.search.PlanningStatus.SEARCH_LIMIT
-                || plan.status() == com.dddgn.alice.pathing.core.search.PlanningStatus.GOAL_NOT_LOADED
+        if (plan.status() == com.dddgn.alice.pathing.calc.PlanningStatus.SEARCH_LIMIT
+                || plan.status() == com.dddgn.alice.pathing.calc.PlanningStatus.GOAL_NOT_LOADED
                 || plan.partial()) {
             detail += "；**不能据此授权挖通道**（预算耗尽/未加载/只有前缀）";
         }
@@ -1389,8 +1389,8 @@ public final class DebugCommands {
             return 0;
         }
         BlockPos startFoot = bot.blockPosition().immutable();
-        com.dddgn.alice.pathing.core.search.PathPlan plan =
-                new com.dddgn.alice.pathing.core.search.CorePathPlanner()
+        com.dddgn.alice.pathing.calc.PathPlan plan =
+                new com.dddgn.alice.pathing.calc.CorePathPlanner()
                         .planTo(bot, source.getLevel(), bot.getUUID().toString(), startFoot, goalFoot, "command");
         BotLog.info("[R3 Plan] {} bot={} from={} to={}", plan.summary(),
                 bot.getName().getString(), startFoot.toShortString(), goalFoot.toShortString());

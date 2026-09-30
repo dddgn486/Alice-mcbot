@@ -4,13 +4,13 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.ItemStack;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.pathing.core.search.CorePathPlanner;
-import com.dddgn.alice.pathing.core.search.PathPlan;
-import com.dddgn.alice.pathing.core.search.PathRequest;
+import com.dddgn.alice.pathing.calc.CorePathPlanner;
+import com.dddgn.alice.pathing.calc.PathPlan;
+import com.dddgn.alice.pathing.calc.PathRequest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-import com.dddgn.alice.pathing.PathRetryRunner;
+import com.dddgn.alice.pathing.path.PathRetryRunner;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
 
@@ -101,7 +101,7 @@ public final class VerticalDiagnosticTask implements Task {
     private PathRequest request(BlockPos start, BlockPos goal) {
         PathRequest base = PathRequest.withWorldModification(bot.getUUID().toString(), start, goal, "vertical-diagnostic");
         return new PathRequest(base.botId(), start, base.goal(), base.allowedMovementTypes(),
-                com.dddgn.alice.pathing.core.search.SearchBudget.of(
+                com.dddgn.alice.pathing.calc.SearchBudget.of(
                         CorePathPlanner.DEFAULT_MAX_NODES, CorePathPlanner.DEFAULT_MAX_MILLIS),
                 base.requester());
     }

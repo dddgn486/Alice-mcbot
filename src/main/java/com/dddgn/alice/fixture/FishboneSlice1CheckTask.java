@@ -6,7 +6,7 @@ import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.job.fishbone.FishboneJob;
 import com.dddgn.alice.job.fishbone.FishboneTemplate;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.pathing.core.search.PathingStats;
+import com.dddgn.alice.pathing.calc.PathingStats;
 import com.dddgn.alice.perception.ScopeBuffer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;

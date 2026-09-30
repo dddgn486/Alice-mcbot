@@ -7,7 +7,7 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.survival.HazardState;
 import com.dddgn.alice.survival.HazardType;
 import com.dddgn.alice.survival.SurvivalSystem;
-import com.dddgn.alice.pathing.core.WriteEnvelopes;
+import com.dddgn.alice.pathing.calc.WriteEnvelopes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -838,8 +838,8 @@ public class SurvivalExitCheckTask implements Task {
             // 夹具要断的是**转移**（写请求 ⇒ true；任务边界 clear ⇒ false），不是初始状态。
             BotLog.info("[Survival] 信封初始值 had={}（电池上下文里可能已被前面的步骤置真，故不当判据）",
                     WriteEnvelopes.had(id));
-            com.dddgn.alice.pathing.core.search.PathRequest mining =
-                    com.dddgn.alice.pathing.core.search.PathRequest.miningApproach(id,
+            com.dddgn.alice.pathing.calc.PathRequest mining =
+                    com.dddgn.alice.pathing.calc.PathRequest.miningApproach(id,
                             SurvivalSystem.footCell(bot), SurvivalSystem.footCell(bot).offset(1, 0, 0), "mine-plan");
             check("信封闸门②：出现写请求（miningApproach）⇒ had=true（推导事实，非手抄名单）",
                     WriteEnvelopes.had(id));
@@ -960,8 +960,8 @@ public class SurvivalExitCheckTask implements Task {
             if (floodedPick == null) {
                 floodedPick = SurvivalSystem.plannableRefuge(bot, HazardType.ON_FIRE, true);
             }
-            var escapePlan = new com.dddgn.alice.pathing.core.search.CorePathPlanner().plan(bot,
-                    bot.serverLevel(), com.dddgn.alice.pathing.core.search.PathRequest.survivalEscape(
+            var escapePlan = new com.dddgn.alice.pathing.calc.CorePathPlanner().plan(bot,
+                    bot.serverLevel(), com.dddgn.alice.pathing.calc.PathRequest.survivalEscape(
                             bot.getUUID().toString(), SurvivalSystem.footCell(bot), floodedPick, "survival-escape"));
             long writeMoves = escapePlan.movements().stream()
                     .filter(move -> move.movementType().changesWorld()).count();
@@ -969,15 +969,15 @@ public class SurvivalExitCheckTask implements Task {
                             + " 个，`PILLAR` 属写类）⇒ 这条出口在纯通行档根本不会生成，不是白走一趟",
                     writeMoves >= 1);
             check("额度守卫②：写动作数 ≤ 逃生额度 8（实际 " + writeMoves + "）", writeMoves <= 8);
-            var allowed = com.dddgn.alice.pathing.core.search.PathRequest
+            var allowed = com.dddgn.alice.pathing.calc.PathRequest
                     .survivalEscape("probe", net.minecraft.core.BlockPos.ZERO,
                             net.minecraft.core.BlockPos.ZERO, "survival-escape").allowedMovementTypes();
             check("额度守卫③：逃生移动集含 PILLAR/放置/破坏，且**不含** DOWNWARD/FALL",
-                    allowed.contains(com.dddgn.alice.pathing.core.MovementType.PILLAR)
-                            && allowed.contains(com.dddgn.alice.pathing.core.MovementType.PLACE_STEP_AND_TRAVERSE)
-                            && allowed.contains(com.dddgn.alice.pathing.core.MovementType.BREAK_AND_TRAVERSE)
-                            && !allowed.contains(com.dddgn.alice.pathing.core.MovementType.DOWNWARD)
-                            && !allowed.contains(com.dddgn.alice.pathing.core.MovementType.FALL));
+                    allowed.contains(com.dddgn.alice.pathing.calc.MovementType.PILLAR)
+                            && allowed.contains(com.dddgn.alice.pathing.calc.MovementType.PLACE_STEP_AND_TRAVERSE)
+                            && allowed.contains(com.dddgn.alice.pathing.calc.MovementType.BREAK_AND_TRAVERSE)
+                            && !allowed.contains(com.dddgn.alice.pathing.calc.MovementType.DOWNWARD)
+                            && !allowed.contains(com.dddgn.alice.pathing.calc.MovementType.FALL));
             check("恢复准备金（8/8）后可达 ⇒ 能从水里垫出来：" + desc(floodedPick), floodedPick != null);
             // D-244 前提自证：**水柱**就这么两格 —— 下两格是水（⇒ 那两段 PILLAR 走上浮免放置），
             // 第三格不是水（⇒ 出水那一格仍然只能靠放置站上去）。两条一起读才说明"省料"省的是哪一段。
@@ -995,7 +995,7 @@ public class SurvivalExitCheckTask implements Task {
             // 这里改为两条**与路线无关**的前提：① 计划**自洽**（D-250 的口径在同一现场的第二处独立见证 ——
             // D-248 那次它就是红的）；② 计划从坑底起步。
             check("前提自证：逃生计划**自洽**（没有\u201C后面的段踩在自己挖掉的格子上\u201D，D-250/D-251）",
-                    com.dddgn.alice.pathing.core.search.SelfWriteConsistency
+com.dddgn.alice.pathing.movement.SelfWriteConsistency
                             .firstConflict(lvl, escapePlan.movements()) == null);
             var firstMove = escapePlan.movements().isEmpty() ? null : escapePlan.movements().get(0);
             check("前提自证：计划从**坑底**起步（"
