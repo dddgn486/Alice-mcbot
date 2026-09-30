@@ -5125,8 +5125,9 @@ AI 建议 = **必改 `空转`（拆词）** · ✅ **已执行 `咬人`→`拦�
 
 | 刀 | 内容 | 关键约束 |
 |---|---|---|
-| ✅ **刀 1** | 劈 `BotCommand` → `command/` ＋ `debug/` | 已完成（`O99`） |
-| ⏭ **刀 2（乙）** | `ToolProvision{PROMOTE_ONLY, DEV_CREATE}` 具名策略、**由调用方传**；把 `bot/` 里的夹具引用**全部**搬走：**38 个派发方法（≈450 行）＋ 40 处 import ＋ 38 个构造点**，另加 `assignLumberJob` 锚点参数化 · `CheckHarness` **自订阅 `ServerTickEvent`**（删 `bot/` 的 `:1265` 钩子）· 1 处 javadoc `{@link}` | 范围 = 8 签名 ＋ 18 调用点（`assignJob` 5 · 6 个具名 legacy 9 · `assignMine`/`assignTarget` 一族 4）；⚠️ **唯一有行为风险的是 tick 顺序** ⇒ 用无头电池验 |
+| ✅ **刀 1** | 劈 `BotCommand` → `command/` ＋ `debug/` | 已完成（`O99` · `537ea144`） |
+| ⏭ **刀 1c** | ⚠️ **`region` 必须也搬 `debug/`**（`O100`：`assignRegionLumber:818-820,838` 无条件发料 ⇒ 产品包**结构上无法**表达"凭空造物"；留产品面只能"改行为(破 I1)"或"破 R3"）⇒ 范围 = `region` 块（行 92..118）＋ **9 方法 / 267 行** ⇒ 产品面 **13 条** / 开发期 **29 条** | **刀 2 的前置**；⛔ `restore` 本就在 `debug/`，别多搬 |
+| ⏭ **刀 2（乙）** | `ToolProvision{PROMOTE_ONLY, DEV_CREATE}` 具名策略、**由调用方传**；把 `bot/` 里的夹具引用**全部**搬走：**38 个派发方法（≈450 行）＋ 40 处 import ＋ 38 个构造点**，另加 `assignLumberJob` 锚点参数化 · `CheckHarness` **自订阅 `ServerTickEvent`**（删 `bot/` 的 `:1265` 钩子）· 1 处 javadoc `{@link}` | 范围 = 8 签名 ＋ 18 调用点；⭐ **38 个派发方法形状高度统一**（`guard busy ⇒ false` → `beginTask` → `broadcastTarget` → `true`）⇒ 可用**一个桥** `BotManager.beginFixtureTask(bot, Function<BotSession,Task>, TaskTarget)` 收口；⛔ **不可**改用现成 `BotSession.assignFixtureTask`（它走 `replaceTaskIfRunning` ⇒ **会顶替在跑的任务**，语义不同）；⚠️ **`task-dispatch-table.py` 的"构造点 = `BotManager.java` 里 `new`"会破**（表掉到 23 行 < `MIN_ROWS=40`）⇒ 同刀扩扫描源；⚠️ **唯一有行为风险的是 tick 顺序** ⇒ 无头电池逐步比对验 |
 | ⏭ **刀 3** | 门禁同刀：`check-provision-containment` 断言③ 改写 · **删 `BOT_EXEMPT`** · `JobLauncher.provision` 的 `@param` 重写；新增「`bot/` 不许出现 `fixture.`」「`command/` 不许 import `fixture/`」 | 刀 1 后 `command/` 对 `fixture/` 的边已是 **0** |
 | ⏭ **刀 4** | `bot/TaskExecutionRecord` 加 **`provision` 维**（与 `driver` 并列，`:31`）＋ 一条"进发行包的路径 provision 必须可见"的门禁 | 这是 `D-560` 第 4 条（"不污染结果"）**唯一**可执行形式 |
 | ⏭ **刀 5** | `D-512` 剩余：ⓑ `assignRestore` 起 `Task` 不是 `Job` · ⓒ `ManualTestLock.java:16` 的坏 `{@link}` ＋ **补 `{@link}` 符号存在性门禁** | ⛔ ⓐ 的另一半（统一构造路径）**不在本线内**（会改构造语义） |
