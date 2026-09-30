@@ -172,6 +172,13 @@ run_gate             "check-job-kind-contracts" bash tools/check-job-kind-contra
 # ⚠️ 必须排在 `check-job-menu-listable` **之前** —— 后者读这张生成视图当映射表，
 #    所以"视图陈旧"要先被本门禁点名（否则两条门禁一起红，读数会指向错的地方）。
 run_gate             "check-job-kind-view"     python3 tools/job-kind-view.py
+# ⭐ 批次 2 ①（`D-550`／`D-551`）：`task/` 整包退役路径的三件 —— 顺序**必须**如下：
+#   ① 派发表 ② 退役台账（**读 ①**）③ 单向阀（与 ①② 无关，放最后）
+# ⚠️ 顺序理由同 `check-job-kind-view`：生成物陈旧要先被**自己的**门禁点名，
+#    否则两条门禁一起红，读数会指向错的地方。
+run_gate             "check-task-dispatch-table" python3 tools/task-dispatch-table.py
+run_gate             "check-task-retirement-map" python3 tools/task-retirement-map.py
+run_gate             "check-task-top-freeze"   python3 tools/check-task-top-freeze.py
 run_gate             "check-job-menu-listable" bash tools/check-job-menu-listable.sh
 # 同名类（`survey/46 §8.1`，2026-09-28 用户拍「按乙来」）：`src/main/java` 下**同名类 ⇒ 红**。
 # 起因：术语审计三轮（`survey/44/45/46`）挖到 ⚠️ **`src/` 里真的存在同名类** ——

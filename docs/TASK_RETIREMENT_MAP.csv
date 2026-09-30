@@ -1,0 +1,191 @@
+task_class,task_path,dest,reason
+AscendDiagnosticTask,src/main/java/com/dddgn/alice/task/AscendDiagnosticTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+BlockerClearPlanner,src/main/java/com/dddgn/alice/task/mining/BlockerClearPlanner.java,生产,生产:refs=job/lumber
+BotOwnershipCheckTask,src/main/java/com/dddgn/alice/task/BotOwnershipCheckTask.java,fixture,fixture:只被验证侧引用
+BotPairNoRecurseCheckTask,src/main/java/com/dddgn/alice/task/BotPairNoRecurseCheckTask.java,fixture,fixture:只被验证侧引用
+BreakEnterDiagnosticTask,src/main/java/com/dddgn/alice/task/BreakEnterDiagnosticTask.java,debug,debug:A:src/main/java/com/dddgn/alice/item/PathingBreakEnterItem.java
+BreakEnterHeadBlockedCheckTask,src/main/java/com/dddgn/alice/task/BreakEnterHeadBlockedCheckTask.java,fixture,fixture:只被验证侧引用
+BreakHazardCheckTask,src/main/java/com/dddgn/alice/task/BreakHazardCheckTask.java,fixture,fixture:只被验证侧引用
+BreakRefusedCheckTask,src/main/java/com/dddgn/alice/task/BreakRefusedCheckTask.java,fixture,fixture:只被验证侧引用
+BreakRefusedModule,src/main/java/com/dddgn/alice/task/check/modules/BreakRefusedModule.java,fixture,fixture:只被验证侧引用
+BreakTraverseFootingCheckTask,src/main/java/com/dddgn/alice/task/BreakTraverseFootingCheckTask.java,fixture,fixture:只被验证侧引用
+CapabilityGateCheckTask,src/main/java/com/dddgn/alice/task/CapabilityGateCheckTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+ChainDiagnosticTask,src/main/java/com/dddgn/alice/task/ChainDiagnosticTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+ChainMineDiagnosticTask,src/main/java/com/dddgn/alice/task/ChainMineDiagnosticTask.java,debug,debug:A:src/main/java/com/dddgn/alice/item/ChainTestRunnerItem.java
+ChannelPlaceGuardCheckTask,src/main/java/com/dddgn/alice/task/ChannelPlaceGuardCheckTask.java,fixture,fixture:只被验证侧引用
+CheckContext,src/main/java/com/dddgn/alice/task/check/CheckContext.java,fixture,fixture:只被验证侧引用
+CheckHarness,src/main/java/com/dddgn/alice/task/check/CheckHarness.java,fixture,fixture:命名标记+外部引用(bot)
+CheckModule,src/main/java/com/dddgn/alice/task/check/CheckModule.java,fixture,fixture:只被验证侧引用
+CheckModules,src/main/java/com/dddgn/alice/task/check/CheckModules.java,fixture,fixture:只被验证侧引用
+CheckProfile,src/main/java/com/dddgn/alice/task/check/CheckProfile.java,fixture,fixture:只被验证侧引用
+CheckStep,src/main/java/com/dddgn/alice/task/check/CheckStep.java,fixture,fixture:只被验证侧引用
+ChunkGuardCheckTask,src/main/java/com/dddgn/alice/task/ChunkGuardCheckTask.java,debug,debug:A:src/main/java/com/dddgn/alice/item/ChunkGuardCheckItem.java
+CleanupWrappedTask,src/main/java/com/dddgn/alice/task/CleanupWrappedTask.java,fixture,fixture:只被验证侧引用
+ClearGuardCheckTask,src/main/java/com/dddgn/alice/task/ClearGuardCheckTask.java,debug,debug:A:src/main/java/com/dddgn/alice/item/ClearGuardCheckItem.java
+ClearRetryCheckTask,src/main/java/com/dddgn/alice/task/ClearRetryCheckTask.java,debug,debug:A:src/main/java/com/dddgn/alice/item/ClearRetryCheckItem.java
+CoarseGoalPrefixCheckTask,src/main/java/com/dddgn/alice/task/CoarseGoalPrefixCheckTask.java,fixture,fixture:只被验证侧引用
+CollectDropsTask,src/main/java/com/dddgn/alice/task/CollectDropsTask.java,生产,生产:refs=job/collect,job/fishbone,job/lumber,job/mine,write
+CollectOffcenterRetryCheckTask,src/main/java/com/dddgn/alice/task/CollectOffcenterRetryCheckTask.java,fixture,fixture:只被验证侧引用
+CollectSlotApproachCheckTask,src/main/java/com/dddgn/alice/task/CollectSlotApproachCheckTask.java,fixture,fixture:只被验证侧引用
+CollectStep,src/main/java/com/dddgn/alice/task/collecting/CollectStep.java,step,step:implements Step
+ContainerAccessProfileCheckTask,src/main/java/com/dddgn/alice/task/ContainerAccessProfileCheckTask.java,fixture,fixture:只被验证侧引用
+ContractsModule,src/main/java/com/dddgn/alice/task/check/modules/ContractsModule.java,fixture,fixture:只被验证侧引用
+ContrastTimerCheckTask,src/main/java/com/dddgn/alice/task/ContrastTimerCheckTask.java,fixture,fixture:只被验证侧引用
+CorridorSkipPredicateCheckTask,src/main/java/com/dddgn/alice/task/CorridorSkipPredicateCheckTask.java,fixture,fixture:只被验证侧引用
+CraftActionCheckTask,src/main/java/com/dddgn/alice/task/CraftActionCheckTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+CraftCheckTask,src/main/java/com/dddgn/alice/task/CraftCheckTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+CraftFurnaceCheckTask,src/main/java/com/dddgn/alice/task/CraftFurnaceCheckTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+CraftGoalCheckTask,src/main/java/com/dddgn/alice/task/CraftGoalCheckTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+CraftGridProbeTask,src/main/java/com/dddgn/alice/task/CraftGridProbeTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+CraftMachineCheckTask,src/main/java/com/dddgn/alice/task/CraftMachineCheckTask.java,fixture,fixture:只被验证侧引用
+CraftMenuIntrospection,src/main/java/com/dddgn/alice/task/craft/CraftMenuIntrospection.java,fixture,fixture:只被验证侧引用
+CraftModule,src/main/java/com/dddgn/alice/task/check/modules/CraftModule.java,fixture,fixture:只被验证侧引用
+CraftStation,src/main/java/com/dddgn/alice/task/craft/CraftStation.java,生产,生产:refs=command,decision,item,job/craft
+CraftStationCheckTask,src/main/java/com/dddgn/alice/task/CraftStationCheckTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+CraftStationCraftCheckTask,src/main/java/com/dddgn/alice/task/CraftStationCraftCheckTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+CraftStationProvisionCheckTask,src/main/java/com/dddgn/alice/task/CraftStationProvisionCheckTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+CraftTableCheckTask,src/main/java/com/dddgn/alice/task/CraftTableCheckTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+DamageEventVisibilityCheckTask,src/main/java/com/dddgn/alice/task/DamageEventVisibilityCheckTask.java,fixture,fixture:只被验证侧引用
+DeathKillBotCheckTask,src/main/java/com/dddgn/alice/task/DeathKillBotCheckTask.java,fixture,fixture:只被验证侧引用
+DeathModule,src/main/java/com/dddgn/alice/task/check/modules/DeathModule.java,fixture,fixture:只被验证侧引用
+DeathPersistenceCheckTask,src/main/java/com/dddgn/alice/task/DeathPersistenceCheckTask.java,fixture,fixture:只被验证侧引用
+DecisionContractCheckTask,src/main/java/com/dddgn/alice/task/DecisionContractCheckTask.java,fixture,fixture:只被验证侧引用
+DecisionModule,src/main/java/com/dddgn/alice/task/check/modules/DecisionModule.java,fixture,fixture:只被验证侧引用
+DecisionTraceCheckTask,src/main/java/com/dddgn/alice/task/DecisionTraceCheckTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+DescendDiagnosticTask,src/main/java/com/dddgn/alice/task/DescendDiagnosticTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+DiagonalDiagnosticTask,src/main/java/com/dddgn/alice/task/DiagonalDiagnosticTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+DriverLabelCheckTask,src/main/java/com/dddgn/alice/task/DriverLabelCheckTask.java,fixture,fixture:只被验证侧引用
+EdgeCompletenessCheckTask,src/main/java/com/dddgn/alice/task/EdgeCompletenessCheckTask.java,fixture,fixture:只被验证侧引用
+EventThresholdCheckTask,src/main/java/com/dddgn/alice/task/EventThresholdCheckTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+ExternalInterferenceBaitTask,src/main/java/com/dddgn/alice/task/check/modules/ExternalInterferenceBaitTask.java,fixture,fixture:只被验证侧引用
+FallDiagnosticTask,src/main/java/com/dddgn/alice/task/FallDiagnosticTask.java,debug,debug:A:src/main/java/com/dddgn/alice/item/PathingFallItem.java
+FallingPauseCheckTask,src/main/java/com/dddgn/alice/task/FallingPauseCheckTask.java,fixture,fixture:只被验证侧引用
+FarPathBenchCheckTask,src/main/java/com/dddgn/alice/task/FarPathBenchCheckTask.java,fixture,fixture:只被验证侧引用
+FarWalkTask,src/main/java/com/dddgn/alice/task/FarWalkTask.java,生产,生产:refs=bot
+FishboneSlice1CheckTask,src/main/java/com/dddgn/alice/task/FishboneSlice1CheckTask.java,fixture,fixture:只被验证侧引用
+FishboneSlice2CheckTask,src/main/java/com/dddgn/alice/task/FishboneSlice2CheckTask.java,fixture,fixture:只被验证侧引用
+FixturePremise,src/main/java/com/dddgn/alice/task/FixturePremise.java,fixture,fixture:只被验证侧引用
+FixtureScript,src/main/java/com/dddgn/alice/task/FixtureScript.java,fixture,fixture:只被验证侧引用
+FixtureThirdParty,src/main/java/com/dddgn/alice/task/FixtureThirdParty.java,fixture,fixture:只被验证侧引用
+FixtureZone,src/main/java/com/dddgn/alice/task/FixtureZone.java,fixture,fixture:只被验证侧引用
+FluidMineCheckTask,src/main/java/com/dddgn/alice/task/FluidMineCheckTask.java,debug,debug:A:src/main/java/com/dddgn/alice/item/FluidMineCheckItem.java
+FollowTask,src/main/java/com/dddgn/alice/task/FollowTask.java,生产,生产:refs=bot,client/render
+FurnaceStation,src/main/java/com/dddgn/alice/task/craft/FurnaceStation.java,生产,生产:refs=job/craft
+GainStepRunner,src/main/java/com/dddgn/alice/task/mining/GainStepRunner.java,fixture,fixture:只被验证侧引用
+GatesModule,src/main/java/com/dddgn/alice/task/check/modules/GatesModule.java,fixture,fixture:只被验证侧引用
+GridDiscovery,src/main/java/com/dddgn/alice/task/craft/GridDiscovery.java,生产,生产:refs=job/craft
+HarnessSelfModule,src/main/java/com/dddgn/alice/task/check/modules/HarnessSelfModule.java,fixture,fixture:只被验证侧引用
+HazardAversionCheckTask,src/main/java/com/dddgn/alice/task/HazardAversionCheckTask.java,fixture,fixture:只被验证侧引用
+HeadBlockedRouteClosureCheckTask,src/main/java/com/dddgn/alice/task/HeadBlockedRouteClosureCheckTask.java,fixture,fixture:只被验证侧引用
+InventoryCraft,src/main/java/com/dddgn/alice/task/craft/InventoryCraft.java,生产,生产:refs=job/craft
+JobAbortHookCheckTask,src/main/java/com/dddgn/alice/task/JobAbortHookCheckTask.java,fixture,fixture:只被验证侧引用
+JobAreaGrantCheckTask,src/main/java/com/dddgn/alice/task/JobAreaGrantCheckTask.java,fixture,fixture:只被验证侧引用
+K2AdjacentGoalCheckTask,src/main/java/com/dddgn/alice/task/K2AdjacentGoalCheckTask.java,fixture,fixture:只被验证侧引用
+K3StopCheckTask,src/main/java/com/dddgn/alice/task/K3StopCheckTask.java,debug,debug:A:src/main/java/com/dddgn/alice/item/K3StopCheckItem.java
+KillDropProvenanceCheckTask,src/main/java/com/dddgn/alice/task/KillDropProvenanceCheckTask.java,fixture,fixture:只被验证侧引用
+LedgerModule,src/main/java/com/dddgn/alice/task/check/modules/LedgerModule.java,fixture,fixture:只被验证侧引用
+LedgerZoneScopeCheckTask,src/main/java/com/dddgn/alice/task/LedgerZoneScopeCheckTask.java,fixture,fixture:只被验证侧引用
+LlmContractCheckTask,src/main/java/com/dddgn/alice/task/LlmContractCheckTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+LlmModule,src/main/java/com/dddgn/alice/task/check/modules/LlmModule.java,fixture,fixture:只被验证侧引用
+LossyWriteAccountedCheckTask,src/main/java/com/dddgn/alice/task/LossyWriteAccountedCheckTask.java,fixture,fixture:只被验证侧引用
+LumberCourseAnchor,src/main/java/com/dddgn/alice/task/LumberCourseAnchor.java,fixture,fixture:命名标记+外部引用(bot,item)
+LumberFailureCheckTask,src/main/java/com/dddgn/alice/task/LumberFailureCheckTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+LumberModule,src/main/java/com/dddgn/alice/task/check/modules/LumberModule.java,fixture,fixture:只被验证侧引用
+MachineCycle,src/main/java/com/dddgn/alice/task/craft/MachineCycle.java,生产,生产:refs=job/craft
+MachineCycleCheckTask,src/main/java/com/dddgn/alice/task/MachineCycleCheckTask.java,fixture,fixture:只被验证侧引用
+MachineModule,src/main/java/com/dddgn/alice/task/check/modules/MachineModule.java,fixture,fixture:只被验证侧引用
+MachineProbeTask,src/main/java/com/dddgn/alice/task/MachineProbeTask.java,fixture,fixture:只被验证侧引用
+MachineRecipeFacts,src/main/java/com/dddgn/alice/task/craft/MachineRecipeFacts.java,fixture,fixture:只被验证侧引用
+MachineStationProbeTask,src/main/java/com/dddgn/alice/task/MachineStationProbeTask.java,fixture,fixture:只被验证侧引用
+MenuProbeTask,src/main/java/com/dddgn/alice/task/MenuProbeTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+MineCourseDiagnosticTask,src/main/java/com/dddgn/alice/task/MineCourseDiagnosticTask.java,debug,debug:A:src/main/java/com/dddgn/alice/item/MineCourseRunnerItem.java
+MineDropRangeCheckTask,src/main/java/com/dddgn/alice/task/MineDropRangeCheckTask.java,fixture,fixture:只被验证侧引用
+MineFailureVisibilityCheckTask,src/main/java/com/dddgn/alice/task/MineFailureVisibilityCheckTask.java,fixture,fixture:只被验证侧引用
+MineInventoryCheckTask,src/main/java/com/dddgn/alice/task/MineInventoryCheckTask.java,fixture,fixture:只被验证侧引用
+MineMenuCheckTask,src/main/java/com/dddgn/alice/task/MineMenuCheckTask.java,fixture,fixture:只被验证侧引用
+MineRegressionTask,src/main/java/com/dddgn/alice/task/MineRegressionTask.java,fixture,fixture:命名标记+外部引用(bot)
+MineRunMetricsCheckTask,src/main/java/com/dddgn/alice/task/MineRunMetricsCheckTask.java,fixture,fixture:只被验证侧引用
+MineStep,src/main/java/com/dddgn/alice/task/mining/MineStep.java,step,step:implements Step
+MineSurveyCheckTask,src/main/java/com/dddgn/alice/task/MineSurveyCheckTask.java,fixture,fixture:只被验证侧引用
+MineTask,src/main/java/com/dddgn/alice/task/MineTask.java,生产,生产:refs=bot,client/render,job/fishbone,job/lumber,job/mine
+MineVeinPropagationCheckTask,src/main/java/com/dddgn/alice/task/MineVeinPropagationCheckTask.java,fixture,fixture:只被验证侧引用
+MiningBudget,src/main/java/com/dddgn/alice/task/mining/MiningBudget.java,生产,生产:refs=bot,decision,job/fishbone,job/lumber,job/mine
+MiningModule,src/main/java/com/dddgn/alice/task/check/modules/MiningModule.java,fixture,fixture:只被验证侧引用
+MiningPlanner,src/main/java/com/dddgn/alice/task/mining/MiningPlanner.java,生产,生产:refs=job/mine,reach,write
+MiningProfile,src/main/java/com/dddgn/alice/task/mining/MiningProfile.java,生产,生产:refs=bot,job/fishbone,job/lumber,job/mine
+MiningReplanFixture,src/main/java/com/dddgn/alice/task/mining/MiningReplanFixture.java,fixture,fixture:命名标记+外部引用(<root>,item)
+MiningSceneFixture,src/main/java/com/dddgn/alice/task/mining/MiningSceneFixture.java,fixture,fixture:命名标记+外部引用(<root>,item)
+MiningSearchLimitHonestyCheckTask,src/main/java/com/dddgn/alice/task/MiningSearchLimitHonestyCheckTask.java,fixture,fixture:只被验证侧引用
+MiningWaterBreakCostCheckTask,src/main/java/com/dddgn/alice/task/MiningWaterBreakCostCheckTask.java,fixture,fixture:只被验证侧引用
+NoProgressCheckTask,src/main/java/com/dddgn/alice/task/NoProgressCheckTask.java,fixture,fixture:只被验证侧引用
+NoopCheckTask,src/main/java/com/dddgn/alice/task/NoopCheckTask.java,fixture,fixture:只被验证侧引用
+OreCourseAnchor,src/main/java/com/dddgn/alice/task/OreCourseAnchor.java,fixture,fixture:命名标记+外部引用(item)
+OwnershipModule,src/main/java/com/dddgn/alice/task/check/modules/OwnershipModule.java,fixture,fixture:只被验证侧引用
+PartialSearchCheckTask,src/main/java/com/dddgn/alice/task/PartialSearchCheckTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+PathRetryBenchCheckTask,src/main/java/com/dddgn/alice/task/PathRetryBenchCheckTask.java,fixture,fixture:只被验证侧引用
+PathSessionDiagnosticTask,src/main/java/com/dddgn/alice/task/PathSessionDiagnosticTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+PathingBatteryTask,src/main/java/com/dddgn/alice/task/PathingBatteryTask.java,fixture,fixture:命名标记+外部引用(bot)
+PathingModule,src/main/java/com/dddgn/alice/task/check/modules/PathingModule.java,fixture,fixture:只被验证侧引用
+PathingRegressionTask,src/main/java/com/dddgn/alice/task/PathingRegressionTask.java,fixture,fixture:命名标记+外部引用(bot)
+PermissionContractCheckTask,src/main/java/com/dddgn/alice/task/PermissionContractCheckTask.java,fixture,fixture:只被验证侧引用
+PermissionDemoTask,src/main/java/com/dddgn/alice/task/PermissionDemoTask.java,生产,生产:refs=bot,item
+PickupGateCheckTask,src/main/java/com/dddgn/alice/task/PickupGateCheckTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+PickupModule,src/main/java/com/dddgn/alice/task/check/modules/PickupModule.java,fixture,fixture:只被验证侧引用
+PillarDiagnosticTask,src/main/java/com/dddgn/alice/task/PillarDiagnosticTask.java,debug,debug:A:src/main/java/com/dddgn/alice/item/EventThresholdCheckItem.java
+PlaceStepDescendClearanceCheckTask,src/main/java/com/dddgn/alice/task/PlaceStepDescendClearanceCheckTask.java,fixture,fixture:只被验证侧引用
+PlaceStepDiagonalCheckTask,src/main/java/com/dddgn/alice/task/PlaceStepDiagonalCheckTask.java,fixture,fixture:只被验证侧引用
+PlaceTask,src/main/java/com/dddgn/alice/task/PlaceTask.java,生产,生产:refs=bot,job/fishbone
+PremiseGateTask,src/main/java/com/dddgn/alice/task/PremiseGateTask.java,fixture,fixture:只被验证侧引用
+ProtectionModule,src/main/java/com/dddgn/alice/task/check/modules/ProtectionModule.java,fixture,fixture:只被验证侧引用
+ProtectionZoneCheckTask,src/main/java/com/dddgn/alice/task/ProtectionZoneCheckTask.java,fixture,fixture:只被验证侧引用
+RecipeQuery,src/main/java/com/dddgn/alice/task/craft/RecipeQuery.java,生产,生产:refs=job/craft
+RecipesDumpCheckTask,src/main/java/com/dddgn/alice/task/RecipesDumpCheckTask.java,fixture,fixture:只被验证侧引用
+RecoverabilityCheckTask,src/main/java/com/dddgn/alice/task/RecoverabilityCheckTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+RegionMaintainUnmaintainableCheckTask,src/main/java/com/dddgn/alice/task/RegionMaintainUnmaintainableCheckTask.java,fixture,fixture:只被验证侧引用
+RegionSweepCheckTask,src/main/java/com/dddgn/alice/task/RegionSweepCheckTask.java,fixture,fixture:只被验证侧引用
+RegionSweepE2ECheckTask,src/main/java/com/dddgn/alice/task/RegionSweepE2ECheckTask.java,fixture,fixture:只被验证侧引用
+RegressionBatteryTask,src/main/java/com/dddgn/alice/task/RegressionBatteryTask.java,fixture,fixture:命名标记+外部引用(bot,command,item)
+RestoreScopeTask,src/main/java/com/dddgn/alice/task/RestoreScopeTask.java,生产,生产:refs=bot,item,job/lumber,write
+RestoreUnderfootSafetyCheckTask,src/main/java/com/dddgn/alice/task/RestoreUnderfootSafetyCheckTask.java,fixture,fixture:只被验证侧引用
+RiskProfileCheckTask,src/main/java/com/dddgn/alice/task/RiskProfileCheckTask.java,fixture,fixture:只被验证侧引用
+RoadBuildTask,src/main/java/com/dddgn/alice/task/RoadBuildTask.java,生产,生产:refs=bot,write
+SafeReturnCheckTask,src/main/java/com/dddgn/alice/task/SafeReturnCheckTask.java,fixture,fixture:只被验证侧引用
+SafeReturnTask,src/main/java/com/dddgn/alice/task/SafeReturnTask.java,生产,生产:refs=bot
+ScaffoldLifecycleTask,src/main/java/com/dddgn/alice/task/ScaffoldLifecycleTask.java,生产,生产:refs=bot,item
+ScopePendingGraceCheckTask,src/main/java/com/dddgn/alice/task/ScopePendingGraceCheckTask.java,fixture,fixture:只被验证侧引用
+ShoreEscapeFixture,src/main/java/com/dddgn/alice/task/ShoreEscapeFixture.java,fixture,fixture:命名标记+外部引用(command)
+SpeechChannelCheckTask,src/main/java/com/dddgn/alice/task/SpeechChannelCheckTask.java,fixture,fixture:只被验证侧引用
+StationPlacement,src/main/java/com/dddgn/alice/task/craft/StationPlacement.java,生产,生产:refs=write
+StationProvision,src/main/java/com/dddgn/alice/task/craft/StationProvision.java,生产,生产:refs=job/craft,write
+Step,src/main/java/com/dddgn/alice/task/Step.java,step,step:Step.java(注册口)
+SurvivalCourseAnchor,src/main/java/com/dddgn/alice/task/SurvivalCourseAnchor.java,fixture,fixture:命名标记+外部引用(item)
+SurvivalEscapeAirCheckTask,src/main/java/com/dddgn/alice/task/SurvivalEscapeAirCheckTask.java,fixture,fixture:只被验证侧引用
+SurvivalExit,src/main/java/com/dddgn/alice/task/SurvivalExit.java,生产,生产:refs=bot
+SurvivalExitCheckTask,src/main/java/com/dddgn/alice/task/SurvivalExitCheckTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+SurvivalExitTask,src/main/java/com/dddgn/alice/task/SurvivalExitTask.java,生产,生产:refs=bot,item
+SurvivalFloatTask,src/main/java/com/dddgn/alice/task/SurvivalFloatTask.java,生产,生产:refs=bot
+SurvivalIdleDrownCheckTask,src/main/java/com/dddgn/alice/task/SurvivalIdleDrownCheckTask.java,fixture,fixture:只被验证侧引用
+SurvivalModule,src/main/java/com/dddgn/alice/task/check/modules/SurvivalModule.java,fixture,fixture:只被验证侧引用
+SurvivalShoreEscapeCheckTask,src/main/java/com/dddgn/alice/task/SurvivalShoreEscapeCheckTask.java,fixture,fixture:只被验证侧引用
+SurvivalStopInHazardCheckTask,src/main/java/com/dddgn/alice/task/SurvivalStopInHazardCheckTask.java,fixture,fixture:只被验证侧引用
+TableCraft,src/main/java/com/dddgn/alice/task/craft/TableCraft.java,fixture,fixture:只被验证侧引用
+Task,src/main/java/com/dddgn/alice/task/Task.java,生产,生产:refs=bot,job,job/collect,job/fishbone,job/lumber,job/mine,write
+TaskNode,src/main/java/com/dddgn/alice/task/TaskNode.java,生产,生产:refs=decision,job,job/collect,job/lumber,job/mine
+TaskTarget,src/main/java/com/dddgn/alice/task/TaskTarget.java,生产,生产:refs=bot,item,job/collect,job/craft,job/fishbone,job/lumber,job/mine
+TaskZoneCheckTask,src/main/java/com/dddgn/alice/task/TaskZoneCheckTask.java,fixture,fixture:只被验证侧引用
+TelemetryModule,src/main/java/com/dddgn/alice/task/check/modules/TelemetryModule.java,fixture,fixture:只被验证侧引用
+TickBudgetBenchTask,src/main/java/com/dddgn/alice/task/TickBudgetBenchTask.java,fixture,fixture:只被验证侧引用
+ToolMaintenanceTask,src/main/java/com/dddgn/alice/task/ToolMaintenanceTask.java,生产,生产:refs=bot
+ToolSupplyCheckTask,src/main/java/com/dddgn/alice/task/ToolSupplyCheckTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+ToolsModule,src/main/java/com/dddgn/alice/task/check/modules/ToolsModule.java,fixture,fixture:只被验证侧引用
+TransferCheckTask,src/main/java/com/dddgn/alice/task/TransferCheckTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+TransferCourseAnchor,src/main/java/com/dddgn/alice/task/TransferCourseAnchor.java,fixture,fixture:只被验证侧引用
+TransferModule,src/main/java/com/dddgn/alice/task/check/modules/TransferModule.java,fixture,fixture:只被验证侧引用
+TransferTask,src/main/java/com/dddgn/alice/task/TransferTask.java,生产,生产:refs=bot,client/render,transfer,write
+TraverseDiagnosticTask,src/main/java/com/dddgn/alice/task/TraverseDiagnosticTask.java,debug,debug:B:BotManager 派发（entry_reachable=yes）
+VerticalDiagnosticTask,src/main/java/com/dddgn/alice/task/VerticalDiagnosticTask.java,debug,debug:A:src/main/java/com/dddgn/alice/item/PathingDownwardItem.java
+WalkToDiagnosticTask,src/main/java/com/dddgn/alice/task/WalkToDiagnosticTask.java,debug,debug:A:src/main/java/com/dddgn/alice/item/WalkToRunnerItem.java
+WalkToTask,src/main/java/com/dddgn/alice/task/WalkToTask.java,生产,生产:refs=bot,job/lumber
+WriteBudgetCheckTask,src/main/java/com/dddgn/alice/task/WriteBudgetCheckTask.java,debug,debug:A:src/main/java/com/dddgn/alice/item/WriteBudgetCheckItem.java
+WriteModule,src/main/java/com/dddgn/alice/task/check/modules/WriteModule.java,fixture,fixture:只被验证侧引用
+WritePolicyCheckTask,src/main/java/com/dddgn/alice/task/WritePolicyCheckTask.java,fixture,fixture:只被验证侧引用
