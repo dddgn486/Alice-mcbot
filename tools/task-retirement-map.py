@@ -189,6 +189,10 @@ def build_rows() -> list[tuple[str, str, str, str]]:
                 raise SystemExit(f"TASK_RETIREMENT_MAP_RESULT FAIL: 读不动 {p}: {e}") from e
     assert len(pool) > 400, f"引用者池只有 {len(pool)} 个文件 ⇒ 收集器坏了"
 
+    def fqn_of(path: Path) -> str:
+        rel = path.relative_to(ROOT / SRC_REL)
+        return ".".join(rel.with_suffix("").parts)
+
     rows: list[tuple[str, str, str, str]] = []
     refs_by_cls: dict[str, set[str]] = {}
     for p in listed(TASK_DIR):
@@ -198,6 +202,14 @@ def build_rows() -> list[tuple[str, str, str, str]]:
         direct_entry: str | None = None
         for q, body in pool:
             if q == p:
+                continue
+            # ⚠️ **同名遮蔽**：若 q 自己声明了同名的嵌套类型（`record X(` / `class X` / `interface X`），
+            # 且**没有** import 我们这个类的全限定名 ⇒ q 里的这个名字全是它自己的 ⇒ **全部不算命中**。
+            # 实测假阳性一例：`compat/ftbteams/FtbPartyBinder.java:37` 自己声明 `record Step(...)`
+            # ⇒ 台账曾把 `task/Step` 判成"被 `compat/ftbteams` 引用"。
+            # ⚠️ 既有的同名门禁（`tools/check-duplicate-class-names.py`）**自己写明了不覆盖嵌套类名**。
+            if re.search(rf"\b(?:record|class|interface|enum)\s+{re.escape(cls)}\b", body) \
+                    and f"import {fqn_of(p)};" not in body:
                 continue
             if pat.search(body):
                 pk = rel_pkg(q)

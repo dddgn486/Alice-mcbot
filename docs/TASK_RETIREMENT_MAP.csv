@@ -169,7 +169,7 @@ SurvivalModule,src/main/java/com/dddgn/alice/task/check/modules/SurvivalModule.j
 SurvivalShoreEscapeCheckTask,src/main/java/com/dddgn/alice/task/SurvivalShoreEscapeCheckTask.java,fixture,fixture:只被验证侧引用
 SurvivalStopInHazardCheckTask,src/main/java/com/dddgn/alice/task/SurvivalStopInHazardCheckTask.java,fixture,fixture:只被验证侧引用
 TableCraft,src/main/java/com/dddgn/alice/task/craft/TableCraft.java,fixture,fixture:只被验证侧引用
-Task,src/main/java/com/dddgn/alice/task/Task.java,生产,生产:refs=bot,job,job/collect,job/fishbone,job/lumber,job/mine,write
+Task,src/main/java/com/dddgn/alice/task/Task.java,生产,生产:refs=bot,job,job/collect,job/fishbone,job/lumber,job/mine
 TaskNode,src/main/java/com/dddgn/alice/task/TaskNode.java,生产,生产:refs=decision,job,job/collect,job/lumber,job/mine
 TaskTarget,src/main/java/com/dddgn/alice/task/TaskTarget.java,生产,生产:refs=bot,item,job/collect,job/craft,job/fishbone,job/lumber,job/mine
 TaskZoneCheckTask,src/main/java/com/dddgn/alice/task/TaskZoneCheckTask.java,fixture,fixture:只被验证侧引用
