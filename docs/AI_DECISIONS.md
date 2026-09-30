@@ -26901,3 +26901,51 @@ AI 候选：**「非空断言」**〔首推，与"判据失效"对偶〕·「人
 
 `check-all` **`pass=39 warning=1 failed=0`** · `compileJava` 绿 ·
 全仓 `com.dddgn.alice.task.<搬走的 116 类>` 残留 **0** · 真树注入臂 3/3。
+
+---
+
+### D-556：`P0` 分类器**三处更正**（`task/` 不再整体算验证侧 · `R6` 硬约束 · import 不算引用）
+
+- 状态：**已实施**（2026-09-30；提交 `349c3f76`）· 台账 `O90` · 承接 `D-550`（`P0` 生成物）· `D-555`（夹具波）。
+- 触发：**夹具波落地后的复核**发现「生产依赖了 `R6` 明说'要剔除就剔它'的那个包」。
+
+#### 一、暴露面（实测）
+
+4 个类被判 `fixture/` 却**在生产执行路径上**：
+
+| 类 | 被谁引用 |
+|---|---|
+| `GainStepRunner` | `MineTask`（**字段类型 ＋ 每 tick 调 `tick()`**）· `CollectStep` |
+| `FixtureZone` | `ScaffoldLifecycleTask` |
+| `MachineRecipeFacts` | `RecipeQuery` |
+| `TableCraft` | `CraftStation` · `MachineCycle` |
+
+⇒ `task/MineTask.java` 一度是 `private com.dddgn.alice.fixture.mining.GainStepRunner gainRunner;`。
+⛔ `check-all` **当时全绿** —— 因为 `R3` 的第 6 条规则**把 `task/` 排除在外**
+（`R3_EXCLUDED`：`task/` 是"被退役的包"，去留看台账）⇒ 这条错误**没有任何门禁能看见**。
+
+#### 二、三处更正（都在 `tools/task-retirement-map.py`）
+
+1. **`task/` 不再整体算"验证侧"**：`VERIFY_SIDE` 里的 `task` 使"只被 `task/` 引用"看起来像
+   "只被验证代码引用" ⇒ **生产可达的类被判成 `fixture/`**。
+   ⇒ 修法：引用者若是 `task/` 下的类，按 **`task:<类名>`** 标签记，再按**那个类自己的 `dest`** 回判
+   ⇒ **迭代到不动点**（上限 6 轮，不收敛即**响亮失败**）。
+2. ⭐ **`R6` 硬约束**：`有标记但被生产引用 ⇒ 判生产`。原来"命名标记"（`Fixture`/`Battery`…）
+   **压过事实** —— `FixtureZone` 名字带 `Fixture`，即使被生产引用也仍判 `fixture/`。
+   ⇒ 现在「**被生产执行路径引用 ⇒ 不可能"可剔除"**」（`R6` 逐字：要剔就剔 `fixture/`）。
+   ⚠️ **注册位置**（`item/`·`command/`·`bot/`·模组入口）**不算**生产执行路径 ⇒ 原判据不变。
+3. ⚠️ **`import` 行不算"引用"**：`task/FixtureScript.java` 对 `fixture/PathingRegressionTask`
+   只有 **javadoc `{@link}` ＋ 为它补的一行 import**（⛔ 零运行期依赖），却被判成"生产引用"。
+   ⇒ 引用判据收窄为「**代码里的使用**」。
+   ⭐ 副作用：`O89` 的 `FixtureScript` **不再是"扣下待裁"** —— 分类器现在判它 **`生产`**（它被
+   `debug/`（产品面）引用 ⇒ 不可剔除 ⇒ 回 `task/` 住，⛔ 不违反 `R3`）⇒ 冻结名单 22 行含它。
+
+#### 三、读数与代价
+
+- `P0` 台账：**39 行**（`生产 36 / step 3 / fixture 0 / debug 0`）
+  ⇒ ⭐ **`task/` 树里 `fixture` 与 `debug` 两个桶都归零**（夹具波完成）。
+- `task/` 顶层 **22**（回搬 +1）· 全树 **39** · 冻结名单 **22**（== 顶层实物）。
+- ⚠️ **本刀只动 `tools/` ＋ `docs/` ＋ 4 个类的包位**；`compileJava` 绿 · `check-all` **39/1/0**。
+- ⚠️ **诚实边界**：`R3` 的第 6 条规则**今天仍排除 `task/`**（因为 `task/` 是要退到 0 的包）。
+  ⇒ **这类"生产依赖可剔除物"的错误，在 `task/` 退完之前，仍然只有 `P0` 台账这一条防线**
+  （判据 = `is_prod_ref`）。⛔ 别把它读成"已经有门禁"。
