@@ -141,12 +141,16 @@ def kernel_files(commit: str) -> list[str]:
     return [l for l in out.splitlines() if l.startswith("src/")]
 
 
-def load_registry() -> tuple[dict[str, str], list[str]]:
+def parse_registry(text: str) -> tuple[dict[str, str], list[str]]:
     rows: dict[str, str] = {}
     problems: list[str] = []
-    for n, line in enumerate(REGISTRY.read_text(encoding="utf-8").splitlines(), 1):
-        if not line.startswith("|") or line.startswith("|---") or "提交" in line:
+    for n, line in enumerate(text.splitlines(), 1):
+        if not line.startswith("|") or line.startswith("|---"):
             continue
+        # ⚠️⚠️ 2026-10-01 修：原条件里还有 `or "提交" in line`（本意 = 跳过表头 `| 提交 | 内核面 | 对照 |`），
+        # 但那是**按内容里的词**过滤 ⇒ 任何**正文出现「提交」二字**的合法登记行都会被**静默丢弃**
+        # （实测：`accd1815` 那行因写了「只判已提交历史」而整行消失 ⇒ 门禁报"没有行"，人却看得见那一行）。
+        # ⛔ 删掉它：表头本来就不匹配 `ROW_RE`（无反引号哈希），靠 `ROW_RE` 判即可。
         m = ROW_RE.match(line)
         if not m:
             if "`" in line and re.search(r"`[0-9a-f]{7,40}`", line):
@@ -155,6 +159,10 @@ def load_registry() -> tuple[dict[str, str], list[str]]:
         commit, _face, cell = m.group(1), m.group(2), m.group(3)
         rows[commit] = cell
     return rows, problems
+
+
+def load_registry() -> tuple[dict[str, str], list[str]]:
+    return parse_registry(REGISTRY.read_text(encoding="utf-8"))
 
 
 def selftest() -> list[str]:
@@ -172,6 +180,18 @@ def selftest() -> list[str]:
         got, _ = classify(text)
         if got != want:
             bad.append(f"合成臂：`{text}` ⇒ 期望 {want}，实得 {got}（{why}）")
+    # ⭐ 反空转 ⑤（2026-10-01 加）：**登记表的解析器**也要自证 —— 正文含「提交」二字的合法行**必须**被解析出来。
+    # 原实现按内容里的词过滤（`"提交" in line`）⇒ 这类行**静默消失**（`accd1815` 实测中过一次）。
+    synthetic = (
+        "| 提交 | 内核面 | 对照 |\n"
+        "|---|---|---|\n"
+        "| `deadbee1` | 合成面 | **Alice 特有**：本刀零行为增量（含「提交」二字） |\n"
+    )
+    rows, probs = parse_registry(synthetic)
+    if probs:
+        bad.append(f"合成臂：登记表解析器对表头报格式错 ⇒ {probs}")
+    if "deadbee1" not in rows:
+        bad.append("合成臂：正文含「提交」二字的合法登记行被**静默丢弃** ⇒ 解析器又按内容里的词过滤了")
     return bad
 
 
