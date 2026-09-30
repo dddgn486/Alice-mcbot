@@ -29,10 +29,14 @@ fi
 
 # Windows is a source mirror only: never copy WSL Git metadata or local runtime state.
 # **备份同样要套排除规则**：否则 `build/` 被一起复制，单份 482MB（源代码只有几十 MB）。
+# ⚠️ `.idea/` 必须排除，且**不只是"不复制"**：WSL 侧没有它、Windows 侧有（IDE 生成的
+# `compiler.xml`/`gradle.xml`…）⇒ 不排除的话 `--delete` 会**把用户 Windows 侧的 IDE 配置删掉**
+# （2026-09-30 实测：WSL 侧无 `.idea/`，Windows 侧有）。rsync 的**被排除项默认受 `--delete` 保护** ⇒ 排除即安全。
 if [[ "${MIRROR_BACKUP}" == "1" ]]; then
 rsync -a --delete --human-readable --info=stats2 \
   --exclude='.git/' \
   --exclude='.gradle/' \
+  --exclude='.idea/' \
   --exclude='.dsh-runtime/' \
   --exclude='build/' \
   --exclude='run/' \
@@ -57,6 +61,7 @@ fi
 rsync -a --delete --human-readable --info=stats2 \
   --exclude='.git/' \
   --exclude='.gradle/' \
+  --exclude='.idea/' \
   --exclude='.dsh-runtime/' \
   --exclude='build/' \
   --exclude='run/' \
@@ -71,7 +76,7 @@ fi
 remaining="skipped"
 if [[ "${MIRROR_VERIFY}" == "1" ]]; then
   remaining="$(rsync -an --delete \
-    --exclude='.git/' --exclude='.gradle/' --exclude='.dsh-runtime/' \
+    --exclude='.git/' --exclude='.gradle/' --exclude='.idea/' --exclude='.dsh-runtime/' \
     --exclude='build/' --exclude='run/' --exclude='videos/' \
     "${SOURCE}" "${TARGET}" | wc -l)"
   if [[ "${remaining}" != "0" ]]; then
