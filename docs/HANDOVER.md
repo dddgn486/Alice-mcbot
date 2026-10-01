@@ -18,9 +18,9 @@
 |---|---|
 | **主线原文** | 「主线（**批次 1 收口 → 批 2 夹具 → 3a 契约 → 4a job 契约**）**照原排期走**，⛔ 不被本刀取代」——**断点四十九**（`:5255`）与**断点五十五**（`:5413`）**各写一次** |
 | **主线当前位置** | **批次 2 ① · `P3`「一波一搬」进行中**（`P0` ✅ · `P1` ✅ `374a5db9` · `P2` ✅ · `P3` 波1 `76ef52e0` / 波2 `3b88871c`+`349c3f76` · `R3` 补生产类半边 `c516879f`） |
-| **⭐ 进度表（一个数）** | `src/main/java/com/dddgn/alice/task/` **顶层 `*.java` = 22 → 0`**（门禁 `check-task-top-freeze` 打印，冻结名单 `docs/TASK_TOP_LEVEL_FREEZE.txt` 22 行） |
-| **⛔ 主线最后一步** | `b3178d97`（**2026-10-01**，断点五十九）—— 此前一长段 `c516879f`（2026-09-30 15:08）之后主线**零推进** |
-| **主线当前卡点** | ⏸ **波 4 只差你一句话**：`P0` 台账的「生产层包名」一维**已扩完**（`10f62b39`，读数 = `已定 0 / 待裁 35`）⇒ ⛔ 35 个生产类的家 = **`O92` ⑥ 待裁（甲／乙／丙）**，见 **断点五十九** |
+| **⭐ 进度表（一个数）** | `src/main/java/com/dddgn/alice/task/` **顶层 `*.java` = 22 → 0`**（门禁 `check-task-top-freeze` 打印，冻结名单 `docs/TASK_TOP_LEVEL_FREEZE.txt`）—— ⭐ **2026-10-01 波 4 第一刀：22 → 15**（`ccdd05af`） |
+| **⛔ 主线最后一步** | `ccdd05af`（**2026-10-01**，断点六十；波 4 **真的开搬了**）—— 此前一长段 `c516879f`（2026-09-30 15:08）之后主线**零推进** |
+| **主线当前状态** | ✅ **波 4 已开刀**（规矩 = `D-569`；先搬 7 类 `ccdd05af`）⇒ ⏳ 余 19 格待裁。 | (历史) **波 4 卡点** |：`P0` 台账的「生产层包名」一维**已扩完**（`10f62b39`，读数 = `已定 0 / 待裁 35`）⇒ ⛔ 35 个生产类的家 = **`O92` ⑥ 待裁（甲／乙／丙）**，见 **断点五十九** |
 | **支线（本会话在做）** | **「权限系统重构」线**（`O116`–`O129`：`region`/`authz` 包结构 · 世界修改授权重定义 · `Zone`/`zone` 词汇清理 · `write/` 族判为旧设计）。⭐ **它不在 `D-532` §九 的批次 0–4 里被点名**（最接近的是**批次 4a**「权限/预算/重试的**声明面**」）⇒ **未入册的支线** |
 | **支线自身进度** | 甲的 `A0`/`B0` 底账 ＋ `D-563`–`D-567` ＋ 刀 2/3/4/5 ＋ **`O135` `zone` 已全清（2026-10-01，`a6ea187d`/`e2a9b7fc`）**；⏳ 余下 = `O116` 甲串 `A2`…`A6` · 乙串 · `O117`/`O118`（**都不需要用户输入，可独立开工**） |
 | **⚠️ 事实核对** | 用户 2026-09-30 授权支线时**带了条件**：「选项 A 马上做，**不要把主线排期抛弃了**」；`D-564` 另外给了支线**内部**排期（串行先甲后乙）。**⛔ 但从未有"支线取代批次 2"的裁定。** |
@@ -6159,3 +6159,41 @@ A6 **负臂**（已定家但未搬）**绿** · A7 搬包不是复制。还原�
 
 ⭐ **同刀实测（写进立家注释）**：这 6 个类**零**低层包引用 ⇒ 进 `action/craft/` 不撞「低层 ✗→ `action/<域>`」。
 （唯一那次命中是 `write/WritePolicyMatrix` 自己的**嵌套** `enum Task` —— 同名遮蔽，**假阳性**。）
+
+### §H ⭐ 波 4 **真的开搬了** —— 先搬 7 类（`ccdd05af`）
+
+**搬了什么**（用户 R3「非动作、操作或者有专属包的类…马上可以先搬去其他地方」）：
+
+| 目标包 | 类 |
+|---|---|
+| `survival/` | `SurvivalExit` · `SurvivalExitTask` · `SurvivalFloatTask` · `SafeReturnTask` |
+| `road/` | `RoadBuildTask` |
+| `transfer/` | `TransferTask` · `CollectDropsTask` |
+
+⭐ **开刀前的只读侦察（重要，决定这一刀安不安全）**：这 7 个类在**低层包**（`pathing`·`reach`·`write`·`log`·`ledger`）
+里**零代码级引用** —— 只有 `WritePolicyMatrix` 的 **3 处字符串**指针 ＋ `PillarExecution` 的 **1 处注释**。
+⇒ **本刀不造任何层序违规**；而且 `transfer/` **反而少一条向上边**（`TransferTask` 与它同包了）。
+
+⭐ **同刀（`R4` 门禁与迁移同刀）**：
+1. `docs/TASK_TOP_LEVEL_FREEZE.txt` **22 → 15** 行；
+2. ⭐ **4 道门禁的"写死路径锚点"改成按类名全树解析** —— `kernel-predicates`（`CollectDropsTask` 路径 ＋
+   `SurvivalFloatTask` 的 FQN 正则）· `check-task-orchestration-split`（`ORCH_5B`）·
+   `check-primitive-readings`（`task/<name>.java`）· `check-primitive-budget-injection`；
+   ⚠️ 依据 = `O113` 同族：**写死的路径一搬就静默失效（匹配 0 个文件而不报错）**；
+3. ⚠️ **`check-primitive-budget-injection` 里挖出一处"用途混用"**：`MIN_QUOTA_CTORS` 的口径逐字是
+   「带额度形参的构造器**全仓** ≥ 6」，而它早期和「`task/` 顶层人口对账（`P2` 单向阀）」**共用同一个循环**
+   ⇒ `CollectDropsTask` 一搬出 `task/` 顶层，**全仓**读数凭空从 **6 掉到 4**（**假红**：额度注入面一寸没少）。
+   ⇒ 拆成两个循环：**人口对账**看 `task/` 顶层（不变）· **全仓额度读数**看 `alice/` 全树；
+4. 生成物重生成（`TASK_DISPATCH_TABLE.csv` · `POLICY_MATRIX.csv` —— 真源已改，⛔ 不手改生成物）；
+5. 路径指针：`WritePolicyMatrix` 3 处字符串 ＋ `MineBlockRunner`/`AreaPermission` 的 javadoc。
+
+⚠️ **工具脚本自伤 2 次（如实记，同 `O91` ⑥ 家族）**：
+**(a)** 补 `import` 的判据把「**行内全限定名**」也算成"裸简单名" ⇒ 一次塞 **65** 条**用不到的 import**
+（会变成 `check-layer-direction` 眼里的**假依赖边**）；**(b)** 它给"同包引用"也补了 import
+（`task/**` 一律拍平成 `com.dddgn.alice.task.X` ⇒ 把 `task/craft` 与 `task` 当成一个包）。
+⇒ 两处修好后只剩 **17** 条，逐条复核后又删掉 **1 条真假阳性**（`command/BotCommand` 的
+`FtbPartyBinder.Step` 被当成 `task/Step`）。⭐ **纪律**：脚本改完必须**逐条复核它改了什么**，⛔ 不许"编译过了就算对"。
+
+**读数**：台账 **39 → 32** 行 · `PROD_HOME` 的 **7 格"已搬"分支全部核过**（落在登记的家）·
+`compileJava` 绿 · `check-all` **`pass=40 warning=1 failed=0`**（逐字不变）· `BARITONE_ANCHOR` PASS ·
+⛔ 全仓 `com.dddgn.alice.task.<这 7 个>` 残留 **0**。
