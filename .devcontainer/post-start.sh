@@ -91,7 +91,10 @@ if [ -n "$TREE" ]; then
         NEW=$(git commit-tree "$TREE" -m "entry: cloud DSH web URL @ $(date -u +%Y-%m-%dT%H:%M:%SZ)" 2>/dev/null)
     fi
     if [ -n "$NEW" ]; then
-        if git push -q origin "$NEW:refs/heads/$BRANCH" 2>/dev/null; then
+        # ⚠️ 实测（2026-10-02）：**启动阶段 `git push origin` 会失败**（那时没有登录 shell 的凭据）
+        #    ⇒ 手动跑同一个脚本却成功。⇒ 显式用容器自带的 `GITHUB_TOKEN` 拼 push URL。
+        PUSH_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY:-dddgn486/Alice-mcbot}.git"
+        if git push -q "$PUSH_URL" "$NEW:refs/heads/$BRANCH" 2>/dev/null; then
             say "published entry -> branch $BRANCH (commit $NEW)"
         else
             say "WARN: git push failed - entry not published (device can still use gh codespace ports + this log)"

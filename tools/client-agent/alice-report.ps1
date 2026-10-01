@@ -199,7 +199,48 @@ if (-not $env:HTTPS_PROXY) {
         }
     } catch { }
 }
-$remote = "/home/vscode/bus/to-cloud/$localName"
-& gh codespace cp -e $localPath "remote:$remote" -c $Codespace 2>&1 | ForEach-Object { Say ("  " + $_) }
-if ($LASTEXITCODE -eq 0) { Say "已投递：$remote" ; exit 0 }
-else { Say "投递失败（exit=$LASTEXITCODE）⇒ 信还在本机：$localPath（可手动拷到云端 ~/bus/to-cloud/）"; exit 1 }
+# ⭐ 优先走 **git**（2026-10-02 实测后改）：本机 `~/.ssh` 的**内容读被系统层挡住**
+#    （元数据正常、非 OneDrive 占位符；连 `cmd /c type` 都挂、`cmd /c copy` exit=1）
+#    ⇒ `gh codespace cp`（要用那把密钥）**在本机是废的**。
+#    git 只需 PAT + 代理，实测可用（探针提交已到远端）。⇒ git 为主、gh cp 为辅、都失败就落盘留痕。
+$branch = "steward/inbox"
+$blobName = "steward-inbox/$localName"
+$gitOk = $false
+Push-Location $Repo
+try {
+    # ⭐ **完全不碰工作树**：`git hash-object` + `mktree` + `commit-tree` 造一个只含这封信的提交，
+    #    再 `push <commit>:refs/heads/<branch>`。为什么必须这样：
+    #    本机工作树**是脏的**（管家有自己的未提交改动）⇒ `git checkout -B` 会直接失败或被拒；
+    #    而且我们**绝不想**顺手把别的改动带进提交。
+    $blob = (& git hash-object -w -- $localPath 2>&1 | Out-String).Trim()
+    if ($blob -match '^[0-9a-f]{40}$') {
+        $tree = ("100644 blob $blob`t$blobName" | & git mktree 2>&1 | Out-String).Trim()
+        if ($tree -match '^[0-9a-f]{40}$') {
+            # 父提交：优先远端分支（本地可能没有），没有就当首次提交
+            & git fetch -q origin $branch 2>&1 | Out-Null
+            $parent = (& git rev-parse -q --verify "refs/remotes/origin/$branch" 2>&1 | Out-String).Trim()
+            $msg = "receipt: $localName / $verdict"
+            if ($parent -match '^[0-9a-f]{40}$') { $commit = (& git commit-tree $tree -p $parent -m $msg 2>&1 | Out-String).Trim() }
+            else { $commit = (& git commit-tree $tree -m $msg 2>&1 | Out-String).Trim() }
+            if ($commit -match '^[0-9a-f]{40}$') {
+                & git push -q origin "$commit`:refs/heads/$branch" 2>&1 | Out-Null
+                if ($LASTEXITCODE -eq 0) {
+                    $gitOk = $true
+                    Say "已用 git 投递：分支 $branch（提交 $($commit.Substring(0,8))，内容 $blobName）"
+                    Say "云端取法：git fetch github '$branch`:refs/remotes/github/$branch' ; 然后看 $blobName"
+                } else { Say "git push 失败（exit=$LASTEXITCODE）⇒ 再试 gh cp" }
+            } else { Say "commit-tree 失败 ⇒ 再试 gh cp" }
+        } else { Say "mktree 失败 ⇒ 再试 gh cp" }
+    } else { Say "hash-object 失败（仓库不可用？）⇒ 再试 gh cp" }
+} catch { Say ("git 路径异常：" + $_.Exception.Message) }
+Pop-Location
+if ($gitOk) { exit 0 }
+
+# 兜底：老的 gh codespace cp（只有密钥可读时才走得通）
+if (Get-Command gh -ErrorAction SilentlyContinue) {
+    $remote = "/home/vscode/bus/to-cloud/$localName"
+    & gh codespace cp -e $localPath "remote:$remote" -c $Codespace 2>&1 | ForEach-Object { Say ("  " + $_) }
+    if ($LASTEXITCODE -eq 0) { Say "已投递：$remote" ; exit 0 }
+}
+Say "两条路都没成 ⇒ 信还在本机：$localPath（也已复制到 $staged）"
+exit 1

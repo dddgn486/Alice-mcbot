@@ -31,7 +31,17 @@
 VERSION="2026-10-01.1"
 
 PORT="${DSH_PORT:-3081}"
-WORKDIR="${DSH_WORKDIR:-$HOME/projects}"
+# ⭐ workdir 自动探测（2026-10-02 实测修）：原默认 `$HOME/projects` 在真 codespace 上**不存在**
+#    （实测：仓库在 `/workspaces/Alice-mcbot`，而 `$HOME/projects` 没有）⇒ fix 会以"workdir 不存在"红掉、
+#    且 `dsh web` 起在了错的 cwd 上。⇒ 按顺序探测，取第一个存在的；都不在才回落到 `$HOME/projects`。
+_detect_workdir() {
+    local c
+    for c in "/workspaces/Alice-mcbot" "/workspaces/Alice-Mcbot" "$HOME/projects" "$HOME/projects/alice"; do
+        [ -d "$c" ] && { printf '%s' "$c"; return 0; }
+    done
+    printf '%s' "$HOME/projects"
+}
+WORKDIR="${DSH_WORKDIR:-$(_detect_workdir)}"
 MAILBOXES="$HOME/bus/to-win $HOME/bus/to-cloud $HOME/client-info $HOME/outbox"
 LOG="$HOME/dsh-web.log"
 PIDFILE="$HOME/.dsh-web.pid"
