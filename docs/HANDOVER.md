@@ -6199,3 +6199,113 @@ A5 没落在登记的家 · A6 负臂绿 · A7 搬包不是复制）。
    ⚠️ 同刀要把 `"craft"` 加进 `check-layer-direction.py` 的 `ACTION_DOMAINS` ＋ 人口下限）。
 3. **多轮未做**：契约 3（`Task`/`TaskNode`/`TaskTarget`）等你的**单槽位讨论**（你已裁"解除先不动、把它提前"）；
    层表本身**从未进 `AI_DECISIONS`**（`§29.1` 已登记）。
+
+---
+
+## 断点六十一（2026-10-02）⭐ **无头测试搬到「新设备」＋ 云端额度账**（本条由**助手会话**写，⛔ 不是主工作流）
+
+> ⚠️ **归属**：本条记录的是**次要工作流（助手）**这一轮的产出 —— 目标是"把无头测试整个打包给新设备，
+> 并让**设备上的管家**能自己诊断/修复"。⛔ 与主线（`task/` 波 4 重构）**无冲突**：主线的进度仍在断点六十。
+
+> ⭐ 用户本轮逐字（按序，⛔ 这是本断点的**唯一裁定来源**）：
+> ①「**现在新设备就在旁边，马上可以部署**，我要让你加上避险措施，windows 端管家要有在**云端发生问题并解决**的能力」
+> ②（收窄）「**管家要求也没那么高吧**，理论上它只要**理解云端和客户端的情况，就能尝试修复恢复**，只需要给他**几个排查入口**」
+> ③「**先重建 codespace，拿到新名字，再一口气改工具**」（新名 = `alice-cloud-01-q7wr4q564jp5c997g` 系列口径，见 §B）
+> ④「**把无头测试整个打包给新设备**，然后云端通过和 windows 管家的通信，自动在新设备上跑无头测试，**交接都靠 windows 管家**」
+> ⑤（本轮最关键）「我回去后**你就不能像现在这样用 ssh 控制我设备了，只能让管家来**，所以给管家**准备排错点**是很重要的」
+> ⑥「**新设备直接装 ⭐ CLI 版**，问一句，这个**能用 web 打开吧**，不习惯 cli 操作」
+> ⑦「关闭指令也要；**最好就用 no open，跑在终端前台，ctrl c 就能停**」
+> ⑧（额度）「只要云端在待机，它就会吃额度吗，那个硬盘不能改小吗，**我平常也是经常让 dsh 跑编码工作**」
+> ⑨（额度口径修正）「你说存储能撑 18.75 天?那就**不是问题**啊，只要能撑**完整的 5 天**就行，而且我还要睡觉扣去八个小时」
+> ⑩（纠错）「**云端你不是主工作流，你是现在迁移的助手**」
+
+### §A ✅ 落地清单（全部已推 `github master`）
+
+| 提交 | 内容 |
+|---|---|
+| `51020715` `b30d18aa` | **`tools/client-agent/run-headless.ps1`**：Windows 原生无头驱动（**不依赖 WSL**）＋ 首跑抓到的四个真缺陷 |
+| `a4b22c22` | ⭐ **管家自足套件**：`alice-doctor.ps1` 加 **⑦ 设备层**、`alice-report.ps1`（回执投递）、`alice-web.ps1`/`.cmd`（最朴素网页入口）、`client-agent.cmd` 加 `-Headless`/`-Report`/`-Web`/`-WebStop`；**世界洁净度**补齐 |
+| `166aa88b` | `docs/reviews/2026-10-02-新设备无头测试落地.md`（**215 行**：环境/传输读数/七缺陷/世界洁净度根因/ssh 中文坑） |
+| `f59df819` | preset 加「**设备侧排错**」小节（四入口 ＋ 实测症状对照表 ＋ 两个 `dsh web` 的区分） |
+| `37cf5977` | `docs/CLOUD_MIGRATION.md` **§19 额度账** |
+
+### §B ⭐ 新设备（`DESKTOP-SARS2Q2` / `fb` / **`10.126.126.1`**）—— 实测事实
+
+- **远程通道**：Windows **OpenSSH Server** ＋ 专用密钥 `~/.ssh/alice_newdevice_ed25519`。
+  ⚠️ 自带防火墙规则 `OpenSSH-Server-In-TCP` **只放行本地子网** ⇒ 必须改成放行虚拟网段。
+- **传输读数**（虚拟局域网 ≈ **3 MB/s**）：仓库 bundle 52 MB / 17.5 s · 客户端存档 95.9 MB（**物理媒介**）·
+  ⭐ **服务端不必装** —— 直接把本机已装好的 `libraries/`（138 MB / 48 s）＋ `win_args.txt` 平移即可
+  （**它内部全是相对路径、零绝对路径**，`win_args.txt` sha `be6edc64448d827c` 两端一致）。
+- **工具链**：`git`（`D:\Git`）· node v24 · python · JDK 8/11/**17**/21 · gh（**已认证 `dddgn486`**）· 代理 `127.0.0.1:7897`。
+- ⭐ **git 通路已修**：github 的 HTTPS 直连被重置，**走代理即可**（`git config --global http(s).proxy` 已写：
+  实测带/不带环境变量 `ls-remote` 都 `exit=0`）⇒ **云端 push 的提交，设备能自己 `pull`** = 一条不需要信箱的"云端→设备"通路。
+
+### §C ⭐⭐ 无头测试在新设备上跑通了（**判据：与本机基线一致**）
+
+| 轮次 | 结果 |
+|---|---|
+| `single:capability_gate` | ✅ **`verdict=PASS`**，24 s（Windows 原生，无 WSL） |
+| 首轮 `core`（Java 21 与 **Java 17 各一次**） | ⚠️ **42/44**，多一条红 `decision_contract=FAIL reason=菜单含 lumber 候选` —— ⭐ **两个 Java 版本跑出完全相同结果** ⇒ **排除 JVM** |
+| 补上**世界洁净度**后 `core` | ✅ **43/44**，唯一红 = `mine_regression`（**逐字就是 `EXPECTED_REDS.md` 那行**） |
+
+⭐⭐ **那条多出来的红的根因**：我漏了 `headless-battery.sh:246-295` 的**世界洁净度**四步 —— 其中
+**清 `world/ftbchunks/*.snbt` 第三方认领**是解药（夹具世界是玩家存档副本 ⇒ 继承 **FTB Chunks 认领**，
+认领内破坏被模组**静默取消** ⇒ 夹具拿到"树砍不动"的世界、**却报成内核失败码**；脚本注释逐字写着
+这是 `lumber_job` **连红 35 轮**的真因，`D-409`/`D-413`）。另三步：`datapacks` 同命名空间旧包（`D-412`）、
+`world/data/alice_*.dat`（`D-235`）、装模组前清空 `mods/*.jar`。
+
+### §D ⭐ 本轮修掉的 7 个真缺陷（**全是"静默失败"**：不报错、只是结果不对）
+
+Java 不读 `HTTP_PROXY`（只有 `JAVA_TOOL_OPTIONS`/`-D` 才算，否则 Forge 装库卡死）·
+PowerShell 传 `--installServer` 被解析坏（`Unrecognized option`，改 `Start-Process -ArgumentList`）·
+`Copy-Item -Path` **漏名字带 `[` `]` 的模组**（静默少 4 个，改 `-LiteralPath`）·
+**漏客户端专属模组名单**（`jecharacters` 在专用服务端 `NoClassDefFoundError` ⇒ 12 s 退出、永无判决）·
+Alice jar 只认仓库产物（改：仓库没有时**回退用客户端那份**）· Java 版本策略（改：**优先恰好 17**）· 世界洁净度。
+
+### §E ⭐ 管家自足（用户 ⑤ 的落地）
+
+- **四个零 LLM 花费入口**：`client-agent.cmd -Doctor`（①–⑥ 云端链路 ＋ **⑦ 设备层**）·
+  `-Doctor -Repair` · `-Headless core|full|single:<步>` · `-Report`（回执投给云端 `~/bus/to-cloud/`，
+  含**红集合是否 ⊆ `EXPECTED_REDS.md`**、jar sha、Java、机器名）。
+- ⭐ **管家真能干活已实测**：`dsh --profile headless "<ASCII 任务>"` ⇒ **exit=0，6 秒答对**。
+  两个坎：**R-1** 新设备原本**没有 dsh CLI**（`npm i -g @deepseek-ai/dsh@0.1.5-rc.3`，188 s）；
+  **R-2** 装了也答不出话 —— 缺 `~/.dsh/settings.yaml` **和** `.credentials.yaml`（模型 key）⇒ 传文件（⛔ 不贴聊天）。
+- `-Doctor` 实测：设备层全绿（除两条已知：github 直连、Java 代理未设，**后者已可 `-Repair`**）。
+
+### §F ⭐ 两个 `dsh web` 必须分清 ＋ 令牌
+
+**本机 3081 ＝ 管家**（`alice-web.cmd` ＝ `dsh web --no-open`，**前台，Ctrl+C 就是关闭**；飘后台的用 `-WebStop`）
+· **云端 3181 ＝ 助手 ＋ 主工作流**（`tools/codespace-tunnel.ps1 -Open`，**每次自动去云端抓最新令牌**）。
+⚠️ 云端重启后旧标签页 **401** = 令牌换了，重开即可（DSH **没有**固定令牌的受支持选项，⛔ 不编）。
+新设备桌面已放两个快捷方式（按端口命名防混）：`DSH local steward 3081` · `DSH cloud 3181`。
+
+### §G ⭐ 额度账（`CLOUD_MIGRATION.md` **§19** 是正式载体）
+
+`2 cores, 8 GB, 32 GB storage`，`idle_timeout_minutes=15`（实测）。**存储 = 磁盘大小 × 存在时长，与开不开机无关**
+⇒ 只能靠 **`gh codespace delete`** 省（**不能改小硬盘**，机型固定；REST 的 billing 端点**实测 404**）。
+折算（Pro：180 core-h ＋ 20 GB-month）：计算 = **90 小时**运行/月；存储 = **约 18.75 天**存在/月。
+**用户真实需要 = 5 天** ⇒ 存储占 **27%** ✅ 宽裕；⚠️ **要盯的是计算**（每天开 16 h = 160 core-h = **89%**）；
+**睡前关隧道窗口**（⛔ 不是只关浏览器）一夜省 16 core-h。⛔ **别做 24 小时轮询云端**（会爆计算）。
+
+### §H 验证（本轮）
+
+`bash tools/check-all.sh` ⇒ **`pass=41 warning=1 failed=0`**（⛔ 与开工前**逐字相同**；warning = 电池未执行）·
+新设备 `client-agent.cmd -Headless single:capability_gate` ⇒ **exit=0 / 27 s / `verdict=PASS`**（**cmd 入口**一遍）·
+新设备 `core` ⇒ **43/44**（红 ⊆ 已登记）· `alice-web.cmd` 起停实测（3081 起得来、`-Stop` 后端口已空）·
+新设备仓库与 `origin` 对齐（HEAD `37cf5977`、脏文件 0）。
+⛔ **未做**：`-Report` 的**真跑**（写完只过了语法）· 桌面 `DSH cloud 3181` 在**新设备上**的实测 ·
+云端那两个会话的**人工开箱验证** · 本会话尾段的**最终同步**。
+
+### §I ⏭ **下一步 / 接续锚点**
+
+1. **`-Report` 真跑一次** ＋ 在**新设备上**双击验证 `DSH cloud 3181`（两者都碰云端，需挑不跑实验的时段）。
+2. ⏳ **隧道保活实验**（2026-10-02 01:19 起，27 分钟一轮）：问「**隧道挂着时 15 分钟空闲超时还生效吗**」——
+   日志 `run/tunnel-idle-test.log`。⭐ **它决定 §G 那条"睡前关隧道"到底管不管用**。
+3. **"管家叫醒云端"的落地**（用户 ④）：设计**已实测可行** —— 从外部让云端跑一次性 agent
+   （`gh codespace ssh -c <名> -- "dsh --profile headless '<任务>'"`，实测真的执行并答对）。
+   候选：管家在检测到"有新结果"时，先 `gh api -X POST /user/codespaces/<名>/start` 唤醒，
+   再起那个一次性 agent ⇒ **不需要反向隧道、不碰私有 `/api`**。
+4. ⚠️ **新设备的默认 preset 已被 `-Install` 改成 `alice-client-master`**（管家口吻）⇒ 那台机器上
+   **人自己**开 `dsh web` 时看到的也是这个人格，若觉得别扭要改回（**待用户裁**）。
+5. ⚠️ **新设备排错时最容易骗人的坑**（本轮被咬两次）：**中文不要经 ssh 传给 Windows PowerShell**
+   （GBK 拆坏 ⇒ 报"引号/括号没闭合"而肉眼看着明明闭合）⇒ 远程脚本**全 ASCII**。
