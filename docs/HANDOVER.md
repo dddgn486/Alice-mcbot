@@ -5557,6 +5557,24 @@ AI 建议 = **必改 `空转`（拆词）** · ✅ **已执行 `咬人`→`拦�
 ⭐ 判据 = 日志里 `[TaskZone]` 只有 `scaffold`/`mine_regression`/`break_refused` 三条**别人的**声明
 ⇒ **必须 `single:task_zone` 单跑**才算验过。（`silent-measurement-failure`「0 有歧义」同族）
 
+### §B′ ✅ 刀 5 已落地（`7d6de008`）—— 清 `Zone` 类名
+
+⭐ **改了 8 个类 ＋ 分离了 3 个同名 `Zone` 类型**（详表见 `D-565` 刀 5 一节）。
+⚠️ **一处越权**：名字是我按 `结构提案 §3` 的**建议名**执行的，用户随后指出「**不是要我定名字吗**」
+⇒ ⭐ **全部字面名待用户复核**（改名是机械操作，换名成本很低）。
+⚠️ `Tenure` 的备选 `Ownership` **不能用** —— 本项目 `Ownership` 已被占用（"假人创建者归属"，`D-319`）。
+⛔ `ZoneAuthority` **未动**（`§3` 明写"拆后命名" ⇒ 刀 4 拆成三个谓词后定名）。
+
+**4 处"同步表"被门禁当场抓到**（`D-462` 已知代价）：`tools/policy-map.py` 的 `parse_enum(…,"Zone")` ·
+`docs/TASK_TOP_LEVEL_FREEZE.txt`（**手工换行 ＋ 整行重排**）· `docs/TASK_RETIREMENT_MAP.csv`(`--write`) ·
+`docs/DECISIONS_INDEX.md`(`--write`)。⭐ 还有一处：`check-baritone-anchor` 要求**改内核文件就必须登记行**
+（本次 sed 顺带扫到 `BlockInteraction`/`MineCandidateSource`/`PathSession`）⇒ 已加 `Alice 特有：零行为增量` 行。
+
+**⭐ 方法论教训（⭐ 用户会关心的那种）**：三步连跑里 `protection_zones` 红。
+第一次 A/B **同时改了提交与步集合两个变量** ⇒ 差点误判"改名改红了"。
+控制变量后 **2×2 完全对称** ⇒ **改名无责**，红是**既有**的跨步相互作用 ⇒ 登记 **`O129`**。
+⭐ **新纪律：做 A/B 前先写下"这次只动哪一个变量"。**
+
 ### §C ⏳ 下一刀（active goal 的续行方向，⛔ 不需要用户输入即可开工）
 
 | 优先 | 刀 | 依据 |
