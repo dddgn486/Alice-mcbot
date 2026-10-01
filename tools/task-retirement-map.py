@@ -520,7 +520,11 @@ def main(argv: list[str]) -> int:
     #    ⚠️ 判据的**方向**：台账只收"还在 `task/` 里"的类 ⇒ **已搬**的类必然不在 `rows` 里
     #    ⇒ 这一类只能从 `PROD_HOME` 反查（这正是 `?` 哨兵能被门禁抓住的唯一入口）。
     task_stems = {r[0] for r in rows}
-    alice_pkg = SRC_REL.replace("/", ".")[:-1]          # `com.dddgn.alice`
+    # ⚠️ 2026-10-01 **红臂 A4/A5 抓出来的真 bug**：这里原来写 `SRC_REL.replace("/", ".")[:-1]`
+    #    ⇒ 得到 `src.main.java`（**源码根**，⛔ 不是包根）⇒ `startswith` 恒假 ⇒ **每一格都判"非法"**。
+    #    ⇒ 症状 = "三条不同的臂给同一个理由"（A4 该报"指空"、A5 该报"没落在登记的家"，都报了"非法"）。
+    #    ⭐ 今天**看不出来**（35 条全 `?`，这段根本不跑）⇒ **只有注入臂能抓**（`O91` ⑥ 的血债形状）。
+    alice_pkg = "com.dddgn.alice"
     for cls in sorted(PROD_HOME):
         pkg = PROD_HOME[cls]
         if cls in task_stems:
