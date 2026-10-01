@@ -469,7 +469,10 @@
 
 ## 2026-09-24 断点：云端接管 + goal 轮次（1–7）—— **指针版，压缩安全**
 
-- **环境**：云端为主工作流（codespace `humble-tribble-97pv59gw5rg62prg5`，cwd `/home/fb486/projects` ＝软链 `/workspaces/Alice-mcbot`）；
+> ⚠️ **本节的 codespace 已于 09-24 收尾删除**；**现役那台见 `docs/CLOUD_MIGRATION.md` §17**（2026-10-01 重建，
+> `alice-cloud-01-q7wr4q564jp6c997g`）。本节保留作历史。
+
+- **环境**：云端为主工作流（codespace `humble-tribble-97pv59gw5rg62prg5`（**已删**），cwd `/home/fb486/projects` ＝软链 `/workspaces/Alice-mcbot`）；
   本地 WSL＝**兜底副本**（未授权不参加工作），规则见 `docs/reviews/2026-09-24-云端主工作流交接.md`。
 - **云端跑门禁的正确姿势**：`ALICE_MODS_DIR=$HOME/mc-client/mods tools/check-all.sh` ⇒ `pass=19 warning=2 failed=1`；
   唯一 FAIL ＝**既有红** `check-ref-integrity`（26 条过期引用；§11 I 段已登记，与本轮改动无关）。
@@ -896,7 +899,7 @@ bash tools/dsh-context-usage.sh                       # 上下文线（只报一
 | 项 | 值 |
 |---|---|
 | HEAD / 远端 | `8b9078c`（= `github/master`，工作树干净；`dd4b864`→`88a5b6e`→`8b9078c` 三段都在） |
-| 云端 | codespace `humble-tribble-97pv59gw5rg62prg5` = **`Shutdown`**（用户裁定 stop；计算费停、存储照计） |
+| 云端 | codespace `humble-tribble-97pv59gw5rg62prg5` = **`Shutdown`**（用户裁定 stop；计算费停、存储照计）（⚠️ **已在本轮之后删除**；现役 = `alice-cloud-01-q7wr4q564jp6c997g`，见 `docs/CLOUD_MIGRATION.md` §17） |
 | 云端的提交 | 全部在本机：`f1d355f d7b3229 c1ab924 f352e9f aacbbd1 7c141df 955366d 3093e31` 逐个 `merge-base --is-ancestor` = 在 |
 | 会话叙事 | 归档 `D:\JAVA_projects\alice-backups\cloud-rollback-20260924-230109\`（**140 MB**）：云端主会话**逐字节**副本（98,839,800 B / `sha256 853f5a8be1b56f9b…`）+ 9 个会话的 `.md` 文本出口 |
 | 云端证据 | `run/headless-logs/` **83 个日志 / 22 MB** 已并入本机（`cp -n`，无重名）；云端 CORE 日志逐字可核：`passed=41/41 skipped=0` · `elapsed=248s` · `Can't keep up! … 2198ms or 43 ticks behind` |

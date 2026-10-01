@@ -269,7 +269,10 @@ tar -xzf dsh-state-*.tar.gz -C ~ && chmod 600 ~/.dsh/.credentials.yaml ~/.dsh/se
 
 ## §11 零期结果（2026-09-23，全部实跑）
 
-**在跑的东西**（codespace `humble-tribble-97pv59gw5rg62prg5`，`basicLinux32gb` = 2 核/7 G/32 G，30 分钟空闲自动停）：
+> ⚠️ **本节的 codespace 已在 09-24 收尾时删除** —— 现行那台见 **§17**（2026-10-01 重建）。
+> 本节保留作"零期怎么跑的"历史读数，**里面的名字不是现役**。
+
+**在跑的东西**（codespace `humble-tribble-97pv59gw5rg62prg5`（**已删**），`basicLinux32gb` = 2 核/7 G/32 G，30 分钟空闲自动停）：
 
 | 项 | 状态 |
 |---|---|
@@ -642,3 +645,100 @@ bash tools/headless-battery.sh core
   **先 `cp`、失败就换 `ssh 管道 + base64`**（`gh codespace ssh -c <名> -- "base64 -w0 <远端路径>" | tr -d '\r' | base64 -d > <本地>`），
   并用 sha256 两端对账。⚠️ 这与坑 **45** 是同一类错误的两个面：**大文件只能走管道，不能走命令行参数**；
   但**小文件（清单/计划）走 `cp` 更省事**（base64 套 base64 会顶爆 128 KB 单参数上限）。
+
+## §17 ⭐ 云端重建 + 主工作流会话迁移（2026-10-01，全部实跑）
+
+**为什么要重建**：09-24 收尾时把唯一那台 codespace 删了（`gh api /user/codespaces` ⇒ `total:0`）⇒
+发现**旧名字硬编码在 6 处**（5 个 `tools/` 脚本 + `~/.alice-client.json`）⇒ 一重建就全哑。
+**这次顺手把它变成"一处写、其它跟着"**：`client-agent.cmd -Doctor -SetCodespace <新名>`。
+
+**现役机器**：`alice-cloud-01-q7wr4q564jp6c997g`（`basicLinux32gb` = 2 核/8 G/32 G；可 `edit -m standardLinux32gb` 升 4 核/16 G，
+⚠️ 改机型要 stop + 唤醒才生效，容器状态保留 —— §9-29）。
+名字 = `--display-name alice-cloud-01` + gh 自己加的后缀（gh 不接受纯自定义名）。
+
+**实测读数**（`tools/alice-cloudctl.sh status`，2026-10-01 23:2x）：
+
+| 项 | 结果 |
+|---|---|
+| 工具链 | node `v22.23.3` · java `17.0.20.1` · dsh **`0.1.5-rc.3`** · python3 标准库完整（devcontainer 的 `postCreateCommand` 一次装齐） |
+| 凭据 | `.credentials.yaml` 已送，两端 sha256 = `d3ea903d50da43d7` ✅ |
+| 工作区 | `/home/fb486/projects/alice → /workspaces/Alice-mcbot`（软链）⇒ 会话 slug 与本机一致（`--home-fb486-projects--`） |
+| 服务 | `dsh web` 回环 `127.0.0.1:3081`，`--trusted-host alice-cloud-01-q7wr4q564jp6c997g-3081.app.github.dev` |
+| 仓库 | `/workspaces/Alice-mcbot` @ `201648da`（与本机同一 commit） |
+
+### §17.1 ⭐ 会话迁移：只迁两个，且**两个同名会话必须区分**
+
+用户（2026-10-01）：「**云端只迁移你自己，还有主工作流**；会话名字我写的 `Alice开发助手`，
+**之前归档的主工作流也叫 `Alice开发助手`，注意区分**」。
+
+**怎么找出它们**（可复算）：会话标题是**会话内**的 `session/title` 事件（不是文件名、不是 `workspace.json` ——
+那里只有**工作区**名）。用本仓工具逐个解码再取最后一条标题：
+
+```bash
+for d in ~/.dsh/sessions/--home-fb486-projects--/*/; do
+  id=$(basename "$d")
+  node tools/dsh-session-log.mjs --session "$id" --out /tmp/t.jsonl >/dev/null 2>&1
+  echo -e "$id\t$(grep -o '"type":"session/title"[^}]*}' /tmp/t.jsonl | tail -1 | grep -o '"title":"[^"]*"' | cut -d'"' -f4)"
+done
+```
+
+**结果（120 个会话，标题含「Alice开发助手」的共 7 个）**：
+
+| 会话 id | 大小 | 最后写入 | 标题 | 判定 |
+|---|---|---|---|---|
+| `session-474fff85-1ed1-48cf-90a9-59e0ee1b1257` | 37.3 MB | **2026-10-01 22:53** | `Alice开发助手` | ⭐ **主工作流（迁）** —— 末条用户消息 =「处理成断点」，与本机 HEAD `000fc6d2` 的断点六十重写**逐字对上** |
+| `session-fa470e0a-2f91-4fcd-9e25-2d81f1871c95` | 0.87 MB | 2026-10-01 23:2x | `问候与自我介绍` | ⭐ **当晚的云端搭建会话（迁）** |
+| `session-c83b9b33-5aec-405d-a9c8-06fc76f6b8f7` | 130.4 MB | 2026-09-29 00:05 | `Alice开发助手` | ⛔ **归档的那份（不迁）** —— 首条 = 阶段 3-A/3-B 开场，末条 = `</compacted-summary>` |
+| `session-682b21bb…`/`978793f6…`/`d2e8b242…`/`bd9a9c1a…` | 32–65 MB | 09-13 / 09-26 / 09-28 | `Alice开发助手 (1)` | ⛔ 四份带 `(1)` 的副本（不迁） |
+| `session-bf3d6d9b…` | 32.0 MB | 09-13 | `Alice开发助手` | ⛔ 更早的一份（不迁） |
+
+**怎么传**（⭐ 大文件只能走管道，见坑 45 —— 命令行参数会 `Argument list too long`）：
+
+```bash
+python3 -c "import base64;d=open('<会话文件>','rb').read();open('/tmp/p.b64','w').write(base64.b64encode(d).decode())"
+gh codespace ssh -c <名> -- "mkdir -p \$HOME/.dsh/sessions/--home-fb486-projects--/<会话 id> && \
+  base64 -d > \$HOME/.dsh/sessions/--home-fb486-projects--/<会话 id>/session.v3.jsonl.zstd && \
+  sha256sum \$HOME/.dsh/sessions/--home-fb486-projects--/<会话 id>/session.v3.jsonl.zstd | cut -c1-16" < /tmp/p.b64
+# 然后与本地 sha256sum 对账
+```
+
+**实测结果（两端 sha256 逐字一致）**：
+
+| 会话 | 字节 | sha256 前 16 |
+|---|---|---|
+| `session-474fff85…` | 37,257,496 | `e08f11d4c61100c1` ✅ |
+| `session-fa470e0a…` | 871,933 | `f991830c05817ecb` ✅ |
+
+**云端侧验收（能列出来 ≠ 能打开，但这是 CLI 能做到的最强判据）**：云端仓库自带的
+`node tools/dsh-session-log.mjs --list` **列出了这两个会话**（解码成功、无报错）。
+
+**⚠️ 仍未验证 / 需要真人**：
+1. **云 UI 里打开这两个会话**（`tunnel` 入口 ⇒ `http://127.0.0.1:3181/?token=…`）—— CLI 验不了；
+2. **附件**：本次实查两个会话引用的附件哈希数 = **0** ⇒ 无需迁 `~/.dsh/attachments/`
+   （⚠️ 与 09-24 那次不同：那份主会话引用过 35 个图片块 ⇒ 那次必须成对迁，见 §9-36）；
+3. **单向门**：云端 rc.3 写过的会话，**本机 rc.1 还能不能读** —— 09-24 的结论是"机械层面可以（无升代）"，
+   但那是在**试点会话**上得的；这次是主工作流本体 ⇒ 迁完后**本机不应再写这两个会话**（会分叉，§9-44）。
+
+### §17.2 管家侧"排查入口"（用户 2026-10-01 要求）
+
+| 入口 | 在哪 | 干什么 |
+|---|---|---|
+| `client-agent.cmd -Doctor` | Windows | 分层诊断（本机/代理/凭据/codespace/服务层/远端仓库），**默认只诊断** |
+| `client-agent.cmd -Doctor -Repair` | Windows | 加**幂等修复**：刷代理变量 / 重写 gh 凭据 / 唤醒 codespace / 补信箱目录 / 起远端 dsh web |
+| `client-agent.cmd -Doctor -SetCodespace <新名>` | Windows | 一处写、6 处跟着改 |
+| `tools/alice-cloudctl.sh` | 云端（codespace 内） | `status` 只报事实 · `fix` 幂等修复 · `url` 打印带令牌 URL |
+| `tools/alice-cloud-remote.sh` | WSL | 本机侧调用封装：代理自动探测 + base64 单层 + **只对传输层错误重试** |
+
+**Windows 侧端到端实测（2026-10-01 23:21）**：
+`-Doctor -Repair` ⇒ **全绿 OK=13 FAIL=0**；`-SelfTest` ⇒ **12 通过 / 1 失败**，
+那 1 项是「读信箱失败或为空」而信箱**本来就该是空的** ⇒ **判据写错（假红）**，已修成
+「用退出码区分『读失败』与『读成功但空』」。
+
+**弱网读数（新坑 50）**：`gh codespace ssh` 实测**约 1/5 次**报
+`error getting ssh server details: … DeadlineExceeded` / `error connecting to internal server: context deadline exceeded`
+⇒ ⭐ **单次失败 ≠ 云端坏了**；人/agent 徒手重试会误判。两层重试已落地：
+WSL 侧 `alice-cloud-remote.sh`（默认 3 次、退避 2/5 秒）· Windows 侧 `alice-doctor.ps1` 的 `Remote-Script`（同参）。
+
+**新坑 51**：⭐ **`gh codespace ssh -- <参数>` 的引号规则**已在 §9-16 记过；
+本次补一条同类：`$Gh codespace list --json …` 这种写法在 **PowerShell 5.1** 里**解析不了**
+（`UnexpectedToken @L…C…`，症状还会把行号指向别处）⇒ 一律写 `& $Gh codespace list --json …`（带调用运算符）。
