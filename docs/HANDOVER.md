@@ -6180,8 +6180,8 @@ A6 **负臂**（已定家但未搬）**绿** · A7 搬包不是复制。还原�
 台账 **39 → 32** 行 · `PROD_HOME` 的 7 格**"已搬"分支全部核过**（落在登记的家）·
 ⚠️ 上一轮建的「四判据」**真树注入臂 7/7**（A1 漏登记 · A2 未定家就搬走 · A3 非法 · A4 指空 ·
 A5 没落在登记的家 · A6 负臂绿 · A7 搬包不是复制）。
-⏳ **`SERVER_TESTED`**：`ALICE_HEADLESS=1 check-all`（完整电池回归）**本轮未跑完**—— 读数补在本节。
-⛔ **`WINDOWS_CLIENT`**：本刀**零行为增量**（只改包位与引用）⇒ 同 `D-425` 口径"行为夹具结构性无感"。
+⭐ **`SERVER_TESTED`**：`ALICE_HEADLESS=1 bash tools/check-all.sh` ⇒ **`PASS_WITH_REGISTERED_REDS: pass=41 warning=0 failed=0`**（电池 195 s，日志 `run/headless-logs/20261001-225213-core.log`）。⚠️ 电池 verdict = `FAIL`，但**红全部有主**：`SUMMARY` 里 **241 个 `=PASS` token**，两条红 = `mine_regression=FAIL` ＋ `survival_exit=FAIL` —— **逐字就是 `docs/EXPECTED_REDS.md` 那两行**（门禁 `check-expected-reds` **PASS**：「实际红 ⊆ 预期红清单（2 行，全部在本轮命中）」）⇒ ⛔ **与基线一致，不是本刀引入的**。
+⛔ **`WINDOWS_CLIENT`**：本刀**零行为增量**（只改包位与引用）⇒ 同 `D-425` 口径「行为夹具结构性无感」。
 
 ### §H ⏭ **下一步 / 接续锚点**
 
