@@ -51,8 +51,7 @@
    ⇒ 红；且这 6 个文件必须**都**在 `write/` 里（否则"拆包"可以是"删掉"）。
 5. **人口下限**（防"把包搬空 ⇒ 门禁假绿"）：扫描 `.java` ≥ `MIN_SCANNED_FILES` ·
    `reach/` ≥ `MIN_REACH_FILES` · `action/` ≥ `MIN_ACTION_FILES` · `write/` ≥ `MIN_WRITE_FILES`。
-6. ⭐ **`task/` 里 `dest ∈ {生产, step}` 的类，不得在代码里依赖 `debug/`／`fixture/`**（`D-557`）。
-   `R3_EXCLUDED` 整包排除 `task/` 的理由是「**别管那 100+ 个还没搬的夹具**」，
+6. ⭐ **`task/` 里 `dest ∈ {生产, step}` 的类，不得在代码里依赖 `debug/`／`fixture/`**（`D-557`）。   `R3_EXCLUDED` 整包排除 `task/` 的理由是「**别管那 100+ 个还没搬的夹具**」，
    ⛔ **不是**「生产类可以依赖可剔除物」—— 那正是 `R6` 要防的。实测代价（`O90`）：
    `task/MineTask.java` 一度是 `private com.dddgn.alice.fixture.mining.GainStepRunner gainRunner;`
    （1 处 import ＋ 6 处**行内 FQN**）而 **`check-all` 全绿** —— 当时这类错误**只有 `P0` 台账一条防线**。
@@ -63,6 +62,10 @@
    ⚠️ **本条随 `task/` 一起退役**（`P4` 关门后 `task/` 为空 ⇒ 本规则退化成空真）——
    ⛔ 不许靠"空过"留着（同 `O85` §② 两条）。**反空转判据**：`task/` 里**有** `.java` 却读不出任何
    `生产/step` 行 ⇒ 红（读不到台账 **响亮失败**；⛔ 不许静默当成"没有生产类"）。
+7. ⭐ **刀 3（`D-566`）的搬包判据：`protection/` → `region/` 是"移动"，⛔ 不是"复制"**：
+   `region/` 里必须有 `{JobAreaRegistry, ClaimService, MapGeometry}.java`，且 `protection/` 里
+   **零残留**；`region/` 人口下限 `MIN_REGION_FILES`（反空转 ③：搬空也能"看起来通过"）。
+   ⚠️ **本条只判"搬没搬完"**，⛔ 不判 `region/` 的 import 方向 —— 那个（`§7` #6）**尚未裁定**（台账 `O130`）。
 
 ## 红臂（`--selftest`，每次运行都跑）
 
@@ -100,6 +103,12 @@ WRITE_FORBIDDEN = ("com.dddgn.alice.task.", "com.dddgn.alice.action.", "com.dddg
 #: `step 4`（`D-462`）搬出 `action/` 的 6 个写入治理类 —— 它们**只许**定义在 `write/` 下。
 WRITE_GOVERNANCE = ("TaskTargetProtection", "WriteAudit", "WriteBudget",
                     "WriteGrant", "WritePolicyMatrix", "WriteReason")
+
+#: ⭐ **刀 3**（`D-566`，2026-10-01）：`§8` 步 2 从 `protection/` **原样搬进** `region/` 的 3 个类
+#: （`JobAreaRegistry` · `ProtectionClaimService`→`ClaimService` · `ProtectionMapGeometry`→`MapGeometry`）。
+#: ⚠️ 用途 = **"搬包不是删除"**：搬完之后 ① `region/` 里必须**有**、② `protection/` 里必须**没有**
+#: —— 否则"把包搬空"或"复制一份留着"都能看起来通过（`O85` §② 同族：⛔ 不许靠"空过"留着）。
+REGION_MOVED = ("JobAreaRegistry", "ClaimService", "MapGeometry")
 
 #: `action/` 对 `task/` 的**已登记欠账**（`文件: import 的类 → 到期条件`）。
 #: ⚠️ 只许**减少**；新增一条 = 必须显式改本文件（这就是"响亮"）。
@@ -255,6 +264,8 @@ MIN_REACH_FILES = 4
 MIN_ACTION_FILES = 6
 #: `step 4` 实测 6 个（`WRITE_GOVERNANCE` 全体）。
 MIN_WRITE_FILES = 6
+#: 刀 3（`D-566`）：`region/` 的**原样类**人口（实测 3 个 `.java` ＋ 1 个 `package-info.java`）。
+MIN_REGION_FILES = 3
 
 IMPORT_RE = re.compile(r"^\s*import\s+(static\s+)?(com\.dddgn\.alice\.[\w.]+)\s*;", re.M)
 
@@ -619,6 +630,19 @@ def main() -> int:
     if missing:
         problems.append(f"`write/` 里缺 {missing} ⇒ 「拆包」不成立（拆包不是删除；`step 4`/`D-462`）")
 
+    # ⭐ 刀 3（`D-566`，2026-10-01）：`protection/` → `region/` 的**搬包**判据。
+    # 反空转 ③：`region/` 被搬空/被删 ⇒ 红；且**两个包不许各留一份**（搬包 = 移动，⛔ 不是复制）。
+    region_files = under("region")
+    if len(region_files) < MIN_REGION_FILES:
+        problems.append(f"`region/` 只有 {len(region_files)} 个 `.java`（下限 {MIN_REGION_FILES}）"
+                        f"⇒ 刀 3 搬出来的 3 个原样类被搬回去/被删了")
+    for name in REGION_MOVED:
+        if not (SRC / PKG / "region" / f"{name}.java").exists():
+            problems.append(f"`region/` 里缺 `{name}.java` ⇒ 「搬包」不成立（搬包不是删除；`D-566`）")
+        if (SRC / PKG / "protection" / f"{name}.java").exists():
+            problems.append(f"`{PKG}/protection/{name}.java` 还在 ⇒ 刀 3 的搬包没做完"
+                            f"（同一层不许有两份定义；`D-566`）")
+
     # ⭐ `D-557` **反空转**（跨源对账，⛔ 不写死人口数）：`task/` 里还有 `.java`、
     # 却一条 `生产/step` 都读不出来 ⇒ 判据读空了 ⇒ 红。
     # ⚠️ 本条**随 `task/` 一起退役**：`P4` 关门后 `task_files` 为空 ⇒ 条件自然不成立，
@@ -654,6 +678,8 @@ def main() -> int:
           f"⭐ `action/` 原语住根 · 域执行件住子包（2026-10-01 刀 1）：根 {len(action_root_files)} 文件 "
           f"✗→ 域子包 **0** · 低层 {sorted(LOW_LAYERS)} ✗→ `action/<域>/` **0** · "
           f"域子包 " + " · ".join(f"`action/{d}/` {n} 文件" for d, n in sorted(domain_counts.items())) + " · "
+          f"⭐ `region/` {len(region_files)} 文件（刀 3/`D-566`：{len(REGION_MOVED)} 个原样类全在、"
+          f"`protection/` 里零残留） · "
           f"扫描 {len(files)} · 红臂 {arms}/{arms}"
           f"（import {len(SELFTEST_CASES)} + 定义 {len(SELFTEST_DEF_CASES)} + calc {len(SELFTEST_CALC_CASES)}"
           f" + action 层序 {len(SELFTEST_ACTION_CASES)}）")

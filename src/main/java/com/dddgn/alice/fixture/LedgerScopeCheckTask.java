@@ -10,7 +10,7 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
 import com.dddgn.alice.protection.LedgerScope;
 import com.dddgn.alice.protection.AreaData;
-import com.dddgn.alice.protection.JobAreaRegistry;
+import com.dddgn.alice.region.JobAreaRegistry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;

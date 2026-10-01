@@ -337,8 +337,8 @@ public final class BotCommand {
             BlockPos at = actor.blockPosition();
             // `D-338` 附注四②：**任务区**（工作区域派生的区块级授权封套）——只读展示，
             // 玩家由此能看出"这个区块现在被某个任务覆盖着"（任务存续期内他手改不了它）。
-            com.dddgn.alice.protection.JobAreaRegistry.JobArea zone =
-                    com.dddgn.alice.protection.JobAreaRegistry.zoneAt(level, at);
+            com.dddgn.alice.region.JobAreaRegistry.JobArea zone =
+                    com.dddgn.alice.region.JobAreaRegistry.zoneAt(level, at);
             source.sendSuccess(() -> Component.literal("[alice] 当前位置 " + at.toShortString()
                     + "（区块 " + (at.getX() >> 4) + ", " + (at.getZ() >> 4) + "）：保护区="
                     + data.isClaimed(level, at) + " 安全区=" + data.isSafe(level, at)
@@ -351,7 +351,7 @@ public final class BotCommand {
                 + " 安全区=" + data.internalSafeClaims(source.getLevel().dimension().location()).size()
                 + "（空 = 区域太小 ⇒ 退化为「进区即到」）"), false);
         source.sendSuccess(() -> Component.literal("[alice] 任务区（由任务的工作区域派生，随任务生灭）: "
-                + com.dddgn.alice.protection.JobAreaRegistry.summary(source.getServer())), false);
+                + com.dddgn.alice.region.JobAreaRegistry.summary(source.getServer())), false);
         return 1;
     }
 

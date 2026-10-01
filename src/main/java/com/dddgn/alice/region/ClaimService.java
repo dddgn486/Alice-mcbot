@@ -1,8 +1,9 @@
-package com.dddgn.alice.protection;
+package com.dddgn.alice.region;
 
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.network.AliceNetwork;
 import com.dddgn.alice.network.ProtectionClaimsPacket;
+import com.dddgn.alice.protection.AreaData;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -38,7 +39,7 @@ import java.util.UUID;
  *       （内存有界；取消认领不受限，所以不会把自己锁死）。</li>
  * </ol>
  */
-public final class ProtectionClaimService {
+public final class ClaimService {
 
     /** 单包最多接受的区块数（界面一屏最多 25×25=625 ⇒ 正常用法碰不到）。 */
     public static final int MAX_BATCH = 1024;
@@ -58,7 +59,7 @@ public final class ProtectionClaimService {
     /** 每个玩家上次请求快照的服务端 tick。 */
     private static final Map<UUID, Integer> LAST_SYNC_TICK = new HashMap<>();
 
-    private ProtectionClaimService() {
+    private ClaimService() {
     }
 
     /**

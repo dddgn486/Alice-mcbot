@@ -1,6 +1,6 @@
 package com.dddgn.alice.item;
 
-import com.dddgn.alice.protection.ProtectionClaimService;
+import com.dddgn.alice.region.ClaimService;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -60,7 +60,7 @@ public class ProtectionSelectorItem extends Item {
             return;
         }
         if (player instanceof ServerPlayer serverPlayer) {
-            ProtectionClaimService.pushSnapshot(serverPlayer);
+            ClaimService.pushSnapshot(serverPlayer);
         }
     }
 }

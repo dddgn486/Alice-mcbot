@@ -1,4 +1,4 @@
-package com.dddgn.alice.protection;
+package com.dddgn.alice.region;
 
 import net.minecraft.world.level.ChunkPos;
 
@@ -24,7 +24,7 @@ import net.minecraft.world.level.ChunkPos;
  * @param left         网格左上角屏幕 X
  * @param top          网格左上角屏幕 Y
  */
-public record ProtectionMapGeometry(int centerChunkX, int centerChunkZ,
+public record MapGeometry(int centerChunkX, int centerChunkZ,
                                     int grid, int cell, int left, int top) {
 
     /** 网格边长下限（太小就点不准）。 */
@@ -35,7 +35,7 @@ public record ProtectionMapGeometry(int centerChunkX, int centerChunkZ,
     public static final int MIN_CELL = 6;
     public static final int MAX_CELL = 16;
 
-    public ProtectionMapGeometry {
+    public MapGeometry {
         if (grid < 1 || grid % 2 == 0) {
             throw new IllegalArgumentException("grid 必须是正奇数（正中间那格 = 玩家所在区块）: " + grid);
         }

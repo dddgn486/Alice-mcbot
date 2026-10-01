@@ -13,7 +13,7 @@ import com.dddgn.alice.write.WritePolicyMatrix;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
 import com.dddgn.alice.protection.AreaData;
-import com.dddgn.alice.protection.JobAreaRegistry;
+import com.dddgn.alice.region.JobAreaRegistry;
 import com.dddgn.alice.protection.ZoneAuthority;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;

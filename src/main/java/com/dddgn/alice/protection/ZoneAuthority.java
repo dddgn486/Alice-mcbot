@@ -3,6 +3,7 @@ package com.dddgn.alice.protection;
 import com.dddgn.alice.write.WritePolicyMatrix;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.log.BotLog;
+import com.dddgn.alice.region.JobAreaRegistry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 

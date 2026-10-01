@@ -6,8 +6,8 @@ import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.network.ProtectionActionPacket;
 import com.dddgn.alice.network.ProtectionClaimsPacket;
 import com.dddgn.alice.protection.BlockBreakSafety;
-import com.dddgn.alice.protection.ProtectionClaimService;
-import com.dddgn.alice.protection.ProtectionMapGeometry;
+import com.dddgn.alice.region.ClaimService;
+import com.dddgn.alice.region.MapGeometry;
 import com.dddgn.alice.protection.AreaData;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.DecoderException;
@@ -55,7 +55,7 @@ import com.dddgn.alice.task.TaskTarget;
  *       快照按「离玩家最近」截断且 `truncated` 如实置位；</li>
  *   <li>**界面几何**：网格边长恒为**正奇数**、格 ⇄ 区块**可逆**（17×17 恰好 289 个互不相同的区块）、
  *       中心格 = 玩家所在区块、网格外点击返回 {@code null}。这一组专门拦「点左边认领了右边」这类
- *       bug —— 它们本来要花一个客户端轮次才能发现（见 {@link ProtectionMapGeometry}）。</li>
+ *       bug —— 它们本来要花一个客户端轮次才能发现（见 {@link MapGeometry}）。</li>
  * </ol>
  *
  * <p>⚠️ **自清理是判据的一部分**：认领/黑名单都会**持久化**（`SavedData`）⇒ 夹具结束时必须回到进入前的状态
@@ -361,12 +361,12 @@ public final class ClaimCheckTask implements Task {
         try {
             FriendlyByteBuf hostile = new FriendlyByteBuf(Unpooled.buffer());
             hostile.writeBoolean(true);
-            hostile.writeVarInt(ProtectionClaimService.MAX_BATCH + 1);
+            hostile.writeVarInt(ClaimService.MAX_BATCH + 1);
             ProtectionActionPacket.decode(hostile);
         } catch (RuntimeException expected) {
             oversizeFailure = expected;
         }
-        check("超量批包（> MAX_BATCH=" + ProtectionClaimService.MAX_BATCH + "）必须**按数量拒收**（实际 "
+        check("超量批包（> MAX_BATCH=" + ClaimService.MAX_BATCH + "）必须**按数量拒收**（实际 "
                         + (oversizeFailure == null ? "没抛异常" : oversizeFailure.getClass().getSimpleName()) + "）",
                 oversizeFailure instanceof DecoderException);
 
@@ -375,7 +375,7 @@ public final class ClaimCheckTask implements Task {
         int netherBefore = data.claims(nether).size();
         int overworldBefore = data.claims(dimension).size();
         if (netherLevel != null) {
-            ProtectionClaimService.apply(netherLevel, true, new long[]{probeKey});
+            ClaimService.apply(netherLevel, true, new long[]{probeKey});
         }
         check("维度由**服务端传入的 level** 裁定（overworld 集合 " + overworldBefore + " ⇒ "
                         + data.claims(dimension).size() + "；overworld 命中="
@@ -385,36 +385,36 @@ public final class ClaimCheckTask implements Task {
                         && !data.claims(dimension).contains(probeKey)
                         && data.claims(dimension).size() == overworldBefore);
         if (netherLevel != null) {
-            ProtectionClaimService.apply(netherLevel, false, new long[]{probeKey});
+            ClaimService.apply(netherLevel, false, new long[]{probeKey});
         }
         check("维度归属用例**自清理**：the_nether 认领数回到进入前（" + netherBefore + " = "
                         + data.claims(nether).size() + "）", data.claims(nether).size() == netherBefore);
 
         // ④ 服务端权威应用：真的落库 / 幂等 / 越界不落库
-        ProtectionClaimService.Report first = ProtectionClaimService.apply(level, true, new long[]{probeKey});
+        ClaimService.Report first = ClaimService.apply(level, true, new long[]{probeKey});
         check("批量认领必须真的落库（" + first.summary() + "）",
                 first.changed() == 1 && first.applied() == 1 && first.rejected() == 0);
         BlockPos probeLow = new BlockPos((probeX << 4) + 1, level.getMinBuildHeight(), (probeZ << 4) + 1);
         check("落库后该区块**任意 Y** 都判 protected_area（y=" + level.getMinBuildHeight() + "，实际 "
                         + desc(data.protectionReason(level, probeLow)) + "）",
                 "protected_area".equals(data.protectionReason(level, probeLow)));
-        ProtectionClaimService.Report again = ProtectionClaimService.apply(level, true, new long[]{probeKey});
+        ClaimService.Report again = ClaimService.apply(level, true, new long[]{probeKey});
         check("幂等：同一批再提交一次 changed=0（" + again.summary() + "）",
                 again.changed() == 0 && again.applied() == 1);
 
-        long farKey = ChunkPos.asLong(ProtectionClaimService.MAX_ABS_CHUNK + 1, 0);
-        ProtectionClaimService.Report outOfRange = ProtectionClaimService.apply(level, true, new long[]{farKey});
+        long farKey = ChunkPos.asLong(ClaimService.MAX_ABS_CHUNK + 1, 0);
+        ClaimService.Report outOfRange = ClaimService.apply(level, true, new long[]{farKey});
         check("越界区块必须被拒且**不落库**（" + outOfRange.summary() + "）",
                 outOfRange.rejected() == 1 && outOfRange.applied() == 0
                         && !data.claims(dimension).contains(farKey));
         check("认领上限口径（纯函数）：刚好到上限放行 / 超一个拒绝",
-                !ProtectionClaimService.exceedsLimit(100,
-                        ProtectionClaimService.MAX_CHUNKS_PER_DIMENSION - 100)
-                        && ProtectionClaimService.exceedsLimit(100,
-                        ProtectionClaimService.MAX_CHUNKS_PER_DIMENSION - 99));
+                !ClaimService.exceedsLimit(100,
+                        ClaimService.MAX_CHUNKS_PER_DIMENSION - 100)
+                        && ClaimService.exceedsLimit(100,
+                        ClaimService.MAX_CHUNKS_PER_DIMENSION - 99));
 
         // ④ 取消认领走同一条路径（界面右键 = 这一批）
-        ProtectionClaimService.Report dropped = ProtectionClaimService.apply(level, false, new long[]{probeKey});
+        ClaimService.Report dropped = ClaimService.apply(level, false, new long[]{probeKey});
         check("批量取消认领必须真的落库（" + dropped.summary() + "）", dropped.changed() == 1);
         BlockPos probeMid = new BlockPos((probeX << 4) + 1, 64, (probeZ << 4) + 1);
         check("取消后立刻放行（实际 " + desc(data.protectionReason(level, probeMid)) + "）",
@@ -451,7 +451,7 @@ public final class ClaimCheckTask implements Task {
         for (int i = 0; i < 20; i++) {
             synthetic.add(ChunkPos.asLong(i, 0));
         }
-        ProtectionClaimsPacket near = ProtectionClaimService.selectNearest(dimension, synthetic, 0, 0, 5);
+        ProtectionClaimsPacket near = ClaimService.selectNearest(dimension, synthetic, 0, 0, 5);
         boolean allNearest = true;
         for (long key : near.chunkKeys()) {
             if (ChunkPos.getX(key) > 4) {
@@ -460,7 +460,7 @@ public final class ClaimCheckTask implements Task {
         }
         check("快照有界：20 个认领取 5 个 ⇒ 恰好 5 个、都是**最近**的、truncated=true",
                 near.chunkKeys().length == 5 && near.truncated() && allNearest);
-        ProtectionClaimsPacket whole = ProtectionClaimService.selectNearest(dimension, synthetic, 0, 0, 100);
+        ProtectionClaimsPacket whole = ClaimService.selectNearest(dimension, synthetic, 0, 0, 100);
         check("上限够大 ⇒ 全发且 truncated=false",
                 whole.chunkKeys().length == 20 && !whole.truncated());
 
@@ -474,29 +474,29 @@ public final class ClaimCheckTask implements Task {
      *
      * <p>这一组是"用离线判据换掉一个客户端轮次"的落点 —— 网格点错格、边界外点击误伤、
      * 中心格不是玩家所在区块，这些都属于"只有真人才能发现"的观感类 bug，但它们的**数学部分**
-     * 完全可以在这里穷举断言（{@link ProtectionMapGeometry} 没有任何客户端依赖）。
+     * 完全可以在这里穷举断言（{@link MapGeometry} 没有任何客户端依赖）。
      */
     private void geometryPhase() {
         boolean oddAndBounded = true;
         StringBuilder seen = new StringBuilder();
         for (int available : new int[]{60, 100, 142, 168, 200, 320, 1000}) {
-            int grid = ProtectionMapGeometry.fitGrid(available, 9);
+            int grid = MapGeometry.fitGrid(available, 9);
             seen.append(grid).append(' ');
-            if (grid % 2 == 0 || grid < ProtectionMapGeometry.MIN_GRID
-                    || grid > ProtectionMapGeometry.MAX_GRID) {
+            if (grid % 2 == 0 || grid < MapGeometry.MIN_GRID
+                    || grid > MapGeometry.MAX_GRID) {
                 oddAndBounded = false;
             }
         }
-        check("网格边长恒为**正奇数**且落在 [" + ProtectionMapGeometry.MIN_GRID + ","
-                + ProtectionMapGeometry.MAX_GRID + "]（实际 " + seen.toString().trim() + "）", oddAndBounded);
+        check("网格边长恒为**正奇数**且落在 [" + MapGeometry.MIN_GRID + ","
+                + MapGeometry.MAX_GRID + "]（实际 " + seen.toString().trim() + "）", oddAndBounded);
 
-        int tinyCell = ProtectionMapGeometry.fitCell(20, 25);
-        int hugeCell = ProtectionMapGeometry.fitCell(100_000, 9);
-        check("单格边长被夹在 [" + ProtectionMapGeometry.MIN_CELL + "," + ProtectionMapGeometry.MAX_CELL
+        int tinyCell = MapGeometry.fitCell(20, 25);
+        int hugeCell = MapGeometry.fitCell(100_000, 9);
+        check("单格边长被夹在 [" + MapGeometry.MIN_CELL + "," + MapGeometry.MAX_CELL
                         + "]（实际 " + tinyCell + " / " + hugeCell + "）",
-                tinyCell == ProtectionMapGeometry.MIN_CELL && hugeCell == ProtectionMapGeometry.MAX_CELL);
+                tinyCell == MapGeometry.MIN_CELL && hugeCell == MapGeometry.MAX_CELL);
 
-        ProtectionMapGeometry geometry = new ProtectionMapGeometry(hereChunkX, hereChunkZ, 17, 12, 100, 40);
+        MapGeometry geometry = new MapGeometry(hereChunkX, hereChunkZ, 17, 12, 100, 40);
         long centerKey = ChunkPos.asLong(hereChunkX, hereChunkZ);
         check("中心格 = 玩家所在区块（期望 " + ChunkPos.getX(centerKey) + "," + ChunkPos.getZ(centerKey)
                         + "，实际 " + describeKey(geometry.keyAtCell(8, 8)) + "）",
@@ -540,7 +540,7 @@ public final class ClaimCheckTask implements Task {
         // 离线判据照不到"调用点选错重载" ⇒ 用反射把"两套坐标空间必须两个名字"钉成判据。
         Set<String> methodNames = new LinkedHashSet<>();
         List<String> duplicated = new ArrayList<>();
-        for (java.lang.reflect.Method method : ProtectionMapGeometry.class.getDeclaredMethods()) {
+        for (java.lang.reflect.Method method : MapGeometry.class.getDeclaredMethods()) {
             if (!methodNames.add(method.getName())) {
                 duplicated.add(method.getName());
             }
@@ -550,13 +550,13 @@ public final class ClaimCheckTask implements Task {
 
         // ============ D-315：地形细化的纯逻辑（子格平铺 / 采样点 / 中心向外采样序）============
         check("子格数按格子大小定档：cell≥12 ⇒ 3，否则 2（实际 cell=" + geometry.cell() + " ⇒ sub="
-                        + geometry.sub() + "；另测 12/11：" + ProtectionMapGeometry.fitSub(12) + "/"
-                        + ProtectionMapGeometry.fitSub(11) + "）",
-                geometry.sub() == ProtectionMapGeometry.fitSub(geometry.cell())
-                        && ProtectionMapGeometry.fitSub(12) == ProtectionMapGeometry.MAX_SUB
-                        && ProtectionMapGeometry.fitSub(11) == ProtectionMapGeometry.MIN_SUB);
+                        + geometry.sub() + "；另测 12/11：" + MapGeometry.fitSub(12) + "/"
+                        + MapGeometry.fitSub(11) + "）",
+                geometry.sub() == MapGeometry.fitSub(geometry.cell())
+                        && MapGeometry.fitSub(12) == MapGeometry.MAX_SUB
+                        && MapGeometry.fitSub(11) == MapGeometry.MIN_SUB);
 
-        ProtectionMapGeometry tile = new ProtectionMapGeometry(0, 0, 17, 12, 100, 40);
+        MapGeometry tile = new MapGeometry(0, 0, 17, 12, 100, 40);
         boolean tiledExactly = tile.sub() == 3;
         for (int column = 0; column < 17 && tiledExactly; column++) {
             for (int s = 0; s < tile.sub(); s++) {
@@ -574,16 +574,16 @@ public final class ClaimCheckTask implements Task {
         }
         check("cell=12/sub=3 ⇒ 子格边界 0/4/8/12 且首尾相接、末块正好到格边（整格精确平铺）", tiledExactly);
 
-        ProtectionMapGeometry odd = new ProtectionMapGeometry(0, 0, 17, 9, 0, 0);
+        MapGeometry odd = new MapGeometry(0, 0, 17, 9, 0, 0);
         boolean oddTiled = odd.sub() == 2 && odd.subLeft(0, 0) == 0 && odd.subLeft(0, 1) == 4
                 && odd.subRight(0, 1) == 9 && odd.subRight(0, 0) == odd.subLeft(0, 1);
         check("cell=9 不能被 sub=2 整除时**也不留缝**（0/4/9 ⇒ 块宽 4/5 交替）", oddTiled);
 
         boolean samplesOk = true;
-        for (int s = ProtectionMapGeometry.MIN_SUB; s <= ProtectionMapGeometry.MAX_SUB; s++) {
+        for (int s = MapGeometry.MIN_SUB; s <= MapGeometry.MAX_SUB; s++) {
             int previous = -1;
             for (int i = 0; i < s; i++) {
-                int local = ProtectionMapGeometry.sampleLocal(s, i);
+                int local = MapGeometry.sampleLocal(s, i);
                 // 判据 = **属于自己那个子块**（i 号子块覆盖本区块第 i 段 16/s 列）+ 严格递增 + 落在 0..15。
                 // ⚠️ 不照抄"正中"那个公式（那是实现细节、抄了就是自指）；"列必须落在画它的那一格里"
                 // 才是**会出错**的那条：用固定步长（如 i*8）在 sub=3 时会采到第 16 列 ⇒ 立刻红。
@@ -594,12 +594,12 @@ public final class ClaimCheckTask implements Task {
             }
         }
         check("子格采样列**落在自己那一格内**且严格递增（sub=2 ⇒ 4,12；sub=3 ⇒ 2,8,13；实际 "
-                        + ProtectionMapGeometry.sampleLocal(2, 0) + "," + ProtectionMapGeometry.sampleLocal(2, 1) + " | "
-                        + ProtectionMapGeometry.sampleLocal(3, 0) + "," + ProtectionMapGeometry.sampleLocal(3, 1) + ","
-                        + ProtectionMapGeometry.sampleLocal(3, 2) + "）",
+                        + MapGeometry.sampleLocal(2, 0) + "," + MapGeometry.sampleLocal(2, 1) + " | "
+                        + MapGeometry.sampleLocal(3, 0) + "," + MapGeometry.sampleLocal(3, 1) + ","
+                        + MapGeometry.sampleLocal(3, 2) + "）",
                 samplesOk);
 
-        int[] order = ProtectionMapGeometry.centreOutOrder(17);
+        int[] order = MapGeometry.centreOutOrder(17);
         Set<Integer> seenCells = new LinkedHashSet<>();
         boolean ringsMonotonic = true;
         int previousRadius = -1;

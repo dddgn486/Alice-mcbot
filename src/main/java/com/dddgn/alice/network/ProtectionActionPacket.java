@@ -1,6 +1,6 @@
 package com.dddgn.alice.network;
 
-import com.dddgn.alice.protection.ProtectionClaimService;
+import com.dddgn.alice.region.ClaimService;
 import io.netty.handler.codec.DecoderException;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
@@ -34,9 +34,9 @@ public record ProtectionActionPacket(boolean claim, long[] chunkKeys) {
     public static ProtectionActionPacket decode(FriendlyByteBuf buf) {
         boolean claim = buf.readBoolean();
         int count = buf.readVarInt();
-        if (count < 0 || count > ProtectionClaimService.MAX_BATCH) {
+        if (count < 0 || count > ClaimService.MAX_BATCH) {
             throw new DecoderException("protection batch size out of range: " + count
-                    + " (max " + ProtectionClaimService.MAX_BATCH + ")");
+                    + " (max " + ClaimService.MAX_BATCH + ")");
         }
         long[] keys = new long[count];
         for (int i = 0; i < count; i++) {
@@ -51,7 +51,7 @@ public record ProtectionActionPacket(boolean claim, long[] chunkKeys) {
             context.enqueueWork(() -> {
                 ServerPlayer actor = context.getSender();
                 if (actor != null) {
-                    ProtectionClaimService.handleBatch(actor, packet.claim(), packet.chunkKeys());
+                    ClaimService.handleBatch(actor, packet.claim(), packet.chunkKeys());
                 }
             });
         }

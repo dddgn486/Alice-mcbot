@@ -1,6 +1,6 @@
 package com.dddgn.alice.network;
 
-import com.dddgn.alice.protection.ProtectionClaimService;
+import com.dddgn.alice.region.ClaimService;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.api.distmarker.Dist;
@@ -14,7 +14,7 @@ import java.util.function.Supplier;
  *
  * <p>⚠️ 包里**只有区块坐标**：没有地形、没有颜色、没有"这块地是谁的"。地形由客户端从自己的
  * {@code ClientLevel} 采样（`D-307` 事实 1/2）。{@code truncated=true} 表示"服务端还有更多、
- * 但只发了离你最近的一批"（见 {@link ProtectionClaimService#selectNearest}）——
+ * 但只发了离你最近的一批"（见 {@link ClaimService#selectNearest}）——
  * 界面必须**说出来**，不能假装那就是全部。
  */
 public record ProtectionClaimsPacket(ResourceLocation dimension, boolean truncated, long[] chunkKeys) {
@@ -37,7 +37,7 @@ public record ProtectionClaimsPacket(ResourceLocation dimension, boolean truncat
     public static ProtectionClaimsPacket decode(FriendlyByteBuf buf) {
         ResourceLocation dimension = buf.readResourceLocation();
         boolean truncated = buf.readBoolean();
-        int count = Math.max(0, Math.min(buf.readVarInt(), ProtectionClaimService.MAX_SNAPSHOT_CHUNKS));
+        int count = Math.max(0, Math.min(buf.readVarInt(), ClaimService.MAX_SNAPSHOT_CHUNKS));
         long[] keys = new long[count];
         for (int i = 0; i < count; i++) {
             keys[i] = buf.readLong();

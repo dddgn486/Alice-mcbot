@@ -1,6 +1,6 @@
 package com.dddgn.alice.network;
 
-import com.dddgn.alice.protection.ProtectionClaimService;
+import com.dddgn.alice.region.ClaimService;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkEvent;
@@ -16,7 +16,7 @@ import java.util.function.Supplier;
  * 盲点右键 = 盲取消认领（**破坏性**，把真认领的区块取消了）。
  *
  * <p>⇒ 两道保险：① 界面在**没有本维度快照**时**拒绝编辑**（只显示"等待服务端数据"）；
- * ② 界面每 20 tick 用本包自愈请求一次；服务端限流（{@link ProtectionClaimService#SYNC_MIN_INTERVAL_TICKS}）。
+ * ② 界面每 20 tick 用本包自愈请求一次；服务端限流（{@link ClaimService#SYNC_MIN_INTERVAL_TICKS}）。
  */
 public record ProtectionSyncRequestPacket() {
 
@@ -34,7 +34,7 @@ public record ProtectionSyncRequestPacket() {
             context.enqueueWork(() -> {
                 ServerPlayer actor = context.getSender();
                 if (actor != null) {
-                    ProtectionClaimService.handleSyncRequest(actor);
+                    ClaimService.handleSyncRequest(actor);
                 }
             });
         }

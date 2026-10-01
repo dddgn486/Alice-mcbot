@@ -1,4 +1,4 @@
-package com.dddgn.alice.protection;
+package com.dddgn.alice.region;
 
 import com.dddgn.alice.write.WritePolicyMatrix;
 import com.dddgn.alice.write.WritePolicyMatrix.Level;

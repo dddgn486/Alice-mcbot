@@ -130,7 +130,7 @@
 |---|---|---|
 | **0** | ⭐ **先立不变量**（方案草案 §7 的 5 条） | 2/4 提进 CORE ＋ 新增"授权入口唯一"门禁 |
 | **1** | ⭐ **本提案你确认**（§7 六点） | — |
-| **2** | **建两包骨架 ＋ 搬 3 个原样类**（`JobAreaRegistry`/`ClaimService`/`MapGeometry`） | 层序门禁改断言 ＋ 搬包同步表 |
+| **2** | ✅ **已完成**（2026-10-01 刀 3，`D-566`）：建 `region/` ＋ `region/authz/` 骨架（两份 `package-info.java` 契约）＋ 搬 3 个原样类（`region/JobAreaRegistry` · `region/ClaimService` · `region/MapGeometry`）—— ⚠️ 只做了「**搬没搬完**」那条断言；⛔ **`§7` #6 的方向断言未裁**（台账 `O130`） | 层序门禁改断言（部分：搬包判据 ✅ / 方向断言 ⛔ 待裁）＋ 搬包同步表 |
 | **3** | **拆 `AreaData`**（认领集 → `region/`；黑名单 → `action/`） | `check-protection-install-point` 等 8 处硬写路径 |
 | **4** | **拆 `ZoneAuthority` → 三个谓词**（§5） | `A2` §7 的 5 条不变量**逐条仍绿** |
 | **5** | **搬 `WritePolicyMatrix`/`WriteBudget`/`WriteAudit` → `region/authz/`** | ⭐ **`protection/ → write/` 这条依赖消失** |

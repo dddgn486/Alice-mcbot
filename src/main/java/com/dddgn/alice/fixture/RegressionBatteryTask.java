@@ -1129,7 +1129,7 @@ public final class RegressionBatteryTask implements Task {
         com.dddgn.alice.write.WriteBudget.closeScope(closed);
         // 任务区同样随作用域解除（D-338 附注二第 2 条）—— 电池每一步一个作用域，
         // 步结束还留着任务区 = "没有任务对应的授权封套" ⇒ 结构性禁止。
-        com.dddgn.alice.protection.JobAreaRegistry.release(closed);
+        com.dddgn.alice.region.JobAreaRegistry.release(closed);
         // ⭐ `Z2`：**先读人口，再看账本** —— `dropStale` 会把区外条目销掉 ⇒ 在它之后读就看不到
         // "账本里还留着区外旧条目"这件事了（那正是"先记账、后 unclaim"的现场）。
         var closure = com.dddgn.alice.ledger.WorldModLedger.closure(

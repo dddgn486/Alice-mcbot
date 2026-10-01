@@ -3,7 +3,7 @@ package com.dddgn.alice.client.gui;
 import com.dddgn.alice.client.ClientProtectionState;
 import com.dddgn.alice.network.AliceNetwork;
 import com.dddgn.alice.network.ProtectionActionPacket;
-import com.dddgn.alice.protection.ProtectionMapGeometry;
+import com.dddgn.alice.region.MapGeometry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -32,11 +32,11 @@ import java.util.Arrays;
  *   <li><b>认领态只来自服务端</b>：{@link ClientProtectionState}。没有本维度快照时界面**拒绝编辑**
  *       （否则用户会在空网格上盲点右键 = **盲取消认领**，破坏性），并每 20 tick 自愈请求一次快照；</li>
  *   <li><b>地形 100% 客户端自采，且不碰原版地图渲染器</b>：每格切成
- *       {@link ProtectionMapGeometry#sub()}×{@link ProtectionMapGeometry#sub()} 个子格，各自采一列
+ *       {@link MapGeometry#sub()}×{@link MapGeometry#sub()} 个子格，各自采一列
  *       （从玩家高度 ±40 的窗口里自上而下找第一个非空气方块，取 {@code MapColor#col}）；
  *       同色再按**相对高度**加明暗 ⇒ 「一格一色块」变成能认出**地形起伏与建筑轮廓**的低分辨率地图。
  *       未加载的子格 = 浅灰，窗口里没有地表的子格 = 深灰（**"不知道"必须看得出来**）；</li>
- *   <li><b>渐进采样</b>：按 {@link ProtectionMapGeometry#centreOutOrder(int)} 的**中心向外环序**，
+ *   <li><b>渐进采样</b>：按 {@link MapGeometry#centreOutOrder(int)} 的**中心向外环序**，
  *       每帧只算固定格数 ⇒ 打开界面先有玩家周围、远处几百毫秒内补齐，**不占满一帧**（大窗口尤其明显）；</li>
  *   <li><b>提交是一次性批包</b>：关闭（{@code removed()}，含被聊天界面顶掉）时按动作发 1~2 包；
  *       发不出去（断线）就**留着**，下次打开还能提交。</li>
@@ -45,7 +45,7 @@ import java.util.Arrays;
  * <p>键位：左键 = 认领 · 右键 = 取消 · 拖动 = 连选 · {@code R} = 回到玩家所在区块 ·
  * {@code G} = 高度明暗开关 · 关闭 = 提交。
  *
- * <p>几何换算在 {@link ProtectionMapGeometry}（无客户端依赖 ⇒ 无头夹具能逐条断言"点到的格子对应哪个区块"、
+ * <p>几何换算在 {@link MapGeometry}（无客户端依赖 ⇒ 无头夹具能逐条断言"点到的格子对应哪个区块"、
  * 子格是否精确平铺、采样序是否真的从中心向外）。
  */
 @OnlyIn(Dist.CLIENT)
@@ -80,7 +80,7 @@ public class ProtectionMapScreen extends Screen {
     /** 「本子格没有地表」（窗口里没扫到非空气方块）。 */
     private static final int NO_TOP = Integer.MIN_VALUE;
 
-    private ProtectionMapGeometry geometry;
+    private MapGeometry geometry;
     private int sub;
 
     // 采样缓冲：索引 = ((row*grid + column) * sub + sx) * sub + sz
@@ -114,11 +114,11 @@ public class ProtectionMapScreen extends Screen {
         int availableWidth = Math.max(120, width - 2 * MARGIN);
         int availableHeight = Math.max(80, height - HEADER_H - FOOTER_H - 2 * MARGIN);
         int available = Math.min(availableWidth, availableHeight);
-        int grid = ProtectionMapGeometry.fitGrid(available, 9);
-        int cell = ProtectionMapGeometry.fitCell(available, grid);
+        int grid = MapGeometry.fitGrid(available, 9);
+        int cell = MapGeometry.fitCell(available, grid);
         ChunkPos center = playerChunk();
         int size = grid * cell;
-        geometry = new ProtectionMapGeometry(center.x, center.z, grid, cell,
+        geometry = new MapGeometry(center.x, center.z, grid, cell,
                 (width - size) / 2, HEADER_H + MARGIN + Math.max(0, (availableHeight - size) / 2));
         sub = geometry.sub();
 
@@ -129,7 +129,7 @@ public class ProtectionMapScreen extends Screen {
         cellSurface = new String[grid * grid];
         Arrays.fill(subRgb, UNSAMPLED_COLOR);
         Arrays.fill(subTopY, NO_TOP);
-        sampleOrder = ProtectionMapGeometry.centreOutOrder(grid);
+        sampleOrder = MapGeometry.centreOutOrder(grid);
         sampleCursor = 0;
         topYSum = 0;
         topYCount = 0;
@@ -466,8 +466,8 @@ public class ProtectionMapScreen extends Screen {
                     subTopY[index] = NO_TOP;
                     continue;
                 }
-                int worldX = (chunkX << 4) + ProtectionMapGeometry.sampleLocal(sub, sx);
-                int worldZ = (chunkZ << 4) + ProtectionMapGeometry.sampleLocal(sub, sz);
+                int worldX = (chunkX << 4) + MapGeometry.sampleLocal(sub, sx);
+                int worldZ = (chunkZ << 4) + MapGeometry.sampleLocal(sub, sz);
                 int color = scanTopColumn(level, worldX, worldZ, yTop, yBottom, probe);
                 if (color < 0) {
                     subRgb[index] = UNSAMPLED_COLOR;     // 窗口里没有地表 ⇒ 深灰

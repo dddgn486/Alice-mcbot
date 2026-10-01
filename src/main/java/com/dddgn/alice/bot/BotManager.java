@@ -2431,7 +2431,7 @@ com.dddgn.alice.task.mining.MiningBudget
                 // **任务区随作用域解除**（`D-338` 附注二第 2 条"取消任务自动解除"）：显式打断
                 // （`/alice region stop`）走的是这条路、不经过 Job 的 `finish()` ⇒ 两处都要收，
                 // 否则会留下一个"没有任务对应的授权封套"。
-                com.dddgn.alice.protection.JobAreaRegistry.release(closedScope);
+                com.dddgn.alice.region.JobAreaRegistry.release(closedScope);
                 // ⭐ `Z2`：闭合读数**要在 `dropStale` 之前**读（区外遗留一旦被销掉就看不见了）
                 var closure = com.dddgn.alice.ledger.WorldModLedger.closure(
                         bot.serverLevel(), closedScope, ledgerPopulationBaseline);

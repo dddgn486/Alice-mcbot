@@ -3,7 +3,7 @@ package com.dddgn.alice.task;
 import com.dddgn.alice.ledger.WorldModLedger;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.protection.AreaData;
-import com.dddgn.alice.protection.JobAreaRegistry;
+import com.dddgn.alice.region.JobAreaRegistry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;

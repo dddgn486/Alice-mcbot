@@ -683,11 +683,11 @@ public final class DebugCommands {
         if (region != null) {
             var server = source.getServer();
             var level = source.getLevel();
-            var area = new com.dddgn.alice.protection.JobAreaRegistry.WorkingArea(
+            var area = new com.dddgn.alice.region.JobAreaRegistry.WorkingArea(
                     level.dimension().location(), region.minX(), region.minZ(),
                     region.maxX(), region.maxZ());
             var chunks = area.chunkCover();
-            var active = com.dddgn.alice.protection.JobAreaRegistry.zoneOf(server, bot.getUUID());
+            var active = com.dddgn.alice.region.JobAreaRegistry.zoneOf(server, bot.getUUID());
             source.sendSuccess(() -> Component.literal("[alice] 任务区（派生）：工作区域 " + area.describe()
                     + " blocks=" + area.areaXZ() + " ⇒ 区块最小覆盖 chunks=" + chunks.size()
                     + "（**单向派生**：工作区域 ⇒ 任务区）｜覆盖规则=可覆盖保护区与安全区；"

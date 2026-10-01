@@ -5612,13 +5612,38 @@ AI 建议 = **必改 `空转`（拆词）** · ✅ **已执行 `咬人`→`拦�
 **一个字没删** —— 用户那句「挖掘黑名单只是一个临时手段」是**理由**（说明"宝贵"为什么不该挂在方块类型上），
 ⛔ **不是本刀的授权**；删它＝改变**野外**清障行为，须另行裁定。
 
+### §B‴ ✅ 刀 3 已落地 —— ⭐ **建 `region/` ＋ `region/authz/` 骨架 ＋ 搬 3 个原样类**（`D-566`）
+
+> ⭐ 用户 2026-10-01 逐字：「**把 authz 包和 region 包采纳，而且 region 为顶层**，然后**首先要做的是
+> 整理这两个包的结构**……把**这两个包原来的旧代码全部清理干净，一起重构**」。
+> ⭐ **3 个字面名是我问过之后才动的**（⛔ 不重犯刀 5 的"先做后审"）：`region/JobAreaRegistry` ·
+> `region/ClaimService`（原 `ProtectionClaimService`）· `region/MapGeometry`（原 `ProtectionMapGeometry`）。
+
+| 项 | 内容 |
+|---|---|
+| 搬包 | `git mv` 3 个文件 → `region/`；**零行为改动**（只改 `package` 行 ＋ 类名 ＋ 跨包 import） |
+| 补的 import | `protection/ZoneAuthority` → `region.JobAreaRegistry`（原来同包）· `region/ClaimService` → `protection.AreaData`（同上） |
+| 骨架 | `region/package-info.java`（**四问契约** ＋ 区域类型/覆盖规则 ＋ ⛔ 不装"要不要记账"）· `region/authz/package-info.java`（**只立家、零入住** ＋ 嵌套前提清单） |
+| 引用面 | **15 个文件**（`action/`·`bot/`·`client/gui/`·`command/`·`debug/`·`fixture/`×5·`item/`·`job/lumber/`·`network/`×3·`task/`） |
+| 门禁 | ⭐ `tools/check-layer-direction.py` 新增**搬包判据**：`region/` 里必须有这 3 个、`protection/` 里**零残留** |
+
+**⛔ 没做的（如实登记）**：⛔ 没建四个子包（四问是**一个生命周期**，⛔ 不做成目录）·
+⛔ **没加 `region/` 的 import 方向断言**（`§7` #6 **未裁** ⇒ 今天**没有门禁盯 `region/` 的方向**，
+台账 `O130`）· ⛔ 其余 6 个 `protection/` 类一个没动（**`protection/` 今天还在**，不是历史名词）。
+
+**证据**：`compileJava --offline` 成功 ·
+⭐ **`check-layer-direction` 双向注入即红**（本刀的**主判据只能是静态门禁** —— 搬包不改行为，
+行为夹具**结构性无感**，同 `D-425` 口径）：① 复制一份回 `protection/` ⇒ 红「搬包没做完」·
+② 把 `region/` 那份挪走 ⇒ 红「搬包不是删除」；还原 ⇒ `PASS`（`region/` 5 文件）·
+`ALICE_HEADLESS=1 check-all` ⇒ `PASS_WITH_REGISTERED_REDS: pass=41 warning=0 failed=0`。
+
 ### §C ⏳ 下一刀（active goal 的续行方向，⛔ 不需要用户输入即可开工）
 
 | 优先 | 刀 | 依据 |
 |---|---|---|---|
 | ✅ **刀 5** | **已完成**（`7d6de008`）：8 类改名 ＋ 3 个同名 `Zone` 分离，**11 个字面名已由用户复核同意** | `D-565` 刀 5 节 |
 | ✅ **刀 2** | **已完成**（见 `§B″`）：**区内**任何 `hasBlockEntity()` 的方块**一律不可挖掘**（新码 `protected_block_entity`；⛔ 不是「不可动」；容器写入**无需**例外） | `D-565` ⑤ ＋ 刀 2 节 |
-| **刀 3** | ⭐ **建 `region/` ＋ `region/authz/` 骨架**（`authz` **嵌 region**，前提=只剩裁决）＋ 搬 3 个原样类 | 结构提案 `§8` 步 2 · `§9.1` |
+| ✅ **刀 3** | **已完成**（见 `§B‴`）：建 `region/` ＋ `region/authz/` 骨架 ＋ 搬 3 个原样类（`JobAreaRegistry` · `ClaimService` · `MapGeometry`）—— **3 个字面名用户当场确认** | `D-566` · 结构提案 `§8` 步 2 |
 | **刀 4** | 三件外移：`WriteAudit`→`ledger/`（12 文件）· `WriteBudget`→`Quota`（`job/` 侧，**63 文件**）· `WriteGrant`→`Attribution`（**68 文件**） | 方案草案 `§22.3` |
 
 ### ✅⚠️ 刀 2 的**准确口径**（用户 2026-10-01 当场纠正过我两次，⛔ 别再写错）—— **已落地，本节留作口径锚**

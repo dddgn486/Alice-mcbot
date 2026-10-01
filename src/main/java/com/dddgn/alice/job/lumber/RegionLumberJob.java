@@ -9,7 +9,7 @@ import com.dddgn.alice.job.SelectionPolicy;
 import com.dddgn.alice.ledger.WorldModLedger;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
-import com.dddgn.alice.protection.JobAreaRegistry;
+import com.dddgn.alice.region.JobAreaRegistry;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
