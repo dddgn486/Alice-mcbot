@@ -9,6 +9,10 @@ rem  client-agent.cmd -Doctor -Repair  same, and fix what is safely fixable (ide
 rem  client-agent.cmd -SelfTest        end-to-end gh round-trip probe (no LLM cost)
 rem  client-agent.cmd -Install         import preset / write config / set gh credentials
 rem  client-agent.cmd -PullOutbox      pull cloud ~/outbox back to this PC
+rem  client-agent.cmd -Headless [mode]  run the headless battery ON THIS PC (core|full|single:<step>; no LLM cost)
+rem  client-agent.cmd -Report           send the newest battery verdict to the cloud mailbox (no LLM cost)
+rem  client-agent.cmd -Web              start the DSH web UI in the FOREGROUND (Ctrl+C stops it)
+rem  client-agent.cmd -WebStop          stop a DSH web UI that is still listening on the port
 rem  set DSH_VERSION=0.1.5-rc.3       pick the npx fallback version (rc.1/rc.2 are BROKEN)
 rem ============================================================
 setlocal
@@ -17,6 +21,10 @@ if /I "%~1"=="-Install"    goto install
 if /I "%~1"=="-SelfTest"   goto selftest
 if /I "%~1"=="-PullOutbox" goto pulloutbox
 if /I "%~1"=="-Doctor"     goto doctor
+if /I "%~1"=="-Headless"   goto headless
+if /I "%~1"=="-Report"     goto report
+if /I "%~1"=="-Web"        goto web
+if /I "%~1"=="-WebStop"    goto webstop
 set "TASK=%~1"
 if "%TASK%"=="" set "TASK=Read the cloud mailbox /home/vscode/bus/to-win (skip file names already listed in .done), do what the newest request asks, then write a receipt to /home/vscode/bus/to-cloud. Do not upload any logs or screenshots unless the request names them."
 rem refresh PATH: winget/npm installs are only visible in NEW terminals
@@ -61,4 +69,28 @@ exit /b %ERRORLEVEL%
 
 :install
 powershell -NoProfile -ExecutionPolicy Bypass -File "%HERE%client-agent-install.ps1" %2 %3 %4 %5
+exit /b %ERRORLEVEL%
+
+:headless
+rem -Headless [core|full|single:<step>] : run the headless battery locally.
+rem Why this lives here: after the main workflow moves to the cloud it CANNOT ssh into this PC
+rem (the cloud is not on this device's virtual LAN) - so this box must be able to test itself.
+set "HMODE=%~2"
+if "%HMODE%"=="" set "HMODE=core"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%HERE%run-headless.ps1" -Mode "%HMODE%"
+exit /b %ERRORLEVEL%
+
+:report
+rem -Report : write a receipt (verdict + step SUMMARY + red-vs-registered) and upload it to the cloud.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%HERE%alice-report.ps1" %2 %3 %4
+exit /b %ERRORLEVEL%
+
+:web
+rem -Web : start the DSH web UI in the foreground. Ctrl+C in this window stops it.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%HERE%alice-web.ps1"
+exit /b %ERRORLEVEL%
+
+:webstop
+rem -WebStop : kill whatever still listens on the DSH web port.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%HERE%alice-web.ps1" -Stop
 exit /b %ERRORLEVEL%

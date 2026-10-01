@@ -53,7 +53,8 @@ param(
     [string]$ClientRoot = "D:\JAVA_projects\worldedit-test\versions\1.20.1-Forge_47.4.10",
     [string]$Repo = "",
     [string]$ForgeVersion = "",
-    [string]$JavaExe = "",        # 手动指定 java.exe（默认自动挑 17+ 里最高的那个）
+    [string]$JavaExe = "",        # 手动指定 java.exe（默认自动挑：优先恰好 17）
+    [int]$PreferredJavaMajor = 17, # ⭐ MC 1.20.1 的目标 Java（本机 bash 电池用的就是 17）
     [string]$ProxyUrl = "",        # 本地代理（如 http://127.0.0.1:7897）；空 = 从系统代理读
     [switch]$Install,
     [int]$TimeoutSec = 900,
@@ -82,6 +83,7 @@ if (-not $Repo) { Warn "没自动找到 Alice 仓库（找 build.gradle）⇒ �
 # 服务端启动日志直接写 `ModLauncher … java version 16.0.2` ⇒ **Forge 1.20.1 要 17+** ⇒
 # 启动即死、**永远不会写出判决**（症状：进程起来了、日志只有 ModLauncher 一行、无 verdict）。
 # ⇒ 判据 = 主动枚举候选、读版本、**只接受 17+**、优先最高版本；都不行就响亮失败并给出装法。
+$script:PreferredJavaMajor = $PreferredJavaMajor
 function Get-JavaMajor([string]$exe) {
     try {
         $out = (& $exe -version 2>&1 | Out-String)
@@ -111,6 +113,19 @@ function Resolve-Java {
     $jc = Get-Command java -ErrorAction SilentlyContinue
     if ($jc) { $cands.Add($jc.Source) }
 
+    # ⭐ 选版本策略（2026-10-02 实测）：**优先恰好 17** —— Minecraft 1.20.1 的目标版本是 17，
+    #    而本机 bash 版电池用的就是 17（WSL 的 java = 17.0.20.1）。新设备首轮 CORE 用 Java **21**
+    #    跑出 42/44（`mine_regression`/`decision_contract` 两条 FAIL），与基线 41/41 不一致
+    #    ⇒ 怀疑跨 Java 版本行为差异，故默认钉 17；只有没有 17 时才退到"17 以上最高的"。
+    $exact = $null; $exactMajor = 0
+    $higher = $null; $higherMajor = 0
+    foreach ($c in ($cands | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique)) {
+        $m = Get-JavaMajor $c
+        if ($m -eq $script:PreferredJavaMajor) { if (-not $exact) { $exact = $c; $exactMajor = $m } }
+        elseif ($m -gt $script:PreferredJavaMajor -and $m -gt $higherMajor) { $higher = $c; $higherMajor = $m }
+    }
+    if ($exact) { return @{ Path = $exact; Major = $exactMajor } }
+    if ($higher) { return @{ Path = $higher; Major = $higherMajor } }
     $best = $null; $bestMajor = 0
     foreach ($c in ($cands | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique)) {
         $m = Get-JavaMajor $c
@@ -133,7 +148,7 @@ if (-not $j) {
          "；装法：winget install EclipseAdoptium.Temurin.17.JDK，或用 -JavaExe 指定") 4
 }
 $javaExe = $j.Path
-Say "java = $javaExe（major=$($j.Major)）"
+Say "java = $javaExe（major=$($j.Major)；策略=优先 $PreferredJavaMajor，因为 MC 1.20.1 的目标版本是 17）"
 
 # ---------- ①b ⭐ Java 的代理（2026-10-02 实测：不设这个，Forge 安装器会**卡死**）----------
 # 为什么单独一段：`gh`/`git` 认 HTTP(S)_PROXY **环境变量**，但 **Java 不认** ——
@@ -234,6 +249,55 @@ if (-not $KeepWorld) {
     Copy-Item $pristine $world -Recurse -Force
 } else { Say "保留上一轮世界（-KeepWorld）" }
 
+# ---------- ④b ⭐⭐ 世界洁净度（**必须与 tools/headless-battery.sh:246-295 逐步一致**）----------
+# 为什么单独一段（2026-10-02 新设备实测的真因）：夹具世界是**玩家存档的副本** ⇒
+# 它**继承玩家的第三方状态**（FTB Chunks 认领）。而认领内的破坏/放置会被 FTB **静默取消**
+# ⇒ 夹具拿到"树砍不动"的世界、却**报成内核失败码**（`headless-battery.sh` 注释逐字：
+# `lumber_job` 连红 35 轮的真因，`D-409`/`D-413`）。
+# 实测症状：新设备 CORE 比基线多一条红 `decision_contract=FAIL reason=菜单含 lumber 候选`
+# —— 而且 **Java 17 / Java 21 跑出来完全一样**（排除 JVM），故按 bash 版补齐这三步。
+
+# (a) 场景数据包：以**仓库版**为准 + 清同命名空间旧包 + 断言只剩一个提供者（`D-412`）
+$scenesSrc = if ($Repo) { Join-Path $Repo "tools\test-scenes\alice_test" } else { $null }
+if ($scenesSrc -and (Test-Path $scenesSrc)) {
+    $dpDir = Join-Path $world "datapacks"
+    New-Item -ItemType Directory -Force -Path $dpDir | Out-Null
+    $dp = Join-Path $dpDir "alice_test"
+    Remove-Item -LiteralPath $dp -Recurse -Force -ErrorAction SilentlyContinue
+    Copy-Item -LiteralPath $scenesSrc -Destination $dp -Recurse -Force
+    foreach ($other in (Get-ChildItem -LiteralPath $dpDir -Directory -ErrorAction SilentlyContinue)) {
+        if ($other.Name -eq "alice_test") { continue }
+        if (Test-Path (Join-Path $other.FullName "data\alice_test")) {
+            Remove-Item -LiteralPath $other.FullName -Recurse -Force -ErrorAction SilentlyContinue
+            Say "  ⚠️ 清掉同命名空间的旧数据包：$($other.Name)（它会**静默盖住**本轮场景 —— D-412）"
+        }
+    }
+    $providers = @(Get-ChildItem -LiteralPath $dpDir -Directory -ErrorAction SilentlyContinue |
+                   Where-Object { Test-Path (Join-Path $_.FullName "data\alice_test") }).Count
+    if ($providers -ne 1) { Die "场景数据包提供者应为 1 个，实测 $providers 个（同命名空间的包会互相盖住 —— D-412）" 5 }
+    Say "场景数据包就位（提供者 = 1）"
+} else { Warn "找不到仓库的 tools\test-scenes\alice_test ⇒ 场景类步骤可能假红（用 -Repo 指定仓库）" }
+
+# (b) 第三方认领（`D-409`/`D-413`）—— ⭐ 本条就是 `decision_contract` 那条红的解药
+$ftbDir = Join-Path $world "ftbchunks"
+if (Test-Path $ftbDir) {
+    $snbt = @(Get-ChildItem -LiteralPath $ftbDir -File -Filter "*.snbt" -ErrorAction SilentlyContinue)
+    if ($snbt.Count -gt 0) {
+        $snbt | Remove-Item -Force -ErrorAction SilentlyContinue
+        Say "已清第三方认领（$($snbt.Count) 份 ftbchunks/*.snbt ⇒ 本轮夹具世界无认领；D-409/D-413）"
+    } else { Say "ftbchunks 下没有 *.snbt（无需清）" }
+}
+
+# (c) Alice 的持久化状态一律清零（`D-235`）：假人 / 转移账本 / 区域状态 / 权限 / 安全区等
+$dataDir = Join-Path $world "data"
+if (Test-Path $dataDir) {
+    $adat = @(Get-ChildItem -LiteralPath $dataDir -File -Filter "alice_*.dat" -ErrorAction SilentlyContinue)
+    if ($adat.Count -gt 0) {
+        $adat | Remove-Item -Force -ErrorAction SilentlyContinue
+        Say "已清 Alice 持久化状态（$($adat.Count) 份 world/data/alice_*.dat ⇒ 干净起点）"
+    }
+}
+
 # ---------- ⑤ server.properties（先建文件再钉）----------
 $props = Join-Path $ServerDir "server.properties"
 if (-not (Test-Path $props)) { New-Item -ItemType File -Path $props -Force | Out-Null }
@@ -249,7 +313,9 @@ Say "夹具洁净度（已钉）：$(($pins.Keys | ForEach-Object { "$_=$($pins[
 
 # ---------- ⑥ 装模组 ----------
 New-Item -ItemType Directory -Force -Path $modsDir | Out-Null
-Get-ChildItem $modsDir -Filter "*.jar" -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "alice-*" } | Remove-Item -Force -ErrorAction SilentlyContinue
+# ⭐ 与 bash 版一致：**先清空** mods 目录（`rm -f "$MODS"/*.jar`）—— 跨轮残留模组会污染判决
+$oldJars = @(Get-ChildItem -LiteralPath $modsDir -File -Filter "*.jar" -ErrorAction SilentlyContinue)
+if ($oldJars.Count -gt 0) { $oldJars | Remove-Item -Force -ErrorAction SilentlyContinue; Say "清掉上一轮的 $($oldJars.Count) 个 jar（干净起点）" }
 $clientMods = Join-Path $ClientRoot "mods"
 if (-not $NoMods) {
     if (-not (Test-Path $clientMods)) { Warn "客户端模组目录不存在：$clientMods ⇒ 只装 Alice jar（craft 类步骤会**假红**）" }

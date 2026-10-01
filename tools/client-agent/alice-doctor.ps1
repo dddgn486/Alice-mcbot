@@ -19,6 +19,8 @@
     ④ 机器层   codespace 在不在、什么状态（Shutdown 就唤醒）
     ⑤ 服务层   远端 sshd 通不通、信箱四目录在不在、dsh web 在不在跑
     ⑥ 仓库层   远端 Alice 仓库的 HEAD（确认"我"跑的那份代码是哪一版）
+    ⑦ 设备层   ⭐ **这台机器自己能不能干活**（Java 17 / 仓库 / jar / 存档 / mod / 服务端库 / 磁盘 / dsh / Java 代理）
+               —— 加它的理由：回家后主工作流在云端、**ssh 不到这台设备**，排错只能靠设备上的管家
 
 .PARAMETER Codespace
   codespace 名；空 = 读 `%USERPROFILE%\.alice-client.json` 的 `codespace` 字段。
@@ -333,6 +335,159 @@ if ($SetCodespace) {
         }
     }
 }
+
+# ============================ ⑦ 设备层（这台机器能不能干活）============================
+# ⭐ 为什么单列一层（2026-10-02 用户裁定 + 实测拓扑）：回家后主工作流在**云端**，而云端
+#    **不在**设备的虚拟局域网里 ⇒ **主工作流 ssh 不到这台设备** ⇒ 排错只能由**设备上的管家**做。
+#    既有 ①–⑥ **全是"云端链路"**，没有一条在问"这台机器自己能不能干活" ⇒ 本层补上。
+#    ⛔ 本层**不做网络访问**（除了 dsh 检查），所以云端断了它照样有结论。
+Head "⑦ 设备层（这台机器能不能干活）"
+
+$devRepo   = if ($cfg -and $cfg.repo)       { [string]$cfg.repo }       else { "D:\JAVA_projects\alice" }
+$devRoot   = if ($cfg -and $cfg.clientRoot) { [string]$cfg.clientRoot } else { "D:\JAVA_projects\worldedit-test\versions\1.20.1-Forge_47.4.10" }
+$devServer = if ($cfg -and $cfg.serverDir)  { [string]$cfg.serverDir }  else { "D:\JAVA_projects\alice-server" }
+
+# --- Java 17+（⛔ 不许盲信 PATH：实测本机 PATH 上是 **16.0.2** ⇒ Forge 1.20.1 启动即死、且**永远等不到判决**）---
+$cands = New-Object System.Collections.Generic.List[string]
+if ($env:JAVA_HOME) { $cands.Add((Join-Path $env:JAVA_HOME "bin\java.exe")) }
+foreach ($r in @("C:\Program Files\Eclipse Adoptium", "C:\Program Files\Java", "C:\Program Files\Zulu",
+                 "C:\Program Files\Microsoft", "C:\Program Files\Amazon Corretto", "D:\Java")) {
+    if (-not (Test-Path $r)) { continue }
+    Get-ChildItem $r -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -match 'jdk-?1[789]|jdk-?2[0-9]' } |
+        ForEach-Object { $cands.Add((Join-Path $_.FullName "bin\java.exe")) }
+}
+Get-ChildItem "D:\*\jbr\bin\java.exe", "C:\Program Files\*\jbr\bin\java.exe" -ErrorAction SilentlyContinue |
+    ForEach-Object { $cands.Add($_.FullName) }
+$jc = Get-Command java -ErrorAction SilentlyContinue; if ($jc) { $cands.Add($jc.Source) }
+$bestJ = $null; $bestM = 0; $j17 = $null
+foreach ($c in ($cands | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique)) {
+    $m = 0
+    try { $o = (& $c -version 2>&1 | Out-String); if ($o -match 'version "(\d+)') { $m = [int]$Matches[1] } } catch { }
+    if ($m -eq 17 -and -not $j17) { $j17 = $c }
+    if ($m -ge 17 -and $m -gt $bestM) { $bestJ = $c; $bestM = $m }
+}
+$useJava = if ($j17) { $j17 } else { $bestJ }
+$useMaj  = if ($j17) { 17 } else { $bestM }
+if ($useJava) { Ok ("Java $useMaj（优先 17，因为 MC 1.20.1 的目标版本是它）：$useJava") }
+else { Bad "没有 Java 17+（Forge 1.20.1 硬要求；PATH 上若是 16 会**静默**跑到启动即死）⇒ winget install EclipseAdoptium.Temurin.17.JDK" }
+
+# --- 仓库（源码 + 能否 clone/拉取）---
+if (Test-Path (Join-Path $devRepo "build.gradle")) {
+    $head = ""
+    try { $head = (& git -C $devRepo log -1 --format="%h %s" 2>&1 | Out-String).Trim() } catch { }
+    Ok "仓库存在：$devRepo（HEAD：$head）"
+    # ⚠️ github 的 HTTPS 在这类网络上常被重置（实测 `Recv failure: Connection was reset`）⇒ 提前说出来
+    try {
+        $rc = (& git -C $devRepo ls-remote --exit-code origin HEAD 2>&1 | Out-String)
+        # ⚠️ git 的报错走 stderr、且带换行 —— 只取第一行，否则后面整段输出会被拼进这一行里
+        $rcOne = ($rc -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -First 1)
+        if ($LASTEXITCODE -eq 0) { Ok "git 能连 origin" }
+        else { Bad "git 连不上 origin ⇒ 常见解：把 remote 换成 SSH（ssh.github.com:443），或改用 bundle/物理媒介同步"; Note ("读数：" + $rcOne) }
+    } catch { Bad "git 连 origin 失败 ⇒ 同上" }
+} else { Bad "找不到仓库：$devRepo（应先 clone；主工作流侧的 tools/ 才是最新的）" }
+
+# --- Alice jar（仓库产物优先，客户端 mods 兜底 —— 测试机通常不构建）---
+$jarSrc = ""
+if (Test-Path (Join-Path $devRepo "build\libs")) {
+    $a = Get-ChildItem (Join-Path $devRepo "build\libs") -Filter "alice-*.jar" -ErrorAction SilentlyContinue |
+         Where-Object { $_.Name -notlike "*sources*" } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($a) { $jarSrc = $a.FullName }
+}
+if (-not $jarSrc -and (Test-Path (Join-Path $devRoot "mods"))) {
+    $a = Get-ChildItem -LiteralPath (Join-Path $devRoot "mods") -Filter "alice-*.jar" -ErrorAction SilentlyContinue |
+         Where-Object { $_.Name -notlike "*.bak.*" } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($a) { $jarSrc = $a.FullName }
+}
+if ($jarSrc) {
+    $ji = Get-Item -LiteralPath $jarSrc
+    Ok ("Alice jar：" + $ji.Name + "（" + $ji.LastWriteTime.ToString("yyyy-MM-dd HH:mm") + "，" + [math]::Round($ji.Length/1MB,2) + " MB）")
+    Note "⚠️ 判断它新不新只能靠时间戳 —— 主工作流改完代码要**重新构建并拷过来**（测试机不构建）"
+} else { Bad "找不到 Alice jar（仓库 build\libs 与客户端 mods 都没有）⇒ 让主工作流构建后拷过来" }
+
+# --- 客户端根：存档 + mod ---
+$saveDir = Join-Path $devRoot "saves"
+$modDir  = Join-Path $devRoot "mods"
+if (Test-Path $modDir) {
+    $mj = @(Get-ChildItem -LiteralPath $modDir -Filter *.jar -ErrorAction SilentlyContinue)
+    if ($mj.Count -ge 15) { Ok "客户端 mods：$($mj.Count) 个 jar" }
+    else { Bad "客户端 mods 只有 $($mj.Count) 个 jar（预期 20：含 4 个名字带 [ ] 的）⇒ 用物理媒介补" }
+} else { Bad "客户端 mods 目录不存在：$modDir" }
+if (Test-Path $saveDir) {
+    $sv = @(Get-ChildItem -LiteralPath $saveDir -Directory -ErrorAction SilentlyContinue)
+    $withLevel = @($sv | Where-Object { Test-Path (Join-Path $_.FullName "level.dat") })
+    if ($withLevel.Count -ge 1) { Ok "存档母本：$($withLevel[0].Name)（level.dat 在）" }
+    else { Bad "saves\ 下没有带 level.dat 的存档 ⇒ 世界母本建不出来（电池会起不来）" }
+} else { Bad "saves 目录不存在：$saveDir" }
+
+# --- 服务端：**不必装**，但 libraries + win_args.txt 必须在（那是已装好的那份平移过来的）---
+$wargs = Join-Path $devServer "libraries\net\minecraftforge\forge\1.20.1-47.4.10\win_args.txt"
+if (Test-Path $wargs) {
+    $libs = @(Get-ChildItem (Join-Path $devServer "libraries") -Recurse -File -ErrorAction SilentlyContinue)
+    Ok "服务端库就位：$($libs.Count) 个文件 + win_args.txt"
+} else { Bad "缺服务端库（$wargs）⇒ 把主工作流 alice-server\libraries 整棵拷过来即可，**不用跑 Forge 安装器**" }
+if (Test-Path (Join-Path $devServer "world-pristine")) { Ok "世界母本已建（world-pristine）" } else { Note "世界母本还没建 ⇒ 第一次跑 -Headless 时会自动建" }
+
+# --- 磁盘 ---
+try {
+    $dl = (Get-Item $devServer -ErrorAction SilentlyContinue).PSDrive.Name
+    if (-not $dl) { $dl = "D" }
+    $v = Get-Volume -DriveLetter $dl -ErrorAction SilentlyContinue
+    if ($v) {
+        $freeGB = [math]::Round($v.SizeRemaining/1GB, 1)
+        if ($freeGB -ge 5) { Ok "磁盘 $dl`: 剩余 $freeGB GB" } else { Bad "磁盘 $dl`: 只剩 $freeGB GB（世界母本 + 每轮 world 要几 GB）" }
+    }
+} catch { Skip "磁盘检查跳过" }
+
+# --- dsh（管家本体）---
+if (Get-Command dsh -ErrorAction SilentlyContinue) { Ok "dsh 可用（管家本体在）" }
+else {
+    if ($Repair) {
+        if (Get-Command npm -ErrorAction SilentlyContinue) {
+            if ($DryRun) { Fixed "（DryRun）会 npm i -g @deepseek-ai/dsh@0.1.5-rc.3（约 3 分钟）" }
+            else {
+                Note "正在装 dsh（约 3 分钟，走本机网络）…"
+                $p = Start-Process -FilePath "npm" -ArgumentList @("i","-g","@deepseek-ai/dsh@0.1.5-rc.3") -PassThru -Wait -NoNewWindow
+                if ($p.ExitCode -eq 0) { Fixed "dsh 已装（重开一个终端才进 PATH）" } else { Bad "npm 装 dsh 失败（exit=$($p.ExitCode)）" }
+            }
+        } else { Bad "没有 npm ⇒ 先装 Node.js 22+" }
+    } else { Bad "没有 dsh（管家跑不起来）⇒ 加 -Repair 自动装，或手动 npm i -g @deepseek-ai/dsh@0.1.5-rc.3" }
+}
+
+# --- 管家本体能不能**叫动模型**（⭐ 2026-10-02 新设备实测的真坎：装了 dsh 也跑不了）---
+#    `dsh --profile headless "<任务>"` 需要两个文件；缺任一个 ⇒ 管家**起得来但答不出话**（不报错到肉眼可见）。
+$dshHome = if ($env:DSH_HOME) { $env:DSH_HOME } else { Join-Path $HOME ".dsh" }
+$setY = Join-Path $dshHome "settings.yaml"
+$credY = Join-Path $dshHome ".credentials.yaml"
+if (Test-Path $setY) { Ok "dsh settings.yaml 在（含模型/插件配置）" }
+else { Bad "缺 $setY ⇒ 复制主工作流那份过来（它不含本机绝对路径，可直接搬）" }
+if (Test-Path $credY) { Ok "dsh 凭据在（模型 API key）" }
+else { Bad "缺 $credY ⇒ 管家**调不了模型**（装了 dsh 也白装）⇒ 从主工作流 $HOME/.dsh/.credentials.yaml 传过来（走物理媒介或同网段 scp，⛔ 别贴进聊天）" }
+# 探针：能不能真答一句（只在 -Repair 时跑，避免体检本身花 token）
+if ($Repair -and (Test-Path $setY) -and (Test-Path $credY) -and (Get-Command dsh -ErrorAction SilentlyContinue)) {
+    if ($DryRun) { Fixed "（DryRun）会跑一次 dsh 探针（花几个 token）" }
+    else {
+        try {
+            $probe = (& dsh --profile headless "Reply with exactly: STEWARD_OK" 2>&1 | Out-String)
+            if ($probe -match "STEWARD_OK") { Fixed "管家探针通过：dsh 能叫动模型" }
+            else { Bad ("管家探针没回预期文本 ⇒ dsh 起得来但答不出；读数：" + (($probe -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -Last 1))) }
+        } catch { Bad "管家探针异常 ⇒ 看 -Quiet 去掉后的原始报错" }
+    }
+} elseif (Get-Command dsh -ErrorAction SilentlyContinue) { Note "管家探针未跑（加 -Repair 会跑一次，花几个 token）" }
+
+# --- Java 的代理（⛔ Java **不读** HTTP_PROXY 环境变量；只有 JAVA_TOOL_OPTIONS/-D 才算）---
+if ($env:HTTPS_PROXY -or $regProxy) {
+    $jto = [Environment]::GetEnvironmentVariable('JAVA_TOOL_OPTIONS','User')
+    if ($jto -and $jto -match 'proxyHost') { Ok "JAVA_TOOL_OPTIONS 已设（Java 下载会走代理）：$jto" }
+    elseif ($Repair) {
+        $px = if ($env:HTTPS_PROXY) { $env:HTTPS_PROXY } else { $regProxy }
+        if ($px -match '^https?://([^:/]+)(?::(\d+))?') {
+            $jit = "-Dhttp.proxyHost=$($Matches[1]) -Dhttp.proxyPort=$(if($Matches[2]){$Matches[2]}else{'80'}) -Dhttps.proxyHost=$($Matches[1]) -Dhttps.proxyPort=$(if($Matches[2]){$Matches[2]}else{'80'})"
+            if ($DryRun) { Fixed "（DryRun）会设 JAVA_TOOL_OPTIONS=$jit" }
+            else { [Environment]::SetEnvironmentVariable('JAVA_TOOL_OPTIONS', $jit, 'User'); $env:JAVA_TOOL_OPTIONS = $jit; Fixed "已设 JAVA_TOOL_OPTIONS（否则 Forge 装库会卡死）" }
+        }
+    } else { Bad "Java 看不到代理（Java 不读 HTTP_PROXY）⇒ 加 -Repair 写 JAVA_TOOL_OPTIONS" }
+} else { Skip "本机没开代理 ⇒ 若下载卡死，再回来设 JAVA_TOOL_OPTIONS" }
 
 # ============================ 结论 ============================
 Write-Host ""
