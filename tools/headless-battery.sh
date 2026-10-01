@@ -438,6 +438,14 @@ ARCHIVE="${ARCHIVE_DIR}/$(date +%Y%m%d-%H%M%S)-$(printf '%s' "$MODE" | tr ':/' '
 if [ -f /tmp/alice-headless-server.log ]; then
     cp /tmp/alice-headless-server.log "$ARCHIVE"
 fi
+# ⭐ **判决文件也一起归档**（2026-10-02 加）：`tools/client-agent/alice-report.ps1`（Windows 侧的回执投递）
+#    要读判决；而原先只有服务端 stdout 被归档 ⇒ 在**没跑 PS 驱动**的机器上找不到判决文件。
+#    ⚠️ 与 `run-headless.ps1` 的归档保持同形：`<同一时间戳>-headless-result.txt`（它的来源就是本文件下面写的 $RESULT）。
+#    ⚠️ 归档名固定为 `-headless-result.txt` 后缀：回执脚本按 `*headless-result.txt` 找它。
+if [ -f "$RESULT" ]; then
+    cp "$RESULT" "${ARCHIVE%.log}-headless-result.txt"
+    say "判决已归档：${ARCHIVE%.log}-headless-result.txt"
+fi
 say "日志：$LOG（服务端 stdout：/tmp/alice-headless-server.log ⇒ **已归档** $ARCHIVE）"
 [ "$KEEP_WORLD" = "no" ] || say "（--keep-world：$WORLD 已保留）"
 
