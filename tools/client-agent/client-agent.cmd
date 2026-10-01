@@ -13,6 +13,7 @@ rem  client-agent.cmd -Headless [mode]  run the headless battery ON THIS PC (cor
 rem  client-agent.cmd -Report           send the newest battery verdict to the cloud mailbox (no LLM cost)
 rem  client-agent.cmd -Web              start the DSH web UI in the FOREGROUND (Ctrl+C stops it)
 rem  client-agent.cmd -WebStop          stop a DSH web UI that is still listening on the port
+rem  client-agent.cmd -Cloud            wake the CLOUD codespace, fetch the fresh entry URL (git branch), open it
 rem  set DSH_VERSION=0.1.5-rc.3       pick the npx fallback version (rc.1/rc.2 are BROKEN)
 rem ============================================================
 setlocal
@@ -25,6 +26,7 @@ if /I "%~1"=="-Headless"   goto headless
 if /I "%~1"=="-Report"     goto report
 if /I "%~1"=="-Web"        goto web
 if /I "%~1"=="-WebStop"    goto webstop
+if /I "%~1"=="-Cloud"      goto cloud
 set "TASK=%~1"
 if "%TASK%"=="" set "TASK=Read the cloud mailbox /home/vscode/bus/to-win (skip file names already listed in .done), do what the newest request asks, then write a receipt to /home/vscode/bus/to-cloud. Do not upload any logs or screenshots unless the request names them."
 rem refresh PATH: winget/npm installs are only visible in NEW terminals
@@ -93,4 +95,11 @@ exit /b %ERRORLEVEL%
 :webstop
 rem -WebStop : kill whatever still listens on the DSH web port.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%HERE%alice-web.ps1" -Stop
+exit /b %ERRORLEVEL%
+
+:cloud
+rem -Cloud : wake the cloud codespace and open its DSH web UI (pure API + git; no SSH key needed).
+rem Why: on this PC the ~/.ssh file CONTENTS cannot be read (blocked at OS level) so gh codespace
+rem ssh/cp do not work here. The cloud publishes its per-start token to the steward/entry branch.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%HERE%alice-cloud-entry.ps1" %2 %3 %4
 exit /b %ERRORLEVEL%
