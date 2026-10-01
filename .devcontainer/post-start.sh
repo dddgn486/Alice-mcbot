@@ -93,8 +93,24 @@ if [ -n "$TREE" ]; then
     if [ -n "$NEW" ]; then
         # ⚠️ 实测（2026-10-02）：**启动阶段 `git push origin` 会失败**（那时没有登录 shell 的凭据）
         #    ⇒ 手动跑同一个脚本却成功。⇒ 显式用容器自带的 `GITHUB_TOKEN` 拼 push URL。
-        PUSH_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY:-dddgn486/Alice-mcbot}.git"
-        if git push -q "$PUSH_URL" "$NEW:refs/heads/$BRANCH" 2>/dev/null; then
+        # ⚠️ 实测（2026-10-02 深夜）：`GITHUB_TOKEN` 在某些上下文（如 ssh 拿到的 `bash -lc`）里**是空的**
+        #    ⇒ 拼出来的 URL 变成 `x-access-token:@…` ⇒ 认证失败。⇒ **有才用，没有就回退 origin**，
+        #    并且**不再把 stderr 丢掉**（否则又是一次"静默失败"）。
+        PUSH_URL=""
+        if [ -n "$GITHUB_TOKEN" ]; then
+            PUSH_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY:-dddgn486/Alice-mcbot}.git"
+        fi
+        PUSHED=1
+        if [ -n "$PUSH_URL" ]; then
+            git push -q "$PUSH_URL" "$NEW:refs/heads/$BRANCH" 2>&1 | sed 's/^/    push: /'
+            PUSHED=${PIPESTATUS[0]}
+        fi
+        if [ "$PUSHED" -ne 0 ]; then
+            say "  token 路径没成（GITHUB_TOKEN ${GITHUB_TOKEN:+有}${GITHUB_TOKEN:-空}）⇒ 回退 origin"
+            git push -q origin "$NEW:refs/heads/$BRANCH" 2>&1 | sed 's/^/    push: /'
+            PUSHED=${PIPESTATUS[0]}
+        fi
+        if [ "$PUSHED" -eq 0 ]; then
             say "published entry -> branch $BRANCH (commit $NEW)"
         else
             say "WARN: git push failed - entry not published (device can still use gh codespace ports + this log)"
