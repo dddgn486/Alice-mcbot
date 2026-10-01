@@ -100,6 +100,8 @@ if [ -n "$TREE" ]; then
         if [ -n "$GITHUB_TOKEN" ]; then
             PUSH_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY:-dddgn486/Alice-mcbot}.git"
         fi
+        # ⚠️ 实测：父提交对不上会报 **non-fast-forward** ⇒ 被拒。本分支语义就是「**只存最新一条**」
+        #    （只有一个写者：云端这个钩子；设备只读）⇒ **--force 才是正确语义**，不是绕过保护。
         PUSHED=1
         if [ -n "$PUSH_URL" ]; then
             git push -q "$PUSH_URL" "$NEW:refs/heads/$BRANCH" 2>&1 | sed 's/^/    push: /'
