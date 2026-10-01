@@ -12,7 +12,28 @@
    产品面 = **命令可达**；`entry_reachable` 含 `item/` 种子 ⇒ ⛔ 不再当产品面判据）。
    ⛔ (b) 不能自己猜 —— 它是 `丙` 方案（`D-551`）的产物，`BotManager` 才是真派发枢纽。
 3. **`fixture`** —— **只**被验证侧引用：引用者全落在 `task/**` · `fixture/**` · `headless/**` · `tools/**`。
-4. **`生产`** —— 其余（被生产层引用）⇒ 逐类在**波 4** 定到具体层，⛔ 今天不假装知道。
+4. **`生产`** —— 其余（被生产层引用）⇒ 逐类在**波 4** 定到具体层。⭐ 目的地由下节的
+   **`PROD_HOME`（生产层包名）**一维表达。
+
+## ⭐ 「生产层包名」一维（`O92` ② 逐字要求；2026-10-01 扩）
+
+`P0` 判据① 逐字：「`task/` 下**每个类**登记一个目的地：`debug/` · `fixture/` · `step/` · **生产层包名**」
+⇒ `dest=生产` 的行**必须**有一维说出它**搬到哪个包**，否则 `P4`（`task/` 全树 0）没有判据可核。
+
+- **载体 = `PROD_HOME`**（本文件里的**手写**表：`类名 → 目标包全名`）。⚠️ 它**不能**由分类器推出来
+  —— 分类器只知道"这是生产类"，不知道"它该住哪"（那是**裁定**）。
+- **哨兵 `?`** = **未定家**（`O92` ⑥ 的 35 个类今天全在这）。⛔ 不许用"猜一个包名"代替 `?`。
+- **判据（⛔ 全部今天绿、只对**新违规**红 —— 同 `D-551` ① 的 `P2` 提前上线口径，不撞 `R4`）**：
+
+  | # | 判据 | 抓什么 |
+  |---|---|---|
+  | ① | 每个 `dest=生产` 的台账行**必须**在 `PROD_HOME` 里有条目 | 漏登记（⛔ 不许静默留空） |
+  | ② | `PROD_HOME` 的键若**已不在** `task/`（搬走了）⇒ 值**必须** ≠ `?` | **未定家不许搬** |
+  | ③ | ② 的值 ⇒ 目标包必须**存在** ＋ 该包下必须**有** `<类>.java` | 搬到别处 / 指空（`P0` 判据②「⛔ `task` 不是合法目的地」） |
+  | ④ | 值 ≠ `?` 但台账行**还在** `task/` ⇒ 目标包里**不许**已经有同名文件 | 「搬包不是**复制**」（同 `check-layer-direction` 的 `LEDGER_MOVED` 口径） |
+
+  ⇒ ⛔ 今天**没有**一条要求"`?` 必须变成值"：那会**凭空发明 35 个裁定**。⭐ 但 `?` 的**计数**
+  （`待裁 N`）**必须**打进 PASS 读数 —— 它是波 4 的**进度表**，不是可以眼不见的待办。
 
 ## ⛔ 两条纪律
 
@@ -88,7 +109,62 @@ def is_prod_ref(tag: str, prod_task: frozenset[str]) -> bool:
     ⭐ `R6` 逐字：「要物理剔除，剔的是 `fixture/`」⇒ **被生产引用的东西不可能同时是"可剔除"的**。
     """
 DESTS = ("step", "debug", "fixture", "生产")
-HEADER = "task_class,task_path,dest,reason"
+#: ⭐ 2026-10-01（`O92` ② 同刀）：多出 `prod_pkg` 一列（**生产层包名**）。
+#: ⚠️ 插在 `dest` **后面**、`reason` **前面** —— `reason` 里**含逗号**（`生产:refs=job/lumber,task`）
+#: ⇒ 它是"**吃掉剩下全部字段**"的尾巴，新列只能插在它前面（插在后面解析不回来）。
+HEADER = "task_class,task_path,dest,prod_pkg,reason"
+#: ⛔「不适用」（`dest ∈ {step,debug,fixture}` —— 那些行的目的地**就是** `dest` 本身）。
+NA = "-"
+#: ⭐ **未定家**的哨兵。含义逐字 = 「这个类的生产层包名**还没被裁定**」。
+#: ⛔ 不许拿一个猜的包名顶替它（那会把"待裁"洗成"已裁"）。
+UNDECIDED = "?"
+
+#: ⭐⭐⭐ **`生产层包名`（`PROD_HOME`）—— 手写表，`类名 → 目标包全名 | "?"`**（2026-10-01 建）。
+#:
+#: **规矩**：这是**裁定**的落点，⛔ 不是分类器的输出 ⇒ **我只在用户裁定之后填**，⛔ 不自行猜。
+#: ⚠️ **今天 35 条全是 `?`** —— 因为 `O92` ⑥「35 个生产类的家走哪条（甲／乙／丙）」**逐字写着"待用户裁定"**，
+#: 至今未裁（⚠️ `§38.3` 那 8 格**不含**它；那 8 格已由 `D-568` 裁完 ≠ 这一格已裁）。
+#: ⭐ 填一条的动作 = 把 `"?"` 换成包全名，门禁**立刻**开始管它（`R4`：门禁与迁移同刀）。
+PROD_HOME: dict[str, str] = {
+    # ——— `task/` 顶层 20 个（`docs/TASK_TOP_LEVEL_FREEZE.txt` 的 22 行里除去 `Step`／`FixtureScript`）———
+    "CollectDropsTask": UNDECIDED,
+    "FarWalkTask": UNDECIDED,
+    "FixtureClaim": UNDECIDED,
+    "FollowTask": UNDECIDED,
+    "MineTask": UNDECIDED,
+    "PermissionDemoTask": UNDECIDED,
+    "PlaceTask": UNDECIDED,
+    "RestoreScopeTask": UNDECIDED,
+    "RoadBuildTask": UNDECIDED,
+    "SafeReturnTask": UNDECIDED,
+    "ScaffoldLifecycleTask": UNDECIDED,
+    "SurvivalExit": UNDECIDED,
+    "SurvivalExitTask": UNDECIDED,
+    "SurvivalFloatTask": UNDECIDED,
+    "Task": UNDECIDED,
+    "TaskNode": UNDECIDED,
+    "TaskTarget": UNDECIDED,
+    "ToolMaintenanceTask": UNDECIDED,
+    "TransferTask": UNDECIDED,
+    "WalkToTask": UNDECIDED,
+    # ——— `task/craft/` 10 个 ———
+    "CraftStation": UNDECIDED,
+    "FurnaceStation": UNDECIDED,
+    "GridDiscovery": UNDECIDED,
+    "InventoryCraft": UNDECIDED,
+    "MachineCycle": UNDECIDED,
+    "MachineRecipeFacts": UNDECIDED,
+    "RecipeQuery": UNDECIDED,
+    "StationPlacement": UNDECIDED,
+    "StationProvision": UNDECIDED,
+    "TableCraft": UNDECIDED,
+    # ——— `task/mining/` 5 个 ———
+    "BlockerClearPlanner": UNDECIDED,
+    "GainStepRunner": UNDECIDED,
+    "MiningBudget": UNDECIDED,
+    "MiningPlanner": UNDECIDED,
+    "MiningProfile": UNDECIDED,
+}
 #: ⭐ 2026-09-30（夹具波同刀）：人口下限从**写死的常数**改成**跨源对账**（同 `check-task-top-freeze.py`）：
 #: `task/` 顶层是**设计成走向 0** 的数 ⇒ 静态下限（原 `MIN_ROWS = 150`）在第二波当场变假红发生器。
 #: ⇒ 判据 = 「本台账的**顶层**行数 **==** `docs/TASK_TOP_LEVEL_FREEZE.txt` 行数」。
@@ -360,8 +436,16 @@ def build_rows() -> list[tuple[str, str, str, str]]:
     return rows
 
 
+def prod_pkg_of(cls: str, dest: str) -> str:
+    """该行的**生产层包名**列取值：`dest=生产` ⇒ `PROD_HOME` 的值（缺 ⇒ `?`）；否则 ⇒ `-`（不适用）。"""
+    if dest != "生产":
+        return NA
+    return PROD_HOME.get(cls, UNDECIDED)
+
+
 def render(rows: list[tuple[str, str, str, str]]) -> str:
-    return "\n".join([HEADER] + [",".join(r) for r in rows]) + "\n"
+    return "\n".join([HEADER] + [",".join((r[0], r[1], r[2], prod_pkg_of(r[0], r[2]), r[3]))
+                                 for r in rows]) + "\n"
 
 
 def main(argv: list[str]) -> int:
@@ -374,15 +458,15 @@ def main(argv: list[str]) -> int:
         return 0
 
     problems: list[str] = []
-    old: dict[str, tuple[str, str, str]] = {}
+    old: dict[str, tuple[str, str, str, str]] = {}
     head = ""
     if MAP_OUT.exists():
         lines = [ln for ln in MAP_OUT.read_text(encoding="utf-8").split("\n") if ln.strip()]
         head = lines[0] if lines else ""
         for ln in lines[1:]:
             parts = ln.split(",")
-            if len(parts) >= 3:
-                old[parts[0]] = (parts[1], parts[2], ",".join(parts[3:]))
+            if len(parts) >= 4:
+                old[parts[0]] = (parts[1], parts[2], parts[3], ",".join(parts[4:]))
     if head != HEADER:
         problems.append(f"表头不符：`{head}`（应为 `{HEADER}`）")
     if not old:
@@ -398,6 +482,9 @@ def main(argv: list[str]) -> int:
         elif cur[cls][1] != old[cls][1]:
             problems.append(f"`{cls}` 目的地不符：台账 `{old[cls][1]}` vs 实物 `{cur[cls][1]}`"
                             f" ⇒ 分类判据变了，须重新 `--write` 并说明为何变")
+        elif prod_pkg_of(cls, cur[cls][1]) != old[cls][2]:
+            problems.append(f"`{cls}` **生产层包名**不符：台账 `{old[cls][2]}` vs 判据 "
+                            f"`{prod_pkg_of(cls, cur[cls][1])}` ⇒ 改了 `PROD_HOME` 却忘了 `--write`")
     # 非法目的地（含"目的地 = 原地"）
     for r in rows:
         if r[2] not in DESTS:
@@ -422,6 +509,43 @@ def main(argv: list[str]) -> int:
         problems.append("目的地包**不存在**：" + "、".join(f"`com.dddgn.alice.{d}/`" for d in missing)
                         + " ⇒ `P1` 立家未完成（`P0` 判据② = 目的地 ∈ **已建成的包**）")
 
+    # ==================== ⭐ 「生产层包名」（`PROD_HOME`）四判据（2026-10-01，`O92` ②） ====================
+    prod_rows = [r for r in rows if r[2] == "生产"]
+    undecided = sorted(r[0] for r in prod_rows if PROD_HOME.get(r[0], UNDECIDED) == UNDECIDED)
+    # ① 完整：每个 `生产` 行必须在 `PROD_HOME` 里有条目（⛔ 漏登记不许静默留空）。
+    for cls in sorted(r[0] for r in prod_rows if r[0] not in PROD_HOME):
+        problems.append(f"`{cls}` 是 `dest=生产` 却没有 `PROD_HOME` 条目 ⇒ 「生产层包名」一维漏登记"
+                        f"（`O92` ②；⛔ 不许留空）")
+    # ② 未定家不许搬 ＋ ③ 指空 / 搬到别处 ＋ ④ 搬包不是复制。
+    #    ⚠️ 判据的**方向**：台账只收"还在 `task/` 里"的类 ⇒ **已搬**的类必然不在 `rows` 里
+    #    ⇒ 这一类只能从 `PROD_HOME` 反查（这正是 `?` 哨兵能被门禁抓住的唯一入口）。
+    task_stems = {r[0] for r in rows}
+    alice_pkg = SRC_REL.replace("/", ".")[:-1]          # `com.dddgn.alice`
+    for cls in sorted(PROD_HOME):
+        pkg = PROD_HOME[cls]
+        if cls in task_stems:
+            # 未搬：条目存在性已由 ① 查过；这里只查"复制"（值非 `?` 时目标包里不该已有同名件）。
+            if pkg != UNDECIDED and (ROOT / SRC_REL / pkg.replace(".", "/") / f"{cls}.java").is_file():
+                problems.append(f"`{cls}` **搬包不是复制**：它**还在** `task/` 里，而 `{pkg}` 下**已经有**"
+                                f"同名文件 ⇒ 要么删掉 `task/` 里那份，要么改 `PROD_HOME`")
+            continue
+        # 已搬（`task/` 里没有这个类了）：
+        if pkg == UNDECIDED:
+            problems.append(f"`{cls}` **未定家就搬走了**：它已不在 `task/`，而 `PROD_HOME` 仍是 `{UNDECIDED}`"
+                            f" ⇒ ⛔ `?` 只表示「还没裁定」，不是「随便搬」（`O92` ⑥）")
+            continue
+        if not pkg.startswith(alice_pkg + ".") or pkg == alice_pkg + ".task" \
+                or pkg.startswith(alice_pkg + ".task."):
+            problems.append(f"`{cls}` 的生产层包名非法：`{pkg}`（⛔ `task` 不是合法目的地 —— `P0` 判据②）")
+            continue
+        target = ROOT / SRC_REL / pkg.replace(".", "/")
+        if not target.is_dir():
+            problems.append(f"`{cls}` 的生产层包名**指空**：`{pkg}` 不是已建成的包"
+                            f"（`P0` 判据②）⇒ 先立家再搬")
+        elif not (target / f"{cls}.java").is_file():
+            problems.append(f"`{cls}` 搬走了但**没落在登记的家**：`{pkg}` 下没有 `{cls}.java`"
+                            f" ⇒ 实物与 `PROD_HOME` 不符")
+
     if problems:
         print("TASK_RETIREMENT_MAP_RESULT FAIL: 台账与实物不一致（**双向核** ＋ 交叉核）")
         for p in problems[:20]:
@@ -432,9 +556,18 @@ def main(argv: list[str]) -> int:
 
     dist = Counter(r[2] for r in rows)
     risks = r3_risks(rows, REFSET)
+    decided = len(prod_rows) - len(undecided)
     print("TASK_RETIREMENT_MAP_RESULT PASS: %d 行 · %s · 0 条不一致 · 未建成的目的地包：%s" % (
         len(rows), " / ".join(f"{d}={dist[d]}" for d in DESTS),
         "、".join(missing) if missing else "无"))
+    # ⭐ 「生产层包名」进度表（`O92` ②；⛔ 不是可以眼不见的待办 —— 波 4 的第一个数就是它）。
+    print(f"  ⭐ **生产层包名**：已定 {decided} / **待裁 {len(undecided)}**（哨兵 `?`）"
+          f" —— `PROD_HOME` 在 `tools/{Path(__file__).name}` 里手写")
+    if undecided:
+        print(f"     ⚠️ 待裁 {len(undecided)} 个 = 波 4 的**真卡点**"
+              f"（`O92` ⑥「甲／乙／丙」逐字「待用户裁定」）：")
+        print("     " + "、".join(f"`{c}`" for c in undecided[:14])
+              + (f" … 共 {len(undecided)} 个" if len(undecided) > 14 else ""))
     if not risks:
         print(f"  ✅ `R3` 风险 **0 条**（**注册位置** {sorted(NON_PROD - VERIFY_SIDE)} 与验证侧都不算生产包；"
               f"`task/` 是**被退役的包**、暂排除 ⇒ 其去留看本台账）")
