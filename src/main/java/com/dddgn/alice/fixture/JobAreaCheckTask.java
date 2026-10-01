@@ -114,6 +114,11 @@ public final class JobAreaCheckTask implements Task {
     private static final BlockPos AUTH_WILDERNESS = new BlockPos(35400, FOOT_Y, 35400);
     /** 候选扫描用例的**手搭小树**（3 格原木，够 `TreeScanner.MIN_LOGS`）：在区块 2200,2200 内。 */
     private static final BlockPos AUTH_TREE_BASE = new BlockPos(35210, FOOT_Y, 35206);
+    /**
+     * ⭐ **刀 2「宝贵 → 位置判据」**的格子（`D-565` ⑤）：**区内**（区块 2200,2200，被认领 ＋ 被授权面的任务区
+     * 覆盖），且不与上面任何格重叠 —— 用例会**在同一格里换方块**（箱子 ⇄ 石头）来分离"位置"与"方块类型"。
+     */
+    private static final BlockPos AUTH_CHEST = new BlockPos(35206, FOOT_Y, 35210);
     /** `L1` 配额用例的 8 个落点（全在区块 2200,2200 内，离 bot 的站位 ≥4 格）。 */
     private static final int QUOTA_BASE_X = 35200;
     private static final int QUOTA_Z = 35212;
@@ -476,7 +481,9 @@ public final class JobAreaCheckTask implements Task {
      * ② `L0` 只读 ⇒ 破坏/放置都拒；③ `L1` ⇒ 只许**临时**放置、**≤8 次**、**不许破坏**；
      * ④ `L2` 工作面 ⇒ 目标内（`EXPECTED_TARGET`）/ 目标外（`PATH_ACCESS`）破坏 + 临时放置都放行；
      * ⑤ **越界与安全区**（退化后两者都只是「认领但未被任务区覆盖」）⇒ **同一个码** `protected_area`；
-     * ⑥ **野外在 `L0` 期间照旧可写**（L0 冻结野外 = 错）。
+     * ⑥ **野外在 `L0` 期间照旧可写**（L0 冻结野外 = 错）。⑦ **刀 2「宝贵 → 位置判据」**（`D-565` ⑤）：
+     * **区内任何 `hasBlockEntity()` 一律不可挖掘** —— 判别式 = 同一位置换方块（箱子/石头）＋ 同一方块
+     * 换位置（区内/野外）。
      */
     private void authorityPhase(ServerLevel level, AreaData zones) {
         var server = level.getServer();
@@ -741,6 +748,53 @@ public final class JobAreaCheckTask implements Task {
         //    （在飞身份只由 LLM 受理侧写入，别人派活由 `BotManager.beginTask` → `clearAttempt` 清掉）
         //    ⇒ 生产不再依赖"两处拼写一致"。留着它等于断言一个已不存在的约束（死规则），故删除。
         //    对应判据：夹具 `llm_contract/loop_admission_control` 的 `foreign_assignment_not_accounted`。
+
+        // ⑬ ⭐⭐ **刀 2「宝贵 → 位置判据」**（`D-565` ⑤，2026-10-01 用户逐字：「**"宝贵"从"方块类型"
+        //    改成"位置"我采纳**」「**挖掘黑名单只是一个临时手段，不能挖黑曜石本来就是它的缺陷**」
+        //    「**怎么还在说清障**，应该是**区内不可挖掘**，**容器写入理由不是例外**，
+        //    应该就是**任何 `hasBlockEntity()` 一律不可挖掘**，**不可动太广了**」）。
+        //    ⚠️ 口径三条（⛔ 写错就是错）：① 拦的是**挖掘（`Act.BREAK`）**，⛔ 不是"不可动"；
+        //    ② **容器写入理由不是例外** —— 它**本来就不走这条路**（容器写入过的是
+        //    `WriteBudget.consumeContainerWrite`，`WriteReason.CONTAINER_TRANSFER` 的 `Action.BOTH`
+        //    是声明性字段、全仓只有策略表自检读它 ⇒ **无需豁免**）；③ ⛔ **不许把这件事叫"清障"**
+        //    （该概念已被用户丢弃，`O128` 取 A：只丢讨论口径、⛔ 不动代码）。
+        //    **判别式**：① 同一**位置**换方块（箱子 vs 石头）② 同一**方块**换位置（区内 vs 野外）
+        //    —— 两个方向都断言，才说得清"判据是位置、不是方块类型"。
+        JobAreaRegistry.declare(server, owner, "region_lumber", authArea, true);   // L2（玩家发起 ⇒ 不封顶）
+        setBlockTracked(level, AUTH_CHEST, Blocks.CHEST.defaultBlockState());
+        String chestInZone = ZoneAuthority.breakRefusal(level, owner, AUTH_CHEST, WriteReason.EXPECTED_TARGET);
+        setBlockTracked(level, AUTH_CHEST, Blocks.STONE.defaultBlockState());
+        String stoneInZone = ZoneAuthority.breakRefusal(level, owner, AUTH_CHEST, WriteReason.EXPECTED_TARGET);
+        setBlockTracked(level, AUTH_CHEST, Blocks.CHEST.defaultBlockState());
+        check("⑬位置判据①「**区内不可挖掘**」：**同一格**换成箱子 ⇒ 即便 `L2`（玩家发起 ＋ 明确目标）也拒 "
+                        + "**`protected_block_entity`**（⛔ 与理由无关、⛔ 与等级无关）｜箱子=" + chestInZone
+                        + " 石头=" + stoneInZone
+                        + "（⇒ 同一位置上「石头放行 / 箱子拒」= 判据是**这一格是不是方块实体**）",
+                "protected_block_entity".equals(chestInZone) && stoneInZone == null);
+        check("⑬位置判据②**判别式**：**同一个方块**（箱子）在**野外**（未认领）⇒ 明确目标挖掘**照旧放行**"
+                        + "（`NOT_GATED`；野外由成本模型 ＋ 只读审计治理）｜code="
+                        + ZoneAuthority.breakRefusal(level, owner, AUTH_WILDERNESS, WriteReason.EXPECTED_TARGET),
+                ZoneAuthority.breakRefusal(level, owner, AUTH_WILDERNESS,
+                        WriteReason.EXPECTED_TARGET) == null);
+        boolean chestBroken = BlockInteraction.breakForBulkEdit(bot, level, AUTH_CHEST, false,
+                grant("region_lumber", WriteReason.PATH_ACCESS));
+        String chestClearing = ZoneAuthority.breakRefusal(level, owner, AUTH_CHEST, WriteReason.PATH_ACCESS);
+        check("⑬位置判据③**不分策略 ＋ 真的写不进世界**：同一格换**清障**理由（`PATH_ACCESS`）⇒ **同一个码**"
+                        + "（code=" + chestClearing + "；⚠️ 这个格子在**区内** ⇒ 拒绝**归因到位置规则**，"
+                        + "⛔ 不再是清障策略那条 `block_entity`）；且生产动作层 `breakForBulkEdit` 返回 "
+                        + chestBroken + "、箱子还在=" + level.getBlockState(AUTH_CHEST).is(Blocks.CHEST)
+                        + "（= 闸门真的接在动作层上，⛔ 不是「没人调用的函数」）",
+                "protected_block_entity".equals(chestClearing)
+                        && !chestBroken && level.getBlockState(AUTH_CHEST).is(Blocks.CHEST));
+        check("⑬位置判据④⛔ **不是「不可动」**：**放置**那一支不看方块实体 —— 同一格的放置判定照旧放行"
+                        + "（码=" + ZoneAuthority.placeRefusal(level, owner, AUTH_CHEST,
+                                WriteReason.STEP_PLACEMENT) + "）；两条轴分开：放置看**等级阶梯**、"
+                        + "挖掘才看这条**位置**规则",
+                ZoneAuthority.placeRefusal(level, owner, AUTH_CHEST, WriteReason.STEP_PLACEMENT) == null);
+        check("⑬位置判据⑤**归类**：`permanentDenial(\"protected_block_entity\")=true` ⇒ 区域作业会**如实失败**"
+                        + "（`no_permitted_candidate`），⛔ 不会把「区内挖不动」当成「区域里没有候选」空转到 `maxTicks`"
+                        + "（`D-341` 那条 20 分钟空转的同类）",
+                ZoneAuthority.permanentDenial("protected_block_entity"));
 
         findings.add("authority: L0/L1/L2 判据 + 真写入（quota=" + quotaPlaced + "/"
                 + ZoneAuthority.L1_MAX_PLACES + " 区内放置，越界/安全区/野外/别的 owner/候选扫描各一条）");

@@ -24,6 +24,11 @@ import java.util.UUID;
  *   <li>{@link Verdict#DENY}：拒绝 + **可归因的码**。</li>
  * </ul>
  *
+ * <p>⭐ **两条轴分开**（刀 2 之后更明显）：**放置**看**等级阶梯**（`L0` 只读 / `L1` 只许临时脚手架 /
+ * `L2` 工作面 / `L3` 完整）；**挖掘**除了等级，还额外受一条**位置**规则约束
+ * —— **已认领区块里的方块实体一律不可挖掘**（{@code protected_block_entity}）。
+ * ⇒ ⛔ 别把后者说成"区内不可动"：放置照旧走等级那一支，两者不是同一条判据。
+ *
  * <p><b>为什么只做一处</b>：三处各写一套判据 = 重演"六份重复"（`BlockBreakSafety` 的教训）。
  * 这里连"保护区黑名单规则（`protected_block`/`protected_tag`）**不参与**区域授权"这条口径
  * 也收在 {@link #regionRefusal} 里 —— 那两条是**全世界通用**的玩家规则，任务区不许把它们顶掉。
@@ -39,6 +44,10 @@ import java.util.UUID;
  *       这一笔不是</td></tr>
  *   <tr><td>{@code zone_place_quota}</td><td>`L1` 的**区内 8 次**放置配额用尽</td></tr>
  *   <tr><td>{@code zone_reason_required}</td><td>调用方**没给理由** ⇒ 不给区域级放行（保守：没有声明就没有授权）</td></tr>
+ *   <tr><td>{@code protected_block_entity}</td><td>⭐ **刀 2「宝贵 → 位置判据」**（`D-565` ⑤）：
+ *       这一格在**已认领区块**里、且**这一格是方块实体**（箱子/熔炉/漏斗/刷怪笼/**模组机器**…）
+ *       ⇒ **一律不可挖掘**（`Act.BREAK`）。⛔ 与理由无关、⛔ 与等级无关（`L0…L3` 同码）
+ *       —— "宝贵"钉在**位置**上，不再是"方块类型"。</td></tr>
  * </table>
  *
  * <p>⛔ **已删除的码**：{@code protected_safe_zone}（2026-10-01 用户逐字「**确实要撤掉，确认有意**」）——
@@ -67,6 +76,7 @@ public final class ZoneAuthority {
      * <p><b>收录的码</b>：{@code protected_area}（在保护区里且**没有**生效任务区）/
      * {@code zone_read_only}（`L0`）/
      * {@code zone_break_not_allowed}（`L1` 不许破坏）/ {@code zone_place_not_scaffold}（`L1` 只许临时放置）/
+     * {@code protected_block_entity}（⭐ 刀 2：区内方块实体一律不可挖掘 ⇒ **不会**因为再搜一次就变成可挖）/
      * {@code protected_block} / {@code protected_tag}（玩家设的全世界通用黑名单 —— 也不是"等一下就会变"）。
      *
      * <p>⚠️ **刻意不收录**：`trunk_too_tall`、`not_nearest`、`no_stand`、`unreachable`、`search_limit` 之类
@@ -85,7 +95,7 @@ public final class ZoneAuthority {
             head = head.substring(0, cut);
         }
         return switch (head.trim()) {
-            case "protected_area", "protected_block", "protected_tag",
+            case "protected_area", "protected_block", "protected_tag", "protected_block_entity",
                  "zone_read_only", "zone_break_not_allowed", "zone_place_not_scaffold" -> true;
             default -> false;
         };
@@ -162,6 +172,33 @@ public final class ZoneAuthority {
         String capNote = level0 == declared ? ""
                 : "【保护区内·非玩家发起（LLM/未归因）⇒ 从 " + declared.label() + " 封顶 " + level0.label() + "】";
         if (act == Act.BREAK) {
+            // ⭐⭐ **刀 2「宝贵 → 位置判据」**（`D-565` ⑤，2026-10-01 用户逐字：
+            // 「**"宝贵"从"方块类型"改成"位置"我采纳**」「应该就是**任何 `hasBlockEntity()` 一律不可挖掘**」）。
+            //
+            // 能走到这里 ⇒ **这一格在已认领区块里**（未认领早在上面 `isClaimed` 就 `NOT_GATED`）
+            // ⇒ 于是"这一格是不是方块实体"**就是**判据本身：⛔ 不看理由、⛔ 不看等级
+            // （`L0…L3` 一律拒 —— 玩家的箱子/熔炉/刷怪笼/**模组机器**在**他的地**上，内容物是**他的**）。
+            //
+            // ⚠️ 口径（用户当场纠正过我两次，⛔ 别再写错）：
+            //   · 拦的是**挖掘（`Act.BREAK`）** —— ⛔ **不是"不可动"**（放置/开箱照旧，见下面 `Act.PLACE` 一支）；
+            //   · **"容器写入理由"不是例外** —— 它**本来就不走这条路**：
+            //     `WriteReason.CONTAINER_TRANSFER` 的 `Action.BOTH` 是**声明性**字段
+            //     （`WriteReason#action()` 全仓只有一处读者，且那是策略表自检），
+            //     容器写入真正过的是 `WriteBudget.consumeContainerWrite` ⇒ **从不经过本判据**。
+            //   · ⛔ **不许把这件事叫"清障"** —— 那个概念已被用户丢弃（台账 `O128` 取 A：只丢讨论口径）。
+            //
+            // 为什么放在**动作维度**而不是"清障策略"里：`BlockBreakSafety.clearingRefusal`
+            // 那条 `block_entity` 只管**清障**策略、且**不分区内区外**（`D-095` 的临时手段，仍在）；
+            // 本判据把"宝贵"钉在**位置**上 ⇒ 区内连 `EXPECTED_TARGET`（明确目标）也不许挖，
+            // 且**候选扫描/能力闸门同时生效**（"一个判据，多处消费"）⇒ 规划器自动绕开，绕不开就如实
+            // `found_but_unminable`（不需要新机制）。
+            if (level.getBlockState(pos).hasBlockEntity()) {
+                return new Decision(Verdict.DENY, "protected_block_entity",
+                        "这一格在**已认领区块**里、且是**方块实体**（" + level.getBlockState(pos).getBlock()
+                                .getName().getString() + "）⇒ 区内**一律不可挖掘**"
+                                + "（" + pos.toShortString() + "；理由 " + reason.name()
+                                + " 不构成例外，等级 " + level0.label() + " 也不构成例外）");
+            }
             if (!level0.allowsBreak()) {
                 return new Decision(Verdict.DENY,
                         level0 == WritePolicyMatrix.Level.L0_READ_ONLY ? "zone_read_only" : "zone_break_not_allowed",

@@ -14,9 +14,14 @@ import net.minecraft.world.level.block.state.BlockState;
  * Alice 唯一的方块破坏安全入口。
  * <p>明确任务目标与执行器自行选择的清障方块使用不同策略：</p>
  * <ul>
- *   <li>明确目标：安全区和不可破坏方块拒绝；黑曜石等高代价方块仍允许。</li>
+ *   <li>明确目标：**保护区**（`protected_area`，交{@link ZoneAuthority} 区域授权面判）与不可破坏方块拒绝；
+ *       黑曜石等高代价方块仍允许。</li>
  *   <li>清障目标：额外回避脚下承重块与高代价方块，优先换站位/路线。</li>
  * </ul>
+ *
+ * <p>⚠️ 本类**不是**"宝贵"的唯一出处：**区内（已认领区块）任何方块实体一律不可挖掘**这条**位置**规则
+ * 在 {@link ZoneAuthority#authorize}（`D-565` ⑤ 刀 2，码 `protected_block_entity`）—— 它对
+ * `EXPECTED_TARGET` 也生效，而本类的 {@code block_entity} 只管**清障**策略。
  */
 public final class BlockBreakSafety {
 
@@ -184,7 +189,10 @@ public final class BlockBreakSafety {
         // （`SurfaceMovementProvider` 用它生成 BREAK_AND_* 候选）——**剔除之后规划器会自动绕开**，
         // 绕不开就如实 `found_but_unminable`。于是"绕路"是免费得到的，不需要新机制。
         // 只作用于清障策略（LINE_OF_SIGHT/STANDING_SPACE/PATH_ACCESS）；
-        // **玩家明确指定的目标**（EXPECTED_TARGET）不受影响。
+        // **玩家明确指定的目标**（EXPECTED_TARGET）在这一层不受影响
+        // ⚠️ 但**区内**另有更严的一档（`D-565` ⑤ 刀 2：已认领区块里的方块实体**一律不可挖掘**，
+        // 码 `protected_block_entity`，见 `ZoneAuthority.authorize`）—— 那一条**对明确目标也生效**，
+        // 所以区内的清障拒绝今天**归因到位置规则**，本码只剩"野外清障"这一面。
         if (state.hasBlockEntity()) {
             return "block_entity";
         }

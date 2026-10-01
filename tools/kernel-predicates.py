@@ -671,7 +671,11 @@ def rule_no_permitted_candidate():
         # 该码**连发射点一起删除**（`ZoneAuthority.authorize` 的安全区分支 ＋ `JobAreaRegistry.declare`
         # 的 `CONFLICT_SUBZONE`）⇒ 安全区格今天走与保护区**完全相同**的 `protected_area`。
         # ⚠️ 继续断言它 = 断言一个**已删除的行为**（死规则），故本规则人口同步收窄。
-        for code in ('"zone_break_not_allowed"', '"protected_area"',
+        # ⭐ 2026-10-01 刀 2（`D-565` ⑤）：**`"protected_block_entity"` 加进人口** ——
+        # 它是「区内任何 `hasBlockEntity()` 一律不可挖掘」的拒绝码，**必须**算永久拒绝：
+        # 这一格再扫多少次也不会变成可挖 ⇒ 漏掉它，区域作业又会把"挖不动"当成"区域里没有候选"、
+        # 空转到 `maxTicks`（正是本规则存在的理由）。
+        for code in ('"zone_break_not_allowed"', '"protected_area"', '"protected_block_entity"',
                      '"zone_read_only"', '"zone_place_not_scaffold"'):
             if code not in body:
                 problems.append("`permanentDenial` 丢了永久码 " + code + "（权限类拒绝必须算永久）")
