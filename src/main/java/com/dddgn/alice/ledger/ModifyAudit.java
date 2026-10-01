@@ -1,5 +1,6 @@
-package com.dddgn.alice.write;
+package com.dddgn.alice.ledger;
 
+import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.log.BotLog;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -20,7 +21,7 @@ import java.util.List;
  * <p>与 {@code ScopeBuffer} 的分工：{@code ScopeBuffer} 通过 Forge 事件记录"世界实际发生了什么"
  * （含外部玩家造成的破坏），本类记录"Alice 授权自己做了什么"——两者在 J6 交叉校验。
  */
-public final class WriteAudit {
+public final class ModifyAudit {
 
     /** 环形缓冲上限；超出即丢弃最旧记录（只影响诊断可读性，不影响计数）。 */
     private static final int MAX_ENTRIES = 512;
@@ -37,7 +38,7 @@ public final class WriteAudit {
     private static int places;
     private static int unknownRequester;
 
-    private WriteAudit() {
+    private ModifyAudit() {
     }
 
     /** 登记一次破坏。 */

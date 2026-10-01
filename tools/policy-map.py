@@ -28,7 +28,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "src", "main", "java", "com", "dddgn", "alice")
 # ⚠️ `step 4`（`D-462`，2026-09-27）：这两个类搬进了 `write/`（同批还有 `Attribution`/`WriteBudget`/
-# `WriteAudit`/`TaskTargetProtection`）—— 搬包时必须**逐条**找这种硬写路径，本刀第一版就漏了一处
+# `ModifyAudit`/`TaskTargetProtection`）—— 搬包时必须**逐条**找这种硬写路径，本刀第一版就漏了一处
 # （`kernel-predicates` 的 `TaskTargetProtection`），靠"反向对照"才抓到。
 MATRIX_JAVA = os.path.join(SRC, "write", "WritePolicyMatrix.java")
 REASON_JAVA = os.path.join(SRC, "write", "WriteReason.java")

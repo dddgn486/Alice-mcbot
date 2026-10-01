@@ -5637,6 +5637,33 @@ AI 建议 = **必改 `空转`（拆词）** · ✅ **已执行 `咬人`→`拦�
 ② 把 `region/` 那份挪走 ⇒ 红「搬包不是删除」；还原 ⇒ `PASS`（`region/` 5 文件）·
 `ALICE_HEADLESS=1 check-all` ⇒ `PASS_WITH_REGISTERED_REDS: pass=41 warning=0 failed=0`。
 
+### §B⁗ 刀 4（三件外移）—— **2/3 落地，第 3 件撞上冲突暂停**（`D-566`）
+
+> ⭐ 用户 2026-10-01 逐条勾选：「① `WriteAudit` → `ledger/`（带上 `Modify` 前缀）·
+> ② `WriteGrant` ⛔ 不进 `authz/`，改形成 `Attribution` · ③ `WriteBudget` → `Quota` 先落 `job/` 侧」
+> ＋ ⭐ **「本刀只做三件外移，拆谓词留到下一刀」**。
+
+| 件 | 状态 | 提交 |
+|---|---|---|
+| `WriteGrant` → **`Attribution`** | ✅ 落地（**⛔ 不搬家**，就地改形 `write/Attribution.java`；组件名 `requester` **暂留**并登记理由） | `34326004` |
+| `WriteAudit` → **`ledger/ModifyAudit`** | ✅ 落地（**归因账**与物质账同族；零新包边） | 本断点 |
+| `WriteBudget` → **`Quota`** | ⛔ **暂停**：落 `job/` 会让 **12 个包 / 26 个非夹具文件**（含**内核 `pathing/` 6 处**）反向依赖最高层，且**门禁抓不到** ⇒ 台账 `O131` 待裁 | — |
+
+⭐ **我荐第 3 件的替代（待裁）**：**`Quota` 留在 `write/` 只改名** —— 零新边；"额度值从哪来"已由
+`job/JobWriteDeclaration` 表达，"计数与消费"天然住在低处。
+
+**同步表 4 处**（`D-462` 那类）：`check-layer-direction`（`WRITE_GOVERNANCE` 6→5 ·
+`MIN_WRITE_FILES` 6→5 ＋ 新 `LEDGER_MOVED` 搬包判据）· `check-primitive-readings` 的合成臂
+（它用 `WriteGrant` 当"第二个额度词"，改名后不含 `grant` 子串 ⇒ 当场红 ⇒ 换 `Quota`）·
+`docs/authz/POLICY_MATRIX.csv`（重生成）· `docs/BARITONE_ANCHORS.md`（**两笔提交都因引用面扫到内核文件**
+⇒ 各补一行「零行为增量」—— ⭐ **提交后必须复跑这个门禁**，`O113`/刀 3 的同一个坑）。
+
+**证据**：`compileJava` 成功 · ⭐ **搬包判据双向注入即红**（`ledger/ModifyAudit.java` 复制回 `write/` ⇒ 红；
+还原 ⇒ `PASS`）· `ALICE_HEADLESS=1 check-all` ⇒ **`pass=41 warning=0 failed=0`** ·
+`single:task_zone` **94/0** · `single:write_policy` **PASS**。
+⚠️ **CORE 首跑命中既有间歇红 `lumber_job`**（签名与 `20260925`/`20260927` **逐字相同**、同代码相邻两跑
+PASS/FAIL 各一）⇒ 与刀 4 无关，已登记 `O132`；连带发现 **`EXPECTED_REDS` 登记不了间歇红**。
+
 ### §C ⏳ 下一刀（active goal 的续行方向，⛔ 不需要用户输入即可开工）
 
 | 优先 | 刀 | 依据 |
@@ -5644,7 +5671,8 @@ AI 建议 = **必改 `空转`（拆词）** · ✅ **已执行 `咬人`→`拦�
 | ✅ **刀 5** | **已完成**（`7d6de008`）：8 类改名 ＋ 3 个同名 `Zone` 分离，**11 个字面名已由用户复核同意** | `D-565` 刀 5 节 |
 | ✅ **刀 2** | **已完成**（见 `§B″`）：**区内**任何 `hasBlockEntity()` 的方块**一律不可挖掘**（新码 `protected_block_entity`；⛔ 不是「不可动」；容器写入**无需**例外） | `D-565` ⑤ ＋ 刀 2 节 |
 | ✅ **刀 3** | **已完成**（见 `§B‴`）：建 `region/` ＋ `region/authz/` 骨架 ＋ 搬 3 个原样类（`JobAreaRegistry` · `ClaimService` · `MapGeometry`）—— **3 个字面名用户当场确认** | `D-566` · 结构提案 `§8` 步 2 |
-| **刀 4** | 三件外移：`WriteAudit`→`ledger/`（12 文件）· `WriteBudget`→`Quota`（`job/` 侧，**63 文件**）· `WriteGrant`→`Attribution`（**68 文件**） | 方案草案 `§22.3` |
+| **刀 4** | ⭐ **2/3 已完成**（见 `§B⁗`）：`WriteGrant`→`Attribution`（就地改形）· `WriteAudit`→`ledger/ModifyAudit`；⛔ **`WriteBudget`→`Quota` 暂停**（落 `job/` 会造 12 包反向依赖、门禁抓不到 ⇒ `O131` 待裁） | `D-566` 刀 4 节 |
+| **下一刀** | ⭐ **`ZoneAuthority` 拆三个谓词后定名**（用户已裁「本刀只做三件外移，拆谓词留到下一刀」）—— ⚠️ 名字与 `§7` #4（E 维留不留）**都还没定** | 结构提案 `§8` 步 4 · `§5` |
 
 ### ✅⚠️ 刀 2 的**准确口径**（用户 2026-10-01 当场纠正过我两次，⛔ 别再写错）—— **已落地，本节留作口径锚**
 

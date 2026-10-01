@@ -27593,3 +27593,44 @@ action/                          ← 根 = 跨域共享原语（5 个，刀 1 �
 - `ALICE_HEADLESS=1 tools/check-all.sh` ⇒ `PASS_WITH_REGISTERED_REDS: pass=41 warning=0 failed=0`
 - ⚠️⭐ **提交后要复跑 `check-baritone-anchor`**（`O113`/刀 5 同一个坑）：本刀**看起来不碰内核**，但 `action/BlockInteraction.java` 出现在**引用面**上（一行 import）⇒ 提交后门禁判它「改了代码但没登记行」⇒ 已在 `docs/BARITONE_ANCHORS.md` 补 `e6b88a67` 行（**Alice 特有：零行为增量**）
 - ⭐ **碰到本刀两个类的夹具步同轮复跑，零回归**：`protection_zones`（CORE 内，`ClaimCheckTask` 用 `ClaimService` ＋ `MapGeometry`）⇒ **`checks=95 failures=0 PASS`**；`single:task_zone`（用 `JobAreaRegistry`）⇒ **`checks=94 failures=0 PASS`**。CORE 整轮唯一红 = 既有的已登记红 `mine_regression`（`EXPECTED_REDS` 1-1b₂，与本刀无关）
+
+---
+
+#### 刀 4（三件外移）—— 2/3 落地 ＋ 1 件撞上冲突（2026-10-01，`D-566`）
+
+**用户裁定（2026-10-01，逐条勾选）**：① `WriteAudit` → `ledger/`（**带上前缀** ⇒ `ModifyAudit`）·
+② `WriteGrant` ⛔ 不进 `authz/`，**改形**成归因原语 `Attribution` ·
+③ `WriteBudget` → `Quota`，**先落 `job/` 侧** · ④ ⭐ **「本刀只做三件外移，拆谓词留到下一刀」**
+（⇒ `ZoneAuthority` 拆三个谓词**不在本刀**，与结构提案 `§8` 的步 4/步 5 分法一致）。
+
+| 件 | 状态 | 落地 |
+|---|---|---|
+| ② `WriteGrant` → `Attribution` | ✅ **已落地**（`34326004`） | **⛔ 不搬家**（它是全维度共用的归因原语）⇒ 就地改形：`write/Attribution.java`。⚠️ 组件名 `requester` **暂留**（登记在类 javadoc：`requester()` 今天同时活在 `PathRequest`/`Utterance` 两个类型上 ＋ NBT 键 ＋ 夹具 id ＋ 日志码 ⇒ 只改一个 = 一词两义） |
+| ① `WriteAudit` → `ledger/ModifyAudit` | ✅ **已落地** | `git mv` ＋ 改名（**归因账**与 `WorldModLedger` 的**物质账**同族）；补 `import com.dddgn.alice.write.Attribution`（原来同包）；⭐ **零新包边**（`ledger → write` 本来就有：`WorldModLedger`） |
+| ③ `WriteBudget` → `Quota` | ⛔ **暂停（撞上冲突）** | ⭐ 见下「为什么停」⇒ 台账 **`O131`**，⛔ 未裁之前不动 `src/` |
+
+**⭐⭐ 为什么第 ③ 件停了（实测，⛔ 不是偏好）**：`WriteBudget` 今天被 **12 个包的 26 个非夹具文件**使用，
+而 `job.*` 今天**只**被 `{config, decision, fixture, item, job, tool}` import ⇒ 搬去 `job/` =
+**26 处"低层 → 写入治理"变成"低层 → 最高层 `job/`"**（其中 `pathing/` **6** 处是**内核**，
+`task/ → job/` 今天**零**依赖）。⚠️ 且 `check-layer-direction` **抓不到它**（只禁 `write/**`·`reach/**`
+对 `{task, action, job}` 的 import）⇒ 这次反转会**静默**通过。
+⭐ **我荐的替代（待裁）**：**`Quota` 留在 `write/` 只改名** —— 用户口径「额度 = **意图来源轴给的**额度」
+已由 `job/JobWriteDeclaration`（本来就在 `job/`）表达"值从哪来"，`Quota` 承担的是**计数与消费**
+（谁都被它拦 ⇒ 天然住在低处），且与「`WriteBudget → Quota` **不补前缀**」不冲突。
+
+**门禁/同步表（`D-462` 那类，本刀当场抓到 4 处）**：
+`check-layer-direction`（`WRITE_GOVERNANCE` 6 → **5** ＋ `MIN_WRITE_FILES` 6 → **5** ＋ 新增 `LEDGER_MOVED`
+搬包判据）· `check-primitive-readings`（合成臂原用 `WriteGrant` 当"第二个额度词"⇒ 改名后**不含 `grant` 子串**
+⇒ 当场红 ⇒ 换成 `Quota`）· `docs/authz/POLICY_MATRIX.csv`（生成物，`tools/policy-map.sh` 重生成）·
+`docs/BARITONE_ANCHORS.md`（两笔提交都因**引用面**扫到 `BlockInteraction`/`MineBlockRunner`/`FishboneJob`/
+`MineCandidateSource`/`MiningPlanner` ⇒ 各补一行「Alice 特有：零行为增量」）。
+
+**验证等级**：
+- `./gradlew compileJava --offline --no-daemon` 成功
+- ⭐ **静态门禁双向注入即红**：`ledger/ModifyAudit.java` 复制一份回 `write/` ⇒ 红「刀 4 的搬包没做完」
+  （搬包不改行为 ⇒ 行为夹具**结构性无感**，同 `D-425` 口径）；还原 ⇒ `PASS`
+- `ALICE_HEADLESS=1 check-all` ⇒ **`PASS_WITH_REGISTERED_REDS: pass=41 warning=0 failed=0`** ·
+  `single:task_zone` **94/0** · `single:write_policy` **PASS**
+- ⚠️ **本刀 CORE 首次跑命中一个既有间歇红**：`lumber_job=FAIL`（签名与 `20260925`/`20260927`
+  **逐字相同**，且同代码相邻两跑 PASS/FAIL 各一）⇒ **与刀 4 无关**，已登记 **`O132`**
+  （连带发现：`EXPECTED_REDS` **登记不了间歇红** —— 它一 PASS 就被判"陈旧行"）

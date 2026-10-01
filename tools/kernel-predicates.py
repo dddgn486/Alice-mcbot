@@ -4958,7 +4958,7 @@ def rule_write_truth_single_source():
     三本账各司其职，但**同一个量**只能有一个出处：
     · `WorldModLedger` = **义务与残留**的真相（"还欠多少"，含 `RC3` 的不可逆事实）；
     · `WriteBudget` = **闸门 + 人口**（"还让不让写" / "这次窗口写了多少次，含区外"）；
-    · `WriteAudit` = **逐条审计明细**（谁授权、写了哪一格）。
+    · `ModifyAudit` = **逐条审计明细**（谁授权、写了哪一格）。
     而 `consumeBreak` 在**会话开始前**扣账，破坏却可能在很多 tick 之后才被证明**根本没发生**
     ⇒ `D-323` 真机现场（`BreakRefusedCheckTask` 头部原话）：FTB 认领内 4 次破坏全打了
     `WriteBudget breaks=1/64`，而存档里那 4 格仍是 `minecraft:dirt`。`D-323` 只修好了**报告**，

@@ -24,7 +24,7 @@ import java.util.UUID;
  *
  * <p>为什么只记放置：破坏型修改**无法配对恢复**（你没法把隧道还原），其控制手段是
  * "谓词 + 预算 + 归因"（见 D-095）；**只有放置需要、也能够被恢复**。
- * 账本因此小而准。授权归属（谁、为什么）仍由 `action/WriteAudit` 负责，两者用 `scopeId` 关联。
+ * 账本因此小而准。授权归属（谁、为什么）仍由 `ModifyAudit`（本包；原 `action/WriteAudit` ⇒ `write/` ⇒ 本包）负责，两者用 `scopeId` 关联。
  *
  * <p>**记录点 = 动作层**（`BlockInteraction.placeAt` / `placeBulkEdit`）：只有动作层看得见
  * **每一次**修改——包括内核 `PILLAR` 放的方块（Job 未必看得见）。靠调用方自觉记录必然重演"六份重复"。

@@ -2,7 +2,7 @@ package com.dddgn.alice.action;
 
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.write.TaskTargetProtection;
-import com.dddgn.alice.write.WriteAudit;
+import com.dddgn.alice.ledger.ModifyAudit;
 import com.dddgn.alice.write.WriteBudget;
 import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
@@ -389,7 +389,7 @@ public final class BlockInteraction {
                         placeAt.toShortString(), grant == null ? "-" : grant.describe(),
                         WriteBudget.describe(bot));
             }
-            WriteAudit.placeWrite(level, placeAt, level.getBlockState(placeAt), grant);
+            ModifyAudit.placeWrite(level, placeAt, level.getBlockState(placeAt), grant);
             // 账本记录（J6-a）：动作层是唯一看得见"每一次修改"的地方（含内核 PILLAR 放的方块）
             com.dddgn.alice.ledger.WorldModLedger.recordPlacement(level, bot.getUUID(), grant, placeAt,
                     previousState, level.getBlockState(placeAt));
@@ -645,7 +645,7 @@ public final class BlockInteraction {
                     grant == null ? "unknown" : grant.describe());
             return null;
         }
-        WriteAudit.breakWrite(level, pos, level.getBlockState(pos), grant);
+        ModifyAudit.breakWrite(level, pos, level.getBlockState(pos), grant);
         return BlockBreakSession.begin(bot, level, pos, grant);
     }
 
@@ -684,7 +684,7 @@ public final class BlockInteraction {
             return false;
         }
         BlockState previousState = level.getBlockState(pos);
-        WriteAudit.placeWrite(level, pos, state, grant);
+        ModifyAudit.placeWrite(level, pos, state, grant);
         level.setBlock(pos, state, 3);
         com.dddgn.alice.ledger.WorldModLedger.recordPlacement(level, bot.getUUID(), grant, pos,
                 previousState, state);
@@ -740,7 +740,7 @@ public final class BlockInteraction {
             WriteBudget.refundBreak(bot, pos, grant, "world_unchanged");
             return false;
         }
-        WriteAudit.breakWrite(level, pos, before, grant);
+        ModifyAudit.breakWrite(level, pos, before, grant);
         // ⭐ `RC3`：批量破坏是**另一条真的改世界的路**（`level.destroyBlock`）⇒ 同一套不可逆记账。
         com.dddgn.alice.ledger.WorldModLedger.recordLossyWrite(level, pos, before,
                 grant == null ? "bulk-edit" : grant.describe());

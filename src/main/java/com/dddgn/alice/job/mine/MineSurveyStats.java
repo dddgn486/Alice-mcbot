@@ -15,7 +15,7 @@ import java.util.Locale;
  * <p>**纯函数**（不读世界、只算给定坐标）⇒ 夹具能用合成数据逐条断言，真机数据也走同一段代码。
  *
  * <p>⚠️ 它统计的是**任务的决策行为**（选中/尝试了哪些格子），不是"世界被改了多少"——
- * 后者有独立账（`TaskMetrics` / `WriteAudit`），两者不许混（混了就无法判断"是偏置还是被拒"）。
+ * 后者有独立账（`TaskMetrics` / `ModifyAudit`），两者不许混（混了就无法判断"是偏置还是被拒"）。
  */
 public final class MineSurveyStats {
 

@@ -836,7 +836,7 @@ public final class LumberJob implements Job {
                     terminalReason, progressSummary() + " inventoryDelta=" + (countLogs() - logsBefore)
                             + " gainedTrees=" + gainedTrees + " gainedBlocks=" + gainedBlocksTotal
                             + " scaffoldLeft=" + scaffoldLeft
-                            + " " + com.dddgn.alice.write.WriteAudit.summary(),
+                            + " " + com.dddgn.alice.ledger.ModifyAudit.summary(),
                     ticks);
             BotLog.info("[Job] lumber SUMMARY gainedTrees={} gainedBlocks={} scaffoldLeft={}",
                     gainedTrees, gainedBlocksTotal, scaffoldLeft);

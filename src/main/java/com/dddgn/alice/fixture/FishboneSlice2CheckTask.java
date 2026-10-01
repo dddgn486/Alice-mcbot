@@ -1,7 +1,7 @@
 package com.dddgn.alice.fixture;
 
 import com.dddgn.alice.action.BlockInteraction;
-import com.dddgn.alice.write.WriteAudit;
+import com.dddgn.alice.ledger.ModifyAudit;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.config.FishboneConfig;
 import com.dddgn.alice.item.FishboneJobItem;
@@ -79,7 +79,7 @@ import com.dddgn.alice.task.TaskTarget;
  *   <li><b>几何盒</b>：{@link #ORIGIN} 起 12×7×11 的实心石盒；建场景、期望表、断言**共用同一个盒**；</li>
  *   <li><b>世界假设</b>：y=80 高空，且离切片 1（3600,80,2400）有 160 格 ⇒ 两片场地不连、
  *       不与自然地形相连；</li>
- *   <li><b>层归属</b>：断言落在**世界事实**（逐格方块表 + `WriteAudit` + 背包实物）上，
+ *   <li><b>层归属</b>：断言落在**世界事实**（逐格方块表 + `ModifyAudit` + 背包实物）上，
  *       不落在"任务自报完成"上（`JobKindContract`/`D-349`）。</li>
  * </ol>
  */
@@ -645,7 +645,7 @@ public final class FishboneSlice2CheckTask implements Task {
 
         failuresAtArmStart = failures.size();
         scaleBefore = PathingStats.scale();
-        auditBefore = WriteAudit.snapshot().size();
+        auditBefore = ModifyAudit.snapshot().size();
         BotLog.info("[Fishbone2] CHECK arm={} template={} tick={} scaleBefore={} 产物基线={}",
                 arm, template.describe(), ticks, scaleBefore.describe(), productsBefore);
         settleTicks = 0;
@@ -715,14 +715,14 @@ public final class FishboneSlice2CheckTask implements Task {
         armVerdict = job.terminalReason();
         scaleDelta = PathingStats.scale().delta(scaleBefore);
         Set<BlockPos> allowed = writeWhitelist(ARMS[armIndex]);
-        List<WriteAudit.Entry> audit = WriteAudit.snapshot();
+        List<ModifyAudit.Entry> audit = ModifyAudit.snapshot();
         auditDeltaBreaks = 0;
         auditOutsideExpected = 0;
         auditDeltaPlaces = 0;
         auditOutsidePlaces = 0;
         Set<BlockPos> placeAllowed = placementWhitelist(ARMS[armIndex]);
         for (int i = auditBefore; i < audit.size(); i++) {
-            WriteAudit.Entry entry = audit.get(i);
+            ModifyAudit.Entry entry = audit.get(i);
             if ("break".equals(entry.action())) {
                 auditDeltaBreaks++;
                 if (!allowed.contains(entry.pos())) {

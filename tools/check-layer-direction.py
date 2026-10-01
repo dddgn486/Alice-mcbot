@@ -24,7 +24,7 @@
 
 `action/` 的 12 个文件本来就**干净地分成两半**：**6 个微操作**（`BlockBreakSession` ·
 `BlockInteraction` · `ContainerSemantics` · `MenuCodes` · `MenuSession` · `MineBlockRunner`）
-与 **6 个写入治理**（`TaskTargetProtection` · `WriteAudit` · `WriteBudget` · `Attribution` ·
+与 **6 个写入治理**（`TaskTargetProtection` · `ModifyAudit` · `WriteBudget` · `Attribution` ·
 `WritePolicyMatrix` · `WriteReason`）。拆包后方向变成**单向**：
 
     action/mining/MineBlockRunner → write/Attribution ✅ 允许（执行件调授权）
@@ -47,7 +47,7 @@
    `com.dddgn.alice.{task, action, job}` 的 import ⇒ 红。
    ⭐ 方向性断言：**`action/` → `write/` 是允许的**（微操作调授权），**反过来禁止**。
 4. **6 个写入治理类只许定义在 `write/`**（`step 4` 的**实现**判据）：`action/` 里再出现
-   `{TaskTargetProtection, WriteAudit, WriteBudget, Attribution, WritePolicyMatrix, WriteReason}.java`
+   `{TaskTargetProtection, ModifyAudit, WriteBudget, Attribution, WritePolicyMatrix, WriteReason}.java`
    ⇒ 红；且这 6 个文件必须**都**在 `write/` 里（否则"拆包"可以是"删掉"）。
 5. **人口下限**（防"把包搬空 ⇒ 门禁假绿"）：扫描 `.java` ≥ `MIN_SCANNED_FILES` ·
    `reach/` ≥ `MIN_REACH_FILES` · `action/` ≥ `MIN_ACTION_FILES` · `write/` ≥ `MIN_WRITE_FILES`。
@@ -101,8 +101,15 @@ REACH_FORBIDDEN = ("com.dddgn.alice.task.", "com.dddgn.alice.action.", "com.dddg
 WRITE_FORBIDDEN = ("com.dddgn.alice.task.", "com.dddgn.alice.action.", "com.dddgn.alice.job.")
 
 #: `step 4`（`D-462`）搬出 `action/` 的 6 个写入治理类 —— 它们**只许**定义在 `write/` 下。
-WRITE_GOVERNANCE = ("TaskTargetProtection", "WriteAudit", "WriteBudget",
+#: ⚠️ 2026-10-01 刀 4（`D-566`）：`WriteAudit` **已搬去 `ledger/ModifyAudit`** ⇒ 从此不在本表
+#: （本表是"**只许定义在 `write/` 下**"的名单 —— 它搬走了就该走，⛔ 不是"忘了"）。
+WRITE_GOVERNANCE = ("TaskTargetProtection", "WriteBudget",
                     "Attribution", "WritePolicyMatrix", "WriteReason")
+
+#: ⭐ 刀 4（`D-566`）：`write/WriteAudit` → **`ledger/ModifyAudit`**（用户 2026-10-01 裁定
+#: 「`WriteAudit` → `ledger/`（带上前缀 ⇒ 类名 `ModifyAudit`）」）。判据 = **搬包不是复制**：
+#: `ledger/` 里必须有、`write/` 里必须没有。
+LEDGER_MOVED = ("ModifyAudit",)
 
 #: ⭐ **刀 3**（`D-566`，2026-10-01）：`§8` 步 2 从 `protection/` **原样搬进** `region/` 的 3 个类
 #: （`JobAreaRegistry` · `ProtectionClaimService`→`ClaimService` · `ProtectionMapGeometry`→`MapGeometry`）。
@@ -263,7 +270,9 @@ MIN_REACH_FILES = 4
 #: `step 4`（`D-462`）之后 `action/` = 实测 **6** 个（纯微操作；原 12 = 6 微操作 + 6 写入治理）。
 MIN_ACTION_FILES = 6
 #: `step 4` 实测 6 个（`WRITE_GOVERNANCE` 全体）。
-MIN_WRITE_FILES = 6
+#: ⚠️ 2026-10-01 刀 4（`D-566`）：`WriteAudit` 搬去 `ledger/ModifyAudit` ⇒ **6 → 5**
+#: （`WRITE_GOVERNANCE` 同步收窄；⛔ 这个数**跟着名单走**，别两处各改一半）。
+MIN_WRITE_FILES = 5
 #: 刀 3（`D-566`）：`region/` 的**原样类**人口（实测 3 个 `.java` ＋ 1 个 `package-info.java`）。
 MIN_REGION_FILES = 3
 
@@ -630,6 +639,14 @@ def main() -> int:
     if missing:
         problems.append(f"`write/` 里缺 {missing} ⇒ 「拆包」不成立（拆包不是删除；`step 4`/`D-462`）")
 
+    # ⭐ 刀 4（`D-566`）：`write/` → `ledger/` 的**搬包**判据（同刀 3 的 `region/` 那条同一个形状）。
+    for name in LEDGER_MOVED:
+        if not (SRC / PKG / "ledger" / f"{name}.java").exists():
+            problems.append(f"`ledger/` 里缺 `{name}.java` ⇒ 「搬包」不成立（搬包不是删除；`D-566` 刀 4）")
+        if (SRC / PKG / "write" / f"{name}.java").exists():
+            problems.append(f"`{PKG}/write/{name}.java` 还在 ⇒ 刀 4 的搬包没做完"
+                            f"（同一层不许有两份定义；`D-566`）")
+
     # ⭐ 刀 3（`D-566`，2026-10-01）：`protection/` → `region/` 的**搬包**判据。
     # 反空转 ③：`region/` 被搬空/被删 ⇒ 红；且**两个包不许各留一份**（搬包 = 移动，⛔ 不是复制）。
     region_files = under("region")
@@ -669,7 +686,7 @@ def main() -> int:
     print(f"LAYER_DIRECTION_RESULT PASS: `reach/` 反向依赖 0 · `write/` 反向依赖 0 · `action/` → `task/` 欠账 "
           f"{sum(len(v) for v in debt_hits.values())} 条「{debt or '无（step 3b 后已是无条件 0 命中）'}」 · "
           f"reach {len(reach_files)} 文件 / action {len(action_files)} 文件 / write {len(write_files)} 文件 "
-          f"（写入治理 6 个全在）· `R3` 注册位置 {sorted(REGISTRATION_POSITIONS)} 零违规 · "
+          f"（写入治理类 5 个全在）· `R3` 注册位置 {sorted(REGISTRATION_POSITIONS)} 零违规 · "
           f"⭐ `task/` 生产类（{len(_PROD_DESTS)} 个 `dest ∈ {{生产, step}}`）✗→ `debug/`／`fixture/` "
           f"**代码级** 0 命中"
           f"（纯 javadoc/import 不计：{len(javadoc_only)} 处 {javadoc_only or '无'} —— `D-556` (c)） · "
@@ -679,7 +696,7 @@ def main() -> int:
           f"✗→ 域子包 **0** · 低层 {sorted(LOW_LAYERS)} ✗→ `action/<域>/` **0** · "
           f"域子包 " + " · ".join(f"`action/{d}/` {n} 文件" for d, n in sorted(domain_counts.items())) + " · "
           f"⭐ `region/` {len(region_files)} 文件（刀 3/`D-566`：{len(REGION_MOVED)} 个原样类全在、"
-          f"`protection/` 里零残留） · "
+          f"`protection/` 里零残留） · ⭐ `ledger/ModifyAudit` 在、`write/` 里零残留（刀 4/`D-566`） · "
           f"扫描 {len(files)} · 红臂 {arms}/{arms}"
           f"（import {len(SELFTEST_CASES)} + 定义 {len(SELFTEST_DEF_CASES)} + calc {len(SELFTEST_CALC_CASES)}"
           f" + action 层序 {len(SELFTEST_ACTION_CASES)}）")

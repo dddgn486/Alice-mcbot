@@ -1,6 +1,6 @@
 package com.dddgn.alice.fixture;
 
-import com.dddgn.alice.write.WriteAudit;
+import com.dddgn.alice.ledger.ModifyAudit;
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.job.fishbone.FishboneJob;
@@ -57,7 +57,7 @@ import com.dddgn.alice.task.TaskTarget;
  *       地板在 `y-1`、空气圈在盒外一圈；建场景与断言用**同一个盒**（{@link #box()}）；</li>
  *   <li><b>世界假设</b>：场地在 y=80 的高空（118 与 2400/3600 一带是本项目其它夹具的保留区，
  *       见 `MineRunMetricsCheckTask:105` 的 3400/2000）⇒ **不与任何场景/自然地形相连**；</li>
- *   <li><b>层归属</b>：断言落在**世界事实**（方块表 + `WriteAudit`）上，不落在"任务自报完成"上
+ *   <li><b>层归属</b>：断言落在**世界事实**（方块表 + `ModifyAudit`）上，不落在"任务自报完成"上
  *       （`JobKindContract`/`D-349` 的口径）。</li>
  * </ol>
  *
@@ -252,7 +252,7 @@ public final class FishboneSlice1CheckTask implements Task {
                 + (arm == Arm.START_SEALED ? "" : " + 第 1 格实体") + "）", sceneOk);
 
         scaleBefore = PathingStats.scale();
-        auditBefore = WriteAudit.snapshot().size();
+        auditBefore = ModifyAudit.snapshot().size();
         BotLog.info("[Fishbone1] CHECK arm={} template={} 场景={} tick={} scaleBefore={}",
                 arm, template.describe(), arm == Arm.START_SEALED ? "密闭石壳" : "实心石体+地板",
                 ticks, scaleBefore.describe());
@@ -325,12 +325,12 @@ public final class FishboneSlice1CheckTask implements Task {
         }
         armVerdict = job.terminalReason();
         scaleDelta = PathingStats.scale().delta(scaleBefore);
-        List<WriteAudit.Entry> audit = WriteAudit.snapshot();
+        List<ModifyAudit.Entry> audit = ModifyAudit.snapshot();
         auditDeltaBreaks = 0;
         auditOutsideTemplate = 0;
         Set<BlockPos> allowed = template.cellSet();
         for (int i = auditBefore; i < audit.size(); i++) {
-            WriteAudit.Entry entry = audit.get(i);
+            ModifyAudit.Entry entry = audit.get(i);
             if (!"break".equals(entry.action())) {
                 continue;
             }
@@ -368,7 +368,7 @@ public final class FishboneSlice1CheckTask implements Task {
         check("（" + arm + "）场景与期望表**逐格一致**（差异格=" + worldDiffOutsideExpected
                 + "；期望表 = 地板 + 两侧墙 + 远端墙 + 密闭壳，其余全空气）",
                 worldDiffOutsideExpected == 0);
-        check("（" + arm + "）**世界写入全部落在模板格内**（`WriteAudit` 破坏条目 " + auditDeltaBreaks
+        check("（" + arm + "）**世界写入全部落在模板格内**（`ModifyAudit` 破坏条目 " + auditDeltaBreaks
                 + " 条，其中模板外 " + auditOutsideTemplate + " 条）—— 这是 `C5` 同族的最强形态："
                 + "**不是「没超过预算」，而是「一格都没多」**", auditOutsideTemplate == 0);
 
@@ -469,7 +469,7 @@ public final class FishboneSlice1CheckTask implements Task {
                         + "**`SEARCH_LIMIT ≠ UNREACHABLE`**：没搜完必须报 `start_search_incomplete`，"
                         + "不许冒充「不可达」",
                 "start_unreachable".equals(armVerdict));
-        check("③ `C6` **零世界改动**（`WriteAudit` 破坏条目 = " + auditDeltaBreaks + "）",
+        check("③ `C6` **零世界改动**（`ModifyAudit` 破坏条目 = " + auditDeltaBreaks + "）",
                 auditDeltaBreaks == 0);
         check("③ `C6` 起点那一格与地板**原封不动**（起点空气=" + level.getBlockState(ORIGIN).isAir()
                         + " 地板石头=" + level.getBlockState(ORIGIN.below()).is(Blocks.STONE) + "）",

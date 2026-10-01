@@ -2,7 +2,7 @@ package com.dddgn.alice.job.fishbone;
 
 import com.dddgn.alice.action.BlockInteraction;
 import com.dddgn.alice.action.mining.MineBlockRunner;
-import com.dddgn.alice.write.WriteAudit;
+import com.dddgn.alice.ledger.ModifyAudit;
 import com.dddgn.alice.write.Attribution;
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.bot.BotPlayer;
@@ -1128,11 +1128,11 @@ public final class FishboneJob implements Job {
      */
     private int countPlacements(Boolean floorOnly) {
         int n = 0;
-        for (WriteAudit.Entry entry : WriteAudit.snapshot()) {
+        for (ModifyAudit.Entry entry : ModifyAudit.snapshot()) {
             if (!"place".equals(entry.action()) || !isOurs(entry.grant().requester())) {
                 continue;
             }
-            // ⚠️ **必须按本作业的时间窗过滤**（`D-450` 落地时实测到的既有缺陷）：`WriteAudit` 是**进程级**
+            // ⚠️ **必须按本作业的时间窗过滤**（`D-450` 落地时实测到的既有缺陷）：`ModifyAudit` 是**进程级**
             // 环形缓冲（`MAX_ENTRIES=512`）⇒ 不过滤时，**上一条作业/上一条夹具臂**的放置会算进本次额度，
             // 于是"额度还剩多少"是个历史累计数（电池里同一个进程连着跑 7 条臂 ⇒ 直接串账）。
             if (entry.tick() < gameTimeAtStart) {
@@ -1659,7 +1659,7 @@ public final class FishboneJob implements Job {
      * <p>⚠️ `spursAbandoned=` 的**键名口径**见本方法内的 `1.4u` 注释：分子是**放弃数**（不是"未放弃数"）。
      * 键名是与用户的契约，改它必须同步 `tools/kernel-predicates.py` 的 `rule_fishbone_live_log_shape`。
      *
-     * <p>⚠️ `outside=` 的口径**逐字**是：自本作业第一 tick 起、`WriteAudit` 里 requester = `fishbone`
+     * <p>⚠️ `outside=` 的口径**逐字**是：自本作业第一 tick 起、`ModifyAudit` 里 requester = `fishbone`
      * 的**破坏**条目中，位置**不在**（模板格 ∪ 本次挖掉的露头矿格）里的条数。别人的破坏不算。
      */
     private void emitSummary() {
@@ -1668,7 +1668,7 @@ public final class FishboneJob implements Job {
         whitelist.addAll(oreBrokenCells);
         int inside = 0;
         int outside = 0;
-        for (WriteAudit.Entry entry : WriteAudit.snapshot()) {
+        for (ModifyAudit.Entry entry : ModifyAudit.snapshot()) {
             if (!"break".equals(entry.action()) || entry.tick() < gameTimeAtStart) {
                 continue;
             }

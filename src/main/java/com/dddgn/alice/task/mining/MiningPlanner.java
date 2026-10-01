@@ -140,7 +140,7 @@ public final class MiningPlanner {
      *                  {@link ApproachCapability#PLACEMENT_ALLOWED}（只放不拆）
      *                  ⚠️ 类型住在 **`reach/`**（`D-527` 从嵌套枚举提出来），不再是 `MiningProfile.Approach`
      *                  —— 理由 = `plans §4.2`① 要把「选」搬进 `reach/`，而 `reach/` 不许 import `task/`。
-     * @param requester 接近走位的归因串（**必须传作业自己的**，否则 `WriteAudit` 里
+     * @param requester 接近走位的归因串（**必须传作业自己的**，否则 `ModifyAudit` 里
      *                  这条放置会记到别的名下 ⇒ 作业侧的累计额度看不见它）
      */
     public ReachOutcome plan(ServerPlayer bot, BlockPos target, MiningBudget budget, boolean standableOnly,

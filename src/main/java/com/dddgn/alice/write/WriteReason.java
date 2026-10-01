@@ -9,7 +9,7 @@ package com.dddgn.alice.write;
  * 现在理由成为**数据**：判定策略由 {@link #policy()} 派生，调用点必须显式声明。
  *
  * <p>**为什么不能只用一个布尔开关**：理由同时决定了两件事——
- * ① 走哪套安全策略（{@link Policy}），② 这次写入的归因身份（进 {@link WriteAudit} / J6 账本）。
+ * ① 走哪套安全策略（{@link Policy}），② 这次写入的归因身份（进 {@link ModifyAudit} / J6 账本）。
  * 布尔开关两件都表达不了，而且会把"允许改世界"泄漏到任务的所有子请求上。
  */
 public enum WriteReason {

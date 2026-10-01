@@ -116,7 +116,7 @@ public final class MineJob implements Job {
     private final List<AttemptFailure> attemptFailures = new ArrayList<>();
     /**
      * ⭐ **被选中的目标序列**（`D-360` 真机实测统计）：顺序 = 尝试顺序。
-     * ⚠️ 这是**决策行为**的账，与"世界被改了多少"（`TaskMetrics`/`WriteAudit`）**分开记** ——
+     * ⚠️ 这是**决策行为**的账，与"世界被改了多少"（`TaskMetrics`/`ModifyAudit`）**分开记** ——
      * 合在一起就分不出"是偏置"还是"被拒"。
      */
     private final List<BlockPos> attemptOrder = new ArrayList<>();
@@ -1027,7 +1027,7 @@ public final class MineJob implements Job {
             bot.controller().stopMovement();
             DecisionTrace.terminal(jobName(), status == Task.Status.DONE ? "DONE" : "FAILED",
                     terminalReason, progressSummary() + " inventoryDelta=" + (countTargetItems() - itemsBefore)
-                            + " " + com.dddgn.alice.write.WriteAudit.summary(),
+                            + " " + com.dddgn.alice.ledger.ModifyAudit.summary(),
                     ticks);
             // ⭐ `D-360`：手动实测的采集**收口在这一个地方** —— `MineJob` 的终态有四条路径
             // （配额达成 / 候选穷尽 / 背包满 / 超时），在这里打点才不会出现"某条路径静默无数据"。

@@ -221,7 +221,7 @@ public final class MineBlockRunner {
      * 鱼骨「补一块再走」）下是**只放不拆**，而旧代码在这里一律给纯通行 ⇒ 规划期到得了、执行期到不了。
      *
      * <p>⚠️ 归因串仍是 {@code "mine-runner"}（逐字保留 `D-443` 裁定 1a 的既有口径，
-     * 免得动到 `WriteAudit` 的既有账本口径）。
+     * 免得动到 `ModifyAudit` 的既有账本口径）。
      */
     private PathRequest approachRequest() {
         String botId = bot.getUUID().toString();
