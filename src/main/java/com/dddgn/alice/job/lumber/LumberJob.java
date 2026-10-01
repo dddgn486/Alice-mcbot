@@ -12,7 +12,7 @@ import com.dddgn.alice.job.Selection;
 import com.dddgn.alice.job.SelectionPolicy;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
-import com.dddgn.alice.task.CollectDropsTask;
+import com.dddgn.alice.transfer.CollectDropsTask;
 import com.dddgn.alice.task.MineTask;
 import com.dddgn.alice.task.mining.MiningProfile;
 import com.dddgn.alice.pathing.path.PathRetryRunner;

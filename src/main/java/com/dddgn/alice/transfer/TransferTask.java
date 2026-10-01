@@ -1,4 +1,4 @@
-package com.dddgn.alice.task;
+package com.dddgn.alice.transfer;
 
 import com.dddgn.alice.log.BotLog;
 
@@ -11,6 +11,8 @@ import com.dddgn.alice.transfer.TransferRoutes;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import com.dddgn.alice.pathing.path.PathRetryRunner;
+import com.dddgn.alice.task.Task;
+import com.dddgn.alice.task.TaskTarget;
 
 /** Narrow single-request orchestration. It consumes only existing HARD_PATH planning/execution. */
 public final class TransferTask implements Task {

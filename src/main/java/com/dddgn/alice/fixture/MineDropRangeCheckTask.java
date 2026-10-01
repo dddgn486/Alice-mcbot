@@ -19,7 +19,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
-import com.dddgn.alice.task.CollectDropsTask;
+import com.dddgn.alice.transfer.CollectDropsTask;
 import com.dddgn.alice.task.mining.MiningProfile;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;

@@ -17,15 +17,15 @@ public final class TransferTestHooks {
 
     // ==================== 移动结果短路（原 `TransferTask.fixtureMovementOutcome`） ====================
     /** 夹具可注入的"行走结果"，用于确定性地演练三种失败码；默认 null = 不干预。 */
-    private static com.dddgn.alice.task.TransferTask.FixtureMovementOutcome movementOutcome;
+    private static com.dddgn.alice.transfer.TransferTask.FixtureMovementOutcome movementOutcome;
 
-    public static void movementOutcome(com.dddgn.alice.task.TransferTask.FixtureMovementOutcome outcome) {
+    public static void movementOutcome(com.dddgn.alice.transfer.TransferTask.FixtureMovementOutcome outcome) {
         movementOutcome = outcome;
     }
 
     /** 取走一次并清空（生产侧每段行走开头调用；默认返回 null ⇒ 零行为）。 */
-    public static com.dddgn.alice.task.TransferTask.FixtureMovementOutcome takeMovementOutcome() {
-        com.dddgn.alice.task.TransferTask.FixtureMovementOutcome outcome = movementOutcome;
+    public static com.dddgn.alice.transfer.TransferTask.FixtureMovementOutcome takeMovementOutcome() {
+        com.dddgn.alice.transfer.TransferTask.FixtureMovementOutcome outcome = movementOutcome;
         movementOutcome = null;
         return outcome;
     }

@@ -5,7 +5,7 @@ import com.dddgn.alice.item.FixtureToolKit;
 import com.dddgn.alice.job.mine.MineProductFilter;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
-import com.dddgn.alice.task.CollectDropsTask;
+import com.dddgn.alice.transfer.CollectDropsTask;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
 import com.dddgn.alice.task.mining.MiningProfile;

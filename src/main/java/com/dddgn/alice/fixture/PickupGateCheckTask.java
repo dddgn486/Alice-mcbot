@@ -17,7 +17,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
-import com.dddgn.alice.task.CollectDropsTask;
+import com.dddgn.alice.transfer.CollectDropsTask;
 import com.dddgn.alice.fixture.LumberCourseAnchor;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;

@@ -1,4 +1,4 @@
-package com.dddgn.alice.task;
+package com.dddgn.alice.road;
 
 import com.dddgn.alice.write.WriteReason;
 import com.dddgn.alice.write.Attribution;
@@ -20,6 +20,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import com.dddgn.alice.task.MineTask;
+import com.dddgn.alice.task.Task;
+import com.dddgn.alice.task.TaskTarget;
 
 /**
  * 道路蓝图的 bot 施工演示任务。

@@ -16,8 +16,8 @@ import net.minecraft.world.phys.Vec3;
 import java.util.ArrayList;
 import java.util.List;
 import com.dddgn.alice.fixture.SurvivalCourseAnchor;
-import com.dddgn.alice.task.SurvivalExitTask;
-import com.dddgn.alice.task.SurvivalFloatTask;
+import com.dddgn.alice.survival.SurvivalExitTask;
+import com.dddgn.alice.survival.SurvivalFloatTask;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
 
@@ -648,7 +648,7 @@ public class SurvivalExitCheckTask implements Task {
      * 于是"浮得上去"成立、而半径 8 内**没有干燥落点**（池壁在 ±9 之外）⇒ 判决应是 `FLOAT_UP`，
      * 而不是"放弃任务"。
      *
-     * <p>**端到端**：夹具**真的驱动** {@link com.dddgn.alice.task.SurvivalFloatTask}（按住跳跃上浮），
+     * <p>**端到端**：夹具**真的驱动** {@link com.dddgn.alice.survival.SurvivalFloatTask}（按住跳跃上浮），
      * 断言它到 `DONE`、眼睛离开水面、空气回到安全线。空气刻意设成 **5（>0）** 而不是 0：
      * 这样 monitor 看到的仍是 `WATER_CONTACT`（IGNORE）⇒ 不会从旁边插一手打死电池
      * （真溺水 ≤0 的判决只做**纯判据**断言，见 D-236/D-237 的结构性限制）。
@@ -689,7 +689,7 @@ public class SurvivalExitCheckTask implements Task {
             // 端到端：把空气压到 5（>0 ⇒ monitor 仍判 WATER_CONTACT ⇒ 不会插手），真驱动自救任务。
             bot.setAirSupply(5);
             eyeUnderWaterBefore = bot.isEyeInFluid(net.minecraft.tags.FluidTags.WATER);
-            floatTask = new com.dddgn.alice.task.SurvivalFloatTask(bot);
+            floatTask = new com.dddgn.alice.survival.SurvivalFloatTask(bot);
             BotLog.info("[Survival] 端到端上浮自救：air=5 眼睛在水里={} ⇒ 驱动 SurvivalFloatTask",
                     eyeUnderWaterBefore);
             return;
@@ -716,7 +716,7 @@ public class SurvivalExitCheckTask implements Task {
                             + bot.isEyeInFluid(net.minecraft.tags.FluidTags.WATER) + "）",
                     !bot.isEyeInFluid(net.minecraft.tags.FluidTags.WATER));
             check("端到端上浮自救：空气回到安全线（实际 " + bot.getAirSupply() + "）",
-                    bot.getAirSupply() >= com.dddgn.alice.task.SurvivalFloatTask.AIR_SAFE);
+                    bot.getAirSupply() >= com.dddgn.alice.survival.SurvivalFloatTask.AIR_SAFE);
             // ⚠️ **必须置空**：否则下一 tick 会再次进这个分支、重复断言、永不进收尾
             // （2026-09-15 实测：`TIMEOUT ticks=901`，同一族坑的第三次 —— 断言后相位必须真的前进）。
             floatTask = null;
@@ -855,7 +855,7 @@ public class SurvivalExitCheckTask implements Task {
         }
         if (phaseTicks >= 5 && escapePick != null && !shaftDone) {
             if (shaftEscapeTask == null) {
-                shaftEscapeTask = new com.dddgn.alice.task.SurvivalExitTask(bot, escapePick, true);
+                shaftEscapeTask = new com.dddgn.alice.survival.SurvivalExitTask(bot, escapePick, true);
             }
             int shaftPlacesBefore = com.dddgn.alice.region.authz.Quota.places(bot);
             var status = shaftEscapeTask.tick();
@@ -1009,7 +1009,7 @@ com.dddgn.alice.pathing.movement.SelfWriteConsistency
                 bot.setAirSupply(Math.max(2, bot.getAirSupply()));
             }
             if (floodedTask == null) {
-                floodedTask = new com.dddgn.alice.task.SurvivalExitTask(bot, floodedPick, true);
+                floodedTask = new com.dddgn.alice.survival.SurvivalExitTask(bot, floodedPick, true);
             }
             // D-244 量法：**逐 tick 取放置计数的增量，并按"那一刻脚位是否在水里"归因**（比解析日志可靠：
             // 日志只有"放了"这一行，判据要的是"水里那几格到底放没放"）。
@@ -1072,7 +1072,7 @@ com.dddgn.alice.pathing.movement.SelfWriteConsistency
     /** 坑底（bot 站在水里；房间地板 = 它的 y+2）。 */
     private static final BlockPos FLOOD_PIT_BOTTOM = FLOOD_CENTER.below();
 
-    private com.dddgn.alice.task.SurvivalExitTask floodedTask;
+    private com.dddgn.alice.survival.SurvivalExitTask floodedTask;
     private BlockPos floodedPick;
     private boolean floodedDone;
 
@@ -1098,7 +1098,7 @@ com.dddgn.alice.pathing.movement.SelfWriteConsistency
     /** 灌水竖坑那档的路更长（先上浮再爬出），预算给足。 */
     private static final int FLOOD_BUDGET = 400;
 
-    private com.dddgn.alice.task.SurvivalExitTask shaftEscapeTask;
+    private com.dddgn.alice.survival.SurvivalExitTask shaftEscapeTask;
     private BlockPos escapePick;
     private boolean shaftDone;
 
@@ -1111,7 +1111,7 @@ com.dddgn.alice.pathing.movement.SelfWriteConsistency
     /** 端到端上浮自救的预算（tick）。 */
     private static final int FLOAT_E2E_BUDGET = 150;
 
-    private com.dddgn.alice.task.SurvivalFloatTask floatTask;
+    private com.dddgn.alice.survival.SurvivalFloatTask floatTask;
     private boolean eyeUnderWaterBefore;
 
     /** 封闭水牢的几何中心（高空，不与任何场景/地形相交）。 */

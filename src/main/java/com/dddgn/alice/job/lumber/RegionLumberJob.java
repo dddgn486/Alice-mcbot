@@ -126,7 +126,7 @@ public final class RegionLumberJob implements com.dddgn.alice.job.Job {
      * 同一时刻最多一个非空（`tick()` 先看 `current` 再看它；`patrol()` 只在两者皆空时才会派活）
      * ⇒ 细则④「补种与扫描不许撞车」由**状态机结构**保证，不靠调用方自觉。
      */
-    private com.dddgn.alice.task.CollectDropsTask sweepTask;
+    private com.dddgn.alice.transfer.CollectDropsTask sweepTask;
     /** 本轮扫描的目标件数（日志用）。 */
     private int sweepTargets;
     /** 本轮扫描**签发**的收集授权 id（结束时主动撤销；空 = 没有在飞的授权）。 */
@@ -1143,12 +1143,12 @@ com.dddgn.alice.pathing.MovementHelper
         }
         // 预算**随落物数缩放**（`suggestedSweepTicks` 是"按实测代价反推"的口径），**不人为封顶**
         // ⇒ 细则③「一次不设上限、扫到区域内捡完为止」。
-        int budget = com.dddgn.alice.task.CollectDropsTask.suggestedSweepTicks(targets.size(), null);
+        int budget = com.dddgn.alice.transfer.CollectDropsTask.suggestedSweepTicks(targets.size(), null);
         // ⚠️ `D-344` 端到端实测修正：**候选来源必须换成"区域内清单内落物"**——
         // 默认来源 `scope.liveDrops()` 只含**归属我方**的掉落物，而我们要收的正是 `FOREIGN` 的旧落物
         // ⇒ 不改来源的话，不管授权签没签，扫描器都"看不见它们"（实测：`DONE 入包=0 剩余=9`）。
         // 换成来源**不放松授权**：能不能捡仍由 `DropPolicy.mayCollect` 把关（`FOREIGN` 要靠 ①的授权）。
-        sweepTask = new com.dddgn.alice.task.CollectDropsTask(bot, nearest.blockPosition(), scope,
+        sweepTask = new com.dddgn.alice.transfer.CollectDropsTask(bot, nearest.blockPosition(), scope,
                 ids, false, budget, com.dddgn.alice.task.mining.MiningProfile.STANDABLE_ONLY,
                 () -> listDropsInRegion(LumberAreaState.get(bot.getServer())), null);
         sweepTargets = targets.size();

@@ -8,7 +8,7 @@ import com.dddgn.alice.task.MineTask;
 import com.dddgn.alice.task.PlaceTask;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
-import com.dddgn.alice.task.TransferTask;
+import com.dddgn.alice.transfer.TransferTask;
 import com.dddgn.alice.transfer.TransferCodes;
 import com.dddgn.alice.transfer.TransferLedgerData;
 import com.dddgn.alice.transfer.TransferRequest;
@@ -1746,7 +1746,7 @@ public final class BotManager {
             // D-119：`/alice road` 同样是开发/测试入口 —— 修路会破方块，工具在这里给
             // ⭐ 刀 2：给不给、给什么强度，由调用方传的策略决定（`D-512`）。
             provisioning.pickaxe(bot);
-            beginTask(new com.dddgn.alice.task.RoadBuildTask(bot, plan, scope), assignedTarget);
+            beginTask(new com.dddgn.alice.road.RoadBuildTask(bot, plan, scope), assignedTarget);
             broadcastTarget(this.target);
         }
 
@@ -1867,7 +1867,7 @@ com.dddgn.alice.task.mining.MiningBudget
                                 + " onGround={} inWater={} eyeInWater={} air={} pos={}",
                         hazard.type(), hazard.durationTicks(), task == null,
                         task == null ? "-" : task.taskName(),
-                        task instanceof com.dddgn.alice.task.SurvivalExit,
+                        task instanceof com.dddgn.alice.survival.SurvivalExit,
                         bot.onGround(), bot.isInWater(),
                         bot.isEyeInFluid(net.minecraft.tags.FluidTags.WATER), bot.getAirSupply(),
                         bot.blockPosition().toShortString());
@@ -1931,7 +1931,7 @@ com.dddgn.alice.task.mining.MiningBudget
             // S-1（P1-C，2026-09-12）：**逃生任务本身豁免否决** —— 否则"中断 ⇒ 起逃生 ⇒ 下一 tick
             // 又被中断"会变成每 tick 自杀循环，逃生一步都走不出去。只豁免逃生动作；
             // 挖矿/伐木/放置这类会把 bot 送进危险的任务照旧被否决。
-            boolean escapeTask = task instanceof com.dddgn.alice.task.SurvivalExit;
+            boolean escapeTask = task instanceof com.dddgn.alice.survival.SurvivalExit;
             // D-241：**"这个任务改不改世界"是逃生写权的唯一闸门**（用户 Q1 定案）——
             // 信封里出现过写请求（挖掘站位/掉落物收集/脚手架…）才允许动用逃生准备金。
             boolean escapeWrites = com.dddgn.alice.pathing.calc.WriteEnvelopes.had(bot.getUUID().toString());
@@ -1977,7 +1977,7 @@ com.dddgn.alice.task.mining.MiningBudget
                         "维生自救 " + reason, "pos=" + where);
                 complete(lastTaskResult, TaskExecutionRecord.TerminalStatus.SURVIVAL_INTERRUPTED);
                 TaskTarget floatTarget = TaskTarget.block(bot.blockPosition());
-                beginTask(new com.dddgn.alice.task.SurvivalFloatTask(bot), floatTarget);
+                beginTask(new com.dddgn.alice.survival.SurvivalFloatTask(bot), floatTarget);
                 broadcastTarget(this.target);
                 return;
             }
@@ -2114,7 +2114,7 @@ com.dddgn.alice.task.mining.MiningBudget
                         "无任务时在水下 ⇒ 上浮自救",
                         "hazard=" + hazard.type() + " air=" + bot.getAirSupply()
                                 + " decision=float_up pos=" + submergedAt);
-                beginTask(new com.dddgn.alice.task.SurvivalFloatTask(bot),
+                beginTask(new com.dddgn.alice.survival.SurvivalFloatTask(bot),
                         TaskTarget.block(bot.blockPosition()));
                 broadcastTarget(this.target);
                 return;
@@ -2196,7 +2196,7 @@ com.dddgn.alice.task.mining.MiningBudget
                             "hazard=" + hazard.type() + " exit=none decision=float_up pos=" + where);
                     com.dddgn.alice.decision.BotEventLog.record(bot, "DANGER", "warn",
                             "维生自救（无任务）", "pos=" + where);
-                    beginTask(new com.dddgn.alice.task.SurvivalFloatTask(bot),
+                    beginTask(new com.dddgn.alice.survival.SurvivalFloatTask(bot),
                             TaskTarget.block(bot.blockPosition()));
                     broadcastTarget(this.target);
                 }
@@ -2259,14 +2259,14 @@ com.dddgn.alice.task.mining.MiningBudget
             TaskTarget exitTarget = TaskTarget.block(refuge);
             // 落点是"只有动用准备金才到得了"时，逃生任务自己也要用受限请求（否则它又走纯通行、必失败）。
             boolean reserve = escapeWrites && com.dddgn.alice.survival.SurvivalSystem.escapeNeedsWrites(bot);
-            beginTask(new com.dddgn.alice.task.SurvivalExitTask(bot, refuge, reserve), exitTarget);
+            beginTask(new com.dddgn.alice.survival.SurvivalExitTask(bot, refuge, reserve), exitTarget);
             broadcastTarget(this.target);
         }
 
         private void complete(String resultCode, TaskExecutionRecord.TerminalStatus terminalStatus) {
             MineTask mineTask = task instanceof MineTask value ? value : null;
             // D-327 机制 B：返程兜底自己失败时**不许再触发一次返程**（否则是递归）
-            boolean wasReturnTask = task instanceof com.dddgn.alice.task.SafeReturnTask;
+            boolean wasReturnTask = task instanceof com.dddgn.alice.survival.SafeReturnTask;
             if (mineTask != null) {
                 lastMineStartPos = mineTask.mineStartPos();
             }
@@ -2326,7 +2326,7 @@ com.dddgn.alice.task.mining.MiningBudget
         private boolean startSafeReturnIfNeeded() {
             ServerLevel level = bot.serverLevel();
             BlockPos foot = com.dddgn.alice.pathing.MovementHelper.footCell(level, bot);
-            if (!com.dddgn.alice.task.SafeReturnTask.shouldStart(level, bot.getUUID(), foot)) {
+            if (!com.dddgn.alice.survival.SafeReturnTask.shouldStart(level, bot.getUUID(), foot)) {
                 return false;   // 已经在安全区里 / 世界没声明过安全区 ⇒ 不改变今天的行为
             }
             BlockPos entry = com.dddgn.alice.protection.AreaData.get(level.getServer())
@@ -2336,7 +2336,7 @@ com.dddgn.alice.task.mining.MiningBudget
                     bot.getName().getString(), foot.toShortString(), entry.toShortString(),
                     com.dddgn.alice.task.FarWalkTask.distanceXZ(foot, entry),
                     lastExecutionRecord == null ? "-" : lastExecutionRecord.terminalReason());
-            beginTask(new com.dddgn.alice.task.SafeReturnTask(bot), TaskTarget.block(entry));
+            beginTask(new com.dddgn.alice.survival.SafeReturnTask(bot), TaskTarget.block(entry));
             broadcastTarget(this.target);
             return true;
         }
@@ -2412,7 +2412,7 @@ com.dddgn.alice.task.mining.MiningBudget
             if (terminalStatus != TaskExecutionRecord.TerminalStatus.REJECTED_BEFORE_START) {
                 TaskMetrics.noteTerminal(bot, kind, terminalStatus,
                         Math.max(0L, serverTick() - startTick),
-                        task instanceof com.dddgn.alice.task.SafeReturnTask);
+                        task instanceof com.dddgn.alice.survival.SafeReturnTask);
             }
         }
 

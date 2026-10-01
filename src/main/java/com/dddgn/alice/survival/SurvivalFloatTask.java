@@ -1,9 +1,11 @@
-package com.dddgn.alice.task;
+package com.dddgn.alice.survival;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.survival.SurvivalSystem;
 import net.minecraft.tags.FluidTags;
+import com.dddgn.alice.task.Task;
+import com.dddgn.alice.task.TaskTarget;
 
 /**
  * **上浮自救**（D-237，2026-09-15，用户批准的"乙"）：溺水且**浮得上去**时，按住跳跃把头露出水面。

@@ -45,17 +45,11 @@ RecoverabilityCheckTask,assignRecoverabilityCheck,yes,no
 RegressionBatteryTask,assignRegressionBattery,yes,no
 RestoreScopeTask,assignRestore,yes,no
 RestoreScopeTask,tryRecoverUnfinishedTeardown,yes,yes
-RoadBuildTask,assignRoadBuild,yes,no
-SafeReturnTask,startSafeReturnIfNeeded,yes,yes
 ScaffoldLifecycleTask,assignScaffoldCheck,yes,no
 SurvivalExitCheckTask,assignSurvivalFixtureCheck,yes,no
-SurvivalExitTask,startSurvivalExit,no,no
-SurvivalFloatTask,tick,no,no
-SurvivalFloatTask,tickHazardWithoutTask,no,no
 ToolMaintenanceTask,assignToolMaintenance,no,no
 ToolSupplyCheckTask,assignToolSupplyCheck,yes,no
 TransferCheckTask,assignTransferCheck,yes,no
-TransferTask,assignTransfer,yes,no
 TraverseDiagnosticTask,assignTraverseDiagnostic,yes,no
 VerticalDiagnosticTask,assignVerticalDiagnostic,yes,no
 WalkToDiagnosticTask,assignWalkToDiagnostic,yes,no

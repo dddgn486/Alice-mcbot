@@ -1,4 +1,4 @@
-package com.dddgn.alice.task;
+package com.dddgn.alice.survival;
 
 /**
  * **维生逃生出口的标记**（S-1 / P1-C，2026-09-12）。

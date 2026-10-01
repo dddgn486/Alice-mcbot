@@ -19,7 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import com.dddgn.alice.task.FarWalkTask;
-import com.dddgn.alice.task.SafeReturnTask;
+import com.dddgn.alice.survival.SafeReturnTask;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
 

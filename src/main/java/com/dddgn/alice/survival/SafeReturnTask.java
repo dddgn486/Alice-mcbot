@@ -1,4 +1,4 @@
-package com.dddgn.alice.task;
+package com.dddgn.alice.survival;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
@@ -16,6 +16,9 @@ import java.util.List;
 import java.util.UUID;
 import java.util.function.Predicate;
 import com.dddgn.alice.pathing.path.PathRetryRunner;
+import com.dddgn.alice.task.FarWalkTask;
+import com.dddgn.alice.task.Task;
+import com.dddgn.alice.task.TaskTarget;
 
 /**
  * **机制 B：任务失败后"回安全区"的兜底**（`D-327` ①，2026-09-19 用户裁定执行）：

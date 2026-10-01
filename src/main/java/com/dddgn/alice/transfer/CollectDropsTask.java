@@ -1,4 +1,4 @@
-package com.dddgn.alice.task;
+package com.dddgn.alice.transfer;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import com.dddgn.alice.task.Task;
+import com.dddgn.alice.task.TaskTarget;
 
 /**
  * 掉落物收集子任务（D-072，**公用子任务**）：把指定来源产生的掉落物捡回来。

@@ -398,10 +398,14 @@ def main() -> int:
 
     table = []
     for name in PRIMITIVES:
-        path = SRC / "task" / f"{name}.java"
-        if not path.exists():
-            problems.append(f"`task/{name}.java` 不存在 —— 改名？同步本门禁的 `PRIMITIVES`")
+        # ⚠️ 2026-10-01 波 4（`D-569` R3）：`CollectDropsTask` 已 `task/` → `transfer/`
+        # ⇒ 按**类名全树**解析，⛔ 不写死包名（写死的路径一搬就静默失效，`O113` 同族）。
+        hits = sorted(SRC.rglob(f"{name}.java"))
+        if len(hits) != 1:
+            problems.append(f"`{name}.java` 在 alice/ 下命中 {len(hits)} 个（应为 1）"
+                            f" —— 改名/搬包？同步本门禁的 `PRIMITIVES`")
             continue
+        path = hits[0]
         r = readings(path)
         table.append(r)
         if r["lines"] < MIN_LINES:

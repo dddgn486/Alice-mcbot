@@ -28,7 +28,7 @@ import java.util.UUID;
  * **一簇的一次作业** —— 走到簇锚点 → 等这一簇被吸走 → 计数 → 该簇的锚点重试。
  *
  * <p>与 {@link com.dddgn.alice.task.mining.MineStep} 对称：编排器
- * （{@link com.dddgn.alice.task.CollectDropsTask}）负责**候选收集 ＋ 聚类 ＋ 逐簇迭代 ＋ 总预算
+ * （{@link com.dddgn.alice.transfer.CollectDropsTask}）负责**候选收集 ＋ 聚类 ＋ 逐簇迭代 ＋ 总预算
  * ＋ 守恒交叉校验 ＋ 摘要**，本类只管**一簇**：锚点规范化 / 换锚点重试 / 等落定 / 等原版吸附 /
  * 加高 / 簇预算 / 簇内症状上报。
  *
@@ -41,7 +41,7 @@ import java.util.UUID;
  * `beginCluster`/`endCluster` 各写一份重置清单，两份漏一个就静默串簇）。
  *
  * <p>⚠️ **本类不认识编排器**（与 `MineStep` 同一条边界）：它不 import
- * `com.dddgn.alice.task.CollectDropsTask`，只通过下面这个**窄接口**
+ * `com.dddgn.alice.transfer.CollectDropsTask`，只通过下面这个**窄接口**
  * {@link Host} 拿三样东西：候选索引（读）、退休出口（写）、展示用进度（读）。
  * 依赖方向是 **编排器 → 本类**。
  *

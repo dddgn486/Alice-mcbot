@@ -29,6 +29,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 # `movement/`（执行器族 27）· `path/`（驱动器 4），另有 `risk/` 与根上两件未动。
 # ⇒ `CORE` 不再是目录，改为**按类名解析**（⛔ 找不到即响亮失败，不静默回退）。
 PATHING = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "pathing"
+#: ⭐ 2026-10-01 波 4（`D-569` R3 先搬优先）：`task/` 正在退役 ⇒ 凡"写死某个包"的锚点
+#: 都会在搬迁时**静默失效**（`O113` 同族：一搬就匹配 0 个文件而**不报错**）。⇒ 改成按类名全树解析。
+ALICE = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
 
 
 def cpath(name):
@@ -38,6 +41,15 @@ def cpath(name):
         if cand.exists():
             return cand
     raise FileNotFoundError(f"pathing/ 里找不到 {name} —— 拆包后请更新 kernel-predicates 的锚点")
+
+
+def alice_class(name):
+    """按**类名**在 `alice/` **全树**解析。⛔ 命中数 ≠ 1 就炸（找不到 / 撞名都不许静默）。"""
+    hits = sorted(ALICE.rglob(name))
+    if len(hits) != 1:
+        raise FileNotFoundError(
+            f"alice/ 下 {name} 命中 {len(hits)} 个（应为 1）—— 搬包后请复核本文件的锚点：{hits}")
+    return hits[0]
 
 
 class _CorePath:
@@ -2614,8 +2626,7 @@ def rule_write_caps_default_open_protection_kept():
     budget = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "region" / "authz"
               / "Quota.java").read_text(encoding="utf-8")
     gate = (cpath("CapabilityGate.java")).read_text(encoding="utf-8")
-    collector = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
-                 / "CollectDropsTask.java").read_text(encoding="utf-8")
+    collector = alice_class("CollectDropsTask.java").read_text(encoding="utf-8")
 
     # ⚠️ `Z3`（2026-09-23）搬了位置：默认回退**收成一个出处** `effectiveCaps(...)`（原先 6 个读者
     # 各回退各的，`P1-a` 只修好 2 个）⇒ 本臂改为断言"属性在 `effectiveCaps` 里 + 闸门走它"，
@@ -3373,7 +3384,7 @@ def rule_hazard_not_task_gated():
         if "SurvivalSystem.decide(bot, hazard, false)" not in handler:
             problems.append("无任务处理没走**纯通行**判决（`decide(bot, hazard, false)`；"
                             "无任务=没有写信封，不许动用逃生准备金 —— D-241）")
-        if not re.search(r"case FLOAT_UP -> \{[\s\S]{0,2000}?new com\.dddgn\.alice\.task\.SurvivalFloatTask\(",
+        if not re.search(r"case FLOAT_UP -> \{[\s\S]{0,2000}?new com\.dddgn\.alice\.survival\.SurvivalFloatTask\(",
                          handler):
             problems.append("无任务处理的 `FLOAT_UP` 档里没有上浮自救（溺水无出口时唯一能做的动作）"
                             "—— 注意：只查「文件里出现过 SurvivalFloatTask」会被**沉底档**那次调用顶包（实测漏过）")

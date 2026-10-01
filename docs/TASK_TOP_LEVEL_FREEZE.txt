@@ -1,4 +1,3 @@
-src/main/java/com/dddgn/alice/task/CollectDropsTask.java
 src/main/java/com/dddgn/alice/task/FarWalkTask.java
 src/main/java/com/dddgn/alice/task/FixtureClaim.java
 src/main/java/com/dddgn/alice/task/FixtureScript.java
@@ -7,16 +6,10 @@ src/main/java/com/dddgn/alice/task/MineTask.java
 src/main/java/com/dddgn/alice/task/PermissionDemoTask.java
 src/main/java/com/dddgn/alice/task/PlaceTask.java
 src/main/java/com/dddgn/alice/task/RestoreScopeTask.java
-src/main/java/com/dddgn/alice/task/RoadBuildTask.java
-src/main/java/com/dddgn/alice/task/SafeReturnTask.java
 src/main/java/com/dddgn/alice/task/ScaffoldLifecycleTask.java
 src/main/java/com/dddgn/alice/task/Step.java
-src/main/java/com/dddgn/alice/task/SurvivalExit.java
-src/main/java/com/dddgn/alice/task/SurvivalExitTask.java
-src/main/java/com/dddgn/alice/task/SurvivalFloatTask.java
 src/main/java/com/dddgn/alice/task/Task.java
 src/main/java/com/dddgn/alice/task/TaskNode.java
 src/main/java/com/dddgn/alice/task/TaskTarget.java
 src/main/java/com/dddgn/alice/task/ToolMaintenanceTask.java
-src/main/java/com/dddgn/alice/task/TransferTask.java
 src/main/java/com/dddgn/alice/task/WalkToTask.java

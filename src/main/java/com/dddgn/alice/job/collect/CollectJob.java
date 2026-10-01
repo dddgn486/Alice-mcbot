@@ -5,7 +5,7 @@ import com.dddgn.alice.job.JobDeclaration;
 import com.dddgn.alice.job.Job;
 import com.dddgn.alice.log.BotLog;
 import com.dddgn.alice.perception.ScopeBuffer;
-import com.dddgn.alice.task.CollectDropsTask;
+import com.dddgn.alice.transfer.CollectDropsTask;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskNode;
 import net.minecraft.core.BlockPos;

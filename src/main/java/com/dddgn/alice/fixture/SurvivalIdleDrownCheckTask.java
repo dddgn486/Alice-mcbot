@@ -16,7 +16,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import com.dddgn.alice.task.SurvivalFloatTask;
+import com.dddgn.alice.survival.SurvivalFloatTask;
 import com.dddgn.alice.task.Task;
 import com.dddgn.alice.task.TaskTarget;
 

@@ -4,7 +4,7 @@ import com.dddgn.alice.transfer.*;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
-import com.dddgn.alice.task.TransferTask;
+import com.dddgn.alice.transfer.TransferTask;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -276,12 +276,12 @@ public final class TransferFixture {
 
     private static boolean hardPathMappings(ServerLevel level, BotPlayer bot, BlockPos source, BlockPos destination) {
         boolean pass = true;
-        for (com.dddgn.alice.task.TransferTask.FixtureMovementOutcome outcome : com.dddgn.alice.task.TransferTask.FixtureMovementOutcome.values()) {
+        for (com.dddgn.alice.transfer.TransferTask.FixtureMovementOutcome outcome : com.dddgn.alice.transfer.TransferTask.FixtureMovementOutcome.values()) {
             TransferLedgerData ledger = new TransferLedgerData();
             TransferRequest request = requestForBot(level, bot, source, destination, 1);
             ledger.admit(request);
             com.dddgn.alice.transfer.TransferTestHooks.movementOutcome(outcome);
-            com.dddgn.alice.task.TransferTask task = new com.dddgn.alice.task.TransferTask(bot, request, ledger);
+            com.dddgn.alice.transfer.TransferTask task = new com.dddgn.alice.transfer.TransferTask(bot, request, ledger);
             task.tick();
             TransferLedgerData.Entry entry = ledger.find(request.requestId()).orElse(null);
             String code = switch (outcome) {

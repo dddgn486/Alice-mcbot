@@ -112,8 +112,16 @@ WRITE_BUDGET = re.compile(r"Quota\s*\.")
 
 STEP_5B = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
            / "task" / "collecting" / "CollectStep.java")
-ORCH_5B = (ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
-           / "task" / "CollectDropsTask.java")
+#: ⚠️ 2026-10-01 波 4（`D-569` R3）：`CollectDropsTask` 已 `task/` → `transfer/`
+#: ⇒ 按**类名全树**解析（⛔ 找不到 / 撞名就炸），⛔ 不写死包名（写死的路径一搬就静默失效）。
+def _alice_class(name: str):
+    hits = sorted((ROOT / "src/main/java/com/dddgn/alice").rglob(name))
+    if len(hits) != 1:
+        raise FileNotFoundError(f"alice/ 下 {name} 命中 {len(hits)} 个（应为 1）：{hits}")
+    return hits[0]
+
+
+ORCH_5B = _alice_class("CollectDropsTask.java")
 
 #: 判据 C② 的下限（实测 **16**，2026-09-28；判据是**下限**，不是这个数本身）。
 MIN_DELEGATIONS_5B = 3

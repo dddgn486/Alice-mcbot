@@ -1,5 +1,5 @@
 site,category,gated,enforced_by,why
-action/MenuSession.java,menu-protocol,no,task/TransferTask.java;task/craft/StationProvision.java;task/craft/MachineCycle.java;fixture/CraftFurnaceCheckTask.java;fixture/MenuProbeTask.java;job/craft/CraftJob.java,菜单点击原语层：本身不决定写谁。执法在**开着外来容器菜单**的每个调用方（所列文件都先过 consumeContainerWrite 才点）
+action/MenuSession.java,menu-protocol,no,transfer/TransferTask.java;task/craft/StationProvision.java;task/craft/MachineCycle.java;fixture/CraftFurnaceCheckTask.java;fixture/MenuProbeTask.java;job/craft/CraftJob.java,菜单点击原语层：本身不决定写谁。执法在**开着外来容器菜单**的每个调用方（所列文件都先过 consumeContainerWrite 才点）
 fixture/transfer/TransferFixture.java,primitive-isolation,no,,边界：夹具在隔离层直接驱动搬运原语（ChestBotTransferPrimitive），有意不过闸门——它的目的是验原语自身；生产路径见 TransferTask
 fixture/transfer/TransferSelectionFixture.java,primitive-isolation,no,,边界：同上（选择/参数校验夹具：摆箱子 + 驱动原语）
 gui/BotInventoryMenu.java,own-inventory,no,,bot 自己的背包菜单（不是世界容器，改它不算世界写入）
@@ -12,12 +12,12 @@ task/craft/MachineCycle.java,gated,yes,,机器闭环执行器（(c) 增量 2 / D
 fixture/MachineStationProbeTask.java,probe,no,,只读探针：开菜单读槽位事实后关闭，SUMMARY 自证 no_writes=true（S3 轮已机器验证）
 fixture/MenuProbeTask.java,gated,yes,,手动菜单探针（alice:menu_probe）：把物品从箱子里真搬出来这一下过闸门
 fixture/TransferCheckTask.java,scenario-seeding,no,,夹具搭场景（把两个箱子清空填好、清空 bot 背包）；真搬运走 TransferTask（已过闸）
-task/TransferTask.java,gated,yes,,生产传输：源箱→bot 与 bot→目标箱两条腿各消费一次容器写入
+transfer/TransferTask.java,gated,yes,,生产传输：源箱→bot 与 bot→目标箱两条腿各消费一次容器写入
 task/craft/CraftStation.java,menu-protocol,no,job/craft/CraftJob.java,只负责**开站点菜单**（MenuSession.open 在这里）；写不写由调用方决定：熔炼路径 CraftJob 已过闸，网格填充见 InventoryCraft 的边界条目
 task/craft/FurnaceStation.java,menu-protocol,no,fixture/CraftFurnaceCheckTask.java;job/craft/CraftJob.java,炉子写入原语（placeOne/takeAll，直接 menu.clicked）；执法在两个调用方——那里各相位/各分支过闸门
 task/craft/InventoryCraft.java,menu-protocol,no,,边界：网格/结果槽点击。合成格与随身背包**不是方块容器**⇒ 不吃容器写入预算；但**每次点击必须显式带理由**（R5-残 收口 2026-09-16：原语 `click` 形参强制 `WriteGrant`，理由须过 `WriteReason.menuWrite()`；调用点 CraftJob／TableCraft／CraftActionCheckTask／CraftStationCraftCheckTask 已交出 `CRAFT_GRID`）。仍存的真边界：结果槽 shift-click 在**开着方块容器菜单**时会把产物落进容器（见 CraftStationCraftCheckTask 行）
 task/craft/StationProvision.java,gated,yes,,装配/取回升级：容器写入的原始挂点（G5/A11 同源维度）；**原语层亦已编译期强制**（R5-残 收口 2026-09-16：`click` 形参必带 `WriteGrant`，本文件内统一用 `STATION_PROVISION`）
 task/craft/TableCraft.java,menu-protocol,no,,只开工作台菜单（合成格在菜单里，不是方块容器）；调用 `InventoryCraft.craft` 时已交出 `CRAFT_GRID` 授权（编译期强制，R5-残 收口）
-transfer/ChestBotTransferPrimitive.java,primitive-isolation,no,task/TransferTask.java,capability 直写原语（insertItem/extractItem）；生产路径 TransferTask 过闸后才调它，夹具路径见 TransferFixture 的边界条目
+transfer/ChestBotTransferPrimitive.java,primitive-isolation,no,transfer/TransferTask.java,capability 直写原语（insertItem/extractItem）；生产路径 TransferTask 过闸后才调它，夹具路径见 TransferFixture 的边界条目
 fixture/ContainerAccessProfileCheckTask.java,menu-protocol,no,,画像判据夹具：**只发一次开箱请求并立刻收尾**（不搬物品）；默认允许时可能真的打开菜单，但本步不读/写任何槽位（D-291）
 fixture/LossyWriteAccountedCheckTask.java,scenario-seeding,no,,`RC3` 自检夹具摆场景：直接给**新建的方块实体**塞物品（`ChestBlockEntity.setItem`）—— 它不经 Alice 的库存/容器写入路径（不点菜单、不搬玩家物品），目的是造出"内容拿不回来"的现场；生产路径见 TransferTask / StationProvision

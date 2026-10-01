@@ -19,6 +19,7 @@ import net.minecraft.world.phys.Vec3;
 import java.util.Set;
 import com.dddgn.alice.pathing.path.PathRetryRunner;
 import com.dddgn.alice.task.FixtureClaim;
+import com.dddgn.alice.transfer.CollectDropsTask;
 
 /**
  * J7 Step 1：**脚手架生命周期闭环**（§12.3 / §11-① 要素①–④）。
@@ -75,7 +76,7 @@ public final class ScaffoldLifecycleTask implements Task {
      * ① 就地扫尾的 tick 预算**按同一口径推导**（R3 / D-123）：本夹具扫尾不加高（信封为
      * `STANDABLE_ONLY`）⇒ 预算 = 固定开销 + 待收物数×单价。原先写死 200。
      */
-    private int sweepBudgetTicks = com.dddgn.alice.task.CollectDropsTask
+    private int sweepBudgetTicks = com.dddgn.alice.transfer.CollectDropsTask
             .suggestedSweepTicks(1, null);
     /** 高处目标的掉落物落点附近（收尾收集的锚点）。 */
     private static final BlockPos DROP_ANCHOR = new BlockPos(40, 64, 46);
@@ -322,7 +323,7 @@ public final class ScaffoldLifecycleTask implements Task {
      */
     private Task.Status sweepUp() {
         if (collector == null) {
-            sweepBudgetTicks = com.dddgn.alice.task.CollectDropsTask.suggestedSweepTicks(
+            sweepBudgetTicks = com.dddgn.alice.transfer.CollectDropsTask.suggestedSweepTicks(
                     scope.liveDrops().size(), null);
             collector = new CollectDropsTask(bot, TARGET, scope, java.util.List.of(), false,
                     sweepBudgetTicks, null);

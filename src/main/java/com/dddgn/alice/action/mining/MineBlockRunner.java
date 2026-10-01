@@ -425,7 +425,7 @@ public final class MineBlockRunner {
      * {@code new AABB(0, 0, 0, 1, 1.1, 1).move(blockPos)} —— Y 方向多出的 `0.1` 是为了罩住
      * "正落进这一格、AABB 还没对齐"的实体（原版 `FallingBlockEntity` 的碰撞箱约 0.98³）。
      *
-     * <p>⚠️ 与 `road/RoadBuilder:136`、`task/RoadBuildTask:234` 那两处**刻意不合并**：那两处的盒是
+     * <p>⚠️ 与 `road/RoadBuilder:136`、`road/RoadBuildTask:234` 那两处**刻意不合并**：那两处的盒是
      * "单元 ±1.5 格 × 净空高度"的**区域**扫描（造路要等整段稳定），本条是**单格**判据（挖掘期暂停）。
      * 合成一个反而要加一个"是单格还是区域"的参数 —— 那才是同一判据两个出处。
      */

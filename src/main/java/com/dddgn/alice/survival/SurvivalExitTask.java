@@ -1,9 +1,10 @@
-package com.dddgn.alice.task;
+package com.dddgn.alice.survival;
 
 import com.dddgn.alice.bot.BotPlayer;
 import com.dddgn.alice.log.BotLog;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.FluidTags;
+import com.dddgn.alice.task.WalkToTask;
 
 /**
  * **维生逃生任务**（S-1 / P1-C）：走到维生系统给出的最近安全落点。

@@ -18,7 +18,7 @@ import com.dddgn.alice.pathing.calc.PathRequest;
 import com.dddgn.alice.pathing.calc.PathingStats;
 import com.dddgn.alice.pathing.calc.PlanningStatus;
 import com.dddgn.alice.perception.ScopeBuffer;
-import com.dddgn.alice.task.CollectDropsTask;
+import com.dddgn.alice.transfer.CollectDropsTask;
 import com.dddgn.alice.task.MineTask;
 import com.dddgn.alice.pathing.path.PathRetryRunner;
 import com.dddgn.alice.task.PlaceTask;

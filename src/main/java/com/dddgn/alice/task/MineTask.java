@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import com.dddgn.alice.task.mining.GainStepRunner;
+import com.dddgn.alice.transfer.CollectDropsTask;
 
 /**
  * 单目标挖掘编排任务（D-071，D-067 批次 4 第 2 步）。

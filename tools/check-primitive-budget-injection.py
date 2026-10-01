@@ -72,6 +72,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 TASK_DIR = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice" / "task"
+#: ⭐ 「全仓额度读数」的扫描根（2026-10-01 波 4 加；与上面的 `task/` 顶层人口对账**分工不同**）。
+ALICE = ROOT / "src" / "main" / "java" / "com" / "dddgn" / "alice"
 
 #: 额度**制造**（"调用方不说也能用"的那类入口只可能从这里产生）。
 MANUFACTURE_RE = re.compile(
@@ -313,12 +315,18 @@ def main() -> int:
         return 1
 
     files = sorted(TASK_DIR.glob("*.java"))
-    quota_ctors: dict[str, int] = {}
     for path in files:
         rel = path.relative_to(ROOT / "src" / "main" / "java").as_posix()
-        text = path.read_text(encoding="utf-8")
-        problems.extend(scan_source(text, rel))
-        count = count_quota_ctors(text)
+        problems.extend(scan_source(path.read_text(encoding="utf-8"), rel))
+
+    # ⭐ 2026-10-01 波 4（`D-569` R3「先搬优先」）：`MIN_QUOTA_CTORS` 的口径逐字是「带额度形参的
+    # `public` 构造器**全仓** ≥ N」，而上面的 `scan_source` 只管 `task/` 顶层（那是 `P2` 单向阀的
+    # 人口对账，另一个用途）。二者早期被**同一个循环**顺带算掉 ⇒ `CollectDropsTask` 一搬出 `task/`
+    # 顶层，**全仓**读数就凭空从 6 掉到 4（**假红**：额度注入面一寸没少）。
+    # ⇒ 拆成两个循环：**人口对账**看 `task/` 顶层（不变），**全仓额度读数**看 `alice/` 全树。
+    quota_ctors: dict[str, int] = {}
+    for path in sorted(ALICE.rglob("*.java")):
+        count = count_quota_ctors(path.read_text(encoding="utf-8"))
         if count:
             quota_ctors[path.name] = count
 
